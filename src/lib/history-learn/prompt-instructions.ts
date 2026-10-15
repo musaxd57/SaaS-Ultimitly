@@ -15,8 +15,12 @@ import { checkInstruction } from "./instruction-gate";
 
 export const PROMPT_INSTRUCTIONS_MAX_CHARS = 1_500;
 
+/**
+ * İki anahtar BİRLİKTE (Opus 10-15 F8): talimatlar yalnız "Geçmişten öğren" açıkken yönetilebilir (listelenir / kaldırılır); o kapalıyken
+ * isteme giren talimat, ekranda görünmeyen ve kaldırılamayan bir yönlendirme olurdu.
+ */
 export function propertyInstructionsPromptEnabled(): boolean {
-  return process.env.PROPERTY_INSTRUCTIONS_PROMPT_ENABLED === "1";
+  return process.env.PROPERTY_INSTRUCTIONS_PROMPT_ENABLED === "1" && process.env.HISTORY_LEARN_ENABLED === "1";
 }
 
 /** Saf: kapıdan geçen talimatlar, toplam tavana kadar (tavanı aşan talimat BÖLÜNMEZ, atlanır). */

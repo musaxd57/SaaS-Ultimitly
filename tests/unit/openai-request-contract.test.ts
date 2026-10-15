@@ -68,6 +68,8 @@ describe("OpenAI istek sözleşmesi — çağrı yerleri", () => {
     // artarsa (örn. ana yanıt taşınırsa) bu liste bilinçli güncellenir.
     // 09-24: anlam katmanı (bekçi + anlama) ortak sözleşmeden geçer — anahtar/sağlayıcı eşleşmesi
     // `semantic/config.ts`, gövde kuralları `semantic/structured-call.ts` (tek ağ kapısı).
+    // 10-15: "Geçmişten öğren" çıkarımı (`history-learn/extract.ts`) yalnız adres + anahtar eşleşmesini alır; ağ çağrısı yine
+    // `callStructuredJson`dan geçer (ayrı fetch yok).
     const importers = sourceFiles(path.join(ROOT, "src"))
       .filter((f) => /from "(@\/lib\/ai\/|\.\/)openai-compat"/.test(readFileSync(f, "utf8")))
       .map((f) => path.relative(ROOT, f).replace(/\\/g, "/"))
@@ -75,6 +77,7 @@ describe("OpenAI istek sözleşmesi — çağrı yerleri", () => {
     expect(importers).toEqual([
       "src/lib/ai/semantic/config.ts",
       "src/lib/ai/semantic/structured-call.ts",
+      "src/lib/history-learn/extract.ts",
       "src/lib/shadow-ai.ts",
       "src/lib/supply-ai.ts",
     ]);

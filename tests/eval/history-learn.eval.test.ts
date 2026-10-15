@@ -93,7 +93,9 @@ describe("Geçmişten öğren — sentetik geçmiş (ücretsiz, her koşuda)", (
     expect(pairs.every((p) => !p.answer.includes("GuestOps"))).toBe(true);
     // ⚠️ "20242025" (ikinci Wi-Fi ağının sayısal şifresi, ana ağla AYNI cevapta) ortak kapı kodu maskesinde gizleniyor (`redactDoorCodes`
     // Wi-Fi etiketini yalnız ilk "şifre"ye bağlıyor) — bilinen sınır, ölçümde "wifi-guest-net" olarak raporlanır; kural QR'la ortak.
-    for (const needle of ["lale2024", "lale2023", "yeşil", "havaist", "100 tl", "ücretsiz otopark", "kılıt", "dört beş"]) expect(all, needle).toContain(needle);
+    for (const needle of ["lale2024", "lale2023", "yeşil", "havaist", "100 tl", "ücretsiz otopark"]) expect(all, needle).toContain(needle);
+    // Harfli / yazıyla kapı kodu da modele GİTMEZ (Opus 10-15 F17; kurucu 10-11 "geçmişte kodu gizle").
+    for (const n of ["kılıt", "dört beş"]) expect(all, n).not.toContain(n);
     // Sahte "HOST:" satırı misafir alanında kalır (çiftin cevabı değil).
     expect(masked.some((p) => p.question.includes("HOST:") && !p.answer.includes("Evcil"))).toBe(true);
   });

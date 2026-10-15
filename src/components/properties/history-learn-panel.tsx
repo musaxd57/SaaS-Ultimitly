@@ -10,21 +10,28 @@ import { KB_CATEGORY } from "@/lib/constants";
 import { toast } from "@/lib/toast";
 
 /**
- * GEÇMİŞTEN ÖĞREN (migration 65; anahtar `HISTORY_LEARN_ENABLED`). Ev sahibinin geçmiş cevaplarından bilgi tabanı TASLAĞI + mülke özgü
- * talimatlar. Taslak ev sahibi onaylamadan yapay zekâya GİTMEZ. İşaretli / çelişkili taslakta "Kontrol ettim" işaretlenmeden Onayla
- * kapalıdır (sunucu da `confirmFlags` ister). Müşteri metni sade (kurucu 09-23): ne olduğu + ne yapılacağı.
+ * GEÇMİŞTEN ÖĞREN (migration 65; anahtar `HISTORY_LEARN_ENABLED`). Ev sahibinin geçmiş cevaplarından bilgi tabanı TASLAĞI (müşteri
+ * özelliği) + daire için HAZIR yapay zekâ tercihleri (kurucu 10-15: "müşteri hazır seçeneklerden seçsin"). Cevap karşılaştırma ve SERBEST
+ * talimat şimdilik yalnız operatör (`canCompare` / `canInstruct` sunucudan).
+ * Taslak ev sahibi onaylamadan yapay zekâya GİTMEZ. İşaretli / çelişkili taslakta "Kontrol ettim" işaretlenmeden Onayla kapalıdır (sunucu
+ * da `confirmFlags` ister). Müşteri metni sade (kurucu 09-23): ne olduğu + ne yapılacağı.
  */
 type Flag = "payment" | "needs_edit" | "one_off" | "ungrounded" | "guest_name" | "sensitive" | "door_mention" | "outdated";
 export const FLAG_TEXT: Record<Flag, string> = {
   payment: "Ödeme yöntemi geçiyor. Kontrol edin.",
   needs_edit: "Gizlenmiş bir bilgi var (telefon, kod ya da ad). Metni düzenleyin.",
-  one_off: "Tek seferlik bir karar gibi görünüyor (indirim, geç çıkış vb.).",
+  one_off: "Tek seferlik bir karar gibi görünüyor (indirim, geç çıkış vb.). Herkes için geçerliyse onaylayın, değilse reddedin.",
   ungrounded: "Bir değer cevaplarınızda birebir bulunamadı. Doğruluğunu kontrol edin.",
-  guest_name: "Bir misafir adı geçiyor olabilir.",
-  sensitive: "Kişisel bilgi (telefon, e-posta, IBAN) geçiyor olabilir.",
-  door_mention: "Kapı ya da kutu kodundan söz ediyor. Kodun kendisinin yazmadığından emin olun.",
-  outdated: "Daha yeni bir cevabınız farklı. Bu bilgi eskimiş olabilir.",
+  guest_name: "Bir misafir adı geçiyor olabilir. Adı metinden çıkarın.",
+  sensitive: "Kişisel bilgi (telefon, e-posta, IBAN) geçiyor olabilir. Gerekmiyorsa metinden çıkarın.",
+  door_mention: "Kapı ya da anahtar kutusu kodundan söz ediyor. Kodun kendisinin yazmadığından emin olun.",
+  outdated: "Daha yeni bir cevabınız farklı. Bu bilgi eskimişse reddedin.",
 };
+
+/** Hata gövdesinden gösterilecek metin: alan mesajı ÖNCE (`badRequest` genel "Doğrulama hatası" + `fields` döner). */
+function errorText(body: { error?: string; fields?: Record<string, string> }, fallback: string): string {
+  return Object.values(body.fields ?? {})[0] ?? body.error ?? fallback;
+}
 
 interface Draft {
   id: string;
@@ -50,12 +57,19 @@ interface Instruction {
   id: string;
   content: string;
 }
+interface Preset {
+  key: string;
+  label: string;
+  description: string;
+  on: boolean;
+}
 interface Comparison {
   id: string;
   question: string | null;
   hostAnswer: string | null;
   aiAnswer: string | null;
   wouldAutoSend: boolean | null;
+  closing?: boolean;
   verdict: string | null;
   note: string | null;
 }
@@ -87,7 +101,7 @@ function ComparisonCard({ c, onDone }: { c: Comparison; onDone: () => void }) {
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string; fields?: Record<string, string> };
-        setError(body.error ?? Object.values(body.fields ?? {})[0] ?? "Kaydedilemedi.");
+        setError(errorText(body, "Kaydedilemedi."));
         return;
       }
       toast.success(apply ? "Talimat eklendi; bilgi tabanı taslağı onayınızı bekliyor." : "Kaydedildi.");
@@ -111,12 +125,21 @@ function ComparisonCard({ c, onDone }: { c: Comparison; onDone: () => void }) {
             Yapay zekâ bugün böyle cevaplardı{" "}
             {c.wouldAutoSend === true ? "(kendiliğinden gönderirdi)" : c.wouldAutoSend === false ? "(size bırakırdı)" : ""}
           </p>
-          <p className="whitespace-pre-wrap text-sm">{c.aiAnswer ?? "Cevap üretilemedi."}</p>
+          <p className="whitespace-pre-wrap text-sm">
+            {c.closing ? "Cevap gerekmez (misafir konuşmayı kapatıyor)." : (c.aiAnswer ?? "Cevap üretilemedi.")}
+          </p>
         </div>
       </div>
       <div className="flex flex-wrap gap-2">
         {VERDICTS.map((v) => (
-          <Button key={v.value} size="sm" variant={verdict === v.value ? "default" : "outline"} onClick={() => setVerdict(v.value)} disabled={busy}>
+          <Button
+            key={v.value}
+            size="sm"
+            variant={verdict === v.value ? "default" : "outline"}
+            aria-pressed={verdict === v.value}
+            onClick={() => setVerdict(v.value)}
+            disabled={busy}
+          >
             {v.label}
           </Button>
         ))}
@@ -126,11 +149,15 @@ function ComparisonCard({ c, onDone }: { c: Comparison; onDone: () => void }) {
         onChange={(e) => setNote(e.target.value)}
         maxLength={500}
         rows={2}
-        placeholder="Yapay zekâ böyle bir soruda nasıl davranmalı? Örnek: Otopark sorulursa önce sokakta ücretsiz yer olduğunu söylesin."
+        placeholder="Yapay zekâ böyle bir soruda nasıl davranmalı? Örnek: Cevabı kısa tutsun ve otopark sorusunda önce binanın arkasındaki yeri anlatsın."
         aria-label="Not"
         disabled={busy}
       />
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      {error ? (
+        <p className="text-xs text-destructive" role="alert">
+          {error}
+        </p>
+      ) : null}
       <div className="flex gap-2">
         <Button size="sm" variant="outline" onClick={() => save(false)} disabled={busy || !verdict}>
           Kaydet
@@ -178,7 +205,9 @@ function DraftCard({ draft, onDone }: { draft: Draft; onDone: () => void }) {
           setServerFlags((body.flags ?? []).filter((f): f is Flag => f in FLAG_TEXT));
           setChecked(false);
         }
-        setError(body.error ?? Object.values(body.fields ?? {})[0] ?? "İşlem yapılamadı. Tekrar deneyin.");
+        setError(errorText(body, "İşlem yapılamadı. Tekrar deneyin."));
+        // Taslak başka sekmede işlendi / silindi → liste yenilenir, ölü kart kalmaz.
+        if (res.status === 404 || (res.status === 409 && !body.needsConfirm)) onDone();
         return;
       }
       toast.success(action === "approve" ? "Bilgi tabanına eklendi." : "Taslak reddedildi.");
@@ -217,7 +246,11 @@ function DraftCard({ draft, onDone }: { draft: Draft; onDone: () => void }) {
           Kontrol ettim, bilgi doğru.
         </label>
       ) : null}
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      {error ? (
+        <p className="text-xs text-destructive" role="alert">
+          {error}
+        </p>
+      ) : null}
       <div className="flex gap-2">
         <Button size="sm" onClick={() => act("approve")} disabled={busy || (needsCheck && !checked)}>
           {busy ? <Loader2 className="animate-spin" /> : null} Onayla
@@ -230,43 +263,90 @@ function DraftCard({ draft, onDone }: { draft: Draft; onDone: () => void }) {
   );
 }
 
-export function HistoryLearnPanel({ propertyId }: { propertyId: string }) {
+export function HistoryLearnPanel({
+  propertyId,
+  canCompare = false,
+  canInstruct = false,
+  instructionsActive = false,
+}: {
+  propertyId: string;
+  /** Cevap karşılaştırma — şimdilik yalnız operatör (sunucu `historyCompareAllowed`). */
+  canCompare?: boolean;
+  /** Daire talimatları — şimdilik yalnız operatör (sunucu `propertyInstructionsAllowed`). */
+  canInstruct?: boolean;
+  /** Talimatlar cevap istemine giriyor mu (`PROPERTY_INSTRUCTIONS_PROMPT_ENABLED`). Kapalıyken ekranda söylenir. */
+  instructionsActive?: boolean;
+}) {
   const [runs, setRuns] = useState<Run[]>([]);
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [instructions, setInstructions] = useState<Instruction[]>([]);
+  const [presets, setPresets] = useState<Preset[]>([]);
+  const [presetBusy, setPresetBusy] = useState<string | null>(null);
   const [comparisons, setComparisons] = useState<Comparison[]>([]);
   const [newInstruction, setNewInstruction] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Sayfadan çıkınca yoklama durur; aynı anda TEK yoklama zinciri (çift başlatma ve geç dönen istek yeni zamanlayıcı kurmaz).
+  const alive = useRef(true);
+  const polling = useRef(false);
+  // Tercih değişince artar: o anda yolda olan (değişiklikten ÖNCE başlamış) okuma kutucukları eski hâline döndürmez.
+  const presetEpoch = useRef(0);
 
   const load = useCallback(async () => {
+    const epoch = presetEpoch.current;
     const [a, b] = await Promise.all([
       fetch(`/api/properties/${propertyId}/history-learn`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      // Hazır seçenekler herkese (müşteri dahil); serbest metin listesi sunucuda yalnız operatöre doldurulur.
       fetch(`/api/properties/${propertyId}/instructions`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
     ]);
+    if (!alive.current) return undefined;
     if (a) {
       setRuns(a.runs);
       setDrafts(a.drafts);
       setComparisons(a.comparisons ?? []);
     }
-    if (b) setInstructions(b.instructions);
-    return a?.runs?.[0] as Run | undefined;
+    if (b) {
+      setInstructions(b.instructions ?? []);
+      if (epoch === presetEpoch.current) setPresets(b.presets ?? []);
+    }
+    return { latest: a?.runs?.[0] as Run | undefined, failed: !a };
   }, [propertyId]);
 
   const poll = useCallback(async () => {
-    const latest = await load();
-    if (latest && (latest.status === "queued" || latest.status === "running")) timer.current = setTimeout(poll, 4000);
+    if (polling.current) return;
+    polling.current = true;
+    try {
+      for (let failures = 0; alive.current; ) {
+        const r = await load();
+        if (!r) return;
+        failures = r.failed ? failures + 1 : 0;
+        const running = r.latest && (r.latest.status === "queued" || r.latest.status === "running");
+        // Üst üste 3 okuma hatası → dur ve söyle (sonsuz döngü yok); iş bitti → dur.
+        if (failures >= 3) {
+          setError("Durum okunamadı. Sayfayı yenileyin.");
+          return;
+        }
+        if (!running && !r.failed) return;
+        await new Promise<void>((resolve) => {
+          timer.current = setTimeout(resolve, 4000);
+        });
+      }
+    } finally {
+      polling.current = false;
+    }
   }, [load]);
 
   useEffect(() => {
+    alive.current = true;
     void poll();
     return () => {
+      alive.current = false;
       if (timer.current) clearTimeout(timer.current);
     };
   }, [poll]);
 
-  async function start(kind: "learn" | "compare" = "learn") {
+  async function start(kind: "learn" | "compare") {
     setBusy(true);
     setError(null);
     try {
@@ -276,11 +356,11 @@ export function HistoryLearnPanel({ propertyId }: { propertyId: string }) {
         body: JSON.stringify({ questions: 300 }),
       });
       if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        setError(body.error ?? "Başlatılamadı. Tekrar deneyin.");
+        const body = (await res.json().catch(() => ({}))) as { error?: string; fields?: Record<string, string> };
+        setError(errorText(body, "Başlatılamadı. Tekrar deneyin."));
         return;
       }
-      await poll();
+      void poll();
     } finally {
       setBusy(false);
     }
@@ -295,7 +375,7 @@ export function HistoryLearnPanel({ propertyId }: { propertyId: string }) {
     });
     if (!res.ok) {
       const body = (await res.json().catch(() => ({}))) as { error?: string; fields?: Record<string, string> };
-      setError(body.error ?? Object.values(body.fields ?? {})[0] ?? "Kaydedilemedi.");
+      setError(errorText(body, "Kaydedilemedi."));
       return;
     }
     setNewInstruction("");
@@ -303,9 +383,35 @@ export function HistoryLearnPanel({ propertyId }: { propertyId: string }) {
     void load();
   }
 
+  async function togglePreset(key: string, on: boolean) {
+    setPresetBusy(key);
+    setError(null);
+    presetEpoch.current += 1;
+    // İyimser güncelleme; sunucunun döndürdüğü güncel liste ekranı eşitler, hata (ağ dahil) olursa geri alınır.
+    setPresets((ps) => ps.map((p) => (p.key === key ? { ...p, on } : p)));
+    try {
+      const res = await fetch(`/api/properties/${propertyId}/instructions/presets`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key, on }),
+      });
+      const body = res.ok ? ((await res.json().catch(() => null)) as { presets?: Preset[] } | null) : null;
+      if (!res.ok) throw new Error(String(res.status));
+      presetEpoch.current += 1;
+      if (body?.presets) setPresets(body.presets);
+    } catch {
+      presetEpoch.current += 1;
+      setPresets((ps) => ps.map((p) => (p.key === key ? { ...p, on: !on } : p)));
+      setError("Tercih kaydedilemedi. Tekrar deneyin.");
+    } finally {
+      setPresetBusy(null);
+    }
+  }
+
   async function removeInstruction(id: string) {
     const res = await fetch(`/api/properties/${propertyId}/instructions/${id}`, { method: "DELETE" });
     if (res.ok) void load();
+    else setError("Talimat kaldırılamadı. Tekrar deneyin.");
   }
 
   const latest = runs[0];
@@ -321,11 +427,17 @@ export function HistoryLearnPanel({ propertyId }: { propertyId: string }) {
           <Button size="sm" onClick={() => start("learn")} disabled={busy || running}>
             {busy || running ? <Loader2 className="animate-spin" /> : null} Geçmişi oku
           </Button>
-          <Button size="sm" variant="outline" onClick={() => start("compare")} disabled={busy || running}>
-            Cevapları karşılaştır
-          </Button>
+          {canCompare ? (
+            <Button size="sm" variant="outline" onClick={() => start("compare")} disabled={busy || running}>
+              Cevapları karşılaştır
+            </Button>
+          ) : null}
         </div>
-        {runLine(latest) ? <p className="text-xs text-muted-foreground">{runLine(latest)}</p> : null}
+        {runLine(latest) ? (
+          <p className="text-xs text-muted-foreground" role="status" aria-live="polite">
+            {runLine(latest)}
+          </p>
+        ) : null}
       </div>
       {drafts.length ? (
         <div className="space-y-2">
@@ -334,7 +446,7 @@ export function HistoryLearnPanel({ propertyId }: { propertyId: string }) {
           ))}
         </div>
       ) : null}
-      {comparisons.length ? (
+      {canCompare && comparisons.length ? (
         <div className="space-y-2">
           <p className="text-sm font-medium">Cevap karşılaştırma</p>
           <p className="text-xs text-muted-foreground">Geçmiş sorulara bugünkü yapay zekânın cevabı. Bu cevaplar misafire gönderilmedi.</p>
@@ -343,30 +455,66 @@ export function HistoryLearnPanel({ propertyId }: { propertyId: string }) {
           ))}
         </div>
       ) : null}
-      <div className="space-y-2">
-        <p className="text-sm font-medium">Bu daire için talimatlar</p>
-        <p className="text-xs text-muted-foreground">Yapay zekânın bu dairede nasıl cevap vermesini istediğinizi yazın. Güvenlik kuralları her zaman önce gelir.</p>
-        {instructions.map((i) => (
-          <div key={i.id} className="flex items-start justify-between gap-2 text-sm">
-            <span>{i.content}</span>
-            <Button size="sm" variant="ghost" onClick={() => removeInstruction(i.id)}>
-              Kaldır
-            </Button>
-          </div>
-        ))}
-        <Textarea
-          value={newInstruction}
-          onChange={(e) => setNewInstruction(e.target.value)}
-          maxLength={500}
-          rows={2}
-          placeholder="Örnek: Erken giriş sorulursa temizliğin genelde 13:00'te bittiğini söyle."
-          aria-label="Yeni talimat"
-        />
-        <Button size="sm" variant="outline" onClick={addInstruction} disabled={!newInstruction.trim()}>
-          Talimat ekle
-        </Button>
-      </div>
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      {presets.length ? (
+        <fieldset className="space-y-2" data-testid="instruction-presets">
+          <legend className="text-sm font-medium">Bu daire için yapay zekâ tercihleri</legend>
+          <p className="text-xs text-muted-foreground">Yapay zekânın bu dairede nasıl yazacağını seçin. Güvenlik kuralları her zaman önce gelir.</p>
+          {/* Müşteri tercihleri yalnız cevaba uygulanırken görür (sunucu `presetsAvailable`); bu uyarı yalnız operatöre. */}
+          {canInstruct && !instructionsActive ? (
+            <p className="text-xs text-amber-800 dark:text-amber-300">Tercihler şu an cevaplara uygulanmıyor (anahtar kapalı).</p>
+          ) : null}
+          {presets.map((p) => (
+            <label key={p.key} className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={p.on}
+                disabled={presetBusy === p.key}
+                onChange={(e) => togglePreset(p.key, e.target.checked)}
+                aria-describedby={`preset-${p.key}-d`}
+              />
+              <span>
+                <span className="font-medium">{p.label}</span>
+                <span id={`preset-${p.key}-d`} className="block text-xs text-muted-foreground">
+                  {p.description}
+                </span>
+              </span>
+            </label>
+          ))}
+        </fieldset>
+      ) : null}
+      {canInstruct ? (
+        <div className="space-y-2">
+          <p className="text-sm font-medium">Serbest talimat (yalnız operatör)</p>
+          <p className="text-xs text-muted-foreground">
+            Yapay zekânın bu dairede nasıl cevap vermesini istediğinizi yazın. Güvenlik kuralları her zaman önce gelir.
+          </p>
+          {instructions.map((i) => (
+            <div key={i.id} className="flex items-start justify-between gap-2 text-sm">
+              <span>{i.content}</span>
+              <Button size="sm" variant="ghost" onClick={() => removeInstruction(i.id)} aria-label={`Talimatı kaldır: ${i.content.slice(0, 40)}`}>
+                Kaldır
+              </Button>
+            </div>
+          ))}
+          <Textarea
+            value={newInstruction}
+            onChange={(e) => setNewInstruction(e.target.value)}
+            maxLength={500}
+            rows={2}
+            placeholder="Örnek: Cevapları kısa tutsun, emoji kullanmasın."
+            aria-label="Yeni talimat"
+          />
+          <Button size="sm" variant="outline" onClick={addInstruction} disabled={!newInstruction.trim()}>
+            Talimat ekle
+          </Button>
+        </div>
+      ) : null}
+      {error ? (
+        <p className="text-xs text-destructive" role="alert">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }

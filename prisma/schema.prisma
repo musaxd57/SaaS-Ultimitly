@@ -1753,8 +1753,10 @@ model PropertyInstruction {
   organizationId String
   propertyId     String
   content        String
-  /// host_note | history_learn (app-enforced)
+  /// host_note | history_learn | preset (app-enforced)
   source         String    @default("host_note")
+  /// Hazır seçenek anahtarı (`instruction-presets.ts`); serbest metinde NULL. Müşteri yalnız hazır seçenek açar / kapatır (kurucu 10-15).
+  presetKey      String?
   /// active | retired (app-enforced)
   status         String    @default("active")
   createdById    String?

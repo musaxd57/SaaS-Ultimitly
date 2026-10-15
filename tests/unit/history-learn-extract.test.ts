@@ -114,6 +114,47 @@ describe("Geçmişten öğren — maske", () => {
     expect(maskForLearning("Merhaba Mehmet Bey, Ayşe Hanım", ["Mehmet Kaya", "Ayşe"])).toBe("Merhaba {isim} Bey, {isim} Hanım");
   });
 
+  it("🚨 Opus 10-15: rakam OLMAYAN kapı kodu gizlenir (harfli, işaretli, yazıyla, keybox); düz anlatım ve Wi-Fi korunur", () => {
+    expect(maskForLearning("Kapı şifresi KILIT, kutu kapının sağında.", null)).toBe("Kapı şifresi (kod gizlendi), kutu kapının sağında.");
+    expect(maskForLearning("Kapı şifresi Lale#7 de.", null)).toBe("Kapı şifresi (kod gizlendi) de.");
+    expect(maskForLearning("Kutu kodu dört beş dokuz sıfır.", null)).toBe("Kutu kodu (kod gizlendi).");
+    expect(maskForLearning("Keybox: A1B2 ile açılır", null)).toContain("(kod gizlendi)");
+    expect(maskForLearning("Kutu kodu giriş günü sabah mesajla gönderilir.", null)).toBe("Kutu kodu giriş günü sabah mesajla gönderilir.");
+    expect(maskForLearning("Kapı kodunu giriş günü SMS ile gönderiyoruz", null)).toBe("Kapı kodunu giriş günü SMS ile gönderiyoruz");
+    expect(maskForLearning("Wi-Fi şifresi lale2024", null)).toBe("Wi-Fi şifresi lale2024");
+  });
+
+  it("🚨 Opus 10-15 F10/F18: tireli ve aksanlı ad, IBAN, TC kimlik, 14–15 haneli yabancı telefon", () => {
+    expect(maskForLearning("Merhaba Jean-Pierre, hoş geldin", "Jean-Pierre Martin")).toBe("Merhaba {isim}, hoş geldin");
+    expect(maskForLearning("Merhaba Anne-Marie", "Anne-Marie")).toBe("Merhaba {isim}");
+    expect(maskForLearning("Merhaba Jose", "José Garcia")).toBe("Merhaba {isim}");
+    expect(maskForLearning("IBAN TR12 0006 1005 1978 6457 8413 26 hesabına", null)).toBe("IBAN [IBAN] hesabına");
+    // TC kontrol haneli: geçerli kimlik gizlenir; aynı uzunluktaki rezervasyon no / Wi-Fi anahtarı korunur (Haiku 10-15).
+    expect(maskForLearning("TC 10000000146 olan", null)).toBe("TC [ID] olan");
+    expect(maskForLearning("Rezervasyon no 25810345672", null)).toBe("Rezervasyon no 25810345672");
+    expect(maskForLearning("iban tr33 0006 1005 1978 6457 8413 26", null)).toBe("iban [IBAN]");
+    expect(maskForLearning("Ara: 0049 1512 3456789", null)).toBe("Ara: [PHONE]");
+    expect(() => maskForLearning("x", ["(((", "[a-", "\\"])).not.toThrow();
+  });
+
+  it("Haiku 10-15: büyük harfli cümle düz anlatım sayılır; tek hane gizlenmez; büyük harfli Türkçe etiket ve tek sözcüklü parola gizlenir", () => {
+    expect(maskForLearning("KAPI KODU GİRİŞ GÜNÜ SMS İLE GÖNDERİLİR", null)).toBe("KAPI KODU GİRİŞ GÜNÜ SMS İLE GÖNDERİLİR");
+    expect(maskForLearning("Kapı kodu 2 gün önce gelir mi?", null)).toBe("Kapı kodu 2 gün önce gelir mi?");
+    expect(maskForLearning("GİRİŞ KODU MAVİ", null)).toBe("GİRİŞ KODU (kod gizlendi)");
+    expect(maskForLearning("Kapı şifresi Lale.", null)).toBe("Kapı şifresi (kod gizlendi).");
+    expect(maskForLearning("Kapı şifresi Airbnb mesajında", null)).toBe("Kapı şifresi Airbnb mesajında");
+    expect(maskForLearning("kutu kodu yirmi üç dört", null)).toBe("kutu kodu (kod gizlendi)");
+    expect(maskForLearning("kapı kodu dört-beş-altı-yedi", null)).toBe("kapı kodu (kod gizlendi)");
+  });
+
+  it("kapı kodu maskesi doğrusal (50.000 karakter)", () => {
+    for (const s of ["kapı kodu " + "A".repeat(50_000), "kapı kodu " + "a ".repeat(25_000), "kapı kodu ".repeat(5_000)]) {
+      const t0 = Date.now();
+      maskForLearning(s, null);
+      expect(Date.now() - t0).toBeLessThan(500);
+    }
+  });
+
   it("🚨 maske ÖNCE, kırpma SONRA: sınırda bölünen telefon maskeden kaçmaz", () => {
     // Telefon sınırda bölünür: kırpma ÖNCE olsaydı "+90 532 111 2" (eksik, maskeye uymayan) parça açıkta kalırdı (mutasyon M4).
     const pad = "x ".repeat((LEARN_SIDE_MAX_CHARS - 12) / 2);

@@ -37,9 +37,9 @@ const FENCE_BRACKETS = /[<>«»≪≫＜＞]/gu;
  * boşluk / tire / nokta ayırıcı, tek açılı, «» / ≪≫ / tam genişlik parantez. Genel "<<sözcük>>" DEĞİL (Fransızca tırnak).
  */
 const OUR_FENCE_NAME =
-  /[<«≪＜]{1,2}\s*((?:guest[\s_.\-]*message|history|kb|offer|style|samples)[\s_.\-]*(?:start|end))\s*[>»≫＞]{1,2}/giu;
+  /[<«≪＜]{1,2}\s*((?:guest[\s_.\-—–]*message|history|kb|offer|style|samples|host[\s_.\-—–]*instructions)[\s_.\-—–]*(?:start|end))\s*[>»≫＞]{1,2}/giu;
 const OUR_FENCE_NAME_TEST =
-  /[<«≪＜]{1,2}\s*(?:guest[\s_.\-]*message|history|kb|offer|style|samples)[\s_.\-]*(?:start|end)\s*[>»≫＞]{1,2}/iu;
+  /[<«≪＜]{1,2}\s*(?:guest[\s_.\-—–]*message|history|kb|offer|style|samples|host[\s_.\-—–]*instructions)[\s_.\-—–]*(?:start|end)\s*[>»≫＞]{1,2}/iu;
 
 /** İsteme giren bilgi tabanı satırı (paketleyicinin yazdığı AYNEN). */
 export function kbLine(k: { category: string; title: string; content: string }): string {

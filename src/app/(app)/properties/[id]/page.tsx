@@ -40,7 +40,8 @@ import { loadEarlyCheckinRule } from "@/lib/early-checkin/rules";
 import { HouseRulesForm } from "@/components/properties/house-rules-form";
 import { houseRulesCardEnabled } from "@/lib/house-rules/flag";
 import { HistoryLearnPanel } from "@/components/properties/history-learn-panel";
-import { historyLearnEnabled } from "@/lib/history-learn/service";
+import { historyCompareAllowed, historyLearnEnabled, propertyInstructionsAllowed } from "@/lib/history-learn/service";
+import { propertyInstructionsPromptEnabled } from "@/lib/history-learn/prompt-instructions";
 import { houseRuleFormValues, loadHouseRules } from "@/lib/house-rules/store";
 import { apartmentResolvable, usesApartmentToken } from "@/lib/kb-placeholders";
 import { GUEST_DELIVERABLE_KB_WHERE } from "@/lib/kb-review";
@@ -454,7 +455,12 @@ export default async function PropertyDetailPage({
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <HistoryLearnPanel propertyId={property.id} />
+                <HistoryLearnPanel
+                  propertyId={property.id}
+                  canCompare={historyCompareAllowed(session)}
+                  canInstruct={propertyInstructionsAllowed(session)}
+                  instructionsActive={propertyInstructionsPromptEnabled()}
+                />
               </CardContent>
             </Card>
           ) : null}

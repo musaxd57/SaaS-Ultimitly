@@ -74,6 +74,8 @@ describe("F2 — mülk talimatı üç cevap yoluna bağlı", () => {
     vi.stubEnv("AUTO_REPLY_ENABLED", "1");
     vi.stubEnv("GUEST_CHAT_ENABLED", "1");
     vi.stubEnv("KB_RETRIEVAL_MODE", "legacy");
+    // Talimat isteme yalnız "Geçmişten öğren" de açıkken girer (Opus 10-15 F8).
+    vi.stubEnv("HISTORY_LEARN_ENABLED", "1");
     mockSend.mockResolvedValue({ ok: true, externalId: "ext-1" } as never);
     mockSuggest.mockResolvedValue(REPLY as never);
   });
@@ -105,6 +107,14 @@ describe("F2 — mülk talimatı üç cevap yoluna bağlı", () => {
     vi.clearAllMocks();
     mockSuggest.mockResolvedValue(REPLY as never);
     vi.stubEnv("PROPERTY_INSTRUCTIONS_PROMPT_ENABLED", "");
+    await channel();
+    expect(passed()).toEqual([[]]);
+    // Talimat anahtarı açık ama "Geçmişten öğren" kapalı → talimat yönetilemez → isteme GİRMEZ (F8).
+    await resetDb();
+    vi.clearAllMocks();
+    mockSuggest.mockResolvedValue(REPLY as never);
+    vi.stubEnv("PROPERTY_INSTRUCTIONS_PROMPT_ENABLED", "1");
+    vi.stubEnv("HISTORY_LEARN_ENABLED", "");
     await channel();
     expect(passed()).toEqual([[]]);
   });

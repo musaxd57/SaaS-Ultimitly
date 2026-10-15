@@ -18,7 +18,8 @@ describe("ölçüm = ürün ayarı profili (kurucu 10-15)", () => {
   });
 
   it("kurulum dosyası bu koşuda uygulandı (kabukta verilmeyen cevap modeli Luna)", () => {
-    if (process.env.EVAL_PROD_PROFILE === "0") return;
+    // Dosya adı `.eval.` taşımadığı için tam suit de toplar (g47'de kırmızıydı); kurulum dosyası yalnız ölçüm yapılandırmasında koşar.
+    if (process.env.EVAL_CONFIG !== "1" || process.env.EVAL_PROD_PROFILE === "0") return;
     expect(process.env.OPENAI_MODEL?.length).toBeGreaterThan(0);
     expect(process.env.AI_SEMANTIC_MODEL?.length).toBeGreaterThan(0);
   });

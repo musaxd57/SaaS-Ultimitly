@@ -11,6 +11,7 @@ import {
   startHistoryLearnRun,
   HISTORY_LEARN_MONTHLY_RUNS,
   COMPARE_MAX_QUESTIONS,
+  historyCompareAllowed,
 } from "@/lib/history-learn/service";
 
 function idsOf(json: string): string[] {
@@ -57,12 +58,24 @@ export const GET = withManage<{ id: string }>(async (session, _req, { params }) 
         flagsJson: true,
       },
     }),
-    prisma.historyLearnComparison.findMany({
-      where: { propertyId: property.id },
-      orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
-      take: COMPARE_MAX_QUESTIONS,
-      select: { id: true, questionMessageId: true, hostAnswerMessageIdsJson: true, aiAnswer: true, wouldAutoSend: true, verdict: true, note: true },
-    }),
+    // Karşılaştırma şimdilik yalnız operatöre (kurucu 10-15) — müşteri oturumunda sorgu bile koşmaz.
+    historyCompareAllowed(session)
+      ? prisma.historyLearnComparison.findMany({
+          where: { propertyId: property.id },
+          orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+          take: COMPARE_MAX_QUESTIONS,
+          select: {
+            id: true,
+            questionMessageId: true,
+            hostAnswerMessageIdsJson: true,
+            aiAnswer: true,
+            wouldAutoSend: true,
+            gateDetail: true,
+            verdict: true,
+            note: true,
+          },
+        })
+      : Promise.resolve([]),
   ]);
   // Soru + ev sahibinin o zamanki cevabı CANLI satırdan (saklama süresi / misafir silme mesajla birlikte işler — kopya tutulmaz).
   // Kapsam: mülk (zaten işletmeye ait doğrulandı). Silinmiş mesaj → metin yok ("artık yok").
@@ -86,6 +99,7 @@ export const GET = withManage<{ id: string }>(async (session, _req, { params }) 
       hostAnswer: idsOf(c.hostAnswerMessageIdsJson).map((i) => texts.get(i)).filter((t): t is string => Boolean(t)).join("\n") || null,
       aiAnswer: c.aiAnswer,
       wouldAutoSend: c.wouldAutoSend,
+      closing: c.gateDetail === "closing",
       verdict: c.verdict,
       note: c.note,
     })),

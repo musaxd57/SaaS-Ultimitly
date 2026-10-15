@@ -295,7 +295,7 @@ export async function buildOrganizationDataExport(organizationId: string) {
     // Taslaklar / çalıştırmalar dökümde YOK (türetilmiş; onaylanan taslak bilgi tabanı kalemi olarak `knowledgeBase` altında).
     prisma.propertyInstruction.findMany({
       where: { organizationId },
-      select: { id: true, propertyId: true, content: true, source: true, status: true, createdAt: true, retiredAt: true },
+      select: { id: true, propertyId: true, content: true, source: true, presetKey: true, status: true, createdAt: true, retiredAt: true },
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     }),
     prisma.historyLearnComparison.findMany({

@@ -54,6 +54,7 @@ CREATE TABLE "PropertyInstruction" (
     "propertyId" TEXT NOT NULL,
     "content" TEXT NOT NULL,
     "source" TEXT NOT NULL DEFAULT 'host_note',
+    "presetKey" TEXT,
     "status" TEXT NOT NULL DEFAULT 'active',
     "createdById" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,

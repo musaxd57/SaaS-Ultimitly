@@ -47,6 +47,15 @@ const AUDIT_ACTION_LABELS: Record<string, string> = {
   "decision.approved": "Karar kartı: misafirin talebi onaylandı",
   "decision.declined": "Karar kartı: misafirin talebi reddedildi",
   "decision.dismissed": "Karar kartı kapatıldı",
+  "property.instruction_preset_on": "Daire için yapay zekâ tercihi açıldı",
+  "property.instruction_preset_off": "Daire için yapay zekâ tercihi kapatıldı",
+  "property.instruction_added": "Daire talimatı eklendi",
+  "property.instruction_retired": "Daire talimatı kaldırıldı",
+  "history_learn.started": "Geçmişten öğren: geçmiş okuma başlatıldı",
+  "history_learn.compare_started": "Geçmişten öğren: cevap karşılaştırma başlatıldı",
+  "history_learn.comparison_reviewed": "Geçmişten öğren: karşılaştırma değerlendirildi",
+  "history_learn.draft_approved": "Geçmişten öğren: bilgi taslağı onaylandı",
+  "history_learn.draft_rejected": "Geçmişten öğren: bilgi taslağı reddedildi",
 };
 
 /** Turkish label for an audit action; falls back to the raw action if unknown. */

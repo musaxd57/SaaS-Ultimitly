@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { badRequest, jsonOk, notFound, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { writeAudit, auditActor } from "@/lib/audit";
-import { historyLearnEnabled, reviewComparison } from "@/lib/history-learn/service";
+import { historyCompareAllowed, historyLearnEnabled, reviewComparison } from "@/lib/history-learn/service";
 
 // ---------------------------------------------------------------------------
 // KARŞILAŞTIRMA KARARI (F1): iyi / düzelt / kötü + not. "Böyle yapsın" (`apply`) notu kurucu kararıyla (10-15) HEM mülk talimatı HEM bilgi
@@ -16,20 +16,24 @@ const REASONS: Record<string, string> = {
   too_long: "Not en çok 500 karakter olabilir.",
   door_code: "Kapı ya da anahtar kutusu kodu nota yazılamaz.",
   hijack: "Bu not yapay zekânın kurallarını değiştirmeye çalışıyor gibi görünüyor. Misafire nasıl davranılmasını istediğinizi düz cümleyle yazın.",
+  secret: "Şifre ya da kod talimata yazılamaz. Bu bilgiyi bilgi tabanına ekleyin.",
+  safety_topic:
+    "Acil durum, şikâyet, ücret, indirim ve iade konularında talimat yazılamaz. Bu konularda yapay zekâ her zaman size bırakır.",
   payment: "Ödeme yöntemi ya da ödeme yeri nota yazılamaz.",
   limit: "Bu daire için talimat sınırına ulaşıldı. Eskilerden birini kaldırın.",
 };
 
 export const PATCH = withManage<{ id: string }>(async (session, req, { params }) => {
-  if (!historyLearnEnabled()) return notFound();
+  if (!historyLearnEnabled() || !historyCompareAllowed(session)) return notFound();
   const { id } = await params;
   const body = await readJsonCappedOrNull<{ verdict?: unknown; note?: unknown; apply?: unknown }>(req);
   const r = await reviewComparison({
     organizationId: session.organizationId,
     comparisonId: id,
     userId: auditActor(session),
-    verdict: typeof body?.verdict === "string" ? body.verdict : null,
-    note: typeof body?.note === "string" ? body.note : null,
+    // Gönderilmeyen alan KORUNUR (yalnız karar seçmek notu silmez); null = kaldır.
+    verdict: body && "verdict" in body ? (typeof body.verdict === "string" ? body.verdict : null) : undefined,
+    note: body && "note" in body ? (typeof body.note === "string" ? body.note : null) : undefined,
     apply: body?.apply === true,
   });
   if (!r.ok) {

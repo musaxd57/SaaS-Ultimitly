@@ -1,6 +1,8 @@
 import "server-only";
 
 import { prisma } from "@/lib/db";
+import { isSuperAdmin } from "@/lib/admin-core";
+import type { SessionPayload } from "@/lib/auth";
 import { refreshPropertyMemoryBestEffort } from "@/modules/intelligence";
 import { warmPropertyKbVectorsBestEffort } from "@/lib/ai/embeddings/kb-warm";
 import { limitsForOrg } from "@/lib/billing/plan-limits";
@@ -9,6 +11,8 @@ import { maskPairs, maskForLearning } from "./mask";
 import { DRAFT_FLAGS, extractDraftsFromPairs, gateDraft, historyLearnEffort, historyLearnModel, LEARN_CATEGORIES, type DraftFlag } from "./extract";
 import { foldTurkishAscii } from "@/lib/ai/fallback";
 import { INSTRUCTIONS_MAX_ACTIVE, checkInstruction, type InstructionRejectReason } from "./instruction-gate";
+import { INSTRUCTION_PRESETS, presetByKey } from "./instruction-presets";
+import { propertyInstructionsPromptEnabled } from "./prompt-instructions";
 // Karşılaştırma yolu (`compare.ts` → otomasyon kapısı) DİNAMİK yüklenir: otomasyon talimat yükleyicisini içe aktarıyor; statik içe
 // aktarma döngü kurardı (otomasyon → talimat → servis → karşılaştırma → otomasyon).
 import type { DryRunProperty, DryRunResult } from "./compare";
@@ -26,6 +30,26 @@ import type { DryRunProperty, DryRunResult } from "./compare";
 
 export function historyLearnEnabled(): boolean {
   return process.env.HISTORY_LEARN_ENABLED === "1";
+}
+
+/**
+ * KİM KULLANIR (kurucu 10-15): bilgi tabanı taslağı ("Geçmişi oku") müşteri (host) özelliğidir. Cevap karşılaştırma + "Böyle yapsın" ve
+ * daire talimatları ŞİMDİLİK YALNIZ OPERATÖR (süper yönetici + bu oturumda 2FA) — kurucu: "müşterinin uğraşması gerekmesin; önce ben test
+ * ederim, sorun yoksa tüm müşterilere". Kod müşteriler için hazır kalır; açmak = aşağıdaki anahtar "1" (yeniden yazım yok).
+ */
+export function historyCompareAllowed(session: SessionPayload | null): boolean {
+  return isSuperAdmin(session) || process.env.HISTORY_LEARN_CUSTOMER_COMPARE_ENABLED === "1";
+}
+export function propertyInstructionsAllowed(session: SessionPayload | null): boolean {
+  return isSuperAdmin(session) || process.env.HISTORY_LEARN_CUSTOMER_INSTRUCTIONS_ENABLED === "1";
+}
+
+/**
+ * Hazır seçenekler müşteriye YALNIZ cevaba gerçekten uygulanırken görünür ve yazılabilir (Haiku 10-15: etkisiz kutucuk ve "açıldığında
+ * devreye girer" sözü müşteriye gösterilmez — yüzey değil veri kapatılır). Operatör anahtar kapalıyken de görür (önce kendisi dener).
+ */
+export function presetsAvailable(session: SessionPayload | null): boolean {
+  return propertyInstructionsAllowed(session) || propertyInstructionsPromptEnabled();
 }
 
 /** Tek çalıştırmada okunacak en çok soru ↔ cevap çifti (kurucu: "ilk deneme 300"). */
@@ -46,6 +70,8 @@ export type StartResult =
   | { ok: false; reason: "not_found" | "running" | "monthly_cap" };
 
 export function clampQuestions(raw: unknown): number {
+  // Verilmeyen / boş değer → tavan (Number(null) = 0 idi → 20'ye kırpılıyordu).
+  if (raw === null || raw === undefined || raw === "") return HISTORY_LEARN_MAX_QUESTIONS;
   const n = Math.trunc(Number(raw));
   if (!Number.isFinite(n)) return HISTORY_LEARN_MAX_QUESTIONS;
   return Math.min(HISTORY_LEARN_MAX_QUESTIONS, Math.max(HISTORY_LEARN_MIN_QUESTIONS, n));
@@ -263,7 +289,11 @@ export async function executeHistoryLearnRun(
       });
       if (still.count !== 1) return;
       if (supersede) {
-        await tx.historyLearnDraft.updateMany({ where: { propertyId: run.propertyId, state: "pending", runId: { not: runId } }, data: { state: "superseded" } });
+        // Yalnız ÖĞRENME çalıştırmalarının taslakları geri çekilir; "Böyle yapsın" notundan doğan taslak (karşılaştırma) kalır (F13).
+        await tx.historyLearnDraft.updateMany({
+          where: { propertyId: run.propertyId, state: "pending", runId: { not: runId }, run: { kind: "learn" } },
+          data: { state: "superseded" },
+        });
       }
       await tx.historyLearnDraft.createMany({
         data: result.drafts.map((d) => ({
@@ -321,12 +351,31 @@ async function executeCompare(
       failed += 1;
       continue;
     }
-    const ai = { aiAnswer: out.reply, wouldAutoSend: out.wouldAutoSend, model, runId };
-    await prisma.historyLearnComparison.upsert({
-      where: { propertyId_questionMessageId: { propertyId: run.propertyId, questionMessageId } },
-      create: { propertyId: run.propertyId, questionMessageId, hostAnswerMessageIdsJson: JSON.stringify(pair.answerIds), ...ai },
-      update: { hostAnswerMessageIdsJson: JSON.stringify(pair.answerIds), ...ai },
+    // Model arızasının yedek metni "yapay zekâ böyle cevaplardı" diye kaydedilmez; önceki gerçek cevap EZİLMEZ (Opus 10-15 F14).
+    if (out.modelFailed) {
+      failed += 1;
+      continue;
+    }
+    const ai = { aiAnswer: out.reply, wouldAutoSend: out.wouldAutoSend, gateDetail: out.closing ? "closing" : null, model, runId };
+    // Model cevabı beklenirken çalıştırma "takılı" sayılıp kapatıldıysa satır YAZILMAZ (Haiku 10-15) — kontrol yazmayla aynı işlemde.
+    const wrote = await prisma.$transaction(async (tx) => {
+      // Çalıştırma satırı KİLİTLİ okunur: takılı-kapatma (updateMany) bu yazma bitene kadar bekler (Haiku 10-15).
+      const live = await tx.$queryRaw<{ status: string }[]>`SELECT "status" FROM "HistoryLearnRun" WHERE "id" = ${runId} FOR UPDATE`;
+      if (live[0]?.status !== "running") return false;
+      // Karar bir CEVABA verilir: yapay zekâ cevabı değiştiyse eski karar sıfırlanır (not kalır — operatörün yönergesi).
+      const prev = await tx.historyLearnComparison.findUnique({
+        where: { propertyId_questionMessageId: { propertyId: run.propertyId, questionMessageId } },
+        select: { aiAnswer: true },
+      });
+      const resetVerdict = prev && prev.aiAnswer !== ai.aiAnswer ? { verdict: null } : {};
+      await tx.historyLearnComparison.upsert({
+        where: { propertyId_questionMessageId: { propertyId: run.propertyId, questionMessageId } },
+        create: { propertyId: run.propertyId, questionMessageId, hostAnswerMessageIdsJson: JSON.stringify(pair.answerIds), ...ai },
+        update: { hostAnswerMessageIdsJson: JSON.stringify(pair.answerIds), ...ai, ...resetVerdict },
+      });
+      return true;
     });
+    if (!wrote) return;
   }
   await prisma.historyLearnRun.updateMany({
     where: { id: runId, status: "running" },
@@ -343,7 +392,7 @@ async function executeCompare(
 }
 
 /**
- * Zamanlanmış iş (2 dk döngü): takılı çalıştırmaları kapatır, kuyrukta bekleyenleri (rota tetiklemesi süreç ölünce kaybolduysa)
+ * Zamanlanmış iş (senkron döngüsünün SAATLİK bölümü): takılı çalıştırmaları kapatır, kuyrukta bekleyenleri (rota tetiklemesi süreç ölünce kaybolduysa)
  * sırayla yürütür. Anahtar kapalıyken hiçbir şey yapmaz. Döngü başına en çok `max` çalıştırma (müşteri hesabında patlama yok).
  */
 export async function sweepHistoryLearnRuns(now: Date = new Date(), max = 2): Promise<{ failed: number; executed: number }> {
@@ -360,12 +409,16 @@ export async function sweepHistoryLearnRuns(now: Date = new Date(), max = 2): Pr
   return { failed, executed: queued.length };
 }
 
-/** Saklama: onaylanmamış taslaklar `HISTORY_LEARN_DRAFT_RETENTION_DAYS` sonra silinir (onaylanan bilgi tabanı kalemi olarak yaşar). */
-export async function purgeOldHistoryLearnDrafts(now: Date = new Date()): Promise<{ deleted: number }> {
-  const r = await prisma.historyLearnDraft.deleteMany({
-    where: { state: { not: "approved" }, createdAt: { lt: new Date(now.getTime() - HISTORY_LEARN_DRAFT_RETENTION_DAYS * 86_400_000) } },
-  });
-  return { deleted: r.count };
+/**
+ * Saklama: onaylanmamış taslaklar ve cevap karşılaştırmaları `HISTORY_LEARN_DRAFT_RETENTION_DAYS` sonra silinir (Opus 10-15 F2:
+ * karşılaştırmanın yapay zekâ cevabı maskeli misafir sorusundan türer ve hiçbir süpürgeye bağlı değildi). Onaylanan taslak bilgi
+ * tabanı kalemi olarak yaşar.
+ */
+export async function purgeOldHistoryLearnDrafts(now: Date = new Date()): Promise<{ deleted: number; comparisons: number }> {
+  const cutoff = new Date(now.getTime() - HISTORY_LEARN_DRAFT_RETENTION_DAYS * 86_400_000);
+  const r = await prisma.historyLearnDraft.deleteMany({ where: { state: { not: "approved" }, createdAt: { lt: cutoff } } });
+  const c = await prisma.historyLearnComparison.deleteMany({ where: { updatedAt: { lt: cutoff } } });
+  return { deleted: r.count, comparisons: c.count };
 }
 
 export const DRAFT_EDIT_MAX_TITLE = 120;
@@ -506,7 +559,8 @@ export async function addPropertyInstruction(input: {
     const locked = await tx.$queryRaw<{ id: string }[]>`
       SELECT "id" FROM "Property" WHERE "id" = ${input.propertyId} AND "organizationId" = ${input.organizationId} FOR UPDATE`;
     if (!locked.length) return { ok: false, reason: "not_found" } as const;
-    const active = await tx.propertyInstruction.count({ where: { propertyId: input.propertyId, status: "active" } });
+    // Tavan yalnız SERBEST metne (hazır seçenekler kapalı küme, sayıları sabit).
+    const active = await tx.propertyInstruction.count({ where: { propertyId: input.propertyId, status: "active", presetKey: null } });
     if (active >= INSTRUCTIONS_MAX_ACTIVE) return { ok: false, reason: "limit" } as const;
     const row = await tx.propertyInstruction.create({
       data: {
@@ -522,9 +576,58 @@ export async function addPropertyInstruction(input: {
   });
 }
 
+/**
+ * HAZIR SEÇENEK aç / kapat (kurucu 10-15: "Müşteri, hazır seçeneklerden seçsin"). Müşteri serbest metin yazmaz; metin koddaki
+ * kapalı kümeden gelir ve yine kapıdan geçer (isteme girerken de). İdempotent: açık olanı yeniden açmak / kapalıyı kapatmak değişiklik
+ * yapmaz. Mülk satırı kilitli (çift tıklama iki satır açamaz).
+ */
+export async function setPresetInstruction(input: {
+  organizationId: string;
+  propertyId: string;
+  userId: string | null;
+  key: string;
+  on: boolean;
+}): Promise<{ ok: true; changed: boolean } | { ok: false; reason: "not_found" | "invalid" }> {
+  const preset = presetByKey(input.key);
+  if (!preset || !checkInstruction(preset.text).ok) return { ok: false, reason: "invalid" };
+  return prisma.$transaction(async (tx) => {
+    const locked = await tx.$queryRaw<{ id: string }[]>`
+      SELECT "id" FROM "Property" WHERE "id" = ${input.propertyId} AND "organizationId" = ${input.organizationId} FOR UPDATE`;
+    if (!locked.length) return { ok: false, reason: "not_found" } as const;
+    const where = { propertyId: input.propertyId, status: "active", presetKey: preset.key };
+    if (!input.on) {
+      const r = await tx.propertyInstruction.updateMany({ where, data: { status: "retired", retiredAt: new Date() } });
+      return { ok: true, changed: r.count > 0 } as const;
+    }
+    if (await tx.propertyInstruction.count({ where })) return { ok: true, changed: false } as const;
+    await tx.propertyInstruction.create({
+      data: {
+        organizationId: input.organizationId,
+        propertyId: input.propertyId,
+        content: preset.text,
+        source: "preset",
+        presetKey: preset.key,
+        createdById: input.userId,
+      },
+    });
+    return { ok: true, changed: true } as const;
+  });
+}
+
+/** Mülkün hazır seçenek durumları (ekrandaki liste; açık olan = etkin satırı var). */
+export async function listPresetStates(propertyId: string): Promise<{ key: string; label: string; description: string; on: boolean }[]> {
+  const rows = await prisma.propertyInstruction.findMany({
+    where: { propertyId, status: "active", presetKey: { not: null } },
+    select: { presetKey: true },
+  });
+  const on = new Set(rows.map((r) => r.presetKey));
+  return INSTRUCTION_PRESETS.map((p) => ({ key: p.key, label: p.label, description: p.description, on: on.has(p.key) }));
+}
+
+/** Serbest metin talimatını kaldırır. Hazır seçenek satırı buradan KALDIRILMAZ (yalnız aç / kapat yolu: `setPresetInstruction`). */
 export async function retirePropertyInstruction(organizationId: string, id: string): Promise<boolean> {
   const r = await prisma.propertyInstruction.updateMany({
-    where: { id, organizationId, status: "active" },
+    where: { id, organizationId, status: "active", presetKey: null },
     data: { status: "retired", retiredAt: new Date() },
   });
   return r.count === 1;
@@ -545,60 +648,102 @@ export async function reviewComparison(input: {
   organizationId: string;
   comparisonId: string;
   userId: string | null;
-  verdict: string | null;
-  note: string | null;
+  /** Verilmezse (undefined) mevcut karar KORUNUR; null = kararı kaldır. */
+  verdict?: string | null;
+  /** Verilmezse mevcut not KORUNUR; boş metin = notu kaldır. */
+  note?: string | null;
   apply: boolean;
 }): Promise<ComparisonReviewResult> {
   const cmp = await prisma.historyLearnComparison.findFirst({
     where: { id: input.comparisonId, property: { organizationId: input.organizationId } },
-    select: { id: true, propertyId: true, runId: true, hostAnswerMessageIdsJson: true },
+    select: { id: true, propertyId: true, runId: true, hostAnswerMessageIdsJson: true, note: true },
   });
   if (!cmp) return { ok: false, reason: "not_found" };
-  if (input.verdict !== null && !(COMPARISON_VERDICTS as readonly string[]).includes(input.verdict)) return { ok: false, reason: "invalid" };
-  const note = input.note?.trim() || null;
-  if (input.apply && !note) return { ok: false, reason: "note_required" };
-  let checked: string | null = null;
-  if (note) {
-    const c = checkInstruction(note);
-    if (!c.ok) return { ok: false, reason: c.reason };
-    checked = c.content;
+  if (input.verdict != null && !(COMPARISON_VERDICTS as readonly string[]).includes(input.verdict)) return { ok: false, reason: "invalid" };
+  // Not: verilmediyse mevcut (zaten kapıdan geçmiş) not; verildiyse yenisi kapıdan geçer.
+  let checked: string | null = cmp.note;
+  if (input.note !== undefined) {
+    const raw = input.note?.trim() || "";
+    if (!raw) checked = null;
+    else {
+      const c = checkInstruction(raw);
+      if (!c.ok) return { ok: false, reason: c.reason };
+      checked = c.content;
+    }
   }
-  return prisma.$transaction(async (tx) => {
-    await tx.historyLearnComparison.update({
-      where: { id: cmp.id },
-      data: { verdict: input.verdict, note: checked, createdById: input.userId },
+  if (input.apply && !checked) return { ok: false, reason: "note_required" };
+  try {
+    return await prisma.$transaction(async (tx) => {
+      // Kilit ÖNCE (talimat tavanı yarışı), karar + not, sonra uygulama. Uygulama başarısızsa her şey GERİ ALINIR (Haiku 10-15:
+      // eskiden karar + not yazılıp 409 dönüyordu).
+      const locked = await tx.$queryRaw<{ id: string }[]>`
+        SELECT "id" FROM "Property" WHERE "id" = ${cmp.propertyId} AND "organizationId" = ${input.organizationId} FOR UPDATE`;
+      if (!locked.length) throw new ReviewAbort("not_found");
+      await tx.historyLearnComparison.update({
+        where: { id: cmp.id },
+        data: {
+          ...(input.verdict !== undefined ? { verdict: input.verdict } : {}),
+          ...(input.note !== undefined ? { note: checked } : {}),
+          createdById: input.userId,
+        },
+      });
+      if (!input.apply || !checked) return { ok: true, instructionId: null, draftId: null } as const;
+      // Tekrar gönderim (çift tıklama) İKİNCİ talimat / taslak açmaz: aynı metinli etkin talimat ve bekleyen taslak yeniden kullanılır.
+      // Yalnız SERBEST metin satırları (hazır seçenek satırı aynı metni taşısa da yeniden kullanılmaz; tavan da onları saymaz).
+      const existingInstr = await tx.propertyInstruction.findFirst({
+        where: { propertyId: cmp.propertyId, status: "active", presetKey: null, content: checked },
+        select: { id: true },
+      });
+      let instructionId = existingInstr?.id ?? null;
+      if (!instructionId) {
+        const active = await tx.propertyInstruction.count({ where: { propertyId: cmp.propertyId, status: "active", presetKey: null } });
+        if (active >= INSTRUCTIONS_MAX_ACTIVE) throw new ReviewAbort("limit");
+        instructionId = (
+          await tx.propertyInstruction.create({
+            data: { organizationId: input.organizationId, propertyId: cmp.propertyId, content: checked, source: "history_learn", createdById: input.userId },
+            select: { id: true },
+          })
+        ).id;
+      }
+      const existingDraft = await tx.historyLearnDraft.findFirst({
+        where: { propertyId: cmp.propertyId, state: "pending", content: checked },
+        select: { id: true },
+      });
+      if (existingDraft) return { ok: true, instructionId, draftId: existingDraft.id } as const;
+      const runId =
+        cmp.runId ??
+        (
+          await tx.historyLearnRun.create({
+            data: { organizationId: input.organizationId, propertyId: cmp.propertyId, kind: "compare", model: "note", status: "done" },
+            select: { id: true },
+          })
+        ).id;
+      const gate = gateDraft("Ev sahibi notu", checked);
+      if (!gate.ok) throw new ReviewAbort(gate.reason === "empty" ? "note_required" : gate.reason);
+      const draft = await tx.historyLearnDraft.create({
+        data: {
+          runId,
+          propertyId: cmp.propertyId,
+          category: "faq",
+          title: "Ev sahibi notu",
+          content: checked,
+          supportConversations: 1,
+          flagsJson: JSON.stringify(gate.flags),
+          evidenceMessageIdsJson: cmp.hostAnswerMessageIdsJson,
+        },
+        select: { id: true },
+      });
+      return { ok: true, instructionId, draftId: draft.id } as const;
     });
-    if (!input.apply || !checked) return { ok: true, instructionId: null, draftId: null } as const;
-    const locked = await tx.$queryRaw<{ id: string }[]>`SELECT "id" FROM "Property" WHERE "id" = ${cmp.propertyId} FOR UPDATE`;
-    if (!locked.length) return { ok: false, reason: "not_found" } as const;
-    const active = await tx.propertyInstruction.count({ where: { propertyId: cmp.propertyId, status: "active" } });
-    if (active >= INSTRUCTIONS_MAX_ACTIVE) return { ok: false, reason: "limit" } as const;
-    const instr = await tx.propertyInstruction.create({
-      data: { organizationId: input.organizationId, propertyId: cmp.propertyId, content: checked, source: "history_learn", createdById: input.userId },
-      select: { id: true },
-    });
-    const runId =
-      cmp.runId ??
-      (
-        await tx.historyLearnRun.create({
-          data: { organizationId: input.organizationId, propertyId: cmp.propertyId, kind: "compare", model: "note", status: "done" },
-          select: { id: true },
-        })
-      ).id;
-    const gate = gateDraft("Ev sahibi notu", checked);
-    const draft = await tx.historyLearnDraft.create({
-      data: {
-        runId,
-        propertyId: cmp.propertyId,
-        category: "faq",
-        title: "Ev sahibi notu",
-        content: checked,
-        supportConversations: 1,
-        flagsJson: JSON.stringify(gate.ok ? gate.flags : []),
-        evidenceMessageIdsJson: cmp.hostAnswerMessageIdsJson,
-      },
-      select: { id: true },
-    });
-    return { ok: true, instructionId: instr.id, draftId: draft.id } as const;
-  });
+  } catch (err) {
+    if (err instanceof ReviewAbort) return { ok: false, reason: err.reason };
+    throw err;
+  }
+}
+
+/** İşlem içi iptal → GERİ ALMA (dönüş değeri işlemi kapatıp yazdığını korurdu). */
+class ReviewAbort extends Error {
+  constructor(readonly reason: Extract<ComparisonReviewResult, { ok: false }>["reason"]) {
+    super(reason);
+  }
 }

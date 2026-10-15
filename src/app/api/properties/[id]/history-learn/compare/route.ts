@@ -2,7 +2,13 @@ import { NextResponse } from "next/server";
 import { jsonOk, notFound, tooManyRequests } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { writeAudit, auditActor } from "@/lib/audit";
-import { executeHistoryLearnRun, historyLearnEnabled, startHistoryLearnRun, HISTORY_LEARN_MONTHLY_RUNS } from "@/lib/history-learn/service";
+import {
+  executeHistoryLearnRun,
+  historyCompareAllowed,
+  historyLearnEnabled,
+  startHistoryLearnRun,
+  HISTORY_LEARN_MONTHLY_RUNS,
+} from "@/lib/history-learn/service";
 
 // ---------------------------------------------------------------------------
 // CEVAP KARŞILAŞTIRMA BAŞLAT (F1; anahtar `HISTORY_LEARN_ENABLED` KAPALI → 404). Geçmiş sorulara bugünkü ürünün ne cevap vereceği —
@@ -10,7 +16,8 @@ import { executeHistoryLearnRun, historyLearnEnabled, startHistoryLearnRun, HIST
 // ---------------------------------------------------------------------------
 
 export const POST = withManage<{ id: string }>(async (session, _req, { params }) => {
-  if (!historyLearnEnabled()) return notFound();
+  // Şimdilik yalnız operatör (kurucu 10-15); müşteriye açmak `HISTORY_LEARN_CUSTOMER_COMPARE_ENABLED`.
+  if (!historyLearnEnabled() || !historyCompareAllowed(session)) return notFound();
   const { id } = await params;
   const started = await startHistoryLearnRun({ organizationId: session.organizationId, propertyId: id, userId: auditActor(session), kind: "compare" });
   if (!started.ok) {

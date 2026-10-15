@@ -23,17 +23,21 @@ import type { LearnPair } from "./pairs";
 /** Çiftte tek tarafın modele giden üst sınırı (karakter). */
 export const LEARN_SIDE_MAX_CHARS = 1_500;
 
-const FAMILIES = ["iİıI", "şŞsS", "çÇcC", "ğĞgG", "öÖoO", "üÜuU"];
-const esc = (c: string) => c.replace(/[.*+?^${}()|[\]\\-]/gu, "\\$&");
+/** Türkçe + yaygın aksan aileleri (Opus 10-15: "José" ↔ "Jose"). Aile içindeki her harf aynı sınıfa gider. */
+const FAMILIES = ["iİıIíìîïÍÌÎÏ", "şŞsS", "çÇcC", "ğĞgG", "öÖoOóòôõÓÒÔÕ", "üÜuUúùûÚÙÛ", "eEéèêëÉÈÊË", "aAáàâãäÁÀÂÃÄ", "nNñÑ"];
+/** Sınıf DIŞINDA kaçış — tire YOK (Opus 10-15 F10: `u` bayrağında sınıf dışı `\-` geçersiz → "Jean-Pierre" bütün okumayı düşürüyordu). */
+const esc = (c: string) => c.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+/** Sınıf İÇİNDE kaçış — `]`, `\`, `^`, `-`. */
+const escInClass = (c: string) => c.replace(/[\]\\^-]/gu, "\\$&");
 
 /** Bir harf için Türkçe aile + büyük/küçük sınıfı. */
 function charClass(c: string): string {
   const fam = FAMILIES.find((f) => f.includes(c));
-  if (fam) return `[${fam}]`;
+  if (fam) return `[${escInClass(fam)}]`;
   const lo = c.toLocaleLowerCase("tr");
   const up = c.toLocaleUpperCase("tr");
   const set = new Set([c, lo, up, c.toLowerCase(), c.toUpperCase()]);
-  return set.size === 1 ? esc(c) : `[${[...set].map(esc).join("")}]`;
+  return set.size === 1 ? esc(c) : `[${[...set].map(escInClass).join("")}]`;
 }
 
 /** Sevgi / hitap ekleri (bitişik): Ayşeciğim, Mehmetcim. Çıplak çekim eki bilerek YOK (↑①). */
@@ -50,7 +54,17 @@ const NAME_RE_CACHE_MAX = 5_000;
 export function namePattern(name: string): RegExp {
   const hit = NAME_RE_CACHE.get(name);
   if (hit) return hit;
-  const re = buildNamePattern(name);
+  // Derlenemeyen ad (beklenmeyen karakter) okumayı DÜŞÜRMEZ: düz harf kaçışıyla yeniden denenir, o da olmazsa eşleşmeyen kalıp.
+  let re: RegExp;
+  try {
+    re = buildNamePattern(name);
+  } catch {
+    try {
+      re = new RegExp(`(?<![\\p{L}\\p{N}])${name.trim().replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}(?![\\p{L}\\p{N}])`, "giu");
+    } catch {
+      re = /(?!)/gu;
+    }
+  }
   if (NAME_RE_CACHE.size >= NAME_RE_CACHE_MAX) NAME_RE_CACHE.clear();
   NAME_RE_CACHE.set(name, re);
   return re;
@@ -85,20 +99,92 @@ const PHONE_RE = /(?<![\d\p{L}])(?:\+\d|0)[\d\s().-]{8,20}\d(?![\d\p{L}])/gu;
  */
 const TR_MOBILE_RE = /(?<![\d\p{L}])(?:90[\s.-]?)?(?:5\d{2}|\(5\d{2}\))[\s.-]?\d{3}[\s.-]?\d{2}[\s.-]?\d{2}(?![\d\p{L}])/gu;
 
+/** IBAN (TR ve yabancı, ayraçlı / küçük harfli yazım dahil; en az 10 hane şartı) ve 11 haneli TC kimlik (KONTROL HANELİ — Opus 10-15 F18). */
+const IBAN_RE = /(?<![\p{L}\d])[A-Za-z]{2}\d{2}(?:[\s-]?[A-Za-z0-9]{4}){3,7}(?:[\s-]?[A-Za-z0-9]{1,4})?(?![\p{L}\d])/gu;
+const TC_ID_RE = /(?<![\d])[1-9]\d{10}(?![\d])/gu;
+/** TC kimlik numarası algoritması — rastgele 11 haneli sayıların (rezervasyon no, Wi-Fi anahtarı) ~%99'u geçmez (Haiku 10-15). */
+export function isTcKimlik(s: string): boolean {
+  if (!/^[1-9]\d{10}$/u.test(s)) return false;
+  const d = [...s].map(Number);
+  const odd = d[0] + d[2] + d[4] + d[6] + d[8];
+  const even = d[1] + d[3] + d[5] + d[7];
+  if ((((odd * 7 - even) % 10) + 10) % 10 !== d[9]) return false;
+  return d.slice(0, 10).reduce((a, b) => a + b, 0) % 10 === d[10];
+}
+
+/**
+ * KAPI KODU — RAKAM OLMAYAN DEĞER (Opus 10-15 F17; kurucu 10-11 "geçmişte kodu gizle"): `redactDoorCodes` yalnız 4–8 haneyi gizler;
+ * "Kapı şifresi KILIT", "kutu kodu dört beş dokuz sıfır", "keybox: A1B2" modele gidiyordu. Kapı / kutu / tuş paneli + kod / şifre
+ * sözcüğünden SONRAKİ en çok 6 sözcükten "kod benzeri" olanlar "(kod gizlendi)" olur; "Kutu kodu giriş günü sabah mesajla
+ * gönderilir" gibi düz anlatım DOKUNULMAZ. Eşleşme Türkçe küçük harfe çevrilmiş kopyada aranır ("GİRİŞ KODU" — `i` bayrağı İ'yi
+ * katlamaz), değiştirme özgün metinde aynı konumda (tr küçük harf 1:1). Doğrusal: sözcük sözcük.
+ */
+const DOOR_WORD_SRC =
+  "(?<![\\p{L}])(?:(?:kap[ıi]|kutu|anahtar\\s+kutusu|keybox|key\\s*box|lock\\s*box|lockbox|keypad|tu[şs]\\s+paneli|door|gate|giri[şs]|kilit|ak[ıi]ll[ıi]\\s+kilit|smart\\s+lock)[\\p{L}]{0,8}\\s{0,3}(?:kod|[şs]ifre|code|pin|password|passcode)[\\p{L}]{0,6}|keybox|key\\s*box|lock\\s*box|lockbox|keypad)";
+// Değer kuyruğu BELİRSİZLİKSİZ: sözcük + (tek ayraç + sözcük){0,5} — bir sözcük iki parçaya bölünemez (karesel iş yok).
+const DOOR_VALUE_RE = new RegExp(`${DOOR_WORD_SRC}[\\s:=-]{0,3}([^\\s.,;!?]+(?:[ \\t][^\\s.,;!?]+){0,5})`, "gu");
+const DIGIT_WORDS = new Set([
+  "sıfır", "sifir", "bir", "iki", "üç", "uc", "üc", "dört", "dort", "beş", "bes", "altı", "alti", "yedi", "sekiz", "dokuz",
+  "on", "yirmi", "otuz", "kırk", "kirk", "elli", "altmış", "altmis", "yetmiş", "yetmis", "seksen", "doksan", "yüz", "yuz", "bin",
+  "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "twenty", "thirty", "forty", "fifty",
+  "sixty", "seventy", "eighty", "ninety", "hundred",
+]);
+const digitWord = (w: string) => w.split(/[-–]/u).every((p) => p !== "" && DIGIT_WORDS.has(p.toLocaleLowerCase("tr").replace(/[^\p{L}]/gu, "")));
+/**
+ * Kod benzeri sözcük: ≥3 rakam, harf + rakam karışık, # * gibi işaret ya da en az 4 harfli TAMAMI büyük harf ("KILIT"; metnin geneli
+ * büyük harfle yazılmışsa bu son kural kapanır — "KAPI KODU GİRİŞ GÜNÜ" düz anlatımdır).
+ */
+function isCodeLike(w: string, shouting: boolean): boolean {
+  const digits = (w.match(/\d/gu) ?? []).length;
+  if (digits >= 3 || (digits >= 1 && /\p{L}/u.test(w))) return true;
+  if (/[#*@&$%+=_]/u.test(w)) return true;
+  return !shouting && /^\p{Lu}{4,}$/u.test(w.replace(/[^\p{L}]/gu, "")) && w === w.toLocaleUpperCase("tr");
+}
+function maskDoorValues(text: string): string {
+  const lower = text.toLocaleLowerCase("tr");
+  if (lower.length !== text.length) return text; // tr küçük harf 1:1 değilse (beklenmez) dokunma — redactDoorCodes yine koştu
+  const letters = text.replace(/[^\p{L}]/gu, "");
+  const shouting = letters.length >= 12 && letters.replace(/[^\p{Lu}]/gu, "").length / letters.length > 0.6;
+  let out = "";
+  let last = 0;
+  for (const m of lower.matchAll(DOOR_VALUE_RE)) {
+    const start = m.index ?? 0;
+    const full = text.slice(start, start + m[0].length);
+    const tail = text.slice(start + m[0].length - m[1].length, start + m[0].length);
+    const words = tail.split(/[ \t]/u);
+    let hide = 0;
+    let run = 0;
+    while (run < words.length && digitWord(words[run])) run += 1;
+    const spelledDigits = words.slice(0, run).reduce((n, w) => n + w.split(/[-–]/u).length, 0);
+    if (spelledDigits >= 3) hide = run;
+    if (!hide) while (hide < words.length && isCodeLike(words[hide], shouting)) hide += 1;
+    // Tek sözcüklük değer, büyük harfle başlıyor ve ardından cümle bitiyor: "Kapı şifresi Lale." (ad değil parola).
+    if (!hide && words.length === 1 && /^\p{Lu}/u.test(words[0])) hide = 1;
+    if (!hide) continue;
+    const head = full.slice(0, full.length - tail.length);
+    const kept = words.slice(hide).join(" ");
+    out += text.slice(last, start) + `${head}(kod gizlendi)${kept ? ` ${kept}` : ""}`;
+    last = start + m[0].length;
+  }
+  return last === 0 ? text : out + text.slice(last);
+}
+
 function maskContacts(text: string): string {
   return text
     .replace(EMAIL_RE, "[EMAIL]")
     .replace(PHONE_RE, (m) => {
       const digits = m.replace(/\D/gu, "").length;
-      return digits >= 10 && digits <= 13 ? "[PHONE]" : m;
+      return digits >= 10 && digits <= 15 ? "[PHONE]" : m;
     })
-    .replace(TR_MOBILE_RE, "[PHONE]");
+    .replace(TR_MOBILE_RE, "[PHONE]")
+    .replace(IBAN_RE, (m) => ((m.match(/\d/gu) ?? []).length >= 10 ? "[IBAN]" : m))
+    .replace(TC_ID_RE, (m) => (isTcKimlik(m) ? "[ID]" : m));
 }
 
 const clip = (s: string) => (s.length > LEARN_SIDE_MAX_CHARS ? `${s.slice(0, LEARN_SIDE_MAX_CHARS)} …` : s);
 
 export function maskForLearning(text: string, guestNames: GuestNames): string {
-  return clip(fenceSafe(maskContacts(redactDoorCodes(maskName(text, guestNames)))));
+  return clip(fenceSafe(maskContacts(maskDoorValues(redactDoorCodes(maskName(text, guestNames))))));
 }
 
 export interface MaskedPair {
