@@ -109,6 +109,7 @@ describe("bilgi tabanı yeniden kopyalama — eski kopyayı güncelle (kurucu D2
     const [r1, r2] = await Promise.all([copy(src, { targetPropertyIds: [a], requestId: RID }), copy(src, { targetPropertyIds: [a], requestId: RID2 })]);
     expect([r1.status, r2.status]).toEqual([200, 200]);
     expect(await prisma.knowledgeBaseItem.count({ where: { propertyId: a, copiedFromId: src } })).toBe(1);
+    // Kaybedenin hangi dala düştüğünü bu gerçek yarış seçemez — belirlenimci iki yarış `kb-copy-race-d2.test.ts`te.
   });
 
   it("tekrar güvenliği: aynı yeniden kopyalama tekrar gönderilirse ikinci güncelleme / kalem yok (güncel → dokunulmaz)", async () => {
