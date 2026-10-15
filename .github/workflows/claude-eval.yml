@@ -55,6 +55,15 @@ jobs:
           CLAUDE_EVAL_ROUNDS: ${{ steps.req.outputs.rounds }}
         # Ölçer N ≤ 60, tur ≤ 3 tavanlı (ücret); eksik ölçümde kırmızı biter ama raporu yine yazar → yapıt her durumda yüklenir.
         run: npx vitest run --config vitest.eval.config.ts "${{ steps.req.outputs.suite }}"
+      # Rapor iş GÜNLÜĞÜNE ve özet sayfasına da yazılır (oturumun yapıt indirme izni yok; günlük API ile okunur). Rapor sentetik veridir.
+      - name: Raporu günlüğe ve özete yaz
+        if: always() && env.HAS_KEY == 'true'
+        run: |
+          for f in docs/olcum/claude-zorlu-*.md; do
+            [ -f "$f" ] || continue
+            echo "===== $f ====="; cat "$f"
+            cat "$f" >> "$GITHUB_STEP_SUMMARY"
+          done
       - name: Raporu yükle
         if: always() && env.HAS_KEY == 'true'
         uses: actions/upload-artifact@v4

@@ -3,5 +3,5 @@
   "suite": "tests/eval/claude-adversarial.eval.test.ts",
   "n": 40,
   "rounds": 2,
-  "request": 1
+  "request": 2
 }
