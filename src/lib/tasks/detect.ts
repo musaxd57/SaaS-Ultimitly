@@ -132,6 +132,19 @@ function siteOfClause(
   if (original && device) return { device, guestOwned: mentionsGuestOwnedItem(original.text) };
   return { device: firstBreakdownDevice(message), guestOwned: mentionsGuestOwnedItem(message) };
 }
+/**
+ * Arıza sözcüğünün HEMEN SOLUNDAKİ cihaz (en çok 6 sözcük geri; Türkçede cihaz fiilden önce gelir): "Anahtarı aldık içeri girdik klima
+ * çalışmıyor" → klima (cümleciğin ilk cihazı "anahtar" değil — Opus O3). Bulunamazsa null (cümlecik / mesaj kuralına düşülür).
+ */
+const NEAREST_DEVICE_WORDS = 6;
+function nearestDeviceBefore(lower: string, clauseStart: number, hitIndex: number): string | null {
+  const words = lower.slice(Math.max(clauseStart, hitIndex - 200), hitIndex).split(/[^\p{L}\p{N}'’]+/u).filter(Boolean);
+  for (let k = words.length - 1; k >= Math.max(0, words.length - NEAREST_DEVICE_WORDS); k--) {
+    const d = firstBreakdownDevice(words[k]);
+    if (d) return d;
+  }
+  return null;
+}
 function clauseIndexAt(text: string, index: number): number {
   const clauses = splitClauses(text);
   for (let k = clauses.length - 1; k >= 0; k--) if (clauses[k].start <= index) return k;
@@ -224,8 +237,12 @@ export function detectOperationalTask(
   //    KENDİ eşyası ("Getirdiğimiz kahve makinesi bozulmuş") bakım değildir — o cümlecikte "kendi / getirdiğimiz" varsa görev açılmaz.
   const breakage = inquiry ? null : firstReportedBreakage(msg);
   if (breakage) {
-    const site = siteOfClause(message, splitClauses(message), clauseIndexAt(msg, breakage.index));
-    if (!site.guestOwned) return { type: "maintenance", priority: "standard", topic: site.device ?? breakage.word, slaHours: 24 };
+    const k = clauseIndexAt(msg, breakage.index);
+    const site = siteOfClause(message, splitClauses(message), k);
+    const nearest = nearestDeviceBefore(msg, splitClauses(msg)[k]?.start ?? 0, breakage.index);
+    if (!site.guestOwned) {
+      return { type: "maintenance", priority: "standard", topic: nearest ?? site.device ?? breakage.word, slaHours: 24 };
+    }
   }
 
   // 3) Consumable depletion → restock (item AND lack signal).

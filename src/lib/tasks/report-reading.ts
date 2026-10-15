@@ -84,10 +84,13 @@ function clauseKind(raw: string, endsWithQuestion: boolean, reportsFault: (claus
   const folded = foldTurkishAscii(raw).replace(/[’`]/g, "'");
   const tokens = folded.split(TOKEN_SPLIT).filter(Boolean);
   if (tokens.length === 0) return "empty";
+  const asksTr = tokens.some((t, i) => (i > 0 && TR_QUESTION_PARTICLES.has(t)) || t === "acaba");
   if (tokens.some((t) => INQUIRY_TOKEN_PREFIXES.some((p) => t.startsWith(p))) || INQUIRY_PHRASES.some((re) => re.test(folded))) {
-    return "inquiry";
+    // Soru niyeti işareti olan ama soru eki taşımayan cümlecik arızayı KENDİSİ bildiriyorsa bildirimdir ("Sormak istemiştim klima hâlâ
+    // çalışmıyor" — Opus O5); "Su akmıyor mu acaba gelmeden sormak istedim" soru eki taşıdığı için soru niyeti kalır.
+    return !asksTr && reportsFault(raw) ? "other" : "inquiry";
   }
-  if (tokens.some((t, i) => (i > 0 && TR_QUESTION_PARTICLES.has(t)) || t === "acaba")) return "question";
+  if (asksTr) return "question";
   if (endsWithQuestion && EN_QUESTION_OPENERS.has(tokens[0])) return "question";
   if (endsWithQuestion && EN_WH_QUESTION_WORDS.has(tokens[0]) && !reportsFault(raw)) return "question";
   if (enHypothetical(tokens)) return "hypothetical";
@@ -161,12 +164,22 @@ export function mentionsGuestOwnedItem(message: string): boolean {
 /** Türkçe koşul eki (sınıflandırıcıdaki `CONDITIONAL_TAIL` ile aynı: -sa/-se, kaynaştırmalı -rsa/-ysa). */
 const TR_CONDITIONAL_SUFFIX = /^[ry]?s[ae]/u;
 /** Belirteçten SONRA gelen ayrı sözcük: olumsuzlama ya da koşul. */
-const TR_AFTER_NEGATION = new Set(["degil", "degildi", "degiller"]);
+const TR_AFTER_NEGATION = new Set(["degil", "degildi", "degiller", "yok", "yoktu", "yoktur"]);
+/** "bozuk BİR ŞEY yok", "arıza HİÇ yok": olumsuzlamadan önceki dolgu sözcükleri (en çok 2). */
+const TR_NEGATION_FILLERS = new Set(["bir", "sey", "birsey", "hic", "hicbir"]);
+const MAX_TOKEN_TAIL = 24;
+const MAX_NEIGHBOR_WORD = 16;
+const MAX_GAP = 8;
+const isGap = (ch: string) => ch === " " || ch === "\u00a0" || ch === "\t";
 const TR_AFTER_CONDITIONAL = new Set(["ise", "olursa", "olsa", "olunca", "olmasi", "durumunda"]);
 /** İngilizce: eşleşmeden HEMEN ÖNCEKİ sözcük olumsuzlama ("isn't broken", "not broken", "never broken"). */
-const EN_BEFORE_NEGATION = new Set(["not", "never", "isn't", "isnt", "wasn't", "wasnt", "aren't", "arent", "weren't", "werent"]);
+const EN_BEFORE_NEGATION = new Set([
+  "not", "never", "isn't", "isnt", "wasn't", "wasnt", "aren't", "arent", "weren't", "werent", "no", "nothing", "none", "zero",
+]);
 /** Olumsuzlama ile eşleşme arasında olabilecek TEK pekiştirme zarfı. */
-const EN_NEGATION_ADVERBS = new Set(["really", "actually", "totally", "completely", "fully", "even", "exactly", "that"]);
+const EN_NEGATION_ADVERBS = new Set([
+  "really", "actually", "totally", "completely", "fully", "even", "exactly", "that", "is", "was", "are", "were", "seems", "looks", "got", "been",
+]);
 
 /**
  * Arıza sözcüğünün bu GEÇİŞİ bildirim mi? `start`/`end` eşleşmenin küçük harfli metindeki konumu (Türkçe sözcükte gövde; ek serbest).
@@ -176,28 +189,40 @@ const EN_NEGATION_ADVERBS = new Set(["really", "actually", "totally", "completel
  * Cümlecik sınırı ("Klima bozuk, değil mi?") ayrı sözcük sayılmaz → bildirim kalır (onay sorusu).
  */
 export function hitIsReported(lower: string, start: number, end: number): boolean {
-  // Belirtecin geri kalanı (harf / rakam / kesme).
+  // 🚨 HER TARAMA SINIRLI (Opus O6, ölçüldü: "bozuk'".repeat(8.000) 48.000 karakterde 5,9 sn — kesme işareti belirtece katılıyor, her
+  // eşleşme dizinin sonuna kadar okuyordu → karesel). Belirtecin kalanı yalnız harf / rakam ve en çok MAX_TOKEN_TAIL karakter; komşu
+  // sözcükler en çok MAX_NEIGHBOR_WORD karakter + MAX_GAP boşluk. Sınırı aşan sözcük olumsuzlama / koşul sayılmaz (bildirim kalır).
   let tokEnd = end;
-  while (tokEnd < lower.length && /[\p{L}\p{N}'’]/u.test(lower[tokEnd])) tokEnd++;
-  const rest = foldTurkishAscii(lower.slice(end, tokEnd));
+  while (tokEnd < lower.length && tokEnd - end <= MAX_TOKEN_TAIL && WORD_CHAR.test(lower[tokEnd])) tokEnd++;
+  const tailTooLong = tokEnd - end > MAX_TOKEN_TAIL;
+  const rest = foldTurkishAscii(lower.slice(end, Math.min(tokEnd, end + 4)));
   if (rest && TR_CONDITIONAL_SUFFIX.test(rest)) return false;
-  // Ardındaki sözcük (yalnız boşlukla ayrılmışsa).
-  let i = tokEnd;
-  while (i < lower.length && (lower[i] === " " || lower[i] === " " || lower[i] === "\t")) i++;
-  if (i > tokEnd) {
-    let j = i;
-    while (j < lower.length && /[\p{L}\p{N}]/u.test(lower[j])) j++;
-    const next = foldTurkishAscii(lower.slice(i, j));
-    if (TR_AFTER_NEGATION.has(next) || TR_AFTER_CONDITIONAL.has(next)) return false;
+  // Ardındaki sözcükler (yalnız boşlukla ayrılmışsa): "değil / yok" olumsuzlama, "ise / olursa …" koşul. Arada dolgu olabilir
+  // ("bozuk bir şey yok" — Opus O4).
+  if (!tailTooLong) {
+    let i = tokEnd;
+    for (let hop = 0; hop < 3; hop++) {
+      const gapStart = i;
+      while (i < lower.length && i - gapStart < MAX_GAP && isGap(lower[i])) i++;
+      if (i === gapStart || i - gapStart >= MAX_GAP) break;
+      let j = i;
+      while (j < lower.length && j - i <= MAX_NEIGHBOR_WORD && WORD_CHAR.test(lower[j])) j++;
+      if (j - i > MAX_NEIGHBOR_WORD) break;
+      const next = foldTurkishAscii(lower.slice(i, j));
+      if (TR_AFTER_NEGATION.has(next) || TR_AFTER_CONDITIONAL.has(next)) return false;
+      if (!TR_NEGATION_FILLERS.has(next)) break;
+      i = j;
+    }
   }
-  // Önündeki sözcük (yalnız boşlukla ayrılmışsa); pekiştirme zarfıysa bir önceki ("isn't really broken" — Haiku 10-15).
+  // Önündeki sözcük (yalnız boşlukla ayrılmışsa); pekiştirme zarfı / bağ fiiliyse bir önceki ("isn't really broken", "nothing is broken").
   let wordEnd = start;
-  for (let hop = 0; hop < 2; hop++) {
+  for (let hop = 0; hop < 3; hop++) {
     let k = wordEnd;
-    while (k > 0 && (lower[k - 1] === " " || lower[k - 1] === "\u00a0" || lower[k - 1] === "\t")) k--;
-    if (k === wordEnd) break;
+    while (k > 0 && wordEnd - k < MAX_GAP && isGap(lower[k - 1])) k--;
+    if (k === wordEnd || wordEnd - k >= MAX_GAP) break;
     let m = k;
-    while (m > 0 && /[\p{L}\p{N}'’]/u.test(lower[m - 1])) m--;
+    while (m > 0 && k - m <= MAX_NEIGHBOR_WORD && /[\p{L}\p{N}'’]/u.test(lower[m - 1])) m--;
+    if (k - m > MAX_NEIGHBOR_WORD) break;
     const word = lower.slice(m, k).replace(/’/g, "'");
     if (EN_BEFORE_NEGATION.has(word)) return false;
     if (!EN_NEGATION_ADVERBS.has(word)) break;

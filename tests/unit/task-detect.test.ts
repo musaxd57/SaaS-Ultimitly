@@ -180,6 +180,13 @@ describe("kurucu D4 — arıza görev tespiti genişledi; soru / varsayım / olu
     "Merhaba, klima bozuk mu?",
     "Klima bozuk olursa ne yapalım?",
     "The AC isn't really broken, just noisy",
+    // Türkçe "yok" olumsuzlaması + İngilizce "no / nothing" (Opus O4).
+    "Çıkışta kontrol ettik, kırık yok, hasar yok, teşekkürler",
+    "Her şey harika, bozuk bir şey yok",
+    "Sorun yok, arıza yok",
+    "No leaks, everything is fine",
+    "Nothing is broken",
+    "If the shower is leaking, who do I call?",
     "In case the boiler is broken, who do we call?",
   ])("🚨 soru / varsayım / olumsuzlama → bakım görevi YOK: %j", (m) => {
     expect(detect(m)).toBeNull();
@@ -202,6 +209,12 @@ describe("kurucu D4 — arıza görev tespiti genişledi; soru / varsayım / olu
     "Heating doesn't work even if I set it to max",
     // Soru sözcüklü ama arızayı kendisi anlatan cümlecik bildirimdir.
     "Who do I call about the broken dishwasher?",
+    // Soru niyeti işareti var ama soru eki yok ve arızayı kendisi bildiriyor (Opus O5).
+    "Sormak istemiştim klima hâlâ çalışmıyor",
+    "Merak etmeyin acil değil ama duş akmıyor",
+    // Aşırı uygulama yok: olumsuzlanmış biri, bildirilmiş öteki.
+    "Arıza var, su yok",
+    "Kırık yok ama musluk akıtıyor",
   ])("aşırı uygulama yok: soru ekiyle TEREDDÜTLÜ bildirim / koşulla biten gerçek bildirim → görev AÇILIR: %j", (m) => {
     expect(detect(m)?.type).toBe("maintenance");
   });
@@ -227,6 +240,10 @@ describe("kurucu D4 — arıza görev tespiti genişledi; soru / varsayım / olu
     expect(key("Klima bozuk değil, musluk akmıyor")).toBe(key("Musluk akmıyor"));
     // Misafir eşyası işareti başka cümlecikteyse dairenin arızası yine görev açar.
     expect(detect("Valizleri getirdik, mutfak musluğu bozuldu")?.topic).toBe("musluk");
+    // Arıza sözcüğünün hemen solundaki cihaz (cümleciğin ilk cihazı değil — Opus O3).
+    expect(detect("Anahtarı aldık içeri girdik klima çalışmıyor")?.topic).toBe("klima");
+    expect(detect("Televizyon çalışıyor ama musluk bozuldu")?.topic).toBe("musluk");
+    expect(key("Televizyon çalışıyor ama musluk bozuldu")).not.toBe(key("Televizyon bozuldu"));
     // Cihaz ile fiil ayrı cümleciklerde: bütün mesaja düşülür.
     expect(detect("Klimayı açtık, bozuldu.")?.topic).toBe("klima");
   });
@@ -258,6 +275,8 @@ describe("kurucu D4 — arıza görev tespiti genişledi; soru / varsayım / olu
     detect(`${" ".repeat(50_000)}bozuk`);
     detect(`${",".repeat(50_000)}klima bozuk`);
     detect("klima bozuk değil ".repeat(3_000));
+    // Opus O6 (ölçüldü: 48.000 karakterde 5,9 sn): kesme işaretiyle bitişik arıza sözcükleri her eşleşmede dizinin sonuna kadar okunuyordu.
+    for (const unit of ["bozuk'", "bozuk’", "su yok'", "broken'", "kırık'yok "]) detect(unit.repeat(Math.floor(48_000 / unit.length)));
     detect("Klima bozuk mu? ".repeat(3_000));
     expect(performance.now() - t0).toBeLessThan(4_000);
   });
