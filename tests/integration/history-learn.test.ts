@@ -16,6 +16,10 @@ import type { SessionPayload } from "@/lib/auth";
 // ---------------------------------------------------------------------------
 
 let session: SessionPayload;
+vi.mock("@/lib/billing/plan-limits", async (orig) => {
+  const actual = await orig<typeof import("@/lib/billing/plan-limits")>();
+  return { ...actual, limitsForOrg: vi.fn(actual.limitsForOrg) };
+});
 vi.mock("@/lib/api", async (orig) => {
   const actual = await orig<typeof import("@/lib/api")>();
   return { ...actual, requireSession: vi.fn(async () => session) };
@@ -25,7 +29,16 @@ import { GET as getRuns, POST as startRun } from "@/app/api/properties/[id]/hist
 import { PATCH as reviewDraft } from "@/app/api/history-learn/drafts/[id]/route";
 import { GET as listInstr, POST as addInstr } from "@/app/api/properties/[id]/instructions/route";
 import { DELETE as retireInstr } from "@/app/api/properties/[id]/instructions/[instructionId]/route";
-import { executeHistoryLearnRun, startHistoryLearnRun, HISTORY_LEARN_MONTHLY_RUNS } from "@/lib/history-learn/service";
+import {
+  executeHistoryLearnRun,
+  purgeOldHistoryLearnDrafts,
+  startHistoryLearnRun,
+  sweepHistoryLearnRuns,
+  HISTORY_LEARN_MONTHLY_RUNS,
+  INSTRUCTIONS_MAX_ACTIVE,
+} from "@/lib/history-learn/service";
+import { limitsForOrg } from "@/lib/billing/plan-limits";
+import { loadPromptInstructions } from "@/lib/history-learn/prompt-instructions";
 import { buildOrganizationDataExport } from "@/lib/data-export";
 
 const owner = (organizationId: string): SessionPayload => ({
@@ -146,14 +159,14 @@ describe("Geçmişten öğren — uçtan uca", () => {
     expect(both.find((r) => !r.ok)).toEqual({ ok: false, reason: "running" });
     const res = await startRun(json(`http://localhost/api/properties/${propertyId}/history-learn`, "POST", {}), p({ id: propertyId }));
     expect(res.status).toBe(409);
-    // Takılı çalıştırma (40 dk önce, hâlâ running) yeni çalıştırmayı engellemez.
-    await prisma.historyLearnRun.updateMany({ data: { createdAt: new Date(Date.now() - 40 * 60_000), status: "running" } });
+    // Takılı çalıştırma (2 saat önce, hâlâ running) yeni çalıştırmayı engellemez.
+    await prisma.historyLearnRun.updateMany({ data: { createdAt: new Date(Date.now() - 2 * 3_600_000), status: "running" } });
     expect((await startHistoryLearnRun({ organizationId: orgId, propertyId, userId: null })).ok).toBe(true);
     // Aylık tavan (işletme geneli).
-    await prisma.historyLearnRun.updateMany({ data: { status: "done" } });
+    await prisma.historyLearnRun.updateMany({ data: { status: "done", calls: 1 } });
     const have = await prisma.historyLearnRun.count();
     await prisma.historyLearnRun.createMany({
-      data: Array.from({ length: HISTORY_LEARN_MONTHLY_RUNS - have }, () => ({ organizationId: orgId, propertyId, model: "m", status: "done" })),
+      data: Array.from({ length: HISTORY_LEARN_MONTHLY_RUNS - have }, () => ({ organizationId: orgId, propertyId, model: "m", status: "done", calls: 1 })),
     });
     expect(await startHistoryLearnRun({ organizationId: orgId, propertyId, userId: null })).toEqual({ ok: false, reason: "monthly_cap" });
     const capped = await startRun(json(`http://localhost/api/properties/${propertyId}/history-learn`, "POST", {}), p({ id: propertyId }));
@@ -256,5 +269,249 @@ describe("Geçmişten öğren — uçtan uca", () => {
     expect(await prisma.historyLearnDraft.findUniqueOrThrow({ where: { id: theirDraft.id } })).toMatchObject({ state: "pending" });
     expect(await prisma.propertyInstruction.count({ where: { propertyId: theirs.propertyId, status: "active" } })).toBe(1);
     expect(await prisma.knowledgeBaseItem.count()).toBe(0);
+  });
+});
+
+describe("Geçmişten öğren — Opus 10-15 ikinci tur bulguları", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.stubEnv("HISTORY_LEARN_ENABLED", "1");
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  const draftPatch = (id: string, body: unknown) => reviewDraft(json(`http://localhost/api/history-learn/drafts/${id}`, "PATCH", body), p({ id }));
+
+  it("🚨 B1 + B2: rezervasyonsuz konuşmada görünen misafir adı ve başında 0 olmayan cep telefonu modele GİTMEZ", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const t0 = Date.now() - 86_400_000;
+    const conv = await prisma.conversation.create({ data: { propertyId, guestIdentifier: "Mehmet Kaya", channel: "airbnb", status: "closed", lastMessageAt: new Date(t0) } });
+    await prisma.message.createMany({
+      data: [
+        { conversationId: conv.id, direction: "inbound", authorType: "guest", senderName: "Mehmet Kaya", body: "Otopark var mı?", createdAt: new Date(t0) },
+        { conversationId: conv.id, direction: "outbound", authorType: "host", senderName: "Ev sahibi", body: "Merhaba Mehmet Bey, otopark arkada. Sorun olursa 532 111 22 33.", createdAt: new Date(t0 + 60_000) },
+      ],
+    });
+    const s1 = (await startHistoryLearnRun({ organizationId: orgId, propertyId, userId: null })) as { runId: string };
+    const prompts: string[] = [];
+    await executeHistoryLearnRun(s1.runId, { fetchImpl: fakeModel(prompts, []), apiKey: "k" });
+    expect(prompts[0]).toContain("otopark arkada");
+    expect(prompts[0]).not.toContain("Mehmet");
+    expect(prompts[0]).not.toContain("532 111");
+    expect(prompts[0]).toContain("[PHONE]");
+  });
+
+  it("🚨 B3: düzenlenen metin kanıt bağlamıyla yeniden kapıdan geçer — misafir adı eklenmişse açık teyit ister", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    session = owner(orgId);
+    const { hostMessageId } = await seedHistory(propertyId);
+    const run = await prisma.historyLearnRun.create({ data: { organizationId: orgId, propertyId, model: "m", status: "done" } });
+    const d = await prisma.historyLearnDraft.create({
+      data: { runId: run.id, propertyId, category: "parking", title: "Otopark", content: "Otopark binanın arkasında ücretsiz.", evidenceMessageIdsJson: JSON.stringify([hostMessageId]) },
+    });
+    const r = await draftPatch(d.id, { action: "approve", content: "Ayşe Hanım için otopark binanın arkasında ücretsiz." });
+    expect(r.status).toBe(409);
+    const body = await r.json();
+    expect(body.needsConfirm).toBe(true);
+    expect(body.flags).toContain("guest_name");
+    // KONTROL: ad yokken (ve değerler ev sahibi cevabında) doğrudan onaylanır.
+    expect((await draftPatch(d.id, { action: "approve", content: "Otopark binanın arkasında ücretsiz." })).status).toBe(200);
+  });
+
+  it("🚨 B4: onay plan sınırına tabi (kalem sayısı ve karakter) — bilgi tabanı rotasıyla aynı", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    session = owner(orgId);
+    const base = await limitsForOrg(orgId);
+    vi.mocked(limitsForOrg).mockResolvedValue({ ...base, kbItemsPerProperty: 1, kbCharsPerItem: 30 });
+    const run = await prisma.historyLearnRun.create({ data: { organizationId: orgId, propertyId, model: "m", status: "done" } });
+    const mk = (content: string) => prisma.historyLearnDraft.create({ data: { runId: run.id, propertyId, category: "parking", title: "Otopark", content } });
+    const long = await mk("Otopark binanın arkasında, ücretsiz ve her zaman açık.");
+    const r1 = await draftPatch(long.id, { action: "approve" });
+    expect(r1.status).toBe(400);
+    expect(JSON.stringify(await r1.json())).toContain("uzun");
+    const a = await mk("Otopark arkada.");
+    expect((await draftPatch(a.id, { action: "approve" })).status).toBe(200);
+    const b = await mk("Çöp yeşil konteynerde.");
+    const rb = await draftPatch(b.id, { action: "approve" });
+    expect(rb.status).toBe(400);
+    expect(JSON.stringify(await rb.json())).toContain("sınırına");
+    expect(await prisma.historyLearnDraft.findUniqueOrThrow({ where: { id: b.id } })).toMatchObject({ state: "pending" });
+    vi.mocked(limitsForOrg).mockReset();
+  });
+
+  it("🚨 B6 + B7: iki dairede eşzamanlı başlatma aylık tavanı AŞAMAZ; anahtarsız / takılı çalıştırma ayı yakmaz; geçen ay sayılmaz", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const p2 = await prisma.property.create({ data: { organizationId: orgId, name: "Lale 2" } });
+    const now = new Date();
+    await prisma.historyLearnRun.createMany({
+      data: [
+        ...Array.from({ length: HISTORY_LEARN_MONTHLY_RUNS - 1 }, () => ({ organizationId: orgId, propertyId, model: "m", status: "done", calls: 3 })),
+        // Anahtarsız çalıştırmalar (çağrı 0) ve geçen ayın çalıştırmaları sayılmaz.
+        ...Array.from({ length: 5 }, () => ({ organizationId: orgId, propertyId, model: "m", status: "failed", errorCode: "no_key", calls: 0 })),
+        ...Array.from({ length: 5 }, () => ({ organizationId: orgId, propertyId, model: "m", status: "done", calls: 3, createdAt: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1) - 86_400_000) })),
+      ],
+    });
+    const both = await Promise.all([
+      startHistoryLearnRun({ organizationId: orgId, propertyId, userId: null }),
+      startHistoryLearnRun({ organizationId: orgId, propertyId: p2.id, userId: null }),
+    ]);
+    expect(both.filter((r) => r.ok)).toHaveLength(1);
+    expect(both.find((r) => !r.ok)).toEqual({ ok: false, reason: "monthly_cap" });
+  });
+
+  it("B7: takılı çalıştırma başlatmada 'failed / interrupted' olur; süpürge kuyruktakini yürütür, anahtar kapalıyken hiçbir şey yapmaz", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const stuck = await prisma.historyLearnRun.create({ data: { organizationId: orgId, propertyId, model: "m", status: "running", createdAt: new Date(Date.now() - 2 * 3_600_000) } });
+    expect((await startHistoryLearnRun({ organizationId: orgId, propertyId, userId: null })).ok).toBe(true);
+    expect(await prisma.historyLearnRun.findUniqueOrThrow({ where: { id: stuck.id } })).toMatchObject({ status: "failed", errorCode: "interrupted" });
+    // Kuyruktaki (1 dakikadan eski) çalıştırma süpürgede yürür.
+    await prisma.historyLearnRun.updateMany({ where: { status: "queued" }, data: { createdAt: new Date(Date.now() - 5 * 60_000) } });
+    vi.stubGlobal("fetch", fakeModel([], []));
+    vi.stubEnv("HISTORY_LEARN_ENABLED", "");
+    expect(await sweepHistoryLearnRuns()).toEqual({ failed: 0, executed: 0 });
+    vi.stubEnv("HISTORY_LEARN_ENABLED", "1");
+    expect((await sweepHistoryLearnRuns()).executed).toBe(1);
+    await vi.waitFor(async () => expect(await prisma.historyLearnRun.count({ where: { status: { in: ["queued", "running"] } } })).toBe(0));
+  });
+
+  it("🚨 B9: yeni okuma tamamlanınca aynı mülkün önceki bekleyen taslakları geri çekilir; onaylanan dokunulmaz", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    await seedHistory(propertyId);
+    const old = await prisma.historyLearnRun.create({ data: { organizationId: orgId, propertyId, model: "m", status: "done", calls: 1 } });
+    const pending = await prisma.historyLearnDraft.create({ data: { runId: old.id, propertyId, category: "parking", title: "Otopark", content: "x" } });
+    const approved = await prisma.historyLearnDraft.create({ data: { runId: old.id, propertyId, category: "trash", title: "Çöp", content: "y", state: "approved" } });
+    const s1 = (await startHistoryLearnRun({ organizationId: orgId, propertyId, userId: null })) as { runId: string };
+    await executeHistoryLearnRun(s1.runId, { fetchImpl: fakeModel([], [PARKING]), apiKey: "k" });
+    expect(await prisma.historyLearnDraft.findUniqueOrThrow({ where: { id: pending.id } })).toMatchObject({ state: "superseded" });
+    expect(await prisma.historyLearnDraft.findUniqueOrThrow({ where: { id: approved.id } })).toMatchObject({ state: "approved" });
+    expect(await prisma.historyLearnDraft.count({ where: { runId: s1.runId, state: "pending" } })).toBe(1);
+  });
+
+  it("rota POST başarı yolu: 202 + çalıştırma arka planda tamamlanır", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    session = owner(orgId);
+    await seedHistory(propertyId);
+    vi.stubGlobal("fetch", fakeModel([], [PARKING]));
+    const res = await startRun(json(`http://localhost/api/properties/${propertyId}/history-learn`, "POST", { questions: 50 }), p({ id: propertyId }));
+    expect(res.status).toBe(202);
+    const { runId } = await res.json();
+    await vi.waitFor(async () => expect((await prisma.historyLearnRun.findUniqueOrThrow({ where: { id: runId } })).status).toBe("done"), { timeout: 5000 });
+    expect(await prisma.historyLearnDraft.count({ where: { runId } })).toBe(1);
+  });
+
+  it("talimat tavanı; personel 403; destek görünümü (bürünme) yazamaz", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    session = owner(orgId);
+    const url = `http://localhost/api/properties/${propertyId}/instructions`;
+    for (let i = 0; i < INSTRUCTIONS_MAX_ACTIVE; i += 1) {
+      expect((await addInstr(json(url, "POST", { content: `Kural ${i}: sessiz saatler 23:00 sonrası.` }), p({ id: propertyId }))).status).toBe(201);
+    }
+    expect((await addInstr(json(url, "POST", { content: "Bir tane daha." }), p({ id: propertyId }))).status).toBe(409);
+    session = { ...owner(orgId), role: "staff" };
+    expect((await startRun(json(`http://localhost/api/properties/${propertyId}/history-learn`, "POST", {}), p({ id: propertyId }))).status).toBe(403);
+    expect((await listInstr(json(url, "GET"), p({ id: propertyId }))).status).toBe(403);
+    session = { ...owner(orgId), actorUserId: "operator-1" } as SessionPayload;
+    expect((await startRun(json(`http://localhost/api/properties/${propertyId}/history-learn`, "POST", {}), p({ id: propertyId }))).status).toBe(403);
+    expect(await prisma.historyLearnRun.count()).toBe(0);
+  });
+
+  it("🚨 yer tutucu kimlik (\"Misafir\", \"Rezervasyon AB12\") ad maskesine girmez — cevaptaki \"misafir\" sözcüğü bozulmaz", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const t0 = Date.now() - 86_400_000;
+    for (const id of ["Misafir", "Rezervasyon HMAB12"]) {
+      const conv = await prisma.conversation.create({ data: { propertyId, guestIdentifier: id, channel: "airbnb", status: "closed", lastMessageAt: new Date(t0) } });
+      await prisma.message.createMany({
+        data: [
+          { conversationId: conv.id, direction: "inbound", authorType: "guest", senderName: id, body: "Kaç kişi kalabilir?", createdAt: new Date(t0) },
+          { conversationId: conv.id, direction: "outbound", authorType: "host", senderName: "Ev sahibi", body: "Misafir sayısı en çok 4. Rezervasyon onaylanınca giriş bilgisi gelir.", createdAt: new Date(t0 + 60_000) },
+        ],
+      });
+    }
+    const s1 = (await startHistoryLearnRun({ organizationId: orgId, propertyId, userId: null })) as { runId: string };
+    const prompts: string[] = [];
+    await executeHistoryLearnRun(s1.runId, { fetchImpl: fakeModel(prompts, []), apiKey: "k" });
+    expect(prompts[0]).toContain("Misafir sayısı en çok 4");
+    expect(prompts[0]).toContain("Rezervasyon onaylanınca");
+    expect(prompts[0]).not.toContain("{isim}");
+  });
+
+  it("🚨 B8 son yazma CAS: yürürken 'takılı' sayılıp kapatılan çalıştırma sonucunu yazamaz, taslak ekleyemez", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    await seedHistory(propertyId);
+    const s1 = (await startHistoryLearnRun({ organizationId: orgId, propertyId, userId: null })) as { runId: string };
+    const inner = fakeModel([], [PARKING]);
+    const racing = (async (url: string, init?: RequestInit) => {
+      // Model cevabı gelmeden çalıştırma başka bir süreçte "interrupted" yapılır.
+      await prisma.historyLearnRun.update({ where: { id: s1.runId }, data: { status: "failed", errorCode: "interrupted" } });
+      return inner(url, init);
+    }) as unknown as typeof fetch;
+    await executeHistoryLearnRun(s1.runId, { fetchImpl: racing, apiKey: "k" });
+    expect(await prisma.historyLearnRun.findUniqueOrThrow({ where: { id: s1.runId } })).toMatchObject({ status: "failed", errorCode: "interrupted" });
+    expect(await prisma.historyLearnDraft.count({ where: { runId: s1.runId } })).toBe(0);
+  });
+
+  it("taslak üretmeyen okuma önceki bekleyen taslakları geri ÇEKMEZ", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    await seedHistory(propertyId);
+    const old = await prisma.historyLearnRun.create({ data: { organizationId: orgId, propertyId, model: "m", status: "done", calls: 1 } });
+    const pending = await prisma.historyLearnDraft.create({ data: { runId: old.id, propertyId, category: "parking", title: "Otopark", content: "x" } });
+    const s1 = (await startHistoryLearnRun({ organizationId: orgId, propertyId, userId: null })) as { runId: string };
+    await executeHistoryLearnRun(s1.runId, { fetchImpl: fakeModel([], []), apiKey: "k" });
+    expect(await prisma.historyLearnRun.findUniqueOrThrow({ where: { id: s1.runId } })).toMatchObject({ status: "done", draftCount: 0 });
+    expect(await prisma.historyLearnDraft.findUniqueOrThrow({ where: { id: pending.id } })).toMatchObject({ state: "pending" });
+  });
+
+  it("aylık tavan: yalnız anahtarsız çalıştırma sayılmaz; kesilen (interrupted) sayılır; başka işletmenin takılı çalıştırmasına dokunulmaz", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const other = await makeOrgWithProperty();
+    const otherStuck = await prisma.historyLearnRun.create({
+      data: { organizationId: other.orgId, propertyId: other.propertyId, model: "m", status: "running", startedAt: new Date(Date.now() - 2 * 3_600_000) },
+    });
+    await prisma.historyLearnRun.createMany({
+      data: Array.from({ length: HISTORY_LEARN_MONTHLY_RUNS }, () => ({ organizationId: orgId, propertyId, model: "m", status: "failed", errorCode: "interrupted" })),
+    });
+    expect(await startHistoryLearnRun({ organizationId: orgId, propertyId, userId: null })).toEqual({ ok: false, reason: "monthly_cap" });
+    expect(await prisma.historyLearnRun.findUniqueOrThrow({ where: { id: otherStuck.id } })).toMatchObject({ status: "running" });
+    // 45 dk önce başlayan çalıştırma takılı DEĞİL (eşik 60 dk).
+    const recent = await prisma.historyLearnRun.create({
+      data: { organizationId: other.orgId, propertyId: other.propertyId, model: "m", status: "running", createdAt: new Date(Date.now() - 2 * 3_600_000), startedAt: new Date(Date.now() - 45 * 60_000) },
+    });
+    await prisma.historyLearnRun.delete({ where: { id: otherStuck.id } });
+    expect(await startHistoryLearnRun({ organizationId: other.orgId, propertyId: other.propertyId, userId: null })).toEqual({ ok: false, reason: "running" });
+    expect(await prisma.historyLearnRun.findUniqueOrThrow({ where: { id: recent.id } })).toMatchObject({ status: "running" });
+  });
+
+  it("F2 yükleyici: anahtar açıkken yalnız BU işletmenin BU mülkünün etkin talimatları, yazılış sırasıyla; kaldırılan / başka kiracı yok", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const other = await makeOrgWithProperty();
+    await prisma.propertyInstruction.create({ data: { organizationId: orgId, propertyId, content: "Kısa yaz.", createdAt: new Date(Date.now() - 2000) } });
+    await prisma.propertyInstruction.create({ data: { organizationId: orgId, propertyId, content: "Kaldırılan.", status: "retired" } });
+    await prisma.propertyInstruction.create({ data: { organizationId: orgId, propertyId, content: "Samimi ol." } });
+    await prisma.propertyInstruction.create({ data: { organizationId: other.orgId, propertyId: other.propertyId, content: "Başka kiracı." } });
+    vi.stubEnv("PROPERTY_INSTRUCTIONS_PROMPT_ENABLED", "1");
+    expect(await loadPromptInstructions(orgId, propertyId)).toEqual(["Kısa yaz.", "Samimi ol."]);
+    // Başka işletmenin mülk kimliğiyle sorgu boş döner.
+    expect(await loadPromptInstructions(orgId, other.propertyId)).toEqual([]);
+    vi.stubEnv("PROPERTY_INSTRUCTIONS_PROMPT_ENABLED", "");
+    expect(await loadPromptInstructions(orgId, propertyId)).toEqual([]);
+  });
+
+  it("saklama: onaylanmamış taslak 90 gün sonra silinir, onaylanan kalır", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const run = await prisma.historyLearnRun.create({ data: { organizationId: orgId, propertyId, model: "m", status: "done" } });
+    const old = new Date(Date.now() - 91 * 86_400_000);
+    await prisma.historyLearnDraft.createMany({
+      data: [
+        { runId: run.id, propertyId, category: "faq", title: "a", content: "a", state: "pending", createdAt: old },
+        { runId: run.id, propertyId, category: "faq", title: "b", content: "b", state: "rejected", createdAt: old },
+        { runId: run.id, propertyId, category: "faq", title: "c", content: "c", state: "approved", createdAt: old },
+        { runId: run.id, propertyId, category: "faq", title: "d", content: "d", state: "pending" },
+      ],
+    });
+    expect(await purgeOldHistoryLearnDrafts()).toEqual({ deleted: 2 });
+    expect((await prisma.historyLearnDraft.findMany({ select: { title: true }, orderBy: { title: "asc" } })).map((d) => d.title)).toEqual(["c", "d"]);
   });
 });

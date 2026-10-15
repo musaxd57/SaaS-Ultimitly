@@ -14,6 +14,7 @@ import { runIntelligencePass, purgeExpiredSignals } from "@/modules/intelligence
 import { warmAllKbVectorsOnce } from "@/lib/ai/embeddings/kb-warm";
 import { purgeExpiredConversationItems } from "@/lib/conversation-items/store";
 import { purgeExpiredGuestCommitments } from "@/lib/guest-commitments";
+import { purgeOldHistoryLearnDrafts, sweepHistoryLearnRuns } from "@/lib/history-learn/service";
 import { sweepUnverifiedRegistrations } from "@/lib/unverified-sweep";
 import { sweepExpiredRateLimits } from "@/lib/rate-limit";
 import { sweepPasswordResetChallenges } from "@/lib/auth/password-reset-challenge";
@@ -853,6 +854,10 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
           const cutoff = retentionCutoff();
           if (cutoff) await purgeExpiredGuestCommitments(cutoff);
         });
+        // Geçmişten öğren (migration 65): onaylanmamış taslak 90 gün (maskeye rağmen misafir kırıntısı taşıyabilir) + takılı / kuyrukta
+        // kalan çalıştırmalar (süreç yeniden başladıysa rota tetiklemesi kaybolur). Anahtar kapalıyken süpürge hiçbir şey yapmaz.
+        await hourly("history-learn-retention", "scheduled-sync history-learn retention", () => purgeOldHistoryLearnDrafts());
+        await hourly("history-learn-sweep", "scheduled-sync history-learn sweep", () => sweepHistoryLearnRuns());
         // Takip numarası olay günlüğü (migration 63): 90 gün saklama (kurucu kararı 10-10 §5) — DATA_RETENTION_MONTHS'tan bağımsız, ayrı iş.
         await hourly("event-log-retention", "scheduled-sync event-log retention", () => pruneOperationalEvents());
         // Marketing-lead retention. No-op unless LEAD_RETENTION_MONTHS is set.

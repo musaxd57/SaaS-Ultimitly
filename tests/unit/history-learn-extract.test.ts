@@ -101,6 +101,16 @@ describe("Geçmişten öğren — maske", () => {
     expect(maskForLearning("Deniz Bey, denize 10 dakika", "Deniz Kaya")).toBe("{isim} Bey, denize 10 dakika");
   });
 
+  it("🚨 B1: başında 0 / + olmayan Türkiye cep telefonu maskelenir; fiyat, tarih, saat, 8 haneli şifre dokunulmaz; birden çok ad", () => {
+    expect(maskForLearning("numaram 532 123 45 67", null)).toBe("numaram [PHONE]");
+    expect(maskForLearning("90 532 123 45 67 arayın", null)).toBe("[PHONE] arayın");
+    expect(maskForLearning("5321234567", null)).toBe("[PHONE]");
+    expect(maskForLearning("(532) 123 45 67", null)).toBe("[PHONE]");
+    const keep = "Otopark 1500 TL, 15.10.2026, 23:00, Wi-Fi şifresi 12345678.";
+    expect(maskForLearning(keep, null)).toBe(keep);
+    expect(maskForLearning("Merhaba Mehmet Bey, Ayşe Hanım", ["Mehmet Kaya", "Ayşe"])).toBe("Merhaba {isim} Bey, {isim} Hanım");
+  });
+
   it("🚨 maske ÖNCE, kırpma SONRA: sınırda bölünen telefon maskeden kaçmaz", () => {
     const pad = "x ".repeat((LEARN_SIDE_MAX_CHARS - 6) / 2);
     const out = maskForLearning(`${pad}+90 532 111 22 33 arayın`, null);
@@ -166,6 +176,29 @@ describe("Geçmişten öğren — kod kapıları", () => {
     const num = gateDraft("Plaj", "Plaj 15 dakika.", { hostAnswers: host });
     expect(num.ok && num.flags).toContain("ungrounded");
   });
+  it("🚨 B5: dayanak TAM belirteçle — \"10\" \"100\"ün içinde, \"Lale_Ev\" \"Lale_Ev5G\"nin içinde bulunmuş sayılmaz", () => {
+    const g1 = gateDraft("Otopark", "Otopark günlük 10 TL.", { hostAnswers: ["Otopark günlük 100 TL."] });
+    expect(g1.ok && g1.flags).toContain("ungrounded");
+    const g2 = gateDraft("Wi-Fi", "Ağ Lale_Ev.", { hostAnswers: ["Ağ Lale_Ev5G, şifre x."] });
+    expect(g2.ok && g2.flags).toContain("ungrounded");
+    const ok = gateDraft("Otopark", "Otopark günlük 100 TL.", { hostAnswers: ["Otopark günlük 100 TL."] });
+    expect(ok.ok && ok.flags).toEqual([]);
+  });
+
+  it("dayanak katlaması: büyük/küçük harf (WIFI_5G ↔ Wifi_5G) ve bitişik birim (100TL ↔ 100 TL) fazla işaret üretmez", () => {
+    const a = gateDraft("Wi-Fi", "Ağ WIFI_5G.", { hostAnswers: ["Ağ Wifi_5G"] });
+    expect(a.ok && a.flags).toEqual([]);
+    const b = gateDraft("Otopark", "Otopark günlük 100 TL.", { hostAnswers: ["Otopark 100TL günlük"] });
+    expect(b.ok && b.flags).toEqual([]);
+  });
+
+  it("🚨 ad kalıbı önbellekli: 1000 ad × 300 taslak kapısı 2 sn altında (Opus 10-15: 26 sn idi)", () => {
+    const names = Array.from({ length: 1000 }, (_, i) => `Ad${String.fromCharCode(97 + (i % 26))}${String.fromCharCode(97 + ((i / 26) | 0) % 26)} Soyad${i % 7}`);
+    const t0 = Date.now();
+    for (let i = 0; i < 300; i += 1) gateDraft("Otopark", "Binanın arkasında ücretsiz otopark var.", { guestNames: names });
+    expect(Date.now() - t0).toBeLessThan(2_000);
+  });
+
   it("değer belirteçleri doğrusal ve doğru", () => {
     expect(valueTokens("Ağ Lale_Ev şifre lale2024, 100 TL, 5 dk, 23:00")).toEqual(["Lale_Ev", "lale2024", "100", "23", "00"]);
     const t0 = Date.now();

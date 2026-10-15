@@ -195,6 +195,7 @@ import {
   reservationCreatedEmail,
 } from "@/lib/email-templates";
 import { LEGACY_CONVERSATION_STATUSES, type ReplyTone } from "@/lib/constants";
+import { loadPromptInstructions } from "@/lib/history-learn/prompt-instructions";
 
 const VALID_TONES: ReplyTone[] = ["formal", "warm", "short", "luxury"];
 
@@ -2252,6 +2253,8 @@ export async function applyChannelAutoReply(
     // ⚠️ Süzgeç SATIR bazlı: yalnız sırra benzeyen satır düşer, üslup korunur
     // (KB'deki "kalemin tamamı düşer" sorunu burada YOK).
     styleProfile: styleProfileForPrompt(org.aiStyleProfile),
+    // F2 mülk talimatı (anahtar `PROPERTY_INSTRUCTIONS_PROMPT_ENABLED` kapalı → boş, istem değişmez).
+    hostInstructions: await loadPromptInstructions(conversation.property.organizationId, conversation.propertyId),
     adjacency,
     lateCheckoutOfferText: org.lateCheckoutOfferText,
   });

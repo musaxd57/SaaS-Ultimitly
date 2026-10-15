@@ -13,6 +13,8 @@ const MESSAGES: Record<string, string> = {
   invalid: "Başlık ve içerik dolu olmalı (başlık en çok 120, içerik en çok 2.000 karakter).",
   door_code: "Kapı ya da anahtar kutusu kodu bilgi tabanına eklenemez. Kodu çıkarıp yeniden deneyin.",
   hijack: "Bu metin yapay zekâya talimat veriyor gibi görünüyor. Bilgiyi düz cümleyle yazın.",
+  plan_items: "Planınızın izin verdiği bilgi tabanı sınırına ulaştınız. Kullanmadığınız kayıtları pasife alın ya da planınızı yükseltin.",
+  plan_chars: "Bu bilgi planınızın izin verdiğinden uzun. Metni kısaltın ya da ikiye bölün.",
 };
 
 export const PATCH = withManage<{ id: string }>(async (session, req, { params }) => {
@@ -36,7 +38,10 @@ export const PATCH = withManage<{ id: string }>(async (session, req, { params })
     if (r.reason === "not_found") return notFound();
     if (r.reason === "already_reviewed") return NextResponse.json({ error: "Bu taslak zaten işlendi." }, { status: 409 });
     if (r.reason === "needs_confirm")
-      return NextResponse.json({ error: "Bu taslakta kontrol edilmesi gereken bir nokta var. Okuyup onaylayın.", needsConfirm: true }, { status: 409 });
+      return NextResponse.json(
+        { error: "Bu taslakta kontrol edilmesi gereken bir nokta var. Okuyup onaylayın.", needsConfirm: true, flags: r.flags, conflict: r.conflict },
+        { status: 409 },
+      );
     return badRequest({ _: MESSAGES[r.reason] ?? MESSAGES.invalid });
   }
   await writeAudit({

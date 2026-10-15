@@ -23,6 +23,7 @@ import { retrieveKbForPrompt } from "@/lib/ai/kb-retrieve";
 import { understandingRiskOf } from "@/lib/ai/semantic/intent-risk";
 import { consumeDailyAiBudget, dailyBudgetMessage } from "@/lib/ai/daily-budget";
 import { modelGuestFirstName } from "@/lib/ai/code-greeting";
+import { loadPromptInstructions } from "@/lib/history-learn/prompt-instructions";
 
 // ---------------------------------------------------------------------------
 // AI reply PLAYGROUND — safe dry-run.
@@ -181,6 +182,7 @@ export const POST = withManage(async (session, req) => {
     // satır düşer, üslup korunur — yani kayıp yok, çünkü rehber ÜSLUP içindir,
     // içerik değil. Üç yüzeyin üçü de artık aynı süzgeçten geçiyor.
     styleProfile: styleProfileForPrompt(org?.aiStyleProfile),
+    hostInstructions: await loadPromptInstructions(session.organizationId, property.id),
     lateCheckoutOfferText: org?.lateCheckoutOfferText,
     timeZone: org?.timezone,
   });

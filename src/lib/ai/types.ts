@@ -122,6 +122,11 @@ export interface SuggestReplyInput {
   language: string;
   /** Distilled guide of the host's own reply style (optional, learned). */
   styleProfile?: string | null;
+  /**
+   * Ev sahibinin bu daire için yazdığı talimatlar (F2, `history-learn/prompt-instructions.ts`; anahtar
+   * `PROPERTY_INSTRUCTIONS_PROMPT_ENABLED` kapalıyken çağıran boş verir → istem değişmez). Kapılardan geçmiş, tavanlı.
+   */
+  hostInstructions?: readonly string[] | null;
   /** Neighbouring bookings (same property) for early-checkin/late-checkout calls. */
   adjacency?: AdjacencyContext | null;
   /**

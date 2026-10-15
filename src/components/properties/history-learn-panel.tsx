@@ -63,7 +63,10 @@ function DraftCard({ draft, onDone }: { draft: Draft; onDone: () => void }) {
   const [checked, setChecked] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const needsCheck = draft.flags.length > 0 || draft.conflict;
+  // Sunucu düzenlenen metinde YENİ bir işaret bulursa (409 needsConfirm) kutu ve uyarılar onunla açılır — ev sahibi kilitlenmez.
+  const [serverFlags, setServerFlags] = useState<Flag[]>([]);
+  const flags = [...new Set([...draft.flags, ...serverFlags])];
+  const needsCheck = flags.length > 0 || draft.conflict;
 
   async function act(action: "approve" | "reject") {
     setBusy(true);
@@ -75,7 +78,11 @@ function DraftCard({ draft, onDone }: { draft: Draft; onDone: () => void }) {
         body: JSON.stringify(action === "approve" ? { action, title, content, confirmFlags: checked } : { action }),
       });
       if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string; fields?: Record<string, string> };
+        const body = (await res.json().catch(() => ({}))) as { error?: string; fields?: Record<string, string>; needsConfirm?: boolean; flags?: Flag[] };
+        if (body.needsConfirm) {
+          setServerFlags((body.flags ?? []).filter((f): f is Flag => f in FLAG_TEXT));
+          setChecked(false);
+        }
         setError(body.error ?? Object.values(body.fields ?? {})[0] ?? "İşlem yapılamadı. Tekrar deneyin.");
         return;
       }
@@ -102,9 +109,9 @@ function DraftCard({ draft, onDone }: { draft: Draft; onDone: () => void }) {
           Cevaplarınız bu konuda farklı. {draft.conflictNote ?? ""}
         </p>
       ) : null}
-      {draft.flags.length ? (
+      {flags.length ? (
         <ul className="list-disc space-y-0.5 pl-5 text-xs text-amber-800 dark:text-amber-300">
-          {draft.flags.map((f) => (
+          {flags.map((f) => (
             <li key={f}>{FLAG_TEXT[f]}</li>
           ))}
         </ul>

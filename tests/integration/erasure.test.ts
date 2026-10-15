@@ -117,6 +117,31 @@ describe("KVKK explicit erasure (m40) — executor", () => {
     expect(await prisma.erasureTombstone.count()).toBe(0);
   });
 
+  it("🚨 Geçmişten öğren (migration 65): silinen konaklamanın mülkündeki ONAYLANMAMIŞ taslaklar + bu konaklamanın soru karşılaştırmaları silinir; onaylanan taslak ve başka konaklamanın karşılaştırması kalır", async () => {
+    const { orgId, reservationId, conversationId } = await seedErasedStay();
+    const conv = await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId }, select: { propertyId: true } });
+    const propertyId = conv.propertyId;
+    const run = await prisma.historyLearnRun.create({ data: { organizationId: orgId, propertyId, model: "m", status: "done" } });
+    await prisma.historyLearnDraft.createMany({
+      data: [
+        { runId: run.id, propertyId, category: "faq", title: "bekleyen", content: "x" },
+        { runId: run.id, propertyId, category: "faq", title: "onaylı", content: "y", state: "approved" },
+      ],
+    });
+    const msg = await prisma.message.findFirstOrThrow({ where: { conversationId } });
+    const other = await prisma.conversation.create({ data: { propertyId, guestIdentifier: "Başka", channel: "airbnb", status: "closed", lastMessageAt: new Date() } });
+    const otherMsg = await prisma.message.create({ data: { conversationId: other.id, direction: "inbound", senderName: "Başka", body: "Havlu?" } });
+    await prisma.historyLearnComparison.createMany({
+      data: [
+        { propertyId, questionMessageId: msg.id, aiAnswer: "cevap", note: "not" },
+        { propertyId, questionMessageId: otherMsg.id, aiAnswer: "cevap 2" },
+      ],
+    });
+    await eraseReservationData(orgId, reservationId);
+    expect((await prisma.historyLearnDraft.findMany({ select: { title: true } })).map((d) => d.title)).toEqual(["onaylı"]);
+    expect((await prisma.historyLearnComparison.findMany({ select: { questionMessageId: true } })).map((c) => c.questionMessageId)).toEqual([otherMsg.id]);
+  });
+
   it("erases: scrubs PII with the sweep's sentinels + writes hash-only tombstones (no raw PII at rest)", async () => {
     const { orgId, reservationId, conversationId } = await seedErasedStay();
     const scope = await eraseReservationData(orgId, reservationId);

@@ -605,6 +605,14 @@ async function maskReservationRows(
     // Misafire verilen sözler (migration 62): metin taşımaz ama konaklamaya bağlı davranış kaydıdır → misafir silmesinde silinir (veri
     // en aza indirme; Haiku KVKK denetimi B3, 10-10). Bağlı görev (başlığı yalnız tür: "Misafire söz: …") ev sahibinin işi olarak kalır.
     await db.guestCommitment.deleteMany({ where: { organizationId, conversationId: { in: convIds } } });
+    // Geçmişten öğren (migration 65, Opus 10-15 KVKK): onaylanmamış taslak maskeye rağmen misafir kırıntısı taşıyabilir ve kanıtı JSON'da
+    // durur → silinen konaklamanın mülkündeki ONAYLANMAMIŞ taslaklar silinir (yeniden üretilebilir; onaylanan = ev sahibinin bilgi tabanı
+    // kalemi, kalır). Bu konaklamanın sorularına ait cevap karşılaştırmaları (yapay zekâ cevabı + not) silinir.
+    const convProps = await db.conversation.findMany({ where: { id: { in: convIds }, property: { organizationId } }, select: { propertyId: true } });
+    const propIds = [...new Set(convProps.map((c) => c.propertyId))];
+    if (propIds.length) await db.historyLearnDraft.deleteMany({ where: { propertyId: { in: propIds }, state: { not: "approved" } } });
+    const qIds = (await db.message.findMany({ where: { conversationId: { in: convIds } }, select: { id: true } })).map((m) => m.id);
+    if (qIds.length) await db.historyLearnComparison.deleteMany({ where: { property: { organizationId }, questionMessageId: { in: qIds } } });
   }
 }
 

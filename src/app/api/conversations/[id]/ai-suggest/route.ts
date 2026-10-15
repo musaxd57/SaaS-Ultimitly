@@ -25,6 +25,7 @@ import { historyAuthorOf, isAnsweringOutbound } from "@/lib/message-author";
 import { kbFactsOf, vetoAvailability } from "@/lib/ai/availability-claims";
 import { availabilityPolicyFor, hostOfferForGate } from "@/lib/automation";
 import { runEarlyCheckinWorkflow } from "@/lib/early-checkin/workflow";
+import { loadPromptInstructions } from "@/lib/history-learn/prompt-instructions";
 
 export const POST = withManage<{ id: string }>(async (session, req, { params }) => {
   const { id } = await params;
@@ -203,6 +204,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     // satır düşer, üslup korunur — yani kayıp yok, çünkü rehber ÜSLUP içindir,
     // içerik değil. Üç yüzeyin üçü de artık aynı süzgeçten geçiyor.
     styleProfile: styleProfileForPrompt(org?.aiStyleProfile),
+    hostInstructions: await loadPromptInstructions(session.organizationId, conversation.propertyId),
     adjacency,
     lateCheckoutOfferText: org?.lateCheckoutOfferText,
     // "Bugün / yarın" ve konaklama evresi org diliminde (`stay-timeline.ts`) — kanal oto-yanıtıyla parite.

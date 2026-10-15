@@ -59,5 +59,10 @@ Kurucu 10-15: "Railway'i açınca ekleyeceğimiz bayrakları unutma." Bu dosya T
 
 ## 5. Yeni anahtarlar (bu turda eklenenler)
 
-- `HISTORY_LEARN_ENABLED` (Geçmişten öğren paneli, migration ile gelecek) — kod hazır olunca bu satır güncellenir.
+- `HISTORY_LEARN_ENABLED` — Geçmişten öğren paneli + rotalar + zamanlanmış süpürge (migration 65). Açmak = mülk sayfasında kart; misafire
+  giden HİÇBİR şeyi değiştirmez (taslak onaylanınca bilgi tabanı kalemi olur — ev sahibinin kendi onayı).
+- `PROPERTY_INSTRUCTIONS_PROMPT_ENABLED` — mülk talimatları cevap istemine girer (kurucu 10-15: "anahtar arkasında yap"). Misafire giden
+  cevabı DEĞİŞTİRİR → Railway açılınca ilk denemeler birlikte, sonra açılır.
+- ⚠️ Hazır yama `docs/hazir-yamalar/2026-10-14-KB-istek-kimligi-migration-65.patch` uygulanırken migration adı **66** olmalı (65 artık
+  `65_history_learn`).
 - GitHub Actions sırrı `ANTHROPIC_API_KEY` (Railway'e DEĞİL; yalnız test iş akışı) — kurucu 10-15 ekledi.

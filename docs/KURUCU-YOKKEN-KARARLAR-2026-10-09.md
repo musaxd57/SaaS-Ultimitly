@@ -478,3 +478,11 @@ yalnız gitmemesi gerekenler artık gitmiyor):**
 - ACIK-ISLER 08-08 §12: doluluk sayacının testi artık kopyayı değil gerçek fonksiyonu sınar; kiracı başına takvim bütçesi pinlendi;
   §11 öksüz görev notu ve iki çapa maddesi önceden kapanmış, işaretlendi.
 - Depo PUBLIC → CI gerçek çalıştırıcılarla koşuyor (önceki kırmızının sebebi kotaydı).
+
+## Kurucu kararları 10-15 sabah (Geçmişten öğren)
+
+| Soru | Kurucu cevabı | Uygulama |
+|---|---|---|
+| Mülk talimatları cevap istemine girsin mi? (önce/sonra: otopark örneği) | "Anahtar arkasında yap" | `PROPERTY_INSTRUCTIONS_PROMPT_ENABLED` KAPALI; blok güvenlik kurallarının altında, bilgi kaynağı değil, kapılar istem anında yeniden, toplam 1.500 karakter. Railway açılınca ilk denemeler birlikte. |
+| Cevap karşılaştırmada model | "Canlı cevap modeli" | Karşılaştırma üretim cevap yolunu (`OPENAI_MODEL`) kullanır — Railway'de Luna yapılınca Luna. |
+| Hazır olmayan dairede otomatik cevap | "Yalnız öneri göstersin" | Hazırlık puanı panelde öneri; otomatik cevabı kod kapatmaz. |

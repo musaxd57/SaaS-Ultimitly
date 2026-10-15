@@ -7,7 +7,7 @@ import { detectKbInstructionHijack, foldTurkishAscii } from "@/lib/ai/fallback";
 import { qrReplyHasDoorCode, REDACTED_DOOR_CODE } from "@/lib/guest-chat";
 import { namesPaymentMethod } from "@/lib/payment-method-guard";
 import { sensitiveClassesIn } from "@/lib/kb-from-history";
-import { namePattern, type MaskedPair } from "./mask";
+import type { MaskedPair } from "./mask";
 
 // ---------------------------------------------------------------------------
 // GEÇMİŞTEN ÖĞREN — MASKELİ ÇİFTLERDEN BİLGİ TABANI TASLAĞI (tasarım §2.2–2.3; kurucu 10-15: "Luna 6.0 yapsın, 5.1 çok pahalı").
@@ -219,7 +219,7 @@ const ONE_OFF_RE =
   /(?<![a-z])(?:indirim|discount|iade|refund|bu sefer|bu seferlik|this time|size ozel|sizin icin ozel|ozel olarak|ucretsiz konaklama|free stay|erken giris|early check|gec cikis|late check)|%/u;
 /** Kapı / kutu / tuş paneli kodu KONUSU (değer olmasa da gözle bakılsın). */
 const DOOR_MENTION_RE =
-  /(?<![a-z])(?:kapi|kutu|anahtar kutusu|keybox|key box|lockbox|lock box|keypad|tus paneli|door|gate|bina girisi)[a-z]{0,8}\s{0,3}(?:kod|sifre|code|pin|password|passcode)/u;
+  /(?<![a-z])(?:(?:kapi|kutu|anahtar kutusu|keybox|key box|lockbox|lock box|keypad|tus paneli|door|gate|bina girisi|giris|kilit|akilli kilit|smart lock)[a-z]{0,8}\s{0,3}(?:kod|sifre|code|pin|password|passcode)|smart lock|akilli kilit)/u;
 /**
  * Taslaktaki "değer" belirteçleri: ≥2 haneli sayı, harf + rakam karışık ya da alt çizgili sözcük (şifre, ağ adı). DOĞRUSAL: önce
  * sözcüklere bölünür, her sözcük ayrı sınanır (karesel iş kuralı — çapasız `[…]*` + alternatif uzun sözcükte karesel olurdu).
@@ -228,6 +228,32 @@ export function valueTokens(text: string): string[] {
   return text
     .split(/[^\p{L}\p{N}_]+/u)
     .filter((tok) => tok && (/\d{2}/u.test(tok) || tok.includes("_") || (/\p{L}/u.test(tok) && /\d/u.test(tok))));
+}
+
+/**
+ * Taslakta misafir adı geçiyor mu — DOĞRUSAL küme araması (Opus 10-15: ad başına kalıp taraması 1000 ad × 300 taslakta saniyeler
+ * sürüyordu). Ad parçaları (≥3 harf) Türkçe katlanmış kümeye girer (liste kimliğiyle önbellekli); metnin her sözcüğü katlanıp, sevgi eki
+ * soyulmuş hâliyle de sorulur. Maske tarafı (`mask.ts` `namePattern`) aynı harf ailelerini kalıpla uygular.
+ */
+const NAME_SET_CACHE = new WeakMap<readonly string[], Set<string>>();
+const ENDEARMENT_TAIL = /(?:c[iu]g[iu]m|c[iu]m)$/u;
+function nameSet(names: readonly string[]): Set<string> {
+  const hit = NAME_SET_CACHE.get(names);
+  if (hit) return hit;
+  const set = new Set<string>();
+  for (const n of names) for (const part of n.split(/\s+/u)) if ([...part].length >= 3) set.add(foldTurkishAscii(part));
+  NAME_SET_CACHE.set(names, set);
+  return set;
+}
+export function mentionsGuestName(text: string, names: readonly string[]): boolean {
+  const set = nameSet(names);
+  if (!set.size) return false;
+  for (const w of text.split(/[^\p{L}]+/u)) {
+    if (!w) continue;
+    const f = foldTurkishAscii(w);
+    if (set.has(f) || set.has(f.replace(ENDEARMENT_TAIL, ""))) return true;
+  }
+  return false;
 }
 
 export interface GateContext {
@@ -256,11 +282,17 @@ export function gateDraft(
   if (ONE_OFF_RE.test(folded)) flags.add("one_off");
   if (DOOR_MENTION_RE.test(folded)) flags.add("door_mention");
   if (sensitiveClassesIn(text).length) flags.add("sensitive");
-  if (ctx.guestNames?.some((n) => namePattern(n).test(text))) flags.add("guest_name");
+  if (ctx.guestNames?.length && mentionsGuestName(text, ctx.guestNames)) flags.add("guest_name");
   if (ctx.hostAnswers) {
-    const host = ctx.hostAnswers.join("\n").toLocaleLowerCase("tr");
-    const tokens = valueTokens(text);
-    if (tokens.some((tok) => !host.includes(tok.toLocaleLowerCase("tr")))) flags.add("ungrounded");
+    // TAM belirteç eşleşmesi (Opus 10-15 B5: alt dizi araması "10"u "100"ün içinde, "Lale_Ev"i "Lale_Ev5G"nin içinde buluyordu).
+    // Katlama: Türkçe büyük/küçük ("WIFI_5G" ↔ "Wifi_5G") ve sayı+birim bitişikliği ("100TL" ↔ "100 TL") fazla işaret üretmesin.
+    const norm = (t: string) => foldTurkishAscii(t);
+    const host = new Set<string>();
+    for (const t of valueTokens(ctx.hostAnswers.join("\n"))) {
+      host.add(norm(t));
+      for (const d of t.match(/\d{2,}/gu) ?? []) host.add(d);
+    }
+    if (valueTokens(text).some((tok) => !host.has(norm(tok)) && !(/^\d+$/u.test(tok) && host.has(tok)))) flags.add("ungrounded");
   }
   return { ok: true, flags: DRAFT_FLAGS.filter((f) => flags.has(f)) };
 }

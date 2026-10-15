@@ -67,6 +67,7 @@ import { verifiedQrEnabled } from "@/lib/ai/verified-qr";
 import { reportError } from "@/lib/report-error";
 import { loadQrVerifiedStay } from "@/lib/ai/verified-qr-load";
 import { codeBuiltResult } from "@/lib/ai/code-built-result";
+import { loadPromptInstructions } from "@/lib/history-learn/prompt-instructions";
 
 export const dynamic = "force-dynamic";
 
@@ -1005,6 +1006,8 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     // değişmezi ise "sır bağlama HİÇ girmez". Aynı deterministik detektör
     // (bilgi tabanını elediği detektör) rehbere de uygulanır.
     styleProfile: styleProfileForPrompt(org?.aiStyleProfile),
+    // F2 mülk talimatı (anahtar kapalı → boş). Kapıları istem anında yeniden koşar; QR'da da aynı kural.
+    hostInstructions: await loadPromptInstructions(ctx.property.organizationId, ctx.property.id),
     // "Bugün / yarın" org diliminde (`stay-timeline.ts`). Rezervasyon ayrıntısı QR'da BİLEREK yok; bugünün tarihi kişisel
     // veri değildir ("çöp bugün mü alınıyor?" gibi soruları çözer).
     timeZone: org?.timezone,

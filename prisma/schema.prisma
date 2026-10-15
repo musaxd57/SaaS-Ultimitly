@@ -1730,7 +1730,7 @@ model HistoryLearnDraft {
   flagsJson              String    @default("[]")
   /// JSON dizi — kanıt ev sahibi mesaj kimlikleri (PII yok; örnek canlı okunur).
   evidenceMessageIdsJson String    @default("[]")
-  /// pending | approved | rejected (app-enforced)
+  /// pending | approved | rejected | superseded (app-enforced; superseded = aynı mülkün daha yeni temiz okuması geldi)
   state                  String    @default("pending")
   /// Onayla oluşan bilgi tabanı kalemi (FK YOK — KB silme HARD DELETE).
   kbItemId               String?
@@ -1775,6 +1775,12 @@ model HistoryLearnComparison {
   questionMessageId        String
   hostAnswerMessageIdsJson String   @default("[]")
   aiAnswer                 String?
+  /// Bugünkü kod kapısı bu cevabı otomatik gönderir miydi (GÖNDERİLMEDİ — yalnız gösterim); kapanırsa kapalı küme sebep.
+  wouldAutoSend            Boolean?
+  gateDetail               String?
+  /// Cevabı üreten model + istem kimliği (SHA-256 ilk 12) — ölçüm izi.
+  model                    String?
+  promptId                 String?
   /// good | fix | bad (app-enforced)
   verdict                  String?
   note                     String?
