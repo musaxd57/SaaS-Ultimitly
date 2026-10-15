@@ -1,7 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/db";
-import { checkInstruction } from "./service";
+import { checkInstruction } from "./instruction-gate";
 
 // ---------------------------------------------------------------------------
 // MÜLK TALİMATI → CEVAP İSTEMİ (F2; kurucu 10-15: "böyle yapsın" notu HEM bilgi tabanına HEM mülke özgü talimata). Anahtar

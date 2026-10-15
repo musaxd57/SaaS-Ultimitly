@@ -40,6 +40,7 @@ interface Draft {
 }
 interface Run {
   id: string;
+  kind?: string;
   status: string;
   errorCode: string | null;
   pairCount: number;
@@ -49,11 +50,105 @@ interface Instruction {
   id: string;
   content: string;
 }
+interface Comparison {
+  id: string;
+  question: string | null;
+  hostAnswer: string | null;
+  aiAnswer: string | null;
+  wouldAutoSend: boolean | null;
+  verdict: string | null;
+  note: string | null;
+}
+
+const VERDICTS: { value: "good" | "fix" | "bad"; label: string }[] = [
+  { value: "good", label: "İyi" },
+  { value: "fix", label: "Düzeltilmeli" },
+  { value: "bad", label: "Kötü" },
+];
+
+/**
+ * Cevap karşılaştırma kartı (F1): sizin o zamanki cevabınız ↔ bugünkü yapay zekânın cevabı (GÖNDERİLMEDİ). Karar + not; "Böyle yapsın"
+ * notu HEM bu daire için talimat HEM bilgi tabanı taslağı olur (kurucu 10-15) — taslak yine onayınızı bekler.
+ */
+function ComparisonCard({ c, onDone }: { c: Comparison; onDone: () => void }) {
+  const [verdict, setVerdict] = useState(c.verdict);
+  const [note, setNote] = useState(c.note ?? "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save(apply: boolean) {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/history-learn/comparisons/${c.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ verdict, note: note.trim() || null, apply }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string; fields?: Record<string, string> };
+        setError(body.error ?? Object.values(body.fields ?? {})[0] ?? "Kaydedilemedi.");
+        return;
+      }
+      toast.success(apply ? "Talimat eklendi; bilgi tabanı taslağı onayınızı bekliyor." : "Kaydedildi.");
+      onDone();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-2 rounded-md border p-3" data-testid="history-learn-comparison">
+      <p className="text-xs text-muted-foreground">Misafir sordu</p>
+      <p className="whitespace-pre-wrap text-sm">{c.question ?? "Mesaj artık yok."}</p>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <div className="space-y-1">
+          <p className="text-xs text-muted-foreground">Sizin cevabınız</p>
+          <p className="whitespace-pre-wrap text-sm">{c.hostAnswer ?? "Mesaj artık yok."}</p>
+        </div>
+        <div className="space-y-1">
+          <p className="text-xs text-muted-foreground">
+            Yapay zekâ bugün böyle cevaplardı{" "}
+            {c.wouldAutoSend === true ? "(kendiliğinden gönderirdi)" : c.wouldAutoSend === false ? "(size bırakırdı)" : ""}
+          </p>
+          <p className="whitespace-pre-wrap text-sm">{c.aiAnswer ?? "Cevap üretilemedi."}</p>
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {VERDICTS.map((v) => (
+          <Button key={v.value} size="sm" variant={verdict === v.value ? "default" : "outline"} onClick={() => setVerdict(v.value)} disabled={busy}>
+            {v.label}
+          </Button>
+        ))}
+      </div>
+      <Textarea
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        maxLength={500}
+        rows={2}
+        placeholder="Yapay zekâ böyle bir soruda nasıl davranmalı? Örnek: Otopark sorulursa önce sokakta ücretsiz yer olduğunu söylesin."
+        aria-label="Not"
+        disabled={busy}
+      />
+      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      <div className="flex gap-2">
+        <Button size="sm" variant="outline" onClick={() => save(false)} disabled={busy || !verdict}>
+          Kaydet
+        </Button>
+        <Button size="sm" onClick={() => save(true)} disabled={busy || !note.trim()}>
+          {busy ? <Loader2 className="animate-spin" /> : null} Böyle yapsın
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 function runLine(run: Run | undefined): string | null {
   if (!run) return null;
-  if (run.status === "queued" || run.status === "running") return "Geçmiş mesajlar okunuyor. Bu birkaç dakika sürebilir.";
-  if (run.status === "failed") return "Okuma tamamlanamadı. Biraz sonra tekrar deneyin.";
+  if (run.status === "queued" || run.status === "running")
+    return run.kind === "compare" ? "Cevaplar karşılaştırılıyor. Bu birkaç dakika sürebilir." : "Geçmiş mesajlar okunuyor. Bu birkaç dakika sürebilir.";
+  if (run.status === "failed") return "İşlem tamamlanamadı. Biraz sonra tekrar deneyin.";
+  if (run.kind === "compare") return `Son karşılaştırma: ${run.draftCount} soru karşılaştırıldı.`;
   return `Son okuma: ${run.pairCount} soru okundu, ${run.draftCount} taslak çıktı.`;
 }
 
@@ -139,6 +234,7 @@ export function HistoryLearnPanel({ propertyId }: { propertyId: string }) {
   const [runs, setRuns] = useState<Run[]>([]);
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [instructions, setInstructions] = useState<Instruction[]>([]);
+  const [comparisons, setComparisons] = useState<Comparison[]>([]);
   const [newInstruction, setNewInstruction] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -152,6 +248,7 @@ export function HistoryLearnPanel({ propertyId }: { propertyId: string }) {
     if (a) {
       setRuns(a.runs);
       setDrafts(a.drafts);
+      setComparisons(a.comparisons ?? []);
     }
     if (b) setInstructions(b.instructions);
     return a?.runs?.[0] as Run | undefined;
@@ -169,11 +266,11 @@ export function HistoryLearnPanel({ propertyId }: { propertyId: string }) {
     };
   }, [poll]);
 
-  async function start() {
+  async function start(kind: "learn" | "compare" = "learn") {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`/api/properties/${propertyId}/history-learn`, {
+      const res = await fetch(`/api/properties/${propertyId}/history-learn${kind === "compare" ? "/compare" : ""}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ questions: 300 }),
@@ -220,15 +317,29 @@ export function HistoryLearnPanel({ propertyId }: { propertyId: string }) {
           Misafirlerin geçmişte sorduğu soruları ve sizin cevaplarınızı okur, bilgi tabanı için taslak hazırlar. Taslaklar siz onaylamadan
           kullanılmaz.
         </p>
-        <Button size="sm" onClick={start} disabled={busy || running}>
-          {busy || running ? <Loader2 className="animate-spin" /> : null} Geçmişi oku
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" onClick={() => start("learn")} disabled={busy || running}>
+            {busy || running ? <Loader2 className="animate-spin" /> : null} Geçmişi oku
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => start("compare")} disabled={busy || running}>
+            Cevapları karşılaştır
+          </Button>
+        </div>
         {runLine(latest) ? <p className="text-xs text-muted-foreground">{runLine(latest)}</p> : null}
       </div>
       {drafts.length ? (
         <div className="space-y-2">
           {drafts.map((d) => (
             <DraftCard key={d.id} draft={d} onDone={() => void load()} />
+          ))}
+        </div>
+      ) : null}
+      {comparisons.length ? (
+        <div className="space-y-2">
+          <p className="text-sm font-medium">Cevap karşılaştırma</p>
+          <p className="text-xs text-muted-foreground">Geçmiş sorulara bugünkü yapay zekânın cevabı. Bu cevaplar misafire gönderilmedi.</p>
+          {comparisons.map((c) => (
+            <ComparisonCard key={c.id} c={c} onDone={() => void load()} />
           ))}
         </div>
       ) : null}

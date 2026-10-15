@@ -261,6 +261,11 @@ describe("Geçmişten öğren — uçtan uca", () => {
     expect((await listInstr(json(`${url}/instructions`, "GET"), p({ id: theirs.propertyId }))).status).toBe(404);
     expect((await addInstr(json(`${url}/instructions`, "POST", { content: "Sessiz saatler 23:00 sonrası." }), p({ id: theirs.propertyId }))).status).toBe(404);
     expect((await retireInstr(json(`${url}/instructions/${theirInstr.id}`, "DELETE"), p({ id: theirs.propertyId, instructionId: theirInstr.id }))).status).toBe(404);
+    // AYNI işletmenin BAŞKA dairesinin talimatı, yanlış daire adresinden kaldırılamaz (mutasyon S8).
+    const mineB = await prisma.property.create({ data: { organizationId: mine.orgId, name: "Lale B" } });
+    const instrB = await prisma.propertyInstruction.create({ data: { organizationId: mine.orgId, propertyId: mineB.id, content: "B dairesi." } });
+    expect((await retireInstr(json(`http://localhost/x`, "DELETE"), p({ id: mine.propertyId, instructionId: instrB.id }))).status).toBe(404);
+    expect(await prisma.propertyInstruction.findUniqueOrThrow({ where: { id: instrB.id } })).toMatchObject({ status: "active" });
     // Kendi mülkünün adresiyle başkasının talimatı da 404.
     expect(
       (await retireInstr(json(`http://localhost/x`, "DELETE"), p({ id: mine.propertyId, instructionId: theirInstr.id }))).status,
@@ -302,6 +307,22 @@ describe("Geçmişten öğren — Opus 10-15 ikinci tur bulguları", () => {
     expect(prompts[0]).not.toContain("Mehmet");
     expect(prompts[0]).not.toContain("532 111");
     expect(prompts[0]).toContain("[PHONE]");
+  });
+
+  it("ev sahibinin görünen adı misafir adı SAYILMAZ (yalnız misafir satırının gönderen adı) — mutasyon S19", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const t0 = Date.now() - 86_400_000;
+    const conv = await prisma.conversation.create({ data: { propertyId, guestIdentifier: "Mehmet Kaya", channel: "airbnb", status: "closed", lastMessageAt: new Date(t0) } });
+    await prisma.message.createMany({
+      data: [
+        { conversationId: conv.id, direction: "inbound", authorType: "guest", senderName: "Mehmet Kaya", body: "Otopark var mı?", createdAt: new Date(t0) },
+        { conversationId: conv.id, direction: "outbound", authorType: "host", senderName: "Deniz Konak", body: "Otopark arkada. Deniz Konak ekibi.", createdAt: new Date(t0 + 60_000) },
+      ],
+    });
+    const s1 = (await startHistoryLearnRun({ organizationId: orgId, propertyId, userId: null })) as { runId: string };
+    const prompts: string[] = [];
+    await executeHistoryLearnRun(s1.runId, { fetchImpl: fakeModel(prompts, []), apiKey: "k" });
+    expect(prompts[0]).toContain("Deniz Konak ekibi");
   });
 
   it("🚨 B3: düzenlenen metin kanıt bağlamıyla yeniden kapıdan geçer — misafir adı eklenmişse açık teyit ister", async () => {

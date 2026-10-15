@@ -5,6 +5,7 @@ CREATE TABLE "HistoryLearnRun" (
     "organizationId" TEXT NOT NULL,
     "propertyId" TEXT NOT NULL,
     "requestedById" TEXT,
+    "kind" TEXT NOT NULL DEFAULT 'learn',
     "status" TEXT NOT NULL DEFAULT 'queued',
     "model" TEXT NOT NULL,
     "effort" TEXT,

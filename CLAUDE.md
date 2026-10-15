@@ -224,6 +224,10 @@ Landing: 3-seviye kartlar + canlı demo. KVKK: export, retention, erasure (bayra
 - 🚨 **ALT AJAN = HAIKU 5.5 (kurucu 10-08: "haiku 5.5'i subagentin olarak kullan, bol bol yardım etsin"):** tarama / envanter / ölçüm /
   doğrulama işleri `Agent` aracıyla `model: "haiku"` (çoğunlukla `subagent_type: Explore`) çalıştırılır; dar, net, kısa çıktılı görev
   verilir; bulgular kodla doğrulanır; kodu Claude yazar. Yasak dosyalar (sealed / private / holdout) ajana da AÇILMAZ.
+- 🚨 **İNCELEME DÖNGÜSÜ (kurucu 10-15):** her dosya yazımı / değişiklik grubundan sonra Haiku 5.5 alt ajanı dar inceleme yapar; dilim bitince
+  Opus 5.5 "en derin ve sert" büyük kontrol (bulgularını ilerledikçe dosyaya yazar — kesme olursa kaybolmasın). Derin araştırma / tasarım
+  işleri Opus 5.5. Kesme ("Request interrupted") o turun alt ajanlarını durdurur → yeniden başlatılır. Railway açılana kadar kodla
+  yapılabilecek her şey yapılır.
 - **Kurucu cevap incelemesi (10-08):** ölçüm yan dosyalarından (`docs/olcum/*.json`) çıkan misafir mesajı → yapay zekâ cevabı çiftleri
   `scripts/review/build-review-set.py` ile toplanır, sayfa https://claude.ai/artifact/DFkiB4FkXrNagEtHnGTXXN (veri `review-set.json`,
   yorumlar sayfanın veritabanında `reviews/m<mesaj özeti>` — soru başına kararlı kimlik, eski `q…` / çift kimlikli kayıtlar da okunur: verdict good/fix/bad · better · note). Kurucu yorumları `ArtifactData list

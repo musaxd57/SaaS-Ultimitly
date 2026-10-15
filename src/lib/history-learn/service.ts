@@ -7,9 +7,11 @@ import { limitsForOrg } from "@/lib/billing/plan-limits";
 import { buildLearnPairs } from "./pairs";
 import { maskPairs, maskForLearning } from "./mask";
 import { DRAFT_FLAGS, extractDraftsFromPairs, gateDraft, historyLearnEffort, historyLearnModel, LEARN_CATEGORIES, type DraftFlag } from "./extract";
-import { detectKbInstructionHijack, foldTurkishAscii } from "@/lib/ai/fallback";
-import { qrReplyHasDoorCode } from "@/lib/guest-chat";
-import { namesPaymentMethod } from "@/lib/payment-method-guard";
+import { foldTurkishAscii } from "@/lib/ai/fallback";
+import { INSTRUCTIONS_MAX_ACTIVE, checkInstruction, type InstructionRejectReason } from "./instruction-gate";
+// Karşılaştırma yolu (`compare.ts` → otomasyon kapısı) DİNAMİK yüklenir: otomasyon talimat yükleyicisini içe aktarıyor; statik içe
+// aktarma döngü kurardı (otomasyon → talimat → servis → karşılaştırma → otomasyon).
+import type { DryRunProperty, DryRunResult } from "./compare";
 
 // ---------------------------------------------------------------------------
 // GEÇMİŞTEN ÖĞREN — SERVİS (migration 65). Anahtar `HISTORY_LEARN_ENABLED` (varsayılan KAPALI; panel + rotalar 404).
@@ -75,10 +77,15 @@ async function failStuckRuns(db: Tx | typeof prisma, now: Date, organizationId?:
  * iki daire aynı anda başlatınca tavan aşılıyordu). Tavan yalnız MODEL ÇAĞIRAN (ya da sürmekte olan) çalıştırmaları sayar: anahtarsız /
  * takılı çalıştırma ayı yakmaz (B7).
  */
+export type RunKind = "learn" | "compare";
+/** Karşılaştırmada tek çalıştırmada en çok soru (canlı cevap modeli — maliyet tavanı). */
+export const COMPARE_MAX_QUESTIONS = 50;
+
 export async function startHistoryLearnRun(input: {
   organizationId: string;
   propertyId: string;
   userId: string | null;
+  kind?: RunKind;
   now?: Date;
 }): Promise<StartResult> {
   const now = input.now ?? new Date();
@@ -104,8 +111,10 @@ export async function startHistoryLearnRun(input: {
         organizationId: input.organizationId,
         propertyId: input.propertyId,
         requestedById: input.userId,
-        model: historyLearnModel(),
-        effort: historyLearnEffort(),
+        kind: input.kind ?? "learn",
+        // Karşılaştırma CANLI cevap modeliyle (kurucu 10-15) — kayıt yalnız iz; asıl model `suggestReply`ın ayarı.
+        model: input.kind === "compare" ? process.env.OPENAI_MODEL?.trim() || "default" : historyLearnModel(),
+        effort: input.kind === "compare" ? null : historyLearnEffort(),
       },
       select: { id: true },
     });
@@ -169,7 +178,13 @@ export type RunErrorCode = "no_key" | "model" | "internal" | "interrupted";
  */
 export async function executeHistoryLearnRun(
   runId: string,
-  opts: { questions?: number; fetchImpl?: typeof fetch; apiKey?: string } = {},
+  opts: {
+    questions?: number;
+    fetchImpl?: typeof fetch;
+    apiKey?: string;
+    /** Test enjeksiyonu (karşılaştırma); üretimde `compare.ts` `dryRunReply`. */
+    dryRun?: (input: { organizationId: string; property: DryRunProperty; message: string; now: Date }) => Promise<DryRunResult>;
+  } = {},
 ): Promise<void> {
   const claimed = await prisma.historyLearnRun.updateMany({
     where: { id: runId, status: "queued" },
@@ -177,7 +192,10 @@ export async function executeHistoryLearnRun(
   });
   if (claimed.count !== 1) return;
   try {
-    const run = await prisma.historyLearnRun.findUniqueOrThrow({ where: { id: runId }, select: { propertyId: true, organizationId: true, model: true, effort: true } });
+    const run = await prisma.historyLearnRun.findUniqueOrThrow({
+      where: { id: runId },
+      select: { propertyId: true, organizationId: true, model: true, effort: true, kind: true },
+    });
     const since = new Date(Date.now() - HISTORY_LEARN_WINDOW_DAYS * 86_400_000);
     const rows = await prisma.message.findMany({
       where: {
@@ -208,6 +226,10 @@ export async function executeHistoryLearnRun(
       [...convStatus].map(([id, status]) => ({ id, status })),
     ).slice(0, clampQuestions(opts.questions ?? HISTORY_LEARN_MAX_QUESTIONS));
     const masked = maskPairs(pairs, Object.fromEntries([...names].map(([c, s]) => [c, [...s]])));
+    if (run.kind === "compare") {
+      await executeCompare(runId, run, pairs.slice(0, COMPARE_MAX_QUESTIONS), masked, opts.dryRun ?? (await import("./compare")).dryRunReply);
+      return;
+    }
     const usage = { in: 0, out: 0 };
     const result = await extractDraftsFromPairs(masked, {
       model: run.model,
@@ -265,6 +287,59 @@ export async function executeHistoryLearnRun(
       .updateMany({ where: { id: runId, status: "running" }, data: { status: "failed", errorCode: "internal", finishedAt: new Date() } })
       .catch(() => {});
   }
+}
+
+/**
+ * Karşılaştırma yürütücüsü: her geçmiş soru (MASKELİ) için bugünkü ürünün kuru koşu cevabı + kapı sonucu; satır başına UPSERT (aynı soru
+ * yeniden karşılaştırılınca ev sahibinin kararı / notu KORUNUR, yalnız yapay zekâ alanları yenilenir). Hiçbir şey gönderilmez.
+ */
+async function executeCompare(
+  runId: string,
+  run: { propertyId: string; organizationId: string },
+  pairs: readonly import("./pairs").LearnPair[],
+  masked: readonly import("./mask").MaskedPair[],
+  dryRun: (input: { organizationId: string; property: DryRunProperty; message: string; now: Date }) => Promise<DryRunResult>,
+): Promise<void> {
+  const property = await prisma.property.findFirstOrThrow({
+    where: { id: run.propertyId, organizationId: run.organizationId },
+    select: { id: true, name: true, checkInTime: true, checkOutTime: true, address: true, city: true },
+  });
+  const model = process.env.OPENAI_MODEL?.trim() || null;
+  let calls = 0;
+  let failed = 0;
+  for (let i = 0; i < pairs.length; i += 1) {
+    // Kesilen çalıştırma (takılı sayıldı) sonraki soruları çağırmaz.
+    const live = await prisma.historyLearnRun.count({ where: { id: runId, status: "running" } });
+    if (!live) return;
+    const pair = pairs[i];
+    const questionMessageId = pair.questionIds[pair.questionIds.length - 1];
+    calls += 1;
+    let out: DryRunResult;
+    try {
+      out = await dryRun({ organizationId: run.organizationId, property, message: masked[i].question, now: pair.askedAt });
+    } catch {
+      failed += 1;
+      continue;
+    }
+    const ai = { aiAnswer: out.reply, wouldAutoSend: out.wouldAutoSend, model, runId };
+    await prisma.historyLearnComparison.upsert({
+      where: { propertyId_questionMessageId: { propertyId: run.propertyId, questionMessageId } },
+      create: { propertyId: run.propertyId, questionMessageId, hostAnswerMessageIdsJson: JSON.stringify(pair.answerIds), ...ai },
+      update: { hostAnswerMessageIdsJson: JSON.stringify(pair.answerIds), ...ai },
+    });
+  }
+  await prisma.historyLearnRun.updateMany({
+    where: { id: runId, status: "running" },
+    data: {
+      status: calls > 0 && failed === calls ? "failed" : "done",
+      errorCode: calls > 0 && failed === calls ? "model" : null,
+      pairCount: pairs.length,
+      draftCount: calls - failed,
+      calls,
+      failedCalls: failed,
+      finishedAt: new Date(),
+    },
+  });
 }
 
 /**
@@ -417,27 +492,7 @@ export function parseFlags(json: string | null | undefined): DraftFlag[] {
 }
 
 // ── Mülke özgü talimat ──────────────────────────────────────────────────────────────────────────────────────────────────────────
-export const INSTRUCTION_MAX_CHARS = 500;
-/** Etkin talimat tavanı. İsteme giren TOPLAM ayrıca sınırlı (istem bağlama dilimi). */
-export const INSTRUCTIONS_MAX_ACTIVE = 10;
-
-export type InstructionRejectReason = "empty" | "too_long" | "door_code" | "hijack" | "payment";
-export type InstructionCheck = { ok: true; content: string } | { ok: false; reason: InstructionRejectReason };
-
-/**
- * Talimat metni kapısı (talimat cevap istemine girer → ev sahibi metni İSTEMDİR): kapı kodu değeri · bilgi tabanı ele geçirme kalıbı
- * · ödeme yöntemi / yeri (TEK KAYNAK `payment-method-guard`, ŞÜPHEDE REDDET) · uzunluk tavanı. Kaydederken VE isteme girerken koşar.
- */
-export function checkInstruction(raw: string): InstructionCheck {
-  const content = raw.replace(/\s+/gu, " ").trim();
-  if (!content) return { ok: false, reason: "empty" };
-  if (content.length > INSTRUCTION_MAX_CHARS) return { ok: false, reason: "too_long" };
-  if (qrReplyHasDoorCode(content, [])) return { ok: false, reason: "door_code" };
-  if (detectKbInstructionHijack(content)) return { ok: false, reason: "hijack" };
-  if (namesPaymentMethod(content)) return { ok: false, reason: "payment" };
-  return { ok: true, content };
-}
-
+export { INSTRUCTION_MAX_CHARS, INSTRUCTIONS_MAX_ACTIVE, checkInstruction, type InstructionCheck, type InstructionRejectReason } from "./instruction-gate";
 export async function addPropertyInstruction(input: {
   organizationId: string;
   propertyId: string;
@@ -473,4 +528,77 @@ export async function retirePropertyInstruction(organizationId: string, id: stri
     data: { status: "retired", retiredAt: new Date() },
   });
   return r.count === 1;
+}
+
+// ── Karşılaştırma kararı (F1) ───────────────────────────────────────────────────────────────────────────────────────────────────
+export const COMPARISON_VERDICTS = ["good", "fix", "bad"] as const;
+
+export type ComparisonReviewResult =
+  | { ok: true; instructionId: string | null; draftId: string | null }
+  | { ok: false; reason: "not_found" | "invalid" | "note_required" | InstructionRejectReason | "limit" };
+
+/**
+ * Karar + not. `apply` ("böyle yapsın"): not kapılardan geçer (talimat kuralı), sonra AYNI işlemde HEM mülk talimatı (kaynak
+ * `history_learn`) HEM bilgi tabanı TASLAĞI olur (onay bekler — A1). Not kapıdan dönerse hiçbir şey yazılmaz.
+ */
+export async function reviewComparison(input: {
+  organizationId: string;
+  comparisonId: string;
+  userId: string | null;
+  verdict: string | null;
+  note: string | null;
+  apply: boolean;
+}): Promise<ComparisonReviewResult> {
+  const cmp = await prisma.historyLearnComparison.findFirst({
+    where: { id: input.comparisonId, property: { organizationId: input.organizationId } },
+    select: { id: true, propertyId: true, runId: true, hostAnswerMessageIdsJson: true },
+  });
+  if (!cmp) return { ok: false, reason: "not_found" };
+  if (input.verdict !== null && !(COMPARISON_VERDICTS as readonly string[]).includes(input.verdict)) return { ok: false, reason: "invalid" };
+  const note = input.note?.trim() || null;
+  if (input.apply && !note) return { ok: false, reason: "note_required" };
+  let checked: string | null = null;
+  if (note) {
+    const c = checkInstruction(note);
+    if (!c.ok) return { ok: false, reason: c.reason };
+    checked = c.content;
+  }
+  return prisma.$transaction(async (tx) => {
+    await tx.historyLearnComparison.update({
+      where: { id: cmp.id },
+      data: { verdict: input.verdict, note: checked, createdById: input.userId },
+    });
+    if (!input.apply || !checked) return { ok: true, instructionId: null, draftId: null } as const;
+    const locked = await tx.$queryRaw<{ id: string }[]>`SELECT "id" FROM "Property" WHERE "id" = ${cmp.propertyId} FOR UPDATE`;
+    if (!locked.length) return { ok: false, reason: "not_found" } as const;
+    const active = await tx.propertyInstruction.count({ where: { propertyId: cmp.propertyId, status: "active" } });
+    if (active >= INSTRUCTIONS_MAX_ACTIVE) return { ok: false, reason: "limit" } as const;
+    const instr = await tx.propertyInstruction.create({
+      data: { organizationId: input.organizationId, propertyId: cmp.propertyId, content: checked, source: "history_learn", createdById: input.userId },
+      select: { id: true },
+    });
+    const runId =
+      cmp.runId ??
+      (
+        await tx.historyLearnRun.create({
+          data: { organizationId: input.organizationId, propertyId: cmp.propertyId, kind: "compare", model: "note", status: "done" },
+          select: { id: true },
+        })
+      ).id;
+    const gate = gateDraft("Ev sahibi notu", checked);
+    const draft = await tx.historyLearnDraft.create({
+      data: {
+        runId,
+        propertyId: cmp.propertyId,
+        category: "faq",
+        title: "Ev sahibi notu",
+        content: checked,
+        supportConversations: 1,
+        flagsJson: JSON.stringify(gate.ok ? gate.flags : []),
+        evidenceMessageIdsJson: cmp.hostAnswerMessageIdsJson,
+      },
+      select: { id: true },
+    });
+    return { ok: true, instructionId: instr.id, draftId: draft.id } as const;
+  });
 }

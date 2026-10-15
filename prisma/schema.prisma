@@ -1690,6 +1690,8 @@ model HistoryLearnRun {
   propertyId     String
   /// Başlatan kullanıcı (FK yok — kullanıcı silinse de iz kalır; kişisel veri değil, kimlik).
   requestedById  String?
+  /// learn (taslak çıkarımı) | compare (cevap karşılaştırma) — app-enforced
+  kind           String    @default("learn")
   /// queued | running | done | failed (app-enforced)
   status         String    @default("queued")
   model          String

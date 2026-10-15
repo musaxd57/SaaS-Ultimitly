@@ -106,13 +106,17 @@ describe("Geçmişten öğren — maske", () => {
     expect(maskForLearning("90 532 123 45 67 arayın", null)).toBe("[PHONE] arayın");
     expect(maskForLearning("5321234567", null)).toBe("[PHONE]");
     expect(maskForLearning("(532) 123 45 67", null)).toBe("[PHONE]");
+    // Genel kalıp: yabancı numara ve sabit hat (Türkiye cep kalıbı bunları yakalamaz — mutasyon M5).
+    expect(maskForLearning("Arayın: +49 30 12345678", null)).toBe("Arayın: [PHONE]");
+    expect(maskForLearning("Ofis 0212 123 45 67", null)).toBe("Ofis [PHONE]");
     const keep = "Otopark 1500 TL, 15.10.2026, 23:00, Wi-Fi şifresi 12345678.";
     expect(maskForLearning(keep, null)).toBe(keep);
     expect(maskForLearning("Merhaba Mehmet Bey, Ayşe Hanım", ["Mehmet Kaya", "Ayşe"])).toBe("Merhaba {isim} Bey, {isim} Hanım");
   });
 
   it("🚨 maske ÖNCE, kırpma SONRA: sınırda bölünen telefon maskeden kaçmaz", () => {
-    const pad = "x ".repeat((LEARN_SIDE_MAX_CHARS - 6) / 2);
+    // Telefon sınırda bölünür: kırpma ÖNCE olsaydı "+90 532 111 2" (eksik, maskeye uymayan) parça açıkta kalırdı (mutasyon M4).
+    const pad = "x ".repeat((LEARN_SIDE_MAX_CHARS - 12) / 2);
     const out = maskForLearning(`${pad}+90 532 111 22 33 arayın`, null);
     expect(out).not.toMatch(/532/u);
     expect(out.length).toBeLessThanOrEqual(LEARN_SIDE_MAX_CHARS + 2);
