@@ -95,6 +95,22 @@ describe("bilgi tabanı yeniden kopyalama — eski kopyayı güncelle (kurucu D2
     expect(contents).toEqual(["Arkada.", "Havuz 09:00–20:00 açık."]);
   });
 
+  it("🚨 Opus O10a: aynı kimliğin yeniden denemesinde HEDEF kopya arada elle düzenlendiyse 'kaynak değişti' (409) DENMEZ — kaynak değişmedi", async () => {
+    await copy(src, { targetPropertyIds: [a], requestId: RID });
+    const [copyA] = await itemsIn(a);
+    expect((await edit(copyA.id, { content: "Havuz 09:00–21:00 açık (cumartesi 23)." })).status).toBe(200);
+    const retry = await copy(src, { targetPropertyIds: [a, b], requestId: RID });
+    expect(retry.status).toBe(200);
+    expect((await itemsIn(a)).map((x) => x.content)).toEqual(["Havuz 09:00–21:00 açık (cumartesi 23)."]);
+    expect((await itemsIn(b)).map((x) => x.content)).toEqual(["Havuz 09:00–20:00 açık."]);
+  });
+
+  it("🚨 Opus O9: farklı kimlikli iki kopyalama AYNI ANDA → dairede TEK bağlı kopya (tekil dizin; kaybeden 'güncel' sayılır)", async () => {
+    const [r1, r2] = await Promise.all([copy(src, { targetPropertyIds: [a], requestId: RID }), copy(src, { targetPropertyIds: [a], requestId: RID2 })]);
+    expect([r1.status, r2.status]).toEqual([200, 200]);
+    expect(await prisma.knowledgeBaseItem.count({ where: { propertyId: a, copiedFromId: src } })).toBe(1);
+  });
+
   it("tekrar güvenliği: aynı yeniden kopyalama tekrar gönderilirse ikinci güncelleme / kalem yok (güncel → dokunulmaz)", async () => {
     await copy(src, { targetPropertyIds: [a], requestId: RID });
     await prisma.knowledgeBaseItem.update({ where: { id: src }, data: { content: "Havuz 09:00–22:00 açık." } });

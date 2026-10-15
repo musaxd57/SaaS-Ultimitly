@@ -156,6 +156,33 @@ describe("söz işaretleme (gerçek PostgreSQL)", () => {
     expect((await create(s.conversationId, { kind: "towels", day: "tomorrow", time: "18:00", requestId: "kısa" })).status).toBe(400);
   });
 
+  it("Haiku 10-15: aynı kimlikle GÜN değişirse ('bugün 18:00' → 'yarın 18:00', fark tam 24 saat) eski söz sessizce DÖNMEZ — açık uyuşmazlık", async () => {
+    const s = await setup();
+    // Saat SABİT (yalnız Date): "bugün 23:30" gece geç saatte geçmiş olur ve 400 dönerdi (zaman bombası — CLAUDE.md).
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-07-10T07:00:00.000Z")); // İstanbul 10:00
+    try {
+      const rid = "c1b2c3d4e5f60718293a4b5c6d7e8f90";
+      expect((await create(s.conversationId, { kind: "towels", day: "today", time: "23:30", requestId: rid })).status).toBe(201);
+      const moved = await create(s.conversationId, { kind: "towels", day: "tomorrow", time: "23:30", requestId: rid });
+      expect(moved.status).toBe(409);
+      expect(await prisma.guestCommitment.count({ where: { conversationId: s.conversationId } })).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("Opus O11: aynı kimliğin sözü kaydedilmiş ama görevi SİLİNMİŞSE yeniden deneme 'farklı bilgilerle' DEMEZ — kendi metni", async () => {
+    const s = await setup();
+    const rid = "d1b2c3d4e5f60718293a4b5c6d7e8f90";
+    const first = await create(s.conversationId, { kind: "towels", day: "tomorrow", time: "18:00", requestId: rid });
+    const { taskId } = (await first.json()) as { taskId: string };
+    await prisma.task.delete({ where: { id: taskId } });
+    const again = await create(s.conversationId, { kind: "towels", day: "tomorrow", time: "18:00", requestId: rid });
+    expect(again.status).toBe(409);
+    expect(((await again.json()) as { error: string }).error).toContain("görevi ise silinmiş");
+  });
+
   it("🚨 BELİRLENİMCİ (Opus B8): aynı konuşmada kilitli bölgeye aynı anda yalnız bir söz isteği girer; kilit kaldırılırsa her koşuda çift söz", async () => {
     const s = await setup();
     const probe = lockProbe();
