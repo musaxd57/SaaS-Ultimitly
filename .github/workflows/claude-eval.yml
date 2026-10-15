@@ -53,7 +53,9 @@ jobs:
           RUN_REAL_EVAL: "1"
           CLAUDE_EVAL_N: ${{ steps.req.outputs.n }}
           CLAUDE_EVAL_ROUNDS: ${{ steps.req.outputs.rounds }}
-        # Ölçer N ≤ 60, tur ≤ 3 tavanlı (ücret); eksik ölçümde kırmızı biter ama raporu yine yazar → yapıt her durumda yüklenir.
+        # Ölçer N ≤ 60, tur ≤ 3 tavanlı (ücret). Eksik ölçüm raporda "YARIM / Başarısız adımlar" diye yazar; iş KIRMIZI olmaz (kurucu 10-15:
+        # commit'in yanında kırmızı görünmesin — asıl kapı CI'dir; bu bir ölçümdür, kalite kapısı değil).
+        continue-on-error: true
         run: npx vitest run --config vitest.eval.config.ts "${{ steps.req.outputs.suite }}"
       # Rapor iş GÜNLÜĞÜNE ve özet sayfasına da yazılır (oturumun yapıt indirme izni yok; günlük API ile okunur). Rapor sentetik veridir.
       - name: Raporu günlüğe ve özete yaz
