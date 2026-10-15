@@ -52,6 +52,9 @@ const LEGIT = [
   "Gece 23:00'ten sonra sessizlik ricamız var",
   "Otopark ücreti 250 TL", "Kilit 2019 yılında yenilendi",
   "Asansör 8 kişiliktir", "Zili iki kez çalın", "Kasada havlu bulabilirsiniz",
+  // 10-15 (Opus son kontrol): kilit adı + yıl / daire / sokak / servis — kilit adı kuralının yanlış elemesi burada görünür.
+  "Akıllı kilit 2022 Mart'ta kuruldu", "Room 1204 has a smart lock", "Akıllı kilitli binamız 1453 Sokak'ta",
+  "Akıllı kilit servisi 4441234",
 ];
 
 describe("sır dedektörü — iki eksenli karakterizasyon", () => {

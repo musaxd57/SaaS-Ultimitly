@@ -85,3 +85,63 @@ describe("Haiku 10-15 ikinci tur — ayraçta fiyat / tarih / kurulum / adres s�
     expect(qrReplyHasDoorCode(text, [])).toBe(false);
   });
 });
+
+// Opus son kontrolü (10-15, çalıştırılarak ölçüldü): ilk sürüm hem kaçırıyordu hem 50 gerçekçi satırın 22'sini yanlış eliyordu. Yeni kural:
+// ayraçta sözcük yasağı YOK; yanlış eleme DEĞERİN bağlamıyla önlenir (yıl / daire / oda / sokak / adres / fiyat / servis / saat / sayaç).
+describe("Opus son kontrol — kaçan gerçekçi kilit kodu yazımları artık yakalanır", () => {
+  it.each([
+    "Kilit kutusu: 4590",
+    "Kilit kutusunda anahtar var, 4590 ile açılır.",
+    "Dijital kapı kilidi: 4590",
+    "Akıllı kapı kilidi 4590",
+    "Akıllı kilit sistemimiz var, 4590 ile açılır.",
+    "Dairede dijital kilit sistemi kullanılıyor: 4590",
+    "The smart lock system opens with 4590.",
+    "Akıllı kilit pilini değiştirmeyin; 4590 yazıp açın.",
+    "Smart lock (model Yale Linus): 4590",
+    "Akıllı kilit: dikkat edin, 4590 sonra ✓",
+    "Akıllı kilidin ekranına dokunun, 4590 yazıp ✓ tuşuna basın.",
+    "Anahtar kutusu (bahçe kapısının yanında): 4590",
+    "Akıllı-kilit: 4590",
+    "Akıllı kilit\n4590 yazıp ✓'ye basın.",
+    "Akıllı kilide yıldız ve 4590 girin.",
+    "Akıllı kilit: 1987",
+    "Akıllı kilide 2019 girin.",
+  ])("%s", (text) => {
+    expect(dropped(text)).toBe(true);
+    expect(qrReplyHasDoorCode(text, [])).toBe(true);
+  });
+});
+
+describe("Opus son kontrol — gerçekçi bilgi tabanı satırları DÜŞMEZ, normal QR cevabı durmaz", () => {
+  it.each([
+    "Akıllı kilit 2022 Mart'ta kuruldu.",
+    "Dijital kilit 2020 Haziran'da takıldı.",
+    "Akıllı kilidi 2023 yazında yeniledik.",
+    "The smart lock was replaced in 2023.",
+    "Smart lock since 2021, keyless entry.",
+    "2019 yapımı akıllı kilit.",
+    "2023 Ocak ayından beri akıllı kilit kullanıyoruz.",
+    "In 2023 we added a smart lock.",
+    "Smart lock firmware 2024 update installed.",
+    "Daireniz 1204 numaralı, akıllı kilitlidir.",
+    "Room 1204 has a smart lock; you will get the code before arrival.",
+    "Rezidans dairesi 1204, akıllı kilit ile girilir; kod girişten önce gönderilir.",
+    "Akıllı kilitli binamız 1453 Sokak'ta.",
+    "Anahtar kutusu Atatürk Caddesi 1204 numarada.",
+    "Akıllı kilit Kadıköy 34710 adresindeki tüm dairelerde var.",
+    "Akıllı kilit servisi 4441234",
+    "Akıllı kilit servis: (0212) 5554433",
+    "Akıllı kilit 1000 kez açıldıktan sonra pil değişir.",
+    "Smart lock opens 2000 times per battery.",
+    "Akıllı kilit saat 1400 itibarıyla aktif olur.",
+    "Dijital kilit bedeli 1500 TL.",
+  ])("%s", (text) => {
+    expect(dropped(text)).toBe(false);
+    expect(qrReplyHasDoorCode(text, [])).toBe(false);
+  });
+});
+
+it("bilinen sınır: \"4590’dan sonra\" yazımı çıktı taramasının yıl eki istisnasına takılır; bilgi tabanı süzgeci kalemi yine ELER (kod modele ulaşmaz)", () => {
+  expect(dropped("Akıllı kilide 4590’dan sonra ✓ tuşuna basın.")).toBe(true);
+});

@@ -305,16 +305,27 @@ export async function ensureGuestChatConversation(
  *  ("Güneş paneli 2019"), "clavier" DEĞİL (bilgisayar klavyesi). */
 const KEYPAD_NOUNS =
   "tu[şs]\\s*panel|zil\\s*panel|kap[ıi]\\s*panel|giri[şs]\\s*panel|interkom|intercom|domofon|keypad|key\\s+pad|digicode|tastenfeld|zahlenfeld|ziffernfeld|teclado|домофон|кодов\\S{0,3}\\s+замк|لوحة\\s*(?:المفاتيح|الأزرار|الأرقام)";
-/** Tek anlamlı kilit / kutu adları (10-15, Opus F6) — çıplak "kilit" / "kutu" / "kasa" YOK (yıl / adres yanlış elemesi). */
+/** Tek anlamlı kilit / kutu adları (10-15, Opus F6 + son kontrol) — çıplak "kilit" / "kutu" / "kasa" YOK (yıl / adres yanlış elemesi). */
 const LOCK_NOUNS =
-  "(?:ak[ıi]ll[ıi]|dijital|digital|[şs]ifreli|kodlu|elektronik|elektronisch)\\s*kil[ıi][td]|smart\\s*lock|digital\\s*lock|code\\s*lock|combination\\s*lock|lock\\s*box|lockbox|key\\s*box|keybox|key\\s*safe|anahtar\\s*kutu|anahtar\\s*kasa";
+  "(?:ak[ıi]ll[ıi]|dijital|digital|[şs]ifreli|kodlu|elektronik|elektronisch)[\\s-]*(?:kap[ıi][\\s-]*)?kil[ıi][td]|kil[ıi]t[\\s-]*kutu|smart[\\s-]*lock|digital[\\s-]*lock|code[\\s-]*lock|combination[\\s-]*lock|lock[\\s-]*box|key[\\s-]*box|key[\\s-]*safe|anahtar[\\s-]*kutu|anahtar[\\s-]*kasa";
 /**
- * Kilit adı ile değer arasındaki ≤20 harflik ayraç — fiyat / tarih / kurulum / adres sözcüğü İÇERMEZ (Haiku 10-15, çalıştırılarak ölçüldü:
- * "Dijital kilit bedeli 1500'dür", "Akıllı kilit sistemi 2022 Mart'ta kuruldu", "Akıllı kilitli site, B blok 1204 nolu daire", "2019'da kurulan
- * akıllı kilit", "Smart lock installed in 2021" kalemi düşürüyordu). Sınırlı tekrar (20) × sabit ileriye bakış → doğrusal.
+ * Kilit adı ↔ değer arası: ≤30 karakter, rakam ve nokta yok (başlık → içerik satır sonunu geçer). Sözcük yasak listesi YOK — Opus son
+ * kontrolü ölçtü: "sistem / pil / yıl" gibi alt dize yasakları "yıldız", "dikkat" gibi sıradan sözcüklerde kalıbı kapatıyordu. Yanlış
+ * eleme bunun yerine DEĞERİN bağlamıyla önlenir (↓).
  */
-const LOCK_GAP =
-  "(?:(?!bedel|[üu]cret|fiyat|price|fee|cost|sistem|system|blok|block|daire|apart|nolu|no\\s|kat\\s|install|kurul|tak[ıi]l|y[ıi]l|year|model|pil|batter|garanti|warrant)[^\\d\\n.]){0,20}?";
+const LOCK_GAP = "[^\\d.]{0,30}?";
+/**
+ * Değer bağlamı — kod DEĞİL: solunda daire / oda / sokak / cadde / seri / servis / saat / fiyat / telefon sözcüğü ya da kapanan parantez
+ * ("Room 1204 has a smart lock", "Atatürk Caddesi 1204", "Akıllı kilit servisi 4441234", "(0212) 5554433", "Dijital kilit bedeli 1500");
+ * sağında numara / sokak / adres / kez / saat / adet / birim ("1204 numaralı", "1453 Sokak", "34710 adresindeki", "1000 kez açıldıktan").
+ * Sınırlı geriye bakış (en çok ~20 karakter) → doğrusal.
+ */
+const LOCK_VALUE_LEFT =
+  "(?<!(?:daire|room|oda|apt|apartman|nolu|numara|no|sokak|sk|cadde|cad|seri|serial|sn|servis|service|saat|floor|kat|bedel|[üu]cret|fiyat|price|fee|cost|tel|telefon|phone|posta|zip)[a-zçğıöşü]{0,4}\\.?\\s{0,3}[:#]?\\s{0,2}\\(?)(?<!\\)\\s?)";
+const LOCK_VALUE_RIGHT =
+  "(?!\\s*(?:numara|nolu|no\\b|sokak|sk\\b|cad|adres|room|oda|kez|kere|defa|times|adet|saat|hour|tane|kişi|ki[şs]i|metre|m\\b|km|gb|mb|mah))";
+/** 19xx / 20xx dört hane YIL sayılır — ardından giriş fiili / tuş işareti gelmiyorsa ("2022 Mart'ta kuruldu" yıl; "2019 girin" kod). */
+const LOCK_NOT_YEAR = "(?!(?:19|20)\\d\\d(?!\\d)(?![^\\n.]{0,15}?(?:(?<![a-zçğıöşü])(?:gir|yaz|tu[şs]la|bas)(?:[ıi]n|[ıi]n[ıi]z|[ıi]p|arak|erek)?(?![a-zçğıöşü])|enter|then|press|tap|#|\\*|✓)))";
 /** 4–8 haneli değer; telefonun ilk öbeği (ardında rakam öbeği) ve SON öbeği (önünde rakam + ayraç) dışarıda. */
 const KEY_DIGITS = "(?<!\\d)(?<!\\d[\\s\\-.])\\d{4,8}(?!\\d)(?![\\s\\-.]\\d)";
 
@@ -447,8 +458,10 @@ const SECRET_PATTERNS: RegExp[] = [
   // Yalnız TEK ANLAMLI bileşik adlar (dijital / akıllı / şifreli / kodlu / elektronik kilit, smart / digital / code lock, lockbox,
   // keybox, key safe, anahtar kutusu / kasası) — çıplak "kilit" / "kasa" / "kutu" BİLEREK yok (↑ilk kalıbın ölçülmüş yıl / adres dersi).
   // Fiyat / yıl / ondalık ardılı ve yıl eki sır sayılmaz ("Akıllı kilidin pili 2024'te değişti", "Lockbox ücreti 1500 TL").
-  new RegExp(`(?:${LOCK_NOUNS})${LOCK_GAP}${KEY_DIGITS}${NOT_PRICE_OR_YEAR}(?!\\s*['’]\\s*[dt][ae]n?(?![a-zçğıöşü]))`, "i"),
-  new RegExp(`${KEY_DIGITS}${NOT_PRICE_OR_YEAR}(?!\\s*['’]\\s*[dt][ae]n?(?![a-zçğıöşü]))${LOCK_GAP}(?:${LOCK_NOUNS})`, "i"),
+  // İki nokta / eşittir ile BİTİŞİK değer: yıl istisnası yok ("Akıllı kilit: 1987" koddur).
+  new RegExp(`(?:${LOCK_NOUNS})[a-zçğıöşü]{0,8}\\s*[:=]\\s*${KEY_DIGITS}${NOT_PRICE_OR_YEAR}`, "i"),
+  new RegExp(`(?:${LOCK_NOUNS})${LOCK_GAP}${LOCK_VALUE_LEFT}${LOCK_NOT_YEAR}${KEY_DIGITS}${NOT_PRICE_OR_YEAR}${LOCK_VALUE_RIGHT}`, "i"),
+  new RegExp(`${LOCK_VALUE_LEFT}${LOCK_NOT_YEAR}${KEY_DIGITS}${NOT_PRICE_OR_YEAR}${LOCK_VALUE_RIGHT}${LOCK_GAP}(?:${LOCK_NOUNS})`, "i"),
 ];
 
 /**

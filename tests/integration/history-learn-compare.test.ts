@@ -236,7 +236,11 @@ describe("Geçmişten öğren — cevap karşılaştırma", () => {
     const ok = await patch({ verdict: "fix", note: "Otopark sorusunda önce binanın arkasındaki yeri anlatsın.", apply: true });
     expect(ok.status).toBe(200);
     const body = await ok.json();
-    expect(await prisma.propertyInstruction.findUniqueOrThrow({ where: { id: body.instructionId } })).toMatchObject({ source: "history_learn", status: "active" });
+    expect(await prisma.propertyInstruction.findUniqueOrThrow({ where: { id: body.instructionId } })).toMatchObject({
+      source: "history_learn",
+      status: "active",
+      byOperator: true,
+    });
     expect(await prisma.historyLearnDraft.findUniqueOrThrow({ where: { id: body.draftId } })).toMatchObject({ state: "pending", propertyId });
     expect(await prisma.knowledgeBaseItem.count()).toBe(0); // taslak onay bekler (A1)
     // Çift gönderim İKİNCİ talimat / taslak açmaz.

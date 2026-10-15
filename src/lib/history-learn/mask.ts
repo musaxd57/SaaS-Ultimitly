@@ -178,7 +178,7 @@ function maskDoorValues(text: string): string {
  * Doğrusal: cümle cümle, sözcük sözcük.
  */
 const LOCK_CONTEXT_RE =
-  /(?<![\p{L}])(?:kutu(?!p)|kilit|kilid|unlock|lock(?!er)|lockbox|keybox|key\s?box|keypad|tu[şs]\s+(?:tak[ıi]m|panel)|[şs]ifreli\s+(?:kilit|kilid|kap|kutu)|kasa(?!ba|p))/u;
+  /(?<![\p{L}])(?:kutu(?!p)|k[ıi]l[ıi][td]|unlock|lock(?!er)|lockbox|keybox|key\s?box|keypad|tu[şs]\s+(?:tak[ıi]m|panel)|[şs]ifreli\s+(?:kilit|kilid|kap|kutu)|kasa(?!ba|p))/u;
 /** Wi-Fi cümlesi — kilit cümlesinin ARDINDAKİ cümle olsa da maskelenmez (Wi-Fi şifresi bilgi tabanının işidir — Haiku 10-15). */
 const WIFI_SENTENCE_RE = /(?<![\p{L}])(?:wi-?fi|wlan|internet|kablosuz|ssid|modem|network|a[ğg]\s+ad)/u;
 // Saat yalnız geçerli saat:dakika ("45.90" saat DEĞİL — Haiku 10-15); tarih gün.ay.yıl.
@@ -196,15 +196,21 @@ function splitPunct(w: string): { lead: string; core: string; trail: string } {
   while (b > a && TRAIL_PUNCT.has(w[b - 1])) b -= 1;
   return { lead: w.slice(0, a), core: w.slice(a, b), trail: w.slice(b) };
 }
-function maskLockContextCodes(text: string): string {
+/** Değerin ardından gelen birim / sayaç / adres sözcüğü → kod DEĞİL ("104 numaralı", "300 TL", "2019 yılında", "1000 kez"). */
+const VALUE_UNIT_AFTER_RE =
+  /^\s*(?:['’]\s*[\p{L}]{0,4}\s+)?(?:numara|nolu|no\b|tl\b|try\b|₺|lira|euro|eur\b|€|usd|\$|dolar|y[ıi]l|year|kez|kere|defa|times|saat|hour|dakika|minute|kişi|ki[şs]i|adet|tane|metre|m\b|km\b|sokak|cadde|mah)/iu;
+function maskLockContextCodes(text: string, opts: { carry?: boolean } = {}): string {
   const sentences = text.split(/(?<=[.!?\n])/u);
-  // Kilit sözcüğü geçen cümle VE ardındaki cümle ("Anahtarlar kutuda. Kod: 4B7Z").
+  // Kilit sözcüğü geçen cümle VE ardındaki cümle ("Anahtarlar kutuda. Kod: 4B7Z"); yalnız boşluktan oluşan parça (satır sonu) taşımayı
+  // TÜKETMEZ (Opus 10-15 son kontrol: "Anahtarlar kutuda.\nKod: 4B7Z").
+  const useCarry = opts.carry !== false;
   let carry = 0;
   return sentences
     .map((sentence) => {
+      if (!sentence.trim()) return sentence;
       const lower = sentence.toLocaleLowerCase("tr");
       const here = LOCK_CONTEXT_RE.test(lower);
-      const active = here || (carry > 0 && !WIFI_SENTENCE_RE.test(lower));
+      const active = here || (useCarry && carry > 0 && !WIFI_SENTENCE_RE.test(lower));
       carry = here ? 1 : Math.max(0, carry - 1);
       if (!active) return sentence;
       const parts = sentence.split(/(\s+)/u);
@@ -234,7 +240,8 @@ function maskLockContextCodes(text: string): string {
             marks ||= /[#*]/u.test(c);
             j += 1;
           }
-          if (digits >= 3 || marks) {
+          const after = parts.slice(j).join("");
+          if ((digits >= 3 || marks) && !VALUE_UNIT_AFTER_RE.test(after)) {
             out.push(`${lead}(kod gizlendi)${splitPunct(parts[j - 1]).trail}`);
             i = j - 1;
             continue;
@@ -243,7 +250,8 @@ function maskLockContextCodes(text: string): string {
           continue;
         }
         const digits = core.replace(/\D/gu, "").length;
-        if ((digits >= 1 && /\p{L}/u.test(core)) || /[#*]/u.test(core)) {
+        // Harf + rakam karışık değer en az 4 karakter ("A1B2", "4B7Z"); "12B" gibi daire / blok adı kod sayılmaz.
+        if ((digits >= 1 && /\p{L}/u.test(core) && core.length >= 4) || /[#*]/u.test(core)) {
           out.push(`${lead}(kod gizlendi)${trail}`);
           continue;
         }
@@ -255,7 +263,8 @@ function maskLockContextCodes(text: string): string {
 }
 /** Metinde kilit / kutu bağlamında kod benzeri belirteç var mı (taslak kapısı — ikinci savunma). */
 export function hasLockContextCode(text: string): boolean {
-  return maskLockContextCodes(text) !== text;
+  // Taslak kapısı yalnız AYNI cümledeki kodla düşürür (sonraki cümleye taşıma maskede kalır — fazla düşürme olmasın).
+  return maskLockContextCodes(text, { carry: false }) !== text;
 }
 
 /**
@@ -265,10 +274,12 @@ export function hasLockContextCode(text: string): boolean {
  * 10–15 hane (ayraçlı).
  */
 const PASSPORT_RE =
-  /(?<![\p{L}])((?:pasaport|passport|kimlik|identity|id)(?:\s{1,3}(?:no|numaras[ıi]|number|nr|num))?\.?(?:\s{0,3}[:#])?\s{0,3})([A-Za-z]{0,3}\d[A-Za-z0-9]{4,11})(?![\p{L}\d])/giu;
-const CARD_RE = /(?<![\d])(?:\d[ -]?){12,18}\d(?![\d])/gu;
+  /(?<![\p{L}])((?:pasaport|passport|kimlik|identity|id)(?:\s{1,3}(?:no|numaras[ıi]|numaram|number|nr|num))?\.?(?:\s{0,3}[:#]){0,2}\s{0,3})([A-Za-z]{0,3}\d[A-Za-z0-9]{4,11})(?![\p{L}\d])/giu;
+const CARD_RE = /(?<![\d])(?:\d[ .-]{0,2}){12,18}\d(?![\d])/gu;
+/** Kartın güvenlik kodu (CVV / CVC) — kartla ya da tek başına. */
+const CVV_RE = /(?<![\p{L}])(cvv2?|cvc|g[üu]venlik\s+kodu)(\s{0,3}[:#]?\s{0,3})\d{3,4}(?!\d)/giu;
 const LABELED_PHONE_RE =
-  /(?<![\p{L}])((?:whatsapp|telefon\p{L}{0,6}|tel|phone|cep\p{L}{0,6}|numara\p{L}{0,6}|number|call\s{1,3}me\s{1,3}at|call|ara)(?:\s{0,3}[:.])?\s{0,3})(\+?\d(?:[\s().-]?\d){8,16})(?![\d])/giu;
+  /(?<![\p{L}])((?:whatsapp|telefon\p{L}{0,6}|tel|phone|cep\p{L}{0,6}|numara\p{L}{0,6}|number|call\s{1,3}me\s{1,3}at|call|ara)(?:\s{1,3}[\p{L}]{1,5})?(?:\s{0,3}[:.])?\s{0,3})(\+?\d(?:[\s().-]?\d){8,16})(?![\d])/giu;
 function luhn(digits: string): boolean {
   let sum = 0;
   for (let i = 0; i < digits.length; i += 1) {
@@ -288,6 +299,7 @@ function maskContacts(text: string): string {
     // IBAN kart / telefon kalıplarından ÖNCE (rakam öbekleri karta benzer).
     .replace(IBAN_RE, (m) => ((m.match(/\d/gu) ?? []).length >= 10 ? "[IBAN]" : m))
     .replace(PASSPORT_RE, (_m, label: string) => `${label}[ID]`)
+    .replace(CVV_RE, (_m, label: string, sep: string) => `${label}${sep}[CARD]`)
     // Etiketli telefon karttan ÖNCE ("call me at 49 151 1234 5678" Luhn'u tesadüfen geçebilir — doğru etiket).
     .replace(LABELED_PHONE_RE, (m, label: string, num: string) => {
       const d = num.replace(/\D/gu, "").length;

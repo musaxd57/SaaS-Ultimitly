@@ -514,8 +514,11 @@ Böyle yapalım mı? (Evet → hazır yama + kırmızı-önce testler; Hayır �
 **KARAR (kurucu 10-15):** "neyi bahsettiğine göre değişir; bazen kapıyı nasıl açarım dediğinde anahtarı oradan o kod ile alıp açabilir ...
 model mantıklı şekilde anlamalı; senin önerin mantıklıysa yap." → **Uygulandı (ana dala):** onaylı rezervasyonda KANAL yolu kodu yine verir
 (kurucunun örneği — misafir kutudan anahtarı kodla alır; o yol değişmedi). QR ve rezervasyonsuz yolda: tek anlamlı kilit / kutu adı (dijital /
-akıllı / şifreli / kodlu / elektronik kilit, smart / digital / code lock, lockbox, keybox, key safe, anahtar kutusu / kasası) + ≤20 harflik
-ayraç + 4–8 hane, iki sırada → bilgi tabanı kalemi istemden düşer, cevapta geçerse bir kez yeniden üretilir, sonra size kalır (10-11 kuralı).
+akıllı / şifreli / kodlu / elektronik [kapı] kilidi, kilit kutusu, smart / digital / code lock, lockbox, keybox, key safe, anahtar kutusu /
+kasası) + ≤30 karakterlik ayraç + 4–8 hane, iki sırada → bilgi tabanı kalemi istemden düşer, cevapta geçerse bir kez yeniden üretilir, sonra
+size kalır (10-11 kuralı). Opus son kontrolü (50 gerçekçi satır ölçümü) ilk sürümün 22 yanlış elemesini gösterdi → yanlış eleme artık
+DEĞERİN bağlamıyla önlenir: yıl (19xx / 20xx, ardında giriş fiili yoksa), daire / oda / sokak / cadde / adres / servis / saat / fiyat /
+sayaç ("Room 1204 has a smart lock", "1453 Sokak", "1000 kez") kod sayılmaz; iki nokta ile bitişik değer ("Akıllı kilit: 1987") her zaman kod.
 Çıplak "kilit / kutu / kasa" BİLEREK yok → "Lockbox 2B dairesinin yanında", "Kilit 2019 yılında yenilendi", "Kasa 1500 TL", saat / fiyat / yıl
 ikizleri DOKUNULMAZ (`tests/unit/secret-filter-lock-nouns.test.ts`, 11 sızıntı + 9 ikiz + süre pini; karakterizasyon kaçan 8 → 7, yanlış
 eleme 1 → 1). Kalan bilinen sınır: 3 haneli kod ve harfli kod ("A1B2") QR çıktı taramasında yok (bilgi tabanı tarafında "kod A1B2" zaten

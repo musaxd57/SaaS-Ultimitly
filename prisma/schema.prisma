@@ -1785,8 +1785,9 @@ model HistoryLearnComparison {
   /// Bugünkü kod kapısı bu cevabı otomatik gönderir miydi (GÖNDERİLMEDİ — yalnız gösterim); kapanırsa kapalı küme sebep.
   wouldAutoSend            Boolean?
   gateDetail               String?
-  /// Cevabı üreten model — ölçüm izi. (İstem kimliği kolonu yazılmadığı için kaldırıldı — Opus 10-15 HL4.)
+  /// Cevabı üreten model — ölçüm izi. `promptId` bugün YAZILMIYOR (migration 65 itildikten sonra kolon düşürülmedi; ileride istem kimliği).
   model                    String?
+  promptId                 String?
   /// good | fix | bad (app-enforced)
   verdict                  String?
   note                     String?

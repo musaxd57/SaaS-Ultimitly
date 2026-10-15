@@ -105,7 +105,11 @@ function ComparisonCard({ c, canInstruct, onDone }: { c: Comparison; canInstruct
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string; fields?: Record<string, string> };
         setError(errorText(body, "Kaydedilemedi."));
-        if (res.status === 409 || res.status === 404) onDone();
+        // Kart yenilenecek (yeni cevap) — mesaj kaybolmasın diye bildirim olarak da gösterilir.
+        if (res.status === 409 || res.status === 404) {
+          toast.error(errorText(body, "Kaydedilemedi."));
+          onDone();
+        }
         return;
       }
       toast.success(apply ? "Talimat eklendi; bilgi tabanı taslağı onayınızı bekliyor." : "Kaydedildi.");

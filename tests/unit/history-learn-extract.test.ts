@@ -198,6 +198,9 @@ describe("Geçmişten öğren — kilit bağlamı + kişisel veri (Opus 10-15 HL
       ["Anahtarlar posta kutusunda, şifre 459", "posta kutusunda"],
       ["Şifreli kilide 4590 girin", "kilide"],
       ["unlock with 7788 please", "unlock with"],
+      // Opus son kontrol: satır sonu taşımayı tüketmez; büyük harf KILIT.
+      ["Anahtarlar kutuda.\nKod: 4B7Z", "Anahtarlar kutuda."],
+      ["KILIT: 4B7Z", "KILIT:"],
     ] as const) {
       const out = maskForLearning(input, []);
       expect(out, input).toContain("(kod gizlendi)");
@@ -219,6 +222,11 @@ describe("Geçmişten öğren — kilit bağlamı + kişisel veri (Opus 10-15 HL
       "Kasabanın merkezi 1500 m uzakta.",
       "Locker odası 2. katta, 305 numaralı dairenin yanında.",
       "Wi-Fi şifreli: sunny2024",
+      // Opus son kontrol (fazla gizleme → taslak düşüyordu): yıl, blok adı, fiyat, numaralı posta kutusu.
+      "Kilit 2019 yılında yenilendi.",
+      "Anahtar kutusu 12B blokta.",
+      "Kapıyı kilitleyin. Geç çıkış ücreti 300 TL.",
+      "Kargonuz 104 numaralı posta kutusuna bırakılır.",
     ]) {
       expect(maskForLearning(t, []), t).toBe(t);
     }
@@ -231,6 +239,11 @@ describe("Geçmişten öğren — kilit bağlamı + kişisel veri (Opus 10-15 HL
     expect(maskForLearning("kart 4111 1111 1111 1111 2", [])).not.toMatch(/4111/u);
     expect(maskForLearning("call me at 49 151 1234 5678", [])).toBe("call me at [PHONE]");
     expect(maskForLearning("WhatsApp: +49 151 12345678", [])).toBe("WhatsApp: [PHONE]");
+    // Opus son kontrol: "numaram" etiketi, "#:" ayracı, noktalı kart, CVV, araya sözcük giren telefon etiketi.
+    expect(maskForLearning("Pasaport numaram U12345678", [])).toBe("Pasaport numaram [ID]");
+    expect(maskForLearning("Passport #: X1234567", [])).toBe("Passport #: [ID]");
+    expect(maskForLearning("kart 4111.1111.1111.1111 cvv 123", [])).toBe("kart [CARD] cvv [CARD]");
+    expect(maskForLearning("Benim numaram şu: 49 151 1234 5678", [])).not.toMatch(/1234/u);
     expect(maskForLearning("Sipariş 1234 5678 9012 3456 geldi.", [])).toBe("Sipariş 1234 5678 9012 3456 geldi.");
     expect(maskForLearning("Numara 305, 2. kat.", [])).toBe("Numara 305, 2. kat.");
   });

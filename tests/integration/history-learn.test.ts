@@ -613,6 +613,14 @@ describe("Geçmişten öğren — Opus 10-15 ikinci tur bulguları", () => {
     // Kapatma → isteme girmez.
     expect((await put({ key: "short", on: false })).status).toBe(200);
     expect(await loadPromptInstructions(orgId, propertyId)).not.toContain(INSTRUCTION_PRESETS.find((x) => x.key === "short")!.text);
+    // 🚨 Yazan işareti (Opus 10-15 son kontrol: hiçbir test yazılan değeri sınamıyordu): müşteri anahtarıyla müşterinin yazdığı serbest
+    // metin byOperator=false; operatörün yazdığı true.
+    vi.stubEnv("HISTORY_LEARN_CUSTOMER_INSTRUCTIONS_ENABLED", "1");
+    const custRes = await addInstr(json(url, "POST", { content: "Müşteri: cevapları kısa tut." }), p({ id: propertyId }));
+    expect(custRes.status).toBe(201);
+    expect(await prisma.propertyInstruction.findUniqueOrThrow({ where: { id: (await custRes.json()).id } })).toMatchObject({ byOperator: false });
+    vi.stubEnv("HISTORY_LEARN_CUSTOMER_INSTRUCTIONS_ENABLED", "");
+    await prisma.propertyInstruction.deleteMany({ where: { content: "Müşteri: cevapları kısa tut." } });
     // Seçenek satırı serbest talimat kaldırma yolundan kaldırılamaz (yalnız aç / kapat).
     session = owner(orgId);
     const emojiRow = await prisma.propertyInstruction.findFirstOrThrow({ where: { presetKey: "no_emoji", status: "active" } });
@@ -626,6 +634,7 @@ describe("Geçmişten öğren — Opus 10-15 ikinci tur bulguları", () => {
     for (let i = 0; i < 10; i += 1) {
       expect((await addInstr(json(url, "POST", { content: `Kural ${i}: cevapları kısa tut.` }), p({ id: propertyId }))).status).toBe(201);
     }
+    expect(await prisma.propertyInstruction.count({ where: { presetKey: null, byOperator: true, status: "active" } })).toBe(10);
   });
 
   it("saklama: onaylanmamış taslak 90 gün sonra silinir, onaylanan kalır", async () => {
