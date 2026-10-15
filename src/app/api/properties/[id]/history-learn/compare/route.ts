@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { jsonOk, notFound, tooManyRequests } from "@/lib/api";
+import { jsonOk, notFound, paymentRequired, tooManyRequests } from "@/lib/api";
+import { premiumAllowed } from "@/lib/billing/subscription";
 import { withManage } from "@/lib/route-guard";
 import { writeAudit, auditActor } from "@/lib/audit";
 import {
@@ -18,6 +19,8 @@ import {
 export const POST = withManage<{ id: string }>(async (session, _req, { params }) => {
   // Şimdilik yalnız operatör (kurucu 10-15); müşteriye açmak `HISTORY_LEARN_CUSTOMER_COMPARE_ENABLED`.
   if (!historyLearnEnabled() || !historyCompareAllowed(session)) return notFound();
+  // Model çağıran ücretli özellik (Opus 10-15 HL4 F8: diğer model rotalarıyla aynı kapı; deneme bitince ücretsiz sürümde kapalı).
+  if (!(await premiumAllowed(session.organizationId))) return paymentRequired();
   const { id } = await params;
   const started = await startHistoryLearnRun({ organizationId: session.organizationId, propertyId: id, userId: auditActor(session), kind: "compare" });
   if (!started.ok) {

@@ -486,3 +486,37 @@ yalnız gitmemesi gerekenler artık gitmiyor):**
 | Mülk talimatları cevap istemine girsin mi? (önce/sonra: otopark örneği) | "Anahtar arkasında yap" | `PROPERTY_INSTRUCTIONS_PROMPT_ENABLED` KAPALI; blok güvenlik kurallarının altında, bilgi kaynağı değil, kapılar istem anında yeniden, toplam 1.500 karakter. Railway açılınca ilk denemeler birlikte. |
 | Cevap karşılaştırmada model | "Canlı cevap modeli" | Karşılaştırma üretim cevap yolunu (`OPENAI_MODEL`) kullanır — Railway'de Luna yapılınca Luna. |
 | Hazır olmayan dairede otomatik cevap | "Yalnız öneri göstersin" | Hazırlık puanı panelde öneri; otomatik cevabı kod kapatmaz. |
+| Karşılaştırma + İyi / Düzeltilmeli / Kötü + "Böyle yapsın" kimin? | "Ben operatör olarak ... şuanlık tek operatörde olsun ... kodda müşterilerde de kalsın" | Yalnız operatör (`isSuperAdmin`); müşteriye açmak tek anahtar `HISTORY_LEARN_CUSTOMER_COMPARE_ENABLED` (KAPALI). Kurucu Railway'de deneyip karar verecek. |
+| Daire talimatını kim yazsın? | "Müşteriler hostlarda kullanabilsin, Müşteri, hazır seçeneklerden seçsin ... böyle yap" | Müşteri yalnız hazır seçenek açar / kapatır (Kısa cevap · Emojisiz cevap · Sade dil · Cihaz kullanımını adım adım anlat; `instruction-presets.ts`); serbest metin yalnız operatör (`HISTORY_LEARN_CUSTOMER_INSTRUCTIONS_ENABLED` KAPALI). Seçenekler müşteriye yalnız talimatlar cevaba uygulanırken görünür. Metinler temel istem kurallarıyla çelişmez (Haiku incelemesi: "madde madde", "en fazla bir soru sor", "kapanış cümlesi yazma" çıkarıldı; pinli). 🔔 Railway'de ilk denemede seçenek başına önce / sonra örneğini birlikte bakalım. |
+
+## 🔔 Soru 10-15 öğleden sonra — QR'da kapı kodu boşluğu (Opus derin denetimi F6; ÖNCEDEN VAR, misafire gideni değiştirir)
+
+**Bugün böyle:** kapı kodu okuyucusu "kapı / kutu kodu 4590" biçimini yakalıyor; şu biçimleri yakalamıyor (Opus çalıştırarak ölçtü):
+"Dijital kilit: 4590" · "Akıllı kilit 4590" · "Use 4590 to open the lockbox" · "Şifreli kilide 4590 girin" · "posta kutusunda, şifre 459".
+Bilgi tabanında böyle bir satır varsa QR sohbetinde misafir "kapıyı nasıl açarım?" diye sorunca yapay zekâ kodu yazabilir ve çıktı
+taraması da kaçırır → kod, QR'ı okutan herkese gider.
+
+**Büyük platformlar:** Airbnb ve Hospitable giriş kodunu yalnız onaylı rezervasyona, zamanlanmış mesajla verir; serbest sohbette kod paylaşmaz.
+
+**Önerim:** "kilit / kutu / lockbox / keypad / tuş takımı / şifreli" sözcüğüyle aynı cümlede 3+ rakam ya da harf-rakam karışık değer = kod
+sayılsın (Geçmişten öğren taslaklarında bugün bu kural kuruldu, 50.000 karakterde doğrusal). QR'da: bilgi tabanı satırı istemden düşer,
+cevapta geçerse cevap gitmez, size kalır.
+
+| Misafir sorusu | Bilgi tabanı satırı | Bugün | Önerimle |
+|---|---|---|---|
+| "Kapıyı nasıl açacağız?" | "Dijital kilit: 4590" | yapay zekâ "Dijital kilide 4590 girin" yazabilir, gider | kod yazılmaz; giriş bilgisi size kalır |
+| "Anahtar nerede?" | "Anahtar kutusu kapının sağında, 2. katta." | cevaplar | aynı (kod yok, "2." tek hane) |
+| "Ne zaman girebiliriz?" | "Kutudan anahtarı 15:00'ten sonra alın." | cevaplar | aynı (saat korunur) |
+| "Lockbox nerede?" | "Lockbox 2B dairesinin yanında." | cevaplar | ⚠️ "2B" kod sanılır → size kalır (fazla temkin) |
+
+Böyle yapalım mı? (Evet → hazır yama + kırmızı-önce testler; Hayır → yalnız Geçmişten öğren tarafında kalır.)
+
+**KARAR (kurucu 10-15):** "neyi bahsettiğine göre değişir; bazen kapıyı nasıl açarım dediğinde anahtarı oradan o kod ile alıp açabilir ...
+model mantıklı şekilde anlamalı; senin önerin mantıklıysa yap." → **Uygulandı (ana dala):** onaylı rezervasyonda KANAL yolu kodu yine verir
+(kurucunun örneği — misafir kutudan anahtarı kodla alır; o yol değişmedi). QR ve rezervasyonsuz yolda: tek anlamlı kilit / kutu adı (dijital /
+akıllı / şifreli / kodlu / elektronik kilit, smart / digital / code lock, lockbox, keybox, key safe, anahtar kutusu / kasası) + ≤20 harflik
+ayraç + 4–8 hane, iki sırada → bilgi tabanı kalemi istemden düşer, cevapta geçerse bir kez yeniden üretilir, sonra size kalır (10-11 kuralı).
+Çıplak "kilit / kutu / kasa" BİLEREK yok → "Lockbox 2B dairesinin yanında", "Kilit 2019 yılında yenilendi", "Kasa 1500 TL", saat / fiyat / yıl
+ikizleri DOKUNULMAZ (`tests/unit/secret-filter-lock-nouns.test.ts`, 11 sızıntı + 9 ikiz + süre pini; karakterizasyon kaçan 8 → 7, yanlış
+eleme 1 → 1). Kalan bilinen sınır: 3 haneli kod ve harfli kod ("A1B2") QR çıktı taramasında yok (bilgi tabanı tarafında "kod A1B2" zaten
+düşer).

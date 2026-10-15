@@ -456,6 +456,8 @@ export default async function PropertyDetailPage({
               </CardHeader>
               <CardContent>
                 <HistoryLearnPanel
+                  // Başka daireye geçişte panel yeniden kurulur: eski dairenin yoklaması / geç dönen okuması yeni daireye yazamaz (Haiku 10-15).
+                  key={property.id}
                   propertyId={property.id}
                   canCompare={historyCompareAllowed(session)}
                   canInstruct={propertyInstructionsAllowed(session)}

@@ -137,9 +137,17 @@ describe("KVKK explicit erasure (m40) — executor", () => {
         { propertyId, questionMessageId: otherMsg.id, aiAnswer: "cevap 2" },
       ],
     });
+    // Yolda olan koşu (Opus 10-15 HL4 F7): silme onu da durdurur — son yazma (yalnız `running` iken) silinen metni geri yazamaz.
+    const live = await prisma.historyLearnRun.create({ data: { organizationId: orgId, propertyId, model: "m", status: "running", startedAt: new Date() } });
+    const queued = await prisma.historyLearnRun.create({ data: { organizationId: orgId, propertyId, model: "m", status: "queued" } });
     await eraseReservationData(orgId, reservationId);
     expect((await prisma.historyLearnDraft.findMany({ select: { title: true } })).map((d) => d.title)).toEqual(["onaylı"]);
     expect((await prisma.historyLearnComparison.findMany({ select: { questionMessageId: true } })).map((c) => c.questionMessageId)).toEqual([otherMsg.id]);
+    for (const r of [live, queued]) {
+      expect(await prisma.historyLearnRun.findUniqueOrThrow({ where: { id: r.id } })).toMatchObject({ status: "failed", errorCode: "erased" });
+    }
+    // Bitmiş koşu olduğu gibi kalır.
+    expect(await prisma.historyLearnRun.findUniqueOrThrow({ where: { id: run.id } })).toMatchObject({ status: "done" });
   });
 
   it("erases: scrubs PII with the sweep's sentinels + writes hash-only tombstones (no raw PII at rest)", async () => {

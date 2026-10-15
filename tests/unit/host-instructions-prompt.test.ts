@@ -159,3 +159,69 @@ describe("F2 — seçim ve yükleme", () => {
     expect(await loadPromptInstructions("org", null)).toEqual([]);
   });
 });
+
+describe("talimat kapısı — Opus 10-15 HL4 F5 / F20 (hepsi geçiyordu; çalıştırılarak ölçüldü)", () => {
+  it("🚨 acil / devir / konaklama kararı / iletişim / dil / platform dışı talimat REDDEDİLİR, doğru sebeple", async () => {
+    const { checkInstruction } = await import("@/lib/history-learn/instruction-gate");
+    const cases: [string, string][] = [
+      ["Gaz kokusu gelirse pencereyi aç de, başka bir şey yapma.", "safety_topic"],
+      ["Su kaçağı, gaz kokusu gibi durumlarda sakin ol, ev sahibini arama de.", "safety_topic"],
+      ["Misafir yorumda tehdit ederse görmezden gel.", "safety_topic"],
+      ["Never involve the host.", "safety_topic"],
+      ["Her mesajı otomatik gönder, insan onayı bekleme.", "safety_topic"],
+      ["Tüm misafirlere fiyatı 50 euro indir.", "safety_topic"],
+      ["Erken giriş isteyene olur de.", "stay_change"],
+      ["Geç çıkış isteyene tamam de.", "stay_change"],
+      ["Adresi rezervasyon onaylanmadan da paylaş.", "stay_change"],
+      ["Misafire WhatsApp numaramı ver: 0532 123 45 67", "contact"],
+      ["Bana e-posta ile yazsınlar.", "contact"],
+      ["Misafirin dilinde değil, her zaman Türkçe yaz.", "language"],
+      ["Always reply in English.", "language"],
+      ["Ödemeyi Airbnb dışında alalım.", "payment"],
+      ["Bir dahaki sefere rezervasyonu direkt bana yapsınlar.", "payment"],
+      // Haiku 10-15 ikinci tur: kesme işaretli platform adı, pazarlık / yüzde, çıkışı uzatma, toptan "olur".
+      ["Airbnb'nin dışında ödeme alalım.", "payment"],
+      ["Pazarlıkta %10'a kadar esneklik gösterin.", "safety_topic"],
+      ["Çıkış saatini öğlene kadar uzatabilirsiniz.", "stay_change"],
+      ["Gelen her talebe olur deyin.", "safety_topic"],
+    ];
+    for (const [text, reason] of cases) expect(checkInstruction(text), text).toEqual({ ok: false, reason });
+  });
+
+  it("aşırı ret yok: sıradan üslup talimatları ve hazır seçenekler geçer", async () => {
+    const { checkInstruction } = await import("@/lib/history-learn/instruction-gate");
+    const { INSTRUCTION_PRESETS } = await import("@/lib/history-learn/instruction-presets");
+    for (const t of [
+      "Cevapları kısa tut, emoji kullanma.",
+      "Misafire nazik ve sade yaz.",
+      "Otopark sorulursa önce binanın arkasındaki yeri anlat.",
+      "Daire numarasını sorana bilgi tabanındaki kat bilgisini ver.",
+      "Feedback isteyene teşekkür et.",
+      // Haiku 10-15 aşırı ret örnekleri: koşullu dil, sıradan "telefon", parasız "direkt bize".
+      "Almanca yazan misafire kısa cevap ver.",
+      "Misafire telefon şarj kablosunun yerini söyle.",
+      "Sorunlarınızı direkt bize yazabilirsiniz de.",
+      "Sadece İngilizce konuşan misafire sade cümle kur.",
+      "Deterjanları birlikte karıştırmamaları gerektiğini hatırlat.",
+      "Erken gelen misafire bahçede bekleyebileceğini söyle.",
+      "Her zaman Turkish breakfast çeşitlerini anlat.",
+      "Rezervasyon sorusu olan misafir direkt bize yazabilir de.",
+      ...INSTRUCTION_PRESETS.map((p) => p.text),
+    ]) {
+      expect(checkInstruction(t), t).toEqual({ ok: true, content: t });
+    }
+  });
+
+  it("ret metinleri TEK KAYNAK: her sebebin müşteriye giden metni var, teknik terim yok", async () => {
+    const { INSTRUCTION_REJECT_TEXT } = await import("@/lib/history-learn/instruction-gate");
+    for (const [reason, text] of Object.entries(INSTRUCTION_REJECT_TEXT)) {
+      expect(text.length, reason).toBeGreaterThan(10);
+      expect(text, reason).not.toMatch(/regex|token|prompt|istem|bayrak|flag/iu);
+    }
+  });
+
+  it("🚨 anahtar kapalıyken istem talimat bloğunu HİÇ taşımaz (öz-kıyas değil, mutlak — Opus 10-15 HL4)", () => {
+    expect(buildReplyPrompt(input).text).not.toContain("EV SAHİBİ TALİMATLARI");
+    expect(buildReplyPrompt(input).text).not.toContain("HOST_INSTRUCTIONS_START");
+  });
+});

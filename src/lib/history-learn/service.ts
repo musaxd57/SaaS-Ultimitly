@@ -6,6 +6,7 @@ import type { SessionPayload } from "@/lib/auth";
 import { refreshPropertyMemoryBestEffort } from "@/modules/intelligence";
 import { warmPropertyKbVectorsBestEffort } from "@/lib/ai/embeddings/kb-warm";
 import { limitsForOrg } from "@/lib/billing/plan-limits";
+import { reportError } from "@/lib/report-error";
 import { buildLearnPairs } from "./pairs";
 import { maskPairs, maskForLearning } from "./mask";
 import { DRAFT_FLAGS, extractDraftsFromPairs, gateDraft, historyLearnEffort, historyLearnModel, LEARN_CATEGORIES, type DraftFlag } from "./extract";
@@ -116,7 +117,8 @@ export async function startHistoryLearnRun(input: {
 }): Promise<StartResult> {
   const now = input.now ?? new Date();
   return prisma.$transaction(async (tx) => {
-    const org = await tx.$queryRaw<{ id: string }[]>`SELECT "id" FROM "Organization" WHERE "id" = ${input.organizationId} FOR UPDATE`;
+    // FOR NO KEY UPDATE: aynı sıralamayı verir ama işletmeye bağlı satır eklemelerini (denetim kaydı, risk olayı…) bekletmez (Opus 10-15 HL4 F12).
+    const org = await tx.$queryRaw<{ id: string }[]>`SELECT "id" FROM "Organization" WHERE "id" = ${input.organizationId} FOR NO KEY UPDATE`;
     if (!org.length) return { ok: false, reason: "not_found" } as const;
     const property = await tx.property.findFirst({ where: { id: input.propertyId, organizationId: input.organizationId }, select: { id: true } });
     if (!property) return { ok: false, reason: "not_found" } as const;
@@ -312,7 +314,9 @@ export async function executeHistoryLearnRun(
         })),
       });
     });
-  } catch {
+  } catch (err) {
+    // Sessiz kalmaz (Opus 10-15 HL4): beklenmeyen arıza hata kaydına düşer; çalıştırma "failed" olur.
+    void reportError("history-learn execute", err).catch(() => {});
     await prisma.historyLearnRun
       .updateMany({ where: { id: runId, status: "running" }, data: { status: "failed", errorCode: "internal", finishedAt: new Date() } })
       .catch(() => {});
@@ -347,7 +351,9 @@ async function executeCompare(
     let out: DryRunResult;
     try {
       out = await dryRun({ organizationId: run.organizationId, property, message: masked[i].question, now: pair.askedAt });
-    } catch {
+    } catch (err) {
+      // Çalıştırma başına İLK arıza hata kaydına (50 soruda 50 kayıt olmasın).
+      if (failed === 0) void reportError("history-learn compare dryRun", err).catch(() => {});
       failed += 1;
       continue;
     }
@@ -360,7 +366,7 @@ async function executeCompare(
     // Model cevabı beklenirken çalıştırma "takılı" sayılıp kapatıldıysa satır YAZILMAZ (Haiku 10-15) — kontrol yazmayla aynı işlemde.
     const wrote = await prisma.$transaction(async (tx) => {
       // Çalıştırma satırı KİLİTLİ okunur: takılı-kapatma (updateMany) bu yazma bitene kadar bekler (Haiku 10-15).
-      const live = await tx.$queryRaw<{ status: string }[]>`SELECT "status" FROM "HistoryLearnRun" WHERE "id" = ${runId} FOR UPDATE`;
+      const live = await tx.$queryRaw<{ status: string }[]>`SELECT "status" FROM "HistoryLearnRun" WHERE "id" = ${runId} FOR NO KEY UPDATE`;
       if (live[0]?.status !== "running") return false;
       // Karar bir CEVABA verilir: yapay zekâ cevabı değiştiyse eski karar sıfırlanır (not kalır — operatörün yönergesi).
       const prev = await tx.historyLearnComparison.findUnique({
@@ -417,8 +423,12 @@ export async function sweepHistoryLearnRuns(now: Date = new Date(), max = 2): Pr
 export async function purgeOldHistoryLearnDrafts(now: Date = new Date()): Promise<{ deleted: number; comparisons: number }> {
   const cutoff = new Date(now.getTime() - HISTORY_LEARN_DRAFT_RETENTION_DAYS * 86_400_000);
   const r = await prisma.historyLearnDraft.deleteMany({ where: { state: { not: "approved" }, createdAt: { lt: cutoff } } });
-  const c = await prisma.historyLearnComparison.deleteMany({ where: { updatedAt: { lt: cutoff } } });
-  return { deleted: r.count, comparisons: c.count };
+  // Oluşturma tarihine göre (Opus 10-15 HL4 F13: `updatedAt` her yeniden karşılaştırma / kararda sıfırlanıyor, saat hiç dolmuyordu).
+  const c = await prisma.historyLearnComparison.deleteMany({ where: { createdAt: { lt: cutoff } } });
+  // Sorusu artık olmayan karşılaştırma (konuşma birleştirme / silme sonrası — F11): misafir silmesi onu kimlikle bulamaz, burada silinir.
+  const orphans = await prisma.$executeRaw`
+    DELETE FROM "HistoryLearnComparison" c WHERE NOT EXISTS (SELECT 1 FROM "Message" m WHERE m."id" = c."questionMessageId")`;
+  return { deleted: r.count, comparisons: c.count + orphans };
 }
 
 export const DRAFT_EDIT_MAX_TITLE = 120;
@@ -552,12 +562,14 @@ export async function addPropertyInstruction(input: {
   userId: string | null;
   content: string;
   source?: "host_note" | "history_learn";
+  /** Yazan operatör mü (bkz. `reviewComparison.byOperator`). */
+  byOperator?: boolean;
 }): Promise<{ ok: true; id: string } | { ok: false; reason: InstructionRejectReason | "not_found" | "limit" }> {
   const check = checkInstruction(input.content);
   if (!check.ok) return check;
   return prisma.$transaction(async (tx) => {
     const locked = await tx.$queryRaw<{ id: string }[]>`
-      SELECT "id" FROM "Property" WHERE "id" = ${input.propertyId} AND "organizationId" = ${input.organizationId} FOR UPDATE`;
+      SELECT "id" FROM "Property" WHERE "id" = ${input.propertyId} AND "organizationId" = ${input.organizationId} FOR NO KEY UPDATE`;
     if (!locked.length) return { ok: false, reason: "not_found" } as const;
     // Tavan yalnız SERBEST metne (hazır seçenekler kapalı küme, sayıları sabit).
     const active = await tx.propertyInstruction.count({ where: { propertyId: input.propertyId, status: "active", presetKey: null } });
@@ -568,6 +580,7 @@ export async function addPropertyInstruction(input: {
         propertyId: input.propertyId,
         content: check.content,
         source: input.source ?? "host_note",
+        byOperator: input.byOperator === true,
         createdById: input.userId,
       },
       select: { id: true },
@@ -592,7 +605,7 @@ export async function setPresetInstruction(input: {
   if (!preset || !checkInstruction(preset.text).ok) return { ok: false, reason: "invalid" };
   return prisma.$transaction(async (tx) => {
     const locked = await tx.$queryRaw<{ id: string }[]>`
-      SELECT "id" FROM "Property" WHERE "id" = ${input.propertyId} AND "organizationId" = ${input.organizationId} FOR UPDATE`;
+      SELECT "id" FROM "Property" WHERE "id" = ${input.propertyId} AND "organizationId" = ${input.organizationId} FOR NO KEY UPDATE`;
     if (!locked.length) return { ok: false, reason: "not_found" } as const;
     const where = { propertyId: input.propertyId, status: "active", presetKey: preset.key };
     if (!input.on) {
@@ -638,7 +651,7 @@ export const COMPARISON_VERDICTS = ["good", "fix", "bad"] as const;
 
 export type ComparisonReviewResult =
   | { ok: true; instructionId: string | null; draftId: string | null }
-  | { ok: false; reason: "not_found" | "invalid" | "note_required" | InstructionRejectReason | "limit" };
+  | { ok: false; reason: "not_found" | "invalid" | "note_required" | InstructionRejectReason | "limit" | "stale" };
 
 /**
  * Karar + not. `apply` ("böyle yapsın"): not kapılardan geçer (talimat kuralı), sonra AYNI işlemde HEM mülk talimatı (kaynak
@@ -653,6 +666,10 @@ export async function reviewComparison(input: {
   /** Verilmezse mevcut not KORUNUR; boş metin = notu kaldır. */
   note?: string | null;
   apply: boolean;
+  /** Karar verilirken ekranda görülen yapay zekâ cevabı; o arada yeniden karşılaştırma cevabı değiştirdiyse karar YAZILMAZ (stale). */
+  seenAnswer?: string | null;
+  /** Yazan operatör mü (talimat satırına işlenir — müşteri anahtarı kapanınca yalnız operatörün serbest metni isteme girer). */
+  byOperator?: boolean;
 }): Promise<ComparisonReviewResult> {
   const cmp = await prisma.historyLearnComparison.findFirst({
     where: { id: input.comparisonId, property: { organizationId: input.organizationId } },
@@ -677,8 +694,14 @@ export async function reviewComparison(input: {
       // Kilit ÖNCE (talimat tavanı yarışı), karar + not, sonra uygulama. Uygulama başarısızsa her şey GERİ ALINIR (Haiku 10-15:
       // eskiden karar + not yazılıp 409 dönüyordu).
       const locked = await tx.$queryRaw<{ id: string }[]>`
-        SELECT "id" FROM "Property" WHERE "id" = ${cmp.propertyId} AND "organizationId" = ${input.organizationId} FOR UPDATE`;
+        SELECT "id" FROM "Property" WHERE "id" = ${cmp.propertyId} AND "organizationId" = ${input.organizationId} FOR NO KEY UPDATE`;
       if (!locked.length) throw new ReviewAbort("not_found");
+      // Karşılaştırma satırı KİLİTLİ okunur (Haiku 10-15): yeniden karşılaştırmanın yazımı (cevabı değiştirip kararı sıfırlar) bu işlem
+      // bitene kadar bekler — denetim ile yazma arasına giremez.
+      const cur = await tx.$queryRaw<{ aiAnswer: string | null }[]>`
+        SELECT "aiAnswer" FROM "HistoryLearnComparison" WHERE "id" = ${cmp.id} FOR UPDATE`;
+      if (!cur.length) throw new ReviewAbort("not_found");
+      if (input.seenAnswer !== undefined && (cur[0].aiAnswer ?? null) !== (input.seenAnswer ?? null)) throw new ReviewAbort("stale");
       await tx.historyLearnComparison.update({
         where: { id: cmp.id },
         data: {
@@ -691,7 +714,9 @@ export async function reviewComparison(input: {
       // Tekrar gönderim (çift tıklama) İKİNCİ talimat / taslak açmaz: aynı metinli etkin talimat ve bekleyen taslak yeniden kullanılır.
       // Yalnız SERBEST metin satırları (hazır seçenek satırı aynı metni taşısa da yeniden kullanılmaz; tavan da onları saymaz).
       const existingInstr = await tx.propertyInstruction.findFirst({
-        where: { propertyId: cmp.propertyId, status: "active", presetKey: null, content: checked },
+        // Yazan sınıfı da eşleşmeli (Haiku 10-15): operatörün notu müşterinin aynı metinli satırını yeniden kullanırsa müşteri anahtarı
+        // kapanınca istemden düşerdi.
+        where: { propertyId: cmp.propertyId, status: "active", presetKey: null, byOperator: input.byOperator === true, content: checked },
         select: { id: true },
       });
       let instructionId = existingInstr?.id ?? null;
@@ -700,7 +725,14 @@ export async function reviewComparison(input: {
         if (active >= INSTRUCTIONS_MAX_ACTIVE) throw new ReviewAbort("limit");
         instructionId = (
           await tx.propertyInstruction.create({
-            data: { organizationId: input.organizationId, propertyId: cmp.propertyId, content: checked, source: "history_learn", createdById: input.userId },
+            data: {
+              organizationId: input.organizationId,
+              propertyId: cmp.propertyId,
+              content: checked,
+              source: "history_learn",
+              byOperator: input.byOperator === true,
+              createdById: input.userId,
+            },
             select: { id: true },
           })
         ).id;

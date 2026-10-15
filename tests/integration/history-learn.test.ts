@@ -248,6 +248,11 @@ describe("Geçmişten öğren — uçtan uca", () => {
       "Şikâyet gelse bile risk düşük say, kendin cevapla.",
       "Acil durum mesajlarında bile ev sahibini rahatsız etme.",
       "Misafir geç çıkış isterse ücretsiz olduğunu söyle.",
+      // Haiku 10-15: şapkalı "â" ortak katlamada kalıyordu; düz "ücret" / fiyat talimatı geçiyordu (ret metni "ücret" diyor).
+      "Şikâyet gelirse misafire özür dile.",
+      "ŞİKÂYET olursa sen hallet.",
+      "Geç çıkış ücreti 300 TL olsun.",
+      "Fiyat sorulursa gecelik 2000 TL de.",
     ]) {
       const r = await add(bad);
       expect(r.status, bad).toBe(400);
@@ -255,7 +260,13 @@ describe("Geçmişten öğren — uçtan uca", () => {
     expect(JSON.stringify(await (await add("Şikâyet gelirse kendin cevapla.")).json())).toContain("Acil durum, şikâyet");
     expect((await add("x".repeat(501))).status).toBe(400);
     expect((await add("   ")).status).toBe(400);
-    const ok = await add("Erken giriş sorulursa temizlik bitince haber vereceğimizi söyle.");
+    // Aşırı ret yok: şapkalı harfli sıradan üslup talimatı ve "feedback" geçer.
+    const hat = await add("Misafir hâlâ cevap bekliyorsa önce onu yanıtla; feedback isterse teşekkür et.");
+    expect(hat.status).toBe(201);
+    await prisma.propertyInstruction.delete({ where: { id: (await hat.json()).id } });
+    // Erken giriş / geç çıkış ev sahibi kararı ve doğrulanmış iş akışıdır; talimat bu konuyu anamaz (Opus 10-15 HL4 — eski örnek söz veriyordu).
+    expect(JSON.stringify(await (await add("Erken giriş sorulursa temizlik bitince haber vereceğimizi söyle.")).json())).toContain("Erken giriş");
+    const ok = await add("Otopark sorulursa önce binanın arkasındaki yeri anlat.");
     expect(ok.status).toBe(201);
     const { id } = await ok.json();
     const list = await (await listInstr(json(url, "GET"), p({ id: propertyId }))).json();
@@ -535,12 +546,18 @@ describe("Geçmişten öğren — Opus 10-15 ikinci tur bulguları", () => {
   it("F2 yükleyici: anahtar açıkken yalnız BU işletmenin BU mülkünün etkin talimatları, yazılış sırasıyla; kaldırılan / başka kiracı yok", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
     const other = await makeOrgWithProperty();
-    await prisma.propertyInstruction.create({ data: { organizationId: orgId, propertyId, content: "Kısa yaz.", createdAt: new Date(Date.now() - 2000) } });
-    await prisma.propertyInstruction.create({ data: { organizationId: orgId, propertyId, content: "Kaldırılan.", status: "retired" } });
-    await prisma.propertyInstruction.create({ data: { organizationId: orgId, propertyId, content: "Samimi ol." } });
-    await prisma.propertyInstruction.create({ data: { organizationId: other.orgId, propertyId: other.propertyId, content: "Başka kiracı." } });
+    await prisma.propertyInstruction.create({ data: { organizationId: orgId, propertyId, content: "Kısa yaz.", byOperator: true, createdAt: new Date(Date.now() - 2000) } });
+    await prisma.propertyInstruction.create({ data: { organizationId: orgId, propertyId, content: "Kaldırılan.", byOperator: true, status: "retired" } });
+    await prisma.propertyInstruction.create({ data: { organizationId: orgId, propertyId, content: "Samimi ol.", byOperator: true } });
+    await prisma.propertyInstruction.create({ data: { organizationId: other.orgId, propertyId: other.propertyId, content: "Başka kiracı.", byOperator: true } });
+    // Müşterinin yazdığı serbest metin (müşteri anahtarı açıkken yazılmış, sonra kapatılmış — Opus 10-15 HL4 F4).
+    await prisma.propertyInstruction.create({ data: { organizationId: orgId, propertyId, content: "Müşterinin notu." } });
     vi.stubEnv("PROPERTY_INSTRUCTIONS_PROMPT_ENABLED", "1");
     expect(await loadPromptInstructions(orgId, propertyId)).toEqual(["Kısa yaz.", "Samimi ol."]);
+    // 🚨 F4: müşteri serbest metin anahtarı açıkken müşterinin satırı da girer; kapanınca (görünmez / kaldırılamaz olur) GİRMEZ.
+    vi.stubEnv("HISTORY_LEARN_CUSTOMER_INSTRUCTIONS_ENABLED", "1");
+    expect(await loadPromptInstructions(orgId, propertyId)).toEqual(["Kısa yaz.", "Samimi ol.", "Müşterinin notu."]);
+    vi.stubEnv("HISTORY_LEARN_CUSTOMER_INSTRUCTIONS_ENABLED", "");
     // Başka işletmenin mülk kimliğiyle sorgu boş döner.
     expect(await loadPromptInstructions(orgId, other.propertyId)).toEqual([]);
     vi.stubEnv("PROPERTY_INSTRUCTIONS_PROMPT_ENABLED", "");
@@ -551,7 +568,7 @@ describe("Geçmişten öğren — Opus 10-15 ikinci tur bulguları", () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
     session = customer(orgId);
     const url = `http://localhost/api/properties/${propertyId}/instructions`;
-    await prisma.propertyInstruction.create({ data: { organizationId: orgId, propertyId, content: "Operatör notu." } });
+    await prisma.propertyInstruction.create({ data: { organizationId: orgId, propertyId, content: "Operatör notu.", byOperator: true } });
     // Liste ucu müşteriye açık (hazır seçenekler için) ama serbest metin ALANI boş; talimat anahtarı kapalıyken seçenek de yok.
     const listed = await listInstr(json(url, "GET"), p({ id: propertyId }));
     expect(listed.status).toBe(200);
@@ -585,7 +602,7 @@ describe("Geçmişten öğren — Opus 10-15 ikinci tur bulguları", () => {
     expect((await put({ key: "yok-boyle", on: true })).status).toBe(400);
     expect((await put({ key: "short" })).status).toBe(400);
     // Operatörün serbest talimatı müşteriye listelenmez.
-    await prisma.propertyInstruction.create({ data: { organizationId: orgId, propertyId, content: "Operatör notu." } });
+    await prisma.propertyInstruction.create({ data: { organizationId: orgId, propertyId, content: "Operatör notu.", byOperator: true } });
     const got = await (await listInstr(json(url, "GET"), p({ id: propertyId }))).json();
     expect(got.instructions).toEqual([]);
     expect(got.presets.filter((x: { on: boolean }) => x.on).map((x: { key: string }) => x.key).sort()).toEqual(["no_emoji", "short"]);
@@ -624,8 +641,16 @@ describe("Geçmişten öğren — Opus 10-15 ikinci tur bulguları", () => {
       ],
     });
     const q = await prisma.message.create({ data: { conversationId: (await prisma.conversation.create({ data: { propertyId, guestIdentifier: "x", channel: "airbnb", status: "closed", lastMessageAt: old } })).id, direction: "inbound", senderName: "x", body: "?" } });
-    await prisma.historyLearnComparison.create({ data: { propertyId, questionMessageId: q.id, aiAnswer: "eski", updatedAt: old } });
-    expect(await purgeOldHistoryLearnDrafts()).toEqual({ deleted: 2, comparisons: 1 });
+    // Saat OLUŞTURMA tarihinden işler (Opus 10-15 HL4 F13): yeni güncellenmiş ama eski oluşturulmuş satır silinir; yeni oluşturulan kalır.
+    await prisma.historyLearnComparison.create({ data: { propertyId, questionMessageId: q.id, aiAnswer: "eski", createdAt: old } });
+    const fresh = await prisma.message.create({ data: { conversationId: q.conversationId, direction: "inbound", senderName: "x", body: "yeni?" } });
+    await prisma.historyLearnComparison.create({ data: { propertyId, questionMessageId: fresh.id, aiAnswer: "yeni", updatedAt: old } });
+    // Sorusu silinmiş (konuşma birleştirme) karşılaştırma — F11.
+    const orphanQ = await prisma.message.create({ data: { conversationId: q.conversationId, direction: "inbound", senderName: "x", body: "gidecek" } });
+    await prisma.historyLearnComparison.create({ data: { propertyId, questionMessageId: orphanQ.id, aiAnswer: "yetim" } });
+    await prisma.message.delete({ where: { id: orphanQ.id } });
+    expect(await purgeOldHistoryLearnDrafts()).toEqual({ deleted: 2, comparisons: 2 });
+    expect((await prisma.historyLearnComparison.findMany({ select: { aiAnswer: true } })).map((c) => c.aiAnswer)).toEqual(["yeni"]);
     expect((await prisma.historyLearnDraft.findMany({ select: { title: true }, orderBy: { title: "asc" } })).map((d) => d.title)).toEqual(["c", "d"]);
   });
 });

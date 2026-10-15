@@ -60,7 +60,10 @@ export async function dryRunReply(input: {
   message: string;
   now: Date;
 }): Promise<DryRunResult> {
-  const { property, message, now } = input;
+  const { property, now } = input;
+  // Maskeli soruda misafir adı `{isim}` olarak gelir; ürünün yer tutucusuyla AYNI belirteç olduğu için cevaba yansırsa çıktı denetimi
+  // "doldurulmamış yer tutucu" sayıp "size bırakırdı" der (Opus 10-15 HL4). Örnek misafirin adıyla doldurulur (test rotasıyla aynı ad).
+  const message = input.message.replace(/\{isim\}/gu, DRY_RUN_GUEST_GIVEN_NAME);
   const org = await prisma.organization.findUnique({
     where: { id: input.organizationId },
     select: { aiStyleProfile: true, lateCheckoutOfferText: true, timezone: true, aiReplyTone: true, language: true },
@@ -101,7 +104,8 @@ export async function dryRunReply(input: {
     tone: VALID_TONES.includes(org?.aiReplyTone as ReplyTone) ? (org?.aiReplyTone as ReplyTone) : "warm",
     language: org?.language ?? "tr",
     styleProfile: styleProfileForPrompt(org?.aiStyleProfile),
-    hostInstructions: await loadPromptInstructions(input.organizationId, property.id),
+    // Kuru koşu talimat anahtarı kapalıyken de talimatları dener (operatör etkisini önce görür — Opus 10-15 HL4 F14).
+    hostInstructions: await loadPromptInstructions(input.organizationId, property.id, { dryRun: true }),
     lateCheckoutOfferText: org?.lateCheckoutOfferText,
     timeZone: org?.timezone,
   });

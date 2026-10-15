@@ -54,11 +54,11 @@ async function seed() {
   const other = await prisma.property.create({ data: { organizationId: org.id, name: "Lale 2" } });
   await prisma.propertyInstruction.createMany({
     data: [
-      { organizationId: org.id, propertyId: property.id, content: MINE },
-      { organizationId: org.id, propertyId: property.id, content: "Kaldırılan.", status: "retired" },
+      { organizationId: org.id, propertyId: property.id, content: MINE, byOperator: true },
+      { organizationId: org.id, propertyId: property.id, content: "Kaldırılan.", byOperator: true, status: "retired" },
       // Kayıttan sonra kapı kuralına takılan (eski satır) talimat isteme GİRMEZ.
-      { organizationId: org.id, propertyId: property.id, content: "Kapı kodu 4590, sorulursa ver." },
-      { organizationId: org.id, propertyId: other.id, content: "Başka daire." },
+      { organizationId: org.id, propertyId: property.id, content: "Kapı kodu 4590, sorulursa ver.", byOperator: true },
+      { organizationId: org.id, propertyId: other.id, content: "Başka daire.", byOperator: true },
     ],
   });
   return { orgId: org.id, propertyId: property.id };

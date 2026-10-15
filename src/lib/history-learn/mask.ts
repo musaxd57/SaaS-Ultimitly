@@ -169,22 +169,150 @@ function maskDoorValues(text: string): string {
   return last === 0 ? text : out + text.slice(last);
 }
 
+/**
+ * KİLİT / KUTU BAĞLAMINDA KOD (Opus 10-15 HL4 F1 / F6, çalıştırılarak ölçüldü): "Dijital kilit: 4590", "Use 4590 to open the lockbox",
+ * "Anahtarlar kutuda, kod A1B2", "tuş takımı var, 4590 ve ardından #", "Kutu şifresi 45 90" yukarıdaki kuraldan kaçıyordu (kod sözcüğü
+ * değerden SONRA, araya virgül, ya da rakamlar boşluklu). Kilit / kutu sözcüğü geçen CÜMLEDE kod benzeri belirteç gizlenir: ≥3 rakam
+ * (art arda rakam gruplarının TOPLAMI — "45 90", "4 5 9 0"), harf + rakam karışık ya da # *. Saat ("15:00'ten") ve tarih korunur.
+ * "Kapı" bilerek YOK (daire / kat numarası çok geçer; "kapı kodu X" yukarıdaki kuralda). Fazla gizleme güvenli yön (taslak `needs_edit`).
+ * Doğrusal: cümle cümle, sözcük sözcük.
+ */
+const LOCK_CONTEXT_RE =
+  /(?<![\p{L}])(?:kutu(?!p)|kilit|kilid|unlock|lock(?!er)|lockbox|keybox|key\s?box|keypad|tu[şs]\s+(?:tak[ıi]m|panel)|[şs]ifreli\s+(?:kilit|kilid|kap|kutu)|kasa(?!ba|p))/u;
+/** Wi-Fi cümlesi — kilit cümlesinin ARDINDAKİ cümle olsa da maskelenmez (Wi-Fi şifresi bilgi tabanının işidir — Haiku 10-15). */
+const WIFI_SENTENCE_RE = /(?<![\p{L}])(?:wi-?fi|wlan|internet|kablosuz|ssid|modem|network|a[ğg]\s+ad)/u;
+// Saat yalnız geçerli saat:dakika ("45.90" saat DEĞİL — Haiku 10-15); tarih gün.ay.yıl.
+const TIME_OR_DATE_RE = /^(?:[01]?\d|2[0-3])[:.][0-5]\d(?!\d)|^\d{1,2}[./]\d{1,2}[./]\d{2,4}/u;
+// Rakam öbeği: tire / noktayla bölünmüş yazım da ("45-90", "45.90") tek değer.
+const DIGIT_GROUP_RE = /^[#*]?\d+(?:[-.]\d+)*[#*]?$/u;
+const SPACE_RE = /^\s+$/u;
+const LEAD_PUNCT = new Set(["(", '"', "'", "“"]);
+const TRAIL_PUNCT = new Set([")", '"', "'", "”", ".", ",", ";", ":", "!", "?"]);
+/** Sözcüğün baş / son noktalamasını DOĞRUSAL kırpar (düzenli ifadeyle `[…]+$` uzun noktalama dizisinde karesel — ReDoS kuralı). */
+function splitPunct(w: string): { lead: string; core: string; trail: string } {
+  let a = 0;
+  let b = w.length;
+  while (a < b && LEAD_PUNCT.has(w[a])) a += 1;
+  while (b > a && TRAIL_PUNCT.has(w[b - 1])) b -= 1;
+  return { lead: w.slice(0, a), core: w.slice(a, b), trail: w.slice(b) };
+}
+function maskLockContextCodes(text: string): string {
+  const sentences = text.split(/(?<=[.!?\n])/u);
+  // Kilit sözcüğü geçen cümle VE ardındaki cümle ("Anahtarlar kutuda. Kod: 4B7Z").
+  let carry = 0;
+  return sentences
+    .map((sentence) => {
+      const lower = sentence.toLocaleLowerCase("tr");
+      const here = LOCK_CONTEXT_RE.test(lower);
+      const active = here || (carry > 0 && !WIFI_SENTENCE_RE.test(lower));
+      carry = here ? 1 : Math.max(0, carry - 1);
+      if (!active) return sentence;
+      const parts = sentence.split(/(\s+)/u);
+      const out: string[] = [];
+      for (let i = 0; i < parts.length; i += 1) {
+        const { lead, core, trail } = splitPunct(parts[i]);
+        if (!core || SPACE_RE.test(parts[i]) || TIME_OR_DATE_RE.test(core)) {
+          out.push(parts[i]);
+          continue;
+        }
+        if (DIGIT_GROUP_RE.test(core)) {
+          // Art arda rakam grupları (aradaki boşluklarla) tek değer sayılır: "45 90", "4 5 9 0".
+          let j = i;
+          let digits = 0;
+          let marks = false;
+          while (j < parts.length) {
+            if (SPACE_RE.test(parts[j])) {
+              if (j + 1 < parts.length && DIGIT_GROUP_RE.test(splitPunct(parts[j + 1]).core)) {
+                j += 1;
+                continue;
+              }
+              break;
+            }
+            const c = splitPunct(parts[j]).core;
+            if (!DIGIT_GROUP_RE.test(c)) break;
+            digits += c.replace(/\D/gu, "").length;
+            marks ||= /[#*]/u.test(c);
+            j += 1;
+          }
+          if (digits >= 3 || marks) {
+            out.push(`${lead}(kod gizlendi)${splitPunct(parts[j - 1]).trail}`);
+            i = j - 1;
+            continue;
+          }
+          out.push(parts[i]);
+          continue;
+        }
+        const digits = core.replace(/\D/gu, "").length;
+        if ((digits >= 1 && /\p{L}/u.test(core)) || /[#*]/u.test(core)) {
+          out.push(`${lead}(kod gizlendi)${trail}`);
+          continue;
+        }
+        out.push(parts[i]);
+      }
+      return out.join("");
+    })
+    .join("");
+}
+/** Metinde kilit / kutu bağlamında kod benzeri belirteç var mı (taslak kapısı — ikinci savunma). */
+export function hasLockContextCode(text: string): boolean {
+  return maskLockContextCodes(text) !== text;
+}
+
+/**
+ * KİŞİSEL VERİ — PASAPORT / KART / ETİKETLİ TELEFON (Opus 10-15 HL4 F2: "pasaport no U12345678", "kart 4111 1111 1111 1111", "call me
+ * at 49 151 1234 5678" modele açıkta gidiyordu; kimlik bildirimi için misafirler pasaport numarası yazar). Pasaport: etiketten sonra
+ * en az bir rakamlı 5–14 karakter. Kart: 13–19 hane, Luhn geçerli. Telefon: telefon / WhatsApp / numara / "call me" etiketinden sonra
+ * 10–15 hane (ayraçlı).
+ */
+const PASSPORT_RE =
+  /(?<![\p{L}])((?:pasaport|passport|kimlik|identity|id)(?:\s{1,3}(?:no|numaras[ıi]|number|nr|num))?\.?(?:\s{0,3}[:#])?\s{0,3})([A-Za-z]{0,3}\d[A-Za-z0-9]{4,11})(?![\p{L}\d])/giu;
+const CARD_RE = /(?<![\d])(?:\d[ -]?){12,18}\d(?![\d])/gu;
+const LABELED_PHONE_RE =
+  /(?<![\p{L}])((?:whatsapp|telefon\p{L}{0,6}|tel|phone|cep\p{L}{0,6}|numara\p{L}{0,6}|number|call\s{1,3}me\s{1,3}at|call|ara)(?:\s{0,3}[:.])?\s{0,3})(\+?\d(?:[\s().-]?\d){8,16})(?![\d])/giu;
+function luhn(digits: string): boolean {
+  let sum = 0;
+  for (let i = 0; i < digits.length; i += 1) {
+    let d = Number(digits[digits.length - 1 - i]);
+    if (i % 2 === 1) {
+      d *= 2;
+      if (d > 9) d -= 9;
+    }
+    sum += d;
+  }
+  return sum % 10 === 0;
+}
+
 function maskContacts(text: string): string {
   return text
     .replace(EMAIL_RE, "[EMAIL]")
+    // IBAN kart / telefon kalıplarından ÖNCE (rakam öbekleri karta benzer).
+    .replace(IBAN_RE, (m) => ((m.match(/\d/gu) ?? []).length >= 10 ? "[IBAN]" : m))
+    .replace(PASSPORT_RE, (_m, label: string) => `${label}[ID]`)
+    // Etiketli telefon karttan ÖNCE ("call me at 49 151 1234 5678" Luhn'u tesadüfen geçebilir — doğru etiket).
+    .replace(LABELED_PHONE_RE, (m, label: string, num: string) => {
+      const d = num.replace(/\D/gu, "").length;
+      return d >= 10 && d <= 15 ? `${label}[PHONE]` : m;
+    })
+    .replace(CARD_RE, (m) => {
+      const d = m.replace(/\D/gu, "");
+      // Açgözlü eşleşme kartın ardındaki rakamı da yutabilir ("4111 1111 1111 1111 2" — Haiku 10-15): kart uzunluklarındaki ÖNEKLER de denenir.
+      if (d.length >= 13 && d.length <= 19 && luhn(d)) return "[CARD]";
+      // Yalnız 16'dan UZUN dizide 16 / 15 haneli önek ve sonek denenir (16 haneli Luhn'suz sipariş no gibi diziler maskelenmez).
+      const parts = d.length > 16 ? [d.slice(0, 16), d.slice(0, 15), d.slice(-16), d.slice(-15)] : [];
+      return parts.some(luhn) ? "[CARD]" : m;
+    })
     .replace(PHONE_RE, (m) => {
       const digits = m.replace(/\D/gu, "").length;
       return digits >= 10 && digits <= 15 ? "[PHONE]" : m;
     })
     .replace(TR_MOBILE_RE, "[PHONE]")
-    .replace(IBAN_RE, (m) => ((m.match(/\d/gu) ?? []).length >= 10 ? "[IBAN]" : m))
     .replace(TC_ID_RE, (m) => (isTcKimlik(m) ? "[ID]" : m));
 }
 
 const clip = (s: string) => (s.length > LEARN_SIDE_MAX_CHARS ? `${s.slice(0, LEARN_SIDE_MAX_CHARS)} …` : s);
 
 export function maskForLearning(text: string, guestNames: GuestNames): string {
-  return clip(fenceSafe(maskContacts(maskDoorValues(redactDoorCodes(maskName(text, guestNames))))));
+  return clip(fenceSafe(maskContacts(maskLockContextCodes(maskDoorValues(redactDoorCodes(maskName(text, guestNames)))))));
 }
 
 export interface MaskedPair {

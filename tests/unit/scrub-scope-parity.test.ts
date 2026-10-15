@@ -234,3 +234,22 @@ describe("şema kanaryası — misafir modellerine yeni kolon", () => {
     ).toBe(EXPECTED[model]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// SİLİNEREK TEMİZLENEN modeller (Opus 10-15 HL4 F13): "Geçmişten öğren" taslağı ve karşılaştırması misafir mesajından TÜRETİLMİŞ metin
+// taşır (maskeli, ama yine türev). Anonimleştirilmez — SİLİNİR: misafir silmesinde (erasure) ve 90 günlük saklamada. Bu iki yol
+// kaybolursa kanarya kırmızı olur; yeni bir model bu sınıfa girerse buraya eklenir.
+// ---------------------------------------------------------------------------
+describe("silinerek temizlenen türev metin modelleri", () => {
+  const DELETE_ONLY = ["historyLearnDraft", "historyLearnComparison"] as const;
+  it("misafir silmesi ve saklama süpürgesi ikisini de SİLER", () => {
+    const erasure = read("src/lib/erasure.ts");
+    const purge = read("src/lib/history-learn/service.ts");
+    for (const m of DELETE_ONLY) {
+      expect(erasure, `erasure.ts ${m}`).toMatch(new RegExp(`db\\.${m}\\.deleteMany\\(`));
+      expect(purge, `service.ts ${m}`).toMatch(new RegExp(`prisma\\.${m}\\.deleteMany\\(`));
+    }
+    // Saklama süpürgesi zamanlanmış işte çağrılır.
+    expect(read("src/lib/scheduled-sync.ts")).toMatch(/purgeOldHistoryLearnDrafts\(/);
+  });
+});

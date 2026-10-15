@@ -7,7 +7,8 @@ import { detectKbInstructionHijack, foldTurkishAscii } from "@/lib/ai/fallback";
 import { qrReplyHasDoorCode, REDACTED_DOOR_CODE } from "@/lib/guest-chat";
 import { namesPaymentMethod } from "@/lib/payment-method-guard";
 import { sensitiveClassesIn } from "@/lib/kb-from-history";
-import type { MaskedPair } from "./mask";
+import { hasLockContextCode, type MaskedPair } from "./mask";
+import { mentionsOffPlatform } from "./instruction-gate";
 
 // ---------------------------------------------------------------------------
 // GEÇMİŞTEN ÖĞREN — MASKELİ ÇİFTLERDEN BİLGİ TABANI TASLAĞI (tasarım §2.2–2.3; kurucu 10-15: "Luna 6.0 yapsın, 5.1 çok pahalı").
@@ -213,7 +214,7 @@ function asRawFacts(data: unknown): RawFact[] {
   );
 }
 
-const MASK_TRACES = [REDACTED_DOOR_CODE, "[PHONE]", "[EMAIL]", "{isim}", "[REDACTED]", "[NUM]"];
+const MASK_TRACES = [REDACTED_DOOR_CODE, "[PHONE]", "[EMAIL]", "[ID]", "[CARD]", "[IBAN]", "{isim}", "[REDACTED]", "[NUM]"];
 /** Tek seferlik karar dili (Türkçe katlanmış + İngilizce). İşaret — ev sahibi karar verir (geç çıkış ÜCRETİ kalıcı kural olabilir). */
 const ONE_OFF_RE =
   /(?<![a-z])(?:indirim|discount|iade|refund|bu sefer|bu seferlik|this time|size ozel|sizin icin ozel|ozel olarak|ucretsiz konaklama|free stay|erken giris|early check|gec cikis|late check)|%/u;
@@ -274,10 +275,14 @@ export function gateDraft(
   if (!t || !c) return { ok: false, reason: "empty" };
   const text = `${t}\n${c}`;
   if (qrReplyHasDoorCode(text, [])) return { ok: false, reason: "door_code" };
+  // Kilit / kutu sözcüğüyle aynı cümlede kod benzeri değer ("Dijital kilit: 4590", "Use 4590 to open the lockbox") — Opus 10-15 HL4 F1:
+  // ortak kapı kodu okuyucusu bu biçimleri kaçırıyordu; taslak tek tıkla onaylanıp QR'a kadar gidebilirdi. Taslak HİÇ olmaz.
+  if (hasLockContextCode(text)) return { ok: false, reason: "door_code" };
   if (detectKbInstructionHijack(text)) return { ok: false, reason: "hijack" };
   const folded = foldTurkishAscii(text);
   const flags = new Set<DraftFlag>();
-  if (namesPaymentMethod(text)) flags.add("payment");
+  // Platform dışı ödeme / rezervasyon ("Airbnb dışında ödeme alalım") da ödeme işareti (Opus 10-15 HL4 F20 — hesap riski).
+  if (namesPaymentMethod(text) || mentionsOffPlatform(folded)) flags.add("payment");
   if (MASK_TRACES.some((m) => text.includes(m))) flags.add("needs_edit");
   if (ONE_OFF_RE.test(folded)) flags.add("one_off");
   if (DOOR_MENTION_RE.test(folded)) flags.add("door_mention");

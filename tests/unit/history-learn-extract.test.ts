@@ -186,6 +186,86 @@ describe("Geçmişten öğren — maske", () => {
   });
 });
 
+describe("Geçmişten öğren — kilit bağlamı + kişisel veri (Opus 10-15 HL4)", () => {
+  it("🚨 F1: kilit / kutu sözcüğüyle aynı (ya da sonraki) cümlede kod benzeri değer gizlenir — kod sözcüğü sonra, virgüllü, boşluklu rakam", () => {
+    for (const [input, kept] of [
+      ["Anahtar kutuda, kod A1B2", "Anahtar kutuda, kod"],
+      ["Anahtarlar kutuda. Kod: 4B7Z", "Anahtarlar kutuda. Kod:"],
+      ["Use 4590 to open the lockbox", "to open the lockbox"],
+      ["kapıda tuş takımı var, 4590 ve ardından # tuşu", "tuş takımı var,"],
+      ["Kutu şifresi 45 90", "Kutu şifresi"],
+      ["Dijital kilit: 4590", "Dijital kilit:"],
+      ["Anahtarlar posta kutusunda, şifre 459", "posta kutusunda"],
+      ["Şifreli kilide 4590 girin", "kilide"],
+      ["unlock with 7788 please", "unlock with"],
+    ] as const) {
+      const out = maskForLearning(input, []);
+      expect(out, input).toContain("(kod gizlendi)");
+      expect(out, input).toContain(kept);
+      expect(out, input).not.toMatch(/4590|A1B2|4B7Z|45 90|459|7788/u);
+    }
+  });
+
+  it("aşırı gizleme yok: kilit cümlesinde saat / tarih / kat; kilitsiz cümlede fiyat, daire no, Wi-Fi şifresi, rezervasyon no", () => {
+    for (const t of [
+      "Anahtar kutusu kapının sağında, 2. katta. Giriş 15:00'ten sonra.",
+      "Kutudan anahtarı 15:00'ten sonra alabilirsiniz.",
+      "Otopark günlük 100 TL, daire numarası 305.",
+      "Wi-Fi ağı Lale_Ev, şifresi lale2024.",
+      "Kutu 2. kattaki dolapta.",
+      "Rezervasyon numarası 12345.",
+      // Haiku 10-15: kilit cümlesinin ardındaki Wi-Fi cümlesi; "kasaba", "locker", "kutup", "Wi-Fi şifreli".
+      "Anahtar kutusu girişte. Wi-Fi şifresi lale2024.",
+      "Kasabanın merkezi 1500 m uzakta.",
+      "Locker odası 2. katta, 305 numaralı dairenin yanında.",
+      "Wi-Fi şifreli: sunny2024",
+    ]) {
+      expect(maskForLearning(t, []), t).toBe(t);
+    }
+  });
+
+  it("🚨 F2: pasaport, kart (Luhn), etiketli yabancı telefon gizlenir; KONTROL: Luhn'suz 16 hane ve kısa numara kalır", () => {
+    expect(maskForLearning("pasaport no U12345678 doğum 01.02.1990", [])).toBe("pasaport no [ID] doğum 01.02.1990");
+    expect(maskForLearning("kart 4111 1111 1111 1111", [])).toBe("kart [CARD]");
+    // Açgözlü eşleşme ardındaki rakamı yutsa da (Haiku 10-15) kart gizlenir.
+    expect(maskForLearning("kart 4111 1111 1111 1111 2", [])).not.toMatch(/4111/u);
+    expect(maskForLearning("call me at 49 151 1234 5678", [])).toBe("call me at [PHONE]");
+    expect(maskForLearning("WhatsApp: +49 151 12345678", [])).toBe("WhatsApp: [PHONE]");
+    expect(maskForLearning("Sipariş 1234 5678 9012 3456 geldi.", [])).toBe("Sipariş 1234 5678 9012 3456 geldi.");
+    expect(maskForLearning("Numara 305, 2. kat.", [])).toBe("Numara 305, 2. kat.");
+  });
+
+  it("🚨 taslak kapısı: kilit bağlamında kod → düşer; KONTROL: kodsuz kilit anlatımı ve saat geçer", () => {
+    for (const c of ["Dijital kilit: 4590", "Use 4590 to open the lockbox.", "Anahtar kutusu kapının yanındadır, kodu A1B2."]) {
+      expect(gateDraft("Giriş", c), c).toEqual({ ok: false, reason: "door_code" });
+    }
+    expect(gateDraft("Giriş", "Anahtar kutusu kapının sağındadır.")).toEqual({ ok: true, flags: [] });
+    expect(gateDraft("Giriş", "Check-in 15:00, kutudan anahtarı alın.")).toEqual({ ok: true, flags: [] });
+  });
+
+  it("yeni maskeler doğrusal (karesel iş kuralı): 50.000 karakterlik sözcük / boşluk / noktalama / rakam dizisi / tekrarlanan kök", () => {
+    const cases = [
+      "a".repeat(50_000),
+      `kutu${" ".repeat(50_000)}x`,
+      `kilit ${",".repeat(50_000)}a`,
+      `pasaport${" ".repeat(50_000)}:`,
+      `whatsapp${" ".repeat(50_000)}1`,
+      `kutu ${"1 ".repeat(25_000)}`,
+      "kutu kilit ".repeat(5_000),
+      "1 ".repeat(25_000),
+      // Opus 10-15 HL4: tarama SINIRININ ALTINDA da (kapı kodu okuyucusu tam koşar) — 4.000 ve 12.000 karakter.
+      `Kapı kodu ${"1 ".repeat(2_000)}`,
+      `Anahtar kutusu şifresi ${"4590 ".repeat(2_400)}`,
+      `${"kutu ".repeat(2_400)}kilit 4590`,
+    ];
+    for (const c of cases) {
+      const t0 = performance.now();
+      maskForLearning(c, []);
+      expect(performance.now() - t0, c.slice(0, 12)).toBeLessThan(1_500);
+    }
+  });
+});
+
 describe("Geçmişten öğren — kod kapıları", () => {
   it("kapı kodu değeri → düşer; Wi-Fi şifresi → geçer", () => {
     expect(gateDraft("Giriş", "Kapı kodu 4590, tuşlayıp girin.")).toEqual({ ok: false, reason: "door_code" });

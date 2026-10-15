@@ -305,6 +305,16 @@ export async function ensureGuestChatConversation(
  *  ("Güneş paneli 2019"), "clavier" DEĞİL (bilgisayar klavyesi). */
 const KEYPAD_NOUNS =
   "tu[şs]\\s*panel|zil\\s*panel|kap[ıi]\\s*panel|giri[şs]\\s*panel|interkom|intercom|domofon|keypad|key\\s+pad|digicode|tastenfeld|zahlenfeld|ziffernfeld|teclado|домофон|кодов\\S{0,3}\\s+замк|لوحة\\s*(?:المفاتيح|الأزرار|الأرقام)";
+/** Tek anlamlı kilit / kutu adları (10-15, Opus F6) — çıplak "kilit" / "kutu" / "kasa" YOK (yıl / adres yanlış elemesi). */
+const LOCK_NOUNS =
+  "(?:ak[ıi]ll[ıi]|dijital|digital|[şs]ifreli|kodlu|elektronik|elektronisch)\\s*kil[ıi][td]|smart\\s*lock|digital\\s*lock|code\\s*lock|combination\\s*lock|lock\\s*box|lockbox|key\\s*box|keybox|key\\s*safe|anahtar\\s*kutu|anahtar\\s*kasa";
+/**
+ * Kilit adı ile değer arasındaki ≤20 harflik ayraç — fiyat / tarih / kurulum / adres sözcüğü İÇERMEZ (Haiku 10-15, çalıştırılarak ölçüldü:
+ * "Dijital kilit bedeli 1500'dür", "Akıllı kilit sistemi 2022 Mart'ta kuruldu", "Akıllı kilitli site, B blok 1204 nolu daire", "2019'da kurulan
+ * akıllı kilit", "Smart lock installed in 2021" kalemi düşürüyordu). Sınırlı tekrar (20) × sabit ileriye bakış → doğrusal.
+ */
+const LOCK_GAP =
+  "(?:(?!bedel|[üu]cret|fiyat|price|fee|cost|sistem|system|blok|block|daire|apart|nolu|no\\s|kat\\s|install|kurul|tak[ıi]l|y[ıi]l|year|model|pil|batter|garanti|warrant)[^\\d\\n.]){0,20}?";
 /** 4–8 haneli değer; telefonun ilk öbeği (ardında rakam öbeği) ve SON öbeği (önünde rakam + ayraç) dışarıda. */
 const KEY_DIGITS = "(?<!\\d)(?<!\\d[\\s\\-.])\\d{4,8}(?!\\d)(?![\\s\\-.]\\d)";
 
@@ -431,6 +441,14 @@ const SECRET_PATTERNS: RegExp[] = [
   // kod sözcüğü yok, değer bitişik değil. Fiil ŞART (fiyat / yıl / saat cümleleri elenmez: "Giriş için 1500 TL ödenir").
   // Araya en çok iki sözcük ("4590 numaralı kodu girin"); fiil yalnız EMİR / ulaç biçimiyle ("kullanım ücreti" fiil değil — Haiku 10-14).
   new RegExp(`(?:kap[ıi]|giri[şs])[a-zçğıöşü]{0,6}\\s+i[çc]in\\s+${KEY_DIGITS}${NOT_PRICE_OR_YEAR}(?:\\s*['’][a-zçğıöşü]{0,4})?(?:\\s+[a-zçğıöşü]{1,12}){0,2}?\\s+(?:kullan|gir|yaz|tu[şs]la|bas)(?:y?[ıi]n(?:[ıi]z)?|y?abilirsiniz|ebilirsiniz|y?arak|erek|m[ae](?:n[ıi]z|l[ıi]s[ıi]n[ıi]z)|[ıi]l(?:[ıi]r|arak|erek)|n(?:[ıi]r|arak))(?![a-zçğıöşü])`, "i"),
+  // 🚨 10-15 (Opus derin denetimi F6, kurucu onayı "senin önerin mantıklıysa yap"): KİLİT / KUTU ADI + ≤20 harflik ayraç + değer, iki
+  // sırada da — "Dijital kilit: 4590", "Akıllı kilit 4590", "Şifreli kilide 4590 girin", "Use 4590 to open the lockbox", "Lockbox
+  // code is in the app, 4590"… keypad kalıbı (↑) bu adları tanımıyordu; bilgi tabanı süzgecinden de çıktı taramasından da geçiyordu.
+  // Yalnız TEK ANLAMLI bileşik adlar (dijital / akıllı / şifreli / kodlu / elektronik kilit, smart / digital / code lock, lockbox,
+  // keybox, key safe, anahtar kutusu / kasası) — çıplak "kilit" / "kasa" / "kutu" BİLEREK yok (↑ilk kalıbın ölçülmüş yıl / adres dersi).
+  // Fiyat / yıl / ondalık ardılı ve yıl eki sır sayılmaz ("Akıllı kilidin pili 2024'te değişti", "Lockbox ücreti 1500 TL").
+  new RegExp(`(?:${LOCK_NOUNS})${LOCK_GAP}${KEY_DIGITS}${NOT_PRICE_OR_YEAR}(?!\\s*['’]\\s*[dt][ae]n?(?![a-zçğıöşü]))`, "i"),
+  new RegExp(`${KEY_DIGITS}${NOT_PRICE_OR_YEAR}(?!\\s*['’]\\s*[dt][ae]n?(?![a-zçğıöşü]))${LOCK_GAP}(?:${LOCK_NOUNS})`, "i"),
 ];
 
 /**

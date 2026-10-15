@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { badRequest, jsonOk, notFound, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
+import { isSuperAdmin } from "@/lib/admin-core";
 import { writeAudit, auditActor } from "@/lib/audit";
 import {
   addPropertyInstruction,
@@ -9,9 +10,9 @@ import {
   listPresetStates,
   presetsAvailable,
   propertyInstructionsAllowed,
-  INSTRUCTION_MAX_CHARS,
   INSTRUCTIONS_MAX_ACTIVE,
 } from "@/lib/history-learn/service";
+import { INSTRUCTION_REJECT_TEXT } from "@/lib/history-learn/instruction-gate";
 
 // ---------------------------------------------------------------------------
 // MÜLKE ÖZGÜ TALİMAT ("böyle yapsın" notu; kurucu 10-15: not HEM bilgi tabanına HEM talimata). Anahtar `HISTORY_LEARN_ENABLED`
@@ -19,14 +20,7 @@ import {
 // ---------------------------------------------------------------------------
 
 const REASONS: Record<string, string> = {
-  empty: "Talimat boş olamaz.",
-  too_long: `Talimat en çok ${INSTRUCTION_MAX_CHARS} karakter olabilir.`,
-  door_code: "Kapı ya da anahtar kutusu kodu talimata yazılamaz.",
-  hijack: "Bu metin yapay zekânın kurallarını değiştirmeye çalışıyor gibi görünüyor. Misafire nasıl davranılmasını istediğinizi düz cümleyle yazın.",
-  secret: "Şifre ya da kod talimata yazılamaz. Bu bilgiyi bilgi tabanına ekleyin.",
-  safety_topic:
-    "Acil durum, şikâyet, ücret, indirim ve iade konularında talimat yazılamaz. Bu konularda yapay zekâ her zaman size bırakır.",
-  payment: "Ödeme yöntemi ya da ödeme yeri talimata yazılamaz. Ödeme bilgisini rezervasyon platformu üzerinden paylaşın.",
+  ...INSTRUCTION_REJECT_TEXT,
   limit: `Bir daire için en çok ${INSTRUCTIONS_MAX_ACTIVE} talimat olabilir. Eskilerden birini kaldırın.`,
 };
 
@@ -58,6 +52,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     propertyId: id,
     userId: auditActor(session),
     content: body.content,
+    byOperator: isSuperAdmin(session),
   });
   if (!r.ok) {
     if (r.reason === "not_found") return notFound();

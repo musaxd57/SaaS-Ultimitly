@@ -63,8 +63,11 @@ describe("sır dedektörü — iki eksenli karakterizasyon", () => {
     // 10-02 (QR kör kabul seti 1 — canlıda 5.1 tuş paneli kodunu QR'da yazdı): tuş paneli / interkom adları + "tuşla-" fiili + kod
     // sözcüğü + kapı adı + değer (`secret-filter-keypad.test.ts`) → kaçan 10 → 8 ("Zil paneline 4590 yazın", "İnterkomdan 4590
     // tuşlayın"), yanlış eleme AYNI (1).
+    // 10-15 (Opus derin denetimi F6, kurucu onayı): tek anlamlı kilit / kutu adları (dijital / akıllı / elektronik kilit, lockbox…) +
+    // ≤20 harflik ayraç + değer (`secret-filter-lock-nouns.test.ts`) → kaçan 8 → 7 ("Elektronik kilidin açılış sayısı: 4590"), yanlış eleme
+    // AYNI (1; "Kilit 2019 yılında yenilendi" çıplak "kilit" olduğu için kalır).
     expect({ missed: missed.length, falsePositives: falsePositives.length }).toEqual({
-      missed: 8,
+      missed: 7,
       falsePositives: 1,
     });
     // Tek bilinen yanlış-pozitif ADRES kalemidir (§7). Başka bir kalem düşerse

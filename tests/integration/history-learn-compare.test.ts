@@ -21,11 +21,12 @@ vi.mock("@/lib/api", async (orig) => {
 });
 
 import { POST as startCompare } from "@/app/api/properties/[id]/history-learn/compare/route";
-import { GET as getRuns } from "@/app/api/properties/[id]/history-learn/route";
+import { GET as getRuns, POST as startLearn } from "@/app/api/properties/[id]/history-learn/route";
 import { PATCH as reviewCmp } from "@/app/api/history-learn/comparisons/[id]/route";
 import { POST as aiTest } from "@/app/api/ai/test/route";
 import { executeHistoryLearnRun, startHistoryLearnRun, COMPARE_MAX_QUESTIONS } from "@/lib/history-learn/service";
 import { dryRunReply } from "@/lib/history-learn/compare";
+import { loadPromptInstructions } from "@/lib/history-learn/prompt-instructions";
 import { INSTRUCTION_PRESETS } from "@/lib/history-learn/instruction-presets";
 import { markStyleProfile } from "@/lib/ai/style-profile";
 
@@ -132,7 +133,7 @@ describe("Geçmişten öğren — cevap karşılaştırma", () => {
       where: { id: orgId },
       data: { aiStyleProfile: markStyleProfile("- Kısa yazar"), lateCheckoutOfferText: "Geç çıkış 13:00'e kadar 200 TL." },
     });
-    await prisma.propertyInstruction.create({ data: { organizationId: orgId, propertyId, content: "Kısa ve samimi yaz." } });
+    await prisma.propertyInstruction.create({ data: { organizationId: orgId, propertyId, content: "Kısa ve samimi yaz.", byOperator: true } });
     vi.stubEnv("PROPERTY_INSTRUCTIONS_PROMPT_ENABLED", "1");
     const bodies: string[] = [];
     vi.stubGlobal(
@@ -296,6 +297,73 @@ describe("Geçmişten öğren — cevap karşılaştırma", () => {
     expect(await prisma.historyLearnRun.count()).toBe(0);
     vi.stubEnv("HISTORY_LEARN_CUSTOMER_COMPARE_ENABLED", "1");
     expect((await reviewCmp(json("http://localhost/x", "PATCH", { verdict: "good" }), p({ id: c.id }))).status).toBe(200);
+    // 🚨 Opus 10-15 HL4 F3: karşılaştırma anahtarı müşteriye SERBEST METİN talimat yazdırmaz ("Böyle yapsın" → 404, satır yok, karar korunur).
+    const applied = await reviewCmp(json("http://localhost/x", "PATCH", { verdict: "bad", note: "Misafir sorun bildirirse konuyu kapat.", apply: true }), p({ id: c.id }));
+    expect(applied.status).toBe(404);
+    expect(await prisma.propertyInstruction.count()).toBe(0);
+    expect(await prisma.historyLearnDraft.count()).toBe(0);
+    expect(await prisma.historyLearnComparison.findUniqueOrThrow({ where: { id: c.id } })).toMatchObject({ verdict: "good" });
+  });
+
+  it("🚨 F8: ücretli özellik kapısı — faturalama zorunluyken iptal edilmiş abonelik 402 (çalıştırma açılmaz)", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    session = owner(orgId);
+    await prisma.subscription.create({ data: { organizationId: orgId, planCode: "pro", status: "canceled", provider: "paddle" } });
+    vi.stubEnv("BILLING_ENFORCED", "true");
+    expect((await startCompare(json("http://localhost/x", "POST", {}), p({ id: propertyId }))).status).toBe(402);
+    expect((await startLearn(json("http://localhost/x", "POST", {}), p({ id: propertyId }))).status).toBe(402);
+    expect(await prisma.historyLearnRun.count()).toBe(0);
+    // Faturalama zorunlu değilken açık olduğu diğer testlerde (çalıştırma başlatan her test) zaten sınanıyor.
+  });
+
+  it("not taslağı 'Sizin notunuzdan' diye işaretlenir; sorusu silinmiş karşılaştırma listede gösterilmez", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    session = owner(orgId);
+    const q = await prisma.message.create({ data: { conversationId: await seedQa(propertyId, 0), direction: "inbound", senderName: "Misafir", body: "Otopark?" } });
+    const gone = await prisma.message.create({ data: { conversationId: await seedQa(propertyId, 0), direction: "inbound", senderName: "Misafir", body: "Havlu?" } });
+    const c = await prisma.historyLearnComparison.create({ data: { propertyId, questionMessageId: q.id, aiAnswer: "x" } });
+    await prisma.historyLearnComparison.create({ data: { propertyId, questionMessageId: gone.id, aiAnswer: "y" } });
+    await prisma.message.delete({ where: { id: gone.id } });
+    expect((await reviewCmp(json("http://localhost/x", "PATCH", { verdict: "fix", note: "Otopark sorusunda binanın arkasını söylesin.", apply: true }), p({ id: c.id }))).status).toBe(200);
+    const list = await (await getRuns(json("http://localhost/x", "GET"), p({ id: propertyId }))).json();
+    expect(list.comparisons.map((x: { id: string }) => x.id)).toEqual([c.id]);
+    expect(list.drafts).toHaveLength(1);
+    expect(list.drafts[0]).toMatchObject({ fromNote: true });
+  });
+
+  it("🚨 bayat cevap (Opus 10-15 HL4): karar verilirken cevap yenilendiyse 409, karar YAZILMAZ; görülen cevapla 200", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    session = owner(orgId);
+    const q = await prisma.message.create({ data: { conversationId: await seedQa(propertyId, 0), direction: "inbound", senderName: "Misafir", body: "Otopark?" } });
+    const c = await prisma.historyLearnComparison.create({ data: { propertyId, questionMessageId: q.id, aiAnswer: "Yeni cevap." } });
+    const patch = (body: unknown) => reviewCmp(json("http://localhost/x", "PATCH", body), p({ id: c.id }));
+    expect((await patch({ verdict: "good", seenAnswer: "Eski cevap." })).status).toBe(409);
+    expect(await prisma.historyLearnComparison.findUniqueOrThrow({ where: { id: c.id } })).toMatchObject({ verdict: null });
+    expect((await patch({ verdict: "good", seenAnswer: "Yeni cevap." })).status).toBe(200);
+    expect(await prisma.historyLearnComparison.findUniqueOrThrow({ where: { id: c.id } })).toMatchObject({ verdict: "good" });
+  });
+
+  it("🚨 F14: kuru koşu talimatları anahtar KAPALIYKEN de dener (operatör önce görür); maskeli ad örnek misafirle dolar (yer tutucu çakışması yok)", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    await prisma.propertyInstruction.create({ data: { organizationId: orgId, propertyId, content: "Cevapları kısa tut.", byOperator: true } });
+    const bodies: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_u: string, init?: RequestInit) => {
+        bodies.push(String(JSON.parse(String(init?.body)).messages?.map((m: { content: string }) => m.content).join("\n") ?? ""));
+        const content = JSON.stringify({ reply: "Otopark arkada.", intent: "parking", confidence: 0.9, riskLevel: "low", detectedLanguage: "tr" });
+        return new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content } }] }), { status: 200 });
+      }),
+    );
+    vi.stubEnv("PROPERTY_INSTRUCTIONS_PROMPT_ENABLED", "");
+    const property = await prisma.property.findUniqueOrThrow({ where: { id: propertyId } });
+    await dryRunReply({ organizationId: orgId, property, message: "Merhaba ben {isim}, otopark var mı?", now: new Date() });
+    const prompt = bodies.join("\n");
+    expect(prompt).toContain("Cevapları kısa tut.");
+    expect(prompt).not.toContain("{isim}");
+    expect(prompt).toContain("Merhaba ben Ada, otopark var mı?");
+    // Gerçek cevap yolu (anahtar kapalı) talimatı GÖRMEZ.
+    expect(await loadPromptInstructions(orgId, propertyId)).toEqual([]);
   });
 
   it("anahtar kapalı 404; 🚨 KİRACILAR ARASI: başka işletmenin mülkü / karşılaştırması 404, yazma yok", async () => {

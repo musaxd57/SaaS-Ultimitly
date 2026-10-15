@@ -27,11 +27,11 @@ export const INSTRUCTION_PRESETS: readonly InstructionPreset[] = [
     key: "short",
     label: "Kısa cevap",
     description: "Cevaplar olabildiğince kısa olur.",
-    text: "Cevapları olabildiğince kısa yaz; misafirin sorusu için gerekmeyen cümle ekleme.",
+    text: "Cevapları olabildiğince kısa yaz; gereksiz açıklama ve uzatma ekleme.",
   },
   {
     key: "no_emoji",
-    label: "Emoji kullanma",
+    label: "Emojisiz cevap",
     description: "Cevaplarda emoji olmaz.",
     text: "Cevaplarda emoji kullanma.",
   },
@@ -44,7 +44,7 @@ export const INSTRUCTION_PRESETS: readonly InstructionPreset[] = [
   {
     key: "device_steps",
     label: "Cihaz kullanımını adım adım anlat",
-    description: "Bir cihazın nasıl kullanılacağı sorulunca bilgi tabanındaki adımlar sırayla anlatılır.",
+    description: "Bir cihazın nasıl kullanılacağı sorulunca bilgi tabanında adımlar varsa sırayla anlatılır.",
     text: "Bir cihazın nasıl kullanılacağı sorulduğunda, bilgi tabanında adımlar varsa onları sırasıyla, kısa cümlelerle anlat; bilgi tabanında olmayan adım ekleme.",
   },
 ];

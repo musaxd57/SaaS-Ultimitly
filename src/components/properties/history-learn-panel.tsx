@@ -18,13 +18,13 @@ import { toast } from "@/lib/toast";
  */
 type Flag = "payment" | "needs_edit" | "one_off" | "ungrounded" | "guest_name" | "sensitive" | "door_mention" | "outdated";
 export const FLAG_TEXT: Record<Flag, string> = {
-  payment: "Ödeme yöntemi geçiyor. Kontrol edin.",
+  payment: "Ödeme yöntemi ya da platform dışı ödeme / rezervasyon geçiyor. Kontrol edin.",
   needs_edit: "Gizlenmiş bir bilgi var (telefon, kod ya da ad). Metni düzenleyin.",
   one_off: "Tek seferlik bir karar gibi görünüyor (indirim, geç çıkış vb.). Herkes için geçerliyse onaylayın, değilse reddedin.",
   ungrounded: "Bir değer cevaplarınızda birebir bulunamadı. Doğruluğunu kontrol edin.",
   guest_name: "Bir misafir adı geçiyor olabilir. Adı metinden çıkarın.",
   sensitive: "Kişisel bilgi (telefon, e-posta, IBAN) geçiyor olabilir. Gerekmiyorsa metinden çıkarın.",
-  door_mention: "Kapı ya da anahtar kutusu kodundan söz ediyor. Kodun kendisinin yazmadığından emin olun.",
+  door_mention: "Kapı ya da anahtar kutusu kodundan söz ediyor. Kodun kendisinin yazılmadığından emin olun.",
   outdated: "Daha yeni bir cevabınız farklı. Bu bilgi eskimişse reddedin.",
 };
 
@@ -43,6 +43,8 @@ interface Draft {
   oldestMonth: string | null;
   conflict: boolean;
   conflictNote: string | null;
+  /** "Böyle yapsın" notundan doğdu (geçmiş cevaplardan değil). */
+  fromNote?: boolean;
   flags: Flag[];
 }
 interface Run {
@@ -84,7 +86,7 @@ const VERDICTS: { value: "good" | "fix" | "bad"; label: string }[] = [
  * Cevap karşılaştırma kartı (F1): sizin o zamanki cevabınız ↔ bugünkü yapay zekânın cevabı (GÖNDERİLMEDİ). Karar + not; "Böyle yapsın"
  * notu HEM bu daire için talimat HEM bilgi tabanı taslağı olur (kurucu 10-15) — taslak yine onayınızı bekler.
  */
-function ComparisonCard({ c, onDone }: { c: Comparison; onDone: () => void }) {
+function ComparisonCard({ c, canInstruct, onDone }: { c: Comparison; canInstruct: boolean; onDone: () => void }) {
   const [verdict, setVerdict] = useState(c.verdict);
   const [note, setNote] = useState(c.note ?? "");
   const [busy, setBusy] = useState(false);
@@ -97,11 +99,13 @@ function ComparisonCard({ c, onDone }: { c: Comparison; onDone: () => void }) {
       const res = await fetch(`/api/history-learn/comparisons/${c.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ verdict, note: note.trim() || null, apply }),
+        // Görülen cevap gönderilir: arada yeniden karşılaştırma cevabı değiştirdiyse sunucu kararı yazmaz (409) ve liste yenilenir.
+        body: JSON.stringify({ verdict, note: note.trim() || null, apply, seenAnswer: c.aiAnswer }),
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string; fields?: Record<string, string> };
         setError(errorText(body, "Kaydedilemedi."));
+        if (res.status === 409 || res.status === 404) onDone();
         return;
       }
       toast.success(apply ? "Talimat eklendi; bilgi tabanı taslağı onayınızı bekliyor." : "Kaydedildi.");
@@ -162,9 +166,12 @@ function ComparisonCard({ c, onDone }: { c: Comparison; onDone: () => void }) {
         <Button size="sm" variant="outline" onClick={() => save(false)} disabled={busy || !verdict}>
           Kaydet
         </Button>
-        <Button size="sm" onClick={() => save(true)} disabled={busy || !note.trim()}>
-          {busy ? <Loader2 className="animate-spin" /> : null} Böyle yapsın
-        </Button>
+        {/* "Böyle yapsın" serbest metin talimat yazar → yalnız serbest metin yetkisi olana (sunucu da reddeder). */}
+        {canInstruct ? (
+          <Button size="sm" onClick={() => save(true)} disabled={busy || !note.trim()}>
+            {busy ? <Loader2 className="animate-spin" /> : null} Böyle yapsın
+          </Button>
+        ) : null}
       </div>
     </div>
   );
@@ -222,8 +229,8 @@ function DraftCard({ draft, onDone }: { draft: Draft; onDone: () => void }) {
       <div className="flex items-center justify-between gap-2">
         <Badge tone={KB_CATEGORY.tone(draft.category)}>{KB_CATEGORY.label(draft.category)}</Badge>
         <span className="text-xs text-muted-foreground">
-          {draft.supportConversations} konuşmada böyle cevaplamışsınız
-          {draft.newestMonth ? ` · son ${draft.newestMonth}` : ""}
+          {draft.fromNote ? "Sizin notunuzdan" : `${draft.supportConversations} konuşmadaki cevaplarınızdan`}
+          {!draft.fromNote && draft.newestMonth ? ` · son ${draft.newestMonth}` : ""}
         </span>
       </div>
       <Input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} aria-label="Başlık" disabled={busy} />
@@ -281,7 +288,7 @@ export function HistoryLearnPanel({
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [instructions, setInstructions] = useState<Instruction[]>([]);
   const [presets, setPresets] = useState<Preset[]>([]);
-  const [presetBusy, setPresetBusy] = useState<string | null>(null);
+  const [presetBusy, setPresetBusy] = useState<ReadonlySet<string>>(new Set());
   const [comparisons, setComparisons] = useState<Comparison[]>([]);
   const [newInstruction, setNewInstruction] = useState("");
   const [busy, setBusy] = useState(false);
@@ -292,6 +299,10 @@ export function HistoryLearnPanel({
   const polling = useRef(false);
   // Tercih değişince artar: o anda yolda olan (değişiklikten ÖNCE başlamış) okuma kutucukları eski hâline döndürmez.
   const presetEpoch = useRef(0);
+  // Yolda olan tercih yazımı sayısı + yazım sırası: sunucunun döndürdüğü liste yalnız TEK yazım varken uygulanır; birden çok yazım
+  // yoldaysa SON yazım dönünce liste sunucudan yeniden okunur (sıra dışı dönen cevap eski durumu geri getirmez — Haiku 10-15).
+  const presetInflight = useRef(0);
+  const presetOverlap = useRef(false);
 
   const load = useCallback(async () => {
     const epoch = presetEpoch.current;
@@ -384,9 +395,11 @@ export function HistoryLearnPanel({
   }
 
   async function togglePreset(key: string, on: boolean) {
-    setPresetBusy(key);
+    setPresetBusy((b) => new Set(b).add(key));
     setError(null);
     presetEpoch.current += 1;
+    presetInflight.current += 1;
+    if (presetInflight.current > 1) presetOverlap.current = true;
     // İyimser güncelleme; sunucunun döndürdüğü güncel liste ekranı eşitler, hata (ağ dahil) olursa geri alınır.
     setPresets((ps) => ps.map((p) => (p.key === key ? { ...p, on } : p)));
     try {
@@ -398,13 +411,24 @@ export function HistoryLearnPanel({
       const body = res.ok ? ((await res.json().catch(() => null)) as { presets?: Preset[] } | null) : null;
       if (!res.ok) throw new Error(String(res.status));
       presetEpoch.current += 1;
-      if (body?.presets) setPresets(body.presets);
+      if (body?.presets && presetInflight.current === 1 && !presetOverlap.current) setPresets(body.presets);
     } catch {
       presetEpoch.current += 1;
       setPresets((ps) => ps.map((p) => (p.key === key ? { ...p, on: !on } : p)));
       setError("Tercih kaydedilemedi. Tekrar deneyin.");
+      // Yazım sunucuda tamamlanıp yalnız cevap kaybolmuş olabilir (Haiku 10-15): gerçek durum yeniden okunur.
+      presetOverlap.current = true;
     } finally {
-      setPresetBusy(null);
+      presetInflight.current -= 1;
+      if (presetInflight.current === 0 && presetOverlap.current) {
+        presetOverlap.current = false;
+        void load();
+      }
+      setPresetBusy((b) => {
+        const next = new Set(b);
+        next.delete(key);
+        return next;
+      });
     }
   }
 
@@ -421,7 +445,7 @@ export function HistoryLearnPanel({
       <div className="space-y-2">
         <p className="text-sm text-muted-foreground">
           Misafirlerin geçmişte sorduğu soruları ve sizin cevaplarınızı okur, bilgi tabanı için taslak hazırlar. Taslaklar siz onaylamadan
-          kullanılmaz.
+          kullanılmaz. Okuma genellikle 1–2 dakika sürer.
         </p>
         <div className="flex flex-wrap gap-2">
           <Button size="sm" onClick={() => start("learn")} disabled={busy || running}>
@@ -451,7 +475,8 @@ export function HistoryLearnPanel({
           <p className="text-sm font-medium">Cevap karşılaştırma</p>
           <p className="text-xs text-muted-foreground">Geçmiş sorulara bugünkü yapay zekânın cevabı. Bu cevaplar misafire gönderilmedi.</p>
           {comparisons.map((c) => (
-            <ComparisonCard key={c.id} c={c} onDone={() => void load()} />
+            // Yapay zekâ cevabı değişince sunucu kararı sıfırlar; kart da yeniden kurulur (eski seçim yeni cevaba gönderilmesin — Haiku 10-15).
+            <ComparisonCard key={`${c.id}:${c.verdict ?? ""}:${c.aiAnswer ?? ""}`} c={c} canInstruct={canInstruct} onDone={() => void load()} />
           ))}
         </div>
       ) : null}
@@ -469,7 +494,7 @@ export function HistoryLearnPanel({
                 type="checkbox"
                 className="mt-1"
                 checked={p.on}
-                disabled={presetBusy === p.key}
+                disabled={presetBusy.has(p.key)}
                 onChange={(e) => togglePreset(p.key, e.target.checked)}
                 aria-describedby={`preset-${p.key}-d`}
               />

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { jsonOk, notFound, readJsonCappedOrNull, tooManyRequests } from "@/lib/api";
+import { jsonOk, notFound, paymentRequired, readJsonCappedOrNull, tooManyRequests } from "@/lib/api";
+import { premiumAllowed } from "@/lib/billing/subscription";
 import { withManage } from "@/lib/route-guard";
 import { writeAudit, auditActor } from "@/lib/audit";
 import {
@@ -56,6 +57,8 @@ export const GET = withManage<{ id: string }>(async (session, _req, { params }) 
         conflict: true,
         conflictNote: true,
         flagsJson: true,
+        // "Böyle yapsın" notundan doğan taslak (karşılaştırma koşusu) — ekranda "N konuşmada" değil "sizin notunuz" yazar.
+        run: { select: { kind: true } },
       },
     }),
     // Karşılaştırma şimdilik yalnız operatöre (kurucu 10-15) — müşteri oturumunda sorgu bile koşmaz.
@@ -92,8 +95,9 @@ export const GET = withManage<{ id: string }>(async (session, _req, { params }) 
     : new Map<string, string>();
   return jsonOk({
     runs,
-    drafts: drafts.map(({ flagsJson, ...d }) => ({ ...d, flags: parseFlags(flagsJson) })),
-    comparisons: comparisons.map((c) => ({
+    drafts: drafts.map(({ flagsJson, run, ...d }) => ({ ...d, fromNote: run.kind === "compare", flags: parseFlags(flagsJson) })),
+    // Sorusu silinmiş (konuşma birleştirme / silme) karşılaştırma gösterilmez — boş soru kartı yok (Opus 10-15 HL4).
+    comparisons: comparisons.filter((c) => texts.has(c.questionMessageId)).map((c) => ({
       id: c.id,
       question: texts.get(c.questionMessageId) ?? null,
       hostAnswer: idsOf(c.hostAnswerMessageIdsJson).map((i) => texts.get(i)).filter((t): t is string => Boolean(t)).join("\n") || null,
@@ -108,6 +112,8 @@ export const GET = withManage<{ id: string }>(async (session, _req, { params }) 
 
 export const POST = withManage<{ id: string }>(async (session, req, { params }) => {
   if (!historyLearnEnabled()) return notFound();
+  // Model çağıran ücretli özellik (Opus 10-15 HL4 F8: diğer model rotalarıyla aynı kapı; deneme bitince ücretsiz sürümde kapalı).
+  if (!(await premiumAllowed(session.organizationId))) return paymentRequired();
   const { id } = await params;
   const body = (await readJsonCappedOrNull<{ questions?: unknown }>(req)) ?? {};
   const started = await startHistoryLearnRun({ organizationId: session.organizationId, propertyId: id, userId: auditActor(session) });

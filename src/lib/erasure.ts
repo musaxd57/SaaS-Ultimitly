@@ -610,7 +610,15 @@ async function maskReservationRows(
     // kalemi, kalır). Bu konaklamanın sorularına ait cevap karşılaştırmaları (yapay zekâ cevabı + not) silinir.
     const convProps = await db.conversation.findMany({ where: { id: { in: convIds }, property: { organizationId } }, select: { propertyId: true } });
     const propIds = [...new Set(convProps.map((c) => c.propertyId))];
-    if (propIds.length) await db.historyLearnDraft.deleteMany({ where: { propertyId: { in: propIds }, state: { not: "approved" } } });
+    if (propIds.length) {
+      // Yolda olan okuma / karşılaştırma silinen konaklamanın metnini belleğinde taşıyor olabilir: bu dairelerin kuyruktaki ve çalışan
+      // koşuları aynı işlemde "failed" olur → son yazma (yalnız `running` iken yazar) hiçbir şey yazamaz (Opus 10-15 HL4 F7).
+      await db.historyLearnRun.updateMany({
+        where: { propertyId: { in: propIds }, status: { in: ["queued", "running"] } },
+        data: { status: "failed", errorCode: "erased", finishedAt: new Date() },
+      });
+      await db.historyLearnDraft.deleteMany({ where: { propertyId: { in: propIds }, state: { not: "approved" } } });
+    }
     const qIds = (await db.message.findMany({ where: { conversationId: { in: convIds } }, select: { id: true } })).map((m) => m.id);
     if (qIds.length) await db.historyLearnComparison.deleteMany({ where: { property: { organizationId }, questionMessageId: { in: qIds } } });
   }

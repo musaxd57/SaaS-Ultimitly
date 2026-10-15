@@ -1757,6 +1757,9 @@ model PropertyInstruction {
   source         String    @default("host_note")
   /// Hazır seçenek anahtarı (`instruction-presets.ts`); serbest metinde NULL. Müşteri yalnız hazır seçenek açar / kapatır (kurucu 10-15).
   presetKey      String?
+  /// Serbest metni operatör mü yazdı (Opus 10-15 HL4 F4): müşteri serbest metin anahtarı kapanınca müşterinin yazdığı satır isteme
+  /// GİRMEZ (görünmeyen / kaldırılamayan yönlendirme olmasın); operatörün ve hazır seçeneğin satırı girer.
+  byOperator     Boolean   @default(false)
   /// active | retired (app-enforced)
   status         String    @default("active")
   createdById    String?
@@ -1782,9 +1785,8 @@ model HistoryLearnComparison {
   /// Bugünkü kod kapısı bu cevabı otomatik gönderir miydi (GÖNDERİLMEDİ — yalnız gösterim); kapanırsa kapalı küme sebep.
   wouldAutoSend            Boolean?
   gateDetail               String?
-  /// Cevabı üreten model + istem kimliği (SHA-256 ilk 12) — ölçüm izi.
+  /// Cevabı üreten model — ölçüm izi. (İstem kimliği kolonu yazılmadığı için kaldırıldı — Opus 10-15 HL4.)
   model                    String?
-  promptId                 String?
   /// good | fix | bad (app-enforced)
   verdict                  String?
   note                     String?

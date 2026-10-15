@@ -8,7 +8,20 @@
 > `docs/history/CLAUDE-2026-10-02-sadelestirme-3-oncesi-tam-metin.md` ("Durum" bölümü). Kuralları yukarıdaki bölümlerde; yalnız Durum'da
 > yazılı olan kurallar (konuşma öğeleri, ev kuralları, canlı bayraklar) 10-02'de ilgili bölümlere taşındı. Bekleyen onaylar ↓.
 
-**10-14 akşam → 10-15 gece (güncel; kurucu "gece modu — soru sorma, Haiku'yu bol kullan"):** dış inceleme Y1–Y10 kodda kapandı ve itildi
+**10-15 gündüz (güncel) — Geçmişten öğren (migration 65, hiçbir yere uygulanmadı; `HISTORY_LEARN_ENABLED` KAPALI):** müşteri "Geçmişi oku"
+→ Luna (gpt-6-luna / low) geçmiş soru ↔ cevaplardan bilgi tabanı TASLAĞI çıkarır (ad / telefon / IBAN / TC / kapı kodu modele gitmeden
+maskelenir; taslak onaysız kullanılmaz; 300 mesajda 13/14 olgu, 0 sızıntı, ~$0,005). Operatöre (kurucu 10-15 kararı) "Cevapları karşılaştır":
+geçmiş sorulara canlı cevap modeliyle kuru koşu (gönderim yok, kapı sonucu + kapanış), İyi / Düzeltilmeli / Kötü + "Böyle yapsın" (talimat +
+bekleyen taslak). Daire tercihleri: müşteri HAZIR SEÇENEKTEN seçer, serbest metin yalnız operatör; isteme yalnız
+`PROPERTY_INSTRUCTIONS_PROMPT_ENABLED` ile (KAPALI). Opus üç tur + derin denetim + Haiku turları + mutasyon (44/39 + yaşayan 5 için test).
+Kararlar `docs/KURUCU-YOKKEN-KARARLAR-2026-10-09.md` "10-15 sabah"; bayraklar `docs/RAILWAY-ACILIS-2026-10-15.md` §5; görsel açıklama
+https://claude.ai/artifact/Sk4aX2p11CVVbHeKbtJ4Jj. Opus dördüncü derin denetim (HL4, `0 P0 · 3 P1 · 7 P2`) kodda kapandı: kilit / kutu bağlamında kod
+maskesi + taslak kapısı, pasaport / kart / etiketli telefon maskesi, talimat kapısına acil / konaklama kararı / iletişim / dil / platform dışı
+sınıfları, "Böyle yapsın" serbest metin yetkisi, müşteri anahtarı kapanınca müşterinin serbest metni istemden düşer (`byOperator`), misafir
+silmesi yoldaki koşuyu durdurur, ücretli özellik kapısı, karşılaştırma talimatı anahtar kapalıyken dener, bayat cevaba karar 409. F6 (QR kapı
+kodu boşluğu, önceden var) kurucu onayıyla ana dalda: tek anlamlı kilit adları + değer (`secret-filter-lock-nouns.test.ts`).
+
+**10-14 akşam → 10-15 gece (kurucu "gece modu — soru sorma, Haiku'yu bol kullan"):** dış inceleme Y1–Y10 kodda kapandı ve itildi
 (nezaket girişi, Unicode / çok dilli kapı kodu, QR silme yarışı, iptal / ertelenen rezervasyona giriş, genel kapatma kuyruğu, açık yangın
 uyarısı + 25 mesaj penceresi, uyarı adresi kuşak yarışı, ölçerde KATI olgu, dört müşteri ekranı) · kurucu 10-14 kararları (silinen
 konaklamada metinsiz acil uyarı, "kısa devre" model karar verir) · Haiku ikinci tur: olası tehlike + anlama katmanı koşmadı → tur ev

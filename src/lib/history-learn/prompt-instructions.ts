@@ -1,6 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/db";
+import { reportError } from "@/lib/report-error";
 import { checkInstruction } from "./instruction-gate";
 
 // ---------------------------------------------------------------------------
@@ -37,18 +38,36 @@ export function selectPromptInstructions(rows: readonly { content: string }[]): 
   return out;
 }
 
-/** Cevap istemi için mülk talimatları. Anahtar kapalı / okuma hatası → boş (cevap talimatsız üretilir — bugünkü davranış). */
-export async function loadPromptInstructions(organizationId: string, propertyId: string | null | undefined): Promise<string[]> {
-  if (!propertyInstructionsPromptEnabled() || !propertyId) return [];
+/**
+ * Cevap istemi için mülk talimatları. Anahtar kapalı / okuma hatası → boş (cevap talimatsız üretilir — bugünkü davranış).
+ * `dryRun` (yalnız karşılaştırma kuru koşusu — hiçbir şey gönderilmez): talimat anahtarı KAPALIYKEN de yükler; operatör talimatın
+ * etkisini anahtarı açmadan (ve müşteriye seçenek göstermeden) dener (Opus 10-15 HL4 F14). "Geçmişten öğren" kapalıysa yine boş.
+ * Satır seçimi (F4): hazır seçenek ve operatörün yazdığı serbest metin her zaman; müşterinin serbest metni yalnız müşteri serbest metin
+ * anahtarı açıkken (kapanınca ekranda görünmeyen / kaldırılamayan yönlendirme kalmasın).
+ */
+export async function loadPromptInstructions(
+  organizationId: string,
+  propertyId: string | null | undefined,
+  opts: { dryRun?: boolean } = {},
+): Promise<string[]> {
+  if (!propertyId) return [];
+  if (!propertyInstructionsPromptEnabled() && !(opts.dryRun && process.env.HISTORY_LEARN_ENABLED === "1")) return [];
+  const customerFreeText = process.env.HISTORY_LEARN_CUSTOMER_INSTRUCTIONS_ENABLED === "1";
   try {
     const rows = await prisma.propertyInstruction.findMany({
-      where: { propertyId, organizationId, status: "active" },
+      where: {
+        propertyId,
+        organizationId,
+        status: "active",
+        ...(customerFreeText ? {} : { OR: [{ presetKey: { not: null } }, { byOperator: true }] }),
+      },
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       select: { content: true },
       take: 50,
     });
     return selectPromptInstructions(rows);
-  } catch {
+  } catch (err) {
+    void reportError("history-learn loadPromptInstructions", err).catch(() => {});
     return [];
   }
 }
