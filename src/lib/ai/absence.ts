@@ -168,6 +168,10 @@ const ABSENCE_PATTERNS: readonly RegExp[] = [
   new RegExp(`(?:my|our|the) ${EN_PLACE} (?:don't|do not|doesn't|does not) (?:mention|cover|include|say|contain|specify|list)(?![\\p{L}])`, "u"),
   new RegExp(`(?:isn't|is not|aren't|are not) (?:in|on) (?:my|our|the) ${EN_PLACE}(?![\\p{L}])`, "u"),
   new RegExp(`(?<![\\p{L}])(?:i|we) lack ${gap(2)}${EN_OBJ}`, "u"),
+  // Opus 10-15 (ölçüldü): "Televizyon için talimatım yok", "kayıtlı bir talimatımız bulunmuyor" — 1. şahıs iyelik ŞART ("Çöp için özel bir
+  // talimat yok" olgudur); "There are no troubleshooting steps for the TV in my notes" — yer çapası ŞART ("There are no steps to the door").
+  new RegExp(`${L}talimat(?:ım|ımız|larım|larımız) ${gap(1)}(?:yok(?:tur)?|bulunmuyor|bulunmamaktadır)(?![\\p{L}])`, "u"),
+  /(?<![\p{L}])no (?!(?:special|particular|additional|extra|further) )(?:\p{L}{1,20} ){0,2}(?:steps|instructions|guidance) (?:[\p{L}\p{N}'-]{1,30} ){0,5}in (?:my|our) (?:notes?|records?|guide|files?|information)(?![\p{L}])/u,
   new RegExp(`there (?:isn't|is not|aren't|are not) (?:any )?${gap(1)}${EN_OBJ}`, "u"),
 ];
 

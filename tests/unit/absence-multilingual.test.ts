@@ -164,8 +164,14 @@ const ADMITS_INSTRUCTIONS: string[] = [
   "No tengo instrucciones para la cafetera.",
   "У меня нет инструкций для кофемашины.",
   "ليس لدي تعليمات بخصوص آلة القهوة.",
+  // Opus 10-15 (ölçüldü, ikisi de geçiyordu): Türkçe 1. şahıs iyelik + İngilizce "… in my notes" yer çapası.
+  "Televizyon için talimatım yok.",
+  "Kayıtlı bir talimatımız bulunmuyor, ev sahibiniz yardımcı olacaktır.",
+  "There are no troubleshooting steps for the TV in my notes.",
 ];
 const LEGIT_INSTRUCTIONS: string[] = [
+  "Çöp için özel bir talimat yok, konteynere atabilirsiniz.",
+  "There are no steps to the front door, the entrance is level.",
   "You don't have any steps to climb, the entrance is level.",
   "You don't have to follow any special steps for checkout.",
   "No special instructions for checkout, just close the door.",

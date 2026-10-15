@@ -72,6 +72,27 @@ describe("K10 — makbuzsuz söz / teklif kapanır (kurucunun örnekleri + ikizl
   });
 });
 
+describe("K10 — alıcı odaklı edilgen devir (Opus 10-15, ölçüldü: özne listede değildi)", () => {
+  it.each([
+    "Televizyon arızası ev sahibinize iletildi.",
+    "Sorununuz ekibimize bildirilmiştir.",
+    "Klima konusu yöneticiye aktarılacaktır.",
+    "The TV issue has been passed on to your host.",
+    "The heating problem has been reported to the team.",
+  ])("TUTULUR: %j", (m) => {
+    expect(vetoOutgoingReply(m)).toBe("handoff_notice");
+    expect(carriesHandoffNotice(m)).toBe(true);
+  });
+  it.each([
+    "Giriş bilgileri ev sahibiniz tarafından iletildi.",
+    "The keys have been sent to your email.",
+    "Ev sahibiniz sizi 15:00'te kapıda karşılayacak.",
+    "Faturanız e-posta adresinize gönderildi.",
+  ])("aşırı uygulama yok — GEÇER: %j", (m) => {
+    expect(carriesHandoffNotice(m)).toBe(false);
+  });
+});
+
 describe("K10 — meşru cümleler geçer", () => {
   it.each(LEGIT)("geçer: %s", (reply) => {
     expect(vetoOutgoingReply(reply)).toBeNull();
