@@ -45,10 +45,15 @@ export function createKbRequestIdStore(): KbRequestIdStore {
  * Yanıttan iç alanı ayıklar (Opus 10-15 B3; CLAUDE.md "API yanıtında gizli / iç alan yok"): `clientRequestId` yalnız sunucunun tekrar
  * kontrolü içindir (kopyada `copy:<kaynak>:<kimlik>`); istemciye gitmez.
  */
-export function withoutClientRequestId<T extends { clientRequestId?: unknown }>(item: T): Omit<T, "clientRequestId"> {
+export function withoutClientRequestId<T extends { clientRequestId?: unknown; copiedFromId?: unknown; copiedContentHash?: unknown }>(
+  item: T,
+): Omit<T, "clientRequestId" | "copiedFromId" | "copiedContentHash"> {
   const copy: Partial<T> = { ...item };
   delete copy.clientRequestId;
-  return copy as Omit<T, "clientRequestId">;
+  // Kopyanın kaynak bağı ve içerik izi (kurucu D2, migration 68) de yalnız sunucunun kopyalama kararı içindir; istemciye gitmez.
+  delete copy.copiedFromId;
+  delete copy.copiedContentHash;
+  return copy as Omit<T, "clientRequestId" | "copiedFromId" | "copiedContentHash">;
 }
 
 /**

@@ -12,7 +12,7 @@ vi.mock("@/lib/api", async (orig) => {
 import { POST as CREATE } from "@/app/api/kb/route";
 import { POST as COPY } from "@/app/api/kb/[id]/copy/route";
 import { createOperationalTaskFromMessage } from "@/lib/tasks/create";
-import { createGuestCommitment } from "@/lib/guest-commitments";
+import { createGuestCommitment, CommitmentRequestConflictError } from "@/lib/guest-commitments";
 import { addPropertyInstruction } from "@/lib/history-learn/service";
 import { KB_COPY_CONFLICT_MESSAGE, KB_CREATE_CONFLICT_MESSAGE, KB_IDEMPOTENCY_CONFLICT } from "@/lib/kb/request-id";
 
@@ -78,6 +78,18 @@ describe("1 · Aynı kimlik, farklı içerik → açık uyuşmazlık", () => {
     expect(await prisma.knowledgeBaseItem.count({ where: { propertyId } })).toBe(1);
   });
 
+  it("🚨 söz (kurucu D3): aynı işlem kimliği FARKLI tür / saatle → açık uyuşmazlık (eski söz sessizce dönmez), ikinci söz / görev yok", async () => {
+    const conv = await prisma.conversation.create({ data: { propertyId, channel: "airbnb", guestIdentifier: "Misafir" } });
+    const user = await prisma.user.create({ data: { organizationId: orgId, name: "U", email: `u3-${orgId}@x.com`, passwordHash: "x", role: "owner" } });
+    const base = { organizationId: orgId, conversationId: conv.id, propertyId, reservationId: null, actorUserId: user.id, clientRequestId: RID };
+    const at18 = new Date(Date.now() + 26 * 3_600_000);
+    await createGuestCommitment({ ...base, kind: "towels", dueAt: at18 });
+    await expect(createGuestCommitment({ ...base, kind: "towels", dueAt: new Date(at18.getTime() + 3_600_000) })).rejects.toBeInstanceOf(CommitmentRequestConflictError);
+    await expect(createGuestCommitment({ ...base, kind: "supplies", dueAt: at18 })).rejects.toBeInstanceOf(CommitmentRequestConflictError);
+    expect(await prisma.guestCommitment.count({ where: { conversationId: conv.id } })).toBe(1);
+    expect(await prisma.task.count({ where: { propertyId } })).toBe(1);
+  });
+
   it("🚨 bilgi tabanı: aynı kimlik FARKLI içerikle gönderildiyse (istemci hatası) yine 409; ilk kalem değişmez", async () => {
     await create(wifi(propertyId, { requestId: RID }));
     const other = await create(wifi(propertyId, { requestId: RID, content: "Bambaşka bir metin." }));
@@ -103,9 +115,12 @@ describe("1 · Aynı kimlik, farklı içerik → açık uyuşmazlık", () => {
     expect(stale.status).toBe(409);
     expect(await stale.json()).toEqual({ error: KB_COPY_CONFLICT_MESSAGE, code: KB_IDEMPOTENCY_CONFLICT });
     expect(await prisma.knowledgeBaseItem.count({ where: { propertyId: c } })).toBe(0); // C'ye karışık içerik YAZILMADI
-    // Bilerek yeniden kopyalama = YENİ işlem (yeni kimlik): her daireye güncel metin.
-    expect(await (await copy(src.id, { targetPropertyIds: [a, b, c], requestId: RID2 })).json()).toMatchObject({ created: 3 });
-    expect((await prisma.knowledgeBaseItem.findFirstOrThrow({ where: { propertyId: c } })).content).toBe("Yeni metin.");
+    // Bilerek yeniden kopyalama = YENİ işlem (yeni kimlik): her daireye güncel metin — A / B'deki eski kopya GÜNCELLENİR (ikinci kalem
+    // yok; kurucu D2), C'ye yeni kopya.
+    expect(await (await copy(src.id, { targetPropertyIds: [a, b, c], requestId: RID2 })).json()).toMatchObject({ created: 1, updated: 2 });
+    for (const p of [a, b, c]) {
+      expect((await prisma.knowledgeBaseItem.findMany({ where: { propertyId: p }, select: { content: true } })).map((x) => x.content)).toEqual(["Yeni metin."]);
+    }
   });
 
   it.each([
@@ -189,26 +204,26 @@ describe("3 · Kasıtlı yeni işlem", () => {
     expect(await prisma.knowledgeBaseItem.count({ where: { propertyId } })).toBe(2);
   });
 
-  it("kopyalama: başarıdan sonra YENİ kimlikle → ikinci kopya", async () => {
+  it("kopyalama (kurucu D2, 10-15 — 'kasıtlı yeni işlem' kopyada GÜNCELLEMEDİR): yeni kimlikle yeniden kopyalama aynı kaynağın kopyası olan dairede ikinci kalem AÇMAZ", async () => {
     const a = await prop(orgId, "Lale 2");
     const src = await prisma.knowledgeBaseItem.create({ data: { propertyId, category: "wifi", title: "Wi-Fi", content: "Metin.", isActive: true } });
     await copy(src.id, { targetPropertyIds: [a], requestId: RID });
     await copy(src.id, { targetPropertyIds: [a], requestId: RID2 });
-    expect(await prisma.knowledgeBaseItem.count({ where: { propertyId: a } })).toBe(2);
+    expect(await prisma.knowledgeBaseItem.count({ where: { propertyId: a } })).toBe(1);
   });
 
-  it("söz: farklı saat ya da tür = yeni söz; AYNI tür + AYNI saat aynı olgudur (yeni kayıt açmaz — kimlik değil, anlam tekilleştirmesi)", async () => {
+  it("🚨 söz (kurucu D3): AYNI tür + AYNI saat ama YENİ işlem kimliği = ayrı söz (klima 18:00 ile musluk 18:00 birleşmez); aynı kimlik = aynı söz", async () => {
     const conv = await prisma.conversation.create({ data: { propertyId, channel: "airbnb", guestIdentifier: "Misafir" } });
     const user = await prisma.user.create({ data: { organizationId: orgId, name: "U", email: `u-${orgId}@x.com`, passwordHash: "x", role: "owner" } });
     const base = { organizationId: orgId, conversationId: conv.id, propertyId, reservationId: null, actorUserId: user.id };
     const at18 = new Date(Date.now() + 26 * 3_600_000);
-    const at19 = new Date(at18.getTime() + 3_600_000);
-    const c1 = await createGuestCommitment({ ...base, kind: "towels", dueAt: at18 });
-    const c2 = await createGuestCommitment({ ...base, kind: "towels", dueAt: at18 });
-    const c3 = await createGuestCommitment({ ...base, kind: "towels", dueAt: at19 });
-    const c4 = await createGuestCommitment({ ...base, kind: "supplies", dueAt: at18 });
-    expect(c2).toMatchObject({ id: c1.id, reused: true });
-    expect(new Set([c1.id, c3.id, c4.id]).size).toBe(3);
+    const klima = await createGuestCommitment({ ...base, kind: "maintenance", dueAt: at18, clientRequestId: RID });
+    const musluk = await createGuestCommitment({ ...base, kind: "maintenance", dueAt: at18, clientRequestId: RID2 });
+    expect(musluk.id).not.toBe(klima.id);
+    expect(musluk.taskId).not.toBe(klima.taskId);
+    expect(await createGuestCommitment({ ...base, kind: "maintenance", dueAt: at18, clientRequestId: RID })).toMatchObject({ id: klima.id, reused: true });
+    expect(await prisma.guestCommitment.count({ where: { conversationId: conv.id } })).toBe(2);
+    expect(await prisma.task.count({ where: { propertyId } })).toBe(2);
   });
 });
 
@@ -265,7 +280,7 @@ describe("6 · Çökme ve tekrar — kayıt yazıldı, cevap kayboldu", () => {
   it("🚨 söz ve talimat: ilk istek yazdı → tekrar → aynı kayıt", async () => {
     const conv = await prisma.conversation.create({ data: { propertyId, channel: "airbnb", guestIdentifier: "Misafir" } });
     const user = await prisma.user.create({ data: { organizationId: orgId, name: "U", email: `u2-${orgId}@x.com`, passwordHash: "x", role: "owner" } });
-    const input = { organizationId: orgId, conversationId: conv.id, propertyId, reservationId: null, actorUserId: user.id, kind: "towels" as const, dueAt: new Date(Date.now() + 26 * 3_600_000) };
+    const input = { organizationId: orgId, conversationId: conv.id, propertyId, reservationId: null, actorUserId: user.id, kind: "towels" as const, dueAt: new Date(Date.now() + 26 * 3_600_000), clientRequestId: RID };
     const first = await createGuestCommitment(input);
     expect(await createGuestCommitment(input)).toMatchObject({ id: first.id, taskId: first.taskId, reused: true });
     expect(await prisma.task.count({ where: { propertyId } })).toBe(1);

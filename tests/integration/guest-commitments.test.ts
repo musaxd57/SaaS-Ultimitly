@@ -134,9 +134,9 @@ describe("söz işaretleme (gerçek PostgreSQL)", () => {
     expect((await prisma.guestCommitment.findUniqueOrThrow({ where: { id: a.id } })).dueAt.toISOString()).toBe(later.toISOString());
   });
 
-  it("🚨 aynı söz EŞ ZAMANLI 3 kez (çift tıklama / kopan bağlantı) → TEK söz + TEK görev; farklı saat ayrı söz (idempotency denetimi 10-15)", async () => {
+  it("🚨 aynı söz isteği (AYNI işlem kimliği) EŞ ZAMANLI 3 kez (çift tıklama / kopan bağlantı) → TEK söz + TEK görev; yeni kimlik = yeni söz (kurucu D3)", async () => {
     const s = await setup();
-    const body = { kind: "towels", day: "tomorrow", time: "18:00" };
+    const body = { kind: "towels", day: "tomorrow", time: "18:00", requestId: "a1b2c3d4e5f60718293a4b5c6d7e8f90" };
     const rs = await Promise.all([create(s.conversationId, body), create(s.conversationId, body), create(s.conversationId, body)]);
     expect(rs.map((r) => r.status)).toEqual([201, 201, 201]);
     const ids = await Promise.all(rs.map(async (r) => ((await r.json()) as { id: string; taskId: string })));
@@ -144,10 +144,16 @@ describe("söz işaretleme (gerçek PostgreSQL)", () => {
     expect(new Set(ids.map((x) => x.taskId)).size).toBe(1);
     expect(await prisma.guestCommitment.count({ where: { conversationId: s.conversationId } })).toBe(1);
     expect(await prisma.task.count({ where: { propertyId: s.propertyId } })).toBe(1);
-    // Aşırı uygulama yok: farklı saat / farklı tür bilinçli yeni sözdür.
-    expect((await create(s.conversationId, { kind: "towels", day: "tomorrow", time: "19:00" })).status).toBe(201);
-    expect((await create(s.conversationId, { kind: "supplies", day: "tomorrow", time: "18:00" })).status).toBe(201);
-    expect(await prisma.guestCommitment.count({ where: { conversationId: s.conversationId } })).toBe(3);
+    // Kurucu D3: AYNI tür + AYNI saat ama YENİ işlem = ayrı söz (klima 18:00 ile musluk 18:00 birleşmez).
+    expect((await create(s.conversationId, { kind: "towels", day: "tomorrow", time: "18:00", requestId: "b1b2c3d4e5f60718293a4b5c6d7e8f90" })).status).toBe(201);
+    expect(await prisma.guestCommitment.count({ where: { conversationId: s.conversationId } })).toBe(2);
+    // Aynı kimlik FARKLI saatle → açık uyuşmazlık, yeni kayıt yok.
+    const clash = await create(s.conversationId, { kind: "towels", day: "tomorrow", time: "19:00", requestId: "a1b2c3d4e5f60718293a4b5c6d7e8f90" });
+    expect(clash.status).toBe(409);
+    expect(await clash.json()).toMatchObject({ code: "idempotency_conflict" });
+    expect(await prisma.guestCommitment.count({ where: { conversationId: s.conversationId } })).toBe(2);
+    // Biçimsiz kimlik 400.
+    expect((await create(s.conversationId, { kind: "towels", day: "tomorrow", time: "18:00", requestId: "kısa" })).status).toBe(400);
   });
 
   it("🚨 BELİRLENİMCİ (Opus B8): aynı konuşmada kilitli bölgeye aynı anda yalnız bir söz isteği girer; kilit kaldırılırsa her koşuda çift söz", async () => {
@@ -155,7 +161,7 @@ describe("söz işaretleme (gerçek PostgreSQL)", () => {
     const probe = lockProbe();
     __commitmentHooks.afterSameCheck = probe.hook;
     try {
-      const body = { kind: "towels", day: "tomorrow", time: "18:00" };
+      const body = { kind: "towels", day: "tomorrow", time: "18:00", requestId: "a1b2c3d4e5f60718293a4b5c6d7e8f90" };
       await Promise.all([create(s.conversationId, body), create(s.conversationId, body)]);
       expect(probe.maxInside()).toBe(1);
     } finally {

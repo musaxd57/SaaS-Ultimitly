@@ -40,9 +40,38 @@ const COMMITMENT_LOCK_NS = 46;
 /** Yalnız testler: kilitli bölgede "aynı söz var mı?" okumasından SONRA bekleme noktası (Opus 10-15 B8). */
 export const __commitmentHooks: { afterSameCheck: null | (() => Promise<void>) } = { afterSameCheck: null };
 
+/** Aynı istek kimliği FARKLI içerikle (tür / saat) geldi — eski kayıt sessizce dönmez (kurucu D3, 10-15). Rota 409'a çevirir. */
+export class CommitmentRequestConflictError extends Error {
+  constructor(readonly reason: "different_content" | "task_deleted" = "different_content") {
+    super("commitment_request_conflict");
+  }
+}
+
+/** Ekranda gösterilen uyuşmazlık metni (bilgi tabanı formuyla aynı kalıp). */
+export const COMMITMENT_CONFLICT_MESSAGE = "Bu söz az önce farklı bilgilerle kaydedildi. Sayfayı yenileyip kontrol edin.";
+/** Aynı işlemin sözü kaydedilmiş ama görevi sonradan silinmiş (Opus O11: "farklı bilgilerle" demek yanlıştı). */
+export const COMMITMENT_TASK_DELETED_MESSAGE = "Bu söz daha önce kaydedildi, görevi ise silinmiş. Sayfayı yenileyip yeniden kaydedin.";
+
+/**
+ * Aynı işlemin yeniden denemesi mi? Tür + an BİREBİR. 24 saat farkı "gece yarısını geçen yeniden deneme" sayan esneklik (Opus O11) GERİ
+ * ALINDI (Haiku 10-15): cevabı kaybolan "bugün 18:00" formu "yarın 18:00" yapılıp aynı kimlikle gönderilirse de fark tam 24 saattir —
+ * yarınki söz hiç açılmadan eski söz "kaydedildi" diye dönüyordu (sessiz yanlış). Gece yarısı yeniden denemesi seyrek ve sonucu açık bir
+ * uyuşmazlık iletisidir (sayfa yenilenince söz görünür) — sessiz yanlıştan iyidir.
+ */
+function sameCommitmentRequest(a: { kind: string; dueAt: Date }, b: { kind: string; dueAt: Date }): boolean {
+  return a.kind === b.kind && a.dueAt.getTime() === b.dueAt.getTime();
+}
+
 /**
  * Söz + görev TEK işlemde. Konuşmanın dairesi yoksa söz verilemez (görev bir daireye bağlıdır). Görev kökeni `manual` (ev sahibinin
  * işi — rezervasyon iptalinde otomatik silinmez).
+ *
+ * TEKRAR GÜVENLİĞİ — İSTEK KİMLİĞİ (kurucu D3, 10-15, aynen: "Her yeni söz ayrı işlem kimliği alsın; çift tık ve bağlantı sonrası yeniden
+ * deneme aynı kimliği korusun. Aynı kimlikle farklı içerik gelirse sessizce birleştirme, açık uyuşmazlık döndür. Kontrol sunucuda ve
+ * veritabanında eşzamanlı isteklere dayanıklı olsun; görev oluşturma da tekrar güvenli olsun. Klima ve musluk aynı saatte iki ayrı
+ * söz/görev oluşturmalı; aynı sözün tekrarı oluşturmamalı."). Eski "aynı tür + aynı saat = aynı söz" anlam birleştirmesi KALDIRILDI
+ * (klima 18:00 ile musluk 18:00'i birleştirip ikinciyi kaybediyordu). Kontrol konuşma kilidi altında + `(conversationId,
+ * clientRequestId)` tekil dizini (migration 68) son savunma; söz ve görev aynı işlemde → görev de tekrar güvenli.
  */
 export async function createGuestCommitment(input: {
   organizationId: string;
@@ -52,25 +81,49 @@ export async function createGuestCommitment(input: {
   kind: CommitmentKind;
   dueAt: Date;
   actorUserId: string;
+  /** İstemcinin işlem kimliği (yoksa her çağrı yeni söz). */
+  clientRequestId?: string | null;
+  /**
+   * Aynı tür + aynı an + açık söz varsa onu döndür (eski anlam birleştirmesi). YALNIZ öneri onayı (`ai-suggestions/act.ts`): öneri,
+   * ev sahibinin mesajındaki TEK bir sözdür; ev sahibi aynı sözü bu arada elle kaydettiyse onay ikinci söz açmasın (öneri listesi de
+   * aynı kuralla gizler). Elle form bunu KULLANMAZ — klima 18:00 ile musluk 18:00 iki ayrı söz (kurucu D3).
+   */
+  mergeSameSlot?: boolean;
 }, outerTx?: Prisma.TransactionClient): Promise<{ id: string; taskId: string; reused: boolean }> {
   // Dış işlem verilirse (yapay zekâ önerisinin onayı — karar kaydıyla AYNI işlem) onun içinde; yoksa bugünkü gibi kendi işlemi.
   const run = <T,>(fn: (tx: Prisma.TransactionClient) => Promise<T>) => (outerTx ? fn(outerTx) : prisma.$transaction(fn));
   return run(async (tx) => {
-    // TEKRAR GÜVENLİĞİ (idempotency denetimi 10-15, P2): çift tıklama / bağlantı cevap anında koptu → aynı söz iki kez geliyordu (iki söz +
-    // iki görev). Konuşma kilidi altında aynı tür + aynı son an için AÇIK söz varsa o döner. Farklı son an / farklı tür = bilinçli yeni söz.
+    // Konuşma kilidi: aynı kimlikli eş zamanlı istekler sıraya girer; ikincisi birincinin yazdığını görür (↑ başlık).
     await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(${COMMITMENT_LOCK_NS}::int4, hashtext(${input.conversationId}))`);
-    const same = await tx.guestCommitment.findFirst({
-      where: {
-        organizationId: input.organizationId,
-        conversationId: input.conversationId,
-        kind: input.kind,
-        dueAt: input.dueAt,
-        status: "open",
-        taskId: { not: null },
-      },
-      select: { id: true, taskId: true },
-    });
-    if (same?.taskId) return { id: same.id, taskId: same.taskId, reused: true };
+    const requestId = input.clientRequestId ?? null;
+    if (requestId) {
+      const same = await tx.guestCommitment.findFirst({
+        where: { organizationId: input.organizationId, conversationId: input.conversationId, clientRequestId: requestId },
+        select: { id: true, taskId: true, kind: true, dueAt: true },
+      });
+      if (same) {
+        if (!sameCommitmentRequest(same, input)) throw new CommitmentRequestConflictError("different_content");
+        if (same.taskId) return { id: same.id, taskId: same.taskId, reused: true };
+        // Aynı istek, ama görevi arada silinmiş (söz bu yüzden iptal edildi): yeni söz AÇILMAZ (aynı kimlik tekil) — ayrı metinle söylenir.
+        throw new CommitmentRequestConflictError("task_deleted");
+      }
+    }
+    if (!requestId || input.mergeSameSlot) {
+      // KİMLİKSİZ istek (yayın anında açık kalmış eski sekme — Opus O12): eski anlam birleştirmesi korunur (aynı tür + aynı an + açık söz →
+      // o söz). Yeni istemci her zaman kimlik gönderir; bu dal yalnız geçiş dönemi içindir.
+      const same = await tx.guestCommitment.findFirst({
+        where: {
+          organizationId: input.organizationId,
+          conversationId: input.conversationId,
+          kind: input.kind,
+          dueAt: input.dueAt,
+          status: "open",
+          taskId: { not: null },
+        },
+        select: { id: true, taskId: true },
+      });
+      if (same?.taskId) return { id: same.id, taskId: same.taskId, reused: true };
+    }
     if (__commitmentHooks.afterSameCheck) await __commitmentHooks.afterSameCheck();
     const task = await tx.task.create({
       data: {
@@ -92,6 +145,7 @@ export async function createGuestCommitment(input: {
         taskId: task.id,
         kind: input.kind,
         dueAt: input.dueAt,
+        clientRequestId: requestId,
       },
       select: { id: true },
     });

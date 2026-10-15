@@ -357,21 +357,21 @@ model Property {
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 
-  organization     Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  reservations     Reservation[]
-  conversations    Conversation[]
-  tasks            Task[]
-  knowledgeBase    KnowledgeBaseItem[]
-  messageTemplates MessageTemplate[]
-  supplyRequests   SupplyRequest[]
-  calendarSources  CalendarSource[]
-  signals          Signal[]
-  memories         PropertyMemory[]
-  channelListings  ChannelListing[]
-  historyLearnRuns     HistoryLearnRun[]
-  historyLearnDrafts   HistoryLearnDraft[]
-  instructions         PropertyInstruction[]
-  historyLearnReviews  HistoryLearnComparison[]
+  organization        Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  reservations        Reservation[]
+  conversations       Conversation[]
+  tasks               Task[]
+  knowledgeBase       KnowledgeBaseItem[]
+  messageTemplates    MessageTemplate[]
+  supplyRequests      SupplyRequest[]
+  calendarSources     CalendarSource[]
+  signals             Signal[]
+  memories            PropertyMemory[]
+  channelListings     ChannelListing[]
+  historyLearnRuns    HistoryLearnRun[]
+  historyLearnDrafts  HistoryLearnDraft[]
+  instructions        PropertyInstruction[]
+  historyLearnReviews HistoryLearnComparison[]
 
   @@index([organizationId])
   // Public QR concierge chat resolves a property by its secret chatToken on every
@@ -397,32 +397,32 @@ model ChatUsage {
 // A subscribed external iCal URL (Airbnb, Booking.com, etc.) that is fetched
 // periodically to pull reservations into the property automatically.
 model CalendarSource {
-  id                 String    @id @default(cuid())
-  propertyId         String
-  label              String // "Airbnb", "Booking.com", "Etstur" ...
-  url                String
-  lastSyncedAt       DateTime?
-  lastStatus         String? // "ok" | "error"
-  lastResult         String? // human-readable summary of the last sync
+  id                     String    @id @default(cuid())
+  propertyId             String
+  label                  String // "Airbnb", "Booking.com", "Etstur" ...
+  url                    String
+  lastSyncedAt           DateTime?
+  lastStatus             String? // "ok" | "error"
+  lastResult             String? // human-readable summary of the last sync
   // Feed-disappearance reconciliation state (migration 31, nullable-first, flag-gated).
   // lastFeedEventCount = # of UIDs in the last RELIABLE feed (suspicious-drop guard baseline);
   // lastReconcileAt = fetch-start of the last reliable reconciliation (stale-run ordering: a
   // slower older run never overwrites a newer one's result).
-  lastFeedEventCount Int?
-  lastReconcileAt    DateTime?
+  lastFeedEventCount     Int?
+  lastReconcileAt        DateTime?
   // At-rest encryption of `url` (expand-contract — docs/CALENDAR-URL-ENCRYPTION-DESIGN.md).
   // Feed URLs carry credentials in their query string, so the column is a secret.
   // Phases 0-3: dual-write + read-prefers-urlEnc with plaintext fallback; `url`
   // stays authoritative until the forward-only contract phase, which runs ONLY
   // with explicit user approval. urlKeyFp = ENCRYPTION_KEY fingerprint at write
   // time (wrong key becomes a diagnosable error, not silent garbage).
-  urlEnc             String?
-  urlKeyFp           String?
+  urlEnc                 String?
+  urlKeyFp               String?
   // Deneme kimliği (migration 61): bu takvim GERÇEKTEN okunduğunda (sunucu geçerli takvim döndürdü) kimliği bir kez sayıldı. Eklemede
   // değil okumada sayılır — herkese açık ilan numarasıyla sahte jetonlu adres eklemek başkasının ilanını "kapamaz".
   trialIdentityCheckedAt DateTime?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
   property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
@@ -748,9 +748,9 @@ model Task {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  property    Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  reservation Reservation? @relation(fields: [reservationId], references: [id], onDelete: SetNull)
-  assignedTo  User?        @relation("TaskAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  property    Property          @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  reservation Reservation?      @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+  assignedTo  User?             @relation("TaskAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
   updates     TaskUpdate[]
   // Migration 62: bu görevin kapattığı misafir sözü (görev `done` → söz kapanır).
   commitments GuestCommitment[]
@@ -814,33 +814,41 @@ model TaskUpdate {
 // da "bilmiyoruz" der; hiçbiri sahte onay üretmez. Onay AÇIKÇA yazılır
 // (`api/kb` POST) — bu yüzden `approved` bir varsayılan DEĞİL, bir eylemdir.
 model KnowledgeBaseItem {
-  id             String    @id @default(cuid())
-  propertyId     String
-  category       String    @default("general") // location | checkin | wifi | rules | parking | trash | cleaning | faq | local_tips | general
-  title          String
-  content        String
-  language       String    @default("tr")
-  isActive       Boolean   @default(true)
+  id              String    @id @default(cuid())
+  propertyId      String
+  category        String    @default("general") // location | checkin | wifi | rules | parking | trash | cleaning | faq | local_tips | general
+  title           String
+  content         String
+  language        String    @default("tr")
+  isActive        Boolean   @default(true)
   /// legacy | host_manual | extracted_draft | suggestion_accepted (app-enforced)
-  source         String    @default("legacy")
+  source          String    @default("legacy")
   /// legacy | approved | draft — YALNIZ legacy+approved modele gider (app-enforced)
-  reviewState    String    @default("legacy")
+  reviewState     String    @default("legacy")
   /// Onayın GERÇEK zamanı. `legacy` satırlarda NULL = "onay kaydı yok".
-  approvedAt     DateTime?
+  approvedAt      DateTime?
   /// A5: çıkarımın geldiği metnin PII'SİZ işaretçisi (alıntı DEĞİL). Bugün yazan yok.
-  sourceRef      String?
+  sourceRef       String?
   /// A5: bir öneri kabul edilince eski kalem yenisiyle işaretlenir (iz kaybı yok).
   /// FK YOK — KB silme HARD DELETE'tir, FK silmeyi kilitlerdi (V0.4 provenance ile aynı gerekçe).
-  supersededById String?
+  supersededById  String?
   /// İçe aktarma tekrar güvenliği (migration 65, kurucu 10-14 "İstek kimliği"): istemcinin kalem başına ürettiği rastgele kimlik.
   /// Aynı mülk + aynı kimlik ikinci kalem AÇMAZ (bağlantı cevap anında koparsa yeniden deneme). Elle eklemede NULL (PG'de NULL'lar çakışmaz).
   clientRequestId String?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
+  // Migration 68 (kurucu D2, 10-15 "Eski kopyayı güncelle"): kopyanın KAYNAĞI ve kopyalandığı (ya da son güncellendiği) andaki içerik izi
+  // (SHA-256: kategori + başlık + içerik + dil). Yeniden kopyalamada yalnız bu kaynaktan geldiği doğrulanmış VE iz hâlâ tutan (yerelde
+  // değiştirilmemiş) kopya güncellenir; tutmuyorsa üzerine yazılmaz, atlanır. NULL = kopya değil ya da bağı bilinmeyen eski kayıt —
+  // benzerliğe göre EŞLEŞTİRİLMEZ (kurucu).
+  copiedFromId      String?
+  copiedContentHash String?
+
   @@unique([propertyId, clientRequestId])
+  @@unique([propertyId, copiedFromId])
   @@index([propertyId])
   @@index([category])
 }
@@ -1676,6 +1684,12 @@ model GuestCommitment {
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   task         Task?        @relation(fields: [taskId], references: [id], onDelete: SetNull)
 
+  // Migration 68 (kurucu D3, 10-15 "İstek kimliği şimdi"): istemcinin işlem kimliği. Aynı söz isteğinin tekrarı (çift tık / kopan
+  // bağlantı) aynı kaydı döndürür; aynı kimlik FARKLI içerikle gelirse açık uyuşmazlık (409). NULL = eski satır / kimliksiz çağıran.
+  clientRequestId String?
+
+  // Konuşma başına tekil (NULL'lar çakışmaz → mevcut satırlarla açılışta patlamaz).
+  @@unique([conversationId, clientRequestId])
   // Dikkat Gerektirenler: org'un açık sözleri, son ana göre.
   @@index([organizationId, status, dueAt])
   @@index([conversationId])

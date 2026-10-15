@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { HandHeart, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/lib/toast";
+import { newKbRequestId } from "@/lib/kb/request-id";
 import { COMMITMENT_KINDS, COMMITMENT_KIND_LABELS, commitmentDurationLabel, type CommitmentKind } from "@/lib/guest-commitments-core";
 
 export interface CommitmentRow {
@@ -39,6 +40,12 @@ export function CommitmentsCard({
   const [time, setTime] = useState("");
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  // İşlem kimliği FORM başına (kurucu D3, 10-15): çift tık / kopan bağlantıdan sonra yeniden deneme AYNI kimliği taşır (aynı söz döner,
+  // ikinci söz açılmaz); başarı kesinleşince yeni söz için yeni kimlik. Klima 18:00 ile musluk 18:00 ayrı tıklama = ayrı söz.
+  const requestId = useRef<string>(newKbRequestId());
+  // 409'dan sonra bilinçli YENİ söz için açık seçenek (Opus O13; kurucu D1'in "Ayrı bir bilgi olarak ekle"si ile aynı kalıp) — sıradan
+  // "Söz ekle" yine 409 alır.
+  const [conflict, setConflict] = useState(false);
 
   async function add() {
     if (!/^\d{2}:\d{2}$/.test(time)) {
@@ -50,15 +57,21 @@ export function CommitmentsCard({
       const res = await fetch(`/api/conversations/${conversationId}/commitments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kind, day, time }),
+        body: JSON.stringify({ kind, day, time, requestId: requestId.current }),
       });
       if (res.ok) {
+        requestId.current = newKbRequestId(); // başarı kesinleşti → sonraki söz yeni işlem
+        setConflict(false);
         toast.success("Söz kaydedildi, görev açıldı.");
         setTime("");
         router.refresh();
       } else {
-        const body = (await res.json().catch(() => null)) as { fields?: Record<string, string> } | null;
-        toast.error(body?.fields ? Object.values(body.fields).join(" ") : "Kaydedilemedi. Lütfen tekrar deneyin.");
+        const body = (await res.json().catch(() => null)) as { fields?: Record<string, string>; error?: string; code?: string } | null;
+        // 409 (aynı kimlik farklı tür / saatle): kimlik DEĞİŞMEZ — yeniden basış ikinci söz onayı sayılmaz (kurucu D1/D3 aynı kalıp).
+        if (res.status === 409 && body?.error) {
+          toast.error(body.error);
+          setConflict(true);
+        } else toast.error(body?.fields ? Object.values(body.fields).join(" ") : "Kaydedilemedi. Lütfen tekrar deneyin.");
       }
     } catch {
       toast.error("Bağlantı hatası. Lütfen tekrar deneyin.");
@@ -160,6 +173,22 @@ export function CommitmentsCard({
               {saving ? <Loader2 className="size-3 animate-spin" /> : null}
               Söz ekle
             </Button>
+            {conflict ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="w-full text-xs"
+                disabled={saving}
+                onClick={() => {
+                  requestId.current = newKbRequestId();
+                  setConflict(false);
+                  void add();
+                }}
+              >
+                Yeni söz olarak kaydet
+              </Button>
+            ) : null}
           </div>
         )}
       </CardContent>

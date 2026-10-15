@@ -132,10 +132,14 @@ export async function decideSuggestion(input: {
             kind: view.proposal.commitmentKind,
             dueAt: commitmentDue,
             actorUserId: input.actorUserId,
+            // Öneri anahtarı işlem kimliğidir (kurucu D3, 10-15): aynı önerinin ikinci onayı aynı sözü döndürür (karar kaydı zaten
+            // engelliyor; tekil dizin son savunma). Anlam birleştirmesi yok — başka bir sözle birleşmez.
+            clientRequestId: `sugg:${input.key}`,
+            mergeSameSlot: true,
           },
           tx,
         );
-        // Aynı söz (tür + saat) zaten açıktı → görev dalıyla AYNI: karar YAZILMAZ (ölçüt şişmesin; Haiku 10-15).
+        // Bu önerinin sözü zaten yazılmıştı (aynı öneri anahtarı = aynı işlem kimliği) → görev dalıyla AYNI: karar YAZILMAZ (ölçüt şişmesin).
         if (c.reused) return { status: "gone" } as const;
         created.commitmentId = c.id;
         created.taskId = c.taskId;

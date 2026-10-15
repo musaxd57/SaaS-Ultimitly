@@ -89,15 +89,14 @@ describe("KB kopyalama — istek kimliği", () => {
     for (const p of [a, b, c]) expect(await copiesIn(p)).toBe(1);
   });
 
-  it("kontrol: farklı kimlik → bilinçli ikinci kopya; kimliksiz eski istemci → eski davranış (iki kopya)", async () => {
+  it("kurucu D2 (10-15): farklı kimlikle ya da kimliksiz yeniden kopyalama bu kaynağın kopyası olan dairede İKİNCİ kalem açmaz (eski kopya güncel → dokunulmaz)", async () => {
     await copyReq(sourceId, { targetPropertyIds: [a], requestId: RID });
-    await copyReq(sourceId, { targetPropertyIds: [a], requestId: RID2 });
-    expect(await copiesIn(a)).toBe(2);
+    const again = await copyReq(sourceId, { targetPropertyIds: [a], requestId: RID2 });
+    expect(await again.json()).toMatchObject({ created: 0, updated: 0, unchanged: 1 });
+    expect(await copiesIn(a)).toBe(1);
     await copyReq(sourceId, { targetPropertyIds: [b] });
     await copyReq(sourceId, { targetPropertyIds: [b] });
-    expect(await copiesIn(b)).toBe(2);
-    const legacy = await prisma.knowledgeBaseItem.findMany({ where: { propertyId: b }, select: { clientRequestId: true } });
-    expect(legacy.every((x) => x.clientRequestId === null)).toBe(true);
+    expect(await copiesIn(b)).toBe(1);
   });
 
   it("yeniden deneme, ilk istek eşitlemeden ÖNCE kesildiyse hedeflerin vektör eşitlemesini tamamlar (Opus B2)", async () => {
@@ -129,9 +128,15 @@ describe("KB kopyalama — istek kimliği", () => {
     const j2 = (await r2.json()) as Record<string, unknown>;
     expect(j2).toMatchObject({ created: 0, skippedAtLimit: 0 });
     expect(j2.notice).toBeUndefined();
-    // Aşırı uygulama kontrolü: sınır kapısı yeni kimlikte hâlâ çalışır.
+    // Aynı kaynağın YENİ kimlikle yeniden kopyası (kurucu D2): dairedeki değişmemiş kopya güncel sayılır — ikinci kopya açılmaz.
     const r3 = await copyReq(sourceId, { targetPropertyIds: [a], requestId: RID2 });
-    expect(await r3.json()).toMatchObject({ created: 0, skippedAtLimit: 1 });
+    expect(await r3.json()).toMatchObject({ created: 0, unchanged: 1, skippedAtLimit: 0 });
+    // Aşırı uygulama kontrolü: sınır kapısı BAŞKA bir kaynağın yeni kopyasında hâlâ çalışır.
+    const other = await prisma.knowledgeBaseItem.create({
+      data: { propertyId: sourceProp, category: "parking", title: "Otopark", content: "Bina önünde.", isActive: true },
+    });
+    const r4 = await copyReq(other.id, { targetPropertyIds: [a], requestId: RID2 });
+    expect(await r4.json()).toMatchObject({ created: 0, skippedAtLimit: 1 });
   });
 
   it("aynı kimlik başka kaynağın kopyasını engellemez (anahtar kaynağı taşır)", async () => {

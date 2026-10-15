@@ -48,6 +48,7 @@ async function run(): Promise<unknown> {
       kind: "towels",
       dueAt: new Date(args.dueAt),
       actorUserId: args.actorUserId,
+      clientRequestId: args.clientRequestId ?? null,
     });
   }
   throw new Error(`bilinmeyen işlem: ${action}`);

@@ -99,6 +99,7 @@ describe("İki ayrı uygulama işçisi (ayrı Node süreçleri) aynı anda", () 
       propertyId,
       actorUserId: user.id,
       dueAt: new Date(Date.now() + 26 * 3_600_000).toISOString(),
+      clientRequestId: "a1b2c3d4e5f60718293a4b5c6d7e8f90", // iki süreç AYNI isteğin tekrarı (kurucu D3: tekilleştirme işlem kimliğiyle)
     });
     expect(a.error ?? b.error).toBeUndefined();
     expect(await prisma.guestCommitment.count({ where: { conversationId: conv.id } })).toBe(1);
