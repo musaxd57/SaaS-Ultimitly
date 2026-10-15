@@ -188,6 +188,8 @@ model Organization {
   invoices              Invoice[]
   checkoutConsents      CheckoutConsent[]
   operationalEvents     OperationalEvent[]
+  historyLearnRuns      HistoryLearnRun[]
+  propertyInstructions  PropertyInstruction[]
 }
 
 model User {
@@ -366,6 +368,10 @@ model Property {
   signals          Signal[]
   memories         PropertyMemory[]
   channelListings  ChannelListing[]
+  historyLearnRuns     HistoryLearnRun[]
+  historyLearnDrafts   HistoryLearnDraft[]
+  instructions         PropertyInstruction[]
+  historyLearnReviews  HistoryLearnComparison[]
 
   @@index([organizationId])
   // Public QR concierge chat resolves a property by its secret chatToken on every
@@ -1670,4 +1676,114 @@ model GuestCommitment {
   @@index([organizationId, status, dueAt])
   @@index([conversationId])
   @@index([taskId])
+}
+
+// ---------------------------------------------------------------------------
+// GEÇMİŞTEN ÖĞREN (migration 65, kurucu 10-15: "migration ile, en sağlamı"; tasarım `docs/TASARIM-2026-10-15-gecmisten-ogren.md`).
+// Dört YENİ tablo (dolu tabloya dokunulmaz). Metin YALNIZ: model taslağı (maskeli ev sahibi cevaplarından) · ev sahibinin kendi notu /
+// talimatı · karşılaştırma cevabı (maskeli soruya üretilmiş). Misafir metni SAKLANMAZ — örnek, kaynak mesaj kimliğinden CANLI okunur
+// (saklama süresi / silme mesajla birlikte işler). Mülk / işletme silinince kademeli silinir.
+// ---------------------------------------------------------------------------
+model HistoryLearnRun {
+  id             String    @id @default(cuid())
+  organizationId String
+  propertyId     String
+  /// Başlatan kullanıcı (FK yok — kullanıcı silinse de iz kalır; kişisel veri değil, kimlik).
+  requestedById  String?
+  /// queued | running | done | failed (app-enforced)
+  status         String    @default("queued")
+  model          String
+  effort         String?
+  pairCount      Int       @default(0)
+  draftCount     Int       @default(0)
+  calls          Int       @default(0)
+  failedCalls    Int       @default(0)
+  tokensIn       Int       @default(0)
+  tokensOut      Int       @default(0)
+  /// Kapalı küme hata kodu (metin yok).
+  errorCode      String?
+  createdAt      DateTime  @default(now())
+  startedAt      DateTime?
+  finishedAt     DateTime?
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  property     Property            @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  drafts       HistoryLearnDraft[]
+
+  @@index([organizationId, createdAt])
+  @@index([propertyId, status])
+}
+
+model HistoryLearnDraft {
+  id                     String    @id @default(cuid())
+  runId                  String
+  propertyId             String
+  category               String
+  title                  String
+  content                String
+  supportConversations   Int       @default(0)
+  newestMonth            String?
+  oldestMonth            String?
+  conflict               Boolean   @default(false)
+  conflictNote           String?
+  /// JSON dizi — `DRAFT_FLAGS` kapalı kümesi.
+  flagsJson              String    @default("[]")
+  /// JSON dizi — kanıt ev sahibi mesaj kimlikleri (PII yok; örnek canlı okunur).
+  evidenceMessageIdsJson String    @default("[]")
+  /// pending | approved | rejected (app-enforced)
+  state                  String    @default("pending")
+  /// Onayla oluşan bilgi tabanı kalemi (FK YOK — KB silme HARD DELETE).
+  kbItemId               String?
+  reviewedById           String?
+  reviewedAt             DateTime?
+  createdAt              DateTime  @default(now())
+
+  run      HistoryLearnRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  property Property        @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([propertyId, state])
+}
+
+/// Mülke özgü ev sahibi talimatı ("böyle yapsın" notu). Cevap istemine YALNIZ `active` + anahtar açıkken ve kod kapılarından geçmişse girer.
+model PropertyInstruction {
+  id             String    @id @default(cuid())
+  organizationId String
+  propertyId     String
+  content        String
+  /// host_note | history_learn (app-enforced)
+  source         String    @default("host_note")
+  /// active | retired (app-enforced)
+  status         String    @default("active")
+  createdById    String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  retiredAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  property     Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId, status])
+  @@index([organizationId])
+}
+
+/// Cevap karşılaştırma: ev sahibinin o zamanki cevabı (kimlikle, canlı okunur) ↔ bugünkü yapay zekâ cevabı (GÖNDERİLMEZ) + karar + not.
+model HistoryLearnComparison {
+  id                       String   @id @default(cuid())
+  propertyId               String
+  runId                    String?
+  questionMessageId        String
+  hostAnswerMessageIdsJson String   @default("[]")
+  aiAnswer                 String?
+  /// good | fix | bad (app-enforced)
+  verdict                  String?
+  note                     String?
+  createdById              String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId, questionMessageId])
+  @@index([runId])
 }

@@ -32,6 +32,8 @@ const EXPORTED: Record<string, string> = {
   MessageOutbox: "prisma.messageOutbox.findMany",
   PropertyMemory: "prisma.propertyMemory.findMany", // yalnız ev sahibinin girdiği (source human); türetilmiş hafıza kaynağından gelir
   GuestCommitment: "prisma.guestCommitment.findMany",
+  PropertyInstruction: "prisma.propertyInstruction.findMany", // ev sahibinin yazdığı talimat (migration 65)
+  HistoryLearnComparison: "prisma.historyLearnComparison.findMany", // ev sahibinin karşılaştırma notu (migration 65)
 };
 
 /** Bilinçli dışarıda — gerekçe. "⚠️ KARAR" = kurucu / avukat kararı bekliyor. */
@@ -59,6 +61,9 @@ const EXCLUDED: Record<string, string> = {
   AiGeneration: "⚠️ KARAR 25 (avukat): yapay zekâ üretim izi — eğitim / dışa aktarma yasağı tasarımı",
   AiReviewLabel: "⚠️ KARAR 25: kurucunun kalite etiket notu",
   TrialIdentity: "Deneme kötüye kullanımı parmak izi (HMAC) — iç güvenlik",
+  HistoryLearnRun: "Geçmişten öğren çalıştırma kaydı (durum / sayaç / maliyet) — iç işletim, metin yok",
+  HistoryLearnDraft:
+    "Modelin önerdiği taslak — türetilmiş; kaynağı (mesajlar) dökümde, onaylanan taslak bilgi tabanı kalemi olarak dökümde",
   OperationalEvent:
     "⚠️ KARAR (avukat paketi, tasarım §5): takip numarası olay günlüğü — iç teşhis; DOĞRUDAN kişisel veri taşımaz (kapalı olay adı + anahtar başına kalıplı kimlik / kod / sayı); Paddle abonelik / işlem kimliği yalnız işletmeye bağlı satırda (işletme silinince satırla gider), 90 gün",
 };

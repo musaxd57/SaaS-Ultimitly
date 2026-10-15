@@ -71,7 +71,19 @@ function maskFeedUrls<
 }
 
 export async function buildOrganizationDataExport(organizationId: string) {
-  const [org, subscription, invoices, auditLogs, checkoutConsents, riskEvents, messageDelivery, hostEnteredFacts, guestCommitments] = await Promise.all([
+  const [
+    org,
+    subscription,
+    invoices,
+    auditLogs,
+    checkoutConsents,
+    riskEvents,
+    messageDelivery,
+    hostEnteredFacts,
+    guestCommitments,
+    propertyInstructions,
+    historyLearnReviews,
+  ] = await Promise.all([
     prisma.organization.findUnique({
       where: { id: organizationId },
       select: {
@@ -279,6 +291,18 @@ export async function buildOrganizationDataExport(organizationId: string) {
       select: { id: true, conversationId: true, taskId: true, kind: true, dueAt: true, status: true, closedAt: true, createdAt: true },
       orderBy: { createdAt: "asc" },
     }),
+    // Geçmişten öğren (migration 65): ev sahibinin YAZDIĞI mülk talimatları (kaldırılanlar dahil — iz) ve cevap karşılaştırma notları.
+    // Taslaklar / çalıştırmalar dökümde YOK (türetilmiş; onaylanan taslak bilgi tabanı kalemi olarak `knowledgeBase` altında).
+    prisma.propertyInstruction.findMany({
+      where: { organizationId },
+      select: { id: true, propertyId: true, content: true, source: true, status: true, createdAt: true, retiredAt: true },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    }),
+    prisma.historyLearnComparison.findMany({
+      where: { property: { organizationId } },
+      select: { id: true, propertyId: true, questionMessageId: true, aiAnswer: true, verdict: true, note: true, createdAt: true },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    }),
   ]);
   if (!org) return null;
   return {
@@ -290,5 +314,7 @@ export async function buildOrganizationDataExport(organizationId: string) {
     messageDelivery,
     hostEnteredFacts,
     guestCommitments,
+    propertyInstructions,
+    historyLearnReviews,
   };
 }

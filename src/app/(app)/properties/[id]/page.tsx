@@ -39,6 +39,8 @@ import { EarlyCheckinRuleForm } from "@/components/properties/early-checkin-rule
 import { loadEarlyCheckinRule } from "@/lib/early-checkin/rules";
 import { HouseRulesForm } from "@/components/properties/house-rules-form";
 import { houseRulesCardEnabled } from "@/lib/house-rules/flag";
+import { HistoryLearnPanel } from "@/components/properties/history-learn-panel";
+import { historyLearnEnabled } from "@/lib/history-learn/service";
 import { houseRuleFormValues, loadHouseRules } from "@/lib/house-rules/store";
 import { apartmentResolvable, usesApartmentToken } from "@/lib/kb-placeholders";
 import { GUEST_DELIVERABLE_KB_WHERE } from "@/lib/kb-review";
@@ -442,6 +444,20 @@ export default async function PropertyDetailPage({
               )}
             </CardContent>
           </Card>
+
+          {/* Geçmişten öğren (migration 65): yönetici + anahtar açık + bürünme DEĞİL (destek görünümü salt-okunur, K8). */}
+          {canManage && historyLearnEnabled() && !isImpersonating(session) ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <BookOpen className="size-4 text-muted-foreground" /> Geçmişten öğren
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <HistoryLearnPanel propertyId={property.id} />
+              </CardContent>
+            </Card>
+          ) : null}
 
           <Card>
             <CardHeader>

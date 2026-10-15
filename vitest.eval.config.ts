@@ -33,6 +33,8 @@ export default defineConfig({
     environment: "node",
     include: ["tests/eval/**/*.test.ts"],
     fileParallelism: false,
+    // Canlı model ayarı profili (kurucu 10-15): boş katman değişkenleri ürünün kullandığı modelle dolar (`tests/eval/prod-profile.ts`).
+    setupFiles: ["tests/eval/prod-profile.setup.ts"],
     // globalSetup YOK — eval veritabanı istemez.
     env: {
       // Prisma istemcisi modül grafiğinde kurulabilsin diye SAHTE bir URL yeter:
