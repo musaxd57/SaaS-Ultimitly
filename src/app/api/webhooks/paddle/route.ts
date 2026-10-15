@@ -597,17 +597,31 @@ export async function POST(req: NextRequest): Promise<Response> {
     // kısıtıydı (günde ~144 e-posta, her yeniden başlatmada sıfırlanır). Artık durum
     // DB'de: bir kez + 24 saatte bir hatırlatma; ilk DOĞRULANMIŞ olay temizler.
     if (looksLikePaddleDelivery(signatureHeader)) {
-      await alertOnTransition(
-        "paddle-webhook:signature-mismatch",
-        "paddle-webhook-signature-mismatch",
-        new Error("Paddle imzası doğrulanmadı — webhook anahtarı yanlış/rotasyona uğramış olabilir"),
-      );
+      // TEŞHİS AYRIMI (ödeme denetimi 10-15, `docs/arastirma-2026-10-15/odeme.md` §4 #9-#10): imza anahtarımızla TUTUYOR ama zaman damgası
+      // pencere dışındaysa sorun anahtar DEĞİL (saat farkı ya da eski bir teslimatın tekrarı). Eskiden ikisi de "anahtar yanlış" diyordu →
+      // operatör doğru anahtarı boşuna değiştirirdi. Kabul / ret kararı AYNI (401); yalnız alarmın adı ve cümlesi ayrışır, ayrı durum
+      // anahtarıyla (biri ötekini susturmaz).
+      const keyMatches = verifyPaddleSignature({ signatureHeader, rawBody, secret, toleranceSeconds: Number.POSITIVE_INFINITY });
+      if (keyMatches) {
+        await alertOnTransition(
+          "paddle-webhook:signature-stale",
+          "paddle-webhook-signature-stale",
+          new Error("Paddle imzası anahtarla tutuyor ama zaman damgası 5 dakikalık pencerenin dışında — sunucu saati kaymış ya da eski bir teslimat tekrar edilmiş olabilir (anahtar DOĞRU, değiştirmeyin)"),
+        );
+      } else {
+        await alertOnTransition(
+          "paddle-webhook:signature-mismatch",
+          "paddle-webhook-signature-mismatch",
+          new Error("Paddle imzası doğrulanmadı — webhook anahtarı yanlış/rotasyona uğramış olabilir"),
+        );
+      }
     }
     return unauthorized();
   }
-  // İmza DOĞRULANDI → yapılandırma sağlam: iki yapılandırma alarmının durumu temizlenir
+  // İmza DOĞRULANDI → yapılandırma sağlam: yapılandırma alarmlarının durumu temizlenir
   // (bir sonraki bozulma yeniden ve HEMEN bildirilsin). Asla fırlatmaz.
   await clearAlertState("paddle-webhook:signature-mismatch");
+  await clearAlertState("paddle-webhook:signature-stale");
   await clearAlertState("paddle-webhook:dormant");
 
   let event: PaddleEvent | null = null;

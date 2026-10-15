@@ -77,6 +77,26 @@ describe("Paddle webhook — imza uyuşmazlığı alarmı", () => {
     expect(wire).not.toContain("Zeynep Kara");
   });
 
+  it("🚨 DOĞRU anahtar + ESKİ zaman damgası → 401 (karar aynı) ama alarm 'anahtar yanlış' DEMEZ, ayrı teşhis (ödeme denetimi 10-15)", async () => {
+    const ts = Math.floor(Date.now() / 1000) - 3600;
+    const h1 = createHmac("sha256", SECRET).update(`${ts}:${BODY}`, "utf8").digest("hex");
+    const res = await POST(req(`ts=${ts};h1=${h1}`));
+    expect(res.status).toBe(401);
+    expect(reportErrorMock).toHaveBeenCalledTimes(1);
+    expect(reportErrorMock.mock.calls[0][0]).toBe("paddle-webhook-signature-stale");
+    expect((reportErrorMock.mock.calls[0][1] as Error).message).toMatch(/anahtar DOĞRU/);
+    // Ayrı durum: ardından gelen GERÇEK anahtar uyuşmazlığı susturulmaz.
+    await POST(req(signWith("bambaska-anahtar")));
+    expect(reportErrorMock.mock.calls.map((c) => c[0])).toEqual(["paddle-webhook-signature-stale", "paddle-webhook-signature-mismatch"]);
+  });
+
+  it("KONTROL: BAŞKA anahtar + ESKİ zaman damgası → bugünkü 'anahtar yanlış' alarmı (eski tekrar sanılmaz)", async () => {
+    const ts = Math.floor(Date.now() / 1000) - 3600;
+    const h1 = createHmac("sha256", "bambaska-anahtar").update(`${ts}:${BODY}`, "utf8").digest("hex");
+    expect((await POST(req(`ts=${ts};h1=${h1}`))).status).toBe(401);
+    expect(reportErrorMock.mock.calls.map((c) => c[0])).toEqual(["paddle-webhook-signature-mismatch"]);
+  });
+
   it("sıradan internet taraması alarm ÜRETMEZ (kanal çöpe dönmesin)", async () => {
     // Kimliksiz, halka açık uç nokta. Her 404 tarayıcısına alarm yazmak, alarmın
     // sinyal değerini yok ederdi — bu deponun tekrar tekrar ödediği ders.

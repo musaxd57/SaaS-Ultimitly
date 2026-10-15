@@ -8,7 +8,14 @@
 > `docs/history/CLAUDE-2026-10-02-sadelestirme-3-oncesi-tam-metin.md` ("Durum" bölümü). Kuralları yukarıdaki bölümlerde; yalnız Durum'da
 > yazılı olan kurallar (konuşma öğeleri, ev kuralları, canlı bayraklar) 10-02'de ilgili bölümlere taşındı. Bekleyen onaylar ↓.
 
-**10-15 gündüz (güncel) — Geçmişten öğren (migration 65, hiçbir yere uygulanmadı; `HISTORY_LEARN_ENABLED` KAPALI):** müşteri "Geçmişi oku"
+**10-15 öğleden sonra (güncel) — V sonrası işler (kurucu "Vlerden sonra yapacağız dediklerimi yap, soru sorma"):** beş Opus araştırması
+`docs/arastirma-2026-10-15/` (idempotency · ödeme · takip numarası · yatay ölçek · deneme kötüye kullanımı). Müşteriye / misafire gideni
+değiştirmeyen, migration'sız düzeltmeler SORULMADAN yapıldı: bilgi tabanı ekleme ekranları + kopyalama istek kimliği, rezervasyon görevi /
+mesajdan görev / söz / talimat çiftleri kilit altında, kimliksiz CSV eş zamanlı yükleme, QR jetonu koşullu yazım, Paddle imza alarmında
+"eski zaman damgası" ayrı teşhis, Sentry sürüm / ortam / alan etiketi + olay günlüğünde Sentry olay kimliği, dört ödeme eşzamanlılık testi
+(gerçek PG). Sorular (13 madde, sıralı) `docs/arastirma-2026-10-15/KURUCU-SORULARI.md`; U42'nin basit hâli hazır yama.
+
+**10-15 gündüz — Geçmişten öğren (migration 65, hiçbir yere uygulanmadı; `HISTORY_LEARN_ENABLED` KAPALI):** müşteri "Geçmişi oku"
 → Luna (gpt-6-luna / low) geçmiş soru ↔ cevaplardan bilgi tabanı TASLAĞI çıkarır (ad / telefon / IBAN / TC / kapı kodu modele gitmeden
 maskelenir; taslak onaysız kullanılmaz; 300 mesajda 13/14 olgu, 0 sızıntı, ~$0,005). Operatöre (kurucu 10-15 kararı) "Cevapları karşılaştır":
 geçmiş sorulara canlı cevap modeliyle kuru koşu (gönderim yok, kapı sonucu + kapanış), İyi / Düzeltilmeli / Kötü + "Böyle yapsın" (talimat +
