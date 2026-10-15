@@ -429,13 +429,18 @@ yalnız gitmemesi gerekenler artık gitmiyor):**
   mevcut kural: "anlama katmanı yoksa model sinyali yok → e-posta yok"). QR'da aynı durum ev sahibine acil bildirim üretiyor. Kanalda da
   acil e-postası gitsin mi? Örnek: anlama katmanı zaman aşımına uğradı + "Kısa devre oldu, ışıklar gitti" → bugün: cevap gitmez, e-posta
   yok; seçenek: cevap gitmez + "olası tehlike, kontrol edin" e-postası (yanlış alarm riski: "We smoked on the balcony, is that ok?").
-- 🔔 G1 ÖLÇÜLDÜ (10-14 gece; sizin "kredi gelince ölç" kararınız) + YENİ BULGU, karar sizin (modele giden metin değişir):
+- 🔔 G1 ÖLÇÜLDÜ (10-14 gece / 10-15; sizin "kredi gelince ölç" kararınız) + YENİ BULGU, karar sizin (modele giden metin değişir):
   anlama katmanı, son cevaptan SONRA gelen otomatik şablon mesajını HİÇ görmüyor (K7 penceresi: şablon cevap sayılmaz, ama istemden de
-  düşüyor). G1'in "Automated message" etiketi bu durumu etkilemiyor. 19 senaryo × 2 tur (gpt-5.1, `docs/olcum/g1-otomatik-etiket-2026-10-14-*`):
-  bugün 35/38 · yalnız G1 34/38 (fark yok) · G1 + G1b (şablon "Automated message:" etiketiyle BAĞLAMA girer, cevapsız listeye girmez) 38/38.
-  Örnek: şablon "Hoş geldiniz! Wi-Fi bilgileri buzdolabındaki kartta." → misafir "Kartı bulamadık, şifre neydi?" → bugün anlama katmanı
-  "kapı / anahtar sorusu" sanıyor (2/2), G1b ile "Wi-Fi" (2/2). Hazır yama `docs/hazir-yamalar/2026-10-14-G1-G1b-anlama-otomatik-mesaj-baglami.patch`
-  (G1 yamasının yerine geçer; ilgili 58 birim test dosyası yeşil; mutasyon 2/3 + 1 gerekçeli eşdeğer; ana dala UYGULANMADI). Uygulayalım mı?
+  düşüyor). G1'in "Automated message" etiketi bunu çözmüyor. İkinci ölçüm (Haiku incelemesinden sonra, "misafir → şablon → misafir" sırası
+  eklendi): 23 senaryo × 3 tur, gpt-5.1 (`docs/olcum/g1-otomatik-etiket-2026-10-15-*`): **bugün 56/69 · yalnız G1 58/69 · G1 + G1b 69/69**.
+  G1b: şablon cevapsız misafir mesajlarının ARASINA, yazıldığı yere, numarasız "Automated message (not an answer)" satırı olarak girer
+  (en çok son 2; gerçek bağlam tavanından yer yemez; mesaj numaraları ve öğe eşlemesi değişmez).
+  Örnekler (bugün → G1b, üç turda da aynı): şablon "Reminder: check-out tomorrow is at 11:00. Need a late checkout? Just reply." → misafir
+  "Yes please, 1pm would be great." → bugün **erken giriş 13:00** sanılıyor → G1b **geç çıkış 13:00**. Şablon "Wi-Fi bilgileri kartta" →
+  "Kartı bulamadık, şifre neydi?" → bugün kapı / anahtar sorusu → G1b Wi-Fi.
+  Hazır yama `docs/hazir-yamalar/2026-10-14-G1-G1b-anlama-otomatik-mesaj-baglami.patch` (G1 yamasının yerine geçer; ilgili 58 birim test
+  dosyası yeşil; ana dala UYGULANMADI; anahtarsız — isterseniz anahtar arkasına alırım). Aynı "Host" etiketi bekçi isteminde de var
+  (`ai/semantic/guard.ts`: şablon ve yapay zekâ cevabı da "Host:") — bu yamada YOK, ayrı karar. Uygulayalım mı?
 - Kalan bilinen sınır (düşük): model cevabında kapı kodunu "6 142" / "6,142" / Arapça binlik ayracıyla bölerek yazması tarayıcıyı atlatır
   (tek haneli ayraç biçimleri ve Unicode rakamlar yakalanıyor).
 

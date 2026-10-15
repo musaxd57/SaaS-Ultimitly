@@ -1,8 +1,17 @@
 diff --git a/src/lib/ai/semantic/understand.ts b/src/lib/ai/semantic/understand.ts
-index 31d940d..60dce46 100644
+index 31d940d..dfc49d0 100644
 --- a/src/lib/ai/semantic/understand.ts
 +++ b/src/lib/ai/semantic/understand.ts
-@@ -241,8 +241,12 @@ export function buildUnderstandingUserContent(input: UnderstandingInput): string
+@@ -232,7 +232,7 @@ export function buildUnderstandingUserContent(input: UnderstandingInput): string
+   const maskNote = (body: string) => (nameMaskHidesEmergency(body, names) ? ` ${MASKED_EMERGENCY_NOTE}` : "");
+   // Cevapsız misafir mesajları: son GİDEN mesajdan sonrakiler (güncel mesaj dâhil, tekrar etmeden) — TEK kaynak
+   // `understandingWindow` (konuşma öğeleri [n] numarasını aynı listeden mesaja eşler).
+-  const { context, unanswered } = understandingWindow(input.history, input.guestMessage);
++  const { context, unanswered, templates } = understandingWindow(input.history, input.guestMessage);
+   const ci = normalizeHhmm(input.stayTimes?.checkIn) ?? "unknown";
+   const co = normalizeHhmm(input.stayTimes?.checkOut) ?? "unknown";
+   // F14b: yazıldığı an yalnız damga fonksiyonu verildiğinde (bayrak açık) ve satır anı taşıyorsa; açıklama yalnız en az bir
+@@ -241,11 +241,21 @@ export function buildUnderstandingUserContent(input: UnderstandingInput): string
      const stamp = at && input.writtenStamp ? input.writtenStamp(at) : null;
      return stamp ? ` (written ${stamp})` : "";
    };
@@ -14,10 +23,21 @@ index 31d940d..60dce46 100644
 -    (m) => `${m.direction === "inbound" ? "Guest" : "Host"}${written(m.at)}: <<<${clean(m.body, m.direction === "inbound" ? "guest" : "ours")}>>>`,
 +    (m) => `${authorLabel(m)}${written(m.at)}: <<<${clean(m.body, m.direction === "inbound" ? "guest" : "ours")}>>>`,
    );
-   const unansweredLines = unanswered.map((m, i) => `[${i + 1}]${written(m.at)} <<<${clean(m.body)}>>>${maskNote(m.body)}`);
-   const stamped = [...context, ...unanswered].some((m) => written(m.at) !== "");
+-  const unansweredLines = unanswered.map((m, i) => `[${i + 1}]${written(m.at)} <<<${clean(m.body)}>>>${maskNote(m.body)}`);
+-  const stamped = [...context, ...unanswered].some((m) => written(m.at) !== "");
++  // G1b: son cevaptan sonraki şablonlar cevapsız mesajların ARASINA, yazıldıkları yere, numarasız girer (kronoloji korunur).
++  const templateLine = (t: { body: string; at?: Date }) => `Automated message (not an answer)${written(t.at)}: <<<${clean(t.body, "ours")}>>>`;
++  const unansweredLines = unanswered.flatMap((m, i) => [
++    ...templates.filter((t) => t.before === i).map(templateLine),
++    `[${i + 1}]${written(m.at)} <<<${clean(m.body)}>>>${maskNote(m.body)}`,
++  ]);
++  unansweredLines.push(...templates.filter((t) => t.before >= unanswered.length).map(templateLine));
++  const stamped = [...context, ...unanswered, ...templates].some((m) => written(m.at) !== "");
+   return [
+     `Property standard check-in: ${ci}; standard check-out: ${co}.`,
+     ...(input.dateLine ? [input.dateLine] : []),
 diff --git a/src/lib/ai/semantic/understanding-schema.ts b/src/lib/ai/semantic/understanding-schema.ts
-index 7b4d01c..a9b5adc 100644
+index 7b4d01c..80f6ba4 100644
 --- a/src/lib/ai/semantic/understanding-schema.ts
 +++ b/src/lib/ai/semantic/understanding-schema.ts
 @@ -14,7 +14,7 @@
@@ -29,26 +49,68 @@ index 7b4d01c..a9b5adc 100644
  import { STAY_CHANGE_KINDS, normalizeHhmm, type UnderstandingStaySignal } from "./stay-change";
  import { HOUSE_RULE_TOPICS, RULE_STANCES, type HouseRuleTopic, type RuleStance } from "@/lib/house-rules/core";
  import { ITEM_RELATIONS, type ItemRelation } from "@/lib/conversation-items/relation-kinds";
-@@ -110,8 +110,13 @@ export function understandingWindow(
-     .map((m) => ({ id: m.id, body: m.body, at: m.at }));
+@@ -91,10 +91,24 @@ export interface UnderstandingHistoryEntry {
+  * mesaja kadarki son UNDERSTANDING_MAX_CONTEXT mesajdır. İstem ([1]..[n] numaraları) ve öğe eşlemesi BU listeyi kullanır. Cevapsız
+  * misafir mesajlarının ARASINA düşen otomatik şablon mesajı (K7) ne bağlamda ne cevapsız listede yer alır (sırayı bozmamak için).
+  */
++/** G1b: son cevaptan sonra gelen otomatik şablon mesajlarından istemde en çok bu kadarı (en yeniler) görünür. */
++export const UNDERSTANDING_MAX_TEMPLATES = 2;
++
+ export function understandingWindow(
+   history: readonly UnderstandingHistoryEntry[] | undefined,
+   guestMessage: string,
+-): { context: UnderstandingHistoryEntry[]; unanswered: { id?: string; body: string; at?: Date }[]; unseen: number } {
++): {
++  context: UnderstandingHistoryEntry[];
++  unanswered: { id?: string; body: string; at?: Date }[];
++  unseen: number;
++  /**
++   * G1b (ölçüm 10-14): son cevaptan SONRA gelen otomatik şablon mesajları (K7: cevap değiller, pencereyi sıfırlamazlar) — misafir onlara
++   * cevap veriyor olabilir ("Wi-Fi bilgileri kartta" → "Kartı bulamadık, şifre neydi?"). `before` = istemde kaç numaralı cevapsız
++   * mesajdan ÖNCE yazılacağı (0'dan; `unanswered.length` = hepsinin ardından) — kronoloji korunur, numaralandırma ve öğe eşlemesi
++   * DEĞİŞMEZ, bağlam tavanından yer yemez.
++   */
++  templates: { body: string; at?: Date; before: number }[];
++} {
+   const hist = (history ?? []).filter((m) => typeof m.body === "string" && m.body.trim().length > 0);
+   // K7 (kurucu onayı 09-30): son CEVAPLAYAN giden mesaj — otomatik şablon mesajı cevapsız pencereyi sıfırlamaz (kapıyla aynı kural).
+   let lastOut = -1;
+@@ -104,16 +118,25 @@ export function understandingWindow(
+       break;
+     }
+   }
+-  const pending = hist
+-    .slice(lastOut + 1)
+-    .filter((m) => m.direction === "inbound")
+-    .map((m) => ({ id: m.id, body: m.body, at: m.at }));
++  const pending: { id?: string; body: string; at?: Date }[] = [];
++  const rawTemplates: { body: string; at?: Date; after: number }[] = [];
++  for (const m of hist.slice(lastOut + 1)) {
++    if (m.direction === "inbound") pending.push({ id: m.id, body: m.body, at: m.at });
++    // Not (mutasyon, EŞDEĞER): son cevaplayan mesajdan sonraki her giden mesaj tanım gereği şablondur (`isAnsweringOutbound`); yazar
++    // denetimi o tanım değişirse araya ev sahibi cevabı sızmasın diye savunma olarak durur.
++    else if (isAutomationMessage(m)) rawTemplates.push({ body: m.body, at: m.at, after: pending.length });
++  }
    if (pending[pending.length - 1]?.body !== guestMessage) pending.push({ id: undefined, body: guestMessage, at: undefined });
    const unanswered = pending.slice(-UNDERSTANDING_MAX_UNANSWERED);
-+  // G1b (ölçüm 10-14: 19 senaryo × 2, 35/38 → 38/38): son cevaptan SONRA gelen otomatik şablon mesajı da bağlama girer ("Automated message:") — misafir
-+  // ona cevap veriyor olabilir ("Wi-Fi bilgileri kartta" → "Kartı bulamadık, şifre neydi?"). Cevapsız pencere yine sıfırlanmaz (K7).
-+  // Not (mutasyon, EŞDEĞER): son cevaplayan mesajdan sonraki her giden mesaj tanım gereği şablondur (`isAnsweringOutbound`); yazar
-+  // denetimi o tanım değişirse bağlama ev sahibi cevabının sızmasın diye savunma olarak durur.
-+  const autoAfter = hist.slice(lastOut + 1).filter((m) => m.direction !== "inbound" && isAutomationMessage(m));
++  const unseen = pending.length - unanswered.length;
++  const templates = rawTemplates
++    .slice(-UNDERSTANDING_MAX_TEMPLATES)
++    .map((t) => ({ body: t.body, at: t.at, before: Math.min(unanswered.length, Math.max(0, t.after - unseen)) }));
    return {
--    context: hist.slice(0, lastOut + 1).slice(-UNDERSTANDING_MAX_CONTEXT),
-+    context: [...hist.slice(0, lastOut + 1), ...autoAfter].slice(-UNDERSTANDING_MAX_CONTEXT),
+     context: hist.slice(0, lastOut + 1).slice(-UNDERSTANDING_MAX_CONTEXT),
      unanswered,
-     unseen: pending.length - unanswered.length,
+-    unseen: pending.length - unanswered.length,
++    unseen,
++    templates,
    };
+ }
+ 
 diff --git a/tests/unit/automated-message-rules.test.ts b/tests/unit/automated-message-rules.test.ts
-index 7361ff3..057d59d 100644
+index 7361ff3..8a15081 100644
 --- a/tests/unit/automated-message-rules.test.ts
 +++ b/tests/unit/automated-message-rules.test.ts
-@@ -215,10 +215,11 @@ describe("pencere hesaplayan yardımcılar otomatik mesajı cevap saymaz", () =>
+@@ -215,10 +215,12 @@ describe("pencere hesaplayan yardımcılar otomatik mesajı cevap saymaz", () =>
      expect(pendingGuestMessages([G1, W, G2], G2.body)).toEqual([G1.body]);
      expect(pendingGuestMessages([G1, H, G2], G2.body)).not.toContain(G1.body);
    });
@@ -56,18 +118,18 @@ index 7361ff3..057d59d 100644
 +  it("anlama katmanının cevapsız listesi (K7 bağlantısı 10-12): şablon pencereyi sıfırlamaz, cevapsız listeye girmez; G1b: BAĞLAMA girer", () => {
      const auto = understandingWindow([G1, W, G2], G2.body);
      expect(auto.unanswered.map((m) => m.body)).toEqual([G1.body, G2.body]);
--    expect(auto.context).toEqual([]);
-+    // G1b (ölçüm 10-14): misafir şablona cevap veriyor olabilir ("Wi-Fi bilgileri kartta" → "Kartı bulamadık, şifre neydi?").
-+    expect(auto.context.map((m) => m.body)).toEqual([W.body]);
++    // G1b (ölçüm 10-14): misafir şablona cevap veriyor olabilir — şablon bağlama DEĞİL, cevapsız mesajların arasına yazıldığı yerde.
+     expect(auto.context).toEqual([]);
++    expect(auto.templates).toEqual([{ body: W.body, at: undefined, before: 1 }]);
      const host = understandingWindow([G1, H, G2], G2.body);
      expect(host.unanswered.map((m) => m.body)).toEqual([G2.body]);
      expect(host.context.map((m) => m.body)).toEqual([G1.body, H.body]);
 diff --git a/tests/unit/understanding-automation-label.test.ts b/tests/unit/understanding-automation-label.test.ts
 new file mode 100644
-index 0000000..7623dfc
+index 0000000..a78d584
 --- /dev/null
 +++ b/tests/unit/understanding-automation-label.test.ts
-@@ -0,0 +1,41 @@
+@@ -0,0 +1,63 @@
 +import { describe, it, expect } from "vitest";
 +import { buildUnderstandingUserContent } from "@/lib/ai/semantic/understand";
 +
@@ -97,15 +159,37 @@ index 0000000..7623dfc
 +    expect(content).not.toContain("Automated message");
 +  });
 +
-+  it("G1b (ölçüm 10-14): son cevaptan SONRA gelen şablon da bağlamda görünür, cevapsız listeye girmez", () => {
++  it("G1b (ölçüm 10-14): son cevaptan SONRA gelen şablon cevapsız mesajların ARASINA, kronolojik yerine, numarasız yazılır", () => {
 +    const content = buildUnderstandingUserContent({
-+      guestMessage: "Kartı bulamadık, şifre neydi?",
++      guestMessage: "Tamam, 12'de geliriz.",
 +      history: [
-+        { direction: "outbound", body: "Hoş geldiniz! Wi-Fi bilgileri buzdolabındaki kartta.", author: "automation" },
-+        { direction: "inbound", body: "Kartı bulamadık, şifre neydi?" },
++        { direction: "outbound", body: "Evet, otopark var.", author: "host" },
++        { direction: "inbound", body: "Erken gelebilir miyiz?" },
++        { direction: "outbound", body: "Hoş geldiniz! Giriş 15:00.", author: "automation" },
++        { direction: "inbound", body: "Tamam, 12'de geliriz." },
 +      ],
 +    } as never);
-+    expect(content).toMatch(/Automated message[^\n]*Wi-Fi bilgileri buzdolabındaki kartta/u);
-+    expect(content).not.toMatch(/\[\d+\][^\n]*Wi-Fi bilgileri buzdolabındaki kartta/u);
++    const lines = content.split("\n");
++    const i1 = lines.findIndex((l) => l.startsWith("[1]") && l.includes("Erken gelebilir"));
++    const it = lines.findIndex((l) => l.startsWith("Automated message (not an answer)") && l.includes("Giriş 15:00"));
++    const i2 = lines.findIndex((l) => l.startsWith("[2]") && l.includes("12'de geliriz"));
++    expect(i1).toBeGreaterThan(-1);
++    expect(it).toBeGreaterThan(i1);
++    expect(i2).toBeGreaterThan(it);
++    // Bağlamda yalnız gerçek cevap; şablon numara almaz.
++    expect(content).not.toMatch(/\[\d+\][^\n]*Giriş 15:00/u);
++  });
++  it("G1b: şablonlar bağlam tavanından yer YEMEZ, en çok son 2 şablon görünür", () => {
++    const history = [
++      ...Array.from({ length: 6 }, (_, i) => ({ direction: i % 2 ? ("outbound" as const) : ("inbound" as const), body: `gerçek ${i}`, ...(i % 2 ? { author: "host" } : {}) })),
++      ...Array.from({ length: 4 }, (_, i) => ({ direction: "outbound" as const, body: `şablon ${i}`, author: "automation" })),
++      { direction: "inbound" as const, body: "Soru?" },
++    ];
++    const content = buildUnderstandingUserContent({ guestMessage: "Soru?", history } as never);
++    for (let i = 1; i < 6; i++) expect(content).toContain(`gerçek ${i}`);
++    expect(content).not.toContain("şablon 0");
++    expect(content).not.toContain("şablon 1");
++    expect(content).toContain("şablon 2");
++    expect(content).toContain("şablon 3");
 +  });
 +});

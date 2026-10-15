@@ -369,6 +369,111 @@
           "early_checkin"
         ]
       }
+    },
+    {
+      "id": "gtg-tr-erken-giriş",
+      "lang": "tr",
+      "history": [
+        {
+          "a": "host",
+          "t": "Otopark bina altında, ücretsiz."
+        },
+        {
+          "a": "in",
+          "t": "Erken gelebilir miyiz?"
+        },
+        {
+          "a": "auto",
+          "t": "Hoş geldiniz! Giriş saatimiz 15:00. Erken giriş müsaitliğe göre mümkün olabilir."
+        }
+      ],
+      "message": "Tamam, o zaman 12:00'de geliyoruz.",
+      "expect": {
+        "stayKind": "early_checkin",
+        "checkinTime": "12:00",
+        "intentsAny": [
+          "early_checkin"
+        ]
+      }
+    },
+    {
+      "id": "gtg-tr-wifi-kart",
+      "lang": "tr",
+      "history": [
+        {
+          "a": "host",
+          "t": "Evet, havlular dolapta."
+        },
+        {
+          "a": "in",
+          "t": "Teşekkürler!"
+        },
+        {
+          "a": "auto",
+          "t": "Hoş geldiniz! Wi-Fi bilgileri buzdolabının üstündeki kartta yazıyor."
+        }
+      ],
+      "message": "Kartı bulamadık, şifre neydi?",
+      "expect": {
+        "stayRequested": false,
+        "intentsAny": [
+          "wifi"
+        ]
+      }
+    },
+    {
+      "id": "gtg-en-late-checkout",
+      "lang": "en",
+      "history": [
+        {
+          "a": "host",
+          "t": "Yes, the pool is open until 8pm."
+        },
+        {
+          "a": "in",
+          "t": "Great, thanks!"
+        },
+        {
+          "a": "auto",
+          "t": "Reminder: check-out tomorrow is at 11:00. Need a late checkout? Just reply to this message."
+        }
+      ],
+      "message": "Yes please, 1pm would be great.",
+      "expect": {
+        "stayKind": "late_checkout",
+        "checkoutTime": "13:00",
+        "intentsAny": [
+          "late_checkout"
+        ]
+      }
+    },
+    {
+      "id": "gtg-tr-çıkış-bilgi-kontrol",
+      "lang": "tr",
+      "history": [
+        {
+          "a": "host",
+          "t": "Rica ederiz, iyi tatiller."
+        },
+        {
+          "a": "in",
+          "t": "Her şey için teşekkürler."
+        },
+        {
+          "a": "auto",
+          "t": "Yarın çıkış saatiniz 11:00. Anahtarları içeride bırakmanız yeterli."
+        }
+      ],
+      "message": "Tamam, anahtarları masaya bırakırız.",
+      "expect": {
+        "stayRequested": false,
+        "intentsAny": [
+          "checkout_time",
+          "access_keys",
+          "greeting_thanks",
+          "other"
+        ]
+      }
     }
   ]
 }
