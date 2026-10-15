@@ -88,6 +88,21 @@ describe("arıza sinyali (saf)", () => {
     ["Sí, el televisor no funciona", true],
     ["Klima arıza yaparsa televizyon çalışmıyor", true],
     ["Asansör nerede, tekerlek kırık", false],
+    // Kayıtlı mesajlardan (10-15 gece) kaçan biçimler
+    ["Kapının kilidi takılıyor, dışarıdan zor kilitleniyor", true],
+    ["Klimanın fanı dönmüyor", true],
+    ["Klima kumandası hiçbir tuşa tepki vermiyor", true],
+    ["Yarım saattir internet yok", true],
+    ["The ceiling fan won't respond to the remote", true],
+    ["There's no hot water since last night", true],
+    ["Die Klimaanlage reagiert nicht", true],
+    ["Le fer à repasser ne chauffe plus", true],
+    ["El aire acondicionado no arranca", true],
+    // Bilinen sınır: cihaz SÖZLÜKTE yoksa (davlumbaz, blender) arıza sayılmaz — anlama katmanının Türkçe sorgusu da aynı sözlükten okunur
+    ["Davlumbazın fanı dönmüyor", false],
+    // aşırı uygulama yok
+    ["Internet şifresi ne?", false],
+    ["Wi-Fi var mı?", false],
     ["Klima, çalışmıyor", true],
     ["Asansör var mı, bavulun tekerleği kırık", false],
     ["Asansör var mı, tekerlek kırık", false],
@@ -190,6 +205,19 @@ describe("anahtar AÇIK — liste kipi ve konusu çıkarılamayan arıza (Opus N
     const { plan } = planOf("Ekranda görüntü yok. Çöpleri nereye atıyoruz?", [screen, TRASH]);
     expect(plan.answerable.map((a) => a.item.kind)).toEqual(["trash"]);
     expect(plan.gateItems.heldDeviceTopics).toEqual(["tv"]);
+  });
+});
+
+describe("anahtar AÇIK — modelin şikâyeti BAŞKA cihaz hakkındaysa ikinci arıza da bağlı (mutasyon N9b)", () => {
+  it("🚨 'Klima çalışmıyor' (model şikâyet dedi) + 'televizyonda görüntü yok' (model şikâyet DEMEDİ) + çöp → TV cevaplanmaz, çöp cevaplanır", () => {
+    vi.stubEnv("AI_FAULT_GUARD_ENABLED", "1");
+    const body = "Klima çalışmıyor. Televizyonda görüntü yok. Çöpler nereye atılıyor?";
+    const { plan } = planOf(body, [
+      { intent: "complaint_issue", q: "klima çalışmıyor", relation: "own_topic" },
+      { intent: "appliance_help", q: "televizyonda görüntü yok", relation: "own_topic" },
+      TRASH,
+    ]);
+    expect(plan.answerable.map((a) => a.item.kind)).toEqual(["trash"]);
   });
 });
 

@@ -1117,12 +1117,16 @@ const FAULT_PHRASE_SOURCE = [
     `${L}(?:calismiyor(?:du)?|calismadi|calismiyo|calismaz|acilmiyor(?:du)?|acilmadi|acilmaz|bozuk|bozuldu|bozulmus|arizali|arizalandi|ariza(?:si|lari)?|isinmiyor(?:du)?|isitmiyor|sogutmuyor(?:du)?|akmiyor(?:du)?|gelmiyor(?:du)?|yanmiyor(?:du)?|kapanmiyor|baglanmiyor(?:du)?|cekmiyor|tikali|tikandi|sizdiriyor|damlatiyor|kirik|kirildi)${R}`,
     `${L}(?:goruntu|ses|sinyal)\\p{L}{0,3} (?:yok|gelmiyor|vermiyor|gitti)${R}`,
     `${L}siyah ekran${R}`,
+    // Kayıtlı misafir mesajlarında kaçan biçimler (10-15 gece ölçümü): takılma / dönmeme / tepkisizlik / ses çıkmaması / hata kodu /
+    // "<hizmet> yok" (internet, sıcak su, elektrik, ısıtma — cihaz kavramı yine şart).
+    `${L}(?:takiliyor|takildi|takili kaldi|donmuyor|tepki vermiyor|cevap vermiyor|ses cikmiyor|calismayi durdurdu|durmadan kapaniyor|kendi kendine kapaniyor|hata veriyor|hata kodu|e ?\\d{1,3} (?:hatasi|yaziyor|veriyor))${R}`,
+    `${L}(?:internet|wifi|wi-fi|sicak su|elektrik|isitma|isik)\\p{L}{0,4} (?:yok|gitti|kesildi|gelmiyor)${R}`,
     // en
-    `${L}(?:not working|doesn't work|does not work|won't turn on|will not turn on|won't start|stopped working|broken|no picture|black screen|no sound|no signal|not heating|not cooling|leaking|clogged)${R}`,
+    `${L}(?:not working|doesn't work|does not work|won't turn on|will not turn on|won't start|stopped working|broken|no picture|black screen|no sound|no signal|not heating|not cooling|leaking|clogged|won't respond|doesn't respond|does not respond|not responding|no hot water|no internet|no wifi|no power|got stuck|is stuck|only blows (?:cold|warm|hot) air|won't open|won't connect|keeps (?:beeping|turning off|shutting off))${R}`,
     // de / fr / es
-    `${L}(?:funktioniert nicht|geht nicht|kaputt|kein bild|kein ton|kein signal|ne marche pas|ne fonctionne pas|en panne|pas d'image|pas de son|no funciona|averiad[oa]|sin imagen|sin sonido)${R}`,
+    `${L}(?:funktioniert nicht|geht nicht|kaputt|kein bild|kein ton|kein signal|reagiert nicht|geht nicht an|kein warmes wasser|kein internet|ne marche pas|ne fonctionne pas|en panne|pas d'image|pas de son|ne s'allume plus|ne chauffe plus|ne repond pas|pas d'eau chaude|plus d'internet|no funciona|averiad[oa]|sin imagen|sin sonido|no arranca|no responde|no enciende|no calienta|no enfria|no hay agua caliente|no hay internet)${R}`,
     // ru / ar (katlama Latin dışını değiştirmez)
-    `(?:не работает|сломал\\p{L}{0,2}|не включается|нет изображения|нет звука|لا يعمل|معطل)`,
+    `(?:не работает|сломал\\p{L}{0,2}|не включается|нет изображения|нет звука|не реагирует|не греет|не охлаждает|нет горячеи воды|нет интернета|لا يعمل|لا تعمل|لا يبرد|لا تبرد|معطل)`,
 ].join("|");
 const FAULT_PHRASE = new RegExp(FAULT_PHRASE_SOURCE, "u");
 /** Aynı kalıbın küresel biçimi — bir cümlecikteki BÜTÜN arıza geçişleri (ilki koşullu olsa da ikincisi okunur — Haiku 10-15 gece). */

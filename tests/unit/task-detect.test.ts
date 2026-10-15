@@ -284,6 +284,11 @@ describe("kurucu D4 — arıza görev tespiti genişledi; soru / varsayım / olu
     expect(detect(m)?.type).toBe(type);
   });
 
+  it("genel cihaz şikâyeti kuralında da (arıza fiili yok) sahiplik bütün mesajdan okunmaz — mutasyon N6c", () => {
+    expect(detect("Valizleri getirdik. Televizyon çok kötü, berbat.")).toMatchObject({ type: "maintenance", topic: "cihaz/olanak" });
+    expect(detect("We brought our own coffee. The TV is terrible, really disappointed.")).toMatchObject({ type: "maintenance" });
+  });
+
   it("aşırı düzeltme yok: arızalı cihazın KENDİ cümleciğindeki sahiplik hâlâ görev açmaz", () => {
     expect(detect("Getirdiğimiz kahve makinesi bozuldu.")).toBeNull();
     expect(detect("Kendi kahve makinemiz bozuldu")).toBeNull();
