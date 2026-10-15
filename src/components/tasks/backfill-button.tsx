@@ -43,7 +43,8 @@ export function BackfillTasksButton({ count }: { count?: number }) {
   return (
     <Button variant="outline" onClick={run} disabled={busy}>
       {busy ? <Loader2 className="size-4 animate-spin" /> : <ListPlus className="size-4" />}
-      {count ? `Eksik görevleri oluştur (${count})` : "Eksik görevleri oluştur"}
+      {/* Sayı REZERVASYON sayısıdır (çıkış temizliği eksik), görev sayısı değil — düğme giriş hazırlığını da açar (Opus O14, 10-15). */}
+      {count ? `Eksik görevleri oluştur (${count} rezervasyon)` : "Eksik görevleri oluştur"}
     </Button>
   );
 }

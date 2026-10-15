@@ -405,3 +405,11 @@ Hepsi kör set 6'dan (Luna, kabul seti — o setin bilgi tabanını açmam yasak
 - **H6c · Kabul setlerinin bilgi tabanını sayfada görmek:** o dosyaları açmam yasak (kör ölçüm bozulmasın diye senin kuralın). Sayfada
   göstermem için ya (1) yalnız BİLGİ TABANI bölümünü okumama izin verirsin (beklenen cevaplar / puanlar kapalı kalır) ya da (2) kör setleri
   sayfadan çıkarıp yalnız dev setlerini bırakırım. Hangisi?
+
+### H7 · Küçük kalanlar (Opus D17 listesinden)
+- **O14 (yapıldı, haber):** Görevler sayfasındaki "Eksik görevleri oluştur (3)" düğmesindeki sayı GÖREV değil çıkış temizliği eksik REZERVASYON
+  sayısıydı (düğme giriş hazırlığını da açtığı için bildirimde "5 görev oluşturuldu" çıkabiliyordu). Etiket artık "Eksik görevleri oluştur
+  (3 rezervasyon)". Sayım kuralı değişmedi.
+- **O16 (soru):** D1'de "sıradan Ekle'ye tekrar basmak ikinci kayıt onayı sayılmasın" dedin — bu yalnız bilgi tabanı FORMUNDA uygulandı.
+  "Şablondan öneriler" ve "Geçmiş cevaplar" ekranlarında 409'dan sonra "Ekle"ye tekrar basmak bugün ikinci kalem açar. Aynı kural oralarda
+  da uygulansın mı (409 → "Kaydedilen bilgiyi düzenle" / "Ayrı bir bilgi olarak ekle" seçimi)? Önerim evet.
