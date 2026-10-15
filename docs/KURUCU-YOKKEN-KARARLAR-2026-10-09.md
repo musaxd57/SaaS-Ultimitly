@@ -422,6 +422,10 @@ yalnız gitmemesi gerekenler artık gitmiyor):**
   bugün 36/39 → 38/39), blok yalnız iki sorulu mesajda ~+%55 (1,7k → 2,6k karakter; geniş bütçede ~7 kat, 11,8k);
   soru başına sıralayıcı etiketi ise kötüleştirdi (33/39). Öneri: tavan yalnız çok sorulu mesajda soru sayısıyla büyüsün, tek soru aynen
   (`docs/olcum/rag-lab-2026-10-14-4.md` sonu, tekrarlar `-5` / `-6`, 60 kalem `-7`: 110 → 112/120, sızıntı 0). Açmak yine sizin kararınız.
+  **ÖZET ÖNERİ (aynı gece, 10 koşu):** asıl kazanç zaten onayladığınız İngilizce köprü sorgusunda (#13, `AI_UNDERSTANDING_EN_QUERY_ENABLED`):
+  60 kalemde iki soru 110 → **117/120** (kaçanlar Türkçe soru ↔ İngilizce yazılmış kalem), 300 kalemde 36 → 38/39, tek soruda fark yok
+  (taze sıralayıcıyla köprü açık / kapalı ikisi de 81/82), sızıntı 0 (`-8`, `-9`, `-10`, `-11`). Köprü açıkken parça tavanı 60 ve 300
+  kalemde EK kazanç vermiyor → bugün yalnız köprü yeter; parça tavanı (9k / 18) büyük bilgi tabanlı müşteri gelirse yeniden ölçülür.
 - YAPILDI (10-14 gece, Haiku ikinci tur, müşteriye giden metin DEĞİŞMEDİ — yalnız gitmemesi gereken gitmiyor): "olası" tehlike + anlama
   katmanı koşmadı → tur ev sahibine (QR devir, kanal tutuş). Eskiden "Kısa devre oldu, wifi şifresi neydi?" anlama katmanı düşünce Wi-Fi
   cevabıyla gidiyordu (kelime ağı "kısa devre"yi tanımaz — sizin 10-14 kararınız). Mutasyon 6/6.
