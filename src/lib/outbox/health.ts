@@ -2,6 +2,7 @@ import "server-only";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { outboxDeliveryPaused } from "@/lib/outbox/flag";
+import { billingBlockedOrgIds, billingHeldSql } from "@/lib/outbox/billing-hold";
 
 // ---------------------------------------------------------------------------
 // KUYRUK SAĞLIĞI (yalnız operatör, sistem geneli; 10-16 kurucu: "görseldeki sistem tarzında bir sistemimiz var mı" — transactional outbox +
@@ -117,6 +118,8 @@ export async function queueStallStates(now: Date = new Date()): Promise<{ messag
   const since = new Date(now.getTime() - QUEUE_STALL_MS);
   const autoAllowed = process.env.AUTO_REPLY_ENABLED === "1";
   const paused = outboxDeliveryPaused();
+  // Abonelik erişimi kapalı işletmenin bekletilen otomatik satırı "takılı" sayılmaz (işçinin talep süzgeciyle aynı kural, Haiku 10-16).
+  const billingBlocked = await billingBlockedOrgIds();
   const [mRows, mProgress, eOldest, eProgress, mPaused] = await Promise.all([
     prisma.$queryRaw<{ at: Date | null }[]>(Prisma.sql`
       SELECT MIN(s."availableAt") AS at
@@ -126,12 +129,14 @@ export async function queueStallStates(now: Date = new Date()): Promise<{ messag
         AND s."availableAt" <= ${now}
         AND (s."claimExpiresAt" IS NULL OR s."claimExpiresAt" <= ${now})
         AND (${autoAllowed}::boolean OR s."status" = 'ambiguous' OR s."messageType" IS NULL OR s."messageType" IN ('manual', 'ai', 'holding_ack'))
+        AND NOT ${billingHeldSql("s", billingBlocked)}
         AND NOT EXISTS (
           SELECT 1 FROM "MessageOutbox" e
           WHERE e."conversationId" = s."conversationId"
             AND e."id" <> s."id"
             AND e."status" IN ('pending', 'sending', 'ambiguous', 'reconciling')
             AND NOT (NOT ${autoAllowed}::boolean AND e."status" = 'pending' AND e."messageType" IS NOT NULL AND e."messageType" <> 'manual')
+            AND NOT ${billingHeldSql("e", billingBlocked)}
             AND (e."status" IN ('sending', 'reconciling') OR (e."createdAt", e."id") < (s."createdAt", s."id"))
         )`),
     prisma.messageOutbox.findFirst({
@@ -209,8 +214,11 @@ let queueProbe: { at: number; state: "ok" | "stalled" | "unknown" } | null = nul
 // Süren yoklama PAYLAŞILIR (Codex 10-16, ölçüldü: önbellek boşken 100 eşzamanlı istek 400 veritabanı okuması başlatıyordu). Yoklama bitince
 // (başarı ya da hata) boşalır → sonraki istek yeniden dener; hata sonucu da TTL boyunca önbellekte durur (bugünkü davranış).
 let queueProbeInFlight: Promise<"ok" | "stalled" | "unknown"> | null = null;
+/** Sıfırlama kuşağı: sıfırlamadan önce başlamış yoklamanın sonucu önbelleğe yazılmaz (yalnız test yardımcısı için, Haiku 10-16). */
+let queueProbeGeneration = 0;
 
 async function probeQueueState(now: number): Promise<"ok" | "stalled" | "unknown"> {
+  const generation = queueProbeGeneration;
   let state: "ok" | "stalled" | "unknown";
   try {
     const st = await queueStallStates(new Date(now));
@@ -219,7 +227,7 @@ async function probeQueueState(now: number): Promise<"ok" | "stalled" | "unknown
   } catch {
     state = "unknown";
   }
-  queueProbe = { at: now, state };
+  if (generation === queueProbeGeneration) queueProbe = { at: now, state };
   return state;
 }
 
@@ -238,4 +246,5 @@ export async function strictQueueState(): Promise<"ok" | "stalled" | "unknown"> 
 export function __resetStrictQueueState(): void {
   queueProbe = null;
   queueProbeInFlight = null;
+  queueProbeGeneration += 1;
 }

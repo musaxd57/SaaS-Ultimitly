@@ -20,6 +20,7 @@ vi.mock("@/lib/billing/subscription", async (orig) => {
 
 import { enqueueOutbound } from "@/lib/outbox/enqueue";
 import { drainOutboxOnce, type OutboxSendFn } from "@/lib/outbox/worker";
+import { strictQueueState, __resetStrictQueueState, QUEUE_STALL_MS } from "@/lib/outbox/health";
 
 async function seed() {
   const { orgId, propertyId } = await makeOrgWithProperty();
@@ -90,11 +91,45 @@ describe("abonelik erişimi kapalı işletmenin kuyruktaki otomatik mesajı", ()
     expect(sent).toEqual(["manual"]); // ⬅️ ESKİDE ["ai", "manual"]
     const ai = await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId, messageType: "ai" } });
     expect(ai).toMatchObject({ status: "pending", attemptCount: 0 });
+  });
 
-    // KONTROL: erişim açılınca (ödeme doğrulandı) bekleyen satır normal işlenir.
+  it("KONTROL: erişim açılınca (ödeme doğrulandı) bekleyen otomatik satır normal işlenir", async () => {
+    const { orgId, conversationId } = await seed();
+    await expireAccess(orgId);
+    await enqueue(orgId, conversationId, "ai", "ai-ctl");
+    const { send, sent } = counter();
+    await drainOutboxOnce({ send, tokenFor: async () => "t" });
+    expect(sent).toEqual([]);
     await prisma.subscription.update({ where: { organizationId: orgId }, data: { provider: "paddle", status: "active", trialEndsAt: null } });
     await drainOutboxOnce({ send, tokenFor: async () => "t" });
-    expect(sent).toEqual(["manual", "ai"]);
+    expect(sent).toEqual(["ai"]);
+  });
+
+  it("🚨 eski NULL türlü satır (elle cevap sayılır) erişim kapalıyken de gider; ertelenmiş otomatik satır elle cevabı TIKAMAZ (Haiku 10-16)", async () => {
+    const { orgId, conversationId } = await seed();
+    await expireAccess(orgId);
+    // Ertelenmiş (vadesi gelmemiş) otomatik satır önde, ardından eski NULL türlü bir cevap satırı.
+    await enqueue(orgId, conversationId, "ai", "ai-deferred");
+    await prisma.messageOutbox.updateMany({ where: { idempotencyKey: "ai-deferred" }, data: { availableAt: new Date(Date.now() + 5 * 60_000) } });
+    await prisma.messageOutbox.create({
+      data: { organizationId: orgId, conversationId, channel: "airbnb", externalReservationId: "res-bh", body: "Eski cevap", idempotencyKey: "legacy-null", status: "pending", messageType: null },
+    });
+    const { send, sent } = counter();
+    await drainOutboxOnce({ send, tokenFor: async () => "t" });
+    expect(sent).toEqual(["null"]); // ⬅️ NULL IN (…) süzgeci satırı yanlışlıkla eliyordu / ertelenmiş satır sırayı tıkıyordu
+  });
+
+  it("🚨 kuyruk sağlığı bekletilen otomatik satırı 'takılı' saymaz; KONTROL: erişim açıkken aynı satır takılıdır", async () => {
+    const { orgId, conversationId } = await seed();
+    await expireAccess(orgId);
+    await enqueue(orgId, conversationId, "ai", "ai-old");
+    const old = new Date(Date.now() - QUEUE_STALL_MS - 60_000);
+    await prisma.messageOutbox.updateMany({ where: { idempotencyKey: "ai-old" }, data: { availableAt: old, createdAt: old } });
+    __resetStrictQueueState();
+    expect(await strictQueueState()).toBe("ok"); // ⬅️ yanlış "ilerlemiyor" alarmı yok
+    await prisma.subscription.update({ where: { organizationId: orgId }, data: { provider: "paddle", status: "active", trialEndsAt: null } });
+    __resetStrictQueueState();
+    expect(await strictQueueState()).toBe("stalled");
   });
 
   it("🚨 talepten SONRA erişim kapandı: gönderim anı kemeri POST etmez, satır ertelenir (deneme sayılmaz)", async () => {

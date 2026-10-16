@@ -986,12 +986,12 @@ const GUEST_QUESTION = new RegExp(
 
 /**
  * Misafir arızanın yanında BAŞKA bir şey soruyor mu: arıza taşımayan, genel takip sorusu ("ne yapmalıyız", "what should we do") olmayan bir
- * soru cümleciği. Bütün cümlecikler okunur (doğrusal; misafir metni 8.000 karakterle sınırlı).
+ * soru cümleciği. Bütün cümlecikler okunur (doğrusal; mesaj başına 8.000 karakter, birleşik cevapsız mesajlar en çok ~32.000).
  */
 function asksBesidesFault(text: string): boolean {
   const parts = text.split(FAULT_CLAUSE_SPLIT);
-  // Bütün cümlecikler (Codex 10-16: tavan okunmayan kısmı sessizce "yok" sayıyordu). Doğrusal; misafir metni 8.000 karakterle sınırlı
-  // (`ai/message-length.ts`, üstü ev sahibine kalır).
+  // Bütün cümlecikler (Codex 10-16: tavan okunmayan kısmı sessizce "yok" sayıyordu). Doğrusal; misafir mesajı başına 8.000 karakter
+  // (`ai/message-length.ts`, üstü ev sahibine kalır), birleşik cevapsız mesajlar en çok ~32.000 (süre pini `fault-reader-cost.test.ts`).
   for (let i = 0; i < parts.length; i += 2) {
     const clause = parts[i] ?? "";
     if (clause.trim() === "") continue;
@@ -1392,7 +1392,7 @@ const NON_DEVICE_SUBJECT = new RegExp(
  * Metnin bildirdiği AÇIK cihaz arızaları (cihaz kavramları). Sıra önemlidir: arızadan SONRA gelen düzelme ("çalışmadı ama sonra düzeldi")
  * yalnız KENDİ cümleciğinin cihazını ya da (cihazsızsa) son arızalı cihazı kapatır — başka cihazın düzelmesi arızayı silmez ("Klima hâlâ
  * çalışmıyor, internet ise düzeldi" — Opus gece-2 M4, ölçüldü); düzelmeden SONRA gelen arıza ("düzeldi ama şimdi yine çalışmıyor") açar.
- * "Düzeldi mi?" / "hallettik sandık" düzelme değildir. Cümleciğin BÜTÜN arıza geçişleri okunur. Bütün cümlecikler, doğrusal (misafir metni 8.000 karakterle sınırlı).
+ * "Düzeldi mi?" / "hallettik sandık" düzelme değildir. Cümleciğin BÜTÜN arıza geçişleri okunur. Bütün cümlecikler, doğrusal (mesaj başına 8.000, birleşik ~32.000 karakter).
  */
 export function faultDevicesOf(text: string): Set<string> {
   const open = new Set<string>();

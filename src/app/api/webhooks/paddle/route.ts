@@ -752,8 +752,9 @@ export async function POST(req: NextRequest): Promise<Response> {
     // is safe. Upsert reuses the existing row instead of colliding on its id.
     // KÜÇÜLTME KARARI YENİDEN İŞLEMEDE KORUNUR (Codex 10-16, ölçüldü): "silinen hesap" olayı küçültülüp "inceleme" kaldıktan sonra Paddle
     // aynı olayı yeniden gönderince upsert HAM gövdeyi geri yazıyordu; ikinci işlemede gerekçe "unlinked" çıktığı için yeniden küçültülmüyordu
-    // → ad / e-posta / adres geri geldi. Bir kez küçültülmüş yük (silinen hesap / KVKK silme / 12 ay) hiçbir yeniden işlemede ham gövdeyle
-    // ezilmez; işleme bellekteki gövdeyle sürer (finansal inceleme devam eder).
+    // → ad / e-posta / adres geri geldi. Artık yeniden işleme saklı yüke HİÇ yazmaz (aynı olay kimliği = aynı gövde; ilk teslim yazdı): bir kez
+    // küçültülmüş yük (silinen hesap / KVKK silme / 12 ay) ezilmez, okuma ile yazma arasında koşan küçültme işiyle yarış da yok (Haiku 10-16).
+    // İşleme bellekteki gövdeyle sürer (finansal inceleme devam eder). Olay kimliksiz teslim (Paddle her zaman gönderir) eski davranışta.
     let storedMinimized = false;
     if (providerEventId) {
       const existing = await prisma.webhookEvent.findUnique({ where: { providerEventId } });
@@ -765,7 +766,7 @@ export async function POST(req: NextRequest): Promise<Response> {
       await prisma.webhookEvent.upsert({
         where: { providerEventId },
         create: { provider: "paddle", eventType, providerEventId, payloadJson: rawBody, status: "received" },
-        update: { status: "received", eventType, ...(storedMinimized ? {} : { payloadJson: rawBody }), error: null },
+        update: { status: "received", eventType, error: null },
       });
     } else {
       await prisma.webhookEvent.create({

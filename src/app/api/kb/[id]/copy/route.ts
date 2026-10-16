@@ -156,7 +156,8 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
           // kaynak arada değişti, aynı kimlikle yeniden deneme "kaynak değişti" uyuşmazlığını (409) görmeden iki kopyayı da yeni metne
           // çeviriyordu. Artık tekrar bu kalemi "bu işlem yazdı" diye tanır (atlar) ve yukarıdaki içerik izi kıyası güncellenen kalemi de
           // kapsar. Kalemin eski oluşturma kimliğinin yerini alır: eski işlemin tekrarı kopyayı kaynak bağından (`copiedFromId`) bulur, ikinci
-          // kalem açılmaz.
+          // kalem açılmaz; o eski kimliğin tekrarı 409 yerine kaynağın GÜNCEL içeriğiyle ilerler (bütün yazımlar güncel sürüme yakınsar —
+          // daireler arasında karışık içerik oluşmaz; "aynı kimlik → 409" sözü yalnız kalemi en son yazan işlem için geçerli, Haiku 10-16).
           ...(copyKey != null ? { clientRequestId: copyKey } : {}),
           // Onay soyu kaynaktan (yeni kopya ile aynı kural — ↓ create yorumu).
           source: source.source,
