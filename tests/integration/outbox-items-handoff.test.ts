@@ -137,12 +137,41 @@ describe("kuyruk teslim etkisi — devir kilidi kuyruğa girişteki karara uyar"
     expect(await holdOf(first.conversationId)).toBeInstanceOf(Date);
   });
 
-  it("süresi dolan işaret süpürülür, süresi dolmayan kalır", async () => {
-    const a = await seed({ exempt: true });
-    const b = await seed({ exempt: true });
-    await prisma.systemLock.update({ where: { name: handoffExemptName(a.outboxId) }, data: { lockedUntil: new Date(Date.now() - 1000) } });
+  it("süre dolunca KÖRÜ KÖRÜNE silinmez (Haiku 10-16): hâlâ teslim edilebilen satırın işareti uzar, ölü satırınki silinir", async () => {
+    const blocked = await seed({ exempt: true }); // abonelik dönünce `pending`e döner → karar hâlâ gerekli
+    const canceled = await seed({ exempt: true });
+    const oldSent = await seed({ exempt: true }); // teslim edileli 4 gün (onarıcı penceresi çoktan geçti)
+    const freshSent = await seed({ exempt: true }); // teslim edileli 1 saat (onarıcı hâlâ okuyabilir)
+    const fresh = await seed({ exempt: true }); // süresi dolmamış → dokunulmaz
+    await prisma.messageOutbox.update({ where: { id: blocked.outboxId }, data: { status: "blocked" } });
+    await prisma.messageOutbox.update({ where: { id: canceled.outboxId }, data: { status: "canceled" } });
+    await prisma.messageOutbox.update({ where: { id: oldSent.outboxId }, data: { status: "sent", sentAt: new Date(Date.now() - 4 * 24 * 60 * 60_000) } });
+    await prisma.messageOutbox.update({ where: { id: freshSent.outboxId }, data: { status: "sent", sentAt: new Date(Date.now() - 60 * 60_000) } });
+    const past = new Date(Date.now() - 1000);
+    for (const r of [blocked, canceled, oldSent, freshSent]) {
+      await prisma.systemLock.update({ where: { name: handoffExemptName(r.outboxId) }, data: { lockedUntil: past } });
+    }
+    // Satırı silinmiş (ör. hesap silindi) yetim işaret.
+    await prisma.systemLock.create({ data: { name: handoffExemptName("yetim-satir"), holder: "items", lockedUntil: past } });
+    await prisma.messageOutbox.update({ where: { id: fresh.outboxId }, data: { status: "canceled" } }); // yalnız süre kuralını sınamak için
     await drain();
-    expect(await prisma.systemLock.findUnique({ where: { name: handoffExemptName(a.outboxId) } })).toBeNull();
-    expect(await prisma.systemLock.findUnique({ where: { name: handoffExemptName(b.outboxId) } })).not.toBeNull();
+    const lock = (id: string) => prisma.systemLock.findUnique({ where: { name: handoffExemptName(id) } });
+    expect((await lock(blocked.outboxId))?.lockedUntil.getTime()).toBeGreaterThan(Date.now() + 13 * 24 * 60 * 60_000);
+    expect((await lock(freshSent.outboxId))?.lockedUntil.getTime()).toBeGreaterThan(Date.now());
+    expect(await lock(canceled.outboxId)).toBeNull();
+    expect(await lock(oldSent.outboxId)).toBeNull();
+    expect(await lock("yetim-satir")).toBeNull();
+    expect(await lock(fresh.outboxId)).not.toBeNull(); // süresi dolmamış işarete süpürme dokunmaz
+  });
+
+  it("geç teslim (Haiku 10-16): günlerce `blocked` kalıp abonelik dönünce teslim edilen işaretli satırda kilit KURULMAZ", async () => {
+    const r = await seed({ exempt: true });
+    await prisma.messageOutbox.update({ where: { id: r.outboxId }, data: { status: "blocked" } });
+    await prisma.systemLock.update({ where: { name: handoffExemptName(r.outboxId) }, data: { lockedUntil: new Date(Date.now() - 1000) } });
+    await drain(); // süpürme: satır hâlâ teslim edilebilir → işaret uzar
+    await prisma.messageOutbox.update({ where: { id: r.outboxId }, data: { status: "pending", availableAt: new Date() } }); // abonelik döndü
+    await drain();
+    expect((await prisma.messageOutbox.findUniqueOrThrow({ where: { id: r.outboxId } })).status).toBe("sent");
+    expect(await holdOf(r.conversationId)).toBeNull();
   });
 });
