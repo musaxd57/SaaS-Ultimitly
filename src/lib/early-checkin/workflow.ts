@@ -8,7 +8,7 @@
 
 import { createHash } from "node:crypto";
 import { stayRequestKinds, type AvailabilityPolicyOptions, type StayRequestKind } from "@/lib/ai/availability-claims";
-import { durableOutboxEnabled } from "@/lib/outbox/flag";
+import { durableOutboxEnabledFor } from "@/lib/outbox/flag";
 import { NOT_FULLY_READ_MARGIN, type MessageUnderstanding } from "@/lib/ai/semantic/understanding-schema";
 import {
   agreeRequestedTime,
@@ -157,7 +157,7 @@ export async function runEarlyCheckinWorkflow(args: {
       requestedTime: requested.time,
       now: args.now,
       timeZone: loaded.timeZone,
-      queuedDelivery: durableOutboxEnabled(),
+      queuedDelivery: durableOutboxEnabledFor(args.organizationId),
     });
     const decision = decideEarlyCheckin(loaded.facts, loaded.rule);
     const draft = earlyCheckinApprovalText(decision, earlyCheckinLang(args.detectedLanguage), loaded.rule?.note ?? null, loaded.facts.todayKey);

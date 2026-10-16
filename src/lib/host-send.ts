@@ -6,7 +6,7 @@ import { isUniqueViolation } from "@/lib/db-errors";
 import { sendOnChannel, isDefinitiveSendFailure } from "@/lib/messaging";
 import { resolveOrgChannelCredential } from "@/lib/channels";
 import { claimOutboundSend, releaseOutboundSend } from "@/lib/outbound-claim";
-import { durableOutboxEnabled } from "@/lib/outbox/flag";
+import { durableOutboxEnabledFor } from "@/lib/outbox/flag";
 import { enqueueOutbound } from "@/lib/outbox/enqueue";
 
 // ---------------------------------------------------------------------------
@@ -65,7 +65,7 @@ export async function sendHostMessage(input: HostSendInput): Promise<HostSendRes
   // ── Durable Outbox (flag ON): record the Message + its send INTENT atomically and let the worker deliver it, instead of the
   // synchronous deliver-then-persist below. Falls through to the proven claim-then-send when the flag is OFF (default) or the
   // thread is internal (nothing to deliver). ──
-  if (durableOutboxEnabled() && !isInternal && conversation.externalReservationId) {
+  if (durableOutboxEnabledFor(input.organizationId) && !isInternal && conversation.externalReservationId) {
     const enq = await enqueueOutbound({
       organizationId: input.organizationId,
       conversationId: id,

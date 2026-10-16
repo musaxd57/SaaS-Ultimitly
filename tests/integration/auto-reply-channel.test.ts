@@ -1508,6 +1508,45 @@ describe("applyChannelAutoReply — Durable Outbox (flag ON, #5/#6)", () => {
     expect(await prisma.messageOutbox.count({ where: { conversationId } })).toBe(1); // still ONE
   });
 
+  // O1 GERİ DÖNÜŞ (kurucu + Codex 10-16): "Mesaj kuyrukta ya da gönderim aşamasındayken anahtar kapatılıyor. Mesaj kaybolmasın; eski
+  // gönderim yolu da aynı mesajı ikinci kez göndermesin." Boşaltma anahtardan bağımsız (`scheduled-sync`: anahtar ya da boşaltılacak satır).
+  it("🚨 O1 geri dönüş: kuyruktayken anahtar KAPATILIR → eski (satır içi) yol ikinci cevap ÜRETMEZ, kuyruktaki mesaj TEK kez gider", async () => {
+    const { conversationId } = await seed();
+    const first = await applyChannelAutoReply(conversationId);
+    expect(first.queued).toBe(true);
+    vi.stubEnv("DURABLE_OUTBOX_ENABLED", ""); // geri dönüş: env kaldırıldı
+    const again = await applyChannelAutoReply(conversationId);
+    expect(again.sent).toBe(false);
+    expect(again.skippedReason).toBe("already_answered");
+    expect(mockSend).not.toHaveBeenCalled(); // satır içi yol GÖNDERMEDİ
+    const deliver = vi.fn().mockResolvedValue({ ok: true, providerMessageId: "p-rollback" });
+    await drainOutboxOnce({ send: deliver, tokenFor: async () => "test-token" });
+    await drainOutboxOnce({ send: deliver, tokenFor: async () => "test-token" });
+    expect(deliver).toHaveBeenCalledTimes(1); // kaybolmadı, tek kez
+    expect((await prisma.messageOutbox.findFirstOrThrow({ where: { conversationId } })).status).toBe("sent");
+    expect(await prisma.message.count({ where: { conversationId, direction: "outbound" } })).toBe(1);
+  });
+
+  it("🚨 O1 geri dönüş: GÖNDERİM ORTASINDA (satır 'sending', süreç düştü) anahtar kapatılır → körlemesine tekrar gönderim YOK; satır uzlaştırmaya düşer", async () => {
+    const { conversationId } = await seed();
+    await applyChannelAutoReply(conversationId);
+    const row = await prisma.messageOutbox.findFirstOrThrow({ where: { conversationId } });
+    // Gönderim başladı (sahiplenildi), süreç sonuç yazamadan düştü: sahiplik süresi geçmiş "sending" satırı.
+    await prisma.messageOutbox.update({
+      where: { id: row.id },
+      data: { status: "sending", claimedBy: "olen-surec", claimedAt: new Date(Date.now() - 10 * 60_000), claimExpiresAt: new Date(Date.now() - 5 * 60_000), attemptCount: 1 },
+    });
+    vi.stubEnv("DURABLE_OUTBOX_ENABLED", "");
+    const again = await applyChannelAutoReply(conversationId);
+    expect(again.sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+    const deliver = vi.fn().mockResolvedValue({ ok: true, providerMessageId: "p-should-not" });
+    await drainOutboxOnce({ send: deliver, tokenFor: async () => "test-token" });
+    // Sonucu bilinmeyen gönderim TEKRAR GÖNDERİLMEZ (sağlayıcıda tekrar kimliği yok): belirsiz → sağlayıcı geçmişinden uzlaştırma.
+    expect(deliver).not.toHaveBeenCalled();
+    expect(["ambiguous", "reconciling", "review"]).toContain((await prisma.messageOutbox.findUniqueOrThrow({ where: { id: row.id } })).status);
+  });
+
   // -------------------------------------------------------------------------
   // ARIZA 1 (denetim 08-01, üçüncü tur) — KUYRUK YOLUNDA KENDİNİ VETO ETME.
   //

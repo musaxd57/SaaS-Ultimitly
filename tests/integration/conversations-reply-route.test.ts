@@ -319,6 +319,28 @@ describe("POST /api/conversations/[id]/reply — staff RBAC gate", () => {
     expect(d.status).toBe(400);
   });
 
+  it("O1 liste anahtarı (kurucu 10-16): DURABLE_OUTBOX_ORG_IDS doluysa YALNIZ listedeki işletme kuyruğa yazar; listede olmayan bugünkü gibi anında gönderir", async () => {
+    vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
+    owner();
+    // Listede DEĞİL → satır içi gönderim (201), kuyruk satırı yok.
+    vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", "baska-isletme, ucuncu-isletme");
+    const inline = await POST(req(conversationId, { body: "Listede değil" }), { params: Promise.resolve({ id: conversationId }) });
+    expect(inline.status).toBe(201);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(await prisma.messageOutbox.count({ where: { organizationId: orgId } })).toBe(0);
+    // Listede → kuyruğa yazar (202), anında gönderim yok.
+    vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", ` baska-isletme , ${orgId} `);
+    const queued = await POST(req(conversationId, { body: "Listede" }), { params: Promise.resolve({ id: conversationId }) });
+    expect(queued.status).toBe(202);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(await prisma.messageOutbox.count({ where: { organizationId: orgId } })).toBe(1);
+    // Ana anahtar KAPALIYSA liste hiçbir şey açmaz.
+    vi.stubEnv("DURABLE_OUTBOX_ENABLED", "");
+    const off = await POST(req(conversationId, { body: "Anahtar kapalı" }), { params: Promise.resolve({ id: conversationId }) });
+    expect(off.status).toBe(201);
+    expect(await prisma.messageOutbox.count({ where: { organizationId: orgId } })).toBe(1);
+  });
+
   it("Durable Outbox ON: a double-submit of the same text dedupes to ONE queued row (200)", async () => {
     vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
     owner();

@@ -175,7 +175,7 @@ import { premiumAllowed } from "@/lib/billing/subscription";
 import { errorWithContext, redactSensitive, reportError } from "@/lib/report-error";
 import { redactNameFromBody } from "@/lib/data-retention";
 import { sendOnChannel, isDefinitiveSendFailure } from "@/lib/messaging";
-import { durableOutboxEnabled } from "@/lib/outbox/flag";
+import { durableOutboxEnabled, durableOutboxEnabledFor } from "@/lib/outbox/flag";
 import { enqueueOutbound, enqueueProactive } from "@/lib/outbox/enqueue";
 import { classifySendResult, sendFailureHoldMs, SUPERSEDED_BY_NEWER_MESSAGE, NOT_DELIVERED_STATUSES, PROVIDER_OUTAGE_REASON } from "@/lib/outbox/state";
 import { resolveOrgChannelCredential } from "@/lib/channels";
@@ -981,7 +981,7 @@ async function maybeSendClosingCourtesy(opts: {
   if (claim.count === 0) return false;
 
   // ── Durable Outbox (flag ON) — deterministic key: one courtesy per closing msg.
-  if (durableOutboxEnabled() && opts.conversation.externalReservationId) {
+  if (durableOutboxEnabledFor(opts.organizationId) && opts.conversation.externalReservationId) {
     try {
       await enqueueOutbound({
         organizationId: opts.organizationId,
@@ -3360,7 +3360,7 @@ export async function applyChannelAutoReply(
   // hold, RiskEvent) runs now; only delivery is deferred. externalId stays unset until
   // the worker confirms a provider id. Flag OFF (the production default) skips this
   // whole branch → the inline claim-then-send below runs BYTE-FOR-BYTE as before.
-  if (durableOutboxEnabled() && conversation.externalReservationId) {
+  if (durableOutboxEnabledFor(conversation.property.organizationId) && conversation.externalReservationId) {
     let enq;
     try {
       enq = await enqueueOutbound({
@@ -4655,10 +4655,10 @@ export async function sendDueWelcomes(
     // dedupe-hit, so a scheduler replay / process restart never sends a second welcome. Flag
     // OFF → the proven claim-then-send below runs BYTE-FOR-BYTE as before.
     // Açıkça SİLİNEN (KVKK) misafire kalıcı kuyruk yolunda da satır açılmaz (Haiku 10-14; işçi gönderim anında ayrıca bakar).
-    if (durableOutboxEnabled() && r.sourceReference && (await runErasureGuard()).blocksSourceReference(r.sourceReference)) {
+    if (durableOutboxEnabledFor(organizationId) && r.sourceReference && (await runErasureGuard()).blocksSourceReference(r.sourceReference)) {
       continue;
     }
-    if (durableOutboxEnabled() && r.sourceReference) {
+    if (durableOutboxEnabledFor(organizationId) && r.sourceReference) {
       try {
         const enq = await enqueueProactive({
           organizationId,
@@ -4865,10 +4865,10 @@ export async function sendDueCheckins(
     // Durable Outbox (flag ON): enqueue; the worker delivers and stamps checkinSentAt ONLY on
     // confirmed delivery. Deterministic key (org + booking) → replay/restart dedupes. See welcome.
     // Açıkça SİLİNEN (KVKK) misafire kalıcı kuyruk yolunda da satır açılmaz (Haiku 10-14; işçi gönderim anında ayrıca bakar).
-    if (durableOutboxEnabled() && r.sourceReference && (await runErasureGuard()).blocksSourceReference(r.sourceReference)) {
+    if (durableOutboxEnabledFor(organizationId) && r.sourceReference && (await runErasureGuard()).blocksSourceReference(r.sourceReference)) {
       continue;
     }
-    if (durableOutboxEnabled() && r.sourceReference) {
+    if (durableOutboxEnabledFor(organizationId) && r.sourceReference) {
       try {
         const enq = await enqueueProactive({
           organizationId,
@@ -5228,10 +5228,10 @@ export async function sendDueCheckouts(
     // Durable Outbox (flag ON): enqueue; the worker delivers and stamps checkoutSentAt ONLY on
     // confirmed delivery. Deterministic key (org + booking) → replay/restart dedupes. See welcome.
     // Açıkça SİLİNEN (KVKK) misafire kalıcı kuyruk yolunda da satır açılmaz (Haiku 10-14; işçi gönderim anında ayrıca bakar).
-    if (durableOutboxEnabled() && r.sourceReference && (await runErasureGuard()).blocksSourceReference(r.sourceReference)) {
+    if (durableOutboxEnabledFor(organizationId) && r.sourceReference && (await runErasureGuard()).blocksSourceReference(r.sourceReference)) {
       continue;
     }
-    if (durableOutboxEnabled() && r.sourceReference) {
+    if (durableOutboxEnabledFor(organizationId) && r.sourceReference) {
       try {
         const enq = await enqueueProactive({
           organizationId,
