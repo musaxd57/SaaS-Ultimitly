@@ -237,7 +237,9 @@ export function startKeyedClaimHeartbeat(scopeId: string, body: string, token: s
     if (stopped) return;
     // Nabız kilidi YENİDEN OLUŞTURMAZ (Opus 10-16 P3-2): bırakma sırasında havada olan bir tur, silinen satırı bu işçi adına 120 sn geri
     // yazar ve misafirin aynı istek kimliğiyle yeniden denemesi "zaten işleniyor" alırdı. Satır yoksa kayıp da SAYILMAZ (N2): yeniden alma
-    // ücretli adımdan önceki eşzamanlı yenilemenin ve kayıt işleminin işi.
+    // ücretli adımdan önceki eşzamanlı yenilemenin ve kayıt işleminin işi. BİLİNÇLİ TAKAS (Haiku 10-16): satır süpürülüp kimse almamışken
+    // misafirin yeniden denemesi bu arada kilidi alırsa iki işçi kısa süre birlikte çalışır → en çok bir fazla ücretli model çağrısı; kayıt
+    // yine TEK (son hakem kayıt işlemi). Sessiz mesaj kaybı fazla ücretten pahalıdır.
     renewKeyed(scopeId, body, token, new Date(), false)
       .then((state) => {
         if (state === "lost" && !stopped) {

@@ -1537,6 +1537,11 @@ const KICK_STALE_MS = 10 * 60_000;
 /** Aynı anda en çok bu kadar uyandırma turu canlı (Opus 10-16 P3-5): takılan turlar bağlantı havuzunu tüketmesin. */
 const MAX_LIVE_KICK_LOOPS = 2;
 let liveKickLoops = 0;
+/** Sayaç dönemi: `__resetOutboxKick` (yalnız test) yeni dönem açar; eski dönemin turu bitince yeni dönemin sayacını düşürmez (Haiku 10-16). */
+let kickEpoch = 0;
+let capAlarmedGeneration = -1;
+/** Son turun sözü (yalnız test yardımcısı bekler). */
+let lastKickLoop: Promise<void> = Promise.resolve();
 /** Uyandırma turunun parti boyu (N5): elle cevap için birkaç satır yeter; birikmiş kuyruğu periyodik tur boşaltır. */
 const KICK_BATCH = 5;
 
@@ -1563,8 +1568,22 @@ export function kickOutboxDrain(
 ): void {
   if (!outboxFastWakeEnabled()) return;
   if (kickRunning) {
-    if (Date.now() - kickStartedAt < KICK_STALE_MS || liveKickLoops >= MAX_LIVE_KICK_LOOPS) {
+    if (Date.now() - kickStartedAt < KICK_STALE_MS) {
       kickAgain = true;
+      return;
+    }
+    if (liveKickLoops >= MAX_LIVE_KICK_LOOPS) {
+      // Sınır dolu: yeni tur AÇILMAZ ama sessiz de kalınmaz (Haiku 10-16) — takılı nesil başına TEK alarm; teslim 2 dk'lık senkrona düşer.
+      kickAgain = true;
+      if (capAlarmedGeneration !== kickGeneration) {
+        capAlarmedGeneration = kickGeneration;
+        runAsNewSystemOperation(() => {
+          void reportError(
+            "outbox.kick",
+            new Error("Hızlı uyandırma turları takıldı (canlı tur sınırı dolu) — elle cevaplar 2 dk'lık senkronla gidiyor"),
+          ).catch(() => {});
+        });
+      }
       return;
     }
     // Takılmış tur (ör. hiç dönmeyen sorgu): yeni tur başlar; eski turun `finally`si nesil farkı yüzünden durumu ezmez. Alarm çağıranın
@@ -1577,6 +1596,7 @@ export function kickOutboxDrain(
   kickAgain = false;
   kickStartedAt = Date.now();
   const generation = ++kickGeneration;
+  const epoch = kickEpoch;
   const loop = async (): Promise<void> => {
     let claimedAny = false;
     liveKickLoops++;
@@ -1588,7 +1608,7 @@ export function kickOutboxDrain(
         if ((r?.claimed ?? 0) > 0) claimedAny = true;
       } while (kickAgain && generation === kickGeneration);
     } finally {
-      liveKickLoops--;
+      if (epoch === kickEpoch) liveKickLoops--;
       if (generation === kickGeneration) kickRunning = false;
     }
     if (generation !== kickGeneration) return; // yerine yeni tur geçti; takip kararı onun
@@ -1610,7 +1630,7 @@ export function kickOutboxDrain(
   // Bütün tur (takip kararı, hata raporu dahil) çağıran isteğin takip numarasını / işletmesini MİRAS ALMAZ (N6; e-posta kuyruğu
   // uyandırmasıyla aynı kural).
   // `.catch` da yeni bağlamın İÇİNDE bağlanır: söz zinciri geri çağrısı, bağlandığı andaki bağlamda koşar.
-  void runAsNewSystemOperation(() =>
+  lastKickLoop = runAsNewSystemOperation(() =>
     loop().catch((err) => {
       void reportError("outbox.kick", err instanceof Error ? err : new Error(String(err))).catch(() => {});
     }),
@@ -1632,7 +1652,15 @@ export function __resetOutboxKick(): void {
   followUpTimer = null;
   emptyFollowUps = 0;
   liveKickLoops = 0;
+  kickEpoch++;
+  capAlarmedGeneration = -1;
+  lastKickLoop = Promise.resolve();
   followUpMs = 61_000;
+}
+
+/** Test yardımcısı: son uyandırma turunun (takip kararı dahil) bitmesini bekle — sabit uyku yerine. */
+export function __awaitOutboxKick(): Promise<void> {
+  return lastKickLoop;
 }
 
 /** Test yardımcısı: uyandırma turu sürüyor mu (testler sabit beklemek yerine bitişi bekler). */

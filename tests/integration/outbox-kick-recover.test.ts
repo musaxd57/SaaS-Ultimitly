@@ -15,7 +15,7 @@ vi.mock("@/lib/report-error", async (orig) => {
   return { ...actual, reportError: reportErrorMock };
 });
 
-import { drainOutboxOnce, kickOutboxDrain, __resetOutboxKick, __ageOutboxKick, __setOutboxKickFollowUpMs, __outboxKickRunning } from "@/lib/outbox/worker";
+import { drainOutboxOnce, kickOutboxDrain, __resetOutboxKick, __ageOutboxKick, __setOutboxKickFollowUpMs, __outboxKickRunning, __awaitOutboxKick } from "@/lib/outbox/worker";
 import { currentCorrelation, runWithCorrelation } from "@/lib/correlation";
 
 async function waitUntil(fn: () => boolean | Promise<boolean>, timeoutMs = 3000): Promise<void> {
@@ -154,7 +154,7 @@ describe("hızlı uyandırma — kurtarma yalnız periyodik turda; talebi dolan 
       await waitUntil(() => timers.mock.calls.some((c) => c[1] === 4321));
       kickOutboxDrain(drain);
       await waitUntil(() => drain.mock.calls.length === 2);
-      await new Promise((r) => setTimeout(r, 200)); // ikinci turun takip kararı
+      await __awaitOutboxKick(); // ikinci turun takip kararı BİTTİ (sabit uyku değil — Haiku 10-16)
       expect(timers.mock.calls.filter((c) => c[1] === 4321)).toHaveLength(1); // ⬅️ TEKİLLEŞTİRMESİZ: 2
     } finally {
       timers.mockRestore();
@@ -170,10 +170,16 @@ describe("hızlı uyandırma — kurtarma yalnız periyodik turda; talebi dolan 
     kickOutboxDrain(hang); // bekçi: ikinci tur (o da takılır)
     await waitUntil(() => hang.mock.calls.length === 2);
     __ageOutboxKick(11 * 60_000);
+    const capAlarms = () =>
+      reportErrorMock.mock.calls.filter(([c, e]) => String(c) === "outbox.kick" && /sınırı dolu/.test(String((e as Error)?.message))).length;
     const third = vi.fn().mockResolvedValue({ claimed: 0 });
     kickOutboxDrain(third);
     await new Promise((r) => setTimeout(r, 50));
     expect(third).not.toHaveBeenCalled(); // ⬅️ SINIRSIZ: üçüncü tur da açılırdı
+    expect(capAlarms()).toBe(1); // sınır doluyken sessiz kalınmaz (Haiku 10-16)…
+    kickOutboxDrain(third);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(capAlarms()).toBe(1); // …ama her elle cevapta yeniden de alarm verilmez
   });
 
   it("uyandırma turu çağıran isteğin takip numarasını / işletmesini MİRAS ALMAZ (hata raporu dahil)", async () => {

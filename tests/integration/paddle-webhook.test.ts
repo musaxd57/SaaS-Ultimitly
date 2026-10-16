@@ -213,15 +213,34 @@ describe("POST /api/webhooks/paddle", () => {
       const end = new Date(now + 20 * DAY).toISOString();
       const active = periodEvent("evt_pd5_a", "active", new Date(now - 120_000).toISOString(), start, end);
       await POST(req(active, sign(active)));
-      const odd = periodEvent("evt_pd5_x", "suspended_for_review", new Date(now - 1000).toISOString(), start, end);
+      const odd = periodEvent("evt_pd5_x", "suspended_for_review", new Date(now - 1000).toISOString(), start, new Date(now + 50 * DAY).toISOString());
       expect((await POST(req(odd, sign(odd)))).status).toBe(200);
       const sub = await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } });
       expect(sub.status).toBe("past_due"); // kapalı yön eşlemesi aynen
-      expect(sub.currentPeriodEnd?.toISOString()).toBe(end); // ⬅️ dönem başı yazılsaydı: start (erişim hemen kapanırdı)
+      expect(sub.currentPeriodEnd?.toISOString()).toBe(end); // ⬅️ dönem başı yazılsaydı: start (hemen kapanırdı); olaydaki son yazılsaydı: +50 gün
       vi.stubEnv("BILLING_ENFORCED", "true");
       vi.stubEnv("PRIMARY_ORG_ID", "baska-org");
       try {
         expect(await premiumAllowed(orgId)).toBe(true);
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    });
+
+    it("🚨 ödeme gecikmesiyle KAPANMIŞ erişim, sonra gelen TANINMAYAN durumun (ödenmemiş olabilecek) dönem sonuyla yeniden AÇILMAZ (Haiku 10-16)", async () => {
+      const now = Date.now();
+      const renewal = new Date(now - 60_000).toISOString();
+      const active = periodEvent("evt_pd6_a", "active", new Date(now - 120_000).toISOString(), new Date(now - 30 * DAY).toISOString(), renewal);
+      await POST(req(active, sign(active)));
+      const pastDue = periodEvent("evt_pd6_pd", "past_due", new Date(now - 30_000).toISOString(), renewal, new Date(now + 30 * DAY).toISOString());
+      await POST(req(pastDue, sign(pastDue)));
+      const odd = periodEvent("evt_pd6_x", "suspended_for_review", new Date(now - 1000).toISOString(), renewal, new Date(now + 30 * DAY).toISOString());
+      await POST(req(odd, sign(odd)));
+      expect((await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } })).currentPeriodEnd?.toISOString()).toBe(renewal);
+      vi.stubEnv("BILLING_ENFORCED", "true");
+      vi.stubEnv("PRIMARY_ORG_ID", "baska-org");
+      try {
+        expect(await premiumAllowed(orgId)).toBe(false); // ⬅️ olaydaki dönem sonu yazılsaydı: true (30 gün ödemesiz erişim)
       } finally {
         vi.unstubAllEnvs();
       }
