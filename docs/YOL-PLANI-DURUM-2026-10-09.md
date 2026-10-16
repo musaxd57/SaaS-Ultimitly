@@ -162,7 +162,7 @@ kuyruğu hazır + kapalı, olay kuyruğu canlı; yoklayıcı yayıncı `SKIP LOC
 | İş | Durum |
 |---|---|
 | Kuyruk sağlığı (operatör paneli: durum sayıları, en eski bekleyen, 24 sa başarısızlık) · `EMAIL_OUTBOX_ENABLED` kapalıyken açılış uyarısı · bayat yorum | ✅ 10-16 gece |
-| O1 `DURABLE_OUTBOX_ENABLED` açılışı (misafir mesajı tam kuyruk desenine geçer) | ❓ kurucu — Railway açılınca, ilk denemeler birlikte |
+| O1 `DURABLE_OUTBOX_ENABLED` açılışı (misafir mesajı tam kuyruk desenine geçer) | ❓ kurucu — Railway açılınca, ilk denemeler birlikte. Hazırlık incelemesinin tek ENGEL'i kapandı (10-16 sabah: devir kilidi kararı kuyruğa girişte kaydedilir); açmadan önce bilinecek beş madde H10/O1 |
 | O2 kuyruksuz ev sahibi bildirimleri (yeni rezervasyon / görev atama / lead) → işaret + geri al deseni ya da genel bildirim kuyruğu | ❓ kurucu (genel tablo migration ister) |
 | O3 kuyruk birikme alarmı (geçiş tabanlı operatör e-postası) | ❓ kurucu (yeni operatör e-postası) |
 | O4 log tailing / ayrı mesaj aracısı | ⛔ bugün gerekmiyor (gerekçe tasarım §3) |
