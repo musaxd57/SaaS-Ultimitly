@@ -872,7 +872,7 @@ const FAULT_DEVICE_STEP = new RegExp(
  * (Haiku 10-15 gece: "Kahve makinesinde farklı bir ayarı deneyebilirsiniz" kullanım önerisiydi, tarif isteniyordu).
  */
 const TRY_STEP = new RegExp(
-  `${L}(?:dener misiniz|deneyin|deneyiniz|deneyebilirsiniz|deneyebilir misiniz|deneyip|try|versuchen sie|essayez|intente|pruebe|попробуите)${R}|جرب`,
+  `${L}(?:dener misiniz|deneyin|deneyiniz|deneyebilirsiniz|deneyebilir misiniz|deneyip|try|versuchen sie|essayez|intente|pruebe|попробуите)${R}|(?<![\\p{L}])(?:و|ف)?جرب\\p{L}{0,2}(?![\\p{L}])`,
   "u",
 );
 
@@ -923,6 +923,9 @@ const AC_EVIDENCE = new RegExp(
   `${L}(?:klima\\p{L}{0,8}|kondisyoner\\p{L}{0,8}|air[- ]?con\\p{L}{0,10}|aircon|klimaanlage\\p{L}{0,2}|climatis\\p{L}{0,6}|aire acondicionado|кондиционер\\p{L}{0,3}|(?:ال)?مكيف\\p{L}{0,3}|kar tanes\\p{L}{0,6}|snowflake\\p{L}{0,2})${R}`,
   "u",
 );
+
+/** Adım fiillerinin konu sözlüğündeki yan okumaları (cümlenin kendi konusu sayılmaz — `unsupportedFixStep` arıza devralması). */
+const STEP_VERB_SIDE_TOPICS: ReadonlySet<string> = new Set(["ac", "socket", "taxi", "smoking"]);
 
 /**
  * Bilgi tabanı kaleminin KONU cihazları: başlık bir cihazı adlandırıyorsa yalnız başlığın ("Wi-Fi" kalemindeki "Modem TV ünitesinin
@@ -985,10 +988,10 @@ export function unsupportedFixStep(
     const devices = own.length > 0 ? own : carried.length > 0 ? carried : guestDevices.length > 0 ? guestDevices : [...faultDevices];
     const carriedBefore = carried;
     if (own.length > 0) carried = own;
-    // Arızalı cihaz bu cümlenin cihazı mı. Cihazı anılmayan cümle, kendi KONUSU varsa ("Çöpleri konteynere atabilirsiniz") başka işten
-    // söz ediyordur — arızalı cihazı devralmaz (kurucunun TV + çöp vakasında çöp cevabı gider). "açın" fiilinin klima okuması konu sayılmaz.
-    const inheritsFault =
-      own.length > 0 || topicsOf(sentence.replace(REMOTE_WORD, " ")).every((t) => t === "ac" || t === "socket");
+    // Arızalı cihaz bu cümlenin cihazı mı. Cihazı anılmayan cümle kendi KONUSUNU taşıyorsa ("Çöpleri konteynere atabilirsiniz", "Ağı seçip
+    // şifreyi girin") başka işten söz ediyordur, arızalı cihazı devralmaz (kurucunun TV + çöp vakasında çöp cevabı gider). Adım fiillerinin
+    // konu sözlüğündeki YAN okumaları konu sayılmaz (ölçüldü: "takın" → taksi, "tutun" → sigara, "açın" → klima, "fişini çekin" → priz).
+    const inheritsFault = own.length > 0 || topicsOf(sentence.replace(REMOTE_WORD, " ")).every((t) => STEP_VERB_SIDE_TOPICS.has(t));
     const faulty = inheritsFault ? devices.filter((t) => faultDevices.has(t)) : [];
     const restart = RESTART_STEP.test(f);
     // Deneme önerisi yalnız arıza bağlamında ya da bir ayar / tuş / programla anıldığında adımdır (Opus gece-2 M11: "Sahildeki kafede Türk

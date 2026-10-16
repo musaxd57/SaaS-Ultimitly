@@ -123,6 +123,14 @@ describe("Opus gece-2 M1: misafirin ARIZA bildirdiği cihaza adım TARİF ister 
     // arıza yokken aynı TV kullanım adımı geçer (TV konu)
     expect(unsupportedFixStep("Netflix için kumandadaki Netflix tuşuna basın.", tvSubject, "Netflix var mı?")).toBe(false);
   });
+
+  it("cihazı misafirden devralan adımda YALNIZ arızalı cihaz tarif ister (aynı mesajdaki Wi-Fi sorusu tarif istemez — mutasyon N6)", () => {
+    const tvRecipe = { recipeTopics: new Set(["tv"]), subjectTopics: new Set(["tv", "wifi"]) };
+    const step = "Fişini çekip 30 saniye bekleyin, sonra tekrar takın.";
+    expect(unsupportedFixStep(step, tvRecipe, "Televizyon çalışmıyor. Wifi şifresi ne?")).toBe(false);
+    // tarif yoksa tutulur
+    expect(unsupportedFixStep(step, { recipeTopics: new Set(["parking"]), subjectTopics: new Set(["tv", "wifi"]) }, "Televizyon çalışmıyor. Wifi şifresi ne?")).toBe(true);
+  });
 });
 
 describe("Opus gece-2 M2: 5.1'in kibar / yabancı dil adım biçimleri adım sayılır (KB'de cihaz yok)", () => {
@@ -145,6 +153,13 @@ describe("Opus gece-2 M2: 5.1'in kibar / yabancı dil adım biçimleri adım say
   ])("🚨 TUTULUR: %j", (reply, guest) => {
     expect(unsupportedFixStep(reply, kb, guest)).toBe(true);
   });
+
+  it.each(["Klimayı kapatıp açabilirsiniz.", "Modemin fişini çekebilirsiniz.", "Modemi sıfırlayabilirsiniz.", "Modemi yeniden başlatabilirsiniz."])(
+    "misafir arıza demese de kibar yeniden başlatma biçimi arıza giderme adımıdır (tarif ister — mutasyon N24): %j",
+    (reply) => {
+      expect(holds(reply)).toBe(true);
+    },
+  );
 
   it("aşırı uygulama yok: üçüncü şahıs bildirim ('ev sahibiniz görebilir') ve yerel öneri ('mutlaka deneyin') adım değildir", () => {
     const keys = { recipeTopics: new Set<string>(), subjectTopics: new Set(["keys", "stove", "coffee"]) };

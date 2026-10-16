@@ -114,6 +114,7 @@ describe("arıza sinyali (saf)", () => {
     ["Klima çalışmıyor. Düzeldi mi diye bakar mısınız?", true],
     ["Klima çalışmıyor; düzeldi mi diye baktık, hâlâ aynı.", true],
     ["Klima çalışmıyor, hallettik sandık ama olmadı.", true],
+    ["The AC is not working. Fixed?", true], // soru işaretli düzelme düzelme değildir (mutasyon N10)
     ["KLİMA ÇALIŞMIYOR AMA WİFİ DÜZELDİ", true],
     ["Klima çalışmıyor mu yoksa kapalı mı bilmiyoruz, soğutmuyor.", true],
     ["Bavul dolabının kilidi bozuk.", true],

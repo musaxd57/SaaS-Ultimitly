@@ -39,6 +39,7 @@ import {
   HISTORY_LEARN_MONTHLY_RUNS,
   INSTRUCTIONS_MAX_ACTIVE,
   addPropertyInstruction,
+  NOTE_DRAFT_TITLE,
 } from "@/lib/history-learn/service";
 import { limitsForOrg } from "@/lib/billing/plan-limits";
 import { loadPromptInstructions } from "@/lib/history-learn/prompt-instructions";
@@ -223,6 +224,33 @@ describe("Geçmişten öğren — uçtan uca", () => {
     await prisma.message.delete({ where: { id: hostMessageId } });
     const after = await (await getRuns(json(`http://localhost/api/properties/${propertyId}/history-learn`, "GET"), p({ id: propertyId }))).json();
     expect(after.drafts.find((x: { id: string }) => x.id === d.id).sample).toBeNull();
+  });
+
+  it("🚨 Opus gece-2 M9: ad maskesi konuşma BAŞINA — başka konuşmanın 2.000+ eski mesajı bu konuşmanın misafir adını düşürmez; nottan doğan taslak işaretli", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    session = customer(orgId);
+    // Daha ESKİ, kalabalık bir konuşma (eski kod: bütün konuşmaların mesajları tek 2.000 satırlık sorguda, en eskiden başlayarak).
+    const busy = await prisma.conversation.create({ data: { propertyId, guestIdentifier: "Mehmet", channel: "airbnb", status: "closed", lastMessageAt: new Date() } });
+    const old = Date.now() - 30 * 86_400_000;
+    await prisma.message.createMany({
+      data: Array.from({ length: 2_001 }, (_, i) => ({
+        conversationId: busy.id, direction: "inbound", authorType: "guest", senderName: "Mehmet Demir", body: `soru ${i}`, createdAt: new Date(old + i * 1_000),
+      })),
+    });
+    const busyHost = await prisma.message.create({
+      data: { conversationId: busy.id, direction: "outbound", authorType: "host", senderName: "Ev sahibi", body: "Mehmet Bey, havlular dolapta.", createdAt: new Date(old + 2_100_000) },
+    });
+    const { hostMessageId } = await seedHistory(propertyId);
+    await seedDraft(propertyId, orgId, { evidenceMessageIdsJson: JSON.stringify([busyHost.id]), category: "amenities", title: "Havlu", content: "Havlular dolapta." });
+    const d = await seedDraft(propertyId, orgId, { evidenceMessageIdsJson: JSON.stringify([hostMessageId]) });
+    const note = await seedDraft(propertyId, orgId, { title: NOTE_DRAFT_TITLE, evidenceMessageIdsJson: JSON.stringify([hostMessageId]) });
+    const list = await (await getRuns(json(`http://localhost/api/properties/${propertyId}/history-learn`, "GET"), p({ id: propertyId }))).json();
+    const row = list.drafts.find((x: { id: string }) => x.id === d.id);
+    expect(row.sample.text).toContain("otopark binanın arkasında");
+    expect(row.sample.text).not.toContain("Ayşe");
+    expect(row.fromNote).toBe(false);
+    // Var olan bir okuma koşusuna bağlanmış karşılaştırma notu da "nottan" sayılır (örnek etiketi değişir).
+    expect(list.drafts.find((x: { id: string }) => x.id === note.id).fromNote).toBe(true);
   });
 
   it("🚨 işaretli / çelişkili taslak onay için açık teyit ister; düzenlenen metin kapıdan geçer; ret kalem açmaz", async () => {

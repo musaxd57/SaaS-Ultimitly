@@ -442,6 +442,34 @@ export type ReviewResult =
   | { ok: false; reason: "needs_confirm"; flags: DraftFlag[]; conflict: boolean };
 
 /**
+ * Konuşmaların misafir adları — konuşma BAŞINA (Opus gece-2 M9, ölçüldü: bütün konuşmaların mesajları tek `take: 2_000` sorgusundaydı; 200
+ * konuşma × ~15 mesajda en yeni konuşmaların ad satırı gelmiyor, ev sahibinin cevabındaki misafir adı maskesiz kalıyordu). Rezervasyon adı +
+ * görünen kimlik konuşma satırından, gelen mesaj gönderen adları (konuşma, ad) çifti başına TEKİL.
+ */
+async function guestNamesForConversations(convIds: readonly string[]): Promise<Map<string, Set<string>>> {
+  if (convIds.length === 0) return new Map();
+  const [convs, senders] = await Promise.all([
+    prisma.conversation.findMany({
+      where: { id: { in: [...convIds] } },
+      select: { id: true, guestIdentifier: true, reservation: { select: { guestName: true } } },
+    }),
+    prisma.message.findMany({
+      where: { conversationId: { in: [...convIds] }, direction: "inbound" },
+      select: { conversationId: true, senderName: true },
+      distinct: ["conversationId", "senderName"],
+      take: 5_000,
+    }),
+  ]);
+  return guestNamesOf([
+    ...convs.map((c) => ({ conversationId: c.id, direction: "outbound", conversation: { guestIdentifier: c.guestIdentifier, reservation: c.reservation } })),
+    ...senders.map((m) => ({ conversationId: m.conversationId, direction: "inbound", senderName: m.senderName })),
+  ]);
+}
+
+/** Karşılaştırma notundan doğan taslağın başlığı (taslak ekranında örnek etiketi bununla ayrılır). */
+export const NOTE_DRAFT_TITLE = "Ev sahibi notu";
+
+/**
  * Kanıt bağlamı (onay anında YENİDEN kurulur — Opus 10-15 B3: bağlamsız kapı düzenlenen metindeki misafir adını / dayanaksız değeri
  * görmüyordu): kanıt ev sahibi mesajları (maskeli) + o konuşmaların misafir adları. Mesaj saklama süresiyle silindiyse bağlam boş kalır.
  */
@@ -459,13 +487,7 @@ async function evidenceContext(organizationId: string, evidenceJson: string) {
     select: { conversationId: true, body: true },
   });
   const convIds = [...new Set(msgs.map((m) => m.conversationId))];
-  const nameRows = await prisma.message.findMany({
-    where: { conversationId: { in: convIds } },
-    select: { conversationId: true, direction: true, senderName: true, conversation: { select: { guestIdentifier: true, reservation: { select: { guestName: true } } } } },
-    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-    take: 2_000,
-  });
-  const names = [...new Set([...guestNamesOf(nameRows).values()].flatMap((s) => [...s]))];
+  const names = [...new Set([...(await guestNamesForConversations(convIds)).values()].flatMap((s) => [...s]))];
   const hostAnswers = msgs.length ? msgs.map((m) => maskForLearning(m.body ?? "", names)) : undefined;
   return { hostAnswers, guestNames: names };
 }
@@ -500,13 +522,7 @@ export async function draftEvidenceSamples(
     select: { id: true, conversationId: true, body: true, createdAt: true },
   });
   if (msgs.length === 0) return out;
-  const nameRows = await prisma.message.findMany({
-    where: { conversationId: { in: [...new Set(msgs.map((m) => m.conversationId))] } },
-    select: { conversationId: true, direction: true, senderName: true, conversation: { select: { guestIdentifier: true, reservation: { select: { guestName: true } } } } },
-    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-    take: 2_000,
-  });
-  const namesByConv = guestNamesOf(nameRows);
+  const namesByConv = await guestNamesForConversations([...new Set(msgs.map((m) => m.conversationId))]);
   const byId = new Map(msgs.map((m) => [m.id, m]));
   for (const [draftId, messageId] of firstIdOf) {
     const m = byId.get(messageId);
@@ -809,14 +825,14 @@ export async function reviewComparison(input: {
             select: { id: true },
           })
         ).id;
-      const gate = gateDraft("Ev sahibi notu", checked);
+      const gate = gateDraft(NOTE_DRAFT_TITLE, checked);
       if (!gate.ok) throw new ReviewAbort(gate.reason === "empty" ? "note_required" : gate.reason);
       const draft = await tx.historyLearnDraft.create({
         data: {
           runId,
           propertyId: cmp.propertyId,
           category: "faq",
-          title: "Ev sahibi notu",
+          title: NOTE_DRAFT_TITLE,
           content: checked,
           supportConversations: 1,
           flagsJson: JSON.stringify(gate.flags),

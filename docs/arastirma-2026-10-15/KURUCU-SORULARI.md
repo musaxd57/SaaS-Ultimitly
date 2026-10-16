@@ -331,9 +331,13 @@ envanterinden bir cihaz" = bakım görevi (cihaz envanteri ve olumsuzluk kuralla
 - Kural: cevabın bir cümlesi **arıza giderme adımıysa** ("çalışmıyorsa … yeniden açın", "dener misiniz", "emin olur musunuz") o cihazın
   bilgi tabanında **tarifi** olmalı; **kullanım adımıysa** ("MODE tuşuyla soğutmayı seçin") o cihaz bilgi tabanında **konu** olmalı. Yoksa
   cevap gitmez, taslak sende kalır (QR'da sana devredilir). Anlama modelinin etiketinden bağımsız; kanal + QR + Ayarlar testi aynı kural.
-- Ölçüm (kayıtlı 3.324 cevap, ücretli çağrı yok): **22 cevap tutulurdu, hepsi tarifi olmayan arıza için uydurulmuş adım** (klima çalışmıyor →
-  "kapatıp birkaç dakika sonra açın"; internet yok → "modemi fişten çekip 30 sn bekleyin"; kilit takılıyor → "kolu kaldırıp anahtarı yavaşça
-  çevirin"). **Gerçekten gönderilmiş cevaplarda yanlış tutuş 0.**
+- Ölçüm (kayıtlı 3.324 cevap, ücretli çağrı yok): **40 cevap tutulurdu, hepsi şikâyet senaryosunda tarifi olmayan arıza için uydurulmuş adım**
+  (klima çalışmıyor → "kapatıp birkaç dakika sonra açın"; internet yok → "modemi fişten çekip 30 sn bekleyin"; kilit takılıyor → "kolu
+  kaldırıp anahtarı yavaşça çevirin"). **Gerçekten gönderilmiş cevaplarda yanlış tutuş 0.** (İlk sürüm 22 tutuyordu; Opus'un ikinci turu iki
+  açık buldu, kapatıldı ↓ H8.)
+- Misafir bir cihazın ARIZASINI bildirdiyse o cihaza yöneltilen her adım tarif ister — cihaz bilgi tabanında yalnız KONU olsa bile (ör. "TV:
+  kumanda çekmecede, Netflix yüklü" kalemi varken "Televizyonda görüntü yok" → "SOURCE tuşuna basıp HDMI 1'i seçin" artık GİTMEZ). Aynı
+  mesajdaki ARIZASIZ cihazın kullanım cevabı ("TV çalışmıyor; Wi-Fi şifresi?" → Wi-Fi şifresi) gider.
 - ÖRNEK 1 (bilgi tabanında TV kalemi yok): "Ekranda görüntü yoksa kaynak girişini (HDMI) kontrol edin." → ÖNCE gider · SONRA gitmez.
 - ÖRNEK 2 (bilgi tabanında "Televizyon: görüntü gelmezse SOURCE → HDMI 1"): aynı adım → ÖNCE de SONRA da gider.
 - ÖRNEK 3 (otopark tarifinde "kumanda çalışmazsa tuş takımına 5523"): "Kumanda çalışmazsa tuş takımına 5523 yazın" → gider (kumanda TV sayılmaz).
@@ -408,6 +412,35 @@ Hepsi kör set 6'dan (Luna, kabul seti — o setin bilgi tabanını açmam yasak
 - **H6c · Kabul setlerinin bilgi tabanını sayfada görmek:** o dosyaları açmam yasak (kör ölçüm bozulmasın diye senin kuralın). Sayfada
   göstermem için ya (1) yalnız BİLGİ TABANI bölümünü okumama izin verirsin (beklenen cevaplar / puanlar kapalı kalır) ya da (2) kör setleri
   sayfadan çıkarıp yalnız dev setlerini bırakırım. Hangisi?
+
+### H8 · Opus ikinci dilim sonu kontrolü (10-16 gece, 11 bulgu) — ne yapıldı
+| # | Bulgu | Durum |
+|---|---|---|
+| M1 | Arıza bildirilen cihaz bilgi tabanında yalnız KONU iken (TV kullanım kalemi, Wi-Fi şifresi) uydurma arıza adımı geçiyordu — senin TV vakanın ikizi | ✅ arızalı cihaza adım tarif ister (↑ H2) |
+| M2 | 5.1'in kibar biçimleri adım sayılmıyordu: "Klimayı kapatıp **açabilirsiniz**" geçiyor, "tekrar açabilirsiniz" tutuluyordu; Almanca / Arapça "kapatıp açın" geçiyordu | ✅ 28 ölçülen biçimin hepsi tutuluyor |
+| M3 | Wi-Fi bilgi tabanında konu olduğu için aynı cevaptaki KB'de olmayan klima kullanım adımı geçiyordu | ✅ kullanım adımı kendi cihazına bakar |
+| M4 | Arıza okuması: "Klima hâlâ çalışmıyor, internet ise düzeldi" arıza sayılmıyordu; "Düzeldi mi?" düzelme sayılıyordu; "KLİMA ÇALIŞMIYOR AMA WİFİ DÜZELDİ" | ✅ düzelme yalnız kendi cihazını kapatır |
+| M5 | (anahtarsız) Misafirin kendi eşyası ("Getirdiğimiz şarj aleti çalışmıyor") bakım görevi açıyordu — bu gecenin N6 düzeltmesinin gerilemesi | ✅ |
+| M6 | (anahtarsız) TV belirti okuması istek tarafında GEVŞETİYORDU ("Diyafonda görüntü yok" TV tarifiyle cevaplanabilir) | ✅ yalnız şikâyet tarafında (sıkılaştırır) |
+| M7 | "Klima arıza durumunda kimi arayalım?" / "arızası giderildi" arıza sayılıyordu | ✅ |
+| M8 | "Salon" başlıklı kalemdeki TV kullanım adımı tutuluyordu (başlık spor salonuna iniyordu) | ✅ başlık yalnız YER ise metnin cihazları da konu |
+| M9 | Geçmişten öğren örneğinde ad maskesi kalabalık mülkte eksik kalabiliyordu (yalnız aynı işletmeye görünür); nottan doğan taslakta "Örnek cevabınız" etiketi yanıltıcıydı | ✅ ad konuşma başına; etiket "Karşılaştırılan eski cevabınız" |
+| M10 | "bilgim yok" istisnası geniş — **soru ↓ H9** | ❓ |
+| M11 | küçükler (kodun şikâyeti kelime ağının şikâyetiyle birleşince "düzeldi" ikisini de kapatıyordu · "المكيف" klima sayılmıyordu · "Sahildeki kafede Türk kahvesini mutlaka deneyin" kahve makinesi adımı sayılıp tutuluyordu) | ✅ |
+Arıza okuması ölçümü (kayıtlı 1.115 mesaj): aynı 85 mesaj, bilgi sınıflarında yanlış alarm 0. Bilinen sınırlar: "Otopark kapısı arabamız
+içerideyken açılmıyor" (araba misafir eşyası sayılıyor) · "Bizim televizyonumuz bozuk, burada Netflix var mı?" (arıza sayılır — temkinli yön).
+Bilinen sınır (anahtarsız, önceden var, DEĞİŞTİRİLMEDİ): "Salon" kalemindeki TV ARIZA tarifi bugün de TV tarifi sayılmıyor — düzeltmek
+tarifsiz sayılan bazı arızaları cevaplanabilir yapar (misafire giden değişir) → senin onayın olmadan dokunmadım.
+
+### H9 · "Bilgim yok" kalıbının "özel / ayrı / başka bir talimatım yok" istisnası (Opus M10)
+- Bu gece N5 düzeltmesiyle "Çıkış için özel talimatımız yok, anahtarı masaya bırakmanız yeterli" artık "bilgim yok" sayılmıyor (doğru).
+  Ama aynı istisna şunları da geçiriyor: "Televizyonla ilgili ayrı bir talimatım bulunmuyor, ev sahibinize ileteceğim." · "Bu konuda başka
+  bir talimatım yok." (İngilizce "no other steps … in my notes" de geçiyor, "I don't have any other instructions" tutuluyor — dil tutarsızlığı.)
+  Canlıda bu kalıp hiç yoktu (gerileme değil; kural kapalı anahtar değil, kalıp bu gece eklendi).
+- Önerim: istisna yalnız AYNI cümlede olumlu yönerge varken ("…, anahtarı masaya bırakmanız yeterli") geçsin; yönergesiz "başka / ayrı bir
+  talimatım yok" yine "bilgim yok" sayılıp misafire gitmesin.
+  ÖRNEK: "Bu konuda başka bir talimatım yok." → ÖNCE (bu gece) gider · SONRA gitmez, sana kalır. "Çıkış için özel talimatımız yok, anahtarı
+  masaya bırakmanız yeterli." → ÖNCE de SONRA da gider. **Böyle yapalım mı?**
 
 ### H7 · Küçük kalanlar (Opus D17 listesinden)
 - **O14 (yapıldı, haber):** Görevler sayfasındaki "Eksik görevleri oluştur (3)" düğmesindeki sayı GÖREV değil çıkış temizliği eksik REZERVASYON
