@@ -138,8 +138,10 @@ describe("söz işaretleme (gerçek PostgreSQL)", () => {
     const s = await setup();
     const body = { kind: "towels", day: "tomorrow", time: "18:00", requestId: "a1b2c3d4e5f60718293a4b5c6d7e8f90" };
     const rs = await Promise.all([create(s.conversationId, body), create(s.conversationId, body), create(s.conversationId, body)]);
-    expect(rs.map((r) => r.status)).toEqual([201, 201, 201]);
-    const ids = await Promise.all(rs.map(async (r) => ((await r.json()) as { id: string; taskId: string })));
+    // Biri oluşturur (201), ikisi aynı işlemin tekrarıdır (200 + reused) — ekran "Bu söz zaten kayıtlı." der (kurucu 10-16).
+    expect(rs.map((r) => r.status).sort()).toEqual([200, 200, 201]);
+    const ids = await Promise.all(rs.map(async (r) => ((await r.json()) as { id: string; taskId: string; reused: boolean })));
+    expect(ids.map((x) => x.reused).sort()).toEqual([false, true, true]);
     expect(new Set(ids.map((x) => x.id)).size).toBe(1);
     expect(new Set(ids.map((x) => x.taskId)).size).toBe(1);
     expect(await prisma.guestCommitment.count({ where: { conversationId: s.conversationId } })).toBe(1);

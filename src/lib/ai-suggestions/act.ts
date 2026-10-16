@@ -133,7 +133,9 @@ export async function decideSuggestion(input: {
             dueAt: commitmentDue,
             actorUserId: input.actorUserId,
             // Öneri anahtarı işlem kimliğidir (kurucu D3, 10-15): aynı önerinin ikinci onayı aynı sözü döndürür (karar kaydı zaten
-            // engelliyor; tekil dizin son savunma). Anlam birleştirmesi yok — başka bir sözle birleşmez.
+            // engelliyor; tekil dizin son savunma). AYRICA `mergeSameSlot`: aynı tür + aynı saatte açık söz varsa (ev sahibi aynı sözü elle
+            // kaydetmiş) yeni söz açılmaz — öneri listesi de aynı kuralla gizler. Elle formdan FARKLI (orada klima 18:00 ile musluk 18:00 iki
+            // söz); öneride söz konusu (cihaz) taşınmadığı için ayırt edilemiyor — kurucu sorusu (10-16), anahtar KAPALI.
             clientRequestId: `sugg:${input.key}`,
             mergeSameSlot: true,
           },

@@ -68,5 +68,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     }
     throw err;
   }
-  return jsonOk({ id: created.id, taskId: created.taskId, dueAt: dueAt.toISOString() }, 201);
+  // Aynı işlemin tekrarı (çift tık / kopan bağlantı sonrası yeniden deneme): söz zaten kayıtlı → 200 + `reused`; ekran "Bu söz zaten kayıtlı."
+  // der (kurucu 10-16, Opus B15). Söz ile görev AYNI işlemde yazılır: yeni söz = yeni görev; görevi sonradan silinmiş söz ↑409 kendi metniyle.
+  return jsonOk({ id: created.id, taskId: created.taskId, dueAt: dueAt.toISOString(), reused: created.reused }, created.reused ? 200 : 201);
 });

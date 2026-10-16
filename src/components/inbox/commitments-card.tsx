@@ -60,9 +60,11 @@ export function CommitmentsCard({
         body: JSON.stringify({ kind, day, time, requestId: requestId.current }),
       });
       if (res.ok) {
+        const saved = (await res.json().catch(() => null)) as { reused?: boolean } | null;
         requestId.current = newKbRequestId(); // başarı kesinleşti → sonraki söz yeni işlem
         setConflict(false);
-        toast.success("Söz kaydedildi, görev açıldı.");
+        // Aynı işlemin tekrarı: yeni söz / görev AÇILMADI — "görev açıldı" demek yanlış olurdu (kurucu 10-16, Opus B15).
+        toast.success(saved?.reused ? "Bu söz zaten kayıtlı." : "Söz kaydedildi, görev açıldı.");
         setTime("");
         router.refresh();
       } else {
