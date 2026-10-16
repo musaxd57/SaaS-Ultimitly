@@ -670,6 +670,7 @@ describe("POST /api/webhooks/paddle", () => {
     ["", "boş (eskiden 0)"],
     ["12.50", "ondalık (eskiden 12)"],
     [undefined, "alan yok (eskiden 0)"],
+    ["2147483648", "int4 sütununu aşan (Opus F4: eskiden veritabanı hatası → 500 → sonsuz yeniden deneme)"],
   ] as [string | undefined, string][])("🚨 S1: grand_total %j (%s) → fatura YAZILMAZ, olay yeniden işlenebilir + alarm; sonraki DOĞRU olay yazar", async (grand) => {
     const tag = grand === undefined ? "none" : grand || "empty";
     const event = (id: string, total: string | undefined) =>
@@ -696,6 +697,16 @@ describe("POST /api/webhooks/paddle", () => {
     expect((await POST(req(good, sign(good)))).status).toBe(200);
     expect((await prisma.invoice.findFirst({ where: { providerRef: `txn_bad_${tag}` } }))?.amountMinor).toBe(89900);
     expect(await prisma.systemLock.findUnique({ where: { name: `alert-state:paddle-webhook:txn-invalid:txn_bad_${tag}` } })).toBeNull();
+  });
+
+  it("KONTROL (Opus F4): int4 üst sınırındaki tutar ('2147483647') geçerli fatura", async () => {
+    const max = JSON.stringify({
+      event_id: "evt_max",
+      event_type: "transaction.completed",
+      data: { id: "txn_max", status: "completed", custom_data: { consentId }, currency_code: "TRY", details: { totals: { grand_total: "2147483647" } } },
+    });
+    expect((await POST(req(max, sign(max)))).status).toBe(200);
+    expect((await prisma.invoice.findFirst({ where: { providerRef: "txn_max" } }))?.amountMinor).toBe(2147483647);
   });
 
   it("KONTROL (S1): gerçek SIFIR ücret ('0') geçerli fatura; olay işlendi; alarm yok", async () => {

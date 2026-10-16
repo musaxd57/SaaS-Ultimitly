@@ -22,6 +22,7 @@ import { LeadActions } from "@/components/admin/lead-actions";
 import { isDemoOrg } from "@/lib/demo-tenant/constants";
 import { OPERATOR_EXPORT_PURPOSES } from "@/lib/operator-export";
 import { queueHealth, QUEUE_LAG_WARN_MS } from "@/lib/outbox/health";
+import { PAYMENT_REVIEW_ACTION, paymentReviewSummary } from "@/lib/billing/payment-review";
 
 export const dynamic = "force-dynamic";
 
@@ -156,6 +157,8 @@ export default async function AdminPage() {
   // Kuyruk sağlığı (10-16): iki kalıcı kuyruğun birikmesi / takılması — yalnız sayılar.
   // Okuma hatası operatör sayfasını düşürmesin (Haiku 10-16) — "okunamadı" gösterilir.
   const queues = await queueHealth().catch(() => null);
+  // Ödeme incelemesi (kurucu 10-16 ödeme S1/S2, Opus F5): incelemeye düşen ödeme olayları görünür — yalnız kimlik / tür / kod / zaman.
+  const paymentReview = await paymentReviewSummary().catch(() => null);
 
   // 3) Deneme risk puanı (kurucu onayı 10-10: geçici e-posta + doğrulanmamış e-posta + ilan kuralı; "önce yalnız liste"). YALNIZ bu
   //    listede görünür — müşteriye hiçbir şey gösterilmez, hiçbir hesap otomatik etkilenmez, yeni veri saklanmaz. Sahipler YALNIZ deneme
@@ -645,6 +648,29 @@ export default async function AdminPage() {
                 </li>
               ))}
             </ul>
+          </div>
+
+          <div className="space-y-1.5">
+            <p className="text-sm font-medium">Ödeme incelemesi</p>
+            <p className="text-xs text-muted-foreground">
+              Fatura yazılamayan ya da hiçbir işletmeye bağlanamayan ödeme olayları burada kalır (olay kaybolmaz). Her satırda yapılacak iş
+              yazılı; Paddle'dan yeniden gönderim aynı veriyi getirir.
+            </p>
+            {paymentReview === null ? (
+              <p className="text-xs text-destructive">Ödeme incelemesi okunamadı.</p>
+            ) : paymentReview.total === 0 ? (
+              <p className="text-xs text-muted-foreground" data-testid="payment-review">İncelemede ödeme olayı yok.</p>
+            ) : (
+              <ul className="space-y-1 rounded-lg border border-border bg-muted/40 p-3 text-xs" data-testid="payment-review">
+                <li className="font-semibold text-destructive">İncelemede {paymentReview.total} ödeme olayı</li>
+                {paymentReview.rows.map((r, i) => (
+                  <li key={r.providerEventId ?? i}>
+                    <span className="font-mono">{r.providerEventId ?? "—"}</span> · {r.eventType ?? "—"} ·{" "}
+                    {r.createdAt.toISOString().slice(0, 16).replace("T", " ")} — {PAYMENT_REVIEW_ACTION[r.code]}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
           <div className="space-y-1.5">

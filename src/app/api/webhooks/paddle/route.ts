@@ -14,6 +14,7 @@ import {
   paddleStatusToLocal,
 } from "@/lib/payments/paddle";
 import { NEEDS_REVIEW_PREFIX, redactPaddlePayload } from "@/lib/data-retention";
+import { PAYMENT_REVIEW_ACTION } from "@/lib/billing/payment-review";
 
 export const dynamic = "force-dynamic";
 
@@ -155,7 +156,8 @@ async function alertUnlinkedPayment(kind: "subscription" | "transaction", data: 
     `paddle-webhook:unlinked:${id}`,
     "paddle-webhook-unlinked-payment",
     new Error(
-      `Paddle ${kind} ${id}${customer ? ` (müşteri ${customer})` : ""} hiçbir işletmeye bağlanamadı (${reason}) — ödeme alınmış olabilir; Paddle panelinden kontrol edin`,
+      `Paddle ${kind} ${id}${customer ? ` (müşteri ${customer})` : ""} hiçbir işletmeye bağlanamadı (${reason}) — ödeme alınmış olabilir. ` +
+        `${reason.includes("işletme silindi") ? PAYMENT_REVIEW_ACTION.org_deleted : PAYMENT_REVIEW_ACTION.unlinked}`,
     ),
   );
 }
@@ -452,6 +454,9 @@ async function applySubscriptionEvent(
  * kaydı defteri bozar), olay "işlendi" SAYILMAZ (Paddle'dan yeniden gönderilince tekrar işlenir; ham olay `WebhookEvent`te saklı — kaybolmaz)
  * ve işlem başına TEK operatör alarmı (24 sa hatırlatma). Aynı işlemin doğru olayı gelince fatura yazılır, alarm temizlenir.
  */
+/** `Invoice.amountMinor` (PostgreSQL int4) üst sınırı. */
+const INT4_MAX = 2_147_483_647;
+
 type TransactionOutcome = { review?: "invalid_amount" | "missing_currency" | "unlinked" | "org_deleted" };
 
 async function alertInvalidTransaction(providerRef: string, review: "invalid_amount" | "missing_currency"): Promise<void> {
@@ -459,9 +464,8 @@ async function alertInvalidTransaction(providerRef: string, review: "invalid_amo
     `paddle-webhook:txn-invalid:${providerRef}`,
     "paddle-webhook-invalid-transaction",
     new Error(
-      review === "invalid_amount"
-        ? `Paddle işlem ${providerRef}: tutar okunamadı — fatura YAZILMADI; Paddle panelinden kontrol edin, düzeltilmiş olay gelince yazılır`
-        : `Paddle işlem ${providerRef}: para birimi yok — fatura YAZILMADI; Paddle panelinden kontrol edin, düzeltilmiş olay gelince yazılır`,
+      // Opus F5: gerçek eylemi söyle — Paddle'dan yeniden gönderim AYNI veriyi getirir, düzeltilmiş olay kendiliğinden gelmez.
+      `Paddle işlem ${providerRef}: ${PAYMENT_REVIEW_ACTION[review]} Olay Operasyon Teşhisi → Ödeme incelemesi listesinde.`,
     ),
   );
 }
@@ -496,10 +500,12 @@ async function applyTransactionEvent(
   const details = data.details as Record<string, unknown> | undefined;
   const totals = details?.totals as Record<string, unknown> | undefined;
   const grand = str(totals?.grand_total) ?? str((data.totals as Record<string, unknown> | undefined)?.grand_total);
-  // 🚨 U39 / ödeme S1: tutar YALNIZ tam rakam dizisi (en çok 15 hane — güvenli tamsayı). Eskiden `parseInt` "100abc"i 100, "1e3"ü 1,
-  // "-500"ü -500 okuyor, eksik tutar 0 "ödenmiş" fatura oluyordu; aynı işlemin sonraki DOĞRU olayı var olan fatura yüzünden hiç
-  // işlenmiyordu. Gerçek sıfır ("0") geçerli.
-  const amountMinor = grand !== null && /^\d{1,15}$/.test(grand.trim()) ? Number(grand.trim()) : null;
+  // 🚨 U39 / ödeme S1: tutar YALNIZ tam rakam dizisi ve `Invoice.amountMinor` sütununa (int4) sığan değer. Eskiden `parseInt` "100abc"i
+  // 100, "1e3"ü 1, "-500"ü -500 okuyor, eksik tutar 0 "ödenmiş" fatura oluyordu; aynı işlemin sonraki DOĞRU olayı var olan fatura
+  // yüzünden hiç işlenmiyordu. Gerçek sıfır ("0") geçerli. Sütunu aşan tutar (Opus F4) veritabanı hatası → 500 → sonsuz yeniden deneme
+  // yerine aynı inceleme yoluna düşer.
+  const amountMinor =
+    grand !== null && /^\d{1,10}$/.test(grand.trim()) && Number(grand.trim()) <= INT4_MAX ? Number(grand.trim()) : null;
   if (amountMinor === null) {
     await alertInvalidTransaction(providerRef, "invalid_amount");
     return { review: "invalid_amount" };
