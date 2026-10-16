@@ -661,6 +661,68 @@ describe("POST /api/webhooks/paddle", () => {
     })();
   });
 
+  // Ödeme S1 (kurucu 10-16; U39): bozuk / eksik tutar "ödenmiş" fatura olmaz; olay "işlendi" sayılmaz (yeniden işlenebilir, ham olay
+  // saklı), işlem başına TEK alarm; aynı işlemin sonraki DOĞRU olayı faturayı yazar ve alarmı kapatır.
+  it.each([
+    ["100abc", "harf kuyruğu (eskiden 100)"],
+    ["1e3", "bilimsel gösterim (eskiden 1)"],
+    ["-500", "eksi (eskiden -500)"],
+    ["", "boş (eskiden 0)"],
+    ["12.50", "ondalık (eskiden 12)"],
+    [undefined, "alan yok (eskiden 0)"],
+  ])("🚨 S1: grand_total %j (%s) → fatura YAZILMAZ, olay yeniden işlenebilir + alarm; sonraki DOĞRU olay yazar", async (grand) => {
+    const tag = grand === undefined ? "none" : grand || "empty";
+    const event = (id: string, total: string | undefined) =>
+      JSON.stringify({
+        event_id: id,
+        event_type: "transaction.completed",
+        data: { id: `txn_bad_${tag}`, status: "completed", custom_data: { consentId }, currency_code: "TRY", details: { totals: total === undefined ? {} : { grand_total: total } } },
+      });
+    const bad = event(`evt_bad_${tag}`, grand);
+    expect((await POST(req(bad, sign(bad)))).status).toBe(200); // veri sorunu: Paddle'ı sonsuz yeniden denemeye sokma
+    expect(await prisma.invoice.count({ where: { providerRef: `txn_bad_${tag}` } })).toBe(0); // ⬅️ ESKİDE yanlış tutarlı "paid" fatura
+    const row = await prisma.webhookEvent.findUniqueOrThrow({ where: { providerEventId: `evt_bad_${tag}` } });
+    expect(row.status).toBe("error"); // "processed" DEĞİL → Paddle'dan yeniden gönderilirse tekrar işlenir
+    expect(row.error).toBe("needs_review: invalid_amount");
+    expect(row.payloadJson).toContain(`txn_bad_${tag}`); // ham olay kaybolmaz
+    const alarm = await prisma.systemLock.findUnique({ where: { name: `alert-state:paddle-webhook:txn-invalid:txn_bad_${tag}` } });
+    expect(alarm).not.toBeNull();
+    // Aynı bozuk olayın tekrarı "kopya" sayılmaz (yeniden işlenir) ama ikinci alarm satırı açmaz (geçiş tabanlı).
+    const again = await POST(req(bad, sign(bad)));
+    expect(await again.json()).not.toMatchObject({ duplicate: true });
+    expect(await prisma.systemLock.count({ where: { name: { startsWith: "alert-state:paddle-webhook:txn-invalid:" } } })).toBe(1);
+    // Aynı işlemin doğru olayı → fatura yazılır, alarm kapanır.
+    const good = event(`evt_good_${tag}`, "89900");
+    expect((await POST(req(good, sign(good)))).status).toBe(200);
+    expect((await prisma.invoice.findFirst({ where: { providerRef: `txn_bad_${tag}` } }))?.amountMinor).toBe(89900);
+    expect(await prisma.systemLock.findUnique({ where: { name: `alert-state:paddle-webhook:txn-invalid:txn_bad_${tag}` } })).toBeNull();
+  });
+
+  it("KONTROL (S1): gerçek SIFIR ücret ('0') geçerli fatura; olay işlendi; alarm yok", async () => {
+    const zero = JSON.stringify({
+      event_id: "evt_zero",
+      event_type: "transaction.completed",
+      data: { id: "txn_zero", status: "completed", custom_data: { consentId }, currency_code: "TRY", details: { totals: { grand_total: "0" } } },
+    });
+    expect((await POST(req(zero, sign(zero)))).status).toBe(200);
+    expect((await prisma.invoice.findFirst({ where: { providerRef: "txn_zero" } }))?.amountMinor).toBe(0);
+    expect((await prisma.webhookEvent.findUniqueOrThrow({ where: { providerEventId: "evt_zero" } })).status).toBe("processed");
+    expect(await prisma.systemLock.count({ where: { name: { startsWith: "alert-state:paddle-webhook:txn-invalid:" } } })).toBe(0);
+  });
+
+  it("S1: para birimi YOKSA da olay yeniden işlenebilir kalır (eskiden 'işlendi' olup Paddle'dan yeniden gönderilemiyordu) + alarm", async () => {
+    const body = JSON.stringify({
+      event_id: "evt_tx_nocur2",
+      event_type: "transaction.completed",
+      data: { id: "txn_nocur2", status: "completed", custom_data: { consentId }, details: { totals: { grand_total: "89900" } } },
+    });
+    expect((await POST(req(body, sign(body)))).status).toBe(200);
+    const row = await prisma.webhookEvent.findUniqueOrThrow({ where: { providerEventId: "evt_tx_nocur2" } });
+    expect(row.status).toBe("error");
+    expect(row.error).toBe("needs_review: missing_currency");
+    expect(await prisma.systemLock.findUnique({ where: { name: "alert-state:paddle-webhook:txn-invalid:txn_nocur2" } })).not.toBeNull();
+  });
+
   it("records an event with no custom_data without creating a Subscription (no crash)", async () => {
     const body = JSON.stringify({
       event_id: "evt_nolink",

@@ -415,10 +415,29 @@ async function applySubscriptionEvent(
   }
 }
 
+/**
+ * Ödeme S1 (kurucu 10-16): olay geçerli ama fatura için gereken veri bozuk / eksik (tutar, para birimi) → fatura YAZILMAZ (yanlış "ödendi"
+ * kaydı defteri bozar), olay "işlendi" SAYILMAZ (Paddle'dan yeniden gönderilince tekrar işlenir; ham olay `WebhookEvent`te saklı — kaybolmaz)
+ * ve işlem başına TEK operatör alarmı (24 sa hatırlatma). Aynı işlemin doğru olayı gelince fatura yazılır, alarm temizlenir.
+ */
+type TransactionOutcome = { review?: "invalid_amount" | "missing_currency" };
+
+async function alertInvalidTransaction(providerRef: string, review: "invalid_amount" | "missing_currency"): Promise<void> {
+  await alertOnTransition(
+    `paddle-webhook:txn-invalid:${providerRef}`,
+    "paddle-webhook-invalid-transaction",
+    new Error(
+      review === "invalid_amount"
+        ? `Paddle işlem ${providerRef}: tutar okunamadı — fatura YAZILMADI; Paddle panelinden kontrol edin, düzeltilmiş olay gelince yazılır`
+        : `Paddle işlem ${providerRef}: para birimi yok — fatura YAZILMADI; Paddle panelinden kontrol edin, düzeltilmiş olay gelince yazılır`,
+    ),
+  );
+}
+
 async function applyTransactionEvent(
   data: Record<string, unknown>,
   occurredAt: Date | null,
-): Promise<void> {
+): Promise<TransactionOutcome | void> {
   // Transactions skip the price-match (their line items differ from the sub price);
   // the consent freshness (by occurred_at) + org binding still apply.
   const organizationId = await resolveOrgId(data, null, occurredAt);
@@ -445,7 +464,14 @@ async function applyTransactionEvent(
   const details = data.details as Record<string, unknown> | undefined;
   const totals = details?.totals as Record<string, unknown> | undefined;
   const grand = str(totals?.grand_total) ?? str((data.totals as Record<string, unknown> | undefined)?.grand_total);
-  const amountMinor = grand ? Number.parseInt(grand, 10) : NaN;
+  // 🚨 U39 / ödeme S1: tutar YALNIZ tam rakam dizisi (en çok 15 hane — güvenli tamsayı). Eskiden `parseInt` "100abc"i 100, "1e3"ü 1,
+  // "-500"ü -500 okuyor, eksik tutar 0 "ödenmiş" fatura oluyordu; aynı işlemin sonraki DOĞRU olayı var olan fatura yüzünden hiç
+  // işlenmiyordu. Gerçek sıfır ("0") geçerli.
+  const amountMinor = grand !== null && /^\d{1,15}$/.test(grand.trim()) ? Number(grand.trim()) : null;
+  if (amountMinor === null) {
+    await alertInvalidTransaction(providerRef, "invalid_amount");
+    return { review: "invalid_amount" };
+  }
 
   // FAIL-CLOSED on a missing currency. This row is the billing record of a real
   // charge; the currency belongs to the EVENT, and Paddle sends currency_code on
@@ -456,11 +482,8 @@ async function applyTransactionEvent(
   // from Paddle, a wrong one corrupts the books.
   const currency = str(data.currency_code);
   if (!currency) {
-    await reportError(
-      "paddle-webhook",
-      new Error(`transaction ${providerRef} has no currency_code — invoice NOT written (fail-closed)`),
-    );
-    return;
+    await alertInvalidTransaction(providerRef, "missing_currency");
+    return { review: "missing_currency" };
   }
 
   const sub = await prisma.subscription.findUnique({ where: { organizationId }, select: { id: true } });
@@ -470,7 +493,7 @@ async function applyTransactionEvent(
       data: {
         organizationId,
         subscriptionId: sub?.id ?? null,
-        amountMinor: Number.isFinite(amountMinor) ? amountMinor : 0,
+        amountMinor,
         currency,
         status: "paid",
         provider: "paddle",
@@ -478,11 +501,9 @@ async function applyTransactionEvent(
         paidAt: new Date(),
       },
     });
-    await logEvent(
-      "billing.invoice.recorded",
-      { transactionRef: providerRef, amountMinor: Number.isFinite(amountMinor) ? amountMinor : undefined, currency },
-      { organizationId },
-    );
+    await logEvent("billing.invoice.recorded", { transactionRef: providerRef, amountMinor, currency }, { organizationId });
+    // Aynı işlemin önceki olayı bozuk veri yüzünden alarm verdiyse fatura artık yazıldı → alarm kapanır (ödeme S1).
+    await clearAlertState(`paddle-webhook:txn-invalid:${providerRef}`);
   } catch (err) {
     // Concurrent delivery of the same transaction: the findFirst above is only a
     // fast-path — @@unique([provider, providerRef]) (D1) is the real arbiter. The
@@ -665,11 +686,12 @@ export async function POST(req: NextRequest): Promise<Response> {
     }
 
     const data = event?.data;
+    let reviewReason: string | null = null;
     if (data && eventType) {
       if (eventType.startsWith("subscription.")) {
         await applySubscriptionEvent(data, occurredAt);
       } else if (eventType === "transaction.completed" || eventType === "transaction.paid") {
-        await applyTransactionEvent(data, occurredAt);
+        reviewReason = (await applyTransactionEvent(data, occurredAt))?.review ?? null;
       } else if (eventType === "transaction.payment_failed") {
         // "Ödemeniz işleniyor" kilidi (kurucu sorusu 10-10: "ödeme alınamazsa 10 dk yeniden ödeyemiyor mu?"): ödeme başarısız → kilit ANINDA
         // kalkar, müşteri hemen yeniden dener. Yalnız kilit kaldırır, başka hiçbir şey yazmaz. (Paddle bildirim ayarında bu olay türü açık olmalı.)
@@ -677,12 +699,17 @@ export async function POST(req: NextRequest): Promise<Response> {
         if (failedOrg) await clearCheckoutPending(failedOrg);
       }
       if (providerEventId) {
+        // İnceleme gereken olay "işlendi" sayılmaz (ödeme S1): satır "error" + kısa kod kalır → Paddle'dan yeniden gönderilirse tekrar
+        // işlenir (yalnız "processed" kopya sayılır). Paddle'a 200 döner (aynı bozuk veriyle sonsuz yeniden deneme olmasın).
         await prisma.webhookEvent.update({
           where: { providerEventId },
-          data: { status: "processed", processedAt: new Date() },
+          data: reviewReason
+            ? { status: "error", error: `needs_review: ${reviewReason}` }
+            : { status: "processed", processedAt: new Date() },
         });
       }
-      await logEvent("billing.webhook.processed", { eventType });
+      if (reviewReason) await logEvent("billing.webhook.failed", { eventType, reason: reviewReason });
+      else await logEvent("billing.webhook.processed", { eventType });
     }
   } catch (err) {
     await logEvent("billing.webhook.failed", { eventType: eventType ?? undefined });
