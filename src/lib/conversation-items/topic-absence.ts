@@ -14,6 +14,8 @@
 //   3. Eşlenen cevaplanabilir istek beyandan DÜŞER (cevaplandı sayılmaz → ev sahibinde açık kalır).
 //   4. Kalan metin boş değil, kalan beyan boş değil, kalan cümleler düşen isteğin konusuna DEĞİNMİYOR (yarım tarif kalmasın) ve kalan
 //      metnin bütünü yine "bilgim yok" demiyor.
+//   5. Kalan HER cümle kalan (cevaplanmış) bir isteğin konusuna değinir (Haiku 10-16): konusuz bir adım ("Kırmızı tuşa basın.") hangi
+//      isteğe ait olduğu bilinmeden misafire gitmesin — "bilgim yok" diyen cevapta yarım kalmış tarifin parçası olabilir. Şüphede tut.
 // Kalan metin çağıranda BÜTÜN güvenlik kapılarından yeniden geçer (bırakılan cihaza değinme, çıktı vetosu, dil … aynen).
 // Misafire yeni bir cümle EKLENMEZ (K10: devir / "ilettim" yok); yalnız cümle ÇIKARILIR.
 // ---------------------------------------------------------------------------
@@ -30,12 +32,14 @@ export type TopicAbsenceOutcome =
   | { ok: true; reply: string; answeredRefs: string[]; droppedRefs: string[]; droppedSentences: number }
   | {
       ok: false;
-      reason: "no_absence" | "nothing_left" | "unattributed" | "nothing_answered" | "dropped_topic_kept" | "still_absent";
+      reason: "no_absence" | "nothing_left" | "unattributed" | "nothing_answered" | "dropped_topic_kept" | "still_absent" | "unanchored_kept";
     };
 
 /**
- * Cümle parçaları (ayraçlarıyla birlikte; birleştirince özgün metin). Sınır = nokta / ünlem / soru + BOŞLUK ya da satır sonu —
- * `ai/absence.ts` ile aynı ölçüt ("15.00" bölünmez). Doğrusal: tek karakterlik geriye bakış.
+ * Cümle parçaları (ayraçlarıyla birlikte; birleştirince özgün metin). Sınır = nokta / ünlem / soru + BOŞLUK ya da satır sonu ("15.00"
+ * bölünmez). `ai/absence.ts` boşlukları teke indirip satır sonunu sınır SAYMAZ; buradaki fazladan bölme yalnız tutma yönündedir (satıra
+ * bölünmüş yokluk cümlesinin parçası konusuz kalır → `unattributed`; kalan metin ayrıca bütün olarak yeniden okunur). Doğrusal: tek
+ * karakterlik geriye bakış.
  */
 function segmentsOf(text: string): string[] {
   return text.split(/(?<=[.!?])(?=\s)|(?<=\n)/u).filter((s) => s.length > 0);
@@ -65,10 +69,18 @@ export function stripTopicAbsence(input: {
     for (const r of refs) dropped.add(r);
   }
 
-  const kept = segments.filter((_, i) => !absent[i]);
+  // Ayıklanan cümlenin hemen ardındaki yalnız-boşluk parçası (satır sonu) da düşer — kendi satırındaki cümle boş satır bırakmasın.
+  const kept: string[] = [];
+  for (let i = 0; i < segments.length; i++) {
+    if (absent[i] || (i > 0 && absent[i - 1] && !segments[i].trim())) continue;
+    kept.push(segments[i]);
+  }
+  // Satır sonu boşluğu satır satır kırpılır (düzenli ifadeyle `[ \t]+\n` uzun boşluk dizisinde karesel — CLAUDE.md ReDoS dersi).
   const reply = kept
     .join("")
-    .replace(/[ \t]+\n/g, "\n")
+    .split("\n")
+    .map((line) => line.trimEnd())
+    .join("\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
   if (!reply) return { ok: false, reason: "nothing_left" };
@@ -81,5 +93,7 @@ export function stripTopicAbsence(input: {
 
   const answeredRefs = input.answeredRefs.filter((r) => !dropped.has(r));
   if (answeredRefs.length === 0) return { ok: false, reason: "nothing_answered" };
+  const remaining = new Set(input.answerableTopics.filter((r) => answeredRefs.includes(r.ref)).flatMap((r) => r.topics));
+  if (kept.some((s) => s.trim() && !topicsWithSymptomsOf(s).some((t) => remaining.has(t)))) return { ok: false, reason: "unanchored_kept" };
   return { ok: true, reply, answeredRefs, droppedRefs: [...dropped].sort(), droppedSentences: absent.filter(Boolean).length };
 }

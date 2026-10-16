@@ -63,12 +63,35 @@ describe("konu bazlı bilgim yok — saf kural", () => {
 
   it("düşen istekten sonra cevaplanmış istek kalmıyor → TUTULUR", () => {
     const out = stripTopicAbsence({
-      reply: `Kumandayı kontrol ettiniz mi diye sormak isterim. ${TV_ABSENT}`,
+      reply: `Size yardımcı olmaktan memnuniyet duyarım. ${TV_ABSENT}`,
       answeredRefs: ["R1"],
       answerableTopics: [{ ref: "R1", topics: tv }],
       heldDeviceTopics: [],
     });
-    expect(out.ok).toBe(false);
+    expect(out).toEqual({ ok: false, reason: "nothing_answered" });
+  });
+
+  it("🚨 konusuz adım cümlesi (hangi isteğe ait olduğu bilinmiyor; yarım TV tarifi olabilir) → TUTULUR (Haiku 10-16)", () => {
+    const out = stripTopicAbsence({
+      reply: `${TRASH} Kırmızı tuşa basmanız yeterli. ${TV_ABSENT}`,
+      answeredRefs: ["R1", "R2"],
+      answerableTopics: [
+        { ref: "R1", topics: tv },
+        { ref: "R2", topics: trash },
+      ],
+      heldDeviceTopics: [],
+    });
+    expect(out).toEqual({ ok: false, reason: "unanchored_kept" });
+  });
+
+  it("kalan metin satıra bölünmüş 'bilgim yok' taşıyorsa (parçalar tek tek yokluk değil) → TUTULUR", () => {
+    const out = stripTopicAbsence({
+      reply: `${TRASH} Çöp hakkında başka bilgim\nmaalesef yok. ${TV_ABSENT}`,
+      answeredRefs: ["R1"],
+      answerableTopics: [{ ref: "R1", topics: trash }],
+      heldDeviceTopics: ["tv"],
+    });
+    expect(out).toEqual({ ok: false, reason: "still_absent" });
   });
 
   it("kalan cümle düşen isteğin konusuna değiniyor (yarım tarif) → TUTULUR", () => {
@@ -92,6 +115,15 @@ describe("konu bazlı bilgim yok — saf kural", () => {
       heldDeviceTopics: [],
     });
     expect(out).toEqual({ ok: false, reason: "no_absence" });
+  });
+
+  it("kendi satırındaki yokluk cümlesi boş satır bırakmaz (başta / ortada)", () => {
+    const base = { answeredRefs: ["R1"], answerableTopics: [{ ref: "R1", topics: trash }], heldDeviceTopics: ["tv"] };
+    expect(stripTopicAbsence({ ...base, reply: `${TRASH}\n${TV_ABSENT}\nÇöp günü salıdır.` })).toMatchObject({
+      ok: true,
+      reply: `${TRASH}\nÇöp günü salıdır.`,
+    });
+    expect(stripTopicAbsence({ ...base, reply: `${TV_ABSENT}\n${TRASH}` })).toMatchObject({ ok: true, reply: TRASH });
   });
 
   it("satır satır cevap da ayrılır; '15.00' bölünmez", () => {

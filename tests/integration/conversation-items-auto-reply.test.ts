@@ -1081,4 +1081,22 @@ describe("KONU BAZLI 'BİLGİM YOK' (H9, kurucu 10-16; anahtar AI_TOPIC_ABSENCE_
     expect((await applyChannelAutoReply(conversationId)).sent).toBe(false);
     expect(mockSend).not.toHaveBeenCalled();
   });
+
+  it("🚨 anahtar AÇIK: ayıklama başarılı ama kalan cümle bırakılan cihaza değiniyor → kapı AYIKLANMIŞ metinde tutar (items_held_touched)", async () => {
+    vi.stubEnv("AI_TOPIC_ABSENCE_ENABLED", "1");
+    const { conversationId } = await seed(TV_TRASH);
+    understands(tvTrashUnderstood());
+    mockSuggest.mockResolvedValueOnce(
+      verdict({
+        intent: "general",
+        reply: "Çöpleri televizyonun yanındaki kapıdan çıkarıp konteynere bırakabilirsiniz. Televizyonla ilgili bir bilgim yok.",
+        answeredRequests: { ok: true, refs: ["R1"] },
+      }),
+    );
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+    const ev = await prisma.riskEvent.findFirst({ where: { conversationId }, orderBy: { occurredAt: "desc" } });
+    // Ayıklama olmasa ilk düşen kontrol "bilgim yok" olurdu; burada kapı ayıklanmış metni görüp bırakılan TV'yi yakaladı.
+    expect(JSON.parse(ev?.kbEvidenceJson ?? "{}").g?.d).toBe("items_held_touched");
+  });
 });

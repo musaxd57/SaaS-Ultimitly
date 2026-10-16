@@ -51,7 +51,9 @@ görür, TV hakkında hiçbir şey okumaz (konu sende açık). Seçenekler:
 - Kural `src/lib/conversation-items/topic-absence.ts`: "bilgim yok" cümlesi ayıklanır; konusu bırakılan bir cihaza (tutulan arıza) ya da
   cevaplanabilir bir isteğe eşlenmeli (aynı sözlük: `relation.topicsWithSymptomsOf`), eşlenen istek beyandan düşer → ev sahibinde AÇIK kalır.
   Eşlenmeyen yokluk cümlesi, boş kalan cevap, cevaplanan istek kalmaması ya da kalan cümlenin düşen konuya değinmesi → bugünkü gibi TUTULUR.
-  Kalan metin bütün kapılardan yeniden geçer (bırakılan cihaza değinme, çıktı vetosu, dil …).
+  Kalan metin bütün kapılardan yeniden geçer (bırakılan cihaza değinme, çıktı vetosu, dil …). Haiku 10-16 sıkılaştırması: kalan HER cümle
+  kalan cevaplanmış bir isteğin konusuna değinmeli (konusuz adım cümlesi → tutulur). Düşen cevaplanabilir istek, modelin cevaplamadığı istekle
+  aynı yoldan açık iş olarak kalır (e-posta yalnız ev sahibine bırakılan hassas öğelerde — bugünkü kısmi cevap kuralı).
 - §4 seçimi verilmediği için TV'ye misafire hiçbir cümle EKLENMEZ (= A, K10 ile uyumlu). B / C seçilirse ayrı dilim.
 - Testler: `tests/unit/topic-absence.test.ts` (kurucu örnekleri), `tests/integration/conversation-items-auto-reply.test.ts` (anahtar açık /
   kapalı uçtan uca, belirsiz konu, kalan metinde uydurma adım).
