@@ -535,3 +535,12 @@ Kararların özü (aynen kaydı oturum notlarında; burada yalnız ne yapıldı�
 - **I2 · Ödeme gecikmesi ek süresi 14 gün mü 30 gün mü** (Paddle yaklaşık 30 gün yeniden dener; bizde 15–30. günler arası otomatik cevap kapalı,
   ödeme gelirse anında açılır). Önerim 14 kalsın.
 - **I3 · O1 Seçenek A son onayı:** dizinin garanti ettiği / etmediği tasarım belgesi §7'de. Onay verirsen migration taslağını Faz 2 ile birlikte gösteririm.
+- **I4 · Duraklatılmış abonelik metni (müşteri ekranı):** Paddle müşteri portalında müşterinin duraklatmayı kendisinin bitirebildiğini (devam
+  ettir) belgede DOĞRULAYAMADIM (Paddle'da devam ettirme API / yönetim paneli işi; duraklatma e-postasında "ödeme yöntemini güncelle" bağlantısı
+  var). Bu yüzden metin şimdilik eylem vaat etmiyor. ÖNCE (benim ilk yazdığım, yayınlanmadı): banner "Aboneliğiniz duraklatıldı — otomatik
+  yanıtlar kapalı. Aboneliğinizi devam ettirerek hemen yeniden açabilirsiniz." · ŞİMDİ: "Aboneliğiniz duraklatıldı — otomatik yanıtlar kapalı.
+  Panelleri kullanmaya devam edebilirsiniz." + "Aboneliği yönet" bağlantısı; plan değiştirme hatası: "Aboneliğiniz duraklatılmış olduğu için
+  şu anda plan değiştirilemez." Seçenekler: (A) böyle kalsın · (B) "…Devam ettirmek için bize yazın." (destek yolu) · (C) uygulama içine
+  "Aboneliği devam ettir" düğmesi (Paddle API ile; kod + ödeme akışı, ilk denemeler birlikte). Önerim A, Paddle panelinde portal bir kez
+  kontrol edildikten sonra gerekirse C.
+

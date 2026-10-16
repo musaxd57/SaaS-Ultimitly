@@ -127,7 +127,8 @@ export async function resolvePlanChange(
   if (sub.status === "paused") {
     return {
       ok: false,
-      error: "Aboneliğiniz duraklatılmış. Plan değiştirmek için önce “Aboneliği yönet” bölümünden aboneliğinizi devam ettirin.",
+      // Opus F8: portalda "devam ettir" olduğu doğrulanamadı → eylem vaat etmeyen metin (son biçim kurucu sorusu I4).
+      error: "Aboneliğiniz duraklatılmış olduğu için şu anda plan değiştirilemez.",
     };
   }
   if (sub.status === "canceled" && process.env.BILLING_ALLOW_CANCELED_PLAN_CHANGE !== "1") {

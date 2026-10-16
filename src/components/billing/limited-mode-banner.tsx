@@ -20,7 +20,9 @@ export function LimitedModeBanner({ status }: { status?: string }) {
   const message = pastDue
     ? "Son ödemeniz alınamadı — otomatik yanıtlar kapalı. Kart bilgilerinizi güncelleyerek hemen yeniden açabilirsiniz."
     : paused
-      ? "Aboneliğiniz duraklatıldı — otomatik yanıtlar kapalı. Aboneliğinizi devam ettirerek hemen yeniden açabilirsiniz."
+      ? // Opus F8 (10-16): Paddle müşteri portalında "devam ettir" seçeneği olduğu doğrulanamadı → metin eylem VAAT ETMEZ (son biçim kurucu
+        // sorusu I4, KURUCU-SORULARI §I).
+        "Aboneliğiniz duraklatıldı — otomatik yanıtlar kapalı. Panelleri kullanmaya devam edebilirsiniz."
       : canceled
       ? "Aboneliğiniz iptal edildi — otomatik yanıtlar kapalı. Panelleri kullanmaya devam edebilirsiniz; yeniden başlatmak için bir plan seçin."
       : "Ücretsiz deneme süreniz doldu — otomatik yanıtlar kapalı. Panelleri kullanmaya devam edebilirsiniz; otomatik mesajlaşmayı açmak için bir plan seçin.";
