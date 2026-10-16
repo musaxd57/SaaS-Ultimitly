@@ -76,6 +76,14 @@ const DATA_KEYS: Record<string, RegExp | "number" | "boolean"> = {
 };
 /** Biçimi tam ve sabit uzunluklu rastgele kimlikler — uzun rakam dizisi kuralı bunlarda kişisel veri sinyali değildir. */
 const LONG_DIGITS_EXEMPT = new Set(["sentryEventId"]);
+/**
+ * Veritabanı kimliği (Prisma `cuid()`, tam 25 karakter) taşıyan anahtarlar: zaman damgası + sıfırla doldurulmuş sayaç ara sıra 7+ rakamlık
+ * dizi üretir ("cmval2070000nt9…" — CI #1505'te `job.outbox.row` satırı kimliksiz kaldı, test kırmızı; aynı sınıf `sentryEventId` için Opus
+ * 10-15 B12). Muafiyet YALNIZ tam cuid biçiminde: daha kısa / uzun değer bugünkü rakam ve redaksiyon kurallarından geçer. Bu anahtarları yalnız
+ * kod yazar, değer veritabanı satırının kimliğidir (`outboxId` işçi, `consentId` onay kaydı / doğrulanmış onay satırı).
+ */
+const CUID_KEYS = new Set(["consentId", "outboxId"]);
+const CUID_EXACT = /^c[a-z0-9]{24}$/;
 const LONG_DIGITS = /\d{7,}/;
 const MAX_DATA_CHARS = 2_000;
 
@@ -93,7 +101,12 @@ export function sanitizeEventData(data: Record<string, unknown> | undefined): Re
     if (kind === "number") ok = typeof value === "number" && Number.isSafeInteger(value);
     else if (kind === "boolean") ok = typeof value === "boolean";
     else if (kind instanceof RegExp) {
-      ok = typeof value === "string" && kind.test(value) && (LONG_DIGITS_EXEMPT.has(key) || (!LONG_DIGITS.test(value) && redactSensitive(value) === value));
+      ok =
+        typeof value === "string" &&
+        kind.test(value) &&
+        (LONG_DIGITS_EXEMPT.has(key) ||
+          (CUID_KEYS.has(key) && CUID_EXACT.test(value)) ||
+          (!LONG_DIGITS.test(value) && redactSensitive(value) === value));
     }
     if (ok) out[key] = value as string | number | boolean;
     else dropped++;

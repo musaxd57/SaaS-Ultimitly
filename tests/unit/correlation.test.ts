@@ -101,6 +101,17 @@ describe("olay verisi süzgeci — kişisel veri / serbest metin SIĞMAZ", () =>
     expect(sanitizeEventData({ sentryEventId: "05551112233055511122330555111223" })).toEqual({ sentryEventId: "05551112233055511122330555111223" });
   });
 
+  it("CI #1505: tam cuid biçimli kuyruk / onay kimliği (zaman damgası + sayaç 7+ rakam dizisi taşısa da) geçer; tam biçim dışı rakam dizisi düşer", () => {
+    // Gerçek koşudan: Prisma cuid, sıfır dolgulu sayaç "…l2070000n…" dizisini üretti → satır kimliksiz kalıyordu.
+    expect(sanitizeEventData({ outboxId: "cmval2070000nt9umstjhtr5y" })).toEqual({ outboxId: "cmval2070000nt9umstjhtr5y" });
+    expect(sanitizeEventData({ consentId: "cmval2070000nt9umstjhtr5y" })).toEqual({ consentId: "cmval2070000nt9umstjhtr5y" });
+    // Muafiyet anahtara bağlı: aynı değer başka kimlik anahtarında bugünkü kurala tabi.
+    expect(sanitizeEventData({ providerEventId: "evt_2070000nt9" })).toEqual({ _dropped: 1 });
+    // Tam cuid uzunluğunda olmayan telefon biçimli değer düşer.
+    expect(sanitizeEventData({ outboxId: "c05551112233" })).toEqual({ _dropped: 1 });
+    expect(sanitizeEventData({ consentId: "c905551112233aaaa" })).toEqual({ _dropped: 1 });
+  });
+
   it.each([
     ["e-posta", { consentId: "misafir@example.com" }],
     ["ad soyad (boşluk)", { reason: "Ayşe Yılmaz" }],
