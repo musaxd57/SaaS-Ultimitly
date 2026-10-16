@@ -523,7 +523,7 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 
 ## Durum
 > 📄 **Tam metin (bağlayıcı): `docs/claude/durum.md`** — bu alanda kod / karar değiştirmeden önce oku. Aşağıda yalnız madde başlıkları.
-**10-15 gece (güncel):** idempotency bitişi (iptal yolları tek kilit) + kurucu D1/D4/D6/D7 kodda; D2/D3 migration 68 onayı bekliyor; inceleme notun için iki KAPALI anahtar (arıza her yolda arıza · kanıtsız arıza adımı) + Opus N1–N12 — `docs/claude/durum.md`.
+**10-15 gece (güncel):** idempotency bitişi (iptal yolları tek kilit) + kurucu D1/D4/D6/D7 kodda; D2/D3 migration 68 onayı bekliyor; inceleme notun için iki KAPALI anahtar (arıza her yolda arıza · kanıtsız arıza adımı) + Opus N1–N12; 10-16 gece Opus ikinci tur M1–M11 (§H8, soru H9) — `docs/claude/durum.md`.
 **10-15 öğleden sonra:** V sonrası beş araştırma + müşteriye dokunmayan tekrar güvenliği düzeltmeleri; sorular `docs/arastirma-2026-10-15/KURUCU-SORULARI.md` — `docs/claude/durum.md`.
 **10-15 gündüz:** Geçmişten öğren (migration 65; taslak müşteride, karşılaştırma operatörde, daire tercihleri hazır seçenek; anahtarlar KAPALI) — `docs/claude/durum.md`.
 **10-15 gece:** Y1–Y10 + Haiku ikinci tur itildi; hazır yamalar KB istek kimliği (migration 65) + G1/G1b; RAG köprü önerisi — `docs/claude/durum.md`.

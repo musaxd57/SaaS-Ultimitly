@@ -20,8 +20,13 @@ paralelleştirme raporu `docs/arastirma-2026-10-15/test-paralellik.md` (öneri; 
 Gece devamı (kurucu inceleme notu "BOZUKLAR İÇİN BİLGİ TABANINDA YAZMAYAN ÖNERİLER VEREMEZ" + TV / çöp vakası): iki anahtar, ikisi KAPALI —
 `AI_FAULT_GUARD_ENABLED` (cihaz + arıza ifadesi aynı cümlecikte → kod şikâyet öğesi, arızalı istek ev sahibinde, liste kipi dahil; misafir
 "düzeldi" deyince kodun işi kapanır) ve `AI_FIX_SUPPORT_GATE_ENABLED` (arıza adımı tarif, kullanım adımı konu ister; kanal + QR + Ayarlar testi +
-karşılaştırma aynı yüklem `relation.fixSupportHolds`; kayıtlı 3.324 cevapta 21 tutuş, gönderilmiş cevapta 0). TV belirti sözcükleri genel konu
-çıkarımından AYRILDI (Opus N2: "görüntülü diyafon" TV tarifi sayılıyordu). Opus N1–N12 + yaşayan iki mutant (O1, D2b) kapandı; sorular §H.
+karşılaştırma aynı yüklem `relation.fixSupportHolds`; kayıtlı 3.324 cevapta 40 tutuş — hepsi şikâyet senaryosunda uydurma adım —, gönderilmiş
+cevapta 0). TV belirti sözcükleri genel konu çıkarımından AYRILDI (Opus N2: "görüntülü diyafon" TV tarifi sayılıyordu). Opus N1–N12 + yaşayan
+iki mutant (O1, D2b) kapandı; sorular §H.
+10-16 gece (Opus ikinci tur M1–M11, §H8): misafirin ARIZA bildirdiği cihaza adım TARİF ister (yalnız konu yetmez); kibar / yabancı dil adım
+biçimleri; kullanım adımı kendi cihazına bakar; arıza okuması cihaz bazında (`faultDevicesOf`: düzelme yalnız kendi cihazını kapatır, soru /
+sanı düzelme değil). Anahtarsız iki düzeltme: istek tarafında TV belirtisi yalnız bağlayıcı türde (M6, gevşetiyordu) · görev tespitinde
+misafirin kendi eşyası aynı cümlecikte okunur (M5). Geçmişten öğren ad maskesi konuşma başına (M9). Mutasyon 21/24 + üç pin; soru H9.
 
 **10-15 öğleden sonra — V sonrası işler (kurucu "Vlerden sonra yapacağız dediklerimi yap, soru sorma"):** beş Opus araştırması
 `docs/arastirma-2026-10-15/` (idempotency · ödeme · takip numarası · yatay ölçek · deneme kötüye kullanımı). Müşteriye / misafire gideni
