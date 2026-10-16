@@ -58,6 +58,15 @@ Kurucu 10-15: "Railway'i açınca ekleyeceğimiz bayrakları unutma." Bu dosya T
 yazılır ama yalnız bu bayrak açıkken gönderilir. Operatör panelinde (Operasyon Teşhisi) "Kuyruk sağlığı" satırına bakın: vadesi gelmiş
 bekleyen satır 10 dakikayı geçmemeli.
 
+🔔 **Kuyruk alarmı (O3, kurucu 10-16 "A + B") — açılışta birlikte doğrulanacak:**
+- **A (kodda, env yok):** senkron geçişi vadesi gelmiş satırın 15 dk beklediğini görürse `ERROR_ALERT_EMAIL`'e "Kuyruk ilerlemiyor" e-postası
+  (bir kez; düzelince temizlenir, sürerse 24 saatte bir hatırlatma). E-posta kuyruktan GEÇMEZ (doğrudan sağlayıcı).
+- **B (izleyici kurulumu ister):** `https://www.lixusai.com/api/health?strict=1` → senkron ölü (`sync_stale` / `sync_unknown`) YA DA kuyruk
+  ilerlemiyor (`queue_stalled`) ise 503. Railway'in kendi sağlık yoklaması normal `/api/health` kalır (kuyruk yüzünden yeniden başlatma YOK).
+- **İkinci izleyici bugün kurulu mu: BİLİNMİYOR** (kodda kanıt yok). Kurulunca bu satıra yazılır: hangi hizmette koşuyor · hangi adrese bakıyor
+  (yukarıdaki strict adres) · kime haber veriyor · aralık (≤ 5 dk) · **test alarmı geldi mi** (izleyicinin "test bildirimi" düğmesi + bir kez
+  gerçek 503: yerel/deneme ortamında vadesi geçmiş bir kuyruk satırıyla).
+
 ## 4. Listede olmayan, bilinçli KAPALI kalanlar (açmayın)
 
 `KB_RETRIEVAL_WIDE_BUDGET` (kurucu: "şimdilik kapalı") · `KB_RERANK_PER_QUESTION` · `APP_TRUST_BROWSER_TIMEZONE` · `BILLING_ALLOW_CANCELED_PLAN_CHANGE`

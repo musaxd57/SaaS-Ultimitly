@@ -1,6 +1,13 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
-import { queueHealth } from "@/lib/outbox/health";
+
+const { reportErrorMock } = vi.hoisted(() => ({ reportErrorMock: vi.fn() }));
+vi.mock("@/lib/report-error", async (orig) => {
+  const actual = await orig<typeof import("@/lib/report-error")>();
+  return { ...actual, reportError: reportErrorMock };
+});
+import { checkQueueStall, queueHealth, QUEUE_STALL_MS } from "@/lib/outbox/health";
+import { alertTracker } from "@/lib/alert-state";
 
 // Kuyruk sağlığı (10-16, kurucu: "görseldeki sistem tarzında bir sistemimiz var mı"): iki kalıcı kuyruğun durum sayıları, vadesi gelmiş en eski
 // bekleyen satırın bekleme süresi ve son 24 saatin kalıcı başarısızlıkları. Salt okuma; metin / alıcı taşımaz.
@@ -84,5 +91,58 @@ describe("queueHealth", () => {
     expect(e.failed24h).toBe(1);
     expect(e.review24h).toBeNull();
     expect(JSON.stringify(e)).not.toContain("kuyruk@example.com");
+  });
+});
+
+// Kurucu 10-16 O3-A: kuyruk ilerlemiyorsa GEÇİŞ TABANLI alarm — bir kez e-posta, sürerken sessiz, düzelince temizlenir, yeniden takılınca
+// yeniden alarm. Alarm `reportError` (doğrudan sağlayıcı) → kimlik e-postası kuyruğundan GEÇMEZ.
+describe("checkQueueStall (O3-A)", () => {
+  beforeEach(() => {
+    reportErrorMock.mockReset();
+    reportErrorMock.mockResolvedValue({ notified: true, throttled: false, configured: true });
+  });
+  const stalls = () => reportErrorMock.mock.calls.filter(([context]) => context === "Kuyruk ilerlemiyor");
+
+  it("15 dk'dır bekleyen satır → bir alarm; sonraki geçişler sessiz; satır gidince temizlenir; yeniden takılınca yeniden alarm", async () => {
+    const { orgId } = await makeOrgWithProperty();
+    const row = await prisma.messageOutbox.create({
+      data: { organizationId: orgId, channel: "airbnb", body: "gizli metin", idempotencyKey: "a", status: "pending", availableAt: new Date(Date.now() - QUEUE_STALL_MS - 60_000) },
+    });
+    await checkQueueStall(await alertTracker("scheduled-sync:"));
+    await checkQueueStall(await alertTracker("scheduled-sync:"));
+    expect(stalls()).toHaveLength(1);
+    const [, err] = stalls()[0];
+    expect((err as Error).name).toBe("QueueStalled");
+    expect(String((err as Error).message)).not.toContain("gizli");
+    await prisma.messageOutbox.update({ where: { id: row.id }, data: { status: "sent", sentAt: new Date() } });
+    await checkQueueStall(await alertTracker("scheduled-sync:"));
+    expect(await prisma.systemLock.count({ where: { name: { startsWith: "alert-state:scheduled-sync:queue-stalled" } } })).toBe(0);
+    await prisma.messageOutbox.create({
+      data: { organizationId: orgId, channel: "airbnb", body: "x", idempotencyKey: "b", status: "pending", availableAt: new Date(Date.now() - QUEUE_STALL_MS - 60_000) },
+    });
+    await checkQueueStall(await alertTracker("scheduled-sync:"));
+    expect(stalls()).toHaveLength(2);
+  });
+
+  it("14 dk bekleyen satır ve boş kuyruk alarm üretmez", async () => {
+    const { orgId } = await makeOrgWithProperty();
+    await checkQueueStall(await alertTracker("scheduled-sync:"));
+    await prisma.messageOutbox.create({
+      data: { organizationId: orgId, channel: "airbnb", body: "x", idempotencyKey: "a", status: "pending", availableAt: new Date(Date.now() - QUEUE_STALL_MS + 60_000) },
+    });
+    await checkQueueStall(await alertTracker("scheduled-sync:"));
+    expect(stalls()).toHaveLength(0);
+  });
+
+  it("iki kuyruk ayrı anahtar: e-posta kuyruğu takılınca kendi alarmı", async () => {
+    const { orgId } = await makeOrgWithProperty();
+    const user = await prisma.user.create({ data: { organizationId: orgId, name: "Sahip", email: "o3a@example.com", passwordHash: "x" } });
+    await prisma.emailOutbox.create({
+      data: { id: "e1", userId: user.id, kind: "verify_email", version: 1, payloadEnc: "enc", status: "pending", nextAttemptAt: new Date(Date.now() - QUEUE_STALL_MS - 60_000), expiresAt: new Date(Date.now() + 3_600_000) },
+    });
+    await checkQueueStall(await alertTracker("scheduled-sync:"));
+    expect(stalls()).toHaveLength(1);
+    expect((stalls()[0][1] as { code?: string }).code).toBe("email");
+    expect(String((stalls()[0][1] as Error).message)).not.toContain("o3a@example.com");
   });
 });

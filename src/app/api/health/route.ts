@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { clearProbeCache, readProbeCache, sharedProbe, writeProbeCache, type ProbeSnapshot } from "@/lib/health-probe";
+import { oldestDueLagMs, QUEUE_STALL_MS } from "@/lib/outbox/health";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,11 @@ export const dynamic = "force-dynamic";
 // STRICT /api/health?strict=1 — ops monitor (point a SECOND monitor here):
 //   additionally 503 when the scheduler heartbeat is missing/unreadable
 //   ("sync_unknown") or older than SYNC_STALE_AFTER_SEC ("sync_stale"), so a
-//   silently-dead sync loop actually pages you.
+//   silently-dead sync loop actually pages you. Kurucu 10-16 (O3-B): ayrıca 503
+//   "queue_stalled" — kalıcı kuyruklardan birinde vadesi gelmiş satır 15 dk'dır
+//   bekliyor (döngü canlı ama satır ilerlemiyor). Yalnız STRICT: Railway'in
+//   hazır olma yoklaması (normal mod) kuyruk yüzünden ASLA düşmez → yeniden
+//   başlatma döngüsü yok. Gövde yalnız "ok" / "stalled" söyler (sayı, kimlik yok).
 //
 // Heartbeat = SystemLock("scheduled-sync").updatedAt: every scheduler pass bumps
 // it (acquire + release), INCLUDING passes that do no work — zero orgs, per-org
@@ -42,8 +47,33 @@ type Health = {
   db: "up" | "down";
   sync: "ok" | "stale" | "unknown";
   lastSyncAgeSec: number | null;
-  reason?: "db_unreachable" | "sync_stale" | "sync_unknown";
+  /** Yalnız strict modda: kalıcı kuyruklar ilerliyor mu. Okunamazsa "unknown" (sayfalamaz — kuyruk okuma hatası ayrı bir arıza değildir). */
+  queue?: "ok" | "stalled" | "unknown";
+  reason?: "db_unreachable" | "sync_stale" | "sync_unknown" | "queue_stalled";
 };
+
+// Kuyruk okuması (iki dizinli sorgu) herkese açık uçta: kısa süreli bellek içi sonuç → yoğun yoklama veritabanına yük bindirmez.
+const QUEUE_PROBE_TTL_MS = 30_000;
+let queueProbe: { at: number; state: "ok" | "stalled" | "unknown" } | null = null;
+
+async function queueState(): Promise<"ok" | "stalled" | "unknown"> {
+  const now = Date.now();
+  if (queueProbe && now - queueProbe.at < QUEUE_PROBE_TTL_MS) return queueProbe.state;
+  let state: "ok" | "stalled" | "unknown";
+  try {
+    const lags = await oldestDueLagMs(new Date(now));
+    state = [lags.message, lags.email].some((l) => l !== null && l >= QUEUE_STALL_MS) ? "stalled" : "ok";
+  } catch {
+    state = "unknown";
+  }
+  queueProbe = { at: now, state };
+  return state;
+}
+
+/** Test yardımcısı: kuyruk yoklamasının bellek içi sonucunu sıfırla. */
+export function __resetQueueProbe(): void {
+  queueProbe = null;
+}
 
 function respond(body: Health, status: 200 | 503) {
   return NextResponse.json(body, { status, headers: { "Cache-Control": "no-store" } });
@@ -117,6 +147,11 @@ export async function GET(req: NextRequest) {
       { ok: false, db: "up", sync, lastSyncAgeSec, reason: sync === "stale" ? "sync_stale" : "sync_unknown" },
       503,
     );
+  }
+  if (strict) {
+    const queue = await queueState();
+    if (queue === "stalled") return respond({ ok: false, db: "up", sync, lastSyncAgeSec, queue, reason: "queue_stalled" }, 503);
+    return respond({ ok: true, db: "up", sync, lastSyncAgeSec, queue }, 200);
   }
   return respond({ ok: true, db: "up", sync, lastSyncAgeSec }, 200);
 }

@@ -21,6 +21,7 @@ import { sweepPasswordResetChallenges } from "@/lib/auth/password-reset-challeng
 import { drainEmailOutboxOnce, purgeEmailOutbox, recoverEmailOutbox } from "@/lib/email-outbox";
 import { durableOutboxEnabled } from "@/lib/outbox/flag";
 import { drainOutboxOnce, hasDrainableOutbox, reactivateBlockedOutbox } from "@/lib/outbox/worker";
+import { checkQueueStall } from "@/lib/outbox/health";
 import { drainStorageDeletions, hasPendingStorageDeletions } from "@/lib/storage/deletion-queue";
 import { syncDueCalendarSourcesForOrg } from "@/lib/import/sync";
 import { recheckEarlyCheckinsAfterCleaning } from "@/lib/early-checkin/recheck";
@@ -818,6 +819,10 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
       } catch (err) {
         await opsAlarm.fail("email-outbox", "scheduled-sync email-outbox", err);
       }
+
+      // Kuyruk ilerlemiyor alarmı (kurucu 10-16 O3-A): iki boşaltmadan SONRA — vadesi gelmiş satır 15 dk bekliyorsa bir kez e-posta, düzelince
+      // temizlenir. Asla fırlatmaz.
+      await checkQueueStall(opsAlarm).catch(() => {});
 
       // Deneme kimliği (kurucu onayı 10-10): anahtar açıldığında açılış ANI ve BİR KEZ geri doldurma — HER geçişte (saatlik değil: açılış
       // anından önce eklenen takvim muaf sayılır, gecikme o pencereyi bir saate kadar açardı). İşaret varken tek indeksli okuma; anahtar

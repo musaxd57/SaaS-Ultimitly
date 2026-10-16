@@ -10,7 +10,7 @@ vi.mock("@/lib/hospitable", () => ({
   listMessages: vi.fn().mockResolvedValue([]),
 }));
 
-import { GET } from "@/app/api/health/route";
+import { GET, __resetQueueProbe } from "@/app/api/health/route";
 import { runScheduledSync } from "@/lib/scheduled-sync";
 import { clearProbeCache } from "@/lib/health-probe";
 
@@ -40,7 +40,10 @@ async function ageHeartbeat(sec: number) {
 //   never external-service health.
 // ---------------------------------------------------------------------------
 describe("GET /api/health", () => {
-  beforeEach(() => clearProbeCache());
+  beforeEach(() => {
+    clearProbeCache();
+    __resetQueueProbe();
+  });
   beforeEach(async () => {
     await resetDb();
     vi.restoreAllMocks();
@@ -67,6 +70,48 @@ describe("GET /api/health", () => {
       expect(body.lastSyncAgeSec).toBeLessThan(60);
       expect(body.reason).toBeUndefined();
     }
+  });
+
+  // Kurucu 10-16 O3-B: kuyruk ilerlemiyorsa YALNIZ strict 503 (ikinci izleyici); normal (Railway hazır olma) asla → yeniden başlatma döngüsü yok.
+  it("🚨 O3-B: vadesi gelmiş misafir mesajı satırı 20 dk bekliyor → strict 503 queue_stalled; normal 200 (kuyruk alanı yok)", async () => {
+    await freshHeartbeat();
+    const org = await prisma.organization.create({ data: { name: "Org" } });
+    await prisma.messageOutbox.create({
+      data: { organizationId: org.id, channel: "airbnb", body: "x", idempotencyKey: "k1", status: "pending", availableAt: new Date(Date.now() - 20 * 60_000) },
+    });
+    const strict = await GET(req(true));
+    expect(strict.status).toBe(503);
+    expect(await strict.json()).toMatchObject({ ok: false, db: "up", sync: "ok", queue: "stalled", reason: "queue_stalled" });
+    const normal = await GET(req(false));
+    expect(normal.status).toBe(200);
+    const body = await normal.json();
+    expect(body.queue).toBeUndefined();
+    expect(body.reason).toBeUndefined();
+  });
+
+  it("O3-B: 5 dk bekleyen satır (yoklayıcı birazdan alır) ya da vadesi gelmemiş satır → strict 200 queue ok", async () => {
+    await freshHeartbeat();
+    const org = await prisma.organization.create({ data: { name: "Org" } });
+    const base = { organizationId: org.id, channel: "airbnb", body: "x", status: "pending" };
+    await prisma.messageOutbox.create({ data: { ...base, idempotencyKey: "k1", availableAt: new Date(Date.now() - 5 * 60_000) } });
+    await prisma.messageOutbox.create({ data: { ...base, idempotencyKey: "k2", availableAt: new Date(Date.now() + 60 * 60_000) } });
+    // Terminal durumlar (ör. inceleme) bekleme sayılmaz — onlar operatör işidir, yoklayıcı gecikmesi değil.
+    await prisma.messageOutbox.create({ data: { ...base, idempotencyKey: "k3", status: "review", availableAt: new Date(Date.now() - 3 * 3_600_000) } });
+    const strict = await GET(req(true));
+    expect(strict.status).toBe(200);
+    expect(await strict.json()).toMatchObject({ ok: true, queue: "ok" });
+  });
+
+  it("O3-B: kimlik e-postası kuyruğunda 20 dk bekleyen satır da strict 503 (şifre sıfırlama e-postası gitmiyor)", async () => {
+    await freshHeartbeat();
+    const org = await prisma.organization.create({ data: { name: "Org" } });
+    const user = await prisma.user.create({ data: { organizationId: org.id, name: "Sahip", email: "o3@example.com", passwordHash: "x" } });
+    await prisma.emailOutbox.create({
+      data: { id: "e1", userId: user.id, kind: "pw_reset_code", version: 1, payloadEnc: "enc", status: "pending", nextAttemptAt: new Date(Date.now() - 20 * 60_000), expiresAt: new Date(Date.now() + 3_600_000) },
+    });
+    const strict = await GET(req(true));
+    expect(strict.status).toBe(503);
+    expect((await strict.json()).reason).toBe("queue_stalled");
   });
 
   it("DB down → normal AND strict 503 with reason, no-store", async () => {
