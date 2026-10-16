@@ -40,7 +40,7 @@ bul" içindir (etkiye dokunmaz, yalnız iz bırakır). İkisi birlikte kullanıl
    sarmalayıcısı) isteği `runWithCorrelation` içinde koşturur; yanıta `X-Correlation-ID` başlığı eklenir. (Next `middleware.ts` edge'de
    koşar, `AsyncLocalStorage` orada yok → numara middleware'de değil sarmalayıcıda üretilir.)
 3. **Hata bildirimine otomatik ekle:** `reportError` / `alertOnTransition` mesajına ve Sentry etiketine `currentCorrelationId()` yazılır —
-   çağıranların hiçbiri değişmez. Redaksiyon kuralları aynen (numara kişisel veri değildir, ama hiçbir yerde misafir metniyle yan yana
+   çağıranların hiçbiri değişmez. Redaksiyon kuralları aynen (numara doğrudan tanımlayıcı değildir — bağlanabildiği için takma adlıdır, 10-16 Codex C6 — ama hiçbir yerde misafir metniyle yan yana
    loglanmaz).
 4. **Ödeme zinciri (asıl istenen yer):**
    - Ödeme ekranı açılırken (`api/billing/consent`) numara üretilir, `CheckoutConsent` satırına yazılır (migration: tek nullable kolon) ve

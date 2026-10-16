@@ -227,7 +227,7 @@ describe("POST /api/webhooks/paddle", () => {
       });
       await POST(req(noStart, sign(noStart)));
       const sub = await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } });
-      expect(sub.currentPeriodEnd?.toISOString()).toBe(paidEnd); // ⬅️ kayıtlı değer aday değilse: null ya da 30 gün ileri
+      expect(sub.currentPeriodEnd?.toISOString()).toBe(paidEnd); // ⬅️ olaydaki dönem sonu yazılsaydı: 30 gün ileri
     });
 
     it("BİLİNEN SINIR (güvenli yön): dönem İÇİNDE düşen tahsilatta olay ödenmiş dönemi taşırsa yazılan değer dönem BAŞI → erişim kapanır, ek süre doğmaz", async () => {
@@ -240,7 +240,7 @@ describe("POST /api/webhooks/paddle", () => {
       const pastDue = periodEvent("evt_pd3_pd", "past_due", new Date(now - 1000).toISOString(), start, end);
       await POST(req(pastDue, sign(pastDue)));
       const sub = await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } });
-      expect(sub.currentPeriodEnd?.toISOString()).toBe(start); // min(dönem başı, kayıtlı son) — sağlayıcı semantiği sandbox'ta doğrulanınca gözden geçirilir
+      expect(sub.currentPeriodEnd?.toISOString()).toBe(start); // dönem başı — sağlayıcı semantiği sandbox'ta doğrulanınca gözden geçirilir
     });
 
     it("yeni abonelik AKTİFLEŞİNCE eskisinin yerine geçer; kayıtlı aboneliğin kendi iptali uygulanır", async () => {

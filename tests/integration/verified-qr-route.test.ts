@@ -148,6 +148,26 @@ describe("QR — doğrulanmış müsaitlik / uzatma kod metni", () => {
     expect(JSON.parse(String(ev.kbEvidenceJson)).sc?.v ?? null).toBeNull();
   });
 
+  it("🚨 model çağrısı sürerken kilit başka işçiye geçti → konaklama bekçisi (ücretli) ÇAĞRILMAZ, kod metni yazılmaz (Opus 10-16 N4)", async () => {
+    const f = fakeFetch();
+    vi.stubGlobal("fetch", f);
+    const s = await seed();
+    const guardCalls = () =>
+      f.mock.calls.filter(([, init]) => JSON.parse(String(init?.body)).response_format?.json_schema?.name === "stay_change_guard").length;
+    let guardAtSteal = -1;
+    mockSuggest.mockImplementationOnce(async () => {
+      guardAtSteal = guardCalls();
+      const row = await prisma.systemLock.findFirstOrThrow({ where: { name: { startsWith: "outbound-send:qr-in:" } } });
+      await prisma.systemLock.update({ where: { name: row.name }, data: { holder: "baska.isci" } });
+      return baseModel();
+    });
+    const res = await ask(s.token, "Merhaba, bir gece daha kalabilir miyiz?");
+    expect((await res.json()).deduped).toBe(true);
+    expect(guardAtSteal).toBeGreaterThanOrEqual(0); // kanca koştu
+    expect(guardCalls()).toBe(guardAtSteal); // ⬅️ kontrolsüz: bekçi kayıptan SONRA çağrılırdı
+    expect(await lastBotReply(s.propertyId)).toBeNull();
+  });
+
   it("KONTROL: QR anahtarı KAPALI → kod metni gitmez (kanal anahtarları açık olsa da)", async () => {
     vi.stubEnv("AI_VERIFIED_QR_ENABLED", "");
     vi.stubEnv("AI_VERIFIED_EXTENSION_ENABLED", "1");

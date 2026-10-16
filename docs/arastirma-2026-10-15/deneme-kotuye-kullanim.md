@@ -299,7 +299,7 @@ model Subscription {
   cardTrialStartedAt DateTime? // kartlı deneme BİR KEZ (fiyat kaçağı koruması)
 }
 
-/// Deneme risk değerlendirmesi — PII'siz (e-posta / IP / ad YOK; yalnız sebep kodları). Ölçüm + itiraz + "neden?" sorusu için.
+/// Deneme risk değerlendirmesi — ham e-posta / IP / ad YOK (yalnız sebep kodları); hesaba bağlı profil kaydı = kişisel veri (10-16 Codex C6). Ölçüm + itiraz + "neden?" sorusu için.
 model TrialRiskAssessment {
   id             String   @id @default(cuid())
   organizationId String

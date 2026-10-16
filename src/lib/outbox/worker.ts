@@ -1575,6 +1575,7 @@ export function kickOutboxDrain(
     try {
       do {
         kickAgain = false;
+        if (generation === kickGeneration) kickStartedAt = Date.now(); // bekçi İLERLEMEYİ ölçer: her tur başında damga (Haiku 10-16)
         const r = (await drain()) as { claimed?: number } | undefined;
         if ((r?.claimed ?? 0) > 0) claimedAny = true;
       } while (kickAgain && generation === kickGeneration);
@@ -1586,7 +1587,10 @@ export function kickOutboxDrain(
     // bir takip turu (2 dk'lık senkronu beklemesin). Boş takip turları sınırlı; aynı anda en çok BİR takip zamanlayıcısı (N6).
     emptyFollowUps = claimedAny ? 0 : emptyFollowUps + 1;
     // Gönderim duraklatıldıysa takip turu kurulmaz (boşuna tur; anahtar kalkınca ilk uyandırma ya da periyodik tur alır).
-    if (followUpTimer == null && !outboxDeliveryPaused() && emptyFollowUps <= MAX_EMPTY_FOLLOW_UPS && (await pendingManualSoon())) {
+    const wantFollowUp =
+      followUpTimer == null && !outboxDeliveryPaused() && emptyFollowUps <= MAX_EMPTY_FOLLOW_UPS && (await pendingManualSoon());
+    // Bekleme sırasında yeni tur başlamış ya da zamanlayıcı kurulmuş olabilir (Haiku 10-16): yeniden bakılır, yetim zamanlayıcı kalmaz.
+    if (wantFollowUp && followUpTimer == null && generation === kickGeneration && !kickRunning) {
       followUpTimer = setTimeout(() => {
         followUpTimer = null;
         kickOutboxDrain(drain);
@@ -1619,6 +1623,11 @@ export function __resetOutboxKick(): void {
   followUpTimer = null;
   emptyFollowUps = 0;
   followUpMs = 61_000;
+}
+
+/** Test yardımcısı: uyandırma turu sürüyor mu (testler sabit beklemek yerine bitişi bekler). */
+export function __outboxKickRunning(): boolean {
+  return kickRunning;
 }
 
 /** Test yardımcısı: takılmış turu taklit etmek için başlangıç damgasını geri al. */

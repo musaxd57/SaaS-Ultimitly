@@ -77,6 +77,10 @@ bekleyen satır 10 dakikayı geçmemeli.
 
 ## 5. Yeni anahtarlar (bu turda eklenenler)
 
+- `OUTBOX_FAST_WAKE` (kurucu 10-16) — varsayılan AÇIK, env gerekmez; yalnız `0` kapatır (kuyruğa yazılan elle cevap 2 dk beklemesin).
+- `OUTBOX_DELIVERY_PAUSED` (kurucu 10-16) — EKLEMEYİN; acil durumda `1` = kuyrukta bekleyen gönderimler durur (uzlaştırma sürer; kuyruk dışı
+  anında gönderim ve kimlik e-postası etkilenmez). Kaldırınca kaldığı yerden TEK kez gider. Ayrıntı `DEPLOYMENT.md` §6.
+
 - `HISTORY_LEARN_ENABLED` — Geçmişten öğren paneli + rotalar + zamanlanmış süpürge (migration 65). Açmak = mülk sayfasında kart; misafire
   giden HİÇBİR şeyi değiştirmez (taslak onaylanınca bilgi tabanı kalemi olur — ev sahibinin kendi onayı).
 - `PROPERTY_INSTRUCTIONS_PROMPT_ENABLED` — mülk talimatları cevap istemine girer (kurucu 10-15: "anahtar arkasında yap"). Misafire giden

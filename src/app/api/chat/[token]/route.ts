@@ -811,6 +811,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // the in-memory limiter allowed. Atomic increment, then check. Over cap →
   // escalate without calling the (paid) model.
   const day = new Date().toISOString().slice(0, 10);
+  await assertClaimHeld(); // sahiplik kaybedildiyse daire sayacı da ARTMAZ (aynı mesaj yeni işçide ikinci kez sayılmasın; Haiku 10-16)
   const usage = await prisma.chatUsage.upsert({
     where: { propertyId_day: { propertyId: ctx.property.id, day } },
     create: { propertyId: ctx.property.id, day, count: 1 },
@@ -1056,6 +1057,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   const firstDirective = hasEmergencyCallDirective(result.reply);
   let doorCodeHeld = false;
   if (firstDoorCode || firstDirective) {
+    await assertClaimHeld(); // sahiplik kaybedildiyse kota düşülmez ve ücretli model çağrısı YAPILMAZ (Haiku 10-16: kontrol kotadan ÖNCE)
     const retryBudget = await consumeDailyAiBudgetForQr(ctx.property.organizationId, ctx.property.id);
     if (retryBudget.ok) {
       const notes = [
@@ -1063,7 +1065,6 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
         ...(firstDoorCode ? [QR_DOOR_CODE_RETRY_NOTE] : []),
         ...(firstDirective ? [QR_EMERGENCY_DIRECTIVE_RETRY_NOTE] : []),
       ];
-      await assertClaimHeld(); // sahiplik kaybedildiyse ücretli model çağrısı YAPILMAZ
       result = await suggestReply({ ...replyInput, knowledgeBaseNotes: notes });
       doorCodeHeld = Boolean(result.reply) && qrReplyHasDoorCode(result.reply, modelKbTexts);
     } else {
@@ -1388,6 +1389,8 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     if (err instanceof KeyedClaimLostError) return finalize({ deduped: true });
     // Pre-record failure (model/DB error before anything persisted) → release so
     // the guest's retry is processed instead of deduped against zero work.
+    // Yenileme ÖNCE durur (Haiku 10-16): bırakmadan sonra gelen bir yenileme turu, satır yok diye kilidi yeniden almasın.
+    stopHeartbeat();
     if (claimScopeId && !recorded) await releaseKeyedOutboundSend(claimScopeId, message, claimToken);
     // Y3: konaklama istek sürerken silindi — hiçbir şey yazılmadı; misafire konaklaması olmayan biriyle aynı cevap.
     if (err instanceof StayErasedError) {

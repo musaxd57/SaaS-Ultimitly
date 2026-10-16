@@ -387,7 +387,7 @@ kaldır (kırmızı) **ve** koşulsuz yap (yine kırmızı).
   (`consumedAt`/`invalidatedAt` dolu ve `createdAt < now - 24h`) satırları siler.
 - Çalışma yeri: `scheduled-sync` **deep** penceresi (`sweepExpiredRateLimits`
   ve `sweepEmailOutbox` ile aynı blok) — yeni cron YOK.
-- KVKK: tabloda misafir/kişisel veri YOK (yalnız `userId` + hash'ler + damgalar).
+- KVKK: tabloda misafir verisi YOK; `userId` + özetler + damgalar hesap sahibine bağlanır (kişisel veri, 10-16 Codex C6).
   `User` silinince `onDelete: Cascade` ile gider. İki süpürge kapsamına girmesi
   gerekmez; bu, `SCRUB KAPSAMI KURALI` açısından bilinçli ve gerekçeli bir
   istisnadır.

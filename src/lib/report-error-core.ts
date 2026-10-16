@@ -103,7 +103,7 @@ export async function reportError(context: string, err: unknown): Promise<Report
   const errMessage = redactSensitive(prismaSummary ?? (err instanceof Error ? err.message : String(err)));
 
   // Takip numarası (kurucu kararı 10-10): süren işlemin numarası — log satırı, Sentry etiketi ve alarm e-postası aynı numarayı taşır;
-  // operatör ekranı (`api/admin/events`) numarayla olay günlüğünü bulur. Numara kişisel veri değildir, yalnız iz.
+  // operatör ekranı (`api/admin/events`) numarayla olay günlüğünü bulur. Numara doğrudan tanımlayıcı değildir (kayıtlara bağlanabildiği için takma adlıdır), yalnız iz.
   const correlationId = currentCorrelationId();
 
   // Always log — structured and greppable (redacted: Railway logs are retained).

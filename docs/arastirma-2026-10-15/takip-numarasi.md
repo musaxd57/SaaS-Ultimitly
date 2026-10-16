@@ -9,7 +9,7 @@
 ## 0. Kısa özet
 
 - **Bugün:** numara üretimi, kimlikli rotalar, hata raporu + Sentry etiketi, ödeme zinciri (onay → webhook), arka plan işleri ve operatör
-  araması (yalnız numarayla) çalışıyor. Kayıt yalnız-ekle, 90 gün, kapalı küme, kişisel veri yok.
+  araması (yalnız numarayla) çalışıyor. Kayıt yalnız-ekle, 90 gün, kapalı küme; serbest metin / ad yok (kimlikler bağlanabilir → takma adlı veri, 10-16 Codex C6).
 - **En önemli boşluk:** "ödemem geçmedi" vakasında (kart reddi) müşterinin elinde numara YOK — numara yalnız bizim sunucu 5xx'inde çıkıyor.
   İkincisi: otomatik cevap zincirinde mesaj / deneme başına numara yok; kuyruk işçisi satıra YENİ numara veriyor (zincir kopuyor).
 - **Önerilen sıra:** A destek ekranı v2 (numara + konuşma bağlantısı + işletme / 24 saat, zorunlu amaç) → B ödeme tamamlama (kart reddinde
@@ -229,7 +229,7 @@ ALTER TABLE "WebhookEvent" ADD COLUMN "correlationId" TEXT;
 CREATE INDEX "WebhookEvent_correlationId_idx" ON "WebhookEvent"("correlationId");
 ```
 İlk teslimatın numarası yazılır, yeniden denemede DEĞİŞMEZ (upsert'in `update` dalı sütuna dokunmaz) — zincirin çapası oynamasın.
-`WebhookEvent` 12 ay sonra küçültülür (`minimizeOldPaddleWebhooks`, `scheduled-sync.ts:869`); numara sütunu kişisel veri değil, kalır.
+`WebhookEvent` 12 ay sonra küçültülür (`minimizeOldPaddleWebhooks`, `scheduled-sync.ts:869`); numara sütunu doğrudan tanımlayıcı değil, kalır (onay kaydına bağlanabildiği için takma adlı — 10-16 Codex C6).
 
 ### B.3 Yeni olaylar (kapalı kümeye)
 | Olay | Seviye | Veri |

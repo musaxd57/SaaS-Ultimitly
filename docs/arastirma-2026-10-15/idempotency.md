@@ -406,7 +406,7 @@ yeni bir kişisel veri deposu olur (KVKK: saklama süresi, silme talebinde kapsa
 kanarya listesi — "Scrub kapsamı kuralı: misafir metni taşıyan her kolon" kalıcı kararı). Ayrıca 500'ü de önbelleğe almak bizim "kesin
 hata → yeniden dene" sözleşmemizle çelişir.
 
-**Tasarım (yalnız İŞARETÇİ saklar, PII yok):**
+**Tasarım (yalnız İŞARETÇİ saklar, ham PII yok; HMAC + iç kimlik = takma adlı, 24 sa — 10-16 Codex C6):**
 - Tablo (yeni tablo → dolu tabloya `@unique` kuralı geçerli değil; additive):
   `RequestLedger { organizationId (FK Cascade), scope (ör. "reservation.create"), requestId, payloadHash (HMAC, kısa), resultRef
   (ör. "reservation:<id>"), createdAt; @@unique([organizationId, scope, requestId]); @@index([createdAt]) }`.

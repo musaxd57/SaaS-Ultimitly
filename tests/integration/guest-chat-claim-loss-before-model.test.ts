@@ -12,10 +12,15 @@ import type { SuggestReplyResult } from "@/lib/ai/types";
 
 // Kancalar: adım ÇALIŞIRKEN kilit başka işçiye geçer (eski işçi hâlâ çalışıyor). Sayaçlar ücretli / kota adımlarının yapılıp yapılmadığını sayar.
 const { hook, counts } = vi.hoisted(() => ({
-  hook: { retrieve: null as null | (() => Promise<void>), limits: null as null | (() => Promise<void>), budget: null as null | (() => Promise<void>) },
+  hook: {
+    retrieve: null as null | (() => Promise<void>),
+    limits: null as null | (() => Promise<void>),
+    budget: null as null | (() => Promise<void>),
+    paused: null as null | (() => Promise<void>),
+  },
   counts: { retrieve: 0, budget: 0 },
 }));
-const runHook = async (k: "retrieve" | "limits" | "budget") => {
+const runHook = async (k: "retrieve" | "limits" | "budget" | "paused") => {
   const fn = hook[k];
   hook[k] = null;
   if (fn) await fn();
@@ -29,6 +34,17 @@ vi.mock("@/lib/ai/kb-retrieve", async (importOriginal) => {
       counts.retrieve++;
       await runHook("retrieve");
       return actual.retrieveKbForPrompt(...args);
+    },
+  };
+});
+vi.mock("@/lib/guest-chat", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/guest-chat")>();
+  return {
+    ...actual,
+    guestChatAiPausedForStay: async (...args: Parameters<typeof actual.guestChatAiPausedForStay>) => {
+      const out = await actual.guestChatAiPausedForStay(...args);
+      await runHook("paused");
+      return out;
     },
   };
 });
@@ -104,7 +120,7 @@ describe("QR — sahiplik kaybı ilk ücretli çağrıdan önce", () => {
     __resetRateLimit();
     mockSuggest.mockReset();
     mockSuggest.mockResolvedValue(result());
-    hook.retrieve = hook.limits = hook.budget = null;
+    hook.retrieve = hook.limits = hook.budget = hook.paused = null;
     counts.retrieve = counts.budget = 0;
     process.env.GUEST_CHAT_ENABLED = "1";
   });
@@ -128,6 +144,19 @@ describe("QR — sahiplik kaybı ilk ücretli çağrıdan önce", () => {
     await prisma.systemLock.deleteMany({ where: { name } });
     await prisma.systemLock.create({ data: { name, lockedUntil: new Date(Date.now() + 120_000), holder: "baska.isci" } });
   };
+
+  it("🚨 daire sayacından ÖNCE kilit başka işçiye geçti → günlük daire sayacı ARTMAZ (aynı mesaj yeni işçide ikinci kez sayılmaz; Haiku 10-16)", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    const token = await enableChat(propertyId);
+    const reservation = await prisma.reservation.findFirstOrThrow({ where: { propertyId } });
+    hook.paused = steal(`outbound-send:qr-in:${reservation.id}:${RID}`);
+    const res = await call(token, "Çöp ne zaman alınıyor?", RID);
+    expect((await res.json()).deduped).toBe(true);
+    expect(hook.paused).toBeNull(); // kanca koştu
+    expect(await prisma.chatUsage.count({ where: { propertyId } })).toBe(0); // ⬅️ KONTROLSÜZ: 1
+    expect(counts.budget).toBe(0);
+    expect(mockSuggest).not.toHaveBeenCalled();
+  });
 
   it("🚨 kota adımından ÖNCE kilit başka işçiye geçti → kota DÜŞÜLMEZ, getirme ve model YOK (Opus N4)", async () => {
     const { propertyId } = await makeOrgWithProperty();

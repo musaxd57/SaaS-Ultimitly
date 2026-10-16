@@ -15,7 +15,7 @@ vi.mock("@/lib/report-error", async (orig) => {
   return { ...actual, reportError: reportErrorMock };
 });
 
-import { drainOutboxOnce, kickOutboxDrain, __resetOutboxKick, __ageOutboxKick, __setOutboxKickFollowUpMs } from "@/lib/outbox/worker";
+import { drainOutboxOnce, kickOutboxDrain, __resetOutboxKick, __ageOutboxKick, __setOutboxKickFollowUpMs, __outboxKickRunning } from "@/lib/outbox/worker";
 import { currentCorrelation, runWithCorrelation } from "@/lib/correlation";
 
 async function waitUntil(fn: () => boolean | Promise<boolean>, timeoutMs = 3000): Promise<void> {
@@ -81,7 +81,8 @@ describe("hızlı uyandırma — kurtarma yalnız periyodik turda; talebi dolan 
     const stale = await row("s2", { status: "sending", claimedBy: "periyodik-isci", claimExpiresAt: new Date(Date.now() - 1000) });
     // Prisma temsilcisine casus KONMAZ (sonraki testlere sızar — CLAUDE.md dersi); bekleyen satır yok → tur hızlı biter.
     kickOutboxDrain();
-    await new Promise((r) => setTimeout(r, 800));
+    expect(__outboxKickRunning()).toBe(true); // tur gerçekten başladı
+    await waitUntil(() => !__outboxKickRunning()); // sabit bekleme değil: tur BİTTİ (Haiku 10-16 — boşa geçme / sonraki teste sızma yok)
     expect((await prisma.messageOutbox.findUniqueOrThrow({ where: { id: stale.id } })).status).toBe("sending"); // ⬅️ skipRecover yoksa ambiguous
   });
 
@@ -89,10 +90,18 @@ describe("hızlı uyandırma — kurtarma yalnız periyodik turda; talebi dolan 
     const r = await row("e1", { status: "pending" });
     const send = vi.fn().mockResolvedValue({ ok: true, providerMessageId: "p-1" });
     const base = Date.now();
-    let calls = 0;
-    // İlk saat okuması talep anı; sonrakiler 6 dk sonrası (talep süresi 5 dk) — parti yavaşlamış gibi.
-    const now = () => new Date(calls++ === 0 ? base : base + 6 * 60_000);
-    await drainOutboxOnce({ now, send, tokenFor: async () => "tok" });
+    let jumped = false;
+    // Saat, satır TALEP EDİLDİKTEN sonra (kimlik çözümü = POST'tan önceki adım) 6 dk ileri atlar (talep süresi 5 dk) — parti yavaşlamış
+    // gibi. Saat okuma SIRASINA bağlı değil (Haiku 10-16).
+    const now = () => new Date(jumped ? base + 6 * 60_000 : base);
+    await drainOutboxOnce({
+      now,
+      send,
+      tokenFor: async () => {
+        jumped = true;
+        return "tok";
+      },
+    });
     expect(send).not.toHaveBeenCalled(); // ⬅️ KEMERSİZ: süresi dolmuş talep gönderilirdi (başka turun kurtarmasıyla yarış)
     expect(await prisma.messageOutbox.findUniqueOrThrow({ where: { id: r.id } })).toMatchObject({ status: "pending", claimedBy: null, attemptCount: 0, claimedAt: null });
     await drainOutboxOnce({ now: () => new Date(base + 7 * 60_000), send, tokenFor: async () => "tok" });

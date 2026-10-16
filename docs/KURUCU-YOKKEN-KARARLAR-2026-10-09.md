@@ -96,7 +96,7 @@ Not: QR adresini (token) yenileme (F11) — "chatToken rotasyonu YOK (bilinçli)
 | # | Konu | Kurucu kararı | Uygulama |
 |---|---|---|---|
 | Haiku (a) | Kendine görev atama | "Kendine e-posta gitmesin" | `api/tasks/[id]`: kendine atamada e-posta YOK ve görev başı saatte 3 kovasından SAYILMAZ (`task-assign-email-cap.test.ts`). |
-| Dışa aktarma | `AutomationRule` + `DecisionRequest` | "Dışa aktarmaya gerek yok" (kişisel veri değil; misafir yazışması zaten dökümde) | Gerekçeli DIŞARIDA (`data-export-coverage.test.ts`). |
+| Dışa aktarma | `AutomationRule` + `DecisionRequest` | "Dışa aktarmaya gerek yok" (doğrudan metin taşımaz — misafirin istediği saat ve konuşma kimliği yine kişisel veridir (10-16 Codex C6); misafir yazışması zaten dökümde) | Gerekçeli DIŞARIDA (`data-export-coverage.test.ts`). |
 | 29b | Oto-yanıt önizleme kotası | "Gerçek çağrı kadar düşsün" (önizlemeyi ileride kaldırmayı düşünüyor) | Modele giden HER konuşma bir birim (`previewBudget`, model çağrısının hemen önünde); bütçe biterse önizleme DURUR, ekranda "günlük sınır doldu · kalan konuşmalar önizlenmedi". Rota yalnız bakar. |
 | 15 | QR konaklama başına mesaj tavanı | "Evet, saatte 40" + metin AYNEN | 41. mesaj: yapay zekâ çağrılmaz, mesaj kaydedilmez, misafir 429 ile "Şu anda çok fazla mesaj aldık. Ev sahibiniz bilgilendirildi; kısa süre sonra tekrar yazabilirsiniz." görür; ev sahibine saatte TEK kayıt: konuşma "Ev sahibine iletildi" işareti + karar kaydı (`stay_message_cap`) + açıksa uyarı e-postası. |
 | 17 | QR acil e-postası | "Konaklama başı saatte 3" | Sahiplenmeden SONRA sayılır (aynı acil metnin tekrarı hak yemez); tavanda sahiplenme bırakılır. Misafire giden cevap değişmez. |

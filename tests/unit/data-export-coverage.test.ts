@@ -55,7 +55,7 @@ const EXCLUDED: Record<string, string> = {
   ConversationItem: "Mesajdan türetilmiş istek kalemi — kaynağı (mesaj) dökümde",
   DecisionRequest: "Misafir talebine bağlı ev sahibi kararı — misafirle yazışmanın kendisi (mesajlar) dökümde; kurucu kararı 10-11: dışa aktarılmaz",
   StorageDeletion: "Depo silme kuyruğu — iç işletim",
-  ErasureTombstone: "Silme koruma kaydı (HMAC, kişisel veri yok) — iç işletim",
+  ErasureTombstone: "Silme koruma kaydı (ham kişisel veri yok; anahtarı bizde HMAC özeti = takma adlı veri, Codex C6) — iç işletim",
   EmailOutbox: "E-posta gönderim kuyruğu — iç işletim",
   ChannelListing: "Bağlantı-ilan kimlik eşlemesi — iç teknik",
   AiGeneration: "⚠️ KARAR 25 (avukat): yapay zekâ üretim izi — eğitim / dışa aktarma yasağı tasarımı",

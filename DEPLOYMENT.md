@@ -189,6 +189,12 @@ gönderilecek".
    yoldan gider; bütün işletmeler için açıkça `DURABLE_OUTBOX_ORG_IDS=*`. 🚨 Liste YOKSA ya da boşsa KİMSE açılmaz (Opus F10, 10-16:
    listeyi silmek kuyruğu bütün işletmelere açmasın) — yani `DURABLE_OUTBOX_ENABLED=1` tek başına hiçbir şey yapmaz. Liste yalnız GÖNDERİM
    kararını seçer: boşaltma işçisi ve okuma süzgeçleri ana anahtara bakar (listeden çıkarılan işletmenin bekleyen satırı yine bir kez gider).
+   **Hızlı uyandırma (kurucu 10-16):** kuyruğa yazılan elle cevap ve "yeniden dene" aynı süreçte hemen boşaltma turu başlatır (2 dk'lık senkron
+   yedek yoldur). Varsayılan AÇIK; kaçış `OUTBOX_FAST_WAKE=0`. Uyandırma turu kurtarma yapmaz, en çok 5 satır alır.
+   **İki ayrı anahtar (kurucu 10-16):** `DURABLE_OUTBOX_ENABLED` / liste = YENİ işi kuyruğa alma (kapalıysa mesaj kuyruksuz ANINDA gönderilir —
+   gönderimi durdurmaz). `OUTBOX_DELIVERY_PAUSED=1` = kuyrukta BEKLEYEN gönderimleri duraklat: işçi `pending` satır almaz; sonucu belirsiz
+   satırların uzlaştırması sürer (POST yok); kuyruk dışı anında gönderimler ve kimlik e-postaları ETKİLENMEZ; başlamış bir dış gönderim geri
+   alınamaz. Yalnız tam "1" açar ("true" açılışta uyarı verir, duraklatmaz). Env değişikliği yeniden dağıtım ister (anlık şalter değil).
 4. Bir yanıt gönder; DB'de `MessageOutbox` satırının `pending → sent` olduğunu
    ve `Message.externalId`'nin worker sonrası dolduğunu doğrula. `review`/`failed`
    satırları takılı gönderimleri gösterir (elle incele); `blocked` = Hospitable aboneliği

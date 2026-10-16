@@ -68,7 +68,7 @@
 
 - Hata bildirimi (Sentry + e-posta) merkezi redaksiyonla; periyodik işlerde geçiş tabanlı alarm (alarm seli yok) — `lib/report-error-core.ts`, `lib/alert-state.ts`.
 - Denetim kaydı: ayar değişiklikleri (alan adları), bürünme başlangıç/bitiş, dışa aktarma, misafir verisi silme, bağlantı değişiklikleri — `lib/audit.ts`.
-- Yapay zekâ karar kaydı (`RiskEvent`): her otomatik / tutulan cevabın kapalı-küme gerekçesi, kişisel veri taşımaz.
+- Yapay zekâ karar kaydı (`RiskEvent`): her otomatik / tutulan cevabın kapalı-küme gerekçesi; misafir metni / adı taşımaz, konuşma kimliğiyle bağlanabilir (takma adlı kişisel veri — 10-16 Codex C6).
 
 ## 7. Tedarik zinciri ve altyapı
 

@@ -610,16 +610,25 @@ describe("POST /api/chat/[token] (public QR concierge)", () => {
         await prisma.systemLock.update({ where: { name }, data: { lockedUntil: new Date(Date.now() + 5_000) } });
         let lost = 0;
         const stop = startKeyedClaimHeartbeat(scope, "Çöp?", "tok-a", () => { lost++; });
-        await new Promise((r) => setTimeout(r, 90));
-        expect(lost).toBe(0);
-        expect((await prisma.systemLock.findUniqueOrThrow({ where: { name } })).lockedUntil.getTime()).toBeGreaterThan(Date.now() + 60_000);
-        // Kilit başka işçiye geçti.
-        const foreignUntil = new Date(Date.now() + 30_000);
-        await prisma.systemLock.update({ where: { name }, data: { holder: "baska.isci", lockedUntil: foreignUntil } });
-        await new Promise((r) => setTimeout(r, 120));
-        expect(lost).toBe(1); // ⬅️ KAYIP DALI YOKSA: 0 — kayıp hiç bildirilmez
-        expect((await prisma.systemLock.findUniqueOrThrow({ where: { name } })).lockedUntil.getTime()).toBe(foreignUntil.getTime());
-        stop();
+        try {
+          // Yavaş CI'da da: sabit bekleme yerine yenilemenin yazılmasını bekle (Haiku 10-16).
+          const t0 = Date.now();
+          while ((await prisma.systemLock.findUniqueOrThrow({ where: { name } })).lockedUntil.getTime() <= Date.now() + 60_000) {
+            if (Date.now() - t0 > 3000) throw new Error("yenileme yazılmadı");
+            await new Promise((r) => setTimeout(r, 10));
+          }
+          expect(lost).toBe(0);
+          // Kilit başka işçiye geçti.
+          const foreignUntil = new Date(Date.now() + 30_000);
+          await prisma.systemLock.update({ where: { name }, data: { holder: "baska.isci", lockedUntil: foreignUntil } });
+          const t1 = Date.now();
+          while (lost === 0 && Date.now() - t1 < 3000) await new Promise((r) => setTimeout(r, 10));
+          await new Promise((r) => setTimeout(r, 60)); // birkaç tur daha: kayıp yine TEK kez
+          expect(lost).toBe(1); // ⬅️ KAYIP DALI YOKSA: 0 — kayıp hiç bildirilmez
+          expect((await prisma.systemLock.findUniqueOrThrow({ where: { name } })).lockedUntil.getTime()).toBe(foreignUntil.getTime());
+        } finally {
+          stop();
+        }
       } finally {
         __setKeyedClaimHeartbeatMs(30_000);
       }

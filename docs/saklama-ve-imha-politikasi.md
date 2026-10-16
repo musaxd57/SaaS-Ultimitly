@@ -46,7 +46,7 @@ yeniden import etmez — public metindeki "teknik kontroller uygulanır" cümles
 | Oturum JWT içeriği: email+name (+impersonation'da actor alanları) | Çerez ömrü 14 gün (sliding), `sessionEpoch` ile sunucu taraflı düşürülebilir | Kendiliğinden; parola değişiminde epoch bump | Sözleşmenin ifası | — |
 | Görev fotoğrafları (`public/uploads/{org}/…`, yerel disk) | Hesap ömrü — ⚠️ disk EPHEMERAL (deploy'da kaybolabilir; S3/R2 açık iş) | Hesap silmede klasör `rm` (best-effort; hata `reportError` ile görünür — data-retention.ts:390-400) | Sözleşmenin ifası | Railway (disk) |
 | `AuditLog` (aksiyon + actor + metadata) | Hesap ömrü; bağımsız süre YOK `[KARAR-AUDIT-SÜRE]` | Org cascade | Meşru menfaat (güvenlik/izlenebilirlik) | Railway |
-| `RiskEvent` (AI karar geçmişi) | **Tasarım gereği PII-siz** (kapalı-set enum + opak id — schema.prisma:690 blok yorumu) | Org cascade | Meşru menfaat (güvenlik kanıtı) | Railway |
+| `RiskEvent` (AI karar geçmişi) | **Doğrudan tanımlayıcı / serbest metin taşımaz** (kapalı-set enum + opak id — schema.prisma:690 blok yorumu); konuşma kimliği üzerinden misafire bağlanabilir → takma adlı kişisel veri [AVUKAT PAKETİ 10-16 / Codex C6: açık saklama süresi + hukuki sebep] | Org cascade | Meşru menfaat (güvenlik kanıtı) | Railway |
 
 ### 1c. Faturalama/ödeme verileri
 
