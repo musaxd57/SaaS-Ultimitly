@@ -653,3 +653,22 @@ Karar bekleyenler (denetim + ilk dilim tasarımı: `gecmisten-ogren-6-ilke.md` �
   kalır. Böyle yapalım mı? (Müşteriye gideni değiştirdiği için sormadan yapmadım.)
 - **M2 · Bilgi:** H9 açıkken bile "Başka bir bilgim yok." gibi KONUSUZ yokluk cümlesi bütün cevabı tutar (hangi konunun açık kaldığı bilinmiyor);
   ilk açılışta "kısmen giden" cevap sayısı kanıttaki `ta` izinden ölçülecek.
+
+## N. Codex 10-16 akşam bulguları (6 madde, kodda doğrulandı ve düzeltildi) + bir karar sorusu
+
+| # | Bulgu | Durum | Müşteriye / misafire giden değişti mi |
+|---|---|---|---|
+| 1 | Silinen hesabın küçültülmüş ödeme olayı Paddle yeniden gönderince ham kişisel veriyle geri yazılıyordu | ✅ küçültülmüş yük hiçbir yeniden işlemede ezilmez | Hayır (kayıt) |
+| 2 | Aboneliği kapanan işletmenin KUYRUKTAKİ otomatik mesajı gönderilebiliyordu | ✅ gönderilmez, iptal de edilmez (bekler); elle cevap etkilenmez | EVET (sizin "ödenmiş dönem bitince otomatik işler dursun" kararınızın kuyruğa uygulanması; kalıcı kuyruk bugün kapalı) → N1 |
+| 3 | KB kopyalamada mevcut kopyayı güncelleyen tekrar, kaynak arada değişince 409 vermiyordu | ✅ güncellenen kaleme de işlem kimliği yazılır | Ev sahibi ekranı: o durumda "kaynak değişti" uyarısı |
+| 4 | Arıza okuyucu 64 cümleden sonrasını okumuyordu | ✅ misafir metni bütünüyle; cevap 200 cümleye kadar, aşan cevap tutulur | Yalnız iki kapalı anahtar açıkken (bugün değişmez) |
+| 5 | "Geçmişten öğren" gönderilemeyen ev sahibi mesajını kanıt sayıyordu | ✅ yalnız teslim edilmiş ya da kuyruksuz mesaj kanıt | Hayır (anahtar kapalı, taslak) |
+| 6 | Sağlık yoklamasında eşzamanlı istekler veritabanı okumasını çoğaltıyordu | ✅ süren yoklama paylaşılır | Hayır |
+
+- **N1 · Ödeme sonrası bekleyen otomatik mesaj ne olsun?** Bugün (kod): erişim kapanınca kuyruktaki yapay zekâ cevabı / karşılama mesajı
+  GİTMEZ ve SİLİNMEZ, bekler; ödeme doğrulanınca bütün eski kontrollerden (misafir yeniden yazdıysa iptal, rezervasyon iptalse iptal, giriş
+  penceresi geçtiyse iptal) geçip gider. "AI anahtarı kapatılınca" kuralı (Y5) farklıydı: yapay zekâ cevabı iptal, karşılama mesajı bekler.
+  Seçenekler: A) bugünkü gibi beklesin, ödeme gelince gitsin · B) yapay zekâ cevabı iptal + gelen kutusunda "gönderilmedi (abonelik)" notu,
+  yaşam döngüsü mesajı beklesin (Y5 ile aynı) · C) hepsi iptal. ÖRNEK: misafir "Wi-Fi şifresi?" yazdı, cevap kuyruğa girdi, 5 dk sonra
+  ödenmiş dönem bitti; ödeme 3 gün sonra geldi → A: misafir 3 gün sonra Wi-Fi cevabı alır (bayat olabilir) · B: cevap gitmez, ev sahibi notu
+  görür. Önerim **B** (Y5 ile tutarlı; günler sonra giden yapay zekâ cevabı yanıltıcı olabilir). Hangisi?
