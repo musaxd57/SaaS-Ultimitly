@@ -46,7 +46,7 @@ import {
 import { jsonOk, badRequest, tooManyRequests, parseJsonBody, payloadTooLarge, serverError, hasJsonContentType, unsupportedMediaType, noStore } from "@/lib/api";
 import { rateLimit, rateLimitClientKey } from "@/lib/rate-limit";
 import { SUPPORT_VIEW_GUEST_CHAT_MESSAGE, isSupportViewCookieHeader } from "@/lib/guest-chat-support-view";
-import { claimKeyedOutboundSend, completeKeyedOutboundSend, KeyedClaimLostError, releaseKeyedOutboundSend } from "@/lib/outbound-claim";
+import { claimKeyedOutboundSend, completeKeyedOutboundSend, KeyedClaimLostError, releaseKeyedOutboundSend, startKeyedClaimHeartbeat } from "@/lib/outbound-claim";
 import { limitsForOrg } from "@/lib/billing/plan-limits";
 import { consumeDailyAiBudgetForQr } from "@/lib/ai/daily-budget";
 import { recordIngestEvent } from "@/lib/ingest/events";
@@ -724,7 +724,18 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // veto" this replaces was best-effort — a host reply landing between the
   // check and the insert still got talked over.
   let recorded = false;
+  // Kilit yenileme (kurucu 10-16): işçi çalıştıkça kilidi uzatır; sahiplik kaybedilirse sonraki ücretli adımdan ÖNCE durur.
+  let claimLost = false;
+  const stopHeartbeat = claimScopeId
+    ? startKeyedClaimHeartbeat(claimScopeId, message, claimToken, () => {
+        claimLost = true;
+      })
+    : () => {};
+  const assertClaimHeld = () => {
+    if (claimLost) throw new KeyedClaimLostError();
+  };
   const record = async (botReply: string | null, escalated: boolean, closing: false | "handled" | "open" = false) => {
+    stopHeartbeat(); // kayıt işlemi kilidi "tamamlandı"ya çevirir ya da kaybı kesinleştirir — yenileme bitti
     const out = await prisma.$transaction(async (tx) => {
       // Kurucu 10-16: çalışan kilit → tamamlanmış istek kaydı, kayıtla AYNI işlemde; kilit artık bu işçinin değilse hiçbir şey yazılmaz.
       if (claimScopeId) await completeKeyedOutboundSend(tx, claimScopeId, message, claimToken);
@@ -1019,6 +1030,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     timeZone: org?.timezone,
   };
   const replyStartedAt = Date.now();
+  assertClaimHeld(); // sahiplik kaybedildiyse ücretli model çağrısı YAPILMAZ
   let result = await suggestReply(replyInput);
   // Üretim izi için: yeniden yazdırma yedeğe düşse de İLK çağrı modele gittiyse karar izlenir (Haiku 10-12).
   const firstModelCalled = result.source === "openai" || Boolean(result.llmUsage);
@@ -1041,6 +1053,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
         ...(firstDoorCode ? [QR_DOOR_CODE_RETRY_NOTE] : []),
         ...(firstDirective ? [QR_EMERGENCY_DIRECTIVE_RETRY_NOTE] : []),
       ];
+      assertClaimHeld(); // sahiplik kaybedildiyse ücretli model çağrısı YAPILMAZ
       result = await suggestReply({ ...replyInput, knowledgeBaseNotes: notes });
       doorCodeHeld = Boolean(result.reply) && qrReplyHasDoorCode(result.reply, modelKbTexts);
     } else {
@@ -1091,6 +1104,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   const gateResult = { ...result, reply: result.reply, usedSources: result.usedSources };
   let verdict = evaluateEscalation(gateResult, message, res.guestName, history, stayCtx);
   if ((!verdict.escalate || verdict.reason === "availability_unconfirmed") && stayGuardEnabled()) {
+    assertClaimHeld(); // sahiplik kaybedildiyse ücretli model çağrısı YAPILMAZ
     const stayGuard = await runStayChangeGuard({
       guestMessages: [message],
       reply: result.reply,
@@ -1382,5 +1396,8 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
       return jsonOk({ closed: true, reply: NO_ACTIVE_STAY_REPLY });
     }
     throw err;
+  } finally {
+    // Hiçbir yol yenilemeyi açık bırakmaz (kayıt yapmadan dönen bir dal olsa bile kilit sonsuza uzamasın).
+    stopHeartbeat();
   }
 }

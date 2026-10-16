@@ -518,6 +518,68 @@ describe("POST /api/chat/[token] (public QR concierge)", () => {
       expect(row.holder).not.toContain(plain);
     });
 
+    // ── KURUCU 10-16 (QR): "yalnız işin sonunda sahiplik kontrolüyle yetinme — kilit yenileme, sahiplik kaybı ve kalıcı kayıtların tekilliği,
+    // eski işçi hâlâ çalışırken ikinci işçinin devreye girdiği testle doğrulansın." ──
+    it("🚨 kilit YENİLEME: eski işçi 120 sn'yi aşan model çağrısındayken kilidi canlı tutar → aynı isteğin tekrarı işi İKİNCİ KEZ yapmaz", async () => {
+      const { __setKeyedClaimHeartbeatMs } = await import("@/lib/outbound-claim");
+      __setKeyedClaimHeartbeatMs(20);
+      try {
+        const { propertyId } = await makeOrgWithProperty();
+        const token = await enableChat(propertyId);
+        const warm = await call(token, "merhaba");
+        const cookie = deviceCookie(warm);
+        const before = await prisma.message.count({ where: { direction: "inbound" } });
+        let retryDeduped: unknown = "unset";
+        mockSuggest.mockImplementationOnce(async () => {
+          // 120 sn geçmiş gibi: kilidin süresi doldu. Canlı işçinin yenilemesi onu yeniden ileri atmalı.
+          await prisma.systemLock.updateMany({
+            where: { name: { startsWith: "outbound-send:qr-in:" }, NOT: { holder: { startsWith: "done:" } } },
+            data: { lockedUntil: new Date(Date.now() - 1000) },
+          });
+          await new Promise((r) => setTimeout(r, 120)); // birkaç yenileme turu
+          const b = await call(token, "Çöp günü hangi gün?", cookie, { requestId: RID });
+          retryDeduped = (await b.json()).deduped;
+          return result();
+        });
+        const a = await call(token, "Çöp günü hangi gün?", cookie, { requestId: RID });
+        expect(a.status).toBe(200);
+        expect((await a.json()).deduped).toBeUndefined(); // eski işçi işini bitirdi
+        expect(retryDeduped).toBe(true); // ⬅️ YENİLEMESİZ: süresi dolmuş kilit süpürülür, tekrar işi baştan yapardı
+        expect(await prisma.message.count({ where: { direction: "inbound" } })).toBe(before + 1);
+        expect(mockSuggest).toHaveBeenCalledTimes(2); // selam + A (tekrar modeli çağırmadı)
+      } finally {
+        __setKeyedClaimHeartbeatMs(30_000);
+      }
+    });
+
+    it("🚨 sahiplik KAYBI: eski işçi çalışırken kilidi başka işçiye geçti → eski işçi kayıt yazmaz, misafire ikinci cevap yok (tek kalıcı kayıt)", async () => {
+      const { __setKeyedClaimHeartbeatMs } = await import("@/lib/outbound-claim");
+      __setKeyedClaimHeartbeatMs(20);
+      try {
+        const { propertyId } = await makeOrgWithProperty();
+        const token = await enableChat(propertyId);
+        const warm = await call(token, "merhaba");
+        const cookie = deviceCookie(warm);
+        const reservation = await prisma.reservation.findFirstOrThrow({ where: { propertyId } });
+        const name = `outbound-send:qr-in:${reservation.id}:${RID}`;
+        const before = await prisma.message.count({ where: { direction: "inbound" } });
+        mockSuggest.mockImplementationOnce(async () => {
+          // Süreç donmuştu (yenileme yapamadı), kilit süpürüldü ve yeni işçi aynı adla CANLI kilit aldı; eski işçi hâlâ çalışıyor.
+          await prisma.systemLock.deleteMany({ where: { name } });
+          await prisma.systemLock.create({ data: { name, lockedUntil: new Date(Date.now() + 120_000), holder: "baska.isci" } });
+          await new Promise((r) => setTimeout(r, 80)); // yenileme kaybı fark eder
+          return result();
+        });
+        const a = await call(token, "Çöp günü hangi gün?", cookie, { requestId: RID });
+        expect(a.status).toBe(200);
+        expect((await a.json()).deduped).toBe(true);
+        expect(await prisma.message.count({ where: { direction: "inbound" } })).toBe(before); // eski işçi HİÇBİR ŞEY yazmadı
+        expect((await prisma.systemLock.findUniqueOrThrow({ where: { name } })).holder).toBe("baska.isci"); // yeni işçinin kilidi duruyor
+      } finally {
+        __setKeyedClaimHeartbeatMs(30_000);
+      }
+    });
+
     it("malformed requestId → 400, nothing recorded, no model call", async () => {
       const { propertyId } = await makeOrgWithProperty();
       const token = await enableChat(propertyId);

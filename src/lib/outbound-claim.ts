@@ -189,6 +189,52 @@ export async function completeKeyedOutboundSend(
   }
 }
 
+// ---------------------------------------------------------------------------
+// KİLİT YENİLEME (kurucu 10-16: "yalnız işin sonunda sahiplik kontrolüyle yetinme — kilit yenileme, sahiplik kaybı ve kalıcı kayıtların
+// tekilliği, eski işçi hâlâ çalışırken ikinci işçinin devreye girdiği testle doğrulansın"). Canlı işçi çalışırken kilidini düzenli YENİLER →
+// süre dolup başka işçinin aynı isteği alması yalnız işçi gerçekten durduğunda olur. Yenileme kendi jetonlu satırı bulamazsa SAHİPLİK
+// KAYBEDİLMİŞTİR (süpürüldü / başka işçi aldı) → `onLost` çağrılır; çağıran sonraki ücretli adımdan önce durur. Son güvence yine kayıt
+// işlemindeki tamamlama (`completeKeyedOutboundSend`).
+// ---------------------------------------------------------------------------
+
+let heartbeatMs = 30_000;
+
+/** Tek yenileme: bu işçinin çalışan kilidini 120 sn uzatır; satır artık bu işçinin değilse false. */
+export async function renewKeyedOutboundSend(scopeId: string, body: string, token: string, now: Date = new Date()): Promise<boolean> {
+  const r = await prisma.systemLock.updateMany({
+    where: { name: `${PREFIX}${scopeId}`, holder: inflightHolder(bodyDigest(body), token) },
+    data: { lockedUntil: new Date(now.getTime() + CLAIM_TTL_MS) },
+  });
+  return r.count === 1;
+}
+
+/** Yenileme döngüsünü başlatır; durdurma fonksiyonu döner. Veritabanı hatası kayıp SAYILMAZ (bir sonraki turda yeniden denenir). */
+export function startKeyedClaimHeartbeat(scopeId: string, body: string, token: string, onLost: () => void): () => void {
+  let stopped = false;
+  const timer = setInterval(() => {
+    if (stopped) return;
+    renewKeyedOutboundSend(scopeId, body, token)
+      .then((held) => {
+        if (!held && !stopped) {
+          stopped = true;
+          clearInterval(timer);
+          onLost();
+        }
+      })
+      .catch(() => {});
+  }, heartbeatMs);
+  timer.unref?.();
+  return () => {
+    stopped = true;
+    clearInterval(timer);
+  };
+}
+
+/** Test yardımcısı: yenileme aralığı. */
+export function __setKeyedClaimHeartbeatMs(ms: number): void {
+  heartbeatMs = ms;
+}
+
 /** Release a keyed claim after a failure that recorded NOTHING (the retry must
  *  be processed, not deduped against zero work). Yalnız bu işçinin KENDİ çalışan kilidi silinir (fencing): süresi dolmuş eski işçi,
  *  aynı isteği almış yeni işçinin canlı kilidini ya da tamamlanmış kaydı silemez. */
