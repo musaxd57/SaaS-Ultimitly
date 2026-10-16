@@ -124,9 +124,8 @@ describe("kuyruk teslim etkisi — devir kilidi öğe kipinde KURULMAZ (satır i
   });
 
   it("tur düzeyinde tutulan tur (acil öğe) öğe kipi sayılmaz → kilit KURULUR (satır içi `turn_level` → itemsPlan yok)", async () => {
-    const { conversationId } = await seed({
-      items: [{ on: "trigger" }, { on: "trigger", sensitivity: "emergency", riskType: "safety_emergency" }],
-    });
+    // Anlama katmanının acil niyeti: öğe "emergency", etiket (riskType) YOK — kelime ağı yakalamasa da tur bütünüyle tutulur.
+    const { conversationId } = await seed({ items: [{ on: "trigger" }, { on: "trigger", sensitivity: "emergency", riskType: null }] });
     await drainOutboxOnce({ send: okSend, tokenFor: async () => "t" });
     expect(await holdOf(conversationId)).toBeInstanceOf(Date);
   });
