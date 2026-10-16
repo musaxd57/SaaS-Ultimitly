@@ -152,6 +152,12 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
           content: source.content,
           language: source.language,
           copiedContentHash: sourceHash,
+          // İŞLEM KİMLİĞİ GÜNCELLENEN KALEME DE YAZILIR (Codex 10-16, ölçüldü): yalnız YENİ kopya kimliği taşıyordu → A güncellendi, C düştü,
+          // kaynak arada değişti, aynı kimlikle yeniden deneme "kaynak değişti" uyuşmazlığını (409) görmeden iki kopyayı da yeni metne
+          // çeviriyordu. Artık tekrar bu kalemi "bu işlem yazdı" diye tanır (atlar) ve yukarıdaki içerik izi kıyası güncellenen kalemi de
+          // kapsar. Kalemin eski oluşturma kimliğinin yerini alır: eski işlemin tekrarı kopyayı kaynak bağından (`copiedFromId`) bulur, ikinci
+          // kalem açılmaz.
+          ...(copyKey != null ? { clientRequestId: copyKey } : {}),
           // Onay soyu kaynaktan (yeni kopya ile aynı kural — ↓ create yorumu).
           source: source.source,
           reviewState: source.reviewState,

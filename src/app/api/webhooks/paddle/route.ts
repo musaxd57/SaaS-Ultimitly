@@ -13,7 +13,7 @@ import {
   paddlePriceToPlanCode,
   paddleStatusToLocal,
 } from "@/lib/payments/paddle";
-import { NEEDS_REVIEW_PREFIX, redactPaddlePayload } from "@/lib/data-retention";
+import { NEEDS_REVIEW_PREFIX, isRedactedPaddlePayload, redactPaddlePayload } from "@/lib/data-retention";
 import { PAYMENT_REVIEW_ACTION } from "@/lib/billing/payment-review";
 
 export const dynamic = "force-dynamic";
@@ -750,16 +750,22 @@ export async function POST(req: NextRequest): Promise<Response> {
     // paying customer could stay locked out). The apply handlers are idempotent
     // (subscription upsert-by-org, invoice dedup-by-providerRef), so re-running
     // is safe. Upsert reuses the existing row instead of colliding on its id.
+    // KÜÇÜLTME KARARI YENİDEN İŞLEMEDE KORUNUR (Codex 10-16, ölçüldü): "silinen hesap" olayı küçültülüp "inceleme" kaldıktan sonra Paddle
+    // aynı olayı yeniden gönderince upsert HAM gövdeyi geri yazıyordu; ikinci işlemede gerekçe "unlinked" çıktığı için yeniden küçültülmüyordu
+    // → ad / e-posta / adres geri geldi. Bir kez küçültülmüş yük (silinen hesap / KVKK silme / 12 ay) hiçbir yeniden işlemede ham gövdeyle
+    // ezilmez; işleme bellekteki gövdeyle sürer (finansal inceleme devam eder).
+    let storedMinimized = false;
     if (providerEventId) {
       const existing = await prisma.webhookEvent.findUnique({ where: { providerEventId } });
       if (existing?.status === "processed") {
         await logEvent("billing.webhook.duplicate", { providerEventId });
         return jsonOk({ ok: true, duplicate: true });
       }
+      storedMinimized = existing != null && isRedactedPaddlePayload(existing.payloadJson);
       await prisma.webhookEvent.upsert({
         where: { providerEventId },
         create: { provider: "paddle", eventType, providerEventId, payloadJson: rawBody, status: "received" },
-        update: { status: "received", eventType, payloadJson: rawBody, error: null },
+        update: { status: "received", eventType, ...(storedMinimized ? {} : { payloadJson: rawBody }), error: null },
       });
     } else {
       await prisma.webhookEvent.create({
@@ -792,7 +798,7 @@ export async function POST(req: NextRequest): Promise<Response> {
             ? {
                 status: "error",
                 error: `${NEEDS_REVIEW_PREFIX} ${reviewReason}`,
-                ...(reviewReason === "org_deleted" ? { payloadJson: redactPaddlePayload(rawBody, "org-deleted") } : {}),
+                ...(reviewReason === "org_deleted" && !storedMinimized ? { payloadJson: redactPaddlePayload(rawBody, "org-deleted") } : {}),
               }
             : { status: "processed", processedAt: new Date() },
         });

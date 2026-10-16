@@ -332,3 +332,14 @@ describe("anahtar KAPALI — bugünkü davranış bayt bayt", () => {
     expect(plan.answerable.map((a) => a.item.kind)).toEqual(["wifi"]);
   });
 });
+
+describe("arıza okuyucu bütün cümlecikleri okur (Codex 10-16: 64 cümlecik tavanı 65. cümlecikteki arızayı kaçırıyordu)", () => {
+  it("🚨 63 / 64 / 65 / 200 cümlecikten sonra gelen arıza da açık arızadır", () => {
+    for (const n of [63, 64, 65, 200]) {
+      const text = `${Array.from({ length: n }, (_, i) => `merhaba ${i}`).join(", ")}, televizyon açılmıyor.`;
+      expect([...faultDevicesOf(text)], String(n)).toEqual(["tv"]);
+    }
+    // aşırı-uygulama kontrolü: arızasız uzun metin arıza üretmez
+    expect([...faultDevicesOf(Array.from({ length: 200 }, (_, i) => `merhaba ${i}`).join(", "))]).toEqual([]);
+  });
+});

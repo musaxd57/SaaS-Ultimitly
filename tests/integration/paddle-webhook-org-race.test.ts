@@ -89,6 +89,27 @@ describe("ödeme S2 — hesap silinirken ödeme olayı: alarm, olay kaybolmaz, h
     expect(await prisma.subscription.count()).toBe(0);
   });
 
+  it("🚨 silindi → küçültüldü → AYNI olay yeniden gönderildi: ham kişisel veri GERİ GELMEZ (Codex 10-16; gerekçe 'unlinked' olsa da)", async () => {
+    interleave = async () => {
+      await prisma.organization.delete({ where: { id: orgId } });
+    };
+    const event = renewal("evt_replay", "sub_live");
+    expect((await post(event)).status).toBe(200);
+    const first = await prisma.webhookEvent.findUniqueOrThrow({ where: { providerEventId: "evt_replay" } });
+    expect(first.error).toBe("needs_review: org_deleted");
+    expect(JSON.parse(first.payloadJson).note).toBe("org-deleted");
+    // Paddle teslim edilmiş olayı da yeniden gönderebilir; ikinci işlemede abonelik / işletme artık yok → gerekçe değişir.
+    expect((await post(event)).status).toBe(200);
+    const again = await prisma.webhookEvent.findUniqueOrThrow({ where: { providerEventId: "evt_replay" } });
+    expect(again.status).toBe("error"); // inceleme sürer
+    expect(again.payloadJson).not.toContain("ayse@example.com"); // ⬅️ ESKİDE ham gövde geri yazılıyordu
+    expect(JSON.parse(again.payloadJson).note).toBe("org-deleted"); // küçültme işareti korunur
+    expect(again.payloadJson).toContain("sub_live"); // finansal iskelet incelenebilir
+    // Üçüncü kez de aynı (işaret kalıcı).
+    expect((await post(event)).status).toBe(200);
+    expect((await prisma.webhookEvent.findUniqueOrThrow({ where: { providerEventId: "evt_replay" } })).payloadJson).not.toContain("ayse@example.com");
+  });
+
   it("🚨 İLK ödeme olayı (abonelik satırı yok, işletme onaydan bulunur) + işletme arada silinir: yabancı anahtar yazmayı reddeder → 500 değil, alarm + inceleme, hesap açılmaz", async () => {
     await prisma.subscription.deleteMany({ where: { organizationId: orgId } });
     const consent = await prisma.checkoutConsent.create({

@@ -906,12 +906,13 @@ const TRY_ACTION_CONTEXT = new RegExp(
   "u",
 );
 
+/** Kemerin okuduğu en çok cevap cümlesi; AŞAN cevap tutulur (okunmayan kısım güvenli sayılmaz — Codex 10-16). */
+const MAX_STEP_SENTENCES = 200;
+
 /**
  * Kumanda adı (her cihazın kumandası olur; getirme sözlüğü onu TV kavramına bağlıyor — ölçüldü: "Kumanda çalışmazsa kapının solundaki tuş
  * takımına 5523 yazın" otopark tarifiydi, TV sayıldı). Yalnız bu kemerin cümle okumasında nötrlenir.
  */
-/** Taranan en çok cevap cümlesi (doğrusal tavan; model metni uzun olabilir). */
-const MAX_STEP_SENTENCES = 64;
 
 const REMOTE_WORD = new RegExp(
   `${L}(?:kumanda\\p{L}{0,10}|remote(?: control)?s?|fernbedienung\\p{L}{0,2}|t[eé]l[eé]commande\\p{L}{0,2}|mando\\p{L}{0,2}|пульт\\p{L}{0,3})${R}`,
@@ -985,11 +986,13 @@ const GUEST_QUESTION = new RegExp(
 
 /**
  * Misafir arızanın yanında BAŞKA bir şey soruyor mu: arıza taşımayan, genel takip sorusu ("ne yapmalıyız", "what should we do") olmayan bir
- * soru cümleciği. Cümle / cümlecik başına sınırlı tarama (doğrusal).
+ * soru cümleciği. Bütün cümlecikler okunur (doğrusal; misafir metni 8.000 karakterle sınırlı).
  */
 function asksBesidesFault(text: string): boolean {
   const parts = text.split(FAULT_CLAUSE_SPLIT);
-  for (let i = 0; i < Math.min(parts.length, MAX_STEP_SENTENCES * 2); i += 2) {
+  // Bütün cümlecikler (Codex 10-16: tavan okunmayan kısmı sessizce "yok" sayıyordu). Doğrusal; misafir metni 8.000 karakterle sınırlı
+  // (`ai/message-length.ts`, üstü ev sahibine kalır).
+  for (let i = 0; i < parts.length; i += 2) {
     const clause = parts[i] ?? "";
     if (clause.trim() === "") continue;
     const f = fold(clause);
@@ -1058,7 +1061,12 @@ export function unsupportedFixStep(
   let carried: string[] = [];
   // Rakamla biten cümle de bölünür ("Wi-Fi şifresi Lale2025. Klimayı açmak için …" — Opus gece-2 M3: iki cümle tek okunuyordu, Wi-Fi konusu
   // klima adımını geçiriyordu). Ondalık ("2.5 bar") ve saat ("15.00") bölünmez. Tek geçiş, doğrusal.
-  for (const sentence of sentencesOf(reply.replace(/(?<=\d)[.!?;](?=\s)/gu, "$&\n")).slice(0, MAX_STEP_SENTENCES)) {
+  // Codex 10-16: eski 64 cümle tavanı okunmayan kısmı sessizce "adım yok" sayıyordu (öne 64 kısa cümle eklenmiş cevaptaki tarifsiz adım
+  // GEÇİYORDU). Artık tavana kadar her cümle okunur; tavanı AŞAN cevap okunmadan güvenli sayılmaz → tutulur (gerçek cevaplar birkaç
+  // cümledir). Doğrusal ve sınırlı.
+  const sentences = sentencesOf(reply.replace(/(?<=\d)[.!?;](?=\s)/gu, "$&\n"));
+  if (sentences.length > MAX_STEP_SENTENCES) return true;
+  for (const sentence of sentences) {
     const f = fold(sentence);
     const own = stepDevicesOf(sentence);
     // Cihazı anılmayan cümle önceki cümlenin cihazını alır ("Bulaşık makinesi için: cihazı kapatıp 30 saniye bekleyin"); cevapta hiç yoksa
@@ -1379,14 +1387,12 @@ const NON_DEVICE_SUBJECT = new RegExp(
   "u",
 );
 
-/** Taranan en çok cümlecik (doğrusal tavan). */
-const MAX_FAULT_CLAUSES = 64;
 
 /**
  * Metnin bildirdiği AÇIK cihaz arızaları (cihaz kavramları). Sıra önemlidir: arızadan SONRA gelen düzelme ("çalışmadı ama sonra düzeldi")
  * yalnız KENDİ cümleciğinin cihazını ya da (cihazsızsa) son arızalı cihazı kapatır — başka cihazın düzelmesi arızayı silmez ("Klima hâlâ
  * çalışmıyor, internet ise düzeldi" — Opus gece-2 M4, ölçüldü); düzelmeden SONRA gelen arıza ("düzeldi ama şimdi yine çalışmıyor") açar.
- * "Düzeldi mi?" / "hallettik sandık" düzelme değildir. Cümleciğin BÜTÜN arıza geçişleri okunur. Doğrusal (cümlecik başına sınırlı tarama).
+ * "Düzeldi mi?" / "hallettik sandık" düzelme değildir. Cümleciğin BÜTÜN arıza geçişleri okunur. Bütün cümlecikler, doğrusal (misafir metni 8.000 karakterle sınırlı).
  */
 export function faultDevicesOf(text: string): Set<string> {
   const open = new Set<string>();
@@ -1394,7 +1400,8 @@ export function faultDevicesOf(text: string): Set<string> {
   let lastFault: readonly string[] = [];
   let subject: readonly string[] = [];
   const parts = text.split(FAULT_CLAUSE_SPLIT);
-  for (let i = 0; i < Math.min(parts.length, MAX_FAULT_CLAUSES * 2); i += 2) {
+  // Bütün cümlecikler (Codex 10-16: 64 cümlecik tavanı 65. cümlecikteki arızayı kaçırıyordu). Doğrusal.
+  for (let i = 0; i < parts.length; i += 2) {
     const clause = parts[i];
     if (!clause || clause.trim() === "") continue;
     const delimiter = parts[i + 1] ?? "";

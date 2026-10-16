@@ -22,6 +22,7 @@ import {
 import { ANON_BODY } from "@/lib/data-retention";
 import { isHandoffExempt, sweepExpiredHandoffExempt } from "./handoff-exempt";
 import { outboxDeliveryPaused } from "./flag";
+import { billingEnforced, premiumAllowed } from "@/lib/billing/subscription";
 import {
   attemptsExhausted,
   backoffMs,
@@ -224,6 +225,8 @@ async function recoverStaleClaims(now: Date): Promise<number> {
  * attemptCount is incremented on every claim. Fair order by availableAt (oldest first).
  */
 async function claimBatch(token: string, now: Date, expiry: Date, batchSize: number): Promise<OutboxRow[]> {
+  // Abonelik erişimi kapalı işletmeler işlem DIŞINDA hesaplanır (erişim okuması talep kilidini uzatmasın).
+  const billingBlocked = await billingBlockedOrgIds(now);
   return prisma.$transaction(async (tx) => {
     // Serialize the claim phase (Codex P1). Non-blocking: if a concurrent worker holds it,
     // do nothing this pass — the rate count must never race another in-flight claim.
@@ -231,8 +234,39 @@ async function claimBatch(token: string, now: Date, expiry: Date, batchSize: num
       Prisma.sql`SELECT pg_try_advisory_xact_lock(${OUTBOX_CLAIM_LOCK_KEY}::bigint) AS locked`,
     );
     if (!gate[0]?.locked) return [];
-    return claimBatchLocked(tx, token, now, expiry, batchSize);
+    return claimBatchLocked(tx, token, now, expiry, batchSize, billingBlocked);
   });
+}
+
+/** Ücretli OTOMATİK gönderim türleri (yapay zekâ cevabı, bekleme mesajı, yaşam döngüsü). Elle cevap ("manual") ve eski NULL tür dışarıda. */
+export const PAID_AUTOMATED_TYPES = ["ai", "holding_ack", "welcome", "checkin", "checkout"] as const;
+const PAID_AUTOMATED_SET: ReadonlySet<string> = new Set(PAID_AUTOMATED_TYPES);
+/** Erişimi kapalı işletmenin otomatik satırı gönderim anında yakalanırsa bu kadar sonra yeniden bakılır (deneme sayılmaz). */
+export const BILLING_HOLD_RETRY_MS = 10 * 60_000;
+
+/**
+ * ABONELİK ERİŞİMİ KAPALI İŞLETMELER (Codex 10-16, ölçüldü: kurucu kararı "ödenmiş dönem bitince ücretli otomatik işler dursun" yeni
+ * otomasyonu durduruyordu ama KUYRUKTA bekleyen yapay zekâ cevabı / karşılama mesajı yine gönderiliyordu). Bu işletmelerin otomatik satırı
+ * TALEP EDİLMEZ — iptal de edilmez, deneme sayısı artmaz; bekleyen mesajın ödeme sonrası kaderi kurucu kararı (`KURUCU-SORULARI.md` §N).
+ * Elle cevap etkilenmez ve bekleyen otomatik satırın arkasında SIRA kuralıyla tıkanmaz (Y5 deseni). Faturalandırma kapalıyken (`BILLING_ENFORCED`)
+ * hiç okuma yapılmaz.
+ */
+async function billingBlockedOrgIds(now: Date): Promise<string[]> {
+  if (!billingEnforced()) return [];
+  const due = await prisma.messageOutbox.findMany({
+    where: { status: "pending", availableAt: { lte: now }, messageType: { in: [...PAID_AUTOMATED_TYPES] } },
+    select: { organizationId: true },
+    distinct: ["organizationId"],
+  });
+  const blocked: string[] = [];
+  for (const { organizationId } of due) if (!(await premiumAllowed(organizationId))) blocked.push(organizationId);
+  return blocked;
+}
+
+/** Gönderim anı kemeri: talepten sonra erişim kapandıysa otomatik satır POST edilmez, ertelenir (deneme sayılmaz). */
+async function billingHoldUntil(row: OutboxRow, now: Date): Promise<Date | null> {
+  if (!row.messageType || !PAID_AUTOMATED_SET.has(row.messageType)) return null;
+  return (await premiumAllowed(row.organizationId)) ? null : new Date(now.getTime() + BILLING_HOLD_RETRY_MS);
 }
 
 /**
@@ -244,6 +278,7 @@ async function claimBatchLocked(
   now: Date,
   expiry: Date,
   batchSize: number,
+  billingBlocked: readonly string[] = [],
 ): Promise<OutboxRow[]> {
   // The DUE / claim-expiry / rate-window comparisons all use the worker's own `now`
   // (injected in tests), so the backoff clock and the claim clock never diverge.
@@ -307,6 +342,7 @@ async function claimBatchLocked(
           WHERE s."status" IN ('pending', 'ambiguous')
             AND (NOT ${deliveryPaused}::boolean OR s."status" = 'ambiguous')
             AND (${autoAllowed}::boolean OR s."status" = 'ambiguous' OR s."messageType" IS NULL OR s."messageType" IN ('manual', 'ai', 'holding_ack'))
+            AND NOT (s."status" = 'pending' AND s."organizationId" = ANY(${[...billingBlocked]}::text[]) AND s."messageType" IN ('ai', 'holding_ack', 'welcome', 'checkin', 'checkout'))
             AND s."availableAt" <= ${now}
             AND (s."claimExpiresAt" IS NULL OR s."claimExpiresAt" <= ${now})
             AND NOT EXISTS (
@@ -315,6 +351,7 @@ async function claimBatchLocked(
                 AND e."id" <> s."id"
                 AND e."status" IN ('pending', 'sending', 'ambiguous', 'reconciling')
                 AND NOT (NOT ${autoAllowed}::boolean AND e."status" = 'pending' AND e."messageType" IS NOT NULL AND e."messageType" <> 'manual')
+                AND NOT (e."status" = 'pending' AND e."organizationId" = ANY(${[...billingBlocked]}::text[]) AND e."messageType" IN ('ai', 'holding_ack', 'welcome', 'checkin', 'checkout'))
                 AND (
                   e."status" IN ('sending', 'reconciling')
                   OR (e."createdAt", e."id") < (s."createdAt", s."id")
@@ -1020,6 +1057,8 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
   try {
     deferUntil = await checkinNotYetDue(row, now);
     if (!deferUntil) veto = await sendTimeVeto(row, now);
+    // Abonelik erişimi talepten SONRA kapandıysa (Codex 10-16): otomatik satır POST edilmez, iptal de edilmez — ertelenir.
+    if (!deferUntil && !veto) deferUntil = await billingHoldUntil(row, now);
   } catch (err) {
     void reportError(`outbox-veto-read org=${row.organizationId}`, err);
     await settle(row, token, "sending", {

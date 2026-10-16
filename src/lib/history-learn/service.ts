@@ -226,7 +226,7 @@ export async function executeHistoryLearnRun(
       select: { propertyId: true, organizationId: true, model: true, effort: true, kind: true },
     });
     const since = new Date(Date.now() - HISTORY_LEARN_WINDOW_DAYS * 86_400_000);
-    const rows = await prisma.message.findMany({
+    let rows = await prisma.message.findMany({
       where: {
         createdAt: { gte: since },
         // Kiracı kapsamı: konuşma → mülk → işletme (mülk kimliği tekil; işletme koşulu derinlemesine savunma — eşdeğer mutant).
@@ -248,6 +248,11 @@ export async function executeHistoryLearnRun(
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: HISTORY_LEARN_MESSAGE_CAP,
     });
+    // GÖNDERİLMEMİŞ EV SAHİBİ MESAJI KANIT DEĞİLDİR (Codex 10-16): kalıcı kuyruk mesajı gönderilmeden ÖNCE yerel tabloya yazar; gönderimi
+    // düşen / iptal edilen / bekleyen "Otopark ücretsiz" geçmiş cevap sayılıyordu. Kuyruk satırı olan giden mesaj yalnız "sent" ise kalır;
+    // kuyruksuz (senkronla gelen / eski) gerçek ev sahibi cevapları AYNEN korunur.
+    const undelivered = await undeliveredOutboundIds(rows.filter((m) => m.direction !== "inbound").map((m) => m.id));
+    if (undelivered.size > 0) rows = rows.filter((m) => !undelivered.has(m.id));
     const convStatus = new Map<string, string | null>();
     for (const m of rows) convStatus.set(m.conversationId, m.conversation?.status ?? null);
     const names = guestNamesOf(rows);
@@ -495,6 +500,17 @@ async function evidenceContext(organizationId: string, evidenceJson: string) {
 
 /** İnceleme ekranında taslak başına gösterilen örnek cevabın en çok uzunluğu (maskeden SONRA kırpılır — `mask.ts` kuralı). */
 export const EVIDENCE_SAMPLE_MAX_CHARS = 280;
+
+/** Kuyruk satırı olup HİÇBİRİ "sent" olmayan giden mesaj kimlikleri (gönderilmemiş / düşmüş / iptal / belirsiz). */
+async function undeliveredOutboundIds(messageIds: readonly string[]): Promise<Set<string>> {
+  if (messageIds.length === 0) return new Set();
+  const outbox = await prisma.messageOutbox.findMany({
+    where: { messageId: { in: [...messageIds] } },
+    select: { messageId: true, status: true },
+  });
+  const delivered = new Set(outbox.filter((o) => o.status === "sent").map((o) => o.messageId));
+  return new Set(outbox.map((o) => o.messageId).filter((id): id is string => id != null && !delivered.has(id)));
+}
 
 /**
  * TASLAĞIN DAYANDIĞI ÖRNEK (Opus 10-15 H6, Codex ilke 1 "mesajı bağlamından koparma"): ekran yalnız çıkarılmış metni gösteriyordu — ev

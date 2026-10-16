@@ -318,11 +318,21 @@ describe("kemerin bağlamı ve tavanı (mutasyon H5 / H6)", () => {
     expect(unsupportedFixStep("MODE tuşuna basın.", acSubject, "Televizyonu nasıl açarım?")).toBe(true);
   });
 
-  it("taranan cümle sayısı sınırlı — çok uzun model metninde iş doğrusal ve küçük", () => {
+  it("🚨 tavanı AŞAN model metni okunmadan güvenli sayılmaz → TUTULUR; iş doğrusal ve küçük (Codex 10-16: eski tavan okunmayanı 'adım yok' sayıyordu)", () => {
     const withRecipe = { recipeTopics: new Set(["ac"]), subjectTopics: new Set(["ac"]) };
     const t0 = performance.now();
-    expect(unsupportedFixStep("Klimayı kapatıp açın. ".repeat(20_000), withRecipe, "Klima çalışmıyor")).toBe(false);
+    expect(unsupportedFixStep("Klimayı kapatıp açın. ".repeat(20_000), withRecipe, "Klima çalışmıyor")).toBe(true);
     expect(performance.now() - t0).toBeLessThan(2_000);
+  });
+
+  it("🚨 öne 64 kısa cümle eklenen cevaptaki tarifsiz TV adımı da görülür (63 / 64 / 65 sınırı; Codex 10-16)", () => {
+    const none = { recipeTopics: new Set<string>(), subjectTopics: new Set<string>() };
+    const filler = (n: number) => Array.from({ length: n }, (_, i) => `Not ${i}.`).join(" ");
+    for (const n of [63, 64, 65, 150]) {
+      expect(unsupportedFixStep(`${filler(n)} Kumandadaki SOURCE düğmesine basın.`, none, "Televizyon açılmıyor.")).toBe(true);
+    }
+    // aşırı-uygulama kontrolü: uzun ama adım içermeyen cevap tavanın altında tutulmaz
+    expect(unsupportedFixStep(`${filler(100)} Çöpleri konteynere bırakın.`, none, "Çöp nereye?")).toBe(false);
   });
 });
 

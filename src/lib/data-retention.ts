@@ -696,6 +696,20 @@ const asObj = (v: unknown): Record<string, unknown> =>
  * PII, so they're kept for the books; customer email/name/address/card and the
  * rest of the raw body are dropped.
  */
+/**
+ * Saklanan Paddle yükü daha önce küçültülmüş mü (`redactPaddlePayload` çıktısı: üst düzeyde `redactedAt` + `note`). Ham Paddle olayında bu
+ * iki alan yoktur (imzalı gövde). Webhook yeniden işlemesinde küçültülmüş yük HAM gövdeyle EZİLMEZ (Codex 10-16).
+ */
+export function isRedactedPaddlePayload(json: string | null | undefined): boolean {
+  if (!json) return false;
+  try {
+    const p = JSON.parse(json) as unknown;
+    return p !== null && typeof p === "object" && typeof (p as Record<string, unknown>).redactedAt === "string" && typeof (p as Record<string, unknown>).note === "string";
+  } catch {
+    return false;
+  }
+}
+
 export function redactPaddlePayload(raw: string, note: "kvkk-erasure" | "retention-1y" | "org-deleted" = "kvkk-erasure"): string {
   let p: Record<string, unknown>;
   try {

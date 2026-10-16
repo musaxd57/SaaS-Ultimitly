@@ -117,6 +117,33 @@ describe("Geçmişten öğren — uçtan uca", () => {
     expect(await prisma.historyLearnRun.count()).toBe(0);
   });
 
+  it("🚨 GÖNDERİLMEMİŞ ev sahibi mesajı (kuyrukta düşmüş / bekleyen) kanıt DEĞİL; gönderilmiş ve kuyruksuz eski mesaj kanıttır (Codex 10-16)", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const { hostMessageId } = await seedHistory(propertyId);
+    const conv = await prisma.message.findUniqueOrThrow({ where: { id: hostMessageId }, select: { conversationId: true } });
+    const outbox = (status: string, key: string) =>
+      prisma.messageOutbox.create({
+        data: { organizationId: orgId, conversationId: conv.conversationId, messageId: hostMessageId, channel: "airbnb", body: "x", idempotencyKey: key, status, messageType: "manual" },
+      });
+    const run = async () => {
+      const started = await startHistoryLearnRun({ organizationId: orgId, propertyId, userId: "u-owner" });
+      const runId = (started as { runId: string }).runId;
+      const prompts: string[] = [];
+      await executeHistoryLearnRun(runId, { fetchImpl: fakeModel(prompts, [PARKING]), apiKey: "k" });
+      await prisma.historyLearnRun.update({ where: { id: runId }, data: { status: "done" } }); // ikinci "Başlat" için
+      return { prompts, run: await prisma.historyLearnRun.findUniqueOrThrow({ where: { id: runId } }) };
+    };
+    const failed = await outbox("failed", "k-failed");
+    const r1 = await run();
+    expect(r1.run.pairCount).toBe(0); // ⬅️ ESKİDE 1: gönderilemeyen "otopark ücretsiz" geçmiş cevap sayılıyordu
+    expect(r1.prompts.join("\n")).not.toContain("otopark binanın arkasında");
+    // Aynı mesajın sonraki denemesi teslim edildi → kanıttır.
+    await prisma.messageOutbox.update({ where: { id: failed.id }, data: { status: "canceled" } });
+    await outbox("sent", "k-sent");
+    const r2 = await run();
+    expect(r2.run.pairCount).toBe(1);
+  });
+
   it("🚨 çalıştırma: ad ve kapı kodu modele GİTMEZ; taslak kanıtı ev sahibi mesajı; sayaçlar; CAS ikinci yürütmeyi yok sayar", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
     const { hostMessageId } = await seedHistory(propertyId);

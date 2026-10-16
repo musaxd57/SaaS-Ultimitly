@@ -206,10 +206,11 @@ export async function checkQueueStall(
 // bindirmez. Okunamazsa "unknown" (sayfalamaz — kuyruk okuma hatası ayrı bir arıza değildir; DB arızasını yoklama zaten görür).
 const QUEUE_PROBE_TTL_MS = 30_000;
 let queueProbe: { at: number; state: "ok" | "stalled" | "unknown" } | null = null;
+// Süren yoklama PAYLAŞILIR (Codex 10-16, ölçüldü: önbellek boşken 100 eşzamanlı istek 400 veritabanı okuması başlatıyordu). Yoklama bitince
+// (başarı ya da hata) boşalır → sonraki istek yeniden dener; hata sonucu da TTL boyunca önbellekte durur (bugünkü davranış).
+let queueProbeInFlight: Promise<"ok" | "stalled" | "unknown"> | null = null;
 
-export async function strictQueueState(): Promise<"ok" | "stalled" | "unknown"> {
-  const now = Date.now();
-  if (queueProbe && now - queueProbe.at < QUEUE_PROBE_TTL_MS) return queueProbe.state;
+async function probeQueueState(now: number): Promise<"ok" | "stalled" | "unknown"> {
   let state: "ok" | "stalled" | "unknown";
   try {
     const st = await queueStallStates(new Date(now));
@@ -222,7 +223,19 @@ export async function strictQueueState(): Promise<"ok" | "stalled" | "unknown"> 
   return state;
 }
 
+export async function strictQueueState(): Promise<"ok" | "stalled" | "unknown"> {
+  const now = Date.now();
+  if (queueProbe && now - queueProbe.at < QUEUE_PROBE_TTL_MS) return queueProbe.state;
+  if (queueProbeInFlight) return queueProbeInFlight;
+  const probe = probeQueueState(now).finally(() => {
+    if (queueProbeInFlight === probe) queueProbeInFlight = null;
+  });
+  queueProbeInFlight = probe;
+  return probe;
+}
+
 /** Test yardımcısı: kuyruk yoklamasının bellek içi sonucunu sıfırla. */
 export function __resetStrictQueueState(): void {
   queueProbe = null;
+  queueProbeInFlight = null;
 }

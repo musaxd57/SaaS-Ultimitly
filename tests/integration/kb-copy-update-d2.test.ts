@@ -72,6 +72,30 @@ describe("bilgi tabanı yeniden kopyalama — eski kopyayı güncelle (kurucu D2
     expect((await itemsIn(b)).map((x) => x.content)).toEqual(["Havuz 09:00–21:00 (cumartesi 23:00)."]);
   });
 
+  it("🚨 GÜNCELLEME dalında da tekrar güvenliği: A güncellendi, C düştü, kaynak ARADA değişti → aynı kimlikle tekrar 409, hiçbir şey yazılmaz (Codex 10-16)", async () => {
+    const RID3 = "1234567890abcdef1234567890abcdef";
+    await copy(src, { targetPropertyIds: [a, c], requestId: RID }); // A ve C'de eski kopyalar (20:00)
+    await prisma.knowledgeBaseItem.update({ where: { id: src }, data: { content: "Havuz 09:00–22:00 açık." } });
+    // Yeni işlem A'yı güncelledi, C'ye gelmeden kesildi (aynı sonuç: yalnız A hedefli ilk deneme).
+    expect(await (await copy(src, { targetPropertyIds: [a], requestId: RID3 })).json()).toMatchObject({ updated: 1 });
+    await prisma.knowledgeBaseItem.update({ where: { id: src }, data: { content: "Havuz 09:00–23:00 açık." } });
+    const res = await copy(src, { targetPropertyIds: [a, c], requestId: RID3 });
+    expect(res.status).toBe(409); // ⬅️ ESKİDE 200 + iki kopya da 23:00
+    expect((await itemsIn(a)).map((x) => x.content)).toEqual(["Havuz 09:00–22:00 açık."]);
+    expect((await itemsIn(c)).map((x) => x.content)).toEqual(["Havuz 09:00–20:00 açık."]);
+  });
+
+  it("KONTROL: aynı kimlikle tekrar, kaynak DEĞİŞMEDİYSE kaldığı yerden sürer (A atlanır, C güncellenir)", async () => {
+    const RID3 = "1234567890abcdef1234567890abcdef";
+    await copy(src, { targetPropertyIds: [a, c], requestId: RID });
+    await prisma.knowledgeBaseItem.update({ where: { id: src }, data: { content: "Havuz 09:00–22:00 açık." } });
+    await copy(src, { targetPropertyIds: [a], requestId: RID3 });
+    const res = await copy(src, { targetPropertyIds: [a, c], requestId: RID3 });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ created: 0, updated: 1 });
+    for (const p of [a, c]) expect((await itemsIn(p)).map((x) => x.content)).toEqual(["Havuz 09:00–22:00 açık."]);
+  });
+
   it("aşırı uygulama yok: yalnız SEÇİLEN hedefler güncellenir; seçilmeyen dairedeki kopya eski metinde kalır", async () => {
     await copy(src, { targetPropertyIds: [a, b], requestId: RID });
     await prisma.knowledgeBaseItem.update({ where: { id: src }, data: { content: "Havuz 09:00–22:00 açık." } });
