@@ -461,6 +461,15 @@ panelinde "Kuyruk sağlığı" (kaç satır bekliyor, en eski ne kadar bekliyor)
   kaybolmaz; "Gönderim Kuyruğu" ekranı hazır. ÖRNEK: 2 dk'lık senkron misafire oto-cevabı gönderirken sunucu yeniden başladı → ÖNCE: cevap gitmiş
   olabilir ama panelde görünmez · SONRA: satır "Doğrulanamadı" olur, sağlayıcı geçmişinden kontrol edilir, kopya gönderilmez. Önerim: Railway
   açılınca, ilk denemeler birlikte.
+  Opus hazırlık incelemesi (10-16, `opus-o1-readiness` → tasarım belgesi §6): tek ENGEL bulundu ve düzeltildi (öğe kipinde "insanla görüşmek
+  istiyorum" cevabından sonra kuyruk yolu yapay zekâyı 12 saat susturuyordu, bugünkü yol susturmuyor — artık ikisi aynı). Açmadan önce bilmen
+  gerekenler: (1) ev sahibinin elle cevabı ANINDA değil, 2 dakikalık senkronun sonunda gider ("sıraya alındı" görürsün); (2) doğrulanmış erken
+  giriş OTOMATİK onayı kapanır, onay sana taslak olarak düşer; (3) karar motoru (`HOST_DECISIONS_ENABLED`) bununla AYNI ANDA açılmasın (kart
+  kuyruğa girer girmez "onaylandı" kapanıyor; teslim düşerse yeniden açılmıyor — ayrı düzeltme gerekir); (4) bayrak bütün işletmeler için tek —
+  yalnız senin işletmende denemek için `DURABLE_OUTBOX_ORG_IDS` listesi eklememi ister misin? (5) Geri dönüş (env'i kaldırma) sonrası tek açık:
+  kuyrukta iptal / başarısız kalmış taslaklar, bayrak kapanınca modele "verilmiş cevap" gibi görünebilir (iki süzgeç bayrağa bağlı; bayraktan
+  bağımsız yapmak her turda kuyruk taraması demek, kuyruk tablosunda konuşma dizini yok). Seçenek A: küçük migration (yalnız dizin, veri
+  değişmez) + süzgeç her zaman açık · Seçenek B: geri dönüşte o taslakları işaretleyen tek seferlik betik. Önerim A — açılıştan önce.
 - **O2 · Kuyruksuz üç bildirim e-postası** (elle rezervasyon "yeni rezervasyon", görev atama, demo talebi): sağlayıcı arızasında kaybolur, yalnız
   hata uyarısı görünür. Önerim: yalnız görev atamasına "işaretle → gönder → olmazsa geri al" (migration'sız); genel bildirim tablosu şimdilik yok.
 - **O3 · Kuyruk birikme alarmı:** panel bakılmazsa birikme fark edilmez. Önerim: vadesi gelmiş satır 15 dk bekleyince sana tek e-posta (düzelince

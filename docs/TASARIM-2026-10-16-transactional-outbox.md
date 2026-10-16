@@ -61,3 +61,24 @@ saniyelik yoklama gecikmesi sorun değil ve yoklama yayıncısı veritabanına �
 | O4 | Log tailing / ayrı mesaj kuyruğu (Kafka, SQS) | Yalnız çok kopya + yüksek hacimde | — | Bugün gerekmiyor (§3) |
 
 Mutlak iddia yok: bu belge kodun bugünkü hâlini anlatır; canlı env değerleri Railway kapalıyken doğrulanamadı (CLAUDE.md canlı durum tablosu).
+
+## 6. O1 hazırlık incelemesi (Opus, 10-16) — özet
+
+Kodda doğrulandı (dosya:satır kanıtlarıyla; tam rapor oturum notlarında):
+- **ENGEL — düzeltildi:** öğe kipinde (canlı) "insanla görüşmek istiyorum" niyetli cevaptan sonra satır içi yol yapay zekâyı SUSTURMUYOR
+  (`automation.ts` `human_request && !itemsPlan`), kuyruk yolunun teslim etkisi ve onarıcısı susturuyordu → bayrak açılınca misafirin sonraki
+  güvenli soruları 12 saat cevapsız kalırdı. Kuyruk yolu artık tetik misafir mesajında konuşma öğesi varsa kilit kurmuyor
+  (`outbox/worker.ts` `itemsModeTurn`, test `tests/integration/outbox-items-handoff.test.ts`).
+- **RİSK (karar motoruyla birlikte açılırsa engel):** karar kartı kuyruğa girer girmez "onaylandı / reddedildi" kapanıyor; teslim düşerse kart
+  yeniden açılmıyor. O1 denemesinde `HOST_DECISIONS_ENABLED` KAPALI kalsın.
+- **RİSK:** ev sahibinin elle cevabı anında değil 2 dk'lık senkron sonunda gider; Hospitable 402'de ev sahibi hata yerine "sıraya alındı" görür;
+  karşılama / giriş metni kuyruğa girdiği andaki bilgi tabanından donar.
+- **NOT (kurucuya):** bayrak açılınca doğrulanmış erken giriş otomatik onayı kapanır (onay ev sahibine taslak).
+- **Temiz:** gönderim kapısı kararları, bayat cevap vetosu, teslimde koşullu "answered", yaşam döngüsü damgası, genel kapatma, KVKK silme.
+- Kapanış nezaketi: konuşma kuyruğa girmeden "answered" yapılıyor (yorumla çelişki gerçek) ama misafir yeni yazarsa senkron `new`e çevirir —
+  kaybolan yalnız nezaket satırı. `holding_ack` için kuyruğa yazan yok (ölü tür).
+- Geri dönüş güvenli (boşaltma bayraktan bağımsız); istisna: iki "teslim edilmemiş taslak" süzgeci bayrağa bağlı — geri dönüşten sonra iptal
+  edilmiş taslaklar modele "verilmiş cevap" olarak girebilir (açılıştan önce düzeltilecek).
+- İlk deneme önerisi: kurucu işletmesi (Hospitable aboneliği aktif olmalı — 402'de her satır `blocked`), sıra elle cevap → AI cevabı →
+  karşılama / giriş / çıkış; başarı: çift gönderim 0, `failed / blocked / review` 0, teslim gecikmesi p95 ≤ ~5 dk; geri dönüş: env'i kaldır.
+
