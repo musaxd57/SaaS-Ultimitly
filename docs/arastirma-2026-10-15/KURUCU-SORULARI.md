@@ -497,3 +497,41 @@ panelinde "Kuyruk sağlığı" (kaç satır bekliyor, en eski ne kadar bekliyor)
 - **O16 (soru):** D1'de "sıradan Ekle'ye tekrar basmak ikinci kayıt onayı sayılmasın" dedin — bu yalnız bilgi tabanı FORMUNDA uygulandı.
   "Şablondan öneriler" ve "Geçmiş cevaplar" ekranlarında 409'dan sonra "Ekle"ye tekrar basmak bugün ikinci kalem açar. Aynı kural oralarda
   da uygulansın mı (409 → "Kaydedilen bilgiyi düzenle" / "Ayrı bir bilgi olarak ekle" seçimi)? Önerim evet.
+
+## I. Kurucu kararları 10-16 sabah (Codex soruları + araya yazdıkların) — uygulama durumu
+
+Kararların özü (aynen kaydı oturum notlarında; burada yalnız ne yapıldığı). **Faz 1** = migration'sız, kodda bitti (push öncesi tam kapı) ·
+**Faz 2** = migration ister (şema taslağı gösterilecek, onaydan sonra push) · **Faz 3** = misafire giden yapay zekâ davranışı (anahtar KAPALI,
+önce / sonra örneğiyle).
+
+| Karar | Durum |
+|---|---|
+| Migration 68 onaylandı | ✅ Faz 1 — ana dala alındı (eski kopyayı güncelle + sözün istek kimliği) |
+| Söz ekranı "Bu söz zaten kayıtlı" (görev açılamadıysa gizlenmez; klima / musluk ayrı işlem) | ✅ Faz 1 (`commitments` 200 + `reused`) |
+| S6 e-posta kuyruğu: aynı satırın her denemesi aynı anahtar, bilinçli yeni e-posta yeni anahtar | ✅ Faz 1 (`Idempotency-Key: email-outbox/<satır>`); "tamamen biter" İDDİA EDİLMEDİ — sağlayıcı 24 saat tutar, kendi gönderim kaydımız + belirsiz sonuç politikası Faz 2 |
+| Ödeme S4: duraklatma ≠ ödeme gecikmesi | ✅ Faz 1 (`paused` ayrı durum, ek süre yok, plan değişikliği reddedilir, banner "Aboneliği yönet") |
+| Ödeme S1: eksik / tutarsız veriden fatura yok, olay kaybolmaz, düzeltilince yeniden işlenebilir | ✅ Faz 1 (tam rakam dizisi; olay `error` + `needs_review: <kod>` → Paddle'dan yeniden gönderilince işlenir; alarm) |
+| Ödeme S2: hesap silinirken ödeme olayı → alarm + olay kaybolmaz + hesap geri açılmaz + inceleme kaydı | ✅ Faz 1 + istediğin test: `paddle-webhook-org-race.test.ts` (5 senaryo, gerçek PostgreSQL, belirlenimci sıra) |
+| O1 liste anahtarı + "kuyruktayken / gönderilirken kapatılırsa" testi + eski sürüme dönüş açıklaması | ✅ Faz 1 (`DURABLE_OUTBOX_ORG_IDS`; tasarım belgesi §7 — 🚨 eski koda dönmeden ÖNCE ana anahtar kaldırılmalı) |
+| QR: 300'e çıkarma; çalışan kilit ≠ tamamlanmış kayıt; süresi dolan eski işçi göndermesin | ✅ Faz 1 (120 sn kilit + 24 sa tamamlanmış kayıt + işçi jetonu) |
+| S1 elle gönderim kalıcı işlem kimliği · S2 işlem defteri tablosu | Faz 2 (tek tablo; şema taslağı gelecek) |
+| S5 bilgi tabanı sürüm alanı (bayat kayıt atomik ret, yazılan metin korunur, fark gösterilir) | Faz 2 |
+| S4 kayıt: aynı kayıt işleminin tekrarı ikinci e-posta üretmez (tarayıcı değişse de; başkasını engellemez; hesap varlığı sızmaz) | Faz 2 |
+| Ödeme S3 iade / ters ibraz (onaylı iade tutarı, kısmen / tamamen, ters ibraz ayrı durum + alarm + geri alınması; fatura değişmez, düzeltme kaydı) | Faz 2 |
+| O2 görev ataması bildirimi kalıcı kuyruktan (atama + bildirim birlikte; yeniden atanınca eski bildirim gitmez) | Faz 2 |
+| O3 A + B (e-posta + strict yoklama; alarm bozuk kuyruğa bağlı değil, yeniden başlatma döngüsü yok) + ikinci izleyici kurulum belgesi | Faz 2 |
+| O5 kuyruk ekranı zamanları · O6 önizlemeli toplu yeniden dene | Faz 2 |
+| H2 belirtiyle ilgili tarif (TV siyah ekran ≠ ses ayarı) + tehlike bağlamı · H9 konu bazlı "bilgim yok" (çözüm bilgisi yok cümlesi misafire ASLA) | Faz 3 |
+
+### Sorular (10-16 öğle)
+- **I1 · Öneri yolunda "klima / musluk ayrı" kuralın SAĞLANMIYOR (anahtar KAPALI, `AI_ACTION_SUGGESTIONS_ENABLED`):** elle form senin kuralına
+  uyuyor (her tıklama ayrı işlem → klima 18:00 + musluk 18:00 = iki söz, iki görev). Yapay zekânın söz ÖNERİSİ ise aynı tür + aynı saatte açık
+  söz varsa yeni söz AÇMIYOR, var olanı döndürüyor. Klima da musluk da "Arıza / bakım" türünde ve söz cihazı / konuyu saklamıyor (yalnız tür +
+  saat) → ÖRNEK: misafir "klima çalışmıyor" ve "musluk damlıyor" yazdı, iki öneriyi 18:00'e onayladın → bugün TEK söz + TEK görev (ikinci onay
+  "Bu söz zaten kayıtlı" der); öneri listesi de ikincisini gizler. Birleştirmenin sebebi: ev sahibi aynı sözü elle kaydettiyse öneriyi onaylayınca
+  ikinci görev açılmasın. Seçenekler: (A) söze kısa KONU alanı (ör. "klima", "musluk"; migration) — aynı tür + saat + konu birleşir, farklı konu
+  ayrı · (B) öneri yolunda birleştirmeyi kaldır (migration yok; ama elle kaydedilmiş aynı söz öneriyle ikinci kez açılabilir) · (C) bugünkü gibi
+  kalsın. Önerim A (Faz 2 şemasına eklerim); anahtar kapalı olduğu için bugün kimseyi etkilemiyor.
+- **I2 · Ödeme gecikmesi ek süresi 14 gün mü 30 gün mü** (Paddle yaklaşık 30 gün yeniden dener; bizde 15–30. günler arası otomatik cevap kapalı,
+  ödeme gelirse anında açılır). Önerim 14 kalsın.
+- **I3 · O1 Seçenek A son onayı:** dizinin garanti ettiği / etmediği tasarım belgesi §7'de. Onay verirsen migration taslağını Faz 2 ile birlikte gösteririm.

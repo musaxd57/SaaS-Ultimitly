@@ -86,3 +86,29 @@ Kodda doğrulandı (dosya:satır kanıtlarıyla; tam rapor oturum notlarında):
 - İlk deneme önerisi: kurucu işletmesi (Hospitable aboneliği aktif olmalı — 402'de her satır `blocked`), sıra elle cevap → AI cevabı →
   karşılama / giriş / çıkış; başarı: çift gönderim 0, `failed / blocked / review` 0, teslim gecikmesi p95 ≤ ~5 dk; geri dönüş: env'i kaldır.
 
+
+## 7. Anahtar kapatma ve eski sürüme dönüş (kurucu 10-16: "mesaj kuyruktayken / gönderilirken anahtar kapatılırsa?")
+
+Kodda sınandı (`tests/integration/auto-reply-channel.test.ts` "O1 geri dönüş", gerçek PostgreSQL):
+- **Kuyrukta (pending) iken kapatma:** satır içi yol aynı misafir mesajına ikinci cevap ÜRETMEZ (`already_answered`), kuyruktaki cevap
+  boşaltmayla TEK kez gider (iki boşaltma turu → teslim 1).
+- **Gönderim ortasında (sending, süreç düştü) kapatma:** körlemesine yeniden gönderim YOK; satır belirsiz sayılır ve sağlayıcı geçmişinden
+  uzlaştırılır (gitmişse "gönderildi", gitmemişse elle karar).
+- Boşaltma anahtardan bağımsız (`scheduled-sync`: anahtar açık YA DA boşaltılacak satır var) → kapatma hiçbir bekleyen mesajı mahsur bırakmaz.
+
+**İlk deneme listesi (`DURABLE_OUTBOX_ORG_IDS`, 10-16):** liste yalnız GÖNDERİM kararını seçer; okuma süzgeçleri ve boşaltma ana anahtarı okur.
+Listeden çıkarılan işletmenin bekleyen satırı yine bir kez gider. Kaynak pini: gönderim yerleri işletmeye göre, küresel çağrı yalnız okuma süzgecinde.
+
+**Eski kod sürümüne dönüş:**
+- Desteklenir, BİR şartla: 🚨 eski sürüme dönmeden ÖNCE `DURABLE_OUTBOX_ENABLED` kaldırılır. Liste anahtarını bilmeyen eski sürüm ana
+  anahtar açıksa BÜTÜN işletmeleri kuyruğa alır.
+- Kuyruk tablosu (migration 29/30) ve boşaltma eski sürümlerde de var → bekleyen satırlar eski sürümde de gider.
+- Kuyruğa girişte yazılan "insan talebi istisnası" işaretini eski sürüm okumaz → yapay zekâyı 12 saat susturur (güvenli yön: konuşma sende kalır).
+- Migration 68 yalnız ekleme (kolon / dizin); eski sürüm yeni kolonları okumaz, veri bozulmaz.
+- QR tekrar kaydı (10-16): eski sürüm yeni biçimli kilidi (`özet.jeton` / `done:özet`) "farklı içerik" sanar → dönüşten sonraki 24 saat içinde
+  aynı isteğin tekrarı tekilleşmek yerine 409 alır (misafir yeniden yazınca yeni kimlikle işlenir). Veri kaybı yok; kayıt 24 saatte kendiliğinden düşer.
+
+**Açık kalan (Seçenek A, kurucu "dizinin neyi garanti ettiğini görmeden son onay yok"):** geri dönüşten sonra iki "teslim edilmemiş taslak" süzgeci
+ana anahtara bağlı kalıyor. Dizin (migration) TEK BAŞINA bekleyen mesajı ya da işçiyi yönetmez; yalnız süzgecin her zaman açık olabilmesini
+ucuzlatır (konuşma başına kuyruk sorgusu dizinle tek atlama). Garanti ettiği: anahtar kapandıktan sonra iptal / başarısız kalmış taslak modele
+"verilmiş cevap" gibi girmez. Garanti etmediği: teslim, yeniden deneme, sıralama (bunlar zaten boşaltmada).

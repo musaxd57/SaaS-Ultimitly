@@ -102,6 +102,9 @@ kapalı yolunda (`requestId` kullanılmıyor). Sıralı liste §8, kurucu sorula
   gelen tekrar İKİNCİ kez işlenir (çift misafir balonu + çift model ücreti + olası ikinci devir). İstemci aynı sekmede gönderim
   sürerken ikinci gönderime izin vermiyor (`sendingRef`), yani pratikte ağ katmanı tekrarı gerekir. Düzeltme: kalkan TTL'ini QR
   isteğinin üst süre sınırına eşitle (ör. 300 sn) ya da kayıt sonrası kalıcı iz (`Message.clientRequestId`, §1.1 ile aynı kolon).
+  ✅ **KAPANDI (kurucu 10-16: "300'e çıkarmayın, çalışan kilit ile tamamlanmış kaydı ayırın"):** kilit 120 sn kalır (`holder = özet.işçi
+  jetonu`); kayıt işleminde 24 saatlik tamamlanmış kayda döner (`done:özet`, `completeKeyedOutboundSend`); süresi dolmuş eski işçi kaydetmez
+  (`KeyedClaimLostError` → `deduped`) ve yalnız kendi kilidini bırakır. Testler `guest-chat-endpoint.test.ts` "tamamlanmış istek kaydı" / "bayat kilit".
 - **Not:** sayfa yenilenince istemci kimliği kaybolur (bellekte `useRef`) → yanıtı kaybolmuş mesajı yenileyip yeniden yazan misafir
   yeni kimlik üretir. Kaçınılmaz değil: kimlik `sessionStorage`'da (metinle birlikte) tutulabilir. P3.
 

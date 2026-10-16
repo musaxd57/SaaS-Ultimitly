@@ -8,7 +8,14 @@
 > `docs/history/CLAUDE-2026-10-02-sadelestirme-3-oncesi-tam-metin.md` ("Durum" bölümü). Kuralları yukarıdaki bölümlerde; yalnız Durum'da
 > yazılı olan kurallar (konuşma öğeleri, ev kuralları, canlı bayraklar) 10-02'de ilgili bölümlere taşındı. Bekleyen onaylar ↓.
 
-**10-15 gece (güncel) — idempotency bitişi + kurucu D1–D7:** iptal yollarının hepsi aynı kilit protokolünde (sekiz yol, iptalden önce başlamış
+**10-16 öğle (güncel) — kurucu kararları Faz 1 (migration'sız):** migration 68 onaylandı ve ana dalda; söz tekrarı "Bu söz zaten kayıtlı";
+e-posta kuyruğu sağlayıcıya satır başına sabit tekrar kimliği; ödeme: `paused` ayrı durum (ek süre yok), bozuk / eksik tutarlı olay fatura
+yazmaz ve `needs_review: <kod>` ile yeniden işlenebilir kalır, hesap silinirken gelen ödeme olayı alarm + inceleme (hesap geri açılmaz);
+O1 ilk deneme listesi `DURABLE_OUTBOX_ORG_IDS` + anahtar kapatma testleri (eski koda dönmeden önce ana anahtar kaldırılır — tasarım §7); QR
+çalışan kilit (120 sn) ≠ tamamlanmış kayıt (24 sa) + işçi jetonu (bayat işçi kaydetmez / başkasının kilidini silmez). Faz 2 (migration
+taslağı) / Faz 3 (yapay zekâ, anahtar kapalı) ve sorular I1–I3: `docs/arastirma-2026-10-15/KURUCU-SORULARI.md` §I.
+
+**10-15 gece — idempotency bitişi + kurucu D1–D7:** iptal yollarının hepsi aynı kilit protokolünde (sekiz yol, iptalden önce başlamış
 görev açmaya karşı belirlenimci testler; "zaten iptal" kısa yolu kaldırıldı; ters yön "Yeniden aç" kilitli yoldan). Onarım ≠ alarm: iCal (onarım
 taraması, koşu başına 50) ve Hospitable (her senkron) kendiliğinden yeniden dener; dosya / PATCH yolunda otomatik onarım YOK (D5 aracı, onay
 bekliyor). Kurucu D1 (form başına kimlik + "Ayrı bir bilgi olarak ekle" + güncel listeden düzenle) · D4 (arıza görev tespiti genişledi; soru /
