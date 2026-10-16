@@ -93,4 +93,24 @@ describe("Resend tekrar kimliği (kurucu 10-16, S6)", () => {
     expect(out1.ok && out2.ok).toBe(true);
     expect(calls.map((h) => h.get("Idempotency-Key"))).toEqual([null, null]);
   });
+
+  it("Opus F9: Resend 409 tekrar kimliği çakışmaları ayrılır — farklı içerik (belirsiz, yeniden deneme boşuna) / eşzamanlı (sonra yeniden dene)", async () => {
+    vi.stubEnv("RESEND_API_KEY", "re_test");
+    const respond = (body: string, status: number) => vi.stubGlobal("fetch", vi.fn(async () => new Response(body, { status })));
+    respond(JSON.stringify({ name: "invalid_idempotent_request", message: "same key different payload" }), 409);
+    expect(await emailService.sendReporting("a@x.com", "K", "<p>x</p>", { idempotencyKey: "email-outbox/1" })).toMatchObject({
+      ok: false,
+      idempotencyConflict: "payload_changed",
+    });
+    respond(JSON.stringify({ name: "concurrent_idempotent_requests" }), 409);
+    expect(await emailService.sendReporting("a@x.com", "K", "<p>x</p>", { idempotencyKey: "email-outbox/1" })).toMatchObject({
+      ok: false,
+      idempotencyConflict: "in_progress",
+    });
+    // Anahtarsız istekte ya da başka 409'da sınıflandırma yok (sıradan hata).
+    respond(JSON.stringify({ name: "invalid_idempotent_request" }), 409);
+    expect((await emailService.sendReporting("a@x.com", "K", "<p>x</p>")).idempotencyConflict).toBeUndefined();
+    respond("conflict", 409);
+    expect((await emailService.sendReporting("a@x.com", "K", "<p>x</p>", { idempotencyKey: "email-outbox/1" })).idempotencyConflict).toBeUndefined();
+  });
 });

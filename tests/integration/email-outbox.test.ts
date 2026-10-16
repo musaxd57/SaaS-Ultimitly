@@ -246,6 +246,22 @@ describe("email-outbox", () => {
     expect(keys[2]).toBe(`email-outbox/${second.id}`);
   });
 
+  it("Opus F9: sağlayıcı 'bu anahtar başka içerikle kullanıldı' derse satır yeniden DENENMEZ (sonuç belirsiz) — hemen son durum + tek alarm; eşzamanlı çakışma sıradan yeniden deneme", async () => {
+    const u = await makeUser();
+    await enqueueReset(u.id, "12345678", u.email, 48 * 60 * 60 * 1000);
+    const conflict = vi.fn(async () => ({ ok: false as const, error: "Resend HTTP 409", idempotencyConflict: "payload_changed" as const }));
+    const out = await drainEmailOutboxOnce({ send: conflict });
+    expect(out.failed).toBe(1);
+    const row = await prisma.emailOutbox.findFirstOrThrow();
+    expect(row.status).toBe("failed"); // ⬅️ ESKİDE "pending" (aynı anahtarla en çok deneme sayısına kadar boşuna)
+    expect(row.payloadEnc).toBeNull();
+    // Eşzamanlı çakışma geçicidir → bugünkü gibi yeniden deneme.
+    await enqueueReset(u.id, "87654321", u.email, 48 * 60 * 60 * 1000);
+    const busy = vi.fn(async () => ({ ok: false as const, error: "Resend HTTP 409", idempotencyConflict: "in_progress" as const }));
+    await drainEmailOutboxOnce({ send: busy });
+    expect((await prisma.emailOutbox.findFirstOrThrow({ where: { id: { not: row.id } } })).status).toBe("pending");
+  });
+
   it("EXPIRY: a pending row past the secret's TTL is canceled (payload NULL), never sent", async () => {
     const u = await makeUser();
     await enqueueReset(u.id, "12345678", u.email, 1000);

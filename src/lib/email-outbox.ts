@@ -6,6 +6,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { encryptSecretBound, decryptSecretBound } from "@/lib/crypto";
 import { emailService } from "@/lib/email";
+import type { SendOutcome } from "@/lib/email-core";
 import { errorWithContext, reportError } from "@/lib/report-error";
 import { runAsNewSystemOperation } from "@/lib/correlation";
 import { alertTracker } from "@/lib/alert-state";
@@ -447,7 +448,7 @@ export function emailOutboxIdempotencyKey(rowId: string): string {
 
 export interface EmailDrainDeps {
   /** Provider send — injectable so tests never touch the network. `idempotencyKey`: satır başına sabit tekrar kimliği. */
-  send?: (to: string, subject: string, html: string, idempotencyKey?: string) => Promise<{ ok: boolean; error?: string }>;
+  send?: (to: string, subject: string, html: string, idempotencyKey?: string) => Promise<SendOutcome>;
   now?: () => Date;
   batchSize?: number;
 }
@@ -639,7 +640,11 @@ async function processClaimedRow(
     const attempts = row.attemptCount + 1;
     const backoff = BACKOFF_MS[Math.min(attempts - 1, BACKOFF_MS.length - 1)];
     const nextAt = new Date(settleNow.getTime() + backoff);
-    const terminal = attempts >= EMAIL_OUTBOX_MAX_ATTEMPTS || nextAt >= row.expiresAt;
+    // Sağlayıcı "bu anahtar başka içerikle kullanıldı" dedi (Opus F9): ilk denemenin sonucu BELİRSİZ, aynı anahtarla yeniden denemek boşuna,
+    // yeni anahtarla körlemesine göndermek olası bir kopya (kurucu 10-16: belirsiz sonuç körlemesine yeniden gönderilmez) → hemen son
+    // durum + tek alarm. Kullanıcı yeni e-postayı bilinçli ister (yeniden gönder / yeni şifre sıfırlama = yeni satır, yeni anahtar).
+    const terminal =
+      outcome.idempotencyConflict === "payload_changed" || attempts >= EMAIL_OUTBOX_MAX_ATTEMPTS || nextAt >= row.expiresAt;
     const settled = await tx.emailOutbox.updateMany({
       where: { id: row.id, claimedBy: claimToken, status: "sending" },
       data: terminal

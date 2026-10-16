@@ -63,6 +63,13 @@ export function singleLineSubject(subject: string): string {
 }
 
 /** Resend tekrar kimliği: en çok 256 karakter, yalnız güvenli karakterler (biçim dışıysa anahtar GÖNDERİLMEZ — gönderim yine olur). */
+/** Gönderim sonucu. `idempotencyConflict` yalnız sağlayıcı tekrar kimliğini reddettiğinde (Opus F9). */
+export interface SendOutcome {
+  ok: boolean;
+  error?: string;
+  idempotencyConflict?: "payload_changed" | "in_progress";
+}
+
 export function safeIdempotencyKey(key: string | undefined): string | undefined {
   return key && /^[A-Za-z0-9_:/.-]{1,256}$/.test(key) ? key : undefined;
 }
@@ -78,7 +85,7 @@ class EmailService {
     subject: string,
     html: string,
     idempotencyKey?: string,
-  ): Promise<{ ok: boolean; error?: string }> {
+  ): Promise<SendOutcome> {
     const key = process.env.RESEND_API_KEY;
     if (!key) return { ok: false, error: "RESEND_API_KEY tanımlı değil." };
     // Resend requires a verified-domain (or its test domain) sender. EMAIL_FROM
@@ -99,7 +106,15 @@ class EmailService {
       });
       if (res.ok) return { ok: true };
       const body = await res.text().catch(() => "");
-      return { ok: false, error: `Resend HTTP ${res.status}${body ? ` — ${body.slice(0, 200)}` : ""}` };
+      const error = `Resend HTTP ${res.status}${body ? ` — ${body.slice(0, 200)}` : ""}`;
+      // Tekrar kimliği çakışması (Opus F9, Resend belgesi): `invalid_idempotent_request` = bu anahtar daha önce FARKLI içerikle kullanıldı
+      // (ör. denemeler arasında şablon / gönderen değişti) — aynı anahtarla yeniden denemek işe yaramaz ve ilk denemenin sonucu BELİRSİZ.
+      // `concurrent_idempotent_requests` = aynı anahtarlı istek hâlâ işleniyor — sonra yeniden denemek güvenli.
+      if (res.status === 409 && idempotencyKey) {
+        if (body.includes("invalid_idempotent_request")) return { ok: false, error, idempotencyConflict: "payload_changed" };
+        if (body.includes("concurrent_idempotent_requests")) return { ok: false, error, idempotencyConflict: "in_progress" };
+      }
+      return { ok: false, error };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
@@ -178,7 +193,7 @@ class EmailService {
     subject: string,
     html: string,
     opts: { idempotencyKey?: string } = {},
-  ): Promise<{ ok: boolean; error?: string }> {
+  ): Promise<SendOutcome> {
     const oneLine = singleLineSubject(subject);
     if (process.env.RESEND_API_KEY) return this.viaResend(to, oneLine, html, safeIdempotencyKey(opts.idempotencyKey));
     if (process.env.EMAIL_HOST) return this.viaSmtp(to, oneLine, html);
