@@ -67,8 +67,10 @@ Mutlak iddia yok: bu belge kodun bugünkü hâlini anlatır; canlı env değerle
 Kodda doğrulandı (dosya:satır kanıtlarıyla; tam rapor oturum notlarında):
 - **ENGEL — düzeltildi:** öğe kipinde (canlı) "insanla görüşmek istiyorum" niyetli cevaptan sonra satır içi yol yapay zekâyı SUSTURMUYOR
   (`automation.ts` `human_request && !itemsPlan`), kuyruk yolunun teslim etkisi ve onarıcısı susturuyordu → bayrak açılınca misafirin sonraki
-  güvenli soruları 12 saat cevapsız kalırdı. Kuyruk yolu artık tetik misafir mesajında konuşma öğesi varsa kilit kurmuyor
-  (`outbox/worker.ts` `itemsModeTurn`, test `tests/integration/outbox-items-handoff.test.ts`).
+  güvenli soruları 12 saat cevapsız kalırdı. Kuyruk yolu artık turda (son cevaptan sonraki misafir mesajları, tetik dahil) konuşma öğesi
+  varsa ve tur acil / enjeksiyon nedeniyle bütünüyle tutulmuyorsa kilit kurmuyor (`outbox/worker.ts` `itemsModeTurn`, test
+  `tests/integration/outbox-items-handoff.test.ts`; Haiku: tetiğin kendisi yetmez — "Ev sahibiyle görüşmek istiyorum." + "Teşekkürler").
+  Bilinen sınır: turun bütün öğeleri aynı turda geri çekilirse satır içi yol kilit kurar, kuyruk kurmaz.
 - **RİSK (karar motoruyla birlikte açılırsa engel):** karar kartı kuyruğa girer girmez "onaylandı / reddedildi" kapanıyor; teslim düşerse kart
   yeniden açılmıyor. O1 denemesinde `HOST_DECISIONS_ENABLED` KAPALI kalsın.
 - **RİSK:** ev sahibinin elle cevabı anında değil 2 dk'lık senkron sonunda gider; Hospitable 402'de ev sahibi hata yerine "sıraya alındı" görür;
