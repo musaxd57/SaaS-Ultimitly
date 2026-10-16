@@ -476,8 +476,12 @@ describe("POST /api/chat/[token] (public QR concierge)", () => {
       const { propertyId } = await makeOrgWithProperty();
       const token = await enableChat(propertyId);
       const reservation = await prisma.reservation.findFirstOrThrow({ where: { propertyId } });
-      const { createHash } = await import("node:crypto");
-      const digest = createHash("sha256").update("Çöp ne zaman toplanıyor?").digest("base64url").slice(0, 24);
+      const { createHash, createHmac } = await import("node:crypto");
+      // Opus F7: özet anahtarlı (AUTH_SECRET varsa) — eski biçim satırı aynı özet hesabıyla yazılır (biçim: jetonsuz).
+      const key = process.env.AUTH_SECRET;
+      const digest = (key ? createHmac("sha256", key).update("qr-claim:v1:Çöp ne zaman toplanıyor?") : createHash("sha256").update("Çöp ne zaman toplanıyor?"))
+        .digest("base64url")
+        .slice(0, 24);
       await prisma.systemLock.create({
         data: { name: `outbound-send:qr-in:${reservation.id}:${RID}`, lockedUntil: new Date(Date.now() + 60_000), holder: digest },
       });
@@ -486,6 +490,18 @@ describe("POST /api/chat/[token] (public QR concierge)", () => {
       const other = await call(token, "Bambaşka", deviceCookie(same), { requestId: RID });
       expect(other.status).toBe(409);
       expect(mockSuggest).not.toHaveBeenCalled();
+    });
+
+    it("Opus F7: tekrar kaydı misafir metninin ANAHTARSIZ özetini taşımaz (sözlükle geri çevrilemez)", async () => {
+      const { propertyId } = await makeOrgWithProperty();
+      const token = await enableChat(propertyId);
+      await call(token, "Merhaba", undefined, { requestId: RID });
+      const { createHash } = await import("node:crypto");
+      const plain = createHash("sha256").update("Merhaba").digest("base64url").slice(0, 24);
+      const row = await prisma.systemLock.findFirstOrThrow({ where: { name: { startsWith: "outbound-send:qr-in:" } } });
+      expect(row.holder).toMatch(/^done:/);
+      expect(process.env.AUTH_SECRET).toBeTruthy(); // test ortamında sır var → anahtarlı yol sınanıyor
+      expect(row.holder).not.toContain(plain);
     });
 
     it("malformed requestId → 400, nothing recorded, no model call", async () => {

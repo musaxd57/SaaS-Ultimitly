@@ -446,6 +446,9 @@ async function maskReservationRows(
   reservationId: string,
   names: string[],
 ): Promise<void> {
+  // QR tekrar kaydı (kurucu 10-16, 24 saat): misafir metninin anahtarlı özetini taşır → konaklama silinince beklemeden gider (Opus F7).
+  // Konuşmadan bağımsız (kayıt konuşma açılmadan da var olabilir).
+  await db.systemLock.deleteMany({ where: { name: { startsWith: `outbound-send:qr-in:${reservationId}:` } } });
   const convs = await db.conversation.findMany({
     where: { reservationId },
     select: { id: true, guestIdentifier: true },

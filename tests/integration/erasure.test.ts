@@ -761,3 +761,27 @@ describe("KVKK açık silme — kanalın hitap adı (migration 57)", () => {
   });
 });
 
+// Opus F7 (10-16): QR tekrar kaydı misafir metninin anahtarlı özetini 24 saat taşır → konaklama silinince beklemeden gider; başka konaklamanın
+// kaydı ve ilgisiz kilitler kalır.
+describe("eraseReservationData — QR tekrar kaydı", () => {
+  beforeEach(async () => {
+    await resetDb();
+  });
+  it("silinen konaklamanın QR tekrar kayıtları gider; başka konaklamanınki kalır", async () => {
+    const { orgId, reservationId } = await seedErasedStay();
+    const until = new Date(Date.now() + 3_600_000);
+    await prisma.systemLock.createMany({
+      data: [
+        { name: `outbound-send:qr-in:${reservationId}:req-1`, lockedUntil: until, holder: "done:abc" },
+        { name: `outbound-send:qr-in:${reservationId}:req-2`, lockedUntil: until, holder: "abc.tok" },
+        { name: "outbound-send:qr-in:baska-konaklama:req-1", lockedUntil: until, holder: "done:xyz" },
+        { name: "scheduled-sync", lockedUntil: until },
+      ],
+    });
+    await eraseReservationData(orgId, reservationId);
+    const left = (await prisma.systemLock.findMany({ select: { name: true }, orderBy: { name: "asc" } })).map((r) => r.name);
+    expect(left).toContain("outbound-send:qr-in:baska-konaklama:req-1");
+    expect(left).toContain("scheduled-sync");
+    expect(left.filter((n) => n.includes(reservationId))).toEqual([]);
+  });
+});

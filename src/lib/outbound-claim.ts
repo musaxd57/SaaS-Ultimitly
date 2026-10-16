@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createHash } from "crypto";
+import { createHash, createHmac } from "crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 
@@ -93,8 +93,15 @@ export type KeyedOutboundClaim = "claimed" | "duplicate" | "mismatch" | "unavail
 export const KEYED_DONE_TTL_MS = 24 * 3_600_000;
 const DONE_PREFIX = "done:";
 
+/**
+ * Misafir metninin ANAHTARLI özeti (Opus F7, 10-16): satır 24 saat yaşıyor ve misafirden türeyen metin VERİDİR — anahtarsız SHA-256 kısa
+ * metinlerde ("Merhaba", oda no) sözlükle geri çevrilebilirdi. Karşılaştırma yalnız eşitlik ister; anahtar sunucu sırrı (`AUTH_SECRET`,
+ * açılış doğrulamasıyla zorunlu). Sır yoksa (yalnız yerel / test) eski anahtarsız özet. base64url → "." ve ":" içermez (biçim ayrıştırması).
+ */
 function bodyDigest(body: string): string {
-  return createHash("sha256").update(body).digest("base64url").slice(0, 24);
+  const key = process.env.AUTH_SECRET;
+  const h = key ? createHmac("sha256", key).update(`qr-claim:v1:${body}`) : createHash("sha256").update(body);
+  return h.digest("base64url").slice(0, 24);
 }
 
 function inflightHolder(digest: string, token: string): string {

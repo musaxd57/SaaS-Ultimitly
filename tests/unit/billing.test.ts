@@ -259,7 +259,9 @@ describe("premiumAllowed — paid/AI feature gate (free-tier downgrade)", () => 
     expect(await premiumAllowed("o")).toBe(true);
   });
 
-  it("🚨 Kurucu 10-16 (S4): ENFORCED + paused → ANINDA kapalı (14 günlük ödeme gecikmesi süresi duraklatmaya verilmez)", async () => {
+  // KARAKTERİZASYON (Opus F6): `getEntitlement` bu değişiklikte değişmedi — "paused" zaten etkin durumlar dışındaydı. Asıl düzeltme
+  // Paddle eşlemesinde (`paddleStatusToLocal`); kırmızı-önce kanıtı `paddle-webhook.test.ts` S4 uçtan uca testindedir.
+  it("Kurucu 10-16 (S4, karakterizasyon): ENFORCED + paused → kapalı (ödeme gecikmesi ek süresi duraklatmaya verilmez)", async () => {
     vi.stubEnv("BILLING_ENFORCED", "true");
     findUnique.mockResolvedValue({
       organizationId: "o",

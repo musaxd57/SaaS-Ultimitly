@@ -1,9 +1,10 @@
-import { describe, it, expect, beforeEach, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeEach, beforeAll, afterAll, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { createHmac } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma, resetDb } from "../helpers/db";
 import { POST } from "@/app/api/webhooks/paddle/route";
+import { premiumAllowed } from "@/lib/billing/subscription";
 
 const SECRET = "test-webhook-hmac-key-not-a-real-secret";
 
@@ -148,10 +149,20 @@ describe("POST /api/webhooks/paddle", () => {
       let sub = await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } });
       expect(sub.status).toBe("paused");
       expect(sub.pastDueSince).toBeNull();
-      const resume = subEvent("evt_p_resume", "sub_p", "active", t2);
-      expect((await POST(req(resume, sign(resume)))).status).toBe(200);
-      sub = await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } });
-      expect(sub.status).toBe("active");
+      // Opus F6 — UÇTAN UCA: duraklatma olayından sonra ücretli otomatik işler ANINDA kapalı. Eski eşlemede (past_due + az önceki
+      // pastDueSince) ödeme gecikmesi ek süresi içinde AÇIK kalıyordu → bu satır eski kodda kırmızıdır.
+      vi.stubEnv("BILLING_ENFORCED", "true");
+      vi.stubEnv("PRIMARY_ORG_ID", "baska-org");
+      try {
+        expect(await premiumAllowed(orgId)).toBe(false);
+        const resume = subEvent("evt_p_resume", "sub_p", "active", t2);
+        expect((await POST(req(resume, sign(resume)))).status).toBe(200);
+        sub = await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } });
+        expect(sub.status).toBe("active");
+        expect(await premiumAllowed(orgId)).toBe(true); // devam ödemesi doğrulanınca açılır
+      } finally {
+        vi.unstubAllEnvs();
+      }
     });
 
     it("yeni abonelik AKTİFLEŞİNCE eskisinin yerine geçer; kayıtlı aboneliğin kendi iptali uygulanır", async () => {
