@@ -10,7 +10,8 @@ vi.mock("@/lib/hospitable", () => ({
   listMessages: vi.fn().mockResolvedValue([]),
 }));
 
-import { GET, __resetQueueProbe } from "@/app/api/health/route";
+import { GET } from "@/app/api/health/route";
+import { __resetStrictQueueState } from "@/lib/outbox/health";
 import { runScheduledSync } from "@/lib/scheduled-sync";
 import { clearProbeCache } from "@/lib/health-probe";
 
@@ -42,7 +43,7 @@ async function ageHeartbeat(sec: number) {
 describe("GET /api/health", () => {
   beforeEach(() => {
     clearProbeCache();
-    __resetQueueProbe();
+    __resetStrictQueueState();
   });
   beforeEach(async () => {
     await resetDb();

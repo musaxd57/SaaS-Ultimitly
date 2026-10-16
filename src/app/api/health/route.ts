@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { clearProbeCache, readProbeCache, sharedProbe, writeProbeCache, type ProbeSnapshot } from "@/lib/health-probe";
-import { oldestDueLagMs, QUEUE_STALL_MS } from "@/lib/outbox/health";
+import { strictQueueState } from "@/lib/outbox/health";
 
 export const dynamic = "force-dynamic";
 
@@ -51,29 +51,6 @@ type Health = {
   queue?: "ok" | "stalled" | "unknown";
   reason?: "db_unreachable" | "sync_stale" | "sync_unknown" | "queue_stalled";
 };
-
-// Kuyruk okuması (iki dizinli sorgu) herkese açık uçta: kısa süreli bellek içi sonuç → yoğun yoklama veritabanına yük bindirmez.
-const QUEUE_PROBE_TTL_MS = 30_000;
-let queueProbe: { at: number; state: "ok" | "stalled" | "unknown" } | null = null;
-
-async function queueState(): Promise<"ok" | "stalled" | "unknown"> {
-  const now = Date.now();
-  if (queueProbe && now - queueProbe.at < QUEUE_PROBE_TTL_MS) return queueProbe.state;
-  let state: "ok" | "stalled" | "unknown";
-  try {
-    const lags = await oldestDueLagMs(new Date(now));
-    state = [lags.message, lags.email].some((l) => l !== null && l >= QUEUE_STALL_MS) ? "stalled" : "ok";
-  } catch {
-    state = "unknown";
-  }
-  queueProbe = { at: now, state };
-  return state;
-}
-
-/** Test yardımcısı: kuyruk yoklamasının bellek içi sonucunu sıfırla. */
-export function __resetQueueProbe(): void {
-  queueProbe = null;
-}
 
 function respond(body: Health, status: 200 | 503) {
   return NextResponse.json(body, { status, headers: { "Cache-Control": "no-store" } });
@@ -149,7 +126,7 @@ export async function GET(req: NextRequest) {
     );
   }
   if (strict) {
-    const queue = await queueState();
+    const queue = await strictQueueState();
     if (queue === "stalled") return respond({ ok: false, db: "up", sync, lastSyncAgeSec, queue, reason: "queue_stalled" }, 503);
     return respond({ ok: true, db: "up", sync, lastSyncAgeSec, queue }, 200);
   }

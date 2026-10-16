@@ -116,3 +116,27 @@ export async function checkQueueStall(
     else await tracker.ok(`queue-stalled:${queue}`);
   }
 }
+
+// B — `/api/health?strict=1` için. Kuyruk okuması (iki dizinli sorgu) herkese açık uçta: kısa süreli bellek içi sonuç → yoğun yoklama
+// veritabanına yük bindirmez. Okunamazsa "unknown" (sayfalamaz — kuyruk okuma hatası ayrı bir arıza değildir; DB arızasını yoklama zaten görür).
+const QUEUE_PROBE_TTL_MS = 30_000;
+let queueProbe: { at: number; state: "ok" | "stalled" | "unknown" } | null = null;
+
+export async function strictQueueState(): Promise<"ok" | "stalled" | "unknown"> {
+  const now = Date.now();
+  if (queueProbe && now - queueProbe.at < QUEUE_PROBE_TTL_MS) return queueProbe.state;
+  let state: "ok" | "stalled" | "unknown";
+  try {
+    const lags = await oldestDueLagMs(new Date(now));
+    state = [lags.message, lags.email].some((l) => l !== null && l >= QUEUE_STALL_MS) ? "stalled" : "ok";
+  } catch {
+    state = "unknown";
+  }
+  queueProbe = { at: now, state };
+  return state;
+}
+
+/** Test yardımcısı: kuyruk yoklamasının bellek içi sonucunu sıfırla. */
+export function __resetStrictQueueState(): void {
+  queueProbe = null;
+}
