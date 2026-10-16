@@ -117,16 +117,24 @@ describe("POST /api/auth/register — enumeration kapalı", () => {
 
   // ── KURUCU 10-16 (S4): aynı kayıt işleminin tekrarı ikinci e-posta üretmez; tanıma sunucuda ve kalıcı (tarayıcı değişse de), başka
   // kişiyi etkilemez, yanıt aynı. "Doğrulama e-postasını yeniden gönder" ayrı, kotalı, bilinçli eylem olarak kalır. ──
-  it("🚨 S4: aynı kayıt tekrarı (aynı adres + aynı parola, doğrulanmamış, bağlantı geçerli) → ikinci e-posta YOK, yanıt birebir aynı", async () => {
+  it("🚨 S4: aynı kayıt tekrarı (aynı adres + aynı parola, doğrulanmamış, bağlantı geçerli; kalıcı kuyruk — canlı yol) → ikinci e-posta YOK, yanıt aynı", async () => {
+    vi.stubEnv("EMAIL_OUTBOX_ENABLED", "1");
     const first = await register(registerReq("tekrar@example.com"));
     const firstBody = await first.json();
-    vi.clearAllMocks();
     // Başka tarayıcı / başka ağ: çerez yok, farklı IP — tanıma yine sunucuda.
     const again = await register(registerReq("tekrar@example.com", "7.7.7.7"));
     expect(again.status).toBe(201);
     expect(await again.json()).toEqual(firstBody);
+    expect(await prisma.emailOutbox.count({ where: { kind: "account_exists" } })).toBe(0); // ⬅️ ESKİDE "zaten bir hesabınız var" yazılıyordu
+    expect(await prisma.emailOutbox.count({ where: { kind: "verify_email" } })).toBe(1);
+  });
+
+  it("S4 (Haiku 10-16): kalıcı kuyruk KAPALI eski yolda tekrar TANINMAZ — bildirim bugünkü gibi gider (süre farkı parola tahminini sızdırmasın)", async () => {
+    await register(registerReq("eski-yol@example.com"));
+    vi.clearAllMocks();
+    await register(registerReq("eski-yol@example.com", "7.7.7.6"));
     const { emailService } = await import("@/lib/email");
-    expect(vi.mocked(emailService.sendReporting)).not.toHaveBeenCalled(); // ⬅️ ESKİDE "zaten bir hesabınız var" gidiyordu
+    expect(vi.mocked(emailService.sendReporting).mock.calls.map((c) => String(c[1]))).toEqual([expect.stringMatching(/zaten bir hesabınız var/i)]);
   });
 
   it("S4: kalıcı kuyruk açıkken de aynı kayıt tekrarı bildirim satırı YAZMAZ; farklı parola yazar", async () => {
@@ -139,22 +147,20 @@ describe("POST /api/auth/register — enumeration kapalı", () => {
     expect(await prisma.emailOutbox.count({ where: { kind: "account_exists" } })).toBe(1);
   });
 
-  it("S4: doğrulama bağlantısının süresi DOLMUŞSA aynı parolayla tekrar → bildirim gider (bugünkü gibi; yeni bağlantı ayrı eylem)", async () => {
+  it("S4: doğrulama bağlantısının süresi DOLMUŞSA aynı parolayla tekrar → bildirim satırı yazılır (bugünkü gibi; yeni bağlantı ayrı eylem)", async () => {
+    vi.stubEnv("EMAIL_OUTBOX_ENABLED", "1");
     await register(registerReq("suresi@example.com"));
     await prisma.user.update({ where: { email: "suresi@example.com" }, data: { emailVerifyExpiresAt: new Date(Date.now() - 60_000) } });
-    vi.clearAllMocks();
     await register(registerReq("suresi@example.com"));
-    const { emailService } = await import("@/lib/email");
-    expect(vi.mocked(emailService.sendReporting).mock.calls.map((c) => String(c[1]))).toEqual([expect.stringMatching(/zaten bir hesabınız var/i)]);
+    expect(await prisma.emailOutbox.count({ where: { kind: "account_exists" } })).toBe(1);
   });
 
-  it("S4: DOĞRULANMIŞ hesap + aynı parola → bildirim gider (kayıt tamamlanmış; tekrar sayılmaz)", async () => {
+  it("S4: DOĞRULANMIŞ hesap + aynı parola → bildirim satırı yazılır (kayıt tamamlanmış; tekrar sayılmaz)", async () => {
+    vi.stubEnv("EMAIL_OUTBOX_ENABLED", "1");
     await register(registerReq("dogrulu@example.com"));
     await prisma.user.update({ where: { email: "dogrulu@example.com" }, data: { emailVerifiedAt: new Date(), emailVerifyTokenHash: null } });
-    vi.clearAllMocks();
     await register(registerReq("dogrulu@example.com"));
-    const { emailService } = await import("@/lib/email");
-    expect(vi.mocked(emailService.sendReporting)).toHaveBeenCalledTimes(1);
+    expect(await prisma.emailOutbox.count({ where: { kind: "account_exists" } })).toBe(1);
   });
 
   // -------------------------------------------------------------------------

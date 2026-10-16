@@ -125,7 +125,10 @@ export async function POST(req: NextRequest) {
     if (existing) {
       // Zamanlama paritesi: bu dal da TAM BİR bcrypt işi öder (yeni-hesap dalının hash'i kadar). İş, aynı kaydın tekrarını tanımak için
       // kullanılır; sonuç yanıtı DEĞİŞTİRMEZ.
-      const repeat = await sameRegistrationRepeat(existing, parsed.data.password);
+      // Tekrar tanıma YALNIZ kalıcı kuyruk açıkken (canlı yol): kuyruk kapalı eski yolda bildirim satır içi gönderilir ve tanınan tekrarda
+      // gönderim atlanınca SÜRE farkı (sağlayıcı çağrısı yok) "bu adres + bu parola doğru" diye okunabilirdi (Haiku 10-16). Kuyruk açıkken
+      // iki yol da yalnız birkaç ms'lik veritabanı yazması kadar ayrışır.
+      const repeat = emailOutboxEnabled() ? await sameRegistrationRepeat(existing, parsed.data.password) : (await hashPassword(parsed.data.password), false);
       // Adres sahibine "bu adresle bir hesabın var" bildirimi. Yanıt DEĞİŞMEZ.
       //
       // 🚨 BAYRAK PARİTESİ ZORUNLU: bu dal, yeni-hesap dalıyla AYNI kola girmek
