@@ -54,3 +54,43 @@ describe("EmailService.send — no PII/token in the production fallback or failu
     expect(logged).not.toContain("victim@example.com"); // scrubbed → [EMAIL]
   });
 });
+
+describe("Resend tekrar kimliği (kurucu 10-16, S6)", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+  function capture() {
+    const calls: Headers[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init?: RequestInit) => {
+        calls.push(new Headers(init?.headers));
+        return new Response("{}", { status: 200 });
+      }),
+    );
+    return calls;
+  }
+
+  it("anahtar verilince her istekte AYNI Idempotency-Key başlığı gider; verilmezse başlık yok", async () => {
+    vi.stubEnv("RESEND_API_KEY", "re_test");
+    const calls = capture();
+    await emailService.sendReporting("a@x.com", "Konu", "<p>x</p>", { idempotencyKey: "email-outbox/7f3a91b2-6d84-4e0c-9a52-18b7d6c403ef" });
+    await emailService.sendReporting("a@x.com", "Konu", "<p>x</p>", { idempotencyKey: "email-outbox/7f3a91b2-6d84-4e0c-9a52-18b7d6c403ef" });
+    await emailService.sendReporting("a@x.com", "Konu", "<p>x</p>");
+    expect(calls.map((h) => h.get("Idempotency-Key"))).toEqual([
+      "email-outbox/7f3a91b2-6d84-4e0c-9a52-18b7d6c403ef",
+      "email-outbox/7f3a91b2-6d84-4e0c-9a52-18b7d6c403ef",
+      null,
+    ]);
+  });
+
+  it("biçim dışı anahtar GÖNDERİLMEZ ama e-posta yine gider (başlık enjeksiyonu / aşırı uzunluk)", async () => {
+    vi.stubEnv("RESEND_API_KEY", "re_test");
+    const calls = capture();
+    const out1 = await emailService.sendReporting("a@x.com", "Konu", "<p>x</p>", { idempotencyKey: "kötü anahtar\r\nX: y" });
+    const out2 = await emailService.sendReporting("a@x.com", "Konu", "<p>x</p>", { idempotencyKey: "k".repeat(257) });
+    expect(out1.ok && out2.ok).toBe(true);
+    expect(calls.map((h) => h.get("Idempotency-Key"))).toEqual([null, null]);
+  });
+});

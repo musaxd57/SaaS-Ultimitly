@@ -62,6 +62,11 @@ export function singleLineSubject(subject: string): string {
   return subject.replace(/[\p{Cc}\u2028\u2029]+/gu, " ").replace(/[\u202A-\u202E\u2066-\u2069\u200E\u200F\u061C]/gu, "");
 }
 
+/** Resend tekrar kimliği: en çok 256 karakter, yalnız güvenli karakterler (biçim dışıysa anahtar GÖNDERİLMEZ — gönderim yine olur). */
+export function safeIdempotencyKey(key: string | undefined): string | undefined {
+  return key && /^[A-Za-z0-9_:/.-]{1,256}$/.test(key) ? key : undefined;
+}
+
 class EmailService {
   private isConfigured(): boolean {
     return Boolean(process.env.RESEND_API_KEY || process.env.EMAIL_HOST);
@@ -72,6 +77,7 @@ class EmailService {
     to: string,
     subject: string,
     html: string,
+    idempotencyKey?: string,
   ): Promise<{ ok: boolean; error?: string }> {
     const key = process.env.RESEND_API_KEY;
     if (!key) return { ok: false, error: "RESEND_API_KEY tanımlı değil." };
@@ -81,7 +87,13 @@ class EmailService {
     try {
       const res = await fetch("https://api.resend.com/emails", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${key}`,
+          // Tekrar kimliği (kurucu 10-16, S6): aynı mantıksal e-postanın HER denemesi aynı anahtarı taşır → cevabı kaybolan ilk gönderim
+          // sağlayıcıda ikinci kopya üretmez. Resend anahtarı 24 saat tutar; daha geç tekrar için güvence çağıranın kendi gönderim kaydıdır.
+          ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
+        },
         body: JSON.stringify({ from, to, subject, html, text: htmlToText(html) }),
         signal: AbortSignal.timeout(15000),
       });
@@ -165,9 +177,10 @@ class EmailService {
     to: string,
     subject: string,
     html: string,
+    opts: { idempotencyKey?: string } = {},
   ): Promise<{ ok: boolean; error?: string }> {
     const oneLine = singleLineSubject(subject);
-    if (process.env.RESEND_API_KEY) return this.viaResend(to, oneLine, html);
+    if (process.env.RESEND_API_KEY) return this.viaResend(to, oneLine, html, safeIdempotencyKey(opts.idempotencyKey));
     if (process.env.EMAIL_HOST) return this.viaSmtp(to, oneLine, html);
     return { ok: false, error: "E-posta ayarlı değil (RESEND_API_KEY veya EMAIL_HOST gerekli)." };
   }

@@ -225,6 +225,27 @@ describe("email-outbox", () => {
     expect(row.payloadEnc).toBeNull(); // terminal → secret erased
   });
 
+  it("S6 (kurucu 10-16): aynı satırın HER denemesi aynı sağlayıcı tekrar kimliğini taşır; yeni kuşak yeni kimlik", async () => {
+    const u = await makeUser();
+    await enqueueReset(u.id, "12345678", u.email, 48 * 60 * 60 * 1000);
+    const first = await prisma.emailOutbox.findFirstOrThrow();
+    const keys: (string | undefined)[] = [];
+    const flaky = vi.fn(async (_to: string, _s: string, _h: string, key?: string) => {
+      keys.push(key);
+      return keys.length === 1 ? { ok: false as const, error: "timeout" } : { ok: true as const };
+    });
+    await drainEmailOutboxOnce({ send: flaky });
+    const retryAt = (await prisma.emailOutbox.findFirstOrThrow()).nextAttemptAt;
+    await drainEmailOutboxOnce({ send: flaky, now: () => new Date(retryAt.getTime() + 1000) });
+    expect(keys).toEqual([`email-outbox/${first.id}`, `email-outbox/${first.id}`]);
+    // Yeni kod istendi → yeni kuşak satırı → yeni anahtar (bilinçli yeni e-posta).
+    await enqueueReset(u.id, "87654321", u.email, 48 * 60 * 60 * 1000);
+    const second = await prisma.emailOutbox.findFirstOrThrow({ where: { status: "pending" } });
+    expect(second.id).not.toBe(first.id);
+    await drainEmailOutboxOnce({ send: flaky });
+    expect(keys[2]).toBe(`email-outbox/${second.id}`);
+  });
+
   it("EXPIRY: a pending row past the secret's TTL is canceled (payload NULL), never sent", async () => {
     const u = await makeUser();
     await enqueueReset(u.id, "12345678", u.email, 1000);

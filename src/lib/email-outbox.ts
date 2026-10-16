@@ -440,9 +440,14 @@ function scrubErr(err: string | undefined | null): string {
     .slice(0, 300);
 }
 
+/** Sağlayıcıya giden tekrar kimliği: kuyruk satırının kimliği (her denemede aynı; yeni kuşak yeni satır → yeni anahtar). */
+export function emailOutboxIdempotencyKey(rowId: string): string {
+  return `email-outbox/${rowId}`;
+}
+
 export interface EmailDrainDeps {
-  /** Provider send — injectable so tests never touch the network. */
-  send?: (to: string, subject: string, html: string) => Promise<{ ok: boolean; error?: string }>;
+  /** Provider send — injectable so tests never touch the network. `idempotencyKey`: satır başına sabit tekrar kimliği. */
+  send?: (to: string, subject: string, html: string, idempotencyKey?: string) => Promise<{ ok: boolean; error?: string }>;
   now?: () => Date;
   batchSize?: number;
 }
@@ -465,7 +470,9 @@ export async function drainEmailOutboxOnce(deps: EmailDrainDeps = {}): Promise<E
   if (!emailOutboxEnabled()) return result;
   const now = deps.now?.() ?? new Date();
   const send =
-    deps.send ?? ((to: string, subject: string, html: string) => emailService.sendReporting(to, subject, html));
+    deps.send ??
+    ((to: string, subject: string, html: string, idempotencyKey?: string) =>
+      emailService.sendReporting(to, subject, html, { idempotencyKey }));
   const batch = deps.batchSize ?? 10;
   const claimToken = randomUUID();
 
@@ -598,7 +605,8 @@ async function processClaimedRow(
   }
 
   const { subject, html } = renderIdentityEmail(row.kind as EmailOutboxKind, payload.secret);
-  const outcome = await send(payload.recipient, subject, html);
+  // Tekrar kimliği = kuyruk satırı (kurucu 10-16, S6): aynı satırın her denemesi AYNI anahtar; yeni kuşak (yeni satır) yeni anahtar.
+  const outcome = await send(payload.recipient, subject, html, emailOutboxIdempotencyKey(row.id));
 
   if (outcome.ok) {
     const done = await prisma.emailOutbox.updateMany({
