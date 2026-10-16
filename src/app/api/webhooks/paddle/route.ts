@@ -159,21 +159,36 @@ async function alertUnlinkedPayment(kind: "subscription" | "transaction", data: 
   );
 }
 
+/**
+ * Ödeme S2 (kurucu 10-16; U42): ödemeli abonelik olayı işlenirken işletme SİLİNDİYSE (ya da zaten yoksa) olay kaybolmaz ve hesap geri
+ * AÇILMAZ: abonelik satırı yazılmaz (webhook işletme yaratmaz; yabancı anahtar silinmiş işletmeye satır yazdırmaz), olay "işlendi" sayılmaz
+ * (`needs_review: org_deleted`, ham olay saklı → incelenebilir / yeniden işlenebilir) ve operatöre "bağlanamayan ödeme" alarmı gider
+ * (Paddle aboneliği canlı olabilir → elle iptal). Ödemesiz olay (iptal) için alarm yok.
+ */
+type SubscriptionOutcome = { review?: "org_deleted" | "unlinked" };
+
 async function applySubscriptionEvent(
   data: Record<string, unknown>,
   occurredAt: Date | null,
-): Promise<void> {
+): Promise<SubscriptionOutcome | void> {
   const organizationId = await resolveOrgId(data, eventPriceIdFromData(data), occurredAt);
   const paying = PAYING_SUBSCRIPTION_STATUSES.has(str(data.status) ?? "");
   if (!organizationId) {
-    // not linked yet → recorded only (+ operatör alarmı, yalnız ödemeli durumda)
-    if (paying) await alertUnlinkedPayment("subscription", data, "onay yok / eski / fiyat uyuşmuyor");
+    // not linked yet → recorded only (+ operatör alarmı, yalnız ödemeli durumda). Ödemeli olay "işlendi" SAYILMAZ (ödeme S2): bağlantı
+    // düzeltilince Paddle'dan yeniden gönderilip işlenebilir; ham olay saklı.
+    if (paying) {
+      await alertUnlinkedPayment("subscription", data, "onay yok / eski / fiyat uyuşmuyor");
+      return { review: "unlinked" };
+    }
     return;
   }
   const org = await prisma.organization.findUnique({ where: { id: organizationId }, select: { id: true } });
   if (!org) {
     // never write against an org that isn't ours
-    if (paying) await alertUnlinkedPayment("subscription", data, "işletme bulunamadı");
+    if (paying) {
+      await alertUnlinkedPayment("subscription", data, "işletme bulunamadı");
+      return { review: "org_deleted" };
+    }
     return;
   }
 
@@ -381,7 +396,14 @@ async function applySubscriptionEvent(
       data: updateData,
     });
     if (resU.count === 1) await settlePending();
-    return; // count 0 → a fresher event already applied → stale, dropped
+    else if (paying && !(await prisma.organization.findUnique({ where: { id: organizationId }, select: { id: true } }))) {
+      // 🚨 U42 / ödeme S2: 0 satır İKİ şey demek olabilir — daha taze olay zaten yazılmış (bayat, sessiz düşer) YA DA işletme bu olay
+      // işlenirken SİLİNDİ (abonelik kademeyle gitti). İkincisinde ödeme alınmış olabilir → alarm + inceleme. Silme tarafı kendi kilidiyle
+      // aktif aboneliği görürse 409 der (`account/delete`), yani güncelleme yazdıysa silme olmaz; burada yalnız ters sıra kalır.
+      await alertUnlinkedPayment("subscription", data, "işletme silindi (olay işlenirken)");
+      return { review: "org_deleted" };
+    }
+    return; // count 0 + işletme var → a fresher event already applied → stale, dropped
   }
   try {
     await prisma.subscription.create({
@@ -411,6 +433,15 @@ async function applySubscriptionEvent(
       if (resF.count === 1) await settlePending();
       return;
     }
+    // İşletme okuma ile yazma ARASINDA silindi (ödeme S2): yabancı anahtar satırı reddeder — hesap geri açılmaz. 500 + Paddle'ın sonsuz
+    // yeniden denemesi yerine inceleme + (ödemeliyse) alarm.
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2003") {
+      if (paying) {
+        await alertUnlinkedPayment("subscription", data, "işletme silindi (olay işlenirken)");
+        return { review: "org_deleted" };
+      }
+      return;
+    }
     throw err;
   }
 }
@@ -420,7 +451,7 @@ async function applySubscriptionEvent(
  * kaydı defteri bozar), olay "işlendi" SAYILMAZ (Paddle'dan yeniden gönderilince tekrar işlenir; ham olay `WebhookEvent`te saklı — kaybolmaz)
  * ve işlem başına TEK operatör alarmı (24 sa hatırlatma). Aynı işlemin doğru olayı gelince fatura yazılır, alarm temizlenir.
  */
-type TransactionOutcome = { review?: "invalid_amount" | "missing_currency" };
+type TransactionOutcome = { review?: "invalid_amount" | "missing_currency" | "unlinked" | "org_deleted" };
 
 async function alertInvalidTransaction(providerRef: string, review: "invalid_amount" | "missing_currency"): Promise<void> {
   await alertOnTransition(
@@ -443,12 +474,12 @@ async function applyTransactionEvent(
   const organizationId = await resolveOrgId(data, null, occurredAt);
   if (!organizationId) {
     await alertUnlinkedPayment("transaction", data, "onay yok / eski");
-    return;
+    return { review: "unlinked" };
   }
   const org = await prisma.organization.findUnique({ where: { id: organizationId }, select: { id: true } });
   if (!org) {
     await alertUnlinkedPayment("transaction", data, "işletme bulunamadı");
-    return;
+    return { review: "org_deleted" };
   }
 
   const providerRef = str(data.id);
@@ -689,7 +720,7 @@ export async function POST(req: NextRequest): Promise<Response> {
     let reviewReason: string | null = null;
     if (data && eventType) {
       if (eventType.startsWith("subscription.")) {
-        await applySubscriptionEvent(data, occurredAt);
+        reviewReason = (await applySubscriptionEvent(data, occurredAt))?.review ?? null;
       } else if (eventType === "transaction.completed" || eventType === "transaction.paid") {
         reviewReason = (await applyTransactionEvent(data, occurredAt))?.review ?? null;
       } else if (eventType === "transaction.payment_failed") {

@@ -670,7 +670,7 @@ describe("POST /api/webhooks/paddle", () => {
     ["", "boş (eskiden 0)"],
     ["12.50", "ondalık (eskiden 12)"],
     [undefined, "alan yok (eskiden 0)"],
-  ])("🚨 S1: grand_total %j (%s) → fatura YAZILMAZ, olay yeniden işlenebilir + alarm; sonraki DOĞRU olay yazar", async (grand) => {
+  ] as [string | undefined, string][])("🚨 S1: grand_total %j (%s) → fatura YAZILMAZ, olay yeniden işlenebilir + alarm; sonraki DOĞRU olay yazar", async (grand) => {
     const tag = grand === undefined ? "none" : grand || "empty";
     const event = (id: string, total: string | undefined) =>
       JSON.stringify({

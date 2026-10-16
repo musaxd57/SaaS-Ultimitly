@@ -76,7 +76,11 @@ describe("Paddle webhook — bağlanamayan ödeme alarmı", () => {
     });
     expect((await post(event("evt_1"))).status).toBe(200);
     expect(await prisma.subscription.count()).toBe(0); // bağlama kararı aynı
-    expect((await prisma.webhookEvent.findUniqueOrThrow({ where: { providerEventId: "evt_1" } })).status).toBe("processed");
+    // Kurucu 10-16 (ödeme S2): bağlanamayan ÖDEMELİ olay "işlendi" sayılmaz → bağlantı düzeltilince Paddle'dan yeniden gönderilip işlenebilir
+    // (eskiden "processed" idi ve yeniden gönderim "kopya" diye düşerdi). Ham olay saklı.
+    const row = await prisma.webhookEvent.findUniqueOrThrow({ where: { providerEventId: "evt_1" } });
+    expect(row.status).toBe("error");
+    expect(row.error).toBe("needs_review: unlinked");
     expect(alarms()).toHaveLength(1);
     const msg = String((alarms()[0][1] as Error).message);
     expect(msg).toContain("sub_stale");
@@ -98,6 +102,7 @@ describe("Paddle webhook — bağlanamayan ödeme alarmı", () => {
     expect(await prisma.invoice.count()).toBe(0);
     expect(alarms()).toHaveLength(1);
     expect(await state("txn_orphan")).toBe(1);
+    expect((await prisma.webhookEvent.findUniqueOrThrow({ where: { providerEventId: "evt_tx" } })).error).toBe("needs_review: unlinked");
   });
 
   it("KONTROL: ödemesiz durumdaki bilinmeyen abonelik (iptal) alarm üretmez", async () => {
