@@ -131,8 +131,14 @@ const LOCAL_DEVICE_WORDS: readonly (readonly [RegExp, string])[] = [
  * kemeri) ve istek tarafındaki arıza sinyali (`faultSignal`). "görüntülü" (diyafon / görüntülü arama) BİLEREK hariç; çıplak "ekran / kaynak /
  * kanal" yok (kumanda ekranı, sıcak su kaynağı…). Katlanmış metin, sınırlı tekrar.
  */
-const TV_SYMPTOM = new RegExp(
-  `${L}(?:goruntu(?!lu)\\p{L}{0,6}|hdmi|uydu alici\\p{L}{0,6}|siyah ekran|black screen|no picture|smart tv|kein bild|pas d'image|sin imagen)${R}`,
+const TV_SYMPTOM = new RegExp(`${L}(?:hdmi|uydu alici\\p{L}{0,6}|siyah ekran|black screen|smart tv)${R}`, "u");
+/**
+ * Genel "görüntü yok" ailesi — YALNIZ arıza yüklemiyle ("görüntü yok / gelmiyor / gitti / donuyor"; "no picture") ve aynı cümlede başka bir
+ * görüntülü cihaz / görünüş anlamı yokken TV'dir (Opus gece-3 P3-a/b, ölçüldü: "Balkondan deniz görüntüsü yok", "Binanın dış görüntüsü çok kötü",
+ * cevabın başka cümlesindeki kapı zili kamerası).
+ */
+const TV_PICTURE_FAULT = new RegExp(
+  `${L}(?:goruntu(?!lu)\\p{L}{0,6} (?:cok |hep |surekli )?(?:yok|gelm|git|don|kaybol|bozul|cikm|kesil|bulanik|titri|karli|kayi|siyah)\\p{L}{0,8}|no picture(?! frame)|kein bild|pas d'image|sin imagen|no tiene imagen|нет изображения)${R}`,
   "u",
 );
 
@@ -141,7 +147,7 @@ const TV_SYMPTOM = new RegExp(
  * "Kamera görüntüsü gelmiyor"). Katlanmış metin, sınırlı tekrar.
  */
 const NON_TV_SCREEN = new RegExp(
-  `${L}(?:diyafon\\p{L}{0,6}|interkom\\p{L}{0,6}|intercom\\p{L}{0,2}|kamera\\p{L}{0,6}|camera\\p{L}{0,2}|doorbell\\p{L}{0,2}|kapi zili\\p{L}{0,4}|gegensprech\\p{L}{0,8}|interphone\\p{L}{0,2}|portero\\p{L}{0,2}|домофон\\p{L}{0,3})${R}`,
+  `${L}(?:diyafon\\p{L}{0,6}|interkom\\p{L}{0,6}|intercom\\p{L}{0,2}|kamera\\p{L}{0,6}|camera\\p{L}{0,2}|doorbell\\p{L}{0,2}|kapi zili\\p{L}{0,4}|gegensprech\\p{L}{0,8}|interphone\\p{L}{0,2}|portero\\p{L}{0,2}|домофон\\p{L}{0,3}|deniz|manzara\\p{L}{0,4}|sea view|view|fotograf\\p{L}{0,6}|ilan\\p{L}{0,4})${R}`,
   "u",
 );
 
@@ -150,7 +156,11 @@ function topicsWithSymptomsOf(text: string): string[] {
   const topics = topicsOf(text);
   if (topics.includes("tv")) return topics;
   const f = fold(text);
-  return TV_SYMPTOM.test(f) && !NON_TV_SCREEN.test(f) ? [...topics, "tv"] : topics;
+  if (TV_SYMPTOM.test(f)) return [...topics, "tv"];
+  if (!TV_PICTURE_FAULT.test(f)) return topics;
+  // Görüntülü başka cihaz / görünüş vetosu AYNI cümlede okunur (sınırlı sayıda cümle — doğrusal).
+  const pictureSentences = f.split(/[.!?;\n]+/u).slice(0, 64).filter((x) => TV_PICTURE_FAULT.test(x));
+  return pictureSentences.some((x) => !NON_TV_SCREEN.test(x)) ? [...topics, "tv"] : topics;
 }
 
 /**
@@ -916,9 +926,14 @@ function stepDevicesOf(sentence: string): string[] {
   // tesisatı değildir (Opus gece-2 M3: "MODE tuşuyla soğutma ya da ısıtma modunu seçin" ısıtmaya iniyordu) — mod anılan cümlede nötrlenir.
   // TV mobilyası bir YER adıdır ("Modem salondaki TV ünitesinin alt rafında" — Opus gece-3 P1-a, ölçüldü: tarifli modem adımı TV yüzünden
   // tutuluyordu, altı dilde).
-  const neutral = sentence.replace(REMOTE_WORD, " ").replace(TV_FURNITURE, " ");
-  const text = MODE_WORD.test(fold(neutral)) ? neutral.replace(CLIMATE_MODE_WORD, " ") : neutral;
-  const devices = deviceTopicsOf(topicsWithSymptomsOf(text)).filter((t) => t !== "socket");
+  const remoteNeutral = sentence.replace(REMOTE_WORD, " ");
+  const mode = MODE_WORD.test(fold(remoteNeutral));
+  const devicesIn = (t: string) => deviceTopicsOf(topicsWithSymptomsOf(mode ? t.replace(CLIMATE_MODE_WORD, " ") : t)).filter((d) => d !== "socket");
+  // Nötrlemeden sonra cihaz kalmıyorsa (ya da yalnız "POWER tuşu"nun elektrik okuması kalıyorsa) TV mobilyası okuması TV'nin KENDİ parçasıydı
+  // ("Televizyonun altındaki güç düğmesine basın", "Televizyonun alt kısmındaki POWER tuşuna basın" — Opus gece-3 P2-c) → mobilya nötrlemesi geri
+  // alınır (kumanda ve mod nötrlemesi kalır).
+  const read = devicesIn(remoteNeutral.replace(TV_FURNITURE, " "));
+  const devices = read.some((t) => t !== "power") ? read : devicesIn(remoteNeutral);
   // Getirme sözlüğü "açın / açıp" fiilini klimaya (AC) bağlıyor (ölçüldü 10-15 gece: "Cihazı kapatıp 30 saniye bekleyin, sonra yeniden açın"
   // klima sayılıyor, klima tarifi varsa bulaşık makinesi adımı geçiyordu) — klima ancak cümlede gerçek bir klima adı varsa sayılır.
   const real = devices.includes("ac") && !AC_EVIDENCE.test(fold(sentence)) && !/(?<![\p{L}])A\/?C(?![\p{L}])/u.test(sentence)
@@ -1280,10 +1295,10 @@ const FAULT_PHRASE_SOURCE = [
     // "<hizmet> yok" (internet, sıcak su, elektrik, ısıtma — cihaz kavramı yine şart).
     `${L}(?:takiliyor|takildi|takili kaldi|donmuyor|tepki vermiyor|cevap vermiyor|ses cikmiyor|calismayi durdurdu|durmadan kapaniyor|kendi kendine kapaniyor|hata veriyor|hata kodu|e ?\\d{1,3} (?:hatasi|yaziyor|veriyor))${R}`,
     // Opus gece-2 M4 yan notu: sözlük dışı arıza fiilleri (su boşaltmıyor, sürekli kopuyor)
-    `${L}(?:bosaltmiyor(?:du)?|tahliye etmiyor|kopuyor|surekli kesiliyor|(?:cok |asiri )?az akiyor|cok yavas|asiri yavas)${R}`,
+    `${L}(?:bosaltmiyor(?:du)?|tahliye etmiyor|kopuyor|surekli kesiliyor|(?:cok |asiri )?az akiyor|cok yavas|asiri yavas|baglanamiyor\\p{L}{0,4}|baglanamadi\\p{L}{0,4})${R}`,
     `${L}(?:internet|wifi|wi-fi|sicak su|elektrik|isitma|isik)\\p{L}{0,4} (?:yok|gitti|kesildi|gelmiyor)${R}`,
     // en
-    `${L}(?:not working|very slow|too slow|extremely slow|won't drain|not draining|doesn't drain|keeps dropping|keeps disconnecting|doesn't work|does not work|won't turn on|will not turn on|won't start|stopped working|broken|no picture|black screen|no sound|no signal|not heating|not cooling|leaking|clogged|won't respond|doesn't respond|does not respond|not responding|no hot water|no internet|no wifi|no power|got stuck|is stuck|only blows (?:cold|warm|hot) air|won't open|won't connect|keeps (?:beeping|turning off|shutting off))${R}`,
+    `${L}(?:not working|can't connect|cannot connect|can not connect|unable to connect|very slow|too slow|extremely slow|won't drain|not draining|doesn't drain|keeps dropping|keeps disconnecting|doesn't work|does not work|won't turn on|will not turn on|won't start|stopped working|broken|no picture|black screen|no sound|no signal|not heating|not cooling|leaking|clogged|won't respond|doesn't respond|does not respond|not responding|no hot water|no internet|no wifi|no power|got stuck|is stuck|only blows (?:cold|warm|hot) air|won't open|won't connect|keeps (?:beeping|turning off|shutting off))${R}`,
     // de / fr / es
     `${L}(?:funktioniert nicht|geht nicht|kaputt|kein bild|kein ton|kein signal|reagiert nicht|geht nicht an|kein warmes wasser|kein internet|ne marche pas|ne fonctionne pas|en panne|pas d'image|pas de son|ne s'allume plus|ne chauffe plus|ne repond pas|pas d'eau chaude|plus d'internet|no funciona|averiad[oa]|sin imagen|sin sonido|no arranca|no responde|no enciende|no calienta|no enfria|no hay agua caliente|no hay internet)${R}`,
     // ru / ar (katlama Latin dışını değiştirmez)

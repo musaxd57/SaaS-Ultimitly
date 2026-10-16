@@ -453,11 +453,12 @@ async function guestNamesForConversations(convIds: readonly string[]): Promise<M
       where: { id: { in: [...convIds] } },
       select: { id: true, guestIdentifier: true, reservation: { select: { guestName: true } } },
     }),
-    prisma.message.findMany({
+    // SQL GROUP BY (Prisma `distinct` önizleme olmadan BELLEKTE uygulanır — bütün satırları çekerdi; Opus gece-3 P3-c).
+    prisma.message.groupBy({
+      by: ["conversationId", "senderName"],
       where: { conversationId: { in: [...convIds] }, direction: "inbound" },
-      select: { conversationId: true, senderName: true },
-      distinct: ["conversationId", "senderName"],
       take: 5_000,
+      orderBy: [{ conversationId: "asc" }, { senderName: "asc" }],
     }),
   ]);
   return guestNamesOf([
@@ -466,8 +467,8 @@ async function guestNamesForConversations(convIds: readonly string[]): Promise<M
   ]);
 }
 
-/** Karşılaştırma notundan doğan taslağın başlığı (taslak ekranında örnek etiketi bununla ayrılır). */
-export const NOTE_DRAFT_TITLE = "Ev sahibi notu";
+/** Karşılaştırma notundan doğan taslağın başlığı (taslak her zaman "compare" koşusuna bağlıdır — ekran `run.kind` ile ayırır). */
+const NOTE_DRAFT_TITLE = "Ev sahibi notu";
 
 /**
  * Kanıt bağlamı (onay anında YENİDEN kurulur — Opus 10-15 B3: bağlamsız kapı düzenlenen metindeki misafir adını / dayanaksız değeri

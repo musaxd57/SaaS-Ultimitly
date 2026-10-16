@@ -7,7 +7,6 @@ import { writeAudit, auditActor } from "@/lib/audit";
 import {
   clampQuestions,
   draftEvidenceSamples,
-  NOTE_DRAFT_TITLE,
   executeHistoryLearnRun,
   historyLearnEnabled,
   parseFlags,
@@ -111,8 +110,7 @@ export const GET = withManage<{ id: string }>(async (session, _req, { params }) 
       oldestMonth: d.oldestMonth,
       conflict: d.conflict,
       conflictNote: d.conflictNote,
-      // Karşılaştırma notu var olan bir okuma koşusuna da bağlanabilir (koşu türü "learn") — başlık da okunur (Opus gece-2 M9).
-      fromNote: d.run.kind === "compare" || d.title === NOTE_DRAFT_TITLE,
+      fromNote: d.run.kind === "compare",
       flags: parseFlags(d.flagsJson),
       sample: samples.get(d.id) ?? null,
     })),

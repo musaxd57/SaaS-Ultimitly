@@ -206,8 +206,12 @@ describe("Opus gece-3 P1-a: TV mobilyası / oda adı YER tarifidir — tarifli m
   ])("GEÇER: %j", (reply, guest) => {
     expect(unsupportedFixStep(reply, kb, guest)).toBe(false);
   });
-  it("aşırı düzeltme yok: TV'nin KENDİ adımı TV tarifi ister", () => {
+  it("aşırı düzeltme yok: TV'nin KENDİ adımı / parçası TV tarifi ister (Opus gece-3 P2-c)", () => {
     expect(unsupportedFixStep("Televizyonun fişini çekip tekrar takın.", kb, "Televizyon çalışmıyor")).toBe(true);
+    expect(unsupportedFixStep("Televizyonun altındaki güç düğmesine 5 saniye basılı tutun.", kb, "Televizyon açılmıyor")).toBe(true);
+    expect(unsupportedFixStep("Televizyonun alt kısmındaki POWER tuşuna basabilirsiniz.", kb, "Televizyon açılmıyor")).toBe(true);
+    expect(unsupportedFixStep("TV'nin üstündeki tuşa basıp birkaç saniye bekleyin.", kb, "Televizyon açılmıyor")).toBe(true);
+    expect(unsupportedFixStep("Please press the button under the TV for 5 seconds.", kb, "The TV won't turn on")).toBe(true);
   });
 });
 

@@ -39,7 +39,6 @@ import {
   HISTORY_LEARN_MONTHLY_RUNS,
   INSTRUCTIONS_MAX_ACTIVE,
   addPropertyInstruction,
-  NOTE_DRAFT_TITLE,
 } from "@/lib/history-learn/service";
 import { limitsForOrg } from "@/lib/billing/plan-limits";
 import { loadPromptInstructions } from "@/lib/history-learn/prompt-instructions";
@@ -226,7 +225,7 @@ describe("Geçmişten öğren — uçtan uca", () => {
     expect(after.drafts.find((x: { id: string }) => x.id === d.id).sample).toBeNull();
   });
 
-  it("🚨 Opus gece-2 M9: ad maskesi konuşma BAŞINA — başka konuşmanın 2.000+ eski mesajı bu konuşmanın misafir adını düşürmez; nottan doğan taslak işaretli", async () => {
+  it("🚨 Opus gece-2 M9: ad maskesi konuşma BAŞINA — başka konuşmanın 2.000+ eski mesajı bu konuşmanın misafir adını düşürmez", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
     session = customer(orgId);
     // Daha ESKİ, kalabalık bir konuşma (eski kod: bütün konuşmaların mesajları tek 2.000 satırlık sorguda, en eskiden başlayarak).
@@ -243,14 +242,11 @@ describe("Geçmişten öğren — uçtan uca", () => {
     const { hostMessageId } = await seedHistory(propertyId);
     await seedDraft(propertyId, orgId, { evidenceMessageIdsJson: JSON.stringify([busyHost.id]), category: "amenities", title: "Havlu", content: "Havlular dolapta." });
     const d = await seedDraft(propertyId, orgId, { evidenceMessageIdsJson: JSON.stringify([hostMessageId]) });
-    const note = await seedDraft(propertyId, orgId, { title: NOTE_DRAFT_TITLE, evidenceMessageIdsJson: JSON.stringify([hostMessageId]) });
     const list = await (await getRuns(json(`http://localhost/api/properties/${propertyId}/history-learn`, "GET"), p({ id: propertyId }))).json();
     const row = list.drafts.find((x: { id: string }) => x.id === d.id);
     expect(row.sample.text).toContain("otopark binanın arkasında");
     expect(row.sample.text).not.toContain("Ayşe");
     expect(row.fromNote).toBe(false);
-    // Var olan bir okuma koşusuna bağlanmış karşılaştırma notu da "nottan" sayılır (örnek etiketi değişir).
-    expect(list.drafts.find((x: { id: string }) => x.id === note.id).fromNote).toBe(true);
   });
 
   it("ad yalnız REZERVASYON satırındaysa da maskelenir (gelen mesajın gönderen adı yer tutucu — mutasyon P4)", async () => {

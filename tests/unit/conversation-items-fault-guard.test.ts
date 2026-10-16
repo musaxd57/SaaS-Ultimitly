@@ -137,6 +137,8 @@ describe("arıza sinyali (saf)", () => {
     ["Klimanın arızası giderildi denmişti, yine çalışmıyor.", true],
     ["Klima çalışmıyor mu acaba, bir bakar mısınız?", true],
     ["Klima bozuk durumunda, lütfen birini gönderin.", true],
+    ["Wifi'ye bağlanamıyoruz.", true],
+    ["We can't connect to the wifi.", true],
   ])("%j → %s", (q, want) => {
     expect(faultSignal(q, q)).toBe(want);
   });
@@ -167,6 +169,15 @@ describe("TV belirti sözlüğü genel konu çıkarımına GİRMEZ (Opus N2 — 
     expect(requestTopics("diyafonda görüntü yok", "", "complaint_issue")).not.toContain("tv");
     expect(requestTopics("kamera görüntüsü gelmiyor", "", "complaint_issue")).not.toContain("tv");
     expect(touchesHeldDevice(["tv"], "Diyafonda görüntü yoksa sağdaki tuşa 3 saniye basılı tutun.")).toBe(false);
+  });
+
+  it("Opus gece-3 P3-a/b: görünüş / manzara anlamı TV değildir; görüntülü cihaz vetosu yalnız AYNI cümlede, TV'ye özgü belirti vetolanmaz", () => {
+    for (const q of ["Balkondan deniz görüntüsü yok, ilanda vardı", "Daire fotoğraflardaki görüntüden çok farklı", "Binanın dış görüntüsü çok kötü", "The apartment has no picture frames and looks bare"]) {
+      expect(requestTopics(q, "", "complaint_issue"), q).not.toContain("tv");
+    }
+    expect(touchesHeldDevice(["tv"], "Ekranda görüntü yoksa kaynak girişini HDMI 1 yapın. Bina girişindeki kamera yalnız ortak alanı görür.")).toBe(true);
+    expect(touchesHeldDevice(["tv"], "Diyafon salondadır. Ekranda görüntü yoksa kaynağı HDMI 1'e alın.")).toBe(true);
+    expect(touchesHeldDevice(["tv"], "If there is no picture, check the input. The doorbell camera only shows the entrance.")).toBe(true);
   });
 
   it("🚨 Opus gece-2 M6 (anahtarsız, ilişki kipi canlı): klima şikâyeti yanında 'Diyafonda görüntü yok' çözüm isteği TV tarifiyle cevaplanabilir OLMAZ", () => {

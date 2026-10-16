@@ -331,10 +331,17 @@ envanterinden bir cihaz" = bakım görevi (cihaz envanteri ve olumsuzluk kuralla
 - Kural: cevabın bir cümlesi **arıza giderme adımıysa** ("çalışmıyorsa … yeniden açın", "dener misiniz", "emin olur musunuz") o cihazın
   bilgi tabanında **tarifi** olmalı; **kullanım adımıysa** ("MODE tuşuyla soğutmayı seçin") o cihaz bilgi tabanında **konu** olmalı. Yoksa
   cevap gitmez, taslak sende kalır (QR'da sana devredilir). Anlama modelinin etiketinden bağımsız; kanal + QR + Ayarlar testi aynı kural.
-- Ölçüm (kayıtlı 3.324 cevap, ücretli çağrı yok): **40 cevap tutulurdu, hepsi şikâyet senaryosunda tarifi olmayan arıza için uydurulmuş adım**
-  (klima çalışmıyor → "kapatıp birkaç dakika sonra açın"; internet yok → "modemi fişten çekip 30 sn bekleyin"; kilit takılıyor → "kolu
-  kaldırıp anahtarı yavaşça çevirin"). **Gerçekten gönderilmiş cevaplarda yanlış tutuş 0.** (İlk sürüm 22 tutuyordu; Opus'un ikinci turu iki
-  açık buldu, kapatıldı ↓ H8.)
+- Ölçüm (kayıtlı 3.324 cevap, ücretli çağrı yok): **36 cevap tutulurdu, hepsi şikâyet senaryosunda** (gerçekten gönderilmiş cevaplarda
+  yanlış tutuş 0). Dökümü (Opus üçüncü tur düzeltmesi — önceki "hepsi uydurma" özeti YANLIŞTI):
+  · ~16'sı uydurma arıza adımı: internet yok → "modemi fişten çekip 30 sn bekleyin"; kilit takılıyor → "anahtarı dikkatlice çevirerek
+    kilitlemeyi deneyin"; pil / ekran kontrolü.
+  · ~20'si bilgi tabanında YAZILI kullanım / yer bilgisinin arıza bildiren misafire adım olarak verilmesi: "klima çalışmıyor" → "MODE tuşuyla
+    soğutmayı (kar tanesi) seçebilirsiniz"; "internet yok" → "Yatak odasındaysanız aynı şifreyle Lale-2G ağına bağlanmayı deneyebilirsiniz",
+    "Modemin salondaki TV ünitesinin altında olması gerekiyor". Kural bunları da tutuyor (arıza adımı TARİF ister, kullanım bilgisi tarif
+    sayılmıyor) — ↓ "⚠️ Bir sınır" sorusu tam bu.
+- Karışık tur ölçümü (Opus): kayıtlı 3.113 meşru cevabın misafir mesajının başına "Televizyonda görüntü yok." eklenince — yani misafir arıza +
+  başka bir soru sorduğunda — ilk sürüm meşru cevapların %10'unu tutuyordu (Wi-Fi şifresi, çöp, giriş saati…); düzeltildi, şimdi 47 / 3.113
+  (%1,5) ve kalanların hepsi acil / şikâyet / sır isteği / enjeksiyon senaryosu (oralarda cevap zaten başka kapıda tutulur).
 - Misafir bir cihazın ARIZASINI bildirdiyse o cihaza yöneltilen her adım tarif ister — cihaz bilgi tabanında yalnız KONU olsa bile (ör. "TV:
   kumanda çekmecede, Netflix yüklü" kalemi varken "Televizyonda görüntü yok" → "SOURCE tuşuna basıp HDMI 1'i seçin" artık GİTMEZ). Aynı
   mesajdaki ARIZASIZ cihazın kullanım cevabı ("TV çalışmıyor; Wi-Fi şifresi?" → Wi-Fi şifresi) gider.
@@ -346,6 +353,9 @@ envanterinden bir cihaz" = bakım görevi (cihaz envanteri ve olumsuzluk kuralla
   Bilgi bilgi tabanında yazılı ama arıza tarifi olarak değil. Böyle kalsın mı, yoksa kullanım bilgisi arıza cevabında da kullanılabilsin mi?
 - Bilinen sınır: aynı cihazın tarifi VARKEN tarifte yazmayan başka bir adım (cihaz düzeyinde okunuyor; misafir başka dilde yazınca sözcük
   karşılaştırması güvenilir değil).
+- ⚠️ İkinci sınır (aynı sorunun parçası): misafir "Wifi şifresi çalışmıyor" deyince bilgi tabanındaki şifreyi aynen yineleyen cevap ("Ağ adı
+  Lale-5G, şifresi Lale2025! — sondaki ünlem işaretiyle birlikte yazmanız gerekiyor") da tutuluyor (Opus ölçümü: 13 cevapta 4). Bilgi tabanındaki
+  KULLANIM bilgisi arıza cevabında kullanılabilsin dersen bu ikisi birlikte gider.
 - **Açalım mı?**
 
 ### H3 · QR'da "arıza her yolda arıza" (Opus N9)
