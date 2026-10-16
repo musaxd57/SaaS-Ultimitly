@@ -166,7 +166,7 @@ export async function completeKeyedOutboundSend(
   const done = { holder: `${DONE_PREFIX}${digest}`, lockedUntil: new Date(now.getTime() + KEYED_DONE_TTL_MS) };
   const own = await tx.systemLock.updateMany({ where: { name, holder: inflightHolder(digest, token) }, data: done });
   if (own.count === 1) return;
-  if (await tx.systemLock.findUnique({ where: { name }, select: { name: true } })) throw new KeyedClaimLostError();
+  // Kendi kilidimiz yok: satır başka işçinindir (anahtar çakışır → kaybettik) ya da süpürülmüştür (kaydı biz yazarız).
   try {
     await tx.systemLock.create({ data: { name, ...done } });
   } catch (err) {
