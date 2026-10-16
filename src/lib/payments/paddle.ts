@@ -173,7 +173,8 @@ export function paddleStatusToLocal(status: string | null | undefined): string {
       // Unknown/missing status → treat as NOT active. Never gift premium access
       // on an unrecognized value. (Kurucu 10-16: ek süre yok — `past_due` erişimi
       // yalnız ZATEN ÖDENMİŞ dönem sürüyorsa açık tutar; tanınmayan durum dönem
-      // ortasında gelirse ödenmiş hizmet kesilmez, dönem bitince kapanır.)
+      // ortasında gelirse ödenmiş hizmet kesilmez, dönem bitince kapanır — webhook yalnız Paddle'ın GERÇEK `past_due`unda dönem
+      // başını yazar ve tanınmayan durumda "paddle-unknown-status" alarmı verir; Opus 10-16 P3-1.)
       return "past_due";
   }
 }

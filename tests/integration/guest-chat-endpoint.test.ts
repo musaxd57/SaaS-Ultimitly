@@ -588,6 +588,7 @@ describe("POST /api/chat/[token] (public QR concierge)", () => {
       const reservation = await prisma.reservation.findFirstOrThrow({ where: { propertyId } });
       const name = `outbound-send:qr-in:${reservation.id}:${RID}`;
       const before = await prisma.message.count({ where: { direction: "inbound" } });
+      const callsBefore = mockSuggest.mock.calls.length;
       mockSuggest.mockImplementationOnce(async () => {
         await prisma.systemLock.deleteMany({ where: { name } }); // süpürüldü; yeni işçi YOK
         return result({ reply: "Çöp salı günü alınır; acil bir durumda 112'yi arayın." }); // ikinci ücretli çağrıdan önce yenileme koşar
@@ -595,6 +596,7 @@ describe("POST /api/chat/[token] (public QR concierge)", () => {
       const a = await call(token, "Çöp ne zaman alınıyor?", cookie, { requestId: RID });
       expect(a.status).toBe(200);
       expect((await a.json()).deduped).toBeUndefined(); // ⬅️ SATIR YOK = KAYIP sayılsaydı: deduped, hiçbir şey yazılmaz
+      expect(mockSuggest.mock.calls.length - callsBefore).toBe(2); // ilk taslak + yeniden yazdırma: yeniden alma gerçekten o adımda oldu
       expect(await prisma.message.count({ where: { direction: "inbound" } })).toBe(before + 1);
       expect((await prisma.systemLock.findUniqueOrThrow({ where: { name } })).holder).toMatch(/^done:/); // tek kalıcı kayıt
     });
@@ -618,6 +620,13 @@ describe("POST /api/chat/[token] (public QR concierge)", () => {
             await new Promise((r) => setTimeout(r, 10));
           }
           expect(lost).toBe(0);
+          // Satır SİLİNDİ (bırakma / süpürme, kimse almadı): nabız onu YENİDEN YAZMAZ (Opus P3-2) ve kayıp da saymaz (N2 — yeniden alma
+          // eşzamanlı yenilemenin işi).
+          await prisma.systemLock.deleteMany({ where: { name } });
+          await new Promise((r) => setTimeout(r, 120));
+          expect(await prisma.systemLock.count({ where: { name } })).toBe(0); // ⬅️ nabız yeniden alsaydı: 1 (sahipsiz 120 sn kilit)
+          expect(lost).toBe(0); // ⬅️ "satır yok = kayıp" sayılsaydı: 1
+          expect(await claimKeyedOutboundSend(scope, "Çöp?", "tok-a")).toBe("claimed"); // aynı işçi yeniden alır (eşzamanlı yolun işi)
           // Kilit başka işçiye geçti.
           const foreignUntil = new Date(Date.now() + 30_000);
           await prisma.systemLock.update({ where: { name }, data: { holder: "baska.isci", lockedUntil: foreignUntil } });

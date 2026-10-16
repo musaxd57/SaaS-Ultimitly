@@ -1098,6 +1098,7 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
       claimExpiresAt: null,
       claimedAt: null,
     });
+    acc.retried++; // gözlemlenebilir (Opus 10-16 NOT-4): sağlayıcıya gitmeden geri bırakılan satır
     return;
   }
   if (live.body === ANON_BODY) {
@@ -1533,6 +1534,9 @@ let emptyFollowUps = 0;
 const MAX_EMPTY_FOLLOW_UPS = 3;
 /** Uyandırma turu bu süreden uzun dönmediyse takılmış sayılır (Opus 10-16 N6): o süreçte hızlı uyandırma sessizce ölmesin. */
 const KICK_STALE_MS = 10 * 60_000;
+/** Aynı anda en çok bu kadar uyandırma turu canlı (Opus 10-16 P3-5): takılan turlar bağlantı havuzunu tüketmesin. */
+const MAX_LIVE_KICK_LOOPS = 2;
+let liveKickLoops = 0;
 /** Uyandırma turunun parti boyu (N5): elle cevap için birkaç satır yeter; birikmiş kuyruğu periyodik tur boşaltır. */
 const KICK_BATCH = 5;
 
@@ -1559,12 +1563,15 @@ export function kickOutboxDrain(
 ): void {
   if (!outboxFastWakeEnabled()) return;
   if (kickRunning) {
-    if (Date.now() - kickStartedAt < KICK_STALE_MS) {
+    if (Date.now() - kickStartedAt < KICK_STALE_MS || liveKickLoops >= MAX_LIVE_KICK_LOOPS) {
       kickAgain = true;
       return;
     }
-    // Takılmış tur (ör. hiç dönmeyen sorgu): yeni tur başlar; eski turun `finally`si nesil farkı yüzünden durumu ezmez.
-    void reportError("outbox.kick", new Error("Hızlı uyandırma turu 10 dakikadır dönmedi — yeni tur başlatıldı")).catch(() => {});
+    // Takılmış tur (ör. hiç dönmeyen sorgu): yeni tur başlar; eski turun `finally`si nesil farkı yüzünden durumu ezmez. Alarm çağıranın
+    // takip numarasını taşımaz (P3-4).
+    runAsNewSystemOperation(() => {
+      void reportError("outbox.kick", new Error("Hızlı uyandırma turu 10 dakikadır dönmedi — yeni tur başlatıldı")).catch(() => {});
+    });
   }
   kickRunning = true;
   kickAgain = false;
@@ -1572,6 +1579,7 @@ export function kickOutboxDrain(
   const generation = ++kickGeneration;
   const loop = async (): Promise<void> => {
     let claimedAny = false;
+    liveKickLoops++;
     try {
       do {
         kickAgain = false;
@@ -1580,6 +1588,7 @@ export function kickOutboxDrain(
         if ((r?.claimed ?? 0) > 0) claimedAny = true;
       } while (kickAgain && generation === kickGeneration);
     } finally {
+      liveKickLoops--;
       if (generation === kickGeneration) kickRunning = false;
     }
     if (generation !== kickGeneration) return; // yerine yeni tur geçti; takip kararı onun
@@ -1622,6 +1631,7 @@ export function __resetOutboxKick(): void {
   if (followUpTimer) clearTimeout(followUpTimer);
   followUpTimer = null;
   emptyFollowUps = 0;
+  liveKickLoops = 0;
   followUpMs = 61_000;
 }
 

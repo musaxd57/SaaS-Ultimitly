@@ -94,7 +94,7 @@ describe("hızlı uyandırma — kurtarma yalnız periyodik turda; talebi dolan 
     // Saat, satır TALEP EDİLDİKTEN sonra (kimlik çözümü = POST'tan önceki adım) 6 dk ileri atlar (talep süresi 5 dk) — parti yavaşlamış
     // gibi. Saat okuma SIRASINA bağlı değil (Haiku 10-16).
     const now = () => new Date(jumped ? base + 6 * 60_000 : base);
-    await drainOutboxOnce({
+    const out = await drainOutboxOnce({
       now,
       send,
       tokenFor: async () => {
@@ -102,6 +102,7 @@ describe("hızlı uyandırma — kurtarma yalnız periyodik turda; talebi dolan 
         return "tok";
       },
     });
+    expect(out.retried).toBe(1); // gözlemlenebilir: sağlayıcıya gitmeden geri bırakıldı (Opus NOT-4)
     expect(send).not.toHaveBeenCalled(); // ⬅️ KEMERSİZ: süresi dolmuş talep gönderilirdi (başka turun kurtarmasıyla yarış)
     expect(await prisma.messageOutbox.findUniqueOrThrow({ where: { id: r.id } })).toMatchObject({ status: "pending", claimedBy: null, attemptCount: 0, claimedAt: null });
     await drainOutboxOnce({ now: () => new Date(base + 7 * 60_000), send, tokenFor: async () => "tok" });
@@ -126,6 +127,23 @@ describe("hızlı uyandırma — kurtarma yalnız periyodik turda; talebi dolan 
     expect(reportErrorMock.mock.calls.some(([c]) => String(c) === "outbox.kick")).toBe(true);
   });
 
+  it("bekçi alarmı çağıran isteğin takip numarasını TAŞIMAZ (Opus P3-4)", async () => {
+    const seen: Array<ReturnType<typeof currentCorrelation>> = [];
+    reportErrorMock.mockImplementation(async (ctx: unknown) => {
+      if (String(ctx) === "outbox.kick") seen.push(currentCorrelation());
+      return { notified: true, throttled: false, configured: true };
+    });
+    kickOutboxDrain(() => new Promise(() => {}));
+    await new Promise((r) => setTimeout(r, 20));
+    __ageOutboxKick(11 * 60_000);
+    await runWithCorrelation({ id: "istek-numarasi-2", organizationId: "org-istek" }, async () => {
+      kickOutboxDrain(vi.fn().mockResolvedValue({ claimed: 0 }));
+    });
+    await waitUntil(() => seen.length > 0);
+    expect(seen[0]?.id).not.toBe("istek-numarasi-2"); // ⬅️ eski: alarm isteğin numarasıyla etiketlenirdi
+    expect(seen[0]?.organizationId ?? null).toBeNull();
+  });
+
   it("aynı anda en çok BİR takip zamanlayıcısı: art arda biten iki tur ikinci zamanlayıcı kurmaz (Opus N6)", async () => {
     await row("f1", { status: "pending" }); // vadesi gelmiş elle cevap → takip gerekli görünür
     __setOutboxKickFollowUpMs(4321); // ayırt edici gecikme
@@ -142,6 +160,20 @@ describe("hızlı uyandırma — kurtarma yalnız periyodik turda; talebi dolan 
       timers.mockRestore();
       __resetOutboxKick();
     }
+  });
+
+  it("🚨 takılmış turlar sınırsız çoğalmaz: aynı anda en çok 2 canlı tur (Opus P3-5 — bağlantı havuzu tükenmesin)", async () => {
+    const hang = vi.fn(() => new Promise(() => {}));
+    kickOutboxDrain(hang);
+    await waitUntil(() => hang.mock.calls.length === 1);
+    __ageOutboxKick(11 * 60_000);
+    kickOutboxDrain(hang); // bekçi: ikinci tur (o da takılır)
+    await waitUntil(() => hang.mock.calls.length === 2);
+    __ageOutboxKick(11 * 60_000);
+    const third = vi.fn().mockResolvedValue({ claimed: 0 });
+    kickOutboxDrain(third);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(third).not.toHaveBeenCalled(); // ⬅️ SINIRSIZ: üçüncü tur da açılırdı
   });
 
   it("uyandırma turu çağıran isteğin takip numarasını / işletmesini MİRAS ALMAZ (hata raporu dahil)", async () => {

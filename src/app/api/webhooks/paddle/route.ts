@@ -40,6 +40,9 @@ type PaddleEvent = {
   data?: Record<string, unknown>;
 };
 
+/** Paddle'ın bildiğimiz abonelik durumları (`paddleStatusToLocal`); dışındaki değer alarm üretir. */
+const KNOWN_PADDLE_SUBSCRIPTION_STATUSES = new Set(["active", "trialing", "past_due", "paused", "canceled"]);
+
 function str(v: unknown): string | null {
   return typeof v === "string" && v.length > 0 ? v : null;
 }
@@ -265,10 +268,21 @@ async function applySubscriptionEvent(
   // keserdi (mutasyon N1b). BİLİNEN SINIR: dönem ilerlemeden düşen bir tahsilatta (ör. dönem ortası) baş geçmişte kalır → erişim kapanır
   // (ek süre doğmayan güvenli yön); kesin çözüm ayrı "ödenmiş dönem sonu" alanı (migration, kurucu sorusu). Ödeme doğrulanınca `active`
   // olayı gerçek dönem sonunu yazar.
-  if (status === "past_due") {
+  // Yalnız Paddle'ın GERÇEK `past_due`u (Opus 10-16 P3-1): tanınmayan / eksik durum da yerelde `past_due`a eşlenir (kapalı yön), ama o
+  // olay bir ödeme düşmesi DEĞİLDİR → dönem sonu olaydaki gibi kalır (ödemiş müşteri dönem ortasında kesilmez) ve alarm verilir (↓).
+  if (str(data.status) === "past_due") {
     const startsAt = str(period?.starts_at);
     const start = startsAt ? new Date(startsAt) : null;
     currentPeriodEnd = start != null && !Number.isNaN(start.getTime()) ? start : null;
+  }
+
+  const rawStatus = str(data.status);
+  if (!rawStatus || !KNOWN_PADDLE_SUBSCRIPTION_STATUSES.has(rawStatus)) {
+    // Tanınmayan / eksik durum sessiz kalmaz (kişisel veri yok: yalnız sağlayıcının durum adı ve abonelik kimliği).
+    await reportError(
+      "paddle-unknown-status",
+      new Error(`Paddle bilinmeyen abonelik durumu: ${JSON.stringify(rawStatus)} (abonelik ${JSON.stringify(str(data.id))}) — erişim kapalı yönde ödeme gecikmesi sayıldı; durum adını eşlemeye ekleyin`),
+    ).catch(() => {});
   }
 
   // scheduled_change with action "cancel" → cancel at period end.

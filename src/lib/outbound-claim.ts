@@ -200,22 +200,34 @@ export async function completeKeyedOutboundSend(
 let heartbeatMs = 30_000;
 
 /** Tek yenileme: bu işçinin çalışan kilidini 120 sn uzatır; satır artık bu işçinin değilse false. */
-export async function renewKeyedOutboundSend(scopeId: string, body: string, token: string, now: Date = new Date()): Promise<boolean> {
+/** Kilit durumu: `held` = bizde (süresi ileri atıldı) · `missing` = satır yok · `lost` = başka sahipte (yeni işçi / tamamlanmış kayıt). */
+type KeyedLease = "held" | "missing" | "lost";
+
+async function renewKeyed(scopeId: string, body: string, token: string, now: Date, reacquire: boolean): Promise<KeyedLease> {
   const name = `${PREFIX}${scopeId}`;
   const holder = inflightHolder(bodyDigest(body), token);
   const lockedUntil = new Date(now.getTime() + CLAIM_TTL_MS);
   const r = await prisma.systemLock.updateMany({ where: { name, holder }, data: { lockedUntil } });
-  if (r.count === 1) return true;
+  if (r.count === 1) return "held";
+  if (!reacquire) {
+    const row = await prisma.systemLock.findUnique({ where: { name }, select: { holder: true } });
+    return row ? "lost" : "missing";
+  }
   // Satır HİÇ yoksa (süresi doldu, süpürüldü, kimse almadı) bu işçi kilidi YENİDEN alır — `completeKeyedOutboundSend` ile aynı kural
   // ("kimse almamışsa kaydı bu işçi yazar"; Opus 10-16 N2: aksi hâlde misafir mesajı iz bırakmadan 'deduped' olurdu). Satır başka
   // sahipteyse (yeni işçi ya da tamamlanmış kayıt) eşsiz ad çakışır → sahiplik gerçekten kaybedildi.
   try {
     await prisma.systemLock.create({ data: { name, lockedUntil, holder } });
-    return true;
+    return "held";
   } catch (err) {
-    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") return false;
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") return "lost";
     throw err;
   }
+}
+
+/** Ücretli adımdan hemen önceki EŞZAMANLI yenileme: süreyi ileri atar; satır yoksa yeniden alır. `false` = sahiplik kaybedildi. */
+export async function renewKeyedOutboundSend(scopeId: string, body: string, token: string, now: Date = new Date()): Promise<boolean> {
+  return (await renewKeyed(scopeId, body, token, now, true)) === "held";
 }
 
 /** Yenileme döngüsünü başlatır; durdurma fonksiyonu döner. Veritabanı hatası kayıp SAYILMAZ (bir sonraki turda yeniden denenir). */
@@ -223,9 +235,12 @@ export function startKeyedClaimHeartbeat(scopeId: string, body: string, token: s
   let stopped = false;
   const timer = setInterval(() => {
     if (stopped) return;
-    renewKeyedOutboundSend(scopeId, body, token)
-      .then((held) => {
-        if (!held && !stopped) {
+    // Nabız kilidi YENİDEN OLUŞTURMAZ (Opus 10-16 P3-2): bırakma sırasında havada olan bir tur, silinen satırı bu işçi adına 120 sn geri
+    // yazar ve misafirin aynı istek kimliğiyle yeniden denemesi "zaten işleniyor" alırdı. Satır yoksa kayıp da SAYILMAZ (N2): yeniden alma
+    // ücretli adımdan önceki eşzamanlı yenilemenin ve kayıt işleminin işi.
+    renewKeyed(scopeId, body, token, new Date(), false)
+      .then((state) => {
+        if (state === "lost" && !stopped) {
           stopped = true;
           clearInterval(timer);
           onLost();

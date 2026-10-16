@@ -207,6 +207,26 @@ describe("POST /api/webhooks/paddle", () => {
       }
     });
 
+    it("🚨 TANINMAYAN Paddle durumu (yerelde kapalı yön) ödeme düşmesi sayılmaz: dönem sonu olaydaki gibi, ödemiş müşteri dönem ortasında kesilmez (Opus P3-1)", async () => {
+      const now = Date.now();
+      const start = new Date(now - 10 * DAY).toISOString();
+      const end = new Date(now + 20 * DAY).toISOString();
+      const active = periodEvent("evt_pd5_a", "active", new Date(now - 120_000).toISOString(), start, end);
+      await POST(req(active, sign(active)));
+      const odd = periodEvent("evt_pd5_x", "suspended_for_review", new Date(now - 1000).toISOString(), start, end);
+      expect((await POST(req(odd, sign(odd)))).status).toBe(200);
+      const sub = await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } });
+      expect(sub.status).toBe("past_due"); // kapalı yön eşlemesi aynen
+      expect(sub.currentPeriodEnd?.toISOString()).toBe(end); // ⬅️ dönem başı yazılsaydı: start (erişim hemen kapanırdı)
+      vi.stubEnv("BILLING_ENFORCED", "true");
+      vi.stubEnv("PRIMARY_ORG_ID", "baska-org");
+      try {
+        expect(await premiumAllowed(orgId)).toBe(true);
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    });
+
     it("past_due olayında dönem BAŞI yoksa aynı aboneliğin kayıtlı ödenmiş dönem sonu korunur (olaydaki ileri tarih yazılmaz)", async () => {
       const now = Date.now();
       const paidEnd = new Date(now - 60_000).toISOString();
