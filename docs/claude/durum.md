@@ -8,7 +8,17 @@
 > `docs/history/CLAUDE-2026-10-02-sadelestirme-3-oncesi-tam-metin.md` ("Durum" bölümü). Kuralları yukarıdaki bölümlerde; yalnız Durum'da
 > yazılı olan kurallar (konuşma öğeleri, ev kuralları, canlı bayraklar) 10-02'de ilgili bölümlere taşındı. Bekleyen onaylar ↓.
 
-**10-16 öğleden sonra (güncel) — Codex incelemesi + kurucunun açık kararları (migration'sız):** ödeme gecikmesinde ek süre YOK (erişim
+**10-16 akşam (güncel):** (1) PARALEL TEST KAPISI — `npm test` = `scripts/test-gate.mjs` (veritabanlı kol tek sıra + veritabanısız kol 3 işçi
+aynı anda, süre testleri en sonda tek başına; ölçüm 4 koşu yeşil: 3 işçi 1.790 / 1.766 sn, 4 işçi 1.931 / 1.778 sn; seri 2.163 sn) — geri dönüş
+`npm run test:serial`; `docs/arastirma-2026-10-15/test-paralellik.md`. (2) H9 konu bazlı "bilgim yok" kodda, anahtar KAPALI (`topic-absence.ts`;
+Haiku: doğrusal satır temizliği, kalan cümle konuya bağlı; Opus: kapsama şartı, satır satır ayıklama, kod selamı muaf, belirsizlik tutulur, kanıt izi
+`ta`). (3) Codex akşam 6 bulgu (hepsi kodda yeniden üretildi, düzeltildi, regresyon testli): küçültülmüş Paddle yükü yeniden işlemede ezilmez ·
+erişimi kapalı işletmenin kuyruktaki OTOMATİK satırı bekletilir (talep süzgeci + gönderim anı kemeri + sağlık okuması tek kaynak
+`outbox/billing-hold.ts`; elle cevap etkilenmez; kader sorusu N1) · KB kopya güncellemesine işlem kimliği · arıza okuyucu tam metin (cevap 200
+cümleyi aşarsa tutulur) · gönderilmemiş host mesajı geçmişten öğren kanıtı değil · sağlık yoklaması paylaşılır. (4) Geçmişten öğren × Codex 6 ilke
+denetimi kalıcı belgeye (`docs/arastirma-2026-10-15/gecmisten-ogren-6-ilke.md`), sorular L1–L5; "bilgi veremem" sorusu M1.
+
+**10-16 öğleden sonra — Codex incelemesi + kurucunun açık kararları (migration'sız):** ödeme gecikmesinde ek süre YOK (erişim
 ödenmiş dönem sonuna kadar; Opus N1: `past_due` olayı dönem sonunu ödenmemiş döneme taşıyabiliyordu → yazılan değer yalnız dönem başı, yoksa
 yazılmaz; bilinen sınır dönem içi düşen tahsilat → soru J5); elle mesaj hızlı uyandırma (`kickOutboxDrain`, varsayılan açık, kaçış
 `OUTBOX_FAST_WAKE=0`; uyandırma turu kurtarma yapmaz, 5 satır, tek takip zamanlayıcısı, 10 dk bekçi; ölçüm p50 23 ms / p95 36 ms); kuyruk
