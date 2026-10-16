@@ -211,6 +211,34 @@ describe("Opus gece-3 P1-a: TV mobilyası / oda adı YER tarifidir — tarifli m
   });
 });
 
+describe("Opus gece-3 P1-b: arıza + BAŞKA soru turunda meşru cevaplar tutulmaz (cihazı anılmayan cümle arızayı devralmaz)", () => {
+  const kbItems = [
+    { title: "Wi-Fi", content: "Ağ adı Lale-5G, şifre Lale2025!. Yatak odasında Lale-2G ağına aynı şifreyle bağlanabilirsiniz." },
+    { title: "Çöp", content: "Çöp konteynerleri binanın arkasındadır." },
+    { title: "Giriş", content: "Giriş 15:00'ten sonradır. Anahtar kutusunun şifresi 4821." },
+  ];
+  const kb = { recipeTopics: kbRecipeTopics(kbItems), subjectTopics: kbSubjectTopics(kbItems) };
+  it.each([
+    ["Lale-5G ağına Lale2025! şifresiyle bağlanabilirsiniz.", "Televizyonda görüntü yok. Wifi şifresi?"],
+    ["Şifre Lale2025! — büyük L ile yazmanız gerekiyor.", "Televizyonda görüntü yok. Wifi şifresi?"],
+    ["Binanın arkasında; oraya bırakabilirsiniz.", "Televizyonda görüntü yok. Çöpleri nereye atıyoruz?"],
+    ["15:00'ten sonra giriş yapabilirsiniz.", "Klima bozuk, saat kaçta giriş yapabiliriz?"],
+    ["Vous pouvez les déposer dans les conteneurs derrière l'immeuble.", "La télé ne marche pas. Où jeter les poubelles ?"],
+    ["Puede dejarla en el contenedor gris de la esquina.", "El aire acondicionado no funciona. ¿Dónde tiro la basura?"],
+    ["Можете оставить мусор в сером контейнере на углу улицы.", "Кондиционер не работает. Куда выбрасывать мусор?"],
+  ])("GEÇER: %j (misafir: %j)", (reply, guest) => {
+    expect(unsupportedFixStep(reply, kb, guest)).toBe(false);
+  });
+  it("aşırı düzeltme yok: yalnız arıza bildiren misafire cihazsız adım (k6-24) ve çözüm önerisi yine tutulur", () => {
+    const tvSubject = { recipeTopics: new Set<string>(), subjectTopics: new Set(["tv"]) };
+    expect(unsupportedFixStep("Kumandanın pillerini değiştirin.", tvSubject, "Kumanda çalışmıyor")).toBe(true);
+    expect(unsupportedFixStep("Kumandadaki pilleri değiştirmek çözebilir.", tvSubject, "Televizyon açılmıyor")).toBe(true);
+    // arızalı cihaz önceki cümlede anıldıysa geniş biçim de adımdır ("panoya bakılabilir")
+    const none = { recipeTopics: new Set(["parking"]), subjectTopics: new Set(["power"]) };
+    expect(unsupportedFixStep("Sigortanın atmış olması mümkün; panoya bakılabilir.", none, "Elektrik yok")).toBe(true);
+  });
+});
+
 describe("anahtar + bağlam", () => {
   it("anahtar KAPALI: bağlam alanı HİÇ yazılmaz, kemer koşmaz (bayt bayt bugünkü)", () => {
     vi.stubEnv("AI_FIX_SUPPORT_GATE_ENABLED", "");

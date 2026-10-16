@@ -131,6 +131,12 @@ describe("arıza sinyali (saf)", () => {
     ["Klimada arıza halinde ne yapmalıyız?", false],
     ["Klimanın arızası giderildi, teşekkürler.", false],
     ["Klima çalışmadı ama sonra düzeldi.", false],
+    // Opus gece-3 P2-b: düzelme yalnız SON arızadan sonra gelirse kapatır; düzelme cümleciği özne verir; yardım isteğiyle çekingen bildirim
+    ["Klima dün tamir edildi ve yine bozuldu.", true],
+    ["The AC was repaired yesterday and is broken again.", true],
+    ["Klimanın arızası giderildi denmişti, yine çalışmıyor.", true],
+    ["Klima çalışmıyor mu acaba, bir bakar mısınız?", true],
+    ["Klima bozuk durumunda, lütfen birini gönderin.", true],
   ])("%j → %s", (q, want) => {
     expect(faultSignal(q, q)).toBe(want);
   });
