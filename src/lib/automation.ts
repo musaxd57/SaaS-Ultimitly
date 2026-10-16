@@ -2413,6 +2413,8 @@ export async function applyChannelAutoReply(
   // Öğe kipinde "bilgim yok" diyen cümle AYIKLANIR (misafire yine GİTMEZ); konusu bırakılan bir cihaza ya da cevaplanabilir bir isteğe
   // eşlenmeli, eşlenen istek beyandan düşer (cevaplandı sayılmaz → ev sahibinde AÇIK kalır). Kalan metin aşağıdaki BÜTÜN kapılardan
   // yeniden geçer. Eşlenemeyen / boş kalan / beyansız tur bugünkü gibi bütünüyle tutulur (`reply_absence`). Kurallar `topic-absence.ts`.
+  // Kanıt izi (`ta`): ayıklanan cümle + düşen istek SAYISI (metin yok) — "kaç cevap kısmen gitti" ölçümü (Opus P3).
+  let topicAbsenceTrace: { s: number; r: number } | undefined;
   if (
     topicAbsenceEnabled() &&
     itemsPlan &&
@@ -2424,8 +2426,12 @@ export async function applyChannelAutoReply(
       answeredRefs: result.answeredRequests.refs,
       answerableTopics: itemsPlan.gateItems.answerableTopics ?? [],
       heldDeviceTopics: itemsPlan.gateItems.heldDeviceTopics ?? [],
+      greetingName: conversation.reservation?.guestGivenName ?? null,
     });
-    if (stripped.ok) result = { ...result, reply: stripped.reply, answeredRequests: { ok: true, refs: stripped.answeredRefs } };
+    if (stripped.ok) {
+      result = { ...result, reply: stripped.reply, answeredRequests: { ok: true, refs: stripped.answeredRefs } };
+      topicAbsenceTrace = { s: stripped.droppedSentences, r: stripped.droppedRefs.length };
+    }
   }
   // ── ANLAM KATMANI: bağımsız bekçi (09-24) ───────────────────────────────────
   // Bayrak açıkken (`AI_STAY_GUARD_ENABLED`) önce bekçisiz kapı; ikinci model taslağı YALNIZ iki durumda okur:
@@ -2785,6 +2791,7 @@ export async function applyChannelAutoReply(
       // gerekçe `blocked` iken ve yeniden hesaplanan hüküm de `blocked` ise (başka bir adım gerekçeyi değiştirdiyse yazılmaz).
       gate: gateEvidenceOf(result, last.body, gateContext, finalGateVerdict),
       houseRules: houseRulesShadow,
+      topicAbsence: topicAbsenceTrace,
     }),
   };
 

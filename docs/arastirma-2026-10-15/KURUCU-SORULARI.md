@@ -645,3 +645,11 @@ Karar bekleyenler (denetim + ilk dilim tasarımı: `gecmisten-ogren-6-ilke.md` �
 - **L5 · Sağlayıcı otomasyonu (Opus H9, migration ister):** Hospitable'ın kendi şablon mesajı bizde ev sahibi mesajı sayılıyor (sağlayıcı
   gönderen rolünü saklamıyoruz). Bizim şablonlarımız zaten ayrılıyor. Önerim: Airbnb Direct'e geçişte gönderen rolü kanal katmanında saklansın
   (ayrı tur); bugün için değişiklik yok.
+
+## M. Konu bazlı "bilgim yok" (H9) — Opus dilim sonu kontrolünden iki not (10-16 akşam; anahtar KAPALI)
+- **M1 · "Bilgi veremem" yakalanmıyor (bugün de, anahtardan bağımsız):** "bilgim yok" kuralı "bilgi veremiyorum"u yakalıyor ama "Bu konuda bilgi
+  veremem." / "Kesin bilgi veremem."i yakalamıyor → bu cümleler bugün misafire GİDEBİLİR. Önerim: "veremem / veremeyiz" ailesi de "bilgim yok"
+  sayılsın (yalnız tutma yönünde). ÖRNEK: misafir "Havuz kaçta açılıyor?", cevap "Bu konuda bilgi veremem." → önce: gider · sonra: ev sahibine
+  kalır. Böyle yapalım mı? (Müşteriye gideni değiştirdiği için sormadan yapmadım.)
+- **M2 · Bilgi:** H9 açıkken bile "Başka bir bilgim yok." gibi KONUSUZ yokluk cümlesi bütün cevabı tutar (hangi konunun açık kaldığı bilinmiyor);
+  ilk açılışta "kısmen giden" cevap sayısı kanıttaki `ta` izinden ölçülecek.

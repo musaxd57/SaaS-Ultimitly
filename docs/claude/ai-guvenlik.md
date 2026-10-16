@@ -523,6 +523,10 @@
   bırakılan bir cihaza ya da cevaplanabilir bir isteğe eşlenmeli (eşlenen istek cevaplandı beyanından düşer → açık iş, kısmi cevapla AYNI yol,
   e-posta yok). TUTULUR (bugünkü gibi bütün cevap): konusu belirsiz yokluk · boş kalan cevap · cevaplanan istek kalmaması · kalan cümlenin
   düşen konuya değinmesi · kalan metnin bütün olarak yine "bilgim yok" demesi · kalan HERHANGİ bir cümlenin kalan cevaplanmış konulara
-  değinmemesi (konusuz adım "Kırmızı tuşa basın." yarım tarif olabilir — Haiku 10-16). Misafire cümle EKLENMEZ (K10). Ayıklanmış metin
-  bütün kapılardan yeniden geçer (`items_held_touched` entegrasyon pinli). Satır sonu temizliği satır satır (`[ \t]+\n` 50.000 boşlukta 2,7 sn
-  ölçüldü → süre pini `topic-absence-cost.test.ts`).
+  değinmemesi (konusuz adım "Kırmızı tuşa basın." yarım tarif olabilir — Haiku 10-16) · KAPSAMA: beyanda kalan her isteğin konusu kalan
+  metinde yok (Opus P1: "Spor salonu ve diğer sorunuz hakkında bilgim yok." havuzu sessizce "cevaplandı" kapatıyordu) · kalan metin belirsizlik
+  söylüyor ("emin değilim", "kesin söyleyemem", "not sure" — bugün yakalanan "bilgim yok" bunları da tutuyordu). Kodun selam satırı (tablo
+  selamıyla BİREBİR, rezervasyondaki hitap adı) konu denetiminden muaf, aynen kalır. Ayıklama SATIR SATIR (satır sonundaki cümle iki satırı
+  yapıştırmaz; tek başına satır boş satır bırakmaz). Misafire cümle EKLENMEZ (K10). Ayıklanmış metin bütün kapılardan yeniden geçer
+  (`items_held_touched` entegrasyon pinli). Kanıt izi `ta: {s, r}` (ayıklanan cümle / düşen istek SAYISI). Satır sonu temizliği satır satır
+  (`[ \t]+\n` 50.000 boşlukta 2,7 sn ölçüldü → süre pini `topic-absence-cost.test.ts`).

@@ -1044,6 +1044,8 @@ describe("KONU BAZLI 'BİLGİM YOK' (H9, kurucu 10-16; anahtar AI_TOPIC_ABSENCE_
     const items = await itemsOf(conversationId);
     expect(items.find((i) => i.kind === "complaint_issue")).toMatchObject({ status: "pending_host" });
     expect(items.find((i) => i.kind === "trash")).toMatchObject({ status: "answered" });
+    const ev = await prisma.riskEvent.findFirst({ where: { conversationId }, orderBy: { occurredAt: "desc" } });
+    expect(JSON.parse(ev?.kbEvidenceJson ?? "{}").ta).toEqual({ s: 1, r: 0 }); // ölçüm izi: bir cümle ayıklandı, istek düşmedi
   });
 
   it("KONTROL — anahtar KAPALI: bugünkü gibi bütün cevap tutulur (reply_absence), misafire hiçbir şey gitmez", async () => {
@@ -1067,7 +1069,7 @@ describe("KONU BAZLI 'BİLGİM YOK' (H9, kurucu 10-16; anahtar AI_TOPIC_ABSENCE_
     expect(mockSend).not.toHaveBeenCalled();
   });
 
-  it("🚨 anahtar AÇIK: kalan metin bırakılan cihaza değiniyorsa (uydurma adım) yine TUTULUR — kapılar ayıklanmış metne de bakar", async () => {
+  it("🚨 anahtar AÇIK: kalan metinde kalan konuya bağlı olmayan uydurma TV adımı ('fişini çekip takın') → yine TUTULUR (kural 5)", async () => {
     vi.stubEnv("AI_TOPIC_ABSENCE_ENABLED", "1");
     const { conversationId } = await seed(TV_TRASH);
     understands(tvTrashUnderstood());
@@ -1080,6 +1082,32 @@ describe("KONU BAZLI 'BİLGİM YOK' (H9, kurucu 10-16; anahtar AI_TOPIC_ABSENCE_
     );
     expect((await applyChannelAutoReply(conversationId)).sent).toBe(false);
     expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("anahtar AÇIK: kodun selam satırı (rezervasyondaki hitap adıyla) muaf ve AYNEN gider (Opus P2-b; ad bağlantısı uçtan uca)", async () => {
+    vi.stubEnv("AI_TOPIC_ABSENCE_ENABLED", "1");
+    const { conversationId } = await seed(TV_TRASH);
+    const conv = await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId }, select: { propertyId: true } });
+    const day = 24 * 60 * 60 * 1000;
+    const reservation = await prisma.reservation.create({
+      data: {
+        propertyId: conv.propertyId,
+        guestName: "Alex Doe",
+        guestGivenName: "Alex",
+        arrivalDate: new Date(Date.now() - day),
+        departureDate: new Date(Date.now() + 3 * day),
+      },
+    });
+    await prisma.conversation.update({ where: { id: conversationId }, data: { reservationId: reservation.id } });
+    understands(tvTrashUnderstood());
+    mockSuggest.mockResolvedValueOnce(
+      verdict({ intent: "general", reply: `Merhaba Alex,\n\n${TRASH} Televizyonla ilgili bir bilgim yok.`, answeredRequests: { ok: true, refs: ["R1"] } }),
+    );
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(true);
+    const body = JSON.stringify(mockSend.mock.calls[0]);
+    expect(body).toContain("Merhaba Alex,");
+    expect(body).toContain(TRASH);
+    expect(body).not.toMatch(/bilgim yok/i);
   });
 
   it("anahtar AÇIK: cevaplanabilir TV sorusu bilgisiz kaldı → beyandan düşer, AÇIK iş kalır; çöp cevabı gider", async () => {
@@ -1109,6 +1137,8 @@ describe("KONU BAZLI 'BİLGİM YOK' (H9, kurucu 10-16; anahtar AI_TOPIC_ABSENCE_
     const items = await itemsOf(conversationId);
     expect(items.find((i) => i.kind === "appliance_help")).toMatchObject({ status: "open" }); // ⬅️ beyandan düştü: cevaplandı SAYILMAZ
     expect(items.find((i) => i.kind === "trash")).toMatchObject({ status: "answered" });
+    const ev = await prisma.riskEvent.findFirst({ where: { conversationId }, orderBy: { occurredAt: "desc" } });
+    expect(JSON.parse(ev?.kbEvidenceJson ?? "{}").ta).toEqual({ s: 1, r: 1 });
   });
 
   it("🚨 anahtar AÇIK: ayıklama başarılı ama kalan cümle bırakılan cihaza değiniyor → kapı AYIKLANMIŞ metinde tutar (items_held_touched)", async () => {

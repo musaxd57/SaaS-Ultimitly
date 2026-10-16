@@ -261,6 +261,11 @@ export interface KbEvidenceInput {
    * sonucu. KARAR DEĞİL. Verilmezse alan yazılmaz (ölçülmedi); boş liste = ölçüldü, konu yok.
    */
   houseRules?: readonly { t: string; s: string; p: string; k: string; n?: number }[];
+  /**
+   * Konu bazlı "bilgim yok" ayıklaması (H9, `AI_TOPIC_ABSENCE_ENABLED`): ayıklanan cümle (`s`) ve beyandan düşen istek (`r`) SAYISI;
+   * yalnız ayıklama olduysa (metin YOK). Verilmezse alan yazılmaz (kanıt biçimi karakteri karakterine aynı).
+   */
+  topicAbsence?: { s: number; r: number };
   /** Yapay zekâyı ele geçirme ifadesi taşıdığı için istemden çıkarılan kalem sayısı (`kb-fetch`). */
   hijackScreened?: number;
   /**
@@ -483,6 +488,10 @@ export function buildKbEvidence(input: KbEvidenceInput): string | null {
   const ec = cleanEarlyCheckin(input.earlyCheckin);
   const g = cleanGateEvidence(input.gate);
   const hr = cleanHouseRules(input.houseRules);
+  const ta =
+    input.topicAbsence && Number.isInteger(input.topicAbsence.s) && input.topicAbsence.s > 0 && Number.isInteger(input.topicAbsence.r) && input.topicAbsence.r >= 0
+      ? { s: Math.min(input.topicAbsence.s, 99), r: Math.min(input.topicAbsence.r, 99) }
+      : undefined;
   const extra = {
     ...(claims ? { claims } : {}),
     ...(llm ? { llm } : {}),
@@ -492,8 +501,9 @@ export function buildKbEvidence(input: KbEvidenceInput): string | null {
     ...(ec ? { ec } : {}),
     ...(g ? { g } : {}),
     ...(hr ? { hr } : {}),
+    ...(ta ? { ta } : {}),
   };
-  if (retrieved.length === 0 && used.length === 0 && !retrieval && !claims && !llm && !hj && !sc && !ir && !ec && !g && !hr) return null;
+  if (retrieved.length === 0 && used.length === 0 && !retrieval && !claims && !llm && !hj && !sc && !ir && !ec && !g && !hr && !ta) return null;
   const body = JSON.stringify({ retrieved, used, ...(retrieval ? { retrieval } : {}), ...extra });
   if (body.length <= EVIDENCE_CHAR_CAP) return body;
   // SESSİZ KIRPMA YOK: kaç kalemin kanıttan düştüğü açıkça yazılır, yoksa
