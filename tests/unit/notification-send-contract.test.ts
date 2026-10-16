@@ -56,8 +56,12 @@ describe("bildirim sözleşmesi", () => {
 
   it("`sendReporting` GERÇEKTEN sonuç döndürür (sözleşmenin diğer yarısı)", async () => {
     const src = await readFile("src/lib/email-core.ts", "utf8");
-    // İmza değişip `Promise<void>`a dönerse tüm çağrı yerleri sessizce körleşir.
-    expect(src).toMatch(/sendReporting\([\s\S]{0,200}?Promise<\{\s*ok:\s*boolean/);
+    // İmza değişip `Promise<void>`a dönerse tüm çağrı yerleri sessizce körleşir. Dönüş tipi ya satır içi `{ ok: boolean … }` ya da
+    // adlandırılmış `SendOutcome` (10-16, Opus F9: tekrar kimliği çakışması alanı) — ikincisinde arayüzün `ok: boolean` taşıdığı da pinli.
+    expect(src).toMatch(/sendReporting\([\s\S]{0,200}?Promise<(\{\s*ok:\s*boolean|SendOutcome>)/);
+    if (/sendReporting\([\s\S]{0,200}?Promise<SendOutcome>/.test(src)) {
+      expect(src).toMatch(/export interface SendOutcome \{\s*ok:\s*boolean;/);
+    }
   });
 
   it("raportörün kendisi de sözleşmeye uyuyor (kendi kuralını çiğniyordu)", async () => {
