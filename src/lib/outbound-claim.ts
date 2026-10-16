@@ -13,10 +13,12 @@ import { prisma } from "@/lib/db";
 // across replicas (unlike the in-memory rate limiter).
 //
 // The key is {conversationId, sha256(body)}. The TTL must EXCEED the worst-case
-// delivery duration: the Hospitable client retries up to 4×20s with backoff
-// (~87s), and the sweep below deletes expired rows — a TTL shorter than a slow
-// in-flight send would let a late browser/proxy retry sweep the live claim and
-// deliver twice (adversarial-review finding). 120s covers the worst case; the
+// delivery duration (the sweep below deletes expired rows — a TTL shorter than a
+// slow in-flight send would let a late browser/proxy retry sweep the live claim and
+// deliver twice; adversarial-review finding). The send itself is now a SINGLE shot
+// (`retries: 0` in channels/hospitable-outbound.ts — POST /messages is not
+// idempotent); the TTL was sized for the older 4×20s client retry (~87s) and is
+// kept as headroom for one slow attempt (10-16 kuyruk envanteri). 120s; the
 // cost is only that the SAME text can't be re-sent for 2 minutes after success
 // (a failed send releases immediately). Auto-reply paths have their own
 // claim-then-send (conversation/reservation updateMany) and don't use this.

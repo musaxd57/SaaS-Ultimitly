@@ -554,6 +554,15 @@ export function checkProductionEnv(env) {
     }
   }
 
+  // KIMLIK E-POSTASI KUYRUGU (10-16 kuyruk envanteri): sifre sifirlama istegi e-postayi bayraktan BAGIMSIZ kuyruga yazar (bilinen /
+  // bilinmeyen hesap zamanlama farki kapansin diye kosulsuz), ama kuyrugu yalniz EMAIL_OUTBOX_ENABLED=1 bosaltir → bayrak kapaliyken
+  // sifre sifirlama e-postasi HIC gitmez. Canlida acik; kapanirsa acilista gorunsun.
+  if (env.EMAIL_OUTBOX_ENABLED !== "1") {
+    warnings.push(
+      "EMAIL_OUTBOX_ENABLED is not 1 — password-reset e-mails are queued but never delivered (the reset request always queues; only the e-mail outbox sends them). Set EMAIL_OUTBOX_ENABLED=1.",
+    );
+  }
+
   // STRICT "1" FEATURE FLAGS — UYARI, HATA DEGIL (A7 #1, 09-27). Asagidaki bayraklar calisma aninda `=== "1"` ile okunur:
   // "true" / "yes" / "on" / " 1" KAPALI demektir. KB_* bayraklari "true"yu da kabul ettigi icin operator ayni aliskanlikla
   // AI_UNDERSTANDING_ENABLED=true yazip bayragi SESSIZCE kapali birakabiliyordu. Davranis DEGISMEZ; yalniz acilista gorunur.

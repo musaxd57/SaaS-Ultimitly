@@ -520,3 +520,16 @@ describe("boot gate — Sentry adresi şifreli olmalı (eski denetim DEN#27, 10-
     expect(sentryWarnings("http://gizlianahtar@o1.ingest.sentry.io/2").join(" ")).not.toContain("gizlianahtar");
   });
 });
+
+describe("kimlik e-postası kuyruğu kapalıyken şifre sıfırlama e-postası gitmez → açılışta uyarı (10-16 kuyruk envanteri)", () => {
+  const base = { AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_ENC, RESEND_API_KEY: REAL_RESEND };
+  const outboxWarnings = (extra: Record<string, string>) =>
+    checkProductionEnv({ ...base, ...extra }).warnings.filter((w) => w.startsWith("EMAIL_OUTBOX_ENABLED is not 1"));
+  it("bayrak yok / 0 / true → uyarı; yalnız '1' → uyarı yok; hata DEĞİL (açılış engellenmez)", () => {
+    expect(outboxWarnings({})).toHaveLength(1);
+    expect(outboxWarnings({ EMAIL_OUTBOX_ENABLED: "0" })).toHaveLength(1);
+    expect(outboxWarnings({ EMAIL_OUTBOX_ENABLED: "true" })).toHaveLength(1);
+    expect(outboxWarnings({ EMAIL_OUTBOX_ENABLED: "1" })).toEqual([]);
+    expect(checkProductionEnv({ ...base }).errors.join("\n")).not.toContain("EMAIL_OUTBOX_ENABLED");
+  });
+});

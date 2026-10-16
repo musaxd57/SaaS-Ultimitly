@@ -153,3 +153,16 @@ Talimat dışı, kurucunun ara kararlarıyla yapılanlar; ayrıntı ve kanıt `d
 | Görev atama e-postası tavanı (görev başı saatte 3) · önizleme kotası konuşma başına | ✅ |
 | ⑤ ilk dilim öneriler (`AI_ACTION_SUGGESTIONS_ENABLED` KAPALI) | ✅ kodda; "sonuç makbuzu" = onay denetim kaydı (`ai_suggestion.approved`, oluşturulan görev / söz / kalem kimlikleriyle) — ayrı makbuz tablosu YOK |
 | Madde 10 sınırlı konuşma okuması (kanal · AI öner · QR kayıtları) | ✅ |
+
+## 8. 10-16 — kalıcı kuyruk (transactional outbox) planı (kurucu: "görseldeki sistem tarzında bir sistemimiz var mı … plana ekle")
+
+Ayrıntı ve envanter: `docs/TASARIM-2026-10-16-transactional-outbox.md`. Özet: desen kodda VAR (kimlik e-postası kuyruğu canlı, misafir mesajı
+kuyruğu hazır + kapalı, olay kuyruğu canlı; yoklayıcı yayıncı `SKIP LOCKED` ile; tüketiciler tekrar-güvenli). Log tailing bilinçli yok.
+
+| İş | Durum |
+|---|---|
+| Kuyruk sağlığı (operatör paneli: durum sayıları, en eski bekleyen, 24 sa başarısızlık) · `EMAIL_OUTBOX_ENABLED` kapalıyken açılış uyarısı · bayat yorum | ✅ 10-16 gece |
+| O1 `DURABLE_OUTBOX_ENABLED` açılışı (misafir mesajı tam kuyruk desenine geçer) | ❓ kurucu — Railway açılınca, ilk denemeler birlikte |
+| O2 kuyruksuz ev sahibi bildirimleri (yeni rezervasyon / görev atama / lead) → işaret + geri al deseni ya da genel bildirim kuyruğu | ❓ kurucu (genel tablo migration ister) |
+| O3 kuyruk birikme alarmı (geçiş tabanlı operatör e-postası) | ❓ kurucu (yeni operatör e-postası) |
+| O4 log tailing / ayrı mesaj aracısı | ⛔ bugün gerekmiyor (gerekçe tasarım §3) |

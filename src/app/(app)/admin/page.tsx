@@ -21,6 +21,7 @@ import { shadowAiEnabled, shadowModel } from "@/lib/shadow-ai";
 import { LeadActions } from "@/components/admin/lead-actions";
 import { isDemoOrg } from "@/lib/demo-tenant/constants";
 import { OPERATOR_EXPORT_PURPOSES } from "@/lib/operator-export";
+import { queueHealth, QUEUE_LAG_WARN_MS } from "@/lib/outbox/health";
 
 export const dynamic = "force-dynamic";
 
@@ -152,6 +153,8 @@ export default async function AdminPage() {
     mailboxGroups.set(box, set);
   }
   const sharedMailboxes = [...mailboxGroups.values()].filter((s) => s.size > 1);
+  // Kuyruk sağlığı (10-16): iki kalıcı kuyruğun birikmesi / takılması — yalnız sayılar.
+  const queues = await queueHealth();
 
   // 3) Deneme risk puanı (kurucu onayı 10-10: geçici e-posta + doğrulanmamış e-posta + ilan kuralı; "önce yalnız liste"). YALNIZ bu
   //    listede görünür — müşteriye hiçbir şey gösterilmez, hiçbir hesap otomatik etkilenmez, yeni veri saklanmaz. Sahipler YALNIZ deneme
@@ -606,6 +609,36 @@ export default async function AdminPage() {
           <CardTitle className="text-base">Operasyon Teşhisi (yalnız operatör)</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="space-y-1.5">
+            <p className="text-sm font-medium">Kuyruk sağlığı</p>
+            <p className="text-xs text-muted-foreground">
+              İş verisiyle aynı işlemde yazılan kuyruk satırlarını 2 dakikalık senkron (ve kimlik e-postası için 15 saniyelik yoklayıcı)
+              gönderir. Vadesi gelmiş satır {Math.round(QUEUE_LAG_WARN_MS / 60_000)} dakikadan uzun bekliyorsa yoklayıcı geride ya da durmuş
+              demektir.
+            </p>
+            <ul className="space-y-1 rounded-lg border border-border bg-muted/40 p-3 text-xs" data-testid="queue-health">
+              {queues.map((q) => (
+                <li key={q.queue}>
+                  <strong>{q.queue === "message" ? "Misafir mesajı kuyruğu" : "Kimlik e-postası kuyruğu"}</strong>:{" "}
+                  {Object.keys(q.byStatus).length === 0
+                    ? "boş"
+                    : Object.entries(q.byStatus)
+                        .map(([status, n]) => `${status} ${n}`)
+                        .join(" · ")}
+                  {" · "}en eski vadesi gelmiş bekleyen:{" "}
+                  {q.oldestDueMs == null ? (
+                    "yok"
+                  ) : (
+                    <span className={q.oldestDueMs > QUEUE_LAG_WARN_MS ? "font-semibold text-destructive" : undefined}>
+                      {Math.round(q.oldestDueMs / 60_000)} dk
+                    </span>
+                  )}
+                  {" · "}son 24 saatte kalıcı başarısız: {q.failed24h}
+                </li>
+              ))}
+            </ul>
+          </div>
+
           <div className="space-y-1.5">
             <p className="text-sm font-medium">Bu isteğin proxy başlıkları</p>
             <p className="text-xs text-muted-foreground">
