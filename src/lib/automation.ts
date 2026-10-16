@@ -2409,12 +2409,6 @@ export async function applyChannelAutoReply(
     // Konuşma öğeleri kipi (yalnız tur öğeye bölündüyse): sinyaller öğe kapsamında karar verir.
     ...(itemsPlan ? { items: itemsPlan.gateItems } : {}),
   };
-  // ── ANLAM KATMANI: bağımsız bekçi (09-24) ───────────────────────────────────
-  // Bayrak açıkken (`AI_STAY_GUARD_ENABLED`) önce bekçisiz kapı; ikinci model taslağı YALNIZ iki durumda okur:
-  // otomatik gönderim ADAYI (bekçi sıkılaştırabilir) ya da tek engeli müsaitlik onayı eksikliği olan taslak
-  // (ikinci inceleme 09-24: iki bağımsız modelin erteleme hükmü bu tutuşu ancak bekçi koşarsa kaldırabilir —
-  // "Das muss Ihr Gastgeber entscheiden" gibi kelime ağının tanımadığı doğru ertelemeler hep tutuluyordu).
-  // Kapı bekçinin hükmüyle BAŞTAN değerlendirilir. Önizleme (dryRun) de aynı yoldan — "gönderilirdi" dürüst kalsın.
   // ── KONU BAZLI "BİLGİM YOK" (H9, kurucu kararı 10-16; anahtar `AI_TOPIC_ABSENCE_ENABLED`, VARSAYILAN KAPALI) ─────────────────
   // Öğe kipinde "bilgim yok" diyen cümle AYIKLANIR (misafire yine GİTMEZ); konusu bırakılan bir cihaza ya da cevaplanabilir bir isteğe
   // eşlenmeli, eşlenen istek beyandan düşer (cevaplandı sayılmaz → ev sahibinde AÇIK kalır). Kalan metin aşağıdaki BÜTÜN kapılardan
@@ -2433,6 +2427,12 @@ export async function applyChannelAutoReply(
     });
     if (stripped.ok) result = { ...result, reply: stripped.reply, answeredRequests: { ok: true, refs: stripped.answeredRefs } };
   }
+  // ── ANLAM KATMANI: bağımsız bekçi (09-24) ───────────────────────────────────
+  // Bayrak açıkken (`AI_STAY_GUARD_ENABLED`) önce bekçisiz kapı; ikinci model taslağı YALNIZ iki durumda okur:
+  // otomatik gönderim ADAYI (bekçi sıkılaştırabilir) ya da tek engeli müsaitlik onayı eksikliği olan taslak
+  // (ikinci inceleme 09-24: iki bağımsız modelin erteleme hükmü bu tutuşu ancak bekçi koşarsa kaldırabilir —
+  // "Das muss Ihr Gastgeber entscheiden" gibi kelime ağının tanımadığı doğru ertelemeler hep tutuluyordu).
+  // Kapı bekçinin hükmüyle BAŞTAN değerlendirilir. Önizleme (dryRun) de aynı yoldan — "gönderilirdi" dürüst kalsın.
   let gateFailure = autoReplyGateFailure(result, last.body, gateContext);
   let gatePassed = gateFailure === null;
   // Bekleme sözü vetosu (09-25, kurucu kararı: "misafir hiçbir 'soruyorum/döneceğim' mesajı almayacak"): modelin "I'll check
