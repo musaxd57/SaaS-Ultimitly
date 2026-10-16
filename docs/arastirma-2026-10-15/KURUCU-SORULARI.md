@@ -462,7 +462,8 @@ panelinde "Kuyruk sağlığı" (kaç satır bekliyor, en eski ne kadar bekliyor)
   olabilir ama panelde görünmez · SONRA: satır "Doğrulanamadı" olur, sağlayıcı geçmişinden kontrol edilir, kopya gönderilmez. Önerim: Railway
   açılınca, ilk denemeler birlikte.
   Opus hazırlık incelemesi (10-16, `opus-o1-readiness` → tasarım belgesi §6): tek ENGEL bulundu ve düzeltildi (öğe kipinde "insanla görüşmek
-  istiyorum" cevabından sonra kuyruk yolu yapay zekâyı 12 saat susturuyordu, bugünkü yol susturmuyor — artık ikisi aynı). Açmadan önce bilmen
+  istiyorum" cevabından sonra kuyruk yolu yapay zekâyı 12 saat susturuyordu, bugünkü yol susturmuyor — artık ikisi aynı; karar kuyruğa girerken
+  kaydediliyor, Opus son kontrolü ilk düzeltmedeki tehlikeli yöndeki açığı da yakaladı ve kapandı). Açmadan önce bilmen
   gerekenler: (1) ev sahibinin elle cevabı ANINDA değil, 2 dakikalık senkronun sonunda gider ("sıraya alındı" görürsün); (2) doğrulanmış erken
   giriş OTOMATİK onayı kapanır, onay sana taslak olarak düşer; (3) karar motoru (`HOST_DECISIONS_ENABLED`) bununla AYNI ANDA açılmasın (kart
   kuyruğa girer girmez "onaylandı" kapanıyor; teslim düşerse yeniden açılmıyor — ayrı düzeltme gerekir); (4) bayrak bütün işletmeler için tek —

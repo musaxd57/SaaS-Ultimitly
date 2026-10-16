@@ -5,59 +5,41 @@ vi.mock("@/lib/report-error", () => ({ reportError: vi.fn(async () => {}) }));
 
 import { enqueueOutbound } from "@/lib/outbox/enqueue";
 import { drainOutboxOnce, type OutboxSendFn } from "@/lib/outbox/worker";
+import { HANDOFF_EXEMPT_PREFIX, handoffExemptName } from "@/lib/outbox/handoff-exempt";
 
 // ---------------------------------------------------------------------------
-// DEVİR KİLİDİ PARİTESİ — öğe kipi (Opus O1 hazırlık 1.1, 10-16). Satır içi yol öğe kipinde (`AI_CONVERSATION_ITEMS_ENABLED`, canlı)
-// "insanla görüşmek istiyorum" niyetli cevaptan sonra yapay zekâyı 12 saat SUSTURMAZ (`automation.ts` `human_request && !itemsPlan` — insan
-// talebi ev sahibinde açık kalır, misafirin sonraki güvenli soruları cevap almaya devam eder). Kuyruk yolu (`DURABLE_OUTBOX_ENABLED`) bu ayrımı
-// yapmıyordu: bayrak açılınca misafir 12 saat cevapsız kalırdı. Teslim etkisi ve onarıcı artık aynı kuralı izler: TUR (son cevaptan sonraki
-// misafir mesajları, tetik dahil) öğe taşıyorsa ve tur düzeyinde (acil / enjeksiyon) tutulmuyorsa kilit kurulmaz.
+// DEVİR KİLİDİ PARİTESİ — öğe kipi (Opus O1 hazırlık 1.1 + dilim kontrolü B1/B2, 10-16). Satır içi yol öğe kipinde
+// (`AI_CONVERSATION_ITEMS_ENABLED`, canlı) "insanla görüşmek istiyorum" niyetli cevaptan sonra yapay zekâyı 12 saat SUSTURMAZ
+// (`automation.ts` `human_request && !itemsPlan`). Kuyruk yolu (`DURABLE_OUTBOX_ENABLED`) bu kararı bilmiyordu (bayrak açılınca misafir
+// 12 saat cevapsız kalırdı). Karar teslimde YENİDEN KURULMAZ (iki yönde de yanıldı — B1: bu geçiş öğe kipine girmedi ama turda eski öğe var →
+// kilit atlanıyordu; B2: teslim edilmemiş eski taslak turu bölüyordu): kuyruğa girişte satırla AYNI işlemde işaretlenir, teslim ve onarıcı
+// yalnız işarete bakar. İşaret yoksa kilit kurulur (güvenli yön).
 // ---------------------------------------------------------------------------
 
 const okSend: OutboxSendFn = vi.fn(async () => ({ ok: true, providerMessageId: "prov-h" }));
 
-type ItemSpec = { on: "trigger" | "first" | "earlier"; sensitivity?: "none" | "sensitive" | "emergency"; riskType?: string | null };
-
-async function seed(opts: { items: ItemSpec[]; twoMessageTurn?: boolean; automationBetween?: boolean }) {
+async function seed(opts: { exempt: boolean; staleItem?: boolean; key?: string }) {
   const { orgId, propertyId } = await makeOrgWithProperty();
   const c = await prisma.conversation.create({
     data: { propertyId, channel: "airbnb", guestIdentifier: "Misafir", status: "new", externalReservationId: "res-h" },
   });
   const t0 = Date.now() - 10 * 60_000;
-  const at = (min: number) => new Date(t0 + min * 60_000);
-  // Önceki tur: misafir mesajı + ev sahibinin cevabı (turun başını belirler).
-  const earlier = await prisma.message.create({
-    data: { conversationId: c.id, direction: "inbound", senderName: "Misafir", body: "Merhaba, park yeri var mı?", createdAt: at(0) },
-  });
-  await prisma.message.create({
-    data: { conversationId: c.id, direction: "outbound", senderName: "Ev sahibi", authorType: "manual", body: "Evet, var.", createdAt: at(1) },
-  });
   const first = await prisma.message.create({
-    data: { conversationId: c.id, direction: "inbound", senderName: "Misafir", body: "Ev sahibiyle görüşmek istiyorum.", createdAt: at(2) },
+    data: { conversationId: c.id, direction: "inbound", senderName: "Misafir", body: "Havuz var mı?", createdAt: new Date(t0) },
   });
-  if (opts.automationBetween) {
-    // Otomatik şablon mesajı (giriş bilgisi) CEVAP değildir — turu bölmez (`isAnsweringOutbound`).
-    await prisma.message.create({
-      data: { conversationId: c.id, direction: "outbound", senderName: "GuestOps AI", authorType: "automation", body: "Giriş bilgileri.", createdAt: at(3) },
-    });
-  }
-  const trigger = opts.twoMessageTurn
-    ? await prisma.message.create({
-        data: { conversationId: c.id, direction: "inbound", senderName: "Misafir", body: "Teşekkürler.", createdAt: at(4) },
-      })
-    : first;
-  const target = { trigger: trigger.id, first: first.id, earlier: earlier.id };
-  for (const [i, it] of opts.items.entries()) {
+  const trigger = await prisma.message.create({
+    data: {
+      conversationId: c.id,
+      direction: "inbound",
+      senderName: "Misafir",
+      body: "Ev sahibiyle görüşmek istiyorum.",
+      createdAt: new Date(t0 + 60_000),
+    },
+  });
+  if (opts.staleItem) {
+    // B1: aynı cevapsız turun ÖNCEKİ mesajında önceki bir öğe kipi geçişinin öğesi (cevap gitmemişti). Bu geçiş öğe kipine GİRMEDİ.
     await prisma.conversationItem.create({
-      data: {
-        organizationId: orgId,
-        conversationId: c.id,
-        messageId: target[it.on],
-        kind: i === 0 ? "human_request" : "other",
-        sensitivity: it.sensitivity ?? "sensitive",
-        riskType: it.riskType ?? null,
-        sources: "understanding",
-      },
+      data: { organizationId: orgId, conversationId: c.id, messageId: first.id, kind: "amenities", sensitivity: "none", sources: "understanding" },
     });
   }
   const r = await enqueueOutbound({
@@ -70,16 +52,19 @@ async function seed(opts: { items: ItemSpec[]; twoMessageTurn?: boolean; automat
     authorType: "ai",
     messageType: "ai",
     aiIntent: "human_request",
-    idempotencyKey: `auto:${c.id}:${trigger.id}`,
+    idempotencyKey: opts.key ?? `auto:${c.id}:${trigger.id}`,
+    handoffHoldExempt: opts.exempt,
   });
-  return { conversationId: c.id, outboxId: r.outboxId };
+  return { orgId, conversationId: c.id, outboxId: r.outboxId, triggerId: trigger.id };
 }
 
 async function holdOf(conversationId: string) {
   return (await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } })).autoReplyHoldUntil;
 }
 
-describe("kuyruk teslim etkisi — devir kilidi öğe kipinde KURULMAZ (satır içi yol paritesi)", () => {
+const drain = () => drainOutboxOnce({ send: okSend, tokenFor: async () => "t" });
+
+describe("kuyruk teslim etkisi — devir kilidi kuyruğa girişteki karara uyar", () => {
   beforeEach(async () => {
     await resetDb();
     vi.clearAllMocks();
@@ -89,62 +74,75 @@ describe("kuyruk teslim etkisi — devir kilidi öğe kipinde KURULMAZ (satır i
   });
   afterEach(() => vi.unstubAllEnvs());
 
-  it("🚨 öğe kipi turu: human_request cevabı teslim edilince yapay zekâ SUSTURULMAZ", async () => {
-    const { conversationId } = await seed({ items: [{ on: "trigger" }] });
-    await drainOutboxOnce({ send: okSend, tokenFor: async () => "t" });
+  it("🚨 öğe kipi (işaretli) insan talebi cevabı teslim edilince yapay zekâ SUSTURULMAZ", async () => {
+    const { conversationId, outboxId } = await seed({ exempt: true });
+    expect(await prisma.systemLock.findUnique({ where: { name: handoffExemptName(outboxId) } })).not.toBeNull();
+    await drain();
     expect(okSend).toHaveBeenCalledTimes(1);
     expect(await holdOf(conversationId)).toBeNull();
   });
 
-  it("öğesiz (eski liste kipi) tur: devir kilidi eskisi gibi KURULUR", async () => {
-    const { conversationId } = await seed({ items: [] });
-    await drainOutboxOnce({ send: okSend, tokenFor: async () => "t" });
+  it("işaretsiz (öğe kipine girmeyen geçiş) insan talebi cevabı: devir kilidi eskisi gibi KURULUR", async () => {
+    const { conversationId } = await seed({ exempt: false });
+    await drain();
     const hold = await holdOf(conversationId);
     expect(hold).toBeInstanceOf(Date);
     expect(hold!.getTime()).toBeGreaterThan(Date.now());
   });
 
-  it("🚨 iki mesajlı tur (Haiku 10-16): öğe ilk mesajda, tetik 'Teşekkürler' öğesiz → yine öğe kipi, kilit KURULMAZ", async () => {
-    const { conversationId } = await seed({ items: [{ on: "first" }], twoMessageTurn: true });
-    await drainOutboxOnce({ send: okSend, tokenFor: async () => "t" });
-    expect(okSend).toHaveBeenCalledTimes(1);
+  it("🚨 B1: turda önceki geçişin öğesi olsa da bu geçiş işaretlemediyse kilit KURULUR (öğeden yeniden kurma YOK)", async () => {
+    const { conversationId } = await seed({ exempt: false, staleItem: true });
+    await drain();
+    expect(await holdOf(conversationId)).toBeInstanceOf(Date);
+  });
+
+  it("işaret teslimde SİLİNMEZ: sonraki geçişin onarıcısı kilidi geri KURMAZ", async () => {
+    const { conversationId, outboxId } = await seed({ exempt: true });
+    await drain();
+    await drain(); // onarıcı (48 sa penceresi) teslim edilmiş satırı yeniden işler
     expect(await holdOf(conversationId)).toBeNull();
+    expect(await prisma.systemLock.findUnique({ where: { name: handoffExemptName(outboxId) } })).not.toBeNull();
   });
 
-  it("otomatik şablon mesajı turu bölmez: öğe şablondan ÖNCEKİ misafir mesajında → yine öğe kipi", async () => {
-    const { conversationId } = await seed({ items: [{ on: "first" }], twoMessageTurn: true, automationBetween: true });
-    await drainOutboxOnce({ send: okSend, tokenFor: async () => "t" });
-    expect(await holdOf(conversationId)).toBeNull();
-  });
-
-  it("ÖNCEKİ turun öğesi bu turu öğe kipi yapmaz (ev sahibi cevabı turu böler) → kilit KURULUR", async () => {
-    const { conversationId } = await seed({ items: [{ on: "earlier" }] });
-    await drainOutboxOnce({ send: okSend, tokenFor: async () => "t" });
-    expect(await holdOf(conversationId)).toBeInstanceOf(Date);
-  });
-
-  it("tur düzeyinde tutulan tur (acil öğe) öğe kipi sayılmaz → kilit KURULUR (satır içi `turn_level` → itemsPlan yok)", async () => {
-    // Anlama katmanının acil niyeti: öğe "emergency", etiket (riskType) YOK — kelime ağı yakalamasa da tur bütünüyle tutulur.
-    const { conversationId } = await seed({ items: [{ on: "trigger" }, { on: "trigger", sensitivity: "emergency", riskType: null }] });
-    await drainOutboxOnce({ send: okSend, tokenFor: async () => "t" });
-    expect(await holdOf(conversationId)).toBeInstanceOf(Date);
-  });
-
-  it("tur düzeyinde tutulan tur (enjeksiyon etiketi) öğe kipi sayılmaz → kilit KURULUR", async () => {
-    const { conversationId } = await seed({ items: [{ on: "trigger", riskType: "prompt_injection" }] });
-    await drainOutboxOnce({ send: okSend, tokenFor: async () => "t" });
-    expect(await holdOf(conversationId)).toBeInstanceOf(Date);
-  });
-
-  it("onarıcı da aynı kuralı izler: teslim edilmiş öğe kipi satırında kaçmış kilit KURULMAZ, öğesizde kurulur", async () => {
-    const items = await seed({ items: [{ on: "first" }], twoMessageTurn: true });
-    const plain = await seed({ items: [] });
+  it("onarıcı aynı kararı izler: teslim edilmiş ama etkisi kaçmış satırda işaretliye kilit KURULMAZ, işaretsize kurulur", async () => {
+    const exempt = await seed({ exempt: true });
+    const plain = await seed({ exempt: false });
     // Teslim edilmiş ama etkisi uygulanmamış satır (settle ile yan etki arasında çökme) — onarıcı yolunu sınar.
     const sentAt = new Date(Date.now() - 60 * 60_000);
-    await prisma.messageOutbox.updateMany({ where: { id: { in: [items.outboxId, plain.outboxId] } }, data: { status: "sent", sentAt } });
-    await drainOutboxOnce({ send: okSend, tokenFor: async () => "t" });
+    await prisma.messageOutbox.updateMany({ where: { id: { in: [exempt.outboxId, plain.outboxId] } }, data: { status: "sent", sentAt } });
+    await drain();
     expect(okSend).not.toHaveBeenCalled();
-    expect(await holdOf(items.conversationId)).toBeNull();
+    expect(await holdOf(exempt.conversationId)).toBeNull();
     expect(await holdOf(plain.conversationId)).toBeInstanceOf(Date);
+  });
+
+  it("aynı anahtarla tekrar kuyruğa giriş (tekilleştirme) ilk kararı DEĞİŞTİRMEZ: ikinci girişin işareti yazılmaz", async () => {
+    const first = await seed({ exempt: false });
+    const again = await enqueueOutbound({
+      organizationId: first.orgId,
+      conversationId: first.conversationId,
+      channel: "airbnb",
+      externalReservationId: "res-h",
+      body: "Wi-Fi şifresi Lale2025.",
+      senderName: "GuestOps AI",
+      authorType: "ai",
+      messageType: "ai",
+      aiIntent: "human_request",
+      idempotencyKey: `auto:${first.conversationId}:${first.triggerId}`,
+      handoffHoldExempt: true,
+    });
+    expect(again.deduped).toBe(true);
+    expect(await prisma.systemLock.count({ where: { name: { startsWith: HANDOFF_EXEMPT_PREFIX } } })).toBe(0);
+    await drain();
+    expect(await holdOf(first.conversationId)).toBeInstanceOf(Date);
+  });
+
+  it("süresi dolan işaret süpürülür, süresi dolmayan kalır", async () => {
+    const a = await seed({ exempt: true });
+    const b = await seed({ exempt: true });
+    await prisma.systemLock.update({ where: { name: handoffExemptName(a.outboxId) }, data: { lockedUntil: new Date(Date.now() - 1000) } });
+    await drain();
+    expect(await prisma.systemLock.findUnique({ where: { name: handoffExemptName(a.outboxId) } })).toBeNull();
+    expect(await prisma.systemLock.findUnique({ where: { name: handoffExemptName(b.outboxId) } })).not.toBeNull();
   });
 });

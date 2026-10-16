@@ -48,6 +48,8 @@ import { parseUnderstanding, type MessageUnderstanding } from "@/lib/ai/semantic
 import { applyChannelAutoReply, sendDueAlerts } from "@/lib/automation";
 import { hasOpenHostWork } from "@/lib/conversation-attention";
 import { hostVoiceDraft } from "@/lib/ai/host-voice";
+import { drainOutboxOnce } from "@/lib/outbox/worker";
+import { handoffExemptName } from "@/lib/outbox/handoff-exempt";
 
 const mockSuggest = vi.mocked(suggestReply);
 const mockMail = vi.mocked(emailService.sendReporting);
@@ -523,6 +525,52 @@ describe("insan talebi (kurucu: 'Sessiz + açık iş')", () => {
       { body: msg, kind: "human_request", sensitivity: "sensitive", status: "pending_host", notified: true },
     ]);
     expect((await conv(conversationId)).status).toBe("new");
+  });
+});
+
+describe("insan talebi — kalıcı kuyruk açıkken aynı devir kararı (Opus O1 + B1, 10-16)", () => {
+  beforeEachTurn();
+  beforeEach(() => vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1"));
+  const deliver = () =>
+    drainOutboxOnce({ send: vi.fn(async () => ({ ok: true, providerMessageId: "prov-q" })), tokenFor: async () => "t" });
+
+  it("🚨 öğe kipi: Wi-Fi kuyruktan teslim edilir, insan talebi sessizce açık, yapay zekâ DURAKLATILMAZ", async () => {
+    const msg = "Ev sahibiyle görüşmek istiyorum. Wi-Fi şifresi neydi?";
+    const { conversationId } = await seed(msg);
+    understands(
+      understood([
+        { intent: "human_request", message: 1 },
+        { intent: "wifi", message: 1 },
+      ]),
+    );
+    mockSuggest.mockResolvedValueOnce(wifiAnswer({ intent: "human_request", riskType: "human_request" }));
+    await applyChannelAutoReply(conversationId);
+    const row = await prisma.messageOutbox.findFirstOrThrow({ where: { conversationId } });
+    expect(await prisma.systemLock.findUnique({ where: { name: handoffExemptName(row.id) } })).not.toBeNull();
+    await deliver();
+    expect((await prisma.messageOutbox.findUniqueOrThrow({ where: { id: row.id } })).status).toBe("sent");
+    expect((await conv(conversationId)).autoReplyHoldUntil).toBeNull();
+  });
+
+  it("🚨 B1: önceki geçişin öğesi turda dururken bu geçiş öğe kipine GİRMEDİ (anlama düştü) → teslimde kilit KURULUR (satır içi yolla aynı)", async () => {
+    const { conversationId } = await seed("Havuz var mı?");
+    // Önceki öğe kipi geçişinin yazdığı öğe (cevap gitmemişti → tur açık).
+    const first = await prisma.message.findFirstOrThrow({ where: { conversationId } });
+    const { orgId } = await prisma.conversation
+      .findUniqueOrThrow({ where: { id: conversationId }, select: { property: { select: { organizationId: true } } } })
+      .then((c) => ({ orgId: c.property.organizationId }));
+    await prisma.conversationItem.create({
+      data: { organizationId: orgId, conversationId, messageId: first.id, kind: "amenities", sensitivity: "none", sources: "understanding" },
+    });
+    await guestWrites(conversationId, "Ev sahibiyle görüşmek istiyorum lütfen", 5);
+    mockUnderstand.mockResolvedValueOnce({ status: "failed", ms: 1 });
+    mockSuggest.mockResolvedValueOnce(verdict({ intent: "human_request", reply: "Tabii ki, anlıyorum.", riskLevel: "low", confidence: 0.9 }));
+    await applyChannelAutoReply(conversationId);
+    const row = await prisma.messageOutbox.findFirstOrThrow({ where: { conversationId } });
+    expect(await prisma.systemLock.findUnique({ where: { name: handoffExemptName(row.id) } })).toBeNull();
+    await deliver();
+    expect((await prisma.messageOutbox.findUniqueOrThrow({ where: { id: row.id } })).status).toBe("sent");
+    expect((await conv(conversationId)).autoReplyHoldUntil).toBeInstanceOf(Date);
   });
 });
 

@@ -3379,6 +3379,9 @@ export async function applyChannelAutoReply(
         aiSourcesJson: result.usedSources.length ? JSON.stringify(result.usedSources) : null,
         // Tenant-scoped idempotency: this exact inbound message → at most one queued reply.
         idempotencyKey: `auto:${conversation.id}:${last.id}`,
+        // Satır içi yolun devir kilidi kararı (↓ `human_request && !itemsPlan`) kuyruk satırıyla aynı işlemde işaretlenir: öğe kipinde
+        // insan talebi ev sahibinde sessizce açık kalır, teslimde kilit KURULMAZ (Opus O1 + B1/B2, 10-16; `outbox/handoff-exempt.ts`).
+        handoffHoldExempt: result.intent === "human_request" && itemsPlan !== null,
       });
     } catch (err) {
       // enqueueOutbound is atomic: a real failure (not a dedupe-hit, which returns

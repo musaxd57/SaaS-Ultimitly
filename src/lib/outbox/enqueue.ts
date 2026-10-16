@@ -3,6 +3,7 @@ import "server-only";
 import { prisma } from "@/lib/db";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { activeMessagingConnectionId } from "@/lib/channels";
+import { markHandoffExempt } from "./handoff-exempt";
 
 // ---------------------------------------------------------------------------
 // Durable Outbox — atomic enqueue (#8).
@@ -76,6 +77,12 @@ export interface EnqueueOutboundArgs {
    * client-supplied UUID for a manual reply). The same key never sends twice.
    */
   idempotencyKey: string;
+  /**
+   * Teslimde devir kilidi KURULMASIN (öğe kipindeki insan talebi cevabı — satır içi yolun `human_request && !itemsPlan` kararı).
+   * Kuyruk satırıyla AYNI işlemde işaret yazılır (`handoff-exempt.ts`); tekrar kuyruğa girişte (aynı anahtar) işlem geri alınır →
+   * ilk girişin kararı geçerli kalır.
+   */
+  handoffHoldExempt?: boolean;
 }
 
 export interface EnqueueResult {
@@ -136,6 +143,7 @@ export async function enqueueOutbound(args: EnqueueOutboundArgs): Promise<Enqueu
         },
         select: { id: true },
       });
+      if (args.handoffHoldExempt) await markHandoffExempt(tx, outbox.id, new Date());
       // NOTE (Codex #6): the conversation is NOT marked "answered" here. The intent is
       // durable, but the guest has NOT received anything yet — "answered/sent" is set
       // by the worker ONLY once the provider confirms delivery. So a queued-but-

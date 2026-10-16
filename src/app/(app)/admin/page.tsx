@@ -615,7 +615,8 @@ export default async function AdminPage() {
             <p className="text-xs text-muted-foreground">
               İş verisiyle aynı işlemde yazılan kuyruk satırlarını 2 dakikalık senkron (ve kimlik e-postası için 15 saniyelik yoklayıcı)
               gönderir. Vadesi gelmiş satır {Math.round(QUEUE_LAG_WARN_MS / 60_000)} dakikadan uzun bekliyorsa yoklayıcı geride ya da durmuş
-              demektir.
+              demektir — ya da genel otomatik mesaj anahtarı (`AUTO_REPLY_ENABLED`) kapalıdır: o zaman karşılama / giriş / çıkış mesajları
+              bilerek bekler.
             </p>
             {queues === null ? (
               <p className="text-xs text-destructive">Kuyruk durumu okunamadı.</p>

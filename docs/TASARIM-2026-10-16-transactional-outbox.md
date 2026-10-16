@@ -67,10 +67,12 @@ Mutlak iddia yok: bu belge kodun bugünkü hâlini anlatır; canlı env değerle
 Kodda doğrulandı (dosya:satır kanıtlarıyla; tam rapor oturum notlarında):
 - **ENGEL — düzeltildi:** öğe kipinde (canlı) "insanla görüşmek istiyorum" niyetli cevaptan sonra satır içi yol yapay zekâyı SUSTURMUYOR
   (`automation.ts` `human_request && !itemsPlan`), kuyruk yolunun teslim etkisi ve onarıcısı susturuyordu → bayrak açılınca misafirin sonraki
-  güvenli soruları 12 saat cevapsız kalırdı. Kuyruk yolu artık turda (son cevaptan sonraki misafir mesajları, tetik dahil) konuşma öğesi
-  varsa ve tur acil / enjeksiyon nedeniyle bütünüyle tutulmuyorsa kilit kurmuyor (`outbox/worker.ts` `itemsModeTurn`, test
-  `tests/integration/outbox-items-handoff.test.ts`; Haiku: tetiğin kendisi yetmez — "Ev sahibiyle görüşmek istiyorum." + "Teşekkürler").
-  Bilinen sınır: turun bütün öğeleri aynı turda geri çekilirse satır içi yol kilit kurar, kuyruk kurmaz.
+  güvenli soruları 12 saat cevapsız kalırdı. Karar artık kuyruğa girişte, kuyruk satırıyla AYNI işlemde işaretlenir (`outbox/handoff-exempt.ts`,
+  `SystemLock` adı `outbox-handoff-exempt:<satır>`, 14 gün, göçsüz): otomasyon `human_request && itemsPlan` ise işaret yazar; teslim ve onarıcı
+  yalnız işarete bakar, işaret yoksa kilit kurulur (güvenli yön). İlk deneme (teslimde turu veritabanından yeniden kurmak) Opus dilim kontrolünde
+  iki yönde de yanıldı — B1: bu geçiş öğe kipine girmedi (anlama düştü / pencere taştı / bayrak kapandı) ama turdaki eski mesajda önceki geçişin
+  öğesi vardı → kilit atlanıyordu (tehlikeli yön); B2: teslim edilmemiş eski taslak turu yanlış bölüyordu. Testler
+  `tests/integration/outbox-items-handoff.test.ts` (işçi) + `conversation-items-auto-reply.test.ts` (otomasyon → kuyruk → teslim, öğe kipi ve B1).
 - **RİSK (karar motoruyla birlikte açılırsa engel):** karar kartı kuyruğa girer girmez "onaylandı / reddedildi" kapanıyor; teslim düşerse kart
   yeniden açılmıyor. O1 denemesinde `HOST_DECISIONS_ENABLED` KAPALI kalsın.
 - **RİSK:** ev sahibinin elle cevabı anında değil 2 dk'lık senkron sonunda gider; Hospitable 402'de ev sahibi hata yerine "sıraya alındı" görür;

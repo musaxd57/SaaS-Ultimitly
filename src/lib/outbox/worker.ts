@@ -20,8 +20,7 @@ import {
   type OutboundProvider,
 } from "@/lib/channels";
 import { ANON_BODY } from "@/lib/data-retention";
-import { notAutomationMessageWhere } from "@/lib/message-author";
-import { hasEmergency, labelsHoldWholeTurn, type ItemRiskFacts } from "@/lib/conversation-items/core";
+import { isHandoffExempt, sweepExpiredHandoffExempt } from "./handoff-exempt";
 import {
   attemptsExhausted,
   backoffMs,
@@ -676,8 +675,8 @@ async function applyHandoffHold(row: OutboxRow, now: Date): Promise<void> {
     select: { authorType: true, aiIntent: true },
   });
   if (msg?.authorType !== "ai" || msg.aiIntent !== "human_request") return;
-  const ob = await prisma.messageOutbox.findUnique({ where: { id: row.id }, select: { idempotencyKey: true } });
-  if (await itemsModeTurn(row.conversationId, ob?.idempotencyKey)) return;
+  // Öğe kipindeki insan talebi cevabı: satır içi yol kilit kurmaz; karar kuyruğa girişte işaretlendi (`handoff-exempt.ts`, Opus O1 + B1/B2).
+  if (await isHandoffExempt(prisma, row.id)) return;
   const org = await prisma.organization.findUnique({
     where: { id: row.organizationId },
     select: { handoffHoldHours: true },
@@ -693,62 +692,6 @@ async function applyHandoffHold(row: OutboxRow, now: Date): Promise<void> {
     // penceresinde tekrar araya girebilir → iz bırakmadan geçmemeli.
     void reportError("outbox-handoff-hold", err);
   }
-}
-
-/** Öğe kipi turu okunurken bakılan en çok misafir mesajı (turun en yenileri). */
-const ITEMS_TURN_SCAN = 50;
-
-/**
- * Öğe kipi turu mu (Opus O1 hazırlık 1.1, 10-16): satır içi yol öğe kipinde devir kilidi KURMAZ (`automation.ts` `human_request &&
- * !itemsPlan` — insan talebi ev sahibinde sessizce açık kalır, misafirin sonraki güvenli soruları cevap almaya devam eder). Kuyruk satırı
- * bu bilgiyi taşımıyor; tur yeniden okunur: tetik misafir mesajı (kuyruk anahtarı) ile ondan önceki son CEVAP (otomatik şablon mesajı cevap
- * değildir — `isAnsweringOutbound` ile aynı kural) arasındaki misafir mesajlarından birinde konuşma öğesi varsa tur öğe kipindedir. Tetiğin
- * kendisi yetmez (Haiku 10-16): "Ev sahibiyle görüşmek istiyorum." + "Teşekkürler" turunda öğe ilk mesajdadır, teşekkür öğe üretmez.
- * Acil / enjeksiyon öğesi taşıyan tur TUR DÜZEYİNDE tutulur (`flow.ts` `turn_level` → satır içi yolda `itemsPlan` yok → kilit kurulur) →
- * burada da öğe kipi sayılmaz (aynı iki kural, `core.ts`). Zaman yalnız mesajlar arasında karşılaştırılır (öğe zamanı uygulamanın saatidir —
- * Haiku 10-16). Anahtar biçimi tanınmazsa, tetik yoksa ya da turda öğe yoksa kilit eskisi gibi kurulur (bugünkü kuyruk davranışı). Bilinen sınır:
- * turun bütün öğeleri aynı turda geri çekilmişse satır içi yol kilit kurar (`no_items`), burada kurulmaz.
- */
-async function itemsModeTurn(conversationId: string, idempotencyKey: string | null | undefined): Promise<boolean> {
-  const triggerId = triggerMessageIdOf(idempotencyKey, conversationId);
-  if (!triggerId) return false;
-  const trigger = await prisma.message.findFirst({ where: { id: triggerId, conversationId }, select: { id: true, createdAt: true } });
-  if (!trigger) return false;
-  const beforeTrigger = {
-    OR: [{ createdAt: { lt: trigger.createdAt } }, { createdAt: trigger.createdAt, id: { lt: trigger.id } }],
-  };
-  const lastAnswer = await prisma.message.findFirst({
-    where: { conversationId, direction: { not: "inbound" }, AND: [beforeTrigger, notAutomationMessageWhere()] },
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    select: { id: true, createdAt: true },
-  });
-  const turn = await prisma.message.findMany({
-    where: {
-      conversationId,
-      direction: "inbound",
-      AND: [
-        { OR: [beforeTrigger, { id: trigger.id }] },
-        ...(lastAnswer
-          ? [{ OR: [{ createdAt: { gt: lastAnswer.createdAt } }, { createdAt: lastAnswer.createdAt, id: { gt: lastAnswer.id } }] }]
-          : []),
-      ],
-    },
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    take: ITEMS_TURN_SCAN,
-    select: { id: true },
-  });
-  const items = await prisma.conversationItem.findMany({
-    where: { conversationId, messageId: { in: turn.map((m) => m.id) } },
-    select: { kind: true, sensitivity: true, riskType: true },
-  });
-  if (items.length === 0) return false;
-  const facts: ItemRiskFacts[] = items.map((it) => ({
-    kind: it.kind as ItemRiskFacts["kind"],
-    sensitivity: it.sensitivity as ItemRiskFacts["sensitivity"],
-    riskType: it.riskType,
-  }));
-  const turnLevel = hasEmergency(facts) || labelsHoldWholeTurn(facts.flatMap((it) => (it.riskType ? [it.riskType] : [])));
-  return !turnLevel;
 }
 
 async function applyDeliveryEffect(row: OutboxRow, now: Date): Promise<void> {
@@ -1266,6 +1209,8 @@ async function healDeliveryEffects(now: Date): Promise<void> {
   // 25 sayfaya kadar sıfırlanıp aynı org için tekrar tekrar sorgulanıyordu.
   const hoursByOrg = new Map<string, number>();
   const MAX_PAGES = 25; // güvenlik tavanı — 48h penceresinde 5000+ satır beklenmez
+  // Süresi dolmuş devir muafiyeti işaretleri (14 gün; onarıcı penceresinin çok üstünde) — fırsatçı süpürme, hata onarımı durdurmaz.
+  await sweepExpiredHandoffExempt(prisma, now).catch((err) => reportError("outbox-handoff-exempt-sweep", err));
 
   // ---- (1) Reply satırları (manual / ai / legacy-null) ----
   // CURSOR SAYFALAMA (Codex r2 #2): sabit take, pencerede >take zaten-iyileşmiş
@@ -1281,7 +1226,6 @@ async function healDeliveryEffects(now: Date): Promise<void> {
       messageId: string | null;
       providerMessageId: string | null;
       sentAt: Date | null;
-      idempotencyKey: string | null;
     }[] = await prisma.messageOutbox.findMany({
       where: {
         status: "sent",
@@ -1296,7 +1240,6 @@ async function healDeliveryEffects(now: Date): Promise<void> {
         messageId: true,
         providerMessageId: true,
         sentAt: true,
-        idempotencyKey: true,
       },
       orderBy: { id: "asc" },
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
@@ -1404,8 +1347,8 @@ async function healDeliveryEffects(now: Date): Promise<void> {
           }
           const until = new Date((r.sentAt as Date).getTime() + hours * 60 * 60 * 1000);
           if (until <= now) continue; // pencere zaten dolmuş → yazacak bir şey yok
-          // Öğe kipi turunda satır içi yol kilit kurmaz → onarıcı da kurmaz (Opus O1 1.1; dolmuş pencereden SONRA — boşa sorgu yok).
-          if (await itemsModeTurn(r.conversationId as string, r.idempotencyKey)) continue;
+          // Öğe kipindeki insan talebi cevabı → onarıcı da kurmaz (aynı işaret; dolmuş pencereden SONRA — boşa sorgu yok).
+          if (await isHandoffExempt(prisma, r.id)) continue;
           await prisma.conversation
             .updateMany({
               where: { id: r.conversationId as string, autoReplyHoldUntil: null },
