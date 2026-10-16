@@ -71,6 +71,7 @@ describe("kuyruk teslim etkisi — devir kilidi kuyruğa girişteki karara uyar"
     // Genel kapatma (Y5) açık değilse kuyruktaki yapay zekâ cevabı gönderim anında iptal edilir — teslim yolu sınanamaz.
     vi.stubEnv("AUTO_REPLY_ENABLED", "1");
     vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
+    vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", "*"); // O1: liste açıkça bütün işletmeler (Opus F10: liste yoksa kimse)
   });
   afterEach(() => vi.unstubAllEnvs());
 

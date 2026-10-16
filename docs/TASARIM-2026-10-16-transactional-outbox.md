@@ -97,6 +97,7 @@ Kodda sınandı (`tests/integration/auto-reply-channel.test.ts` "O1 geri dönü�
 - Boşaltma anahtardan bağımsız (`scheduled-sync`: anahtar açık YA DA boşaltılacak satır var) → kapatma hiçbir bekleyen mesajı mahsur bırakmaz.
 
 **İlk deneme listesi (`DURABLE_OUTBOX_ORG_IDS`, 10-16):** liste yalnız GÖNDERİM kararını seçer; okuma süzgeçleri ve boşaltma ana anahtarı okur.
+Bütün işletmeler = açıkça `*`; liste yoksa / boşsa KİMSE açılmaz (Opus F10: listeyi silmek kuyruğu herkese açmasın).
 Listeden çıkarılan işletmenin bekleyen satırı yine bir kez gider. Kaynak pini: gönderim yerleri işletmeye göre, küresel çağrı yalnız okuma süzgecinde.
 
 **Eski kod sürümüne dönüş:**

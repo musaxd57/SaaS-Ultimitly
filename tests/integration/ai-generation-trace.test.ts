@@ -178,6 +178,7 @@ describe("üretim izi — kanal oto-yanıtı", () => {
 
   it("kuyruklu teslim (DURABLE_OUTBOX_ENABLED=1): gönderilen metin = kuyruğa giren gövde", async () => {
     vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
+    vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", "*"); // O1: liste açıkça bütün işletmeler (Opus F10: liste yoksa kimse)
     const s = await seed();
     await applyChannelAutoReply(s.conversationId);
     const [row] = await prisma.messageOutbox.findMany({ where: { conversationId: s.conversationId } });

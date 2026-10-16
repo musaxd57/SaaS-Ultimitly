@@ -118,6 +118,7 @@ describe("🚨 kritik akış — inbound → yapay zekâ → kuyruk → teslim �
     __setIngestAdapterForTest("hospitable", fake.adapter());
     vi.stubEnv("AUTO_REPLY_ENABLED", "1");
     vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
+    vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", "*"); // O1: liste açıkça bütün işletmeler (Opus F10: liste yoksa kimse)
     vi.stubEnv("OPENAI_API_KEY", "test-key");
   });
   afterEach(() => {

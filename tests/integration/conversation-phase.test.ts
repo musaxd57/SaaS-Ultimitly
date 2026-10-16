@@ -123,6 +123,7 @@ describe("loadConversationPhase", () => {
 
   it("🚨 kuyrukta misafire ulaşmamış giden mesaj (kuyruk açık) cevap sayılmaz", async () => {
     vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
+    vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", "*"); // O1: liste açıkça bütün işletmeler (Opus F10: liste yoksa kimse)
     const id = await conversationWith([
       { dir: "inbound", body: "Wi-Fi?" },
       { dir: "outbound", body: "Kartta yazıyor." },

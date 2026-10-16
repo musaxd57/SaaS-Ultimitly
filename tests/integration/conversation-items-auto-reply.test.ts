@@ -530,7 +530,10 @@ describe("insan talebi (kurucu: 'Sessiz + açık iş')", () => {
 
 describe("insan talebi — kalıcı kuyruk açıkken aynı devir kararı (Opus O1 + B1, 10-16)", () => {
   beforeEachTurn();
-  beforeEach(() => vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1"));
+  beforeEach(() => {
+    vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
+    vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", "*"); // O1: liste açıkça bütün işletmeler (Opus F10: liste yoksa kimse)
+  });
   const deliver = () =>
     drainOutboxOnce({ send: vi.fn(async () => ({ ok: true, providerMessageId: "prov-q" })), tokenFor: async () => "t" });
 

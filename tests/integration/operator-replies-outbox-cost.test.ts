@@ -21,6 +21,7 @@ describe("selam sayımı — kuyruk kapalıyken kuyruk tablosu okunmaz", () => {
     await loadConversationPhase(c.id);
     expect(spy).not.toHaveBeenCalled();
     vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
+    vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", "*"); // O1: liste açıkça bütün işletmeler (Opus F10: liste yoksa kimse)
     await countPriorOperatorReplies(c.id);
     expect(spy).toHaveBeenCalledTimes(1);
   });

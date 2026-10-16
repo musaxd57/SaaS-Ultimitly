@@ -4,8 +4,8 @@ import { durableOutboxEnabled, durableOutboxEnabledFor } from "@/lib/outbox/flag
 
 // ---------------------------------------------------------------------------
 // O1 İLK DENEME LİSTESİ (kurucu 10-16: "liste anahtarı ekle"). Misafir mesajı kuyruğu önce yalnız seçilen işletmelerde açılır:
-// `DURABLE_OUTBOX_ENABLED=1` ana anahtar, `DURABLE_OUTBOX_ORG_IDS` (virgüllü) doluysa yalnız listedekiler kuyruğa yazar.
-// Ana anahtar kapalıyken liste hiçbir şey AÇMAZ; liste yazılmış ama içi boşsa ("," gibi) KİMSE açılmaz (güvenli yön = bugünkü yol).
+// `DURABLE_OUTBOX_ENABLED=1` ana anahtar, `DURABLE_OUTBOX_ORG_IDS` (virgüllü) yalnız listedekileri, `*` bütün işletmeleri açar.
+// Ana anahtar kapalıyken liste hiçbir şey AÇMAZ; liste yoksa / boşsa KİMSE açılmaz (güvenli yön = bugünkü yol); bütün işletmeler = "*".
 // ---------------------------------------------------------------------------
 
 afterEach(() => vi.unstubAllEnvs());
@@ -17,11 +17,21 @@ describe("durableOutboxEnabledFor", () => {
     expect(durableOutboxEnabledFor("org_a")).toBe(false);
   });
 
-  it("ana anahtar açık + liste boş → bütün işletmeler (bugünkü anahtar anlamı)", () => {
+  it("🚨 Opus F10: ana anahtar açık + liste YOK / boş → KİMSE açılmaz (listeyi silmek kuyruğu herkese açmaz)", () => {
     vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
     vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", "");
+    expect(durableOutboxEnabledFor("org_a")).toBe(false);
+    delete process.env.DURABLE_OUTBOX_ORG_IDS;
+    expect(durableOutboxEnabledFor("org_a")).toBe(false);
+  });
+
+  it("ana anahtar açık + liste '*' → bütün işletmeler (tek başına ya da kimliklerle birlikte)", () => {
+    vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
+    vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", "*");
     expect(durableOutboxEnabledFor("org_a")).toBe(true);
     expect(durableOutboxEnabledFor("org_b")).toBe(true);
+    vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", "org_a, *");
+    expect(durableOutboxEnabledFor("org_z")).toBe(true);
   });
 
   it("ana anahtar açık + liste dolu → YALNIZ listedekiler; boşluklar ve boş öğeler tolere edilir", () => {

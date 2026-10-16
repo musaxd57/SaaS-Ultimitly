@@ -754,6 +754,7 @@ describe("kanal oto-yanıtı — doğrulanmış erken giriş", () => {
 
   it("🚨 kalıcı mesaj kuyruğu AÇIKKEN doğrulanmış onay otomatik gitmez (bayat 'bugün' riski); kapıyı geçen erteleme kuyruğa girer", async () => {
     vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
+    vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", "*"); // O1: liste açıkça bütün işletmeler (Opus F10: liste yoksa kimse)
     const t = await turnover({ cleaned: CLEANED_AT });
     await saveEarlyCheckinRule(t.orgId, t.propertyId, RULE);
     vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: nlu("13:00"), stay_change_guard: guard("13:00", false) }));
@@ -780,6 +781,7 @@ describe("kanal oto-yanıtı — doğrulanmış erken giriş", () => {
 
   it("bilgi sorusunun politika metni kuyruklu teslimde de kuyruğa girer (zamana bağlı değil); gerekçe `early_checkin_policy`", async () => {
     vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
+    vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", "*"); // O1: liste açıkça bütün işletmeler (Opus F10: liste yoksa kimse)
     const t = await turnover({ cleaned: CLEANED_AT });
     await saveEarlyCheckinRule(t.orgId, t.propertyId, RULE);
     mockSuggest.mockResolvedValue({ ...MODEL, reply: "It depends on availability.", stayChange: { asked: "none", stance: "none" } });

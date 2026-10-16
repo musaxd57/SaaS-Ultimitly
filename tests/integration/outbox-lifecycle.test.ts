@@ -56,6 +56,7 @@ describe("outbox lifecycle (FAZ 1) — flag ON", () => {
     vi.clearAllMocks();
     vi.stubEnv("AUTO_REPLY_ENABLED", "1");
     vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
+    vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", "*"); // O1: liste açıkça bütün işletmeler (Opus F10: liste yoksa kimse)
     mockSend.mockResolvedValue({ ok: true });
   });
   afterEach(() => vi.unstubAllEnvs());

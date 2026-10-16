@@ -1457,6 +1457,7 @@ describe("applyChannelAutoReply — Durable Outbox (flag ON, #5/#6)", () => {
     vi.clearAllMocks();
     vi.stubEnv("AUTO_REPLY_ENABLED", "1");
     vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
+    vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", "*"); // O1: liste açıkça bütün işletmeler (Opus F10: liste yoksa kimse)
     mockSuggest.mockResolvedValue(SAFE_REPLY);
     mockSend.mockResolvedValue({ ok: true });
   });
@@ -2498,6 +2499,7 @@ describe("applyChannelAutoReply — selam tekrarı (kodda)", () => {
     "🚨 kuyrukta %s kalmış (misafire ulaşmamış) giden mesaj cevap SAYILMAZ → hâlâ ilk cevap",
     async (status) => {
       vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
+      vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", "*"); // O1: liste açıkça bütün işletmeler (Opus F10: liste yoksa kimse)
       const { conversationId } = await seed();
       const conv = await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId }, include: { property: true } });
       const m = await prisma.message.create({
@@ -2513,6 +2515,7 @@ describe("applyChannelAutoReply — selam tekrarı (kodda)", () => {
 
   it("🚨 kuyrukta 'review' (gönderim BELİRSİZ — misafire ulaşmış olabilir) giden mesaj cevap SAYILIR → ikinci selam yok", async () => {
     vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
+    vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", "*"); // O1: liste açıkça bütün işletmeler (Opus F10: liste yoksa kimse)
     const { conversationId } = await seed();
     const conv = await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId }, include: { property: true } });
     const m = await prisma.message.create({
@@ -2527,6 +2530,7 @@ describe("applyChannelAutoReply — selam tekrarı (kodda)", () => {
 
   it("KONTROL: kuyrukta TESLİM EDİLMİŞ (sent) giden mesaj cevap sayılır", async () => {
     vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
+    vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", "*"); // O1: liste açıkça bütün işletmeler (Opus F10: liste yoksa kimse)
     const { conversationId } = await seed();
     const conv = await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId }, include: { property: true } });
     const m = await prisma.message.create({
@@ -2743,6 +2747,7 @@ describe("C2 — model düşünürken gelen misafir mesajı (Codex 09-30)", () =
 
   it("🚨 kuyruk yolu: tetikten SONRA gelen misafir mesajı (cevaptan önceki damgayla) gönderimi VETO eder", async () => {
     vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
+    vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", "*"); // O1: liste açıkça bütün işletmeler (Opus F10: liste yoksa kimse)
     const { conversationId } = await seed();
     mockSuggest.mockResolvedValue(SAFE_REPLY);
     const out = await applyChannelAutoReply(conversationId);
@@ -2771,6 +2776,7 @@ describe("C2 — model düşünürken gelen misafir mesajı (Codex 09-30)", () =
 
   it("KONTROL — kuyruk yolu: tetikten sonra yeni misafir mesajı yoksa teslim edilir", async () => {
     vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
+    vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", "*"); // O1: liste açıkça bütün işletmeler (Opus F10: liste yoksa kimse)
     const { conversationId } = await seed();
     mockSuggest.mockResolvedValue(SAFE_REPLY);
     await applyChannelAutoReply(conversationId);

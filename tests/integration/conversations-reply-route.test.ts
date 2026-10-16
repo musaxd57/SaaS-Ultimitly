@@ -265,6 +265,7 @@ describe("POST /api/conversations/[id]/reply — staff RBAC gate", () => {
 
   it("Durable Outbox ON: the reply is ENQUEUED (202), not synchronously sent; message has NO externalId yet", async () => {
     vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
+    vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", "*"); // O1: liste açıkça bütün işletmeler (Opus F10: liste yoksa kimse)
     owner();
     const res = await POST(req(conversationId, { body: "Merhaba!" }), { params: Promise.resolve({ id: conversationId }) });
     expect(res.status).toBe(202); // queued, NOT delivered
@@ -279,6 +280,7 @@ describe("POST /api/conversations/[id]/reply — staff RBAC gate", () => {
 
   it("Durable Outbox ON (Codex 07-23): AYNI requestId tek satıra düşer (bucket-sınırı yarışı yok); FARKLI requestId bilinçli ikinci gönderimdir; bozuk format 400", async () => {
     vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
+    vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", "*"); // O1: liste açıkça bütün işletmeler (Opus F10: liste yoksa kimse)
     owner();
     const rid = "11111111-2222-4333-8444-555555555555";
     // Aynı compose'un double-click/retry'ı: aynı requestId → tek kuyruk satırı.
@@ -334,15 +336,25 @@ describe("POST /api/conversations/[id]/reply — staff RBAC gate", () => {
     expect(queued.status).toBe(202);
     expect(mockSend).toHaveBeenCalledTimes(1);
     expect(await prisma.messageOutbox.count({ where: { organizationId: orgId } })).toBe(1);
+    // Opus F10: liste SİLİNİRSE (env yok) kimse açılmaz — bütün işletmeler için açıkça "*" gerekir.
+    vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", "");
+    const noList = await POST(req(conversationId, { body: "Liste yok" }), { params: Promise.resolve({ id: conversationId }) });
+    expect(noList.status).toBe(201);
+    expect(await prisma.messageOutbox.count({ where: { organizationId: orgId } })).toBe(1);
+    vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", "*");
+    const star = await POST(req(conversationId, { body: "Yıldız" }), { params: Promise.resolve({ id: conversationId }) });
+    expect(star.status).toBe(202);
+    expect(await prisma.messageOutbox.count({ where: { organizationId: orgId } })).toBe(2);
     // Ana anahtar KAPALIYSA liste hiçbir şey açmaz.
     vi.stubEnv("DURABLE_OUTBOX_ENABLED", "");
     const off = await POST(req(conversationId, { body: "Anahtar kapalı" }), { params: Promise.resolve({ id: conversationId }) });
     expect(off.status).toBe(201);
-    expect(await prisma.messageOutbox.count({ where: { organizationId: orgId } })).toBe(1);
+    expect(await prisma.messageOutbox.count({ where: { organizationId: orgId } })).toBe(2);
   });
 
   it("Durable Outbox ON: a double-submit of the same text dedupes to ONE queued row (200)", async () => {
     vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
+    vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", "*"); // O1: liste açıkça bütün işletmeler (Opus F10: liste yoksa kimse)
     owner();
     const a = await POST(req(conversationId, { body: "Aynı metin" }), { params: Promise.resolve({ id: conversationId }) });
     const b = await POST(req(conversationId, { body: "Aynı metin" }), { params: Promise.resolve({ id: conversationId }) });

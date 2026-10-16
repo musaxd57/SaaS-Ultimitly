@@ -318,6 +318,7 @@ describe("madde 10 kâhini — sayfalı okuma = tam okuma", () => {
 
   it.each(SEEDS.slice(0, 10))("🚨 tohum %i: kalıcı outbox açık + teslim edilmemiş taslaklar — süzgeç konuşma çapında aynı", async (seedN) => {
     vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
+    vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", "*"); // O1: liste açıkça bütün işletmeler (Opus F10: liste yoksa kimse)
     const now = Date.now();
     const { rows, closingOn } = genThread(seedN, now - 2 * DAY, { undelivered: true });
     const full = await run(rows, closingOn, now, null);

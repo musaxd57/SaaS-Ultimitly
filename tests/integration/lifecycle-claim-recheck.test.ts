@@ -200,6 +200,7 @@ describe("Y4 — kalıcı kuyruk: ileri tarihe taşınan giriş satırı gönder
     vi.clearAllMocks();
     vi.stubEnv("AUTO_REPLY_ENABLED", "1");
     vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
+    vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", "*"); // O1: liste açıkça bütün işletmeler (Opus F10: liste yoksa kimse)
   });
   afterEach(() => vi.unstubAllEnvs());
 

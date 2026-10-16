@@ -213,6 +213,7 @@ describe("K7 — otomatik mesajımız senkronla geri gelince ev sahibi cevabı s
   it("kalıcı kuyruk yolu (bayrak açık): işçi gönderimden ÖNCE iz yazar, sağlayıcı kimliğiyle kapatır; yankı 'otomatik'", async () => {
     const { orgId, conversationId } = await seed();
     vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
+    vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", "*"); // O1: liste açıkça bütün işletmeler (Opus F10: liste yoksa kimse)
     expect((await sendDueWelcomes(orgId)).sent).toBe(1);
     expect(mockSend).not.toHaveBeenCalled(); // kuyruğa girdi
     expect(await prisma.automatedMessageSend.count()).toBe(0); // iz gönderim anında (işçide) yazılır
