@@ -797,17 +797,17 @@ export function fixSupportGateEnabled(): boolean {
 }
 
 /**
- * Misafire yöneltilmiş DENETİM / DENEME adımı ("… emin olur musunuz", "kontrol edin", "dener misiniz", "make sure", "try", "prüfen Sie",
- * "vérifiez", "compruebe", "проверьте"). `isFixRecipeText` bunları tarif saymaz (bilgi tabanı kalemi için doğru: "Kontrol edin" tek başına
+ * Misafire yöneltilmiş DENETİM adımı ("… emin olur musunuz", "kontrol edin", "make sure", "prüfen Sie", "vérifiez", "compruebe",
+ * "проверьте"; deneme önerisi ayrı — `TRY_STEP`). `isFixRecipeText` bunları tarif saymaz (bilgi tabanı kalemi için doğru: "Kontrol edin" tek başına
  * tarif değildir) — ama 5.1'in uydurduğu TV adımı tam bu biçimdeydi ("kaynak girişinin doğru seçili olduğundan emin olur musunuz").
  * "check-in / check-out" denetim değildir. Katlanmış metin, sabit alternatifler (doğrusal).
  */
 const GUEST_CHECK_STEP = new RegExp(
   [
-    `${L}(?:kontrol (?:edin|ediniz|eder misiniz|edebilir misiniz|edip)|emin (?:olun|olunuz|olur musunuz|olabilir misiniz)|dener misiniz|deneyin|deneyiniz|deneyebilirsiniz|deneyebilir misiniz|deneyip)${R}`,
-    `${L}(?:make sure|ensure|try|verify|check(?![- ]?(?:in|out)${R}))${R}`,
-    `${L}(?:prufen sie|uberprufen sie|stellen sie sicher|versuchen sie|verifiez|assurez-vous|essayez|compruebe|verifique|asegurese|intente|pruebe|проверьте|убедитесь|попробуите)${R}`,
-    `(?:تأكد|تحقق|جرب)`,
+    `${L}(?:kontrol (?:edin|ediniz|eder misiniz|edebilir misiniz|edip)|emin (?:olun|olunuz|olur musunuz|olabilir misiniz))${R}`,
+    `${L}(?:make sure|ensure|verify|check(?![- ]?(?:in|out)${R}))${R}`,
+    `${L}(?:prufen sie|uberprufen sie|stellen sie sicher|verifiez|assurez-vous|compruebe|verifique|asegurese|проверьте|убедитесь)${R}`,
+    `(?:تأكد|تحقق)`,
   ].join("|"),
   "u",
 );
@@ -831,9 +831,38 @@ const TROUBLESHOOT_CONTEXT = new RegExp(
  */
 const RESTART_STEP = new RegExp(
   [
-    `${L}(?:restart|reboot|reset|unplug|replug|power cycle|turn it back on|turn (?:it )?off and (?:back )?on|neustart\\p{L}{0,2}|zurucksetzen|redemarr\\p{L}{0,3}|debranch\\p{L}{0,3}|rebranch\\p{L}{0,3}|reinici\\p{L}{0,3}|desenchuf\\p{L}{0,3}|перезагруз\\p{L}{0,4})${R}`,
-    `${L}(?:yeniden|tekrar) (?:baslat|ac|tak)\\p{L}{0,8}${R}`,
-    `${L}(?:sifirla\\p{L}{0,8}|fisini (?:cek|cikar)\\p{L}{0,6}|fisten cek\\p{L}{0,6}|kapatip (?:yeniden |tekrar )?ac\\p{L}{0,8})${R}`,
+    `${L}(?:restart|reboot|reset|unplug|replug|power cycle|turn it back on|neustart\\p{L}{0,2}|zurucksetzen|redemarr\\p{L}{0,3}|debranch\\p{L}{0,3}|rebranch\\p{L}{0,3}|reinici\\p{L}{0,3}|desenchuf\\p{L}{0,3}|перезагруз\\p{L}{0,4})${R}`,
+    // "switch the AC off and on again", "turning it off and back on" (Opus gece-2 M2 — "turn off and on" yalnız bitişik biçimdi)
+    `${L}(?:turn|turning|switch|switching|power|powering) (?:(?:it|the|your|this) )?(?:\\p{L}{1,20} ){0,2}off and (?:back )?on${R}`,
+    // Almanca ayrılabilir fiil: "Starten Sie den Fernseher neu", "Schalten Sie die Klimaanlage aus und wieder ein"
+    `${L}(?:starten sie (?:\\p{L}{1,20} ){0,4}neu|schalten sie (?:\\p{L}{1,20} ){0,4}aus und (?:wieder )?ein)${R}`,
+    // Türkçe kibar biçim "-(y)abilirsiniz" 11–12 harf (Opus gece-2 M2, ölçüldü: "Klimayı kapatıp açabilirsiniz" adım sayılmıyordu)
+    `${L}(?:yeniden|tekrar) (?:baslat|ac|tak)\\p{L}{0,12}${R}`,
+    `${L}(?:sifirla\\p{L}{0,12}|fisini (?:cek|cikar)\\p{L}{0,12}|fisten cek\\p{L}{0,12}|kapatip (?:yeniden |tekrar )?ac\\p{L}{0,12})${R}`,
+    // Arapça (katlanmış biçim — hemze işareti düşer): "أطفئ … ثم شغله", "أعد تشغيل", "افصل"
+    ["أطفئ", "أعد تشغيل", "إعادة تشغيل", "افصل"].map((w) => fold(w)).join("|"),
+  ].join("|"),
+  "u",
+);
+
+/**
+ * Misafire yöneltilmiş kip / ikinci şahıs adım biçimleri (Opus gece-2 M2 c): YALNIZ misafirin ARIZA bildirdiği cihazı anan cümlede adım
+ * sayılır — kullanım cevabını etkilemez. Türkçe: sınırlı fiil listesi + emir / "-abilirsiniz" / "-manız yeterli" / "-ip"; ad durumu "-ın / -un"
+ * ile karışmasın diye çıplak "-in" ekine fiil listesi dışında BAKILMAZ. Diğer diller: kip / nezaket yüklemleri. Katlanmış metin, sınırlı tekrar.
+ */
+const FAULT_DEVICE_STEP = new RegExp(
+  [
+    `${L}(?:sec|bas|bastir|degistir|temizle|al|getir|ayarla|ac|kapat|tak|cek|cikar|bekle|kullan|cevir|tut|baslat|bagla|gir|unut|yap|gec|koy|indir|yukselt|dusur|yenile|guncelle|kur|calistir|sok|kaldir|birak|doldur|bosalt|ayir)` +
+      `(?:y?in|y?un|y?iniz|y?unuz|y?ip|y?up|y?abilir(?:siniz| misiniz)|y?ebilir(?:siniz| misiniz)|meniz|maniz|menizi|manizi|melisiniz|malisiniz)${R}`,
+    // İkinci şahıs "-abilirsiniz" ve edilgen "-ılabilir / -ebilir" (edilebilir, bakılabilir, temizlenebilir) + "temizlenmesi / değiştirmek işe
+    // yarar" — arızalı cihaz cümlesinde öneridir. Üçüncü şahıs "görebilir / olabilir" DEĞİL ("ev sahibiniz görebilir" bildirim cümlesiydi).
+    `${L}\\p{L}{2,24}(?:ebilir|abilir)(?:siniz| misiniz)${R}`,
+    `${L}\\p{L}{1,24}(?:il|ul|in|un|n)(?:ebilir|abilir)${R}`,
+    `${L}\\p{L}{2,24}m[ae](?:si|k|niz) (?:ise yara\\p{L}{0,8}|gerek\\p{L}{0,6}|yeterli\\p{L}{0,3}|yardimci ol\\p{L}{0,6}|faydali ol\\p{L}{0,6}|iyi ol\\p{L}{0,6}|(?:sorunu )?coz\\p{L}{0,8})${R}`,
+    `${L}(?:you (?:can|could|may|might|should|need to|have to|must)|please|(?:may|might|will|would) need|needs? (?:to|a|new)|should be|make sure)${R}`,
+    `^\\s*(?:switch|turn|press|hold|change|replace|clean|select|set|unplug|plug|check|wait|remove|insert|put|use|open|close|try)${R}`,
+    `${L}(?:\\p{L}{3,20}en sie|bitte|vous (?:pouvez|devez|pourriez)|veuillez|\\p{L}{3,20}ez|puede|podria|debe|presione|pulse|seleccione|apague|encienda|cambie|limpie|revise|нажмите|выберите|включите|выключите|замените|можете)${R}`,
+    ["أطفئ", "شغل", "اضغط", "نظف", "تأكد", "يمكنك"].map((w) => fold(w)).join("|"),
   ].join("|"),
   "u",
 );
@@ -843,7 +872,13 @@ const RESTART_STEP = new RegExp(
  * (Haiku 10-15 gece: "Kahve makinesinde farklı bir ayarı deneyebilirsiniz" kullanım önerisiydi, tarif isteniyordu).
  */
 const TRY_STEP = new RegExp(
-  `${L}(?:dener misiniz|deneyin|deneyiniz|deneyebilirsiniz|deneyebilir misiniz|deneyip|try|versuchen sie|essayez|intente|pruebe|попробуите)${R}`,
+  `${L}(?:dener misiniz|deneyin|deneyiniz|deneyebilirsiniz|deneyebilir misiniz|deneyip|try|versuchen sie|essayez|intente|pruebe|попробуите)${R}|جرب`,
+  "u",
+);
+
+/** Deneme önerisinin cihaz eylemi bağlamı: ayar / tuş / düğme / program / mod (katlanmış; yedi dil). */
+const TRY_ACTION_CONTEXT = new RegExp(
+  `${L}(?:ayar\\p{L}{0,8}|tus\\p{L}{0,8}|dugme\\p{L}{0,8}|program\\p{L}{0,8}|mod\\p{L}{0,5}|setting\\p{L}{0,2}|button\\p{L}{0,2}|einstellung\\p{L}{0,2}|taste\\p{L}{0,1}|reglage\\p{L}{0,1}|bouton\\p{L}{0,1}|ajuste\\p{L}{0,1}|boton\\p{L}{0,2}|настро\\p{L}{0,4}|кнопк\\p{L}{0,2}|режим\\p{L}{0,3}|uygulama\\p{L}{0,6}|app|apps|application|anwendung)${R}`,
   "u",
 );
 
@@ -864,8 +899,11 @@ const REMOTE_WORD = new RegExp(
  * ("Fişini çekip bir dakika bekleyin") cihaz belirsizdir (cihaz adı geçmeyen adım kuralı).
  */
 function stepDevicesOf(sentence: string): string[] {
-  // Ham metinde (getirme sözlüğü Türkçe harfleri okur; katlanmış metin kökleri kaçırır).
-  const devices = deviceTopicsOf(topicsWithSymptomsOf(sentence.replace(REMOTE_WORD, " "))).filter((t) => t !== "socket");
+  // Ham metinde (getirme sözlüğü Türkçe harfleri okur; katlanmış metin kökleri kaçırır). Klima / ısı pompası "ısıtma / soğutma MODU" ısıtma
+  // tesisatı değildir (Opus gece-2 M3: "MODE tuşuyla soğutma ya da ısıtma modunu seçin" ısıtmaya iniyordu) — mod anılan cümlede nötrlenir.
+  const neutral = sentence.replace(REMOTE_WORD, " ");
+  const text = MODE_WORD.test(fold(neutral)) ? neutral.replace(CLIMATE_MODE_WORD, " ") : neutral;
+  const devices = deviceTopicsOf(topicsWithSymptomsOf(text)).filter((t) => t !== "socket");
   // Getirme sözlüğü "açın / açıp" fiilini klimaya (AC) bağlıyor (ölçüldü 10-15 gece: "Cihazı kapatıp 30 saniye bekleyin, sonra yeniden açın"
   // klima sayılıyor, klima tarifi varsa bulaşık makinesi adımı geçiyordu) — klima ancak cümlede gerçek bir klima adı varsa sayılır.
   return devices.includes("ac") && !AC_EVIDENCE.test(fold(sentence)) && !/(?<![\p{L}])A\/?C(?![\p{L}])/u.test(sentence)
@@ -873,9 +911,16 @@ function stepDevicesOf(sentence: string): string[] {
     : devices;
 }
 
+/** "mod / mode / Modus / режим" (katlanmış). */
+const MODE_WORD = new RegExp(`${L}(?:mod\\p{L}{0,5}|режим\\p{L}{0,3})${R}`, "u");
+/** Isıtma / soğutma adı (ham metin; Türkçe büyük-küçük harf iki biçimde). */
+const CLIMATE_MODE_WORD =
+  /(?<![\p{L}\p{N}])(?:[ıIiİ]s[ıi]tma\p{L}{0,4}|[sS][oö][gğ]utma\p{L}{0,4}|heating|cooling|heizen|heizung|kühlen|kühlung|chauffage|refroidissement|calefacción|refrigeración|обогрев\p{L}{0,2}|охлаждени\p{L}{0,2})(?![\p{L}\p{N}])/giu;
+
 /** Klimanın adı (katlanmış; yedi dil + kar tanesi simgesi). Çıplak "ac" BİLEREK yok: Türkçe "aç" (açın / açıp) ile aynı. */
 const AC_EVIDENCE = new RegExp(
-  `${L}(?:klima\\p{L}{0,8}|kondisyoner\\p{L}{0,8}|air ?con\\p{L}{0,10}|aircon|klimaanlage\\p{L}{0,2}|climatis\\p{L}{0,6}|aire acondicionado|кондиционер\\p{L}{0,3}|مكيف|kar tanes\\p{L}{0,6}|snowflake\\p{L}{0,2})${R}`,
+  // Arapça belirli tanım ön eki ("المكيف") ve "air-conditioning" (Opus gece-2 M11).
+  `${L}(?:klima\\p{L}{0,8}|kondisyoner\\p{L}{0,8}|air[- ]?con\\p{L}{0,10}|aircon|klimaanlage\\p{L}{0,2}|climatis\\p{L}{0,6}|aire acondicionado|кондиционер\\p{L}{0,3}|(?:ال)?مكيف\\p{L}{0,3}|kar tanes\\p{L}{0,6}|snowflake\\p{L}{0,2})${R}`,
   "u",
 );
 
@@ -885,8 +930,14 @@ const AC_EVIDENCE = new RegExp(
  */
 function kbSubjectTopicsOf(item: { title: string; content: string }): string[] {
   const title = deviceTopicsOf(topicsOf(item.title));
-  return title.length > 0 ? title : deviceTopicsOf(topicsOf(item.content));
+  if (title.length === 0) return deviceTopicsOf(topicsOf(item.content));
+  // Başlık yalnız bir YER adlandırıyorsa ("Salon" → spor salonu, "Teras" → balkon) metnin cihazları da konudur (Opus gece-2 M8, ölçüldü:
+  // "Salon: TV kumandası sehpadadır. Netflix için kumandadaki Netflix tuşuna basın" kalemi TV kullanım adımını tutuyordu).
+  return title.every((t) => PLACE_TOPICS.has(t)) ? [...new Set([...title, ...deviceTopicsOf(topicsOf(item.content))])] : title;
 }
+
+/** Yer kavramları (oda / alan adı; cihaz değil). */
+const PLACE_TOPICS: ReadonlySet<string> = new Set(["gym", "balcony", "pool"]);
 
 /** Modele giden bilgi tabanının konu cihazları (kullanım adımının dayanağı). */
 export function kbSubjectTopics(items: readonly { title: string; content: string }[]): Set<string> {
@@ -917,36 +968,56 @@ export function unsupportedFixStep(
   if (!reply || !reply.trim()) return false;
   const guestDevices = guestText ? stepDevicesOf(guestText) : [];
   const guestReportsFault = guestText !== "" && FAULT_PHRASE.test(fold(guestText));
+  // Misafirin ARIZA bildirdiği cihazlar (cümlecik düzeyinde — "TV çalışmıyor; Wi-Fi şifresi?" yalnız TV): o cihaza yöneltilen her adım arıza
+  // giderme adımıdır, bilgi tabanında KONU olması yetmez, TARİF ister (Opus gece-2 M1, ölçüldü: TV / Wi-Fi bilgi tabanında yalnız konuyken
+  // "Kumandadaki SOURCE tuşuna basıp HDMI 1'i seçin" / "Telefonunuzda ağı unutup yeniden bağlanın" kullanım adımı sayılıp GEÇİYORDU).
+  const faultDevices = guestText ? faultDevicesOf(guestText) : new Set<string>();
   let carried: string[] = [];
-  for (const sentence of sentencesOf(reply).slice(0, MAX_STEP_SENTENCES)) {
+  // Rakamla biten cümle de bölünür ("Wi-Fi şifresi Lale2025. Klimayı açmak için …" — Opus gece-2 M3: iki cümle tek okunuyordu, Wi-Fi konusu
+  // klima adımını geçiriyordu). Ondalık ("2.5 bar") ve saat ("15.00") bölünmez. Tek geçiş, doğrusal.
+  for (const sentence of sentencesOf(reply.replace(/(?<=\d)[.!?;](?=\s)/gu, "$&\n")).slice(0, MAX_STEP_SENTENCES)) {
     const f = fold(sentence);
     const own = stepDevicesOf(sentence);
     // Cihazı anılmayan cümle önceki cümlenin cihazını alır ("Bulaşık makinesi için: cihazı kapatıp 30 saniye bekleyin"); cevapta hiç yoksa
     // misafirin mesajındaki cihaz (Haiku 10-15 gece: başka cihazın tarifi her adsız adımı geçiriyordu).
-    const devices = own.length > 0 ? own : carried.length > 0 ? carried : guestDevices;
+    // Misafirin mesajında yalnız kumanda geçiyorsa ("Kumanda çalışmıyor" — kumanda nötr) arızalı cihaz kümesi devralınır (kurucu k6-24:
+    // "ADAMA PİLLERİ DEĞİŞTİRİN Mİ YAZICAK").
+    const devices = own.length > 0 ? own : carried.length > 0 ? carried : guestDevices.length > 0 ? guestDevices : [...faultDevices];
     const carriedBefore = carried;
     if (own.length > 0) carried = own;
+    // Arızalı cihaz bu cümlenin cihazı mı. Cihazı anılmayan cümle, kendi KONUSU varsa ("Çöpleri konteynere atabilirsiniz") başka işten
+    // söz ediyordur — arızalı cihazı devralmaz (kurucunun TV + çöp vakasında çöp cevabı gider). "açın" fiilinin klima okuması konu sayılmaz.
+    const inheritsFault =
+      own.length > 0 || topicsOf(sentence.replace(REMOTE_WORD, " ")).every((t) => t === "ac" || t === "socket");
+    const faulty = inheritsFault ? devices.filter((t) => faultDevices.has(t)) : [];
     const restart = RESTART_STEP.test(f);
-    const tries = TRY_STEP.test(f);
-    if (!restart && !tries && !isFixRecipeText(sentence) && !GUEST_CHECK_STEP.test(f)) continue;
+    // Deneme önerisi yalnız arıza bağlamında ya da bir ayar / tuş / programla anıldığında adımdır (Opus gece-2 M11: "Sahildeki kafede Türk
+    // kahvesini mutlaka deneyin" yerel öneriydi, kahve makinesi kullanım adımı sayılıp tutuluyordu).
+    const tries = TRY_STEP.test(f) && (guestReportsFault || TRY_ACTION_CONTEXT.test(f));
+    const faultStep = faulty.length > 0 && FAULT_DEVICE_STEP.test(f);
+    if (!restart && !tries && !faultStep && !isFixRecipeText(sentence) && !GUEST_CHECK_STEP.test(f)) continue;
     const troubleshooting =
       restart ||
       TROUBLESHOOT_CONTEXT.test(f) ||
       RECIPE_CONDITIONAL.test(f) ||
       RECIPE_FAULT_PHRASES.some((p) => f.includes(p)) ||
-      (tries && guestReportsFault);
+      (tries && guestReportsFault) ||
+      faulty.length > 0;
     if (devices.length === 0) {
       if (troubleshooting && kb.recipeTopics.size === 0) return true;
       continue;
     }
     if (troubleshooting) {
-      if (devices.some((t) => !kb.recipeTopics.has(t))) return true;
+      // Cihazı misafirden devralan adımda yalnız ARIZALI cihazlar tarif ister ("TV çalışmıyor; Wi-Fi şifresi?" + adsız adım).
+      const need = own.length === 0 && carriedBefore.length === 0 && faulty.length > 0 ? faulty : devices;
+      if (need.some((t) => !kb.recipeTopics.has(t))) return true;
       continue;
     }
-    // Kullanım adımı bağlamla okunur: cümlenin, önceki cümlenin ya da misafirin cihazından BİRİ konu olsun ("Klima kumandası çekmecede.
-    // MODE tuşuyla soğutma ya da ısıtma modunu seçin" — ikinci cümlede "klima" geçmiyor, "ısıtma" ısıtma konusuna iniyor).
-    const context = new Set([...devices, ...carriedBefore, ...guestDevices]);
-    if (![...context].some((t) => kb.subjectTopics.has(t) || kb.recipeTopics.has(t))) return true;
+    // Kullanım adımı: cümlenin KENDİ cihazı varsa yalnız ona bakılır (Opus gece-2 M3, ölçüldü: Wi-Fi şifresi hemen her bilgi tabanında konu —
+    // önceki cümlede ya da misafirin mesajında Wi-Fi geçince KB'de olmayan klima kullanım adımı geçiyordu). Cihazı yoksa önceki cümlenin ya da
+    // misafirin cihazından BİRİ konu olsun ("Klima kumandası çekmecede. MODE tuşuyla soğutma ya da ısıtma modunu seçin").
+    const context = own.length > 0 ? own : [...carriedBefore, ...guestDevices];
+    if (!context.some((t) => kb.subjectTopics.has(t) || kb.recipeTopics.has(t))) return true;
   }
   return false;
 }
@@ -1136,9 +1207,11 @@ const FAULT_PHRASE_SOURCE = [
     // Kayıtlı misafir mesajlarında kaçan biçimler (10-15 gece ölçümü): takılma / dönmeme / tepkisizlik / ses çıkmaması / hata kodu /
     // "<hizmet> yok" (internet, sıcak su, elektrik, ısıtma — cihaz kavramı yine şart).
     `${L}(?:takiliyor|takildi|takili kaldi|donmuyor|tepki vermiyor|cevap vermiyor|ses cikmiyor|calismayi durdurdu|durmadan kapaniyor|kendi kendine kapaniyor|hata veriyor|hata kodu|e ?\\d{1,3} (?:hatasi|yaziyor|veriyor))${R}`,
+    // Opus gece-2 M4 yan notu: sözlük dışı arıza fiilleri (su boşaltmıyor, sürekli kopuyor)
+    `${L}(?:bosaltmiyor(?:du)?|tahliye etmiyor|kopuyor|surekli kesiliyor|(?:cok |asiri )?az akiyor|cok yavas|asiri yavas)${R}`,
     `${L}(?:internet|wifi|wi-fi|sicak su|elektrik|isitma|isik)\\p{L}{0,4} (?:yok|gitti|kesildi|gelmiyor)${R}`,
     // en
-    `${L}(?:not working|doesn't work|does not work|won't turn on|will not turn on|won't start|stopped working|broken|no picture|black screen|no sound|no signal|not heating|not cooling|leaking|clogged|won't respond|doesn't respond|does not respond|not responding|no hot water|no internet|no wifi|no power|got stuck|is stuck|only blows (?:cold|warm|hot) air|won't open|won't connect|keeps (?:beeping|turning off|shutting off))${R}`,
+    `${L}(?:not working|very slow|too slow|extremely slow|won't drain|not draining|doesn't drain|keeps dropping|keeps disconnecting|doesn't work|does not work|won't turn on|will not turn on|won't start|stopped working|broken|no picture|black screen|no sound|no signal|not heating|not cooling|leaking|clogged|won't respond|doesn't respond|does not respond|not responding|no hot water|no internet|no wifi|no power|got stuck|is stuck|only blows (?:cold|warm|hot) air|won't open|won't connect|keeps (?:beeping|turning off|shutting off))${R}`,
     // de / fr / es
     `${L}(?:funktioniert nicht|geht nicht|kaputt|kein bild|kein ton|kein signal|reagiert nicht|geht nicht an|kein warmes wasser|kein internet|ne marche pas|ne fonctionne pas|en panne|pas d'image|pas de son|ne s'allume plus|ne chauffe plus|ne repond pas|pas d'eau chaude|plus d'internet|no funciona|averiad[oa]|sin imagen|sin sonido|no arranca|no responde|no enciende|no calienta|no enfria|no hay agua caliente|no hay internet)${R}`,
     // ru / ar (katlama Latin dışını değiştirmez)
@@ -1148,29 +1221,42 @@ const FAULT_PHRASE = new RegExp(FAULT_PHRASE_SOURCE, "u");
 /** Aynı kalıbın küresel biçimi — bir cümlecikteki BÜTÜN arıza geçişleri (ilki koşullu olsa da ikincisi okunur — Haiku 10-15 gece). */
 const FAULT_PHRASE_ALL = new RegExp(FAULT_PHRASE_SOURCE, "gu");
 
-/** Arıza düzelmiş / geçmiş ("çalışmadı ama sonra düzeldi", "it works now") — bildirim değil. Katlanmış metin, sabit alternatifler. */
+/**
+ * Arıza düzelmiş / geçmiş ("çalışmadı ama sonra düzeldi", "it works now", "arızası giderildi") — bildirim değil. Katlanmış metin, sabit
+ * alternatifler. Soru ("düzeldi mi?") ve sanı ("hallettik sandık") düzelme DEĞİLDİR (`FAULT_RESOLVED_DOUBT` — Opus gece-2 M4).
+ */
 const FAULT_RESOLVED = new RegExp(
-  `${L}(?:duzeldi|duzelmis|hallettik|hallettim|halloldu|cozuldu|cozduk|artik calisiyor|calisiyor artik|fixed|works now|working now|it'?s working|resolved|sorted it|funktioniert (?:jetzt|wieder)|fonctionne maintenant|ca marche maintenant|ya funciona|funciona ahora|заработал\\p{L}{0,2}|تم الحل)${R}`,
-  "u",
+  `${L}(?:duzeldi|duzelmis|hallettik|hallettim|halloldu|cozuldu|cozduk|artik calisiyor|calisiyor artik|giderildi|tamir edildi|onarildi|fixed|repaired|works now|working now|it'?s working|resolved|sorted it|funktioniert (?:jetzt|wieder)|fonctionne maintenant|ca marche maintenant|ya funciona|funciona ahora|заработал\\p{L}{0,2}|تم الحل)${R}`,
+  "gu",
 );
+/** Düzelme ifadesinin hemen ardındaki soru eki / sanı fiili ("düzeldi mi", "hallettik sandık", "fixed?" cümlecik ayracında okunur). */
+const FAULT_RESOLVED_DOUBT = /^\s{0,3}(?:mi|mu|sand\p{L}{0,6}|sanm\p{L}{0,8}|zannet\p{L}{0,8})(?![\p{L}\p{N}])/u;
 
 /**
  * Misafirin KENDİ eşyası (D4 dersi — "misafir eşyası bakım değildir"): araba / araç, bavul / valiz, "benimki / bizimki", "kendi X'imiz",
  * "our own / my car", bozuk para (bozukluk). Yalnız arızanın cümleciğinde okunur. "kendi kendine / kendi başımıza" sahiplik değildir.
  */
 const FAULT_GUEST_OWNED = new RegExp(
-  `${L}(?:araba\\p{L}{0,8}|arac(?:i|imiz|imizin|imizi|in)?|bavul\\p{L}{0,8}|valiz\\p{L}{0,8}|benimki|bizimki|kendi (?!kendi|basim|basimiza|basina|basiniza|basimizi)\\p{L}{2,16}|bozuk para\\p{L}{0,4}|(?:my|our) (?:own|car|luggage|suitcase)|our rental car)${R}`,
+  // "Bavul dolabı" mülkün olanağıdır (Opus gece-2 M4 yan notu); "at home" misafirin kendi evi.
+  `${L}(?:araba\\p{L}{0,8}|arac(?:i|imiz|imizin|imizi|in)?|bavul(?!\\p{L}{0,8} dolab)\\p{L}{0,8}|valiz\\p{L}{0,8}|benimki|bizimki|kendi (?!kendi|basim|basimiza|basina|basiniza|basimizi)\\p{L}{2,16}|bozuk para\\p{L}{0,4}|(?:my|our) (?:own|car|luggage|suitcase)|our rental car|at home|back home)${R}`,
   "u",
 );
 
-/** Arıza ifadesinin hemen ardındaki koşul yüklemi ("arıza yaparsa", "bozuk olursa") — varsayım bildirim değildir (kurucu D4 ayrımı). */
-const FAULT_CONDITION_TAIL = /^\s{1,3}(?:olursa|yaparsa|verirse|ederse|cikarsa|kalirsa|olunca|oldugunda|yapinca|giderse|olmasi halinde)(?![\p{L}\p{N}])/u;
+/**
+ * Arıza ifadesinin hemen ardındaki koşul yüklemi ("arıza yaparsa", "bozuk olursa", "arıza durumunda / halinde") — varsayım bildirim değildir
+ * (kurucu D4 ayrımı; "durumunda / halinde" Opus gece-2 M7).
+ */
+const FAULT_CONDITION_TAIL =
+  /^\s{1,3}(?:olursa|yaparsa|verirse|ederse|cikarsa|kalirsa|olunca|oldugunda|yapinca|giderse|olmasi halinde|durumunda|halinde)(?![\p{L}\p{N}])/u;
 
 /** Arızanın önünde koşul bağlacı ("if the TV breaks", "wenn", "falls", "en caso de", "если"). İspanyolca / Fransızca "si" YOK: katlamada "sí" (evet) ile aynı (Haiku 10-15 gece). */
 const FAULT_CONDITION_LEAD = new RegExp(`${L}(?:if|in case|wenn|falls|en caso de|если)${R}`, "u");
 
-/** Cümlecik sınırı: noktalama + karşıtlık bağlaçları (ama / fakat / ancak / but / however / aber / mais / pero / но). */
-const FAULT_CLAUSE_SPLIT = /[,.;!?\n]+|\s(?:ama|fakat|ancak|lakin|but|however|aber|mais|pero|но)\s/u;
+/**
+ * Cümlecik sınırı: noktalama + karşıtlık bağlaçları (ama / fakat / ancak / but / however / aber / mais / pero / но). Büyük / küçük harf
+ * duyarsız ("KLİMA ÇALIŞMIYOR AMA WİFİ DÜZELDİ" — Opus gece-2 M4). Ayraç YAKALANIR: soru işaretiyle biten düzelme ("Fixed?") düzelme değildir.
+ */
+const FAULT_CLAUSE_SPLIT = /([,.;!?\n]+|\s(?:ama|fakat|ancak|lak[iİı]n|but|however|aber|mais|pero|но)\s)/iu;
 
 /**
  * İstek bir CİHAZ ARIZASI mı: isteğin KENDİ sorgusu (anlama katmanının Türkçe + özgün dil sorgusu) — mesajın bütün gövdesine BAKILMAZ ("Wi-Fi
@@ -1180,51 +1266,89 @@ const FAULT_CLAUSE_SPLIT = /[,.;!?\n]+|\s(?:ama|fakat|ancak|lakin|but|however|ab
  * arızanın düzeldiğini söylüyorsa ("çalışmadı ama sonra düzeldi") arıza DEĞİLDİR. Kapalı küme, doğrusal (cümlecik başına tek tarama).
  */
 export function faultSignal(queryTr: string, queryOriginal: string): boolean {
-  return [queryTr, queryOriginal].some((t) => !!t && t.trim() !== "" && textReportsFault(t));
+  return [queryTr, queryOriginal].some((t) => !!t && t.trim() !== "" && faultDevicesOf(t).size > 0);
 }
 
 /** Soru / varlık yüklemi taşıyan öbek ("Asansör var mı", "Otopark nerede") arızanın öznesi değildir. */
 const NOT_A_SUBJECT = /[?]|(?:^|\s)(?:mi|mu|var|yok|nerede|nasil|hangi|kac|ne zaman|where|how|what|when|which|wo|ou|donde)(?=\s|$)/u;
 
+/** Arıza ifadesinin hemen ardındaki soru eki ("Klima çalışmıyor mu? Nasıl açılıyor?") — soru bildirim değildir (kurucu D4; Opus gece-2 M4). */
+const FAULT_QUESTION_TAIL = /^\s{1,3}(?:mi|mu)(?![\p{L}\p{N}])/u;
+
+/** Arıza ifadesinin hemen ardındaki olumsuzlama ("bozuk değil", "not broken" ayrı okunur) — bildirim değildir (Opus gece-2 M4 yan notu). */
+const FAULT_NEGATION_TAIL = /^\s{1,3}(?:degil|degildi|degilmis)(?![\p{L}\p{N}])/u;
+
 /**
- * Cihaz taşıyan ama arıza ifadesi / soru taşımayan öbek — virgülle ayrılmış arızanın öznesi olabilir ("Klima, çalışmıyor", "Televizyon kendi
- * kendine kapanıyor, bozuk").
+ * Arızanın öznesi olabilecek CİHAZ DIŞI eşya (misafirin telefonu / bilgisayarı): cümlecikte anılıyorsa cihazsız arıza önceki cümleciğin
+ * cihazını devralmaz ("Wifi'ye bağlandık, telefon çekmiyor" — telefon Wi-Fi değildir; Opus gece-2 M4 yan notu). Zarf / parça listesiyle
+ * "çıplak cümlecik" kuralı DENENDİ, kayıtlı 1.115 mesajda 10 gerçek arızayı düşürdü ("ama motor hiç çalışmıyor", "ekranda 'Sinyal yok'
+ * yazıyor") — bu yüzden kara liste. Katlanmış biçim.
  */
-function deviceSubjectClause(clause: string): boolean {
-  const f = fold(clause);
-  return !FAULT_PHRASE.test(f) && !NOT_A_SUBJECT.test(f) && deviceTopicsOf(topicsWithSymptomsOf(clause)).length > 0;
-}
+const NON_DEVICE_SUBJECT = new RegExp(
+  `${L}(?:telefon\\p{L}{0,8}|phone\\p{L}{0,2}|cep\\p{L}{0,4}|handy\\p{L}{0,2}|portable\\p{L}{0,2}|movil\\p{L}{0,2}|телефон\\p{L}{0,3}|laptop\\p{L}{0,6}|bilgisayar\\p{L}{0,8}|computer\\p{L}{0,2}|tablet\\p{L}{0,6})${R}`,
+  "u",
+);
 
 /** Taranan en çok cümlecik (doğrusal tavan). */
 const MAX_FAULT_CLAUSES = 64;
 
 /**
- * Metin bir cihaz arızası BİLDİRİYOR mu. Sıra önemlidir: arızadan SONRA gelen düzelme ("çalışmadı ama sonra düzeldi") bildirimi kapatır,
- * düzelmeden SONRA gelen arıza ("düzeldi ama şimdi yine çalışmıyor") açar. Cümleciğin BÜTÜN arıza geçişleri okunur.
+ * Metnin bildirdiği AÇIK cihaz arızaları (cihaz kavramları). Sıra önemlidir: arızadan SONRA gelen düzelme ("çalışmadı ama sonra düzeldi")
+ * yalnız KENDİ cümleciğinin cihazını ya da (cihazsızsa) son arızalı cihazı kapatır — başka cihazın düzelmesi arızayı silmez ("Klima hâlâ
+ * çalışmıyor, internet ise düzeldi" — Opus gece-2 M4, ölçüldü); düzelmeden SONRA gelen arıza ("düzeldi ama şimdi yine çalışmıyor") açar.
+ * "Düzeldi mi?" / "hallettik sandık" düzelme değildir. Cümleciğin BÜTÜN arıza geçişleri okunur. Doğrusal (cümlecik başına sınırlı tarama).
  */
-function textReportsFault(text: string): boolean {
-  let reported = false;
-  let previousSubject = false;
-  for (const clause of text.split(FAULT_CLAUSE_SPLIT).slice(0, MAX_FAULT_CLAUSES)) {
+export function faultDevicesOf(text: string): Set<string> {
+  const open = new Set<string>();
+  let lastFault: readonly string[] = [];
+  let subject: readonly string[] = [];
+  const parts = text.split(FAULT_CLAUSE_SPLIT);
+  for (let i = 0; i < Math.min(parts.length, MAX_FAULT_CLAUSES * 2); i += 2) {
+    const clause = parts[i];
     if (!clause || clause.trim() === "") continue;
-    const inheritsDevice = previousSubject;
-    previousSubject = deviceSubjectClause(clause);
+    const delimiter = parts[i + 1] ?? "";
+    const inherited = subject;
+    const own = deviceTopicsOf(topicsWithSymptomsOf(clause));
     const f = fold(clause);
-    if (FAULT_RESOLVED.test(f)) {
-      reported = false;
+    // Cihaz taşıyan ama arıza ifadesi / soru taşımayan öbek bir sonraki cümleciğin öznesi olabilir ("Klima, çalışmıyor", "Televizyon kendi
+    // kendine kapanıyor, bozuk", "Klima düzeldi ama şimdi yine çalışmıyor").
+    subject = own.length > 0 && !FAULT_PHRASE.test(f) && !NOT_A_SUBJECT.test(f) ? own : [];
+    if (resolvesFault(f, delimiter)) {
+      for (const t of own.length > 0 ? own : lastFault) open.delete(t);
       continue;
     }
-    if (deviceTopicsOf(topicsWithSymptomsOf(clause)).length === 0 && !inheritsDevice) continue;
+    const devices = own.length > 0 ? own : NON_DEVICE_SUBJECT.test(f) ? [] : inherited;
+    if (devices.length === 0) continue;
     if (FAULT_GUEST_OWNED.test(f)) continue;
+    let questioned = false;
     for (const m of f.matchAll(FAULT_PHRASE_ALL)) {
       const at = m.index ?? 0;
-      if (FAULT_CONDITION_TAIL.test(f.slice(at + m[0].length, at + m[0].length + 24))) continue;
+      const tail = f.slice(at + m[0].length, at + m[0].length + 24);
+      if (FAULT_QUESTION_TAIL.test(tail)) {
+        questioned = true;
+        continue;
+      }
+      if (FAULT_CONDITION_TAIL.test(tail) || FAULT_NEGATION_TAIL.test(tail)) continue;
       if (FAULT_CONDITION_LEAD.test(f.slice(Math.max(0, at - 160), at))) continue;
-      reported = true;
+      for (const t of devices) open.add(t);
+      lastFault = devices;
+      questioned = false;
       break;
     }
+    // Soru biçimli arızanın cihazı ardındaki çıplak arıza cümleciğinin öznesidir ("Klima çalışmıyor mu yoksa kapalı mı bilmiyoruz, soğutmuyor").
+    if (questioned && own.length > 0) subject = own;
   }
-  return reported;
+  return open;
+}
+
+/** Cümlecik bir düzelme söylüyor mu: soru ("düzeldi mi", "fixed?") ve sanı ("hallettik sandık") değil. */
+function resolvesFault(f: string, delimiter: string): boolean {
+  if (delimiter.includes("?")) return false;
+  for (const m of f.matchAll(FAULT_RESOLVED)) {
+    const at = (m.index ?? 0) + m[0].length;
+    if (!FAULT_RESOLVED_DOUBT.test(f.slice(at, at + 24))) return true;
+  }
+  return false;
 }
 
 export interface ItemRelationFacts {

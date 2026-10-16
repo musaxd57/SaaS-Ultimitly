@@ -107,6 +107,29 @@ describe("arıza sinyali (saf)", () => {
     ["Asansör var mı, bavulun tekerleği kırık", false],
     ["Asansör var mı, tekerlek kırık", false],
     ["el wifi no funciona", true],
+    // Opus gece-2 M4 (ölçüldü): başka cihazın düzelmesi arızayı silmez; soru / sanı düzelme değildir; büyük harf "AMA" bölünür
+    ["Klima hâlâ çalışmıyor, internet ise düzeldi.", true],
+    ["TV çalışmıyor, wifi ise sorunsuz çalışıyor artık.", true],
+    ["The TV is broken, the wifi works now though.", true],
+    ["Klima çalışmıyor. Düzeldi mi diye bakar mısınız?", true],
+    ["Klima çalışmıyor; düzeldi mi diye baktık, hâlâ aynı.", true],
+    ["Klima çalışmıyor, hallettik sandık ama olmadı.", true],
+    ["KLİMA ÇALIŞMIYOR AMA WİFİ DÜZELDİ", true],
+    ["Klima çalışmıyor mu yoksa kapalı mı bilmiyoruz, soğutmuyor.", true],
+    ["Bavul dolabının kilidi bozuk.", true],
+    ["Bulaşık makinesi su boşaltmıyor.", true],
+    ["The dishwasher won't drain.", true],
+    ["Wifi sürekli kopuyor.", true],
+    ["İnternet çok yavaş.", true],
+    // M4 yan notu + M7: olumsuzlama / soru / koşul ("durumunda / halinde") / onarıldı / telefon öznesi / misafirin evi
+    ["Televizyon bozuk değil, sadece kumandayı bulamadık.", false],
+    ["Klima çalışmıyor mu? Nasıl açılıyor?", false],
+    ["Wifi'ye bağlandık, telefon çekmiyor.", false],
+    ["Our TV at home is broken, does yours have Netflix?", false],
+    ["Klima arıza durumunda kimi arayalım?", false],
+    ["Klimada arıza halinde ne yapmalıyız?", false],
+    ["Klimanın arızası giderildi, teşekkürler.", false],
+    ["Klima çalışmadı ama sonra düzeldi.", false],
   ])("%j → %s", (q, want) => {
     expect(faultSignal(q, q)).toBe(want);
   });

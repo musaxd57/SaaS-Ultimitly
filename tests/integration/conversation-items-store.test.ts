@@ -223,6 +223,20 @@ describe("kodun eklediği arıza şikâyeti (fault_guard) misafirin vazgeçmesiy
     });
     expect((await prisma.conversationItem.findUnique({ where: { id: turn.find((i) => i.kind === "complaint_issue")!.id } }))?.status).toBe("open");
   });
+
+  it("kelime ağının KENDİ şikâyeti aynı satırda birleştiyse ('lexical,fault_guard') kapanmaz — Opus gece-2 M11", async () => {
+    const { conversationId, ids } = await seedConversation(orgId, propertyId, [["tv", "inbound", "Televizyon bozuk, berbat", 0], ["ok", "inbound", "düzeldi", 30]]);
+    const items = [
+      ...buildItemsForMessage({ requests: [{ intent: "appliance_help" }], lexicalLabels: [] }),
+      { requestIndex: 0, kind: "complaint_issue" as const, sensitivity: "sensitive" as const, riskType: "complaint", sources: ["lexical" as const, "fault_guard" as const], hint: "televizyon bozuk" },
+    ];
+    const turn = await upsertTurnItems(prisma, { organizationId: orgId, conversationId, now: at(1), messages: [{ messageId: ids[0], items }] });
+    expect(turn.find((i) => i.kind === "complaint_issue")?.sources).toEqual(["lexical", "fault_guard"]);
+    await applyWithdrawals(prisma, {
+      organizationId: orgId, conversationId, now: at(31), turnMessageIds: [ids[1]], withdrawals: [{ kind: "appliance_help", earlier: true }],
+    });
+    expect((await prisma.conversationItem.findUnique({ where: { id: turn.find((i) => i.kind === "complaint_issue")!.id } }))?.status).toBe("open");
+  });
 });
 
 describe("yerine geçme + e-posta devri", () => {

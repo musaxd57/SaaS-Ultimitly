@@ -227,7 +227,8 @@ async function faultGuardCompanions(
       where: { organizationId: input.organizationId, conversationId: input.conversationId, messageId, status: { in: OPEN_STATUSES } },
       select: { id: true, kind: true, sources: true },
     });
-    const companion = open.find((o) => o.kind === "complaint_issue" && o.sources.split(",").includes("fault_guard"));
+    // YALNIZ kodun eklediği şikâyet: kelime ağının kendi şikâyeti aynı satırda birleştiyse ("lexical,fault_guard") dokunulmaz (Opus gece-2 M11).
+    const companion = open.find((o) => o.kind === "complaint_issue" && o.sources.split(",").every((src) => src === "fault_guard"));
     if (!companion) continue;
     if (open.every((o) => o.id === companion.id || withdrawnIds.includes(o.id))) out.push(companion.id);
   }

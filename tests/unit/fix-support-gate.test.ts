@@ -98,6 +98,87 @@ describe("saf kural — kurucunun TV vakası ve ikizleri", () => {
   });
 });
 
+// Opus gece-2 (10-16 gece, ölçüldü) — anahtar AÇIK olduğunda kurucunun kuralının çekirdek vakaları geçiyordu.
+describe("Opus gece-2 M1: misafirin ARIZA bildirdiği cihaza adım TARİF ister (bilgi tabanında yalnız konu olması yetmez)", () => {
+  const mk = (items: { title: string; content: string }[]) => ({ recipeTopics: kbRecipeTopics(items), subjectTopics: kbSubjectTopics(items) });
+  const tvSubject = mk([{ title: "Televizyon", content: "TV kumandası sehpanın çekmecesindedir. Netflix uygulaması yüklüdür." }]);
+  const wifiSubject = mk([{ title: "Wi-Fi", content: "Ağ adı: Lale-5G, şifre: Lale2025." }]);
+
+  it.each([
+    ["Kumandadaki SOURCE tuşuna basıp HDMI 1'i seçin.", "Televizyonda görüntü yok", tvSubject],
+    ["Televizyonu kapatıp açabilirsiniz.", "Televizyonda görüntü yok", tvSubject],
+    ["Kumandanın pillerini değiştirin; pil çekmecede.", "Kumanda çalışmıyor", tvSubject], // kurucu k6-24
+    ["Modemin ışıklarını kontrol edebilir misiniz?", "İnternet çalışmıyor", wifiSubject],
+    ["Telefonunuzda ağı unutup yeniden bağlanın.", "Wifi bağlanmıyor", wifiSubject],
+    ["Please forget the network on your phone and reconnect.", "The wifi is not working", wifiSubject],
+  ])("🚨 TUTULUR: %j (misafir: %j)", (reply, guest, kb) => {
+    expect(unsupportedFixStep(reply, kb, guest)).toBe(true);
+  });
+
+  it("aşırı uygulama yok: aynı mesajdaki ARIZASIZ cihazın kullanım adımı ve başka konunun cevabı geçer", () => {
+    expect(unsupportedFixStep("Ağ adı Lale-5G; ağı seçip şifreyi girin.", wifiSubject, "TV çalışmıyor; wifi şifresi ne?")).toBe(false);
+    // kurucunun TV + çöp vakası: çöp cevabı arızalı TV'yi devralmaz
+    const trash = mk([{ title: "Çöp", content: "Çöp konteynerleri binanın arka tarafındadır." }]);
+    expect(unsupportedFixStep("Çöpleri binanın arkasındaki konteynere atabilirsiniz.", trash, "Televizyonda görüntü yok. Çöpleri nereye atıyoruz?")).toBe(false);
+    // arıza yokken aynı TV kullanım adımı geçer (TV konu)
+    expect(unsupportedFixStep("Netflix için kumandadaki Netflix tuşuna basın.", tvSubject, "Netflix var mı?")).toBe(false);
+  });
+});
+
+describe("Opus gece-2 M2: 5.1'in kibar / yabancı dil adım biçimleri adım sayılır (KB'de cihaz yok)", () => {
+  const kb = { recipeTopics: kbRecipeTopics(KB.slice(0, 2)), subjectTopics: kbSubjectTopics(KB.slice(0, 2)) }; // yalnız Wi-Fi + çöp
+  it.each([
+    ["Klimayı kapatıp açabilirsiniz.", "Klima çalışmıyor"],
+    ["Klimanın fişini çekebilirsiniz.", "Klima çalışmıyor"],
+    ["Klima kumandasındaki pilleri değiştirin.", "Klima çalışmıyor"],
+    ["Klimayı soğutma moduna alın.", "Klima soğutmuyor"],
+    ["Klimanın filtresinin temizlenmesi işe yarayabilir.", "Klima çalışmıyor"],
+    ["You can switch the AC off and on again.", "AC not working"],
+    ["Usually turning the AC off and on again helps.", "AC not working"],
+    ["The TV may need to be switched to HDMI 1.", "TV not working"],
+    ["Bitte starten Sie den Fernseher neu.", "Fernseher geht nicht"],
+    ["Schalten Sie die Klimaanlage aus und wieder ein.", "Klimaanlage funktioniert nicht"],
+    ["أطفئ المكيف ثم شغله مرة أخرى.", "المكيف لا يعمل"],
+    ["Televizyonun kaynağını HDMI 1 yapmanız yeterli.", "Televizyon çalışmıyor"],
+    ["Bulaşık makinesinin filtresini temizleyin.", "Bulaşık makinesi su boşaltmıyor"],
+    ["Modemi resetlemeniz gerekebilir.", "İnternet çalışmıyor"],
+  ])("🚨 TUTULUR: %j", (reply, guest) => {
+    expect(unsupportedFixStep(reply, kb, guest)).toBe(true);
+  });
+
+  it("aşırı uygulama yok: üçüncü şahıs bildirim ('ev sahibiniz görebilir') ve yerel öneri ('mutlaka deneyin') adım değildir", () => {
+    const keys = { recipeTopics: new Set<string>(), subjectTopics: new Set(["keys", "stove", "coffee"]) };
+    expect(unsupportedFixStep("Kapı kilidiyle ilgili mesajınız kaydedildi, ev sahibiniz görebilir.", keys, "Kapının kilidi takılıyor")).toBe(false);
+    const noKitchen = { recipeTopics: new Set<string>(), subjectTopics: new Set(["wifi"]) };
+    expect(unsupportedFixStep("Sahildeki kafede Türk kahvesini mutlaka deneyin.", noKitchen, "Kahve için nereye gidelim?")).toBe(false);
+    expect(unsupportedFixStep("Köşedeki fırının simitlerini mutlaka deneyin.", noKitchen, "Yakında ne var?")).toBe(false);
+    // ama cihaz eylemiyle anılan deneme önerisi adımdır (uygulama / ayar)
+    expect(unsupportedFixStep("Try the Netflix app on the TV.", noKitchen, "Is there Netflix?")).toBe(true);
+  });
+});
+
+describe("Opus gece-2 M3: kullanım adımı KENDİ cihazına bakar (Wi-Fi konusu klima adımını geçirmez)", () => {
+  const wifiOnly = { recipeTopics: kbRecipeTopics(KB.slice(0, 1)), subjectTopics: kbSubjectTopics(KB.slice(0, 1)) };
+  it("🚨 önceki cümlede / misafir mesajında Wi-Fi geçmesi KB'de olmayan klima kullanım adımını geçirmez (rakamla biten cümle de bölünür)", () => {
+    const step = "Klimayı açmak için kumandadaki MODE tuşuyla kar tanesini seçin.";
+    expect(unsupportedFixStep(step, wifiOnly, "Klimayı nasıl açarım?")).toBe(true);
+    expect(unsupportedFixStep(`Wi-Fi şifresi Lale2025. ${step}`, wifiOnly, "Klimayı nasıl açarım?")).toBe(true);
+    expect(unsupportedFixStep(step, wifiOnly, "Wifi şifresi ne? Klimayı nasıl açarım?")).toBe(true);
+  });
+  it("klima konuyken 'ısıtma / soğutma MODU' ısıtma tesisatına inmez; cihazsız ikinci cümle önceki cümlenin klimasını alır", () => {
+    expect(holds("Klima kumandası çekmecede. MODE tuşuyla soğutma ya da ısıtma modunu seçin.")).toBe(false);
+  });
+});
+
+describe("Opus gece-2 M8: başlık yalnız YER adlandırıyorsa ('Salon', 'Teras') metnin cihazları da konudur", () => {
+  it("'Salon' kalemindeki TV kullanım adımı geçer; 'Wi-Fi' kalemindeki 'TV ünitesinin altında' TV'yi konu yapmaz", () => {
+    const salon = [{ title: "Salon", content: "TV kumandası sehpadadır. Netflix için kumandadaki Netflix tuşuna basın." }];
+    expect(kbSubjectTopics(salon).has("tv")).toBe(true);
+    expect(unsupportedFixStep("Netflix için TV kumandasındaki Netflix tuşuna basın.", { recipeTopics: kbRecipeTopics(salon), subjectTopics: kbSubjectTopics(salon) })).toBe(false);
+    expect(kbSubjectTopics(KB.slice(0, 1)).has("tv")).toBe(false);
+  });
+});
+
 describe("anahtar + bağlam", () => {
   it("anahtar KAPALI: bağlam alanı HİÇ yazılmaz, kemer koşmaz (bayt bayt bugünkü)", () => {
     vi.stubEnv("AI_FIX_SUPPORT_GATE_ENABLED", "");
@@ -137,6 +218,39 @@ describe("QR kapısı paritesi (aynı yüklem)", () => {
   it("anahtar kapalı → bu gerekçe hiç üretilmez", () => {
     const v = evaluateEscalation(result, "Televizyonu nasıl açıyoruz?", null, [], fixSupportContextOf(KB));
     expect(v.reason).not.toBe("fix_unsupported");
+  });
+
+  it("QR kapısı misafirin MESAJINI okur: cihazı anılmayan adımın cihazı misafirden (mutasyon H9)", () => {
+    vi.stubEnv("AI_FIX_SUPPORT_GATE_ENABLED", "1");
+    const step = { ...result, reply: "Cihazı kapatıp 30 saniye bekleyin, sonra yeniden açın." };
+    // bilgi tabanında yalnız otopark tarifi var; misafirin cihazı klima → klima tarifi yok → devir (şikâyet sözcüğü yok: başka kapı tutmasın)
+    expect(evaluateEscalation(step, "Klimayı nasıl açarım?", null, [], fixSupportContextOf(KB))).toEqual({ escalate: true, reason: "fix_unsupported" });
+  });
+
+  it("koddan kurulan doğrulanmış müsaitlik / uzatma metni kemerden muaf (kanal kapısı paritesi — mutasyon H9)", () => {
+    vi.stubEnv("AI_FIX_SUPPORT_GATE_ENABLED", "1");
+    const text = "Ekranda görüntü yoksa kaynak girişinin (HDMI) doğru seçili olduğundan emin olur musunuz.";
+    for (const key of ["verifiedAvailability", "verifiedExtension"] as const) {
+      const v = evaluateEscalation({ ...result, reply: text }, "Televizyonu nasıl açıyoruz?", null, [], { ...fixSupportContextOf(KB), [key]: { text } });
+      expect(v.reason, key).not.toBe("fix_unsupported");
+    }
+  });
+});
+
+describe("kemerin bağlamı ve tavanı (mutasyon H5 / H6)", () => {
+  const acSubject = { recipeTopics: new Set<string>(), subjectTopics: new Set(["ac"]) };
+  it("cihazı anılmayan KULLANIM adımı önceki cümlenin ya da misafirin cihazını alır", () => {
+    expect(unsupportedFixStep("Klima kumandası çekmecede. MODE tuşuna basın.", acSubject)).toBe(false);
+    expect(unsupportedFixStep("MODE tuşuna basın.", acSubject, "Klimayı nasıl açarım?")).toBe(false);
+    // dayanak yoksa tutulur
+    expect(unsupportedFixStep("MODE tuşuna basın.", acSubject, "Televizyonu nasıl açarım?")).toBe(true);
+  });
+
+  it("taranan cümle sayısı sınırlı — çok uzun model metninde iş doğrusal ve küçük", () => {
+    const withRecipe = { recipeTopics: new Set(["ac"]), subjectTopics: new Set(["ac"]) };
+    const t0 = performance.now();
+    expect(unsupportedFixStep("Klimayı kapatıp açın. ".repeat(20_000), withRecipe, "Klima çalışmıyor")).toBe(false);
+    expect(performance.now() - t0).toBeLessThan(2_000);
   });
 });
 
