@@ -34,7 +34,11 @@ operatör panelinde kuyruk sağlığı + `EMAIL_OUTBOX_ENABLED` kapalıyken aç�
 sorular H10 (O1–O3). 10-16 sabah — O1 (misafir mesajı kuyruğunu açma) Opus hazırlık incelemesinin tek ENGEL'i kapandı: öğe kipinde "ev sahibiyle
 görüşmek istiyorum" cevabından sonra kuyruk yolu yapay zekâyı 12 saat susturuyordu, satır içi yol susturmuyor. Karar kuyruğa girişte satırla
 aynı işlemde işaretlenir (`outbox/handoff-exempt.ts`, göçsüz `SystemLock`); işaret yoksa kilit (güvenli yön). Teslimde turu yeniden kurma denemesi
-Haiku (tetik yetmez) ve Opus dilim kontrolü (B1 tehlikeli yön: bu geçiş öğe kipine girmedi ama turda eski öğe vardı; B2) ile çürütüldü. Açmadan önce bilinecek beş madde + O3 ölçülen kapsam H10'da. Ana dalda tip hatası (migration 68
+Haiku (tetik yetmez) ve Opus dilim kontrolü (B1 tehlikeli yön: bu geçiş öğe kipine girmedi ama turda eski öğe vardı; B2) ile çürütüldü.
+İşaret süresi dolunca satır hâlâ gidebiliyorsa uzar (Haiku: 402 ile günlerce bekleyen satır). CI #1505 rastlantısal kırmızı: olay günlüğü
+süzgeci cuid'deki 7+ rakam dizisini ("…l2070000n…", zaman damgası + sıfır dolgulu sayaç) telefon sanıp `outboxId`'yi düşürüyordu → tam cuid
+biçimli `outboxId` / `consentId` için dar muafiyet (en çok 9 rakam; telefon / TC uzunluğu yine düşer). Operatör paneline "son 24 saatte
+incelemeye düşen" sayacı; ev sahibi ekranı önerileri O5 / O6 soru. Açmadan önce bilinecek beş madde + O3 ölçülen kapsam H10'da. Ana dalda tip hatası (migration 68
 dünyasının alanı `act.ts`e taşınmıştı, çalışma zamanı etkisiz) origin hâline döndü.
 
 **10-15 öğleden sonra — V sonrası işler (kurucu "Vlerden sonra yapacağız dediklerimi yap, soru sorma"):** beş Opus araştırması
