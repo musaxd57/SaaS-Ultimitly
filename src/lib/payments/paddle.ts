@@ -163,7 +163,10 @@ export function paddleStatusToLocal(status: string | null | undefined): string {
     case "past_due":
       return "past_due";
     case "paused":
-      return "past_due"; // inactive but recoverable → not in ACTIVE_STATUSES
+      // Kurucu 10-16 (S4): duraklatma ≠ ödeme gecikmesi. Paddle duraklatılmış abonelikte işlem açmaz, ödeme toplamaz → ek süre (14 gün)
+      // YOK; erişim duraklatma olayıyla durur. Abonelik CANLI kalır (müşteri Paddle'da "devam et" diyebilir) → hesap silme yine engelli,
+      // yeni ödeme ekranı açılmaz.
+      return "paused";
     case "canceled":
       return "canceled";
     default:

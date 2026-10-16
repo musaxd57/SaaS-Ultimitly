@@ -118,7 +118,8 @@ describe("paddleStatusToLocal", () => {
     expect(paddleStatusToLocal("active")).toBe("active");
     expect(paddleStatusToLocal("trialing")).toBe("trialing");
     expect(paddleStatusToLocal("past_due")).toBe("past_due");
-    expect(paddleStatusToLocal("paused")).toBe("past_due"); // inactive, not in ACTIVE_STATUSES
+    // Kurucu 10-16 (S4): duraklatma ödeme gecikmesi DEĞİL — kendi durumu (ek süre yok; abonelik canlı → silme engelli).
+    expect(paddleStatusToLocal("paused")).toBe("paused");
     expect(paddleStatusToLocal("canceled")).toBe("canceled");
   });
 });

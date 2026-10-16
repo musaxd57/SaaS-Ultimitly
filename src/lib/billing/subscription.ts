@@ -32,7 +32,8 @@ const ACTIVE_STATUSES = new Set(["active", "trialing", "grandfathered"]);
 
 // Dunning grace: a `past_due` subscription is a paying customer whose renewal
 // card failed once and is inside Paddle's retry window — NOT a churned customer.
-// Cutting their features off instantly (Paddle maps past_due/paused here)
+// Cutting their features off instantly (Paddle maps past_due here; `paused` is its OWN local status since 10-16 — no grace, see
+// payments/paddle.ts paddleStatusToLocal)
 // violates the cardinal rule "never block a live customer", so keep them active
 // for a grace window. Paddle drives the dunning and sends `canceled` when it
 // finally gives up (which ends access). Bounded so a stuck past_due can't grant

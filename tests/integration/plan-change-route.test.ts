@@ -362,7 +362,20 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
     expect(updateMock).not.toHaveBeenCalled();
   });
 
-  it("SADECE canceled reddedilir — past_due/trialing/grandfathered plan değiştirebilir", async () => {
+  it("Kurucu 10-16 (S4): duraklatılmış abonelikte plan değişimi açık metinle REDDEDİLİR — Paddle'a HİÇ gidilmez", async () => {
+    await prisma.subscription.update({ where: { organizationId: orgId }, data: { status: "paused" } });
+    for (const [name, res] of [
+      ["preview", await PREVIEW(req({ planCode: "business" }), ctx)],
+      ["apply", await CHANGE(req({ planCode: "business", previewToken: tok("pri_isletme", "upgrade") }), ctx)],
+    ] as const) {
+      expect(res.status, name).toBe(400);
+      expect((await res.json()).fields?.error, name).toContain("duraklatılmış");
+    }
+    expect(previewMock).not.toHaveBeenCalled();
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
+  it("SADECE canceled / paused reddedilir — past_due/trialing/grandfathered plan değiştirebilir", async () => {
     // 🚨 Bu testin varlık sebebi: "active değilse reddet" gibi daha GENİŞ bir
     // kural, 14 günlük grace süresindeki (`past_due`) ödeyen bir müşteriyi plan
     // değiştiremez hâle getirirdi — arayüz ona izin verdiği hâlde. Kapının DAR

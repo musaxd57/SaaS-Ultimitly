@@ -15,13 +15,16 @@ import { Lock } from "lucide-react";
  */
 export function LimitedModeBanner({ status }: { status?: string }) {
   const pastDue = status === "past_due";
+  const paused = status === "paused";
   const canceled = status === "canceled";
   const message = pastDue
     ? "Son ödemeniz alınamadı — otomatik yanıtlar kapalı. Kart bilgilerinizi güncelleyerek hemen yeniden açabilirsiniz."
-    : canceled
+    : paused
+      ? "Aboneliğiniz duraklatıldı — otomatik yanıtlar kapalı. Aboneliğinizi devam ettirerek hemen yeniden açabilirsiniz."
+      : canceled
       ? "Aboneliğiniz iptal edildi — otomatik yanıtlar kapalı. Panelleri kullanmaya devam edebilirsiniz; yeniden başlatmak için bir plan seçin."
       : "Ücretsiz deneme süreniz doldu — otomatik yanıtlar kapalı. Panelleri kullanmaya devam edebilirsiniz; otomatik mesajlaşmayı açmak için bir plan seçin.";
-  const cta = pastDue ? "Aboneliği yönet" : "Planları görün";
+  const cta = pastDue || paused ? "Aboneliği yönet" : "Planları görün";
 
   return (
     <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-lg border border-amber-300 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-center text-sm text-amber-900 dark:text-amber-200">

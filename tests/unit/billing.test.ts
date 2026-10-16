@@ -259,6 +259,25 @@ describe("premiumAllowed — paid/AI feature gate (free-tier downgrade)", () => 
     expect(await premiumAllowed("o")).toBe(true);
   });
 
+  it("🚨 Kurucu 10-16 (S4): ENFORCED + paused → ANINDA kapalı (14 günlük ödeme gecikmesi süresi duraklatmaya verilmez)", async () => {
+    vi.stubEnv("BILLING_ENFORCED", "true");
+    findUnique.mockResolvedValue({
+      organizationId: "o",
+      planCode: "pro",
+      status: "paused",
+      currentPeriodEnd: new Date(Date.now() + 20 * 86_400_000), // dönem sonu ileride olsa da
+      pastDueSince: null,
+      updatedAt: new Date(),
+      createdAt: new Date(Date.now() - 60 * 86_400_000),
+    } as never);
+    expect(await premiumAllowed("o")).toBe(false);
+    expect((await getEntitlement("o")).status).toBe("paused");
+    // Kurucu ağı korunur.
+    vi.stubEnv("PRIMARY_ORG_ID", "founder-org");
+    findUnique.mockResolvedValue({ organizationId: "founder-org", planCode: "pro", status: "paused" } as never);
+    expect(await premiumAllowed("founder-org")).toBe(true);
+  });
+
   it("DORMANT: past_due allowed while BILLING_ENFORCED is off (even long past grace)", async () => {
     vi.stubEnv("BILLING_ENFORCED", "");
     findUnique.mockResolvedValue({

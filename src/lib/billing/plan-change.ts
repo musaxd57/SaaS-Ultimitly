@@ -122,6 +122,14 @@ export async function resolvePlanChange(
   // `BILLING_ALLOW_CANCELED_PLAN_CHANGE=1` → eski davranış birebir geri gelir.
   // (Env yokken koruma AÇIK; doğru varsayılan bu.) Kalıcı geri alma için commit
   // tek başına revert edilebilir.
+  // Kurucu 10-16 (S4): duraklatılmış abonelikte Paddle plan değişikliği yapmaz (önce devam ettirilmeli) — belirsiz cevapla nonce
+  // tüketmemek için Paddle'a gitmeden açık metin.
+  if (sub.status === "paused") {
+    return {
+      ok: false,
+      error: "Aboneliğiniz duraklatılmış. Plan değiştirmek için önce “Aboneliği yönet” bölümünden aboneliğinizi devam ettirin.",
+    };
+  }
   if (sub.status === "canceled" && process.env.BILLING_ALLOW_CANCELED_PLAN_CHANGE !== "1") {
     return {
       ok: false,

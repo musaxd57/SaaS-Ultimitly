@@ -137,6 +137,23 @@ describe("POST /api/webhooks/paddle", () => {
       expect((await prisma.webhookEvent.findUnique({ where: { providerEventId: "evt_old_cancel" } }))?.status).toBe("processed");
     });
 
+    it("🚨 Kurucu 10-16 (S4): Paddle 'paused' yerelde 'paused' olur (past_due DEĞİL) — ödeme gecikmesi süresi başlamaz; devam edince aktif", async () => {
+      const t0 = new Date(Date.now() - 120_000).toISOString();
+      const t1 = new Date(Date.now() - 60_000).toISOString();
+      const t2 = new Date().toISOString();
+      const activate = subEvent("evt_p_active", "sub_p", "active", t0);
+      expect((await POST(req(activate, sign(activate)))).status).toBe(200);
+      const pause = subEvent("evt_p_pause", "sub_p", "paused", t1);
+      expect((await POST(req(pause, sign(pause)))).status).toBe(200);
+      let sub = await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } });
+      expect(sub.status).toBe("paused");
+      expect(sub.pastDueSince).toBeNull();
+      const resume = subEvent("evt_p_resume", "sub_p", "active", t2);
+      expect((await POST(req(resume, sign(resume)))).status).toBe(200);
+      sub = await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } });
+      expect(sub.status).toBe("active");
+    });
+
     it("yeni abonelik AKTİFLEŞİNCE eskisinin yerine geçer; kayıtlı aboneliğin kendi iptali uygulanır", async () => {
       const a = subEvent("evt_a", "sub_a", "active", new Date(Date.now() - 120_000).toISOString());
       await POST(req(a, sign(a)));

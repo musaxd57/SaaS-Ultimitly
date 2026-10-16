@@ -218,6 +218,8 @@ export default async function AdminPage() {
         return { label: "Ücretsiz / iç hesap", tone: "gray" };
       case "past_due":
         return { label: "Ödeme bekliyor", tone: "amber" };
+      case "paused":
+        return { label: "Duraklatıldı", tone: "amber" };
       case "canceled":
         return { label: "İptal", tone: "red" };
       default:
