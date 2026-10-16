@@ -27,6 +27,11 @@ iki mutant (O1, D2b) kapandı; sorular §H.
 biçimleri; kullanım adımı kendi cihazına bakar; arıza okuması cihaz bazında (`faultDevicesOf`: düzelme yalnız kendi cihazını kapatır, soru /
 sanı düzelme değil). Anahtarsız iki düzeltme: istek tarafında TV belirtisi yalnız bağlayıcı türde (M6, gevşetiyordu) · görev tespitinde
 misafirin kendi eşyası aynı cümlecikte okunur (M5). Geçmişten öğren ad maskesi konuşma başına (M9). Mutasyon 21/24 + üç pin; soru H9.
+Opus üçüncü tur (P1-a/b, P2-a…d, P3): TV mobilyası / oda adı yer tarifi; arıza + BAŞKA soru turunda cihazsız cümle arızayı devralmaz (meşru
+cevapların %10'u tutuluyordu → %1,5); düzelme sırası cümlecik içinde; genel "görüntü" yalnız arıza yüklemiyle TV. Kurucu sorusu (10-16, dört
+görsel — transactional outbox): desen VAR (kimlik e-postası kuyruğu canlı, misafir mesajı kuyruğu hazır + kapalı, olay kuyruğu canlı);
+operatör panelinde kuyruk sağlığı + `EMAIL_OUTBOX_ENABLED` kapalıyken açılış uyarısı; plan `docs/TASARIM-2026-10-16-transactional-outbox.md`,
+sorular H10 (O1–O3).
 
 **10-15 öğleden sonra — V sonrası işler (kurucu "Vlerden sonra yapacağız dediklerimi yap, soru sorma"):** beş Opus araştırması
 `docs/arastirma-2026-10-15/` (idempotency · ödeme · takip numarası · yatay ölçek · deneme kötüye kullanımı). Müşteriye / misafire gideni

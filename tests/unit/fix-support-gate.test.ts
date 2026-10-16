@@ -237,6 +237,10 @@ describe("Opus gece-3 P1-b: arıza + BAŞKA soru turunda meşru cevaplar tutulma
     const tvSubject = { recipeTopics: new Set<string>(), subjectTopics: new Set(["tv"]) };
     expect(unsupportedFixStep("Kumandanın pillerini değiştirin.", tvSubject, "Kumanda çalışmıyor")).toBe(true);
     expect(unsupportedFixStep("Kumandadaki pilleri değiştirmek çözebilir.", tvSubject, "Televizyon açılmıyor")).toBe(true);
+    // cihazı misafirden devralan cümlede GENİŞ nezaket kipi adım değildir (mutasyon Q2)
+    expect(unsupportedFixStep("Bu arada dinlenebilirsiniz.", tvSubject, "Televizyonda görüntü yok.")).toBe(false);
+    // şifre / kurallar gibi GENEL kavram da cümlenin kendi konusudur — arızalı TV'yi devralmaz (mutasyon Q11)
+    expect(unsupportedFixStep("Şifreyi büyük harfle yazmanız gerekiyor.", tvSubject, "Televizyonda görüntü yok.")).toBe(false);
     // arızanın kendisi hakkında genel takip sorusu ("ne yapmalıyız?") BAŞKA soru sayılmaz — devralma sürer
     expect(unsupportedFixStep("Kumandanın pillerini değiştirin.", tvSubject, "Kumanda çalışmıyor, ne yapmalıyız?")).toBe(true);
     // arızalı cihaz önceki cümlede anıldıysa geniş biçim de adımdır ("panoya bakılabilir")

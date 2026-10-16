@@ -452,6 +452,20 @@ tarifsiz sayılan bazı arızaları cevaplanabilir yapar (misafire giden değiş
   ÖRNEK: "Bu konuda başka bir talimatım yok." → ÖNCE (bu gece) gider · SONRA gitmez, sana kalır. "Çıkış için özel talimatımız yok, anahtarı
   masaya bırakmanız yeterli." → ÖNCE de SONRA da gider. **Böyle yapalım mı?**
 
+### H10 · Kalıcı kuyruk (görseldeki "transactional outbox") — üç karar (10-16; ayrıntı `docs/TASARIM-2026-10-16-transactional-outbox.md`)
+Kısa cevap: sistem bizde VAR — kimlik e-postaları (kayıt doğrulama, şifre sıfırlama) iş verisiyle aynı işlemde kuyruğa yazılıyor ve 15 saniyede
+bir gönderiliyor (canlı); misafir mesajı kuyruğu hazır ama kapalı; olaylar (rezervasyon / mesaj) aynı işlemde yazılıyor. Bu gece eklenen: operatör
+panelinde "Kuyruk sağlığı" (kaç satır bekliyor, en eski ne kadar bekliyor) + şifre sıfırlama kuyruğu kapalıysa açılışta uyarı.
+- **O1 · Misafir mesajı kuyruğunu açalım mı (`DURABLE_OUTBOX_ENABLED=1`)?** Bugün: "işaretle → gönder → mesajı sonra kaydet"; gönderim ile kayıt
+  arasında süreç düşerse misafire giden mesaj bizde kayıtsız kalabilir. Açılınca: mesaj + gönderim niyeti tek işlemde, süreç düşse de niyet
+  kaybolmaz; "Gönderim Kuyruğu" ekranı hazır. ÖRNEK: 2 dk'lık senkron misafire oto-cevabı gönderirken sunucu yeniden başladı → ÖNCE: cevap gitmiş
+  olabilir ama panelde görünmez · SONRA: satır "Doğrulanamadı" olur, sağlayıcı geçmişinden kontrol edilir, kopya gönderilmez. Önerim: Railway
+  açılınca, ilk denemeler birlikte.
+- **O2 · Kuyruksuz üç bildirim e-postası** (elle rezervasyon "yeni rezervasyon", görev atama, demo talebi): sağlayıcı arızasında kaybolur, yalnız
+  hata uyarısı görünür. Önerim: yalnız görev atamasına "işaretle → gönder → olmazsa geri al" (migration'sız); genel bildirim tablosu şimdilik yok.
+- **O3 · Kuyruk birikme alarmı:** panel bakılmazsa birikme fark edilmez. Önerim: vadesi gelmiş satır 15 dk bekleyince sana tek e-posta (düzelince
+  temizlenir; diğer periyodik alarmlarla aynı kural). Yeni bir operatör e-postası olduğu için soruyorum.
+
 ### H7 · Küçük kalanlar (Opus D17 listesinden)
 - **O14 (yapıldı, haber):** Görevler sayfasındaki "Eksik görevleri oluştur (3)" düğmesindeki sayı GÖREV değil çıkış temizliği eksik REZERVASYON
   sayısıydı (düğme giriş hazırlığını da açtığı için bildirimde "5 görev oluşturuldu" çıkabiliyordu). Etiket artık "Eksik görevleri oluştur
