@@ -186,8 +186,9 @@ describe("POST /api/webhooks/paddle", () => {
       const paidStart = new Date(now - 30 * DAY).toISOString();
       const renewal = new Date(now - 60_000).toISOString(); // ödenmiş dönem az önce bitti
       const unpaidEnd = new Date(now + 30 * DAY).toISOString();
-      const active = periodEvent("evt_pd2_a", "active", new Date(now - 30 * DAY).toISOString(), paidStart, renewal);
+      const active = periodEvent("evt_pd2_a", "active", new Date(now - 120_000).toISOString(), paidStart, renewal);
       expect((await POST(req(active, sign(active)))).status).toBe(200);
+      expect((await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } })).currentPeriodEnd?.toISOString()).toBe(renewal); // aktif olay GERÇEKTEN uygulandı
       const pastDue = periodEvent("evt_pd2_pd", "past_due", new Date(now - 30_000).toISOString(), renewal, unpaidEnd);
       expect((await POST(req(pastDue, sign(pastDue)))).status).toBe(200);
       const sub = await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } });
@@ -206,12 +207,36 @@ describe("POST /api/webhooks/paddle", () => {
       }
     });
 
+    it("past_due olayında dönem BAŞI yoksa aynı aboneliğin kayıtlı ödenmiş dönem sonu korunur (olaydaki ileri tarih yazılmaz)", async () => {
+      const now = Date.now();
+      const paidEnd = new Date(now - 60_000).toISOString();
+      const active = periodEvent("evt_pd4_a", "active", new Date(now - 120_000).toISOString(), new Date(now - 30 * DAY).toISOString(), paidEnd);
+      await POST(req(active, sign(active)));
+      expect((await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } })).currentPeriodEnd?.toISOString()).toBe(paidEnd);
+      const noStart = JSON.stringify({
+        event_id: "evt_pd4_pd",
+        event_type: "subscription.past_due",
+        occurred_at: new Date(now - 1000).toISOString(),
+        data: {
+          id: "sub_pd2",
+          status: "past_due",
+          custom_data: { consentId },
+          items: [{ price: { id: "pri_pro" } }],
+          current_billing_period: { ends_at: new Date(now + 30 * DAY).toISOString() },
+        },
+      });
+      await POST(req(noStart, sign(noStart)));
+      const sub = await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } });
+      expect(sub.currentPeriodEnd?.toISOString()).toBe(paidEnd); // ⬅️ kayıtlı değer aday değilse: null ya da 30 gün ileri
+    });
+
     it("BİLİNEN SINIR (güvenli yön): dönem İÇİNDE düşen tahsilatta olay ödenmiş dönemi taşırsa yazılan değer dönem BAŞI → erişim kapanır, ek süre doğmaz", async () => {
       const now = Date.now();
       const start = new Date(now - 10 * DAY).toISOString();
       const end = new Date(now + 20 * DAY).toISOString();
-      const active = periodEvent("evt_pd3_a", "active", new Date(now - 10 * DAY).toISOString(), start, end);
+      const active = periodEvent("evt_pd3_a", "active", new Date(now - 120_000).toISOString(), start, end);
       await POST(req(active, sign(active)));
+      expect((await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } })).currentPeriodEnd?.toISOString()).toBe(end);
       const pastDue = periodEvent("evt_pd3_pd", "past_due", new Date(now - 1000).toISOString(), start, end);
       await POST(req(pastDue, sign(pastDue)));
       const sub = await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } });
