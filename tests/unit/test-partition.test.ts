@@ -62,4 +62,13 @@ describe("test kapısı bölümlemesi", () => {
   it("bu pin dosyası veritabanısız kolda (kendisi süre ölçen sayılmıyor)", () => {
     expect(p.nodb).toContain("tests/unit/test-partition.test.ts");
   });
+
+  it("🚨 aynı anda koşan iki kolda test süre sınırı 20 sn (CI #1517: işlemci paylaşımında ağır kâhin testi 5 sn'yi aştı); süre kolu varsayılanda", async () => {
+    const db = (await import("../../vitest.db.config")).default;
+    const nodb = (await import("../../vitest.nodb.config")).default;
+    const timing = (await import("../../vitest.timing.config")).default;
+    expect(db.test?.testTimeout).toBe(20_000);
+    expect(nodb.test?.testTimeout).toBe(20_000);
+    expect(timing.test?.testTimeout).toBeUndefined(); // süre ölçen kol tek başına, varsayılan sınır
+  });
 });

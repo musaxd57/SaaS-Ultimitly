@@ -17,5 +17,8 @@ export default defineConfig({
     pool: "forks",
     poolOptions: { forks: { minForks: 1, maxForks: workers } },
     env: { ...base.test?.env, DATABASE_URL: UNREACHABLE_DATABASE_URL },
+    // Veritabanlı kolla aynı gerekçe (`vitest.db.config.ts`): iki kol işlemciyi paylaşır, süre ölçen test bu kolda yok.
+    testTimeout: 20_000,
+    hookTimeout: 30_000,
   },
 });
