@@ -31,7 +31,11 @@ Opus üçüncü tur (P1-a/b, P2-a…d, P3): TV mobilyası / oda adı yer tarifi;
 cevapların %10'u tutuluyordu → %1,5); düzelme sırası cümlecik içinde; genel "görüntü" yalnız arıza yüklemiyle TV. Kurucu sorusu (10-16, dört
 görsel — transactional outbox): desen VAR (kimlik e-postası kuyruğu canlı, misafir mesajı kuyruğu hazır + kapalı, olay kuyruğu canlı);
 operatör panelinde kuyruk sağlığı + `EMAIL_OUTBOX_ENABLED` kapalıyken açılış uyarısı; plan `docs/TASARIM-2026-10-16-transactional-outbox.md`,
-sorular H10 (O1–O3).
+sorular H10 (O1–O3). 10-16 sabah — O1 (misafir mesajı kuyruğunu açma) Opus hazırlık incelemesinin tek ENGEL'i kapandı: öğe kipinde "ev sahibiyle
+görüşmek istiyorum" cevabından sonra kuyruk yolu yapay zekâyı 12 saat susturuyordu, satır içi yol susturmuyor; kuyruk artık TURU yeniden okur
+(son cevaptan sonraki misafir mesajları; acil / enjeksiyon turu hariç — `outbox/worker.ts` `itemsModeTurn`). Haiku tetiğin tek başına yetmediğini
+buldu; kırmızı-önce 5/8, mutasyon 9/9. Açmadan önce bilinecek beş madde + O3 ölçülen kapsam H10'da. Ana dalda tip hatası (migration 68
+dünyasının alanı `act.ts`e taşınmıştı, çalışma zamanı etkisiz) origin hâline döndü.
 
 **10-15 öğleden sonra — V sonrası işler (kurucu "Vlerden sonra yapacağız dediklerimi yap, soru sorma"):** beş Opus araştırması
 `docs/arastirma-2026-10-15/` (idempotency · ödeme · takip numarası · yatay ölçek · deneme kötüye kullanımı). Müşteriye / misafire gideni
