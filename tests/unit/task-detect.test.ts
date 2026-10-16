@@ -294,6 +294,18 @@ describe("kurucu D4 — arıza görev tespiti genişledi; soru / varsayım / olu
     expect(detect("Kendi kahve makinemiz bozuldu")).toBeNull();
   });
 
+  // Opus gece-2 M5 (ölçüldü — N6 düzeltmesinin gerilemesi): envanter DIŞI eşyada (şarj aleti, hoparlör, bebek arabası) cümlecikte cihaz yok;
+  // cümleciğin KENDİ sahiplik sözcüğü okunmuyor, sahte bakım görevi personel görünümüne düşüyordu (kurucu D4 "misafir eşyası bakım değildir").
+  it.each([
+    "Our own charger is broken",
+    "My own laptop charger doesn't work",
+    "Getirdiğimiz şarj aleti çalışmıyor",
+    "We brought our own speaker and it's not working",
+    "Kendi bebek arabamızın tekerleği kırıldı",
+  ])("🚨 misafirin kendi eşyası AYNI cümlecikte yazılıysa bakım görevi açılmaz: %j", (m) => {
+    expect(detect(m)).toBeNull();
+  });
+
   // Opus N7 (10-15 gece, ölçüldü): JS "I".toLowerCase() → "i"; büyük harfli Türkçe "ÇALIŞMIYOR" eşleşmiyordu.
   it("büyük harfli Türkçe: 'İNTERNET ÇALIŞMIYOR' görev açar, 'KLİMA ÇALIŞMIYOR' genel değil klima konusuyla", () => {
     expect(detect("İNTERNET ÇALIŞMIYOR")?.type).toBe("maintenance");

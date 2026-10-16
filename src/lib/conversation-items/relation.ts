@@ -67,18 +67,23 @@ export function topicsOf(text: string): string[] {
 }
 
 /**
- * Arızalı isteğin konuları: `requestTopics` + TV belirti adları (`TV_SYMPTOM` — "Ekranda görüntü yok" sorgusunda "televizyon" geçmeyebilir).
- * Yalnız arıza koruması kullanır (sentetik şikâyetin konusu → bırakılan cihaz kapısı).
+ * Arızalı isteğin konuları (yalnız arıza koruması — sentetik şikâyet öğesinin konusu): genel konu + TV belirti adları (`TV_SYMPTOM` —
+ * "Ekranda görüntü yok" sorgusunda "televizyon" geçmeyebilir). Sentetik şikâyet bağlayıcı türdür → konusu yalnız SIKILAŞTIRAN okumalara girer.
  */
 export function faultTopics(queryTr: string, queryOriginal: string, kind: ItemKind): string[] {
   return [...new Set([...topicsWithSymptomsOf(queryTr), ...topicsWithSymptomsOf(queryOriginal), ...(KIND_TOPICS[kind] ?? [])])].sort();
 }
 
-/** İsteğin konuları: Türkçe + özgün dildeki sorgu + türün kendi konusu. */
+/**
+ * İsteğin konuları: Türkçe + özgün dildeki sorgu + türün kendi konusu. TV belirti adları ("Ekranda görüntü yok" → tv) YALNIZ bağlayıcı türde
+ * (şikâyet / iade / ev sahibi talebi — hep hassas, hiç cevaplanmaz): onların konusu yalnız örtüşmeye ve bırakılan cihaz kümesine girer, ikisi de
+ * yalnız SIKILAŞIR (Haiku 10-15 gece). Cevaplanabilir istekte belirti adı OKUNMAZ — Opus gece-2 M6 (ölçüldü): orada konu üç GEVŞETEN okumaya da
+ * giriyordu (tarif var mı · kendi konusu var mı · cevaplanan konu bırakılan kümeden düşer); "Diyafonda görüntü yok" isteği TV tarifiyle
+ * cevaplanabilir oluyordu. Bilgi tabanı tarafı (`kbRecipeTopics`, `kbSubjectTopics`) genel `topicsOf` ile kalır (Opus N2).
+ */
 export function requestTopics(queryTr: string, queryOriginal: string, kind: ItemKind): string[] {
-  // İSTEK tarafı TV belirti adlarını da okur ("Ekranda görüntü yok" → tv): bırakılan cihaz kapısı ve örtüşme yalnız SIKILAŞIR (Haiku 10-15
-  // gece). Bilgi tabanı tarafı (`kbRecipeTopics`, `kbSubjectTopics`) genel `topicsOf` ile kalır — orada belirti adı GEVŞETİYORDU (Opus N2).
-  return [...new Set([...topicsWithSymptomsOf(queryTr), ...topicsWithSymptomsOf(queryOriginal), ...(KIND_TOPICS[kind] ?? [])])].sort();
+  const read = RELATION_ANCHOR_KINDS.has(kind) ? topicsWithSymptomsOf : topicsOf;
+  return [...new Set([...read(queryTr), ...read(queryOriginal), ...(KIND_TOPICS[kind] ?? [])])].sort();
 }
 
 /** Harf katlama (aksan, büyük harf, Türkçe ı/İ, Rusça ё): tehlike ve genel soru sözlükleri bu biçimde yazılır. */
@@ -126,10 +131,21 @@ const TV_SYMPTOM = new RegExp(
   "u",
 );
 
+/**
+ * Görüntülü başka cihazlar (Opus gece-2 M6): metin bunlardan birini anıyorsa "görüntü yok" TV belirtisi SAYILMAZ ("Diyafonda görüntü yok",
+ * "Kamera görüntüsü gelmiyor"). Katlanmış metin, sınırlı tekrar.
+ */
+const NON_TV_SCREEN = new RegExp(
+  `${L}(?:diyafon\\p{L}{0,6}|interkom\\p{L}{0,6}|intercom\\p{L}{0,2}|kamera\\p{L}{0,6}|camera\\p{L}{0,2}|doorbell\\p{L}{0,2}|kapi zili\\p{L}{0,4}|gegensprech\\p{L}{0,8}|interphone\\p{L}{0,2}|portero\\p{L}{0,2}|домофон\\p{L}{0,3})${R}`,
+  "u",
+);
+
 /** Cevap / arıza sinyali tarafının cihaz kavramları: genel konu çıkarımı + TV belirti adları (`TV_SYMPTOM`). */
 function topicsWithSymptomsOf(text: string): string[] {
   const topics = topicsOf(text);
-  return TV_SYMPTOM.test(fold(text)) && !topics.includes("tv") ? [...topics, "tv"] : topics;
+  if (topics.includes("tv")) return topics;
+  const f = fold(text);
+  return TV_SYMPTOM.test(f) && !NON_TV_SCREEN.test(f) ? [...topics, "tv"] : topics;
 }
 
 /**

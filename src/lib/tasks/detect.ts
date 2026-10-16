@@ -130,9 +130,11 @@ function siteOfClause(
   const original = originalClauses[clauseIndex];
   const device = original ? firstBreakdownDevice(original.text) : null;
   if (original && device) return { device, guestOwned: mentionsGuestOwnedItem(original.text) };
-  // Cihazı OLMAYAN cümlecikte sahiplik BİLİNMEZ → bildirim (Opus N6, 10-15 gece, ölçüldü: bütün mesaja düşülünce "Valizleri getirdik.
-  // Klimayı açtık, bozuldu" / "Televizyon kendi kendine kapanıyor, bozuk" görev açmıyordu — kurucu D4 "şüphede bildirim").
-  return { device: firstBreakdownDevice(message), guestOwned: false };
+  // Cihazı OLMAYAN cümlecikte sahiplik YALNIZ o cümlecikten okunur (Opus N6, 10-15 gece, ölçüldü: bütün mesaja düşülünce "Valizleri getirdik.
+  // Klimayı açtık, bozuldu" / "Televizyon kendi kendine kapanıyor, bozuk" görev açmıyordu — kurucu D4 "şüphede bildirim"). Cümleciğin KENDİ
+  // metnindeki sahiplik okunur (Opus gece-2 M5, ölçüldü: envanter dışı eşya "Our own charger is broken" / "Getirdiğimiz şarj aleti çalışmıyor"
+  // sahte bakım görevi açıyordu — kurucu D4 "misafir eşyası bakım değildir").
+  return { device: firstBreakdownDevice(message), guestOwned: original ? mentionsGuestOwnedItem(original.text) : false };
 }
 /**
  * Arıza sözcüğünün HEMEN SOLUNDAKİ cihaz (en çok 6 sözcük geri; Türkçede cihaz fiilden önce gelir): "Anahtarı aldık içeri girdik klima
@@ -220,6 +222,8 @@ export function detectOperationalTask(
   if (primary === null || primary.topic === GENERIC_AMENITY_TOPIC) {
     if (/I/.test(message) && TURKISH_LETTER.test(message)) {
       const alt = detectWith(message, ai, lowerForMatch(message, true));
+      // İkinci okumanın GENEL görevi alınmaz: genel kural (4) "I" harfine bağlı değil (sınıflandırıcı ve konu ağı özgün metni okur) — ilk okuma
+      // null iken ikinci okumanın genel görev bulması ölçülen hiçbir mesajda olmadı (Opus gece-2 M5 yan notu, gerekçeli ret).
       if (alt && alt.topic !== GENERIC_AMENITY_TOPIC) return alt;
     }
   }

@@ -316,6 +316,9 @@ envanterinden bir cihaz" = bakım görevi (cihaz envanteri ve olumsuzluk kuralla
 - Anahtar açıkken: cihaz + arıza ifadesi (yedi dil; "görüntü yok / siyah ekran" dahil) AYNI cümlecikte görülünce kod arızayı sana bırakır
   (şikâyet öğesi + tek e-posta); aynı mesajdaki bağımsız soru cevaplanır. Wi-Fi / otopark / anahtar arızası da (liste kipinde de) bilgi
   tabanı şartı olmadan cevaplanmaz. Misafir "düzeldi" deyince kodun açtığı iş kapanır (aynı mesajda başka açık istek yoksa).
+- Ölçüm (kayıtlı 1.115 tekil misafir mesajı, ücretli çağrı yok; üretimde anlama katmanının Türkçe sorgusuna bakar, burada mesajın kendisine):
+  85 mesaj arıza sayıldı; bilgi / konaklama / enjeksiyon / acil sınıflarında yanlış alarm 0. Bilinen sınır: cihaz sözlükte yoksa (davlumbaz,
+  blender) arıza sayılmaz.
 - Arıza SAYILMAYANLAR (Opus ölçtü, düzeltildi): "Otoparka rota gönderir misiniz?" · "Telefon çekmiyor, wifi şifresi ne?" · "Bavulumuzun
   tekerleği kırık, asansör var mı?" · "Arabamız bozuldu, otopark var mı?" · "bozuk para" · "Klima arıza yaparsa kimi arayalım?" · "Klima
   çalışmadı ama sonra düzeldi".

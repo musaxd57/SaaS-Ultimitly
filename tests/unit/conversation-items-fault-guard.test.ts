@@ -119,9 +119,48 @@ describe("TV belirti sözlüğü genel konu çıkarımına GİRMEZ (Opus N2 — 
     expect(topicsOf("Ev sahibiyle görüntülü görüşebilir miyiz?")).not.toContain("tv");
   });
 
-  it("İSTEK tarafı belirti adını okur (bırakılan cihaz yalnız sıkılaşır); bilgi tabanı tarafı okumaz (gevşetmez)", () => {
-    expect(requestTopics("ekranda görüntü yok", "", "appliance_help")).toContain("tv");
+  it("belirti adını yalnız BAĞLAYICI tür okur (şikâyet — yalnız sıkılaşır); cevaplanabilir istek ve bilgi tabanı okumaz (gevşetmez — Opus gece-2 M6)", () => {
+    expect(requestTopics("ekranda görüntü yok", "", "complaint_issue")).toContain("tv");
+    expect(requestTopics("ekranda görüntü yok", "", "appliance_help")).not.toContain("tv");
     expect(kbRecipeTopics([{ title: "Sık sorulanlar", content: "Ekranda görüntü yoksa kaynak tuşuyla HDMI girişini seçin." }]).has("tv")).toBe(false);
+    // görüntülü başka cihaz TV değildir
+    expect(requestTopics("diyafonda görüntü yok", "", "complaint_issue")).not.toContain("tv");
+    expect(requestTopics("kamera görüntüsü gelmiyor", "", "complaint_issue")).not.toContain("tv");
+    expect(touchesHeldDevice(["tv"], "Diyafonda görüntü yoksa sağdaki tuşa 3 saniye basılı tutun.")).toBe(false);
+  });
+
+  it("🚨 Opus gece-2 M6 (anahtarsız, ilişki kipi canlı): klima şikâyeti yanında 'Diyafonda görüntü yok' çözüm isteği TV tarifiyle cevaplanabilir OLMAZ", () => {
+    vi.stubEnv("AI_FAULT_GUARD_ENABLED", "");
+    const body = "Klima çalışmıyor. Diyafonda görüntü yok, nasıl düzeltirim?";
+    const { plan } = planOf(
+      body,
+      [
+        { intent: "complaint_issue", q: "klima çalışmıyor", relation: "own_topic" },
+        { intent: "appliance_help", q: "diyafonda görüntü yok", relation: "fix_request" },
+      ],
+      ["tv"],
+    );
+    expect(plan.answerable).toEqual([]);
+    // "Ekranda görüntü yok" (cihaz adı yok) da tarif sayılmaz → bağlı
+    const screen = planOf(
+      "Klima çalışmıyor. Ekranda görüntü yok.",
+      [
+        { intent: "complaint_issue", q: "klima çalışmıyor", relation: "own_topic" },
+        { intent: "appliance_help", q: "ekranda görüntü yok", relation: "fix_request" },
+      ],
+      ["tv"],
+    );
+    expect(screen.plan.answerable).toEqual([]);
+  });
+
+  it("şikâyetin kendisi belirtiyle yazıldıysa ('ekranda görüntü yok') bırakılan cihaz TV olur — anahtarsız, yalnız sıkılaşır", () => {
+    vi.stubEnv("AI_FAULT_GUARD_ENABLED", "");
+    const { plan } = planOf("Ekranda görüntü yok. Çöpleri nereye atıyoruz?", [
+      { intent: "complaint_issue", q: "ekranda görüntü yok", relation: "own_topic" },
+      TRASH,
+    ]);
+    expect(plan.answerable.map((a) => a.item.kind)).toEqual(["trash"]);
+    expect(plan.gateItems.heldDeviceTopics).toEqual(["tv"]);
   });
 
   it("cevap tarafında belirti adı TV'dir (bırakılan TV kapısı); 'görüntülü' değildir", () => {
