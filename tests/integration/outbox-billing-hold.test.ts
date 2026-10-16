@@ -86,7 +86,8 @@ describe("abonelik erişimi kapalı işletmenin kuyruktaki otomatik mesajı", ()
     await enqueue(orgId, conversationId, "ai", "ai-1");
     await enqueue(orgId, conversationId, "host", "host-1");
     const { send, sent } = counter();
-    await drainOutboxOnce({ send, tokenFor: async () => "t" });
+    const first = await drainOutboxOnce({ send, tokenFor: async () => "t" });
+    expect(first.claimed).toBe(1); // otomatik satır TALEP bile edilmez (gönderim anı kemeri ikinci katman)
     await drainOutboxOnce({ send, tokenFor: async () => "t" });
     expect(sent).toEqual(["manual"]); // ⬅️ ESKİDE ["ai", "manual"]
     const ai = await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId, messageType: "ai" } });
