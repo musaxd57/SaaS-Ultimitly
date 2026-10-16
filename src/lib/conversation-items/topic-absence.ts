@@ -145,9 +145,9 @@ export function stripTopicAbsence(input: {
       if (!touchesHeld && refs.length === 0) return { ok: false, reason: "unattributed" };
       for (const r of refs) dropped.add(r);
     }
-    // Ayıklama olmayan satır aynen (sondaki boşluk kırpılır); olan satır iki uçtan kırpılır, boş kaldıysa TAMAMEN düşer. Satır satır
-    // kırpma doğrusal (`[ \t]+\n` kalıbı uzun boşluk dizisinde karesel — CLAUDE.md ReDoS dersi).
-    if (!touched) outLines.push(lines[li].trimEnd());
+    // Ayıklama olmayan satır AYNEN; olan satır iki uçtan kırpılır, boş kaldıysa TAMAMEN düşer. Satır satır kırpma doğrusal
+    // (`[ \t]+\n` kalıbı uzun boşluk dizisinde karesel — CLAUDE.md ReDoS dersi).
+    if (!touched) outLines.push(lines[li]);
     else if (text.trim()) outLines.push(text.trim());
   }
   const reply = outLines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
