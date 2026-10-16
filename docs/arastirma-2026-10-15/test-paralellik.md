@@ -51,3 +51,24 @@ bekleme ile işlemciyi ayırmıyor); ama PostgreSQL CPU'sunun ~%0,5 olması bekl
    paralellik ARTIRILMAZ (bir testin `resetDb` temizliği diğerinin verisini siler). Yalıtım ayrı bir iş: işçi başına şema + kanıt testi.
 4. Beklenen kapı: ~1.650 sn (veritabanlı kol) + süre testleri (ölçülecek) + build. Kararlılık: veritabanısız kol 4 işçide 3 koşudan 1'inde
    tek süre pini kırmızı → 2. madde bunu kaldırır.
+
+## 10-16: uygulandı — `npm test` = paralel kapı (kurucu: "3 ve 4 işçiyi karşılaştır; daha hızlı ve kararlı bitireni seç")
+
+Düzen (`scripts/test-gate.mjs`, sınıflama `tests/test-partition.mjs`): veritabanlı kol TEK SIRA (413 dosya, `globalSetup`) + veritabanısız kol N
+işçi (513 dosya, ulaşılamaz `DATABASE_URL`) AYNI ANDA; ikisi bitince süre ölçen kol (52 dosya: `*-cost/-perf` + `performance.now()`/
+`Date.now() - x` ile `toBeLessThan`) tek başına. Geri dönüş: `npm run test:serial` (eski seri düzen, ana `vitest.config.ts` değişmedi).
+
+| Koşu | İşçi | Toplam | Veritabanlı | Veritabanısız | Süre testleri | Sonuç |
+|---|---|---|---|---|---|---|
+| W3a | 3 | 1.790 sn | 1.680 | 241 | 110 | yeşil |
+| W3b | 3 | 1.766 sn | 1.661 | 264 | 105 | yeşil |
+| W4a | 4 | 1.931 sn | 1.820 | 229 | 111 | yeşil |
+| W4b | 4 | 1.778 sn | 1.674 | 212 | 104 | yeşil |
+
+- **Seçim: 3 işçi** (varsayılan, `TEST_NODB_WORKERS` ile değişir). Ortalama 3 işçi 1.778 sn (fark 24 sn) · 4 işçi 1.855 sn (fark 153 sn).
+  4 işçide veritabanısız kol ~30 sn kısalıyor ama 4 çekirdekli makinede veritabanlı kolu (darboğaz) yavaşlatabiliyor (W4a +140 sn).
+- Eski seri kapının test adımı (`g65`, aynı makine) 2.163 sn → paralel ~1.780 sn: **~%18 kısa** (~6,5 dk).
+- Kararlılık: 4 koşunun 4'ü yeşil; süre testleri tek başına koştuğu için hiçbir süre pini kırmızı olmadı (10-15 ölçümünde 4 işçi + süre
+  testleri birlikte koşunca bir süre pini kırmızıydı).
+- Not: W3b ve W4b koşarken aynı makinede kısa birim testi / betik koşuları da vardı (birkaç saniye); sıralama değişmedi.
+- CI (`ubuntu-latest`, 4 vCPU) aynı `npm test`i koşar.

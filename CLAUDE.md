@@ -241,6 +241,9 @@ Landing: 3-seviye kartlar + canlı demo. KVKK: export, retention, erasure (bayra
 - **`docs/TEST-EVIDENCE-CONTRACT.md` bağlayıcı**: K2 için kırmızı-önce · kaldırma mutasyonu · aşırı-uygulama
   kontrolü · integration · tam kapılar; rapor KOD/CI/DEPLOY/PROD ayrı; "test gerekmiyor" gerekçeli.
 - **Codex protokolü:** doğruysa uygula, daha iyisini biliyorsan gerekçeyle reddet; son karar karşılıklı.
+- **`npm test` = PARALEL KAPI (kurucu 10-16, `scripts/test-gate.mjs`):** veritabanlı kol tek sıra + veritabanısız kol 3 işçi AYNI ANDA,
+  süre ölçen testler (`*-cost/-perf` + `performance.now()`/`toBeLessThan`) en sonda tek başına; sınıflama `tests/test-partition.mjs`
+  (yeni `integration` dosyası varsayılan veritabanlı kol). Geri dönüş: `npm run test:serial` (eski seri düzen). Ölçüm `docs/arastirma-2026-10-15/test-paralellik.md`.
 - **🚨 Tam suit koşarken BAŞKA vitest KOŞMA:** `tests/global-setup.ts` her `vitest run`'da PG 5433'ü `stop -m
   immediate` + `initdb` ile sıfırlar → paralel koşu süren suit'in DB'sini öldürür (ölçüldü: 42–59 sahte kırmızı
   dosya). Mutasyon script'leri de vitest'tir. Süreç öldürürken `pkill -f "vitest run"` YETMEZ (kendi kabuğunla
