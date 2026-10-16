@@ -654,7 +654,7 @@ export default async function AdminPage() {
             <p className="text-sm font-medium">Ödeme incelemesi</p>
             <p className="text-xs text-muted-foreground">
               Fatura yazılamayan ya da hiçbir işletmeye bağlanamayan ödeme olayları burada kalır (olay kaybolmaz). Her satırda yapılacak iş
-              yazılı; Paddle'dan yeniden gönderim aynı veriyi getirir.
+              yazılı; Paddle&apos;dan yeniden gönderim aynı veriyi getirir.
             </p>
             {paymentReview === null ? (
               <p className="text-xs text-destructive">Ödeme incelemesi okunamadı.</p>
