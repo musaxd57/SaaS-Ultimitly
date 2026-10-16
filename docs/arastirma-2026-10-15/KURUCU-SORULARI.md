@@ -554,3 +554,37 @@ Kararların özü (aynen kaydı oturum notlarında; burada yalnız ne yapıldı�
   "Aboneliği devam ettir" düğmesi (Paddle API ile; kod + ödeme akışı, ilk denemeler birlikte). Önerim A, Paddle panelinde portal bir kez
   kontrol edildikten sonra gerekirse C.
 
+
+## J. Kurucu kararları 10-16 öğleden sonra (Codex incelemesi + açık kararlar) — uygulama durumu ve sorular
+
+| Karar | Durum |
+|---|---|
+| Ödeme: ek 14 gün yok; ödenmiş dönem bitince ücretli işler durur, ödeme doğrulanınca açılır | ✅ kodda (`billing/subscription.ts`); Opus N1: Paddle `past_due` olayı dönem sonunu ÖDENMEMİŞ döneme taşıyabiliyordu → yazılan değer yalnız dönem başı (`webhooks/paddle/route.ts`), uçtan uca test |
+| Ödeme: körlemesine yeniden ödeme yok | ✅ zaten vardı (canlı abonelikte yeni ödeme ekranı arayüzde + sunucuda kapalı, "Aboneliği yönet"); "önce mevcut işlemi kontrol et" → J4 |
+| Elle mesaj: kalıcı kuyruk + hızlı uyandırma, 2 dk varsayılan değil | ✅ `kickOutboxDrain` (ölçüm p50 23 ms / p95 36 ms, 20 farklı misafir, yerel PG + sağlayıcı taklit); "yeniden dene" de hızlı; ayrı servis gerekmedi |
+| QR: kilit yenileme + işlem sırasında sahiplik kaybı + kalıcı tekillik, eski işçi çalışırken ikinci işçi testleri | ✅ nabız + her ücretli adımdan (kota, getirme, model, yeniden yazdırma, bekçi, daire sayacı) önce eşzamanlı yenileme; süpürülmüş ama alınmamış kilit yeniden alınır |
+| Kuyruk anahtarları ayrı, ne yaptıkları açık | ✅ `DURABLE_OUTBOX_*` (yeni işi kuyruğa alma) ≠ `OUTBOX_DELIVERY_PAUSED` (bekleyeni duraklat); yönetim sayfası + `DEPLOYMENT.md` §6 |
+| Arıza önceliği yapay zekâdan / H2-H9 örnekleri | tasarım + örnekler `docs/TASARIM-2026-10-16-faz3-konu-bazli-cevap.md` (kod yok, onay bekliyor) |
+
+Mutasyon: 18 + 6 mutant; yaşayanlar gerekçeli (aşağıdaki durum dosyası). Opus N1–N9 + Haiku 8 bulgusu işlendi (N1'de "yalnız kayıtlı değer"
+önerisine itiraz: Paddle yeni dönemi önce "aktif" olayıyla yazarsa sızıntı geri gelir).
+
+### Sorular (10-16 öğleden sonra)
+- **J1 · Duraklatma kapsamı:** "yeni işi kuyruğa alma" kapanınca mesaj DURMAZ, anında gider; "bekleyeni duraklat" yalnız kuyruktakini durdurur
+  (listede olmayan işletmenin anında gönderimi sürer). Üçüncü bir "bütün misafir gönderimlerini durdur" şalteri ister misiniz? (önerim: evet)
+- **J2 · Duraklatmada ev sahibine ipucu (metin):** ÖNCE "Sıraya alındı" · SONRA "Sıraya alındı — gönderim geçici olarak durduruldu; durdurma
+  kalkınca gidecek."
+- **J3 · Ödeme gecikmesinde önceden uyarı bandı (metin):** "Son ödemeniz alınamadı. Ödenmiş döneminiz 1 Kasım'da bitiyor; bu tarihten sonra
+  otomatik yanıtlar durur. Kart bilgilerinizi güncelleyin." (bugün kapanmadan önce bant yok; kapanınca dairedeki QR da kapanır)
+- **J4 · "Önce mevcut işlem kontrol edilsin":** erişim kapalı + `past_due` iken Faturalandırma açılınca sunucu Paddle'dan aboneliği okusun
+  (10 dk'da en çok bir), "active" ise yerel kayıt düzelsin — otomatik mi, "Ödememi kontrol et" düğmesi mi? (anahtar kapalı doğar, sandbox birlikte)
+- **J5 · Dönem içi düşen tahsilat:** dönem ilerlemeden düşen tahsilatta erişim hemen kapanır (ek süre doğmayan yön); kesin çözüm ayrı
+  "ödenmiş dönem sonu" alanı (migration). Sandbox'a kadar böyle kalsın mı?
+- **J6 · Erişimi kapanmış `past_due` müşteri plan değiştirebiliyor** (eskiden de): kapansın mı? Metin önerisi: "Ödemeniz alınamadığı için şu
+  anda plan değiştirilemez. Önce kart bilgilerinizi güncelleyin."
+- **J7 · Paddle sandbox (birlikte):** (a) reddedilen yenilemede `past_due` yükünde dönem ilerliyor mu, (b) çift ödeme (Codex C1) için sunucunun
+  açtığı tek işlem (`transactionId`).
+- **J8 · RiskEvent saklama:** konuşma kimliği taşıdığı için takma adlı kişisel veri (Codex C6); öneri: `DATA_RETENTION_MONTHS` sonrası konuşma
+  kimliği boşaltılsın (istatistik kalır). Avukat paketine de giriyor.
+- **J9 · Örnek ortam dosyasındaki kaldırılmış `BILLING_PAST_DUE_GRACE_DAYS` satırı** (kural gereği .env* dosyalarını açmıyorum).
+- Açık kalanlar: I1 · I3 · I4 (yukarıda); I2 kapandı (ek süre yok).
