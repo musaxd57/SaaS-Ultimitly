@@ -85,6 +85,11 @@ export async function POST(req: NextRequest) {
             AND "role" = 'owner' AND "sessionEpoch" = ${epoch}
           FOR UPDATE`;
         if (owner.length === 0) return "session_revoked";
+        // Opus F2 (10-16): abonelik satırı da KİLİTLENİR. Ödeme olayının güncellemesi işletme satırının kilidine takılmaz (yabancı anahtar
+        // değişmiyor); kilitsiz okumadan SONRA, kademeli silmeden ÖNCE commit olan ödemeli güncelleme "işlendi" sayılıp alarmsız düşüyordu.
+        // Kilitle: güncelleme bu silmenin sonucunu bekler → satır gitmiş → 0 satır → işletme yok → alarm + inceleme (webhook S2 dalı). Ters
+        // sırada (güncelleme önce commit) bu okuma güncel durumu görür → 409.
+        await tx.$queryRaw`SELECT "id" FROM "Subscription" WHERE "organizationId" = ${session.organizationId} FOR UPDATE`;
         if (await hasBillableSubscription(session.organizationId, tx)) return "billable_subscription";
         return null;
       },

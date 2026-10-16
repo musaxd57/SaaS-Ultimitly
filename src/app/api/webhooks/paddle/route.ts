@@ -401,8 +401,9 @@ async function applySubscriptionEvent(
     if (resU.count === 1) await settlePending();
     else if (paying && !(await prisma.organization.findUnique({ where: { id: organizationId }, select: { id: true } }))) {
       // 🚨 U42 / ödeme S2: 0 satır İKİ şey demek olabilir — daha taze olay zaten yazılmış (bayat, sessiz düşer) YA DA işletme bu olay
-      // işlenirken SİLİNDİ (abonelik kademeyle gitti). İkincisinde ödeme alınmış olabilir → alarm + inceleme. Silme tarafı kendi kilidiyle
-      // aktif aboneliği görürse 409 der (`account/delete`), yani güncelleme yazdıysa silme olmaz; burada yalnız ters sıra kalır.
+      // işlenirken SİLİNDİ (abonelik kademeyle gitti). İkincisinde ödeme alınmış olabilir → alarm + inceleme. Silme tarafı ön kontrolde
+      // abonelik satırını KİLİTLER (`account/delete`, Opus F2): güncelleme önce commit olduysa silme onu görüp 409 der; silme kilidi
+      // aldıysa güncelleme bekler ve buraya 0 satırla düşer.
       await alertUnlinkedPayment("subscription", data, "işletme silindi (olay işlenirken)");
       return { review: "org_deleted" };
     }
