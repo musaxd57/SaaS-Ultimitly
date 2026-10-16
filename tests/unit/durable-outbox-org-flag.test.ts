@@ -73,11 +73,17 @@ describe("O1 liste anahtarı — gönderim kararları işletmeye göre (kaynak p
     }
   });
 
-  it("automation.ts: küresel çağrı YALNIZ okuma süzgecinde (teslim edilmemiş taslak ayıklama) — tek yer", () => {
+  it("automation.ts: küresel anahtar çağrısı YOK — okuma süzgeci kuyruk varlığına bağlı (Opus F3), gönderim dalları işletmeye göre", () => {
     const src = read("src/lib/automation.ts");
-    expect(globalCalls(src)).toBe(1);
-    expect(src).toMatch(/const anyUndeliveredOutbound =\s*\n\s*durableOutboxEnabled\(\) &&/);
+    expect(globalCalls(src)).toBe(0);
+    expect(src).toMatch(/const anyUndeliveredOutbound =\s*\n\s*\(await undeliveredFilterActive\(\)\) &&/);
     // Gönderim dalları: nezaket, kanal oto-yanıtı, karşılama / giriş / çıkış (her biri iki satır: silme bekçisi + kuyruk) = 8.
     expect((src.match(/durableOutboxEnabledFor\(/g) ?? []).length).toBe(8);
+  });
+
+  it("operator-replies.ts: selam sayımı süzgeci de kuyruk varlığına bağlı (anahtar kapatılınca kapanmaz)", () => {
+    const src = read("src/lib/operator-replies.ts");
+    expect(globalCalls(src)).toBe(0);
+    expect(src).toMatch(/if \(!\(await undeliveredFilterActive\(\)\)\) return \[\];/);
   });
 });

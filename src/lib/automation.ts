@@ -175,7 +175,8 @@ import { premiumAllowed } from "@/lib/billing/subscription";
 import { errorWithContext, redactSensitive, reportError } from "@/lib/report-error";
 import { redactNameFromBody } from "@/lib/data-retention";
 import { sendOnChannel, isDefinitiveSendFailure } from "@/lib/messaging";
-import { durableOutboxEnabled, durableOutboxEnabledFor } from "@/lib/outbox/flag";
+import { durableOutboxEnabledFor } from "@/lib/outbox/flag";
+import { undeliveredFilterActive } from "@/lib/outbox/presence";
 import { enqueueOutbound, enqueueProactive } from "@/lib/outbox/enqueue";
 import { classifySendResult, sendFailureHoldMs, SUPERSEDED_BY_NEWER_MESSAGE, NOT_DELIVERED_STATUSES, PROVIDER_OUTAGE_REASON } from "@/lib/outbox/state";
 import { resolveOrgChannelCredential } from "@/lib/channels";
@@ -1819,8 +1820,10 @@ export async function applyChannelAutoReply(
   // maliyeti BİREBİR aynı kalır.
   const tailLooksUndelivered = rawLast.direction === "outbound" && !rawLast.externalId;
   // Konuşma çapında: okunmamış eski kısımda da (kesitin dışında) aynı biçimli satır aranır — bugünkü tetikleyiciyle aynı.
+  // Opus F3 (10-16): anahtar kapatıldıktan sonra da kuyrukta satır kaldıysa süzgeç açık (`outbox/presence.ts`) — yoksa geri dönüşte
+  // ulaşmamış cevap modele "verilmiş" görünürdü. Kuyruk hiç kullanılmadıysa maliyet tek birincil anahtar yoklaması.
   const anyUndeliveredOutbound =
-    durableOutboxEnabled() &&
+    (await undeliveredFilterActive()) &&
     (thread.rows.some((m) => m.direction === "outbound" && !m.externalId) ||
       (!thread.complete && (await undeliveredShapedOutboundBefore(conversation.id, thread.rows[0]))));
   let undeliveredIds: ReadonlySet<string> = new Set<string>();

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { durableOutboxEnabled } from "@/lib/outbox/flag";
+import { undeliveredFilterActive } from "@/lib/outbox/presence";
 import { NOT_DELIVERED_STATUSES } from "@/lib/outbox/state";
 import { notAutomationMessageWhere } from "@/lib/message-author";
 import { closableAfter } from "@/lib/ai/closing-turn";
@@ -17,7 +17,8 @@ export const PRIOR_OPERATOR_REPLY_WHERE = { direction: "outbound", systemEventTy
  * Kuyruk kapalıyken tablo boştur → sorgu YOK (bugünkü maliyet). `Message` ile kuyruk satırı arasında ilişki yok; bağ `messageId`.
  */
 async function undeliveredOutboundIds(conversationId: string): Promise<string[]> {
-  if (!durableOutboxEnabled()) return [];
+  // Anahtar kapatıldıktan sonra da (kuyrukta satır kaldıysa) süzgeç açık kalır (Opus F3, `outbox/presence.ts`).
+  if (!(await undeliveredFilterActive())) return [];
   const rows = await prisma.messageOutbox.findMany({
     where: { conversationId, status: { in: [...NOT_DELIVERED_STATUSES] }, messageId: { not: null } },
     select: { messageId: true },

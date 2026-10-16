@@ -109,7 +109,12 @@ Listeden çıkarılan işletmenin bekleyen satırı yine bir kez gider. Kaynak p
 - QR tekrar kaydı (10-16): eski sürüm yeni biçimli kilidi (`özet.jeton` / `done:özet`) "farklı içerik" sanar → dönüşten sonraki 24 saat içinde
   aynı isteğin tekrarı tekilleşmek yerine 409 alır (misafir yeniden yazınca yeni kimlikle işlenir). Veri kaybı yok; kayıt 24 saatte kendiliğinden düşer.
 
+**✅ Kapandı (Opus F3, 10-16, migration'sız):** iki "teslim edilmemiş taslak" süzgeci artık ana anahtara değil KUYRUK SATIRININ VARLIĞINA
+bağlı (`outbox/presence.ts`): anahtar kapatıldıktan sonra kuyrukta satır kaldıysa süzgeç açık kalır (ulaşmamış cevap modele "verilmiş"
+görünmez, selam sayımı doğru). Kuyruk hiç kullanılmadıysa maliyet tek birincil anahtar yoklaması. Testler `operator-replies-outbox-rollback`.
+Aşağıdaki dizin sorusu yalnız MALİYET içindir (davranış artık dizinden bağımsız).
+
 **Açık kalan (Seçenek A, kurucu "dizinin neyi garanti ettiğini görmeden son onay yok"):** geri dönüşten sonra iki "teslim edilmemiş taslak" süzgeci
-ana anahtara bağlı kalıyor. Dizin (migration) TEK BAŞINA bekleyen mesajı ya da işçiyi yönetmez; yalnız süzgecin her zaman açık olabilmesini
+ana anahtara bağlı kalıyordu (↑ kapandı). Dizin (migration) TEK BAŞINA bekleyen mesajı ya da işçiyi yönetmez; yalnız süzgecin her zaman açık olabilmesini
 ucuzlatır (konuşma başına kuyruk sorgusu dizinle tek atlama). Garanti ettiği: anahtar kapandıktan sonra iptal / başarısız kalmış taslak modele
 "verilmiş cevap" gibi girmez. Garanti etmediği: teslim, yeniden deneme, sıralama (bunlar zaten boşaltmada).
