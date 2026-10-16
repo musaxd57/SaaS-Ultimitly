@@ -832,7 +832,7 @@ model KnowledgeBaseItem {
   /// A5: bir öneri kabul edilince eski kalem yenisiyle işaretlenir (iz kaybı yok).
   /// FK YOK — KB silme HARD DELETE'tir, FK silmeyi kilitlerdi (V0.4 provenance ile aynı gerekçe).
   supersededById  String?
-  /// İçe aktarma tekrar güvenliği (migration 65, kurucu 10-14 "İstek kimliği"): istemcinin kalem başına ürettiği rastgele kimlik.
+  /// İçe aktarma tekrar güvenliği (migration 67, kurucu 10-14 "İstek kimliği"): istemcinin kalem başına ürettiği rastgele kimlik.
   /// Aynı mülk + aynı kimlik ikinci kalem AÇMAZ (bağlantı cevap anında koparsa yeniden deneme). Elle eklemede NULL (PG'de NULL'lar çakışmaz).
   clientRequestId String?
   createdAt       DateTime  @default(now())
