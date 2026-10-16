@@ -237,6 +237,8 @@ describe("Opus gece-3 P1-b: arıza + BAŞKA soru turunda meşru cevaplar tutulma
     const tvSubject = { recipeTopics: new Set<string>(), subjectTopics: new Set(["tv"]) };
     expect(unsupportedFixStep("Kumandanın pillerini değiştirin.", tvSubject, "Kumanda çalışmıyor")).toBe(true);
     expect(unsupportedFixStep("Kumandadaki pilleri değiştirmek çözebilir.", tvSubject, "Televizyon açılmıyor")).toBe(true);
+    // arızanın kendisi hakkında genel takip sorusu ("ne yapmalıyız?") BAŞKA soru sayılmaz — devralma sürer
+    expect(unsupportedFixStep("Kumandanın pillerini değiştirin.", tvSubject, "Kumanda çalışmıyor, ne yapmalıyız?")).toBe(true);
     // arızalı cihaz önceki cümlede anıldıysa geniş biçim de adımdır ("panoya bakılabilir")
     const none = { recipeTopics: new Set(["parking"]), subjectTopics: new Set(["power"]) };
     expect(unsupportedFixStep("Sigortanın atmış olması mümkün; panoya bakılabilir.", none, "Elektrik yok")).toBe(true);
