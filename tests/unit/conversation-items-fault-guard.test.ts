@@ -178,6 +178,11 @@ describe("TV belirti sözlüğü genel konu çıkarımına GİRMEZ (Opus N2 — 
     expect(touchesHeldDevice(["tv"], "Ekranda görüntü yoksa kaynak girişini HDMI 1 yapın. Bina girişindeki kamera yalnız ortak alanı görür.")).toBe(true);
     expect(touchesHeldDevice(["tv"], "Diyafon salondadır. Ekranda görüntü yoksa kaynağı HDMI 1'e alın.")).toBe(true);
     expect(touchesHeldDevice(["tv"], "If there is no picture, check the input. The doorbell camera only shows the entrance.")).toBe(true);
+    // "siyah ekran" kapı zili kamerasında da olur → aynı cümlede veto (Haiku 10-16); HDMI TV'ye özgü, vetolanmaz
+    expect(requestTopics("kapı zili kamerası siyah ekran oluyor", "", "complaint_issue")).not.toContain("tv");
+    expect(requestTopics("kapı zilinin yanındaki TV'de HDMI çalışmıyor", "", "complaint_issue")).toContain("tv");
+    // uzun metinde 64. cümleden sonraki belirti de okunur (anahtarsız yolda tavan fail-open olurdu)
+    expect(touchesHeldDevice(["tv"], `${"Tamam. ".repeat(80)}Ekranda görüntü yoksa kaynağı değiştirin.`)).toBe(true);
   });
 
   it("🚨 Opus gece-2 M6 (anahtarsız, ilişki kipi canlı): klima şikâyeti yanında 'Diyafonda görüntü yok' çözüm isteği TV tarifiyle cevaplanabilir OLMAZ", () => {

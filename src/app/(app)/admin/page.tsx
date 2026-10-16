@@ -154,7 +154,8 @@ export default async function AdminPage() {
   }
   const sharedMailboxes = [...mailboxGroups.values()].filter((s) => s.size > 1);
   // Kuyruk sağlığı (10-16): iki kalıcı kuyruğun birikmesi / takılması — yalnız sayılar.
-  const queues = await queueHealth();
+  // Okuma hatası operatör sayfasını düşürmesin (Haiku 10-16) — "okunamadı" gösterilir.
+  const queues = await queueHealth().catch(() => null);
 
   // 3) Deneme risk puanı (kurucu onayı 10-10: geçici e-posta + doğrulanmamış e-posta + ilan kuralı; "önce yalnız liste"). YALNIZ bu
   //    listede görünür — müşteriye hiçbir şey gösterilmez, hiçbir hesap otomatik etkilenmez, yeni veri saklanmaz. Sahipler YALNIZ deneme
@@ -616,8 +617,11 @@ export default async function AdminPage() {
               gönderir. Vadesi gelmiş satır {Math.round(QUEUE_LAG_WARN_MS / 60_000)} dakikadan uzun bekliyorsa yoklayıcı geride ya da durmuş
               demektir.
             </p>
+            {queues === null ? (
+              <p className="text-xs text-destructive">Kuyruk durumu okunamadı.</p>
+            ) : null}
             <ul className="space-y-1 rounded-lg border border-border bg-muted/40 p-3 text-xs" data-testid="queue-health">
-              {queues.map((q) => (
+              {(queues ?? []).map((q) => (
                 <li key={q.queue}>
                   <strong>{q.queue === "message" ? "Misafir mesajı kuyruğu" : "Kimlik e-postası kuyruğu"}</strong>:{" "}
                   {Object.keys(q.byStatus).length === 0

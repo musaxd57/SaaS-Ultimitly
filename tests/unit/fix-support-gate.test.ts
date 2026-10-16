@@ -243,6 +243,8 @@ describe("Opus gece-3 P1-b: arıza + BAŞKA soru turunda meşru cevaplar tutulma
     expect(unsupportedFixStep("Şifreyi büyük harfle yazmanız gerekiyor.", tvSubject, "Televizyonda görüntü yok.")).toBe(false);
     // arızanın kendisi hakkında genel takip sorusu ("ne yapmalıyız?") BAŞKA soru sayılmaz — devralma sürer
     expect(unsupportedFixStep("Kumandanın pillerini değiştirin.", tvSubject, "Kumanda çalışmıyor, ne yapmalıyız?")).toBe(true);
+    // Arapça soru sözcüğü yalnız SÖZCÜK olarak ("أهلا" içindeki "هل" soru değil — Haiku 10-16)
+    expect(unsupportedFixStep("Kumandanın pillerini değiştirin.", tvSubject, "Kumanda çalışmıyor. أهلا")).toBe(true);
     // arızalı cihaz önceki cümlede anıldıysa geniş biçim de adımdır ("panoya bakılabilir")
     const none = { recipeTopics: new Set(["parking"]), subjectTopics: new Set(["power"]) };
     expect(unsupportedFixStep("Sigortanın atmış olması mümkün; panoya bakılabilir.", none, "Elektrik yok")).toBe(true);

@@ -131,14 +131,14 @@ const LOCAL_DEVICE_WORDS: readonly (readonly [RegExp, string])[] = [
  * kemeri) ve istek tarafındaki arıza sinyali (`faultSignal`). "görüntülü" (diyafon / görüntülü arama) BİLEREK hariç; çıplak "ekran / kaynak /
  * kanal" yok (kumanda ekranı, sıcak su kaynağı…). Katlanmış metin, sınırlı tekrar.
  */
-const TV_SYMPTOM = new RegExp(`${L}(?:hdmi|uydu alici\\p{L}{0,6}|siyah ekran|black screen|smart tv)${R}`, "u");
+const TV_SYMPTOM = new RegExp(`${L}(?:hdmi|uydu alici\\p{L}{0,6}|smart tv)${R}`, "u");
 /**
  * Genel "görüntü yok" ailesi — YALNIZ arıza yüklemiyle ("görüntü yok / gelmiyor / gitti / donuyor"; "no picture") ve aynı cümlede başka bir
  * görüntülü cihaz / görünüş anlamı yokken TV'dir (Opus gece-3 P3-a/b, ölçüldü: "Balkondan deniz görüntüsü yok", "Binanın dış görüntüsü çok kötü",
  * cevabın başka cümlesindeki kapı zili kamerası).
  */
 const TV_PICTURE_FAULT = new RegExp(
-  `${L}(?:goruntu(?!lu)\\p{L}{0,6} (?:cok |hep |surekli )?(?:yok|gelm|git|don|kaybol|bozul|cikm|kesil|bulanik|titri|karli|kayi|siyah)\\p{L}{0,8}|no picture(?! frame)|kein bild|pas d'image|sin imagen|no tiene imagen|нет изображения)${R}`,
+  `${L}(?:goruntu(?!lu)\\p{L}{0,6} (?:cok |hep |surekli )?(?:yok|gelm|git|don|kaybol|bozul|cikm|kesil|bulanik|titri|karli|kayi|siyah)\\p{L}{0,8}|siyah ekran|black screen|no picture(?! frame)|kein bild|pas d'image|sin imagen|no tiene imagen|нет изображения)${R}`,
   "u",
 );
 
@@ -158,8 +158,8 @@ function topicsWithSymptomsOf(text: string): string[] {
   const f = fold(text);
   if (TV_SYMPTOM.test(f)) return [...topics, "tv"];
   if (!TV_PICTURE_FAULT.test(f)) return topics;
-  // Görüntülü başka cihaz / görünüş vetosu AYNI cümlede okunur (sınırlı sayıda cümle — doğrusal).
-  const pictureSentences = f.split(/[.!?;\n]+/u).slice(0, 64).filter((x) => TV_PICTURE_FAULT.test(x));
+  // Görüntülü başka cihaz / görünüş vetosu AYNI cümlede okunur (tavansız — bölme ve süzme doğrusal; tavan anahtarsız yolda fail-open olurdu).
+  const pictureSentences = f.split(/[.!?;\n]+/u).filter((x) => TV_PICTURE_FAULT.test(x));
   return pictureSentences.some((x) => !NON_TV_SCREEN.test(x)) ? [...topics, "tv"] : topics;
 }
 
@@ -978,7 +978,7 @@ const AC_EVIDENCE = new RegExp(
 
 /** Soru biçimi (katlanmış; yedi dil): soru eki / soru sözcüğü / "var mı". */
 const GUEST_QUESTION = new RegExp(
-  `${L}(?:ne|nerede|nereye|nasil|hangi|kac|ne zaman|var mi|mi|mu|where|how|what|when|which|is there|are there|can i|can we|do you|wo|wie|wann|gibt es|comment|quand|quel\\p{L}{0,2}|y a-t-il|donde|cuando|cual|hay|где|как|что|когда|есть ли)${R}|أين|كيف|متى|هل`,
+  `${L}(?:ne|nerede|nereye|nasil|hangi|kac|ne zaman|var mi|mi|mu|where|how|what|when|which|is there|are there|can i|can we|do you|wo|wie|wann|gibt es|comment|quand|quel\\p{L}{0,2}|y a-t-il|donde|cuando|cual|hay|где|как|что|когда|есть ли|أين|كيف|متى|هل)${R}`,
   "u",
 );
 
