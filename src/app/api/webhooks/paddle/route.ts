@@ -205,7 +205,7 @@ async function applySubscriptionEvent(
   // re-applies idempotently rather than being lost.
   // This read only feeds the pastDueSince anchor (existence + current value) —
   // a race on it can at worst shift the dunning anchor by the gap between two
-  // near-simultaneous past_due events (minutes vs a 14-day grace: immaterial).
+  // near-simultaneous past_due events (minutes; the access decision reads the paid period end, not this anchor).
   const existing = await prisma.subscription.findUnique({
     where: { organizationId },
     select: { lastEventAt: true, pastDueSince: true, providerRef: true, status: true },
@@ -261,11 +261,11 @@ async function applySubscriptionEvent(
   const scheduled = data.scheduled_change as Record<string, unknown> | undefined;
   const cancelAtPeriodEnd = str(scheduled?.action) === "cancel";
 
-  // Dunning-grace anchor: stamp pastDueSince ONCE on the first transition INTO
-  // past_due and keep it stable across every following dunning retry; clear it
-  // the moment we leave past_due. getEntitlement counts the grace window from
-  // here instead of the auto-bumping updatedAt (which each retry pushed forward,
-  // so the window never elapsed and an unpaid org kept premium indefinitely).
+  // pastDueSince: stamp ONCE on the first transition INTO past_due and keep it
+  // stable across every following dunning retry; clear it the moment we leave
+  // past_due. (Kurucu 10-16: erişim kararı artık ek süre değil ödenmiş dönem
+  // sonudur — `getEntitlement`; bu damga ödeme gecikmesinin başlangıç kaydı ve
+  // hesap süpürgesi gibi okuyucular için kalır.)
   const pastDueSince =
     status === "past_due" ? (existing?.pastDueSince ?? occurredAt ?? new Date()) : null;
 

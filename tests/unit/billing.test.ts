@@ -207,56 +207,55 @@ describe("premiumAllowed — paid/AI feature gate (free-tier downgrade)", () => 
     expect(await premiumAllowed("founder-org")).toBe(true);
   });
 
-  it("ENFORCED + past_due WITHIN dunning grace → allowed (one card decline can't cut off a payer)", async () => {
+  // ── KURUCU 10-16: ödeme gecikmesinde EK SÜRE YOK ("Geçerli ödenmiş dönem bitince ücretli otomatik işler dursun; yenileme ödemesi
+  // doğrulanınca açılsın. Ek 14 gün istemiyorum."). ÖNCE: yenileme başarısız olunca 14 gün daha açık. SONRA: ödenmiş dönem bitince kapalı. ──
+  it("🚨 Kurucu 10-16: ENFORCED + past_due, ödenmiş dönem 3 gün önce BİTTİ → KAPALI (eski kural: 14 günlük ek süre içinde açık)", async () => {
     vi.stubEnv("BILLING_ENFORCED", "true");
     findUnique.mockResolvedValue({
       organizationId: "o",
       planCode: "pro",
       status: "past_due",
-      currentPeriodEnd: new Date(Date.now() - 3 * 86_400_000), // renewal failed 3 days ago
+      currentPeriodEnd: new Date(Date.now() - 3 * 86_400_000),
+      pastDueSince: new Date(Date.now() - 3 * 86_400_000),
+      updatedAt: new Date(),
+    } as never);
+    expect(await premiumAllowed("o")).toBe(false); // ⬅️ ESKİDE true
+  });
+
+  it("Kurucu 10-16: past_due ama ödenmiş dönem HÂLÂ sürüyor (dönem sonu ileride) → açık (ödenmiş hizmet kesilmez)", async () => {
+    vi.stubEnv("BILLING_ENFORCED", "true");
+    findUnique.mockResolvedValue({
+      organizationId: "o",
+      planCode: "pro",
+      status: "past_due",
+      currentPeriodEnd: new Date(Date.now() + 2 * 86_400_000),
+      pastDueSince: new Date(),
       updatedAt: new Date(),
     } as never);
     expect(await premiumAllowed("o")).toBe(true);
   });
 
-  it("ENFORCED + past_due PAST the grace window → BLOCKED", async () => {
-    vi.stubEnv("BILLING_ENFORCED", "true");
-    findUnique.mockResolvedValue({
-      organizationId: "o",
-      planCode: "pro",
-      status: "past_due",
-      currentPeriodEnd: new Date(Date.now() - 30 * 86_400_000), // 30d > 14d grace
-      updatedAt: new Date(Date.now() - 30 * 86_400_000),
-    } as never);
-    expect(await premiumAllowed("o")).toBe(false);
-  });
-
-  it("past_due grace anchors on pastDueSince (stable), NOT the bumping updatedAt", async () => {
+  it("Kurucu 10-16: past_due + dönem sonu BİLİNMİYOR → kapalı (ödenmemiş erişim verilmez); taze yeniden deneme olayı (updatedAt) açmaz", async () => {
     vi.stubEnv("BILLING_ENFORCED", "true");
     findUnique.mockResolvedValue({
       organizationId: "o",
       planCode: "pro",
       status: "past_due",
       currentPeriodEnd: null,
-      pastDueSince: new Date(Date.now() - 20 * 86_400_000), // went past_due 20d ago (> 14d grace)
-      updatedAt: new Date(), // a fresh dunning webhook bumped this — must NOT re-open grace
+      pastDueSince: new Date(Date.now() - 2 * 86_400_000),
+      updatedAt: new Date(),
       createdAt: new Date(Date.now() - 60 * 86_400_000),
     } as never);
     expect(await premiumAllowed("o")).toBe(false);
   });
 
-  it("past_due WITHIN grace via pastDueSince (currentPeriodEnd null) → allowed", async () => {
+  it("Kurucu 10-16: yenileme ödemesi doğrulanınca (active) ANINDA açık; kurucu işletmesi past_due'da da açık (ağ korunur)", async () => {
     vi.stubEnv("BILLING_ENFORCED", "true");
-    findUnique.mockResolvedValue({
-      organizationId: "o",
-      planCode: "pro",
-      status: "past_due",
-      currentPeriodEnd: null,
-      pastDueSince: new Date(Date.now() - 2 * 86_400_000), // 2d ago, within 14d grace
-      updatedAt: new Date(),
-      createdAt: new Date(Date.now() - 60 * 86_400_000),
-    } as never);
+    findUnique.mockResolvedValue({ organizationId: "o", planCode: "pro", status: "active", currentPeriodEnd: new Date(Date.now() + 30 * 86_400_000) } as never);
     expect(await premiumAllowed("o")).toBe(true);
+    vi.stubEnv("PRIMARY_ORG_ID", "founder-org");
+    findUnique.mockResolvedValue({ organizationId: "founder-org", planCode: "pro", status: "past_due", currentPeriodEnd: new Date(Date.now() - 30 * 86_400_000) } as never);
+    expect(await premiumAllowed("founder-org")).toBe(true);
   });
 
   // KARAKTERİZASYON (Opus F6): `getEntitlement` bu değişiklikte değişmedi — "paused" zaten etkin durumlar dışındaydı. Asıl düzeltme

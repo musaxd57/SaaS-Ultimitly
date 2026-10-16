@@ -10,9 +10,9 @@ afterAll(async () => {
   await prisma.$disconnect();
 });
 
-// A canceled subscription (or a past_due one beyond the dunning grace) loses the
-// QR concierge; grandfathered (no sub) + active/trialing — and past_due within the
-// grace window (a paying customer whose card failed once) — keep it.
+// A canceled subscription (or a past_due one whose PAID period has ended — kurucu
+// 10-16: ek süre yok) loses the QR concierge; grandfathered (no sub) + active/
+// trialing — and past_due while the already-paid period still runs — keep it.
 async function makeQrProperty(
   subStatus?: string,
   trialEndsAt?: Date,
@@ -65,16 +65,20 @@ describe("QR concierge ↔ subscription gate", () => {
     expect(await resolveGuestChat(await makeQrProperty("canceled"))).not.toBeNull();
   });
 
-  it("KEEPS working when PAST_DUE within the dunning grace (paying customer, card retry)", async () => {
-    // A single failed renewal stays active during the grace window (billing #2),
-    // so the concierge isn't cut off instantly while Paddle retries the card.
+  // Kurucu 10-16: ödeme gecikmesinde EK SÜRE YOK — "Geçerli ödenmiş dönem bitince ücretli otomatik işler dursun; yenileme ödemesi
+  // doğrulanınca açılsın." ÖNCE: yenileme başarısız olunca 14 gün daha açıktı.
+  it("PAST_DUE ama ödenmiş dönem HÂLÂ sürüyor → çalışmaya devam eder (ödenmiş hizmet kesilmez)", async () => {
     process.env.BILLING_ENFORCED = "true";
-    expect(await resolveGuestChat(await makeQrProperty("past_due"))).not.toBeNull();
+    expect(await resolveGuestChat(await makeQrProperty("past_due", undefined, daysFromNow(2)))).not.toBeNull();
   });
 
-  it("STOPS when PAST_DUE beyond the grace window and billing is ENFORCED", async () => {
+  it("🚨 PAST_DUE ve ödenmiş dönem BİTTİ (dün) → aynı gün DURUR (eskiden 14 gün daha açıktı)", async () => {
     process.env.BILLING_ENFORCED = "true";
-    // currentPeriodEnd 60 days ago → well past the 14-day grace → no longer active.
+    expect(await resolveGuestChat(await makeQrProperty("past_due", undefined, daysFromNow(-1)))).toBeNull();
+  });
+
+  it("STOPS when PAST_DUE long after the period and billing is ENFORCED", async () => {
+    process.env.BILLING_ENFORCED = "true";
     const token = await makeQrProperty("past_due", undefined, daysFromNow(-60));
     expect(await resolveGuestChat(token)).toBeNull();
   });

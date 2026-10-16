@@ -30,15 +30,11 @@ export type Entitlement = {
 
 const ACTIVE_STATUSES = new Set(["active", "trialing", "grandfathered"]);
 
-// Dunning grace: a `past_due` subscription is a paying customer whose renewal
-// card failed once and is inside Paddle's retry window — NOT a churned customer.
-// Cutting their features off instantly (Paddle maps past_due here; `paused` is its OWN local status since 10-16 — no grace, see
-// payments/paddle.ts paddleStatusToLocal)
-// violates the cardinal rule "never block a live customer", so keep them active
-// for a grace window. Paddle drives the dunning and sends `canceled` when it
-// finally gives up (which ends access). Bounded so a stuck past_due can't grant
-// unpaid access forever.
-const PAST_DUE_GRACE_DAYS = Number(process.env.BILLING_PAST_DUE_GRACE_DAYS) || 14;
+// ÖDEME GECİKMESİNDE EK SÜRE YOK (kurucu kararı 10-16: "Geçerli ödenmiş dönem bitince ücretli otomatik işler dursun; yenileme ödemesi
+// doğrulanınca açılsın. Ek 14 gün istemiyorum."). `past_due` = yenileme ödemesi alınamadı. Erişim YALNIZ zaten ödenmiş dönem sürüyorsa
+// (`currentPeriodEnd` gelecekte) açık kalır; dönem bittiyse kapanır. Paddle yeniden denemeyi kendisi yapar; ödeme doğrulanınca (`active`
+// olayı) erişim ANINDA açılır. Müşteri yeni ödeme ekranına değil "Aboneliği yönet"e (kart güncelle → Paddle aynı işlemi yeniden dener)
+// yönlendirilir — körlemesine yeniden ödeme yok. Eski 14 günlük ek süre (`BILLING_PAST_DUE_GRACE_DAYS`) KALDIRILDI. Kurucu ağı aşağıda aynen.
 
 // Reverse trial: every new signup gets full Pro free for this many days (no
 // card). If they don't upgrade, access pauses — ONLY once billing is enforced.
@@ -120,18 +116,9 @@ export async function getEntitlement(organizationId: string): Promise<Entitlemen
       : null;
 
   let active = ACTIVE_STATUSES.has(sub.status);
-  // Dunning grace for a failed renewal — anchored to the period end it failed on
-  // (or the last update as a fallback). Keeps a paying customer unblocked while
-  // Paddle retries; when Paddle finally sends `canceled`, status flips and this
-  // no longer applies.
-  if (sub.status === "past_due") {
-    // Anchor to a STABLE timestamp: pastDueSince (stamped once when the sub first
-    // went past_due), else the period end it failed on, else createdAt. NEVER
-    // updatedAt — it is @updatedAt, so every dunning webhook bumped it forward
-    // and the grace window never elapsed (an unpaid org kept premium forever).
-    const anchor = (sub.pastDueSince ?? sub.currentPeriodEnd ?? sub.createdAt).getTime();
-    if (now <= anchor + PAST_DUE_GRACE_DAYS * 86_400_000) active = true;
-  }
+  // Ödeme gecikmesi (kurucu 10-16): yalnız ZATEN ÖDENMİŞ dönem sürüyorsa açık; ek süre yok. Dönem sonu bilinmiyorsa kapalı (güvenli yön:
+  // ödenmemiş erişim verilmez). `updatedAt`'e ASLA bakılmaz (her yeniden deneme olayı onu ileri atar).
+  if (sub.status === "past_due" && sub.currentPeriodEnd != null && sub.currentPeriodEnd.getTime() > now) active = true;
   // An expired reverse-trial only loses access once billing is actually
   // enforced. Until then every org stays unblocked (dormant by design), so
   // flipping BILLING_ENFORCED off always restores access — the true kill-switch.

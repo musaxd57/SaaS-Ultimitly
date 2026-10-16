@@ -107,7 +107,7 @@ export function verifyPaddleSignature(opts: {
  *
  * 🚨 YILLIK, AYLIKLA **AYNI** PLAN KODUNA EŞLENİR — ayrı bir kod ÜRETME.
  * Plan kodu bir YETKİ seviyesidir, bir fatura dönemi değil: `getEntitlement`,
- * `limitsForOrg`, `canAddProperty`, deneme mantığı ve `past_due` grace'inin
+ * `limitsForOrg`, `canAddProperty`, deneme mantığı ve `past_due` kuralının
  * hepsi bu koda bakıyor. Yıllık Pro ile aylık Pro AYNI ürünü kullanır, o yüzden
  * aynı kodu almalıdır; ayrı bir "pro_yillik" kodu uydurmak bu beş yerin hepsini
  * birden bilinmeyen-plan dalına düşürürdü.
@@ -171,8 +171,9 @@ export function paddleStatusToLocal(status: string | null | undefined): string {
       return "canceled";
     default:
       // Unknown/missing status → treat as NOT active. Never gift premium access
-      // on an unrecognized value; the 14-day dunning grace still keeps a genuine
-      // paying customer active while their real status is resolved.
+      // on an unrecognized value. (Kurucu 10-16: ek süre yok — `past_due` erişimi
+      // yalnız ZATEN ÖDENMİŞ dönem sürüyorsa açık tutar; tanınmayan durum dönem
+      // ortasında gelirse ödenmiş hizmet kesilmez, dönem bitince kapanır.)
       return "past_due";
   }
 }

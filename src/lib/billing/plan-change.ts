@@ -109,8 +109,9 @@ export async function resolvePlanChange(
   // yapacağına bağlı olmamalı.
   //
   // ⚠️ YALNIZ `canceled` reddedilir — daha geniş bir kural (örn. "active değilse
-  // reddet") ZARARLI olurdu: `past_due` müşterisi 14 günlük grace süresinde plan
-  // değiştirebilmeli ve arayüz de buna izin veriyor. `trialing` ve
+  // reddet") ZARARLI olurdu: `past_due` müşterisi plan değiştirebilmeli ve arayüz
+  // de buna izin veriyor (kurucu 10-16: ek süre kaldırıldı ama plan değişimi kartı
+  // güncelleme yolunun parçası olabilir — kapı değişmedi). `trialing` ve
   // `grandfathered` de aynı şekilde meşru. (Şema: active | trialing | past_due |
   // canceled | grandfathered.)
   //
