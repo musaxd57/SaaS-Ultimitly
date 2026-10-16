@@ -26,7 +26,8 @@ vi.mock("@/lib/channels", async (orig) => {
 });
 
 import { POST } from "@/app/api/conversations/[id]/reply/route";
-import { __resetOutboxKick, __setOutboxKickFollowUpMs } from "@/lib/outbox/worker";
+import { POST as RETRY } from "@/app/api/outbox/[id]/retry/route";
+import { __resetOutboxKick, __setOutboxKickFollowUpMs, outboxFastWakeEnabled } from "@/lib/outbox/worker";
 
 function req(id: string, body: unknown) {
   return new NextRequest(`http://localhost/api/conversations/${id}/reply`, {
@@ -96,13 +97,54 @@ describe("elle mesaj — kuyruk hızlı uyandırma", () => {
       expect((await POST(req(conversationId, { body }), { params: Promise.resolve({ id: conversationId }) })).status).toBe(202);
     }
     await waitUntil(async () => (await prisma.messageOutbox.count({ where: { status: "sent" } })) === 2);
-    await new Promise((r) => setTimeout(r, 400));
+    // En az bir takip turunun sınıra takıldığını görecek kadar bekle (150 ms); boş takip zinciri ~4 turda (≈600 ms+) biter — Opus N6:
+    // 400 ms beklemek yavaş CI'da zinciri kaçırabiliyordu, pay bırakıldı.
+    await new Promise((r) => setTimeout(r, 200));
     expect(dispatchMock).toHaveBeenCalledTimes(2); // üçüncüsü sınırda bekliyor (Hospitable kuralı)
     // 60 sn geçmiş gibi: ilk iki gönderimin zamanı geri alınır → sınır kalkar; takip turu üçüncüyü gönderir.
     await prisma.messageOutbox.updateMany({ where: { status: "sent" }, data: { claimedAt: new Date(Date.now() - 61_000) } });
     await waitUntil(async () => (await prisma.messageOutbox.count({ where: { status: "sent" } })) === 3, 3000);
     expect(dispatchMock.mock.calls.map((c) => c[1])).toEqual(["Bir", "İki", "Üç"]);
   }, 30_000);
+
+  it("🚨 hızlı uyandırma VARSAYILAN AÇIK (kurucu: 'iki dakika beklemek varsayılan olmasın'); yalnız tam '0' kapatır (yaşayan mutant K2)", () => {
+    const prev = process.env.OUTBOX_FAST_WAKE;
+    try {
+      delete process.env.OUTBOX_FAST_WAKE;
+      expect(outboxFastWakeEnabled()).toBe(true);
+      process.env.OUTBOX_FAST_WAKE = "";
+      expect(outboxFastWakeEnabled()).toBe(true);
+      process.env.OUTBOX_FAST_WAKE = "0";
+      expect(outboxFastWakeEnabled()).toBe(false);
+    } finally {
+      if (prev === undefined) delete process.env.OUTBOX_FAST_WAKE;
+      else process.env.OUTBOX_FAST_WAKE = prev;
+    }
+  });
+
+  it("ev sahibinin 'yeniden dene'si (gönderilemedi satırı) da senkronu beklemez — aynı süreçte TEK kez gider (Opus N7)", async () => {
+    const row = await prisma.messageOutbox.create({
+      data: {
+        organizationId: session.organizationId,
+        conversationId,
+        channel: "airbnb",
+        externalReservationId: "res-fw",
+        body: "Tekrar deneme",
+        idempotencyKey: "retry-1",
+        status: "failed",
+        messageType: "manual",
+        lastErrorKind: "definitive_failure",
+        lastErrorCode: "HTTP 400",
+        availableAt: new Date(Date.now() - 60_000),
+      },
+    });
+    const res = await RETRY(new NextRequest(`http://localhost/api/outbox/${row.id}/retry`, { method: "POST" }), {
+      params: Promise.resolve({ id: row.id }),
+    });
+    expect(res.status).toBe(200);
+    await waitUntil(async () => (await prisma.messageOutbox.findUniqueOrThrow({ where: { id: row.id } })).status === "sent"); // ⬅️ uyandırmasız: pending kalır
+    expect(dispatchMock).toHaveBeenCalledTimes(1);
+  });
 
   it("anahtar KAPALIYSA (OUTBOX_FAST_WAKE=0) uyandırma yok — satır senkronu bekler (kaçış yolu)", async () => {
     vi.stubEnv("OUTBOX_FAST_WAKE", "0");

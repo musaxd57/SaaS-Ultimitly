@@ -160,12 +160,12 @@ export default async function AdminPage() {
   const queues = await queueHealth().catch(() => null);
   const outboxSwitches = {
     enqueue: !durableOutboxEnabled()
-      ? "kapalı"
+      ? "kapalı (mesajlar kuyruğa girmeden anında gönderilir)"
       : (process.env.DURABLE_OUTBOX_ORG_IDS ?? "").split(",").map((x) => x.trim()).includes("*")
         ? "açık (bütün işletmeler)"
         : (process.env.DURABLE_OUTBOX_ORG_IDS ?? "").trim()
           ? "açık (yalnız listedeki işletmeler)"
-          : "ana anahtar açık ama liste boş — kimse kuyruğa yazmıyor",
+          : "ana anahtar açık ama liste boş — kimse kuyruğa yazmıyor (mesajlar anında gönderilir)",
     paused: outboxDeliveryPaused(),
   };
   // Ödeme incelemesi (kurucu 10-16 ödeme S1/S2, Opus F5): incelemeye düşen ödeme olayları görünür — yalnız kimlik / tür / kod / zaman.
@@ -647,8 +647,9 @@ export default async function AdminPage() {
                 ) : (
                   "akıyor"
                 )}{" "}
-                — duraklatılınca kuyruktaki mesajlar sağlayıcıya GÖNDERİLMEZ, bekler (kaybolmaz). Gönderimi başlamış mesaj geri alınamaz; sonucu
-                belirsiz mesajın uzlaştırması (sağlayıcı geçmişini okur, göndermez) sürer.
+                — duraklatılınca KUYRUKTAKİ mesajlar sağlayıcıya GÖNDERİLMEZ, bekler (kaybolmaz). Gönderimi başlamış mesaj geri alınamaz;
+                sonucu belirsiz mesaj yeniden gönderilmez, incelemeye alınır. Kuyruk kapalı işletmelerin anında gönderimleri ve kimlik e-postaları
+                bu anahtardan etkilenmez.
               </li>
             </ul>
             {queues === null ? (

@@ -5,7 +5,7 @@ import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
 // KUYRUK ANAHTARLARI AYRI (kurucu 10-16): "Yeni işleri kuyruğa almayı durdurmak ile bekleyen gönderimleri durdurmak ayrı işlemler olsun.
 // Hangisinin ne yaptığını açık göster; başlamış dış gönderimin geri alınabileceğini varsayma."
 //  · `OUTBOX_DELIVERY_PAUSED=1` → işçi `pending` satırı TALEP ETMEZ (sağlayıcıya yeni gönderim yok; satır bekler, deneme sayısı artmaz).
-//  · Uzlaştırma (`ambiguous` — sağlayıcı geçmişini OKUR, göndermez) sürer.
+//  · Uzlaştırma (`ambiguous` — POST YAPMAZ; üretimde sağlayıcıya sormaz, testte enjekte edilir) sürer.
 //  · Kaldırınca kaldığı yerden TEK kez gider.
 //  · Alarm: "ilerlemiyor" değil, bir kez "duraklatıldı" bildirimi; strict yoklama sayfalamaz.
 // ---------------------------------------------------------------------------
@@ -69,7 +69,7 @@ describe("OUTBOX_DELIVERY_PAUSED — bekleyen gönderimleri duraklat", () => {
     expect((await prisma.messageOutbox.findUniqueOrThrow({ where: { id: row.id } })).status).toBe("sent");
   });
 
-  it("duraklatmada UZLAŞTIRMA sürer (sonucu belirsiz satır sağlayıcı geçmişinden okunur, POST yok)", async () => {
+  it("duraklatmada UZLAŞTIRMA sürer (sonucu belirsiz satır uzlaştırılır — testte enjekte; POST yok)", async () => {
     const amb = await prisma.messageOutbox.create({
       data: {
         organizationId: orgId,

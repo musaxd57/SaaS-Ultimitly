@@ -97,7 +97,7 @@ export class QueuePausedError extends Error {
   constructor() {
     super(
       "Misafir mesajı gönderimi duraklatıldı (OUTBOX_DELIVERY_PAUSED=1): kuyruktaki mesajlar bilerek gönderilmiyor, kaybolmuyor. " +
-        "Anahtarı kaldırınca kaldığı yerden gider. Gönderimi başlamış mesaj geri alınmaz; sonucu belirsiz mesajların uzlaştırması sürer.",
+        "Anahtarı kaldırınca kaldığı yerden gider. Gönderimi başlamış mesaj geri alınmaz; sonucu belirsiz mesajlar yeniden gönderilmez, incelemeye alınır.",
     );
     this.name = "QueuePaused";
   }

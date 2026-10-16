@@ -29,7 +29,9 @@ export function durableOutboxEnabledFor(organizationId: string): boolean {
  * olsun; hangisinin ne yaptığını açık göster; başlamış dış gönderimin geri alınabileceğini varsayma"). Yalnız tam "1".
  *  · Açıkken işçi `pending` satırı TALEP ETMEZ → sağlayıcıya YENİ gönderim gitmez; satırlar bekler (deneme sayısı artmaz, kaybolmaz).
  *  · Gönderimi BAŞLAMIŞ satır (`sending`) geri alınamaz — o anki istek biter, sonucu yazılır. Çöken gönderimin kurtarılması ve sonucu
- *    belirsiz satırın uzlaştırması (`ambiguous` → sağlayıcı geçmişini OKUR, göndermez) sürer.
+ *    belirsiz satırın uzlaştırması (`ambiguous` → YENİDEN GÖNDERİLMEZ; bugünkü uzlaştırma sağlayıcıya sormaz, satırı incelemeye alır) sürer.
+ *  · Yalnız KUYRUKTAKİ mesajları durdurur: kuyruk kapalı (ya da listede olmayan) işletmenin anında gönderimleri ve kimlik e-postası kuyruğu
+ *    bu anahtardan ETKİLENMEZ (Haiku 10-16; tüm gönderimleri durduran tek şalter ayrı bir karar).
  *  · Kuyruğa YENİ iş alma ayrı anahtardır (`DURABLE_OUTBOX_ENABLED` + liste): duraklatma onu değiştirmez.
  */
 export function outboxDeliveryPaused(): boolean {

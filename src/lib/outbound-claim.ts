@@ -201,11 +201,21 @@ let heartbeatMs = 30_000;
 
 /** Tek yenileme: bu işçinin çalışan kilidini 120 sn uzatır; satır artık bu işçinin değilse false. */
 export async function renewKeyedOutboundSend(scopeId: string, body: string, token: string, now: Date = new Date()): Promise<boolean> {
-  const r = await prisma.systemLock.updateMany({
-    where: { name: `${PREFIX}${scopeId}`, holder: inflightHolder(bodyDigest(body), token) },
-    data: { lockedUntil: new Date(now.getTime() + CLAIM_TTL_MS) },
-  });
-  return r.count === 1;
+  const name = `${PREFIX}${scopeId}`;
+  const holder = inflightHolder(bodyDigest(body), token);
+  const lockedUntil = new Date(now.getTime() + CLAIM_TTL_MS);
+  const r = await prisma.systemLock.updateMany({ where: { name, holder }, data: { lockedUntil } });
+  if (r.count === 1) return true;
+  // Satır HİÇ yoksa (süresi doldu, süpürüldü, kimse almadı) bu işçi kilidi YENİDEN alır — `completeKeyedOutboundSend` ile aynı kural
+  // ("kimse almamışsa kaydı bu işçi yazar"; Opus 10-16 N2: aksi hâlde misafir mesajı iz bırakmadan 'deduped' olurdu). Satır başka
+  // sahipteyse (yeni işçi ya da tamamlanmış kayıt) eşsiz ad çakışır → sahiplik gerçekten kaybedildi.
+  try {
+    await prisma.systemLock.create({ data: { name, lockedUntil, holder } });
+    return true;
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") return false;
+    throw err;
+  }
 }
 
 /** Yenileme döngüsünü başlatır; durdurma fonksiyonu döner. Veritabanı hatası kayıp SAYILMAZ (bir sonraki turda yeniden denenir). */

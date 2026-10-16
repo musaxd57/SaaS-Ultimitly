@@ -377,7 +377,7 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
 
   it("SADECE canceled / paused reddedilir — past_due/trialing/grandfathered plan değiştirebilir", async () => {
     // 🚨 Bu testin varlık sebebi: "active değilse reddet" gibi daha GENİŞ bir
-    // kural, 14 günlük grace süresindeki (`past_due`) ödeyen bir müşteriyi plan
+    // kural, ödemesi gecikmiş (`past_due`; 10-16'dan beri ek süre yok, erişim ödenmiş dönem sonuna kadar) ödeyen bir müşteriyi plan
     // değiştiremez hâle getirirdi — arayüz ona izin verdiği hâlde. Kapının DAR
     // olduğu pinlenmezse o regresyon sessizce gelir.
     previewMock.mockResolvedValue({ immediateTotal: 100, currency: "TRY" });

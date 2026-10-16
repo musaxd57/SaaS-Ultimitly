@@ -47,6 +47,10 @@ geçiyordu. Kardeş "ambiguous → reconciled" dalı aşağı düşüp audit yaz
 
 ### B1. `paused` müşteriye 14 gün premium veriliyor. Doğru mu?
 
+> **10-16 güncel (tarihsel bölüm, aynen korunur):** iki karar da koda girdi — `paused` ayrı yerel durum (ek süre yok, Faz 1) ve ödeme
+> gecikmesinde (`past_due`) 14 günlük ek süre KALDIRILDI (kurucu: "Ek 14 gün istemiyorum"); erişim yalnız zaten ödenmiş dönem sürerken açık
+> kalır (`subscription.ts`). `PAST_DUE_GRACE_DAYS` / `BILLING_PAST_DUE_GRACE_DAYS` artık okunmuyor. Aşağıdaki zincir 08-09 hâlidir.
+
 **Bugünkü zincir (kod-doğrulandı):**
 
 ```

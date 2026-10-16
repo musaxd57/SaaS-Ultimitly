@@ -76,7 +76,7 @@ describe("paddlePriceToPlanCode", () => {
 
   it("YILLIK fiyat id'leri AYNI plan koduna eşlenir (ayrı kod ÜRETİLMEZ)", () => {
     // 🚨 Plan kodu bir YETKİ seviyesidir, fatura dönemi DEĞİL. `getEntitlement`,
-    // `limitsForOrg`, `canAddProperty`, deneme mantığı ve `past_due` grace'i
+    // `limitsForOrg`, `canAddProperty`, deneme mantığı ve `past_due` erişim kuralı
     // hep bu koda bakıyor → yıllık Pro, aylık Pro ile AYNI ürünü kullanır.
     // Ayrı bir "pro_yillik" kodu bu beş yeri birden bilinmeyen-plan dalına
     // düşürürdü; dönem yalnız Paddle'ın kendi kayıtlarında yaşar ve para akışı

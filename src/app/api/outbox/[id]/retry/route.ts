@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { withManage } from "@/lib/route-guard";
 import { requeueFailedOutbox } from "@/lib/outbox/ops";
 import { writeAudit, auditActor } from "@/lib/audit";
+import { kickOutboxDrain } from "@/lib/outbox/worker";
 
 // ---------------------------------------------------------------------------
 // Tenant-bound MANUAL retry for ONE definitively-failed outbox row (#8 ops
@@ -38,5 +39,7 @@ export const POST = withManage<{ id: string }>(async (session, _req, ctx) => {
     action: "outbox.manual_retry",
     metadata: { outboxId: id },
   });
+  // Ev sahibinin elle "yeniden dene"si de 2 dk'lık senkronu beklemez (kurucu 10-16 hızlı uyandırma; Opus N7).
+  kickOutboxDrain();
   return NextResponse.json({ ok: true, status: "pending" });
 });

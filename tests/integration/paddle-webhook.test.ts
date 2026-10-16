@@ -165,6 +165,59 @@ describe("POST /api/webhooks/paddle", () => {
       }
     });
 
+    // Opus 10-16 N1: ödeme gecikmesi olayındaki dönem (Paddle yenilemede ödenmemiş YENİ döneme ilerlemiş olabilir) erişimi uzatmaz.
+    const periodEvent = (eventId: string, status: string, occurredAt: string, startsAt: string, endsAt: string) =>
+      JSON.stringify({
+        event_id: eventId,
+        event_type: status === "past_due" ? "subscription.past_due" : "subscription.updated",
+        occurred_at: occurredAt,
+        data: {
+          id: "sub_pd2",
+          status,
+          custom_data: { consentId },
+          items: [{ price: { id: "pri_pro" } }],
+          current_billing_period: { starts_at: startsAt, ends_at: endsAt },
+        },
+      });
+    const DAY = 86_400_000;
+
+    it("🚨 Kurucu 10-16 (ek süre yok): yenileme ödemesi düştü, olay ödenmemiş YENİ dönemi taşıyor → erişim ödenmiş dönem sonunda KAPALI; ödeme doğrulanınca açık", async () => {
+      const now = Date.now();
+      const paidStart = new Date(now - 30 * DAY).toISOString();
+      const renewal = new Date(now - 60_000).toISOString(); // ödenmiş dönem az önce bitti
+      const unpaidEnd = new Date(now + 30 * DAY).toISOString();
+      const active = periodEvent("evt_pd2_a", "active", new Date(now - 30 * DAY).toISOString(), paidStart, renewal);
+      expect((await POST(req(active, sign(active)))).status).toBe(200);
+      const pastDue = periodEvent("evt_pd2_pd", "past_due", new Date(now - 30_000).toISOString(), renewal, unpaidEnd);
+      expect((await POST(req(pastDue, sign(pastDue)))).status).toBe(200);
+      const sub = await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } });
+      expect(sub.status).toBe("past_due");
+      expect(sub.currentPeriodEnd?.toISOString()).toBe(renewal); // ⬅️ ESKİ KOD: ödenmemiş dönemin sonu (30 gün ileri)
+      vi.stubEnv("BILLING_ENFORCED", "true");
+      vi.stubEnv("PRIMARY_ORG_ID", "baska-org");
+      try {
+        expect(await premiumAllowed(orgId)).toBe(false); // ⬅️ ESKİ KOD: true (30 gün ödemesiz erişim)
+        const recovered = periodEvent("evt_pd2_ok", "active", new Date().toISOString(), renewal, unpaidEnd);
+        expect((await POST(req(recovered, sign(recovered)))).status).toBe(200);
+        expect(await premiumAllowed(orgId)).toBe(true); // yenileme ödemesi doğrulanınca açılır
+        expect((await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } })).currentPeriodEnd?.toISOString()).toBe(unpaidEnd);
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    });
+
+    it("BİLİNEN SINIR (güvenli yön): dönem İÇİNDE düşen tahsilatta olay ödenmiş dönemi taşırsa yazılan değer dönem BAŞI → erişim kapanır, ek süre doğmaz", async () => {
+      const now = Date.now();
+      const start = new Date(now - 10 * DAY).toISOString();
+      const end = new Date(now + 20 * DAY).toISOString();
+      const active = periodEvent("evt_pd3_a", "active", new Date(now - 10 * DAY).toISOString(), start, end);
+      await POST(req(active, sign(active)));
+      const pastDue = periodEvent("evt_pd3_pd", "past_due", new Date(now - 1000).toISOString(), start, end);
+      await POST(req(pastDue, sign(pastDue)));
+      const sub = await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } });
+      expect(sub.currentPeriodEnd?.toISOString()).toBe(start); // min(dönem başı, kayıtlı son) — sağlayıcı semantiği sandbox'ta doğrulanınca gözden geçirilir
+    });
+
     it("yeni abonelik AKTİFLEŞİNCE eskisinin yerine geçer; kayıtlı aboneliğin kendi iptali uygulanır", async () => {
       const a = subEvent("evt_a", "sub_a", "active", new Date(Date.now() - 120_000).toISOString());
       await POST(req(a, sign(a)));

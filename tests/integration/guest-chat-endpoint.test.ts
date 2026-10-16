@@ -552,7 +552,7 @@ describe("POST /api/chat/[token] (public QR concierge)", () => {
       }
     });
 
-    it("🚨 sahiplik KAYBI: eski işçi çalışırken kilidi başka işçiye geçti → eski işçi kayıt yazmaz, misafire ikinci cevap yok (tek kalıcı kayıt)", async () => {
+    it("🚨 sahiplik KAYBI (son hakem — kayıt işlemi; Opus N3: bu test tek başına yenilemeyi SINAMAZ, ön kontroller aşağıdaki Q1/Q3 testlerinde): eski işçi çalışırken kilidi başka işçiye geçti → eski işçi kayıt yazmaz, misafire ikinci cevap yok (tek kalıcı kayıt)", async () => {
       const { __setKeyedClaimHeartbeatMs } = await import("@/lib/outbound-claim");
       __setKeyedClaimHeartbeatMs(20);
       try {
@@ -578,6 +578,72 @@ describe("POST /api/chat/[token] (public QR concierge)", () => {
       } finally {
         __setKeyedClaimHeartbeatMs(30_000);
       }
+    });
+
+    it("🚨 kilit SÜPÜRÜLDÜ ama kimse almadı (DB arızası / donma, Opus N2) → işçi kilidi yeniden alır, kaydı YAZAR; misafir mesajı sessizce kaybolmaz", async () => {
+      const { propertyId } = await makeOrgWithProperty();
+      const token = await enableChat(propertyId);
+      const warm = await call(token, "merhaba");
+      const cookie = deviceCookie(warm);
+      const reservation = await prisma.reservation.findFirstOrThrow({ where: { propertyId } });
+      const name = `outbound-send:qr-in:${reservation.id}:${RID}`;
+      const before = await prisma.message.count({ where: { direction: "inbound" } });
+      mockSuggest.mockImplementationOnce(async () => {
+        await prisma.systemLock.deleteMany({ where: { name } }); // süpürüldü; yeni işçi YOK
+        return result({ reply: "Çöp salı günü alınır; acil bir durumda 112'yi arayın." }); // ikinci ücretli çağrıdan önce yenileme koşar
+      });
+      const a = await call(token, "Çöp ne zaman alınıyor?", cookie, { requestId: RID });
+      expect(a.status).toBe(200);
+      expect((await a.json()).deduped).toBeUndefined(); // ⬅️ SATIR YOK = KAYIP sayılsaydı: deduped, hiçbir şey yazılmaz
+      expect(await prisma.message.count({ where: { direction: "inbound" } })).toBe(before + 1);
+      expect((await prisma.systemLock.findUniqueOrThrow({ where: { name } })).holder).toMatch(/^done:/); // tek kalıcı kayıt
+    });
+
+    it("🚨 yenileme döngüsü: kilit elde → süresi ileri atılır, kayıp YOK; kilit başkasına geçti → kayıp TEK kez bildirilir, yabancı kilit uzatılmaz (yaşayan mutant Q3)", async () => {
+      const { claimKeyedOutboundSend, startKeyedClaimHeartbeat, __setKeyedClaimHeartbeatMs } = await import("@/lib/outbound-claim");
+      __setKeyedClaimHeartbeatMs(15);
+      const name = "outbound-send:qr-in:yenileme-dongusu:" + RID;
+      const scope = "qr-in:yenileme-dongusu:" + RID;
+      try {
+        expect(await claimKeyedOutboundSend(scope, "Çöp?", "tok-a")).toBe("claimed");
+        // KONTROL: kilit eldeyken kayıp bildirilmez, süre yenilenir.
+        await prisma.systemLock.update({ where: { name }, data: { lockedUntil: new Date(Date.now() + 5_000) } });
+        let lost = 0;
+        const stop = startKeyedClaimHeartbeat(scope, "Çöp?", "tok-a", () => { lost++; });
+        await new Promise((r) => setTimeout(r, 90));
+        expect(lost).toBe(0);
+        expect((await prisma.systemLock.findUniqueOrThrow({ where: { name } })).lockedUntil.getTime()).toBeGreaterThan(Date.now() + 60_000);
+        // Kilit başka işçiye geçti.
+        const foreignUntil = new Date(Date.now() + 30_000);
+        await prisma.systemLock.update({ where: { name }, data: { holder: "baska.isci", lockedUntil: foreignUntil } });
+        await new Promise((r) => setTimeout(r, 120));
+        expect(lost).toBe(1); // ⬅️ KAYIP DALI YOKSA: 0 — kayıp hiç bildirilmez
+        expect((await prisma.systemLock.findUniqueOrThrow({ where: { name } })).lockedUntil.getTime()).toBe(foreignUntil.getTime());
+        stop();
+      } finally {
+        __setKeyedClaimHeartbeatMs(30_000);
+      }
+    });
+
+    it("🚨 sahiplik kaybı İKİNCİ ücretli çağrıdan ÖNCE görülür (eşzamanlı yenileme): yeniden yazdırma çağrısı YAPILMAZ (yaşayan mutant Q3)", async () => {
+      const { propertyId } = await makeOrgWithProperty();
+      const token = await enableChat(propertyId);
+      const warm = await call(token, "merhaba");
+      const cookie = deviceCookie(warm);
+      const reservation = await prisma.reservation.findFirstOrThrow({ where: { propertyId } });
+      const name = `outbound-send:qr-in:${reservation.id}:${RID}`;
+      const before = mockSuggest.mock.calls.length;
+      // İlk taslak "112'yi arayın" yönergesi taşıyor → rota normalde bir kez YENİDEN YAZDIRIR (ikinci ücretli çağrı). Ama bu sırada kilit
+      // başka işçiye geçti: ikinci çağrıdan hemen önceki eşzamanlı yenileme bunu görür.
+      mockSuggest.mockImplementationOnce(async () => {
+        await prisma.systemLock.deleteMany({ where: { name } });
+        await prisma.systemLock.create({ data: { name, lockedUntil: new Date(Date.now() + 120_000), holder: "baska.isci" } });
+        return result({ reply: "Çöp salı günü alınır; acil bir durumda 112'yi arayın." });
+      });
+      const a = await call(token, "Çöp ne zaman alınıyor?", cookie, { requestId: RID });
+      expect((await a.json()).deduped).toBe(true);
+      expect(mockSuggest.mock.calls.length - before).toBe(1); // ⬅️ YENİLEMESİZ: ikinci (ücretli) çağrı yapılırdı, sonra kayıtta düşerdi
+      expect(await prisma.message.count({ where: { body: "Çöp ne zaman alınıyor?" } })).toBe(0);
     });
 
     it("malformed requestId → 400, nothing recorded, no model call", async () => {

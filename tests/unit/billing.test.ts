@@ -279,7 +279,7 @@ describe("premiumAllowed — paid/AI feature gate (free-tier downgrade)", () => 
     expect(await premiumAllowed("founder-org")).toBe(true);
   });
 
-  it("DORMANT: past_due allowed while BILLING_ENFORCED is off (even long past grace)", async () => {
+  it("DORMANT: past_due allowed while BILLING_ENFORCED is off (even long after the paid period ended)", async () => {
     vi.stubEnv("BILLING_ENFORCED", "");
     findUnique.mockResolvedValue({
       organizationId: "o",

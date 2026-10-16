@@ -46,7 +46,7 @@ import {
 import { jsonOk, badRequest, tooManyRequests, parseJsonBody, payloadTooLarge, serverError, hasJsonContentType, unsupportedMediaType, noStore } from "@/lib/api";
 import { rateLimit, rateLimitClientKey } from "@/lib/rate-limit";
 import { SUPPORT_VIEW_GUEST_CHAT_MESSAGE, isSupportViewCookieHeader } from "@/lib/guest-chat-support-view";
-import { claimKeyedOutboundSend, completeKeyedOutboundSend, KeyedClaimLostError, releaseKeyedOutboundSend, startKeyedClaimHeartbeat } from "@/lib/outbound-claim";
+import { claimKeyedOutboundSend, completeKeyedOutboundSend, KeyedClaimLostError, releaseKeyedOutboundSend, renewKeyedOutboundSend, startKeyedClaimHeartbeat } from "@/lib/outbound-claim";
 import { limitsForOrg } from "@/lib/billing/plan-limits";
 import { consumeDailyAiBudgetForQr } from "@/lib/ai/daily-budget";
 import { recordIngestEvent } from "@/lib/ingest/events";
@@ -731,8 +731,16 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
         claimLost = true;
       })
     : () => {};
-  const assertClaimHeld = () => {
+  // Her ücretli model çağrısından HEMEN ÖNCE eşzamanlı yenileme (Codex C10 + Haiku 10-16): arka plan yenilemesi yalnız aralıkla bakar;
+  // burada kilit hem uzatılır hem de artık bu işçinin olmadığı ANINDA görülür. Veritabanı hatası kayıp sayılmaz (son hakem kayıt işlemi).
+  const assertClaimHeld = async () => {
     if (claimLost) throw new KeyedClaimLostError();
+    if (!claimScopeId) return;
+    const held = await renewKeyedOutboundSend(claimScopeId, message, claimToken).catch(() => true);
+    if (!held) {
+      claimLost = true;
+      throw new KeyedClaimLostError();
+    }
   };
   const record = async (botReply: string | null, escalated: boolean, closing: false | "handled" | "open" = false) => {
     stopHeartbeat(); // kayıt işlemi kilidi "tamamlandı"ya çevirir ya da kaybı kesinleştirir — yenileme bitti
@@ -914,6 +922,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // tam olarak suistimal edilecek penceredir. Bedeli yazılı: sağlayıcı düştüğünde
   // misafirin mesajı 2 birim yakar ve devir metnini alır. Bu takas QR için
   // güvenlik lehine seçildi; cron için tersi doğrudur.
+  await assertClaimHeld(); // sahiplik kaybedildiyse kota DÜŞÜLMEZ (Opus 10-16 N4)
   const budget = await consumeDailyAiBudgetForQr(ctx.property.organizationId, ctx.property.id);
   if (!budget.ok) {
     const escalationText = null;
@@ -970,6 +979,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // onay + sır kategorisi + içerik sezgiseli süzgeçlerinden geçmiştir; seçici
   // bu kümeye kalem EKLEYEMEZ. Bayrak kapalıyken `kbSel.items` aynı dizidir
   // ve `droppedItems` 0'dır (canlı davranış aynen).
+  await assertClaimHeld(); // getirme katmanı ücretli çağrılar yapabilir (anlama / embedding / sıralayıcı) — sahiplik yoksa YAPILMAZ (N4)
   const kbSel = await retrieveKbForPrompt({
     items: ctx.knowledgeBase,
     guestMessage: message,
@@ -1030,7 +1040,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     timeZone: org?.timezone,
   };
   const replyStartedAt = Date.now();
-  assertClaimHeld(); // sahiplik kaybedildiyse ücretli model çağrısı YAPILMAZ
+  await assertClaimHeld(); // sahiplik kaybedildiyse ücretli model çağrısı YAPILMAZ
   let result = await suggestReply(replyInput);
   // Üretim izi için: yeniden yazdırma yedeğe düşse de İLK çağrı modele gittiyse karar izlenir (Haiku 10-12).
   const firstModelCalled = result.source === "openai" || Boolean(result.llmUsage);
@@ -1053,7 +1063,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
         ...(firstDoorCode ? [QR_DOOR_CODE_RETRY_NOTE] : []),
         ...(firstDirective ? [QR_EMERGENCY_DIRECTIVE_RETRY_NOTE] : []),
       ];
-      assertClaimHeld(); // sahiplik kaybedildiyse ücretli model çağrısı YAPILMAZ
+      await assertClaimHeld(); // sahiplik kaybedildiyse ücretli model çağrısı YAPILMAZ
       result = await suggestReply({ ...replyInput, knowledgeBaseNotes: notes });
       doorCodeHeld = Boolean(result.reply) && qrReplyHasDoorCode(result.reply, modelKbTexts);
     } else {
@@ -1104,7 +1114,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   const gateResult = { ...result, reply: result.reply, usedSources: result.usedSources };
   let verdict = evaluateEscalation(gateResult, message, res.guestName, history, stayCtx);
   if ((!verdict.escalate || verdict.reason === "availability_unconfirmed") && stayGuardEnabled()) {
-    assertClaimHeld(); // sahiplik kaybedildiyse ücretli model çağrısı YAPILMAZ
+    await assertClaimHeld(); // sahiplik kaybedildiyse ücretli model çağrısı YAPILMAZ
     const stayGuard = await runStayChangeGuard({
       guestMessages: [message],
       reply: result.reply,
@@ -1138,17 +1148,17 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     });
     if (code) {
       const codeResult = codeBuiltResult(result, code.text, code.kind === "extension" ? "extend_stay" : "availability");
-      const guard =
-        stayCtx?.stayGuard ??
-        (stayGuardEnabled()
-          ? await runStayChangeGuard({
-              guestMessages: [message],
-              reply: code.text,
-              stayTimes: stayCtx?.stayTimes,
-              names: [res.guestName, res.guestGivenName],
-              history,
-            })
-          : undefined);
+      let guard = stayCtx?.stayGuard;
+      if (guard == null && stayGuardEnabled()) {
+        await assertClaimHeld(); // ücretli bekçi çağrısından önce sahiplik (Opus 10-16 N4)
+        guard = await runStayChangeGuard({
+          guestMessages: [message],
+          reply: code.text,
+          stayTimes: stayCtx?.stayTimes,
+          names: [res.guestName, res.guestGivenName],
+          history,
+        });
+      }
       const codeCtx = {
         ...stayCtx,
         stayGuard: guard,

@@ -542,8 +542,8 @@ Kararların özü (aynen kaydı oturum notlarında; burada yalnız ne yapıldı�
   ikinci görev açılmasın. Seçenekler: (A) söze kısa KONU alanı (ör. "klima", "musluk"; migration) — aynı tür + saat + konu birleşir, farklı konu
   ayrı · (B) öneri yolunda birleştirmeyi kaldır (migration yok; ama elle kaydedilmiş aynı söz öneriyle ikinci kez açılabilir) · (C) bugünkü gibi
   kalsın. Önerim A (Faz 2 şemasına eklerim); anahtar kapalı olduğu için bugün kimseyi etkilemiyor.
-- **I2 · Ödeme gecikmesi ek süresi 14 gün mü 30 gün mü** (Paddle yaklaşık 30 gün yeniden dener; bizde 15–30. günler arası otomatik cevap kapalı,
-  ödeme gelirse anında açılır). Önerim 14 kalsın.
+- ~~**I2 · Ödeme gecikmesi ek süresi 14 gün mü 30 gün mü**~~ → **KAPANDI (kurucu 10-16: "Ek 14 gün istemiyorum")**: ek süre yok; ödenmiş dönem
+  bitince ücretli otomatik işler durur, yenileme ödemesi doğrulanınca açılır (kod: `billing/subscription.ts`).
 - **I3 · O1 Seçenek A son onayı:** dizinin garanti ettiği / etmediği tasarım belgesi §7'de. Onay verirsen migration taslağını Faz 2 ile birlikte gösteririm.
 - **I4 · Duraklatılmış abonelik metni (müşteri ekranı):** Paddle müşteri portalında müşterinin duraklatmayı kendisinin bitirebildiğini (devam
   ettir) belgede DOĞRULAYAMADIM (Paddle'da devam ettirme API / yönetim paneli işi; duraklatma e-postasında "ödeme yöntemini güncelle" bağlantısı

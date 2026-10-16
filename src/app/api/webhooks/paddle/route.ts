@@ -208,7 +208,7 @@ async function applySubscriptionEvent(
   // near-simultaneous past_due events (minutes; the access decision reads the paid period end, not this anchor).
   const existing = await prisma.subscription.findUnique({
     where: { organizationId },
-    select: { lastEventAt: true, pastDueSince: true, providerRef: true, status: true },
+    select: { lastEventAt: true, pastDueSince: true, providerRef: true, status: true, currentPeriodEnd: true },
   });
 
   const providerRef = str(data.id);
@@ -255,6 +255,21 @@ async function applySubscriptionEvent(
   if (endsAt) {
     const d = new Date(endsAt);
     if (!Number.isNaN(d.getTime())) currentPeriodEnd = d;
+  }
+  // 🚨 ÖDEME GECİKMESİNDE "ÖDENMİŞ DÖNEM SONU" İLERLEMEZ (Opus 10-16 N1; kurucu: "Geçerli ödenmiş dönem bitince ücretli otomatik işler
+  // dursun … Ek 14 gün istemiyorum"). Erişim kararı `past_due` iken bu alana bakar (`getEntitlement`). Paddle peşin faturalar: yenileme
+  // ödemesi düştüğünde abonelik dönemi büyük olasılıkla ÖDENMEMİŞ yeni döneme ilerlemiştir (belge bu ortamdan okunamadı — sandbox'ta
+  // doğrulanacak); `ends_at`'i yazmak ödemeyen müşteriye ~bir dönem (aylıkta 30 gün, yıllıkta dunning sonuna dek) ücretsiz erişim verirdi.
+  // Kural (iki sağlayıcı yorumunda da güvenli): `past_due` olayında yazılan değer ödenmemiş dönemin BAŞI (= ödenmiş dönemin sonu), aynı
+  // aboneliğin kayıtlı değerinden asla ileride değil. Dönem ilerlemediyse (dönem içi düşen tahsilat) başlangıç geçmişte kalır → erişim
+  // kapanır (ek süre yok yönünde güvenli); ödeme doğrulanınca `active` olayı gerçek dönem sonunu yazar.
+  if (status === "past_due") {
+    const startsAt = str(period?.starts_at);
+    const start = startsAt ? new Date(startsAt) : null;
+    const startValid = start != null && !Number.isNaN(start.getTime()) ? start : null;
+    const kept = existing?.providerRef != null && existing.providerRef === providerRef ? existing.currentPeriodEnd : null;
+    const candidates = [startValid, kept].filter((d): d is Date => d != null);
+    currentPeriodEnd = candidates.length ? new Date(Math.min(...candidates.map((d) => d.getTime()))) : null;
   }
 
   // scheduled_change with action "cancel" → cancel at period end.

@@ -115,6 +115,14 @@ export interface DrainDeps {
   send?: OutboxSendFn;
   /** Best-effort reconcile of an ambiguous row against provider history. */
   reconcile?: OutboxReconcileFn;
+  /** Hızlı uyandırma turu (10-16): 48 saatlik teslim etkisi onarımı ATLANIR — onu 2 dk'lık periyodik tur yapar (her elle cevapta tarama yükü olmasın). */
+  skipHeal?: boolean;
+  /**
+   * Hızlı uyandırma turu (Opus 10-16 N5): süresi dolmuş talepleri "belirsiz"e çeviren kurtarma ATLANIR. Uyandırma turu senkron kilidinin
+   * DIŞINDA koşar; kilitli periyodik turun yavaş partisinde henüz POST'u yapılmamış satırları "belirsiz" yapıp gereksiz "ulaşmış olabilir"
+   * incelemesine düşürmesin. Kurtarma yalnız kilitli periyodik turda.
+   */
+  skipRecover?: boolean;
   /**
    * Resolve an org's channel credential token for the row's provider. Default = the Channel Layer
    * (`resolveOrgChannelCredential(orgId, provider)`, V0.8): a credential of ANOTHER provider is never returned.
@@ -1073,9 +1081,25 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
   // (milisaniye) — `erasure.ts`te belgeli "gönderim sürerken silindi" istisnası.
   const live = await prisma.messageOutbox.findFirst({
     where: { id: row.id, claimedBy: token, status: "sending" },
-    select: { body: true },
+    select: { body: true, claimExpiresAt: true },
   });
   if (!live) return; // talep kaybedildi (süresi doldu / başka işçi aldı): bu işçi hiçbir şey göndermez
+  // Talebin süresi DOLDU ama henüz kimse kurtarmadı (Opus 10-16 N5 ikinci kemer): bu satır için POST YAPILMADI — kesin "gönderilmedi".
+  // Göndermek, başka bir turun aynı anda "belirsiz"e çevirip uzlaştırmasıyla yarışırdı; "belirsiz" bırakmak gereksiz "ulaşmış olabilir"
+  // incelemesi doğururdu. Satır KENDİ talebimiz koşuluyla bekleyene geri bırakılır; sıradaki tur temiz gönderir.
+  const liveNow = deps.now();
+  if (live.claimExpiresAt != null && live.claimExpiresAt.getTime() <= liveNow.getTime()) {
+    await settle(row, token, "sending", {
+      status: "pending",
+      availableAt: liveNow,
+      // POST yapılmadı: deneme sayılmaz, rezervasyon başına "60 sn'de 2 gönderim" sayacı da bu talebi saymaz (checkin-ertele yolu ile aynı).
+      attemptCount: { decrement: 1 },
+      claimedBy: null,
+      claimExpiresAt: null,
+      claimedAt: null,
+    });
+    return;
+  }
   if (live.body === ANON_BODY) {
     await cancelRow(row, token, "erased");
     acc.canceled++;
@@ -1426,11 +1450,13 @@ export async function drainOutboxOnce(deps: DrainDeps = {}): Promise<DrainResult
   const nowDate = now();
   const expiry = new Date(nowDate.getTime() + CLAIM_TTL_MS);
 
-  // Recover crashed-mid-attempt rows first (stale claim → ambiguous). Best-effort.
-  try {
-    await recoverStaleClaims(nowDate);
-  } catch (err) {
-    await reportError("outbox-recover", err);
+  // Recover crashed-mid-attempt rows first (stale claim → ambiguous). Best-effort. Hızlı uyandırma turunda atlanır (N5).
+  if (!deps.skipRecover) {
+    try {
+      await recoverStaleClaims(nowDate);
+    } catch (err) {
+      await reportError("outbox-recover", err);
+    }
   }
 
   let rows: OutboxRow[];
@@ -1472,11 +1498,13 @@ export async function drainOutboxOnce(deps: DrainDeps = {}): Promise<DrainResult
       }
     });
   }
-  // Heal missed delivery side-effects (idempotent; never blocks the drain result).
-  try {
-    await healDeliveryEffects(nowDate);
-  } catch (err) {
-    await reportError("outbox-heal", err);
+  // Heal missed delivery side-effects (idempotent; never blocks the drain result). Hızlı uyandırma turu atlar (periyodik tur yapar).
+  if (!deps.skipHeal) {
+    try {
+      await healDeliveryEffects(nowDate);
+    } catch (err) {
+      await reportError("outbox-heal", err);
+    }
   }
   return acc;
 }
@@ -1496,10 +1524,17 @@ export const __internals = { settle };
 
 let kickRunning = false;
 let kickAgain = false;
+let kickStartedAt = 0;
+let kickGeneration = 0;
 let followUpMs = 61_000;
+let followUpTimer: ReturnType<typeof setTimeout> | null = null;
 let emptyFollowUps = 0;
 /** Art arda boş takip turu tavanı: sıkışmış (ör. sırada bekleyen) bir satır yüzünden dakikada bir sonsuz uyandırma olmasın. */
 const MAX_EMPTY_FOLLOW_UPS = 3;
+/** Uyandırma turu bu süreden uzun dönmediyse takılmış sayılır (Opus 10-16 N6): o süreçte hızlı uyandırma sessizce ölmesin. */
+const KICK_STALE_MS = 10 * 60_000;
+/** Uyandırma turunun parti boyu (N5): elle cevap için birkaç satır yeter; birikmiş kuyruğu periyodik tur boşaltır. */
+const KICK_BATCH = 5;
 
 /** Hızlı uyandırma açık mı — varsayılan AÇIK; yalnız tam "0" kapatır (operasyonel kaçış; testler kapalı koşar). */
 export function outboxFastWakeEnabled(): boolean {
@@ -1519,36 +1554,54 @@ async function pendingManualSoon(): Promise<boolean> {
   return row !== null;
 }
 
-export function kickOutboxDrain(drain: () => Promise<unknown> = () => drainOutboxOnce()): void {
+export function kickOutboxDrain(
+  drain: () => Promise<unknown> = () => drainOutboxOnce({ skipHeal: true, skipRecover: true, batchSize: KICK_BATCH }),
+): void {
   if (!outboxFastWakeEnabled()) return;
   if (kickRunning) {
-    kickAgain = true;
-    return;
+    if (Date.now() - kickStartedAt < KICK_STALE_MS) {
+      kickAgain = true;
+      return;
+    }
+    // Takılmış tur (ör. hiç dönmeyen sorgu): yeni tur başlar; eski turun `finally`si nesil farkı yüzünden durumu ezmez.
+    void reportError("outbox.kick", new Error("Hızlı uyandırma turu 10 dakikadır dönmedi — yeni tur başlatıldı")).catch(() => {});
   }
   kickRunning = true;
+  kickAgain = false;
+  kickStartedAt = Date.now();
+  const generation = ++kickGeneration;
   const loop = async (): Promise<void> => {
     let claimedAny = false;
     try {
       do {
         kickAgain = false;
-        // Arka plan işi çağıranın takip numarasını / işletmesini MİRAS ALMAZ (e-posta kuyruğu uyandırmasıyla aynı kural).
-        const r = (await runAsNewSystemOperation(drain)) as { claimed?: number } | undefined;
+        const r = (await drain()) as { claimed?: number } | undefined;
         if ((r?.claimed ?? 0) > 0) claimedAny = true;
-      } while (kickAgain);
+      } while (kickAgain && generation === kickGeneration);
     } finally {
-      kickRunning = false;
+      if (generation === kickGeneration) kickRunning = false;
     }
+    if (generation !== kickGeneration) return; // yerine yeni tur geçti; takip kararı onun
     // Sağlayıcı sınırı (rezervasyon başına 60 sn'de 2 gönderim) ya da yeniden deneme beklemesi yüzünden kalan ELLE cevap: ~61 sn sonra
-    // bir takip turu (2 dk'lık senkronu beklemesin). Boş takip turları sınırlı.
+    // bir takip turu (2 dk'lık senkronu beklemesin). Boş takip turları sınırlı; aynı anda en çok BİR takip zamanlayıcısı (N6).
     emptyFollowUps = claimedAny ? 0 : emptyFollowUps + 1;
-    if (emptyFollowUps <= MAX_EMPTY_FOLLOW_UPS && (await pendingManualSoon())) {
-      const t = setTimeout(() => kickOutboxDrain(drain), followUpMs);
-      t.unref?.();
+    // Gönderim duraklatıldıysa takip turu kurulmaz (boşuna tur; anahtar kalkınca ilk uyandırma ya da periyodik tur alır).
+    if (followUpTimer == null && !outboxDeliveryPaused() && emptyFollowUps <= MAX_EMPTY_FOLLOW_UPS && (await pendingManualSoon())) {
+      followUpTimer = setTimeout(() => {
+        followUpTimer = null;
+        kickOutboxDrain(drain);
+      }, followUpMs);
+      followUpTimer.unref?.();
     }
   };
-  void loop().catch((err) => {
-    void reportError("outbox.kick", err instanceof Error ? err : new Error(String(err))).catch(() => {});
-  });
+  // Bütün tur (takip kararı, hata raporu dahil) çağıran isteğin takip numarasını / işletmesini MİRAS ALMAZ (N6; e-posta kuyruğu
+  // uyandırmasıyla aynı kural).
+  // `.catch` da yeni bağlamın İÇİNDE bağlanır: söz zinciri geri çağrısı, bağlandığı andaki bağlamda koşar.
+  void runAsNewSystemOperation(() =>
+    loop().catch((err) => {
+      void reportError("outbox.kick", err instanceof Error ? err : new Error(String(err))).catch(() => {});
+    }),
+  );
 }
 
 /** Test yardımcısı: takip turu gecikmesi. */
@@ -1560,7 +1613,16 @@ export function __setOutboxKickFollowUpMs(ms: number): void {
 export function __resetOutboxKick(): void {
   kickRunning = false;
   kickAgain = false;
+  kickStartedAt = 0;
+  kickGeneration++;
+  if (followUpTimer) clearTimeout(followUpTimer);
+  followUpTimer = null;
   emptyFollowUps = 0;
   followUpMs = 61_000;
+}
+
+/** Test yardımcısı: takılmış turu taklit etmek için başlangıç damgasını geri al. */
+export function __ageOutboxKick(ms: number): void {
+  kickStartedAt -= ms;
 }
 
