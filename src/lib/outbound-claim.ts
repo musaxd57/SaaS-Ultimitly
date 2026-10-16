@@ -77,23 +77,59 @@ export async function releaseOutboundSend(conversationId: string, body: string):
 // message is neither silently swallowed nor double-processed). The body-in-key
 // scheme above cannot make this distinction — a different body just misses the
 // existing claim entirely.
+//
+// ÇALIŞAN İŞLEM KİLİDİ ≠ TAMAMLANMIŞ İSTEK KAYDI (kurucu 10-16, "300'e çıkarmayın"): aynı satırın iki hâli.
+//  · Çalışan: `holder = <özet>.<işçi jetonu>`, süre 120 sn (çöken işçi en geç 2 dk sonra yeniden denemeyi serbest bırakır).
+//  · Tamamlanmış: iş KAYDEDİLDİĞİ İŞLEMDE `holder = done:<özet>`, süre 24 sa → aynı isteğin geç tekrarı (kopan bağlantı, uyuyan
+//    telefon) yine "duplicate"; misafirin YENİ mesajı yeni kimlik taşır, hiç beklemez.
+//  · Fencing: kilit süresi dolup başka işçi aynı isteği aldıysa eski işçinin kaydı (`completeKeyedOutboundSend`) işlemi geri alır
+//    (`KeyedClaimLostError`) ve bırakma yalnız KENDİ jetonlu satırını siler — yeni işçinin canlı kilidine dokunmaz.
+// Jetonsuz eski biçim (`holder = <özet>`, önceki sürümün yazdığı satır) okunurken özet olarak tanınır (sürüm geçişinde sınıflandırma bozulmaz).
 // ---------------------------------------------------------------------------
 
 export type KeyedOutboundClaim = "claimed" | "duplicate" | "mismatch" | "unavailable";
 
-export async function claimKeyedOutboundSend(scopeId: string, body: string): Promise<KeyedOutboundClaim> {
+/** Tamamlanmış istek kaydının ömrü (kurucu 10-16). */
+export const KEYED_DONE_TTL_MS = 24 * 3_600_000;
+const DONE_PREFIX = "done:";
+
+function bodyDigest(body: string): string {
+  return createHash("sha256").update(body).digest("base64url").slice(0, 24);
+}
+
+function inflightHolder(digest: string, token: string): string {
+  return `${digest}.${token}`;
+}
+
+/** Satırdaki özet: tamamlanmış (`done:<özet>`), çalışan (`<özet>.<jeton>`) ya da eski sürümün jetonsuz biçimi (`<özet>`). base64url'de "." yok. */
+function digestOfHolder(holder: string | null): string | null {
+  if (!holder) return null;
+  if (holder.startsWith(DONE_PREFIX)) return holder.slice(DONE_PREFIX.length);
+  const dot = holder.indexOf(".");
+  return dot === -1 ? holder : holder.slice(0, dot);
+}
+
+/** Eski işçi işini kaybetti: kilidin süresi doldu ve aynı isteği başka işçi aldı / bitirdi. Kayıt işlemi geri alınır. */
+export class KeyedClaimLostError extends Error {
+  constructor() {
+    super("keyed outbound claim lost to a newer holder");
+    this.name = "KeyedClaimLostError";
+  }
+}
+
+export async function claimKeyedOutboundSend(scopeId: string, body: string, token: string): Promise<KeyedOutboundClaim> {
   const now = new Date();
-  const digest = createHash("sha256").update(body).digest("base64url").slice(0, 24);
+  const digest = bodyDigest(body);
   const name = `${PREFIX}${scopeId}`;
   // Same opportunistic sweep as claimOutboundSend: an EXPIRED claim (its holder
-  // crashed mid-flight, or the work simply finished long ago) must never block a
+  // crashed mid-flight, or the completed record's 24 h passed) must never block a
   // retry — after the TTL the row is dropped and the retry claims fresh.
   await prisma.systemLock
     .deleteMany({ where: { name: { startsWith: PREFIX }, lockedUntil: { lt: now } } })
     .catch(() => {});
   try {
     await prisma.systemLock.create({
-      data: { name, lockedUntil: new Date(now.getTime() + CLAIM_TTL_MS), holder: digest },
+      data: { name, lockedUntil: new Date(now.getTime() + CLAIM_TTL_MS), holder: inflightHolder(digest, token) },
     });
     return "claimed";
   } catch (err) {
@@ -103,7 +139,7 @@ export async function claimKeyedOutboundSend(scopeId: string, body: string): Pro
         // Row vanished between the failed create and this read (a racing sweep on
         // a just-expired row) — refuse honestly; the client's next retry claims.
         if (!row) return "unavailable";
-        return row.holder === digest ? "duplicate" : "mismatch";
+        return digestOfHolder(row.holder) === digest ? "duplicate" : "mismatch";
       } catch {
         return "unavailable";
       }
@@ -113,8 +149,37 @@ export async function claimKeyedOutboundSend(scopeId: string, body: string): Pro
   }
 }
 
+/**
+ * İşin KAYDEDİLDİĞİ işlemin içinde çağrılır: bu işçinin çalışan kilidi 24 saatlik tamamlanmış kayda döner. Kilit artık bu işçinin değilse
+ * (süresi doldu, başka işçi aldı ya da bitirdi) `KeyedClaimLostError` → işlem geri alınır, hiçbir şey yazılmaz. Kilit süpürülmüş ve kimse
+ * almamışsa kaydı bu işçi yazar (yarışan alıcı anahtarda bekler, sonra "duplicate" görür).
+ */
+export async function completeKeyedOutboundSend(
+  tx: Prisma.TransactionClient,
+  scopeId: string,
+  body: string,
+  token: string,
+  now: Date = new Date(),
+): Promise<void> {
+  const name = `${PREFIX}${scopeId}`;
+  const digest = bodyDigest(body);
+  const done = { holder: `${DONE_PREFIX}${digest}`, lockedUntil: new Date(now.getTime() + KEYED_DONE_TTL_MS) };
+  const own = await tx.systemLock.updateMany({ where: { name, holder: inflightHolder(digest, token) }, data: done });
+  if (own.count === 1) return;
+  if (await tx.systemLock.findUnique({ where: { name }, select: { name: true } })) throw new KeyedClaimLostError();
+  try {
+    await tx.systemLock.create({ data: { name, ...done } });
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") throw new KeyedClaimLostError();
+    throw err;
+  }
+}
+
 /** Release a keyed claim after a failure that recorded NOTHING (the retry must
- *  be processed, not deduped against zero work). */
-export async function releaseKeyedOutboundSend(scopeId: string): Promise<void> {
-  await prisma.systemLock.deleteMany({ where: { name: `${PREFIX}${scopeId}` } }).catch(() => {});
+ *  be processed, not deduped against zero work). Yalnız bu işçinin KENDİ çalışan kilidi silinir (fencing): süresi dolmuş eski işçi,
+ *  aynı isteği almış yeni işçinin canlı kilidini ya da tamamlanmış kaydı silemez. */
+export async function releaseKeyedOutboundSend(scopeId: string, body: string, token: string): Promise<void> {
+  await prisma.systemLock
+    .deleteMany({ where: { name: `${PREFIX}${scopeId}`, holder: inflightHolder(bodyDigest(body), token) } })
+    .catch(() => {});
 }

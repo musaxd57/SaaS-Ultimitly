@@ -45,7 +45,9 @@ Kurucu 10-15: "Railway'i açınca ekleyeceğimiz bayrakları unutma." Bu dosya T
 6. `ATTENTION_GAP_ENABLED` (kurucu onayladı 10-11) · `AI_ACTION_SUGGESTIONS_ENABLED` (kurucu 10-12 "A + B + C").
 7. `AI_GENERATION_TRACE_ENABLED` + `CHANNEL_METADATA_WRITE` (migration 60 yazıcıları).
 8. Onay / belge bekleyenler: `TRIAL_IDENTITY_ENABLED` (önce aydınlatma metni) · `GUEST_ERASURE_ENABLED` (avukat) ·
-   `RETENTION_MESSAGE_AGE_ANCHOR` (onay paketi) · `DURABLE_OUTBOX_ENABLED` · `ICAL_DISAPPEARANCE_RECONCILE_ENABLED` ·
+   `RETENTION_MESSAGE_AGE_ANCHOR` (onay paketi) · `DURABLE_OUTBOX_ENABLED` (O1, kurucu 10-16: önce
+   `DURABLE_OUTBOX_ORG_IDS=<kurucu org kimliği>` ile yalnız kurucu org; ilk gönderimler birlikte; geri dönüş = env'i sil, bekleyen satır yine
+   bir kez gider — `DEPLOYMENT.md` §6) · `ICAL_DISAPPEARANCE_RECONCILE_ENABLED` ·
    `UNVERIFIED_SWEEP_ENABLED` (önce `UNVERIFIED_SWEEP_DRY_RUN=1`) · `ALERT_EMAIL_VERIFY_ENABLED` · `HOST_DECISIONS_ENABLED` (+ `HOST_DECISION_AI_TEXT_ENABLED`) ·
    `AI_ACTION_CLAIMS_ENABLED` · `KB_HISTORY_SUGGESTIONS_ENABLED` (Geçmişten öğren gelince gereksiz olabilir).
 9. Kurucu inceleme notu (10-15 / 10-16; KURUCU-SORULARI §H): `AI_FAULT_GUARD_ENABLED` (arıza her yolda arıza: ev sahibine bırak + tek e-posta)

@@ -184,7 +184,10 @@ gönderilecek".
 **Açma adımları (hazır olunca — para/gönderim hot-path'i, İLK gönderimleri BİRLİKTE doğrula):**
 1. Deploy zaten migration `29_message_outbox`'ı uygular (additive, boş tablo).
 2. Worker in-process scheduler'da (2-dk) koşar; ayrı env gerekmez.
-3. `DURABLE_OUTBOX_ENABLED=1` ekle → manuel yanıt VE AI oto-yanıt outbox'a gider.
+3. `DURABLE_OUTBOX_ENABLED=1` ekle → manuel yanıt VE AI oto-yanıt outbox'a gider. **İlk deneme listesi (O1, kurucu 10-16):**
+   `DURABLE_OUTBOX_ORG_IDS=<işletme kimliği>[,<kimlik>…]` doluysa YALNIZ listedeki işletmelerin gönderimleri kuyruğa yazar, diğerleri
+   bugünkü yoldan gider; boşsa anahtar bütün işletmeler için geçerli; yazılmış ama içi boşsa (`,`) kimse açılmaz. Liste yalnız GÖNDERİM
+   kararını seçer: boşaltma işçisi ve okuma süzgeçleri ana anahtara bakar (listeden çıkarılan işletmenin bekleyen satırı yine bir kez gider).
 4. Bir yanıt gönder; DB'de `MessageOutbox` satırının `pending → sent` olduğunu
    ve `Message.externalId`'nin worker sonrası dolduğunu doğrula. `review`/`failed`
    satırları takılı gönderimleri gösterir (elle incele); `blocked` = Hospitable aboneliği

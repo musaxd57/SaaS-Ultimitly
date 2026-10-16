@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { type NextRequest, NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
@@ -45,7 +46,7 @@ import {
 import { jsonOk, badRequest, tooManyRequests, parseJsonBody, payloadTooLarge, serverError, hasJsonContentType, unsupportedMediaType, noStore } from "@/lib/api";
 import { rateLimit, rateLimitClientKey } from "@/lib/rate-limit";
 import { SUPPORT_VIEW_GUEST_CHAT_MESSAGE, isSupportViewCookieHeader } from "@/lib/guest-chat-support-view";
-import { claimKeyedOutboundSend, releaseKeyedOutboundSend } from "@/lib/outbound-claim";
+import { claimKeyedOutboundSend, completeKeyedOutboundSend, KeyedClaimLostError, releaseKeyedOutboundSend } from "@/lib/outbound-claim";
 import { limitsForOrg } from "@/lib/billing/plan-limits";
 import { consumeDailyAiBudgetForQr } from "@/lib/ai/daily-budget";
 import { recordIngestEvent } from "@/lib/ingest/events";
@@ -638,10 +639,12 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // text) → 409, neither swallowed nor double-processed. A DELIBERATE identical
   // follow-up ("ok" twice) still works: each composed message carries a fresh
   // id. Claim TTL (120s) bounds a crashed holder: the expired row is swept on
-  // the next claim, so a retry is never locked out forever. ──
+  // the next claim, so a retry is never locked out forever. Kurucu 10-16: kayıt yazıldığı işlemde kilit 24 saatlik "tamamlandı" kaydına
+  // döner (geç tekrar da tekilleşir); süresi dolmuş eski işçi yeni işçinin işini KAYDETMEZ ve kilidini SİLMEZ (işçi jetonu). ──
   const claimScopeId = requestId ? `qr-in:${res.id}:${requestId}` : null;
+  const claimToken = randomUUID();
   if (claimScopeId) {
-    const claimed = await claimKeyedOutboundSend(claimScopeId, message);
+    const claimed = await claimKeyedOutboundSend(claimScopeId, message, claimToken);
     if (claimed === "duplicate") {
       // Already processed (or still in flight). The client is GET-authoritative —
       // it reloads the thread and renders whatever the first attempt recorded.
@@ -669,7 +672,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // denemesi normal işlenir). 429 + metin: istemci gönderilmemiş balonu geri alır, yazılan metni geri koyar ve metni gösterir.
   const stayLimit = await rateLimit(`guestchat-stay:${res.id}`, STAY_MESSAGES_PER_HOUR, 60 * 60_000);
   if (!stayLimit.ok) {
-    if (claimScopeId) await releaseKeyedOutboundSend(claimScopeId);
+    if (claimScopeId) await releaseKeyedOutboundSend(claimScopeId, message, claimToken);
     // Ev sahibine saatte TEK kayıt (aynı pencerede ikinci aşım hiçbir şey yazmaz). Kayıt yazılamazsa misafirin cevabı yine döner;
     // hata raporlanır (genel 500 yerine onaylı metin).
     try {
@@ -723,6 +726,8 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   let recorded = false;
   const record = async (botReply: string | null, escalated: boolean, closing: false | "handled" | "open" = false) => {
     const out = await prisma.$transaction(async (tx) => {
+      // Kurucu 10-16: çalışan kilit → tamamlanmış istek kaydı, kayıtla AYNI işlemde; kilit artık bu işçinin değilse hiçbir şey yazılmaz.
+      if (claimScopeId) await completeKeyedOutboundSend(tx, claimScopeId, message, claimToken);
       // Y3: silme kilidi + kapı İŞLEM İÇİNDE; konuşma satırı da (adı taşır) bu sınırın arkasında açılır.
       const guestName = await assertStayNotErased(tx, ctx.property.organizationId, res.id);
       const conversationId = await ensureGuestChatConversation(ctx.property.id, { id: res.id, guestName }, tx);
@@ -1355,9 +1360,11 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   return finalize({ escalated: sendEscalate, reply });
 
   } catch (err) {
+    // Kilit süresi dolarken aynı isteği yeni işçi aldı / bitirdi (kurucu 10-16): bu işçi hiçbir şey yazmadı; istemci kaydı GET ile okur.
+    if (err instanceof KeyedClaimLostError) return finalize({ deduped: true });
     // Pre-record failure (model/DB error before anything persisted) → release so
     // the guest's retry is processed instead of deduped against zero work.
-    if (claimScopeId && !recorded) await releaseKeyedOutboundSend(claimScopeId);
+    if (claimScopeId && !recorded) await releaseKeyedOutboundSend(claimScopeId, message, claimToken);
     // Y3: konaklama istek sürerken silindi — hiçbir şey yazılmadı; misafire konaklaması olmayan biriyle aynı cevap.
     if (err instanceof StayErasedError) {
       // Kurucu kararı 10-14 ("Uyarı gitsin, metinsiz"): mesaj bir tehlike bildirimiyse ev sahibine METİNSİZ acil uyarı (iki ağdan biri
