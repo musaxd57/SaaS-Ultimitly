@@ -1,4 +1,5 @@
 import "server-only";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 
 // ---------------------------------------------------------------------------
@@ -62,63 +63,112 @@ export async function queueHealth(now: Date = new Date()): Promise<QueueHealth[]
 
 // ---------------------------------------------------------------------------
 // KUYRUK İLERLEMİYOR ALARMI (kurucu 10-16 O3: "uzun vadede A + B"). Panel bakılmazsa birikme fark edilmez. İki bağımsız sinyal:
-//  · A — senkron geçişinin sonunda GEÇİŞ TABANLI alarm (`checkQueueStall`): vadesi gelmiş satır 15 dk bekliyorsa e-posta + Sentry BİR KEZ,
-//    düzelince temizlenir. Alarm e-postası `reportError` → doğrudan sağlayıcı (kimlik e-postası kuyruğundan GEÇMEZ) → bozuk kuyruğa bağlı değil.
+//  · A — senkron geçişinin sonunda GEÇİŞ TABANLI alarm (`checkQueueStall`): kuyruk İLERLEMİYORSA e-posta + Sentry BİR KEZ, düzelince
+//    temizlenir. Alarm e-postası `reportError` → doğrudan sağlayıcı (kimlik e-postası kuyruğundan GEÇMEZ) → bozuk kuyruğa bağlı değil.
 //  · B — `/api/health?strict=1` aynı ölçütle 503 `queue_stalled` (ikinci izleyici için). Döngü ölürse A susar, B yine görür; döngü canlı
 //    ama satır ilerlemiyorsa ikisi de görür. Normal `/api/health` (Railway hazır olma yoklaması) DEĞİŞMEZ → yeniden başlatma döngüsü yok.
+// "İlerlemiyor" (Haiku 10-16 sahte alarm bulguları üzerine): (1) İŞÇİNİN ALABİLECEĞİ vadesi gelmiş satır 15 dk'dır bekliyor — genel otomatik
+// mesaj anahtarı kapalıyken bilerek bekleyen otomatik şablonlar ve aynı konuşmada önceki satırın arkasında sıra bekleyen satır (konuşma
+// sırası; önceki satır yeniden deneme beklemesinde olabilir) SAYILMAZ, işçinin seçimiyle aynı kural; VE (2) son 15 dk'da kuyrukta hiç
+// ilerleme yok (sahiplenme / gönderim). Büyük birikim (her geçiş 20 satır) ilerlediği sürece alarm değildir.
 // ---------------------------------------------------------------------------
 
-/** Vadesi gelmiş satır bu kadar bekledi → kuyruk ilerlemiyor. Yoklayıcı en geç 2 dk'da bir geçer; 15 dk = yedi geçiş kaçtı. */
+/** Vadesi gelmiş satır bu kadar bekledi ve bu süredir ilerleme yok → kuyruk ilerlemiyor. Yoklayıcı en geç 2 dk'da bir geçer. */
 export const QUEUE_STALL_MS = 15 * 60_000;
 
 export class QueueStalledError extends Error {
   /** Hata SINIFI için (`errorClassOf` → "QueueStalled:message"); metin ve kimlik taşımaz. */
   readonly code: "message" | "email";
-  constructor(queue: "message" | "email", lagMs: number) {
-    super(`${queue === "message" ? "Misafir mesajı" : "Kimlik e-postası"} kuyruğu ilerlemiyor: vadesi gelmiş en eski satır ${Math.round(lagMs / 60_000)} dakikadır bekliyor.`);
+  constructor(queue: "message" | "email", lagMs: number, note = "") {
+    super(
+      `${queue === "message" ? "Misafir mesajı" : "Kimlik e-postası"} kuyruğu ilerlemiyor: gönderilebilir en eski satır ${Math.round(lagMs / 60_000)} ` +
+        `dakikadır bekliyor ve son ${Math.round(QUEUE_STALL_MS / 60_000)} dakikada hiçbir satır gönderilmedi.${note}`,
+    );
     this.name = "QueueStalled";
     this.code = queue;
   }
 }
 
-/** İki kuyruğun vadesi gelmiş en eski `pending` satırının bekleme süresi (ms; satır yoksa null). İki dizinli okuma. */
-export async function oldestDueLagMs(now: Date = new Date()): Promise<{ message: number | null; email: number | null }> {
-  const [m, e] = await Promise.all([
+export interface QueueStallState {
+  /** İşçinin alabileceği vadesi gelmiş en eski satırın bekleme süresi (ms); yoksa null. */
+  lagMs: number | null;
+  /** Son `QUEUE_STALL_MS` içinde sahiplenme / gönderim oldu mu. */
+  progressing: boolean;
+}
+
+/** İki kuyruğun durumu — misafir mesajında işçinin seçim kuralıyla (genel anahtar + konuşma sırası) aynı süzgeç. */
+export async function queueStallStates(now: Date = new Date()): Promise<{ message: QueueStallState; email: QueueStallState }> {
+  const since = new Date(now.getTime() - QUEUE_STALL_MS);
+  const autoAllowed = process.env.AUTO_REPLY_ENABLED === "1";
+  const [mRows, mProgress, eOldest, eProgress] = await Promise.all([
+    prisma.$queryRaw<{ at: Date | null }[]>(Prisma.sql`
+      SELECT MIN(s."availableAt") AS at
+      FROM "MessageOutbox" s
+      WHERE s."status" = 'pending'
+        AND s."availableAt" <= ${now}
+        AND (${autoAllowed}::boolean OR s."messageType" IS NULL OR s."messageType" IN ('manual', 'ai', 'holding_ack'))
+        AND NOT EXISTS (
+          SELECT 1 FROM "MessageOutbox" e
+          WHERE e."conversationId" = s."conversationId"
+            AND e."id" <> s."id"
+            AND e."status" IN ('pending', 'sending', 'ambiguous', 'reconciling')
+            AND (e."createdAt", e."id") < (s."createdAt", s."id")
+        )`),
     prisma.messageOutbox.findFirst({
-      where: { status: "pending", availableAt: { lte: now } },
-      orderBy: { availableAt: "asc" },
-      select: { availableAt: true },
+      where: { OR: [{ claimedAt: { gte: since } }, { sentAt: { gte: since } }] },
+      select: { id: true },
     }),
     prisma.emailOutbox.findFirst({
-      where: { status: "pending", nextAttemptAt: { lte: now } },
+      where: { status: "pending", nextAttemptAt: { lte: now }, expiresAt: { gt: now } },
       orderBy: { nextAttemptAt: "asc" },
       select: { nextAttemptAt: true },
     }),
+    prisma.emailOutbox.findFirst({
+      where: { OR: [{ sentAt: { gte: since } }, { status: { in: ["claimed", "failed"] }, updatedAt: { gte: since } }] },
+      select: { id: true },
+    }),
   ]);
-  const lag = (at: Date | null | undefined) => (at ? Math.max(0, now.getTime() - at.getTime()) : null);
-  return { message: lag(m?.availableAt), email: lag(e?.nextAttemptAt) };
+  const lag = (at: Date | null | undefined) => (at ? Math.max(0, now.getTime() - new Date(at).getTime()) : null);
+  return {
+    message: { lagMs: lag(mRows[0]?.at), progressing: mProgress !== null },
+    email: { lagMs: lag(eOldest?.nextAttemptAt), progressing: eProgress !== null },
+  };
 }
 
-/** A — senkron geçişinin sonunda. Okuma düşerse sessiz (senkron geçişini düşürmez; B yine görür). */
+export function isStalled(q: QueueStallState): boolean {
+  return q.lagMs !== null && q.lagMs >= QUEUE_STALL_MS && !q.progressing;
+}
+
+/** A — senkron geçişinin sonunda. Okuma düşerse sessiz (senkron geçişini düşürmez; B yine görür). İki kuyruk AYRI başlıkla (e-posta
+ *  kısıtı başlık başına — biri ötekinin alarmını geciktirmesin). */
 export async function checkQueueStall(
   tracker: { fail(key: string, context: string, err: unknown): Promise<unknown>; ok(key: string): Promise<void> },
   now: Date = new Date(),
 ): Promise<void> {
-  let lags: { message: number | null; email: number | null };
+  let states: { message: QueueStallState; email: QueueStallState };
   try {
-    lags = await oldestDueLagMs(now);
+    states = await queueStallStates(now);
   } catch {
     return;
   }
   for (const queue of ["message", "email"] as const) {
-    const lag = lags[queue];
-    if (lag !== null && lag >= QUEUE_STALL_MS) await tracker.fail(`queue-stalled:${queue}`, "Kuyruk ilerlemiyor", new QueueStalledError(queue, lag));
-    else await tracker.ok(`queue-stalled:${queue}`);
+    const st = states[queue];
+    if (isStalled(st)) {
+      const note =
+        queue === "email" && process.env.EMAIL_OUTBOX_ENABLED !== "1"
+          ? " EMAIL_OUTBOX_ENABLED kapalı: bu kuyruk hiç gönderilmiyor (şifre sıfırlama / doğrulama e-postaları gitmez)."
+          : "";
+      await tracker.fail(
+        `queue-stalled:${queue}`,
+        queue === "message" ? "Kuyruk ilerlemiyor (misafir mesajı)" : "Kuyruk ilerlemiyor (kimlik e-postası)",
+        new QueueStalledError(queue, st.lagMs ?? 0, note),
+      );
+    } else await tracker.ok(`queue-stalled:${queue}`);
   }
 }
 
-// B — `/api/health?strict=1` için. Kuyruk okuması (iki dizinli sorgu) herkese açık uçta: kısa süreli bellek içi sonuç → yoğun yoklama
-// veritabanına yük bindirmez. Okunamazsa "unknown" (sayfalamaz — kuyruk okuma hatası ayrı bir arıza değildir; DB arızasını yoklama zaten görür).
+// B — `/api/health?strict=1` için. Kuyruk okuması herkese açık uçta: kısa süreli bellek içi sonuç → yoğun yoklama veritabanına yük
+// bindirmez. Okunamazsa "unknown" (sayfalamaz — kuyruk okuma hatası ayrı bir arıza değildir; DB arızasını yoklama zaten görür).
 const QUEUE_PROBE_TTL_MS = 30_000;
 let queueProbe: { at: number; state: "ok" | "stalled" | "unknown" } | null = null;
 
@@ -127,8 +177,8 @@ export async function strictQueueState(): Promise<"ok" | "stalled" | "unknown"> 
   if (queueProbe && now - queueProbe.at < QUEUE_PROBE_TTL_MS) return queueProbe.state;
   let state: "ok" | "stalled" | "unknown";
   try {
-    const lags = await oldestDueLagMs(new Date(now));
-    state = [lags.message, lags.email].some((l) => l !== null && l >= QUEUE_STALL_MS) ? "stalled" : "ok";
+    const st = await queueStallStates(new Date(now));
+    state = isStalled(st.message) || isStalled(st.email) ? "stalled" : "ok";
   } catch {
     state = "unknown";
   }

@@ -101,7 +101,7 @@ describe("checkQueueStall (O3-A)", () => {
     reportErrorMock.mockReset();
     reportErrorMock.mockResolvedValue({ notified: true, throttled: false, configured: true });
   });
-  const stalls = () => reportErrorMock.mock.calls.filter(([context]) => context === "Kuyruk ilerlemiyor");
+  const stalls = () => reportErrorMock.mock.calls.filter(([context]) => String(context).startsWith("Kuyruk ilerlemiyor"));
 
   it("15 dk'dır bekleyen satır → bir alarm; sonraki geçişler sessiz; satır gidince temizlenir; yeniden takılınca yeniden alarm", async () => {
     const { orgId } = await makeOrgWithProperty();
@@ -114,7 +114,8 @@ describe("checkQueueStall (O3-A)", () => {
     const [, err] = stalls()[0];
     expect((err as Error).name).toBe("QueueStalled");
     expect(String((err as Error).message)).not.toContain("gizli");
-    await prisma.messageOutbox.update({ where: { id: row.id }, data: { status: "sent", sentAt: new Date() } });
+    // Satır gönderildi (20 dk önce — yeni takılmanın "son 15 dk'da ilerleme yok" şartını sağlasın).
+    await prisma.messageOutbox.update({ where: { id: row.id }, data: { status: "sent", sentAt: new Date(Date.now() - 20 * 60_000) } });
     await checkQueueStall(await alertTracker("scheduled-sync:"));
     expect(await prisma.systemLock.count({ where: { name: { startsWith: "alert-state:scheduled-sync:queue-stalled" } } })).toBe(0);
     await prisma.messageOutbox.create({
@@ -129,6 +130,46 @@ describe("checkQueueStall (O3-A)", () => {
     await checkQueueStall(await alertTracker("scheduled-sync:"));
     await prisma.messageOutbox.create({
       data: { organizationId: orgId, channel: "airbnb", body: "x", idempotencyKey: "a", status: "pending", availableAt: new Date(Date.now() - QUEUE_STALL_MS + 60_000) },
+    });
+    await checkQueueStall(await alertTracker("scheduled-sync:"));
+    expect(stalls()).toHaveLength(0);
+  });
+
+  it("Haiku 10-16: işçinin seçmeyeceği satır sahte alarm vermez — konuşma sırasında bekleyen satır ve anahtar kapalıyken otomatik şablon", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const conv = await prisma.conversation.create({ data: { propertyId, guestIdentifier: "Misafir", channel: "airbnb" } });
+    const old = new Date(Date.now() - QUEUE_STALL_MS - 60_000);
+    // Önceki satır yeniden deneme beklemesinde (vadesi ileride); sonraki satır vadesi gelmiş ama konuşma sırasında bekliyor.
+    await prisma.messageOutbox.create({
+      data: { organizationId: orgId, conversationId: conv.id, channel: "airbnb", body: "1", idempotencyKey: "a", status: "pending", availableAt: new Date(Date.now() + 20 * 60_000), createdAt: new Date(Date.now() - 40 * 60_000) },
+    });
+    await prisma.messageOutbox.create({
+      data: { organizationId: orgId, conversationId: conv.id, channel: "airbnb", body: "2", idempotencyKey: "b", status: "pending", availableAt: old, createdAt: new Date(Date.now() - 30 * 60_000) },
+    });
+    // Genel otomatik mesaj anahtarı kapalı: karşılama şablonu bilerek bekler.
+    await prisma.messageOutbox.create({
+      data: { organizationId: orgId, channel: "airbnb", body: "hoş geldiniz", idempotencyKey: "c", status: "pending", availableAt: old, messageType: "welcome" },
+    });
+    vi.stubEnv("AUTO_REPLY_ENABLED", "");
+    try {
+      await checkQueueStall(await alertTracker("scheduled-sync:"));
+      expect(stalls()).toHaveLength(0);
+      // Anahtar açıksa karşılama şablonu da işçinin işidir → 15 dk bekleyip ilerlemiyorsa alarm.
+      vi.stubEnv("AUTO_REPLY_ENABLED", "1");
+      await checkQueueStall(await alertTracker("scheduled-sync:"));
+      expect(stalls()).toHaveLength(1);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("Haiku 10-16: büyük birikim İLERLİYORSA (son 15 dk'da sahiplenme / gönderim) alarm yok", async () => {
+    const { orgId } = await makeOrgWithProperty();
+    await prisma.messageOutbox.create({
+      data: { organizationId: orgId, channel: "airbnb", body: "x", idempotencyKey: "old", status: "pending", availableAt: new Date(Date.now() - QUEUE_STALL_MS - 60_000) },
+    });
+    await prisma.messageOutbox.create({
+      data: { organizationId: orgId, channel: "airbnb", body: "y", idempotencyKey: "sent", status: "sent", sentAt: new Date(Date.now() - 2 * 60_000), claimedAt: new Date(Date.now() - 2 * 60_000) },
     });
     await checkQueueStall(await alertTracker("scheduled-sync:"));
     expect(stalls()).toHaveLength(0);
