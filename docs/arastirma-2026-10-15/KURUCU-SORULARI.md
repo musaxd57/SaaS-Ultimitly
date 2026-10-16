@@ -480,6 +480,15 @@ panelinde "Kuyruk sağlığı" (kaç satır bekliyor, en eski ne kadar bekliyor)
   döngü canlı, hata yok ama satır ilerlemiyor (ör. takılı sahiplenme). Bu yüzden ikinci seçenek: e-posta yerine `strict` yoklamasına "kuyruk
   gecikmesi" sinyali (vadesi geçmiş satır 15 dk → 503) — yeni e-posta yok, ama izleyicinin sayfalama davranışı değişir. Hangisi? (A) e-posta
   · (B) strict yoklama · (C) şimdilik ikisi de yok (panel yeter). İkinci izleyici kurulu mu, onu da bilmiyorum.
+- **Öneri turu (Haiku, 10-16 sabah; büyük şirketlerin kuyruk ekranlarında olup bizde eksik olanlar):** (yapıldı, haber) operatör panelinde
+  "son 24 saatte incelemeye düşen (doğrulanamadı)" sayacı — `review` satırından çıkış elle olduğu için toplam yalnız büyüyordu. Sana sorulanlar
+  (ev sahibinin gördüğü Gönderim Kuyruğu ekranı değişir):
+  - **O5 · Satırın zamanı:** "Gönderilemedi" satırı ne zaman düştüğünü söylemiyor; "Sırada" satırının ne zaman deneneceği görünmüyor. Öneri: satırda
+    "3 saat önce" + sayımlarda "son 24 saat / 7 gün" filtresi (migration yok, ~35 satır).
+  - **O6 · Toplu yeniden dene:** bir eşleme hatası düzelince onlarca "Gönderilemedi" satırı tek tek tıklanıyor. Öneri: yalnız son 24 saatin kalıcı
+    başarısızları, tek tıkta en çok 50, onay metninde sayı; bayat cevap vetosu gönderim anında yine çalışır. Misafire mesaj gönderen bir düğme
+    olduğu için açıkça soruyorum (~70 satır, migration yok).
+  - (Migration ister, şimdilik yok) `review` satırına "incelendi" işareti.
 
 ### H7 · Küçük kalanlar (Opus D17 listesinden)
 - **O14 (yapıldı, haber):** Görevler sayfasındaki "Eksik görevleri oluştur (3)" düğmesindeki sayı GÖREV değil çıkış temizliği eksik REZERVASYON

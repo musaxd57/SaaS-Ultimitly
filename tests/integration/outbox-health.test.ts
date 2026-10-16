@@ -13,8 +13,8 @@ describe("queueHealth", () => {
   it("boş kuyruk: sayı yok, bekleyen yok", async () => {
     const h = await queueHealth(new Date());
     expect(h).toEqual([
-      { queue: "message", byStatus: {}, oldestDueMs: null, failed24h: 0 },
-      { queue: "email", byStatus: {}, oldestDueMs: null, failed24h: 0 },
+      { queue: "message", byStatus: {}, oldestDueMs: null, failed24h: 0, review24h: 0 },
+      { queue: "email", byStatus: {}, oldestDueMs: null, failed24h: 0, review24h: null },
     ]);
   });
 
@@ -57,11 +57,16 @@ describe("queueHealth", () => {
     await prisma.messageOutbox.create({ data: { ...base, idempotencyKey: "s-old-due", status: "sent", availableAt: new Date(now.getTime() - 3 * 60 * 60_000), sentAt: now } });
     const stale = await prisma.messageOutbox.create({ data: { ...base, idempotencyKey: "f-stale", status: "failed" } });
     await prisma.$executeRaw`UPDATE "MessageOutbox" SET "updatedAt" = ${new Date(now.getTime() - 25 * 60 * 60_000)} WHERE "id" = ${stale.id}`;
+    // İnceleme (doğrulanamadı): bugün düşen sayılır, 25 saat önce düşen sayılmaz.
+    await prisma.messageOutbox.create({ data: { ...base, idempotencyKey: "r-today", status: "review" } });
+    const oldReview = await prisma.messageOutbox.create({ data: { ...base, idempotencyKey: "r-stale", status: "review" } });
+    await prisma.$executeRaw`UPDATE "MessageOutbox" SET "updatedAt" = ${new Date(now.getTime() - 25 * 60 * 60_000)} WHERE "id" = ${oldReview.id}`;
     const m = (await queueHealth(now)).find((q) => q.queue === "message")!;
     expect(m.oldestDueMs).toBeGreaterThanOrEqual(5 * 60_000 - 1_000);
     expect(m.oldestDueMs).toBeLessThan(6 * 60_000);
     expect(m.failed24h).toBe(1); // yalnız "f-old-due" (bugün yazıldı); 25 saatlik "f-stale" dışarıda
-    expect(m.byStatus).toEqual({ pending: 1, failed: 2, sent: 1 });
+    expect(m.review24h).toBe(1);
+    expect(m.byStatus).toEqual({ pending: 1, failed: 2, sent: 1, review: 2 });
   });
 
   it("kimlik e-postası kuyruğu: durum sayıları, vadesi gelmiş en eski bekleyen, son 24 saat başarısızlığı", async () => {
@@ -77,6 +82,7 @@ describe("queueHealth", () => {
     expect(e.oldestDueMs).toBeGreaterThanOrEqual(12 * 60_000 - 1_000);
     expect(e.oldestDueMs).toBeLessThan(13 * 60_000);
     expect(e.failed24h).toBe(1);
+    expect(e.review24h).toBeNull();
     expect(JSON.stringify(e)).not.toContain("kuyruk@example.com");
   });
 });

@@ -639,6 +639,7 @@ export default async function AdminPage() {
                     </span>
                   )}
                   {" · "}son 24 saatte kalıcı başarısız: {q.failed24h}
+                  {q.review24h != null ? <>{" · "}son 24 saatte incelemeye düşen (doğrulanamadı): {q.review24h}</> : null}
                 </li>
               ))}
             </ul>
