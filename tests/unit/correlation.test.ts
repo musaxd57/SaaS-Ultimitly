@@ -107,7 +107,8 @@ describe("olay verisi süzgeci — kişisel veri / serbest metin SIĞMAZ", () =>
     expect(sanitizeEventData({ consentId: "cmval2070000nt9umstjhtr5y" })).toEqual({ consentId: "cmval2070000nt9umstjhtr5y" });
     // Muafiyet anahtara bağlı: AYNI değer, biçimi kabul eden başka bir anahtarda (`context` kod biçimi) bugünkü rakam kuralıyla düşer.
     expect(sanitizeEventData({ context: "cmval2070000nt9umstjhtr5y" })).toEqual({ _dropped: 1 });
-    // Tam cuid uzunluğunda olmayan telefon biçimli değer düşer.
+    // Tam cuid uzunluğunda olmayan değer bugünkü kurala tabi: 7–9 rakamlık dizi de düşer (mutasyon E3: uzunluk şartı olmadan geçiyordu).
+    expect(sanitizeEventData({ outboxId: "c2070000abc" })).toEqual({ _dropped: 1 });
     expect(sanitizeEventData({ outboxId: "c05551112233" })).toEqual({ _dropped: 1 });
     expect(sanitizeEventData({ consentId: "c905551112233aaaa" })).toEqual({ _dropped: 1 });
     // Tam cuid uzunluğunda (25) ama telefon / TC kimlik uzunluğunda (10+) rakam dizisi taşıyan değer düşer (Haiku 10-16).
