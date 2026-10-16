@@ -143,6 +143,8 @@ export const PIPELINE_FLAGS = [
   "AI_FAULT_GUARD_ENABLED",
   // Kanıtsız arıza adımı kemeri (10-15, kurucu: "bozuklar için bilgi tabanında yazmayan öneri veremez"): kapı; yalnız TUTARAK değiştirir.
   "AI_FIX_SUPPORT_GATE_ENABLED",
+  // Konu bazlı "bilgim yok" (10-16, H9): kanal öğe kipinde yokluk cümlesi ayıklanır, bağımsız soru gider (misafire gideni değiştirir).
+  "AI_TOPIC_ABSENCE_ENABLED",
 ] as const;
 
 /** GÖNDERİLEN çabanın etiketi: klasik modele çaba hiç gitmez; reasoning modelinde ayarsız / tanınmayan değer = gönderilmez. */

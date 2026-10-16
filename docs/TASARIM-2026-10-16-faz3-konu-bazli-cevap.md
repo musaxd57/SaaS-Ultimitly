@@ -44,6 +44,18 @@ görür, TV hakkında hiçbir şey okumaz (konu sende açık). Seçenekler:
 
 Önerim: **C, yoksa A** (K10'u gevşetmeden; B için ayrı onayın gerekir). Hangisi?
 
+## 6. İLK DİLİM KODDA (10-16 akşam, kurucu "açık işlerden devam et"; anahtar `AI_TOPIC_ABSENCE_ENABLED` KAPALI)
+
+- Kapsam: **kanal oto-yanıtı, öğe kipi** (konuşma öğeleri açık + tur öğeye bölündü). QR'da YOK (QR'ın öğe modeli yok; ayıklanan konunun ev
+  sahibinde açık kalması ayrı kablolama ister) — bugünkü gibi bütün cevap devredilir.
+- Kural `src/lib/conversation-items/topic-absence.ts`: "bilgim yok" cümlesi ayıklanır; konusu bırakılan bir cihaza (tutulan arıza) ya da
+  cevaplanabilir bir isteğe eşlenmeli (aynı sözlük: `relation.topicsWithSymptomsOf`), eşlenen istek beyandan düşer → ev sahibinde AÇIK kalır.
+  Eşlenmeyen yokluk cümlesi, boş kalan cevap, cevaplanan istek kalmaması ya da kalan cümlenin düşen konuya değinmesi → bugünkü gibi TUTULUR.
+  Kalan metin bütün kapılardan yeniden geçer (bırakılan cihaza değinme, çıktı vetosu, dil …).
+- §4 seçimi verilmediği için TV'ye misafire hiçbir cümle EKLENMEZ (= A, K10 ile uyumlu). B / C seçilirse ayrı dilim.
+- Testler: `tests/unit/topic-absence.test.ts` (kurucu örnekleri), `tests/integration/conversation-items-auto-reply.test.ts` (anahtar açık /
+  kapalı uçtan uca, belirsiz konu, kalan metinde uydurma adım).
+
 ## 5. Uygulama planı (onaydan sonra)
 
 - Anahtar `AI_TOPIC_ABSENCE_ENABLED` (kapalı doğar); `ai/absence.ts` cümle düzeyi ayıklama + konu eşleşmesi (anlama katmanının konu listesi);

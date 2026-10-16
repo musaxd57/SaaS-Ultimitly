@@ -51,7 +51,9 @@ Kurucu 10-15: "Railway'i açınca ekleyeceğimiz bayrakları unutma." Bu dosya T
    `UNVERIFIED_SWEEP_ENABLED` (önce `UNVERIFIED_SWEEP_DRY_RUN=1`) · `ALERT_EMAIL_VERIFY_ENABLED` · `HOST_DECISIONS_ENABLED` (+ `HOST_DECISION_AI_TEXT_ENABLED`) ·
    `AI_ACTION_CLAIMS_ENABLED` · `KB_HISTORY_SUGGESTIONS_ENABLED` (Geçmişten öğren gelince gereksiz olabilir).
 9. Kurucu inceleme notu (10-15 / 10-16; KURUCU-SORULARI §H): `AI_FAULT_GUARD_ENABLED` (arıza her yolda arıza: ev sahibine bırak + tek e-posta)
-   · `AI_FIX_SUPPORT_GATE_ENABLED` (bilgi tabanında tarifi olmayan arıza adımı misafire gitmez; kanal + QR). İkisi de misafire gideni değiştirir
+   · `AI_FIX_SUPPORT_GATE_ENABLED` (bilgi tabanında tarifi olmayan arıza adımı misafire gitmez; kanal + QR)
+   · `AI_TOPIC_ABSENCE_ENABLED` (H9, kurucu 10-16: kanal öğe kipinde "bilgim yok" cümlesi ayıklanır, bağımsız soru cevaplanır, o konu ev
+     sahibinde açık kalır; QR'da yok — `docs/TASARIM-2026-10-16-faz3-konu-bazli-cevap.md` §6). Üçü de misafire gideni değiştirir
    → ilk denemeler birlikte; ölçümler §H2 / §H8.
 
 ⚠️ Açılış kontrolü (10-16): `EMAIL_OUTBOX_ENABLED` "1" değilse açılış günlüğünde uyarı çıkar — şifre sıfırlama e-postası kuyruğa her zaman
@@ -100,6 +102,7 @@ bekleyen satır 10 dakikayı geçmemeli.
 ## 6. Bağlantı havuzu ve kapanış (yatay ölçek denetimi 10-15, `docs/arastirma-2026-10-15/yatay-olcek.md`)
 
 - `DATABASE_URL` sonuna `?connection_limit=10` (zaten parametre varsa `&connection_limit=10`) ekleyin. Bugün tavan yok: Prisma çekirdek×2+1
-  açar; ikinci kopya / işçi servisi eklenince Railway Postgres'in 100 bağlantı sınırına yaklaşılır. Tek kopyada da zararsız.
+  açar; ikinci kopya / işçi servisi eklenince Railway Postgres'in bağlantı sınırına (belgelere göre 100; açılışta `SHOW max_connections` ile
+  ölçün) yaklaşılır. Tek kopyada da zararsız.
 - İkinci kopya AÇMAYIN: misafir mesajı işleme kapasitesini büyütmez (senkron tek kilit altında). Önce raporun §6 sırası (migration ön adımı,
   kapanış işleyicisi, işçi servisi) — kurucu kararıyla.

@@ -283,6 +283,11 @@ export interface ItemsGateInput {
    */
   heldDeviceTopics?: readonly string[];
   /**
+   * Cevaplanabilir isteklerin konuları (konu bazlı "bilgim yok", `topic-absence.ts`; yalnız `AI_TOPIC_ABSENCE_ENABLED` açıkken — kapalıyken
+   * alan yok, kapı girdisi bayt bayt bugünkü).
+   */
+  answerableTopics?: readonly { ref: string; topics: readonly string[] }[];
+  /**
    * Cevaplanan isteklerin hiçbiri cihaz / tesis kavramı taşımıyor: cevaptaki adı verilmeyen "makine / cihaz / the device" yalnız bırakılan
    * cihaz olabilir (`relation.touchesHeldDevice` `genericRef`, 15 ajan A06). Yalnız `heldDeviceTopics` doluyken.
    */

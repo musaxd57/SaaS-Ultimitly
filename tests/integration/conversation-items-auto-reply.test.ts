@@ -1006,3 +1006,79 @@ describe("51 — öğe kipinde bağlamla kalkan tehlike alarmı", () => {
     expect((await itemsOf(conversationId)).map((i) => i.sensitivity)).toContain("emergency");
   });
 });
+
+describe("KONU BAZLI 'BİLGİM YOK' (H9, kurucu 10-16; anahtar AI_TOPIC_ABSENCE_ENABLED)", () => {
+  beforeEachTurn();
+  const TV_TRASH = "Televizyon siyah ekran, çöpleri nereye atıyoruz?";
+  const TRASH = "Çöpleri binanın arkasındaki konteynere bırakabilirsiniz.";
+  function tvTrashUnderstood(): MessageUnderstanding {
+    const u = parseUnderstanding(
+      {
+        language: "tr",
+        requests: [
+          { intent: "complaint_issue", message: 1, query_tr: "televizyon siyah ekran", query_original: "televizyon siyah ekran" },
+          { intent: "trash", message: 1, query_tr: "çöp nereye atılır", query_original: "çöpleri nereye atıyoruz" },
+        ],
+        stay_change: STAY_NONE,
+        withdrawn: [],
+      },
+      { items: true },
+    );
+    if (!u) throw new Error("fixture");
+    return u;
+  }
+  const tvTrashReply = () =>
+    verdict({ intent: "general", reply: `${TRASH} Televizyonla ilgili bir bilgim yok.`, answeredRequests: { ok: true, refs: ["R1"] } });
+
+  it("🚨 anahtar AÇIK: çöp cevabı gider, 'bilgim yok' cümlesi GİTMEZ; TV arızası ev sahibinde açık kalır", async () => {
+    vi.stubEnv("AI_TOPIC_ABSENCE_ENABLED", "1");
+    const { conversationId } = await seed(TV_TRASH);
+    understands(tvTrashUnderstood());
+    mockSuggest.mockResolvedValueOnce(tvTrashReply());
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(true);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    const body = JSON.stringify(mockSend.mock.calls[0]);
+    expect(body).toContain(TRASH);
+    expect(body).not.toMatch(/bilgim yok/i); // ⬅️ ayıklama olmasa cevap hiç gitmezdi (aşağıdaki KONTROL)
+    const items = await itemsOf(conversationId);
+    expect(items.find((i) => i.kind === "complaint_issue")).toMatchObject({ status: "pending_host" });
+    expect(items.find((i) => i.kind === "trash")).toMatchObject({ status: "answered" });
+  });
+
+  it("KONTROL — anahtar KAPALI: bugünkü gibi bütün cevap tutulur (reply_absence), misafire hiçbir şey gitmez", async () => {
+    const { conversationId } = await seed(TV_TRASH);
+    understands(tvTrashUnderstood());
+    mockSuggest.mockResolvedValueOnce(tvTrashReply());
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect((await itemsOf(conversationId)).find((i) => i.kind === "trash")).toMatchObject({ status: "open" });
+  });
+
+  it("🚨 anahtar AÇIK ama yokluk cümlesinin konusu belirsiz → bugünkü gibi TUTULUR", async () => {
+    vi.stubEnv("AI_TOPIC_ABSENCE_ENABLED", "1");
+    const { conversationId } = await seed(TV_TRASH);
+    understands(tvTrashUnderstood());
+    mockSuggest.mockResolvedValueOnce(
+      verdict({ intent: "general", reply: `${TRASH} Bu konuda bir bilgim yok.`, answeredRequests: { ok: true, refs: ["R1"] } }),
+    );
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("🚨 anahtar AÇIK: kalan metin bırakılan cihaza değiniyorsa (uydurma adım) yine TUTULUR — kapılar ayıklanmış metne de bakar", async () => {
+    vi.stubEnv("AI_TOPIC_ABSENCE_ENABLED", "1");
+    const { conversationId } = await seed(TV_TRASH);
+    understands(tvTrashUnderstood());
+    mockSuggest.mockResolvedValueOnce(
+      verdict({
+        intent: "general",
+        reply: `${TRASH} Televizyonun fişini çekip tekrar takın. Televizyonun arızasıyla ilgili başka bir bilgim yok.`,
+        answeredRequests: { ok: true, refs: ["R1"] },
+      }),
+    );
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+});

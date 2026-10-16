@@ -151,8 +151,9 @@ const NON_TV_SCREEN = new RegExp(
   "u",
 );
 
-/** Cevap / arıza sinyali tarafının cihaz kavramları: genel konu çıkarımı + TV belirti adları (`TV_SYMPTOM`). */
-function topicsWithSymptomsOf(text: string): string[] {
+/** Cevap / arıza sinyali tarafının cihaz kavramları: genel konu çıkarımı + TV belirti adları (`TV_SYMPTOM`). Konu bazlı "bilgim yok"
+ *  (`topic-absence.ts`) aynı okumayı kullanır — bırakılan cihaz kemeriyle tek sözlük. */
+export function topicsWithSymptomsOf(text: string): string[] {
   const topics = topicsOf(text);
   if (topics.includes("tv")) return topics;
   const f = fold(text);

@@ -16,6 +16,7 @@ import {
   type RequestFacts,
 } from "./relation";
 import type { ReplyItemsInput } from "./reply-block";
+import { topicAbsenceEnabled } from "./topic-absence";
 
 type PlanItem = { messageId: string; kind: ItemKind; sensitivity: ItemSensitivity };
 
@@ -134,6 +135,8 @@ export function composeItemsPlan<T extends PlanItem>(input: {
       ...(heldDeviceTopics.length > 0 ? { heldDeviceTopics } : {}),
       // Cevaplanan isteklerin hiçbiri cihaz değilse cevaptaki adsız "makine / cihaz" yalnız bırakılan cihaz olabilir (15 ajan A06).
       ...(heldDeviceTopics.length > 0 && deviceTopicsOf([...answeredTopics]).length === 0 ? { heldDeviceGenericRef: true } : {}),
+      // Konu bazlı "bilgim yok" (H9, kurucu 10-16; anahtar kapalıyken alan yok).
+      ...(topicAbsenceEnabled() ? { answerableTopics: answerable.map(({ ref, item }) => ({ ref, topics: topicsOfItem(item) })) } : {}),
     },
     allHeld: answerable.length === 0,
   };

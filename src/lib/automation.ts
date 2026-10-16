@@ -169,6 +169,7 @@ import {
   type ItemsTurnPlan,
 } from "@/lib/conversation-items/flow";
 import type { AnsweredRequestsDeclaration } from "@/lib/conversation-items/reply-block";
+import { stripTopicAbsence, topicAbsenceEnabled } from "@/lib/conversation-items/topic-absence";
 import { namesPaymentMethod } from "@/lib/payment-method-guard";
 import { hasRecordedHandoff, hostVoiceDraft } from "@/lib/ai/host-voice";
 import { premiumAllowed } from "@/lib/billing/subscription";
@@ -2414,6 +2415,24 @@ export async function applyChannelAutoReply(
   // (ikinci inceleme 09-24: iki bağımsız modelin erteleme hükmü bu tutuşu ancak bekçi koşarsa kaldırabilir —
   // "Das muss Ihr Gastgeber entscheiden" gibi kelime ağının tanımadığı doğru ertelemeler hep tutuluyordu).
   // Kapı bekçinin hükmüyle BAŞTAN değerlendirilir. Önizleme (dryRun) de aynı yoldan — "gönderilirdi" dürüst kalsın.
+  // ── KONU BAZLI "BİLGİM YOK" (H9, kurucu kararı 10-16; anahtar `AI_TOPIC_ABSENCE_ENABLED`, VARSAYILAN KAPALI) ─────────────────
+  // Öğe kipinde "bilgim yok" diyen cümle AYIKLANIR (misafire yine GİTMEZ); konusu bırakılan bir cihaza ya da cevaplanabilir bir isteğe
+  // eşlenmeli, eşlenen istek beyandan düşer (cevaplandı sayılmaz → ev sahibinde AÇIK kalır). Kalan metin aşağıdaki BÜTÜN kapılardan
+  // yeniden geçer. Eşlenemeyen / boş kalan / beyansız tur bugünkü gibi bütünüyle tutulur (`reply_absence`). Kurallar `topic-absence.ts`.
+  if (
+    topicAbsenceEnabled() &&
+    itemsPlan &&
+    result.answeredRequests?.ok === true &&
+    admitsMissingKnowledge(result.reply)
+  ) {
+    const stripped = stripTopicAbsence({
+      reply: result.reply ?? "",
+      answeredRefs: result.answeredRequests.refs,
+      answerableTopics: itemsPlan.gateItems.answerableTopics ?? [],
+      heldDeviceTopics: itemsPlan.gateItems.heldDeviceTopics ?? [],
+    });
+    if (stripped.ok) result = { ...result, reply: stripped.reply, answeredRequests: { ok: true, refs: stripped.answeredRefs } };
+  }
   let gateFailure = autoReplyGateFailure(result, last.body, gateContext);
   let gatePassed = gateFailure === null;
   // Bekleme sözü vetosu (09-25, kurucu kararı: "misafir hiçbir 'soruyorum/döneceğim' mesajı almayacak"): modelin "I'll check
