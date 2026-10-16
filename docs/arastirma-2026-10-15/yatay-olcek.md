@@ -17,7 +17,7 @@
 | 1.4 | Anlamsal vektörler süreç belleğinde | `src/lib/ai/embeddings/semantic-retrieval.ts:81-86` | ORTA |
 | 1.5 | Anlama sonucu önbelleği kopya başına → karar tutarsızlığı | `src/lib/ai/semantic/understand.ts:278-280` | ORTA |
 | 1.2/1.3/1.6–1.9/1.12–1.14 | kilit öncesi işler, fencing deliği, yedek kovalar, bcrypt kapısı, alarm kısıtları, geçmişten öğren | çeşitli | DÜŞÜK / hazır |
-| 2 | **Kopya eklemek mesaj işleme kapasitesini BÜYÜTMEZ** (tek seri döngü); tek kopya ~30–45 müşteri / ~100–130 daire; ilk darboğaz saatlik derin geçiş, oto-cevap tavanı ~5–6/dk | `scheduled-sync.ts:332,441,484` | plan |
+| 2 | **Kopya eklemek mesaj işleme kapasitesini BÜYÜTMEZ** (tek seri döngü); tek kopya ~30–45 müşteri / ~100–130 daire (koddan çıkarım, ÖLÇÜLMEDİ — §5; kapasite güncel yük ölçümünden gelmeli, Codex C5 10-16); ilk darboğaz saatlik derin geçiş, oto-cevap tavanı ~5–6/dk | `scheduled-sync.ts:332,441,484` | plan |
 
 ## 0. Yöntem
 - `src/instrumentation.ts`, `src/lib/**`, `src/app/api/**` modül düzeyinde `new Map` / `setTimeout` / `setInterval` / `globalThis`
@@ -174,7 +174,7 @@ alarm gürültüsü; 2. kopyadan önce düzeltilmesi önerilir · **DÜŞÜK** =
 - **Ne var:** `new PrismaClient(...)` havuz ayarı olmadan; `DATABASE_URL`'de `connection_limit` YOK (repo genelinde tek geçiş bir test
   fikstürü). Prisma 6 varsayılanı = **fiziksel çekirdek × 2 + 1** (§3). Railway kapsayıcısında Prisma'nın gördüğü çekirdek sayısı ana
   makineninki olabilir (ölçülmedi) → kopya başına havuz 20–60+ olabilir. Railway Postgres'in `max_connections`ı standart **100** ve
-  panelden değiştirme özelliği yok (§3).
+  panelden değiştirme özelliği yok (§3; iki Railway kaynağından — bizim kurulumumuzda `SHOW max_connections` ile ÖLÇÜLMEDİ).
 - **İkinci havuz şüphesi (DOĞRULANMADI):** üretimde istemci `globalThis`'e YAZILMIYOR (`:27-29` yalnız geliştirmede). `onRequestError`
   (`instrumentation.ts:182-186`) → `request-error-report` → `report-error` → `event-log` → `db` zinciri Next.js'in "instrumentation"
   katmanında ayrı bir modül örneği yaratırsa, süreç başına İKİNCİ bir PrismaClient (ikinci havuz) doğar.
@@ -233,7 +233,8 @@ tarafını ve kesintisizliği büyütür; **misafir mesajı işleme kapasitesini
 | Bellek | anlamsal depo tavanı ~25 MB (`semantic-retrieval.ts:48`), dizin önbelleği 64 girdi, anlama 500 girdi — sorun değil |
 
 ### 2.4 Sonuç — tek kopya bugün kabaca
-- **Müşteri:** ~30–45 tipik müşteri (**~100–130 daire**) — mesaj gecikmesi normal saatte 2–4 dk'da kalır.
+- **Müşteri:** ~30–45 tipik müşteri (**~100–130 daire**) — mesaj gecikmesi normal saatte 2–4 dk'da kalır. (Varsayımlardan çıkarım; doğrulanmış
+  kapasite / garanti DEĞİL — ölçüm yolu ↓.)
 - **İlk darboğaz: saatlik derin geçiş.** ~45 tipik müşteride (45 × 16 sn ≈ 12 dk) geçiş bütçesine (`PASS_BUDGET_MS = 12 dk`, `:441`) dayanır;
   o saatte sıranın sonundaki müşterilerin misafir mesajları 12+ dk gecikir (veri kaybı yok — adil sıra imleci sonraki geçişte devam eder).
 - **İkinci darboğaz: seri oto-cevap.** Yoğun günde ~100–150 dairede en yoğun saat ≈ 240–360 mesaj/saat → döngünün tamamı modeli beklemeye gider.

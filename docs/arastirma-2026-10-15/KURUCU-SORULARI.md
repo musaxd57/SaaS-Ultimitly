@@ -31,7 +31,7 @@ hiçbir şeyi değiştirmeyen düzeltmeler SORULMADAN yapıldı (§A). Değişti
 | 3 | **İdempotency S1:** elle cevapta "zaten gitti" hafızası (kopan bağlantıda misafire çift mesaj) | misafire giden | `idempotency.md` §9 S1 |
 | 4 | **Ödeme S3:** iade → fatura "iade edildi"; ters ibrazda operatöre alarm (erişime dokunmadan) | para | `odeme.md` §5 S3 |
 | 5 | **Takip no. F2:** kart reddinde ödeme ekranında takip numarası satırı | müşteriye giden metin | `takip-numarasi.md` §15 F2 |
-| 6 | **Takip no. F8 + F1/F3/F4:** tek migration (68) ile destek ekranı v2, otomatik cevap ve QR izleri | migration | `takip-numarasi.md` §15 |
+| 6 | **Takip no. F8 + F1/F3/F4:** tek migration ile destek ekranı v2, otomatik cevap ve QR izleri (⚠️ 10-16: "68" araştırma anındaki taslak numaraydı; gerçek 68 KB kopya + söz kimliği — paket adı `M-takip`, `docs/MIGRATION-MANIFEST.md`) | migration | `takip-numarasi.md` §15 |
 | 7 | **İdempotency S2:** ortak "istek defteri" (elle rezervasyon, konuşma, şablon) | migration / akış | `idempotency.md` §9 S2 |
 | 8 | **Deneme S1–S5:** Hospitable'lı hesaba işletme kimliği · silinen hesabın e-posta izi · geçici e-posta listesi · yüksek puanda kartla doğrulama · iade politikası | kimlik / para / KVKK | `deneme-kotuye-kullanim.md` §5 |
 | 9 | **Yatay ölçek S1–S8:** ikinci kopya ne zaman · işçi servisi · migration'ı yayın öncesine · bağlantı tavanı · kapanış · vektörler DB'de · anlama tutarlılığı · senkron paralelliği | altyapı / migration | `yatay-olcek.md` §6 |
@@ -588,3 +588,60 @@ Mutasyon: 18 + 6 mutant; yaşayanlar gerekçeli (aşağıdaki durum dosyası). O
   kimliği boşaltılsın (istatistik kalır). Avukat paketine de giriyor.
 - **J9 · Örnek ortam dosyasındaki kaldırılmış `BILLING_PAST_DUE_GRACE_DAYS` satırı** (kural gereği .env* dosyalarını açmıyorum).
 - Açık kalanlar: I1 · I3 · I4 (yukarıda); I2 kapandı (ek süre yok).
+
+## K. Codex'in 21 maddelik haritası + "ilan tekrarı" (10-16 akşam, kodda doğrulandı) — durum ve karar bekleyenler
+
+Kapalı (kodda var): 1 ödeme tutar doğrulaması · 14 söz ekranı metni (↓K2) · 2 silme yarışı alarmı · 10 `paused` / ek süre yok · 13 QR kilit ≠ tamamlanmış kayıt · 15 D1 KB formu ·
+16 D2 kopyalama · 19 D5 artık görevler. Hazır yamada (migration + kod onayı): 3 elle cevap kalıcı niyet (`M-defter`; bugün kuyruk anahtarı açıkken
+kalıcı) · 4 iade / ters ibraz (`M-iade`) · 7 istek defteri (`M-defter`) · 11 KB sürümü (`M-kb-surum`). Belge / ölçüm: 9 ölçek (§J, rakamlar
+ölçülmedi diye işaretlendi — Codex C5) · 12 Sentry etiketleri var, "işletme özeti anonim değildir" dili düzeltildi (C6).
+
+Karar bekleyenler (soru — örnekli; anahtarlar kapalı olduğu için bugün kimseyi etkilemiyor):
+- **K1 · Deneme kimliği "otomatik kesme" mi "inceleme sinyali" mi (madde 8 + ilan tekrarı):** `TRIAL_IDENTITY_ENABLED` açılınca aynı ilan /
+  takvim başka hesapta görülmüşse deneme KENDİLİĞİNDEN biter (sizin 10-10 kararınız, `billing/trial-identity.ts`). Codex: "şimdilik inceleme
+  sinyali, otomatik kesme yok; ilan kimliği işletme / insan kimliği değildir (yeni yönetici olabilir)". Ayrıca ekran metni "Bu ilan daha önce bir
+  deneme hesabında kullanıldı." başka bir hesabın varlığını ima ediyor. Seçenek A (bugünkü): otomatik bitir · B: denemeyi bitirme, operatör
+  listesine düşür (risk puanı zaten var) + metin yok. Önerim B — anahtarı açmadan önce karar.
+- ~~K2 · Söz ekranı metni (madde 14)~~ → **KAPALI (kodda doğrulandı):** elle söz yolu söz ile görevi AYNI işlemde yazar
+  (`lib/guest-commitments.ts`): yeni söz = yeni görev → "Söz kaydedildi, görev açıldı." doğru; aynı işlemin tekrarı "Bu söz zaten kayıtlı."
+  (görev açılmadı). Görevsiz söz kaydı bu yolda yok.
+- **K3 · Ödeme ekranı hata metinleri (madde 5):** kesin ret / doğrulama beklemesi / teknik hata bugün kısmen aynı metni gösteriyor. J4
+  ("önce mevcut işlemi kontrol et") ile birlikte tasarlanmalı — Paddle sandbox denemesinde.
+- **K4 · Aynı çıkışa elle açılmış temizlik görevi (madde 21):** bugün sistem kendi çıkış temizliğini yine açar (iki görev yan yana). Öneri:
+  aynı rezervasyonun çıkış gününe elle açılmış temizlik görevi varsa sistem ikincisini açmasın (ara temizlik yine engellemez).
+- **K5 · Durum geçişleri tek serviste (madde 20):** rezervasyon PATCH'i iptal dışı durumu doğrudan yazıyor; panel ve API "yeniden açma"da ortak
+  servisi kullanıyor. İç düzen, müşteri etkisi yok — öncelik düşük, sizin sıranıza göre.
+- I1 (söz birleştirme, madde 17) yukarıda açık.
+
+## L. Geçmişten öğren × Codex'in 6 ilkesi (10-16 akşam; Opus denetimi 10-15, kodda doğrulandı) — durum ve sorular
+
+Anahtarlar (`HISTORY_LEARN_ENABLED`, `PROPERTY_INSTRUCTIONS_PROMPT_ENABLED`) KAPALI; bugün kimseyi etkilemiyor. Denetimde çıkan, misafire giden
+metni değiştirmeyen düzeltmeler kodda: yapay zekâ taslağını "Taslağı kullan" ile aynen ya da az değiştirerek gönderdiğiniz cevap ev sahibi
+kanıtı SAYILMAZ (taslak sözcüklerinin %60'ı cevapta → çift düşer; Codex ilke 2) · tarihe / geçici duruma bağlı, "belki düzelir" türü deneme
+ve "bilgi belirtilmemiş" taslakları işaretli gelir, onay için kutucuk ister · taslağın altında dayandığı eski cevabınız (maskeli, ay etiketiyle).
+Mülk karışması yok (okuma mülk + işletme kapsamlı), KVKK silme / saklama / dışa aktarma işliyor.
+
+Karar bekleyenler (denetim + ilk dilim tasarımı: `gecmisten-ogren-6-ilke.md` §A–§C):
+- **L1 · Geçmiş cevaplarınız nerede kullanılsın? (kurucu isteği "önceki mesajlardan host cevaplarını kontrol etsin")** Bugün yapay zekâ
+  cevap yazarken yalnız bilgi tabanına, daire bilgisine ve O sohbete bakıyor; eski sohbetlerdeki cevaplarınızı yalnız "Geçmişten öğren"
+  taslağını onaylayınca görüyor. Destek yazılımlarında yaygın düzen: eski temsilci cevapları önce TEMSİLCİYE taslakta kaynağıyla gösterilir;
+  müşteriye kendiliğinden giden cevap onaylı bilgiden çıkar. Önerim: ilk adımda YALNIZ "AI öner" taslağında, AYNI dairenin eski cevaplarınıza
+  bakılsın (başka daire asla; yapay zekânın kendi eski cevabı, konaklamaya özgü izin / tarih, "belki düzelir" denemesi, kapı kodu ve
+  rezervasyon öncesi Wi-Fi getirmenin İÇİNDE dışarıda); bilgi tabanında aynı konu varsa bilgi tabanı kazanır; taslağın altında hangi eski
+  cevabınıza dayandığı görünür. Otomatik gönderim ve QR aynı kalır, migration yok, anahtar kapalı doğar.
+  ÖRNEK: misafir "TV açılmıyor, ne yapayım?", bilgi tabanında TV yok. Önce: taslak ara cevap, siz elle yazıyorsunuz. Sonra: taslak
+  "Kumandadan HDMI 1 kaynağını seçin." + altında "Mart 2025'te bir misafire böyle yazmıştınız: …" → siz "Onayla ve gönder". Böyle yapalım mı?
+- **L2 · Onaylarken bilgi tabanında aynı konu varsa (Opus H2):** bugün "Wi-Fi şifresi yeni2025" kaydınız varken geçmişteki eski "lale2024"
+  cevabından çıkan taslağı onaylarsanız ikisi birden etkin kalır; misafir sorunca yapay zekâ birini seçer (yanlış şifre gidebilir). Eski
+  geçmiş önerisi (Bacak B) 09-18'de tam bu yüzden "zaten kayıt varsa önerme" kuralını almıştı. Önerim: aynı daire + aynı konuda etkin kayıt
+  varsa taslak "Bilgi tabanınızda bu konu var: …" işaretiyle gelsin; onayda üç düğme "Eskisinin yerine koy" (eskisi pasife) · "Ayrı bilgi
+  olarak ekle" · "Vazgeç". ÖRNEK: misafir "Wi-Fi şifresi?" → önce: iki şifreden biri · sonra: yalnız seçtiğiniz. Böyle yapalım mı?
+- **L3 · Tek konuşmada geçen bilgi (Opus H7):** yalnız bir misafire söylediğiniz cümle işaretsizse tek tıkla bilgi tabanına giriyor (insan
+  onayıyla, otomatik değil). Önerim: "Yalnız 1 konuşmada geçti — herkese uygun mu?" işareti + kutucuk. ÖRNEK: "Bu akşam kapıda bekleyeceğim"
+  → önce tek tıkla kalıcı bilgi · sonra önce kutucuk. Böyle yapalım mı?
+- **L4 · Düzenleyip gönderdiğiniz yapay zekâ taslağı:** bugün (kodda) taslağın sözcüklerinin %60'ı ya da fazlası cevabınızda kalıyorsa o cevap
+  sizin bilginiz sayılmıyor (şüphede öğrenme yok). Bu eşik uygun mu, yoksa "bir harf bile değiştirdiysem benim cevabımdır" mı? Önerim:
+  bugünkü gibi kalsın (yapay zekânın kendi sözünü kanıt yapması pahalı, kaçan bir çift ucuz).
+- **L5 · Sağlayıcı otomasyonu (Opus H9, migration ister):** Hospitable'ın kendi şablon mesajı bizde ev sahibi mesajı sayılıyor (sağlayıcı
+  gönderen rolünü saklamıyoruz). Bizim şablonlarımız zaten ayrılıyor. Önerim: Airbnb Direct'e geçişte gönderen rolü kanal katmanında saklansın
+  (ayrı tur); bugün için değişiklik yok.

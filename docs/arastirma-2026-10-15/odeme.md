@@ -21,7 +21,8 @@ Arama: `tests/` altında Paddle rotasını ya da onay rotasını çağıran büt
 
 **Sonuç:** dördü de hâlâ eksik. Dört test dosyası yazıldı (§2).
 
-## 2. Yazılan dört test dosyası (kopyalamaya hazır; KOŞULMADI — kod okumasıyla "bugünkü kodda yeşil" gerekçeli)
+## 2. Yazılan dört test dosyası (bu belge yazılırken KOŞULMAMIŞTI; 10-15'te `af8e984` ile itildi, o tarihten beri her tam kapıda ve CI'da
+koşuyor ve yeşil — Codex C5 10-16. Mutasyon kanıtı yalnız sonraki ödeme dilimlerinde eklenen davranışlar için var.)
 
 Klasör: `/tmp/claude-0/-home-user-SaaS-Ultimitly/4b3a6b83-dfb6-5a82-b43d-8777d09e2d05/scratchpad/odeme-testleri/` → `tests/integration/`e kopyalanır.
 Desen birebir mevcut dosyalardan: `../helpers/db` (`prisma`, `resetDb`), `vi.hoisted` + `vi.mock("@/lib/report-error")`, `vi.stubEnv`,
@@ -90,7 +91,7 @@ takılmaz) ve `arrivals() === 2` iddiası kırmızı olur → "yarış gerçekte
   çağırmak → 25 satır. Sayacı "oku-sonra-yaz" yapmak → eşzamanlı patlamada büyük olasılıkla >20 (olasılıksal). Canlı abonelik kapısını
   kaldırmak → KONTROL'de satır + A'da kapı hiç dolmaz (`arrivals` 0).
 
-**Doğrulama gerekir (ben koşamadım):** `npm test` tam kapı (dört dosya yeşil) + `scripts/mutation-run.mjs` ile yukarıdaki mutasyonlar.
+**Doğrulama (10-16 güncel):** dört dosya tam kapıda ve CI'da yeşil; yukarıdaki mutasyonların bu dosyalar için ayrı koşusu YAPILMADI.
 Tip / lint: `any` yok (`never` + `as unknown as typeof …` — mevcut desen), kullanılmayan içe aktarım yok; yine de `tsc` + `eslint` koşulmalı.
 
 ## 3. U39 ve U42 — HEAD (`72feb52`) üzerinde yeniden doğrulama

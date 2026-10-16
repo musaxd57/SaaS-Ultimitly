@@ -194,8 +194,10 @@ kapalı yolunda (`requestId` kullanılmıyor). Sıralı liste §8, kurucu sorula
   (`billing/consent/route.ts`).
 - **Boşluk (DOĞRULANDI, P3):** `POST /api/billing/consent` çift tık → iki `CheckoutConsent` satırı (kontroller kilitsiz oku-sonra-yaz).
   Zarar yok (onay kaydı yalnız iz; `consumedAt` EKLENMEZ kalıcı kararı). Gerçek para riski ödeme belgesindeki "iki sekmede iki ödeme
-  ekranı" — Paddle ödeme ekranı bizim sunucumuzu çağırmadan tahsilat yaptığı için sunucu tarafı idempotency anahtarı bunu ÇÖZEMEZ;
-  çözüm zaten uygulandı: ikinci aktif abonelik alarmı (`webhooks/paddle/route.ts:296-304`) + işleniyor kilidi. Bkz. ödeme belgesi §5.
+  ekranı". ⚠️ 10-16 DÜZELTME (Codex C1 / C5): "sunucu bunu çözemez" YANLIŞTI — sunucu tek bir açık Paddle işlemi açıp ödeme ekranını
+  o işlemle (`transactionId`) açarsa iki sekme AYNI işlemi görür. Bugünkü alarm (`webhooks/paddle/route.ts`) + işleniyor kilidi ikinci
+  tahsilatı ÖNLEMEZ, yalnız sonradan haber verir. Çözüm hazır yamada: `M-odeme-niyeti` (`docs/hazir-yamalar/faz2-2026-10-16/`), kod Paddle
+  sandbox denemesinden sonra.
 - **Ek öneri (P2, kurucu sorusu):** ikinci aktif abonelik alarmı geldiğinde operatör bugün Paddle panelinden elle iptal ediyor. Otomatik
   iade/iptal para akışıdır → YAPILMAZ (kurucu onayı olmadan); alarm yeterli.
 
