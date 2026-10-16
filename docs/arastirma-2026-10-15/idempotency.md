@@ -443,7 +443,7 @@ hata → yeniden dene" sözleşmemizle çelişir.
 ### 7.4 Neden "her tabloya `clientRequestId`" (migration 67 deseni) yerine tek defter
 - Migration 67 deseni tek tablo için mükemmel (atomik, ek durum yok) ama 6-7 tablo için 6-7 migration + 6-7 benzersiz dizin + her rotada
   aynı 30 satır kopya. Defter tek migration (ya da sıfır), tek test kümesi, tek süpürge.
-- KB'de migration 67 KALSIN (zaten canlıda, kalem başına kimlik doğal); yeni uçlar deftere bağlanır. KB kopyalama 67'yi `copy:` önekiyle
+- KB'de migration 67 KALSIN (repoda / origin'de; canlı DEĞİL — prod son 58, `docs/MIGRATION-MANIFEST.md`; kalem başına kimlik doğal); yeni uçlar deftere bağlanır. KB kopyalama 67'yi `copy:` önekiyle
   kullanabilir (§4.2) — deftere de bağlanabilir; ikisi de doğru, 67 migration'sız.
 
 ## 8. Sıralı düzeltme listesi (P0 önce)
