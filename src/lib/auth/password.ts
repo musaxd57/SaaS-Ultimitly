@@ -114,6 +114,18 @@ export function verifyPassword(password: string, hash: string): Promise<boolean>
   return withSlot(async () => (await compareStored(password, hash)).ok);
 }
 
+/** Bugünkü maliyetle (12) üretilmiş bir hash mi — `hashPassword` ile aynı iş miktarı tek karşılaştırmada ödenir. */
+export const CURRENT_COST_HASH = /^\$2[aby]\$12\$/;
+
+/**
+ * TEK bcrypt karşılaştırması (NFC biçimi; eski biçim denemesi YOK) — `hashPassword` ile AYNI iş miktarı, AYNI eşzamanlılık kapısı. YALNIZ
+ * `CURRENT_COST_HASH` hash'e karşı ve zamanlama paritesinin önemli olduğu kimliksiz yollarda (kayıt tekrarı, kurucu 10-16 S4) kullanılır:
+ * `verifyPassword` başarısız NFC-dışı girdide İKİ karşılaştırma yapar → süre farkı hesabın varlığını sızdırırdı.
+ */
+export function matchesCurrentCostHash(password: string, hash: string): Promise<boolean> {
+  return withSlot(() => bcrypt.compare(normalizePassword(password), hash));
+}
+
 // ---------------------------------------------------------------------------
 // 🚨 ESKİ HASH ZAMANLAMA KÂHİNİ (09-23 saldırgan turu, ölçüldü). Bilinmeyen e-posta
 // maliyet-12 SAHTE hash'e karşı doğrulanır (~315 ms); 05-31 → 06-09 arasında belirlenmiş

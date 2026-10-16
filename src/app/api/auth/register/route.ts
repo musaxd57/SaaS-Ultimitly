@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { registerSchema, zodFieldErrors } from "@/lib/validators";
-import { hashPassword } from "@/lib/auth/password";
+import { CURRENT_COST_HASH, hashPassword, matchesCurrentCostHash } from "@/lib/auth/password";
 import { badRequest, jsonOk, serverError, parseJsonBody, payloadTooLarge, hasJsonContentType, unsupportedMediaType } from "@/lib/api";
 import { rateLimit, clientIp, rateLimitClientKey } from "@/lib/rate-limit";
 import { emailService } from "@/lib/email";
@@ -123,7 +123,9 @@ export async function POST(req: NextRequest) {
 
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
-      await hashPassword(parsed.data.password); // zamanlama paritesi — sonuç atılır
+      // Zamanlama paritesi: bu dal da TAM BİR bcrypt işi öder (yeni-hesap dalının hash'i kadar). İş, aynı kaydın tekrarını tanımak için
+      // kullanılır; sonuç yanıtı DEĞİŞTİRMEZ.
+      const repeat = await sameRegistrationRepeat(existing, parsed.data.password);
       // Adres sahibine "bu adresle bir hesabın var" bildirimi. Yanıt DEĞİŞMEZ.
       //
       // 🚨 BAYRAK PARİTESİ ZORUNLU: bu dal, yeni-hesap dalıyla AYNI kola girmek
@@ -136,7 +138,10 @@ export async function POST(req: NextRequest) {
       // 🚨 AYRI BİR `kind` ŞART, `verify_email` KULLANILAMAZ: `enqueueIdentityEmail`
       // aynı (userId, kind) çiftinin bekleyen satırlarını İPTAL EDER → saldırgan
       // buraya istek atarak kurbanın GERÇEK doğrulama mailini iptal ettirebilirdi.
-      if (mayNotify) {
+      // 🚨 KURUCU 10-16 (S4): AYNI kayıt işleminin tekrarı ikinci e-posta ÜRETMEZ — ilk doğrulama e-postası zaten yolda / kutuda; yeniden
+      // gönderim ayrı, kotalı, bilinçli eylem ("Doğrulama e-postasını yeniden gönder"). Tanıma sunucuda ve kalıcı (hesap satırı): tarayıcı
+      // değişse de geçerli, aynı tarayıcıdan başka adresle kayıt olan kişiyi etkilemez, yanıt ve süre aynı kalır.
+      if (mayNotify && !repeat) {
         if (emailOutboxEnabled()) {
           await prisma.$transaction((tx) =>
             enqueueIdentityEmail(tx, {
@@ -270,4 +275,26 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     return serverError(undefined, err);
   }
+}
+
+/**
+ * Aynı kayıt işleminin TEKRARI mı (kurucu 10-16 S4): hesap henüz doğrulanmamış, ilk doğrulama bağlantısı hâlâ geçerli ve aynı parola. Çift
+ * tıklama, kopan bağlantı sonrası yeniden gönderim ya da başka tarayıcıdan aynı formu yeniden doldurma budur. Farklı parola (hesabını unutan
+ * kullanıcı ya da adresi başkası yazdı), doğrulanmış hesap ya da süresi dolmuş bağlantı → bugünkü gibi bildirim.
+ * Her durumda TAM BİR bcrypt işi: koşul sağlanmazsa `hashPassword` (sonuç atılır), sağlanırsa bugünkü maliyetli hash'e TEK karşılaştırma.
+ */
+async function sameRegistrationRepeat(
+  existing: { emailVerifiedAt: Date | null; emailVerifyExpiresAt: Date | null; passwordHash: string },
+  password: string,
+): Promise<boolean> {
+  const fresh =
+    existing.emailVerifiedAt === null &&
+    existing.emailVerifyExpiresAt !== null &&
+    existing.emailVerifyExpiresAt.getTime() > Date.now() &&
+    CURRENT_COST_HASH.test(existing.passwordHash);
+  if (!fresh) {
+    await hashPassword(password);
+    return false;
+  }
+  return matchesCurrentCostHash(password, existing.passwordHash);
 }

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { prisma, resetDb } from "../helpers/db";
 import { __resetRateLimit } from "@/lib/rate-limit";
@@ -26,7 +26,11 @@ import { POST as register } from "@/app/api/auth/register/route";
 // ⚠️ MEVCUT AKIŞ BOZULMAZ: yeni kayıt aynen 201 + doğrulama e-postası.
 // ---------------------------------------------------------------------------
 
-function registerReq(email: string, ip?: string) {
+// Kurucu 10-16 (S4): AYNI parolayla, doğrulanmamış ve bağlantısı geçerli hesaba tekrar = aynı kayıt işleminin tekrarı → bildirim GİTMEZ.
+// "Hesap var" bildirimini sınayan testler bu yüzden ikinci denemede FARKLI parola kullanır (hesabını unutan kullanıcı ya da adresi başkası yazdı).
+const OTHER_PASSWORD = "baskaSifre987";
+
+function registerReq(email: string, ip?: string, password = "sifre12345") {
   return new NextRequest("https://www.lixusai.com/api/auth/register", {
     method: "POST",
     headers: {
@@ -40,7 +44,7 @@ function registerReq(email: string, ip?: string) {
       organizationName: "İşletme",
       name: "Test Host",
       email,
-      password: "sifre12345",
+      password,
       consent: true,
     }),
   });
@@ -53,6 +57,7 @@ describe("POST /api/auth/register — enumeration kapalı", () => {
     vi.clearAllMocks();
     vi.stubEnv("REGISTRATION_OPEN", "1");
   });
+  afterEach(() => vi.unstubAllEnvs());
 
   it("VAR OLAN e-posta, YENİ kayıtla AYNI yanıtı alır", async () => {
     const fresh = await register(registerReq("yeni@example.com"));
@@ -100,8 +105,56 @@ describe("POST /api/auth/register — enumeration kapalı", () => {
     const fs = await import("node:fs/promises");
     const src = await fs.readFile("src/app/api/auth/register/route.ts", "utf8");
     const dupBranch = src.slice(src.indexOf("if (existing)"), src.indexOf("if (existing)") + 900);
-    expect(dupBranch).toMatch(/hashPassword\(/); // erken dönüş YOK, maliyet ödenir
+    // Kurucu 10-16 (S4): dal TAM BİR bcrypt işini tekrar tanıma yardımcısında öder — koşul yoksa `hashPassword`, varsa bugünkü maliyetli
+    // hash'e TEK karşılaştırma (iki yolun ikisi de tek bcrypt; erken dönüş yok).
+    expect(dupBranch).toMatch(/await sameRegistrationRepeat\(/);
+    const helper = src.slice(src.indexOf("async function sameRegistrationRepeat"));
+    expect(helper).toMatch(/await hashPassword\(password\);\s*return false;/);
+    expect(helper).toMatch(/return matchesCurrentCostHash\(password, existing\.passwordHash\);/);
+    expect(helper).toMatch(/CURRENT_COST_HASH\.test\(existing\.passwordHash\)/);
     expect(dupBranch).not.toMatch(/zaten kayıtlı/); // eski sızdıran metin geri gelmesin
+  });
+
+  // ── KURUCU 10-16 (S4): aynı kayıt işleminin tekrarı ikinci e-posta üretmez; tanıma sunucuda ve kalıcı (tarayıcı değişse de), başka
+  // kişiyi etkilemez, yanıt aynı. "Doğrulama e-postasını yeniden gönder" ayrı, kotalı, bilinçli eylem olarak kalır. ──
+  it("🚨 S4: aynı kayıt tekrarı (aynı adres + aynı parola, doğrulanmamış, bağlantı geçerli) → ikinci e-posta YOK, yanıt birebir aynı", async () => {
+    const first = await register(registerReq("tekrar@example.com"));
+    const firstBody = await first.json();
+    vi.clearAllMocks();
+    // Başka tarayıcı / başka ağ: çerez yok, farklı IP — tanıma yine sunucuda.
+    const again = await register(registerReq("tekrar@example.com", "7.7.7.7"));
+    expect(again.status).toBe(201);
+    expect(await again.json()).toEqual(firstBody);
+    const { emailService } = await import("@/lib/email");
+    expect(vi.mocked(emailService.sendReporting)).not.toHaveBeenCalled(); // ⬅️ ESKİDE "zaten bir hesabınız var" gidiyordu
+  });
+
+  it("S4: kalıcı kuyruk açıkken de aynı kayıt tekrarı bildirim satırı YAZMAZ; farklı parola yazar", async () => {
+    vi.stubEnv("EMAIL_OUTBOX_ENABLED", "1");
+    await register(registerReq("kuyruk-s4@example.com"));
+    await register(registerReq("kuyruk-s4@example.com", "7.7.7.8"));
+    expect(await prisma.emailOutbox.count({ where: { kind: "account_exists" } })).toBe(0);
+    expect(await prisma.emailOutbox.count({ where: { kind: "verify_email" } })).toBe(1);
+    await register(registerReq("kuyruk-s4@example.com", "7.7.7.9", OTHER_PASSWORD));
+    expect(await prisma.emailOutbox.count({ where: { kind: "account_exists" } })).toBe(1);
+  });
+
+  it("S4: doğrulama bağlantısının süresi DOLMUŞSA aynı parolayla tekrar → bildirim gider (bugünkü gibi; yeni bağlantı ayrı eylem)", async () => {
+    await register(registerReq("suresi@example.com"));
+    await prisma.user.update({ where: { email: "suresi@example.com" }, data: { emailVerifyExpiresAt: new Date(Date.now() - 60_000) } });
+    vi.clearAllMocks();
+    await register(registerReq("suresi@example.com"));
+    const { emailService } = await import("@/lib/email");
+    expect(vi.mocked(emailService.sendReporting).mock.calls.map((c) => String(c[1]))).toEqual([expect.stringMatching(/zaten bir hesabınız var/i)]);
+  });
+
+  it("S4: DOĞRULANMIŞ hesap + aynı parola → bildirim gider (kayıt tamamlanmış; tekrar sayılmaz)", async () => {
+    await register(registerReq("dogrulu@example.com"));
+    await prisma.user.update({ where: { email: "dogrulu@example.com" }, data: { emailVerifiedAt: new Date(), emailVerifyTokenHash: null } });
+    vi.clearAllMocks();
+    await register(registerReq("dogrulu@example.com"));
+    const { emailService } = await import("@/lib/email");
+    expect(vi.mocked(emailService.sendReporting)).toHaveBeenCalledTimes(1);
   });
 
   // -------------------------------------------------------------------------
@@ -120,7 +173,7 @@ describe("POST /api/auth/register — enumeration kapalı", () => {
     await register(registerReq("sahip@example.com"));
     vi.clearAllMocks();
 
-    const res = await register(registerReq("sahip@example.com"));
+    const res = await register(registerReq("sahip@example.com", undefined, OTHER_PASSWORD));
     expect(res.status).toBe(201);
     expect(await res.json()).toEqual({ ok: true, verifyEmail: true });
 
@@ -158,7 +211,7 @@ describe("POST /api/auth/register — enumeration kapalı", () => {
         organizationName: "ACIL: hesabiniz kapatilacak",
         name: "Buraya tiklayin hemen",
         email: "kurban@example.com",
-        password: "sifre12345",
+        password: OTHER_PASSWORD,
         consent: true,
       }),
     });
@@ -176,7 +229,7 @@ describe("POST /api/auth/register — enumeration kapalı", () => {
     // tarayıcılarının ön-ısıtma istekleri tek-kullanımlık token'ı tüketir.
     await register(registerReq("baglanti@example.com"));
     vi.clearAllMocks();
-    await register(registerReq("baglanti@example.com"));
+    await register(registerReq("baglanti@example.com", undefined, OTHER_PASSWORD));
 
     const { emailService } = await import("@/lib/email");
     const html = String(vi.mocked(emailService.sendReporting).mock.calls[0][2]);
@@ -199,7 +252,7 @@ describe("POST /api/auth/register — enumeration kapalı", () => {
     const statuses: number[] = [];
     // Kova 4/15dk → tavandan sonra bildirim susmalı, yanıt YİNE 201 olmalı.
     for (let i = 0; i < 6; i++) {
-      const r = await register(registerReq("kova@example.com", `9.9.1.${i}`));
+      const r = await register(registerReq("kova@example.com", `9.9.1.${i}`, OTHER_PASSWORD));
       statuses.push(r.status);
     }
     expect(new Set(statuses)).toEqual(new Set([201]));
