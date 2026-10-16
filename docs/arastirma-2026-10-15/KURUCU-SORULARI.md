@@ -474,6 +474,11 @@ panelinde "Kuyruk sağlığı" (kaç satır bekliyor, en eski ne kadar bekliyor)
   hata uyarısı görünür. Önerim: yalnız görev atamasına "işaretle → gönder → olmazsa geri al" (migration'sız); genel bildirim tablosu şimdilik yok.
 - **O3 · Kuyruk birikme alarmı:** panel bakılmazsa birikme fark edilmez. Önerim: vadesi gelmiş satır 15 dk bekleyince sana tek e-posta (düzelince
   temizlenir; diğer periyodik alarmlarla aynı kural). Yeni bir operatör e-postası olduğu için soruyorum.
+  Kodda ölçülen kapsam (10-16 sabah): iki kuyruğu da 2 dakikalık senkron boşaltıyor ve o döngü ölürse `/api/health?strict=1` zaten 503 veriyor
+  (ikinci izleyici oraya bakıyorsa sana haber gelir); boşaltma hatası da zaten geçiş tabanlı alarm üretiyor (`email-outbox`). Kalan tek boşluk:
+  döngü canlı, hata yok ama satır ilerlemiyor (ör. takılı sahiplenme). Bu yüzden ikinci seçenek: e-posta yerine `strict` yoklamasına "kuyruk
+  gecikmesi" sinyali (vadesi geçmiş satır 15 dk → 503) — yeni e-posta yok, ama izleyicinin sayfalama davranışı değişir. Hangisi? (A) e-posta
+  · (B) strict yoklama · (C) şimdilik ikisi de yok (panel yeter). İkinci izleyici kurulu mu, onu da bilmiyorum.
 
 ### H7 · Küçük kalanlar (Opus D17 listesinden)
 - **O14 (yapıldı, haber):** Görevler sayfasındaki "Eksik görevleri oluştur (3)" düğmesindeki sayı GÖREV değil çıkış temizliği eksik REZERVASYON
