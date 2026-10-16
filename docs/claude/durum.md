@@ -13,7 +13,9 @@ e-posta kuyruğu sağlayıcıya satır başına sabit tekrar kimliği; ödeme: `
 yazmaz ve `needs_review: <kod>` ile yeniden işlenebilir kalır, hesap silinirken gelen ödeme olayı alarm + inceleme (hesap geri açılmaz);
 O1 ilk deneme listesi `DURABLE_OUTBOX_ORG_IDS` + anahtar kapatma testleri (eski koda dönmeden önce ana anahtar kaldırılır — tasarım §7); QR
 çalışan kilit (120 sn) ≠ tamamlanmış kayıt (24 sa) + işçi jetonu (bayat işçi kaydetmez / başkasının kilidini silmez). Faz 2 (migration
-taslağı) / Faz 3 (yapay zekâ, anahtar kapalı) ve sorular I1–I3: `docs/arastirma-2026-10-15/KURUCU-SORULARI.md` §I.
+taslağı) / Faz 3 (yapay zekâ, anahtar kapalı) ve sorular I1–I4: `docs/arastirma-2026-10-15/KURUCU-SORULARI.md` §I. Aynı dilimde
+(migration'sız): O3 kuyruk alarmı A + B, S4 kayıt tekrarı, Opus dilim sonu 11 bulgusu (KVKK küçültme, silme ↔ ödeme yarışı kilidi, geri dönüş
+süzgeci, ödeme inceleme listesi, Resend çakışması, liste `*` kuralı) — §I "Dilim sonu kontrolü".
 
 **10-15 gece — idempotency bitişi + kurucu D1–D7:** iptal yollarının hepsi aynı kilit protokolünde (sekiz yol, iptalden önce başlamış
 görev açmaya karşı belirlenimci testler; "zaten iptal" kısa yolu kaldırıldı; ters yön "Yeniden aç" kilitli yoldan). Onarım ≠ alarm: iCal (onarım

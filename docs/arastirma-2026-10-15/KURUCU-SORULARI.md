@@ -516,12 +516,22 @@ Kararların özü (aynen kaydı oturum notlarında; burada yalnız ne yapıldı�
 | QR: 300'e çıkarma; çalışan kilit ≠ tamamlanmış kayıt; süresi dolan eski işçi göndermesin | ✅ Faz 1 (120 sn kilit + 24 sa tamamlanmış kayıt + işçi jetonu) |
 | S1 elle gönderim kalıcı işlem kimliği · S2 işlem defteri tablosu | Faz 2 (tek tablo; şema taslağı gelecek) |
 | S5 bilgi tabanı sürüm alanı (bayat kayıt atomik ret, yazılan metin korunur, fark gösterilir) | Faz 2 |
-| S4 kayıt: aynı kayıt işleminin tekrarı ikinci e-posta üretmez (tarayıcı değişse de; başkasını engellemez; hesap varlığı sızmaz) | Faz 2 |
 | Ödeme S3 iade / ters ibraz (onaylı iade tutarı, kısmen / tamamen, ters ibraz ayrı durum + alarm + geri alınması; fatura değişmez, düzeltme kaydı) | Faz 2 |
 | O2 görev ataması bildirimi kalıcı kuyruktan (atama + bildirim birlikte; yeniden atanınca eski bildirim gitmez) | Faz 2 |
-| O3 A + B (e-posta + strict yoklama; alarm bozuk kuyruğa bağlı değil, yeniden başlatma döngüsü yok) + ikinci izleyici kurulum belgesi | Faz 2 |
+| O3 A + B (e-posta + strict yoklama; alarm bozuk kuyruğa bağlı değil, yeniden başlatma döngüsü yok) + ikinci izleyici kurulum belgesi | ✅ Faz 1 (migration gerekmedi): kuyruk "ilerlemiyor" = işçinin alabileceği satır 15 dk bekliyor VE 15 dk'dır ilerleme yok → bir kez e-posta (kuyruktan geçmez) + `/api/health?strict=1` 503 `queue_stalled`; normal yoklama değişmez. İkinci izleyicinin kurulu olup olmadığı BİLİNMİYOR → Railway açılış listesinde kurulum + test alarmı maddesi |
+| S4 kayıt tekrarı | ✅ Faz 1 (migration gerekmedi): doğrulanmamış hesap + ilk bağlantı geçerli + aynı parola = aynı kaydın tekrarı → ikinci e-posta yok; yanıt ve süre aynı (tek bcrypt); yalnız kalıcı e-posta kuyruğu açıkken (canlı yol) |
 | O5 kuyruk ekranı zamanları · O6 önizlemeli toplu yeniden dene | Faz 2 |
 | H2 belirtiyle ilgili tarif (TV siyah ekran ≠ ses ayarı) + tehlike bağlamı · H9 konu bazlı "bilgim yok" (çözüm bilgisi yok cümlesi misafire ASLA) | Faz 3 |
+
+### Dilim sonu kontrolü (Opus, 10-16 öğle — 11 bulgu, hepsi işlendi; Haiku iki tur)
+- **F1 (KVKK):** incelemeye düşen ödeme olayının ham yükü süresiz kalıyordu → 12 ayda küçülür; silinmiş işletmeninki yazılırken küçülür.
+- **F2:** hesap silme ile ödeme olayı yarışı ters sırada hâlâ alarmsızdı → silme ön kontrolü abonelik satırını kilitler (iki bağlantılı gerçek
+  PostgreSQL testi, kırmızı-önce).
+- **F3:** geri dönüşte ulaşmamış cevap modele "verilmiş" görünüyordu → süzgeçler kuyruk satırının varlığına bağlı (migration'sız).
+- **F4:** tutar sütunu sınırı · **F5:** "Ödeme incelemesi" listesi operatör panelinde + alarm gerçek eylemi söyler · **F6:** vakumlu test →
+  uçtan uca · **F7 (KVKK):** QR tekrar kaydındaki metin özeti anahtarlı + konaklama silinince silinir · **F9:** Resend "aynı anahtar başka
+  içerik" çakışması belirsiz sonuç sayılır, körlemesine yeniden gönderim yok · **F10:** liste silinirse kuyruk kimseye açılmaz (`*` = herkes) ·
+  **F11:** doğru olay gelince eski inceleme satırı kapanır. **F8** → soru I4.
 
 ### Sorular (10-16 öğle)
 - **I1 · Öneri yolunda "klima / musluk ayrı" kuralın SAĞLANMIYOR (anahtar KAPALI, `AI_ACTION_SUGGESTIONS_ENABLED`):** elle form senin kuralına
