@@ -253,6 +253,24 @@ describe("Geçmişten öğren — uçtan uca", () => {
     expect(list.drafts.find((x: { id: string }) => x.id === note.id).fromNote).toBe(true);
   });
 
+  it("ad yalnız REZERVASYON satırındaysa da maskelenir (gelen mesajın gönderen adı yer tutucu — mutasyon P4)", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    session = customer(orgId);
+    const r = await prisma.reservation.create({
+      data: { propertyId, guestName: "Zeynep Kaya", arrivalDate: new Date(Date.now() - 5 * 86_400_000), departureDate: new Date(Date.now() - 2 * 86_400_000), status: "completed", channel: "airbnb" },
+    });
+    const conv = await prisma.conversation.create({ data: { propertyId, reservationId: r.id, guestIdentifier: "Misafir", channel: "airbnb", status: "closed", lastMessageAt: new Date() } });
+    await prisma.message.create({ data: { conversationId: conv.id, direction: "inbound", authorType: "guest", senderName: "Misafir", body: "Havlu var mı?" } });
+    const host = await prisma.message.create({
+      data: { conversationId: conv.id, direction: "outbound", authorType: "host", senderName: "Ev sahibi", body: "Zeynep Hanım, havlular yatak odasındaki dolapta." },
+    });
+    const d = await seedDraft(propertyId, orgId, { evidenceMessageIdsJson: JSON.stringify([host.id]), category: "amenities", title: "Havlu", content: "Havlular dolapta." });
+    const list = await (await getRuns(json(`http://localhost/api/properties/${propertyId}/history-learn`, "GET"), p({ id: propertyId }))).json();
+    const row = list.drafts.find((x: { id: string }) => x.id === d.id);
+    expect(row.sample.text).toContain("havlular yatak odasındaki dolapta");
+    expect(row.sample.text).not.toContain("Zeynep");
+  });
+
   it("🚨 işaretli / çelişkili taslak onay için açık teyit ister; düzenlenen metin kapıdan geçer; ret kalem açmaz", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
     session = owner(orgId);

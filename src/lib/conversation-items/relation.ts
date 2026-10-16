@@ -901,15 +901,39 @@ const REMOTE_WORD = new RegExp(
 function stepDevicesOf(sentence: string): string[] {
   // Ham metinde (getirme sözlüğü Türkçe harfleri okur; katlanmış metin kökleri kaçırır). Klima / ısı pompası "ısıtma / soğutma MODU" ısıtma
   // tesisatı değildir (Opus gece-2 M3: "MODE tuşuyla soğutma ya da ısıtma modunu seçin" ısıtmaya iniyordu) — mod anılan cümlede nötrlenir.
-  const neutral = sentence.replace(REMOTE_WORD, " ");
+  // TV mobilyası bir YER adıdır ("Modem salondaki TV ünitesinin alt rafında" — Opus gece-3 P1-a, ölçüldü: tarifli modem adımı TV yüzünden
+  // tutuluyordu, altı dilde).
+  const neutral = sentence.replace(REMOTE_WORD, " ").replace(TV_FURNITURE, " ");
   const text = MODE_WORD.test(fold(neutral)) ? neutral.replace(CLIMATE_MODE_WORD, " ") : neutral;
   const devices = deviceTopicsOf(topicsWithSymptomsOf(text)).filter((t) => t !== "socket");
   // Getirme sözlüğü "açın / açıp" fiilini klimaya (AC) bağlıyor (ölçüldü 10-15 gece: "Cihazı kapatıp 30 saniye bekleyin, sonra yeniden açın"
   // klima sayılıyor, klima tarifi varsa bulaşık makinesi adımı geçiyordu) — klima ancak cümlede gerçek bir klima adı varsa sayılır.
-  return devices.includes("ac") && !AC_EVIDENCE.test(fold(sentence)) && !/(?<![\p{L}])A\/?C(?![\p{L}])/u.test(sentence)
+  const real = devices.includes("ac") && !AC_EVIDENCE.test(fold(sentence)) && !/(?<![\p{L}])A\/?C(?![\p{L}])/u.test(sentence)
     ? devices.filter((t) => t !== "ac")
     : devices;
+  return withoutPlaces(real);
 }
+
+/**
+ * Yer kavramları başka bir cihazla birlikte anıldığında cihaz sayılmaz ("salon" getirme sözlüğünde spor salonu — "Le modem est sous le meuble
+ * TV du salon" — Opus gece-3 P1-a). Yalnız yer anılmışsa ("Spor salonunu kartla açın") kalır.
+ */
+function withoutPlaces(devices: string[]): string[] {
+  const devicesOnly = devices.filter((t) => !PLACE_TOPICS.has(t));
+  return devicesOnly.length > 0 ? devicesOnly : devices;
+}
+
+/**
+ * TV mobilyası / yeri ("TV ünitesi / sehpası / altı", "TV unit / stand / cabinet", "TV-Regal / -Möbel", "meuble TV", "mueble de la tele",
+ * "тумба под телевизор", "طاولة التلفزيون") — cihaz değil yer tarifi. Ham metin, büyük-küçük harf duyarsız, sınırlı tekrar.
+ */
+const TV_FURNITURE = new RegExp(
+  [
+    "(?<![\\p{L}\\p{N}])(?:tv|televizyon)(?:['’]?n?[iıuü]n)?[ -]?(?:ünite|unite|sehpa|dolab|dolap|raf|alt|üst|ust|stand|unit|cabinet|shelf|console|regal|möbel|mobel|schrank|board)\\p{L}{0,8}",
+    "(?<![\\p{L}\\p{N}])(?:meuble (?:de la |du )?(?:tv|télé|tele)|mueble (?:de la )?(?:tv|tele)\\p{L}{0,6}|тумб\\p{L}{0,4} под телевизор\\p{L}{0,3}|طاولة التلفزيون)",
+  ].join("|"),
+  "giu",
+);
 
 /** "mod / mode / Modus / режим" (katlanmış). */
 const MODE_WORD = new RegExp(`${L}(?:mod\\p{L}{0,5}|режим\\p{L}{0,3})${R}`, "u");
@@ -1311,7 +1335,7 @@ export function faultDevicesOf(text: string): Set<string> {
     if (!clause || clause.trim() === "") continue;
     const delimiter = parts[i + 1] ?? "";
     const inherited = subject;
-    const own = deviceTopicsOf(topicsWithSymptomsOf(clause));
+    const own = faultClauseDevices(clause);
     const f = fold(clause);
     // Cihaz taşıyan ama arıza ifadesi / soru taşımayan öbek bir sonraki cümleciğin öznesi olabilir ("Klima, çalışmıyor", "Televizyon kendi
     // kendine kapanıyor, bozuk", "Klima düzeldi ama şimdi yine çalışmıyor").
@@ -1342,6 +1366,16 @@ export function faultDevicesOf(text: string): Set<string> {
     if (questioned && own.length > 0) subject = own;
   }
   return open;
+}
+
+/**
+ * Arıza cümleciğinin cihazları: kumanda ve TV mobilyası başka bir cihazla birlikte anıldığında nötr ("Klima kumandası çalışmıyor" yalnız
+ * klima — Opus gece-3 P2-a, ölçüldü: getirme sözlüğü kumandayı TV'ye bağlıyor, TV de arızalı sayılıyordu). Yalnız kumanda anılmışsa
+ * ("Kumanda çalışmıyor") sözlüğün okuması kalır.
+ */
+function faultClauseDevices(clause: string): string[] {
+  const neutral = withoutPlaces(deviceTopicsOf(topicsWithSymptomsOf(clause.replace(REMOTE_WORD, " ").replace(TV_FURNITURE, " "))));
+  return neutral.length > 0 ? neutral : deviceTopicsOf(topicsWithSymptomsOf(clause));
 }
 
 /** Cümlecik bir düzelme söylüyor mu: soru ("düzeldi mi", "fixed?") ve sanı ("hallettik sandık") değil. */

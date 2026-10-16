@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 import { parseUnderstanding } from "@/lib/ai/semantic/understanding-schema";
 import { extractTurnItems } from "@/lib/conversation-items/extract";
 import { composeItemsPlan, faultRequestsOf, relationFactsOf } from "@/lib/conversation-items/plan";
-import { faultSignal, kbRecipeTopics, requestTopics, topicsOf, touchesHeldDevice } from "@/lib/conversation-items/relation";
+import { faultDevicesOf, faultSignal, kbRecipeTopics, requestTopics, topicsOf, touchesHeldDevice } from "@/lib/conversation-items/relation";
 import type { ItemKind } from "@/lib/conversation-items/core";
 
 // ---------------------------------------------------------------------------
@@ -133,6 +133,16 @@ describe("arıza sinyali (saf)", () => {
     ["Klima çalışmadı ama sonra düzeldi.", false],
   ])("%j → %s", (q, want) => {
     expect(faultSignal(q, q)).toBe(want);
+  });
+});
+
+describe("arızalı cihaz kümesi (Opus gece-3 P2-a)", () => {
+  it("kumanda / TV mobilyası başka cihazla anılınca o cihazın arızasıdır; yalnız kumanda anılmışsa sözlüğün okuması kalır", () => {
+    expect([...faultDevicesOf("Klima kumandası çalışmıyor")]).toEqual(["ac"]);
+    expect([...faultDevicesOf("The AC remote is not working")]).toEqual(["ac"]);
+    expect([...faultDevicesOf("TV ünitesinin altındaki modemin ışıkları yanmıyor")]).toEqual(["wifi"]);
+    expect([...faultDevicesOf("Kumanda çalışmıyor")]).toEqual(["tv"]);
+    expect([...faultDevicesOf("Televizyonun kumandası çalışmıyor")]).toEqual(["tv"]);
   });
 });
 

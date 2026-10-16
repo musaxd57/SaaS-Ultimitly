@@ -194,6 +194,23 @@ describe("Opus gece-2 M8: başlık yalnız YER adlandırıyorsa ('Salon', 'Teras
   });
 });
 
+describe("Opus gece-3 P1-a: TV mobilyası / oda adı YER tarifidir — tarifli modem adımı tutulmaz", () => {
+  const wifiRecipe = [{ title: "Wi-Fi", content: "Modem salondaki TV ünitesinin alt rafındadır. Bağlantı koparsa modemi kapatıp 30 saniye sonra yeniden açabilirsiniz." }];
+  const kb = { recipeTopics: kbRecipeTopics(wifiRecipe), subjectTopics: kbSubjectTopics(wifiRecipe) };
+  it.each([
+    ["Modem salondaki TV ünitesinin alt rafında; kapatıp 30 saniye sonra yeniden açabilirsiniz.", "İnternet çalışmıyor"],
+    ["Modem salondaki TV ünitesinin alt rafındadır. Kapatıp 30 saniye sonra yeniden açabilirsiniz.", "İnternet çalışmıyor"],
+    ["The router is on the lower shelf of the TV unit; you can switch it off and on again after 30 seconds.", "Internet is not working"],
+    ["Bitte schalten Sie den Router unter dem TV-Regal im Wohnzimmer aus, warten Sie 30 Sekunden und schalten Sie ihn wieder ein.", "Das Internet funktioniert nicht"],
+    ["Le modem est sous le meuble TV du salon ; vous pouvez l'éteindre puis le rallumer après 30 secondes.", "L'internet ne marche pas"],
+  ])("GEÇER: %j", (reply, guest) => {
+    expect(unsupportedFixStep(reply, kb, guest)).toBe(false);
+  });
+  it("aşırı düzeltme yok: TV'nin KENDİ adımı TV tarifi ister", () => {
+    expect(unsupportedFixStep("Televizyonun fişini çekip tekrar takın.", kb, "Televizyon çalışmıyor")).toBe(true);
+  });
+});
+
 describe("anahtar + bağlam", () => {
   it("anahtar KAPALI: bağlam alanı HİÇ yazılmaz, kemer koşmaz (bayt bayt bugünkü)", () => {
     vi.stubEnv("AI_FIX_SUPPORT_GATE_ENABLED", "");
