@@ -1016,13 +1016,15 @@ describe("KONU BAZLI 'BİLGİM YOK' (H9, kurucu 10-16; anahtar AI_TOPIC_ABSENCE_
       {
         language: "tr",
         requests: [
-          { intent: "complaint_issue", message: 1, query_tr: "televizyon siyah ekran", query_original: "televizyon siyah ekran" },
-          { intent: "trash", message: 1, query_tr: "çöp nereye atılır", query_original: "çöpleri nereye atıyoruz" },
+          // İlişki kipi (canlı yol — anlama katmanı ilişki işaretini verir): çöp şikâyetten BAĞIMSIZ. İşaretsiz liste kipinde aynı turda
+          // şikâyet varken çöp de ev sahibine kalırdı (`core.complaintDependent`).
+          { intent: "complaint_issue", relation: "own_topic", message: 1, query_tr: "televizyon siyah ekran", query_original: "televizyon siyah ekran" },
+          { intent: "trash", relation: "own_topic", message: 1, query_tr: "çöp nereye atılır", query_original: "çöpleri nereye atıyoruz" },
         ],
         stay_change: STAY_NONE,
         withdrawn: [],
       },
-      { items: true },
+      { items: true, followup: true }, // ilişki kipi (şikâyet takibi — canlıda açık)
     );
     if (!u) throw new Error("fixture");
     return u;
