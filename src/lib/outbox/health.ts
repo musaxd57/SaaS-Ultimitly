@@ -69,7 +69,8 @@ export async function queueHealth(now: Date = new Date()): Promise<QueueHealth[]
 //    ama satır ilerlemiyorsa ikisi de görür. Normal `/api/health` (Railway hazır olma yoklaması) DEĞİŞMEZ → yeniden başlatma döngüsü yok.
 // "İlerlemiyor" (Haiku 10-16 sahte alarm bulguları üzerine): (1) İŞÇİNİN ALABİLECEĞİ vadesi gelmiş satır 15 dk'dır bekliyor — genel otomatik
 // mesaj anahtarı kapalıyken bilerek bekleyen otomatik şablonlar ve aynı konuşmada önceki satırın arkasında sıra bekleyen satır (konuşma
-// sırası; önceki satır yeniden deneme beklemesinde olabilir) SAYILMAZ, işçinin seçimiyle aynı kural; VE (2) son 15 dk'da kuyrukta hiç
+// sırası; önceki satır yeniden deneme beklemesinde olabilir) SAYILMAZ, işçinin talep sorgusuyla (`worker.ts` claimBatchLocked) BİREBİR aynı
+// süzgeç (uzlaştırma bekleyen `ambiguous` dahil; Haiku 10-16 ikinci tur); VE (2) son 15 dk'da kuyrukta hiç
 // ilerleme yok (sahiplenme / gönderim). Büyük birikim (her geçiş 20 satır) ilerlediği sürece alarm değildir.
 // ---------------------------------------------------------------------------
 
@@ -104,15 +105,17 @@ export async function queueStallStates(now: Date = new Date()): Promise<{ messag
     prisma.$queryRaw<{ at: Date | null }[]>(Prisma.sql`
       SELECT MIN(s."availableAt") AS at
       FROM "MessageOutbox" s
-      WHERE s."status" = 'pending'
+      WHERE s."status" IN ('pending', 'ambiguous')
         AND s."availableAt" <= ${now}
-        AND (${autoAllowed}::boolean OR s."messageType" IS NULL OR s."messageType" IN ('manual', 'ai', 'holding_ack'))
+        AND (s."claimExpiresAt" IS NULL OR s."claimExpiresAt" <= ${now})
+        AND (${autoAllowed}::boolean OR s."status" = 'ambiguous' OR s."messageType" IS NULL OR s."messageType" IN ('manual', 'ai', 'holding_ack'))
         AND NOT EXISTS (
           SELECT 1 FROM "MessageOutbox" e
           WHERE e."conversationId" = s."conversationId"
             AND e."id" <> s."id"
             AND e."status" IN ('pending', 'sending', 'ambiguous', 'reconciling')
-            AND (e."createdAt", e."id") < (s."createdAt", s."id")
+            AND NOT (NOT ${autoAllowed}::boolean AND e."status" = 'pending' AND e."messageType" IS NOT NULL AND e."messageType" <> 'manual')
+            AND (e."status" IN ('sending', 'reconciling') OR (e."createdAt", e."id") < (s."createdAt", s."id"))
         )`),
     prisma.messageOutbox.findFirst({
       where: { OR: [{ claimedAt: { gte: since } }, { sentAt: { gte: since } }] },

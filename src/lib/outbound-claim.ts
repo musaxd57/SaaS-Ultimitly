@@ -104,6 +104,12 @@ function bodyDigest(body: string): string {
   return h.digest("base64url").slice(0, 24);
 }
 
+/** Önceki sürümün anahtarsız özeti — yalnız SINIFLANDIRMADA (Haiku 10-16): yayından hemen önce yazılmış kilidin (≤ 120 sn) tekrarı
+ *  "farklı içerik" 409'u almasın. Yeni satır HİÇBİR ZAMAN bu biçimle yazılmaz. */
+function legacyBodyDigest(body: string): string {
+  return createHash("sha256").update(body).digest("base64url").slice(0, 24);
+}
+
 function inflightHolder(digest: string, token: string): string {
   return `${digest}.${token}`;
 }
@@ -146,7 +152,8 @@ export async function claimKeyedOutboundSend(scopeId: string, body: string, toke
         // Row vanished between the failed create and this read (a racing sweep on
         // a just-expired row) — refuse honestly; the client's next retry claims.
         if (!row) return "unavailable";
-        return digestOfHolder(row.holder) === digest ? "duplicate" : "mismatch";
+        const stored = digestOfHolder(row.holder);
+        return stored === digest || stored === legacyBodyDigest(body) ? "duplicate" : "mismatch";
       } catch {
         return "unavailable";
       }

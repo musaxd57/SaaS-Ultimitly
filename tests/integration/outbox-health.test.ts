@@ -164,6 +164,34 @@ describe("checkQueueStall (O3-A)", () => {
     }
   });
 
+  it("Haiku 10-16 ikinci tur: işçinin talep kuralıyla aynı — anahtar kapalıyken bekleyen OTOMATİK önceki satır elle cevabı tutmaz (sayılır); uzlaştırma bekleyen satır da sayılır", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const conv = await prisma.conversation.create({ data: { propertyId, guestIdentifier: "Misafir", channel: "airbnb" } });
+    const old = new Date(Date.now() - QUEUE_STALL_MS - 60_000);
+    await prisma.messageOutbox.create({
+      data: { organizationId: orgId, conversationId: conv.id, channel: "airbnb", body: "ai", idempotencyKey: "a", status: "pending", messageType: "ai", availableAt: new Date(Date.now() + 20 * 60_000), createdAt: new Date(Date.now() - 40 * 60_000) },
+    });
+    await prisma.messageOutbox.create({
+      data: { organizationId: orgId, conversationId: conv.id, channel: "airbnb", body: "elle", idempotencyKey: "b", status: "pending", messageType: "manual", availableAt: old, createdAt: new Date(Date.now() - 30 * 60_000) },
+    });
+    vi.stubEnv("AUTO_REPLY_ENABLED", "");
+    try {
+      await checkQueueStall(await alertTracker("scheduled-sync:"));
+      expect(stalls()).toHaveLength(1); // elle cevap işçinin alacağı satır → 15 dk ilerlemiyorsa alarm
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("Haiku 10-16 ikinci tur: uzlaştırma bekleyen (ambiguous) satır 15 dk ilerlemiyorsa alarm", async () => {
+    const { orgId } = await makeOrgWithProperty();
+    await prisma.messageOutbox.create({
+      data: { organizationId: orgId, channel: "airbnb", body: "x", idempotencyKey: "amb", status: "ambiguous", availableAt: new Date(Date.now() - QUEUE_STALL_MS - 60_000) },
+    });
+    await checkQueueStall(await alertTracker("scheduled-sync:"));
+    expect(stalls()).toHaveLength(1);
+  });
+
   it("Haiku 10-16: büyük birikim İLERLİYORSA (son 15 dk'da sahiplenme / gönderim) alarm yok", async () => {
     const { orgId } = await makeOrgWithProperty();
     await prisma.messageOutbox.create({

@@ -1821,7 +1821,7 @@ export async function applyChannelAutoReply(
   const tailLooksUndelivered = rawLast.direction === "outbound" && !rawLast.externalId;
   // Konuşma çapında: okunmamış eski kısımda da (kesitin dışında) aynı biçimli satır aranır — bugünkü tetikleyiciyle aynı.
   // Opus F3 (10-16): anahtar kapatıldıktan sonra da kuyrukta satır kaldıysa süzgeç açık (`outbox/presence.ts`) — yoksa geri dönüşte
-  // ulaşmamış cevap modele "verilmiş" görünürdü. Kuyruk hiç kullanılmadıysa maliyet tek birincil anahtar yoklaması.
+  // ulaşmamış cevap modele "verilmiş" görünürdü. Kuyruk hiç kullanılmadıysa maliyet tek `LIMIT 1` okuması (boş tabloda anlık).
   const anyUndeliveredOutbound =
     (await undeliveredFilterActive()) &&
     (thread.rows.some((m) => m.direction === "outbound" && !m.externalId) ||

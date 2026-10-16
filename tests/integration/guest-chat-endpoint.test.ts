@@ -492,6 +492,20 @@ describe("POST /api/chat/[token] (public QR concierge)", () => {
       expect(mockSuggest).not.toHaveBeenCalled();
     });
 
+    it("Haiku 10-16: yayından hemen önce eski sürümün yazdığı ANAHTARSIZ özetli kilit aynı içerikle tekilleşir (409 değil)", async () => {
+      const { propertyId } = await makeOrgWithProperty();
+      const token = await enableChat(propertyId);
+      const reservation = await prisma.reservation.findFirstOrThrow({ where: { propertyId } });
+      const { createHash } = await import("node:crypto");
+      const legacy = createHash("sha256").update("Çöp ne zaman toplanıyor?").digest("base64url").slice(0, 24);
+      await prisma.systemLock.create({
+        data: { name: `outbound-send:qr-in:${reservation.id}:${RID}`, lockedUntil: new Date(Date.now() + 60_000), holder: legacy },
+      });
+      const same = await call(token, "Çöp ne zaman toplanıyor?", undefined, { requestId: RID });
+      expect((await same.json()).deduped).toBe(true);
+      expect((await call(token, "Bambaşka", deviceCookie(same), { requestId: RID })).status).toBe(409);
+    });
+
     it("Opus F7: tekrar kaydı misafir metninin ANAHTARSIZ özetini taşımaz (sözlükle geri çevrilemez)", async () => {
       const { propertyId } = await makeOrgWithProperty();
       const token = await enableChat(propertyId);
