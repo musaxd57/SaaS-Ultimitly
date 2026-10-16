@@ -53,7 +53,7 @@ const renewal = (eventId: string, subId: string, status = "active") => ({
   event_id: eventId,
   event_type: "subscription.updated",
   occurred_at: new Date().toISOString(),
-  data: { id: subId, status, customer_id: "ctm_1", items: [{ price: { id: "pri_pro" } }] },
+  data: { id: subId, status, customer_id: "ctm_1", items: [{ price: { id: "pri_pro" } }], customer: { email: "ayse@example.com" } },
 });
 
 describe("ödeme S2 — hesap silinirken ödeme olayı: alarm, olay kaybolmaz, hesap geri açılmaz", () => {
@@ -81,7 +81,10 @@ describe("ödeme S2 — hesap silinirken ödeme olayı: alarm, olay kaybolmaz, h
     const evt = await prisma.webhookEvent.findUniqueOrThrow({ where: { providerEventId: "evt_race" } });
     expect(evt.status).toBe("error"); // ⬅️ ESKİDE "processed" (yeniden işlenemezdi)
     expect(evt.error).toBe("needs_review: org_deleted");
-    expect(evt.payloadJson).toContain("sub_live"); // ham olay saklı → incelenebilir
+    expect(evt.payloadJson).toContain("sub_live"); // finansal iskelet saklı → incelenebilir
+    // Opus F1: silinmiş işletmenin olayı yazılırken küçültülür (ad / e-posta / adres gider).
+    expect(evt.payloadJson).not.toContain("ayse@example.com");
+    expect(JSON.parse(evt.payloadJson).note).toBe("org-deleted");
     expect(await prisma.organization.count({ where: { id: orgId } })).toBe(0); // geri açılmadı
     expect(await prisma.subscription.count()).toBe(0);
   });

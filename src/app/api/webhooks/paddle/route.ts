@@ -13,6 +13,7 @@ import {
   paddlePriceToPlanCode,
   paddleStatusToLocal,
 } from "@/lib/payments/paddle";
+import { NEEDS_REVIEW_PREFIX, redactPaddlePayload } from "@/lib/data-retention";
 
 export const dynamic = "force-dynamic";
 
@@ -732,10 +733,17 @@ export async function POST(req: NextRequest): Promise<Response> {
       if (providerEventId) {
         // İnceleme gereken olay "işlendi" sayılmaz (ödeme S1): satır "error" + kısa kod kalır → Paddle'dan yeniden gönderilirse tekrar
         // işlenir (yalnız "processed" kopya sayılır). Paddle'a 200 döner (aynı bozuk veriyle sonsuz yeniden deneme olmasın).
+        // Opus F1 (10-16): SİLİNMİŞ işletmenin olayında ham yük (ad / e-posta / adres) hemen küçültülür — hesap silmedeki redaksiyon
+        // çoktan koştu ve "hesap silindi, her şey gider" sözü bozulmasın; inceleme için finansal iskelet (olay / abonelik / müşteri
+        // kimliği, tutar, para birimi) kalır. Diğer inceleme kodları 12 ayda küçülür (`minimizeOldPaddleWebhooks`).
         await prisma.webhookEvent.update({
           where: { providerEventId },
           data: reviewReason
-            ? { status: "error", error: `needs_review: ${reviewReason}` }
+            ? {
+                status: "error",
+                error: `${NEEDS_REVIEW_PREFIX} ${reviewReason}`,
+                ...(reviewReason === "org_deleted" ? { payloadJson: redactPaddlePayload(rawBody, "org-deleted") } : {}),
+              }
             : { status: "processed", processedAt: new Date() },
         });
       }

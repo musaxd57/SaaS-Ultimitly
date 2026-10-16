@@ -696,7 +696,7 @@ const asObj = (v: unknown): Record<string, unknown> =>
  * PII, so they're kept for the books; customer email/name/address/card and the
  * rest of the raw body are dropped.
  */
-function redactPaddlePayload(raw: string, note: "kvkk-erasure" | "retention-1y" = "kvkk-erasure"): string {
+export function redactPaddlePayload(raw: string, note: "kvkk-erasure" | "retention-1y" | "org-deleted" = "kvkk-erasure"): string {
   let p: Record<string, unknown>;
   try {
     p = asObj(JSON.parse(raw));
@@ -734,7 +734,13 @@ function redactPaddlePayload(raw: string, note: "kvkk-erasure" | "retention-1y" 
 // (`redactPaddlePayload`) indirilir — olay kimliği (`providerEventId`, tekrar koruması), tür, durum, tarihler ve finansal iskelet KALIR;
 // ad / e-posta / adres ve gövdenin geri kalanı gider. `error` / `received` satırlarına DOKUNULMAZ (inceleme için). Zaten küçültülmüş satır
 // (`redactedAt`) atlanır. Saatlik iş, parti başına sınırlı (birikmiş geçmiş birkaç saatte erir). `DATA_RETENTION_MONTHS`tan bağımsız.
+// 🚨 İNCELEME SATIRLARI (Opus F1, 10-16): ödeme S1/S2 sonrası incelemeye düşen olay `status:"error"` + `error:"needs_review: <kod>"` yazılır
+// (yeniden işlenebilsin diye "processed" DEĞİL). Bunlar da 12 ayda küçülür — yoksa ham yük süresiz kalırdı. Gerçek hata (`needs_review`
+// öneki yok) ve `received` satırları yine dokunulmaz. Durum / kod değişmez (inceleme izi kalır).
 // ─────────────────────────────────────────────────────────────────────────────
+
+/** İncelemeye düşen ödeme olayının `error` öneki (ödeme S1/S2, kurucu 10-16) — webhook rotası yazar, küçültme okur. */
+export const NEEDS_REVIEW_PREFIX = "needs_review:";
 
 /** Ham ödeme olayı yükünün saklama süresi (ay) — kurucu kararı. */
 export const PADDLE_WEBHOOK_RAW_RETENTION_MONTHS = 12;
@@ -745,11 +751,11 @@ export async function minimizeOldPaddleWebhooks(now: Date = new Date()): Promise
   const rows = await prisma.webhookEvent.findMany({
     where: {
       provider: "paddle",
-      status: "processed",
+      OR: [{ status: "processed" }, { status: "error", error: { startsWith: NEEDS_REVIEW_PREFIX } }],
       createdAt: { lt: cutoff },
       NOT: { payloadJson: { contains: '"redactedAt"' } },
     },
-    select: { id: true, payloadJson: true },
+    select: { id: true, payloadJson: true, status: true, error: true },
     orderBy: { createdAt: "asc" },
     take: PADDLE_MINIMIZE_BATCH,
   });
@@ -757,7 +763,7 @@ export async function minimizeOldPaddleWebhooks(now: Date = new Date()): Promise
   for (const r of rows) {
     // Koşullu yazma: okuma ile yazma arasında satır değiştiyse (yeniden işleme, hesap silme) bu tur ona dokunmaz.
     const res = await prisma.webhookEvent.updateMany({
-      where: { id: r.id, status: "processed", payloadJson: r.payloadJson },
+      where: { id: r.id, status: r.status, error: r.error, payloadJson: r.payloadJson },
       data: { payloadJson: redactPaddlePayload(r.payloadJson, "retention-1y") },
     });
     minimized += res.count;

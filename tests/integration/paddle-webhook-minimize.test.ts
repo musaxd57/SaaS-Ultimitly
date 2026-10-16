@@ -79,6 +79,25 @@ describe("minimizeOldPaddleWebhooks (G6)", () => {
     expect((await prisma.webhookEvent.findUniqueOrThrow({ where: { id: fresh.id } })).payloadJson).toBe(rawPayload("evt_fresh"));
   });
 
+  it("🚨 Opus F1 (10-16): İNCELEME satırı (`needs_review:`) da 13 ayda küçülür; durum ve kod kalır (inceleme izi)", async () => {
+    const r = await prisma.webhookEvent.create({
+      data: {
+        provider: "paddle",
+        eventType: "transaction.completed",
+        providerEventId: "evt_review",
+        payloadJson: rawPayload("evt_review"),
+        status: "error",
+        error: "needs_review: invalid_amount",
+        createdAt: subMonths(NOW, 13),
+      },
+    });
+    expect((await minimizeOldPaddleWebhooks(NOW)).minimized).toBe(1); // ⬅️ ESKİDE 0 (ham yük süresiz kalıyordu)
+    const after = await prisma.webhookEvent.findUniqueOrThrow({ where: { id: r.id } });
+    expect(after.payloadJson).not.toContain("ayse@example.com");
+    expect(after.status).toBe("error");
+    expect(after.error).toBe("needs_review: invalid_amount");
+  });
+
   it("hata ve alınmış (işlenmemiş) satırlara DOKUNULMAZ — inceleme için ham kalır", async () => {
     const err = await row("evt_err", { monthsAgo: 24, status: "error" });
     const rec = await row("evt_rec", { monthsAgo: 24, status: "received" });
