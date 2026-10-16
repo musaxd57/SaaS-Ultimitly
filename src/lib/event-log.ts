@@ -44,6 +44,8 @@ export type OperationalEventName = keyof typeof OPERATIONAL_EVENTS;
  * İzinli veri anahtarları → değer biçimi. Kimlikler ANAHTAR BAŞINA kalıpla (Paddle `sub_` / `txn_` / `evt_`, onay kaydı cuid, istek kimliği
  * onaltılık); kodlar kısa kod biçimi. Hiçbir metin değerinde boşluk, "@", "+" ya da 7+ haneli rakam dizisi olamaz → e-posta, ad soyad,
  * telefon, TC kimlik numarası, cümle SIĞMAZ (Haiku güvenlik incelemesi 10-12: tek biçim kuralı rakam dizisini ve "Ayse-Yilmaz"ı geçiriyordu).
+ * İki dar istisna (↓): `sentryEventId` (tam 32 onaltılık) ve tam cuid biçimli `outboxId` / `consentId` (yalnız 7–9 rakamlık diziye izin; 10+
+ * rakam — telefon / TC kimlik uzunluğu — yine düşer).
  */
 const CODE = /^[A-Za-z0-9_.:-]{1,64}$/;
 const DATA_KEYS: Record<string, RegExp | "number" | "boolean"> = {
@@ -79,11 +81,13 @@ const LONG_DIGITS_EXEMPT = new Set(["sentryEventId"]);
 /**
  * Veritabanı kimliği (Prisma `cuid()`, tam 25 karakter) taşıyan anahtarlar: zaman damgası + sıfırla doldurulmuş sayaç ara sıra 7+ rakamlık
  * dizi üretir ("cmval2070000nt9…" — CI #1505'te `job.outbox.row` satırı kimliksiz kaldı, test kırmızı; aynı sınıf `sentryEventId` için Opus
- * 10-15 B12). Muafiyet YALNIZ tam cuid biçiminde: daha kısa / uzun değer bugünkü rakam ve redaksiyon kurallarından geçer. Bu anahtarları yalnız
- * kod yazar, değer veritabanı satırının kimliğidir (`outboxId` işçi, `consentId` onay kaydı / doğrulanmış onay satırı).
+ * 10-15 B12). Muafiyet YALNIZ tam cuid biçiminde ve en çok 9 rakamlık diziye (telefon / TC kimlik 10+ rakam → düşer; Haiku 10-16); daha kısa /
+ * uzun değer bugünkü rakam ve redaksiyon kurallarından geçer. Bu anahtarları yalnız kod yazar, değer veritabanı satırının kimliğidir
+ * (`outboxId` işçi, `consentId` onay kaydı / veritabanında doğrulanmış onay satırı).
  */
 const CUID_KEYS = new Set(["consentId", "outboxId"]);
 const CUID_EXACT = /^c[a-z0-9]{24}$/;
+const PHONE_LENGTH_DIGITS = /\d{10,}/;
 const LONG_DIGITS = /\d{7,}/;
 const MAX_DATA_CHARS = 2_000;
 
@@ -105,7 +109,7 @@ export function sanitizeEventData(data: Record<string, unknown> | undefined): Re
         typeof value === "string" &&
         kind.test(value) &&
         (LONG_DIGITS_EXEMPT.has(key) ||
-          (CUID_KEYS.has(key) && CUID_EXACT.test(value)) ||
+          (CUID_KEYS.has(key) && CUID_EXACT.test(value) && !PHONE_LENGTH_DIGITS.test(value)) ||
           (!LONG_DIGITS.test(value) && redactSensitive(value) === value));
     }
     if (ok) out[key] = value as string | number | boolean;

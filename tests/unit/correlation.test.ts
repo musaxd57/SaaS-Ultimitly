@@ -105,11 +105,14 @@ describe("olay verisi süzgeci — kişisel veri / serbest metin SIĞMAZ", () =>
     // Gerçek koşudan: Prisma cuid, sıfır dolgulu sayaç "…l2070000n…" dizisini üretti → satır kimliksiz kalıyordu.
     expect(sanitizeEventData({ outboxId: "cmval2070000nt9umstjhtr5y" })).toEqual({ outboxId: "cmval2070000nt9umstjhtr5y" });
     expect(sanitizeEventData({ consentId: "cmval2070000nt9umstjhtr5y" })).toEqual({ consentId: "cmval2070000nt9umstjhtr5y" });
-    // Muafiyet anahtara bağlı: aynı değer başka kimlik anahtarında bugünkü kurala tabi.
-    expect(sanitizeEventData({ providerEventId: "evt_2070000nt9" })).toEqual({ _dropped: 1 });
+    // Muafiyet anahtara bağlı: AYNI değer, biçimi kabul eden başka bir anahtarda (`context` kod biçimi) bugünkü rakam kuralıyla düşer.
+    expect(sanitizeEventData({ context: "cmval2070000nt9umstjhtr5y" })).toEqual({ _dropped: 1 });
     // Tam cuid uzunluğunda olmayan telefon biçimli değer düşer.
     expect(sanitizeEventData({ outboxId: "c05551112233" })).toEqual({ _dropped: 1 });
     expect(sanitizeEventData({ consentId: "c905551112233aaaa" })).toEqual({ _dropped: 1 });
+    // Tam cuid uzunluğunda (25) ama telefon / TC kimlik uzunluğunda (10+) rakam dizisi taşıyan değer düşer (Haiku 10-16).
+    expect(sanitizeEventData({ outboxId: "c905551112233aaaaaaaaaaaa" })).toEqual({ _dropped: 1 });
+    expect(sanitizeEventData({ consentId: "c12345678901bbbbbbbbbbbbb" })).toEqual({ _dropped: 1 });
   });
 
   it.each([
