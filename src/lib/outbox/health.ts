@@ -1,6 +1,7 @@
 import "server-only";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { outboxDeliveryPaused } from "@/lib/outbox/flag";
 
 // ---------------------------------------------------------------------------
 // KUYRUK SAĞLIĞI (yalnız operatör, sistem geneli; 10-16 kurucu: "görseldeki sistem tarzında bir sistemimiz var mı" — transactional outbox +
@@ -90,22 +91,38 @@ export class QueueStalledError extends Error {
   }
 }
 
+/** Bilerek duraklatma bildirimi (arıza değil) — hata sınıfı "QueuePaused:message". */
+export class QueuePausedError extends Error {
+  readonly code = "message";
+  constructor() {
+    super(
+      "Misafir mesajı gönderimi duraklatıldı (OUTBOX_DELIVERY_PAUSED=1): kuyruktaki mesajlar bilerek gönderilmiyor, kaybolmuyor. " +
+        "Anahtarı kaldırınca kaldığı yerden gider. Gönderimi başlamış mesaj geri alınmaz; sonucu belirsiz mesajların uzlaştırması sürer.",
+    );
+    this.name = "QueuePaused";
+  }
+}
+
 export interface QueueStallState {
   /** İşçinin alabileceği vadesi gelmiş en eski satırın bekleme süresi (ms); yoksa null. */
   lagMs: number | null;
   /** Son `QUEUE_STALL_MS` içinde sahiplenme / gönderim oldu mu. */
   progressing: boolean;
+  /** Bekleyen gönderimler BİLEREK duraklatılmışken (`OUTBOX_DELIVERY_PAUSED`) vadesi gelmiş gönderilecek satır var mı (yalnız mesaj kuyruğu). */
+  pausedWaiting?: boolean;
 }
 
 /** İki kuyruğun durumu — misafir mesajında işçinin seçim kuralıyla (genel anahtar + konuşma sırası) aynı süzgeç. */
 export async function queueStallStates(now: Date = new Date()): Promise<{ message: QueueStallState; email: QueueStallState }> {
   const since = new Date(now.getTime() - QUEUE_STALL_MS);
   const autoAllowed = process.env.AUTO_REPLY_ENABLED === "1";
-  const [mRows, mProgress, eOldest, eProgress] = await Promise.all([
+  const paused = outboxDeliveryPaused();
+  const [mRows, mProgress, eOldest, eProgress, mPaused] = await Promise.all([
     prisma.$queryRaw<{ at: Date | null }[]>(Prisma.sql`
       SELECT MIN(s."availableAt") AS at
       FROM "MessageOutbox" s
       WHERE s."status" IN ('pending', 'ambiguous')
+        AND (NOT ${paused}::boolean OR s."status" = 'ambiguous')
         AND s."availableAt" <= ${now}
         AND (s."claimExpiresAt" IS NULL OR s."claimExpiresAt" <= ${now})
         AND (${autoAllowed}::boolean OR s."status" = 'ambiguous' OR s."messageType" IS NULL OR s."messageType" IN ('manual', 'ai', 'holding_ack'))
@@ -130,10 +147,13 @@ export async function queueStallStates(now: Date = new Date()): Promise<{ messag
       where: { OR: [{ sentAt: { gte: since } }, { status: { in: ["claimed", "failed"] }, updatedAt: { gte: since } }] },
       select: { id: true },
     }),
+    paused
+      ? prisma.messageOutbox.findFirst({ where: { status: "pending", availableAt: { lte: now } }, select: { id: true } })
+      : Promise.resolve(null),
   ]);
   const lag = (at: Date | null | undefined) => (at ? Math.max(0, now.getTime() - new Date(at).getTime()) : null);
   return {
-    message: { lagMs: lag(mRows[0]?.at), progressing: mProgress !== null },
+    message: { lagMs: lag(mRows[0]?.at), progressing: mProgress !== null, pausedWaiting: mPaused !== null },
     email: { lagMs: lag(eOldest?.nextAttemptAt), progressing: eProgress !== null },
   };
 }
@@ -156,6 +176,18 @@ export async function checkQueueStall(
   }
   for (const queue of ["message", "email"] as const) {
     const st = states[queue];
+    // Bekleyen gönderimler BİLEREK duraklatıldıysa (`OUTBOX_DELIVERY_PAUSED`) bekleyen `pending` arıza değildir (talep süzgeci onu zaten
+    // saymaz) → "ilerlemiyor" yerine bir kez (24 saatte bir hatırlatmalı) "duraklatıldı" bildirimi: anahtarın unutulması fark edilsin.
+    // Uzlaştırma (`ambiguous`) duraklatmada da sürer → onun takılması yine "ilerlemiyor" alarmıdır.
+    if (queue === "message") {
+      if (st.pausedWaiting) {
+        await tracker.fail(
+          "queue-paused:message",
+          "Misafir mesajı gönderimi DURAKLATILDI",
+          new QueuePausedError(),
+        );
+      } else await tracker.ok("queue-paused:message");
+    }
     if (isStalled(st)) {
       const note =
         queue === "email" && process.env.EMAIL_OUTBOX_ENABLED !== "1"
@@ -181,6 +213,7 @@ export async function strictQueueState(): Promise<"ok" | "stalled" | "unknown"> 
   let state: "ok" | "stalled" | "unknown";
   try {
     const st = await queueStallStates(new Date(now));
+    // Bilerek duraklatılmış gönderim izleyiciyi sayfalamaz: talep süzgeci duraklatmada `pending` saymaz (uzlaştırma takılması yine sayfalar).
     state = isStalled(st.message) || isStalled(st.email) ? "stalled" : "ok";
   } catch {
     state = "unknown";

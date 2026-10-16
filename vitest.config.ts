@@ -32,6 +32,9 @@ export default defineConfig({
       AUTH_SECRET: "test-secret-min-16-characters-long",
       // Force the deterministic AI path; never call OpenAI from tests.
       OPENAI_API_KEY: "",
+      // Kuyruk hızlı uyandırması (kurucu 10-16) testlerde KAPALI: arka planda başlayan boşaltma turu "kuyrukta bekliyor" iddialarıyla
+      // yarışırdı. Uyandırmayı sınayan testler bunu kendisi "1" yapar (`outbox-fast-wake.test.ts`).
+      OUTBOX_FAST_WAKE: "0",
     },
   },
 });

@@ -8,6 +8,7 @@ import { resolveOrgChannelCredential } from "@/lib/channels";
 import { claimOutboundSend, releaseOutboundSend } from "@/lib/outbound-claim";
 import { durableOutboxEnabledFor } from "@/lib/outbox/flag";
 import { enqueueOutbound } from "@/lib/outbox/enqueue";
+import { kickOutboxDrain } from "@/lib/outbox/worker";
 
 // ---------------------------------------------------------------------------
 // EV SAHİBİ ADINA GÖNDERİM — TEK ÇEKİRDEK (10-02, Host Karar Motoru ile ayrıştırıldı). `conversations/[id]/reply` (elle cevap /
@@ -92,6 +93,8 @@ export async function sendHostMessage(input: HostSendInput): Promise<HostSendRes
         return { status: "idempotency_conflict" };
       }
     }
+    // Hızlı uyandırma (kurucu 10-16): satır COMMIT oldu → aynı süreçte boşaltma turu başlar; 2 dakikalık senkron yedek yol kalır.
+    if (!enq.deduped) kickOutboxDrain();
     const message = await prisma.message.findUnique({ where: { id: enq.messageId } });
     return { status: "queued", message, deduped: enq.deduped };
   }

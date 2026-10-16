@@ -23,3 +23,16 @@ export function durableOutboxEnabledFor(organizationId: string): boolean {
     .filter(Boolean);
   return ids.includes("*") || ids.includes(organizationId);
 }
+
+/**
+ * BEKLEYEN GÖNDERİMLERİ DURAKLAT (kurucu 10-16: "yeni işleri kuyruğa almayı durdurmak ile bekleyen gönderimleri durdurmak AYRI işlemler
+ * olsun; hangisinin ne yaptığını açık göster; başlamış dış gönderimin geri alınabileceğini varsayma"). Yalnız tam "1".
+ *  · Açıkken işçi `pending` satırı TALEP ETMEZ → sağlayıcıya YENİ gönderim gitmez; satırlar bekler (deneme sayısı artmaz, kaybolmaz).
+ *  · Gönderimi BAŞLAMIŞ satır (`sending`) geri alınamaz — o anki istek biter, sonucu yazılır. Çöken gönderimin kurtarılması ve sonucu
+ *    belirsiz satırın uzlaştırması (`ambiguous` → sağlayıcı geçmişini OKUR, göndermez) sürer.
+ *  · Kuyruğa YENİ iş alma ayrı anahtardır (`DURABLE_OUTBOX_ENABLED` + liste): duraklatma onu değiştirmez.
+ */
+export function outboxDeliveryPaused(): boolean {
+  return process.env.OUTBOX_DELIVERY_PAUSED === "1";
+}
+

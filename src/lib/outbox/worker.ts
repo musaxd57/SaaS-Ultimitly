@@ -10,7 +10,7 @@ import { CHECKIN_LEAD_DAYS } from "@/lib/lifecycle-window";
 import { loadErasureGuard } from "@/lib/erasure";
 import { LEGACY_CONVERSATION_STATUSES } from "@/lib/constants";
 import { errorWithContext, reportError } from "@/lib/report-error";
-import { newCorrelationId, runWithCorrelation } from "@/lib/correlation";
+import { newCorrelationId, runAsNewSystemOperation, runWithCorrelation } from "@/lib/correlation";
 import { logEvent } from "@/lib/event-log";
 import {
   dispatchOutbound,
@@ -21,6 +21,7 @@ import {
 } from "@/lib/channels";
 import { ANON_BODY } from "@/lib/data-retention";
 import { isHandoffExempt, sweepExpiredHandoffExempt } from "./handoff-exempt";
+import { outboxDeliveryPaused } from "./flag";
 import {
   attemptsExhausted,
   backoffMs,
@@ -261,6 +262,8 @@ async function claimBatchLocked(
   // durum makinesinde pending → canceled yok). Elle cevap ("manual", eski NULL) ve belirsiz teslim uzlaştırması (POST yok) etkilenmez;
   // bekleyen otomatik satır aynı konuşmadaki elle cevabı SIRA kuralıyla tıkamaz.
   const autoAllowed = autoReplySwitchOn();
+  // Bekleyen gönderimler duraklatıldıysa (kurucu 10-16, `OUTBOX_DELIVERY_PAUSED`) yalnız UZLAŞTIRMA talebi (POST yok) alınır.
+  const deliveryPaused = outboxDeliveryPaused();
   const rows = await tx.$queryRaw<OutboxRow[]>(Prisma.sql`
     UPDATE "MessageOutbox" AS o
     SET "status" = CASE WHEN o."status" = 'pending' THEN 'sending' ELSE 'reconciling' END,
@@ -294,6 +297,7 @@ async function claimBatchLocked(
           SELECT s."id", s."status", s."organizationId", s."externalReservationId", s."availableAt", s."createdAt"
           FROM "MessageOutbox" s
           WHERE s."status" IN ('pending', 'ambiguous')
+            AND (NOT ${deliveryPaused}::boolean OR s."status" = 'ambiguous')
             AND (${autoAllowed}::boolean OR s."status" = 'ambiguous' OR s."messageType" IS NULL OR s."messageType" IN ('manual', 'ai', 'holding_ack'))
             AND s."availableAt" <= ${now}
             AND (s."claimExpiresAt" IS NULL OR s."claimExpiresAt" <= ${now})
@@ -1480,3 +1484,83 @@ export async function drainOutboxOnce(deps: DrainDeps = {}): Promise<DrainResult
 // Test seam: `settle` is internal by design; exported ONLY so the illegal-transition
 // regression test can prove the runtime state gate refuses a bad write. Not public API.
 export const __internals = { settle };
+
+// ---------------------------------------------------------------------------
+// HIZLI UYANDIRMA (kurucu 10-16: "elle mesaj: kalıcı kuyruk korunsun, gönderim işi hızlı uyandırılsın; iki dakika beklemek varsayılan
+// olmasın; hemen ayrı servis açmak zorunlu değil, mevcut yapıda uygulanabilir çözümü ölç"). Kuyruğa yazan istek İŞLEM COMMIT OLDUKTAN
+// SONRA bunu çağırır: aynı süreçte bir boşaltma turu başlatılır (taleplerin tek sahibi `FOR UPDATE SKIP LOCKED` + talep kilidi — 2 dakikalık
+// senkronla ya da başka kopyayla aynı anda koşmak güvenli; konuşma sırası ve rezervasyon başına gönderim sınırı talep sorgusunda).
+// Tur sürerken gelen yeni uyandırma kaybolmaz: biri koşarken en çok bir tur daha sıraya alınır. Süreç düşerse kayıp yok — satır kalıcı,
+// 2 dakikalık senkron onu alır (yedek yol). Duraklatma (`OUTBOX_DELIVERY_PAUSED`) burada da geçerli (talep sorgusu).
+// ---------------------------------------------------------------------------
+
+let kickRunning = false;
+let kickAgain = false;
+let followUpMs = 61_000;
+let emptyFollowUps = 0;
+/** Art arda boş takip turu tavanı: sıkışmış (ör. sırada bekleyen) bir satır yüzünden dakikada bir sonsuz uyandırma olmasın. */
+const MAX_EMPTY_FOLLOW_UPS = 3;
+
+/** Hızlı uyandırma açık mı — varsayılan AÇIK; yalnız tam "0" kapatır (operasyonel kaçış; testler kapalı koşar). */
+export function outboxFastWakeEnabled(): boolean {
+  return process.env.OUTBOX_FAST_WAKE !== "0";
+}
+
+/** Gönderilebilir (vadesi ~1 dk içinde gelen) bekleyen ELLE cevap var mı — takip turu gerekip gerekmediği. */
+async function pendingManualSoon(): Promise<boolean> {
+  const row = await prisma.messageOutbox.findFirst({
+    where: {
+      status: "pending",
+      OR: [{ messageType: null }, { messageType: "manual" }],
+      availableAt: { lte: new Date(Date.now() + followUpMs) },
+    },
+    select: { id: true },
+  });
+  return row !== null;
+}
+
+export function kickOutboxDrain(drain: () => Promise<unknown> = () => drainOutboxOnce()): void {
+  if (!outboxFastWakeEnabled()) return;
+  if (kickRunning) {
+    kickAgain = true;
+    return;
+  }
+  kickRunning = true;
+  const loop = async (): Promise<void> => {
+    let claimedAny = false;
+    try {
+      do {
+        kickAgain = false;
+        // Arka plan işi çağıranın takip numarasını / işletmesini MİRAS ALMAZ (e-posta kuyruğu uyandırmasıyla aynı kural).
+        const r = (await runAsNewSystemOperation(drain)) as { claimed?: number } | undefined;
+        if ((r?.claimed ?? 0) > 0) claimedAny = true;
+      } while (kickAgain);
+    } finally {
+      kickRunning = false;
+    }
+    // Sağlayıcı sınırı (rezervasyon başına 60 sn'de 2 gönderim) ya da yeniden deneme beklemesi yüzünden kalan ELLE cevap: ~61 sn sonra
+    // bir takip turu (2 dk'lık senkronu beklemesin). Boş takip turları sınırlı.
+    emptyFollowUps = claimedAny ? 0 : emptyFollowUps + 1;
+    if (emptyFollowUps <= MAX_EMPTY_FOLLOW_UPS && (await pendingManualSoon())) {
+      const t = setTimeout(() => kickOutboxDrain(drain), followUpMs);
+      t.unref?.();
+    }
+  };
+  void loop().catch((err) => {
+    void reportError("outbox.kick", err instanceof Error ? err : new Error(String(err))).catch(() => {});
+  });
+}
+
+/** Test yardımcısı: takip turu gecikmesi. */
+export function __setOutboxKickFollowUpMs(ms: number): void {
+  followUpMs = ms;
+}
+
+/** Test yardımcısı: uyandırma durumunu sıfırla. */
+export function __resetOutboxKick(): void {
+  kickRunning = false;
+  kickAgain = false;
+  emptyFollowUps = 0;
+  followUpMs = 61_000;
+}
+

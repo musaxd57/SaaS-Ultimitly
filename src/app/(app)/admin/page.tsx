@@ -22,6 +22,7 @@ import { LeadActions } from "@/components/admin/lead-actions";
 import { isDemoOrg } from "@/lib/demo-tenant/constants";
 import { OPERATOR_EXPORT_PURPOSES } from "@/lib/operator-export";
 import { queueHealth, QUEUE_LAG_WARN_MS } from "@/lib/outbox/health";
+import { durableOutboxEnabled, outboxDeliveryPaused } from "@/lib/outbox/flag";
 import { PAYMENT_REVIEW_ACTION, paymentReviewSummary } from "@/lib/billing/payment-review";
 
 export const dynamic = "force-dynamic";
@@ -157,6 +158,16 @@ export default async function AdminPage() {
   // Kuyruk sağlığı (10-16): iki kalıcı kuyruğun birikmesi / takılması — yalnız sayılar.
   // Okuma hatası operatör sayfasını düşürmesin (Haiku 10-16) — "okunamadı" gösterilir.
   const queues = await queueHealth().catch(() => null);
+  const outboxSwitches = {
+    enqueue: !durableOutboxEnabled()
+      ? "kapalı"
+      : (process.env.DURABLE_OUTBOX_ORG_IDS ?? "").split(",").map((x) => x.trim()).includes("*")
+        ? "açık (bütün işletmeler)"
+        : (process.env.DURABLE_OUTBOX_ORG_IDS ?? "").trim()
+          ? "açık (yalnız listedeki işletmeler)"
+          : "ana anahtar açık ama liste boş — kimse kuyruğa yazmıyor",
+    paused: outboxDeliveryPaused(),
+  };
   // Ödeme incelemesi (kurucu 10-16 ödeme S1/S2, Opus F5): incelemeye düşen ödeme olayları görünür — yalnız kimlik / tür / kod / zaman.
   const paymentReview = await paymentReviewSummary().catch(() => null);
 
@@ -623,6 +634,23 @@ export default async function AdminPage() {
               demektir — ya da genel otomatik mesaj anahtarı (`AUTO_REPLY_ENABLED`) kapalıdır: o zaman karşılama / giriş / çıkış mesajları
               bilerek bekler.
             </p>
+            {/* İki AYRI anahtar (kurucu 10-16): hangisinin ne yaptığı açık yazılır. */}
+            <ul className="space-y-1 rounded-lg border border-border bg-muted/40 p-3 text-xs" data-testid="queue-switches">
+              <li>
+                <strong>Yeni mesajları kuyruğa alma</strong> (`DURABLE_OUTBOX_ENABLED` + `DURABLE_OUTBOX_ORG_IDS`):{" "}
+                {outboxSwitches.enqueue} — yalnız YENİ gönderimlerin yolunu seçer; kuyruktaki mesajları etkilemez.
+              </li>
+              <li>
+                <strong>Bekleyen gönderimler</strong> (`OUTBOX_DELIVERY_PAUSED`):{" "}
+                {outboxSwitches.paused ? (
+                  <span className="font-semibold text-destructive">DURAKLATILDI</span>
+                ) : (
+                  "akıyor"
+                )}{" "}
+                — duraklatılınca kuyruktaki mesajlar sağlayıcıya GÖNDERİLMEZ, bekler (kaybolmaz). Gönderimi başlamış mesaj geri alınamaz; sonucu
+                belirsiz mesajın uzlaştırması (sağlayıcı geçmişini okur, göndermez) sürer.
+              </li>
+            </ul>
             {queues === null ? (
               <p className="text-xs text-destructive">Kuyruk durumu okunamadı.</p>
             ) : null}
