@@ -111,6 +111,7 @@ describe("checkQueueStall (O3-A)", () => {
     await checkQueueStall(await alertTracker("scheduled-sync:"));
     await checkQueueStall(await alertTracker("scheduled-sync:"));
     expect(stalls()).toHaveLength(1);
+    expect(stalls()[0][0]).toBe("Kuyruk ilerlemiyor (misafir mesajı)");
     const [, err] = stalls()[0];
     expect((err as Error).name).toBe("QueueStalled");
     expect(String((err as Error).message)).not.toContain("gizli");
@@ -184,6 +185,8 @@ describe("checkQueueStall (O3-A)", () => {
     await checkQueueStall(await alertTracker("scheduled-sync:"));
     expect(stalls()).toHaveLength(1);
     expect((stalls()[0][1] as { code?: string }).code).toBe("email");
+    // Ayrı başlık (Haiku 10-16; yaşayan mutant O3d): e-posta kısıtı başlık başına — iki kuyruk aynı başlığı paylaşırsa biri ötekini geciktirir.
+    expect(stalls()[0][0]).toBe("Kuyruk ilerlemiyor (kimlik e-postası)");
     expect(String((stalls()[0][1] as Error).message)).not.toContain("o3a@example.com");
   });
 });
