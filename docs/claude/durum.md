@@ -8,7 +8,16 @@
 > `docs/history/CLAUDE-2026-10-02-sadelestirme-3-oncesi-tam-metin.md` ("Durum" bölümü). Kuralları yukarıdaki bölümlerde; yalnız Durum'da
 > yazılı olan kurallar (konuşma öğeleri, ev kuralları, canlı bayraklar) 10-02'de ilgili bölümlere taşındı. Bekleyen onaylar ↓.
 
-**10-16 öğle (güncel) — kurucu kararları Faz 1 (migration'sız):** migration 68 onaylandı ve ana dalda; söz tekrarı "Bu söz zaten kayıtlı";
+**10-16 öğleden sonra (güncel) — Codex incelemesi + kurucunun açık kararları (migration'sız):** ödeme gecikmesinde ek süre YOK (erişim
+ödenmiş dönem sonuna kadar; Opus N1: `past_due` olayı dönem sonunu ödenmemiş döneme taşıyabiliyordu → yazılan değer yalnız dönem başı, yoksa
+yazılmaz; bilinen sınır dönem içi düşen tahsilat → soru J5); elle mesaj hızlı uyandırma (`kickOutboxDrain`, varsayılan açık, kaçış
+`OUTBOX_FAST_WAKE=0`; uyandırma turu kurtarma yapmaz, 5 satır, tek takip zamanlayıcısı, 10 dk bekçi; ölçüm p50 23 ms / p95 36 ms); kuyruk
+anahtarları ayrı (`OUTBOX_DELIVERY_PAUSED` yalnız kuyruktaki gönderimi duraklatır, uzlaştırma sürer); QR kilit yenileme + her ücretli adımdan
+önce eşzamanlı sahiplik (kota, daire sayacı, getirme, model, yeniden yazdırma, bekçi) + süpürülmüş ama alınmamış kilidi yeniden alma;
+POST'tan önce talebi dolmuş satır gönderilmez, bekleyene döner. Mutasyon 18/18 + ikinci tur; Opus N1–N9, Haiku 8 bulgu; Codex C1–C12 hükümleri
+ve sorular J1–J9: `docs/arastirma-2026-10-15/KURUCU-SORULARI.md` §J. Codex C6: belgelerde "kişisel veri yok" → "takma adlı kimlik taşır".
+
+**10-16 öğle — kurucu kararları Faz 1 (migration'sız):** migration 68 onaylandı ve ana dalda; söz tekrarı "Bu söz zaten kayıtlı";
 e-posta kuyruğu sağlayıcıya satır başına sabit tekrar kimliği; ödeme: `paused` ayrı durum (ek süre yok), bozuk / eksik tutarlı olay fatura
 yazmaz ve `needs_review: <kod>` ile yeniden işlenebilir kalır, hesap silinirken gelen ödeme olayı alarm + inceleme (hesap geri açılmaz);
 O1 ilk deneme listesi `DURABLE_OUTBOX_ORG_IDS` + anahtar kapatma testleri (eski koda dönmeden önce ana anahtar kaldırılır — tasarım §7); QR

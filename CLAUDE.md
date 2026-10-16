@@ -523,7 +523,8 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 
 ## Durum
 > 📄 **Tam metin (bağlayıcı): `docs/claude/durum.md`** — bu alanda kod / karar değiştirmeden önce oku. Aşağıda yalnız madde başlıkları.
-**10-16 öğle (güncel):** kurucu kararları Faz 1 (migration 68 ana dalda · söz tekrarı · e-posta tekrar kimliği · ödeme S1/S2/S4 · O1 liste anahtarı `DURABLE_OUTBOX_ORG_IDS` + kapatma testleri · QR tamamlanmış kayıt 24 sa + bayat işçi koruması); Faz 2/3 + sorular I1–I3 → `docs/arastirma-2026-10-15/KURUCU-SORULARI.md` §I.
+**10-16 öğleden sonra (güncel):** ek süre yok (past_due dönem başı) · elle mesaj hızlı uyandırma · kuyruk anahtarları ayrı · QR kilit yenileme + her ücretli adımdan önce sahiplik; sorular J1–J9 → `docs/arastirma-2026-10-15/KURUCU-SORULARI.md` §J.
+**10-16 öğle:** kurucu kararları Faz 1 (migration 68 ana dalda · söz tekrarı · e-posta tekrar kimliği · ödeme S1/S2/S4 · O1 liste anahtarı `DURABLE_OUTBOX_ORG_IDS` + kapatma testleri · QR tamamlanmış kayıt 24 sa + bayat işçi koruması); Faz 2/3 + sorular I1–I3 → `docs/arastirma-2026-10-15/KURUCU-SORULARI.md` §I.
 **10-15 gece:** idempotency bitişi (iptal yolları tek kilit) + kurucu D1/D4/D6/D7 kodda; D2/D3 migration 68 onayı bekliyor; inceleme notun için iki KAPALI anahtar (arıza her yolda arıza · kanıtsız arıza adımı) + Opus N1–N12; 10-16 gece Opus ikinci + üçüncü tur (§H8, soru H9) + kalıcı kuyruk envanteri / kuyruk sağlığı (soru H10, `docs/TASARIM-2026-10-16-transactional-outbox.md`); 10-16 sabah O1 hazırlık ENGEL'i kapandı (kuyruk yolu öğe kipinde devir kilidi kurmaz) — `docs/claude/durum.md`.
 **10-15 öğleden sonra:** V sonrası beş araştırma + müşteriye dokunmayan tekrar güvenliği düzeltmeleri; sorular `docs/arastirma-2026-10-15/KURUCU-SORULARI.md` — `docs/claude/durum.md`.
 **10-15 gündüz:** Geçmişten öğren (migration 65; taslak müşteride, karşılaştırma operatörde, daire tercihleri hazır seçenek; anahtarlar KAPALI) — `docs/claude/durum.md`.
