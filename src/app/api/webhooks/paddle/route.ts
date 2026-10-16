@@ -543,6 +543,19 @@ async function applyTransactionEvent(
     await logEvent("billing.invoice.recorded", { transactionRef: providerRef, amountMinor, currency }, { organizationId });
     // Aynı işlemin önceki olayı bozuk veri yüzünden alarm verdiyse fatura artık yazıldı → alarm kapanır (ödeme S1).
     await clearAlertState(`paddle-webhook:txn-invalid:${providerRef}`);
+    // ...ve o olayın inceleme satırı kapanır (Opus F11): yoksa "Ödeme incelemesi" listesinde, iş bittiği hâlde sonsuza kadar kalırdı.
+    // İz korunur (durum "processed", not "resolved: <eski kod>"). Yalnız bu işlemin tutar / para birimi incelemeleri.
+    await prisma.webhookEvent
+      .updateMany({
+        where: {
+          provider: "paddle",
+          status: "error",
+          error: { in: [`${NEEDS_REVIEW_PREFIX} invalid_amount`, `${NEEDS_REVIEW_PREFIX} missing_currency`] },
+          payloadJson: { contains: JSON.stringify(providerRef) },
+        },
+        data: { status: "processed", processedAt: new Date(), error: "resolved: later event recorded the invoice" },
+      })
+      .catch(() => {});
   } catch (err) {
     // Concurrent delivery of the same transaction: the findFirst above is only a
     // fast-path — @@unique([provider, providerRef]) (D1) is the real arbiter. The

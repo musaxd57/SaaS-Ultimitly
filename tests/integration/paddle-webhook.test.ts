@@ -708,6 +708,10 @@ describe("POST /api/webhooks/paddle", () => {
     expect((await POST(req(good, sign(good)))).status).toBe(200);
     expect((await prisma.invoice.findFirst({ where: { providerRef: `txn_bad_${tag}` } }))?.amountMinor).toBe(89900);
     expect(await prisma.systemLock.findUnique({ where: { name: `alert-state:paddle-webhook:txn-invalid:txn_bad_${tag}` } })).toBeNull();
+    // Opus F11: önceki olayın inceleme satırı kapanır (iz kalır) → "Ödeme incelemesi" listesinde sonsuza kadar durmaz.
+    const resolved = await prisma.webhookEvent.findUniqueOrThrow({ where: { providerEventId: `evt_bad_${tag}` } });
+    expect(resolved.status).toBe("processed");
+    expect(resolved.error).toMatch(/^resolved:/);
   });
 
   it("KONTROL (Opus F4): int4 üst sınırındaki tutar ('2147483647') geçerli fatura", async () => {
