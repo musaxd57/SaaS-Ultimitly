@@ -1224,8 +1224,9 @@ function reservationTasksToCreate(
   // dünün 12:00Z değerini "bugün". Görevler sayfasındaki eksik görev sayısı aynı kararı verir (`reservationsMissingCleaningWhere`).
   const tz = orgTimezone(r.property?.organization?.timezone);
   const data: Prisma.TaskCreateManyInput[] = [];
-  // "Zaten var mı?" yalnız SİSTEMİN açtığı göreve bakar; bitmiş sistem görevi yalnız AYNI günün göreviyse sayılır (kurucu D7, 10-15 —
-  // `lib/tasks/lifecycle-presence.ts`). Elle açılmış / söz / mesaj görevi otomatik görevi ENGELLEMEZ.
+  // "Zaten var mı?" SİSTEMİN açtığı göreve bakar; bitmiş sistem görevi yalnız AYNI günün göreviyse sayılır (kurucu D7, 10-15 —
+  // `lib/tasks/lifecycle-presence.ts`). Ev sahibinin AYNI çıkış gününe elle açtığı temizlik de sayılır (K4, 10-17); ara temizlik / söz /
+  // mesaj görevi otomatik görevi ENGELLEMEZ.
   if (onOrAfterToday(r.arrivalDate, now, tz) && !lifecycleTaskPresent("checkin_prep", r.arrivalDate, tasks, tz)) {
     data.push({
       propertyId: r.propertyId,

@@ -6,16 +6,29 @@
 // tamamlanmış sistem görevi yalnız aynı rezervasyonun aynı çıkış temizliğiyse tekrar oluşturmayı engellesin. Çıkış tarihi sonradan
 // değişmişse eski tamamlanmış işi otomatik olarak yeni tarihin temizliği sayma."
 //
+// Kurucu K4 (10-17, "önerildiği gibi"): "aynı rezervasyonun çıkış gününe elle açılmış temizlik görevi varsa sistem ikincisini açmasın (ara
+// temizlik yine engellemez)."
+//
 // Kural: tür T (giriş hazırlığı → giriş günü, çıkış temizliği → çıkış günü) için görev "var" sayılır ⇔ rezervasyonda
 //   · SİSTEMİN açtığı (origin "system") ve BİTMEMİŞ bir T görevi var (ev sahibi tarihini elle taşımış olsa bile — o görev budur), ya da
-//   · SİSTEMİN açtığı, BİTMİŞ bir T görevi var ve vadesi rezervasyonun ŞİMDİKİ hedef günüyle AYNI takvim günü.
-// Elle açılmış görev (manual), söz görevi (manual) ve mesajdan açılan görev (ai) HİÇBİR ZAMAN "var" saymaz.
+//   · SİSTEMİN açtığı, BİTMİŞ bir T görevi var ve vadesi rezervasyonun ŞİMDİKİ hedef günüyle AYNI takvim günü, ya da
+//   · (yalnız çıkış temizliği, K4) EV SAHİBİNİN elle açtığı (origin "manual", söze bağlı DEĞİL) temizlik görevi var ve vadesi rezervasyonun
+//     ŞİMDİKİ çıkış günüyle AYNI takvim günü (durumu fark etmez: bitmişse temizlik yapılmıştır).
+// "Var" SAYMAYANLAR: ara temizlik (vadesi başka gün), söz görevi (misafire verilen söz — D7 "mevcut söz görevi korunsun"; söz kendi işidir,
+// çıkış temizliğinin yerini tutmaz), mesajdan açılan görev (ai), vadesiz elle görev, giriş hazırlığında elle görev.
 // ---------------------------------------------------------------------------
 import { calendarDateOf } from "@/modules/availability/core";
 
 export type LifecycleType = "checkin_prep" | "cleaning";
 
-export type LifecycleTaskLite = { type: string; origin: string; status: string; dueAt: Date | null };
+/** `_count.commitments` > 0 → misafire verilmiş bir sözün görevi (`guest-commitments.ts`, origin "manual"). Eksikse söz görevi sayılmaz. */
+export type LifecycleTaskLite = {
+  type: string;
+  origin: string;
+  status: string;
+  dueAt: Date | null;
+  _count?: { commitments: number };
+};
 
 /** Saf: rezervasyonun bu türden yaşam döngüsü görevi zaten var mı (yukarıdaki kural). */
 export function lifecycleTaskPresent(
@@ -25,13 +38,20 @@ export function lifecycleTaskPresent(
   timeZone: string,
 ): boolean {
   const targetDay = calendarDateOf(target, timeZone).key;
-  return tasks.some(
-    (t) =>
-      t.type === type &&
-      t.origin === "system" &&
-      (t.status !== "done" || (t.dueAt !== null && calendarDateOf(t.dueAt, timeZone).key === targetDay)),
-  );
+  const sameDay = (t: LifecycleTaskLite) => t.dueAt !== null && calendarDateOf(t.dueAt, timeZone).key === targetDay;
+  return tasks.some((t) => {
+    if (t.type !== type) return false;
+    if (t.origin === "system") return t.status !== "done" || sameDay(t);
+    // K4: ev sahibinin aynı çıkış gününe elle açtığı temizlik (söz görevi değil).
+    return type === "cleaning" && t.origin === "manual" && (t._count?.commitments ?? 0) === 0 && sameDay(t);
+  });
 }
 
 /** Görev okuması için seçim (iki çağıran aynı alanları okur). */
-export const LIFECYCLE_TASK_LITE_SELECT = { type: true, origin: true, status: true, dueAt: true } as const;
+export const LIFECYCLE_TASK_LITE_SELECT = {
+  type: true,
+  origin: true,
+  status: true,
+  dueAt: true,
+  _count: { select: { commitments: true } },
+} as const;

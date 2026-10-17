@@ -13,22 +13,26 @@ export function reservationsMissingCleaningWhere(organizationId: string, now: Da
   return {
     property: { organizationId },
     status: { not: "cancelled" },
-    // Kurucu D7 (10-15): yalnız SİSTEMİN açtığı BİTMEMİŞ temizlik "var" sayılır (elle / söz / mesaj görevi saymaz); bitmiş sistem
-    // temizliği yalnız AYNI çıkış günüyse sayılır → o kısım satır satır `countReservationsMissingCleaning`te (sütun-sütun kıyas SQL'de yok).
+    // Kurucu D7 (10-15): SİSTEMİN açtığı BİTMEMİŞ temizlik "var" sayılır; bitmiş sistem temizliği ve ev sahibinin aynı çıkış gününe elle
+    // açtığı temizlik (K4, 10-17) yalnız AYNI çıkış günüyse sayılır → o kısım satır satır `countReservationsMissingCleaning`te (sütun-sütun
+    // kıyas SQL'de yok).
     tasks: { none: { type: "cleaning", origin: "system", status: { not: "done" } } },
     AND: [reservationDayRangeWhere("departureDate", onOrAfterTodayRange(now, tz), tz)],
   };
 }
 
 /** "Eksik görevleri oluştur (N)" sayısı — `createReservationTasks` ile AYNI "zaten var mı?" kuralı (`lifecycleTaskPresent`): bitmiş
- *  sistem temizliği yalnız rezervasyonun ŞİMDİKİ çıkış günündeyse eksikliği kapatır (çıkış tarihi sonradan değiştiyse eski bitmiş iş
- *  yeni günün temizliği sayılmaz — kurucu D7). */
+ *  sistem temizliği ve elle açılmış (söze bağlı olmayan) temizlik yalnız rezervasyonun ŞİMDİKİ çıkış günündeyse eksikliği kapatır (çıkış
+ *  tarihi sonradan değiştiyse eski iş yeni günün temizliği sayılmaz — kurucu D7 / K4). */
 export async function countReservationsMissingCleaning(organizationId: string, now: Date, tz: string): Promise<number> {
   const rows = await prisma.reservation.findMany({
     where: reservationsMissingCleaningWhere(organizationId, now, tz),
     select: {
       departureDate: true,
-      tasks: { where: { type: "cleaning", origin: "system", status: "done" }, select: LIFECYCLE_TASK_LITE_SELECT },
+      tasks: {
+        where: { type: "cleaning", OR: [{ origin: "system", status: "done" }, { origin: "manual", dueAt: { not: null } }] },
+        select: LIFECYCLE_TASK_LITE_SELECT,
+      },
     },
   });
   return rows.filter((r) => !lifecycleTaskPresent("cleaning", r.departureDate, r.tasks, tz)).length;

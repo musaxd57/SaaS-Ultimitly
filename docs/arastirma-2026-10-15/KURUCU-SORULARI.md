@@ -690,7 +690,7 @@ Karar bekleyenler (denetim + ilk dilim tasarımı: `gecmisten-ogren-6-ilke.md` �
 | L5 | Hospitable gidecek; şimdilik sağlayıcı otomasyonu ile ev sahibi mesajını AYIR; Airbnb Direct'e geçişte rol kanal katmanında | gönderen rolü saklanır (migration) |
 | K1 | B (otomatik kesme yok) + risk puanı geliştirilsin, IP'lere bakılsın, kötüye kullanım engellensin | risk puanı + IP sinyali (migration), eşik üstü inceleme |
 | K3 | ödeme ekranı hata metinleri bol bol düzenlensin | metin envanteri + yeni metinler |
-| K4 | önerildiği gibi | aynı çıkışa elle temizlik varsa sistem ikincisini açmaz |
+| K4 | önerildiği gibi | ✅ (10-17) aynı rezervasyonun çıkış gününe ev sahibinin elle açtığı temizlik (söz görevi değil) varsa sistem ikincisini açmaz; "Eksik görevleri oluştur (N)" aynı kural (`lib/tasks/lifecycle-presence.ts`). Ara temizlik, söz görevi, vadesiz elle görev, eski çıkış gününe açılmış görev engellemez (pinli, gerçek PostgreSQL) |
 | K5 | anlaşılmadı | sade açıklama ↓ |
 | Genel | "Daha iyi olacaksa migration yapalım, bol bol, didik didik" | migration'lar Faz paketlerine |
 

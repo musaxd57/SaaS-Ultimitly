@@ -62,7 +62,7 @@ describe("yaşam döngüsü görevi 'zaten var mı?' — kurucu D7", () => {
     expect(await prisma.task.findUnique({ where: { id: promise.id } })).not.toBeNull();
   });
 
-  it("elle açılmış temizlik otomatik çıkış temizliğini engellemez; 'Eksik görevleri oluştur' sayısı da onu eksik sayar", async () => {
+  it("vadesiz elle temizlik otomatik çıkış temizliğini engellemez; 'Eksik görevleri oluştur' sayısı da onu eksik sayar", async () => {
     const r = await reservation();
     await task(r.id, { origin: "manual", type: "cleaning" });
     await task(r.id, { origin: "system", type: "checkin_prep" });
@@ -99,5 +99,49 @@ describe("yaşam döngüsü görevi 'zaten var mı?' — kurucu D7", () => {
     expect(await createReservationTasks(r.id)).toBe(1);
     expect(await createReservationTasks(r.id)).toBe(0);
     expect(await systemCleanings(r.id)).toHaveLength(2);
+  });
+
+  // ── K4 (kurucu 10-17, "önerildiği gibi"): aynı rezervasyonun çıkış gününe elle açılmış temizlik varsa sistem ikincisini açmaz; ara temizlik
+  // ve söz görevi yine engellemez. Görev açma ve "Eksik görevleri oluştur (N)" sayısı AYNI kararı verir.
+  it("🚨 K4: ev sahibi çıkış gününe elle temizlik açtı → sistem ikincisini AÇMAZ, sayı 0 (eskiden iki görev yan yana)", async () => {
+    const r = await reservation();
+    await task(r.id, { type: "checkin_prep", dueAt: r.arrivalDate });
+    await task(r.id, { origin: "manual", title: "Temizlik (Ayşe)", dueAt: new Date(r.departureDate.getTime() + 9 * 3_600_000) });
+    expect(await countReservationsMissingCleaning(orgId, new Date(), TZ)).toBe(0);
+    expect(await createReservationTasks(r.id)).toBe(0);
+    expect(await systemCleanings(r.id)).toHaveLength(0);
+    expect((await backfillReservationTasks(orgId)).created).toBe(0);
+  });
+
+  it("K4 aşırı uygulama yok: ARA temizlik (elle, konaklama ortası) çıkış temizliğini engellemez", async () => {
+    const r = await reservation();
+    await task(r.id, { type: "checkin_prep", dueAt: r.arrivalDate });
+    await task(r.id, { origin: "manual", dueAt: new Date(atMidnight(4).getTime() + 10 * 3_600_000) });
+    expect(await countReservationsMissingCleaning(orgId, new Date(), TZ)).toBe(1);
+    expect(await createReservationTasks(r.id)).toBe(1);
+    expect(await systemCleanings(r.id)).toEqual([{ status: "todo", dueAt: r.departureDate }]);
+  });
+
+  it("K4 aşırı uygulama yok: çıkış gününe düşen SÖZ görevi (misafire verilen söz) çıkış temizliğinin yerini tutmaz", async () => {
+    const r = await reservation();
+    await task(r.id, { type: "checkin_prep", dueAt: r.arrivalDate });
+    const conversation = await prisma.conversation.create({
+      data: { propertyId, channel: "airbnb", guestIdentifier: "Ada", status: "new", lastMessageAt: new Date() },
+    });
+    const promise = await task(r.id, { origin: "manual", title: "Misafire söz: Temizlik", dueAt: new Date(r.departureDate.getTime() + 8 * 3_600_000) });
+    await prisma.guestCommitment.create({
+      data: { organizationId: orgId, conversationId: conversation.id, taskId: promise.id, kind: "cleaning", dueAt: promise.dueAt! },
+    });
+    expect(await countReservationsMissingCleaning(orgId, new Date(), TZ)).toBe(1);
+    expect(await createReservationTasks(r.id)).toBe(1);
+    expect(await prisma.task.findUnique({ where: { id: promise.id } })).not.toBeNull();
+  });
+
+  it("K4: çıkış tarihi değişti → eski güne açılmış elle temizlik yeni günü karşılamaz (sayı 1, görev açılır)", async () => {
+    const r = await reservation("confirmed", 3, 8);
+    await task(r.id, { type: "checkin_prep", dueAt: r.arrivalDate });
+    await task(r.id, { origin: "manual", status: "done", dueAt: new Date(atMidnight(6).getTime() + 9 * 3_600_000) });
+    expect(await countReservationsMissingCleaning(orgId, new Date(), TZ)).toBe(1);
+    expect(await createReservationTasks(r.id)).toBe(1);
   });
 });
