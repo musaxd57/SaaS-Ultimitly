@@ -458,6 +458,27 @@ export function noInstructionClauseRest(text: string | null | undefined): string
 }
 
 /**
+ * Metinden BÜTÜN "talimat yok" ifadeleri çıkarıldıktan sonra kalan (katlanmış küçük harf; yalnız karar için). Eşleşme yoksa `null`. Silici
+ * bununla konusu ADLANDIRILMIŞ ama tanınmayan "talimat yok"u ayırır ("Jakuzi için özel talimatımız yok" → "jakuzi için"; Haiku 10-17 gece-4).
+ * En çok 32 ifade çıkarılır (cevap 4.000 karakterle sınırlı); fazlası kalanda kalır → silici tutar (güvenli yön).
+ */
+export function noInstructionClauseResidue(text: string | null | undefined): string | null {
+  let best: string | null = null;
+  for (const form of foldedForms(text)) {
+    let rest = form;
+    let found = false;
+    for (let round = 0; round < 32; round += 1) {
+      const hit = NO_INSTRUCTION_CLAUSE_PATTERNS.map((re) => re.exec(rest)).find((m) => m !== null);
+      if (!hit) break;
+      rest = `${rest.slice(0, hit.index)} ${rest.slice(hit.index + hit[0].length)}`;
+      found = true;
+    }
+    if (found && (best === null || rest.length < best.length)) best = rest;
+  }
+  return best;
+}
+
+/**
  * Cevap, bilginin KAYITLARDA OLMADIĞINI açıkça söylüyor mu?
  *
  * `true` ise bu metin MİSAFİRE GÖNDERİLMEZ — çağıran devreder.

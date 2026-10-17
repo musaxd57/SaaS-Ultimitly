@@ -27,7 +27,7 @@
 // yan cümle sınırıdır. Bütün taramalar doğrusal (cevap 4.000 karakterle sınırlı; süre pini `absence-cost.test.ts`).
 // ---------------------------------------------------------------------------
 
-import { admitsMissingKnowledge, matchesNoInstructionClause, noInstructionClauseRest } from "./absence";
+import { admitsMissingKnowledge, matchesNoInstructionClause, noInstructionClauseResidue, noInstructionClauseRest } from "./absence";
 import { deviceTopicsOf, topicsWithSymptomsOf } from "@/lib/conversation-items/relation";
 
 /** Cümle parçaları (ayraçlarıyla; birleştirince satırın kendisi). Sınır = nokta / ünlem / soru + boşluk ("15.00" bölünmez). Doğrusal. */
@@ -113,21 +113,66 @@ function topicsOf(text: string): { all: string[]; devices: string[] } {
 
 /**
  * Kapı yönergesi ("kapıyı çekin", "kapı açık", "close the door") — konu okuyucusunda konu değil; yalnız giriş / çıkış "talimat yok"unun
- * eşi olarak sayılır. Almanca "Tür" BÜYÜK harfle (Türkçe "tür" = çeşit karışmasın).
+ * eşi olarak sayılır. Dar küme (Haiku 10-17 gece-4 F2): yalnız kapının kendisi + hâl ekleri — "kapıcı", "kapı zili / kodu", "bahçe kapısı",
+ * Fransızca "porter" kapı DEĞİL. Almanca / İspanyolca / Fransızca tanımlıkla ("die Tür", "la puerta", "la porte" — Türkçe "tür" karışmasın).
  */
-const DOOR_WORD = /(?<![\p{L}])(?:kapı\p{L}{0,6}|kapi\p{L}{0,6}|doors?|puerta\p{L}{0,2}|porte\p{L}{0,2}|двер\p{L}{0,3}|باب)(?![\p{L}])/iu;
-const DOOR_WORD_DE = /(?<![\p{L}])Tür(?:e|en)?(?![\p{L}])/u;
+const DOOR_WORD =
+  /(?<![\p{L}])(?:kap[ıi](?:y[ıi]|y[ae]|d[ae]|d[ae]n|n[ıi]n)?(?!\s+(?:zil|kod|şifre|sifre|numara|kart|kilid|kilit))|doors?(?!\s+(?:code|codes|bell|lock|keypad))|(?:la|las)\s+puertas?|(?:la|les)\s+portes?|(?:die|der)\s+tür(?:e|en)?|двер(?:ь|и|ью)|الباب)(?![\p{L}])/iu;
 /** Silinen "talimat yok" konusu → kalan metinde onu karşılayan konular (kendisi + eşleri). */
 const PAIRED_TOPICS: Readonly<Record<string, readonly string[]>> = { checkin: ["keys", "door"], checkout: ["keys", "door"] };
+/**
+ * Giriş / çıkış konusu kalan metinde AÇIKÇA anılmalı (Haiku 10-17 gece-4 F3): konu okuyucusu "çık-" / "gir-" köklerini de giriş / çıkış
+ * sayar → "Balkona çıkabilirsiniz" çıkış sorusunu "cevaplamış" görünüyordu.
+ */
+const LIFECYCLE_TOPICS: ReadonlySet<string> = new Set(["checkin", "checkout"]);
+const LIFECYCLE_MARK =
+  /(?<![\p{L}])(?:çıkış\p{L}{0,8}|cikis\p{L}{0,8}|giriş\p{L}{0,8}|giris\p{L}{0,8}|check[- ]?(?:in|out)\p{L}{0,3}|ayrılış\p{L}{0,6}|varış\p{L}{0,6}|departure|arrival|salida|llegada|abreise|anreise|départ|arrivée|выезд\p{L}{0,2}|заезд\p{L}{0,2}|المغادرة|الوصول)(?![\p{L}])/iu;
+/**
+ * Konusu adlandırılmış "talimat yok"ta ("Jakuzi için özel talimatımız yok") konu tanınmıyorsa silinmez (Haiku 10-17 gece-4 F1: "…, anahtarı
+ * masaya bırakın" jakuzi sorusunu sessizce "cevaplanmış" yapıyordu). Konusuz genel biçim ("Özel bir talimatımız yok", "There are no other
+ * instructions in my notes") silinebilir kalır — kalan sözcükler yalnız bu kapalı kümedense konu adlandırılmamıştır (ASCII katlanmış).
+ */
+const SUBJECT_STOPWORDS: ReadonlySet<string> = new Set([
+  // tr
+  "ozel", "ek", "baska", "farkli", "ilave", "ekstra", "ayri", "belirli", "belli", "spesifik", "icin", "ilgili", "hakkinda", "konusunda",
+  "dair", "de", "da", "ise", "su", "an", "simdilik", "herhangi", "bir", "maalesef", "elimizde",
+  "elimde", "notlarimda", "notlarimizda", "kayitlarimda", "kayitlarimizda", "burada",
+  // en
+  "there", "are", "is", "no", "not", "any", "other", "in", "my", "our", "notes", "records", "for", "the", "your", "about", "regarding", "we",
+  "i", "don", "t", "have", "really", "at", "this", "time", "currently", "unfortunately",
+  // es
+  "hay", "para", "el", "la", "los", "las", "del", "tenemos", "ninguna", "en", "nuestras", "notas", "sobre",
+  // fr
+  "il", "n", "y", "a", "pas", "pour", "le", "l", "les", "du", "des", "aucune", "sur", "nos", "concernant",
+  // de
+  "es", "gibt", "keine", "fur", "den", "die", "das", "der", "zum", "zur", "wir", "haben", "ich", "habe", "unseren", "notizen", "leider",
+  // ru / ar
+  "нет", "для", "у", "нас", "по", "в", "наших", "заметках", "к", "сожалению", "لا", "توجد", "يوجد", "ليس", "لدينا",
+]);
+const ASCII_FOLD: Readonly<Record<string, string>> = { ı: "i", ş: "s", ğ: "g", ç: "c", ö: "o", ü: "u", â: "a", î: "i", û: "u" };
+function namesSubject(removed: string): boolean {
+  const residue = noInstructionClauseResidue(removed);
+  if (residue === null) return true;
+  return residue
+    .split(/[^\p{L}]+/u)
+    .some((w) => w.length > 0 && !SUBJECT_STOPWORDS.has(w.replace(/[ışğçöüâîû]/gu, (c) => ASCII_FOLD[c] ?? c)));
+}
 
-/** Silme izin listesi (↑kural). `removed`: çıkarılacak metin (+ bitişik asılı konu); `kept`: geriye kalan yönerge metni. */
-function removalAllowed(removed: string, kept: string): boolean {
+/**
+ * Silme izin listesi (↑kural). `parts`: çıkarılacak parçalar (her biri bir "talimat yok" yan cümlesi / cümlesi, + bitişik asılı konu);
+ * `kept`: geriye kalan yönerge metni.
+ */
+function removalAllowed(parts: readonly string[], kept: string): boolean {
+  const removed = parts.join(" ");
   if (REFERENTIAL.test(removed)) return false;
+  // Konusu adlandırılmış ama tanınmayan "talimat yok" silinmez (↑`namesSubject`) — parça parça: başka parçanın tanınan konusu onu örtmez.
+  if (parts.some((p) => topicsOf(p).all.length === 0 && namesSubject(p))) return false;
   const r = topicsOf(removed);
   if (r.devices.length > 0) return false;
   const k = topicsOf(kept);
   if (k.devices.some((d) => !ALLOWED_DEVICE_IN_REST.has(d))) return false;
-  const keptTopics = DOOR_WORD.test(kept) || DOOR_WORD_DE.test(kept) ? [...k.all, "door"] : k.all;
+  const lifecycleNamed = LIFECYCLE_MARK.test(kept);
+  const keptTopics = [...k.all.filter((t) => !LIFECYCLE_TOPICS.has(t) || lifecycleNamed), ...(DOOR_WORD.test(kept) ? ["door"] : [])];
   // Kalan yönergenin KENDİ konusu olmalı (yalnız selam / nezaket / "bize yazın" kalırsa soru kaybolurdu — S4-05).
   if (keptTopics.length === 0) return false;
   // Silinen "talimat yok"un HER konusu kalan yönergede karşılanmalı (başka konudaki cevap onu "cevaplanmış" yapmaz — S4-09).
@@ -171,7 +216,16 @@ function stripClauses(sentence: string, language?: string | null): string | null
   if (!flagged.some(Boolean) || flagged.every(Boolean)) return null;
   // Konu ayrı yan cümleye düşmüş olabilir ("Kombi için, özel talimatımız yok, …" — Haiku 10-17): BİTİŞİK asılı konu öbeği silinenle
   // birlikte denetlenir (cihazsa cümle tutulur).
-  const removed = clauses.filter((c, i) => flagged[i] || ((flagged[i - 1] || flagged[i + 1]) && danglingTopic(c))).join(" ");
+  // Asılı konu, bitişik silinen yan cümleyle AYNI parçada denetlenir.
+  const parts: string[] = [];
+  let pending = "";
+  clauses.forEach((c, i) => {
+    if (flagged[i]) {
+      parts.push(`${pending}${c}`);
+      pending = "";
+    } else if (flagged[i + 1] && danglingTopic(c)) pending = `${c} `;
+    else if (flagged[i - 1] && danglingTopic(c)) parts[parts.length - 1] = `${parts[parts.length - 1] ?? ""} ${c}`;
+  });
   const terminal = trailingTerminal(body) || ".";
   // Silinen yan cümlenin ARDINDAKİ bağlaç da atılır ("Anahtar masada, [özel talimatımız yok] ve kahvaltı …" → "Anahtar masada, kahvaltı …");
   // tek boşlukla birleşir (Opus 10-17 B4: bağlaçsız orta yan cümlede çift boşluk kalıyordu).
@@ -185,7 +239,7 @@ function stripClauses(sentence: string, language?: string | null): string | null
   if (!/[\p{L}\p{N}]/u.test(rest)) return null;
   if (!trailingTerminal(rest)) rest += terminal;
   rest = capitalizeFirst(rest, language);
-  if (!removalAllowed(removed, rest)) return null;
+  if (!removalAllowed(parts, rest)) return null;
   return lead + rest;
 }
 
@@ -211,12 +265,11 @@ export function stripNoInstructionFiller(reply: string, language?: string | null
   const all = lines.flat();
   const candidates = all.filter((p) => p.whole);
   if (candidates.length > 0) {
-    const removed = candidates.map((p) => p.text).join(" ");
     const kept = all
       .filter((p) => !p.whole)
       .map((p) => p.text)
       .join(" ");
-    if (!/[\p{L}\p{N}]/u.test(kept) || !removalAllowed(removed, kept)) for (const p of candidates) p.whole = false;
+    if (!/[\p{L}\p{N}]/u.test(kept) || !removalAllowed(candidates.map((p) => p.text), kept)) for (const p of candidates) p.whole = false;
   }
   const out: string[] = [];
   lines.forEach((parts, i) => {

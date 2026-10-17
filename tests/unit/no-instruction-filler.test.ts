@@ -164,6 +164,38 @@ describe("gece-4 S4-09 / S4-05 / S4-01 — silme yalnız AYNI konuda ve geriye k
   });
 });
 
+describe("Haiku 10-17 gece-4 — tanınmayan konu, geniş kapı sözcüğü, 'çık-' fiili silmeyi açmaz", () => {
+  // F1: konusu adlandırılmış ama tanınmayan "talimat yok" → misafirin o sorusu sessizce "cevaplanmış" olurdu → TUTULUR.
+  // F2: "kapıcı", "kapı zili", Fransızca "porter" kapı yönergesi değildir ("bahçe kapısı kilitli" konu okuyucusunda "kilit" → anahtar konusu
+  // sayılır, kapı sözcüğünden bağımsız — bu dilimde değiştirilmedi).
+  // F3: "balkona / dışarı çıkabilirsiniz" çıkış yönergesi değildir.
+  it.each([
+    "Jakuzi için özel talimatımız yok, anahtarı masaya bırakın.",
+    "Anahtarı masaya bırakın, bahçe için de özel talimatımız yok.",
+    "Çıkış için özel talimatımız yok. Bahçe için özel talimatımız yok. Anahtarı masaya bırakın.",
+    "Çıkış için özel talimatımız yok, kapıcıya bırakın.",
+    "Giriş için özel talimatımız yok. Kapı zili çalmanız yeterli.",
+    "Pas d'instructions particulières pour le départ, vous pouvez porter une veste.",
+    "Çıkış için özel talimatımız yok, balkona çıkabilirsiniz.",
+    "Çıkış için özel talimatımız yok, dışarı çıkabilirsiniz.",
+  ])("tutulur: %s", (m) => {
+    expect(stripNoInstructionFiller(m)).toBe(m);
+    expect(admitsMissingKnowledge(m)).toBe(true);
+  });
+  it.each([
+    // Konusuz genel biçim silinebilir kalır (konu adlandırılmamış).
+    ["Özel bir talimatımız yok, anahtarı masaya bırakın.", "Anahtarı masaya bırakın."],
+    ["Maalesef özel bir talimatımız yok, anahtarı masaya bırakın.", "Anahtarı masaya bırakın."],
+    // Kapının kendisi (hâl ekleri) kapı yönergesidir.
+    ["Çıkış için özel talimatımız yok, kapıyı kapatmanız yeterli.", "Kapıyı kapatmanız yeterli."],
+    ["Pas d'instructions particulières pour le départ, fermez simplement la porte.", "Fermez simplement la porte."],
+    // Çıkış adıyla anılırsa aynı konu.
+    ["Çıkış için özel talimatımız yok, çıkışta anahtarı kutuya bırakın.", "Çıkışta anahtarı kutuya bırakın."],
+  ])("KONTROL silinir: %s", (m, after) => {
+    expect(stripNoInstructionFiller(m)).toBe(after);
+  });
+});
+
 describe("'bilgi veremem' ailesi (kurucu 10-17 M1: 'tabiki tutulsun … sussa daha iyi')", () => {
   it.each([
     "Bu konuda bilgi veremem.",
