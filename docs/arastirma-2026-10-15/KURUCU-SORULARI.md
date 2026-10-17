@@ -672,3 +672,32 @@ Karar bekleyenler (denetim + ilk dilim tasarımı: `gecmisten-ogren-6-ilke.md` �
   yaşam döngüsü mesajı beklesin (Y5 ile aynı) · C) hepsi iptal. ÖRNEK: misafir "Wi-Fi şifresi?" yazdı, cevap kuyruğa girdi, 5 dk sonra
   ödenmiş dönem bitti; ödeme 3 gün sonra geldi → A: misafir 3 gün sonra Wi-Fi cevabı alır (bayat olabilir) · B: cevap gitmez, ev sahibi notu
   görür. Önerim **B** (Y5 ile tutarlı; günler sonra giden yapay zekâ cevabı yanıltıcı olabilir). Hangisi?
+
+## O. Kurucu kararları 10-17 (K / L / M / N / H9 / I cevapları, AYNEN özü) — uygulama planı
+
+| Soru | Kurucu kararı (özü) | Uygulama |
+|---|---|---|
+| H9 istisnası | "Televizyonla ilgili ayrı bir talimatım bulunmuyor" gibi cümle KESİNLİKLE yazılamaz, "ev sahibinize ileteceğim" de söylenemez. "Çıkış için özel talimatımız yok, anahtarı masaya bırakmanız yeterli" → ilk yarısı ("…özel talimatımız yok") YAZILMASIN, yalnız yönerge kalsın | "özel / ayrı / başka talimat yok" istisnası kaldırılır (bütün cevap tutulur, bugünkü güvenli yön); istem kuralı; konu bazlı ayıklama açıkken o yan cümle silinip yönerge gider |
+| M1 | "bilgi veremem" tutulsun — "müşteriye öyle denir mi, sussa daha iyi" | "veremem / veremeyiz" ailesi "bilgim yok" sayılır |
+| I1 | migration, önerildiği gibi (A: söze konu alanı) | Faz 2 migration |
+| I3 | anlaşılmadı | sade açıklama ↓ |
+| I4 | şimdi A; sonra KESİNLİKLE C: tıklanınca hemen ödeme alınıp pakete dönsün | A kalır; C kodu anahtar KAPALI (Paddle "devam ettir"), ilk denemeler birlikte |
+| N1 | ödeme gelince çalışmaya başlasın, bayat mesaj KESİNLİKLE gitmesin, tek gösterimlik uyarı olabilir | B: bekleyen yapay zekâ cevabı iptal + gelen kutusunda tek not; yaşam döngüsü mesajı bekler ve ancak penceresi hâlâ geçerliyse gider |
+| L1 | mantıklı; sürekli onay istemesin (iki kip, hatasız); aynı şey farklı yazılmışsa daha güncel kazanır; iyi embedding; ilk başta bütün mesajlar tutulup dizinlensin; güven zamanla azalsın (dün yazılan neredeyse kesin, 1 yıl önceki zayıf) | tasarım + migration + kod (anahtar KAPALI) |
+| L2 | evet; ev sahibi bir kez daha güncel olanı seçince o artık doğru sayılsın, model kendini geliştirsin | onay akışı + eski kalem pasif |
+| L3 | mantıklı ama ev sahibini çok uğraştırmasın | yalnız gerçekten tek seferlik görünenlerde işaret |
+| L4 | ev sahibi taslağı az değiştirip gönderdiyse değiştirdiği yerleri o daire için öğrensin (%40'tan az değişim); milyar dolarlık şirket çözümü | düzenleme farkından öğrenme (migration) |
+| L5 | Hospitable gidecek; şimdilik sağlayıcı otomasyonu ile ev sahibi mesajını AYIR; Airbnb Direct'e geçişte rol kanal katmanında | gönderen rolü saklanır (migration) |
+| K1 | B (otomatik kesme yok) + risk puanı geliştirilsin, IP'lere bakılsın, kötüye kullanım engellensin | risk puanı + IP sinyali (migration), eşik üstü inceleme |
+| K3 | ödeme ekranı hata metinleri bol bol düzenlensin | metin envanteri + yeni metinler |
+| K4 | önerildiği gibi | aynı çıkışa elle temizlik varsa sistem ikincisini açmaz |
+| K5 | anlaşılmadı | sade açıklama ↓ |
+| Genel | "Daha iyi olacaksa migration yapalım, bol bol, didik didik" | migration'lar Faz paketlerine |
+
+**I3 (sade):** misafir mesajı kalıcı kuyruğunda aynı konuşmanın iki mesajı sıra karışmasın diye veritabanında bir "sıra kilidi" dizini öneriyordum
+(migration). Bugün bu sırayı kod koruyor; dizin aynı korumayı veritabanının kendisine taşır (iki sunucu çalışınca da bozulmaz). Karar istenen: bu
+dizini ekleyelim mi? Önerim evet (zararı yok, yalnız güvence) — sizin "migration yapalım" kararınızla birlikte ekliyorum.
+
+**K5 (sade):** rezervasyon durumunu değiştiren üç yer var (rezervasyon düzenleme, panelden "yeniden aç", senkron). Biri ortak kuralı kullanmıyor; bu
+bugün hata yapmıyor, ama ileride bir kural eklenince birinde unutulabilir. İş: üçünü tek fonksiyona bağlamak. Müşteri hiçbir fark görmez — iç
+düzen. Sıradaki büyük işlerden sonra yapacağım.
