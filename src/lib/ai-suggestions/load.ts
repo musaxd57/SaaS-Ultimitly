@@ -160,7 +160,7 @@ export async function getConversationSuggestions(organizationId: string, convers
     decidedSuggestionKeys(organizationId, since),
     prisma.guestCommitment.findMany({
       where: { conversationId: conversation.id, organizationId },
-      select: { kind: true, topic: true, createdAt: true, dueAt: true, status: true },
+      select: { kind: true, topic: true, createdAt: true, dueAt: true, status: true, taskId: true },
     }),
   ]);
   const tz = orgTimezone(conversation.property.organization.timezone);
@@ -214,7 +214,10 @@ export async function getConversationSuggestions(organizationId: string, convers
       if (decided.has(key)) continue;
       const promise = detectHostPromise(m.body);
       if (!promise) continue;
-      // Mesajdan SONRA aynı türde ve UYUMLU konuda söz kaydedilmiş → öneri yok (I1: klima sözü musluk önerisini gizlemez).
+      // Mesajdan SONRA aynı türde ve UYUMLU konuda söz kaydedilmiş → öneri yok (I1: klima sözü musluk önerisini gizlemez). Saate BAKILMAZ
+      // (bilinçli, Haiku 10-17 tartışıldı): ev sahibi mesajdan sonra sözü elle FARKLI saatle kaydettiyse (ya da saati sonraki öneriyle
+      // değiştirdiyse) öneri onayı İKİNCİ söz + görev açardı. Bedeli: mesajdan sonra elle kaydedilen KONUSUZ söze konu yazılmaz (Q1 "a"
+      // yalnız mesajdan ÖNCE kaydedilmiş söz için — kurucunun örneğindeki sıra).
       if (
         commitments.some(
           (c) => c.kind === promise.kind && commitmentTopicsCompatible(c.topic, promise.topic) && c.createdAt.getTime() >= m.createdAt.getTime(),
@@ -228,7 +231,8 @@ export async function getConversationSuggestions(organizationId: string, convers
       // 10-15 B1). Konusuz elle söz + KONULU öneri gösterilir: onay söze konu yazar (kurucu Q1 "a", `commitmentSlotAbsorbs`).
       if (
         dueAt &&
-        commitments.some((c) => c.status === "open" && commitmentSlotAbsorbs(c, { kind: promise.kind, dueAt, topic: promise.topic }))
+        // `taskId` dolu: onayın bağlanabildiği küme ile BİREBİR (`createGuestCommitment` görevsiz söze bağlanmaz — Haiku 10-17).
+        commitments.some((c) => c.status === "open" && c.taskId !== null && commitmentSlotAbsorbs(c, { kind: promise.kind, dueAt, topic: promise.topic }))
       ) {
         continue;
       }

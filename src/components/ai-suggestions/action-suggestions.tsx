@@ -45,6 +45,8 @@ export function ActionSuggestions({ items }: { items: ActionSuggestionItem[] }) 
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as { fields?: Record<string, string> } | null;
         setError(body?.fields ? Object.values(body.fields)[0] : "İşlem yapılamadı. Tekrar deneyin.");
+        // Saat geçmişte kaldıysa (sayfa uzun süre açık kaldı) liste yenilensin — öneri artık gösterilmiyorsa kalkar (Haiku 10-17).
+        if (body?.fields?.time) startTransition(() => router.refresh());
         return;
       }
       const done = (await res.json().catch(() => null)) as { created?: { merged?: boolean; topicAttached?: boolean } } | null;

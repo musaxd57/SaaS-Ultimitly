@@ -58,4 +58,15 @@ describe("eylem önerisi — mevcut söze bağlandı bilgisi", () => {
     expect(screen.queryByTestId("action-suggestion-notice")).toBeNull();
     expect(container.textContent).not.toMatch(/bağlandı/u);
   });
+
+  it("Haiku 10-17: saat geçmişte kaldı (400, alan 'time') → hata gösterilir VE liste yenilenir (öneri artık yoksa kalkar)", async () => {
+    router.refresh.mockClear();
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 400, json: async () => ({ fields: { time: "Geçmiş bir saat seçilemez." } }) })));
+    render(<ActionSuggestions items={[item]} />);
+    await act(async () => {
+      fireEvent.click(screen.getByText("Onayla"));
+    });
+    expect(screen.getByRole("alert").textContent).toBe("Geçmiş bir saat seçilemez.");
+    expect(router.refresh).toHaveBeenCalled();
+  });
 });

@@ -97,6 +97,11 @@ export function commitmentLabel(kind: CommitmentKind, topic: string | null | und
   return isCommitmentTopic(topic) ? `${COMMITMENT_KIND_LABELS[kind]} · ${COMMITMENT_TOPIC_LABELS[topic]}` : COMMITMENT_KIND_LABELS[kind];
 }
 
+/** Sözün görev başlığı — TEK kaynak (yeni görev ve konu yazımında otomatik başlık eşleşmesi aynı metni kullanır). */
+export function commitmentTaskTitle(kind: CommitmentKind, topic: string | null | undefined): string {
+  return `Misafire söz: ${commitmentLabel(kind, topic)}`;
+}
+
 /**
  * Öneri ile mevcut söz AYNI söz mü (I1 birleştirme kuralı — onay `createGuestCommitment` bu yüklemle bağlanır): aynı tür ∧ aynı an ∧ konu
  * UYUMLU. Konu uyumu: ikisi aynı konu · ya da biri konusuz (NULL). İki FARKLI konu → ayrı söz.

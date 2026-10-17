@@ -146,6 +146,20 @@ describe("söz konusu", () => {
     expect(await prisma.task.findUniqueOrThrow({ where: { id: manual.taskId } })).toMatchObject({ title: "Teknisyen — salon kliması" });
   });
 
+  it("Haiku 10-17: görevi silinmiş (taskId boş) açık söz öneriyi GİZLEMEZ — onay ona bağlanamaz, yeni söz + görev açar (liste = onay kümesi)", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const owner = await asOwner(orgId);
+    const conv = await conversationWith(propertyId, [`Klima için teknisyen ${WHEN}'da gelecek.`]);
+    const tz = orgTimezone((await prisma.organization.findUniqueOrThrow({ where: { id: orgId } })).timezone);
+    const dueAt = commitmentDueAt({ day: "tomorrow", time: "10:00" }, tz, new Date())!;
+    const orphan = await createGuestCommitment({ organizationId: orgId, conversationId: conv, propertyId, reservationId: null, kind: "maintenance", topic: "ac", dueAt, actorUserId: owner.id, clientRequestId: "eski" });
+    await prisma.guestCommitment.update({ where: { id: orphan.id }, data: { createdAt: new Date(Date.now() - 60 * 60_000), taskId: null } });
+    const [s] = (await getConversationSuggestions(orgId, conv)).filter((x) => x.kind === "commitment");
+    expect(s).toBeTruthy(); // ⬅️ ESKİDE gizliydi (görevsiz söz "karşılıyor" sayılıyordu) ama onay ona bağlanamıyordu
+    expect((await decide({ key: s!.key, decision: "approve" })).status).toBe(200);
+    expect(await prisma.guestCommitment.count({ where: { conversationId: conv, taskId: { not: null } } })).toBe(1);
+  });
+
   it("mutasyon I1-prefer-equal: aynı saatte ESKİ konusuz + YENİ 'klima' sözü varken klima isteği klima sözüne bağlanır (konusuz söz konusuz kalır, ikinci 'klima' yazılmaz)", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
     const owner = await asOwner(orgId);

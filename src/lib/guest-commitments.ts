@@ -3,7 +3,7 @@ import "server-only";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { writeAuditInTx } from "@/lib/audit";
-import { commitmentLabel, commitmentTopicsCompatible, isCommitmentTopic, type CommitmentKind, type CommitmentTopic } from "@/lib/guest-commitments-core";
+import { commitmentTaskTitle, commitmentTopicsCompatible, isCommitmentTopic, type CommitmentKind, type CommitmentTopic } from "@/lib/guest-commitments-core";
 
 // ---------------------------------------------------------------------------
 // AÇIK TAAHHÜT HAFIZASI A (kurucu kararı 10-10; migration 62; tasarım `docs/TASARIM-2026-10-10-acik-taahhut-hafizasi-onerisi.md`).
@@ -148,8 +148,8 @@ export async function createGuestCommitment(input: {
           topicAttached = (await tx.guestCommitment.updateMany({ where: { id: same.id, topic: null }, data: { topic } })).count === 1;
           if (topicAttached) {
             await tx.task.updateMany({
-              where: { id: same.taskId, title: `Misafire söz: ${commitmentLabel(input.kind, null)}` },
-              data: { title: `Misafire söz: ${commitmentLabel(input.kind, topic)}` },
+              where: { id: same.taskId, title: commitmentTaskTitle(input.kind, null) },
+              data: { title: commitmentTaskTitle(input.kind, topic) },
             });
             await writeAuditInTx(tx, {
               organizationId: input.organizationId,
@@ -169,7 +169,7 @@ export async function createGuestCommitment(input: {
         reservationId: input.reservationId,
         type: TASK_TYPE_FOR[input.kind],
         origin: "manual",
-        title: `Misafire söz: ${commitmentLabel(input.kind, topic)}`,
+        title: commitmentTaskTitle(input.kind, topic),
         dueAt: input.dueAt,
         status: "todo",
         priority: "standard",
