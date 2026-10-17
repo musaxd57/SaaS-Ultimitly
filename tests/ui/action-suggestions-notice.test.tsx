@@ -69,6 +69,28 @@ describe("eylem önerisi — mevcut söze bağlandı bilgisi", () => {
     expect(screen.getByRole("alert").textContent).toBe("Geçmiş bir saat seçilemez.");
     expect(router.refresh).toHaveBeenCalled();
   });
+
+  it("Opus 10-17 Q1b-B: liste ile onay arasında seçim gerekli oldu (400, alan 'attach') → hata VE liste yenilenir (seçenekler görünür)", async () => {
+    router.refresh.mockClear();
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 400, json: async () => ({ fields: { attach: "Hangi söze bağlanacağını seçin." } }) })));
+    render(<ActionSuggestions items={[item]} />);
+    await act(async () => {
+      fireEvent.click(screen.getByText("Onayla"));
+    });
+    expect(screen.getByRole("alert").textContent).toBe("Hangi söze bağlanacağını seçin.");
+    expect(router.refresh).toHaveBeenCalled();
+  });
+
+  it("başka bir alan hatasında (400, alan 'kind') liste YENİLENMEZ — yalnız hata görünür (aşırı uygulama kontrolü)", async () => {
+    router.refresh.mockClear();
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 400, json: async () => ({ fields: { kind: "Geçersiz istek." } }) })));
+    render(<ActionSuggestions items={[item]} />);
+    await act(async () => {
+      fireEvent.click(screen.getByText("Onayla"));
+    });
+    expect(screen.getByRole("alert").textContent).toBe("Geçersiz istek.");
+    expect(router.refresh).not.toHaveBeenCalled();
+  });
 });
 
 describe("Q1-b (kurucu 10-17) — 'hangi söze bağlansın?' seçimi", () => {
