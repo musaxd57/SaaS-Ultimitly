@@ -78,6 +78,27 @@ describe("operatör listesi (riskyTrials)", () => {
   const org = (id: string, ageMs: number, subscription: ReturnType<typeof sub> | null) => ({ id, createdAt: new Date(NOW.getTime() - ageMs), subscription });
   const risky = [owner("x@mailinator.com", true, 1)];
 
+  it("🚨 K1-B (10-17): yeni işaret (trialIdentityReusedAt, deneme sürüyor) ilan sebebi sayılır; ağ sinyalleri harita üzerinden puana girer", () => {
+    const clean = [owner("a@gmail.com", true, 1)];
+    const orgs = [
+      { ...org("flagged", 1, sub("trial", 86_400_000)), trialIdentityReusedAt: new Date(NOW.getTime() - 60_000) },
+      { ...org("net", 2, sub("trial", 86_400_000)), trialIdentityReusedAt: null },
+      { ...org("plain", 3, sub("trial", 86_400_000)), trialIdentityReusedAt: null },
+    ];
+    const owners = new Map([
+      ["flagged", clean],
+      ["net", clean],
+      ["plain", clean],
+    ]);
+    const network = new Map([["net", { ipShared: true, networkBurst: true }]]);
+    expect(riskyTrials(orgs, owners, NOW, new Set(), network).map((r) => [r.org.id, r.risk.score, r.risk.reasons])).toEqual([
+      ["flagged", 60, ["identity_reused"]],
+      ["net", 35, ["ip_shared", "network_burst"]],
+    ]);
+    // KONTROL: harita verilmezse (anahtar kapalı) ağ sinyali yok.
+    expect(riskyTrials(orgs, owners, NOW).map((r) => r.org.id)).toEqual(["flagged"]);
+  });
+
   it("yalnız deneme hesapları; süren ya da son 30 günde biten; puanı 0 olan yok; puana göre azalan, eşitlikte en yeni önce", () => {
     const orgs = [
       org("paid", 1, sub("paddle", 5 * 86_400_000)), // ödeme yapan — listede yok
