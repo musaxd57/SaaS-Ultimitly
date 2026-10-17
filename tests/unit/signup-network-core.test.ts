@@ -130,6 +130,13 @@ describe("aydınlatma metni (kurucu Q3, 10-17: cümle + 90 gün onaylı)", () =>
     );
     expect(SIGNUP_NETWORK_RETENTION_DAYS).toBe(90);
   });
+
+  it("🚨 KD1 (kurucu 10-17 'dediğin mantıklı'): kartla deneme aydınlatma cümlesi AYNEN — kapı otomatik sonuç doğurur, cümlesiz açılmaz", async () => {
+    const { SECTIONS } = await import("@/app/(legal)/gizlilik/content");
+    expect(JSON.stringify(SECTIONS)).toContain(
+      "Ücretsiz deneme sırasında bazı hesap işaretleri (ör. aynı ilanın daha önce bir deneme hesabında kullanılmış olması ya da geçici e-posta adresi) görülürse, denemenin devam etmesi için kart bilgisi istenebilir; deneme süresince kartınızdan ücret alınmaz. Bu kararın gözden geçirilmesini bize yazarak isteyebilirsiniz.",
+    );
+  });
 });
 
 describe("yapısal pin", () => {

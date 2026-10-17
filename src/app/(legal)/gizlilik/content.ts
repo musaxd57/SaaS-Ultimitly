@@ -55,6 +55,7 @@ export const SECTIONS: Section[] = [
       "Entegrasyon verileri: Hospitable bağlantı durumu, senkronizasyon kayıtları, takvim/iCal bağlantıları, QR misafir sohbet bağlantıları ve teknik hata kayıtları.",
       "İşlem güvenliği verileri: IP adresi, oturum çerezi, temel kullanım/denetim kayıtları (audit log), hata kayıtları.",
       "Deneme kötüye kullanımını önleme verileri: Ücretsiz denemenin kötüye kullanılmasını önlemek için kayıt sırasında IP adresinizden geri döndürülemez bir özet ve bağlandığınız ağın özeti oluşturulur; ham IP adresi bu amaçla saklanmaz. Bu bilgi yalnız ekibimizin incelemesinde kullanılır, otomatik karar verilmez ve 90 gün sonra silinir.",
+      "Deneme sırasında kart istenmesi: Ücretsiz deneme sırasında bazı hesap işaretleri (ör. aynı ilanın daha önce bir deneme hesabında kullanılmış olması ya da geçici e-posta adresi) görülürse, denemenin devam etmesi için kart bilgisi istenebilir; deneme süresince kartınızdan ücret alınmaz. Bu kararın gözden geçirilmesini bize yazarak isteyebilirsiniz.",
       "Pazarlama/iletişim verileri: web sitesi üzerinden ilettiğiniz demo veya iletişim talebi ve mesaj içeriği.",
       "Ödeme verileri: abonelik ve fatura durumu. Kart/ödeme bilgileriniz tarafımızca tutulmaz; ödeme, kayıtlı ödeme hizmet sağlayıcısı (Paddle) tarafından işlenir.",
     ],
