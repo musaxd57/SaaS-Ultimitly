@@ -810,17 +810,22 @@ aynı düğme o plan için ödeme ekranını açar (yeni abonelik, anında tahsi
 | C3 | "evet öyle kalsın" | değişiklik yok |
 | Kartla deneme | "yap; yüksek riskte öyle bir durum olsun" | ✅ kodda (migration 74, anahtar `TRIAL_CARD_GATE_ENABLED` KAPALI + deneme süreli Paddle fiyatları tanımlanmadan çalışmaz) — açmadan önce KD1–KD3 ↓ |
 | Paddle | "doğrulamamız gereken her şeyi doğrulayalım" | 14 maddelik sandbox listesi: `docs/TASARIM-2026-10-17-paddle-devam-ettir-ve-kartla-deneme.md` §4 |
+| Q2 (10-17 akşam) | "Hayır, Hospitable'ın otomatik mesajı cevap verilmiş olarak sayılmasın" | ✅ kodda: kanalın kendi otomatik mesajı senkronda "otomatik mesaj" yazarıyla kaydedilir → konuşma yeni kalır, açık iş "ev sahibi yazdı" diye düşmez, yapay zekâ misafirin sorusunu cevaplar; istemde "[OTOMATİK MESAJ]" satırı (bilgi okunur, üslup taklit edilmez — Q2-b önerinin parçası); gelen kutusunda "Otomatik mesaj". Bizim gönderdiğimiz mesaj asla bu sınıfa düşmez. ⚠️ Canlıya etkisi var (otomatik cevap): Railway açılınca ilk denemeler birlikte |
+| Q1-b | "2'sini de öner, doğru, iyi gibi" | ✅ kodda (anahtar kapalı): tek mesajdaki iki söz → iki öneri; aynı saatte iki farklı konulu söz varken konusuz öneri → "Hangi söze bağlansın?" (klima sözüne bağla / musluk sözüne bağla / yeni söz olarak kaydet) |
+| KD1–KD4 | "dediğin mantıklı, testlerini bol bol yap, hata olmasın sızma olmasın" | ✅ KD1 cümlesi gizlilik metninde (pinli) · KD2 sınırlı mod (zaten böyle) · KD4 (a) ilan işareti tek başına yeter (zaten böyle) · KD3 kalan gün → Paddle'ın katalog dışı fiyatta deneme desteğine bağlı (sandbox P5) · 14 yeni sızma / hata testi |
+| "denemeyi geri ver garip" | — | ✅ operatör düğmesi "Denemeyi yeniden başlat" (üzerine gelince: "Bugünden başlayan yeni bir deneme süresi verir.") |
+| Sandbox (Chrome'daki Claude, 10-17) | — | D1 ✅ devam isteği alanları belgeyle aynı; kart reddinde istek hata DÖNMEZ, abonelik "ödeme gecikmiş" olur → kod artık bunu başarı saymıyor (402 + kart güncelleme). D2 🚨 fiyat önizlemesinde okuduğumuz alan YOKTU → düzeltildi (satır toplamları, aboneliğin adresiyle). P1–P14 panel girişi bekliyor |
 
 **Teyit isteyen yorum — "Q2 bu söz ne demek… 2'sini de öner":** "Söz" = ev sahibinin misafire verdiği, saate bağlı taahhüt ("Klima için teknisyen
 yarın 10:00'da gelecek"). Amaç unutulmaması: onaylanınca o saate görev açılır, saat geçerse "söz gecikti" görünür. Cevabınızı **Q1-b**'nin cevabı
 olarak okudum (Q1-b'de "ikisini de önereyim mi?" diye sormuştum): (1) tek mesajda iki söz → iki öneri; (2) aynı saatte iki farklı konulu söz varken
 konusuz yeni söz → "hangi söze bağlansın?" sorusu. Doğru okuduysam "evet" demeniz yeter, kodlarım (anahtar kapalı).
 
-**Q2 hâlâ açık (sade):** Hospitable'ın KENDİ gönderdiği otomatik mesaj (ör. "Giriş bilgileriniz…") misafirin sorusuna verilmiş CEVAP sayılsın mı?
+**Q2 — CEVAPLANDI (10-17 akşam, ↑ tablo):** Hospitable'ın KENDİ gönderdiği otomatik mesaj (ör. "Giriş bilgileriniz…") misafirin sorusuna verilmiş CEVAP sayılsın mı?
 Bugün sayılıyor → misafirin hemen önce sorduğu "Otopark var mı?" cevapsız kalıyor. Önerim: cevap sayılmasın (yapay zekâ otoparkı yine cevaplar),
 şablondaki bilgi okunsun ama şablonun resmî dili sizin üslubunuz gibi taklit edilmesin (Q2-b). Böyle yapalım mı?
 
-**Kartla deneme — açmadan önce üç soru:**
+**Kartla deneme — açmadan önce üç soru (10-17 akşam: KD1–KD4 "dediğin mantıklı" → ↑ tablo; açık kalan yalnız ekip üyesi metni ↓):**
 - **KD1 · Aydınlatma cümlesi** (otomatik sonuç doğurduğu için şart): "Ücretsiz deneme sırasında bazı hesap işaretleri (ör. aynı ilanın daha önce bir
   deneme hesabında kullanılmış olması ya da geçici e-posta adresi) görülürse, denemenin devam etmesi için kart bilgisi istenebilir; deneme süresince
   kartınızdan ücret alınmaz. Bu kararın gözden geçirilmesini bize yazarak isteyebilirsiniz." Uygun mu?

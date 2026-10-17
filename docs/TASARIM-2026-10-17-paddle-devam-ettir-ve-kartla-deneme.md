@@ -78,6 +78,16 @@ belirsiz sonuç (5xx / zaman aşımı) KÖRLEMESİNE tekrar gönderilmez, Paddle
 
 Sonuçlar bu tabloya işlenir; varsayımı tutmayan her satır için kod düzeltilir ve testi güncellenir (para akışı — kurucuyla birlikte).
 
+### Sandbox sonuçları (Chrome'daki Claude, kayıt sayfası https://claude.ai/artifact/8ocDrGZEs26keFm3aEDLGv — 10-17 akşam)
+- **D1 ✅ (belge):** `effective_from: "immediately"` (atlanırsa varsayılan) + `on_resume: "start_new_billing_period"` (varsayılan; "yeni dönemin
+  tamamı hemen tahsil edilir") | `continue_existing_billing_period`. Yalnız `paused` devam eder; `canceled` edemez. 🚨 Tahsilat başarısızsa abonelik
+  `past_due` olur — istek hata DÖNMEZ (ret kodu resume için belgelenmemiş) → kod: yanıttaki durum `past_due` ise başarı denmez, 402 + kart güncelleme.
+- **D2 🚨 (belge) → kod düzeltildi:** `/pricing-preview` yanıtında `details.totals.grand_total` YOK; `details` yalnız `line_items` taşır, vergi DAHİL
+  tutar `line_items[].totals.total` (indirim + vergi sonrası, en küçük birimde tam sayı metni). Eski kod olmayan alanı okuyordu → anahtar açılsaydı onay
+  penceresi hiç açılmazdı (para riski yoktu). Şimdi satır toplamı (katı biçim) + aboneliğin `address_id`si önizlemeye gider (P8 hâlâ ENGELLEYİCİ:
+  gerçek tahsilatla eşitlik P6'da ölçülecek).
+- D3 / D4 (paket değişikliği önizlemesi + işlem olayı toplam alanları) kayıt sayfasına eklendi; P0–P14 panel girişi bekliyor.
+
 ## 5. Dilim sonu denetimleri (10-17)
 - Haiku (devam ettir 11 + kartla deneme / operatör 12 bulgu) ve Opus (P0 yok · P1 A1 · P2 A2, A3, C2–C4, F1) bulguları kodda işlendi; A1 → P8
   engelleyici, C2 → KD4, C3 → KD1, C4 → KD3 (kurucu soruları, `KURUCU-SORULARI.md` §S). Mutasyon 28/29 (+1 gerekçeli eşdeğer: G-exempt).

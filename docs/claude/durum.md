@@ -8,7 +8,12 @@
 > `docs/history/CLAUDE-2026-10-02-sadelestirme-3-oncesi-tam-metin.md` ("Durum" bölümü). Kuralları yukarıdaki bölümlerde; yalnız Durum'da
 > yazılı olan kurallar (konuşma öğeleri, ev kuralları, canlı bayraklar) 10-02'de ilgili bölümlere taşındı. Bekleyen onaylar ↓.
 
-**10-17 akşam (güncel):** kurucu cevapları (KURUCU-SORULARI §S) — I1 söz konusu (73) + Q1 "a" sahiplenme (konusuz elle söze konulu öneri bağlanınca
+**10-17 gece (güncel):** Q2 kodda (kanalın kendi otomatik mesajı senkronda yazar "automation" → K7 tek kuralı: cevap sayılmaz, açık iş düşmez,
+istemde [OTOMATİK MESAJ]; bizim mesajımız asla — Railway açılınca ilk denemeler birlikte) · Q1-b (tek mesajda iki söz → iki öneri; iki farklı konulu
+söz + konusuz öneri → "hangi söze bağlansın?") · KD1 cümlesi gizlilikte + 14 sızma / hata testi · operatör "Denemeyi yeniden başlat" · Paddle sandbox
+(Chrome'daki Claude, kayıt sayfası) D1/D2: önizleme toplam alanı YANLIŞTI → satır toplamı + abonelik adresi; devamda kart reddi `past_due` → 402.
+P0–P14 panel girişi bekliyor (P8 hâlâ ENGELLEYİCİ). Açık: L1/L4 6 soru + ekip üyesi kart metni.
+**10-17 akşam:** kurucu cevapları (KURUCU-SORULARI §S) — I1 söz konusu (73) + Q1 "a" sahiplenme (konusuz elle söze konulu öneri bağlanınca
 konu yazılır, yeni görev açılmaz) · Q3 aydınlatma cümlesi gizlilik §5'te (90 gün, pinli) · Q4 operatör "Denemeyi bitir / geri ver" · I4 C "Aboneliği
 devam ettir" (anahtar `PADDLE_RESUME_ENABLED` KAPALI; C1 küçük yazı, C2 bütün paketler; paket değiştirmeyle aynı para güvenliği) · kartla deneme
 kapısı (74; `TRIAL_CARD_GATE_ENABLED` KAPALI + deneme süreli fiyat env'leri şart; ağ / IP sinyali SAYILMAZ) · webhook Paddle `trialing` deneme
