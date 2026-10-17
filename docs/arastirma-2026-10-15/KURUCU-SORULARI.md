@@ -917,7 +917,7 @@ mesajınız); bilgi "Sık sorulan" olarak eklenir. Böyle yapalım mı?
 
 ### T5 · Söz → görev (misafire bir şey gitmez; sizin görev listeniz) — dört küçük karar
 Gece söz algılaması baştan sağlamlaştırıldı (sert itirazcının 43 cümlesi + Haiku + Opus; ↓ durum). Dört durum yorum istiyor:
-- (a) "Teknisyen 10'da gelecek." 10:30'da yazıldı (saat geçmiş) → bugün yarın 10:00 olarak kendiliğinden kaydediliyor. Önerim: kart sorsun.
+- (a) "Teknisyen 10'da gelecek." 10:30'da yazıldı (saat geçmiş) → şu an YARIN 10:00 olarak kendiliğinden kaydediliyor. Önerim: kart sorsun.
 - (b) "Havlu getireceğim." gece 23:30'da yazıldı → bugün 23:59 son an. Önerim: kart sorsun (gün belirsiz).
 - (c) "Teknisyen yarın 10'da gelecek inşallah." → bugün hiçbir şey açılmıyor (kararsız söz). Önerim: kart sorsun (söz gibi ama kesin değil).
 - (d) "Teknisyen yarın 7'de gelecek." (sabah / akşam yok) → 07:00 kaydediliyor. Önerim: kart sorsun (07:00 mı 19:00 mı?). Bugün 3, 4, 5 gibi
