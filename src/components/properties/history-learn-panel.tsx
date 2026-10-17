@@ -27,7 +27,8 @@ type Flag =
   | "outdated"
   | "time_bound"
   | "tentative"
-  | "no_info";
+  | "no_info"
+  | "single_source";
 export const FLAG_TEXT: Record<Flag, string> = {
   payment: "Ödeme yöntemi ya da platform dışı ödeme / rezervasyon geçiyor. Kontrol edin.",
   needs_edit: "Gizlenmiş bir bilgi var (telefon, kod ya da ad). Metni düzenleyin.",
@@ -40,6 +41,7 @@ export const FLAG_TEXT: Record<Flag, string> = {
   time_bound: "Belirli bir güne ya da geçici bir duruma bağlı görünüyor (yarın, bu hafta, şu an). Her zaman geçerliyse onaylayın, değilse reddedin.",
   tentative: "Kesin bir çözüm değil, bir deneme gibi görünüyor (belki, deneyin). Doğrulanmış değilse reddedin.",
   no_info: "Bilginin olmadığını söylüyor. Bu kayıt misafire yardım etmez; reddedin ya da bilgiyi yazın.",
+  single_source: "Yalnız bir misafirle konuşmanızda geçti ve o misafire özel görünüyor. Herkes için geçerliyse onaylayın, değilse reddedin.",
 };
 
 /** Hata gövdesinden gösterilecek metin: alan mesajı ÖNCE (`badRequest` genel "Doğrulama hatası" + `fields` döner). */

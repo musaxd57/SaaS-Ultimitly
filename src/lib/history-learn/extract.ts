@@ -9,6 +9,7 @@ import { namesPaymentMethod } from "@/lib/payment-method-guard";
 import { sensitiveClassesIn } from "@/lib/kb-from-history";
 import { hasLockContextCode, type MaskedPair } from "./mask";
 import { mentionsOffPlatform } from "./instruction-gate";
+import { mentionsHostPromiseVerb } from "@/lib/ai-suggestions/core";
 
 // ---------------------------------------------------------------------------
 // GEÇMİŞTEN ÖĞREN — MASKELİ ÇİFTLERDEN BİLGİ TABANI TASLAĞI (tasarım §2.2–2.3; kurucu 10-15: "Luna 6.0 yapsın, 5.1 çok pahalı").
@@ -68,6 +69,7 @@ export function historyLearnApiKey(): string | undefined {
 
 export const DRAFT_FLAGS = [
   "payment", "needs_edit", "one_off", "ungrounded", "guest_name", "sensitive", "door_mention", "outdated", "time_bound", "tentative", "no_info",
+  "single_source",
 ] as const;
 export type DraftFlag = (typeof DRAFT_FLAGS)[number];
 export interface LearnDraft {
@@ -281,6 +283,19 @@ export interface GateContext {
   hostAnswers?: readonly string[];
   /** Çalıştırmadaki misafir adları — `guest_name` için. */
   guestNames?: readonly string[];
+  /** Kanıtın geçtiği FARKLI konuşma sayısı — `single_source` için (verilmezse — ör. ev sahibinin kendi notu — işaret konmaz). */
+  supportConversations?: number;
+}
+
+/**
+ * L3 (kurucu 10-17, AYNEN: "tek konuşmalık bilgiyi işaretle ama ev sahibini çok uğraştırmasın"): misafire ÖZEL bir eylemi anlatan metin —
+ * söz fiili ("getireceğim", "I'll bring"; tek kaynak `mentionsHostPromiseVerb`) ya da 1. kişi GEÇMİŞ eylem ("bıraktım", "getirdim", "I left").
+ * "Çöp konteyneri sokağın başında" gibi olgu cümlesi eşleşmez (tek tık kalır). Sabit sözcük listesi, katlanmış metinde, doğrusal.
+ */
+const PERSONAL_ACTION_RE =
+  /(?<![\p{L}])(?:biraktim|biraktik|getirdim|getirdik|gonderdim|gonderdik|yolladim|yolladik|hazirladim|hazirladik|ayarladim|ayarladik|koydum|koyduk|ayirdim|ayirdik|i left|we left|i brought|we brought|i(?:'ve| have) put|we(?:'ve| have) put|i sent|we sent|i prepared|we prepared|i arranged|we arranged)(?![\p{L}])/u;
+function describesPersonalAction(text: string, folded: string): boolean {
+  return PERSONAL_ACTION_RE.test(folded) || mentionsHostPromiseVerb(text);
 }
 
 /** Kod kapıları — saf. Düşen olgu sebebiyle; geçen olgu işaretleriyle. */
@@ -310,6 +325,16 @@ export function gateDraft(
   if (NO_INFO_RE.test(folded)) flags.add("no_info");
   if (sensitiveClassesIn(text).length) flags.add("sensitive");
   if (ctx.guestNames?.length && mentionsGuestName(text, ctx.guestNames)) flags.add("guest_name");
+  // L3: yalnız TEK konuşmada geçen ve misafire özel bir eylem anlatan taslak — başka bir "herkes için mi?" işareti zaten varsa çift uyarı yok.
+  if (
+    ctx.supportConversations === 1 &&
+    !flags.has("one_off") &&
+    !flags.has("time_bound") &&
+    !flags.has("tentative") &&
+    describesPersonalAction(text, folded)
+  ) {
+    flags.add("single_source");
+  }
   if (ctx.hostAnswers) {
     // TAM belirteç eşleşmesi (Opus 10-15 B5: alt dizi araması "10"u "100"ün içinde, "Lale_Ev"i "Lale_Ev5G"nin içinde buluyordu).
     // Katlama: Türkçe büyük/küçük ("WIFI_5G" ↔ "Wifi_5G") ve sayı+birim bitişikliği ("100TL" ↔ "100 TL") fazla işaret üretmesin.
@@ -388,6 +413,7 @@ export async function extractDraftsFromPairs(pairs: readonly MaskedPair[], opts:
   const ctxFor = (evidence: readonly number[]): GateContext => ({
     hostAnswers: evidence.map((n) => byN.get(n)!.answer),
     guestNames: opts.guestNames,
+    supportConversations: new Set(evidence.map((n) => byN.get(n)!.conversationId)).size,
   });
   /** Taslak kapısı; düşerse sayılır ve `null`. */
   type Gated = { title: string; content: string; flags: DraftFlag[] } | { reason: Exclude<DropReason, "no_evidence" | "bad_category"> };

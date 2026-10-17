@@ -188,6 +188,21 @@ function preferDaytime(candidates: number[]): number[] {
   return day.length > 0 ? day : candidates;
 }
 
+/**
+ * Metinde (koşulsuz, sorusuz) bir SÖZ fiili var mı — konu / saat aramadan. Geçmişten öğren L3 (kurucu 10-17) "misafire özel eylem" işareti
+ * için tek kaynak (fiil listesi kopyalanmaz). Cümlecik başına: soru / koşul / olumsuz cümlecik sayılmaz. Doğrusal.
+ */
+export function mentionsHostPromiseVerb(text: string | null | undefined): boolean {
+  if (typeof text !== "string" || text.trim() === "" || text.length > 4_000) return false;
+  for (const raw of text.match(RAW_CLAUSES) ?? []) {
+    const clause = foldTurkishAscii(raw).toLowerCase();
+    if (clause.trim() === "" || /[?؟]\s*$/.test(raw) || CONDITIONAL.test(clause) || !PROMISE.test(clause)) continue;
+    if (QUESTION_PARTICLE.test(clause) || NEGATION.test(clause)) continue;
+    return true;
+  }
+  return false;
+}
+
 /** Söz fiilinin bulunduğu parçada fiilden SONRA "değil" / "yok" var mı. */
 function negatedAfterVerb(segment: string): boolean {
   const m = PROMISE.exec(segment);

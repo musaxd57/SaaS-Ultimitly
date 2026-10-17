@@ -538,3 +538,32 @@ describe("taslak kapısı — tarih / geçici durum / deneme / 'bilgi yok' işar
     }
   });
 });
+
+// ── L3 (kurucu 10-17, AYNEN: "tek konuşmalık bilgiyi işaretle ama ev sahibini çok uğraştırmasın") ─────────────────────────────────────────
+// Yalnız TEK konuşmada geçen VE misafire özel bir eylem anlatan taslak işaretlenir ("Kontrol ettim" kutucuğu); olgu cümlesi tek tık kalır.
+describe("gateDraft — L3 tek konuşmalık bilgi (single_source)", () => {
+  it.each([
+    ["Size bir şişe şarap bıraktım.", 1],
+    ["I left a bottle of wine for you in the fridge.", 1],
+    ["Yarın size ekstra havlu getireceğim.", 1],
+  ])("🚨 işaretlenir: %s (destek %i)", (content, support) => {
+    const g = gateDraft("Not", content, { supportConversations: support });
+    expect(g.ok && g.flags).toEqual(["single_source"]); // ⬅️ ESKİDE [] (tek tıkla onaylanıyordu)
+  });
+
+  it.each([
+    ["Çöp konteyneri sokağın başında.", 1], // olgu → tek tık (ev sahibi yorulmasın)
+    ["Size bir şişe şarap bıraktım.", 3], // birden çok konuşma → herkes için
+    ["Size bir şişe şarap bıraktım.", undefined], // ev sahibinin kendi notu (destek bilinmiyor) → işaret yok
+    ["Wi-Fi şifresi Lale2024.", 1],
+  ])("işaretlenmez: %s (destek %s)", (content, support) => {
+    const g = gateDraft("Not", content, { supportConversations: support as number | undefined });
+    expect(g.ok && g.flags).toEqual([]);
+  });
+
+  it("başka bir 'herkes için mi?' işareti zaten varsa ikinci uyarı yok (bu akşam → time_bound)", () => {
+    const g = gateDraft("Not", "Bu akşam kapıda bekleyeceğim.", { supportConversations: 1 });
+    expect(g.ok && g.flags).toContain("time_bound");
+    expect(g.ok && g.flags).not.toContain("single_source");
+  });
+});

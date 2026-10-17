@@ -569,7 +569,18 @@ export async function reviewHistoryLearnDraft(input: {
 }): Promise<ReviewResult> {
   const draft = await prisma.historyLearnDraft.findFirst({
     where: { id: input.draftId, property: { organizationId: input.organizationId } },
-    select: { id: true, propertyId: true, category: true, title: true, content: true, flagsJson: true, conflict: true, state: true, evidenceMessageIdsJson: true },
+    select: {
+      id: true,
+      propertyId: true,
+      category: true,
+      title: true,
+      content: true,
+      flagsJson: true,
+      conflict: true,
+      state: true,
+      evidenceMessageIdsJson: true,
+      supportConversations: true,
+    },
   });
   if (!draft) return { ok: false, reason: "not_found" };
   if (draft.state !== "pending") return { ok: false, reason: "already_reviewed" };
@@ -587,7 +598,11 @@ export async function reviewHistoryLearnDraft(input: {
   if (!title || !content || title.length > DRAFT_EDIT_MAX_TITLE || content.length > DRAFT_EDIT_MAX_CONTENT) return { ok: false, reason: "invalid" };
   if (!(LEARN_CATEGORIES as readonly string[]).includes(category)) return { ok: false, reason: "invalid" };
   const ctx = await evidenceContext(input.organizationId, draft.evidenceMessageIdsJson);
-  const gate = gateDraft(title, content, ctx);
+  // L3: tek konuşmalık bilgi işareti onayda da (düzenlenmiş metin eylemi çıkarırsa işaret düşer). Ev sahibinin KENDİ notu bu işareti almaz.
+  const gate = gateDraft(title, content, {
+    ...ctx,
+    supportConversations: draft.title === NOTE_DRAFT_TITLE ? undefined : draft.supportConversations,
+  });
   if (!gate.ok) return { ok: false, reason: gate.reason === "empty" ? "invalid" : gate.reason };
   // Düzenlenmemiş metin: saklı işaretler (çıkarım anındaki bağlamla) + bugünkü kapı. Düzenlenmiş metin: bugünkü kapı (kanıt bağlamıyla)
   // + metinden yeniden hesaplanamayan `outdated` (taslaklar arası karşılaştırma).
