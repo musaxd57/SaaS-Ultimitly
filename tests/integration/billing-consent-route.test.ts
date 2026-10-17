@@ -106,6 +106,29 @@ describe("POST /api/billing/consent (checkout distance-sales evidence)", () => {
     expect(res.status).toBe(201);
   });
 
+  it("🚨 kartla deneme fiyatı YALNIZ kart istenen hesaba açılır (Haiku 10-17: aksi hâlde doğrudan istekle deneme Paddle'da uzatılırdı)", async () => {
+    vi.stubEnv("TRIAL_CARD_GATE_ENABLED", "1");
+    vi.stubEnv("PADDLE_PRICE_PRO", "pri_pro");
+    vi.stubEnv("PADDLE_PRICE_BASLANGIC_DENEME", "pri_b_t");
+    vi.stubEnv("PADDLE_PRICE_PRO_DENEME", "pri_p_t");
+    vi.stubEnv("PADDLE_PRICE_ISLETME_DENEME", "pri_i_t");
+    vi.stubEnv("NEXT_PUBLIC_PADDLE_CLIENT_TOKEN", "test_client_token");
+    vi.stubEnv("BILLING_ENFORCED", "true");
+    try {
+      await prisma.subscription.create({
+        data: { organizationId: orgId, planCode: "pro", status: "trialing", provider: "trial", trialEndsAt: new Date(Date.now() + 5 * 86_400_000) },
+      });
+      // Kart istenmeyen deneme: deneme fiyatı RED, normal fiyat serbest.
+      expect((await POST(postReq({ planCode: "pro", priceId: "pri_p_t" }), ctx)).status).toBe(400);
+      expect((await POST(postReq({ planCode: "pro", priceId: "pri_pro" }), ctx)).status).toBe(201);
+      // Kart istenen hesap: deneme fiyatı kabul.
+      await prisma.organization.update({ where: { id: orgId }, data: { trialCardRequiredAt: new Date() } });
+      expect((await POST(postReq({ planCode: "pro", priceId: "pri_p_t" }), ctx)).status).toBe(201);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("FORBIDS staff (403, no row) — contract/payment authority is owner-only", async () => {
     session = { ...(session as NonNullable<typeof session>), role: "staff" };
     const res = await POST(postReq({ planCode: "pro", priceId: "pri_1" }), ctx);

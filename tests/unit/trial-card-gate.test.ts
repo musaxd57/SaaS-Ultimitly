@@ -38,6 +38,7 @@ describe("cardGateRequired", () => {
 describe("trialCardGateEnabled", () => {
   it("anahtar açık ama deneme süreli fiyatlardan biri eksik → KAPALI; üçü tanımlı → açık", () => {
     vi.stubEnv("TRIAL_CARD_GATE_ENABLED", "1");
+    vi.stubEnv("NEXT_PUBLIC_PADDLE_CLIENT_TOKEN", "test_client_token");
     vi.stubEnv("PADDLE_PRICE_BASLANGIC_DENEME", "pri_b_t");
     vi.stubEnv("PADDLE_PRICE_PRO_DENEME", "pri_p_t");
     vi.stubEnv("PADDLE_PRICE_ISLETME_DENEME", "");
@@ -46,6 +47,10 @@ describe("trialCardGateEnabled", () => {
     expect(trialCardGateEnabled()).toBe(true);
     expect(cardTrialPriceIds()).toEqual({ free: "pri_b_t", pro: "pri_p_t", business: "pri_i_t" });
     vi.stubEnv("TRIAL_CARD_GATE_ENABLED", "true"); // yalnız "1"
+    expect(trialCardGateEnabled()).toBe(false);
+    // Haiku 10-17: ödeme penceresi istemci anahtarı yoksa "Kart ekle" çizilemez → kapı KAPALI (kart eklenemeyen kilit olmasın).
+    vi.stubEnv("TRIAL_CARD_GATE_ENABLED", "1");
+    vi.stubEnv("NEXT_PUBLIC_PADDLE_CLIENT_TOKEN", "");
     expect(trialCardGateEnabled()).toBe(false);
   });
 });

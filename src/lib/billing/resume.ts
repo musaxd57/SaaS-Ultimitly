@@ -21,7 +21,7 @@ export function resumeEnabled(): boolean {
 }
 
 export type ResolvedResume =
-  | { ok: true; providerRef: string; customerId: string | null; priceId: string; planCode: string; planName: string }
+  | { ok: true; providerRef: string; customerId: string; priceId: string; planCode: string; planName: string }
   | { ok: false; error: string };
 
 /** Devam ettirilebilir mi + Paddle çağrısının ihtiyaç duyduğu her şey. Kuruluş kimliği OTURUMDAN (çağıran) → başka kuruluş hedeflenemez. */
@@ -49,8 +49,15 @@ export async function resolveResume(organizationId: string): Promise<ResolvedRes
   if (!priceId || !planCode) {
     return { ok: false, error: "Paketiniz şu anda doğrulanamadı. Birkaç dakika sonra tekrar deneyin ya da bize yazın." };
   }
-  let customerId = sub.customerId ?? null;
-  if (!customerId) customerId = (await getSubscriptionStatus(sub.providerRef))?.customerId ?? null;
+  // Paddle'daki GERÇEK durum (Haiku 10-17): yerel satır yalnız webhook'la güncellenir; webhook kaybolursa yerel "paused" kalırken Paddle'da
+  // abonelik etkin olabilir → yerel duruma güvenip ikinci kez devam (ikinci tahsilat) denenmesin. Okunamazsa KAPALI yön.
+  const live = await getSubscriptionStatus(sub.providerRef);
+  if (!live?.status) return { ok: false, error: RESUME_TEXT.statusUnknown };
+  if (live.status === "active" || live.status === "trialing") return { ok: false, error: RESUME_TEXT.alreadyActive };
+  if (live.status !== "paused") return { ok: false, error: RESUME_TEXT.notResumable };
+  // Vergi doğru hesaplansın diye müşteri kimliği ŞART (müşterisiz önizleme vergisiz / düşük rakam gösterebilirdi — Haiku 10-17).
+  const customerId = sub.customerId ?? live.customerId ?? null;
+  if (!customerId) return { ok: false, error: RESUME_TEXT.statusUnknown };
   return { ok: true, providerRef: sub.providerRef, customerId, priceId, planCode, planName: planByCode(planCode)?.name ?? planCode };
 }
 
@@ -102,7 +109,11 @@ export const RESUME_TEXT = {
   declined: "Ödeme alınamadı. Kart bilgilerinizi güncelleyin.",
   amountUnknown: "Tutar şu anda hesaplanamadı; ödeme alınmadı. Birkaç dakika sonra tekrar deneyin.",
   failed: "Aboneliğiniz devam ettirilemedi; ödeme alınmadı. Lütfen tekrar deneyin, sorun sürerse bize yazın.",
-  pending: "İşleminiz alındı, ödeme sağlayıcısının onayı bekleniyor. Aboneliğiniz birkaç dakika içinde açılacak.",
+  // Belirsiz sonuç: sonuç VAAT edilmez (ödeme alınmış da olabilir, alınmamış da) — Haiku 10-17.
+  pending: "İşleminiz ödeme sağlayıcısına iletildi; sonucu bekleniyor. Birkaç dakika sonra sayfayı yenileyin.",
+  statusUnknown: "Aboneliğinizin durumu şu anda doğrulanamadı; ödeme alınmadı. Birkaç dakika sonra tekrar deneyin.",
+  alreadyActive: "Aboneliğiniz zaten etkin. Birkaç dakika sonra sayfayı yenileyin.",
+  notResumable: "Aboneliğiniz şu anda devam ettirilemiyor. Bize yazın, birlikte halledelim.",
   inProgress: "Önceki işleminiz hâlâ işleniyor. Birkaç dakika sonra sayfayı yenileyin.",
   tokenExpired: "Tutar onayının süresi doldu. Yeniden \"Aboneliği devam ettir\" deyip tutarı tekrar onaylayın.",
   tokenUsed: "Bu onay zaten kullanıldı. Sayfayı yenileyin.",

@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
  * Operatör: riskli deneme listesinde DENEMEYİ BİTİR / GERİ VER (kurucu Q4, 10-17). Bitirilen hesap kapanmaz; müşteri ayarlarda sebepsiz
  * onaylı metni görür. API yalnız 2FA'lı operatör, destek görünümünde kapalı, her işlem denetimde.
  */
-export function TrialEndButton({ organizationId, mode }: { organizationId: string; mode: "end" | "restore" }) {
+export function TrialEndButton({ organizationId, mode }: { organizationId: string; mode: "end" | "restore" | "card_exempt" }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -18,7 +18,9 @@ export function TrialEndButton({ organizationId, mode }: { organizationId: strin
     const question =
       mode === "end"
         ? "Bu işletmenin ücretsiz denemesi şimdi bitirilsin mi? Hesap kapanmaz; otomatik mesajlar durur, müşteri plan seçerek devam edebilir."
-        : "Bu işletmeye bugünden başlayan yeni bir deneme süresi verilsin mi?";
+        : mode === "restore"
+          ? "Bu işletmeye bugünden başlayan yeni bir deneme süresi verilsin mi?"
+          : "Bu işletmeden kart istenmesin mi? Otomatik işler hemen açılır ve işletme bundan sonra kart kontrolünden muaf olur.";
     if (!window.confirm(question)) return;
     setBusy(true);
     setError(null);
@@ -45,7 +47,7 @@ export function TrialEndButton({ organizationId, mode }: { organizationId: strin
     <span className="inline-flex items-center gap-1">
       <Button type="button" size="sm" variant="outline" className="h-7 text-xs" disabled={busy} onClick={() => void run()}>
         {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-        {mode === "end" ? "Denemeyi bitir" : "Denemeyi geri ver"}
+        {mode === "end" ? "Denemeyi bitir" : mode === "restore" ? "Denemeyi geri ver" : "Kart şartını kaldır"}
       </Button>
       {error ? <span className="text-xs text-destructive">{error}</span> : null}
     </span>

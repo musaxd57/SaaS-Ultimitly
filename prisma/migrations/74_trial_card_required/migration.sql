@@ -2,4 +2,5 @@
 -- yalniz BOS kolon: acilista patlama yolu yok. Yazici (saatlik is) TRIAL_CARD_GATE_ENABLED arkasinda KAPALI; okuyucu ayrica faturalandirma
 -- zorunlulugu ister.
 -- AlterTable
-ALTER TABLE "Organization" ADD COLUMN     "trialCardRequiredAt" TIMESTAMP(3);
+ALTER TABLE "Organization" ADD COLUMN     "trialCardExemptAt" TIMESTAMP(3),
+ADD COLUMN     "trialCardRequiredAt" TIMESTAMP(3);

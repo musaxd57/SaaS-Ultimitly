@@ -574,12 +574,12 @@ export async function getSubscriptionStatus(subscriptionId: string): Promise<{ s
  * Bir fiyatın bu müşteri için VERGİ DAHİL toplamı (Paddle fiyat önizlemesi) — devam ettirme onay penceresindeki rakam. Asla fırlatmaz;
  * okunamazsa null → çağıran pencereyi AÇMAZ (tahmini rakamla para çekilmez). Alan adları sandbox'ta doğrulanacak (P8).
  */
-export async function previewPriceTotal(priceId: string, customerId: string | null): Promise<string | null> {
-  if (!priceId || !isPaddleConfigured()) return null;
+export async function previewPriceTotal(priceId: string, customerId: string): Promise<string | null> {
+  if (!priceId || !customerId || !isPaddleConfigured()) return null;
   try {
     const res = (await paddleRequest("/pricing-preview", {
       method: "POST",
-      body: { items: [{ price_id: priceId, quantity: 1 }], ...(customerId ? { customer_id: customerId } : {}) },
+      body: { items: [{ price_id: priceId, quantity: 1 }], customer_id: customerId },
     })) as {
       data?: {
         currency_code?: string;
@@ -587,8 +587,11 @@ export async function previewPriceTotal(priceId: string, customerId: string | nu
       };
     };
     const d = res?.data;
-    const total = d?.details?.totals?.grand_total ?? d?.details?.totals?.total ?? d?.details?.line_items?.[0]?.totals?.total;
-    return formatPaddleTotal(total, d?.currency_code ?? null);
+    // KATI (Haiku 10-17): yalnız vergi DAHİL genel toplam, yalnız rakam ("" → 0 olmasın) ve para birimi şart — eksikse null (onay açılmaz).
+    const total = d?.details?.totals?.grand_total;
+    const currency = d?.currency_code?.trim();
+    if (typeof total !== "string" || !/^\d+$/.test(total) || !currency) return null;
+    return formatPaddleTotal(total, currency);
   } catch (err) {
     if (!isExpectedPaddleError(err)) await reportError("paddle-pricing-preview", err);
     return null;

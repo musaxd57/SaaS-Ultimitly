@@ -52,6 +52,14 @@ async function trialOrg(opts: {
 }
 
 describe("reverse-trial reminder emails", () => {
+  it("🚨 kartla deneme (Paddle 'trialing') hesabına 'deneme bitti' e-postası GİTMEZ — Paddle deneme bitince tahsil eder (Haiku 10-17)", async () => {
+    const now = new Date();
+    const orgId = await trialOrg({ trialEndsAt: new Date(now.getTime() - 1 * DAY) });
+    await prisma.subscription.update({ where: { organizationId: orgId }, data: { provider: "paddle", providerRef: "sub_ct" } });
+    expect(await sendDueTrialReminders(now)).toEqual({ ending: 0, ended: 0 });
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
   it("sends the 'ending soon' email once to the owner, then never again", async () => {
     const now = new Date();
     const orgId = await trialOrg({ trialEndsAt: new Date(now.getTime() + 1 * DAY) }); // ~1 day left

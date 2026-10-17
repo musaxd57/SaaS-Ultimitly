@@ -23,7 +23,14 @@ import { POST as webhook } from "@/app/api/webhooks/paddle/route";
 import { RESUME_PENDING_LOCK } from "@/lib/billing/resume";
 import { createHmac } from "node:crypto";
 
-type PaddleState = { status: string; total: string; resume: "ok" | "declined" | "rejected" | "ambiguous"; afterAmbiguous: string };
+type PaddleState = {
+  status: string;
+  total: string;
+  currency: string | null;
+  customerId: string | null;
+  resume: "ok" | "declined" | "rejected" | "ambiguous";
+  afterAmbiguous: string;
+};
 let paddle: PaddleState;
 let resumeCalls = 0;
 
@@ -36,10 +43,10 @@ function stubPaddle() {
       const method = init?.method ?? "GET";
       const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
       if (method === "GET" && path === "/subscriptions/sub_1") {
-        return json(200, { data: { status: paddle.status, customer_id: "ctm_1", items: [{ price: { id: "pri_pro" } }] } });
+        return json(200, { data: { status: paddle.status, customer_id: paddle.customerId, items: [{ price: { id: "pri_pro" } }] } });
       }
       if (method === "POST" && path === "/pricing-preview") {
-        return json(200, { data: { currency_code: "TRY", details: { totals: { grand_total: paddle.total } } } });
+        return json(200, { data: { currency_code: paddle.currency, details: { totals: { grand_total: paddle.total } } } });
       }
       if (method === "POST" && path === "/subscriptions/sub_1/resume") {
         resumeCalls++;
@@ -76,7 +83,7 @@ beforeEach(async () => {
   vi.stubEnv("PADDLE_API_KEY", "test-key");
   vi.stubEnv("PADDLE_PRICE_PRO", "pri_pro");
   vi.stubEnv("AUTH_SECRET", "test-auth-secret-0123456789-abcdefghijkl");
-  paddle = { status: "paused", total: "89900", resume: "ok", afterAmbiguous: "paused" };
+  paddle = { status: "paused", total: "89900", currency: "TRY", customerId: "ctm_1", resume: "ok", afterAmbiguous: "paused" };
   stubPaddle();
   const org = await prisma.organization.create({ data: { name: "Org" } });
   orgId = org.id;
@@ -217,5 +224,41 @@ describe("Aboneliği devam ettir", () => {
     expect(res.status).toBe(200);
     expect(await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } })).toMatchObject({ status: "active" });
     expect(await prisma.systemLock.count({ where: { name: RESUME_PENDING_LOCK(orgId) } })).toBe(0);
+  });
+
+  it("🚨 Haiku 10-17: webhook kayboldu — yerelde 'duraklatılmış', Paddle'da ETKİN → önizleme reddedilir, Paddle'a devam GÖNDERİLMEZ (ikinci tahsilat yok)", async () => {
+    paddle.status = "active";
+    const res = await doPreview();
+    expect(res.status).toBe(400);
+    expect(JSON.stringify(await res.json())).toContain("Aboneliğiniz zaten etkin.");
+    expect(resumeCalls).toBe(0);
+  });
+
+  it("🚨 Haiku 10-17: belirsiz sonuç + Paddle'da ödeme gecikmesi (devam etti, kart reddi) → 402 + kart güncelleme bağlantısı, kilit kalkar", async () => {
+    paddle.resume = "ambiguous";
+    paddle.afterAmbiguous = "past_due";
+    const r = await doResume(await token());
+    expect(r.status).toBe(402);
+    expect(await r.json()).toMatchObject({ cardUpdateUrl: "https://portal/card" });
+    expect(await prisma.systemLock.count({ where: { name: RESUME_PENDING_LOCK(orgId) } })).toBe(0);
+  });
+
+  it("🚨 Haiku 10-17: tutar KATI — boş toplam / para birimi yok / müşteri kimliği yok → onay AÇILMAZ (tahmini ya da sıfır rakamla para çekilmez)", async () => {
+    paddle.total = "";
+    expect((await doPreview()).status).toBe(503);
+    paddle.total = "89900";
+    paddle.currency = null;
+    expect((await doPreview()).status).toBe(503);
+    paddle.currency = "TRY";
+    await prisma.subscription.update({ where: { organizationId: orgId }, data: { customerId: null } });
+    paddle.customerId = null;
+    expect((await doPreview()).status).toBe(400);
+    expect(resumeCalls).toBe(0);
+  });
+
+  it("onaylanan tutar denetim kaydında (gerçek tahsilatla karşılaştırma için — kişisel veri yok)", async () => {
+    await doResume(await token());
+    const row = await prisma.auditLog.findFirstOrThrow({ where: { organizationId: orgId, action: "billing.resumed" } });
+    expect(JSON.parse(row.metadataJson ?? "{}")).toMatchObject({ plan: "pro", amount: "₺899,00" });
   });
 });

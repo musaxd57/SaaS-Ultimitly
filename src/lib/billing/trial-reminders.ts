@@ -63,7 +63,9 @@ export async function sendDueTrialReminders(now: Date = new Date()): Promise<Tri
   // A lapsed trial keeps status "trialing" (expiry is derived live, no cron
   // flips it), so this one query covers both "ending soon" and "just ended".
   const subs = await prisma.subscription.findMany({
-    where: { status: "trialing", trialEndsAt: { not: null } },
+    // Yalnız KARTSIZ deneme (sağlayıcı "trial"): Paddle'da kartla deneme de `trialing` ama bitince Paddle tahsil eder — "deneme bitti, plan
+    // seçin" e-postası o hesaba yanlış olurdu (kartla deneme kapısı, Haiku 10-17).
+    where: { status: "trialing", provider: "trial", trialEndsAt: { not: null } },
     select: {
       id: true,
       trialEndsAt: true,

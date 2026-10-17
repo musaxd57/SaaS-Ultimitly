@@ -722,7 +722,8 @@ export function PaddlePlans({
               ) : planChangeEnabled ? (
                 <button
                   type="button"
-                  disabled={changeBusy || !p.priceId || pending !== null || annual}
+                  // Duraklatılmış abonelikte paket değişmez (önce devam ettirilir — sunucu da reddeder; Haiku 10-17).
+                  disabled={changeBusy || !p.priceId || pending !== null || annual || subscriptionStatus === "paused"}
                   onClick={() => void startChange(p.code)}
                   className="inline-flex h-8 w-full items-center justify-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
                 >

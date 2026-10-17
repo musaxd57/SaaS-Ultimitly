@@ -222,7 +222,10 @@ async function applySubscriptionEvent(
   // AKTİFLEŞİYORSA değiştirir (yeni abonelik eskisinin yerine geçer). Aksi hâlde (eski aboneliğin iptali, ödeme gecikmesi,
   // güncellemesi) yalnız kaydedilir: iki ödeme akışı açılıp olaylar ters sırada gelince ESKİ aboneliğin iptali, taze onay
   // kaydıyla kuruluşa bağlanıp yeni AKTİF aboneliği "iptal edildi" yazıyordu (Codex 3-7). Kayıtlı kimlik yoksa (ilk bağ) eski yol.
-  if (existing?.providerRef && providerRef && existing.providerRef !== providerRef && status !== "active") return;
+  // Kartla deneme (10-17, Haiku): kayıtlı abonelik İPTAL EDİLMİŞKEN yeni aboneliğin DENEME olayı da yerine geçer (ölü abonelik yeni kartlı
+  // denemeyi "iptal" göstermesin). Sıra koruması (aşağıda) eski olayı yine düşürür.
+  const replacesCanceledWithTrial = status === "trialing" && existing?.status === "canceled";
+  if (existing?.providerRef && providerRef && existing.providerRef !== providerRef && status !== "active" && !replacesCanceledWithTrial) return;
   // 🚨 İKİNCİ AKTİF ABONELİK (kurucu onayı 10-10): kayıtlı abonelik İPTAL EDİLMEMİŞKEN farklı bir abonelik aktifleşiyor (ör. webhook gelmeden
   // ikinci ödeme ekranında ikinci ödeme). Yeni abonelik yine yerine geçer (K4 — müşteri davranışı DEĞİŞMEZ) ama eskisi Paddle'da
   // faturalanmaya devam edebilir → operatöre YENİ abonelik başına bir kez alarm (geçiş tabanlı). Alarm YALNIZ yazım uygulandıktan SONRA
@@ -314,7 +317,9 @@ async function applySubscriptionEvent(
     // Once a real paid subscription activates, our local reverse-trial marker
     // is moot — clear it so trialEndsAt can never make a paying org look
     // "expired" if future code reads it without checking status.
-    ...(status === "active" ? { trialEndsAt: null } : {}),
+    // Ödemeye geçen hesapta eski deneme bitiş SEBEBİ de kalkar (operatörün / ilan kuralının "deneme bitti" notu ödeyen müşteriye — sonra
+    // iptal etse bile — gösterilmesin; Haiku 10-17).
+    ...(status === "active" ? { trialEndsAt: null, trialEndReason: null } : {}),
     // KARTLA DENEME (kurucu 10-17): Paddle'da deneme süreli abonelik `trialing` gelir ve deneme dönemi `current_billing_period`tır. Yerel
     // deneme bitişi (kartsız denemeden kalan) YAZILMAZSA erişim o tarihte kapanırdı — Paddle ise deneme bitince tahsil edecekken. Paddle'ın
     // deneme sonu yazılır; dönem sonu yoksa dokunulmaz (`trialing` + boş bitiş zaten kapalı yön — `getEntitlement`). Bugün deneme süreli
@@ -347,6 +352,8 @@ async function applySubscriptionEvent(
     // Olay günlüğü (takip numarası): abonelik satırı bu olayla GERÇEKTEN yazıldı (sıra koruması geçti).
     await logEvent("billing.subscription.applied", { status, plan: planCode ?? undefined, subscriptionRef: providerRef ?? undefined }, { organizationId });
     // "Ödemeniz işleniyor" kilidi (kurucu onayı 10-10): abonelik AKTİF olarak yazıldı → yeni ödeme ekranı kilidi kalkar.
+    // Kartla deneme: kart eklendi (`trialing`) → "Ödemeniz işleniyor" kilidi de kalkar (Haiku 10-17).
+    if (status === "trialing") await clearCheckoutPending(organizationId);
     if (status === "active") {
       await clearCheckoutPending(organizationId);
       // I4 C (10-17): "Aboneliği devam ettir"in "işleniyor" kilidi abonelik etkin yazılınca kalkar (holder fiyat — herhangi etkin olay yeter).
@@ -462,6 +469,8 @@ async function applySubscriptionEvent(
         pastDueSince,
         lastEventAt: occurredAt,
         customerId,
+        // Kartla deneme: ilk olay `trialing` ise Paddle'ın deneme sonu (güncelleme yoluyla aynı kural — boş bırakılırsa kapalı yön).
+        ...(status === "trialing" && currentPeriodEnd ? { trialEndsAt: currentPeriodEnd } : {}),
       },
     });
     await settlePending();

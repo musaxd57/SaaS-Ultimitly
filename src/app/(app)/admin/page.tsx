@@ -59,6 +59,7 @@ export default async function AdminPage() {
         channelConnections: { where: { provider: "hospitable" }, select: { status: true, revokedReason: true }, take: 1 },
         subscription: { select: { status: true, planCode: true, provider: true, trialEndsAt: true, trialEndReason: true } },
         trialIdentityReusedAt: true,
+        trialCardRequiredAt: true,
         _count: { select: { properties: true, users: true } },
       },
     }),
@@ -308,11 +309,22 @@ export default async function AdminPage() {
                       <td className="px-4 py-3 text-muted-foreground">{dateFmt.format(org.createdAt)}</td>
                       <td className="px-4 py-3">
                         {/* Kurucu Q4 (10-17): operatör denemeyi elle bitirir / geri verir (otomatik kesme YOK). */}
-                        {org.subscription?.trialEndReason === TRIAL_END_REASON_OPERATOR ? (
-                          <TrialEndButton organizationId={org.id} mode="restore" />
-                        ) : org.subscription?.trialEndsAt && org.subscription.trialEndsAt.getTime() > riskListNow.getTime() ? (
-                          <TrialEndButton organizationId={org.id} mode="end" />
-                        ) : null}
+                        <span className="inline-flex flex-wrap items-center gap-1">
+                          {org.subscription?.trialEndReason === TRIAL_END_REASON_OPERATOR ? (
+                            <TrialEndButton organizationId={org.id} mode="restore" />
+                          ) : org.subscription?.trialEndsAt && org.subscription.trialEndsAt.getTime() > riskListNow.getTime() ? (
+                            <TrialEndButton organizationId={org.id} mode="end" />
+                          ) : null}
+                          {/* Kartla deneme kapısı: kart isteniyor → rozet + operatör istisnası (Haiku 10-17). */}
+                          {org.trialCardRequiredAt ? (
+                            <>
+                              <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
+                                Kart istendi
+                              </span>
+                              <TrialEndButton organizationId={org.id} mode="card_exempt" />
+                            </>
+                          ) : null}
+                        </span>
                       </td>
                     </tr>
                   ))}
@@ -382,6 +394,10 @@ export default async function AdminPage() {
                                   </span>
                                   <TrialExemptButton organizationId={org.id} mode={endedByOldRule ? "ended" : "flag"} />
                                 </>
+                              ) : null}
+                              {/* Operatörün bitirdiği deneme riskli listeden düşse de (puan 0 / 30 gün) geri verilebilsin (Haiku 10-17). */}
+                              {org.subscription?.provider === "trial" && org.subscription.trialEndReason === TRIAL_END_REASON_OPERATOR ? (
+                                <TrialEndButton organizationId={org.id} mode="restore" />
                               ) : null}
                             </span>
                           );

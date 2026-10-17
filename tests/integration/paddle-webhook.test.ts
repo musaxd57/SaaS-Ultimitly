@@ -207,6 +207,48 @@ describe("POST /api/webhooks/paddle", () => {
       }
     });
 
+    it("Haiku 10-17: İPTAL edilmiş eski aboneliğin yerine yeni KARTLI DENEME geçer (deneme sonu yazılır); ödeme olayı eski deneme sebebini siler", async () => {
+      await prisma.subscription.create({
+        data: {
+          organizationId: orgId,
+          planCode: "pro",
+          provider: "paddle",
+          providerRef: "sub_old",
+          status: "canceled",
+          trialEndReason: "operator_ended",
+          lastEventAt: new Date(Date.now() - 10 * 86_400_000),
+        },
+      });
+      const end = new Date(Date.now() + 9 * 86_400_000).toISOString();
+      const trial = JSON.stringify({
+        event_id: "evt_new_trial",
+        event_type: "subscription.created",
+        occurred_at: new Date(Date.now() - 60_000).toISOString(),
+        data: { id: "sub_new", status: "trialing", custom_data: { consentId }, items: [{ price: { id: "pri_pro" } }], current_billing_period: { starts_at: new Date().toISOString(), ends_at: end } },
+      });
+      expect((await POST(req(trial, sign(trial)))).status).toBe(200);
+      let sub = await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } });
+      expect(sub).toMatchObject({ providerRef: "sub_new", status: "trialing" }); // ⬅️ ESKİDE: K4 olayı düşürüyor, satır "iptal" kalıyordu
+      expect(sub.trialEndsAt?.toISOString()).toBe(end);
+      const paid = subEvent("evt_new_paid", "sub_new", "active", new Date().toISOString());
+      expect((await POST(req(paid, sign(paid)))).status).toBe(200);
+      sub = await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } });
+      expect(sub).toMatchObject({ status: "active", trialEndsAt: null, trialEndReason: null });
+    });
+
+    it("Haiku 10-17: İLK olay kartlı deneme ise (satır yok) oluşturma yolu da Paddle deneme sonunu yazar", async () => {
+      const end = new Date(Date.now() + 7 * 86_400_000).toISOString();
+      const trial = JSON.stringify({
+        event_id: "evt_first_trial",
+        event_type: "subscription.created",
+        occurred_at: new Date().toISOString(),
+        data: { id: "sub_first", status: "trialing", custom_data: { consentId }, items: [{ price: { id: "pri_pro" } }], current_billing_period: { starts_at: new Date().toISOString(), ends_at: end } },
+      });
+      expect((await POST(req(trial, sign(trial)))).status).toBe(200);
+      const sub = await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } });
+      expect(sub.trialEndsAt?.toISOString()).toBe(end);
+    });
+
     // Opus 10-16 N1: ödeme gecikmesi olayındaki dönem (Paddle yenilemede ödenmemiş YENİ döneme ilerlemiş olabilir) erişimi uzatmaz.
     const periodEvent = (eventId: string, status: string, occurredAt: string, startsAt: string, endsAt: string) =>
       JSON.stringify({

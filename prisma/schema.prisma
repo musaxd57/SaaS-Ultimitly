@@ -167,6 +167,8 @@ model Organization {
   /// Kartla deneme kapısı (kurucu 10-17, migration 74): deneme sürerken risk puanı YÜKSEK bantta (ağ / IP sinyalleri HARİÇ) → saatlik iş
   /// damgalar; `TRIAL_CARD_GATE_ENABLED` + faturalandırma zorunluyken otomatik işler kart eklenene kadar durur. Puan düşünce silinir.
   trialCardRequiredAt        DateTime?
+  /// Operatör kartla deneme kapısından MUAF tuttu ("Kart şartını kaldır"; Haiku 10-17) — saatlik iş bu işletmeyi bir daha damgalamaz.
+  trialCardExemptAt          DateTime?
   createdAt                  DateTime  @default(now())
   updatedAt                  DateTime  @updatedAt
 

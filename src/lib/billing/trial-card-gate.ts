@@ -12,7 +12,7 @@
 // `docs/TASARIM-2026-10-17-paddle-devam-ettir-ve-kartla-deneme.md` §3.
 // ---------------------------------------------------------------------------
 import { prisma } from "@/lib/db";
-import { writeAudit } from "@/lib/audit";
+import { writeAuditInTx } from "@/lib/audit";
 import { canonicalMailbox } from "@/lib/email-identity";
 import { isDemoOrg } from "@/lib/demo-tenant/constants";
 import { NETWORK_RISK_REASONS, trialRisk, trialRiskBand, trialRiskWeight, type TrialRisk, type TrialRiskReason } from "@/lib/billing/trial-risk";
@@ -31,7 +31,12 @@ export function cardTrialPriceIds(): Record<string, string> {
  * normal (anında tahsilli) ödeme ekranı açılmasın.
  */
 export function trialCardGateEnabled(): boolean {
-  return process.env.TRIAL_CARD_GATE_ENABLED === "1" && Object.values(cardTrialPriceIds()).every((id) => id !== "");
+  return (
+    process.env.TRIAL_CARD_GATE_ENABLED === "1" &&
+    Object.values(cardTrialPriceIds()).every((id) => id !== "") &&
+    // Ödeme penceresi istemci anahtarı yoksa "Kart ekle" düğmesi çizilemez → kart eklenemeyen kilit olmasın (Haiku 10-17).
+    Boolean(process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN?.trim())
+  );
 }
 
 /** Kapının kullandığı sebepler: operatör puanının ağ DIŞI kısmı. */
@@ -71,6 +76,7 @@ export async function evaluateTrialCardGates(now: Date = new Date()): Promise<Ca
       id: true,
       trialIdentityReusedAt: true,
       trialCardRequiredAt: true,
+      trialCardExemptAt: true,
       subscription: { select: { trialEndReason: true } },
     },
   });
@@ -104,26 +110,41 @@ export async function evaluateTrialCardGates(now: Date = new Date()): Promise<Ca
       // Ağ sinyalleri BİLİNÇLİ verilmez (↑ aydınlatma cümlesi).
       now,
     });
-    const required = cardGateRequired(risk);
+    // Operatör muafiyeti ("Kart şartını kaldır") kalıcı: damga yazılmaz, varsa silinir.
+    const required = !o.trialCardExemptAt && cardGateRequired(risk);
     if (required && !o.trialCardRequiredAt) toRequire.push({ id: o.id, reasons: cardGateReasons(risk) });
     if (!required && o.trialCardRequiredAt) toClear.push(o.id);
   }
 
+  // Damga + denetim TEK işlemde; yazım KOŞULLU (okuma ile yazma arasında operatör denemeyi bitirdiyse / muaf tuttuysa / kart eklendiyse
+  // damga yazılmaz — Haiku 10-17).
   let required = 0;
   for (const r of toRequire) {
-    const res = await prisma.organization.updateMany({ where: { id: r.id, trialCardRequiredAt: null }, data: { trialCardRequiredAt: now } });
-    if (res.count === 1) {
-      required++;
-      await writeAudit({ organizationId: r.id, actorUserId: null, action: "trial.card_required", metadata: { reasons: r.reasons } }).catch(() => {});
-    }
+    const done = await prisma.$transaction(async (tx) => {
+      const res = await tx.organization.updateMany({
+        where: {
+          id: r.id,
+          trialCardRequiredAt: null,
+          trialCardExemptAt: null,
+          subscription: { is: { provider: "trial", trialEndsAt: { gt: now } } },
+        },
+        data: { trialCardRequiredAt: now },
+      });
+      if (res.count !== 1) return false;
+      await writeAuditInTx(tx, { organizationId: r.id, actorUserId: null, action: "trial.card_required", metadata: { reasons: r.reasons } });
+      return true;
+    });
+    if (done) required++;
   }
   let cleared = 0;
   for (const id of toClear) {
-    const res = await prisma.organization.updateMany({ where: { id, trialCardRequiredAt: { not: null } }, data: { trialCardRequiredAt: null } });
-    if (res.count === 1) {
-      cleared++;
-      await writeAudit({ organizationId: id, actorUserId: null, action: "trial.card_requirement_cleared", metadata: {} }).catch(() => {});
-    }
+    const done = await prisma.$transaction(async (tx) => {
+      const res = await tx.organization.updateMany({ where: { id, trialCardRequiredAt: { not: null } }, data: { trialCardRequiredAt: null } });
+      if (res.count !== 1) return false;
+      await writeAuditInTx(tx, { organizationId: id, actorUserId: null, action: "trial.card_requirement_cleared", metadata: {} });
+      return true;
+    });
+    if (done) cleared++;
   }
   return { required, cleared };
 }

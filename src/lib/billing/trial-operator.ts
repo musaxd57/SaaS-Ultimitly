@@ -15,7 +15,7 @@ export const TRIAL_END_REASON_OPERATOR = "operator_ended";
 export const TRIAL_OPERATOR_ENDED_MESSAGE =
   "Ücretsiz denemeniz sona erdi. Devam etmek için bir plan seçin. Bir yanlışlık olduğunu düşünüyorsanız bize yazın.";
 
-export type TrialOperatorResult = { ok: true } | { ok: false; reason: "not_running" | "not_operator_ended" };
+export type TrialOperatorResult = { ok: true } | { ok: false; reason: "not_running" | "not_operator_ended" | "not_card_required" };
 
 /** Süren denemeyi bitirir (yalnız sağlayıcı "trial" ve bitiş anı gelecekte). Koşullu yazım + denetim kaydı aynı işlemde. */
 export async function endTrialByOperator(
@@ -50,3 +50,24 @@ export async function restoreOperatorEndedTrial(
     return { ok: true } as const;
   });
 }
+
+/**
+ * Kartla deneme kapısı İSTİSNASI (Haiku 10-17: meşru müşteri — ör. geçici e-posta + ortak posta kutusu — kapıda kalınca operatörün tek aracı
+ * "Denemeyi bitir"di, kapıdan daha sert). İşletme bundan sonra kapıdan MUAF; damga silinir, otomatik işler açılır. Yalnız kart istenen hesapta.
+ */
+export async function exemptTrialCardGate(
+  organizationId: string,
+  actorUserId: string,
+  now: Date = new Date(),
+): Promise<TrialOperatorResult> {
+  return prisma.$transaction(async (tx) => {
+    const res = await tx.organization.updateMany({
+      where: { id: organizationId, trialCardRequiredAt: { not: null } },
+      data: { trialCardRequiredAt: null, trialCardExemptAt: now },
+    });
+    if (res.count !== 1) return { ok: false, reason: "not_card_required" } as const;
+    await writeAuditInTx(tx, { organizationId, actorUserId, action: "trial.card_gate_exempt", metadata: {} });
+    return { ok: true } as const;
+  });
+}
+

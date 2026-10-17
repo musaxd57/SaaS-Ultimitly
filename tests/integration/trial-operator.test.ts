@@ -108,4 +108,13 @@ describe("operatör: denemeyi bitir / geri ver", () => {
     );
     expect(TRIAL_OPERATOR_ENDED_MESSAGE).not.toMatch(/risk|kötüye|şüphe|IP|ilan/iu);
   });
+
+  it("Haiku 10-17: kurucu org operatör yolundan bitirilemez (409, deneme sürer)", async () => {
+    const orgId = await seed({ provider: "trial", status: "trialing", trialEndsAt: new Date(Date.now() + 5 * DAY) });
+    vi.stubEnv("PRIMARY_ORG_ID", orgId);
+    const res = await call(orgId, "end");
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ code: "protected_org" });
+    expect((await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } })).trialEndReason).toBeNull();
+  });
 });

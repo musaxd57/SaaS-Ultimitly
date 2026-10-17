@@ -7,6 +7,8 @@ import { LEGAL_TEXT_HASH } from "@/lib/legal-text-hash";
 import { paddlePriceToPlanCode, paddlePriceCatalogConfigured } from "@/lib/payments/paddle";
 import { checkoutConsentSchema, zodFieldErrors } from "@/lib/validators";
 import { checkoutPendingActive } from "@/lib/billing/checkout-pending";
+import { cardTrialPriceIds } from "@/lib/billing/trial-card-gate";
+import { getEntitlement } from "@/lib/billing/subscription";
 import { CHECKOUT_PENDING_MESSAGE } from "@/lib/billing/checkout-pending-shared";
 import { currentCorrelationId } from "@/lib/correlation";
 import { logEvent } from "@/lib/event-log";
@@ -54,6 +56,12 @@ export const POST = withOwner(async (session, req) => {
   // ⚠️ Kural yalnız katalog YAPILANDIRILMIŞKEN uygulanır — env'siz yerel
   // geliştirmede her fiyat "bilinmeyen" olurdu ve akış komple kilitlenirdi.
   if (!derivedPlanCode && paddlePriceCatalogConfigured()) {
+    return badRequest({ planCode: "Plan fiyatı doğrulanamadı. Lütfen sayfayı yenileyip tekrar deneyin." });
+  }
+
+  // KARTLA DENEME FİYATI yalnız kart istenen (kartla deneme kapısındaki) hesaba açılır (Haiku 10-17): yoksa herhangi bir deneme hesabı doğrudan
+  // istekle deneme süreli fiyattan ödeme ekranı açıp ücretsiz denemesini Paddle'da UZATABİLİRDİ. Kapıdaki hesap normal fiyatla hemen ödeyebilir.
+  if (Object.values(cardTrialPriceIds()).includes(parsed.data.priceId) && !(await getEntitlement(session.organizationId)).cardRequired) {
     return badRequest({ planCode: "Plan fiyatı doğrulanamadı. Lütfen sayfayı yenileyip tekrar deneyin." });
   }
 

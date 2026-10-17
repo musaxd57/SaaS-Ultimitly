@@ -34,6 +34,7 @@ beforeEach(async () => {
   vi.stubEnv("PADDLE_PRICE_BASLANGIC_DENEME", "pri_b_t");
   vi.stubEnv("PADDLE_PRICE_PRO_DENEME", "pri_p_t");
   vi.stubEnv("PADDLE_PRICE_ISLETME_DENEME", "pri_i_t");
+  vi.stubEnv("NEXT_PUBLIC_PADDLE_CLIENT_TOKEN", "test_client_token");
   vi.stubEnv("BILLING_ENFORCED", "true");
   vi.stubEnv("PRIMARY_ORG_ID", "kurucu-org-yok");
 });
@@ -86,5 +87,24 @@ describe("kartla deneme kapısı", () => {
     expect(await evaluateTrialCardGates()).toEqual({ required: 0, cleared: 0 });
     await prisma.organization.update({ where: { id: founder }, data: { trialCardRequiredAt: new Date() } });
     expect((await getEntitlement(founder)).active).toBe(true);
+  });
+
+  it("🚨 Haiku 10-17: operatör 'Kart şartını kaldır' → erişim hemen açılır, saatlik iş bir daha DAMGALAMAZ; kart istenmeyen hesapta 409", async () => {
+    const risky = await trialOrg("risky@example.com", { identityReused: true });
+    await evaluateTrialCardGates();
+    const { exemptTrialCardGate } = await import("@/lib/billing/trial-operator");
+    expect(await exemptTrialCardGate(risky, "op")).toEqual({ ok: true });
+    expect(await getEntitlement(risky)).toMatchObject({ cardRequired: false, active: true });
+    expect(await evaluateTrialCardGates()).toEqual({ required: 0, cleared: 0 });
+    expect((await prisma.organization.findUniqueOrThrow({ where: { id: risky } })).trialCardRequiredAt).toBeNull();
+    expect(await exemptTrialCardGate(risky, "op")).toEqual({ ok: false, reason: "not_card_required" });
+  });
+
+  it("Haiku 10-17: damga KOŞULLU — okuma ile yazma arasında deneme bittiyse damga yazılmaz", async () => {
+    const risky = await trialOrg("risky@example.com", { identityReused: true });
+    // Saatlik iş "şimdi"yi, deneme bitişinden SONRAKİ bir an olarak görürse aday değildir; aynı koşul yazımın içinde de var.
+    await prisma.subscription.update({ where: { organizationId: risky }, data: { trialEndsAt: new Date(Date.now() - 1000) } });
+    expect(await evaluateTrialCardGates()).toEqual({ required: 0, cleared: 0 });
+    expect((await prisma.organization.findUniqueOrThrow({ where: { id: risky } })).trialCardRequiredAt).toBeNull();
   });
 });

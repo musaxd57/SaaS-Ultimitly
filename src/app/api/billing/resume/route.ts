@@ -72,9 +72,23 @@ export const POST = withOwner(async (session, req) => {
   }
   const clearLock = () => prisma.systemLock.deleteMany({ where: { name: lockName } }).catch(() => {});
   const audit = (action: string, extra: Record<string, unknown> = {}) =>
-    writeAudit({ organizationId: org, actorUserId: auditActor(session), action, metadata: { plan: r.planCode, ...extra, ...auditImpersonation(session) } }).catch(
-      () => {},
-    );
+    writeAudit({
+      organizationId: org,
+      actorUserId: auditActor(session),
+      action,
+      // Onaylanan tutar izde (gerçek tahsilatla karşılaştırma — sandbox P8; kişisel veri yok).
+      metadata: { plan: r.planCode, amount: token.amount, ...extra, ...auditImpersonation(session) },
+    }).catch(() => {});
+
+  // KİLİTTEN SONRA, Paddle'a gitmeden ÖNCE canlı durum yeniden okunur (Haiku 10-17): başka sekmenin devamı kilit düşmeden hemen önce
+  // tamamlanmış olabilir — etkin aboneliğe ikinci "devam" gönderilmez. Okunamazsa kapalı yön.
+  const live = await getSubscriptionStatus(r.providerRef);
+  if (live?.status !== "paused") {
+    await releasePlanChangeNonce(token.jti);
+    await clearLock();
+    const already = live?.status === "active" || live?.status === "trialing";
+    return NextResponse.json({ error: already ? RESUME_TEXT.alreadyActive : RESUME_TEXT.statusUnknown, alreadyActive: already }, { status: 409 });
+  }
 
   const result = await resumeSubscription(r.providerRef, org);
   if (!result.ok && result.kind === "definitive") {
@@ -94,7 +108,15 @@ export const POST = withOwner(async (session, req) => {
   if (!result.ok) {
     // BELİRSİZ: tahsilat gerçekleşmiş olabilir — yeniden gönderilmez, belirteç tüketik kalır. Paddle'daki durum okunur.
     const now = await getSubscriptionStatus(r.providerRef);
+    if (now?.status === "past_due") {
+      // Devam etti ama ödeme alınamadı → kart güncelleme (Paddle aynı işlemi yeniden dener; Haiku 10-17).
+      await clearLock();
+      await audit("billing.resume_payment_failed");
+      const links = await createPortalSession(r.providerRef);
+      return NextResponse.json({ error: RESUME_TEXT.declined, cardUpdateUrl: links?.updatePaymentMethod ?? links?.overview ?? null }, { status: 402 });
+    }
     if (now?.status !== "active") {
+      // Hâlâ duraklatılmış / okunamadı: istek Paddle'da sürüyor olabilir → kilit KALIR (ikinci tahsilat olmasın), sonuç vaat edilmez.
       await audit("billing.resume_pending");
       return NextResponse.json({ pending: true, error: RESUME_TEXT.pending }, { status: 202 });
     }

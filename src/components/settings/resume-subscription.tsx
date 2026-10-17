@@ -20,6 +20,9 @@ export interface ResumePlanOption {
   currency: string;
 }
 
+/** Sonucu belirsiz istek (Haiku 10-17): ödeme alınmış da olabilir, alınmamış da — sonuç vaat edilmez. */
+const UNCERTAIN = "İşleminizin sonucu henüz kesinleşmedi. Birkaç dakika sonra sayfayı yenileyin; ödemeniz alındıysa aboneliğiniz açılmış olur.";
+
 type Preview = { planCode: string; planName: string; amount: string; confirm: { headline: string; fine: string }; previewToken: string };
 
 export function ResumeSubscription({
@@ -107,11 +110,19 @@ export function ResumeSubscription({
         again = "Tutar değişti. Yeni tutarı kontrol edip yeniden onaylayın.";
       } else if (data.pendingVerification) {
         setNotice(data.error ?? BILLING_TEXT.changePending);
+      } else if (typeof data.error === "string" || data.fields) {
+        // Sunucunun KESİN cevabı (ret / zaten etkin / tutar okunamadı) — kendi metni.
+        setError(billingReason(data, UNCERTAIN));
       } else {
-        setError(billingReason(data, "Aboneliğiniz devam ettirilemedi; ödeme alınmadı. Lütfen tekrar deneyin, sorun sürerse bize yazın."));
+        // Sunucudan okunabilir cevap yok (zaman aşımı / ağ geçidi hatası): ödeme ALINMIŞ olabilir — "alınmadı" DENMEZ (Haiku 10-17).
+        setNotice(UNCERTAIN);
+        setTimeout(() => router.refresh(), 4000);
       }
     } catch {
-      setError(BILLING_TEXT.network);
+      // Bağlantı istek yolda koptu: istek Paddle'a ulaşmış olabilir → sonuç vaat edilmez, sayfa yenilenir.
+      setPreview(null);
+      setNotice(UNCERTAIN);
+      setTimeout(() => router.refresh(), 4000);
     } finally {
       setBusy(false);
     }
@@ -162,7 +173,7 @@ export function ResumeSubscription({
                   disabled={busy}
                   className="inline-flex h-8 items-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
                 >
-                  {busy ? "İşleniyor…" : "Onayla"}
+                  {busy ? "İşleniyor…" : `${preview.amount} öde ve devam ettir`}
                 </button>
                 <button
                   type="button"
@@ -182,7 +193,7 @@ export function ResumeSubscription({
                 disabled={busy}
                 className="inline-flex h-8 items-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
               >
-                {busy ? "Hesaplanıyor…" : "Devam et"}
+                {busy ? "Hesaplanıyor…" : chosen !== currentPlanCode && current ? `Önce ${current.name} ile devam et` : "Devam et"}
               </button>
               <button
                 type="button"

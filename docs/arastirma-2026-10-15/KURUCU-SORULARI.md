@@ -830,6 +830,13 @@ Bugün sayılıyor → misafirin hemen önce sorduğu "Otopark var mı?" cevaps�
   itibaren yeniden 14 gün mü? (Kalan güne göre ayar Paddle'ın özel fiyat desteğine bağlı — sandbox P5.)
 - Müşterinin göreceği metin (bant + faturalandırma kartı, onayınızı bekliyor): "Denemenize devam etmek için kartınızı ekleyin. Deneme süresince ücret
   alınmaz; deneme bitmeden iptal ederseniz ücret ödemezsiniz." + "Kart ekle".
+- **KD4 · Yalnız "ilan daha önce başka denemede kullanıldı" kart isteğine yeter mi?** (Haiku 10-17) Bugünkü puanla bu işaret tek başına "yüksek"
+  bant (60). Hesabını silip yeniden açan ev sahibi ya da ilanı devralan yeni yönetici de bu işareti alır (K1-B'de denemeyi bitirmiyoruz,
+  yalnız işaretliyoruz). ÖRNEK: Ayşe hesabını silip aynı ilanla yeniden açtı → (a) önerim: kart istenir (deneme sürer, ücret alınmaz; operatör
+  "Kart şartını kaldır" ile istisna tanıyabilir — eklendi) · (b) yalnız ilan işareti yetmez, ek bir işaret (geçici e-posta / ortak posta kutusu)
+  daha gerekir. Hangisi?
+- Ekip üyesi (sahip değil) bantta aynı metni görür; kartı yalnız hesap sahibi ekleyebilir. İsterseniz ekip üyesine "İşletme sahibinizin kart
+  eklemesi gerekiyor." yazarım (yeni müşteri metni — onayınızla).
 
 **L1 / L4 (geçmiş cevaplarınız + düzenleme farkından öğrenme) — 6 soru:** tasarım (Opus, kodda doğrulanmış) `docs/TASARIM-2026-10-17-l1-l4-gecmis-cevaplar-ve-duzenleme-farki.md`
 §7: (1) "iki kip" ne demek (önerim: Kip A taslakta, Kip B sıkı şartlı otomatik cevapta, daire başına bir kez seçilir) · (2) bilgi tabanı ile
