@@ -84,14 +84,14 @@ export async function resolvePlanChange(
   planCode: string,
 ): Promise<ResolvedPlanChange> {
   const target = planByCode(planCode);
-  if (!target) return { ok: false, error: "Geçersiz plan." };
+  if (!target) return { ok: false, error: "Seçilen plan bulunamadı. Sayfayı yenileyip tekrar deneyin." };
 
   const sub = await prisma.subscription.findUnique({
     where: { organizationId },
     select: { provider: true, providerRef: true, planCode: true, status: true },
   });
   if (!sub || sub.provider !== "paddle" || !sub.providerRef) {
-    return { ok: false, error: "Yönetilecek bir Paddle aboneliği bulunamadı." };
+    return { ok: false, error: "Yönetilecek bir aboneliğiniz bulunamadı. Bir plan seçerek abonelik başlatabilirsiniz." };
   }
 
   // ── İPTAL EDİLMİŞ ABONELİK: PLAN DEĞİŞTİRİLEMEZ (08-05) ────────────────────
@@ -129,7 +129,7 @@ export async function resolvePlanChange(
     return {
       ok: false,
       // Opus F8: portalda "devam ettir" olduğu doğrulanamadı → eylem vaat etmeyen metin (son biçim kurucu sorusu I4).
-      error: "Aboneliğiniz duraklatılmış olduğu için şu anda plan değiştirilemez.",
+      error: "Aboneliğiniz duraklatıldığı için şu anda plan değiştirilemiyor.",
     };
   }
   if (sub.status === "canceled" && process.env.BILLING_ALLOW_CANCELED_PLAN_CHANGE !== "1") {
@@ -185,10 +185,10 @@ export async function resolvePlanChange(
 
   const mode = planChangeMode(sub.planCode, planCode);
   if (mode === "same") return { ok: false, error: "Zaten bu plandasınız." };
-  if (mode === "unknown") return { ok: false, error: "Geçersiz plan." };
+  if (mode === "unknown") return { ok: false, error: "Seçilen plan bulunamadı. Sayfayı yenileyip tekrar deneyin." };
 
   const priceId = priceIdForPlanCode(planCode);
-  if (!priceId) return { ok: false, error: "Plan fiyatı yapılandırılmadı." };
+  if (!priceId) return { ok: false, error: "Bu plan şu anda satın alınamıyor. Lütfen daha sonra tekrar deneyin ya da bize yazın." };
 
   return {
     ok: true,

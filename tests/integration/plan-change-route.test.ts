@@ -175,11 +175,14 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
     expect(updateMock).toHaveBeenCalledWith("sub_1", "pri_isletme", "prorated_immediately", orgId);
   });
 
-  it("change: 502 + Paddle reason on a DEFINITIVE (4xx) rejection", async () => {
+  it("change: 502 on a DEFINITIVE (4xx) rejection — sağlayıcının ham sebebi müşteriye GİTMEZ (K3, 10-17)", async () => {
     updateMock.mockResolvedValue({ ok: false, kind: "definitive", reason: "Paddle HTTP 400 (subscription_locked) env=production resource=subscriptions" });
     const res = await CHANGE(req({ planCode: "business", previewToken: tok("pri_isletme", "upgrade") }), ctx);
     expect(res.status).toBe(502);
-    expect((await res.json()).detail).toContain("subscription_locked");
+    const body = await res.json();
+    // ⬅️ ESKİDE `detail: "Paddle HTTP 400 (subscription_locked) env=production …"` ekranda "(…)" olarak çıkıyordu.
+    expect(JSON.stringify(body)).not.toMatch(/subscription_locked|env=|Paddle HTTP/);
+    expect(body.error).toBe("Plan değişikliği yapılamadı; planınız değişmedi. Lütfen tekrar deneyin, sorun sürerse bize yazın.");
     // 15 ajan A10 F6: reddedilen deneme de iz bırakır; "değiştirildi" kaydı YAZILMAZ.
     const rows = await prisma.auditLog.findMany({ where: { action: { startsWith: "billing.plan_change" } } });
     expect(rows.map((r) => r.action)).toEqual(["billing.plan_change_rejected"]);
@@ -369,7 +372,7 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
       ["apply", await CHANGE(req({ planCode: "business", previewToken: tok("pri_isletme", "upgrade") }), ctx)],
     ] as const) {
       expect(res.status, name).toBe(400);
-      expect((await res.json()).fields?.error, name).toContain("duraklatılmış");
+      expect((await res.json()).fields?.error, name).toContain("duraklatıldığı");
     }
     expect(previewMock).not.toHaveBeenCalled();
     expect(updateMock).not.toHaveBeenCalled();

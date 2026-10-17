@@ -25,7 +25,7 @@ export const POST = withOwner(async (session, req) => {
   const pending = await prisma.systemLock.findUnique({ where: { name: `plan-change-pending:${session.organizationId}` } });
   if (pending && pending.lockedUntil > new Date()) {
     return NextResponse.json(
-      { error: "Önceki plan değişikliği doğrulanıyor — birkaç dakika içinde netleşecek.", pendingVerification: true },
+      { error: "Önceki plan değişikliğiniz hâlâ işleniyor. Birkaç dakika sonra sayfayı yenileyin.", pendingVerification: true },
       { status: 409 },
     );
   }

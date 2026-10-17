@@ -6,6 +6,7 @@ import Link from "next/link";
 import { LEGAL_VERSION } from "@/lib/legal-entity";
 import { CHECKOUT_PENDING_MESSAGE, CHECKOUT_PENDING_MS } from "@/lib/billing/checkout-pending-shared";
 import { formatMinor } from "@/lib/utils";
+import { BILLING_TEXT, billingReason, lapsedLabel } from "@/lib/billing/billing-ui-text";
 import { TrackingNumberCopy } from "@/components/tracking-number-copy";
 import {
   BillingPeriodToggle,
@@ -111,6 +112,7 @@ export function PaddlePlans({
   currency,
   checkoutPending = false,
   trialNotice = null,
+  subscriptionStatus = null,
 }: {
   clientToken: string;
   environment: "sandbox" | "production";
@@ -146,10 +148,16 @@ export function PaddlePlans({
   checkoutPending?: boolean;
   /** Deneme erken bittiyse sunucunun hazırladığı sade not (kurucu onayı 10-10, deneme kimliği). */
   trialNotice?: string | null;
+  /** Abonelik durumu (erişim kapalıyken sebep etiketi: son ödeme alınamadı / duraklatıldı / iptal edildi — K3, 10-17). */
+  subscriptionStatus?: string | null;
 }) {
   const router = useRouter();
   const [ready, setReady] = useState(false);
+  // Ödeme ekranı betiği yüklenemedi / başlatılamadı: düğme "Yükleniyor…"da asılı kalmasın (K3 envanteri A2/A21).
+  const [loadFailed, setLoadFailed] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Hata OLMAYAN bilgi (onay bekleniyor, tutar değişti): kırmızı hata alanında gösterilmez (K3 envanteri S15).
+  const [notice, setNotice] = useState<string | null>(null);
   // Beklenmeyen sunucu hatasının tam takip numarası (kurucu kararı 10-10): metinde kısa numara, düğmede tamamı.
   const [trackingId, setTrackingId] = useState<string | null>(null);
   // In-app plan change: the previewed change awaiting the user's confirmation.
@@ -207,10 +215,14 @@ export function PaddlePlans({
           });
           setReady(true);
         } catch {
-          setError("Ödeme ekranı açılamadı. Sayfayı yenileyip tekrar deneyin; sorun sürerse bize yazın.");
+          setLoadFailed(true);
+          setError(BILLING_TEXT.checkoutOpenFailed);
         }
       })
-      .catch(() => setError("Ödeme servisi yüklenemedi. Bağlantınızı kontrol edin."));
+      .catch(() => {
+        setLoadFailed(true);
+        setError(BILLING_TEXT.checkoutLoadFailed);
+      });
     return () => {
       cancelled = true;
     };
@@ -226,17 +238,16 @@ export function PaddlePlans({
   const openCheckout = useCallback(
     async (planCode: string, priceId: string) => {
       if (!window.Paddle || !priceId || busy) return;
-      if (processing) {
-        setError(CHECKOUT_PENDING_MESSAGE);
-        return;
-      }
+      // "Ödemeniz işleniyor" kartın altında zaten yazılı (↓) — aynı metin ikinci kez kırmızı hata olarak basılmaz.
+      if (processing) return;
       // Defense-in-depth: even if the button somehow fires, never open a paid
       // checkout without the pre-contract acceptance.
       if (!accepted) {
-        setError("Devam etmek için Ön Bilgilendirme Formu ve Mesafeli Satış Sözleşmesi’ni onaylayın.");
+        setError(BILLING_TEXT.consentRequired);
         return;
       }
       setError(null);
+      setNotice(null);
       setTrackingId(null);
       setBusy(true);
       try {
@@ -252,6 +263,8 @@ export function PaddlePlans({
         // sonsuza kadar tekrar deniyordu. Sebep varsa onu göster; yoksa genel
         // mesaja düş (ağ hatası / beklenmedik durum).
         let serverReason: string | undefined;
+        // Ağ hatası ile sunucu reddi AYNI metni gösteriyordu (K3 envanteri A5) — müşteri bağlantısını mı kontrol etsin, tekrar mı denesin?
+        let networkFailed = false;
         try {
           const res = await fetch("/api/billing/consent", {
             method: "POST",
@@ -267,16 +280,15 @@ export function PaddlePlans({
           if (res.ok) {
             consentId = body.consentId;
           } else {
-            serverReason = body.fields?._ ?? body.fields?.planCode ?? body.error;
+            serverReason = billingReason(body, BILLING_TEXT.consentFailed);
             setTrackingId(body.correlationId ?? null);
           }
         } catch {
           /* network error → consentId stays undefined */
+          networkFailed = true;
         }
         if (!consentId) {
-          setError(
-            serverReason ?? "Onayınız kaydedilemedi, ödeme başlatılamadı. Lütfen tekrar deneyin.",
-          );
+          setError(networkFailed ? BILLING_TEXT.network : (serverReason ?? BILLING_TEXT.consentFailed));
           return;
         }
         lastConsentRef.current = consentId;
@@ -297,7 +309,7 @@ export function PaddlePlans({
           },
         });
       } catch {
-        setError("Ödeme ekranı açılamadı. Lütfen tekrar deneyin.");
+        setError(BILLING_TEXT.checkoutOpenFailed);
       } finally {
         setBusy(false);
       }
@@ -312,20 +324,27 @@ export function PaddlePlans({
   const openPortal = useCallback(async () => {
     if (busy) return;
     setError(null);
+    setNotice(null);
     setTrackingId(null);
     setBusy(true);
     try {
       const res = await fetch("/api/billing/portal", { method: "POST" });
-      const data = (await res.json().catch(() => ({}))) as { url?: string; error?: string; correlationId?: string };
+      const data = (await res.json().catch(() => ({}))) as {
+        url?: string;
+        error?: string;
+        fields?: Record<string, string>;
+        correlationId?: string;
+      };
       if (!res.ok || !data.url) {
-        // Beklenmeyen hata (500) takip numaralı metni taşır; diğer durumlarda eski genel metin.
-        setError(data.correlationId && data.error ? data.error : "Abonelik yönetim sayfası açılamadı. Lütfen tekrar deneyin.");
+        // Sunucunun sebebi gösterilir (K3 envanteri A7: 429 "çok fazla istek", 400 "abonelik bulunamadı" ve ağ hatası tek genel metne
+        // düşüyordu); beklenmeyen hata (500) takip numaralı metni taşır.
+        setError(billingReason(data, BILLING_TEXT.portalFailed));
         setTrackingId(data.correlationId ?? null);
         return;
       }
       window.location.href = data.url;
     } catch {
-      setError("Bağlantı hatası. Lütfen tekrar deneyin.");
+      setError(BILLING_TEXT.network);
     } finally {
       setBusy(false);
     }
@@ -333,9 +352,10 @@ export function PaddlePlans({
 
   // Step 1: preview the change (Paddle computes the exact prorated charge) and open
   // the confirm panel. Never applies anything by itself.
-  const startChange = useCallback(async (planCode: string) => {
+  const startChange = useCallback(async (planCode: string, noticeOnSuccess?: string) => {
     if (changeBusy) return;
     setError(null);
+    setNotice(null);
     setTrackingId(null);
     setChangeBusy(true);
     try {
@@ -363,9 +383,7 @@ export function PaddlePlans({
         // plandasınız" ve yıllık koruması dahil. Sebebi olmayan bir ret,
         // müşteriyi aynı butona sonsuza kadar bastırır (checkout tarafında
         // kapatılmış olan aynı kusur).
-        setError(
-          data.fields?.error ?? data.error ?? "Plan bilgisi alınamadı. Lütfen tekrar deneyin.",
-        );
+        setError(billingReason(data, BILLING_TEXT.previewFailed));
         setTrackingId(data.correlationId ?? null);
         return;
       }
@@ -378,8 +396,9 @@ export function PaddlePlans({
         recurringTotal: data.recurringTotal ?? null,
         previewToken: data.previewToken,
       });
+      if (noticeOnSuccess) setNotice(noticeOnSuccess);
     } catch {
-      setError("Bağlantı hatası. Lütfen tekrar deneyin.");
+      setError(BILLING_TEXT.network);
     } finally {
       setChangeBusy(false);
     }
@@ -390,8 +409,12 @@ export function PaddlePlans({
   const confirmChange = useCallback(async () => {
     if (!pending || changeBusy) return;
     setError(null);
+    setNotice(null);
     setTrackingId(null);
     setChangeBusy(true);
+    // 409 "tutar değişti" → yeni tutar OTOMATİK yeniden hesaplanıp onaya sunulur (K3 envanteri S13: pencere kapanıyor, yeni tutar
+    // gösterilmiyordu; müşteri neyi onaylayacağını bilmeden düğmeye yeniden basmak zorundaydı).
+    let refreshPlan: string | null = null;
     try {
       const res = await fetch("/api/billing/plan-change", {
         method: "POST",
@@ -400,7 +423,7 @@ export function PaddlePlans({
       });
       const data = (await res.json().catch(() => ({}))) as {
         error?: string;
-        detail?: string;
+        fields?: Record<string, string>;
         ok?: boolean;
         amountChanged?: boolean;
         pending?: boolean;
@@ -410,30 +433,34 @@ export function PaddlePlans({
         // Ambiguous Paddle outcome (timeout/5xx): it may already be applied. We do NOT
         // re-send. Close the dialog and let the webhook settle the plan on refresh.
         setPending(null);
-        setError(data.error ?? "İşleminiz alındı; onay bekleniyor. Birkaç dakika içinde güncellenecek.");
+        setNotice(data.error ?? BILLING_TEXT.changePending);
         setTimeout(() => router.refresh(), 4000);
         return;
       }
       if (!res.ok || !data.ok) {
-        setError(
-          (data.error ?? "Plan değişikliği yapılamadı. Lütfen tekrar deneyin.") +
-            (data.detail ? ` (${data.detail})` : ""),
-        );
-        setTrackingId(data.correlationId ?? null);
         // 409 = this preview is spent (single-use) or its amount moved. The dialog's
         // token is dead → close it so the next click mints a FRESH preview + amount.
         if (res.status === 409) setPending(null);
-        return;
+        if (res.status === 409 && data.amountChanged) {
+          // `return` KULLANILMAZ: yeniden hesaplama `finally`den SONRA koşar (meşgul işareti inmiş olmalı).
+          refreshPlan = pending.planCode;
+        } else {
+          // Sağlayıcının ham sebebi artık gelmiyor (K3 envanteri C2); 400 sebebi `fields` altında (C1: "Doğrulama hatası" görünüyordu).
+          setError(billingReason(data, BILLING_TEXT.changeFailed));
+          setTrackingId(data.correlationId ?? null);
+        }
+      } else {
+        setPending(null);
+        // Give Paddle's webhook a moment to update the local plan, then refresh.
+        setTimeout(() => router.refresh(), 2500);
       }
-      setPending(null);
-      // Give Paddle's webhook a moment to update the local plan, then refresh.
-      setTimeout(() => router.refresh(), 2500);
     } catch {
-      setError("Bağlantı hatası. Lütfen tekrar deneyin.");
+      setError(BILLING_TEXT.network);
     } finally {
       setChangeBusy(false);
     }
-  }, [pending, changeBusy, router]);
+    if (refreshPlan) void startChange(refreshPlan, BILLING_TEXT.amountChanged);
+  }, [pending, changeBusy, router, startChange]);
 
   // Index of the org's current plan in the (ordered) catalog, to label each card's
   // button as an upgrade or a downgrade.
@@ -460,7 +487,7 @@ export function PaddlePlans({
         {lapsed ? (
           <>
             {" "}
-            — <strong className="text-destructive">aboneliğiniz aktif değil</strong>
+            — <strong className="text-destructive">{lapsedLabel(subscriptionStatus)}</strong>
           </>
         ) : null}
         .
@@ -651,7 +678,9 @@ export function PaddlePlans({
                   {manageable
                     ? "Yönetimden değiştirin"
                     : !ready
-                      ? "Yükleniyor…"
+                      ? loadFailed
+                        ? "Sayfayı yenileyin"
+                        : "Yükleniyor…"
                       : trialing
                         ? "Bu planı seç"
                         : "Bu plana geç"}
@@ -664,11 +693,21 @@ export function PaddlePlans({
 
       {trialNotice && !manageable ? <p className="text-xs text-foreground">{trialNotice}</p> : null}
       {processing && !manageable ? <p className="text-xs text-muted-foreground">{CHECKOUT_PENDING_MESSAGE}</p> : null}
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      {planChangeEnabled && annual ? <p className="text-xs text-muted-foreground">{BILLING_TEXT.annualChangeViaSupport}</p> : null}
+      {notice ? (
+        <p className="text-xs text-foreground" role="status">
+          {notice}
+        </p>
+      ) : null}
+      {error ? (
+        <p className="text-xs text-destructive" role="alert">
+          {error}
+        </p>
+      ) : null}
       {error && trackingId ? <TrackingNumberCopy id={trackingId} /> : null}
       <p className="text-[11px] text-muted-foreground">
-        Ödeme, satıcı olarak Paddle (Merchant of Record) üzerinden güvenli şekilde alınır; fatura ve
-        KDV Paddle tarafından yönetilir. İstediğiniz zaman iptal edebilirsiniz.
+        Ödeme, satıcı olarak Paddle üzerinden güvenli şekilde alınır; fatura ve KDV Paddle tarafından
+        düzenlenir. İstediğiniz zaman iptal edebilirsiniz.
       </p>
     </div>
   );

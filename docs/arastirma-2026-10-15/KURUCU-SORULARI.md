@@ -682,14 +682,14 @@ Karar bekleyenler (denetim + ilk dilim tasarımı: `gecmisten-ogren-6-ilke.md` �
 | I1 | migration, önerildiği gibi (A: söze konu alanı) | Faz 2 migration |
 | I3 | anlaşılmadı | sade açıklama ↓ |
 | I4 | şimdi A; sonra KESİNLİKLE C: tıklanınca hemen ödeme alınıp pakete dönsün | A kalır; C kodu anahtar KAPALI (Paddle "devam ettir"), ilk denemeler birlikte |
-| N1 | ödeme gelince çalışmaya başlasın, bayat mesaj KESİNLİKLE gitmesin, tek gösterimlik uyarı olabilir | B: bekleyen yapay zekâ cevabı iptal + gelen kutusunda tek not; yaşam döngüsü mesajı bekler ve ancak penceresi hâlâ geçerliyse gider |
+| N1 | ödeme gelince çalışmaya başlasın, bayat mesaj KESİNLİKLE gitmesin, tek gösterimlik uyarı olabilir | ✅ (10-17) B: erişim kapalıyken kuyruktaki yapay zekâ cevabı İPTAL (`billing_paused`) + gelen kutusunda not ("Aboneliğiniz aktif değilken gelen mesaja otomatik yanıt gönderilmedi — lütfen elle yanıtlayın"); yaşam döngüsü mesajı talep edilmez, bekler, ödeme gelince yalnız penceresi geçerliyse gider (iptal / geçmiş pencere → gitmez). EK (kodda bulundu): erişim kapalıyken GELEN misafir mesajları da damgalanır — eskiden ödeme gelince oto-yanıt günler önceki sorulara cevap üretiyordu (`markBillingPausedConversations`). Hepsi gerçek PostgreSQL'de pinli |
 | L1 | mantıklı; sürekli onay istemesin (iki kip, hatasız); aynı şey farklı yazılmışsa daha güncel kazanır; iyi embedding; ilk başta bütün mesajlar tutulup dizinlensin; güven zamanla azalsın (dün yazılan neredeyse kesin, 1 yıl önceki zayıf) | tasarım + migration + kod (anahtar KAPALI) |
 | L2 | evet; ev sahibi bir kez daha güncel olanı seçince o artık doğru sayılsın, model kendini geliştirsin | onay akışı + eski kalem pasif |
 | L3 | mantıklı ama ev sahibini çok uğraştırmasın | yalnız gerçekten tek seferlik görünenlerde işaret |
 | L4 | ev sahibi taslağı az değiştirip gönderdiyse değiştirdiği yerleri o daire için öğrensin (%40'tan az değişim); milyar dolarlık şirket çözümü | düzenleme farkından öğrenme (migration) |
 | L5 | Hospitable gidecek; şimdilik sağlayıcı otomasyonu ile ev sahibi mesajını AYIR; Airbnb Direct'e geçişte rol kanal katmanında | gönderen rolü saklanır (migration) |
 | K1 | B (otomatik kesme yok) + risk puanı geliştirilsin, IP'lere bakılsın, kötüye kullanım engellensin | risk puanı + IP sinyali (migration), eşik üstü inceleme |
-| K3 | ödeme ekranı hata metinleri bol bol düzenlensin | metin envanteri + yeni metinler |
+| K3 | ödeme ekranı hata metinleri bol bol düzenlensin | ✅ (10-17) envanter (57 metin) + düzeltmeler ↓§P |
 | K4 | önerildiği gibi | ✅ (10-17) aynı rezervasyonun çıkış gününe ev sahibinin elle açtığı temizlik (söz görevi değil) varsa sistem ikincisini açmaz; "Eksik görevleri oluştur (N)" aynı kural (`lib/tasks/lifecycle-presence.ts`). Ara temizlik, söz görevi, vadesiz elle görev, eski çıkış gününe açılmış görev engellemez (pinli, gerçek PostgreSQL) |
 | K5 | anlaşılmadı | sade açıklama ↓ |
 | Genel | "Daha iyi olacaksa migration yapalım, bol bol, didik didik" | migration'lar Faz paketlerine |
@@ -701,3 +701,24 @@ mı" sorgusunu tek adımda yapar. Davranışı değiştirmez, yalnız ucuzlatır
 **K5 (sade):** rezervasyon durumunu değiştiren üç yer var (rezervasyon düzenleme, panelden "yeniden aç", senkron). Biri ortak kuralı kullanmıyor; bu
 bugün hata yapmıyor, ama ileride bir kural eklenince birinde unutulabilir. İş: üçünü tek fonksiyona bağlamak. Müşteri hiçbir fark görmez — iç
 düzen. Sıradaki büyük işlerden sonra yapacağım.
+
+## P. K3 — ödeme ekranı metinleri (10-17, kurucu "bol bol düzenleyelim"; envanter Haiku, kodda doğrulandı)
+
+Önce → sonra (yalnız ev sahibinin ödeme / abonelik ekranı; misafire giden metin yok):
+
+| Durum | Önce | Sonra |
+|---|---|---|
+| Plan değişikliği reddi (ör. "zaten bu plandasınız", yıllık abonelik, duraklatılmış) — uygulama adımı | "Doğrulama hatası" (sunucunun sebebi hiç görünmüyordu) | sunucunun sebebi: "Zaten bu plandasınız." / "Yıllık aboneliklerde plan değişikliği panelden yapılamıyor…" |
+| Ödeme sağlayıcısı değişikliği reddetti | "Plan değişikliği yapılamadı. Lütfen tekrar deneyin. (Paddle HTTP 400 (subscription_locked) env=production resource=subscriptions)" | "Plan değişikliği yapılamadı; planınız değişmedi. Lütfen tekrar deneyin, sorun sürerse bize yazın." (ham sebep operatör alarmına) |
+| Tutar değişti (409) | "Tutar değişti — lütfen yeni tutarı onaylayın." + pencere kapanıyor, yeni tutar yok | yeni tutar KENDİLİĞİNDEN hesaplanıp pencere yeniden açılır + "Tutar değişti. Yeni tutarı kontrol edip yeniden onaylayın." |
+| Onay bekleniyor (202) | kırmızı hata alanında "…Paddle onayı bekleniyor…" | nötr bilgi: "İşleminiz alındı, ödeme sağlayıcısının onayı bekleniyor. Planınız birkaç dakika içinde güncellenecek." |
+| Abonelik yönetim sayfası (429 / abonelik yok / ağ) | hepsi "Abonelik yönetim sayfası açılamadı. Lütfen tekrar deneyin." | sebebe göre: "Çok fazla istek…" / "Yönetilecek bir aboneliğiniz bulunamadı. Bir plan seçerek abonelik başlatabilirsiniz." / "Bağlantı kurulamadı. İnternet bağlantınızı kontrol edip tekrar deneyin." |
+| Onay kaydı: ağ hatası | "Onayınız kaydedilemedi, ödeme başlatılamadı…" (sunucu hatasıyla aynı) | "Bağlantı kurulamadı. İnternet bağlantınızı kontrol edip tekrar deneyin." |
+| Ödeme ekranı yüklenemedi | "Ödeme servisi yüklenemedi. Bağlantınızı kontrol edin." + düğme sonsuza dek "Yükleniyor…" | "Ödeme ekranı yüklenemedi. İnternet bağlantınızı kontrol edip sayfayı yenileyin." + düğme "Sayfayı yenileyin" |
+| Erişimi kapalı abonelik etiketi | her durumda "aboneliğiniz aktif değil" | "son ödemeniz alınamadı" / "aboneliğiniz duraklatıldı" / "aboneliğiniz iptal edildi" (sınırlı mod bandıyla aynı dil) |
+| Yıllık dönem seçiliyken plan düğmeleri | açıklamasız kapalı | "Yıllık ödemeye geçmek için bize yazın, birlikte halledelim." |
+| "Önizleme" jargonu (409 / 400) | "Önizleme doğrulanamadı…", "Bu önizleme zaten kullanıldı…" | "Tutar onayının süresi doldu. Planı yeniden seçip tutarı tekrar onaylayın.", "Bu onay zaten kullanıldı…" |
+| Diğer | "Geçersiz plan.", "Plan fiyatı yapılandırılmadı.", "…duraklatılmış olduğu için… değiştirilemez.", "Yönetilecek bir Paddle aboneliği…", "Şu anda işlenemedi…", "(Merchant of Record)" | "Seçilen plan bulunamadı. Sayfayı yenileyip tekrar deneyin.", "Bu plan şu anda satın alınamıyor…", "…duraklatıldığı için şu anda plan değiştirilemiyor.", "Yönetilecek bir aboneliğiniz…", "İşleminiz şu anda tamamlanamadı; planınız değişmedi…", İngilizce terim kaldırıldı |
+
+Bilinçli DOKUNULMAYAN: hukuki metinler (Mesafeli Satış / Ön Bilgilendirme — avukat paketi); düşürme penceresindeki "hemen geçerli olur, aradaki fark bir sonraki faturanıza yansıtılır" DOĞRU (Paddle `prorated_next_billing_period`: değişiklik hemen, ücret farkı sonraki fatura). Kanal (sağlayıcı) aboneliği metinleri ödeme ekranı değil — ayrı tur. Tek kaynak `src/lib/billing/billing-ui-text.ts` (pinli).
+

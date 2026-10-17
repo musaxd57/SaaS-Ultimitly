@@ -22,8 +22,8 @@ import { logEvent } from "@/lib/event-log";
 // a distance-sales consent / drive a purchase for the org via a direct call).
 export const POST = withOwner(async (session, req) => {
   // Light per-user cap so a script can't bloat the table; generous for real use
-  // (no human opens checkout 20×/hour). Best-effort on the client, so a 429 here
-  // never blocks the purchase — earlier accepted records already stand.
+  // (no human opens checkout 20×/hour). ⚠️ 429 ödeme ekranını AÇTIRMAZ (istemci kanıt kaydı olmadan ödeme açmaz — fail-closed); eski
+  // "best-effort, satın almayı engellemez" notu yanlıştı (K3 envanteri, 10-17). Müşteri sunucunun "kısa süre bekleyin" metnini görür.
   const limited = await rateLimit(`checkout-consent:${session.userId}`, 20, 60 * 60 * 1000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
 

@@ -24,7 +24,7 @@ export const POST = withOwner(async (session) => {
     select: { provider: true, providerRef: true },
   });
   if (!sub || sub.provider !== "paddle" || !sub.providerRef) {
-    return badRequest({ error: "Yönetilecek bir Paddle aboneliği bulunamadı." });
+    return badRequest({ error: "Yönetilecek bir aboneliğiniz bulunamadı. Bir plan seçerek abonelik başlatabilirsiniz." });
   }
 
   const links = await createPortalSession(sub.providerRef);

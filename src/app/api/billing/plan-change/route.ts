@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { badRequest, jsonOk, notFound, tooManyRequests, readJsonCappedOrNull } from "@/lib/api";
+import { reportError } from "@/lib/report-error";
 import { withOwner } from "@/lib/route-guard";
 import { rateLimit } from "@/lib/rate-limit";
 import {
@@ -44,7 +45,7 @@ export const POST = withOwner(async (session, req) => {
   const pending = await prisma.systemLock.findUnique({ where: { name: `plan-change-pending:${session.organizationId}` } });
   if (pending && pending.lockedUntil > new Date()) {
     return NextResponse.json(
-      { error: "Önceki plan değişikliği doğrulanıyor — birkaç dakika içinde netleşecek.", pendingVerification: true },
+      { error: "Önceki plan değişikliğiniz hâlâ işleniyor. Birkaç dakika sonra sayfayı yenileyin.", pendingVerification: true },
       { status: 409 },
     );
   }
@@ -54,10 +55,10 @@ export const POST = withOwner(async (session, req) => {
   // replay, and reuse for a different plan/price (Codex).
   const token = verifyPlanChangeToken(typeof data?.previewToken === "string" ? data.previewToken : null);
   if (!token) {
-    return badRequest({ error: "Önizleme doğrulanamadı — lütfen tekrar deneyin." });
+    return badRequest({ error: "Tutar onayının süresi doldu. Planı yeniden seçip tutarı tekrar onaylayın." });
   }
   if (token.org !== session.organizationId || token.priceId !== r.priceId || token.mode !== r.mode) {
-    return badRequest({ error: "Önizleme bu plan değişikliğiyle eşleşmiyor." });
+    return badRequest({ error: "Tutar onayı bu plan için değil. Planı yeniden seçip tutarı tekrar onaylayın." });
   }
 
   // Single-use: claim the token's jti BEFORE touching Paddle. A replay / concurrent
@@ -68,11 +69,11 @@ export const POST = withOwner(async (session, req) => {
   try {
     claimed = await consumePlanChangeNonce(token.jti, new Date(token.exp));
   } catch {
-    return NextResponse.json({ error: "Şu anda işlenemedi, lütfen tekrar deneyin." }, { status: 503 });
+    return NextResponse.json({ error: "İşleminiz şu anda tamamlanamadı; planınız değişmedi. Birkaç dakika sonra tekrar deneyin." }, { status: 503 });
   }
   if (!claimed) {
     return NextResponse.json(
-      { error: "Bu önizleme zaten kullanıldı — lütfen tekrar deneyin." },
+      { error: "Bu onay zaten kullanıldı. Planı yeniden seçip tekrar deneyin." },
       { status: 409 },
     );
   }
@@ -88,7 +89,7 @@ export const POST = withOwner(async (session, req) => {
     await releasePlanChangeNonce(token.jti); // not applied → let them retry after re-preview
     return NextResponse.json(
       {
-        error: "Tutar değişti — lütfen yeni tutarı onaylayın.",
+        error: "Tutar değişti. Yeni tutarı kontrol edip yeniden onaylayın.",
         amountChanged: true,
         immediateTotal: freshAmount,
       },
@@ -139,12 +140,12 @@ export const POST = withOwner(async (session, req) => {
     pendingClaimed = claim.count === 1;
   } catch {
     await releasePlanChangeNonce(token.jti);
-    return NextResponse.json({ error: "Şu anda işlenemedi, lütfen tekrar deneyin." }, { status: 503 });
+    return NextResponse.json({ error: "İşleminiz şu anda tamamlanamadı; planınız değişmedi. Birkaç dakika sonra tekrar deneyin." }, { status: 503 });
   }
   if (!pendingClaimed) {
     await releasePlanChangeNonce(token.jti);
     return NextResponse.json(
-      { error: "Önceki plan değişikliği doğrulanıyor — birkaç dakika içinde netleşecek.", pendingVerification: true },
+      { error: "Önceki plan değişikliğiniz hâlâ işleniyor. Birkaç dakika sonra sayfayı yenileyin.", pendingVerification: true },
       { status: 409 },
     );
   }
@@ -164,10 +165,12 @@ export const POST = withOwner(async (session, req) => {
         action: "billing.plan_change_rejected",
         metadata: { from: r.currentCode, to: planCode, mode: r.mode, ...auditImpersonation(session) },
       }).catch(() => {});
-      // Surface Paddle's reason (e.g. "Paddle HTTP 400 (subscription_locked...)") so
-      // the owner can see WHY without digging the logs. No ids/secrets in the string.
+      // K3 (kurucu 10-17, ödeme ekranı metinleri): sağlayıcının ham sebebi ("Paddle HTTP 400 (subscription_locked) env=production
+      // resource=subscriptions") müşteriye GİTMEZ — teknik kod ve ortam adı ekranda "(…)" olarak çıkıyordu. Sebep operatöre gider (alarm,
+      // kimlik / sır yok); müşteri ne olduğunu (planı DEĞİŞMEDİ) ve ne yapacağını görür.
+      void reportError(`billing-plan-change-rejected org=${session.organizationId}`, new Error(result.reason ?? "unknown"));
       return NextResponse.json(
-        { error: "Plan değişikliği yapılamadı. Lütfen tekrar deneyin.", detail: result.reason },
+        { error: "Plan değişikliği yapılamadı; planınız değişmedi. Lütfen tekrar deneyin, sorun sürerse bize yazın." },
         { status: 502 },
       );
     }
@@ -190,7 +193,7 @@ export const POST = withOwner(async (session, req) => {
       return NextResponse.json(
         {
           pending: true,
-          error: "İşleminiz alındı; Paddle onayı bekleniyor. Birkaç dakika içinde güncellenecek.",
+          error: "İşleminiz alındı, ödeme sağlayıcısının onayı bekleniyor. Planınız birkaç dakika içinde güncellenecek.",
         },
         { status: 202 },
       );

@@ -483,6 +483,7 @@ export default async function SettingsPage({
               currency={appBillingCurrency()}
               checkoutPending={checkoutPendingNow}
               trialNotice={trialEndReason === TRIAL_END_REASON_IDENTITY_REUSED ? TRIAL_IDENTITY_REUSED_MESSAGE : null}
+              subscriptionStatus={entitlement.status}
               annualAvailable={defaultPlans().every((p) => (paddleAnnualPriceByCode[p.code] ?? "") !== "")}
               plans={defaultPlans().map((p) => ({
                 code: p.code,
