@@ -158,6 +158,49 @@ describe("upload — flag ON: task-bound, org-owned, fail-closed validation", ()
   });
 });
 
+describe("gece-4 S7-01: yüklenip göreve BAĞLANMAYAN fotoğraf kovada süresiz kalmaz", () => {
+  it("🚨 yükleme 24 saat vadeli sahipsizlik kaydı yazar; bağlanmayan nesne vadesinde silinir, bağlanan nesnenin kaydı iptal edilir (nesne kalır)", async () => {
+    stubStorageEnv(true);
+    const { taskId } = await seed("owner");
+    const orphanRes = await uploadPOST(uploadReq({ taskId }), noCtx);
+    const attachedRes = await uploadPOST(uploadReq({ taskId }), noCtx);
+    const orphanUrl = ((await orphanRes.json()) as { url: string }).url;
+    const attachedUrl = ((await attachedRes.json()) as { url: string }).url;
+    const orphanKey = orphanUrl.slice(STORAGE_PHOTO_URL_PREFIX.length);
+    const attachedKey = attachedUrl.slice(STORAGE_PHOTO_URL_PREFIX.length);
+    const rows = await prisma.storageDeletion.findMany({ orderBy: { objectKey: "asc" } });
+    expect(rows.map((r) => r.objectKey).sort()).toEqual([orphanKey, attachedKey].sort());
+    // Vade ~24 saat sonra: hemen boşaltma hiçbir şeyi silmez.
+    for (const r of rows) expect(r.availableAt.getTime()).toBeGreaterThan(Date.now() + 23 * 60 * 60_000);
+    expect((await drainStorageDeletions({ adapter: fake })).deleted).toBe(0);
+    // İstemci yalnız birini göreve bağladı.
+    await prisma.taskUpdate.create({ data: { taskId, photoUrl: attachedUrl, note: "foto" } });
+    const later = () => new Date(Date.now() + 25 * 60 * 60_000);
+    const out = await drainStorageDeletions({ adapter: fake, now: later });
+    expect(out).toMatchObject({ deleted: 1, failed: 0 });
+    expect(fake.deletes).toEqual([orphanKey]);
+    expect(await prisma.storageDeletion.findUnique({ where: { objectKey: attachedKey } })).toBeNull(); // iptal (nesne kalır)
+    expect((await prisma.storageDeletion.findUniqueOrThrow({ where: { objectKey: orphanKey } })).status).toBe("deleted");
+    // Bağlı nesnenin görevi sonra silinirse normal yoldan gider (eski kayıt engel olmaz).
+    await enqueueStorageDeletions(prisma, (await prisma.task.findUniqueOrThrow({ where: { id: taskId }, select: { property: { select: { organizationId: true } } } })).property.organizationId, [attachedKey]);
+    await prisma.taskUpdate.deleteMany({ where: { taskId } });
+    expect((await drainStorageDeletions({ adapter: fake, now: later })).deleted).toBe(1);
+    expect(fake.deletes).toEqual([orphanKey, attachedKey]);
+  });
+
+  it("başka kiracının satırı (istemcinin yazabildiği photoUrl) sahipsiz nesneyi kovada TUTAMAZ (gösterim denetimi nesnenin kendi işletmesinde)", async () => {
+    stubStorageEnv(true);
+    const victim = await seed("owner");
+    const res = await uploadPOST(uploadReq({ taskId: victim.taskId }), noCtx);
+    const url = ((await res.json()) as { url: string }).url;
+    const attacker = await seed("owner");
+    await prisma.taskUpdate.create({ data: { taskId: attacker.taskId, photoUrl: url, note: "x" } });
+    const out = await drainStorageDeletions({ adapter: fake, now: () => new Date(Date.now() + 25 * 60 * 60_000) });
+    expect(out.deleted).toBe(1);
+    expect(fake.deletes).toEqual([url.slice(STORAGE_PHOTO_URL_PREFIX.length)]);
+  });
+});
+
 describe("upload — flag OFF: the legacy local-disk path is unchanged (pin)", () => {
   it("uploads to /uploads/{orgSlug}/… exactly as before and NEVER touches the adapter", async () => {
     const { orgId } = await seed("owner");

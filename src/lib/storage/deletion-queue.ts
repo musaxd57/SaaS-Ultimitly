@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 import { reportError } from "@/lib/report-error";
 import { getStorageAdapter, type StorageAdapter } from "./adapter";
 import { storageConfigured } from "./config";
-import { isSafeObjectKey, keyFromPhotoUrl, orgIdFromKey } from "./keys";
+import { isSafeObjectKey, keyFromPhotoUrl, orgIdFromKey, photoUrlForKey } from "./keys";
 
 // ---------------------------------------------------------------------------
 // Idempotent deletion queue for private object storage.
@@ -85,6 +85,28 @@ export async function enqueueUnreferencedPhotoDeletions(db: Db, organizationId: 
   return enqueueStorageDeletions(db, organizationId, keys);
 }
 
+/**
+ * Gece-4 S7-01: yüklenen fotoğrafın ERTELİ sahipsizlik kaydı. Yükleme (POST /api/upload) nesneyi kovaya yazar; nesneyi gösteren satır ancak
+ * istemci ardından görevi güncelleyince doğar — o istek hiç gelmezse (bağlantı koptu, ekran kapandı) nesneyi hiçbir satır göstermez ve
+ * görev / mülk / hesap silmeleri onu bulamaz (adaptörde listeleme yok) → kovada süresiz (fotoğrafta misafir / daire içi görüntü olabilir).
+ * Yüklemeden ÖNCE bu kuyruğa `delayMs` sonra vadeli bir kayıt yazılır; boşaltıcı vadesinde nesne KENDİ işletmesinin bir görev güncellemesince
+ * gösteriliyorsa kaydı iptal eder (nesne kalır, görev silinince normal yoldan gider), gösterilmiyorsa siler.
+ */
+export const UPLOAD_ORPHAN_CHECK_DELAY_MS = 24 * 60 * 60_000;
+export async function enqueueUploadOrphanCheck(
+  db: Db,
+  organizationId: string,
+  objectKey: string,
+  delayMs: number = UPLOAD_ORPHAN_CHECK_DELAY_MS,
+): Promise<number> {
+  if (!isSafeObjectKey(objectKey) || orgIdFromKey(objectKey) !== organizationId) return 0;
+  const res = await db.storageDeletion.createMany({
+    data: [{ objectKey, organizationId, availableAt: new Date(Date.now() + delayMs) }],
+    skipDuplicates: true,
+  });
+  return res.count;
+}
+
 /** Cheap indexed check — lets the scheduler skip the drain entirely when idle. */
 export async function hasPendingStorageDeletions(): Promise<boolean> {
   const n = await prisma.storageDeletion.count({ where: { status: "pending" } });
@@ -126,6 +148,25 @@ export async function drainStorageDeletions(
     select: { id: true, objectKey: true, attemptCount: true },
   });
 
+  // S7-01: vadesi gelen kayıt nesnesi hâlâ KENDİ işletmesinin bir görev güncellemesince gösteriliyorsa silinmez — kayıt iptal edilir
+  // (yükleme kaydı göreve bağlandı; normal silme niyetleri zaten gösterilmeyen nesneler için yazılır). İşletme kapsamı şart: başka kiracının
+  // satırı (istemcinin yazabildiği `photoUrl`) silinmiş bir işletmenin fotoğrafını kovada TUTAMAZ.
+  const shown = new Set<string>();
+  if (due.length > 0) {
+    const byOrg = new Map<string, string[]>();
+    for (const r of due) {
+      const org = orgIdFromKey(r.objectKey);
+      if (org) byOrg.set(org, [...(byOrg.get(org) ?? []), photoUrlForKey(r.objectKey)]);
+    }
+    for (const [organizationId, urls] of byOrg) {
+      const rows = await prisma.taskUpdate.findMany({
+        where: { photoUrl: { in: urls }, task: { property: { organizationId } } },
+        select: { photoUrl: true },
+      });
+      for (const r of rows) if (r.photoUrl) shown.add(r.photoUrl);
+    }
+  }
+
   let deleted = 0;
   let failed = 0;
   const clock = deps.clock ?? (() => Date.now());
@@ -133,6 +174,12 @@ export async function drainStorageDeletions(
   const budget = deps.budgetMs ?? DRAIN_BUDGET_MS;
   for (const row of due) {
     if (clock() - startedAt >= budget) break;
+    if (shown.has(photoUrlForKey(row.objectKey))) {
+      await prisma.storageDeletion
+        .deleteMany({ where: { id: row.id, status: "pending" } })
+        .catch((e) => void reportError("storage-deletion-attached-cancel", e));
+      continue;
+    }
     try {
       await adapter.delete(row.objectKey);
       // Başarı yazması da fırlatmamalı: JSDoc "Never throws" diyor ve tek çağıran

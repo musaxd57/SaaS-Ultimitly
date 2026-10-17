@@ -8,6 +8,7 @@ import { sniffImageExt } from "@/lib/image-validation";
 import { storageUploadsEnabled } from "@/lib/storage/config";
 import { getStorageAdapter } from "@/lib/storage/adapter";
 import { buildTaskPhotoKey, photoUrlForKey } from "@/lib/storage/keys";
+import { enqueueUploadOrphanCheck } from "@/lib/storage/deletion-queue";
 
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
@@ -85,6 +86,9 @@ export const POST = withAuth(async (session, req) => {
     // uploadsEnabled implies configured — this is a belt-and-braces fail-closed.
     if (!adapter) return serverError(undefined, new Error("storage: adapter unavailable"));
     const key = buildTaskPhotoKey(session.organizationId, task.id, ext);
+    // Gece-4 S7-01: kovaya yazmadan ÖNCE 24 saat vadeli sahipsizlik kaydı — göreve hiç bağlanmazsa boşaltıcı siler (kayıt yazılamazsa
+    // nesne de yazılmaz; yazma başarısız olursa kayıt eksik nesneyi "silmiş" sayar, zararsız).
+    await enqueueUploadOrphanCheck(prisma, session.organizationId, key);
     await adapter.put(key, buffer, CONTENT_TYPE_BY_EXT[ext]);
     return jsonOk({ url: photoUrlForKey(key) });
   }
