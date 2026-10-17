@@ -746,6 +746,10 @@ daha taslak olarak gelmez; değişiklik ayında ya da sonrasında yeniden geçiy
 gelen taslak "Tek konuşmadan" işareti alır; ayrıca yalnız misafire yönelik kişisel eylem ("Size şarap bıraktım", "I've left … for you") "tek seferlik
 olabilir" uyarısı alır — genel yönerge ("Anahtarı kutuya bıraktım, çıkışta oraya bırakın") uyarı almaz (ev sahibini gereksiz uğraştırmaz).
 
+  **I1 yapıldı (10-17, migration 73, anahtar `AI_ACTION_SUGGESTIONS_ENABLED` KAPALI):** öneriden kaydedilen söz konusunu taşır (ev sahibinin
+  mesajından, kodla: "Klima için teknisyen yarın 10:00'da gelecek" → "Arıza / bakım · klima"). Aynı saatte klima ve musluk sözü İKİ söz + İKİ görev;
+  aynı konu iki mesajda tek söz; konusuz öneri ("Teknisyen yarın 10:00'da gelecek") mevcut söze katılır. Q1'in konusu olan durumda (elle konusuz söz +
+  konulu öneri) bugünkü davranış korundu (birleşir, elle söze konu yazılmaz) — cevabınızla değişecek.
 - **Q1 · I1 — elle kaydettiğiniz KONUSUZ söz + aynı saatte KONULU öneri:** ÖRNEK — "Misafire söz ver" ile **Arıza / bakım, bugün 18:00**
   kaydettiniz (formda konu yok). Sonra misafire "Klima için teknisyen 18:00'de gelecek" yazdınız; öneri "Söz kaydet: Arıza / bakım (klima) — 18:00".
   (a) ÖNERİM: onaylayınca yeni görev AÇILMAZ, sözünüze "klima" yazılır ("Aynı saatte kaydettiğiniz söze bağlandı (klima)"); ardından "musluk 18:00"

@@ -3,7 +3,7 @@ import "server-only";
 import { prisma } from "@/lib/db";
 import { writeAuditInTx } from "@/lib/audit";
 import { createOperationalTaskFromMessage } from "@/lib/tasks/create";
-import { commitmentDueAt, createGuestCommitment, isCommitmentKind } from "@/lib/guest-commitments";
+import { commitmentDueAt, createGuestCommitment, isCommitmentKind, isCommitmentTopic } from "@/lib/guest-commitments";
 import { orgTimezone } from "@/lib/timezone";
 import { refreshPropertyMemoryBestEffort } from "@/modules/intelligence";
 import { applyWifiValue, extractWifiValues, parseSuggestionKey } from "./core";
@@ -130,12 +130,13 @@ export async function decideSuggestion(input: {
             propertyId,
             reservationId: conv?.reservationId ?? null,
             kind: view.proposal.commitmentKind,
+            topic: isCommitmentTopic(view.proposal.topic) ? view.proposal.topic : null,
             dueAt: commitmentDue,
             actorUserId: input.actorUserId,
             // Öneri anahtarı işlem kimliğidir (kurucu D3, 10-15): aynı önerinin ikinci onayı aynı sözü döndürür (karar kaydı zaten
             // engelliyor; tekil dizin son savunma). AYRICA `mergeSameSlot`: aynı tür + aynı saatte açık söz varsa (ev sahibi aynı sözü elle
-            // kaydetmiş) yeni söz açılmaz — öneri listesi de aynı kuralla gizler. Elle formdan FARKLI (orada klima 18:00 ile musluk 18:00 iki
-            // söz); öneride söz konusu (cihaz) taşınmadığı için ayırt edilemiyor — kurucu sorusu (10-16), anahtar KAPALI.
+            // kaydetmiş) yeni söz açılmaz — öneri listesi de aynı kuralla gizler. I1 (10-17, migration 73): birleştirme KONU uyumuna da bakar
+            // (klima 18:00 ile musluk 18:00 iki söz); konusuz elle söz + konulu öneri bugünkü gibi birleşir (sahiplenme kurucu sorusu Q1).
             clientRequestId: `sugg:${input.key}`,
             mergeSameSlot: true,
           },

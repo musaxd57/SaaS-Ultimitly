@@ -1721,6 +1721,10 @@ model GuestCommitment {
   conversationId String
   taskId         String?
   kind           String // towels | supplies | cleaning | maintenance (lib/guest-commitments.ts kapalı küme)
+  /// Sözün KONUSU (I1, kurucu 10-17 "A", migration 73): kapalı küme kısa kod (`guest-commitments-core.ts` COMMITMENT_TOPICS — ac · faucet ·
+  /// shampoo …). YALNIZ öneri yolu yazar (ev sahibinin mesajından, kodla); elle form NULL. NULL = konu bilinmiyor (elle söz, konusuz öneri,
+  /// bu kolondan önceki satır). Serbest metin / misafir metni TAŞIMAZ. Aynı saatte iki farklı konu = iki söz + iki görev.
+  topic          String?
   dueAt          DateTime
   status         String    @default("open") // open | done | cancelled
   closedAt       DateTime?

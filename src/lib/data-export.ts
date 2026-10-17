@@ -291,7 +291,7 @@ export async function buildOrganizationDataExport(organizationId: string) {
     // (tür + son an + durum + konuşma / görev kimliği); konuşmanın kendisi `organization.properties…conversations` altında.
     prisma.guestCommitment.findMany({
       where: { organizationId },
-      select: { id: true, conversationId: true, taskId: true, kind: true, dueAt: true, status: true, closedAt: true, createdAt: true },
+      select: { id: true, conversationId: true, taskId: true, kind: true, topic: true, dueAt: true, status: true, closedAt: true, createdAt: true },
       orderBy: { createdAt: "asc" },
     }),
     // Geçmişten öğren (migration 65): ev sahibinin YAZDIĞI mülk talimatları (kaldırılanlar dahil — iz) ve cevap karşılaştırma notları.

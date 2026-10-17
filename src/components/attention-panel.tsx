@@ -6,7 +6,7 @@ import { signalCategoryLabel } from "@/modules/intelligence/labels";
 import type { AttentionItem, AttentionKind } from "@/modules/intelligence/incidents/attention";
 import type { MoneyImpact } from "@/modules/intelligence/money/impact";
 import { itemKindLabel } from "@/lib/conversation-items/view";
-import { COMMITMENT_KIND_LABELS, commitmentDurationLabel } from "@/lib/guest-commitments-core";
+import { commitmentDurationLabel, commitmentLabel } from "@/lib/guest-commitments-core";
 import { CONNECTION_ERROR_TEXT, CONNECTION_ERROR_TEXT_VIEWER, agoLabel } from "@/lib/channels/health";
 import { ReactivateReservationButton } from "@/components/reactivate-reservation-button";
 
@@ -84,7 +84,7 @@ function headline(item: AttentionItem): string {
         ? `Gönderim doğrulanamadı: ${item.decisionTitle ?? "konaklama isteği"}`
         : `Karar bekliyor: ${item.decisionTitle ?? "konaklama isteği"}`;
     case "commitment_due": {
-      const what = item.commitmentKind ? COMMITMENT_KIND_LABELS[item.commitmentKind] : "misafir isteği";
+      const what = item.commitmentKind ? commitmentLabel(item.commitmentKind, item.commitmentTopic) : "misafir isteği";
       return (item.minutesLeft ?? 0) < 0 ? `Misafire verilen söz gecikti: ${what}` : `Misafire söz verildi: ${what}`;
     }
     case "connection_unhealthy":

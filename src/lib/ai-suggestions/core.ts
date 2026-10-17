@@ -1,6 +1,7 @@
-import { foldTurkishAscii } from "@/lib/ai/fallback";
+import { firstBreakdownDevice, foldTurkishAscii } from "@/lib/ai/fallback";
 import { explicitTimeMentions } from "@/lib/early-checkin/text-checks";
-import type { CommitmentKind } from "@/lib/guest-commitments-core";
+import type { CommitmentKind, CommitmentTopic } from "@/lib/guest-commitments-core";
+import { deviceTopicsOf, topicsOf } from "@/lib/conversation-items/relation";
 
 // ---------------------------------------------------------------------------
 // YAPAY ZEKÂ EYLEM ÖNERİLERİ — SAF ÇEKİRDEK (yürütme sırası ⑤ ilk dilimi; kurucu 10-12: "A + B + C", onay "sahip + yönetici, 2 hafta
@@ -94,6 +95,8 @@ const KIND_TOPICS: ReadonlyArray<readonly [CommitmentKind, RegExp]> = [
 
 export interface HostPromise {
   kind: CommitmentKind;
+  /** Sözün KONUSU (I1, migration 73) — yalnız sözün parçasından, kodla; tek konu yoksa null (`commitmentTopicOf`). */
+  topic: CommitmentTopic | null;
   /** Gün: misafire söylenen ("yarın") ya da varsayılan bugün. */
   day: "today" | "tomorrow";
   /** Açık saat adayları (dakika; "6" → 06:00 ve 18:00) — gün dilimi ya da gündüz tercihiyle süzülmüş; seçim `promiseDue`da. */
@@ -261,7 +264,7 @@ export function detectHostPromise(text: string | null | undefined): HostPromise 
     let timeCandidates = inMinutes === null ? timeMentions(scope.raw, scope.folded) : [];
     timeCandidates = part ? fitToHalf(timeCandidates, part.half) : preferDaytime(timeCandidates);
     const cue = inMinutes === null && timeCandidates.length === 0 && part ? { minutes: part.minutes, half: part.half } : null;
-    return { kind, day, timeCandidates, inMinutes, cue };
+    return { kind, topic: commitmentTopicOf(kind, scope.raw, scope.folded), day, timeCandidates, inMinutes, cue };
   }
   return null;
 }
@@ -470,4 +473,113 @@ export function promotionReadiness(decisions: readonly SuggestionDecision[], now
     };
   }
   return out;
+}
+
+// ── I1 · SÖZÜN KONUSU (kurucu 10-17 "A", migration 73) ─────────────────────────────────────────────────────────────────────────────────
+// Aynı tür + aynı saatte iki FARKLI konu ("Klima için teknisyen 18:00" + "Musluk için usta 18:00") iki söz + iki görevdir. Konu YALNIZ sözün
+// parçasından, kodla (model yok): bakımda cihaz okuyucusu (görev tekilleştirmesiyle AYNI — `firstBreakdownDevice`, kurucu 10-15 "Klima bozuk
+// ile Musluk bozuk birleşmemeli") + İngilizce cihaz kavramları; eksik eşyada eşya adı. Parçada İKİ farklı konu → null (tek ziyaret / teslimat
+// olabilir; konusuz söz mevcut sözlerle birleşir). Havlu / temizlik → null (aynı saatte havlu + çarşaf tek teslimat; tek temizlik ziyareti).
+
+/** Cihaz kökü (`firstBreakdownDevice` çıktısı, Türkçe) → konu. Haritada olmayan kök (makine, cihaz, motor, dolap…) konu ÜRETMEZ. */
+const DEVICE_STEM_TO_TOPIC: Readonly<Record<string, CommitmentTopic>> = {
+  klima: "ac",
+  kombi: "heating",
+  petek: "heating",
+  kalorifer: "heating",
+  radyatör: "heating",
+  ısıtıcı: "heating",
+  şofben: "hot_water",
+  termosifon: "hot_water",
+  musluk: "faucet",
+  lavabo: "faucet",
+  sifon: "faucet",
+  tuvalet: "toilet",
+  klozet: "toilet",
+  duş: "shower",
+  buzdolabı: "fridge",
+  bulaşık: "dishwasher",
+  çamaşır: "laundry",
+  ocak: "stove",
+  fırın: "stove",
+  mikrodalga: "microwave",
+  televizyon: "tv",
+  tv: "tv",
+  kumanda: "tv",
+  modem: "wifi",
+  router: "wifi",
+  kapı: "door",
+  kilit: "door",
+  anahtar: "door",
+  lamba: "light",
+  ışık: "light",
+  priz: "socket",
+  asansör: "elevator",
+  su: "water",
+};
+
+/** İngilizce cihaz kavramı (`topicsOf` kimlikleri) → konu. */
+const CONCEPT_TO_TOPIC: Readonly<Record<string, CommitmentTopic>> = {
+  ac: "ac",
+  heating: "heating",
+  hot_water: "hot_water",
+  fridge: "fridge",
+  dishwasher: "dishwasher",
+  laundry: "laundry",
+  stove: "stove",
+  microwave: "microwave",
+  tv: "tv",
+  wifi: "wifi",
+  keys: "door",
+  socket: "socket",
+  elevator: "elevator",
+};
+
+/** Kavram sözlüğünde olmayan İngilizce tesisat sözcükleri (katlanmış metinde, tam sözcük). */
+const EN_PLUMBING: ReadonlyArray<readonly [CommitmentTopic, RegExp]> = [
+  ["faucet", /(?<![\p{L}])(?:taps?|faucets?|sinks?)(?![\p{L}])/u],
+  ["toilet", /(?<![\p{L}])(?:toilets?|flush)(?![\p{L}])/u],
+  ["shower", /(?<![\p{L}])showers?(?![\p{L}])/u],
+];
+
+/** Eksik eşya konusu (katlanmış metin; `KIND_TOPICS` supplies kalıbının alternatifleriyle aynı sözcükler). */
+const SUPPLY_TOPICS: ReadonlyArray<readonly [CommitmentTopic, RegExp]> = [
+  ["toilet_paper", /(?<![\p{L}])(?:tuvalet\s+kagidi|toilet\s+paper)/u],
+  ["shampoo", /(?<![\p{L}])(?:sampuan|shampoo)/u],
+  ["soap", /(?<![\p{L}])(?:sabun|soap)/u],
+  ["coffee", /(?<![\p{L}])(?:kahve|coffee)/u],
+  ["tea", /(?<![\p{L}])(?:cay|tea)(?![\p{L}])/u],
+  ["sugar", /(?<![\p{L}])seker/u],
+  ["battery", /(?<![\p{L}])(?:pil(?:ler)?|batter(?:y|ies))(?![\p{L}])/u],
+  ["bulb", /(?<![\p{L}])(?:ampul|bulbs?)/u],
+  ["trash_bags", /(?<![\p{L}])cop\s+poseti/u],
+  ["drinking_water", /(?<![\p{L}])(?:icme\s+suyu|damacana)/u],
+  ["detergent", /(?<![\p{L}])(?:deterjan|detergent)/u],
+];
+
+const WORDS = /[^\p{L}\p{N}'’]+/u;
+/** Sözcük tavanı: parça zaten bir cümleciğin en çok birkaç virgül parçası; uzun metinde iş sınırlı kalsın. */
+const MAX_TOPIC_WORDS = 60;
+
+export function commitmentTopicOf(kind: CommitmentKind, scopeRaw: string, scopeFolded: string): CommitmentTopic | null {
+  const found = new Set<CommitmentTopic>();
+  if (kind === "maintenance") {
+    for (const w of scopeRaw.split(WORDS).filter(Boolean).slice(0, MAX_TOPIC_WORDS)) {
+      const stem = firstBreakdownDevice(w);
+      const t = stem ? DEVICE_STEM_TO_TOPIC[stem.toLocaleLowerCase("tr")] : undefined;
+      if (t) found.add(t);
+    }
+    // Kavram sözlüğü YALNIZ Türkçe cihaz kökü yoksa (İngilizce mesaj): kavramlar geniş ("kombi" hem ısıtma hem sıcak su kavramıdır — kök
+    // varken ikisi birden eklenseydi tek cihazlı söz konusuz kalırdı).
+    if (found.size === 0) {
+      for (const c of deviceTopicsOf(topicsOf(scopeRaw))) {
+        const t = CONCEPT_TO_TOPIC[c];
+        if (t) found.add(t);
+      }
+      for (const [t, re] of EN_PLUMBING) if (re.test(scopeFolded)) found.add(t);
+    }
+  } else if (kind === "supplies") {
+    for (const [t, re] of SUPPLY_TOPICS) if (re.test(scopeFolded)) found.add(t);
+  }
+  return found.size === 1 ? [...found][0]! : null;
 }

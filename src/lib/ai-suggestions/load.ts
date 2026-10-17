@@ -6,7 +6,7 @@ import { buildOperationalTaskData, detectOperationalTask } from "@/lib/tasks/det
 import { TASK_TYPE } from "@/lib/constants";
 import { isChannelAutomation, resolveMessageAuthor } from "@/lib/message-author";
 import { addZonedDays, dateKeyInTimeZone, orgTimezone, zonedWallClockToUtc } from "@/lib/timezone";
-import { COMMITMENT_KIND_LABELS, type CommitmentKind } from "@/lib/guest-commitments-core";
+import { commitmentLabel, commitmentSlotMatches, commitmentTopicsCompatible, type CommitmentKind, type CommitmentTopic } from "@/lib/guest-commitments-core";
 import {
   applyWifiValue,
   detectHostPromise,
@@ -51,7 +51,8 @@ export type SuggestionView =
       title: string;
       detail: string;
       evidenceAt: string;
-      proposal: { messageId: string; commitmentKind: CommitmentKind; day: "today" | "tomorrow"; time: string };
+      /** `topic`: sözün konusu (I1; ev sahibinin mesajından kodla) — onay aynı konuyu yazar. */
+      proposal: { messageId: string; commitmentKind: CommitmentKind; topic: CommitmentTopic | null; day: "today" | "tomorrow"; time: string };
     }
   | {
       key: string;
@@ -159,7 +160,7 @@ export async function getConversationSuggestions(organizationId: string, convers
     decidedSuggestionKeys(organizationId, since),
     prisma.guestCommitment.findMany({
       where: { conversationId: conversation.id, organizationId },
-      select: { kind: true, createdAt: true, dueAt: true, status: true },
+      select: { kind: true, topic: true, createdAt: true, dueAt: true, status: true },
     }),
   ]);
   const tz = orgTimezone(conversation.property.organization.timezone);
@@ -213,21 +214,33 @@ export async function getConversationSuggestions(organizationId: string, convers
       if (decided.has(key)) continue;
       const promise = detectHostPromise(m.body);
       if (!promise) continue;
-      if (commitments.some((c) => c.kind === promise.kind && c.createdAt.getTime() >= m.createdAt.getTime())) continue;
+      // Mesajdan SONRA aynı türde ve UYUMLU konuda söz kaydedilmiş → öneri yok (I1: klima sözü musluk önerisini gizlemez).
+      if (
+        commitments.some(
+          (c) => c.kind === promise.kind && commitmentTopicsCompatible(c.topic, promise.topic) && c.createdAt.getTime() >= m.createdAt.getTime(),
+        )
+      ) {
+        continue;
+      }
       const dueAt = absolutePromiseDue(promise, m.createdAt, tz);
-      // Aynı tür + aynı an için AÇIK söz zaten varsa (mesajdan ÖNCE elle açılmış ya da ev sahibi aynı sözü sonraki mesajda tekrarlamış)
-      // öneri gösterilmez — onay tarafının tekrar ölçütüyle AYNI (`createGuestCommitment`: tür + son an + açık). Yoksa onay "zaten var"
+      // Aynı tür + aynı an + UYUMLU konu için AÇIK söz zaten varsa (mesajdan ÖNCE elle açılmış ya da ev sahibi aynı sözü sonraki mesajda
+      // tekrarlamış) öneri gösterilmez — onay tarafının birleştirme yüklemiyle BİREBİR (`commitmentSlotMatches`). Yoksa onay "zaten var"
       // diye hiçbir şey yapmaz ve öneri yenilemede geri gelir: ölü "Onayla" düğmesi (Opus 10-15 B1).
-      if (dueAt && commitments.some((c) => c.kind === promise.kind && c.status === "open" && c.dueAt.getTime() === dueAt.getTime())) continue;
+      if (
+        dueAt &&
+        commitments.some((c) => c.status === "open" && commitmentSlotMatches(c, { kind: promise.kind, dueAt, topic: promise.topic }))
+      ) {
+        continue;
+      }
       const due = dueAt ? relativeDay(dueAt, now, tz) : null;
       if (!due) continue;
       out.push({
         key,
         kind: "commitment",
-        title: `Söz kaydet: ${COMMITMENT_KIND_LABELS[promise.kind]} — ${due.day === "tomorrow" ? "yarın" : "bugün"} ${due.time}`,
+        title: `Söz kaydet: ${commitmentLabel(promise.kind, promise.topic)} — ${due.day === "tomorrow" ? "yarın" : "bugün"} ${due.time}`,
         detail: "Misafire yazdığınız mesajdan — açık söz + görev açılır",
         evidenceAt: fmtAt(m.createdAt),
-        proposal: { messageId: m.id, commitmentKind: promise.kind, day: due.day, time: due.time },
+        proposal: { messageId: m.id, commitmentKind: promise.kind, topic: promise.topic, day: due.day, time: due.time },
       });
     }
   }

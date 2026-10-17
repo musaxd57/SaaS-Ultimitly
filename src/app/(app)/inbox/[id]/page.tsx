@@ -261,13 +261,14 @@ export default async function ConversationPage({
           where: { conversationId: conversation.id, organizationId: session.organizationId, status: "open" },
           orderBy: [{ dueAt: "asc" }, { id: "asc" }],
           take: 20,
-          select: { id: true, kind: true, dueAt: true },
+          select: { id: true, kind: true, topic: true, dueAt: true },
         })
       )
         .filter((c): c is typeof c & { kind: CommitmentKind } => isCommitmentKind(c.kind))
         .map((c) => ({
           id: c.id,
           kind: c.kind,
+          topic: c.topic,
           dueLabel: formatDateTime(c.dueAt, TZ),
           minutesLeft: Math.floor((c.dueAt.getTime() - commitmentNow.getTime()) / 60_000),
         }))

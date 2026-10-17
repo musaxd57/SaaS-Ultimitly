@@ -3,7 +3,7 @@ import "server-only";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { writeAuditInTx } from "@/lib/audit";
-import { COMMITMENT_KIND_LABELS, type CommitmentKind } from "@/lib/guest-commitments-core";
+import { commitmentLabel, commitmentTopicsCompatible, isCommitmentTopic, type CommitmentKind, type CommitmentTopic } from "@/lib/guest-commitments-core";
 
 // ---------------------------------------------------------------------------
 // AÇIK TAAHHÜT HAFIZASI A (kurucu kararı 10-10; migration 62; tasarım `docs/TASARIM-2026-10-10-acik-taahhut-hafizasi-onerisi.md`).
@@ -20,6 +20,7 @@ export {
   COMMITMENT_STATUSES,
   commitmentDueAt,
   isCommitmentKind,
+  isCommitmentTopic,
   type CommitmentKind,
   type CommitmentStatus,
 } from "@/lib/guest-commitments-core";
@@ -79,6 +80,8 @@ export async function createGuestCommitment(input: {
   propertyId: string;
   reservationId: string | null;
   kind: CommitmentKind;
+  /** Sözün konusu (I1, migration 73) — YALNIZ öneri onayı verir (ev sahibinin mesajından, kodla); elle form vermez (NULL). */
+  topic?: CommitmentTopic | null;
   dueAt: Date;
   actorUserId: string;
   /** İstemcinin işlem kimliği (yoksa her çağrı yeni söz). */
@@ -92,6 +95,7 @@ export async function createGuestCommitment(input: {
 }, outerTx?: Prisma.TransactionClient): Promise<{ id: string; taskId: string; reused: boolean }> {
   // Dış işlem verilirse (yapay zekâ önerisinin onayı — karar kaydıyla AYNI işlem) onun içinde; yoksa bugünkü gibi kendi işlemi.
   const run = <T,>(fn: (tx: Prisma.TransactionClient) => Promise<T>) => (outerTx ? fn(outerTx) : prisma.$transaction(fn));
+  const topic = isCommitmentTopic(input.topic) ? input.topic : null;
   return run(async (tx) => {
     // Konuşma kilidi: aynı kimlikli eş zamanlı istekler sıraya girer; ikincisi birincinin yazdığını görür (↑ başlık).
     await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(${COMMITMENT_LOCK_NS}::int4, hashtext(${input.conversationId}))`);
@@ -111,7 +115,9 @@ export async function createGuestCommitment(input: {
     if (!requestId || input.mergeSameSlot) {
       // KİMLİKSİZ istek (yayın anında açık kalmış eski sekme — Opus O12): eski anlam birleştirmesi korunur (aynı tür + aynı an + açık söz →
       // o söz). Yeni istemci her zaman kimlik gönderir; bu dal yalnız geçiş dönemi içindir.
-      const same = await tx.guestCommitment.findFirst({
+      // I1 (10-17): konu UYUMLU olmalı (`commitmentSlotMatches` ile aynı kural — öneri listesi de bunu kullanır): aynı konu ya da biri
+      // konusuz. Aday sırası: önce konusu EŞİT olan, sonra konusuz; eşitlikte en eski (aynı zaman damgası → kimlik).
+      const candidates = await tx.guestCommitment.findMany({
         where: {
           organizationId: input.organizationId,
           conversationId: input.conversationId,
@@ -120,8 +126,11 @@ export async function createGuestCommitment(input: {
           status: "open",
           taskId: { not: null },
         },
-        select: { id: true, taskId: true },
+        select: { id: true, taskId: true, topic: true },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       });
+      const compatible = candidates.filter((c) => commitmentTopicsCompatible(c.topic, topic));
+      const same = compatible.find((c) => topic !== null && c.topic === topic) ?? compatible[0];
       if (same?.taskId) return { id: same.id, taskId: same.taskId, reused: true };
     }
     if (__commitmentHooks.afterSameCheck) await __commitmentHooks.afterSameCheck();
@@ -131,7 +140,7 @@ export async function createGuestCommitment(input: {
         reservationId: input.reservationId,
         type: TASK_TYPE_FOR[input.kind],
         origin: "manual",
-        title: `Misafire söz: ${COMMITMENT_KIND_LABELS[input.kind]}`,
+        title: `Misafire söz: ${commitmentLabel(input.kind, topic)}`,
         dueAt: input.dueAt,
         status: "todo",
         priority: "standard",
@@ -144,6 +153,7 @@ export async function createGuestCommitment(input: {
         conversationId: input.conversationId,
         taskId: task.id,
         kind: input.kind,
+        topic,
         dueAt: input.dueAt,
         clientRequestId: requestId,
       },
@@ -153,7 +163,7 @@ export async function createGuestCommitment(input: {
       organizationId: input.organizationId,
       actorUserId: input.actorUserId,
       action: "commitment.created",
-      metadata: { commitmentId: commitment.id, taskId: task.id, kind: input.kind },
+      metadata: { commitmentId: commitment.id, taskId: task.id, kind: input.kind, ...(topic ? { topic } : {}) },
     });
     return { id: commitment.id, taskId: task.id, reused: false };
   });

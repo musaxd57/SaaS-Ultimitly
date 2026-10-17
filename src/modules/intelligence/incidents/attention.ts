@@ -199,6 +199,8 @@ export interface AttentionItem {
   decisionUnverified?: boolean;
   /** Yalnız `commitment_due`: söz türü (kapalı küme; METİN değil). */
   commitmentKind?: CommitmentKind;
+  /** Yalnız `commitment_due`: sözün konusu (I1, kapalı küme kod; "klima"); yoksa null. */
+  commitmentTopic?: string | null;
   /** Yalnız `commitment_due`: son ana kalan dakika (eksi = gecikti). */
   minutesLeft?: number;
   /** Yalnız `commitment_due`: son an, işletmenin saatiyle ("18:00" ya da "yarın 10:00"). */
@@ -340,7 +342,7 @@ export async function findAttentionItems(
         },
         orderBy: [{ dueAt: "asc" }, { id: "asc" }],
         take: COMMITMENT_MAX_ROWS,
-        select: { kind: true, dueAt: true, conversationId: true, conversation: { select: { propertyId: true, channel: true } } },
+        select: { kind: true, topic: true, dueAt: true, conversationId: true, conversation: { select: { propertyId: true, channel: true } } },
       })
       .catch((err) => {
         void alertOnTransition("attention:commitment-due", "attention commitment_due", err).catch(() => {});
@@ -556,6 +558,7 @@ export async function findAttentionItems(
         occurredAt: c.dueAt,
         href: conversationHref(c.conversationId, c.conversation.channel),
         commitmentKind: c.kind,
+        commitmentTopic: c.topic,
         minutesLeft,
         commitmentTime: `${dayWord}${clock}`,
       });

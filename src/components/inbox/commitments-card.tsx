@@ -8,11 +8,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/lib/toast";
 import { newKbRequestId } from "@/lib/kb/request-id";
-import { COMMITMENT_KINDS, COMMITMENT_KIND_LABELS, commitmentDurationLabel, type CommitmentKind } from "@/lib/guest-commitments-core";
+import { COMMITMENT_KINDS, COMMITMENT_KIND_LABELS, commitmentDurationLabel, commitmentLabel, type CommitmentKind } from "@/lib/guest-commitments-core";
 
 export interface CommitmentRow {
   id: string;
   kind: CommitmentKind;
+  /** Sözün konusu (I1; yalnız öneriden kaydedilen sözde) — "Arıza / bakım · klima". */
+  topic?: string | null;
   /** Son an, ev sahibinin saatiyle (sunucu biçimledi). */
   dueLabel: string;
   /** Sayfa açıldığında son ana kalan dakika (eksi = gecikti). */
@@ -117,7 +119,7 @@ export function CommitmentsCard({
               return (
                 <li key={c.id} className="flex items-start justify-between gap-2">
                   <div>
-                    <div className="font-medium">{COMMITMENT_KIND_LABELS[c.kind]}</div>
+                    <div className="font-medium">{commitmentLabel(c.kind, c.topic)}</div>
                     <div className="text-xs text-muted-foreground">
                       {c.dueLabel} ·{" "}
                       <Badge tone={late ? "destructive" : "secondary"} className="align-middle">
