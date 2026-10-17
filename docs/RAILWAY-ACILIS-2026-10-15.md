@@ -94,6 +94,9 @@ bekleyen satır 10 dakikayı geçmemeli.
   Ev sahibinin misafire yazdığı söz onaysız söz + görev olur; saat uydurulmaz (açık saat / "akşam" / yalnız gün); bağlamla kesin eşleşen
   saat değişikliği aynı görevi taşır; günde işletme başına 20; konaklama bitince havlu / malzeme / temizlik sözü kapanır, arıza kalır.
   Misafire HİÇBİR şey gitmez. Müşteri Ayarlar'dan kapatabilir. Kapatmak = env'i sil (öneri + onay akışına döner).
+  İLK açılışta: saatlik telafi son 48 saatin ev sahibi mesajlarındaki vadesi gelmemiş sözleri görev yapar; bitmiş konaklamaların el değmemiş
+  havlu / temizlik / eşya sözleri kapanır (elle kaydedilenler dahil). Belirsiz sözler (hangi söz / birden çok saat) gelen kutusunda kart olarak
+  kalır — öneri anahtarı `AI_ACTION_SUGGESTIONS_ENABLED` kapalı olsa da söz kartları görünür.
 
 - `OUTBOX_FAST_WAKE` (kurucu 10-16) — varsayılan AÇIK, env gerekmez; yalnız `0` kapatır (kuyruğa yazılan elle cevap 2 dk beklemesin).
 - `OUTBOX_DELIVERY_PAUSED` (kurucu 10-16) — EKLEMEYİN; acil durumda `1` = kuyrukta bekleyen gönderimler durur (uzlaştırma sürer; kuyruk dışı

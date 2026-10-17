@@ -74,6 +74,27 @@ Boolean @default(true)`. KVKK dışa aktarımı yeni kolonları taşır (metin y
 `HOST_COMMITMENT_AUTO_ENABLED` (yalnız "1"; `STRICT_ONE_FLAGS`). Kurucu "herkese birden" → Railway açılış listesine "1"
 (`docs/RAILWAY-ACILIS-2026-10-15.md` §5). Kapalıyken bugünkü öneri + onay düzeni (ayar yüzeyde yok, öneri ayardan etkilenmez).
 
+## Opus dilim sonu (10-17 gece, 21 bulgu — hepsi işlendi; ayrıntı `scratchpad/opus-sg-review.md` özeti)
+
+- **O1 (P1) sözü YAPAN:** "Klima için teknisyen yarın 10'da" açıkken "Klima kumandasının pilini akşam getireceğim" teknisyen sözünü TAŞIYORDU.
+  Artık `actor` (ziyaret: teknisyen / usta / temizlikçi / ekip · teslim: getir / gönder / bırak): farklı yapan → ayrı söz; yapanı bilinmeyen
+  (elle kayıt, kaynak mesaj pencerede yok) aynı konulu söz → kendiliğinden taşınmaz, kart sorar. Kesin taşıma = tek aday ∧ (değişiklik
+  sözcüğü ∨ aynı konu + aynı bilinen yapan).
+- **O2** el değmemiş görev = yapılacak + otomatik başlık + atanmamış + açıklamasız + güncelleme / not / fotoğraf yok (silinen görevde yetim
+  dosya kalmaz). **O3** "…, uygun mu / olur mu?" söz değil. **O4** gün sözcüksüz değişiklik ("11'e kaydı") eski sözün gününe. **O5** "Arıza
+  kaydınız bugün alındı" değişiklik değil (yönelme eki şart). **O6** "iki ayrı / bir ayar" gün değil; "umarım" yalnız sözün kendisinde.
+- **O7** yükleyici yalnız istenen türü üretir (görev önerileri 5 yerlik tavanı doldurmaz; onay yolu da). **O8** konusuz eski söz + konulu yeni
+  saat → kart. **O9** mesajda birden çok saat → kendiliğinden kaydedilmez, kart. **O10** tarama tavanı yorumu düzeltildi (imleç yok, bugünkü
+  ölçekte sınır uzak). **O11** dikkat paneli 200 aday okur. **O12** dilim / gün sözünde kalan süre gösterilmez ("açık" / "gecikti").
+- **O13** gün düzenlemesi takvim aritmetiğiyle. **O14** konaklama kapatması işletme ayarı açıkken ve görev el değmemişken (üzerinde çalışılan
+  söz açık kalır). **O15** konuşma kilidi (gönderim kancası + senkron turu aynı konuşmayı aynı anda işlemez; süresi dolan kilit devralınır).
+- **O16 anahtar KAPALIYKEN bugünkü görünüm:** 30 dk pay ve "Söz 1 gündür açık" yalnız anahtar açıkken. ⚠️ Açılış notu: anahtar ilk açıldığında
+  saatlik telafi son 48 saatin ev sahibi mesajlarındaki (hâlâ vadesi gelmemiş) sözleri görev yapar ve bitmiş konaklamaların el değmemiş havlu /
+  temizlik / eşya sözlerini kapatır — Railway açılış listesinde yazılı.
+- **O17** demo hesabı hariç. **O18** Paddle anahtar olayı inceleme kaydı (e-posta kısılsa da iz kalır). **O19** "bu mesajdan önce" kıyası
+  sözün KAYNAK mesaj anıyla (gecikmeli gelen saat değişikliği gizlenmez). **O20** aynı an + aynı kesinlik (gün sözü ≠ akşam sözü). **O21**
+  otomatik sözde "İptal" (görev kalır) + "Yanlış, kaldır".
+
 ## Mutasyon (10-17 gece, 40 mutant)
 
 36/40 ilk koşuda öldü; `SG-night-gecen` eksik pindi (virgülsüz "geçen" vakası eklendi). Gerekçeli EŞDEĞER üç mutant (savunma katmanı,
