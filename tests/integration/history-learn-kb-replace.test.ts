@@ -46,7 +46,9 @@ const review = (id: string, body: unknown) => reviewDraft(json(`http://localhost
 
 async function seed() {
   const { orgId, propertyId } = await makeOrgWithProperty();
-  session = owner(orgId);
+  // Denetim kaydı gerçek kullanıcıya bağlanır (FK) — seçim izinin yazıldığı sınanır.
+  const user = await prisma.user.create({ data: { organizationId: orgId, name: "O", email: `o-${orgId}@example.com`, passwordHash: "x", role: "owner" } });
+  session = { ...owner(orgId), userId: user.id };
   const oldKb = await prisma.knowledgeBaseItem.create({
     data: { propertyId, category: "wifi", title: "Wi-Fi", content: "Ağ: Lale_Ev · Şifre: yeni2025", isActive: true, reviewState: "approved" },
   });
@@ -84,8 +86,9 @@ describe("Geçmişten öğren × bilgi tabanı — eskisinin yerine koy (L2)", (
   it("🚨 yerine koy: yeni kalem etkin, eski PASİF + halef bağı + an (silinmez); denetim kaydı seçimi taşır, metni taşımaz", async () => {
     const { orgId, propertyId, oldKb, draft } = await seed();
     const res = await review(draft.id, { action: "approve", resolution: "replace", replaceKbItemId: oldKb.id });
-    expect(res.status).toBe(200);
-    const { kbItemId, replacedKbItemId } = await res.json();
+    const resBody = await res.json();
+    expect(res.status, JSON.stringify(resBody)).toBe(200);
+    const { kbItemId, replacedKbItemId } = resBody;
     expect(replacedKbItemId).toBe(oldKb.id);
     const [fresh, old] = await Promise.all([
       prisma.knowledgeBaseItem.findUniqueOrThrow({ where: { id: kbItemId } }),

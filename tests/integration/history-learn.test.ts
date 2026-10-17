@@ -312,7 +312,9 @@ describe("Geçmişten öğren — uçtan uca", () => {
     expect(await prisma.historyLearnDraft.findUniqueOrThrow({ where: { id: plain.id } })).toMatchObject({ state: "pending" });
     // Düzenleme saklı işareti temizler (yeni metnin işaretleri sayılır).
     const flagged2 = await seedDraft(propertyId, orgId, { flagsJson: JSON.stringify(["needs_edit"]), content: "Acil durumda [PHONE] arayın." });
-    expect((await patch(flagged2.id, { action: "approve", content: "Otopark binanın arkasında." })).status).toBe(200);
+    // L2 (10-17): bilgi tabanında artık bir otopark kalemi var (↑onaylanan) → seçim ister; bu testin konusu işaret temizliği → "ayrı ekle".
+    expect((await patch(flagged2.id, { action: "approve", content: "Otopark binanın arkasında." })).status).toBe(409);
+    expect((await patch(flagged2.id, { action: "approve", content: "Otopark binanın arkasında.", resolution: "separate" })).status).toBe(200);
 
     const rej = await seedDraft(propertyId, orgId);
     const before = await prisma.knowledgeBaseItem.count();
@@ -479,7 +481,8 @@ describe("Geçmişten öğren — Opus 10-15 ikinci tur bulguları", () => {
     const a = await mk("Otopark arkada.");
     expect((await draftPatch(a.id, { action: "approve" })).status).toBe(200);
     const b = await mk("Çöp yeşil konteynerde.");
-    const rb = await draftPatch(b.id, { action: "approve" });
+    // L2 (10-17): aynı kategoride (otopark) etkin kalem var → "ayrı ekle" seçimi plan sınırına tabidir (yer değiştirme değildir).
+    const rb = await draftPatch(b.id, { action: "approve", resolution: "separate" });
     expect(rb.status).toBe(400);
     expect(JSON.stringify(await rb.json())).toContain("sınırına");
     expect(await prisma.historyLearnDraft.findUniqueOrThrow({ where: { id: b.id } })).toMatchObject({ state: "pending" });
