@@ -242,13 +242,18 @@ function maskLockContextCodes(text: string, opts: { carry?: boolean } = {}): str
             marks ||= /[#*]/u.test(c);
             j += 1;
           }
-          const after = parts.slice(j).join("");
-          if ((digits >= 3 || marks) && !VALUE_UNIT_AFTER_RE.test(after)) {
+          // Birim / ölçü sözcüğü yalnız GRUBUN HEMEN ARDINDA aranır (birim kalıbı başa çapalı, birkaç sözcük yeter) → sınırlı dilim; eskiden
+          // her grupta metnin TAMAMI birleştiriliyordu (gece-4 S5-03: "kutu 1 1 1 … saat" 32 KB'de 30 sn olay döngüsü kilidi).
+          const masks = (digits >= 3 || marks) && !VALUE_UNIT_AFTER_RE.test(parts.slice(j, j + 8).join(""));
+          if (masks) {
             out.push(`${lead}(kod gizlendi)${splitPunct(parts[j - 1]).trail}`);
             i = j - 1;
             continue;
           }
-          out.push(parts[i]);
+          // Reddedilen grup BÜTÜNÜYLE aynen geçer ve atlanır: grubun soneki aynı "ardı"na ve daha az rakama sahip, maskelenemezdi (eşdeğer;
+          // eskiden her sonek yeniden taranıyordu — karesel).
+          out.push(parts.slice(i, j).join(""));
+          i = j - 1;
           continue;
         }
         const digits = core.replace(/\D/gu, "").length;
@@ -277,7 +282,32 @@ export function hasLockContextCode(text: string): boolean {
  * 10–15 hane (ayraçlı).
  */
 const PASSPORT_RE =
-  /(?<![\p{L}])((?:pasaport|passport|kimlik|identity|id)(?:\s{1,3}(?:no|numaras[ıi]|numaram|number|nr|num))?\.?(?:\s{0,3}[:#]){0,2}\s{0,3})([A-Za-z]{0,3}\d[A-Za-z0-9]{4,11})(?![\p{L}\d])/giu;
+  /(?<![\p{L}])((?:(?:pasaport|passport|kimlik)\p{L}{0,10}|identity|id)(?:\s{1,3}(?:no|numaras[ıi]|numaram|numaramız|number|nr|num|bilgi\p{L}{0,6}|is|şu|sunlar|şunlar|are|:)){0,2}\.?(?:\s{0,3}[:#]){0,2}\s{0,3})([A-Za-z]{0,3}\d[A-Za-z0-9]{4,11})(?![\p{L}\d])/giu;
+/**
+ * Etiketten sonraki kısa pencerede ikinci / sonraki pasaport biçimli değerler ("Pasaportlarımız A1234567, B7654321"; "our passports:
+ * A1234567 and B7654321") — gece-4 S5-02: etiket "pasaportum / pasaportlarımız / passports" gibi ekli ya da değer ikinciyse açıkta
+ * gidiyordu. Pencere sınırlı (doğrusal).
+ */
+const PASSPORT_LABEL_G = /(?<![\p{L}])(?:pasaport|passport)\p{L}{0,10}/giu;
+const PASSPORT_VALUE_G = /(?<![\p{L}\d])[A-Za-z]{1,2}\d{6,9}(?![\p{L}\d])/gu;
+const PASSPORT_WINDOW = 80;
+function maskPassportWindows(text: string): string {
+  const spans: Array<[number, number]> = [];
+  for (const m of text.matchAll(PASSPORT_LABEL_G)) {
+    const start = m.index! + m[0].length;
+    spans.push([start, Math.min(text.length, start + PASSPORT_WINDOW)]);
+  }
+  if (spans.length === 0) return text;
+  let out = "";
+  let cursor = 0;
+  for (const [a, b] of spans) {
+    if (b <= cursor) continue;
+    const from = Math.max(a, cursor);
+    out += text.slice(cursor, from) + text.slice(from, b).replace(PASSPORT_VALUE_G, "[ID]");
+    cursor = b;
+  }
+  return out + text.slice(cursor);
+}
 const CARD_RE = /(?<![\d])(?:\d[ .-]{0,2}){12,18}\d(?![\d])/gu;
 /** Kartın güvenlik kodu (CVV / CVC) — kartla ya da tek başına. */
 const CVV_RE = /(?<![\p{L}])(cvv2?|cvc|g[üu]venlik\s+kodu)(\s{0,3}[:#]?\s{0,3})\d{3,4}(?!\d)/giu;
@@ -297,11 +327,14 @@ function luhn(digits: string): boolean {
 }
 
 function maskContacts(text: string): string {
-  return text
-    .replace(EMAIL_RE, "[EMAIL]")
-    // IBAN kart / telefon kalıplarından ÖNCE (rakam öbekleri karta benzer).
-    .replace(IBAN_RE, (m) => ((m.match(/\d/gu) ?? []).length >= 10 ? "[IBAN]" : m))
-    .replace(PASSPORT_RE, (_m, label: string) => `${label}[ID]`)
+  const withIds = maskPassportWindows(
+    text
+      .replace(EMAIL_RE, "[EMAIL]")
+      // IBAN kart / telefon kalıplarından ÖNCE (rakam öbekleri karta benzer).
+      .replace(IBAN_RE, (m) => ((m.match(/\d/gu) ?? []).length >= 10 ? "[IBAN]" : m))
+      .replace(PASSPORT_RE, (_m, label: string) => `${label}[ID]`),
+  );
+  return withIds
     .replace(CVV_RE, (_m, label: string, sep: string) => `${label}${sep}[CARD]`)
     // Etiketli telefon karttan ÖNCE ("call me at 49 151 1234 5678" Luhn'u tesadüfen geçebilir — doğru etiket).
     .replace(LABELED_PHONE_RE, (m, label: string, num: string) => {

@@ -266,6 +266,16 @@ function nameSet(names: readonly string[]): Set<string> {
   NAME_SET_CACHE.set(names, set);
   return set;
 }
+/**
+ * Türkçe ÇEKİM / ÇOĞUL eki (katlanmış, kesmesiz): "Ayşeye", "Ayşenin", "Mehmetle", "Yılmazlar", "Denizden" (gece-4 S5-10: yalnız tam ad ve
+ * sevgi eki tanınıyordu; ekli ad ne maskeleniyor ne işaretleniyordu, tek tıkla onaylanıp bilgi tabanına girebiliyordu). Yalnız İŞARET
+ * içindir (yanlış pozitif = sarı uyarı, "kontrol ettim"); maske değişmez. Ad parçası ≥ 4 harf (kısa adlar sıradan sözcüklerle karışmasın).
+ */
+const CASE_TAILS: ReadonlySet<string> = new Set([
+  "e", "a", "ye", "ya", "i", "u", "yi", "yu", "in", "un", "nin", "nun", "le", "la", "yle", "yla", "de", "da", "te", "ta", "den", "dan",
+  "ten", "tan", "ler", "lar", "leri", "lari", "lerin", "larin", "lere", "lara", "ndan", "nden", "na", "ne", "nla", "nle",
+]);
+const MAX_TAIL = 5;
 export function mentionsGuestName(text: string, names: readonly string[]): boolean {
   const set = nameSet(names);
   if (!set.size) return false;
@@ -273,6 +283,10 @@ export function mentionsGuestName(text: string, names: readonly string[]): boole
     if (!w) continue;
     const f = foldTurkishAscii(w);
     if (set.has(f) || set.has(f.replace(ENDEARMENT_TAIL, ""))) return true;
+    // Ad + çekim eki: sözcüğün son 1–5 harfi bilinen ek, kalan kök ≥ 4 harf ve ad kümesinde (sabit sayıda deneme — doğrusal).
+    for (let t = 1; t <= MAX_TAIL && f.length - t >= 4; t += 1) {
+      if (CASE_TAILS.has(f.slice(f.length - t)) && set.has(f.slice(0, f.length - t))) return true;
+    }
   }
   return false;
 }

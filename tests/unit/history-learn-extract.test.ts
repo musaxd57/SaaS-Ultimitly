@@ -587,3 +587,53 @@ describe("gateDraft — L3 tek konuşmalık bilgi (single_source)", () => {
     expect(g.ok && g.flags).not.toContain("single_source");
   });
 });
+
+describe("gece-4 S5-02 / S5-03 / S5-10 — pasaport biçimleri, karesel iş, ekli misafir adı", () => {
+  it.each([
+    ["Pasaportum U12345678 dir", "U12345678"],
+    ["pasaportumun numarası A1234567", "A1234567"],
+    ["pasaport bilgilerim: A1234567 doğum 01.02.1990", "A1234567"],
+    ["Pasaportlarımız A1234567, B7654321", "B7654321"],
+    ["Passport number is U12345678", "U12345678"],
+    ["Here are our passports: A1234567 and B7654321", "B7654321"],
+  ])("🚨 pasaport numarası maskelenir: %s", (text, secret) => {
+    const out = maskForLearning(text, null);
+    expect(out).not.toContain(secret);
+    expect(out).toContain("[ID]");
+  });
+  it("KONTROL: pasaport etiketi yokken kısa kod / tarih / tutar maskelenmez", () => {
+    expect(maskForLearning("Otopark günlük 100 TL, oda A12 numaralı.", null)).toBe("Otopark günlük 100 TL, oda A12 numaralı.");
+  });
+  it("🚨 kilit bağlamında birim sözcüğüyle biten uzun rakam dizisi DOĞRUSAL (32 KB < 1 sn; eskiden ~30 sn)", () => {
+    for (const text of ["kutu " + "1 ".repeat(16_000) + "saat", "kutu " + "111 a ".repeat(6_000) + "saat", "kutu " + "12 ".repeat(12_000) + "TL"]) {
+      const t = performance.now();
+      maskForLearning(text, null);
+      expect(performance.now() - t).toBeLessThan(1_000);
+    }
+  });
+  it("KONTROL: karesel iş düzeltmesi sonucu değiştirmez (kod maskelenir, birimli sayı kalır)", () => {
+    expect(maskForLearning("Anahtar kutusu kodu 4 5 9 0.", null)).toContain("(kod gizlendi)");
+    expect(maskForLearning("Anahtar kutusu 3 numaralı kapıda.", null)).toBe("Anahtar kutusu 3 numaralı kapıda.");
+    expect(maskForLearning("Kutu 1 2 saat sonra açılır.", null)).toBe("Kutu 1 2 saat sonra açılır.");
+  });
+});
+
+describe("gece-4 S5-10 — ekli misafir adı taslakta İŞARETLENİR", () => {
+  const guestNames = ["Ayşe Yılmaz", "Mehmet Kaya", "Deniz Aksoy"];
+  it.each([
+    "Anahtarı Ayşeye bıraktım.",
+    "Ayşenin valizi kapıda.",
+    "Mehmetle konuştum, yarın gelecek.",
+    "Yılmazlar ailesi akşam gelir.",
+    "Denizden haber var mı?",
+  ])("🚨 %s → guest_name işareti", (text) => {
+    const r = gateDraft("Not", text, { guestNames });
+    expect(r.ok && r.flags.includes("guest_name")).toBe(true);
+  });
+  it("KONTROL: adla ilgisiz sözcük işaretlenmez (kısa kök / ek olmayan son)", () => {
+    for (const text of ["Kahvaltı 09:00'da.", "Kayak merkezi yakında.", "Mehmetçik parkı yakında."]) {
+      const r = gateDraft("Not", text, { guestNames });
+      expect(r.ok && r.flags.includes("guest_name"), text).toBe(false);
+    }
+  });
+});
