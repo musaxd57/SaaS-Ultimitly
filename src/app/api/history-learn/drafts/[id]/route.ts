@@ -37,7 +37,9 @@ export const PATCH = withManage<{ id: string }>(async (session, req, { params })
     confirmFlags: body?.confirmFlags === true,
     resolution: body?.resolution === "replace" || body?.resolution === "separate" ? body.resolution : undefined,
     replaceKbItemId: str(body?.replaceKbItemId),
+    replaceKbItemUpdatedAt: str(body?.replaceKbItemUpdatedAt),
   });
+  const resolution = body?.resolution === "replace" || body?.resolution === "separate" ? body.resolution : null;
   if (!r.ok) {
     if (r.reason === "not_found") return notFound();
     if (r.reason === "already_reviewed") return NextResponse.json({ error: "Bu taslak zaten işlendi." }, { status: 409 });
@@ -46,18 +48,17 @@ export const PATCH = withManage<{ id: string }>(async (session, req, { params })
         { error: "Bu taslakta kontrol edilmesi gereken bir nokta var. Okuyup onaylayın.", needsConfirm: true, flags: r.flags, conflict: r.conflict },
         { status: 409 },
       );
-    if (r.reason === "needs_resolution")
+    if (r.reason === "needs_resolution" || r.reason === "kb_changed")
       return NextResponse.json(
         {
-          error: "Bilgi tabanınızda bu konuda bir kayıt var. Eskisinin yerine mi koyalım, ayrı mı ekleyelim?",
+          error:
+            r.reason === "kb_changed"
+              ? "Seçtiğiniz kayıt siz bakarken değişti. Güncel hâlini aşağıda görüyorsunuz; yeniden seçin."
+              : "Bilgi tabanınızda bu konuda bir kayıt var. Eskisinin yerine mi koyalım, ayrı mı ekleyelim?",
           needsResolution: true,
+          ...(r.reason === "kb_changed" ? { kbChanged: true } : {}),
           matches: r.matches.map((m) => ({ id: m.id, title: m.title, preview: m.preview, kind: m.kind, updatedAt: m.updatedAt.toISOString() })),
         },
-        { status: 409 },
-      );
-    if (r.reason === "kb_changed")
-      return NextResponse.json(
-        { error: "Bilgi tabanındaki kayıt bu arada değişti. Sayfayı yenileyip yeniden deneyin.", kbChanged: true },
         { status: 409 },
       );
     return badRequest({ _: MESSAGES[r.reason] ?? MESSAGES.invalid });
@@ -70,7 +71,7 @@ export const PATCH = withManage<{ id: string }>(async (session, req, { params })
     metadata: {
       draftId: id,
       kbItemId: r.kbItemId,
-      ...(action === "approve" && body?.resolution ? { resolution: body.resolution, replacedKbItemId: r.replacedKbItemId ?? null } : {}),
+      ...(action === "approve" && resolution ? { resolution, replacedKbItemId: r.replacedKbItemId ?? null } : {}),
     },
   });
   return jsonOk({ ok: true, kbItemId: r.kbItemId, replacedKbItemId: r.replacedKbItemId ?? null });

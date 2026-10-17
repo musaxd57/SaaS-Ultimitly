@@ -75,7 +75,9 @@ describe("Geçmişten öğren × bilgi tabanı — eskisinin yerine koy (L2)", (
   it("🚨 aynı konuda kalem varken seçimsiz onay 409 needsResolution + eşleşme ('Kayıtlı değer farklı'); liste ekranı da eşleşmeyi taşır", async () => {
     const { propertyId, oldKb, draft } = await seed();
     const list = await (await getRuns(json(`http://localhost/api/properties/${propertyId}/history-learn`, "GET"), p({ id: propertyId }))).json();
-    expect(list.drafts[0].kbMatches).toEqual([{ id: oldKb.id, title: "Wi-Fi", preview: "Ağ: Lale_Ev · Şifre: yeni2025", kind: "differs" }]);
+    expect(list.drafts[0].kbMatches).toEqual([
+      { id: oldKb.id, title: "Wi-Fi", preview: "Ağ: Lale_Ev · Şifre: yeni2025", kind: "differs", updatedAt: oldKb.updatedAt.toISOString() },
+    ]);
     const res = await review(draft.id, { action: "approve" });
     expect(res.status).toBe(409); // ⬅️ ESKİDE 200 + iki etkin Wi-Fi kalemi (yapay zekâ ikisini birden görüyordu)
     const body = await res.json();
@@ -87,7 +89,7 @@ describe("Geçmişten öğren × bilgi tabanı — eskisinin yerine koy (L2)", (
 
   it("🚨 yerine koy: yeni kalem etkin, eski PASİF + halef bağı + an (silinmez); denetim kaydı seçimi taşır, metni taşımaz", async () => {
     const { orgId, propertyId, oldKb, draft } = await seed();
-    const res = await review(draft.id, { action: "approve", resolution: "replace", replaceKbItemId: oldKb.id });
+    const res = await review(draft.id, { action: "approve", resolution: "replace", replaceKbItemId: oldKb.id, replaceKbItemUpdatedAt: oldKb.updatedAt.toISOString() });
     const resBody = await res.json();
     expect(res.status, JSON.stringify(resBody)).toBe(200);
     const { kbItemId, replacedKbItemId } = resBody;
@@ -117,7 +119,7 @@ describe("Geçmişten öğren × bilgi tabanı — eskisinin yerine koy (L2)", (
     const foreign = await prisma.knowledgeBaseItem.create({
       data: { propertyId: other.propertyId, category: "wifi", title: "Wi-Fi", content: "Şifre: baska99", isActive: true, reviewState: "approved" },
     });
-    const res = await review(draft.id, { action: "approve", resolution: "replace", replaceKbItemId: foreign.id });
+    const res = await review(draft.id, { action: "approve", resolution: "replace", replaceKbItemId: foreign.id, replaceKbItemUpdatedAt: foreign.updatedAt.toISOString() });
     expect(res.status).toBe(409);
     expect((await res.json()).kbChanged).toBe(true);
     expect(await prisma.knowledgeBaseItem.count({ where: { propertyId } })).toBe(1);
@@ -129,7 +131,7 @@ describe("Geçmişten öğren × bilgi tabanı — eskisinin yerine koy (L2)", (
   it("eski kalem arada pasife alındı (artık aday değil): yerine koy 409 kbChanged; yeni kalem açılmaz", async () => {
     const { propertyId, oldKb, draft } = await seed();
     await prisma.knowledgeBaseItem.update({ where: { id: oldKb.id }, data: { isActive: false } });
-    const res = await review(draft.id, { action: "approve", resolution: "replace", replaceKbItemId: oldKb.id });
+    const res = await review(draft.id, { action: "approve", resolution: "replace", replaceKbItemId: oldKb.id, replaceKbItemUpdatedAt: oldKb.updatedAt.toISOString() });
     expect(res.status).toBe(409);
     expect(await prisma.knowledgeBaseItem.count({ where: { propertyId } })).toBe(1);
   });
@@ -139,7 +141,7 @@ describe("Geçmişten öğren × bilgi tabanı — eskisinin yerine koy (L2)", (
     __reviewHooks.beforeWrite = async () => {
       await prisma.knowledgeBaseItem.update({ where: { id: oldKb.id }, data: { isActive: false } });
     };
-    const res = await review(draft.id, { action: "approve", resolution: "replace", replaceKbItemId: oldKb.id });
+    const res = await review(draft.id, { action: "approve", resolution: "replace", replaceKbItemId: oldKb.id, replaceKbItemUpdatedAt: oldKb.updatedAt.toISOString() });
     expect(res.status).toBe(409);
     expect((await res.json()).kbChanged).toBe(true);
     expect(await prisma.knowledgeBaseItem.count({ where: { propertyId } })).toBe(1); // yeni kalem geri alındı
@@ -147,12 +149,41 @@ describe("Geçmişten öğren × bilgi tabanı — eskisinin yerine koy (L2)", (
     expect((await prisma.historyLearnDraft.findUniqueOrThrow({ where: { id: draft.id } })).state).toBe("pending");
   });
 
+  it("🚨 YARIŞ (Haiku 10-17 ikinci tur): eşleşmeden SONRA kalem yalnız İÇERİĞİ düzenlendi (hâlâ etkin) → işlem içi sürüm koşulu yakalar; güncel eşleşme döner", async () => {
+    const { propertyId, oldKb, draft } = await seed();
+    __reviewHooks.beforeWrite = async () => {
+      await prisma.knowledgeBaseItem.update({ where: { id: oldKb.id }, data: { content: "Ağ: Lale_Misafir · Şifre: misafir77" } });
+    };
+    const res = await review(draft.id, { action: "approve", resolution: "replace", replaceKbItemId: oldKb.id, replaceKbItemUpdatedAt: oldKb.updatedAt.toISOString() });
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body).toMatchObject({ kbChanged: true, needsResolution: true });
+    // Kart yerinde yenilensin: GÜNCEL içerik + yeni sürüm döner (ev sahibi neyi pasife alacağını görür).
+    const fresh = await prisma.knowledgeBaseItem.findUniqueOrThrow({ where: { id: oldKb.id } });
+    expect(body.matches).toEqual([expect.objectContaining({ id: oldKb.id, preview: "Ağ: Lale_Misafir · Şifre: misafir77", updatedAt: fresh.updatedAt.toISOString() })]);
+    expect(fresh).toMatchObject({ isActive: true, supersededById: null, content: "Ağ: Lale_Misafir · Şifre: misafir77" });
+    expect(await prisma.knowledgeBaseItem.count({ where: { propertyId } })).toBe(1);
+    expect((await prisma.historyLearnDraft.findUniqueOrThrow({ where: { id: draft.id } })).state).toBe("pending");
+  });
+
+  it("🚨 Haiku 10-17: ekranda görülen kalem başka sekmede DÜZENLENDİ (kimlik aynı, içerik farklı) → yerine koy 409; görülmemiş içerik pasife düşmez", async () => {
+    const { propertyId, oldKb, draft } = await seed();
+    const seen = oldKb.updatedAt.toISOString();
+    await prisma.knowledgeBaseItem.update({ where: { id: oldKb.id }, data: { title: "Misafir Wi-Fi", content: "Ağ: Lale_Misafir · Şifre: misafir77" } });
+    const res = await review(draft.id, { action: "approve", resolution: "replace", replaceKbItemId: oldKb.id, replaceKbItemUpdatedAt: seen });
+    expect(res.status).toBe(409);
+    expect(await prisma.knowledgeBaseItem.findUniqueOrThrow({ where: { id: oldKb.id } })).toMatchObject({ isActive: true, supersededById: null });
+    expect(await prisma.knowledgeBaseItem.count({ where: { propertyId } })).toBe(1);
+    // Sürümsüz istek de yerine koyamaz (eski istemci / elle istek).
+    expect((await review(draft.id, { action: "approve", resolution: "replace", replaceKbItemId: oldKb.id })).status).toBe(409);
+  });
+
   it("🚨 aynı mülkte ama BAŞKA KONUDAKİ kalem (eşleşme değil) yerine konamaz → 409; o kalem etkin kalır", async () => {
     const { propertyId, draft } = await seed();
     const parking = await prisma.knowledgeBaseItem.create({
       data: { propertyId, category: "parking", title: "Otopark", content: "Binanın arkasında.", isActive: true, reviewState: "approved" },
     });
-    const res = await review(draft.id, { action: "approve", resolution: "replace", replaceKbItemId: parking.id });
+    const res = await review(draft.id, { action: "approve", resolution: "replace", replaceKbItemId: parking.id, replaceKbItemUpdatedAt: parking.updatedAt.toISOString() });
     expect(res.status).toBe(409);
     expect(await prisma.knowledgeBaseItem.findUniqueOrThrow({ where: { id: parking.id } })).toMatchObject({ isActive: true, supersededById: null });
   });
@@ -162,13 +193,13 @@ describe("Geçmişten öğren × bilgi tabanı — eskisinin yerine koy (L2)", (
     limitsOverride.items = 1;
     const separate = await review(draft.id, { action: "approve", resolution: "separate" });
     expect(separate.status).toBe(400);
-    const replace = await review(draft.id, { action: "approve", resolution: "replace", replaceKbItemId: oldKb.id });
+    const replace = await review(draft.id, { action: "approve", resolution: "replace", replaceKbItemId: oldKb.id, replaceKbItemUpdatedAt: oldKb.updatedAt.toISOString() });
     expect(replace.status).toBe(200);
   });
 
   it("🚨 GERİ AL: eski kalemi Bilgi Tabanı'ndan yeniden etkinleştirince halef bağı temizlenir (yoksa getirme onu sessizce düşürürdü); yeni kalem etkin kalır", async () => {
     const { propertyId, oldKb, draft } = await seed();
-    const { kbItemId } = await (await review(draft.id, { action: "approve", resolution: "replace", replaceKbItemId: oldKb.id })).json();
+    const { kbItemId } = await (await review(draft.id, { action: "approve", resolution: "replace", replaceKbItemId: oldKb.id, replaceKbItemUpdatedAt: oldKb.updatedAt.toISOString() })).json();
     const res = await patchKb(json(`http://localhost/api/kb/${oldKb.id}`, "PATCH", { isActive: true }), p({ id: oldKb.id }));
     expect(res.status).toBe(200);
     expect(await prisma.knowledgeBaseItem.findUniqueOrThrow({ where: { id: oldKb.id } })).toMatchObject({

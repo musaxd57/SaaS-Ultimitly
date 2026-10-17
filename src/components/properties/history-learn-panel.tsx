@@ -72,6 +72,8 @@ interface KbMatch {
   title: string;
   preview: string;
   kind: "differs" | "same" | "topic";
+  /** Görülen sürüm — "yerine koy" bununla gönderilir (arada düzenlenen kalem pasife düşmesin). */
+  updatedAt: string;
 }
 /** L2 eşleşme türü — ev sahibine sade dille (kurucu 09-23). */
 const MATCH_KIND_TEXT: Record<KbMatch["kind"], string> = {
@@ -79,7 +81,7 @@ const MATCH_KIND_TEXT: Record<KbMatch["kind"], string> = {
   same: "Bu bilgi zaten kayıtlı",
   topic: "Aynı konu",
 };
-type Resolution = { mode: "replace"; id: string } | { mode: "separate" } | null;
+type Resolution = { mode: "replace"; id: string; updatedAt: string } | { mode: "separate" } | null;
 interface Run {
   id: string;
   kind?: string;
@@ -238,6 +240,16 @@ function DraftCard({ draft, onDone }: { draft: Draft; onDone: () => void }) {
   const [matches, setMatches] = useState<KbMatch[]>(draft.kbMatches ?? []);
   const [resolution, setResolution] = useState<Resolution>(null);
   const needsResolution = matches.length > 0;
+  // Liste yenilenince (başka sekmede kalem düzenlendi / eklendi) eşleşmeler yerinde güncellenir; kart YENİDEN KURULMAZ — başlık / içerik
+  // düzenlemesi ve hata mesajı kaybolmaz (Haiku 10-17 ikinci tur). Eski seçim artık geçerli olmayabilir → sıfırlanır.
+  const matchSignature = (draft.kbMatches ?? []).map((m) => `${m.id}@${m.updatedAt}`).join(",");
+  const seenSignature = useRef(matchSignature);
+  useEffect(() => {
+    if (seenSignature.current === matchSignature) return;
+    seenSignature.current = matchSignature;
+    setMatches(draft.kbMatches ?? []);
+    setResolution(null);
+  }, [matchSignature, draft.kbMatches]);
 
   async function act(action: "approve" | "reject") {
     setBusy(true);
@@ -253,7 +265,9 @@ function DraftCard({ draft, onDone }: { draft: Draft; onDone: () => void }) {
                 title,
                 content,
                 confirmFlags: checked,
-                ...(resolution?.mode === "replace" ? { resolution: "replace", replaceKbItemId: resolution.id } : {}),
+                ...(resolution?.mode === "replace"
+                  ? { resolution: "replace", replaceKbItemId: resolution.id, replaceKbItemUpdatedAt: resolution.updatedAt }
+                  : {}),
                 ...(resolution?.mode === "separate" ? { resolution: "separate" } : {}),
               }
             : { action },
@@ -332,7 +346,7 @@ function DraftCard({ draft, onDone }: { draft: Draft; onDone: () => void }) {
                 type="radio"
                 name={`resolution-${draft.id}`}
                 checked={resolution?.mode === "replace" && resolution.id === m.id}
-                onChange={() => setResolution({ mode: "replace", id: m.id })}
+                onChange={() => setResolution({ mode: "replace", id: m.id, updatedAt: m.updatedAt })}
                 disabled={busy}
                 className="mt-0.5"
               />
@@ -352,7 +366,10 @@ function DraftCard({ draft, onDone }: { draft: Draft; onDone: () => void }) {
             />
             Ayrı kayıt olarak ekle (ikisi de kalsın)
           </label>
-          <p className="text-muted-foreground">Yerine koyarsanız eski kayıt silinmez, pasife alınır; Bilgi Tabanı&apos;ndan geri açabilirsiniz.</p>
+          <p className="text-muted-foreground">
+            Farklı bir bilgiyse (ör. misafir ağı ile ev ağı) &quot;Ayrı kayıt olarak ekle&quot;yi seçin. Yerine koyarsanız eski kayıt silinmez, pasife
+            alınır; Bilgi Tabanı&apos;ndan geri açabilirsiniz (o zaman yeni kayıt da açık kalır — birini pasife almanız gerekir).
+          </p>
         </fieldset>
       ) : null}
       {needsCheck ? (
@@ -574,6 +591,7 @@ export function HistoryLearnPanel({
       {drafts.length ? (
         <div className="space-y-2">
           {drafts.map((d) => (
+            // Eşleşmeler değişince kart yeniden kurulur (Haiku 10-17: "kayıt değişti" sonrası liste yenilenince eski seçenekler kalıyordu).
             <DraftCard key={d.id} draft={d} onDone={() => void load()} />
           ))}
         </div>

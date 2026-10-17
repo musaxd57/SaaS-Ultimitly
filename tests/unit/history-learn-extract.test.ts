@@ -546,6 +546,17 @@ describe("gateDraft — L3 tek konuşmalık bilgi (single_source)", () => {
     ["Size bir şişe şarap bıraktım.", 1],
     ["I left a bottle of wine for you in the fridge.", 1],
     ["Size ekstra havlu getireceğim.", 1],
+    // Haiku 10-17: "I've left" ve kıvrık kesme işareti de.
+    ["I've left a bottle of wine for you.", 1],
+    ["I’ve left a bottle of wine for you.", 1],
+    // İkinci tur: söz kendisi tek seferlik (misafire yönelme şartı yok) · "you" / "sizler" / "sizi" · boşluk türü fark etmez.
+    ["Havlu getireceğim.", 1],
+    ["We will send a technician.", 1],
+    ["I left you a bottle of wine.", 1],
+    ["Sizler için şarap bıraktım.", 1],
+    ["Sizi karşılamak için kapıya bir not bıraktım.", 1],
+    ["I\u00a0left a bottle for you.", 1],
+    ["I  left a bottle for you.", 1],
   ])("🚨 işaretlenir: %s (destek %i)", (content, support) => {
     const g = gateDraft("Not", content, { supportConversations: support });
     expect(g.ok && g.flags).toEqual(["single_source"]); // ⬅️ ESKİDE [] (tek tıkla onaylanıyordu)
@@ -556,6 +567,14 @@ describe("gateDraft — L3 tek konuşmalık bilgi (single_source)", () => {
     ["Size bir şişe şarap bıraktım.", 3], // birden çok konuşma → herkes için
     ["Size bir şişe şarap bıraktım.", undefined], // ev sahibinin kendi notu (destek bilinmiyor) → işaret yok
     ["Wi-Fi şifresi Lale2024.", 1],
+    // Haiku 10-17: misafire yönelmeyen genel prosedür / olgu işaretlenmez.
+    ["Anahtarı kutuya bıraktım, çıkışta oraya bırakın.", 1],
+    ["Kapıcı her sabah geliyor.", 1],
+    // İkinci tur: eylem ve misafire yönelme AYNI cümlecikte aranır; olumsuz gelecek söz değildir; üçüncü kişi rutin söz değildir.
+    ["Anahtarı kapıcıya bıraktım. Size çıkışta haber veririz.", 1],
+    ["Havlu getirmeyeceğim.", 1],
+    ["We will not send anyone.", 1],
+    ["Havlular her gün değiştirilecek.", 1],
   ])("işaretlenmez: %s (destek %s)", (content, support) => {
     const g = gateDraft("Not", content, { supportConversations: support as number | undefined });
     expect(g.ok && g.flags).toEqual([]);

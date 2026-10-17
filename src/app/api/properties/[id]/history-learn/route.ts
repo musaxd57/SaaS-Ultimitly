@@ -116,7 +116,7 @@ export const GET = withManage<{ id: string }>(async (session, _req, { params }) 
       fromNote: d.run.kind === "compare",
       flags: parseFlags(d.flagsJson),
       sample: samples.get(d.id) ?? null,
-      kbMatches: (kbMatches.get(d.id) ?? []).map((m) => ({ id: m.id, title: m.title, preview: m.preview, kind: m.kind })),
+      kbMatches: (kbMatches.get(d.id) ?? []).map((m) => ({ id: m.id, title: m.title, preview: m.preview, kind: m.kind, updatedAt: m.updatedAt.toISOString() })),
     })),
     // Sorusu silinmiş (konuşma birleştirme / silme) karşılaştırma gösterilmez — boş soru kartı yok (Opus 10-15 HL4).
     comparisons: comparisons.filter((c) => texts.has(c.questionMessageId)).map((c) => ({

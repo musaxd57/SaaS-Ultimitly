@@ -13,7 +13,7 @@ import { maskPairs, maskForLearning } from "./mask";
 import { DRAFT_FLAGS, extractDraftsFromPairs, gateDraft, historyLearnEffort, historyLearnModel, LEARN_CATEGORIES, type DraftFlag } from "./extract";
 import { foldTurkishAscii } from "@/lib/ai/fallback";
 import { GUEST_DELIVERABLE_KB_WHERE } from "@/lib/kb-review";
-import { kbOverlaps, retiredValueVerdict, type KbOverlap } from "./kb-overlap";
+import { kbOverlaps, prepareKbItems, prepareRetiredItems, retiredValueVerdict, type KbOverlap, type PreparedKbItem } from "./kb-overlap";
 import { INSTRUCTIONS_MAX_ACTIVE, checkInstruction, type InstructionRejectReason } from "./instruction-gate";
 import { INSTRUCTION_PRESETS, presetByKey } from "./instruction-presets";
 import { propertyInstructionsPromptEnabled } from "./prompt-instructions";
@@ -313,7 +313,8 @@ export async function executeHistoryLearnRun(
         select: { category: true, title: true, content: true, supersededAt: true },
         take: 500,
       });
-      const retiredItems = retired.flatMap((r) => (r.supersededAt ? [{ ...r, supersededAt: r.supersededAt }] : []));
+      // Koşu başına BİR kez hazırlanır (taslak × kalem çarpımında konu yeniden hesaplanmasın — Haiku 10-17 ikinci tur).
+      const retiredItems = prepareRetiredItems(retired.flatMap((r) => (r.supersededAt ? [{ ...r, supersededAt: r.supersededAt }] : [])));
       await tx.historyLearnDraft.createMany({
         data: result.drafts.map((d) => {
           const verdict = retiredItems.length ? retiredValueVerdict(d, retiredItems) : null;
@@ -458,9 +459,11 @@ export const DRAFT_EDIT_MAX_CONTENT = 2_000;
 
 export type ReviewResult =
   | { ok: true; kbItemId: string | null; replacedKbItemId?: string | null }
-  | { ok: false; reason: "not_found" | "already_reviewed" | "invalid" | "door_code" | "hijack" | "plan_items" | "plan_chars" | "kb_changed" }
+  | { ok: false; reason: "not_found" | "already_reviewed" | "invalid" | "door_code" | "hijack" | "plan_items" | "plan_chars" }
   | { ok: false; reason: "needs_confirm"; flags: DraftFlag[]; conflict: boolean }
-  | { ok: false; reason: "needs_resolution"; matches: KbOverlap[] };
+  | { ok: false; reason: "needs_resolution"; matches: KbOverlap[] }
+  /** Seçilen kalem siz bakarken değişti: GÜNCEL eşleşmeler döner (kart yerinde yenilenir, ev sahibi yeniden seçer — Haiku 10-17 ikinci tur). */
+  | { ok: false; reason: "kb_changed"; matches: KbOverlap[] };
 
 /** L2: ev sahibinin çakışma seçimi — eskisinin yerine koy (eski kalem pasif + halef bağı) ya da ayrı ekle (iki kalem etkin). */
 export type DraftResolution = "replace" | "separate";
@@ -481,14 +484,23 @@ export async function pendingDraftKbOverlaps(
 ): Promise<Map<string, KbOverlap[]>> {
   const out = new Map<string, KbOverlap[]>();
   if (drafts.length === 0) return out;
+  // Yalnız bekleyen taslakların KATEGORİLERİNDEKİ kalemler okunur ve bir kez hazırlanır (Haiku 10-17 ikinci tur: her liste yüklemesinde 500
+  // kalemin tamamı için konu hesaplanıyordu). Kategori başına kova → taslak yalnız kendi kategorisini tarar.
+  const categories = [...new Set(drafts.map((d) => d.category))];
   const items = await prisma.knowledgeBaseItem.findMany({
-    where: { propertyId, ...GUEST_DELIVERABLE_KB_WHERE, supersededById: null },
+    where: { propertyId, ...GUEST_DELIVERABLE_KB_WHERE, supersededById: null, category: { in: categories } },
     select: { id: true, category: true, title: true, content: true, updatedAt: true },
     orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
     take: 500,
   });
+  const byCategory = new Map<string, PreparedKbItem[]>();
+  for (const item of prepareKbItems(items)) {
+    const list = byCategory.get(item.category);
+    if (list) list.push(item);
+    else byCategory.set(item.category, [item]);
+  }
   for (const d of drafts) {
-    const m = kbOverlaps(d, items);
+    const m = kbOverlaps(d, byCategory.get(d.category) ?? []);
     if (m.length) out.set(d.id, m);
   }
   return out;
@@ -506,7 +518,7 @@ async function draftKbOverlaps(
     orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
     take: 200,
   });
-  return kbOverlaps(draft, items);
+  return kbOverlaps(draft, prepareKbItems(items));
 }
 
 /**
@@ -633,6 +645,11 @@ export async function reviewHistoryLearnDraft(input: {
   resolution?: DraftResolution;
   /** `resolution: "replace"` ise yerine konacak kalem (aynı mülkün, çakışma adaylarından biri). */
   replaceKbItemId?: string;
+  /**
+   * Ev sahibinin ekranda GÖRDÜĞÜ kalem sürümü (`updatedAt`, ISO) — yerine koymada ZORUNLU (Haiku 10-17: başka sekmede kalem düzenlenirse
+   * — ör. "Ev Wi-Fi" → "Misafir Wi-Fi" — kimlik aynı kaldığı için görülmemiş içerik pasife düşüyordu). Eşleşmezse 409 `kb_changed`.
+   */
+  replaceKbItemUpdatedAt?: string;
 }): Promise<ReviewResult> {
   const draft = await prisma.historyLearnDraft.findFirst({
     where: { id: input.draftId, property: { organizationId: input.organizationId } },
@@ -681,7 +698,10 @@ export async function reviewHistoryLearnDraft(input: {
   const matches = await draftKbOverlaps(prisma, draft.propertyId, { category, title, content });
   if (matches.length > 0 && !input.resolution) return { ok: false, reason: "needs_resolution", matches };
   const replaceId = input.resolution === "replace" ? (input.replaceKbItemId ?? null) : null;
-  if (input.resolution === "replace" && (!replaceId || !matches.some((m) => m.id === replaceId))) return { ok: false, reason: "kb_changed" };
+  const replaceMatch = replaceId ? matches.find((m) => m.id === replaceId) : undefined;
+  if (input.resolution === "replace" && (!replaceMatch || replaceMatch.updatedAt.toISOString() !== input.replaceKbItemUpdatedAt)) {
+    return { ok: false, reason: "kb_changed", matches };
+  }
   const limits = await limitsForOrg(input.organizationId);
   if (content.length > limits.kbCharsPerItem) return { ok: false, reason: "plan_chars" };
   let kbItemId: string | "plan_items" | null;
@@ -715,7 +735,7 @@ export async function reviewHistoryLearnDraft(input: {
       // Eski kalem SİLİNMEZ: pasif + halef bağı (geri alınabilir — bilgi tabanında "Etkinleştir"). Koşullar: aynı mülk, hâlâ etkin, halefsiz;
       // tutmazsa (arada düzenlendi / pasife alındı / başka mülkün kalemi) bütün işlem geri alınır — taslak `pending`, yeni kalem yok.
       const retired = await tx.knowledgeBaseItem.updateMany({
-        where: { id: replaceId, propertyId: draft.propertyId, isActive: true, supersededById: null },
+        where: { id: replaceId, propertyId: draft.propertyId, isActive: true, supersededById: null, updatedAt: replaceMatch!.updatedAt },
         data: { isActive: false, supersededById: kb.id, supersededAt: now },
       });
       if (retired.count !== 1) throw new KbChangedAbort();
@@ -723,7 +743,9 @@ export async function reviewHistoryLearnDraft(input: {
     return kb.id;
     });
   } catch (err) {
-    if (err instanceof KbChangedAbort) return { ok: false, reason: "kb_changed" };
+    if (err instanceof KbChangedAbort) {
+      return { ok: false, reason: "kb_changed", matches: await draftKbOverlaps(prisma, draft.propertyId, { category, title, content }) };
+    }
     throw err;
   }
   if (kbItemId === "plan_items") return { ok: false, reason: "plan_items" };

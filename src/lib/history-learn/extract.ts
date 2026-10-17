@@ -9,7 +9,6 @@ import { namesPaymentMethod } from "@/lib/payment-method-guard";
 import { sensitiveClassesIn } from "@/lib/kb-from-history";
 import { hasLockContextCode, type MaskedPair } from "./mask";
 import { mentionsOffPlatform } from "./instruction-gate";
-import { mentionsHostPromiseVerb } from "@/lib/ai-suggestions/core";
 
 // ---------------------------------------------------------------------------
 // GEÇMİŞTEN ÖĞREN — MASKELİ ÇİFTLERDEN BİLGİ TABANI TASLAĞI (tasarım §2.2–2.3; kurucu 10-15: "Luna 6.0 yapsın, 5.1 çok pahalı").
@@ -288,14 +287,35 @@ export interface GateContext {
 }
 
 /**
- * L3 (kurucu 10-17, AYNEN: "tek konuşmalık bilgiyi işaretle ama ev sahibini çok uğraştırmasın"): misafire ÖZEL bir eylemi anlatan metin —
- * söz fiili ("getireceğim", "I'll bring"; tek kaynak `mentionsHostPromiseVerb`) ya da 1. kişi GEÇMİŞ eylem ("bıraktım", "getirdim", "I left").
- * "Çöp konteyneri sokağın başında" gibi olgu cümlesi eşleşmez (tek tık kalır). Sabit sözcük listesi, katlanmış metinde, doğrusal.
+ * L3 (kurucu 10-17, AYNEN: "tek konuşmalık bilgiyi işaretle ama ev sahibini çok uğraştırmasın"): misafire ÖZEL, tek seferlik bir eylemi
+ * anlatan metin. İki yol, ikisi de AYNI CÜMLECİKTE aranır (Haiku 10-17 ikinci tur: metin düzeyinde aranınca "Anahtarı kapıcıya bıraktım. Size
+ * çıkışta haber veririz." genel yönergesi işaret alıyordu):
+ *  · 1. kişi GELECEK sözü ("getireceğim", "göndereceğiz", "I'll bring", "we will send") — misafire yönelme şartı YOK: söz kendisi tek seferliktir.
+ *    Üçüncü kişi rutin ("Kapıcı her sabah geliyor", "temizlikçi gelir") söz DEĞİL (öneri motorunun söz okuyucusu "geliyor"u da söz sayar; burada
+ *    o geniş okuyucu KULLANILMAZ).
+ *  · 1. kişi GEÇMİŞ eylem ("bıraktım", "getirdim", "I left", "I've put") + aynı cümlecikte misafire yönelme ("size", "sizin için", "sizi",
+ *    "for you", "you") — "Anahtarı kutuya bıraktım, çıkışta oraya bırakın" genel yönerge, işaret almaz.
+ * Sabit sözcük listesi + sınırlı gövde, katlanmış ve boşluğu tekleştirilmiş metinde, doğrusal.
  */
 const PERSONAL_ACTION_RE =
-  /(?<![\p{L}])(?:biraktim|biraktik|getirdim|getirdik|gonderdim|gonderdik|yolladim|yolladik|hazirladim|hazirladik|ayarladim|ayarladik|koydum|koyduk|ayirdim|ayirdik|i left|we left|i brought|we brought|i(?:'ve| have) put|we(?:'ve| have) put|i sent|we sent|i prepared|we prepared|i arranged|we arranged)(?![\p{L}])/u;
-function describesPersonalAction(text: string, folded: string): boolean {
-  return PERSONAL_ACTION_RE.test(folded) || mentionsHostPromiseVerb(text);
+  /(?<![\p{L}])(?:biraktim|biraktik|getirdim|getirdik|gonderdim|gonderdik|yolladim|yolladik|hazirladim|hazirladik|ayarladim|ayarladik|koydum|koyduk|ayirdim|ayirdik|(?:i|we)(?:'ve| have)? (?:left|brought|put|sent|prepared|arranged))(?![\p{L}])/u;
+const GUEST_DIRECTED_RE =
+  /(?<![\p{L}])(?:size|sizin|sizi|sizler|sizlere|sizleri|sana|senin|seni|you|your|yours)(?![\p{L}])/u;
+/**
+ * 1. kişi OLUMLU gelecek: Türkçe "-(y)eceğim / -(y)acağız" (sözcük sonu; gövde ≤ 24 harf, karesel iş yok; olumsuz "-meyeceğim" söz değil) ·
+ * İngilizce "I'll / we will + fiil" ("will not" söz değil).
+ */
+const FIRST_PERSON_FUTURE_RE =
+  /(?<![\p{L}])(?:\p{L}{1,24}(?<!m[ae]y)(?:ecegim|ecegiz|acagim|acagiz)|(?:i|we)(?:'ll| will) (?!not(?![\p{L}]))\p{L}{2,24})(?![\p{L}])/u;
+/** Cümlecik ayracı: cümle sonu, noktalı virgül, iki nokta, satır, virgül, karşıtlık bağlacı. */
+const CLAUSE_SPLIT = /[.!?;:\n,]+|(?<![\p{L}])(?:ama|fakat|ancak|but)(?![\p{L}])/u;
+function describesPersonalAction(folded: string): boolean {
+  const f = folded.replace(/[’‘ʼ]/gu, "'").replace(/\s+/gu, " ");
+  for (const clause of f.split(CLAUSE_SPLIT)) {
+    if (FIRST_PERSON_FUTURE_RE.test(clause)) return true;
+    if (PERSONAL_ACTION_RE.test(clause) && GUEST_DIRECTED_RE.test(clause)) return true;
+  }
+  return false;
 }
 
 /** Kod kapıları — saf. Düşen olgu sebebiyle; geçen olgu işaretleriyle. */
@@ -331,7 +351,7 @@ export function gateDraft(
     !flags.has("one_off") &&
     !flags.has("time_bound") &&
     !flags.has("tentative") &&
-    describesPersonalAction(text, folded)
+    describesPersonalAction(folded)
   ) {
     flags.add("single_source");
   }
