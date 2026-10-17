@@ -23,7 +23,8 @@ vi.mock("@/lib/billing/subscription", async (orig) => {
 import { enqueueOutbound } from "@/lib/outbox/enqueue";
 import { drainOutboxOnce, type OutboxSendFn } from "@/lib/outbox/worker";
 import { strictQueueState, __resetStrictQueueState, QUEUE_STALL_MS } from "@/lib/outbox/health";
-import { markBillingPausedConversations, runDueChannelAutoReplies } from "@/lib/automation";
+import { currentHourInTimeZone, markBillingPausedConversations, runDueChannelAutoReplies } from "@/lib/automation";
+import { noteBillingBlockedSeen } from "@/lib/outbox/billing-hold";
 
 const DAY = 86_400_000;
 const atMidnight = (offset: number) => new Date(`${new Date(Date.now() + offset * DAY).toISOString().slice(0, 10)}T00:00:00.000Z`);
@@ -158,6 +159,52 @@ describe("abonelik erişimi kapalı işletmenin kuyruktaki otomatik mesajı", ()
     });
   });
 
+  it("🚨 Opus 10-17: kapalı dönemde HİÇ talep edilmemiş (ileri vadeli) yapay zekâ cevabı ödemeden SONRA da gitmez (oluşma ≤ son kapalı görülme)", async () => {
+    const { orgId, conversationId } = await seed();
+    await enqueue(orgId, conversationId, "ai", "ai-deferred-stale");
+    // Satır kapalı dönemde vadesi gelmediği için talep edilmedi; senkron o dönemde "kapalı" gördü (işaret satırdan SONRA).
+    await noteBillingBlockedSeen(orgId, new Date(Date.now() + 1_000));
+    const { send, sent } = counter();
+    await drainOutboxOnce({ send, tokenFor: async () => "t", now: () => new Date(Date.now() + 2_000) });
+    expect(sent).toEqual([]); // ⬅️ işaretsiz: ["ai"] (bayat cevap)
+    expect(await prisma.messageOutbox.findFirstOrThrow({ where: { idempotencyKey: "ai-deferred-stale" } })).toMatchObject({
+      status: "canceled",
+      lastErrorCode: "billing_paused",
+    });
+  });
+
+  it("KONTROL: kapalı dönemden SONRA kuyruğa giren yapay zekâ cevabı normal gider", async () => {
+    const { orgId, conversationId } = await seed();
+    await noteBillingBlockedSeen(orgId, new Date(Date.now() - 60_000));
+    await enqueue(orgId, conversationId, "ai", "ai-fresh");
+    const { send, sent } = counter();
+    await drainOutboxOnce({ send, tokenFor: async () => "t" });
+    expect(sent).toEqual(["ai"]);
+  });
+
+  it("🚨 Opus 10-17: kapalı dönemde bekleyen karşılama, ödeme geldiğinde varış günü GEÇMİŞSE gitmez (konaklama ortasında 'hoş geldiniz' yok)", async () => {
+    const { orgId, conversationId } = await seed();
+    await prisma.reservation.updateMany({ where: { sourceReference: "res-bh" }, data: { arrivalDate: atMidnight(-1), departureDate: atMidnight(3) } });
+    await enqueueWelcome(orgId, conversationId, "welcome-stale");
+    await noteBillingBlockedSeen(orgId, new Date(Date.now() + 1_000)); // satır kapalı dönemi kapsadı
+    const { send, sent } = counter();
+    await drainOutboxOnce({ send, tokenFor: async () => "t", now: () => new Date(Date.now() + 2_000) });
+    expect(sent).toEqual([]);
+    expect(await prisma.messageOutbox.findFirstOrThrow({ where: { idempotencyKey: "welcome-stale" } })).toMatchObject({
+      status: "canceled",
+      lastErrorCode: "window_passed",
+    });
+  });
+
+  it("KONTROL: kapalı dönemi KAPSAMAYAN aynı karşılama (normal kuyruk gecikmesi) eski pencereyle gider", async () => {
+    const { orgId, conversationId } = await seed();
+    await prisma.reservation.updateMany({ where: { sourceReference: "res-bh" }, data: { arrivalDate: atMidnight(-1), departureDate: atMidnight(3) } });
+    await enqueueWelcome(orgId, conversationId, "welcome-normal");
+    const { send, sent } = counter();
+    await drainOutboxOnce({ send, tokenFor: async () => "t" });
+    expect(sent).toEqual(["welcome"]);
+  });
+
   it("🚨 eski NULL türlü satır (elle cevap sayılır) erişim kapalıyken de gider; ertelenmiş otomatik satır elle cevabı TIKAMAZ (Haiku 10-16)", async () => {
     const { orgId, conversationId } = await seed();
     await expireAccess(orgId);
@@ -259,6 +306,57 @@ describe("N1: erişim kapalıyken gelen misafir mesajı — ödeme sonrası baya
     await prisma.message.create({ data: { conversationId, direction: "inbound", senderName: "Ayşe", body: "Merhaba?", createdAt: later } });
     await prisma.conversation.update({ where: { id: conversationId }, data: { lastMessageAt: later, status: "new" } });
     expect((await runDueChannelAutoReplies(orgId)).considered).toBe(1);
+  });
+
+  it("🚨 Haiku 10-17: senkron kapalı dönemde düştü, mesaj ödemeden SONRA eski zamanla içeri alındı → 'son kapalı görülme' işareti cevabı ENGELLER", async () => {
+    const { orgId, conversationId } = await seedAuto();
+    // Kapalı dönemde senkron düşüyordu: damga hiç çalışmadı, yalnız işaret yazıldı (scheduled-sync, syncOk'tan bağımsız).
+    await noteBillingBlockedSeen(orgId, new Date(Date.now() - 1_000));
+    // Ödeme geldi; eski mesaj (60 sn önce) şimdi içeri alınmış durumda, damgasız.
+    expect((await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } })).autoReplyAttemptedAt).toBeNull();
+    expect((await runDueChannelAutoReplies(orgId)).considered).toBe(0); // ⬅️ işaretsiz: 1 (günler önceki soruya cevap)
+    const convo = await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } });
+    expect(convo.skippedReason).toBe("billing_paused"); // not da yazıldı
+    expect(convo.autoReplyAttemptedAt?.getTime()).toBe(convo.lastMessageAt.getTime());
+  });
+
+  it("KONTROL: işaretten SONRA gelen mesaj (ödemeden sonra) normal adaydır", async () => {
+    const { orgId, conversationId } = await seedAuto();
+    await noteBillingBlockedSeen(orgId, new Date(Date.now() - 120_000)); // mesaj (60 sn önce) işaretten yeni
+    expect((await runDueChannelAutoReplies(orgId)).considered).toBe(1);
+    expect((await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } })).skippedReason).not.toBe("billing_paused");
+  });
+
+  it("🚨 Haiku 10-17: kalıcı sebep ('misafir insan istedi') notla EZİLMEZ, damga yine yazılır; geçici sebep ('mesai dışı') güncellenir", async () => {
+    const { orgId, conversationId } = await seedAuto();
+    await expireAccess(orgId);
+    await prisma.conversation.update({ where: { id: conversationId }, data: { skippedReason: "human_hold" } });
+    expect(await markBillingPausedConversations(orgId)).toBe(1);
+    const held = await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } });
+    expect(held.skippedReason).toBe("human_hold"); // ⬅️ eskiden "billing_paused"
+    expect(held.autoReplyAttemptedAt?.getTime()).toBe(held.lastMessageAt.getTime());
+    // Geçici sebep: yeni mesaj geldi, mesai dışı notu yazılmıştı → abonelik notu onu günceller.
+    const later = new Date(Date.now() + 1_000);
+    await prisma.message.create({ data: { conversationId, direction: "inbound", senderName: "Ayşe", body: "?", createdAt: later } });
+    await prisma.conversation.update({ where: { id: conversationId }, data: { lastMessageAt: later, skippedReason: "outside_hours" } });
+    expect(await markBillingPausedConversations(orgId)).toBe(1);
+    expect((await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } })).skippedReason).toBe("billing_paused");
+  });
+
+  it("Haiku 10-17: ödemeden sonra gelen yeni mesaj mesai dışındaysa eski abonelik notu güncel sebeple değişir", async () => {
+    const { orgId, conversationId } = await seedAuto();
+    await expireAccess(orgId);
+    await markBillingPausedConversations(orgId);
+    await prisma.subscription.update({ where: { organizationId: orgId }, data: { provider: "paddle", status: "active", trialEndsAt: null } });
+    const later = new Date(Date.now() + 1_000);
+    await prisma.message.create({ data: { conversationId, direction: "inbound", senderName: "Ayşe", body: "?", createdAt: later } });
+    await prisma.conversation.update({ where: { id: conversationId }, data: { lastMessageAt: later } });
+    // Şimdiki saati dışarıda bırakan aralık (başlangıç = şimdi + 1 sa, bitiş = şimdi + 2 sa; org saat dilimi varsayılan).
+    const org = await prisma.organization.findUniqueOrThrow({ where: { id: orgId }, select: { timezone: true } });
+    const hour = currentHourInTimeZone(org.timezone);
+    await prisma.organization.update({ where: { id: orgId }, data: { autoReplyStartHour: (hour + 1) % 24, autoReplyEndHour: (hour + 2) % 24 } });
+    await runDueChannelAutoReplies(orgId);
+    expect((await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } })).skippedReason).toBe("outside_hours");
   });
 
   it("aşırı uygulama yok: oto-yanıtı kapalı işletme / genel anahtar kapalı → damga yok", async () => {

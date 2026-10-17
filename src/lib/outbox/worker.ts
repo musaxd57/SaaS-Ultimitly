@@ -22,7 +22,15 @@ import {
 import { ANON_BODY } from "@/lib/data-retention";
 import { isHandoffExempt, sweepExpiredHandoffExempt } from "./handoff-exempt";
 import { outboxDeliveryPaused } from "./flag";
-import { BILLING_PAUSED_REASON, billingBlockedOrgIds, billingCancelReason, billingHeldSql, billingHoldUntil } from "./billing-hold";
+import {
+  BILLING_NOTE_OVERWRITABLE,
+  BILLING_PAUSED_REASON,
+  billingBlockedOrgIds,
+  billingCancelReason,
+  billingHeldSql,
+  billingHoldUntil,
+  spannedBillingBlock,
+} from "./billing-hold";
 import {
   attemptsExhausted,
   backoffMs,
@@ -87,6 +95,8 @@ export interface OutboxRow {
   attemptCount: number;
   /** V0.3: ChannelConnection this send was enqueued under (null for pre-49 / unconnected rows). */
   connectionId: string | null;
+  /** Kuyruğa giriş anı (N1 bayatlık: abonelik kapalı dönemi kapsayan satır). Elle kurulan test satırlarında olmayabilir. */
+  createdAt?: Date | null;
 }
 
 export interface OutboxSendOutcome {
@@ -340,7 +350,7 @@ async function claimBatchLocked(
     )
     RETURNING o."id", o."organizationId", o."conversationId", o."messageId",
               o."reservationId", o."channel", o."externalReservationId", o."messageType",
-              o."body", o."status", o."attemptCount", o."connectionId"
+              o."body", o."status", o."attemptCount", o."connectionId", o."createdAt"
   `);
   return rows;
 }
@@ -520,7 +530,7 @@ async function replyVeto(row: OutboxRow, now: Date): Promise<string | null> {
  * same lifecycle message was already delivered (its *SentAt got stamped by an earlier attempt).
  * In any of those, no provider call is made → the row is canceled/superseded.
  */
-async function lifecycleVeto(row: OutboxRow, now: Date): Promise<string | null> {
+async function lifecycleVeto(row: OutboxRow, now: Date, spannedBillingBlock = false): Promise<string | null> {
   if (!row.externalReservationId) return "no_destination";
   // Aynı rezervasyonun kardeş satırları (yeniden bağlama sonrası çift satır) KEYFİ sırayla okunmaz (Haiku 10-14): iptal edilmiş bir
   // kopya önce dönerse canlı rezervasyonun mesajı kalıcı iptal ediliyordu. İptal OLMAYAN satır tercih edilir (en erken varış — ertelemeyle
@@ -576,6 +586,14 @@ async function lifecycleVeto(row: OutboxRow, now: Date): Promise<string | null> 
     if (type === "checkin" && today >= departureDay) return "window_passed";
     if (type === "checkout" && today > departureDay) return "window_passed";
   }
+  // N1 (kurucu 10-17 "kesinlikle bayat mesaj gitmemeli"; Opus 10-17): abonelik kapalıyken kuyrukta BEKLEMİŞ karşılama / giriş mesajı, ödeme
+  // geldiğinde varış günü GEÇTİYSE bayattır (konaklamanın ortasında "Girişiniz bugün 15:00, kapı kodu …" gitmesin). Normal kuyruk
+  // gecikmesinde (dakika) eski pencere aynen — yalnız kapalı dönemi kapsayan satır daraltılır. Yeni gönderim adayları zaten "varış bugün
+  // ya da sonra" kuralıyla seçilir (`sendDueWelcomes`).
+  if (spannedBillingBlock && (type === "welcome" || type === "checkin")) {
+    const tz = orgTimezone(res.property?.organization?.timezone);
+    if (todayKey(now, tz) > calendarDateOf(res.arrivalDate, tz).key) return "window_passed";
+  }
   return null;
 }
 
@@ -625,7 +643,7 @@ async function sendTimeVeto(row: OutboxRow, now: Date): Promise<string | null> {
   // yapay zekâ cevabı İPTAL edilir (`billing-hold.ts`); gelen kutusunda not görünür (↓çağıran, Y5 ile aynı yol).
   const billingVeto = await billingCancelReason(row);
   if (billingVeto) return billingVeto;
-  if (type === "welcome" || type === "checkin" || type === "checkout") return lifecycleVeto(row, now);
+  if (type === "welcome" || type === "checkin" || type === "checkout") return lifecycleVeto(row, now, await spannedBillingBlock(row));
   return replyVeto(row, now);
 }
 
@@ -1076,16 +1094,22 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
         ? await prisma.message.findUnique({ where: { id: triggerId }, select: { createdAt: true, conversationId: true } })
         : null;
       const stamp = trigger && trigger.conversationId === row.conversationId ? trigger.createdAt : null;
-      await prisma.conversation
-        .updateMany({
-          where: {
-            id: row.conversationId,
-            status: { in: ["new", ...LEGACY_CONVERSATION_STATUSES] },
-            ...(stamp ? { OR: [{ autoReplyAttemptedAt: null }, { autoReplyAttemptedAt: { lt: stamp } }] } : {}),
-          },
-          data: { skippedReason: veto, ...(stamp ? { autoReplyAttemptedAt: stamp } : {}) },
-        })
-        .catch((err) => void reportError(`outbox-${veto}-note org=${row.organizationId}`, err));
+      const pendingDecision = {
+        id: row.conversationId,
+        status: { in: ["new", ...LEGACY_CONVERSATION_STATUSES] },
+        ...(stamp ? { AND: [{ OR: [{ autoReplyAttemptedAt: null }, { autoReplyAttemptedAt: { lt: stamp } }] }] } : {}),
+      };
+      try {
+        // Önce not (yalnız boş / geçici sebebin üstüne — "misafir insan istedi", şikâyet, risk notu EZİLMEZ; Haiku 10-17), sonra damga
+        // (her durumda — bayat cevap engeli asıl iş). Sıra önemli: damga önce yazılsa not koşulu ("henüz karar yok") düşerdi.
+        await prisma.conversation.updateMany({
+          where: { ...pendingDecision, OR: [{ skippedReason: null }, { skippedReason: { in: [...BILLING_NOTE_OVERWRITABLE] } }] },
+          data: { skippedReason: veto },
+        });
+        if (stamp) await prisma.conversation.updateMany({ where: pendingDecision, data: { autoReplyAttemptedAt: stamp } });
+      } catch (err) {
+        void reportError(`outbox-${veto}-note org=${row.organizationId}`, err);
+      }
     }
     return;
   }

@@ -103,11 +103,16 @@
   "özel / ek / başka / ayrı / farklı (bir) talimat(ım/ımız) yok · bulunmuyor" ve yedi dil karşılığı ("No special instructions", "No hay
   instrucciones especiales", "Нет особых инструкций", "لا توجد تعليمات خاصة", "pas d'instructions particulières", "keine besonderen Anweisungen")
   bilgisizlik sayılır; "gerek / need / besoin / brauchen" biçimi ("özel bir talimat gerekmiyor") bilgisizlik DEĞİL. "veremem / veremeyiz /
-  veremeyeceğim / verememekteyiz" ailesi tutulur. ANAHTARSIZ YAN CÜMLE SİLİCİ `ai/no-instruction-filler.ts` (`suggestReply` son adımı, selamdan
-  ÖNCE → kanal, QR, "AI öner", Ayarlar testi, demo): aynı cümlede yönerge varsa yalnız "talimat yok" yan cümlesi silinir ("Çıkış için özel
-  talimatımız yok, anahtarı masaya bırakmanız yeterli." → "Anahtarı masaya bırakmanız yeterli."); yan cümle CİHAZDAN söz ediyorsa ya da geriye
-  yönerge kalmıyorsa silinmez → cevap tutulur (sorunun bilgisizliği sessizce "cevaplandı" olmaz). Misafire yeni söz eklenmez; bağlaç ("ama",
-  "so") atılır. Pinler `no-instruction-filler*.test.ts` + `absence-cost.test.ts`.
+  veremeyeceğim / verememekteyiz" ailesi tutulur — DAR: yalın "bilgi" + en çok bir sözcük + yüklem (Opus 10-17: "Kimlik bilgilerinizi
+  göndermeden giriş kodunu veremeyiz" POLİTİKA cümlesidir, tutulmaz). ANAHTARSIZ SİLİCİ `ai/no-instruction-filler.ts` (`suggestReply` son adımı,
+  selamdan ÖNCE → kanal, QR, "AI öner", Ayarlar testi, demo): aynı cümlede yönerge varsa yalnız "talimat yok" yan cümlesi silinir ("Çıkış için
+  özel talimatımız yok, anahtarı masaya bırakmanız yeterli." → "Anahtarı masaya bırakmanız yeterli."); cümlenin tamamı "talimat yok" ise ve
+  cevabın geri kalanı yönerge taşıyorsa o cümle düşer. 🚨 "Talimat yok" ardındaki adımın bilgi tabanından GELMEDİĞİNİN kanıtıdır (Opus 10-17
+  P1: silinince uydurma kombi / TV adımı kanıtsız gidiyordu) → silme İZİN LİSTESİYLE: silinen kısım cihazdan söz etmez ve göndergesel değildir
+  ("bu konuda", "for that"); kalan metin anahtar dışında cihazdan söz etmez; ya silinen ya kalan kısmın BİLİNEN bir konusu vardır (bilinmeyen
+  konu — jakuzi, sauna — silinmez); kalan metin yalnız selam / nezaket kabuğu değildir ("Merhaba Ayşe Hanım." gitmez); kalan metin yine "bilgim
+  yok" demez. Şart tutmazsa metne dokunulmaz → "bilgim yok" kuralı bütün cevabı tutar. Misafire yeni söz eklenmez; bağlaç ("ama", "so")
+  atılır; yan cümle sınırı ayraç + boşluk ("15:00" bölünmez). Pinler `no-instruction-filler*.test.ts` + `absence-cost.test.ts` (doğrusal).
 - **Çıktı vetosu / makbuzsuz iddia:** ↓Kalıcı ürün kararları. `hasUnsourcedSpecificClaim` BUGÜN ÜRETİMDE KOŞMAZ
   (yalnız `QR_INFORMATIONAL_BAND_ENABLED` açıkken; varsayılan kapalı). QR bilgi bandı (0.45–0.75, kapalı): bant
   güvenlik dallarının ARDINDA; kaynaksız somut iddia gönderilmez (`unsourced_claim`); açma sırası eval → tek mülk.

@@ -46,6 +46,9 @@ describe("'talimat yok' yan cümlesi silici — düşmanca girdide sınırlı s�
     ["binlerce cümle", "Özel talimatımız yok, kapı açık. ".repeat(1_500)],
     ["tek uzun sözcük + yan cümle", "Özel talimatımız yok, " + "a".repeat(50_000)],
     ["boşluk dizisi + yan cümle", "Özel talimatımız yok," + " ".repeat(50_000) + "kapı açık."],
+    // Opus 10-17 B7: `/[.!?]+$/` uzun ünlem dizisinde karesel idi (40.000'de 5 sn) → sondan doğrusal tarama.
+    ["ünlem dizisi + yan cümle", "Özel talimatımız yok, " + "!".repeat(40_000) + "a"],
+    ["ünlem dizisi sonda", "Çıkış için özel talimatımız yok, anahtarı bırakın" + "!".repeat(40_000)],
   ])("%s → 1.500 ms altında", (_ad, girdi) => {
     stripNoInstructionFiller("Isınma: Özel talimatımız yok, kapı açık.");
     expect(ms(() => stripNoInstructionFiller(girdi))).toBeLessThan(1_500);

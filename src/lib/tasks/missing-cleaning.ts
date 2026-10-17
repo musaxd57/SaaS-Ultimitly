@@ -33,7 +33,17 @@ export async function countReservationsMissingCleaning(organizationId: string, n
         where: { type: "cleaning", OR: [{ origin: "system", status: "done" }, { origin: "manual", dueAt: { not: null } }] },
         select: LIFECYCLE_TASK_LITE_SELECT,
       },
+      // K4 (Opus 10-17): görev formu rezervasyon bağlamaz → aynı mülkte rezervasyonsuz elle temizlik de sayılır (`createReservationTasks`
+      // ile aynı kapsam; aynı takvim günü denetimi `lifecycleTaskPresent`te).
+      property: {
+        select: {
+          tasks: {
+            where: { type: "cleaning", origin: "manual", reservationId: null, dueAt: { gte: new Date(now.getTime() - 3 * 86_400_000) } },
+            select: LIFECYCLE_TASK_LITE_SELECT,
+          },
+        },
+      },
     },
   });
-  return rows.filter((r) => !lifecycleTaskPresent("cleaning", r.departureDate, r.tasks, tz)).length;
+  return rows.filter((r) => !lifecycleTaskPresent("cleaning", r.departureDate, [...r.tasks, ...r.property.tasks], tz)).length;
 }

@@ -380,6 +380,14 @@ const QUALIFIED_NO_INSTRUCTION: string[] = [
   "Ich habe keine konkreten Anweisungen.",
   "لا توجد تعليمات محددة.",
   "There are no specific instructions for the boiler.",
+  // Opus 10-17 (en doğal biçimler kaçıyordu).
+  "Особых инструкций нет.",
+  "لا يوجد تعليمات خاصة للمغادرة.",
+  "No hay ninguna instrucción especial.",
+  "There aren't any special instructions.",
+  "Besondere Anweisungen gibt es nicht.",
+  "Il n'y a aucune consigne particulière.",
+  "Özel bir talimat bulunmamakta.",
 ];
 
 describe("niteleyicili 'talimat yok' (kurucu 10-17) — misafire GİTMEZ, yedi dil", () => {

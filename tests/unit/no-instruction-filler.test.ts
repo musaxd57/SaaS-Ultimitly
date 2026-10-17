@@ -32,6 +32,20 @@ const STRIPPED: [string, string][] = [
   ["- Çıkış için özel talimatımız yok, anahtarı masaya bırakın.\n- Otopark ücretsiz.", "- Anahtarı masaya bırakın.\n- Otopark ücretsiz."],
   ["Anahtar masada, özel talimatımız yok ve kahvaltı 08.00-10.00 arasıdır.", "Anahtar masada, kahvaltı 08.00-10.00 arasıdır."],
   ["Çıkış 15.00'e kadar, özel talimatımız yok.", "Çıkış 15.00'e kadar."],
+  // Opus 10-17 B3: dolgu AYRI CÜMLE olarak yazıldıysa ve cevabın geri kalanı yönerge taşıyorsa o cümle düşer (eskiden bütün cevap tutuluyordu).
+  ["Çıkış için özel talimatımız yok. Anahtarı masaya bırakmanız yeterli.", "Anahtarı masaya bırakmanız yeterli."],
+  ["Çıkış saati 11:00'dir. Ek bir talimatımız bulunmuyor.", "Çıkış saati 11:00'dir."],
+  ["Check-out is at 11:00. There are no special instructions for check-out.", "Check-out is at 11:00."],
+  ["Çıkış için özel talimatımız yok:\n- Anahtarı masaya bırakın.", "- Anahtarı masaya bırakın."],
+  // Opus 10-17 B4: ortadaki yan cümle silinince TEK boşluk.
+  ["Anahtar masada, özel talimatımız yok, kahvaltı 08.00-10.00 arasıdır.", "Anahtar masada, kahvaltı 08.00-10.00 arasıdır."],
+  ["Merhaba Alex, çıkış için özel talimatımız yok, anahtarı masaya bırakın.", "Merhaba Alex, anahtarı masaya bırakın."],
+  // Opus 10-17 B6: yedi dilin en doğal biçimleri.
+  ["Особых инструкций нет, ключ в почтовом ящике.", "Ключ в почтовом ящике."],
+  ["There aren't any special instructions, just leave the keys on the table.", "Just leave the keys on the table."],
+  ["We don't have any special instructions for check-out, just leave the keys on the table.", "Just leave the keys on the table."],
+  ["No tenemos instrucciones especiales, la llave está en el buzón.", "La llave está en el buzón."],
+  ["Il n'y a aucune consigne particulière, laissez la clé sur la table.", "Laissez la clé sur la table."],
   // Selam satırı ve sonraki cümle korunur; satır yapısı aynı.
   [
     "Merhaba Alex,\n\nÇıkış için özel talimatımız yok, anahtarı masaya bırakmanız yeterli. İyi yolculuklar dileriz.",
@@ -60,6 +74,21 @@ const HELD: string[] = [
   "Televizyonla ilgili, ayrı bir talimatım bulunmuyor.",
   "Özel talimatımız yok, televizyon için.",
   "Anahtarı masaya bırakın, Wi-Fi için özel talimatımız yok.",
+  // Opus 10-17 B1 (P1): "talimat yok" ardındaki adımın bilgi tabanından GELMEDİĞİNİN kanıtıdır — yönerge bir cihaz adımıysa ya da konu
+  // göndergeselse ("bu konuda", "for that") silinmez (eskiden kanıtsız kombi / TV / sigorta adımı tek başına gidiyordu).
+  "Özel bir talimatımız yok, kombiyi sıfırlamak için reset tuşuna 5 saniye basın.",
+  "Özel bir talimatımız yok, televizyonu kumandadaki kırmızı tuşla açabilirsiniz.",
+  "Bu konuda özel bir talimatımız yok, sigortayı kapatıp açabilirsiniz.",
+  "No special instructions for that, just restart the router.",
+  "There are no special instructions, just press the red button on the TV remote.",
+  // Opus 10-17 B2: bilinmeyen konu (cihaz envanterinde olmayan jakuzi, sauna…) = silme yok (izin listesi).
+  "Jakuzi için özel bir talimatımız yok, keyfini çıkarın.",
+  "Bu konuda özel bir talimatımız yok, başka bir sorunuz olursa yazabilirsiniz.",
+  // Opus 10-17 B5 (P1): geriye yalnız selam / nezaket kalırsa silinmez ("Merhaba Ayşe Hanım." misafire gitmez).
+  "Merhaba Ayşe Hanım, çıkış için özel bir talimatımız bulunmuyor.",
+  "Merhaba, çıkış için özel bir talimatımız yok. İyi yolculuklar dileriz!",
+  "Hello Alex, there are no special instructions for check-out. Have a safe trip!",
+  "Teşekkürler, özel bir talimatımız yok.",
 ];
 
 describe("stripNoInstructionFiller — kurucu 10-17", () => {
@@ -69,6 +98,7 @@ describe("stripNoInstructionFiller — kurucu 10-17", () => {
       // Silinmiş hâl misafire gidebilir (bilgisizlik kalmadı); silinmemiş hâl gitmez (kurucu: "bunu yazmasın").
       expect(admitsMissingKnowledge(after)).toBe(false);
       expect(admitsMissingKnowledge(before)).toBe(before.includes("gerekmiyor") ? false : true);
+      expect(after).not.toMatch(/ {2}/); // Opus 10-17 B4: çift boşluk yok
     });
   }
   for (const m of HELD) {
@@ -106,6 +136,9 @@ describe("'bilgi veremem' ailesi (kurucu 10-17 M1: 'tabiki tutulsun … sussa da
     "Size Wi-Fi şifresini hemen veriyorum: Lale2024.",
     "Bilgi vermek isterim: check-in 15:00.",
     "Anahtarı resepsiyona veremezseniz kutuya bırakın.",
+    // Opus 10-17 B8: POLİTİKA cümlesi bilgisizlik değildir (nesne misafirin bilgisi, yüklem kod / anahtar) — eskiden tutuluyordu.
+    "Kimlik bilgilerinizi göndermeden giriş kodunu veremeyiz.",
+    "Kimlik bilgilerinizi paylaşmazsanız anahtarı veremem.",
   ])("KONTROL tutulmaz: %s", (m) => {
     expect(admitsMissingKnowledge(m)).toBe(false);
   });

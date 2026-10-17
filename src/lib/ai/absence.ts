@@ -102,10 +102,7 @@ const TR_LOOSE =
   // 10-01 (15 ajan A05): "bilgi sahibi değilim", "bilgi verilmemiş", "kayıtlarda … değinilmemiş", "bu bilgiye rastlamadım",
   // "kesin bilgi veremiyorum" — yalnız BİLGİ nesnesinden sonra.
   "sahibi değilim|sahibi değiliz|verilmemiş|verilmemektedir|değinilmemiş|değinilmemektedir|rastlamadım|rastlamadık|" +
-  "rastlayamadım|veremiyorum|veremiyoruz|" +
-  // Kurucu 10-17 (M1, aynen: "bilgi veremem cümlesi tabii ki tutulsun — müşteriye öyle denir mi, sussa daha iyi"): geniş zaman / gelecek
-  // olumsuzu da — yalnız BİLGİ nesnesinden sonra ("Bu konuda bilgi veremem", "Kesin bilgi veremeyiz").
-  "veremem|veremeyiz|veremeyeceğim|veremeyeceğiz|verememekteyim|verememekteyiz)";
+  "rastlayamadım|veremiyorum|veremiyoruz)";
 
 // ── İngilizce: BİLGİ NESNESİ (tekil VE çoğul — ilk sürümde karışıktı) ──────
 const EN_OBJ = "(?:information|info|records?|details?|data|notes?)(?![\\p{L}])";
@@ -114,6 +111,13 @@ const EN_PLACE = "(?:house\\s+)?(?:guide|manual|handbook|notes?|records?|files?|
 
 const ABSENCE_PATTERNS: readonly RegExp[] = [
   new RegExp(`${TR_OBJ} ${gap(1)}${TR_TIGHT}`, "u"),
+  // Kurucu 10-17 (M1, aynen: "bilgi veremem cümlesi tabii ki tutulsun — müşteriye öyle denir mi, sussa daha iyi"): geniş zaman / gelecek
+  // olumsuzu da. DAR (Opus 10-17): nesne yalın "bilgi" + en çok bir sözcük + yüklem, sağ sınırlı — "Kimlik bilgilerinizi göndermeden giriş
+  // kodunu veremeyiz" bir POLİTİKA cümlesidir (bilgisizlik değil), geniş boşlukla tutuluyordu; "verememeniz" de eşleşiyordu.
+  new RegExp(
+    `${L}bilgi (?:${W} )?(?:veremem|veremeyiz|veremeyeceğim|veremeyeceğiz|verememekteyim|verememekteyiz)(?![\\p{L}])`,
+    "u",
+  ),
   new RegExp(`${TR_OBJ} ${gap(4)}${TR_LOOSE}`, "u"),
   /(?<![\p{L}])bilmiyorum(?![\p{L}])/u,
   new RegExp(`(?:don't|do not|doesn't|does not|didn't|did not) have ${gap(4)}${EN_OBJ}`, "u"),
@@ -378,18 +382,28 @@ const MORE_ABSENCE_PATTERNS: readonly RegExp[] = [
  */
 const QUALIFIED_NO_INSTRUCTION_PATTERNS: readonly RegExp[] = [
   // Haiku 10-17: 3. şahıs iyelik ("özel talimatı yok"), "belirli / belli / spesifik" niteleyicisi, "mevcut değil / söz konusu değil" yüklemi.
+  // Opus 10-17: "bulunmamakta" (-dır'sız).
   new RegExp(
-    `${L}(?:özel|ek|başka|farklı|ilave|ekstra|ayrı|belirli|belli|spesifik)\\s(?:bir\\s)?talimat(?:lar|ı|ları)?\\s(?:yok(?:tur)?|bulunmuyor|bulunmamaktadır|mevcut\\sdeğil(?:dir)?|söz\\skonusu\\sdeğil(?:dir)?)(?![\\p{L}])`,
+    `${L}(?:özel|ek|başka|farklı|ilave|ekstra|ayrı|belirli|belli|spesifik)\\s(?:bir\\s)?talimat(?:lar|ı|ları)?\\s(?:yok(?:tur)?|bulunmuyor|bulunmamakta(?:dır)?|mevcut\\sdeğil(?:dir)?|söz\\skonusu\\sdeğil(?:dir)?)(?![\\p{L}])`,
     "u",
   ),
   // "No special instructions are needed" = "gerekmiyor" (Haiku 10-17) → "are / is needed · required · necessary" ile devam ederse eşleşmez.
   /(?<![\p{L}])(?<!(?:need|needs|require|requires) )no (?:special|particular|specific|additional|extra|further|other) (?:\p{L}{1,20} )?(?:instructions|steps|guidance)(?![\p{L}])(?! (?:are|is) (?:needed|required|necessary))/u,
+  // Opus 10-17 (en doğal İngilizce biçimler kaçıyordu): "There aren't any special instructions", "We don't have any special instructions".
+  /(?<![\p{L}])there (?:aren't|are not|isn't|is not) any (?:special|particular|specific|additional|extra|further|other) (?:instructions|steps|guidance)(?![\p{L}])/u,
+  /(?<![\p{L}])(?:i|we) (?:don't|do not) have any (?:special|particular|specific|additional|extra|further|other) (?:instructions|steps|guidance)(?![\p{L}])/u,
   /(?<![\p{L}])no hay instrucciones (?:especiales|adicionales|particulares|específicas|concretas)(?![\p{L}])/u,
+  /(?<![\p{L}])no hay ninguna instrucción (?:especial|adicional|particular|específica|concreta)(?![\p{L}])/u,
+  /(?<![\p{L}])no tenemos instrucciones (?:especiales|adicionales|particulares|específicas|concretas)(?![\p{L}])/u,
   /(?<![\p{L}])нет (?:особых|дополнительных|специальных|конкретных) инструкций(?![\p{L}])/u,
-  /لا توجد تعليمات (?:خاصة|إضافية|محددة)/u,
-  /(?<![\p{L}])(?<!besoin d')aucune instruction (?:particulière|spéciale|supplémentaire|spécifique|précise)(?![\p{L}])/u,
+  /(?<![\p{L}])(?:особых|дополнительных|специальных|конкретных) инструкций нет(?![\p{L}])/u,
+  /لا (?:توجد|يوجد) تعليمات (?:خاصة|إضافية|محددة)/u,
+  /ليس لدينا تعليمات (?:خاصة|إضافية|محددة)/u,
+  /(?<![\p{L}])(?<!besoin d')aucune (?:instruction|consigne) (?:particulière|spéciale|supplémentaire|spécifique|précise)(?![\p{L}])/u,
   /(?<![\p{L}])pas d'instructions? (?:particulières?|spéciales?|supplémentaires?|spécifiques?|précises?)(?![\p{L}])/u,
+  /(?<![\p{L}])pas de consignes? (?:particulières?|spéciales?|supplémentaires?|spécifiques?|précises?)(?![\p{L}])/u,
   /(?<![\p{L}])(?<!(?:brauchen|benötigen|braucht|benötigt) )keine (?:besonderen|speziellen|zusätzlichen|weiteren|konkreten|spezifischen) (?:anweisungen|anleitungen|hinweise)(?![\p{L}])/u,
+  /(?<![\p{L}])(?:besondere|spezielle|zusätzliche|weitere) (?:anweisungen|anleitungen|hinweise) gibt es (?:nicht|keine)(?![\p{L}])/u,
 ];
 
 /**

@@ -177,7 +177,7 @@ import { errorWithContext, redactSensitive, reportError } from "@/lib/report-err
 import { redactNameFromBody } from "@/lib/data-retention";
 import { sendOnChannel, isDefinitiveSendFailure } from "@/lib/messaging";
 import { durableOutboxEnabledFor } from "@/lib/outbox/flag";
-import { BILLING_PAUSED_REASON } from "@/lib/outbox/billing-hold";
+import { BILLING_NOTE_OVERWRITABLE, BILLING_PAUSED_REASON, billingBlockedSeenAt } from "@/lib/outbox/billing-hold";
 import { undeliveredFilterActive } from "@/lib/outbox/presence";
 import { enqueueOutbound, enqueueProactive } from "@/lib/outbox/enqueue";
 import { classifySendResult, sendFailureHoldMs, SUPERSEDED_BY_NEWER_MESSAGE, NOT_DELIVERED_STATUSES, PROVIDER_OUTAGE_REASON } from "@/lib/outbox/state";
@@ -1157,7 +1157,7 @@ export async function createReservationTasks(reservationId: string, opts: { reop
   if (!opts.reopened) {
     const r0 = await prisma.reservation.findUnique({ where: { id: reservationId }, select: RESERVATION_TASKS_SELECT });
     if (!r0 || r0.status === "cancelled") return 0;
-    const quick = await prisma.task.findMany({ where: { reservationId }, select: LIFECYCLE_TASK_LITE_SELECT });
+    const quick = await prisma.task.findMany({ where: lifecycleTasksWhere(r0), select: LIFECYCLE_TASK_LITE_SELECT });
     if (reservationTasksToCreate(r0, quick, now).length === 0) return 0;
   }
 
@@ -1178,7 +1178,7 @@ export async function createReservationTasks(reservationId: string, opts: { reop
     const r = await tx.reservation.findUnique({ where: { id: reservationId }, select: RESERVATION_TASKS_SELECT });
     if (!r || r.status === "cancelled") return 0;
     const existing = await tx.task.findMany({
-      where: { reservationId: r.id },
+      where: lifecycleTasksWhere(r),
       select: LIFECYCLE_TASK_LITE_SELECT,
     });
     if (__reservationTaskHooks.afterExistingRead) await __reservationTaskHooks.afterExistingRead(r.id);
@@ -1205,6 +1205,28 @@ const RESERVATION_TASKS_SELECT = {
   status: true,
   property: { select: { supplyProfileJson: true, organization: { select: { timezone: true } } } },
 } satisfies Prisma.ReservationSelect;
+
+/**
+ * "Zaten var mı?" okumasının kapsamı: rezervasyona bağlı görevler + aynı MÜLKTE rezervasyona BAĞLANMAMIŞ elle temizlik görevleri (çıkış günü
+ * çevresinde). K4 (kurucu 10-17) — Opus 10-17 (ölçüldü): elle görev açan TEK arayüz (`task-form.tsx`) rezervasyon bağlamaz; kural yalnız bağlı
+ * görevi görseydi ev sahibinin "Yeni görev" ile açtığı çıkış temizliği HİÇ sayılmaz, sistem ikincisini yine açardı ("yüklem var, argüman
+ * yok"). Aynı takvim günü denetimi `lifecycleTaskPresent`te (org saat dilimiyle); burada yalnız geniş bir okuma penceresi.
+ */
+function lifecycleTasksWhere(r: { id: string; propertyId: string; departureDate: Date }): Prisma.TaskWhereInput {
+  const dep = r.departureDate.getTime();
+  return {
+    OR: [
+      { reservationId: r.id },
+      {
+        propertyId: r.propertyId,
+        reservationId: null,
+        origin: "manual",
+        type: "cleaning",
+        dueAt: { gte: new Date(dep - 2 * 86_400_000), lt: new Date(dep + 3 * 86_400_000) },
+      },
+    ],
+  };
+}
 
 /** Saf: rezervasyonun eksik yaşam döngüsü görevleri (hızlı yol ve kilitli yol AYNI kararı verir). */
 function reservationTasksToCreate(
@@ -4104,12 +4126,18 @@ function dueAutoReplyWhere(organizationId: string, freshSince: Date) {
  * N1 (kurucu 10-17, AYNEN: "ödeme geldikten sonra çalışmaya başlasın kesinlikle bayat mesaj gitmememeli tek gösterimlik uyarı çıkabilir").
  * Abonelik erişimi kapalıyken senkron mesajları içeri almaya devam eder ama oto-yanıt koşmaz (`scheduled-sync`, `canAutomate`). Eskiden bu
  * mesajlar cevapsız `new` kalıyor ve ÖDEME GELİNCE oto-yanıt hepsine (günler önceki sorulara) cevap üretiyordu — `freshSince` sabit damga.
- * Artık erişim kapalı her turda bekleyen misafir mesajları DAMGALANIR (`autoReplyAttemptedAt = lastMessageAt`, not `billing_paused`): o
- * mesaja bir daha otomatik cevap üretilmez, gelen kutusunda not görünür ("lütfen elle yanıtlayın"); misafir ödemeden SONRA yeniden yazarsa
- * yeni mesaj normal cevaplanır. İnsan devri bekleyen (`autoReplyHoldUntil`) konuşma da damgalanır: devir bittiğinde erişim kapalıyken gelmiş
- * mesaj bayattır. Model çağrısı YOK; satır başına koşullu tek yazma (araya yeni mesaj girdiyse yazılmaz — o mesaj sonraki turda değerlendirilir).
+ * İki katman: (1) "en son kapalı görüldü" işareti (`billing-hold.ts`) oto-yanıt penceresini o andan başlatır — senkron o dönemde düşmüş olsa
+ * da (Haiku 10-17); (2) bu fonksiyon bekleyen misafir mesajlarını DAMGALAR (`autoReplyAttemptedAt = lastMessageAt`) ve gelen kutusuna not
+ * yazar ("lütfen elle yanıtlayın"). Not yalnız boş ya da geçici sebebin üstüne yazılır (`BILLING_NOTE_OVERWRITABLE`; "misafir insan istedi",
+ * şikâyet, risk notu korunur); damga her durumda yazılır. İnsan devri bekleyen (`autoReplyHoldUntil`) konuşma da damgalanır. Misafir
+ * ödemeden SONRA yeniden yazarsa yeni mesaj normal cevaplanır. Model çağrısı YOK; satır başına koşullu yazma (araya yeni mesaj girdiyse
+ * yazılmaz — o mesaj sonraki turda değerlendirilir). `before`: yalnız bu andan önceki mesajlar (ödeme sonrası işaret temizliği).
  */
-export async function markBillingPausedConversations(organizationId: string, now: Date = new Date()): Promise<number> {
+export async function markBillingPausedConversations(
+  organizationId: string,
+  now: Date = new Date(),
+  opts: { before?: Date } = {},
+): Promise<number> {
   if (process.env.AUTO_REPLY_ENABLED !== "1") return 0;
   const org = await prisma.organization.findUnique({
     where: { id: organizationId },
@@ -4120,7 +4148,7 @@ export async function markBillingPausedConversations(organizationId: string, now
   const due = dueAutoReplyWhere(organizationId, freshSince);
   const rows = await prisma.conversation.findMany({
     // İnsan devri koşulu (ikinci AND öğesi) bilerek DIŞARIDA — yukarıdaki gerekçe.
-    where: { ...due, AND: [due.AND[0]] },
+    where: { ...due, AND: [due.AND[0], ...(opts.before ? [{ lastMessageAt: { lt: opts.before } }] : [])] },
     select: { id: true, lastMessageAt: true },
     orderBy: { lastMessageAt: "asc" },
     take: 200,
@@ -4133,9 +4161,14 @@ export async function markBillingPausedConversations(organizationId: string, now
         lastMessageAt: c.lastMessageAt,
         OR: [{ autoReplyAttemptedAt: null }, { autoReplyAttemptedAt: { lt: c.lastMessageAt } }],
       },
-      data: { skippedReason: BILLING_PAUSED_REASON, autoReplyAttemptedAt: c.lastMessageAt },
+      data: { autoReplyAttemptedAt: c.lastMessageAt },
     });
-    marked += res.count;
+    if (res.count !== 1) continue;
+    marked += 1;
+    await prisma.conversation.updateMany({
+      where: { id: c.id, OR: [{ skippedReason: null }, { skippedReason: { in: [...BILLING_NOTE_OVERWRITABLE] } }] },
+      data: { skippedReason: BILLING_PAUSED_REASON },
+    });
   }
   return marked;
 }
@@ -4169,7 +4202,23 @@ export async function runDueChannelAutoReplies(
   // Only answer messages that arrived AFTER auto-reply was switched on — never
   // the pre-existing backlog. Falls back to a 48h window if the timestamp is
   // missing (legacy orgs).
-  const freshSince = org.autoReplyEnabledAt ?? new Date(Date.now() - 48 * 60 * 60 * 1000);
+  let freshSince = org.autoReplyEnabledAt ?? new Date(Date.now() - 48 * 60 * 60 * 1000);
+  // N1 (kurucu 10-17 "kesinlikle bayat mesaj gitmemeli"): abonelik en son kapalı görüldüğü andan ÖNCEKİ mesajlar oto-yanıt adayı DEĞİLDİR —
+  // senkron kapalı dönemde düşüp mesajları ödemeden sonra eski zamanla içeri almış olsa da (Haiku 10-17). Kalanlar damgalanıp not alır.
+  // Okuma hatası → bu tur atlanır (fail-closed: bayat cevap riski yerine bir tur gecikme).
+  let blockedSeen: Date | null;
+  try {
+    blockedSeen = await billingBlockedSeenAt(organizationId);
+  } catch (err) {
+    void reportError(`auto-reply-billing-seen-read org=${organizationId}`, err);
+    return { sent: 0, considered: 0 };
+  }
+  if (blockedSeen && blockedSeen > freshSince) {
+    await markBillingPausedConversations(organizationId, new Date(), { before: blockedSeen }).catch(
+      (err) => void reportError(`auto-reply-billing-paused-mark org=${organizationId}`, err),
+    );
+    freshSince = blockedSeen;
+  }
 
   const hour = currentHourInTimeZone(org.timezone);
   if (!isWithinActiveHours(org.autoReplyStartHour, org.autoReplyEndHour, hour)) {
@@ -4189,7 +4238,8 @@ export async function runDueChannelAutoReplies(
     // (`persistRiskVisibility`'nin "yalnız değişince yaz" kuralıyla aynı mantık).
     await prisma.conversation
       .updateMany({
-        where: { ...dueAutoReplyWhere(organizationId, freshSince), skippedReason: null },
+        // `billing_paused` notu ESKİ mesajındır (N1): ödemeden sonra gelen yeni mesaj için güncel sebep yazılır (Haiku 10-17).
+        where: { ...dueAutoReplyWhere(organizationId, freshSince), OR: [{ skippedReason: null }, { skippedReason: BILLING_PAUSED_REASON }] },
         data: { skippedReason: "outside_hours" },
       })
       .catch(() => {});

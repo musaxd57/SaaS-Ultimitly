@@ -7,7 +7,8 @@ import { isPrimaryOrg } from "@/lib/hospitable-credentials";
 import { backfillChannelConnections } from "@/lib/channels/connections";
 import { isChannelSubscriptionInactive } from "@/lib/provider-errors";
 import { alertTracker, sweepStaleAlertStates } from "@/lib/alert-state";
-import { premiumAllowed } from "@/lib/billing/subscription";
+import { billingEnforced, premiumAllowed } from "@/lib/billing/subscription";
+import { noteBillingBlockedSeen } from "@/lib/outbox/billing-hold";
 import { sendDueTrialReminders } from "@/lib/billing/trial-reminders";
 import { anonymizeOldGuestData, minimizeOldPaddleWebhooks, purgeOldLeads, retentionCutoff } from "@/lib/data-retention";
 import { runIntelligencePass, purgeExpiredSignals } from "@/modules/intelligence";
@@ -613,6 +614,20 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
           // ARKASINDA kalmaması. `continue` bırakılsaydı Hospitable'ı 402 olan bir
           // host (kurucu org'un BUGÜNKÜ hâli) takvim beslemelerini de HİÇ senkronlayamaz,
           // yani düzeltmenin en çok ihtiyaç duyulan vakada etkisi olmazdı.
+          // N1 (kurucu 10-17 "kesinlikle bayat mesaj gitmemeli"): erişim kapalı görüldüğü HER turda işaret yenilenir ve içeri alınmış
+          // bekleyen mesajlar damgalanır (`billing-hold.ts`, `markBillingPausedConversations`). `syncOk`a BAĞLI DEĞİL (Haiku 10-17): senkron
+          // kapalı dönemde düşse de işaret yazılır → mesajlar ödemeden sonra eski zamanla içeri alınsa da oto-yanıt onlara cevap üretmez.
+          // Kendi try'ı: düşerse senkron / uyarılar etkilenmez, sonraki tur yeniden dener. Faturalandırma kapalıyken okuma yok.
+          if (billingEnforced()) {
+            try {
+              if (!(await premiumAllowed(org.id))) {
+                await noteBillingBlockedSeen(org.id);
+                await markBillingPausedConversations(org.id);
+              }
+            } catch (err) {
+              await handleOrgError("billing-paused-mark", err);
+            }
+          }
           if (syncOk) {
             if (!withinOrgBudget) {
               // Bu org bütçesini yedi: import bitti (yazılanlar kalıcı), uyarılar
@@ -635,15 +650,6 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
                     await opsAlarm.ok(orgKey("early-checkin-recheck"));
                   } catch (err) {
                     await handleOrgError("early-checkin-recheck", err);
-                  }
-                }
-                // N1 (kurucu 10-17): erişim kapalıyken gelen misafir mesajları damgalanır — ödeme gelince bayat cevap üretilmez
-                // (`markBillingPausedConversations`). Kendi try'ı: düşerse senkron / uyarılar etkilenmez, sonraki tur yeniden dener.
-                if (!canAutomate) {
-                  try {
-                    await markBillingPausedConversations(org.id);
-                  } catch (err) {
-                    await handleOrgError("billing-paused-mark", err);
                   }
                 }
                 const auto = canAutomate ? await runDueChannelAutoReplies(org.id) : { sent: 0 };

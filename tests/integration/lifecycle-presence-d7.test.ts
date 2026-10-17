@@ -12,6 +12,7 @@ vi.mock("@/lib/api", async (orig) => {
 import { createReservationTasks, backfillReservationTasks } from "@/lib/automation";
 import { countReservationsMissingCleaning } from "@/lib/tasks/missing-cleaning";
 import { POST as REACTIVATE } from "@/app/api/reservations/[id]/reactivate/route";
+import { POST as CREATE_TASK } from "@/app/api/tasks/route";
 import { REACTIVATION_BLOCKED_FIELD } from "@/lib/ingest/reactivation";
 
 // ---------------------------------------------------------------------------
@@ -144,4 +145,37 @@ describe("yaşam döngüsü görevi 'zaten var mı?' — kurucu D7", () => {
     expect(await countReservationsMissingCleaning(orgId, new Date(), TZ)).toBe(1);
     expect(await createReservationTasks(r.id)).toBe(1);
   });
+
+  it("🚨 K4 ÜRÜN YOLU (Opus 10-17): ev sahibi Görevler → 'Yeni görev' formuyla (rezervasyon BAĞLAMADAN) çıkış gününe temizlik açar → sistem ikincisini AÇMAZ", async () => {
+    const user = await prisma.user.create({ data: { organizationId: orgId, name: "O", email: `o2-${orgId}@x.com`, passwordHash: "x", role: "owner" } });
+    session = { userId: user.id, organizationId: orgId, role: "owner", email: user.email, name: "O", sessionEpoch: 0 };
+    const r = await reservation();
+    await task(r.id, { type: "checkin_prep", dueAt: r.arrivalDate });
+    // Formun gönderdiği gövde (task-form.tsx): reservationId YOK, vade datetime-local.
+    const depDay = r.departureDate.toISOString().slice(0, 10);
+    const res = await CREATE_TASK(
+      new NextRequest("http://localhost/api/tasks", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ propertyId, type: "cleaning", title: "Çıkış temizliği (Ayşe)", description: "", assignedToId: "", dueAt: `${depDay}T09:00`, priority: "standard", status: "todo" }),
+      }),
+      { params: Promise.resolve({}) } as never,
+    );
+    expect(res.status).toBe(201);
+    expect((await prisma.task.findFirstOrThrow({ where: { title: "Çıkış temizliği (Ayşe)" } })).reservationId).toBeNull();
+    expect(await countReservationsMissingCleaning(orgId, new Date(), TZ)).toBe(0); // ⬅️ ESKİDE 1
+    expect(await createReservationTasks(r.id)).toBe(0); // ⬅️ ESKİDE 1 (iki temizlik yan yana)
+    expect(await systemCleanings(r.id)).toHaveLength(0);
+  });
+
+  it("K4 aşırı uygulama yok: AYNI mülkte başka güne (ara temizlik) rezervasyonsuz elle temizlik çıkış temizliğini engellemez", async () => {
+    const r = await reservation();
+    await task(r.id, { type: "checkin_prep", dueAt: r.arrivalDate });
+    await prisma.task.create({
+      data: { propertyId, reservationId: null, type: "cleaning", origin: "manual", title: "Ara", status: "todo", dueAt: new Date(atMidnight(4).getTime() + 9 * 3_600_000) },
+    });
+    expect(await countReservationsMissingCleaning(orgId, new Date(), TZ)).toBe(1);
+    expect(await createReservationTasks(r.id)).toBe(1);
+  });
 });
+

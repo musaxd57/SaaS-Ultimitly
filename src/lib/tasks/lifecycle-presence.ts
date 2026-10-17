@@ -13,7 +13,8 @@
 //   · SİSTEMİN açtığı (origin "system") ve BİTMEMİŞ bir T görevi var (ev sahibi tarihini elle taşımış olsa bile — o görev budur), ya da
 //   · SİSTEMİN açtığı, BİTMİŞ bir T görevi var ve vadesi rezervasyonun ŞİMDİKİ hedef günüyle AYNI takvim günü, ya da
 //   · (yalnız çıkış temizliği, K4) EV SAHİBİNİN elle açtığı (origin "manual", söze bağlı DEĞİL) temizlik görevi var ve vadesi rezervasyonun
-//     ŞİMDİKİ çıkış günüyle AYNI takvim günü (durumu fark etmez: bitmişse temizlik yapılmıştır).
+//     ŞİMDİKİ çıkış günüyle AYNI takvim günü (durumu fark etmez: bitmişse temizlik yapılmıştır). Görev rezervasyona bağlı OLMAYABİLİR (görev
+//     formu bağlamaz — Opus 10-17); çağıranlar aynı mülkün rezervasyonsuz elle temizliklerini de listeye katar.
 // "Var" SAYMAYANLAR: ara temizlik (vadesi başka gün), söz görevi (misafire verilen söz — D7 "mevcut söz görevi korunsun"; söz kendi işidir,
 // çıkış temizliğinin yerini tutmaz), mesajdan açılan görev (ai), vadesiz elle görev, giriş hazırlığında elle görev.
 // ---------------------------------------------------------------------------

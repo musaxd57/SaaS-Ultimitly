@@ -36,21 +36,37 @@ declare global {
 
 const PADDLE_SRC = "https://cdn.paddle.com/paddle/v2/paddle.js";
 
+/** Betik bu sürede yüklenmezse ödeme kartı "Yükleniyor…"da asılı kalmaz, hata gösterir (K3, Haiku 10-17). */
+const PADDLE_LOAD_TIMEOUT_MS = 20_000;
+
 function loadPaddle(): Promise<PaddleGlobal | null> {
   return new Promise((resolve, reject) => {
     if (typeof window === "undefined") return resolve(null);
     if (window.Paddle) return resolve(window.Paddle);
+    const timer = window.setTimeout(() => reject(new Error("paddle load timeout")), PADDLE_LOAD_TIMEOUT_MS);
+    const done = (fn: () => void) => () => {
+      window.clearTimeout(timer);
+      fn();
+    };
+    // Betik indi ama `window.Paddle` yoksa (engellendi / bozuk) bu da HATADIR — eskiden `null` çözülüp kart sessizce bekliyordu.
+    const onLoad = done(() => (window.Paddle ? resolve(window.Paddle) : reject(new Error("paddle missing after load"))));
+    const onError = done(() => reject(new Error("paddle load error")));
     const existing = document.querySelector<HTMLScriptElement>(`script[src="${PADDLE_SRC}"]`);
-    if (existing) {
-      existing.addEventListener("load", () => resolve(window.Paddle ?? null));
-      existing.addEventListener("error", () => reject(new Error("paddle load error")));
+    // Daha önce HATA vermiş betik etiketi yeniden olay üretmez (kart yeniden açılınca söz sonsuza dek asılı kalıyordu) → kaldırılıp yeniden eklenir.
+    if (existing && existing.dataset.state !== "error") {
+      existing.addEventListener("load", onLoad);
+      existing.addEventListener("error", onError);
       return;
     }
+    existing?.remove();
     const s = document.createElement("script");
     s.src = PADDLE_SRC;
     s.async = true;
-    s.onload = () => resolve(window.Paddle ?? null);
-    s.onerror = () => reject(new Error("paddle load error"));
+    s.onload = onLoad;
+    s.onerror = () => {
+      s.dataset.state = "error";
+      onError();
+    };
     document.head.appendChild(s);
   });
 }
@@ -188,7 +204,7 @@ export function PaddlePlans({
     let cancelled = false;
     loadPaddle()
       .then((Paddle) => {
-        if (cancelled || !Paddle) return;
+        if (cancelled || !Paddle) return; // `null` yalnız sunucu tarafında (window yok)
         try {
           Paddle.Environment.set(environment);
           Paddle.Initialize({
@@ -367,6 +383,7 @@ export function PaddlePlans({
       const data = (await res.json().catch(() => ({}))) as {
         error?: string;
         fields?: Record<string, string>;
+        pendingVerification?: boolean;
         mode?: "upgrade" | "downgrade";
         targetName?: string;
         targetMonthlyMinor?: number;
@@ -375,6 +392,11 @@ export function PaddlePlans({
         previewToken?: string;
         correlationId?: string;
       };
+      if (data.pendingVerification) {
+        // Önceki değişiklik hâlâ işleniyor: hata değil, bilgi (202 "onay bekleniyor" ile aynı görünüm — Haiku 10-17).
+        setNotice(data.error ?? BILLING_TEXT.changePending);
+        return;
+      }
       if (!res.ok || !data.mode || !data.previewToken) {
         // ⚠️ SEBEP `fields.error` ALTINDA. `badRequest({ error })` gövdeyi
         // `{error:"Doğrulama hatası", fields:{error:"…"}}` diye kuruyor; yalnız
@@ -396,7 +418,9 @@ export function PaddlePlans({
         recurringTotal: data.recurringTotal ?? null,
         previewToken: data.previewToken,
       });
-      if (noticeOnSuccess) setNotice(noticeOnSuccess);
+      // "Tutar değişti" yalnız yeni tutar GERÇEKTEN gösterilebiliyorsa (Haiku 10-17: tutarı hesaplanamayan yükseltmede de sunucu aynı 409'u
+      // veriyor; not "kontrol edin" derken panel "tutar hesaplanamadı" diyordu).
+      if (noticeOnSuccess && !(data.mode === "upgrade" && !data.immediateTotal)) setNotice(noticeOnSuccess);
     } catch {
       setError(BILLING_TEXT.network);
     } finally {
@@ -427,6 +451,7 @@ export function PaddlePlans({
         ok?: boolean;
         amountChanged?: boolean;
         pending?: boolean;
+        pendingVerification?: boolean;
         correlationId?: string;
       };
       if (data.pending) {
@@ -444,6 +469,8 @@ export function PaddlePlans({
         if (res.status === 409 && data.amountChanged) {
           // `return` KULLANILMAZ: yeniden hesaplama `finally`den SONRA koşar (meşgul işareti inmiş olmalı).
           refreshPlan = pending.planCode;
+        } else if (data.pendingVerification) {
+          setNotice(data.error ?? BILLING_TEXT.changePending);
         } else {
           // Sağlayıcının ham sebebi artık gelmiyor (K3 envanteri C2); 400 sebebi `fields` altında (C1: "Doğrulama hatası" görünüyordu).
           setError(billingReason(data, BILLING_TEXT.changeFailed));
@@ -578,7 +605,10 @@ export function PaddlePlans({
             </button>
             <button
               type="button"
-              onClick={() => setPending(null)}
+              onClick={() => {
+                setPending(null);
+                setNotice(null);
+              }}
               disabled={changeBusy}
               className="inline-flex h-8 items-center rounded-md border border-border px-3 text-xs font-medium hover:bg-accent disabled:opacity-50"
             >

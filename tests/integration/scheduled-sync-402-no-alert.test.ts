@@ -60,6 +60,7 @@ import { reportError } from "@/lib/report-error";
 import { IngestError } from "@/lib/channels/ingest";
 import { runScheduledSync } from "@/lib/scheduled-sync";
 import { syncHospitable } from "@/lib/hospitable-sync";
+import { billingBlockedSeenAt } from "@/lib/outbox/billing-hold";
 
 const mockListProperties = vi.mocked(listProperties);
 const mockListReservations = vi.mocked(listReservations);
@@ -305,5 +306,38 @@ describe("syncHospitable — toplulaştırılmış alarmlar da geçiş tabanlı"
     mockListReservations.mockRejectedValue(new HospitableError("Hospitable API hatası (HTTP 401)", 401));
     await syncHospitable(orgId);
     expect(authAlerts(orgId)).toHaveLength(2);
+  });
+});
+
+describe("N1 (kurucu 10-17): abonelik kapalı işareti senkron DÜŞERKEN de yazılır (Haiku 10-17)", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+    vi.stubEnv("BILLING_ENFORCED", "true");
+    vi.stubEnv("PRIMARY_ORG_ID", "");
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  const expire = (orgId: string) =>
+    prisma.subscription.create({
+      data: { organizationId: orgId, provider: "trial", status: "trialing", planCode: "pro", trialEndsAt: new Date(Date.now() - 86_400_000) },
+    });
+
+  it("🚨 senkron 402 ile düşüyor + erişim kapalı → 'en son kapalı görüldü' işareti YİNE yazılır (eskiden damga syncOk'a bağlıydı)", async () => {
+    const orgId = await seedOrg();
+    await expire(orgId);
+    mockListProperties.mockRejectedValue(wire402());
+    const before = Date.now();
+    await runScheduledSync();
+    const seen = await billingBlockedSeenAt(orgId);
+    expect(seen).not.toBeNull();
+    expect(seen!.getTime()).toBeGreaterThanOrEqual(before - 1_000);
+  });
+
+  it("KONTROL: erişim açık → işaret yazılmaz", async () => {
+    const orgId = await seedOrg();
+    mockListProperties.mockRejectedValue(wire402());
+    await runScheduledSync();
+    expect(await billingBlockedSeenAt(orgId)).toBeNull();
   });
 });
