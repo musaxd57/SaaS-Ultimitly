@@ -24,6 +24,7 @@ import {
 import {
   applyWifiValue,
   detectHostPromises,
+  hasPromiseTime,
   extractWifiValues,
   kbContainsValue,
   maskSecret,
@@ -393,8 +394,13 @@ export async function getConversationSuggestions(
             !isSibling(c),
         );
         const relevant = (promise.topic !== null ? earlier.filter((c) => c.topic === promise.topic) : earlier).filter((c) => !otherActor(c));
+        // Kendi ZAMANI olmayan söz ("Evet, klima için teknisyen gelecek, merak etmeyin") yeni bir an söylemez: önceden açılmış uyumlu söz
+        // (aynı tür, uyumlu konu, uyumlu yapan) varsa TEKRARDIR — öneri yok; taşıma adayı hiç olamaz → kayıtlı saat / dilim asla "gün"e
+        // düşürülmez (Opus 10-17 gece-3 F3: aynı gün kesin eşleşme sayılıp 15:00'ı siliyordu).
+        const timeless = !hasPromiseTime(promise);
+        if (timeless && earlier.some((c) => commitmentTopicsCompatible(c.topic, promise.topic) && !otherActor(c))) continue;
         let certain: (typeof commitments)[number] | null = null;
-        if (relevant.length === 1) {
+        if (relevant.length === 1 && !timeless) {
           const c = relevant[0]!;
           if (promise.reschedule) certain = c;
           // Saat değişikliği sözcüğü yok + gün sözcüğü yok ("Klima için teknisyen 11'de gelecek") → yeni saat hangi güne? Eski söz mesajın

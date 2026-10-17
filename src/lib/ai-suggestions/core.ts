@@ -385,7 +385,7 @@ export function detectHostPromises(text: string | null | undefined): HostPromise
 const REJECT = Symbol("reject");
 
 /** Sözün kendi zaman bilgisi var mı (gün sözcüğü, saat, süre, gün dilimi, "birazdan"). */
-function hasPromiseTime(p: HostPromise): boolean {
+export function hasPromiseTime(p: HostPromise): boolean {
   return p.dayExplicit || p.timeCandidates.length > 0 || p.inMinutes !== null || p.cue !== null || p.soon;
 }
 

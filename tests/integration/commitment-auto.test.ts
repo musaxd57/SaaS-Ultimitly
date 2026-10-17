@@ -436,6 +436,31 @@ describe("BAĞLAM — saat güncellemesi yalnız kesin eşleşmede (kurucu: 'ba�
     expect(await prisma.guestCommitment.count()).toBe(1);
   });
 
+  it("🚨 Opus gece-3 F3: saatsiz TEKRAR ('Evet, klima için teknisyen gelecek') kayıtlı 15:00'ı SİLMEZ — öneri yok, taşıma yok", async () => {
+    const s = await setup();
+    const NOW = new Date("2026-11-20T09:00:00Z"); // İstanbul 12:00
+    await hostSays(s.conversationId, "Klima için teknisyen bugün 15:00'te gelecek.", new Date(NOW.getTime() - 60 * 60_000));
+    await applyHostCommitmentsAuto(s.orgId, s.conversationId, NOW);
+    const before = await prisma.guestCommitment.findFirstOrThrow();
+    expect(before.duePrecision).toBe("time");
+    await hostSays(s.conversationId, "Evet, klima için teknisyen gelecek, merak etmeyin.", new Date(NOW.getTime() - 5 * 60_000));
+    expect((await getConversationSuggestions(s.orgId, s.conversationId, NOW)).filter((x) => x.kind === "commitment")).toEqual([]);
+    expect(await applyHostCommitmentsAuto(s.orgId, s.conversationId, NOW)).toEqual({ created: 0, rescheduled: 0, skipped: 0 });
+    const after = await prisma.guestCommitment.findUniqueOrThrow({ where: { id: before.id } });
+    expect(after.dueAt.toISOString()).toBe(before.dueAt.toISOString());
+    expect(after.duePrecision).toBe("time");
+    expect(after.previousDueAt).toBeNull();
+    expect(await prisma.guestCommitment.count()).toBe(1);
+  });
+
+  it("KONTROL (F3): saatsiz söz, uyumlu açık söz YOKKEN yine gün sözü olarak kaydedilir; saatli yeni söz taşımaya devam eder", async () => {
+    const s = await setup();
+    const NOW = new Date("2026-11-20T09:00:00Z");
+    await hostSays(s.conversationId, "Havlu getireceğim.", new Date(NOW.getTime() - 5 * 60_000));
+    expect((await applyHostCommitmentsAuto(s.orgId, s.conversationId, NOW)).created).toBe(1);
+    expect((await prisma.guestCommitment.findFirstOrThrow()).duePrecision).toBe("day");
+  });
+
   it("🚨 Opus O19: söz mesajdan SONRA kaydedildi ama kaynak mesajı daha eski → geç gelen saat değişikliği gizlenmez, taşınır", async () => {
     const s = await setup();
     await hostSays(s.conversationId, "Klima için teknisyen yarın 10:00'da gelecek.", new Date(Date.now() - 10 * 60_000));
