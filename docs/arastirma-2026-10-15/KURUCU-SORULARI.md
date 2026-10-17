@@ -879,3 +879,65 @@ daha yeni cevabınız çelişirse (önerim: taslakta bilgi tabanı kazanır + "b
 gün yarı ömür: dün %99, 3 ay %59, 1 yıl %12) · (4) L4'te ne öğrenilsin (önerim: değiştirdiğiniz / eklediğiniz cümle sizin bilginiz; aynı düzeltme
 iki misafirde → tek kart) · (5) bütün geçmişin dizinlenmesi (maliyet tahmini 2–14 sent, KVKK cümlesi, model) · (6) taslağı değiştirmeden
 göndermek eski cevabı "yeniden doğrulandı" saysın mı (önerim: hayır, "Hâlâ geçerli" tek tık). Her soru belgede önce / sonra örnekli.
+
+## T. Gece-4 (10-17 → 10-18) — 10 geniş inceleme + söz algılama v2: SİZE SORULACAKLAR (sade; hiçbiri uygulanmadı)
+
+Gece kurala uyuldu: misafire giden mesajı, müşterinin gördüğü metni ya da parayı değiştiren hiçbir şey sorulmadan yapılmadı. Aşağıdakiler kodda
+ölçüldü; her birinde önce / sonra örneği ve önerim var. "Evet" yeterli; farklı isterseniz yazın.
+
+### T1 · 🚨 "Talimat yok" silicisi uydurma kuralı misafire gönderebiliyor (misafire giden — en önemlisi)
+10-17'de "Çıkış için özel talimatımız yok, anahtarı masaya bırakmanız yeterli" cevabındaki ilk cümle silinsin dediniz; uygulandı. İnceleme,
+silinen cümlenin ARDINDAKİ kısmın çoğu zaman yapay zekânın uydurması olduğunu gösterdi ("talimat yok" = bilgi tabanında yok). Eskiden bu cevaplar
+hiç gitmezdi (siz cevaplardınız); şimdi uydurma kısım misafire gidiyor:
+- "Evcil hayvan için özel talimatımız yok, evcil hayvanlar kabul edilir." → GİDEN: "Evcil hayvanlar kabul edilir." (uydurma kural)
+- "Çıkış için özel talimatımız yok, saat 14:00'e kadar kalabilirsiniz." → GİDEN: "Saat 14:00'e kadar kalabilirsiniz." (uydurma geç çıkış)
+- "Çıkış için özel talimatımız yok, depozito iadesi 3 gün içinde yapılır." → GİDEN: "Depozito iadesi 3 gün içinde yapılır."
+- "Kahvaltı için özel talimatımız yok, kahvaltı 09:00-11:00 arasında servis edilir." → GİDEN: uydurma saat.
+Önerim: silme YALNIZ sizin örneğinizdeki türde olsun — kalan cümle anahtar / kapı / çıkarken yapılacak basit iş ("anahtarı masaya bırakın",
+"kapıyı çekin") VE bilgi tabanında bunu söyleyen bir kalem var. Diğer hepsinde cevap eskisi gibi tutulur, siz cevaplarsınız.
+ÖNCE: yukarıdaki 4 cümle misafire gidiyor. SONRA: 4'ü de tutulur; "Çıkış için özel talimatımız yok, anahtarı masaya bırakmanız yeterli." (bilgi
+tabanında "anahtarı masaya bırakın" varsa) → "Anahtarı masaya bırakmanız yeterli." gitmeye devam eder. Railway kapalı olduğu için şu an kimseye
+gitmiyor. Böyle yapalım mı?
+
+### T2 · Olası tehlike ("Tost makinesinden duman çıktı") + anlama katmanı çalışmadı → kanalda size HİÇBİR uyarı gitmiyor
+QR'da aynı durumda size acil e-posta gidiyor; kanalda (Airbnb / Booking) misafire cevap gitmiyor (doğru) ama siz de haber almıyorsunuz — gelen
+kutusunu açana kadar. Misafire giden değişmez. Önerim: QR'daki gibi tek acil e-posta + konuşma "Sorunlu" işaretlenir (yapay zekâ o konuşmada
+durur, siz cevaplarsınız — bugünkü acil kuralınızla aynı). Alternatif: yalnız e-posta, konuşma durumu değişmez. Hangisi?
+
+### T3 · "Bilgi veremem" yalnız Türkçede tutuluyor (misafire giden)
+10-17 kararınız ("tutulsun, sussa daha iyi") yalnız Türkçe fiillere uygulandı. İngilizce misafire hâlâ gidiyor: "I'm sorry, I can't provide
+information about the TV." · "I'm unable to provide information on that." Ayrıca Türkçe "Bu konuda bilgi sağlayamıyorum." / "…bilgi vermem mümkün
+değil." da gidiyor. Önerim: aynı kural diğer dillere ve bu Türkçe biçimlere de (tutulur, siz cevaplarsınız). Böyle yapalım mı?
+
+### T4 · 🚨 Geçmişten öğren "Giriş talimatı" taslağı otomatik giriş mesajınızın YERİNE geçebiliyor (misafire giden)
+"Geçmişi oku" bir bilgiyi ("Binaya girişte kapıcıdan anahtarı alın") "Giriş talimatı" türünde taslak yapabiliyor. Onaylarsanız bu tek cümle, en
+yeni giriş kalemi olduğu için otomatik giriş mesajı olarak HER yeni misafire gider — adres / kat / anahtar adımlı asıl mesajınız gitmez (anahtar
+`HISTORY_LEARN_ENABLED` kapalı, canlıda yok). Önerim: Geçmişten öğren "Giriş talimatı" türünde taslak YAZMAZ (bu tür yalnız sizin otomatik
+mesajınız); bilgi "Sık sorulan" olarak eklenir. Böyle yapalım mı?
+
+### T5 · Söz → görev (misafire bir şey gitmez; sizin görev listeniz) — dört küçük karar
+Gece söz algılaması baştan sağlamlaştırıldı (sert itirazcının 43 cümlesi + Haiku + Opus; ↓ durum). Dört durum yorum istiyor:
+- (a) "Teknisyen 10'da gelecek." 10:30'da yazıldı (saat geçmiş) → bugün yarın 10:00 olarak kendiliğinden kaydediliyor. Önerim: kart sorsun.
+- (b) "Havlu getireceğim." gece 23:30'da yazıldı → bugün 23:59 son an. Önerim: kart sorsun (gün belirsiz).
+- (c) "Teknisyen yarın 10'da gelecek inşallah." → bugün hiçbir şey açılmıyor (kararsız söz). Önerim: kart sorsun (söz gibi ama kesin değil).
+- (d) "Teknisyen yarın 7'de gelecek." (sabah / akşam yok) → 07:00 kaydediliyor. Önerim: kart sorsun (07:00 mı 19:00 mı?). Bugün 3, 4, 5 gibi
+  saatler zaten öğleden sonra okunuyor; 7–11 arası iki anlamlı.
+Dördü de "kart sorsun" olsun mu?
+
+### T6 · Müşteriye görünen metinler (para / hukuk / ekran)
+- **Kartla deneme açılmadan önce (hukuk):** Ön Bilgilendirme formu ("deneme için kart bilgisi alınmaz") ve Kullanım Koşulları ("kredi kartı bilgisi
+  alınmaksızın") kartla deneme kapısıyla çelişiyor. Önerim: iki cümleye "bazı durumlarda kart istenebilir" eklenir (avukat paketine) — anahtar
+  `TRIAL_CARD_GATE_ENABLED` bununla AYNI sürümde açılır. Uygun mu?
+- **Mülk silme penceresi:** bugün "Bu kaydı silmek istediğinize emin misiniz?" — mülkle birlikte bütün rezervasyon, yazışma, bilgi tabanı ve görev
+  siliniyor. Önerim: "Bu dairenin tüm rezervasyonları, yazışmaları, bilgi tabanı ve görevleri de kalıcı olarak silinir." Uygun mu?
+- **Sistem görevini silmek:** rezervasyondan açılan temizlik / hazırlık görevi silinse 2–15 dk içinde geri geliyor. (a) silinen görev bir daha
+  açılmasın (önerim) · (b) yalnız uyarı yazısı ("Bu görev rezervasyondan otomatik açılır; silerseniz yeniden oluşur"). Hangisi?
+- **Airbnb "Not available" blokları** temizlik + giriş hazırlığı görevi açıyor (ev sahibinin kendi kapattığı günler). Önerim: blok için görev
+  açılmasın. Uygun mu?
+- **Küçük metin düzeltmeleri** (S9 listesi, 12 madde: "2026-09" yerine "Eylül 2026", "plan" / "paket" birliği, "₺899" / "₺899,00" birliği, 2FA
+  adı, UTC saat yazımı, "Söz 1 gündür açık" sayacı…) — hepsi müşteri ekranı; tek tek önce / sonra listesi `scratchpad` yerine sabah raporunda.
+  Toplu "evet" yeterli.
+
+### T7 · Paddle (para) — açık kalanlar
+- SG1 / SG2 (↑ §S) hâlâ cevap bekliyor.
+- Sandbox: Paddle'ın ödeme kurtarma ayarında son denemeden sonra aboneliğin duraklatılmadan İPTALE düşmesi panelde doğrulanacak (SG3 kararı).
