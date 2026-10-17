@@ -17,6 +17,7 @@ vi.mock("@/lib/api", async (orig) => {
 
 import { POST } from "@/app/api/ai-suggestions/route";
 import { getConversationSuggestions } from "@/lib/ai-suggestions/load";
+import { __aiSuggestionHooks } from "@/lib/ai-suggestions/act";
 import { createGuestCommitment } from "@/lib/guest-commitments";
 import { commitmentDueAt } from "@/lib/guest-commitments-core";
 import { orgTimezone } from "@/lib/timezone";
@@ -357,6 +358,25 @@ describe("Q1-b (kurucu 10-17: '2'sini de öner')", () => {
     await prisma.guestCommitment.update({ where: { id: ac.id }, data: { status: "done" } });
     expect((await decide({ key: s!.key, decision: "approve", attach: "ac" })).status).toBe(409);
     expect(await prisma.guestCommitment.count({ where: { conversationId: conv } })).toBe(2);
+  });
+
+  it("🚨 mutasyon Q1b-target-open: seçilen söz onay İŞLEMİNİN İÇİNDE (yeniden üretimden sonra) kapanırsa → 409, kapanmış söze bağlanmaz", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const owner = await asOwner(orgId);
+    const conv = await conversationWith(propertyId, []);
+    const ac = await manualCommitment(orgId, conv, propertyId, owner.id, "ac", "m-ac");
+    await manualCommitment(orgId, conv, propertyId, owner.id, "faucet", "m-faucet");
+    await prisma.message.create({ data: { conversationId: conv, direction: "outbound", authorType: "host", senderName: "Ev Sahibi", body: "Teknisyen yarın 10:00'da gelecek." } });
+    const [s] = await getConversationSuggestions(orgId, conv);
+    __aiSuggestionHooks.afterDecisionCheck = async () => {
+      await prisma.guestCommitment.update({ where: { id: ac.id }, data: { status: "done" } });
+    };
+    try {
+      expect((await decide({ key: s!.key, decision: "approve", attach: "ac" })).status).toBe(409);
+    } finally {
+      __aiSuggestionHooks.afterDecisionCheck = null;
+    }
+    expect(await prisma.auditLog.count({ where: { action: { startsWith: "ai_suggestion." } } })).toBe(0);
   });
 
   it("KONTROL: aynı saatte TEK konulu söz varken konusuz öneri bugünkü gibi GİZLİ (seçim gereksiz)", async () => {
