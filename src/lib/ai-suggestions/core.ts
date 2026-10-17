@@ -129,11 +129,13 @@ const DAY_UNKNOWN = new RegExp(
 /**
  * TAKVİM TARİHİ (Haiku 10-17 gece 2. tur + ölçüm): "25 Ekim'de", "ayın 25'inde", "ay sonunda", "bu ay", "gelecek ay", "October 25", "the 25th",
  * "25/10", "25.10.2026" — bugün / yarın modelinin dışında → tanınmayan gün gibi öneri YOK (ölçüldü: hepsi BUGÜN sayılıp bugüne görev açıyordu).
+ * Gün/ay yalnız geçerli aralıkta (gün 1–31, ay 1–12): "7/24" (her zaman) tarih DEĞİL; ay adına "-lı/-lu" sıfat eki gelirse ("2 ocaklı ocak")
+ * tarih değil (Haiku 10-17 gece 4. tur: sözün sağındaki "7/24 ulaşabilirsiniz" sözü düşürüyordu).
  * Gün-nokta-ay yalnız gün 24–31 ise ("25.10"); "12.10" saattir (12:10). Ad olmayan "aylık" / "aydır" / "ayar" tarih DEĞİL ("Bir aylık bakım
  * için teknisyen yarın 10'da gelecek" sözdür). Bitişik boşluk niceleyicileri arasındaki isteğe bağlı ayraç `\s*(?:X\s*)?` (karesel iş yok).
  */
 const CALENDAR_DATE = new RegExp(
-  `${NL}(?:\\d{1,2}\\s*(?:['’.]\\s*)?(?:ocak|subat|mart|nisan|mayis|haziran|temmuz|agustos|eylul|ekim|kasim|aralik)\\p{L}{0,5}|ayin\\s+(?:\\d{1,2}|ilk|son|sonu\\p{L}{0,4}|basi\\p{L}{0,4}|ortasi\\p{L}{0,4})|ay\\s+(?:sonu|basi|ortasi|icinde)\\p{L}{0,4}|(?:bu|gelecek|ertesi)\\s+ay(?:a|da|in|ki)?|\\d{1,2}[./]\\d{1,2}[./]\\d{2,4}|\\d{1,2}/\\d{1,2}|(?:2[4-9]|3[01])\\.(?:0?[1-9]|1[0-2])|january|february|march|april|june|july|august|september|october|november|december|may\\s+\\d{1,2}|\\d{1,2}(?:st|nd|rd|th)?\\s+(?:of\\s+)?may|\\d{1,2}(?:st|nd|rd|th)|this\\s+month|end\\s+of\\s+(?:the\\s+)?month)${NR}`,
+  `${NL}(?:\\d{1,2}\\s*(?:['’.]\\s*)?(?:ocak|subat|mart|nisan|mayis|haziran|temmuz|agustos|eylul|ekim|kasim|aralik)(?!l[iu])\\p{L}{0,5}|ayin\\s+(?:\\d{1,2}|ilk|son|sonu\\p{L}{0,4}|basi\\p{L}{0,4}|ortasi\\p{L}{0,4})|ay\\s+(?:sonu|basi|ortasi|icinde)\\p{L}{0,4}|(?:bu|gelecek|ertesi)\\s+ay(?:a|da|in|ki)?|\\d{1,2}[./]\\d{1,2}[./]\\d{2,4}|(?:0?[1-9]|[12]\\d|3[01])/(?:0?[1-9]|1[0-2])(?![\\d/])|(?:2[4-9]|3[01])\\.(?:0?[1-9]|1[0-2])|january|february|march|april|june|july|august|september|october|november|december|may\\s+\\d{1,2}|\\d{1,2}(?:st|nd|rd|th)?\\s+(?:of\\s+)?may|\\d{1,2}(?:st|nd|rd|th)|this\\s+month|end\\s+of\\s+(?:the\\s+)?month)${NR}`,
   "u",
 );
 

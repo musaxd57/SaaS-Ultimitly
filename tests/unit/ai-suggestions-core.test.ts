@@ -450,6 +450,13 @@ describe("söz → görev otomatik (kurucu 10-17 gece): kararsız / aktarılan s
     expect(detectHostPromises("Teknisyen 25 Ekim'de gelecek, havluları yarın getireceğim.")).toMatchObject([{ kind: "towels", day: "tomorrow" }]);
   });
 
+  it("🚨 Haiku 4. tur: '7/24' ve '2 ocaklı' tarih DEĞİL — sağdaki parça sözü düşürmez; geçerli gün/ay ('25/10', '1/12') yine tarih", () => {
+    expect(detectHostPromises("Teknisyen yarın 10'da gelecek, 7/24 telefonla ulaşabilirsiniz.")).toMatchObject([{ day: "tomorrow", timeCandidates: [600] }]);
+    expect(detectHostPromises("Teknisyen yarın 10'da gelecek, 2 ocaklı ocağı da kontrol edecek.")).toMatchObject([{ day: "tomorrow", timeCandidates: [600] }]);
+    expect(detectHostPromises("Teknisyen 1/12 tarihinde gelecek.")).toEqual([]);
+    expect(detectHostPromises("Teknisyen 3 Aralık'ta gelecek.")).toEqual([]);
+  });
+
   it("aşırı uygulama kontrolü: 'aylık' / 'aydır' / 'ayar' / saat '12.10' tarih DEĞİL", () => {
     expect(detectHostPromises("Bir aylık bakım için teknisyen yarın 10'da gelecek.")).toMatchObject([{ day: "tomorrow", timeCandidates: [600] }]);
     expect(detectHostPromises("Bir aydır bekliyorsunuz, teknisyen yarın 10'da gelecek.")).toMatchObject([{ day: "tomorrow", timeCandidates: [600] }]);

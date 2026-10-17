@@ -41,6 +41,7 @@ import { isSuperAdmin } from "@/lib/admin";
 import { isHospitableOAuthConfigured } from "@/lib/hospitable-oauth";
 import { isDemoOrg } from "@/lib/demo-tenant/constants";
 import { hostCommitmentAutoEnabled } from "@/lib/guest-commitments-core";
+import { orgTimezone } from "@/lib/timezone";
 
 export const dynamic = "force-dynamic";
 
@@ -506,7 +507,7 @@ export default async function SettingsPage({
                       day: "numeric",
                       month: "long",
                       year: "numeric",
-                      timeZone: org?.timezone ?? "Europe/Istanbul",
+                      timeZone: orgTimezone(org?.timezone),
                     }).format(entitlement.periodEnd)
                   : null
               }

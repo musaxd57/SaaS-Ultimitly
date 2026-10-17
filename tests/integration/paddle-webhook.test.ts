@@ -1042,6 +1042,9 @@ describe("codex round-5: pending settle via the REAL handler", () => {
 // ---------------------------------------------------------------------------
 describe("yenileme iptali — dönem sonuna kadar paket sürer", () => {
   it("🚨 dönem sonunda iptal → erişim AÇIK, iptal işareti + dönem sonu okunur; 'canceled' gelince kapanır", async () => {
+    // Faturalandırma zorunlu (yoksa ücretli özellik kapısı her zaman açık döner — Haiku: ölçüm boş kalırdı).
+    vi.stubEnv("BILLING_ENFORCED", "true");
+    vi.stubEnv("PRIMARY_ORG_ID", "baska-org");
     const { getEntitlement } = await import("@/lib/billing/subscription");
     const periodEnd = new Date(Date.now() + 20 * 86_400_000);
     const base = {
@@ -1071,5 +1074,7 @@ describe("yenileme iptali — dönem sonuna kadar paket sürer", () => {
     // Dönem bitti: Paddle "canceled" → erişim kapanır, iptal kutusu artık gösterilmez (sayfa `active` şartı).
     await send("evt_c_end", "subscription.canceled", { ...base, status: "canceled", scheduled_change: null }, new Date());
     expect(await getEntitlement(orgId)).toMatchObject({ active: false, status: "canceled", cancelAtPeriodEnd: false });
+    expect(await premiumAllowed(orgId)).toBe(false);
+    vi.unstubAllEnvs();
   });
 });
