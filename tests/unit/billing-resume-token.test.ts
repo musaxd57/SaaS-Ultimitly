@@ -45,5 +45,7 @@ describe("devam ettirme belirteci", () => {
       headline: "Pro planınız hemen açılır.",
       fine: "₺899,00 kayıtlı kartınızdan şimdi tahsil edilecek.",
     });
+    // Opus 10-17 A3: yıllık abone yıllık devam eder — dönem söylenir.
+    expect(resumeConfirmText("Pro", "₺8.990,00", true).fine).toBe("₺8.990,00 kayıtlı kartınızdan şimdi tahsil edilecek (yıllık ödeme).");
   });
 });

@@ -29,7 +29,7 @@ export interface Token {
 }
 
 export type EditClass = "unchanged" | "light" | "rewrite";
-export type EditPartKind = "value_fix" | "insertion" | "deletion" | "style" | "other";
+export type EditPartKind = "value_fix" | "insertion" | "deletion" | "style" | "moved" | "other";
 
 export interface EditPart {
   op: "replace" | "insert" | "delete";
@@ -173,34 +173,52 @@ export function attributeEdit(draft: string, sent: string): EditAttribution {
     return { class: classify(ratio), ratio, capped: true, parts: [], hostSentences: [] };
   }
   const ops = diffTokens(a, b);
-  const parts: EditPart[] = [];
-  const touched = new Set<number>(); // gönderilen metnin içerik olarak dokunulan cümleleri
-  let weight = 0;
+  // 1. geçiş: ardışık farklı parçalar (+ gönderilen metindeki komşu belirteçler — salt silmenin yerini bulmak için).
+  type Hunk = { dels: Token[]; ins: Token[]; prevB?: Token; nextB?: Token; moved: boolean };
+  const hunks: Hunk[] = [];
   let k = 0;
   while (k < ops.length) {
     if (ops[k]!.type === "eq") {
       k++;
       continue;
     }
-    const dels: Token[] = [];
-    const ins: Token[] = [];
-    // Parçanın gönderilen metindeki yeri: eklenen belirteçler, yoksa (salt silme) komşu belirtecin cümlesi.
     const prevB = k > 0 ? ops[k - 1]!.b : undefined;
+    const h: Hunk = { dels: [], ins: [], prevB, moved: false };
     while (k < ops.length && ops[k]!.type !== "eq") {
       const op = ops[k++]!;
-      if (op.type === "del") dels.push(op.a!);
-      else ins.push(op.b!);
+      if (op.type === "del") h.dels.push(op.a!);
+      else h.ins.push(op.b!);
     }
-    const nextB = k < ops.length ? ops[k]!.b : undefined;
-    weight += Math.max(dels.length, ins.length);
-    const kind = partKind(dels, ins);
+    h.nextB = k < ops.length ? ops[k]!.b : undefined;
+    hunks.push(h);
+  }
+  // 2. TAŞIMA (Opus 10-17 F1): taslak cümlesinin yeri değiştiyse fark onu "silindi + eklendi" görür → ev sahibi kanıtı SANILIRDI. Salt ekleme
+  // parçası, aynı belirteç dizisindeki bir salt silme parçasıyla eşleşirse ikisi de taşımadır: ağırlık 0, cümle dokunulmuş sayılmaz.
+  const key = (ts: Token[]) => ts.map((t) => t.folded).join(" ");
+  const deletesByKey = new Map<string, Hunk[]>();
+  for (const h of hunks) if (h.ins.length === 0 && h.dels.length > 0) deletesByKey.set(key(h.dels), [...(deletesByKey.get(key(h.dels)) ?? []), h]);
+  for (const h of hunks) {
+    if (h.dels.length > 0 || h.ins.length === 0) continue;
+    const match = deletesByKey.get(key(h.ins))?.find((d) => !d.moved);
+    if (match) {
+      match.moved = true;
+      h.moved = true;
+    }
+  }
+  const parts: EditPart[] = [];
+  const touched = new Set<number>(); // gönderilen metnin içerik olarak dokunulan cümleleri
+  let weight = 0;
+  for (const h of hunks) {
+    const { dels, ins, prevB, nextB } = h;
+    const kind: EditPartKind = h.moved ? "moved" : partKind(dels, ins);
+    if (!h.moved) weight += Math.max(dels.length, ins.length);
     parts.push({
       op: dels.length > 0 && ins.length > 0 ? "replace" : ins.length > 0 ? "insert" : "delete",
       kind,
       from: dels.map((t) => t.text).join(" "),
       to: ins.map((t) => t.text).join(" "),
     });
-    if (kind !== "style") {
+    if (kind !== "style" && kind !== "moved") {
       for (const t of ins) touched.add(t.sentence);
       if (ins.length === 0) {
         // Salt silme: silinen yerin iki yanındaki gönderilen cümle(ler) dokunulmuştur ("Havuz…" cümlesini silmek kalan cümleleri kanıt YAPMAZ —

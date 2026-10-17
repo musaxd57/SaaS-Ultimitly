@@ -29,7 +29,8 @@ export const POST = withOwner(async (session) => {
     planCode: r.planCode,
     planName: r.planName,
     amount,
-    confirm: resumeConfirmText(r.planName, amount),
+    annual: r.annual,
+    confirm: resumeConfirmText(r.planName, amount, r.annual),
     previewToken: signResumeToken({ org: session.organizationId, priceId: r.priceId, amount }),
   });
 });

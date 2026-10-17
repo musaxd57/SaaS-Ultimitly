@@ -541,7 +541,9 @@ export async function resumeSubscription(subscriptionId: string, orgId?: string)
   try {
     await paddleRequest(`/subscriptions/${encodeURIComponent(subscriptionId)}/resume`, {
       method: "POST",
-      body: { effective_from: "immediately" },
+      // "Yeni dönem başlat" AÇIKÇA (Opus 10-17 A2): kurucu "tıklanınca hemen ödeme alınsın" — dönem hemen başlar, tahsilat hemen. Alan adı
+      // sandbox'ta doğrulanacak (P6); tanınmazsa Paddle 4xx döner = kesin ret, hiçbir şey çekilmez.
+      body: { effective_from: "immediately", on_resume: "start_new_billing_period" },
     });
     return { ok: true };
   } catch (err) {

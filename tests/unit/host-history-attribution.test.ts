@@ -90,6 +90,16 @@ describe("attributeEdit", () => {
     expect(r).toMatchObject({ class: "light", capped: true, parts: [], hostSentences: [] });
   });
 
+  it("🚨 Opus 10-17 F1: taslak cümlesinin YERİ değişti → taşıma; ev sahibi kanıtı DEĞİL, değişiklik oranına girmez", () => {
+    const r = attributeEdit("Havlular dolapta. Otopark bina arkasında.", "Otopark bina arkasında. Havlular dolapta.");
+    expect(r.hostSentences).toEqual([]);
+    expect(r.class).toBe("unchanged");
+    expect(r.parts.map((p) => p.kind)).toEqual(["moved", "moved"]);
+    // KONTROL: taşınan cümle DEĞİŞTİRİLDİYSE taşıma değildir → ev sahibinin cümlesi.
+    const changed = attributeEdit("Havlular dolapta. Otopark bina arkasında.", "Otopark bina arkasında. Havlular banyo dolabında.");
+    expect(changed.hostSentences).toEqual(["Havlular banyo dolabında."]);
+  });
+
   it("boş metinler patlamaz", () => {
     expect(attributeEdit("", "")).toMatchObject({ class: "unchanged", ratio: 0 });
     expect(attributeEdit("", "Yeni cevap.")).toMatchObject({ class: "rewrite", hostSentences: ["Yeni cevap."] });

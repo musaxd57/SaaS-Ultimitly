@@ -21,7 +21,7 @@ export function resumeEnabled(): boolean {
 }
 
 export type ResolvedResume =
-  | { ok: true; providerRef: string; customerId: string; priceId: string; planCode: string; planName: string }
+  | { ok: true; providerRef: string; customerId: string; priceId: string; planCode: string; planName: string; annual: boolean }
   | { ok: false; error: string };
 
 /** Devam ettirilebilir mi + Paddle çağrısının ihtiyaç duyduğu her şey. Kuruluş kimliği OTURUMDAN (çağıran) → başka kuruluş hedeflenemez. */
@@ -58,7 +58,20 @@ export async function resolveResume(organizationId: string): Promise<ResolvedRes
   // Vergi doğru hesaplansın diye müşteri kimliği ŞART (müşterisiz önizleme vergisiz / düşük rakam gösterebilirdi — Haiku 10-17).
   const customerId = sub.customerId ?? live.customerId ?? null;
   if (!customerId) return { ok: false, error: RESUME_TEXT.statusUnknown };
-  return { ok: true, providerRef: sub.providerRef, customerId, priceId, planCode, planName: planByCode(planCode)?.name ?? planCode };
+  // Yıllık abone YILLIK devam eder (fiyat aboneliğin kendisinden) → onay metni dönemi söyler (Opus 10-17 A3: liste "₺899 / ay" derken ₺8.990
+  // çekilirdi).
+  const annualIds = [process.env.PADDLE_PRICE_BASLANGIC_YILLIK, process.env.PADDLE_PRICE_PRO_YILLIK, process.env.PADDLE_PRICE_ISLETME_YILLIK]
+    .map((v) => v?.trim())
+    .filter((v): v is string => Boolean(v));
+  return {
+    ok: true,
+    providerRef: sub.providerRef,
+    customerId,
+    priceId,
+    planCode,
+    planName: planByCode(planCode)?.name ?? planCode,
+    annual: annualIds.includes(priceId),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -101,8 +114,11 @@ export function verifyResumeToken(token: string | null | undefined): ResumeToken
 export const RESUME_PENDING_LOCK = (organizationId: string) => `billing-resume-pending:${organizationId}`;
 
 /** Kurucu C1 (10-17): büyük yazı + altında küçük yazıyla tahsilat cümlesi. Tek kaynak (arayüz ve test). */
-export function resumeConfirmText(planName: string, amount: string): { headline: string; fine: string } {
-  return { headline: `${planName} planınız hemen açılır.`, fine: `${amount} kayıtlı kartınızdan şimdi tahsil edilecek.` };
+export function resumeConfirmText(planName: string, amount: string, annual = false): { headline: string; fine: string } {
+  return {
+    headline: `${planName} planınız hemen açılır.`,
+    fine: `${amount} kayıtlı kartınızdan şimdi tahsil edilecek${annual ? " (yıllık ödeme)" : ""}.`,
+  };
 }
 
 export const RESUME_TEXT = {

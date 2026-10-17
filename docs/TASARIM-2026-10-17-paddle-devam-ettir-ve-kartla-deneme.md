@@ -64,11 +64,11 @@ belirsiz sonuç (5xx / zaman aşımı) KÖRLEMESİNE tekrar gönderilmez, Paddle
 | P3 | Duraklatılmış abonelikte paket değiştirme (PATCH items) | Paddle reddeder mi kabul mü eder? | devam + paket tek adım mı iki adım mı (§2) |
 | P4 | Müşteri portalı oturumu | `urls.subscriptions[].update_subscription_payment_method` bağlantısı dönüyor mu | kart reddi metnindeki bağlantı |
 | P5 | Ödeme penceresinde katalog dışı (özel) fiyatla `trial_period` | Paddle kabul ediyor mu (kalan güne göre deneme) | KD3 |
-| P6 | Duraklatılmış aboneliği `resume` (`effective_from: immediately`) | Yeni dönem başlar, kayıtlı karttan HEMEN tahsil; olay sırası (`subscription.resumed` → `transaction.completed` → `subscription.updated`) | devam ettir; erişim olayla açılır |
+| P6 | Duraklatılmış aboneliği `resume` (`effective_from: immediately`, `on_resume: start_new_billing_period` — alan adı doğrulanacak) | Yeni dönem başlar, kayıtlı karttan HEMEN tahsil; olay sırası (`subscription.resumed` → `transaction.completed` → `subscription.updated`) | devam ettir; erişim olayla açılır |
 | P6b | `resume` sırasında kart reddi | İstek hata mı döner (`subscription_payment_declined`?) yoksa abonelik `past_due` mu olur? | kart reddi metni + yeniden deneme |
 | P6c | `resume` iki kez (çift tık / yeniden deneme) | İkincisi reddedilir mi (zaten aktif), ikinci tahsilat OLMAZ | tekrar güvenliği |
 | P7 | İptal edilmiş + dönemi bitmiş abonelikte `resume` | Reddedilir | C3 / yeni ödeme ekranı |
-| P8 | Fiyat önizlemesi (`/pricing-preview`, müşteri kimliğiyle) | Vergi dahil tutar = `resume` sonrası gerçek tahsilat | onay penceresindeki rakam |
+| P8 🚨 ENGELLEYİCİ | Fiyat önizlemesi (`/pricing-preview`, müşteri kimliğiyle) — Opus 10-17 A1: istekte aboneliğin adresi / indirimi / diğer kalemleri yok; okunan alan `details.totals.grand_total` belgeden doğrulanamadı | Vergi dahil tutar = `resume` sonrası GERÇEK tahsilat (`transaction.completed` `grand_total`) — eşit değilse onay kaynağı aboneliğin kendi kaydına (`recurring_transaction_details` / adresli `transactions/preview`) taşınır; bu madde kanıtlanmadan `PADDLE_RESUME_ENABLED` AÇILMAZ | onay penceresindeki rakam (kod alan yoksa pencereyi açmaz — para riski yok, özellik çalışmaz) |
 | P9 | Kart güncelleme sonrası `past_due` abonelik | Paddle bekleyen işlemi yeniden dener → `active` | "Aboneliği yönet" yönlendirmesi |
 | P10 | Webhook olay sırası karışık gelirse (eski olay sonra) | Sıra koruması (`lastEventAt`) eski olayı yazmaz | mevcut koruma |
 | P11 | Duraklatma planlanmış (`scheduled_change.action = pause`) abonelikte devam | Planlanmış duraklatma kaldırılabiliyor mu | portaldan duraklatma akışı |
@@ -77,3 +77,11 @@ belirsiz sonuç (5xx / zaman aşımı) KÖRLEMESİNE tekrar gönderilmez, Paddle
 | P14 | Para birimi (TRY) + Türkiye vergi | Tutar ve para birimi ödeme ekranıyla aynı | biçimlendirme |
 
 Sonuçlar bu tabloya işlenir; varsayımı tutmayan her satır için kod düzeltilir ve testi güncellenir (para akışı — kurucuyla birlikte).
+
+## 5. Dilim sonu denetimleri (10-17)
+- Haiku (devam ettir 11 + kartla deneme / operatör 12 bulgu) ve Opus (P0 yok · P1 A1 · P2 A2, A3, C2–C4, F1) bulguları kodda işlendi; A1 → P8
+  engelleyici, C2 → KD4, C3 → KD1, C4 → KD3 (kurucu soruları, `KURUCU-SORULARI.md` §S). Mutasyon 28/29 (+1 gerekçeli eşdeğer: G-exempt).
+- Deneme hatırlatma süzgeci `provider: "trial"`: "deneme" durumundaki abonelik satırı yalnız iki yerden yazılır (kayıt / operatör → `trial`,
+  webhook → `paddle`) — başka sağlayıcı etkilenmez (kodda doğrulandı). Railway açılınca yine de tek sorguyla bakılır:
+  `SELECT provider, count(*) FROM "Subscription" WHERE status='trialing' GROUP BY 1`.
+
