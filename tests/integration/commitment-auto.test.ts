@@ -498,6 +498,37 @@ describe("BAĞLAM — saat güncellemesi yalnız kesin eşleşmede (kurucu: 'ba�
     expect(sugg.kind === "commitment" && sugg.proposal.timeAmbiguous).toBe(true);
   });
 
+  it("🚨 D3 (sert itirazcı 10-17 gece-4): sözün günü mesajdan okunamıyor → kendiliğinden kaydedilmez; kart günü sorar, gün seçilmeden onay YOK", async () => {
+    pinIstanbulNoonToday();
+    const s = await setup();
+    // "Havlu getireceğim" kendi gün sözcüğü taşımıyor; mesajda "yarın" başka söze ait → gün tahmin edilmez (eskiden bugüne açılıyordu).
+    await hostSays(s.conversationId, "Teknisyen yarın 10'da gelecek. Havlu getireceğim.", new Date(Date.now() - 5 * 60_000));
+    expect(await applyHostCommitmentsAuto(s.orgId, s.conversationId)).toEqual({ created: 1, rescheduled: 0, skipped: 1 });
+    expect(await prisma.guestCommitment.findMany({ select: { kind: true } })).toEqual([{ kind: "maintenance" }]);
+    const towels = (await getConversationSuggestions(s.orgId, s.conversationId)).find((x) => x.kind === "commitment" && x.proposal.commitmentKind === "towels");
+    expect(towels?.kind === "commitment" && towels.proposal.dayUnclear).toBe(true);
+    expect(towels?.detail).toBe("Mesajınızda sözün günü belli değil — günü seçin");
+    expect(towels?.title).toBe("Söz kaydet: Havlu / çarşaf — gün ve saat belirtilmedi");
+    // Gün seçilmeden onay reddedilir (varsayılan "bugün" yok); seçilen günle açılır.
+    const noDay = await decide({ key: towels!.key, decision: "approve" });
+    expect(noDay.status).toBe(400);
+    expect(await noDay.json()).toMatchObject({ fields: { day: "Sözün gününü seçin." } });
+    expect(await prisma.guestCommitment.count()).toBe(1);
+    expect((await decide({ key: towels!.key, decision: "approve", day: "tomorrow" })).status).toBe(200);
+    const t = await prisma.guestCommitment.findFirstOrThrow({ where: { kind: "towels" } });
+    expect(dateKeyInTimeZone(t.dueAt, TZ)).toBe(tomorrowKeyOf(new Date()));
+  });
+
+  it("KONTROL D3: kendi günü olan ya da şimdiye bağlı söz kendiliğinden açılır ('Teknisyen bugün 15'te gelecek. Havlu getireceğim.' · 'hemen')", async () => {
+    pinIstanbulNoonToday();
+    const s = await setup();
+    await hostSays(s.conversationId, "Teknisyen bugün 15'te gelecek. Havlu getireceğim.", new Date(Date.now() - 5 * 60_000));
+    expect(await applyHostCommitmentsAuto(s.orgId, s.conversationId)).toEqual({ created: 2, rescheduled: 0, skipped: 0 });
+    const s2 = await setup();
+    await hostSays(s2.conversationId, "Teknisyen yarın 10'da gelecek. Havluları hemen getireceğim.", new Date(Date.now() - 5 * 60_000));
+    expect(await applyHostCommitmentsAuto(s2.orgId, s2.conversationId)).toEqual({ created: 2, rescheduled: 0, skipped: 0 });
+  });
+
   it("🚨 BELİRSİZ (konusuz, sözcüksüz yeni saat + açık söz) → KENDİLİĞİNDEN hiçbir şey değişmez; kart seçim ister; seçimle taşınır", async () => {
     const s = await setup();
     const c1 = await createGuestCommitment({

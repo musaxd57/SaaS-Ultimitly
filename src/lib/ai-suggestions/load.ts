@@ -93,6 +93,11 @@ export type SuggestionView =
         /** Mesajda birden çok saat — kendiliğinden kaydedilmez, ev sahibi saati seçer (Opus O9). */
         timeAmbiguous?: true;
         /**
+         * Sözün günü mesajdan okunamadı (kendi gün sözcüğü yok, mesajın başka yerinde yarın / tanınmayan gün geçiyor — sert itirazcı 10-17
+         * gece-4, D3): kendiliğinden kaydedilmez, onay günü SEÇMEDEN geçmez (`decideSuggestion`; varsayılan "bugün" yok).
+         */
+        dayUnclear?: true;
+        /**
          * Aynı an + kesinlikte açık söz var ama sözü YAPAN farklı (teknisyen gelecek ↔ ben getireceğim) → onay o söze BİRLEŞMEZ, ayrı söz
          * açar (Haiku 10-17 gece 2. tur: birleşip kayboluyordu).
          */
@@ -427,7 +432,11 @@ export async function getConversationSuggestions(
         }
         const day = relativeDayOf(dayKey, dueAt, now, tz);
         if (!day) continue;
-        const when = commitmentWhenText(day, window);
+        // Gün sözcüğü olmayan saat değişikliği eski sözün gününe uygulandıysa gün bellidir (↑ O4).
+        const dayUnclear = promise.dayUnclear && !(certain && promise.reschedule && !promise.dayExplicit);
+        const whenFull = commitmentWhenText(day, window);
+        const whenNoDay = whenFull.replace(/^(?:bugün|yarın),?\s*/u, "");
+        const when = !dayUnclear ? whenFull : whenNoDay === "(saat belirtilmedi)" ? "gün ve saat belirtilmedi" : `gün belirtilmedi, ${whenNoDay}`;
         const baseProposal = {
           messageId: m.id,
           commitmentKind: promise.kind,
@@ -440,6 +449,7 @@ export async function getConversationSuggestions(
           dayKey,
           // Mesajda birden çok saat var — kendiliğinden kaydedilmez, ev sahibi saati seçer (O9).
           ...(promise.timeAmbiguous ? { timeAmbiguous: true as const } : {}),
+          ...(dayUnclear ? { dayUnclear: true as const } : {}),
           ...(separateActor ? { separateActor: true as const } : {}),
         };
         const describe = (c: (typeof commitments)[number]) =>
@@ -464,9 +474,11 @@ export async function getConversationSuggestions(
               ? "Aynı türde açık söz var — bu onun yeni saati mi, ayrı bir söz mü?"
               : attachTopics.length >= 2
                 ? `Aynı saatte kayıtlı sözler var (${attachTopics.map((t) => COMMITMENT_TOPIC_LABELS[t]).join(", ")}) — hangisine bağlanacağını seçin`
-                : promise.timeAmbiguous
-                  ? "Mesajınızda birden çok saat var — sözün saatini seçin"
-                  : "Misafire yazdığınız mesajdan — açık söz + görev açılır",
+                : dayUnclear
+                  ? "Mesajınızda sözün günü belli değil — günü seçin"
+                  : promise.timeAmbiguous
+                    ? "Sözün saati mesajdan net anlaşılmadı — saati seçin"
+                    : "Misafire yazdığınız mesajdan — açık söz + görev açılır",
           evidenceAt: fmtAt(m.createdAt),
           proposal: {
             ...baseProposal,

@@ -536,7 +536,10 @@ describe("süre (karesel iş yok)", () => {
   it("uzun tek sözcük / boşluk dizisi / tekrarlanan söz fiili ve şifre sözcüğü doğrusal", () => {
     const runs = ["a".repeat(4_000), `a${" ".repeat(3_990)}b`, "getirecegim ".repeat(330), "sifre ".repeat(660), "password is ".repeat(330), "havlu gelecek ".repeat(280), `${",".repeat(3_970)}teknisyen gelecek`, `${"sabah, ".repeat(560)}teknisyen gelecek`, "1,".repeat(1_990), "*".repeat(3_999), `şifre${"*_~`".repeat(990)}`,
       // Saat değişikliği / "N'e kadar" kalıbı: rakamdan sonra uzun boşluk dizisi (iki bitişik boşluk niceleyicisi yok — 10-17 gece).
-      `teknisyen 1${" ".repeat(3_970)}'e kaydi`, `teknisyen 1${" ".repeat(1_980)}'${" ".repeat(1_980)}x`, "11 ".repeat(1_320), "ertelendi 3'e ".repeat(280)];
+      `teknisyen 1${" ".repeat(3_970)}'e kaydi`, `teknisyen 1${" ".repeat(1_980)}'${" ".repeat(1_980)}x`, "11 ".repeat(1_320), "ertelendi 3'e ".repeat(280),
+      // Söz algılama v2 (gece-4): "ve" ile bağlı yüzlerce söz, yalın zaman / dilek parçası zinciri, aynı sözün yüzlerce cümlecikte tekrarı.
+      "havlu getireceğim ve gelecek ve ".repeat(125), "getireceğim ve ".repeat(265), "yarın, ".repeat(570), "umarım, ".repeat(495),
+      "yarın akşam 7'de, teknisyen gelecek. ".repeat(107)];
     for (const r of runs) {
       const t = performance.now();
       detectHostPromise(r);
@@ -616,5 +619,96 @@ describe("Q1-b (kurucu 10-17: '2'sini de öner') — mesajdaki BÜTÜN sözler",
     expect(detectHostPromises(null)).toEqual([]);
     expect(detectHostPromises("Teşekkürler, iyi tatiller!")).toEqual([]);
     expect(detectHostPromises(`Teknisyen yarın gelecek. ${"a".repeat(4_000)}`)).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SÖZ ALGILAMA v2 (sert itirazcı 10-17 gece-4, `scratchpad` CHALLENGE-soz-v2 §4): gün sözün KENDİ kapsamından ya da hemen solundaki YALIN
+// zaman parçasından okunur; başka cümledeki "Cuma Bey" / "yarın çıkış" sözü veto etmez, sözün günü de TAHMİN edilmez (kart sorar).
+// Özet biçimi: auto|CARD [tür/konu/yapan gün saat|dilim|day (+dayUnclear/timeAmb)] — mesaj 09:00'da yazıldı.
+// ---------------------------------------------------------------------------
+describe("söz algılama v2 — gün kapsamı, dilek, iki söz, süre, devam (sert itirazcı 10-17 gece-4)", () => {
+  const summary = (text: string) =>
+    detectHostPromises(text).map((p) => {
+      const w = promiseWindow(p, 9 * 60);
+      const at = w.precision === "time" ? w.time : w.precision === "part" ? w.dayPart : "day";
+      const card = p.dayUnclear || p.timeAmbiguous ? "CARD" : "auto";
+      return `${card} ${p.kind}/${p.topic ?? "-"}/${p.actor ?? "-"} ${w.day} ${at}${p.dayUnclear ? " dayUnclear" : ""}${p.timeAmbiguous ? " timeAmb" : ""}`;
+    });
+  it.each<[string, string[]]>([
+    // D2: soldaki YALIN gün parçası (günü + dilimi) benimsenir.
+    ["Yarın, teknisyen 10'da gelecek.", ["auto maintenance/-/visit tomorrow 10:00"]],
+    ["Yarın akşam, teknisyen 7'de gelecek.", ["auto maintenance/-/visit tomorrow 19:00"]],
+    ["Tomorrow evening, I'll bring towels at 7.", ["auto towels/-/delivery tomorrow 19:00"]],
+    ["Pazartesi, teknisyen 10'da gelecek.", []],
+    ["25 Ekim'de, teknisyen 10'da gelecek.", []],
+    // D1: kendi kapsamı kazanır — başka parçadaki gün / ad veto etmez.
+    ["Bugün klima bozuldu, teknisyen yarın 10'da gelecek.", ["auto maintenance/-/visit tomorrow 10:00"]],
+    ["Yarın çıkış yapıyorsunuz, teknisyen bugün 15'te gelecek.", ["auto maintenance/-/visit today 15:00"]],
+    ["Merhaba Cuma Bey, teknisyen yarın 10'da gelecek.", ["auto maintenance/-/visit tomorrow 10:00"]],
+    // H1: yalın olmayan dilek / "dilerim" bozmaz; yalın dilek parçası bozar.
+    ["Umarım her şey yolundadır, teknisyen yarın 10'da gelecek.", ["auto maintenance/-/visit tomorrow 10:00"]],
+    ["Özür dilerim, teknisyen yarın 10'da gelecek.", ["auto maintenance/-/visit tomorrow 10:00"]],
+    ["Teknisyen yarın 10'da gelecek, umarım sorun hemen çözülür.", ["auto maintenance/-/visit tomorrow 10:00"]],
+    ["Havluları akşam getireceğim, umarım beğenirsiniz.", ["auto towels/-/delivery today evening"]],
+    ["Umarım yarın, teknisyen 10'da gelecek.", []],
+    ["Umarım ki, teknisyen yarın 10'da gelecek.", []],
+    ["Teknisyen yarın 10'da gelecek, umarım.", []],
+    ["The technician will come tomorrow at 10, hopefully.", []],
+    // D3: kendi günü yok + mesajda başka yerde yarın / tanınmayan gün → kart günü sorar; şimdiye bağlı söz muaf; "bugün" tetiklemez.
+    ["Teknisyen yarın 10'da gelecek. Havlu getireceğim.", ["auto maintenance/-/visit tomorrow 10:00", "CARD towels/-/delivery today day dayUnclear"]],
+    ["Teknisyen yarın 10'da gelecek. Havluları hemen getireceğim.", ["auto maintenance/-/visit tomorrow 10:00", "auto towels/-/delivery today soon"]],
+    ["Teknisyen yarın 10'da gelecek. Havluları şimdi getiriyorum.", ["auto maintenance/-/visit tomorrow 10:00", "auto towels/-/delivery today soon"]],
+    ["Teknisyen yarın 10'da gelecek. Havluları 20 dakika içinde getireceğim.", ["auto maintenance/-/visit tomorrow 10:00", "auto towels/-/delivery today 09:20"]],
+    ["Teknisyen bugün 15'te gelecek. Havlu getireceğim.", ["auto maintenance/-/visit today 15:00", "auto towels/-/delivery today day"]],
+    ["Yarın sabah\nTeknisyen 10'da gelecek", ["CARD maintenance/-/visit today 10:00 dayUnclear"]],
+    [
+      "Tomorrow:\n- technician will come at 10\n- I'll bring towels at 6pm",
+      ["CARD maintenance/-/visit today 10:00 dayUnclear", "CARD towels/-/delivery today 18:00 dayUnclear"],
+    ],
+    ["Teknisyen yarın gelir. Havlu getireceğim.", ["CARD towels/-/delivery today day dayUnclear"]],
+    ["Merhaba, yarın çıkışınız var, saat 11'de, teknisyen 10'da gelecek.", ["CARD maintenance/-/visit today 10:00 dayUnclear"]],
+    // T3: zamansız devam (tür + konu + yapan uyumlu, iki yönde) düşer; konusu konusuz söze yazılır. Konusu farklı devam ayrı söz.
+    ["Teknisyen yarın 10'da gelecek. Klimaya da bakacak.", ["auto maintenance/ac/visit tomorrow 10:00"]],
+    ["Temizlik yapılacak, temizlikçi yarın 10'da gelecek.", ["auto cleaning/-/visit tomorrow 10:00"]],
+    [
+      "Klima için teknisyen yarın 10'da gelecek. Kombiyi de tamir edecek.",
+      ["auto maintenance/ac/visit tomorrow 10:00", "CARD maintenance/heating/- today day dayUnclear"],
+    ],
+    ["Yarın 10'da klimayı halledeceğiz, teknisyen gelecek.", ["auto maintenance/ac/- tomorrow 10:00"]],
+    // T4: yalnız süre taşıyan söz, SOLUNDA aynı aileden günlü söz varsa işin süresidir; solda değilse ayrı söz.
+    ["Teknisyen yarın 10'da gelecek, arızayı 2 saat içinde halledecek.", ["auto maintenance/-/visit tomorrow 10:00"]],
+    ["Teknisyen 1 saat içinde gelecek. Yarın 10'da da usta gelecek.", ["auto maintenance/-/visit today 10:00", "auto maintenance/-/visit tomorrow 10:00"]],
+    // T1: "ve" ile bağlı iki söz ayrılır (havlu kaybolmaz, teknisyen 22:00 olmaz).
+    [
+      "Teknisyen yarın 10'da gelecek ve havluları akşam getireceğim.",
+      ["auto maintenance/-/visit tomorrow 10:00", "CARD towels/-/delivery today evening dayUnclear"],
+    ],
+    ["Teknisyen yarın 10'da gelecek ve 2 saat içinde halledecek.", ["auto maintenance/-/visit tomorrow 10:00"]],
+    // T2: yarınki söz + süre → saat uydurulmaz (yarın 11:00 değil), kart sorar; açık saat süreyi yener.
+    ["Teknisyen yarın 2 saat içinde gelecek.", ["CARD maintenance/-/visit tomorrow day timeAmb"]],
+    [
+      "Teknisyen 30 dakika içinde gelecek ve yarın 10'da kombiye de bakacak.",
+      ["auto maintenance/-/visit today 09:30", "auto maintenance/heating/- tomorrow 10:00"],
+    ],
+    // Aşırı uygulama denetimi.
+    ["Yarın teknisyen 10'da gelecek, havluları bugün akşam getireceğim.", ["auto maintenance/-/visit tomorrow 10:00", "auto towels/-/delivery today evening"]],
+    [
+      "Klima için teknisyen yarın 10'da gelecek, musluk için usta yarın 11'de gelecek.",
+      ["auto maintenance/ac/visit tomorrow 10:00", "auto maintenance/faucet/visit tomorrow 11:00"],
+    ],
+    ["The technician will come today at 2pm, you can reach me 24/7.", ["auto maintenance/-/visit today 14:00"]],
+    ["Teknisyen yarın 10'da gelecek, adres Gül Sokak No:12/3.", ["auto maintenance/-/visit tomorrow 10:00"]],
+    ["Havlu getireceğim.", ["auto towels/-/delivery today day"]],
+    // Sağdaki yalın olmayan parçadan gün okunmaz ("yarın görüşürüz" sözün günü değil → kart).
+    ["Havlu getireceğim, yarın görüşürüz.", ["CARD towels/-/delivery today day dayUnclear"]],
+    ["Teknisyen gelecek, yarın sabah 10 gibi.", ["auto maintenance/-/visit tomorrow 10:00"]],
+  ])("%s", (text, expected) => {
+    expect(summary(text)).toEqual(expected);
+  });
+
+  it("söz konumu (anchor) metindeki yerdir: '<cümlecik>.<parça>' — algılama kuralları değişse de aynı söz aynı konum", () => {
+    expect(detectHostPromises("Merhaba. Teknisyen yarın 10'da gelecek ve havluları akşam getireceğim.").map((p) => p.anchor)).toEqual(["1.0", "1.1"]);
+    expect(detectHostPromises("Yarın, teknisyen 10'da gelecek.").map((p) => p.anchor)).toEqual(["0.1"]);
   });
 });

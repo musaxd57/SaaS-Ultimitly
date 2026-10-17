@@ -68,7 +68,6 @@ const HEDGE = new RegExp(
  * 10-17 gece 2. tur).
  */
 const HEDGE_WISH = new RegExp(`${NL}(?:umarim|insallah|hopefully)${NR}`, "u");
-const HEDGE_WISH_BARE = /^\s*(?:umarim|insallah|hopefully)[\s.!]*$/u;
 /**
  * Sözü ev sahibinin TEYİDE bağladığı soru ("…, uygun mu?", "…, olur mu?", "is that ok?") — söz henüz kesin değil (Opus 10-17 gece O3: ayrı
  * soru kuralı bunları da söz sayıyordu). "Başka bir ihtiyacınız var mı?" teyit DEĞİL, sözü bozmaz.
@@ -186,6 +185,14 @@ export interface HostPromise {
   actor: "visit" | "delivery" | null;
   /** Kapsamda birbirinden farklı birden çok saat var ("Dün akşam 9'da bozuldu, yarın 11'de gelecek", "10:00–12:00 arası") — saat SEÇİLMEZ, kart sorar (O9). */
   timeAmbiguous: boolean;
+  /**
+   * Sözün KENDİ gün sözcüğü yok ama mesajın başka yerinde yarın / tanınmayan gün / takvim tarihi geçiyor ("Teknisyen yarın 10'da gelecek.
+   * Havlu getireceğim.") — gün tahmin edilmez: kendiliğinden kaydedilmez, kart günü SORAR (sert itirazcı 10-17 gece-4, kural 3). "Şimdi /
+   * hemen / 20 dakika içinde" sözleri muaf (an belli).
+   */
+  dayUnclear: boolean;
+  /** Metindeki KONUM ("<cümlecik>.<parça>") — öneri anahtarı bununla kurulur (algılama kuralları değişse de aynı söz aynı anahtar). */
+  anchor: string;
 }
 
 type DayHalf = "am" | "pm" | "night";
@@ -202,7 +209,7 @@ const DURATION_TR =
   /(?<![\p{L}\p{N}.,])(\d{1,3}(?:[.,]\d{1,2})?|yarim|bir|iki|uc)\s*(dakika|dk|saat)(?:ya|ye|a|e)?\s+(?:icinde|icerisinde|sonra|kadar)(?![\p{L}])/u;
 const DURATION_EN =
   /(?<![\p{L}\p{N}])(?:(?:in|within)\s+(\d{1,3}(?:\.\d{1,2})?|an?|one|two|half\s+an?)\s+(minutes?|mins?|hours?|hrs?)|(\d{1,3})\s+(minutes?|mins?|hours?|hrs?)\s+later)(?![\p{L}])/u;
-const SOON = /(?<![\p{L}\p{N}])(?:birazdan|hemen|az\s+sonra|shortly|right\s+away|soon|asap)(?![\p{L}])/u;
+const SOON = /(?<![\p{L}\p{N}])(?:birazdan|hemen|simdi|az\s+sonra|shortly|right\s+away|right\s+now|soon|asap)(?![\p{L}])/u;
 /** Ziyaret eden kişi (Opus O1 "sözü yapan"). */
 const ACTOR_VISIT = new RegExp(
   `${NL}(?:teknisyen\\p{L}{0,6}|usta\\p{L}{0,4}|tesisatci\\p{L}{0,4}|elektrikci\\p{L}{0,4}|tamirci\\p{L}{0,4}|temizlikci\\p{L}{0,4}|servis\\p{L}{0,4}|gorevli\\p{L}{0,4}|ekip\\p{L}{0,4}|ekib\\p{L}{0,4}|technicians?|plumbers?|electricians?|cleaners?|housekeeping|engineers?|repairman)${NR}`,
@@ -313,6 +320,120 @@ function hasTimeInfo(folded: string, raw: string): boolean {
   );
 }
 
+/** Düzenli ifadenin tümünü değiştirme (global) kopyası. */
+const globalOf = (re: RegExp) => new RegExp(re.source, re.flags.includes("g") ? re.flags : `${re.flags}g`);
+/** Zaman sözcükleri (süre, "hemen", gün, tanınmayan gün, takvim tarihi, gün dilimi, konu) — parça "yalnız zaman"mı sınaması için silinir. */
+let timeWordsG: RegExp[] | null = null;
+const TIME_FILLER_G = new RegExp(
+  `${NL}(?:saat|saatte|saatlerinde|gibi|civari|civarinda|sularinda|erkenden|erken|gec|en|ki|ve|da|de|ta|te|icin|ile|around|at|about|by|on|the|in|early|late|for|and|o['’]?clock)${NR}`,
+  "gu",
+);
+/** Saat / rakam artığı ("10'da", "7:30", "2pm"). */
+const CLOCK_RESIDUE_G = /\d{1,2}(?:[:.]\d{2})?(?:\s*(?:['’]\s*)?(?:am|pm|\p{L}{0,4}))?/gu;
+const HEDGE_WISH_G = globalOf(HEDGE_WISH);
+
+/**
+ * Parçanın türü: yalnız zaman / tarih sözcükleri ("Yarın," · "Yarın akşam," · "Klima için yarın sabah,") → "time"; yalnız dilek ("Umarım,",
+ * "Umarım ki,", "…, inşallah.") ya da dilek + zaman ("Umarım yarın,") → "wish"; başka içerik ("Merhaba Cuma Bey", "Bugün klima bozuldu")
+ * → null. Konu sözcükleri (klima, havlu…) zaman parçasını bozmaz. Sert itirazcı 10-17 gece-4: gün YALNIZ sözün kendi kapsamından ya da hemen
+ * solundaki saf zaman parçasından okunur — başka cümledeki "Cuma" / "yarın çıkış" sözü veto etmez.
+ */
+function segmentKind(seg: string): "time" | "wish" | null {
+  if (!timeWordsG) {
+    timeWordsG = [DURATION_TR, DURATION_EN, SOON, DAY_TODAY, DAY_TOMORROW, DAY_UNKNOWN, CALENDAR_DATE, ...DAY_PARTS.map((d) => d.re), ...KIND_TOPICS.map(([, re]) => re)].map(
+      globalOf,
+    );
+  }
+  let rest = seg;
+  const wish = HEDGE_WISH.test(seg);
+  if (wish) rest = rest.replace(HEDGE_WISH_G, " ");
+  for (const re of timeWordsG) rest = rest.replace(re, " ");
+  rest = rest.replace(CLOCK_RESIDUE_G, " ").replace(TIME_FILLER_G, " ");
+  if (/\p{L}/u.test(rest)) return null;
+  if (wish) return "wish";
+  return seg.trim() === "" ? null : "time";
+}
+
+/** Parçadaki söz fiili sayısı (aynı parçada iki söz → saat karışabilir, kart sorar — T1). */
+const PROMISE_G = globalOf(PROMISE);
+function promiseVerbCount(seg: string): number {
+  return seg.match(PROMISE_G)?.length ?? 0;
+}
+
+/** Bağlaç "ve / and" (yakalayan grup: bölünen parçalar ayracı korur). */
+const JOIN_WORD = /((?<![\p{L}\p{N}])(?:ve|and)(?![\p{L}\p{N}]))/iu;
+
+/**
+ * İki söz fiilini "ve / and" bağlıyorsa parça ikiye ayrılır (sert itirazcı 10-17 gece-4, T1: "Teknisyen yarın 10'da gelecek ve havluları
+ * akşam getireceğim" tek parçaydı → havlu kayboluyor, teknisyen yarın 22:00 okunuyordu). Kesim yalnız iki yanda da söz fiili kalıyorsa
+ * ("Teknisyen ve usta yarın gelecek" bölünmez). Özgün metin aynı sayıda parçaya bölünemezse bölünmez (saat okuyucusu özgün metinde koşar).
+ */
+function splitJoinedPromises(folded: string, raw: string | null): Array<readonly [string, string | null]> {
+  if (promiseVerbCount(folded) < 2 || raw === null) return [[folded, raw]];
+  const fp = folded.split(JOIN_WORD);
+  const rp = raw.split(JOIN_WORD);
+  if (rp.length !== fp.length) return [[folded, raw]];
+  // Sağda söz fiili kalıyor mu — sondan bir kez hesaplanır (her kesimde kalanı yeniden birleştirmek uzun dizide karesel olurdu).
+  const verbAfter: boolean[] = new Array<boolean>(fp.length + 1).fill(false);
+  for (let i = fp.length - 1; i >= 0; i -= 1) verbAfter[i] = verbAfter[i + 1]! || (i % 2 === 0 && PROMISE.test(fp[i]!));
+  const out: Array<readonly [string, string]> = [];
+  let f = "";
+  let r = "";
+  let fHasVerb = false;
+  for (let i = 0; i < fp.length; i += 2) {
+    f += (i > 0 ? fp[i - 1] : "") + fp[i];
+    r += (i > 0 ? rp[i - 1] : "") + rp[i];
+    fHasVerb = fHasVerb || PROMISE.test(fp[i]!);
+    if (i + 2 < fp.length && fHasVerb && verbAfter[i + 2]) {
+      out.push([f, r]);
+      f = "";
+      r = "";
+      fHasVerb = false;
+    }
+  }
+  out.push([f, r]);
+  return out;
+}
+
+/** Cümleciğin parçaları (virgül / karşıtlık bağlacı; iki sözü bağlayan "ve" — ↑). Özgün parçalar hizalı değilse `null`. */
+function segmentClause(raw: string): { clause: string; segments: string[]; rawSegments: string[] | null } {
+  const clause = foldTurkishAscii(raw).toLowerCase();
+  const folded = clause.split(SEGMENT_SPLIT);
+  const rawParts = raw.split(RAW_SEGMENT_SPLIT);
+  const aligned = rawParts.length === folded.length;
+  const pieces = folded.flatMap((seg, i) => splitJoinedPromises(seg, aligned ? rawParts[i]! : null));
+  return {
+    clause,
+    segments: pieces.map(([f]) => f),
+    rawSegments: aligned ? pieces.map(([, r]) => r ?? "") : null,
+  };
+}
+
+/** Gelecekteki belirsiz-olmayan gün sözcüğü (yarın / tanınmayan gün / takvim tarihi) — D3 tetikleyicisi. "Bugün" tetiklemez. */
+const futureDayIn = (t: string) => DAY_TOMORROW.test(t) || DAY_UNKNOWN.test(t) || CALENDAR_DATE.test(t);
+const dayWordIn = (t: string) => DAY_TODAY.test(t) || futureDayIn(t);
+
+/**
+ * Mesaj bağlamı: yarın / tanınmayan gün / takvim tarihi geçen parçalar ("<cümlecik>.<parça>"; geçmişe atıf taşıyan parça hariç). Kendi gün
+ * sözcüğü olmayan söz, KAPSAMI DIŞINDA böyle bir parça varsa günü tahmin etmez → kart günü sorar (D3).
+ */
+interface MessageContext {
+  futureDayMarks: ReadonlyArray<readonly [number, number]>;
+}
+
+function messageContext(clauses: readonly string[]): MessageContext {
+  const futureDayMarks: Array<readonly [number, number]> = [];
+  clauses.forEach((raw, ci) => {
+    segmentClause(raw).segments.forEach((seg, si) => {
+      if (!PAST_REF.test(seg) && futureDayIn(seg)) futureDayMarks.push([ci, si]);
+    });
+  });
+  return { futureDayMarks };
+}
+
+/** Şimdiye bağlı söz ("şimdi getiriyorum", "is coming", "on the way") — günü belli (bugün, şimdi); D3'ten muaf. */
+const NOW_VERB = /(?:iyor(?:um|uz|lar)?|sending|coming|on\s+(?:the|his|her|their)\s+way)$/u;
+
 /**
  * Ev sahibinin mesajında misafire verilen SÖZ var mı (aynı cümlecikte söz fiili + konu; soru / koşul / teklif değil)? Tür kapalı küme
  * (havlu / malzeme / temizlik / bakım) — konu önce söz fiilinin virgül parçasında aranır ("Klima için teşekkürler, yarın havlu getireceğim"
@@ -322,13 +443,15 @@ function hasTimeInfo(folded: string, raw: string): boolean {
  */
 export function detectHostPromise(text: string | null | undefined): HostPromise | null {
   if (typeof text !== "string" || text.trim() === "" || text.length > 4_000) return null;
-  for (const raw of text.match(RAW_CLAUSES) ?? []) {
-    const c = promiseClause(raw);
+  const clauses = text.match(RAW_CLAUSES) ?? [];
+  const ctx = messageContext(clauses);
+  for (const [ci, raw] of clauses.entries()) {
+    const c = promiseClause(raw, ci);
     if (!c) continue;
     const withTopic = c.verbIdx.find((i) => c.topicIn(c.segments[i]) !== undefined);
     const kind = withTopic !== undefined ? c.topicIn(c.segments[withTopic]) : c.topicIn(c.clause);
     if (!kind) continue;
-    const p = promiseAt(c, withTopic ?? c.verbIdx[0], kind);
+    const p = promiseAt(c, withTopic ?? c.verbIdx[0], kind, ctx);
     // Tanınmayan / belirsiz gün ya da 24 saati aşan süre → bütün mesaj için öneri yok (bugünkü sözleşme; ↓ çoklu okuma yalnız o sözü atlar).
     return p === REJECT ? null : p;
   }
@@ -349,10 +472,16 @@ export const MAX_PROMISES_PER_MESSAGE = 3;
  */
 export function detectHostPromises(text: string | null | undefined): HostPromise[] {
   if (typeof text !== "string" || text.trim() === "" || text.length > 4_000) return [];
-  const out: HostPromise[] = [];
-  for (const raw of text.match(RAW_CLAUSES) ?? []) {
-    if (out.length >= MAX_PROMISES_PER_MESSAGE) break;
-    const c = promiseClause(raw);
+  const clauses = text.match(RAW_CLAUSES) ?? [];
+  const ctx = messageContext(clauses);
+  const found: HostPromise[] = [];
+  // Ön okuma tavanı (devam / süre düşürmesinden SONRA ilk 3 söz alınır) + deneme tavanı (aynı sözün yüzlerce tekrarı — "havlu getireceğim
+  // ve …" — her biri ayrı okunup tekrar diye atılıyordu; uzun mesajda iş sınırlı).
+  const READ_CAP = MAX_PROMISES_PER_MESSAGE * 4;
+  let attempts = READ_CAP * 2;
+  for (const [ci, raw] of clauses.entries()) {
+    if (found.length >= READ_CAP || attempts <= 0) break;
+    const c = promiseClause(raw, ci);
     if (!c) continue;
     const topical = c.verbIdx.filter((i) => c.topicIn(c.segments[i]) !== undefined);
     const picks: Array<readonly [number, CommitmentKind]> = topical.length
@@ -361,25 +490,62 @@ export function detectHostPromises(text: string | null | undefined): HostPromise
           const k = c.topicIn(c.clause);
           return k ? [[c.verbIdx[0], k] as const] : [];
         })();
-    const fromClause: HostPromise[] = [];
     const rejectedKinds = new Set<CommitmentKind>();
     for (const [at, kind] of picks) {
-      if (out.length >= MAX_PROMISES_PER_MESSAGE) break;
-      const p = promiseAt(c, at, kind);
+      if (found.length >= READ_CAP || attempts-- <= 0) break;
+      const p = promiseAt(c, at, kind, ctx);
       if (p === REJECT) {
         rejectedKinds.add(kind);
         continue;
       }
-      if (out.some((q) => samePromise(q, p))) continue;
-      // Aynı cümlecikte HİÇBİR zaman bilgisi olmayan aynı türden söz parçası, önceki sözün DEVAMIDIR ("Teknisyen yarın 10'da gelecek, aylık
-      // bakımı da yapacak" tek ziyaret — ölçüldü: ikinci parça uydurma "bugün" sözü açıyordu). Yapanı farklı olan ayrı sözdür. Önceki söz
-      // REDDEDİLDİYSE (tanınmayan gün, soru, dilek…) devamı da düşer ("Teknisyen 25 Ekim'de gelecek, klima bakımı da yapacak" — Haiku 3. tur).
-      if (!hasPromiseTime(p) && (rejectedKinds.has(p.kind) || fromClause.some((q) => q.kind === p.kind && (p.actor === null || q.actor === p.actor)))) continue;
-      fromClause.push(p);
-      out.push(p);
+      // Önceki söz REDDEDİLDİYSE (tanınmayan gün, soru, dilek…) aynı cümlecikteki zamansız devamı da düşer ("Teknisyen 25 Ekim'de gelecek,
+      // klima bakımı da yapacak" — Haiku 3. tur).
+      if (!hasPromiseTime(p) && rejectedKinds.has(p.kind)) continue;
+      if (found.some((q) => samePromise(q, p))) continue;
+      found.push(p);
     }
   }
-  return out;
+  return dropContinuations(found).slice(0, MAX_PROMISES_PER_MESSAGE);
+}
+
+/** Aynı ziyaret / teslim olabilir mi: tür aynı, konu uyumlu (biri boşsa uyumlu), yapan uyumlu (biri bilinmiyorsa uyumlu). */
+function samePromiseFamily(a: HostPromise, b: HostPromise): boolean {
+  return a.kind === b.kind && (a.topic === null || b.topic === null || a.topic === b.topic) && (a.actor === null || b.actor === null || a.actor === b.actor);
+}
+
+/**
+ * Mesaj düzeyinde DEVAM düşürmesi (sert itirazcı 10-17 gece-4):
+ *  · T3 — kendi zamanı olmayan söz, aynı aileden (tür + konu + yapan uyumlu) zamanlı bir sözün DEVAMIDIR, hangi yönde olursa olsun ("Teknisyen
+ *    yarın 10'da gelecek. Klimaya da bakacak." · "Temizlik yapılacak, temizlikçi yarın 10'da gelecek." tek ziyaret). Zamanlı söz yoksa ilk
+ *    zamansız söz kalır. Devamın konusu, konusuz zamanlı söze yazılır ("…Klimaya da bakacak" → klima). Konusu farklı devam ("Klima için
+ *    teknisyen yarın 10'da gelecek. Kombiyi de tamir edecek.") ayrı sözdür (gün belirsizse kart sorar).
+ *  · T4 — yalnız süre taşıyan söz ("…, arızayı 2 saat içinde halledecek") SOLUNDA aynı aileden günlü / saatli söz varsa işin süresidir, düşer.
+ *    Solda değilse ayrı sözdür ("Teknisyen 1 saat içinde gelecek. Yarın 10'da da usta gelecek." iki söz).
+ */
+function dropContinuations(found: HostPromise[]): HostPromise[] {
+  const dated = (p: HostPromise) => p.dayExplicit || p.timeCandidates.length > 0;
+  const kept: HostPromise[] = [];
+  const dropped = new Set<number>();
+  found.forEach((p, i) => {
+    if (!hasPromiseTime(p)) {
+      const host = found.findIndex((q, j) => j !== i && !dropped.has(j) && hasPromiseTime(q) && samePromiseFamily(p, q));
+      if (host >= 0) {
+        dropped.add(i);
+        const q = found[host]!;
+        if (q.topic === null && p.topic !== null) found[host] = { ...q, topic: p.topic };
+        return;
+      }
+      if (found.some((q, j) => j < i && !dropped.has(j) && !hasPromiseTime(q) && samePromiseFamily(p, q))) {
+        dropped.add(i);
+        return;
+      }
+    }
+    if (p.inMinutes !== null && !dated(p) && found.some((q, j) => j < i && !dropped.has(j) && dated(q) && samePromiseFamily(p, q))) dropped.add(i);
+  });
+  found.forEach((p, i) => {
+    if (!dropped.has(i)) kept.push(p);
+  });
+  return kept;
 }
 
 const REJECT = Symbol("reject");
@@ -409,56 +575,85 @@ function samePromise(a: HostPromise, b: HostPromise): boolean {
 
 interface PromiseClause {
   raw: string;
+  /** Mesajdaki sırası (söz konumu `anchor` ve D3 bağlamı için). */
+  index: number;
   clause: string;
   segments: string[];
-  rawSegments: string[];
+  rawSegments: string[] | null;
   verbIdx: number[];
   topicIn: (t: string) => CommitmentKind | undefined;
 }
 
 /** Cümlecik söz taşıyabilir mi (soru / koşul / olumsuz değil, söz fiili var) — taşıyorsa parçaları. */
-function promiseClause(raw: string): PromiseClause | null {
-  const clause = foldTurkishAscii(raw).toLowerCase();
+function promiseClause(raw: string, index: number): PromiseClause | null {
+  const { clause, segments, rawSegments } = segmentClause(raw);
   if (clause.trim() === "" || CONDITIONAL.test(clause)) return null;
   if (!PROMISE.test(clause) && !RESCHEDULE.test(clause)) return null;
   // Soru YALNIZ sözün kapsamında söz bozar (↓ `promiseAt`): "Yarın havlu getireceğim, başka bir ihtiyacınız var mı?" bir söz + ayrı bir
   // sorudur (Haiku 10-17 gece; eskiden cümlecik sonundaki "?" bütün sözü düşürüyordu). İptal / kararsızlık bilerek cümlecik boyunca kalır
   // ("Teknisyen gelecek ama iptal olabilir", "…, galiba").
   if (NEGATION.test(clause) || HEDGE.test(clause)) return null;
-  const segments = clause.split(SEGMENT_SPLIT);
-  const rawSegments = raw.split(RAW_SEGMENT_SPLIT);
   const verbIdx = segments.map((seg, i) => (PROMISE.test(seg) || RESCHEDULE.test(seg) ? i : -1)).filter((i) => i >= 0);
   if (verbIdx.length === 0 || verbIdx.some((i) => negatedAfterVerb(segments[i]))) return null;
   const topicIn = (t: string) => KIND_TOPICS.find(([, re]) => re.test(t))?.[0];
-  return { raw, clause, segments, rawSegments, verbIdx, topicIn };
+  return { raw, index, clause, segments, rawSegments, verbIdx, topicIn };
 }
 
-/** `at` parçasındaki söz fiilinin sözü (kapsam, gün, saat, konu). Tanınmayan / belirsiz gün ya da 24 saati aşan süre → REJECT. */
-function promiseAt(c: PromiseClause, at: number, kind: CommitmentKind): HostPromise | typeof REJECT {
+/**
+ * `at` parçasındaki söz fiilinin sözü (kapsam, gün, saat, konu). Tanınmayan / belirsiz gün ya da 24 saati aşan süre → REJECT.
+ *
+ * GÜN (sert itirazcı 10-17 gece-4, D1–D4 — başka cümledeki "Cuma Bey" / "yarın çıkış" sözü veto etmez, sözün günü de tahmin edilmez):
+ *  · D1 sözün KENDİ kapsamı (söz parçası + sağdaki yalın zaman parçaları): yarın → yarın; bugün → bugün; ikisi → yok; tanınmayan gün /
+ *    takvim tarihi → yok.
+ *  · D2 kendi kapsamında gün yoksa hemen soldaki YALIN parça zinciri (yalnız zaman / tarih / konu sözcüğü; en çok 3): gün sözcüğü taşıyan en
+ *    yakın parçanın günü VE gün dilimi alınır ("Yarın akşam, teknisyen 7'de gelecek" → yarın 19:00).
+ *  · D3 yine gün yoksa ve mesajda kapsam DIŞINDA yarın / tanınmayan gün / takvim tarihi geçiyorsa (geçmişe atıf hariç) → `dayUnclear`: kart
+ *    günü sorar ("Teknisyen yarın 10'da gelecek. Havlu getireceğim." havlu). Şimdiye bağlı söz muaf ("hemen", "20 dakika içinde",
+ *    "getiriyorum").
+ *  · D4 aksi hâlde bugün.
+ * DİLEK (H1): kendi kapsamında ya da bitişik YALIN dilek parçasında ("Umarım,", "Umarım yarın,", "…, inşallah.") → söz değil; yalın olmayan
+ * dilek ("Umarım her şey yolundadır, …", "…, umarım beğenirsiniz") bozmaz.
+ * SAAT (T1 / T2): aynı parçada iki söz fiili kalırsa kart saati sorar; açık saat süreyi yener (süre işin uzunluğudur); yarınki söz + süre
+ * ("Teknisyen yarın 2 saat içinde gelecek") kart (yarın 11:00 uydurulmaz).
+ */
+function promiseAt(c: PromiseClause, at: number, kind: CommitmentKind, ctx: MessageContext): HostPromise | typeof REJECT {
   const { raw, segments, rawSegments, topicIn } = c;
   // Aktarılan / geçmiş söz (söz fiilinin kendi parçasında) söz değildir.
   if (REPORTED.test(segments[at]) || segments.slice(0, at).some((seg) => REPORTED_LEAD.test(seg))) return REJECT;
-  // Kapsam: sözün parçası; bilgi yoksa soldaki (söz fiili TAŞIMAYAN) parçalar. Özgün metin aynı sayıda parçaya bölünemezse cümlecik.
-  let from = at;
-  const aligned = rawSegments.length === segments.length;
+  // Kapsam: sözün parçası + soldaki / sağdaki YALIN zaman parçaları. Özgün metin aynı sayıda parçaya bölünemezse cümlecik.
+  const aligned = rawSegments !== null && rawSegments.length === segments.length;
   const sliceOf = (a: number, b: number) => ({
     folded: segments.slice(a, b + 1).join(","),
     raw: aligned ? rawSegments.slice(a, b + 1).join(",") : raw,
   });
-  // En fazla 3 parça sola (her adım dilimi yeniden tarar — sınırsız genişleme virgül dizisinde karesel olurdu).
+  // Soldaki YALIN parça zinciri (en çok 3; söz fiili / saat değişikliği / geçmişe atıf durdurur). Yalın dilek parçası → kararsız söz (H1).
+  let bare = at;
+  while (bare > 0 && at - bare < 3) {
+    const s = segments[bare - 1];
+    if (PROMISE.test(s) || RESCHEDULE.test(s) || PAST_REF.test(s)) break;
+    const k = segmentKind(s);
+    if (k === "wish") return REJECT;
+    if (k !== "time") break;
+    bare--;
+  }
+  // Zaman bilgisi yoksa soldaki yalın parçalar kapsama girer ("Yarın sabah, teknisyen gelecek").
+  let from = at;
+  while (from > bare && !hasTimeInfo(sliceOf(from, at).folded, sliceOf(from, at).raw)) from--;
+  // Konu kapsamı (gün / saat DEĞİL): soldaki söz fiilsiz parçalar ("Klima arızası için üzgünüz, teknisyen gelecek" → klima) — önceki kural.
+  let topicFrom = at;
   while (
-    from > 0 &&
-    at - from < 3 &&
-    !hasTimeInfo(sliceOf(from, at).folded, sliceOf(from, at).raw) &&
-    !PROMISE.test(segments[from - 1]) &&
-    !RESCHEDULE.test(segments[from - 1]) &&
-    !PAST_REF.test(segments[from - 1])
+    topicFrom > 0 &&
+    at - topicFrom < 3 &&
+    !hasTimeInfo(sliceOf(topicFrom, at).folded, sliceOf(topicFrom, at).raw) &&
+    !PROMISE.test(segments[topicFrom - 1]) &&
+    !RESCHEDULE.test(segments[topicFrom - 1]) &&
+    !PAST_REF.test(segments[topicFrom - 1])
   )
-    from--;
-  // Sağdaki ZAMAN bilgisi taşıyan, söz fiili ve konu TAŞIMAYAN parçalar da sözün parçasıdır ("Teknisyen gelecek, yarın sabah 10 gibi";
-  // "The technician will come tomorrow, around 9") — en fazla 2; "havlular yarın" gibi başka konulu parça katılmaz (Haiku 10-12 4. tur).
-  // Saat değişikliği bildiren parçanın (söz fiili yok) sağındaki KONUSUZ söz parçası aynı sözün yeni zamanıdır ("Teknisyen saati değişti,
-  // 15:00'te gelecek" — kurucu 10-17 gece: "konuyu, değiştirilen şeyi anlamalı").
+    topicFrom--;
+  // Sağdaki YALIN zaman parçaları da sözün parçasıdır ("Teknisyen gelecek, yarın sabah 10 gibi"; "The technician will come tomorrow, around
+  // 9") — en fazla 2; "havlular yarın" gibi başka konulu ya da "yarın görüşürüz" gibi yalın olmayan parça katılmaz (Haiku 10-12 4. tur; sert
+  // itirazcı 10-17 gece-4: sağdaki cümleden gün okunmaz). Saat değişikliği bildiren parçanın (söz fiili yok) sağındaki KONUSUZ söz parçası
+  // aynı sözün yeni zamanıdır ("Teknisyen saati değişti, 15:00'te gelecek" — kurucu 10-17 gece: "konuyu, değiştirilen şeyi anlamalı").
   const rescheduleOnly = !PROMISE.test(segments[at]) && RESCHEDULE.test(segments[at]);
   let to = at;
   // Süre ("30 dakika içinde") yalnız SÖZÜN parçalarından okunur (Haiku 10-17 gece: "Teknisyen yarın 10'da gelecek, işi 2 saat içinde bitirir"
@@ -468,7 +663,7 @@ function promiseAt(c: PromiseClause, at: number, kind: CommitmentKind): HostProm
     const next = sliceOf(to + 1, to + 1);
     const continues = rescheduleOnly && to === at && PROMISE.test(next.folded) && !RESCHEDULE.test(next.folded);
     if (
-      (!continues && PROMISE.test(next.folded)) ||
+      (!continues && (PROMISE.test(next.folded) || segmentKind(next.folded) !== "time")) ||
       RESCHEDULE.test(next.folded) ||
       topicIn(next.folded) !== undefined ||
       PAST_REF.test(next.folded) ||
@@ -478,14 +673,25 @@ function promiseAt(c: PromiseClause, at: number, kind: CommitmentKind): HostProm
     to++;
     if (continues) durationTo = to;
   }
+  // Sağdaki yalın dilek parçası ("…, umarım." · "…, hopefully.") sözü kararsız yapar (H1); sonraki söz fiili durdurur.
+  for (let i = to + 1; i < segments.length && !PROMISE.test(segments[i]); i++) if (segmentKind(segments[i]) === "wish") return REJECT;
+  // D2: kendi kapsamında gün yoksa soldaki yalın zincirde gün sözcüğü taşıyan EN YAKIN parça (günü + gün dilimi).
+  if (!dayWordIn(sliceOf(from, to).folded)) {
+    for (let i = from - 1; i >= bare; i--) {
+      if (dayWordIn(segments[i])) {
+        from = i;
+        break;
+      }
+    }
+  }
   const scope = sliceOf(from, to);
   // Soru sözün kapsamındaysa söz değil: soru eki ("gelecek mi") ya da cümlecik "?" ile bitiyor ve son parça kapsamda.
   if (QUESTION_PARTICLE.test(scope.folded) || (/[?؟]\s*$/.test(raw) && to === segments.length - 1)) return REJECT;
   // Sağdaki ayrı soru sözü TEYİDE bağlıyorsa ("…, uygun mu?", "…, olur mu?") söz henüz kesin değil (O3).
   const isQuestionSeg = (i: number) => QUESTION_PARTICLE.test(segments[i]) || (i === segments.length - 1 && /[?؟]\s*$/.test(raw));
   for (let i = to + 1; i < segments.length; i++) if (isQuestionSeg(i) && CONFIRM_QUESTION.test(segments[i])) return REJECT;
-  // Dilek sözün kapsamında ya da hemen solunda yalın dilek parçası → kararsız söz (O6); soldaki başka cümle ("umarım iyisinizdir") bozmaz.
-  if (segments.slice(from, to + 1).some((seg) => HEDGE_WISH.test(seg)) || (from > 0 && HEDGE_WISH_BARE.test(segments[from - 1]))) return REJECT;
+  // Dilek sözün kapsamında → kararsız söz (O6); soldaki başka cümle ("umarım iyisinizdir") bozmaz.
+  if (segments.slice(from, to + 1).some((seg) => HEDGE_WISH.test(seg))) return REJECT;
   // Tanınmayan gün / takvim tarihi (kapsamda) → öneri yok.
   if (DAY_UNKNOWN.test(scope.folded) || CALENDAR_DATE.test(scope.folded)) return REJECT;
   // "Bugün ya da yarın" → hangi gün? belirsiz → öneri yok.
@@ -493,13 +699,21 @@ function promiseAt(c: PromiseClause, at: number, kind: CommitmentKind): HostProm
   const day: HostPromise["day"] = DAY_TOMORROW.test(scope.folded) ? "tomorrow" : "today";
   // Geçmişe atıf ("dün gece") dilim sayılmaz.
   const part = DAY_PARTS.find((d) => d.re.test(scope.folded.replace(PAST_PART, " ")));
-  const inMinutes = durationMinutes(sliceOf(from, durationTo).folded);
+  // T2: açık saat süreyi yener ("Teknisyen 10'da gelecek, 2 saat içinde halleder" — süre işin uzunluğu).
+  const clocks = timeMentions(scope.raw, scope.folded);
+  let inMinutes = clocks.length > 0 ? null : durationMinutes(sliceOf(from, durationTo).folded);
   // 24 saati aşan süre ("48 saat içinde") bugün / yarın modelinin dışında → öneri yok (Haiku 10-12 4. tur: saat kipinde yuvarlanıyordu).
   if (inMinutes !== null && inMinutes > 24 * 60) return REJECT;
-  let timeCandidates = inMinutes === null ? timeMentions(scope.raw, scope.folded) : [];
+  // T2: yarınki söz + süre ("Teknisyen yarın 2 saat içinde gelecek") — süre ŞİMDİDEN sayılıp yarına konmaz (yarın 11:00 uydurulurdu): saat
+  // atılır, kart saati sorar.
+  const durationOnTomorrow = inMinutes !== null && day === "tomorrow";
+  if (durationOnTomorrow) inMinutes = null;
+  let timeCandidates = inMinutes === null ? clocks : [];
   timeCandidates = part ? fitToHalf(timeCandidates, part.half) : preferDaytime(timeCandidates);
-  // Birbirinden farklı saatler (12 saat farkı aynı saatin öğleden önce / sonra okumasıdır) → saat seçilmez, kart sorar (O9).
-  const timeAmbiguous = timeCandidates.some((a) => timeCandidates.some((b) => a !== b && Math.abs(a - b) !== 12 * 60));
+  // Birbirinden farklı saatler (12 saat farkı aynı saatin öğleden önce / sonra okumasıdır) → saat seçilmez, kart sorar (O9). Aynı parçada
+  // ayrılamayan iki söz fiili (T1) de kart.
+  const timeAmbiguous =
+    timeCandidates.some((a) => timeCandidates.some((b) => a !== b && Math.abs(a - b) !== 12 * 60)) || durationOnTomorrow || promiseVerbCount(segments[at]) >= 2;
   const cue = inMinutes === null && timeCandidates.length === 0 && part ? { minutes: part.minutes, half: part.half, code: part.code, end: part.end } : null;
   const soon = inMinutes === null && timeCandidates.length === 0 && cue === null && SOON.test(scope.folded);
   const reschedule = RESCHEDULE.test(scope.folded);
@@ -507,8 +721,28 @@ function promiseAt(c: PromiseClause, at: number, kind: CommitmentKind): HostProm
   // bir zaman söylemez (hiçbir şey açılmaz / güncellenmez).
   if (!PROMISE.test(segments[at]) && !hasTimeInfo(scope.folded, scope.raw)) return REJECT;
   const dayExplicit = DAY_TOMORROW.test(scope.folded) || DAY_TODAY.test(scope.folded);
-  const actor: HostPromise["actor"] = ACTOR_VISIT.test(scope.folded) ? "visit" : ACTOR_DELIVERY.test(scope.folded) ? "delivery" : null;
-  return { kind, topic: commitmentTopicOf(kind, scope.raw, scope.folded), day, timeCandidates, inMinutes, cue, soon, reschedule, dayExplicit, actor, timeAmbiguous };
+  // D3: kendi günü yok + kapsam dışında yarın / tanınmayan gün / takvim tarihi → gün tahmin edilmez (kart sorar). Şimdiye bağlı söz muaf.
+  const nowAnchored = soon || inMinutes !== null || NOW_VERB.test(PROMISE.exec(segments[at])?.[0] ?? "");
+  const dayUnclear =
+    !dayExplicit && !nowAnchored && ctx.futureDayMarks.some(([ci, si]) => ci !== c.index || si < from || si > to);
+  // Konu / yapan: soldaki söz fiilsiz parçalarla (önceki kapsam kuralı; gün / saat okumasına girmez).
+  const topicScope = sliceOf(Math.min(topicFrom, from), to);
+  const actor: HostPromise["actor"] = ACTOR_VISIT.test(topicScope.folded) ? "visit" : ACTOR_DELIVERY.test(topicScope.folded) ? "delivery" : null;
+  return {
+    kind,
+    topic: commitmentTopicOf(kind, topicScope.raw, topicScope.folded),
+    day,
+    timeCandidates,
+    inMinutes,
+    cue,
+    soon,
+    reschedule,
+    dayExplicit,
+    actor,
+    timeAmbiguous,
+    dayUnclear,
+    anchor: `${c.index}.${at}`,
+  };
 }
 
 /**

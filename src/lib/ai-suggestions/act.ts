@@ -54,6 +54,7 @@ export interface DecisionEdits {
 export const ATTACH_CHOICE_REQUIRED = "Hangi söze bağlanacağını seçin.";
 export const ATTACH_TIME_EDITED = "Saati değiştirdiyseniz 'Yeni söz olarak kaydet'i seçin.";
 export const MOVE_CHOICE_REQUIRED = "Bu saat hangi söze ait? Birini seçin ya da ayrı söz olarak kaydedin.";
+export const DAY_CHOICE_REQUIRED = "Sözün gününü seçin.";
 
 const PAST_TOLERANCE_MS = 5 * 60_000;
 
@@ -116,7 +117,10 @@ export async function decideSuggestion(input: {
   };
   let edited = false;
   if (input.decision === "approve" && view.kind === "commitment") {
-    const day = input.edits?.day === "today" || input.edits?.day === "tomorrow" ? input.edits.day : view.proposal.day;
+    const chosenDay = input.edits?.day === "today" || input.edits?.day === "tomorrow" ? input.edits.day : null;
+    // Gün mesajdan okunamadıysa (D3) varsayılan "bugün" YOK — ev sahibi seçmeden onaylanmaz (otomatik kip de seçemez → kart kalır).
+    if (view.proposal.dayUnclear && chosenDay === null) return { status: "invalid", field: "day", message: DAY_CHOICE_REQUIRED };
+    const day = chosenDay ?? view.proposal.day;
     const time = typeof input.edits?.time === "string" && input.edits.time.trim() !== "" ? input.edits.time.trim() : view.proposal.time;
     edited = day !== view.proposal.day || time !== view.proposal.time;
     const org = await prisma.organization.findUnique({ where: { id: input.organizationId }, select: { timezone: true } });

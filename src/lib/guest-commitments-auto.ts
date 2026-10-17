@@ -124,8 +124,8 @@ async function applyLocked(organizationId: string, conversationId: string, now: 
       out.skipped++;
       continue;
     }
-    // Belirsiz: kart kalır (ev sahibi seçer) — hangi söz / yeni saat hangi sözün / mesajda birden çok saat (O9).
-    if (s.proposal.attachTopics || s.proposal.moveOptions || s.proposal.timeAmbiguous) {
+    // Belirsiz: kart kalır (ev sahibi seçer) — hangi söz / yeni saat hangi sözün / mesajda birden çok saat (O9) / gün okunamadı (D3).
+    if (s.proposal.attachTopics || s.proposal.moveOptions || s.proposal.timeAmbiguous || s.proposal.dayUnclear) {
       out.skipped++;
       continue;
     }

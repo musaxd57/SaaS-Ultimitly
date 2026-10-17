@@ -78,7 +78,9 @@ export function ActionSuggestions({ items }: { items: ActionSuggestionItem[] }) 
   return (
     <div className="space-y-2" data-testid="action-suggestions">
       {items.map((s) => {
-        const p = s.proposal as { day?: string; time?: string; precision?: string; attachTopics?: unknown; moveOptions?: unknown };
+        const p = s.proposal as { day?: string; time?: string; precision?: string; attachTopics?: unknown; moveOptions?: unknown; dayUnclear?: unknown };
+        // Sözün günü mesajdan okunamadı (D3) — gün önceden seçili gelmez; seçilmeden onay yok.
+        const dayUnclear = s.kind === "commitment" && p.dayUnclear === true;
         const attachTopics = Array.isArray(p.attachTopics) ? p.attachTopics.filter(isCommitmentTopic) : [];
         // Bağlamla saat güncellemesi BELİRSİZ (kurucu 10-17 gece: "başka bir şeyi değiştirmemeli"): yeni saat hangi sözün? — seçim zorunlu.
         const moveOptions = Array.isArray(p.moveOptions)
@@ -88,7 +90,7 @@ export function ActionSuggestions({ items }: { items: ActionSuggestionItem[] }) 
             )
           : [];
         const needsChoice = s.kind === "commitment" && (attachTopics.length >= 2 || moveOptions.length > 0);
-        const edit = edits[s.key] ?? (s.kind === "commitment" ? { day: p.day ?? "today", time: p.time ?? "" } : undefined);
+        const edit = edits[s.key] ?? (s.kind === "commitment" ? { day: dayUnclear ? "" : (p.day ?? "today"), time: p.time ?? "" } : undefined);
         return (
           <div key={s.key} className="rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900 dark:border-sky-500/25 dark:bg-sky-500/10 dark:text-sky-200">
             <div className="flex items-start gap-2">
@@ -106,6 +108,11 @@ export function ActionSuggestions({ items }: { items: ActionSuggestionItem[] }) 
                   value={edit.day}
                   onChange={(e) => setEdits({ ...edits, [s.key]: { ...edit, day: e.target.value } })}
                 >
+                  {dayUnclear ? (
+                    <option value="" disabled>
+                      Gün seçin
+                    </option>
+                  ) : null}
                   <option value="today">Bugün</option>
                   <option value="tomorrow">Yarın</option>
                 </select>
@@ -163,7 +170,7 @@ export function ActionSuggestions({ items }: { items: ActionSuggestionItem[] }) 
             <div className="mt-2 flex gap-2">
               <Button
                 size="sm"
-                disabled={busy !== null || (needsChoice && !attach[s.key])}
+                disabled={busy !== null || (needsChoice && !attach[s.key]) || (dayUnclear && !edit?.day)}
                 onClick={() => decide(s, "approve")}
               >
                 Onayla
