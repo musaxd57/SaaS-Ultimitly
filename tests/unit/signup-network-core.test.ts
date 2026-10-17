@@ -111,3 +111,14 @@ describe("networkSignals", () => {
     expect(networkSignals([few[0]!], few, NOW, signupNetworkKeyFp()).ipShared).toBe(true);
   });
 });
+
+describe("yapısal pin", () => {
+  it("🚨 onay kanıtı IP'si (User.acceptedIp) risk / iz kodunda OKUNMAZ (amaç değişikliği yok — KVKK md. 4)", async () => {
+    const { readFileSync } = await import("node:fs");
+    for (const f of ["src/lib/billing/trial-risk.ts", "src/lib/billing/signup-network.ts", "src/lib/billing/signup-network-core.ts"]) {
+      const src = readFileSync(f, "utf8");
+      expect(src.length, f).toBeGreaterThan(500); // anti-vakum
+      expect(src, f).not.toMatch(/acceptedIp/);
+    }
+  });
+});

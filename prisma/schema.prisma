@@ -161,11 +161,15 @@ model Organization {
   // Deneme kimliği istisnası (migration 61, kurucu onayı 10-10): operatör "denemeyi geri ver" dediğinde true — aynı ilan / iCal başka
   // hesapta görülse de bu kuruluşun denemesi bitirilmez (meşru durum: ilan yeni sahibe geçti vb.).
   trialIdentityExempt        Boolean   @default(false)
+  /// K1-B (kurucu 10-17 "otomatik kesme yok", migration 72): deneme kimliği (ilan / takvim) başka hesapta görüldü — SİNYAL; deneme BİTİRİLMEZ,
+  /// operatör listesinde "ilan daha önce kullanıldı" görünür. NULL = görülmedi. İlk gözlem kazanır.
+  trialIdentityReusedAt      DateTime?
   createdAt                  DateTime  @default(now())
   updatedAt                  DateTime  @updatedAt
 
   users                 User[]
   trialIdentities       TrialIdentity[]
+  signupNetworkTraces   SignupNetworkTrace[]
   riskEvents            RiskEvent[]
   shadowVerdicts        ShadowVerdict[]
   erasureTombstones     ErasureTombstone[]
@@ -1675,6 +1679,35 @@ model TrialIdentity {
 
   @@index([firstOrganizationId])
   @@index([lastSeenAt])
+}
+
+// ---------------------------------------------------------------------------
+// KAYIT AĞI İZİ (K1, kurucu 10-17 "IP'lere bakılsın; otomatik kesme yok", migration 72; `lib/billing/signup-network*.ts`). Yeni hesap kaydında
+// BİR satır. HAM IP YOK: tam adres ve ağ öneki (IPv4 /24, IPv6 /48) ayrı ayrı anahtarlı özet (HMAC-SHA256; anahtar ENCRYPTION_KEY ||
+// AUTH_SECRET'ten AYRI tuzla türetilir). Takma adlı kişisel veri: amaç YALNIZ deneme kötüye kullanımı İNCELEMESİ (otomatik karar yok), süre
+// dolunca (`expiresAt`) silinir. Hesap silinince iz süre dolana kadar kalır (`organizationId` boşa çekilir — sil-yeniden-aç görünsün).
+// Yazıcı `SIGNUP_NETWORK_TRACE_ENABLED` arkasında KAPALI (aydınlatma metni yayınlanmadan açılmaz).
+// ---------------------------------------------------------------------------
+model SignupNetworkTrace {
+  id             String        @id @default(cuid())
+  organizationId String?
+  /// HMAC("ip|" + tam adres); NULL = adres okunamadı
+  ipHash         String?
+  /// HMAC("net|" + önek); NULL = adres okunamadı
+  networkHash    String?
+  /// v4_24 | v6_48 (kapalı küme)
+  networkKind    String?
+  /// Özet anahtarının parmak izi — anahtar değişirse eski satırlar karşılaştırmaya GİRMEZ
+  keyFp          String
+  createdAt      DateTime      @default(now())
+  /// Süpürge anı (createdAt + saklama süresi)
+  expiresAt      DateTime
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@index([ipHash, createdAt])
+  @@index([networkHash, createdAt])
+  @@index([organizationId])
+  @@index([expiresAt])
 }
 
 // AÇIK TAAHHÜT HAFIZASI A (kurucu kararı 10-10; migration 62). Misafire VERİLEN SÖZ ("havlular 18:00'e kadar") YALNIZ ev sahibinin AÇIK

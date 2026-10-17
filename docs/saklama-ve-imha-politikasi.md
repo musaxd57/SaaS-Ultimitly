@@ -56,6 +56,8 @@ yeniden import etmez — public metindeki "teknik kontroller uygulanır" cümles
 | `CheckoutConsent` (mesafeli satış onay delili: plan, fiyat id, LEGAL_VERSION, ip, UA) | Bugün: hesap ömrü — aynı `[KARAR-FATURA-SÜRE]` sorusu (uyuşmazlıkta delil) | Org cascade | Hukuki yükümlülük/ispat | Railway |
 | `WebhookEvent` (Paddle ham olayları) | SİLİNMEZ — hesap silmede **redakte edilir**: allowlist iskelet (event id/tip/tarih, işlem id, customer_id, tutar, para birimi, dönem sonu) kalır; e-posta/ad/adres/kart DÜŞER (`redactPaddleWebhooksForOrg` + `redactPaddlePayload`, data-retention.ts:220-357) | Redaksiyon + status:"processed" (retry ham PII'yı geri yazamaz) | Hukuki yükümlülük (mali iz) — public gizlilik metni §Paddle bunu AYNEN söylüyor ✓ | Paddle, Railway |
 
+| `SignupNetworkTrace` (K1, migration 72 — kayıt anında IP adresinin ve ağ önekinin anahtarlı ÖZETİ; ham IP YOK; takma adlı kişisel veri) | 90 gün `[KARAR-K1-SÜRE: kurucu sorusu Q3 — 90 mı 30 mu]`; hesap silinse de süre dolana kadar kalır (`organizationId` boşa çekilir) | Saatlik süpürge `purgeSignupNetworkTraces` (`expiresAt`) | Meşru menfaat — deneme kötüye kullanımını önleme; otomatik karar YOK (yalnız operatör incelemesi) | — |
+
 ### 1d. Pazarlama/operasyon verileri
 
 | Kategori | Saklama | Silme | Hukuki gerekçe (hipotez) | Alt işleyen |

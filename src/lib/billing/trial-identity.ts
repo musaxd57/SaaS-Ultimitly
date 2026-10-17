@@ -9,8 +9,10 @@ import { isFounderOrg } from "@/lib/billing/subscription";
 // ---------------------------------------------------------------------------
 // DENEME KİMLİĞİ (kurucu onayı 10-10; `docs/TASARIM-2026-10-10-odeme-idempotency-ve-deneme-kotuye-kullanim.md` §3–4).
 // Sorun: aynı kişi yeni e-postayla yeni hesap açıp aynı ilan / takvimle yeniden 14 gün ücretsiz deneme alabiliyordu.
-// Kural: işletmeyi dışarıdan tanımlayan kimlik (ilan / takvim) DAHA ÖNCE başka bir hesapta görüldüyse bu hesabın DENEMESİ o an biter
-// (ücretsiz sürümle devam eder; ödeme yapan hesaplar etkilenmez); operatör "denemeyi geri ver" ile istisna tanır.
+// Kural: işletmeyi dışarıdan tanımlayan kimlik (ilan / takvim) DAHA ÖNCE başka bir hesapta görüldüyse bu hesap İŞARETLENİR
+// (`Organization.trialIdentityReusedAt`) ve operatörün risk listesine düşer. 🚨 K1-B (kurucu 10-17, Codex önerisiyle: "ilan kimliği işletme /
+// insan kimliği değildir — yeni yönetici olabilir"): deneme OTOMATİK BİTİRİLMEZ, müşteriye metin GİTMEZ (10-10'daki "deneme o an biter" kuralı
+// anahtar hiç açılmadan kaldırıldı). Ödeme yapan / istisnalı / kurucu hesabı işaretlenmez; operatör "denemeyi geri ver" ile işareti kaldırır.
 // 🚨 SAĞLAYICIDAN BAĞIMSIZ (kurucu: "ilerde Hospitable gidecek, Hospitable üzerine kurmuş gibi yapma"): kimlik = kanal adı + ilan numarası
 // (`ChannelListing`), iCal adresinden çıkarılan Airbnb ilan numarası, diğer iCal adresleri normalize biçimiyle — hesap / jeton değil.
 // İz GERİ DÖNDÜRÜLEMEZ özettir (HMAC, deneme kimliğine özel türetilmiş anahtar); URL / ad / e-posta saklanmaz. Hesap silinince iz kalır
@@ -26,10 +28,13 @@ export interface TrialIdentityKey {
   value: string;
 }
 
-/** Deneme erken bittiğinde `Subscription.trialEndReason` (kapalı küme). */
+/**
+ * ESKİ kural (10-10) denemeyi bitirince yazılan `Subscription.trialEndReason`. K1-B'den sonra YENİ yazım yok; yalnız eski satırlar için
+ * okunur (risk listesi, "denemeyi geri ver", ayarlar notu).
+ */
 export const TRIAL_END_REASON_IDENTITY_REUSED = "identity_reused";
 
-/** Kurucu onaylı müşteri metni (10-10). */
+/** Kurucu onaylı müşteri metni (10-10) — YALNIZ eski kuralla bitmiş deneme için ayarlarda (K1-B'den sonra yeni hesaba gösterilmez). */
 export const TRIAL_IDENTITY_REUSED_MESSAGE = "Bu ilan daha önce bir deneme hesabında kullanıldı. Devam etmek için bir plan seçin.";
 
 /** İz saklama: hesap silindikten bu kadar ay sonra süpürülür (kurucu: "24 ay"). */
@@ -139,10 +144,10 @@ function identityKeyFingerprint(): string {
   return `fp:${createHash("sha256").update(identityKey()).digest("hex").slice(0, 16)}`;
 }
 
-type RecordResult = { reused: boolean; trialEnded: boolean; ok: boolean };
+type RecordResult = { reused: boolean; flagged: boolean; ok: boolean };
 
 /**
- * Kimlikleri kaydet ve başka hesapta görülmüş olanı bildir. `enforce: false` yalnız kaydeder — kimsenin denemesini bitirmez. Önce HAZIRLIK
+ * Kimlikleri kaydet ve başka hesapta görülmüş olanı bildir. `enforce: false` yalnız kaydeder — kimseyi işaretlemez. Önce HAZIRLIK
  * (`readyForRecording`): anahtar parmak izi uyumu + geri doldurmanın TAM olması; hazır değilse hiçbir şey yazılmaz (`ok: false`). Asla fırlatmaz.
  */
 export async function recordTrialIdentities(
@@ -150,9 +155,9 @@ export async function recordTrialIdentities(
   keys: readonly (TrialIdentityKey | null)[],
   opts: { enforce?: boolean; now?: Date } = {},
 ): Promise<RecordResult> {
-  if (!trialIdentityEnabled()) return { reused: false, trialEnded: false, ok: true };
+  if (!trialIdentityEnabled()) return { reused: false, flagged: false, ok: true };
   const now = opts.now ?? new Date();
-  if (!(await readyForRecording(now))) return { reused: false, trialEnded: false, ok: false };
+  if (!(await readyForRecording(now))) return { reused: false, flagged: false, ok: false };
   return recordKeys(organizationId, keys, { enforce: opts.enforce !== false, now });
 }
 
@@ -178,12 +183,12 @@ async function recordKeys(
       // Aynı hesap kendi kimliğini yeniden bağlıyor → kullanım değil. Başka hesap (ya da SİLİNMİŞ hesap: null) → yeniden kullanım.
       if (existing.firstOrganizationId !== organizationId) reused = true;
     }
-    if (!reused || !opts.enforce) return { reused, trialEnded: false, ok: true };
-    return { reused, trialEnded: await endTrialForReusedIdentity(organizationId, now), ok: true };
+    if (!reused || !opts.enforce) return { reused, flagged: false, ok: true };
+    return { reused, flagged: await flagReusedIdentity(organizationId, now), ok: true };
   } catch (err) {
     // `ok: false` → çağıran yeniden denenebilir kalır (takvim kaynağının "sayıldı" işareti geri alınır; Haiku: sessiz kayıp).
     void reportError(`trial-identity org=${organizationId}`, err);
-    return { reused, trialEnded: false, ok: false };
+    return { reused, flagged: false, ok: false };
   }
 }
 
@@ -250,8 +255,8 @@ export async function recordVerifiedCalendarIdentity(
   organizationId: string,
   feedUrl: string,
   now: Date = new Date(),
-): Promise<{ reused: boolean; trialEnded: boolean }> {
-  const none = { reused: false, trialEnded: false };
+): Promise<{ reused: boolean; flagged: boolean }> {
+  const none = { reused: false, flagged: false };
   if (!trialIdentityEnabled()) return none;
   const key = icalIdentityKey(feedUrl);
   if (!key) return none;
@@ -270,7 +275,7 @@ export async function recordVerifiedCalendarIdentity(
       await prisma.calendarSource.updateMany({ where: { id: source.id, trialIdentityCheckedAt: now }, data: { trialIdentityCheckedAt: null } });
       return none;
     }
-    return { reused: res.reused, trialEnded: res.trialEnded };
+    return { reused: res.reused, flagged: res.flagged };
   } catch (err) {
     // İşaret geri alınamadıysa kaynak bir daha sayılmaz — kaynak kimliğiyle bildirilir (Haiku: operatöre görünür olsun).
     void reportError(`trial-identity calendar org=${organizationId} source=${source.id}`, err);
@@ -278,17 +283,19 @@ export async function recordVerifiedCalendarIdentity(
   }
 }
 
-/** Yalnız SÜREN deneme biter (ödeme yapan / bitmiş / istisnalı / kurucu hesabı etkilenmez). Koşullar UPDATE'in içinde (yarışsız). */
-async function endTrialForReusedIdentity(organizationId: string, now: Date): Promise<boolean> {
+/**
+ * K1-B: hesabı İŞARETLE (deneme sürer). Ödeme yapan hesap ve kurucu hesabı işaretlenmez (risk listesi yalnız deneme hesaplarını gösterir; ödeyen
+ * müşteriyi "riskli" diye kaydetmenin anlamı yok); istisnalı hesap işaretlenmez. Koşullar UPDATE'in içinde, ilk gözlem kazanır (yarışsız — tek
+ * denetim kaydı).
+ */
+async function flagReusedIdentity(organizationId: string, now: Date): Promise<boolean> {
   if (isFounderOrg(organizationId)) return false;
-  const org = await prisma.organization.findUnique({ where: { id: organizationId }, select: { trialIdentityExempt: true } });
-  if (!org || org.trialIdentityExempt) return false;
-  const res = await prisma.subscription.updateMany({
-    where: { organizationId, provider: "trial", trialEndsAt: { gt: now } },
-    data: { trialEndsAt: now, trialEndReason: TRIAL_END_REASON_IDENTITY_REUSED },
+  const res = await prisma.organization.updateMany({
+    where: { id: organizationId, trialIdentityExempt: false, trialIdentityReusedAt: null, subscription: { is: { provider: "trial" } } },
+    data: { trialIdentityReusedAt: now },
   });
   if (res.count === 0) return false;
-  await writeAudit({ organizationId, action: "trial.ended_identity_reused" });
+  await writeAudit({ organizationId, action: "trial.identity_reused_flagged" });
   return true;
 }
 

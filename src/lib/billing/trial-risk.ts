@@ -117,13 +117,21 @@ export const RISK_LIST_RECENT_MS = 30 * 24 * 60 * 60_000;
  * azalan, eşitlikte en yeni hesap önce. Demo hesabını çağıran ayıklar.
  */
 export function riskyTrials<
-  T extends { id: string; createdAt: Date; subscription: { provider: string; trialEndsAt: Date | null; trialEndReason: string | null } | null },
+  T extends {
+    id: string;
+    createdAt: Date;
+    /** K1-B (10-17): deneme kimliği başka hesapta görüldü (işaret; deneme sürer). */
+    trialIdentityReusedAt?: Date | null;
+    subscription: { provider: string; trialEndsAt: Date | null; trialEndReason: string | null } | null;
+  },
 >(
   orgs: readonly T[],
   ownersByOrg: ReadonlyMap<string, readonly { email: string; emailVerifiedAt: Date | null; createdAt: Date }[]>,
   now: Date,
   /** Kanonik posta kutusu başka işletmeyle ORTAK olan işletmeler (operatör sayfası kanaryadan hesaplar). */
   sharedMailboxOrgIds: ReadonlySet<string> = new Set(),
+  /** Kayıt ağı sinyalleri (K1; anahtar kapalıyken boş). */
+  networkByOrg: ReadonlyMap<string, { ipShared: boolean; networkBurst: boolean }> = new Map(),
 ): { org: T; risk: TrialRisk }[] {
   return orgs
     .filter((o) => o.subscription?.provider === "trial")
@@ -132,8 +140,10 @@ export function riskyTrials<
       org,
       risk: trialRisk({
         owners: ownersByOrg.get(org.id) ?? [],
-        identityReused: org.subscription?.trialEndReason === "identity_reused",
+        // Yeni işaret (K1-B) ya da ESKİ kuralla bitmiş deneme (10-10 satırları).
+        identityReused: Boolean(org.trialIdentityReusedAt) || org.subscription?.trialEndReason === "identity_reused",
         mailboxShared: sharedMailboxOrgIds.has(org.id),
+        network: networkByOrg.get(org.id),
         now,
       }),
     }))

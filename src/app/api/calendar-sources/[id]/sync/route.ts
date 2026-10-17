@@ -3,7 +3,6 @@ import { notFound, jsonOk, tooManyRequests } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { syncCalendarSource } from "@/lib/import/sync";
 import { rateLimit } from "@/lib/rate-limit";
-import { TRIAL_IDENTITY_REUSED_MESSAGE } from "@/lib/billing/trial-identity";
 
 export const POST = withManage<{ id: string }>(async (session, _req, { params }) => {
   // Limitsizdi: tek kaynak icin bile tekrarli disari cikis.
@@ -17,7 +16,6 @@ export const POST = withManage<{ id: string }>(async (session, _req, { params })
   });
   if (!source) return notFound();
 
-  const { trialEnded, ...result } = await syncCalendarSource(id);
-  // Deneme kimliği: bu okumada takvim başka hesapta görülmüş çıktı → sade not (iç alan yanıta çıkmaz).
-  return jsonOk(trialEnded ? { ...result, trialNotice: TRIAL_IDENTITY_REUSED_MESSAGE } : result);
+  // K1-B (kurucu 10-17): deneme kimliği tekrarı müşteriye NOT olarak dönmez (yalnız operatörün risk listesine düşer).
+  return jsonOk(await syncCalendarSource(id));
 });

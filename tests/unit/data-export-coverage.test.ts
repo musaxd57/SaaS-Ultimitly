@@ -61,6 +61,8 @@ const EXCLUDED: Record<string, string> = {
   AiGeneration: "⚠️ KARAR 25 (avukat): yapay zekâ üretim izi — eğitim / dışa aktarma yasağı tasarımı",
   AiReviewLabel: "⚠️ KARAR 25: kurucunun kalite etiket notu",
   TrialIdentity: "Deneme kötüye kullanımı parmak izi (HMAC) — iç güvenlik",
+  SignupNetworkTrace:
+    "K1 (10-17) kayıt ağı izi — HMAC özeti, ham IP yok; deneme kötüye kullanımı incelemesi, süre dolunca silinir; takma adlı kişisel veri, iç güvenlik",
   HistoryLearnRun: "Geçmişten öğren çalıştırma kaydı (durum / sayaç / maliyet) — iç işletim, metin yok",
   HistoryLearnDraft:
     "Modelin önerdiği taslak — türetilmiş; kaynağı (mesajlar) dökümde, onaylanan taslak bilgi tabanı kalemi olarak dökümde",

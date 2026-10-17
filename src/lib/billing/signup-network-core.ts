@@ -4,7 +4,7 @@
 //
 // HAM IP SAKLANMAZ: tam adres ve ağ öneki (IPv4 /24, IPv6 /48) ayrı ayrı anahtarlı özet (HMAC-SHA256; anahtar ENCRYPTION_KEY || AUTH_SECRET'ten
 // AYRI tuzla türetilir — deneme kimliği emsali). Takma adlı kişisel veridir ("anonim" DENMEZ: IPv4 uzayı küçük, anahtar sızarsa geri döner).
-// Amaç YALNIZ operatörün deneme kötüye kullanımı incelemesi; otomatik karar YOK. `User.acceptedIp` (onay kanıtı) bu amaçla OKUNMAZ (pin).
+// Amaç YALNIZ operatörün deneme kötüye kullanımı incelemesi; otomatik karar YOK. Kayıt onayı kanıtındaki ham IP (User tablosu) bu amaçla OKUNMAZ (yapısal pin).
 // ---------------------------------------------------------------------------
 
 import { createHash, createHmac, scryptSync } from "node:crypto";

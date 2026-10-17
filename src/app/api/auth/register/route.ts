@@ -20,6 +20,7 @@ import { LEGAL_TEXT_HASH } from "@/lib/legal-text-hash";
 import { resolveNewOrgTimezone } from "@/lib/app-config";
 import { normalizeEmail } from "@/lib/email-identity";
 import { NEW_ORG_AUTO_REPLY_WINDOW } from "@/lib/constants";
+import { recordSignupNetwork } from "@/lib/billing/signup-network";
 
 // ⚠️ İKİ DAL DA BU GÖVDEYİ DÖNER — sabit tek yerde tutuluyor ki zamanla
 // AYRIŞMASINLAR. Sağlayıcı arızasında "yeni hesap" dalı 503, "hesabı var" dalı
@@ -202,8 +203,9 @@ export async function POST(req: NextRequest) {
     // Kaybeden istek var-olan-hesap dalıyla BİREBİR aynı 201'i alır (numaralandırma kâhini
     // doğmaz); TX geri alındığı için yetim org/abonelik kalmaz. Yalnız TAM OLARAK `email`
     // ihlali yutulur — başka bir eşsizlik ihlali eskisi gibi alarm üretir.
+    let createdOrgId: string;
     try {
-      await prisma.$transaction(async (tx) => {
+      createdOrgId = await prisma.$transaction(async (tx) => {
         const org = await tx.organization.create({
           data: { name: parsed.data.organizationName, timezone, ...NEW_ORG_AUTO_REPLY_WINDOW },
         });
@@ -246,12 +248,15 @@ export async function POST(req: NextRequest) {
             expiresAt: verifyExpiresAt,
           });
         }
-        return { org, user };
+        return org.id;
       });
     } catch (err) {
       if (isUniqueViolation(err, ["email"])) return jsonOk({ ok: true, verifyEmail: true }, 201);
       throw err;
     }
+    // K1 (kurucu 10-17): kayıt ağı izi — işlem COMMIT'inden SONRA, en iyi çaba (anahtar KAPALI; ham IP yazılmaz; hata kaydı düşürmez).
+    // Var-olan-hesap dalı ve eşzamanlı kaybeden (yukarıda dönen) iz yazmaz: yeni işletme yok.
+    await recordSignupNetwork(createdOrgId, ip);
 
     if (emailOutboxEnabled()) {
       kickEmailOutboxDrain();

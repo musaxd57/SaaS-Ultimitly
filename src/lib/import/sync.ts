@@ -23,8 +23,6 @@ export interface SyncResult {
   updated: number;
   skipped: number;
   errors: string[];
-  /** Deneme kimliği (migration 61): bu okumada takvim başka hesapta görülmüş çıktı ve deneme bitti. Yalnız tek kaynak senkronunda dolar. */
-  trialEnded?: boolean;
   /** Değişmez 6: aynı kanalın doğrudan bağlantısı yetkili — bu takvim YEDEK, hiçbir rezervasyon yazılmadı. */
   standby?: boolean;
 }
@@ -298,8 +296,9 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
   }
 
   // Deneme kimliği (kurucu onayı 10-10; anahtar KAPALIYKEN hiçbir şey yazmaz, asla fırlatmaz): sunucu GERÇEK bir takvim döndürdü = bu hesap
-  // takvimin jetonuna sahip. Kimlik burada, kaynak başına bir kez sayılır (eklemede değil — bkz. `recordVerifiedCalendarIdentity`).
-  if ((await recordVerifiedCalendarIdentity(source, source.property.organizationId, feedUrl)).trialEnded) result.trialEnded = true;
+  // takvimin jetonuna sahip. Kimlik burada, kaynak başına bir kez sayılır (eklemede değil — bkz. `recordVerifiedCalendarIdentity`). K1-B
+  // (10-17): sonuç yalnız operatörün risk listesine yansır; senkron sonucu ve müşteri metni değişmez.
+  await recordVerifiedCalendarIdentity(source, source.property.organizationId, feedUrl);
 
   // 🚨 F16 (09-26): okuma EKSİKSE (tavan, tekrarlayan etkinlik, okunamayan kayıt, yarım dosya…) okunan
   // satırlar yine yazılır (gerçek olgular) ve açık STATUS:CANCELLED yine işlenir (belirli bir UID'nin

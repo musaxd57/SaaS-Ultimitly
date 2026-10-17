@@ -23,7 +23,6 @@ import { fetchFeedText } from "@/lib/net/pinned-fetch";
 import {
   TRIAL_IDENTITY_BACKFILL_MARKER,
   TRIAL_IDENTITY_ENABLED_AT_MARKER,
-  TRIAL_IDENTITY_REUSED_MESSAGE,
   backfillTrialIdentitiesOnce,
 } from "@/lib/billing/trial-identity";
 import { newTrialSubscriptionData } from "@/lib/billing/subscription";
@@ -31,6 +30,9 @@ import { newTrialSubscriptionData } from "@/lib/billing/subscription";
 const AIRBNB = (token: string) => `https://www.airbnb.com.tr/calendar/ical/123456789.ics?s=${token}`;
 const VALID_ICS = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n";
 
+/** K1-B (10-17): kimlik tekrarı denemeyi BİTİRMEZ, hesabı işaretler. */
+const flaggedAt = async (orgId: string) =>
+  (await prisma.organization.findUniqueOrThrow({ where: { id: orgId }, select: { trialIdentityReusedAt: true } })).trialIdentityReusedAt;
 async function trialOrg(name: string) {
   const org = await prisma.organization.create({ data: { name } });
   const property = await prisma.property.create({ data: { organizationId: org.id, name: `${name} daire` } });
@@ -56,7 +58,7 @@ async function sync(orgId: string, id: string) {
     params: Promise.resolve({ id }),
   });
   expect(res.status).toBe(200);
-  return (await res.json()) as { trialNotice?: string; errors: string[] };
+  return (await res.json()) as { errors: string[] };
 }
 
 describe("deneme kimliği — kayıt arızası", () => {
@@ -85,14 +87,14 @@ describe("deneme kimliği — kayıt arızası", () => {
     const first = await sync(b.orgId, id);
     expect(spy).toHaveBeenCalled();
     expect(first.errors).toEqual([]); // senkronun kendisi bozulmaz
-    expect(first.trialNotice).toBeUndefined();
+    expect(await flaggedAt(b.orgId)).toBeNull();
     expect((await prisma.calendarSource.findUniqueOrThrow({ where: { id } })).trialIdentityCheckedAt).toBeNull();
     expect((await prisma.subscription.findUniqueOrThrow({ where: { organizationId: b.orgId } })).trialEndReason).toBeNull();
 
-    const second = await sync(b.orgId, id);
-    expect(second.trialNotice).toBe(TRIAL_IDENTITY_REUSED_MESSAGE);
+    await sync(b.orgId, id);
+    expect(await flaggedAt(b.orgId)).not.toBeNull();
     expect((await prisma.calendarSource.findUniqueOrThrow({ where: { id } })).trialIdentityCheckedAt).not.toBeNull();
-    expect((await prisma.subscription.findUniqueOrThrow({ where: { organizationId: b.orgId } })).trialEndReason).toBe("identity_reused");
+    expect((await prisma.subscription.findUniqueOrThrow({ where: { organizationId: b.orgId } })).trialEndReason).toBeNull(); // K1-B: deneme sürer
   });
 
   it("🚨 geri doldurmada bir işletmenin kaydı hata verirse geri doldurma TAMAMLANMAZ (işaret yok, o takvim 'sayıldı' işaretlenmez); diğerleri kaydedilir", async () => {
@@ -121,7 +123,7 @@ describe("deneme kimliği — kayıt arızası", () => {
     expect(await prisma.trialIdentity.count()).toBe(2);
   });
 
-  it("🚨 geri doldurma EKSİKKEN yeni hesap eski hesabın ilanının 'ilk sahibi' olamaz: hiçbir kimlik yazılmaz; tamamlanınca yeni hesap cezalanır (Haiku üçüncü inceleme)", async () => {
+  it("🚨 geri doldurma EKSİKKEN yeni hesap eski hesabın ilanının 'ilk sahibi' olamaz: hiçbir kimlik yazılmaz; tamamlanınca yeni hesap işaretlenir (Haiku üçüncü inceleme)", async () => {
     vi.stubEnv("TRIAL_IDENTITY_ENABLED", "");
     await prisma.systemLock.deleteMany({ where: { name: { in: [TRIAL_IDENTITY_BACKFILL_MARKER, TRIAL_IDENTITY_ENABLED_AT_MARKER] } } });
     const a = await trialOrg("A");
@@ -138,12 +140,14 @@ describe("deneme kimliği — kayıt arızası", () => {
     expect(await backfillTrialIdentitiesOnce()).toBe("incomplete");
     const c = await trialOrg("C");
     const cId = await add(c, AIRBNB("2"));
-    expect((await sync(c.orgId, cId)).trialNotice).toBeUndefined();
+    await sync(c.orgId, cId);
+    expect(await flaggedAt(c.orgId)).toBeNull();
     expect(await prisma.trialIdentity.count()).toBe(0); // C ilk sahip OLMADI
     expect((await prisma.calendarSource.findUniqueOrThrow({ where: { id: cId } })).trialIdentityCheckedAt).toBeNull();
 
     failA = false; // arıza geçti
-    expect((await sync(c.orgId, cId)).trialNotice).toBe(TRIAL_IDENTITY_REUSED_MESSAGE);
+    await sync(c.orgId, cId);
+    expect(await flaggedAt(c.orgId)).not.toBeNull();
     expect((await prisma.trialIdentity.findFirstOrThrow()).firstOrganizationId).toBe(a.orgId);
   });
 });

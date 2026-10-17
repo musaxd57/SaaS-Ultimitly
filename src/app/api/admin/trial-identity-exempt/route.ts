@@ -10,8 +10,9 @@ import { TRIAL_END_REASON_IDENTITY_REUSED } from "@/lib/billing/trial-identity";
 
 // ---------------------------------------------------------------------------
 // Operatör paneli: DENEMEYİ GERİ VER (deneme kimliği istisnası; kurucu onayı 10-10). Aynı ilan / takvim başka hesapta görüldüğü için
-// denemesi biten bir kuruluşta meşru durum varsa (ilan yeni sahibe geçti, ajans iki hesap kullanıyor…) operatör istisna tanır:
-// kuruluş bundan sonra kimlik kuralından MUAF olur ve — denemesi bu sebeple bittiyse — yeni bir deneme süresi başlar.
+// İŞARETLENEN (K1-B, 10-17: deneme artık bitirilmez) bir kuruluşta meşru durum varsa (ilan yeni sahibe geçti, ajans iki hesap kullanıyor…)
+// operatör istisna tanır: işaret kalkar, kuruluş bundan sonra kimlik kuralından MUAF olur ve — ESKİ kuralla denemesi bittiyse — yeni bir
+// deneme süresi başlar.
 // Yalnız süper-admin (allowlist + 2FA); her istisna denetim kaydına yazılır (operatör kimliğiyle).
 // ---------------------------------------------------------------------------
 
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest) {
 
   const now = new Date();
   const restored = await prisma.$transaction(async (tx) => {
-    await tx.organization.update({ where: { id: organizationId }, data: { trialIdentityExempt: true } });
+    await tx.organization.update({ where: { id: organizationId }, data: { trialIdentityExempt: true, trialIdentityReusedAt: null } });
     // Yalnız BU SEBEPLE bitmiş deneme yeniden başlar (ödeme yapan / kendi süresi dolmuş deneme değişmez).
     const res = await tx.subscription.updateMany({
       where: { organizationId, provider: "trial", trialEndReason: TRIAL_END_REASON_IDENTITY_REUSED },

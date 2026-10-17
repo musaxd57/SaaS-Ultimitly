@@ -1,5 +1,6 @@
 import { TrialExemptButton } from "@/components/admin/trial-exempt-button";
 import { TRIAL_RISK_LABELS, riskyTrials } from "@/lib/billing/trial-risk";
+import { loadSignupNetworkSignals } from "@/lib/billing/signup-network";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
@@ -55,6 +56,7 @@ export default async function AdminPage() {
         // V0.7: bağlantı durumu satırdan (revoked/disconnected görünür); kolon backfill öncesi fallback.
         channelConnections: { where: { provider: "hospitable" }, select: { status: true, revokedReason: true }, take: 1 },
         subscription: { select: { status: true, planCode: true, provider: true, trialEndsAt: true, trialEndReason: true } },
+        trialIdentityReusedAt: true,
         _count: { select: { properties: true, users: true } },
       },
     }),
@@ -191,12 +193,16 @@ export default async function AdminPage() {
   }
   const sharedMailboxOrgIds = new Set<string>();
   for (const set of mailboxGroups.values()) if (set.size > 1) for (const id of set) sharedMailboxOrgIds.add(id);
+  // K1 (kurucu 10-17): kayıt ağı sinyalleri — anahtar kapalıyken boş (puan bugünkü gibi); IP / özet ekrana GELMEZ.
+  const networkByOrg = await loadSignupNetworkSignals(trialOrgIds);
   const riskyTrialRows = riskyTrials(
     orgs.filter((o) => !isDemoOrg(o.id)),
     ownersByOrg,
     new Date(),
     sharedMailboxOrgIds,
+    networkByOrg,
   );
+  const orgNameById = new Map(orgs.map((o) => [o.id, o.name]));
   const sharedMailboxOrgs = sharedMailboxes.reduce((n, s) => n + s.size, 0);
 
   // Primary org (allowed to use the shared env token) = PRIMARY_ORG_ID, or the
@@ -283,7 +289,18 @@ export default async function AdminPage() {
                     <tr key={org.id} className="border-b last:border-0">
                       <td className="px-4 py-3 font-medium">{org.name}</td>
                       <td className="px-4 py-3 tabular-nums">{risk.score}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{risk.reasons.map((r) => TRIAL_RISK_LABELS[r]).join(" · ")}</td>
+                      <td className="px-4 py-3 text-muted-foreground">
+                        {risk.reasons.map((r) => TRIAL_RISK_LABELS[r]).join(" · ")}
+                        {(() => {
+                          // Bağlam: aynı adres / ağdan başka kayıtlar — yalnız işletme adı + tarih (silinmiş hesap ayrıca); IP / özet YOK.
+                          const related = networkByOrg.get(org.id)?.related ?? [];
+                          if (related.length === 0) return null;
+                          const shown = related
+                            .slice(0, 5)
+                            .map((r) => `${r.organizationId ? (orgNameById.get(r.organizationId) ?? "başka hesap") : "silinmiş hesap"} (${dateFmt.format(r.createdAt)})`);
+                          return <span className="block text-xs">Aynı ağ: {shown.join(", ")}{related.length > 5 ? ` +${related.length - 5}` : ""}</span>;
+                        })()}
+                      </td>
                       <td className="px-4 py-3 text-muted-foreground">{dateFmt.format(org.createdAt)}</td>
                     </tr>
                   ))}
@@ -334,11 +351,13 @@ export default async function AdminPage() {
                       <td className="px-4 py-3">
                         {(() => {
                           const b = billing(org);
-                          // Deneme kimliği (kurucu onayı 10-10): deneme aynı ilan / takvim başka hesapta görüldüğü için bittiyse rozet +
+                          // Deneme kimliği (kurucu onayı 10-10): aynı ilan / takvim başka hesapta görüldüyse rozet +
                           // "denemeyi geri ver" (meşru durum için istisna).
                           // Yalnız HÂLÂ denemedeki hesapta (ödemeye geçmiş hesapta rozet kalmasın — Haiku incelemesi).
+                          // K1-B (10-17): işaret (deneme sürer) ya da ESKİ kuralla bitmiş deneme.
                           const identityReused =
-                            org.subscription?.trialEndReason === "identity_reused" && org.subscription?.provider === "trial";
+                            (Boolean(org.trialIdentityReusedAt) || org.subscription?.trialEndReason === "identity_reused") &&
+                            org.subscription?.provider === "trial";
                           return (
                             <span className="inline-flex flex-wrap items-center gap-1">
                               <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${toneClass[b.tone]}`}>
