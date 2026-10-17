@@ -966,6 +966,9 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
         lastErrorCode: "connection_inactive",
         claimedBy: null,
         claimExpiresAt: null,
+        // Gece-4 S3-05: park "ilerleme" değildir — `claimedAt` kalırsa kuyruk alarmı (O3) her geçişte "son 15 dk'da sahiplenme var" sayıp
+        // BÜTÜN sistem için susuyordu (bağlantısı kopmuş tek müşteri yeter).
+        claimedAt: null,
       });
       acc.retried++;
       return;
@@ -1004,6 +1007,7 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
       lastErrorKind: "disconnected",
       claimedBy: null,
       claimExpiresAt: null,
+      claimedAt: null, // park ilerleme değildir (↑ S3-05)
     });
     acc.retried++;
     return;

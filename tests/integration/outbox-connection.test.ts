@@ -96,6 +96,7 @@ describe("outbox × ChannelConnection", () => {
     await drainOutboxOnce({ now });
     expect(fake.attempts).toHaveLength(0);
     expect(await row(outboxId)).toMatchObject({ status: "pending", lastErrorKind: "disconnected", attemptCount: 0 });
+    expect((await prisma.messageOutbox.findUniqueOrThrow({ where: { id: outboxId } })).claimedAt).toBeNull(); // S3-05
 
     await setOrgHospitableToken(orgId, "PAT-A2", null); // yeniden bağlandı (yeni PAT)
     fake.registerReservation(RES, "PAT-A2");
@@ -246,6 +247,8 @@ describe("outbox × ChannelConnection", () => {
     await drainOutboxOnce({ now });
     expect(fake.attempts).toHaveLength(0); // env ile sessizce gitmedi
     expect(await row(outboxId)).toMatchObject({ status: "pending", lastErrorCode: "connection_inactive", attemptCount: 0 });
+    // Gece-4 S3-05: park "ilerleme" sayılmaz — sahiplenme damgası temizlenir (yoksa kuyruk alarmı bütün sistem için susuyordu).
+    expect((await prisma.messageOutbox.findUniqueOrThrow({ where: { id: outboxId } })).claimedAt).toBeNull();
 
     await setOrgHospitableToken(orgId, "PAT-A2", null); // yeniden bağlandı (aynı satır)
     fake.registerReservation(RES, "PAT-A2");

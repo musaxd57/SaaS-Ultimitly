@@ -9,10 +9,14 @@ import { prisma } from "@/lib/db";
 // observedAt = son sinyalin GERÇEK zamanı, lastConfirmedAt = hesap anı (gerçek), confidence
 // sayıyla artar (0.6 → 0.9, tavan). Eşiğin altına düşen örüntü retired olur (silinmez).
 // LLM yok; metin yok (başlık kategori+sayı+gün).
+// Gece-4 S8-03: değişmeyen örüntü YENİDEN YAZILMAZ (her 2 dakikalık geçişte bütün örüntüler güncelleniyordu — örüntü başına günde 720
+// yazım, ölü satır / WAL). Yazım yalnız içerik değişince ya da `lastConfirmedAt` bir saatten eskiyse (teyit damgası saatlik tazelenir).
 // ---------------------------------------------------------------------------
 
 export const PATTERN_MIN_SIGNALS = 3;
 export const PATTERN_WINDOW_DAYS = 180;
+/** Değişmeyen örüntünün teyit damgası (`lastConfirmedAt`) en çok bu sıklıkla yazılır. */
+export const PATTERN_CONFIRM_REFRESH_MS = 60 * 60_000;
 
 export interface PatternResult {
   upserted: number;
@@ -36,6 +40,12 @@ export async function refreshPatternMemory(organizationId: string, propertyId?: 
       g.last = s.occurredAt;
     } else groups.set(key, { propertyId: s.propertyId, category: s.category, ids: [s.id], first: s.occurredAt, last: s.occurredAt });
   }
+  // Mevcut örüntüler TEK okumada (karşılaştırma + emekliye ayırma aynı listeden).
+  const existing = await prisma.propertyMemory.findMany({
+    where: { organizationId, ...(propertyId ? { propertyId } : {}), source: "signal_pattern" },
+    select: { id: true, propertyId: true, sourceRef: true, status: true, title: true, evidenceJson: true, confidence: true, observedAt: true, effectiveAt: true, lastConfirmedAt: true },
+  });
+  const byKey = new Map(existing.map((e) => [`${e.propertyId}:${e.sourceRef}`, e]));
   const active = new Set<string>();
   for (const g of groups.values()) {
     if (g.ids.length < PATTERN_MIN_SIGNALS) continue;
@@ -54,6 +64,18 @@ export async function refreshPatternMemory(organizationId: string, propertyId?: 
       lastConfirmedAt: now,
       status: "active",
     };
+    const prev = byKey.get(`${g.propertyId}:${g.category}`);
+    const unchanged =
+      prev !== undefined &&
+      prev.status === "active" &&
+      prev.title === data.title &&
+      prev.evidenceJson === data.evidenceJson &&
+      prev.confidence === data.confidence &&
+      prev.observedAt.getTime() === g.last.getTime() &&
+      prev.effectiveAt?.getTime() === g.first.getTime() &&
+      prev.lastConfirmedAt !== null &&
+      now.getTime() - prev.lastConfirmedAt.getTime() < PATTERN_CONFIRM_REFRESH_MS;
+    if (unchanged) continue;
     await prisma.propertyMemory.upsert({
       where: { propertyId_source_sourceRef: { propertyId: g.propertyId, source: "signal_pattern", sourceRef: g.category } },
       create: { organizationId, propertyId: g.propertyId, source: "signal_pattern", sourceRef: g.category, ...data },
@@ -61,12 +83,9 @@ export async function refreshPatternMemory(organizationId: string, propertyId?: 
     });
     out.upserted++;
   }
-  // Eşiğin altına düşen (pencereden çıkan) örüntüler retired — tarihçe kalır.
-  const stale = await prisma.propertyMemory.findMany({
-    where: { organizationId, ...(propertyId ? { propertyId } : {}), source: "signal_pattern", status: "active" },
-    select: { id: true, propertyId: true, sourceRef: true },
-  });
-  for (const p of stale) {
+  // Eşiğin altına düşen (pencereden çıkan) örüntüler retired — tarihçe kalır. Bu geçişte yeni açılanlar `active` kümesinde (atlanır).
+  for (const p of existing) {
+    if (p.status !== "active") continue;
     if (active.has(`${p.propertyId}:${p.sourceRef}`)) continue;
     await prisma.propertyMemory.update({ where: { id: p.id }, data: { status: "retired" } });
     out.retired++;

@@ -316,6 +316,13 @@ describe("V1 intelligence — hafıza", () => {
     expect(pat.confidence).toBeLessThanOrEqual(1);
     await refreshPatternMemory(orgId, undefined, AT);
     expect(await prisma.propertyMemory.count({ where: { propertyId, source: "signal_pattern" } })).toBe(1);
+    // Gece-4 S8-03: değişmeyen örüntü YENİDEN YAZILMAZ (her geçişte güncelleniyordu); teyit damgası saatlik tazelenir; yeni sinyal yazdırır.
+    const before = await prisma.propertyMemory.findFirstOrThrow({ where: { propertyId, source: "signal_pattern" } });
+    expect((await refreshPatternMemory(orgId, undefined, new Date(AT.getTime() + 10 * 60_000))).upserted).toBe(0);
+    expect((await prisma.propertyMemory.findFirstOrThrow({ where: { id: before.id } })).updatedAt.getTime()).toBe(before.updatedAt.getTime());
+    const later = new Date(AT.getTime() + 61 * 60_000);
+    expect((await refreshPatternMemory(orgId, undefined, later)).upserted).toBe(1);
+    expect((await prisma.propertyMemory.findFirstOrThrow({ where: { id: before.id } })).lastConfirmedAt?.getTime()).toBe(later.getTime());
 
     const view = await getPropertyMemory(orgId, propertyId);
     expect(view.patterns.map((p) => p.category)).toEqual(["complaint"]);
