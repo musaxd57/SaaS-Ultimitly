@@ -1,0 +1,133 @@
+U42 odeme tarafi — BASIT HAL (10-15; Sabah Kararlari 66 / KURUCU-SORULARI.md B#2). HAZIR YAMA, ana dala UYGULANMADI (odeme akisi = kurucu onayi).
+Eski yama (2026-10-07-U42-odeme-tarafi.patch) tam kapida iki eski testi kirardi (odeme.md §3.2); bu hal kilit / islem eklemez:
+guncelleme 0 satir dondu + odemeli olay + isletme artik YOK -> "baglanamayan odeme" alarmi. Gercekten bayat olay (isletme duruyor) bugunku gibi sessiz.
+Kanit (10-15, c57943b uzerinde): duzeltmesiz yeni test 1 kirmizi; duzeltmeyle paddle-webhook-org-race 4/4 + paddle-webhook 34/34 yesil.
+Uygulama: git apply docs/hazir-yamalar/2026-10-15-U42-basit-alarm.patch
+
+diff --git a/src/app/api/webhooks/paddle/route.ts b/src/app/api/webhooks/paddle/route.ts
+index 3dbc29a..3c794ea 100644
+--- a/src/app/api/webhooks/paddle/route.ts
++++ b/src/app/api/webhooks/paddle/route.ts
+@@ -381,7 +381,14 @@ async function applySubscriptionEvent(
+       data: updateData,
+     });
+     if (resU.count === 1) await settlePending();
+-    return; // count 0 → a fresher event already applied → stale, dropped
++    else if (paying && !(await prisma.organization.findUnique({ where: { id: organizationId }, select: { id: true } }))) {
++      // 🚨 U42 ödeme tarafı (Sabah 66; 10-15 basit hâli, `docs/arastirma-2026-10-15/odeme.md` §3.2): 0 satır İKİ şey demek olabilir —
++      // daha taze olay zaten yazılmış (bayat, sessiz düşer — bugünkü gibi) YA DA işletme bu olay işlenirken SİLİNDİ (abonelik kademeyle
++      // gitti). İkincisinde ödeme alınmış olabilir → operatöre "bağlanamayan ödeme" alarmı. Silme tarafı kendi kilidiyle aktif aboneliği
++      // görürse 409 der (`account/delete`), yani güncelleme yazdıysa silme olmaz; burada yalnız ters sıra kalır. Kilit / işlem eklemez.
++      await alertUnlinkedPayment("subscription", data, "işletme silindi (olay işlenirken)");
++    }
++    return; // count 0 + işletme var → a fresher event already applied → stale, dropped
+   }
+   try {
+     await prisma.subscription.create({
+diff --git a/tests/integration/paddle-webhook-org-race.test.ts b/tests/integration/paddle-webhook-org-race.test.ts
+new file mode 100644
+index 0000000..48877d5
+--- /dev/null
++++ b/tests/integration/paddle-webhook-org-race.test.ts
+@@ -0,0 +1,101 @@
++import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
++import { NextRequest } from "next/server";
++import { createHmac } from "node:crypto";
++
++// ---------------------------------------------------------------------------
++// U42 ÖDEME TARAFI — BASİT HÂL (Sabah 66; 10-15 `docs/arastirma-2026-10-15/odeme.md` §3.2) — gerçek PostgreSQL.
++// Webhook işletmeyi buldu, abonelik satırını okudu; tam o arada hesap silindi (abonelik kademeyle gitti) → güncelleme 0 satır döndü ve olay
++// "bayat" sayılıp ALARMSIZ düşüyordu (ödeme alınmış olabilir). Doğru: 0 satır + ödemeli olay + işletme YOK → "bağlanamayan ödeme" alarmı;
++// gerçekten bayat olay (işletme duruyor, daha taze olay yazılmış) bugünkü gibi sessiz. Prisma temsilcisine casus → AYRI dosya.
++// ---------------------------------------------------------------------------
++
++const { reportErrorMock } = vi.hoisted(() => ({ reportErrorMock: vi.fn() }));
++vi.mock("@/lib/report-error", async (orig) => {
++  const actual = await orig<typeof import("@/lib/report-error")>();
++  return { ...actual, reportError: reportErrorMock };
++});
++
++import { POST } from "@/app/api/webhooks/paddle/route";
++import { prisma, resetDb } from "../helpers/db";
++
++const SECRET = "test-webhook-hmac-key-not-a-real-secret";
++const CONTEXT = "paddle-webhook-unlinked-payment";
++
++let interleave: (() => Promise<void>) | null = null;
++const realFindUnique = prisma.subscription.findUnique.bind(prisma.subscription);
++vi.spyOn(prisma.subscription, "findUnique").mockImplementation((async (args: Parameters<typeof realFindUnique>[0]) => {
++  const out = await realFindUnique(args);
++  const hook = interleave;
++  interleave = null;
++  if (hook) await hook();
++  return out;
++}) as never);
++
++function sign(body: string): string {
++  const ts = Math.floor(Date.now() / 1000);
++  return `ts=${ts};h1=${createHmac("sha256", SECRET).update(`${ts}:${body}`, "utf8").digest("hex")}`;
++}
++const post = (event: Record<string, unknown>) => {
++  const body = JSON.stringify(event);
++  return POST(
++    new NextRequest("http://localhost/api/webhooks/paddle", {
++      method: "POST",
++      headers: { "content-type": "application/json", "paddle-signature": sign(body) },
++      body,
++    }),
++  );
++};
++const alarms = () => reportErrorMock.mock.calls.filter(([context]) => context === CONTEXT);
++const renewal = (eventId: string, status = "active") => ({
++  event_id: eventId,
++  event_type: "subscription.updated",
++  occurred_at: new Date().toISOString(),
++  data: { id: "sub_live", status, customer_id: "ctm_1", items: [{ price: { id: "pri_pro" } }] },
++});
++
++describe("U42 ödeme tarafı (basit hâl) — işletme arada silinirse olay alarmsız düşmez", () => {
++  let orgId = "";
++  beforeEach(async () => {
++    await resetDb();
++    vi.clearAllMocks();
++    interleave = null;
++    reportErrorMock.mockResolvedValue({ notified: true, throttled: false, configured: true });
++    vi.stubEnv("PADDLE_WEBHOOK_SECRET", SECRET);
++    vi.stubEnv("PADDLE_PRICE_PRO", "pri_pro");
++    orgId = (await prisma.organization.create({ data: { name: "Org" } })).id;
++    await prisma.subscription.create({
++      data: { organizationId: orgId, provider: "paddle", providerRef: "sub_live", status: "active", planCode: "pro", lastEventAt: new Date(Date.now() - 86_400_000) },
++    });
++  });
++  afterEach(() => vi.unstubAllEnvs());
++
++  it("🚨 işletme bulundu → abonelik okundu → hesap silindi → ödemeli olay: operatöre 'bağlanamayan ödeme' alarmı", async () => {
++    interleave = async () => {
++      await prisma.organization.delete({ where: { id: orgId } });
++    };
++    expect((await post(renewal("evt_race"))).status).toBe(200);
++    expect(await prisma.organization.count({ where: { id: orgId } })).toBe(0);
++    expect(alarms()).toHaveLength(1); // ⬅️ ESKİDE 0 (0 satır güncelleme "bayat olay" sayılıyordu)
++  });
++
++  it("KONTROL: ödemesiz olay (iptal) arada silinmede alarm üretmez (ödeme yok)", async () => {
++    interleave = async () => {
++      await prisma.organization.delete({ where: { id: orgId } });
++    };
++    expect((await post(renewal("evt_cancel", "canceled"))).status).toBe(200);
++    expect(alarms()).toHaveLength(0);
++  });
++
++  it("KONTROL: araya bir şey girmezse abonelik güncellenir, alarm yok", async () => {
++    expect((await post(renewal("evt_ok"))).status).toBe(200);
++    expect((await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } })).customerId).toBe("ctm_1");
++    expect(alarms()).toHaveLength(0);
++  });
++
++  it("KONTROL: gerçekten BAYAT olay (daha taze olay yazılmış, işletme duruyor) alarmsız düşer", async () => {
++    await prisma.subscription.update({ where: { organizationId: orgId }, data: { lastEventAt: new Date(Date.now() + 60_000) } });
++    expect((await post(renewal("evt_stale"))).status).toBe(200);
++    expect((await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } })).customerId).toBeNull();
++    expect(alarms()).toHaveLength(0);
++  });
++});

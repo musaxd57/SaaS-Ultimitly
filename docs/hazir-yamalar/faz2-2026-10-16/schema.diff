@@ -1,0 +1,174 @@
+--- /tmp/claude-0/-home-user-SaaS-Ultimitly/4b3a6b83-dfb6-5a82-b43d-8777d09e2d05/scratchpad/faz2/s0.prisma	2026-10-16 10:36:39.571286239 +0000
++++ /tmp/claude-0/-home-user-SaaS-Ultimitly/4b3a6b83-dfb6-5a82-b43d-8777d09e2d05/scratchpad/faz2/s7.prisma	2026-10-16 10:36:39.609796058 +0000
+@@ -190,6 +190,10 @@
+   operationalEvents     OperationalEvent[]
+   historyLearnRuns      HistoryLearnRun[]
+   propertyInstructions  PropertyInstruction[]
++  notificationOutbox NotificationOutbox[]
++  requestLedger RequestLedger[]
++  invoiceAdjustments InvoiceAdjustment[]
++  checkoutIntents CheckoutIntent[]
+ }
+ 
+ model User {
+@@ -263,6 +267,7 @@
+   emailOutbox      EmailOutbox[]
+   resetChallenges  PasswordResetChallenge[]
+ 
++  notificationOutbox NotificationOutbox[]
+   @@index([organizationId])
+   // verify-email looks a user up BY token hash on every emailed-link click —
+   // that was a full-table scan (rate-limited, but still). Plain index, not
+@@ -755,6 +760,10 @@
+   // Migration 62: bu görevin kapattığı misafir sözü (görev `done` → söz kapanır).
+   commitments GuestCommitment[]
+ 
++  /// Önceliği kim belirledi (M-oncelik): host · rule · ai. NULL = sabit varsayılan ya da bu kolondan önceki satır (bilinmiyor; host SAYILMAZ).
++  prioritySource      String?
++  /// Öncelik belirsiz → ev sahibi doğrulamalı (ev sahibi değiştirince / onaylayınca false).
++  priorityNeedsReview Boolean @default(false)
+   @@index([propertyId])
+   @@index([status])
+   @@index([assignedToId])
+@@ -847,6 +856,8 @@
+   copiedFromId      String?
+   copiedContentHash String?
+ 
++  /// Sürüm (M-kb-surum, kurucu 10-16 S5): satırın HER yazımında +1 (atomik). Yazma `updateMany({ where: { id, version } })` → 0 satır = bayat (409).
++  version Int @default(0)
+   @@unique([propertyId, clientRequestId])
+   @@unique([propertyId, copiedFromId])
+   @@index([propertyId])
+@@ -909,6 +920,7 @@
+   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+   user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+ 
++  intents CheckoutIntent[]
+   @@index([organizationId])
+   @@index([correlationId])
+ }
+@@ -1199,6 +1211,8 @@
+   // Worker due-query: claimable rows ordered by (status, availableAt).
+   @@index([status, availableAt])
+   @@index([organizationId, status])
++  // Konuşma başına okuma (M-outbox-dizin, kurucu I3): teslim edilmemiş taslak süzgeçleri + işçinin konuşma başına FIFO alt sorgusu.
++  @@index([conversationId, status])
+ }
+ 
+ // ---------------------------------------------------------------------------
+@@ -1818,3 +1832,115 @@
+   @@unique([propertyId, questionMessageId])
+   @@index([runId])
+ }
++
++/// BİLDİRİM KUYRUĞU (M-bildirim; kurucu 10-16 O2 + Codex C2). Bildirim niyeti iş verisiyle AYNI işlemde yazılır. E-posta metni ve alıcı adresi
++/// SAKLANMAZ (gönderim anında güncel kayıttan kurulur). Takma adlı kimlik taşır; gönderildikten 14 gün sonra silinir.
++model NotificationOutbox {
++  id              String    @id @default(cuid())
++  organizationId  String
++  /// kapalı küme: task_assigned · reservation_created
++  kind            String
++  recipientUserId String
++  /// konu kaydı — opak, FK YOK (silinince gönderim anında "subject_gone" ile iptal)
++  subjectId       String
++  /// task_assigned:<taskId>:<atama anı ms> · reservation_created:<reservationId>
++  dedupeKey       String
++  /// pending · sending · sent · failed · canceled
++  status          String    @default("pending")
++  attemptCount    Int       @default(0)
++  nextAttemptAt   DateTime  @default(now())
++  claimedBy       String?
++  claimExpiresAt  DateTime?
++  sentAt          DateTime?
++  /// kısa kapalı kod; ham sağlayıcı metni / adres YOK
++  lastError       String?
++  createdAt       DateTime  @default(now())
++  updatedAt       DateTime  @updatedAt
++
++  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
++  recipient    User         @relation(fields: [recipientUserId], references: [id], onDelete: Cascade)
++
++  @@unique([organizationId, recipientUserId, dedupeKey])
++  @@index([status, nextAttemptAt])
++  @@index([subjectId, kind])
++}
++
++/// İŞLEM DEFTERİ (M-defter; kurucu 10-16 S1 + S2 "tek tablo"). Bir istemci işleminin (istek kimliği) sunucudaki TEK sonucuna bağı. METİN
++/// SAKLANMAZ (anahtarlı özet + iç kayıt bağı). Takma adlı kimlik taşır → kişisel veri; ömür 24 sa (süpürge).
++model RequestLedger {
++  id             String    @id @default(cuid())
++  organizationId String
++  /// kapalı küme: reservation.create · conversation.create · task.create · template.create · reply.send
++  scope          String
++  requestId      String
++  /// HMAC-SHA256(AUTH_SECRET, "ledger:v1|" + scope + "|" + hedef + "|" + kanonik gövde)
++  payloadHash    String
++  /// running · committed · completed · ambiguous
++  state          String
++  holder         String?
++  leaseUntil     DateTime?
++  /// "reservation:<id>" · "conversation:<id>" · "task:<id>" · "template:<id>" · "message:<id>"
++  resultRef      String?
++  expiresAt      DateTime
++  createdAt      DateTime  @default(now())
++  updatedAt      DateTime  @updatedAt
++
++  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
++
++  @@unique([organizationId, scope, requestId])
++  @@index([expiresAt])
++}
++
++/// FATURA DÜZELTME KAYDI (M-iade, kurucu 10-16 S3). Paddle düzeltmesi başına TEK satır; asıl `Invoice` DEĞİŞMEZ. Bağ `transactionRef` =
++/// `Invoice.providerRef` (FK YOK — düzeltme faturadan önce gelebilir). Takma adlı kimlik + tutar; işletme yaşadıkça saklanır (Invoice gibi).
++model InvoiceAdjustment {
++  id             String    @id @default(cuid())
++  organizationId String
++  provider       String    @default("paddle")
++  /// Paddle düzeltme kimliği (adj_…)
++  providerRef    String
++  /// Paddle işlem kimliği (txn_…)
++  transactionRef String
++  /// refund · credit · chargeback · chargeback_warning · chargeback_reverse
++  action         String
++  /// pending_approval · approved · rejected · open · reversed
++  status         String
++  /// full · partial (NULL = bilinmiyor)
++  scope          String?
++  amountMinor    Int?
++  currency       String?
++  lastEventAt    DateTime?
++  createdAt      DateTime  @default(now())
++  updatedAt      DateTime  @updatedAt
++
++  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
++
++  @@unique([provider, providerRef])
++  @@index([organizationId, transactionRef])
++}
++
++/// ÖDEME NİYETİ (M-odeme-niyeti, Codex C1). İşletme başına en çok BİR açık Paddle işlemi: iki sekme aynı işlemi açar. Delil kaydı
++/// `CheckoutConsent`te kalır (değişmez). Takma adlı kimlik taşır.
++model CheckoutIntent {
++  id             String    @id @default(cuid())
++  organizationId String
++  consentId      String
++  planCode       String
++  priceId        String
++  /// Paddle işlem kimliği (txn_…); NULL = Paddle çağrısı sürüyor ya da cevabı kayboldu
++  providerRef    String?   @unique
++  /// opening · open · completed · canceled · expired · failed
++  status         String
++  /// Açık niyet tekil anahtarı: opening / open iken = organizationId, kapanınca NULL (kısmi dizin yerine)
++  openKey        String?   @unique
++  expiresAt      DateTime
++  closedAt       DateTime?
++  createdAt      DateTime  @default(now())
++  updatedAt      DateTime  @updatedAt
++
++  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
++  consent      CheckoutConsent @relation(fields: [consentId], references: [id], onDelete: Cascade)
++
++  @@index([organizationId, createdAt])
++  @@index([status, expiresAt])
++}

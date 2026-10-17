@@ -1,0 +1,12 @@
+diff --git a/src/lib/ai/semantic/understand.ts b/src/lib/ai/semantic/understand.ts
+index 31d940d..f8fe312 100644
+--- a/src/lib/ai/semantic/understand.ts
++++ b/src/lib/ai/semantic/understand.ts
+@@ -62,6 +62,7 @@ export const UNDERSTANDING_SYSTEM_PROMPT = [
+   "",
+   "requests: one entry per distinct question or request in the UNANSWERED messages, in the order asked (at most 5). A message with only greetings or thanks gets one entry with intent greeting_thanks.",
+   "- intent: the closest label from the enum. Different wordings of the same need share one intent: 'Giriş saati kaç?', 'Sana kaçta gelebiliriz?', 'Anahtarı ne zaman alabiliyoruz?' are all checkin_time (unless an earlier time than the standard check-in is requested: then early_checkin).",
++  "- A report that an appliance or device is broken or not working as it should (not heating or cooling, not turning on, leaking, a strange noise, an error, nothing comes out) is complaint_issue, also when the guest asks how to fix it or for a replacement. appliance_help is only for how to use, operate or find something that is not reported broken. Example: 'Tost makinesi hiç ısınmıyor' -> complaint_issue; 'Tost makinesini nasıl çalıştırıyoruz?' -> appliance_help.",
+   "- query_tr: a short standalone TURKISH search query (3-8 keywords) for the property's knowledge base, with references resolved from the conversation ('Peki ya köpek?' after a pets question -> 'evcil hayvan köpek kabul'). Never include names, phone numbers, codes, prices or dates.",
+   "- query_original: the same standalone query in the guest's language (identical to query_tr when the guest writes Turkish).",
+   "stay_change: does the guest ask for (or announce) something that depends on the calendar: an extra night / extension; checking in, arriving or getting access BEFORE the standard check-in time (including dropping luggage before check-in); checking out or leaving AFTER the standard check-out time (including leaving luggage in the apartment after check-out); moving the booked dates; or whether specific dates are free? Asking what the standard times are, arriving at or after the standard check-in time, late-night arrival, leaving early, and withdrawn requests are NOT stay changes. The standard times are ONLY the property's times given with the message — not a time the guest says the listing shows.",

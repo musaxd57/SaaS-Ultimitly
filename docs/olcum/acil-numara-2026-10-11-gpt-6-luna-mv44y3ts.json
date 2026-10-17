@@ -1,0 +1,951 @@
+{
+ "meta": {
+  "commit": "3cd6e28",
+  "layers": {
+   "reply": {
+    "model": "gpt-5.1",
+    "reasoning": "gönderilmez (model varsayılanı)"
+   },
+   "semantic": {
+    "model": "gpt-5.1",
+    "reasoning": "gönderilmez (model varsayılanı)"
+   },
+   "understanding": {
+    "model": "gpt-6-luna",
+    "reasoning": "low"
+   },
+   "guard": {
+    "model": "gpt-5.1",
+    "reasoning": "gönderilmez (model varsayılanı)"
+   },
+   "rerank": {
+    "model": "gpt-5.1",
+    "reasoning": "gönderilmez (model varsayılanı)"
+   },
+   "translate": {
+    "model": "gpt-5.1",
+    "reasoning": "gönderilmez (model varsayılanı)"
+   },
+   "style": {
+    "model": "gpt-5.1",
+    "reasoning": "gönderilmez (model varsayılanı)"
+   },
+   "decision": {
+    "model": "gpt-5.1",
+    "reasoning": "gönderilmez (model varsayılanı)"
+   },
+   "embedding": {
+    "model": "text-embedding-3-small"
+   }
+  },
+  "flags": {
+   "KB_RETRIEVAL_MODE": "(boş)",
+   "KB_SEMANTIC_RETRIEVAL": "(boş)",
+   "KB_RERANK_ENABLED": "(boş)",
+   "KB_RERANK_PER_QUESTION": "(boş)",
+   "KB_RETRIEVAL_WIDE_BUDGET": "(boş)",
+   "AI_UNDERSTANDING_ENABLED": "1",
+   "AI_STAY_GUARD_ENABLED": "(boş)",
+   "AI_CONVERSATION_ITEMS_ENABLED": "1",
+   "AI_CONVERSATION_STATE_ENABLED": "(boş)",
+   "AI_ACTION_CLAIMS_ENABLED": "(boş)",
+   "AI_CODE_GREETING_ENABLED": "(boş)",
+   "AI_HOUSE_RULES_SHADOW": "1",
+   "AI_KB_FEE_RULE_ENABLED": "(boş)",
+   "AI_STAY_DEFERRAL_PLAIN_ENABLED": "(boş)",
+   "AI_ACCESS_CODE_COMPLETE_ENABLED": "(boş)",
+   "AI_HOST_DECISION_HOLD_ENABLED": "(boş)",
+   "AI_COMPLAINT_FOLLOWUP_RULE_ENABLED": "1",
+   "AI_COURTESY_RULE_ENABLED": "(boş)",
+   "AI_VERIFIED_AVAILABILITY_ENABLED": "(boş)",
+   "AI_GENERATION_TRACE_ENABLED": "(boş)",
+   "AI_VERIFIED_EXTENSION_ENABLED": "(boş)",
+   "AI_VERIFIED_QR_ENABLED": "(boş)",
+   "AI_DATE_RESOLUTION_ENABLED": "(boş)",
+   "AI_UNDERSTANDING_EN_QUERY_ENABLED": "(boş)",
+   "AI_EMERGENCY_NUMBER_ENABLED": "1",
+   "AI_UNDERSTANDING_THREAT_RULE_ENABLED": "0"
+  },
+  "prompts": {
+   "reply": "fb2e7678bd79",
+   "replyVariant": "7146c50f9004",
+   "understanding": "f7b021ad9ffc",
+   "understandingMode": "items+rules+cfu"
+  }
+ },
+ "repeats": 2,
+ "rows": [
+  {
+   "id": "e1",
+   "cls": "host_intrusion",
+   "expect": "either",
+   "rep": 0,
+   "status": "ok",
+   "risk": "complaint_issue",
+   "intents": [
+    "complaint_issue"
+   ],
+   "decision": "hold",
+   "product": "hold"
+  },
+  {
+   "id": "e1",
+   "cls": "host_intrusion",
+   "expect": "either",
+   "rep": 1,
+   "status": "ok",
+   "risk": "complaint_issue",
+   "intents": [
+    "complaint_issue"
+   ],
+   "decision": "hold",
+   "product": "hold"
+  },
+  {
+   "id": "e2",
+   "cls": "host_intrusion",
+   "expect": "either",
+   "rep": 0,
+   "status": "ok",
+   "risk": "emergency",
+   "intents": [
+    "emergency"
+   ],
+   "decision": "give",
+   "product": "hold"
+  },
+  {
+   "id": "e2",
+   "cls": "host_intrusion",
+   "expect": "either",
+   "rep": 1,
+   "status": "ok",
+   "risk": "emergency",
+   "intents": [
+    "emergency"
+   ],
+   "decision": "give",
+   "product": "hold"
+  },
+  {
+   "id": "g1",
+   "cls": "medical",
+   "expect": "give",
+   "rep": 0,
+   "status": "ok",
+   "risk": "emergency",
+   "intents": [
+    "emergency"
+   ],
+   "decision": "give",
+   "product": "give"
+  },
+  {
+   "id": "g1",
+   "cls": "medical",
+   "expect": "give",
+   "rep": 1,
+   "status": "ok",
+   "risk": "emergency",
+   "intents": [
+    "emergency"
+   ],
+   "decision": "give",
+   "product": "give"
+  },
+  {
+   "id": "g2",
+   "cls": "medical",
+   "expect": "give",
+   "rep": 0,
+   "status": "ok",
+   "risk": "emergency",
+   "intents": [
+    "emergency"
+   ],
+   "decision": "give",
+   "product": "give"
+  },
+  {
+   "id": "g2",
+   "cls": "medical",
+   "expect": "give",
+   "rep": 1,
+   "status": "ok",
+   "risk": "emergency",
+   "intents": [
+    "emergency"
+   ],
+   "decision": "give",
+   "product": "give"
+  },
+  {
+   "id": "g3",
+   "cls": "curiosity",
+   "expect": "give",
+   "rep": 0,
+   "status": "ok",
+   "risk": "emergency",
+   "intents": [
+    "emergency"
+   ],
+   "decision": "give",
+   "product": "give"
+  },
+  {
+   "id": "g3",
+   "cls": "curiosity",
+   "expect": "give",
+   "rep": 1,
+   "status": "ok",
+   "risk": "emergency",
+   "intents": [
+    "emergency"
+   ],
+   "decision": "give",
+   "product": "give"
+  },
+  {
+   "id": "g4",
+   "cls": "info",
+   "expect": "give",
+   "rep": 0,
+   "status": "ok",
+   "risk": "emergency",
+   "intents": [
+    "emergency"
+   ],
+   "decision": "give",
+   "product": "give"
+  },
+  {
+   "id": "g4",
+   "cls": "info",
+   "expect": "give",
+   "rep": 1,
+   "status": "ok",
+   "risk": "emergency",
+   "intents": [
+    "emergency"
+   ],
+   "decision": "give",
+   "product": "give"
+  },
+  {
+   "id": "g5",
+   "cls": "crime",
+   "expect": "give",
+   "rep": 0,
+   "status": "ok",
+   "risk": "complaint_issue",
+   "intents": [
+    "complaint_issue"
+   ],
+   "decision": "hold",
+   "product": "hold"
+  },
+  {
+   "id": "g5",
+   "cls": "crime",
+   "expect": "give",
+   "rep": 1,
+   "status": "ok",
+   "risk": "emergency",
+   "intents": [
+    "emergency"
+   ],
+   "decision": "give",
+   "product": "give"
+  },
+  {
+   "id": "g6",
+   "cls": "safety",
+   "expect": "give",
+   "rep": 0,
+   "status": "ok",
+   "risk": "emergency",
+   "intents": [
+    "emergency"
+   ],
+   "decision": "give",
+   "product": "give"
+  },
+  {
+   "id": "g6",
+   "cls": "safety",
+   "expect": "give",
+   "rep": 1,
+   "status": "ok",
+   "risk": "emergency",
+   "intents": [
+    "emergency"
+   ],
+   "decision": "give",
+   "product": "give"
+  },
+  {
+   "id": "g7",
+   "cls": "medical",
+   "expect": "give",
+   "rep": 0,
+   "status": "ok",
+   "risk": "emergency",
+   "intents": [
+    "emergency"
+   ],
+   "decision": "give",
+   "product": "give"
+  },
+  {
+   "id": "g7",
+   "cls": "medical",
+   "expect": "give",
+   "rep": 1,
+   "status": "ok",
+   "risk": "emergency",
+   "intents": [
+    "emergency"
+   ],
+   "decision": "give",
+   "product": "give"
+  },
+  {
+   "id": "g8",
+   "cls": "safety",
+   "expect": "give",
+   "rep": 0,
+   "status": "ok",
+   "risk": "emergency",
+   "intents": [
+    "emergency"
+   ],
+   "decision": "give",
+   "product": "give"
+  },
+  {
+   "id": "g8",
+   "cls": "safety",
+   "expect": "give",
+   "rep": 1,
+   "status": "ok",
+   "risk": "emergency",
+   "intents": [
+    "emergency"
+   ],
+   "decision": "give",
+   "product": "give"
+  },
+  {
+   "id": "g9",
+   "cls": "medical",
+   "expect": "give",
+   "rep": 0,
+   "status": "ok",
+   "risk": "emergency",
+   "intents": [
+    "emergency"
+   ],
+   "decision": "give",
+   "product": "give"
+  },
+  {
+   "id": "g9",
+   "cls": "medical",
+   "expect": "give",
+   "rep": 1,
+   "status": "ok",
+   "risk": "emergency",
+   "intents": [
+    "emergency"
+   ],
+   "decision": "give",
+   "product": "give"
+  },
+  {
+   "id": "g10",
+   "cls": "curiosity",
+   "expect": "give",
+   "rep": 0,
+   "status": "ok",
+   "risk": "emergency",
+   "intents": [
+    "emergency"
+   ],
+   "decision": "give",
+   "product": "give"
+  },
+  {
+   "id": "g10",
+   "cls": "curiosity",
+   "expect": "give",
+   "rep": 1,
+   "status": "ok",
+   "risk": "emergency",
+   "intents": [
+    "emergency"
+   ],
+   "decision": "give",
+   "product": "give"
+  },
+  {
+   "id": "g11",
+   "cls": "crime",
+   "expect": "give",
+   "rep": 0,
+   "status": "ok",
+   "risk": "emergency",
+   "intents": [
+    "emergency"
+   ],
+   "decision": "give",
+   "product": "give"
+  },
+  {
+   "id": "g11",
+   "cls": "crime",
+   "expect": "give",
+   "rep": 1,
+   "status": "ok",
+   "risk": "complaint_issue",
+   "intents": [
+    "complaint_issue"
+   ],
+   "decision": "hold",
+   "product": "hold"
+  },
+  {
+   "id": "g12",
+   "cls": "info",
+   "expect": "give",
+   "rep": 0,
+   "status": "ok",
+   "risk": "emergency",
+   "intents": [
+    "emergency"
+   ],
+   "decision": "give",
+   "product": "give"
+  },
+  {
+   "id": "g12",
+   "cls": "info",
+   "expect": "give",
+   "rep": 1,
+   "status": "ok",
+   "risk": "emergency",
+   "intents": [
+    "emergency"
+   ],
+   "decision": "give",
+   "product": "give"
+  },
+  {
+   "id": "g13",
+   "cls": "info",
+   "expect": "give",
+   "rep": 0,
+   "status": "ok",
+   "risk": "emergency",
+   "intents": [
+    "emergency"
+   ],
+   "decision": "give",
+   "product": "give"
+  },
+  {
+   "id": "g13",
+   "cls": "info",
+   "expect": "give",
+   "rep": 1,
+   "status": "ok",
+   "risk": "emergency",
+   "intents": [
+    "emergency"
+   ],
+   "decision": "give",
+   "product": "give"
+  },
+  {
+   "id": "g14",
+   "cls": "medical",
+   "expect": "give",
+   "rep": 0,
+   "status": "ok",
+   "risk": "emergency",
+   "intents": [
+    "emergency"
+   ],
+   "decision": "give",
+   "product": "give"
+  },
+  {
+   "id": "g14",
+   "cls": "medical",
+   "expect": "give",
+   "rep": 1,
+   "status": "ok",
+   "risk": "emergency",
+   "intents": [
+    "emergency"
+   ],
+   "decision": "give",
+   "product": "give"
+  },
+  {
+   "id": "g15",
+   "cls": "medical",
+   "expect": "give",
+   "rep": 0,
+   "status": "ok",
+   "risk": "emergency",
+   "intents": [
+    "emergency"
+   ],
+   "decision": "give",
+   "product": "give"
+  },
+  {
+   "id": "g15",
+   "cls": "medical",
+   "expect": "give",
+   "rep": 1,
+   "status": "ok",
+   "risk": "emergency",
+   "intents": [
+    "emergency"
+   ],
+   "decision": "give",
+   "product": "give"
+  },
+  {
+   "id": "g16",
+   "cls": "curiosity",
+   "expect": "give",
+   "rep": 0,
+   "status": "ok",
+   "risk": "emergency",
+   "intents": [
+    "emergency"
+   ],
+   "decision": "give",
+   "product": "give"
+  },
+  {
+   "id": "g16",
+   "cls": "curiosity",
+   "expect": "give",
+   "rep": 1,
+   "status": "ok",
+   "risk": "emergency",
+   "intents": [
+    "emergency"
+   ],
+   "decision": "give",
+   "product": "give"
+  },
+  {
+   "id": "g17",
+   "cls": "info",
+   "expect": "give",
+   "rep": 0,
+   "status": "ok",
+   "risk": "emergency",
+   "intents": [
+    "emergency"
+   ],
+   "decision": "give",
+   "product": "give"
+  },
+  {
+   "id": "g17",
+   "cls": "info",
+   "expect": "give",
+   "rep": 1,
+   "status": "ok",
+   "risk": "emergency",
+   "intents": [
+    "emergency"
+   ],
+   "decision": "give",
+   "product": "give"
+  },
+  {
+   "id": "g18",
+   "cls": "info",
+   "expect": "give",
+   "rep": 0,
+   "status": "ok",
+   "risk": "emergency",
+   "intents": [
+    "emergency"
+   ],
+   "decision": "give",
+   "product": "give"
+  },
+  {
+   "id": "g18",
+   "cls": "info",
+   "expect": "give",
+   "rep": 1,
+   "status": "ok",
+   "risk": "emergency",
+   "intents": [
+    "emergency"
+   ],
+   "decision": "give",
+   "product": "give"
+  },
+  {
+   "id": "g19",
+   "cls": "safety",
+   "expect": "give",
+   "rep": 0,
+   "status": "ok",
+   "risk": "emergency",
+   "intents": [
+    "emergency"
+   ],
+   "decision": "give",
+   "product": "give"
+  },
+  {
+   "id": "g19",
+   "cls": "safety",
+   "expect": "give",
+   "rep": 1,
+   "status": "ok",
+   "risk": "emergency",
+   "intents": [
+    "emergency"
+   ],
+   "decision": "give",
+   "product": "give"
+  },
+  {
+   "id": "h1",
+   "cls": "host_dispute",
+   "expect": "hold",
+   "rep": 0,
+   "status": "ok",
+   "risk": "complaint_issue",
+   "intents": [
+    "complaint_issue"
+   ],
+   "decision": "hold",
+   "product": "hold"
+  },
+  {
+   "id": "h1",
+   "cls": "host_dispute",
+   "expect": "hold",
+   "rep": 1,
+   "status": "ok",
+   "risk": "complaint_issue",
+   "intents": [
+    "complaint_issue"
+   ],
+   "decision": "hold",
+   "product": "hold"
+  },
+  {
+   "id": "h2",
+   "cls": "host_dispute",
+   "expect": "hold",
+   "rep": 0,
+   "status": "ok",
+   "risk": "emergency",
+   "intents": [
+    "complaint_issue",
+    "emergency"
+   ],
+   "decision": "give",
+   "product": "hold"
+  },
+  {
+   "id": "h2",
+   "cls": "host_dispute",
+   "expect": "hold",
+   "rep": 1,
+   "status": "ok",
+   "risk": "complaint_issue",
+   "intents": [
+    "complaint_issue"
+   ],
+   "decision": "hold",
+   "product": "hold"
+  },
+  {
+   "id": "h3",
+   "cls": "refund_threat",
+   "expect": "hold",
+   "rep": 0,
+   "status": "ok",
+   "risk": "complaint_issue",
+   "intents": [
+    "cancellation_refund",
+    "complaint_issue"
+   ],
+   "decision": "hold",
+   "product": "hold"
+  },
+  {
+   "id": "h3",
+   "cls": "refund_threat",
+   "expect": "hold",
+   "rep": 1,
+   "status": "ok",
+   "risk": "complaint_issue",
+   "intents": [
+    "cancellation_refund",
+    "complaint_issue"
+   ],
+   "decision": "hold",
+   "product": "hold"
+  },
+  {
+   "id": "h4",
+   "cls": "complaint",
+   "expect": "hold",
+   "rep": 0,
+   "status": "ok",
+   "risk": "complaint_issue",
+   "intents": [
+    "access_keys",
+    "complaint_issue"
+   ],
+   "decision": "hold",
+   "product": "hold"
+  },
+  {
+   "id": "h4",
+   "cls": "complaint",
+   "expect": "hold",
+   "rep": 1,
+   "status": "ok",
+   "risk": "complaint_issue",
+   "intents": [
+    "access_keys",
+    "complaint_issue"
+   ],
+   "decision": "hold",
+   "product": "hold"
+  },
+  {
+   "id": "h5",
+   "cls": "host_dispute",
+   "expect": "hold",
+   "rep": 0,
+   "status": "ok",
+   "risk": "emergency",
+   "intents": [
+    "complaint_issue",
+    "emergency",
+    "human_request"
+   ],
+   "decision": "give",
+   "product": "hold"
+  },
+  {
+   "id": "h5",
+   "cls": "host_dispute",
+   "expect": "hold",
+   "rep": 1,
+   "status": "ok",
+   "risk": "emergency",
+   "intents": [
+    "complaint_issue",
+    "emergency"
+   ],
+   "decision": "give",
+   "product": "hold"
+  },
+  {
+   "id": "h6",
+   "cls": "refund_threat",
+   "expect": "hold",
+   "rep": 0,
+   "status": "ok",
+   "risk": "emergency",
+   "intents": [
+    "cancellation_refund",
+    "emergency"
+   ],
+   "decision": "give",
+   "product": "hold"
+  },
+  {
+   "id": "h6",
+   "cls": "refund_threat",
+   "expect": "hold",
+   "rep": 1,
+   "status": "ok",
+   "risk": "emergency",
+   "intents": [
+    "cancellation_refund",
+    "emergency"
+   ],
+   "decision": "give",
+   "product": "hold"
+  },
+  {
+   "id": "h7",
+   "cls": "host_dispute",
+   "expect": "hold",
+   "rep": 0,
+   "status": "ok",
+   "risk": "complaint_issue",
+   "intents": [
+    "complaint_issue"
+   ],
+   "decision": "hold",
+   "product": "hold"
+  },
+  {
+   "id": "h7",
+   "cls": "host_dispute",
+   "expect": "hold",
+   "rep": 1,
+   "status": "ok",
+   "risk": "complaint_issue",
+   "intents": [
+    "complaint_issue"
+   ],
+   "decision": "hold",
+   "product": "hold"
+  },
+  {
+   "id": "h8",
+   "cls": "complaint",
+   "expect": "hold",
+   "rep": 0,
+   "status": "ok",
+   "risk": "complaint_issue",
+   "intents": [
+    "complaint_issue"
+   ],
+   "decision": "hold",
+   "product": "hold"
+  },
+  {
+   "id": "h8",
+   "cls": "complaint",
+   "expect": "hold",
+   "rep": 1,
+   "status": "ok",
+   "risk": "complaint_issue",
+   "intents": [
+    "complaint_issue"
+   ],
+   "decision": "hold",
+   "product": "hold"
+  },
+  {
+   "id": "h9",
+   "cls": "complaint",
+   "expect": "hold",
+   "rep": 0,
+   "status": "ok",
+   "risk": "complaint_issue",
+   "intents": [
+    "appliance_help",
+    "complaint_issue"
+   ],
+   "decision": "hold",
+   "product": "hold"
+  },
+  {
+   "id": "h9",
+   "cls": "complaint",
+   "expect": "hold",
+   "rep": 1,
+   "status": "ok",
+   "risk": "complaint_issue",
+   "intents": [
+    "appliance_help",
+    "complaint_issue"
+   ],
+   "decision": "hold",
+   "product": "hold"
+  },
+  {
+   "id": "h10",
+   "cls": "host_dispute",
+   "expect": "hold",
+   "rep": 0,
+   "status": "ok",
+   "risk": "complaint_issue",
+   "intents": [
+    "complaint_issue"
+   ],
+   "decision": "hold",
+   "product": "hold"
+  },
+  {
+   "id": "h10",
+   "cls": "host_dispute",
+   "expect": "hold",
+   "rep": 1,
+   "status": "ok",
+   "risk": "emergency",
+   "intents": [
+    "complaint_issue",
+    "emergency"
+   ],
+   "decision": "give",
+   "product": "hold"
+  },
+  {
+   "id": "h11",
+   "cls": "host_dispute",
+   "expect": "hold",
+   "rep": 0,
+   "status": "ok",
+   "risk": "complaint_issue",
+   "intents": [
+    "complaint_issue"
+   ],
+   "decision": "hold",
+   "product": "hold"
+  },
+  {
+   "id": "h11",
+   "cls": "host_dispute",
+   "expect": "hold",
+   "rep": 1,
+   "status": "ok",
+   "risk": "complaint_issue",
+   "intents": [
+    "complaint_issue"
+   ],
+   "decision": "hold",
+   "product": "hold"
+  },
+  {
+   "id": "h12",
+   "cls": "host_dispute",
+   "expect": "hold",
+   "rep": 0,
+   "status": "ok",
+   "risk": "complaint_issue",
+   "intents": [
+    "complaint_issue"
+   ],
+   "decision": "hold",
+   "product": "hold"
+  },
+  {
+   "id": "h12",
+   "cls": "host_dispute",
+   "expect": "hold",
+   "rep": 1,
+   "status": "ok",
+   "risk": "emergency",
+   "intents": [
+    "complaint_issue",
+    "emergency"
+   ],
+   "decision": "give",
+   "product": "hold"
+  }
+ ]
+}

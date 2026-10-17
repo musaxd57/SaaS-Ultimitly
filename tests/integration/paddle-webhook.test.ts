@@ -1,0 +1,1036 @@
+import { describe, it, expect, beforeEach, beforeAll, afterAll, vi } from "vitest";
+import { NextRequest } from "next/server";
+import { createHmac } from "node:crypto";
+import { Prisma } from "@prisma/client";
+import { prisma, resetDb } from "../helpers/db";
+import { POST } from "@/app/api/webhooks/paddle/route";
+import { premiumAllowed } from "@/lib/billing/subscription";
+
+const SECRET = "test-webhook-hmac-key-not-a-real-secret";
+
+function sign(body: string): string {
+  const ts = Math.floor(Date.now() / 1000);
+  const h1 = createHmac("sha256", SECRET).update(`${ts}:${body}`, "utf8").digest("hex");
+  return `ts=${ts};h1=${h1}`;
+}
+
+function req(body: string, header: string | null) {
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  if (header) headers["paddle-signature"] = header;
+  return new NextRequest("http://localhost/api/webhooks/paddle", { method: "POST", headers, body });
+}
+
+let orgId = "";
+let consentId = ""; // server-trusted checkout nonce for orgId (priceId pri_pro)
+
+beforeAll(() => {
+  process.env.PADDLE_WEBHOOK_SECRET = SECRET;
+  process.env.PADDLE_PRICE_PRO = "pri_pro";
+});
+afterAll(async () => {
+  delete process.env.PADDLE_WEBHOOK_SECRET;
+  delete process.env.PADDLE_PRICE_PRO;
+  await prisma.$disconnect();
+});
+
+beforeEach(async () => {
+  await resetDb();
+  process.env.PADDLE_WEBHOOK_SECRET = SECRET;
+  const org = await prisma.organization.create({ data: { name: "Org" } });
+  orgId = org.id;
+  const consent = await prisma.checkoutConsent.create({
+    data: { organizationId: orgId, planCode: "pro", priceId: "pri_pro", legalVersion: "2026-06", ip: "1.2.3.4" },
+    select: { id: true },
+  });
+  consentId = consent.id;
+});
+
+describe("POST /api/webhooks/paddle", () => {
+  it("is DORMANT without PADDLE_WEBHOOK_SECRET — 200 disabled, stores nothing", async () => {
+    delete process.env.PADDLE_WEBHOOK_SECRET;
+    const body = JSON.stringify({ event_id: "evt_x", event_type: "subscription.activated", data: {} });
+    const res = await POST(req(body, null));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ disabled: true });
+    expect(await prisma.webhookEvent.count({ where: { providerEventId: "evt_x" } })).toBe(0);
+  });
+
+  it("rejects a bad signature with 401 and stores nothing", async () => {
+    const body = JSON.stringify({ event_id: "evt_bad", event_type: "subscription.activated", data: {} });
+    const res = await POST(req(body, "ts=123;h1=deadbeef"));
+    expect(res.status).toBe(401);
+    expect(await prisma.webhookEvent.count({ where: { providerEventId: "evt_bad" } })).toBe(0);
+  });
+
+  // DENETIM 08-09 #37: tek negatif vaka vardı. İmza başlığı HİÇ yoksa ve başka bir gövdenin GEÇERLİ imzası yeniden kullanılırsa da
+  // 401 + hiçbir şey yazılmaz (abonelik değişmez).
+  it("🚨 imza başlığı YOK → 401, hiçbir şey yazılmaz", async () => {
+    const body = JSON.stringify({ event_id: "evt_nohdr", event_type: "subscription.activated", data: {} });
+    const res = await POST(req(body, null));
+    expect(res.status).toBe(401);
+    expect(await prisma.webhookEvent.count({ where: { providerEventId: "evt_nohdr" } })).toBe(0);
+  });
+
+  it("🚨 başka gövdenin GEÇERLİ imzası (yeniden oynatma) → 401, abonelik yazılmaz", async () => {
+    const harmless = JSON.stringify({ event_id: "evt_a", event_type: "transaction.created", data: {} });
+    const forged = JSON.stringify({
+      event_id: "evt_b",
+      event_type: "subscription.activated",
+      data: { id: "sub_forged", status: "active", customer_id: "ctm_x", custom_data: { consentId }, items: [{ price: { id: "pri_pro" } }] },
+    });
+    const res = await POST(req(forged, sign(harmless)));
+    expect(res.status).toBe(401);
+    expect(await prisma.webhookEvent.count({ where: { providerEventId: { in: ["evt_a", "evt_b"] } } })).toBe(0);
+    expect(await prisma.subscription.count({ where: { organizationId: orgId } })).toBe(0);
+  });
+
+  it("applies subscription.activated → upserts the org's Subscription", async () => {
+    const body = JSON.stringify({
+      event_id: "evt_sub_1",
+      event_type: "subscription.activated",
+      data: {
+        id: "sub_123",
+        status: "active",
+        customer_id: "ctm_1",
+        custom_data: { consentId },
+        current_billing_period: { ends_at: "2026-07-15T00:00:00.000Z" },
+        items: [{ price: { id: "pri_pro" } }],
+      },
+    });
+    const res = await POST(req(body, sign(body)));
+    expect(res.status).toBe(200);
+
+    const sub = await prisma.subscription.findUnique({ where: { organizationId: orgId } });
+    expect(sub).not.toBeNull();
+    expect(sub?.status).toBe("active");
+    expect(sub?.provider).toBe("paddle");
+    expect(sub?.providerRef).toBe("sub_123");
+    expect(sub?.planCode).toBe("pro");
+    expect(sub?.currentPeriodEnd?.toISOString()).toBe("2026-07-15T00:00:00.000Z");
+    // KVKK erasure's authoritative anchor: the customer id is stored from an event
+    // whose org was resolved via consent/providerRef — never client custom_data.
+    expect(sub?.customerId).toBe("ctm_1");
+
+    const evt = await prisma.webhookEvent.findUnique({ where: { providerEventId: "evt_sub_1" } });
+    expect(evt?.status).toBe("processed");
+  });
+
+  describe("K4 — abonelik kimliği: başka aboneliğin olayı kayıtlı aboneliği ezmez (yalnız yeni abonelik aktifleşince)", () => {
+    const subEvent = (eventId: string, subId: string, status: string, occurredAt: string) =>
+      JSON.stringify({
+        event_id: eventId,
+        event_type: status === "canceled" ? "subscription.canceled" : "subscription.updated",
+        occurred_at: occurredAt,
+        data: { id: subId, status, custom_data: { consentId }, items: [{ price: { id: "pri_pro" } }] },
+      });
+
+    it("🚨 iki ödeme akışı: yeni abonelik aktifken ESKİ aboneliğin (sonradan gelen) iptali satırı DEĞİŞTİRMEZ", async () => {
+      const t0 = new Date(Date.now() - 60_000).toISOString();
+      const t1 = new Date().toISOString();
+      const activate = subEvent("evt_new_active", "sub_new", "active", t0);
+      expect((await POST(req(activate, sign(activate)))).status).toBe(200);
+      const cancelOld = subEvent("evt_old_cancel", "sub_old", "canceled", t1);
+      expect((await POST(req(cancelOld, sign(cancelOld)))).status).toBe(200);
+      const sub = await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } });
+      expect(sub.providerRef).toBe("sub_new");
+      expect(sub.status).toBe("active");
+      // Olay yine kayıtlı (yok sayılmadı, yalnız uygulanmadı).
+      expect((await prisma.webhookEvent.findUnique({ where: { providerEventId: "evt_old_cancel" } }))?.status).toBe("processed");
+    });
+
+    it("🚨 Kurucu 10-16 (S4): Paddle 'paused' yerelde 'paused' olur (past_due DEĞİL) — ödeme gecikmesi süresi başlamaz; devam edince aktif", async () => {
+      const t0 = new Date(Date.now() - 120_000).toISOString();
+      const t1 = new Date(Date.now() - 60_000).toISOString();
+      const t2 = new Date().toISOString();
+      const activate = subEvent("evt_p_active", "sub_p", "active", t0);
+      expect((await POST(req(activate, sign(activate)))).status).toBe(200);
+      const pause = subEvent("evt_p_pause", "sub_p", "paused", t1);
+      expect((await POST(req(pause, sign(pause)))).status).toBe(200);
+      let sub = await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } });
+      expect(sub.status).toBe("paused");
+      expect(sub.pastDueSince).toBeNull();
+      // Opus F6 — UÇTAN UCA: duraklatma olayından sonra ücretli otomatik işler ANINDA kapalı. Eski eşlemede (past_due + az önceki
+      // pastDueSince) ödeme gecikmesi ek süresi içinde AÇIK kalıyordu → bu satır eski kodda kırmızıdır.
+      vi.stubEnv("BILLING_ENFORCED", "true");
+      vi.stubEnv("PRIMARY_ORG_ID", "baska-org");
+      try {
+        expect(await premiumAllowed(orgId)).toBe(false);
+        const resume = subEvent("evt_p_resume", "sub_p", "active", t2);
+        expect((await POST(req(resume, sign(resume)))).status).toBe(200);
+        sub = await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } });
+        expect(sub.status).toBe("active");
+        expect(await premiumAllowed(orgId)).toBe(true); // devam ödemesi doğrulanınca açılır
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    });
+
+    it("🚨 KARTLA DENEME (10-17): Paddle 'trialing' olayı Paddle'ın deneme sonunu yazar — yerel (kartsız) deneme bitişi geçse de erişim Paddle deneme sonuna kadar AÇIK; tahsilat (active) bitişi temizler", async () => {
+      const DAY_MS = 86_400_000;
+      // Yerel kartsız deneme YARIN bitiyor; kart Paddle'da 10 günlük denemeyle eklendi.
+      await prisma.subscription.create({
+        data: { organizationId: orgId, planCode: "pro", provider: "trial", status: "trialing", trialEndsAt: new Date(Date.now() - DAY_MS) },
+      });
+      const paddleTrialEnd = new Date(Date.now() + 10 * DAY_MS).toISOString();
+      const trialing = JSON.stringify({
+        event_id: "evt_card_trial",
+        event_type: "subscription.created",
+        occurred_at: new Date(Date.now() - 60_000).toISOString(),
+        data: {
+          id: "sub_ct",
+          status: "trialing",
+          custom_data: { consentId },
+          items: [{ price: { id: "pri_pro" } }],
+          current_billing_period: { starts_at: new Date().toISOString(), ends_at: paddleTrialEnd },
+        },
+      });
+      expect((await POST(req(trialing, sign(trialing)))).status).toBe(200);
+      let sub = await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } });
+      expect(sub).toMatchObject({ status: "trialing", provider: "paddle" });
+      expect(sub.trialEndsAt?.toISOString()).toBe(paddleTrialEnd); // ⬅️ ESKİDE yerel (geçmiş) bitiş kalıyordu → erişim kapalı
+      vi.stubEnv("BILLING_ENFORCED", "true");
+      vi.stubEnv("PRIMARY_ORG_ID", "baska-org");
+      try {
+        expect(await premiumAllowed(orgId)).toBe(true);
+        const charged = JSON.stringify({
+          event_id: "evt_card_trial_paid",
+          event_type: "subscription.activated",
+          occurred_at: new Date().toISOString(),
+          data: { id: "sub_ct", status: "active", custom_data: { consentId }, items: [{ price: { id: "pri_pro" } }] },
+        });
+        expect((await POST(req(charged, sign(charged)))).status).toBe(200);
+        sub = await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } });
+        expect(sub).toMatchObject({ status: "active", trialEndsAt: null });
+        expect(await premiumAllowed(orgId)).toBe(true);
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    });
+
+    it("Haiku 10-17: İPTAL edilmiş eski aboneliğin yerine yeni KARTLI DENEME geçer (deneme sonu yazılır); ödeme olayı eski deneme sebebini siler", async () => {
+      await prisma.subscription.create({
+        data: {
+          organizationId: orgId,
+          planCode: "pro",
+          provider: "paddle",
+          providerRef: "sub_old",
+          status: "canceled",
+          trialEndReason: "operator_ended",
+          lastEventAt: new Date(Date.now() - 10 * 86_400_000),
+        },
+      });
+      const end = new Date(Date.now() + 9 * 86_400_000).toISOString();
+      const trial = JSON.stringify({
+        event_id: "evt_new_trial",
+        event_type: "subscription.created",
+        occurred_at: new Date(Date.now() - 60_000).toISOString(),
+        data: { id: "sub_new", status: "trialing", custom_data: { consentId }, items: [{ price: { id: "pri_pro" } }], current_billing_period: { starts_at: new Date().toISOString(), ends_at: end } },
+      });
+      expect((await POST(req(trial, sign(trial)))).status).toBe(200);
+      let sub = await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } });
+      expect(sub).toMatchObject({ providerRef: "sub_new", status: "trialing" }); // ⬅️ ESKİDE: K4 olayı düşürüyor, satır "iptal" kalıyordu
+      expect(sub.trialEndsAt?.toISOString()).toBe(end);
+      const paid = subEvent("evt_new_paid", "sub_new", "active", new Date().toISOString());
+      expect((await POST(req(paid, sign(paid)))).status).toBe(200);
+      sub = await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } });
+      expect(sub).toMatchObject({ status: "active", trialEndsAt: null, trialEndReason: null });
+    });
+
+    it("mutasyon W-reason-clear: kartsız denemeden (operatör bitirmiş) doğrudan ÖDEMEYE geçen hesapta deneme bitiş sebebi silinir", async () => {
+      await prisma.subscription.create({
+        data: { organizationId: orgId, planCode: "pro", provider: "trial", status: "trialing", trialEndsAt: new Date(), trialEndReason: "operator_ended" },
+      });
+      const paid = subEvent("evt_direct_paid", "sub_direct", "active", new Date().toISOString());
+      expect((await POST(req(paid, sign(paid)))).status).toBe(200);
+      expect(await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } })).toMatchObject({
+        status: "active",
+        provider: "paddle",
+        trialEndReason: null, // ⬅️ ESKİDE kalıyordu → sonradan iptal edince "Ücretsiz denemeniz sona erdi" notu ödeyen müşteriye çıkardı
+      });
+    });
+
+    it("Haiku 10-17: İLK olay kartlı deneme ise (satır yok) oluşturma yolu da Paddle deneme sonunu yazar", async () => {
+      const end = new Date(Date.now() + 7 * 86_400_000).toISOString();
+      const trial = JSON.stringify({
+        event_id: "evt_first_trial",
+        event_type: "subscription.created",
+        occurred_at: new Date().toISOString(),
+        data: { id: "sub_first", status: "trialing", custom_data: { consentId }, items: [{ price: { id: "pri_pro" } }], current_billing_period: { starts_at: new Date().toISOString(), ends_at: end } },
+      });
+      expect((await POST(req(trial, sign(trial)))).status).toBe(200);
+      const sub = await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } });
+      expect(sub.trialEndsAt?.toISOString()).toBe(end);
+    });
+
+    // Opus 10-16 N1: ödeme gecikmesi olayındaki dönem (Paddle yenilemede ödenmemiş YENİ döneme ilerlemiş olabilir) erişimi uzatmaz.
+    const periodEvent = (eventId: string, status: string, occurredAt: string, startsAt: string, endsAt: string) =>
+      JSON.stringify({
+        event_id: eventId,
+        event_type: status === "past_due" ? "subscription.past_due" : "subscription.updated",
+        occurred_at: occurredAt,
+        data: {
+          id: "sub_pd2",
+          status,
+          custom_data: { consentId },
+          items: [{ price: { id: "pri_pro" } }],
+          current_billing_period: { starts_at: startsAt, ends_at: endsAt },
+        },
+      });
+    const DAY = 86_400_000;
+
+    it("🚨 Kurucu 10-16 (ek süre yok): yenileme ödemesi düştü, olay ödenmemiş YENİ dönemi taşıyor → erişim ödenmiş dönem sonunda KAPALI; ödeme doğrulanınca açık", async () => {
+      const now = Date.now();
+      const paidStart = new Date(now - 30 * DAY).toISOString();
+      const renewal = new Date(now - 60_000).toISOString(); // ödenmiş dönem az önce bitti
+      const unpaidEnd = new Date(now + 30 * DAY).toISOString();
+      const active = periodEvent("evt_pd2_a", "active", new Date(now - 120_000).toISOString(), paidStart, renewal);
+      expect((await POST(req(active, sign(active)))).status).toBe(200);
+      expect((await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } })).currentPeriodEnd?.toISOString()).toBe(renewal); // aktif olay GERÇEKTEN uygulandı
+      const pastDue = periodEvent("evt_pd2_pd", "past_due", new Date(now - 30_000).toISOString(), renewal, unpaidEnd);
+      expect((await POST(req(pastDue, sign(pastDue)))).status).toBe(200);
+      const sub = await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } });
+      expect(sub.status).toBe("past_due");
+      expect(sub.currentPeriodEnd?.toISOString()).toBe(renewal); // ⬅️ ESKİ KOD: ödenmemiş dönemin sonu (30 gün ileri)
+      vi.stubEnv("BILLING_ENFORCED", "true");
+      vi.stubEnv("PRIMARY_ORG_ID", "baska-org");
+      try {
+        expect(await premiumAllowed(orgId)).toBe(false); // ⬅️ ESKİ KOD: true (30 gün ödemesiz erişim)
+        const recovered = periodEvent("evt_pd2_ok", "active", new Date().toISOString(), renewal, unpaidEnd);
+        expect((await POST(req(recovered, sign(recovered)))).status).toBe(200);
+        expect(await premiumAllowed(orgId)).toBe(true); // yenileme ödemesi doğrulanınca açılır
+        expect((await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } })).currentPeriodEnd?.toISOString()).toBe(unpaidEnd);
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    });
+
+    it("🚨 TANINMAYAN Paddle durumu (yerelde kapalı yön) ödeme düşmesi sayılmaz: dönem sonu olaydaki gibi, ödemiş müşteri dönem ortasında kesilmez (Opus P3-1)", async () => {
+      const now = Date.now();
+      const start = new Date(now - 10 * DAY).toISOString();
+      const end = new Date(now + 20 * DAY).toISOString();
+      const active = periodEvent("evt_pd5_a", "active", new Date(now - 120_000).toISOString(), start, end);
+      await POST(req(active, sign(active)));
+      const odd = periodEvent("evt_pd5_x", "suspended_for_review", new Date(now - 1000).toISOString(), start, new Date(now + 50 * DAY).toISOString());
+      expect((await POST(req(odd, sign(odd)))).status).toBe(200);
+      const sub = await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } });
+      expect(sub.status).toBe("past_due"); // kapalı yön eşlemesi aynen
+      expect(sub.currentPeriodEnd?.toISOString()).toBe(end); // ⬅️ dönem başı yazılsaydı: start (hemen kapanırdı); olaydaki son yazılsaydı: +50 gün
+      vi.stubEnv("BILLING_ENFORCED", "true");
+      vi.stubEnv("PRIMARY_ORG_ID", "baska-org");
+      try {
+        expect(await premiumAllowed(orgId)).toBe(true);
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    });
+
+    it("🚨 ödeme gecikmesiyle KAPANMIŞ erişim, sonra gelen TANINMAYAN durumun (ödenmemiş olabilecek) dönem sonuyla yeniden AÇILMAZ (Haiku 10-16)", async () => {
+      const now = Date.now();
+      const renewal = new Date(now - 60_000).toISOString();
+      const active = periodEvent("evt_pd6_a", "active", new Date(now - 120_000).toISOString(), new Date(now - 30 * DAY).toISOString(), renewal);
+      await POST(req(active, sign(active)));
+      const pastDue = periodEvent("evt_pd6_pd", "past_due", new Date(now - 30_000).toISOString(), renewal, new Date(now + 30 * DAY).toISOString());
+      await POST(req(pastDue, sign(pastDue)));
+      const odd = periodEvent("evt_pd6_x", "suspended_for_review", new Date(now - 1000).toISOString(), renewal, new Date(now + 30 * DAY).toISOString());
+      await POST(req(odd, sign(odd)));
+      expect((await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } })).currentPeriodEnd?.toISOString()).toBe(renewal);
+      vi.stubEnv("BILLING_ENFORCED", "true");
+      vi.stubEnv("PRIMARY_ORG_ID", "baska-org");
+      try {
+        expect(await premiumAllowed(orgId)).toBe(false); // ⬅️ olaydaki dönem sonu yazılsaydı: true (30 gün ödemesiz erişim)
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    });
+
+    it("past_due olayında dönem BAŞI yoksa aynı aboneliğin kayıtlı ödenmiş dönem sonu korunur (olaydaki ileri tarih yazılmaz)", async () => {
+      const now = Date.now();
+      const paidEnd = new Date(now - 60_000).toISOString();
+      const active = periodEvent("evt_pd4_a", "active", new Date(now - 120_000).toISOString(), new Date(now - 30 * DAY).toISOString(), paidEnd);
+      await POST(req(active, sign(active)));
+      expect((await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } })).currentPeriodEnd?.toISOString()).toBe(paidEnd);
+      const noStart = JSON.stringify({
+        event_id: "evt_pd4_pd",
+        event_type: "subscription.past_due",
+        occurred_at: new Date(now - 1000).toISOString(),
+        data: {
+          id: "sub_pd2",
+          status: "past_due",
+          custom_data: { consentId },
+          items: [{ price: { id: "pri_pro" } }],
+          current_billing_period: { ends_at: new Date(now + 30 * DAY).toISOString() },
+        },
+      });
+      await POST(req(noStart, sign(noStart)));
+      const sub = await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } });
+      expect(sub.currentPeriodEnd?.toISOString()).toBe(paidEnd); // ⬅️ olaydaki dönem sonu yazılsaydı: 30 gün ileri
+    });
+
+    it("BİLİNEN SINIR (güvenli yön): dönem İÇİNDE düşen tahsilatta olay ödenmiş dönemi taşırsa yazılan değer dönem BAŞI → erişim kapanır, ek süre doğmaz", async () => {
+      const now = Date.now();
+      const start = new Date(now - 10 * DAY).toISOString();
+      const end = new Date(now + 20 * DAY).toISOString();
+      const active = periodEvent("evt_pd3_a", "active", new Date(now - 120_000).toISOString(), start, end);
+      await POST(req(active, sign(active)));
+      expect((await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } })).currentPeriodEnd?.toISOString()).toBe(end);
+      const pastDue = periodEvent("evt_pd3_pd", "past_due", new Date(now - 1000).toISOString(), start, end);
+      await POST(req(pastDue, sign(pastDue)));
+      const sub = await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } });
+      expect(sub.currentPeriodEnd?.toISOString()).toBe(start); // dönem başı — sağlayıcı semantiği sandbox'ta doğrulanınca gözden geçirilir
+    });
+
+    it("yeni abonelik AKTİFLEŞİNCE eskisinin yerine geçer; kayıtlı aboneliğin kendi iptali uygulanır", async () => {
+      const a = subEvent("evt_a", "sub_a", "active", new Date(Date.now() - 120_000).toISOString());
+      await POST(req(a, sign(a)));
+      const b = subEvent("evt_b", "sub_b", "active", new Date(Date.now() - 60_000).toISOString());
+      await POST(req(b, sign(b)));
+      expect((await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } })).providerRef).toBe("sub_b");
+      const cancelB = subEvent("evt_b_cancel", "sub_b", "canceled", new Date().toISOString());
+      await POST(req(cancelB, sign(cancelB)));
+      const sub = await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } });
+      expect(sub).toMatchObject({ providerRef: "sub_b", status: "canceled" });
+    });
+  });
+
+  it("resolves the org from the server-trusted consentId, IGNORING a forged custom_data.organizationId", async () => {
+    // Consent row created from the paying user's OWN session (org = orgId).
+    const user = await prisma.user.create({
+      data: { organizationId: orgId, name: "U", email: "u@x.com", passwordHash: "x", role: "owner" },
+    });
+    const consent = await prisma.checkoutConsent.create({
+      data: {
+        organizationId: orgId,
+        userId: user.id,
+        planCode: "pro",
+        priceId: "pri_pro",
+        legalVersion: "2026-06",
+        ip: "1.2.3.4",
+        userAgent: "x",
+      },
+      select: { id: true },
+    });
+    // A DIFFERENT org whose id an attacker forges into custom_data.
+    const victim = await prisma.organization.create({ data: { name: "Victim" } });
+
+    const body = JSON.stringify({
+      event_id: "evt_consent",
+      event_type: "subscription.activated",
+      data: {
+        id: "sub_c",
+        status: "active",
+        custom_data: { organizationId: victim.id, consentId: consent.id }, // forged org + real consent
+        items: [{ price: { id: "pri_pro" } }],
+      },
+    });
+    const res = await POST(req(body, sign(body)));
+    expect(res.status).toBe(200);
+
+    // The subscription lands on the CONSENT's org, never the forged victim org.
+    expect(await prisma.subscription.findUnique({ where: { organizationId: orgId } })).not.toBeNull();
+    expect(await prisma.subscription.findUnique({ where: { organizationId: victim.id } })).toBeNull();
+  });
+
+  it("MISSING consentId + forged org (no existing sub) → binds NOTHING (no raw-org fallback)", async () => {
+    const victim = await prisma.organization.create({ data: { name: "Victim" } });
+    const body = JSON.stringify({
+      event_id: "evt_noconsent",
+      event_type: "subscription.activated",
+      data: {
+        id: "sub_x",
+        status: "active",
+        custom_data: { organizationId: victim.id }, // forged, no consentId
+        items: [{ price: { id: "pri_pro" } }],
+      },
+    });
+    expect((await POST(req(body, sign(body)))).status).toBe(200); // recorded only
+    expect(await prisma.subscription.count({ where: { organizationId: orgId } })).toBe(0); // this org untouched (org-scoped so a parallel worker can't leak in)
+  });
+
+  it("INVALID consentId + forged org → binds NOTHING", async () => {
+    const victim = await prisma.organization.create({ data: { name: "Victim" } });
+    const body = JSON.stringify({
+      event_id: "evt_badconsent",
+      event_type: "subscription.activated",
+      data: {
+        id: "sub_y",
+        status: "active",
+        custom_data: { organizationId: victim.id, consentId: "cns_does_not_exist" },
+        items: [{ price: { id: "pri_pro" } }],
+      },
+    });
+    expect((await POST(req(body, sign(body)))).status).toBe(200);
+    expect(await prisma.subscription.count({ where: { organizationId: orgId } })).toBe(0);
+  });
+
+  it("consent priceId ≠ event priceId → REJECTED (nothing applied)", async () => {
+    const body = JSON.stringify({
+      event_id: "evt_pricemismatch",
+      event_type: "subscription.activated",
+      data: {
+        id: "sub_z",
+        status: "active",
+        custom_data: { consentId }, // consent priceId is pri_pro
+        items: [{ price: { id: "pri_business" } }], // event is a different price
+      },
+    });
+    expect((await POST(req(body, sign(body)))).status).toBe(200);
+    expect(await prisma.subscription.count({ where: { organizationId: orgId } })).toBe(0);
+  });
+
+  it("EXPIRED consent (> TTL) → REJECTED", async () => {
+    const stale = await prisma.checkoutConsent.create({
+      data: {
+        organizationId: orgId,
+        planCode: "pro",
+        priceId: "pri_pro",
+        legalVersion: "2026-06",
+        ip: "1.2.3.4",
+        createdAt: new Date(Date.now() - 25 * 60 * 60 * 1000), // 25h ago (> 24h TTL)
+      },
+      select: { id: true },
+    });
+    const body = JSON.stringify({
+      event_id: "evt_expired",
+      event_type: "subscription.activated",
+      data: {
+        id: "sub_e",
+        status: "active",
+        custom_data: { consentId: stale.id },
+        items: [{ price: { id: "pri_pro" } }],
+      },
+    });
+    expect((await POST(req(body, sign(body)))).status).toBe(200);
+    expect(await prisma.subscription.count({ where: { organizationId: orgId } })).toBe(0);
+  });
+
+  it("LATE retry — occurred_at was fresh at payment, delivered >24h later → ACCEPTED (no lost entitlement)", async () => {
+    // Consent created 48h ago; the customer actually PAID 1 min later (occurred_at),
+    // but Paddle only delivered the webhook now (outage/retry). Freshness must be
+    // judged by the signed occurred_at, not arrival time — else a real payment drops.
+    const consent = await prisma.checkoutConsent.create({
+      data: {
+        organizationId: orgId,
+        planCode: "pro",
+        priceId: "pri_pro",
+        legalVersion: "2026-06",
+        ip: "1.2.3.4",
+        createdAt: new Date(Date.now() - 48 * 60 * 60 * 1000),
+      },
+      select: { id: true },
+    });
+    const body = JSON.stringify({
+      event_id: "evt_late",
+      event_type: "subscription.activated",
+      occurred_at: new Date(Date.now() - 48 * 60 * 60 * 1000 + 60_000).toISOString(), // paid ~1 min after consent
+      data: { id: "sub_late", status: "active", custom_data: { consentId: consent.id }, items: [{ price: { id: "pri_pro" } }] },
+    });
+    expect((await POST(req(body, sign(body)))).status).toBe(200);
+    expect(await prisma.subscription.count({ where: { organizationId: orgId } })).toBe(1);
+  });
+
+  it("FUTURE occurred_at (beyond skew) → fail-closed REJECTED", async () => {
+    // Consent is fresh (created now) but the event claims to have occurred 2h in the
+    // future — anomalous (a real event can't occur later than now). Fail closed.
+    const body = JSON.stringify({
+      event_id: "evt_future",
+      event_type: "subscription.activated",
+      occurred_at: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
+      data: { id: "sub_future", status: "active", custom_data: { consentId }, items: [{ price: { id: "pri_pro" } }] },
+    });
+    expect((await POST(req(body, sign(body)))).status).toBe(200);
+    expect(await prisma.subscription.count({ where: { organizationId: orgId } })).toBe(0);
+  });
+
+  it("consent genuinely STALE at payment time (occurred_at − consent > 24h) → REJECTED", async () => {
+    // Consent 48h old AND the payment (occurred_at) also happened ~48h after it →
+    // truly stale nonce, not a late delivery. Still rejected.
+    const consent = await prisma.checkoutConsent.create({
+      data: {
+        organizationId: orgId,
+        planCode: "pro",
+        priceId: "pri_pro",
+        legalVersion: "2026-06",
+        ip: "1.2.3.4",
+        createdAt: new Date(Date.now() - 48 * 60 * 60 * 1000),
+      },
+      select: { id: true },
+    });
+    const body = JSON.stringify({
+      event_id: "evt_stale",
+      event_type: "subscription.activated",
+      occurred_at: new Date(Date.now() - 60_000).toISOString(), // paid ~now = ~48h after consent
+      data: { id: "sub_stale", status: "active", custom_data: { consentId: consent.id }, items: [{ price: { id: "pri_pro" } }] },
+    });
+    expect((await POST(req(body, sign(body)))).status).toBe(200);
+    expect(await prisma.subscription.count({ where: { organizationId: orgId } })).toBe(0);
+  });
+
+  it("transaction + subscription events safely SHARE one consentId (both bind to the consent org)", async () => {
+    // The consentId is echoed on BOTH events. With occurred_at-based freshness they
+    // must both still resolve to the consent's org (the reason consumedAt was NOT
+    // added — consuming on the first event would drop the other).
+    const tx = JSON.stringify({
+      event_id: "evt_share_tx",
+      event_type: "transaction.completed",
+      occurred_at: new Date().toISOString(),
+      data: { id: "txn_share", status: "completed", custom_data: { consentId }, currency_code: "TRY", details: { totals: { grand_total: "89900" } } },
+    });
+    expect((await POST(req(tx, sign(tx)))).status).toBe(200);
+    const sub = JSON.stringify({
+      event_id: "evt_share_sub",
+      event_type: "subscription.activated",
+      occurred_at: new Date().toISOString(),
+      data: { id: "sub_share", status: "active", custom_data: { consentId }, items: [{ price: { id: "pri_pro" } }] },
+    });
+    expect((await POST(req(sub, sign(sub)))).status).toBe(200);
+    expect(await prisma.invoice.count({ where: { organizationId: orgId } })).toBe(1);
+    expect(await prisma.subscription.count({ where: { organizationId: orgId } })).toBe(1);
+  });
+
+  it("EXISTING sub lifecycle: 30-day-old consentId but providerRef matches → canceled APPLIED (not dropped)", async () => {
+    // A month-old subscription's lifecycle events still echo the ORIGINAL consentId
+    // (now long stale). They must resolve via the stored providerRef, else a real
+    // cancellation is dropped and the org keeps access it shouldn't.
+    const staleConsent = await prisma.checkoutConsent.create({
+      data: { organizationId: orgId, planCode: "pro", priceId: "pri_pro", legalVersion: "2026-06", ip: "1.2.3.4", createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+      select: { id: true },
+    });
+    await prisma.subscription.create({
+      data: { organizationId: orgId, planCode: "pro", status: "active", provider: "paddle", providerRef: "sub_known" },
+    });
+    const body = JSON.stringify({
+      event_id: "evt_cancel_known",
+      event_type: "subscription.canceled",
+      occurred_at: new Date().toISOString(),
+      data: { id: "sub_known", status: "canceled", custom_data: { consentId: staleConsent.id }, items: [{ price: { id: "pri_pro" } }] },
+    });
+    expect((await POST(req(body, sign(body)))).status).toBe(200);
+    expect((await prisma.subscription.findUnique({ where: { organizationId: orgId } }))?.status).toBe("canceled");
+  });
+
+  it("🚨 YILLIK fiyata GEÇEN abonelikte planCode UYGULANIR (bayat kalmaz)", async () => {
+    // Bağlı bir org için `resolveOrgId` providerRef'ten dönüyor ve fiyat
+    // kontrolü YALNIZ ilk-bağlanma dalında; `updateData` da
+    // `...(planCode ? { planCode } : {})` yazıyor → KATALOGDA OLMAYAN bir fiyat
+    // `status:"active"` yazar ama planCode'a HİÇ dokunmaz. Sonuç: müşteri
+    // İşletme'ye yıllık geçer, org "pro" limitlerinde asılı kalır (ya da tersi:
+    // düşürdüğü hâlde üst kademede kalır). Yıllık id katalogda OLDUĞU sürece
+    // bu dal doğru çalışır — testin pinlediği tam olarak budur.
+    process.env.PADDLE_PRICE_ISLETME_YILLIK = "pri_isletme_yil";
+    try {
+      const staleConsent = await prisma.checkoutConsent.create({
+        data: { organizationId: orgId, planCode: "pro", priceId: "pri_pro", legalVersion: "2026-06", ip: "1.2.3.4", createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+        select: { id: true },
+      });
+      await prisma.subscription.create({
+        data: { organizationId: orgId, planCode: "pro", status: "active", provider: "paddle", providerRef: "sub_yil" },
+      });
+      const body = JSON.stringify({
+        event_id: "evt_yillik",
+        event_type: "subscription.updated",
+        occurred_at: new Date().toISOString(),
+        data: { id: "sub_yil", status: "active", custom_data: { consentId: staleConsent.id }, items: [{ price: { id: "pri_isletme_yil" } }] },
+      });
+      expect((await POST(req(body, sign(body)))).status).toBe(200);
+      const sub = await prisma.subscription.findUnique({ where: { organizationId: orgId } });
+      expect(sub?.status).toBe("active");
+      expect(sub?.planCode, "yıllık fiyat katalogda değilse planCode BAYAT kalır").toBe("business");
+    } finally {
+      delete process.env.PADDLE_PRICE_ISLETME_YILLIK;
+    }
+  });
+
+  it("ters yön: katalogda OLMAYAN fiyat planCode'u DEĞİŞTİRMEZ (bilinen sınır)", async () => {
+    // Bu, bugünkü davranışın DÜRÜST kaydı — bir düzeltme değil. Katalog dışı
+    // fiyat gelirse status yazılır, planCode korunur. Yani yıllık fiyatı
+    // Paddle'da açıp env'e EKLEMEMEK, org'u sessizce eski kademesinde bırakır.
+    // (Olay ayrıca 30 günde bir alarm üretir — `unmappedPriceId` dalı.)
+    const staleConsent = await prisma.checkoutConsent.create({
+      data: { organizationId: orgId, planCode: "pro", priceId: "pri_pro", legalVersion: "2026-06", ip: "1.2.3.4", createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+      select: { id: true },
+    });
+    await prisma.subscription.create({
+      data: { organizationId: orgId, planCode: "pro", status: "active", provider: "paddle", providerRef: "sub_bilinmeyen" },
+    });
+    const body = JSON.stringify({
+      event_id: "evt_bilinmeyen_fiyat",
+      event_type: "subscription.updated",
+      occurred_at: new Date().toISOString(),
+      data: { id: "sub_bilinmeyen", status: "active", custom_data: { consentId: staleConsent.id }, items: [{ price: { id: "pri_env_de_yok" } }] },
+    });
+    expect((await POST(req(body, sign(body)))).status).toBe(200);
+    const sub = await prisma.subscription.findUnique({ where: { organizationId: orgId } });
+    expect(sub?.planCode, "katalog dışı fiyat planCode'u değiştirmemeli").toBe("pro");
+  });
+
+  it("EXISTING sub lifecycle: 30-day-old consentId, past_due resolves via providerRef → APPLIED", async () => {
+    const staleConsent = await prisma.checkoutConsent.create({
+      data: { organizationId: orgId, planCode: "pro", priceId: "pri_pro", legalVersion: "2026-06", ip: "1.2.3.4", createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+      select: { id: true },
+    });
+    await prisma.subscription.create({
+      data: { organizationId: orgId, planCode: "pro", status: "active", provider: "paddle", providerRef: "sub_pd" },
+    });
+    const body = JSON.stringify({
+      event_id: "evt_pastdue_known",
+      event_type: "subscription.past_due",
+      occurred_at: new Date().toISOString(),
+      data: { id: "sub_pd", status: "past_due", custom_data: { consentId: staleConsent.id }, items: [{ price: { id: "pri_pro" } }] },
+    });
+    expect((await POST(req(body, sign(body)))).status).toBe(200);
+    expect((await prisma.subscription.findUnique({ where: { organizationId: orgId } }))?.status).toBe("past_due");
+  });
+
+  it("30-day-old consentId + UNKNOWN providerRef → REJECTED (a stale consent can't first-link)", async () => {
+    const staleConsent = await prisma.checkoutConsent.create({
+      data: { organizationId: orgId, planCode: "pro", priceId: "pri_pro", legalVersion: "2026-06", ip: "1.2.3.4", createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+      select: { id: true },
+    });
+    // No local Subscription with this providerRef → no lifecycle match → stale consent → dropped.
+    const body = JSON.stringify({
+      event_id: "evt_unknown_ref",
+      event_type: "subscription.updated",
+      occurred_at: new Date().toISOString(),
+      data: { id: "sub_unknown", status: "active", custom_data: { consentId: staleConsent.id }, items: [{ price: { id: "pri_pro" } }] },
+    });
+    expect((await POST(req(body, sign(body)))).status).toBe(200);
+    expect(await prisma.subscription.count({ where: { organizationId: orgId } })).toBe(0);
+  });
+
+  it("forged organizationId is NEVER used (unknown providerRef, no valid consent)", async () => {
+    const victim = await prisma.organization.create({ data: { name: "Victim" } });
+    const body = JSON.stringify({
+      event_id: "evt_forge_ref",
+      event_type: "subscription.updated",
+      occurred_at: new Date().toISOString(),
+      data: { id: "sub_forge", status: "active", custom_data: { organizationId: victim.id }, items: [{ price: { id: "pri_pro" } }] },
+    });
+    expect((await POST(req(body, sign(body)))).status).toBe(200);
+    expect(await prisma.subscription.count({ where: { organizationId: victim.id } })).toBe(0);
+  });
+
+  it("ORDERING: a stale (older occurred_at) event can never overwrite a fresher state (guard is IN the update)", async () => {
+    // Both instants sit inside the consent's freshness window (created ~now):
+    // t1 is 60s before the consent (within clock-skew tolerance), t2 is now.
+    const t1 = new Date(Date.now() - 60_000).toISOString();
+    const t2 = new Date().toISOString();
+    // Fresh state first: the subscription is CANCELED as of t2.
+    const cancel = JSON.stringify({
+      event_id: "evt_ord_cancel",
+      event_type: "subscription.canceled",
+      occurred_at: t2,
+      data: { id: "sub_ord", status: "canceled", custom_data: { consentId }, items: [{ price: { id: "pri_pro" } }] },
+    });
+    expect((await POST(req(cancel, sign(cancel)))).status).toBe(200);
+    // A LATE retry of the older "active" update arrives afterwards (occurred t1 < t2).
+    const lateActive = JSON.stringify({
+      event_id: "evt_ord_late",
+      event_type: "subscription.updated",
+      occurred_at: t1,
+      data: { id: "sub_ord", status: "active", custom_data: { consentId }, items: [{ price: { id: "pri_pro" } }] },
+    });
+    expect((await POST(req(lateActive, sign(lateActive)))).status).toBe(200);
+    const sub = await prisma.subscription.findUnique({ where: { organizationId: orgId } });
+    expect(sub?.status).toBe("canceled"); // stale event dropped — access not flipped back
+    expect(sub?.lastEventAt?.toISOString()).toBe(t2);
+  });
+
+  it("ORDERING: an equal-timestamp reprocess re-applies idempotently (not lost)", async () => {
+    const t = new Date().toISOString();
+    const first = JSON.stringify({
+      event_id: "evt_ord_eq1",
+      event_type: "subscription.activated",
+      occurred_at: t,
+      data: { id: "sub_eq", status: "active", custom_data: { consentId }, items: [{ price: { id: "pri_pro" } }] },
+    });
+    expect((await POST(req(first, sign(first)))).status).toBe(200);
+    // Same instant (reprocessed retry with a different event id): must still apply.
+    const second = JSON.stringify({
+      event_id: "evt_ord_eq2",
+      event_type: "subscription.updated",
+      occurred_at: t,
+      data: { id: "sub_eq", status: "past_due", custom_data: { consentId }, items: [{ price: { id: "pri_pro" } }] },
+    });
+    expect((await POST(req(second, sign(second)))).status).toBe(200);
+    const sub = await prisma.subscription.findUnique({ where: { organizationId: orgId } });
+    expect(sub?.status).toBe("past_due"); // lte guard → equal timestamp re-applies
+  });
+
+  it("returns 5xx on a transient apply failure (event NOT processed), then applies idempotently on Paddle's retry", async () => {
+    const body = JSON.stringify({
+      event_id: "evt_retry_1",
+      event_type: "subscription.activated",
+      data: {
+        id: "sub_r1",
+        status: "active",
+        custom_data: { consentId },
+        items: [{ price: { id: "pri_pro" } }],
+      },
+    });
+
+    // First delivery: signature valid + payload parses, but the apply throws
+    // (transient DB error). Must return 5xx so Paddle re-delivers, and must NOT
+    // mark the event processed or apply the mutation. Manual reassign + finally
+    // restores the real method even if POST throws (a vi.spyOn().mockRestore() on
+    // the shared Prisma delegate did not restore reliably and leaked to later tests).
+    const origCreate = prisma.subscription.create;
+    prisma.subscription.create = (() =>
+      Promise.reject(new Error("db down"))) as unknown as typeof origCreate;
+    const first = await POST(req(body, sign(body))).finally(() => {
+      prisma.subscription.create = origCreate;
+    });
+    expect(first.status).toBe(500);
+
+    const ev1 = await prisma.webhookEvent.findUnique({ where: { providerEventId: "evt_retry_1" } });
+    expect(ev1?.status).not.toBe("processed"); // stays "error" → a retry reprocesses it
+    expect(await prisma.subscription.findUnique({ where: { organizationId: orgId } })).toBeNull(); // mutation not applied
+
+    // Paddle re-delivers the SAME event → now the idempotent handler applies it
+    // exactly once.
+    const second = await POST(req(body, sign(body)));
+    expect(second.status).toBe(200);
+    const ev2 = await prisma.webhookEvent.findUnique({ where: { providerEventId: "evt_retry_1" } });
+    expect(ev2?.status).toBe("processed");
+    const sub = await prisma.subscription.findUnique({ where: { organizationId: orgId } });
+    expect(sub?.status).toBe("active");
+    expect(sub?.providerRef).toBe("sub_r1");
+  });
+
+  it("trial → paid: activation flips the existing trialing row to active and CLEARS trialEndsAt", async () => {
+    // brand-new signup state: a trialing reverse-trial row already exists
+    await prisma.subscription.create({
+      data: {
+        organizationId: orgId,
+        planCode: "pro",
+        status: "trialing",
+        provider: "trial",
+        trialEndsAt: new Date("2026-06-29T00:00:00.000Z"),
+      },
+    });
+    const body = JSON.stringify({
+      event_id: "evt_activate",
+      event_type: "subscription.activated",
+      data: {
+        id: "sub_paid",
+        status: "active",
+        custom_data: { consentId },
+        items: [{ price: { id: "pri_pro" } }],
+      },
+    });
+    const res = await POST(req(body, sign(body)));
+    expect(res.status).toBe(200);
+
+    // still ONE row (upsert updated, not inserted), now active + trial marker gone
+    expect(await prisma.subscription.count({ where: { organizationId: orgId } })).toBe(1);
+    const sub = await prisma.subscription.findUnique({ where: { organizationId: orgId } });
+    expect(sub?.status).toBe("active");
+    expect(sub?.provider).toBe("paddle");
+    expect(sub?.trialEndsAt).toBeNull();
+  });
+
+  it("dedupes a duplicate event_id (idempotent)", async () => {
+    const body = JSON.stringify({
+      event_id: "evt_dup",
+      event_type: "subscription.updated",
+      data: { id: "sub_1", status: "active", custom_data: { consentId }, items: [{ price: { id: "pri_pro" } }] },
+    });
+    await POST(req(body, sign(body)));
+    const res2 = await POST(req(body, sign(body)));
+    expect(await res2.json()).toEqual({ ok: true, duplicate: true });
+    expect(await prisma.webhookEvent.count({ where: { providerEventId: "evt_dup" } })).toBe(1);
+  });
+
+  it("applies transaction.completed → creates a paid Invoice", async () => {
+    const body = JSON.stringify({
+      event_id: "evt_tx_1",
+      event_type: "transaction.completed",
+      data: {
+        id: "txn_1",
+        status: "completed",
+        custom_data: { consentId },
+        currency_code: "TRY",
+        details: { totals: { grand_total: "89900" } },
+      },
+    });
+    const res = await POST(req(body, sign(body)));
+    expect(res.status).toBe(200);
+
+    const inv = await prisma.invoice.findFirst({ where: { organizationId: orgId, provider: "paddle" } });
+    expect(inv).not.toBeNull();
+    expect(inv?.amountMinor).toBe(89900);
+    expect(inv?.currency).toBe("TRY");
+    expect(inv?.status).toBe("paid");
+    expect(inv?.providerRef).toBe("txn_1");
+  });
+
+  it("currency_code YOKSA Invoice YAZILMAZ — sessiz TRY damgası atılmaz (fail-closed)", () => {
+    // Fatura gerçek bir tahsilatın kaydı; para birimi OLAYA aittir. Eksikse
+    // uydurmak (eski sabit "TRY" ya da deployment para birimi) dönüşüm
+    // yapılmadan yanlış etiket demektir — kayıt hiç yazılmaz, hata raporlanır.
+    return (async () => {
+      const body = JSON.stringify({
+        event_id: "evt_tx_nocur",
+        event_type: "transaction.completed",
+        data: {
+          id: "txn_nocur",
+          status: "completed",
+          custom_data: { consentId },
+          // currency_code BİLEREK YOK
+          details: { totals: { grand_total: "89900" } },
+        },
+      });
+      const res = await POST(req(body, sign(body)));
+      // Webhook 200 döner (Paddle'ı sonsuz retry'a sokmayız — veri sorunu, geçici değil).
+      expect(res.status).toBe(200);
+      expect(await prisma.invoice.count({ where: { providerRef: "txn_nocur" } })).toBe(0);
+    })();
+  });
+
+  // Ödeme S1 (kurucu 10-16; U39): bozuk / eksik tutar "ödenmiş" fatura olmaz; olay "işlendi" sayılmaz (yeniden işlenebilir, ham olay
+  // saklı), işlem başına TEK alarm; aynı işlemin sonraki DOĞRU olayı faturayı yazar ve alarmı kapatır.
+  it.each([
+    ["100abc", "harf kuyruğu (eskiden 100)"],
+    ["1e3", "bilimsel gösterim (eskiden 1)"],
+    ["-500", "eksi (eskiden -500)"],
+    ["", "boş (eskiden 0)"],
+    ["12.50", "ondalık (eskiden 12)"],
+    [undefined, "alan yok (eskiden 0)"],
+    ["2147483648", "int4 sütununu aşan (Opus F4: eskiden veritabanı hatası → 500 → sonsuz yeniden deneme)"],
+  ] as [string | undefined, string][])("🚨 S1: grand_total %j (%s) → fatura YAZILMAZ, olay yeniden işlenebilir + alarm; sonraki DOĞRU olay yazar", async (grand) => {
+    const tag = grand === undefined ? "none" : grand || "empty";
+    const event = (id: string, total: string | undefined) =>
+      JSON.stringify({
+        event_id: id,
+        event_type: "transaction.completed",
+        data: { id: `txn_bad_${tag}`, status: "completed", custom_data: { consentId }, currency_code: "TRY", details: { totals: total === undefined ? {} : { grand_total: total } } },
+      });
+    const bad = event(`evt_bad_${tag}`, grand);
+    expect((await POST(req(bad, sign(bad)))).status).toBe(200); // veri sorunu: Paddle'ı sonsuz yeniden denemeye sokma
+    expect(await prisma.invoice.count({ where: { providerRef: `txn_bad_${tag}` } })).toBe(0); // ⬅️ ESKİDE yanlış tutarlı "paid" fatura
+    const row = await prisma.webhookEvent.findUniqueOrThrow({ where: { providerEventId: `evt_bad_${tag}` } });
+    expect(row.status).toBe("error"); // "processed" DEĞİL → Paddle'dan yeniden gönderilirse tekrar işlenir
+    expect(row.error).toBe("needs_review: invalid_amount");
+    expect(row.payloadJson).toContain(`txn_bad_${tag}`); // ham olay kaybolmaz
+    const alarm = await prisma.systemLock.findUnique({ where: { name: `alert-state:paddle-webhook:txn-invalid:txn_bad_${tag}` } });
+    expect(alarm).not.toBeNull();
+    // Aynı bozuk olayın tekrarı "kopya" sayılmaz (yeniden işlenir) ama ikinci alarm satırı açmaz (geçiş tabanlı).
+    const again = await POST(req(bad, sign(bad)));
+    expect(await again.json()).not.toMatchObject({ duplicate: true });
+    expect(await prisma.systemLock.count({ where: { name: { startsWith: "alert-state:paddle-webhook:txn-invalid:" } } })).toBe(1);
+    // Aynı işlemin doğru olayı → fatura yazılır, alarm kapanır.
+    const good = event(`evt_good_${tag}`, "89900");
+    expect((await POST(req(good, sign(good)))).status).toBe(200);
+    expect((await prisma.invoice.findFirst({ where: { providerRef: `txn_bad_${tag}` } }))?.amountMinor).toBe(89900);
+    expect(await prisma.systemLock.findUnique({ where: { name: `alert-state:paddle-webhook:txn-invalid:txn_bad_${tag}` } })).toBeNull();
+    // Opus F11: önceki olayın inceleme satırı kapanır (iz kalır) → "Ödeme incelemesi" listesinde sonsuza kadar durmaz.
+    const resolved = await prisma.webhookEvent.findUniqueOrThrow({ where: { providerEventId: `evt_bad_${tag}` } });
+    expect(resolved.status).toBe("processed");
+    expect(resolved.error).toMatch(/^resolved:/);
+  });
+
+  it("KONTROL (Opus F4): int4 üst sınırındaki tutar ('2147483647') geçerli fatura", async () => {
+    const max = JSON.stringify({
+      event_id: "evt_max",
+      event_type: "transaction.completed",
+      data: { id: "txn_max", status: "completed", custom_data: { consentId }, currency_code: "TRY", details: { totals: { grand_total: "2147483647" } } },
+    });
+    expect((await POST(req(max, sign(max)))).status).toBe(200);
+    expect((await prisma.invoice.findFirst({ where: { providerRef: "txn_max" } }))?.amountMinor).toBe(2147483647);
+  });
+
+  it("KONTROL (S1): gerçek SIFIR ücret ('0') geçerli fatura; olay işlendi; alarm yok", async () => {
+    const zero = JSON.stringify({
+      event_id: "evt_zero",
+      event_type: "transaction.completed",
+      data: { id: "txn_zero", status: "completed", custom_data: { consentId }, currency_code: "TRY", details: { totals: { grand_total: "0" } } },
+    });
+    expect((await POST(req(zero, sign(zero)))).status).toBe(200);
+    expect((await prisma.invoice.findFirst({ where: { providerRef: "txn_zero" } }))?.amountMinor).toBe(0);
+    expect((await prisma.webhookEvent.findUniqueOrThrow({ where: { providerEventId: "evt_zero" } })).status).toBe("processed");
+    expect(await prisma.systemLock.count({ where: { name: { startsWith: "alert-state:paddle-webhook:txn-invalid:" } } })).toBe(0);
+  });
+
+  it("S1: para birimi YOKSA da olay yeniden işlenebilir kalır (eskiden 'işlendi' olup Paddle'dan yeniden gönderilemiyordu) + alarm", async () => {
+    const body = JSON.stringify({
+      event_id: "evt_tx_nocur2",
+      event_type: "transaction.completed",
+      data: { id: "txn_nocur2", status: "completed", custom_data: { consentId }, details: { totals: { grand_total: "89900" } } },
+    });
+    expect((await POST(req(body, sign(body)))).status).toBe(200);
+    const row = await prisma.webhookEvent.findUniqueOrThrow({ where: { providerEventId: "evt_tx_nocur2" } });
+    expect(row.status).toBe("error");
+    expect(row.error).toBe("needs_review: missing_currency");
+    expect(await prisma.systemLock.findUnique({ where: { name: "alert-state:paddle-webhook:txn-invalid:txn_nocur2" } })).not.toBeNull();
+  });
+
+  it("records an event with no custom_data without creating a Subscription (no crash)", async () => {
+    const body = JSON.stringify({
+      event_id: "evt_nolink",
+      event_type: "subscription.activated",
+      data: { id: "sub_x", status: "active", items: [{ price: { id: "pri_pro" } }] },
+    });
+    const res = await POST(req(body, sign(body)));
+    expect(res.status).toBe(200);
+    expect(await prisma.webhookEvent.findUnique({ where: { providerEventId: "evt_nolink" } })).not.toBeNull();
+    expect(await prisma.subscription.count({ where: { organizationId: orgId } })).toBe(0);
+  });
+});
+
+describe("codex round-5: pending settle via the REAL handler", () => {
+  const pendingName = () => `plan-change-pending:${orgId}`;
+  const seedPending = (holder: string) =>
+    prisma.systemLock.create({ data: { name: pendingName(), lockedUntil: new Date(Date.now() + 15 * 60_000), holder } });
+  const subEvent = (id: string, evId: string, occurred: string) =>
+    JSON.stringify({
+      event_id: evId,
+      event_type: "subscription.updated",
+      occurred_at: occurred,
+      data: { id, status: "active", custom_data: { consentId }, items: [{ price: { id: "pri_pro" } }] },
+    });
+
+  it("an APPLIED event with the MATCHING target price clears the pending guard", async () => {
+    await seedPending("pri_pro");
+    const body = subEvent("sub_p1", "evt_p1", new Date().toISOString());
+    expect((await POST(req(body, sign(body)))).status).toBe(200);
+    expect(await prisma.systemLock.count({ where: { name: pendingName() } })).toBe(0);
+  });
+
+  it("an applied event with a DIFFERENT price does NOT clear it (TTL will)", async () => {
+    await seedPending("pri_isletme"); // pending targets business; event carries pri_pro
+    const body = subEvent("sub_p2", "evt_p2", new Date().toISOString());
+    expect((await POST(req(body, sign(body)))).status).toBe(200);
+    expect(await prisma.systemLock.count({ where: { name: pendingName() } })).toBe(1);
+  });
+
+  it("a STALE (ordering-vetoed) event never clears the guard even with a matching price", async () => {
+    const t1 = new Date(Date.now() - 60_000).toISOString();
+    const t2 = new Date().toISOString();
+    const fresh = subEvent("sub_p3", "evt_p3a", t2);
+    expect((await POST(req(fresh, sign(fresh)))).status).toBe(200);
+    await seedPending("pri_pro");
+    const stale = subEvent("sub_p3", "evt_p3b", t1); // older than lastEventAt → dropped
+    expect((await POST(req(stale, sign(stale)))).status).toBe(200);
+    expect(await prisma.systemLock.count({ where: { name: pendingName() } })).toBe(1);
+  });
+
+  it("P2002 create-fallback: the rival's row is updated AND the matching pending settles", async () => {
+    await seedPending("pri_pro");
+    const origCreate = prisma.subscription.create;
+    // Emulate a racing replica: it creates the row first, our create hits P2002,
+    // the handler falls back to the guarded updateMany (count 1) → settle.
+    prisma.subscription.create = (async () => {
+      await origCreate.call(prisma.subscription, {
+        data: { organizationId: orgId, planCode: "free", status: "past_due", provider: "paddle", providerRef: "sub_p4" },
+      });
+      throw new Prisma.PrismaClientKnownRequestError("dup", { code: "P2002", clientVersion: "6" });
+    }) as unknown as typeof origCreate;
+    const body = subEvent("sub_p4", "evt_p4", new Date().toISOString());
+    const res = await POST(req(body, sign(body))).finally(() => {
+      prisma.subscription.create = origCreate;
+    });
+    expect(res.status).toBe(200);
+    const sub = await prisma.subscription.findUnique({ where: { organizationId: orgId } });
+    expect(sub?.status).toBe("active"); // fallback updateMany applied the event
+    expect(await prisma.systemLock.count({ where: { name: pendingName() } })).toBe(0); // settled
+  });
+});

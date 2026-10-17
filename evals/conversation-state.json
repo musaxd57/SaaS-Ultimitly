@@ -1,0 +1,757 @@
+{
+  "version": 1,
+  "property": {
+    "name": "Lale",
+    "checkInTime": "15:00",
+    "checkOutTime": "11:00",
+    "city": "İstanbul"
+  },
+  "kb": [
+    {
+      "category": "checkin",
+      "title": "Giriş",
+      "content": "Giriş saati 15:00'tir. Giriş, bina kapısının yanındaki anahtar kutusuyla kendi başınıza yapılır; kutunun kodu varış günü sabahı ayrı bir mesajla gönderilir. Gece geç saatte varmanız sorun değildir, anahtar kutusu her saatte kullanılabilir. Erken giriş, dairenin temizliğinin bitmesine bağlıdır ve yalnız ev sahibinin onayıyla mümkündür."
+    },
+    {
+      "category": "checkout",
+      "title": "Çıkış",
+      "content": "Çıkış saati 11:00'dir. Çıkarken anahtarı anahtar kutusuna geri koyun, pencereleri ve klimayı kapatın. Kullanılmış havluları banyoda bırakabilirsiniz. Daha erken çıkacaksanız haber vermeniz yeterlidir. Geç çıkış bir sonraki rezervasyona bağlıdır ve yalnız ev sahibinin onayıyla mümkündür."
+    },
+    {
+      "category": "luggage",
+      "title": "Bagaj bırakma",
+      "content": "Dairede girişten önce ya da çıkıştan sonra bagaj bırakılamaz. En yakın emanet dolapları, yaklaşık 5 dakika yürüme mesafesindeki tramvay durağındadır."
+    },
+    {
+      "category": "parking",
+      "title": "Otopark",
+      "content": "Binanın kendi otoparkı yoktur. Yaklaşık 2 dakika yürüme mesafesinde ücretli bir belediye otoparkı vardır."
+    },
+    {
+      "category": "trash",
+      "title": "Çöp",
+      "content": "Çöpleri binanın önündeki büyük konteynere atabilirsiniz; geri dönüşüm kutusu hemen yanındadır."
+    },
+    {
+      "category": "transport",
+      "title": "Havalimanı ulaşımı",
+      "content": "Havalimanına taksiyle trafiğe göre 45-60 dakikada gidilir. Havalimanı otobüsünün durağı 10 dakika yürüme mesafesindedir ve otobüsler yarım saatte bir kalkar. Uçuşunuzdan en az 3 saat önce yola çıkmanızı öneririz."
+    },
+    {
+      "category": "amenities",
+      "title": "Olanaklar",
+      "content": "Dairede saç kurutma makinesi, ütü, çamaşır makinesi ve tam donanımlı bir mutfak vardır. Havlular ve nevresimler hazırdır."
+    },
+    {
+      "category": "wifi",
+      "title": "İnternet",
+      "content": "Wi-Fi ağ adı ve şifresi salondaki çerçevede yazılıdır."
+    },
+    {
+      "category": "heating",
+      "title": "Sıcak su ve klima",
+      "content": "Sıcak su kombiden gelir; kombi mutfak balkonundadır. Klimanın kumandası salondaki TV ünitesinin çekmecesindedir."
+    },
+    {
+      "category": "local_tips",
+      "title": "Yakındakiler",
+      "content": "En yakın market binadan yaklaşık 100 metre ileridedir ve gece gündüz açıktır. En yakın eczane ana caddede, yaklaşık 5 dakika yürüme mesafesindedir."
+    },
+    {
+      "category": "rules",
+      "title": "Ev kuralları",
+      "content": "Dairede sigara içilmez ve parti yapılmaz. Rezervasyonda kayıtlı kişi sayısından fazla misafir konaklayamaz. Evcil hayvan kabul edilmez."
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "te-tr-day-before-arrival",
+      "class": "tomorrow_early",
+      "lang": "tr",
+      "reservation": { "arrivalInDays": 1, "nights": 3 },
+      "localTime": "16:20",
+      "lifecycleSent": ["welcome"],
+      "message": "Merhaba, yarın erken girmemiz mümkün mü? Uçağımız sabah iniyor, 11 gibi dairede olabiliriz.",
+      "expect": { "silent": false, "stayKind": "early_checkin", "clarify": "none", "autoSend": "no" }
+    },
+    {
+      "id": "te-en-day-before-arrival-ongoing",
+      "class": "tomorrow_early",
+      "lang": "en",
+      "reservation": { "arrivalInDays": 1, "nights": 2 },
+      "localTime": "19:05",
+      "lifecycleSent": ["welcome"],
+      "history": [
+        { "direction": "inbound", "body": "Hi! Is there a supermarket close to the flat?" },
+        {
+          "direction": "outbound",
+          "author": "ai",
+          "body": "Hi Alex, yes, there is a market about 100 metres from the building and it is open around the clock."
+        }
+      ],
+      "message": "Great, thanks. Also, any chance we could check in early tomorrow, around 10am?",
+      "expect": { "silent": false, "stayKind": "early_checkin", "clarify": "none", "autoSend": "no" }
+    },
+    {
+      "id": "te-tr-arrival-day-leave-early-next-morning",
+      "class": "tomorrow_early",
+      "lang": "tr",
+      "reservation": { "arrivalInDays": 0, "nights": 1 },
+      "localTime": "18:30",
+      "lifecycleSent": ["welcome", "checkin"],
+      "history": [
+        { "direction": "inbound", "body": "Merhaba, daireye girdik, her şey çok güzel." },
+        { "direction": "outbound", "author": "ai", "body": "Hoş geldiniz Alex, keyifli bir konaklama dileriz!" }
+      ],
+      "message": "Yarın sabah erken çıkmamız gerekiyor, 7 gibi. Anahtarı nereye bırakalım?",
+      "expect": { "silent": false, "stayKind": "none", "clarify": "none", "autoSend": "any" }
+    },
+    {
+      "id": "te-en-day-before-checkout-leave-early",
+      "class": "tomorrow_early",
+      "lang": "en",
+      "reservation": { "arrivalInDays": -2, "nights": 3 },
+      "localTime": "21:10",
+      "lifecycleSent": ["welcome", "checkin"],
+      "message": "Hi, would it be a problem if we check out early tomorrow, around 8am? Is there anything we need to do before we leave?",
+      "expect": { "silent": false, "stayKind": "none", "clarify": "none", "autoSend": "any" }
+    },
+    {
+      "id": "te-tr-checkout-day-flight-tomorrow-extend",
+      "class": "tomorrow_early",
+      "lang": "tr",
+      "reservation": { "arrivalInDays": -3, "nights": 3 },
+      "localTime": "08:10",
+      "lifecycleSent": ["welcome", "checkin", "checkout"],
+      "message": "Günaydın, uçağımız yarın sabah erken kalkıyor. Bu gece de kalabilir miyiz? Ücretini öderiz.",
+      "expect": { "silent": false, "stayKind": "extend", "clarify": "none", "autoSend": "no" }
+    },
+    {
+      "id": "te-tr-no-reservation",
+      "class": "tomorrow_early",
+      "lang": "tr",
+      "reservation": null,
+      "localTime": "15:30",
+      "message": "Merhaba, yarın erken girebilir miyiz? Öğlen 12 gibi gelmeyi düşünüyoruz.",
+      "expect": { "silent": false, "stayKind": "early_checkin", "autoSend": "no" }
+    },
+    {
+      "id": "te-en-no-reservation",
+      "class": "tomorrow_early",
+      "lang": "en",
+      "reservation": null,
+      "localTime": "11:20",
+      "message": "Hello, could we come a bit early tomorrow, maybe around 1pm? We have a long drive ahead of us.",
+      "expect": { "silent": false, "stayKind": "early_checkin", "autoSend": "no" }
+    },
+    {
+      "id": "te-tr-f14-written-last-evening-arrival-today",
+      "class": "tomorrow_early",
+      "lang": "tr",
+      "reservation": { "arrivalInDays": 0, "nights": 2 },
+      "localTime": "09:00",
+      "lifecycleSent": ["welcome"],
+      "message": "Merhaba, yarın erken girebilir miyiz? 11 gibi orada oluruz.",
+      "messageAt": { "daysAgo": 1, "time": "22:10" },
+      "expect": { "silent": false, "stayKind": "early_checkin", "clarify": "none", "autoSend": "no" }
+    },
+    {
+      "id": "te-en-f14-written-last-evening-checkout-today",
+      "class": "tomorrow_early",
+      "lang": "en",
+      "reservation": { "arrivalInDays": -3, "nights": 3 },
+      "localTime": "07:50",
+      "lifecycleSent": ["welcome", "checkin"],
+      "message": "Hi, could we check out a bit late tomorrow, around 1pm? Our train is in the afternoon.",
+      "messageAt": { "daysAgo": 1, "time": "23:05" },
+      "expect": { "silent": false, "stayKind": "late_checkout", "clarify": "none", "autoSend": "no" }
+    },
+    {
+      "id": "te-tr-after-midnight-arrival-today",
+      "class": "tomorrow_early",
+      "lang": "tr",
+      "reservation": { "arrivalInDays": 0, "nights": 3 },
+      "localTime": "00:40",
+      "lifecycleSent": ["welcome"],
+      "message": "Merhaba, yarın erken girmemiz mümkün mü? Sabah 10 gibi şehre varıyoruz.",
+      "messageAt": { "daysAgo": 0, "time": "00:35" },
+      "expect": { "silent": false, "stayKind": "early_checkin", "clarify": "none", "autoSend": "no" }
+    },
+    {
+      "id": "co-tr-correction-earlier",
+      "class": "checkout_time",
+      "lang": "tr",
+      "reservation": { "arrivalInDays": -2, "nights": 3, "guestCheckoutTime": "10:00" },
+      "localTime": "20:30",
+      "lifecycleSent": ["welcome", "checkin"],
+      "history": [
+        { "direction": "inbound", "body": "Yarın saat 10'da çıkış yapacağız, bilginiz olsun." },
+        {
+          "direction": "outbound",
+          "author": "ai",
+          "body": "Merhaba Alex, bilgi için teşekkürler. Çıkarken anahtarı anahtar kutusuna bırakmanız yeterli."
+        }
+      ],
+      "message": "Pardon, küçük bir düzeltme: 10'da değil 9'da çıkacağız.",
+      "expect": { "stayKind": "none", "statedCheckoutTime": "09:00", "clarify": "none", "autoSend": "any" }
+    },
+    {
+      "id": "co-tr-correction-past-checkout",
+      "class": "checkout_time",
+      "lang": "tr",
+      "reservation": { "arrivalInDays": -3, "nights": 3, "guestCheckoutTime": "11:00" },
+      "localTime": "08:20",
+      "lifecycleSent": ["welcome", "checkin", "checkout"],
+      "history": [
+        { "direction": "inbound", "body": "Yarın 11'de çıkacağız.", "at": { "daysAgo": 1, "time": "19:30" } },
+        {
+          "direction": "outbound",
+          "author": "ai",
+          "body": "Merhaba Alex, bilgi için teşekkürler. Çıkarken anahtarı anahtar kutusuna bırakmanız yeterli.",
+          "at": { "daysAgo": 1, "time": "19:31" }
+        }
+      ],
+      "message": "Günaydın, 11'de değil 12'de çıkacağız.",
+      "messageAt": { "daysAgo": 0, "time": "08:15" },
+      "expect": {
+        "silent": false,
+        "stayKind": "late_checkout",
+        "statedCheckoutTime": "12:00",
+        "clarify": "none",
+        "autoSend": "no"
+      }
+    },
+    {
+      "id": "co-en-correction-with-taxi-time",
+      "class": "checkout_time",
+      "lang": "en",
+      "reservation": { "arrivalInDays": -1, "nights": 2, "guestCheckoutTime": "09:30" },
+      "localTime": "22:00",
+      "lifecycleSent": ["welcome", "checkin"],
+      "history": [
+        { "direction": "inbound", "body": "We'll check out around 9:30 tomorrow." },
+        {
+          "direction": "outbound",
+          "author": "ai",
+          "body": "Hi Alex, thanks for letting us know! When you leave, just put the key back in the key box."
+        }
+      ],
+      "message": "Sorry, small correction: we'll check out at 8, not 9:30. Our taxi to the airport is booked for 8:15.",
+      "expect": { "stayKind": "none", "statedCheckoutTime": "08:00", "clarify": "none", "autoSend": "any" }
+    },
+    {
+      "id": "co-de-correction-earlier",
+      "class": "checkout_time",
+      "lang": "de",
+      "reservation": { "arrivalInDays": -4, "nights": 5, "guestCheckoutTime": "10:00" },
+      "localTime": "18:45",
+      "lifecycleSent": ["welcome", "checkin"],
+      "history": [
+        { "direction": "inbound", "body": "Hallo, wir reisen morgen um 10 Uhr ab." },
+        {
+          "direction": "outbound",
+          "author": "ai",
+          "body": "Hallo Alex, danke für die Info! Bitte legen Sie den Schlüssel beim Auschecken zurück in die Schlüsselbox."
+        }
+      ],
+      "message": "Kleine Korrektur: Wir reisen morgen nicht um 10 Uhr, sondern schon um 9 Uhr ab.",
+      "expect": { "stayKind": "none", "statedCheckoutTime": "09:00", "clarify": "none", "autoSend": "any" }
+    },
+    {
+      "id": "co-en-own-time-vs-airport-5pm",
+      "class": "checkout_time",
+      "lang": "en",
+      "reservation": { "arrivalInDays": -2, "nights": 2, "guestCheckoutTime": "11:00" },
+      "localTime": "08:30",
+      "lifecycleSent": ["welcome", "checkin", "checkout"],
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Hi, just so you know, we'll check out at 11 tomorrow.",
+          "at": { "daysAgo": 1, "time": "21:00" }
+        },
+        {
+          "direction": "outbound",
+          "author": "ai",
+          "body": "Hi Alex, thanks for letting us know! When you leave, just put the key back in the key box.",
+          "at": { "daysAgo": 1, "time": "21:01" }
+        }
+      ],
+      "message": "Change of plan: we'll be out of the flat by 10:30, but we only leave for the airport at 5pm. Is there anywhere we can leave our bags in between?",
+      "messageAt": { "daysAgo": 0, "time": "08:25" },
+      "expect": {
+        "silent": false,
+        "stayKind": "none",
+        "statedCheckoutTime": "10:30",
+        "clarify": "none",
+        "autoSend": "any"
+      }
+    },
+    {
+      "id": "tv-tr-flight-when-to-leave",
+      "class": "travel_not_checkout",
+      "lang": "tr",
+      "reservation": { "arrivalInDays": -3, "nights": 3 },
+      "localTime": "08:05",
+      "lifecycleSent": ["welcome", "checkin", "checkout"],
+      "message": "Günaydın, uçağımız 14:00'te. Havalimanına kaçta çıkmamız gerekir sizce?",
+      "expect": { "silent": false, "stayKind": "none", "statedCheckoutTime": null, "clarify": "none", "autoSend": "any" }
+    },
+    {
+      "id": "tv-en-train-luggage",
+      "class": "travel_not_checkout",
+      "lang": "en",
+      "reservation": { "arrivalInDays": -2, "nights": 3 },
+      "localTime": "17:30",
+      "lifecycleSent": ["welcome", "checkin"],
+      "message": "Our train leaves at 16:30 tomorrow. Is there anywhere near the flat where we can store our luggage after checkout?",
+      "expect": { "silent": false, "stayKind": "none", "statedCheckoutTime": null, "clarify": "none", "autoSend": "any" }
+    },
+    {
+      "id": "tv-tr-day-trip-tomorrow-early",
+      "class": "travel_not_checkout",
+      "lang": "tr",
+      "reservation": { "arrivalInDays": -1, "nights": 4 },
+      "localTime": "21:00",
+      "lifecycleSent": ["welcome", "checkin"],
+      "message": "Yarın sabah 7'de tekne turuna çıkıyoruz, akşam döneriz. Kapıyı kilitleyip anahtarı yanımıza alsak yeterli mi?",
+      "expect": { "silent": false, "stayKind": "none", "statedCheckoutTime": null, "clarify": "none", "autoSend": "any" }
+    },
+    {
+      "id": "tv-tr-after-midnight-late-arrival",
+      "class": "travel_not_checkout",
+      "lang": "tr",
+      "reservation": { "arrivalInDays": -1, "nights": 3 },
+      "localTime": "00:50",
+      "lifecycleSent": ["welcome", "checkin"],
+      "message": "Merhaba, uçağımız rötar yaptı, bu gece 02:30 gibi varacağız. Anahtar kutusunu gece de kullanabiliyor muyuz?",
+      "messageAt": { "daysAgo": 0, "time": "00:45" },
+      "expect": { "silent": false, "stayKind": "none", "statedCheckoutTime": null, "clarify": "none", "autoSend": "any" }
+    },
+    {
+      "id": "tv-ar-flight-key",
+      "class": "travel_not_checkout",
+      "lang": "ar",
+      "reservation": { "arrivalInDays": -2, "nights": 3 },
+      "localTime": "20:15",
+      "lifecycleSent": ["welcome", "checkin"],
+      "message": "مرحباً، رحلتنا غداً الساعة 6:00 صباحاً. هل يمكننا ترك المفتاح داخل الشقة عند المغادرة؟",
+      "expect": { "silent": false, "stayKind": "none", "statedCheckoutTime": null, "clarify": "none", "autoSend": "any" }
+    },
+    {
+      "id": "cl-tr-thanks-after-answer",
+      "class": "closing",
+      "lang": "tr",
+      "reservation": { "arrivalInDays": -1, "nights": 3 },
+      "localTime": "13:10",
+      "lifecycleSent": ["welcome", "checkin"],
+      "history": [
+        { "direction": "inbound", "body": "Merhaba, çöpleri nereye atıyoruz?" },
+        {
+          "direction": "outbound",
+          "author": "ai",
+          "body": "Merhaba Alex, çöpleri binanın önündeki büyük konteynere atabilirsiniz; geri dönüşüm kutusu hemen yanında."
+        }
+      ],
+      "message": "Süper, çok teşekkürler!",
+      "expect": { "silent": true }
+    },
+    {
+      "id": "cl-en-thanks-after-host-answer",
+      "class": "closing",
+      "lang": "en",
+      "reservation": { "arrivalInDays": 0, "nights": 2 },
+      "localTime": "16:40",
+      "lifecycleSent": ["welcome", "checkin"],
+      "history": [
+        { "direction": "inbound", "body": "Hi, is there a hair dryer in the flat?" },
+        { "direction": "outbound", "author": "host", "body": "Hi Alex! Yes, there's a hair dryer in the bathroom cabinet." }
+      ],
+      "message": "Perfect, thank you so much!",
+      "expect": { "silent": true }
+    },
+    {
+      "id": "cl-en-see-you-tomorrow",
+      "class": "closing",
+      "lang": "en",
+      "reservation": { "arrivalInDays": 1, "nights": 2 },
+      "localTime": "18:20",
+      "lifecycleSent": ["welcome"],
+      "history": [
+        { "direction": "inbound", "body": "Hi! How does check-in work tomorrow?" },
+        {
+          "direction": "outbound",
+          "author": "ai",
+          "body": "Hi Alex, check-in is from 15:00 with a key box next to the building door. The box code is sent in a separate message on the morning of your arrival."
+        }
+      ],
+      "message": "Got it, thanks! See you tomorrow.",
+      "expect": { "silent": true }
+    },
+    {
+      "id": "cl-fr-thanks",
+      "class": "closing",
+      "lang": "fr",
+      "reservation": { "arrivalInDays": -1, "nights": 3 },
+      "localTime": "10:15",
+      "lifecycleSent": ["welcome", "checkin"],
+      "history": [
+        { "direction": "inbound", "body": "Bonjour, à quelle heure faut-il libérer l'appartement le dernier jour ?" },
+        {
+          "direction": "outbound",
+          "author": "ai",
+          "body": "Bonjour Alex, le départ se fait avant 11h00. En partant, il suffit de remettre la clé dans la boîte à clés."
+        }
+      ],
+      "message": "Parfait, merci beaucoup !",
+      "expect": { "silent": true }
+    },
+    {
+      "id": "cl-ru-two-thanks",
+      "class": "closing",
+      "lang": "ru",
+      "reservation": { "arrivalInDays": -2, "nights": 5 },
+      "localTime": "09:40",
+      "lifecycleSent": ["welcome", "checkin"],
+      "history": [
+        { "direction": "inbound", "body": "Здравствуйте! Есть ли в квартире утюг?" },
+        { "direction": "outbound", "author": "ai", "body": "Здравствуйте, Alex! Да, в квартире есть утюг." },
+        { "direction": "inbound", "body": "Спасибо!" }
+      ],
+      "message": "Хорошего дня 🙂",
+      "expect": { "silent": true }
+    },
+    {
+      "id": "cl-tr-ack-after-code-approval",
+      "class": "closing",
+      "lang": "tr",
+      "reservation": { "arrivalInDays": 0, "nights": 3 },
+      "localTime": "10:30",
+      "lifecycleSent": ["welcome"],
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Merhaba, bugün 12'de erken girebilir miyiz?",
+          "decision": { "finalDecision": "auto_sent", "reason": "early_checkin_verified" }
+        },
+        {
+          "direction": "outbound",
+          "author": "ai",
+          "body": "Merhaba Alex, daireniz hazır; bugün 12:00'den itibaren giriş yapabilirsiniz."
+        }
+      ],
+      "message": "Harika, teşekkürler! 12'de oradayız.",
+      "expect": { "silent": true }
+    },
+    {
+      "id": "ct-tr-thanks-plus-question",
+      "class": "closing_trap",
+      "lang": "tr",
+      "reservation": { "arrivalInDays": -1, "nights": 3 },
+      "localTime": "12:00",
+      "lifecycleSent": ["welcome", "checkin"],
+      "history": [
+        { "direction": "inbound", "body": "Merhaba, Wi-Fi şifresi nerede yazıyor?" },
+        { "direction": "outbound", "author": "ai", "body": "Merhaba Alex, Wi-Fi ağ adı ve şifresi salondaki çerçevede yazılı." }
+      ],
+      "message": "Teşekkürler! Bir de çöpleri nereye atıyoruz?",
+      "expect": { "silent": false, "stayKind": "none", "clarify": "none", "autoSend": "yes" }
+    },
+    {
+      "id": "ct-tr-thanks-but-complaint",
+      "class": "closing_trap",
+      "lang": "tr",
+      "reservation": { "arrivalInDays": -1, "nights": 4 },
+      "localTime": "15:20",
+      "lifecycleSent": ["welcome", "checkin"],
+      "history": [
+        { "direction": "inbound", "body": "Merhaba, klima çalışmıyor galiba, kumandası nerede?" },
+        {
+          "direction": "outbound",
+          "author": "host",
+          "body": "Merhaba Alex, kumanda salondaki TV ünitesinin çekmecesinde; açma tuşuna basıp soğutma modunu seçebilirsiniz."
+        }
+      ],
+      "message": "Teşekkürler ama kumandayla açtık, hâlâ soğutmuyor. İçerisi çok sıcak.",
+      "expect": { "silent": false, "stayKind": "none", "autoSend": "no" }
+    },
+    {
+      "id": "ct-en-thanks-answers-ai-question",
+      "class": "closing_trap",
+      "lang": "en",
+      "reservation": { "arrivalInDays": 1, "nights": 2 },
+      "localTime": "17:00",
+      "lifecycleSent": ["welcome"],
+      "history": [
+        { "direction": "inbound", "body": "Hi, we're arriving tomorrow evening. How does check-in work?" },
+        {
+          "direction": "outbound",
+          "author": "ai",
+          "body": "Hi Alex, check-in is self check-in with a key box next to the building door; the box code is sent in a separate message on the morning of your arrival. Roughly what time do you expect to arrive?"
+        }
+      ],
+      "message": "Thanks, we'll be there around 9pm.",
+      "expect": { "silent": false, "stayKind": "none", "clarify": "none", "autoSend": "any" }
+    },
+    {
+      "id": "ct-en-accepts-host-paid-offer",
+      "class": "closing_trap",
+      "lang": "en",
+      "reservation": { "arrivalInDays": -2, "nights": 2 },
+      "localTime": "08:40",
+      "lifecycleSent": ["welcome", "checkin", "checkout"],
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Hi, is a late checkout possible today?",
+          "decision": { "finalDecision": "human_review", "stay": "late_checkout/defers" }
+        },
+        {
+          "direction": "outbound",
+          "author": "host",
+          "body": "Hi Alex, I can offer a late checkout until 13:00 for an extra 300 TL. Would you like that?"
+        }
+      ],
+      "message": "Yes please, that would be great. Thank you!",
+      "expect": { "silent": false, "stayKind": "late_checkout", "clarify": "none", "autoSend": "no" }
+    },
+    {
+      "id": "ct-es-thanks-plus-late-checkout",
+      "class": "closing_trap",
+      "lang": "es",
+      "reservation": { "arrivalInDays": -3, "nights": 4 },
+      "localTime": "19:30",
+      "lifecycleSent": ["welcome", "checkin"],
+      "history": [
+        { "direction": "inbound", "body": "Hola, ¿a qué hora es el check-out?" },
+        {
+          "direction": "outbound",
+          "author": "ai",
+          "body": "Hola Alex, el check-out es a las 11:00. Al salir, solo tienes que dejar la llave en la caja de llaves."
+        }
+      ],
+      "message": "Gracias. ¿Podríamos salir mañana a las 12?",
+      "expect": { "silent": false, "stayKind": "late_checkout", "clarify": "none", "autoSend": "no" }
+    },
+    {
+      "id": "ct-tr-thanks-after-host-approval-plus-question",
+      "class": "closing_trap",
+      "lang": "tr",
+      "reservation": { "arrivalInDays": 0, "nights": 2 },
+      "localTime": "10:15",
+      "lifecycleSent": ["welcome"],
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Merhaba, bugün erken girebilir miyiz?",
+          "decision": { "finalDecision": "human_review", "stay": "early_checkin/defers" }
+        },
+        {
+          "direction": "outbound",
+          "author": "host",
+          "body": "Merhaba Alex, temizlik 12:00'de bitiyor; 12:30'dan sonra girebilirsiniz."
+        }
+      ],
+      "message": "Süper, teşekkürler! 12:30 gibi geliriz. Bu arada binada otopark var mı?",
+      "expect": { "silent": false, "clarify": "none", "autoSend": "any" }
+    },
+    {
+      "id": "pf-tr-late-checkout-any-news",
+      "class": "pending_followup",
+      "lang": "tr",
+      "reservation": { "arrivalInDays": -2, "nights": 2 },
+      "localTime": "08:10",
+      "lifecycleSent": ["welcome", "checkin", "checkout"],
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Merhaba, yarın geç çıkış yapabilir miyiz? 13:00'e kadar kalmak istiyoruz.",
+          "at": { "daysAgo": 1, "time": "18:00" },
+          "decision": { "finalDecision": "human_review", "stay": "late_checkout/defers" }
+        }
+      ],
+      "message": "Günaydın, geç çıkış konusunda bir gelişme var mı? Erken bilmemiz gerekiyor.",
+      "messageAt": { "daysAgo": 0, "time": "08:05" },
+      "expect": { "silent": false, "stayKind": "late_checkout", "clarify": "none", "autoSend": "no" }
+    },
+    {
+      "id": "pf-en-early-checkin-deferred-any-update",
+      "class": "pending_followup",
+      "lang": "en",
+      "reservation": { "arrivalInDays": 0, "nights": 3 },
+      "localTime": "09:30",
+      "lifecycleSent": ["welcome"],
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Hi! Could we check in early tomorrow, around 11?",
+          "at": { "daysAgo": 1, "time": "19:40" },
+          "decision": { "finalDecision": "auto_sent", "stay": "early_checkin/defers" }
+        },
+        {
+          "direction": "outbound",
+          "author": "ai",
+          "body": "Hi Alex, early check-in depends on the cleaning schedule and needs your host's approval. Your message has been saved and your host can see it.",
+          "at": { "daysAgo": 1, "time": "19:41" }
+        }
+      ],
+      "message": "Good morning! Any update on the early check-in? We're already on the road.",
+      "messageAt": { "daysAgo": 0, "time": "09:25" },
+      "expect": { "silent": false, "stayKind": "early_checkin", "clarify": "none", "autoSend": "no" }
+    },
+    {
+      "id": "pf-en-complaint-followup-no-promise",
+      "class": "pending_followup",
+      "lang": "en",
+      "reservation": { "arrivalInDays": -1, "nights": 4 },
+      "localTime": "11:00",
+      "lifecycleSent": ["welcome", "checkin"],
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Hi, there's no hot water, we can't shower.",
+          "at": { "daysAgo": 0, "time": "09:10" },
+          "decision": { "finalDecision": "human_review" }
+        },
+        {
+          "direction": "outbound",
+          "author": "host",
+          "body": "Hi Alex, I'm very sorry about this. I'm looking into it right now.",
+          "at": { "daysAgo": 0, "time": "09:25" }
+        }
+      ],
+      "message": "Still no hot water. Is someone coming today, and at what time?",
+      "expect": { "silent": false, "stayKind": "none", "autoSend": "no" }
+    },
+    {
+      "id": "pf-tr-f14-answers-arrival-time",
+      "class": "pending_followup",
+      "lang": "tr",
+      "reservation": { "arrivalInDays": 0, "nights": 2 },
+      "localTime": "08:40",
+      "lifecycleSent": ["welcome"],
+      "history": [
+        {
+          "direction": "inbound",
+          "body": "Merhaba, yarın erken girebilir miyiz?",
+          "at": { "daysAgo": 1, "time": "20:05" },
+          "decision": { "finalDecision": "auto_sent", "stay": "early_checkin/defers" }
+        },
+        {
+          "direction": "outbound",
+          "author": "ai",
+          "body": "Merhaba Alex, erken giriş dairenin temizliğine bağlı ve ev sahibinizin onayını gerektiriyor; mesajınız kaydedildi, ev sahibiniz görebilir. Kaç gibi varmayı planlıyorsunuz?",
+          "at": { "daysAgo": 1, "time": "20:06" }
+        }
+      ],
+      "message": "Günaydın, 11 gibi orada oluruz.",
+      "messageAt": { "daysAgo": 0, "time": "08:35" },
+      "expect": { "silent": false, "stayKind": "early_checkin", "clarify": "none", "autoSend": "no" }
+    },
+    {
+      "id": "rs-tr-ongoing-guest-greets-again",
+      "class": "resolvable",
+      "lang": "tr",
+      "reservation": { "arrivalInDays": -1, "nights": 3 },
+      "localTime": "11:45",
+      "lifecycleSent": ["welcome", "checkin"],
+      "history": [
+        { "direction": "inbound", "body": "Merhaba, saç kurutma makinesi var mı?" },
+        { "direction": "outbound", "author": "ai", "body": "Merhaba Alex, evet, dairede saç kurutma makinesi var." }
+      ],
+      "message": "Merhaba tekrar 🙂 Binada otopark var mı?",
+      "expect": { "silent": false, "stayKind": "none", "clarify": "none", "autoSend": "yes" }
+    },
+    {
+      "id": "rs-en-early-checkin-single-arrival",
+      "class": "resolvable",
+      "lang": "en",
+      "reservation": { "arrivalInDays": 4, "nights": 3 },
+      "lifecycleSent": ["welcome"],
+      "message": "Hi, is an early check-in possible? We could be there around noon.",
+      "expect": { "silent": false, "stayKind": "early_checkin", "clarify": "none", "autoSend": "no" }
+    },
+    {
+      "id": "rs-tr-after-midnight-bu-gece-extend",
+      "class": "resolvable",
+      "lang": "tr",
+      "reservation": { "arrivalInDays": -2, "nights": 2 },
+      "localTime": "00:25",
+      "lifecycleSent": ["welcome", "checkin"],
+      "message": "Bir gece daha kalabilir miyiz? Planlarımız değişti, bu gece de burada olmak istiyoruz.",
+      "messageAt": { "daysAgo": 0, "time": "00:20" },
+      "expect": { "silent": false, "stayKind": "extend", "clarify": "none", "autoSend": "no" }
+    },
+    {
+      "id": "rs-tr-after-midnight-yarin-late-checkout",
+      "class": "resolvable",
+      "lang": "tr",
+      "reservation": { "arrivalInDays": -2, "nights": 2 },
+      "localTime": "01:30",
+      "lifecycleSent": ["welcome", "checkin"],
+      "message": "Yarın biraz geç çıkabilir miyiz, 12:30 gibi?",
+      "messageAt": { "daysAgo": 0, "time": "01:25" },
+      "expect": { "silent": false, "stayKind": "late_checkout", "clarify": "none", "autoSend": "no" }
+    },
+    {
+      "id": "amb-tr-f14-twin-written-now-arrival-today",
+      "class": "ambiguous",
+      "lang": "tr",
+      "reservation": { "arrivalInDays": 0, "nights": 2 },
+      "localTime": "09:00",
+      "lifecycleSent": ["welcome"],
+      "message": "Merhaba, yarın erken girebilir miyiz? 11 gibi orada oluruz.",
+      "expect": { "silent": false, "clarify": "one", "autoSend": "no" }
+    },
+    {
+      "id": "amb-tr-after-midnight-arrival-tomorrow",
+      "class": "ambiguous",
+      "lang": "tr",
+      "reservation": { "arrivalInDays": 1, "nights": 2 },
+      "localTime": "00:40",
+      "lifecycleSent": ["welcome"],
+      "message": "Yarın erken girebilir miyiz?",
+      "messageAt": { "daysAgo": 0, "time": "00:36" },
+      "expect": { "silent": false, "clarify": "one", "autoSend": "no" }
+    },
+    {
+      "id": "amb-tr-midnight-twin-daytime-arrival-today",
+      "class": "ambiguous",
+      "lang": "tr",
+      "reservation": { "arrivalInDays": 0, "nights": 3 },
+      "lifecycleSent": ["welcome"],
+      "message": "Merhaba, yarın erken girmemiz mümkün mü? Sabah 10 gibi şehre varıyoruz.",
+      "expect": { "silent": false, "clarify": "one", "autoSend": "no" }
+    },
+    {
+      "id": "amb-tr-arrival-day-leave-early-tomorrow",
+      "class": "ambiguous",
+      "lang": "tr",
+      "reservation": { "arrivalInDays": 0, "nights": 3 },
+      "localTime": "19:00",
+      "lifecycleSent": ["welcome", "checkin"],
+      "message": "Merhaba, yarın erken çıkabilir miyiz?",
+      "expect": { "silent": false, "clarify": "one", "autoSend": "no" }
+    },
+    {
+      "id": "amb-en-stay-longer",
+      "class": "ambiguous",
+      "lang": "en",
+      "reservation": { "arrivalInDays": -2, "nights": 4 },
+      "localTime": "12:00",
+      "lifecycleSent": ["welcome", "checkin"],
+      "message": "We love it here! Could we stay a bit longer?",
+      "expect": { "silent": false, "clarify": "one", "autoSend": "no" }
+    },
+    {
+      "id": "amb-en-f14-twin-written-now-checkout-today",
+      "class": "ambiguous",
+      "lang": "en",
+      "reservation": { "arrivalInDays": -3, "nights": 3 },
+      "localTime": "07:50",
+      "lifecycleSent": ["welcome", "checkin"],
+      "message": "Hi, could we check out a bit late tomorrow, around 1pm? Our train is in the afternoon.",
+      "expect": { "silent": false, "clarify": "one", "autoSend": "no" }
+    }
+  ]
+}
