@@ -393,8 +393,12 @@ describe("gece-4 S4-03 / S4-08: İngilizce kısaltmalı arıza, -ing adımlar, b
     ).toBe(false);
     // KONTROL: cihaz öznesiyle aynı biçim arızadır → tarifsiz adım tutulur.
     expect(unsupportedFixStep("You can use the dishwasher's eco button.", withDishwasher, "The dishwasher didn't turn on last night.")).toBe(true);
-    // KONTROL: "power it off" yeniden başlatma adımı olarak kalır.
+    // KONTROL: arıza bildiriminde "power it off" yeniden başlatma adımıdır; arıza yokken ("…when you're done") değildir.
     expect(unsupportedFixStep("Please try powering it off for a minute.", thin, "The TV isn't working")).toBe(true);
+    expect(unsupportedFixStep("Please power it off when you're done.", thin, "How do I use the coffee machine?")).toBe(false);
+    // Yalnız kapatma kuralıyla ayrışan vaka (başka cihaz, kip "you should" + "power" çalıştırma listesinde değil): arıza varken adım.
+    expect(unsupportedFixStep("You should power off the router for a minute.", thin, "The TV isn't working")).toBe(true);
+    expect(unsupportedFixStep("You should power off the router for a minute.", thin, "Is there anything to do before we leave?")).toBe(false);
   });
   it("Haiku gece-4 2. tur: arıza bildiriminde nesneli kapatma adımdır; kip + çalıştırma fiili adımdır; 'they' cihaz çoğulu olabilir", () => {
     // Misafir arıza bildirdi → "power off the modem" yeniden başlatma adımı (tarif yok → tutulur); arıza yokken çıkış hatırlatması geçer.

@@ -606,6 +606,25 @@ describe("BAĞLAM — saat güncellemesi yalnız kesin eşleşmede (kurucu: 'ba�
     expect(moved.dueAt.toISOString()).toBe(commitmentDueAt({ day: "tomorrow", time: "15:00" }, TZ, new Date())!.toISOString());
   });
 
+  it("🚨 Opus gece-4 F9 (sunucu): taşımada önerinin KENDİ saati gönderilse de seçeneğin saati yazılır (eski panel / çift dokunma)", async () => {
+    pinIstanbulNoonToday();
+    const s = await setup();
+    await hostSays(s.conversationId, "Klima için teknisyen yarın 10:00'da gelecek.", new Date(Date.now() - 10 * 60_000));
+    expect((await applyHostCommitmentsAuto(s.orgId, s.conversationId)).created).toBe(1);
+    const c1 = await prisma.guestCommitment.findFirstOrThrow();
+    // Öğlen yazıldı: "8'de" kendi okuması bugün 20:00; yarınki söze taşıma seçeneği yarın 08:00.
+    await hostSays(s.conversationId, "Klima için teknisyen 8'de gelecek.", new Date(Date.now() - 5 * 60_000));
+    await applyHostCommitmentsAuto(s.orgId, s.conversationId);
+    const [card] = (await getConversationSuggestions(s.orgId, s.conversationId)).filter((x) => x.kind === "commitment");
+    const ownTime = card.kind === "commitment" ? card.proposal.time : "";
+    const option = card.kind === "commitment" ? card.proposal.moveOptions?.find((o) => o.commitmentId === c1.id) : undefined;
+    expect(option?.time).toBe("08:00");
+    expect(ownTime).not.toBe(option?.time);
+    expect((await decide({ key: card.key, decision: "approve", attach: `move:${c1.id}`, time: ownTime })).status).toBe(200);
+    const moved = await prisma.guestCommitment.findUniqueOrThrow({ where: { id: c1.id } });
+    expect(moved.dueAt.toISOString()).toBe(commitmentDueAt({ day: "tomorrow", time: "08:00" }, TZ, new Date())!.toISOString());
+  });
+
   it("🚨 Haiku gece-4: bağlanacak söz yokken 'Teknisyen 11'e kaydı.' → hangi günün saati? kendiliğinden açılmaz, kart günü sorar", async () => {
     pinIstanbulNoonToday();
     const s = await setup();

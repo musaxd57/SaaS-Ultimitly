@@ -53,7 +53,8 @@ describe("DELETE /api/reservations/[id] — açık otomatik görevler de gider (
     // Haiku gece-4: başlanmış görev ve temizlikçinin işaretlediği liste iş kanıtıdır — silinmez (bağsız kalır).
     const started = await seedTask(r.id, { type: "cleaning", origin: "system", status: "in_progress" });
     const checked = await seedTask(r.id, { type: "checkin_prep", origin: "system", status: "todo" });
-    await prisma.task.update({ where: { id: checked.id }, data: { checklistJson: JSON.stringify([{ label: "Havlu", done: true }]) } });
+    // Boşluklu JSON: sorgu düzeyi kaba eleme (`"done":true`) görmez, kilit altındaki kesin okuma (`checklistTouched`) görür.
+    await prisma.task.update({ where: { id: checked.id }, data: { checklistJson: '[{"label": "Havlu", "done": true}]' } });
     const kept = [
       started,
       checked,

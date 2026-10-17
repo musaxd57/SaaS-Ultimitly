@@ -848,8 +848,9 @@ const TROUBLESHOOT_CONTEXT = new RegExp(
 const RESTART_STEP = new RegExp(
   [
     // Gece-4 S4-03: -ing / -s / -ed biçimleri de ("Please try restarting the TV", "unplugging it for a minute") — yalın kök tek başına kaçıyordu.
-    // "power it off" her bağlamda; nesneli "power off the modem" yalnız misafir arıza bildirdiyse (↓`POWER_OFF_STEP`; Haiku gece-4).
-    `${L}(?:restart(?:ing|s|ed)?|reboot(?:ing|s|ed)?|reset(?:ting|s)?|unplug(?:ging|s|ged)?|replug(?:ging|s|ged)?|power(?:ing)? it (?:off|down)|power cycle|turn it back on|neustart\\p{L}{0,2}|zurucksetzen|redemarr\\p{L}{0,3}|debranch\\p{L}{0,3}|rebranch\\p{L}{0,3}|reinici\\p{L}{0,3}|desenchuf\\p{L}{0,3}|перезагруз\\p{L}{0,4})${R}`,
+    // Kapatma ("power it off", "power off the modem") burada DEĞİL: yalnız misafir arıza bildirdiyse adımdır (↓`POWER_OFF_STEP`; Haiku
+    // gece-4) — "off and on" yeniden başlatması alttaki kuralda her bağlamda.
+    `${L}(?:restart(?:ing|s|ed)?|reboot(?:ing|s|ed)?|reset(?:ting|s)?|unplug(?:ging|s|ged)?|replug(?:ging|s|ged)?|power cycle|turn it back on|neustart\\p{L}{0,2}|zurucksetzen|redemarr\\p{L}{0,3}|debranch\\p{L}{0,3}|rebranch\\p{L}{0,3}|reinici\\p{L}{0,3}|desenchuf\\p{L}{0,3}|перезагруз\\p{L}{0,4})${R}`,
     // "switch the AC off and on again", "turning it off and back on" (Opus gece-2 M2 — "turn off and on" yalnız bitişik biçimdi)
     `${L}(?:turn|turning|switch|switching|power|powering) (?:(?:it|the|your|this) )?(?:\\p{L}{1,20} ){0,2}off and (?:back )?on${R}`,
     // Almanca ayrılabilir fiil: "Starten Sie den Fernseher neu", "Schalten Sie die Klimaanlage aus und wieder ein"
@@ -864,8 +865,8 @@ const RESTART_STEP = new RegExp(
 );
 
 /**
- * Nesneli kapatma ("Please power off the modem and wait 30 seconds") — yalnız misafir ARIZA bildirdiyse yeniden başlatma adımıdır; arıza
- * yokken çıkış hatırlatmasıdır ("Please power off the lights when you leave" — Haiku gece-4, iki yön).
+ * Kapatma ("Please power off the modem and wait 30 seconds", "try powering it off for a minute") — yalnız misafir ARIZA bildirdiyse yeniden
+ * başlatma adımıdır; arıza yokken çıkış / tasarruf hatırlatmasıdır ("Please power off the lights when you leave" — Haiku gece-4, iki yön).
  */
 const POWER_OFF_STEP = new RegExp(`${L}power(?:ing)? (?:(?:the|your|this) )?(?:\\p{L}{1,20} )?(?:off|down)${R}`, "u");
 
