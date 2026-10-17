@@ -93,11 +93,12 @@ describe("kartla deneme kapısı", () => {
     const risky = await trialOrg("risky@example.com", { identityReused: true });
     await evaluateTrialCardGates();
     const { exemptTrialCardGate } = await import("@/lib/billing/trial-operator");
-    expect(await exemptTrialCardGate(risky, "op")).toEqual({ ok: true });
+    const op = await prisma.user.findFirstOrThrow({ where: { organizationId: risky } });
+    expect(await exemptTrialCardGate(risky, op.id)).toEqual({ ok: true });
     expect(await getEntitlement(risky)).toMatchObject({ cardRequired: false, active: true });
     expect(await evaluateTrialCardGates()).toEqual({ required: 0, cleared: 0 });
     expect((await prisma.organization.findUniqueOrThrow({ where: { id: risky } })).trialCardRequiredAt).toBeNull();
-    expect(await exemptTrialCardGate(risky, "op")).toEqual({ ok: false, reason: "not_card_required" });
+    expect(await exemptTrialCardGate(risky, op.id)).toEqual({ ok: false, reason: "not_card_required" });
   });
 
   it("Haiku 10-17: damga KOŞULLU — okuma ile yazma arasında deneme bittiyse damga yazılmaz", async () => {

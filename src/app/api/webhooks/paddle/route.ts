@@ -340,8 +340,11 @@ async function applySubscriptionEvent(
   // iptali satırı (A) okuduktan sonra yeni abonelik (B) aktifleşirse güncelleme yalnız kuruluş + olay zamanına bakıp satırı
   // yeniden "A / iptal" yapıyordu. Aktifleşmeyen olay ancak satır HÂLÂ kendi aboneliğiyse (ya da kimliksizse) yazar; şart
   // UPDATE'in içinde değerlendirilir (okuma-yazma penceresi yok). Aktifleşen olay (yeni abonelik eskisinin yerine geçer) serbest.
+  // Kartla deneme (10-17): İPTAL edilmiş kayıtlı aboneliğin yerine yeni aboneliğin DENEME olayı da geçer — koşul burada da (atomik) aynı.
   const identityGuard =
-    providerRef && status !== "active" ? { OR: [{ providerRef: null }, { providerRef }] } : {};
+    providerRef && status !== "active"
+      ? { OR: [{ providerRef: null }, { providerRef }, ...(status === "trialing" ? [{ status: "canceled" }] : [])] }
+      : {};
   const guardedWhere = { organizationId, AND: [orderingGuard, identityGuard] };
 
   // Settles a pending in-app plan change ONLY when this event actually applied

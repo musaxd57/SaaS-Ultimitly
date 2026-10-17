@@ -42,7 +42,7 @@ function stubPaddle() {
       const path = new URL(url).pathname;
       const method = init?.method ?? "GET";
       const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
-      if (method === "GET" && path === "/subscriptions/sub_1") {
+      if (method === "GET" && /^\/subscriptions\/sub_\w+$/.test(path)) {
         return json(200, { data: { status: paddle.status, customer_id: paddle.customerId, items: [{ price: { id: "pri_pro" } }] } });
       }
       if (method === "POST" && path === "/pricing-preview") {
@@ -200,7 +200,7 @@ describe("Aboneliği devam ettir", () => {
     const t = await token();
     const other = await prisma.organization.create({ data: { name: "B" } });
     const u = await prisma.user.create({ data: { organizationId: other.id, name: "B", email: "b@x.com", passwordHash: "x", role: "owner" } });
-    await prisma.subscription.create({ data: { organizationId: other.id, planCode: "pro", status: "paused", provider: "paddle", providerRef: "sub_1", customerId: "ctm_1" } });
+    await prisma.subscription.create({ data: { organizationId: other.id, planCode: "pro", status: "paused", provider: "paddle", providerRef: "sub_2", customerId: "ctm_1" } });
     session = { userId: u.id, organizationId: other.id, role: "owner", email: "b@x.com", name: "B", sessionEpoch: 0 };
     expect((await doResume(t)).status).toBe(400);
     expect(resumeCalls).toBe(0);
