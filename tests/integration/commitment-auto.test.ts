@@ -39,6 +39,8 @@ import { findAttentionItems } from "@/modules/intelligence/incidents/attention";
 import { sendOnChannel } from "@/lib/messaging";
 import { sendHostMessage } from "@/lib/host-send";
 import { addZonedDays, dateKeyInTimeZone } from "@/lib/timezone";
+import { __autoCommitmentInternals } from "@/lib/guest-commitments-auto";
+import { DEMO_ORG_ID } from "@/lib/demo-tenant/constants";
 
 const TZ = "Europe/Istanbul";
 const mockSend = vi.mocked(sendOnChannel);
@@ -300,6 +302,82 @@ describe("BAĞLAM — saat güncellemesi yalnız kesin eşleşmede (kurucu: 'ba�
     expect(await prisma.guestCommitment.count()).toBe(2);
   });
 
+  it("🚨 Opus O1 (P1): AYNI KONU, FARKLI YAPAN ('Klima kumandasının pilini akşam getireceğim') teknisyen sözünü TAŞIMAZ — ayrı söz açılır", async () => {
+    const s = await setup();
+    await hostSays(s.conversationId, "Klima için teknisyen yarın 10:00'da gelecek.", new Date(Date.now() - 10 * 60_000));
+    await applyHostCommitmentsAuto(s.orgId, s.conversationId);
+    const tech = await prisma.guestCommitment.findFirstOrThrow();
+    await hostSays(s.conversationId, "Klima kumandasının pilini akşam getireceğim.", new Date());
+    expect(await applyHostCommitmentsAuto(s.orgId, s.conversationId, new Date(Date.now() + 1_000))).toEqual({ created: 1, rescheduled: 0, skipped: 0 });
+    const techAfter = await prisma.guestCommitment.findUniqueOrThrow({ where: { id: tech.id } });
+    expect(techAfter.dueAt.toISOString()).toBe(tech.dueAt.toISOString());
+    expect(techAfter.previousDueAt).toBeNull();
+    expect(await prisma.guestCommitment.count()).toBe(2);
+  });
+
+  it("🚨 Opus O8: konusuz eski söz ('Teknisyen yarın 10'da') + konulu yeni saat ('Klima için teknisyen yarın 11'de') → kendiliğinden ne taşır ne ikinci görev açar; kart sorar", async () => {
+    const s = await setup();
+    await createGuestCommitment({
+      organizationId: s.orgId,
+      conversationId: s.conversationId,
+      propertyId: s.propertyId,
+      reservationId: null,
+      kind: "maintenance",
+      dueAt: commitmentDueAt({ day: "tomorrow", time: "10:00" }, TZ, new Date())!,
+      actorUserId: null,
+      source: "manual",
+    });
+    await hostSays(s.conversationId, "Klima için teknisyen yarın 11:00'de gelecek.", new Date());
+    expect(await applyHostCommitmentsAuto(s.orgId, s.conversationId)).toEqual({ created: 0, rescheduled: 0, skipped: 1 });
+    expect(await prisma.guestCommitment.count()).toBe(1);
+    const [sugg] = (await getConversationSuggestions(s.orgId, s.conversationId)).filter((x) => x.kind === "commitment");
+    expect(sugg.kind === "commitment" && sugg.proposal.moveOptions?.length).toBe(1);
+  });
+
+  it("🚨 Opus O4: gün sözcüğü OLMAYAN saat değişikliği ('Teknisyen 11'e kaydı') eski sözün GÜNÜNE uygulanır (bugüne kaymaz)", async () => {
+    const s = await setup();
+    await hostSays(s.conversationId, "Teknisyen yarın 10:00'da gelecek.", new Date(Date.now() - 10 * 60_000));
+    await applyHostCommitmentsAuto(s.orgId, s.conversationId);
+    const before = await prisma.guestCommitment.findFirstOrThrow();
+    await hostSays(s.conversationId, "Teknisyen 11'e kaydı.", new Date());
+    expect((await applyHostCommitmentsAuto(s.orgId, s.conversationId, new Date(Date.now() + 1_000))).rescheduled).toBe(1);
+    const after = await prisma.guestCommitment.findFirstOrThrow();
+    expect(dateKeyInTimeZone(after.dueAt, TZ)).toBe(dateKeyInTimeZone(before.dueAt, TZ));
+    expect(after.dueAt.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", timeZone: TZ })).toBe("11:00");
+  });
+
+  it("🚨 Opus O19: söz mesajdan SONRA kaydedildi ama kaynak mesajı daha eski → geç gelen saat değişikliği gizlenmez, taşınır", async () => {
+    const s = await setup();
+    await hostSays(s.conversationId, "Klima için teknisyen yarın 10:00'da gelecek.", new Date(Date.now() - 10 * 60_000));
+    await applyHostCommitmentsAuto(s.orgId, s.conversationId);
+    const c = await prisma.guestCommitment.findFirstOrThrow();
+    // İkinci mesaj gecikmeli içeri alındı: kanalda 5 dk önce yazıldı (söz kaydından ÖNCE), şimdi geldi.
+    await hostSays(s.conversationId, "Klima için teknisyen yarın 11:00'de gelecek.", new Date(Date.now() - 5 * 60_000));
+    expect((await applyHostCommitmentsAuto(s.orgId, s.conversationId)).rescheduled).toBe(1);
+    expect((await prisma.guestCommitment.findUniqueOrThrow({ where: { id: c.id } })).previousDueAt).not.toBeNull();
+  });
+
+  it("🚨 Opus O20: 'Havlu getireceğim' (gün) ile sonraki 'Akşam havlu getireceğim' (akşam) aynı 23:59'da biter ama AYRI an — birleşmez, kart sorar", async () => {
+    const s = await setup();
+    const NOW = new Date("2026-11-20T09:00:00Z");
+    await hostSays(s.conversationId, "Havlu getireceğim.", new Date(NOW.getTime() - 10 * 60_000));
+    expect((await applyHostCommitmentsAuto(s.orgId, s.conversationId, NOW)).created).toBe(1);
+    await prisma.message.create({
+      data: { conversationId: s.conversationId, direction: "outbound", authorType: "host", senderName: "Ev Sahibi", body: "Akşam havlu getireceğim.", createdAt: new Date(Date.now() + 60_000) },
+    });
+    const later = new Date(Date.now() + 120_000);
+    expect(await applyHostCommitmentsAuto(s.orgId, s.conversationId, later)).toMatchObject({ created: 0, skipped: 1 });
+    expect(await prisma.guestCommitment.count()).toBe(1);
+  });
+
+  it("🚨 Opus O9: mesajda birden çok saat ('10:00-12:00 arası') → kendiliğinden kaydedilmez, kart saati sorar", async () => {
+    const s = await setup();
+    await hostSays(s.conversationId, "Teknisyen yarın 10:00-12:00 arası gelecek.");
+    expect(await applyHostCommitmentsAuto(s.orgId, s.conversationId)).toEqual({ created: 0, rescheduled: 0, skipped: 1 });
+    const [sugg] = (await getConversationSuggestions(s.orgId, s.conversationId)).filter((x) => x.kind === "commitment");
+    expect(sugg.kind === "commitment" && sugg.proposal.timeAmbiguous).toBe(true);
+  });
+
   it("🚨 BELİRSİZ (konusuz, sözcüksüz yeni saat + açık söz) → KENDİLİĞİNDEN hiçbir şey değişmez; kart seçim ister; seçimle taşınır", async () => {
     const s = await setup();
     const c1 = await createGuestCommitment({
@@ -387,21 +465,21 @@ describe("konaklama bitince (kurucu: havlu / temizlik / eksik eşya kapansın, a
     return { s, towels, cleaning, maintenance };
   }
 
-  it("🚨 çıkış günü geçti → havlu / temizlik kapanır (iz: stay_ended), dokunulmamış görev silinir; ARIZA açık kalır", async () => {
+  it("🚨 çıkış günü geçti → havlu / temizlik kapanır (iz: stay_ended), dokunulmamış görev silinir; ARIZA açık kalır; üzerinde çalışılan söz AÇIK (O14)", async () => {
     const { towels, cleaning, maintenance } = await seed(yesterdayKey());
-    // Temizlik görevi üzerinde çalışılıyor → görev KALIR (söz yine kapanır).
+    // Temizlik görevi üzerinde çalışılıyor → söz kapanmaz (görev bitince zaten kapanır), görev kalır (Opus O14).
     await prisma.task.update({ where: { id: cleaning.taskId }, data: { status: "in_progress" } });
-    expect(await closeStayEndedCommitments(NOW)).toEqual({ closed: 2 });
+    expect(await closeStayEndedCommitments(NOW)).toEqual({ closed: 1 });
     const rows = await prisma.guestCommitment.findMany({ orderBy: { kind: "asc" } });
     expect(rows.map((r) => [r.kind, r.status, r.closedReason])).toEqual([
-      ["cleaning", "cancelled", "stay_ended"],
+      ["cleaning", "open", null],
       ["maintenance", "open", null],
       ["towels", "cancelled", "stay_ended"],
     ]);
     expect(await prisma.task.findUnique({ where: { id: towels.taskId } })).toBeNull();
     expect(await prisma.task.findUnique({ where: { id: cleaning.taskId } })).not.toBeNull();
     expect(await prisma.task.findUnique({ where: { id: maintenance.taskId } })).not.toBeNull();
-    expect(await prisma.auditLog.count({ where: { action: "commitment.stay_ended" } })).toBe(2);
+    expect(await prisma.auditLog.count({ where: { action: "commitment.stay_ended" } })).toBe(1);
     // Tekrar koşu: kapanmış söze dokunmaz.
     expect(await closeStayEndedCommitments(NOW)).toEqual({ closed: 0 });
   });
@@ -412,10 +490,23 @@ describe("konaklama bitince (kurucu: havlu / temizlik / eksik eşya kapansın, a
     expect(await prisma.guestCommitment.count({ where: { status: "open" } })).toBe(3);
   });
 
-  it("başlığı ev sahibince değiştirilmiş (yapılacak) görev silinmez", async () => {
-    const { towels } = await seed(yesterdayKey());
+  it("başlığı ev sahibince değiştirilmiş / atanmış / notu ya da fotoğrafı olan (yapılacak) görev silinmez — söz yine kapanır (Opus O2)", async () => {
+    const { s, towels, cleaning } = await seed(yesterdayKey());
     await prisma.task.update({ where: { id: towels.taskId }, data: { title: "Havluları 3. kata götür" } });
-    await closeStayEndedCommitments(NOW);
+    const staff = await prisma.user.create({ data: { organizationId: s.orgId, name: "T", email: `t-${s.orgId}@x.com`, passwordHash: "x", role: "staff" } });
+    await prisma.task.update({ where: { id: cleaning.taskId }, data: { assignedToId: staff.id } });
+    expect(await closeStayEndedCommitments(NOW)).toEqual({ closed: 2 });
+    expect(await prisma.task.findUnique({ where: { id: towels.taskId } })).not.toBeNull();
+    expect(await prisma.task.findUnique({ where: { id: cleaning.taskId } })).not.toBeNull();
+  });
+
+  it("notu / fotoğrafı olan görev silinmez (depoda yetim dosya kalmasın — O2); işletme ayarı kapalıysa / demo hesabında kapatma yok (O14 / O17)", async () => {
+    const { s, towels } = await seed(yesterdayKey());
+    await prisma.taskUpdate.create({ data: { taskId: towels.taskId, note: "Kapıya bırakıldı", photoUrl: "uploads/x.jpg" } });
+    await prisma.organization.update({ where: { id: s.orgId }, data: { autoCommitmentsEnabled: false } });
+    expect(await closeStayEndedCommitments(NOW)).toEqual({ closed: 0 });
+    await prisma.organization.update({ where: { id: s.orgId }, data: { autoCommitmentsEnabled: true } });
+    expect(await closeStayEndedCommitments(NOW)).toEqual({ closed: 2 });
     expect(await prisma.task.findUnique({ where: { id: towels.taskId } })).not.toBeNull();
   });
 });
@@ -454,6 +545,17 @@ describe("'Yanlış, kaldır' (kendiliğinden kaydedilen söz)", () => {
     expect(await prisma.task.findUnique({ where: { id: manual.taskId } })).not.toBeNull();
   });
 
+  it("görev atanmışsa 'Yanlış, kaldır' sözü kapatır ama görevi BIRAKIR (O2)", async () => {
+    const s = await setup();
+    await hostSays(s.conversationId, "Havlu getireceğim.");
+    await applyHostCommitmentsAuto(s.orgId, s.conversationId);
+    const c = await prisma.guestCommitment.findFirstOrThrow();
+    const staff = await prisma.user.create({ data: { organizationId: s.orgId, name: "T", email: `t2-${s.orgId}@x.com`, passwordHash: "x", role: "staff" } });
+    await prisma.task.update({ where: { id: c.taskId! }, data: { assignedToId: staff.id } });
+    expect((await patchCommitment(s.conversationId, c.id, { status: "cancelled", reason: "wrong" })).status).toBe(200);
+    expect(await prisma.task.findUnique({ where: { id: c.taskId! } })).not.toBeNull();
+  });
+
   it("görev üzerinde çalışılıyorsa 'Yanlış, kaldır' sözü kapatır ama görevi BIRAKIR", async () => {
     const s = await setup();
     await hostSays(s.conversationId, "Havlu getireceğim.");
@@ -462,6 +564,34 @@ describe("'Yanlış, kaldır' (kendiliğinden kaydedilen söz)", () => {
     await prisma.task.update({ where: { id: c.taskId! }, data: { status: "in_progress" } });
     expect((await patchCommitment(s.conversationId, c.id, { status: "cancelled", reason: "wrong" })).status).toBe(200);
     expect(await prisma.task.findUnique({ where: { id: c.taskId! } })).not.toBeNull();
+  });
+});
+
+describe("eşzamanlılık ve demo (Opus O15 / O17)", () => {
+  it("🚨 aynı konuşma işlenirken (kanca + tur) ikinci işleme ATLANIR — iki söz açılmaz; kilit bırakılınca işlenir", async () => {
+    const s = await setup();
+    await hostSays(s.conversationId, "Klima için teknisyen yarın 10:00'da gelecek.");
+    const inner = await __autoCommitmentInternals.withConversationLock(s.conversationId, () => applyHostCommitmentsAuto(s.orgId, s.conversationId));
+    expect(inner).toEqual({ created: 0, rescheduled: 0, skipped: 1 });
+    expect(await prisma.guestCommitment.count()).toBe(0);
+    expect((await applyHostCommitmentsAuto(s.orgId, s.conversationId)).created).toBe(1);
+    expect(await prisma.systemLock.count({ where: { name: { startsWith: "commitment-auto:" } } })).toBe(0);
+  });
+
+  it("süresi dolmuş kilit devralınır (çöken süreç konuşmayı kilitli bırakmaz)", async () => {
+    const s = await setup();
+    await prisma.systemLock.create({ data: { name: `commitment-auto:${s.conversationId}`, holder: "dead", lockedUntil: new Date(Date.now() - 1_000) } });
+    await hostSays(s.conversationId, "Klima için teknisyen yarın 10:00'da gelecek.");
+    expect((await applyHostCommitmentsAuto(s.orgId, s.conversationId)).created).toBe(1);
+  });
+
+  it("demo hesabında (Airbnb inceleme) söz kendiliğinden açılmaz", async () => {
+    await prisma.organization.create({ data: { id: DEMO_ORG_ID, name: "Demo" } });
+    const property = await prisma.property.create({ data: { organizationId: DEMO_ORG_ID, name: "Lale" } });
+    const conv = await prisma.conversation.create({ data: { propertyId: property.id, guestIdentifier: "M", channel: "airbnb", status: "new" } });
+    await hostSays(conv.id, "Klima için teknisyen yarın 10:00'da gelecek.");
+    expect(await applyHostCommitmentsAuto(DEMO_ORG_ID, conv.id)).toEqual({ created: 0, rescheduled: 0, skipped: 0 });
+    expect(await sweepHostCommitmentsAuto(new Date(), SWEEP_CATCHUP_MINUTES)).toMatchObject({ conversations: 0 });
   });
 });
 
@@ -551,12 +681,33 @@ describe("Dikkat Gerektirenler — kesinlik + gecikme payı + 1 gün hatırlatma
     expect(r.find((x) => x.severity === 96)?.commitmentTime).toBe("14:00");
   });
 
-  it("1 günden uzun geciken söz satırda kalır (kalan ≤ -1440 → panel 'Söz 1 gündür açık'); kendiliğinden kapanmaz", async () => {
+  it("1 günden uzun geciken söz satırda kalır + TEK hatırlatma işareti; kendiliğinden kapanmaz", async () => {
     const s = await setup();
     await row(s, new Date("2026-10-09T10:00:00Z"), { duePrecision: "time" }); // 26 sa önce
     const [r] = await items(s.orgId);
     expect(r.minutesLeft).toBe(-26 * 60);
+    expect(r.commitmentReminder).toBe(true);
     expect((await prisma.guestCommitment.findFirstOrThrow()).status).toBe("open");
+  });
+
+  it("🚨 Opus O16: anahtar KAPALIYKEN bugünkü görünüm — pay yok ('gecikti' hemen), hatırlatma işareti yok", async () => {
+    vi.stubEnv("HOST_COMMITMENT_AUTO_ENABLED", "");
+    const s = await setup();
+    await row(s, new Date("2026-10-10T11:50:00Z"), { duePrecision: "time" }); // 10 dk önce
+    await row(s, new Date("2026-10-09T10:00:00Z"));
+    const r = await items(s.orgId);
+    expect(r.map((x) => x.minutesLeft)).toEqual([-26 * 60, -10]);
+    expect(r.every((x) => !x.commitmentReminder)).toBe(true);
+  });
+
+  it("dilim / gün sözünde satır kesinliği taşır (panel kalan süreyi göstermez — O12)", async () => {
+    const s = await setup();
+    await row(s, new Date("2026-10-10T20:59:00Z"), { duePrecision: "part", dayPart: "evening" });
+    await row(s, new Date("2026-10-10T13:00:00Z"), { duePrecision: "time" });
+    expect((await items(s.orgId)).map((x) => [x.commitmentTime, x.commitmentPrecise])).toEqual([
+      ["16:00", true],
+      ["bugün akşam", false],
+    ]);
   });
 });
 

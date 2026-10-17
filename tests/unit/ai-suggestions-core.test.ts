@@ -360,6 +360,36 @@ describe("söz → görev otomatik (kurucu 10-17 gece): kararsız / aktarılan s
     expect(detectHostPromise("Teknisyen bugün gelmedi, yarın 10'da gelecek.")).toMatchObject({ kind: "maintenance", day: "tomorrow", timeCandidates: [600] });
   });
 
+  it("🚨 Opus O3: sözü TEYİDE bağlayan soru ('…, uygun mu?', '…, olur mu?') söz değil; ayrı soru söz bozmaz", () => {
+    expect(detectHostPromises("Teknisyen yarın 10'da gelecek, uygun mu?")).toEqual([]);
+    expect(detectHostPromises("Yarın sabah havlu getireceğim, olur mu?")).toEqual([]);
+    expect(detectHostPromises("The cleaner will come tomorrow at 10, is that ok?")).toEqual([]);
+    expect(detectHostPromises("Yarın havlu getireceğim, başka bir ihtiyacınız var mı?")).toMatchObject([{ kind: "towels" }]);
+  });
+
+  it("🚨 Opus O5: 'Arıza kaydınız bugün alındı' saat değişikliği DEĞİL; yönelme ekli 'bugüne / yarına alındı' değişiklik", () => {
+    expect(detectHostPromises("Arıza kaydınız bugün alındı, teknisyen yarın 10'da gelecek.")).toMatchObject([
+      { kind: "maintenance", day: "tomorrow", reschedule: false, timeCandidates: [600] },
+    ]);
+    expect(detectHostPromises("Teknisyen yarına alındı.")).toMatchObject([{ reschedule: true, day: "tomorrow" }]);
+  });
+
+  it("🚨 Opus O6: 'iki ayrı', 'bir ayar' gün sanılmaz; dilek (umarım) yalnız sözün kendisinde kararsızlık", () => {
+    expect(detectHostPromise("Yarın iki ayrı havlu getireceğim.")).toMatchObject({ kind: "towels", day: "tomorrow" });
+    expect(detectHostPromise("Klimanın bir ayarı bozuk, teknisyen yarın gelecek.")).toMatchObject({ kind: "maintenance", day: "tomorrow" });
+    expect(detectHostPromise("Teknisyen yarın 10'da gelecek, umarım sorun hemen çözülür.")).toMatchObject({ kind: "maintenance", timeCandidates: [600] });
+    expect(detectHostPromises("Umarım yarın teknisyen gelecek.")).toEqual([]);
+    expect(detectHostPromises("Teknisyen 2 ay sonra gelecek.")).toEqual([]);
+  });
+
+  it("🚨 Opus O1 / O9: sözü yapan (ziyaret / teslim) ve birden çok saat işareti", () => {
+    expect(detectHostPromise("Klima için teknisyen yarın 10'da gelecek.")).toMatchObject({ actor: "visit", timeAmbiguous: false, dayExplicit: true });
+    expect(detectHostPromise("Klima kumandasının pilini akşam getireceğim.")).toMatchObject({ kind: "maintenance", topic: "ac", actor: "delivery" });
+    expect(detectHostPromise("Ekibimiz yarın havluları değiştirmeye gelecek.")).toMatchObject({ kind: "towels", actor: "visit" });
+    expect(detectHostPromise("Teknisyen yarın 10:00-12:00 arası gelecek.")).toMatchObject({ timeAmbiguous: true });
+    expect(detectHostPromise("Teknisyen 11'e kaydı.")).toMatchObject({ dayExplicit: false, reschedule: true });
+  });
+
   it("🚨 sözden SONRA gelen ayrı soru sözü bozmaz ('…, başka bir ihtiyacınız var mı?'); sözün kendisi soruysa söz yok", () => {
     expect(detectHostPromises("Yarın havlu getireceğim, başka bir ihtiyacınız var mı?")).toMatchObject([{ kind: "towels", day: "tomorrow" }]);
     expect(detectHostPromises("Teknisyen yarın gelecek mi?")).toEqual([]);

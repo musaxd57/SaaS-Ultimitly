@@ -280,7 +280,9 @@ export default async function ConversationPage({
             kind: c.kind,
             topic: c.topic,
             dueLabel: precise ? formatDateTime(c.dueAt, TZ) : storedCommitmentWhen(c, commitmentNow, TZ),
-            minutesLeft: commitmentNow.getTime() < commitmentLateAt(c).getTime() ? Math.max(0, rawLeft) : rawLeft,
+            // Pay yalnız söz → görev otomatik açıkken (O16: anahtar kapalıyken bugünkü görünüm).
+            minutesLeft: hostCommitmentAutoEnabled() && commitmentNow.getTime() < commitmentLateAt(c).getTime() ? Math.max(0, rawLeft) : rawLeft,
+            precise,
             auto: c.source === "auto",
           };
         })

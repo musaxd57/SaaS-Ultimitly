@@ -15,7 +15,14 @@ import { todayKey } from "@/modules/availability/core";
 import { hostDecisionsEnabled } from "@/lib/decisions/flag";
 import { openDecisionsForOrg, type DecisionView } from "@/lib/decisions/store";
 import { decisionTitle } from "@/lib/decisions/core";
-import { commitmentLateAt, isCommitmentKind, storedCommitmentWhen, type CommitmentKind } from "@/lib/guest-commitments-core";
+import {
+  COMMITMENT_REMIND_AFTER_MIN,
+  commitmentLateAt,
+  hostCommitmentAutoEnabled,
+  isCommitmentKind,
+  storedCommitmentWhen,
+  type CommitmentKind,
+} from "@/lib/guest-commitments-core";
 import { connectionHealth, connectionNeedsAttention } from "@/lib/channels/health";
 import { isFounderOrg } from "@/lib/billing/subscription";
 import type { IngestErrorKind } from "@/lib/channels/ingest";
@@ -108,7 +115,7 @@ export const COMMITMENT_STALE_HOURS = 48;
 /** En fazla bu kadar söz satırı (öteki dikkat satırlarını dışarı itmesin). */
 export const COMMITMENT_MAX_ROWS = 3;
 /** Söz satırı adayı olarak okunan en çok satır (önem sırasıyla `COMMITMENT_MAX_ROWS` seçilir). */
-export const COMMITMENT_SCAN_ROWS = 30;
+export const COMMITMENT_SCAN_ROWS = 200;
 
 /** Sağlayıcı arızası satırı bu kadar saat içinde bu sebeple bekleyen konuşmaları sayar (G10). */
 export const PROVIDER_OUTAGE_WINDOW_HOURS = 48;
@@ -207,6 +214,10 @@ export interface AttentionItem {
   minutesLeft?: number;
   /** Yalnız `commitment_due`: son an, işletmenin saatiyle ("18:00" ya da "yarın 10:00"). */
   commitmentTime?: string;
+  /** Yalnız `commitment_due`: açık saatli söz mü (dilim / gün sözünde kalan süre gösterilmez — pencere sonu ev sahibine söylenmez, O12). */
+  commitmentPrecise?: boolean;
+  /** Yalnız `commitment_due`: 1 günden uzun açık — TEK hatırlatma metni (söz → görev otomatik açıkken; kurucu 10-17 "Hatırlat, kapatma"). */
+  commitmentReminder?: boolean;
   /** Yalnız `connection_unhealthy` (işletme düzeyi satır, mülksüz): son hatalı okumanın türü (bayat okumada yok). */
   connectionErrorKind?: IngestErrorKind;
   /** Yalnız `connection_unhealthy`: son başarılı okumadan bu yana dakika (hiç yoksa yok). */
@@ -554,7 +565,9 @@ export async function findAttentionItems(
       // Gecikme payı (kurucu 10-17 gece / Opus): açık saatli sözde 30 dk içinde "gecikti" denmez (kalan 0); dilim / gün sözünde son an zaten
       // pencerenin sonu. Gecikme süresi son andan sayılır.
       const rawLeft = Math.floor((c.dueAt.getTime() - now.getTime()) / 60_000);
-      const minutesLeft = now.getTime() < commitmentLateAt(c).getTime() ? Math.max(0, rawLeft) : rawLeft;
+      // Pay ve 1 gün hatırlatması YALNIZ söz → görev otomatik açıkken (Opus O16: anahtar kapalıyken bugünkü görünüm değişmez).
+      const autoOn = hostCommitmentAutoEnabled();
+      const minutesLeft = autoOn && now.getTime() < commitmentLateAt(c).getTime() ? Math.max(0, rawLeft) : rawLeft;
       const precise = c.duePrecision == null || c.duePrecision === "time";
       const clock = c.dueAt.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", timeZone: tz });
       const dayKey = dateKeyInTimeZone(c.dueAt, tz);
@@ -584,6 +597,8 @@ export async function findAttentionItems(
         commitmentTopic: c.topic,
         minutesLeft,
         commitmentTime: whenText,
+        commitmentPrecise: precise,
+        ...(autoOn && minutesLeft <= -COMMITMENT_REMIND_AFTER_MIN ? { commitmentReminder: true } : {}),
       });
     }
     // En önemli `COMMITMENT_MAX_ROWS` satır (eşitlikte son an sırası korunur), son an sırasıyla eklenir.

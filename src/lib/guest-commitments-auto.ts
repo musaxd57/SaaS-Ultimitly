@@ -6,7 +6,10 @@ import { reportError } from "@/lib/report-error";
 import { dateKeyInTimeZone, orgTimezone, zonedWallClockToUtc } from "@/lib/timezone";
 import { getConversationSuggestions } from "@/lib/ai-suggestions/load";
 import { decideSuggestion } from "@/lib/ai-suggestions/act";
-import { commitmentTaskTitle, hostCommitmentAutoEnabled, isCommitmentKind } from "@/lib/guest-commitments-core";
+import { hostCommitmentAutoEnabled, isCommitmentKind, untouchedCommitmentTaskWhere } from "@/lib/guest-commitments-core";
+import { DEMO_ORG_ID, isDemoOrg } from "@/lib/demo-tenant/constants";
+import { isUniqueViolation } from "@/lib/db-errors";
+import { randomUUID } from "node:crypto";
 import { stayEndedBefore } from "@/modules/availability/core";
 
 // ---------------------------------------------------------------------------
@@ -33,8 +36,35 @@ export const SWEEP_RECENT_MINUTES = 15;
 export const SWEEP_CATCHUP_MINUTES = 48 * 60;
 /** Ev sahibi mesajı aranan pencere (konuşmanın son etkinliği yakın olsa da söz mesajı bundan eski ise öneri penceresi dışında). */
 const HOST_MESSAGE_LOOKBACK_HOURS = 48;
-/** Tur başına en çok bu kadar konuşma (sıradaki tur kalanı alır). */
+/**
+ * Tur başına en çok bu kadar konuşma — EN YENİ etkinlikten. Bugünkü ölçekte (işletme başına onlarca daire) sınıra yaklaşılmaz; aşılırsa
+ * eski etkinlikli konuşmalar o turda işlenmez (Opus O10: "sıradaki tur kalanı alır" DEĞİL — imleç yok).
+ */
 const SWEEP_MAX_CONVERSATIONS = 200;
+/** Konuşma kilidi süresi (gönderim kancası ile senkron turu aynı konuşmayı aynı anda işlemesin — Opus O15). */
+const CONVERSATION_LOCK_MS = 60_000;
+
+/**
+ * Konuşma başına kısa kilit (`SystemLock` satırı, süreli + sahip kimlikli): kanca ve tur FARKLI mesaj anahtarlarını aynı anda işleyip iki
+ * söz açmasın. Kilit doluysa iş atlanır (sıradaki tur yeniden dener). Süresi dolmuş kilit devralınır.
+ */
+async function withConversationLock<T>(conversationId: string, fn: () => Promise<T>): Promise<T | null> {
+  const name = `commitment-auto:${conversationId}`;
+  const holder = randomUUID();
+  const until = new Date(Date.now() + CONVERSATION_LOCK_MS);
+  try {
+    await prisma.systemLock.create({ data: { name, holder, lockedUntil: until } });
+  } catch (err) {
+    if (!isUniqueViolation(err, ["name"])) throw err;
+    const taken = await prisma.systemLock.updateMany({ where: { name, lockedUntil: { lt: new Date() } }, data: { holder, lockedUntil: until } });
+    if (taken.count !== 1) return null;
+  }
+  try {
+    return await fn();
+  } finally {
+    await prisma.systemLock.deleteMany({ where: { name, holder } }).catch(() => {});
+  }
+}
 
 export type AutoApplyResult = { created: number; rescheduled: number; skipped: number };
 const ZERO: AutoApplyResult = { created: 0, rescheduled: 0, skipped: 0 };
@@ -57,11 +87,19 @@ function startOfLocalDay(now: Date, tz: string): Date {
  * kart olarak kalır. Günlük sınır dolunca yeni söz açılmaz (saat taşıma sınırdan sayılmaz — yeni görev açmaz).
  */
 export async function applyHostCommitmentsAuto(organizationId: string, conversationId: string, now: Date = new Date()): Promise<AutoApplyResult> {
-  if (!hostCommitmentAutoEnabled()) return ZERO;
+  // Demo hesabı (Airbnb inceleme) hariç: örnek mesajlar `lxdemo-` önekli olmayan görev üretmesin (Opus O17).
+  if (!hostCommitmentAutoEnabled() || isDemoOrg(organizationId)) return ZERO;
+  return (await withConversationLock(conversationId, () => applyLocked(organizationId, conversationId, now))) ?? { ...ZERO, skipped: 1 };
+}
+
+async function applyLocked(organizationId: string, conversationId: string, now: Date): Promise<AutoApplyResult> {
   const org = await prisma.organization.findUnique({ where: { id: organizationId }, select: { autoCommitmentsEnabled: true, timezone: true } });
   if (!org?.autoCommitmentsEnabled) return ZERO;
   const tz = orgTimezone(org.timezone);
-  const suggestions = (await getConversationSuggestions(organizationId, conversationId, now)).filter((s) => s.kind === "commitment");
+  // Yalnız söz önerileri (Opus O7: görünmeyen görev önerileri 5 yerlik tavanı doldurup sözü aç bırakmasın).
+  const suggestions = (await getConversationSuggestions(organizationId, conversationId, now, { only: "commitment" })).filter(
+    (s) => s.kind === "commitment",
+  );
   if (suggestions.length === 0) return ZERO;
   // "Yanlış, kaldır" ile kaldırılan söz sayılmaz (Haiku 10-17 gece). YUMUŞAK sınır: aynı işletmenin iki konuşması aynı anda işlenirse
   // (gönderim kancası + senkron turu) bir iki söz aşılabilir — gürültü sınırıdır, para / güvenlik sınırı değil.
@@ -86,8 +124,8 @@ export async function applyHostCommitmentsAuto(organizationId: string, conversat
       out.skipped++;
       continue;
     }
-    // Belirsiz: kart kalır (ev sahibi seçer).
-    if (s.proposal.attachTopics || s.proposal.moveOptions) {
+    // Belirsiz: kart kalır (ev sahibi seçer) — hangi söz / yeni saat hangi sözün / mesajda birden çok saat (O9).
+    if (s.proposal.attachTopics || s.proposal.moveOptions || s.proposal.timeAmbiguous) {
       out.skipped++;
       continue;
     }
@@ -127,6 +165,7 @@ export async function sweepHostCommitmentsAuto(
     where: {
       lastMessageAt: { gte: since },
       property: { organization: { autoCommitmentsEnabled: true } },
+      NOT: { property: { organizationId: { in: demoOrgIds() } } },
       messages: { some: { direction: "outbound", authorType: "host", createdAt: { gte: hostSince, lte: now } } },
     },
     orderBy: [{ lastMessageAt: "desc" }, { id: "asc" }],
@@ -165,6 +204,10 @@ export async function closeStayEndedCommitments(now: Date = new Date()): Promise
       status: "open",
       kind: { in: [...STAY_END_CLOSES] },
       conversation: { reservation: { is: { departureDate: { lt: now } } } },
+      // İşletme ayarı açık (O14) ve demo değil (O17); görevi üzerinde çalışılan söz kapanmaz — görev bitince söz zaten kapanır (O14).
+      organization: { autoCommitmentsEnabled: true },
+      NOT: { organizationId: { in: demoOrgIds() } },
+      OR: [{ taskId: null }, { task: { status: "todo" } }],
     },
     orderBy: [{ dueAt: "asc" }, { id: "asc" }],
     select: {
@@ -194,7 +237,7 @@ export async function closeStayEndedCommitments(now: Date = new Date()): Promise
       });
       if (res.count !== 1) return false;
       if (c.taskId && isCommitmentKind(c.kind)) {
-        await tx.task.deleteMany({ where: { id: c.taskId, status: "todo", title: commitmentTaskTitle(c.kind, c.topic, c.dayPart) } });
+        await tx.task.deleteMany({ where: untouchedCommitmentTaskWhere(c.taskId, c.kind, c.topic, c.dayPart) });
       }
       await writeAuditInTx(tx, {
         organizationId: c.organizationId,
@@ -210,4 +253,9 @@ export async function closeStayEndedCommitments(now: Date = new Date()): Promise
 }
 
 /** Yalnız test: işletme diliminde gün başlangıcı (günlük sınır sayımının penceresi). */
-export const __autoCommitmentInternals = { startOfLocalDay };
+export const __autoCommitmentInternals = { startOfLocalDay, withConversationLock };
+
+/** Demo hesabının kimliği (sorgu süzgeci; `isDemoOrg` tek kaynak). */
+function demoOrgIds(): string[] {
+  return [DEMO_ORG_ID];
+}

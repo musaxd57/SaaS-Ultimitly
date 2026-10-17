@@ -188,6 +188,21 @@ export function commitmentTaskTitle(kind: CommitmentKind, topic: string | null |
 }
 
 /**
+ * Sistemin açtığı ve KİMSENİN DOKUNMADIĞI söz görevi (Opus 10-17 gece O2): yapılacak + otomatik başlık + atanmamış + açıklamasız + güncelleme /
+ * not / fotoğraf yok. Konaklama bitince ve "Yanlış, kaldır"da YALNIZ böyle görev silinir — fotoğraflı görev silinip depoda yetim dosya kalmaz.
+ */
+export function untouchedCommitmentTaskWhere(taskId: string, kind: CommitmentKind, topic: string | null | undefined, dayPart: string | null | undefined) {
+  return {
+    id: taskId,
+    status: "todo",
+    title: commitmentTaskTitle(kind, topic, dayPart),
+    assignedToId: null,
+    description: null,
+    updates: { none: {} },
+  };
+}
+
+/**
  * Sözün görev vadesi: açık saatte o an; gün dilimi / gün sözünde YALNIZ-TARİH çapası (`YYYY-MM-DDT12:00:00.000Z` — görev panosu saat
  * göstermez, `taskDueTimeLabel`). Saat uydurulmaz (kurucu 10-17).
  */
@@ -202,11 +217,29 @@ export function commitmentTaskDueAt(dueAt: Date, duePrecision: string | null | u
  * Konusuz MEVCUT söz (elle form) + konulu öneri: BİRLEŞİR ve mevcut söze konu YAZILIR (kurucu Q1 "a", 10-17 — "sahiplenme"); ardından
  * aynı saatteki başka konulu öneri ayrı söz açar.
  */
-export function commitmentSlotMatches(
-  existing: { kind: string; dueAt: Date; topic?: string | null },
-  incoming: { kind: string; dueAt: Date; topic?: string | null },
+type CommitmentSlot = { kind: string; dueAt: Date; topic?: string | null; duePrecision?: string | null; dayPart?: string | null };
+
+/** Zaman kesinliği (NULL = eski satır = açık saat). */
+function normPrecision(p: string | null | undefined): DuePrecision {
+  return p === "part" || p === "day" ? p : "time";
+}
+
+/**
+ * Aynı AN + aynı KESİNLİK (Opus 10-17 gece O20): "Havlu getireceğim" (gün) ile "Akşam havlu getireceğim" (akşam) aynı 23:59'da biter ama ayrı
+ * sözdür; dilimde dilim de eşit olmalı.
+ */
+export function commitmentSlotSame(
+  a: { dueAt: Date; duePrecision?: string | null; dayPart?: string | null },
+  b: { dueAt: Date; duePrecision?: string | null; dayPart?: string | null },
 ): boolean {
-  if (existing.kind !== incoming.kind || existing.dueAt.getTime() !== incoming.dueAt.getTime()) return false;
+  if (a.dueAt.getTime() !== b.dueAt.getTime()) return false;
+  const pa = normPrecision(a.duePrecision);
+  if (pa !== normPrecision(b.duePrecision)) return false;
+  return pa !== "part" || (a.dayPart ?? null) === (b.dayPart ?? null);
+}
+
+export function commitmentSlotMatches(existing: CommitmentSlot, incoming: CommitmentSlot): boolean {
+  if (existing.kind !== incoming.kind || !commitmentSlotSame(existing, incoming)) return false;
   return commitmentTopicsCompatible(existing.topic, incoming.topic);
 }
 
@@ -215,10 +248,7 @@ export function commitmentSlotMatches(
  * Onayla düğmesi" olmasın): aynı söz (↑) ∧ (öneri konusuz ∨ mevcut söz AYNI konuda). Konusuz söz + konulu öneri KARŞILAMAZ — onay söze konu
  * yazar (Q1 "a"), öneri görünür.
  */
-export function commitmentSlotAbsorbs(
-  existing: { kind: string; dueAt: Date; topic?: string | null },
-  incoming: { kind: string; dueAt: Date; topic?: string | null },
-): boolean {
+export function commitmentSlotAbsorbs(existing: CommitmentSlot, incoming: CommitmentSlot): boolean {
   return commitmentSlotMatches(existing, incoming) && (incoming.topic == null || existing.topic === incoming.topic);
 }
 

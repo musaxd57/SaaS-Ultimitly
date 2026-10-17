@@ -6,7 +6,7 @@ import { signalCategoryLabel } from "@/modules/intelligence/labels";
 import type { AttentionItem, AttentionKind } from "@/modules/intelligence/incidents/attention";
 import type { MoneyImpact } from "@/modules/intelligence/money/impact";
 import { itemKindLabel } from "@/lib/conversation-items/view";
-import { COMMITMENT_REMIND_AFTER_MIN, commitmentDurationLabel, commitmentLabel } from "@/lib/guest-commitments-core";
+import { commitmentDurationLabel, commitmentLabel } from "@/lib/guest-commitments-core";
 import { CONNECTION_ERROR_TEXT, CONNECTION_ERROR_TEXT_VIEWER, agoLabel } from "@/lib/channels/health";
 import { ReactivateReservationButton } from "@/components/reactivate-reservation-button";
 
@@ -86,8 +86,8 @@ function headline(item: AttentionItem): string {
     case "commitment_due": {
       const what = item.commitmentKind ? commitmentLabel(item.commitmentKind, item.commitmentTopic) : "misafir isteği";
       const left = item.minutesLeft ?? 0;
-      // 1 gün sonra TEK hatırlatma (kurucu 10-17 gece: kendiliğinden kapatma YOK, e-posta YOK — yalnız bu satırın metni).
-      if (left <= -COMMITMENT_REMIND_AFTER_MIN) return `Söz 1 gündür açık: ${what}`;
+      // 1 gün sonra TEK hatırlatma (kurucu 10-17 gece: kendiliğinden kapatma YOK, e-posta YOK — yalnız bu satırın metni; işareti sunucu koyar).
+      if (item.commitmentReminder) return `Söz 1 gündür açık: ${what}`;
       return left < 0 ? `Misafire verilen söz gecikti: ${what}` : `Misafire söz verildi: ${what}`;
     }
     case "connection_unhealthy":
@@ -126,8 +126,12 @@ function detail(item: AttentionItem, canManageChannel: boolean): string {
         : `${item.propertyName} · onaylayın ya da reddedin`;
     case "commitment_due": {
       const left = item.minutesLeft ?? 0;
-      if (left <= -COMMITMENT_REMIND_AFTER_MIN) {
+      if (item.commitmentReminder) {
         return `${item.propertyName} · ${item.commitmentTime ?? ""} · yapıldıysa görevi tamamlayın, yapılmayacaksa iptal edin`;
+      }
+      // Dilim / gün sözünde süre YOK (pencere sonu söylenmez — O12): "gecikti" ya da yalnız durum.
+      if (item.commitmentPrecise === false) {
+        return `${item.propertyName} · ${item.commitmentTime ?? ""} · ilgili görev tamamlanmadı${left < 0 ? " · gecikti" : ""}`;
       }
       // 0 = son an geldi ya da açık saatin 30 dk payı içinde (gecikti denmez).
       const when = left < 0 ? `${commitmentDurationLabel(left)} gecikti` : left === 0 ? "zamanı geldi" : `${commitmentDurationLabel(left)} kaldı`;

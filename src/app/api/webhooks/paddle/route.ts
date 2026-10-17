@@ -832,6 +832,9 @@ export async function POST(req: NextRequest): Promise<Response> {
         // Kurucu 10-17 ("sakın unutmayalım"): Paddle API anahtarının süresi dolmadan / dolunca / iptalinde operatör uyarılır. Olay hiçbir
         // işletmeye ait değil, abonelik / fatura yazmaz. (Paddle bildirim hedefinde bu olay türleri işaretli olmalı.)
         await alertPaddleApiKey(eventType, data);
+        // Olay "işlendi" sayılmaz, İNCELEME kaydı olarak kalır (Opus O18): uyarı e-postası kısılsa / düşse de operatör olay listesinde görür;
+        // Paddle aynı olayı yeniden gönderirse uyarı yinelenir.
+        reviewReason = eventType.replace(".", "_");
       }
       if (providerEventId) {
         // İnceleme gereken olay "işlendi" sayılmaz (ödeme S1): satır "error" + kısa kod kalır → Paddle'dan yeniden gönderilirse tekrar

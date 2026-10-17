@@ -6,7 +6,7 @@ import { createOperationalTaskFromMessage } from "@/lib/tasks/create";
 import { commitmentDueAt, createGuestCommitment, isCommitmentKind, isCommitmentTopic } from "@/lib/guest-commitments";
 import { commitmentTaskDueAt, commitmentTaskTitle } from "@/lib/guest-commitments-core";
 import type { CommitmentTopic, DayPartCode, DuePrecision } from "@/lib/guest-commitments-core";
-import { addZonedDays, dateKeyInTimeZone } from "@/lib/timezone";
+import { addZonedDays } from "@/lib/timezone";
 import { orgTimezone } from "@/lib/timezone";
 import { refreshPropertyMemoryBestEffort } from "@/modules/intelligence";
 import { applyWifiValue, extractWifiValues, parseSuggestionKey } from "./core";
@@ -60,6 +60,12 @@ const PAST_TOLERANCE_MS = 5 * 60_000;
 /** Yalnız test: karar denetiminden SONRA bekleme (eşzamanlı onayda kilidin ikinci isteği gerçekten beklettiğini kanıtlamak için). */
 export const __aiSuggestionHooks: { afterDecisionCheck: null | (() => Promise<void>) } = { afterDecisionCheck: null };
 
+/** "YYYY-MM-DD" + n gün (saat dilimsiz takvim aritmetiği). */
+function shiftDayKey(dayKey: string, days: number): string {
+  const [y, m, d] = dayKey.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}
+
 async function rederive(organizationId: string, key: string, now: Date): Promise<{ view: SuggestionView; propertyId: string; conversationId?: string } | null> {
   const parsed = parseSuggestionKey(key);
   if (!parsed) return null;
@@ -71,7 +77,8 @@ async function rederive(organizationId: string, key: string, now: Date): Promise
       select: { conversationId: true, conversation: { select: { propertyId: true } } },
     });
     if (!msg) return null;
-    const view = (await getConversationSuggestions(organizationId, msg.conversationId, now)).find((s) => s.key === key);
+    // Yalnız anahtarın türü üretilir (Opus O7): öteki türün önerileri 5 yerlik tavanı doldurup bu öneriyi "gone" yapmasın.
+    const view = (await getConversationSuggestions(organizationId, msg.conversationId, now, { only: parsed.kind })).find((s) => s.key === key);
     return view ? { view, propertyId: msg.conversation.propertyId, conversationId: msg.conversationId } : null;
   }
   const [messageId] = parsed.source.split(":");
@@ -124,8 +131,8 @@ export async function decideSuggestion(input: {
       const base = new Date(view.proposal.dueAt);
       const shift = day === view.proposal.day ? 0 : day === "tomorrow" ? 1 : -1;
       commitmentDue = Number.isNaN(base.getTime()) ? null : shift === 0 ? base : addZonedDays(base, shift, tz);
-      const dayKey =
-        shift === 0 ? view.proposal.dayKey : dateKeyInTimeZone(addZonedDays(new Date(`${view.proposal.dayKey}T12:00:00.000Z`), shift, tz), tz);
+      // Gün anahtarı TAKVİM aritmetiğiyle (Opus O13: UTC+12…+14 dilimlerinde "öğlen UTC" çapası günü kaydırıyordu).
+      const dayKey = shift === 0 ? view.proposal.dayKey : shiftDayKey(view.proposal.dayKey, shift);
       commitmentPrecision = { duePrecision: view.proposal.precision, dayPart: view.proposal.dayPart ?? null, dayKey };
     }
     if (!commitmentDue) return { status: "invalid", field: "time", message: "Saati seçin." };

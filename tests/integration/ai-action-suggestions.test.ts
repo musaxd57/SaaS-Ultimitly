@@ -188,9 +188,10 @@ describe("C · söz kaydı önerisi", () => {
     await prisma.organization.update({ where: { id: orgId }, data: { autoTaskFromMessageEnabled: true } });
     const [s] = await getConversationSuggestions(orgId, conversationId);
     expect(s?.kind).toBe("commitment");
-    // Ev sahibi aynı sözü (aynı tür + aynı an) mesajdan ÖNCE elle açmış olsun — önerinin kendi son anı (gün sözünde günün sonu).
-    const dueAt = new Date((s.proposal as { dueAt: string }).dueAt);
-    const c = await createGuestCommitment({ organizationId: orgId, conversationId, propertyId, reservationId: null, kind: "maintenance", dueAt, actorUserId: u.id });
+    // Ev sahibi aynı sözü (aynı tür + aynı an + aynı KESİNLİK — gün sözü) mesajdan ÖNCE açmış olsun.
+    const p0 = s.proposal as { dueAt: string; precision: "time" | "part" | "day"; dayKey: string };
+    const dueAt = new Date(p0.dueAt);
+    const c = await createGuestCommitment({ organizationId: orgId, conversationId, propertyId, reservationId: null, kind: "maintenance", dueAt, duePrecision: p0.precision, dayKey: p0.dayKey, actorUserId: u.id });
     await prisma.guestCommitment.update({ where: { id: c.id }, data: { createdAt: new Date(Date.now() - 10 * 60_000) } });
     expect(await getConversationSuggestions(orgId, conversationId)).toEqual([]);
     // Aşırı uygulama yok: söz kapanınca (görev bitti) aynı öneri yeniden görünür.
@@ -208,11 +209,21 @@ describe("C · söz kaydı önerisi", () => {
     await prisma.organization.update({ where: { id: orgId }, data: { autoTaskFromMessageEnabled: true } });
     const [s] = await getConversationSuggestions(orgId, conversationId);
     // Önerinin KENDİ son anı (düzenleme yok) — aynı an elle açılırsa öneri zaten listeden kalkar; karar yazılmaz.
-    const proposal = s.proposal as { day: "today" | "tomorrow"; time: string; dueAt: string };
+    const proposal = s.proposal as { day: "today" | "tomorrow"; time: string; dueAt: string; precision: "time" | "part" | "day"; dayKey: string };
     const dueAt = new Date(proposal.dueAt);
     __aiSuggestionHooks.afterDecisionCheck = async () => {
-      // Başka sekmede ev sahibi aynı sözü elle açtı (ayrı bağlantı, hemen commit).
-      await createGuestCommitment({ organizationId: orgId, conversationId, propertyId, reservationId: null, kind: "maintenance", dueAt, actorUserId: u.id });
+      // Başka sekmede aynı söz (aynı an + aynı kesinlik) açıldı (ayrı bağlantı, hemen commit).
+      await createGuestCommitment({
+        organizationId: orgId,
+        conversationId,
+        propertyId,
+        reservationId: null,
+        kind: "maintenance",
+        dueAt,
+        duePrecision: proposal.precision,
+        dayKey: proposal.dayKey,
+        actorUserId: u.id,
+      });
     };
     try {
       expect((await decide({ key: s.key, decision: "approve", day: proposal.day, time: proposal.time })).status).toBe(409);

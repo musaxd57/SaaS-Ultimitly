@@ -21,6 +21,8 @@ export interface CommitmentRow {
   minutesLeft: number;
   /** Ev sahibinin mesajından KENDİLİĞİNDEN kaydedildi (kurucu 10-17 gece) — "Yanlış, kaldır" seçeneği. */
   auto?: boolean;
+  /** Açık saatli söz mü — dilim / gün sözünde kalan süre gösterilmez (pencere sonu söylenmez, O12). Verilmezse açık saat. */
+  precise?: boolean;
 }
 
 /**
@@ -129,27 +131,32 @@ export function CommitmentsCard({
                     <div className="text-xs text-muted-foreground">
                       {c.dueLabel} ·{" "}
                       <Badge tone={late ? "destructive" : "secondary"} className="align-middle">
-                        {late
-                          ? `${commitmentDurationLabel(c.minutesLeft)} gecikti`
-                          : c.minutesLeft === 0
-                            ? "zamanı geldi"
-                            : `${commitmentDurationLabel(c.minutesLeft)} kaldı`}
+                        {c.precise === false
+                          ? late
+                            ? "gecikti"
+                            : "açık"
+                          : late
+                            ? `${commitmentDurationLabel(c.minutesLeft)} gecikti`
+                            : c.minutesLeft === 0
+                              ? "zamanı geldi"
+                              : `${commitmentDurationLabel(c.minutesLeft)} kaldı`}
                       </Badge>
                     </div>
                     {c.auto ? <div className="text-xs text-muted-foreground" data-testid="commitment-auto-label">Mesajınızdan kaydedildi</div> : null}
                   </div>
                   {readOnly ? null : (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 text-xs"
-                      disabled={busy === c.id}
-                      onClick={() => void cancel(c.id, Boolean(c.auto))}
-                    >
-                      {busy === c.id ? <Loader2 className="size-3 animate-spin" /> : null}
-                      {c.auto ? "Yanlış, kaldır" : "İptal"}
-                    </Button>
+                    <div className="flex shrink-0 gap-1">
+                      {/* Otomatik sözde iki seçenek (Opus O21): artık gerekmeyen DOĞRU söz "İptal" (görev kalır); yanlış okunan söz "Yanlış, kaldır". */}
+                      <Button type="button" size="sm" variant="ghost" className="h-7 text-xs" disabled={busy === c.id} onClick={() => void cancel(c.id, false)}>
+                        {busy === c.id ? <Loader2 className="size-3 animate-spin" /> : null}
+                        İptal
+                      </Button>
+                      {c.auto ? (
+                        <Button type="button" size="sm" variant="ghost" className="h-7 text-xs" disabled={busy === c.id} onClick={() => void cancel(c.id, true)}>
+                          Yanlış, kaldır
+                        </Button>
+                      ) : null}
+                    </div>
                   )}
                 </li>
               );

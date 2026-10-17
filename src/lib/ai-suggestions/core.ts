@@ -58,7 +58,20 @@ const CONDITIONAL = new RegExp(`${NL}(?:eger|isterseniz|istersen|gerekirse|ihtiy
 const NEGATION = new RegExp(`${NL}(?:iptal|olmayacak|gelmeyecek|gelemeyecek|izinli|won['’]?t|will\\s+not|cannot|can['’]?t|not\\s+coming|cancel\\p{L}*)${NR}`, "u");
 /** Kararsız söz (kurucu 10-17 gece; Opus: "belki / emin değilim" söz sayılıyordu) — cümlecikte varsa söz DEĞİL (görev açılmaz). */
 const HEDGE = new RegExp(
-  `${NL}(?:belki|galiba|sanirim|umarim|muhtemelen|emin\\s+degil\\p{L}{0,6}|maybe|perhaps|hopefully|probably|not\\s+sure)${NR}`,
+  `${NL}(?:belki|galiba|sanirim|muhtemelen|emin\\s+degil\\p{L}{0,6}|maybe|perhaps|probably|not\\s+sure)${NR}`,
+  "u",
+);
+/**
+ * Dilek ("umarım", "inşallah", "hopefully") YALNIZ sözün kendi parçasında / solunda sözü kararsız yapar: "Umarım yarın teknisyen gelecek" söz
+ * değil; "Teknisyen yarın 10'da gelecek, umarım sorun hemen çözülür" sözdür (dilek SONUÇ için — Opus 10-17 gece O6).
+ */
+const HEDGE_WISH = new RegExp(`${NL}(?:umarim|insallah|hopefully)${NR}`, "u");
+/**
+ * Sözü ev sahibinin TEYİDE bağladığı soru ("…, uygun mu?", "…, olur mu?", "is that ok?") — söz henüz kesin değil (Opus 10-17 gece O3: ayrı
+ * soru kuralı bunları da söz sayıyordu). "Başka bir ihtiyacınız var mı?" teyit DEĞİL, sözü bozmaz.
+ */
+const CONFIRM_QUESTION = new RegExp(
+  `${NL}(?:uygun|olur|musait\\p{L}{0,6}|tamam|sorun\\s+olur|ok(?:ay)?|works?|fine|alright|good\\s+for\\s+you|convenient)${NR}`,
   "u",
 );
 /** Aktarılan / geçmiş söz ("teknisyen yarın gelecek DEMİŞTİM", "GELEMEDİ") — söz fiilinin PARÇASINDA ise o söz değil (Opus 10-17). */
@@ -75,10 +88,11 @@ const REPORTED_LEAD = new RegExp(`${NL}(?:dedigim\\s+gibi|soyledigim\\s+gibi|as\
 /**
  * SAAT DEĞİŞİKLİĞİ ("11'e kaydı", "yarına ertelendi", "saat değişti", "rescheduled", "moved to 11") — kurucu 10-17 gece: aynı sözün saati
  * BAĞLAMLA güncellenir. Söz fiili olmasa da söz cümleciği sayılır ama YALNIZ zaman bilgisiyle (`promiseAt`). "kaydı" tek başına AD olabilir
- * ("rezervasyon kaydı") → yalnız saat / gün / dilim ardından ("11'e kaydı", "yarına kaydı"); çıplak "değişti" de olmaz ("klima değişti").
+ * ("rezervasyon kaydı") → yalnız YÖNELME ekli saat / gün / dilim ardından ("11'e kaydı", "yarına alındı"); "Arıza kaydınız bugün alındı"
+ * değişiklik DEĞİL (Opus 10-17 gece O5: yalın gün sözcüğü uydurma "bugün" sözü açıyordu); çıplak "değişti" de olmaz ("klima değişti").
  */
 const RESCHEDULE = new RegExp(
-  `${NL}(?:(?:\\d{1,2}(?:[:.]\\d{2})?\\s*(?:['’]\\s*)?(?:e|a|ye|ya)|yarin\\p{L}{0,2}|bugun\\p{L}{0,2}|sabah\\p{L}{0,3}|aksam\\p{L}{0,3}|ogleden\\s+sonra\\p{L}{0,3})\\s+(?:kaydi|kaydirildi|kaydirdik|alindi)|ertelendi|erteledik|ertelenmistir|saat\\p{L}{0,4}\\s+degis\\p{L}{0,6}|rescheduled|postponed|pushed\\s+back|moved\\s+to)${NR}`,
+  `${NL}(?:(?:\\d{1,2}(?:[:.]\\d{2})?\\s*(?:['’]\\s*)?(?:e|a|ye|ya)|yarina|bugune|sabaha|aksama|ogleye|aksamustune|ogleden\\s+sonraya)\\s+(?:kaydi|kaydirildi|kaydirdik|alindi|ertelendi|erteledik)|ertelendi|erteledik|ertelenmistir|saat\\p{L}{0,4}\\s+degis\\p{L}{0,6}|rescheduled|postponed|pushed\\s+back|moved\\s+to)${NR}`,
   "u",
 );
 
@@ -106,7 +120,7 @@ const SEGMENT_SPLIT = /(?<!\d),|,(?!\d)|(?<![\p{L}\p{N}])(?:ama|fakat|ancak|but)
 const DAY_TODAY = /(?<![\p{L}\p{N}])(?:bugun\p{L}{0,3}|today|tonight)(?![\p{L}])/u;
 const DAY_TOMORROW = /(?<![\p{L}\p{N}])(?:yarin(?:a|ki)?|tomorrow)(?![\p{L}])/u;
 const DAY_UNKNOWN = new RegExp(
-  `${NL}(?:(?:pazartesi|sali|carsamba|persembe|cuma|cumartesi|pazar)\\p{L}{0,4}|yarindan\\s+sonra|obur\\s+gun\\p{L}{0,2}|ertesi\\s+gun\\p{L}{0,2}|\\d{1,2}\\s*(?:gun|hafta|ay)\\p{L}{0,3}|(?:bir|iki|uc|dort|bes|birkac)\\s+(?:gun|hafta|ay)\\p{L}{0,3}|onumuzdeki|gelecek\\s+hafta\\p{L}{0,2}|haftaya|hafta\\s+(?:sonu|ici)\\p{L}{0,3}|monday|tuesday|wednesday|thursday|friday|saturday|sunday|next\\s+(?:week|month)|weekend|day\\s+after\\s+tomorrow|in\\s+(?:\\d+|a|an|one|two|three|a\\s+few|few)\\s+(?:days?|weeks?|months?))${NR}`,
+  `${NL}(?:(?:pazartesi|sali|carsamba|persembe|cuma|cumartesi|pazar)\\p{L}{0,4}|yarindan\\s+sonra|obur\\s+gun\\p{L}{0,2}|ertesi\\s+gun\\p{L}{0,2}|\\d{1,2}\\s*(?:gun\\p{L}{0,3}|hafta\\p{L}{0,3}|ay(?:a|da|dan)?(?![\\p{L}\\p{N}]))|(?:bir|iki|uc|dort|bes|birkac)\\s+(?:gun\\p{L}{0,3}|hafta\\p{L}{0,3}|ay(?:a|da|dan)?(?![\\p{L}\\p{N}]))|onumuzdeki|gelecek\\s+hafta\\p{L}{0,2}|haftaya|hafta\\s+(?:sonu|ici)\\p{L}{0,3}|monday|tuesday|wednesday|thursday|friday|saturday|sunday|next\\s+(?:week|month)|weekend|day\\s+after\\s+tomorrow|in\\s+(?:\\d+|a|an|one|two|three|a\\s+few|few)\\s+(?:days?|weeks?|months?))${NR}`,
   "u",
 );
 
@@ -145,6 +159,16 @@ export interface HostPromise {
   soon: boolean;
   /** Saat DEĞİŞİKLİĞİ cümleciği ("11'e kaydı", "ertelendi") — bağlamla aynı sözün saati güncellenir (kurucu 10-17 gece). */
   reschedule: boolean;
+  /** Gün sözcüğü ("bugün" / "yarın") kapsamda AÇIK mı — yoksa gün varsayılandır (saat değişikliği eski sözün gününe uygulanır, Opus O4). */
+  dayExplicit: boolean;
+  /**
+   * Sözü YAPAN (Opus 10-17 gece O1: "Klima için teknisyen yarın 10'da" ile "Klima kumandasının pilini akşam getireceğim" aynı konu ama AYRI
+   * söz): `visit` (teknisyen / usta / temizlikçi gelecek) · `delivery` (getireceğim / göndereceğim) · null (anlaşılmadı). Bağlam eşleşmesinde
+   * farklı yapan ayrı sözdür; bilinmeyen yapan kendiliğinden taşınmaz (kart sorar).
+   */
+  actor: "visit" | "delivery" | null;
+  /** Kapsamda birbirinden farklı birden çok saat var ("Dün akşam 9'da bozuldu, yarın 11'de gelecek", "10:00–12:00 arası") — saat SEÇİLMEZ, kart sorar (O9). */
+  timeAmbiguous: boolean;
 }
 
 type DayHalf = "am" | "pm" | "night";
@@ -162,6 +186,16 @@ const DURATION_TR =
 const DURATION_EN =
   /(?<![\p{L}\p{N}])(?:(?:in|within)\s+(\d{1,3}(?:\.\d{1,2})?|an?|one|two|half\s+an?)\s+(minutes?|mins?|hours?|hrs?)|(\d{1,3})\s+(minutes?|mins?|hours?|hrs?)\s+later)(?![\p{L}])/u;
 const SOON = /(?<![\p{L}\p{N}])(?:birazdan|hemen|az\s+sonra|shortly|right\s+away|soon|asap)(?![\p{L}])/u;
+/** Ziyaret eden kişi (Opus O1 "sözü yapan"). */
+const ACTOR_VISIT = new RegExp(
+  `${NL}(?:teknisyen\\p{L}{0,6}|usta\\p{L}{0,4}|tesisatci\\p{L}{0,4}|elektrikci\\p{L}{0,4}|tamirci\\p{L}{0,4}|temizlikci\\p{L}{0,4}|servis\\p{L}{0,4}|gorevli\\p{L}{0,4}|ekip\\p{L}{0,4}|ekib\\p{L}{0,4}|technicians?|plumbers?|electricians?|cleaners?|housekeeping|engineers?|repairman)${NR}`,
+  "u",
+);
+/** Getirme / gönderme / bırakma (teslim). */
+const ACTOR_DELIVERY = new RegExp(
+  `${NL}(?:getir\\p{L}{0,10}|gonder\\p{L}{0,10}|birak\\p{L}{0,10}|teslim|bring|send|drop\\s+off|deliver\\p{L}{0,3})${NR}`,
+  "u",
+);
 /** "5'e kadar", "en geç 6'ya kadar" — saat okuyucusunun tanımadığı çıplak biçim (Haiku 10-12 4. tur). */
 const UNTIL_HOUR = /(?<![\p{L}\p{N}.:])([01]?\d|2[0-3])\s*(?:['’]\s*)?(?:e|a|ye|ya)\s+kadar(?![\p{L}])/u;
 /**
@@ -408,6 +442,11 @@ function promiseAt(c: PromiseClause, at: number, kind: CommitmentKind): HostProm
   const scope = sliceOf(from, to);
   // Soru sözün kapsamındaysa söz değil: soru eki ("gelecek mi") ya da cümlecik "?" ile bitiyor ve son parça kapsamda.
   if (QUESTION_PARTICLE.test(scope.folded) || (/[?؟]\s*$/.test(raw) && to === segments.length - 1)) return REJECT;
+  // Sağdaki ayrı soru sözü TEYİDE bağlıyorsa ("…, uygun mu?", "…, olur mu?") söz henüz kesin değil (O3).
+  const isQuestionSeg = (i: number) => QUESTION_PARTICLE.test(segments[i]) || (i === segments.length - 1 && /[?؟]\s*$/.test(raw));
+  for (let i = to + 1; i < segments.length; i++) if (isQuestionSeg(i) && CONFIRM_QUESTION.test(segments[i])) return REJECT;
+  // Dilek sözün kendi parçasında ya da solunda → kararsız söz (O6).
+  if (segments.slice(0, to + 1).some((seg) => HEDGE_WISH.test(seg))) return REJECT;
   // Tanınmayan gün (kapsamda) → öneri yok.
   if (DAY_UNKNOWN.test(scope.folded)) return REJECT;
   // "Bugün ya da yarın" → hangi gün? belirsiz → öneri yok.
@@ -420,13 +459,17 @@ function promiseAt(c: PromiseClause, at: number, kind: CommitmentKind): HostProm
   if (inMinutes !== null && inMinutes > 24 * 60) return REJECT;
   let timeCandidates = inMinutes === null ? timeMentions(scope.raw, scope.folded) : [];
   timeCandidates = part ? fitToHalf(timeCandidates, part.half) : preferDaytime(timeCandidates);
+  // Birbirinden farklı saatler (12 saat farkı aynı saatin öğleden önce / sonra okumasıdır) → saat seçilmez, kart sorar (O9).
+  const timeAmbiguous = timeCandidates.some((a) => timeCandidates.some((b) => a !== b && Math.abs(a - b) !== 12 * 60));
   const cue = inMinutes === null && timeCandidates.length === 0 && part ? { minutes: part.minutes, half: part.half, code: part.code, end: part.end } : null;
   const soon = inMinutes === null && timeCandidates.length === 0 && cue === null && SOON.test(scope.folded);
   const reschedule = RESCHEDULE.test(scope.folded);
   // Söz fiili olmayan saat değişikliği cümleciği ("Teknisyen 11'e kaydı") YALNIZ zaman bilgisiyle söz sayılır — "ertelendi" tek başına yeni
   // bir zaman söylemez (hiçbir şey açılmaz / güncellenmez).
   if (!PROMISE.test(segments[at]) && !hasTimeInfo(scope.folded, scope.raw)) return REJECT;
-  return { kind, topic: commitmentTopicOf(kind, scope.raw, scope.folded), day, timeCandidates, inMinutes, cue, soon, reschedule };
+  const dayExplicit = DAY_TOMORROW.test(scope.folded) || DAY_TODAY.test(scope.folded);
+  const actor: HostPromise["actor"] = ACTOR_VISIT.test(scope.folded) ? "visit" : ACTOR_DELIVERY.test(scope.folded) ? "delivery" : null;
+  return { kind, topic: commitmentTopicOf(kind, scope.raw, scope.folded), day, timeCandidates, inMinutes, cue, soon, reschedule, dayExplicit, actor, timeAmbiguous };
 }
 
 /**

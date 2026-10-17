@@ -22,9 +22,9 @@ const autoRow: CommitmentRow = { id: "c1", kind: "towels", dueLabel: "yarın ak�
 const manualRow: CommitmentRow = { id: "c2", kind: "maintenance", topic: "ac", dueLabel: "17 Eki 10:00", minutesLeft: 0 };
 
 describe("CommitmentsCard — otomatik söz", () => {
-  it("🚨 otomatik söz: etiket + 'Yanlış, kaldır' → reason 'wrong'; elle söz: etiket yok + 'İptal' → nedensiz", async () => {
+  it("🚨 otomatik söz: etiket + 'Yanlış, kaldır' → reason 'wrong' (+ ayrıca düz 'İptal' — O21); elle söz: etiket yok + yalnız 'İptal' → nedensiz", async () => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
-    const fetchMock = vi.fn(async (_u: string, _init?: RequestInit) => ({ ok: true, status: 200, json: async () => ({ ok: true }) }));
+    const fetchMock = vi.fn(async (..._args: [string, RequestInit?]) => ({ ok: true, status: 200, json: async () => ({ ok: true }) }));
     vi.stubGlobal("fetch", fetchMock);
     render(<CommitmentsCard conversationId="conv1" commitments={[autoRow, manualRow]} readOnly={false} />);
     expect(screen.getAllByTestId("commitment-auto-label")).toHaveLength(1);
@@ -34,10 +34,35 @@ describe("CommitmentsCard — otomatik söz", () => {
     });
     expect(fetchMock.mock.calls[0]![0]).toBe("/api/conversations/conv1/commitments/c1");
     expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body))).toEqual({ status: "cancelled", reason: "wrong" });
+    // İki satırda da "İptal" var (otomatik + elle); "Yanlış, kaldır" yalnız otomatikte.
+    expect(screen.getAllByText("İptal")).toHaveLength(2);
+    expect(screen.getAllByText("Yanlış, kaldır")).toHaveLength(1);
     await act(async () => {
-      fireEvent.click(screen.getByText("İptal"));
+      fireEvent.click(screen.getAllByText("İptal")[0]!);
     });
+    expect(fetchMock.mock.calls[1]![0]).toBe("/api/conversations/conv1/commitments/c1");
     expect(JSON.parse(String(fetchMock.mock.calls[1]![1]!.body))).toEqual({ status: "cancelled" });
+    await act(async () => {
+      fireEvent.click(screen.getAllByText("İptal")[1]!);
+    });
+    expect(fetchMock.mock.calls[2]![0]).toBe("/api/conversations/conv1/commitments/c2");
+    expect(JSON.parse(String(fetchMock.mock.calls[2]![1]!.body))).toEqual({ status: "cancelled" });
+  });
+
+  it("dilim / gün sözünde kalan süre GÖSTERİLMEZ: 'açık' / 'gecikti' (O12)", () => {
+    render(
+      <CommitmentsCard
+        conversationId="conv1"
+        commitments={[
+          { ...autoRow, id: "a", precise: false, minutesLeft: 300 },
+          { ...autoRow, id: "b", dueLabel: "dün akşam", precise: false, minutesLeft: -90 },
+        ]}
+        readOnly={false}
+      />,
+    );
+    expect(screen.getByText("açık")).toBeTruthy();
+    expect(screen.getByText("gecikti")).toBeTruthy();
+    expect(screen.queryByText(/sa .*kaldı|dk gecikti/u)).toBeNull();
   });
 
   it("kalan 0 → 'zamanı geldi' (gecikti değil); saatsiz sözün etiketi sunucunun metni ('yarın akşam')", () => {

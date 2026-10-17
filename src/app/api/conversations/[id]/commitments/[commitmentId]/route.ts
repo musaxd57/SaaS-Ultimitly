@@ -2,7 +2,7 @@ import { prisma } from "@/lib/db";
 import { badRequest, jsonOk, notFound, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { writeAuditInTx } from "@/lib/audit";
-import { commitmentTaskTitle, isCommitmentKind } from "@/lib/guest-commitments-core";
+import { isCommitmentKind, untouchedCommitmentTaskWhere } from "@/lib/guest-commitments-core";
 
 // ---------------------------------------------------------------------------
 // Misafire verilen sözü İPTAL et (açık taahhüt hafızası A; migration 62). Yalnız açık söz iptal edilir; bağlı görev SİLİNMEZ (ev sahibi
@@ -34,7 +34,7 @@ export const PATCH = withManage<{ id: string; commitmentId: string }>(async (ses
     let taskRemoved = false;
     if (row?.taskId && isCommitmentKind(row.kind)) {
       const del = await tx.task.deleteMany({
-        where: { id: row.taskId, status: "todo", title: commitmentTaskTitle(row.kind, row.topic, row.dayPart), property: { organizationId: session.organizationId } },
+        where: { ...untouchedCommitmentTaskWhere(row.taskId, row.kind, row.topic, row.dayPart), property: { organizationId: session.organizationId } },
       });
       taskRemoved = del.count === 1;
     }

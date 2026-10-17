@@ -152,6 +152,8 @@ export async function createGuestCommitment(input: {
           conversationId: input.conversationId,
           kind: input.kind,
           dueAt: input.dueAt,
+          // Aynı an + aynı KESİNLİK (O20): gün sözü ile akşam sözü aynı 23:59'da biter ama ayrıdır (`commitmentSlotSame` ile aynı kural).
+          ...(precision === "time" ? { OR: [{ duePrecision: null }, { duePrecision: "time" }] } : { duePrecision: precision, ...(precision === "part" ? { dayPart } : {}) }),
           status: "open",
           taskId: { not: null },
         },

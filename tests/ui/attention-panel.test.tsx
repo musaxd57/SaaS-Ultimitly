@@ -80,7 +80,7 @@ describe("AttentionPanel", () => {
   });
 
   it("söz → görev otomatik (kurucu 10-17 gece): pay içinde 'zamanı geldi'; 1 gün sonra TEK hatırlatma metni (kapatma yok); saatsiz söz saat uydurmadan", () => {
-    const row = (minutesLeft: number, commitmentTime: string, propertyId: string): AttentionItem => ({
+    const row = (minutesLeft: number, commitmentTime: string, propertyId: string, extra: Partial<AttentionItem> = {}): AttentionItem => ({
       ...base,
       propertyId,
       kind: "commitment_due",
@@ -90,10 +90,19 @@ describe("AttentionPanel", () => {
       commitmentKind: "towels",
       minutesLeft,
       commitmentTime,
+      ...extra,
     });
+    // Hatırlatma işaretini SUNUCU koyar (anahtar açık + ≥ 1 gün); panel işarete bakar.
     render(
       <AttentionPanel
-        items={[row(0, "14:30", "p1"), row(-24 * 60, "dün akşam", "p2"), row(-24 * 60 + 1, "dün 15:01", "p3"), row(-30 * 60, "dün (saat belirtilmedi)", "p4")]}
+        items={[
+          row(0, "14:30", "p1"),
+          row(-24 * 60, "dün akşam", "p2", { commitmentReminder: true, commitmentPrecise: false }),
+          row(-24 * 60 + 1, "dün 15:01", "p3"),
+          row(-30 * 60, "dün (saat belirtilmedi)", "p4", { commitmentReminder: true, commitmentPrecise: false }),
+          row(-90, "bugün akşam", "p5", { commitmentPrecise: false }),
+          row(300, "yarın (saat belirtilmedi)", "p6", { commitmentPrecise: false }),
+        ]}
       />,
     );
     expect(screen.getByText(/Deniz Apart · 14:30 · ilgili görev tamamlanmadı · zamanı geldi/)).toBeTruthy();
@@ -102,7 +111,11 @@ describe("AttentionPanel", () => {
     expect(screen.getByText(/dün akşam · yapıldıysa görevi tamamlayın, yapılmayacaksa iptal edin/)).toBeTruthy();
     expect(screen.getByText(/dün \(saat belirtilmedi\) · yapıldıysa görevi tamamlayın/)).toBeTruthy();
     expect(screen.getByText(/dün 15:01 · ilgili görev tamamlanmadı · 23 sa 59 dk gecikti/)).toBeTruthy();
-    expect(screen.getAllByText("Misafire verilen söz gecikti: Havlu / çarşaf")).toHaveLength(1);
+    // Dilim / gün sözünde kalan / geçen süre YAZILMAZ (pencere sonu söylenmez — Opus O12).
+    expect(screen.getByText(/bugün akşam · ilgili görev tamamlanmadı · gecikti$/)).toBeTruthy();
+    expect(screen.getByText(/yarın \(saat belirtilmedi\) · ilgili görev tamamlanmadı$/)).toBeTruthy();
+    expect(screen.queryByText(/1 sa 30 dk gecikti|5 sa kaldı/)).toBeNull();
+    expect(screen.getAllByText("Misafire verilen söz gecikti: Havlu / çarşaf")).toHaveLength(2);
   });
 
   it("kanal bağlantısı satırı: hata türünü sade söyler, 'Tüm daireler' der, sağlayıcı ADI geçmez; bayat okuma gecikme uyarısı", () => {

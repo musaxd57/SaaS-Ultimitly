@@ -12,6 +12,7 @@ import {
   commitmentLabel,
   storedCommitmentWhen,
   commitmentSlotAbsorbs,
+  commitmentSlotSame,
   commitmentTopicsCompatible,
   hostCommitmentAutoEnabled,
   isCommitmentTopic,
@@ -88,6 +89,8 @@ export type SuggestionView =
         reschedule?: { commitmentId: string };
         /** Bağlam BELİRSİZ: yeni saat hangi sözün? Seçim "move:<kimlik>" ya da "new". */
         moveOptions?: Array<{ commitmentId: string; label: string }>;
+        /** Mesajda birden çok saat — kendiliğinden kaydedilmez, ev sahibi saati seçer (Opus O9). */
+        timeAmbiguous?: true;
       };
     }
   | {
@@ -167,6 +170,25 @@ function absolutePromiseWindow(p: HostPromise, messageAt: Date, tz: string): { d
   return { dayKey, dueAt: zonedWallClockToUtc(y, mo, d, Math.floor(m / 60), m % 60, 0, tz), window };
 }
 
+/** Kayıtlı sözün GÜNÜ (işletme dilimi) — gece / gece yarısı dilimi ertesi güne taşan pencere sonundan bir gün geri. */
+function commitmentDayKey(c: { dueAt: Date; duePrecision?: string | null; dayPart?: string | null }, tz: string): string {
+  const spill = c.duePrecision === "part" && (c.dayPart === "night" || c.dayPart === "midnight");
+  return dateKeyInTimeZone(spill ? addZonedDays(c.dueAt, -1, tz) : c.dueAt, tz);
+}
+
+/** Sözün penceresi VERİLEN günde (gün sözcüğü olmayan saat değişikliği — eski sözün günü, O4). Gün kaydırması yok. */
+function windowOnDay(p: HostPromise, dayKey: string, tz: string): { dayKey: string; dueAt: Date; window: PromiseWindow } | null {
+  const window = promiseWindow({ ...p, day: "today" }, -1);
+  if (window.day !== "today") return null;
+  let [y, mo, d] = dayKey.split("-").map(Number);
+  if (window.end >= 24 * 60) {
+    const next = addZonedDays(zonedWallClockToUtc(y, mo, d, 12, 0, 0, tz), Math.floor(window.end / (24 * 60)), tz);
+    [y, mo, d] = dateKeyInTimeZone(next, tz).split("-").map(Number);
+  }
+  const m = window.end % (24 * 60);
+  return { dayKey, dueAt: zonedWallClockToUtc(y, mo, d, Math.floor(m / 60), m % 60, 0, tz), window };
+}
+
 /** Sözün günü → ev sahibine gösterilen "bugün / yarın" (şimdiye göre); son an geçmişse ya da yarından sonraysa null (öneri yok). */
 function relativeDayOf(dayKey: string, dueAt: Date, now: Date, tz: string): "today" | "tomorrow" | null {
   if (dueAt.getTime() < now.getTime() - 5 * 60_000) return null;
@@ -178,7 +200,13 @@ function relativeDayOf(dayKey: string, dueAt: Date, now: Date, tz: string): "tod
  * açılıyor — öneri gereksiz); kaynak mesaja bağlı görev ya da aynı konuda (aynı gün anahtarı) AÇIK görev varsa öneri yok. C: aynı türde,
  * mesajdan sonra işaretlenmiş söz varsa; son an geçmişse ya da yarından sonraysa öneri yok. Sorgular toplu (mesaj başına sorgu yok).
  */
-export async function getConversationSuggestions(organizationId: string, conversationId: string, now: Date = new Date()): Promise<SuggestionView[]> {
+export async function getConversationSuggestions(
+  organizationId: string,
+  conversationId: string,
+  now: Date = new Date(),
+  /** Yalnız bu tür (Opus 10-17 gece O7): görünmeyen görev önerileri söz kartlarının 5 yerlik tavanını doldurmasın (otomatik kip, onay). */
+  opts: { only?: "task" | "commitment" } = {},
+): Promise<SuggestionView[]> {
   const conversation = await prisma.conversation.findFirst({
     where: { id: conversationId, property: { organizationId } },
     select: {
@@ -210,6 +238,7 @@ export async function getConversationSuggestions(organizationId: string, convers
         clientRequestId: true,
         duePrecision: true,
         dayPart: true,
+        sourceMessageId: true,
       },
     }),
   ]);
@@ -218,9 +247,23 @@ export async function getConversationSuggestions(organizationId: string, convers
   // Ev sahibi "mesajlarımdan söz görevi oluşturulmasın" dediyse (Ayarlar, kurucu 10-17: "isterlerse kapatabilsinler") söz önerisi de çıkmaz —
   // YALNIZ otomatik söz anahtarı açıkken (kapalıyken ayar yüzeyde yok, bugünkü öneri akışı aynen).
   const commitmentsOff = hostCommitmentAutoEnabled() && !conversation.property.organization.autoCommitmentsEnabled;
+  // Sözün KAYNAĞI (Opus 10-17 gece O19 / O1): kaynak mesajın zamanı ("bu mesajdan önce açılmış" kıyası kaydın değil sözün ânıyla — gecikmeli
+  // gelen / kuyrukta bekleyen mesajda saat değişikliği gizlenmesin) ve sözü yapan (teknisyen gelecek ↔ ben getireceğim). Kaynak mesaj
+  // pencerede değilse (eski / elle kayıt) kaydın zamanı ve "bilinmiyor".
+  const msgById = new Map(messages.map((x) => [x.id, x]));
+  const sourceAt = (c: (typeof commitments)[number]): number =>
+    ((c.sourceMessageId ? msgById.get(c.sourceMessageId)?.createdAt : undefined) ?? c.createdAt).getTime();
+  const actorOf = (c: (typeof commitments)[number]): HostPromise["actor"] => {
+    const src = c.sourceMessageId ? msgById.get(c.sourceMessageId) : undefined;
+    if (!src) return null;
+    const prefix = `sugg:${suggestionKey("commitment", src.id)}`;
+    const rid = c.clientRequestId ?? "";
+    const idx = rid.startsWith(`${prefix}:`) ? Number(rid.slice(prefix.length + 1)) : 0;
+    return detectHostPromises(src.body)[Number.isInteger(idx) ? idx : 0]?.actor ?? null;
+  };
 
   // A adayları + toplu görev denetimi (kaynağa bağlı görev · aynı gün anahtarlı açık görev).
-  const taskCandidates = autoTask
+  const taskCandidates = autoTask || opts.only === "commitment"
     ? []
     : messages
         .filter((m) => resolveMessageAuthor(m).authorType === "guest" && !decided.has(suggestionKey("task", m.id)))
@@ -261,7 +304,7 @@ export async function getConversationSuggestions(organizationId: string, convers
         evidenceAt: fmtAt(m.createdAt),
         proposal: { messageId: m.id, taskTitle, priority: cand.detected.priority },
       });
-    } else if (author === "host" && !isChannelAutomation(m) && !commitmentsOff) {
+    } else if (author === "host" && !isChannelAutomation(m) && !commitmentsOff && opts.only !== "task") {
       // L5 (10-17): kanalın KENDİ otomatik mesajı ("Housekeeping will come tomorrow at 10" şablonu) ev sahibinin sözü DEĞİL.
       // Q1-b (kurucu 10-17, "ikisini de öner"): mesajdaki HER söz ayrı öneri. İlk sözün anahtarı mesaj kimliği (geriye uyumlu), sonrakiler
       // `<mesaj>:<sıra>` — sıra mesajın metninden (değişmez) gelir, süzgeçlerden önce verilir → listede ve onayda aynı anahtar.
@@ -276,52 +319,92 @@ export async function getConversationSuggestions(organizationId: string, convers
         // AYNI mesajın başka bir önerisinden açılan söz bu kapıyı tetiklemez (Q1-b, Haiku 10-17: "Teknisyen 10:00 / Klima için usta 11:00"
         // — ilk onay ikinciyi gizliyordu); onun saati uyuşuyorsa aşağıdaki aynı-an kapısı yine gizler.
         const sibling = `sugg:${suggestionKey("commitment", m.id)}`;
+        const isSibling = (c: (typeof commitments)[number]) => c.clientRequestId === sibling || Boolean(c.clientRequestId?.startsWith(`${sibling}:`));
         if (
           commitments.some(
             (c) =>
               c.kind === promise.kind &&
               commitmentTopicsCompatible(c.topic, promise.topic) &&
-              c.createdAt.getTime() >= m.createdAt.getTime() &&
-              !(c.clientRequestId === sibling || c.clientRequestId?.startsWith(`${sibling}:`)),
+              sourceAt(c) >= m.createdAt.getTime() &&
+              !isSibling(c),
           )
         ) {
           continue;
         }
-        const { dayKey, dueAt, window } = absolutePromiseWindow(promise, m.createdAt, tz);
+        let { dayKey, dueAt, window } = absolutePromiseWindow(promise, m.createdAt, tz);
+        // Aynı söz = aynı tür + aynı an + aynı KESİNLİK ("Havlu getireceğim" günü ile "Akşam havlu getireceğim" aynı 23:59'da biter ama ayrı
+        // sözdür — Opus 10-17 gece O20).
+        const slotOf = () => ({
+          kind: promise.kind,
+          dueAt,
+          topic: promise.topic,
+          duePrecision: window.precision,
+          dayPart: window.precision === "part" ? window.dayPart : null,
+        });
         // Aynı tür + aynı an için öneriyi TAMAMEN karşılayan AÇIK söz zaten varsa (mesajdan ÖNCE elle açılmış ya da ev sahibi aynı sözü sonraki
         // mesajda tekrarlamış) öneri gösterilmez — onay hiçbir şey değiştirmezdi ve öneri yenilemede geri gelirdi: ölü "Onayla" düğmesi (Opus
         // 10-15 B1). Konusuz elle söz + KONULU öneri gösterilir: onay söze konu yazar (kurucu Q1 "a", `commitmentSlotAbsorbs`).
         // `taskId` dolu: onayın bağlanabildiği küme ile BİREBİR (`createGuestCommitment` görevsiz söze bağlanmaz — Haiku 10-17).
-        const absorbing = commitments.filter(
-          (c) => c.status === "open" && c.taskId !== null && commitmentSlotAbsorbs(c, { kind: promise.kind, dueAt, topic: promise.topic }),
-        );
+        const absorbing = commitments.filter((c) => c.status === "open" && c.taskId !== null && commitmentSlotAbsorbs(c, slotOf()));
         // Q1-b (kurucu 10-17): KONUSUZ öneri aynı saatte İKİ ya da daha çok FARKLI konulu söze uyuyorsa hangisi olduğu belli değil → öneri
         // gösterilir, onayda "hangi söze bağlansın?" sorulur (ya da yeni söz). Tek söze uyuyorsa bugünkü gibi gizlenir.
         const attachTopics = promise.topic === null ? [...new Set(absorbing.map((c) => c.topic).filter(isCommitmentTopic))].sort() : [];
         // Aynı saatte KONUSUZ açık söz varsa konusuz öneri birebir ona uyar → seçim gereksiz, gizli (Opus 10-17 Q1b-A: "yeni söz" seçimi
         // gereksiz ikinci görev açıyordu).
         if (absorbing.length > 0 && (attachTopics.length < 2 || absorbing.some((c) => c.topic === null))) continue;
-        const day = relativeDayOf(dayKey, dueAt, now, tz);
-        if (!day) continue;
-        const when = commitmentWhenText(day, window);
         // BAĞLAM (kurucu 10-17 gece: "aynı görevin saati güncellensin ama aynı görevden bahsedildiği bağlamdan anlaşılsın — başka bir şeyi
-        // değiştirmemeli"): bu mesajdan ÖNCE açılmış, aynı türde, AÇIK, saati FARKLI söz. Kesin eşleşme → saat güncellemesi; belirsiz → seçim.
-        //  · Konulu yeni söz (klima) → aynı konuda TEK açık söz → onun saati. Birden çok aynı konulu → seçim. Başka konulu söz → yeni söz.
-        //  · Konusuz + saat değişikliği sözcüğü ("11'e kaydı") → aynı türde TEK aday → onun saati; birden çok → seçim.
-        //  · Konusuz, sözcüksüz ("Teknisyen yarın 11'de gelecek") + aday var → seçim ("yeni saati mi, ayrı söz mü?") — kendiliğinden ne
-        //    değiştirir ne ikinci görev açar.
+        // değiştirmemeli"): bu mesajdan ÖNCE verilmiş, aynı türde, AÇIK, başka bir an / kesinlikteki söz. Kesin eşleşme → saat güncellemesi;
+        // belirsiz → seçim kartı (kendiliğinden ne değiştirir ne ikinci görev açar); FARKLI yapan (teknisyen gelecek ↔ ben getireceğim) →
+        // ayrı söz (Opus O1: "Klima kumandasının pilini akşam getireceğim" teknisyen sözünü taşımamalı).
+        //  · KESİN: tek aday ∧ (saat değişikliği sözcüğü ("11'e kaydı") ∨ (aynı konu ∧ yapan İKİ tarafta da bilinen ve aynı)).
+        //  · SEÇİM: aynı konulu aday(lar) yapanı bilinmiyor / birden çok · konulu söz + konusuz eski söz (O8) · konusuz sözcüksüz yeni saat.
         const earlier = commitments.filter(
           (c) =>
             c.status === "open" &&
             c.taskId !== null &&
             c.kind === promise.kind &&
-            c.createdAt.getTime() < m.createdAt.getTime() &&
-            c.dueAt.getTime() !== dueAt.getTime() &&
-            !(c.clientRequestId === sibling || c.clientRequestId?.startsWith(`${sibling}:`)),
+            sourceAt(c) < m.createdAt.getTime() &&
+            !commitmentSlotSame(c, slotOf()) &&
+            !isSibling(c),
         );
-        const sameTopic = promise.topic !== null ? earlier.filter((c) => c.topic === promise.topic) : earlier;
-        const certain = sameTopic.length === 1 && (promise.topic !== null || promise.reschedule) ? sameTopic[0] : null;
-        const moveChoices = certain ? [] : sameTopic.length >= 1 && (promise.topic !== null ? sameTopic.length >= 2 : true) ? sameTopic : [];
+        const otherActor = (c: (typeof commitments)[number]) => {
+          const a = actorOf(c);
+          return a !== null && promise.actor !== null && a !== promise.actor;
+        };
+        const relevant = (promise.topic !== null ? earlier.filter((c) => c.topic === promise.topic) : earlier).filter((c) => !otherActor(c));
+        let certain: (typeof commitments)[number] | null = null;
+        if (relevant.length === 1) {
+          const c = relevant[0]!;
+          if (promise.reschedule || (promise.topic !== null && promise.actor !== null && actorOf(c) === promise.actor)) certain = c;
+        }
+        const moveChoices = certain
+          ? []
+          : relevant.length > 0
+            ? relevant
+            : promise.topic !== null
+              ? earlier.filter((c) => c.topic === null && !otherActor(c))
+              : [];
+        // Gün sözcüğü olmayan saat değişikliği ("Teknisyen 11'e kaydı") eski sözün GÜNÜNE uygulanır (Opus O4: bugüne kayıyordu).
+        if (certain && promise.reschedule && !promise.dayExplicit && promise.inMinutes === null) {
+          const onDay = windowOnDay(promise, commitmentDayKey(certain, tz), tz);
+          if (onDay) ({ dayKey, dueAt, window } = onDay);
+        }
+        const day = relativeDayOf(dayKey, dueAt, now, tz);
+        if (!day) continue;
+        const when = commitmentWhenText(day, window);
+        const baseProposal = {
+          messageId: m.id,
+          commitmentKind: promise.kind,
+          topic: promise.topic,
+          day,
+          time: window.precision === "time" ? window.time : "",
+          precision: window.precision,
+          ...(window.precision === "part" ? { dayPart: window.dayPart } : {}),
+          dueAt: dueAt.toISOString(),
+          dayKey,
+          // Mesajda birden çok saat var — kendiliğinden kaydedilmez, ev sahibi saati seçer (O9).
+          ...(promise.timeAmbiguous ? { timeAmbiguous: true as const } : {}),
+        };
         const describe = (c: (typeof commitments)[number]) =>
           `${commitmentLabel(c.kind as CommitmentKind, c.topic)} — ${storedCommitmentWhen(c, now, tz)}`;
         if (certain) {
@@ -331,18 +414,7 @@ export async function getConversationSuggestions(organizationId: string, convers
             title: `Söz saatini güncelle: ${commitmentLabel(promise.kind, promise.topic ?? certain.topic)} — ${storedCommitmentWhen(certain, now, tz)} → ${when}`,
             detail: "Mesajınızda aynı sözün yeni saati var — görev ve söz yeni saate taşınır, yeni görev açılmaz",
             evidenceAt: fmtAt(m.createdAt),
-            proposal: {
-              messageId: m.id,
-              commitmentKind: promise.kind,
-              topic: promise.topic,
-              day,
-              time: window.precision === "time" ? window.time : "",
-              precision: window.precision,
-              ...(window.precision === "part" ? { dayPart: window.dayPart } : {}),
-              dueAt: dueAt.toISOString(),
-              dayKey,
-              reschedule: { commitmentId: certain.id },
-            },
+            proposal: { ...baseProposal, reschedule: { commitmentId: certain.id } },
           });
           continue;
         }
@@ -355,18 +427,12 @@ export async function getConversationSuggestions(organizationId: string, convers
               ? "Aynı türde açık söz var — bu onun yeni saati mi, ayrı bir söz mü?"
               : attachTopics.length >= 2
                 ? `Aynı saatte kayıtlı sözler var (${attachTopics.map((t) => COMMITMENT_TOPIC_LABELS[t]).join(", ")}) — hangisine bağlanacağını seçin`
-                : "Misafire yazdığınız mesajdan — açık söz + görev açılır",
+                : promise.timeAmbiguous
+                  ? "Mesajınızda birden çok saat var — sözün saatini seçin"
+                  : "Misafire yazdığınız mesajdan — açık söz + görev açılır",
           evidenceAt: fmtAt(m.createdAt),
           proposal: {
-            messageId: m.id,
-            commitmentKind: promise.kind,
-            topic: promise.topic,
-            day,
-            time: window.precision === "time" ? window.time : "",
-            precision: window.precision,
-            ...(window.precision === "part" ? { dayPart: window.dayPart } : {}),
-            dueAt: dueAt.toISOString(),
-            dayKey,
+            ...baseProposal,
             ...(moveChoices.length > 0
               ? { moveOptions: moveChoices.map((c) => ({ commitmentId: c.id, label: describe(c) })) }
               : attachTopics.length >= 2

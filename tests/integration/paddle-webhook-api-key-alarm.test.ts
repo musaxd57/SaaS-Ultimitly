@@ -65,17 +65,20 @@ describe("Paddle webhook — API anahtarı uyarısı", () => {
     expect(message).toContain("2027-10-17");
     expect(message).not.toContain(FAKE_KEY);
     expect(message).not.toMatch(/pdl_live/u);
-    expect(await prisma.webhookEvent.findUniqueOrThrow({ where: { providerEventId: `evt_${type}` } })).toMatchObject({ status: "processed" });
+    // İnceleme kaydı olarak kalır (Opus O18): operatör olay listesinde görür; e-posta kısılsa da iz kaybolmaz.
+    const row = await prisma.webhookEvent.findUniqueOrThrow({ where: { providerEventId: `evt_${type}` } });
+    expect(row.status).toBe("error");
+    expect(row.error).toContain(type.replace(".", "_"));
     expect(await prisma.subscription.count()).toBe(0);
     expect(await prisma.invoice.count()).toBe(0);
   });
 
-  it("adsız / bozuk tarihli olay da uyarır (ad '(adsız)', bitiş 'bilinmiyor'); aynı olay yeniden gelirse ikinci uyarı YOK (kopya)", async () => {
+  it("adsız / bozuk tarihli olay da uyarır (ad '(adsız)', bitiş 'bilinmiyor'); Paddle'dan yeniden gönderilirse uyarı YİNELENİR (inceleme kaydı)", async () => {
     const ev = keyEvent("evt_x", "api_key.expiring", { name: "", expires_at: "not-a-date" });
     expect((await post(ev)).status).toBe(200);
     expect(String((alarms()[0][1] as Error).message)).toContain('"(adsız)" (bitiş bilinmiyor)');
     expect((await post(ev)).status).toBe(200);
-    expect(alarms()).toHaveLength(1);
+    expect(alarms()).toHaveLength(2);
   });
 
   it("KONTROL: başka olay türleri (api_key.created, subscription) bu uyarıyı TETİKLEMEZ", async () => {
@@ -84,9 +87,9 @@ describe("Paddle webhook — API anahtarı uyarısı", () => {
     expect(alarms()).toHaveLength(0);
   });
 
-  it("uyarı gönderilemese de (rapor fırlatır) olay işlenir ve 200 döner (Paddle sonsuz yeniden denemesin)", async () => {
+  it("uyarı gönderilemese de (rapor fırlatır) 200 döner (Paddle sonsuz yeniden denemesin); inceleme kaydı kalır", async () => {
     reportErrorMock.mockRejectedValueOnce(new Error("smtp down"));
     expect((await post(keyEvent("evt_f", "api_key.expired"))).status).toBe(200);
-    expect(await prisma.webhookEvent.findUniqueOrThrow({ where: { providerEventId: "evt_f" } })).toMatchObject({ status: "processed" });
+    expect(await prisma.webhookEvent.findUniqueOrThrow({ where: { providerEventId: "evt_f" } })).toMatchObject({ status: "error" });
   });
 });

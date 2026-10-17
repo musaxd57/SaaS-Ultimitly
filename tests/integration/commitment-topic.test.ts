@@ -215,7 +215,10 @@ describe("söz konusu", () => {
     await prisma.guestCommitment.update({ where: { id: existing.id }, data: { createdAt: new Date(Date.now() - 60 * 60_000) } });
     const [s] = (await getConversationSuggestions(orgId, conv)).filter((x) => x.kind === "commitment");
     expect(s).toBeDefined(); // 10:00 önerisi 11:00 sözünden farklı an → görünür
-    const res = await decide({ key: s!.key, decision: "approve", day: "tomorrow", time: "11:00" });
+    // Yapanı bilinmeyen (elle) aynı konulu söz → kendiliğinden taşınmaz, kart sorar (Opus 10-17 gece O1). Ev sahibi "ayrı söz" seçip saati
+    // 11:00'e düzenler → mevcut söze bağlanır (ölü düğme yok).
+    expect(s!.kind === "commitment" && s!.proposal.moveOptions?.map((o) => o.commitmentId)).toEqual([existing.id]);
+    const res = await decide({ key: s!.key, decision: "approve", day: "tomorrow", time: "11:00", attach: "new" });
     expect(res.status).toBe(200); // ⬅️ ESKİDE 409 ve öneri kalıcı (her tık aynı ret)
     expect(await prisma.guestCommitment.count({ where: { conversationId: conv } })).toBe(1);
     const decision = await prisma.auditLog.findFirstOrThrow({ where: { organizationId: orgId, action: "ai_suggestion.approved" } });
@@ -299,17 +302,20 @@ describe("Q1-b (kurucu 10-17: '2'sini de öner')", () => {
     expect(await prisma.task.count({ where: { propertyId } })).toBe(1);
   });
 
-  it("KONTROL: BAŞKA mesajdan açılmış söz kapıyı bugünkü gibi tetikler (yalnız aynı mesajın kardeş önerileri muaf)", async () => {
+  it("KONTROL: BAŞKA mesajdan açılmış söz kardeş muafiyetinden yararlanmaz — kaynağı önce olduğu için öneri kalır ve seçim ister (O8 / O19)", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
     await asOwner(orgId);
     const conv = await conversationWith(propertyId, ["Teknisyen yarın 10:00'da gelecek.", "Klima için usta yarın 11:00'de gelecek."]);
     const list = await getConversationSuggestions(orgId, conv);
     expect(list).toHaveLength(2);
-    // Eski mesajın (10:00, konusuz) sözü onaylanınca — SONRAKİ mesajdan önce mi sonra mı açıldığına göre — kapı bugünkü kuralla çalışır:
-    // söz, klima mesajından SONRA açıldı → konusuz söz klima önerisiyle uyumlu → klima önerisi gizlenir (ev sahibi zaten kaydetti).
+    // Eski mesajın (10:00, konusuz) sözü onaylanınca: sözün KAYNAĞI klima mesajından ÖNCE (Opus O19 — kayıt anı değil kaynak an) → klima
+    // önerisi gizlenmez; konusuz eski söz + konulu yeni saat belirsiz → kart "bu saat hangi söze ait?" sorar (O8), kendiliğinden ne taşır ne
+    // ikinci görev açar.
     const first = list.find((s) => s.title.includes("10:00"))!;
     expect((await decide({ key: first.key, decision: "approve" })).status).toBe(200);
-    expect(await getConversationSuggestions(orgId, conv)).toEqual([]);
+    const after = (await getConversationSuggestions(orgId, conv)).filter((x) => x.kind === "commitment");
+    expect(after).toHaveLength(1);
+    expect(after[0]!.kind === "commitment" && after[0]!.proposal.moveOptions?.length).toBe(1);
   });
 
   it("birini 'yok say' ötekini gizlemez; aynı anahtarın ikinci kararı 409", async () => {
