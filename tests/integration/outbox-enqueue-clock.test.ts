@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
+import { prisma, resetDb, makeOrgWithProperty, enableAutoMessages } from "../helpers/db";
 import { FakeOutboundProvider } from "../helpers/fake-channel";
 import { __setOutboundAdapterForTest } from "@/lib/channels";
 import { enqueueOutbound, enqueueProactive } from "@/lib/outbox/enqueue";
@@ -21,6 +21,7 @@ const row = (id: string) => prisma.messageOutbox.findUniqueOrThrow({ where: { id
 
 async function seed() {
   const { orgId, propertyId } = await makeOrgWithProperty();
+  await enableAutoMessages(orgId);
   const reservation = await prisma.reservation.create({
     data: {
       propertyId,

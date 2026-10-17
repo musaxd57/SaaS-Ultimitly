@@ -602,6 +602,21 @@ function autoReplySwitchOn(): boolean {
   return process.env.AUTO_REPLY_ENABLED === "1";
 }
 
+/** S3-01: otomatik satırın türüne karşılık gelen işletme anahtarı kapalıysa iptal sebebi (yapay zekâ → Y5 ile aynı sebep ve gelen kutusu notu). */
+async function orgSwitchCancelReason(row: OutboxRow): Promise<string | null> {
+  const type = row.messageType;
+  if (type !== "ai" && type !== "holding_ack" && type !== "welcome" && type !== "checkin" && type !== "checkout") return null;
+  const org = await prisma.organization.findUnique({
+    where: { id: row.organizationId },
+    select: { autoReplyHospitable: true, autoWelcome: true, autoCheckin: true, autoCheckout: true },
+  });
+  // Kuruluş yoksa karar varlık vetosunundur (replyVeto / lifecycleVeto — F03).
+  if (!org) return null;
+  if (type === "ai" || type === "holding_ack") return org.autoReplyHospitable ? null : "auto_reply_disabled";
+  const on = type === "welcome" ? org.autoWelcome : type === "checkin" ? org.autoCheckin : org.autoCheckout;
+  return on ? null : "lifecycle_disabled";
+}
+
 /**
  * Y4 (10-14 dış inceleme): kuyruğa girdikten sonra İLERİ tarihe taşınan rezervasyonun giriş mesajı (kapı kodu taşıyabilir) erken GİTMEZ —
  * rezervasyonun en erken onaylı varışı aday seçimiyle aynı pencerenin dışındaysa pencerenin açılacağı ana ERTELENİR. İptal
@@ -639,6 +654,12 @@ async function sendTimeVeto(row: OutboxRow, now: Date): Promise<string | null> {
   // Y5 (10-14 dış inceleme): genel kapatma kapalıyken kuyruktaki yapay zekâ cevabı GİTMEZ ve SONRA da gitmez (Haiku: anahtar günlerce kapalı
   // kalıp açılınca bayat cevap gidiyordu) → iptal; gelen kutusunda sebep notu görünür (↓çağıran). Yaşam döngüsü satırı talep edilmez, bekler.
   if (!autoReplySwitchOn() && (type === "ai" || type === "holding_ack")) return "auto_reply_disabled";
+  // Gece-4 S3-01: işletmenin KENDİ anahtarları da gönderim anında okunur — kuyruğa giriş onlara bakıyordu, gönderim bakmıyordu: ev sahibi
+  // panelden "Otomatik yanıt"ı kapattıktan sonra bekleyen cevap (kuyruk geçiş sonunda boşalır; park / ödeme beklemesinde günler sonra) yine
+  // gidiyordu; giriş bilgisi (kapı kodu) "Giriş mesajı" kapatılmışken ödeme gelince gidebiliyordu. Kapalı anahtar = iptal (açılınca bayat
+  // mesaj gitmez; yeni rezervasyon / mesaj kuyruğa giriş kurallarıyla yeniden işlenir). Elle cevap etkilenmez.
+  const switchVeto = await orgSwitchCancelReason(row);
+  if (switchVeto) return switchVeto;
   // N1 (kurucu 10-17: "ödeme geldikten sonra çalışmaya başlasın kesinlikle bayat mesaj gitmemeli"): abonelik erişimi kapalıyken kuyruktaki
   // yapay zekâ cevabı İPTAL edilir (`billing-hold.ts`); gelen kutusunda not görünür (↓çağıran, Y5 ile aynı yol).
   const billingVeto = await billingCancelReason(row);

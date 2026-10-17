@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
+import { prisma, resetDb, makeOrgWithProperty, enableAutoMessages } from "../helpers/db";
 import { enqueueProactive } from "@/lib/outbox/enqueue";
 import { drainOutboxOnce, reactivateBlockedOutbox, type OutboxSendFn } from "@/lib/outbox/worker";
 import { OUTBOX_MAX_ATTEMPTS } from "@/lib/outbox/state";
@@ -32,7 +32,7 @@ const okDeliver = () => {
 /** Seed an org + property with a "welcome" KB entry and one confirmed, near-future booking. */
 async function seedWelcome(opts: { source?: string; welcomeSentAt?: Date | null } = {}) {
   const org = await prisma.organization.create({
-    data: { name: "Org", autoWelcome: true, autoWelcomeEnabledAt: new Date(0), aiSignature: "İsa" },
+    data: { name: "Org", autoWelcome: true, autoWelcomeEnabledAt: new Date(0), aiSignature: "İsa", autoReplyHospitable: true, autoCheckin: true, autoCheckout: true },
   });
   const property = await prisma.property.create({ data: { organizationId: org.id, name: "lale 3" } });
   await prisma.knowledgeBaseItem.create({
@@ -127,6 +127,7 @@ describe("outbox lifecycle (FAZ 1) — flag ON", () => {
 
   it("holding_ack delivery effect: the thread STAYS 'problem' (never marked answered)", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
+    await enableAutoMessages(orgId);
     const c = await prisma.conversation.create({
       data: { propertyId, channel: "airbnb", guestIdentifier: "G", status: "problem", externalReservationId: "res-h" },
     });
@@ -254,6 +255,7 @@ describe("outbox lifecycle (FAZ 1) — flag ON", () => {
 
   it("C: a CHECK-OUT for a completed booking is NOT vetoed (consistent with the flag-OFF query); welcome IS", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
+    await enableAutoMessages(orgId);
     const mkLifecycleRow = async (type: "checkout" | "welcome", resStatus: string, ref: string, key: string) => {
       const res = await prisma.reservation.create({
         data: {
@@ -287,6 +289,7 @@ describe("outbox lifecycle (FAZ 1) — flag ON", () => {
     // as live until the departure DAY is over — otherwise every same-day checkout dies in the
     // outbox as window_passed.
     const { orgId, propertyId } = await makeOrgWithProperty();
+    await enableAutoMessages(orgId);
     const mkRow = async (departure: Date, ref: string, key: string) => {
       const res = await prisma.reservation.create({
         data: {
@@ -323,6 +326,7 @@ describe("outbox lifecycle (FAZ 1) — flag ON", () => {
     // Kural artık sendDueCheckouts ile aynı: yalnız now'ın org-tz tarih anahtarı
     // departure'ın tarih anahtarını GEÇİNCE window_passed. (Istanbul paritesi C2'de pinli.)
     const { orgId, propertyId } = await makeOrgWithProperty();
+    await enableAutoMessages(orgId);
     await prisma.organization.update({ where: { id: orgId }, data: { timezone: "Europe/Berlin" } });
     const mkRow = async (departure: Date, ref: string, key: string) => {
       const res = await prisma.reservation.create({
@@ -366,6 +370,7 @@ describe("outbox lifecycle (FAZ 1) — flag ON", () => {
     // Eski kural saklı değeri org dilimine çeviriyordu: 00:00Z New York'ta bir önceki günün 20:00'si → çıkış günü sabahı
     // kuyruktaki hatırlatma "geçti" diye iptal ediliyordu. Kural artık sendDueCheckouts ile AYNI (`calendarDateOf`).
     const { orgId, propertyId } = await makeOrgWithProperty();
+    await enableAutoMessages(orgId);
     await prisma.organization.update({ where: { id: orgId }, data: { timezone: "America/New_York" } });
     const mkRow = async (departure: Date, ref: string, key: string) => {
       const res = await prisma.reservation.create({
@@ -401,6 +406,7 @@ describe("outbox lifecycle (FAZ 1) — flag ON", () => {
     // bilgisini alamazdı). Kural: org gününe göre çıkış GÜNÜ başlayınca bayat (İstanbul'un yerel gece yarısı saklama biçiminde eski
     // davranışla birebir — aşağıdaki ikiz).
     const { orgId, propertyId } = await makeOrgWithProperty();
+    await enableAutoMessages(orgId);
     await prisma.organization.update({ where: { id: orgId }, data: { timezone: "America/New_York" } });
     const mkRow = async (arrival: Date, departure: Date, ref: string, key: string) => {
       const res = await prisma.reservation.create({
@@ -433,6 +439,7 @@ describe("outbox lifecycle (FAZ 1) — flag ON", () => {
 
   it("C5 ikizi: İstanbul'un yerel gece yarısı saklama biçiminde giriş vetosu eskisiyle BİREBİR (çıkış günü 00:30 bayat; bir önceki gece teslim)", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
+    await enableAutoMessages(orgId);
     await prisma.organization.update({ where: { id: orgId }, data: { timezone: "Europe/Istanbul" } });
     const mkRow = async (departure: Date, ref: string, key: string) => {
       const res = await prisma.reservation.create({

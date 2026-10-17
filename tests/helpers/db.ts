@@ -62,6 +62,17 @@ export async function makeOrgWithProperty(overrides?: {
   return { orgId: org.id, propertyId: property.id };
 }
 
+/**
+ * İşletmenin otomatik mesaj anahtarlarını açar (otomatik yanıt + karşılama / giriş / çıkış). Gerçek akışta otomatik kuyruk satırı yalnız
+ * anahtar AÇIKKEN kuyruğa girer ve gece-4 S3-01'den beri gönderim anında da okunur — kuyruğa doğrudan otomatik satır yazan testler bunu çağırır.
+ */
+export async function enableAutoMessages(organizationId: string) {
+  await prisma.organization.update({
+    where: { id: organizationId },
+    data: { autoReplyHospitable: true, autoWelcome: true, autoCheckin: true, autoCheckout: true },
+  });
+}
+
 const DAY = 24 * 60 * 60 * 1000;
 
 /** A date offset from now by whole days (positive = future). */

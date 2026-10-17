@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
+import { prisma, resetDb, makeOrgWithProperty, enableAutoMessages } from "../helpers/db";
 import { listOutboxDeliveries, canManualRetry } from "@/lib/outbox/ops";
 import { drainOutboxOnce, type OutboxSendFn } from "@/lib/outbox/worker";
 import type { SessionPayload } from "@/lib/auth";
@@ -56,6 +56,7 @@ async function mkRow(
 
 async function seedOrg(role: SessionPayload["role"] = "owner") {
   const { orgId } = await makeOrgWithProperty();
+  await enableAutoMessages(orgId);
   // Real user so the audit write (FK on actorUserId) actually persists.
   const user = await prisma.user.create({
     data: { organizationId: orgId, name: "O", email: `o${++keyCounter}@x.com`, passwordHash: "x", role },

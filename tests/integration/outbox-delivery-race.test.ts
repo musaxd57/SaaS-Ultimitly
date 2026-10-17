@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
+import { prisma, resetDb, makeOrgWithProperty, enableAutoMessages } from "../helpers/db";
 import { enqueueOutbound } from "@/lib/outbox/enqueue";
 import { drainOutboxOnce, type OutboxSendFn } from "@/lib/outbox/worker";
 
@@ -21,6 +21,7 @@ import { drainOutboxOnce, type OutboxSendFn } from "@/lib/outbox/worker";
 
 async function seed(status = "new") {
   const { orgId, propertyId } = await makeOrgWithProperty();
+  await enableAutoMessages(orgId);
   const conversation = await prisma.conversation.create({
     data: {
       propertyId,

@@ -14,6 +14,11 @@ import { drainOutboxOnce, type OutboxSendFn } from "@/lib/outbox/worker";
 
 async function seed() {
   const { orgId, propertyId } = await makeOrgWithProperty();
+  // Gerçek akışta otomatik satır yalnız işletme anahtarı AÇIKKEN kuyruğa girer (S3-01: gönderim anı da okur).
+  await prisma.organization.update({
+    where: { id: orgId },
+    data: { autoReplyHospitable: true, autoWelcome: true, autoCheckin: true, autoCheckout: true },
+  });
   const conversation = await prisma.conversation.create({
     data: {
       propertyId,
@@ -117,6 +122,62 @@ describe("Y5 — genel kapatma kuyruktaki otomatik mesajı durdurur", () => {
     const { send, sent } = counter();
     await drainOutboxOnce({ send, tokenFor: async () => "t" });
     expect(sent).toEqual(["manual"]);
+  });
+
+  it("🚨 gece-4 S3-01: İŞLETMENİN 'Otomatik yanıt' anahtarı kapatılınca bekleyen yapay zekâ cevabı İPTAL (gelen kutusu notu); elle cevap gider", async () => {
+    vi.stubEnv("AUTO_REPLY_ENABLED", "1");
+    const { orgId, conversationId } = await seed();
+    const inbound = await prisma.message.findFirstOrThrow({ where: { conversationId, direction: "inbound" } });
+    await enqueue(orgId, conversationId, "ai", `auto:${conversationId}:${inbound.id}`);
+    await enqueue(orgId, conversationId, "host", "host-s301");
+    await prisma.organization.update({ where: { id: orgId }, data: { autoReplyHospitable: false } });
+    const { send, sent } = counter();
+    // Yapay zekâ satırı talep edilip gönderim anında iptal edilir; aynı konuşmanın sıradaki elle cevabı bir sonraki geçişte gider
+    // (genel kapatmadaki gibi talep dışı bırakılmaz — anahtar işletme satırında; tek geçiş gecikmesi).
+    await drainOutboxOnce({ send, tokenFor: async () => "t" });
+    await drainOutboxOnce({ send, tokenFor: async () => "t" });
+    expect(sent).toEqual(["manual"]);
+    const ai = await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId, messageType: "ai" } });
+    expect(ai).toMatchObject({ status: "canceled", lastErrorCode: "auto_reply_disabled" });
+    expect((await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } })).skippedReason).toBe("auto_reply_disabled");
+    // Anahtar yeniden açılsa da bayat cevap GİTMEZ.
+    await prisma.organization.update({ where: { id: orgId }, data: { autoReplyHospitable: true } });
+    await drainOutboxOnce({ send, tokenFor: async () => "t" });
+    expect(sent).toEqual(["manual"]);
+  });
+
+  it("🚨 gece-4 S3-01: 'Giriş mesajı' kapatılınca bekleyen giriş bilgisi (kapı kodu) GİTMEZ; karşılama anahtarı açıkken karşılama gider", async () => {
+    vi.stubEnv("AUTO_REPLY_ENABLED", "1");
+    const { orgId, propertyId } = await seed();
+    const reservation = await prisma.reservation.create({
+      data: {
+        propertyId,
+        guestName: "Burak",
+        arrivalDate: new Date(Date.now() + 2 * 86_400_000),
+        departureDate: new Date(Date.now() + 4 * 86_400_000),
+        channel: "airbnb",
+        status: "confirmed",
+        sourceReference: "res-s301",
+      },
+    });
+    for (const messageType of ["checkin", "welcome"] as const) {
+      await enqueueProactive({
+        organizationId: orgId,
+        reservationId: reservation.id,
+        externalReservationId: "res-s301",
+        channel: "airbnb",
+        messageType,
+        body: messageType === "checkin" ? "Kapı kodu 4821" : "Hoş geldiniz",
+        idempotencyKey: `s301-${messageType}`,
+      });
+    }
+    await prisma.organization.update({ where: { id: orgId }, data: { autoCheckin: false } });
+    const { send, sent } = counter();
+    await drainOutboxOnce({ send, tokenFor: async () => "t" });
+    expect(sent).toEqual(["welcome"]);
+    const checkin = await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId, messageType: "checkin" } });
+    expect(checkin).toMatchObject({ status: "canceled", lastErrorCode: "lifecycle_disabled" });
+    expect((await prisma.reservation.findUniqueOrThrow({ where: { id: reservation.id } })).checkinSentAt).toBeNull();
   });
 
   it("KONTROL: anahtar AÇIK → aynı satırlar gider", async () => {

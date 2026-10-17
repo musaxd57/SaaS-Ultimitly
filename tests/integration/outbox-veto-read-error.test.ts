@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
+import { prisma, resetDb, makeOrgWithProperty, enableAutoMessages } from "../helpers/db";
 
 // ---------------------------------------------------------------------------
 // Gönderim öncesi okuma (silme kapısı / kardeş satır) DB hatası verirse satır POST'suz GERİ bırakılır (Haiku 10-14). Eskiden satır
@@ -29,6 +29,7 @@ describe("gönderim öncesi okuma hatası → satır geri bırakılır", () => {
 
   it("🚨 silme kapısı okunamadı → POST yok, satır 'pending' (deneme sayılmaz, inceleme yok); sonraki koşu gönderir", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
+    await enableAutoMessages(orgId);
     const reservation = await prisma.reservation.create({
       data: {
         propertyId,

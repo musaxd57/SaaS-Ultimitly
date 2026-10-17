@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
+import { prisma, resetDb, makeOrgWithProperty, enableAutoMessages } from "../helpers/db";
 
 vi.mock("@/lib/report-error", () => ({ reportError: vi.fn(async () => {}) }));
 
@@ -20,6 +20,7 @@ const okSend: OutboxSendFn = vi.fn(async () => ({ ok: true, providerMessageId: "
 
 async function seed(opts: { exempt: boolean; staleItem?: boolean; key?: string }) {
   const { orgId, propertyId } = await makeOrgWithProperty();
+  await enableAutoMessages(orgId);
   const c = await prisma.conversation.create({
     data: { propertyId, channel: "airbnb", guestIdentifier: "Misafir", status: "new", externalReservationId: "res-h" },
   });

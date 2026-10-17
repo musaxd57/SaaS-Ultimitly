@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
+import { prisma, resetDb, makeOrgWithProperty, enableAutoMessages } from "../helpers/db";
 
 // ---------------------------------------------------------------------------
 // ABONELİK ERİŞİMİ KAPANINCA KUYRUKTAKİ OTOMATİK MESAJ (Codex 10-16, ölçüldü). Kurucu kararı: "Geçerli ödenmiş dönem bitince ücretli
@@ -31,6 +31,7 @@ const atMidnight = (offset: number) => new Date(`${new Date(Date.now() + offset 
 
 async function seed() {
   const { orgId, propertyId } = await makeOrgWithProperty();
+  await enableAutoMessages(orgId);
   // Yaşam döngüsü vetosu satırın rezervasyonunu okur (iptal / pencere / zaten gönderildi).
   await prisma.reservation.create({
     data: {
@@ -362,7 +363,9 @@ describe("N1: erişim kapalıyken gelen misafir mesajı — ödeme sonrası baya
   it("aşırı uygulama yok: oto-yanıtı kapalı işletme / genel anahtar kapalı → damga yok", async () => {
     const { orgId, conversationId } = await seed();
     await expireAccess(orgId);
-    expect(await markBillingPausedConversations(orgId)).toBe(0); // autoReplyHospitable varsayılanı
+    // Kurulum otomatik mesaj anahtarlarını açar (S3-01); bu durum oto-yanıtı KAPALI işletmeyi sınar.
+    await prisma.organization.update({ where: { id: orgId }, data: { autoReplyHospitable: false } });
+    expect(await markBillingPausedConversations(orgId)).toBe(0); // oto-yanıt kapalı
     await prisma.organization.update({ where: { id: orgId }, data: { autoReplyHospitable: true, autoReplyEnabledAt: new Date(Date.now() - DAY) } });
     vi.stubEnv("AUTO_REPLY_ENABLED", "");
     expect(await markBillingPausedConversations(orgId)).toBe(0);
