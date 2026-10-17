@@ -446,9 +446,10 @@ describe("söz → görev otomatik (kurucu 10-17 gece): kararsız / aktarılan s
   it("🚨 aynı cümlecikte zaman bilgisi olmayan aynı türden parça önceki sözün DEVAMI (uydurma 'bugün' sözü yok); yapanı farklıysa ayrı söz", () => {
     expect(detectHostPromises("Teknisyen yarın 10'da gelecek, aylık bakımı da yapacak.")).toMatchObject([{ day: "tomorrow", timeCandidates: [600] }]);
     expect(detectHostPromises("Teknisyen yarın 10'da gelecek, aylık bakımı da yapacak.")).toHaveLength(1);
-    expect(detectHostPromises("Klima için teknisyen yarın 10'da gelecek, kumandanın pilini de getireceğim.")).toMatchObject([
-      { actor: "visit", day: "tomorrow" },
-      { actor: "delivery" },
+    // Aynı tür + konu (klima), zamansız, YAPANI farklı → ayrı söz (devam sayılmaz).
+    expect(detectHostPromises("Klima için teknisyen yarın 10'da gelecek, klima kumandasının pilini de getireceğim.")).toMatchObject([
+      { kind: "maintenance", topic: "ac", actor: "visit", day: "tomorrow" },
+      { kind: "maintenance", topic: "ac", actor: "delivery" },
     ]);
     // Zamanı olan ikinci parça ayrı söz (kontrol).
     expect(detectHostPromises("Teknisyen yarın 10'da gelecek, klima ustası da 11'de gelecek.")).toHaveLength(2);
