@@ -457,6 +457,20 @@ describe("söz → görev otomatik (kurucu 10-17 gece): kararsız / aktarılan s
     expect(detectHostPromises("Teknisyen 3 Aralık'ta gelecek.")).toEqual([]);
   });
 
+  it("🚨 Opus gece-3 F9: '24/7', '2nd floor / bedroom', 'No:12/3', '1/2 saat' tarih DEĞİL (söz düşmez); '24/7'de', 'the 25th', '25th of' tarih", () => {
+    for (const t of [
+      "The technician will come today at 2pm, you can reach me 24/7.",
+      "I'll bring towels tomorrow at 10, call me 24/7.",
+      "I'll bring extra towels to the 2nd floor tomorrow at 10.",
+      "The cleaner will come tomorrow at 11 to clean the 2nd bedroom.",
+      "Teknisyen yarın 10'da gelecek, adres Gül Sokak No:12/3.",
+      "Teknisyen yarın 10'da gelecek, 1/2 saat sürer.",
+    ])
+      expect(detectHostPromises(t), t).toHaveLength(1);
+    for (const t of ["Teknisyen 24/7'de gelecek.", "The technician will come on the 25th of October.", "The technician will come on the 25th."])
+      expect(detectHostPromises(t), t).toEqual([]);
+  });
+
   it("aşırı uygulama kontrolü: 'aylık' / 'aydır' / 'ayar' / saat '12.10' tarih DEĞİL", () => {
     expect(detectHostPromises("Bir aylık bakım için teknisyen yarın 10'da gelecek.")).toMatchObject([{ day: "tomorrow", timeCandidates: [600] }]);
     expect(detectHostPromises("Bir aydır bekliyorsunuz, teknisyen yarın 10'da gelecek.")).toMatchObject([{ day: "tomorrow", timeCandidates: [600] }]);
