@@ -816,7 +816,7 @@ aynı düğme o plan için ödeme ekranını açar (yeni abonelik, anında tahsi
 | "denemeyi geri ver garip" | — | ✅ operatör düğmesi "Denemeyi yeniden başlat" (üzerine gelince: "Bugünden başlayan yeni bir deneme süresi verir.") |
 | Sandbox (Chrome'daki Claude, 10-17) | — | D1 ✅ devam isteği alanları belgeyle aynı; kart reddinde istek hata DÖNMEZ, abonelik "ödeme gecikmiş" olur → kod artık bunu başarı saymıyor (402 + kart güncelleme). D2 🚨 fiyat önizlemesinde okuduğumuz alan YOKTU → düzeltildi (satır toplamları, aboneliğin adresiyle). P1–P14 panel girişi bekliyor |
 | Söz → görev otomatik (10-17 gece) | "onayla host uğraşmasın, saati ile kaydetsin, akşam yazmışsa akşam" · "Hatırlat, kapatma" · saatsiz söz gün olarak ama "rahatsız etmesin", kapatılabilsin / günlük sınır · "Herkese birden" · "aynı görevin saati güncellensin ama bağlamdan anlaşılsın, başka bir şeyi değiştirmemeli" · "havlu / temizlik / eşya kapansın, arıza kalsın" · "20" | ✅ kodda (migration 75, anahtar `HOST_COMMITMENT_AUTO_ENABLED` KAPALI → açılışta "1"): tasarım + davranış `docs/TASARIM-2026-10-17-soz-otomatik-gorev.md`. Saat uydurma kaldırıldı ("birazdan" artık "kısa süre içinde"; "akşam" akşam). "Teknisyen 11'e kaydı" gibi değişiklikler bağlamla TEK adaya taşınır; belirsizde kart sorar, hiçbir şey kendiliğinden değişmez |
-| Sandbox tur 3 (10-17 gece) | "sandbox dışında değişiklik olmasın, geri alınabilir olsun" | Chrome'daki Claude Paddle'ın kendi ödeme sayfasını buldu (Settings → Payments → Hosted checkouts) → "Default payment link" DEĞİŞMEDİ, hiçbir ayar değişmiyor. Devam istemi: `scratchpad/paddle-sandbox/chrome-claude-istemi-tur3-devam.md` (P6 → P8 → P3 → P4/P6b/P9 → P11 → P14 → P2; Musa kartı girer) |
+| Sandbox tur 3 (10-17 gece) | "sandbox dışında değişiklik olmasın, geri alınabilir olsun" | Chrome'daki Claude Paddle'ın kendi ödeme sayfasını buldu (Settings → Payments → Hosted checkouts) → "Default payment link" DEĞİŞMEDİ, hiçbir ayar değişmiyor. Devam istemi: `scratchpad/paddle-sandbox/chrome-claude-istemi-tur3-devam.md` (P6 → P8 → P3 → P4/P6b/P9 → P11 → P14 → P2; Musa kartı girer). **Tur 3 bitti (16 geçti · 0 kaldı · 6 denenmedi):** devam sonrası tahsilat = duraklatmadan önceki "sonraki ödeme" rakamı (TRY 899, vergi dahil) ✅ — tutar ENGELİ kalktı; ama yeni bulgu ↓ SG3 (çifte tahsilat). Duraklatılmış abonelikte paket değiştirme yok → devam + paket İKİ adım kalır |
 
 **Söz → görev otomatik — iki yorum, teyit (varsayılanla kodlandı; "hayır" derseniz tek satırla döner):**
 - **SG1 · Konaklama bitince görev:** söz kapanınca (havlu / temizlik / eşya) sistemin açtığı görev **kimse dokunmadıysa silinir** (panoda ayrılmış
@@ -826,6 +826,17 @@ aynı düğme o plan için ödeme ekranını açar (yeni abonelik, anında tahsi
 - **SG2 · Saatsiz söz panelde:** "Havlu getireceğim" (gün yok, saat yok) → görev bugün için açılır ama Dikkat Gerektirenler'de **gün bitmeden
   satır olmaz**; gün geçince en altta (öne çıkmaz) — "hostu sürekli rahatsız etmesin". Saatli / "akşam" sözleri bugünkü gibi yaklaşınca görünür.
   Böyle kalsın mı?
+
+**SG3 · "Aboneliği devam ettir" çifte tahsilat (sandbox tur 3, P8; anahtar `PADDLE_RESUME_ENABLED` KAPALI — canlıda hiçbir şey olmadı):**
+Bugünkü kod Paddle'a "hemen + YENİ dönem başlat" diyor (paneldeki Resume düğmesiyle aynı). Sandbox'ta (panel saatiyle): 17 Eki 6:05'te 899 TL çekildi → 6:06'da
+hemen duraklatıldı → devam ettirilince **899 TL daha** çekildi, iade / kredi yok.
+- ÖNCE (bugünkü kod): ödenmiş dönem sürerken duraklatılıp devam ettirilen abonelik → tam ücret yeniden çekilir, yeni dönem bugünden başlar.
+- Ödeme alınamadığı için duraklayan abonelik (asıl kullanım): 17 Kas tahsilatı başarısız → duraklatıldı → 25 Kas'ta "Devam ettir" → 899 TL çekilir,
+  dönem 25 Kas–25 Ara. Bu DOĞRU ve değişmez.
+- Önerim: ödenmiş dönem hâlâ sürüyorsa (son tamamlanan ödemenin dönem sonu ileride) uygulama **para çekmez**: Paddle'ın "mevcut dönemi sürdür"
+  seçeneği (`continue_existing_billing_period`, belgede var, panelde yok) kullanılır; abonelik 17 Kas'a kadar sürer, 17 Kas'ta normal 899. Bu seçenek
+  yalnız API'den denenebiliyor; denenene kadar o durumda düğme yerine "Aboneliğinizi devam ettirmek için bize yazın" çıkar (para riski sıfır).
+  Bugün uygulamamız kendisi duraklatmıyor; bu durum yalnız biri Paddle panelinden "hemen duraklat" derse doğar. Böyle yapalım mı?
 
 **Teyit isteyen yorum — "Q2 bu söz ne demek… 2'sini de öner":** "Söz" = ev sahibinin misafire verdiği, saate bağlı taahhüt ("Klima için teknisyen
 yarın 10:00'da gelecek"). Amaç unutulmaması: onaylanınca o saate görev açılır, saat geçerse "söz gecikti" görünür. Cevabınızı **Q1-b**'nin cevabı

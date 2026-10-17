@@ -62,10 +62,13 @@ const HEDGE = new RegExp(
   "u",
 );
 /**
- * Dilek ("umarım", "inşallah", "hopefully") YALNIZ sözün kendi parçasında / solunda sözü kararsız yapar: "Umarım yarın teknisyen gelecek" söz
- * değil; "Teknisyen yarın 10'da gelecek, umarım sorun hemen çözülür" sözdür (dilek SONUÇ için — Opus 10-17 gece O6).
+ * Dilek ("umarım", "inşallah", "hopefully") YALNIZ sözün kendi kapsamında ya da hemen solundaki YALIN dilek parçasında sözü kararsız yapar:
+ * "Umarım yarın teknisyen gelecek" / "Umarım, teknisyen yarın gelecek" söz değil; "Teknisyen yarın 10'da gelecek, umarım sorun hemen çözülür"
+ * sözdür (dilek SONUÇ için — Opus 10-17 gece O6); "Umarım iyisinizdir, teknisyen yarın 10'da gelecek" de sözdür (dilek selamlaşma — Haiku
+ * 10-17 gece 2. tur).
  */
 const HEDGE_WISH = new RegExp(`${NL}(?:umarim|insallah|hopefully)${NR}`, "u");
+const HEDGE_WISH_BARE = /^\s*(?:umarim|insallah|hopefully)[\s.!]*$/u;
 /**
  * Sözü ev sahibinin TEYİDE bağladığı soru ("…, uygun mu?", "…, olur mu?", "is that ok?") — söz henüz kesin değil (Opus 10-17 gece O3: ayrı
  * soru kuralı bunları da söz sayıyordu). "Başka bir ihtiyacınız var mı?" teyit DEĞİL, sözü bozmaz.
@@ -121,6 +124,16 @@ const DAY_TODAY = /(?<![\p{L}\p{N}])(?:bugun\p{L}{0,3}|today|tonight)(?![\p{L}])
 const DAY_TOMORROW = /(?<![\p{L}\p{N}])(?:yarin(?:a|ki)?|tomorrow)(?![\p{L}])/u;
 const DAY_UNKNOWN = new RegExp(
   `${NL}(?:(?:pazartesi|sali|carsamba|persembe|cuma|cumartesi|pazar)\\p{L}{0,4}|yarindan\\s+sonra|obur\\s+gun\\p{L}{0,2}|ertesi\\s+gun\\p{L}{0,2}|\\d{1,2}\\s*(?:gun\\p{L}{0,3}|hafta\\p{L}{0,3}|ay(?:a|da|dan)?(?![\\p{L}\\p{N}]))|(?:bir|iki|uc|dort|bes|birkac)\\s+(?:gun\\p{L}{0,3}|hafta\\p{L}{0,3}|ay(?:a|da|dan)?(?![\\p{L}\\p{N}]))|onumuzdeki|gelecek\\s+hafta\\p{L}{0,2}|haftaya|hafta\\s+(?:sonu|ici)\\p{L}{0,3}|monday|tuesday|wednesday|thursday|friday|saturday|sunday|next\\s+(?:week|month)|weekend|day\\s+after\\s+tomorrow|in\\s+(?:\\d+|a|an|one|two|three|a\\s+few|few)\\s+(?:days?|weeks?|months?))${NR}`,
+  "u",
+);
+/**
+ * TAKVİM TARİHİ (Haiku 10-17 gece 2. tur + ölçüm): "25 Ekim'de", "ayın 25'inde", "ay sonunda", "bu ay", "gelecek ay", "October 25", "the 25th",
+ * "25/10", "25.10.2026" — bugün / yarın modelinin dışında → tanınmayan gün gibi öneri YOK (ölçüldü: hepsi BUGÜN sayılıp bugüne görev açıyordu).
+ * Gün-nokta-ay yalnız gün 24–31 ise ("25.10"); "12.10" saattir (12:10). Ad olmayan "aylık" / "aydır" / "ayar" tarih DEĞİL ("Bir aylık bakım
+ * için teknisyen yarın 10'da gelecek" sözdür). Bitişik boşluk niceleyicileri arasındaki isteğe bağlı ayraç `\s*(?:X\s*)?` (karesel iş yok).
+ */
+const CALENDAR_DATE = new RegExp(
+  `${NL}(?:\\d{1,2}\\s*(?:['’.]\\s*)?(?:ocak|subat|mart|nisan|mayis|haziran|temmuz|agustos|eylul|ekim|kasim|aralik)\\p{L}{0,5}|ayin\\s+(?:\\d{1,2}|ilk|son|sonu\\p{L}{0,4}|basi\\p{L}{0,4}|ortasi\\p{L}{0,4})|ay\\s+(?:sonu|basi|ortasi|icinde)\\p{L}{0,4}|(?:bu|gelecek|ertesi)\\s+ay(?:a|da|in|ki)?|\\d{1,2}[./]\\d{1,2}[./]\\d{2,4}|\\d{1,2}/\\d{1,2}|(?:2[4-9]|3[01])\\.(?:0?[1-9]|1[0-2])|january|february|march|april|june|july|august|september|october|november|december|may\\s+\\d{1,2}|\\d{1,2}(?:st|nd|rd|th)?\\s+(?:of\\s+)?may|\\d{1,2}(?:st|nd|rd|th)|this\\s+month|end\\s+of\\s+(?:the\\s+)?month)${NR}`,
   "u",
 );
 
@@ -341,11 +354,16 @@ export function detectHostPromises(text: string | null | undefined): HostPromise
           const k = c.topicIn(c.clause);
           return k ? [[c.verbIdx[0], k] as const] : [];
         })();
+    const fromClause: HostPromise[] = [];
     for (const [at, kind] of picks) {
       if (out.length >= MAX_PROMISES_PER_MESSAGE) break;
       const p = promiseAt(c, at, kind);
       if (p === REJECT) continue;
       if (out.some((q) => samePromise(q, p))) continue;
+      // Aynı cümlecikte HİÇBİR zaman bilgisi olmayan aynı türden söz parçası, önceki sözün DEVAMIDIR ("Teknisyen yarın 10'da gelecek, aylık
+      // bakımı da yapacak" tek ziyaret — ölçüldü: ikinci parça uydurma "bugün" sözü açıyordu). Yapanı farklı olan ayrı sözdür.
+      if (!hasPromiseTime(p) && fromClause.some((q) => q.kind === p.kind && (p.actor === null || q.actor === p.actor))) continue;
+      fromClause.push(p);
       out.push(p);
     }
   }
@@ -354,11 +372,20 @@ export function detectHostPromises(text: string | null | undefined): HostPromise
 
 const REJECT = Symbol("reject");
 
-/** Aynı sözün mesaj içinde BİREBİR tekrarı mı (tür, konu, gün ve saat okuması aynı). */
+/** Sözün kendi zaman bilgisi var mı (gün sözcüğü, saat, süre, gün dilimi, "birazdan"). */
+function hasPromiseTime(p: HostPromise): boolean {
+  return p.dayExplicit || p.timeCandidates.length > 0 || p.inMinutes !== null || p.cue !== null || p.soon;
+}
+
+/**
+ * Aynı sözün mesaj içinde BİREBİR tekrarı mı (tür, konu, YAPAN, gün ve saat okuması aynı). Yapan farklıysa iki sözdür: "Klima için teknisyen
+ * yarın gelecek, klima filtresini yarın getireceğim" (Haiku 10-17 gece 2. tur: teslim sözü tekrar sanılıp düşüyordu).
+ */
 function samePromise(a: HostPromise, b: HostPromise): boolean {
   return (
     a.kind === b.kind &&
     a.topic === b.topic &&
+    a.actor === b.actor &&
     a.day === b.day &&
     a.inMinutes === b.inMinutes &&
     a.timeCandidates.join(",") === b.timeCandidates.join(",") &&
@@ -445,10 +472,10 @@ function promiseAt(c: PromiseClause, at: number, kind: CommitmentKind): HostProm
   // Sağdaki ayrı soru sözü TEYİDE bağlıyorsa ("…, uygun mu?", "…, olur mu?") söz henüz kesin değil (O3).
   const isQuestionSeg = (i: number) => QUESTION_PARTICLE.test(segments[i]) || (i === segments.length - 1 && /[?؟]\s*$/.test(raw));
   for (let i = to + 1; i < segments.length; i++) if (isQuestionSeg(i) && CONFIRM_QUESTION.test(segments[i])) return REJECT;
-  // Dilek sözün kendi parçasında ya da solunda → kararsız söz (O6).
-  if (segments.slice(0, to + 1).some((seg) => HEDGE_WISH.test(seg))) return REJECT;
-  // Tanınmayan gün (kapsamda) → öneri yok.
-  if (DAY_UNKNOWN.test(scope.folded)) return REJECT;
+  // Dilek sözün kapsamında ya da hemen solunda yalın dilek parçası → kararsız söz (O6); soldaki başka cümle ("umarım iyisinizdir") bozmaz.
+  if (segments.slice(from, to + 1).some((seg) => HEDGE_WISH.test(seg)) || (from > 0 && HEDGE_WISH_BARE.test(segments[from - 1]))) return REJECT;
+  // Tanınmayan gün / takvim tarihi (kapsamda) → öneri yok.
+  if (DAY_UNKNOWN.test(scope.folded) || CALENDAR_DATE.test(scope.folded)) return REJECT;
   // "Bugün ya da yarın" → hangi gün? belirsiz → öneri yok.
   if (DAY_TOMORROW.test(scope.folded) && DAY_TODAY.test(scope.folded)) return REJECT;
   const day: HostPromise["day"] = DAY_TOMORROW.test(scope.folded) ? "tomorrow" : "today";

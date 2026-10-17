@@ -286,8 +286,9 @@ export async function decideSuggestion(input: {
             source: input.auto ? "auto" : "suggestion",
             sourceMessageId: view.proposal.messageId,
             clientRequestId: `sugg:${input.key}`,
-            // Q1-b: ev sahibi "yeni söz" seçtiyse aynı saatteki sözlere BAĞLANMAZ (kendi kararı).
-            mergeSameSlot: attachTo !== "new",
+            // Q1-b: ev sahibi "yeni söz" seçtiyse aynı saatteki sözlere BAĞLANMAZ (kendi kararı). Aynı andaki söz başka YAPANINSA
+            // (teknisyen ↔ ben getireceğim) de bağlanmaz — ayrı sözdür (Haiku 10-17 gece 2. tur).
+            mergeSameSlot: attachTo !== "new" && !view.proposal.separateActor,
           },
           tx,
         );

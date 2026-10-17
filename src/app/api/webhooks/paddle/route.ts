@@ -15,7 +15,13 @@ import {
   paddleStatusToLocal,
 } from "@/lib/payments/paddle";
 import { NEEDS_REVIEW_PREFIX, isRedactedPaddlePayload, redactPaddlePayload } from "@/lib/data-retention";
-import { PAYMENT_REVIEW_ACTION } from "@/lib/billing/payment-review";
+import {
+  PADDLE_API_KEY_ALERT_EVENTS,
+  PAYMENT_REVIEW_ACTION,
+  minimalApiKeyPayload,
+  paddleApiKeyAlertPhrase,
+  paddleApiKeyFacts,
+} from "@/lib/billing/payment-review";
 
 export const dynamic = "force-dynamic";
 
@@ -662,21 +668,18 @@ async function adoptConsentChain(data: Record<string, unknown> | undefined, occu
 }
 
 /** Paddle API anahtarı olayları (kurucu 10-17: anahtar süresiz oluşturulmuştu → 1 yıl bitişli + dönebilir anahtara geçilecek). */
-const PADDLE_API_KEY_EVENTS: ReadonlySet<string> = new Set(["api_key.expiring", "api_key.expired", "api_key.revoked"]);
+const PADDLE_API_KEY_EVENTS: ReadonlySet<string> = new Set(PADDLE_API_KEY_ALERT_EVENTS);
 
 /**
  * Operatör uyarısı (`reportError` → Sentry + uyarı e-postası). Anahtarın KENDİSİ (maskeli olsa da) yazılmaz — yalnız Paddle'daki adı, bitiş
- * tarihi ve olay türü. Asla fırlatmaz (uyarı düşerse olay yine işlenmiş sayılır; Paddle bir sonraki olayı yine gönderir).
+ * tarihi ve olay türü. Asla fırlatmaz (uyarı düşerse olay yine işlenmiş sayılır; kalıcı iz Operasyon Teşhisi'ndeki satır).
  */
 async function alertPaddleApiKey(eventType: string, data: unknown): Promise<void> {
-  const d = (data && typeof data === "object" ? data : {}) as { name?: unknown; expires_at?: unknown };
-  const name = typeof d.name === "string" && d.name.trim() !== "" ? d.name.trim().slice(0, 80) : "(adsız)";
-  const expires = typeof d.expires_at === "string" && !Number.isNaN(Date.parse(d.expires_at)) ? new Date(d.expires_at).toISOString().slice(0, 10) : "bilinmiyor";
-  const what = eventType === "api_key.expiring" ? "süresi yakında doluyor" : eventType === "api_key.expired" ? "süresi DOLDU" : "iptal edildi";
+  const { name, expiresOn } = paddleApiKeyFacts(data);
   await reportError(
     "paddle-api-key",
     new Error(
-      `Paddle API anahtarı ${what}: "${name}" (bitiş ${expires}). Canlıda kullanılan anahtar buysa yeni anahtar oluşturup Railway'deki PADDLE_API_KEY değerini değiştirin; ödeme işlemleri eski anahtarla durur.`,
+      `Paddle API anahtarı ${paddleApiKeyAlertPhrase(eventType)}: "${name}" (bitiş ${expiresOn}). Canlıda kullanılan anahtar buysa yeni anahtar oluşturup Railway'deki PADDLE_API_KEY değerini değiştirin; ödeme işlemleri eski anahtarla durur.`,
     ),
   ).catch(() => {});
 }
@@ -798,6 +801,9 @@ export async function POST(req: NextRequest): Promise<Response> {
     // küçültülmüş yük (silinen hesap / KVKK silme / 12 ay) ezilmez, okuma ile yazma arasında koşan küçültme işiyle yarış da yok (Haiku 10-16).
     // İşleme bellekteki gövdeyle sürer (finansal inceleme devam eder). Olay kimliksiz teslim (Paddle her zaman gönderir) eski davranışta.
     let storedMinimized = false;
+    // API anahtarı olayı (her `api_key.*`) ham gövdeyle SAKLANMAZ: gövde anahtarın kendisini (maskeli olsa da) taşıyabilir (Haiku 10-17 gece
+    // 2. tur) → ilk yazımdan önce anahtarsız küçük gövde.
+    const storedBody = eventType?.startsWith("api_key.") ? minimalApiKeyPayload(event) : rawBody;
     if (providerEventId) {
       const existing = await prisma.webhookEvent.findUnique({ where: { providerEventId } });
       if (existing?.status === "processed") {
@@ -807,12 +813,12 @@ export async function POST(req: NextRequest): Promise<Response> {
       storedMinimized = existing != null && isRedactedPaddlePayload(existing.payloadJson);
       await prisma.webhookEvent.upsert({
         where: { providerEventId },
-        create: { provider: "paddle", eventType, providerEventId, payloadJson: rawBody, status: "received" },
+        create: { provider: "paddle", eventType, providerEventId, payloadJson: storedBody, status: "received" },
         update: { status: "received", eventType, error: null },
       });
     } else {
       await prisma.webhookEvent.create({
-        data: { provider: "paddle", eventType, providerEventId: null, payloadJson: rawBody, status: "received" },
+        data: { provider: "paddle", eventType, providerEventId: null, payloadJson: storedBody, status: "received" },
       });
     }
 
@@ -832,9 +838,8 @@ export async function POST(req: NextRequest): Promise<Response> {
         // Kurucu 10-17 ("sakın unutmayalım"): Paddle API anahtarının süresi dolmadan / dolunca / iptalinde operatör uyarılır. Olay hiçbir
         // işletmeye ait değil, abonelik / fatura yazmaz. (Paddle bildirim hedefinde bu olay türleri işaretli olmalı.)
         await alertPaddleApiKey(eventType, data);
-        // Olay "işlendi" sayılmaz, İNCELEME kaydı olarak kalır (Opus O18): uyarı e-postası kısılsa / düşse de operatör olay listesinde görür;
-        // Paddle aynı olayı yeniden gönderirse uyarı yinelenir.
-        reviewReason = eventType.replace(".", "_");
+        // Olay İŞLENDİ sayılır — ödeme olayı değil, ödeme incelemesine düşmez (Haiku 10-17 gece 2. tur). Kalıcı iz (Opus O18): bu satır
+        // Operasyon Teşhisi'nde 90 gün "Paddle API anahtarı" uyarısı olarak görünür (`latestPaddleApiKeyAlert`); e-posta kısılsa da kaybolmaz.
       }
       if (providerEventId) {
         // İnceleme gereken olay "işlendi" sayılmaz (ödeme S1): satır "error" + kısa kod kalır → Paddle'dan yeniden gönderilirse tekrar

@@ -91,6 +91,11 @@ export type SuggestionView =
         moveOptions?: Array<{ commitmentId: string; label: string }>;
         /** Mesajda birden çok saat — kendiliğinden kaydedilmez, ev sahibi saati seçer (Opus O9). */
         timeAmbiguous?: true;
+        /**
+         * Aynı an + kesinlikte açık söz var ama sözü YAPAN farklı (teknisyen gelecek ↔ ben getireceğim) → onay o söze BİRLEŞMEZ, ayrı söz
+         * açar (Haiku 10-17 gece 2. tur: birleşip kayboluyordu).
+         */
+        separateActor?: true;
       };
     }
   | {
@@ -320,13 +325,20 @@ export async function getConversationSuggestions(
         // — ilk onay ikinciyi gizliyordu); onun saati uyuşuyorsa aşağıdaki aynı-an kapısı yine gizler.
         const sibling = `sugg:${suggestionKey("commitment", m.id)}`;
         const isSibling = (c: (typeof commitments)[number]) => c.clientRequestId === sibling || Boolean(c.clientRequestId?.startsWith(`${sibling}:`));
+        // Sözü YAPAN iki tarafta da biliniyor ve farklı (teknisyen gelecek ↔ ben getireceğim) → ayrı söz: ne gizler ne taşır (Opus O1;
+        // Haiku 10-17 gece 2. tur: aynı an / sonraki söz kapısında da).
+        const otherActor = (c: (typeof commitments)[number]) => {
+          const a = actorOf(c);
+          return a !== null && promise.actor !== null && a !== promise.actor;
+        };
         if (
           commitments.some(
             (c) =>
               c.kind === promise.kind &&
               commitmentTopicsCompatible(c.topic, promise.topic) &&
               sourceAt(c) >= m.createdAt.getTime() &&
-              !isSibling(c),
+              !isSibling(c) &&
+              !otherActor(c),
           )
         ) {
           continue;
@@ -345,7 +357,10 @@ export async function getConversationSuggestions(
         // mesajda tekrarlamış) öneri gösterilmez — onay hiçbir şey değiştirmezdi ve öneri yenilemede geri gelirdi: ölü "Onayla" düğmesi (Opus
         // 10-15 B1). Konusuz elle söz + KONULU öneri gösterilir: onay söze konu yazar (kurucu Q1 "a", `commitmentSlotAbsorbs`).
         // `taskId` dolu: onayın bağlanabildiği küme ile BİREBİR (`createGuestCommitment` görevsiz söze bağlanmaz — Haiku 10-17).
-        const absorbing = commitments.filter((c) => c.status === "open" && c.taskId !== null && commitmentSlotAbsorbs(c, slotOf()));
+        const slotPeers = commitments.filter((c) => c.status === "open" && c.taskId !== null && commitmentSlotAbsorbs(c, slotOf()));
+        const absorbing = slotPeers.filter((c) => !otherActor(c));
+        // Aynı andaki açık sözlerin HEPSİ başka yapanın → bu söz ayrıdır; onay birleştirmesin (yazma katmanı yapanı bilmez).
+        const separateActor = slotPeers.length > 0 && absorbing.length === 0;
         // Q1-b (kurucu 10-17): KONUSUZ öneri aynı saatte İKİ ya da daha çok FARKLI konulu söze uyuyorsa hangisi olduğu belli değil → öneri
         // gösterilir, onayda "hangi söze bağlansın?" sorulur (ya da yeni söz). Tek söze uyuyorsa bugünkü gibi gizlenir.
         const attachTopics = promise.topic === null ? [...new Set(absorbing.map((c) => c.topic).filter(isCommitmentTopic))].sort() : [];
@@ -367,15 +382,20 @@ export async function getConversationSuggestions(
             !commitmentSlotSame(c, slotOf()) &&
             !isSibling(c),
         );
-        const otherActor = (c: (typeof commitments)[number]) => {
-          const a = actorOf(c);
-          return a !== null && promise.actor !== null && a !== promise.actor;
-        };
         const relevant = (promise.topic !== null ? earlier.filter((c) => c.topic === promise.topic) : earlier).filter((c) => !otherActor(c));
         let certain: (typeof commitments)[number] | null = null;
         if (relevant.length === 1) {
           const c = relevant[0]!;
-          if (promise.reschedule || (promise.topic !== null && promise.actor !== null && actorOf(c) === promise.actor)) certain = c;
+          if (promise.reschedule) certain = c;
+          // Saat değişikliği sözcüğü yok + gün sözcüğü yok ("Klima için teknisyen 11'de gelecek") → yeni saat hangi güne? Eski söz mesajın
+          // kendi günündeyse tek okuma o gün; başka günse (yarın 10:00) kart sorar — kendiliğinden bugüne taşımaz (Haiku 10-17 gece 2. tur).
+          else if (
+            promise.topic !== null &&
+            promise.actor !== null &&
+            actorOf(c) === promise.actor &&
+            (promise.dayExplicit || promise.inMinutes !== null || commitmentDayKey(c, tz) === dayKey)
+          )
+            certain = c;
         }
         const moveChoices = certain
           ? []
@@ -404,6 +424,7 @@ export async function getConversationSuggestions(
           dayKey,
           // Mesajda birden çok saat var — kendiliğinden kaydedilmez, ev sahibi saati seçer (O9).
           ...(promise.timeAmbiguous ? { timeAmbiguous: true as const } : {}),
+          ...(separateActor ? { separateActor: true as const } : {}),
         };
         const describe = (c: (typeof commitments)[number]) =>
           `${commitmentLabel(c.kind as CommitmentKind, c.topic)} — ${storedCommitmentWhen(c, now, tz)}`;

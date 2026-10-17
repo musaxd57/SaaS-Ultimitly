@@ -96,6 +96,23 @@ Sonuçlar bu tabloya işlenir; varsayımı tutmayan her satır için kod düzelt
 - **P0 ✅ (tur 3):** ödeme sayfası engeli kalktı — Paddle'ın KENDİ barındırdığı ödeme sayfası (Settings → Payments → Hosted checkouts,
   `sandbox-pay.paddle.io/hsc_…`); "Default payment link" ayarı DEĞİŞMEDİ. P1 / P3 / P4 / P6 / P6b / P8 / P9 / P11 / P12 / P14 bu sayfayla tur 3
   devamında (kartı kurucu girer); **P8 hâlâ `PADDLE_RESUME_ENABLED` için ENGELLEYİCİ**. P10 (simülasyon) bilinçli denenmedi (bildirim hedefine istek atar).
+- **Tur 3 sonucu (10-17 gece; 16 geçti · 0 kaldı · 0 engellendi · 6 denenmedi):**
+  - **P1 ✅** deneme aboneliği `trialing`, ilk işlem TRY 0.00, dönem 17–31 Eki; deneme sürerken panel duraklatmaya İZİN VERMEZ.
+  - **P2 ✅** "End trial & bill now" → hemen `active`, işlem TRY 899.00 (749.17 + %20 vergi 149.83); sonraki ödeme 17 Kas TRY 899.00. Zamanlayıcıyla
+    kendiliğinden biten denemenin tahsilatı ayrıca denenmedi (sandbox'ta zaman ileri alınamıyor).
+  - **P8 ✅ tutar:** duraklatmadan önceki "sonraki ödeme" (tekrarlayan tutar, vergi dahil 899.00) = devam sonrası GERÇEK işlem 899.00 = katalog → onay
+    penceresinin rakam kaynağı (`subscriptionRecurringTotal`) doğru. 🚨 **YENİ ENGEL — çifte tahsilat:** panel saatiyle 6:05'te 899 çekilmişken 6:06'da hemen
+    duraklat → devam ettir (panel yalnız "hemen + yeni dönem" sunar = bizim kodun `start_new_billing_period`'ı) bir tam 899 daha çekti, iade / kredi
+    yok. Ödenmiş dönem sürerken devam = yeniden tam tahsilat. Karar `KURUCU-SORULARI.md` §S **SG3** (öneri: ödenmiş dönem sürüyorsa para çekme —
+    `continue_existing_billing_period`, API'de doğrulanana kadar o durumda düğme yerine "bize yazın"). SG3 kodlanıp sınanmadan anahtar AÇILMAZ.
+  - **P3 ✅** duraklatılmış abonelikte "Edit subscription" / "Edit billing date" YOK → paket değiştirme sunulmuyor → devam + paket İKİ adım kalır (§2).
+  - **P6c ✅** etkin abonelikte ikinci "Resume" yok (kodda ayrıca canlı durum okuması + tek kullanımlık belirteç + kilit). **P7 ✅** iptal edilmiş
+    abonelikte Actions menüsü hiç yok. **P11 ✅** dönem sonunda duraklatma planlanıp "Don't pause subscription" ile kaldırılabiliyor.
+  - **P14 kısmi ✅** ödeme sayfası rakamları işlem rakamlarıyla aynı (normal bağlantıdan ödenmediği için sınırlı).
+  - Denenmedi: P4 / P6b / P9 (ret kartı, kurucu kararıyla atlandı) · P10 (elle sınanamıyor) · P12 (iade) · P13 (yıllık tahsilat). Olay adlarının
+    SIRASI panelden okunamadı (kartlarda yazmıyor) → sıra koruması (`lastEventAt`) kod testleriyle kalır.
+  - Temizlik: test aboneliği iptal edildi; TEST hosted checkout, iki TEST fiyatı ve TEST müşterisi duruyor; varsayılan ödeme bağlantısı, kayıtlı kart,
+    webhook ve vergi ayarlarına DOKUNULMADI.
 
 ## 5. Dilim sonu denetimleri (10-17)
 - Haiku (devam ettir 11 + kartla deneme / operatör 12 bulgu) ve Opus (P0 yok · P1 A1 · P2 A2, A3, C2–C4, F1) bulguları kodda işlendi; A1 → P8

@@ -4,8 +4,9 @@ import { createHmac } from "node:crypto";
 
 // ---------------------------------------------------------------------------
 // PADDLE API ANAHTARI UYARISI (kurucu 10-17: canlı anahtar "süresiz" oluşturulmuştu, "sakın unutmayalım"): `api_key.expiring` /
-// `api_key.expired` / `api_key.revoked` olayı operatöre uyarı olur. Anahtarın KENDİSİ uyarıya yazılmaz; olay işlenmiş sayılır; abonelik /
-// fatura yazılmaz.
+// `api_key.expired` / `api_key.revoked` olayı operatöre uyarı olur. Anahtarın KENDİSİ ne uyarıya ne veritabanına yazılır (her `api_key.*`
+// olayının saklanan gövdesi anahtarsız); olay İŞLENDİ sayılır, ödeme incelemesine düşmez (Haiku 10-17 gece 2. tur); kalıcı iz Operasyon
+// Teşhisi satırı (`latestPaddleApiKeyAlert`, 90 gün); abonelik / fatura yazılmaz.
 // ---------------------------------------------------------------------------
 
 const { reportErrorMock } = vi.hoisted(() => ({ reportErrorMock: vi.fn() }));
@@ -15,6 +16,7 @@ vi.mock("@/lib/report-error", async (orig) => {
 });
 
 import { POST } from "@/app/api/webhooks/paddle/route";
+import { latestPaddleApiKeyAlert, paymentReviewSummary } from "@/lib/billing/payment-review";
 import { prisma, resetDb } from "../helpers/db";
 
 const SECRET = "test-webhook-hmac-key-not-a-real-secret";
@@ -65,20 +67,44 @@ describe("Paddle webhook — API anahtarı uyarısı", () => {
     expect(message).toContain("2027-10-17");
     expect(message).not.toContain(FAKE_KEY);
     expect(message).not.toMatch(/pdl_live/u);
-    // İnceleme kaydı olarak kalır (Opus O18): operatör olay listesinde görür; e-posta kısılsa da iz kaybolmaz.
+    // İşlendi; ödeme incelemesine DÜŞMEZ (ödeme olayı değil); saklanan gövdede anahtar YOK.
     const row = await prisma.webhookEvent.findUniqueOrThrow({ where: { providerEventId: `evt_${type}` } });
-    expect(row.status).toBe("error");
-    expect(row.error).toContain(type.replace(".", "_"));
+    expect(row.status).toBe("processed");
+    expect(row.error).toBeNull();
+    expect(row.payloadJson).not.toContain(FAKE_KEY);
+    expect(row.payloadJson).not.toMatch(/pdl_live/u);
+    expect(JSON.parse(row.payloadJson ?? "{}")).toMatchObject({ event_type: type, data: { name: "Lixus canlı", expires_at: "2027-10-17T00:00:00Z" } });
+    expect((await paymentReviewSummary()).total).toBe(0);
+    // Kalıcı iz (Opus O18): Operasyon Teşhisi satırı — e-posta kısılsa da kaybolmaz.
+    expect(await latestPaddleApiKeyAlert()).toMatchObject({ eventType: type, name: "Lixus canlı", expiresOn: "2027-10-17" });
     expect(await prisma.subscription.count()).toBe(0);
     expect(await prisma.invoice.count()).toBe(0);
   });
 
-  it("adsız / bozuk tarihli olay da uyarır (ad '(adsız)', bitiş 'bilinmiyor'); Paddle'dan yeniden gönderilirse uyarı YİNELENİR (inceleme kaydı)", async () => {
+  it("adsız / bozuk tarihli olay da uyarır (ad '(adsız)', bitiş 'bilinmiyor'); aynı olayın yeniden gönderimi KOPYA (ikinci e-posta yok)", async () => {
     const ev = keyEvent("evt_x", "api_key.expiring", { name: "", expires_at: "not-a-date" });
     expect((await post(ev)).status).toBe(200);
     expect(String((alarms()[0][1] as Error).message)).toContain('"(adsız)" (bitiş bilinmiyor)');
-    expect((await post(ev)).status).toBe(200);
-    expect(alarms()).toHaveLength(2);
+    expect(await post(ev).then((r) => r.json())).toMatchObject({ duplicate: true });
+    expect(alarms()).toHaveLength(1);
+    expect(await latestPaddleApiKeyAlert()).toMatchObject({ name: "(adsız)", expiresOn: "bilinmiyor" });
+  });
+
+  it("her api_key.* olayı (uyarı türü olmayan api_key.created da) anahtarsız saklanır", async () => {
+    expect((await post(keyEvent("evt_created", "api_key.created"))).status).toBe(200);
+    const row = await prisma.webhookEvent.findUniqueOrThrow({ where: { providerEventId: "evt_created" } });
+    expect(row.payloadJson).not.toContain(FAKE_KEY);
+    // Uyarı türü değil → Operasyon Teşhisi satırı yok.
+    expect(await latestPaddleApiKeyAlert()).toBeNull();
+  });
+
+  it("Operasyon Teşhisi satırı: en yeni uyarı; 90 günden eski uyarı görünmez", async () => {
+    expect((await post(keyEvent("evt_old", "api_key.expiring", { name: "eski" }))).status).toBe(200);
+    expect((await post(keyEvent("evt_new", "api_key.expired", { name: "yeni" }))).status).toBe(200);
+    await prisma.webhookEvent.update({ where: { providerEventId: "evt_old" }, data: { createdAt: new Date(Date.now() - 60_000) } });
+    expect(await latestPaddleApiKeyAlert()).toMatchObject({ eventType: "api_key.expired", name: "yeni" });
+    await prisma.webhookEvent.updateMany({ data: { createdAt: new Date(Date.now() - 91 * 24 * 60 * 60 * 1000) } });
+    expect(await latestPaddleApiKeyAlert()).toBeNull();
   });
 
   it("KONTROL: başka olay türleri (api_key.created, subscription) bu uyarıyı TETİKLEMEZ", async () => {
@@ -87,9 +113,10 @@ describe("Paddle webhook — API anahtarı uyarısı", () => {
     expect(alarms()).toHaveLength(0);
   });
 
-  it("uyarı gönderilemese de (rapor fırlatır) 200 döner (Paddle sonsuz yeniden denemesin); inceleme kaydı kalır", async () => {
+  it("uyarı gönderilemese de (rapor fırlatır) 200 döner (Paddle sonsuz yeniden denemesin); Operasyon Teşhisi satırı kalır", async () => {
     reportErrorMock.mockRejectedValueOnce(new Error("smtp down"));
     expect((await post(keyEvent("evt_f", "api_key.expired"))).status).toBe(200);
-    expect(await prisma.webhookEvent.findUniqueOrThrow({ where: { providerEventId: "evt_f" } })).toMatchObject({ status: "error" });
+    expect(await prisma.webhookEvent.findUniqueOrThrow({ where: { providerEventId: "evt_f" } })).toMatchObject({ status: "processed" });
+    expect(await latestPaddleApiKeyAlert()).toMatchObject({ eventType: "api_key.expired" });
   });
 });

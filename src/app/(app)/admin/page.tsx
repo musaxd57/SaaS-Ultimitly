@@ -26,7 +26,7 @@ import { isDemoOrg } from "@/lib/demo-tenant/constants";
 import { OPERATOR_EXPORT_PURPOSES } from "@/lib/operator-export";
 import { queueHealth, QUEUE_LAG_WARN_MS } from "@/lib/outbox/health";
 import { durableOutboxEnabled, outboxDeliveryPaused } from "@/lib/outbox/flag";
-import { PAYMENT_REVIEW_ACTION, paymentReviewSummary } from "@/lib/billing/payment-review";
+import { PAYMENT_REVIEW_ACTION, latestPaddleApiKeyAlert, paddleApiKeyAlertPhrase, paymentReviewSummary } from "@/lib/billing/payment-review";
 
 export const dynamic = "force-dynamic";
 
@@ -175,6 +175,8 @@ export default async function AdminPage() {
   };
   // Ödeme incelemesi (kurucu 10-16 ödeme S1/S2, Opus F5): incelemeye düşen ödeme olayları görünür — yalnız kimlik / tür / kod / zaman.
   const paymentReview = await paymentReviewSummary().catch(() => null);
+  // Paddle API anahtarı uyarısı (kurucu 10-17): ödeme incelemesinden AYRI — son 90 günün en yeni uyarısı (e-posta kısılsa da görünür).
+  const apiKeyAlert = await latestPaddleApiKeyAlert().catch(() => null);
 
   // 3) Deneme risk puanı (kurucu onayı 10-10: geçici e-posta + doğrulanmamış e-posta + ilan kuralı; "önce yalnız liste"). YALNIZ bu
   //    listede görünür — müşteriye hiçbir şey gösterilmez, hiçbir hesap otomatik etkilenmez, yeni veri saklanmaz. Sahipler YALNIZ deneme
@@ -747,6 +749,13 @@ export default async function AdminPage() {
                 ))}
               </ul>
             )}
+            {apiKeyAlert ? (
+              <p className="text-xs font-semibold text-destructive" data-testid="paddle-api-key-alert">
+                Paddle API anahtarı {paddleApiKeyAlertPhrase(apiKeyAlert.eventType)}: &quot;{apiKeyAlert.name}&quot; (bitiş {apiKeyAlert.expiresOn}) —{" "}
+                {apiKeyAlert.at.toISOString().slice(0, 16).replace("T", " ")}. Canlıdaki anahtar buysa yeni anahtar oluşturup Railway&apos;deki
+                PADDLE_API_KEY değerini değiştirin (satır 90 gün görünür).
+              </p>
+            ) : null}
           </div>
 
           <div className="space-y-1.5">

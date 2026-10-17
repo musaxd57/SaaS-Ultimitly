@@ -403,6 +403,65 @@ describe("söz → görev otomatik (kurucu 10-17 gece): kararsız / aktarılan s
     expect(detectHostPromises("Teknisyen 11'de gelecek.")).toMatchObject([{ reschedule: false, timeCandidates: [660] }]);
   });
 
+  it("🚨 Haiku 2. tur: selamlaşmadaki dilek sözü bozmaz; yalın 'Umarım,' / sözün içindeki dilek bozar", () => {
+    expect(detectHostPromises("Umarım iyisinizdir, teknisyen yarın 10'da gelecek.")).toMatchObject([{ kind: "maintenance", day: "tomorrow", timeCandidates: [600] }]);
+    expect(detectHostPromises("I hope you are well, the technician will come tomorrow at 10.")).toMatchObject([{ day: "tomorrow", timeCandidates: [600] }]);
+    expect(detectHostPromises("Umarım, teknisyen yarın 10'da gelecek.")).toEqual([]);
+    expect(detectHostPromises("İnşallah, teknisyen yarın gelecek.")).toEqual([]);
+    expect(detectHostPromises("Teknisyen inşallah yarın 10'da gelecek.")).toEqual([]);
+  });
+
+  it("🚨 Haiku 2. tur: aynı konu + aynı gün, FARKLI yapan → iki söz (teslim sözü tekrar sanılmaz)", () => {
+    expect(detectHostPromises("Klima için teknisyen yarın gelecek, klima filtresini yarın getireceğim.")).toMatchObject([
+      { kind: "maintenance", topic: "ac", day: "tomorrow", actor: "visit" },
+      { kind: "maintenance", topic: "ac", day: "tomorrow", actor: "delivery" },
+    ]);
+  });
+
+  it("🚨 takvim tarihi ('25 Ekim', 'ayın 25'i', 'ay sonu', 'bu ay', 'October 25', '25/10', '25.10') bugün sanılmaz → söz yok (ölçüldü: bugüne görev açıyordu)", () => {
+    for (const t of [
+      "Teknisyen 25 Ekim'de 10'da gelecek.",
+      "Teknisyen 3 Mart'ta gelecek.",
+      "Teknisyen ayın 25'inde gelecek.",
+      "Teknisyen ay sonunda gelecek.",
+      "Teknisyen bu ay içinde gelecek.",
+      "Teknisyen gelecek ay gelecek.",
+      "The technician will come on October 25 at 10.",
+      "The technician will come on the 25th.",
+      "I will bring towels on May 3.",
+      "Teknisyen 25.10'da gelecek.",
+      "Teknisyen 25/10 tarihinde gelecek.",
+      "Teknisyen 25.10.2026'da gelecek.",
+    ])
+      expect(detectHostPromises(t), t).toEqual([]);
+  });
+
+  it("aşırı uygulama kontrolü: 'aylık' / 'aydır' / 'ayar' / saat '12.10' tarih DEĞİL", () => {
+    expect(detectHostPromises("Bir aylık bakım için teknisyen yarın 10'da gelecek.")).toMatchObject([{ day: "tomorrow", timeCandidates: [600] }]);
+    expect(detectHostPromises("Bir aydır bekliyorsunuz, teknisyen yarın 10'da gelecek.")).toMatchObject([{ day: "tomorrow", timeCandidates: [600] }]);
+    expect(detectHostPromises("Bu ayarı yarın 10'da teknisyen yapacak.")).toMatchObject([{ day: "tomorrow", timeCandidates: [600] }]);
+    expect(detectHostPromises("Teknisyen yarın 12.10'da gelecek.")).toMatchObject([{ day: "tomorrow", timeCandidates: [730] }]);
+  });
+
+  it("🚨 aynı cümlecikte zaman bilgisi olmayan aynı türden parça önceki sözün DEVAMI (uydurma 'bugün' sözü yok); yapanı farklıysa ayrı söz", () => {
+    expect(detectHostPromises("Teknisyen yarın 10'da gelecek, aylık bakımı da yapacak.")).toMatchObject([{ day: "tomorrow", timeCandidates: [600] }]);
+    expect(detectHostPromises("Teknisyen yarın 10'da gelecek, aylık bakımı da yapacak.")).toHaveLength(1);
+    expect(detectHostPromises("Klima için teknisyen yarın 10'da gelecek, kumandanın pilini de getireceğim.")).toMatchObject([
+      { actor: "visit", day: "tomorrow" },
+      { actor: "delivery" },
+    ]);
+    // Zamanı olan ikinci parça ayrı söz (kontrol).
+    expect(detectHostPromises("Teknisyen yarın 10'da gelecek, klima ustası da 11'de gelecek.")).toHaveLength(2);
+  });
+
+  it("takvim tarihi kalıbı karesel iş yapmaz (rakam + uzun boşluk / nokta dizisi)", () => {
+    for (const r of [`teknisyen 1${" ".repeat(3_980)}ekim`, `teknisyen 1${" ".repeat(1_980)}.${" ".repeat(1_980)}x`, "25 ".repeat(1_320), "1/".repeat(1_990), "ayin ".repeat(790)]) {
+      const t = performance.now();
+      detectHostPromises(r);
+      expect(performance.now() - t).toBeLessThan(1_000);
+    }
+  });
+
   it("'birazdan / hemen / soon' → 'kısa süre içinde' (saat değil); açık süre varsa süre kazanır", () => {
     expect(detectHostPromise("Birazdan havlu getireceğim.")).toMatchObject({ soon: true, inMinutes: null, timeCandidates: [] });
     expect(detectHostPromise("Hemen temizlikçi gönderiyorum.")).toMatchObject({ soon: true });
