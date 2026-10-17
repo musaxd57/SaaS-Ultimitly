@@ -4213,6 +4213,8 @@ export async function runDueChannelAutoReplies(
     void reportError(`auto-reply-billing-seen-read org=${organizationId}`, err);
     return { sent: 0, considered: 0 };
   }
+  // İki katman: damga (not + `autoReplyAttemptedAt`) bu mesajları zaten aday dışı bırakır; pencere kaydırması damga yazılamazsa (hata /
+  // 200 satır tavanı) bayat cevabı yine engeller. Mutasyon notu (10-17): yalnız damga hatasında ayırt edilir — gerekçeli EŞDEĞER.
   if (blockedSeen && blockedSeen > freshSince) {
     await markBillingPausedConversations(organizationId, new Date(), { before: blockedSeen }).catch(
       (err) => void reportError(`auto-reply-billing-paused-mark org=${organizationId}`, err),

@@ -35,6 +35,8 @@ function sentencesOf(line: string): string[] {
 /**
  * Yan cümleler (ayraç sonda kalır): ardından BOŞLUK gelen virgül / noktalı virgül / iki nokta / Arapça virgül ("15:00", "1,5" bölünmez), ve
  * Türkçe "talimat yok" yükleminden sonra gelen "ve / ama / fakat / ancak" (bağlaç kalan yan cümlenin başında kalır, ↓atılır).
+ * Mutasyon notu (10-17): "boşluk şartı" kaldırılınca hiçbir test kırmızıya dönmüyor — EŞDEĞER: sayı içinde bölünen parça ("15:" + "00")
+ * yeniden birleşir ve sayı taşıyan kalan zaten silinemez (`topicOnly`). Şart, "15:00" / "1,5" içinde bölmeyi kaynağında önlemek için durur.
  */
 function clausesOf(sentence: string): string[] {
   return sentence
