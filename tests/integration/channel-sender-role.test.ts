@@ -201,6 +201,8 @@ describe("kendi gönderimimiz (Haiku 10-17)", () => {
       { externalId: "e-ours", authorType: "host", channelSenderRole: null },
       { externalId: "e-tmpl", authorType: "automation", channelSenderRole: "automation" },
     ]);
+    // Q2: kuyruktan giden bizim cevabımız "otomasyon" etiketiyle dönse de konuşmayı CEVAPLAR (ardından gelen şablon cevapsız bırakmaz).
+    expect((await prisma.conversation.findUniqueOrThrow({ where: { id: conv.id } })).status).toBe("answered");
   });
 });
 
