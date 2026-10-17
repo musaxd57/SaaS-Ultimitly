@@ -1137,6 +1137,69 @@ describe("applyChannelAutoReply", () => {
   });
 });
 
+describe("Q2 yarışı (Haiku 10-17): senkron bizim cevabımızı ÖNCE 'otomasyon' diye aldıysa yazar düzeltilir", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+    vi.stubEnv("AUTO_REPLY_ENABLED", "1");
+    mockSuggest.mockResolvedValue(SAFE_REPLY);
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  /** Teslim sırasında senkron aynı mesajı (aynı sağlayıcı kimliği) önce yazar — kanal rolüne göre yazar. */
+  function sendWithSyncFirst(conversationId: string, role: "automation" | null) {
+    mockSend.mockImplementation(async (_c: unknown, body: string) => {
+      await prisma.message.create({
+        data: {
+          conversationId,
+          direction: "outbound",
+          authorType: role === "automation" ? "automation" : "host",
+          senderName: "Ev sahibi",
+          body,
+          externalId: "pm-ai",
+          channelSenderRole: role,
+        },
+      });
+      return { ok: true, providerMessageId: "pm-ai" };
+    });
+  }
+
+  it.each([["automation"], [null]] as ["automation" | null][])(
+    "🚨 yapay zekâ cevabı (senkron rolü %s) → satır YAPAY ZEKÂ yazarlı, tek satır; konuşma cevaplı (ikinci cevap üretilmez)",
+    async (role) => {
+      const { conversationId } = await seed();
+      sendWithSyncFirst(conversationId, role);
+      expect((await applyChannelAutoReply(conversationId)).sent).toBe(true);
+      const rows = await prisma.message.findMany({ where: { conversationId, direction: "outbound" } });
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ authorType: "ai", senderName: "GuestOps AI", channelSenderRole: null });
+      expect((await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } })).status).toBe("answered");
+    },
+  );
+
+  it("🚨 nezaket mesajı → yazar yapay zekâ + döngü kilidi alanı geri yazılır (ikinci 'teşekkürler'e ikinci nezaket YOK)", async () => {
+    const { orgId, conversationId } = await seed({ aiSignature: "Sevgiler,\nMusa" });
+    await prisma.organization.update({ where: { id: orgId }, data: { autoClosingReplyEnabled: true } });
+    await prisma.message.create({
+      data: { conversationId, direction: "outbound", senderName: "Host", body: "Wi-Fi şifresi Lale2025.", createdAt: new Date(Date.now() - 30_000) },
+    });
+    await prisma.message.create({ data: { conversationId, direction: "inbound", senderName: "Alex", body: "Tamam, çok teşekkürler! 🙏", createdAt: new Date() } });
+    sendWithSyncFirst(conversationId, "automation");
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(true);
+    expect(await prisma.message.findFirstOrThrow({ where: { externalId: "pm-ai" } })).toMatchObject({
+      authorType: "ai",
+      aiIntent: "closing_courtesy",
+      channelSenderRole: null,
+    });
+    mockSend.mockReset();
+    mockSend.mockResolvedValue({ ok: true, providerMessageId: "pm-2" });
+    await prisma.message.create({ data: { conversationId, direction: "inbound", senderName: "Alex", body: "Sağ olun 🙏", createdAt: new Date() } });
+    await prisma.conversation.update({ where: { id: conversationId }, data: { status: "new" } });
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+});
+
 describe("closing courtesy — opt-in 'Rica ederiz' reply to a bare thanks", () => {
   beforeEach(async () => {
     await resetDb();
