@@ -348,3 +348,35 @@ describe("süre — model metni uzun olabilir (karesel iş yok)", () => {
     expect(performance.now() - t0).toBeLessThan(4_000);
   });
 });
+
+describe("gece-4 S4-03 / S4-08: İngilizce kısaltmalı arıza, -ing adımlar, bilgi tabanında OLMAYAN cihazın kullanım yönergesi", () => {
+  // Bilgi tabanında yalnız Wi-Fi + çöp (TV / klima / kombi / fırın YOK).
+  const thin = { recipeTopics: new Set<string>(), subjectTopics: new Set<string>(["wifi", "trash"]) };
+  it.each<[string, string]>([
+    // S4-03: kısaltmalı olumsuz + -ing yeniden başlatma (kurucunun vakası İngilizcede kaçıyordu).
+    ["", "Please try restarting the TV."],
+    ["The TV isn't working", "Please try restarting the TV."],
+    ["The TV isn't working", "Sorry about that! Try unplugging the TV for a minute and plugging it back in."],
+    ["Our AC isn't working and it's very hot", "Please try restarting the air conditioner."],
+    // S4-08: kendi cihazı bilgi tabanında hiç olmayan kullanım yönergesi (gaz / sıcak su cihazı dahil) tek zayıf işaretle de adımdır.
+    ["Isıtma nasıl açılır?", "Kombiyi açmak için düğmeyi sağa çevirin."],
+    ["Isıtma nasıl açılır?", "Isıtmayı kombinin üzerindeki düğmeden açabilirsiniz."],
+    ["Fırın nasıl çalışıyor?", "Fırını çalıştırmak için düğmeyi çevirin."],
+    ["TV nasıl açılır?", "Televizyonu kumandayla açabilirsiniz."],
+    ["How do I turn on the heating?", "To turn on the heating, turn the dial on the boiler."],
+  ])("tutulur: %s → %s", (guest, reply) => {
+    expect(unsupportedFixStep(reply, thin, guest)).toBe(true);
+  });
+  it.each<[string, string]>([
+    ["Wi-Fi şifresi ne?", "Wi-Fi ağına kartta yazan şifreyle bağlanabilirsiniz."],
+    ["Çöp nereye?", "Çöpleri binanın girişindeki konteynere atabilirsiniz."],
+    ["Teşekkürler", "Rica ederiz, iyi tatiller!"],
+    ["Klima var mı?", "Evet, dairede klima var."],
+  ])("KONTROL geçer (bilgi tabanındaki konu / adımsız cümle): %s → %s", (guest, reply) => {
+    expect(unsupportedFixStep(reply, thin, guest)).toBe(false);
+  });
+  it("KONTROL: cihaz bilgi tabanında KONU ise kullanım yönergesi geçer (yalnız arıza adımı tarif ister)", () => {
+    const withTv = { recipeTopics: new Set<string>(), subjectTopics: new Set<string>(["tv"]) };
+    expect(unsupportedFixStep("Televizyonu kumandayla açabilirsiniz.", withTv, "TV nasıl açılır?")).toBe(false);
+  });
+});

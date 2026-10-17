@@ -847,7 +847,8 @@ const TROUBLESHOOT_CONTEXT = new RegExp(
  */
 const RESTART_STEP = new RegExp(
   [
-    `${L}(?:restart|reboot|reset|unplug|replug|power cycle|turn it back on|neustart\\p{L}{0,2}|zurucksetzen|redemarr\\p{L}{0,3}|debranch\\p{L}{0,3}|rebranch\\p{L}{0,3}|reinici\\p{L}{0,3}|desenchuf\\p{L}{0,3}|перезагруз\\p{L}{0,4})${R}`,
+    // Gece-4 S4-03: -ing / -s / -ed biçimleri de ("Please try restarting the TV", "unplugging it for a minute") — yalın kök tek başına kaçıyordu.
+    `${L}(?:restart(?:ing|s|ed)?|reboot(?:ing|s|ed)?|reset(?:ting|s)?|unplug(?:ging|s|ged)?|replug(?:ging|s|ged)?|power(?:ing)? (?:it )?(?:off|down)|power cycle|turn it back on|neustart\\p{L}{0,2}|zurucksetzen|redemarr\\p{L}{0,3}|debranch\\p{L}{0,3}|rebranch\\p{L}{0,3}|reinici\\p{L}{0,3}|desenchuf\\p{L}{0,3}|перезагруз\\p{L}{0,4})${R}`,
     // "switch the AC off and on again", "turning it off and back on" (Opus gece-2 M2 — "turn off and on" yalnız bitişik biçimdi)
     `${L}(?:turn|turning|switch|switching|power|powering) (?:(?:it|the|your|this) )?(?:\\p{L}{1,20} ){0,2}off and (?:back )?on${R}`,
     // Almanca ayrılabilir fiil: "Starten Sie den Fernseher neu", "Schalten Sie die Klimaanlage aus und wieder ein"
@@ -874,6 +875,14 @@ const FAULT_DEVICE_VERB_SOURCE = [
   // İngilizce cümle başı emir ("Please forget the network and reconnect", "Replace the batteries")
   `^\\s*(?:please )?(?:switch|turn|press|hold|change|replace|clean|select|set|unplug|plug|check|wait|remove|insert|put|try|forget|reconnect|restart|reset|reboot)${R}`,
 ].join("|");
+/**
+ * İngilizce kullanım yönergesi cümle ortasında ("To turn on the heating, turn the dial on the boiler") — yalnız KENDİ cihazı bilgi tabanında
+ * olmayan cümlede (gece-4 S4-08) okunur.
+ */
+const ENGLISH_USAGE_STEP = new RegExp(
+  `${L}to (?:turn|switch|use|open|start|set|adjust|change|operate|press)${R}|(?:^|[,;:]\\s*)(?:turn|switch|press|hold|set|use|open|rotate|twist|push|pull)${R}`,
+  "u",
+);
 /** Dar adım biçimleri: kapalı fiil listesinin kipleri + çözüm önerisi kalıbı + İngilizce cümle başı emir (cihazı misafirden devralınan cümlede). */
 const FAULT_DEVICE_VERB_STEP = new RegExp(FAULT_DEVICE_VERB_SOURCE, "u");
 const FAULT_DEVICE_STEP = new RegExp(
@@ -1090,7 +1099,12 @@ export function unsupportedFixStep(
     // adımdır; cihazı misafirin mesajından devralınan cümlede yalnız dar biçimler ("Kumandanın pillerini değiştirin") — Opus gece-3 P1-b.
     const fromGuest = own.length === 0 && carriedBefore.length === 0;
     const faultStep = faulty.length > 0 && (fromGuest ? FAULT_DEVICE_VERB_STEP.test(f) : FAULT_DEVICE_STEP.test(f));
-    if (!restart && !tries && !faultStep && !isFixRecipeText(sentence) && !GUEST_CHECK_STEP.test(f)) continue;
+    // Gece-4 S4-08: cümlenin KENDİ cihazı bilgi tabanında (konu ya da tarif) HİÇ yoksa o cihaza dair her yönerge ("Kombiyi açmak için düğmeyi
+    // sağa çevirin", "Televizyonu kumandayla açabilirsiniz", "turn the dial on the boiler") uydurma kullanım adımıdır — tek zayıf işaret yüzünden
+    // adım sayılmıyordu (gaz / sıcak su cihazları dahil).
+    const unknownOwn = own.length > 0 && own.some((t) => !kb.subjectTopics.has(t) && !kb.recipeTopics.has(t));
+    const usageStep = unknownOwn && (FAULT_DEVICE_STEP.test(f) || ENGLISH_USAGE_STEP.test(f));
+    if (!restart && !tries && !faultStep && !usageStep && !isFixRecipeText(sentence) && !GUEST_CHECK_STEP.test(f)) continue;
     const troubleshooting =
       restart ||
       TROUBLESHOOT_CONTEXT.test(f) ||
@@ -1304,9 +1318,14 @@ const FAULT_PHRASE_SOURCE = [
     // "<hizmet> yok" (internet, sıcak su, elektrik, ısıtma — cihaz kavramı yine şart).
     `${L}(?:takiliyor|takildi|takili kaldi|donmuyor|tepki vermiyor|cevap vermiyor|ses cikmiyor|calismayi durdurdu|durmadan kapaniyor|kendi kendine kapaniyor|hata veriyor|hata kodu|e ?\\d{1,3} (?:hatasi|yaziyor|veriyor))${R}`,
     // Opus gece-2 M4 yan notu: sözlük dışı arıza fiilleri (su boşaltmıyor, sürekli kopuyor)
+    // Gece-4 S4-03: "Televizyonu açamıyoruz", "çalıştıramadık", "Klimadan su damlıyor", "Klima ses yapıyor".
+    `${L}(?:acamiyor(?:uz|um)?|acamadi(?:k|m)?|calistiramiyor(?:uz|um)?|calistiramadi(?:k|m)?|damliyor|ses yapiyor)${R}`,
     `${L}(?:bosaltmiyor(?:du)?|tahliye etmiyor|kopuyor|surekli kesiliyor|(?:cok |asiri )?az akiyor|cok yavas|asiri yavas|baglanamiyor\\p{L}{0,4}|baglanamadi\\p{L}{0,4})${R}`,
     `${L}(?:internet|wifi|wi-fi|sicak su|elektrik|isitma|isik)\\p{L}{0,4} (?:yok|gitti|kesildi|gelmiyor)${R}`,
     // en
+    // Gece-4 S4-03: kısaltmalı olumsuz ("The TV isn't working", "doesn't turn on", "is dead") — misafir en çok böyle yazıyor.
+    `${L}(?:isn't|aren't|wasn't|weren't|doesn't|don't|didn't|won't|is not|are not) (?:working|turning on|turn on|starting|heating|cooling|responding|charging|draining)${R}`,
+    `${L}(?:is dead|has died|no longer works|stopped responding)${R}`,
     `${L}(?:not working|can't connect|cannot connect|can not connect|unable to connect|very slow|too slow|extremely slow|won't drain|not draining|doesn't drain|keeps dropping|keeps disconnecting|doesn't work|does not work|won't turn on|will not turn on|won't start|stopped working|broken|no picture|black screen|no sound|no signal|not heating|not cooling|leaking|clogged|won't respond|doesn't respond|does not respond|not responding|no hot water|no internet|no wifi|no power|got stuck|is stuck|only blows (?:cold|warm|hot) air|won't open|won't connect|keeps (?:beeping|turning off|shutting off))${R}`,
     // de / fr / es
     `${L}(?:funktioniert nicht|geht nicht|kaputt|kein bild|kein ton|kein signal|reagiert nicht|geht nicht an|kein warmes wasser|kein internet|ne marche pas|ne fonctionne pas|en panne|pas d'image|pas de son|ne s'allume plus|ne chauffe plus|ne repond pas|pas d'eau chaude|plus d'internet|no funciona|averiad[oa]|sin imagen|sin sonido|no arranca|no responde|no enciende|no calienta|no enfria|no hay agua caliente|no hay internet)${R}`,
