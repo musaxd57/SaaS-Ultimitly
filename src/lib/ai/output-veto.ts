@@ -625,7 +625,9 @@ export function vetoOutgoingReply(reply: string | null | undefined): OutputVetoR
  * olana çevrilir — model çıktısında sık (inceleme 09-25: hepsi geçiyordu).
  */
 function vetoForms(reply: string): { text: string; lower: string } {
-  const text = reply.replace(/[\u2018\u2019\u02BC\u2032]/g, "'");
+  // Görünmez karakter yalnız eşleşme kopyasından silinir (gönderilen metin aynen kalır) — "ilet\u200Bildi" devir cümlesi / söz vetosunu
+  // atlatmasın (gece-4 S4-07).
+  const text = reply.replace(/[\p{Default_Ignorable_Code_Point}\p{Cf}\u2800]/gu, "").replace(/[\u2018\u2019\u02BC\u2032]/g, "'");
   return { text, lower: text.toLocaleLowerCase("tr") };
 }
 

@@ -424,7 +424,10 @@ const ALL_ABSENCE_PATTERNS: readonly RegExp[] = [...ABSENCE_PATTERNS, ...MORE_AB
 
 /** Ortak hazırlık: `admitsMissingKnowledge` ile aynı normalleştirme + iki katlama. */
 function foldedForms(text: string | null | undefined): [string, string] {
+  // Görünmez karakter (ZWSP, yumuşak tire, biçim karakteri, boş braille) yalnız EŞLEŞME kopyasından silinir — "bilgim\u200B yok" kuralı
+  // atlatmasın (gece-4 S4-07: KB'den yapıştırılan ya da QR misafirince modele yazdırılan görünmez karakter "bilgim yok"u gizliyordu).
   const normalized = (text ?? "")
+    .replace(/[\p{Default_Ignorable_Code_Point}\p{Cf}\u2800]/gu, "")
     .normalize("NFC")
     .replace(/[’‘ʼ]/g, "'")
     .replace(/[*_`~]+/g, "")

@@ -122,6 +122,48 @@ describe("stripNoInstructionFiller — kurucu 10-17", () => {
   });
 });
 
+describe("gece-4 S4-09 / S4-05 / S4-01 — silme yalnız AYNI konuda ve geriye konulu yönerge kalınca; büyük harf cevabın dilinde", () => {
+  // S4-09 (P1): başka konudaki cevap "talimat yok"u silerse misafirin o sorusu sessizce kaybolurdu (ev sahibi hiç görmezdi) → TUTULUR.
+  it.each([
+    "Yakında bir market var. Sigara için özel talimatımız yok.",
+    "Çöpleri binanın girişindeki konteynere atabilirsiniz. Çıkış için özel talimatımız yok.",
+    "Çöpleri binanın girişindeki konteynere atabilirsiniz, çıkış için özel talimatımız yok.",
+    "The garbage bins are at the building entrance. We don't have any special instructions for pets.",
+    "Otopark ücretsiz. Evcil hayvan için özel talimatımız yok.",
+    "Çıkış için özel talimatımız yok. Sigara için de özel talimatımız yok. Anahtarı masaya bırakın.",
+  ])("başka konu → tutulur: %s", (m) => {
+    expect(stripNoInstructionFiller(m)).toBe(m);
+    expect(admitsMissingKnowledge(m)).toBe(true);
+  });
+  // S4-05: geriye yalnız nezaket / "bize yazın" kalırsa (kapalı selam listesi bunları tanımıyordu) → TUTULUR.
+  it.each([
+    "Çıkış için özel talimatımız yok, keyifli bir konaklama dileriz.",
+    "Çıkış için özel talimatımız yok, her türlü sorunuz için bize yazabilirsiniz.",
+    "Çıkış için özel talimatımız yok, konaklamanızın tadını çıkarın.",
+    "There are no special instructions for checkout, enjoy the rest of your stay.",
+    "There are no special instructions for checkout, feel free to message us if you need anything else.",
+    "Merhaba Ayşe Hanım, çıkış için özel talimatımız yok. Keyifli bir konaklama dileriz.",
+  ])("geriye konusuz nezaket → tutulur: %s", (m) => {
+    expect(stripNoInstructionFiller(m)).toBe(m);
+  });
+  it("KONTROL: aynı konu / giriş-çıkış ↔ anahtar-kapı eşleşmesi silinmeye devam eder", () => {
+    expect(stripNoInstructionFiller("Giriş saati 15:00'tir. Giriş için özel talimatımız yok.")).toBe("Giriş saati 15:00'tir.");
+    expect(stripNoInstructionFiller("Çıkış için özel talimatımız yok, kapıyı çekip çıkmanız yeterli.")).toBe("Kapıyı çekip çıkmanız yeterli.");
+    expect(stripNoInstructionFiller("Es gibt keine besonderen Anweisungen für den Check-out, schließen Sie einfach die Tür.", "de")).toBe(
+      "Schließen Sie einfach die Tür.",
+    );
+  });
+  // S4-01: Almanca / İngilizce cevapta "i" → "İ" olmaz (ö / ü / ç ya da Türkçe misafir adı geçse de).
+  it.each([
+    ["Für den Check-out gibt es keine besonderen Anweisungen, ihr könnt die Schlüssel einfach auf dem Tisch lassen.", "de", "Ihr könnt die Schlüssel einfach auf dem Tisch lassen."],
+    ["No special instructions for checkout, in case of doubt just leave the keys on the table, Ayşe.", "en", "In case of doubt just leave the keys on the table, Ayşe."],
+    ["Çıkış için özel talimatımız yok, içerideki anahtarı masaya bırakın.", "tr", "İçerideki anahtarı masaya bırakın."],
+    ["Çıkış için özel talimatımız yok, içerideki anahtarı masaya bırakın.", "und", "İçerideki anahtarı masaya bırakın."],
+  ])("büyük harf dilde: %s", (m, lang, after) => {
+    expect(stripNoInstructionFiller(m, lang)).toBe(after);
+  });
+});
+
 describe("'bilgi veremem' ailesi (kurucu 10-17 M1: 'tabiki tutulsun … sussa daha iyi')", () => {
   it.each([
     "Bu konuda bilgi veremem.",

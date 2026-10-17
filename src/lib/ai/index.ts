@@ -554,8 +554,8 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
           // per-field). ↑capReply: iki eşik, biri gönderim biri saklama.
           // "Talimat yok" yan cümlesi misafire yazılmaz (kurucu 10-17, `no-instruction-filler.ts`); selamdan ÖNCE, her yolda aynı.
           reply: codeGreetingEnabled()
-            ? codeGreetingReply(stripNoInstructionFiller(cappedReply.text), input, parsed.detectedLanguage)
-            : stripNoInstructionFiller(cappedReply.text),
+            ? codeGreetingReply(stripNoInstructionFiller(cappedReply.text, normalizeLang(parsed.detectedLanguage)), input, parsed.detectedLanguage)
+            : stripNoInstructionFiller(cappedReply.text, normalizeLang(parsed.detectedLanguage)),
           risk:
             typeof parsed.risk === "string" && parsed.risk.trim()
               ? parsed.risk.slice(0, 300)

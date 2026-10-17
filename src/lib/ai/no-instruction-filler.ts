@@ -12,10 +12,13 @@
 //     sıfırlamak için reset tuşuna basın" silinince uydurma cihaz adımı kanıtsız gidiyordu). Bu yüzden silme İZİN LİSTESİYLE yapılır:
 //       – silinen kısım bir CİHAZDAN söz etmez ve göndergesel değildir ("bu konuda", "for that" — konu gizli; B1);
 //       – kalan metin anahtar DIŞINDA cihazdan söz etmez (yönerge bir cihaz adımıysa kanıtı silinmez);
-//       – ya silinen kısmın ya kalan metnin bilinen bir KONUSU vardır (çıkış, giriş, çöp, otopark… — bilinmeyen konu = silme yok; B2:
-//         "Jakuzi için özel talimatımız yok, keyfini çıkarın" tutulur);
-//       – kalan metin yalnız selam / nezaket kabuğu değildir (B5: "Merhaba Ayşe Hanım, çıkış için özel talimatımız yok." → "Merhaba Ayşe
-//         Hanım." olmaz — tutulur);
+//       – kalan metnin KENDİ bilinen konusu vardır (çıkış, giriş, çöp, otopark… — bilinmeyen konu = silme yok; B2: "Jakuzi için özel
+//         talimatımız yok, keyfini çıkarın" tutulur). Yalnız selam / nezaket kalırsa da konu yoktur → tutulur (B5: "Merhaba Ayşe Hanım,
+//         çıkış için özel talimatımız yok." → "Merhaba Ayşe Hanım." olmaz; gece-4 S4-05: "…, keyifli bir konaklama dileriz" / "…, enjoy the
+//         rest of your stay" de tutulur — kapalı nezaket listesi her selamı tanımıyordu);
+//       – silinen kısmın konusu varsa kalan yönerge AYNI konudadır (giriş / çıkış ↔ anahtar / kapı eşleşir — kurucunun örneği). Gece-4 S4-09
+//         (P1): "Yakında bir market var. Sigara için özel talimatımız yok." başka konudaki cevap yüzünden sigara sorusunu SESSİZCE siliyordu
+//         (soru "cevaplanmış" görünür, ev sahibi hiç görmezdi) — artık tutulur, ev sahibi yanıtlar;
 //       – kalan metin yine "bilgim yok" demez.
 //     Şartlardan biri tutmazsa metne dokunulmaz → "bilgim yok" kuralı bütün cevabı tutar (misafire gitmez, ev sahibi yanıtlar).
 // Misafire yeni söz EKLENMEZ; yalnız yan cümle / cümle ÇIKARILIR. Kalan metin bütün kapılardan yine geçer.
@@ -103,27 +106,19 @@ const REFERENTIAL =
 /** Kalan metinde izin verilen tek "cihaz" konusu: anahtar (çıkış / giriş yönergesinin doğal parçası — "anahtarı masaya bırakın"). */
 const ALLOWED_DEVICE_IN_REST: ReadonlySet<string> = new Set(["keys"]);
 
-/** Selam / nezaket sözcükleri (kapalı küme, küçük harf) — kalan metin yalnız bunlardan + en çok bir addan oluşuyorsa "kabuk"tur. */
-const COURTESY_WORDS: ReadonlySet<string> = new Set([
-  "merhaba", "selam", "sayın", "hanım", "bey", "iyi", "günler", "akşamlar", "yolculuklar", "dileriz", "dilerim", "teşekkürler", "teşekkür",
-  "ederiz", "ederim", "hoş", "geldiniz", "hello", "hi", "hey", "dear", "thanks", "thank", "you", "have", "a", "nice", "safe", "trip", "day",
-  "stay", "great", "hola", "buen", "viaje", "gracias", "bonjour", "bon", "voyage", "merci", "hallo", "gute", "reise", "danke", "привет",
-  "здравствуйте", "спасибо", "хорошей", "поездки", "مرحبا", "شكرا",
-]);
-function courtesyShell(text: string): boolean {
-  const words = text
-    .toLocaleLowerCase("tr")
-    .split(/[^\p{L}'-]+/u)
-    .filter((w) => /\p{L}/u.test(w));
-  const content = words.filter((w) => !COURTESY_WORDS.has(w));
-  // İçerik sözcüğü yoksa kabuktur; bir selam sözcüğü + en çok bir "ad" ("Merhaba Ayşe", "Hello Alex") da kabuktur.
-  return content.length === 0 || (content.length <= 1 && words.length > content.length);
-}
-
 function topicsOf(text: string): { all: string[]; devices: string[] } {
   const all = topicsWithSymptomsOf(text);
   return { all, devices: deviceTopicsOf(all) };
 }
+
+/**
+ * Kapı yönergesi ("kapıyı çekin", "kapı açık", "close the door") — konu okuyucusunda konu değil; yalnız giriş / çıkış "talimat yok"unun
+ * eşi olarak sayılır. Almanca "Tür" BÜYÜK harfle (Türkçe "tür" = çeşit karışmasın).
+ */
+const DOOR_WORD = /(?<![\p{L}])(?:kapı\p{L}{0,6}|kapi\p{L}{0,6}|doors?|puerta\p{L}{0,2}|porte\p{L}{0,2}|двер\p{L}{0,3}|باب)(?![\p{L}])/iu;
+const DOOR_WORD_DE = /(?<![\p{L}])Tür(?:e|en)?(?![\p{L}])/u;
+/** Silinen "talimat yok" konusu → kalan metinde onu karşılayan konular (kendisi + eşleri). */
+const PAIRED_TOPICS: Readonly<Record<string, readonly string[]>> = { checkin: ["keys", "door"], checkout: ["keys", "door"] };
 
 /** Silme izin listesi (↑kural). `removed`: çıkarılacak metin (+ bitişik asılı konu); `kept`: geriye kalan yönerge metni. */
 function removalAllowed(removed: string, kept: string): boolean {
@@ -132,8 +127,11 @@ function removalAllowed(removed: string, kept: string): boolean {
   if (r.devices.length > 0) return false;
   const k = topicsOf(kept);
   if (k.devices.some((d) => !ALLOWED_DEVICE_IN_REST.has(d))) return false;
-  if (r.all.length === 0 && k.all.length === 0) return false;
-  if (k.all.length === 0 && courtesyShell(kept)) return false;
+  const keptTopics = DOOR_WORD.test(kept) || DOOR_WORD_DE.test(kept) ? [...k.all, "door"] : k.all;
+  // Kalan yönergenin KENDİ konusu olmalı (yalnız selam / nezaket / "bize yazın" kalırsa soru kaybolurdu — S4-05).
+  if (keptTopics.length === 0) return false;
+  // Silinen "talimat yok"un HER konusu kalan yönergede karşılanmalı (başka konudaki cevap onu "cevaplanmış" yapmaz — S4-09).
+  if (!r.all.every((t) => keptTopics.includes(t) || (PAIRED_TOPICS[t] ?? []).some((p) => keptTopics.includes(p)))) return false;
   if (admitsMissingKnowledge(kept) || matchesNoInstructionClause(kept)) return false;
   return true;
 }
@@ -141,13 +139,18 @@ function removalAllowed(removed: string, kept: string): boolean {
 /** Baştaki bağlaç ("ama anahtarı…", "so just leave…") ve noktalama atılır: silinen yan cümleye bağlanıyordu, tek başına anlamsız. */
 const LEADING_CONNECTIVE =
   /^[\s,;:،-]*(?:ama|fakat|ancak|lakin|ve|bu yüzden|o yüzden|dolayısıyla|but|however|and|so|therefore|aber|und|also|daher|mais|et|donc|alors|pero|y|así que|entonces|но|и|поэтому|так что|لذا|لكن)(?=[\s,])[\s,]*/iu;
-/** Türkçe metin ipucu: büyük harfe çevirirken "i" → "İ" yalnız Türkçede. */
+/** Türkçe metin ipucu (dil bilinmezse): büyük harfe çevirirken "i" → "İ" yalnız Türkçede. */
 const TURKISH_LETTERS = /[çğışöüÇĞİŞÖÜ]/u;
 
-function capitalizeFirst(text: string): string {
+/**
+ * İlk harfi büyütür. Cevabın dili biliniyorsa ("tr", "de"…) Türkçe kuralı ("i" → "İ") YALNIZ Türkçede (gece-4 S4-01: Almanca / İngilizce
+ * cevapta ö / ü / ç ya da misafir adı "Ayşe" geçince "İhr könnt…", "İn case…" gidiyordu). Dil bilinmezse eski ipucu.
+ */
+function capitalizeFirst(text: string, language?: string | null): string {
   const first = text.charAt(0);
   if (!first) return text;
-  const upper = TURKISH_LETTERS.test(text) ? first.toLocaleUpperCase("tr") : first.toUpperCase();
+  const turkish = language && language !== "und" ? /^tr(?:-|$)/iu.test(language) : TURKISH_LETTERS.test(text);
+  const upper = turkish ? first.toLocaleUpperCase("tr") : first.toUpperCase();
   return upper + text.slice(1);
 }
 
@@ -159,7 +162,7 @@ function leadOf(sentence: string): string {
 }
 
 /** Tek cümle, yan cümle düzeyi: silinebiliyorsa yeni hâli, değilse `null` (cümle aynen kalır). */
-function stripClauses(sentence: string): string | null {
+function stripClauses(sentence: string, language?: string | null): string | null {
   const lead = leadOf(sentence);
   const body = sentence.slice(lead.length);
   const clauses = clausesOf(body);
@@ -181,7 +184,7 @@ function stripClauses(sentence: string): string | null {
   );
   if (!/[\p{L}\p{N}]/u.test(rest)) return null;
   if (!trailingTerminal(rest)) rest += terminal;
-  rest = capitalizeFirst(rest);
+  rest = capitalizeFirst(rest, language);
   if (!removalAllowed(removed, rest)) return null;
   return lead + rest;
 }
@@ -192,14 +195,14 @@ type Part = { text: string; whole: boolean };
  * Cevaptaki silinebilir "talimat yok" yan cümlelerini / cümlelerini çıkarır (↑kural). Değişiklik yoksa AYNI dizeyi döner. Satır yapısı
  * korunur; tamamen boşalan satır düşer.
  */
-export function stripNoInstructionFiller(reply: string): string {
+export function stripNoInstructionFiller(reply: string, language?: string | null): string {
   if (!reply || !matchesNoInstructionClause(reply)) return reply;
   const sourceLines = reply.split("\n");
   // 1. tur: yan cümle düzeyi; bütünüyle "talimat yok" olan cümleler aday olarak işaretlenir.
   const lines: Part[][] = sourceLines.map((line) =>
     sentencesOf(line).map((s) => {
       if (!matchesNoInstructionClause(s)) return { text: s, whole: false };
-      const stripped = stripClauses(s);
+      const stripped = stripClauses(s, language);
       if (stripped !== null) return { text: stripped, whole: false };
       return { text: s, whole: removableClause(s.slice(leadOf(s).length)) };
     }),
@@ -225,7 +228,7 @@ export function stripNoInstructionFiller(reply: string): string {
     const joined = kept.map((p) => p.text).join("").trim();
     // Tamamen boşalan satır düşer; kısmen kalan satırın baştaki boşluğu / madde işareti korunur.
     if (!/[\p{L}\p{N}]/u.test(joined)) return;
-    out.push(leadOf(sourceLines[i] ?? "") + capitalizeFirst(joined.replace(LIST_MARKER, "")));
+    out.push(leadOf(sourceLines[i] ?? "") + capitalizeFirst(joined.replace(LIST_MARKER, ""), language));
   });
   // Düşen satırın bıraktığı ardışık boş satırlar teke iner; baştaki / sondaki boş satır atılır.
   const collapsed: string[] = [];

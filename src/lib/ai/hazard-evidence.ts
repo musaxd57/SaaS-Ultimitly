@@ -704,7 +704,10 @@ const EMERGENCY_DIRECTIVE = rx([
 /** Cevap misafiri acil numarayı / acil servisi ARAMAYA yönlendiriyor mu (Türkçe + aksan katlanmış biçimde)? */
 export function hasEmergencyCallDirective(reply: string | null | undefined): boolean {
   if (typeof reply !== "string" || reply.trim() === "") return false;
-  const folded = foldTurkishAscii(reply.replace(/\s+/g, " ")).normalize("NFD").replace(/\p{M}/gu, "");
+  // Görünmez karakter eşleşme kopyasından silinir ("ar\u200Bayın" 112 yönergesini gizlemesin — gece-4 S4-07; kurucu 10-11: 112 yönergesi
+  // misafire gitmez).
+  const visible = reply.replace(/[\p{Default_Ignorable_Code_Point}\p{Cf}\u2800]/gu, "");
+  const folded = foldTurkishAscii(visible.replace(/\s+/g, " ")).normalize("NFD").replace(/\p{M}/gu, "");
   return EMERGENCY_DIRECTIVE.test(folded);
 }
 
