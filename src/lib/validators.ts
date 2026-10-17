@@ -83,7 +83,8 @@ export type LoginInput = z.infer<typeof loginSchema>;
 
 // --- Property ---------------------------------------------------------------
 export const propertySchema = z.object({
-  name: z.string().min(2, "Mülk adı gerekli").max(200),
+  // Gece-4 S6-06: yalnız boşluktan oluşan ad ("  ") kabul edilip "" olarak kaydediliyordu — doğrulamadan ÖNCE kırpılır.
+  name: z.string().trim().min(2, "Mülk adı gerekli").max(200),
   address: z.string().max(300).optional().or(z.literal("")),
   city: z.string().max(120).optional().or(z.literal("")),
   country: z.string().max(120).optional().or(z.literal("")),

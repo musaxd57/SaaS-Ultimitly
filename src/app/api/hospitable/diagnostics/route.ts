@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { rateLimit } from "@/lib/rate-limit";
-import { tooManyRequests } from "@/lib/api";
+import { forbidden, tooManyRequests } from "@/lib/api";
 import { prisma } from "@/lib/db";
 import { withManage } from "@/lib/route-guard";
 import { listProperties, listReservations, listMessages } from "@/lib/hospitable";
@@ -32,7 +32,10 @@ function shapeOf(value: unknown, depth = 0): unknown {
 
 // Channel diagnostics expose the org's property list + internal ids — owner/
 // manager/operator only, never staff (withManage).
-export const GET = withManage(async (session) => {
+export const GET = withManage(async (session, req) => {
+  // Gece-4 S7-05: başka siteden açılan bağlantı ~120 sağlayıcı çağrısını (mesaj senkronuyla AYNI kota) yakamaz — yalnız aynı site / adres çubuğu.
+  const fetchSite = req.headers.get("sec-fetch-site");
+  if (fetchSite && fetchSite !== "same-origin" && fetchSite !== "none") return forbidden();
   // 🚨 HIZ LİMİTİ ŞART — KALDIRMA. Bu rota üç `fetchAllPages` çağrısı yapıyor
   // (`MAX_PAGES=40` × 3) → istek başına ~120 Hospitable HTTP çağrısı. GET
   // olduğu için tarayıcı yenilemesi/sekme geri gelmesiyle bile tetiklenir.

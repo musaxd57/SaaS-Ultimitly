@@ -3,7 +3,7 @@ import { reservationUpdateSchema, zodFieldErrors } from "@/lib/validators";
 import { badRequest, jsonOk, notFound, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { stripReservationInternals } from "@/lib/reservation-view";
-import { removeAutoTasksForCancelledReservation } from "@/lib/automation";
+import { deleteReservationsWithAutoTasks, removeAutoTasksForCancelledReservation } from "@/lib/automation";
 import { reportError } from "@/lib/report-error";
 import { REOPEN_ERRORS, reopenCancelledReservation } from "@/lib/reservations/reopen";
 
@@ -69,9 +69,8 @@ export const PATCH = withManage<{ id: string }>(async (session, req, { params })
 
 export const DELETE = withManage<{ id: string }>(async (session, _req, { params }) => {
   const { id } = await params;
-  const result = await prisma.reservation.deleteMany({
-    where: { id, property: { organizationId: session.organizationId } },
-  });
-  if (result.count === 0) return notFound();
+  // Açık otomatik görevleriyle birlikte (gece-4 S6-05, `deleteReservationsWithAutoTasks`).
+  const deleted = await deleteReservationsWithAutoTasks([id], session.organizationId);
+  if (deleted === 0) return notFound();
   return jsonOk({ ok: true });
 });

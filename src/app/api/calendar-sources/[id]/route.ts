@@ -1,12 +1,13 @@
 import { prisma } from "@/lib/db";
 import { notFound, jsonOk } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
+import { writeAudit, auditActor } from "@/lib/audit";
 
 export const DELETE = withManage<{ id: string }>(async (session, _req, { params }) => {
   const { id } = await params;
   const source = await prisma.calendarSource.findFirst({
     where: { id, property: { organizationId: session.organizationId } },
-    select: { id: true },
+    select: { id: true, propertyId: true },
   });
   if (!source) return notFound();
 
@@ -46,12 +47,21 @@ export const DELETE = withManage<{ id: string }>(async (session, _req, { params 
   // ⚠️ Feed TEKRAR eklenirse iyileşme BOZULMAZ: benimseme `calendarSourceId: null`
   // arıyor (kanala bakmıyor) ve benimsedikten sonra ilk güncelleme kanalı yeniden
   // `channelFromLabel`den yazar.
-  await prisma.$transaction([
-    prisma.reservation.updateMany({
+  // Sonuç ADIYLA okunur (dizi biçimli işlemde konumsal okuma yasak — CLAUDE.md çalışma dersi 09-24).
+  const detached = await prisma.$transaction(async (tx) => {
+    const rows = await tx.reservation.updateMany({
       where: { calendarSourceId: id },
       data: { calendarSourceId: null, channel: "manual" },
-    }),
-    prisma.calendarSource.delete({ where: { id } }),
-  ]);
+    });
+    await tx.calendarSource.delete({ where: { id } });
+    return rows;
+  });
+  // Gece-4 S6-14: besleme durur, satırlar elle yönetilene döner — denetim kaydı (sayı; adres yazılmaz).
+  await writeAudit({
+    organizationId: session.organizationId,
+    actorUserId: auditActor(session),
+    action: "calendar_source.removed",
+    metadata: { propertyId: source.propertyId, calendarSourceId: id, detachedReservations: detached.count },
+  });
   return jsonOk({ ok: true });
 });

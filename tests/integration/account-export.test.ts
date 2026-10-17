@@ -212,6 +212,19 @@ describe("GET /api/account/export — complete + secret-free", () => {
     expect((await call()).status).toBe(200);
   });
 
+  it("🚨 gece-4 S7-05: başka siteden açılan bağlantı 403 — kota YANMAZ (sahibin dökümü kilitlenmez); aynı site ve adres çubuğu açılır", async () => {
+    const call = (site?: string) =>
+      exportRoute(
+        new NextRequest("http://localhost/api/account/export", site ? { headers: { "sec-fetch-site": site } } : undefined),
+        { params: Promise.resolve({} as Record<string, never>) },
+      );
+    for (let i = 0; i < 4; i++) expect((await call("cross-site")).status).toBe(403);
+    expect((await call("same-site")).status).toBe(403);
+    expect((await call("same-origin")).status).toBe(200);
+    expect((await call("none")).status).toBe(200);
+    expect((await call()).status).toBe(200);
+  });
+
   it("PARİTE: admin export ↔ account export aynı yapıyı döner ve admin de secret-free", async () => {
     await seedRichOrg();
 

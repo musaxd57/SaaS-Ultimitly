@@ -113,14 +113,12 @@ function isCalendarWallClock(y: number, mo: number, d: number, h: number, mi: nu
   return probe.getUTCFullYear() === y && probe.getUTCMonth() === mo - 1 && probe.getUTCDate() === d;
 }
 
-/** Decode common iCal escaped characters. */
+/**
+ * Decode common iCal escaped characters — TEK geçiş (gece-4 S6-08: sıralı değiştirmede `\\n` — kaçışlı ters eğik çizgi + "n" — satır sonuna
+ * dönüyordu: "C:\\temp\\new" → "C:\temp\<satır>ew").
+ */
 function decodeIcsText(s: string): string {
-  return s
-    .replace(/\\,/g, ",")
-    .replace(/\\;/g, ";")
-    .replace(/\\n/gi, "\n")
-    .replace(/\\\\/g, "\\")
-    .trim();
+  return s.replace(/\\([,;nN\\])/g, (_, c: string) => (c === "n" || c === "N" ? "\n" : c)).trim();
 }
 
 /**

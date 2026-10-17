@@ -15,9 +15,13 @@ export const dynamic = "force-dynamic";
 // operator route (src/lib/data-export.ts) — see there for the exact scope and
 // the secrets-exclusion contract; a parity test pins the two routes together.
 // ---------------------------------------------------------------------------
-export const GET = withManage(async (session) => {
+export const GET = withManage(async (session, req) => {
   // K8 (kurucu kararı 09-28): destek görünümü (bürünme) tüm misafir verisini indiremez — GET olsa da.
   if (isImpersonating(session)) return forbidden("Destek görünümünde müşteri verisi dışa aktarılamaz.");
+  // Gece-4 S7-05: başka siteden açılan bağlantı (SameSite=Lax çerez üst düzey GET'te gider) saatte 3'lük dışa aktarma hakkını yakıp sahibin
+  // KVKK dökümünü bir saat kilitleyebiliyordu. Yalnız aynı siteden ya da adres çubuğundan (none) — operatör dışa aktarmasıyla aynı kural.
+  const fetchSite = req.headers.get("sec-fetch-site");
+  if (fetchSite && fetchSite !== "same-origin" && fetchSite !== "none") return forbidden();
   // OWNER-ONLY (Codex): the export carries the org's calendar-feed URLs
   // (bearer-like credentials), invoices and consent evidence — manager-level
   // access is not enough for a full-account data handover. withManage already

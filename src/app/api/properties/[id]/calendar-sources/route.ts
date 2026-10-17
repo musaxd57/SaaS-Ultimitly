@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { prisma } from "@/lib/db";
 import { badRequest, jsonOk, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
+import { writeAudit, auditActor } from "@/lib/audit";
 import { isPrivateHost } from "@/lib/net/private-host";
 import {
   CALENDAR_URL_SENTINEL,
@@ -86,5 +87,12 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
       url: "Bu daire için en fazla 10 takvim bağlantısı ekleyebilirsiniz. Kullanmadığınız bağlantıları silin.",
     });
   }
+  // Gece-4 S6-14: rezervasyon beslemesi başlar — denetim kaydı (bağlantı adresi / etiket yazılmaz).
+  await writeAudit({
+    organizationId: session.organizationId,
+    actorUserId: auditActor(session),
+    action: "calendar_source.added",
+    metadata: { propertyId: source.propertyId, calendarSourceId: source.id },
+  });
   return jsonOk(source, 201);
 });

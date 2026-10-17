@@ -443,6 +443,17 @@ describe("BAĞLAM — saat güncellemesi yalnız kesin eşleşmede (kurucu: 'ba�
     expect(unknown.reused).toBe(true);
   });
 
+  it("🚨 Opus gece-4 F19b: yapanı bilinmeyen (elle) söze yapanı bilinen öneri bağlanınca yapan YAZILIR — sonra başka yapanın sözü ona birleşmez", async () => {
+    const s = await setup();
+    const dueAt = commitmentDueAt({ day: "tomorrow", time: "18:00" }, TZ, new Date())!;
+    const base = { organizationId: s.orgId, conversationId: s.conversationId, propertyId: s.propertyId, reservationId: null, kind: "maintenance" as const, dueAt, actorUserId: null };
+    const manual = await createGuestCommitment({ ...base, clientRequestId: "r-manual" });
+    expect((await createGuestCommitment({ ...base, topic: "ac", actor: "visit", clientRequestId: "r-visit", mergeSameSlot: true })).id).toBe(manual.id);
+    expect((await prisma.guestCommitment.findUniqueOrThrow({ where: { id: manual.id } })).actor).toBe("visit");
+    const delivery = await createGuestCommitment({ ...base, topic: "ac", actor: "delivery", clientRequestId: "r-del", mergeSameSlot: true });
+    expect(delivery.id).not.toBe(manual.id);
+  });
+
   it("🚨 Haiku 2. tur: SONRAKİ mesajdan açılmış FARKLI yapanın sözü ('filtreyi akşam getireceğim') önceki teknisyen sözünün önerisini GİZLEMEZ", async () => {
     pinIstanbulNoonToday();
     // Otomatik işleme ÇAĞRILMAZ: iki öneri de kartta (ev sahibi ikinciyi önce onaylıyor).

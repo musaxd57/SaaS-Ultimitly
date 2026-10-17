@@ -79,17 +79,22 @@ export const POST = withManage(async (session, req) => {
   // sınırı varken sayım + oluşturma TEK işlemde, kuruluş satırının `FOR UPDATE` kilidi altında (takvim kaynağı kotasının
   // kalıbı, U38): eşzamanlı oluşturmalar sıraya girer, sınırdaki istek hiç oluşturmaz (silme yok → "silme başarısız" ara
   // durumu da yok). Sınırsız plan / faturalandırma uyurken (`gate.limit` boş) yol DEĞİŞMEDİ.
+  // Gece-4 S6-07: aynı adla eşzamanlı iki istek (iki sekme / yeniden deneme) ikisi de yukarıdaki ad denetimini geçip iki mülk açıyordu →
+  // kuruluş kilidi HER yolda alınır, ad denetimi kilit içinde tekrarlanır.
   const limit = gate.limit;
-  const property =
-    limit != null
-      ? await prisma.$transaction(async (tx) => {
-          await tx.$queryRaw`SELECT "id" FROM "Organization" WHERE "id" = ${session.organizationId} FOR UPDATE`;
-          if ((await tx.property.count({ where: { organizationId: session.organizationId } })) >= limit) return null;
-          return tx.property.create({ data: createData });
-        })
-      : await prisma.property.create({ data: createData });
-  if (!property) {
+  const result = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT "id" FROM "Organization" WHERE "id" = ${session.organizationId} FOR UPDATE`;
+    const same = await tx.property.findFirst({
+      where: { organizationId: session.organizationId, name: { equals: name, mode: "insensitive" } },
+      select: { id: true },
+    });
+    if (same) return "duplicate" as const;
+    if (limit != null && (await tx.property.count({ where: { organizationId: session.organizationId } })) >= limit) return "limit" as const;
+    return tx.property.create({ data: createData });
+  });
+  if (result === "duplicate") return badRequest({ name: "Bu isimde bir mülk zaten var" });
+  if (result === "limit") {
     return forbidden(`Planınız en fazla ${limit} daireye izin veriyor. Daha fazla daire için planınızı yükseltin.`);
   }
-  return jsonOk(stripPropertySecrets(property), 201);
+  return jsonOk(stripPropertySecrets(result), 201);
 });

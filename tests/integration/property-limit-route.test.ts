@@ -164,4 +164,16 @@ describe("POST /api/properties — plan limit gate", () => {
     const res = await POST(createReq("Altıncı"), noCtx);
     expect(res.status).toBe(201);
   });
+
+  it("🚨 gece-4 S6-07: aynı adla EŞZAMANLI iki istek → yalnız biri oluşturur (ad denetimi kuruluş kilidi içinde); faturalandırma uyurken de", async () => {
+    const results = await Promise.all([POST(createReq("Lale Suit"), noCtx), POST(createReq("lale suit"), noCtx)]);
+    expect(results.map((r) => r.status).sort()).toEqual([201, 400]);
+    expect(await prisma.property.count({ where: { organizationId: orgId } })).toBe(1);
+  });
+
+  it("gece-4 S6-06: yalnız boşluktan oluşan ad reddedilir (\"\" olarak kaydedilmez)", async () => {
+    const res = await POST(createReq("   "), noCtx);
+    expect(res.status).toBe(400);
+    expect(await prisma.property.count({ where: { organizationId: orgId } })).toBe(0);
+  });
 });

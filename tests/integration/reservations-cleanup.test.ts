@@ -73,6 +73,33 @@ describe("cleanupStaleReservations", () => {
     expect(await prisma.reservation.findUnique({ where: { id: ghost.id } })).toBeNull();
   });
 
+  it("🚨 gece-4 S6-05: silinen hayaletin AÇIK sistem temizlik / hazırlık görevi de gider; bitmiş, elle açılmış ve başka rezervasyonun görevi kalır", async () => {
+    const { orgId, propertyId } = await makeOrgProp("hosp-1");
+    const today = new Date();
+    const valid = await makeRes(propertyId, "res-valid", today);
+    const ghost = await makeRes(propertyId, "res-ghost", today);
+    await prisma.conversation.create({
+      data: { propertyId, guestIdentifier: "G", channel: "airbnb", status: "answered", externalReservationId: "res-ghost" },
+    });
+    const task = (reservationId: string, o: { type: string; origin: string; status: string; title: string }) =>
+      prisma.task.create({ data: { propertyId, reservationId, dueAt: today, ...o }, select: { id: true } });
+    const openSystem = await task(ghost.id, { type: "cleaning", origin: "system", status: "todo", title: "Çıkış temizliği - G" });
+    const openPrep = await task(ghost.id, { type: "checkin_prep", origin: "system", status: "in_progress", title: "G girişi için hazırlık" });
+    const doneSystem = await task(ghost.id, { type: "cleaning", origin: "system", status: "done", title: "Çıkış temizliği - G (bitti)" });
+    const manual = await task(ghost.id, { type: "cleaning", origin: "manual", status: "todo", title: "Elle temizlik" });
+    const validTask = await task(valid.id, { type: "cleaning", origin: "system", status: "todo", title: "Çıkış temizliği - V" });
+    mockList.mockResolvedValue([{ id: "res-valid" }]);
+
+    const out = await cleanupStaleReservations(orgId);
+
+    expect(out).toMatchObject({ removed: 1 });
+    expect(await prisma.task.findUnique({ where: { id: openSystem.id } })).toBeNull();
+    expect(await prisma.task.findUnique({ where: { id: openPrep.id } })).toBeNull();
+    expect(await prisma.task.findUnique({ where: { id: doneSystem.id } })).not.toBeNull();
+    expect(await prisma.task.findUnique({ where: { id: manual.id } })).not.toBeNull();
+    expect((await prisma.task.findUniqueOrThrow({ where: { id: validTask.id } })).reservationId).toBe(valid.id);
+  });
+
   it("sağlayıcıya YALNIZ köprüye bağlı mülkün kendi ilan kimliği gider; bağsız mülk sorulmaz (değişmez 1/20 taşıması, 10-11)", async () => {
     const { orgId, propertyId } = await makeOrgProp("hosp-77");
     await prisma.property.create({ data: { organizationId: orgId, name: "Bağsız", hospitableId: null } });

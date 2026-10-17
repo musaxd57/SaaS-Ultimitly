@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { badRequest, jsonOk, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
+import { writeAudit, auditActor } from "@/lib/audit";
 import { serializeSupplyProfile } from "@/lib/supply";
 
 // Apply one supply/linen profile to ALL of the org's properties at once — most
@@ -31,5 +32,12 @@ export const POST = withManage(async (session, req) => {
 
   const result = await prisma.property.updateMany({ where, data: { supplyProfileJson: json } });
 
+  // Gece-4 S6-14: toplu ayar denetim kaydı (değer yazılmaz).
+  await writeAudit({
+    organizationId: session.organizationId,
+    actorUserId: auditActor(session),
+    action: "property.bulk_supply_profile_set",
+    metadata: { fields: ["supplyProfile"], updated: result.count, subset: ids !== null },
+  });
   return jsonOk({ ok: true, updated: result.count });
 });

@@ -107,6 +107,22 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     }
   }
 
+  // Gece-4 S5-05: KAYNAK BAĞI "yerine koy" ZİNCİRİNİ izler. Geçmişten öğren L2 "eskisinin yerine koy" YENİ kimlikli kalem açıp eskisini
+  // emekliye ayırır (`supersededById`); kopyalar eski kimliğe bağlı kaldığı için yeni kalemi kopyalamak hedefte İKİNCİ etkin kopya açıyordu
+  // (B dairesinde eski + yeni Wi-Fi şifresi yan yana; yapay zekâ eskisini söyleyebilir). Kaynağın kendi dairesindeki öncülleri (bu kaleme
+  // giden yerine-koy zinciri, en çok 20 adım) de bağ sayılır; bulunan kopya güncellenir ve bağı bu kaleme taşınır.
+  const lineage = [id];
+  let frontier = [id];
+  for (let depth = 0; frontier.length > 0 && depth < 20; depth++) {
+    frontier = (
+      await prisma.knowledgeBaseItem.findMany({
+        where: { propertyId: source.propertyId, supersededById: { in: frontier }, id: { notIn: lineage } },
+        select: { id: true },
+      })
+    ).map((r) => r.id);
+    lineage.push(...frontier);
+  }
+
   let created = 0;
   let updated = 0;
   let unchanged = 0;
@@ -129,21 +145,44 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     // (migration 68); "değiştirilmemiş" = şimdiki içerik izi kopyalandığı andaki izle aynı. Bağı olmayan eski kopya HİÇ eşleştirilmez
     // (yeni kopya açılır — kurucu). Güncelleme koşullu: okuma ile yazma arasında ev sahibi o kalemi düzenlediyse (`updatedAt` değişti)
     // yazılmaz, "az önce düzenlendi" diye atlanır. Plan sınırı yalnız YENİ kalemi sayar (güncelleme kalem eklemez).
-    const prior = await prisma.knowledgeBaseItem.findFirst({
-      where: { propertyId: t.id, copiedFromId: id },
+    // Doğrudan bu kaleme bağlı kopya önce; yoksa zincirdeki en yeni öncülün kopyası.
+    const priors = await prisma.knowledgeBaseItem.findMany({
+      where: { propertyId: t.id, copiedFromId: { in: lineage } },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      select: { id: true, category: true, title: true, content: true, language: true, copiedContentHash: true, updatedAt: true },
+      select: {
+        id: true,
+        category: true,
+        title: true,
+        content: true,
+        language: true,
+        copiedContentHash: true,
+        updatedAt: true,
+        copiedFromId: true,
+        supersededById: true,
+      },
     });
+    const prior = priors.find((p) => p.copiedFromId === id) ?? priors[0] ?? null;
     if (prior) {
+      // Hedef dairede kopya yerelde YERİNE KONMUŞSA (L2) ev sahibinin seçtiği yeni kalem korunur — emekli kopyayı "güncellendi" saymak
+      // yanıltıcıydı (gece-4 S5-05 ayna vakası).
+      if (prior.supersededById !== null) {
+        skippedModified.push({ propertyId: t.id, name: t.name, reason: "modified" });
+        continue;
+      }
       if (prior.copiedContentHash === null || prior.copiedContentHash !== kbContentFingerprint(prior)) {
         skippedModified.push({ propertyId: t.id, name: t.name, reason: "modified" });
         continue;
       }
-      if (prior.copiedContentHash === sourceHash) {
+      if (prior.copiedContentHash === sourceHash && prior.copiedFromId === id) {
         unchanged++;
         warmTargets.push(t.id);
         continue;
       }
+      // Bağ taşınırken aynı anda bu kaleme bağlı başka kopya açıldıysa (iki sekme) kaybeden "tam şu anda düzenlendi" yoluna düşer.
+      const relinkLost = (err: unknown) => {
+        if (isUniqueViolation(err, ["propertyId", "copiedFromId"])) return { count: 0 };
+        throw err;
+      };
       const res = await prisma.knowledgeBaseItem.updateMany({
         where: { id: prior.id, updatedAt: prior.updatedAt, copiedContentHash: prior.copiedContentHash },
         data: {
@@ -152,6 +191,8 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
           content: source.content,
           language: source.language,
           copiedContentHash: sourceHash,
+          // Bağ zincirdeki öncülden bu kaleme taşınır (S5-05) — sonraki kopyalama doğrudan bulur.
+          copiedFromId: id,
           // İŞLEM KİMLİĞİ GÜNCELLENEN KALEME DE YAZILIR (Codex 10-16, ölçüldü): yalnız YENİ kopya kimliği taşıyordu → A güncellendi, C düştü,
           // kaynak arada değişti, aynı kimlikle yeniden deneme "kaynak değişti" uyuşmazlığını (409) görmeden iki kopyayı da yeni metne
           // çeviriyordu. Artık tekrar bu kalemi "bu işlem yazdı" diye tanır (atlar) ve yukarıdaki içerik izi kıyası güncellenen kalemi de
@@ -164,7 +205,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
           reviewState: source.reviewState,
           approvedAt: source.approvedAt,
         },
-      });
+      }).catch(relinkLost);
       if (res.count === 0) {
         // Kaybeden taraf yeniden okur (Opus O10b): aynı anda AYNI kaynağı yazan başka bir istekse kopya zaten güncel → "güncellendi" say;
         // yalnız gerçekten başka içerik yazıldıysa "tam şu anda düzenlendi".

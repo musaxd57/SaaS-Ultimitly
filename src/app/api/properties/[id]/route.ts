@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { propertySchema, zodFieldErrors } from "@/lib/validators";
 import { badRequest, jsonOk, notFound, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
+import { writeAudit, auditActor } from "@/lib/audit";
 import { serializeSupplyProfile } from "@/lib/supply";
 import { ERASABLE_STATUSES } from "@/lib/outbox/state";
 import { earlyCheckinRuleWhere } from "@/lib/early-checkin/rules";
@@ -82,6 +83,16 @@ export const PATCH = withManage<{ id: string }>(async (session, req, { params })
         d.supplyProfile === undefined ? undefined : serializeSupplyProfile(d.supplyProfile),
     },
   });
+  // Gece-4 S6-14: kardeş ayar rotaları (gecelik fiyat, ev kuralları…) gibi denetimli — alan ADLARI, değerler değil.
+  const fields = Object.keys(d).filter((k) => d[k as keyof typeof d] !== undefined);
+  if (fields.length > 0) {
+    await writeAudit({
+      organizationId: session.organizationId,
+      actorUserId: auditActor(session),
+      action: "property.updated",
+      metadata: { propertyId: id, fields },
+    });
+  }
   return jsonOk(stripPropertySecrets(property));
 });
 
@@ -146,5 +157,12 @@ export const DELETE = withManage<{ id: string }>(async (session, _req, { params 
     // kolonları) veri büyüdükçe uzar; kardeş yazma yollarının sınırları (inceleme 09-24).
   }, { timeout: 60_000, maxWait: 15_000 });
   if (deleted.count === 0) return notFound();
+  // Gece-4 S6-14: kalıcı kararlardaki "properties/[id] DELETE audit'siz (açık)" kapandı — mülk kimliği (ad yazılmaz).
+  await writeAudit({
+    organizationId: session.organizationId,
+    actorUserId: auditActor(session),
+    action: "property.deleted",
+    metadata: { propertyId: id },
+  });
   return jsonOk({ ok: true });
 });

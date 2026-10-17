@@ -1363,6 +1363,38 @@ export async function removeAutoTasksForCancelledReservation(
 }
 
 /**
+ * Rezervasyon SİLME (API `DELETE /api/reservations/[id]` + hayalet temizliği) — gece-4 S6-05: `Task.reservationId` SetNull olduğu için
+ * silinen konaklamanın AÇIK yaşam döngüsü görevleri ("Çıkış temizliği", "… girişi için hazırlık") bağsız kalıp temizlikçi listesinde
+ * duruyordu (hayalet YANLIŞ daireye bağlıysa temizliği de o dairede). İptalle AYNI küme (`OPEN_AUTO_LIFECYCLE_TASK_WHERE`: yalnız sistem
+ * görevi, yalnız bitmemiş — elle / mesajdan açılan ve bitmiş görev kalır) ve AYNI rezervasyon kilidi (görev açan işlem ya önce biter →
+ * görevini burada sileriz, ya sonra koşar → rezervasyonu bulamaz, açmaz); fotoğraf silme niyeti aynı işlemde. Silinen rezervasyon sayısını döner.
+ */
+export async function deleteReservationsWithAutoTasks(ids: string[], organizationId: string): Promise<number> {
+  const unique = [...new Set(ids)].sort();
+  if (unique.length === 0) return 0;
+  return prisma.$transaction(async (tx) => {
+    for (const id of unique) {
+      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(${RESERVATION_TASKS_LOCK_NS}::int4, hashtext(${id}))`);
+    }
+    const owned = (
+      await tx.reservation.findMany({ where: { id: { in: unique }, property: { organizationId } }, select: { id: true } })
+    ).map((r) => r.id);
+    if (owned.length === 0) return 0;
+    const doomed: Prisma.TaskWhereInput = { reservationId: { in: owned }, ...OPEN_AUTO_LIFECYCLE_TASK_WHERE };
+    const photos = await tx.taskUpdate.findMany({
+      where: { task: doomed, photoUrl: { startsWith: STORAGE_PHOTO_URL_PREFIX } },
+      select: { photoUrl: true },
+    });
+    const { count: removedTasks } = await tx.task.deleteMany({ where: doomed });
+    if (removedTasks > 0 && photos.length > 0) {
+      await enqueueUnreferencedPhotoDeletions(tx, organizationId, photos.map((p) => p.photoUrl));
+    }
+    const { count } = await tx.reservation.deleteMany({ where: { id: { in: owned } } });
+    return count;
+  }, RESERVATION_TASKS_TX);
+}
+
+/**
  * Backfill tasks for every existing reservation in an organization.
  * Used when reservations were imported (e.g. via iCal) before task automation
  * existed. Idempotent: createReservationTasks skips reservations that already

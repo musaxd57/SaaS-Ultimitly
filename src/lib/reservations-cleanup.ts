@@ -1,6 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/db";
+import { deleteReservationsWithAutoTasks } from "@/lib/automation";
 import { getIngestAdapter, resolveOrgChannelCredential } from "@/lib/channels";
 import { listBridgeListingIds } from "@/lib/channels/property-links";
 
@@ -169,8 +170,8 @@ export async function cleanupStaleReservations(
     result.unprovableSkipped += stale.length - staleIds.length;
 
     if (staleIds.length > 0) {
-      await prisma.reservation.deleteMany({ where: { id: { in: staleIds } } });
-      result.removed += staleIds.length;
+      // Açık otomatik görevleriyle birlikte (gece-4 S6-05): yanlış daireye bağlı hayaletin temizlik görevi o dairede kalıyordu.
+      result.removed += await deleteReservationsWithAutoTasks(staleIds, organizationId);
     }
   }
 

@@ -50,6 +50,40 @@ describe("bilgi tabanı yeniden kopyalama — eski kopyayı güncelle (kurucu D2
     await prisma.$disconnect();
   });
 
+  it("🚨 gece-4 S5-05: kaynak 'yerine koy' ile YENİ kimlikli kaleme geçti → yeni kalemin kopyalanması eski kopyayı günceller (ikinci etkin kopya yok)", async () => {
+    await copy(src, { targetPropertyIds: [a], requestId: RID });
+    // Geçmişten öğren L2 "eskisinin yerine koy": yeni kalem açılır, eskisi emekli (pasif + supersededById).
+    const srcProp = (await prisma.knowledgeBaseItem.findUniqueOrThrow({ where: { id: src } })).propertyId;
+    const replacement = await prisma.knowledgeBaseItem.create({
+      data: { propertyId: srcProp, category: "faq", title: "Havuz", content: "Havuz 08:00–23:00 açık.", isActive: true },
+    });
+    await prisma.knowledgeBaseItem.update({ where: { id: src }, data: { isActive: false, supersededById: replacement.id, supersededAt: new Date() } });
+
+    const res = await copy(replacement.id, { targetPropertyIds: [a], requestId: RID2 });
+
+    expect(await res.json()).toMatchObject({ created: 0, updated: 1, skippedModified: [] });
+    const inA = await prisma.knowledgeBaseItem.findMany({ where: { propertyId: a }, select: { content: true, isActive: true, copiedFromId: true } });
+    expect(inA).toEqual([{ content: "Havuz 08:00–23:00 açık.", isActive: true, copiedFromId: replacement.id }]);
+    // Bağ taşındı: bir sonraki kopyalama doğrudan bulur, "güncel" der.
+    expect(await (await copy(replacement.id, { targetPropertyIds: [a] })).json()).toMatchObject({ created: 0, updated: 0, unchanged: 1 });
+  });
+
+  it("gece-4 S5-05 ayna: hedefteki kopya yerelde YERİNE KONMUŞSA (emekli) güncellenmiş sayılmaz — atlandı (elle değiştirildi), seçilen yeni kalem korunur", async () => {
+    await copy(src, { targetPropertyIds: [a], requestId: RID });
+    const copyInA = await prisma.knowledgeBaseItem.findFirstOrThrow({ where: { propertyId: a, copiedFromId: src } });
+    const localNew = await prisma.knowledgeBaseItem.create({
+      data: { propertyId: a, category: "faq", title: "Havuz", content: "Havuz bu dairede 10:00–18:00.", isActive: true },
+    });
+    await prisma.knowledgeBaseItem.update({ where: { id: copyInA.id }, data: { isActive: false, supersededById: localNew.id, supersededAt: new Date() } });
+    await prisma.knowledgeBaseItem.update({ where: { id: src }, data: { content: "Havuz 09:00–22:00 açık." } });
+
+    const body = await (await copy(src, { targetPropertyIds: [a], requestId: RID2 })).json();
+
+    expect(body).toMatchObject({ created: 0, updated: 0, skippedModified: [{ propertyId: a, reason: "modified" }] });
+    expect((await prisma.knowledgeBaseItem.findUniqueOrThrow({ where: { id: localNew.id } })).content).toBe("Havuz bu dairede 10:00–18:00.");
+    expect((await prisma.knowledgeBaseItem.findUniqueOrThrow({ where: { id: copyInA.id } })).content).toBe("Havuz 09:00–20:00 açık.");
+  });
+
   it("🚨 kaynak değişti → yeniden kopyalama A ve B'deki KOPYAYI günceller (ikinci kalem yok; çelişkili iki bilgi kalmaz)", async () => {
     await copy(src, { targetPropertyIds: [a, b], requestId: RID });
     await prisma.knowledgeBaseItem.update({ where: { id: src }, data: { content: "Havuz 09:00–22:00 açık." } });

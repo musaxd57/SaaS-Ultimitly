@@ -88,6 +88,26 @@ describe("POST /api/reservations/import — dosyadan içe aktar (önizleme + ayn
     expect(await prisma.task.count({ where: { property: { organizationId: orgId } } })).toBe(0);
   });
 
+  it("gece-4 S6-04: saatli (TZID) satırın önizleme günü işletmenin saat diliminde — UTC günü değil; yalnız-tarih satırı aynı", async () => {
+    await prisma.organization.update({ where: { id: orgId }, data: { timezone: "Europe/Istanbul" } });
+    const from = icsDay(20);
+    const to = icsDay(23);
+    const tzEvent = [
+      "BEGIN:VEVENT",
+      "UID:s6-04-tz@lixusai.com",
+      `DTSTART;TZID=Europe/Istanbul:${from}T000000`,
+      `DTEND;TZID=Europe/Istanbul:${to}T000000`,
+      "SUMMARY:Lixus Test (sahte)",
+      "END:VEVENT",
+    ].join("\r\n");
+    const body = await (await call(req(propertyId, calendar(tzEvent, vevent(UID)), "preview"))).json();
+    const key = (d: string) => `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`;
+    const tzRow = body.rows.find((r: { uid: string }) => r.uid === "s6-04-tz@lixusai.com");
+    expect(tzRow).toMatchObject({ arrival: key(from), departure: key(to) });
+    const dateRow = body.rows.find((r: { uid: string }) => r.uid === UID);
+    expect(dateRow).toMatchObject({ arrival: key(icsDay(10)), departure: key(icsDay(13)) });
+  });
+
   it("SIRALI AKIŞ: normal dosya → 1 eklendi; AYNI dosya tekrar → 0 (mükerrer yok, 'unchanged'); iptal dosyası (aynı UID) → doğru satır iptal + reservation.cancelled", async () => {
     const r1 = await call(req(propertyId, calendar(vevent(UID))));
     expect(await r1.json()).toMatchObject({ imported: 1, updated: 0, cancelled: 0, skipped: 0 });

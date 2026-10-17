@@ -78,3 +78,20 @@ describe("U33 — ofsetsiz ISO saat TZID'li temel biçimle aynı okunur", () => 
     expect(firstArrival(tzEvent("u33j", "2026-08-05", "2026-08-08"))).toBe("2026-08-05T00:00:00.000Z");
   });
 });
+
+describe("gece-4 S6-08: kaçış çözümü tek geçiş", () => {
+  it("kaçışlı ters eğik çizgi + n satır sonu DEĞİL; \\n satır sonu; \\, ve \\; korunur", () => {
+    const body = [
+      "BEGIN:VEVENT",
+      "UID:esc-1",
+      "DTSTART;VALUE=DATE:20260215",
+      "DTEND;VALUE=DATE:20260218",
+      "SUMMARY:Guest",
+      "DESCRIPTION:Line1\\nLine2 C:\\\\temp\\\\new\\, ok\\;",
+      "END:VEVENT",
+    ].join("\n");
+    const [row] = parseIcs(ics(body));
+    expect(row?.notes).toBe("Line1\nLine2 C:\\temp\\new, ok;");
+  });
+});
+

@@ -13,6 +13,8 @@ import { recordIngestEvent } from "@/lib/ingest/events";
 import { followReservationDates } from "@/lib/tasks/follow-reservation";
 import { ANON_NAME } from "@/lib/data-retention";
 import { reportError } from "@/lib/report-error";
+import { calendarDateOf } from "@/modules/availability/core";
+import { orgTimezone } from "@/lib/timezone";
 
 const IMPORT_MAX_BYTES = 5 * 1024 * 1024;
 /** Önizleme yanıtında satır listesi tavanı (sayımlar TÜM satırlar üzerinden). */
@@ -148,7 +150,7 @@ export const POST = withManage(async (session, req) => {
   // Verify the property belongs to this organization.
   const property = await prisma.property.findFirst({
     where: { id: propertyId, organizationId: session.organizationId },
-    select: { id: true, name: true },
+    select: { id: true, name: true, organization: { select: { timezone: true } } },
   });
   if (!property) return badRequest({ propertyId: "Geçersiz mülk" });
 
@@ -481,6 +483,10 @@ export const POST = withManage(async (session, req) => {
 
   if (preview) {
     // Yazma YOK: rezervasyon, event, görev, kilit — hiçbiri. Yalnız plan.
+    // Gece-4 S6-04: gün TEK TARİH KURALIYLA (`calendarDateOf`, işletmenin saat dilimi) — ham `toISOString` saatli (TZID) satırda UTC
+    // gününü basıyordu: İstanbul 10 Ekim 00:00 → önizlemede "2026-10-09", sistem 10 Ekim gösterir. Yalnız-tarih satırı (VALUE=DATE) aynı kalır.
+    const tz = orgTimezone(property.organization?.timezone);
+    const dayOf = (d: Date | null | undefined) => (d && !isNaN(d.getTime()) ? calendarDateOf(d, tz).key : null);
     return jsonOk({
       preview: true,
       property: { id: property.id, name: property.name },
@@ -491,9 +497,8 @@ export const POST = withManage(async (session, req) => {
         line: c.line,
         uid: c.sourceReference,
         guestName: c.row.guestName ? c.row.guestName.slice(0, 200) : null,
-        arrival: c.row.arrivalDate && !isNaN(c.row.arrivalDate.getTime()) ? c.row.arrivalDate.toISOString().slice(0, 10) : null,
-        departure:
-          c.row.departureDate && !isNaN(c.row.departureDate.getTime()) ? c.row.departureDate.toISOString().slice(0, 10) : null,
+        arrival: dayOf(c.row.arrivalDate),
+        departure: dayOf(c.row.departureDate),
         action: c.action,
         reason: c.reason,
         error: c.error,

@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { badRequest, jsonOk, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
+import { writeAudit, auditActor } from "@/lib/audit";
 
 // Apply one check-in / check-out time to ALL of the org's properties at once.
 // Useful when every apartment shares the same hours (and fixes the AI quoting a
@@ -41,5 +42,12 @@ export const POST = withManage(async (session, req) => {
     data: update,
   });
 
+  // Gece-4 S6-14: bütün dairelerin misafire söylenen saatleri değişir — kim / hangi alan / kaç daire kaydı (değer yazılmaz).
+  await writeAudit({
+    organizationId: session.organizationId,
+    actorUserId: auditActor(session),
+    action: "property.bulk_times_set",
+    metadata: { fields: Object.keys(update), updated: result.count },
+  });
   return jsonOk({ ok: true, updated: result.count, ...update });
 });
