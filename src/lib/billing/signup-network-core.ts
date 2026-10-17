@@ -11,7 +11,7 @@ import { createHash, createHmac, scryptSync } from "node:crypto";
 import { isIP } from "node:net";
 import { expandIpv6 } from "@/lib/net/ipv6";
 
-/** İz saklama süresi (gün). ⚠️ Kurucu sorusu Q3 (90 mı 30 mu) — cevap gelene kadar tasarım önerisi; aydınlatma metni bu sayıyı söyler. */
+/** İz saklama süresi (gün) — kurucu Q3 (10-17): "90 gün iyidir". Aydınlatma metni (gizlilik §5) bu sayıyı söyler; ikisi pinli. */
 export const SIGNUP_NETWORK_RETENTION_DAYS = 90;
 /** Aynı TAM adres başka kayıtta bu pencerede → `ip_shared`. */
 export const IP_SHARED_WINDOW_DAYS = 30;

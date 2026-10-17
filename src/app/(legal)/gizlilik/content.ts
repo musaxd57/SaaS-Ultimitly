@@ -54,6 +54,7 @@ export const SECTIONS: Section[] = [
       "AI işlem verileri: AI taslak yanıtları, otomatik gönderim durumu, risk seviyesi, insan incelemesi sebebi, kullanılan bağlam ve eksik bilgi uyarıları.",
       "Entegrasyon verileri: Hospitable bağlantı durumu, senkronizasyon kayıtları, takvim/iCal bağlantıları, QR misafir sohbet bağlantıları ve teknik hata kayıtları.",
       "İşlem güvenliği verileri: IP adresi, oturum çerezi, temel kullanım/denetim kayıtları (audit log), hata kayıtları.",
+      "Deneme kötüye kullanımını önleme verileri: Ücretsiz denemenin kötüye kullanılmasını önlemek için kayıt sırasında IP adresinizden geri döndürülemez bir özet ve bağlandığınız ağın özeti oluşturulur; ham IP adresi bu amaçla saklanmaz. Bu bilgi yalnız ekibimizin incelemesinde kullanılır, otomatik karar verilmez ve 90 gün sonra silinir.",
       "Pazarlama/iletişim verileri: web sitesi üzerinden ilettiğiniz demo veya iletişim talebi ve mesaj içeriği.",
       "Ödeme verileri: abonelik ve fatura durumu. Kart/ödeme bilgileriniz tarafımızca tutulmaz; ödeme, kayıtlı ödeme hizmet sağlayıcısı (Paddle) tarafından işlenir.",
     ],

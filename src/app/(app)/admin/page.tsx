@@ -1,5 +1,7 @@
 import { TrialExemptButton } from "@/components/admin/trial-exempt-button";
 import { TRIAL_RISK_LABELS, riskyTrials } from "@/lib/billing/trial-risk";
+import { TRIAL_END_REASON_OPERATOR } from "@/lib/billing/trial-operator";
+import { TrialEndButton } from "@/components/admin/trial-end-button";
 import { loadSignupNetworkSignals } from "@/lib/billing/signup-network";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -195,10 +197,11 @@ export default async function AdminPage() {
   for (const set of mailboxGroups.values()) if (set.size > 1) for (const id of set) sharedMailboxOrgIds.add(id);
   // K1 (kurucu 10-17): kayıt ağı sinyalleri — anahtar kapalıyken boş (puan bugünkü gibi); IP / özet ekrana GELMEZ.
   const networkByOrg = await loadSignupNetworkSignals(trialOrgIds);
+  const riskListNow = new Date();
   const riskyTrialRows = riskyTrials(
     orgs.filter((o) => !isDemoOrg(o.id)),
     ownersByOrg,
-    new Date(),
+    riskListNow,
     sharedMailboxOrgIds,
     networkByOrg,
   );
@@ -266,8 +269,8 @@ export default async function AdminPage() {
         <CardHeader>
           <CardTitle className="text-base">Riskli denemeler ({riskyTrialRows.length})</CardTitle>
           <p className="text-xs text-muted-foreground">
-            Yalnız size görünür; müşteriye hiçbir şey gösterilmez ve hiçbir hesap otomatik etkilenmez. Puan sıralama içindir. Süren ya da
-            son 30 günde biten denemeler.
+            Yalnız size görünür; hiçbir hesap otomatik etkilenmez. Puan sıralama içindir. Süren ya da son 30 günde biten denemeler. &quot;Denemeyi
+            bitir&quot; dediğinizde müşteri ayarlarda yalnız &quot;Ücretsiz denemeniz sona erdi…&quot; metnini görür (sebep söylenmez); hesap kapanmaz.
           </p>
         </CardHeader>
         <CardContent className="p-0">
@@ -282,6 +285,7 @@ export default async function AdminPage() {
                     <th className="px-4 py-2 font-medium">Puan</th>
                     <th className="px-4 py-2 font-medium">Sebep</th>
                     <th className="px-4 py-2 font-medium">Eklendi</th>
+                    <th className="px-4 py-2 font-medium"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -302,6 +306,14 @@ export default async function AdminPage() {
                         })()}
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">{dateFmt.format(org.createdAt)}</td>
+                      <td className="px-4 py-3">
+                        {/* Kurucu Q4 (10-17): operatör denemeyi elle bitirir / geri verir (otomatik kesme YOK). */}
+                        {org.subscription?.trialEndReason === TRIAL_END_REASON_OPERATOR ? (
+                          <TrialEndButton organizationId={org.id} mode="restore" />
+                        ) : org.subscription?.trialEndsAt && org.subscription.trialEndsAt.getTime() > riskListNow.getTime() ? (
+                          <TrialEndButton organizationId={org.id} mode="end" />
+                        ) : null}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

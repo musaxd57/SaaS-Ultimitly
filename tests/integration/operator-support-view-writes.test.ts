@@ -27,6 +27,7 @@ import { PATCH as patchLead } from "@/app/api/admin/leads/[id]/route";
 import { POST as qualityAudit } from "@/app/api/admin/quality-audit/route";
 import { POST as impersonate } from "@/app/api/admin/impersonate/route";
 import { POST as trialExempt } from "@/app/api/admin/trial-identity-exempt/route";
+import { POST as trialEnd } from "@/app/api/admin/trial-end/route";
 import { OPERATOR_SUPPORT_VIEW_MESSAGE } from "@/lib/auth/impersonation";
 
 const OPERATOR = "ops@lixusai.com";
@@ -82,6 +83,7 @@ const calls = () => [
   ["quality-audit", () => qualityAudit(json("http://localhost/api/admin/quality-audit", "POST", {}))],
   ["impersonate", () => impersonate(json("http://localhost/api/admin/impersonate", "POST", { organizationId: customerOrgId }))],
   ["trial-identity-exempt", () => trialExempt(json("http://localhost/api/admin/trial-identity-exempt", "POST", { organizationId: customerOrgId }))],
+  ["trial-end", () => trialEnd(json("http://localhost/api/admin/trial-end", "POST", { organizationId: customerOrgId, action: "end" }))],
 ] as const;
 
 describe("destek görünümünde operatör paneli yazmaları kapalı (kurucu kararı 10-11)", () => {
@@ -119,6 +121,8 @@ describe("destek görünümünde operatör paneli yazmaları kapalı (kurucu kar
       (await patchLead(json(`http://localhost/api/admin/leads/${leadId}`, "PATCH", { status: "contacted" }), { params: Promise.resolve({ id: leadId }) })).status,
     ).toBe(200);
     expect((await trialExempt(json("http://localhost/api/admin/trial-identity-exempt", "POST", { organizationId: customerOrgId }))).status).toBe(200);
+    // Süren deneme yok → 409 (yetki geçti; yazma kapısı değil iş kuralı).
+    expect((await trialEnd(json("http://localhost/api/admin/trial-end", "POST", { organizationId: customerOrgId, action: "end" }))).status).toBe(409);
     expect((await impersonate(json("http://localhost/api/admin/impersonate", "POST", { organizationId: customerOrgId }))).status).toBe(200);
   });
 });

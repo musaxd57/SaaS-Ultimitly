@@ -23,6 +23,7 @@ import { connectionHealth, connectionHealthText } from "@/lib/channels/health";
 import { PaddlePlans } from "@/components/settings/paddle-plans";
 import { checkoutPendingActive } from "@/lib/billing/checkout-pending";
 import { TRIAL_END_REASON_IDENTITY_REUSED, TRIAL_IDENTITY_REUSED_MESSAGE } from "@/lib/billing/trial-identity";
+import { TRIAL_END_REASON_OPERATOR, TRIAL_OPERATOR_ENDED_MESSAGE } from "@/lib/billing/trial-operator";
 import {
   SettingsSections,
   type SettingsViewGroup,
@@ -482,7 +483,13 @@ export default async function SettingsPage({
               locale={appLocale()}
               currency={appBillingCurrency()}
               checkoutPending={checkoutPendingNow}
-              trialNotice={trialEndReason === TRIAL_END_REASON_IDENTITY_REUSED ? TRIAL_IDENTITY_REUSED_MESSAGE : null}
+              trialNotice={
+                trialEndReason === TRIAL_END_REASON_IDENTITY_REUSED
+                  ? TRIAL_IDENTITY_REUSED_MESSAGE
+                  : trialEndReason === TRIAL_END_REASON_OPERATOR
+                    ? TRIAL_OPERATOR_ENDED_MESSAGE
+                    : null
+              }
               subscriptionStatus={entitlement.status}
               annualAvailable={defaultPlans().every((p) => (paddleAnnualPriceByCode[p.code] ?? "") !== "")}
               plans={defaultPlans().map((p) => ({

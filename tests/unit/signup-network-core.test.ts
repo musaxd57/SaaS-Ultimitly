@@ -120,6 +120,18 @@ describe("networkSignals", () => {
   });
 });
 
+describe("aydınlatma metni (kurucu Q3, 10-17: cümle + 90 gün onaylı)", () => {
+  it("🚨 gizlilik metni onaylı cümleyi AYNEN taşır ve saklama süresi kodla aynı", async () => {
+    const { SECTIONS } = await import("@/app/(legal)/gizlilik/content");
+    const { SIGNUP_NETWORK_RETENTION_DAYS } = await import("@/lib/billing/signup-network-core");
+    const all = JSON.stringify(SECTIONS);
+    expect(all).toContain(
+      "Ücretsiz denemenin kötüye kullanılmasını önlemek için kayıt sırasında IP adresinizden geri döndürülemez bir özet ve bağlandığınız ağın özeti oluşturulur; ham IP adresi bu amaçla saklanmaz. Bu bilgi yalnız ekibimizin incelemesinde kullanılır, otomatik karar verilmez ve 90 gün sonra silinir.",
+    );
+    expect(SIGNUP_NETWORK_RETENTION_DAYS).toBe(90);
+  });
+});
+
 describe("yapısal pin", () => {
   it("🚨 onay kanıtı IP'si (User.acceptedIp) risk / iz kodunda OKUNMAZ (amaç değişikliği yok — KVKK md. 4)", async () => {
     const { readFileSync } = await import("node:fs");
