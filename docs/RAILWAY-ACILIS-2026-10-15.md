@@ -5,8 +5,12 @@ Kurucu 10-15: "Railway'i açınca ekleyeceğimiz bayrakları unutma." Bu dosya T
 
 ## 0. Açmadan önce (sıra önemli)
 
-1. **Taze yedek:** son itilen dal migration 59–68 içeriyor (tek güncel liste: `docs/MIGRATION-MANIFEST.md`) (açılışta `prisma migrate deploy` hepsini uygular). Açmadan önce 09-19
-   yedeği ESKİ — Railway açılınca ilk iş `pg_dump` (servis açılır açılmaz, trafik başlamadan) ve geri yükleme provası
+0. **Önce yalnız veritabanı (gece-4 S10-08):** web servisi açılınca İLK iş `prisma migrate deploy` → yedek bundan SONRA alınırsa migration
+   ÖNCESİ yedek olmaz. Sıra: Railway'de yalnız Postgres'i açın (web servisinin otomatik deploy'unu kapatın ya da kopya sayısını 0 tutun; dala
+   push yapmayın) → aşağıdaki 1. adım (yedek + geri yükleme provası) → sonra web servisini açın. Kontrol: açmadan önce
+   `SELECT count(*) FROM _prisma_migrations` = **59** (00…58), ilk deploy'dan sonra **77** (00…76).
+1. **Taze yedek:** son itilen dal migration 59–76 içeriyor (tek güncel liste: `docs/MIGRATION-MANIFEST.md`) (açılışta `prisma migrate deploy` hepsini uygular). Açmadan önce 09-19
+   yedeği ESKİ — Railway açılınca ilk iş `pg_dump` (web servisi deploy olmadan, ↑0) ve geri yükleme provası
    (`docs/OPS-2026-09-19-DURAKLATMA-VE-LOCAL-GELISTIRME.md`).
 2. **`ENCRYPTION_KEY` aynı kalır** (rotasyon ASLA). Kasadaki değerle Railway'deki aynı mı — yalnız parmak izi ile karşılaştırın.
 3. **Hospitable OAuth:** süresi dolmuş olabilir → Ayarlar → Bağlantılar'da yeniden bağlanın; `scripts/diagnose-hospitable-tokens.ts` salt-okuma.
@@ -44,24 +48,35 @@ Kurucu 10-15: "Railway'i açınca ekleyeceğimiz bayrakları unutma." Bu dosya T
 
 ## 3. Açılmayı bekleyen anahtarlar (kurucu + ilk denemeler birlikte; önerilen sıra)
 
-1. `QR_PIN_ENABLED` (kurucu 10-11: AÇILACAK).
+1. `QR_PIN_ENABLED` (kurucu 10-11: AÇILACAK). 🚨 **ÖNCE `QR_PIN_PEPPER` ekleyin** (rastgele, en az 32 karakter, `AUTH_SECRET` ile AYNI
+   OLMAZ) — yoksa açılış denetimi (`scripts/verify-env.mjs`) üretimde süreci başlatmaz, servis çöker (gece-4 S10-04).
 2. `AI_DATE_RESOLUTION_ENABLED` + `AI_CONVERSATION_STATE_ENABLED` (güvenlik ölçüleri 0, gereksiz soru 0).
 3. `AI_VERIFIED_AVAILABILITY_ENABLED` → `AI_VERIFIED_EXTENSION_ENABLED` → `AI_VERIFIED_QR_ENABLED`.
 4. `AI_UNDERSTANDING_EN_QUERY_ENABLED` (İngilizce köprü sorgusu; 110 → 115 / 120).
 5. `AI_EMERGENCY_NUMBER_ENABLED` (QR acil numara; 62/62).
 6. `ATTENTION_GAP_ENABLED` (kurucu onayladı 10-11) · `AI_ACTION_SUGGESTIONS_ENABLED` (kurucu 10-12 "A + B + C").
 7. `AI_GENERATION_TRACE_ENABLED` + `CHANNEL_METADATA_WRITE` (migration 60 yazıcıları).
-8. Onay / belge bekleyenler: `TRIAL_IDENTITY_ENABLED` (önce aydınlatma metni) · `GUEST_ERASURE_ENABLED` (avukat) ·
+8. Onay / belge bekleyenler: `TRIAL_IDENTITY_ENABLED` (önce aydınlatma metni) · `GUEST_ERASURE_ENABLED` (avukat; 🚨 önce
+   `ERASURE_HMAC_SECRET` — rastgele, en az 32 karakter, `AUTH_SECRET` ve `ENCRYPTION_KEY`'den bağımsız; yoksa servis başlamaz) ·
    `RETENTION_MESSAGE_AGE_ANCHOR` (onay paketi) · `DURABLE_OUTBOX_ENABLED` (O1, kurucu 10-16: önce
    `DURABLE_OUTBOX_ORG_IDS=<kurucu org kimliği>` ile yalnız kurucu org; ilk gönderimler birlikte; geri dönüş = env'i sil, bekleyen satır yine
    bir kez gider — `DEPLOYMENT.md` §6) · `ICAL_DISAPPEARANCE_RECONCILE_ENABLED` ·
-   `UNVERIFIED_SWEEP_ENABLED` (önce `UNVERIFIED_SWEEP_DRY_RUN=1`) · `ALERT_EMAIL_VERIFY_ENABLED` · `HOST_DECISIONS_ENABLED` (+ `HOST_DECISION_AI_TEXT_ENABLED`) ·
+   `UNVERIFIED_SWEEP_ENABLED` (önce `UNVERIFIED_SWEEP_DRY_RUN=1`) · `ALERT_EMAIL_VERIFY_ENABLED` · `HOST_DECISIONS_ENABLED` (+ `HOST_DECISION_AI_TEXT_ENABLED`;
+   ⚠️ `DURABLE_OUTBOX_ENABLED` denemesi sürerken KAPALI kalsın — karar kartı kuyruğa girer girmez "onaylandı" kapanıyor, teslim düşerse
+   kart yeniden açılmıyor: `docs/TASARIM-2026-10-16-transactional-outbox.md` RİSK) ·
    `AI_ACTION_CLAIMS_ENABLED` · `KB_HISTORY_SUGGESTIONS_ENABLED` (Geçmişten öğren gelince gereksiz olabilir).
 9. Kurucu inceleme notu (10-15 / 10-16; KURUCU-SORULARI §H): `AI_FAULT_GUARD_ENABLED` (arıza her yolda arıza: ev sahibine bırak + tek e-posta)
    · `AI_FIX_SUPPORT_GATE_ENABLED` (bilgi tabanında tarifi olmayan arıza adımı misafire gitmez; kanal + QR)
    · `AI_TOPIC_ABSENCE_ENABLED` (H9, kurucu 10-16: kanal öğe kipinde "bilgim yok" cümlesi ayıklanır, bağımsız soru cevaplanır, o konu ev
      sahibinde açık kalır; QR'da yok — `docs/TASARIM-2026-10-16-faz3-konu-bazli-cevap.md` §6). Üçü de misafire gideni değiştirir
    → ilk denemeler birlikte; ölçümler §H2 / §H8.
+10. `CHANNEL_AUTOMATION_NOT_REPLY_ENABLED` (kurucu Q2 10-17: "Hospitable'ın otomatik mesajı cevap verilmiş sayılmasın" — KARAR VERİLDİ, kod
+   hazır, anahtar kapalı; açılmazsa karar uygulanmaz. Migration 71 ile birlikte; ilk denemeler birlikte — misafire giden cevabın tetiklenmesini
+   etkiler).
+11. Kayıt / ödeme (kurucu 10-17): `SIGNUP_NETWORK_TRACE_ENABLED` (K1 "B + IP": kayıt ağı izi, HMAC özet, ham IP yok, 90 gün; migration 72;
+   önce aydınlatma metni cümlesi Q3) · `TRIAL_CARD_GATE_ENABLED` (yüksek riskli denemede kart; migration 74) — 🚨 açmadan önce Paddle'da
+   deneme süreli üç fiyat oluşturulup `PADDLE_PRICE_BASLANGIC_DENEME` / `PADDLE_PRICE_PRO_DENEME` / `PADDLE_PRICE_ISLETME_DENEME`
+   eklenir (boşsa kapı kendiliğinden kapalı kalır).
 
 ⚠️ Açılış kontrolü (10-16): `EMAIL_OUTBOX_ENABLED` "1" değilse açılış günlüğünde uyarı çıkar — şifre sıfırlama e-postası kuyruğa her zaman
 yazılır ama yalnız bu bayrak açıkken gönderilir. Operatör panelinde (Operasyon Teşhisi) "Kuyruk sağlığı" satırına bakın: vadesi gelmiş
@@ -78,6 +93,7 @@ bekleyen satır 10 dakikayı geçmemeli.
 
 ## 4. Listede olmayan, bilinçli KAPALI kalanlar (açmayın)
 
+`PADDLE_RESUME_ENABLED` (kurucu SG3 10-17: üründe "duraklatma" yok; iptal edilen yenilemede dönem sonu kutusu yeter) ·
 `KB_RETRIEVAL_WIDE_BUDGET` (kurucu: "şimdilik kapalı") · `KB_RERANK_PER_QUESTION` · `APP_TRUST_BROWSER_TIMEZONE` · `BILLING_ALLOW_CANCELED_PLAN_CHANGE`
 (geri alma kaçışı) · `ALLOW_LEGACY_LOCAL_UPLOADS` · `TRUST_X_REAL_IP` · `QR_INFORMATIONAL_BAND_ENABLED` · `AI_UNDERSTANDING_THREAT_RULE_ENABLED` ·
 `AI_STAY_DEFERRAL_PLAIN_ENABLED` · `AI_COURTESY_RULE_ENABLED` · `QR_ESCALATION_EMAIL_ENABLED` · `CHANNEL_LISTING_READ` / `CHANNEL_CONNECTION_READ`
@@ -90,7 +106,9 @@ bekleyen satır 10 dakikayı geçmemeli.
   `api_key.expiring`, `api_key.expired`, `api_key.revoked` olaylarını da işaretleyin. Kod bu olaylarda operatöre uyarı e-postası gönderir
   (anahtarın adı + bitiş tarihi; anahtarın kendisi yazılmaz). Yeni canlı anahtar: bitiş tarihli (ör. 1 yıl) + Rotatable; izinler §0.4.
 
-- `HOST_COMMITMENT_AUTO_ENABLED` (kurucu 10-17 gece: söz → görev otomatik, "herkese birden") — açılışta `"1"` (migration 75 ile birlikte).
+- `HOST_COMMITMENT_AUTO_ENABLED` (kurucu 10-17 gece: söz → görev otomatik, "herkese birden") — açılışta `"1"` (migration 75 + 76 ile birlikte;
+  76 sözü yapanı — teknisyen gelecek / ben getireceğim — kaydeder, ikisi aynı saatte birbirine karışmaz). Gece-4: sözün günü mesajdan
+  okunamıyorsa ("Teknisyen yarın 10'da gelecek. Havlu getireceğim." → havlu) kendiliğinden açılmaz, kart günü sorar.
   Ev sahibinin misafire yazdığı söz onaysız söz + görev olur; saat uydurulmaz (açık saat / "akşam" / yalnız gün); bağlamla kesin eşleşen
   saat değişikliği aynı görevi taşır; günde işletme başına 20; konaklama bitince havlu / malzeme / temizlik sözü kapanır, arıza kalır.
   Misafire HİÇBİR şey gitmez. Müşteri Ayarlar'dan kapatabilir. Kapatmak = env'i sil (öneri + onay akışına döner).

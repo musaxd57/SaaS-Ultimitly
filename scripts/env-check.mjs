@@ -641,6 +641,13 @@ export const STRICT_ONE_FLAGS = Object.freeze([
   "TRUST_X_REAL_IP",
   "UNVERIFIED_SWEEP_DRY_RUN",
   "UNVERIFIED_SWEEP_ENABLED",
+  // Gece-4 S10-05: `!== "1"` ile okunanlar da yalnız "1" ile açılır (REGISTRATION_OPEN=true → kayıt sessizce kapalı kalıyordu, uyarı yoktu).
+  "REGISTRATION_OPEN",
+  "TRIAL_EMAILS_ENABLED",
+  "SHADOW_AI_ENABLED",
+  "ALLOW_LEGACY_LOCAL_UPLOADS",
+  "BILLING_ALLOW_CANCELED_PLAN_CHANGE",
+  "ICAL_SCHEDULED_SYNC_DISABLED",
 ]);
 
 /** Bunlar okurken bosluklari kirpar (`?.trim() === "1"`): " 1" ACIK sayilir, uyari verilmez. */

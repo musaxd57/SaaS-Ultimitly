@@ -52,13 +52,14 @@ describe("liste kaynakla pinli", () => {
       return statSync(full).isDirectory() ? walk(full) : /\.(ts|tsx)$/.test(e) ? [full] : [];
     });
   /** Yalnız sunucunun AÇILIŞINDAN geçmeyen komut satırı betiklerinin bayrakları (demo hesabı betiği kendi ortamını okur). */
-  const CLI_ONLY = new Set(["DEMO_TENANT_RESET_SECURITY", "DEMO_TENANT_ROTATE_PASSWORD"]);
+  const CLI_ONLY = new Set(["DEMO_TENANT_RESET_SECURITY", "DEMO_TENANT_ROTATE_PASSWORD", "DEMO_TENANT_APPLY"]);
 
-  it("kodda `env.X === \"1\"` (ya da `?.trim() === \"1\"`) okunan her bayrak listede; listedeki her bayrak kodda böyle okunuyor", () => {
+  // Gece-4 S10-05: `!== "1"` ile okunan (REGISTRATION_OPEN, TRIAL_EMAILS_ENABLED …) da yalnız "1" ile açılır — eskiden tarama görmüyordu.
+  it("kodda `env.X === \"1\"` / `!== \"1\"` (ya da `?.trim()`) okunan her bayrak listede; listedeki her bayrak kodda böyle okunuyor", () => {
     const found = new Set<string>();
     for (const f of walk(SRC)) {
       const src = readFileSync(f, "utf8");
-      for (const m of src.matchAll(/\benv\.([A-Z][A-Z0-9_]+)(?:\?\.trim\(\))?\s*===\s*"1"/g)) found.add(m[1]);
+      for (const m of src.matchAll(/\benv\.([A-Z][A-Z0-9_]+)(?:\?\.trim\(\))?\s*[!=]==\s*"1"/g)) found.add(m[1]);
     }
     expect(found.size).toBeGreaterThan(20);
     const expected = [...found].filter((n) => !CLI_ONLY.has(n)).sort();

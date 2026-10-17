@@ -3,6 +3,8 @@
 > Kural: numara YALNIZ `prisma/migrations/<NN>_<ad>` klasörü oluşunca verilir. Belgelerde henüz yazılmamış paketler ADLA anılır
 > (`M-defter`, `M-odeme-niyeti` …). Uygulanmış (ya da itilmiş) migration ASLA yeniden adlandırılmaz / düzenlenmez. Migration içeren push =
 > taze `pg_dump` + kurucu açık onayı. Canlı (prod) en son: **58** (Railway 10-02 akşamından beri kapalı; açılışta `migrate deploy` 59→ sonu uygular).
+> Adlandırma (gece-4 S10-06): klasörler ad sırasıyla uygulanır — `100_x`, `10_…`dan ÖNCE sıralanır. 99'dan sonra `99a_…` gibi 99'un ardına
+> sıralanan bir ad kullanılır; `100_` ASLA.
 
 ## 1. Repodaki migration'lar (gerçek klasörler)
 
@@ -24,8 +26,9 @@
 | 71 | `71_message_channel_sender_role` | `Message.channelSenderRole` (L5: kanalın bildirdiği gönderen rolü — misafir / ev sahibi / kanal otomasyonu / tanınmayan) | kurucu ONAYLADI (10-17), yerel commit → itilince origin | BÜYÜK tabloya boş kolon (PG 11+ meta-veri, yeniden yazım yok, dizin yok) |
 | 72 | `72_signup_network_trace` | `Organization.trialIdentityReusedAt` (K1-B işaret; deneme bitirilmez) + `SignupNetworkTrace` (kayıt ağı izi: HMAC özet, ham IP yok, 90 gün; anahtar KAPALI) | kurucu ONAYLADI (10-17 "B + IP"), yerel commit → itilince origin | boş kolon + yeni tablo |
 | 73 | `73_commitment_topic` | `GuestCommitment.topic` (I1: söze kısa konu — klima 18:00 ile musluk 18:00 iki söz) | kurucu ONAYLADI (10-17 "A"), yerel commit → itilince origin | boş kolon |
-| 74 | `74_trial_card_required` | `Organization.trialCardRequiredAt` (kartla deneme kapısı: yüksek riskli süren denemede kart istendi damgası; yazıcı saatlik iş, anahtar `TRIAL_CARD_GATE_ENABLED` KAPALI) | kurucu istedi (10-17 "kartla deneme kapısını yap") + genel migration onayı, yerel commit → itilince origin | boş kolon |
+| 74 | `74_trial_card_required` | `Organization.trialCardRequiredAt` (kartla deneme kapısı: yüksek riskli süren denemede kart istendi damgası; yazıcı saatlik iş, anahtar `TRIAL_CARD_GATE_ENABLED` KAPALI) + `Organization.trialCardExemptAt` (operatörün kart muafiyeti damgası) | kurucu istedi (10-17 "kartla deneme kapısını yap") + genel migration onayı, yerel commit → itilince origin | boş kolon |
 | 75 | `75_commitment_auto` | `GuestCommitment` zaman kesinliği (`duePrecision` saat / dilim / gün · `dayPart`) + kaynak (`source` auto / suggestion / manual, `sourceMessageId`) + saat taşıma izi (`previousDueAt`) + kapanış nedeni (`closedReason` stay_ended / wrong) + (`organizationId`, `createdAt`) dizini (günlük 20 sınırı sayımı) · `Organization.autoCommitmentsEnabled` (varsayılan AÇIK; anahtar `HOST_COMMITMENT_AUTO_ENABLED` KAPALI) | kurucu kararları (10-17 gece "onayla host uğraşmasın", "herkese birden", "20") + genel migration onayı, yerel commit → itilince origin | boş kolonlar + varsayılanlı boolean (PG 11+ meta-veri) + küçük tabloya düz dizin |
+| 76 | `76_commitment_actor` | `GuestCommitment.actor` (sözü yapan: visit / delivery / NULL — yazma katmanı aynı andaki başka yapanın sözüne kilit içinde birleşmez; Opus gece-3 F4/F5) | genel migration onayı (kurucu 10-17 "daha iyi olacaksa migration yapalım"), yerel commit → itilince origin | boş kolon |
 
 ## 2. Hazırlanan / önerilen paketler (NUMARASIZ — sıra yayın anında)
 
