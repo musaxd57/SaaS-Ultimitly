@@ -397,6 +397,18 @@ describe("BAĞLAM — saat güncellemesi yalnız kesin eşleşmede (kurucu: 'ba�
     expect((await getConversationSuggestions(s.orgId, s.conversationId)).filter((x) => x.kind === "commitment")).toEqual([]);
   });
 
+  it("🚨 Haiku 2. tur: SONRAKİ mesajdan açılmış FARKLI yapanın sözü ('filtreyi akşam getireceğim') önceki teknisyen sözünün önerisini GİZLEMEZ", async () => {
+    // Otomatik işleme ÇAĞRILMAZ: iki öneri de kartta (ev sahibi ikinciyi önce onaylıyor).
+    const s = await setup();
+    const m1 = await hostSays(s.conversationId, "Klima için teknisyen yarın 10:00'da gelecek.", new Date(Date.now() - 10 * 60_000));
+    const m2 = await hostSays(s.conversationId, "Klima filtresini yarın akşam getireceğim.", new Date(Date.now() - 5 * 60_000));
+    const sugg = (await getConversationSuggestions(s.orgId, s.conversationId)).filter((x) => x.kind === "commitment");
+    const second = sugg.find((x) => x.kind === "commitment" && x.proposal.messageId === m2.id)!;
+    expect((await decide({ key: second.key, decision: "approve" })).status).toBe(200);
+    const left = (await getConversationSuggestions(s.orgId, s.conversationId)).filter((x) => x.kind === "commitment");
+    expect(left.map((x) => x.kind === "commitment" && x.proposal.messageId)).toEqual([m1.id]);
+  });
+
   it("KONTROL: aynı an + aynı YAPAN ('Klima için teknisyen yarın 10:00'da gelecek' tekrarı) → öneri yok, ikinci söz yok", async () => {
     const s = await setup();
     await hostSays(s.conversationId, "Klima için teknisyen yarın 10:00'da gelecek.", new Date(Date.now() - 10 * 60_000));
