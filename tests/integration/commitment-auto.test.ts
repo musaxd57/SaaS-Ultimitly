@@ -96,7 +96,21 @@ beforeEach(async () => {
   mockSend.mockReset();
   vi.stubEnv("HOST_COMMITMENT_AUTO_ENABLED", "1");
 });
-afterEach(() => vi.unstubAllEnvs());
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.useRealTimers();
+});
+
+/**
+ * Gerçek saatle koşan (karar rotası `decide()` kendi `new Date()`ını kullanır) ama mesajları "10 / 5 dk önce" yazan testler İstanbul'da gece
+ * yarısından hemen sonra koşarsa iki mesaj farklı günlere düşer (Opus 10-17 gece-3 F14: 21:00–21:10 UTC'de kırmızı). Yalnız `Date` sahtelenir,
+ * BUGÜNÜN İstanbul öğlesine: gerçek günle aynı gün → veritabanının kendi zaman damgalarıyla (karar kaydı, söz satırı) gün karışmaz.
+ */
+function pinIstanbulNoonToday(): Date {
+  const noon = new Date(`${dateKeyInTimeZone(new Date(), TZ)}T09:00:00.000Z`);
+  vi.useFakeTimers({ toFake: ["Date"], now: noon });
+  return noon;
+}
 
 describe("anahtar ve ayar", () => {
   it("🚨 anahtar KAPALI → hiçbir şey açılmaz (bugünkü davranış: öneri kalır); tarama ve konaklama kapatması sorgusuz", async () => {
@@ -381,6 +395,7 @@ describe("BAĞLAM — saat güncellemesi yalnız kesin eşleşmede (kurucu: 'ba�
   });
 
   it("🚨 Haiku 2. tur: AYNI an + konu, FARKLI yapan ('Klima filtresini yarın 10:00'da getireceğim' ↔ teknisyen yarın 10:00) → gizlenmez, birleşmez: ayrı söz + görev", async () => {
+    pinIstanbulNoonToday();
     const s = await setup();
     await hostSays(s.conversationId, "Klima için teknisyen yarın 10:00'da gelecek.", new Date(Date.now() - 10 * 60_000));
     await applyHostCommitmentsAuto(s.orgId, s.conversationId);
@@ -398,6 +413,7 @@ describe("BAĞLAM — saat güncellemesi yalnız kesin eşleşmede (kurucu: 'ba�
   });
 
   it("🚨 Haiku 2. tur: SONRAKİ mesajdan açılmış FARKLI yapanın sözü ('filtreyi akşam getireceğim') önceki teknisyen sözünün önerisini GİZLEMEZ", async () => {
+    pinIstanbulNoonToday();
     // Otomatik işleme ÇAĞRILMAZ: iki öneri de kartta (ev sahibi ikinciyi önce onaylıyor).
     const s = await setup();
     const m1 = await hostSays(s.conversationId, "Klima için teknisyen yarın 10:00'da gelecek.", new Date(Date.now() - 10 * 60_000));
@@ -410,6 +426,7 @@ describe("BAĞLAM — saat güncellemesi yalnız kesin eşleşmede (kurucu: 'ba�
   });
 
   it("KONTROL: aynı an + aynı YAPAN ('Klima için teknisyen yarın 10:00'da gelecek' tekrarı) → öneri yok, ikinci söz yok", async () => {
+    pinIstanbulNoonToday();
     const s = await setup();
     await hostSays(s.conversationId, "Klima için teknisyen yarın 10:00'da gelecek.", new Date(Date.now() - 10 * 60_000));
     await applyHostCommitmentsAuto(s.orgId, s.conversationId);
@@ -431,6 +448,7 @@ describe("BAĞLAM — saat güncellemesi yalnız kesin eşleşmede (kurucu: 'ba�
   });
 
   it("🚨 Opus O20: 'Havlu getireceğim' (gün) ile sonraki 'Akşam havlu getireceğim' (akşam) aynı 23:59'da biter ama AYRI an — birleşmez, kart sorar; 'Ayrı söz' ikinci söz açar", async () => {
+    pinIstanbulNoonToday();
     const s = await setup();
     await hostSays(s.conversationId, "Havlu getireceğim.", new Date(Date.now() - 10 * 60_000));
     expect((await applyHostCommitmentsAuto(s.orgId, s.conversationId)).created).toBe(1);

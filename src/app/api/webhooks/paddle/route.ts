@@ -839,7 +839,7 @@ export async function POST(req: NextRequest): Promise<Response> {
         // işletmeye ait değil, abonelik / fatura yazmaz. (Paddle bildirim hedefinde bu olay türleri işaretli olmalı.)
         await alertPaddleApiKey(eventType, data);
         // Olay İŞLENDİ sayılır — ödeme olayı değil, ödeme incelemesine düşmez (Haiku 10-17 gece 2. tur). Kalıcı iz (Opus O18): bu satır
-        // Operasyon Teşhisi'nde 90 gün "Paddle API anahtarı" uyarısı olarak görünür (`latestPaddleApiKeyAlert`); e-posta kısılsa da kaybolmaz.
+        // Operasyon Teşhisi'nde 90 gün "Paddle API anahtarı" uyarısı olarak görünür (`paddleApiKeyAlerts`); e-posta kısılsa da kaybolmaz.
       }
       if (providerEventId) {
         // İnceleme gereken olay "işlendi" sayılmaz (ödeme S1): satır "error" + kısa kod kalır → Paddle'dan yeniden gönderilirse tekrar

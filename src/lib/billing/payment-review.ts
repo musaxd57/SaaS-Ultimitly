@@ -79,25 +79,46 @@ export interface PaddleApiKeyAlert {
   at: Date;
 }
 
-/** Son 90 günün en yeni API anahtarı uyarısı (yoksa null). */
-export async function latestPaddleApiKeyAlert(now: Date = new Date()): Promise<PaddleApiKeyAlert | null> {
-  const row = await prisma.webhookEvent.findFirst({
+const API_KEY_ALERT_SEVERITY: Record<string, number> = { "api_key.revoked": 0, "api_key.expired": 0, "api_key.expiring": 1 };
+
+/**
+ * Son 90 günün API anahtarı uyarıları: anahtar BAŞINA en yeni olay, önce ağır olanlar (iptal / süresi doldu), sonra yeni → eski; en fazla 3
+ * (Opus 10-17 gece-3 F13: yalnız en yeni olay gösterilince başka anahtarın "yakında doluyor" olayı, eski anahtarın "DOLDU" uyarısını
+ * gizliyordu). Anahtar kimliği olmayan olay kendi satırıdır.
+ */
+export async function paddleApiKeyAlerts(now: Date = new Date(), max = 3): Promise<PaddleApiKeyAlert[]> {
+  const rows = await prisma.webhookEvent.findMany({
     where: {
       provider: "paddle",
       eventType: { in: [...PADDLE_API_KEY_ALERT_EVENTS] },
       createdAt: { gte: new Date(now.getTime() - API_KEY_ALERT_WINDOW_MS) },
     },
-    orderBy: { createdAt: "desc" },
-    select: { eventType: true, payloadJson: true, createdAt: true },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: 50,
+    select: { id: true, eventType: true, payloadJson: true, createdAt: true },
   });
-  if (!row?.eventType) return null;
-  let data: unknown = null;
-  try {
-    data = (JSON.parse(row.payloadJson ?? "null") as { data?: unknown } | null)?.data ?? null;
-  } catch {
-    data = null;
+  const seen = new Set<string>();
+  const out: PaddleApiKeyAlert[] = [];
+  for (const row of rows) {
+    if (!row.eventType) continue;
+    let data: unknown = null;
+    try {
+      data = (JSON.parse(row.payloadJson ?? "null") as { data?: unknown } | null)?.data ?? null;
+    } catch {
+      data = null;
+    }
+    const keyId = data && typeof data === "object" && typeof (data as { id?: unknown }).id === "string" ? (data as { id: string }).id : `row:${row.id}`;
+    if (seen.has(keyId)) continue;
+    seen.add(keyId);
+    out.push({ eventType: row.eventType, ...paddleApiKeyFacts(data), at: row.createdAt });
   }
-  return { eventType: row.eventType, ...paddleApiKeyFacts(data), at: row.createdAt };
+  out.sort((a, b) => (API_KEY_ALERT_SEVERITY[a.eventType] ?? 2) - (API_KEY_ALERT_SEVERITY[b.eventType] ?? 2) || b.at.getTime() - a.at.getTime());
+  return out.slice(0, max);
+}
+
+/** Gösterilecek ilk (en ağır, sonra en yeni) uyarı; yoksa null. */
+export async function latestPaddleApiKeyAlert(now: Date = new Date()): Promise<PaddleApiKeyAlert | null> {
+  return (await paddleApiKeyAlerts(now, 1))[0] ?? null;
 }
 
 export async function paymentReviewSummary(limit = 20): Promise<{ total: number; rows: PaymentReviewRow[] }> {

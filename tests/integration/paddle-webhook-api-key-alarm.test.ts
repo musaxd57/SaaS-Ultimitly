@@ -16,7 +16,7 @@ vi.mock("@/lib/report-error", async (orig) => {
 });
 
 import { POST } from "@/app/api/webhooks/paddle/route";
-import { latestPaddleApiKeyAlert, paymentReviewSummary } from "@/lib/billing/payment-review";
+import { latestPaddleApiKeyAlert, paddleApiKeyAlerts, paymentReviewSummary } from "@/lib/billing/payment-review";
 import { prisma, resetDb } from "../helpers/db";
 
 const SECRET = "test-webhook-hmac-key-not-a-real-secret";
@@ -105,6 +105,20 @@ describe("Paddle webhook — API anahtarı uyarısı", () => {
     expect(await latestPaddleApiKeyAlert()).toMatchObject({ eventType: "api_key.expired", name: "yeni" });
     await prisma.webhookEvent.updateMany({ data: { createdAt: new Date(Date.now() - 91 * 24 * 60 * 60 * 1000) } });
     expect(await latestPaddleApiKeyAlert()).toBeNull();
+  });
+
+  it("🚨 Opus F13: anahtar BAŞINA en yeni olay; başka anahtarın sonraki 'yakında doluyor' olayı eski anahtarın 'DOLDU' uyarısını GİZLEMEZ (ağır olan önce)", async () => {
+    expect((await post(keyEvent("evt_l_exp", "api_key.expired", { id: "apikey_L", name: "eski" }))).status).toBe(200);
+    expect((await post(keyEvent("evt_k_soon", "api_key.expiring", { id: "apikey_K", name: "yeni" }))).status).toBe(200);
+    await prisma.webhookEvent.update({ where: { providerEventId: "evt_l_exp" }, data: { createdAt: new Date(Date.now() - 60_000) } });
+    const list = await paddleApiKeyAlerts();
+    expect(list.map((a) => [a.eventType, a.name])).toEqual([
+      ["api_key.expired", "eski"],
+      ["api_key.expiring", "yeni"],
+    ]);
+    // Aynı anahtarın eski olayı tekrar satır açmaz (anahtar başına en yeni).
+    expect((await post(keyEvent("evt_k_soon2", "api_key.expiring", { id: "apikey_K", name: "yeni" }))).status).toBe(200);
+    expect(await paddleApiKeyAlerts()).toHaveLength(2);
   });
 
   it("KONTROL: başka olay türleri (api_key.created, subscription) bu uyarıyı TETİKLEMEZ", async () => {

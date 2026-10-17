@@ -258,13 +258,23 @@ export async function getConversationSuggestions(
   const msgById = new Map(messages.map((x) => [x.id, x]));
   const sourceAt = (c: (typeof commitments)[number]): number =>
     ((c.sourceMessageId ? msgById.get(c.sourceMessageId)?.createdAt : undefined) ?? c.createdAt).getTime();
+  // Algılama mesaj başına BİR kez (Opus 10-17 gece-3 F15: her söz × her açık söz için yeniden koşuyordu — uzun mesajda yüzlerce ms).
+  const promisesCache = new Map<string, HostPromise[]>();
+  const promisesOf = (id: string, body: string): HostPromise[] => {
+    let hit = promisesCache.get(id);
+    if (!hit) {
+      hit = detectHostPromises(body);
+      promisesCache.set(id, hit);
+    }
+    return hit;
+  };
   const actorOf = (c: (typeof commitments)[number]): HostPromise["actor"] => {
     const src = c.sourceMessageId ? msgById.get(c.sourceMessageId) : undefined;
     if (!src) return null;
     const prefix = `sugg:${suggestionKey("commitment", src.id)}`;
     const rid = c.clientRequestId ?? "";
     const idx = rid.startsWith(`${prefix}:`) ? Number(rid.slice(prefix.length + 1)) : 0;
-    return detectHostPromises(src.body)[Number.isInteger(idx) ? idx : 0]?.actor ?? null;
+    return promisesOf(src.id, src.body ?? "")[Number.isInteger(idx) ? idx : 0]?.actor ?? null;
   };
 
   // A adayları + toplu görev denetimi (kaynağa bağlı görev · aynı gün anahtarlı açık görev).
@@ -313,7 +323,7 @@ export async function getConversationSuggestions(
       // L5 (10-17): kanalın KENDİ otomatik mesajı ("Housekeeping will come tomorrow at 10" şablonu) ev sahibinin sözü DEĞİL.
       // Q1-b (kurucu 10-17, "ikisini de öner"): mesajdaki HER söz ayrı öneri. İlk sözün anahtarı mesaj kimliği (geriye uyumlu), sonrakiler
       // `<mesaj>:<sıra>` — sıra mesajın metninden (değişmez) gelir, süzgeçlerden önce verilir → listede ve onayda aynı anahtar.
-      for (const [idx, promise] of detectHostPromises(m.body).entries()) {
+      for (const [idx, promise] of promisesOf(m.id, m.body ?? "").entries()) {
         if (out.length >= MAX_SUGGESTIONS) break;
         const key = suggestionKey("commitment", idx === 0 ? m.id : `${m.id}:${idx}`);
         if (decided.has(key)) continue;
