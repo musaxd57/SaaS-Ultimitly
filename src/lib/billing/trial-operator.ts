@@ -18,7 +18,11 @@ export const TRIAL_OPERATOR_ENDED_MESSAGE =
 export type TrialOperatorResult = { ok: true } | { ok: false; reason: "not_running" | "not_operator_ended" };
 
 /** Süren denemeyi bitirir (yalnız sağlayıcı "trial" ve bitiş anı gelecekte). Koşullu yazım + denetim kaydı aynı işlemde. */
-export async function endTrialByOperator(organizationId: string, actorUserId: string, now: Date = new Date()): Promise<TrialOperatorResult> {
+export async function endTrialByOperator(
+  organizationId: string,
+  actorUserId: string,
+  now: Date = new Date(),
+): Promise<TrialOperatorResult> {
   return prisma.$transaction(async (tx) => {
     const res = await tx.subscription.updateMany({
       where: { organizationId, provider: "trial", trialEndsAt: { gt: now } },
@@ -31,7 +35,11 @@ export async function endTrialByOperator(organizationId: string, actorUserId: st
 }
 
 /** Yalnız operatörün bitirdiği denemeyi geri verir: bugünden yeni deneme süresi, hatırlatma damgaları silinir (bitince e-posta yine gider). */
-export async function restoreOperatorEndedTrial(organizationId: string, actorUserId: string, now: Date = new Date()): Promise<TrialOperatorResult> {
+export async function restoreOperatorEndedTrial(
+  organizationId: string,
+  actorUserId: string,
+  now: Date = new Date(),
+): Promise<TrialOperatorResult> {
   return prisma.$transaction(async (tx) => {
     const res = await tx.subscription.updateMany({
       where: { organizationId, provider: "trial", trialEndReason: TRIAL_END_REASON_OPERATOR },

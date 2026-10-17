@@ -24,6 +24,8 @@ import { PaddlePlans } from "@/components/settings/paddle-plans";
 import { checkoutPendingActive } from "@/lib/billing/checkout-pending";
 import { TRIAL_END_REASON_IDENTITY_REUSED, TRIAL_IDENTITY_REUSED_MESSAGE } from "@/lib/billing/trial-identity";
 import { TRIAL_END_REASON_OPERATOR, TRIAL_OPERATOR_ENDED_MESSAGE } from "@/lib/billing/trial-operator";
+import { resumeEnabled } from "@/lib/billing/resume";
+import { cardTrialPriceIds, TRIAL_CARD_REQUIRED_MESSAGE } from "@/lib/billing/trial-card-gate";
 import {
   SettingsSections,
   type SettingsViewGroup,
@@ -491,6 +493,8 @@ export default async function SettingsPage({
                     : null
               }
               subscriptionStatus={entitlement.status}
+              resumeEnabled={canManagePaddleSub && resumeEnabled()}
+              cardTrialNotice={entitlement.cardRequired ? TRIAL_CARD_REQUIRED_MESSAGE : null}
               annualAvailable={defaultPlans().every((p) => (paddleAnnualPriceByCode[p.code] ?? "") !== "")}
               plans={defaultPlans().map((p) => ({
                 code: p.code,
@@ -502,6 +506,7 @@ export default async function SettingsPage({
                 propertyLimit: p.propertyLimit,
                 priceId: paddlePriceByCode[p.code] ?? "",
                 annualPriceId: paddleAnnualPriceByCode[p.code] ?? "",
+                trialPriceId: cardTrialPriceIds()[p.code] ?? "",
               }))}
             />
           </CardContent>

@@ -164,6 +164,9 @@ model Organization {
   /// K1-B (kurucu 10-17 "otomatik kesme yok", migration 72): deneme kimliği (ilan / takvim) başka hesapta görüldü — SİNYAL; deneme BİTİRİLMEZ,
   /// operatör listesinde "ilan daha önce kullanıldı" görünür. NULL = görülmedi. İlk gözlem kazanır.
   trialIdentityReusedAt      DateTime?
+  /// Kartla deneme kapısı (kurucu 10-17, migration 74): deneme sürerken risk puanı YÜKSEK bantta (ağ / IP sinyalleri HARİÇ) → saatlik iş
+  /// damgalar; `TRIAL_CARD_GATE_ENABLED` + faturalandırma zorunluyken otomatik işler kart eklenene kadar durur. Puan düşünce silinir.
+  trialCardRequiredAt        DateTime?
   createdAt                  DateTime  @default(now())
   updatedAt                  DateTime  @updatedAt
 

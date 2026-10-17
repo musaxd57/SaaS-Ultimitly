@@ -165,6 +165,48 @@ describe("POST /api/webhooks/paddle", () => {
       }
     });
 
+    it("🚨 KARTLA DENEME (10-17): Paddle 'trialing' olayı Paddle'ın deneme sonunu yazar — yerel (kartsız) deneme bitişi geçse de erişim Paddle deneme sonuna kadar AÇIK; tahsilat (active) bitişi temizler", async () => {
+      const DAY_MS = 86_400_000;
+      // Yerel kartsız deneme YARIN bitiyor; kart Paddle'da 10 günlük denemeyle eklendi.
+      await prisma.subscription.create({
+        data: { organizationId: orgId, planCode: "pro", provider: "trial", status: "trialing", trialEndsAt: new Date(Date.now() - DAY_MS) },
+      });
+      const paddleTrialEnd = new Date(Date.now() + 10 * DAY_MS).toISOString();
+      const trialing = JSON.stringify({
+        event_id: "evt_card_trial",
+        event_type: "subscription.created",
+        occurred_at: new Date(Date.now() - 60_000).toISOString(),
+        data: {
+          id: "sub_ct",
+          status: "trialing",
+          custom_data: { consentId },
+          items: [{ price: { id: "pri_pro" } }],
+          current_billing_period: { starts_at: new Date().toISOString(), ends_at: paddleTrialEnd },
+        },
+      });
+      expect((await POST(req(trialing, sign(trialing)))).status).toBe(200);
+      let sub = await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } });
+      expect(sub).toMatchObject({ status: "trialing", provider: "paddle" });
+      expect(sub.trialEndsAt?.toISOString()).toBe(paddleTrialEnd); // ⬅️ ESKİDE yerel (geçmiş) bitiş kalıyordu → erişim kapalı
+      vi.stubEnv("BILLING_ENFORCED", "true");
+      vi.stubEnv("PRIMARY_ORG_ID", "baska-org");
+      try {
+        expect(await premiumAllowed(orgId)).toBe(true);
+        const charged = JSON.stringify({
+          event_id: "evt_card_trial_paid",
+          event_type: "subscription.activated",
+          occurred_at: new Date().toISOString(),
+          data: { id: "sub_ct", status: "active", custom_data: { consentId }, items: [{ price: { id: "pri_pro" } }] },
+        });
+        expect((await POST(req(charged, sign(charged)))).status).toBe(200);
+        sub = await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } });
+        expect(sub).toMatchObject({ status: "active", trialEndsAt: null });
+        expect(await premiumAllowed(orgId)).toBe(true);
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    });
+
     // Opus 10-16 N1: ödeme gecikmesi olayındaki dönem (Paddle yenilemede ödenmemiş YENİ döneme ilerlemiş olabilir) erişimi uzatmaz.
     const periodEvent = (eventId: string, status: string, occurredAt: string, startsAt: string, endsAt: string) =>
       JSON.stringify({

@@ -24,6 +24,7 @@
 | 71 | `71_message_channel_sender_role` | `Message.channelSenderRole` (L5: kanalın bildirdiği gönderen rolü — misafir / ev sahibi / kanal otomasyonu / tanınmayan) | kurucu ONAYLADI (10-17), yerel commit → itilince origin | BÜYÜK tabloya boş kolon (PG 11+ meta-veri, yeniden yazım yok, dizin yok) |
 | 72 | `72_signup_network_trace` | `Organization.trialIdentityReusedAt` (K1-B işaret; deneme bitirilmez) + `SignupNetworkTrace` (kayıt ağı izi: HMAC özet, ham IP yok, 90 gün; anahtar KAPALI) | kurucu ONAYLADI (10-17 "B + IP"), yerel commit → itilince origin | boş kolon + yeni tablo |
 | 73 | `73_commitment_topic` | `GuestCommitment.topic` (I1: söze kısa konu — klima 18:00 ile musluk 18:00 iki söz) | kurucu ONAYLADI (10-17 "A"), yerel commit → itilince origin | boş kolon |
+| 74 | `74_trial_card_required` | `Organization.trialCardRequiredAt` (kartla deneme kapısı: yüksek riskli süren denemede kart istendi damgası; yazıcı saatlik iş, anahtar `TRIAL_CARD_GATE_ENABLED` KAPALI) | kurucu istedi (10-17 "kartla deneme kapısını yap") + genel migration onayı, yerel commit → itilince origin | boş kolon |
 
 ## 2. Hazırlanan / önerilen paketler (NUMARASIZ — sıra yayın anında)
 

@@ -2,6 +2,7 @@ import "server-only";
 
 import { prisma } from "@/lib/db";
 import { planByCode } from "./plans";
+import { trialCardRequired } from "./trial-card-gate";
 
 // ---------------------------------------------------------------------------
 // Subscription entitlements (Faz 2). SAFE BY DESIGN — see ROADMAP "en kritik
@@ -26,6 +27,8 @@ export type Entitlement = {
   trialEndsAt: Date | null;
   trialDaysLeft: number | null; // whole days left (0 once past), null when not trialing
   trialExpired: boolean; // a trial whose end date has passed (effect gated by enforcement)
+  /** Kartla deneme kapısı (kurucu 10-17, migration 74): yüksek riskli denemede kart isteniyor → sınırlı mod (anahtar + zorunluluk açıkken). */
+  cardRequired: boolean;
 };
 
 const ACTIVE_STATUSES = new Set(["active", "trialing", "grandfathered"]);
@@ -98,6 +101,7 @@ export async function getEntitlement(organizationId: string): Promise<Entitlemen
       trialEndsAt: null,
       trialDaysLeft: null,
       trialExpired: false,
+      cardRequired: false,
     };
   }
   const plan = planByCode(sub.planCode);
@@ -123,6 +127,13 @@ export async function getEntitlement(organizationId: string): Promise<Entitlemen
   // enforced. Until then every org stays unblocked (dormant by design), so
   // flipping BILLING_ENFORCED off always restores access — the true kill-switch.
   if (trialExpired && billingEnforced()) active = false;
+  // KARTLA DENEME (kurucu 10-17): süren KARTSIZ denemede risk yüksekse kart eklenene kadar sınırlı mod — yalnız faturalandırma zorunluyken
+  // (aynı kill-switch). Kart Paddle'da eklenince abonelik sağlayıcısı "paddle" olur → bu dal hiç koşmaz.
+  let cardRequired = false;
+  if (trialing && !trialExpired && sub.provider === "trial" && billingEnforced()) {
+    cardRequired = await trialCardRequired(organizationId);
+    if (cardRequired) active = false;
+  }
 
   // Founder safety net: the primary org (the founder's OWN org) must NEVER be
   // paywalled — not even by a real test payment that creates a Subscription row
@@ -143,6 +154,7 @@ export async function getEntitlement(organizationId: string): Promise<Entitlemen
     trialEndsAt,
     trialDaysLeft,
     trialExpired,
+    cardRequired,
   };
 }
 

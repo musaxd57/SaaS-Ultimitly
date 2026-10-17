@@ -110,6 +110,8 @@ const OWNER_ONLY: Record<string, string> = {
   "billing/plan-change POST": "plan değişikliği (para)",
   "billing/plan-preview POST": "plan değişikliği ön hesabı (tek kullanımlık fiyat belirteci üretir)",
   "billing/portal POST": "ödeme portalı oturumu",
+  "billing/resume POST": "duraklatılmış aboneliği devam ettir (para — anında tahsilat; I4 C)",
+  "billing/resume-preview POST": "devam ettirme tutarı (tek kullanımlık onay belirteci üretir)",
   "account/export GET": "hesabın TÜM verisinin dökümü (KVKK)",
   "account/delete POST": "hesabı kalıcı silme",
   "reservations/[id]/erase GET": "misafir verisini silme ön izlemesi (KVKK)",

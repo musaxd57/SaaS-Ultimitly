@@ -41,6 +41,7 @@ import { logEvent, pruneOperationalEvents } from "@/lib/event-log";
 import { newCorrelationId, runWithCorrelation } from "@/lib/correlation";
 import { backfillTrialIdentitiesOnce, sweepTrialIdentities } from "@/lib/billing/trial-identity";
 import { checkSignupNetworkInfra, purgeSignupNetworkTraces } from "@/lib/billing/signup-network";
+import { evaluateTrialCardGates } from "@/lib/billing/trial-card-gate";
 
 // ---------------------------------------------------------------------------
 // The one scheduled pass: pull new Hospitable messages for every organization,
@@ -925,6 +926,12 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
         await hourly("signup-network-purge", "scheduled-sync signup-network-purge", async () => {
           await purgeSignupNetworkTraces();
           await checkSignupNetworkInfra();
+        });
+        // Kartla deneme kapısı (kurucu 10-17, migration 74): yüksek riskli süren denemeyi damgalar / bandan düşeni temizler. Anahtar
+        // `TRIAL_CARD_GATE_ENABLED` kapalıyken tek sorgu koşmaz.
+        await hourly("trial-card-gate", "scheduled-sync trial-card-gate", async () => {
+          const r = await evaluateTrialCardGates();
+          if (r.required > 0 || r.cleared > 0) console.log(`[scheduled-sync] trial-card-gate: ${JSON.stringify(r)}`);
         });
       }
       return totals;

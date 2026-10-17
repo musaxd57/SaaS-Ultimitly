@@ -797,3 +797,43 @@ aynı düğme o plan için ödeme ekranını açar (yeni abonelik, anında tahsi
 - **C3 · Deneme bitmiş (kartı hiç alınmamış) hesap:** kayıtlı kart olmadığı için "tek tık" mümkün değil → paket seçilince ödeme ekranı (kart girilir,
   anında tahsil). Bugünkü akış bu; böyle kalsın mı?
 
+
+## S. Kurucu kararları 10-17 akşam + açık sorular (sade)
+
+| Soru | Kurucu cevabı (özü) | Durum |
+|---|---|---|
+| Q1 | "a iyi önerin" | ✅ kodda: elle kaydedilen KONUSUZ söze aynı saatte konulu öneri bağlanınca yeni görev açılmaz, söze konu yazılır ("Aynı saatte kaydettiğiniz söze bağlandı (klima); yeni görev açılmadı."); ardından "musluk 18:00" önerisi AYRI söz + görev. Ev sahibinin değiştirdiği görev başlığına dokunulmaz. Sınır: söz mesajdan SONRA elle kaydedildiyse öneri gösterilmez (farklı saatle kaydettiyseniz ikinci görev açılmasın diye). Anahtar `AI_ACTION_SUGGESTIONS_ENABLED` kapalı |
+| Q3 | "dediğim cümle çok iyi, 90 gün iyidir" | ✅ cümle gizlilik metni §5'te (aynen, pinli); saklama 90 gün (pinli). Bu cümle "otomatik karar verilmez" dediği için kartla deneme kapısı ağ / IP sinyallerini KULLANMAZ (pinli) |
+| Q4 | "dediğin mantıklı" | ✅ operatör listesinde "Denemeyi bitir" / "Denemeyi geri ver"; müşteri ayarlarda yalnız onaylı metni görür; genel "14 günlük denemeniz doldu" e-postası bu durumda gitmez (yanlış olurdu) |
+| C1 | onay penceresi + altında çok küçük yazıyla "kartınızdan tahsil edilecek" | ✅ kodda (anahtar `PADDLE_RESUME_ENABLED` kapalı): büyük yazı "Pro planınız hemen açılır." + altında küçük "₺899,00 kayıtlı kartınızdan şimdi tahsil edilecek." (tutar Paddle'dan; okunamazsa pencere açılmaz) |
+| C2 | "direk bütün paketler gözüksün" | ✅ devam penceresinde bütün paketler (önceki işaretli). Başka paket seçilirse: önce önceki paket devam eder, paket değişikliği ardından (fark ayrıca gösterilir) — Paddle duraklatılmış abonelikte doğrudan paket değişikliğine izin veriyorsa tek adıma indirilecek (sandbox P3) |
+| C3 | "evet öyle kalsın" | değişiklik yok |
+| Kartla deneme | "yap; yüksek riskte öyle bir durum olsun" | ✅ kodda (migration 74, anahtar `TRIAL_CARD_GATE_ENABLED` KAPALI + deneme süreli Paddle fiyatları tanımlanmadan çalışmaz) — açmadan önce KD1–KD3 ↓ |
+| Paddle | "doğrulamamız gereken her şeyi doğrulayalım" | 14 maddelik sandbox listesi: `docs/TASARIM-2026-10-17-paddle-devam-ettir-ve-kartla-deneme.md` §4 |
+
+**Teyit isteyen yorum — "Q2 bu söz ne demek… 2'sini de öner":** "Söz" = ev sahibinin misafire verdiği, saate bağlı taahhüt ("Klima için teknisyen
+yarın 10:00'da gelecek"). Amaç unutulmaması: onaylanınca o saate görev açılır, saat geçerse "söz gecikti" görünür. Cevabınızı **Q1-b**'nin cevabı
+olarak okudum (Q1-b'de "ikisini de önereyim mi?" diye sormuştum): (1) tek mesajda iki söz → iki öneri; (2) aynı saatte iki farklı konulu söz varken
+konusuz yeni söz → "hangi söze bağlansın?" sorusu. Doğru okuduysam "evet" demeniz yeter, kodlarım (anahtar kapalı).
+
+**Q2 hâlâ açık (sade):** Hospitable'ın KENDİ gönderdiği otomatik mesaj (ör. "Giriş bilgileriniz…") misafirin sorusuna verilmiş CEVAP sayılsın mı?
+Bugün sayılıyor → misafirin hemen önce sorduğu "Otopark var mı?" cevapsız kalıyor. Önerim: cevap sayılmasın (yapay zekâ otoparkı yine cevaplar),
+şablondaki bilgi okunsun ama şablonun resmî dili sizin üslubunuz gibi taklit edilmesin (Q2-b). Böyle yapalım mı?
+
+**Kartla deneme — açmadan önce üç soru:**
+- **KD1 · Aydınlatma cümlesi** (otomatik sonuç doğurduğu için şart): "Ücretsiz deneme sırasında bazı hesap işaretleri (ör. aynı ilanın daha önce bir
+  deneme hesabında kullanılmış olması ya da geçici e-posta adresi) görülürse, denemenin devam etmesi için kart bilgisi istenebilir; deneme süresince
+  kartınızdan ücret alınmaz. Bu kararın gözden geçirilmesini bize yazarak isteyebilirsiniz." Uygun mu?
+- **KD2 · Kapsam:** kart istenen hesapta deneme bitmiş hesapla aynı sınırlı mod (otomatik cevap + otomatik mesaj + yapay zekâ önerisi + çeviri + QR
+  yapay zekâsı durur; panel ve elle cevap açık) — önerim, mevcut ve test edilmiş yol. Yoksa yalnız otomatik gönderim mi dursun?
+- **KD3 · Kartlı denemenin süresi:** Paddle'da deneme süresi fiyata bağlı. Kalan gün kadar mı (9 gün kaldıysa 9 — önerim, adil) yoksa karttan
+  itibaren yeniden 14 gün mü? (Kalan güne göre ayar Paddle'ın özel fiyat desteğine bağlı — sandbox P5.)
+- Müşterinin göreceği metin (bant + faturalandırma kartı, onayınızı bekliyor): "Denemenize devam etmek için kartınızı ekleyin. Deneme süresince ücret
+  alınmaz; deneme bitmeden iptal ederseniz ücret ödemezsiniz." + "Kart ekle".
+
+**L1 / L4 (geçmiş cevaplarınız + düzenleme farkından öğrenme) — 6 soru:** tasarım (Opus, kodda doğrulanmış) `docs/TASARIM-2026-10-17-l1-l4-gecmis-cevaplar-ve-duzenleme-farki.md`
+§7: (1) "iki kip" ne demek (önerim: Kip A taslakta, Kip B sıkı şartlı otomatik cevapta, daire başına bir kez seçilir) · (2) bilgi tabanı ile
+daha yeni cevabınız çelişirse (önerim: taslakta bilgi tabanı kazanır + "bilgi tabanını güncelle" kartı) · (3) güven ne hızla azalsın (önerim 120
+gün yarı ömür: dün %99, 3 ay %59, 1 yıl %12) · (4) L4'te ne öğrenilsin (önerim: değiştirdiğiniz / eklediğiniz cümle sizin bilginiz; aynı düzeltme
+iki misafirde → tek kart) · (5) bütün geçmişin dizinlenmesi (maliyet tahmini 2–14 sent, KVKK cümlesi, model) · (6) taslağı değiştirmeden
+göndermek eski cevabı "yeniden doğrulandı" saysın mı (önerim: hayır, "Hâlâ geçerli" tek tık). Her soru belgede önce / sonra örnekli.

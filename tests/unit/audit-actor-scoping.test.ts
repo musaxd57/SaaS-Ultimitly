@@ -89,6 +89,10 @@ describe("denetim kaydı — impersonation'da fail OPERATÖRDÜR", () => {
     const planChange = readFileSync("src/app/api/billing/plan-change/route.ts", "utf8");
     expect(planChange).toContain("auditActor(session)");
     expect(planChange).toContain("auditImpersonation(session)");
+    // I4 C (10-17): devam ettirme de anında tahsilat yapar — aynı iz.
+    const resume = readFileSync("src/app/api/billing/resume/route.ts", "utf8");
+    expect(resume).toContain("auditActor(session)");
+    expect(resume).toContain("auditImpersonation(session)");
   });
 });
 

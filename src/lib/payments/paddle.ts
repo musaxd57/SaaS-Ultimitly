@@ -133,6 +133,10 @@ function paddlePriceCatalog(): Record<string, string> {
   put(process.env.PADDLE_PRICE_BASLANGIC_YILLIK, "free");
   put(process.env.PADDLE_PRICE_PRO_YILLIK, "pro");
   put(process.env.PADDLE_PRICE_ISLETME_YILLIK, "business");
+  // Kartla deneme (kurucu 10-17): deneme süreli fiyatlar AYNI plan koduna (deneme bir fatura biçimi, yetki seviyesi değil).
+  put(process.env.PADDLE_PRICE_BASLANGIC_DENEME, "free");
+  put(process.env.PADDLE_PRICE_PRO_DENEME, "pro");
+  put(process.env.PADDLE_PRICE_ISLETME_DENEME, "business");
   return map;
 }
 
@@ -184,6 +188,11 @@ export type PortalLinks = {
   overview: string;
   /** Deep link straight to the cancellation form for this subscription (if any). */
   cancel: string | null;
+  /**
+   * I4 C (10-17): Paddle'ın bu abonelik için "ödeme yöntemini güncelle" sayfası (kart reddi metnindeki bağlantı). Alan adı sandbox'ta
+   * doğrulanacak (P4, `docs/TASARIM-2026-10-17-paddle-devam-ettir-ve-kartla-deneme.md`); yoksa null → çağıran portal ana sayfasına düşer.
+   */
+  updatePaymentMethod: string | null;
 };
 
 /**
@@ -215,7 +224,7 @@ export async function createPortalSession(subscriptionId: string): Promise<Porta
       data?: {
         urls?: {
           general?: { overview?: string };
-          subscriptions?: Array<{ id?: string; cancel_subscription?: string }>;
+          subscriptions?: Array<{ id?: string; cancel_subscription?: string; update_subscription_payment_method?: string }>;
         };
       };
     };
@@ -224,9 +233,10 @@ export async function createPortalSession(subscriptionId: string): Promise<Porta
       await reportError("paddle-portal", new Error("portal session returned no overview url"));
       return null;
     }
-    const cancel =
-      res?.data?.urls?.subscriptions?.find((s) => s.id === subscriptionId)?.cancel_subscription ?? null;
-    return { overview, cancel };
+    const mine = res?.data?.urls?.subscriptions?.find((s) => s.id === subscriptionId);
+    const cancel = mine?.cancel_subscription ?? null;
+    const updatePaymentMethod = mine?.update_subscription_payment_method ?? null;
+    return { overview, cancel, updatePaymentMethod };
   } catch (err) {
     // e.g. "Paddle HTTP 404 (entity_not_found) env=production resource=subscriptions"
     // → the stored subscription id doesn't exist in the current Paddle environment.
@@ -508,3 +518,80 @@ export async function getSubscriptionCurrentPriceId(subscriptionId: string): Pro
     return null;
   }
 }
+
+// ---------------------------------------------------------------------------
+// I4 C (kurucu 10-17: "tıklanınca hemen ödeme alınsın, pakete dönsün") — duraklatılmış aboneliği DEVAM ETTİR. Anahtar
+// `PADDLE_RESUME_ENABLED` rota katmanında; bu yardımcılar çağrılmadıkça etkisiz. Paddle davranışı sandbox'ta doğrulanacak (P6–P8,
+// `docs/TASARIM-2026-10-17-paddle-devam-ettir-ve-kartla-deneme.md`): hemen devam → yeni dönem + kayıtlı karttan tahsil.
+// ---------------------------------------------------------------------------
+
+export type ResumeResult =
+  | { ok: true }
+  // `declined`: Paddle kartı reddetti (müşteriye "kartınızı güncelleyin" + kart güncelleme bağlantısı).
+  | { ok: false; kind: "definitive" | "ambiguous"; declined: boolean; reason: string };
+
+/**
+ * Duraklatılmış aboneliği HEMEN devam ettirir. Asla fırlatmaz. Paddle'ın genel API'sinde tekrar kimliği yok → çağıran yalnız "kesin"
+ * (4xx) başarısızlığı yeniden deneyebilir; "belirsiz"de (5xx / zaman aşımı) durum okunur, KÖRLEMESİNE yeniden gönderilmez.
+ */
+export async function resumeSubscription(subscriptionId: string, orgId?: string): Promise<ResumeResult> {
+  if (!subscriptionId || !isPaddleConfigured()) {
+    return { ok: false, kind: "definitive", declined: false, reason: "unconfigured" };
+  }
+  try {
+    await paddleRequest(`/subscriptions/${encodeURIComponent(subscriptionId)}/resume`, {
+      method: "POST",
+      body: { effective_from: "immediately" },
+    });
+    return { ok: true };
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : "unknown";
+    const declined = /\(subscription_payment_declined\)/.test(reason);
+    if (isExpectedPaddleError(err)) {
+      console.warn(`[paddle] expected outcome — not paged ${JSON.stringify({ operation: "resume", org: orgId ?? null, detail: reason })}`);
+    } else {
+      await reportError("paddle-resume", err);
+    }
+    return { ok: false, kind: classifyPaddleFailure(err), declined, reason };
+  }
+}
+
+/** Aboneliğin Paddle'daki durumu (belirsiz devam sonucunu mutabakat için). Asla fırlatmaz → okunamazsa null ("bilinmiyor"). */
+export async function getSubscriptionStatus(subscriptionId: string): Promise<{ status: string | null; customerId: string | null } | null> {
+  if (!subscriptionId || !isPaddleConfigured()) return null;
+  try {
+    const res = (await paddleRequest(`/subscriptions/${encodeURIComponent(subscriptionId)}`)) as {
+      data?: { status?: string; customer_id?: string };
+    };
+    return { status: res?.data?.status ?? null, customerId: res?.data?.customer_id ?? null };
+  } catch (err) {
+    if (!isExpectedPaddleError(err)) await reportError("paddle-subscription-get", err);
+    return null;
+  }
+}
+
+/**
+ * Bir fiyatın bu müşteri için VERGİ DAHİL toplamı (Paddle fiyat önizlemesi) — devam ettirme onay penceresindeki rakam. Asla fırlatmaz;
+ * okunamazsa null → çağıran pencereyi AÇMAZ (tahmini rakamla para çekilmez). Alan adları sandbox'ta doğrulanacak (P8).
+ */
+export async function previewPriceTotal(priceId: string, customerId: string | null): Promise<string | null> {
+  if (!priceId || !isPaddleConfigured()) return null;
+  try {
+    const res = (await paddleRequest("/pricing-preview", {
+      method: "POST",
+      body: { items: [{ price_id: priceId, quantity: 1 }], ...(customerId ? { customer_id: customerId } : {}) },
+    })) as {
+      data?: {
+        currency_code?: string;
+        details?: { line_items?: Array<{ totals?: { total?: string } }>; totals?: { total?: string; grand_total?: string } };
+      };
+    };
+    const d = res?.data;
+    const total = d?.details?.totals?.grand_total ?? d?.details?.totals?.total ?? d?.details?.line_items?.[0]?.totals?.total;
+    return formatPaddleTotal(total, d?.currency_code ?? null);
+  } catch (err) {
+    if (!isExpectedPaddleError(err)) await reportError("paddle-pricing-preview", err);
+    return null;
+  }
+}
+

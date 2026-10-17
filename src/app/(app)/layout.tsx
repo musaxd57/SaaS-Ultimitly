@@ -9,6 +9,8 @@ import { getEntitlement, billingEnforced } from "@/lib/billing/subscription";
 import { TrialBanner } from "@/components/billing/trial-banner";
 import { showTrialBanner, TRIAL_BANNER_COOKIE } from "@/lib/billing/trial-banner";
 import { LimitedModeBanner } from "@/components/billing/limited-mode-banner";
+import { resumeEnabled } from "@/lib/billing/resume";
+import { TRIAL_CARD_REQUIRED_MESSAGE } from "@/lib/billing/trial-card-gate";
 import { DemoBanner } from "@/components/billing/demo-banner";
 import { isDemoOrg } from "@/lib/demo-tenant/constants";
 
@@ -91,7 +93,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       {isDemoOrg(session.organizationId) ? (
         <DemoBanner />
       ) : limited ? (
-        <LimitedModeBanner status={entitlement.status} />
+        <LimitedModeBanner
+          status={entitlement.status}
+          resumeAvailable={resumeEnabled()}
+          cardRequiredMessage={entitlement.cardRequired ? TRIAL_CARD_REQUIRED_MESSAGE : null}
+        />
       ) : trialBanner && entitlement.trialDaysLeft != null ? (
         <TrialBanner daysLeft={entitlement.trialDaysLeft} />
       ) : null}

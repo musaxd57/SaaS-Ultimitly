@@ -28,7 +28,9 @@ describe("createPortalSession", () => {
         data: {
           urls: {
             general: { overview: "https://portal/overview" },
-            subscriptions: [{ id: "sub_1", cancel_subscription: "https://portal/cancel" }],
+            subscriptions: [
+              { id: "sub_1", cancel_subscription: "https://portal/cancel", update_subscription_payment_method: "https://portal/card" },
+            ],
           },
         },
       },
@@ -36,6 +38,7 @@ describe("createPortalSession", () => {
     expect(await createPortalSession("sub_1")).toEqual({
       overview: "https://portal/overview",
       cancel: "https://portal/cancel",
+      updatePaymentMethod: "https://portal/card", // I4 C: kart reddi metnindeki bağlantı
     });
   });
 
@@ -45,7 +48,7 @@ describe("createPortalSession", () => {
       { data: { customer_id: "ctm_1" } },
       { data: { urls: { general: { overview: "https://portal/overview" }, subscriptions: [] } } },
     );
-    expect(await createPortalSession("sub_1")).toEqual({ overview: "https://portal/overview", cancel: null });
+    expect(await createPortalSession("sub_1")).toEqual({ overview: "https://portal/overview", cancel: null, updatePaymentMethod: null });
   });
 
   it("returns null when the subscription has no customer_id", async () => {

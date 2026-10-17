@@ -8,6 +8,7 @@ import { CHECKOUT_PENDING_MESSAGE, CHECKOUT_PENDING_MS } from "@/lib/billing/che
 import { formatMinor } from "@/lib/utils";
 import { BILLING_TEXT, billingReason, lapsedLabel } from "@/lib/billing/billing-ui-text";
 import { TrackingNumberCopy } from "@/components/tracking-number-copy";
+import { ResumeSubscription } from "@/components/settings/resume-subscription";
 import {
   BillingPeriodToggle,
   BillingPeriodAnnouncer,
@@ -101,6 +102,8 @@ export interface PlanOption {
   priceId: string; // empty when not configured in env
   /** Yıllık Paddle fiyat id'si; env yoksa boş. */
   annualPriceId: string;
+  /** Kartla deneme (kurucu 10-17): deneme süreli Paddle fiyatı (kart alınır, deneme bitince tahsil); env yoksa boş. */
+  trialPriceId?: string;
 }
 
 /**
@@ -129,6 +132,8 @@ export function PaddlePlans({
   checkoutPending = false,
   trialNotice = null,
   subscriptionStatus = null,
+  resumeEnabled = false,
+  cardTrialNotice = null,
 }: {
   clientToken: string;
   environment: "sandbox" | "production";
@@ -166,6 +171,10 @@ export function PaddlePlans({
   trialNotice?: string | null;
   /** Abonelik durumu (erişim kapalıyken sebep etiketi: son ödeme alınamadı / duraklatıldı / iptal edildi — K3, 10-17). */
   subscriptionStatus?: string | null;
+  /** I4 C (kurucu 10-17): `PADDLE_RESUME_ENABLED` açık + yönetilebilir abonelik → duraklatılmışken "Aboneliği devam ettir". */
+  resumeEnabled?: boolean;
+  /** Kartla deneme kapısı (kurucu 10-17): doluysa hesapta kart isteniyor — metin gösterilir, paket düğmeleri DENEME SÜRELİ fiyatla açılır. */
+  cardTrialNotice?: string | null;
 }) {
   const router = useRouter();
   const [ready, setReady] = useState(false);
@@ -191,7 +200,8 @@ export function PaddlePlans({
   // Mesafeli Satış Sözleşmesi BEFORE a paid checkout opens. Gates every plan button.
   const [accepted, setAccepted] = useState(false);
   const [period, setPeriod] = useState<BillingPeriod>("month");
-  const annual = annualAvailable && period === "year";
+  // Kartla denemede yalnız aylık deneme süreli fiyat (yıllık deneme fiyatı yok).
+  const annual = annualAvailable && period === "year" && !cardTrialNotice;
   // In-flight guard: while the consent record is being written (and checkout
   // opened) the plan buttons are disabled, so a double-click can't fire twice.
   const [busy, setBusy] = useState(false);
@@ -561,6 +571,14 @@ export function PaddlePlans({
         </label>
       )}
 
+      {resumeEnabled && manageable && subscriptionStatus === "paused" ? (
+        <ResumeSubscription
+          plans={plans.map((p) => ({ code: p.code, name: p.name, priceMinor: p.priceMinor, currency: p.currency }))}
+          currentPlanCode={currentPlanCode}
+          locale={locale}
+        />
+      ) : null}
+
       {pending ? (
         <div className="space-y-2 rounded-md border border-primary/40 bg-accent/30 p-3">
           <p className="text-sm">
@@ -622,7 +640,13 @@ export function PaddlePlans({
         </div>
       ) : null}
 
-      {annualAvailable ? (
+      {cardTrialNotice ? (
+        <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200" data-testid="card-trial-notice">
+          {cardTrialNotice}
+        </p>
+      ) : null}
+
+      {annualAvailable && !cardTrialNotice ? (
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <BillingPeriodToggle
             value={period}
@@ -664,7 +688,9 @@ export function PaddlePlans({
           );
           // ⚠️ Checkout'a giden id DÖNEME GÖRE seçilir. Yanlış id göndermek
           // müşteriyi başka bir fatura dönemine abone eder.
-          const activePriceId = annual ? p.annualPriceId : p.priceId;
+          // Kartla deneme: deneme süreli fiyat (kart alınır, deneme bitince tahsil). Fiyat yoksa düğme kapalı — normal (anında tahsilli) ödeme
+          // ekranı "ücret alınmaz" metninin altında AÇILMAZ.
+          const activePriceId = cardTrialNotice ? (p.trialPriceId ?? "") : annual ? p.annualPriceId : p.priceId;
           const limit = p.propertyLimit == null ? "Sınırsız daire" : `${p.propertyLimit} daireye kadar`;
           return (
             <div
@@ -715,9 +741,11 @@ export function PaddlePlans({
                       ? loadFailed
                         ? "Sayfayı yenileyin"
                         : "Yükleniyor…"
-                      : trialing
-                        ? "Bu planı seç"
-                        : "Bu plana geç"}
+                      : cardTrialNotice
+                        ? "Kart ekle"
+                        : trialing
+                          ? "Bu planı seç"
+                          : "Bu plana geç"}
                 </button>
               )}
             </div>

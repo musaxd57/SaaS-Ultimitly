@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { RESUME_PENDING_LOCK } from "@/lib/billing/resume";
 import { jsonOk, unauthorized, readTextCapped, MAX_WEBHOOK_BODY_BYTES, BodyTooLargeError, payloadTooLarge } from "@/lib/api";
 import { reportError, redactSensitive } from "@/lib/report-error";
 import { alertOnTransition, clearAlertState } from "@/lib/alert-state";
@@ -314,6 +315,11 @@ async function applySubscriptionEvent(
     // is moot — clear it so trialEndsAt can never make a paying org look
     // "expired" if future code reads it without checking status.
     ...(status === "active" ? { trialEndsAt: null } : {}),
+    // KARTLA DENEME (kurucu 10-17): Paddle'da deneme süreli abonelik `trialing` gelir ve deneme dönemi `current_billing_period`tır. Yerel
+    // deneme bitişi (kartsız denemeden kalan) YAZILMAZSA erişim o tarihte kapanırdı — Paddle ise deneme bitince tahsil edecekken. Paddle'ın
+    // deneme sonu yazılır; dönem sonu yoksa dokunulmaz (`trialing` + boş bitiş zaten kapalı yön — `getEntitlement`). Bugün deneme süreli
+    // fiyat yok → bu dal tetiklenmiyordu (gizli hata); doğrulama P1, `docs/TASARIM-2026-10-17-paddle-devam-ettir-ve-kartla-deneme.md`.
+    ...(status === "trialing" && currentPeriodEnd ? { trialEndsAt: currentPeriodEnd, trialEndReason: null } : {}),
     cancelAtPeriodEnd,
     pastDueSince,
     ...(occurredAt ? { lastEventAt: occurredAt } : {}),
@@ -341,7 +347,11 @@ async function applySubscriptionEvent(
     // Olay günlüğü (takip numarası): abonelik satırı bu olayla GERÇEKTEN yazıldı (sıra koruması geçti).
     await logEvent("billing.subscription.applied", { status, plan: planCode ?? undefined, subscriptionRef: providerRef ?? undefined }, { organizationId });
     // "Ödemeniz işleniyor" kilidi (kurucu onayı 10-10): abonelik AKTİF olarak yazıldı → yeni ödeme ekranı kilidi kalkar.
-    if (status === "active") await clearCheckoutPending(organizationId);
+    if (status === "active") {
+      await clearCheckoutPending(organizationId);
+      // I4 C (10-17): "Aboneliği devam ettir"in "işleniyor" kilidi abonelik etkin yazılınca kalkar (holder fiyat — herhangi etkin olay yeter).
+      await prisma.systemLock.deleteMany({ where: { name: RESUME_PENDING_LOCK(organizationId) } }).catch(() => {});
+    }
     if (replacesLiveSubscription) {
       await alertOnTransition(
         `paddle-webhook:second-subscription:${organizationId}:${providerRef}`,
