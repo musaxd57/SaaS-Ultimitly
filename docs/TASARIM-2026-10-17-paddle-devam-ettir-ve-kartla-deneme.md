@@ -105,6 +105,10 @@ Sonuçlar bu tabloya işlenir; varsayımı tutmayan her satır için kod düzelt
     duraklat → devam ettir (panel yalnız "hemen + yeni dönem" sunar = bizim kodun `start_new_billing_period`'ı) bir tam 899 daha çekti, iade / kredi
     yok. Ödenmiş dönem sürerken devam = yeniden tam tahsilat. Karar `KURUCU-SORULARI.md` §S **SG3** (öneri: ödenmiş dönem sürüyorsa para çekme —
     `continue_existing_billing_period`, API'de doğrulanana kadar o durumda düğme yerine "bize yazın"). SG3 kodlanıp sınanmadan anahtar AÇILMAZ.
+    Kayıt sayfasından ek: duraklatılmış abonelikte panel dönemi (17 Eki–17 Kas) göstermeye DEVAM ediyor, "Next payment" kayboluyor, "Last payment
+    Completed TRY 899.00" kalıyor → "ödenmiş dönem sürüyor mu" kararı aboneliğin `current_billing_period.ends_at` alanından okunabilir (API
+    yanıtında duraklatılmışken dolu olduğu ayrıca doğrulanacak; boşsa son tamamlanan işlemin `billing_period.ends_at`'i). Duraklatma seçenekleri:
+    "Now" ve "At the end of the current billing period"; "Automatically resume" kapalı varsayılan.
   - **P3 ✅** duraklatılmış abonelikte "Edit subscription" / "Edit billing date" YOK → paket değiştirme sunulmuyor → devam + paket İKİ adım kalır (§2).
   - **P6c ✅** etkin abonelikte ikinci "Resume" yok (kodda ayrıca canlı durum okuması + tek kullanımlık belirteç + kilit). **P7 ✅** iptal edilmiş
     abonelikte Actions menüsü hiç yok. **P11 ✅** dönem sonunda duraklatma planlanıp "Don't pause subscription" ile kaldırılabiliyor.
