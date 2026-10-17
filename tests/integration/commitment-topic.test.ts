@@ -126,19 +126,17 @@ describe("söz konusu", () => {
     expect(await prisma.guestCommitment.count({ where: { conversationId: conv2 } })).toBe(1);
   });
 
-  it("🚨 AYNI konunun iki ayrı mesajdaki önerisi EŞZAMANLI onaylanırsa → TEK söz, TEK görev; ikinci onay mevcut söze BAĞLANIR (karar yazılır, ölü düğme yok)", async () => {
+  it("🚨 AYNI konunun iki ayrı mesajdaki önerisi EŞZAMANLI onaylanırsa → TEK söz, TEK görev; ikinci onay karar yazmaz (409) ve öneri listeden kalkar", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
     await asOwner(orgId);
     const conv = await conversationWith(propertyId, [`Klima için teknisyen ${WHEN}'da gelecek.`, `Klimayı ${WHEN}'da teknisyen tamir edecek.`]);
     const list = (await getConversationSuggestions(orgId, conv)).filter((s) => s.kind === "commitment");
     expect(list).toHaveLength(2);
-    const statuses = (await Promise.all(list.map((s) => decide({ key: s.key, decision: "approve" })))).map((r) => r.status);
-    expect(statuses).toEqual([200, 200]);
+    const statuses = (await Promise.all(list.map((s) => decide({ key: s.key, decision: "approve" })))).map((r) => r.status).sort();
+    expect(statuses).toEqual([200, 409]);
     expect(await prisma.guestCommitment.count({ where: { conversationId: conv } })).toBe(1);
     expect(await prisma.task.count({ where: { propertyId } })).toBe(1);
-    const decisions = await prisma.auditLog.findMany({ where: { organizationId: orgId, action: "ai_suggestion.approved" } });
-    expect(decisions).toHaveLength(2);
-    expect(decisions.filter((d) => (d.metadataJson ?? "").includes('"merged":true'))).toHaveLength(1);
+    expect(await prisma.auditLog.count({ where: { organizationId: orgId, action: "ai_suggestion.approved" } })).toBe(1);
     expect((await getConversationSuggestions(orgId, conv)).filter((s) => s.kind === "commitment")).toEqual([]);
   });
 
@@ -153,9 +151,11 @@ describe("söz konusu", () => {
     await prisma.guestCommitment.update({ where: { id: existing.id }, data: { createdAt: new Date(Date.now() - 60 * 60_000) } });
     const [s] = (await getConversationSuggestions(orgId, conv)).filter((x) => x.kind === "commitment");
     expect(s).toBeDefined(); // 10:00 önerisi 11:00 sözünden farklı an → görünür
-    const res = await decide({ key: s!.key, decision: "approve", edits: { day: "tomorrow", time: "11:00" } });
+    const res = await decide({ key: s!.key, decision: "approve", day: "tomorrow", time: "11:00" });
     expect(res.status).toBe(200); // ⬅️ ESKİDE 409 ve öneri kalıcı (her tık aynı ret)
     expect(await prisma.guestCommitment.count({ where: { conversationId: conv } })).toBe(1);
+    const decision = await prisma.auditLog.findFirstOrThrow({ where: { organizationId: orgId, action: "ai_suggestion.approved" } });
+    expect(decision.metadataJson).toContain('"merged":true');
     expect((await getConversationSuggestions(orgId, conv)).filter((x) => x.kind === "commitment")).toEqual([]);
   });
 

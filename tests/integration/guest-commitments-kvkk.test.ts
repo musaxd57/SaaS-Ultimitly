@@ -65,13 +65,13 @@ describe("misafir sözü — KVKK", () => {
     expect(await prisma.guestCommitment.findMany({ select: { id: true } })).toEqual([{ id: fresh.commitmentId }]);
   });
 
-  it("🚨 dışa aktarma: ev sahibinin işaretlediği sözler dökümde (metin yok — tür, son an, durum, kimlikler); başka işletmeninki yok", async () => {
+  it("🚨 dışa aktarma: ev sahibinin işaretlediği sözler dökümde (metin yok — tür, konu, son an, durum, kimlikler); başka işletmeninki yok", async () => {
     const a = await stayWithCommitment();
     await stayWithCommitment(); // başka işletme
     const exported = await buildOrganizationDataExport(a.orgId);
     expect(exported?.guestCommitments).toHaveLength(1);
     expect(Object.keys(exported!.guestCommitments[0]).sort()).toEqual(
-      ["closedAt", "conversationId", "createdAt", "dueAt", "id", "kind", "status", "taskId"].sort(),
+      ["closedAt", "conversationId", "createdAt", "dueAt", "id", "kind", "status", "taskId", "topic"].sort(),
     );
     expect(exported!.guestCommitments[0]).toMatchObject({ id: a.commitmentId, kind: "towels", status: "open", taskId: a.taskId });
   });

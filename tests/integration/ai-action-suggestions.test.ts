@@ -209,18 +209,49 @@ describe("C · söz kaydı önerisi", () => {
     await prisma.organization.update({ where: { id: orgId }, data: { autoTaskFromMessageEnabled: true } });
     const [s] = await getConversationSuggestions(orgId, conversationId);
     const org = await prisma.organization.findUniqueOrThrow({ where: { id: orgId }, select: { timezone: true } });
-    const dueAt = commitmentDueAt({ day: "tomorrow", time: "10:00" }, orgTimezone(org.timezone), new Date())!;
+    // Önerinin KENDİ saati (düzenleme yok) — aynı an elle açılırsa öneri zaten listeden kalkar; karar yazılmaz.
+    const proposal = s.proposal as { day: "today" | "tomorrow"; time: string };
+    const dueAt = commitmentDueAt({ day: proposal.day, time: proposal.time }, orgTimezone(org.timezone), new Date())!;
     __aiSuggestionHooks.afterDecisionCheck = async () => {
       // Başka sekmede ev sahibi aynı sözü elle açtı (ayrı bağlantı, hemen commit).
       await createGuestCommitment({ organizationId: orgId, conversationId, propertyId, reservationId: null, kind: "maintenance", dueAt, actorUserId: u.id });
     };
     try {
-      expect((await decide({ key: s.key, decision: "approve", day: "tomorrow", time: "10:00" })).status).toBe(409);
+      expect((await decide({ key: s.key, decision: "approve", day: proposal.day, time: proposal.time })).status).toBe(409);
     } finally {
       __aiSuggestionHooks.afterDecisionCheck = null;
     }
     expect(await prisma.guestCommitment.count({ where: { conversationId } })).toBe(1);
     expect(await prisma.auditLog.count({ where: { action: "ai_suggestion.approved" } })).toBe(0);
+    expect(await getConversationSuggestions(orgId, conversationId)).toEqual([]);
+  });
+
+  it("🚨 DÜZENLENMİŞ saatle onay + aynı an elle söz YARIŞI: ikinci söz / görev AÇILMAZ; karar mevcut söze bağlı yazılır (ölü düğme yok — Haiku 10-17)", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const u = await asUser(orgId);
+    const { conversationId } = await conversationWith(orgId, propertyId, [
+      { direction: "inbound", authorType: "guest", body: "Kombi çalışmıyor." },
+      { direction: "outbound", authorType: "host", body: "Yarın teknisyen gelecek, kusura bakmayın." },
+    ]);
+    await prisma.organization.update({ where: { id: orgId }, data: { autoTaskFromMessageEnabled: true } });
+    const [s] = await getConversationSuggestions(orgId, conversationId);
+    expect(s.proposal).toMatchObject({ day: "tomorrow", time: "12:00" }); // ön koşul: 10:00 bir DÜZENLEME
+    const org = await prisma.organization.findUniqueOrThrow({ where: { id: orgId }, select: { timezone: true } });
+    const dueAt = commitmentDueAt({ day: "tomorrow", time: "10:00" }, orgTimezone(org.timezone), new Date())!;
+    __aiSuggestionHooks.afterDecisionCheck = async () => {
+      await createGuestCommitment({ organizationId: orgId, conversationId, propertyId, reservationId: null, kind: "maintenance", dueAt, actorUserId: u.id });
+    };
+    try {
+      expect((await decide({ key: s.key, decision: "approve", day: "tomorrow", time: "10:00" })).status).toBe(200);
+    } finally {
+      __aiSuggestionHooks.afterDecisionCheck = null;
+    }
+    expect(await prisma.guestCommitment.count({ where: { conversationId } })).toBe(1);
+    expect(await prisma.task.count({ where: { propertyId } })).toBe(1);
+    const decisions = await prisma.auditLog.findMany({ where: { action: "ai_suggestion.approved" }, select: { metadataJson: true } });
+    expect(decisions).toHaveLength(1);
+    expect(decisions[0]!.metadataJson).toContain('"merged":true');
+    expect(await getConversationSuggestions(orgId, conversationId)).toEqual([]);
   });
 
   it("teklif / soru söz değildir → öneri yok", async () => {

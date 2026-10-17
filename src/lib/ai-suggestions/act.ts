@@ -142,10 +142,11 @@ export async function decideSuggestion(input: {
           },
           tx,
         );
-        // Bu önerinin sözü zaten yazılmıştı (aynı öneri anahtarı = aynı işlem kimliği) → görev dalıyla AYNI: karar YAZILMAZ (ölçüt şişmesin).
-        if (c.reused && c.via !== "slot") return { status: "gone" } as const;
-        // Aynı tür + an + uyumlu konudaki AÇIK söze bağlandı (ev sahibi saati düzenleyip mevcut söze denk getirdi): karar YAZILIR — yoksa
-        // öneri listede kalır ve her tık aynı reddi alırdı (Haiku 10-17: ölü düğme). Yeni söz / görev açılmadı (`merged`).
+        // Bu önerinin sözü zaten yazılmıştı (aynı öneri anahtarı = aynı işlem kimliği) ya da onay sırasında aynı söz (elle / başka öneri)
+        // açıldı → görev dalıyla AYNI: karar YAZILMAZ (ölçüt şişmesin; öneri listede de gizlenir — aynı yüklem).
+        // TEK İSTİSNA (Haiku 10-17): ev sahibi saati DÜZENLEYİP mevcut uyumlu söze denk getirdi → öneri kendi saatiyle listede kalacağı için
+        // karar YAZILIR (yoksa her tık aynı reddi alan ölü düğme); yeni söz / görev açılmaz (`merged`).
+        if (c.reused && !(c.via === "slot" && edited)) return { status: "gone" } as const;
         if (c.reused) created.merged = true;
         created.commitmentId = c.id;
         created.taskId = c.taskId;
