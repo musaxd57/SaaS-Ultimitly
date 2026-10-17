@@ -38,6 +38,12 @@ describe("deneme risk puanı — yalnız operatör listesi", () => {
     const files = walk("src");
     expect(files.length).toBeGreaterThan(200);
     const importers = files.filter((f) => /from "@\/lib\/billing\/trial-risk"/.test(read(f)));
-    expect(importers).toEqual([ADMIN]);
+    // TEK bilinçli istisna: kartla deneme kapısı (kurucu 10-17: "Kartla deneme kapısını yap; yüksek riskte öyle bir durum olsun"; anahtar
+    // `TRIAL_CARD_GATE_ENABLED` KAPALI). Kapı puanın AĞ DIŞI kısmını kullanır (aydınlatma cümlesi "IP özeti … otomatik karar verilmez") —
+    // aşağıdaki yapısal pin + `tests/unit/trial-card-gate.test.ts` davranışsal pini.
+    expect(importers.sort()).toEqual([ADMIN, "src/lib/billing/trial-card-gate.ts"].sort());
+    const gate = read("src/lib/billing/trial-card-gate.ts");
+    expect(gate).toMatch(/NETWORK_RISK_REASONS\.includes\(r\)/);
+    expect(gate).not.toMatch(/network:/); // trialRisk'e ağ sinyali VERİLMEZ
   });
 });

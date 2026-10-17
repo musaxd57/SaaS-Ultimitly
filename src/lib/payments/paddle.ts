@@ -443,7 +443,7 @@ export function isExpectedPaddleError(err: unknown): boolean {
  * `org` is our own tenant id, already present across audit/logs, never PII.
  */
 function logExpectedPaddleOutcome(
-  operation: "plan-preview" | "plan-change",
+  operation: "plan-preview" | "plan-change" | "resume",
   orgId: string | undefined,
   err: unknown,
 ): void {
@@ -550,7 +550,7 @@ export async function resumeSubscription(subscriptionId: string, orgId?: string)
     const reason = err instanceof Error ? err.message : "unknown";
     const declined = /\(subscription_payment_declined\)/.test(reason);
     if (isExpectedPaddleError(err)) {
-      console.warn(`[paddle] expected outcome — not paged ${JSON.stringify({ operation: "resume", org: orgId ?? null, detail: reason })}`);
+      logExpectedPaddleOutcome("resume", orgId, err);
     } else {
       await reportError("paddle-resume", err);
     }
