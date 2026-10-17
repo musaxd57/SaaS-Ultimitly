@@ -29,6 +29,12 @@ export type Entitlement = {
   trialExpired: boolean; // a trial whose end date has passed (effect gated by enforcement)
   /** Kartla deneme kapısı (kurucu 10-17, migration 74): yüksek riskli denemede kart isteniyor → sınırlı mod (anahtar + zorunluluk açıkken). */
   cardRequired: boolean;
+  /**
+   * Yenileme iptal edildi, abonelik dönem sonunda bitecek (Paddle `scheduled_change.action = cancel`) — kurucu 10-17: "iptal edince o tarihe
+   * kadar aldığı paketi kullanmaya devam eder, ekranda yazsın". `periodEnd` ödenmiş dönemin sonu (bilinmiyorsa null).
+   */
+  cancelAtPeriodEnd: boolean;
+  periodEnd: Date | null;
 };
 
 const ACTIVE_STATUSES = new Set(["active", "trialing", "grandfathered"]);
@@ -102,6 +108,8 @@ export async function getEntitlement(organizationId: string): Promise<Entitlemen
       trialDaysLeft: null,
       trialExpired: false,
       cardRequired: false,
+      cancelAtPeriodEnd: false,
+      periodEnd: null,
     };
   }
   const plan = planByCode(sub.planCode);
@@ -155,6 +163,8 @@ export async function getEntitlement(organizationId: string): Promise<Entitlemen
     trialDaysLeft,
     trialExpired,
     cardRequired,
+    cancelAtPeriodEnd: sub.cancelAtPeriodEnd,
+    periodEnd: sub.currentPeriodEnd ?? null,
   };
 }
 

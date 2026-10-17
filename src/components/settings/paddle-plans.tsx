@@ -134,6 +134,7 @@ export function PaddlePlans({
   subscriptionStatus = null,
   resumeEnabled = false,
   cardTrialNotice = null,
+  cancelScheduledUntil = null,
 }: {
   clientToken: string;
   environment: "sandbox" | "production";
@@ -175,6 +176,11 @@ export function PaddlePlans({
   resumeEnabled?: boolean;
   /** Kartla deneme kapısı (kurucu 10-17): doluysa hesapta kart isteniyor — metin gösterilir, paket düğmeleri DENEME SÜRELİ fiyatla açılır. */
   cardTrialNotice?: string | null;
+  /**
+   * Yenileme iptal edildi: erişimin süreceği son gün, sunucuda işletmenin saat diliminde biçimlenmiş ("17 Kasım 2026"). Kurucu 10-17: iptal
+   * eden kullanıcı o tarihe kadar paketini kullanır ve bunu ekranda görür.
+   */
+  cancelScheduledUntil?: string | null;
 }) {
   const router = useRouter();
   const [ready, setReady] = useState(false);
@@ -533,6 +539,14 @@ export function PaddlePlans({
         ) : null}
         .
       </p>
+
+      {cancelScheduledUntil ? (
+        <p className="rounded-md border border-border bg-muted/40 p-3 text-sm text-foreground" role="status" data-testid="cancel-scheduled-notice">
+          {subscriptionStatus === "trialing"
+            ? `Aboneliğinizin yenilenmesi iptal edildi. Deneme süreniz ${cancelScheduledUntil} tarihinde bitecek ve ücret alınmayacak. O tarihe kadar ${currentPlanName} paketinin tüm özelliklerini kullanabilirsiniz.`
+            : `Aboneliğinizin yenilenmesi iptal edildi. ${cancelScheduledUntil} tarihine kadar ${currentPlanName} paketinin tüm özelliklerini kullanmaya devam edebilirsiniz. Bu tarihten sonra ücret alınmaz.`}
+        </p>
+      ) : null}
 
       {manageable ? (
         <div className="space-y-2 rounded-md border border-border bg-muted/30 p-3">

@@ -498,6 +498,18 @@ export default async function SettingsPage({
               subscriptionStatus={entitlement.status}
               resumeEnabled={canManagePaddleSub && resumeEnabled()}
               cardTrialNotice={entitlement.cardRequired ? TRIAL_CARD_REQUIRED_MESSAGE : null}
+              // Yenileme iptal edildi (kurucu 10-17): ödenmiş dönem sürerken kullanıcı paketini o tarihe kadar kullanır — tarih işletmenin
+              // saat diliminde, uzun biçimde ("17 Kasım 2026").
+              cancelScheduledUntil={
+                entitlement.cancelAtPeriodEnd && entitlement.active && entitlement.periodEnd && entitlement.periodEnd.getTime() > Date.now()
+                  ? new Intl.DateTimeFormat(appLocale(), {
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                      timeZone: org?.timezone ?? "Europe/Istanbul",
+                    }).format(entitlement.periodEnd)
+                  : null
+              }
               annualAvailable={defaultPlans().every((p) => (paddleAnnualPriceByCode[p.code] ?? "") !== "")}
               plans={defaultPlans().map((p) => ({
                 code: p.code,

@@ -1034,3 +1034,42 @@ describe("codex round-5: pending settle via the REAL handler", () => {
     expect(await prisma.systemLock.count({ where: { name: pendingName() } })).toBe(0); // settled
   });
 });
+
+// ---------------------------------------------------------------------------
+// YENİLEME İPTALİ (kurucu 10-17: "ayın 1'inde aldı, iptal etti → ayın 1'ine kadar paketini kullanır, ekranda yazsın"): Paddle'ın dönem
+// sonunda iptali (`scheduled_change.action = cancel`) erişimi KAPATMAZ; Ayarlar kutusunun okuduğu iptal işareti + ödenmiş dönem sonu
+// `getEntitlement`ten gelir. Dönem bitince Paddle `canceled` gönderir → erişim kapanır.
+// ---------------------------------------------------------------------------
+describe("yenileme iptali — dönem sonuna kadar paket sürer", () => {
+  it("🚨 dönem sonunda iptal → erişim AÇIK, iptal işareti + dönem sonu okunur; 'canceled' gelince kapanır", async () => {
+    const { getEntitlement } = await import("@/lib/billing/subscription");
+    const periodEnd = new Date(Date.now() + 20 * 86_400_000);
+    const base = {
+      id: "sub_cancel_1",
+      customer_id: "ctm_c1",
+      custom_data: { consentId },
+      items: [{ price: { id: "pri_pro" } }],
+      current_billing_period: { starts_at: new Date(Date.now() - 10 * 86_400_000).toISOString(), ends_at: periodEnd.toISOString() },
+    };
+    const send = async (id: string, type: string, data: Record<string, unknown>, at: Date) => {
+      const body = JSON.stringify({ event_id: id, event_type: type, occurred_at: at.toISOString(), data });
+      expect((await POST(req(body, sign(body)))).status).toBe(200);
+    };
+    await send("evt_c_act", "subscription.activated", { ...base, status: "active" }, new Date(Date.now() - 60_000));
+    // Önce iptal yok: kutu için işaret kapalı.
+    expect(await getEntitlement(orgId)).toMatchObject({ active: true, cancelAtPeriodEnd: false });
+    await send(
+      "evt_c_upd",
+      "subscription.updated",
+      { ...base, status: "active", scheduled_change: { action: "cancel", effective_at: periodEnd.toISOString(), resume_at: null } },
+      new Date(Date.now() - 30_000),
+    );
+    const e = await getEntitlement(orgId);
+    expect(e).toMatchObject({ active: true, planCode: "pro", cancelAtPeriodEnd: true });
+    expect(e.periodEnd?.toISOString()).toBe(periodEnd.toISOString());
+    expect(await premiumAllowed(orgId)).toBe(true);
+    // Dönem bitti: Paddle "canceled" → erişim kapanır, iptal kutusu artık gösterilmez (sayfa `active` şartı).
+    await send("evt_c_end", "subscription.canceled", { ...base, status: "canceled", scheduled_change: null }, new Date());
+    expect(await getEntitlement(orgId)).toMatchObject({ active: false, status: "canceled", cancelAtPeriodEnd: false });
+  });
+});
