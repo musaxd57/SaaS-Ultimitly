@@ -169,17 +169,16 @@ const ADMITS_INSTRUCTIONS: string[] = [
   "Kayıtlı bir talimatımız bulunmuyor, ev sahibiniz yardımcı olacaktır.",
   "There are no troubleshooting steps for the TV in my notes.",
 ];
+// Kurucu 10-17 öncesi burada "özel talimat yok" olguları da vardı ("Çöp için özel bir talimat yok, …", "No special instructions for
+// checkout, …"); kurucu kararıyla artık misafire GİTMEZLER (↓"niteleyicili 'talimat yok'" bloğu). Kalan: 2. şahıs / "gerekmiyor" biçimleri.
 const LEGIT_INSTRUCTIONS: string[] = [
-  "Çöp için özel bir talimat yok, konteynere atabilirsiniz.",
   "There are no steps to the front door, the entrance is level.",
   "You don't have any steps to climb, the entrance is level.",
   "You don't have to follow any special steps for checkout.",
-  "No special instructions for checkout, just close the door.",
   "Vous n'avez besoin d'aucune instruction particulière pour l'arrivée.",
   "Sie brauchen keine Anleitung, die Maschine startet automatisch.",
-  "No hay instrucciones especiales para el check-in; la llave está en el buzón.",
-  "Нет особых инструкций, ключ в почтовом ящике.",
-  "لا توجد تعليمات خاصة للمغادرة.",
+  "Sie brauchen keine besonderen Anweisungen, die Tür ist offen.",
+  "Giriş için özel bir talimat gerekmiyor.",
 ];
 
 // ── Kör set 6 (10-01 öğleden sonra, Luna — misafire GİTTİ): "Zum kabellosen Lautsprecher finde ich keine Angaben." — 1. şahıs "BULAMADIM"
@@ -344,22 +343,39 @@ describe("'talimatım yok' (kör set 5, 10-01 öğlen) — iki yön", () => {
   it("1. şahıs / varlık yüklemli 'talimat yok' itirafı TUTULUR", () => {
     for (const m of ADMITS_INSTRUCTIONS) expect(admitsMissingKnowledge(m), m).toBe(true);
   });
-  it("'özel talimat gerekmez / yok' olgusu ve 2. şahıs cümleler TUTULMAZ", () => {
+  it("'özel talimat gerekmiyor' ve 2. şahıs cümleler TUTULMAZ", () => {
     for (const m of LEGIT_INSTRUCTIONS) expect(admitsMissingKnowledge(m), m).toBe(false);
   });
-  it("Opus N5 (10-15 gece): niteleyicili 1. şahıs ('özel / ek / başka talimatımız yok') OLGUDUR — tutulmaz; çıplak itiraf tutulur", () => {
-    for (const m of [
-      "Çıkış için özel talimatımız yok, anahtarı masaya bırakmanız yeterli.",
-      "Çıkış için ek bir talimatımız bulunmuyor; anahtarları masada bırakabilirsiniz.",
-      "Özel talimatımız yok, rahatça kullanabilirsiniz.",
-      "There are no other instructions in my notes, so just leave the keys on the table.",
-    ]) {
-      expect(admitsMissingKnowledge(m), m).toBe(false);
-    }
+});
+
+// ── Kurucu 10-17 (H9 cevabı, aynen): "televizyonla ilgili ayrı bir talimatım bulunmuyor böyle birşey yazamaz kesinlikle … Çıkış için özel
+// talimatımız yok, anahtarı masaya bırakmanız yeterli. bunun ilk cümlesini yazmasına gerek yok … Çıkış için özel talimatımız yok, bunu
+// yazmasın". Opus N5'in (10-15) "niteleyicili 1. şahıs olgudur, tutulmaz" istisnası bu kararla KALKTI.
+const QUALIFIED_NO_INSTRUCTION: string[] = [
+  "Televizyonla ilgili ayrı bir talimatım bulunmuyor, ev sahibinize ileteceğim.",
+  "Çıkış için özel talimatımız yok.",
+  "Çıkış için özel talimatımız yok, anahtarı masaya bırakmanız yeterli.",
+  "Çıkış için ek bir talimatımız bulunmuyor; anahtarları masada bırakabilirsiniz.",
+  "Özel talimatımız yok, rahatça kullanabilirsiniz.",
+  "Çöp için özel bir talimat yok, konteynere atabilirsiniz.",
+  "There are no other instructions in my notes, so just leave the keys on the table.",
+  "No special instructions for checkout, just close the door.",
+  "There are no special instructions for checkout.",
+  "No hay instrucciones especiales para el check-in; la llave está en el buzón.",
+  "Нет особых инструкций, ключ в почтовом ящике.",
+  "لا توجد تعليمات خاصة للمغادرة.",
+  "Il n'y a pas d'instructions particulières, la clé est dans la boîte.",
+  "Es gibt keine besonderen Anweisungen.",
+];
+
+describe("niteleyicili 'talimat yok' (kurucu 10-17) — misafire GİTMEZ, yedi dil", () => {
+  it("'özel / ek / ayrı talimat(ım/ımız) yok' ve yabancı karşılıkları TUTULUR", () => {
+    for (const m of QUALIFIED_NO_INSTRUCTION) expect(admitsMissingKnowledge(m), m).toBe(true);
+  });
+  it("çıplak 1. şahıs itiraf da tutulur (eski pin) — 'tek' içindeki 'ek' niteleyici değil (Haiku 10-15 gece)", () => {
     for (const m of [
       "Televizyon için talimatım yok.",
       "Kayıtlı bir talimatımız bulunmuyor, ev sahibiniz yardımcı olacaktır.",
-      // Haiku 10-15 gece: niteleyici sözcük SINIRIYLA ("tek" içindeki "ek" niteleyici değil)
       "Kapı kodu için tek talimatımız yok, anahtar masada.",
     ]) {
       expect(admitsMissingKnowledge(m), m).toBe(true);

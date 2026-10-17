@@ -3,6 +3,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { buildReplyPrompt, replySystemPromptFor } from "./prompts";
 import { applyCodeGreeting, codeGreetingEnabled, salutationNameOf } from "./code-greeting";
+import { stripNoInstructionFiller } from "./no-instruction-filler";
 import { kbFeeRuleEnabled } from "./kb-fee-rule";
 import { stayDeferralPlainEnabled } from "./stay-deferral-plain";
 import { accessCodeCompleteEnabled } from "./access-code-complete";
@@ -551,7 +552,10 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
           // Cap every free-text field the model returns — an over-long value would
           // bloat the DB row / inbox UI / logs it lands on (no token guarantee
           // per-field). ↑capReply: iki eşik, biri gönderim biri saklama.
-          reply: codeGreetingEnabled() ? codeGreetingReply(cappedReply.text, input, parsed.detectedLanguage) : cappedReply.text,
+          // "Talimat yok" yan cümlesi misafire yazılmaz (kurucu 10-17, `no-instruction-filler.ts`); selamdan ÖNCE, her yolda aynı.
+          reply: codeGreetingEnabled()
+            ? codeGreetingReply(stripNoInstructionFiller(cappedReply.text), input, parsed.detectedLanguage)
+            : stripNoInstructionFiller(cappedReply.text),
           risk:
             typeof parsed.risk === "string" && parsed.risk.trim()
               ? parsed.risk.slice(0, 300)

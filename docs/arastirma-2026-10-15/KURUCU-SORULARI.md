@@ -677,8 +677,8 @@ Karar bekleyenler (denetim + ilk dilim tasarımı: `gecmisten-ogren-6-ilke.md` �
 
 | Soru | Kurucu kararı (özü) | Uygulama |
 |---|---|---|
-| H9 istisnası | "Televizyonla ilgili ayrı bir talimatım bulunmuyor" gibi cümle KESİNLİKLE yazılamaz, "ev sahibinize ileteceğim" de söylenemez. "Çıkış için özel talimatımız yok, anahtarı masaya bırakmanız yeterli" → ilk yarısı ("…özel talimatımız yok") YAZILMASIN, yalnız yönerge kalsın | "özel / ayrı / başka talimat yok" istisnası kaldırılır (bütün cevap tutulur, bugünkü güvenli yön); istem kuralı; konu bazlı ayıklama açıkken o yan cümle silinip yönerge gider |
-| M1 | "bilgi veremem" tutulsun — "müşteriye öyle denir mi, sussa daha iyi" | "veremem / veremeyiz" ailesi "bilgim yok" sayılır |
+| H9 istisnası | "Televizyonla ilgili ayrı bir talimatım bulunmuyor" gibi cümle KESİNLİKLE yazılamaz, "ev sahibinize ileteceğim" de söylenemez. "Çıkış için özel talimatımız yok, anahtarı masaya bırakmanız yeterli" → ilk yarısı ("…özel talimatımız yok") YAZILMASIN, yalnız yönerge kalsın | ✅ (10-17) istisna kaldırıldı (yedi dil); ANAHTARSIZ yan cümle silici (`ai/no-instruction-filler.ts`, her cevap yolunda): yönerge aynı cümledeyse yalnız "talimat yok" kısmı silinir, cihazdan söz ediyorsa ya da tek başınaysa cevap tutulur (misafire gitmez). İstem değişmedi (cevap modeli yeniden kalibrasyonu gerekmesin) |
+| M1 | "bilgi veremem" tutulsun — "müşteriye öyle denir mi, sussa daha iyi" | ✅ (10-17) "veremem / veremeyiz / veremeyeceğim / verememekteyiz" ailesi "bilgim yok" sayılır (pinli) |
 | I1 | migration, önerildiği gibi (A: söze konu alanı) | Faz 2 migration |
 | I3 | anlaşılmadı | sade açıklama ↓ |
 | I4 | şimdi A; sonra KESİNLİKLE C: tıklanınca hemen ödeme alınıp pakete dönsün | A kalır; C kodu anahtar KAPALI (Paddle "devam ettir"), ilk denemeler birlikte |

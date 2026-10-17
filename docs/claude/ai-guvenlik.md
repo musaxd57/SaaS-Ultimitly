@@ -98,6 +98,16 @@
   10-01 gece 2 (RC60 regresyon koşusu, Luna — GİTTİ: "kann ich anhand der vorliegenden Informationen keine passende Lösung nennen"): "ÇÖZÜM
   ÖNEREMİYORUM" sınıfı yedi dilde — 1. şahıs + olumsuz kip + ÇÖZÜM nesnesi ŞART ("Çözüm: düğmeye basın", "Sie können keine Lösung falsch
   machen", "Je ne peux QUE vous proposer une solution", "Ich kann mir keine bessere Lösung vorstellen" tutulmaz); korpusta yeni tutuş 0.
+  🚨 10-17 (kurucu, AYNEN: "televizyonla ilgili ayrı bir talimatım bulunmuyor böyle birşey yazamaz kesinlikle … Çıkış için özel talimatımız
+  yok, bunu yazmasın" · "bilgi veremem cümlesi tabiki tutulsun … sussa daha iyi"): Opus N5'in "niteleyicili 1. şahıs olgudur" istisnası KALKTI —
+  "özel / ek / başka / ayrı / farklı (bir) talimat(ım/ımız) yok · bulunmuyor" ve yedi dil karşılığı ("No special instructions", "No hay
+  instrucciones especiales", "Нет особых инструкций", "لا توجد تعليمات خاصة", "pas d'instructions particulières", "keine besonderen Anweisungen")
+  bilgisizlik sayılır; "gerek / need / besoin / brauchen" biçimi ("özel bir talimat gerekmiyor") bilgisizlik DEĞİL. "veremem / veremeyiz /
+  veremeyeceğim / verememekteyiz" ailesi tutulur. ANAHTARSIZ YAN CÜMLE SİLİCİ `ai/no-instruction-filler.ts` (`suggestReply` son adımı, selamdan
+  ÖNCE → kanal, QR, "AI öner", Ayarlar testi, demo): aynı cümlede yönerge varsa yalnız "talimat yok" yan cümlesi silinir ("Çıkış için özel
+  talimatımız yok, anahtarı masaya bırakmanız yeterli." → "Anahtarı masaya bırakmanız yeterli."); yan cümle CİHAZDAN söz ediyorsa ya da geriye
+  yönerge kalmıyorsa silinmez → cevap tutulur (sorunun bilgisizliği sessizce "cevaplandı" olmaz). Misafire yeni söz eklenmez; bağlaç ("ama",
+  "so") atılır. Pinler `no-instruction-filler*.test.ts` + `absence-cost.test.ts`.
 - **Çıktı vetosu / makbuzsuz iddia:** ↓Kalıcı ürün kararları. `hasUnsourcedSpecificClaim` BUGÜN ÜRETİMDE KOŞMAZ
   (yalnız `QR_INFORMATIONAL_BAND_ENABLED` açıkken; varsayılan kapalı). QR bilgi bandı (0.45–0.75, kapalı): bant
   güvenlik dallarının ARDINDA; kaynaksız somut iddia gönderilmez (`unsourced_claim`); açma sırası eval → tek mülk.

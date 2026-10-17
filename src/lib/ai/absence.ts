@@ -102,7 +102,10 @@ const TR_LOOSE =
   // 10-01 (15 ajan A05): "bilgi sahibi değilim", "bilgi verilmemiş", "kayıtlarda … değinilmemiş", "bu bilgiye rastlamadım",
   // "kesin bilgi veremiyorum" — yalnız BİLGİ nesnesinden sonra.
   "sahibi değilim|sahibi değiliz|verilmemiş|verilmemektedir|değinilmemiş|değinilmemektedir|rastlamadım|rastlamadık|" +
-  "rastlayamadım|veremiyorum|veremiyoruz)";
+  "rastlayamadım|veremiyorum|veremiyoruz|" +
+  // Kurucu 10-17 (M1, aynen: "bilgi veremem cümlesi tabii ki tutulsun — müşteriye öyle denir mi, sussa daha iyi"): geniş zaman / gelecek
+  // olumsuzu da — yalnız BİLGİ nesnesinden sonra ("Bu konuda bilgi veremem", "Kesin bilgi veremeyiz").
+  "veremem|veremeyiz|veremeyeceğim|veremeyeceğiz|verememekteyim|verememekteyiz)";
 
 // ── İngilizce: BİLGİ NESNESİ (tekil VE çoğul — ilk sürümde karışıktı) ──────
 const EN_OBJ = "(?:information|info|records?|details?|data|notes?)(?![\\p{L}])";
@@ -144,8 +147,9 @@ const ABSENCE_PATTERNS: readonly RegExp[] = [
   ),
   // "We don't have (specific) instructions for the coffee machine" — "You don't have to take any steps" eşleşmez (fiil + edat şart).
   /(?:don't|do not) have (?:any )?(?:\p{L}{1,20} )?(?:instructions|steps) (?:for|on|about)(?![\p{L}])/u,
-  // "No special / additional instructions for checkout" bir OLGUDUR (gerek yok) — o sıfatlar hariç.
-  /(?<![\p{L}])no (?!(?:special|particular|additional|extra|further) )(?:\p{L}{1,20} )?instructions (?:for|on|about)(?![\p{L}])/u,
+  // Kurucu 10-17 (H9, aynen: "…özel talimatımız yok … bunu yazmasın"): niteleyicili "No special / additional instructions for …" de
+  // misafire GİTMEZ (eskiden olgu sayılıyordu). Aynı cümlede yönerge varsa yan cümle `no-instruction-filler.ts` ile silinir.
+  /(?<![\p{L}])no (?:\p{L}{1,20} )?instructions (?:for|on|about)(?![\p{L}])/u,
   // Kör set 5 (5.1, GİTTİ): "For the terrace jacuzzi, I don't have specific troubleshooting steps in my guide". Özne 1. şahıs ŞART:
   // "You don't have any steps to climb" bir erişilebilirlik olgusudur.
   /(?<![\p{L}])(?:i|we) (?:don't|do not) have (?:any )?(?:\p{L}{1,20} ){0,2}(?:instructions|steps|guidance)(?![\p{L}])/u,
@@ -170,10 +174,11 @@ const ABSENCE_PATTERNS: readonly RegExp[] = [
   new RegExp(`(?<![\\p{L}])(?:i|we) lack ${gap(2)}${EN_OBJ}`, "u"),
   // Opus 10-15 (ölçüldü): "Televizyon için talimatım yok", "kayıtlı bir talimatımız bulunmuyor" — 1. şahıs iyelik ŞART ("Çöp için özel bir
   // talimat yok" olgudur); "There are no troubleshooting steps for the TV in my notes" — yer çapası ŞART ("There are no steps to the door").
-  // Opus N5 (10-15 gece, ölçüldü): "Çıkış için özel / ek bir talimatımız yok, anahtarı masaya bırakmanız yeterli" OLGUDUR (İngilizce dalın
-  // "no special / additional …" istisnasıyla aynı) — niteleyicili biçim tutulmaz. Geriye bakış sabit gövdeye ÖNCE ileriye bakışla bağlı.
-  new RegExp(`${L}(?=talimat)(?<!(?<![\\p{L}])(?:özel|ek|başka|farklı|ilave|ekstra|ayrıca|ayrı)\\s(?:bir\\s)?)talimat(?:ım|ımız|larım|larımız) ${gap(1)}(?:yok(?:tur)?|bulunmuyor|bulunmamaktadır)(?![\\p{L}])`, "u"),
-  /(?<![\p{L}])no (?!(?:special|particular|additional|extra|further|other) )(?:\p{L}{1,20} ){0,2}(?:steps|instructions|guidance) (?:[\p{L}\p{N}'-]{1,30} ){0,5}in (?:my|our) (?:notes?|records?|guide|files?|information)(?![\p{L}])/u,
+  // Kurucu 10-17 (H9, aynen: "televizyonla ilgili ayrı bir talimatım bulunmuyor — böyle bir şey yazamaz kesinlikle"; "Çıkış için özel
+  // talimatımız yok … bunu yazmasın"): Opus N5'in niteleyici istisnası ("özel / ek / başka / ayrı talimatımız yok" olgudur) KALDIRILDI.
+  // Aynı cümlede yönerge varsa yan cümle `no-instruction-filler.ts` ile silinir ("Anahtarı masaya bırakmanız yeterli."), yoksa tutulur.
+  new RegExp(`${L}talimat(?:ım|ımız|larım|larımız) ${gap(1)}(?:yok(?:tur)?|bulunmuyor|bulunmamaktadır)(?![\\p{L}])`, "u"),
+  /(?<![\p{L}])no (?:\p{L}{1,20} ){0,2}(?:steps|instructions|guidance) (?:[\p{L}\p{N}'-]{1,30} ){0,5}in (?:my|our) (?:notes?|records?|guide|files?|information)(?![\p{L}])/u,
   new RegExp(`there (?:isn't|is not|aren't|are not) (?:any )?${gap(1)}${EN_OBJ}`, "u"),
 ];
 
@@ -359,8 +364,55 @@ const MORE_ABSENCE_PATTERNS: readonly RegExp[] = [
   ),
 ];
 
+/**
+ * NİTELEYİCİLİ "TALİMAT YOK" (kurucu 10-17, H9, aynen: "Çıkış için özel talimatımız yok … bunu yazmasın"; "televizyonla ilgili ayrı bir
+ * talimatım bulunmuyor — böyle bir şey yazamaz kesinlikle"). Dil fark etmez: "özel / ek / başka / ayrı bir talimat yok", "No special
+ * instructions", "No hay instrucciones especiales", "Нет особых инструкций", "لا توجد تعليمات خاصة", "aucune instruction particulière",
+ * "keine besonderen Anweisungen" misafire GİTMEZ ("bilgim yok" ailesi). 1. şahıs iyelikli Türkçe biçim ↑`ABSENCE_PATTERNS`te. Aynı
+ * cümlede yönerge varsa yalnız bu yan cümle silinir (`no-instruction-filler.ts`).
+ */
+const QUALIFIED_NO_INSTRUCTION_PATTERNS: readonly RegExp[] = [
+  new RegExp(`${L}(?:özel|ek|başka|farklı|ilave|ekstra|ayrı)\\s(?:bir\\s)?talimat(?:lar)?\\s(?:yok(?:tur)?|bulunmuyor|bulunmamaktadır)(?![\\p{L}])`, "u"),
+  // "You need no special instructions" / "Vous n'avez besoin d'aucune…" / "Sie brauchen keine besonderen…" = "özel talimat GEREKMİYOR"
+  // (bilgisizlik değil; Türkçesi gibi tutulmaz) → "gerek" fiilinden sonra gelen biçim dışarıda (sabit uzunlukta geriye bakış, doğrusal).
+  /(?<![\p{L}])(?<!(?:need|needs|require|requires) )no (?:special|particular|additional|extra|further|other) (?:\p{L}{1,20} )?(?:instructions|steps|guidance)(?![\p{L}])/u,
+  /(?<![\p{L}])no hay instrucciones (?:especiales|adicionales|particulares)(?![\p{L}])/u,
+  /(?<![\p{L}])нет (?:особых|дополнительных|специальных) инструкций(?![\p{L}])/u,
+  /لا توجد تعليمات (?:خاصة|إضافية)/u,
+  /(?<![\p{L}])(?<!besoin d')aucune instruction (?:particulière|spéciale|supplémentaire)(?![\p{L}])/u,
+  /(?<![\p{L}])pas d'instructions? (?:particulières?|spéciales?|supplémentaires?)(?![\p{L}])/u,
+  /(?<![\p{L}])(?<!(?:brauchen|benötigen|braucht|benötigt) )keine (?:besonderen|speziellen|zusätzlichen|weiteren) (?:anweisungen|anleitungen|hinweise)(?![\p{L}])/u,
+];
+
+/**
+ * Silinebilir "talimat yok" YAN CÜMLESİ (`no-instruction-filler.ts`): niteleyicili biçimler + 1. şahıs iyelikli "talimatım(ız) yok" + "özel
+ * bir talimat gerekmiyor" (yalnız silme için; tek başına "gerek yok" bilgisi misafire gidebilir, bilgisizlik değildir).
+ */
+const NO_INSTRUCTION_CLAUSE_PATTERNS: readonly RegExp[] = [
+  ...QUALIFIED_NO_INSTRUCTION_PATTERNS,
+  new RegExp(`${L}talimat(?:ım|ımız|larım|larımız) ${gap(1)}(?:yok(?:tur)?|bulunmuyor|bulunmamaktadır)(?![\\p{L}])`, "u"),
+  new RegExp(`${L}(?:özel|ek|başka|farklı|ilave|ekstra|ayrı)\\s(?:bir\\s)?talimat(?:a|lar)?\\s(?:gerek(?:\\s)?(?:yok|miyor|mez|memektedir))(?![\\p{L}])`, "u"),
+];
+
 /** Tek liste (her çağrıda yeniden kurulmasın). Yeni kalıplar KAPALI tekrar (`{0,n}`) kullanır — CLAUDE.md karesel iş kuralı. */
-const ALL_ABSENCE_PATTERNS: readonly RegExp[] = [...ABSENCE_PATTERNS, ...MORE_ABSENCE_PATTERNS];
+const ALL_ABSENCE_PATTERNS: readonly RegExp[] = [...ABSENCE_PATTERNS, ...MORE_ABSENCE_PATTERNS, ...QUALIFIED_NO_INSTRUCTION_PATTERNS];
+
+/** Ortak hazırlık: `admitsMissingKnowledge` ile aynı normalleştirme + iki katlama. */
+function foldedForms(text: string | null | undefined): [string, string] {
+  const normalized = (text ?? "")
+    .normalize("NFC")
+    .replace(/[’‘ʼ]/g, "'")
+    .replace(/[*_`~]+/g, "")
+    .replace(/\s+/g, " ");
+  const marked = normalized.replace(SENTENCE_END, `$1${SEP}$2`);
+  return [foldTurkishLower(marked), foldTurkishLowerTr(marked)];
+}
+
+/** Metin (bir yan cümle) silinebilir "talimat yok" kalıbı taşıyor mu (↑`NO_INSTRUCTION_CLAUSE_PATTERNS`). */
+export function matchesNoInstructionClause(text: string | null | undefined): boolean {
+  const [plain, turkish] = foldedForms(text);
+  return NO_INSTRUCTION_CLAUSE_PATTERNS.some((re) => re.test(plain) || re.test(turkish));
+}
 
 /**
  * Cevap, bilginin KAYITLARDA OLMADIĞINI açıkça söylüyor mu?
@@ -381,14 +433,7 @@ export function admitsMissingKnowledge(reply: string | null | undefined): boolea
   // 10-01 (15 ajan A05): biçim kalıbı deliyordu — "**don't have**" (kalın), "`…`", çift boşluk / sekme / satır sonu ("I do not\nhave that
   // information"). Vurgu işaretleri silinir, her boşluk dizisi TEK boşluk olur (sınıflandırıcının `normalizeForMatch`iyle aynı; yalnız
   // EŞLEŞME EKLER — kısıtlayıcı kapı).
-  const normalized = (reply ?? "")
-    .normalize("NFC")
-    .replace(/[’‘ʼ]/g, "'")
-    .replace(/[*_`~]+/g, "")
-    .replace(/\s+/g, " ");
-  const marked = normalized.replace(SENTENCE_END, `$1${SEP}$2`);
-  const plain = foldTurkishLower(marked);
-  const turkish = foldTurkishLowerTr(marked);
+  const [plain, turkish] = foldedForms(reply);
   return ALL_ABSENCE_PATTERNS.some((re) => re.test(plain) || re.test(turkish));
 }
 
