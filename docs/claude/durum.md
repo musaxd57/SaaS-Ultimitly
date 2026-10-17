@@ -8,7 +8,13 @@
 > `docs/history/CLAUDE-2026-10-02-sadelestirme-3-oncesi-tam-metin.md` ("Durum" bölümü). Kuralları yukarıdaki bölümlerde; yalnız Durum'da
 > yazılı olan kurallar (konuşma öğeleri, ev kuralları, canlı bayraklar) 10-02'de ilgili bölümlere taşındı. Bekleyen onaylar ↓.
 
-**10-17 (güncel):** kurucu kararları S1 (migration'sız) kodda — H9/M1 "talimat yok" silici (izin listesi; Opus P1'ler: kanıtsız cihaz adımı,
+**10-17 öğleden sonra (güncel):** S2 migration paketi kodda — I3 kuyruk dizini (69) · L2 "eskisinin yerine koy" (70; ekranda görülen kalem
+sürümü zorunlu, işlem içi koşul, yerine konan eski değer bir daha önerilmez) + L3 tek konuşmalık işaret (cümlecik bazlı, ev sahibini uğraştırmaz) ·
+L5 1. faz (71; kanalın kendi otomatik mesajı öğrenme / üslup / öneride ev sahibi kanıtı değil, "cevap mı" değişmedi — Q2) · K1 (72; ilan tekrarı
+denemeyi BİTİRMEZ, işaretler; ham IP saklamayan kayıt ağı izi, anahtar `SIGNUP_NETWORK_TRACE_ENABLED` KAPALI — Q3/Q4). Haiku her parçada (L2 21,
+L5 8, K1 12 bulgu), mutasyon L2/L5 28/28. Push: `5ada7188` (CI #1525). Açık: I1 (Q1), L5 2. faz + istem etiketi (Q2/Q2-b), K1 metin / süre (Q3/Q4).
+
+**10-17 sabah:** kurucu kararları S1 (migration'sız) kodda — H9/M1 "talimat yok" silici (izin listesi; Opus P1'ler: kanıtsız cihaz adımı,
 göndergesel konu, bilinmeyen konu, selam kabuğu → silinmez, cevap tutulur) · K4 çıkış gününe elle temizlik (görev formu rezervasyon bağlamadığı için
 aynı mülkte rezervasyonsuz elle temizlik de sayılır) · N1 abonelik kapalıyken bayat otomatik mesaj gitmez ("en son kapalı görüldü" işareti, kuyruk
 satırı iptali, bekleyen karşılama / giriş mesajında varış günü penceresi, tek not) · K3 ödeme ekranı metinleri (`billing-ui-text.ts`). Haiku ×2 +
