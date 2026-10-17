@@ -567,6 +567,32 @@ describe("'Yanlış, kaldır' (kendiliğinden kaydedilen söz)", () => {
   });
 });
 
+describe("öneri türü ve gün düzenlemesi (Opus O7 / O13)", () => {
+  it("🚨 yalnız söz önerisi istenince görev önerisi ÜRETİLMEZ (görünmeyen görev önerileri 5 yerlik tavanı doldurmasın)", async () => {
+    const s = await setup();
+    await prisma.message.create({
+      data: { conversationId: s.conversationId, direction: "inbound", authorType: "guest", senderName: "Misafir", body: "Klima çalışmıyor, çok sıcak.", createdAt: new Date(Date.now() - 60_000) },
+    });
+    await hostSays(s.conversationId, "Klima için teknisyen yarın 10:00'da gelecek.");
+    const all = await getConversationSuggestions(s.orgId, s.conversationId);
+    expect(all.map((x) => x.kind).sort()).toEqual(["commitment", "task"]);
+    expect((await getConversationSuggestions(s.orgId, s.conversationId, new Date(), { only: "commitment" })).map((x) => x.kind)).toEqual(["commitment"]);
+    expect((await getConversationSuggestions(s.orgId, s.conversationId, new Date(), { only: "task" })).map((x) => x.kind)).toEqual(["task"]);
+  });
+
+  it("gün sözünde ev sahibi günü değiştirirse görevin yalnız-tarih vadesi TAKVİMLE kayar (UTC+12…14'te de doğru gün — O13)", async () => {
+    const s = await setup();
+    const msg = await hostSays(s.conversationId, "Havlu getireceğim.");
+    const [sugg] = (await getConversationSuggestions(s.orgId, s.conversationId)).filter((x) => x.kind === "commitment");
+    expect(sugg.kind === "commitment" && sugg.proposal.day).toBe("today");
+    expect((await decide({ key: sugg.key, decision: "approve", day: "tomorrow" })).status).toBe(200);
+    const c = await prisma.guestCommitment.findFirstOrThrow();
+    const tomorrowKey = tomorrowKeyOf(msg.createdAt);
+    expect(dateKeyInTimeZone(c.dueAt, TZ)).toBe(tomorrowKey);
+    expect((await prisma.task.findUniqueOrThrow({ where: { id: c.taskId! } })).dueAt?.toISOString()).toBe(`${tomorrowKey}T12:00:00.000Z`);
+  });
+});
+
 describe("eşzamanlılık ve demo (Opus O15 / O17)", () => {
   it("🚨 aynı konuşma işlenirken (kanca + tur) ikinci işleme ATLANIR — iki söz açılmaz; kilit bırakılınca işlenir", async () => {
     const s = await setup();
