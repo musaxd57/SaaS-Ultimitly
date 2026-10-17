@@ -677,6 +677,8 @@ model Conversation {
   // Their value spaces cannot collide. Both handle the resulting P2002.
   @@unique([propertyId, externalReservationId])
   @@index([propertyId])
+  // Migration 77 (gece-4 S8-01): rezervasyon silinince FK eylemi (SET NULL) her satırda tabloyu taramasın (mülk / hesap silme 15 sn → 0,1 sn).
+  @@index([reservationId])
   @@index([status])
   // Kept DESPITE the composite unique above: that index leads with propertyId,
   // so it cannot serve a lookup by externalReservationId alone.
@@ -803,6 +805,8 @@ model SupplyRequest {
   // never collide. Makes the app-level findFirst race-proof.
   @@unique([sourceMessageId, itemKey])
   @@index([propertyId, createdAt])
+  // Migration 77 (gece-4 S8-01): rezervasyon silinince FK eylemi (SET NULL) tablo taramasın.
+  @@index([reservationId])
 }
 
 model TaskUpdate {
@@ -903,6 +907,9 @@ model AuditLog {
   actor        User?        @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
 
   @@index([organizationId])
+  // Migration 77 (gece-4 S8-05): öneri kararları (kurum + eylem + zaman) ve operatör sayfası (son kayıtlar) tam taramasın.
+  @@index([organizationId, action, createdAt])
+  @@index([createdAt])
 }
 
 // Distance-selling (Mesafeli Satış) consent EVIDENCE captured at CHECKOUT — the
@@ -1381,6 +1388,9 @@ model Signal {
   conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
 
   @@index([organizationId, occurredAt])
+  // Migration 77 (gece-4 S8-01): konuşma / rezervasyon silinince FK eylemi (SET NULL) tablo taramasın.
+  @@index([conversationId])
+  @@index([reservationId])
   @@index([propertyId, category, occurredAt])
 }
 
