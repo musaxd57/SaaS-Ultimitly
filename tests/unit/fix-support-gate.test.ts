@@ -396,6 +396,20 @@ describe("gece-4 S4-03 / S4-08: İngilizce kısaltmalı arıza, -ing adımlar, b
     // KONTROL: "power it off" yeniden başlatma adımı olarak kalır.
     expect(unsupportedFixStep("Please try powering it off for a minute.", thin, "The TV isn't working")).toBe(true);
   });
+  it("Haiku gece-4 2. tur: arıza bildiriminde nesneli kapatma adımdır; kip + çalıştırma fiili adımdır; 'they' cihaz çoğulu olabilir", () => {
+    // Misafir arıza bildirdi → "power off the modem" yeniden başlatma adımı (tarif yok → tutulur); arıza yokken çıkış hatırlatması geçer.
+    expect(unsupportedFixStep("Please power off the modem and wait 30 seconds.", thin, "The internet is down")).toBe(true);
+    expect(unsupportedFixStep("Please power off the lights when you leave.", thin, "Anything before we leave?")).toBe(false);
+    // Bilgi tabanında olmayan cihazın "you can + çalıştırma fiili" yönergesi (izin "you can use" değil).
+    for (const r of ["You can turn on the TV with the remote.", "You can switch the boiler off with the knob."]) {
+      expect(unsupportedFixStep(r, thin, "How does it work?"), r).toBe(true);
+    }
+    expect(unsupportedFixStep("You can use the gym anytime.", thin, "Is there a gym?")).toBe(false);
+    // "They don't turn on" cihaz çoğulu → arıza (ölçüldü: "they" dışlanınca arıza görülmüyordu); kişi öznesi ("We don't turn on…") arıza değil.
+    const withHeating = { recipeTopics: new Set<string>(), subjectTopics: new Set<string>(["heating"]) };
+    expect(unsupportedFixStep("Please check the cable on the heater.", withHeating, "The heaters, they don't turn on.")).toBe(true);
+    expect(unsupportedFixStep("Please check the cable on the heater.", withHeating, "We don't turn on the heaters at night, is that ok?")).toBe(false);
+  });
   it("KONTROL: cihaz bilgi tabanında KONU ise kullanım yönergesi geçer (yalnız arıza adımı tarif ister)", () => {
     const withTv = { recipeTopics: new Set<string>(), subjectTopics: new Set<string>(["tv"]) };
     expect(unsupportedFixStep("Televizyonu kumandayla açabilirsiniz.", withTv, "TV nasıl açılır?")).toBe(false);

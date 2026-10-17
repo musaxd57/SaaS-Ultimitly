@@ -826,7 +826,14 @@ describe("söz algılama v2 — gün kapsamı, dilek, iki söz, süre, devam (se
     // Kesmesiz yazım (mobil) dar fiille söz; "well" / "well come" / "check-in" söz değil (F5 korunur).
     expect(detectHostPromises("Ill bring towels tomorrow.").map((p) => p.kind)).toEqual(["towels"]);
     expect(detectHostPromises("Well send the technician tomorrow at 10.").map((p) => p.kind)).toEqual(["maintenance"]);
-    for (const t of ["The cleaning went well.", "You are well come, the technician is great.", "The AC works well check-in is at 15:00 tomorrow."]) {
+    for (const t of [
+      "The cleaning went well.",
+      "You are well come, the technician is great.",
+      "The AC works well check-in is at 15:00 tomorrow.",
+      // Haiku gece-4 2. tur: durum sözcüğünden sonraki "well" zarftır.
+      "Everything went well send towels tomorrow at 10.",
+      "The shower works well fix tomorrow at 10.",
+    ]) {
       expect(detectHostPromises(t), t).toEqual([]);
     }
   });

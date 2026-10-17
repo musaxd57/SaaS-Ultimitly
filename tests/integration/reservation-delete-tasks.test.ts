@@ -44,13 +44,19 @@ const seedTask = (reservationId: string, o: { type: string; origin: string; stat
   prisma.task.create({ data: { propertyId, reservationId, dueAt: daysFromNow(5), title: `${o.type} ${o.origin} ${o.status}`, ...o }, select: { id: true } });
 
 describe("DELETE /api/reservations/[id] — açık otomatik görevler de gider (gece-4 S6-05)", () => {
-  it("🚨 açık sistem temizlik + hazırlık silinir; bitmiş sistem, elle açılmış ve bakım görevi kalır", async () => {
+  it("🚨 başlanmamış sistem temizlik + hazırlık silinir; başlanmış / işaretlenmiş / bitmiş sistem, elle açılmış ve bakım görevi kalır", async () => {
     const r = await seedReservation();
     const gone = [
       await seedTask(r.id, { type: "cleaning", origin: "system", status: "todo" }),
-      await seedTask(r.id, { type: "checkin_prep", origin: "system", status: "awaiting_review" }),
+      await seedTask(r.id, { type: "checkin_prep", origin: "system", status: "todo" }),
     ];
+    // Haiku gece-4: başlanmış görev ve temizlikçinin işaretlediği liste iş kanıtıdır — silinmez (bağsız kalır).
+    const started = await seedTask(r.id, { type: "cleaning", origin: "system", status: "in_progress" });
+    const checked = await seedTask(r.id, { type: "checkin_prep", origin: "system", status: "todo" });
+    await prisma.task.update({ where: { id: checked.id }, data: { checklistJson: JSON.stringify([{ label: "Havlu", done: true }]) } });
     const kept = [
+      started,
+      checked,
       await seedTask(r.id, { type: "cleaning", origin: "system", status: "done" }),
       await seedTask(r.id, { type: "cleaning", origin: "manual", status: "todo" }),
       await seedTask(r.id, { type: "maintenance", origin: "system", status: "todo" }),

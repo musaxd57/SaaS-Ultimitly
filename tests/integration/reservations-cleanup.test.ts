@@ -73,7 +73,7 @@ describe("cleanupStaleReservations", () => {
     expect(await prisma.reservation.findUnique({ where: { id: ghost.id } })).toBeNull();
   });
 
-  it("🚨 gece-4 S6-05: silinen hayaletin AÇIK sistem temizlik / hazırlık görevi de gider; bitmiş, elle açılmış ve başka rezervasyonun görevi kalır", async () => {
+  it("🚨 gece-4 S6-05: silinen hayaletin BAŞLANMAMIŞ sistem temizlik / hazırlık görevi de gider; başlanmış, bitmiş, elle açılmış ve başka rezervasyonun görevi kalır", async () => {
     const { orgId, propertyId } = await makeOrgProp("hosp-1");
     const today = new Date();
     const valid = await makeRes(propertyId, "res-valid", today);
@@ -84,7 +84,8 @@ describe("cleanupStaleReservations", () => {
     const task = (reservationId: string, o: { type: string; origin: string; status: string; title: string }) =>
       prisma.task.create({ data: { propertyId, reservationId, dueAt: today, ...o }, select: { id: true } });
     const openSystem = await task(ghost.id, { type: "cleaning", origin: "system", status: "todo", title: "Çıkış temizliği - G" });
-    const openPrep = await task(ghost.id, { type: "checkin_prep", origin: "system", status: "in_progress", title: "G girişi için hazırlık" });
+    const openPrep = await task(ghost.id, { type: "checkin_prep", origin: "system", status: "todo", title: "G girişi için hazırlık" });
+    const started = await task(ghost.id, { type: "cleaning", origin: "system", status: "in_progress", title: "Çıkış temizliği - G (başladı)" });
     const doneSystem = await task(ghost.id, { type: "cleaning", origin: "system", status: "done", title: "Çıkış temizliği - G (bitti)" });
     const manual = await task(ghost.id, { type: "cleaning", origin: "manual", status: "todo", title: "Elle temizlik" });
     const validTask = await task(valid.id, { type: "cleaning", origin: "system", status: "todo", title: "Çıkış temizliği - V" });
@@ -95,6 +96,7 @@ describe("cleanupStaleReservations", () => {
     expect(out).toMatchObject({ removed: 1 });
     expect(await prisma.task.findUnique({ where: { id: openSystem.id } })).toBeNull();
     expect(await prisma.task.findUnique({ where: { id: openPrep.id } })).toBeNull();
+    expect(await prisma.task.findUnique({ where: { id: started.id } })).not.toBeNull();
     expect(await prisma.task.findUnique({ where: { id: doneSystem.id } })).not.toBeNull();
     expect(await prisma.task.findUnique({ where: { id: manual.id } })).not.toBeNull();
     expect((await prisma.task.findUniqueOrThrow({ where: { id: validTask.id } })).reservationId).toBe(valid.id);

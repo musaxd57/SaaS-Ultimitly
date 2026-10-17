@@ -657,7 +657,9 @@ async function sendTimeVeto(row: OutboxRow, now: Date): Promise<string | null> {
   // Gece-4 S3-01: işletmenin KENDİ anahtarları da gönderim anında okunur — kuyruğa giriş onlara bakıyordu, gönderim bakmıyordu: ev sahibi
   // panelden "Otomatik yanıt"ı kapattıktan sonra bekleyen cevap (kuyruk geçiş sonunda boşalır; park / ödeme beklemesinde günler sonra) yine
   // gidiyordu; giriş bilgisi (kapı kodu) "Giriş mesajı" kapatılmışken ödeme gelince gidebiliyordu. Kapalı anahtar = iptal (açılınca bayat
-  // mesaj gitmez; yeni rezervasyon / mesaj kuyruğa giriş kurallarıyla yeniden işlenir). Elle cevap etkilenmez.
+  // mesaj gitmez; yeni rezervasyon / mesaj kuyruğa giriş kurallarıyla yeniden işlenir). Elle cevap etkilenmez. Yaşam döngüsünde iptal
+  // kuyruğa giriş kuralıyla TUTARLI: anahtar yeniden açılınca `auto*EnabledAt` yenilenir ve ondan önce oluşturulmuş rezervasyon zaten
+  // gönderim kapsamı dışıdır (aynı anahtarla yeniden kuyruğa girmez; genel kapatmadaki "bekle" kuralı burada bayat mesaj demek olurdu).
   const switchVeto = await orgSwitchCancelReason(row);
   if (switchVeto) return switchVeto;
   // N1 (kurucu 10-17: "ödeme geldikten sonra çalışmaya başlasın kesinlikle bayat mesaj gitmemeli"): abonelik erişimi kapalıyken kuyruktaki

@@ -50,9 +50,10 @@ const NR = "(?![\\p{L}\\p{N}])";
 const PROMISE_TR =
   "(?:getir(?:ecegim|ecegiz|ecek|ecekler|ilecek|irim|iriz|tecegim|tirecegim|eyim|iyorum|iyoruz|iyorlar|iyor)|gonder(?:ecegim|ecegiz|ecek|ilecek|irim|iriz|iyorum|iyoruz)|yolla(?:yacagim|yacagiz|yacak|rim)|birak(?:acagim|acagiz|acak)|yap(?:acagim|acagiz|acak|ilacak)|gel(?:ecek(?!\\s+(?:hafta|ay|yil|sefer|misafir|konuk|kisi|grup|rezervasyon|sezon))|ecekler|ecegim|ecegiz|iyor|iyorlar)|ugra(?:yacak|yacagim|yacagiz)|bak(?:acak|acagim|acagiz|acaklar)|ilgilen(?:ecegim|ecegiz|ecek)|halled(?:ecegim|ecegiz|ecek|ilecek)|hallederim|tamir\\s+(?:edilecek|edecek|edecegim|ettirecegim)|degistir(?:ecegim|ecegiz|ecek|ilecek)|temizle(?:necek|yecek|yecegim|yecegiz)|ayarla(?:yacagim|yacagiz|nacak|rim))";
 // Kesmesiz "Ill / Well" yalnız dar fiille (Opus gece-4 F5 kesmeyi zorunlu yaptı: "went well" söz sayılıyordu; Haiku: "Ill bring towels tomorrow"
-// sessizce düşüyordu). "come" / "check" YOK: "You are well come" (welcome yazım hatası) ve "works well check-in…" söz değildir.
+// sessizce düşüyordu). "come" / "check" YOK: "You are well come" (welcome yazım hatası) ve "works well check-in…" söz değildir; durum
+// sözcüğünden sonraki "well" ("Everything went well send…", "works well fix…") zarftır — Haiku gece-4.
 const PROMISE_EN =
-  "(?:i['’]?m\\s+sending|i\\s+am\\s+sending|i['’]ll|i\\s+will|we['’]ll|we\\s+will|(?:i|we)ll\\s+(?:bring|send|drop|fix|deliver)|(?:someone|somebody|(?:(?:the|a|an|our)\\s+)?(?:technician|cleaner|plumber|electrician|engineer|housekeeper)s?|housekeeping|maintenance|he|she|they)\\s+will|(?:is|are)\\s+(?:coming|on\\s+(?:the|his|her|their)\\s+way))";
+  "(?:i['’]?m\\s+sending|i\\s+am\\s+sending|i['’]ll|i\\s+will|we['’]ll|we\\s+will|ill\\s+(?:bring|send|drop|fix|deliver)|(?<!(?:went|work(?:s|ed)?|did|done|go(?:es|ing)?|very|as|so|pretty|quite|really|is|was|are|were|be|been|all)\\s)well\\s+(?:bring|send|drop|fix|deliver)|(?:someone|somebody|(?:(?:the|a|an|our)\\s+)?(?:technician|cleaner|plumber|electrician|engineer|housekeeper)s?|housekeeping|maintenance|he|she|they)\\s+will|(?:is|are)\\s+(?:coming|on\\s+(?:the|his|her|their)\\s+way))";
 const PROMISE = new RegExp(`${NL}(?:${PROMISE_TR}|${PROMISE_EN})${NR}`, "u");
 /** Teklif / koşul söz değildir ("isterseniz getirebilirim", "if you need I'll bring"). */
 const CONDITIONAL = new RegExp(`${NL}(?:eger|isterseniz|istersen|gerekirse|ihtiyac\\p{L}{0,6}\\s+olursa|if|unless)${NR}`, "u");

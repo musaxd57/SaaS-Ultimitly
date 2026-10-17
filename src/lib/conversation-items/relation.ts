@@ -848,7 +848,7 @@ const TROUBLESHOOT_CONTEXT = new RegExp(
 const RESTART_STEP = new RegExp(
   [
     // Gece-4 S4-03: -ing / -s / -ed biçimleri de ("Please try restarting the TV", "unplugging it for a minute") — yalın kök tek başına kaçıyordu.
-    // "power off" YALNIZ "it" ile (Haiku gece-4: "Please power off the lights when you leave" çıkış hatırlatmasıydı, adım sayılıp tutuluyordu).
+    // "power it off" her bağlamda; nesneli "power off the modem" yalnız misafir arıza bildirdiyse (↓`POWER_OFF_STEP`; Haiku gece-4).
     `${L}(?:restart(?:ing|s|ed)?|reboot(?:ing|s|ed)?|reset(?:ting|s)?|unplug(?:ging|s|ged)?|replug(?:ging|s|ged)?|power(?:ing)? it (?:off|down)|power cycle|turn it back on|neustart\\p{L}{0,2}|zurucksetzen|redemarr\\p{L}{0,3}|debranch\\p{L}{0,3}|rebranch\\p{L}{0,3}|reinici\\p{L}{0,3}|desenchuf\\p{L}{0,3}|перезагруз\\p{L}{0,4})${R}`,
     // "switch the AC off and on again", "turning it off and back on" (Opus gece-2 M2 — "turn off and on" yalnız bitişik biçimdi)
     `${L}(?:turn|turning|switch|switching|power|powering) (?:(?:it|the|your|this) )?(?:\\p{L}{1,20} ){0,2}off and (?:back )?on${R}`,
@@ -862,6 +862,12 @@ const RESTART_STEP = new RegExp(
   ].join("|"),
   "u",
 );
+
+/**
+ * Nesneli kapatma ("Please power off the modem and wait 30 seconds") — yalnız misafir ARIZA bildirdiyse yeniden başlatma adımıdır; arıza
+ * yokken çıkış hatırlatmasıdır ("Please power off the lights when you leave" — Haiku gece-4, iki yön).
+ */
+const POWER_OFF_STEP = new RegExp(`${L}power(?:ing)? (?:(?:the|your|this) )?(?:\\p{L}{1,20} )?(?:off|down)${R}`, "u");
 
 /**
  * Misafire yöneltilmiş kip / ikinci şahıs adım biçimleri (Opus gece-2 M2 c): YALNIZ misafirin ARIZA bildirdiği cihazı anan cümlede adım
@@ -898,7 +904,12 @@ const ENGLISH_USAGE_STEP = new RegExp(
  * biçimleri ("please", "you can") ve genel fiiller ("kullanabilirsiniz") burada adım DEĞİL (Haiku gece-4: "The fridge is empty, please help
  * yourself" ve izin cümleleri tutuluyordu).
  */
-const USAGE_VERB_STEP = new RegExp(`${L}(?:${TR_OPERATE_VERBS})${TR_STEP_SUFFIX}${R}|${EN_IMPERATIVE_START}`, "u");
+const USAGE_VERB_STEP = new RegExp(
+  `${L}(?:${TR_OPERATE_VERBS})${TR_STEP_SUFFIX}${R}|${EN_IMPERATIVE_START}|` +
+    // "You can turn on the TV with the remote", "please press the red button" — kip + ÇALIŞTIRMA fiili (izin "you can use" değil; Haiku gece-4).
+    `${L}(?:you (?:can|could|may|should|need to|have to|must)|please) (?:just |simply )?(?:turn|switch|press|hold|set|adjust|change|open|start|rotate|twist|push|pull|plug|unplug|reset|restart|select|operate)${R}`,
+  "u",
+);
 /** Dar adım biçimleri: kapalı fiil listesinin kipleri + çözüm önerisi kalıbı + İngilizce cümle başı emir (cihazı misafirden devralınan cümlede). */
 const FAULT_DEVICE_VERB_STEP = new RegExp(FAULT_DEVICE_VERB_SOURCE, "u");
 const FAULT_DEVICE_STEP = new RegExp(
@@ -1107,7 +1118,7 @@ export function unsupportedFixStep(
     const sideOnly = conceptsOf(sentence.replace(REMOTE_WORD, " ")).every((t) => STEP_VERB_SIDE_TOPICS.has(t));
     const inheritsFault = own.length > 0 || (sideOnly && (carried.length > 0 ? true : !guestAsksOther));
     const faulty = inheritsFault ? devices.filter((t) => faultDevices.has(t)) : [];
-    const restart = RESTART_STEP.test(f);
+    const restart = RESTART_STEP.test(f) || (guestReportsFault && POWER_OFF_STEP.test(f));
     // Deneme önerisi yalnız arıza bağlamında ya da bir ayar / tuş / programla anıldığında adımdır (Opus gece-2 M11: "Sahildeki kafede Türk
     // kahvesini mutlaka deneyin" yerel öneriydi, kahve makinesi kullanım adımı sayılıp tutuluyordu).
     const tries = TRY_STEP.test(f) && (guestReportsFault || TRY_ACTION_CONTEXT.test(f));
@@ -1341,8 +1352,11 @@ const FAULT_PHRASE_SOURCE = [
     // en
     // Gece-4 S4-03: kısaltmalı olumsuz ("The TV isn't working", "doesn't turn on", "is dead") — misafir en çok böyle yazıyor.
     // Kişi öznesi arıza değil (Haiku gece-4: "We didn't turn on the dishwasher, is it included?" bulaşık makinesini arızalı sayıyordu).
-    `${L}(?<!(?:^|\\s)(?:we|i|you|they|he|she) )(?:isn't|aren't|wasn't|weren't|doesn't|don't|didn't|won't|is not|are not) (?:working|turning on|turn on|starting|heating|cooling|responding|charging|draining)${R}`,
+    // "they" YOK: cihaz çoğulu olabilir ("The speakers? They don't turn on.").
+    `${L}(?<!(?:^|\\s)(?:we|i|you) )(?:isn't|aren't|wasn't|weren't|doesn't|don't|didn't|won't|is not|are not) (?:working|turning on|turn on|starting|heating|cooling|responding|charging|draining)${R}`,
     `${L}(?:is dead|has died|no longer works|stopped responding)${R}`,
+    // Haiku gece-4 2. tur: "The internet is down", "the power went out" (cihaz kavramı yine şart).
+    `${L}(?:internet|wifi|wi-fi|network|connection|power|electricity) (?:is|was|went|has gone|keeps going) (?:down|out)${R}`,
     `${L}(?:not working|can't connect|cannot connect|can not connect|unable to connect|very slow|too slow|extremely slow|won't drain|not draining|doesn't drain|keeps dropping|keeps disconnecting|doesn't work|does not work|won't turn on|will not turn on|won't start|stopped working|broken|no picture|black screen|no sound|no signal|not heating|not cooling|leaking|clogged|won't respond|doesn't respond|does not respond|not responding|no hot water|no internet|no wifi|no power|got stuck|is stuck|only blows (?:cold|warm|hot) air|won't open|won't connect|keeps (?:beeping|turning off|shutting off))${R}`,
     // de / fr / es
     `${L}(?:funktioniert nicht|geht nicht|kaputt|kein bild|kein ton|kein signal|reagiert nicht|geht nicht an|kein warmes wasser|kein internet|ne marche pas|ne fonctionne pas|en panne|pas d'image|pas de son|ne s'allume plus|ne chauffe plus|ne repond pas|pas d'eau chaude|plus d'internet|no funciona|averiad[oa]|sin imagen|sin sonido|no arranca|no responde|no enciende|no calienta|no enfria|no hay agua caliente|no hay internet)${R}`,

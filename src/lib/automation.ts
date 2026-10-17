@@ -1364,10 +1364,11 @@ export async function removeAutoTasksForCancelledReservation(
 
 /**
  * Rezervasyon SİLME (API `DELETE /api/reservations/[id]` + hayalet temizliği) — gece-4 S6-05: `Task.reservationId` SetNull olduğu için
- * silinen konaklamanın AÇIK yaşam döngüsü görevleri ("Çıkış temizliği", "… girişi için hazırlık") bağsız kalıp temizlikçi listesinde
- * duruyordu (hayalet YANLIŞ daireye bağlıysa temizliği de o dairede). İptalle AYNI küme (`OPEN_AUTO_LIFECYCLE_TASK_WHERE`: yalnız sistem
- * görevi, yalnız bitmemiş — elle / mesajdan açılan ve bitmiş görev kalır) ve AYNI rezervasyon kilidi (görev açan işlem ya önce biter →
- * görevini burada sileriz, ya sonra koşar → rezervasyonu bulamaz, açmaz); fotoğraf silme niyeti aynı işlemde. Silinen rezervasyon sayısını döner.
+ * silinen konaklamanın açık yaşam döngüsü görevleri ("Çıkış temizliği", "… girişi için hazırlık") bağsız kalıp temizlikçi listesinde
+ * duruyordu (hayalet YANLIŞ daireye bağlıysa temizliği de o dairede). Silinen küme ONARIM kümesidir (kurucu D5): yalnız sistem görevi,
+ * BAŞLANMAMIŞ ve DOKUNULMAMIŞ (güncelleme / fotoğraf / kontrol listesi işareti yok) — başlanmış görev ve temizlikçinin fotoğrafı iş
+ * kanıtıdır, bağsız kalır (Haiku gece-4: önceki biçim başlanmış görevi fotoğraflarıyla siliyordu). Görev açmayla AYNI rezervasyon kilidi
+ * (görev açan işlem ya önce biter → görevini burada sileriz, ya sonra koşar → rezervasyonu bulamaz, açmaz). Silinen rezervasyon sayısını döner.
  */
 export async function deleteReservationsWithAutoTasks(ids: string[], organizationId: string): Promise<number> {
   const unique = [...new Set(ids)].sort();
@@ -1380,15 +1381,18 @@ export async function deleteReservationsWithAutoTasks(ids: string[], organizatio
       await tx.reservation.findMany({ where: { id: { in: unique }, property: { organizationId } }, select: { id: true } })
     ).map((r) => r.id);
     if (owned.length === 0) return 0;
-    const doomed: Prisma.TaskWhereInput = { reservationId: { in: owned }, ...OPEN_AUTO_LIFECYCLE_TASK_WHERE };
-    const photos = await tx.taskUpdate.findMany({
-      where: { task: doomed, photoUrl: { startsWith: STORAGE_PHOTO_URL_PREFIX } },
-      select: { photoUrl: true },
-    });
-    const { count: removedTasks } = await tx.task.deleteMany({ where: doomed });
-    if (removedTasks > 0 && photos.length > 0) {
-      await enqueueUnreferencedPhotoDeletions(tx, organizationId, photos.map((p) => p.photoUrl));
-    }
+    const candidates = (
+      await tx.task.findMany({ where: { reservationId: { in: owned }, ...UNTOUCHED_AUTO_LIFECYCLE_TASK_WHERE }, select: { id: true } })
+    ).map((t) => t.id);
+    // Aday satırlar KİLİTLENİR ve kontrol listesi işareti kilit altında okunur (iptal onarımıyla aynı — Opus O1 / Haiku 10-15).
+    const locked =
+      candidates.length === 0
+        ? []
+        : await tx.$queryRaw<{ id: string; checklistJson: string | null }[]>(
+            Prisma.sql`SELECT "id", "checklistJson" FROM "Task" WHERE "id" IN (${Prisma.join(candidates)}) FOR UPDATE`,
+          );
+    const doomed = locked.filter((t) => !checklistTouched(t.checklistJson)).map((t) => t.id);
+    if (doomed.length > 0) await tx.task.deleteMany({ where: { id: { in: doomed } } });
     const { count } = await tx.reservation.deleteMany({ where: { id: { in: owned } } });
     return count;
   }, RESERVATION_TASKS_TX);
