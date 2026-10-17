@@ -58,10 +58,11 @@ describe("söz konusu", () => {
     await asOwner(orgId);
     const conv = await conversationWith(propertyId, [`Klima için teknisyen ${WHEN}'da gelecek.`, `Musluk için usta ${WHEN}'da gelecek.`]);
     const list = await getConversationSuggestions(orgId, conv);
-    expect(list.filter((s) => s.kind === "commitment").map((s) => s.title).sort()).toEqual([
-      `Söz kaydet: Arıza / bakım · klima — ${WHEN}`,
-      `Söz kaydet: Arıza / bakım · musluk — ${WHEN}`,
-    ]);
+    // Gün sözcüğü mesajın gününe göre ("yarın" ya da gece yarısını geçen koşuda "bugün") — Haiku 10-17 zaman bombası: saat ve konu sınanır.
+    const titles = list.filter((s) => s.kind === "commitment").map((s) => s.title).sort();
+    expect(titles).toHaveLength(2);
+    expect(titles[0]).toMatch(/^Söz kaydet: Arıza \/ bakım · klima — (?:bugün|yarın) 10:00$/u);
+    expect(titles[1]).toMatch(/^Söz kaydet: Arıza \/ bakım · musluk — (?:bugün|yarın) 10:00$/u);
     for (const s of list) expect((await decide({ key: s.key, decision: "approve" })).status).toBe(200);
     const rows = await prisma.guestCommitment.findMany({ where: { conversationId: conv }, orderBy: { topic: "asc" } });
     expect(rows.map((r) => r.topic)).toEqual(["ac", "faucet"]);
@@ -78,10 +79,12 @@ describe("söz konusu", () => {
     const conv = await conversationWith(propertyId, [`Klima için teknisyen ${WHEN}'da gelecek.`, `Musluk için usta ${WHEN}'da gelecek.`]);
     const ac = (await getConversationSuggestions(orgId, conv)).find((s) => s.title.includes("klima"))!;
     expect((await decide({ key: ac.key, decision: "approve" })).status).toBe(200);
-    expect((await getConversationSuggestions(orgId, conv)).map((s) => s.title)).toEqual([`Söz kaydet: Arıza / bakım · musluk — ${WHEN}`]);
+    const after = (await getConversationSuggestions(orgId, conv)).map((s) => s.title);
+    expect(after).toHaveLength(1);
+    expect(after[0]).toMatch(/· musluk — /u);
   });
 
-  it("aynı konu iki mesajda → TEK söz (birleştirme amacı korunur); konusuz öneri mevcut konulu söze katılır, yeni görev YOK", async () => {
+  it("aynı konu iki mesajda ve konusuz söz ('Teknisyen ... gelecek') mevcut konulu söze denk → listede görünmez (onayda aynı söze döneceği için); yeni söz / görev YOK", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
     await asOwner(orgId);
     const conv = await conversationWith(propertyId, [`Klima için teknisyen ${WHEN}'da gelecek.`]);
@@ -121,6 +124,50 @@ describe("söz konusu", () => {
     const twice = (await Promise.all([decide({ key: only!.key, decision: "approve" }), decide({ key: only!.key, decision: "approve" })])).map((r) => r.status).sort();
     expect(twice).toEqual([200, 409]);
     expect(await prisma.guestCommitment.count({ where: { conversationId: conv2 } })).toBe(1);
+  });
+
+  it("🚨 AYNI konunun iki ayrı mesajdaki önerisi EŞZAMANLI onaylanırsa → TEK söz, TEK görev; ikinci onay mevcut söze BAĞLANIR (karar yazılır, ölü düğme yok)", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    await asOwner(orgId);
+    const conv = await conversationWith(propertyId, [`Klima için teknisyen ${WHEN}'da gelecek.`, `Klimayı ${WHEN}'da teknisyen tamir edecek.`]);
+    const list = (await getConversationSuggestions(orgId, conv)).filter((s) => s.kind === "commitment");
+    expect(list).toHaveLength(2);
+    const statuses = (await Promise.all(list.map((s) => decide({ key: s.key, decision: "approve" })))).map((r) => r.status);
+    expect(statuses).toEqual([200, 200]);
+    expect(await prisma.guestCommitment.count({ where: { conversationId: conv } })).toBe(1);
+    expect(await prisma.task.count({ where: { propertyId } })).toBe(1);
+    const decisions = await prisma.auditLog.findMany({ where: { organizationId: orgId, action: "ai_suggestion.approved" } });
+    expect(decisions).toHaveLength(2);
+    expect(decisions.filter((d) => (d.metadataJson ?? "").includes('"merged":true'))).toHaveLength(1);
+    expect((await getConversationSuggestions(orgId, conv)).filter((s) => s.kind === "commitment")).toEqual([]);
+  });
+
+  it("🚨 Haiku 10-17: ev sahibi saati DÜZENLEYİP mevcut uyumlu söze denk getirirse → onay mevcut söze bağlanır (200, yeni söz yok); öneri listeden kalkar", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const owner = await asOwner(orgId);
+    const conv = await conversationWith(propertyId, [`Klima için teknisyen ${WHEN}'da gelecek.`]);
+    const tz = orgTimezone((await prisma.organization.findUniqueOrThrow({ where: { id: orgId } })).timezone);
+    const elevenTomorrow = commitmentDueAt({ day: "tomorrow", time: "11:00" }, tz, new Date())!;
+    const existing = await createGuestCommitment({ organizationId: orgId, conversationId: conv, propertyId, reservationId: null, kind: "maintenance", topic: "ac", dueAt: elevenTomorrow, actorUserId: owner.id, clientRequestId: "x" });
+    // Söz mesajdan ÖNCE kaydedilmiş olsun (liste kapısı 1 — "mesajdan sonra kaydedilen söz" — devreye girmesin; yalnız an farkı sınanır).
+    await prisma.guestCommitment.update({ where: { id: existing.id }, data: { createdAt: new Date(Date.now() - 60 * 60_000) } });
+    const [s] = (await getConversationSuggestions(orgId, conv)).filter((x) => x.kind === "commitment");
+    expect(s).toBeDefined(); // 10:00 önerisi 11:00 sözünden farklı an → görünür
+    const res = await decide({ key: s!.key, decision: "approve", edits: { day: "tomorrow", time: "11:00" } });
+    expect(res.status).toBe(200); // ⬅️ ESKİDE 409 ve öneri kalıcı (her tık aynı ret)
+    expect(await prisma.guestCommitment.count({ where: { conversationId: conv } })).toBe(1);
+    expect((await getConversationSuggestions(orgId, conv)).filter((x) => x.kind === "commitment")).toEqual([]);
+  });
+
+  it("liste kapısı 1 (mesajdan SONRA kaydedilmiş söz) konu uyumuna bakar: klima sözü musluk önerisini GİZLEMEZ, klima önerisini gizler", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const owner = await asOwner(orgId);
+    const conv = await conversationWith(propertyId, [`Musluk için usta ${WHEN}'da gelecek.`]);
+    // Mesajdan SONRA, FARKLI saatte, klima konulu söz (öneri yolundan gelmiş gibi).
+    await createGuestCommitment({ organizationId: orgId, conversationId: conv, propertyId, reservationId: null, kind: "maintenance", topic: "ac", dueAt: new Date(Date.now() + 30 * 3_600_000), actorUserId: owner.id, clientRequestId: "k1" });
+    expect((await getConversationSuggestions(orgId, conv)).map((x) => x.title)).toEqual([expect.stringMatching(/· musluk — /u)]);
+    await createGuestCommitment({ organizationId: orgId, conversationId: conv, propertyId, reservationId: null, kind: "maintenance", topic: "faucet", dueAt: new Date(Date.now() + 31 * 3_600_000), actorUserId: owner.id, clientRequestId: "k2" });
+    expect((await getConversationSuggestions(orgId, conv)).filter((x) => x.kind === "commitment")).toEqual([]);
   });
 
   it("KONTROL: elle form konusuz söz yazar (iki elle söz aynı saatte iki ayrı söz — kurucu D3 aynen)", async () => {

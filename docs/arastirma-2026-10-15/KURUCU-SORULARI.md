@@ -755,6 +755,10 @@ olabilir" uyarısı alır — genel yönerge ("Anahtarı kutuya bıraktım, çı
   (a) ÖNERİM: onaylayınca yeni görev AÇILMAZ, sözünüze "klima" yazılır ("Aynı saatte kaydettiğiniz söze bağlandı (klima)"); ardından "musluk 18:00"
   önerisi AYRI söz + görev açar · (b) konusuz elle söz hiçbir öneriyle birleşmez (aynı iş için iki görev olabilir) · (c) elle forma isteğe bağlı
   "Konu" seçimi (yalnız Arıza / bakım ve Eksik eşya). Anahtar kapalı; bugün kimse etkilenmiyor.
+  - **Q1-b (Haiku 10-17, I1 incelemesi):** aynı saatte "klima" ve "musluk" sözü zaten kayıtlıyken ev sahibi "Teknisyen 18:00'de gelecek" (konusuz)
+    yazarsa bugün öneri GİZLENİR (iki söze de "uyumlu" sayılır). Önerim: iki farklı konulu söz varken konusuz öneri gösterilsin ve onayda
+    "hangi söze bağlansın?" sorulsun. Ayrıca tek mesajdaki İKİ söz ("Klima için teknisyen yarın 10'da gelecek. Musluk için usta 11'de gelecek.")
+    bugün yalnız ilkini öneriyor — ikisini de önereyim mi? (Anahtar kapalı; bugün kimse etkilenmiyor.)
 - **Q2 · L5 — kanalın (sağlayıcının) otomatik mesajı "cevap" sayılsın mı?** ÖRNEK — misafir 13:55 "Otopark var mı?"; sağlayıcının zamanlanmış "Giriş
   bilgileri" mesajı 13:56; senkron 13:57'de ikisini görür. Bugün: şablon "ev sahibi cevabı" sayılır → yapay zekâ otopark sorusunu cevaplamaz, panodaki
   açık iş "ev sahibi yazdı" diye düşer. Önerim (2. faz): kendi otomatik mesajlarımızdaki kural (K7) — cevap DEĞİL → otopark cevaplanır, iş açık kalır.

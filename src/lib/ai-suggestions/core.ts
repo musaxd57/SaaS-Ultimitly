@@ -510,7 +510,6 @@ const DEVICE_STEM_TO_TOPIC: Readonly<Record<string, CommitmentTopic>> = {
   router: "wifi",
   kapı: "door",
   kilit: "door",
-  anahtar: "door",
   lamba: "light",
   ışık: "light",
   priz: "socket",
@@ -535,12 +534,28 @@ const CONCEPT_TO_TOPIC: Readonly<Record<string, CommitmentTopic>> = {
   elevator: "elevator",
 };
 
-/** Kavram sözlüğünde olmayan İngilizce tesisat sözcükleri (katlanmış metinde, tam sözcük). */
+/** Kavram sözlüğünde olmayan / eksik İngilizce cihaz sözcükleri (katlanmış metinde, tam sözcük) — Türkçe kökle eşdeğer kapsam (Haiku 10-17). */
 const EN_PLUMBING: ReadonlyArray<readonly [CommitmentTopic, RegExp]> = [
   ["faucet", /(?<![\p{L}])(?:taps?|faucets?|sinks?)(?![\p{L}])/u],
   ["toilet", /(?<![\p{L}])(?:toilets?|flush)(?![\p{L}])/u],
   ["shower", /(?<![\p{L}])showers?(?![\p{L}])/u],
+  ["light", /(?<![\p{L}])(?:lights?|lamps?|lighting)(?![\p{L}])/u],
+  ["heating", /(?<![\p{L}])(?:heating|heaters?|radiators?|boilers?)(?![\p{L}])/u],
+  ["water", /(?<![\p{L}])(?:water|leaks?|leaking)(?![\p{L}])/u],
 ];
+
+/**
+ * YAN öğe kökleri (Haiku 10-17): "Musluk SUYU", "Klimanın KUMANDASI" — başka bir cihaz kökü varsa konu üretmez (ana cihazın parçasıdır);
+ * tek başınaysa konudur ("Su için tesisatçı gelecek" → su).
+ */
+const SECONDARY_STEMS: ReadonlySet<string> = new Set(["su", "kumanda"]);
+/**
+ * BELİRSİZ kökler (Haiku 10-17): yer / ay / talimat anlamı da taşır ("kapıya gelecek", "Ocak ayında", "Işıkları açık bırakmayın") → yalnız
+ * hemen ardından "için" ya da en çok 4 sözcük içinde onarım fiili gelirse konu ("Kapıyı yarın usta tamir edecek", "Ocak için servis gelecek").
+ */
+const AMBIGUOUS_STEMS: ReadonlySet<string> = new Set(["kapı", "kilit", "ocak", "ışık"]);
+const REPAIR_CUE = /^(?:icin|tamir|degis|onar|duzel|bak|kontrol|ayarla|fix|repair|replace|check)/u;
+const AMBIGUOUS_CUE_WINDOW = 4;
 
 /** Eksik eşya konusu (katlanmış metin; `KIND_TOPICS` supplies kalıbının alternatifleriyle aynı sözcükler). */
 const SUPPLY_TOPICS: ReadonlyArray<readonly [CommitmentTopic, RegExp]> = [
@@ -558,25 +573,49 @@ const SUPPLY_TOPICS: ReadonlyArray<readonly [CommitmentTopic, RegExp]> = [
 ];
 
 const WORDS = /[^\p{L}\p{N}'’]+/u;
-/** Sözcük tavanı: parça zaten bir cümleciğin en çok birkaç virgül parçası; uzun metinde iş sınırlı kalsın. */
+/**
+ * Sözcük tavanı: parça zaten bir cümleciğin en çok birkaç virgül parçası. Tavanı AŞAN parça konusuz (Haiku 10-17: sessiz kesme sonda kalan
+ * ikinci cihazı görmeyip yanlış TEK konu üretiyordu).
+ */
 const MAX_TOPIC_WORDS = 60;
+/** Kavram okuyucusuna verilen en çok karakter (maliyet sınırı; söz parçası bundan uzunsa İngilizce yol konu üretmez). */
+const MAX_CONCEPT_CHARS = 400;
 
 export function commitmentTopicOf(kind: CommitmentKind, scopeRaw: string, scopeFolded: string): CommitmentTopic | null {
   const found = new Set<CommitmentTopic>();
   if (kind === "maintenance") {
-    for (const w of scopeRaw.split(WORDS).filter(Boolean).slice(0, MAX_TOPIC_WORDS)) {
-      const stem = firstBreakdownDevice(w);
-      const t = stem ? DEVICE_STEM_TO_TOPIC[stem.toLocaleLowerCase("tr")] : undefined;
-      if (t) found.add(t);
+    const words = scopeRaw.split(WORDS).filter(Boolean);
+    if (words.length > MAX_TOPIC_WORDS) return null;
+    const folded = words.map((w) => foldTurkishAscii(w).toLowerCase());
+    const secondary = new Set<CommitmentTopic>();
+    // Türkçe cihaz kökü GÖRÜLDÜ mü (konu üretmese de — belirsiz / haritasız kök): görüldüyse kavram sözlüğüne düşülmez (Haiku 10-17: "Ocak
+    // ayında", "Anahtarlarınızı getirecek" kökte elendiği hâlde kavram yolundan ocak / kapı konusu geri geliyordu).
+    let sawStem = false;
+    for (let i = 0; i < words.length; i++) {
+      const stem = firstBreakdownDevice(words[i]!)?.toLocaleLowerCase("tr");
+      if (!stem) continue;
+      sawStem = true;
+      const t = DEVICE_STEM_TO_TOPIC[stem];
+      if (!t) continue;
+      if (AMBIGUOUS_STEMS.has(stem) && !folded.slice(i + 1, i + 1 + AMBIGUOUS_CUE_WINDOW).some((w) => REPAIR_CUE.test(w))) continue;
+      (SECONDARY_STEMS.has(stem) ? secondary : found).add(t);
     }
-    // Kavram sözlüğü YALNIZ Türkçe cihaz kökü yoksa (İngilizce mesaj): kavramlar geniş ("kombi" hem ısıtma hem sıcak su kavramıdır — kök
-    // varken ikisi birden eklenseydi tek cihazlı söz konusuz kalırdı).
-    if (found.size === 0) {
-      for (const c of deviceTopicsOf(topicsOf(scopeRaw))) {
-        const t = CONCEPT_TO_TOPIC[c];
-        if (t) found.add(t);
+    if (found.size === 0) for (const t of secondary) found.add(t);
+    // İngilizce yol YALNIZ Türkçe cihaz kökü yoksa. Önce AÇIK sözcük ("heating", "shower", "light"); yoksa kavram sözlüğü — kavramlar geniş
+    // ("kombi" / "heating" hem ısıtma hem sıcak su kavramıdır; açık sözcük varken ikisi birden eklenseydi tek cihazlı söz konusuz kalırdı).
+    if (!sawStem && scopeRaw.length <= MAX_CONCEPT_CHARS) {
+      const en = new Set<CommitmentTopic>();
+      for (const [t, re] of EN_PLUMBING) if (re.test(scopeFolded)) en.add(t);
+      // İngilizce "water" da yan öğedir ("the shower water", "the AC leak").
+      if (en.size > 1) en.delete("water");
+      if (en.size > 0) {
+        for (const t of en) found.add(t);
+      } else {
+        for (const c of deviceTopicsOf(topicsOf(scopeRaw))) {
+          const t = CONCEPT_TO_TOPIC[c];
+          if (t) found.add(t);
+        }
       }
-      for (const [t, re] of EN_PLUMBING) if (re.test(scopeFolded)) found.add(t);
     }
   } else if (kind === "supplies") {
     for (const [t, re] of SUPPLY_TOPICS) if (re.test(scopeFolded)) found.add(t);

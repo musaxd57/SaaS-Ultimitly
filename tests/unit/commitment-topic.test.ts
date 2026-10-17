@@ -21,6 +21,19 @@ describe("commitmentTopicOf", () => {
     ["maintenance", "The technician will fix the AC tomorrow", "ac"],
     ["supplies", "Yarın şampuan getireceğim", "shampoo"],
     ["supplies", "I'll bring toilet paper tonight", "toilet_paper"],
+    // Haiku 10-17: yan öğe ("suyu", "kumandası") ana cihazı bölmez; tek başına su konudur.
+    ["maintenance", "Musluk suyu için usta yarın 10:00'da gelecek", "faucet"],
+    ["maintenance", "Klimanın kumandası için teknisyen yarın gelecek", "ac"],
+    ["maintenance", "Su için tesisatçı yarın gelecek", "water"],
+    // Belirsiz kök yalnız "için" / onarım fiiliyle.
+    ["maintenance", "Kapıyı yarın usta tamir edecek", "door"],
+    ["maintenance", "Ocak için servis yarın gelecek", "stove"],
+    ["maintenance", "Klima için usta yarın 10:00'da kapıya gelecek", "ac"],
+    // İngilizce eşdeğer kapsam.
+    ["maintenance", "The technician will fix the light tomorrow", "light"],
+    ["maintenance", "The technician will fix the heating tomorrow", "heating"],
+    ["maintenance", "The plumber will fix the water leak tomorrow", "water"],
+    ["maintenance", "The plumber will fix the shower water tomorrow", "shower"],
   ] as const)("%s · %s → %s", (kind, text, expected) => {
     expect(topic(kind, text)).toBe(expected);
   });
@@ -31,8 +44,18 @@ describe("commitmentTopicOf", () => {
     ["towels", "Havlu getireceğim"], // havlu / temizlik konusuz
     ["cleaning", "Klimanın filtresini temizlikçi yarın temizleyecek"],
     ["supplies", "Şampuan ve sabun getireceğim"],
+    // Haiku 10-17: yer / ay / talimat / teslim anlamındaki sözcük konu değil.
+    ["maintenance", "Usta yarın 10:00'da kapıya gelecek"],
+    ["maintenance", "Ocak ayında teknisyen yarın 10:00'da gelecek"],
+    ["maintenance", "Işıkları açık bırakmayın ve teknisyen yarın 10:00'da gelecek"],
+    ["maintenance", "Anahtarlarınızı yarın usta getirecek"],
   ] as const)("konu YOK: %s · %s", (kind, text) => {
     expect(topic(kind, text)).toBeNull();
+  });
+
+  it("Haiku 10-17: sözcük tavanını AŞAN parça konusuz (sessiz kesme sondaki ikinci cihazı görmeyip yanlış tek konu üretiyordu)", () => {
+    const filler = Array.from({ length: 62 }, (_, i) => `kelime${i}`).join(" ");
+    expect(topic("maintenance", `Musluk için usta yarın gelecek ${filler} ve klimayı da tamir edecek`)).toBeNull();
   });
 
   it("söz okuyucusu konuyu YALNIZ sözün parçasından taşır (ilk parçadaki başka cihaz karışmaz)", () => {

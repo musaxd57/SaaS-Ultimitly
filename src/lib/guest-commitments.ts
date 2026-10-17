@@ -92,7 +92,13 @@ export async function createGuestCommitment(input: {
    * aynı kuralla gizler). Elle form bunu KULLANMAZ — klima 18:00 ile musluk 18:00 iki ayrı söz (kurucu D3).
    */
   mergeSameSlot?: boolean;
-}, outerTx?: Prisma.TransactionClient): Promise<{ id: string; taskId: string; reused: boolean }> {
+}, outerTx?: Prisma.TransactionClient): Promise<{
+  id: string;
+  taskId: string;
+  reused: boolean;
+  /** `reused` ise neden: aynı işlem kimliğinin tekrarı ("request") ya da aynı tür + an + uyumlu konudaki açık söze bağlandı ("slot"). */
+  via?: "request" | "slot";
+}> {
   // Dış işlem verilirse (yapay zekâ önerisinin onayı — karar kaydıyla AYNI işlem) onun içinde; yoksa bugünkü gibi kendi işlemi.
   const run = <T,>(fn: (tx: Prisma.TransactionClient) => Promise<T>) => (outerTx ? fn(outerTx) : prisma.$transaction(fn));
   const topic = isCommitmentTopic(input.topic) ? input.topic : null;
@@ -107,7 +113,7 @@ export async function createGuestCommitment(input: {
       });
       if (same) {
         if (!sameCommitmentRequest(same, input)) throw new CommitmentRequestConflictError("different_content");
-        if (same.taskId) return { id: same.id, taskId: same.taskId, reused: true };
+        if (same.taskId) return { id: same.id, taskId: same.taskId, reused: true, via: "request" };
         // Aynı istek, ama görevi arada silinmiş (söz bu yüzden iptal edildi): yeni söz AÇILMAZ (aynı kimlik tekil) — ayrı metinle söylenir.
         throw new CommitmentRequestConflictError("task_deleted");
       }
@@ -131,7 +137,7 @@ export async function createGuestCommitment(input: {
       });
       const compatible = candidates.filter((c) => commitmentTopicsCompatible(c.topic, topic));
       const same = compatible.find((c) => topic !== null && c.topic === topic) ?? compatible[0];
-      if (same?.taskId) return { id: same.id, taskId: same.taskId, reused: true };
+      if (same?.taskId) return { id: same.id, taskId: same.taskId, reused: true, via: "slot" };
     }
     if (__commitmentHooks.afterSameCheck) await __commitmentHooks.afterSameCheck();
     const task = await tx.task.create({

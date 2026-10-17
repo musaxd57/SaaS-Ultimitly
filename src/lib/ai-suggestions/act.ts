@@ -102,7 +102,7 @@ export async function decideSuggestion(input: {
     if (already) return { status: "gone" } as const;
     if (__aiSuggestionHooks.afterDecisionCheck) await __aiSuggestionHooks.afterDecisionCheck();
 
-    const created: { taskId?: string; commitmentId?: string; kbItemId?: string } = {};
+    const created: { taskId?: string; commitmentId?: string; kbItemId?: string; merged?: boolean } = {};
     if (input.decision === "approve") {
       if (view.kind === "task") {
         const msg = await tx.message.findFirst({
@@ -143,7 +143,10 @@ export async function decideSuggestion(input: {
           tx,
         );
         // Bu önerinin sözü zaten yazılmıştı (aynı öneri anahtarı = aynı işlem kimliği) → görev dalıyla AYNI: karar YAZILMAZ (ölçüt şişmesin).
-        if (c.reused) return { status: "gone" } as const;
+        if (c.reused && c.via !== "slot") return { status: "gone" } as const;
+        // Aynı tür + an + uyumlu konudaki AÇIK söze bağlandı (ev sahibi saati düzenleyip mevcut söze denk getirdi): karar YAZILIR — yoksa
+        // öneri listede kalır ve her tık aynı reddi alırdı (Haiku 10-17: ölü düğme). Yeni söz / görev açılmadı (`merged`).
+        if (c.reused) created.merged = true;
         created.commitmentId = c.id;
         created.taskId = c.taskId;
       } else {
