@@ -204,6 +204,29 @@ describe("outbox × ChannelConnection", () => {
     expect(await prisma.auditLog.count({ where: { organizationId: orgId, action: "channel.connection_revoked" } })).toBe(0);
   });
 
+  it("🚨 Haiku gece-4: okuma geçerli ama İKİ FARKLI rezervasyonda gönderim 403 (yazma yetkisi yok) → sistemik: ikincisinde eski karar (iptal + uyarı)", async () => {
+    const { orgId, propertyId, conversationId } = await seed();
+    await setOrgHospitableToken(orgId, "PAT-readonly", null);
+    fake.registerReservation(RES, "PAT-readonly");
+    fake.registerReservation("res-conn-2", "PAT-readonly");
+    fake.behave({ mode: "reject", status: 403 });
+    const first = await enqueue(orgId, conversationId, "k-ro-1");
+    await drainOutboxOnce({ verifyCredential: async () => true });
+    expect(await row(first.outboxId)).toMatchObject({ lastErrorKind: "definitive_failure" });
+    expect((await prisma.channelConnection.findFirstOrThrow({ where: { organizationId: orgId } })).status).toBe("active");
+    // Başka bir rezervasyon, aynı belirteç, aynı ret.
+    const other = await prisma.conversation.create({
+      data: { propertyId, channel: "airbnb", guestIdentifier: "Can", status: "waiting", externalReservationId: "res-conn-2" },
+    });
+    const second = await enqueueOutbound({
+      organizationId: orgId, conversationId: other.id, channel: "airbnb", externalReservationId: "res-conn-2", reservationId: null,
+      body: "Merhaba!", senderName: "Host", authorType: "host", messageType: "manual", idempotencyKey: "k-ro-2",
+    });
+    await drainOutboxOnce({ verifyCredential: async () => true });
+    expect(await row(second.outboxId)).toMatchObject({ status: "pending", lastErrorKind: "auth_revoked", attemptCount: 0 });
+    expect((await prisma.channelConnection.findFirstOrThrow({ where: { organizationId: orgId } })).revokedReason).toBe("send_403");
+  });
+
   it("gece-4 S3-06 KONTROL: okuma da reddedildi (false) ya da bilinmiyor (null) → eski karar (PAT iptal, send_403)", async () => {
     for (const verdict of [false, null] as const) {
       await resetDb();

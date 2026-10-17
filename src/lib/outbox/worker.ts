@@ -1225,7 +1225,26 @@ async function processOne(
   // rezervasyon, API mesajına kapalı kanal) bütün bağlantıyı iptal ediyor, satır ölmediği için her yeniden bağlanışta tekrar tetikliyordu.
   // Önce aynı belirteçle UCUZ bir okuma: okuma çalışıyorsa sorun bu mesajdadır → kesin hata yolu (deneme sayılır, 6'da `failed`), bağlantıya
   // dokunulmaz. Okuma da reddedilirse ya da bilinmiyorsa eski karar (yenileme / iptal).
-  const credentialStillValid = kind === "auth_revoked" ? await deps.verifyCredential(row, providerToken).catch(() => null) : null;
+  // SİSTEMİK RET (Haiku gece-4): okuma yetkili ama YAZMA yetkisi olmayan belirteçte (salt-okuma kişisel anahtar, eksik kapsam) okuma geçer,
+  // HER gönderim 403 alır — bu bir bağlantı sorunudur, ev sahibi yeniden bağlanmalı. Son 24 saatte BAŞKA bir rezervasyonda da "okuma geçer,
+  // gönderim reddedildi" görüldüyse eski karar (iptal + uyarı) verilir; tek rezervasyona özgü ret bağlantıyı koparmaz.
+  let credentialStillValid = kind === "auth_revoked" ? await deps.verifyCredential(row, providerToken).catch(() => null) : null;
+  if (credentialStillValid === true) {
+    const sibling = await prisma.messageOutbox
+      .findFirst({
+        where: {
+          organizationId: row.organizationId,
+          id: { not: row.id },
+          lastErrorKind: "definitive_failure",
+          lastErrorCode: { in: ["HTTP 401", "HTTP 403"] },
+          updatedAt: { gte: new Date(now.getTime() - 24 * 60 * 60_000) },
+          ...(row.externalReservationId ? { NOT: { externalReservationId: row.externalReservationId } } : {}),
+        },
+        select: { id: true },
+      })
+      .catch(() => null);
+    if (sibling) credentialStillValid = null;
+  }
   if (kind === "definitive_failure" || credentialStillValid === true) {
     if (attemptsExhausted(row.attemptCount)) {
       const done = await settle(row, token, "sending", { status: "failed", lastErrorKind: "definitive_failure", lastErrorCode: errorCode(outcome.error), claimedBy: null, claimExpiresAt: null });

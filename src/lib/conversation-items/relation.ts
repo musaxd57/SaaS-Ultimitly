@@ -869,6 +869,14 @@ const RESTART_STEP = new RegExp(
  * başlatma adımıdır; arıza yokken çıkış / tasarruf hatırlatmasıdır ("Please power off the lights when you leave" — Haiku gece-4, iki yön).
  */
 const POWER_OFF_STEP = new RegExp(`${L}power(?:ing)? (?:(?:the|your|this) )?(?:\\p{L}{1,20} )?(?:off|down)${R}`, "u");
+/**
+ * Kapatıp BEKLEME / yeniden açma ("power it off for 30 seconds", "power off the router and wait", "then turn it back on") — misafirin arıza
+ * ifadesi sözlükte olmasa da yeniden başlatma adımıdır (Haiku gece-4: "The TV keeps freezing" + "Please power it off for 30 seconds" kaçıyordu).
+ */
+const POWER_CYCLE_STEP = new RegExp(
+  `${L}power(?:ing)? (?:(?:the|your|this) )?(?:\\p{L}{1,20} )?(?:off|down)(?: (?:(?:the|your|this) )?\\p{L}{1,20})? (?:for (?:\\d{1,3}|a few|a|one|ten|five|thirty) (?:seconds?|secs?|minutes?|mins?|moment)|and (?:wait|then)|then (?:turn|switch|power) (?:it )?(?:back )?on)${R}`,
+  "u",
+);
 
 /**
  * Misafire yöneltilmiş kip / ikinci şahıs adım biçimleri (Opus gece-2 M2 c): YALNIZ misafirin ARIZA bildirdiği cihazı anan cümlede adım
@@ -1119,7 +1127,7 @@ export function unsupportedFixStep(
     const sideOnly = conceptsOf(sentence.replace(REMOTE_WORD, " ")).every((t) => STEP_VERB_SIDE_TOPICS.has(t));
     const inheritsFault = own.length > 0 || (sideOnly && (carried.length > 0 ? true : !guestAsksOther));
     const faulty = inheritsFault ? devices.filter((t) => faultDevices.has(t)) : [];
-    const restart = RESTART_STEP.test(f) || (guestReportsFault && POWER_OFF_STEP.test(f));
+    const restart = RESTART_STEP.test(f) || POWER_CYCLE_STEP.test(f) || (guestReportsFault && POWER_OFF_STEP.test(f));
     // Deneme önerisi yalnız arıza bağlamında ya da bir ayar / tuş / programla anıldığında adımdır (Opus gece-2 M11: "Sahildeki kafede Türk
     // kahvesini mutlaka deneyin" yerel öneriydi, kahve makinesi kullanım adımı sayılıp tutuluyordu).
     const tries = TRY_STEP.test(f) && (guestReportsFault || TRY_ACTION_CONTEXT.test(f));
@@ -1356,8 +1364,10 @@ const FAULT_PHRASE_SOURCE = [
     // "they" YOK: cihaz çoğulu olabilir ("The speakers? They don't turn on.").
     `${L}(?<!(?:^|\\s)(?:we|i|you) )(?:isn't|aren't|wasn't|weren't|doesn't|don't|didn't|won't|is not|are not) (?:working|turning on|turn on|starting|heating|cooling|responding|charging|draining)${R}`,
     `${L}(?:is dead|has died|no longer works|stopped responding)${R}`,
-    // Haiku gece-4 2. tur: "The internet is down", "the power went out" (cihaz kavramı yine şart).
+    // Haiku gece-4 2. tur: "The internet is down", "the power went out"; 3. tur: "isn't connecting", "keeps freezing", "is frozen",
+    // "disconnects", "flickers" (cihaz kavramı yine şart — "It's freezing in the room" cihazsız; çıplak "freezing" bilerek yok).
     `${L}(?:internet|wifi|wi-fi|network|connection|power|electricity) (?:is|was|went|has gone|keeps going) (?:down|out)${R}`,
+    `${L}(?:(?:isn't|is not|aren't|are not|won't) connecting|keeps (?:freezing|disconnecting|going off|cutting out|restarting|rebooting)|(?:is|are|got) frozen|froze|disconnects|flicker(?:s|ing))${R}`,
     `${L}(?:not working|can't connect|cannot connect|can not connect|unable to connect|very slow|too slow|extremely slow|won't drain|not draining|doesn't drain|keeps dropping|keeps disconnecting|doesn't work|does not work|won't turn on|will not turn on|won't start|stopped working|broken|no picture|black screen|no sound|no signal|not heating|not cooling|leaking|clogged|won't respond|doesn't respond|does not respond|not responding|no hot water|no internet|no wifi|no power|got stuck|is stuck|only blows (?:cold|warm|hot) air|won't open|won't connect|keeps (?:beeping|turning off|shutting off))${R}`,
     // de / fr / es
     `${L}(?:funktioniert nicht|geht nicht|kaputt|kein bild|kein ton|kein signal|reagiert nicht|geht nicht an|kein warmes wasser|kein internet|ne marche pas|ne fonctionne pas|en panne|pas d'image|pas de son|ne s'allume plus|ne chauffe plus|ne repond pas|pas d'eau chaude|plus d'internet|no funciona|averiad[oa]|sin imagen|sin sonido|no arranca|no responde|no enciende|no calienta|no enfria|no hay agua caliente|no hay internet)${R}`,

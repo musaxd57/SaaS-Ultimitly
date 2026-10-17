@@ -64,6 +64,14 @@ export async function enqueueStorageDeletions(db: Db, organizationId: string, ob
     data: keys.map((objectKey) => ({ objectKey, organizationId, availableAt })),
     skipDuplicates: true, // objectKey @unique → double-enqueue = dedupe-hit
   });
+  // Gece-4 (Haiku, S7-01): aynı anahtarın BEKLEYEN kaydı (ör. 24 saat vadeli yükleme sahipsizlik kaydı) varsa silme niyeti yutulmasın — vade
+  // şimdiye çekilir. Vade değişikliği aynı zamanda boşaltıcının "gösteriliyor → iptal" kararını geçersiz kılar (iptal vade karşılaştırmalı).
+  if (res.count < keys.length) {
+    await db.storageDeletion.updateMany({
+      where: { objectKey: { in: keys }, organizationId, status: "pending", NOT: { availableAt } },
+      data: { availableAt },
+    });
+  }
   return res.count;
 }
 
@@ -145,7 +153,7 @@ export async function drainStorageDeletions(
     where: { status: "pending", availableAt: { lte: now() } },
     orderBy: { availableAt: "asc" },
     take: deps.batchSize ?? DRAIN_BATCH,
-    select: { id: true, objectKey: true, attemptCount: true },
+    select: { id: true, objectKey: true, attemptCount: true, availableAt: true },
   });
 
   // S7-01: vadesi gelen kayıt nesnesi hâlâ KENDİ işletmesinin bir görev güncellemesince gösteriliyorsa silinmez — kayıt iptal edilir
@@ -175,8 +183,10 @@ export async function drainStorageDeletions(
   for (const row of due) {
     if (clock() - startedAt >= budget) break;
     if (shown.has(photoUrlForKey(row.objectKey))) {
+      // Karşılaştır-ve-sil (Haiku gece-4): gösterim okunduktan SONRA görev silinip aynı anahtarın silme niyeti yazıldıysa (vade şimdiye
+      // çekildi ↑) iptal etmez — niyet yutulup nesne süresiz kalmasın; sonraki geçiş siler.
       await prisma.storageDeletion
-        .deleteMany({ where: { id: row.id, status: "pending" } })
+        .deleteMany({ where: { id: row.id, status: "pending", availableAt: row.availableAt } })
         .catch((e) => void reportError("storage-deletion-attached-cancel", e));
       continue;
     }

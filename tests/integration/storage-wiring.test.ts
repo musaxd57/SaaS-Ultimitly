@@ -188,6 +188,20 @@ describe("gece-4 S7-01: yüklenip göreve BAĞLANMAYAN fotoğraf kovada süresiz
     expect(fake.deletes).toEqual([orphanKey, attachedKey]);
   });
 
+  it("Haiku gece-4: bekleyen yükleme kaydı varken görev silinirse silme niyeti YUTULMAZ — vade şimdiye çekilir, hemen silinir", async () => {
+    stubStorageEnv(true);
+    const { orgId, taskId } = await seed("owner");
+    const url = ((await (await uploadPOST(uploadReq({ taskId }), noCtx)).json()) as { url: string }).url;
+    const key = url.slice(STORAGE_PHOTO_URL_PREFIX.length);
+    await prisma.taskUpdate.create({ data: { taskId, photoUrl: url, note: "foto" } });
+    // Görev silindi (satırlar gitti) + aynı anahtarın silme niyeti yazıldı.
+    await prisma.task.delete({ where: { id: taskId } });
+    await enqueueStorageDeletions(prisma, orgId, [key]);
+    expect((await prisma.storageDeletion.findUniqueOrThrow({ where: { objectKey: key } })).availableAt.getTime()).toBeLessThanOrEqual(Date.now());
+    expect((await drainStorageDeletions({ adapter: fake })).deleted).toBe(1);
+    expect(fake.deletes).toEqual([key]);
+  });
+
   it("başka kiracının satırı (istemcinin yazabildiği photoUrl) sahipsiz nesneyi kovada TUTAMAZ (gösterim denetimi nesnenin kendi işletmesinde)", async () => {
     stubStorageEnv(true);
     const victim = await seed("owner");

@@ -398,7 +398,18 @@ describe("gece-4 S4-03 / S4-08: İngilizce kısaltmalı arıza, -ing adımlar, b
     expect(unsupportedFixStep("Please power it off when you're done.", thin, "How do I use the coffee machine?")).toBe(false);
     // Yalnız kapatma kuralıyla ayrışan vaka (başka cihaz, kip "you should" + "power" çalıştırma listesinde değil): arıza varken adım.
     expect(unsupportedFixStep("You should power off the router for a minute.", thin, "The TV isn't working")).toBe(true);
-    expect(unsupportedFixStep("You should power off the router for a minute.", thin, "Is there anything to do before we leave?")).toBe(false);
+    expect(unsupportedFixStep("You should power off the router for a minute.", thin, "Is there anything to do before we leave?")).toBe(true);
+    expect(unsupportedFixStep("You should power off the router.", thin, "Is there anything to do before we leave?")).toBe(false);
+  });
+  it("Haiku gece-4 3. tur: kapatıp bekleme / yeniden açma arıza sözlükte olmasa da adımdır; yaygın arıza ifadeleri tanınır", () => {
+    for (const guest of ["The TV keeps freezing", "The wifi isn't connecting", "The wifi disconnects every hour.", "The TV screen flickers."]) {
+      expect(unsupportedFixStep("Please power it off for 30 seconds.", thin, guest), guest).toBe(true);
+    }
+    expect(unsupportedFixStep("Power off the router, then turn it back on.", thin, "Hello")).toBe(true);
+    // Arıza ifadesi tanınınca kapatma adımı (bekleme olmadan) da adım.
+    expect(unsupportedFixStep("Please power off the TV.", thin, "The TV is frozen.")).toBe(true);
+    // KONTROL: çıplak "freezing" (oda soğuk) arıza değil → kapatma hatırlatması geçer.
+    expect(unsupportedFixStep("Please power off the AC.", thin, "It's freezing in here!")).toBe(false);
   });
   it("Haiku gece-4 2. tur: arıza bildiriminde nesneli kapatma adımdır; kip + çalıştırma fiili adımdır; 'they' cihaz çoğulu olabilir", () => {
     // Misafir arıza bildirdi → "power off the modem" yeniden başlatma adımı (tarif yok → tutulur); arıza yokken çıkış hatırlatması geçer.
