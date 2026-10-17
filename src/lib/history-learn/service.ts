@@ -245,6 +245,7 @@ export async function executeHistoryLearnRun(
         aiAssisted: true,
         systemEventType: true,
         aiSuggestedReply: true,
+        channelSenderRole: true,
         conversation: { select: { status: true, guestIdentifier: true, reservation: { select: { guestName: true } } } },
       },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],

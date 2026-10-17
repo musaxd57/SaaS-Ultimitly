@@ -27,6 +27,14 @@ dahil)". Kurucu: *endpoint'leri olmayacak ama Lixus'un Airbnb'den ne beklediği 
   alınmadan önce sağlayıcıya göre metin gerekir (bugün ulaşılamaz: adaptör yalnız `unsupported` üretir).
 - Canlı `hospitable-*.ts` dosyaları bu dilimde bayt-bayt aynı.
 
+## Mesaj gönderen rolü (L5, 10-17 — kurucu: "Airbnb Direct'e geçişte rol kanal katmanında")
+
+Doğrudan kanal her mesajda gönderen rolünü kapalı kümeyle VERMELİ: `guest` · `host` (insan: sahip / ortak ev sahibi / ekip) · `automation`
+(kanalın kendi şablonu, zamanlanmış mesajı, kanal yapay zekâsı, platform sistem mesajı). Alan `CanonicalMessage.senderRole`
+(`requirements.ts` `messages.senderRole`), saklama `Message.channelSenderRole` (migration 71). Vermeyen kanal → NULL (bugünkü davranış).
+Çekirdek yalnız kapalı kümeyi ve yönle tutarlılığı doğrular (`canonicalChannelSenderRole`); sağlayıcı alan adı çekirdeğe girmez.
+1. fazda rol yalnız öğrenme / üslup / öneri girdisidir; "cevap mı" ve güvenlik kararları `authorType`tan (pinli).
+
 ## Sıradaki adımlar (sandbox + resmî doküman geldiğinde)
 
 1. `requirements.ts`teki beklentileri Airbnb dokümanıyla eşle; açık kalanları başvuru dosyasına yaz.

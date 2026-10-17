@@ -96,6 +96,7 @@ export const GET = withManage(async (session, req) => {
       createdAt: true,
       aiAssisted: true,
       systemEventType: true,
+      channelSenderRole: true,
       conversation: {
         select: {
           status: true,
@@ -127,6 +128,7 @@ export const GET = withManage(async (session, req) => {
       createdAt: m.createdAt,
       aiAssisted: m.aiAssisted,
       systemEventType: m.systemEventType,
+      channelSenderRole: m.channelSenderRole,
     }));
 
   // Konuşma durumu ve misafir adı, mesaj satırlarından tekilleştirilerek çıkarılır

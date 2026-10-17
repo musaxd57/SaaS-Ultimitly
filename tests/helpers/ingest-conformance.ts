@@ -18,6 +18,7 @@ export type IngestScenario =
   | "duplicate_reservation"
   | "status_variants"
   | "messages_unsorted"
+  | "message_sender_roles"
   | "message_without_body"
   | "two_pages"
   | "unowned_property"
@@ -163,6 +164,18 @@ export function describeIngestConformance(label: string, makeHarness: () => Inge
       expect(ms[0].senderName).toBe("Alex Guest");
       expect(ms[1].senderName).toBe("Ev Sahibi");
       expect(ms[0].createdAt?.toISOString()).toBe("2026-05-30T11:00:00.000Z");
+    });
+
+    it("🚨 L5 (10-17): gönderen rolü kapalı kümeyle — misafir · insan ev sahibi · KANALIN KENDİ otomasyonu · rol bildirilmemiş (null) · tanınmayan (unknown)", async () => {
+      h.arrange("message_sender_roles");
+      const ms = await h.adapter.listMessages(cred, KIT.RES_A);
+      expect(ms.map((m) => [m.externalId, m.direction, m.senderRole ?? null])).toEqual([
+        ["r-guest", "inbound", "guest"],
+        ["r-host", "outbound", "host"],
+        ["r-auto", "outbound", "automation"],
+        ["r-none", "outbound", null],
+        ["r-odd", "outbound", "unknown"],
+      ]);
     });
 
     it("gövdesiz sağlayıcı mesajı body=null ile aktarılır (çekirdek sayar, atlar; adaptör uydurmaz)", async () => {

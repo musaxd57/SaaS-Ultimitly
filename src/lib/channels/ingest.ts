@@ -1,5 +1,6 @@
 import type { OutboundProvider } from "./outbound";
 import type { ChannelProviderId } from "./providers";
+import type { ChannelSenderRole } from "@/lib/message-author";
 
 // ---------------------------------------------------------------------------
 // INGEST CONTRACT — Channel Layer'ın OKUMA yönü (V0.6)
@@ -87,6 +88,12 @@ export interface CanonicalMessage {
   /** null/boş = gövdesiz sağlayıcı mesajı (çekirdek `unimportable` sayar, atlar). */
   body: string | null;
   createdAt: Date | null;
+  /**
+   * Kanalın bildirdiği gönderen rolü (L5, migration 71): guest · host (insan) · automation (kanalın kendi şablonu / zamanlanmış / yapay zekâ
+   * mesajı) · unknown (alan var, değer tanınmadı). İsteğe bağlı: bildirmeyen adaptör `undefined` / null döner (bugünkü davranış). Sağlayıcı alan
+   * adı çekirdeğe GİRMEZ — eşleme adaptörde; çekirdek yalnız kapalı kümeyi ve yönle tutarlılığı doğrular (`canonicalChannelSenderRole`).
+   */
+  senderRole?: ChannelSenderRole | null;
 }
 
 export interface ReservationWindow {

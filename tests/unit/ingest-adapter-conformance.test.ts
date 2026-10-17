@@ -64,6 +64,15 @@ describeIngestConformance("ortak fake (tests/helpers/fake-ingest.ts)", () => {
             canonicalMessage({ externalId: "m-2", createdAt: new Date("2026-05-30T10:00:00Z") }),
           ]);
           break;
+        case "message_sender_roles":
+          fake.setMessages(KIT.RES_A, [
+            canonicalMessage({ externalId: "r-guest", senderRole: "guest" }),
+            canonicalMessage({ externalId: "r-host", direction: "outbound", senderRole: "host" }),
+            canonicalMessage({ externalId: "r-auto", direction: "outbound", senderRole: "automation" }),
+            canonicalMessage({ externalId: "r-none", direction: "outbound", senderRole: null }),
+            canonicalMessage({ externalId: "r-odd", direction: "outbound", senderRole: "unknown" }),
+          ]);
+          break;
         case "message_without_body":
           fake.setMessages(KIT.RES_A, [canonicalMessage({ externalId: "m-1", body: "dolu" }), canonicalMessage({ externalId: "m-2", body: null })]);
           break;
@@ -173,6 +182,19 @@ describeIngestConformance("gerçek Hospitable ingest adaptörü (fetch stub)", (
             { id: "m-3", body: "üçüncü", sender_type: "guest", sender: { full_name: "Alex Guest" }, created_at: "2026-05-30T11:00:00Z" },
             { id: "m-1", body: "cevap", sender_type: "host", sender_role: "host", sender: { full_name: "Ev Sahibi" }, created_at: "2026-05-30T09:00:00Z" },
             { id: "m-2", body: "ikinci", sender_type: "guest", sender: { full_name: "Alex Guest" }, created_at: "2026-05-30T10:00:00Z" },
+          ],
+          1,
+          1,
+        );
+      case "message_sender_roles":
+        // ⚠️ Otomasyon işareti sağlayıcıda canlı DOĞRULANMADI (hospitable-ingest.ts `senderRoleOf` notu): adaptörün açık işaret kuralını sınar.
+        return page(
+          [
+            { id: "r-guest", body: "soru", sender_type: "guest", sender_role: "guest", created_at: "2026-05-30T09:00:00Z" },
+            { id: "r-host", body: "cevap", sender_type: "host", sender_role: "co-host", created_at: "2026-05-30T09:05:00Z" },
+            { id: "r-auto", body: "Giriş bilgileri", sender_type: "host", source: "scheduled", created_at: "2026-05-30T09:06:00Z" },
+            { id: "r-none", body: "rol alanı yok", created_at: "2026-05-30T09:07:00Z" },
+            { id: "r-odd", body: "tuhaf rol", sender_type: "host", sender_role: "maintainer", created_at: "2026-05-30T09:08:00Z" },
           ],
           1,
           1,

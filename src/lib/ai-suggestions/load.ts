@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { detectRiskType } from "@/lib/ai/fallback";
 import { buildOperationalTaskData, detectOperationalTask } from "@/lib/tasks/detect";
 import { TASK_TYPE } from "@/lib/constants";
-import { resolveMessageAuthor } from "@/lib/message-author";
+import { isChannelAutomation, resolveMessageAuthor } from "@/lib/message-author";
 import { addZonedDays, dateKeyInTimeZone, orgTimezone, zonedWallClockToUtc } from "@/lib/timezone";
 import { COMMITMENT_KIND_LABELS, type CommitmentKind } from "@/lib/guest-commitments-core";
 import {
@@ -154,7 +154,7 @@ export async function getConversationSuggestions(organizationId: string, convers
       where: { conversationId: conversation.id, createdAt: { gte: since, lte: now } },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: 50,
-      select: { id: true, body: true, direction: true, authorType: true, senderName: true, systemEventType: true, createdAt: true },
+      select: { id: true, body: true, direction: true, authorType: true, senderName: true, systemEventType: true, createdAt: true, channelSenderRole: true },
     }),
     decidedSuggestionKeys(organizationId, since),
     prisma.guestCommitment.findMany({
@@ -207,7 +207,8 @@ export async function getConversationSuggestions(organizationId: string, convers
         evidenceAt: fmtAt(m.createdAt),
         proposal: { messageId: m.id, taskTitle, priority: cand.detected.priority },
       });
-    } else if (author === "host") {
+    } else if (author === "host" && !isChannelAutomation(m)) {
+      // L5 (10-17): kanalın KENDİ otomatik mesajı ("Housekeeping will come tomorrow at 10" şablonu) ev sahibinin sözü DEĞİL.
       const key = suggestionKey("commitment", m.id);
       if (decided.has(key)) continue;
       const promise = detectHostPromise(m.body);
@@ -258,14 +259,15 @@ export async function getPropertyWifiSuggestions(organizationId: string, propert
       where: { conversation: { propertyId, property: { organizationId } }, direction: "outbound", createdAt: { gt: after, lte: now } },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: 200,
-      select: { id: true, body: true, direction: true, authorType: true, senderName: true, systemEventType: true, createdAt: true },
+      select: { id: true, body: true, direction: true, authorType: true, senderName: true, systemEventType: true, createdAt: true, channelSenderRole: true },
     }),
     decidedSuggestionKeys(organizationId, since),
   ]);
   const out: SuggestionView[] = [];
   const seenField = new Set<string>();
   for (const m of messages) {
-    if (resolveMessageAuthor(m).authorType !== "host") continue;
+    // L5 (10-17): kanalın KENDİ şablonundaki Wi-Fi değeri ev sahibinin yeni yazdığı değer değildir (şablon eski şifreyi taşıyabilir).
+    if (resolveMessageAuthor(m).authorType !== "host" || isChannelAutomation(m)) continue;
     const values = extractWifiValues(m.body);
     for (const field of ["password", "network"] as const) {
       const value = values[field];

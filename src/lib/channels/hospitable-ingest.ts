@@ -22,6 +22,7 @@ import {
   type ReservationWindow,
   sourcePlatformOf,
 } from "./ingest";
+import type { ChannelSenderRole } from "@/lib/message-author";
 
 // ---------------------------------------------------------------------------
 // HOSPITABLE INGEST ADAPTÖRÜ (V0.6) — sağlayıcı payload'ını canonical'a çevirir.
@@ -83,6 +84,51 @@ function isGuestMessage(m: HospitableMessage): boolean {
   return role.includes("guest");
 }
 
+/*
+ * L5 (kurucu 10-17): GÖNDEREN ROLÜ — sağlayıcının kendi otomasyonu (şablon / zamanlanmış mesaj / sağlayıcı yapay zekâsı) insan ev sahibinden
+ * AYRILIR. ⚠️ Sağlayıcı alan değerleri canlı hesapta DOĞRULANMADI (belge bu ortamdan açılamıyor; kurucu org 402): eşleme yalnız AÇIK işarete
+ * bakar — alan yoksa NULL (bugünkü davranış), tanınmayan değer "unknown" (okuyucular bugünkü gibi ev sahibi sayar; yalnız kesin otomasyon
+ * ayrılır). Değer kümeleri kesin eşitlik (alt dize değil): "ai" ya da "bot" bir rol adının İÇİNDE geçince otomasyon sanılmaz.
+ * Doğrulama adımı: canlı hesapta `GET /api/hospitable/diagnostics` mesaj şekli + bir şablon mesajı → kümeler güncellenir.
+ */
+const AUTOMATION_ROLE_VALUES: ReadonlySet<string> = new Set([
+  "automation",
+  "automated",
+  "automatic",
+  "auto",
+  "autopilot",
+  "scheduled",
+  "system",
+  "bot",
+  "ai",
+]);
+const HUMAN_HOST_ROLE_VALUES: ReadonlySet<string> = new Set([
+  "host",
+  "co_host",
+  "co-host",
+  "cohost",
+  "teammate",
+  "team_member",
+  "owner",
+  "manager",
+  "property_manager",
+]);
+
+function roleToken(v: unknown): string | null {
+  return typeof v === "string" && v.trim() ? v.trim().toLowerCase() : null;
+}
+
+export function senderRoleOf(m: HospitableMessage): ChannelSenderRole | null {
+  if (isGuestMessage(m)) return "guest";
+  const roles = [roleToken(m.sender_type), roleToken(m.sender_role)].filter((v): v is string => v !== null);
+  const source = roleToken(m.source);
+  if (m.automated === true || m.is_automated === true || roles.some((r) => AUTOMATION_ROLE_VALUES.has(r)) || (source !== null && AUTOMATION_ROLE_VALUES.has(source))) {
+    return "automation";
+  }
+  if (!roles.length) return null;
+  return roles.every((r) => HUMAN_HOST_ROLE_VALUES.has(r)) ? "host" : "unknown";
+}
+
 function senderFullName(m: HospitableMessage): string | null {
   const sender = m.sender as { full_name?: string; first_name?: string } | undefined;
   return canonicalStr(sender?.full_name) ?? canonicalStr(sender?.first_name);
@@ -134,6 +180,7 @@ export function normalizeMessage(m: HospitableMessage): CanonicalMessage {
     senderName: senderFullName(m),
     body: canonicalStr(m.body),
     createdAt: canonicalDate(m.created_at),
+    senderRole: senderRoleOf(m),
   };
 }
 

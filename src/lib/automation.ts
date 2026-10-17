@@ -87,6 +87,7 @@ import {
   isAutomationMessage,
   LEGACY_AI_SENDER_NAMES,
   LEGACY_AI_RESUME_SENDER,
+  notChannelAutomationWhere,
 } from "@/lib/message-author";
 import { recordAutomatedSend, settleAutomatedSend, type AutomatedSendKind } from "@/lib/automated-sends";
 import { buildTriageData } from "@/lib/ai/triage";
@@ -4471,6 +4472,9 @@ export async function refreshStyleProfile(
           senderName: { notIn: [...LEGACY_AI_SENDER_NAMES, LEGACY_AI_RESUME_SENDER] },
         },
       ],
+      // L5 (10-17, migration 71): kanalın KENDİ otomatik mesajı (sağlayıcı şablonu / zamanlanmış / yapay zekâ) ev sahibinin sesi DEĞİL —
+      // `authorType: "host"` yazılıyordu, profil şablonun tonunu "ev sahibi üslubu" diye öğreniyordu. Rolü olmayan (NULL) satır bugünkü gibi girer.
+      AND: [notChannelAutomationWhere()],
       conversation: { property: { organizationId } },
     },
     select: {

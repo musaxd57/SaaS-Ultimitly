@@ -1,5 +1,6 @@
 import type { SendResultKind } from "@/lib/outbox/state";
 import type { CanonicalMessage, CanonicalReservation, IngestErrorKind } from "./ingest";
+import { CHANNEL_SENDER_ROLES } from "@/lib/message-author";
 
 // ---------------------------------------------------------------------------
 // LIXUS'UN DOĞRUDAN KANALDAN BEKLEDİKLERİ — Lixus'un KENDİ terimleriyle (değişmez 18).
@@ -45,6 +46,11 @@ export const LIXUS_DIRECT_CHANNEL_REQUIREMENTS = {
     required: ["externalId", "direction", "createdAt", "body"] satisfies (keyof CanonicalMessage)[],
     /** Sistem olayları bağlamdan dışlanabilmeli; kanonik tipte bugün yalnız `direction` var. */
     authorRole: "guest_host_system_needed",
+    /**
+     * L5 (10-17): kanal gönderen rolünü kapalı kümeyle bildirir — insan ev sahibi ile kanalın kendi otomasyonu (şablon / zamanlanmış /
+     * sağlayıcı yapay zekâsı) AYRI. Doğrudan kanal (Airbnb Direct) bunu VERMELİ; vermeyen adaptörde NULL = bugünkü davranış.
+     */
+    senderRole: { field: "senderRole", values: CHANNEL_SENDER_ROLES } as const satisfies { field: keyof CanonicalMessage; values: readonly string[] },
     missingIdOrBody: "counted_unimportable_never_invented",
   },
   send: {

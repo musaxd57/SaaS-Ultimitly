@@ -708,6 +708,12 @@ model Message {
   connectionId       String?
   connectionEvidence String?
   ingestedAt         DateTime?
+  /// KANALIN BİLDİRDİĞİ GÖNDEREN ROLÜ (L5, migration 71, kurucu 10-17: "sağlayıcı otomasyonu ile ev sahibinin mesajını ayır; Airbnb
+  /// Direct'te rol kanal katmanında"). Kapalı küme `CHANNEL_SENDER_ROLES` (message-author.ts): guest · host (insan) · automation (sağlayıcı
+  /// şablonu / zamanlanmış / sağlayıcı yapay zekâsı) · unknown (alan var, değer tanınmadı). NULL = kanal rol bildirmedi / bizim yazdığımız
+  /// satır / bu kolondan önceki satır. Güvenlik ve "cevap mı" kararı bundan TÜREMEZ (`authorType` tek otorite); yalnız öğrenme / üslup /
+  /// öneri girdisi. Metin / kimlik taşımaz.
+  channelSenderRole  String?
   createdAt          DateTime  @default(now())
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)

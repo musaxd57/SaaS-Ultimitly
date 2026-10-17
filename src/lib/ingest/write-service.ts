@@ -7,7 +7,7 @@ import { ANON_NAME, ANON_ID, retentionCutoff } from "@/lib/data-retention";
 import type { ErasureDb } from "@/lib/erasure";
 import { followReservationDates } from "@/lib/tasks/follow-reservation";
 import { givenNameForStorage, type GuestNameSource } from "@/lib/guest-name-source";
-import { AUTOMATION_AUTHOR } from "@/lib/message-author";
+import { AUTOMATION_AUTHOR, canonicalChannelSenderRole } from "@/lib/message-author";
 import { claimAutomatedSend, planAutomatedMatches } from "@/lib/automated-sends";
 import type { recordSupplyRequestFromMessage } from "@/lib/supply";
 import type { CanonicalMessage, CanonicalReservation } from "@/lib/channels/ingest";
@@ -462,6 +462,10 @@ export async function importCanonicalThread(
           connectionId: ctx.connectionId ?? undefined,
           connectionEvidence: ctx.connectionId ? "ingest" : undefined,
           ingestedAt: new Date(),
+          // L5 (migration 71): kanalın bildirdiği gönderen rolü — kapalı küme + yönle tutarlılık çekirdekte (yazar alanı `authorType` otorite
+          // kalır). Sahiplenme yolu (↑ yerel giden satıra kimlik iliştirme) rol YAZMAZ: o satır bizim gönderdiğimiz ev sahibi / yapay zekâ
+          // mesajı; sağlayıcı API ile gideni "otomasyon" diye etiketlerse ev sahibinin gerçek cevabı öğrenmeden düşerdi.
+          channelSenderRole: canonicalChannelSenderRole(inbound ? "inbound" : "outbound", m.senderRole),
         },
         select: { id: true },
       });

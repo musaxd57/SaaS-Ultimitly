@@ -215,7 +215,9 @@ describe("şema kanaryası — misafir modellerine yeni kolon", () => {
       //     etiket, sayaç / damga, PII'siz kanıt JSON'u (kimlik + sürüm; araç sonucu PII taşımaz) — kapsam DIŞI. Satır konuşma
       //     silinince cascade ile gider.
       //   · AiReviewLabel (migration 60) → yalnız note KAPSAM İÇİ (serbest metin; kurucu misafir cümlesini alıntılayabilir).
-      Message: 17,
+      //   · Message.channelSenderRole (String?, migration 71, L5 10-17) → KAPSAM DIŞI: kapalı küme rol etiketi (guest · host · automation ·
+      //     unknown); misafirin ne metnini ne kimliğini taşır — `guestNameSource` / `connectionEvidence` emsali. KVKK ihracına girer.
+      Message: 18,
       Conversation: 26,
       Reservation: 38,
       Task: 15,

@@ -7,6 +7,7 @@
 //    bilginin cevaplandığını okur). Bu yüzden "blokta tek kategori" eleme kuralı burada yok.
 //  · OTOMATİK ŞABLON MESAJI CEVAP DEĞİLDİR (K7, `message-author.ts`): yalnız şablondan oluşan giden dizi bekleyen misafir
 //    bloğunu TÜKETMEZ ve cevap sayılmaz (Bacak B bunu bilmeden yazılmıştı: şablon ardından gelen ev sahibi cevabı kayboluyordu).
+//    Kanalın KENDİ otomatik mesajı da (L5, 10-17: `channelSenderRole` "automation") aynı kuralda.
 // Ortak kurallar: peş peşe ev sahibi mesajları TEK cevaptır · yapay zekâ cevabı bloğu tüketir (sonraki ev sahibi mesajı o
 // sorunun cevabı sayılmaz) · ev sahibi + yapay zekâ karışık dizi DÜŞER (kimin cevabı olduğu belirsiz — fail-closed) · cevap
 // misafirin son sorusundan en çok `PAIR_MAX_GAP_MS` sonra · "sorunlu" konuşmadaki cevap BİLGİ SAYILMAZ (özür / tek seferlik
@@ -14,7 +15,7 @@
 // ---------------------------------------------------------------------------
 
 import { isHostAuthored, PAIR_MAX_GAP_MS, type HistoryConversation, type HistoryMessage } from "@/lib/kb-from-history";
-import { isAutomationMessage } from "@/lib/message-author";
+import { isAutomationMessage, isChannelAutomation } from "@/lib/message-author";
 
 export interface LearnPair {
   conversationId: string;
@@ -66,9 +67,20 @@ export function echoesAiDraft(block: readonly HistoryMessage[], answer: string):
   });
 }
 
-/** Ürünün yapay zekâsının (ya da kaybolmuş kendi çıktımızın) giden mesajı: ev sahibi değil, şablon değil, sistem olayı değil. */
+/**
+ * Ürünün yapay zekâsının (ya da kaybolmuş kendi çıktımızın) giden mesajı: ev sahibi değil, şablon değil, sistem olayı değil. KANALIN KENDİ
+ * otomasyonu (L5, `channelSenderRole` "automation") da DEĞİL: bizim şablonumuz gibi (K7) bloğu tüketmez — yoksa "ev sahibi değil" diye yapay
+ * zekâ sayılır, misafir bloğu düşer ve ardından gelen gerçek ev sahibi cevabı öğrenilmezdi.
+ */
 function isAiOutbound(m: HistoryMessage): boolean {
-  return m.direction !== "inbound" && !m.systemEventType && !isAutomationMessage(m) && !isHostAuthored(m) && Boolean(m.body?.trim());
+  return (
+    m.direction !== "inbound" &&
+    !m.systemEventType &&
+    !isAutomationMessage(m) &&
+    !isChannelAutomation(m) &&
+    !isHostAuthored(m) &&
+    Boolean(m.body?.trim())
+  );
 }
 
 export function buildLearnPairs(

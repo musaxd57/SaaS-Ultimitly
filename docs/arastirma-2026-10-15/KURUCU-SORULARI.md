@@ -728,6 +728,23 @@ Tasarım (dosya:satır, şema farkı, SQL taslağı, değişmezler, 39 kırmız�
 migration'lar (hazır yamadaki 69–75'ten sonra; hepsi boş kolon ya da yeni tablo, birbirinden bağımsız): **76** `GuestCommitment.topic` (I1) ·
 **77** `KnowledgeBaseItem.supersededAt` (L2) · **78** `Message.channelSenderRole` (L5) · **79** `SignupNetworkTrace` + `Organization.trialIdentityReusedAt`
 (K1; anahtar aydınlatma metni yayınlanmadan açılmaz). L3 migration'sız. Soru gerektirmeyenler (L2/L3, L5 1. faz, K1 "otomatik kesme yok") koda geçecek.
+⚠️ Numaralar değişti (10-17 öğleden sonra, `docs/MIGRATION-MANIFEST.md`): I3 dizini → **69**, L2 `supersededAt` → **70**, L5 `channelSenderRole` →
+**71** (yazıldı). Kalanlar klasör oluştukça 72'den itibaren numara alır.
+
+**L5 1. faz yapıldı (10-17, migration 71):** senkron her yeni mesaja kanalın bildirdiği gönderen rolünü yazar (misafir / ev sahibi / kanal otomasyonu /
+tanınmayan). Kanalın KENDİ otomatik mesajı (zamanlanmış "Giriş bilgileri", sağlayıcı şablonu, sağlayıcı yapay zekâsı) artık: geçmişten öğrenmede ev
+sahibi cevabı sayılmaz (ardından gelen gerçek cevabınız öğrenilir), üslup profiline girmez, Wi-Fi / söz önerisi üretmez. "Cevap mı" kuralı DEĞİŞMEDİ
+(Q2'nin cevabını bekliyor). Tasarımdan bilinçli fark: tasarım "tanınmayan rolü de düşür" diyordu; ben YALNIZ kesin otomasyonu ayırdım — Hospitable'ın
+alan değerleri canlı hesapta doğrulanamadı; tanınmayan bir insan rolü ("user" gibi) bütün cevaplarınızı sessizce öğrenmeden ve üsluptan çıkarırdı.
+Yanlış "tanınmayan"ın bedeli bugünkü davranış, yanlış düşürmenin bedeli sessiz kayıp. Doğrulama adımı (Railway açılınca): bağlı bir hesapta tanılama
+sayfasının mesaj şekli + bir şablon mesajı → değer listesi güncellenir.
+
+**L2 + L3 yapıldı (10-17, migration 70; Haiku iki tur + mutasyon):** onaylarken aynı konudaki etkin bilgi tabanı kalemi gösterilir (en çok 5): "Eskisinin
+yerine koy" (eski kalem pasif + yerine geçen kalem işaretli, tek işlemde; arada başka sekmede düzenlenmiş / silinmiş kalem için 409, hiçbir şey yazılmaz) ·
+"Ayrı kalem olarak ekle" · seçim yapılmadan onay yok. Yerine konan ESKİ değer (ör. eski Wi-Fi şifresi) değişiklikten önceki aylara ait konuşmalardan bir
+daha taslak olarak gelmez; değişiklik ayında ya da sonrasında yeniden geçiyorsa "eski değer" uyarısıyla gelir (sessizce gizlenmez). L3: tek konuşmadan
+gelen taslak "Tek konuşmadan" işareti alır; ayrıca yalnız misafire yönelik kişisel eylem ("Size şarap bıraktım", "I've left … for you") "tek seferlik
+olabilir" uyarısı alır — genel yönerge ("Anahtarı kutuya bıraktım, çıkışta oraya bırakın") uyarı almaz (ev sahibini gereksiz uğraştırmaz).
 
 - **Q1 · I1 — elle kaydettiğiniz KONUSUZ söz + aynı saatte KONULU öneri:** ÖRNEK — "Misafire söz ver" ile **Arıza / bakım, bugün 18:00**
   kaydettiniz (formda konu yok). Sonra misafire "Klima için teknisyen 18:00'de gelecek" yazdınız; öneri "Söz kaydet: Arıza / bakım (klima) — 18:00".

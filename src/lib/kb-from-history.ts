@@ -16,6 +16,7 @@
 // ---------------------------------------------------------------------------
 
 import { classifyFallback } from "./ai/fallback";
+import { isChannelAutomation } from "./message-author";
 
 /** Modele/host'a giden öneri metninin üst sınırı (KB kalemi tavanı 20k, öneri çok daha kısa olmalı). */
 export const SUGGESTION_MAX_CHARS = 1_200;
@@ -74,6 +75,8 @@ export interface HistoryMessage {
   /** Misafir mesajında tutulan yapay zekâ TASLAĞI ("AI öner" / bekletilen otomatik cevap). Ev sahibi bu taslağı "Taslağı kullan" ile
    *  gönderirse giden satır `aiAssisted=false` yazılır — geçmişten öğrenme onu ev sahibi cevabı saymasın diye okunur (Opus H1, 10-15). */
   aiSuggestedReply?: string | null;
+  /** Kanalın bildirdiği gönderen rolü (L5, migration 71). "automation" = kanalın kendi şablonu / zamanlanmış / yapay zekâ mesajı → ev sahibi kanıtı DEĞİL. */
+  channelSenderRole?: string | null;
 }
 
 export interface HistoryConversation {
@@ -138,15 +141,17 @@ export interface BuildOptions {
  * düşüldüğünü kaydediyor: "GuestOps AI" tek başına denylist YETMEMİŞTİ.
  *
  * Bu yüzden burada ÜÇ eleme birden: `aiAssisted` bayrağı · bilinen AI adları ·
- * `authorType === "ai"`. ⚠️ BİLİNEN SINIR: sağlayıcı tarafındaki host otomasyonunu
- * (Hospitable'ın kendi şablon mesajı) hâlâ ayırt edemiyoruz — o satır gerçekten
- * host'un hesabından çıkmıştır ve bizde onu işaretleyen bir alan YOK. Bu sınır
- * kabul edildi: öneri host'a GÖSTERİLİR, otomatik kaydedilmez.
+ * `authorType === "ai"`. Sağlayıcı tarafındaki host otomasyonu (kanalın kendi şablon /
+ * zamanlanmış / yapay zekâ mesajı) L5 ile (10-17, migration 71) kanal rolünden elenir:
+ * `channelSenderRole === "automation"` → ev sahibi değil. ⚠️ SINIR: rol yalnız kanal
+ * AÇIKÇA bildirdiğinde vardır (eski satır / rol vermeyen kanal NULL → bugünkü davranış);
+ * öneri yine host'a GÖSTERİLİR, otomatik kaydedilmez.
  */
 export function isHostAuthored(m: HistoryMessage): boolean {
   if (m.direction !== "outbound") return false;
   if (m.systemEventType) return false;
   if (m.aiAssisted) return false;
+  if (isChannelAutomation(m)) return false;
   // ⚠️ `authorType === "ai"` AYRI kontrol GEREKMEZ: aşağıdaki "host değilse düş"
   // satırı onu zaten kapsıyor (mutasyon turu ölü kod olarak gösterdi).
   if (m.senderName && AI_SENDER_NAMES.has(m.senderName)) return false;

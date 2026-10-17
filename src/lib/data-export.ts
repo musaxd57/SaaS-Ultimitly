@@ -194,6 +194,7 @@ export async function buildOrganizationDataExport(organizationId: string) {
                     id: true, direction: true, senderName: true, body: true,
                     language: true, externalId: true, aiIntent: true,
                     aiConfidence: true, aiAssisted: true, aiSourcesJson: true,
+                    channelSenderRole: true,
                     createdAt: true,
                   },
                 },

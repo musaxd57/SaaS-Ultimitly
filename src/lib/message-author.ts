@@ -58,6 +58,41 @@ export function notAutomationMessageWhere(): { OR: ({ authorType: null } | { aut
   return { OR: [{ authorType: null }, { authorType: { not: AUTOMATION_AUTHOR } }] };
 }
 
+// ---------------------------------------------------------------------------
+// KANALIN BİLDİRDİĞİ GÖNDEREN ROLÜ (L5, migration 71, kurucu 10-17: "sağlayıcı otomasyonu ile ev sahibinin mesajını ayır; Airbnb Direct'te
+// rol kanal katmanında"). `Message.channelSenderRole` kapalı kümesi. 1. FAZ: yalnız ÖĞRENME / ÜSLUP / ÖNERİ girdisi — kanalın kendi otomatik
+// mesajı (sağlayıcı şablonu, zamanlanmış mesaj, sağlayıcı yapay zekâsı) "ev sahibinin sesi / bilgisi" sayılmaz. "Cevap mı" (`isAnsweringOutbound`,
+// `notAutomationMessageWhere`) ve her güvenlik kararı BUNDAN TÜREMEZ — 2. faz kurucu kararı (Q2) bekliyor, pinli.
+// YALNIZ KESİN OTOMASYON ayrılır: `unknown` (alan var, değer tanınmadı) bugünkü gibi ev sahibi sayılır — sağlayıcı alanları canlı hesapta
+// doğrulanmadı; tanınmayan bir insan rolü ("user" gibi) "şüphede düş" kuralıyla bütün ev sahibi cevaplarını sessizce öğrenmeden ve üslup
+// profilinden çıkarırdı (en değerli veri). Yanlış "unknown"ın bedeli bugünkü davranış; yanlış düşürmenin bedeli sessiz kayıp.
+// ---------------------------------------------------------------------------
+export const CHANNEL_SENDER_ROLES = ["guest", "host", "automation", "unknown"] as const;
+export type ChannelSenderRole = (typeof CHANNEL_SENDER_ROLES)[number];
+export const CHANNEL_AUTOMATION_ROLE = "automation" as const;
+
+/**
+ * Çekirdeğin yazdığı rol: kapalı küme dışı → "unknown"; YÖNLE çelişen rol (misafir mesajı ama rol ev sahibi / otomasyon, ya da giden mesaj
+ * ama rol misafir) → "unknown" (tutarsız sağlayıcı satırı otomasyon diye ayrılmaz, misafir diye de okunmaz). Rol yoksa NULL.
+ */
+export function canonicalChannelSenderRole(direction: "inbound" | "outbound", role: unknown): ChannelSenderRole | null {
+  if (role === null || role === undefined) return null;
+  if (typeof role !== "string" || !(CHANNEL_SENDER_ROLES as readonly string[]).includes(role)) return "unknown";
+  const r = role as ChannelSenderRole;
+  if (direction === "inbound") return r === "guest" ? "guest" : "unknown";
+  return r === "guest" ? "unknown" : r;
+}
+
+/** Kanalın KENDİ otomatik mesajı mı (sağlayıcı şablonu / zamanlanmış / sağlayıcı yapay zekâsı). Ev sahibi kanıtı DEĞİLDİR (1. faz). */
+export function isChannelAutomation(m: { channelSenderRole?: string | null }): boolean {
+  return m.channelSenderRole === CHANNEL_AUTOMATION_ROLE;
+}
+
+/** Prisma: kanal otomasyonu OLMAYAN satırlar — NULL rollü satırlar DAHİL (`{ not: … }` NULL'u dışlardı). */
+export function notChannelAutomationWhere(): { OR: ({ channelSenderRole: null } | { channelSenderRole: { not: string } })[] } {
+  return { OR: [{ channelSenderRole: null }, { channelSenderRole: { not: CHANNEL_AUTOMATION_ROLE } }] };
+}
+
 /** Closed set of system-event names (authorType = "system"). */
 export const SYSTEM_EVENT_GUEST_CHAT_AI_RESUMED = "guest_chat_ai_resumed";
 export const SYSTEM_EVENT_TYPES = [SYSTEM_EVENT_GUEST_CHAT_AI_RESUMED] as const;
