@@ -8,7 +8,14 @@
 > `docs/history/CLAUDE-2026-10-02-sadelestirme-3-oncesi-tam-metin.md` ("Durum" bölümü). Kuralları yukarıdaki bölümlerde; yalnız Durum'da
 > yazılı olan kurallar (konuşma öğeleri, ev kuralları, canlı bayraklar) 10-02'de ilgili bölümlere taşındı. Bekleyen onaylar ↓.
 
-**10-16 akşam (güncel):** (1) PARALEL TEST KAPISI — `npm test` = `scripts/test-gate.mjs` (veritabanlı kol tek sıra + veritabanısız kol 3 işçi
+**10-17 (güncel):** kurucu kararları S1 (migration'sız) kodda — H9/M1 "talimat yok" silici (izin listesi; Opus P1'ler: kanıtsız cihaz adımı,
+göndergesel konu, bilinmeyen konu, selam kabuğu → silinmez, cevap tutulur) · K4 çıkış gününe elle temizlik (görev formu rezervasyon bağlamadığı için
+aynı mülkte rezervasyonsuz elle temizlik de sayılır) · N1 abonelik kapalıyken bayat otomatik mesaj gitmez ("en son kapalı görüldü" işareti, kuyruk
+satırı iptali, bekleyen karşılama / giriş mesajında varış günü penceresi, tek not) · K3 ödeme ekranı metinleri (`billing-ui-text.ts`). Haiku ×2 +
+Opus derin kontrol bulguları işlendi; mutasyon 24/26 (iki gerekçeli eşdeğer). S2 tasarımı (migration 76–79: söz konusu, KB yerine koyma, kanal gönderen
+rolü, kayıt ağı izi) hazır, kurucu soruları `docs/arastirma-2026-10-15/KURUCU-SORULARI.md` §Q.
+
+**10-16 akşam :** (1) PARALEL TEST KAPISI — `npm test` = `scripts/test-gate.mjs` (veritabanlı kol tek sıra + veritabanısız kol 3 işçi
 aynı anda, süre testleri en sonda tek başına; ölçüm 4 koşu yeşil: 3 işçi 1.790 / 1.766 sn, 4 işçi 1.931 / 1.778 sn; seri 2.163 sn) — geri dönüş
 `npm run test:serial`; `docs/arastirma-2026-10-15/test-paralellik.md`. (2) H9 konu bazlı "bilgim yok" kodda, anahtar KAPALI (`topic-absence.ts`;
 Haiku: doğrusal satır temizliği, kalan cümle konuya bağlı; Opus: kapsama şartı, satır satır ayıklama, kod selamı muaf, belirsizlik tutulur, kanıt izi

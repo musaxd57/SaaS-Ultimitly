@@ -722,3 +722,29 @@ düzen. Sıradaki büyük işlerden sonra yapacağım.
 
 Bilinçli DOKUNULMAYAN: hukuki metinler (Mesafeli Satış / Ön Bilgilendirme — avukat paketi); düşürme penceresindeki "hemen geçerli olur, aradaki fark bir sonraki faturanıza yansıtılır" DOĞRU (Paddle `prorated_next_billing_period`: değişiklik hemen, ücret farkı sonraki fatura). Kanal (sağlayıcı) aboneliği metinleri ödeme ekranı değil — ayrı tur. Tek kaynak `src/lib/billing/billing-ui-text.ts` (pinli).
 
+## Q. S2 migration paketi (10-17) — tasarım hazır, dört soru
+
+Tasarım (dosya:satır, şema farkı, SQL taslağı, değişmezler, 39 kırmızı-önce test): `docs/TASARIM-2026-10-17-s2-migration-paketi.md`. Önerilen
+migration'lar (hazır yamadaki 69–75'ten sonra; hepsi boş kolon ya da yeni tablo, birbirinden bağımsız): **76** `GuestCommitment.topic` (I1) ·
+**77** `KnowledgeBaseItem.supersededAt` (L2) · **78** `Message.channelSenderRole` (L5) · **79** `SignupNetworkTrace` + `Organization.trialIdentityReusedAt`
+(K1; anahtar aydınlatma metni yayınlanmadan açılmaz). L3 migration'sız. Soru gerektirmeyenler (L2/L3, L5 1. faz, K1 "otomatik kesme yok") koda geçecek.
+
+- **Q1 · I1 — elle kaydettiğiniz KONUSUZ söz + aynı saatte KONULU öneri:** ÖRNEK — "Misafire söz ver" ile **Arıza / bakım, bugün 18:00**
+  kaydettiniz (formda konu yok). Sonra misafire "Klima için teknisyen 18:00'de gelecek" yazdınız; öneri "Söz kaydet: Arıza / bakım (klima) — 18:00".
+  (a) ÖNERİM: onaylayınca yeni görev AÇILMAZ, sözünüze "klima" yazılır ("Aynı saatte kaydettiğiniz söze bağlandı (klima)"); ardından "musluk 18:00"
+  önerisi AYRI söz + görev açar · (b) konusuz elle söz hiçbir öneriyle birleşmez (aynı iş için iki görev olabilir) · (c) elle forma isteğe bağlı
+  "Konu" seçimi (yalnız Arıza / bakım ve Eksik eşya). Anahtar kapalı; bugün kimse etkilenmiyor.
+- **Q2 · L5 — kanalın (sağlayıcının) otomatik mesajı "cevap" sayılsın mı?** ÖRNEK — misafir 13:55 "Otopark var mı?"; sağlayıcının zamanlanmış "Giriş
+  bilgileri" mesajı 13:56; senkron 13:57'de ikisini görür. Bugün: şablon "ev sahibi cevabı" sayılır → yapay zekâ otopark sorusunu cevaplamaz, panodaki
+  açık iş "ev sahibi yazdı" diye düşer. Önerim (2. faz): kendi otomatik mesajlarımızdaki kural (K7) — cevap DEĞİL → otopark cevaplanır, iş açık kalır.
+  Risk: sağlayıcının yapay zekâsı gerçekten cevapladıysa çift cevap → 2. faz yalnız alan canlı hesapta doğrulandıktan sonra (Hospitable belgesi bu
+  ortamdan açılamadı; kurucu org 402).
+- **Q3 · K1 — aydınlatma cümlesi + saklama süresi:** önerilen cümle — "Ücretsiz denemenin kötüye kullanılmasını önlemek için kayıt sırasında IP
+  adresinizden geri döndürülemez bir özet ve bağlandığınız ağın özeti oluşturulur; ham IP adresi bu amaçla saklanmaz. Bu bilgi yalnız ekibimizin
+  incelemesinde kullanılır, otomatik karar verilmez ve 90 gün sonra silinir." (a) 90 gün mü (önerim; silip yeniden açmayı 3 ay görür) 30 gün mü?
+  (b) Onay kanıtı olarak tutulan ham kayıt IP'si bu amaçla KULLANILMAZ — doğru mu? ÖRNEK: Ayşe 1 Ekim'de kaydoldu, 5 Ekim'de silip aynı evden yeniden
+  açtı → operatör listesinde "aynı ağdan başka kayıt" görünür.
+- **Q4 · K1 — operatör "Denemeyi bitir" deyince müşterinin göreceği metin:** önerim "Ücretsiz denemeniz sona erdi. Devam etmek için bir plan seçin.
+  Bir yanlışlık olduğunu düşünüyorsanız bize yazın." (sebep söylenmez — kaçışı öğretmemek için; "risk / kötüye kullanım" sözcükleri geçmez). Hesap
+  kapatılmaz (ödeme yapmak isteyen meşru müşteri dışarıda kalmasın); "Denemeyi geri ver" ile geri alınır. Uygun mu?
+
