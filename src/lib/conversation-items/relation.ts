@@ -848,7 +848,8 @@ const TROUBLESHOOT_CONTEXT = new RegExp(
 const RESTART_STEP = new RegExp(
   [
     // Gece-4 S4-03: -ing / -s / -ed biçimleri de ("Please try restarting the TV", "unplugging it for a minute") — yalın kök tek başına kaçıyordu.
-    `${L}(?:restart(?:ing|s|ed)?|reboot(?:ing|s|ed)?|reset(?:ting|s)?|unplug(?:ging|s|ged)?|replug(?:ging|s|ged)?|power(?:ing)? (?:it )?(?:off|down)|power cycle|turn it back on|neustart\\p{L}{0,2}|zurucksetzen|redemarr\\p{L}{0,3}|debranch\\p{L}{0,3}|rebranch\\p{L}{0,3}|reinici\\p{L}{0,3}|desenchuf\\p{L}{0,3}|перезагруз\\p{L}{0,4})${R}`,
+    // "power off" YALNIZ "it" ile (Haiku gece-4: "Please power off the lights when you leave" çıkış hatırlatmasıydı, adım sayılıp tutuluyordu).
+    `${L}(?:restart(?:ing|s|ed)?|reboot(?:ing|s|ed)?|reset(?:ting|s)?|unplug(?:ging|s|ged)?|replug(?:ging|s|ged)?|power(?:ing)? it (?:off|down)|power cycle|turn it back on|neustart\\p{L}{0,2}|zurucksetzen|redemarr\\p{L}{0,3}|debranch\\p{L}{0,3}|rebranch\\p{L}{0,3}|reinici\\p{L}{0,3}|desenchuf\\p{L}{0,3}|перезагруз\\p{L}{0,4})${R}`,
     // "switch the AC off and on again", "turning it off and back on" (Opus gece-2 M2 — "turn off and on" yalnız bitişik biçimdi)
     `${L}(?:turn|turning|switch|switching|power|powering) (?:(?:it|the|your|this) )?(?:\\p{L}{1,20} ){0,2}off and (?:back )?on${R}`,
     // Almanca ayrılabilir fiil: "Starten Sie den Fernseher neu", "Schalten Sie die Klimaanlage aus und wieder ein"
@@ -867,22 +868,37 @@ const RESTART_STEP = new RegExp(
  * sayılır — kullanım cevabını etkilemez. Türkçe: sınırlı fiil listesi + emir / "-abilirsiniz" / "-manız yeterli" / "-ip"; ad durumu "-ın / -un"
  * ile karışmasın diye çıplak "-in" ekine fiil listesi dışında BAKILMAZ. Diğer diller: kip / nezaket yüklemleri. Katlanmış metin, sınırlı tekrar.
  */
+/** Cihazı ÇALIŞTIRMA / AYARLAMA fiilleri — bilgi tabanında olmayan cihazın kullanım adımı yalnız bunlarla okunur (↓`USAGE_VERB_STEP`). */
+const TR_OPERATE_VERBS =
+  "sec|bas|bastir|degistir|temizle|ayarla|ac|kapat|tak|cek|cikar|cevir|tut|baslat|bagla|indir|yukselt|dusur|yenile|guncelle|kur|calistir|sok|doldur|bosalt";
+/** Genel / izin fiilleri ("Havuzu kullanabilirsiniz", "Anahtarı bırakın") — yalnız ARIZALI cihaz cümlesinde adım sayılır. */
+const TR_GENERIC_VERBS = "al|getir|bekle|kullan|gir|unut|yap|gec|koy|kaldir|birak|ayir";
+const TR_STEP_SUFFIX =
+  "(?:y?in|y?un|y?iniz|y?unuz|y?ip|y?up|y?abilir(?:siniz| misiniz)|y?ebilir(?:siniz| misiniz)|meniz|maniz|menizi|manizi|melisiniz|malisiniz)";
+const EN_IMPERATIVE_START = `^\\s*(?:please )?(?:switch|turn|press|hold|change|replace|clean|select|set|unplug|plug|check|wait|remove|insert|put|try|forget|reconnect|restart|reset|reboot)${R}`;
 const FAULT_DEVICE_VERB_SOURCE = [
-  `${L}(?:sec|bas|bastir|degistir|temizle|al|getir|ayarla|ac|kapat|tak|cek|cikar|bekle|kullan|cevir|tut|baslat|bagla|gir|unut|yap|gec|koy|indir|yukselt|dusur|yenile|guncelle|kur|calistir|sok|kaldir|birak|doldur|bosalt|ayir)` +
-    `(?:y?in|y?un|y?iniz|y?unuz|y?ip|y?up|y?abilir(?:siniz| misiniz)|y?ebilir(?:siniz| misiniz)|meniz|maniz|menizi|manizi|melisiniz|malisiniz)${R}`,
+  `${L}(?:${TR_OPERATE_VERBS}|${TR_GENERIC_VERBS})${TR_STEP_SUFFIX}${R}`,
   // "pilleri değiştirmek çözebilir", "filtresinin temizlenmesi işe yarayabilir", "resetlemeniz gerekebilir"
   `${L}\\p{L}{2,24}m[ae](?:si|k|niz) (?:ise yara\\p{L}{0,8}|gerek\\p{L}{0,6}|yeterli\\p{L}{0,3}|yardimci ol\\p{L}{0,6}|faydali ol\\p{L}{0,6}|iyi ol\\p{L}{0,6}|(?:sorunu )?coz\\p{L}{0,8})${R}`,
   // İngilizce cümle başı emir ("Please forget the network and reconnect", "Replace the batteries")
-  `^\\s*(?:please )?(?:switch|turn|press|hold|change|replace|clean|select|set|unplug|plug|check|wait|remove|insert|put|try|forget|reconnect|restart|reset|reboot)${R}`,
+  EN_IMPERATIVE_START,
 ].join("|");
 /**
  * İngilizce kullanım yönergesi cümle ortasında ("To turn on the heating, turn the dial on the boiler") — yalnız KENDİ cihazı bilgi tabanında
  * olmayan cümlede (gece-4 S4-08) okunur.
  */
 const ENGLISH_USAGE_STEP = new RegExp(
-  `${L}to (?:turn|switch|use|open|start|set|adjust|change|operate|press)${R}|(?:^|[,;:]\\s*)(?:turn|switch|press|hold|set|use|open|rotate|twist|push|pull)${R}`,
+  // İzin cümlesi yönerge değil (Haiku gece-4: "Feel free to use the pool", "You are welcome to use the gym" tutuluyordu); virgülden sonraki
+  // "set to / set at" sıfat-fiil ("…by the thermostat, set to 21 degrees") emir değil.
+  `${L}(?<!(?:free|welcome|allowed|able|permitted|invited) )to (?:turn|switch|use|open|start|set|adjust|change|operate|press)${R}|(?:^|[,;:]\\s*)(?:turn|switch|press|hold|set(?! (?:to|at)${R})|use|open|rotate|twist|push|pull)${R}`,
   "u",
 );
+/**
+ * Bilgi tabanında OLMAYAN cihazın kullanım adımı (gece-4 S4-08): yalnız çalıştırma fiilleri + İngilizce cümle başı emir. Geniş nezaket
+ * biçimleri ("please", "you can") ve genel fiiller ("kullanabilirsiniz") burada adım DEĞİL (Haiku gece-4: "The fridge is empty, please help
+ * yourself" ve izin cümleleri tutuluyordu).
+ */
+const USAGE_VERB_STEP = new RegExp(`${L}(?:${TR_OPERATE_VERBS})${TR_STEP_SUFFIX}${R}|${EN_IMPERATIVE_START}`, "u");
 /** Dar adım biçimleri: kapalı fiil listesinin kipleri + çözüm önerisi kalıbı + İngilizce cümle başı emir (cihazı misafirden devralınan cümlede). */
 const FAULT_DEVICE_VERB_STEP = new RegExp(FAULT_DEVICE_VERB_SOURCE, "u");
 const FAULT_DEVICE_STEP = new RegExp(
@@ -1103,7 +1119,7 @@ export function unsupportedFixStep(
     // sağa çevirin", "Televizyonu kumandayla açabilirsiniz", "turn the dial on the boiler") uydurma kullanım adımıdır — tek zayıf işaret yüzünden
     // adım sayılmıyordu (gaz / sıcak su cihazları dahil).
     const unknownOwn = own.length > 0 && own.some((t) => !kb.subjectTopics.has(t) && !kb.recipeTopics.has(t));
-    const usageStep = unknownOwn && (FAULT_DEVICE_STEP.test(f) || ENGLISH_USAGE_STEP.test(f));
+    const usageStep = unknownOwn && (USAGE_VERB_STEP.test(f) || ENGLISH_USAGE_STEP.test(f));
     if (!restart && !tries && !faultStep && !usageStep && !isFixRecipeText(sentence) && !GUEST_CHECK_STEP.test(f)) continue;
     const troubleshooting =
       restart ||
@@ -1324,7 +1340,8 @@ const FAULT_PHRASE_SOURCE = [
     `${L}(?:internet|wifi|wi-fi|sicak su|elektrik|isitma|isik)\\p{L}{0,4} (?:yok|gitti|kesildi|gelmiyor)${R}`,
     // en
     // Gece-4 S4-03: kısaltmalı olumsuz ("The TV isn't working", "doesn't turn on", "is dead") — misafir en çok böyle yazıyor.
-    `${L}(?:isn't|aren't|wasn't|weren't|doesn't|don't|didn't|won't|is not|are not) (?:working|turning on|turn on|starting|heating|cooling|responding|charging|draining)${R}`,
+    // Kişi öznesi arıza değil (Haiku gece-4: "We didn't turn on the dishwasher, is it included?" bulaşık makinesini arızalı sayıyordu).
+    `${L}(?<!(?:^|\\s)(?:we|i|you|they|he|she) )(?:isn't|aren't|wasn't|weren't|doesn't|don't|didn't|won't|is not|are not) (?:working|turning on|turn on|starting|heating|cooling|responding|charging|draining)${R}`,
     `${L}(?:is dead|has died|no longer works|stopped responding)${R}`,
     `${L}(?:not working|can't connect|cannot connect|can not connect|unable to connect|very slow|too slow|extremely slow|won't drain|not draining|doesn't drain|keeps dropping|keeps disconnecting|doesn't work|does not work|won't turn on|will not turn on|won't start|stopped working|broken|no picture|black screen|no sound|no signal|not heating|not cooling|leaking|clogged|won't respond|doesn't respond|does not respond|not responding|no hot water|no internet|no wifi|no power|got stuck|is stuck|only blows (?:cold|warm|hot) air|won't open|won't connect|keeps (?:beeping|turning off|shutting off))${R}`,
     // de / fr / es

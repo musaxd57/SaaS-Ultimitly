@@ -375,6 +375,27 @@ describe("gece-4 S4-03 / S4-08: İngilizce kısaltmalı arıza, -ing adımlar, b
   ])("KONTROL geçer (bilgi tabanındaki konu / adımsız cümle): %s → %s", (guest, reply) => {
     expect(unsupportedFixStep(reply, thin, guest)).toBe(false);
   });
+  it.each<[string, string]>([
+    // Haiku gece-4: izin / ikram / çıkış hatırlatması / betimleme kullanım adımı DEĞİL (bilgi tabanında olmayan cihazda da).
+    ["Is the pool open?", "Feel free to use the pool."],
+    ["Is there a gym?", "You are welcome to use the gym."],
+    ["Havuz açık mı?", "Havuzu kullanabilirsiniz."],
+    ["Can we eat something?", "The fridge is empty, please help yourself."],
+    ["Anything before we leave?", "Please power off the lights when you leave."],
+    ["How warm is it?", "The heating is controlled by the thermostat, set to 21 degrees."],
+  ])("Haiku gece-4 — geçer (izin / betimleme): %s → %s", (guest, reply) => {
+    expect(unsupportedFixStep(reply, thin, guest)).toBe(false);
+  });
+  it("Haiku gece-4: kişi öznesiyle olumsuz ('We didn't turn on the dishwasher') arıza değil — cihaz arızalı sayılmaz", () => {
+    const withDishwasher = { recipeTopics: new Set<string>(), subjectTopics: new Set<string>(["dishwasher"]) };
+    expect(
+      unsupportedFixStep("You can use the dishwasher's eco button.", withDishwasher, "We didn't turn on the dishwasher last night, is it included in the price?"),
+    ).toBe(false);
+    // KONTROL: cihaz öznesiyle aynı biçim arızadır → tarifsiz adım tutulur.
+    expect(unsupportedFixStep("You can use the dishwasher's eco button.", withDishwasher, "The dishwasher didn't turn on last night.")).toBe(true);
+    // KONTROL: "power it off" yeniden başlatma adımı olarak kalır.
+    expect(unsupportedFixStep("Please try powering it off for a minute.", thin, "The TV isn't working")).toBe(true);
+  });
   it("KONTROL: cihaz bilgi tabanında KONU ise kullanım yönergesi geçer (yalnız arıza adımı tarif ister)", () => {
     const withTv = { recipeTopics: new Set<string>(), subjectTopics: new Set<string>(["tv"]) };
     expect(unsupportedFixStep("Televizyonu kumandayla açabilirsiniz.", withTv, "TV nasıl açılır?")).toBe(false);

@@ -49,8 +49,10 @@ const NL = "(?<![\\p{L}\\p{N}])";
 const NR = "(?![\\p{L}\\p{N}])";
 const PROMISE_TR =
   "(?:getir(?:ecegim|ecegiz|ecek|ecekler|ilecek|irim|iriz|tecegim|tirecegim|eyim|iyorum|iyoruz|iyorlar|iyor)|gonder(?:ecegim|ecegiz|ecek|ilecek|irim|iriz|iyorum|iyoruz)|yolla(?:yacagim|yacagiz|yacak|rim)|birak(?:acagim|acagiz|acak)|yap(?:acagim|acagiz|acak|ilacak)|gel(?:ecek(?!\\s+(?:hafta|ay|yil|sefer|misafir|konuk|kisi|grup|rezervasyon|sezon))|ecekler|ecegim|ecegiz|iyor|iyorlar)|ugra(?:yacak|yacagim|yacagiz)|bak(?:acak|acagim|acagiz|acaklar)|ilgilen(?:ecegim|ecegiz|ecek)|halled(?:ecegim|ecegiz|ecek|ilecek)|hallederim|tamir\\s+(?:edilecek|edecek|edecegim|ettirecegim)|degistir(?:ecegim|ecegiz|ecek|ilecek)|temizle(?:necek|yecek|yecegim|yecegiz)|ayarla(?:yacagim|yacagiz|nacak|rim))";
+// Kesmesiz "Ill / Well" yalnız dar fiille (Opus gece-4 F5 kesmeyi zorunlu yaptı: "went well" söz sayılıyordu; Haiku: "Ill bring towels tomorrow"
+// sessizce düşüyordu). "come" / "check" YOK: "You are well come" (welcome yazım hatası) ve "works well check-in…" söz değildir.
 const PROMISE_EN =
-  "(?:i['’]?m\\s+sending|i\\s+am\\s+sending|i['’]ll|i\\s+will|we['’]ll|we\\s+will|(?:someone|somebody|(?:(?:the|a|an|our)\\s+)?(?:technician|cleaner|plumber|electrician|engineer|housekeeper)s?|housekeeping|maintenance|he|she|they)\\s+will|(?:is|are)\\s+(?:coming|on\\s+(?:the|his|her|their)\\s+way))";
+  "(?:i['’]?m\\s+sending|i\\s+am\\s+sending|i['’]ll|i\\s+will|we['’]ll|we\\s+will|(?:i|we)ll\\s+(?:bring|send|drop|fix|deliver)|(?:someone|somebody|(?:(?:the|a|an|our)\\s+)?(?:technician|cleaner|plumber|electrician|engineer|housekeeper)s?|housekeeping|maintenance|he|she|they)\\s+will|(?:is|are)\\s+(?:coming|on\\s+(?:the|his|her|their)\\s+way))";
 const PROMISE = new RegExp(`${NL}(?:${PROMISE_TR}|${PROMISE_EN})${NR}`, "u");
 /** Teklif / koşul söz değildir ("isterseniz getirebilirim", "if you need I'll bring"). */
 const CONDITIONAL = new RegExp(`${NL}(?:eger|isterseniz|istersen|gerekirse|ihtiyac\\p{L}{0,6}\\s+olursa|if|unless)${NR}`, "u");
@@ -729,7 +731,8 @@ function promiseAt(c: PromiseClause, at: number, kind: CommitmentKind, ctx: Mess
   // Sağdaki yalın dilek parçası ("…, umarım." · "…, hopefully.") sözü kararsız yapar (H1); sonraki söz fiili durdurur.
   for (let i = to + 1; i < segments.length && !PROMISE.test(segments[i]); i++) if (segmentKind(segments[i]) === "wish") return REJECT;
   // D2: kendi kapsamında gün yoksa soldaki yalın zincirde gün sözcüğü taşıyan EN YAKIN parça (günü + gün dilimi).
-  if (!dayWordIn(sliceOf(from, to).folded)) {
+  const ownDay = dayWordIn(sliceOf(from, to).folded);
+  if (!ownDay) {
     for (let i = from - 1; i >= bare; i--) {
       if (dayWordIn(segments[i])) {
         from = i;
@@ -738,7 +741,9 @@ function promiseAt(c: PromiseClause, at: number, kind: CommitmentKind, ctx: Mess
     }
   }
   // Kapsamda gün dilimi yoksa soldaki yalın zincirdeki en yakın DİLİM parçası ("Akşam, teknisyen 9'da gelecek" → bugün 21:00 — Opus gece-4 F12).
-  if (!DAY_PARTS.some((d) => d.re.test(sliceOf(from, to).folded))) {
+  // Sözün KENDİ günü varsa günsüz soldaki dilim ona bağlanmaz (Haiku gece-4: "Akşam, teknisyen yarın 9'da gelecek" yarın 21:00 okunuyordu —
+  // günsüz "akşam" bugünün akşamıdır, "yarın 9'da" ile birleştirilemez).
+  if (!ownDay && !DAY_PARTS.some((d) => d.re.test(sliceOf(from, to).folded))) {
     for (let i = from - 1; i >= bare; i--) {
       if (DAY_PARTS.some((d) => d.re.test(segments[i]!))) {
         from = i;

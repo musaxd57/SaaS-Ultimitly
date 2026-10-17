@@ -813,4 +813,21 @@ describe("söz algılama v2 — gün kapsamı, dilek, iki söz, süre, devam (se
     expect(at("Teknisyen bu sabah gelecek.", 13 * 60)[0]).toMatchObject({ day: "today", dayPart: "morning" });
     expect(at("Sabah teknisyen gelecek.", 13 * 60)[0]).toMatchObject({ day: "tomorrow", dayPart: "morning" });
   });
+
+  it("Haiku gece-4 (Opus düzeltmeleri sonrası): sözün kendi günü varken günsüz soldaki dilim ödünç alınmaz; kesmesiz 'Ill / Well' dar fiille söz", () => {
+    const at = (t: string, now: number) => detectHostPromises(t).map((p) => ({ ...promiseWindow(p, now), card: p.dayUnclear || p.timeAmbiguous }));
+    // "Akşam" (bugünün akşamı) "yarın 9'da"ya bağlanmaz → yarın 09:00 (21:00 değil).
+    for (const t of ["Akşam, teknisyen yarın 9'da gelecek.", "Gece, teknisyen yarın 9'da gelecek.", "Akşam, yarın teknisyen 9'da gelecek."]) {
+      expect(at(t, 15 * 60), t).toEqual([{ day: "tomorrow", precision: "time", time: "09:00", end: 540, card: false }]);
+    }
+    // KONTROL: kendi günü olmayan söz soldaki dilimi almaya devam eder (F12); günlü dilim aynen.
+    expect(at("Akşam, teknisyen 9'da gelecek.", 15 * 60)[0]).toMatchObject({ day: "today", time: "21:00" });
+    expect(at("Yarın akşam, teknisyen 9'da gelecek.", 15 * 60)[0]).toMatchObject({ day: "tomorrow", time: "21:00" });
+    // Kesmesiz yazım (mobil) dar fiille söz; "well" / "well come" / "check-in" söz değil (F5 korunur).
+    expect(detectHostPromises("Ill bring towels tomorrow.").map((p) => p.kind)).toEqual(["towels"]);
+    expect(detectHostPromises("Well send the technician tomorrow at 10.").map((p) => p.kind)).toEqual(["maintenance"]);
+    for (const t of ["The cleaning went well.", "You are well come, the technician is great.", "The AC works well check-in is at 15:00 tomorrow."]) {
+      expect(detectHostPromises(t), t).toEqual([]);
+    }
+  });
 });
