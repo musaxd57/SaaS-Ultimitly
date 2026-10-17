@@ -34,7 +34,15 @@ type PaddleState = {
   statusSeq: string[];
   /** Devam isteğinin Paddle'da süreceği gecikme (eşzamanlı iki isteğin ikisinin de POST'a ulaşabildiği pencere). */
   resumeDelayMs: number;
+  /** Fiyat önizlemesinin satırları (verilmezse tek satır `total`); `legacy`: belgede OLMAYAN eski alan (`details.totals.grand_total`). */
+  lines?: unknown[];
+  legacy?: boolean;
+  /** Aboneliğin Paddle adresi (önizlemeye gitmeli — sandbox D2/P8). */
+  addressId?: string | null;
+  /** Devam isteği BAŞARILI dönerken abonelik durumu (sandbox D1: kart reddinde istek hata dönmez, `past_due`). */
+  resumeOkStatus?: string;
 };
+let previewBodies: Array<Record<string, unknown>> = [];
 let paddle: PaddleState;
 let resumeCalls = 0;
 
@@ -48,17 +56,21 @@ function stubPaddle() {
       const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
       if (method === "GET" && /^\/subscriptions\/sub_\w+$/.test(path)) {
         const st = paddle.statusSeq.length > 0 ? paddle.statusSeq.shift()! : paddle.status;
-        return json(200, { data: { status: st, customer_id: paddle.customerId, items: [{ price: { id: "pri_pro" } }] } });
+        return json(200, { data: { status: st, customer_id: paddle.customerId, address_id: paddle.addressId ?? null, items: [{ price: { id: "pri_pro" } }] } });
       }
       if (method === "POST" && path === "/pricing-preview") {
-        return json(200, { data: { currency_code: paddle.currency, details: { totals: { grand_total: paddle.total } } } });
+        previewBodies.push(JSON.parse(String(init?.body ?? "{}")));
+        // Paddle belgesi (sandbox D2, 10-17): `details` yalnız `line_items` taşır; vergi DAHİL toplam `line_items[].totals.total`.
+        if (paddle.legacy) return json(200, { data: { currency_code: paddle.currency, details: { totals: { grand_total: paddle.total } } } });
+        const lines = paddle.lines ?? [{ totals: { subtotal: paddle.total, discount: "0", tax: "0", total: paddle.total } }];
+        return json(200, { data: { currency_code: paddle.currency, details: { line_items: lines } } });
       }
       if (method === "POST" && path === "/subscriptions/sub_1/resume") {
         resumeCalls++;
         if (paddle.resumeDelayMs > 0) await new Promise((r) => setTimeout(r, paddle.resumeDelayMs));
         if (paddle.resume === "ok") {
-          paddle.status = "active";
-          return json(200, { data: { status: "active" } });
+          paddle.status = paddle.resumeOkStatus ?? "active";
+          return json(200, { data: { status: paddle.status } });
         }
         if (paddle.resume === "declined") return json(400, { error: { code: "subscription_payment_declined" } });
         if (paddle.resume === "rejected") return json(400, { error: { code: "subscription_locked" } });
@@ -90,6 +102,7 @@ beforeEach(async () => {
   vi.stubEnv("PADDLE_PRICE_PRO", "pri_pro");
   vi.stubEnv("AUTH_SECRET", "test-auth-secret-0123456789-abcdefghijkl");
   paddle = { status: "paused", total: "89900", currency: "TRY", customerId: "ctm_1", resume: "ok", afterAmbiguous: "paused", statusSeq: [], resumeDelayMs: 0 };
+  previewBodies = [];
   stubPaddle();
   const org = await prisma.organization.create({ data: { name: "Org" } });
   orgId = org.id;
@@ -260,6 +273,54 @@ describe("Aboneliği devam ettir", () => {
     paddle.customerId = null;
     expect((await doPreview()).status).toBe(400);
     expect(resumeCalls).toBe(0);
+  });
+
+  it("🚨 SANDBOX D2 (10-17): tutar Paddle'ın GERÇEK alanından — satır toplamları (vergi dahil); belgede olmayan eski alan tek başına onay AÇMAZ", async () => {
+    paddle.legacy = true;
+    expect((await doPreview()).status).toBe(503);
+    paddle.legacy = false;
+    // İki satır (ör. vergi ayrı satır değil, iki kalem) → toplam.
+    paddle.lines = [{ totals: { total: "74917" } }, { totals: { total: "14983" } }];
+    const res = await doPreview();
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { amount: string }).amount).toBe("₺899,00");
+  });
+
+  it.each([
+    ["boş satır listesi", []],
+    ["boş toplam", [{ totals: { total: "" } }]],
+    ["ondalıklı", [{ totals: { total: "899.00" } }]],
+    ["eksi", [{ totals: { total: "-89900" } }]],
+    ["sayı (metin değil)", [{ totals: { total: 89900 } }]],
+    ["bir satırı bozuk", [{ totals: { total: "89900" } }, { totals: {} }]],
+    ["satır null", [null]],
+  ] as [string, unknown[]][])("🚨 tutar KATI — %s → onay AÇILMAZ, Paddle'a devam gitmez", async (_name, lines) => {
+    paddle.lines = lines;
+    expect((await doPreview()).status).toBe(503);
+    expect(resumeCalls).toBe(0);
+  });
+
+  it("vergi aboneliğin ADRESİYLE: önizleme isteği aboneliğin adres kimliğini taşır (yoksa göndermez)", async () => {
+    paddle.addressId = "add_tr_1";
+    await doPreview();
+    expect(previewBodies.at(-1)).toMatchObject({ customer_id: "ctm_1", address_id: "add_tr_1", items: [{ price_id: "pri_pro", quantity: 1 }] });
+    paddle.addressId = null;
+    await doPreview();
+    expect(previewBodies.at(-1)).not.toHaveProperty("address_id");
+  });
+
+  it("🚨 SANDBOX D1 (10-17): devam isteği BAŞARILI ama abonelik 'ödeme gecikmiş' (kart reddi) → başarı DENMEZ: 402 + kart güncelleme, kilit kalkar", async () => {
+    paddle.resumeOkStatus = "past_due";
+    const r = await doResume(await token());
+    expect(r.status).toBe(402);
+    expect(await r.json()).toMatchObject({ error: "Ödeme alınamadı. Kart bilgilerinizi güncelleyin.", cardUpdateUrl: "https://portal/card" });
+    expect(resumeCalls).toBe(1);
+    expect(await prisma.systemLock.count({ where: { name: RESUME_PENDING_LOCK(orgId) } })).toBe(0);
+    expect(await prisma.auditLog.count({ where: { organizationId: orgId, action: "billing.resumed" } })).toBe(0);
+    expect(await prisma.auditLog.count({ where: { organizationId: orgId, action: "billing.resume_payment_failed" } })).toBe(1);
+    // Abonelik artık duraklatılmış değil → ikinci deneme Paddle'a GİTMEZ (ikinci tahsilat denemesi yok).
+    expect((await doPreview()).status).toBe(400);
+    expect(resumeCalls).toBe(1);
   });
 
   it("onaylanan tutar denetim kaydında (gerçek tahsilatla karşılaştırma için — kişisel veri yok)", async () => {

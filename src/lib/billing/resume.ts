@@ -21,7 +21,17 @@ export function resumeEnabled(): boolean {
 }
 
 export type ResolvedResume =
-  | { ok: true; providerRef: string; customerId: string; priceId: string; planCode: string; planName: string; annual: boolean }
+  | {
+      ok: true;
+      providerRef: string;
+      customerId: string;
+      /** Aboneliğin Paddle adresi (vergi önizlemesi aboneliğin adresiyle — sandbox D2/P8); okunamazsa null. */
+      addressId: string | null;
+      priceId: string;
+      planCode: string;
+      planName: string;
+      annual: boolean;
+    }
   | { ok: false; error: string };
 
 /** Devam ettirilebilir mi + Paddle çağrısının ihtiyaç duyduğu her şey. Kuruluş kimliği OTURUMDAN (çağıran) → başka kuruluş hedeflenemez. */
@@ -67,6 +77,7 @@ export async function resolveResume(organizationId: string): Promise<ResolvedRes
     ok: true,
     providerRef: sub.providerRef,
     customerId,
+    addressId: live.addressId ?? null,
     priceId,
     planCode,
     planName: planByCode(planCode)?.name ?? planCode,

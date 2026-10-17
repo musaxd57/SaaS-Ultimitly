@@ -22,7 +22,7 @@ export const POST = withOwner(async (session) => {
   const r = await resolveResume(session.organizationId);
   if (!r.ok) return badRequest({ error: r.error });
 
-  const amount = await previewPriceTotal(r.priceId, r.customerId);
+  const amount = await previewPriceTotal(r.priceId, r.customerId, r.addressId);
   if (!amount) return NextResponse.json({ error: RESUME_TEXT.amountUnknown }, { status: 503 });
 
   return jsonOk({

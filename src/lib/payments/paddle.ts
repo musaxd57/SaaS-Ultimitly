@@ -526,7 +526,8 @@ export async function getSubscriptionCurrentPriceId(subscriptionId: string): Pro
 // ---------------------------------------------------------------------------
 
 export type ResumeResult =
-  | { ok: true }
+  // `status`: Paddle'ın yanıttaki abonelik durumu (sandbox D1: tahsilat başarısızsa istek hata DÖNMEZ, abonelik `past_due` olur).
+  | { ok: true; status: string | null }
   // `declined`: Paddle kartı reddetti (müşteriye "kartınızı güncelleyin" + kart güncelleme bağlantısı).
   | { ok: false; kind: "definitive" | "ambiguous"; declined: boolean; reason: string };
 
@@ -539,13 +540,14 @@ export async function resumeSubscription(subscriptionId: string, orgId?: string)
     return { ok: false, kind: "definitive", declined: false, reason: "unconfigured" };
   }
   try {
-    await paddleRequest(`/subscriptions/${encodeURIComponent(subscriptionId)}/resume`, {
+    const res = (await paddleRequest(`/subscriptions/${encodeURIComponent(subscriptionId)}/resume`, {
       method: "POST",
-      // "Yeni dönem başlat" AÇIKÇA (Opus 10-17 A2): kurucu "tıklanınca hemen ödeme alınsın" — dönem hemen başlar, tahsilat hemen. Alan adı
-      // sandbox'ta doğrulanacak (P6); tanınmazsa Paddle 4xx döner = kesin ret, hiçbir şey çekilmez.
+      // "Yeni dönem başlat" AÇIKÇA (Opus 10-17 A2): kurucu "tıklanınca hemen ödeme alınsın" — dönem hemen başlar, tahsilat hemen. Alan adları
+      // ve değerler belgeyle doğrulandı (sandbox D1, 10-17: `effective_from: "immediately"`, `on_resume: "start_new_billing_period"` = "yeni
+      // dönemin tamamı hemen tahsil edilir"); davranış P6'da.
       body: { effective_from: "immediately", on_resume: "start_new_billing_period" },
-    });
-    return { ok: true };
+    })) as { data?: { status?: unknown } } | null;
+    return { ok: true, status: typeof res?.data?.status === "string" ? res.data.status : null };
   } catch (err) {
     const reason = err instanceof Error ? err.message : "unknown";
     const declined = /\(subscription_payment_declined\)/.test(reason);
@@ -559,13 +561,15 @@ export async function resumeSubscription(subscriptionId: string, orgId?: string)
 }
 
 /** Aboneliğin Paddle'daki durumu (belirsiz devam sonucunu mutabakat için). Asla fırlatmaz → okunamazsa null ("bilinmiyor"). */
-export async function getSubscriptionStatus(subscriptionId: string): Promise<{ status: string | null; customerId: string | null } | null> {
+export async function getSubscriptionStatus(
+  subscriptionId: string,
+): Promise<{ status: string | null; customerId: string | null; addressId: string | null } | null> {
   if (!subscriptionId || !isPaddleConfigured()) return null;
   try {
     const res = (await paddleRequest(`/subscriptions/${encodeURIComponent(subscriptionId)}`)) as {
-      data?: { status?: string; customer_id?: string };
+      data?: { status?: string; customer_id?: string; address_id?: string };
     };
-    return { status: res?.data?.status ?? null, customerId: res?.data?.customer_id ?? null };
+    return { status: res?.data?.status ?? null, customerId: res?.data?.customer_id ?? null, addressId: res?.data?.address_id ?? null };
   } catch (err) {
     if (!isExpectedPaddleError(err)) await reportError("paddle-subscription-get", err);
     return null;
@@ -574,26 +578,33 @@ export async function getSubscriptionStatus(subscriptionId: string): Promise<{ s
 
 /**
  * Bir fiyatın bu müşteri için VERGİ DAHİL toplamı (Paddle fiyat önizlemesi) — devam ettirme onay penceresindeki rakam. Asla fırlatmaz;
- * okunamazsa null → çağıran pencereyi AÇMAZ (tahmini rakamla para çekilmez). Alan adları sandbox'ta doğrulanacak (P8).
+ * okunamazsa null → çağıran pencereyi AÇMAZ (tahmini rakamla para çekilmez).
+ * 🚨 SANDBOX D2 (10-17, belge satır satır okundu): `/pricing-preview` yanıtında `details.totals.grand_total` YOK — yalnız satırlar var:
+ * `details.line_items[].totals.total` = "indirim ve vergi SONRASI toplam", en küçük birimde tam sayı metni. Genel toplam = satırların
+ * toplamı (her satır katı biçimde; biri bozuksa null). Önceki kod olmayan alanı okuyordu → onay penceresi hiç açılmazdı (para riski yoktu).
+ * Vergi aboneliğin ADRESİYLE hesaplansın diye aboneliğin `address_id`si de gönderilir (varsa) — gerçek tahsilatla eşitliği sandbox P8.
  */
-export async function previewPriceTotal(priceId: string, customerId: string): Promise<string | null> {
+export async function previewPriceTotal(priceId: string, customerId: string, addressId?: string | null): Promise<string | null> {
   if (!priceId || !customerId || !isPaddleConfigured()) return null;
   try {
     const res = (await paddleRequest("/pricing-preview", {
       method: "POST",
-      body: { items: [{ price_id: priceId, quantity: 1 }], customer_id: customerId },
+      body: { items: [{ price_id: priceId, quantity: 1 }], customer_id: customerId, ...(addressId ? { address_id: addressId } : {}) },
     })) as {
-      data?: {
-        currency_code?: string;
-        details?: { line_items?: Array<{ totals?: { total?: string } }>; totals?: { total?: string; grand_total?: string } };
-      };
+      data?: { currency_code?: string; details?: { line_items?: Array<{ totals?: { total?: unknown } } | null> } };
     };
     const d = res?.data;
-    // KATI (Haiku 10-17): yalnız vergi DAHİL genel toplam, yalnız rakam ("" → 0 olmasın) ve para birimi şart — eksikse null (onay açılmaz).
-    const total = d?.details?.totals?.grand_total;
+    const lines = d?.details?.line_items;
     const currency = d?.currency_code?.trim();
-    if (typeof total !== "string" || !/^\d+$/.test(total) || !currency) return null;
-    return formatPaddleTotal(total, currency);
+    // KATI (Haiku 10-17): yalnız vergi DAHİL satır toplamları, yalnız rakam ("" → 0 olmasın), en az bir satır ve para birimi şart.
+    if (!Array.isArray(lines) || lines.length === 0 || !currency) return null;
+    let sum = BigInt(0);
+    for (const li of lines) {
+      const t = li?.totals?.total;
+      if (typeof t !== "string" || !/^\d{1,15}$/.test(t)) return null;
+      sum += BigInt(t);
+    }
+    return formatPaddleTotal(sum.toString(), currency);
   } catch (err) {
     if (!isExpectedPaddleError(err)) await reportError("paddle-pricing-preview", err);
     return null;

@@ -48,7 +48,7 @@ export const POST = withOwner(async (session, req) => {
   if (!claimed) return NextResponse.json({ error: RESUME_TEXT.tokenUsed }, { status: 409 });
 
   // Tutar bütünlüğü: müşterinin onayladığı rakam HÂLÂ geçerli olmalı (fiyat / vergi / para birimi değiştiyse yeniden onay).
-  const fresh = await previewPriceTotal(r.priceId, r.customerId);
+  const fresh = await previewPriceTotal(r.priceId, r.customerId, r.addressId);
   if (!fresh || fresh !== token.amount) {
     await releasePlanChangeNonce(token.jti);
     return NextResponse.json({ error: fresh ? RESUME_TEXT.amountChanged : RESUME_TEXT.amountUnknown, amountChanged: Boolean(fresh), amount: fresh }, { status: 409 });
@@ -127,6 +127,15 @@ export const POST = withOwner(async (session, req) => {
       await audit("billing.resume_pending");
       return NextResponse.json({ pending: true, error: RESUME_TEXT.pending }, { status: 202 });
     }
+  }
+  if (result.ok && result.status === "past_due") {
+    // SANDBOX D1 (10-17, belge): tahsilat başarısızsa devam isteği hata DÖNMEZ — abonelik "ödeme gecikmiş" olur. Başarı denmez; kart
+    // güncelleme bağlantısı verilir (Paddle aynı işlemi yeniden dener). Kilit kalkar: abonelik artık duraklatılmış değil, ikinci devam
+    // zaten reddedilir (canlı durum).
+    await clearLock();
+    await audit("billing.resume_payment_failed");
+    const links = await createPortalSession(r.providerRef);
+    return NextResponse.json({ error: RESUME_TEXT.declined, cardUpdateUrl: links?.updatePaymentMethod ?? links?.overview ?? null }, { status: 402 });
   }
   // Başarı: kilit webhook'a kadar KALIR (yerel satır Paddle olayıyla "active" olana dek ikinci bir devam denemesi açılmasın; olay kilidi
   // siler, gelmezse 15 dk sonra kendiliğinden düşer).
