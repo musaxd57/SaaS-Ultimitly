@@ -177,6 +177,7 @@ import { errorWithContext, redactSensitive, reportError } from "@/lib/report-err
 import { redactNameFromBody } from "@/lib/data-retention";
 import { sendOnChannel, isDefinitiveSendFailure } from "@/lib/messaging";
 import { durableOutboxEnabledFor } from "@/lib/outbox/flag";
+import { BILLING_PAUSED_REASON } from "@/lib/outbox/billing-hold";
 import { undeliveredFilterActive } from "@/lib/outbox/presence";
 import { enqueueOutbound, enqueueProactive } from "@/lib/outbox/enqueue";
 import { classifySendResult, sendFailureHoldMs, SUPERSEDED_BY_NEWER_MESSAGE, NOT_DELIVERED_STATUSES, PROVIDER_OUTAGE_REASON } from "@/lib/outbox/state";
@@ -4097,6 +4098,46 @@ function dueAutoReplyWhere(organizationId: string, freshSince: Date) {
       },
     ],
   };
+}
+
+/**
+ * N1 (kurucu 10-17, AYNEN: "ödeme geldikten sonra çalışmaya başlasın kesinlikle bayat mesaj gitmememeli tek gösterimlik uyarı çıkabilir").
+ * Abonelik erişimi kapalıyken senkron mesajları içeri almaya devam eder ama oto-yanıt koşmaz (`scheduled-sync`, `canAutomate`). Eskiden bu
+ * mesajlar cevapsız `new` kalıyor ve ÖDEME GELİNCE oto-yanıt hepsine (günler önceki sorulara) cevap üretiyordu — `freshSince` sabit damga.
+ * Artık erişim kapalı her turda bekleyen misafir mesajları DAMGALANIR (`autoReplyAttemptedAt = lastMessageAt`, not `billing_paused`): o
+ * mesaja bir daha otomatik cevap üretilmez, gelen kutusunda not görünür ("lütfen elle yanıtlayın"); misafir ödemeden SONRA yeniden yazarsa
+ * yeni mesaj normal cevaplanır. İnsan devri bekleyen (`autoReplyHoldUntil`) konuşma da damgalanır: devir bittiğinde erişim kapalıyken gelmiş
+ * mesaj bayattır. Model çağrısı YOK; satır başına koşullu tek yazma (araya yeni mesaj girdiyse yazılmaz — o mesaj sonraki turda değerlendirilir).
+ */
+export async function markBillingPausedConversations(organizationId: string, now: Date = new Date()): Promise<number> {
+  if (process.env.AUTO_REPLY_ENABLED !== "1") return 0;
+  const org = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { autoReplyHospitable: true, autoReplyEnabledAt: true },
+  });
+  if (!org?.autoReplyHospitable) return 0;
+  const freshSince = org.autoReplyEnabledAt ?? new Date(now.getTime() - 48 * 60 * 60 * 1000);
+  const due = dueAutoReplyWhere(organizationId, freshSince);
+  const rows = await prisma.conversation.findMany({
+    // İnsan devri koşulu (ikinci AND öğesi) bilerek DIŞARIDA — yukarıdaki gerekçe.
+    where: { ...due, AND: [due.AND[0]] },
+    select: { id: true, lastMessageAt: true },
+    orderBy: { lastMessageAt: "asc" },
+    take: 200,
+  });
+  let marked = 0;
+  for (const c of rows) {
+    const res = await prisma.conversation.updateMany({
+      where: {
+        id: c.id,
+        lastMessageAt: c.lastMessageAt,
+        OR: [{ autoReplyAttemptedAt: null }, { autoReplyAttemptedAt: { lt: c.lastMessageAt } }],
+      },
+      data: { skippedReason: BILLING_PAUSED_REASON, autoReplyAttemptedAt: c.lastMessageAt },
+    });
+    marked += res.count;
+  }
+  return marked;
 }
 
 /**

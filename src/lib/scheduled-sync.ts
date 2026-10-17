@@ -27,6 +27,7 @@ import { syncDueCalendarSourcesForOrg } from "@/lib/import/sync";
 import { recheckEarlyCheckinsAfterCleaning } from "@/lib/early-checkin/recheck";
 import { rotateFrom } from "@/lib/sync-fairness";
 import {
+  markBillingPausedConversations,
   runDueChannelAutoReplies,
   sendDueWelcomes,
   sendDueCheckins,
@@ -634,6 +635,15 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
                     await opsAlarm.ok(orgKey("early-checkin-recheck"));
                   } catch (err) {
                     await handleOrgError("early-checkin-recheck", err);
+                  }
+                }
+                // N1 (kurucu 10-17): erişim kapalıyken gelen misafir mesajları damgalanır — ödeme gelince bayat cevap üretilmez
+                // (`markBillingPausedConversations`). Kendi try'ı: düşerse senkron / uyarılar etkilenmez, sonraki tur yeniden dener.
+                if (!canAutomate) {
+                  try {
+                    await markBillingPausedConversations(org.id);
+                  } catch (err) {
+                    await handleOrgError("billing-paused-mark", err);
                   }
                 }
                 const auto = canAutomate ? await runDueChannelAutoReplies(org.id) : { sent: 0 };

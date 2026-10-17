@@ -22,7 +22,7 @@ import {
 import { ANON_BODY } from "@/lib/data-retention";
 import { isHandoffExempt, sweepExpiredHandoffExempt } from "./handoff-exempt";
 import { outboxDeliveryPaused } from "./flag";
-import { billingBlockedOrgIds, billingHeldSql, billingHoldUntil } from "./billing-hold";
+import { BILLING_PAUSED_REASON, billingBlockedOrgIds, billingCancelReason, billingHeldSql, billingHoldUntil } from "./billing-hold";
 import {
   attemptsExhausted,
   backoffMs,
@@ -268,6 +268,8 @@ async function claimBatchLocked(
   //             is left for the next window. Atomic under multi-replica via the shared claim
   //             lock (above) + committed claimedAt reads. Reconcile claims (ambiguous rows)
   //             never POST, so they bypass the send cap.
+  // N1 (10-17): abonelik erişimi kapalı işletmenin yaşam döngüsü satırı talep edilmez (↓`billingHeldSql`); yapay zekâ cevabı talep edilir ve
+  // gönderim anı vetosu iptal eder (Y5 ile aynı desen, `billing-hold.ts`).
   // 🚨 Y5 (10-14 dış inceleme): GENEL KAPATMA (`AUTO_REPLY_ENABLED` "1" değil) kuyruktaki OTOMATİK mesajı da durdurur — eskiden
   // yalnız kuyruğa girişte bakılıyordu. Yaşam döngüsü satırı (karşılama / giriş / çıkış) TALEP EDİLMEZ, bekler (deneme sayısı artmaz;
   // anahtar açılınca tarih vetolarıyla normal işlenir). Yapay zekâ cevabı talep edilir ve gönderim anı vetosu İPTAL eder (↓sendTimeVeto —
@@ -619,6 +621,10 @@ async function sendTimeVeto(row: OutboxRow, now: Date): Promise<string | null> {
   // Y5 (10-14 dış inceleme): genel kapatma kapalıyken kuyruktaki yapay zekâ cevabı GİTMEZ ve SONRA da gitmez (Haiku: anahtar günlerce kapalı
   // kalıp açılınca bayat cevap gidiyordu) → iptal; gelen kutusunda sebep notu görünür (↓çağıran). Yaşam döngüsü satırı talep edilmez, bekler.
   if (!autoReplySwitchOn() && (type === "ai" || type === "holding_ack")) return "auto_reply_disabled";
+  // N1 (kurucu 10-17: "ödeme geldikten sonra çalışmaya başlasın kesinlikle bayat mesaj gitmemeli"): abonelik erişimi kapalıyken kuyruktaki
+  // yapay zekâ cevabı İPTAL edilir (`billing-hold.ts`); gelen kutusunda not görünür (↓çağıran, Y5 ile aynı yol).
+  const billingVeto = await billingCancelReason(row);
+  if (billingVeto) return billingVeto;
   if (type === "welcome" || type === "checkin" || type === "checkout") return lifecycleVeto(row, now);
   return replyVeto(row, now);
 }
@@ -1026,7 +1032,8 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
   try {
     deferUntil = await checkinNotYetDue(row, now);
     if (!deferUntil) veto = await sendTimeVeto(row, now);
-    // Abonelik erişimi talepten SONRA kapandıysa (Codex 10-16): otomatik satır POST edilmez, iptal de edilmez — ertelenir.
+    // Abonelik erişimi talepten SONRA kapandıysa (Codex 10-16): yaşam döngüsü satırı POST edilmez, iptal de edilmez — ertelenir (yapay zekâ
+    // cevabı ↑sendTimeVeto'da iptal edildi — N1).
     if (!deferUntil && !veto) deferUntil = await billingHoldUntil(row, now);
   } catch (err) {
     void reportError(`outbox-veto-read org=${row.organizationId}`, err);
@@ -1058,8 +1065,9 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
     acc.canceled++;
     // Y5: anahtar kapalıyken iptal edilen yapay zekâ cevabı SESSİZ kalmaz — gelen kutusunda sebep görünür ve konuşma "denendi" sayılır
     // (Haiku 10-14: anahtar açılınca aynı mesaj için model boşuna yeniden koşuyor, aynı anahtar yutunca misafire hiç cevap gitmiyordu).
-    // Misafir yeniden yazarsa yeni mesaj için cevap normal üretilir.
-    if (canceled && veto === "auto_reply_disabled" && row.conversationId) {
+    // Misafir yeniden yazarsa yeni mesaj için cevap normal üretilir. N1 (10-17): abonelik kapalıyken iptal edilen cevap AYNI yol — ödeme
+    // gelince o mesaja yeniden cevap üretilip bayat cevap gitmez; not gelen kutusunda bir kez görünür (ev sahibi yanıtlayınca kalkar).
+    if (canceled && (veto === "auto_reply_disabled" || veto === BILLING_PAUSED_REASON) && row.conversationId) {
       // Damga cevabın CEVAPLADIĞI mesajın anı (Haiku 10-14: konuşmanın son mesajı alınırsa anahtar kapalıyken gelen YENİ mesajlar da
       // "karar verildi" sayılır, açılınca hiç cevaplanmazdı). Tetik bilinmiyorsa damga yok — yalnız not.
       const outbox = await prisma.messageOutbox.findUnique({ where: { id: row.id }, select: { idempotencyKey: true } });
@@ -1075,9 +1083,9 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
             status: { in: ["new", ...LEGACY_CONVERSATION_STATUSES] },
             ...(stamp ? { OR: [{ autoReplyAttemptedAt: null }, { autoReplyAttemptedAt: { lt: stamp } }] } : {}),
           },
-          data: { skippedReason: "auto_reply_disabled", ...(stamp ? { autoReplyAttemptedAt: stamp } : {}) },
+          data: { skippedReason: veto, ...(stamp ? { autoReplyAttemptedAt: stamp } : {}) },
         })
-        .catch((err) => void reportError(`outbox-auto-reply-disabled-note org=${row.organizationId}`, err));
+        .catch((err) => void reportError(`outbox-${veto}-note org=${row.organizationId}`, err));
     }
     return;
   }
