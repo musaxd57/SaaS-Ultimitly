@@ -833,8 +833,8 @@ describe("söz algılama v2 — gün kapsamı, dilek, iki söz, süre, devam (se
       // Haiku gece-4 2. tur: durum sözcüğünden sonraki "well" zarftır.
       "Everything went well send towels tomorrow at 10.",
       "The shower works well fix tomorrow at 10.",
-      // Cümle başı "welcome" yazım hatası — fiil listesi dar ("come" yok).
-      "Well come to our apartment, see you tomorrow at 3.",
+      // Cümle başı "welcome" yazım hatası — fiil listesi dar ("come" yok; ölçüldü: listede olsa havlu sözü çıkıyordu).
+      "Well come to our flat, the towels are in the closet tomorrow.",
     ]) {
       expect(detectHostPromises(t), t).toEqual([]);
     }
