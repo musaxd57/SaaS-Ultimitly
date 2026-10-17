@@ -5,7 +5,7 @@ import type { SessionPayload } from "@/lib/auth";
 
 // ---------------------------------------------------------------------------
 // I1 (kurucu 10-17 "A", migration 73) — gerçek PostgreSQL: sözün KONUSU. Aynı saatte "klima" ve "musluk" sözü iki ayrı söz + iki görev; aynı
-// konu iki mesajda tek söz; konusuz öneri mevcut söze katılır; konusuz ELLE söz + konulu öneri bugünkü gibi birleşir (sahiplenme kurucu sorusu Q1).
+// konu iki mesajda tek söz; konusuz öneri mevcut söze katılır; konusuz ELLE söz + konulu öneri birleşir ve söze konu YAZILIR (kurucu Q1 "a").
 // Öneri listesi ile onay AYNI yüklemi kullanır (görünen öneri onayda "gone" dönmez).
 // ---------------------------------------------------------------------------
 
@@ -100,15 +100,64 @@ describe("söz konusu", () => {
     expect(await prisma.task.count({ where: { propertyId } })).toBe(1);
   });
 
-  it("Q1 bekleniyor (bugünkü davranış pinli): konusuz ELLE söz + konulu öneri → birleşir, elle söze konu YAZILMAZ, öneri listede görünmez", async () => {
+  it("🚨 Q1 'a' (kurucu 10-17): konusuz ELLE söz (mesajdan ÖNCE) + aynı saatte konulu öneri → öneri GÖRÜNÜR; onay yeni görev açmaz, söze 'klima' yazılır; ardından musluk önerisi AYRI söz + görev", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const owner = await asOwner(orgId);
+    const conv = await conversationWith(propertyId, [`Klima için teknisyen ${WHEN}'da gelecek.`, `Musluk için usta ${WHEN}'da gelecek.`]);
+    const tz = orgTimezone((await prisma.organization.findUniqueOrThrow({ where: { id: orgId } })).timezone);
+    const dueAt = commitmentDueAt({ day: "tomorrow", time: "10:00" }, tz, new Date())!;
+    const manual = await createGuestCommitment({ organizationId: orgId, conversationId: conv, propertyId, reservationId: null, kind: "maintenance", dueAt, actorUserId: owner.id, clientRequestId: "elle-1" });
+    // Elle söz mesajlardan ÖNCE kaydedilmiş (kurucunun örneğindeki sıra).
+    await prisma.guestCommitment.update({ where: { id: manual.id }, data: { createdAt: new Date(Date.now() - 60 * 60_000) } });
+    const list = (await getConversationSuggestions(orgId, conv)).filter((s) => s.kind === "commitment");
+    expect(list.map((s) => s.title).sort()).toEqual([expect.stringMatching(/· klima — /u), expect.stringMatching(/· musluk — /u)]); // ⬅️ ESKİDE ikisi de gizliydi
+    const ac = list.find((s) => /klima/u.test(s.title))!;
+    const res = await decide({ key: ac.key, decision: "approve" });
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { created: unknown }).created).toMatchObject({ merged: true, topicAttached: true, commitmentId: manual.id });
+    expect(await prisma.guestCommitment.findUniqueOrThrow({ where: { id: manual.id } })).toMatchObject({ topic: "ac" });
+    expect(await prisma.task.count({ where: { propertyId } })).toBe(1);
+    expect(await prisma.task.findUniqueOrThrow({ where: { id: manual.taskId } })).toMatchObject({ title: "Misafire söz: Arıza / bakım · klima" });
+    expect(await prisma.auditLog.count({ where: { organizationId: orgId, action: "commitment.topic_attached" } })).toBe(1);
+    // Musluk önerisi hâlâ listede (klima sözü onu karşılamaz) → onay AYRI söz + görev.
+    const rest = (await getConversationSuggestions(orgId, conv)).filter((s) => s.kind === "commitment");
+    expect(rest.map((s) => s.title)).toEqual([expect.stringMatching(/· musluk — /u)]);
+    expect((await decide({ key: rest[0]!.key, decision: "approve" })).status).toBe(200);
+    expect((await prisma.guestCommitment.findMany({ where: { conversationId: conv }, orderBy: { createdAt: "asc" } })).map((c) => c.topic)).toEqual(["ac", "faucet"]);
+    expect(await prisma.task.count({ where: { propertyId } })).toBe(2);
+  });
+
+  it("Q1 'a' sınırları: ev sahibinin DEĞİŞTİRDİĞİ görev başlığına dokunulmaz; mesajdan SONRA elle kaydedilen konusuz söz öneriyi gizler (ev sahibi zaten kaydetti)", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
     const owner = await asOwner(orgId);
     const conv = await conversationWith(propertyId, [`Klima için teknisyen ${WHEN}'da gelecek.`]);
     const tz = orgTimezone((await prisma.organization.findUniqueOrThrow({ where: { id: orgId } })).timezone);
     const dueAt = commitmentDueAt({ day: "tomorrow", time: "10:00" }, tz, new Date())!;
     const manual = await createGuestCommitment({ organizationId: orgId, conversationId: conv, propertyId, reservationId: null, kind: "maintenance", dueAt, actorUserId: owner.id, clientRequestId: "elle-1" });
+    // Mesajdan SONRA kaydedildi → liste kapısı 1 (ev sahibi bu mesajdan sonra zaten söz kaydetti): öneri yok, konu yazılmaz.
     expect((await getConversationSuggestions(orgId, conv)).filter((s) => s.kind === "commitment")).toEqual([]);
     expect(await prisma.guestCommitment.findUniqueOrThrow({ where: { id: manual.id } })).toMatchObject({ topic: null });
+    // Mesajdan ÖNCEye çekilip görev başlığı ev sahibince değiştirilince: konu yazılır, başlık KORUNUR.
+    await prisma.guestCommitment.update({ where: { id: manual.id }, data: { createdAt: new Date(Date.now() - 60 * 60_000) } });
+    await prisma.task.update({ where: { id: manual.taskId }, data: { title: "Teknisyen — salon kliması" } });
+    const [s] = (await getConversationSuggestions(orgId, conv)).filter((x) => x.kind === "commitment");
+    expect((await decide({ key: s!.key, decision: "approve" })).status).toBe(200);
+    expect(await prisma.guestCommitment.findUniqueOrThrow({ where: { id: manual.id } })).toMatchObject({ topic: "ac" });
+    expect(await prisma.task.findUniqueOrThrow({ where: { id: manual.taskId } })).toMatchObject({ title: "Teknisyen — salon kliması" });
+  });
+
+  it("mutasyon I1-prefer-equal: aynı saatte ESKİ konusuz + YENİ 'klima' sözü varken klima isteği klima sözüne bağlanır (konusuz söz konusuz kalır, ikinci 'klima' yazılmaz)", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const owner = await asOwner(orgId);
+    const conv = await conversationWith(propertyId, []);
+    const dueAt = new Date(Date.now() + 5 * 3_600_000);
+    const base = { organizationId: orgId, conversationId: conv, propertyId, reservationId: null, kind: "maintenance" as const, dueAt, actorUserId: owner.id };
+    const plain = await createGuestCommitment({ ...base, clientRequestId: "elle" });
+    const ac = await createGuestCommitment({ ...base, topic: "ac", clientRequestId: "oneri-1" });
+    await prisma.guestCommitment.update({ where: { id: plain.id }, data: { createdAt: new Date(Date.now() - 60 * 60_000) } });
+    const r = await createGuestCommitment({ ...base, topic: "ac", clientRequestId: "oneri-2", mergeSameSlot: true });
+    expect(r).toMatchObject({ id: ac.id, reused: true, via: "slot", topicAttached: false });
+    expect(await prisma.guestCommitment.findUniqueOrThrow({ where: { id: plain.id } })).toMatchObject({ topic: null });
   });
 
   it("🚨 eşzamanlı klima + musluk onayı → İKİ söz; aynı önerinin iki eşzamanlı onayı → TEK söz", async () => {

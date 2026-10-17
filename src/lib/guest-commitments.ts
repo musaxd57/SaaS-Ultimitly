@@ -98,6 +98,8 @@ export async function createGuestCommitment(input: {
   reused: boolean;
   /** `reused` ise neden: aynı işlem kimliğinin tekrarı ("request") ya da aynı tür + an + uyumlu konudaki açık söze bağlandı ("slot"). */
   via?: "request" | "slot";
+  /** Q1 (a): konusuz açık söze bağlanırken bu isteğin konusu o söze YAZILDI ("sahiplenme"). */
+  topicAttached?: boolean;
 }> {
   // Dış işlem verilirse (yapay zekâ önerisinin onayı — karar kaydıyla AYNI işlem) onun içinde; yoksa bugünkü gibi kendi işlemi.
   const run = <T,>(fn: (tx: Prisma.TransactionClient) => Promise<T>) => (outerTx ? fn(outerTx) : prisma.$transaction(fn));
@@ -121,8 +123,8 @@ export async function createGuestCommitment(input: {
     if (!requestId || input.mergeSameSlot) {
       // KİMLİKSİZ istek (yayın anında açık kalmış eski sekme — Opus O12): eski anlam birleştirmesi korunur (aynı tür + aynı an + açık söz →
       // o söz). Yeni istemci her zaman kimlik gönderir; bu dal yalnız geçiş dönemi içindir.
-      // I1 (10-17): konu UYUMLU olmalı (`commitmentSlotMatches` ile aynı kural — öneri listesi de bunu kullanır): aynı konu ya da biri
-      // konusuz. Aday sırası: önce konusu EŞİT olan, sonra konusuz; eşitlikte en eski (aynı zaman damgası → kimlik).
+      // I1 (10-17): konu UYUMLU olmalı (`commitmentSlotMatches` ile aynı kural): aynı konu ya da biri konusuz. Aday sırası: önce konusu
+      // EŞİT olan, sonra konusuz; eşitlikte en eski (aynı zaman damgası → kimlik).
       const candidates = await tx.guestCommitment.findMany({
         where: {
           organizationId: input.organizationId,
@@ -137,7 +139,28 @@ export async function createGuestCommitment(input: {
       });
       const compatible = candidates.filter((c) => commitmentTopicsCompatible(c.topic, topic));
       const same = compatible.find((c) => topic !== null && c.topic === topic) ?? compatible[0];
-      if (same?.taskId) return { id: same.id, taskId: same.taskId, reused: true, via: "slot" };
+      if (same?.taskId) {
+        // SAHİPLENME (kurucu Q1 "a", 10-17): konusuz açık söze (elle form) KONULU öneri bağlanırsa yeni görev AÇILMAZ, söze konu YAZILIR —
+        // ardından aynı saatteki BAŞKA konulu öneri ("musluk 18:00") bu söze uymaz, ayrı söz + görev açar. Koşullu yazım (yalnız hâlâ
+        // konusuzsa); görev başlığı yalnız otomatik başlık duruyorsa güncellenir (ev sahibinin değiştirdiği başlığa dokunulmaz).
+        let topicAttached = false;
+        if (topic !== null && same.topic === null) {
+          topicAttached = (await tx.guestCommitment.updateMany({ where: { id: same.id, topic: null }, data: { topic } })).count === 1;
+          if (topicAttached) {
+            await tx.task.updateMany({
+              where: { id: same.taskId, title: `Misafire söz: ${commitmentLabel(input.kind, null)}` },
+              data: { title: `Misafire söz: ${commitmentLabel(input.kind, topic)}` },
+            });
+            await writeAuditInTx(tx, {
+              organizationId: input.organizationId,
+              actorUserId: input.actorUserId,
+              action: "commitment.topic_attached",
+              metadata: { commitmentId: same.id, taskId: same.taskId, kind: input.kind, topic },
+            });
+          }
+        }
+        return { id: same.id, taskId: same.taskId, reused: true, via: "slot", topicAttached };
+      }
     }
     if (__commitmentHooks.afterSameCheck) await __commitmentHooks.afterSameCheck();
     const task = await tx.task.create({

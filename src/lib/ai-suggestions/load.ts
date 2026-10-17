@@ -6,7 +6,7 @@ import { buildOperationalTaskData, detectOperationalTask } from "@/lib/tasks/det
 import { TASK_TYPE } from "@/lib/constants";
 import { isChannelAutomation, resolveMessageAuthor } from "@/lib/message-author";
 import { addZonedDays, dateKeyInTimeZone, orgTimezone, zonedWallClockToUtc } from "@/lib/timezone";
-import { commitmentLabel, commitmentSlotMatches, commitmentTopicsCompatible, type CommitmentKind, type CommitmentTopic } from "@/lib/guest-commitments-core";
+import { commitmentLabel, commitmentSlotAbsorbs, commitmentTopicsCompatible, type CommitmentKind, type CommitmentTopic } from "@/lib/guest-commitments-core";
 import {
   applyWifiValue,
   detectHostPromise,
@@ -223,12 +223,12 @@ export async function getConversationSuggestions(organizationId: string, convers
         continue;
       }
       const dueAt = absolutePromiseDue(promise, m.createdAt, tz);
-      // Aynı tür + aynı an + UYUMLU konu için AÇIK söz zaten varsa (mesajdan ÖNCE elle açılmış ya da ev sahibi aynı sözü sonraki mesajda
-      // tekrarlamış) öneri gösterilmez — onay tarafının birleştirme yüklemiyle BİREBİR (`commitmentSlotMatches`). Yoksa onay "zaten var"
-      // diye hiçbir şey yapmaz ve öneri yenilemede geri gelir: ölü "Onayla" düğmesi (Opus 10-15 B1).
+      // Aynı tür + aynı an için öneriyi TAMAMEN karşılayan AÇIK söz zaten varsa (mesajdan ÖNCE elle açılmış ya da ev sahibi aynı sözü sonraki
+      // mesajda tekrarlamış) öneri gösterilmez — onay hiçbir şey değiştirmezdi ve öneri yenilemede geri gelirdi: ölü "Onayla" düğmesi (Opus
+      // 10-15 B1). Konusuz elle söz + KONULU öneri gösterilir: onay söze konu yazar (kurucu Q1 "a", `commitmentSlotAbsorbs`).
       if (
         dueAt &&
-        commitments.some((c) => c.status === "open" && commitmentSlotMatches(c, { kind: promise.kind, dueAt, topic: promise.topic }))
+        commitments.some((c) => c.status === "open" && commitmentSlotAbsorbs(c, { kind: promise.kind, dueAt, topic: promise.topic }))
       ) {
         continue;
       }

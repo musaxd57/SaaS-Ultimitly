@@ -98,10 +98,10 @@ export function commitmentLabel(kind: CommitmentKind, topic: string | null | und
 }
 
 /**
- * Öneri ile mevcut söz AYNI söz mü (I1 birleştirme kuralı — öneri listesi ve onay BİREBİR bu yüklemi kullanır; "görünür ama ölü öneri" olmasın):
- * aynı tür ∧ aynı an ∧ konu UYUMLU. Konu uyumu: ikisi aynı konu · ya da biri konusuz (NULL). İki FARKLI konu → ayrı söz.
- * ⚠️ Konusuz MEVCUT söz (elle form) + konulu öneri: bugünkü gibi BİRLEŞİR ve mevcut söze konu YAZILMAZ — "sahiplenme" (ikinci farklı konulu öneri
- * ayrı söz açsın) kurucu sorusu Q1'i bekliyor (`docs/arastirma-2026-10-15/KURUCU-SORULARI.md` §Q).
+ * Öneri ile mevcut söz AYNI söz mü (I1 birleştirme kuralı — onay `createGuestCommitment` bu yüklemle bağlanır): aynı tür ∧ aynı an ∧ konu
+ * UYUMLU. Konu uyumu: ikisi aynı konu · ya da biri konusuz (NULL). İki FARKLI konu → ayrı söz.
+ * Konusuz MEVCUT söz (elle form) + konulu öneri: BİRLEŞİR ve mevcut söze konu YAZILIR (kurucu Q1 "a", 10-17 — "sahiplenme"); ardından
+ * aynı saatteki başka konulu öneri ayrı söz açar.
  */
 export function commitmentSlotMatches(
   existing: { kind: string; dueAt: Date; topic?: string | null },
@@ -109,6 +109,18 @@ export function commitmentSlotMatches(
 ): boolean {
   if (existing.kind !== incoming.kind || existing.dueAt.getTime() !== incoming.dueAt.getTime()) return false;
   return commitmentTopicsCompatible(existing.topic, incoming.topic);
+}
+
+/**
+ * Mevcut açık söz öneriyi TAMAMEN karşılıyor mu (öneri listesi bu yüklemle gizler — onay bir şey değiştirmeyecekse öneri gösterilmez, "ölü
+ * Onayla düğmesi" olmasın): aynı söz (↑) ∧ (öneri konusuz ∨ mevcut söz AYNI konuda). Konusuz söz + konulu öneri KARŞILAMAZ — onay söze konu
+ * yazar (Q1 "a"), öneri görünür.
+ */
+export function commitmentSlotAbsorbs(
+  existing: { kind: string; dueAt: Date; topic?: string | null },
+  incoming: { kind: string; dueAt: Date; topic?: string | null },
+): boolean {
+  return commitmentSlotMatches(existing, incoming) && (incoming.topic == null || existing.topic === incoming.topic);
 }
 
 /** Konu uyumu: aynı konu ya da biri konusuz (NULL). İki FARKLI konu → uyumsuz. */

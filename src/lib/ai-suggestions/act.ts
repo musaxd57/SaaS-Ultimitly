@@ -102,7 +102,7 @@ export async function decideSuggestion(input: {
     if (already) return { status: "gone" } as const;
     if (__aiSuggestionHooks.afterDecisionCheck) await __aiSuggestionHooks.afterDecisionCheck();
 
-    const created: { taskId?: string; commitmentId?: string; kbItemId?: string; merged?: boolean } = {};
+    const created: { taskId?: string; commitmentId?: string; kbItemId?: string; merged?: boolean; topicAttached?: boolean } = {};
     if (input.decision === "approve") {
       if (view.kind === "task") {
         const msg = await tx.message.findFirst({
@@ -136,7 +136,7 @@ export async function decideSuggestion(input: {
             // Öneri anahtarı işlem kimliğidir (kurucu D3, 10-15): aynı önerinin ikinci onayı aynı sözü döndürür (karar kaydı zaten
             // engelliyor; tekil dizin son savunma). AYRICA `mergeSameSlot`: aynı tür + aynı saatte açık söz varsa (ev sahibi aynı sözü elle
             // kaydetmiş) yeni söz açılmaz — öneri listesi de aynı kuralla gizler. I1 (10-17, migration 73): birleştirme KONU uyumuna da bakar
-            // (klima 18:00 ile musluk 18:00 iki söz); konusuz elle söz + konulu öneri bugünkü gibi birleşir (sahiplenme kurucu sorusu Q1).
+            // (klima 18:00 ile musluk 18:00 iki söz); konusuz elle söz + konulu öneri birleşir ve söze konu YAZILIR (kurucu Q1 "a").
             clientRequestId: `sugg:${input.key}`,
             mergeSameSlot: true,
           },
@@ -144,10 +144,12 @@ export async function decideSuggestion(input: {
         );
         // Bu önerinin sözü zaten yazılmıştı (aynı öneri anahtarı = aynı işlem kimliği) ya da onay sırasında aynı söz (elle / başka öneri)
         // açıldı → görev dalıyla AYNI: karar YAZILMAZ (ölçüt şişmesin; öneri listede de gizlenir — aynı yüklem).
-        // TEK İSTİSNA (Haiku 10-17): ev sahibi saati DÜZENLEYİP mevcut uyumlu söze denk getirdi → öneri kendi saatiyle listede kalacağı için
-        // karar YAZILIR (yoksa her tık aynı reddi alan ölü düğme); yeni söz / görev açılmaz (`merged`).
-        if (c.reused && !(c.via === "slot" && edited)) return { status: "gone" } as const;
+        // İKİ İSTİSNA — mevcut söze bağlandı ama onayın bir ETKİSİ var, karar YAZILIR (`merged`; yeni söz / görev açılmaz):
+        //  · ev sahibi saati DÜZENLEYİP mevcut uyumlu söze denk getirdi (Haiku 10-17: öneri kendi saatiyle listede kalırdı → ölü düğme);
+        //  · konusuz söze bu önerinin konusu YAZILDI (kurucu Q1 "a": "Aynı saatte kaydettiğiniz söze bağlandı (klima)").
+        if (c.reused && !(c.via === "slot" && (edited || c.topicAttached))) return { status: "gone" } as const;
         if (c.reused) created.merged = true;
+        if (c.topicAttached) created.topicAttached = true;
         created.commitmentId = c.id;
         created.taskId = c.taskId;
       } else {

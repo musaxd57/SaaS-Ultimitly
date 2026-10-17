@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { COMMITMENT_TOPIC_LABELS, isCommitmentTopic } from "@/lib/guest-commitments-core";
 
 // Yapay zekâ EYLEM ÖNERİLERİ (⑤ ilk dilim, kurucu 10-12: "öner + tek tıkla onay"). Yalnız sahip / yönetici görür; misafire hiçbir şey
 // gitmez. Söz önerisinde gün / saat onaydan önce değiştirilebilir. Görünen metin sade (teknik terim yok).
@@ -22,11 +23,14 @@ export function ActionSuggestions({ items }: { items: ActionSuggestionItem[] }) 
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [edits, setEdits] = useState<Record<string, { day: string; time: string }>>({});
-  if (items.length === 0) return null;
+  // Söz önerisi mevcut söze bağlandıysa kısa bilgi (öneri listeden kalkınca da görünür — kurucu Q1 "a", 10-17).
+  const [notice, setNotice] = useState<string | null>(null);
+  if (items.length === 0 && !notice) return null;
 
   async function decide(item: ActionSuggestionItem, decision: "approve" | "dismiss") {
     setBusy(item.key);
     setError(null);
+    setNotice(null);
     try {
       const edit = edits[item.key];
       const res = await fetch("/api/ai-suggestions", {
@@ -42,6 +46,15 @@ export function ActionSuggestions({ items }: { items: ActionSuggestionItem[] }) 
         const body = (await res.json().catch(() => null)) as { fields?: Record<string, string> } | null;
         setError(body?.fields ? Object.values(body.fields)[0] : "İşlem yapılamadı. Tekrar deneyin.");
         return;
+      }
+      const done = (await res.json().catch(() => null)) as { created?: { merged?: boolean; topicAttached?: boolean } } | null;
+      if (done?.created?.merged) {
+        const topic = (item.proposal as { topic?: unknown }).topic;
+        setNotice(
+          done.created.topicAttached && isCommitmentTopic(topic)
+            ? `Aynı saatte kaydettiğiniz söze bağlandı (${COMMITMENT_TOPIC_LABELS[topic]}); yeni görev açılmadı.`
+            : "Aynı saatte kaydettiğiniz söze bağlandı; yeni görev açılmadı.",
+        );
       }
       startTransition(() => router.refresh());
     } catch {
@@ -96,6 +109,11 @@ export function ActionSuggestions({ items }: { items: ActionSuggestionItem[] }) 
           </div>
         );
       })}
+      {notice ? (
+        <p role="status" className="text-xs text-muted-foreground" data-testid="action-suggestion-notice">
+          {notice}
+        </p>
+      ) : null}
       {error ? (
         <p role="alert" className="text-xs text-destructive">
           {error}
