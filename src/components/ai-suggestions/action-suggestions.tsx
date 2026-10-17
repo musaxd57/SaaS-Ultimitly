@@ -90,6 +90,8 @@ export function ActionSuggestions({ items }: { items: ActionSuggestionItem[] }) 
             )
           : [];
         const needsChoice = s.kind === "commitment" && (attachTopics.length >= 2 || moveOptions.length > 0);
+        // Taşıma seçildiyse an seçeneğin kendisidir (etikette yazar) — gün seçimi kullanılmaz (sunucu da yok sayar).
+        const moving = attach[s.key]?.startsWith("move:") === true;
         const edit = edits[s.key] ?? (s.kind === "commitment" ? { day: dayUnclear ? "" : (p.day ?? "today"), time: p.time ?? "" } : undefined);
         return (
           <div key={s.key} className="rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900 dark:border-sky-500/25 dark:bg-sky-500/10 dark:text-sky-200">
@@ -105,6 +107,7 @@ export function ActionSuggestions({ items }: { items: ActionSuggestionItem[] }) 
                 <select
                   aria-label="Gün"
                   className="rounded border bg-background px-1.5 py-1"
+                  disabled={moving}
                   value={edit.day}
                   onChange={(e) => setEdits({ ...edits, [s.key]: { ...edit, day: e.target.value } })}
                 >
@@ -170,7 +173,7 @@ export function ActionSuggestions({ items }: { items: ActionSuggestionItem[] }) 
             <div className="mt-2 flex gap-2">
               <Button
                 size="sm"
-                disabled={busy !== null || (needsChoice && !attach[s.key]) || (dayUnclear && !edit?.day)}
+                disabled={busy !== null || (needsChoice && !attach[s.key]) || (dayUnclear && !moving && !edit?.day)}
                 onClick={() => decide(s, "approve")}
               >
                 Onayla

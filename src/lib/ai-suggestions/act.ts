@@ -117,12 +117,17 @@ export async function decideSuggestion(input: {
   };
   let edited = false;
   if (input.decision === "approve" && view.kind === "commitment") {
+    // Taşıma seçeneği seçildiyse (F11) an o seçeneğin kendi anıdır — gün seçimi KULLANILMAZ (yalnız saat düzenlenebilir).
+    const a = input.edits?.attach;
+    const moveOption =
+      typeof a === "string" && a.startsWith("move:") ? view.proposal.moveOptions?.find((o) => `move:${o.commitmentId}` === a) : undefined;
+    const base = moveOption ?? view.proposal;
     const chosenDay = input.edits?.day === "today" || input.edits?.day === "tomorrow" ? input.edits.day : null;
     // Gün mesajdan okunamadıysa (D3) varsayılan "bugün" YOK — ev sahibi seçmeden onaylanmaz (otomatik kip de seçemez → kart kalır).
-    if (view.proposal.dayUnclear && chosenDay === null) return { status: "invalid", field: "day", message: DAY_CHOICE_REQUIRED };
-    const day = chosenDay ?? view.proposal.day;
-    const time = typeof input.edits?.time === "string" && input.edits.time.trim() !== "" ? input.edits.time.trim() : view.proposal.time;
-    edited = day !== view.proposal.day || time !== view.proposal.time;
+    if (view.proposal.dayUnclear && !moveOption && chosenDay === null) return { status: "invalid", field: "day", message: DAY_CHOICE_REQUIRED };
+    const day = moveOption ? moveOption.day : (chosenDay ?? base.day);
+    const time = typeof input.edits?.time === "string" && input.edits.time.trim() !== "" ? input.edits.time.trim() : base.time;
+    edited = day !== base.day || time !== base.time;
     const org = await prisma.organization.findUnique({ where: { id: input.organizationId }, select: { timezone: true } });
     const tz = orgTimezone(org?.timezone);
     if (time !== "") {
@@ -132,12 +137,12 @@ export async function decideSuggestion(input: {
     } else {
       // Gün dilimi / gün sözü (kurucu 10-17: saat uydurulmaz) → sunucunun yeniden ürettiği pencere sonu; ev sahibi günü değiştirdiyse
       // pencere o güne kayar.
-      const base = new Date(view.proposal.dueAt);
-      const shift = day === view.proposal.day ? 0 : day === "tomorrow" ? 1 : -1;
-      commitmentDue = Number.isNaN(base.getTime()) ? null : shift === 0 ? base : addZonedDays(base, shift, tz);
+      const baseDue = new Date(base.dueAt);
+      const shift = day === base.day ? 0 : day === "tomorrow" ? 1 : -1;
+      commitmentDue = Number.isNaN(baseDue.getTime()) ? null : shift === 0 ? baseDue : addZonedDays(baseDue, shift, tz);
       // Gün anahtarı TAKVİM aritmetiğiyle (Opus O13: UTC+12…+14 dilimlerinde "öğlen UTC" çapası günü kaydırıyordu).
-      const dayKey = shift === 0 ? view.proposal.dayKey : shiftDayKey(view.proposal.dayKey, shift);
-      commitmentPrecision = { duePrecision: view.proposal.precision, dayPart: view.proposal.dayPart ?? null, dayKey };
+      const dayKey = shift === 0 ? base.dayKey : shiftDayKey(base.dayKey, shift);
+      commitmentPrecision = { duePrecision: base.precision, dayPart: base.dayPart ?? null, dayKey };
     }
     if (!commitmentDue) return { status: "invalid", field: "time", message: "Saati seçin." };
     if (commitmentDue.getTime() < now.getTime() - PAST_TOLERANCE_MS) return { status: "invalid", field: "time", message: "Geçmiş bir saat seçilemez." };

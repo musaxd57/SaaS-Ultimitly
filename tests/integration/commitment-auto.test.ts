@@ -519,6 +519,51 @@ describe("BAĞLAM — saat güncellemesi yalnız kesin eşleşmede (kurucu: 'ba�
     expect(dateKeyInTimeZone(t.dueAt, TZ)).toBe(tomorrowKeyOf(new Date()));
   });
 
+  it("🚨 R1: yeni pencere kayıtlı sözü KAPSIYORSA tekrardır — 'Evet, klima için teknisyen yarın gelecek' kayıtlı yarın 15:00'ı silmez, öneri yok", async () => {
+    pinIstanbulNoonToday();
+    const s = await setup();
+    await hostSays(s.conversationId, "Klima için teknisyen yarın 15:00'te gelecek.", new Date(Date.now() - 10 * 60_000));
+    expect((await applyHostCommitmentsAuto(s.orgId, s.conversationId)).created).toBe(1);
+    const c1 = await prisma.guestCommitment.findFirstOrThrow();
+    await hostSays(s.conversationId, "Evet, klima için teknisyen yarın gelecek.", new Date(Date.now() - 5 * 60_000));
+    expect((await getConversationSuggestions(s.orgId, s.conversationId)).filter((x) => x.kind === "commitment")).toEqual([]);
+    expect(await applyHostCommitmentsAuto(s.orgId, s.conversationId)).toEqual({ created: 0, rescheduled: 0, skipped: 0 });
+    const after = await prisma.guestCommitment.findUniqueOrThrow({ where: { id: c1.id } });
+    expect([after.dueAt.toISOString(), after.duePrecision]).toEqual([c1.dueAt.toISOString(), "time"]);
+  });
+
+  it("🚨 R1: kesinliği düşüren kesin taşıma (bugün 15:00 → bugün akşam) kendiliğinden uygulanmaz; kart kalır, onayla taşınır", async () => {
+    pinIstanbulNoonToday();
+    const s = await setup();
+    await hostSays(s.conversationId, "Klima için teknisyen bugün 15:00'te gelecek.", new Date(Date.now() - 10 * 60_000));
+    expect((await applyHostCommitmentsAuto(s.orgId, s.conversationId)).created).toBe(1);
+    const c1 = await prisma.guestCommitment.findFirstOrThrow();
+    await hostSays(s.conversationId, "Klima için teknisyen bugün akşam gelecek.", new Date(Date.now() - 5 * 60_000));
+    expect(await applyHostCommitmentsAuto(s.orgId, s.conversationId)).toEqual({ created: 0, rescheduled: 0, skipped: 1 });
+    expect((await prisma.guestCommitment.findUniqueOrThrow({ where: { id: c1.id } })).duePrecision).toBe("time");
+    const [card] = (await getConversationSuggestions(s.orgId, s.conversationId)).filter((x) => x.kind === "commitment");
+    expect(card.kind === "commitment" && [card.proposal.reschedule?.commitmentId, card.proposal.lowersPrecision]).toEqual([c1.id, true]);
+    expect((await decide({ key: card.key, decision: "approve" })).status).toBe(200);
+    expect(await prisma.guestCommitment.findUniqueOrThrow({ where: { id: c1.id } })).toMatchObject({ duePrecision: "part", dayPart: "evening" });
+  });
+
+  it("🚨 F11: gün sözcüğü olmayan yeni saat yarınki sözü YARIN'a taşır (bugüne değil); seçenek etiketi sonucu yazar, gün seçimi kullanılmaz", async () => {
+    pinIstanbulNoonToday();
+    const s = await setup();
+    await hostSays(s.conversationId, "Klima için teknisyen yarın 10:00'da gelecek.", new Date(Date.now() - 10 * 60_000));
+    expect((await applyHostCommitmentsAuto(s.orgId, s.conversationId)).created).toBe(1);
+    const c1 = await prisma.guestCommitment.findFirstOrThrow();
+    await hostSays(s.conversationId, "Klima için teknisyen 15:00'te gelecek.", new Date(Date.now() - 5 * 60_000));
+    expect(await applyHostCommitmentsAuto(s.orgId, s.conversationId)).toEqual({ created: 0, rescheduled: 0, skipped: 1 });
+    const [card] = (await getConversationSuggestions(s.orgId, s.conversationId)).filter((x) => x.kind === "commitment");
+    const option = card.kind === "commitment" ? card.proposal.moveOptions?.[0] : undefined;
+    expect(option?.label).toMatch(/— yarın 10:00 → yarın 15:00$/u);
+    // Gün seçimi "bugün" gönderilse de taşıma seçeneğin kendi anına (yarın 15:00) gider.
+    expect((await decide({ key: card.key, decision: "approve", attach: `move:${c1.id}`, day: "today" })).status).toBe(200);
+    const moved = await prisma.guestCommitment.findUniqueOrThrow({ where: { id: c1.id } });
+    expect(moved.dueAt.toISOString()).toBe(commitmentDueAt({ day: "tomorrow", time: "15:00" }, TZ, new Date())!.toISOString());
+  });
+
   it("KONTROL D3: kendi günü olan ya da şimdiye bağlı söz kendiliğinden açılır ('Teknisyen bugün 15'te gelecek. Havlu getireceğim.' · 'hemen')", async () => {
     pinIstanbulNoonToday();
     const s = await setup();
@@ -546,7 +591,10 @@ describe("BAĞLAM — saat güncellemesi yalnız kesin eşleşmede (kurucu: 'ba�
     expect(await applyHostCommitmentsAuto(s.orgId, s.conversationId)).toEqual({ created: 0, rescheduled: 0, skipped: 1 });
     expect(await prisma.guestCommitment.count()).toBe(1);
     const [sugg] = (await getConversationSuggestions(s.orgId, s.conversationId)).filter((x) => x.kind === "commitment");
-    expect(sugg.kind === "commitment" && sugg.proposal.moveOptions).toEqual([{ commitmentId: c1.id, label: expect.stringMatching(/^Arıza \/ bakım — /u) }]);
+    // Seçenek etiketi taşımanın SONUCUNU da yazar (F11, gece-4).
+    expect(sugg.kind === "commitment" && sugg.proposal.moveOptions).toEqual([
+      expect.objectContaining({ commitmentId: c1.id, label: expect.stringMatching(/^Arıza \/ bakım — yarın 09:00 → yarın 15:00$/u) }),
+    ]);
     // Seçimsiz onay reddedilir; seçimle o söz taşınır.
     expect((await decide({ key: sugg.key, decision: "approve" })).status).toBe(400);
     expect((await decide({ key: sugg.key, decision: "approve", attach: `move:${c1.id}` })).status).toBe(200);

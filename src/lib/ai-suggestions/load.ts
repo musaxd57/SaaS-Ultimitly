@@ -88,8 +88,21 @@ export type SuggestionView =
         attachTopics?: CommitmentTopic[];
         /** Bağlamla KESİN eşleşen önceki açık söz — onay (ya da otomatik kip) onun saatini taşır, yeni söz açmaz. */
         reschedule?: { commitmentId: string };
-        /** Bağlam BELİRSİZ: yeni saat hangi sözün? Seçim "move:<kimlik>" ya da "new". */
-        moveOptions?: Array<{ commitmentId: string; label: string }>;
+        /**
+         * Bağlam BELİRSİZ: yeni saat hangi sözün? Seçim "move:<kimlik>" ya da "new". Her seçenek TAŞINACAĞI anı taşır (sert itirazcı 10-17
+         * gece-4, F11: gün sözcüğü olmayan "Klima için teknisyen 15:00'te gelecek" yarınki 10:00 sözünü YARIN 15:00'e taşır, bugüne değil);
+         * etiket sonucu yazar ("… — yarın 10:00 → yarın 15:00"). Taşımada gün seçimi kullanılmaz.
+         */
+        moveOptions?: Array<{
+          commitmentId: string;
+          label: string;
+          day: "today" | "tomorrow";
+          time: string;
+          precision: DuePrecision;
+          dayPart?: DayPartCode;
+          dueAt: string;
+          dayKey: string;
+        }>;
         /** Mesajda birden çok saat — kendiliğinden kaydedilmez, ev sahibi saati seçer (Opus O9). */
         timeAmbiguous?: true;
         /**
@@ -97,6 +110,8 @@ export type SuggestionView =
          * gece-4, D3): kendiliğinden kaydedilmez, onay günü SEÇMEDEN geçmez (`decideSuggestion`; varsayılan "bugün" yok).
          */
         dayUnclear?: true;
+        /** Kesin taşıma sözün kesinliğini DÜŞÜRÜYOR (kayıtlı saat → yalnız gün / dilim) — kendiliğinden uygulanmaz, kart kalır (R1). */
+        lowersPrecision?: true;
         /**
          * Aynı an + kesinlikte açık söz var ama sözü YAPAN farklı (teknisyen gelecek ↔ ben getireceğim) → onay o söze BİRLEŞMEZ, ayrı söz
          * açar (Haiku 10-17 gece 2. tur: birleşip kayboluyordu).
@@ -204,6 +219,31 @@ function windowOnDay(p: HostPromise, dayKey: string, tz: string): { dayKey: stri
 function relativeDayOf(dayKey: string, dueAt: Date, now: Date, tz: string): "today" | "tomorrow" | null {
   if (dueAt.getTime() < now.getTime() - 5 * 60_000) return null;
   return dayKey === dateKeyInTimeZone(now, tz) ? "today" : dayKey === dateKeyInTimeZone(addZonedDays(now, 1, tz), tz) ? "tomorrow" : null;
+}
+
+/** Kesinlik sırası (R1): saat > gün dilimi > yalnız gün. */
+const PRECISION_RANK: Record<string, number> = { time: 3, part: 2, day: 1 };
+/** Gün dilimlerinin BAŞI (dakika; sonları sözün pencere sonu) — yalnız "yeni pencere kayıtlı sözü kapsıyor mu" (R1) için. "Kısa süre" yok. */
+const PART_START: Partial<Record<DayPartCode, number>> = {
+  morning: 6 * 60,
+  noon: 11 * 60,
+  afternoon: 12 * 60,
+  late_afternoon: 15 * 60,
+  evening: 17 * 60,
+  night: 20 * 60,
+  midnight: 23 * 60,
+};
+
+/** Bir sözün mutlak penceresi [baş, son] (ms): saat → tek an; dilim → dilim başı..pencere sonu; gün → gece yarısı..pencere sonu. */
+function windowSpan(dayKey: string, dueAt: Date, precision: string | null | undefined, dayPart: string | null | undefined, tz: string): [number, number] | null {
+  if (precision === "time" || precision == null) return [dueAt.getTime(), dueAt.getTime()];
+  const [y, mo, d] = dayKey.split("-").map(Number);
+  if (precision === "part") {
+    const start = PART_START[dayPart as DayPartCode];
+    if (start === undefined) return null;
+    return [zonedWallClockToUtc(y, mo, d, Math.floor(start / 60), start % 60, 0, tz).getTime(), dueAt.getTime()];
+  }
+  return [zonedWallClockToUtc(y, mo, d, 0, 0, 0, tz).getTime(), dueAt.getTime()];
 }
 
 /**
@@ -404,6 +444,20 @@ export async function getConversationSuggestions(
         // düşürülmez (Opus 10-17 gece-3 F3: aynı gün kesin eşleşme sayılıp 15:00'ı siliyordu).
         const timeless = !hasPromiseTime(promise);
         if (timeless && earlier.some((c) => commitmentTopicsCompatible(c.topic, promise.topic) && !otherActor(c))) continue;
+        // R1 (sert itirazcı 10-17 gece-4): yeni pencere kayıtlı uyumlu sözü KAPSIYORSA ("Evet, klima için teknisyen yarın gelecek" ↔ kayıtlı
+        // yarın 15:00; "öğleden sonra gelecek" ↔ bugün 15:00) aynı sözün tekrarıdır — öneri yok; kayıtlı saat asla "gün"e düşürülmez.
+        const span = windowSpan(dayKey, dueAt, window.precision, window.precision === "part" ? window.dayPart : null, tz);
+        if (
+          span !== null &&
+          window.precision !== "time" &&
+          earlier.some((c) => {
+            if (!commitmentTopicsCompatible(c.topic, promise.topic) || otherActor(c)) return false;
+            if ((PRECISION_RANK[c.duePrecision ?? "time"] ?? 3) < PRECISION_RANK[window.precision]!) return false;
+            const stored = windowSpan(commitmentDayKey(c, tz), c.dueAt, c.duePrecision, c.dayPart, tz);
+            return stored !== null && span[0] <= stored[0] && stored[1] <= span[1];
+          })
+        )
+          continue;
         let certain: (typeof commitments)[number] | null = null;
         if (relevant.length === 1 && !timeless) {
           const c = relevant[0]!;
@@ -418,13 +472,20 @@ export async function getConversationSuggestions(
           )
             certain = c;
         }
-        const moveChoices = certain
+        const moveCandidates = certain
           ? []
           : relevant.length > 0
             ? relevant
             : promise.topic !== null
               ? earlier.filter((c) => c.topic === null && !otherActor(c))
               : [];
+        // F11: her seçeneğin TAŞINACAĞI an — sözün kendi günü yoksa hedef sözün günü (O4 ile aynı kural); geçmişte kalan seçenek sunulmaz.
+        const moveChoices = moveCandidates.flatMap((c) => {
+          const own = { dayKey, dueAt, window };
+          const target = promise.dayExplicit || promise.inMinutes !== null ? own : (windowOnDay(promise, commitmentDayKey(c, tz), tz) ?? own);
+          const tday = relativeDayOf(target.dayKey, target.dueAt, now, tz);
+          return tday ? [{ c, target, tday }] : [];
+        });
         // Gün sözcüğü olmayan saat değişikliği ("Teknisyen 11'e kaydı") eski sözün GÜNÜNE uygulanır (Opus O4: bugüne kayıyordu).
         if (certain && promise.reschedule && !promise.dayExplicit && promise.inMinutes === null) {
           const onDay = windowOnDay(promise, commitmentDayKey(certain, tz), tz);
@@ -454,6 +515,8 @@ export async function getConversationSuggestions(
         };
         const describe = (c: (typeof commitments)[number]) =>
           `${commitmentLabel(c.kind as CommitmentKind, c.topic)} — ${storedCommitmentWhen(c, now, tz)}`;
+        // Kesin taşıma kesinliği düşürüyorsa (kayıtlı saat → yalnız gün / dilim) kendiliğinden uygulanmaz (R1).
+        const lowersPrecision = certain !== null && (PRECISION_RANK[window.precision] ?? 3) < (PRECISION_RANK[certain.duePrecision ?? "time"] ?? 3);
         if (certain) {
           out.push({
             key,
@@ -461,7 +524,7 @@ export async function getConversationSuggestions(
             title: `Söz saatini güncelle: ${commitmentLabel(promise.kind, promise.topic ?? certain.topic)} — ${storedCommitmentWhen(certain, now, tz)} → ${when}`,
             detail: "Mesajınızda aynı sözün yeni saati var — görev ve söz yeni saate taşınır, yeni görev açılmaz",
             evidenceAt: fmtAt(m.createdAt),
-            proposal: { ...baseProposal, reschedule: { commitmentId: certain.id } },
+            proposal: { ...baseProposal, reschedule: { commitmentId: certain.id }, ...(lowersPrecision ? { lowersPrecision: true as const } : {}) },
           });
           continue;
         }
@@ -483,7 +546,18 @@ export async function getConversationSuggestions(
           proposal: {
             ...baseProposal,
             ...(moveChoices.length > 0
-              ? { moveOptions: moveChoices.map((c) => ({ commitmentId: c.id, label: describe(c) })) }
+              ? {
+                  moveOptions: moveChoices.map(({ c, target, tday }) => ({
+                    commitmentId: c.id,
+                    label: `${describe(c)} → ${commitmentWhenText(tday, target.window)}`,
+                    day: tday,
+                    time: target.window.precision === "time" ? target.window.time : "",
+                    precision: target.window.precision,
+                    ...(target.window.precision === "part" ? { dayPart: target.window.dayPart } : {}),
+                    dueAt: target.dueAt.toISOString(),
+                    dayKey: target.dayKey,
+                  })),
+                }
               : attachTopics.length >= 2
                 ? { attachTopics }
                 : {}),
