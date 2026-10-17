@@ -348,6 +348,9 @@ describe("söz → görev otomatik (kurucu 10-17 gece): kararsız / aktarılan s
     expect(w("Teknisyen yarın gelecek, geçen gece çok yağmur yağdı.")).toEqual({ day: "tomorrow", precision: "day", end: 1439 });
     expect(w("Dün gece klima bozuldu teknisyen yarın gelecek.")).toEqual({ day: "tomorrow", precision: "day", end: 1439 });
     expect(w("Teknisyen geçen hafta geldi, yarın tekrar gelecek.")).toEqual({ day: "tomorrow", precision: "day", end: 1439 });
+    // "geçen" sözün KENDİ parçasında (virgülsüz) — "gece" dilimi sanılmaz (mutasyon SG-night-gecen: virgüllü vaka kapsama girmiyordu).
+    expect(w("Teknisyen geçen hafta geldi yarın tekrar gelecek.")).toEqual({ day: "tomorrow", precision: "day", end: 1439 });
+    expect(w("Geçende havlu eksikti yarın getireceğim.")).toEqual({ day: "tomorrow", precision: "day", end: 1439 });
     expect(w("Bu gece havlu getireceğim.")).toEqual({ day: "today", precision: "part", dayPart: "night", end: 1800 });
     expect(w("Gecenin ikisinde havlu getireceğim.")).toMatchObject({ precision: "part", dayPart: "night" });
   });

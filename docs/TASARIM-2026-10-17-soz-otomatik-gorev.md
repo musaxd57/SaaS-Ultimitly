@@ -74,6 +74,15 @@ Boolean @default(true)`. KVKK dışa aktarımı yeni kolonları taşır (metin y
 `HOST_COMMITMENT_AUTO_ENABLED` (yalnız "1"; `STRICT_ONE_FLAGS`). Kurucu "herkese birden" → Railway açılış listesine "1"
 (`docs/RAILWAY-ACILIS-2026-10-15.md` §5). Kapalıyken bugünkü öneri + onay düzeni (ayar yüzeyde yok, öneri ayardan etkilenmez).
 
+## Mutasyon (10-17 gece, 40 mutant)
+
+36/40 ilk koşuda öldü; `SG-night-gecen` eksik pindi (virgülsüz "geçen" vakası eklendi). Gerekçeli EŞDEĞER üç mutant (savunma katmanı,
+kaldırılmadı — kuralın tek yere bağlı kalmaması için):
+- `SG-org`: otomatik yoldaki işletme ayarı kontrolü — ayar kapalıyken öneri yükleyicisi söz önerisi zaten üretmez; kontrol gereksiz sorguyu önler.
+- `SG-ambiguous`: seçim isteyen öneriyi atlama — `decideSuggestion` seçimsiz onayı zaten reddeder (`MOVE_CHOICE_REQUIRED` / `ATTACH_CHOICE_REQUIRED`);
+  "belirsizde kart sorar" kuralı onay yolundaki doğrulama değişse de korunur.
+- `SG-wrong-source`: "Yanlış, kaldır"da okumadaki `source: "auto"` süzgeci — yetki atomik `updateMany` koşulundadır, okuma erken çıkıştır.
+
 ## Kaynaklar (araştırma)
 
 - Bakım / iş emri yazılımları gecikeni kapatmaz, yükseltir: oxmaint (tesis iş emri yükseltme), mangoapps (gecikme oyun kitabı), ServiceNow (yalnız
