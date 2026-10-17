@@ -436,6 +436,20 @@ describe("söz → görev otomatik (kurucu 10-17 gece): kararsız / aktarılan s
       expect(detectHostPromises(t), t).toEqual([]);
   });
 
+  it("🚨 Haiku 3. tur: tarih sözün SAĞINDAKİ parçada da sözü düşürür; tarihli (reddedilen) sözün zamansız devamı bugün sözü açmaz", () => {
+    for (const t of [
+      "Teknisyen gelecek, 25 Ekim'de.",
+      "Teknisyen yarın gelecek, 25 Ekim.",
+      "Teknisyen gelecek, ay sonunda.",
+      "Teknisyen 25 Ekim'de gelecek, klima bakımı da yapacak.",
+      "Teknisyen yarın gelecek mi, klima bakımı da yapacak.",
+    ])
+      expect(detectHostPromises(t), t).toEqual([]);
+    // KONTROL: reddedilen sözden SONRAKİ zamanı olan söz ve farklı türden söz kalır.
+    expect(detectHostPromises("Teknisyen 25 Ekim'de gelecek, klima ustası yarın 11'de gelecek.")).toMatchObject([{ day: "tomorrow", timeCandidates: [660] }]);
+    expect(detectHostPromises("Teknisyen 25 Ekim'de gelecek, havluları yarın getireceğim.")).toMatchObject([{ kind: "towels", day: "tomorrow" }]);
+  });
+
   it("aşırı uygulama kontrolü: 'aylık' / 'aydır' / 'ayar' / saat '12.10' tarih DEĞİL", () => {
     expect(detectHostPromises("Bir aylık bakım için teknisyen yarın 10'da gelecek.")).toMatchObject([{ day: "tomorrow", timeCandidates: [600] }]);
     expect(detectHostPromises("Bir aydır bekliyorsunuz, teknisyen yarın 10'da gelecek.")).toMatchObject([{ day: "tomorrow", timeCandidates: [600] }]);

@@ -300,6 +300,9 @@ function hasTimeInfo(folded: string, raw: string): boolean {
     DAY_TODAY.test(folded) ||
     DAY_TOMORROW.test(folded) ||
     DAY_UNKNOWN.test(folded) ||
+    // Takvim tarihi de zaman bilgisidir: sağdaki "…, 25 Ekim'de" parçası sözün kapsamına girer ve sözü düşürür (Haiku 10-17 gece 3. tur:
+    // kapsam dışında kalıp söz "bugün" sayılıyordu).
+    CALENDAR_DATE.test(folded) ||
     DAY_PARTS.some((d) => d.re.test(folded)) ||
     durationMinutes(folded) !== null ||
     timeMentions(raw, folded).length > 0
@@ -355,14 +358,19 @@ export function detectHostPromises(text: string | null | undefined): HostPromise
           return k ? [[c.verbIdx[0], k] as const] : [];
         })();
     const fromClause: HostPromise[] = [];
+    const rejectedKinds = new Set<CommitmentKind>();
     for (const [at, kind] of picks) {
       if (out.length >= MAX_PROMISES_PER_MESSAGE) break;
       const p = promiseAt(c, at, kind);
-      if (p === REJECT) continue;
+      if (p === REJECT) {
+        rejectedKinds.add(kind);
+        continue;
+      }
       if (out.some((q) => samePromise(q, p))) continue;
       // Aynı cümlecikte HİÇBİR zaman bilgisi olmayan aynı türden söz parçası, önceki sözün DEVAMIDIR ("Teknisyen yarın 10'da gelecek, aylık
-      // bakımı da yapacak" tek ziyaret — ölçüldü: ikinci parça uydurma "bugün" sözü açıyordu). Yapanı farklı olan ayrı sözdür.
-      if (!hasPromiseTime(p) && fromClause.some((q) => q.kind === p.kind && (p.actor === null || q.actor === p.actor))) continue;
+      // bakımı da yapacak" tek ziyaret — ölçüldü: ikinci parça uydurma "bugün" sözü açıyordu). Yapanı farklı olan ayrı sözdür. Önceki söz
+      // REDDEDİLDİYSE (tanınmayan gün, soru, dilek…) devamı da düşer ("Teknisyen 25 Ekim'de gelecek, klima bakımı da yapacak" — Haiku 3. tur).
+      if (!hasPromiseTime(p) && (rejectedKinds.has(p.kind) || fromClause.some((q) => q.kind === p.kind && (p.actor === null || q.actor === p.actor)))) continue;
       fromClause.push(p);
       out.push(p);
     }
