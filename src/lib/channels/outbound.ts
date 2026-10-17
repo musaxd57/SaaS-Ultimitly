@@ -102,6 +102,11 @@ export interface OutboundAdapter<P extends ChannelProviderId = OutboundProvider>
   readonly capabilities: ReadonlySet<OutboundCapability>;
   /** TAM OLARAK BİR sağlayıcı denemesi (tek atış). Asla fırlatmaz. */
   send(destination: OutboundDestination<P>, body: string, credential: OutboundCredential<P>): Promise<OutboundSendResult>;
+  /**
+   * İSTEĞE BAĞLI (gece-4 S3-06): kimlik bilgisi ucuz bir okumada hâlâ geçerli mi — `true` geçerli (gönderimdeki 401 / 403 bu mesaja /
+   * rezervasyona özgü), `false` okuma da reddedildi (kimlik bilgisi ölü), `null` bilinmiyor. Asla fırlatmaz. Yoksa çekirdek eski kararı verir.
+   */
+  verifyCredential?(credential: OutboundCredential<P>): Promise<boolean | null>;
 }
 
 const registered = new Map<OutboundProvider, OutboundAdapter>();
@@ -113,6 +118,17 @@ export function registerOutboundAdapter(adapter: OutboundAdapter): void {
 
 export function getOutboundAdapter(provider: OutboundProvider): OutboundAdapter | null {
   return overrides.get(provider) ?? registered.get(provider) ?? null;
+}
+
+/** Kimlik bilgisi doğrulaması (adaptör destekliyorsa); belirteç yok / adaptör desteklemiyor / hata → null (bilinmiyor). */
+export async function verifyOutboundCredential(credential: OutboundCredential): Promise<boolean | null> {
+  const adapter = getOutboundAdapter(credential.provider);
+  if (!adapter?.verifyCredential || !credential.token) return null;
+  try {
+    return await adapter.verifyCredential(credential);
+  } catch {
+    return null;
+  }
 }
 
 /** Test kancası: kayıtlı adaptörün ÜSTÜNE geçici bir sahte koy (null = kaldır). */

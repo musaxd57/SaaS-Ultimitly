@@ -187,6 +187,37 @@ describe("outbox × ChannelConnection", () => {
     expect((await prisma.channelConnection.findFirstOrThrow({ where: { organizationId: orgId } })).revokedReason).toBe("send_403");
   });
 
+  it("🚨 gece-4 S3-06: 403 ama belirteç OKUMADA geçerli → rezervasyona özgü ret: bağlantı İPTAL EDİLMEZ, satır kesin hata yolunda (deneme sayılır)", async () => {
+    const { orgId, conversationId } = await seed();
+    await setOrgHospitableToken(orgId, "PAT-ok", null);
+    fake.registerReservation(RES, "PAT-ok");
+    fake.behave({ mode: "reject", status: 403 });
+    const { outboxId } = await enqueue(orgId, conversationId, "k-403-res");
+    const probed: (string | undefined)[] = [];
+    await drainOutboxOnce({ verifyCredential: async (_row, token) => (probed.push(token), true) });
+    expect(probed).toEqual(["PAT-ok"]);
+    expect(await row(outboxId)).toMatchObject({ status: "pending", lastErrorKind: "definitive_failure", attemptCount: 1 });
+    const c = await prisma.channelConnection.findFirstOrThrow({ where: { organizationId: orgId } });
+    expect(c.status).toBe("active");
+    expect(c.revokedReason).toBeNull();
+    expect((await prisma.organization.findUniqueOrThrow({ where: { id: orgId } })).hospitableTokenEnc).not.toBeNull();
+    expect(await prisma.auditLog.count({ where: { organizationId: orgId, action: "channel.connection_revoked" } })).toBe(0);
+  });
+
+  it("gece-4 S3-06 KONTROL: okuma da reddedildi (false) ya da bilinmiyor (null) → eski karar (PAT iptal, send_403)", async () => {
+    for (const verdict of [false, null] as const) {
+      await resetDb();
+      const { orgId, conversationId } = await seed();
+      await setOrgHospitableToken(orgId, "PAT-x", null);
+      fake.registerReservation(RES, "PAT-x");
+      fake.behave({ mode: "reject", status: 403 });
+      const { outboxId } = await enqueue(orgId, conversationId, `k-403-${String(verdict)}`);
+      await drainOutboxOnce({ verifyCredential: async () => verdict });
+      expect(await row(outboxId), String(verdict)).toMatchObject({ status: "pending", lastErrorKind: "auth_revoked", attemptCount: 0 });
+      expect((await prisma.channelConnection.findFirstOrThrow({ where: { organizationId: orgId } })).revokedReason, String(verdict)).toBe("send_403");
+    }
+  });
+
   it("🚨 OAuth gönderimde 401: bağlantı REVOKED OLMAZ — refresh zorlanır, refresh sonrası teslim", async () => {
     const { orgId, conversationId } = await seed();
     await setOrgHospitableOAuthTokens(orgId, { accessToken: "acc-stale", refreshToken: "ref-1", expiresAt: new Date(Date.now() + 3600_000) }, "5 mülk");

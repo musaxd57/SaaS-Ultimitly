@@ -1,6 +1,6 @@
 import "server-only";
 
-import { sendMessage, type SendResult } from "@/lib/hospitable";
+import { HospitableError, probeToken, sendMessage, type SendResult } from "@/lib/hospitable";
 import { classifySendResult, type SendResultKind } from "@/lib/outbox/state";
 import type { OutboundAdapter, OutboundCredential, OutboundDestination, OutboundSendResult } from "./outbound";
 
@@ -67,5 +67,16 @@ export const hospitableOutboundAdapter: OutboundAdapter = {
       // G10: yalnız rapor (tür `ambiguous` kalır, tekrar davranışı aynı). Ağ hatası / zaman aşımı sağlayıcı arızası SAYILMAZ (bizim tarafımız olabilir).
       ...(!r.ok && typeof r.status === "number" && r.status >= 500 && r.status <= 599 ? { providerOutage: true } : {}),
     };
+  },
+  // Gece-4 S3-06: tek sayfalık mülk listesi — belirteç okuyabiliyorsa gönderimdeki 401 / 403 bu rezervasyona özgüdür.
+  async verifyCredential(credential: OutboundCredential): Promise<boolean | null> {
+    if (!credential.token) return null;
+    try {
+      await probeToken(credential.token);
+      return true;
+    } catch (err) {
+      if (err instanceof HospitableError && (err.status === 401 || err.status === 403)) return false;
+      return null;
+    }
   },
 };

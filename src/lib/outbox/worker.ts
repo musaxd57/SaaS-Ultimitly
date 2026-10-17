@@ -14,6 +14,7 @@ import { newCorrelationId, runAsNewSystemOperation, runWithCorrelation } from "@
 import { logEvent } from "@/lib/event-log";
 import {
   dispatchOutbound,
+  verifyOutboundCredential,
   handleOutboundCredentialRejected,
   resolveOrgChannelCredential,
   resolveOutboundRoute,
@@ -139,6 +140,11 @@ export interface DrainDeps {
    * (`resolveOrgChannelCredential(orgId, provider)`, V0.8): a credential of ANOTHER provider is never returned.
    */
   tokenFor?: (organizationId: string, provider?: OutboundProvider) => Promise<string | undefined>;
+  /**
+   * Gece-4 S3-06: gönderimde 401 / 403 gelince kimlik bilgisi ucuz bir okumada hâlâ geçerli mi (`true` geçerli, `false` ölü, `null`
+   * bilinmiyor). Varsayılan = satırın sağlayıcı adaptörü (`verifyOutboundCredential`); desteklemeyen adaptör `null` → eski karar.
+   */
+  verifyCredential?: (row: OutboxRow, token: string | undefined) => Promise<boolean | null>;
 }
 
 export interface DrainResult {
@@ -172,6 +178,12 @@ const defaultSend: OutboxSendFn = async (row, token) => {
     retryAfterMs: r.retryAfterSec != null ? r.retryAfterSec * 1000 : null,
     kind: r.kind,
   };
+};
+
+const defaultVerifyCredential = async (row: OutboxRow, token: string | undefined): Promise<boolean | null> => {
+  const route = resolveOutboundRoute(row);
+  if (route.kind !== "external") return null;
+  return verifyOutboundCredential({ provider: route.destination.provider, token });
 };
 
 // PRODUCTION reconcile — deliberately CONSERVATIVE (Codex #4). Hospitable exposes NO
@@ -950,7 +962,12 @@ function errorCode(error: string | null | undefined): string {
   return "unknown";
 }
 
-async function processOne(row: OutboxRow, token: string, deps: Required<Pick<DrainDeps, "now" | "send" | "reconcile" | "tokenFor">>, acc: DrainResult): Promise<void> {
+async function processOne(
+  row: OutboxRow,
+  token: string,
+  deps: Required<Pick<DrainDeps, "now" | "send" | "reconcile" | "tokenFor" | "verifyCredential">>,
+  acc: DrainResult,
+): Promise<void> {
   const now = deps.now();
 
   // TENANT ↔ CONNECTION (V0.3): a row stamped with a connection that belongs to ANOTHER
@@ -1204,6 +1221,25 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
     acc.rateLimited++;
     return;
   }
+  // Gece-4 S3-06: kalıcı kuyrukta HER 401 / 403 bağlantıyı "kopmuş" sayıyordu — rezervasyona / kanala özgü bir izin reddi (eski / iptal
+  // rezervasyon, API mesajına kapalı kanal) bütün bağlantıyı iptal ediyor, satır ölmediği için her yeniden bağlanışta tekrar tetikliyordu.
+  // Önce aynı belirteçle UCUZ bir okuma: okuma çalışıyorsa sorun bu mesajdadır → kesin hata yolu (deneme sayılır, 6'da `failed`), bağlantıya
+  // dokunulmaz. Okuma da reddedilirse ya da bilinmiyorsa eski karar (yenileme / iptal).
+  const credentialStillValid = kind === "auth_revoked" ? await deps.verifyCredential(row, providerToken).catch(() => null) : null;
+  if (kind === "definitive_failure" || credentialStillValid === true) {
+    if (attemptsExhausted(row.attemptCount)) {
+      const done = await settle(row, token, "sending", { status: "failed", lastErrorKind: "definitive_failure", lastErrorCode: errorCode(outcome.error), claimedBy: null, claimExpiresAt: null });
+      if (done) {
+        await signalOutboxStuck(row, "failed");
+        await applyFailureEffect(row, "definitive_failure");
+      }
+      acc.failed++;
+    } else {
+      await settle(row, token, "sending", { status: "pending", availableAt: new Date(now.getTime() + backoffMs(row.attemptCount, row.id)), lastErrorKind: "definitive_failure", lastErrorCode: errorCode(outcome.error), claimedBy: null, claimExpiresAt: null });
+      acc.retried++;
+    }
+    return;
+  }
   if (kind === "auth_revoked") {
     // HTTP 401/403 — the provider REJECTED THE CREDENTIAL (V0.3). Not a per-message
     // failure: nothing was delivered and re-sending with the same credential cannot
@@ -1263,20 +1299,6 @@ async function processOne(row: OutboxRow, token: string, deps: Required<Pick<Dra
     const done = await settle(row, token, "sending", { status: "sent", providerMessageId: outcome.providerMessageId ?? null, sentAt: now, lastErrorKind: null, lastErrorCode: null, claimedBy: null, claimExpiresAt: null }, outcome.providerMessageId);
     if (done) await applyDeliveryEffect(row, now); // stamp lifecycle / mark answered ONLY on confirmed delivery (#6)
     acc.sent++;
-    return;
-  }
-  if (kind === "definitive_failure") {
-    if (attemptsExhausted(row.attemptCount)) {
-      const done = await settle(row, token, "sending", { status: "failed", lastErrorKind: "definitive_failure", lastErrorCode: errorCode(outcome.error), claimedBy: null, claimExpiresAt: null });
-      if (done) {
-        await signalOutboxStuck(row, "failed");
-        await applyFailureEffect(row, "definitive_failure");
-      }
-      acc.failed++;
-    } else {
-      await settle(row, token, "sending", { status: "pending", availableAt: new Date(now.getTime() + backoffMs(row.attemptCount, row.id)), lastErrorKind: "definitive_failure", lastErrorCode: errorCode(outcome.error), claimedBy: null, claimExpiresAt: null });
-      acc.retried++;
-    }
     return;
   }
   // ambiguous: NEVER blind-resend → hold as ambiguous and reconcile on a later pass.
@@ -1509,6 +1531,7 @@ export async function drainOutboxOnce(deps: DrainDeps = {}): Promise<DrainResult
     now,
     send: deps.send ?? defaultSend,
     reconcile: deps.reconcile ?? defaultReconcile,
+    verifyCredential: deps.verifyCredential ?? defaultVerifyCredential,
     tokenFor:
       deps.tokenFor ??
       ((orgId: string, provider?: OutboundProvider) => resolveOrgChannelCredential(orgId, provider).then((c) => c?.token ?? undefined)),

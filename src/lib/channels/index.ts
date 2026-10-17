@@ -28,6 +28,7 @@ export {
   INTERNAL_THREAD_PREFIX,
   resolveOutboundRoute,
   dispatchOutbound,
+  verifyOutboundCredential,
   getOutboundAdapter,
   registerOutboundAdapter,
   __setOutboundAdapterForTest,

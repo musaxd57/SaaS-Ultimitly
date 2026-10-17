@@ -310,6 +310,14 @@ export async function verifyToken(token: string): Promise<{ properties: number }
   return { properties: props.length };
 }
 
+/**
+ * Belirteç hâlâ OKUMA yapabiliyor mu — TEK sayfa, TEK deneme (gece-4 S3-06): gönderimde 401 / 403 gelince bağlantıyı iptal etmeden önce
+ * kanıt. Fırlatırsa çağıran `HospitableError.status`a bakar (401 / 403 = belirteç gerçekten reddediliyor; diğerleri bilinmiyor).
+ */
+export async function probeToken(token: string): Promise<void> {
+  await hospitableFetch<unknown>("/properties?page=1", {}, token, 0);
+}
+
 // Reservations and messages are modelled tolerantly (an index signature) until
 // we confirm the exact field names against the live API; the diagnostics probe
 // reports their shape so the sync mapping can be written precisely.
