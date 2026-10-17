@@ -11,6 +11,13 @@ Kurucu 10-15: "Railway'i açınca ekleyeceğimiz bayrakları unutma." Bu dosya T
 2. **`ENCRYPTION_KEY` aynı kalır** (rotasyon ASLA). Kasadaki değerle Railway'deki aynı mı — yalnız parmak izi ile karşılaştırın.
 3. **Hospitable OAuth:** süresi dolmuş olabilir → Ayarlar → Bağlantılar'da yeniden bağlanın; `scripts/diagnose-hospitable-tokens.ts` salt-okuma.
 4. **Paddle:** kapalıyken gelen webhook'lar kaçtı → abonelik durumunu Paddle panosuyla karşılaştırın (reconcile).
+   🚨 **CANLI API ANAHTARI (10-17):** eski canlı anahtarın süresi 13 Eylül 2026'da DOLDU (Paddle anahtarları varsayılan 90 gün, en çok 1 yıl;
+   dolan anahtar yenilenemez) → 13 Eylül'den beri portal / paket değişikliği / durum okuma çağrıları çalışmıyordu (webhook etkilenmez). Kurucu
+   10-17'de yeni anahtarı **"Never expires"** ile oluşturdu → Railway'de `PADDLE_API_KEY` yeni anahtarla değiştirilir, eski anahtar iptal edilir.
+   ⏰ **UNUTMA (kurucu: "sakın unutmayalım"):** süresiz anahtar Paddle'ın önerdiği şey değil (bitiş uyarısı da gelmez). Yapılacak: anahtarı
+   **1 yıl** bitişli, "Rotatable" işaretli yenisiyle değiştir + Paddle bildirimlerinde `api_key.expiring` / `api_key.expired` olaylarını aç
+   (kod tarafı: operatör uyarı e-postası). İzinler (en az yetki, koddaki çağrılardan): Subscriptions Read + Write · Customer portal sessions Write
+   · Prices Read · Products Read · Customers Read · Addresses Read. Diğerleri işaretsiz.
 5. **Railway "Wait for CI" AÇIK** kalsın (kırmızı CI deploy'u atlar).
 
 ## 1. Canlı durumda AÇIK olması gerekenler (eksikse ekleyin; "1")

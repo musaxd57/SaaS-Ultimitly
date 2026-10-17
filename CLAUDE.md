@@ -411,6 +411,7 @@ Landing: 3-seviye kartlar + canlı demo. KVKK: export, retention, erasure (bayra
 **Şablon → KB önerisi (`kb-from-templates.ts`, CANLI):** kategori allowlist YALNIZ `wifi`+`rules` (gerekçeler arşivde);
 **Şablon düzenleme/uygulama:** PATCH `propertyId` alanı var; create şemasındaki `.nullish().transform(v => v || null)`
 **Panel yerleşimi (lg):** dış kap `lg:fixed lg:inset-0`, `fillsViewport` dikey flex, grid `lg:flex-1 lg:min-h-0`, kart
+**🔔 Kurucu 10-17 (sakın unutma):** Paddle canlı API anahtarı "Never expires" ile oluşturuldu (eskisi 13 Eylül'de doldu) → 1 yıl bitişli + Rotatable anahtarla değiştir, `api_key.expiring` uyarısını bağla — `docs/RAILWAY-ACILIS-2026-10-15.md` §0.4.
 **🔔 Kurucu 10-10 (unutma):** ödeme idempotency boşlukları + deneme kötüye kullanımı / risk puanı → `docs/TASARIM-2026-10-10-odeme-idempotency-ve-deneme-kotuye-kullanim.md`
 **🔔 GOAL BİTTİKTEN SONRA OKU (kurucu 10-10):** Correlation ID / takip numarası (önce ödeme zinciri; destek ekranında numarayla arama; İLK DİLİM ✅ 10-12, §6) → `docs/TASARIM-2026-10-10-correlation-id-takip-numarasi.md` — kurucu kararları §5 (kapsam önce ödeme · hata ekranında numara · migration onaylı · KALICI yalnız-ekle olay günlüğü, güvenlik şartlarıyla) · Load balancer / yatay ölçek (bugün gerekmiyor; 2 kopya ön koşulları + karar soruları) → `docs/TASARIM-2026-10-10-load-balancer-yatay-olcek.md`
 **Diğer açıklar:** Codex P2 (F09–F18) · `docs/DENETIM-2026-08-09.md` (27) · `docs/ACIK-ISLER-2026-08-08.md` (16) ·
