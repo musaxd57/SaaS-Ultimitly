@@ -281,27 +281,31 @@ export function PaddlePlans({
         let serverReason: string | undefined;
         // Ağ hatası ile sunucu reddi AYNI metni gösteriyordu (K3 envanteri A5) — müşteri bağlantısını mı kontrol etsin, tekrar mı denesin?
         let networkFailed = false;
+        let res: Response | null = null;
         try {
-          const res = await fetch("/api/billing/consent", {
+          res = await fetch("/api/billing/consent", {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify({ planCode, priceId }),
           });
-          const body = (await res.json().catch(() => ({}))) as {
-            consentId?: string;
-            error?: string;
-            fields?: Record<string, string>;
-            correlationId?: string;
-          };
+        } catch {
+          /* network error → consentId stays undefined */
+          networkFailed = true;
+        }
+        if (res) {
+          // Gövde okunamazsa (boş / bozuk 5xx) ağ hatası DEĞİLDİR — sunucuya ulaşıldı, onay kaydı yazılamadı.
+          let body: { consentId?: string; error?: string; fields?: Record<string, string>; correlationId?: string } = {};
+          try {
+            body = (await res.json()) as typeof body;
+          } catch {
+            body = {};
+          }
           if (res.ok) {
             consentId = body.consentId;
           } else {
             serverReason = billingReason(body, BILLING_TEXT.consentFailed);
             setTrackingId(body.correlationId ?? null);
           }
-        } catch {
-          /* network error → consentId stays undefined */
-          networkFailed = true;
         }
         if (!consentId) {
           setError(networkFailed ? BILLING_TEXT.network : (serverReason ?? BILLING_TEXT.consentFailed));

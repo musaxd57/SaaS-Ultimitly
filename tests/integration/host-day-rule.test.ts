@@ -261,9 +261,12 @@ describe("Görevler sayfası — 'Eksik görevleri oluştur' sayısı görev olu
     await stay(propertyId, "2026-09-20T00:00:00.000Z", "2026-09-25T00:00:00.000Z"); // dün çıktı → sayılmaz
     const withTask = await stay(propertyId, "2026-09-27T00:00:00.000Z", "2026-09-30T00:00:00.000Z");
     await prisma.task.create({ data: { propertyId, reservationId: withTask.id, type: "cleaning", origin: "system", title: "Çıkış temizliği", dueAt: withTask.departureDate } });
-    // Kurucu D7 (10-15): elle açılmış temizlik otomatik çıkış temizliğini KARŞILAMAZ → bu konaklama da eksik sayılır.
+    // Kurucu K4 (10-17, D7'yi daraltır): AYNI çıkış gününe elle açılmış temizlik çıkış temizliğini KARŞILAR → bu konaklama eksik SAYILMAZ.
     const withManual = await stay(propertyId, "2026-09-27T00:00:00.000Z", "2026-09-29T00:00:00.000Z");
     await prisma.task.create({ data: { propertyId, reservationId: withManual.id, type: "cleaning", origin: "manual", title: "Elle temizlik", dueAt: withManual.departureDate } });
+    // Ara temizlik (başka gün, elle) KARŞILAMAZ (D7 aynen) → bu konaklama eksik sayılır.
+    const withMidStay = await stay(propertyId, "2026-10-01T00:00:00.000Z", "2026-10-05T00:00:00.000Z");
+    await prisma.task.create({ data: { propertyId, reservationId: withMidStay.id, type: "cleaning", origin: "manual", title: "Ara temizlik", dueAt: new Date("2026-10-03T00:00:00.000Z") } });
 
     expect(await pageCount(orgId)).toBe(2);
     await backfillReservationTasks(orgId);

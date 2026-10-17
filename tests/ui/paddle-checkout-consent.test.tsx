@@ -91,7 +91,9 @@ describe("PaddlePlans checkout consent — FAIL-CLOSED", () => {
     renderPlans();
     await acceptAndClickPlan();
 
-    await waitFor(() => expect(screen.queryByText(/kaydedilemedi/i)).toBeTruthy());
+    // K3 (kurucu 10-17): ağ hatası sunucu reddinden AYRI söylenir — müşteri bağlantısını kontrol etsin (eskiden ikisi de "kaydedilemedi").
+    await waitFor(() => expect(screen.queryByText(/Bağlantı kurulamadı/i)).toBeTruthy());
+    expect(screen.queryByText(/kaydedilemedi/i)).toBeNull();
     expect(open).not.toHaveBeenCalled();
   });
 
