@@ -60,9 +60,11 @@ export function notAutomationMessageWhere(): { OR: ({ authorType: null } | { aut
 
 // ---------------------------------------------------------------------------
 // KANALIN BİLDİRDİĞİ GÖNDEREN ROLÜ (L5, migration 71, kurucu 10-17: "sağlayıcı otomasyonu ile ev sahibinin mesajını ayır; Airbnb Direct'te
-// rol kanal katmanında"). `Message.channelSenderRole` kapalı kümesi. 1. FAZ: yalnız ÖĞRENME / ÜSLUP / ÖNERİ girdisi — kanalın kendi otomatik
-// mesajı (sağlayıcı şablonu, zamanlanmış mesaj, sağlayıcı yapay zekâsı) "ev sahibinin sesi / bilgisi" sayılmaz. "Cevap mı" (`isAnsweringOutbound`,
-// `notAutomationMessageWhere`) ve her güvenlik kararı BUNDAN TÜREMEZ — 2. faz kurucu kararı (Q2) bekliyor, pinli.
+// rol kanal katmanında"). `Message.channelSenderRole` kapalı kümesi. Kanalın kendi otomatik mesajı (sağlayıcı şablonu, zamanlanmış mesaj,
+// sağlayıcı yapay zekâsı) "ev sahibinin sesi / bilgisi" sayılmaz (öğrenme / üslup / öneri). Q2 (kurucu 10-17: "Hospitable'ın otomatik mesajı
+// cevap verilmiş olarak sayılmasın"): senkron böyle bir mesajın YAZARINI da "automation" yazar (`ingest/write-service.ts`; bizim gönderdiğimiz
+// mesaj asla) → "cevap mı" (`isAnsweringOutbound`, `notAutomationMessageWhere`) ve istem etiketi tek kuraldan, YAZAR alanından türer; rol
+// alanı okuyucularda tek başına karar vermez (yazılmış satır geriye dönük değişmez).
 // YALNIZ KESİN OTOMASYON ayrılır: `unknown` (alan var, değer tanınmadı) bugünkü gibi ev sahibi sayılır — sağlayıcı alanları canlı hesapta
 // doğrulanmadı; tanınmayan bir insan rolü ("user" gibi) "şüphede düş" kuralıyla bütün ev sahibi cevaplarını sessizce öğrenmeden ve üslup
 // profilinden çıkarırdı (en değerli veri). Yanlış "unknown"ın bedeli bugünkü davranış; yanlış düşürmenin bedeli sessiz kayıp.
@@ -83,7 +85,7 @@ export function canonicalChannelSenderRole(direction: "inbound" | "outbound", ro
   return r === "guest" ? "unknown" : r;
 }
 
-/** Kanalın KENDİ otomatik mesajı mı (sağlayıcı şablonu / zamanlanmış / sağlayıcı yapay zekâsı). Ev sahibi kanıtı DEĞİLDİR (1. faz). */
+/** Kanalın KENDİ otomatik mesajı mı (sağlayıcı şablonu / zamanlanmış / sağlayıcı yapay zekâsı). Ev sahibi kanıtı DEĞİLDİR. */
 export function isChannelAutomation(m: { channelSenderRole?: string | null }): boolean {
   return m.channelSenderRole === CHANNEL_AUTOMATION_ROLE;
 }

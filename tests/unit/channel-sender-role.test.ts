@@ -6,7 +6,7 @@ import { buildLearnPairs } from "@/lib/history-learn/pairs";
 
 // ---------------------------------------------------------------------------
 // L5 (kurucu 10-17: "sağlayıcı otomasyonu ile ev sahibinin mesajını AYIR; Airbnb Direct'e geçişte rol kanal katmanında"). 1. faz: kanalın KENDİ
-// otomatik mesajı ev sahibinin bilgisi / sesi sayılmaz; "cevap mı" kuralı DEĞİŞMEZ (2. faz kurucu sorusu Q2). Yalnız KESİN otomasyon ayrılır —
+// otomatik mesajı ev sahibinin bilgisi / sesi sayılmaz; Q2 (kurucu 10-17) ile "cevap mı" da: senkron yazar alanına "automation" yazar. Yalnız KESİN otomasyon ayrılır —
 // tanınmayan rol bugünkü gibi ev sahibi.
 // ---------------------------------------------------------------------------
 
@@ -79,8 +79,10 @@ describe("çekirdek rol doğrulaması — kapalı küme + yönle tutarlılık", 
   });
 });
 
-describe("1. faz: 'cevap mı' kuralı DEĞİŞMEZ (2. faz kurucu kararı)", () => {
-  it("🚨 kanal otomasyonu bugün hâlâ cevap sayılır — bilinçli değişiklik bu pini kırar", () => {
+describe("Q2 (kurucu 10-17): 'cevap mı' TEK kuraldan — yazar alanı", () => {
+  it("🚨 okuyucu kural yazar alanına bakar: kanal otomasyonu senkronda yazar 'automation' alır (entegrasyon testi); rol tek başına karar vermez", () => {
+    expect(isAnsweringOutbound({ direction: "outbound", authorType: "automation", channelSenderRole: "automation" } as never)).toBe(false);
+    // Rolü otomasyon ama yazarı ev sahibi kalan satır (Q2 öncesi yazılmış / sahiplenilmiş bizim mesajımız) cevap sayılır — geriye dönük değişmez.
     expect(isAnsweringOutbound({ direction: "outbound", authorType: "host", channelSenderRole: "automation" } as never)).toBe(true);
   });
   it("Prisma süzgeci NULL'u da kapsar (yalnız 'automation' dışlanır)", () => {

@@ -7,7 +7,7 @@ import { ANON_NAME, ANON_ID, retentionCutoff } from "@/lib/data-retention";
 import type { ErasureDb } from "@/lib/erasure";
 import { followReservationDates } from "@/lib/tasks/follow-reservation";
 import { givenNameForStorage, type GuestNameSource } from "@/lib/guest-name-source";
-import { AUTOMATION_AUTHOR, canonicalChannelSenderRole } from "@/lib/message-author";
+import { AUTOMATION_AUTHOR, CHANNEL_AUTOMATION_ROLE, canonicalChannelSenderRole } from "@/lib/message-author";
 import { claimAutomatedSend, planAutomatedMatches } from "@/lib/automated-sends";
 import type { recordSupplyRequestFromMessage } from "@/lib/supply";
 import type { CanonicalMessage, CanonicalReservation } from "@/lib/channels/ingest";
@@ -317,8 +317,43 @@ export async function importCanonicalThread(
       .filter((m) => m.direction !== "inbound" && m.externalId && m.body && m.body.trim() && !storedAuthor.has(m.externalId))
       .map((m) => ({ externalId: m.externalId!, body: m.body!, createdAt: m.createdAt ?? null })),
   );
+  // Q2 (kurucu 10-17: "Hospitable'ın otomatik mesajı cevap verilmiş olarak sayılmasın") — KANALIN KENDİ otomatik mesajı (L5 rolü
+  // "automation": sağlayıcı şablonu / zamanlanmış mesaj / sağlayıcı yapay zekâsı) bizim şablonumuz gibi (K7) yazar alanına "automation" yazılır:
+  // TEK kural (`isAnsweringOutbound` / `notAutomationMessageWhere`) — cevap değildir, cevapsız misafir penceresini sıfırlamaz, açık işi "ev
+  // sahibi yazdı" diye kapatmaz; istemde "[OTOMATİK MESAJ]" satırıdır (içindeki bilgi okunur, üslubu taklit edilmez — Q2-b). BİZİM gönderdiğimiz
+  // mesaj asla buraya düşmez: kuyruk satırında sağlayıcı kimliği olan ya da yerel giden satırla aynı metni taşıyan (sahiplenme) mesaj ev
+  // sahibi / yapay zekâ olarak kalır — sağlayıcı API ile gideni "otomasyon" diye etiketlese bile. Yazılmış satır yeniden YAZILMAZ (kayıtlı yazar).
+  const channelAutoCandidates = ordered.filter(
+    (m) =>
+      m.direction !== "inbound" &&
+      !!m.externalId &&
+      !!m.body &&
+      !!m.body.trim() &&
+      !storedAuthor.has(m.externalId) &&
+      canonicalChannelSenderRole("outbound", m.senderRole) === CHANNEL_AUTOMATION_ROLE,
+  );
+  const channelAutomationIds = new Set<string>();
+  if (channelAutoCandidates.length) {
+    const [oursRows, orphanRows] = existing
+      ? await Promise.all([
+          db.messageOutbox.findMany({
+            where: { conversationId: existing.id, providerMessageId: { in: channelAutoCandidates.map((m) => m.externalId!) } },
+            select: { providerMessageId: true },
+          }),
+          db.message.findMany({
+            where: { conversationId: existing.id, direction: "outbound", externalId: null, body: { in: channelAutoCandidates.map((m) => m.body!) } },
+            select: { body: true },
+          }),
+        ])
+      : [[], []];
+    const ours = new Set(oursRows.map((r) => r.providerMessageId));
+    const orphanBodies = new Set(orphanRows.map((r) => r.body));
+    for (const m of channelAutoCandidates) if (!ours.has(m.externalId!) && !orphanBodies.has(m.body!)) channelAutomationIds.add(m.externalId!);
+  }
   const isAutomation = (m: CanonicalMessage): boolean =>
-    !!m.externalId && m.direction !== "inbound" && (storedAuthor.get(m.externalId) === AUTOMATION_AUTHOR || automationPlan.has(m.externalId));
+    !!m.externalId &&
+    m.direction !== "inbound" &&
+    (storedAuthor.get(m.externalId) === AUTOMATION_AUTHOR || automationPlan.has(m.externalId) || channelAutomationIds.has(m.externalId));
 
   // Status reflects who spoke last: guest → awaiting a reply ("new"); host / AI → "answered". Otomatik şablon mesajı
   // (K7) konuşan sayılmaz: misafirin cevapsız mesajından sonra giden karşılama / giriş mesajı konuşmayı cevaplamaz.
@@ -460,7 +495,13 @@ export async function importCanonicalThread(
         data: {
           conversationId,
           direction: inbound ? "inbound" : "outbound",
-          authorType: inbound ? "guest" : isOurAutomation ? AUTOMATION_AUTHOR : "host",
+          // Q2: kanalın kendi otomatik mesajı da yazar "automation" (↑ `channelAutomationIds`; rol satırıyla birlikte — kuyruktaki bizim
+          // mesajımızsa rol de NULL'a döner, yazar ev sahibi kalır).
+          authorType: inbound
+            ? "guest"
+            : isOurAutomation || (channelSenderRole === CHANNEL_AUTOMATION_ROLE && channelAutomationIds.has(externalId))
+              ? AUTOMATION_AUTHOR
+              : "host",
           senderName: m.senderName ?? (inbound ? guestName : "Ev sahibi"),
           body,
           language,

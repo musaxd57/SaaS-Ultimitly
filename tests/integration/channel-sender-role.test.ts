@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
 import { importCanonicalThread } from "@/lib/ingest/write-service";
+import { isAnsweringOutbound, notAutomationMessageWhere } from "@/lib/message-author";
+import { listConversationItems } from "@/lib/conversation-items/store";
 import type { CanonicalMessage, CanonicalReservation } from "@/lib/channels/ingest";
 
 // ---------------------------------------------------------------------------
@@ -75,7 +77,7 @@ describe("senkron yazımı", () => {
     expect(rows.map((r) => [r.externalId, r.authorType, r.channelSenderRole])).toEqual([
       ["e-guest", "guest", "guest"],
       ["e-host", "host", "host"],
-      ["e-auto", "host", "automation"], // yazar alanı DEĞİŞMEZ (1. faz) — yalnız rol
+      ["e-auto", "automation", "automation"], // Q2 (kurucu 10-17): kanalın kendi otomatik mesajı yazar "automation" (bizim şablonumuz gibi)
       ["e-none", "host", null],
       ["e-bad", "guest", "unknown"],
       ["e-odd", "host", "unknown"],
@@ -92,6 +94,83 @@ describe("senkron yazımı", () => {
     await importThread(propertyId, [m("e-ours", { body: "Otopark binanın arkasında.", senderRole: "automation", createdAt: new Date("2026-10-12T09:10:01Z") })]);
     expect(await prisma.message.findUniqueOrThrow({ where: { id: local.id } })).toMatchObject({ externalId: "e-ours", authorType: "host", channelSenderRole: null });
     expect(await prisma.message.count({ where: { conversationId: conv.id } })).toBe(2);
+    // Q2: bizim cevabımız "otomasyon" etiketiyle dönse de konuşmayı CEVAPLAR.
+    expect((await prisma.conversation.findUniqueOrThrow({ where: { id: conv.id } })).status).toBe("answered");
+  });
+});
+
+describe("Q2 — kanalın otomatik mesajı cevap sayılmaz (kurucu 10-17)", () => {
+  const guestAt = new Date("2026-10-12T13:55:00Z");
+  const tmplAt = new Date("2026-10-12T13:56:00Z");
+  const guestQ = () => m("q-guest", { direction: "inbound", senderName: "Deniz", senderRole: "guest", body: "Otopark var mı?", createdAt: guestAt });
+
+  it("🚨 misafir 13:55 'Otopark var mı?' → kanalın zamanlanmış 'Giriş bilgileri' 13:56: konuşma YENİ kalır, etkinlik anı misafirin mesajı; KONTROL: ev sahibi yazsa cevaplanır", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    await importThread(propertyId, [guestQ(), m("q-tmpl", { senderRole: "automation", body: "Giriş bilgileriniz: check-in 15:00 sonrası.", createdAt: tmplAt })]);
+    const conv = await prisma.conversation.findFirstOrThrow({ where: { propertyId } });
+    expect(conv.status).toBe("new");
+    expect(conv.lastMessageAt?.toISOString()).toBe(guestAt.toISOString());
+    const tmpl = await prisma.message.findFirstOrThrow({ where: { externalId: "q-tmpl" } });
+    expect(isAnsweringOutbound(tmpl)).toBe(false);
+    expect(await prisma.message.count({ where: { conversationId: conv.id, direction: "outbound", ...notAutomationMessageWhere() } })).toBe(0);
+
+    // KONTROL (aşırı uygulama yok): aynı mesajı EV SAHİBİ yazınca konuşma cevaplanır.
+    await resetDb();
+    const { propertyId: p2 } = await makeOrgWithProperty();
+    await importThread(p2, [guestQ(), m("q-host", { senderRole: "host", body: "Giriş bilgileriniz: check-in 15:00 sonrası.", createdAt: tmplAt })]);
+    expect((await prisma.conversation.findFirstOrThrow({ where: { propertyId: p2 } })).status).toBe("answered");
+  });
+
+  it("rol vermeyen kanal / tanınmayan rol: bugünkü davranış (cevap sayılır) — yalnız KESİN otomasyon ayrılır", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    await importThread(propertyId, [guestQ(), m("q-none", { body: "Giriş bilgileri", createdAt: tmplAt })]);
+    expect((await prisma.conversation.findFirstOrThrow({ where: { propertyId } })).status).toBe("answered");
+    await resetDb();
+    const { propertyId: p2 } = await makeOrgWithProperty();
+    await importThread(p2, [guestQ(), m("q-odd", { senderRole: "weird" as never, body: "Giriş bilgileri", createdAt: tmplAt })]);
+    expect((await prisma.conversation.findFirstOrThrow({ where: { propertyId: p2 } })).status).toBe("answered");
+    expect(await prisma.message.findFirstOrThrow({ where: { externalId: "q-odd" } })).toMatchObject({ authorType: "host", channelSenderRole: "unknown" });
+  });
+
+  it("🚨 açık iş 'ev sahibi yazdı' diye DÜŞMEZ; KONTROL: ev sahibinin gerçek cevabı düşürür", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    await importThread(propertyId, [guestQ()]);
+    const conv = await prisma.conversation.findFirstOrThrow({ where: { propertyId } });
+    const guestMsg = await prisma.message.findFirstOrThrow({ where: { externalId: "q-guest" } });
+    await prisma.conversationItem.create({
+      data: { organizationId: orgId, conversationId: conv.id, messageId: guestMsg.id, kind: "payment_invoice", sensitivity: "sensitive", sources: "lexical", status: "pending_host", createdAt: new Date() },
+    });
+    await importThread(propertyId, [m("q-tmpl", { senderRole: "automation", body: "Giriş bilgileriniz.", createdAt: tmplAt })]);
+    expect((await listConversationItems(prisma, { organizationId: orgId, conversationId: conv.id })).map((i) => i.effective)).toEqual(["pending_host"]);
+    await importThread(propertyId, [m("q-host", { senderRole: "host", body: "Faturanız e-postanızda.", createdAt: new Date("2026-10-12T14:00:00Z") })]);
+    expect((await listConversationItems(prisma, { organizationId: orgId, conversationId: conv.id })).map((i) => i.effective)).toEqual(["host_replied"]);
+  });
+
+  it("yeniden senkron aynı kalır; daha önce ev sahibi diye YAZILMIŞ satır geriye dönük değiştirilmez (kayıtlı yazar otorite)", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    await importThread(propertyId, [guestQ(), m("q-tmpl", { senderRole: "automation", body: "Giriş bilgileri", createdAt: tmplAt })]);
+    await importThread(propertyId, [guestQ(), m("q-tmpl", { senderRole: "automation", body: "Giriş bilgileri", createdAt: tmplAt })]);
+    expect(await prisma.message.count({ where: { externalId: "q-tmpl" } })).toBe(1);
+    expect((await prisma.conversation.findFirstOrThrow({ where: { propertyId } })).status).toBe("new");
+
+    const conv = await prisma.conversation.findFirstOrThrow({ where: { propertyId } });
+    await prisma.message.create({
+      data: { conversationId: conv.id, direction: "outbound", authorType: "host", senderName: "Ev sahibi", body: "Eski satır", externalId: "q-old", channelSenderRole: "automation", createdAt: new Date("2026-10-12T13:57:00Z") },
+    });
+    await importThread(propertyId, [m("q-old", { senderRole: "automation", body: "Eski satır", createdAt: new Date("2026-10-12T13:57:00Z") })]);
+    expect((await prisma.message.findFirstOrThrow({ where: { externalId: "q-old" } })).authorType).toBe("host");
+  });
+
+  it("🚨 yeni konuşmanın İLK senkronunda da (kuyruk / yerel satır yokken) kanal otomasyonu cevap sayılmaz", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    await importThread(propertyId, [
+      m("n-tmpl1", { senderRole: "automation", body: "Rezervasyonunuz için teşekkürler!", createdAt: new Date("2026-10-12T09:00:00Z") }),
+      guestQ(),
+      m("n-tmpl2", { senderRole: "automation", body: "Giriş bilgileri", createdAt: tmplAt }),
+    ]);
+    const rows = await prisma.message.findMany({ where: { externalId: { startsWith: "n-" } }, select: { authorType: true } });
+    expect(rows.map((r) => r.authorType)).toEqual(["automation", "automation"]);
+    expect((await prisma.conversation.findFirstOrThrow({ where: { propertyId } })).status).toBe("new");
   });
 });
 
@@ -113,10 +192,14 @@ describe("kendi gönderimimiz (Haiku 10-17)", () => {
       m("e-ours", { body: "Otopark binanın  arkasında.", senderRole: "automation", createdAt: new Date("2026-10-12T09:10:00Z") }),
       m("e-tmpl", { body: "Giriş bilgileri", senderRole: "automation", createdAt: new Date("2026-10-12T09:11:00Z") }),
     ]);
-    const rows = await prisma.message.findMany({ where: { externalId: { in: ["e-ours", "e-tmpl"] } }, select: { externalId: true, channelSenderRole: true }, orderBy: { createdAt: "asc" } });
+    const rows = await prisma.message.findMany({
+      where: { externalId: { in: ["e-ours", "e-tmpl"] } },
+      select: { externalId: true, authorType: true, channelSenderRole: true },
+      orderBy: { createdAt: "asc" },
+    });
     expect(rows).toEqual([
-      { externalId: "e-ours", channelSenderRole: null },
-      { externalId: "e-tmpl", channelSenderRole: "automation" },
+      { externalId: "e-ours", authorType: "host", channelSenderRole: null },
+      { externalId: "e-tmpl", authorType: "automation", channelSenderRole: "automation" },
     ]);
   });
 });
