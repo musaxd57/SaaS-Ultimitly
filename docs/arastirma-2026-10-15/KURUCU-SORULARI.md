@@ -786,3 +786,14 @@ olabilir" uyarısı alır — genel yönerge ("Anahtarı kutuya bıraktım, çı
   Bir yanlışlık olduğunu düşünüyorsanız bize yazın." (sebep söylenmez — kaçışı öğretmemek için; "risk / kötüye kullanım" sözcükleri geçmez). Hesap
   kapatılmaz (ödeme yapmak isteyen meşru müşteri dışarıda kalmasın); "Denemeyi geri ver" ile geri alınır. Uygun mu?
 
+### Q5 · I4 C — "Aboneliği devam ettir" (kurucu 10-17: "şimdi A, sonra KESİNLİKLE C — tıklanınca hemen ödeme alınsın, pakete dönsün")
+Plan (S4, anahtar KAPALI doğacak, ilk denemeler birlikte): Ayarlar → Faturalandırma'da duraklatılmış abonelikte düğme → onay penceresi (tutar) →
+Paddle "hemen devam ettir" (yeni dönem başlar, kayıtlı karttan tahsil — sandbox'ta birlikte doğrulanacak) → plan anında açılır. Kart reddedilirse
+"Ödeme alınamadı, kart bilgilerinizi güncelleyin" + kart güncelleme bağlantısı. İptal edilmiş ve dönemi bitmiş abonelik Paddle'da devam ettirilemez →
+aynı düğme o plan için ödeme ekranını açar (yeni abonelik, anında tahsil).
+- **C1 · Tahsilattan önce onay:** "₺899 şimdi kartınızdan tahsil edilecek; Pro planınız hemen açılır. Onaylıyor musunuz?" — tek tık yerine bu tek onay
+  penceresi olsun mu? (Önerim: evet — yanlış tıkla para çekilmesin; iade süreci daha pahalı.)
+- **C2 · Hangi pakete dönsün:** varsayılan duraklatılmadan önceki paket + "Başka paket seç" bağlantısı (önerim) · ya da her seferinde paket seçtir.
+- **C3 · Deneme bitmiş (kartı hiç alınmamış) hesap:** kayıtlı kart olmadığı için "tek tık" mümkün değil → paket seçilince ödeme ekranı (kart girilir,
+  anında tahsil). Bugünkü akış bu; böyle kalsın mı?
+
