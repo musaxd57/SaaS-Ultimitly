@@ -8,7 +8,16 @@
 > `docs/history/CLAUDE-2026-10-02-sadelestirme-3-oncesi-tam-metin.md` ("Durum" bölümü). Kuralları yukarıdaki bölümlerde; yalnız Durum'da
 > yazılı olan kurallar (konuşma öğeleri, ev kuralları, canlı bayraklar) 10-02'de ilgili bölümlere taşındı. Bekleyen onaylar ↓.
 
-**10-17 gece-2 (güncel):** Söz → görev OTOMATİK (kurucu kararları; migration 75; anahtar `HOST_COMMITMENT_AUTO_ENABLED` KAPALI → açılışta "1"):
+**10-17 gece-3 (güncel):** Haiku 2–4. tur + ölçüm: takvim tarihi ("25 Ekim", "ayın 25'i", "ay sonu", "25/10") bugün sayılmaz; "7/24" ve
+"2 ocaklı" tarih değil; selamlaşmadaki dilek sözü bozmaz; aynı konu farklı YAPAN (teknisyen ↔ ben getireceğim) iki söz (tespit, gizleme, onay
+birleştirmesi `separateActor`); zamansız devam parçası ve reddedilen sözün devamı söz açmaz; gün sözcüksüz yeni saat başka gündeki söze
+kendiliğinden taşınmaz (kart sorar). Paddle API anahtarı olayı anahtarsız saklanır, ödeme incelemesine düşmez, Operasyon Teşhisi'nde 90 gün.
+Kurucu SG3: üründe DURAKLATMA YOK (`PADDLE_RESUME_ENABLED` kapalı kalır); plan iptal edilince Ayarlar'da "… tarihine kadar … paketinin tüm
+özelliklerini kullanmaya devam edebilirsiniz; bu tarihten sonra ücret alınmaz" kutusu (yalnız iptal planlıyken). Sandbox tur 3 (tutar ✅,
+çifte tahsilat → duraklatma kaldırıldı) + tur 4 (Retain kurulu değilken varsayılan İPTAL; sihirbaz doldurulmadı). Tam kapı g86 yeşil → push
+`f0e823af`. Yedek dalları kurucu temizledi (kalan: ana dal, `backup/2026-10-17-gece-wip6`, `main`; silinenlerin commit'leri geçmişte).
+
+**10-17 gece-2:** Söz → görev OTOMATİK (kurucu kararları; migration 75; anahtar `HOST_COMMITMENT_AUTO_ENABLED` KAPALI → açılışta "1"):
 ev sahibinin yazdığı söz onaysız söz + görev; saat UYDURULMAZ (açık saat · gün dilimi · yalnız gün; "birazdan" = "kısa süre içinde"); kararsız /
 aktarılan söz yok; "11'e kaydı" bağlamla tek adaya taşınır, belirsizde kart sorar; günde 20; konaklama bitince havlu / temizlik / eşya kapanır,
 arıza kalır; "Yanlış, kaldır"; Ayarlar'da kapatılır; dikkat panelinde 30 dk pay + 1 gün hatırlatma, saatsiz söz gün geçmeden satır olmaz.
