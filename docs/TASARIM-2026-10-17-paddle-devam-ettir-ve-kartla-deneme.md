@@ -113,6 +113,13 @@ Sonuçlar bu tabloya işlenir; varsayımı tutmayan her satır için kod düzelt
     duruyor, açılması gerekmiyor). Yerine: plan iptal edilince dönem sonuna kadar paket sürer ve Ayarlar'da tarihli kutu görünür
     (`cancelScheduledUntil`, `tests/ui/paddle-cancel-scheduled.test.tsx`, `paddle-webhook.test.ts` "yenileme iptali"). Açık: Paddle ödeme
     kurtarma ayarı son denemeden sonra iptal mi duraklatma mı — panelde doğrulanacak; duraklatma ise iptale çevrilmeli.
+  - **Tur 4 (10-17 gece, salt okuma, hiçbir ayar değişmedi):** sandbox'ta ödeme kurtarma ayarı YOK (Retain altında yalnız "Cancellation
+    Flows"; `/retain/payment-recovery` yüklenmedi). Canlıda Retain → Payment Recovery bir KURULUM SİHİRBAZINA gidiyor (5. adım "Live" =
+    gerçek müşterilere ödeme hatası e-postası başlar) → doldurulmadı, kurucuya "doldurmayın" denildi. Belgeye göre (panelde doğrulanmadı):
+    Retain KURULU DEĞİLKEN varsayılan = `past_due` → 30 günde en fazla 7 yeniden deneme → otomatik İPTAL (duraklatma yok) — kurucunun
+    "durdurma olmasın" kararıyla aynı, yapılacak bir şey yok. Pause / cancel seçimi yalnız Retain kurulursa çıkar; ileride kurulursa son adımda
+    "Cancel subscription" seçilmeli. Lixus ödeme hatasında müşteriye KENDİ e-postasını göndermiyor (yalnız uygulama içi "son ödemeniz
+    alınamadı") → Retain e-postası açılırsa çift e-posta olmaz.
   - **P3 ✅** duraklatılmış abonelikte "Edit subscription" / "Edit billing date" YOK → paket değiştirme sunulmuyor → devam + paket İKİ adım kalır (§2).
   - **P6c ✅** etkin abonelikte ikinci "Resume" yok (kodda ayrıca canlı durum okuması + tek kullanımlık belirteç + kilit). **P7 ✅** iptal edilmiş
     abonelikte Actions menüsü hiç yok. **P11 ✅** dönem sonunda duraklatma planlanıp "Don't pause subscription" ile kaldırılabiliyor.
