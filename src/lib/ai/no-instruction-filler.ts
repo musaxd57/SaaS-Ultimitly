@@ -10,9 +10,12 @@
 //     demektir; silmek o soruyu sessizce "cevaplandı" gösterirdi. Cümle aynen kalır ve "bilgim yok" kuralı bütün cevabı tutar.
 //   · Geriye yönerge kalmıyorsa (yan cümle tek başına) ya da kalan kısım yine "bilgim yok" diyorsa cümleye dokunulmaz (tutulur).
 // Misafire yeni söz EKLENMEZ; yalnız yan cümle ÇIKARILIR. Kalan metin bütün kapılardan yine geçer.
+// Haiku 10-17 sınırları (hepsi pinli): yan cümle sınırı ayraç + BOŞLUK ("15:00", "1,5 TL" bölünmez); silinen yan cümle YALNIZ "talimat yok"
+// + kısa konu olmalı ("…yok ve kahvaltı 08.00-10.00 arasıdır" silinmez — bilgi kaybı); cihaz denetimi BÜTÜN cümlede ("Kombi için, özel
+// talimatımız yok, …" silinmez); madde işareti ("- ") korunur; "yok ve …" / "yok ama …" de yan cümle sınırıdır.
 // ---------------------------------------------------------------------------
 
-import { admitsMissingKnowledge, matchesNoInstructionClause } from "./absence";
+import { admitsMissingKnowledge, matchesNoInstructionClause, noInstructionClauseRest } from "./absence";
 import { deviceTopicsOf, topicsWithSymptomsOf } from "@/lib/conversation-items/relation";
 
 /** Cümle parçaları (ayraçlarıyla; birleştirince satırın kendisi). Sınır = nokta / ünlem / soru + boşluk ("15.00" bölünmez). Doğrusal. */
@@ -20,9 +23,53 @@ function sentencesOf(line: string): string[] {
   return line.split(/(?<=[.!?])(?=\s)/u).filter((s) => s.length > 0);
 }
 
-/** Yan cümleler (ayraç sonda kalır): virgül / noktalı virgül / iki nokta / Arapça virgül. */
+/**
+ * Yan cümleler (ayraç sonda kalır): ardından BOŞLUK gelen virgül / noktalı virgül / iki nokta / Arapça virgül ("15:00", "1,5" bölünmez), ve
+ * Türkçe "talimat yok" yükleminden sonra gelen "ve / ama / fakat / ancak" (bağlaç kalan yan cümlenin başında kalır, ↓atılır).
+ */
 function clausesOf(sentence: string): string[] {
-  return sentence.split(/(?<=[,;:،])/u).filter((c) => c.length > 0);
+  return sentence
+    .split(
+      /(?<=[,;:،])(?=\s)|(?<=(?<![\p{L}])(?:yok|yoktur|bulunmuyor|bulunmamaktadır|gerekmiyor))(?=\s+(?:ve|ama|fakat|ancak)\s)/u,
+    )
+    .filter((c) => c.length > 0);
+}
+
+/** Silinen yan cümlenin "talimat yok" dışında kalanı yalnız KONU mu ("çıkış için", "for checkout")? Sayı, bağlaç, uzun kalan → bilgi var. */
+const REST_CONJUNCTIONS: ReadonlySet<string> = new Set([
+  "ve", "veya", "ile", "ama", "fakat", "ancak", "ayrıca", "and", "or", "but", "also", "y", "o", "pero", "et", "ou", "mais", "und", "oder",
+  "aber", "и", "или", "но",
+]);
+const MAX_TOPIC_WORDS = 6;
+function topicOnly(rest: string): boolean {
+  if (/\p{N}/u.test(rest)) return false;
+  const words = rest.split(/[^\p{L}'-]+/u).filter((w) => /\p{L}/u.test(w));
+  return words.length <= MAX_TOPIC_WORDS && !words.some((w) => REST_CONJUNCTIONS.has(w));
+}
+
+/** Silinebilir yan cümle: "talimat yok" kalıbı + geriye yalnız konu. */
+function removableClause(clause: string): boolean {
+  const rest = noInstructionClauseRest(clause);
+  return rest !== null && topicOnly(rest);
+}
+
+/**
+ * Asılı konu öbeği: yüklemsiz kısa yan cümle, konu edatıyla biter ("Kombi için", "Televizyonla ilgili") ya da başlar ("for the TV", "para la
+ * tele"). Kapalı küme; en çok 4 sözcük.
+ */
+const DANGLING_TAIL = /(?<![\p{L}])(?:için|icin|ilgili|hakkında|konusunda|dair)$/iu;
+const DANGLING_HEAD = /^(?:for|about|regarding|para|sobre|pour|concernant|für|zu|по|для|عن|بخصوص)(?![\p{L}])/iu;
+function danglingTopic(clause: string): boolean {
+  const core = trimTrailingSeparators(clause.trim()).replace(/[.!?]+$/u, "");
+  if (core.split(/\s+/u).filter(Boolean).length > 4) return false;
+  return DANGLING_TAIL.test(core) || DANGLING_HEAD.test(core);
+}
+
+/** Sondaki boşluk / ayraçlar (doğrusal; düzenli ifadedeki `[…]+$` uzun dizide karesel geri izleme yapar — Haiku 10-17). */
+function trimTrailingSeparators(text: string): string {
+  let end = text.length;
+  while (end > 0 && /[\s,;:،]/u.test(text[end - 1]!)) end -= 1;
+  return text.slice(0, end);
 }
 
 /**
@@ -30,7 +77,7 @@ function clausesOf(sentence: string): string[] {
  * yalnız baştaki bir öbek.
  */
 const LEADING_CONNECTIVE =
-  /^[\s,;:،-]*(?:ama|fakat|ancak|lakin|bu yüzden|o yüzden|dolayısıyla|but|however|so|therefore|aber|also|daher|mais|donc|alors|pero|así que|entonces|но|поэтому|так что|لذا|لكن)(?=[\s,])[\s,]*/iu;
+  /^[\s,;:،-]*(?:ama|fakat|ancak|lakin|ve|bu yüzden|o yüzden|dolayısıyla|but|however|and|so|therefore|aber|und|also|daher|mais|et|donc|alors|pero|y|así que|entonces|но|и|поэтому|так что|لذا|لكن)(?=[\s,])[\s,]*/iu;
 /** Türkçe metin ipucu: büyük harfe çevirirken "i" → "İ" yalnız Türkçede. */
 const TURKISH_LETTERS = /[çğışöüÇĞİŞÖÜ]/u;
 
@@ -43,23 +90,30 @@ function capitalizeFirst(text: string): string {
 
 /** Tek cümle: silinebiliyorsa yeni hâli, değilse `null` (cümle aynen kalır). */
 function stripSentence(sentence: string): string | null {
-  const lead = sentence.match(/^\s*/u)?.[0] ?? "";
+  // Baştaki boşluk ve madde işareti ("- ", "• ", "2) ") korunur (Haiku 10-17: "- " ilk yan cümleyle birlikte siliniyordu).
+  const lead = sentence.match(/^\s*(?:[-*•–]\s+|\d{1,3}[.)]\s+)?/u)?.[0] ?? "";
   const body = sentence.slice(lead.length);
   const clauses = clausesOf(body);
   if (clauses.length < 2) return null;
-  const flagged = clauses.map((c) => matchesNoInstructionClause(c));
+  const flagged = clauses.map((c) => removableClause(c));
   if (!flagged.some(Boolean) || flagged.every(Boolean)) return null;
-  const removed = clauses.filter((_, i) => flagged[i]).join(" ");
-  // Cihazdan söz eden "talimat yok" bir sorunun bilgisizliğidir — silinmez (yukarıdaki kural).
-  if (deviceTopicsOf(topicsWithSymptomsOf(removed)).length > 0) return null;
+  // Cihazdan söz eden "talimat yok" bir sorunun bilgisizliğidir — silinmez. Konu ayrı yan cümleye düşmüş olabilir ("Kombi için, özel
+  // talimatımız yok, …" — Haiku 10-17): silinen yan cümleye BİTİŞİK asılı konu öbeği de denetlenir. Bütün cümle denetlenmez: yönergenin
+  // kendisi "anahtar"dan söz eder ("anahtarı masaya bırakın") ve kurucunun örneği silinmez olurdu.
+  const topicText = clauses
+    .filter((c, i) => flagged[i] || ((flagged[i - 1] || flagged[i + 1]) && danglingTopic(c)))
+    .join(" ");
+  if (deviceTopicsOf(topicsWithSymptomsOf(topicText)).length > 0) return null;
   const terminal = body.trimEnd().match(/[.!?]+$/u)?.[0] ?? ".";
-  let rest = clauses
-    .filter((_, i) => !flagged[i])
-    .join("")
-    .replace(LEADING_CONNECTIVE, "")
-    .trim();
   // Silinen yan cümle sondaysa kalan kısım ayraçla biter ("Anahtarı masaya bırakın,") → cümle sonu geri konur.
-  rest = rest.replace(/[\s,;:،]+$/u, "");
+  // Silinen yan cümlenin ARDINDAKİ bağlaç da atılır ("Anahtar masada, [özel talimatımız yok] ve kahvaltı …" → "Anahtar masada, kahvaltı …").
+  let rest = trimTrailingSeparators(
+    clauses
+      .map((c, i) => (flagged[i] ? "" : i > 0 && flagged[i - 1] ? ` ${c.replace(LEADING_CONNECTIVE, "")}` : c))
+      .join("")
+      .replace(LEADING_CONNECTIVE, "")
+      .trim(),
+  );
   if (!/[\p{L}\p{N}]/u.test(rest)) return null;
   if (!/[.!?]$/u.test(rest)) rest += terminal;
   rest = capitalizeFirst(rest);

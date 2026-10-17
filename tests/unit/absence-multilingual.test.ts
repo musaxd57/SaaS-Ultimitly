@@ -179,6 +179,9 @@ const LEGIT_INSTRUCTIONS: string[] = [
   "Sie brauchen keine Anleitung, die Maschine startet automatisch.",
   "Sie brauchen keine besonderen Anweisungen, die Tür ist offen.",
   "Giriş için özel bir talimat gerekmiyor.",
+  // Haiku 10-17: "gerek" biçimi İngilizcede de olgu (eskiden genel "no … instructions for" kalıbı tutuyordu).
+  "You need no special instructions for checkout.",
+  "No special instructions are needed for checkout.",
 ];
 
 // ── Kör set 6 (10-01 öğleden sonra, Luna — misafire GİTTİ): "Zum kabellosen Lautsprecher finde ich keine Angaben." — 1. şahıs "BULAMADIM"
@@ -366,6 +369,17 @@ const QUALIFIED_NO_INSTRUCTION: string[] = [
   "لا توجد تعليمات خاصة للمغادرة.",
   "Il n'y a pas d'instructions particulières, la clé est dans la boîte.",
   "Es gibt keine besonderen Anweisungen.",
+  // Haiku 10-17 (kaçıyordu): 3. şahıs iyelik, "mevcut / söz konusu değil", "belirli / específicas / конкретных / spécifiques / konkreten / محددة".
+  "Çıkış için özel talimatı yok, anahtarı masaya bırakın.",
+  "Özel talimatımız mevcut değil.",
+  "Özel talimat söz konusu değil.",
+  "Belirli bir talimat bulunmuyor.",
+  "Нет конкретных инструкций.",
+  "No hay instrucciones específicas.",
+  "Il n'y a pas d'instructions spécifiques.",
+  "Ich habe keine konkreten Anweisungen.",
+  "لا توجد تعليمات محددة.",
+  "There are no specific instructions for the boiler.",
 ];
 
 describe("niteleyicili 'talimat yok' (kurucu 10-17) — misafire GİTMEZ, yedi dil", () => {

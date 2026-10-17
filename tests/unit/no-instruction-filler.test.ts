@@ -24,6 +24,14 @@ const STRIPPED: [string, string][] = [
   ["Нет особых инструкций, ключ в почтовом ящике.", "Ключ в почтовом ящике."],
   ["Es gibt keine besonderen Anweisungen, der Schlüssel liegt im Kasten.", "Der Schlüssel liegt im Kasten."],
   ["Il n'y a pas d'instructions particulières, la clé est dans la boîte.", "La clé est dans la boîte."],
+  // Haiku 10-17: 3. şahıs iyelik, "yok ve / yok ama" sınırı, sondaki bağlaç, madde işareti, ortadaki yan cümle + ardındaki bağlaç.
+  ["Çıkış için özel talimatı yok, anahtarı masaya bırakın.", "Anahtarı masaya bırakın."],
+  ["Çıkış için özel talimatımız yok ve anahtarı masaya bırakın.", "Anahtarı masaya bırakın."],
+  ["Çıkış için özel talimatımız yok ama anahtarı masaya bırakın.", "Anahtarı masaya bırakın."],
+  ["Çıkış için özel talimatımız yok, ve anahtarı masaya bırakın.", "Anahtarı masaya bırakın."],
+  ["- Çıkış için özel talimatımız yok, anahtarı masaya bırakın.\n- Otopark ücretsiz.", "- Anahtarı masaya bırakın.\n- Otopark ücretsiz."],
+  ["Anahtar masada, özel talimatımız yok ve kahvaltı 08.00-10.00 arasıdır.", "Anahtar masada, kahvaltı 08.00-10.00 arasıdır."],
+  ["Çıkış 15.00'e kadar, özel talimatımız yok.", "Çıkış 15.00'e kadar."],
   // Selam satırı ve sonraki cümle korunur; satır yapısı aynı.
   [
     "Merhaba Alex,\n\nÇıkış için özel talimatımız yok, anahtarı masaya bırakmanız yeterli. İyi yolculuklar dileriz.",
@@ -44,6 +52,14 @@ const HELD: string[] = [
   "لا توجد تعليمات خاصة للمغادرة.",
   // Kalan kısım da bilgisizlik.
   "Çıkış için özel talimatımız yok, bu konuda bilgi veremem.",
+  // Haiku 10-17: sayı ayracı yan cümle sınırı DEĞİL ("15:00", "1,5") — eskiden "Çıkış saat 15." / "Ücret 1." gidiyordu.
+  "Çıkış saat 15:00 ve özel talimatımız yok.",
+  "Ücret 1,5 TL olup özel talimatımız yok.",
+  // Haiku 10-17: konu ayrı yan cümlede asılı ("Kombi için,") — cihaz bilgisizliği sessizce kaybolmaz.
+  "Kombi için, özel talimatımız yok, anahtarı masaya bırakın.",
+  "Televizyonla ilgili, ayrı bir talimatım bulunmuyor.",
+  "Özel talimatımız yok, televizyon için.",
+  "Anahtarı masaya bırakın, Wi-Fi için özel talimatımız yok.",
 ];
 
 describe("stripNoInstructionFiller — kurucu 10-17", () => {
@@ -67,6 +83,8 @@ describe("stripNoInstructionFiller — kurucu 10-17", () => {
       "Anahtarı masaya bırakmanız yeterli, ama pencereleri kapatın.",
       "Talimatlar kartta yazıyor, kapı kodu ayrıca gönderilecek.",
       "Sie brauchen keine besonderen Anweisungen, die Tür ist offen.",
+      "You need no special instructions for checkout.",
+      "No special instructions are needed for checkout.",
       "",
     ]) {
       expect(stripNoInstructionFiller(m)).toBe(m);

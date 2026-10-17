@@ -149,7 +149,8 @@ const ABSENCE_PATTERNS: readonly RegExp[] = [
   /(?:don't|do not) have (?:any )?(?:\p{L}{1,20} )?(?:instructions|steps) (?:for|on|about)(?![\p{L}])/u,
   // Kurucu 10-17 (H9, aynen: "…özel talimatımız yok … bunu yazmasın"): niteleyicili "No special / additional instructions for …" de
   // misafire GİTMEZ (eskiden olgu sayılıyordu). Aynı cümlede yönerge varsa yan cümle `no-instruction-filler.ts` ile silinir.
-  /(?<![\p{L}])no (?:\p{L}{1,20} )?instructions (?:for|on|about)(?![\p{L}])/u,
+  // "You need no special instructions for …" = "gerekmiyor" (bilgisizlik değil; Haiku 10-17) → "need / require" fiilinden sonra eşleşmez.
+  /(?<![\p{L}])(?<!(?:need|needs|require|requires) )no (?:\p{L}{1,20} )?instructions (?:for|on|about)(?![\p{L}])/u,
   // Kör set 5 (5.1, GİTTİ): "For the terrace jacuzzi, I don't have specific troubleshooting steps in my guide". Özne 1. şahıs ŞART:
   // "You don't have any steps to climb" bir erişilebilirlik olgusudur.
   /(?<![\p{L}])(?:i|we) (?:don't|do not) have (?:any )?(?:\p{L}{1,20} ){0,2}(?:instructions|steps|guidance)(?![\p{L}])/u,
@@ -177,7 +178,11 @@ const ABSENCE_PATTERNS: readonly RegExp[] = [
   // Kurucu 10-17 (H9, aynen: "televizyonla ilgili ayrı bir talimatım bulunmuyor — böyle bir şey yazamaz kesinlikle"; "Çıkış için özel
   // talimatımız yok … bunu yazmasın"): Opus N5'in niteleyici istisnası ("özel / ek / başka / ayrı talimatımız yok" olgudur) KALDIRILDI.
   // Aynı cümlede yönerge varsa yan cümle `no-instruction-filler.ts` ile silinir ("Anahtarı masaya bırakmanız yeterli."), yoksa tutulur.
-  new RegExp(`${L}talimat(?:ım|ımız|larım|larımız) ${gap(1)}(?:yok(?:tur)?|bulunmuyor|bulunmamaktadır)(?![\\p{L}])`, "u"),
+  // Haiku 10-17: "mevcut değil / söz konusu değil" yüklemi de ("Özel talimatımız mevcut değil.").
+  new RegExp(
+    `${L}talimat(?:ım|ımız|larım|larımız) ${gap(1)}(?:yok(?:tur)?|bulunmuyor|bulunmamaktadır|mevcut değil(?:dir)?|söz konusu değil(?:dir)?)(?![\\p{L}])`,
+    "u",
+  ),
   /(?<![\p{L}])no (?:\p{L}{1,20} ){0,2}(?:steps|instructions|guidance) (?:[\p{L}\p{N}'-]{1,30} ){0,5}in (?:my|our) (?:notes?|records?|guide|files?|information)(?![\p{L}])/u,
   new RegExp(`there (?:isn't|is not|aren't|are not) (?:any )?${gap(1)}${EN_OBJ}`, "u"),
 ];
@@ -372,16 +377,19 @@ const MORE_ABSENCE_PATTERNS: readonly RegExp[] = [
  * cümlede yönerge varsa yalnız bu yan cümle silinir (`no-instruction-filler.ts`).
  */
 const QUALIFIED_NO_INSTRUCTION_PATTERNS: readonly RegExp[] = [
-  new RegExp(`${L}(?:özel|ek|başka|farklı|ilave|ekstra|ayrı)\\s(?:bir\\s)?talimat(?:lar)?\\s(?:yok(?:tur)?|bulunmuyor|bulunmamaktadır)(?![\\p{L}])`, "u"),
-  // "You need no special instructions" / "Vous n'avez besoin d'aucune…" / "Sie brauchen keine besonderen…" = "özel talimat GEREKMİYOR"
-  // (bilgisizlik değil; Türkçesi gibi tutulmaz) → "gerek" fiilinden sonra gelen biçim dışarıda (sabit uzunlukta geriye bakış, doğrusal).
-  /(?<![\p{L}])(?<!(?:need|needs|require|requires) )no (?:special|particular|additional|extra|further|other) (?:\p{L}{1,20} )?(?:instructions|steps|guidance)(?![\p{L}])/u,
-  /(?<![\p{L}])no hay instrucciones (?:especiales|adicionales|particulares)(?![\p{L}])/u,
-  /(?<![\p{L}])нет (?:особых|дополнительных|специальных) инструкций(?![\p{L}])/u,
-  /لا توجد تعليمات (?:خاصة|إضافية)/u,
-  /(?<![\p{L}])(?<!besoin d')aucune instruction (?:particulière|spéciale|supplémentaire)(?![\p{L}])/u,
-  /(?<![\p{L}])pas d'instructions? (?:particulières?|spéciales?|supplémentaires?)(?![\p{L}])/u,
-  /(?<![\p{L}])(?<!(?:brauchen|benötigen|braucht|benötigt) )keine (?:besonderen|speziellen|zusätzlichen|weiteren) (?:anweisungen|anleitungen|hinweise)(?![\p{L}])/u,
+  // Haiku 10-17: 3. şahıs iyelik ("özel talimatı yok"), "belirli / belli / spesifik" niteleyicisi, "mevcut değil / söz konusu değil" yüklemi.
+  new RegExp(
+    `${L}(?:özel|ek|başka|farklı|ilave|ekstra|ayrı|belirli|belli|spesifik)\\s(?:bir\\s)?talimat(?:lar|ı|ları)?\\s(?:yok(?:tur)?|bulunmuyor|bulunmamaktadır|mevcut\\sdeğil(?:dir)?|söz\\skonusu\\sdeğil(?:dir)?)(?![\\p{L}])`,
+    "u",
+  ),
+  // "No special instructions are needed" = "gerekmiyor" (Haiku 10-17) → "are / is needed · required · necessary" ile devam ederse eşleşmez.
+  /(?<![\p{L}])(?<!(?:need|needs|require|requires) )no (?:special|particular|specific|additional|extra|further|other) (?:\p{L}{1,20} )?(?:instructions|steps|guidance)(?![\p{L}])(?! (?:are|is) (?:needed|required|necessary))/u,
+  /(?<![\p{L}])no hay instrucciones (?:especiales|adicionales|particulares|específicas|concretas)(?![\p{L}])/u,
+  /(?<![\p{L}])нет (?:особых|дополнительных|специальных|конкретных) инструкций(?![\p{L}])/u,
+  /لا توجد تعليمات (?:خاصة|إضافية|محددة)/u,
+  /(?<![\p{L}])(?<!besoin d')aucune instruction (?:particulière|spéciale|supplémentaire|spécifique|précise)(?![\p{L}])/u,
+  /(?<![\p{L}])pas d'instructions? (?:particulières?|spéciales?|supplémentaires?|spécifiques?|précises?)(?![\p{L}])/u,
+  /(?<![\p{L}])(?<!(?:brauchen|benötigen|braucht|benötigt) )keine (?:besonderen|speziellen|zusätzlichen|weiteren|konkreten|spezifischen) (?:anweisungen|anleitungen|hinweise)(?![\p{L}])/u,
 ];
 
 /**
@@ -390,7 +398,10 @@ const QUALIFIED_NO_INSTRUCTION_PATTERNS: readonly RegExp[] = [
  */
 const NO_INSTRUCTION_CLAUSE_PATTERNS: readonly RegExp[] = [
   ...QUALIFIED_NO_INSTRUCTION_PATTERNS,
-  new RegExp(`${L}talimat(?:ım|ımız|larım|larımız) ${gap(1)}(?:yok(?:tur)?|bulunmuyor|bulunmamaktadır)(?![\\p{L}])`, "u"),
+  new RegExp(
+    `${L}talimat(?:ım|ımız|larım|larımız) ${gap(1)}(?:yok(?:tur)?|bulunmuyor|bulunmamaktadır|mevcut değil(?:dir)?|söz konusu değil(?:dir)?)(?![\\p{L}])`,
+    "u",
+  ),
   new RegExp(`${L}(?:özel|ek|başka|farklı|ilave|ekstra|ayrı)\\s(?:bir\\s)?talimat(?:a|lar)?\\s(?:gerek(?:\\s)?(?:yok|miyor|mez|memektedir))(?![\\p{L}])`, "u"),
 ];
 
@@ -412,6 +423,21 @@ function foldedForms(text: string | null | undefined): [string, string] {
 export function matchesNoInstructionClause(text: string | null | undefined): boolean {
   const [plain, turkish] = foldedForms(text);
   return NO_INSTRUCTION_CLAUSE_PATTERNS.some((re) => re.test(plain) || re.test(turkish));
+}
+
+/**
+ * Yan cümleden "talimat yok" ifadesi çıkarıldıktan sonra KALAN kısım (katlanmış küçük harf; yalnız karar için — misafire giden metin bu değil).
+ * Eşleşme yoksa `null`. Silici bununla yan cümlenin YALNIZ "talimat yok" + kısa konu ("Çıkış için", "for checkout") olduğunu doğrular — aynı
+ * yan cümlede başka bilgi varsa ("…yok ve kahvaltı 08.00-10.00 arasıdır") silinmez (Haiku 10-17).
+ */
+export function noInstructionClauseRest(text: string | null | undefined): string | null {
+  for (const form of foldedForms(text)) {
+    for (const re of NO_INSTRUCTION_CLAUSE_PATTERNS) {
+      const m = re.exec(form);
+      if (m) return `${form.slice(0, m.index)} ${form.slice(m.index + m[0].length)}`;
+    }
+  }
+  return null;
 }
 
 /**
