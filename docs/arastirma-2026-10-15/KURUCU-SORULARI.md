@@ -893,11 +893,14 @@ hiç gitmezdi (siz cevaplardınız); şimdi uydurma kısım misafire gidiyor:
 - "Çıkış için özel talimatımız yok, saat 14:00'e kadar kalabilirsiniz." → GİDEN: "Saat 14:00'e kadar kalabilirsiniz." (uydurma geç çıkış)
 - "Çıkış için özel talimatımız yok, depozito iadesi 3 gün içinde yapılır." → GİDEN: "Depozito iadesi 3 gün içinde yapılır."
 - "Kahvaltı için özel talimatımız yok, kahvaltı 09:00-11:00 arasında servis edilir." → GİDEN: uydurma saat.
-Önerim: silme YALNIZ sizin örneğinizdeki türde olsun — kalan cümle anahtar / kapı / çıkarken yapılacak basit iş ("anahtarı masaya bırakın",
-"kapıyı çekin") VE bilgi tabanında bunu söyleyen bir kalem var. Diğer hepsinde cevap eskisi gibi tutulur, siz cevaplarsınız.
-ÖNCE: yukarıdaki 4 cümle misafire gidiyor. SONRA: 4'ü de tutulur; "Çıkış için özel talimatımız yok, anahtarı masaya bırakmanız yeterli." (bilgi
-tabanında "anahtarı masaya bırakın" varsa) → "Anahtarı masaya bırakmanız yeterli." gitmeye devam eder. Railway kapalı olduğu için şu an kimseye
-gitmiyor. Böyle yapalım mı?
+Önerim: silme YALNIZ sizin örneğinizdeki türde olsun — kalan cümle anahtar / kapı / çöp gibi basit iş ("anahtarı masaya bırakın", "kapıyı
+çekin", "konteynere atabilirsiniz") ve saat / tutar (sayı) taşımıyor. Diğer hepsinde cevap 10-17 öncesindeki gibi tutulur, siz cevaplarsınız.
+ÖNCE: yukarıdaki 4 cümle misafire gidiyor. SONRA: 4'ü de tutulur; "Çıkış için özel talimatımız yok, anahtarı masaya bırakmanız yeterli." →
+"Anahtarı masaya bırakmanız yeterli." gitmeye devam eder.
+Bedeli (dürüst): "Çıkış saati 11:00'dir. Ek bir talimatımız bulunmuyor." da tutulur (saat taşıyor; büyük ihtimalle bilgi tabanından ama kod
+ayıramıyor) → bu soruyu siz cevaplarsınız (10-17 öncesi gibi). İsterseniz sonraki adımda "saat bilgi tabanında aynen yazıyorsa sil" eklenir.
+Hazır yama (ana dala UYGULANMADI): `docs/hazir-yamalar/2026-10-18-T1-talimat-yok-silici-basit-is.patch` (105 test yeşil). Railway kapalı
+olduğu için şu an kimseye gitmiyor. Böyle yapalım mı?
 
 ### T2 · Olası tehlike ("Tost makinesinden duman çıktı") + anlama katmanı çalışmadı → kanalda size HİÇBİR uyarı gitmiyor
 QR'da aynı durumda size acil e-posta gidiyor; kanalda (Airbnb / Booking) misafire cevap gitmiyor (doğru) ama siz de haber almıyorsunuz — gelen
