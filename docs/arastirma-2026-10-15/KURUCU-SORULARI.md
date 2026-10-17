@@ -694,9 +694,9 @@ Karar bekleyenler (denetim + ilk dilim tasarımı: `gecmisten-ogren-6-ilke.md` �
 | K5 | anlaşılmadı | sade açıklama ↓ |
 | Genel | "Daha iyi olacaksa migration yapalım, bol bol, didik didik" | migration'lar Faz paketlerine |
 
-**I3 (sade):** misafir mesajı kalıcı kuyruğunda aynı konuşmanın iki mesajı sıra karışmasın diye veritabanında bir "sıra kilidi" dizini öneriyordum
-(migration). Bugün bu sırayı kod koruyor; dizin aynı korumayı veritabanının kendisine taşır (iki sunucu çalışınca da bozulmaz). Karar istenen: bu
-dizini ekleyelim mi? Önerim evet (zararı yok, yalnız güvence) — sizin "migration yapalım" kararınızla birlikte ekliyorum.
+**I3 (sade):** misafir mesajı kuyruğu kapatılınca, kuyrukta kalmış GÖNDERİLMEMİŞ taslakların yapay zekâya "verilmiş cevap" gibi görünmemesi
+gerekiyor. Bu artık kodda çözüldü (10-16, migration'sız). Sorulan yalnız HIZ için bir dizindi (migration): her konuşmada "kuyrukta satırı var
+mı" sorgusunu tek adımda yapar. Davranışı değiştirmez, yalnız ucuzlatır. Sizin "migration yapalım" kararınızla Faz 2 paketine ekliyorum.
 
 **K5 (sade):** rezervasyon durumunu değiştiren üç yer var (rezervasyon düzenleme, panelden "yeniden aç", senkron). Biri ortak kuralı kullanmıyor; bu
 bugün hata yapmıyor, ama ileride bir kural eklenince birinde unutulabilir. İş: üçünü tek fonksiyona bağlamak. Müşteri hiçbir fark görmez — iç
