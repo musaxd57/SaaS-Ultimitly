@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { refreshAfterBilling } from "@/components/settings/refresh-after-billing";
 import { formatMinor } from "@/lib/utils";
 import { BILLING_TEXT, billingReason } from "@/lib/billing/billing-ui-text";
 
@@ -93,13 +94,13 @@ export function ResumeSubscription({
         setPreview(null);
         setOpen(false);
         setNotice("Aboneliğiniz devam ettirildi. Birkaç saniye içinde açılacak.");
-        setTimeout(() => router.refresh(), 2500);
+        refreshAfterBilling(router);
         return;
       }
       if (data.pending) {
         setPreview(null);
         setNotice(data.error ?? BILLING_TEXT.changePending);
-        setTimeout(() => router.refresh(), 4000);
+        refreshAfterBilling(router);
         return;
       }
       setPreview(null);
@@ -116,13 +117,13 @@ export function ResumeSubscription({
       } else {
         // Sunucudan okunabilir cevap yok (zaman aşımı / ağ geçidi hatası): ödeme ALINMIŞ olabilir — "alınmadı" DENMEZ (Haiku 10-17).
         setNotice(UNCERTAIN);
-        setTimeout(() => router.refresh(), 4000);
+        refreshAfterBilling(router);
       }
     } catch {
       // Bağlantı istek yolda koptu: istek Paddle'a ulaşmış olabilir → sonuç vaat edilmez, sayfa yenilenir.
       setPreview(null);
       setNotice(UNCERTAIN);
-      setTimeout(() => router.refresh(), 4000);
+      refreshAfterBilling(router);
     } finally {
       setBusy(false);
     }

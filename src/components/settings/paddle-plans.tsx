@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { refreshAfterBilling } from "@/components/settings/refresh-after-billing";
 import Link from "next/link";
 import { LEGAL_VERSION } from "@/lib/legal-entity";
 import { CHECKOUT_PENDING_MESSAGE, CHECKOUT_PENDING_MS } from "@/lib/billing/checkout-pending-shared";
@@ -241,7 +242,7 @@ export function PaddlePlans({
                     body: JSON.stringify({ consentId }),
                   }).catch(() => {});
                 }
-                setTimeout(() => router.refresh(), 4000);
+                refreshAfterBilling(router);
               }
             },
           });
@@ -479,13 +480,15 @@ export function PaddlePlans({
         // re-send. Close the dialog and let the webhook settle the plan on refresh.
         setPending(null);
         setNotice(data.error ?? BILLING_TEXT.changePending);
-        setTimeout(() => router.refresh(), 4000);
+        refreshAfterBilling(router);
         return;
       }
       if (!res.ok || !data.ok) {
         // 409 = this preview is spent (single-use) or its amount moved. The dialog's
         // token is dead → close it so the next click mints a FRESH preview + amount.
-        if (res.status === 409) setPending(null);
+        // 400 = önizleme belirtecinin süresi doldu / başka plana ait (S9-03: panel açık kalıyor, plan düğmeleri kilitli kalıp "planı yeniden
+        // seçin" yapılamıyordu) → panel kapanır, sonraki tık TAZE önizleme alır.
+        if (res.status === 409 || res.status === 400) setPending(null);
         if (res.status === 409 && data.amountChanged) {
           // `return` KULLANILMAZ: yeniden hesaplama `finally`den SONRA koşar (meşgul işareti inmiş olmalı).
           refreshPlan = pending.planCode;
@@ -498,8 +501,9 @@ export function PaddlePlans({
         }
       } else {
         setPending(null);
-        // Give Paddle's webhook a moment to update the local plan, then refresh.
-        setTimeout(() => router.refresh(), 2500);
+        // Give Paddle's webhook a moment to update the local plan, then refresh — birkaç kez (S9-18: webhook 2,5 sn'den geç gelirse tek
+        // yenileme eski planı gösterip kalıyordu).
+        refreshAfterBilling(router);
       }
     } catch {
       setError(BILLING_TEXT.network);

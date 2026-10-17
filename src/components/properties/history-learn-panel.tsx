@@ -45,6 +45,9 @@ export const FLAG_TEXT: Record<Flag, string> = {
 };
 
 /** Hata gövdesinden gösterilecek metin: alan mesajı ÖNCE (`badRequest` genel "Doğrulama hatası" + `fields` döner). */
+/** Ağ hatası (istek hiç dönmedi) — diğer ekranlarla AYNI metin (S9-06: bu panelde beş işlem sessizce düşüyordu). */
+const NETWORK_ERROR = "İnternet bağlantınızda sorun var gibi görünüyor. Kontrol edip tekrar deneyin.";
+
 function errorText(body: { error?: string; fields?: Record<string, string> }, fallback: string): string {
   return Object.values(body.fields ?? {})[0] ?? body.error ?? fallback;
 }
@@ -148,6 +151,10 @@ function ComparisonCard({ c, canInstruct, onDone }: { c: Comparison; canInstruct
         return;
       }
       toast.success(apply ? "Talimat eklendi; bilgi tabanı taslağı onayınızı bekliyor." : "Kaydedildi.");
+      onDone();
+    } catch {
+      // Cevap kaybolmuş olabilir (sunucu yazmış olabilir): mesaj + liste gerçek durumdan yeniden okunur.
+      setError(NETWORK_ERROR);
       onDone();
     } finally {
       setBusy(false);
@@ -302,6 +309,9 @@ function DraftCard({ draft, onDone }: { draft: Draft; onDone: () => void }) {
             : "Bilgi tabanına eklendi."
           : "Taslak reddedildi.",
       );
+      onDone();
+    } catch {
+      setError(NETWORK_ERROR);
       onDone();
     } finally {
       setBusy(false);
@@ -497,6 +507,9 @@ export function HistoryLearnPanel({
         return;
       }
       void poll();
+    } catch {
+      setError(NETWORK_ERROR);
+      void poll();
     } finally {
       setBusy(false);
     }
@@ -504,18 +517,22 @@ export function HistoryLearnPanel({
 
   async function addInstruction() {
     setError(null);
-    const res = await fetch(`/api/properties/${propertyId}/instructions`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: newInstruction }),
-    });
-    if (!res.ok) {
-      const body = (await res.json().catch(() => ({}))) as { error?: string; fields?: Record<string, string> };
-      setError(errorText(body, "Kaydedilemedi."));
-      return;
+    try {
+      const res = await fetch(`/api/properties/${propertyId}/instructions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: newInstruction }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string; fields?: Record<string, string> };
+        setError(errorText(body, "Kaydedilemedi."));
+        return;
+      }
+      setNewInstruction("");
+      toast.success("Talimat eklendi.");
+    } catch {
+      setError(NETWORK_ERROR);
     }
-    setNewInstruction("");
-    toast.success("Talimat eklendi.");
     void load();
   }
 
@@ -558,9 +575,14 @@ export function HistoryLearnPanel({
   }
 
   async function removeInstruction(id: string) {
-    const res = await fetch(`/api/properties/${propertyId}/instructions/${id}`, { method: "DELETE" });
-    if (res.ok) void load();
-    else setError("Talimat kaldırılamadı. Tekrar deneyin.");
+    try {
+      const res = await fetch(`/api/properties/${propertyId}/instructions/${id}`, { method: "DELETE" });
+      if (res.ok) void load();
+      else setError("Talimat kaldırılamadı. Tekrar deneyin.");
+    } catch {
+      setError(NETWORK_ERROR);
+      void load();
+    }
   }
 
   const latest = runs[0];

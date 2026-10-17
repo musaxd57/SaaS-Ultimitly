@@ -356,6 +356,13 @@ export function KbManager({
     if (it) {
       setPendingEditId(null);
       startEdit(it);
+      // Düzenleyici listedeki kalemin içinde açılır — formdan uzakta (telefonda birkaç ekran aşağıda); görünür yere kaydırılır ve
+      // başlık alanına odak verilir (S9-20: "Kaydedilen bilgiyi düzenle" görünürde hiçbir şey yapmıyordu).
+      requestAnimationFrame(() => {
+        const field = document.getElementById(`edit-title-${it.id}`);
+        field?.scrollIntoView({ block: "center" });
+        (field as HTMLInputElement | null)?.focus({ preventScroll: true });
+      });
     } else if (!refreshing) {
       // Yenileme bitti, kalem yine yok (bu arada silinmiş olabilir) → sessizce beklemek yerine söylenir.
       setPendingEditId(null);
