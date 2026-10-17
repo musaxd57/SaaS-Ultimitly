@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { badRequest, jsonOk, notFound, tooManyRequests, readJsonCappedOrNull } from "@/lib/api";
 import { withOwner } from "@/lib/route-guard";
@@ -56,7 +57,13 @@ export const POST = withOwner(async (session, req) => {
   // Atomik "işleniyor" kilidi Paddle'dan ÖNCE (iki sekmeden iki geçerli belirteçle eşzamanlı iki devam → iki tahsilat olmasın).
   let lockClaimed = false;
   try {
-    await prisma.systemLock.upsert({ where: { name: lockName }, create: { name: lockName, lockedUntil: new Date(0) }, update: {} });
+    // Eşzamanlı iki istek satırı aynı anda oluşturmaya çalışırsa biri tekil anahtar hatası alır (P2002) — satır artık var demektir; hakemlik
+    // aşağıdaki koşullu güncellemenin (mutasyon testi 10-17: eskiden ikinci istek 503 "tamamlanamadı" alıyordu, doğrusu 409 "sürüyor").
+    await prisma.systemLock
+      .upsert({ where: { name: lockName }, create: { name: lockName, lockedUntil: new Date(0) }, update: {} })
+      .catch((e: unknown) => {
+        if (!(e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002")) throw e;
+      });
     lockClaimed =
       (await prisma.systemLock.updateMany({
         where: { name: lockName, lockedUntil: { lte: new Date() } },

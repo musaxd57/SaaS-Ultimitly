@@ -236,6 +236,19 @@ describe("POST /api/webhooks/paddle", () => {
       expect(sub).toMatchObject({ status: "active", trialEndsAt: null, trialEndReason: null });
     });
 
+    it("mutasyon W-reason-clear: kartsız denemeden (operatör bitirmiş) doğrudan ÖDEMEYE geçen hesapta deneme bitiş sebebi silinir", async () => {
+      await prisma.subscription.create({
+        data: { organizationId: orgId, planCode: "pro", provider: "trial", status: "trialing", trialEndsAt: new Date(), trialEndReason: "operator_ended" },
+      });
+      const paid = subEvent("evt_direct_paid", "sub_direct", "active", new Date().toISOString());
+      expect((await POST(req(paid, sign(paid)))).status).toBe(200);
+      expect(await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } })).toMatchObject({
+        status: "active",
+        provider: "paddle",
+        trialEndReason: null, // ⬅️ ESKİDE kalıyordu → sonradan iptal edince "Ücretsiz denemeniz sona erdi" notu ödeyen müşteriye çıkardı
+      });
+    });
+
     it("Haiku 10-17: İLK olay kartlı deneme ise (satır yok) oluşturma yolu da Paddle deneme sonunu yazar", async () => {
       const end = new Date(Date.now() + 7 * 86_400_000).toISOString();
       const trial = JSON.stringify({

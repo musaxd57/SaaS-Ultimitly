@@ -30,6 +30,10 @@ type PaddleState = {
   customerId: string | null;
   resume: "ok" | "declined" | "rejected" | "ambiguous";
   afterAmbiguous: string;
+  /** Sıradaki GET'lerin döndüreceği durumlar (boşalınca `status`) — kilitten sonraki yeniden okumayı sınamak için. */
+  statusSeq: string[];
+  /** Devam isteğinin Paddle'da süreceği gecikme (eşzamanlı iki isteğin ikisinin de POST'a ulaşabildiği pencere). */
+  resumeDelayMs: number;
 };
 let paddle: PaddleState;
 let resumeCalls = 0;
@@ -43,13 +47,15 @@ function stubPaddle() {
       const method = init?.method ?? "GET";
       const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
       if (method === "GET" && /^\/subscriptions\/sub_\w+$/.test(path)) {
-        return json(200, { data: { status: paddle.status, customer_id: paddle.customerId, items: [{ price: { id: "pri_pro" } }] } });
+        const st = paddle.statusSeq.length > 0 ? paddle.statusSeq.shift()! : paddle.status;
+        return json(200, { data: { status: st, customer_id: paddle.customerId, items: [{ price: { id: "pri_pro" } }] } });
       }
       if (method === "POST" && path === "/pricing-preview") {
         return json(200, { data: { currency_code: paddle.currency, details: { totals: { grand_total: paddle.total } } } });
       }
       if (method === "POST" && path === "/subscriptions/sub_1/resume") {
         resumeCalls++;
+        if (paddle.resumeDelayMs > 0) await new Promise((r) => setTimeout(r, paddle.resumeDelayMs));
         if (paddle.resume === "ok") {
           paddle.status = "active";
           return json(200, { data: { status: "active" } });
@@ -83,7 +89,7 @@ beforeEach(async () => {
   vi.stubEnv("PADDLE_API_KEY", "test-key");
   vi.stubEnv("PADDLE_PRICE_PRO", "pri_pro");
   vi.stubEnv("AUTH_SECRET", "test-auth-secret-0123456789-abcdefghijkl");
-  paddle = { status: "paused", total: "89900", currency: "TRY", customerId: "ctm_1", resume: "ok", afterAmbiguous: "paused" };
+  paddle = { status: "paused", total: "89900", currency: "TRY", customerId: "ctm_1", resume: "ok", afterAmbiguous: "paused", statusSeq: [], resumeDelayMs: 0 };
   stubPaddle();
   const org = await prisma.organization.create({ data: { name: "Org" } });
   orgId = org.id;
@@ -260,5 +266,24 @@ describe("Aboneliği devam ettir", () => {
     await doResume(await token());
     const row = await prisma.auditLog.findFirstOrThrow({ where: { organizationId: orgId, action: "billing.resumed" } });
     expect(JSON.parse(row.metadataJson ?? "{}")).toMatchObject({ plan: "pro", amount: "₺899,00" });
+  });
+
+  it("🚨 mutasyon R-live-recheck: önizleme / çözümleme sırasında 'duraklatılmış', KİLİTTEN SONRA Paddle'da 'etkin' → devam GÖNDERİLMEZ (409 zaten etkin)", async () => {
+    const t = await token();
+    // Çözümleme iki kez okur (fiyat + durum) → duraklatılmış; kilitten sonraki okuma etkin (başka sekme tamamladı).
+    paddle.statusSeq = ["paused", "paused"];
+    paddle.status = "active";
+    const r = await doResume(t);
+    expect(r.status).toBe(409);
+    expect(await r.json()).toMatchObject({ alreadyActive: true });
+    expect(resumeCalls).toBe(0);
+  });
+
+  it("🚨 mutasyon R-lock-claim: Paddle'daki devam YAVAŞken eşzamanlı iki onay → kilit ikinciyi POST'tan ÖNCE durdurur (tek tahsilat)", async () => {
+    const [a, b] = [await token(), await token()];
+    paddle.resumeDelayMs = 150; // ilk istek Paddle'dayken ikincisi canlı durumu hâlâ 'duraklatılmış' okur — yalnız kilit korur
+    const statuses = (await Promise.all([doResume(a), doResume(b)])).map((r) => r.status).sort();
+    expect(statuses).toEqual([200, 409]);
+    expect(resumeCalls).toBe(1);
   });
 });

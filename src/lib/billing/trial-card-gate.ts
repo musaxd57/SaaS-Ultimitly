@@ -56,6 +56,9 @@ export const TRIAL_CARD_REQUIRED_MESSAGE =
 
 export type CardGateRun = { required: number; cleared: number };
 
+/** Yalnız test: okuma ile koşullu yazma arasına girer (yarışı gerçek PostgreSQL'de sınamak için). */
+export const __cardGateHooks: { afterRead: null | (() => Promise<void>) } = { afterRead: null };
+
 /**
  * Saatlik iş: süren denemeleri değerlendirir; yüksek bantta olanı damgalar, bandan düşeni (ör. e-posta doğrulandı) ya da artık denemede
  * olmayanı (kart eklendi → Paddle aboneliği) temizler. Geçiş başına TEK denetim kaydı (yalnız sebep kodları — kişisel veri yok).
@@ -110,12 +113,14 @@ export async function evaluateTrialCardGates(now: Date = new Date()): Promise<Ca
       // Ağ sinyalleri BİLİNÇLİ verilmez (↑ aydınlatma cümlesi).
       now,
     });
-    // Operatör muafiyeti ("Kart şartını kaldır") kalıcı: damga yazılmaz, varsa silinir.
+    // Operatör muafiyeti ("Kart şartını kaldır") kalıcı: damga yazılmaz. Aynı şart koşullu yazımın İÇİNDE de var (atomik — okumadan sonra
+    // verilen muafiyet); bu satır yalnız gereksiz yazma denemesini önler (mutasyonda gerekçeli eşdeğer: G-exempt).
     const required = !o.trialCardExemptAt && cardGateRequired(risk);
     if (required && !o.trialCardRequiredAt) toRequire.push({ id: o.id, reasons: cardGateReasons(risk) });
     if (!required && o.trialCardRequiredAt) toClear.push(o.id);
   }
 
+  if (__cardGateHooks.afterRead) await __cardGateHooks.afterRead();
   // Damga + denetim TEK işlemde; yazım KOŞULLU (okuma ile yazma arasında operatör denemeyi bitirdiyse / muaf tuttuysa / kart eklendiyse
   // damga yazılmaz — Haiku 10-17).
   let required = 0;

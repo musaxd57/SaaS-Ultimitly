@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { prisma, resetDb } from "../helpers/db";
-import { evaluateTrialCardGates } from "@/lib/billing/trial-card-gate";
+import { __cardGateHooks, evaluateTrialCardGates } from "@/lib/billing/trial-card-gate";
 import { getEntitlement, premiumAllowed } from "@/lib/billing/subscription";
 
 // ---------------------------------------------------------------------------
@@ -99,6 +99,24 @@ describe("kartla deneme kapısı", () => {
     expect(await evaluateTrialCardGates()).toEqual({ required: 0, cleared: 0 });
     expect((await prisma.organization.findUniqueOrThrow({ where: { id: risky } })).trialCardRequiredAt).toBeNull();
     expect(await exemptTrialCardGate(risky, op.id)).toEqual({ ok: false, reason: "not_card_required" });
+  });
+
+  it("🚨 mutasyon G-cond-stamp: saatlik iş OKUDUKTAN SONRA deneme biterse / operatör muaf tutarsa damga YAZILMAZ (koşul yazımın içinde)", async () => {
+    const ended = await trialOrg("ended@example.com", { identityReused: true });
+    const exempt = await trialOrg("exempt@example.com", { identityReused: true });
+    __cardGateHooks.afterRead = async () => {
+      await prisma.subscription.update({ where: { organizationId: ended }, data: { trialEndsAt: new Date(Date.now() - 1000) } });
+      await prisma.organization.update({ where: { id: exempt }, data: { trialCardExemptAt: new Date() } });
+    };
+    try {
+      expect(await evaluateTrialCardGates()).toEqual({ required: 0, cleared: 0 });
+    } finally {
+      __cardGateHooks.afterRead = null;
+    }
+    for (const id of [ended, exempt]) {
+      expect((await prisma.organization.findUniqueOrThrow({ where: { id } })).trialCardRequiredAt).toBeNull();
+    }
+    expect(await prisma.auditLog.count({ where: { action: "trial.card_required" } })).toBe(0);
   });
 
   it("Haiku 10-17: damga KOŞULLU — okuma ile yazma arasında deneme bittiyse damga yazılmaz", async () => {
