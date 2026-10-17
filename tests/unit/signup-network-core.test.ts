@@ -75,40 +75,45 @@ describe("networkSignals", () => {
   it("🚨 aynı TAM adres başka kayıtta 30 gün içinde → ip_shared (silinmiş hesap dahil); 31. gün → yok", () => {
     const me = trace("org-me", "203.0.113.7", daysAgo(0));
     const deleted = trace(null, "203.0.113.7", daysAgo(29));
-    const s = networkSignals([me], [me, deleted], NOW, signupNetworkKeyFp());
+    const s = networkSignals([me], [me, deleted], signupNetworkKeyFp());
     expect(s.ipShared).toBe(true);
     expect(s.related).toEqual([{ organizationId: null, createdAt: deleted.createdAt, same: "ip" }]);
     const old = trace("org-old", "203.0.113.7", daysAgo(31));
-    expect(networkSignals([me], [me, old], NOW, signupNetworkKeyFp()).ipShared).toBe(false);
+    expect(networkSignals([me], [me, old], signupNetworkKeyFp()).ipShared).toBe(false);
   });
 
   it("aynı /24'te 7 gün içinde ≥2 BAŞKA kayıt → network_burst; 1 başka kayıt → yok", () => {
     const me = trace("org-me", "198.51.100.10", daysAgo(0));
     const a = trace("org-a", "198.51.100.11", daysAgo(3));
     const b = trace("org-b", "198.51.100.12", daysAgo(6));
-    expect(networkSignals([me], [me, a], NOW, signupNetworkKeyFp()).networkBurst).toBe(false);
-    const s = networkSignals([me], [me, a, b], NOW, signupNetworkKeyFp());
+    expect(networkSignals([me], [me, a], signupNetworkKeyFp()).networkBurst).toBe(false);
+    const s = networkSignals([me], [me, a, b], signupNetworkKeyFp());
     expect(s).toMatchObject({ ipShared: false, networkBurst: true });
     expect(s.related.map((r) => r.same)).toEqual(["network", "network"]);
     const far = trace("org-c", "198.51.100.13", daysAgo(8));
-    expect(networkSignals([me], [me, a, far], NOW, signupNetworkKeyFp()).networkBurst).toBe(false);
+    expect(networkSignals([me], [me, a, far], signupNetworkKeyFp()).networkBurst).toBe(false);
   });
 
   it("aynı işletmenin kendi satırları ve farklı anahtarlı eski satırlar sayılmaz", () => {
     const me = trace("org-me", "203.0.113.7", daysAgo(0));
     const meAgain = trace("org-me", "203.0.113.7", daysAgo(1));
     const otherKey = trace("org-x", "203.0.113.7", daysAgo(1), "0000000000000000");
-    expect(networkSignals([me], [me, meAgain, otherKey], NOW, signupNetworkKeyFp())).toMatchObject({ ipShared: false, networkBurst: false, related: [] });
+    expect(networkSignals([me], [me, meAgain, otherKey], signupNetworkKeyFp())).toMatchObject({ ipShared: false, networkBurst: false, related: [] });
   });
 
-  it("🚨 ALTYAPI KORUMASI: son 24 saatte kayıtların yarısı aynı adresten → o adres sinyal üretmez (vekil / kenar adresi)", () => {
+  it("🚨 ALTYAPI ŞÜPHESİ (Haiku 10-17): son 24 saatte kayıtların yarısı aynı adresten → şüphe TESPİT edilir ama sinyal SUSTURULMAZ (toplu kayıt görünür kalır)", () => {
     const edge = "10.0.0.1";
     const traces = Array.from({ length: INFRA_MIN_SIGNUPS }, (_, i) => trace(`org-${i}`, i < INFRA_MIN_SIGNUPS / 2 ? edge : `192.0.2.${i}`, daysAgo(0.5)));
     expect(infrastructureIpHashes(traces, NOW, signupNetworkKeyFp()).size).toBe(1);
-    expect(networkSignals([traces[0]!], traces, NOW, signupNetworkKeyFp())).toMatchObject({ ipShared: false, networkBurst: false });
-    // KONTROL: kayıt sayısı eşiğin altındaysa koruma devreye girmez → aynı adres sinyal verir.
-    const few = traces.slice(0, 3);
-    expect(networkSignals([few[0]!], few, NOW, signupNetworkKeyFp()).ipShared).toBe(true);
+    expect(networkSignals([traces[0]!], traces, signupNetworkKeyFp())).toMatchObject({ ipShared: true, networkBurst: true });
+    // KONTROL: eşiğin altında şüphe yok.
+    expect(infrastructureIpHashes(traces.slice(0, 3), NOW, signupNetworkKeyFp()).size).toBe(0);
+  });
+
+  it("Haiku 10-17: bağlam yalnız sinyal varken — tek başka kayıt (eşik altı) başka işletmenin adını göstermez", () => {
+    const me = trace("org-me", "198.51.100.10", daysAgo(0));
+    const one = trace("org-a", "198.51.100.11", daysAgo(1));
+    expect(networkSignals([me], [me, one], signupNetworkKeyFp())).toEqual({ ipShared: false, networkBurst: false, related: [] });
   });
 });
 

@@ -9,7 +9,7 @@
 
 import { createHash, createHmac, scryptSync } from "node:crypto";
 import { isIP } from "node:net";
-import { expandIpv6 } from "@/lib/rate-limit";
+import { expandIpv6 } from "@/lib/net/ipv6";
 
 /** İz saklama süresi (gün). ⚠️ Kurucu sorusu Q3 (90 mı 30 mu) — cevap gelene kadar tasarım önerisi; aydınlatma metni bu sayıyı söyler. */
 export const SIGNUP_NETWORK_RETENTION_DAYS = 90;
@@ -19,8 +19,10 @@ export const IP_SHARED_WINDOW_DAYS = 30;
 export const NETWORK_BURST_WINDOW_DAYS = 7;
 export const NETWORK_BURST_MIN_OTHERS = 2;
 /**
- * ALTYAPI KORUMASI: son 24 saatte en az `INFRA_MIN_SIGNUPS` kaydın en az yarısı AYNI tam adres özetini taşıyorsa o özet bir vekil / kenar
- * adresidir (ör. `TRUSTED_PROXY_HOPS` yanlış → herkes aynı adres) — sinyal ÜRETMEZ (herkesi işaretlemesin).
+ * ALTYAPI ŞÜPHESİ: son 24 saatte en az `INFRA_MIN_SIGNUPS` kaydın en az yarısı AYNI tam adres özetini taşıyorsa ya bir vekil / kenar adresi
+ * (ör. `TRUSTED_PROXY_HOPS` yanlış → herkes aynı adres) ya da tek adresten toplu kayıt vardır. Haiku 10-17: bu durumda sinyali SUSTURMAK toplu
+ * kaydı görünmez kılıyordu → sinyal SÜRER, yalnız operatöre tek alarm gider (saatlik iş, `checkSignupNetworkInfra`) — ayar mı saldırı mı,
+ * operatör bakar.
  */
 export const INFRA_WINDOW_MS = 24 * 60 * 60_000;
 export const INFRA_MIN_SIGNUPS = 10;
@@ -111,7 +113,10 @@ export function infrastructureIpHashes(traces: readonly SignupTraceView[], now: 
 export interface NetworkSignals {
   ipShared: boolean;
   networkBurst: boolean;
-  /** Operatöre bağlam: aynı adres / ağdaki BAŞKA kayıtlar (işletme kimliği; silinmiş hesap → null). Özet / IP DÖNMEZ. */
+  /**
+   * Operatöre bağlam: sinyali DOĞURAN başka kayıtlar (işletme kimliği; silinmiş hesap → null). Sinyal yoksa boş (Haiku 10-17: eşik altında
+   * başka işletmenin adı sebepsiz gösterilmesin). Özet / IP DÖNMEZ.
+   */
   related: { organizationId: string | null; createdAt: Date; same: "ip" | "network" }[];
 }
 
@@ -119,36 +124,28 @@ const DAY_MS = 86_400_000;
 
 /**
  * Saf: bir işletmenin kayıt izleri (`own`) ile bütün güncel izler (`all`) → sinyaller. Yalnız GÜNCEL anahtarlı satırlar (`keyFp`) karşılaştırılır;
- * kendi satırları "başka kayıt" sayılmaz; altyapı özetleri hiç sinyal üretmez. Pencereler kayıt anına göre ±.
+ * kendi satırları ve aynı işletmenin başka satırları "başka kayıt" sayılmaz. Pencereler kayıt anına göre ±.
  */
-export function networkSignals(own: readonly SignupTraceView[], all: readonly SignupTraceView[], now: Date, keyFp: string): NetworkSignals {
+export function networkSignals(own: readonly SignupTraceView[], all: readonly SignupTraceView[], keyFp: string): NetworkSignals {
   const mine = own.filter((t) => t.keyFp === keyFp);
   const ownIds = new Set(own.map((t) => t.id));
-  const infra = infrastructureIpHashes(all, now, keyFp);
-  const related = new Map<string, NetworkSignals["related"][number]>();
-  let ipShared = false;
-  const burstOthers = new Set<string>();
+  const ipMatches = new Map<string, SignupTraceView>();
+  const netMatches = new Map<string, SignupTraceView>();
   for (const m of mine) {
     for (const o of all) {
       if (ownIds.has(o.id) || o.keyFp !== keyFp) continue;
-      // Aynı işletmenin başka satırı (ör. ikinci sahip) "başka kayıt" değildir.
       if (m.organizationId !== null && o.organizationId === m.organizationId) continue;
       const gap = Math.abs(o.createdAt.getTime() - m.createdAt.getTime());
-      // Altyapı adresinden (vekil / kenar) gelen kayıt hiçbir ağ sinyali üretmez — ne tam adres ne ağ (herkes aynı ağda görünürdü).
-      if (m.ipHash && infra.has(m.ipHash)) continue;
-      if (m.ipHash && o.ipHash === m.ipHash && gap <= IP_SHARED_WINDOW_DAYS * DAY_MS) {
-        ipShared = true;
-        related.set(o.id, { organizationId: o.organizationId, createdAt: o.createdAt, same: "ip" });
-      }
-      if (m.networkHash && o.networkHash === m.networkHash && gap <= NETWORK_BURST_WINDOW_DAYS * DAY_MS) {
-        burstOthers.add(o.id);
-        if (!related.has(o.id)) related.set(o.id, { organizationId: o.organizationId, createdAt: o.createdAt, same: "network" });
-      }
+      if (m.ipHash && o.ipHash === m.ipHash && gap <= IP_SHARED_WINDOW_DAYS * DAY_MS) ipMatches.set(o.id, o);
+      if (m.networkHash && o.networkHash === m.networkHash && gap <= NETWORK_BURST_WINDOW_DAYS * DAY_MS) netMatches.set(o.id, o);
     }
   }
-  return {
-    ipShared,
-    networkBurst: burstOthers.size >= NETWORK_BURST_MIN_OTHERS,
-    related: [...related.values()].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()),
-  };
+  const ipShared = ipMatches.size > 0;
+  const networkBurst = netMatches.size >= NETWORK_BURST_MIN_OTHERS;
+  const related = new Map<string, NetworkSignals["related"][number]>();
+  if (ipShared) for (const [id, o] of ipMatches) related.set(id, { organizationId: o.organizationId, createdAt: o.createdAt, same: "ip" });
+  if (networkBurst) {
+    for (const [id, o] of netMatches) if (!related.has(id)) related.set(id, { organizationId: o.organizationId, createdAt: o.createdAt, same: "network" });
+  }
+  return { ipShared, networkBurst, related: [...related.values()].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()) };
 }

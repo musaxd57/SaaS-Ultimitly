@@ -2,7 +2,7 @@ import "server-only";
 
 import { createHash, createHmac, scryptSync } from "crypto";
 import { prisma } from "@/lib/db";
-import { writeAudit } from "@/lib/audit";
+import { writeAuditInTx } from "@/lib/audit";
 import { reportError } from "@/lib/report-error";
 import { isFounderOrg } from "@/lib/billing/subscription";
 
@@ -290,13 +290,22 @@ export async function recordVerifiedCalendarIdentity(
  */
 async function flagReusedIdentity(organizationId: string, now: Date): Promise<boolean> {
   if (isFounderOrg(organizationId)) return false;
-  const res = await prisma.organization.updateMany({
-    where: { id: organizationId, trialIdentityExempt: false, trialIdentityReusedAt: null, subscription: { is: { provider: "trial" } } },
-    data: { trialIdentityReusedAt: now },
+  // İşaret + denetim kaydı TEK işlemde (Haiku 10-17: ayrı yazılınca denetim hatası yutulur ve işaret "ilk gözlem kazanır" yüzünden bir daha
+  // denetimsiz kalırdı). Yalnız SÜREN deneme (eski kuralın kapsamı: süresi dolmuş deneme listede de görünmez).
+  return prisma.$transaction(async (tx) => {
+    const res = await tx.organization.updateMany({
+      where: {
+        id: organizationId,
+        trialIdentityExempt: false,
+        trialIdentityReusedAt: null,
+        subscription: { is: { provider: "trial", trialEndsAt: { gt: now } } },
+      },
+      data: { trialIdentityReusedAt: now },
+    });
+    if (res.count === 0) return false;
+    await writeAuditInTx(tx, { organizationId, action: "trial.identity_reused_flagged" });
+    return true;
   });
-  if (res.count === 0) return false;
-  await writeAudit({ organizationId, action: "trial.identity_reused_flagged" });
-  return true;
 }
 
 /**

@@ -40,7 +40,7 @@ import { purgeAutomatedSends } from "@/lib/automated-sends";
 import { logEvent, pruneOperationalEvents } from "@/lib/event-log";
 import { newCorrelationId, runWithCorrelation } from "@/lib/correlation";
 import { backfillTrialIdentitiesOnce, sweepTrialIdentities } from "@/lib/billing/trial-identity";
-import { purgeSignupNetworkTraces } from "@/lib/billing/signup-network";
+import { checkSignupNetworkInfra, purgeSignupNetworkTraces } from "@/lib/billing/signup-network";
 
 // ---------------------------------------------------------------------------
 // The one scheduled pass: pull new Hospitable messages for every organization,
@@ -922,7 +922,10 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
         // Deneme kimliği (kurucu onayı 10-10): sahibi silinmiş + 24 ayı geçmiş izler silinir (geri doldurma ↑ her geçişte).
         await hourly("trial-identity", "scheduled-sync trial-identity", () => sweepTrialIdentities());
         // K1 (kurucu 10-17): kayıt ağı izi süresi dolunca silinir (anahtar kapalıyken de — eski iz kalmasın).
-        await hourly("signup-network-purge", "scheduled-sync signup-network-purge", () => purgeSignupNetworkTraces());
+        await hourly("signup-network-purge", "scheduled-sync signup-network-purge", async () => {
+          await purgeSignupNetworkTraces();
+          await checkSignupNetworkInfra();
+        });
       }
       return totals;
     } finally {

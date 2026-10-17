@@ -1708,6 +1708,7 @@ model SignupNetworkTrace {
   @@index([networkHash, createdAt])
   @@index([organizationId])
   @@index([expiresAt])
+  @@index([keyFp, createdAt])
 }
 
 // AÇIK TAAHHÜT HAFIZASI A (kurucu kararı 10-10; migration 62). Misafire VERİLEN SÖZ ("havlular 18:00'e kadar") YALNIZ ev sahibinin AÇIK

@@ -29,6 +29,9 @@ CREATE INDEX "SignupNetworkTrace_organizationId_idx" ON "SignupNetworkTrace"("or
 -- CreateIndex
 CREATE INDEX "SignupNetworkTrace_expiresAt_idx" ON "SignupNetworkTrace"("expiresAt");
 
+-- CreateIndex
+CREATE INDEX "SignupNetworkTrace_keyFp_createdAt_idx" ON "SignupNetworkTrace"("keyFp", "createdAt");
+
 -- AddForeignKey
 ALTER TABLE "SignupNetworkTrace" ADD CONSTRAINT "SignupNetworkTrace_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 

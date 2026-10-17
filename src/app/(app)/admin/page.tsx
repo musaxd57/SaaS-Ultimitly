@@ -355,9 +355,9 @@ export default async function AdminPage() {
                           // "denemeyi geri ver" (meşru durum için istisna).
                           // Yalnız HÂLÂ denemedeki hesapta (ödemeye geçmiş hesapta rozet kalmasın — Haiku incelemesi).
                           // K1-B (10-17): işaret (deneme sürer) ya da ESKİ kuralla bitmiş deneme.
+                          const endedByOldRule = org.subscription?.trialEndReason === "identity_reused";
                           const identityReused =
-                            (Boolean(org.trialIdentityReusedAt) || org.subscription?.trialEndReason === "identity_reused") &&
-                            org.subscription?.provider === "trial";
+                            (Boolean(org.trialIdentityReusedAt) || endedByOldRule) && org.subscription?.provider === "trial";
                           return (
                             <span className="inline-flex flex-wrap items-center gap-1">
                               <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${toneClass[b.tone]}`}>
@@ -368,7 +368,7 @@ export default async function AdminPage() {
                                   <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
                                     Deneme: ilan daha önce kullanıldı
                                   </span>
-                                  <TrialExemptButton organizationId={org.id} />
+                                  <TrialExemptButton organizationId={org.id} mode={endedByOldRule ? "ended" : "flag"} />
                                 </>
                               ) : null}
                             </span>

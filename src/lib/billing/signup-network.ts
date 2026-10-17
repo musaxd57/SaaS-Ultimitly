@@ -2,7 +2,10 @@ import "server-only";
 
 import { prisma } from "@/lib/db";
 import { reportError } from "@/lib/report-error";
+import { alertOnTransition, clearAlertState } from "@/lib/alert-state";
 import {
+  infrastructureIpHashes,
+  INFRA_WINDOW_MS,
   networkSignals,
   signupNetworkFields,
   signupNetworkKeyFp,
@@ -71,26 +74,43 @@ export async function loadSignupNetworkSignals(organizationIds: readonly string[
     // Pencere: en eski kendi izinden 30 gün öncesi (sinyal penceresi kayıt anına göre ±; liste son 30 günde biten denemeleri de gösterir).
     const oldest = Math.min(...own.map((t) => t.createdAt.getTime()));
     const since = new Date(Math.min(oldest, now.getTime()) - (IP_SHARED_WINDOW_DAYS + 1) * DAY_MS);
+    // Yalnız AYNI özetli izler (dizinli iki sütun) — altyapı şüphesi ayrı saatlik işte (`checkSignupNetworkInfra`), sayfa açılışında değil.
     const related: SignupTraceView[] = await prisma.signupNetworkTrace.findMany({
-      where: {
-        keyFp,
-        OR: [
-          { ipHash: { in: ipHashes } },
-          { networkHash: { in: netHashes } },
-          { createdAt: { gte: new Date(now.getTime() - DAY_MS) } },
-        ],
-        createdAt: { gte: since },
-      },
+      where: { keyFp, createdAt: { gte: since }, OR: [{ ipHash: { in: ipHashes } }, { networkHash: { in: netHashes } }] },
       select,
     });
     const all = [...new Map([...own, ...related].map((t) => [t.id, t])).values()];
     for (const orgId of organizationIds) {
       const mine = own.filter((t) => t.organizationId === orgId);
-      if (mine.length) out.set(orgId, networkSignals(mine, all, now, keyFp));
+      if (mine.length) out.set(orgId, networkSignals(mine, all, keyFp));
     }
   } catch (err) {
     // Fail-open: sinyal yok (liste bugünkü puanla görünür).
     void reportError("signup-network signals", err);
   }
   return out;
+}
+
+/**
+ * Saatlik: son 24 saatte kayıtların yarısı TEK adresten mi (vekil ayarı bozuk mu, toplu kayıt mı)? Varsa operatöre TEK alarm (geçiş tabanlı,
+ * 24 saatte bir hatırlatma); geçince alarm durumu temizlenir. Sinyaller susturulmaz (Haiku 10-17). Adres / özet alarm metnine GİRMEZ.
+ */
+export async function checkSignupNetworkInfra(now: Date = new Date()): Promise<boolean> {
+  if (!signupNetworkTraceEnabled()) return false;
+  const keyFp = signupNetworkKeyFp();
+  const recent = await prisma.signupNetworkTrace.findMany({
+    where: { keyFp, createdAt: { gte: new Date(now.getTime() - INFRA_WINDOW_MS) } },
+    select: { id: true, organizationId: true, ipHash: true, networkHash: true, keyFp: true, createdAt: true },
+  });
+  const suspected = infrastructureIpHashes(recent, now, keyFp).size > 0;
+  if (suspected) {
+    await alertOnTransition(
+      "signup-network-infra",
+      "signup-network",
+      new Error("Son 24 saatteki kayıtların yarısı tek adresten geldi — vekil ayarı (TRUSTED_PROXY_HOPS) ya da toplu kayıt; operatör listesine bakın."),
+    );
+  } else {
+    await clearAlertState("signup-network-infra");
+  }
+  return suspected;
 }

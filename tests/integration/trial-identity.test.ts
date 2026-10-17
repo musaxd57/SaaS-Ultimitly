@@ -97,7 +97,9 @@ async function expectFlagged(orgId: string) {
 async function expectNotFlagged(orgId: string) {
   const org = await prisma.organization.findUniqueOrThrow({ where: { id: orgId }, select: { trialIdentityReusedAt: true } });
   expect(org.trialIdentityReusedAt, "işaret").toBeNull();
-  await expectNotFlagged(orgId);
+  const s = await sub(orgId);
+  expect(s.trialEndReason).toBeNull();
+  if (s.provider === "trial") expect(s.trialEndsAt!.getTime()).toBeGreaterThan(Date.now());
 }
 /**
  * Saat bir sonraki milisaniyeye geçene kadar bekle: açılış anını elle yazan testlerde "anahtar SONRASI" kaydın açılış anıyla aynı
@@ -252,6 +254,17 @@ describe("kural (gerçek PostgreSQL)", () => {
     const plain = await trialOrg("N");
     await addIcal(plain, AIRBNB("5"));
     await expectFlagged(plain.orgId);
+  });
+
+  it("KONTROL (Haiku 10-17): süresi DOLMUŞ deneme hesabı işaretlenmez (eski kural da yalnız süren denemeye dokunuyordu)", async () => {
+    const a = await trialOrg("A");
+    await addIcal(a, AIRBNB("1"));
+    const old = await trialOrg("Eski");
+    const past = new Date(Date.now() - 60 * 86_400_000);
+    await prisma.subscription.update({ where: { organizationId: old.orgId }, data: { trialEndsAt: past } });
+    await addIcal(old, AIRBNB("2"));
+    expect((await prisma.organization.findUniqueOrThrow({ where: { id: old.orgId } })).trialIdentityReusedAt).toBeNull();
+    expect(await prisma.auditLog.count({ where: { organizationId: old.orgId, action: "trial.identity_reused_flagged" } })).toBe(0);
   });
 
   it("🚨 hesabı SİLİP yeniden açma: iz kalır (sahibi boşa çekilir, 24 ay silinme anından sayılır) → yeni hesabın denemesi biter", async () => {

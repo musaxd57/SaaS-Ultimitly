@@ -7,6 +7,8 @@
 > ⚠️ GERÇEKLEŞEN (10-17 öğleden sonra): I3 → `69_outbox_conversation_status_index`, L2 → `70_kb_superseded_at`. Aşağıdaki "76–79" ve
 > "M-kb-surum (70)" göndermeleri eski öneri numaralarıdır; güncel tablo `docs/MIGRATION-MANIFEST.md`. L5 → `71_message_channel_sender_role`
 > (§2.5'ten bilinçli fark: okuyucular YALNIZ `automation`ı dışlar, `unknown` bugünkü gibi ev sahibi sayılır — gerekçe `message-author.ts` L5 notu).
+> K1 → `72_signup_network_trace` (§3'ten farklar, Haiku 10-17: altyapı şüphesi sinyali SUSTURMAZ — saatlik tek alarm; bağlam yalnız sinyal varken;
+> süresi dolmuş deneme işaretlenmez; işaret + denetim tek işlemde; `(keyFp, createdAt)` dizini; operatör "Denemeyi bitir" rotası Q4 cevabını bekliyor).
 > Dil kuralı (Codex C6): yeni kolon / tablo için "kişisel veri yok" DENMEZ; "doğrudan tanımlayıcı / serbest metin taşımaz" denir.
 > DOĞRULANMADI işareti: kodda / belgede kanıtlanamayan her iddia.
 

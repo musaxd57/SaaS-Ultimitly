@@ -770,6 +770,10 @@ olabilir" uyarısı alır — genel yönerge ("Anahtarı kutuya bıraktım, çı
   incelemesinde kullanılır, otomatik karar verilmez ve 90 gün sonra silinir." (a) 90 gün mü (önerim; silip yeniden açmayı 3 ay görür) 30 gün mü?
   (b) Onay kanıtı olarak tutulan ham kayıt IP'si bu amaçla KULLANILMAZ — doğru mu? ÖRNEK: Ayşe 1 Ekim'de kaydoldu, 5 Ekim'de silip aynı evden yeniden
   açtı → operatör listesinde "aynı ağdan başka kayıt" görünür.
+  **K1 yapıldı (10-17, migration 72, anahtar `SIGNUP_NETWORK_TRACE_ENABLED` KAPALI):** aynı ilan / takvim başka hesapta görülünce deneme artık
+  BİTMEZ ve müşteriye metin gitmez — hesap işaretlenir, operatör listesinde "ilan daha önce kullanıldı" + "İşareti kaldır" düğmesi. Kayıt ağı izi:
+  ham IP saklanmadan aynı adres (30 gün) / aynı ağdan kısa sürede çok kayıt (7 gün) zayıf sinyal olarak puana girer (ağ sinyalleri tek başına
+  "yüksek" banda çıkamaz); tek adresten yoğun kayıt olursa operatöre tek alarm. Bu cümle (Q3) sitede yayınlanmadan anahtar açılmaz.
 - **Q4 · K1 — operatör "Denemeyi bitir" deyince müşterinin göreceği metin:** önerim "Ücretsiz denemeniz sona erdi. Devam etmek için bir plan seçin.
   Bir yanlışlık olduğunu düşünüyorsanız bize yazın." (sebep söylenmez — kaçışı öğretmemek için; "risk / kötüye kullanım" sözcükleri geçmez). Hesap
   kapatılmaz (ödeme yapmak isteyen meşru müşteri dışarıda kalmasın); "Denemeyi geri ver" ile geri alınır. Uygun mu?

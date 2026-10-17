@@ -6,17 +6,21 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 /**
- * Operatör: DENEMEYİ GERİ VER (deneme kimliği istisnası; kurucu onayı 10-10). Aynı ilan / takvim başka hesapta görüldüğü için denemesi
- * biten kuruluşta meşru durum varsa (ilan yeni sahibe geçti vb.) — kuruluş kimlik kuralından muaf olur, deneme yeniden başlar. API yalnız
- * 2FA'lı operatör, her işlem denetim kaydında.
+ * Operatör: deneme kimliği istisnası (kurucu onayı 10-10). Aynı ilan / takvim başka hesapta görüldüyse ve meşru bir durum varsa (ilan yeni
+ * sahibe geçti vb.) kuruluş kimlik kuralından muaf olur. İki hâl (Haiku 10-17): K1-B işareti (`flag`, deneme zaten sürüyor) → "İşareti
+ * kaldır"; ESKİ kuralla biten deneme (`ended`) → "Denemeyi geri ver" (yeni deneme süresi). API yalnız 2FA'lı operatör, her işlem denetimde.
  */
-export function TrialExemptButton({ organizationId }: { organizationId: string }) {
+export function TrialExemptButton({ organizationId, mode }: { organizationId: string; mode: "flag" | "ended" }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function exempt() {
-    if (!window.confirm("Bu işletmenin denemesi yeniden başlasın ve ilan kontrolünden muaf tutulsun mu?")) return;
+    const question =
+      mode === "ended"
+        ? "Bu işletmenin denemesi yeniden başlasın ve ilan kontrolünden muaf tutulsun mu?"
+        : "İşaret kaldırılsın ve bu işletme ilan kontrolünden muaf tutulsun mu? (Deneme zaten sürüyor; süresi değişmez.)";
+    if (!window.confirm(question)) return;
     setBusy(true);
     setError(null);
     try {
@@ -41,7 +45,7 @@ export function TrialExemptButton({ organizationId }: { organizationId: string }
     <span className="inline-flex items-center gap-1">
       <Button type="button" size="sm" variant="outline" className="h-7 text-xs" disabled={busy} onClick={() => void exempt()}>
         {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-        Denemeyi geri ver
+        {mode === "ended" ? "Denemeyi geri ver" : "İşareti kaldır"}
       </Button>
       {error ? <span className="text-xs text-destructive">{error}</span> : null}
     </span>

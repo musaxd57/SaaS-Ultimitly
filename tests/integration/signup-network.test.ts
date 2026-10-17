@@ -14,8 +14,8 @@ vi.mock("@/lib/email", () => ({
 }));
 
 import { POST as register } from "@/app/api/auth/register/route";
-import { loadSignupNetworkSignals, purgeSignupNetworkTraces, recordSignupNetwork } from "@/lib/billing/signup-network";
-import { __resetSignupNetworkKey } from "@/lib/billing/signup-network-core";
+import { checkSignupNetworkInfra, loadSignupNetworkSignals, purgeSignupNetworkTraces, recordSignupNetwork } from "@/lib/billing/signup-network";
+import { __resetSignupNetworkKey, INFRA_MIN_SIGNUPS } from "@/lib/billing/signup-network-core";
 import { deleteAccountData } from "@/lib/data-retention";
 
 function registerReq(email: string, ip: string) {
@@ -100,13 +100,53 @@ describe("operatör sinyalleri", () => {
     expect((await loadSignupNetworkSignals([d2])).size).toBe(0);
   });
 
-  it("anahtar parmak izi değişirse eski izler karşılaştırmaya girmez (sessiz yanlış eşleşme yok)", async () => {
+  it("🚨 aynı /24 ağdan 7 gün içinde 2 başka kayıt → network_burst (gerçek sorgu, ağ özeti dalı); KONTROL: tek başka kayıt → yok", async () => {
+    const me = await prisma.organization.create({ data: { name: "Me" } });
+    const a = await prisma.organization.create({ data: { name: "A" } });
+    const b = await prisma.organization.create({ data: { name: "B" } });
+    await recordSignupNetwork(a.id, "198.51.100.11", new Date(Date.now() - 3 * 86_400_000));
+    await recordSignupNetwork(me.id, "198.51.100.10");
+    expect((await loadSignupNetworkSignals([me.id])).get(me.id)).toMatchObject({ ipShared: false, networkBurst: false, related: [] });
+    await recordSignupNetwork(b.id, "198.51.100.12", new Date(Date.now() - 5 * 86_400_000));
+    const s = (await loadSignupNetworkSignals([me.id])).get(me.id)!;
+    expect(s).toMatchObject({ ipShared: false, networkBurst: true });
+    expect(s.related.map((r) => r.organizationId).sort()).toEqual([a.id, b.id].sort());
+  });
+
+  it("anahtar parmak izi farklı satır (AYNI özet) karşılaştırmaya girmez — sessiz yanlış eşleşme yok", async () => {
     const org = await prisma.organization.create({ data: { name: "X" } });
-    const other = await prisma.organization.create({ data: { name: "Y" } });
-    await recordSignupNetwork(other.id, "203.0.113.70");
-    vi.stubEnv("ENCRYPTION_KEY", "rotated-key-for-test-0123456789-abcdefghij");
-    __resetSignupNetworkKey();
     await recordSignupNetwork(org.id, "203.0.113.70");
+    const mine = await prisma.signupNetworkTrace.findFirstOrThrow({ where: { organizationId: org.id } });
+    const other = await prisma.organization.create({ data: { name: "Y" } });
+    // Aynı ip özeti, BAŞKA anahtar parmak izi (eski anahtarla yazılmış satır gibi) → sayılmaz.
+    await prisma.signupNetworkTrace.create({
+      data: { organizationId: other.id, ipHash: mine.ipHash, networkHash: mine.networkHash, networkKind: "v4_24", keyFp: "0000000000000000", expiresAt: mine.expiresAt },
+    });
     expect((await loadSignupNetworkSignals([org.id])).get(org.id)).toMatchObject({ ipShared: false, related: [] });
+    // KONTROL: aynı satır güncel parmak iziyle → sayılır (yukarıdaki sonuç parmak izi süzgecinden).
+    await prisma.signupNetworkTrace.updateMany({ where: { organizationId: other.id }, data: { keyFp: mine.keyFp } });
+    expect((await loadSignupNetworkSignals([org.id])).get(org.id)).toMatchObject({ ipShared: true });
+  });
+
+  it("🚨 altyapı şüphesi (son 24 saatte kayıtların yarısı tek adresten): saatlik iş TEK alarm durumu yazar, sinyaller SUSMAZ; geçince temizlenir", async () => {
+    const orgs = [];
+    for (let i = 0; i < INFRA_MIN_SIGNUPS; i++) {
+      const o = await prisma.organization.create({ data: { name: `O${i}` } });
+      orgs.push(o.id);
+      await recordSignupNetwork(o.id, i < INFRA_MIN_SIGNUPS / 2 ? "203.0.113.200" : `192.0.2.${i + 10}`);
+    }
+    expect(await checkSignupNetworkInfra()).toBe(true);
+    expect(await prisma.systemLock.count({ where: { name: "alert-state:signup-network-infra" } })).toBe(1);
+    expect((await loadSignupNetworkSignals([orgs[0]!])).get(orgs[0]!)).toMatchObject({ ipShared: true });
+    await prisma.signupNetworkTrace.updateMany({ data: { createdAt: new Date(Date.now() - 2 * 86_400_000) } });
+    expect(await checkSignupNetworkInfra()).toBe(false);
+    expect(await prisma.systemLock.count({ where: { name: "alert-state:signup-network-infra" } })).toBe(0);
+  });
+
+  it("eşzamanlı aynı e-postayla iki kayıt → tek işletme, TEK iz (kaybeden iz yazmaz)", async () => {
+    const res = await Promise.all([register(registerReq("race@example.com", "198.51.100.30")), register(registerReq("race@example.com", "198.51.100.31"))]);
+    expect(res.map((r) => r.status)).toEqual([201, 201]);
+    expect(await prisma.organization.count()).toBe(1);
+    expect(await prisma.signupNetworkTrace.count()).toBe(1);
   });
 });

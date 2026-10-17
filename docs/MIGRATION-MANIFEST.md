@@ -22,6 +22,7 @@
 | 69 | `69_outbox_conversation_status_index` | `MessageOutbox(conversationId, status)` dizini (I3; hazır yamadaki tek kolonlu `M-outbox-dizin` yerine bileşik — sorgular konuşma + durumla süzer) | kurucu ONAYLADI (10-17 "migration yapalım"), yerel commit → itilince origin | yalnız dizin (küçük tablo, düz `CREATE INDEX`) |
 | 70 | `70_kb_superseded_at` | `KnowledgeBaseItem.supersededAt` (L2 "eskisinin yerine koy" zamanı; `supersededById` zaten vardı) | kurucu ONAYLADI (10-17), yerel commit → itilince origin | boş kolon |
 | 71 | `71_message_channel_sender_role` | `Message.channelSenderRole` (L5: kanalın bildirdiği gönderen rolü — misafir / ev sahibi / kanal otomasyonu / tanınmayan) | kurucu ONAYLADI (10-17), yerel commit → itilince origin | BÜYÜK tabloya boş kolon (PG 11+ meta-veri, yeniden yazım yok, dizin yok) |
+| 72 | `72_signup_network_trace` | `Organization.trialIdentityReusedAt` (K1-B işaret; deneme bitirilmez) + `SignupNetworkTrace` (kayıt ağı izi: HMAC özet, ham IP yok, 90 gün; anahtar KAPALI) | kurucu ONAYLADI (10-17 "B + IP"), yerel commit → itilince origin | boş kolon + yeni tablo |
 
 ## 2. Hazırlanan / önerilen paketler (NUMARASIZ — sıra yayın anında)
 
@@ -39,7 +40,7 @@
 
 
 Önerilen sıra (hazır yamadaki klasör adları; numara yalnız `prisma/migrations/` altında klasör oluşunca kesinleşir): `m_kb_surum` ·
-`m_oncelik` · `m_bildirim` · `m_defter` · `m_iade` · `m_odeme_niyeti` (72'den itibaren, yazıldıkça). Tasarım + sorular: `docs/TASARIM-2026-10-16-faz2-migration-paketleri.md`.
-⚠️ 10-17: 69, 70 ve 71 numaraları S2 paketine gitti (I3 dizini · L2 `supersededAt` · L5 `channelSenderRole`). Hazır yama belgelerindeki "69 m_outbox_dizin / 70 m_kb_surum" ve
+`m_oncelik` · `m_bildirim` · `m_defter` · `m_iade` · `m_odeme_niyeti` (73'ten itibaren, yazıldıkça). Tasarım + sorular: `docs/TASARIM-2026-10-16-faz2-migration-paketleri.md`.
+⚠️ 10-17: 69–72 numaraları S2 paketine gitti (I3 dizini · L2 `supersededAt` · L5 `channelSenderRole` · K1 kayıt ağı izi). Hazır yama belgelerindeki "69 m_outbox_dizin / 70 m_kb_surum" ve
 S2 tasarımındaki "76–79" numaraları ESKİ ÖNERİDİR; `M-kb-surum` artık 70 DEĞİL. L2'nin `M-kb-surum` ile ilişkisi: bağımsız; `M-kb-surum` yazılırsa
 L2'nin iki yeni yazıcısı (yerine koyma: eski kalemi pasifleştirme + yeni kalem) de sürüm artırır (S2 tasarımı §L2).
