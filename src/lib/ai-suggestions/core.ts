@@ -735,11 +735,14 @@ function promiseAt(c: PromiseClause, at: number, kind: CommitmentKind, ctx: Mess
   // "Bugün ya da yarın" → hangi gün? belirsiz → öneri yok.
   if (DAY_TOMORROW.test(scope.folded) && DAY_TODAY.test(scope.folded)) return REJECT;
   const day: HostPromise["day"] = DAY_TOMORROW.test(scope.folded) ? "tomorrow" : "today";
+  // T1: aynı parçada ayrılamayan iki söz fiili ("Teknisyen yarın 10'da gelecek havluları akşam getireceğim") — saat / dilim hangi söze ait
+  // belli değil: hiçbiri okunmaz (yarın 22:00 uydurulurdu), kart saati sorar.
+  const twoVerbs = promiseVerbCount(segments[at]) >= 2;
   // Geçmişe atıf ("dün gece") dilim sayılmaz.
-  const part = DAY_PARTS.find((d) => d.re.test(scope.folded.replace(PAST_PART, " ")));
+  const part = twoVerbs ? undefined : DAY_PARTS.find((d) => d.re.test(scope.folded.replace(PAST_PART, " ")));
   // T2: açık saat süreyi yener ("Teknisyen 10'da gelecek, 2 saat içinde halleder" — süre işin uzunluğu).
-  const clocks = timeMentions(scope.raw, scope.folded);
-  let inMinutes = clocks.length > 0 ? null : durationMinutes(sliceOf(from, durationTo).folded);
+  const clocks = twoVerbs ? [] : timeMentions(scope.raw, scope.folded);
+  let inMinutes = clocks.length > 0 || twoVerbs ? null : durationMinutes(sliceOf(from, durationTo).folded);
   // 24 saati aşan süre ("48 saat içinde") bugün / yarın modelinin dışında → öneri yok (Haiku 10-12 4. tur: saat kipinde yuvarlanıyordu).
   if (inMinutes !== null && inMinutes > 24 * 60) return REJECT;
   // T2: yarınki söz + süre ("Teknisyen yarın 2 saat içinde gelecek") — süre ŞİMDİDEN sayılıp yarına konmaz (yarın 11:00 uydurulurdu): saat
@@ -751,7 +754,7 @@ function promiseAt(c: PromiseClause, at: number, kind: CommitmentKind, ctx: Mess
   // Birbirinden farklı saatler (12 saat farkı aynı saatin öğleden önce / sonra okumasıdır) → saat seçilmez, kart sorar (O9). Aynı parçada
   // ayrılamayan iki söz fiili (T1) de kart.
   const timeAmbiguous =
-    timeCandidates.some((a) => timeCandidates.some((b) => a !== b && Math.abs(a - b) !== 12 * 60)) || durationOnTomorrow || promiseVerbCount(segments[at]) >= 2;
+    timeCandidates.some((a) => timeCandidates.some((b) => a !== b && Math.abs(a - b) !== 12 * 60)) || durationOnTomorrow || twoVerbs;
   const cue = inMinutes === null && timeCandidates.length === 0 && part ? { minutes: part.minutes, half: part.half, code: part.code, end: part.end } : null;
   const soon = inMinutes === null && timeCandidates.length === 0 && cue === null && SOON.test(scope.folded);
   const reschedule = RESCHEDULE.test(scope.folded);

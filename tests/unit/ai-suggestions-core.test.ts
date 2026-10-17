@@ -726,6 +726,10 @@ describe("söz algılama v2 — gün kapsamı, dilek, iki söz, süre, devam (se
     ["Hopefully the technician will come tomorrow at 10.", []],
     // Soldaki yalın saat parçası okunur.
     ["Teknisyen 10'da, yarın gelecek.", ["auto maintenance/-/visit tomorrow 10:00"]],
+    // T1: ayrılamayan iki söz fiili (bağlaç yok) → saat / dilim okunmaz (22:00 uydurulmaz), kart.
+    ["Teknisyen yarın 10'da gelecek havluları akşam getireceğim.", ["CARD maintenance/-/visit tomorrow day timeAmb"]],
+    // T2: kendi kapsamında saat + süre → saat kazanır (süre işin uzunluğu).
+    ["Teknisyen yarın 10'da gelip 2 saat içinde halledecek.", ["auto maintenance/-/visit tomorrow 10:00"]],
   ])("%s", (text, expected) => {
     expect(summary(text)).toEqual(expected);
   });
