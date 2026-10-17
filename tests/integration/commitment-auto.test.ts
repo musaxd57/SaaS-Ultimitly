@@ -117,6 +117,18 @@ describe("anahtar ve ayar", () => {
     expect((await getConversationSuggestions(s.orgId, s.conversationId)).filter((x) => x.kind === "commitment")).toEqual([]);
   });
 
+  it("🚨 öneri anahtarı KAPALI + otomatik söz AÇIK → yalnız SÖZ önerisi karara açık (görev önerisi 404); ikisi de kapalı → 404", async () => {
+    vi.stubEnv("AI_ACTION_SUGGESTIONS_ENABLED", "");
+    const s = await setup();
+    // Görev önerisi anahtarı (konuşmadaki misafir mesajı) — öneri anahtarı kapalıyken reddedilir.
+    expect((await decide({ key: "task:anything", decision: "dismiss" })).status).toBe(404);
+    // Söz önerisi anahtarı rotadan geçer (öneri yoksa 409 "artık geçerli değil" — 404 DEĞİL).
+    expect((await decide({ key: "commitment:nothing", decision: "dismiss" })).status).toBe(409);
+    vi.stubEnv("HOST_COMMITMENT_AUTO_ENABLED", "");
+    expect((await decide({ key: "commitment:nothing", decision: "dismiss" })).status).toBe(404);
+    void s;
+  });
+
   it("KONTROL: anahtar KAPALIYKEN ayar kapalı olsa da öneri bugünkü gibi görünür (ayar yüzeyde yok)", async () => {
     vi.stubEnv("HOST_COMMITMENT_AUTO_ENABLED", "");
     const s = await setup();
@@ -164,15 +176,17 @@ describe("saat uydurulmaz — açık saat · gün dilimi · yalnız gün", () =>
 
   it("'Havlu getireceğim' (saat / gün yok) → GÜN olarak tutulur (dilim yok, başlıkta ek yok)", async () => {
     const s = await setup();
-    const msg = await hostSays(s.conversationId, "Havlu getireceğim.");
-    expect((await applyHostCommitmentsAuto(s.orgId, s.conversationId)).created).toBe(1);
+    // Sabit an (İstanbul 12:00): gece yarısını aşan koşuda "bugün" kaymasın (Haiku 10-17 gece).
+    const NOW = new Date("2026-11-20T09:00:00Z");
+    const msg = await hostSays(s.conversationId, "Havlu getireceğim.", new Date(NOW.getTime() - 5_000));
+    expect((await applyHostCommitmentsAuto(s.orgId, s.conversationId, NOW)).created).toBe(1);
     const [c] = await prisma.guestCommitment.findMany();
     expect(c).toMatchObject({ duePrecision: "day", dayPart: null });
     expect(dateKeyInTimeZone(c.dueAt, TZ)).toBe(dateKeyInTimeZone(msg.createdAt, TZ));
     expect((await prisma.task.findUniqueOrThrow({ where: { id: c.taskId! } })).title).toBe("Misafire söz: Havlu / çarşaf");
   });
 
-  it.each(["Belki yarın teknisyen gelir.", "Teknisyen yarın gelecek demiştim.", "Teknisyen ertelendi."])(
+  it.each(["Belki yarın teknisyen gelecek.", "Teknisyen yarın gelecek demiştim.", "Teknisyen ertelendi.", "Klima için teknisyen 2 hafta sonra gelecek."])(
     "kararsız / aktarılan / zamansız değişiklik '%s' → hiçbir şey açılmaz",
     async (text) => {
       const s = await setup();
@@ -220,8 +234,12 @@ describe("günlük sınır 20 (kurucu 10-17)", () => {
     expect(await applyHostCommitmentsAuto(s.orgId, s.conversationId)).toEqual({ created: 0, rescheduled: 0, skipped: 1 });
     expect(await prisma.guestCommitment.count({ where: { conversationId: s.conversationId } })).toBe(0);
     expect((await getConversationSuggestions(s.orgId, s.conversationId)).filter((x) => x.kind === "commitment")).toHaveLength(1);
-    // Bir otomatik söz kaldırılırsa (19) yer açılır.
-    await prisma.guestCommitment.deleteMany({ where: { id: (await prisma.guestCommitment.findFirstOrThrow({ where: { conversationId: other.id } })).id } });
+    // Konaklama bitince kapanan otomatik söz yine sayılır (gün içinde açıldı) → hâlâ dolu.
+    const seeded = await prisma.guestCommitment.findMany({ where: { conversationId: other.id }, orderBy: { id: "asc" }, take: 2 });
+    await prisma.guestCommitment.update({ where: { id: seeded[0].id }, data: { status: "cancelled", closedReason: "stay_ended" } });
+    expect((await applyHostCommitmentsAuto(s.orgId, s.conversationId)).created).toBe(0);
+    // "Yanlış, kaldır" ile kaldırılan söz sayılmaz (Haiku 10-17 gece) → yer açılır.
+    await prisma.guestCommitment.update({ where: { id: seeded[1].id }, data: { status: "cancelled", closedReason: "wrong" } });
     expect((await applyHostCommitmentsAuto(s.orgId, s.conversationId)).created).toBe(1);
   });
 
@@ -347,8 +365,10 @@ describe("teslim edilmemiş mesaj", () => {
 });
 
 describe("konaklama bitince (kurucu: havlu / temizlik / eksik eşya kapansın, arıza kalsın)", () => {
-  const todayKey = () => dateKeyInTimeZone(new Date(), TZ);
-  const yesterdayKey = () => dateKeyInTimeZone(addZonedDays(new Date(), -1, TZ), TZ);
+  // Sabit an (İstanbul 12:00) — gece yarısını aşan koşuda gün kaymasın.
+  const NOW = new Date("2026-11-20T09:00:00Z");
+  const todayKey = () => dateKeyInTimeZone(NOW, TZ);
+  const yesterdayKey = () => dateKeyInTimeZone(addZonedDays(NOW, -1, TZ), TZ);
 
   async function seed(departureKey: string) {
     const s = await setup({ reservationDepartureKey: departureKey });
@@ -357,7 +377,7 @@ describe("konaklama bitince (kurucu: havlu / temizlik / eksik eşya kapansın, a
       conversationId: s.conversationId,
       propertyId: s.propertyId,
       reservationId: s.reservationId,
-      dueAt: new Date(Date.now() - 3_600_000),
+      dueAt: new Date(NOW.getTime() - 3_600_000),
       actorUserId: null,
       source: "auto" as const,
     };
@@ -371,7 +391,7 @@ describe("konaklama bitince (kurucu: havlu / temizlik / eksik eşya kapansın, a
     const { towels, cleaning, maintenance } = await seed(yesterdayKey());
     // Temizlik görevi üzerinde çalışılıyor → görev KALIR (söz yine kapanır).
     await prisma.task.update({ where: { id: cleaning.taskId }, data: { status: "in_progress" } });
-    expect(await closeStayEndedCommitments()).toEqual({ closed: 2 });
+    expect(await closeStayEndedCommitments(NOW)).toEqual({ closed: 2 });
     const rows = await prisma.guestCommitment.findMany({ orderBy: { kind: "asc" } });
     expect(rows.map((r) => [r.kind, r.status, r.closedReason])).toEqual([
       ["cleaning", "cancelled", "stay_ended"],
@@ -383,19 +403,19 @@ describe("konaklama bitince (kurucu: havlu / temizlik / eksik eşya kapansın, a
     expect(await prisma.task.findUnique({ where: { id: maintenance.taskId } })).not.toBeNull();
     expect(await prisma.auditLog.count({ where: { action: "commitment.stay_ended" } })).toBe(2);
     // Tekrar koşu: kapanmış söze dokunmaz.
-    expect(await closeStayEndedCommitments()).toEqual({ closed: 0 });
+    expect(await closeStayEndedCommitments(NOW)).toEqual({ closed: 0 });
   });
 
   it("KONTROL: çıkış günü BUGÜN → hiçbiri kapanmaz (çıkış günü boyunca söz açık); başlığı ev sahibince değiştirilmiş görev silinmez", async () => {
     await seed(todayKey());
-    expect(await closeStayEndedCommitments()).toEqual({ closed: 0 });
+    expect(await closeStayEndedCommitments(NOW)).toEqual({ closed: 0 });
     expect(await prisma.guestCommitment.count({ where: { status: "open" } })).toBe(3);
   });
 
   it("başlığı ev sahibince değiştirilmiş (yapılacak) görev silinmez", async () => {
     const { towels } = await seed(yesterdayKey());
     await prisma.task.update({ where: { id: towels.taskId }, data: { title: "Havluları 3. kata götür" } });
-    await closeStayEndedCommitments();
+    await closeStayEndedCommitments(NOW);
     expect(await prisma.task.findUnique({ where: { id: towels.taskId } })).not.toBeNull();
   });
 });
@@ -519,6 +539,16 @@ describe("Dikkat Gerektirenler — kesinlik + gecikme payı + 1 gün hatırlatma
     await row(s, new Date("2026-10-10T20:59:00Z"), { duePrecision: "part", dayPart: "evening" });
     await row(s, new Date("2026-10-11T03:00:00Z"), { duePrecision: "part", dayPart: "night" }); // bu gece (06:00'ya kadar)
     expect((await items(s.orgId)).map((x) => x.commitmentTime)).toEqual(["bugün akşam", "bugün gece"]);
+  });
+
+  it("🚨 dünden kalan saatsiz sözler (önem 60) bugün geciken saatli sözü (96) üç satırlık tavandan DÜŞÜRMEZ (Haiku 10-17 gece)", async () => {
+    const s = await setup();
+    for (const m of ["20:56", "20:57", "20:58"]) await row(s, new Date(`2026-10-09T${m}:00Z`), { duePrecision: "day" });
+    await row(s, new Date("2026-10-10T11:00:00Z"), { duePrecision: "time" }); // bugün 14:00 — 1 sa gecikti
+    const r = await items(s.orgId);
+    expect(r).toHaveLength(3);
+    expect(r.map((x) => x.severity).sort()).toEqual([60, 60, 96]);
+    expect(r.find((x) => x.severity === 96)?.commitmentTime).toBe("14:00");
   });
 
   it("1 günden uzun geciken söz satırda kalır (kalan ≤ -1440 → panel 'Söz 1 gündür açık'); kendiliğinden kapanmaz", async () => {

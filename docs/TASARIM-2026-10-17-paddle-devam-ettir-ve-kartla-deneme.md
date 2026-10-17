@@ -86,7 +86,16 @@ Sonuçlar bu tabloya işlenir; varsayımı tutmayan her satır için kod düzelt
   tutar `line_items[].totals.total` (indirim + vergi sonrası, en küçük birimde tam sayı metni). Eski kod olmayan alanı okuyordu → anahtar açılsaydı onay
   penceresi hiç açılmazdı (para riski yoktu). Şimdi satır toplamı (katı biçim) + aboneliğin `address_id`si önizlemeye gider (P8 hâlâ ENGELLEYİCİ:
   gerçek tahsilatla eşitlik P6'da ölçülecek).
-- D3 / D4 (paket değişikliği önizlemesi + işlem olayı toplam alanları) kayıt sayfasına eklendi; P0–P14 panel girişi bekliyor.
+- **D3 ✅ (belge):** abonelik önizlemesinde `immediate_transaction.details.totals.grand_total` (null olabilir) + `recurring_transaction_details.totals.grand_total`
+  (zorunlu) var. **D5 ✅ (belge, tur 3):** GET `/subscriptions/{id}` `include=recurring_transaction_details` destekliyor (alan yalnız include ile
+  döner) → Opus PAD-A düzeltmesi (devam tutarı aboneliğin KENDİ tekrarlayan önizlemesinden, `subscriptionRecurringTotal`) belgeyle birebir;
+  ek kod değişikliği gerekmedi. **D4 ✅:** işlemde `details.totals.grand_total` + `currency_code`.
+- **P5 ✅ (belge):** katalog dışı fiyatta `trial_period` (yinelenen fiyat şart). **P7 kısmi:** iptal edilmiş abonelikte devam / duraklat seçeneği
+  yok. **P13 kısmi (tur 2):** yıllık TEST fiyatı TRY 8.990 vergi dahil önizleme. **P2 (belge, tur 2):** `/subscriptions/{id}/activate` deneme
+  aboneliğini hemen faturalar — denenmedi.
+- **P0 ✅ (tur 3):** ödeme sayfası engeli kalktı — Paddle'ın KENDİ barındırdığı ödeme sayfası (Settings → Payments → Hosted checkouts,
+  `sandbox-pay.paddle.io/hsc_…`); "Default payment link" ayarı DEĞİŞMEDİ. P1 / P3 / P4 / P6 / P6b / P8 / P9 / P11 / P12 / P14 bu sayfayla tur 3
+  devamında (kartı kurucu girer); **P8 hâlâ `PADDLE_RESUME_ENABLED` için ENGELLEYİCİ**. P10 (simülasyon) bilinçli denenmedi (bildirim hedefine istek atar).
 
 ## 5. Dilim sonu denetimleri (10-17)
 - Haiku (devam ettir 11 + kartla deneme / operatör 12 bulgu) ve Opus (P0 yok · P1 A1 · P2 A2, A3, C2–C4, F1) bulguları kodda işlendi; A1 → P8

@@ -164,7 +164,8 @@ describe("C · söz kaydı önerisi", () => {
     ]);
     await prisma.organization.update({ where: { id: orgId }, data: { autoTaskFromMessageEnabled: true } }); // A önerisi karışmasın
     const [s] = await getConversationSuggestions(orgId, conversationId);
-    expect(s).toMatchObject({ kind: "commitment", proposal: { commitmentKind: "maintenance", day: "tomorrow", time: "12:00" } });
+    // Saat UYDURULMAZ (kurucu 10-17 gece): "Yarın teknisyen gelecek" → yalnız gün (eskiden 12:00 uyduruluyordu).
+    expect(s).toMatchObject({ kind: "commitment", proposal: { commitmentKind: "maintenance", day: "tomorrow", time: "", precision: "day" } });
 
     expect((await decide({ key: s.key, decision: "approve", day: "tomorrow", time: "25:00" })).status).toBe(400);
     const ok = await decide({ key: s.key, decision: "approve", day: "tomorrow", time: "10:00" });
@@ -187,10 +188,8 @@ describe("C · söz kaydı önerisi", () => {
     await prisma.organization.update({ where: { id: orgId }, data: { autoTaskFromMessageEnabled: true } });
     const [s] = await getConversationSuggestions(orgId, conversationId);
     expect(s?.kind).toBe("commitment");
-    // Ev sahibi aynı sözü (aynı tür + aynı an) mesajdan ÖNCE elle açmış olsun.
-    const org = await prisma.organization.findUniqueOrThrow({ where: { id: orgId }, select: { timezone: true } });
-    const proposal = s.proposal as { day: "today" | "tomorrow"; time: string };
-    const dueAt = commitmentDueAt({ day: proposal.day, time: proposal.time }, orgTimezone(org.timezone), new Date())!;
+    // Ev sahibi aynı sözü (aynı tür + aynı an) mesajdan ÖNCE elle açmış olsun — önerinin kendi son anı (gün sözünde günün sonu).
+    const dueAt = new Date((s.proposal as { dueAt: string }).dueAt);
     const c = await createGuestCommitment({ organizationId: orgId, conversationId, propertyId, reservationId: null, kind: "maintenance", dueAt, actorUserId: u.id });
     await prisma.guestCommitment.update({ where: { id: c.id }, data: { createdAt: new Date(Date.now() - 10 * 60_000) } });
     expect(await getConversationSuggestions(orgId, conversationId)).toEqual([]);
@@ -208,10 +207,9 @@ describe("C · söz kaydı önerisi", () => {
     ]);
     await prisma.organization.update({ where: { id: orgId }, data: { autoTaskFromMessageEnabled: true } });
     const [s] = await getConversationSuggestions(orgId, conversationId);
-    const org = await prisma.organization.findUniqueOrThrow({ where: { id: orgId }, select: { timezone: true } });
-    // Önerinin KENDİ saati (düzenleme yok) — aynı an elle açılırsa öneri zaten listeden kalkar; karar yazılmaz.
-    const proposal = s.proposal as { day: "today" | "tomorrow"; time: string };
-    const dueAt = commitmentDueAt({ day: proposal.day, time: proposal.time }, orgTimezone(org.timezone), new Date())!;
+    // Önerinin KENDİ son anı (düzenleme yok) — aynı an elle açılırsa öneri zaten listeden kalkar; karar yazılmaz.
+    const proposal = s.proposal as { day: "today" | "tomorrow"; time: string; dueAt: string };
+    const dueAt = new Date(proposal.dueAt);
     __aiSuggestionHooks.afterDecisionCheck = async () => {
       // Başka sekmede ev sahibi aynı sözü elle açtı (ayrı bağlantı, hemen commit).
       await createGuestCommitment({ organizationId: orgId, conversationId, propertyId, reservationId: null, kind: "maintenance", dueAt, actorUserId: u.id });
@@ -235,7 +233,7 @@ describe("C · söz kaydı önerisi", () => {
     ]);
     await prisma.organization.update({ where: { id: orgId }, data: { autoTaskFromMessageEnabled: true } });
     const [s] = await getConversationSuggestions(orgId, conversationId);
-    expect(s.proposal).toMatchObject({ day: "tomorrow", time: "12:00" }); // ön koşul: 10:00 bir DÜZENLEME
+    expect(s.proposal).toMatchObject({ day: "tomorrow", time: "", precision: "day" }); // ön koşul: 10:00 bir DÜZENLEME (saat yazılmamıştı)
     const org = await prisma.organization.findUniqueOrThrow({ where: { id: orgId }, select: { timezone: true } });
     const dueAt = commitmentDueAt({ day: "tomorrow", time: "10:00" }, orgTimezone(org.timezone), new Date())!;
     __aiSuggestionHooks.afterDecisionCheck = async () => {

@@ -71,7 +71,24 @@ describe("misafir sözü — KVKK", () => {
     const exported = await buildOrganizationDataExport(a.orgId);
     expect(exported?.guestCommitments).toHaveLength(1);
     expect(Object.keys(exported!.guestCommitments[0]).sort()).toEqual(
-      ["closedAt", "conversationId", "createdAt", "dueAt", "id", "kind", "status", "taskId", "topic"].sort(),
+      // Migration 75 (söz → görev otomatik): kesinlik / dilim / kaynak / kaynak mesaj / önceki son an / kapanış nedeni — metin YOK.
+      [
+        "closedAt",
+        "closedReason",
+        "conversationId",
+        "createdAt",
+        "dayPart",
+        "dueAt",
+        "duePrecision",
+        "id",
+        "kind",
+        "previousDueAt",
+        "source",
+        "sourceMessageId",
+        "status",
+        "taskId",
+        "topic",
+      ].sort(),
     );
     expect(exported!.guestCommitments[0]).toMatchObject({ id: a.commitmentId, kind: "towels", status: "open", taskId: a.taskId });
   });

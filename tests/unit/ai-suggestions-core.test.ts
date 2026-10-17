@@ -286,9 +286,9 @@ describe("C · söz — Haiku 10-12 3. tur", () => {
 
 describe("söz → görev otomatik (kurucu 10-17 gece): kararsız / aktarılan söz yok · saat değişikliği bağlamla · saat uydurulmaz", () => {
   it.each([
-    ["Belki yarın teknisyen gelir.", "belki"],
+    ["Belki yarın teknisyen gelecek.", "belki"],
     ["Teknisyen yarın gelecek galiba.", "galiba"],
-    ["Umarım yarın teknisyen gelir.", "umarım"],
+    ["Umarım yarın teknisyen gelecek.", "umarım"],
     ["Teknisyen yarın gelecek, emin değilim.", "emin değilim"],
     ["Muhtemelen yarın havlu getiririm.", "muhtemelen"],
     ["Maybe the technician will come tomorrow.", "maybe"],
@@ -297,6 +297,12 @@ describe("söz → görev otomatik (kurucu 10-17 gece): kararsız / aktarılan s
     ["Dediğim gibi teknisyen yarın gelecek.", "aktarılan"],
     ["As I said, the technician will come tomorrow.", "aktarılan (EN)"],
     ["Teknisyen ertelendi.", "değişiklik var, yeni zaman yok → hiçbir şey"],
+    // Haiku 10-17 gece: bugün / yarın modelinin dışındaki gün ifadeleri ("bugün" sanılıp bugüne söz açılıyordu).
+    ["Klima için teknisyen 2 hafta sonra gelecek.", "2 hafta sonra"],
+    ["Teknisyen bir gün sonra gelecek.", "bir gün sonra"],
+    ["Teknisyen 3 ay sonra gelecek.", "3 ay sonra"],
+    ["The technician will come in two weeks.", "in two weeks"],
+    ["Yarın havlu getireceğim?", "soru"],
     ["Teknisyen saati değişti.", "değişiklik var, yeni zaman yok → hiçbir şey"],
   ])("%s → söz yok (%s)", (text) => {
     expect(detectHostPromises(text)).toEqual([]);
@@ -320,6 +326,42 @@ describe("söz → görev otomatik (kurucu 10-17 gece): kararsız / aktarılan s
     expect(rest).toEqual([]);
     expect(p).toMatchObject({ kind: "maintenance", reschedule: true });
     expect(promiseWindow(p!, now)).toEqual(win);
+  });
+
+  it("KONTROL: kararlılık sözcüğü SÖZÜN parçasında değilse kararsız sayılmaz mı? — HAYIR, bilerek cümlecik boyunca (kararsızlık sözü kapsar)", () => {
+    expect(detectHostPromises("Teknisyen yarın gelecek, galiba.")).toEqual([]);
+    expect(detectHostPromises("Teknisyen yarın gelecek.")).toMatchObject([{ kind: "maintenance" }]);
+  });
+
+  it("🚨 süre YALNIZ sözün parçasından (Haiku 10-17 gece: sağdaki işin süresi son an sanılıp 10:00 silinip 16:00 uyduruluyordu)", () => {
+    const w = (t: string) => promiseWindow(detectHostPromise(t)!, 14 * 60);
+    expect(w("Teknisyen yarın 10'da gelecek, işi 2 saat içinde bitirir.")).toEqual({ day: "tomorrow", precision: "time", time: "10:00", end: 600 });
+    expect(w("Teknisyen yarın 10'da gelecek, 2 saat kadar sürer.")).toEqual({ day: "tomorrow", precision: "time", time: "10:00", end: 600 });
+    // KONTROL: sözün kendi parçasındaki / solundaki süre okunur; saat değişikliğinin devam parçası sözün parçasıdır.
+    expect(w("Teknisyen 30 dakika içinde gelecek.")).toEqual({ day: "today", precision: "time", time: "14:30", end: 870 });
+    expect(w("30 dakika içinde, teknisyen gelecek.")).toEqual({ day: "today", precision: "time", time: "14:30", end: 870 });
+    expect(w("Teknisyen saati değişti, 30 dakika içinde gelecek.")).toEqual({ day: "today", precision: "time", time: "14:30", end: 870 });
+  });
+
+  it("🚨 geçmişe atıf ('dün gece', 'geçen gece', 'geçen hafta') sözün dilimi DEĞİL; 'bu gece', 'gecenin ikisinde' gece dilimi", () => {
+    const w = (t: string) => promiseWindow(detectHostPromise(t)!, 10 * 60);
+    expect(w("Teknisyen yarın gelecek, geçen gece çok yağmur yağdı.")).toEqual({ day: "tomorrow", precision: "day", end: 1439 });
+    expect(w("Dün gece klima bozuldu teknisyen yarın gelecek.")).toEqual({ day: "tomorrow", precision: "day", end: 1439 });
+    expect(w("Teknisyen geçen hafta geldi, yarın tekrar gelecek.")).toEqual({ day: "tomorrow", precision: "day", end: 1439 });
+    expect(w("Bu gece havlu getireceğim.")).toEqual({ day: "today", precision: "part", dayPart: "night", end: 1800 });
+    expect(w("Gecenin ikisinde havlu getireceğim.")).toMatchObject({ precision: "part", dayPart: "night" });
+  });
+
+  it("aktarma girişi ('dediğim gibi, …') solda da sözü aktarılan yapar; 'bugün gelmedi, yarın 10'da gelecek' YENİ söz", () => {
+    expect(detectHostPromises("Dediğim gibi, teknisyen yarın gelecek.")).toEqual([]);
+    expect(detectHostPromise("Teknisyen bugün gelmedi, yarın 10'da gelecek.")).toMatchObject({ kind: "maintenance", day: "tomorrow", timeCandidates: [600] });
+  });
+
+  it("🚨 sözden SONRA gelen ayrı soru sözü bozmaz ('…, başka bir ihtiyacınız var mı?'); sözün kendisi soruysa söz yok", () => {
+    expect(detectHostPromises("Yarın havlu getireceğim, başka bir ihtiyacınız var mı?")).toMatchObject([{ kind: "towels", day: "tomorrow" }]);
+    expect(detectHostPromises("Teknisyen yarın gelecek mi?")).toEqual([]);
+    expect(detectHostPromises("Yarın havlu getireceğim?")).toEqual([]);
+    expect(detectHostPromises("Havlu getireyim mi, yarın 10'da?")).toEqual([]);
   });
 
   it("'kaydı' / 'alındı' AD ya da başka anlamda ise saat değişikliği değil (aşırı uygulama kontrolü)", () => {

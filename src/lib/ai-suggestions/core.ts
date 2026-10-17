@@ -67,6 +67,12 @@ const REPORTED = new RegExp(
   "u",
 );
 /**
+ * Aktarma GİRİŞİ ("dediğim gibi, …", "as I said, …", "I told you, …") sözün SOLUNDAKİ parçada da sözü aktarılan söz yapar (Haiku 10-17 gece:
+ * virgülle ayrılınca kaçıyordu). "Gelmedi / gelemedi" ise yalnız sözün kendi parçasında: "Teknisyen bugün gelmedi, yarın 10'da gelecek"
+ * YENİ bir sözdür.
+ */
+const REPORTED_LEAD = new RegExp(`${NL}(?:dedigim\\s+gibi|soyledigim\\s+gibi|as\\s+i\\s+said|as\\s+mentioned|i\\s+told\\s+you)${NR}`, "u");
+/**
  * SAAT DEĞİŞİKLİĞİ ("11'e kaydı", "yarına ertelendi", "saat değişti", "rescheduled", "moved to 11") — kurucu 10-17 gece: aynı sözün saati
  * BAĞLAMLA güncellenir. Söz fiili olmasa da söz cümleciği sayılır ama YALNIZ zaman bilgisiyle (`promiseAt`). "kaydı" tek başına AD olabilir
  * ("rezervasyon kaydı") → yalnız saat / gün / dilim ardından ("11'e kaydı", "yarına kaydı"); çıplak "değişti" de olmaz ("klima değişti").
@@ -75,6 +81,16 @@ const RESCHEDULE = new RegExp(
   `${NL}(?:(?:\\d{1,2}(?:[:.]\\d{2})?\\s*(?:['’]\\s*)?(?:e|a|ye|ya)|yarin\\p{L}{0,2}|bugun\\p{L}{0,2}|sabah\\p{L}{0,3}|aksam\\p{L}{0,3}|ogleden\\s+sonra\\p{L}{0,3})\\s+(?:kaydi|kaydirildi|kaydirdik|alindi)|ertelendi|erteledik|ertelenmistir|saat\\p{L}{0,4}\\s+degis\\p{L}{0,6}|rescheduled|postponed|pushed\\s+back|moved\\s+to)${NR}`,
   "u",
 );
+
+/**
+ * GEÇMİŞE ATIF (Haiku 10-17 gece): "dün gece", "geçen akşam", "last night" — sözün zamanı DEĞİL. Zaman / dilim okunmadan önce kapsamdan
+ * silinir ("Dün gece klima bozuldu teknisyen yarın gelecek" → "yarın", gece dilimi değil); geçmişe atıf taşıyan virgül parçası söze katılmaz.
+ */
+const PAST_PART = new RegExp(
+  `${NL}(?:dun|gecen|onceki|yesterday|last)\\s+(?:gece|aksam|sabah|ogle|night|evening|morning|afternoon)\\p{L}{0,5}${NR}`,
+  "gu",
+);
+const PAST_REF = new RegExp(`${NL}(?:dun|gecen|onceki|demin|az\\s+once|yesterday|last\\s+(?:night|week)|earlier\\s+today)${NR}`, "u");
 
 /**
  * "değil" / "yok" YALNIZ söz fiilinin bulunduğu virgül parçasında ve fiilden SONRA olumsuzlar ("temizlikçi gelecek değil", "bugün gelecek
@@ -90,7 +106,7 @@ const SEGMENT_SPLIT = /(?<!\d),|,(?!\d)|(?<![\p{L}\p{N}])(?:ama|fakat|ancak|but)
 const DAY_TODAY = /(?<![\p{L}\p{N}])(?:bugun\p{L}{0,3}|today|tonight)(?![\p{L}])/u;
 const DAY_TOMORROW = /(?<![\p{L}\p{N}])(?:yarin(?:a|ki)?|tomorrow)(?![\p{L}])/u;
 const DAY_UNKNOWN = new RegExp(
-  `${NL}(?:(?:pazartesi|sali|carsamba|persembe|cuma|cumartesi|pazar)\\p{L}{0,4}|yarindan\\s+sonra|obur\\s+gun\\p{L}{0,2}|ertesi\\s+gun\\p{L}{0,2}|\\d{1,2}\\s*gun\\p{L}{0,3}|(?:iki|uc|dort|bes|birkac)\\s+gun\\p{L}{0,3}|onumuzdeki|gelecek\\s+hafta\\p{L}{0,2}|haftaya|hafta\\s+(?:sonu|ici)\\p{L}{0,3}|monday|tuesday|wednesday|thursday|friday|saturday|sunday|next\\s+(?:week|month)|weekend|day\\s+after\\s+tomorrow|in\\s+\\d+\\s+days)${NR}`,
+  `${NL}(?:(?:pazartesi|sali|carsamba|persembe|cuma|cumartesi|pazar)\\p{L}{0,4}|yarindan\\s+sonra|obur\\s+gun\\p{L}{0,2}|ertesi\\s+gun\\p{L}{0,2}|\\d{1,2}\\s*(?:gun|hafta|ay)\\p{L}{0,3}|(?:bir|iki|uc|dort|bes|birkac)\\s+(?:gun|hafta|ay)\\p{L}{0,3}|onumuzdeki|gelecek\\s+hafta\\p{L}{0,2}|haftaya|hafta\\s+(?:sonu|ici)\\p{L}{0,3}|monday|tuesday|wednesday|thursday|friday|saturday|sunday|next\\s+(?:week|month)|weekend|day\\s+after\\s+tomorrow|in\\s+(?:\\d+|a|an|one|two|three|a\\s+few|few)\\s+(?:days?|weeks?|months?))${NR}`,
   "u",
 );
 
@@ -196,7 +212,7 @@ const DAY_PARTS: ReadonlyArray<{ re: RegExp; minutes: number; half: DayHalf; cod
   { re: new RegExp(`${NL}aksamustu\\p{L}{0,3}${NR}`, "u"), minutes: 17 * 60, half: "pm", code: "late_afternoon", end: 19 * 60 },
   { re: new RegExp(`${NL}(?:aksam\\p{L}{0,5}|evening)${NR}`, "u"), minutes: 19 * 60, half: "pm", code: "evening", end: 23 * 60 + 59 },
   { re: new RegExp(`${NL}gece\\s+yarisi\\p{L}{0,3}${NR}`, "u"), minutes: 23 * 60 + 30, half: "night", code: "midnight", end: 25 * 60 },
-  { re: new RegExp(`${NL}(?:gece\\p{L}{0,5}|tonight)${NR}`, "u"), minutes: 21 * 60, half: "night", code: "night", end: 30 * 60 },
+  { re: new RegExp(`${NL}(?:gece(?!n(?:de|ler|lerde)?(?![\\p{L}\\p{N}]))\\p{L}{0,5}|tonight)${NR}`, "u"), minutes: 21 * 60, half: "night", code: "night", end: 30 * 60 },
   { re: new RegExp(`${NL}(?:sabah\\p{L}{0,5}|morning)${NR}`, "u"), minutes: 10 * 60, half: "am", code: "morning", end: 12 * 60 },
   { re: new RegExp(`${NL}(?:ogle(?:n|ne|yin|ye)|noon|midday)${NR}`, "u"), minutes: 12 * 60, half: "pm", code: "noon", end: 14 * 60 },
 ];
@@ -330,9 +346,12 @@ interface PromiseClause {
 /** Cümlecik söz taşıyabilir mi (soru / koşul / olumsuz değil, söz fiili var) — taşıyorsa parçaları. */
 function promiseClause(raw: string): PromiseClause | null {
   const clause = foldTurkishAscii(raw).toLowerCase();
-  if (clause.trim() === "" || /[?؟]\s*$/.test(raw) || CONDITIONAL.test(clause)) return null;
+  if (clause.trim() === "" || CONDITIONAL.test(clause)) return null;
   if (!PROMISE.test(clause) && !RESCHEDULE.test(clause)) return null;
-  if (QUESTION_PARTICLE.test(clause) || NEGATION.test(clause) || HEDGE.test(clause)) return null;
+  // Soru YALNIZ sözün kapsamında söz bozar (↓ `promiseAt`): "Yarın havlu getireceğim, başka bir ihtiyacınız var mı?" bir söz + ayrı bir
+  // sorudur (Haiku 10-17 gece; eskiden cümlecik sonundaki "?" bütün sözü düşürüyordu). İptal / kararsızlık bilerek cümlecik boyunca kalır
+  // ("Teknisyen gelecek ama iptal olabilir", "…, galiba").
+  if (NEGATION.test(clause) || HEDGE.test(clause)) return null;
   const segments = clause.split(SEGMENT_SPLIT);
   const rawSegments = raw.split(RAW_SEGMENT_SPLIT);
   const verbIdx = segments.map((seg, i) => (PROMISE.test(seg) || RESCHEDULE.test(seg) ? i : -1)).filter((i) => i >= 0);
@@ -345,7 +364,7 @@ function promiseClause(raw: string): PromiseClause | null {
 function promiseAt(c: PromiseClause, at: number, kind: CommitmentKind): HostPromise | typeof REJECT {
   const { raw, segments, rawSegments, topicIn } = c;
   // Aktarılan / geçmiş söz (söz fiilinin kendi parçasında) söz değildir.
-  if (REPORTED.test(segments[at])) return REJECT;
+  if (REPORTED.test(segments[at]) || segments.slice(0, at).some((seg) => REPORTED_LEAD.test(seg))) return REJECT;
   // Kapsam: sözün parçası; bilgi yoksa soldaki (söz fiili TAŞIMAYAN) parçalar. Özgün metin aynı sayıda parçaya bölünemezse cümlecik.
   let from = at;
   const aligned = rawSegments.length === segments.length;
@@ -359,7 +378,8 @@ function promiseAt(c: PromiseClause, at: number, kind: CommitmentKind): HostProm
     at - from < 3 &&
     !hasTimeInfo(sliceOf(from, at).folded, sliceOf(from, at).raw) &&
     !PROMISE.test(segments[from - 1]) &&
-    !RESCHEDULE.test(segments[from - 1])
+    !RESCHEDULE.test(segments[from - 1]) &&
+    !PAST_REF.test(segments[from - 1])
   )
     from--;
   // Sağdaki ZAMAN bilgisi taşıyan, söz fiili ve konu TAŞIMAYAN parçalar da sözün parçasıdır ("Teknisyen gelecek, yarın sabah 10 gibi";
@@ -368,20 +388,34 @@ function promiseAt(c: PromiseClause, at: number, kind: CommitmentKind): HostProm
   // 15:00'te gelecek" — kurucu 10-17 gece: "konuyu, değiştirilen şeyi anlamalı").
   const rescheduleOnly = !PROMISE.test(segments[at]) && RESCHEDULE.test(segments[at]);
   let to = at;
+  // Süre ("30 dakika içinde") yalnız SÖZÜN parçalarından okunur (Haiku 10-17 gece: "Teknisyen yarın 10'da gelecek, işi 2 saat içinde bitirir"
+  // sağdaki işin süresini son an sanıyor, 10:00'ı silip 16:00 uyduruyordu). Saat değişikliğinin devam eden söz parçası sözün parçasıdır.
+  let durationTo = at;
   while (to + 1 < segments.length && to - at < 2) {
     const next = sliceOf(to + 1, to + 1);
     const continues = rescheduleOnly && to === at && PROMISE.test(next.folded) && !RESCHEDULE.test(next.folded);
-    if ((!continues && PROMISE.test(next.folded)) || RESCHEDULE.test(next.folded) || topicIn(next.folded) !== undefined || !hasTimeInfo(next.folded, next.raw)) break;
+    if (
+      (!continues && PROMISE.test(next.folded)) ||
+      RESCHEDULE.test(next.folded) ||
+      topicIn(next.folded) !== undefined ||
+      PAST_REF.test(next.folded) ||
+      !hasTimeInfo(next.folded, next.raw)
+    )
+      break;
     to++;
+    if (continues) durationTo = to;
   }
   const scope = sliceOf(from, to);
+  // Soru sözün kapsamındaysa söz değil: soru eki ("gelecek mi") ya da cümlecik "?" ile bitiyor ve son parça kapsamda.
+  if (QUESTION_PARTICLE.test(scope.folded) || (/[?؟]\s*$/.test(raw) && to === segments.length - 1)) return REJECT;
   // Tanınmayan gün (kapsamda) → öneri yok.
   if (DAY_UNKNOWN.test(scope.folded)) return REJECT;
   // "Bugün ya da yarın" → hangi gün? belirsiz → öneri yok.
   if (DAY_TOMORROW.test(scope.folded) && DAY_TODAY.test(scope.folded)) return REJECT;
   const day: HostPromise["day"] = DAY_TOMORROW.test(scope.folded) ? "tomorrow" : "today";
-  const part = DAY_PARTS.find((d) => d.re.test(scope.folded));
-  const inMinutes = durationMinutes(scope.folded);
+  // Geçmişe atıf ("dün gece") dilim sayılmaz.
+  const part = DAY_PARTS.find((d) => d.re.test(scope.folded.replace(PAST_PART, " ")));
+  const inMinutes = durationMinutes(sliceOf(from, durationTo).folded);
   // 24 saati aşan süre ("48 saat içinde") bugün / yarın modelinin dışında → öneri yok (Haiku 10-12 4. tur: saat kipinde yuvarlanıyordu).
   if (inMinutes !== null && inMinutes > 24 * 60) return REJECT;
   let timeCandidates = inMinutes === null ? timeMentions(scope.raw, scope.folded) : [];

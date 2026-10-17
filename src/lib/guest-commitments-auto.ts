@@ -63,7 +63,17 @@ export async function applyHostCommitmentsAuto(organizationId: string, conversat
   const tz = orgTimezone(org.timezone);
   const suggestions = (await getConversationSuggestions(organizationId, conversationId, now)).filter((s) => s.kind === "commitment");
   if (suggestions.length === 0) return ZERO;
-  let used = await prisma.guestCommitment.count({ where: { organizationId, source: "auto", createdAt: { gte: startOfLocalDay(now, tz) } } });
+  // "Yanlış, kaldır" ile kaldırılan söz sayılmaz (Haiku 10-17 gece). YUMUŞAK sınır: aynı işletmenin iki konuşması aynı anda işlenirse
+  // (gönderim kancası + senkron turu) bir iki söz aşılabilir — gürültü sınırıdır, para / güvenlik sınırı değil.
+  let used = await prisma.guestCommitment.count({
+    where: {
+      organizationId,
+      source: "auto",
+      createdAt: { gte: startOfLocalDay(now, tz) },
+      // `not` NULL'u dışlar (SQL) → açık / kapanmış (neden yok) satırlar ayrı dal.
+      OR: [{ closedReason: null }, { closedReason: { not: "wrong" } }],
+    },
+  });
   // Kalıcı kuyrukta olup henüz TESLİM EDİLMEMİŞ ev sahibi mesajı (gönderilmedi / düştü / iptal / belirsiz) misafire ulaşmamış olabilir →
   // ondan söz kendiliğinden açılmaz (öneri kartı kalır; teslim olunca sonraki tur işler). Aynı kural geçmişten öğrenmede.
   const undelivered = await undeliveredOutboundIds(
@@ -149,7 +159,14 @@ export const STAY_END_CLOSES: readonly string[] = ["towels", "supplies", "cleani
 export async function closeStayEndedCommitments(now: Date = new Date()): Promise<{ closed: number }> {
   if (!hostCommitmentAutoEnabled()) return { closed: 0 };
   const open = await prisma.guestCommitment.findMany({
-    where: { status: "open", kind: { in: [...STAY_END_CLOSES] }, conversation: { reservation: { isNot: null } } },
+    // Ön süzgeç: çıkışı ŞU ANDAN önce olan rezervasyonlar (çıkış günü bugünden önceyse saklı tarih de şu andan öncedir) — kesin kural
+    // aşağıda. Süzgeçsiz `take` süren konaklamaların sözleriyle dolup biten konaklamaları hiç göremeyebilirdi (Haiku 10-17 gece).
+    where: {
+      status: "open",
+      kind: { in: [...STAY_END_CLOSES] },
+      conversation: { reservation: { is: { departureDate: { lt: now } } } },
+    },
+    orderBy: [{ dueAt: "asc" }, { id: "asc" }],
     select: {
       id: true,
       organizationId: true,

@@ -49,7 +49,7 @@ import { DecisionPanel } from "@/components/inbox/decision-panel";
 import { CommitmentsCard, type CommitmentRow } from "@/components/inbox/commitments-card";
 import { ActionSuggestions } from "@/components/ai-suggestions/action-suggestions";
 import { aiActionSuggestionsEnabled, getConversationSuggestions } from "@/lib/ai-suggestions/load";
-import { commitmentLateAt, isCommitmentKind, storedCommitmentWhen, type CommitmentKind } from "@/lib/guest-commitments-core";
+import { commitmentLateAt, hostCommitmentAutoEnabled, isCommitmentKind, storedCommitmentWhen, type CommitmentKind } from "@/lib/guest-commitments-core";
 
 export const dynamic = "force-dynamic";
 
@@ -248,9 +248,14 @@ export default async function ConversationPage({
 
   // Yapay zekâ EYLEM ÖNERİLERİ (⑤ ilk dilim, kurucu 10-12: "öner + tek tıkla onay"): görev + söz. Yalnız yönetici, destek görünümünde YOK
   // (yazma kapalı — K8), anahtar kapalıyken veri hiç ÜRETİLMEZ. Okunamazsa öneri yok (sayfa etkilenmez).
+  // Söz → görev otomatik açıkken (öneri anahtarı kapalı olsa da) SÖZ kartları görünür: belirsiz saat / hangi söz seçimi ve günlük sınır
+  // aşımı ancak buradan çözülür (kurucu 10-17 gece). Görev / Wi-Fi önerisi yine öneri anahtarına bağlı.
+  const suggestionsOn = aiActionSuggestionsEnabled();
   const actionSuggestions =
-    aiActionSuggestionsEnabled() && canManage(session) && !isImpersonating(session)
-      ? await getConversationSuggestions(session.organizationId, conversation.id).catch(() => [])
+    (suggestionsOn || hostCommitmentAutoEnabled()) && canManage(session) && !isImpersonating(session)
+      ? (await getConversationSuggestions(session.organizationId, conversation.id).catch(() => [])).filter(
+          (s) => suggestionsOn || s.kind === "commitment",
+        )
       : [];
 
   // Misafire verilen AÇIK sözler (açık taahhüt hafızası A, kurucu kararı 10-10; migration 62) — yalnız yönetici görür / işaretler.

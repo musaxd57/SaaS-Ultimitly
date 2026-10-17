@@ -196,7 +196,9 @@ describe("söz → görev otomatik (kurucu 10-17 gece) — bağlamla saat seçim
     await act(async () => {
       fireEvent.click(screen.getByText("Onayla"));
     });
-    expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body))).toMatchObject({ key: "c:4", decision: "approve", time: "" });
+    // Düzenleme yoksa gün / saat HİÇ gönderilmez — sunucu önerinin kendi penceresini (akşam) kullanır; saat uydurulmaz.
+    const sent = JSON.parse(String(fetchMock.mock.calls[0]![1]!.body));
+    expect(sent).toEqual({ key: "c:4", decision: "approve" });
     cleanup();
     render(<ActionSuggestions items={[item]} />);
     expect(screen.queryByTestId("no-time-hint")).toBeNull();

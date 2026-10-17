@@ -107,6 +107,8 @@ export const COMMITMENT_SOON_HOURS = 2;
 export const COMMITMENT_STALE_HOURS = 48;
 /** En fazla bu kadar söz satırı (öteki dikkat satırlarını dışarı itmesin). */
 export const COMMITMENT_MAX_ROWS = 3;
+/** Söz satırı adayı olarak okunan en çok satır (önem sırasıyla `COMMITMENT_MAX_ROWS` seçilir). */
+export const COMMITMENT_SCAN_ROWS = 30;
 
 /** Sağlayıcı arızası satırı bu kadar saat içinde bu sebeple bekleyen konuşmaları sayar (G10). */
 export const PROVIDER_OUTAGE_WINDOW_HOURS = 48;
@@ -344,7 +346,9 @@ export async function findAttentionItems(
           OR: [{ duePrecision: null }, { duePrecision: { not: "day" } }, { dueAt: { lt: now } }],
         },
         orderBy: [{ dueAt: "asc" }, { id: "asc" }],
-        take: COMMITMENT_MAX_ROWS,
+        // Geniş okunur, satırlar ÖNEMİNE göre seçilir (↓): dünden kalan saatsiz sözler (önem 60) bugün geciken saatli sözü (96) üç satırlık
+        // tavandan düşürmesin (Haiku 10-17 gece).
+        take: COMMITMENT_SCAN_ROWS,
         select: {
           kind: true,
           topic: true,
@@ -544,6 +548,7 @@ export async function findAttentionItems(
     const todayKey = dateKeyInTimeZone(now, tz);
     const tomorrowKey = dateKeyInTimeZone(addZonedDays(now, 1, tz), tz);
     const yesterdayKey = dateKeyInTimeZone(addZonedDays(now, -1, tz), tz);
+    const commitmentRows: AttentionItem[] = [];
     for (const c of commitments) {
       if (!isCommitmentKind(c.kind)) continue;
       // Gecikme payı (kurucu 10-17 gece / Opus): açık saatli sözde 30 dk içinde "gecikti" denmez (kalan 0); dilim / gün sözünde son an zaten
@@ -564,7 +569,7 @@ export async function findAttentionItems(
               : `${c.dueAt.toLocaleDateString("tr-TR", { day: "numeric", month: "short", timeZone: tz })} `;
       // Dilim / gün sözünde saat UYDURULMAZ (kurucu 10-17): "yarın akşam", "bugün (saat belirtilmedi)".
       const whenText = precise ? `${dayWord}${clock}` : storedCommitmentWhen(c, now, tz);
-      items.push({
+      commitmentRows.push({
         kind: "commitment_due",
         // GÖZLEM: söz ev sahibinin AÇIK işaretinden doğdu (yorum yok).
         certainty: "observed",
@@ -581,6 +586,15 @@ export async function findAttentionItems(
         commitmentTime: whenText,
       });
     }
+    // En önemli `COMMITMENT_MAX_ROWS` satır (eşitlikte son an sırası korunur), son an sırasıyla eklenir.
+    const keep = new Set(
+      commitmentRows
+        .map((row, i) => ({ row, i }))
+        .sort((a, b) => b.row.severity - a.row.severity || a.i - b.i)
+        .slice(0, COMMITMENT_MAX_ROWS)
+        .map((x) => x.row),
+    );
+    items.push(...commitmentRows.filter((row) => keep.has(row)));
   }
 
   for (const h of held) {
