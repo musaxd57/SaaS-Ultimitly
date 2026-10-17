@@ -230,3 +230,28 @@ describe("Takvim — rezervasyon günü tek tarih kuralıyla", () => {
     expect(agendaDay(tree, "2026-09-25")).toBeNull();
   });
 });
+
+describe("Takvim — panoyla aynı tekrar kuralı (gece-4 S6-01)", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+  });
+
+  it("🚨 iki dairede AYNI referanslı elle / dosya rezervasyonu ('1') ikisi de görünür; sağlayıcı satırı daireler arası tek kalır", async () => {
+    const { org, property } = await seedOrg("Cal Dedupe");
+    mockAuth.mockResolvedValue(sessionFor(org.id));
+    const other = await prisma.property.create({ data: { organizationId: org.id, name: "Daire B" } });
+    // Dosyadan içe aktarılmış (kanal "ics"/elle): aynı "1" referansı iki dairede meşru (veritabanı kısıtı daire + referans).
+    for (const [pid, guest] of [
+      [property.id, "MisafirDosyaA"],
+      [other.id, "MisafirDosyaB"],
+    ] as const) {
+      await prisma.reservation.create({
+        data: { propertyId: pid, guestName: guest, arrivalDate: noon("2026-08-10"), departureDate: noon("2026-08-12"), status: "confirmed", sourceReference: "1", channel: "ics" },
+      });
+    }
+    const text = treeText(await CalendarPage({ searchParams: sp({ month: "2026-08" }) }));
+    expect(text).toContain("MisafirDosyaA");
+    expect(text).toContain("MisafirDosyaB");
+  });
+});

@@ -32,8 +32,8 @@ export function SupplyAiSummary({ days, enabled }: { days: number; enabled: bool
         setSummary(data.summary ?? null);
         if (!data.summary) setError("Bu aralıkta özetlenecek bir ihtiyaç yok.");
       } else {
-        // Include the (redacted) upstream reason so a wrong model id / key is visible.
-        setError(data.detail ? `${data.error ?? "Özet oluşturulamadı."} (${data.detail})` : data.error ?? "Özet oluşturulamadı.");
+        // Sağlayıcının ham sebebi gösterilmez (sunucu da göndermez — S7-02).
+        setError(data.error ?? "Özet oluşturulamadı.");
       }
     } catch {
       setError("İnternet bağlantınızda sorun var gibi görünüyor. Kontrol edip tekrar deneyin.");

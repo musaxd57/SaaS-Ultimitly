@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { dedupeBookings } from "@/lib/reports";
 
 export const dynamic = "force-dynamic";
 
@@ -77,20 +78,17 @@ export default async function CalendarPage({
       departureDate: true,
       sourceReference: true,
       propertyId: true,
+      calendarSourceId: true,
+      channel: true,
       property: { select: { name: true } },
     },
     orderBy: { arrivalDate: "asc" },
   });
 
-  // Same dedupe rule as the dashboard: collapse duplicate Hospitable rows
-  // (same sourceReference), keep every manual/iCal row (null sourceReference).
-  const seen = new Set<string>();
-  const reservations = reservationsRaw.filter((r) => {
-    if (r.sourceReference == null) return true;
-    if (seen.has(r.sourceReference)) return false;
-    seen.add(r.sourceReference);
-    return true;
-  });
+  // Panoyla / raporlarla AYNI tekrar kuralı (`dedupeBookings`): yalnız sağlayıcının mesajlaşabilir satırları daireler arası birleşir; elle /
+  // dosya / iCal satırı daire + referansla ayrışır (gece-4 S6-01: referans tek başına anahtar olunca başka dairenin aynı numaralı ("1")
+  // rezervasyonu düşüyor, o daire o gecelerde BOŞ görünüyordu).
+  const reservations = dedupeBookings(reservationsRaw);
 
   // Bucket by org-timezone day key.
   type DayInfo = {

@@ -63,12 +63,10 @@ export const POST = withManage(async (session, req) => {
 
   const result = await generateSupplySummary(plan);
   if (!result.ok) {
-    // Surface a short (redacted) reason so a misconfigured model id / key / URL
-    // is diagnosable from the Network tab, not just a blank 502.
-    return NextResponse.json(
-      { error: "Özet oluşturulamadı, lütfen tekrar deneyin.", detail: result.reason },
-      { status: 502 },
-    );
+    // HAM SAĞLAYICI METNİ KİRACIYA GİTMEZ (gece-4 S7-02): sebep ("HTTP 401 (model=…) {…Incorrect API key provided: sk-proj-…}", iç ana
+    // makine / IP) maskelemeden geçemiyordu ve her müşteri yöneticisinin ekranına basılıyordu. Teşhis operatörde: HTTP dalı zaten
+    // `reportError`a gidiyor (supply-ai.ts).
+    return NextResponse.json({ error: "Özet oluşturulamadı, lütfen tekrar deneyin." }, { status: 502 });
   }
   return jsonOk({ summary: result.text });
 });

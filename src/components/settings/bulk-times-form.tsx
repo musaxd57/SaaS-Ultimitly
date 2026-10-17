@@ -43,7 +43,13 @@ export function BulkTimesForm({
       const res = await fetch("/api/properties/bulk-times", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ checkInTime, checkOutTime }),
+        // YALNIZ değişen alan gönderilir (gece-4 S6-12): ilk değerler EN ESKİ dairenin saatleri; yalnız giriş saati değişince çıkış saati de
+        // gönderiliyordu ve farklı çıkış saatli dairelerin saati sessizce eziliyordu (misafire bu saatler söyleniyor). Rota kısmi güncellemeyi
+        // zaten destekliyor (`field in data`).
+        body: JSON.stringify({
+          ...(checkInTime !== baseCheckIn ? { checkInTime } : {}),
+          ...(checkOutTime !== baseCheckOut ? { checkOutTime } : {}),
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -74,7 +80,7 @@ export function BulkTimesForm({
             <FormError>{error}</FormError>
           ) : null}
           <p className="text-sm text-muted-foreground">
-            Buraya girdiğin saatler <strong>tüm dairelere</strong> uygulanır. AI cevaplarında ve
+            Buraya girdiğiniz saatler <strong>tüm dairelere</strong> uygulanır. AI cevaplarında ve
             karşılama bilgisinde bu saatler kullanılır.
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
