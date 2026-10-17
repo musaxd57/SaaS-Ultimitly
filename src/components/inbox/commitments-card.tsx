@@ -17,8 +17,10 @@ export interface CommitmentRow {
   topic?: string | null;
   /** Son an, ev sahibinin saatiyle (sunucu biçimledi). */
   dueLabel: string;
-  /** Sayfa açıldığında son ana kalan dakika (eksi = gecikti). */
+  /** Sayfa açıldığında son ana kalan dakika (eksi = gecikti; açık saatte 30 dk pay içinde 0). */
   minutesLeft: number;
+  /** Ev sahibinin mesajından KENDİLİĞİNDEN kaydedildi (kurucu 10-17 gece) — "Yanlış, kaldır" seçeneği. */
+  auto?: boolean;
 }
 
 /**
@@ -84,17 +86,21 @@ export function CommitmentsCard({
     }
   }
 
-  async function cancel(id: string) {
-    if (!window.confirm("Bu söz iptal edilsin mi? Bağlı görev silinmez.")) return;
+  async function cancel(id: string, wrong: boolean) {
+    // Kendiliğinden kaydedilen söz yanlış okunduysa ("Yanlış, kaldır"): söz ve sistemin açtığı görev kaldırılır (görevde çalışıldıysa kalır).
+    const question = wrong
+      ? "Bu söz yanlış kaydedildiyse kaldırılsın mı? Açılan görev de kaldırılır (üzerinde çalışıldıysa kalır)."
+      : "Bu söz iptal edilsin mi? Bağlı görev silinmez.";
+    if (!window.confirm(question)) return;
     setBusy(id);
     try {
       const res = await fetch(`/api/conversations/${conversationId}/commitments/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "cancelled" }),
+        body: JSON.stringify(wrong ? { status: "cancelled", reason: "wrong" } : { status: "cancelled" }),
       });
       if (res.ok) router.refresh();
-      else toast.error("İptal edilemedi. Lütfen tekrar deneyin.");
+      else toast.error(wrong ? "Kaldırılamadı. Lütfen tekrar deneyin." : "İptal edilemedi. Lütfen tekrar deneyin.");
     } catch {
       toast.error("Bağlantı hatası. Lütfen tekrar deneyin.");
     } finally {
@@ -123,14 +129,26 @@ export function CommitmentsCard({
                     <div className="text-xs text-muted-foreground">
                       {c.dueLabel} ·{" "}
                       <Badge tone={late ? "destructive" : "secondary"} className="align-middle">
-                        {late ? `${commitmentDurationLabel(c.minutesLeft)} gecikti` : `${commitmentDurationLabel(c.minutesLeft)} kaldı`}
+                        {late
+                          ? `${commitmentDurationLabel(c.minutesLeft)} gecikti`
+                          : c.minutesLeft === 0
+                            ? "zamanı geldi"
+                            : `${commitmentDurationLabel(c.minutesLeft)} kaldı`}
                       </Badge>
                     </div>
+                    {c.auto ? <div className="text-xs text-muted-foreground" data-testid="commitment-auto-label">Mesajınızdan kaydedildi</div> : null}
                   </div>
                   {readOnly ? null : (
-                    <Button type="button" size="sm" variant="ghost" className="h-7 text-xs" disabled={busy === c.id} onClick={() => void cancel(c.id)}>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 text-xs"
+                      disabled={busy === c.id}
+                      onClick={() => void cancel(c.id, Boolean(c.auto))}
+                    >
                       {busy === c.id ? <Loader2 className="size-3 animate-spin" /> : null}
-                      İptal
+                      {c.auto ? "Yanlış, kaldır" : "İptal"}
                     </Button>
                   )}
                 </li>

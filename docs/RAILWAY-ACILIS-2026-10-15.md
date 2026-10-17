@@ -86,6 +86,15 @@ bekleyen satır 10 dakikayı geçmemeli.
 
 ## 5. Yeni anahtarlar (bu turda eklenenler)
 
+- **Paddle bildirim hedefi (kurucu 10-17, anahtar uyarısı):** Paddle → Developer tools → Notifications → canlı bildirim hedefinde
+  `api_key.expiring`, `api_key.expired`, `api_key.revoked` olaylarını da işaretleyin. Kod bu olaylarda operatöre uyarı e-postası gönderir
+  (anahtarın adı + bitiş tarihi; anahtarın kendisi yazılmaz). Yeni canlı anahtar: bitiş tarihli (ör. 1 yıl) + Rotatable; izinler §0.4.
+
+- `HOST_COMMITMENT_AUTO_ENABLED` (kurucu 10-17 gece: söz → görev otomatik, "herkese birden") — açılışta `"1"` (migration 75 ile birlikte).
+  Ev sahibinin misafire yazdığı söz onaysız söz + görev olur; saat uydurulmaz (açık saat / "akşam" / yalnız gün); bağlamla kesin eşleşen
+  saat değişikliği aynı görevi taşır; günde işletme başına 20; konaklama bitince havlu / malzeme / temizlik sözü kapanır, arıza kalır.
+  Misafire HİÇBİR şey gitmez. Müşteri Ayarlar'dan kapatabilir. Kapatmak = env'i sil (öneri + onay akışına döner).
+
 - `OUTBOX_FAST_WAKE` (kurucu 10-16) — varsayılan AÇIK, env gerekmez; yalnız `0` kapatır (kuyruğa yazılan elle cevap 2 dk beklemesin).
 - `OUTBOX_DELIVERY_PAUSED` (kurucu 10-16) — EKLEMEYİN; acil durumda `1` = kuyrukta bekleyen gönderimler durur (uzlaştırma sürer; kuyruk dışı
   anında gönderim ve kimlik e-postası etkilenmez). Kaldırınca kaldığı yerden TEK kez gider. Ayrıntı `DEPLOYMENT.md` §6.

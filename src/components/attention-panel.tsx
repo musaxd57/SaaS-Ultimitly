@@ -6,7 +6,7 @@ import { signalCategoryLabel } from "@/modules/intelligence/labels";
 import type { AttentionItem, AttentionKind } from "@/modules/intelligence/incidents/attention";
 import type { MoneyImpact } from "@/modules/intelligence/money/impact";
 import { itemKindLabel } from "@/lib/conversation-items/view";
-import { commitmentDurationLabel, commitmentLabel } from "@/lib/guest-commitments-core";
+import { COMMITMENT_REMIND_AFTER_MIN, commitmentDurationLabel, commitmentLabel } from "@/lib/guest-commitments-core";
 import { CONNECTION_ERROR_TEXT, CONNECTION_ERROR_TEXT_VIEWER, agoLabel } from "@/lib/channels/health";
 import { ReactivateReservationButton } from "@/components/reactivate-reservation-button";
 
@@ -85,7 +85,10 @@ function headline(item: AttentionItem): string {
         : `Karar bekliyor: ${item.decisionTitle ?? "konaklama isteği"}`;
     case "commitment_due": {
       const what = item.commitmentKind ? commitmentLabel(item.commitmentKind, item.commitmentTopic) : "misafir isteği";
-      return (item.minutesLeft ?? 0) < 0 ? `Misafire verilen söz gecikti: ${what}` : `Misafire söz verildi: ${what}`;
+      const left = item.minutesLeft ?? 0;
+      // 1 gün sonra TEK hatırlatma (kurucu 10-17 gece: kendiliğinden kapatma YOK, e-posta YOK — yalnız bu satırın metni).
+      if (left <= -COMMITMENT_REMIND_AFTER_MIN) return `Söz 1 gündür açık: ${what}`;
+      return left < 0 ? `Misafire verilen söz gecikti: ${what}` : `Misafire söz verildi: ${what}`;
     }
     case "connection_unhealthy":
       return item.connectionErrorKind ? "Kanal bağlantısı okunamıyor" : "Kanal senkronu gecikiyor";
@@ -123,7 +126,11 @@ function detail(item: AttentionItem, canManageChannel: boolean): string {
         : `${item.propertyName} · onaylayın ya da reddedin`;
     case "commitment_due": {
       const left = item.minutesLeft ?? 0;
-      const when = left < 0 ? `${commitmentDurationLabel(left)} gecikti` : `${commitmentDurationLabel(left)} kaldı`;
+      if (left <= -COMMITMENT_REMIND_AFTER_MIN) {
+        return `${item.propertyName} · ${item.commitmentTime ?? ""} · yapıldıysa görevi tamamlayın, yapılmayacaksa iptal edin`;
+      }
+      // 0 = son an geldi ya da açık saatin 30 dk payı içinde (gecikti denmez).
+      const when = left < 0 ? `${commitmentDurationLabel(left)} gecikti` : left === 0 ? "zamanı geldi" : `${commitmentDurationLabel(left)} kaldı`;
       return `${item.propertyName} · ${item.commitmentTime ?? ""} · ilgili görev tamamlanmadı · ${when}`;
     }
     case "connection_unhealthy": {

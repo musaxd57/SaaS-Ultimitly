@@ -79,6 +79,32 @@ describe("AttentionPanel", () => {
     expect(screen.getByText(/Lale · yarın 09:00 · ilgili görev tamamlanmadı · 2 sa 14 dk kaldı/)).toBeTruthy();
   });
 
+  it("söz → görev otomatik (kurucu 10-17 gece): pay içinde 'zamanı geldi'; 1 gün sonra TEK hatırlatma metni (kapatma yok); saatsiz söz saat uydurmadan", () => {
+    const row = (minutesLeft: number, commitmentTime: string, propertyId: string): AttentionItem => ({
+      ...base,
+      propertyId,
+      kind: "commitment_due",
+      certainty: "observed",
+      severity: 89,
+      href: `/inbox/${propertyId}`,
+      commitmentKind: "towels",
+      minutesLeft,
+      commitmentTime,
+    });
+    render(
+      <AttentionPanel
+        items={[row(0, "14:30", "p1"), row(-24 * 60, "dün akşam", "p2"), row(-24 * 60 + 1, "dün 15:01", "p3"), row(-30 * 60, "dün (saat belirtilmedi)", "p4")]}
+      />,
+    );
+    expect(screen.getByText(/Deniz Apart · 14:30 · ilgili görev tamamlanmadı · zamanı geldi/)).toBeTruthy();
+    // Tam 1 gün → hatırlatma; 1 gün dolmadan → bugünkü "gecikti" metni (eşik pini).
+    expect(screen.getAllByText("Söz 1 gündür açık: Havlu / çarşaf")).toHaveLength(2);
+    expect(screen.getByText(/dün akşam · yapıldıysa görevi tamamlayın, yapılmayacaksa iptal edin/)).toBeTruthy();
+    expect(screen.getByText(/dün \(saat belirtilmedi\) · yapıldıysa görevi tamamlayın/)).toBeTruthy();
+    expect(screen.getByText(/dün 15:01 · ilgili görev tamamlanmadı · 23 sa 59 dk gecikti/)).toBeTruthy();
+    expect(screen.getAllByText("Misafire verilen söz gecikti: Havlu / çarşaf")).toHaveLength(1);
+  });
+
   it("kanal bağlantısı satırı: hata türünü sade söyler, 'Tüm daireler' der, sağlayıcı ADI geçmez; bayat okuma gecikme uyarısı", () => {
     const items: AttentionItem[] = [
       { ...base, propertyId: "", propertyName: "", kind: "connection_unhealthy", certainty: "observed", severity: 98, href: "/settings?tab=baglantilar", connectionErrorKind: "auth_revoked", minutesSinceOk: 10 },

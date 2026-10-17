@@ -49,7 +49,7 @@ import { DecisionPanel } from "@/components/inbox/decision-panel";
 import { CommitmentsCard, type CommitmentRow } from "@/components/inbox/commitments-card";
 import { ActionSuggestions } from "@/components/ai-suggestions/action-suggestions";
 import { aiActionSuggestionsEnabled, getConversationSuggestions } from "@/lib/ai-suggestions/load";
-import { isCommitmentKind, type CommitmentKind } from "@/lib/guest-commitments-core";
+import { commitmentLateAt, isCommitmentKind, storedCommitmentWhen, type CommitmentKind } from "@/lib/guest-commitments-core";
 
 export const dynamic = "force-dynamic";
 
@@ -261,17 +261,24 @@ export default async function ConversationPage({
           where: { conversationId: conversation.id, organizationId: session.organizationId, status: "open" },
           orderBy: [{ dueAt: "asc" }, { id: "asc" }],
           take: 20,
-          select: { id: true, kind: true, topic: true, dueAt: true },
+          select: { id: true, kind: true, topic: true, dueAt: true, duePrecision: true, dayPart: true, source: true },
         })
       )
         .filter((c): c is typeof c & { kind: CommitmentKind } => isCommitmentKind(c.kind))
-        .map((c) => ({
-          id: c.id,
-          kind: c.kind,
-          topic: c.topic,
-          dueLabel: formatDateTime(c.dueAt, TZ),
-          minutesLeft: Math.floor((c.dueAt.getTime() - commitmentNow.getTime()) / 60_000),
-        }))
+        .map((c) => {
+          // Saat UYDURULMAZ (kurucu 10-17 gece): dilim / gün sözünde "yarın akşam", "bugün (saat belirtilmedi)"; açık saatte 30 dk pay
+          // dolmadan "gecikti" denmez (kalan 0 → "zamanı geldi").
+          const precise = c.duePrecision == null || c.duePrecision === "time";
+          const rawLeft = Math.floor((c.dueAt.getTime() - commitmentNow.getTime()) / 60_000);
+          return {
+            id: c.id,
+            kind: c.kind,
+            topic: c.topic,
+            dueLabel: precise ? formatDateTime(c.dueAt, TZ) : storedCommitmentWhen(c, commitmentNow, TZ),
+            minutesLeft: commitmentNow.getTime() < commitmentLateAt(c).getTime() ? Math.max(0, rawLeft) : rawLeft,
+            auto: c.source === "auto",
+          };
+        })
     : [];
 
   // Turnover day = the adjacent booking's checkout/checkin falls on the SAME

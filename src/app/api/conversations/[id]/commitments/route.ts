@@ -60,6 +60,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
       dueAt,
       actorUserId: session.actorUserId ?? session.userId,
       clientRequestId: requestId,
+      source: "manual",
     });
   } catch (err) {
     if (err instanceof CommitmentRequestConflictError) {

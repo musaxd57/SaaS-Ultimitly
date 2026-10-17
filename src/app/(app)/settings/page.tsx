@@ -40,6 +40,7 @@ import { appLocale, appBillingCurrency } from "@/lib/app-config";
 import { isSuperAdmin } from "@/lib/admin";
 import { isHospitableOAuthConfigured } from "@/lib/hospitable-oauth";
 import { isDemoOrg } from "@/lib/demo-tenant/constants";
+import { hostCommitmentAutoEnabled } from "@/lib/guest-commitments-core";
 
 export const dynamic = "force-dynamic";
 
@@ -96,6 +97,7 @@ export default async function SettingsPage({
         closingReplyText: true,
         lateCheckoutOfferText: true,
         autoTaskFromMessageEnabled: true,
+        autoCommitmentsEnabled: true,
         autoSupplyRequestEnabled: true,
         icalShowGuestName: true,
         handoffHoldHours: true,
@@ -211,6 +213,7 @@ export default async function SettingsPage({
             closingText={org?.closingReplyText ?? ""}
             lateCheckoutOffer={org?.lateCheckoutOfferText ?? ""}
             taskFromMessage={org?.autoTaskFromMessageEnabled ?? false}
+            commitmentsAuto={hostCommitmentAutoEnabled() ? (org?.autoCommitmentsEnabled ?? true) : null}
             supplyRequest={org?.autoSupplyRequestEnabled ?? false}
           />
         </CardContent>

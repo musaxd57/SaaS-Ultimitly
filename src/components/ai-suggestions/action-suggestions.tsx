@@ -78,8 +78,16 @@ export function ActionSuggestions({ items }: { items: ActionSuggestionItem[] }) 
   return (
     <div className="space-y-2" data-testid="action-suggestions">
       {items.map((s) => {
-        const p = s.proposal as { day?: string; time?: string; attachTopics?: unknown };
+        const p = s.proposal as { day?: string; time?: string; precision?: string; attachTopics?: unknown; moveOptions?: unknown };
         const attachTopics = Array.isArray(p.attachTopics) ? p.attachTopics.filter(isCommitmentTopic) : [];
+        // Bağlamla saat güncellemesi BELİRSİZ (kurucu 10-17 gece: "başka bir şeyi değiştirmemeli"): yeni saat hangi sözün? — seçim zorunlu.
+        const moveOptions = Array.isArray(p.moveOptions)
+          ? p.moveOptions.filter(
+              (o): o is { commitmentId: string; label: string } =>
+                typeof o === "object" && o !== null && typeof (o as { commitmentId?: unknown }).commitmentId === "string" && typeof (o as { label?: unknown }).label === "string",
+            )
+          : [];
+        const needsChoice = s.kind === "commitment" && (attachTopics.length >= 2 || moveOptions.length > 0);
         const edit = edits[s.key] ?? (s.kind === "commitment" ? { day: p.day ?? "today", time: p.time ?? "" } : undefined);
         return (
           <div key={s.key} className="rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900 dark:border-sky-500/25 dark:bg-sky-500/10 dark:text-sky-200">
@@ -108,7 +116,30 @@ export function ActionSuggestions({ items }: { items: ActionSuggestionItem[] }) 
                   value={edit.time}
                   onChange={(e) => setEdits({ ...edits, [s.key]: { ...edit, time: e.target.value } })}
                 />
+                {/* Saat yazılmamış söz (kurucu 10-17: saat uydurulmaz) — boş bırakılırsa gün / dilim olarak kaydedilir. */}
+                {p.precision && p.precision !== "time" && edit.time === "" ? (
+                  <span className="opacity-80" data-testid="no-time-hint">Saat belirtilmedi — isterseniz ekleyin</span>
+                ) : null}
               </div>
+            ) : null}
+            {s.kind === "commitment" && moveOptions.length > 0 ? (
+              <fieldset className="mt-2 space-y-1 text-xs" data-testid="move-choice">
+                <legend className="mb-1 font-medium">Bu saat hangi söze ait?</legend>
+                {[...moveOptions.map((o) => [`move:${o.commitmentId}`, `Saatini güncelle: ${o.label}`] as const), ["new", "Ayrı söz olarak kaydet"] as const].map(
+                  ([value, label]) => (
+                    <label key={value} className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name={`move-${s.key}`}
+                        value={value}
+                        checked={attach[s.key] === value}
+                        onChange={() => setAttach({ ...attach, [s.key]: value })}
+                      />
+                      {label}
+                    </label>
+                  ),
+                )}
+              </fieldset>
             ) : null}
             {s.kind === "commitment" && attachTopics.length >= 2 ? (
               <fieldset className="mt-2 space-y-1 text-xs" data-testid="attach-choice">
@@ -132,7 +163,7 @@ export function ActionSuggestions({ items }: { items: ActionSuggestionItem[] }) 
             <div className="mt-2 flex gap-2">
               <Button
                 size="sm"
-                disabled={busy !== null || (s.kind === "commitment" && attachTopics.length >= 2 && !attach[s.key])}
+                disabled={busy !== null || (needsChoice && !attach[s.key])}
                 onClick={() => decide(s, "approve")}
               >
                 Onayla

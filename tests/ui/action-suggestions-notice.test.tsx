@@ -139,3 +139,67 @@ describe("Q1-b (kurucu 10-17) — 'hangi söze bağlansın?' seçimi", () => {
     expect(screen.queryByTestId("attach-choice")).toBeNull();
   });
 });
+
+describe("söz → görev otomatik (kurucu 10-17 gece) — bağlamla saat seçimi + saatsiz söz", () => {
+  const move: ActionSuggestionItem = {
+    ...item,
+    key: "c:3",
+    title: "Söz kaydet: Arıza / bakım — yarın 15:00",
+    detail: "Aynı türde açık söz var — bu onun yeni saati mi, ayrı bir söz mü?",
+    proposal: {
+      messageId: "m3",
+      commitmentKind: "maintenance",
+      topic: null,
+      day: "tomorrow",
+      time: "15:00",
+      precision: "time",
+      moveOptions: [{ commitmentId: "cm1", label: "Arıza / bakım — yarın 09:00" }],
+    },
+  };
+
+  it("🚨 'Bu saat hangi söze ait?' seçimi: seçim yokken Onayla PASİF; 'Saatini güncelle' → attach 'move:<kimlik>'", async () => {
+    const fetchMock = vi.fn(async (_u: string, _init?: RequestInit) => ({ ok: true, status: 200, json: async () => ({ status: "done", decision: "approved" }) }));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ActionSuggestions items={[move]} />);
+    expect(screen.getByTestId("move-choice").textContent).toContain("Bu saat hangi söze ait?");
+    expect((screen.getByText("Onayla").closest("button") as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByLabelText("Saatini güncelle: Arıza / bakım — yarın 09:00"));
+    await act(async () => {
+      fireEvent.click(screen.getByText("Onayla"));
+    });
+    expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body))).toMatchObject({ key: "c:3", decision: "approve", attach: "move:cm1" });
+  });
+
+  it("'Ayrı söz olarak kaydet' → attach 'new'", async () => {
+    const fetchMock = vi.fn(async (_u: string, _init?: RequestInit) => ({ ok: true, status: 200, json: async () => ({ status: "done", decision: "approved" }) }));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ActionSuggestions items={[move]} />);
+    fireEvent.click(screen.getByLabelText("Ayrı söz olarak kaydet"));
+    await act(async () => {
+      fireEvent.click(screen.getByText("Onayla"));
+    });
+    expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body))).toMatchObject({ attach: "new" });
+  });
+
+  it("saatsiz söz (dilim / gün): saat kutusu boş, 'Saat belirtilmedi' ipucu; saat GÖNDERİLMEZ (uydurulmaz)", async () => {
+    const fetchMock = vi.fn(async (_u: string, _init?: RequestInit) => ({ ok: true, status: 200, json: async () => ({ status: "done", decision: "approved" }) }));
+    vi.stubGlobal("fetch", fetchMock);
+    const evening: ActionSuggestionItem = {
+      ...item,
+      key: "c:4",
+      title: "Söz kaydet: Havlu / çarşaf — yarın akşam",
+      proposal: { messageId: "m4", commitmentKind: "towels", topic: null, day: "tomorrow", time: "", precision: "part", dayPart: "evening" },
+    };
+    render(<ActionSuggestions items={[evening]} />);
+    expect((screen.getByLabelText("Saat") as HTMLInputElement).value).toBe("");
+    expect(screen.getByTestId("no-time-hint").textContent).toBe("Saat belirtilmedi — isterseniz ekleyin");
+    await act(async () => {
+      fireEvent.click(screen.getByText("Onayla"));
+    });
+    expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body))).toMatchObject({ key: "c:4", decision: "approve", time: "" });
+    cleanup();
+    render(<ActionSuggestions items={[item]} />);
+    expect(screen.queryByTestId("no-time-hint")).toBeNull();
+  });
+});
+

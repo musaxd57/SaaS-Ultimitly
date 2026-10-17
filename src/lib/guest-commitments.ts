@@ -3,7 +3,17 @@ import "server-only";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { writeAuditInTx } from "@/lib/audit";
-import { commitmentTaskTitle, commitmentTopicsCompatible, isCommitmentTopic, type CommitmentKind, type CommitmentTopic } from "@/lib/guest-commitments-core";
+import {
+  commitmentTaskDueAt,
+  commitmentTaskTitle,
+  commitmentTopicsCompatible,
+  isCommitmentTopic,
+  isDayPartCode,
+  type CommitmentKind,
+  type CommitmentTopic,
+  type DayPartCode,
+  type DuePrecision,
+} from "@/lib/guest-commitments-core";
 
 // ---------------------------------------------------------------------------
 // AÇIK TAAHHÜT HAFIZASI A (kurucu kararı 10-10; migration 62; tasarım `docs/TASARIM-2026-10-10-acik-taahhut-hafizasi-onerisi.md`).
@@ -83,7 +93,16 @@ export async function createGuestCommitment(input: {
   /** Sözün konusu (I1, migration 73) — YALNIZ öneri onayı verir (ev sahibinin mesajından, kodla); elle form vermez (NULL). */
   topic?: CommitmentTopic | null;
   dueAt: Date;
-  actorUserId: string;
+  /** Zaman kesinliği (migration 75; kurucu 10-17 "saat uydurulmaz"): yoksa açık saat. Dilim / gün sözünde `dueAt` pencere sonudur. */
+  duePrecision?: DuePrecision | null;
+  dayPart?: DayPartCode | null;
+  /** Dilim / gün sözünün GÜNÜ (YYYY-MM-DD, işletme dilimi) — görevin yalnız-tarih vadesi. */
+  dayKey?: string | null;
+  /** Kaynak (migration 75): auto (ev sahibinin mesajından kendiliğinden) · suggestion (öneri onayı) · manual (elle form). */
+  source?: "auto" | "suggestion" | "manual" | null;
+  sourceMessageId?: string | null;
+  /** Denetim kaydının sahibi; sistem (otomatik söz) için null. */
+  actorUserId: string | null;
   /** İstemcinin işlem kimliği (yoksa her çağrı yeni söz). */
   clientRequestId?: string | null;
   /**
@@ -104,6 +123,8 @@ export async function createGuestCommitment(input: {
   // Dış işlem verilirse (yapay zekâ önerisinin onayı — karar kaydıyla AYNI işlem) onun içinde; yoksa bugünkü gibi kendi işlemi.
   const run = <T,>(fn: (tx: Prisma.TransactionClient) => Promise<T>) => (outerTx ? fn(outerTx) : prisma.$transaction(fn));
   const topic = isCommitmentTopic(input.topic) ? input.topic : null;
+  const precision: DuePrecision = input.duePrecision === "part" || input.duePrecision === "day" ? input.duePrecision : "time";
+  const dayPart: DayPartCode | null = precision === "part" && isDayPartCode(input.dayPart) ? input.dayPart : null;
   return run(async (tx) => {
     // Konuşma kilidi: aynı kimlikli eş zamanlı istekler sıraya girer; ikincisi birincinin yazdığını görür (↑ başlık).
     await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(${COMMITMENT_LOCK_NS}::int4, hashtext(${input.conversationId}))`);
@@ -134,7 +155,7 @@ export async function createGuestCommitment(input: {
           status: "open",
           taskId: { not: null },
         },
-        select: { id: true, taskId: true, topic: true },
+        select: { id: true, taskId: true, topic: true, dayPart: true },
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       });
       const compatible = candidates.filter((c) => commitmentTopicsCompatible(c.topic, topic));
@@ -148,8 +169,8 @@ export async function createGuestCommitment(input: {
           topicAttached = (await tx.guestCommitment.updateMany({ where: { id: same.id, topic: null }, data: { topic } })).count === 1;
           if (topicAttached) {
             await tx.task.updateMany({
-              where: { id: same.taskId, title: commitmentTaskTitle(input.kind, null) },
-              data: { title: commitmentTaskTitle(input.kind, topic) },
+              where: { id: same.taskId, title: commitmentTaskTitle(input.kind, null, same.dayPart) },
+              data: { title: commitmentTaskTitle(input.kind, topic, same.dayPart) },
             });
             await writeAuditInTx(tx, {
               organizationId: input.organizationId,
@@ -169,8 +190,8 @@ export async function createGuestCommitment(input: {
         reservationId: input.reservationId,
         type: TASK_TYPE_FOR[input.kind],
         origin: "manual",
-        title: commitmentTaskTitle(input.kind, topic),
-        dueAt: input.dueAt,
+        title: commitmentTaskTitle(input.kind, topic, precision === "part" ? dayPart : null),
+        dueAt: commitmentTaskDueAt(input.dueAt, precision, input.dayKey ?? null),
         status: "todo",
         priority: "standard",
       },
@@ -185,6 +206,9 @@ export async function createGuestCommitment(input: {
         topic,
         dueAt: input.dueAt,
         clientRequestId: requestId,
+        ...(precision !== "time" ? { duePrecision: precision, dayPart: precision === "part" ? dayPart : null } : { duePrecision: "time" }),
+        ...(input.source ? { source: input.source } : {}),
+        ...(input.sourceMessageId ? { sourceMessageId: input.sourceMessageId } : {}),
       },
       select: { id: true },
     });
@@ -192,7 +216,14 @@ export async function createGuestCommitment(input: {
       organizationId: input.organizationId,
       actorUserId: input.actorUserId,
       action: "commitment.created",
-      metadata: { commitmentId: commitment.id, taskId: task.id, kind: input.kind, ...(topic ? { topic } : {}) },
+      metadata: {
+        commitmentId: commitment.id,
+        taskId: task.id,
+        kind: input.kind,
+        ...(topic ? { topic } : {}),
+        ...(input.source ? { source: input.source } : {}),
+        ...(precision !== "time" ? { precision } : {}),
+      },
     });
     return { id: commitment.id, taskId: task.id, reused: false };
   });
@@ -223,7 +254,8 @@ export async function syncCommitmentsForTaskStatus(
  * yeniden planlamıştır. Görev saati kaldırılırsa (boş) söz saati korunur.
  */
 export async function syncCommitmentsForTaskDueAt(tx: Tx, scope: { organizationId: string; taskId: string }, dueAt: Date): Promise<void> {
-  await tx.guestCommitment.updateMany({ where: { ...scope, status: "open" }, data: { dueAt } });
+  // Ev sahibi görev saatini KENDİSİ seçti → söz artık açık saatli (gün dilimi / gün kesinliği biter — kurucu 10-17).
+  await tx.guestCommitment.updateMany({ where: { ...scope, status: "open" }, data: { dueAt, duePrecision: "time", dayPart: null } });
 }
 
 /**

@@ -50,3 +50,34 @@ describe("AutomationPrefsForm — empty hold-hours guard", () => {
     expect(JSON.parse(String((init as RequestInit).body)).handoffHoldHours).toBe(0);
   });
 });
+
+describe("AutomationPrefsForm — söz → görev otomatik ayarı (kurucu 10-17 gece: 'isterlerse kapatabilsinler')", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }));
+  });
+  afterEach(() => cleanup());
+
+  it("anahtar kapalı (verilmedi / null) → seçenek YOK ve alan GÖNDERİLMEZ", async () => {
+    render(<AutomationPrefsForm {...PROPS} commitmentsAuto={null} />);
+    expect(screen.queryByTestId("auto-commitments-toggle")).toBeNull();
+    fireEvent.change(screen.getByLabelText(/İnsan devri bekleme süresi/i), { target: { value: "5" } });
+    fireEvent.click(screen.getByRole("button", { name: /Kaydet/i }));
+    const [, init] = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(JSON.parse(String((init as RequestInit).body))).not.toHaveProperty("autoCommitmentsEnabled");
+  });
+
+  it("anahtar açık → seçenek görünür (varsayılan işaretli); kapatınca Kaydet etkin ve false gider", async () => {
+    render(<AutomationPrefsForm {...PROPS} commitmentsAuto={true} />);
+    const box = screen.getByTestId("auto-commitments-toggle") as HTMLInputElement;
+    expect(box.checked).toBe(true);
+    const btn = screen.getByRole("button", { name: /Kaydet/i }) as HTMLButtonElement;
+    expect(btn.disabled).toBe(true);
+    fireEvent.click(box);
+    expect(btn.disabled).toBe(false);
+    fireEvent.click(btn);
+    const [, init] = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(JSON.parse(String((init as RequestInit).body)).autoCommitmentsEnabled).toBe(false);
+  });
+});
+

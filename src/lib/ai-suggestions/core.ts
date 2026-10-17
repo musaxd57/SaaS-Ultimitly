@@ -1,6 +1,6 @@
 import { firstBreakdownDevice, foldTurkishAscii } from "@/lib/ai/fallback";
 import { explicitTimeMentions } from "@/lib/early-checkin/text-checks";
-import type { CommitmentKind, CommitmentTopic } from "@/lib/guest-commitments-core";
+import type { CommitmentKind, CommitmentTopic, DayPartCode } from "@/lib/guest-commitments-core";
 import { deviceTopicsOf, topicsOf } from "@/lib/conversation-items/relation";
 
 // ---------------------------------------------------------------------------
@@ -56,6 +56,26 @@ const PROMISE = new RegExp(`${NL}(?:${PROMISE_TR}|${PROMISE_EN})${NR}`, "u");
 const CONDITIONAL = new RegExp(`${NL}(?:eger|isterseniz|istersen|gerekirse|ihtiyac\\p{L}{0,6}\\s+olursa|if|unless)${NR}`, "u");
 /** İptal / engel söz değildir ("teknisyen izinli", "won't come", "iptal oldu") — cümlecik boyunca (Haiku 10-12). */
 const NEGATION = new RegExp(`${NL}(?:iptal|olmayacak|gelmeyecek|gelemeyecek|izinli|won['’]?t|will\\s+not|cannot|can['’]?t|not\\s+coming|cancel\\p{L}*)${NR}`, "u");
+/** Kararsız söz (kurucu 10-17 gece; Opus: "belki / emin değilim" söz sayılıyordu) — cümlecikte varsa söz DEĞİL (görev açılmaz). */
+const HEDGE = new RegExp(
+  `${NL}(?:belki|galiba|sanirim|umarim|muhtemelen|emin\\s+degil\\p{L}{0,6}|maybe|perhaps|hopefully|probably|not\\s+sure)${NR}`,
+  "u",
+);
+/** Aktarılan / geçmiş söz ("teknisyen yarın gelecek DEMİŞTİM", "GELEMEDİ") — söz fiilinin PARÇASINDA ise o söz değil (Opus 10-17). */
+const REPORTED = new RegExp(
+  `${NL}(?:demistim|demistik|soylemistim|soylemistik|dedigim\\s+gibi|gelemedi|gelmedi|getiremedim|getiremedik|yapamadi|as\\s+i\\s+said|i\\s+told\\s+you)${NR}`,
+  "u",
+);
+/**
+ * SAAT DEĞİŞİKLİĞİ ("11'e kaydı", "yarına ertelendi", "saat değişti", "rescheduled", "moved to 11") — kurucu 10-17 gece: aynı sözün saati
+ * BAĞLAMLA güncellenir. Söz fiili olmasa da söz cümleciği sayılır ama YALNIZ zaman bilgisiyle (`promiseAt`). "kaydı" tek başına AD olabilir
+ * ("rezervasyon kaydı") → yalnız saat / gün / dilim ardından ("11'e kaydı", "yarına kaydı"); çıplak "değişti" de olmaz ("klima değişti").
+ */
+const RESCHEDULE = new RegExp(
+  `${NL}(?:(?:\\d{1,2}(?:[:.]\\d{2})?\\s*(?:['’]\\s*)?(?:e|a|ye|ya)|yarin\\p{L}{0,2}|bugun\\p{L}{0,2}|sabah\\p{L}{0,3}|aksam\\p{L}{0,3}|ogleden\\s+sonra\\p{L}{0,3})\\s+(?:kaydi|kaydirildi|kaydirdik|alindi)|ertelendi|erteledik|ertelenmistir|saat\\p{L}{0,4}\\s+degis\\p{L}{0,6}|rescheduled|postponed|pushed\\s+back|moved\\s+to)${NR}`,
+  "u",
+);
+
 /**
  * "değil" / "yok" YALNIZ söz fiilinin bulunduğu virgül parçasında ve fiilden SONRA olumsuzlar ("temizlikçi gelecek değil", "bugün gelecek
  * teknisyen yok"). Başka parçadaki ya da fiilden önceki "yok" sözü bozmaz ("Havlu yok demişsiniz, yarın getireceğim" — Haiku 10-12 2. tur).
@@ -101,10 +121,14 @@ export interface HostPromise {
   day: "today" | "tomorrow";
   /** Açık saat adayları (dakika; "6" → 06:00 ve 18:00) — gün dilimi ya da gündüz tercihiyle süzülmüş; seçim `promiseDue`da. */
   timeCandidates: number[];
-  /** Göreli süre ("birazdan" 60, "30 dakika içinde" 30, "1,5 saat sonra" 90, "yarım saat içinde" 30) — açık saat yoksa. */
+  /** AÇIK göreli süre ("30 dakika içinde" 30, "1,5 saat sonra" 90, "yarım saat içinde" 30) — açık saat yoksa. "Birazdan" süre DEĞİL (↓ `soon`). */
   inMinutes: number | null;
-  /** Açık saat ve süre YOKKEN gün dilimi sözcüğünden varsayılan saat ("sabah" 10:00, "akşam" 19:00 — Haiku 10-12 2. / 3. tur). */
-  cue: { minutes: number; half: DayHalf } | null;
+  /** Açık saat ve süre YOKKEN gün dilimi ("sabah", "akşam") — kod + pencere sonu. Saat UYDURULMAZ (kurucu 10-17: "akşam yazmışsa akşam olarak tutsun"). */
+  cue: { minutes: number; half: DayHalf; code: DayPartCode; end: number } | null;
+  /** "Birazdan / hemen / soon" — saat değil; "kısa süre içinde" (kurucu 10-17: saat uydurulmaz). */
+  soon: boolean;
+  /** Saat DEĞİŞİKLİĞİ cümleciği ("11'e kaydı", "ertelendi") — bağlamla aynı sözün saati güncellenir (kurucu 10-17 gece). */
+  reschedule: boolean;
 }
 
 type DayHalf = "am" | "pm" | "night";
@@ -123,16 +147,23 @@ const DURATION_EN =
   /(?<![\p{L}\p{N}])(?:(?:in|within)\s+(\d{1,3}(?:\.\d{1,2})?|an?|one|two|half\s+an?)\s+(minutes?|mins?|hours?|hrs?)|(\d{1,3})\s+(minutes?|mins?|hours?|hrs?)\s+later)(?![\p{L}])/u;
 const SOON = /(?<![\p{L}\p{N}])(?:birazdan|hemen|az\s+sonra|shortly|right\s+away|soon|asap)(?![\p{L}])/u;
 /** "5'e kadar", "en geç 6'ya kadar" — saat okuyucusunun tanımadığı çıplak biçim (Haiku 10-12 4. tur). */
-const UNTIL_HOUR = /(?<![\p{L}\p{N}.:])([01]?\d|2[0-3])\s*'?\s*(?:e|a|ye|ya)\s+kadar(?![\p{L}])/u;
+const UNTIL_HOUR = /(?<![\p{L}\p{N}.:])([01]?\d|2[0-3])\s*(?:['’]\s*)?(?:e|a|ye|ya)\s+kadar(?![\p{L}])/u;
+/**
+ * Saat değişikliğinin çıplak saati: "11'e kaydı", "3'e alındı", "15:30'a ertelendi" (kurucu 10-17 gece örneği — saat okuyucusu "11'e"yi saat
+ * saymıyordu, değişiklik hiç tanınmıyordu). Yalnız değişiklik fiilinden HEMEN önce (ad "11'e" tek başına saat değil).
+ */
+const RESCHEDULE_HOUR =
+  /(?<![\p{L}\p{N}.:])([01]?\d|2[0-3])(?:[:.]([0-5]\d))?\s*(?:['’]\s*)?(?:e|a|ye|ya)\s+(?:kaydi|kaydirildi|kaydirdik|alindi|ertelendi|erteledik)(?![\p{L}])/u;
 
-/** Kapsamdaki açık saat adayları: saat okuyucusu + "N'e kadar". */
+/** Kapsamdaki açık saat adayları: saat okuyucusu + "N'e kadar" + "N'e kaydı". İki anlamlı çıplak saat ("3") iki aday (gündüz tercihi sonra). */
 function timeMentions(raw: string, folded: string): number[] {
   const out = explicitTimeMentions(raw).flat();
-  const until = UNTIL_HOUR.exec(folded);
-  if (until) {
-    const h = Number(until[1]);
-    out.push(h * 60);
-    if (h > 0 && h < 12) out.push((h + 12) * 60);
+  for (const m of [UNTIL_HOUR.exec(folded), RESCHEDULE_HOUR.exec(folded)]) {
+    if (!m) continue;
+    const h = Number(m[1]);
+    const min = m[2] ? Number(m[2]) : 0;
+    out.push(h * 60 + min);
+    if (h > 0 && h < 12) out.push((h + 12) * 60 + min);
   }
   return [...new Set(out)];
 }
@@ -153,21 +184,21 @@ function durationMinutes(text: string): number | null {
     const minutes = /^h/.test(unit) ? n * 60 : n;
     return Number.isFinite(minutes) && minutes > 0 ? Math.round(minutes) : null;
   }
-  return SOON.test(text) ? 60 : null;
+  return null;
 }
 
 /**
  * Gün dilimi sözcükleri (ekli biçimler: "akşama", "sabahleyin", "öğlene", "geceleyin") → varsayılan saat + açık saati yorumlama yönü.
  * Sıra önemli: "öğleden sonra" > "öğle"; "akşamüstü" > "akşam"; "gece yarısı" > "gece".
  */
-const DAY_PARTS: ReadonlyArray<{ re: RegExp; minutes: number; half: DayHalf }> = [
-  { re: new RegExp(`${NL}(?:ogleden\\s+sonra|afternoon)${NR}`, "u"), minutes: 15 * 60, half: "pm" },
-  { re: new RegExp(`${NL}aksamustu\\p{L}{0,3}${NR}`, "u"), minutes: 17 * 60, half: "pm" },
-  { re: new RegExp(`${NL}(?:aksam\\p{L}{0,5}|evening)${NR}`, "u"), minutes: 19 * 60, half: "pm" },
-  { re: new RegExp(`${NL}gece\\s+yarisi\\p{L}{0,3}${NR}`, "u"), minutes: 23 * 60 + 30, half: "night" },
-  { re: new RegExp(`${NL}(?:gece\\p{L}{0,5}|tonight)${NR}`, "u"), minutes: 21 * 60, half: "night" },
-  { re: new RegExp(`${NL}(?:sabah\\p{L}{0,5}|morning)${NR}`, "u"), minutes: 10 * 60, half: "am" },
-  { re: new RegExp(`${NL}(?:ogle(?:n|ne|yin|ye)|noon|midday)${NR}`, "u"), minutes: 12 * 60, half: "pm" },
+const DAY_PARTS: ReadonlyArray<{ re: RegExp; minutes: number; half: DayHalf; code: DayPartCode; end: number }> = [
+  { re: new RegExp(`${NL}(?:ogleden\\s+sonra|afternoon)${NR}`, "u"), minutes: 15 * 60, half: "pm", code: "afternoon", end: 18 * 60 },
+  { re: new RegExp(`${NL}aksamustu\\p{L}{0,3}${NR}`, "u"), minutes: 17 * 60, half: "pm", code: "late_afternoon", end: 19 * 60 },
+  { re: new RegExp(`${NL}(?:aksam\\p{L}{0,5}|evening)${NR}`, "u"), minutes: 19 * 60, half: "pm", code: "evening", end: 23 * 60 + 59 },
+  { re: new RegExp(`${NL}gece\\s+yarisi\\p{L}{0,3}${NR}`, "u"), minutes: 23 * 60 + 30, half: "night", code: "midnight", end: 25 * 60 },
+  { re: new RegExp(`${NL}(?:gece\\p{L}{0,5}|tonight)${NR}`, "u"), minutes: 21 * 60, half: "night", code: "night", end: 30 * 60 },
+  { re: new RegExp(`${NL}(?:sabah\\p{L}{0,5}|morning)${NR}`, "u"), minutes: 10 * 60, half: "am", code: "morning", end: 12 * 60 },
+  { re: new RegExp(`${NL}(?:ogle(?:n|ne|yin|ye)|noon|midday)${NR}`, "u"), minutes: 12 * 60, half: "pm", code: "noon", end: 14 * 60 },
 ];
 
 /** Açık saat adaylarını gün dilimine göre yorumla: akşam "7:00" → 19:00, öğleden sonra "2:30" → 14:30, gece "2" → 02:00, sabah "9" → 09:00. */
@@ -281,7 +312,9 @@ function samePromise(a: HostPromise, b: HostPromise): boolean {
     a.day === b.day &&
     a.inMinutes === b.inMinutes &&
     a.timeCandidates.join(",") === b.timeCandidates.join(",") &&
-    (a.cue?.minutes ?? null) === (b.cue?.minutes ?? null)
+    (a.cue?.code ?? null) === (b.cue?.code ?? null) &&
+    a.soon === b.soon &&
+    a.reschedule === b.reschedule
   );
 }
 
@@ -297,11 +330,12 @@ interface PromiseClause {
 /** Cümlecik söz taşıyabilir mi (soru / koşul / olumsuz değil, söz fiili var) — taşıyorsa parçaları. */
 function promiseClause(raw: string): PromiseClause | null {
   const clause = foldTurkishAscii(raw).toLowerCase();
-  if (clause.trim() === "" || /[?؟]\s*$/.test(raw) || CONDITIONAL.test(clause) || !PROMISE.test(clause)) return null;
-  if (QUESTION_PARTICLE.test(clause) || NEGATION.test(clause)) return null;
+  if (clause.trim() === "" || /[?؟]\s*$/.test(raw) || CONDITIONAL.test(clause)) return null;
+  if (!PROMISE.test(clause) && !RESCHEDULE.test(clause)) return null;
+  if (QUESTION_PARTICLE.test(clause) || NEGATION.test(clause) || HEDGE.test(clause)) return null;
   const segments = clause.split(SEGMENT_SPLIT);
   const rawSegments = raw.split(RAW_SEGMENT_SPLIT);
-  const verbIdx = segments.map((seg, i) => (PROMISE.test(seg) ? i : -1)).filter((i) => i >= 0);
+  const verbIdx = segments.map((seg, i) => (PROMISE.test(seg) || RESCHEDULE.test(seg) ? i : -1)).filter((i) => i >= 0);
   if (verbIdx.length === 0 || verbIdx.some((i) => negatedAfterVerb(segments[i]))) return null;
   const topicIn = (t: string) => KIND_TOPICS.find(([, re]) => re.test(t))?.[0];
   return { raw, clause, segments, rawSegments, verbIdx, topicIn };
@@ -310,6 +344,8 @@ function promiseClause(raw: string): PromiseClause | null {
 /** `at` parçasındaki söz fiilinin sözü (kapsam, gün, saat, konu). Tanınmayan / belirsiz gün ya da 24 saati aşan süre → REJECT. */
 function promiseAt(c: PromiseClause, at: number, kind: CommitmentKind): HostPromise | typeof REJECT {
   const { raw, segments, rawSegments, topicIn } = c;
+  // Aktarılan / geçmiş söz (söz fiilinin kendi parçasında) söz değildir.
+  if (REPORTED.test(segments[at])) return REJECT;
   // Kapsam: sözün parçası; bilgi yoksa soldaki (söz fiili TAŞIMAYAN) parçalar. Özgün metin aynı sayıda parçaya bölünemezse cümlecik.
   let from = at;
   const aligned = rawSegments.length === segments.length;
@@ -318,13 +354,24 @@ function promiseAt(c: PromiseClause, at: number, kind: CommitmentKind): HostProm
     raw: aligned ? rawSegments.slice(a, b + 1).join(",") : raw,
   });
   // En fazla 3 parça sola (her adım dilimi yeniden tarar — sınırsız genişleme virgül dizisinde karesel olurdu).
-  while (from > 0 && at - from < 3 && !hasTimeInfo(sliceOf(from, at).folded, sliceOf(from, at).raw) && !PROMISE.test(segments[from - 1])) from--;
+  while (
+    from > 0 &&
+    at - from < 3 &&
+    !hasTimeInfo(sliceOf(from, at).folded, sliceOf(from, at).raw) &&
+    !PROMISE.test(segments[from - 1]) &&
+    !RESCHEDULE.test(segments[from - 1])
+  )
+    from--;
   // Sağdaki ZAMAN bilgisi taşıyan, söz fiili ve konu TAŞIMAYAN parçalar da sözün parçasıdır ("Teknisyen gelecek, yarın sabah 10 gibi";
   // "The technician will come tomorrow, around 9") — en fazla 2; "havlular yarın" gibi başka konulu parça katılmaz (Haiku 10-12 4. tur).
+  // Saat değişikliği bildiren parçanın (söz fiili yok) sağındaki KONUSUZ söz parçası aynı sözün yeni zamanıdır ("Teknisyen saati değişti,
+  // 15:00'te gelecek" — kurucu 10-17 gece: "konuyu, değiştirilen şeyi anlamalı").
+  const rescheduleOnly = !PROMISE.test(segments[at]) && RESCHEDULE.test(segments[at]);
   let to = at;
   while (to + 1 < segments.length && to - at < 2) {
     const next = sliceOf(to + 1, to + 1);
-    if (PROMISE.test(next.folded) || topicIn(next.folded) !== undefined || !hasTimeInfo(next.folded, next.raw)) break;
+    const continues = rescheduleOnly && to === at && PROMISE.test(next.folded) && !RESCHEDULE.test(next.folded);
+    if ((!continues && PROMISE.test(next.folded)) || RESCHEDULE.test(next.folded) || topicIn(next.folded) !== undefined || !hasTimeInfo(next.folded, next.raw)) break;
     to++;
   }
   const scope = sliceOf(from, to);
@@ -339,35 +386,54 @@ function promiseAt(c: PromiseClause, at: number, kind: CommitmentKind): HostProm
   if (inMinutes !== null && inMinutes > 24 * 60) return REJECT;
   let timeCandidates = inMinutes === null ? timeMentions(scope.raw, scope.folded) : [];
   timeCandidates = part ? fitToHalf(timeCandidates, part.half) : preferDaytime(timeCandidates);
-  const cue = inMinutes === null && timeCandidates.length === 0 && part ? { minutes: part.minutes, half: part.half } : null;
-  return { kind, topic: commitmentTopicOf(kind, scope.raw, scope.folded), day, timeCandidates, inMinutes, cue };
+  const cue = inMinutes === null && timeCandidates.length === 0 && part ? { minutes: part.minutes, half: part.half, code: part.code, end: part.end } : null;
+  const soon = inMinutes === null && timeCandidates.length === 0 && cue === null && SOON.test(scope.folded);
+  const reschedule = RESCHEDULE.test(scope.folded);
+  // Söz fiili olmayan saat değişikliği cümleciği ("Teknisyen 11'e kaydı") YALNIZ zaman bilgisiyle söz sayılır — "ertelendi" tek başına yeni
+  // bir zaman söylemez (hiçbir şey açılmaz / güncellenmez).
+  if (!PROMISE.test(segments[at]) && !hasTimeInfo(scope.folded, scope.raw)) return REJECT;
+  return { kind, topic: commitmentTopicOf(kind, scope.raw, scope.folded), day, timeCandidates, inMinutes, cue, soon, reschedule };
 }
 
 /**
- * Sözün son anı (dakika cinsinden, işletmenin yerel duvar saati): açık saat → aday saatlerden şimdiden sonraki ilki (yoksa yarın ilki);
- * göreli süre → şimdi + süre; gün dilimi ("yarın sabah" 10:00, "bu akşam" 19:00; bugünkü SABAH geçmişse yarın sabah, akşam / gece geçmişse
- * şimdi + 2 saat); "yarın" ipuçsuz → yarın 12:00; hiçbiri → bugün şimdi + 2 saat. Döner: gün + "SS:DD" (ev sahibi onaydan önce değiştirebilir).
+ * Sözün ZAMAN PENCERESİ (kurucu 10-17 gece: "saati belirtilmemiş saati söyleyemez, bilgi uyduramaz"; "akşam yazmışsa akşam olarak tutsun").
+ * Kesinlik: `time` (açık saat — aday saatlerden şimdiden sonraki ilki, yoksa yarın; ya da AÇIK süre "30 dakika içinde") · `part` (gün dilimi /
+ * "kısa süre içinde") · `day` (yalnız gün). `end` = pencerenin SONU, günün başından dakika (ertesi güne taşabilir: gece yarısı 25:00, gece
+ * 30:00) — yalnız gecikme hesabı içindir, ev sahibine gösterilmez. Bugünkü sabah / öğle / öğleden sonra geçtiyse ("Sabah teknisyen gelecek"
+ * akşam yazıldı) yarın.
  */
-export function promiseDue(p: HostPromise, nowMinutes: number): { day: "today" | "tomorrow"; time: string } {
+export type PromiseWindow =
+  | { day: "today" | "tomorrow"; precision: "time"; time: string; end: number }
+  | { day: "today" | "tomorrow"; precision: "part"; dayPart: DayPartCode; end: number }
+  | { day: "today" | "tomorrow"; precision: "day"; end: number };
+
+const END_OF_DAY = 23 * 60 + 59;
+
+export function promiseWindow(p: HostPromise, nowMinutes: number): PromiseWindow {
   const pad = (n: number) => String(n).padStart(2, "0");
   const fmt = (m: number) => `${pad(Math.floor(m / 60) % 24)}:${pad(m % 60)}`;
-  const inTwoHours = () => ({ day: "today" as const, time: fmt(Math.min(nowMinutes + 120, 23 * 60 + 59)) });
   if (p.inMinutes !== null) {
     const t = nowMinutes + p.inMinutes;
-    return t >= 24 * 60 ? { day: "tomorrow", time: fmt(t - 24 * 60) } : { day: p.day, time: fmt(t) };
+    return t >= 24 * 60
+      ? { day: "tomorrow", precision: "time", time: fmt(t - 24 * 60), end: t - 24 * 60 }
+      : { day: p.day, precision: "time", time: fmt(t), end: t };
   }
   if (p.timeCandidates.length > 0) {
-    if (p.day === "tomorrow") return { day: "tomorrow", time: fmt(Math.min(...p.timeCandidates)) };
+    if (p.day === "tomorrow") {
+      const m = Math.min(...p.timeCandidates);
+      return { day: "tomorrow", precision: "time", time: fmt(m), end: m };
+    }
     const future = p.timeCandidates.filter((m) => m > nowMinutes).sort((a, b) => a - b);
-    return future.length > 0 ? { day: "today", time: fmt(future[0]) } : { day: "tomorrow", time: fmt(Math.min(...p.timeCandidates)) };
+    const m = future.length > 0 ? future[0] : Math.min(...p.timeCandidates);
+    return { day: future.length > 0 ? "today" : "tomorrow", precision: "time", time: fmt(m), end: m };
   }
   if (p.cue !== null) {
-    if (p.day === "tomorrow") return { day: "tomorrow", time: fmt(p.cue.minutes) };
-    if (p.cue.minutes > nowMinutes) return { day: "today", time: fmt(p.cue.minutes) };
-    return p.cue.half === "am" ? { day: "tomorrow", time: fmt(p.cue.minutes) } : inTwoHours();
+    const early = p.cue.code === "morning" || p.cue.code === "noon" || p.cue.code === "afternoon" || p.cue.code === "late_afternoon";
+    const day = p.day === "tomorrow" || (early && p.cue.end <= nowMinutes) ? "tomorrow" : "today";
+    return { day, precision: "part", dayPart: p.cue.code, end: p.cue.end };
   }
-  if (p.day === "tomorrow") return { day: "tomorrow", time: "12:00" };
-  return inTwoHours();
+  if (p.soon) return { day: p.day, precision: "part", dayPart: "soon", end: END_OF_DAY };
+  return { day: p.day, precision: "day", end: END_OF_DAY };
 }
 
 // ── B · Wi-Fi ────────────────────────────────────────────────────────────────

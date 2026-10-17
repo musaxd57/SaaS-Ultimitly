@@ -661,6 +661,26 @@ async function adoptConsentChain(data: Record<string, unknown> | undefined, occu
   }
 }
 
+/** Paddle API anahtarı olayları (kurucu 10-17: anahtar süresiz oluşturulmuştu → 1 yıl bitişli + dönebilir anahtara geçilecek). */
+const PADDLE_API_KEY_EVENTS: ReadonlySet<string> = new Set(["api_key.expiring", "api_key.expired", "api_key.revoked"]);
+
+/**
+ * Operatör uyarısı (`reportError` → Sentry + uyarı e-postası). Anahtarın KENDİSİ (maskeli olsa da) yazılmaz — yalnız Paddle'daki adı, bitiş
+ * tarihi ve olay türü. Asla fırlatmaz (uyarı düşerse olay yine işlenmiş sayılır; Paddle bir sonraki olayı yine gönderir).
+ */
+async function alertPaddleApiKey(eventType: string, data: unknown): Promise<void> {
+  const d = (data && typeof data === "object" ? data : {}) as { name?: unknown; expires_at?: unknown };
+  const name = typeof d.name === "string" && d.name.trim() !== "" ? d.name.trim().slice(0, 80) : "(adsız)";
+  const expires = typeof d.expires_at === "string" && !Number.isNaN(Date.parse(d.expires_at)) ? new Date(d.expires_at).toISOString().slice(0, 10) : "bilinmiyor";
+  const what = eventType === "api_key.expiring" ? "süresi yakında doluyor" : eventType === "api_key.expired" ? "süresi DOLDU" : "iptal edildi";
+  await reportError(
+    "paddle-api-key",
+    new Error(
+      `Paddle API anahtarı ${what}: "${name}" (bitiş ${expires}). Canlıda kullanılan anahtar buysa yeni anahtar oluşturup Railway'deki PADDLE_API_KEY değerini değiştirin; ödeme işlemleri eski anahtarla durur.`,
+    ),
+  ).catch(() => {});
+}
+
 export async function POST(req: NextRequest): Promise<Response> {
   // TAKİP NUMARASI (kurucu kararı 10-10): her teslimat kendi numarasıyla koşar; taze bir onay kaydına bağlanan ilk ödeme olayı numarayı o
   // kaydın SUNUCUDA yazılmış satırından alır (`adoptConsentChain`) → "onay → ödeme ekranı → Paddle → abonelik / fatura" tek numarayla aranır.
@@ -808,6 +828,10 @@ export async function POST(req: NextRequest): Promise<Response> {
         // kalkar, müşteri hemen yeniden dener. Yalnız kilit kaldırır, başka hiçbir şey yazmaz. (Paddle bildirim ayarında bu olay türü açık olmalı.)
         const failedOrg = await resolveOrgId(data, null, occurredAt);
         if (failedOrg) await clearCheckoutPending(failedOrg);
+      } else if (PADDLE_API_KEY_EVENTS.has(eventType)) {
+        // Kurucu 10-17 ("sakın unutmayalım"): Paddle API anahtarının süresi dolmadan / dolunca / iptalinde operatör uyarılır. Olay hiçbir
+        // işletmeye ait değil, abonelik / fatura yazmaz. (Paddle bildirim hedefinde bu olay türleri işaretli olmalı.)
+        await alertPaddleApiKey(eventType, data);
       }
       if (providerEventId) {
         // İnceleme gereken olay "işlendi" sayılmaz (ödeme S1): satır "error" + kısa kod kalır → Paddle'dan yeniden gönderilirse tekrar

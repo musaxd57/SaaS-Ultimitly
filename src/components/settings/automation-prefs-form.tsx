@@ -18,6 +18,7 @@ export function AutomationPrefsForm({
   closingText,
   lateCheckoutOffer,
   taskFromMessage,
+  commitmentsAuto,
   supplyRequest,
 }: {
   disclosure: boolean;
@@ -26,6 +27,8 @@ export function AutomationPrefsForm({
   closingText: string;
   lateCheckoutOffer: string;
   taskFromMessage: boolean;
+  /** Söz → görev otomatik (kurucu 10-17 gece); null / verilmedi = anahtar kapalı, seçenek gösterilmez ve gönderilmez. */
+  commitmentsAuto?: boolean | null;
   supplyRequest: boolean;
 }) {
   const router = useRouter();
@@ -36,6 +39,8 @@ export function AutomationPrefsForm({
   const [closingReplyText, setClosingText] = useState(closingText);
   const [lateCheckoutOfferText, setLateCheckoutOffer] = useState(lateCheckoutOffer);
   const [autoTaskFromMessageEnabled, setTaskFromMessage] = useState(taskFromMessage);
+  const showCommitments = commitmentsAuto != null;
+  const [autoCommitmentsEnabled, setCommitmentsAuto] = useState(commitmentsAuto ?? true);
   const [autoSupplyRequestEnabled, setSupplyRequest] = useState(supplyRequest);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -49,6 +54,7 @@ export function AutomationPrefsForm({
     closingReplyText: closingText,
     lateCheckoutOfferText: lateCheckoutOffer,
     autoTaskFromMessageEnabled: taskFromMessage,
+    autoCommitmentsEnabled: commitmentsAuto ?? true,
     autoSupplyRequestEnabled: supplyRequest,
   });
   const dirty =
@@ -58,6 +64,7 @@ export function AutomationPrefsForm({
     closingReplyText !== baseline.closingReplyText ||
     lateCheckoutOfferText !== baseline.lateCheckoutOfferText ||
     autoTaskFromMessageEnabled !== baseline.autoTaskFromMessageEnabled ||
+    (showCommitments && autoCommitmentsEnabled !== baseline.autoCommitmentsEnabled) ||
     autoSupplyRequestEnabled !== baseline.autoSupplyRequestEnabled;
 
   async function save(e: React.FormEvent) {
@@ -84,6 +91,7 @@ export function AutomationPrefsForm({
           closingReplyText,
           lateCheckoutOfferText,
           autoTaskFromMessageEnabled,
+          ...(showCommitments ? { autoCommitmentsEnabled } : {}),
           autoSupplyRequestEnabled,
         }),
       });
@@ -104,6 +112,7 @@ export function AutomationPrefsForm({
           closingReplyText: normClosing,
           lateCheckoutOfferText: normOffer,
           autoTaskFromMessageEnabled,
+          autoCommitmentsEnabled,
           autoSupplyRequestEnabled,
         });
         startTransition(() => router.refresh());
@@ -202,6 +211,26 @@ export function AutomationPrefsForm({
           </span>
         </span>
       </label>
+
+      {showCommitments && (
+        <label className="flex items-start gap-3">
+          <input
+            type="checkbox"
+            checked={autoCommitmentsEnabled}
+            onChange={(e) => { setCommitmentsAuto(e.target.checked); setSaved(false); }}
+            className="mt-0.5 size-4"
+            data-testid="auto-commitments-toggle"
+          />
+          <span className="text-sm">
+            <span className="font-medium">Misafire verdiğiniz sözleri görev olarak kaydet</span>
+            <span className="block text-xs text-muted-foreground">
+              Misafire yazdığınız mesajda bir söz verirseniz (&ldquo;Yarın 10&apos;da teknisyen gelecek&rdquo;, &ldquo;Akşam havlu
+              getireceğim&rdquo;) söz ve görev kendiliğinden kaydedilir. Saat yazmadıysanız saat eklenmez; gün ya da &ldquo;akşam&rdquo;
+              olarak kaydedilir. Günde en çok 20 söz kaydedilir. Kapatırsanız mesajlarınızdan görev oluşturulmaz.
+            </span>
+          </span>
+        </label>
+      )}
 
       <label className="flex items-start gap-3">
         <input

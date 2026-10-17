@@ -8,12 +8,17 @@ import { isChannelAutomation, resolveMessageAuthor } from "@/lib/message-author"
 import { addZonedDays, dateKeyInTimeZone, orgTimezone, zonedWallClockToUtc } from "@/lib/timezone";
 import {
   COMMITMENT_TOPIC_LABELS,
+  commitmentWhenText,
   commitmentLabel,
+  storedCommitmentWhen,
   commitmentSlotAbsorbs,
   commitmentTopicsCompatible,
+  hostCommitmentAutoEnabled,
   isCommitmentTopic,
   type CommitmentKind,
   type CommitmentTopic,
+  type DayPartCode,
+  type DuePrecision,
 } from "@/lib/guest-commitments-core";
 import {
   applyWifiValue,
@@ -21,11 +26,12 @@ import {
   extractWifiValues,
   kbContainsValue,
   maskSecret,
-  promiseDue,
+  promiseWindow,
   wifiTargetAmbiguous,
   SUGGESTION_WINDOW_DAYS,
   suggestionKey,
   type HostPromise,
+  type PromiseWindow,
   type SuggestionDecision,
   type SuggestionKind,
 } from "./core";
@@ -69,8 +75,19 @@ export type SuggestionView =
         commitmentKind: CommitmentKind;
         topic: CommitmentTopic | null;
         day: "today" | "tomorrow";
+        /** Açık saat ("SS:DD"); gün dilimi / gün sözünde "" (kurucu 10-17: saat uydurulmaz). */
         time: string;
+        precision: DuePrecision;
+        dayPart?: DayPartCode;
+        /** Sunucunun hesapladığı son an (pencere sonu) — onay bunu YENİDEN üretir, istemciden okunmaz. */
+        dueAt: string;
+        /** Sözün günü (YYYY-MM-DD, işletme dilimi) — dilim / gün sözünde görevin yalnız-tarih vadesi. */
+        dayKey: string;
         attachTopics?: CommitmentTopic[];
+        /** Bağlamla KESİN eşleşen önceki açık söz — onay (ya da otomatik kip) onun saatini taşır, yeni söz açmaz. */
+        reschedule?: { commitmentId: string };
+        /** Bağlam BELİRSİZ: yeni saat hangi sözün? Seçim "move:<kimlik>" ya da "new". */
+        moveOptions?: Array<{ commitmentId: string; label: string }>;
       };
     }
   | {
@@ -109,8 +126,10 @@ export async function suggestionDecisions(organizationId: string, since: Date): 
   const out: SuggestionDecision[] = [];
   for (const r of rows) {
     try {
-      const m = JSON.parse(r.metadataJson ?? "{}") as { kind?: unknown; edited?: unknown };
+      const m = JSON.parse(r.metadataJson ?? "{}") as { kind?: unknown; edited?: unknown; auto?: unknown };
       if (m.kind !== "task" && m.kind !== "kb_wifi" && m.kind !== "commitment") continue;
+      // Sistemin onaysız uyguladığı söz (kurucu 10-17 gece) ev sahibinin kararı DEĞİL — "otomatiğe geçiş" ölçütünü şişirmez.
+      if (m.auto === true) continue;
       out.push({ kind: m.kind as SuggestionKind, decision: r.action === SUGGESTION_APPROVED ? "approved" : "dismissed", edited: m.edited === true, at: r.createdAt });
     } catch {
       /* atla */
@@ -131,25 +150,27 @@ function nowMinutesInTz(now: Date, tz: string): number {
 }
 
 /**
- * Sözün MUTLAK son anı — mesajın YAZILDIĞI ana göre ("30 dakika içinde" = mesaj + 30 dk; "yarın" = mesajın ertesi günü). Onayda yeniden
- * üretilen öneri aynı ânı verir (Haiku 10-12: "şimdi"ye göre hesap onayda kayıyor, onay "düzenlendi" sayılıyordu).
+ * Sözün MUTLAK penceresi — mesajın YAZILDIĞI ana göre ("30 dakika içinde" = mesaj + 30 dk; "yarın" = mesajın ertesi günü). Onayda yeniden
+ * üretilen öneri aynı ânı verir (Haiku 10-12). `dueAt`: açık saatte o an; gün dilimi / gün sözünde pencerenin SONU (kurucu 10-17: saat
+ * uydurulmaz — yalnız gecikme hesabı). `dayKey`: sözün GÜNÜ (gösterim; gece yarısı / gece penceresi ertesi güne taşsa da gün aynı).
  */
-function absolutePromiseDue(p: HostPromise, messageAt: Date, tz: string): Date | null {
-  const due = promiseDue(p, nowMinutesInTz(messageAt, tz));
-  const base = due.day === "tomorrow" ? addZonedDays(messageAt, 1, tz) : messageAt;
-  const [y, mo, d] = dateKeyInTimeZone(base, tz).split("-").map(Number);
-  const [hh, mm] = due.time.split(":").map(Number);
-  return zonedWallClockToUtc(y, mo, d, hh, mm, 0, tz);
+function absolutePromiseWindow(p: HostPromise, messageAt: Date, tz: string): { dayKey: string; dueAt: Date; window: PromiseWindow } {
+  const window = promiseWindow(p, nowMinutesInTz(messageAt, tz));
+  const base = window.day === "tomorrow" ? addZonedDays(messageAt, 1, tz) : messageAt;
+  const dayKey = dateKeyInTimeZone(base, tz);
+  let [y, mo, d] = dayKey.split("-").map(Number);
+  if (window.end >= 24 * 60) {
+    const next = addZonedDays(zonedWallClockToUtc(y, mo, d, 12, 0, 0, tz), Math.floor(window.end / (24 * 60)), tz);
+    [y, mo, d] = dateKeyInTimeZone(next, tz).split("-").map(Number);
+  }
+  const m = window.end % (24 * 60);
+  return { dayKey, dueAt: zonedWallClockToUtc(y, mo, d, Math.floor(m / 60), m % 60, 0, tz), window };
 }
 
-/** Mutlak an → ev sahibine gösterilen "bugün / yarın + SS:DD" (şimdiye göre); geçmiş ya da yarından sonra → null (öneri yok). */
-function relativeDay(dueAt: Date, now: Date, tz: string): { day: "today" | "tomorrow"; time: string } | null {
+/** Sözün günü → ev sahibine gösterilen "bugün / yarın" (şimdiye göre); son an geçmişse ya da yarından sonraysa null (öneri yok). */
+function relativeDayOf(dayKey: string, dueAt: Date, now: Date, tz: string): "today" | "tomorrow" | null {
   if (dueAt.getTime() < now.getTime() - 5 * 60_000) return null;
-  const key = dateKeyInTimeZone(dueAt, tz);
-  const day = key === dateKeyInTimeZone(now, tz) ? "today" : key === dateKeyInTimeZone(addZonedDays(now, 1, tz), tz) ? "tomorrow" : null;
-  if (!day) return null;
-  const m = nowMinutesInTz(dueAt, tz);
-  return { day, time: `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}` };
+  return dayKey === dateKeyInTimeZone(now, tz) ? "today" : dayKey === dateKeyInTimeZone(addZonedDays(now, 1, tz), tz) ? "tomorrow" : null;
 }
 
 /**
@@ -163,7 +184,7 @@ export async function getConversationSuggestions(organizationId: string, convers
     select: {
       id: true,
       propertyId: true,
-      property: { select: { organization: { select: { timezone: true, autoTaskFromMessageEnabled: true } } } },
+      property: { select: { organization: { select: { timezone: true, autoTaskFromMessageEnabled: true, autoCommitmentsEnabled: true } } } },
     },
   });
   if (!conversation) return [];
@@ -178,11 +199,25 @@ export async function getConversationSuggestions(organizationId: string, convers
     decidedSuggestionKeys(organizationId, since),
     prisma.guestCommitment.findMany({
       where: { conversationId: conversation.id, organizationId },
-      select: { kind: true, topic: true, createdAt: true, dueAt: true, status: true, taskId: true, clientRequestId: true },
+      select: {
+        id: true,
+        kind: true,
+        topic: true,
+        createdAt: true,
+        dueAt: true,
+        status: true,
+        taskId: true,
+        clientRequestId: true,
+        duePrecision: true,
+        dayPart: true,
+      },
     }),
   ]);
   const tz = orgTimezone(conversation.property.organization.timezone);
   const autoTask = conversation.property.organization.autoTaskFromMessageEnabled;
+  // Ev sahibi "mesajlarımdan söz görevi oluşturulmasın" dediyse (Ayarlar, kurucu 10-17: "isterlerse kapatabilsinler") söz önerisi de çıkmaz —
+  // YALNIZ otomatik söz anahtarı açıkken (kapalıyken ayar yüzeyde yok, bugünkü öneri akışı aynen).
+  const commitmentsOff = hostCommitmentAutoEnabled() && !conversation.property.organization.autoCommitmentsEnabled;
 
   // A adayları + toplu görev denetimi (kaynağa bağlı görev · aynı gün anahtarlı açık görev).
   const taskCandidates = autoTask
@@ -226,7 +261,7 @@ export async function getConversationSuggestions(organizationId: string, convers
         evidenceAt: fmtAt(m.createdAt),
         proposal: { messageId: m.id, taskTitle, priority: cand.detected.priority },
       });
-    } else if (author === "host" && !isChannelAutomation(m)) {
+    } else if (author === "host" && !isChannelAutomation(m) && !commitmentsOff) {
       // L5 (10-17): kanalın KENDİ otomatik mesajı ("Housekeeping will come tomorrow at 10" şablonu) ev sahibinin sözü DEĞİL.
       // Q1-b (kurucu 10-17, "ikisini de öner"): mesajdaki HER söz ayrı öneri. İlk sözün anahtarı mesaj kimliği (geriye uyumlu), sonrakiler
       // `<mesaj>:<sıra>` — sıra mesajın metninden (değişmez) gelir, süzgeçlerden önce verilir → listede ve onayda aynı anahtar.
@@ -252,8 +287,7 @@ export async function getConversationSuggestions(organizationId: string, convers
         ) {
           continue;
         }
-        const dueAt = absolutePromiseDue(promise, m.createdAt, tz);
-        if (!dueAt) continue;
+        const { dayKey, dueAt, window } = absolutePromiseWindow(promise, m.createdAt, tz);
         // Aynı tür + aynı an için öneriyi TAMAMEN karşılayan AÇIK söz zaten varsa (mesajdan ÖNCE elle açılmış ya da ev sahibi aynı sözü sonraki
         // mesajda tekrarlamış) öneri gösterilmez — onay hiçbir şey değiştirmezdi ve öneri yenilemede geri gelirdi: ölü "Onayla" düğmesi (Opus
         // 10-15 B1). Konusuz elle söz + KONULU öneri gösterilir: onay söze konu yazar (kurucu Q1 "a", `commitmentSlotAbsorbs`).
@@ -267,25 +301,77 @@ export async function getConversationSuggestions(organizationId: string, convers
         // Aynı saatte KONUSUZ açık söz varsa konusuz öneri birebir ona uyar → seçim gereksiz, gizli (Opus 10-17 Q1b-A: "yeni söz" seçimi
         // gereksiz ikinci görev açıyordu).
         if (absorbing.length > 0 && (attachTopics.length < 2 || absorbing.some((c) => c.topic === null))) continue;
-        const due = relativeDay(dueAt, now, tz);
-        if (!due) continue;
-        const when = `${due.day === "tomorrow" ? "yarın" : "bugün"} ${due.time}`;
+        const day = relativeDayOf(dayKey, dueAt, now, tz);
+        if (!day) continue;
+        const when = commitmentWhenText(day, window);
+        // BAĞLAM (kurucu 10-17 gece: "aynı görevin saati güncellensin ama aynı görevden bahsedildiği bağlamdan anlaşılsın — başka bir şeyi
+        // değiştirmemeli"): bu mesajdan ÖNCE açılmış, aynı türde, AÇIK, saati FARKLI söz. Kesin eşleşme → saat güncellemesi; belirsiz → seçim.
+        //  · Konulu yeni söz (klima) → aynı konuda TEK açık söz → onun saati. Birden çok aynı konulu → seçim. Başka konulu söz → yeni söz.
+        //  · Konusuz + saat değişikliği sözcüğü ("11'e kaydı") → aynı türde TEK aday → onun saati; birden çok → seçim.
+        //  · Konusuz, sözcüksüz ("Teknisyen yarın 11'de gelecek") + aday var → seçim ("yeni saati mi, ayrı söz mü?") — kendiliğinden ne
+        //    değiştirir ne ikinci görev açar.
+        const earlier = commitments.filter(
+          (c) =>
+            c.status === "open" &&
+            c.taskId !== null &&
+            c.kind === promise.kind &&
+            c.createdAt.getTime() < m.createdAt.getTime() &&
+            c.dueAt.getTime() !== dueAt.getTime() &&
+            !(c.clientRequestId === sibling || c.clientRequestId?.startsWith(`${sibling}:`)),
+        );
+        const sameTopic = promise.topic !== null ? earlier.filter((c) => c.topic === promise.topic) : earlier;
+        const certain = sameTopic.length === 1 && (promise.topic !== null || promise.reschedule) ? sameTopic[0] : null;
+        const moveChoices = certain ? [] : sameTopic.length >= 1 && (promise.topic !== null ? sameTopic.length >= 2 : true) ? sameTopic : [];
+        const describe = (c: (typeof commitments)[number]) =>
+          `${commitmentLabel(c.kind as CommitmentKind, c.topic)} — ${storedCommitmentWhen(c, now, tz)}`;
+        if (certain) {
+          out.push({
+            key,
+            kind: "commitment",
+            title: `Söz saatini güncelle: ${commitmentLabel(promise.kind, promise.topic ?? certain.topic)} — ${storedCommitmentWhen(certain, now, tz)} → ${when}`,
+            detail: "Mesajınızda aynı sözün yeni saati var — görev ve söz yeni saate taşınır, yeni görev açılmaz",
+            evidenceAt: fmtAt(m.createdAt),
+            proposal: {
+              messageId: m.id,
+              commitmentKind: promise.kind,
+              topic: promise.topic,
+              day,
+              time: window.precision === "time" ? window.time : "",
+              precision: window.precision,
+              ...(window.precision === "part" ? { dayPart: window.dayPart } : {}),
+              dueAt: dueAt.toISOString(),
+              dayKey,
+              reschedule: { commitmentId: certain.id },
+            },
+          });
+          continue;
+        }
         out.push({
           key,
           kind: "commitment",
           title: `Söz kaydet: ${commitmentLabel(promise.kind, promise.topic)} — ${when}`,
           detail:
-            attachTopics.length >= 2
-              ? `Aynı saatte kayıtlı sözler var (${attachTopics.map((t) => COMMITMENT_TOPIC_LABELS[t]).join(", ")}) — hangisine bağlanacağını seçin`
-              : "Misafire yazdığınız mesajdan — açık söz + görev açılır",
+            moveChoices.length > 0
+              ? "Aynı türde açık söz var — bu onun yeni saati mi, ayrı bir söz mü?"
+              : attachTopics.length >= 2
+                ? `Aynı saatte kayıtlı sözler var (${attachTopics.map((t) => COMMITMENT_TOPIC_LABELS[t]).join(", ")}) — hangisine bağlanacağını seçin`
+                : "Misafire yazdığınız mesajdan — açık söz + görev açılır",
           evidenceAt: fmtAt(m.createdAt),
           proposal: {
             messageId: m.id,
             commitmentKind: promise.kind,
             topic: promise.topic,
-            day: due.day,
-            time: due.time,
-            ...(attachTopics.length >= 2 ? { attachTopics } : {}),
+            day,
+            time: window.precision === "time" ? window.time : "",
+            precision: window.precision,
+            ...(window.precision === "part" ? { dayPart: window.dayPart } : {}),
+            dueAt: dueAt.toISOString(),
+            dayKey,
+            ...(moveChoices.length > 0
+              ? { moveOptions: moveChoices.map((c) => ({ commitmentId: c.id, label: describe(c) })) }
+              : attachTopics.length >= 2
+                ? { attachTopics }
+                : {}),
           },
         });
       }

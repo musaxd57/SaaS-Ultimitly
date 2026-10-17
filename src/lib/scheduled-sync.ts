@@ -12,6 +12,7 @@ import { noteBillingBlockedSeen } from "@/lib/outbox/billing-hold";
 import { sendDueTrialReminders } from "@/lib/billing/trial-reminders";
 import { anonymizeOldGuestData, minimizeOldPaddleWebhooks, purgeOldLeads, retentionCutoff } from "@/lib/data-retention";
 import { runIntelligencePass, purgeExpiredSignals } from "@/modules/intelligence";
+import { SWEEP_CATCHUP_MINUTES, closeStayEndedCommitments, sweepHostCommitmentsAuto } from "@/lib/guest-commitments-auto";
 import { warmAllKbVectorsOnce } from "@/lib/ai/embeddings/kb-warm";
 import { purgeExpiredConversationItems } from "@/lib/conversation-items/store";
 import { purgeExpiredGuestCommitments } from "@/lib/guest-commitments";
@@ -842,6 +843,17 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
       // temizlenir. Asla fırlatmaz.
       await checkQueueStall(opsAlarm).catch(() => {});
 
+      // Söz → görev OTOMATİK (kurucu 10-17 gece: "onayla host uğraşmasın"): kanaldan doğrudan yazılan ev sahibi mesajı senkronla gelir →
+      // her turda kısa pencere (uygulamadan gönderilen mesaj gönderim anında işlenir, `host-send.ts`). Anahtar
+      // `HOST_COMMITMENT_AUTO_ENABLED` kapalıyken sorgusuz no-op; kendi try'ı, düşerse başka aşamayı etkilemez.
+      try {
+        const r = await sweepHostCommitmentsAuto(new Date());
+        if (r.created > 0 || r.rescheduled > 0) console.log(`[scheduled-sync] commitment-auto: ${JSON.stringify(r)}`);
+        await opsAlarm.ok("commitment-auto");
+      } catch (err) {
+        await opsAlarm.fail("commitment-auto", "scheduled-sync commitment-auto", err);
+      }
+
       // Deneme kimliği (kurucu onayı 10-10): anahtar açıldığında açılış ANI ve BİR KEZ geri doldurma — HER geçişte (saatlik değil: açılış
       // anından önce eklenen takvim muaf sayılır, gecikme o pencereyi bir saate kadar açardı). İşaret varken tek indeksli okuma; anahtar
       // kapalıyken sorgusuz no-op; asla fırlatmaz.
@@ -926,6 +938,15 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
         await hourly("signup-network-purge", "scheduled-sync signup-network-purge", async () => {
           await purgeSignupNetworkTraces();
           await checkSignupNetworkInfra();
+        });
+        // Söz → görev otomatik: geç içeri alınan ev sahibi mesajı için 48 saatlik telafi + konaklaması bitmiş havlu / malzeme / temizlik
+        // sözünün kapanması (kurucu 10-17: "arıza kalsın"). Anahtar kapalıyken ikisi de sorgusuz no-op.
+        await hourly("commitment-auto-catchup", "scheduled-sync commitment-auto-catchup", () =>
+          sweepHostCommitmentsAuto(new Date(), SWEEP_CATCHUP_MINUTES),
+        );
+        await hourly("commitment-stay-end", "scheduled-sync commitment-stay-end", async () => {
+          const r = await closeStayEndedCommitments(new Date());
+          if (r.closed > 0) console.log(`[scheduled-sync] commitment-stay-end: ${JSON.stringify(r)}`);
         });
         // Kartla deneme kapısı (kurucu 10-17, migration 74): yüksek riskli süren denemeyi damgalar / bandan düşeni temizler. Anahtar
         // `TRIAL_CARD_GATE_ENABLED` kapalıyken tek sorgu koşmaz.

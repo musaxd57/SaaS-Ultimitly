@@ -93,13 +93,107 @@ export function isCommitmentTopic(v: unknown): v is CommitmentTopic {
 }
 
 /** "Arıza / bakım" ya da "Arıza / bakım · klima". */
+/**
+ * Sözün ZAMAN KESİNLİĞİ (kurucu 10-17 gece, migration 75): açık saat · gün dilimi · yalnız gün. Saat UYDURULMAZ — "akşam" akşam olarak,
+ * "yarın" saat belirtilmeden tutulur. NULL (eski satır) = açık saat.
+ */
+export const DUE_PRECISIONS = ["time", "part", "day"] as const;
+export type DuePrecision = (typeof DUE_PRECISIONS)[number];
+export const DAY_PART_CODES = ["morning", "noon", "afternoon", "late_afternoon", "evening", "night", "midnight", "soon"] as const;
+export type DayPartCode = (typeof DAY_PART_CODES)[number];
+export const DAY_PART_LABELS: Record<DayPartCode, string> = {
+  morning: "sabah",
+  noon: "öğle",
+  afternoon: "öğleden sonra",
+  late_afternoon: "akşamüstü",
+  evening: "akşam",
+  night: "gece",
+  midnight: "gece yarısı",
+  soon: "kısa süre içinde",
+};
+export function isDayPartCode(v: unknown): v is DayPartCode {
+  return typeof v === "string" && (DAY_PART_CODES as readonly string[]).includes(v);
+}
+
+/** Açık saatli sözde "gecikti" demeden önceki pay (Opus 10-17: 10:00 sözüne 10:01'de "gecikti" gürültü). Dilim / gün sözünde son an zaten pencere sonu. */
+export const COMMITMENT_LATE_TOLERANCE_MIN = 30;
+
+/**
+ * SÖZ → GÖREV OTOMATİK anahtarı (kurucu 10-17 gece, "herkese birden"): yalnız "1". Açıkken ev sahibinin yazdığı söz onaysız söz + görev olur
+ * (`guest-commitments-auto.ts`) ve işletme ayarı `autoCommitmentsEnabled` söz önerisini de yönetir; kapalıyken bugünkü davranış (öneri +
+ * onay). Saf modülde: öneri yükleyicisi de okur (döngüsel içe aktarma olmasın).
+ */
+export function hostCommitmentAutoEnabled(): boolean {
+  return process.env.HOST_COMMITMENT_AUTO_ENABLED === "1";
+}
+
+/**
+ * Gecikmiş söz için TEK hatırlatma eşiği (kurucu 10-17 gece: "Hatırlat, kapatma"): son andan 1 gün sonra dikkat satırının metni "Söz 1 gündür
+ * açık" olur — e-posta yok, kendiliğinden kapatma yok; ev sahibi görevi tamamlar ya da iptal eder.
+ */
+export const COMMITMENT_REMIND_AFTER_MIN = 24 * 60;
+
+/** Söz ne zaman "gecikti" sayılır (son an + açık saatte pay). */
+export function commitmentLateAt(c: { dueAt: Date; duePrecision?: string | null }): Date {
+  const pad = c.duePrecision == null || c.duePrecision === "time" ? COMMITMENT_LATE_TOLERANCE_MIN * 60_000 : 0;
+  return new Date(c.dueAt.getTime() + pad);
+}
+
+/** Öneri / kayıt metni: "yarın 10:00" · "bugün akşam" · "bugün, kısa süre içinde" · "yarın (saat belirtilmedi)". */
+export function commitmentWhenText(
+  day: "today" | "tomorrow",
+  w: { precision: "time"; time: string } | { precision: "part"; dayPart: DayPartCode } | { precision: "day" },
+): string {
+  const d = day === "tomorrow" ? "yarın" : "bugün";
+  if (w.precision === "time") return `${d} ${w.time}`;
+  if (w.precision === "part") return w.dayPart === "soon" ? `${d}, ${DAY_PART_LABELS.soon}` : `${d} ${DAY_PART_LABELS[w.dayPart]}`;
+  return `${d} (saat belirtilmedi)`;
+}
+
+/**
+ * Kayıtlı sözün zamanı (ev sahibine): "bugün 10:00" · "yarın akşam" · "dün (saat belirtilmedi)" · "21 Eki 10:00". Dilim / gün sözünde `dueAt`
+ * pencere sonudur — gösterim GÜNÜ gece / gece yarısı penceresinde bir gün geridir (pencere ertesi güne taşar).
+ */
+export function storedCommitmentWhen(
+  c: { dueAt: Date; duePrecision?: string | null; dayPart?: string | null },
+  now: Date,
+  tz: string,
+): string {
+  const precision = c.duePrecision === "part" || c.duePrecision === "day" ? c.duePrecision : "time";
+  const spill = precision === "part" && (c.dayPart === "night" || c.dayPart === "midnight");
+  const anchor = spill ? addZonedDays(c.dueAt, -1, tz) : c.dueAt;
+  const key = dateKeyInTimeZone(anchor, tz);
+  const word =
+    key === dateKeyInTimeZone(now, tz)
+      ? "bugün"
+      : key === dateKeyInTimeZone(addZonedDays(now, 1, tz), tz)
+        ? "yarın"
+        : key === dateKeyInTimeZone(addZonedDays(now, -1, tz), tz)
+          ? "dün"
+          : anchor.toLocaleDateString("tr-TR", { day: "numeric", month: "short", timeZone: tz });
+  if (precision === "time") return `${word} ${c.dueAt.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", timeZone: tz })}`;
+  if (precision === "part" && isDayPartCode(c.dayPart)) return c.dayPart === "soon" ? `${word}, ${DAY_PART_LABELS.soon}` : `${word} ${DAY_PART_LABELS[c.dayPart]}`;
+  return `${word} (saat belirtilmedi)`;
+}
+
 export function commitmentLabel(kind: CommitmentKind, topic: string | null | undefined): string {
   return isCommitmentTopic(topic) ? `${COMMITMENT_KIND_LABELS[kind]} · ${COMMITMENT_TOPIC_LABELS[topic]}` : COMMITMENT_KIND_LABELS[kind];
 }
 
 /** Sözün görev başlığı — TEK kaynak (yeni görev ve konu yazımında otomatik başlık eşleşmesi aynı metni kullanır). */
-export function commitmentTaskTitle(kind: CommitmentKind, topic: string | null | undefined): string {
-  return `Misafire söz: ${commitmentLabel(kind, topic)}`;
+export function commitmentTaskTitle(kind: CommitmentKind, topic: string | null | undefined, dayPart?: string | null): string {
+  // Gün dilimi sözü (kurucu 10-17: "akşam olarak tutsun") görevin SAATİNDE değil başlığında görünür — görev vadesi yalnız-tarih çapasıdır.
+  const part = isDayPartCode(dayPart) ? ` · ${DAY_PART_LABELS[dayPart]}` : "";
+  return `Misafire söz: ${commitmentLabel(kind, topic)}${part}`;
+}
+
+/**
+ * Sözün görev vadesi: açık saatte o an; gün dilimi / gün sözünde YALNIZ-TARİH çapası (`YYYY-MM-DDT12:00:00.000Z` — görev panosu saat
+ * göstermez, `taskDueTimeLabel`). Saat uydurulmaz (kurucu 10-17).
+ */
+export function commitmentTaskDueAt(dueAt: Date, duePrecision: string | null | undefined, dayKey: string | null): Date {
+  if (duePrecision == null || duePrecision === "time" || !dayKey) return dueAt;
+  return new Date(`${dayKey}T12:00:00.000Z`);
 }
 
 /**

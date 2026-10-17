@@ -107,6 +107,7 @@ export async function buildOrganizationDataExport(organizationId: string) {
         autoClosingReplyEnabled: true,
         closingReplyText: true,
         autoTaskFromMessageEnabled: true,
+        autoCommitmentsEnabled: true,
         autoSupplyRequestEnabled: true,
         autoWelcome: true,
         autoCheckin: true,
@@ -291,7 +292,24 @@ export async function buildOrganizationDataExport(organizationId: string) {
     // (tür + son an + durum + konuşma / görev kimliği); konuşmanın kendisi `organization.properties…conversations` altında.
     prisma.guestCommitment.findMany({
       where: { organizationId },
-      select: { id: true, conversationId: true, taskId: true, kind: true, topic: true, dueAt: true, status: true, closedAt: true, createdAt: true },
+      // Migration 75 (söz → görev otomatik): zaman kesinliği / gün dilimi / kaynak / kaynak mesaj / önceki son an / kapanış nedeni — metin yok.
+      select: {
+        id: true,
+        conversationId: true,
+        taskId: true,
+        kind: true,
+        topic: true,
+        dueAt: true,
+        duePrecision: true,
+        dayPart: true,
+        source: true,
+        sourceMessageId: true,
+        previousDueAt: true,
+        status: true,
+        closedAt: true,
+        closedReason: true,
+        createdAt: true,
+      },
       orderBy: { createdAt: "asc" },
     }),
     // Geçmişten öğren (migration 65): ev sahibinin YAZDIĞI mülk talimatları (kaldırılanlar dahil — iz) ve cevap karşılaştırma notları.

@@ -8,7 +8,14 @@
 > `docs/history/CLAUDE-2026-10-02-sadelestirme-3-oncesi-tam-metin.md` ("Durum" bölümü). Kuralları yukarıdaki bölümlerde; yalnız Durum'da
 > yazılı olan kurallar (konuşma öğeleri, ev kuralları, canlı bayraklar) 10-02'de ilgili bölümlere taşındı. Bekleyen onaylar ↓.
 
-**10-17 gece (güncel):** Q2 kodda (kanalın kendi otomatik mesajı senkronda yazar "automation" → K7 tek kuralı: cevap sayılmaz, açık iş düşmez,
+**10-17 gece-2 (güncel):** Söz → görev OTOMATİK (kurucu kararları; migration 75; anahtar `HOST_COMMITMENT_AUTO_ENABLED` KAPALI → açılışta "1"):
+ev sahibinin yazdığı söz onaysız söz + görev; saat UYDURULMAZ (açık saat · gün dilimi · yalnız gün; "birazdan" = "kısa süre içinde"); kararsız /
+aktarılan söz yok; "11'e kaydı" bağlamla tek adaya taşınır, belirsizde kart sorar; günde 20; konaklama bitince havlu / temizlik / eşya kapanır,
+arıza kalır; "Yanlış, kaldır"; Ayarlar'da kapatılır; dikkat panelinde 30 dk pay + 1 gün hatırlatma, saatsiz söz gün geçmeden satır olmaz.
+Opus düzeltmeleri (Q2 anahtar arkasında + belirsiz gönderim, PAD-A abonelik tekrar toplamı) 13/13 mutasyon. Sandbox tur 3: Paddle'ın kendi ödeme
+sayfası bulundu (ayar değişmedi). Yedek dallar `backup/2026-10-17-gece(-wip)`. Teyit soruları SG1/SG2 → `docs/arastirma-2026-10-15/KURUCU-SORULARI.md` §S.
+
+**10-17 gece:** Q2 kodda (kanalın kendi otomatik mesajı senkronda yazar "automation" → K7 tek kuralı: cevap sayılmaz, açık iş düşmez,
 istemde [OTOMATİK MESAJ]; bizim mesajımız asla — Railway açılınca ilk denemeler birlikte) · Q1-b (tek mesajda iki söz → iki öneri; iki farklı konulu
 söz + konusuz öneri → "hangi söze bağlansın?") · KD1 cümlesi gizlilikte + 14 sızma / hata testi · operatör "Denemeyi yeniden başlat" · Paddle sandbox
 (Chrome'daki Claude, kayıt sayfası) D1/D2: önizleme toplam alanı YANLIŞTI → satır toplamı + abonelik adresi; devamda kart reddi `past_due` → 402.

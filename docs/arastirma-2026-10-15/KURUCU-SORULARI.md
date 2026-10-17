@@ -815,6 +815,17 @@ aynı düğme o plan için ödeme ekranını açar (yeni abonelik, anında tahsi
 | KD1–KD4 | "dediğin mantıklı, testlerini bol bol yap, hata olmasın sızma olmasın" | ✅ KD1 cümlesi gizlilik metninde (pinli) · KD2 sınırlı mod (zaten böyle) · KD4 (a) ilan işareti tek başına yeter (zaten böyle) · KD3 kalan gün → Paddle'ın katalog dışı fiyatta deneme desteğine bağlı (sandbox P5) · 14 yeni sızma / hata testi |
 | "denemeyi geri ver garip" | — | ✅ operatör düğmesi "Denemeyi yeniden başlat" (üzerine gelince: "Bugünden başlayan yeni bir deneme süresi verir.") |
 | Sandbox (Chrome'daki Claude, 10-17) | — | D1 ✅ devam isteği alanları belgeyle aynı; kart reddinde istek hata DÖNMEZ, abonelik "ödeme gecikmiş" olur → kod artık bunu başarı saymıyor (402 + kart güncelleme). D2 🚨 fiyat önizlemesinde okuduğumuz alan YOKTU → düzeltildi (satır toplamları, aboneliğin adresiyle). P1–P14 panel girişi bekliyor |
+| Söz → görev otomatik (10-17 gece) | "onayla host uğraşmasın, saati ile kaydetsin, akşam yazmışsa akşam" · "Hatırlat, kapatma" · saatsiz söz gün olarak ama "rahatsız etmesin", kapatılabilsin / günlük sınır · "Herkese birden" · "aynı görevin saati güncellensin ama bağlamdan anlaşılsın, başka bir şeyi değiştirmemeli" · "havlu / temizlik / eşya kapansın, arıza kalsın" · "20" | ✅ kodda (migration 75, anahtar `HOST_COMMITMENT_AUTO_ENABLED` KAPALI → açılışta "1"): tasarım + davranış `docs/TASARIM-2026-10-17-soz-otomatik-gorev.md`. Saat uydurma kaldırıldı ("birazdan" artık "kısa süre içinde"; "akşam" akşam). "Teknisyen 11'e kaydı" gibi değişiklikler bağlamla TEK adaya taşınır; belirsizde kart sorar, hiçbir şey kendiliğinden değişmez |
+| Sandbox tur 3 (10-17 gece) | "sandbox dışında değişiklik olmasın, geri alınabilir olsun" | Chrome'daki Claude Paddle'ın kendi ödeme sayfasını buldu (Settings → Payments → Hosted checkouts) → "Default payment link" DEĞİŞMEDİ, hiçbir ayar değişmiyor. Devam istemi: `scratchpad/paddle-sandbox/chrome-claude-istemi-tur3-devam.md` (P6 → P8 → P3 → P4/P6b/P9 → P11 → P14 → P2; Musa kartı girer) |
+
+**Söz → görev otomatik — iki yorum, teyit (varsayılanla kodlandı; "hayır" derseniz tek satırla döner):**
+- **SG1 · Konaklama bitince görev:** söz kapanınca (havlu / temizlik / eşya) sistemin açtığı görev **kimse dokunmadıysa silinir** (panoda ayrılmış
+  misafir için açık iş kalmasın); üzerinde çalışılan ya da başlığı değiştirilmiş görev kalır. Alternatif: görev hep kalır, siz kapatırsınız.
+  ÖRNEK: "Akşam havlu getireceğim" → görev "Misafire söz: Havlu / çarşaf · akşam"; misafir ertesi sabah çıktı, görev hâlâ "yapılacak" → gece
+  saatlik işte söz kapanır, görev silinir. Böyle kalsın mı?
+- **SG2 · Saatsiz söz panelde:** "Havlu getireceğim" (gün yok, saat yok) → görev bugün için açılır ama Dikkat Gerektirenler'de **gün bitmeden
+  satır olmaz**; gün geçince en altta (öne çıkmaz) — "hostu sürekli rahatsız etmesin". Saatli / "akşam" sözleri bugünkü gibi yaklaşınca görünür.
+  Böyle kalsın mı?
 
 **Teyit isteyen yorum — "Q2 bu söz ne demek… 2'sini de öner":** "Söz" = ev sahibinin misafire verdiği, saate bağlı taahhüt ("Klima için teknisyen
 yarın 10:00'da gelecek"). Amaç unutulmaması: onaylanınca o saate görev açılır, saat geçerse "söz gecikti" görünür. Cevabınızı **Q1-b**'nin cevabı

@@ -527,7 +527,8 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 
 ## Durum
 > 📄 **Tam metin (bağlayıcı): `docs/claude/durum.md`** — bu alanda kod / karar değiştirmeden önce oku. Aşağıda yalnız madde başlıkları.
-**10-17 gece (güncel):** Q2 kanal otomasyonu cevap sayılmaz · Q1-b iki söz / "hangi söze bağlansın?" · KD1 + kartla deneme sızma testleri · Paddle sandbox D1/D2 düzeltmesi (önizleme toplamı satırlardan) — `docs/claude/durum.md`.
+**10-17 gece-2 (güncel):** Söz → görev otomatik (migration 75, `HOST_COMMITMENT_AUTO_ENABLED` KAPALI; saat uydurulmaz, bağlamla saat taşıma, günde 20, konaklama bitince kapanış) · Opus düzeltmeleri · teyit SG1/SG2 — `docs/claude/durum.md`.
+**10-17 gece:** Q2 kanal otomasyonu cevap sayılmaz · Q1-b iki söz / "hangi söze bağlansın?" · KD1 + kartla deneme sızma testleri · Paddle sandbox D1/D2 düzeltmesi (önizleme toplamı satırlardan) — `docs/claude/durum.md`.
 **10-17 akşam:** I1 + Q1 "a" · Q3/Q4 · I4 C devam ettir + kartla deneme kapısı (migration 74, anahtarlar KAPALI) · L1/L4 tasarımı; sorular KURUCU-SORULARI §S — `docs/claude/durum.md`.
 **10-17 öğleden sonra:** S2 migration 69–72 kodda (I3 dizin · L2 yerine koy · L5 kanal gönderen rolü 1. faz · K1 deneme işareti + kayıt ağı izi, anahtar KAPALI); sorular Q1–Q4 (+Q2-b) → `docs/arastirma-2026-10-15/KURUCU-SORULARI.md` §Q — `docs/claude/durum.md`.
 **10-17 sabah:** S1 kurucu kararları kodda (H9/M1 silici izin listesi · K4 elle temizlik · N1 bayat otomatik mesaj yok · K3 ödeme metinleri); S2 migration tasarımı + sorular → `docs/arastirma-2026-10-15/KURUCU-SORULARI.md` §Q — `docs/claude/durum.md`.

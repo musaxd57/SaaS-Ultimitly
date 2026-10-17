@@ -169,6 +169,9 @@ model Organization {
   trialCardRequiredAt        DateTime?
   /// Operatör kartla deneme kapısından MUAF tuttu ("Kart şartını kaldır"; Haiku 10-17) — saatlik iş bu işletmeyi bir daha damgalamaz.
   trialCardExemptAt          DateTime?
+  /// Migration 75 (kurucu 10-17 gece): ev sahibinin mesajındaki sözden ONAYSIZ görev açılır mı (Ayarlar → "Mesajlarımdaki sözlerden görev aç").
+  /// Varsayılan AÇIK; kapalıyken söz önerisi de çıkmaz.
+  autoCommitmentsEnabled     Boolean   @default(true)
   createdAt                  DateTime  @default(now())
   updatedAt                  DateTime  @updatedAt
 
@@ -1744,8 +1747,24 @@ model GuestCommitment {
   // bağlantı) aynı kaydı döndürür; aynı kimlik FARKLI içerikle gelirse açık uyuşmazlık (409). NULL = eski satır / kimliksiz çağıran.
   clientRequestId String?
 
+  /// Migration 75 (kurucu 10-17 gece: "saati belirtilmemiş saati söyleyemez"): zaman kesinliği — time (açık saat) · part (gün dilimi) · day
+  /// (yalnız gün). NULL = eski satır (açık saat). part / day sözünde `dueAt` pencerenin SONUDUR (yalnız gecikme hesabı; gösterilmez).
+  duePrecision    String?
+  /// Gün dilimi kodu (morning · noon · afternoon · late_afternoon · evening · night · midnight · soon) — yalnız duePrecision = part.
+  dayPart         String?
+  /// Kaynak: auto (ev sahibinin mesajından ONAYSIZ) · suggestion (öneriden onaylı) · NULL (elle form / eski satır).
+  source          String?
+  /// Sözün çıktığı ev sahibi mesajı — düz kimlik (FK YOK: mesaj saklama süresiyle silinebilir; metin taşımaz).
+  sourceMessageId String?
+  /// Bağlamla saat güncellemesinin izi ("10:00 → 11:00"): güncellemeden önceki son an.
+  previousDueAt   DateTime?
+  /// Kapanış sebebi: stay_ended (konaklama bitti — havlu / malzeme / temizlik sözü; arıza kapanmaz) · NULL.
+  closedReason    String?
+
   // Konuşma başına tekil (NULL'lar çakışmaz → mevcut satırlarla açılışta patlamaz).
   @@unique([conversationId, clientRequestId])
+  // Günlük otomatik söz sınırı (işletme başına günde 20) sayımı.
+  @@index([organizationId, createdAt])
   // Dikkat Gerektirenler: org'un açık sözleri, son ana göre.
   @@index([organizationId, status, dueAt])
   @@index([conversationId])

@@ -15,7 +15,7 @@ import { todayKey } from "@/modules/availability/core";
 import { hostDecisionsEnabled } from "@/lib/decisions/flag";
 import { openDecisionsForOrg, type DecisionView } from "@/lib/decisions/store";
 import { decisionTitle } from "@/lib/decisions/core";
-import { isCommitmentKind, type CommitmentKind } from "@/lib/guest-commitments-core";
+import { commitmentLateAt, isCommitmentKind, storedCommitmentWhen, type CommitmentKind } from "@/lib/guest-commitments-core";
 import { connectionHealth, connectionNeedsAttention } from "@/lib/channels/health";
 import { isFounderOrg } from "@/lib/billing/subscription";
 import type { IngestErrorKind } from "@/lib/channels/ingest";
@@ -339,10 +339,21 @@ export async function findAttentionItems(
             lte: new Date(now.getTime() + COMMITMENT_HORIZON_HOURS * HOUR),
           },
           conversation: { propertyId: { in: propertyIds } },
+          // Saatsiz (yalnız gün) söz gün bitmeden satır olmaz (kurucu 10-17: "hostu sürekli rahatsız etmesin"); filtre sorguda — `take` sınırı
+          // görünmeyecek satırlarla dolmasın. `not: "day"` NULL'u dışlar (SQL) → eski satır (NULL = açık saat) ayrı dal.
+          OR: [{ duePrecision: null }, { duePrecision: { not: "day" } }, { dueAt: { lt: now } }],
         },
         orderBy: [{ dueAt: "asc" }, { id: "asc" }],
         take: COMMITMENT_MAX_ROWS,
-        select: { kind: true, topic: true, dueAt: true, conversationId: true, conversation: { select: { propertyId: true, channel: true } } },
+        select: {
+          kind: true,
+          topic: true,
+          dueAt: true,
+          duePrecision: true,
+          dayPart: true,
+          conversationId: true,
+          conversation: { select: { propertyId: true, channel: true } },
+        },
       })
       .catch((err) => {
         void alertOnTransition("attention:commitment-due", "attention commitment_due", err).catch(() => {});
@@ -535,7 +546,11 @@ export async function findAttentionItems(
     const yesterdayKey = dateKeyInTimeZone(addZonedDays(now, -1, tz), tz);
     for (const c of commitments) {
       if (!isCommitmentKind(c.kind)) continue;
-      const minutesLeft = Math.floor((c.dueAt.getTime() - now.getTime()) / 60_000);
+      // Gecikme payı (kurucu 10-17 gece / Opus): açık saatli sözde 30 dk içinde "gecikti" denmez (kalan 0); dilim / gün sözünde son an zaten
+      // pencerenin sonu. Gecikme süresi son andan sayılır.
+      const rawLeft = Math.floor((c.dueAt.getTime() - now.getTime()) / 60_000);
+      const minutesLeft = now.getTime() < commitmentLateAt(c).getTime() ? Math.max(0, rawLeft) : rawLeft;
+      const precise = c.duePrecision == null || c.duePrecision === "time";
       const clock = c.dueAt.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", timeZone: tz });
       const dayKey = dateKeyInTimeZone(c.dueAt, tz);
       // Bugün → yalnız saat; dün / yarın → sözcük; daha eskisi → tarih (her geçmiş gün "dün" değildir — Haiku incelemesi).
@@ -547,6 +562,8 @@ export async function findAttentionItems(
             : dayKey === yesterdayKey
               ? "dün "
               : `${c.dueAt.toLocaleDateString("tr-TR", { day: "numeric", month: "short", timeZone: tz })} `;
+      // Dilim / gün sözünde saat UYDURULMAZ (kurucu 10-17): "yarın akşam", "bugün (saat belirtilmedi)".
+      const whenText = precise ? `${dayWord}${clock}` : storedCommitmentWhen(c, now, tz);
       items.push({
         kind: "commitment_due",
         // GÖZLEM: söz ev sahibinin AÇIK işaretinden doğdu (yorum yok).
@@ -554,13 +571,14 @@ export async function findAttentionItems(
         propertyId: c.conversation.propertyId,
         propertyName: nameById.get(c.conversation.propertyId) ?? "",
         // Geciken söz: misafir bekliyor (çakışmanın hemen altı); yaklaşan söz bırakılan istekten önce; uzaktaki altta.
-        severity: minutesLeft < 0 ? 96 : minutesLeft <= COMMITMENT_SOON_HOURS * 60 ? 89 : 60,
+        // Saatsiz söz (gün geçti) altta kalır — ev sahibi işaretlemiyor olabilir, sürekli öne çıkarılmaz (kurucu 10-17).
+        severity: c.duePrecision === "day" ? 60 : minutesLeft < 0 ? 96 : minutesLeft <= COMMITMENT_SOON_HOURS * 60 ? 89 : 60,
         occurredAt: c.dueAt,
         href: conversationHref(c.conversationId, c.conversation.channel),
         commitmentKind: c.kind,
         commitmentTopic: c.topic,
         minutesLeft,
-        commitmentTime: `${dayWord}${clock}`,
+        commitmentTime: whenText,
       });
     }
   }

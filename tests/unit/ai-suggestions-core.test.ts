@@ -11,7 +11,7 @@ import {
   kbContainsValue,
   maskSecret,
   parseSuggestionKey,
-  promiseDue,
+  promiseWindow,
   promotionReadiness,
   suggestionKey,
   type SuggestionDecision,
@@ -58,14 +58,15 @@ describe("C · ev sahibinin sözü", () => {
     expect(detectHostPromise("Teknisyen 30 dakika içinde gelecek. Yarın havlu getiririm.")).toMatchObject({ kind: "maintenance", day: "today", inMinutes: 30 });
   });
 
-  it("son an: açık saat → şimdiden sonraki ilk aday; göreli süre; yarın saatsiz → 12:00; hiçbiri → +2 saat", () => {
+  it("son an: açık saat → şimdiden sonraki ilk aday; AÇIK göreli süre; saat yoksa UYDURULMAZ (kurucu 10-17: gün ya da 'kısa süre içinde')", () => {
     const at10 = 10 * 60;
-    expect(promiseDue(detectHostPromise("Havluları 18:00'de getireceğim.")!, at10)).toEqual({ day: "today", time: "18:00" });
-    expect(promiseDue(detectHostPromise("Havluları 6'da getireceğim.")!, at10)).toEqual({ day: "today", time: "18:00" });
-    expect(promiseDue(detectHostPromise("I'll bring fresh towels in 30 minutes.")!, at10)).toEqual({ day: "today", time: "10:30" });
-    expect(promiseDue(detectHostPromise("Yarın teknisyen gelecek.")!, at10)).toEqual({ day: "tomorrow", time: "12:00" });
-    expect(promiseDue(detectHostPromise("Temizlikçi gelecek.")!, at10)).toEqual({ day: "today", time: "12:00" });
-    expect(promiseDue(detectHostPromise("Birazdan temizlikçi gelecek.")!, 23 * 60 + 30)).toEqual({ day: "tomorrow", time: "00:30" });
+    expect(promiseWindow(detectHostPromise("Havluları 18:00'de getireceğim.")!, at10)).toEqual({ day: "today", precision: "time", time: "18:00", end: 1080 });
+    expect(promiseWindow(detectHostPromise("Havluları 6'da getireceğim.")!, at10)).toEqual({ day: "today", precision: "time", time: "18:00", end: 1080 });
+    expect(promiseWindow(detectHostPromise("I'll bring fresh towels in 30 minutes.")!, at10)).toEqual({ day: "today", precision: "time", time: "10:30", end: 630 });
+    expect(promiseWindow(detectHostPromise("Yarın teknisyen gelecek.")!, at10)).toEqual({ day: "tomorrow", precision: "day", end: 1439 });
+    expect(promiseWindow(detectHostPromise("Temizlikçi gelecek.")!, at10)).toEqual({ day: "today", precision: "day", end: 1439 });
+    // "Birazdan" süre değil: saat yazılmaz, "kısa süre içinde" (eskiden şimdi + 60 dk uyduruluyordu).
+    expect(promiseWindow(detectHostPromise("Birazdan temizlikçi gelecek.")!, 23 * 60 + 30)).toEqual({ day: "today", precision: "part", dayPart: "soon", end: 1439 });
   });
 
   // Haiku 10-12 2. tur.
@@ -93,15 +94,18 @@ describe("C · ev sahibinin sözü", () => {
     expect(detectHostPromise("Kombi için, yarın getireceğim.")).toMatchObject({ kind: "maintenance" });
   });
 
-  it("gün dilimi: açık saat yoksa 'sabah' 10:00 / 'akşam' 19:00 / 'gece' 21:00 / 'öğlen' 12:00; açık saati öğleden önce / sonra süzer", () => {
+  it("gün dilimi: açık saat yoksa DİLİM olarak tutulur (kurucu 10-17: 'akşam yazmışsa akşam'); pencere sonu gecikme hesabı için; açık saati öğleden önce / sonra süzer", () => {
     const at14 = 14 * 60;
-    expect(promiseDue(detectHostPromise("Yarın sabah teknisyen gelecek.")!, at14)).toEqual({ day: "tomorrow", time: "10:00" });
-    expect(promiseDue(detectHostPromise("Bu akşam havlu getireceğim.")!, at14)).toEqual({ day: "today", time: "19:00" });
-    expect(promiseDue(detectHostPromise("Bu gece havlu getireceğim.")!, at14)).toEqual({ day: "today", time: "21:00" });
-    expect(promiseDue(detectHostPromise("Yarın öğlen temizlikçi gelecek.")!, at14)).toEqual({ day: "tomorrow", time: "12:00" });
-    expect(promiseDue(detectHostPromise("Öğleden sonra teknisyen gelecek.")!, 10 * 60)).toEqual({ day: "today", time: "15:00" });
-    // Bugünkü dilim geçmişse yarına KAYMAZ ("bu akşam" 20:00'de yazıldıysa) → şimdi + 2 saat.
-    expect(promiseDue(detectHostPromise("Bu akşam havlu getireceğim.")!, 20 * 60)).toEqual({ day: "today", time: "22:00" });
+    expect(promiseWindow(detectHostPromise("Yarın sabah teknisyen gelecek.")!, at14)).toEqual({ day: "tomorrow", precision: "part", dayPart: "morning", end: 720 });
+    expect(promiseWindow(detectHostPromise("Bu akşam havlu getireceğim.")!, at14)).toEqual({ day: "today", precision: "part", dayPart: "evening", end: 1439 });
+    expect(promiseWindow(detectHostPromise("Bu gece havlu getireceğim.")!, at14)).toEqual({ day: "today", precision: "part", dayPart: "night", end: 1800 });
+    expect(promiseWindow(detectHostPromise("Yarın öğlen temizlikçi gelecek.")!, at14)).toEqual({ day: "tomorrow", precision: "part", dayPart: "noon", end: 840 });
+    expect(promiseWindow(detectHostPromise("Öğleden sonra teknisyen gelecek.")!, 10 * 60)).toEqual({ day: "today", precision: "part", dayPart: "afternoon", end: 1080 });
+    // Akşam yazılan "bu akşam" bugün kalır (pencere 23:59'a kadar); eskiden şimdi + 2 saat uyduruluyordu.
+    expect(promiseWindow(detectHostPromise("Bu akşam havlu getireceğim.")!, 20 * 60)).toEqual({ day: "today", precision: "part", dayPart: "evening", end: 1439 });
+    // Bugünün erken dilimi GEÇTİYSE yarın ("Sabah teknisyen gelecek" 14:00'te yazıldı); akşam / gece dilimi bugün kalır.
+    expect(promiseWindow(detectHostPromise("Sabah teknisyen gelecek.")!, at14)).toEqual({ day: "tomorrow", precision: "part", dayPart: "morning", end: 720 });
+    expect(promiseWindow(detectHostPromise("Gece yarısı havlu getireceğim.")!, at14)).toEqual({ day: "today", precision: "part", dayPart: "midnight", end: 1500 });
     // "akşam 6" → 18:00 (06:00 değil); "sabah 9" → 09:00 (21:00 değil).
     expect(detectHostPromise("Akşam 6'da teknisyen gelecek.")).toMatchObject({ timeCandidates: [18 * 60], cue: null });
     expect(detectHostPromise("Yarın sabah 9'da temizlikçi gelecek.")).toMatchObject({ timeCandidates: [9 * 60], cue: null });
@@ -244,40 +248,92 @@ describe("C · söz — Haiku 10-12 3. tur", () => {
   });
 
   it.each([
-    ["Teknisyen yarına gelecek.", 600, { day: "tomorrow", time: "12:00" }],
-    ["Akşam 7:00'de teknisyen gelecek.", 600, { day: "today", time: "19:00" }],
-    ["Öğleden sonra 2:30'da teknisyen gelecek.", 600, { day: "today", time: "14:30" }],
-    ["Yarın saat 2'de teknisyen gelecek.", 600, { day: "tomorrow", time: "14:00" }],
-    ["Tomorrow at 2 the technician will come.", 600, { day: "tomorrow", time: "14:00" }],
-    ["Teknisyen saat 10'da gelecek.", 900, { day: "tomorrow", time: "10:00" }],
-    ["Teknisyen bugün gelecek, yarın havlu getiririm.", 600, { day: "today", time: "12:00" }],
-    ["Yarın sabah, teknisyen gelecek.", 600, { day: "tomorrow", time: "10:00" }],
-    ["Teknisyen yarın gelecek, işi 2 saat sürer.", 540, { day: "tomorrow", time: "12:00" }],
-    ["Teknisyen bugün gelecek, 30 dakika sürer.", 540, { day: "today", time: "11:00" }],
-    ["Yarın akşama teknisyen gelecek.", 600, { day: "tomorrow", time: "19:00" }],
-    ["Sabah teknisyen gelecek.", 840, { day: "tomorrow", time: "10:00" }],
-    ["Akşamüstü teknisyen gelecek.", 600, { day: "today", time: "17:00" }],
-    ["Yarım saat içinde havlu getireceğim.", 600, { day: "today", time: "10:30" }],
-    ["Bir saat içinde havlu getireceğim.", 600, { day: "today", time: "11:00" }],
-    ["I'll bring towels in an hour.", 600, { day: "today", time: "11:00" }],
-    ["1,25 saat sonra temizlikçi gelecek.", 600, { day: "today", time: "11:15" }],
-    ["Gece 11'de havlu getireceğim.", 600, { day: "today", time: "23:00" }],
-    ["Gece 11:30'da havlu getireceğim.", 600, { day: "today", time: "23:30" }],
-    // Haiku 10-12 4. tur.
-    ["Teknisyen en geç 5'e kadar gelecek.", 600, { day: "today", time: "17:00" }],
-    ["Teknisyen gelecek, yarın sabah 10 gibi.", 600, { day: "tomorrow", time: "10:00" }],
-    ["Teknisyen geliyor, yarın 10'da.", 600, { day: "tomorrow", time: "10:00" }],
-    ["The technician will come tomorrow, around 9.", 600, { day: "tomorrow", time: "09:00" }],
-    ["Temizlikçi gelecek, havlular yarın.", 600, { day: "today", time: "12:00" }], // başka konulu parça katılmaz
-    ["Havlu getiririm.", 600, { day: "today", time: "12:00" }],
-    ["Technician will come tomorrow morning.", 600, { day: "tomorrow", time: "10:00" }],
-    ["Cleaners will come tomorrow at 9am.", 600, { day: "tomorrow", time: "09:00" }],
-    ["Temizlikçi gelecek ve 3 saat kalacak.", 600, { day: "today", time: "12:00" }], // süre "içinde / sonra"sız → son an değil
-    ["Teknik servis yarın gelecek.", 600, { day: "tomorrow", time: "12:00" }],
-  ] as const)("%s @%i → %o", (text, now, due) => {
+    ["Teknisyen yarına gelecek.", 600, { day: "tomorrow", precision: "day", end: 1439 }],
+    ["Akşam 7:00'de teknisyen gelecek.", 600, { day: "today", precision: "time", time: "19:00", end: 1140 }],
+    ["Öğleden sonra 2:30'da teknisyen gelecek.", 600, { day: "today", precision: "time", time: "14:30", end: 870 }],
+    ["Yarın saat 2'de teknisyen gelecek.", 600, { day: "tomorrow", precision: "time", time: "14:00", end: 840 }],
+    ["Tomorrow at 2 the technician will come.", 600, { day: "tomorrow", precision: "time", time: "14:00", end: 840 }],
+    ["Teknisyen saat 10'da gelecek.", 900, { day: "tomorrow", precision: "time", time: "10:00", end: 600 }],
+    ["Teknisyen bugün gelecek, yarın havlu getiririm.", 600, { day: "today", precision: "day", end: 1439 }],
+    ["Yarın sabah, teknisyen gelecek.", 600, { day: "tomorrow", precision: "part", dayPart: "morning", end: 720 }],
+    ["Teknisyen yarın gelecek, işi 2 saat sürer.", 540, { day: "tomorrow", precision: "day", end: 1439 }],
+    ["Teknisyen bugün gelecek, 30 dakika sürer.", 540, { day: "today", precision: "day", end: 1439 }], // süre son an değil → saat yok
+    ["Yarın akşama teknisyen gelecek.", 600, { day: "tomorrow", precision: "part", dayPart: "evening", end: 1439 }],
+    ["Sabah teknisyen gelecek.", 840, { day: "tomorrow", precision: "part", dayPart: "morning", end: 720 }],
+    ["Akşamüstü teknisyen gelecek.", 600, { day: "today", precision: "part", dayPart: "late_afternoon", end: 1140 }],
+    ["Yarım saat içinde havlu getireceğim.", 600, { day: "today", precision: "time", time: "10:30", end: 630 }],
+    ["Bir saat içinde havlu getireceğim.", 600, { day: "today", precision: "time", time: "11:00", end: 660 }],
+    ["I'll bring towels in an hour.", 600, { day: "today", precision: "time", time: "11:00", end: 660 }],
+    ["1,25 saat sonra temizlikçi gelecek.", 600, { day: "today", precision: "time", time: "11:15", end: 675 }],
+    ["Gece 11'de havlu getireceğim.", 600, { day: "today", precision: "time", time: "23:00", end: 1380 }],
+    ["Gece 11:30'da havlu getireceğim.", 600, { day: "today", precision: "time", time: "23:30", end: 1410 }],
+    ["Teknisyen en geç 5'e kadar gelecek.", 600, { day: "today", precision: "time", time: "17:00", end: 1020 }], // Haiku 10-12 4. tur
+    ["Teknisyen gelecek, yarın sabah 10 gibi.", 600, { day: "tomorrow", precision: "time", time: "10:00", end: 600 }],
+    ["Teknisyen geliyor, yarın 10'da.", 600, { day: "tomorrow", precision: "time", time: "10:00", end: 600 }],
+    ["The technician will come tomorrow, around 9.", 600, { day: "tomorrow", precision: "time", time: "09:00", end: 540 }],
+    ["Temizlikçi gelecek, havlular yarın.", 600, { day: "today", precision: "day", end: 1439 }], // başka konulu parça katılmaz
+    ["Havlu getiririm.", 600, { day: "today", precision: "day", end: 1439 }],
+    ["Technician will come tomorrow morning.", 600, { day: "tomorrow", precision: "part", dayPart: "morning", end: 720 }],
+    ["Cleaners will come tomorrow at 9am.", 600, { day: "tomorrow", precision: "time", time: "09:00", end: 540 }],
+    ["Temizlikçi gelecek ve 3 saat kalacak.", 600, { day: "today", precision: "day", end: 1439 }], // süre "içinde / sonra"sız → son an değil
+    ["Teknik servis yarın gelecek.", 600, { day: "tomorrow", precision: "day", end: 1439 }],
+  ] as const)("%s @%i → %o", (text, now, win) => {
     const p = detectHostPromise(text);
     expect(p).not.toBeNull();
-    expect(promiseDue(p!, now)).toEqual(due);
+    expect(promiseWindow(p!, now)).toEqual(win);
+  });
+});
+
+describe("söz → görev otomatik (kurucu 10-17 gece): kararsız / aktarılan söz yok · saat değişikliği bağlamla · saat uydurulmaz", () => {
+  it.each([
+    ["Belki yarın teknisyen gelir.", "belki"],
+    ["Teknisyen yarın gelecek galiba.", "galiba"],
+    ["Umarım yarın teknisyen gelir.", "umarım"],
+    ["Teknisyen yarın gelecek, emin değilim.", "emin değilim"],
+    ["Muhtemelen yarın havlu getiririm.", "muhtemelen"],
+    ["Maybe the technician will come tomorrow.", "maybe"],
+    ["Hopefully the cleaner will come today.", "hopefully"],
+    ["Teknisyen yarın gelecek demiştim.", "aktarılan"],
+    ["Dediğim gibi teknisyen yarın gelecek.", "aktarılan"],
+    ["As I said, the technician will come tomorrow.", "aktarılan (EN)"],
+    ["Teknisyen ertelendi.", "değişiklik var, yeni zaman yok → hiçbir şey"],
+    ["Teknisyen saati değişti.", "değişiklik var, yeni zaman yok → hiçbir şey"],
+  ])("%s → söz yok (%s)", (text) => {
+    expect(detectHostPromises(text)).toEqual([]);
+  });
+
+  it("kararlı söz kararsızdan ayrı cümlecikte ise yalnız kararlı olan: 'Havlu getireceğim. Belki teknisyen de gelir.'", () => {
+    expect(detectHostPromises("Havlu getireceğim. Belki teknisyen de gelir.")).toMatchObject([{ kind: "towels" }]);
+  });
+
+  it.each([
+    ["Teknisyen 11'e kaydı.", 600, { day: "today", precision: "time", time: "11:00", end: 660 }],
+    ["Teknisyen 11’e kaydı.", 600, { day: "today", precision: "time", time: "11:00", end: 660 }], // kıvrık kesme
+    ["Teknisyen 3'e alındı.", 600, { day: "today", precision: "time", time: "15:00", end: 900 }], // gündüz tercihi
+    ["Teknisyen saat 11'e kaydırıldı.", 600, { day: "today", precision: "time", time: "11:00", end: 660 }],
+    ["Teknisyen 15:30'a ertelendi.", 600, { day: "today", precision: "time", time: "15:30", end: 930 }],
+    ["Teknisyen yarına ertelendi.", 600, { day: "tomorrow", precision: "day", end: 1439 }],
+    ["Teknisyen saati değişti, 15:00'te gelecek.", 600, { day: "today", precision: "time", time: "15:00", end: 900 }],
+    ["The technician was rescheduled to 3pm.", 600, { day: "today", precision: "time", time: "15:00", end: 900 }],
+  ] as const)("saat değişikliği %s @%i → %o (reschedule)", (text, now, win) => {
+    const [p, ...rest] = detectHostPromises(text);
+    expect(rest).toEqual([]);
+    expect(p).toMatchObject({ kind: "maintenance", reschedule: true });
+    expect(promiseWindow(p!, now)).toEqual(win);
+  });
+
+  it("'kaydı' / 'alındı' AD ya da başka anlamda ise saat değişikliği değil (aşırı uygulama kontrolü)", () => {
+    expect(detectHostPromises("Rezervasyon kaydı alındı, havlu getireceğim.")).toMatchObject([{ kind: "towels", reschedule: false }]);
+    expect(detectHostPromises("Klima değişti, teknisyen gelecek.")).toMatchObject([{ kind: "maintenance", reschedule: false }]);
+    expect(detectHostPromises("Teknisyen 11'de gelecek.")).toMatchObject([{ reschedule: false, timeCandidates: [660] }]);
+  });
+
+  it("'birazdan / hemen / soon' → 'kısa süre içinde' (saat değil); açık süre varsa süre kazanır", () => {
+    expect(detectHostPromise("Birazdan havlu getireceğim.")).toMatchObject({ soon: true, inMinutes: null, timeCandidates: [] });
+    expect(detectHostPromise("Hemen temizlikçi gönderiyorum.")).toMatchObject({ soon: true });
+    expect(detectHostPromise("The cleaner will come soon.")).toMatchObject({ soon: true });
+    expect(detectHostPromise("Birazdan, 30 dakika içinde havlu getireceğim.")).toMatchObject({ soon: false, inMinutes: 30 });
+    expect(detectHostPromise("Birazdan, saat 11'de teknisyen gelecek.")).toMatchObject({ soon: false, timeCandidates: [660] });
   });
 });
 
@@ -308,10 +364,13 @@ describe("anahtar ve ölçüt", () => {
 
 describe("süre (karesel iş yok)", () => {
   it("uzun tek sözcük / boşluk dizisi / tekrarlanan söz fiili ve şifre sözcüğü doğrusal", () => {
-    const runs = ["a".repeat(4_000), `a${" ".repeat(3_990)}b`, "getirecegim ".repeat(330), "sifre ".repeat(660), "password is ".repeat(330), "havlu gelecek ".repeat(280), `${",".repeat(3_970)}teknisyen gelecek`, `${"sabah, ".repeat(560)}teknisyen gelecek`, "1,".repeat(1_990), "*".repeat(3_999), `şifre${"*_~`".repeat(990)}`];
+    const runs = ["a".repeat(4_000), `a${" ".repeat(3_990)}b`, "getirecegim ".repeat(330), "sifre ".repeat(660), "password is ".repeat(330), "havlu gelecek ".repeat(280), `${",".repeat(3_970)}teknisyen gelecek`, `${"sabah, ".repeat(560)}teknisyen gelecek`, "1,".repeat(1_990), "*".repeat(3_999), `şifre${"*_~`".repeat(990)}`,
+      // Saat değişikliği / "N'e kadar" kalıbı: rakamdan sonra uzun boşluk dizisi (iki bitişik boşluk niceleyicisi yok — 10-17 gece).
+      `teknisyen 1${" ".repeat(3_970)}'e kaydi`, `teknisyen 1${" ".repeat(1_980)}'${" ".repeat(1_980)}x`, "11 ".repeat(1_320), "ertelendi 3'e ".repeat(280)];
     for (const r of runs) {
       const t = performance.now();
       detectHostPromise(r);
+      detectHostPromises(r);
       extractWifiValues(r);
       expect(performance.now() - t).toBeLessThan(1_000);
     }

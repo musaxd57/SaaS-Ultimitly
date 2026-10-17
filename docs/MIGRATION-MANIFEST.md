@@ -25,6 +25,7 @@
 | 72 | `72_signup_network_trace` | `Organization.trialIdentityReusedAt` (K1-B işaret; deneme bitirilmez) + `SignupNetworkTrace` (kayıt ağı izi: HMAC özet, ham IP yok, 90 gün; anahtar KAPALI) | kurucu ONAYLADI (10-17 "B + IP"), yerel commit → itilince origin | boş kolon + yeni tablo |
 | 73 | `73_commitment_topic` | `GuestCommitment.topic` (I1: söze kısa konu — klima 18:00 ile musluk 18:00 iki söz) | kurucu ONAYLADI (10-17 "A"), yerel commit → itilince origin | boş kolon |
 | 74 | `74_trial_card_required` | `Organization.trialCardRequiredAt` (kartla deneme kapısı: yüksek riskli süren denemede kart istendi damgası; yazıcı saatlik iş, anahtar `TRIAL_CARD_GATE_ENABLED` KAPALI) | kurucu istedi (10-17 "kartla deneme kapısını yap") + genel migration onayı, yerel commit → itilince origin | boş kolon |
+| 75 | `75_commitment_auto` | `GuestCommitment` zaman kesinliği (`duePrecision` saat / dilim / gün · `dayPart`) + kaynak (`source` auto / suggestion / manual, `sourceMessageId`) + saat taşıma izi (`previousDueAt`) + kapanış nedeni (`closedReason` stay_ended / wrong) + (`organizationId`, `createdAt`) dizini (günlük 20 sınırı sayımı) · `Organization.autoCommitmentsEnabled` (varsayılan AÇIK; anahtar `HOST_COMMITMENT_AUTO_ENABLED` KAPALI) | kurucu kararları (10-17 gece "onayla host uğraşmasın", "herkese birden", "20") + genel migration onayı, yerel commit → itilince origin | boş kolonlar + varsayılanlı boolean (PG 11+ meta-veri) + küçük tabloya düz dizin |
 
 ## 2. Hazırlanan / önerilen paketler (NUMARASIZ — sıra yayın anında)
 

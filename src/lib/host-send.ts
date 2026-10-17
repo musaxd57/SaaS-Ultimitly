@@ -9,6 +9,8 @@ import { claimOutboundSend, releaseOutboundSend } from "@/lib/outbound-claim";
 import { durableOutboxEnabledFor } from "@/lib/outbox/flag";
 import { enqueueOutbound } from "@/lib/outbox/enqueue";
 import { kickOutboxDrain } from "@/lib/outbox/worker";
+import { applyHostCommitmentsAuto } from "@/lib/guest-commitments-auto";
+import { reportError } from "@/lib/report-error";
 
 // ---------------------------------------------------------------------------
 // EV SAHİBİ ADINA GÖNDERİM — TEK ÇEKİRDEK (10-02, Host Karar Motoru ile ayrıştırıldı). `conversations/[id]/reply` (elle cevap /
@@ -157,6 +159,16 @@ export async function sendHostMessage(input: HostSendInput): Promise<HostSendRes
       where: { conversationId: id, externalId: outcome.providerMessageId ?? undefined },
     });
     await prisma.conversation.update({ where: { id }, data: { status: "answered", lastMessageAt: now } });
+  }
+  // Söz → görev OTOMATİK (kurucu 10-17 gece): teslim edilmiş ev sahibi mesajındaki söz HEMEN söz + görev olur (senkron turunu beklemez).
+  // En iyi çaba: hata gönderimi etkilemez (mesaj zaten misafire ulaştı), sonraki senkron turu yeniden dener. Anahtar kapalıyken sorgusuz.
+  // Saat: mesaj satırının zamanı `now`dan SONRA olabilir (satır işlemde yazıldı; ayrıca veritabanı saati) — eski `now` ile okuma yeni mesajı
+  // "henüz yazılmamış" sayıp atlardı. En geç olan alınır.
+  try {
+    const at = new Date(Math.max(Date.now(), message?.createdAt?.getTime() ?? 0));
+    await applyHostCommitmentsAuto(input.organizationId, id, at);
+  } catch (err) {
+    await reportError("commitment-auto-send", err);
   }
   return { status: "sent", message };
 }
