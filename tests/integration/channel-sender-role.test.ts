@@ -101,6 +101,26 @@ async function outbound(conversationId: string, body: string, channelSenderRole:
   });
 }
 
+describe("kendi gönderimimiz (Haiku 10-17)", () => {
+  it("🚨 kuyruktan gönderdiğimiz mesaj (sağlayıcı kimliği kuyruk satırında) kanal 'otomasyon' dese de YENİ satırda rol yazılmaz; KONTROL: kuyrukta olmayan otomasyon yazılır", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    await importThread(propertyId, [m("e-guest", { direction: "inbound", senderName: "Deniz", senderRole: "guest", createdAt: new Date("2026-10-12T09:00:00Z") })]);
+    const conv = await prisma.conversation.findFirstOrThrow({ where: { propertyId } });
+    await prisma.messageOutbox.create({
+      data: { organizationId: orgId, conversationId: conv.id, channel: "airbnb", body: "Otopark binanın arkasında.", idempotencyKey: "k-ours", status: "sent", messageType: "manual", providerMessageId: "e-ours" },
+    });
+    await importThread(propertyId, [
+      m("e-ours", { body: "Otopark binanın  arkasında.", senderRole: "automation", createdAt: new Date("2026-10-12T09:10:00Z") }),
+      m("e-tmpl", { body: "Giriş bilgileri", senderRole: "automation", createdAt: new Date("2026-10-12T09:11:00Z") }),
+    ]);
+    const rows = await prisma.message.findMany({ where: { externalId: { in: ["e-ours", "e-tmpl"] } }, select: { externalId: true, channelSenderRole: true }, orderBy: { createdAt: "asc" } });
+    expect(rows).toEqual([
+      { externalId: "e-ours", channelSenderRole: null },
+      { externalId: "e-tmpl", channelSenderRole: "automation" },
+    ]);
+  });
+});
+
 describe("üslup profili", () => {
   it("🚨 kanalın otomatik şablonları örneğe GİRMEZ; ev sahibi + rolsüz + tanınmayan rol girer", async () => {
     vi.stubEnv("OPENAI_API_KEY", "sk-test-not-used");

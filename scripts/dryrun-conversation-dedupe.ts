@@ -209,6 +209,9 @@ export const MESSAGE_FIELD_POLICY: Record<
   connectionId: "provenance_id",
   connectionEvidence: "provenance", // bağlantı eşitse tür de eşittir (create yolu tek); kıyaslanmaz
   ingestedAt: "provenance",
+  // L5 (migration 71): kanalın bildirdiği gönderen rolü — içerik kimliği değil, türetilmiş üst veri (rol 71'den önce alınan kopyada NULL,
+  // sonra alınanda dolu olabilir). Kıyaslanmaz; keeper'daki kopya kendi rolüyle yaşar.
+  channelSenderRole: "provenance",
 };
 
 /** Şema ↔ politika sürüklenmesine karşı RUNTIME kapısı (fail-closed). */

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { senderRoleOf } from "@/lib/channels/hospitable-ingest";
+import { senderFieldCensus, senderRoleOf } from "@/lib/channels/hospitable-ingest";
 import { canonicalChannelSenderRole, isAnsweringOutbound, isChannelAutomation, notChannelAutomationWhere } from "@/lib/message-author";
 import { isHostAuthored, type HistoryMessage } from "@/lib/kb-from-history";
 import { buildLearnPairs } from "@/lib/history-learn/pairs";
@@ -33,7 +33,31 @@ describe("Hospitable gönderen rolü eşlemesi (açık işaret, kesin eşitlik)"
     expect(senderRoleOf({ id: "m1", sender_type: "host", sender_role: "mail" })).toBe("unknown");
     expect(senderRoleOf({ id: "m1", sender_type: "host", sender_role: "robotics" })).toBe("unknown");
     expect(senderRoleOf({ id: "m1", sender_type: "host", source: "hospitable" })).toBe("host");
-    expect(senderRoleOf({ id: "m1", sender_type: "host", automated: "true" })).toBe("host"); // yalnız gerçek boolean
+    expect(senderRoleOf({ id: "m1", sender_type: "host", automated: "false" })).toBe("host");
+    expect(senderRoleOf({ id: "m1", sender_type: "host", automated: false })).toBe("host");
+  });
+
+  it("Haiku 10-17: otomasyon bayrağının metin / sayı biçimi de açık işarettir; metin olmayan rol alanı 'unknown' (sessizce 'yok' değil)", () => {
+    expect(senderRoleOf({ id: "m1", sender_type: "host", automated: "true" })).toBe("automation");
+    expect(senderRoleOf({ id: "m1", sender_type: "host", automated: 1 })).toBe("automation");
+    expect(senderRoleOf({ id: "m1", sender_type: ["host"] })).toBe("unknown");
+    expect(senderRoleOf({ id: "m1", sender_type: 3 })).toBe("unknown");
+    expect(senderRoleOf({ id: "m1", sender_type: "host", sender_role: { x: 1 } })).toBe("unknown");
+  });
+
+  it("tanılama sayımı yalnız ALAN DEĞERİ + eşleme sonucu taşır; serbest metin '(diğer)' olur, gövde / ad hiç geçmez", () => {
+    const census = senderFieldCensus([
+      { id: "a", body: "Merhaba Ayşe, kapı kodu 4590", sender_type: "host", sender_role: "co-host", sender: { full_name: "Ayşe Yılmaz" } },
+      { id: "b", body: "Giriş bilgileri", sender_type: "host", source: "scheduled" },
+      { id: "c", body: "x", sender_type: "Ayşe Yılmaz'ın asistanı (ekip)", automated: true },
+    ]);
+    const all = JSON.stringify(census);
+    for (const leaked of ["Merhaba", "4590", "Ayşe", "Giriş bilgileri"]) expect(all).not.toContain(leaked);
+    expect(census).toEqual({
+      "sender_type=host · sender_role=co-host · source=(yok) · automated=(yok) · → host": 1,
+      "sender_type=host · sender_role=(yok) · source=scheduled · automated=(yok) · → automation": 1,
+      "sender_type=(diğer) · sender_role=(yok) · source=(yok) · automated=true · → automation": 1,
+    });
   });
 });
 

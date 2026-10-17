@@ -756,6 +756,15 @@ olabilir" uyarısı alır — genel yönerge ("Anahtarı kutuya bıraktım, çı
   açık iş "ev sahibi yazdı" diye düşer. Önerim (2. faz): kendi otomatik mesajlarımızdaki kural (K7) — cevap DEĞİL → otopark cevaplanır, iş açık kalır.
   Risk: sağlayıcının yapay zekâsı gerçekten cevapladıysa çift cevap → 2. faz yalnız alan canlı hesapta doğrulandıktan sonra (Hospitable belgesi bu
   ortamdan açılamadı; kurucu org 402).
+  - **Q2-b (Haiku 10-17, L5 incelemesi):** cevap isteminde kanalın otomatik mesajı bugün "EV SAHİBİ" satırı olarak görünüyor — yapay zekâ onu sizin
+    cevap örneğiniz gibi TAKLİT ediyor. Bizim kendi otomatik mesajlarımız (K7) "[OTOMATİK MESAJ]" etiketiyle girer: içindeki bilgi sizin bilginiz
+    sayılır ama üslup örneği olmaz. Önerim: kanalın otomatik mesajı da aynı etiketle (bilgi kalır, taklit edilmez) + gelen kutusunda "Otomatik
+    (kanal)" etiketi. ÖRNEK: Hospitable şablonu "Dear guest, your check-in details are below…" → misafir "Otopark var mı?" → bugün cevap şablonun
+    resmî İngilizce kalıbını sizin sesiniz gibi taklit edebilir; önerimle sizin gerçek cevaplarınızın üslubu esas alınır, şablondaki bilgi yine
+    okunur. Misafire gidecek cevabı etkilediği için sormadan yapmadım.
+  - **Q2-c (bilgi):** rol yalnız YENİ gelen mesajlara yazılır; eski mesajların rolü bilinmiyor (sağlayıcının ham alanı saklanmıyordu). Eski
+    geçmişi düzeltmenin tek yolu sağlayıcıdan yeniden okumak (Railway açılınca ayrı betik, sizin onayınızla). Doğrulama: tanılama sayfası artık
+    gönderen alanlarının DEĞER sayımını ve saklanan rol dağılımını gösteriyor (metin / ad yok).
 - **Q3 · K1 — aydınlatma cümlesi + saklama süresi:** önerilen cümle — "Ücretsiz denemenin kötüye kullanılmasını önlemek için kayıt sırasında IP
   adresinizden geri döndürülemez bir özet ve bağlandığınız ağın özeti oluşturulur; ham IP adresi bu amaçla saklanmaz. Bu bilgi yalnız ekibimizin
   incelemesinde kullanılır, otomatik karar verilmez ve 90 gün sonra silinir." (a) 90 gün mü (önerim; silip yeniden açmayı 3 ay görür) 30 gün mü?

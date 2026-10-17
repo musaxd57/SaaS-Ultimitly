@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { withManage } from "@/lib/route-guard";
 import { listProperties, listReservations, listMessages } from "@/lib/hospitable";
 import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
+import { senderFieldCensus } from "@/lib/channels/hospitable-ingest";
 
 // ---------------------------------------------------------------------------
 // Hospitable structural diagnostics (dev aid)
@@ -120,6 +121,8 @@ export const GET = withManage(async (session) => {
           reservationKeyTried: "id",
           count: messages.length,
           shape: messages.length ? shapeOf(messages[0]) : null,
+          // L5 (10-17): gönderen alanlarının DEĞER sıklığı + eşleme sonucu (metin / ad yok) — otomasyon işaretini canlıda doğrulamak için.
+          senderFields: senderFieldCensus(messages),
         };
       } catch (err) {
         out.messages = { error: err instanceof Error ? err.message : String(err) };
@@ -129,6 +132,19 @@ export const GET = withManage(async (session) => {
     }
   } catch (err) {
     out.reservations = { error: err instanceof Error ? err.message : String(err) };
+  }
+
+  // L5 (10-17): saklanan gönderen rolü dağılımı (son 90 gün) — "unknown" oranı yüksekse eşleme kümeleri eksiktir. Yalnız sayım.
+  try {
+    const since = new Date(Date.now() - 90 * 86_400_000);
+    const roles = await prisma.message.groupBy({
+      by: ["channelSenderRole"],
+      where: { createdAt: { gte: since }, conversation: { property: { organizationId: session.organizationId } } },
+      _count: { _all: true },
+    });
+    out.channelSenderRoles = Object.fromEntries(roles.map((r) => [r.channelSenderRole ?? "null", r._count._all]));
+  } catch (err) {
+    out.channelSenderRoles = { error: err instanceof Error ? err.message : String(err) };
   }
 
   return NextResponse.json(out);

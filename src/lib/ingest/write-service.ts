@@ -446,6 +446,14 @@ export async function importCanonicalThread(
     // K7: gönderim izine bağlanan giden mesaj bizim otomatik mesajımızdır (bire bir sahiplenme; bağlanamazsa eski yol).
     const automation = inbound ? undefined : automationPlan.get(externalId);
     const isOurAutomation = automation ? await claimAutomatedSend(db, automation.recordId, externalId, new Date()) : false;
+    // L5: kanal "otomasyon" dese de BİZİM kuyruktan gönderdiğimiz mesajsa (sağlayıcı kimliği kuyruk satırında) rol yazılmaz — sağlayıcı API ile
+    // gideni otomasyon diye etiketleyebilir; kimlik iliştirmesi kaçmış ve gövde ufak farkla dönmüşse (sahiplenme tutmadı) ev sahibinin gerçek
+    // cevabı öğrenmeden düşerdi (Haiku 10-17). Sorgu YALNIZ otomasyon rolünde (nadir) koşar.
+    let channelSenderRole = canonicalChannelSenderRole(inbound ? "inbound" : "outbound", m.senderRole);
+    if (channelSenderRole === "automation") {
+      const ours = await db.messageOutbox.findFirst({ where: { conversationId, providerMessageId: externalId }, select: { id: true } });
+      if (ours) channelSenderRole = null;
+    }
     let created: { id: string };
     try {
       created = await db.message.create({
@@ -465,7 +473,7 @@ export async function importCanonicalThread(
           // L5 (migration 71): kanalın bildirdiği gönderen rolü — kapalı küme + yönle tutarlılık çekirdekte (yazar alanı `authorType` otorite
           // kalır). Sahiplenme yolu (↑ yerel giden satıra kimlik iliştirme) rol YAZMAZ: o satır bizim gönderdiğimiz ev sahibi / yapay zekâ
           // mesajı; sağlayıcı API ile gideni "otomasyon" diye etiketlerse ev sahibinin gerçek cevabı öğrenmeden düşerdi.
-          channelSenderRole: canonicalChannelSenderRole(inbound ? "inbound" : "outbound", m.senderRole),
+          channelSenderRole,
         },
         select: { id: true },
       });

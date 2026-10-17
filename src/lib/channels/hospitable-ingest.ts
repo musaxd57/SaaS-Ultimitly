@@ -89,7 +89,8 @@ function isGuestMessage(m: HospitableMessage): boolean {
  * AYRILIR. ⚠️ Sağlayıcı alan değerleri canlı hesapta DOĞRULANMADI (belge bu ortamdan açılamıyor; kurucu org 402): eşleme yalnız AÇIK işarete
  * bakar — alan yoksa NULL (bugünkü davranış), tanınmayan değer "unknown" (okuyucular bugünkü gibi ev sahibi sayar; yalnız kesin otomasyon
  * ayrılır). Değer kümeleri kesin eşitlik (alt dize değil): "ai" ya da "bot" bir rol adının İÇİNDE geçince otomasyon sanılmaz.
- * Doğrulama adımı: canlı hesapta `GET /api/hospitable/diagnostics` mesaj şekli + bir şablon mesajı → kümeler güncellenir.
+ * Doğrulama adımı: canlı hesapta `GET /api/hospitable/diagnostics` → `messages.senderFields` (değer sıklığı + eşleme sonucu) ve
+ * `channelSenderRoles` (saklanan rol dağılımı) okunur; bir şablon mesajı gönderilip satırı bulunur → kümeler güncellenir.
  */
 const AUTOMATION_ROLE_VALUES: ReadonlySet<string> = new Set([
   "automation",
@@ -114,19 +115,59 @@ const HUMAN_HOST_ROLE_VALUES: ReadonlySet<string> = new Set([
   "property_manager",
 ]);
 
-function roleToken(v: unknown): string | null {
-  return typeof v === "string" && v.trim() ? v.trim().toLowerCase() : null;
+/** Alan VAR ama metin değil (dizi / sayı / nesne) — tanınmayan biçim: rol "unknown" olur, sessizce "yok" sayılmaz (Haiku 10-17). */
+const ODD_VALUE = Symbol("odd");
+function roleToken(v: unknown): string | null | typeof ODD_VALUE {
+  if (v === undefined || v === null) return null;
+  if (typeof v === "string") return v.trim() ? v.trim().toLowerCase() : null;
+  return ODD_VALUE;
+}
+/** Otomasyon bayrağı: gerçek `true`, metin "true" ya da 1 (sağlayıcı biçimi doğrulanmadı — açık işaretin bütün biçimleri). */
+function flagSet(v: unknown): boolean {
+  return v === true || v === 1 || (typeof v === "string" && v.trim().toLowerCase() === "true");
 }
 
 export function senderRoleOf(m: HospitableMessage): ChannelSenderRole | null {
   if (isGuestMessage(m)) return "guest";
-  const roles = [roleToken(m.sender_type), roleToken(m.sender_role)].filter((v): v is string => v !== null);
+  const tokens = [roleToken(m.sender_type), roleToken(m.sender_role)].filter((v) => v !== null);
+  const roles = tokens.filter((v): v is string => typeof v === "string");
   const source = roleToken(m.source);
-  if (m.automated === true || m.is_automated === true || roles.some((r) => AUTOMATION_ROLE_VALUES.has(r)) || (source !== null && AUTOMATION_ROLE_VALUES.has(source))) {
+  if (
+    flagSet(m.automated) ||
+    flagSet(m.is_automated) ||
+    roles.some((r) => AUTOMATION_ROLE_VALUES.has(r)) ||
+    (typeof source === "string" && AUTOMATION_ROLE_VALUES.has(source))
+  ) {
     return "automation";
   }
-  if (!roles.length) return null;
-  return roles.every((r) => HUMAN_HOST_ROLE_VALUES.has(r)) ? "host" : "unknown";
+  if (!tokens.length) return null;
+  return roles.length === tokens.length && roles.every((r) => HUMAN_HOST_ROLE_VALUES.has(r)) ? "host" : "unknown";
+}
+
+/**
+ * Tanılama (yalnız ALAN DEĞERİ sayımı — mesaj metni / ad YOK): gönderen alanlarının değer sıklığı + bizim eşlememizin sonucu. Canlı hesapta
+ * sağlayıcının otomasyonu nasıl işaretlediği buradan okunur ve kümeler güncellenir (L5 doğrulama adımı). Değer kısa bir etiket değilse
+ * "(diğer)" yazılır (serbest metin sızmasın).
+ */
+export function senderFieldCensus(messages: readonly HospitableMessage[]): Record<string, number> {
+  const label = (v: unknown): string => {
+    if (v === undefined || v === null) return "(yok)";
+    if (typeof v === "boolean" || typeof v === "number") return String(v);
+    if (typeof v === "string") return /^[A-Za-z0-9 _.-]{1,40}$/.test(v.trim()) ? v.trim().toLowerCase() : v.trim() ? "(diğer)" : "(boş)";
+    return `(${Array.isArray(v) ? "dizi" : typeof v})`;
+  };
+  const out: Record<string, number> = {};
+  for (const m of messages) {
+    const key = [
+      `sender_type=${label(m.sender_type)}`,
+      `sender_role=${label(m.sender_role)}`,
+      `source=${label(m.source)}`,
+      `automated=${label(m.automated ?? m.is_automated)}`,
+      `→ ${senderRoleOf(m) ?? "null"}`,
+    ].join(" · ");
+    out[key] = (out[key] ?? 0) + 1;
+  }
+  return out;
 }
 
 function senderFullName(m: HospitableMessage): string | null {
