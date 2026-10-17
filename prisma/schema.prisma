@@ -1760,6 +1760,10 @@ model GuestCommitment {
   previousDueAt   DateTime?
   /// Kapanış sebebi: stay_ended (konaklama bitti — havlu / malzeme / temizlik sözü; arıza kapanmaz) · NULL.
   closedReason    String?
+  /// Migration 76 (gece-4, Opus F4/F5): sözü YAPAN — visit (teknisyen / temizlikçi gelecek) · delivery (getireceğim / göndereceğim) · NULL
+  /// (bilinmiyor: elle form, eski satır). Öneri yolu yazar (ev sahibinin mesajından, kodla). Yazma katmanı aynı andaki BAŞKA yapanın sözüne
+  /// birleştirmez (kilit içinde); bağlam eşleşmesi kaynağı yeniden okumaz. Metin taşımaz.
+  actor           String?
 
   // Konuşma başına tekil (NULL'lar çakışmaz → mevcut satırlarla açılışta patlamaz).
   @@unique([conversationId, clientRequestId])

@@ -402,14 +402,45 @@ describe("BAĞLAM — saat güncellemesi yalnız kesin eşleşmede (kurucu: 'ba�
     const tech = await prisma.guestCommitment.findFirstOrThrow();
     await hostSays(s.conversationId, "Klima filtresini yarın 10:00'da getireceğim.", new Date(Date.now() - 5 * 60_000));
     const [sugg] = (await getConversationSuggestions(s.orgId, s.conversationId)).filter((x) => x.kind === "commitment");
-    expect(sugg.kind === "commitment" && sugg.proposal).toMatchObject({ separateActor: true, dueAt: tech.dueAt.toISOString() });
+    expect(sugg.kind === "commitment" && sugg.proposal).toMatchObject({ actor: "delivery", dueAt: tech.dueAt.toISOString() });
     expect(await applyHostCommitmentsAuto(s.orgId, s.conversationId)).toEqual({ created: 1, rescheduled: 0, skipped: 0 });
     expect(await prisma.guestCommitment.count()).toBe(2);
+    // Yapan kayıtta (migration 76): teknisyen = visit, filtre = delivery.
+    expect((await prisma.guestCommitment.findMany({ orderBy: { createdAt: "asc" }, select: { actor: true } })).map((r) => r.actor)).toEqual(["visit", "delivery"]);
     expect(await prisma.task.count()).toBe(2);
     const techAfter = await prisma.guestCommitment.findUniqueOrThrow({ where: { id: tech.id } });
     expect(techAfter.previousDueAt).toBeNull();
     // Karar yazıldı → öneri listeden düşer (ölü düğme yok).
     expect((await getConversationSuggestions(s.orgId, s.conversationId)).filter((x) => x.kind === "commitment")).toEqual([]);
+  });
+
+  it("🚨 Opus gece-3 F4: KONUSUZ teknisyen sözü (yarın 10:00) + aynı anda 'Klima filtresini getireceğim' → ayrı söz; teknisyen sözüne 'klima' YAZILMAZ", async () => {
+    pinIstanbulNoonToday();
+    const s = await setup();
+    await hostSays(s.conversationId, "Teknisyen yarın 10:00'da gelecek.", new Date(Date.now() - 10 * 60_000));
+    expect((await applyHostCommitmentsAuto(s.orgId, s.conversationId)).created).toBe(1);
+    const tech = await prisma.guestCommitment.findFirstOrThrow();
+    expect([tech.topic, tech.actor]).toEqual([null, "visit"]);
+    await hostSays(s.conversationId, "Klima filtresini yarın 10:00'da getireceğim.", new Date(Date.now() - 5 * 60_000));
+    expect(await applyHostCommitmentsAuto(s.orgId, s.conversationId)).toEqual({ created: 1, rescheduled: 0, skipped: 0 });
+    expect(await prisma.guestCommitment.count()).toBe(2);
+    expect(await prisma.task.count()).toBe(2);
+    expect((await prisma.guestCommitment.findUniqueOrThrow({ where: { id: tech.id } })).topic).toBeNull();
+  });
+
+  it("🚨 Opus gece-3 F4 (yazma katmanı, kilit içinde): aynı andaki BAŞKA yapanın konusuz sözüne birleşmez; AYNI yapan / bilinmeyen yapan birleşir", async () => {
+    const s = await setup();
+    const dueAt = commitmentDueAt({ day: "tomorrow", time: "10:00" }, TZ, new Date())!;
+    const base = { organizationId: s.orgId, conversationId: s.conversationId, propertyId: s.propertyId, reservationId: null, kind: "maintenance" as const, dueAt, actorUserId: null };
+    const visit = await createGuestCommitment({ ...base, actor: "visit", clientRequestId: "r-visit" });
+    const delivery = await createGuestCommitment({ ...base, topic: "ac", actor: "delivery", clientRequestId: "r-del", mergeSameSlot: true });
+    expect(delivery.reused).toBe(false);
+    expect((await prisma.guestCommitment.findUniqueOrThrow({ where: { id: visit.id } })).topic).toBeNull();
+    // KONTROL: aynı yapan → birleşir (konu yazılır); yapanı bilinmeyen istek de birleşir (bugünkü kural).
+    const sameActor = await createGuestCommitment({ ...base, topic: "faucet", actor: "visit", clientRequestId: "r-visit-2", mergeSameSlot: true });
+    expect([sameActor.reused, sameActor.id]).toEqual([true, visit.id]);
+    const unknown = await createGuestCommitment({ ...base, actor: null, clientRequestId: "r-unknown", mergeSameSlot: true });
+    expect(unknown.reused).toBe(true);
   });
 
   it("🚨 Haiku 2. tur: SONRAKİ mesajdan açılmış FARKLI yapanın sözü ('filtreyi akşam getireceğim') önceki teknisyen sözünün önerisini GİZLEMEZ", async () => {
@@ -562,6 +593,16 @@ describe("BAĞLAM — saat güncellemesi yalnız kesin eşleşmede (kurucu: 'ba�
     expect((await decide({ key: card.key, decision: "approve", attach: `move:${c1.id}`, day: "today" })).status).toBe(200);
     const moved = await prisma.guestCommitment.findUniqueOrThrow({ where: { id: c1.id } });
     expect(moved.dueAt.toISOString()).toBe(commitmentDueAt({ day: "tomorrow", time: "15:00" }, TZ, new Date())!.toISOString());
+  });
+
+  it("🚨 Haiku gece-4: bağlanacak söz yokken 'Teknisyen 11'e kaydı.' → hangi günün saati? kendiliğinden açılmaz, kart günü sorar", async () => {
+    pinIstanbulNoonToday();
+    const s = await setup();
+    await hostSays(s.conversationId, "Teknisyen 11'e kaydı.", new Date(Date.now() - 5 * 60_000));
+    expect(await applyHostCommitmentsAuto(s.orgId, s.conversationId)).toEqual({ created: 0, rescheduled: 0, skipped: 1 });
+    const [card] = (await getConversationSuggestions(s.orgId, s.conversationId)).filter((x) => x.kind === "commitment");
+    expect(card.kind === "commitment" && card.proposal.dayUnclear).toBe(true);
+    expect(await prisma.guestCommitment.count()).toBe(0);
   });
 
   it("KONTROL D3: kendi günü olan ya da şimdiye bağlı söz kendiliğinden açılır ('Teknisyen bugün 15'te gelecek. Havlu getireceğim.' · 'hemen')", async () => {

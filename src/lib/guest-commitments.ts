@@ -101,6 +101,11 @@ export async function createGuestCommitment(input: {
   /** Kaynak (migration 75): auto (ev sahibinin mesajından kendiliğinden) · suggestion (öneri onayı) · manual (elle form). */
   source?: "auto" | "suggestion" | "manual" | null;
   sourceMessageId?: string | null;
+  /**
+   * Sözü YAPAN (migration 76; öneri yolu, ev sahibinin mesajından kodla): visit · delivery · null (bilinmiyor). Aynı andaki BAŞKA yapanın
+   * sözüne birleşilmez — denetim bu işlemin kilidi İÇİNDE (Opus gece-3 F4: liste dışarıda hesaplanınca araya giren söze birleşiyordu).
+   */
+  actor?: "visit" | "delivery" | null;
   /** Denetim kaydının sahibi; sistem (otomatik söz) için null. */
   actorUserId: string | null;
   /** İstemcinin işlem kimliği (yoksa her çağrı yeni söz). */
@@ -125,6 +130,7 @@ export async function createGuestCommitment(input: {
   const topic = isCommitmentTopic(input.topic) ? input.topic : null;
   const precision: DuePrecision = input.duePrecision === "part" || input.duePrecision === "day" ? input.duePrecision : "time";
   const dayPart: DayPartCode | null = precision === "part" && isDayPartCode(input.dayPart) ? input.dayPart : null;
+  const actor = input.actor === "visit" || input.actor === "delivery" ? input.actor : null;
   return run(async (tx) => {
     // Konuşma kilidi: aynı kimlikli eş zamanlı istekler sıraya girer; ikincisi birincinin yazdığını görür (↑ başlık).
     await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(${COMMITMENT_LOCK_NS}::int4, hashtext(${input.conversationId}))`);
@@ -157,10 +163,13 @@ export async function createGuestCommitment(input: {
           status: "open",
           taskId: { not: null },
         },
-        select: { id: true, taskId: true, topic: true, dayPart: true },
+        select: { id: true, taskId: true, topic: true, dayPart: true, actor: true },
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       });
-      const compatible = candidates.filter((c) => commitmentTopicsCompatible(c.topic, topic));
+      // Yapan uyumu (migration 76): ikisi de biliniyor ve farklıysa (teknisyen gelecek ↔ ben getireceğim) ayrı sözdür.
+      const compatible = candidates.filter(
+        (c) => commitmentTopicsCompatible(c.topic, topic) && (c.actor == null || actor == null || c.actor === actor),
+      );
       const same = compatible.find((c) => topic !== null && c.topic === topic) ?? compatible[0];
       if (same?.taskId) {
         // SAHİPLENME (kurucu Q1 "a", 10-17): konusuz açık söze (elle form) KONULU öneri bağlanırsa yeni görev AÇILMAZ, söze konu YAZILIR —
@@ -211,6 +220,7 @@ export async function createGuestCommitment(input: {
         ...(precision !== "time" ? { duePrecision: precision, dayPart: precision === "part" ? dayPart : null } : { duePrecision: "time" }),
         ...(input.source ? { source: input.source } : {}),
         ...(input.sourceMessageId ? { sourceMessageId: input.sourceMessageId } : {}),
+        ...(actor ? { actor } : {}),
       },
       select: { id: true },
     });

@@ -308,6 +308,7 @@ export async function buildOrganizationDataExport(organizationId: string) {
         status: true,
         closedAt: true,
         closedReason: true,
+        actor: true,
         createdAt: true,
       },
       orderBy: { createdAt: "asc" },

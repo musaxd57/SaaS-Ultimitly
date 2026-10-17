@@ -118,11 +118,13 @@ const SEGMENT_SPLIT = /(?<!\d),|,(?!\d)|(?<![\p{L}\p{N}])(?:ama|fakat|ancak|but)
 /**
  * Gün sözcükleri: tanınan (bugün / yarın, ekli biçimler "yarına", "yarınki") ve TANINMAYAN (haftanın günleri ekleriyle, "yarından sonra",
  * "2 gün sonra", "önümüzdeki hafta") — tanınmayanda öneri YOK (yanlış son tarih tek tıkla yazılmasın — Haiku 10-12, 3. tur).
+ * Haiku gece-4: "ertesi / öbür / sonraki sabah", "the next day / morning" de tanınmayan (bugüne düşüp yanlış günlü görev açıyordu); hafta günü
+ * yalnız hâl ekleriyle ("salıya", "cumadan", "pazartesileri") — "Salim," / "Salih," ad, gün değil (söz sessizce düşüyordu).
  */
 const DAY_TODAY = /(?<![\p{L}\p{N}])(?:bugun\p{L}{0,3}|today|tonight)(?![\p{L}])/u;
 const DAY_TOMORROW = /(?<![\p{L}\p{N}])(?:yarin(?:a|ki)?|tomorrow)(?![\p{L}])/u;
 const DAY_UNKNOWN = new RegExp(
-  `${NL}(?:(?:pazartesi|sali|carsamba|persembe|cuma|cumartesi|pazar)\\p{L}{0,4}|yarindan\\s+sonra|obur\\s+gun\\p{L}{0,2}|ertesi\\s+gun\\p{L}{0,2}|\\d{1,2}\\s*(?:gun\\p{L}{0,3}|hafta\\p{L}{0,3}|ay(?:a|da|dan)?(?![\\p{L}\\p{N}]))|(?:bir|iki|uc|dort|bes|birkac)\\s+(?:gun\\p{L}{0,3}|hafta\\p{L}{0,3}|ay(?:a|da|dan)?(?![\\p{L}\\p{N}]))|onumuzdeki|gelecek\\s+hafta\\p{L}{0,2}|haftaya|hafta\\s+(?:sonu|ici)\\p{L}{0,3}|monday|tuesday|wednesday|thursday|friday|saturday|sunday|next\\s+(?:week|month)|weekend|day\\s+after\\s+tomorrow|in\\s+(?:\\d+|a|an|one|two|three|a\\s+few|few)\\s+(?:days?|weeks?|months?))${NR}`,
+  `${NL}(?:(?:pazartesi|sali|carsamba|persembe|cuma|cumartesi|pazar)(?:y?[ae]|[dt][ae]n?|ki|n?in|y?i|si|l[ae]r[i]?|nd[ae]n?)?|yarindan\\s+sonra|(?:obur|ertesi|sonraki)\\s+(?:gun|sabah|aksam|ogle|gece)\\p{L}{0,3}|(?:the\\s+)?(?:next|following)\\s+(?:day|morning|afternoon|evening|night)|the\\s+day\\s+after|\\d{1,2}\\s*(?:gun\\p{L}{0,3}|hafta\\p{L}{0,3}|ay(?:a|da|dan)?(?![\\p{L}\\p{N}]))|(?:bir|iki|uc|dort|bes|birkac)\\s+(?:gun\\p{L}{0,3}|hafta\\p{L}{0,3}|ay(?:a|da|dan)?(?![\\p{L}\\p{N}]))|onumuzdeki|gelecek\\s+hafta\\p{L}{0,2}|haftaya|hafta\\s+(?:sonu|ici)\\p{L}{0,3}|monday|tuesday|wednesday|thursday|friday|saturday|sunday|next\\s+(?:week|month)|weekend|day\\s+after\\s+tomorrow|in\\s+(?:\\d+|a|an|one|two|three|a\\s+few|few)\\s+(?:days?|weeks?|months?))${NR}`,
   "u",
 );
 /**
@@ -191,7 +193,7 @@ export interface HostPromise {
    * hemen / 20 dakika içinde" sözleri muaf (an belli).
    */
   dayUnclear: boolean;
-  /** Metindeki KONUM ("<cümlecik>.<parça>") — öneri anahtarı bununla kurulur (algılama kuralları değişse de aynı söz aynı anahtar). */
+  /** Metindeki KONUM ("<cümlecik>-<parça>") — öneri anahtarı bununla kurulur (algılama kuralları değişse de aynı söz aynı anahtar). */
   anchor: string;
 }
 
@@ -419,17 +421,25 @@ const dayWordIn = (t: string) => DAY_TODAY.test(t) || futureDayIn(t);
  */
 interface MessageContext {
   futureDayMarks: ReadonlyArray<readonly [number, number]>;
+  /** Saat değişikliği sözcüğü geçen parçalar ("11'e kaydı", "ertelendi") — hiçbir sözün kapsamına girmeyen varsa saatler belirsiz (↓). */
+  rescheduleMarks: ReadonlyArray<readonly [number, number]>;
 }
 
 function messageContext(clauses: readonly string[]): MessageContext {
   const futureDayMarks: Array<readonly [number, number]> = [];
+  const rescheduleMarks: Array<readonly [number, number]> = [];
   clauses.forEach((raw, ci) => {
     segmentClause(raw).segments.forEach((seg, si) => {
-      if (!PAST_REF.test(seg) && futureDayIn(seg)) futureDayMarks.push([ci, si]);
+      if (PAST_REF.test(seg)) return;
+      if (futureDayIn(seg)) futureDayMarks.push([ci, si]);
+      if (RESCHEDULE.test(seg)) rescheduleMarks.push([ci, si]);
     });
   });
-  return { futureDayMarks };
+  return { futureDayMarks, rescheduleMarks };
 }
+
+/** Sözün kapsamı (cümlecik, ilk parça, son parça) — mesaj düzeyi denetim için (yalnız bu dosya). */
+const scopeRanges = new WeakMap<HostPromise, readonly [number, number, number]>();
 
 /** Şimdiye bağlı söz ("şimdi getiriyorum", "is coming", "on the way") — günü belli (bugün, şimdi); D3'ten muaf. */
 const NOW_VERB = /(?:iyor(?:um|uz|lar)?|sending|coming|on\s+(?:the|his|her|their)\s+way)$/u;
@@ -505,7 +515,16 @@ export function detectHostPromises(text: string | null | undefined): HostPromise
       found.push(p);
     }
   }
-  return dropContinuations(found).slice(0, MAX_PROMISES_PER_MESSAGE);
+  // Hiçbir sözün kapsamına girmeyen saat değişikliği ("Teknisyen yarın 10'da gelecek, saat 11'e kaydı." · "…, ertelendi.") — hangi sözün
+  // saati değişti belli değil: sözlerin saati kendiliğinden kaydedilmez, kart sorar (Haiku gece-4: 10:00 kendiliğinden açılıyordu).
+  const covered = (ci: number, si: number) =>
+    found.some((p) => {
+      const r = scopeRanges.get(p);
+      return r !== undefined && r[0] === ci && r[1] <= si && si <= r[2];
+    });
+  const orphanReschedule = ctx.rescheduleMarks.some(([ci, si]) => !covered(ci, si));
+  const checked = orphanReschedule ? found.map((p) => ({ ...p, timeAmbiguous: true })) : found;
+  return dropContinuations(checked).slice(0, MAX_PROMISES_PER_MESSAGE);
 }
 
 /** Aynı ziyaret / teslim olabilir mi: tür aynı, konu uyumlu (biri boşsa uyumlu), yapan uyumlu (biri bilinmiyorsa uyumlu). */
@@ -684,14 +703,33 @@ function promiseAt(c: PromiseClause, at: number, kind: CommitmentKind, ctx: Mess
       }
     }
   }
+  // Kapsamda açık saat yoksa soldaki yalın zincirdeki en yakın SAAT parçası ("Teknisyen 10'da, yarın gelecek" → yarın 10:00).
+  if (timeMentions(sliceOf(from, to).raw, sliceOf(from, to).folded).length === 0) {
+    for (let i = from - 1; i >= bare; i--) {
+      const seg = sliceOf(i, i);
+      if (timeMentions(seg.raw, seg.folded).length > 0) {
+        from = i;
+        break;
+      }
+    }
+  }
   const scope = sliceOf(from, to);
   // Soru sözün kapsamındaysa söz değil: soru eki ("gelecek mi") ya da cümlecik "?" ile bitiyor ve son parça kapsamda.
   if (QUESTION_PARTICLE.test(scope.folded) || (/[?؟]\s*$/.test(raw) && to === segments.length - 1)) return REJECT;
   // Sağdaki ayrı soru sözü TEYİDE bağlıyorsa ("…, uygun mu?", "…, olur mu?") söz henüz kesin değil (O3).
   const isQuestionSeg = (i: number) => QUESTION_PARTICLE.test(segments[i]) || (i === segments.length - 1 && /[?؟]\s*$/.test(raw));
   for (let i = to + 1; i < segments.length; i++) if (isQuestionSeg(i) && CONFIRM_QUESTION.test(segments[i])) return REJECT;
-  // Dilek sözün kapsamında → kararsız söz (O6); soldaki başka cümle ("umarım iyisinizdir") bozmaz.
-  if (segments.slice(from, to + 1).some((seg) => HEDGE_WISH.test(seg))) return REJECT;
+  // Dilek sözün kapsamında → kararsız söz (O6); soldaki başka cümle ("umarım iyisinizdir") bozmaz. Söz fiilinden SONRA gelen dilek yalnız
+  // ARDINDA başka içerik yoksa bozar ("…gelecek umarım." · "…tomorrow hopefully." bozar; "…gelecek umarım sorun çözülür" sonuca dilektir —
+  // Haiku gece-4: virgülsüz yazılınca söz sessizce düşüyordu).
+  const verbAt = PROMISE.exec(segments[at]);
+  const verbEnd = verbAt ? verbAt.index + verbAt[0].length : segments[at].length;
+  const afterVerb = segments[at].slice(verbEnd);
+  const lastWish = [...afterVerb.matchAll(HEDGE_WISH_G)].at(-1);
+  const wishRest = lastWish ? afterVerb.slice((lastWish.index ?? 0) + lastWish[0].length) : "";
+  const trailingWish = lastWish !== undefined && (!/\p{L}/u.test(wishRest) || segmentKind(wishRest) === "time");
+  const ownScope = [...segments.slice(from, at), segments[at].slice(0, verbEnd), ...segments.slice(at + 1, to + 1)];
+  if (ownScope.some((seg) => HEDGE_WISH.test(seg)) || trailingWish) return REJECT;
   // Tanınmayan gün / takvim tarihi (kapsamda) → öneri yok.
   if (DAY_UNKNOWN.test(scope.folded) || CALENDAR_DATE.test(scope.folded)) return REJECT;
   // "Bugün ya da yarın" → hangi gün? belirsiz → öneri yok.
@@ -728,7 +766,7 @@ function promiseAt(c: PromiseClause, at: number, kind: CommitmentKind, ctx: Mess
   // Konu / yapan: soldaki söz fiilsiz parçalarla (önceki kapsam kuralı; gün / saat okumasına girmez).
   const topicScope = sliceOf(Math.min(topicFrom, from), to);
   const actor: HostPromise["actor"] = ACTOR_VISIT.test(topicScope.folded) ? "visit" : ACTOR_DELIVERY.test(topicScope.folded) ? "delivery" : null;
-  return {
+  const promise: HostPromise = {
     kind,
     topic: commitmentTopicOf(kind, topicScope.raw, topicScope.folded),
     day,
@@ -741,8 +779,10 @@ function promiseAt(c: PromiseClause, at: number, kind: CommitmentKind, ctx: Mess
     actor,
     timeAmbiguous,
     dayUnclear,
-    anchor: `${c.index}.${at}`,
+    anchor: `${c.index}-${at}`,
   };
+  scopeRanges.set(promise, [c.index, from, to]);
+  return promise;
 }
 
 /**

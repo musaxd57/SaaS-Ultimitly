@@ -72,7 +72,9 @@ describe("misafir sözü — KVKK", () => {
     expect(exported?.guestCommitments).toHaveLength(1);
     expect(Object.keys(exported!.guestCommitments[0]).sort()).toEqual(
       // Migration 75 (söz → görev otomatik): kesinlik / dilim / kaynak / kaynak mesaj / önceki son an / kapanış nedeni — metin YOK.
+      // Migration 76: sözü yapan (visit · delivery) — metin YOK.
       [
+        "actor",
         "closedAt",
         "closedReason",
         "conversationId",

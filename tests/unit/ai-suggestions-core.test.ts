@@ -703,12 +703,42 @@ describe("söz algılama v2 — gün kapsamı, dilek, iki söz, süre, devam (se
     // Sağdaki yalın olmayan parçadan gün okunmaz ("yarın görüşürüz" sözün günü değil → kart).
     ["Havlu getireceğim, yarın görüşürüz.", ["CARD towels/-/delivery today day dayUnclear"]],
     ["Teknisyen gelecek, yarın sabah 10 gibi.", ["auto maintenance/-/visit tomorrow 10:00"]],
+    // Haiku gece-4: "ertesi / öbür / sonraki sabah", "next day / morning" tanınmayan gün (bugüne düşmez); kapsam dışındaysa kart.
+    ["Teknisyen ertesi sabah 10'da gelecek.", []],
+    ["Öbür sabah 10'da teknisyen gelecek.", []],
+    ["Teknisyen sonraki gün 10'da gelecek.", []],
+    ["The technician will come the next day at 10.", []],
+    ["The technician will come the next morning at 10.", []],
+    ["Havlu ertesi sabah getireceğim. Teknisyen 10'da gelecek.", ["CARD maintenance/-/visit today 10:00 dayUnclear"]],
+    // Hafta günü yalnız hâl ekleriyle: "Salim," / "Salih," ad (söz düşmez); "Salıya", "Cumadan" gün.
+    ["Salim, teknisyen 10'da gelecek.", ["auto maintenance/-/visit today 10:00"]],
+    ["Salih, teknisyen 10'da gelecek.", ["auto maintenance/-/visit today 10:00"]],
+    ["Salıya teknisyen gelecek.", []],
+    ["Cumadan önce teknisyen gelecek.", []],
+    // Hiçbir sözün kapsamına girmeyen saat değişikliği → saat kendiliğinden kaydedilmez (kart).
+    ["Teknisyen yarın 10'da gelecek, saat 11'e kaydı.", ["CARD maintenance/-/visit tomorrow 10:00 timeAmb"]],
+    ["Teknisyen yarın 10'da gelecek. 11'e kaydı.", ["CARD maintenance/-/visit tomorrow 10:00 timeAmb"]],
+    ["Teknisyen yarın 10'da gelecek, ertelendi.", ["CARD maintenance/-/visit tomorrow 10:00 timeAmb"]],
+    // Fiilden sonraki dilek: ardında içerik varsa sonuca dilektir (söz kalır); yoksa sözü bozar.
+    ["Teknisyen yarın 10'da gelecek umarım sorun çözülür.", ["auto maintenance/-/visit tomorrow 10:00"]],
+    ["Teknisyen yarın gelecek umarım.", []],
+    ["The technician will come tomorrow hopefully.", []],
+    ["Hopefully the technician will come tomorrow at 10.", []],
+    // Soldaki yalın saat parçası okunur.
+    ["Teknisyen 10'da, yarın gelecek.", ["auto maintenance/-/visit tomorrow 10:00"]],
   ])("%s", (text, expected) => {
     expect(summary(text)).toEqual(expected);
   });
 
-  it("söz konumu (anchor) metindeki yerdir: '<cümlecik>.<parça>' — algılama kuralları değişse de aynı söz aynı konum", () => {
-    expect(detectHostPromises("Merhaba. Teknisyen yarın 10'da gelecek ve havluları akşam getireceğim.").map((p) => p.anchor)).toEqual(["1.0", "1.1"]);
-    expect(detectHostPromises("Yarın, teknisyen 10'da gelecek.").map((p) => p.anchor)).toEqual(["0.1"]);
+  it("söz konumu (anchor) metindeki yerdir: '<cümlecik>-<parça>' — algılama kuralları değişse de aynı söz aynı konum (öneri anahtarı)", () => {
+    expect(detectHostPromises("Merhaba. Teknisyen yarın 10'da gelecek ve havluları akşam getireceğim.").map((p) => p.anchor)).toEqual(["1-0", "1-1"]);
+    expect(detectHostPromises("Yarın, teknisyen 10'da gelecek.").map((p) => p.anchor)).toEqual(["0-1"]);
+    // Devamı düşen söz arayı KAYDIRMAZ: sonraki sözün konumu aynı kalır.
+    expect(detectHostPromises("Teknisyen yarın 10'da gelecek, aylık bakımı da yapacak. Havluları akşam getireceğim.").map((p) => p.anchor)).toEqual([
+      "0-0",
+      "1-0",
+    ]);
+    // Anahtar biçimi öneri anahtarı sözleşmesine uyar (nokta yok).
+    expect(parseSuggestionKey(suggestionKey("commitment", "cmsg123:1-0"))).toEqual({ kind: "commitment", source: "cmsg123:1-0" });
   });
 });
