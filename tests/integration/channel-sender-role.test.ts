@@ -91,7 +91,10 @@ describe("senkron yazımı", () => {
     const local = await prisma.message.create({
       data: { conversationId: conv.id, direction: "outbound", authorType: "host", senderName: "Ev Sahibi", body: "Otopark binanın arkasında.", createdAt: new Date("2026-10-12T09:10:00Z") },
     });
-    await importThread(propertyId, [m("e-ours", { body: "Otopark binanın arkasında.", senderRole: "automation", createdAt: new Date("2026-10-12T09:10:01Z") })]);
+    await importThread(propertyId, [
+      m("e-guest", { direction: "inbound", senderName: "Deniz", senderRole: "guest", createdAt: new Date("2026-10-12T09:00:00Z") }),
+      m("e-ours", { body: "Otopark binanın arkasında.", senderRole: "automation", createdAt: new Date("2026-10-12T09:10:01Z") }),
+    ]);
     expect(await prisma.message.findUniqueOrThrow({ where: { id: local.id } })).toMatchObject({ externalId: "e-ours", authorType: "host", channelSenderRole: null });
     expect(await prisma.message.count({ where: { conversationId: conv.id } })).toBe(2);
     // Q2: bizim cevabımız "otomasyon" etiketiyle dönse de konuşmayı CEVAPLAR.
@@ -157,8 +160,14 @@ describe("Q2 — kanalın otomatik mesajı cevap sayılmaz (kurucu 10-17)", () =
     await prisma.message.create({
       data: { conversationId: conv.id, direction: "outbound", authorType: "host", senderName: "Ev sahibi", body: "Eski satır", externalId: "q-old", channelSenderRole: "automation", createdAt: new Date("2026-10-12T13:57:00Z") },
     });
-    await importThread(propertyId, [m("q-old", { senderRole: "automation", body: "Eski satır", createdAt: new Date("2026-10-12T13:57:00Z") })]);
+    await importThread(propertyId, [
+      guestQ(),
+      m("q-tmpl", { senderRole: "automation", body: "Giriş bilgileri", createdAt: tmplAt }),
+      m("q-old", { senderRole: "automation", body: "Eski satır", createdAt: new Date("2026-10-12T13:57:00Z") }),
+    ]);
     expect((await prisma.message.findFirstOrThrow({ where: { externalId: "q-old" } })).authorType).toBe("host");
+    // Kayıtlı yazar otorite: ev sahibi diye yazılmış satır konuşmayı cevaplamış sayılır (yazar ile durum tutarlı).
+    expect((await prisma.conversation.findFirstOrThrow({ where: { propertyId } })).status).toBe("answered");
   });
 
   it("🚨 yeni konuşmanın İLK senkronunda da (kuyruk / yerel satır yokken) kanal otomasyonu cevap sayılmaz", async () => {
@@ -188,7 +197,9 @@ describe("kendi gönderimimiz (Haiku 10-17)", () => {
     await prisma.messageOutbox.create({
       data: { organizationId: orgId, conversationId: conv.id, channel: "airbnb", body: "Otopark binanın arkasında.", idempotencyKey: "k-ours", status: "sent", messageType: "manual", providerMessageId: "e-ours" },
     });
+    // Senkron konuşmanın TAMAMINI yeniden okur (sağlayıcı bütün sayfaları döner) — misafir mesajı da listede.
     await importThread(propertyId, [
+      m("e-guest", { direction: "inbound", senderName: "Deniz", senderRole: "guest", createdAt: new Date("2026-10-12T09:00:00Z") }),
       m("e-ours", { body: "Otopark binanın  arkasında.", senderRole: "automation", createdAt: new Date("2026-10-12T09:10:00Z") }),
       m("e-tmpl", { body: "Giriş bilgileri", senderRole: "automation", createdAt: new Date("2026-10-12T09:11:00Z") }),
     ]);
