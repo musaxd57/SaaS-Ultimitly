@@ -9,6 +9,11 @@ Kurucu 10-15: "Railway'i açınca ekleyeceğimiz bayrakları unutma." Bu dosya T
    ÖNCESİ yedek olmaz. Sıra: Railway'de yalnız Postgres'i açın (web servisinin otomatik deploy'unu kapatın ya da kopya sayısını 0 tutun; dala
    push yapmayın) → aşağıdaki 1. adım (yedek + geri yükleme provası) → sonra web servisini açın. Kontrol: açmadan önce
    `SELECT count(*) FROM _prisma_migrations` = **59** (00…58), ilk deploy'dan sonra **78** (00…77).
+   **Dolu veritabanı provası (gece-4 S10-10, 10-18):** 00…58 uygulanmış boş PG'ye 37 tablonun hepsine 40'ar yapay satır
+   (`scripts/ops-migration-rehearsal-seed.py`, yabancı anahtarlarla bağlı) → 59…77 hatasız, 1,5 sn; `migrate diff` sapma sıfır. Statik tarama
+   aynı sonucu verir: 59…77'deki bütün yabancı anahtarlar YENİ tablolarda, yeni kolonların hepsi boş bırakılabilir ya da varsayılanlı, benzersiz
+   dizinler yeni tablo / yeni (boş) kolonlarda, veri güncelleyen ifade yok. Canlı veriyle prova değildir (gerçek veri yerelde yok — KVKK); yine de
+   1. adımdaki yedek ŞART.
 1. **Taze yedek:** son itilen dal migration 59–77 içeriyor (tek güncel liste: `docs/MIGRATION-MANIFEST.md`) (açılışta `prisma migrate deploy` hepsini uygular). Açmadan önce 09-19
    yedeği ESKİ — Railway açılınca ilk iş `pg_dump` (web servisi deploy olmadan, ↑0) ve geri yükleme provası
    (`docs/OPS-2026-09-19-DURAKLATMA-VE-LOCAL-GELISTIRME.md`).
@@ -60,7 +65,9 @@ Kurucu 10-15: "Railway'i açınca ekleyeceğimiz bayrakları unutma." Bu dosya T
    `ERASURE_HMAC_SECRET` — rastgele, en az 32 karakter, `AUTH_SECRET` ve `ENCRYPTION_KEY`'den bağımsız; yoksa servis başlamaz) ·
    `RETENTION_MESSAGE_AGE_ANCHOR` (onay paketi) · `DURABLE_OUTBOX_ENABLED` (O1, kurucu 10-16: önce
    `DURABLE_OUTBOX_ORG_IDS=<kurucu org kimliği>` ile yalnız kurucu org; ilk gönderimler birlikte; geri dönüş = env'i sil, bekleyen satır yine
-   bir kez gider — `DEPLOYMENT.md` §6) · `ICAL_DISAPPEARANCE_RECONCILE_ENABLED` ·
+   bir kez gider — `DEPLOYMENT.md` §6; gece-4 S3-06 KAPANDI: gönderimde 401/403 gelince önce aynı belirteçle tek sayfalık okuma — okuma
+   çalışıyorsa ret o mesaja özgüdür, bağlantı iptal edilmez; ilk açılışta yine de "Gönderilenler → kuyruk" ekranını izleyin) ·
+   `ICAL_DISAPPEARANCE_RECONCILE_ENABLED` ·
    `UNVERIFIED_SWEEP_ENABLED` (önce `UNVERIFIED_SWEEP_DRY_RUN=1`) · `ALERT_EMAIL_VERIFY_ENABLED` · `HOST_DECISIONS_ENABLED` (+ `HOST_DECISION_AI_TEXT_ENABLED`;
    ⚠️ `DURABLE_OUTBOX_ENABLED` denemesi sürerken KAPALI kalsın — karar kartı kuyruğa girer girmez "onaylandı" kapanıyor, teslim düşerse
    kart yeniden açılmıyor: `docs/TASARIM-2026-10-16-transactional-outbox.md` RİSK) ·

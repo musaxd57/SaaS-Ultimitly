@@ -8,7 +8,18 @@
 > `docs/history/CLAUDE-2026-10-02-sadelestirme-3-oncesi-tam-metin.md` ("Durum" bölümü). Kuralları yukarıdaki bölümlerde; yalnız Durum'da
 > yazılı olan kurallar (konuşma öğeleri, ev kuralları, canlı bayraklar) 10-02'de ilgili bölümlere taşındı. Bekleyen onaylar ↓.
 
-**10-17 gece-3 (güncel):** Haiku 2–4. tur + ölçüm: takvim tarihi ("25 Ekim", "ayın 25'i", "ay sonu", "25/10") bugün sayılmaz; "7/24" ve
+**10-18 gece-4 (güncel):** 10 Sonnet geniş inceleme (son 3 günün 224 commit'i; bulgular `scratchpad/gece-17/S1–S10.md`, oturum dışı) → doğrulananlar
+düzeltildi, müşteriye dokunanlar sorulmadan yapılmadı (KURUCU-SORULARI §T: T1–T7 + T6b). Söz algılama v2 (gün kendi kapsamından, belirsizse kart; iki
+söz / devam / süre kuralları; migration 76 yapan, 77 FK + AuditLog dizinleri — kurucunun 10-17 genel migration onayıyla) + sert itirazcı + Haiku × 3 +
+Opus F1–F19. Arıza kemeri (anahtar kapalı) İngilizce kısaltma / -ing / KB'de olmayan cihaz + Haiku iki tur yanlış pozitif / kaçan düzeltmesi.
+İç hatalar: kuyruk işletme anahtarlarını gönderimde okur (S3-01), park edilen satır alarmı susturmaz, örüntü yeniden yazılmaz, silinen rezervasyonun
+dokunulmamış sistem görevi gider, mülk adı kilit içinde, önizleme günü org saat diliminde, kopya bağı yerine-koy zincirini izler, siteler arası GET
+koruması, ayar denetim kayıtları. Dolu veritabanı yükseltme provası 58→77 yeşil (`scripts/ops-migration-rehearsal-seed.py`). G6 kenarı (Paddle
+hata kayıtları) değiştirilmedi → T6b. S3-06 kapandı (401/403'te önce tek sayfa okuma); S7-01 kapandı (bağlanmayan yükleme 24 sa sonra silinir, silme kuyruğunda erteli kayıt, migration'sız).
+Açık: S7-03 (elle senkron global kilidi — mimari, ölçümle).
+Sabah raporu `docs/SABAH-RAPORU-2026-10-18.md`.
+
+**10-17 gece-3:** Haiku 2–4. tur + ölçüm: takvim tarihi ("25 Ekim", "ayın 25'i", "ay sonu", "25/10") bugün sayılmaz; "7/24" ve
 "2 ocaklı" tarih değil; selamlaşmadaki dilek sözü bozmaz; aynı konu farklı YAPAN (teknisyen ↔ ben getireceğim) iki söz (tespit, gizleme, onay
 birleştirmesi `separateActor`); zamansız devam parçası ve reddedilen sözün devamı söz açmaz; gün sözcüksüz yeni saat başka gündeki söze
 kendiliğinden taşınmaz (kart sorar). Paddle API anahtarı olayı anahtarsız saklanır, ödeme incelemesine düşmez, Operasyon Teşhisi'nde 90 gün.

@@ -921,6 +921,8 @@ mesajınız); bilgi "Sık sorulan" olarak eklenir. Böyle yapalım mı?
 ### T5 · Söz → görev (misafire bir şey gitmez; sizin görev listeniz) — dört küçük karar
 Gece söz algılaması baştan sağlamlaştırıldı (sert itirazcının 43 cümlesi + Haiku + Opus; ↓ durum). Dört durum yorum istiyor:
 - (a) "Teknisyen 10'da gelecek." 10:30'da yazıldı (saat geçmiş) → şu an YARIN 10:00 olarak kendiliğinden kaydediliyor. Önerim: kart sorsun.
+  Aynı aile: "Teknisyen BUGÜN 11'de gelecek." 13:00'te yazıldı → gece düzeltmesinden sonra yarına kaydırılmıyor (yanlış gün yok) ama hiç
+  önerilmiyor; "kart sorsun" derseniz bu da kart olur.
 - (b) "Havlu getireceğim." gece 23:30'da yazıldı → bugün 23:59 son an. Önerim: kart sorsun (gün belirsiz).
 - (c) "Teknisyen yarın 10'da gelecek inşallah." → bugün hiçbir şey açılmıyor (kararsız söz). Önerim: kart sorsun (söz gibi ama kesin değil).
 - (d) "Teknisyen yarın 7'de gelecek." (sabah / akşam yok) → 07:00 kaydediliyor. Önerim: kart sorsun (07:00 mı 19:00 mı?). Bugün 3, 4, 5 gibi
@@ -937,10 +939,24 @@ Dördü de "kart sorsun" olsun mu?
   açılmasın (önerim) · (b) yalnız uyarı yazısı ("Bu görev rezervasyondan otomatik açılır; silerseniz yeniden oluşur"). Hangisi?
 - **Airbnb "Not available" blokları** temizlik + giriş hazırlığı görevi açıyor (ev sahibinin kendi kapattığı günler). Önerim: blok için görev
   açılmasın. Uygun mu?
-- **Küçük metin düzeltmeleri** (S9 listesi, 12 madde: "2026-09" yerine "Eylül 2026", "plan" / "paket" birliği, "₺899" / "₺899,00" birliği, 2FA
-  adı, UTC saat yazımı, "Söz 1 gündür açık" sayacı…) — hepsi müşteri ekranı; tek tek önce / sonra listesi `scratchpad` yerine sabah raporunda.
+- **Yanlış dosya (S6-03):** "Dosyadan içe aktar"a takvim olmayan bir dosya (ör. yeniden adlandırılmış PDF / HTML) yüklenince bugün "Bu dosyada
+  yapılacak bir değişiklik yok." deniyor (boş takvimle aynı) ve saatlik 5 hak harcanıyor. Önerim: hak harcanmadan "Bu dosya bir takvim (.ics)
+  dosyası değil." Uygun mu?
+- **Fotoğraf yükleme sınırı (S7-06):** kişi başı saatte 30 fotoğraf; ortak hesapla çalışan temizlik ekibi yoğun günde (10 çıkış × 3 foto) dolduruyor,
+  hatalı dosyalar da sayılıyor, uyarı "kısa bir süre bekleyin" diyor (oysa bir saate kadar). Önerim: saatte 120, yalnız kabul edilen dosya sayılır,
+  uyarı gerçek dakikayı söyler ("… 25 dakika sonra tekrar deneyin"). Uygun mu?
+- **Küçük metin düzeltmeleri** (S9 listesi, 16 madde: "2026-09" yerine "Eylül 2026", "plan" / "paket" birliği, "₺899" / "₺899,00" birliği, 2FA
+  adı, UTC saat yazımı, "Söz 1 gündür açık" sayacı…) — hepsi müşteri ekranı; tek tek önce / sonra listesi sabah raporunda (`docs/SABAH-RAPORU-2026-10-18.md` §2b).
   Toplu "evet" yeterli.
+
+### T6b · KVKK — G6 kararınızın bir kenarı (sorulmadan değiştirilmedi)
+G6'da "işlenmiş Paddle kayıtları 1 yıl sonra küçülsün, hata kayıtlarına dokunulmasın" dediniz; uygulandı. İnceleme (S2-04): yeniden denemesi bitmiş
+"hata" satırı ve hiç işlenemeyen "alınmış" satırı müşterinin adı / e-postası / fatura adresiyle SÜRESİZ kalıyor (inceleme bir yıl sonra da
+yapılmıyorsa iz yalnız risk). Önerim: hata / alınmış satırlar 2 yıl sonra aynı şekilde küçülsün (durum + hata kodu + olay türü kalır). Uygun mu?
 
 ### T7 · Paddle (para) — açık kalanlar
 - SG1 / SG2 (↑ §S) hâlâ cevap bekliyor.
+- **CSV para birimi (S6-10, para):** tutar sütunu olan ama para birimi sütunu olmayan CSV'de rezervasyon EUR kaydediliyor; "TL" / "try" / "Türk
+  Lirası" ayrı ayrı yazılıyor, aylık raporda üç ayrı satır oluyor. Önerim: TL / ₺ / try → TRY, bilinmeyen kod reddedilir, varsayılan işletmenin
+  fatura para birimi (₺). Uygun mu?
 - Sandbox: Paddle'ın ödeme kurtarma ayarında son denemeden sonra aboneliğin duraklatılmadan İPTALE düşmesi panelde doğrulanacak (SG3 kararı).
