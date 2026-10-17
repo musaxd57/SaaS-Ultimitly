@@ -109,6 +109,10 @@ Sonuçlar bu tabloya işlenir; varsayımı tutmayan her satır için kod düzelt
     Completed TRY 899.00" kalıyor → "ödenmiş dönem sürüyor mu" kararı aboneliğin `current_billing_period.ends_at` alanından okunabilir (API
     yanıtında duraklatılmışken dolu olduğu ayrıca doğrulanacak; boşsa son tamamlanan işlemin `billing_period.ends_at`'i). Duraklatma seçenekleri:
     "Now" ve "At the end of the current billing period"; "Automatically resume" kapalı varsayılan.
+  - **KURUCU KARARI (10-17 gece, SG3):** "durdurma diye bir şey olmasın" → üründe duraklatma yok; `PADDLE_RESUME_ENABLED` KAPALI kalır (kod
+    duruyor, açılması gerekmiyor). Yerine: plan iptal edilince dönem sonuna kadar paket sürer ve Ayarlar'da tarihli kutu görünür
+    (`cancelScheduledUntil`, `tests/ui/paddle-cancel-scheduled.test.tsx`, `paddle-webhook.test.ts` "yenileme iptali"). Açık: Paddle ödeme
+    kurtarma ayarı son denemeden sonra iptal mi duraklatma mı — panelde doğrulanacak; duraklatma ise iptale çevrilmeli.
   - **P3 ✅** duraklatılmış abonelikte "Edit subscription" / "Edit billing date" YOK → paket değiştirme sunulmuyor → devam + paket İKİ adım kalır (§2).
   - **P6c ✅** etkin abonelikte ikinci "Resume" yok (kodda ayrıca canlı durum okuması + tek kullanımlık belirteç + kilit). **P7 ✅** iptal edilmiş
     abonelikte Actions menüsü hiç yok. **P11 ✅** dönem sonunda duraklatma planlanıp "Don't pause subscription" ile kaldırılabiliyor.

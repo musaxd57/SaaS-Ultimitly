@@ -837,6 +837,14 @@ hemen duraklatıldı → devam ettirilince **899 TL daha** çekildi, iade / kred
   seçeneği (`continue_existing_billing_period`, belgede var, panelde yok) kullanılır; abonelik 17 Kas'a kadar sürer, 17 Kas'ta normal 899. Bu seçenek
   yalnız API'den denenebiliyor; denenene kadar o durumda düğme yerine "Aboneliğinizi devam ettirmek için bize yazın" çıkar (para riski sıfır).
   Bugün uygulamamız kendisi duraklatmıyor; bu durum yalnız biri Paddle panelinden "hemen duraklat" derse doğar. Böyle yapalım mı?
+- **KURUCU CEVABI (10-17 gece, AYNEN özü):** "durdurma diye bir şey olmasın — Claude'da paket alınca durdurma özelliği yok" · "iptal edince:
+  ayın 1'inde aldı, iptal etti → ayın 1'ine kadar aldığı plan özelliklerini kullanmaya devam edebilirsiniz, Pro aboneliğiniz devam edecektir
+  gibi" · "tam planı iptal et denince gözüksün, onun dışında gözükmesine gerek yok". → **Uygulandı:** ürün içinde duraklatma YOK (zaten yoktu);
+  "Aboneliği devam ettir" (I4 C, `PADDLE_RESUME_ENABLED`) KAPALI kalır — duraklatma olmadığı için açılması gerekmez, kod silinmedi. Plan iptal
+  edilince (Paddle dönem sonunda iptal) Ayarlar'da kutu: "Aboneliğinizin yenilenmesi iptal edildi. 17 Kasım 2026 tarihine kadar Pro paketinin
+  tüm özelliklerini kullanmaya devam edebilirsiniz. Bu tarihten sonra ücret alınmaz." (denemede: "Deneme süreniz … bitecek ve ücret
+  alınmayacak"); iptal yoksa kutu yok. Açık iş: Paddle'ın ödeme kurtarma ayarında son denemeden sonra aboneliğin DURAKLATILMADAN iptale
+  düşmesi panelde doğrulanacak (sonraki sandbox turu).
 
 **Teyit isteyen yorum — "Q2 bu söz ne demek… 2'sini de öner":** "Söz" = ev sahibinin misafire verdiği, saate bağlı taahhüt ("Klima için teknisyen
 yarın 10:00'da gelecek"). Amaç unutulmaması: onaylanınca o saate görev açılır, saat geçerse "söz gecikti" görünür. Cevabınızı **Q1-b**'nin cevabı
