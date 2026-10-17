@@ -25,8 +25,6 @@ export type ResolvedResume =
       ok: true;
       providerRef: string;
       customerId: string;
-      /** Aboneliğin Paddle adresi (vergi önizlemesi aboneliğin adresiyle — sandbox D2/P8); okunamazsa null. */
-      addressId: string | null;
       priceId: string;
       planCode: string;
       planName: string;
@@ -65,7 +63,7 @@ export async function resolveResume(organizationId: string): Promise<ResolvedRes
   if (!live?.status) return { ok: false, error: RESUME_TEXT.statusUnknown };
   if (live.status === "active" || live.status === "trialing") return { ok: false, error: RESUME_TEXT.alreadyActive };
   if (live.status !== "paused") return { ok: false, error: RESUME_TEXT.notResumable };
-  // Vergi doğru hesaplansın diye müşteri kimliği ŞART (müşterisiz önizleme vergisiz / düşük rakam gösterebilirdi — Haiku 10-17).
+  // Müşteri kimliği ŞART (Haiku 10-17; tutar artık aboneliğin kendi tekrarlayan önizlemesinden gelse de müşterisiz abonelik tutarsız kayıttır).
   const customerId = sub.customerId ?? live.customerId ?? null;
   if (!customerId) return { ok: false, error: RESUME_TEXT.statusUnknown };
   // Yıllık abone YILLIK devam eder (fiyat aboneliğin kendisinden) → onay metni dönemi söyler (Opus 10-17 A3: liste "₺899 / ay" derken ₺8.990
@@ -77,7 +75,6 @@ export async function resolveResume(organizationId: string): Promise<ResolvedRes
     ok: true,
     providerRef: sub.providerRef,
     customerId,
-    addressId: live.addressId ?? null,
     priceId,
     planCode,
     planName: planByCode(planCode)?.name ?? planCode,

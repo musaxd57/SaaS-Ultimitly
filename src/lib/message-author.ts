@@ -85,6 +85,14 @@ export function canonicalChannelSenderRole(direction: "inbound" | "outbound", ro
   return r === "guest" ? "unknown" : r;
 }
 
+/**
+ * Q2 anahtarı (Opus 10-17): kanalın kendi otomatik mesajı senkronda "otomatik mesaj" yazarıyla mı yazılsın (cevap sayılmaz). Yalnız "1".
+ * Kapalıyken rol yine kaydedilir (öğrenme / üslup / öneri ayrımı sürer), yazar ev sahibi kalır (bugünkü davranış).
+ */
+export function channelAutomationNotReplyEnabled(): boolean {
+  return process.env.CHANNEL_AUTOMATION_NOT_REPLY_ENABLED === "1";
+}
+
 /** Kanalın KENDİ otomatik mesajı mı (sağlayıcı şablonu / zamanlanmış / sağlayıcı yapay zekâsı). Ev sahibi kanıtı DEĞİLDİR. */
 export function isChannelAutomation(m: { channelSenderRole?: string | null }): boolean {
   return m.channelSenderRole === CHANNEL_AUTOMATION_ROLE;

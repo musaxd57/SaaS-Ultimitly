@@ -3,6 +3,7 @@ import "server-only";
 import { createHash, createHmac } from "crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { OUTBOUND_SEND_CLAIM_PREFIX } from "@/lib/outbound-claim-name";
 
 // ---------------------------------------------------------------------------
 // Short-lived, DB-backed duplicate-send guard for MANUAL outbound replies.
@@ -25,7 +26,7 @@ import { prisma } from "@/lib/db";
 // ---------------------------------------------------------------------------
 
 const CLAIM_TTL_MS = 120_000;
-const PREFIX = "outbound-send:";
+const PREFIX = OUTBOUND_SEND_CLAIM_PREFIX;
 
 function claimName(conversationId: string, body: string): string {
   const digest = createHash("sha256").update(body).digest("base64url").slice(0, 24);

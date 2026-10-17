@@ -3,10 +3,11 @@ import { prisma } from "@/lib/db";
 import { badRequest, jsonOk, notFound, tooManyRequests } from "@/lib/api";
 import { withOwner } from "@/lib/route-guard";
 import { rateLimit } from "@/lib/rate-limit";
-import { isPaddleConfigured, previewPriceTotal } from "@/lib/payments/paddle";
+import { isPaddleConfigured, subscriptionRecurringTotal } from "@/lib/payments/paddle";
 import { RESUME_PENDING_LOCK, RESUME_TEXT, resolveResume, resumeConfirmText, resumeEnabled, signResumeToken } from "@/lib/billing/resume";
 
-// I4 C — "Aboneliği devam ettir" ÖNİZLEMESİ (kurucu 10-17, C1): onay penceresindeki tutar Paddle'ın fiyat önizlemesinden (vergi dahil);
+// I4 C — "Aboneliği devam ettir" ÖNİZLEMESİ (kurucu 10-17, C1): onay penceresindeki tutar aboneliğin KENDİ tekrarlayan tahsilat önizlemesinden
+// (vergi, indirim, kalemler dahil — Opus 10-17 PAD-A);
 // okunamazsa pencere AÇILMAZ (tahmini rakamla para çekilmez). Hiçbir şey uygulamaz. Anahtar `PADDLE_RESUME_ENABLED` kapalıyken 404.
 // Yalnız hesap sahibi (faturalandırma sahibin işi); kuruluş OTURUMDAN.
 export const POST = withOwner(async (session) => {
@@ -22,7 +23,7 @@ export const POST = withOwner(async (session) => {
   const r = await resolveResume(session.organizationId);
   if (!r.ok) return badRequest({ error: r.error });
 
-  const amount = await previewPriceTotal(r.priceId, r.customerId, r.addressId);
+  const amount = await subscriptionRecurringTotal(r.providerRef);
   if (!amount) return NextResponse.json({ error: RESUME_TEXT.amountUnknown }, { status: 503 });
 
   return jsonOk({

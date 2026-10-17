@@ -7,7 +7,9 @@ import { ANON_NAME, ANON_ID, retentionCutoff } from "@/lib/data-retention";
 import type { ErasureDb } from "@/lib/erasure";
 import { followReservationDates } from "@/lib/tasks/follow-reservation";
 import { givenNameForStorage, type GuestNameSource } from "@/lib/guest-name-source";
-import { AUTOMATION_AUTHOR, CHANNEL_AUTOMATION_ROLE, canonicalChannelSenderRole } from "@/lib/message-author";
+import { AUTOMATION_AUTHOR, CHANNEL_AUTOMATION_ROLE, canonicalChannelSenderRole, channelAutomationNotReplyEnabled } from "@/lib/message-author";
+import { OUTBOUND_SEND_CLAIM_PREFIX } from "@/lib/outbound-claim-name";
+import { PROVIDER_OUTAGE_REASON } from "@/lib/outbox/state";
 import { claimAutomatedSend, planAutomatedMatches } from "@/lib/automated-sends";
 import type { recordSupplyRequestFromMessage } from "@/lib/supply";
 import type { CanonicalMessage, CanonicalReservation } from "@/lib/channels/ingest";
@@ -334,7 +336,19 @@ export async function importCanonicalThread(
       canonicalChannelSenderRole("outbound", m.senderRole) === CHANNEL_AUTOMATION_ROLE,
   );
   const channelAutomationIds = new Set<string>();
-  if (channelAutoCandidates.length) {
+  // ANAHTAR (Opus 10-17 Q2-A): `CHANNEL_AUTOMATION_NOT_REPLY_ENABLED` yalnız "1" ile açık — kapalıyken bugünkü davranış (yazar ev sahibi, rol
+  // yine kaydedilir). Açmadan önce (Railway açılınca, kurucuyla): tanılama sayfasında rol değerleri + BİZİM API ile gönderdiğimiz bir mesajın
+  // hangi rolle döndüğü okunur — sağlayıcı bizim gönderimimizi "otomasyon" diye etiketliyorsa koruma yalnız kimlik / gövde / kilit eşleşmesine
+  // kalır. BELİRSİZ GÖNDERİM (Opus Q2-B): konuşmada sonucu bilinmeyen bir gönderim varsa (oto-yanıt "teslim doğrulanmadı" / sağlayıcı arızası,
+  // ya da elle cevabın 2 dk'lık çift gönderim kalkanı hâlâ tutuluyor) bu geçişte HİÇBİR aday otomasyon sayılmaz — gelen mesaj bizim belirsiz
+  // gönderimimiz olabilir; ev sahibi yazarıyla yazılır, sonraki geçişler kayıtlı yazarı okur (konuşma yeniden açılıp ikinci cevap üretilmez).
+  const ambiguousSendPending =
+    channelAutoCandidates.length > 0 && existing
+      ? existing.skippedReason === "delivery_unverified" ||
+        existing.skippedReason === PROVIDER_OUTAGE_REASON ||
+        (await db.systemLock.count({ where: { name: { startsWith: `${OUTBOUND_SEND_CLAIM_PREFIX}${existing.id}:` }, lockedUntil: { gt: new Date() } } })) > 0
+      : false;
+  if (channelAutomationNotReplyEnabled() && channelAutoCandidates.length && !ambiguousSendPending) {
     const looseBody = (b: string | null | undefined) => (b ?? "").replace(/\s+/g, " ").trim().toLocaleLowerCase("tr");
     const [oursRows, orphanRows] = existing
       ? await Promise.all([
@@ -496,7 +510,9 @@ export async function importCanonicalThread(
     let channelSenderRole = canonicalChannelSenderRole(inbound ? "inbound" : "outbound", m.senderRole);
     if (channelSenderRole === "automation") {
       const ours = await db.messageOutbox.findFirst({ where: { conversationId, providerMessageId: externalId }, select: { id: true } });
-      if (ours) channelSenderRole = null;
+      // Opus Q2-E: ön hesap bu mesajı BİZİM saydıysa (yerel satırla gevşek gövde eşleşmesi) rol de yazılmaz — yoksa ev sahibi yazarlı ama
+      // otomasyon rollü satır öğrenme / öneriden sessizce düşerdi. Anahtar kapalıyken ön hesap yapılmaz → bugünkü kural (yalnız kuyruk kimliği).
+      if (ours || (channelAutomationNotReplyEnabled() && !ambiguousSendPending && !channelAutomationIds.has(externalId))) channelSenderRole = null;
     }
     let created: { id: string };
     try {

@@ -421,6 +421,17 @@ describe("Q1-b (kurucu 10-17: '2'sini de öner')", () => {
     expect(await prisma.auditLog.count({ where: { action: { startsWith: "ai_suggestion." } } })).toBe(0);
   });
 
+  it("Opus 10-17 Q1b-A: aynı saatte KONUSUZ söz + iki konulu söz varken konusuz öneri GİZLİ (birebir konusuz söze uyar; 'yeni söz' tuzağı yok)", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const owner = await asOwner(orgId);
+    const conv = await conversationWith(propertyId, []);
+    await manualCommitment(orgId, conv, propertyId, owner.id, null, "m-none");
+    await manualCommitment(orgId, conv, propertyId, owner.id, "ac", "m-ac");
+    await manualCommitment(orgId, conv, propertyId, owner.id, "faucet", "m-faucet");
+    await prisma.message.create({ data: { conversationId: conv, direction: "outbound", authorType: "host", senderName: "Ev Sahibi", body: "Teknisyen yarın 10:00'da gelecek." } });
+    expect(await getConversationSuggestions(orgId, conv)).toEqual([]);
+  });
+
   it("KONTROL: aynı saatte TEK konulu söz varken konusuz öneri bugünkü gibi GİZLİ (seçim gereksiz)", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
     const owner = await asOwner(orgId);

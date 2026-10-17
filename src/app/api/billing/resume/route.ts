@@ -6,7 +6,7 @@ import { withOwner } from "@/lib/route-guard";
 import { rateLimit } from "@/lib/rate-limit";
 import { reportError } from "@/lib/report-error";
 import { writeAudit, auditActor, auditImpersonation } from "@/lib/audit";
-import { createPortalSession, getSubscriptionStatus, isPaddleConfigured, previewPriceTotal, resumeSubscription } from "@/lib/payments/paddle";
+import { createPortalSession, getSubscriptionStatus, isPaddleConfigured, subscriptionRecurringTotal, resumeSubscription } from "@/lib/payments/paddle";
 import { consumePlanChangeNonce, releasePlanChangeNonce } from "@/lib/billing/plan-change";
 import { RESUME_PENDING_LOCK, RESUME_TEXT, resolveResume, resumeEnabled, verifyResumeToken } from "@/lib/billing/resume";
 
@@ -48,7 +48,7 @@ export const POST = withOwner(async (session, req) => {
   if (!claimed) return NextResponse.json({ error: RESUME_TEXT.tokenUsed }, { status: 409 });
 
   // Tutar bütünlüğü: müşterinin onayladığı rakam HÂLÂ geçerli olmalı (fiyat / vergi / para birimi değiştiyse yeniden onay).
-  const fresh = await previewPriceTotal(r.priceId, r.customerId, r.addressId);
+  const fresh = await subscriptionRecurringTotal(r.providerRef);
   if (!fresh || fresh !== token.amount) {
     await releasePlanChangeNonce(token.jti);
     return NextResponse.json({ error: fresh ? RESUME_TEXT.amountChanged : RESUME_TEXT.amountUnknown, amountChanged: Boolean(fresh), amount: fresh }, { status: 409 });

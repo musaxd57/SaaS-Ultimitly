@@ -1069,6 +1069,10 @@ async function maybeSendClosingCourtesy(opts: {
             data: { authorType: "ai", channelSenderRole: null, senderName: "GuestOps AI", aiIntent: CLOSING_COURTESY_INTENT },
           })
           .catch(() => {});
+        // İşlemin konuşma güncellemesi de düştü (aynı işlem) → ayrıca yazılır (Opus 10-17 Q2-D).
+        await prisma.conversation
+          .update({ where: { id: opts.conversation.id }, data: { lastMessageAt: new Date(), skippedReason: null } })
+          .catch(() => {});
       }
       await reportError("closing-courtesy persist", errorWithContext(err, ` (conversation ${opts.conversation.id})`));
     });

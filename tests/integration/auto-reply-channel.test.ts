@@ -1184,6 +1184,7 @@ describe("Q2 yarışı (Haiku 10-17): senkron bizim cevabımızı ÖNCE 'otomasy
       data: { conversationId, direction: "outbound", senderName: "Host", body: "Wi-Fi şifresi Lale2025.", createdAt: new Date(Date.now() - 30_000) },
     });
     await prisma.message.create({ data: { conversationId, direction: "inbound", senderName: "Alex", body: "Tamam, çok teşekkürler! 🙏", createdAt: new Date() } });
+    await prisma.conversation.update({ where: { id: conversationId }, data: { lastMessageAt: new Date(Date.now() - 86_400_000) } });
     sendWithSyncFirst(conversationId, "automation");
     expect((await applyChannelAutoReply(conversationId)).sent).toBe(true);
     expect(await prisma.message.findFirstOrThrow({ where: { externalId: "pm-ai" } })).toMatchObject({
@@ -1191,6 +1192,10 @@ describe("Q2 yarışı (Haiku 10-17): senkron bizim cevabımızı ÖNCE 'otomasy
       aiIntent: "closing_courtesy",
       channelSenderRole: null,
     });
+    // Opus 10-17 Q2-D: düşen işlemin konuşma güncellemesi ayrıca yazıldı — etkinlik anı nezaket mesajının anı (önceki değer boştu).
+    const convAfter = await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } });
+    expect(convAfter.lastMessageAt?.getTime() ?? 0).toBeGreaterThan(Date.now() - 60_000);
+    expect(convAfter.skippedReason).toBeNull();
     mockSend.mockReset();
     mockSend.mockResolvedValue({ ok: true, providerMessageId: "pm-2" });
     await prisma.message.create({ data: { conversationId, direction: "inbound", senderName: "Alex", body: "Sağ olun 🙏", createdAt: new Date() } });

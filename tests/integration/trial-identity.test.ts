@@ -616,12 +616,18 @@ describe("operatör: denemeyi geri ver", () => {
 
   it("ESKİ satır: 10-10 kuralıyla (anahtar açık iken) biten deneme yine geri verilir (yeni deneme süresi)", async () => {
     const b = await trialOrg("B");
-    await prisma.subscription.update({ where: { organizationId: b.orgId }, data: { trialEndsAt: new Date(), trialEndReason: "identity_reused" } });
+    // Biten denemenin hatırlatma damgaları atılmış olsun (deneme bitiyor / bitti e-postaları gitmiş).
+    await prisma.subscription.update({
+      where: { organizationId: b.orgId },
+      data: { trialEndsAt: new Date(), trialEndReason: "identity_reused", trialEndingSentAt: new Date(), trialEndedSentAt: new Date() },
+    });
     await operator();
     expect((await (await exempt(b.orgId)).json()).trialRestored).toBe(true);
     const sb = await sub(b.orgId);
     expect(sb.trialEndReason).toBeNull();
     expect(sb.trialEndsAt!.getTime()).toBeGreaterThan(Date.now() + 13 * 86_400_000);
+    // Opus 10-17: yeniden başlayan denemede hatırlatmalar yine gitsin — damgalar silinir.
+    expect(sb).toMatchObject({ trialEndingSentAt: null, trialEndedSentAt: null });
   });
 
   it("KONTROL: kendi süresi dolmuş deneme UZATILMAZ (yalnız muafiyet yazılır)", async () => {

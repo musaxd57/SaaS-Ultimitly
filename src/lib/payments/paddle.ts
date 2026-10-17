@@ -561,15 +561,13 @@ export async function resumeSubscription(subscriptionId: string, orgId?: string)
 }
 
 /** Aboneliğin Paddle'daki durumu (belirsiz devam sonucunu mutabakat için). Asla fırlatmaz → okunamazsa null ("bilinmiyor"). */
-export async function getSubscriptionStatus(
-  subscriptionId: string,
-): Promise<{ status: string | null; customerId: string | null; addressId: string | null } | null> {
+export async function getSubscriptionStatus(subscriptionId: string): Promise<{ status: string | null; customerId: string | null } | null> {
   if (!subscriptionId || !isPaddleConfigured()) return null;
   try {
     const res = (await paddleRequest(`/subscriptions/${encodeURIComponent(subscriptionId)}`)) as {
-      data?: { status?: string; customer_id?: string; address_id?: string };
+      data?: { status?: string; customer_id?: string };
     };
-    return { status: res?.data?.status ?? null, customerId: res?.data?.customer_id ?? null, addressId: res?.data?.address_id ?? null };
+    return { status: res?.data?.status ?? null, customerId: res?.data?.customer_id ?? null };
   } catch (err) {
     if (!isExpectedPaddleError(err)) await reportError("paddle-subscription-get", err);
     return null;
@@ -577,36 +575,25 @@ export async function getSubscriptionStatus(
 }
 
 /**
- * Bir fiyatın bu müşteri için VERGİ DAHİL toplamı (Paddle fiyat önizlemesi) — devam ettirme onay penceresindeki rakam. Asla fırlatmaz;
- * okunamazsa null → çağıran pencereyi AÇMAZ (tahmini rakamla para çekilmez).
- * 🚨 SANDBOX D2 (10-17, belge satır satır okundu): `/pricing-preview` yanıtında `details.totals.grand_total` YOK — yalnız satırlar var:
- * `details.line_items[].totals.total` = "indirim ve vergi SONRASI toplam", en küçük birimde tam sayı metni. Genel toplam = satırların
- * toplamı (her satır katı biçimde; biri bozuksa null). Önceki kod olmayan alanı okuyordu → onay penceresi hiç açılmazdı (para riski yoktu).
- * Vergi aboneliğin ADRESİYLE hesaplansın diye aboneliğin `address_id`si de gönderilir (varsa) — gerçek tahsilatla eşitliği sandbox P8.
+ * Duraklatılmış aboneliğin devamında TAHSİL EDİLECEK tutar — aboneliğin KENDİ tekrarlayan işlem önizlemesinden (Opus 10-17 PAD-A: katalog
+ * fiyatından hesaplanan rakam aboneliğin indirimini, ek kalemini, işletme vergi kimliğini ve sabit para birimini görmüyordu; Paddle ise
+ * aboneliğin kendi kalemlerini tahsil eder). `include=recurring_transaction_details` → `recurring_transaction_details.totals.grand_total`
+ * (sandbox D3: aynı alan abonelik önizlemesinde belgeli; GET'teki varlığı D5'te doğrulanacak). KATI: yalnız rakam, para birimi şart; okunamazsa
+ * null → onay penceresi AÇILMAZ (tahmini rakamla para çekilmez). Asla fırlatmaz.
  */
-export async function previewPriceTotal(priceId: string, customerId: string, addressId?: string | null): Promise<string | null> {
-  if (!priceId || !customerId || !isPaddleConfigured()) return null;
+export async function subscriptionRecurringTotal(subscriptionId: string): Promise<string | null> {
+  if (!subscriptionId || !isPaddleConfigured()) return null;
   try {
-    const res = (await paddleRequest("/pricing-preview", {
-      method: "POST",
-      body: { items: [{ price_id: priceId, quantity: 1 }], customer_id: customerId, ...(addressId ? { address_id: addressId } : {}) },
-    })) as {
-      data?: { currency_code?: string; details?: { line_items?: Array<{ totals?: { total?: unknown } } | null> } };
+    const res = (await paddleRequest(`/subscriptions/${encodeURIComponent(subscriptionId)}?include=recurring_transaction_details`)) as {
+      data?: { currency_code?: string; recurring_transaction_details?: { totals?: { grand_total?: unknown } } | null };
     };
     const d = res?.data;
-    const lines = d?.details?.line_items;
+    const total = d?.recurring_transaction_details?.totals?.grand_total;
     const currency = d?.currency_code?.trim();
-    // KATI (Haiku 10-17): yalnız vergi DAHİL satır toplamları, yalnız rakam ("" → 0 olmasın), en az bir satır ve para birimi şart.
-    if (!Array.isArray(lines) || lines.length === 0 || !currency) return null;
-    let sum = BigInt(0);
-    for (const li of lines) {
-      const t = li?.totals?.total;
-      if (typeof t !== "string" || !/^\d{1,15}$/.test(t)) return null;
-      sum += BigInt(t);
-    }
-    return formatPaddleTotal(sum.toString(), currency);
+    if (typeof total !== "string" || !/^\d{1,15}$/.test(total) || !currency) return null;
+    return formatPaddleTotal(total, currency);
   } catch (err) {
-    if (!isExpectedPaddleError(err)) await reportError("paddle-pricing-preview", err);
+    if (!isExpectedPaddleError(err)) await reportError("paddle-recurring-total", err);
     return null;
   }
 }

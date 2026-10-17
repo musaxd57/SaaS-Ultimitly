@@ -16,7 +16,7 @@ vi.mock("@/lib/api", async (orig) => {
   return { ...actual, requireSession: vi.fn(async () => session) };
 });
 
-import { evaluateTrialCardGates, TRIAL_CARD_REQUIRED_MESSAGE } from "@/lib/billing/trial-card-gate";
+import { __cardGateHooks, evaluateTrialCardGates, TRIAL_CARD_REQUIRED_MESSAGE } from "@/lib/billing/trial-card-gate";
 import { getEntitlement, premiumAllowed } from "@/lib/billing/subscription";
 import { POST as trialEndPost } from "@/app/api/admin/trial-end/route";
 import { POST as consentPost } from "@/app/api/billing/consent/route";
@@ -76,8 +76,10 @@ describe("sızma: kişisel veri ve sebep", () => {
   });
 
   it("🚨 müşteriye giden metinler sebep / risk / ilan / ağ / puan SÖYLEMEZ (kaçışı öğretmez)", () => {
-    for (const word of [/risk/iu, /kötüye/iu, /ilan/iu, /\bIP\b/u, /ağ\b/iu, /puan/iu, /işaret/iu, /geçici/iu, /posta/iu, /şüphe/iu]) {
-      expect(TRIAL_CARD_REQUIRED_MESSAGE).not.toMatch(word);
+    // Türkçe sözcük sınırı \p{L} ile (JS'te \b yalnız ASCII — Opus 10-17 KD-C: /ağ\b/ hiçbir şey yakalamıyordu).
+    const word = (w: string) => new RegExp(`(?<![\\p{L}])${w}(?![\\p{L}])`, "iu");
+    for (const re of [/risk/iu, /kötüye/iu, word("ilan\\p{L}*"), /(?<![\p{L}])IP(?![\p{L}])/u, word("ağ\\p{L}*"), /puan/iu, /işaret/iu, /geçici/iu, /posta/iu, /şüphe/iu]) {
+      expect(TRIAL_CARD_REQUIRED_MESSAGE).not.toMatch(re);
     }
     expect(TRIAL_CARD_REQUIRED_MESSAGE).toBe(
       "Denemenize devam etmek için kartınızı ekleyin. Deneme süresince ücret alınmaz; deneme bitmeden iptal ederseniz ücret ödemezsiniz.",
@@ -149,7 +151,9 @@ describe("sızma: kiracılar arası", () => {
 
 describe("ağ / IP izi kapıya GİRMEZ (aydınlatma cümlesi: otomatik karar verilmez)", () => {
   it("🚨 aynı adres + aynı ağdan çok kayıt izi olan hesaplar damgalanmaz (yalnız operatör listesinde)", async () => {
-    const orgs = [await trialOrg("x1@example.com"), await trialOrg("x2@example.com"), await trialOrg("x3@example.com")];
+    // Opus 10-17 KD-A: her hesapta ağ DIŞI orta sinyal (geçici e-posta, 30) — ağ sinyalleri (aynı adres 20 + yoğun kayıt 15) kapıya girseydi
+    // toplam 65 = yüksek olurdu; girmediği için 30 = orta → damga YOK. (Ağ izi olmadan da 30: iddia vakum değil.)
+    const orgs = [await trialOrg("x1@mailinator.com"), await trialOrg("x2@mailinator.com"), await trialOrg("x3@mailinator.com")];
     for (const o of orgs) {
       await prisma.signupNetworkTrace.create({
         data: { organizationId: o.orgId, ipHash: "ip-ayni", networkHash: "ag-ayni", networkKind: "v4_24", keyFp: "fp1", expiresAt: new Date(Date.now() + 90 * DAY) },
@@ -161,9 +165,24 @@ describe("ağ / IP izi kapıya GİRMEZ (aydınlatma cümlesi: otomatik karar ver
 });
 
 describe("hata: yarış, süre, kapsam", () => {
-  it("🚨 iki saatlik iş AYNI ANDA → tek damga, tek denetim kaydı", async () => {
+  it("🚨 iki saatlik iş AYNI ANDA (ikisi de OKUDUKTAN sonra yazar — kanca bariyeri) → tek damga, tek denetim kaydı", async () => {
     const a = await trialOrg("yaris@example.com", { identityReused: true });
-    const runs = await Promise.all([evaluateTrialCardGates(), evaluateTrialCardGates()]);
+    // Opus 10-17 KD-B: iki koşu da okuma bitmeden yazmaya geçmesin — ikisi de "damgasız" görür, yarışı koşullu yazım çözer.
+    let arrived = 0;
+    let release!: () => void;
+    const barrier = new Promise<void>((r) => (release = r));
+    __cardGateHooks.afterRead = async () => {
+      arrived++;
+      if (arrived === 2) release();
+      await barrier;
+    };
+    let runs: { required: number; cleared: number }[];
+    try {
+      runs = await Promise.all([evaluateTrialCardGates(), evaluateTrialCardGates()]);
+    } finally {
+      __cardGateHooks.afterRead = null;
+    }
+    expect(arrived).toBe(2);
     expect(runs.reduce((n, r) => n + r.required, 0)).toBe(1);
     expect(await prisma.auditLog.count({ where: { organizationId: a.orgId, action: "trial.card_required" } })).toBe(1);
   });

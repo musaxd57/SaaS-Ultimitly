@@ -59,6 +59,8 @@ async function importThread(propertyId: string, messages: CanonicalMessage[]) {
 beforeEach(async () => {
   await resetDb();
   mockSummarize.mockClear();
+  // Q2 anahtarı (Opus 10-17 Q2-A): bu dosya açık hâli sınar; kapalı hâl ↓ ayrı testte.
+  vi.stubEnv("CHANNEL_AUTOMATION_NOT_REPLY_ENABLED", "1");
 });
 afterEach(() => vi.unstubAllEnvs());
 
@@ -122,6 +124,39 @@ describe("Q2 — kanalın otomatik mesajı cevap sayılmaz (kurucu 10-17)", () =
     const { propertyId: p2 } = await makeOrgWithProperty();
     await importThread(p2, [guestQ(), m("q-host", { senderRole: "host", body: "Giriş bilgileriniz: check-in 15:00 sonrası.", createdAt: tmplAt })]);
     expect((await prisma.conversation.findFirstOrThrow({ where: { propertyId: p2 } })).status).toBe("answered");
+  });
+
+  it("🚨 ANAHTAR KAPALI (varsayılan): bugünkü davranış — otomasyon rolü kaydedilir ama yazar ev sahibi, konuşma cevaplı", async () => {
+    vi.stubEnv("CHANNEL_AUTOMATION_NOT_REPLY_ENABLED", "");
+    const { propertyId } = await makeOrgWithProperty();
+    await importThread(propertyId, [guestQ(), m("q-tmpl", { senderRole: "automation", body: "Giriş bilgileri", createdAt: tmplAt })]);
+    expect(await prisma.message.findFirstOrThrow({ where: { externalId: "q-tmpl" } })).toMatchObject({ authorType: "host", channelSenderRole: "automation" });
+    expect((await prisma.conversation.findFirstOrThrow({ where: { propertyId } })).status).toBe("answered");
+  });
+
+  it.each([
+    ["oto-yanıt teslimi doğrulanmadı", "delivery_unverified"],
+    ["sağlayıcı arızası", "provider_outage"],
+  ])("🚨 Opus Q2-B: konuşmada belirsiz gönderim (%s) varken gelen 'otomasyon' mesajı BİZİM olabilir → ev sahibi yazarıyla yazılır, konuşma yeniden AÇILMAZ (ikinci cevap yok)", async (_n, reason) => {
+    const { propertyId } = await makeOrgWithProperty();
+    await importThread(propertyId, [guestQ()]);
+    const conv = await prisma.conversation.findFirstOrThrow({ where: { propertyId } });
+    await prisma.conversation.update({ where: { id: conv.id }, data: { status: "answered", skippedReason: reason } });
+    await importThread(propertyId, [guestQ(), m("q-ours", { senderRole: "automation", body: "Binanın arkasında otopark var.", createdAt: tmplAt })]);
+    expect(await prisma.message.findFirstOrThrow({ where: { externalId: "q-ours" } })).toMatchObject({ authorType: "host" });
+    expect((await prisma.conversation.findUniqueOrThrow({ where: { id: conv.id } })).status).toBe("answered");
+  });
+
+  it("🚨 Opus Q2-B: elle cevabın çift gönderim kalkanı hâlâ tutuluyorsa (belirsiz gönderim) aynı koruma; KONTROL: kalkanın süresi dolmuşsa otomasyon sayılır", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    await importThread(propertyId, [guestQ()]);
+    const conv = await prisma.conversation.findFirstOrThrow({ where: { propertyId } });
+    await prisma.systemLock.create({ data: { name: `outbound-send:${conv.id}:abc`, lockedUntil: new Date(Date.now() + 60_000) } });
+    await importThread(propertyId, [guestQ(), m("q-held", { senderRole: "automation", body: "Otopark binanın arkasında.", createdAt: tmplAt })]);
+    expect((await prisma.message.findFirstOrThrow({ where: { externalId: "q-held" } })).authorType).toBe("host");
+    await prisma.systemLock.update({ where: { name: `outbound-send:${conv.id}:abc` }, data: { lockedUntil: new Date(Date.now() - 1000) } });
+    await importThread(propertyId, [guestQ(), m("q-held", { senderRole: "automation", body: "Otopark binanın arkasında.", createdAt: tmplAt }), m("q-later", { senderRole: "automation", body: "Çıkış hatırlatması", createdAt: new Date("2026-10-12T14:30:00Z") })]);
+    expect((await prisma.message.findFirstOrThrow({ where: { externalId: "q-later" } })).authorType).toBe("automation");
   });
 
   it("rol vermeyen kanal / tanınmayan rol: bugünkü davranış (cevap sayılır) — yalnız KESİN otomasyon ayrılır", async () => {
@@ -191,6 +226,8 @@ describe("Q2 — kanalın otomatik mesajı cevap sayılmaz (kurucu 10-17)", () =
     });
     await importThread(propertyId, [guestQ(), m("q-norm", { senderRole: "automation", body: "otopark  binanın\narkasında.", createdAt: tmplAt })]);
     expect(await prisma.message.count({ where: { conversationId: conv.id, authorType: "automation" } })).toBe(0);
+    // Opus Q2-E: bizim sayılan satırda otomasyon rolü de YAZILMAZ (öğrenme / öneriden düşmesin).
+    expect(await prisma.message.count({ where: { conversationId: conv.id, channelSenderRole: "automation" } })).toBe(0);
     expect((await prisma.conversation.findUniqueOrThrow({ where: { id: conv.id } })).status).toBe("answered");
   });
 

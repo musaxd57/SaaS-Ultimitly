@@ -264,7 +264,9 @@ export async function getConversationSuggestions(organizationId: string, convers
         // Q1-b (kurucu 10-17): KONUSUZ öneri aynı saatte İKİ ya da daha çok FARKLI konulu söze uyuyorsa hangisi olduğu belli değil → öneri
         // gösterilir, onayda "hangi söze bağlansın?" sorulur (ya da yeni söz). Tek söze uyuyorsa bugünkü gibi gizlenir.
         const attachTopics = promise.topic === null ? [...new Set(absorbing.map((c) => c.topic).filter(isCommitmentTopic))].sort() : [];
-        if (absorbing.length > 0 && attachTopics.length < 2) continue;
+        // Aynı saatte KONUSUZ açık söz varsa konusuz öneri birebir ona uyar → seçim gereksiz, gizli (Opus 10-17 Q1b-A: "yeni söz" seçimi
+        // gereksiz ikinci görev açıyordu).
+        if (absorbing.length > 0 && (attachTopics.length < 2 || absorbing.some((c) => c.topic === null))) continue;
         const due = relativeDay(dueAt, now, tz);
         if (!due) continue;
         const when = `${due.day === "tomorrow" ? "yarın" : "bugün"} ${due.time}`;

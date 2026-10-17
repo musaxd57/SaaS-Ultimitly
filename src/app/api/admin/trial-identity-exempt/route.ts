@@ -39,7 +39,9 @@ export async function POST(req: NextRequest) {
     // Yalnız BU SEBEPLE bitmiş deneme yeniden başlar (ödeme yapan / kendi süresi dolmuş deneme değişmez).
     const res = await tx.subscription.updateMany({
       where: { organizationId, provider: "trial", trialEndReason: TRIAL_END_REASON_IDENTITY_REUSED },
-      data: { trialEndsAt: trialEndDate(now), trialEndReason: null },
+      // Hatırlatma damgaları da silinir (Opus 10-17 kapsam dışı gözlem; operatörün "yeniden başlat"ıyla aynı): yeniden başlayan denemede
+      // "deneme bitiyor / bitti" e-postaları yine gider.
+      data: { trialEndsAt: trialEndDate(now), trialEndReason: null, trialEndingSentAt: null, trialEndedSentAt: null },
     });
     await writeAuditInTx(tx, {
       organizationId,
