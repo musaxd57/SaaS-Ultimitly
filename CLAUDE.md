@@ -526,7 +526,8 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 
 ## Durum
 > 📄 **Tam metin (bağlayıcı): `docs/claude/durum.md`** — bu alanda kod / karar değiştirmeden önce oku. Aşağıda yalnız madde başlıkları.
-**10-17 öğleden sonra (güncel):** S2 migration 69–72 kodda (I3 dizin · L2 yerine koy · L5 kanal gönderen rolü 1. faz · K1 deneme işareti + kayıt ağı izi, anahtar KAPALI); sorular Q1–Q4 (+Q2-b) → `docs/arastirma-2026-10-15/KURUCU-SORULARI.md` §Q — `docs/claude/durum.md`.
+**10-17 akşam (güncel):** I1 + Q1 "a" · Q3/Q4 · I4 C devam ettir + kartla deneme kapısı (migration 74, anahtarlar KAPALI) · L1/L4 tasarımı; sorular KURUCU-SORULARI §S — `docs/claude/durum.md`.
+**10-17 öğleden sonra:** S2 migration 69–72 kodda (I3 dizin · L2 yerine koy · L5 kanal gönderen rolü 1. faz · K1 deneme işareti + kayıt ağı izi, anahtar KAPALI); sorular Q1–Q4 (+Q2-b) → `docs/arastirma-2026-10-15/KURUCU-SORULARI.md` §Q — `docs/claude/durum.md`.
 **10-17 sabah:** S1 kurucu kararları kodda (H9/M1 silici izin listesi · K4 elle temizlik · N1 bayat otomatik mesaj yok · K3 ödeme metinleri); S2 migration tasarımı + sorular → `docs/arastirma-2026-10-15/KURUCU-SORULARI.md` §Q — `docs/claude/durum.md`.
 **10-16 akşam:** `npm test` = paralel kapı (3 işçi, ~%18 kısa; geri dönüş `test:serial`) · H9 konu bazlı "bilgim yok" (`AI_TOPIC_ABSENCE_ENABLED` KAPALI; Haiku + Opus bulguları işlendi) · Codex akşam 6 bulgu düzeltildi (ödeme yükü tekrarı, kuyrukta abonelik bekletmesi, KB kopya kimliği, 64 cümle tavanı, gönderilmemiş host mesajı, sağlık yoklaması); sorular K/L/M/N → `docs/arastirma-2026-10-15/KURUCU-SORULARI.md`.
 **10-16 öğleden sonra:** ek süre yok (past_due dönem başı) · elle mesaj hızlı uyandırma · kuyruk anahtarları ayrı · QR kilit yenileme + her ücretli adımdan önce sahiplik; sorular J1–J9 → `docs/arastirma-2026-10-15/KURUCU-SORULARI.md` §J.

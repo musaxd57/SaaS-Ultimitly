@@ -8,7 +8,13 @@
 > `docs/history/CLAUDE-2026-10-02-sadelestirme-3-oncesi-tam-metin.md` ("Durum" bölümü). Kuralları yukarıdaki bölümlerde; yalnız Durum'da
 > yazılı olan kurallar (konuşma öğeleri, ev kuralları, canlı bayraklar) 10-02'de ilgili bölümlere taşındı. Bekleyen onaylar ↓.
 
-**10-17 öğleden sonra (güncel):** S2 migration paketi kodda — I3 kuyruk dizini (69) · L2 "eskisinin yerine koy" (70; ekranda görülen kalem
+**10-17 akşam (güncel):** kurucu cevapları (KURUCU-SORULARI §S) — I1 söz konusu (73) + Q1 "a" sahiplenme (konusuz elle söze konulu öneri bağlanınca
+konu yazılır, yeni görev açılmaz) · Q3 aydınlatma cümlesi gizlilik §5'te (90 gün, pinli) · Q4 operatör "Denemeyi bitir / geri ver" · I4 C "Aboneliği
+devam ettir" (anahtar `PADDLE_RESUME_ENABLED` KAPALI; C1 küçük yazı, C2 bütün paketler; paket değiştirmeyle aynı para güvenliği) · kartla deneme
+kapısı (74; `TRIAL_CARD_GATE_ENABLED` KAPALI + deneme süreli fiyat env'leri şart; ağ / IP sinyali SAYILMAZ) · webhook Paddle `trialing` deneme
+sonunu yazar (gizli hata). Paddle sandbox listesi `docs/TASARIM-2026-10-17-paddle-devam-ettir-ve-kartla-deneme.md`; L1/L4 tasarımı (Opus, 6 soru)
+`docs/TASARIM-2026-10-17-l1-l4-gecmis-cevaplar-ve-duzenleme-farki.md`. Açık: Q1-b teyidi, Q2, KD1–KD3, L1/L4 6 soru.
+**10-17 öğleden sonra:** S2 migration paketi kodda — I3 kuyruk dizini (69) · L2 "eskisinin yerine koy" (70; ekranda görülen kalem
 sürümü zorunlu, işlem içi koşul, yerine konan eski değer bir daha önerilmez) + L3 tek konuşmalık işaret (cümlecik bazlı, ev sahibini uğraştırmaz) ·
 L5 1. faz (71; kanalın kendi otomatik mesajı öğrenme / üslup / öneride ev sahibi kanıtı değil, "cevap mı" değişmedi — Q2) · K1 (72; ilan tekrarı
 denemeyi BİTİRMEZ, işaretler; ham IP saklamayan kayıt ağı izi, anahtar `SIGNUP_NETWORK_TRACE_ENABLED` KAPALI — Q3/Q4). Haiku her parçada (L2 21,
