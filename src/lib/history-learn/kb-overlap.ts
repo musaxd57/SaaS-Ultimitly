@@ -5,7 +5,7 @@
 //
 // "Aynı konu": aynı kategori VE — dar kategorilerde (wifi · parking · trash) kategori yeter; ötekilerde başlık + içerik kavramları kesişmeli
 // ("Sigara içilmez" ile "Evcil hayvan kabul edilmez" ikisi de `rules` ama kavramları ayrı → aday DEĞİL).
-// Sonuç türü: `differs` (taslağın değeri kalemde yok VE kalemin değeri taslakta yok — "lale2024 ↔ yeni2025"), `same` (taslağın değerleri
+// Sonuç türü: `differs` (taslağın bir değeri kalemde yok VE kalemin bir değeri taslakta yok — "lale2024 ↔ yeni2025"), `same` (taslağın değerleri
 // kalemde zaten var — "bu bilgi zaten kayıtlı"), `topic` (değer yok, yalnız konu örtüşüyor).
 // ---------------------------------------------------------------------------
 
@@ -65,8 +65,10 @@ export function kbOverlaps(
     let kind: KbOverlapKind = "topic";
     if (draftValues.size > 0) {
       const allKnown = [...draftValues].every((v) => itemValues.has(v));
-      const disjoint = [...draftValues].every((v) => !itemValues.has(v)) && [...itemValues].every((v) => !draftValues.has(v));
-      kind = allKnown ? "same" : disjoint && itemValues.size > 0 ? "differs" : "topic";
+      // Kalemde taslakta OLMAYAN bir değer var → değer değişmiş ("Ağ Lale_Ev şifre lale2024" ↔ "Ağ Lale_Ev şifre yeni2025": ağ aynı, şifre
+      // farklı — en sık Wi-Fi değişikliği). Kalemde hiç değer yoksa karşılaştırılacak bir şey yok → yalnız konu.
+      const itemHasOther = [...itemValues].some((v) => !draftValues.has(v));
+      kind = allKnown ? "same" : itemHasOther ? "differs" : "topic";
     }
     out.push({ id: item.id, title: item.title, preview: preview(item.content), kind, updatedAt: item.updatedAt });
   }

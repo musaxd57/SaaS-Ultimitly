@@ -562,7 +562,8 @@ describe("gateDraft — L3 tek konuşmalık bilgi (single_source)", () => {
   });
 
   it("başka bir 'herkes için mi?' işareti zaten varsa ikinci uyarı yok (bu akşam → time_bound)", () => {
-    const g = gateDraft("Not", "Bu akşam kapıda bekleyeceğim.", { supportConversations: 1 });
+    // Söz fiili + zaman: ikisi de "herkes için mi?" sorusu — tek uyarı yeter.
+    const g = gateDraft("Not", "Bu akşam size havlu getireceğim.", { supportConversations: 1 });
     expect(g.ok && g.flags).toContain("time_bound");
     expect(g.ok && g.flags).not.toContain("single_source");
   });

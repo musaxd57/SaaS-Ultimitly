@@ -30,6 +30,7 @@ vi.mock("@/lib/api", async (orig) => {
 import { GET as getRuns } from "@/app/api/properties/[id]/history-learn/route";
 import { PATCH as reviewDraft } from "@/app/api/history-learn/drafts/[id]/route";
 import { PATCH as patchKb } from "@/app/api/kb/[id]/route";
+import { __reviewHooks } from "@/lib/history-learn/service";
 
 const owner = (organizationId: string): SessionPayload => ({
   userId: "u-owner",
@@ -68,6 +69,7 @@ describe("Geçmişten öğren × bilgi tabanı — eskisinin yerine koy (L2)", (
   afterEach(() => {
     vi.unstubAllEnvs();
     limitsOverride.items = null;
+    __reviewHooks.beforeWrite = null;
   });
 
   it("🚨 aynı konuda kalem varken seçimsiz onay 409 needsResolution + eşleşme ('Kayıtlı değer farklı'); liste ekranı da eşleşmeyi taşır", async () => {
@@ -130,6 +132,29 @@ describe("Geçmişten öğren × bilgi tabanı — eskisinin yerine koy (L2)", (
     const res = await review(draft.id, { action: "approve", resolution: "replace", replaceKbItemId: oldKb.id });
     expect(res.status).toBe(409);
     expect(await prisma.knowledgeBaseItem.count({ where: { propertyId } })).toBe(1);
+  });
+
+  it("🚨 YARIŞ: eşleşme hesaplandıktan SONRA eski kalem başka sekmede pasife alındı → işlem GERİ ALINIR (409, yeni kalem yok, taslak bekliyor)", async () => {
+    const { propertyId, oldKb, draft } = await seed();
+    __reviewHooks.beforeWrite = async () => {
+      await prisma.knowledgeBaseItem.update({ where: { id: oldKb.id }, data: { isActive: false } });
+    };
+    const res = await review(draft.id, { action: "approve", resolution: "replace", replaceKbItemId: oldKb.id });
+    expect(res.status).toBe(409);
+    expect((await res.json()).kbChanged).toBe(true);
+    expect(await prisma.knowledgeBaseItem.count({ where: { propertyId } })).toBe(1); // yeni kalem geri alındı
+    expect(await prisma.knowledgeBaseItem.findUniqueOrThrow({ where: { id: oldKb.id } })).toMatchObject({ supersededById: null });
+    expect((await prisma.historyLearnDraft.findUniqueOrThrow({ where: { id: draft.id } })).state).toBe("pending");
+  });
+
+  it("🚨 aynı mülkte ama BAŞKA KONUDAKİ kalem (eşleşme değil) yerine konamaz → 409; o kalem etkin kalır", async () => {
+    const { propertyId, draft } = await seed();
+    const parking = await prisma.knowledgeBaseItem.create({
+      data: { propertyId, category: "parking", title: "Otopark", content: "Binanın arkasında.", isActive: true, reviewState: "approved" },
+    });
+    const res = await review(draft.id, { action: "approve", resolution: "replace", replaceKbItemId: parking.id });
+    expect(res.status).toBe(409);
+    expect(await prisma.knowledgeBaseItem.findUniqueOrThrow({ where: { id: parking.id } })).toMatchObject({ isActive: true, supersededById: null });
   });
 
   it("plan sınırında (dolu): yerine koy YAPILABİLİR (sayı artmaz), ayrı ekle plan sınırı der", async () => {

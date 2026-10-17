@@ -28,6 +28,16 @@ describe("kbOverlaps", () => {
     );
   });
 
+  it("taslakta değer var ama kalemde değer yok → 'topic' (karşılaştırılacak değer yok — 'farklı' denmez)", () => {
+    expect(kbOverlaps({ category: "wifi", title: "Wi-Fi", content: "Şifre lale2024" }, [item("k1", "wifi", "Wi-Fi", "Şifre kartta yazıyor")])[0].kind).toBe(
+      "topic",
+    );
+    // Kısmi örtüşme (ağ adı aynı, şifre farklı — en sık Wi-Fi değişikliği) → 'differs'.
+    expect(
+      kbOverlaps({ category: "wifi", title: "Wi-Fi", content: "Ağ Lale_Ev şifre lale2024" }, [item("k1", "wifi", "Wi-Fi", "Ağ Lale_Ev şifre yeni2025")])[0].kind,
+    ).toBe("differs");
+  });
+
   it("aşırı uygulama yok: geniş kategoride (rules) kavram ayrıysa aday DEĞİL; kategori farklıysa aday değil", () => {
     expect(
       kbOverlaps({ category: "rules", title: "Sigara", content: "Dairede sigara içilmez." }, [

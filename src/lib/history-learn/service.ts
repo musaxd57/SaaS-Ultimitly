@@ -468,6 +468,9 @@ export type DraftResolution = "replace" | "separate";
 /** Yer değiştirme sırasında eski kalem değişti / pasife alındı / başka mülkün kalemi — işlem geri alınır (409 `kb_changed`). */
 class KbChangedAbort extends Error {}
 
+/** Yalnız testler: eşleşme hesabından SONRA, yazma işleminden ÖNCE bekleme noktası (yarış testi şansa kalmasın — Opus B8 deseni). */
+export const __reviewHooks: { beforeWrite: null | (() => Promise<void>) } = { beforeWrite: null };
+
 /**
  * Bekleyen taslakların çakışma adayları — liste ekranı için TEK bilgi tabanı sorgusu (mülk kapsamlı). Onay anında aynı kural işlem içinde
  * yeniden hesaplanır (↓`draftKbOverlaps`); buradaki yalnız ekranda önceden göstermek içindir.
@@ -682,6 +685,7 @@ export async function reviewHistoryLearnDraft(input: {
   const limits = await limitsForOrg(input.organizationId);
   if (content.length > limits.kbCharsPerItem) return { ok: false, reason: "plan_chars" };
   let kbItemId: string | "plan_items" | null;
+  if (__reviewHooks.beforeWrite) await __reviewHooks.beforeWrite();
   try {
     kbItemId = await prisma.$transaction(async (tx) => {
     const active = await tx.knowledgeBaseItem.count({ where: { propertyId: draft.propertyId, isActive: true } });
