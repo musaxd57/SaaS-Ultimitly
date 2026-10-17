@@ -10,6 +10,7 @@ import {
   executeHistoryLearnRun,
   historyLearnEnabled,
   parseFlags,
+  pendingDraftKbOverlaps,
   startHistoryLearnRun,
   HISTORY_LEARN_MONTHLY_RUNS,
   COMPARE_MAX_QUESTIONS,
@@ -97,6 +98,8 @@ export const GET = withManage<{ id: string }>(async (session, _req, { params }) 
     : new Map<string, string>();
   // Taslağın dayandığı örnek cevap (H6, Codex ilke 1): canlı satırdan, çıkarımla aynı maskeden; kimlik dizisi istemciye GİTMEZ.
   const samples = await draftEvidenceSamples(property.id, drafts);
+  // L2 (kurucu 10-17): bilgi tabanında aynı konudaki kalem — ekran "Bilgi tabanınızda bu konu var" der, onayda seçim ister.
+  const kbMatches = await pendingDraftKbOverlaps(property.id, drafts);
   return jsonOk({
     runs,
     // Açık izin listesi (iç alan — kanıt kimlik dizisi — yanıta girmez).
@@ -113,6 +116,7 @@ export const GET = withManage<{ id: string }>(async (session, _req, { params }) 
       fromNote: d.run.kind === "compare",
       flags: parseFlags(d.flagsJson),
       sample: samples.get(d.id) ?? null,
+      kbMatches: (kbMatches.get(d.id) ?? []).map((m) => ({ id: m.id, title: m.title, preview: m.preview, kind: m.kind })),
     })),
     // Sorusu silinmiş (konuşma birleştirme / silme) karşılaştırma gösterilmez — boş soru kartı yok (Opus 10-15 HL4).
     comparisons: comparisons.filter((c) => texts.has(c.questionMessageId)).map((c) => ({

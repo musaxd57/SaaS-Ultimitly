@@ -30,7 +30,7 @@ export const PATCH = withManage<{ id: string }>(async (session, req, { params })
   const { id } = await params;
   const existing = await prisma.knowledgeBaseItem.findFirst({
     where: { id, property: { organizationId: session.organizationId } },
-    select: { id: true, propertyId: true, isActive: true, content: true, title: true, category: true, language: true },
+    select: { id: true, propertyId: true, isActive: true, content: true, title: true, category: true, language: true, supersededById: true },
   });
   if (!existing) return notFound();
 
@@ -84,9 +84,12 @@ export const PATCH = withManage<{ id: string }>(async (session, req, { params })
     const unchanged = await prisma.knowledgeBaseItem.findUnique({ where: { id } });
     return jsonOk(unchanged ? withoutClientRequestId(unchanged) : unchanged);
   }
+  // L2 GERİ AL (kurucu 10-17): "yerine konmuş" eski kalemi ev sahibi yeniden etkinleştirirse halef bağı AYNI yazımda temizlenir — yoksa getirme
+  // kuralı ("halefi kümede olan kalem düşer", `retrieval/rerank.ts`) yeniden açılan kalemi sessizce düşürürdü. Yeni kalem etkin kalır.
+  const reactivatesRetired = d.isActive === true && !existing.isActive && existing.supersededById !== null;
   const item = await prisma.knowledgeBaseItem.update({
     where: { id },
-    data: d,
+    data: reactivatesRetired ? { ...d, supersededById: null, supersededAt: null } : d,
   });
   // V1: içerik/pasif-aktif değişimi hafızaya anında yansır (pasif → retired).
   await refreshPropertyMemoryBestEffort(session.organizationId, existing.propertyId);

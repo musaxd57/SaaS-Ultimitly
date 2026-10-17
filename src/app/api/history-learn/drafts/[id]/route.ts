@@ -7,6 +7,8 @@ import { historyLearnEnabled, reviewHistoryLearnDraft } from "@/lib/history-lear
 // ---------------------------------------------------------------------------
 // GEÇMİŞTEN ÖĞREN — taslak onayı / reddi (anahtar KAPALI → 404). Kiracı kapsamı servis sorgusunda (taslak → mülk → işletme); başka
 // işletmenin taslağı 404. Onay = A1 sözleşmesiyle ONAYLI bilgi tabanı kalemi; işaretli taslak `confirmFlags` olmadan 409.
+// L2 (kurucu 10-17): bilgi tabanında aynı konuda etkin kalem varsa `resolution` ("replace" + `replaceKbItemId` / "separate") olmadan 409
+// `needsResolution` + eşleşmeler; yer değiştirme sırasında eski kalem değiştiyse 409 `kbChanged` (hiçbir şey yazılmaz).
 // ---------------------------------------------------------------------------
 
 const MESSAGES: Record<string, string> = {
@@ -33,6 +35,8 @@ export const PATCH = withManage<{ id: string }>(async (session, req, { params })
     content: str(body?.content),
     category: str(body?.category),
     confirmFlags: body?.confirmFlags === true,
+    resolution: body?.resolution === "replace" || body?.resolution === "separate" ? body.resolution : undefined,
+    replaceKbItemId: str(body?.replaceKbItemId),
   });
   if (!r.ok) {
     if (r.reason === "not_found") return notFound();
@@ -42,13 +46,32 @@ export const PATCH = withManage<{ id: string }>(async (session, req, { params })
         { error: "Bu taslakta kontrol edilmesi gereken bir nokta var. Okuyup onaylayın.", needsConfirm: true, flags: r.flags, conflict: r.conflict },
         { status: 409 },
       );
+    if (r.reason === "needs_resolution")
+      return NextResponse.json(
+        {
+          error: "Bilgi tabanınızda bu konuda bir kayıt var. Eskisinin yerine mi koyalım, ayrı mı ekleyelim?",
+          needsResolution: true,
+          matches: r.matches.map((m) => ({ id: m.id, title: m.title, preview: m.preview, kind: m.kind, updatedAt: m.updatedAt.toISOString() })),
+        },
+        { status: 409 },
+      );
+    if (r.reason === "kb_changed")
+      return NextResponse.json(
+        { error: "Bilgi tabanındaki kayıt bu arada değişti. Sayfayı yenileyip yeniden deneyin.", kbChanged: true },
+        { status: 409 },
+      );
     return badRequest({ _: MESSAGES[r.reason] ?? MESSAGES.invalid });
   }
   await writeAudit({
     organizationId: session.organizationId,
     actorUserId: auditActor(session),
     action: action === "approve" ? "history_learn.draft_approved" : "history_learn.draft_rejected",
-    metadata: { draftId: id, kbItemId: r.kbItemId },
+    // Seçim izi (L2): yalnız kimlikler + seçim — metin / değer TAŞIMAZ.
+    metadata: {
+      draftId: id,
+      kbItemId: r.kbItemId,
+      ...(action === "approve" && body?.resolution ? { resolution: body.resolution, replacedKbItemId: r.replacedKbItemId ?? null } : {}),
+    },
   });
-  return jsonOk({ ok: true, kbItemId: r.kbItemId });
+  return jsonOk({ ok: true, kbItemId: r.kbItemId, replacedKbItemId: r.replacedKbItemId ?? null });
 });

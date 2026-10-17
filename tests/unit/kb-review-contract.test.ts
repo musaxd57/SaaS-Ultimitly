@@ -82,20 +82,18 @@ describe("A1 — KB onay sözleşmesi", () => {
     }
   });
 
-  it("A5 alanları (sourceRef/supersededById) BUGÜN hiçbir yerden yazılmıyor", () => {
-    // Şema onları migration 53'te taşıyor ama sözleşmeleri A5'e ait. Bu pin,
-    // "bugün yazan yok" cümlesini bir İDDİA olmaktan çıkarıp doğrulanmış hâle
-    // getirir; A5 geldiğinde bilinçli olarak güncellenir.
-    const roots = [
-      "src/app/api/kb/route.ts",
-      "src/app/api/kb/[id]/route.ts",
-      "src/app/api/kb/[id]/copy/route.ts",
-    ];
-    for (const rel of roots) {
+  it("A5 alanları: sourceRef KB rotalarında hiç yazılmıyor; supersededById YALNIZ L2 yollarında (bilinçli güncelleme, kurucu 10-17)", () => {
+    // Şema onları migration 53'te taşıyor. L2 (Geçmişten öğren "eskisinin yerine koy") supersededById'yi YAZAN tek yol: taslak onayı
+    // (`history-learn/service.ts`); KB PATCH yalnız TEMİZLER (ev sahibi eskiyi yeniden etkinleştirince). Ekleme / kopyalama rotaları yazmaz.
+    for (const rel of ["src/app/api/kb/route.ts", "src/app/api/kb/[id]/copy/route.ts"]) {
       const src = read(rel);
       expect(src, rel).not.toMatch(/\bsupersededById\b/);
-      // `sourceRef` KB rotalarında geçmemeli (PropertyMemory'nin ayrı alanı var).
       expect(src, rel).not.toMatch(/\bsourceRef\b/);
     }
+    const patch = read("src/app/api/kb/[id]/route.ts");
+    expect(patch).not.toMatch(/\bsourceRef\b/);
+    // PATCH yalnız NULL'a çeker (temizleme); bir kimlik ATAMAZ.
+    expect(patch.match(/supersededById:\s*(?!true)[^,}\s]+/g)?.every((m) => /null$/.test(m))).toBe(true);
+    expect(read("src/lib/history-learn/service.ts")).toMatch(/supersededById: kb\.id, supersededAt: now/);
   });
 });

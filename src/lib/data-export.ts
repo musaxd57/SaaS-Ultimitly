@@ -213,6 +213,8 @@ export async function buildOrganizationDataExport(organizationId: string) {
               select: {
                 id: true, category: true, title: true, content: true,
                 language: true, isActive: true, createdAt: true,
+                // L2 (10-17): ev sahibinin "eskisinin yerine koy" seçim geçmişi (kendi verisi; misafir verisi değil).
+                supersededById: true, supersededAt: true,
               },
             },
           },

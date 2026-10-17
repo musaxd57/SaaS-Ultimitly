@@ -832,6 +832,10 @@ model KnowledgeBaseItem {
   /// A5: bir öneri kabul edilince eski kalem yenisiyle işaretlenir (iz kaybı yok).
   /// FK YOK — KB silme HARD DELETE'tir, FK silmeyi kilitlerdi (V0.4 provenance ile aynı gerekçe).
   supersededById  String?
+  /// Migration 70 (L2, kurucu 10-17 "ev sahibi daha güncel olanı seçince o artık doğru sayılsın"): bu kalemin yerine yenisi konduğu an.
+  /// `supersededById` ile BİRLİKTE yazılır (kalem pasif); ev sahibi eskiyi yeniden etkinleştirince ikisi de NULL. `updatedAt` yerine ayrı
+  /// alan: sonraki düzenleme / aç-kapa bu anı değiştirmesin — Geçmişten öğren "değişiklikten önceki kanıt" kuralını bu andan okur.
+  supersededAt    DateTime?
   /// İçe aktarma tekrar güvenliği (migration 67, kurucu 10-14 "İstek kimliği"): istemcinin kalem başına ürettiği rastgele kimlik.
   /// Aynı mülk + aynı kimlik ikinci kalem AÇMAZ (bağlantı cevap anında koparsa yeniden deneme). Elle eklemede NULL (PG'de NULL'lar çakışmaz).
   clientRequestId String?
@@ -1199,6 +1203,9 @@ model MessageOutbox {
   // Worker due-query: claimable rows ordered by (status, availableAt).
   @@index([status, availableAt])
   @@index([organizationId, status])
+  // Migration 69 (kurucu I3, 10-17 "migration yapalım"): konuşma başına okuma — teslim edilmemiş taslak süzgeçleri + işçinin konuşma başına
+  // FIFO alt sorgusu tam tablo taraması yerine dizinden. YALNIZ maliyet; davranış dizinden bağımsız (O1 Seçenek A).
+  @@index([conversationId, status])
 }
 
 // ---------------------------------------------------------------------------

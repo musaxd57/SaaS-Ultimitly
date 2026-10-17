@@ -12,6 +12,8 @@ import { buildLearnPairs } from "./pairs";
 import { maskPairs, maskForLearning } from "./mask";
 import { DRAFT_FLAGS, extractDraftsFromPairs, gateDraft, historyLearnEffort, historyLearnModel, LEARN_CATEGORIES, type DraftFlag } from "./extract";
 import { foldTurkishAscii } from "@/lib/ai/fallback";
+import { GUEST_DELIVERABLE_KB_WHERE } from "@/lib/kb-review";
+import { kbOverlaps, retiredValueVerdict, type KbOverlap } from "./kb-overlap";
 import { INSTRUCTIONS_MAX_ACTIVE, checkInstruction, type InstructionRejectReason } from "./instruction-gate";
 import { INSTRUCTION_PRESETS, presetByKey } from "./instruction-presets";
 import { propertyInstructionsPromptEnabled } from "./prompt-instructions";
@@ -304,21 +306,34 @@ export async function executeHistoryLearnRun(
           data: { state: "superseded" },
         });
       }
+      // L2 "model kendini geliştirsin": ev sahibinin YERİNE KOYDUĞU eski değer, kanıtı değişiklikten önceyse bir daha önerilmez (taslak
+      // `superseded` yazılır, ekranda çıkmaz); kanıt sonraysa `outdated` işaretiyle gelir (`kb-overlap.ts` `retiredValueVerdict`).
+      const retired = await tx.knowledgeBaseItem.findMany({
+        where: { propertyId: run.propertyId, supersededById: { not: null }, supersededAt: { not: null }, isActive: false },
+        select: { category: true, title: true, content: true, supersededAt: true },
+        take: 500,
+      });
+      const retiredItems = retired.flatMap((r) => (r.supersededAt ? [{ ...r, supersededAt: r.supersededAt }] : []));
       await tx.historyLearnDraft.createMany({
-        data: result.drafts.map((d) => ({
-          runId,
-          propertyId: run.propertyId,
-          category: d.category,
-          title: d.title,
-          content: d.content,
-          supportConversations: d.conversationIds.length,
-          newestMonth: d.newestMonth,
-          oldestMonth: d.oldestMonth,
-          conflict: d.conflict,
-          conflictNote: d.conflictNote || null,
-          flagsJson: JSON.stringify(d.flags),
-          evidenceMessageIdsJson: JSON.stringify(d.evidence.flatMap((n) => byN.get(n)?.answerIds ?? [])),
-        })),
+        data: result.drafts.map((d) => {
+          const verdict = retiredItems.length ? retiredValueVerdict(d, retiredItems) : null;
+          const flags = verdict === "outdated" && !d.flags.includes("outdated") ? [...d.flags, "outdated" as const] : d.flags;
+          return {
+            runId,
+            propertyId: run.propertyId,
+            category: d.category,
+            title: d.title,
+            content: d.content,
+            supportConversations: d.conversationIds.length,
+            newestMonth: d.newestMonth,
+            oldestMonth: d.oldestMonth,
+            conflict: d.conflict,
+            conflictNote: d.conflictNote || null,
+            flagsJson: JSON.stringify(DRAFT_FLAGS.filter((f) => flags.includes(f))),
+            evidenceMessageIdsJson: JSON.stringify(d.evidence.flatMap((n) => byN.get(n)?.answerIds ?? [])),
+            ...(verdict === "suppress" ? { state: "superseded" } : {}),
+          };
+        }),
       });
     });
   } catch (err) {
@@ -442,9 +457,54 @@ export const DRAFT_EDIT_MAX_TITLE = 120;
 export const DRAFT_EDIT_MAX_CONTENT = 2_000;
 
 export type ReviewResult =
-  | { ok: true; kbItemId: string | null }
-  | { ok: false; reason: "not_found" | "already_reviewed" | "invalid" | "door_code" | "hijack" | "plan_items" | "plan_chars" }
-  | { ok: false; reason: "needs_confirm"; flags: DraftFlag[]; conflict: boolean };
+  | { ok: true; kbItemId: string | null; replacedKbItemId?: string | null }
+  | { ok: false; reason: "not_found" | "already_reviewed" | "invalid" | "door_code" | "hijack" | "plan_items" | "plan_chars" | "kb_changed" }
+  | { ok: false; reason: "needs_confirm"; flags: DraftFlag[]; conflict: boolean }
+  | { ok: false; reason: "needs_resolution"; matches: KbOverlap[] };
+
+/** L2: ev sahibinin çakışma seçimi — eskisinin yerine koy (eski kalem pasif + halef bağı) ya da ayrı ekle (iki kalem etkin). */
+export type DraftResolution = "replace" | "separate";
+
+/** Yer değiştirme sırasında eski kalem değişti / pasife alındı / başka mülkün kalemi — işlem geri alınır (409 `kb_changed`). */
+class KbChangedAbort extends Error {}
+
+/**
+ * Bekleyen taslakların çakışma adayları — liste ekranı için TEK bilgi tabanı sorgusu (mülk kapsamlı). Onay anında aynı kural işlem içinde
+ * yeniden hesaplanır (↓`draftKbOverlaps`); buradaki yalnız ekranda önceden göstermek içindir.
+ */
+export async function pendingDraftKbOverlaps(
+  propertyId: string,
+  drafts: readonly { id: string; category: string; title: string; content: string }[],
+): Promise<Map<string, KbOverlap[]>> {
+  const out = new Map<string, KbOverlap[]>();
+  if (drafts.length === 0) return out;
+  const items = await prisma.knowledgeBaseItem.findMany({
+    where: { propertyId, ...GUEST_DELIVERABLE_KB_WHERE, supersededById: null },
+    select: { id: true, category: true, title: true, content: true, updatedAt: true },
+    orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+    take: 500,
+  });
+  for (const d of drafts) {
+    const m = kbOverlaps(d, items);
+    if (m.length) out.set(d.id, m);
+  }
+  return out;
+}
+
+/** Taslağın çakışma adayları: aynı mülkte yapay zekânın okuduğu, HALEFSİZ etkin kalemler (L2, `kb-overlap.ts`). */
+async function draftKbOverlaps(
+  db: Pick<typeof prisma, "knowledgeBaseItem">,
+  propertyId: string,
+  draft: { category: string; title: string; content: string },
+): Promise<KbOverlap[]> {
+  const items = await db.knowledgeBaseItem.findMany({
+    where: { propertyId, ...GUEST_DELIVERABLE_KB_WHERE, supersededById: null, category: draft.category },
+    select: { id: true, category: true, title: true, content: true, updatedAt: true },
+    orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+    take: 200,
+  });
+  return kbOverlaps(draft, items);
+}
 
 /**
  * Konuşmaların misafir adları — konuşma BAŞINA (Opus gece-2 M9, ölçüldü: bütün konuşmaların mesajları tek `take: 2_000` sorgusundaydı; 200
@@ -566,6 +626,10 @@ export async function reviewHistoryLearnDraft(input: {
   content?: string;
   category?: string;
   confirmFlags?: boolean;
+  /** L2: çakışan kalem varken ZORUNLU ("yerine koy" / "ayrı ekle"); "Vazgeç" istemcide kalır (istek gitmez, taslak bekler). */
+  resolution?: DraftResolution;
+  /** `resolution: "replace"` ise yerine konacak kalem (aynı mülkün, çakışma adaylarından biri). */
+  replaceKbItemId?: string;
 }): Promise<ReviewResult> {
   const draft = await prisma.historyLearnDraft.findFirst({
     where: { id: input.draftId, property: { organizationId: input.organizationId } },
@@ -610,11 +674,19 @@ export async function reviewHistoryLearnDraft(input: {
   const edited = title !== draft.title || content !== draft.content;
   const flags = [...new Set([...gate.flags, ...(edited ? stored.filter((f) => f === "outdated") : stored)])];
   if ((flags.length > 0 || draft.conflict) && !input.confirmFlags) return { ok: false, reason: "needs_confirm", flags, conflict: draft.conflict };
+  // L2 (kurucu 10-17): bilgi tabanında aynı konuda etkin kalem varsa ev sahibi seçer — eskisinin yerine koy / ayrı ekle (/ vazgeç).
+  const matches = await draftKbOverlaps(prisma, draft.propertyId, { category, title, content });
+  if (matches.length > 0 && !input.resolution) return { ok: false, reason: "needs_resolution", matches };
+  const replaceId = input.resolution === "replace" ? (input.replaceKbItemId ?? null) : null;
+  if (input.resolution === "replace" && (!replaceId || !matches.some((m) => m.id === replaceId))) return { ok: false, reason: "kb_changed" };
   const limits = await limitsForOrg(input.organizationId);
   if (content.length > limits.kbCharsPerItem) return { ok: false, reason: "plan_chars" };
-  const kbItemId = await prisma.$transaction(async (tx) => {
+  let kbItemId: string | "plan_items" | null;
+  try {
+    kbItemId = await prisma.$transaction(async (tx) => {
     const active = await tx.knowledgeBaseItem.count({ where: { propertyId: draft.propertyId, isActive: true } });
-    if (active >= limits.kbItemsPerProperty) return "plan_items" as const;
+    // Yer değiştirme etkin kalem sayısını BÜYÜTMEZ (eski pasife iner) → plan sınırında da yapılabilir.
+    if (active - (replaceId ? 1 : 0) >= limits.kbItemsPerProperty) return "plan_items" as const;
     const claimed = await tx.historyLearnDraft.updateMany({
       where: { id: draft.id, state: "pending" },
       data: { state: "approved", reviewedById: input.userId, reviewedAt: now },
@@ -635,13 +707,26 @@ export async function reviewHistoryLearnDraft(input: {
       select: { id: true },
     });
     await tx.historyLearnDraft.update({ where: { id: draft.id }, data: { kbItemId: kb.id } });
+    if (replaceId) {
+      // Eski kalem SİLİNMEZ: pasif + halef bağı (geri alınabilir — bilgi tabanında "Etkinleştir"). Koşullar: aynı mülk, hâlâ etkin, halefsiz;
+      // tutmazsa (arada düzenlendi / pasife alındı / başka mülkün kalemi) bütün işlem geri alınır — taslak `pending`, yeni kalem yok.
+      const retired = await tx.knowledgeBaseItem.updateMany({
+        where: { id: replaceId, propertyId: draft.propertyId, isActive: true, supersededById: null },
+        data: { isActive: false, supersededById: kb.id, supersededAt: now },
+      });
+      if (retired.count !== 1) throw new KbChangedAbort();
+    }
     return kb.id;
-  });
+    });
+  } catch (err) {
+    if (err instanceof KbChangedAbort) return { ok: false, reason: "kb_changed" };
+    throw err;
+  }
   if (kbItemId === "plan_items") return { ok: false, reason: "plan_items" };
   if (!kbItemId) return { ok: false, reason: "already_reviewed" };
   await refreshPropertyMemoryBestEffort(input.organizationId, draft.propertyId);
   warmPropertyKbVectorsBestEffort(draft.propertyId);
-  return { ok: true, kbItemId };
+  return { ok: true, kbItemId, replacedKbItemId: replaceId };
 }
 
 export function parseFlags(json: string | null | undefined): DraftFlag[] {

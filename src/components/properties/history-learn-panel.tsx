@@ -64,7 +64,22 @@ interface Draft {
   flags: Flag[];
   /** Taslağın dayandığı kendi cevabınızdan maskeli örnek + ay (canlı satır; silinmişse yok). */
   sample?: { text: string; month: string } | null;
+  /** L2: bilgi tabanında aynı konudaki etkin kalemler (onayda seçim istenir). */
+  kbMatches?: KbMatch[];
 }
+interface KbMatch {
+  id: string;
+  title: string;
+  preview: string;
+  kind: "differs" | "same" | "topic";
+}
+/** L2 eşleşme türü — ev sahibine sade dille (kurucu 09-23). */
+const MATCH_KIND_TEXT: Record<KbMatch["kind"], string> = {
+  differs: "Kayıtlı değer farklı",
+  same: "Bu bilgi zaten kayıtlı",
+  topic: "Aynı konu",
+};
+type Resolution = { mode: "replace"; id: string } | { mode: "separate" } | null;
 interface Run {
   id: string;
   kind?: string;
@@ -218,6 +233,11 @@ function DraftCard({ draft, onDone }: { draft: Draft; onDone: () => void }) {
   const [serverFlags, setServerFlags] = useState<Flag[]>([]);
   const flags = [...new Set([...draft.flags, ...serverFlags])];
   const needsCheck = flags.length > 0 || draft.conflict;
+  // L2 (kurucu 10-17 "daha güncel olanı seçince o artık doğru olsun"): aynı konudaki kalem varsa seçim — yerine koy / ayrı ekle (vazgeç =
+  // onaylamamak). Sunucu onayda eşleşmeleri işlem içinde yeniden hesaplar (409 needsResolution → liste güncellenir).
+  const [matches, setMatches] = useState<KbMatch[]>(draft.kbMatches ?? []);
+  const [resolution, setResolution] = useState<Resolution>(null);
+  const needsResolution = matches.length > 0;
 
   async function act(action: "approve" | "reject") {
     setBusy(true);
@@ -226,20 +246,48 @@ function DraftCard({ draft, onDone }: { draft: Draft; onDone: () => void }) {
       const res = await fetch(`/api/history-learn/drafts/${draft.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(action === "approve" ? { action, title, content, confirmFlags: checked } : { action }),
+        body: JSON.stringify(
+          action === "approve"
+            ? {
+                action,
+                title,
+                content,
+                confirmFlags: checked,
+                ...(resolution?.mode === "replace" ? { resolution: "replace", replaceKbItemId: resolution.id } : {}),
+                ...(resolution?.mode === "separate" ? { resolution: "separate" } : {}),
+              }
+            : { action },
+        ),
       });
       if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string; fields?: Record<string, string>; needsConfirm?: boolean; flags?: Flag[] };
+        const body = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          fields?: Record<string, string>;
+          needsConfirm?: boolean;
+          flags?: Flag[];
+          needsResolution?: boolean;
+          matches?: KbMatch[];
+        };
         if (body.needsConfirm) {
           setServerFlags((body.flags ?? []).filter((f): f is Flag => f in FLAG_TEXT));
           setChecked(false);
         }
+        if (body.needsResolution) {
+          setMatches(body.matches ?? []);
+          setResolution(null);
+        }
         setError(errorText(body, "İşlem yapılamadı. Tekrar deneyin."));
-        // Taslak başka sekmede işlendi / silindi → liste yenilenir, ölü kart kalmaz.
-        if (res.status === 404 || (res.status === 409 && !body.needsConfirm)) onDone();
+        // Taslak başka sekmede işlendi / silindi → liste yenilenir, ölü kart kalmaz (seçim / onay isteyen 409'lar kartta kalır).
+        if (res.status === 404 || (res.status === 409 && !body.needsConfirm && !body.needsResolution)) onDone();
         return;
       }
-      toast.success(action === "approve" ? "Bilgi tabanına eklendi." : "Taslak reddedildi.");
+      toast.success(
+        action === "approve"
+          ? resolution?.mode === "replace"
+            ? "Bilgi tabanına eklendi; eski kayıt pasife alındı (Bilgi Tabanı'ndan geri açabilirsiniz)."
+            : "Bilgi tabanına eklendi."
+          : "Taslak reddedildi.",
+      );
       onDone();
     } finally {
       setBusy(false);
@@ -275,6 +323,38 @@ function DraftCard({ draft, onDone }: { draft: Draft; onDone: () => void }) {
           ))}
         </ul>
       ) : null}
+      {needsResolution ? (
+        <fieldset className="space-y-1.5 rounded-md border border-amber-200 px-2.5 py-2 text-xs dark:border-amber-500/25" data-testid="history-learn-kb-match">
+          <legend className="px-1 font-medium">Bilgi tabanınızda bu konuda kayıt var</legend>
+          {matches.map((m) => (
+            <label key={m.id} className="flex items-start gap-2">
+              <input
+                type="radio"
+                name={`resolution-${draft.id}`}
+                checked={resolution?.mode === "replace" && resolution.id === m.id}
+                onChange={() => setResolution({ mode: "replace", id: m.id })}
+                disabled={busy}
+                className="mt-0.5"
+              />
+              <span>
+                <strong>«{m.title}»</strong> kaydının yerine koy <span className="text-muted-foreground">({MATCH_KIND_TEXT[m.kind]})</span>
+                <span className="block whitespace-pre-wrap text-muted-foreground">“{m.preview}”</span>
+              </span>
+            </label>
+          ))}
+          <label className="flex items-center gap-2">
+            <input
+              type="radio"
+              name={`resolution-${draft.id}`}
+              checked={resolution?.mode === "separate"}
+              onChange={() => setResolution({ mode: "separate" })}
+              disabled={busy}
+            />
+            Ayrı kayıt olarak ekle (ikisi de kalsın)
+          </label>
+          <p className="text-muted-foreground">Yerine koyarsanız eski kayıt silinmez, pasife alınır; Bilgi Tabanı&apos;ndan geri açabilirsiniz.</p>
+        </fieldset>
+      ) : null}
       {needsCheck ? (
         <label className="flex items-center gap-2 text-xs">
           <input type="checkbox" checked={checked} onChange={(e) => setChecked(e.target.checked)} disabled={busy} />
@@ -287,7 +367,7 @@ function DraftCard({ draft, onDone }: { draft: Draft; onDone: () => void }) {
         </p>
       ) : null}
       <div className="flex gap-2">
-        <Button size="sm" onClick={() => act("approve")} disabled={busy || (needsCheck && !checked)}>
+        <Button size="sm" onClick={() => act("approve")} disabled={busy || (needsCheck && !checked) || (needsResolution && !resolution)}>
           {busy ? <Loader2 className="animate-spin" /> : null} Onayla
         </Button>
         <Button size="sm" variant="outline" onClick={() => act("reject")} disabled={busy}>
