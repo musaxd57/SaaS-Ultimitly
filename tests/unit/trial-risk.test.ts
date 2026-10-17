@@ -1,5 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { isDisposableEmail, riskyTrials, RISK_LIST_RECENT_MS, trialRisk, UNVERIFIED_GRACE_MS } from "@/lib/billing/trial-risk";
+import {
+  isDisposableEmail,
+  NETWORK_RISK_REASONS,
+  riskyTrials,
+  RISK_LIST_RECENT_MS,
+  trialRisk,
+  trialRiskBand,
+  trialRiskWeight,
+  UNVERIFIED_GRACE_MS,
+} from "@/lib/billing/trial-risk";
 
 // ---------------------------------------------------------------------------
 // DENEME RİSK PUANI (kurucu onayı 10-10: geçici e-posta + doğrulanmamış e-posta; yalnız operatör listesi, otomatik işlem yok).
@@ -112,5 +121,36 @@ describe("ortak posta kutusu (deneme araştırması 10-15, dilim 1)", () => {
     ]);
     const rows = riskyTrials(orgs, owners, NOW, new Set(["o2"]));
     expect(rows.map((r) => [r.org.id, r.risk.score])).toEqual([["o2", 40]]);
+  });
+});
+
+describe("K1 kayıt ağı sinyalleri (kurucu 10-17: 'IP'lere bakılsın; otomatik kesme yok')", () => {
+  const owners = [{ email: "a@example.com", emailVerifiedAt: new Date("2026-10-01T00:00:00Z"), createdAt: new Date("2026-10-01T00:00:00Z") }];
+  const now = new Date("2026-10-17T00:00:00Z");
+
+  it("🚨 DEĞİŞMEZ: ağ sinyallerinin HER alt kümesi tek başına 'yüksek' banda (≥ 60) ulaşamaz", () => {
+    for (const ipShared of [false, true]) {
+      for (const networkBurst of [false, true]) {
+        const r = trialRisk({ owners, identityReused: false, network: { ipShared, networkBurst }, now });
+        expect(r.score).toBeLessThan(60);
+        expect(trialRiskBand(r.score)).not.toBe("high");
+      }
+    }
+    expect(NETWORK_RISK_REASONS.reduce((n, r) => n + trialRiskWeight(r), 0)).toBeLessThan(60);
+  });
+
+  it("aynı adres → ip_shared (20); aynı ağda çok kayıt → network_burst (15); ikisi + geçici e-posta → orta band", () => {
+    expect(trialRisk({ owners, identityReused: false, network: { ipShared: true, networkBurst: false }, now })).toEqual({ score: 20, reasons: ["ip_shared"] });
+    expect(trialRisk({ owners, identityReused: false, network: { ipShared: false, networkBurst: true }, now })).toEqual({ score: 15, reasons: ["network_burst"] });
+    const both = trialRisk({ owners: [{ ...owners[0]!, email: "x@mailinator.com" }], identityReused: false, network: { ipShared: true, networkBurst: true }, now });
+    expect(both).toEqual({ score: 65, reasons: ["disposable_email", "ip_shared", "network_burst"] });
+    expect(trialRiskBand(both.score)).toBe("high");
+    expect(trialRiskBand(35)).toBe("medium");
+    expect(trialRiskBand(10)).toBe("low");
+    expect(trialRiskBand(0)).toBeNull();
+  });
+
+  it("KONTROL: ağ bilgisi verilmezse (anahtar kapalı) puan bugünkü gibi", () => {
+    expect(trialRisk({ owners, identityReused: false, now })).toEqual({ score: 0, reasons: [] });
   });
 });

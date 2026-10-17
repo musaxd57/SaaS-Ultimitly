@@ -209,8 +209,8 @@ export function ipBucketKey(ip: string): string {
   return `${g.slice(0, 4).map((n) => n.toString(16)).join(":")}::/64`;
 }
 
-/** `isIP(...) === 6` doğrulanmış adresi 8 sayılık gruba açar (`::` ve sondaki gömülü IPv4 dahil). */
-function expandIpv6(addr: string): number[] | null {
+/** `isIP(...) === 6` doğrulanmış adresi 8 sayılık gruba açar (`::` ve sondaki gömülü IPv4 dahil). Kayıt ağı izi de kullanır. */
+export function expandIpv6(addr: string): number[] | null {
   let s = addr;
   const lastColon = s.lastIndexOf(":");
   const tail = s.slice(lastColon + 1);

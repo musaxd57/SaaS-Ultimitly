@@ -7,7 +7,7 @@
 
 import { needsEmailVerification } from "@/lib/auth/email-verify";
 
-export type TrialRiskReason = "identity_reused" | "mailbox_shared" | "disposable_email" | "email_unverified";
+export type TrialRiskReason = "identity_reused" | "mailbox_shared" | "disposable_email" | "ip_shared" | "network_burst" | "email_unverified";
 
 export interface TrialRisk {
   score: number;
@@ -19,6 +19,8 @@ export const TRIAL_RISK_LABELS: Record<TrialRiskReason, string> = {
   identity_reused: "ilan daha önce kullanıldı",
   mailbox_shared: "aynı posta kutusu başka hesapta",
   disposable_email: "geçici e-posta",
+  ip_shared: "aynı adresten başka kayıt (30 gün)",
+  network_burst: "aynı ağdan kısa sürede çok kayıt (7 gün)",
   email_unverified: "e-posta doğrulanmadı (24 sa+)",
 };
 
@@ -27,7 +29,30 @@ export const TRIAL_RISK_LABELS: Record<TrialRiskReason, string> = {
  * googlemail) başka bir işletmenin sahibinde de var ("ali+2@gmail.com" ile "a.li@gmail.com" iki ayrı deneme). Yalnız puan sinyali — kimlik
  * kararı, engel YOK; aynı Gmail'le iki gerçek işletme açan kişi nadir ama olabilir (operatör bakışla karar verir).
  */
-const WEIGHTS: Record<TrialRiskReason, number> = { identity_reused: 60, mailbox_shared: 40, disposable_email: 30, email_unverified: 10 };
+/**
+ * K1 (kurucu 10-17, "IP'lere bakılsın; otomatik kesme yok"): kayıt ağı sinyalleri BİLİNÇLİ ZAYIF — Türkiye'de mobil hatlar ortak adres (CGNAT),
+ * otel / ofis Wi-Fi'si ve VPN yaygın. 🚨 Değişmez (pinli): ağ sinyallerinin toplamı tek başına "yüksek" banda (≥ 60) ULAŞAMAZ.
+ */
+const WEIGHTS: Record<TrialRiskReason, number> = {
+  identity_reused: 60,
+  mailbox_shared: 40,
+  disposable_email: 30,
+  ip_shared: 20,
+  network_burst: 15,
+  email_unverified: 10,
+};
+export const NETWORK_RISK_REASONS: readonly TrialRiskReason[] = ["ip_shared", "network_burst"];
+export function trialRiskWeight(reason: TrialRiskReason): number {
+  return WEIGHTS[reason];
+}
+
+/** Yalnız GÖSTERİM bandı — otomatik işlem YOK. */
+export type TrialRiskBand = "high" | "medium" | "low";
+export function trialRiskBand(score: number): TrialRiskBand | null {
+  if (score >= 60) return "high";
+  if (score >= 30) return "medium";
+  return score > 0 ? "low" : null;
+}
 
 /**
  * Doğrulanmamış e-posta bu süreden sonra sinyal sayılır (kayıttan hemen sonra herkes doğrulanmamıştır). Doğrulama zorunluluğundan
@@ -68,12 +93,16 @@ export function trialRisk(input: {
   identityReused: boolean;
   /** Sahiplerden birinin kanonik posta kutusu başka bir işletmenin sahibinde de var (çağıran hesaplar). */
   mailboxShared?: boolean;
+  /** Kayıt ağı sinyalleri (K1; `signup-network-core.ts networkSignals`). Anahtar kapalıyken çağıran vermez. */
+  network?: { ipShared: boolean; networkBurst: boolean };
   now: Date;
 }): TrialRisk {
   const reasons: TrialRiskReason[] = [];
   if (input.identityReused) reasons.push("identity_reused");
   if (input.mailboxShared) reasons.push("mailbox_shared");
   if (input.owners.some((o) => isDisposableEmail(o.email))) reasons.push("disposable_email");
+  if (input.network?.ipShared) reasons.push("ip_shared");
+  if (input.network?.networkBurst) reasons.push("network_burst");
   if (input.owners.some((o) => needsEmailVerification(o) && input.now.getTime() - o.createdAt.getTime() >= UNVERIFIED_GRACE_MS)) {
     reasons.push("email_unverified");
   }
