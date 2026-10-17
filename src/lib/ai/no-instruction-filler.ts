@@ -132,11 +132,16 @@ const LIFECYCLE_MARK =
  * masaya bırakın" jakuzi sorusunu sessizce "cevaplanmış" yapıyordu). Konusuz genel biçim ("Özel bir talimatımız yok", "There are no other
  * instructions in my notes") silinebilir kalır — kalan sözcükler yalnız bu kapalı kümedense konu adlandırılmamıştır (ASCII katlanmış).
  */
-const SUBJECT_STOPWORDS: ReadonlySet<string> = new Set([
-  // tr
+// Opus gece-4 F11: durak sözcükleri "talimat yok" kalıbının DİLİNE göre — tek küme "şu"yu "su" (su), İspanyolca "para"yı (para), İngilizce "is"i
+// (iş) Türkçe konu sözcüklerinde de durak sayıyordu ("Su için özel bir talimatımız yok, …" su sorusu sessizce düşüyordu).
+const TR_STOPWORDS: ReadonlySet<string> = new Set([
   "ozel", "ek", "baska", "farkli", "ilave", "ekstra", "ayri", "belirli", "belli", "spesifik", "icin", "ilgili", "hakkinda", "konusunda",
-  "dair", "de", "da", "ise", "su", "an", "simdilik", "herhangi", "bir", "maalesef", "elimizde",
-  "elimde", "notlarimda", "notlarimizda", "kayitlarimda", "kayitlarimizda", "burada",
+  "dair", "de", "da", "ise", "an", "simdilik", "herhangi", "bir", "maalesef", "elimizde", "elimde", "notlarimda", "notlarimizda", "kayitlarimda",
+  "kayitlarimizda", "burada",
+]);
+/** Türkçe durak sözcüğü katlamadan ÖNCE ("şu an" ≠ "su"). */
+const TR_RAW_STOPWORDS: ReadonlySet<string> = new Set(["şu"]);
+const FOREIGN_STOPWORDS: ReadonlySet<string> = new Set([
   // en
   "there", "are", "is", "no", "not", "any", "other", "in", "my", "our", "notes", "records", "for", "the", "your", "about", "regarding", "we",
   "i", "don", "t", "have", "really", "at", "this", "time", "currently", "unfortunately",
@@ -153,9 +158,16 @@ const ASCII_FOLD: Readonly<Record<string, string>> = { ı: "i", ş: "s", ğ: "g"
 function namesSubject(removed: string): boolean {
   const residue = noInstructionClauseResidue(removed);
   if (residue === null) return true;
+  // Kalıbın dili: Türkçe "talimat" kalıbı → yalnız Türkçe durak sözcükleri; aksi hâlde yabancı diller.
+  const turkish = /talimat/u.test(residue) || /talimat/u.test(removed.toLocaleLowerCase("tr"));
   return residue
     .split(/[^\p{L}]+/u)
-    .some((w) => w.length > 0 && !SUBJECT_STOPWORDS.has(w.replace(/[ışğçöüâîû]/gu, (c) => ASCII_FOLD[c] ?? c)));
+    .some((w) => {
+      if (w.length === 0) return false;
+      if (turkish && TR_RAW_STOPWORDS.has(w)) return false;
+      const folded = w.replace(/[ışğçöüâîû]/gu, (c) => ASCII_FOLD[c] ?? c);
+      return turkish ? !TR_STOPWORDS.has(folded) : !FOREIGN_STOPWORDS.has(folded);
+    });
 }
 
 /**

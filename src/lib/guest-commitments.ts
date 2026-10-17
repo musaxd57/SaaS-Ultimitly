@@ -48,6 +48,11 @@ type Tx = Prisma.TransactionClient | PrismaClient;
 /** Söz ekleme kilidi ad alanı (diğerleri: 23 · 40–45). Konuşma başına. */
 const COMMITMENT_LOCK_NS = 46;
 
+/** Konuşma başına söz kilidi (işlem sonuna kadar) — yazma katmanı ve öneri taşıma / bağlama yolu AYNI kilidi alır. */
+export async function lockCommitmentConversation(tx: Prisma.TransactionClient, conversationId: string): Promise<void> {
+  await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(${COMMITMENT_LOCK_NS}::int4, hashtext(${conversationId}))`);
+}
+
 /** Yalnız testler: kilitli bölgede "aynı söz var mı?" okumasından SONRA bekleme noktası (Opus 10-15 B8). */
 export const __commitmentHooks: { afterSameCheck: null | (() => Promise<void>) } = { afterSameCheck: null };
 
@@ -133,7 +138,7 @@ export async function createGuestCommitment(input: {
   const actor = input.actor === "visit" || input.actor === "delivery" ? input.actor : null;
   return run(async (tx) => {
     // Konuşma kilidi: aynı kimlikli eş zamanlı istekler sıraya girer; ikincisi birincinin yazdığını görür (↑ başlık).
-    await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(${COMMITMENT_LOCK_NS}::int4, hashtext(${input.conversationId}))`);
+    await lockCommitmentConversation(tx, input.conversationId);
     const requestId = input.clientRequestId ?? null;
     if (requestId) {
       const same = await tx.guestCommitment.findFirst({
@@ -191,6 +196,9 @@ export async function createGuestCommitment(input: {
             });
           }
         }
+        // Bilinmeyen yapanlı söze (elle form) yapanı bilinen öneri bağlanınca yapan yazılır — sonra BAŞKA yapanın sözü buna birleşmesin
+        // (Opus gece-4 F19b).
+        if (actor !== null && same.actor === null) await tx.guestCommitment.updateMany({ where: { id: same.id, actor: null }, data: { actor } });
         return { id: same.id, taskId: same.taskId, reused: true, via: "slot", topicAttached };
       }
     }

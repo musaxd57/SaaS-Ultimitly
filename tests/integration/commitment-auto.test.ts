@@ -605,6 +605,43 @@ describe("BAĞLAM — saat güncellemesi yalnız kesin eşleşmede (kurucu: 'ba�
     expect(await prisma.guestCommitment.count()).toBe(0);
   });
 
+  it("🚨 Opus gece-4 F7: taşıma seçeneğinin hedef gündeki anı geçmişse seçenek DÜŞMEZ (sözün kendi anına taşır) — belirsiz durum otomatik İKİNCİ söz açmaz", async () => {
+    // 20:00 İstanbul: açık klima sözü bugün 21:00; ev sahibi "Klima için teknisyen 10'da gelecek." yazıyor (bugün 10:00 geçti → kendi okuması yarın).
+    const evening = new Date(`${dateKeyInTimeZone(new Date(), TZ)}T17:00:00.000Z`);
+    vi.useFakeTimers({ toFake: ["Date"], now: evening });
+    const s = await setup();
+    await hostSays(s.conversationId, "Klima için teknisyen bugün 21:00'de gelecek.", new Date(Date.now() - 30 * 60_000));
+    expect((await applyHostCommitmentsAuto(s.orgId, s.conversationId)).created).toBe(1);
+    const c1 = await prisma.guestCommitment.findFirstOrThrow();
+    await hostSays(s.conversationId, "Klima için teknisyen 10'da gelecek.", new Date(Date.now() - 5 * 60_000));
+    expect(await applyHostCommitmentsAuto(s.orgId, s.conversationId)).toEqual({ created: 0, rescheduled: 0, skipped: 1 });
+    expect(await prisma.guestCommitment.count()).toBe(1);
+    const [card] = (await getConversationSuggestions(s.orgId, s.conversationId)).filter((x) => x.kind === "commitment");
+    expect(card.kind === "commitment" && card.proposal.moveOptions?.map((o) => [o.commitmentId, o.day, o.time])).toEqual([[c1.id, "tomorrow", "10:00"]]);
+  });
+
+  it("🚨 Opus gece-4 F8: 'birazdan' sözünün taşıma seçeneği hedef sözün gününe kaymaz (bugün, kısa süre içinde)", async () => {
+    pinIstanbulNoonToday();
+    const s = await setup();
+    await hostSays(s.conversationId, "Klima için teknisyen yarın 10:00'da gelecek.", new Date(Date.now() - 10 * 60_000));
+    expect((await applyHostCommitmentsAuto(s.orgId, s.conversationId)).created).toBe(1);
+    await hostSays(s.conversationId, "Klima için teknisyen birazdan gelecek.", new Date(Date.now() - 5 * 60_000));
+    const [card] = (await getConversationSuggestions(s.orgId, s.conversationId)).filter((x) => x.kind === "commitment");
+    const option = card.kind === "commitment" ? card.proposal.moveOptions?.[0] : undefined;
+    expect([option?.day, option?.precision, option?.dayPart]).toEqual(["today", "part", "soon"]);
+  });
+
+  it("🚨 Opus gece-4 F10: gün belirsiz kart, tahmini 'bugün' saati geçince KAYBOLMAZ (yarın okuması hâlâ ileride)", async () => {
+    const morning = new Date(`${dateKeyInTimeZone(new Date(), TZ)}T06:00:00.000Z`); // 09:00 İstanbul
+    vi.useFakeTimers({ toFake: ["Date"], now: morning });
+    const s = await setup();
+    await hostSays(s.conversationId, "Teknisyen yarın 10'da gelecek. Havluları 11'de getireceğim.", new Date(morning.getTime() - 60_000));
+    const later = new Date(morning.getTime() + 2 * 3_600_000 + 6 * 60_000); // 11:06
+    const cards = (await getConversationSuggestions(s.orgId, s.conversationId, later)).filter((x) => x.kind === "commitment");
+    const towels = cards.find((x) => x.kind === "commitment" && x.proposal.commitmentKind === "towels");
+    expect(towels?.kind === "commitment" && [towels.proposal.dayUnclear, towels.proposal.day]).toEqual([true, "tomorrow"]);
+  });
+
   it("KONTROL D3: kendi günü olan ya da şimdiye bağlı söz kendiliğinden açılır ('Teknisyen bugün 15'te gelecek. Havlu getireceğim.' · 'hemen')", async () => {
     pinIstanbulNoonToday();
     const s = await setup();

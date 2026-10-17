@@ -42,7 +42,8 @@ export function ActionSuggestions({ items }: { items: ActionSuggestionItem[] }) 
         body: JSON.stringify({
           key: item.key,
           decision,
-          ...(edit ? { day: edit.day, time: edit.time } : {}),
+          // Taşıma seçiliyse an seçeneğin kendisidir — gün / saat gönderilmez (Opus gece-4 F9).
+          ...(edit && !choice?.startsWith("move:") ? { day: edit.day, time: edit.time } : {}),
           ...(choice && decision === "approve" ? { attach: choice } : {}),
         }),
       });
@@ -123,6 +124,7 @@ export function ActionSuggestions({ items }: { items: ActionSuggestionItem[] }) 
                   aria-label="Saat"
                   type="time"
                   className="rounded border bg-background px-1.5 py-1"
+                  disabled={moving}
                   value={edit.time}
                   onChange={(e) => setEdits({ ...edits, [s.key]: { ...edit, time: e.target.value } })}
                 />

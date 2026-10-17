@@ -3,7 +3,7 @@ import "server-only";
 import { prisma } from "@/lib/db";
 import { writeAuditInTx } from "@/lib/audit";
 import { createOperationalTaskFromMessage } from "@/lib/tasks/create";
-import { commitmentDueAt, createGuestCommitment, isCommitmentKind, isCommitmentTopic } from "@/lib/guest-commitments";
+import { commitmentDueAt, createGuestCommitment, isCommitmentKind, isCommitmentTopic, lockCommitmentConversation } from "@/lib/guest-commitments";
 import { commitmentTaskDueAt, commitmentTaskTitle } from "@/lib/guest-commitments-core";
 import type { CommitmentTopic, DayPartCode, DuePrecision } from "@/lib/guest-commitments-core";
 import { addZonedDays } from "@/lib/timezone";
@@ -126,7 +126,10 @@ export async function decideSuggestion(input: {
     // Gün mesajdan okunamadıysa (D3) varsayılan "bugün" YOK — ev sahibi seçmeden onaylanmaz (otomatik kip de seçemez → kart kalır).
     if (view.proposal.dayUnclear && !moveOption && chosenDay === null) return { status: "invalid", field: "day", message: DAY_CHOICE_REQUIRED };
     const day = moveOption ? moveOption.day : (chosenDay ?? base.day);
-    const time = typeof input.edits?.time === "string" && input.edits.time.trim() !== "" ? input.edits.time.trim() : base.time;
+    // Taşımada saat yalnız ev sahibi GERÇEKTEN değiştirdiyse (önerinin saatinden farklı) düzenlemedir — panel taşıma seçilirken sözün kendi
+    // saatini gönderirse seçeneğin saati ezilmez (Opus gece-4 F9).
+    const typed = typeof input.edits?.time === "string" && input.edits.time.trim() !== "" ? input.edits.time.trim() : null;
+    const time = typed !== null && !(moveOption && typed === view.proposal.time) ? typed : base.time;
     edited = day !== base.day || time !== base.time;
     const org = await prisma.organization.findUnique({ where: { id: input.organizationId }, select: { timezone: true } });
     const tz = orgTimezone(org?.timezone);
@@ -215,6 +218,8 @@ export async function decideSuggestion(input: {
       } else if (view.kind === "commitment" && moveTarget !== null) {
         // Aynı sözün YENİ saati: söz + görev taşınır, yeni söz / görev açılmaz; önceki son an iz olarak kalır ("10:00 → 11:00").
         if (!commitmentDue || !found.conversationId) return { status: "gone" } as const;
+        // Konuşma kilidi (yazma katmanıyla AYNI): eşzamanlı yeni söz onayı bu taşımayı görmeden aynı saate ikinci söz açmasın (Opus gece-4 F19a).
+        await lockCommitmentConversation(tx, found.conversationId);
         const target = await tx.guestCommitment.findFirst({
           where: { id: moveTarget, organizationId: input.organizationId, conversationId: found.conversationId, status: "open", taskId: { not: null } },
           select: { id: true, taskId: true, kind: true, topic: true, dueAt: true, dayPart: true },
@@ -254,6 +259,7 @@ export async function decideSuggestion(input: {
       } else if (view.kind === "commitment" && attachTo !== null && attachTo !== "new") {
         // Q1-b: ev sahibi mevcut sözü seçti → yeni söz / görev AÇILMAZ; karar o söze bağlanır. Söz arada kapandıysa / saati değiştiyse "gone".
         if (!commitmentDue || !found.conversationId) return { status: "gone" } as const;
+        await lockCommitmentConversation(tx, found.conversationId);
         const target = await tx.guestCommitment.findFirst({
           where: {
             organizationId: input.organizationId,

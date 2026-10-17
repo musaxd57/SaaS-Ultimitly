@@ -445,6 +445,7 @@ export async function getConversationSuggestions(
         const span = windowSpan(dayKey, dueAt, window.precision, window.precision === "part" ? window.dayPart : null, tz);
         if (
           span !== null &&
+          !promise.dayUnclear && // gün tahmin; tahmini güne göre "tekrar" denmez (Opus gece-4 F10)
           window.precision !== "time" &&
           earlier.some((c) => {
             if (!commitmentTopicsCompatible(c.topic, promise.topic) || otherActor(c)) return false;
@@ -476,16 +477,27 @@ export async function getConversationSuggestions(
               ? earlier.filter((c) => c.topic === null && !otherActor(c))
               : [];
         // F11: her seçeneğin TAŞINACAĞI an — sözün kendi günü yoksa hedef sözün günü (O4 ile aynı kural); geçmişte kalan seçenek sunulmaz.
+        // Şimdiye bağlı söz ("birazdan", "30 dakika içinde") hedef sözün gününe kaymaz (Opus gece-4 F8). Hedef gündeki an geçmişse seçenek
+        // DÜŞMEZ, sözün kendi anına taşır (Opus gece-4 F7: seçenek elenince belirsiz durum otomatik İKİNCİ söze dönüyordu).
+        const ownWin = { dayKey, dueAt, window };
+        const anchoredNow = promise.dayExplicit || promise.inMinutes !== null || promise.soon;
         const moveChoices = moveCandidates.flatMap((c) => {
-          const own = { dayKey, dueAt, window };
-          const target = promise.dayExplicit || promise.inMinutes !== null ? own : (windowOnDay(promise, commitmentDayKey(c, tz), tz) ?? own);
-          const tday = relativeDayOf(target.dayKey, target.dueAt, now, tz);
-          return tday ? [{ c, target, tday }] : [];
+          const preferred = anchoredNow ? ownWin : (windowOnDay(promise, commitmentDayKey(c, tz), tz) ?? ownWin);
+          for (const target of preferred === ownWin ? [ownWin] : [preferred, ownWin]) {
+            const tday = relativeDayOf(target.dayKey, target.dueAt, now, tz);
+            if (tday) return [{ c, target, tday }];
+          }
+          return [];
         });
         // Gün sözcüğü olmayan saat değişikliği ("Teknisyen 11'e kaydı") eski sözün GÜNÜNE uygulanır (Opus O4: bugüne kayıyordu).
-        if (certain && promise.reschedule && !promise.dayExplicit && promise.inMinutes === null) {
+        if (certain && promise.reschedule && !promise.dayExplicit && promise.inMinutes === null && !promise.soon) {
           const onDay = windowOnDay(promise, commitmentDayKey(certain, tz), tz);
           if (onDay) ({ dayKey, dueAt, window } = onDay);
+        }
+        // Gün belirsiz kart (D3) tahmini "bugün" anı geçince kaybolmaz — yarın okuması hâlâ ileride ise kart kalır (Opus gece-4 F10).
+        if (promise.dayUnclear && !relativeDayOf(dayKey, dueAt, now, tz)) {
+          const alt = absolutePromiseWindow({ ...promise, day: "tomorrow" }, m.createdAt, tz);
+          if (relativeDayOf(alt.dayKey, alt.dueAt, now, tz)) ({ dayKey, dueAt, window } = alt);
         }
         const day = relativeDayOf(dayKey, dueAt, now, tz);
         if (!day) continue;

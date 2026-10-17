@@ -730,19 +730,87 @@ describe("söz algılama v2 — gün kapsamı, dilek, iki söz, süre, devam (se
     ["Teknisyen yarın 10'da gelecek havluları akşam getireceğim.", ["CARD maintenance/-/visit tomorrow day timeAmb"]],
     // T2: kendi kapsamında saat + süre → saat kazanır (süre işin uzunluğu).
     ["Teknisyen yarın 10'da gelip 2 saat içinde halledecek.", ["auto maintenance/-/visit tomorrow 10:00"]],
+    // Opus gece-4 F1: çıplak "-iyor" / "is coming" planlı geleceği de anlatır — şimdiye bağlı değil (D3 kartı); "şimdi" / "yolda" bağlı.
+    ["Yarın teknisyen geliyor, temizlikçi de geliyor.", ["auto maintenance/-/visit tomorrow day", "CARD cleaning/-/visit today day dayUnclear"]],
+    ["The technician is coming tomorrow at 10. The cleaner is coming too.", ["auto maintenance/-/visit tomorrow 10:00", "CARD cleaning/-/visit today day dayUnclear"]],
+    ["Yarın 10'da teknisyen gelecek. Havluları getiriyorum.", ["auto maintenance/-/visit tomorrow 10:00", "CARD towels/-/delivery today day dayUnclear"]],
+    ["Temizlikçi geliyor.", ["auto cleaning/-/visit today day"]],
+    // Opus gece-4 F5: kesmesiz "well" / "ill" söz fiili değildir.
+    ["The cleaning went well.", []],
+    ["Hope the towels are well received.", []],
+    ["The technician fixed it, all is well.", []],
+    ["We'll bring towels tonight.", ["auto towels/-/delivery today night"]],
+    // Opus gece-4 F3: yazım hataları / bitişik yazım / bayram / kısaltılmış gün.
+    ["The technician will come tomorow at 10.", ["auto maintenance/-/visit tomorrow 10:00"]],
+    ["The technician will come tmrw at 10.", ["auto maintenance/-/visit tomorrow 10:00"]],
+    ["Teknisyen öbürgün gelecek.", []],
+    ["Teknisyen bayramdan sonra gelecek.", []],
+    ["Teknisyen yarından itibaren gelecek.", []],
+    ["Cmt günü teknisyen 10'da gelecek.", []],
+    // Opus gece-4 F4: geçmişe atıflı parçadaki "yarın" yine gün işaretidir.
+    ["Dün akşam klima bozulmuş yarın teknisyen gelecek. Havlu getireceğim.", ["auto maintenance/ac/visit tomorrow day", "CARD towels/-/delivery today day dayUnclear"]],
+    // Opus gece-4 F15: teyit sorusu ayrı cümlede de sözü bekletir; "umuyorum / I hope" dilektir. KONTROL: genel soru bozmaz.
+    ["Teknisyen yarın 10'da gelecek. Sizin için uygun mu?", []],
+    ["The technician will come tomorrow at 10. Is that ok?", []],
+    ["Umuyorum teknisyen yarın 10'da gelecek.", []],
+    ["I hope the technician will come tomorrow at 10.", []],
+    ["Teknisyen yarın 10'da gelecek. Başka bir ihtiyacınız var mı?", ["auto maintenance/-/visit tomorrow 10:00"]],
+    // Opus gece-4 F16: ayrı varış sözü ("tesisatçı da 1 saat içinde gelecek") işin süresi değildir.
+    ["Elektrikçi yarın 10'da gelecek, tesisatçı da 1 saat içinde gelecek.", ["auto maintenance/-/visit tomorrow 10:00", "auto maintenance/-/visit today 10:00"]],
+    // Opus gece-4 F17: soldaki BAŞKA konunun günü bu sözün günü değil → kart.
+    ["Towels tomorrow, the technician will come at 3.", ["CARD maintenance/-/visit today 15:00 dayUnclear"]],
+    ["Temizlik yarın, havluları akşam getireceğim.", ["CARD towels/-/delivery today evening dayUnclear"]],
+    // Opus gece-4 F18: aynı ziyaretin iki fiili saati kaybetmez.
+    ["Teknisyen yarın 10'da gelecek klimayı tamir edecek.", ["auto maintenance/ac/visit tomorrow 10:00"]],
+    // Opus gece-4 F19: "getiriyor" söz fiili; "10 sularında" su konusu değil.
+    ["Yarın sabah temizlikçi geliyor, havluları da o getiriyor.", ["auto cleaning/-/visit tomorrow morning", "CARD towels/-/delivery today day dayUnclear"]],
+    ["Teknisyen yarın 10 sularında gelecek.", ["auto maintenance/-/visit tomorrow 10:00"]],
+    // Opus gece-4 F6: "10 civarı" yalın zaman parçasıdır (gün + saat korunur).
+    ["Yarın sabah, saat 10 civarı, klima için teknisyen gelecek.", ["auto maintenance/ac/visit tomorrow 10:00"]],
+    ["10 civarı, teknisyen gelecek.", ["auto maintenance/-/visit today 10:00"]],
   ])("%s", (text, expected) => {
     expect(summary(text)).toEqual(expected);
   });
 
-  it("söz konumu (anchor) metindeki yerdir: '<cümlecik>-<parça>' — algılama kuralları değişse de aynı söz aynı konum (öneri anahtarı)", () => {
-    expect(detectHostPromises("Merhaba. Teknisyen yarın 10'da gelecek ve havluları akşam getireceğim.").map((p) => p.anchor)).toEqual(["1-0", "1-1"]);
-    expect(detectHostPromises("Yarın, teknisyen 10'da gelecek.").map((p) => p.anchor)).toEqual(["0-1"]);
+  it("Opus gece-4 F2: selamdaki gün dilimi ('İyi akşamlar', 'Good evening') sözün dilimi DEĞİL — akşam yazılan '9'da' yarın 09:00", () => {
+    const at = (t: string, now: number) => detectHostPromises(t).map((p) => promiseWindow(p, now));
+    expect(at("İyi akşamlar teknisyen yarın 9'da gelecek.", 20 * 60)).toEqual([{ day: "tomorrow", precision: "time", time: "09:00", end: 540 }]);
+    expect(at("İyi akşamlar Ahmet Bey teknisyen yarın 9'da gelecek", 20 * 60)).toEqual([{ day: "tomorrow", precision: "time", time: "09:00", end: 540 }]);
+    expect(at("Good evening the technician will come tomorrow at 9", 20 * 60)).toEqual([{ day: "tomorrow", precision: "time", time: "09:00", end: 540 }]);
+    expect(at("İyi geceler teknisyen yarın 11'de gelecek", 23 * 60)).toEqual([{ day: "tomorrow", precision: "time", time: "11:00", end: 660 }]);
+    // KONTROL: gerçek dilim okunmaya devam eder.
+    expect(at("Yarın akşam 9'da teknisyen gelecek.", 20 * 60)).toEqual([{ day: "tomorrow", precision: "time", time: "21:00", end: 1260 }]);
+  });
+
+  it("söz konumu (anchor) metindeki yerdir: '<cümlecik>-<parça>-<tür>' — algılama kuralları değişse de aynı söz aynı konum (öneri anahtarı)", () => {
+    expect(detectHostPromises("Merhaba. Teknisyen yarın 10'da gelecek ve havluları akşam getireceğim.").map((p) => p.anchor)).toEqual([
+      "1-0-maintenance",
+      "1-1-towels",
+    ]);
+    expect(detectHostPromises("Yarın, teknisyen 10'da gelecek.").map((p) => p.anchor)).toEqual(["0-1-maintenance"]);
     // Devamı düşen söz arayı KAYDIRMAZ: sonraki sözün konumu aynı kalır.
     expect(detectHostPromises("Teknisyen yarın 10'da gelecek, aylık bakımı da yapacak. Havluları akşam getireceğim.").map((p) => p.anchor)).toEqual([
-      "0-0",
-      "1-0",
+      "0-0-maintenance",
+      "1-0-towels",
     ]);
     // Anahtar biçimi öneri anahtarı sözleşmesine uyar (nokta yok).
-    expect(parseSuggestionKey(suggestionKey("commitment", "cmsg123:1-0"))).toEqual({ kind: "commitment", source: "cmsg123:1-0" });
+    expect(parseSuggestionKey(suggestionKey("commitment", "cmsg123:1-0-towels"))).toEqual({ kind: "commitment", source: "cmsg123:1-0-towels" });
+  });
+
+  it("Opus gece-4 F12–F18: yalın dilim, gece 12, açık bugün, teyit sorusu, dilek, varış sözü, başka konulu sol parça, aynı ziyaretin iki fiili", () => {
+    const at = (t: string, now: number) => detectHostPromises(t).map((p) => ({ ...promiseWindow(p, now), card: p.dayUnclear || p.timeAmbiguous }));
+    // F12: soldaki yalın "Akşam," / "Bu akşam," / "This evening," dilimi okunur (15:00'te yazıldı → bugün 21:00).
+    for (const t of ["Akşam, teknisyen 9'da gelecek.", "Bu akşam, teknisyen 9'da gelecek.", "This evening, the technician will come at 9."]) {
+      expect(at(t, 15 * 60)).toEqual([{ day: "today", precision: "time", time: "21:00", end: 1260, card: false }]);
+    }
+    expect(at("Yarın akşam ise, teknisyen 9'da gelecek.", 15 * 60)).toEqual([{ day: "tomorrow", precision: "time", time: "21:00", end: 1260, card: false }]);
+    // F13: "gece 12" gece yarısıdır (öğlen değil); "yarın gece 12" belirsiz → kart.
+    expect(at("Teknisyen bu gece 12'de gelecek.", 15 * 60)).toEqual([{ day: "tomorrow", precision: "time", time: "00:00", end: 0, card: false }]);
+    expect(at("I'll bring towels tonight at 12.", 15 * 60)).toEqual([{ day: "tomorrow", precision: "time", time: "00:00", end: 0, card: false }]);
+    expect(at("Teknisyen yarın gece 12'de gelecek.", 15 * 60)[0]!.card).toBe(true);
+    // F14: açık "bugün" + geçmiş saat / dilim yarına kaymaz (bugün kalır → geçmiş söz önerilmez); "bugün" yazılmamışsa eskisi gibi yarın.
+    expect(at("Teknisyen bugün 11'de gelecek.", 13 * 60)[0]).toMatchObject({ day: "today", time: "11:00" });
+    expect(at("Teknisyen bu sabah gelecek.", 13 * 60)[0]).toMatchObject({ day: "today", dayPart: "morning" });
+    expect(at("Sabah teknisyen gelecek.", 13 * 60)[0]).toMatchObject({ day: "tomorrow", dayPart: "morning" });
   });
 });

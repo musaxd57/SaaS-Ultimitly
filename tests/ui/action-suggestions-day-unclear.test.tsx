@@ -51,4 +51,33 @@ describe("eylem önerisi — günü belli olmayan söz", () => {
     expect(screen.queryByText("Gün seçin")).toBeNull();
     expect((screen.getByText("Onayla").closest("button") as HTMLButtonElement).disabled).toBe(false);
   });
+
+  it("🚨 Opus gece-4 F9: taşıma seçilince gün / saat GÖNDERİLMEZ (seçeneğin anı ezilmez); saat kutusu kilitlenir", async () => {
+    const fetchMock = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ status: "done", decision: "approved", created: { rescheduled: true } }) }));
+    vi.stubGlobal("fetch", fetchMock);
+    const move: ActionSuggestionItem = {
+      ...unclear,
+      key: "commitment:m2:0-0",
+      proposal: {
+        messageId: "m2",
+        commitmentKind: "maintenance",
+        topic: "ac",
+        day: "today",
+        time: "20:00",
+        precision: "time",
+        moveOptions: [{ commitmentId: "c1", label: "Arıza / bakım · klima — yarın 10:00 → yarın 08:00", day: "tomorrow", time: "08:00", precision: "time", dueAt: "", dayKey: "" }],
+      } as ActionSuggestionItem["proposal"],
+    };
+    render(<ActionSuggestions items={[move]} />);
+    // Ev sahibi önce güne dokunur, sonra taşımayı seçer.
+    fireEvent.change(screen.getByLabelText("Gün") as HTMLSelectElement, { target: { value: "tomorrow" } });
+    fireEvent.click(screen.getByLabelText(/Saatini güncelle/u));
+    expect((screen.getByLabelText("Saat") as HTMLInputElement).disabled).toBe(true);
+    await act(async () => {
+      fireEvent.click(screen.getByText("Onayla"));
+    });
+    const sent = JSON.parse((fetchMock.mock.calls[0] as unknown as [string, { body: string }])[1].body) as Record<string, unknown>;
+    expect(sent).toMatchObject({ attach: "move:c1" });
+    expect("day" in sent || "time" in sent).toBe(false);
+  });
 });

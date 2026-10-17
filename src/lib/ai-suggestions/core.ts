@@ -48,9 +48,9 @@ export function parseSuggestionKey(key: unknown): { kind: SuggestionKind; source
 const NL = "(?<![\\p{L}\\p{N}])";
 const NR = "(?![\\p{L}\\p{N}])";
 const PROMISE_TR =
-  "(?:getir(?:ecegim|ecegiz|ecek|ecekler|ilecek|irim|iriz|tecegim|tirecegim|eyim|iyorum|iyoruz)|gonder(?:ecegim|ecegiz|ecek|ilecek|irim|iriz|iyorum|iyoruz)|yolla(?:yacagim|yacagiz|yacak|rim)|birak(?:acagim|acagiz|acak)|yap(?:acagim|acagiz|acak|ilacak)|gel(?:ecek(?!\\s+(?:hafta|ay|yil|sefer|misafir|konuk|kisi|grup|rezervasyon|sezon))|ecekler|ecegim|ecegiz|iyor|iyorlar)|ugra(?:yacak|yacagim|yacagiz)|bak(?:acak|acagim|acagiz|acaklar)|ilgilen(?:ecegim|ecegiz|ecek)|halled(?:ecegim|ecegiz|ecek|ilecek)|hallederim|tamir\\s+(?:edilecek|edecek|edecegim|ettirecegim)|degistir(?:ecegim|ecegiz|ecek|ilecek)|temizle(?:necek|yecek|yecegim|yecegiz)|ayarla(?:yacagim|yacagiz|nacak|rim))";
+  "(?:getir(?:ecegim|ecegiz|ecek|ecekler|ilecek|irim|iriz|tecegim|tirecegim|eyim|iyorum|iyoruz|iyorlar|iyor)|gonder(?:ecegim|ecegiz|ecek|ilecek|irim|iriz|iyorum|iyoruz)|yolla(?:yacagim|yacagiz|yacak|rim)|birak(?:acagim|acagiz|acak)|yap(?:acagim|acagiz|acak|ilacak)|gel(?:ecek(?!\\s+(?:hafta|ay|yil|sefer|misafir|konuk|kisi|grup|rezervasyon|sezon))|ecekler|ecegim|ecegiz|iyor|iyorlar)|ugra(?:yacak|yacagim|yacagiz)|bak(?:acak|acagim|acagiz|acaklar)|ilgilen(?:ecegim|ecegiz|ecek)|halled(?:ecegim|ecegiz|ecek|ilecek)|hallederim|tamir\\s+(?:edilecek|edecek|edecegim|ettirecegim)|degistir(?:ecegim|ecegiz|ecek|ilecek)|temizle(?:necek|yecek|yecegim|yecegiz)|ayarla(?:yacagim|yacagiz|nacak|rim))";
 const PROMISE_EN =
-  "(?:i['’]?m\\s+sending|i\\s+am\\s+sending|i['’]?ll|i\\s+will|we['’]?ll|we\\s+will|(?:someone|somebody|(?:(?:the|a|an|our)\\s+)?(?:technician|cleaner|plumber|electrician|engineer|housekeeper)s?|housekeeping|maintenance|he|she|they)\\s+will|(?:is|are)\\s+(?:coming|on\\s+(?:the|his|her|their)\\s+way))";
+  "(?:i['’]?m\\s+sending|i\\s+am\\s+sending|i['’]ll|i\\s+will|we['’]ll|we\\s+will|(?:someone|somebody|(?:(?:the|a|an|our)\\s+)?(?:technician|cleaner|plumber|electrician|engineer|housekeeper)s?|housekeeping|maintenance|he|she|they)\\s+will|(?:is|are)\\s+(?:coming|on\\s+(?:the|his|her|their)\\s+way))";
 const PROMISE = new RegExp(`${NL}(?:${PROMISE_TR}|${PROMISE_EN})${NR}`, "u");
 /** Teklif / koşul söz değildir ("isterseniz getirebilirim", "if you need I'll bring"). */
 const CONDITIONAL = new RegExp(`${NL}(?:eger|isterseniz|istersen|gerekirse|ihtiyac\\p{L}{0,6}\\s+olursa|if|unless)${NR}`, "u");
@@ -67,7 +67,8 @@ const HEDGE = new RegExp(
  * sözdür (dilek SONUÇ için — Opus 10-17 gece O6); "Umarım iyisinizdir, teknisyen yarın 10'da gelecek" de sözdür (dilek selamlaşma — Haiku
  * 10-17 gece 2. tur).
  */
-const HEDGE_WISH = new RegExp(`${NL}(?:umarim|insallah|hopefully)${NR}`, "u");
+// Opus gece-4 F15: "umuyorum / umarız / I hope" da dilektir.
+const HEDGE_WISH = new RegExp(`${NL}(?:umarim|umariz|umuyorum|umuyoruz|insallah|hopefully|i\\s+hope|we\\s+hope)${NR}`, "u");
 /**
  * Sözü ev sahibinin TEYİDE bağladığı soru ("…, uygun mu?", "…, olur mu?", "is that ok?") — söz henüz kesin değil (Opus 10-17 gece O3: ayrı
  * soru kuralı bunları da söz sayıyordu). "Başka bir ihtiyacınız var mı?" teyit DEĞİL, sözü bozmaz.
@@ -106,6 +107,8 @@ const PAST_PART = new RegExp(
   `${NL}(?:dun|gecen|onceki|yesterday|last)\\s+(?:gece|aksam|sabah|ogle|night|evening|morning|afternoon)\\p{L}{0,5}${NR}`,
   "gu",
 );
+/** Selam ("İyi akşamlar", "Good evening") gün dilimi değildir (Opus gece-4 F2: "İyi akşamlar teknisyen yarın 9'da gelecek" → yarın 21:00). */
+const GREETING_PART = new RegExp(`${NL}(?:(?:iyi|hayirli|tatli)\\s+(?:aksamlar|geceler|sabahlar|gunler)|good\\s+(?:morning|afternoon|evening|night))${NR}`, "gu");
 const PAST_REF = new RegExp(`${NL}(?:dun|gecen|onceki|demin|az\\s+once|yesterday|last\\s+(?:night|week)|earlier\\s+today)${NR}`, "u");
 
 /**
@@ -121,10 +124,12 @@ const SEGMENT_SPLIT = /(?<!\d),|,(?!\d)|(?<![\p{L}\p{N}])(?:ama|fakat|ancak|but)
  * Haiku gece-4: "ertesi / öbür / sonraki sabah", "the next day / morning" de tanınmayan (bugüne düşüp yanlış günlü görev açıyordu); hafta günü
  * yalnız hâl ekleriyle ("salıya", "cumadan", "pazartesileri") — "Salim," / "Salih," ad, gün değil (söz sessizce düşüyordu).
  */
-const DAY_TODAY = /(?<![\p{L}\p{N}])(?:bugun\p{L}{0,3}|today|tonight)(?![\p{L}])/u;
-const DAY_TOMORROW = /(?<![\p{L}\p{N}])(?:yarin(?:a|ki)?|tomorrow)(?![\p{L}])/u;
+// "bu sabah / bu akşam / this evening" açıkça bugündür (Opus gece-4 F12 / F14).
+const DAY_TODAY = /(?<![\p{L}\p{N}])(?:bugun\p{L}{0,3}|today|tonight|bu\s+(?:sabah|aksam|gece|ogle(?:den\s+sonra)?)\p{L}{0,3}|this\s+(?:morning|afternoon|evening))(?![\p{L}])/u;
+// Opus gece-4 F3: yaygın yazım hataları ("tomorow", "tommorow", "tmrw") yarındır — bugüne düşüp yanlış günlü görev açıyordu.
+const DAY_TOMORROW = /(?<![\p{L}\p{N}])(?:yarin(?:a|ki)?|tomm?orr?ow|tmrw?)(?![\p{L}])/u;
 const DAY_UNKNOWN = new RegExp(
-  `${NL}(?:(?:pazartesi|sali|carsamba|persembe|cuma|cumartesi|pazar)(?:y?[ae]|[dt][ae]n?|ki|n?in|y?i|si|l[ae]r[i]?|nd[ae]n?)?|yarindan\\s+sonra|(?:obur|ertesi|sonraki)\\s+(?:gun|sabah|aksam|ogle|gece)\\p{L}{0,3}|(?:the\\s+)?(?:next|following)\\s+(?:day|morning|afternoon|evening|night)|the\\s+day\\s+after|\\d{1,2}\\s*(?:gun\\p{L}{0,3}|hafta\\p{L}{0,3}|ay(?:a|da|dan)?(?![\\p{L}\\p{N}]))|(?:bir|iki|uc|dort|bes|birkac)\\s+(?:gun\\p{L}{0,3}|hafta\\p{L}{0,3}|ay(?:a|da|dan)?(?![\\p{L}\\p{N}]))|onumuzdeki|gelecek\\s+hafta\\p{L}{0,2}|haftaya|hafta\\s+(?:sonu|ici)\\p{L}{0,3}|monday|tuesday|wednesday|thursday|friday|saturday|sunday|next\\s+(?:week|month)|weekend|day\\s+after\\s+tomorrow|in\\s+(?:\\d+|a|an|one|two|three|a\\s+few|few)\\s+(?:days?|weeks?|months?))${NR}`,
+  `${NL}(?:(?:pazartesi|sali|carsamba|persembe|cuma|cumartesi|pazar)(?:y?[ae]|[dt][ae]n?|ki|n?in|y?i|si|l[ae]r[i]?|nd[ae]n?)?|yarindan\\s+(?:sonra|itibaren)|oburgun\\p{L}{0,2}|obursugun\\p{L}{0,2}|bayram\\p{L}{0,6}|(?:pzt|sal|crs|car|prs|per|cum|cmt|paz)\\.?\\s+gunu|(?:obur|ertesi|sonraki)\\s+(?:gun|sabah|aksam|ogle|gece)\\p{L}{0,3}|(?:the\\s+)?(?:next|following)\\s+(?:day|morning|afternoon|evening|night)|the\\s+day\\s+after|\\d{1,2}\\s*(?:gun\\p{L}{0,3}|hafta\\p{L}{0,3}|ay(?:a|da|dan)?(?![\\p{L}\\p{N}]))|(?:bir|iki|uc|dort|bes|birkac)\\s+(?:gun\\p{L}{0,3}|hafta\\p{L}{0,3}|ay(?:a|da|dan)?(?![\\p{L}\\p{N}]))|onumuzdeki|gelecek\\s+hafta\\p{L}{0,2}|haftaya|hafta\\s+(?:sonu|ici)\\p{L}{0,3}|monday|tuesday|wednesday|thursday|friday|saturday|sunday|next\\s+(?:week|month)|weekend|day\\s+after\\s+tomorrow|in\\s+(?:\\d+|a|an|one|two|three|a\\s+few|few)\\s+(?:days?|weeks?|months?))${NR}`,
   "u",
 );
 /**
@@ -270,10 +275,10 @@ function durationMinutes(text: string): number | null {
 const DAY_PARTS: ReadonlyArray<{ re: RegExp; minutes: number; half: DayHalf; code: DayPartCode; end: number }> = [
   { re: new RegExp(`${NL}(?:ogleden\\s+sonra|afternoon)${NR}`, "u"), minutes: 15 * 60, half: "pm", code: "afternoon", end: 18 * 60 },
   { re: new RegExp(`${NL}aksamustu\\p{L}{0,3}${NR}`, "u"), minutes: 17 * 60, half: "pm", code: "late_afternoon", end: 19 * 60 },
-  { re: new RegExp(`${NL}(?:aksam\\p{L}{0,5}|evening)${NR}`, "u"), minutes: 19 * 60, half: "pm", code: "evening", end: 23 * 60 + 59 },
+  { re: new RegExp(`${NL}(?:aksam(?!lar)\\p{L}{0,5}|evening)${NR}`, "u"), minutes: 19 * 60, half: "pm", code: "evening", end: 23 * 60 + 59 },
   { re: new RegExp(`${NL}gece\\s+yarisi\\p{L}{0,3}${NR}`, "u"), minutes: 23 * 60 + 30, half: "night", code: "midnight", end: 25 * 60 },
-  { re: new RegExp(`${NL}(?:gece(?!n(?:de|ler|lerde)?(?![\\p{L}\\p{N}]))\\p{L}{0,5}|tonight)${NR}`, "u"), minutes: 21 * 60, half: "night", code: "night", end: 30 * 60 },
-  { re: new RegExp(`${NL}(?:sabah\\p{L}{0,5}|morning)${NR}`, "u"), minutes: 10 * 60, half: "am", code: "morning", end: 12 * 60 },
+  { re: new RegExp(`${NL}(?:gece(?!n(?:de|ler|lerde)?(?![\\p{L}\\p{N}])|ler)\\p{L}{0,5}|tonight)${NR}`, "u"), minutes: 21 * 60, half: "night", code: "night", end: 30 * 60 },
+  { re: new RegExp(`${NL}(?:sabah(?!lar)\\p{L}{0,5}|morning)${NR}`, "u"), minutes: 10 * 60, half: "am", code: "morning", end: 12 * 60 },
   { re: new RegExp(`${NL}(?:ogle(?:n|ne|yin|ye)|noon|midday)${NR}`, "u"), minutes: 12 * 60, half: "pm", code: "noon", end: 14 * 60 },
 ];
 
@@ -283,6 +288,7 @@ function fitToHalf(candidates: number[], half: DayHalf): number[] {
   const out = candidates.map((m) => {
     if (half === "pm" && m < 12 * 60) return m + 12 * 60;
     if (half === "night" && m >= 6 * 60 && m < 12 * 60) return m + 12 * 60; // "gece 11" → 23:00
+    if (half === "night" && m === 12 * 60) return 24 * 60; // "gece 12" gece yarısıdır (ertesi günün 00:00'ı), öğlen değil (Opus gece-4 F13)
     return m;
   });
   const fitting = out.filter((m) =>
@@ -327,11 +333,12 @@ const globalOf = (re: RegExp) => new RegExp(re.source, re.flags.includes("g") ? 
 /** Zaman sözcükleri (süre, "hemen", gün, tanınmayan gün, takvim tarihi, gün dilimi, konu) — parça "yalnız zaman"mı sınaması için silinir. */
 let timeWordsG: RegExp[] | null = null;
 const TIME_FILLER_G = new RegExp(
-  `${NL}(?:saat|saatte|saatlerinde|gibi|civari|civarinda|sularinda|erkenden|erken|gec|en|ki|ve|da|de|ta|te|icin|ile|around|at|about|by|on|the|in|early|late|for|and|o['’]?clock)${NR}`,
+  `${NL}(?:saat|saatte|saatlerinde|gibi|civari|civarinda|sularinda|erkenden|erken|gec|en|ki|ve|da|de|ta|te|icin|ile|bu|su|ise|uzeri|ustu|around|at|about|by|on|the|this|in|early|late|for|and|o['’]?clock)${NR}`,
   "gu",
 );
 /** Saat / rakam artığı ("10'da", "7:30", "2pm"). */
-const CLOCK_RESIDUE_G = /\d{1,2}(?:[:.]\d{2})?(?:\s*(?:['’]\s*)?(?:am|pm|\p{L}{0,4}))?/gu;
+// Opus gece-4 F6: harf eki yalnız BİTİŞİK / kesmeli ("10'da", "7pm"); boşluktan sonra yalnız am / pm — "10 civarı"nda "civa"yı yiyordu.
+const CLOCK_RESIDUE_G = /\d{1,2}(?:[:.]\d{2})?(?:\s*(?:a\.?m\.?|p\.?m\.?)(?![\p{L}])|['’]?\p{L}{0,4})?/gu;
 const HEDGE_WISH_G = globalOf(HEDGE_WISH);
 
 /**
@@ -430,19 +437,32 @@ function messageContext(clauses: readonly string[]): MessageContext {
   const rescheduleMarks: Array<readonly [number, number]> = [];
   clauses.forEach((raw, ci) => {
     segmentClause(raw).segments.forEach((seg, si) => {
-      if (PAST_REF.test(seg)) return;
-      if (futureDayIn(seg)) futureDayMarks.push([ci, si]);
-      if (RESCHEDULE.test(seg)) rescheduleMarks.push([ci, si]);
+      // Geçmişe atıf yalnız KENDİ sözcükleriyle düşer; aynı parçadaki yarın işareti kalır (Opus gece-4 F4: "Dün akşam klima bozulmuş yarın
+      // teknisyen gelecek. Havlu getireceğim." havlu bugüne yazılıyordu).
+      const present = seg.replace(PAST_PART, " ").replace(PAST_REF_G, " ");
+      if (futureDayIn(present)) futureDayMarks.push([ci, si]);
+      if (!PAST_REF.test(seg) && RESCHEDULE.test(seg)) rescheduleMarks.push([ci, si]);
     });
   });
   return { futureDayMarks, rescheduleMarks };
 }
 
+const PAST_REF_G = globalOf(PAST_REF);
+
+/** Sözün fiili (T4 için: varış / teslim fiili işin süresi değildir — Opus gece-4 F16). */
+const promiseVerbs = new WeakMap<HostPromise, string>();
+const ARRIVAL_VERB = /^(?:gel|getir|gonder|yolla|ugra|birak)|coming|on\s+(?:the|his|her|their)\s+way|sending/u;
+
 /** Sözün kapsamı (cümlecik, ilk parça, son parça) — mesaj düzeyi denetim için (yalnız bu dosya). */
 const scopeRanges = new WeakMap<HostPromise, readonly [number, number, number]>();
 
-/** Şimdiye bağlı söz ("şimdi getiriyorum", "is coming", "on the way") — günü belli (bugün, şimdi); D3'ten muaf. */
-const NOW_VERB = /(?:iyor(?:um|uz|lar)?|sending|coming|on\s+(?:the|his|her|their)\s+way)$/u;
+/**
+ * Şimdiye bağlı söz ("on the way", "yolda") — günü belli (bugün, şimdi); D3'ten muaf. Çıplak "-iyor" / "is coming" / "sending" ŞİMDİYE bağlı
+ * DEĞİL (Türkçede ve İngilizcede planlı geleceği de anlatır — Opus gece-4 F1: "Yarın teknisyen geliyor, temizlikçi de geliyor." temizliği
+ * bugüne yazıyordu); "şimdi / hemen / birazdan" zaten `soon`.
+ */
+const NOW_VERB = /on\s+(?:the|his|her|their)\s+way$/u;
+const ON_THE_WAY = new RegExp(`${NL}(?:yolda(?:yim|yiz|lar)?|yola\\s+(?:cikti|ciktilar|ciktim|ciktik))${NR}`, "u");
 
 /**
  * Ev sahibinin mesajında misafire verilen SÖZ var mı (aynı cümlecikte söz fiili + konu; soru / koşul / teklif değil)? Tür kapalı küme
@@ -493,6 +513,8 @@ export function detectHostPromises(text: string | null | undefined): HostPromise
     if (found.length >= READ_CAP || attempts <= 0) break;
     const c = promiseClause(raw, ci);
     if (!c) continue;
+    // Hemen sonraki cümlecik yalnız TEYİT sorusuysa ("Teknisyen yarın 10'da gelecek. Uygun mu?") söz henüz kesin değil (O3; Opus gece-4 F15).
+    if (confirmQuestionFollows(clauses[ci + 1])) continue;
     const topical = c.verbIdx.filter((i) => c.topicIn(c.segments[i]) !== undefined);
     const picks: Array<readonly [number, CommitmentKind]> = topical.length
       ? topical.map((i) => [i, c.topicIn(c.segments[i])!] as const)
@@ -527,6 +549,13 @@ export function detectHostPromises(text: string | null | undefined): HostPromise
   return dropContinuations(checked).slice(0, MAX_PROMISES_PER_MESSAGE);
 }
 
+/** Kısa, söz fiilsiz teyit sorusu cümleciği ("Uygun mu?", "Sizin için uygun mu?", "Is that ok?"). */
+function confirmQuestionFollows(next: string | undefined): boolean {
+  if (!next || !/[?؟]\s*$/u.test(next) || next.length > 60) return false;
+  const f = foldTurkishAscii(next).toLowerCase();
+  return CONFIRM_QUESTION.test(f) && !PROMISE.test(f);
+}
+
 /** Aynı ziyaret / teslim olabilir mi: tür aynı, konu uyumlu (biri boşsa uyumlu), yapan uyumlu (biri bilinmiyorsa uyumlu). */
 function samePromiseFamily(a: HostPromise, b: HostPromise): boolean {
   return a.kind === b.kind && (a.topic === null || b.topic === null || a.topic === b.topic) && (a.actor === null || b.actor === null || a.actor === b.actor);
@@ -559,7 +588,9 @@ function dropContinuations(found: HostPromise[]): HostPromise[] {
         return;
       }
     }
-    if (p.inMinutes !== null && !dated(p) && found.some((q, j) => j < i && !dropped.has(j) && dated(q) && samePromiseFamily(p, q))) dropped.add(i);
+    // Varış / teslim fiili ("tesisatçı da 1 saat içinde gelecek") ayrı sözdür, işin süresi değil (Opus gece-4 F16).
+    const arrival = ARRIVAL_VERB.test(promiseVerbs.get(p) ?? "");
+    if (p.inMinutes !== null && !dated(p) && !arrival && found.some((q, j) => j < i && !dropped.has(j) && dated(q) && samePromiseFamily(p, q))) dropped.add(i);
   });
   found.forEach((p, i) => {
     if (!dropped.has(i)) kept.push(p);
@@ -653,6 +684,9 @@ function promiseAt(c: PromiseClause, at: number, kind: CommitmentKind, ctx: Mess
     const k = segmentKind(s);
     if (k === "wish") return REJECT;
     if (k !== "time") break;
+    // Başka türün parçası ("Towels tomorrow, the technician will come at 3") bu sözün zamanı değildir (Opus gece-4 F17).
+    const sk = topicIn(s);
+    if (sk !== undefined && sk !== kind) break;
     bare--;
   }
   // Zaman bilgisi yoksa soldaki yalın parçalar kapsama girer ("Yarın sabah, teknisyen gelecek").
@@ -703,6 +737,15 @@ function promiseAt(c: PromiseClause, at: number, kind: CommitmentKind, ctx: Mess
       }
     }
   }
+  // Kapsamda gün dilimi yoksa soldaki yalın zincirdeki en yakın DİLİM parçası ("Akşam, teknisyen 9'da gelecek" → bugün 21:00 — Opus gece-4 F12).
+  if (!DAY_PARTS.some((d) => d.re.test(sliceOf(from, to).folded))) {
+    for (let i = from - 1; i >= bare; i--) {
+      if (DAY_PARTS.some((d) => d.re.test(segments[i]!))) {
+        from = i;
+        break;
+      }
+    }
+  }
   // Kapsamda açık saat yoksa soldaki yalın zincirdeki en yakın SAAT parçası ("Teknisyen 10'da, yarın gelecek" → yarın 10:00).
   if (timeMentions(sliceOf(from, to).raw, sliceOf(from, to).folded).length === 0) {
     for (let i = from - 1; i >= bare; i--) {
@@ -737,9 +780,12 @@ function promiseAt(c: PromiseClause, at: number, kind: CommitmentKind, ctx: Mess
   const day: HostPromise["day"] = DAY_TOMORROW.test(scope.folded) ? "tomorrow" : "today";
   // T1: aynı parçada ayrılamayan iki söz fiili ("Teknisyen yarın 10'da gelecek havluları akşam getireceğim") — saat / dilim hangi söze ait
   // belli değil: hiçbiri okunmaz (yarın 22:00 uydurulurdu), kart saati sorar.
-  const twoVerbs = promiseVerbCount(segments[at]) >= 2;
+  // Opus gece-4 F18: iki fiil AYNI ziyaretse ("gelecek klimayı tamir edecek") saat okunur; yalnız farklı tür / yapan ise ayrılamaz.
+  const kindsInSeg = new Set(KIND_TOPICS.filter(([, re]) => re.test(segments[at]!)).map(([k]) => k));
+  const twoVerbs =
+    promiseVerbCount(segments[at]) >= 2 && (kindsInSeg.size >= 2 || (ACTOR_VISIT.test(segments[at]!) && ACTOR_DELIVERY.test(segments[at]!)));
   // Geçmişe atıf ("dün gece") dilim sayılmaz.
-  const part = twoVerbs ? undefined : DAY_PARTS.find((d) => d.re.test(scope.folded.replace(PAST_PART, " ")));
+  const part = twoVerbs ? undefined : DAY_PARTS.find((d) => d.re.test(scope.folded.replace(PAST_PART, " ").replace(GREETING_PART, " ")));
   // T2: açık saat süreyi yener ("Teknisyen 10'da gelecek, 2 saat içinde halleder" — süre işin uzunluğu).
   const clocks = twoVerbs ? [] : timeMentions(scope.raw, scope.folded);
   let inMinutes = clocks.length > 0 || twoVerbs ? null : durationMinutes(sliceOf(from, durationTo).folded);
@@ -754,7 +800,11 @@ function promiseAt(c: PromiseClause, at: number, kind: CommitmentKind, ctx: Mess
   // Birbirinden farklı saatler (12 saat farkı aynı saatin öğleden önce / sonra okumasıdır) → saat seçilmez, kart sorar (O9). Aynı parçada
   // ayrılamayan iki söz fiili (T1) de kart.
   const timeAmbiguous =
-    timeCandidates.some((a) => timeCandidates.some((b) => a !== b && Math.abs(a - b) !== 12 * 60)) || durationOnTomorrow || twoVerbs;
+    timeCandidates.some((a) => timeCandidates.some((b) => a !== b && Math.abs(a - b) !== 12 * 60)) ||
+    durationOnTomorrow ||
+    twoVerbs ||
+    // "yarın gece 12" = yarın 00:00 mı, yarın gece 24:00 mı? belirsiz → kart (Opus gece-4 F13).
+    (part?.half === "night" && day === "tomorrow" && timeCandidates.includes(24 * 60));
   const cue = inMinutes === null && timeCandidates.length === 0 && part ? { minutes: part.minutes, half: part.half, code: part.code, end: part.end } : null;
   const soon = inMinutes === null && timeCandidates.length === 0 && cue === null && SOON.test(scope.folded);
   const reschedule = RESCHEDULE.test(scope.folded);
@@ -763,11 +813,16 @@ function promiseAt(c: PromiseClause, at: number, kind: CommitmentKind, ctx: Mess
   if (!PROMISE.test(segments[at]) && !hasTimeInfo(scope.folded, scope.raw)) return REJECT;
   const dayExplicit = DAY_TOMORROW.test(scope.folded) || DAY_TODAY.test(scope.folded);
   // D3: kendi günü yok + kapsam dışında yarın / tanınmayan gün / takvim tarihi → gün tahmin edilmez (kart sorar). Şimdiye bağlı söz muaf.
-  const nowAnchored = soon || inMinutes !== null || NOW_VERB.test(PROMISE.exec(segments[at])?.[0] ?? "");
+  const nowAnchored = soon || inMinutes !== null || NOW_VERB.test(PROMISE.exec(segments[at])?.[0] ?? "") || ON_THE_WAY.test(scope.folded);
   const dayUnclear =
     !dayExplicit && !nowAnchored && ctx.futureDayMarks.some(([ci, si]) => ci !== c.index || si < from || si > to);
   // Konu / yapan: soldaki söz fiilsiz parçalarla (önceki kapsam kuralı; gün / saat okumasına girmez).
-  const topicScope = sliceOf(Math.min(topicFrom, from), to);
+  const topicSlice = sliceOf(Math.min(topicFrom, from), to);
+  // "10 sularında" saattir, su konusu değil (Opus gece-4 F19f).
+  const topicScope = {
+    raw: topicSlice.raw.replace(/(?<![\p{L}])sular[ıi]nda(?![\p{L}])/giu, " "),
+    folded: topicSlice.folded.replace(/(?<![\p{L}])sularinda(?![\p{L}])/gu, " "),
+  };
   const actor: HostPromise["actor"] = ACTOR_VISIT.test(topicScope.folded) ? "visit" : ACTOR_DELIVERY.test(topicScope.folded) ? "delivery" : null;
   const promise: HostPromise = {
     kind,
@@ -782,9 +837,10 @@ function promiseAt(c: PromiseClause, at: number, kind: CommitmentKind, ctx: Mess
     actor,
     timeAmbiguous,
     dayUnclear,
-    anchor: `${c.index}-${at}`,
+    anchor: `${c.index}-${at}-${kind}`,
   };
   scopeRanges.set(promise, [c.index, from, to]);
+  promiseVerbs.set(promise, verbAt?.[0] ?? "");
   return promise;
 }
 
@@ -818,11 +874,15 @@ export function promiseWindow(p: HostPromise, nowMinutes: number): PromiseWindow
     }
     const future = p.timeCandidates.filter((m) => m > nowMinutes).sort((a, b) => a - b);
     const m = future.length > 0 ? future[0] : Math.min(...p.timeCandidates);
-    return { day: future.length > 0 ? "today" : "tomorrow", precision: "time", time: fmt(m), end: m };
+    // "Bu gece 12'de" = ertesi günün 00:00'ı (24:00 olarak tutulur).
+    if (m >= 24 * 60) return { day: "tomorrow", precision: "time", time: fmt(m - 24 * 60), end: m - 24 * 60 };
+    // Açık "bugün" + geçmiş saat yarına KAYMAZ (Opus gece-4 F14: "Teknisyen bugün 11'de gelecek" 13:00'te yazıldı → yarın 11:00 tahmindi);
+    // bugün kalır → geçmiş söz önerilmez.
+    return { day: future.length > 0 || p.dayExplicit ? "today" : "tomorrow", precision: "time", time: fmt(m), end: m };
   }
   if (p.cue !== null) {
     const early = p.cue.code === "morning" || p.cue.code === "noon" || p.cue.code === "afternoon" || p.cue.code === "late_afternoon";
-    const day = p.day === "tomorrow" || (early && p.cue.end <= nowMinutes) ? "tomorrow" : "today";
+    const day = p.day === "tomorrow" || (early && p.cue.end <= nowMinutes && !p.dayExplicit) ? "tomorrow" : "today";
     return { day, precision: "part", dayPart: p.cue.code, end: p.cue.end };
   }
   if (p.soon) return { day: p.day, precision: "part", dayPart: "soon", end: END_OF_DAY };

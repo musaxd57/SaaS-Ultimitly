@@ -178,6 +178,11 @@ describe("Haiku 10-17 gece-4 — tanınmayan konu, geniş kapı sözcüğü, 'ç
     "Pas d'instructions particulières pour le départ, vous pouvez porter une veste.",
     "Çıkış için özel talimatımız yok, balkona çıkabilirsiniz.",
     "Çıkış için özel talimatımız yok, dışarı çıkabilirsiniz.",
+    // Opus gece-4 F11: Türkçe konu sözcüğü ("su", "para", "iş") yabancı durak sözcüğü sayılmaz.
+    "Su için özel bir talimatımız yok, çıkışta anahtarı masaya bırakmanız yeterli.",
+    "Su için özel talimatımız yok. Çıkışta anahtarı masaya bırakın.",
+    "Para için özel bir talimatımız yok, çıkışta anahtarı masaya bırakabilirsiniz.",
+    "İş için özel bir talimatımız yok, çıkışta anahtarı masaya bırakın.",
   ])("tutulur: %s", (m) => {
     expect(stripNoInstructionFiller(m)).toBe(m);
     expect(admitsMissingKnowledge(m)).toBe(true);
@@ -186,6 +191,8 @@ describe("Haiku 10-17 gece-4 — tanınmayan konu, geniş kapı sözcüğü, 'ç
     // Konusuz genel biçim silinebilir kalır (konu adlandırılmamış).
     ["Özel bir talimatımız yok, anahtarı masaya bırakın.", "Anahtarı masaya bırakın."],
     ["Maalesef özel bir talimatımız yok, anahtarı masaya bırakın.", "Anahtarı masaya bırakın."],
+    // Opus gece-4 F11 KONTROL: "Şu an" durak sözcüğüdür (su değil).
+    ["Şu an için özel bir talimatımız yok, anahtarı masaya bırakın.", "Anahtarı masaya bırakın."],
     // Kapının kendisi (hâl ekleri) kapı yönergesidir.
     ["Çıkış için özel talimatımız yok, kapıyı kapatmanız yeterli.", "Kapıyı kapatmanız yeterli."],
     ["Pas d'instructions particulières pour le départ, fermez simplement la porte.", "Fermez simplement la porte."],
