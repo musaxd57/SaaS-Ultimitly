@@ -108,6 +108,9 @@ describe("networkSignals", () => {
     expect(networkSignals([traces[0]!], traces, signupNetworkKeyFp())).toMatchObject({ ipShared: true, networkBurst: true });
     // KONTROL: eşiğin altında şüphe yok.
     expect(infrastructureIpHashes(traces.slice(0, 3), NOW, signupNetworkKeyFp()).size).toBe(0);
+    // KONTROL (mutasyon K14): kayıtların YARISINDAN azı (10'da 3) aynı adresten → şüphe yok.
+    const mixed = Array.from({ length: INFRA_MIN_SIGNUPS }, (_, i) => trace(`m-${i}`, i < 3 ? "10.0.0.9" : `192.0.2.${i + 100}`, daysAgo(0.5)));
+    expect(infrastructureIpHashes(mixed, NOW, signupNetworkKeyFp()).size).toBe(0);
   });
 
   it("Haiku 10-17: bağlam yalnız sinyal varken — tek başka kayıt (eşik altı) başka işletmenin adını göstermez", () => {

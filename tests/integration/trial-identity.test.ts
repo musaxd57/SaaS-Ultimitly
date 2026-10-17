@@ -213,6 +213,21 @@ describe("kural (gerçek PostgreSQL)", () => {
     expect((await prisma.organization.findUniqueOrThrow({ where: { id: b.orgId } })).trialIdentityReusedAt).toEqual(first);
   });
 
+  it("ilk gözlem kazanır (mutasyon K3): işaretli hesap BAŞKA bir tekrar ilanı daha bağlarsa işaret anı değişmez, ikinci denetim kaydı yazılmaz", async () => {
+    const a = await trialOrg("A");
+    await addIcal(a, AIRBNB("1"));
+    const c = await trialOrg("C");
+    await addIcal(c, "https://www.airbnb.com/calendar/ical/777.ics?s=c");
+    const b = await trialOrg("B");
+    await addIcal(b, AIRBNB("2"));
+    const first = (await prisma.organization.findUniqueOrThrow({ where: { id: b.orgId } })).trialIdentityReusedAt;
+    expect(first).not.toBeNull();
+    nextMs();
+    await addIcal(b, "https://www.airbnb.com/calendar/ical/777.ics?s=b");
+    expect((await prisma.organization.findUniqueOrThrow({ where: { id: b.orgId } })).trialIdentityReusedAt).toEqual(first);
+    expect(await prisma.auditLog.count({ where: { organizationId: b.orgId, action: "trial.identity_reused_flagged" } })).toBe(1);
+  });
+
   it("🚨 KONTROL: başkasının (herkese açık) ilan numarasıyla eklenen ama OKUNAMAYAN takvim (sahte jeton → giriş / hata sayfası) kimlik SAYILMAZ — gerçek sahip sonra bağlayınca denemesi sürer", async () => {
     const attacker = await trialOrg("X");
     const fake = await addIcal(attacker, AIRBNB("sahte"), "<!DOCTYPE html><html><body>Giriş yapın</body></html>");
