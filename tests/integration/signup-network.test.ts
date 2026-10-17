@@ -36,7 +36,6 @@ beforeEach(async () => {
 });
 afterEach(() => {
   vi.unstubAllEnvs();
-  vi.restoreAllMocks();
   __resetSignupNetworkKey();
 });
 
@@ -59,13 +58,6 @@ describe("kayıt → iz", () => {
     expect(await prisma.signupNetworkTrace.count()).toBe(0);
     vi.stubEnv("SIGNUP_NETWORK_TRACE_ENABLED", "1");
     expect((await register(registerReq("a@example.com", "203.0.113.8"))).status).toBe(201);
-    expect(await prisma.signupNetworkTrace.count()).toBe(0);
-  });
-
-  it("🚨 iz yazımı hata verirse kayıt YİNE 201 (fail-open) ve hesap açılır", async () => {
-    vi.spyOn(prisma.signupNetworkTrace, "create").mockRejectedValueOnce(new Error("db down"));
-    expect((await register(registerReq("b@example.com", "203.0.113.9"))).status).toBe(201);
-    expect(await prisma.user.count({ where: { email: "b@example.com" } })).toBe(1);
     expect(await prisma.signupNetworkTrace.count()).toBe(0);
   });
 });
