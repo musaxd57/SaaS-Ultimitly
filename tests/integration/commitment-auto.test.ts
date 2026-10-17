@@ -334,16 +334,19 @@ describe("BAĞLAM — saat güncellemesi yalnız kesin eşleşmede (kurucu: 'ba�
     expect(sugg.kind === "commitment" && sugg.proposal.moveOptions?.length).toBe(1);
   });
 
-  it("🚨 Opus O4: gün sözcüğü OLMAYAN saat değişikliği ('Teknisyen 11'e kaydı') eski sözün GÜNÜNE uygulanır (bugüne kaymaz)", async () => {
+  it("🚨 Opus O4: gün sözcüğü OLMAYAN saat değişikliği ('Teknisyen 23'e kaydı') eski sözün GÜNÜNE uygulanır (bugüne kaymaz)", async () => {
     const s = await setup();
-    await hostSays(s.conversationId, "Teknisyen yarın 10:00'da gelecek.", new Date(Date.now() - 10 * 60_000));
-    await applyHostCommitmentsAuto(s.orgId, s.conversationId);
+    // Sabit an (İstanbul 12:00): "23'e kaydı" gün sözcüksüz okunursa BUGÜN 23:00 olurdu; doğru olan eski sözün günü (yarın).
+    const NOW = new Date("2026-11-20T09:00:00Z");
+    await hostSays(s.conversationId, "Teknisyen yarın 10:00'da gelecek.", new Date(NOW.getTime() - 10 * 60_000));
+    await applyHostCommitmentsAuto(s.orgId, s.conversationId, NOW);
     const before = await prisma.guestCommitment.findFirstOrThrow();
-    await hostSays(s.conversationId, "Teknisyen 11'e kaydı.", new Date());
-    expect((await applyHostCommitmentsAuto(s.orgId, s.conversationId, new Date(Date.now() + 1_000))).rescheduled).toBe(1);
+    await hostSays(s.conversationId, "Teknisyen 23'e kaydı.", new Date(NOW.getTime() - 5 * 60_000));
+    expect((await applyHostCommitmentsAuto(s.orgId, s.conversationId, NOW)).rescheduled).toBe(1);
     const after = await prisma.guestCommitment.findFirstOrThrow();
-    expect(dateKeyInTimeZone(after.dueAt, TZ)).toBe(dateKeyInTimeZone(before.dueAt, TZ));
-    expect(after.dueAt.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", timeZone: TZ })).toBe("11:00");
+    expect(dateKeyInTimeZone(before.dueAt, TZ)).toBe("2026-11-21");
+    expect(dateKeyInTimeZone(after.dueAt, TZ)).toBe("2026-11-21");
+    expect(after.dueAt.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", timeZone: TZ })).toBe("23:00");
   });
 
   it("🚨 Opus O19: söz mesajdan SONRA kaydedildi ama kaynak mesajı daha eski → geç gelen saat değişikliği gizlenmez, taşınır", async () => {
@@ -357,17 +360,21 @@ describe("BAĞLAM — saat güncellemesi yalnız kesin eşleşmede (kurucu: 'ba�
     expect((await prisma.guestCommitment.findUniqueOrThrow({ where: { id: c.id } })).previousDueAt).not.toBeNull();
   });
 
-  it("🚨 Opus O20: 'Havlu getireceğim' (gün) ile sonraki 'Akşam havlu getireceğim' (akşam) aynı 23:59'da biter ama AYRI an — birleşmez, kart sorar", async () => {
+  it("🚨 Opus O20: 'Havlu getireceğim' (gün) ile sonraki 'Akşam havlu getireceğim' (akşam) aynı 23:59'da biter ama AYRI an — birleşmez, kart sorar; 'Ayrı söz' ikinci söz açar", async () => {
     const s = await setup();
-    const NOW = new Date("2026-11-20T09:00:00Z");
-    await hostSays(s.conversationId, "Havlu getireceğim.", new Date(NOW.getTime() - 10 * 60_000));
-    expect((await applyHostCommitmentsAuto(s.orgId, s.conversationId, NOW)).created).toBe(1);
-    await prisma.message.create({
-      data: { conversationId: s.conversationId, direction: "outbound", authorType: "host", senderName: "Ev Sahibi", body: "Akşam havlu getireceğim.", createdAt: new Date(Date.now() + 60_000) },
-    });
-    const later = new Date(Date.now() + 120_000);
-    expect(await applyHostCommitmentsAuto(s.orgId, s.conversationId, later)).toMatchObject({ created: 0, skipped: 1 });
+    await hostSays(s.conversationId, "Havlu getireceğim.", new Date(Date.now() - 10 * 60_000));
+    expect((await applyHostCommitmentsAuto(s.orgId, s.conversationId)).created).toBe(1);
+    const day = await prisma.guestCommitment.findFirstOrThrow();
+    await hostSays(s.conversationId, "Akşam havlu getireceğim.", new Date(Date.now() - 5 * 60_000));
+    const evening = (await getConversationSuggestions(s.orgId, s.conversationId)).find((x) => x.kind === "commitment");
+    // Ön koşul (an aynı, kesinlik farklı): iki pencere de aynı 23:59'da biter.
+    expect(evening?.kind === "commitment" && evening.proposal.dueAt).toBe(day.dueAt.toISOString());
+    expect(await applyHostCommitmentsAuto(s.orgId, s.conversationId)).toMatchObject({ created: 0, skipped: 1 });
     expect(await prisma.guestCommitment.count()).toBe(1);
+    // Ev sahibi "ayrı söz" seçerse AYRI söz + görev (gün sözüne birleşmez — merge sorgusu da kesinliğe bakar).
+    expect((await decide({ key: evening!.key, decision: "approve", attach: "new" })).status).toBe(200);
+    expect(await prisma.guestCommitment.count()).toBe(2);
+    expect(await prisma.task.count()).toBe(2);
   });
 
   it("🚨 Opus O9: mesajda birden çok saat ('10:00-12:00 arası') → kendiliğinden kaydedilmez, kart saati sorar", async () => {
