@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { writeAuditInTx } from "@/lib/audit";
 import { createOperationalTaskFromMessage } from "@/lib/tasks/create";
 import { commitmentDueAt, createGuestCommitment, isCommitmentKind, isCommitmentTopic } from "@/lib/guest-commitments";
+import type { CommitmentTopic } from "@/lib/guest-commitments-core";
 import { orgTimezone } from "@/lib/timezone";
 import { refreshPropertyMemoryBestEffort } from "@/modules/intelligence";
 import { applyWifiValue, extractWifiValues, parseSuggestionKey } from "./core";
@@ -23,7 +24,11 @@ import {
 // ---------------------------------------------------------------------------
 
 export type DecisionResult =
-  | { status: "done"; decision: "approved" | "dismissed"; created?: { taskId?: string; commitmentId?: string; kbItemId?: string } }
+  | {
+      status: "done";
+      decision: "approved" | "dismissed";
+      created?: { taskId?: string; commitmentId?: string; kbItemId?: string; merged?: boolean; topicAttached?: boolean; attachedTopic?: CommitmentTopic };
+    }
   | { status: "gone" }
   | { status: "invalid"; field: string; message: string };
 
@@ -31,7 +36,13 @@ export type DecisionResult =
 export interface DecisionEdits {
   day?: unknown;
   time?: unknown;
+  /** Q1-b: konusuz öneri aynı saatte birden çok söze uyuyorsa seçim — o sözün konusu ya da "new" (yeni söz). */
+  attach?: unknown;
 }
+
+/** Q1-b seçim metinleri (ev sahibi ekranı). */
+export const ATTACH_CHOICE_REQUIRED = "Hangi söze bağlanacağını seçin.";
+export const ATTACH_TIME_EDITED = "Saati değiştirdiyseniz 'Yeni söz olarak kaydet'i seçin.";
 
 const PAST_TOLERANCE_MS = 5 * 60_000;
 
@@ -42,8 +53,10 @@ async function rederive(organizationId: string, key: string, now: Date): Promise
   const parsed = parseSuggestionKey(key);
   if (!parsed) return null;
   if (parsed.kind === "task" || parsed.kind === "commitment") {
+    // Söz anahtarı `<mesaj>` ya da `<mesaj>:<sıra>` (Q1-b: bir mesajda birden çok söz) — kimlik ilk parça; öneri yine veriden yeniden üretilir.
+    const [messageId] = parsed.source.split(":");
     const msg = await prisma.message.findFirst({
-      where: { id: parsed.source, conversation: { property: { organizationId } } },
+      where: { id: messageId, conversation: { property: { organizationId } } },
       select: { conversationId: true, conversation: { select: { propertyId: true } } },
     });
     if (!msg) return null;
@@ -85,6 +98,15 @@ export async function decideSuggestion(input: {
     if (!commitmentDue) return { status: "invalid", field: "time", message: "Saati seçin." };
     if (commitmentDue.getTime() < now.getTime() - PAST_TOLERANCE_MS) return { status: "invalid", field: "time", message: "Geçmiş bir saat seçilemez." };
   }
+  // Q1-b: seçim gereken öneride seçim ZORUNLU; mevcut söze bağlanırken saat düzenlemesi anlamsız (o sözün saati değişmez) → açık uyarı.
+  let attachTo: CommitmentTopic | "new" | null = null;
+  if (input.decision === "approve" && view.kind === "commitment" && view.proposal.attachTopics) {
+    const a = input.edits?.attach;
+    if (a === "new") attachTo = "new";
+    else if (isCommitmentTopic(a) && view.proposal.attachTopics.includes(a)) attachTo = a;
+    else return { status: "invalid", field: "attach", message: ATTACH_CHOICE_REQUIRED };
+    if (attachTo !== "new" && edited) return { status: "invalid", field: "attach", message: ATTACH_TIME_EDITED };
+  }
 
   const result = await prisma.$transaction(async (tx) => {
     // Anahtar başına kilit: eşzamanlı iki karar sırayla — ikincisi kararı görür ve "gone" döner.
@@ -102,7 +124,14 @@ export async function decideSuggestion(input: {
     if (already) return { status: "gone" } as const;
     if (__aiSuggestionHooks.afterDecisionCheck) await __aiSuggestionHooks.afterDecisionCheck();
 
-    const created: { taskId?: string; commitmentId?: string; kbItemId?: string; merged?: boolean; topicAttached?: boolean } = {};
+    const created: {
+      taskId?: string;
+      commitmentId?: string;
+      kbItemId?: string;
+      merged?: boolean;
+      topicAttached?: boolean;
+      attachedTopic?: CommitmentTopic;
+    } = {};
     if (input.decision === "approve") {
       if (view.kind === "task") {
         const msg = await tx.message.findFirst({
@@ -120,6 +149,27 @@ export async function decideSuggestion(input: {
         // "duplicate" (aynı gün aynı konuda açık görev arada açıldı) ya da tespit artık yok → karar YAZILMAZ (ölçüt şişmesin — Haiku 10-12).
         if (r.status !== "created") return { status: "gone" } as const;
         created.taskId = r.taskId;
+      } else if (view.kind === "commitment" && attachTo !== null && attachTo !== "new") {
+        // Q1-b: ev sahibi mevcut sözü seçti → yeni söz / görev AÇILMAZ; karar o söze bağlanır. Söz arada kapandıysa / saati değiştiyse "gone".
+        if (!commitmentDue || !found.conversationId) return { status: "gone" } as const;
+        const target = await tx.guestCommitment.findFirst({
+          where: {
+            organizationId: input.organizationId,
+            conversationId: found.conversationId,
+            kind: view.proposal.commitmentKind,
+            topic: attachTo,
+            dueAt: commitmentDue,
+            status: "open",
+            taskId: { not: null },
+          },
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+          select: { id: true, taskId: true },
+        });
+        if (!target) return { status: "gone" } as const;
+        created.merged = true;
+        created.attachedTopic = attachTo;
+        created.commitmentId = target.id;
+        created.taskId = target.taskId ?? undefined;
       } else if (view.kind === "commitment") {
         if (!isCommitmentKind(view.proposal.commitmentKind) || !commitmentDue || !found.conversationId) return { status: "gone" } as const;
         const conv = await tx.conversation.findFirst({ where: { id: found.conversationId }, select: { reservationId: true } });
@@ -138,7 +188,8 @@ export async function decideSuggestion(input: {
             // kaydetmiş) yeni söz açılmaz — öneri listesi de aynı kuralla gizler. I1 (10-17, migration 73): birleştirme KONU uyumuna da bakar
             // (klima 18:00 ile musluk 18:00 iki söz); konusuz elle söz + konulu öneri birleşir ve söze konu YAZILIR (kurucu Q1 "a").
             clientRequestId: `sugg:${input.key}`,
-            mergeSameSlot: true,
+            // Q1-b: ev sahibi "yeni söz" seçtiyse aynı saatteki sözlere BAĞLANMAZ (kendi kararı).
+            mergeSameSlot: attachTo !== "new",
           },
           tx,
         );

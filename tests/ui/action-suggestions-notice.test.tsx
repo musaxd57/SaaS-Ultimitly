@@ -70,3 +70,50 @@ describe("eylem önerisi — mevcut söze bağlandı bilgisi", () => {
     expect(router.refresh).toHaveBeenCalled();
   });
 });
+
+describe("Q1-b (kurucu 10-17) — 'hangi söze bağlansın?' seçimi", () => {
+  const choice: ActionSuggestionItem = {
+    ...item,
+    key: "c:2",
+    title: "Söz kaydet: Arıza / bakım — yarın 10:00",
+    detail: "Aynı saatte kayıtlı sözler var (klima, musluk) — hangisine bağlanacağını seçin",
+    proposal: { messageId: "m2", commitmentKind: "maintenance", topic: null, day: "tomorrow", time: "10:00", attachTopics: ["ac", "faucet"] },
+  };
+
+  it("seçenekler görünür (iki söz + yeni söz); seçim yapılmadan Onayla PASİF; seçim isteğe 'attach' olarak gider; bilgi seçilen konuyla", async () => {
+    const fetchMock = vi.fn(async (_u: string, _init?: RequestInit) => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ status: "done", decision: "approved", created: { merged: true, attachedTopic: "faucet", commitmentId: "c9", taskId: "t9" } }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ActionSuggestions items={[choice]} />);
+    const group = screen.getByTestId("attach-choice");
+    expect(group.textContent).toContain("Hangi söze bağlansın?");
+    expect(screen.getByLabelText("klima sözüne bağla")).toBeTruthy();
+    expect(screen.getByLabelText("musluk sözüne bağla")).toBeTruthy();
+    expect(screen.getByLabelText("Yeni söz olarak kaydet")).toBeTruthy();
+    expect((screen.getByText("Onayla").closest("button") as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByLabelText("musluk sözüne bağla"));
+    expect((screen.getByText("Onayla").closest("button") as HTMLButtonElement).disabled).toBe(false);
+    await act(async () => {
+      fireEvent.click(screen.getByText("Onayla"));
+    });
+    expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body))).toMatchObject({ key: "c:2", decision: "approve", attach: "faucet" });
+    expect(screen.getByTestId("action-suggestion-notice").textContent).toBe("Aynı saatte kaydettiğiniz söze bağlandı (musluk); yeni görev açılmadı.");
+  });
+
+  it("'Yok say' seçim istemez ve 'attach' GÖNDERMEZ; seçimsiz öneride seçim kutusu YOK", async () => {
+    const fetchMock = vi.fn(async (_u: string, _init?: RequestInit) => ({ ok: true, status: 200, json: async () => ({ status: "done", decision: "dismissed" }) }));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ActionSuggestions items={[choice]} />);
+    fireEvent.click(screen.getByLabelText("klima sözüne bağla"));
+    await act(async () => {
+      fireEvent.click(screen.getByText("Yok say"));
+    });
+    expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body))).not.toHaveProperty("attach");
+    cleanup();
+    render(<ActionSuggestions items={[item]} />);
+    expect(screen.queryByTestId("attach-choice")).toBeNull();
+  });
+});

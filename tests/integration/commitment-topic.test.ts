@@ -243,3 +243,128 @@ describe("söz konusu", () => {
     expect((await prisma.guestCommitment.findMany({ where: { conversationId: conv } })).map((c) => c.topic)).toEqual([null, null]);
   });
 });
+
+describe("Q1-b (kurucu 10-17: '2'sini de öner')", () => {
+  async function manualCommitment(orgId: string, conv: string, propertyId: string, actor: string, topic: "ac" | "faucet" | null, id: string) {
+    const tz = orgTimezone((await prisma.organization.findUniqueOrThrow({ where: { id: orgId } })).timezone);
+    const dueAt = commitmentDueAt({ day: "tomorrow", time: "10:00" }, tz, new Date())!;
+    return createGuestCommitment({ organizationId: orgId, conversationId: conv, propertyId, reservationId: null, kind: "maintenance", topic, dueAt, actorUserId: actor, clientRequestId: id });
+  }
+
+  it("🚨 TEK mesajda iki söz ('Klima için teknisyen yarın 10'da gelecek. Musluk için usta yarın 11'de gelecek.') → İKİ öneri (anahtarlar mesaj + mesaj:1); ikisi de onaylanır → iki söz + iki görev", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    await asOwner(orgId);
+    const conv = await conversationWith(propertyId, ["Klima için teknisyen yarın 10:00'da gelecek. Musluk için usta yarın 11:00'de gelecek."]);
+    const msg = await prisma.message.findFirstOrThrow({ where: { conversationId: conv } });
+    const list = (await getConversationSuggestions(orgId, conv)).filter((s) => s.kind === "commitment");
+    expect(list.map((s) => s.key)).toEqual([`commitment:${msg.id}`, `commitment:${msg.id}:1`]);
+    expect(list[0]!.title).toMatch(/· klima — (?:bugün|yarın) 10:00$/u);
+    expect(list[1]!.title).toMatch(/· musluk — (?:bugün|yarın) 11:00$/u);
+    // İkinci önce onaylanır: ilk öneri listede kalır (anahtarlar bağımsız).
+    expect((await decide({ key: list[1]!.key, decision: "approve" })).status).toBe(200);
+    expect((await getConversationSuggestions(orgId, conv)).map((s) => s.key)).toEqual([`commitment:${msg.id}`]);
+    expect((await decide({ key: list[0]!.key, decision: "approve" })).status).toBe(200);
+    expect((await prisma.guestCommitment.findMany({ where: { conversationId: conv }, orderBy: { topic: "asc" } })).map((r) => r.topic)).toEqual(["ac", "faucet"]);
+    expect(await prisma.task.count({ where: { propertyId } })).toBe(2);
+    expect(await getConversationSuggestions(orgId, conv)).toEqual([]);
+  });
+
+  it("birini 'yok say' ötekini gizlemez; aynı anahtarın ikinci kararı 409", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    await asOwner(orgId);
+    const conv = await conversationWith(propertyId, ["Klima için teknisyen yarın 10:00'da gelecek. Musluk için usta yarın 11:00'de gelecek."]);
+    const [a, b] = await getConversationSuggestions(orgId, conv);
+    expect((await decide({ key: a!.key, decision: "dismiss" })).status).toBe(200);
+    expect((await getConversationSuggestions(orgId, conv)).map((s) => s.key)).toEqual([b!.key]);
+    expect((await decide({ key: a!.key, decision: "approve" })).status).toBe(409);
+    expect(await prisma.guestCommitment.count()).toBe(0);
+  });
+
+  it("🚨 uydurma sıra (mesaj:7) ve BAŞKA işletmenin mesajı → 409, hiçbir şey yazılmaz (anahtar veriden yeniden üretilir)", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    await asOwner(orgId);
+    const conv = await conversationWith(propertyId, ["Klima için teknisyen yarın 10:00'da gelecek. Musluk için usta yarın 11:00'de gelecek."]);
+    const msg = await prisma.message.findFirstOrThrow({ where: { conversationId: conv } });
+    expect((await decide({ key: `commitment:${msg.id}:7`, decision: "approve" })).status).toBe(409);
+    const other = await makeOrgWithProperty();
+    await asOwner(other.orgId);
+    expect((await decide({ key: `commitment:${msg.id}:1`, decision: "approve" })).status).toBe(409);
+    expect(await prisma.guestCommitment.count()).toBe(0);
+    expect(await prisma.auditLog.count({ where: { action: { startsWith: "ai_suggestion." } } })).toBe(0);
+  });
+
+  it("🚨 aynı saatte 'klima' ve 'musluk' sözü kayıtlıyken KONUSUZ 'Teknisyen yarın 10'da gelecek' → öneri GÖRÜNÜR ve seçim ister; seçimsiz onay 400, yazılmaz", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const owner = await asOwner(orgId);
+    const conv = await conversationWith(propertyId, []);
+    await manualCommitment(orgId, conv, propertyId, owner.id, "ac", "m-ac");
+    await manualCommitment(orgId, conv, propertyId, owner.id, "faucet", "m-faucet");
+    await prisma.message.create({ data: { conversationId: conv, direction: "outbound", authorType: "host", senderName: "Ev Sahibi", body: "Teknisyen yarın 10:00'da gelecek." } });
+    const [s] = await getConversationSuggestions(orgId, conv);
+    expect(s).toMatchObject({ kind: "commitment", proposal: { topic: null, attachTopics: ["ac", "faucet"] } });
+    expect(s!.detail).toBe("Aynı saatte kayıtlı sözler var (klima, musluk) — hangisine bağlanacağını seçin");
+    const r = await decide({ key: s!.key, decision: "approve" });
+    expect(r.status).toBe(400);
+    expect(await r.json()).toMatchObject({ fields: { attach: "Hangi söze bağlanacağını seçin." } });
+    for (const bad of ["heating", "", 3, "AC"]) expect((await decide({ key: s!.key, decision: "approve", attach: bad })).status).toBe(400);
+    expect(await prisma.guestCommitment.count({ where: { conversationId: conv } })).toBe(2);
+    expect(await prisma.auditLog.count({ where: { action: { startsWith: "ai_suggestion." } } })).toBe(0);
+  });
+
+  it("🚨 seçim 'klima' → yeni söz / görev AÇILMAZ, karar klima sözüne bağlanır; öneri listeden kalkar", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const owner = await asOwner(orgId);
+    const conv = await conversationWith(propertyId, []);
+    const ac = await manualCommitment(orgId, conv, propertyId, owner.id, "ac", "m-ac");
+    await manualCommitment(orgId, conv, propertyId, owner.id, "faucet", "m-faucet");
+    await prisma.message.create({ data: { conversationId: conv, direction: "outbound", authorType: "host", senderName: "Ev Sahibi", body: "Teknisyen yarın 10:00'da gelecek." } });
+    const [s] = await getConversationSuggestions(orgId, conv);
+    const r = await decide({ key: s!.key, decision: "approve", attach: "ac" });
+    expect(r.status).toBe(200);
+    expect(await r.json()).toMatchObject({ created: { merged: true, attachedTopic: "ac", commitmentId: ac.id, taskId: ac.taskId } });
+    expect(await prisma.guestCommitment.count({ where: { conversationId: conv } })).toBe(2);
+    expect(await prisma.task.count({ where: { propertyId } })).toBe(2);
+    expect(await getConversationSuggestions(orgId, conv)).toEqual([]);
+  });
+
+  it("seçim 'Yeni söz' → konusuz yeni söz + görev (aynı saatteki sözlere bağlanmaz); saat düzenlenip mevcut söze bağlanmak istenirse 400", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const owner = await asOwner(orgId);
+    const conv = await conversationWith(propertyId, []);
+    await manualCommitment(orgId, conv, propertyId, owner.id, "ac", "m-ac");
+    await manualCommitment(orgId, conv, propertyId, owner.id, "faucet", "m-faucet");
+    await prisma.message.create({ data: { conversationId: conv, direction: "outbound", authorType: "host", senderName: "Ev Sahibi", body: "Teknisyen yarın 10:00'da gelecek." } });
+    const [s] = await getConversationSuggestions(orgId, conv);
+    const edited = await decide({ key: s!.key, decision: "approve", attach: "ac", day: "tomorrow", time: "12:00" });
+    expect(edited.status).toBe(400);
+    expect(await edited.json()).toMatchObject({ fields: { attach: "Saati değiştirdiyseniz 'Yeni söz olarak kaydet'i seçin." } });
+    const r = await decide({ key: s!.key, decision: "approve", attach: "new" });
+    expect(r.status).toBe(200);
+    const rows = await prisma.guestCommitment.findMany({ where: { conversationId: conv }, orderBy: { createdAt: "asc" } });
+    expect(rows.map((x) => x.topic)).toEqual(["ac", "faucet", null]);
+    expect(await prisma.task.count({ where: { propertyId } })).toBe(3);
+  });
+
+  it("seçilen söz arada kapandıysa (görev tamamlandı) → 409, yeni söz açılmaz", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const owner = await asOwner(orgId);
+    const conv = await conversationWith(propertyId, []);
+    const ac = await manualCommitment(orgId, conv, propertyId, owner.id, "ac", "m-ac");
+    await manualCommitment(orgId, conv, propertyId, owner.id, "faucet", "m-faucet");
+    await prisma.message.create({ data: { conversationId: conv, direction: "outbound", authorType: "host", senderName: "Ev Sahibi", body: "Teknisyen yarın 10:00'da gelecek." } });
+    const [s] = await getConversationSuggestions(orgId, conv);
+    // Öneri listede görüldükten SONRA klima sözü kapandı → liste artık seçim istemez (tek uyumlu söz), onay "gone".
+    await prisma.guestCommitment.update({ where: { id: ac.id }, data: { status: "done" } });
+    expect((await decide({ key: s!.key, decision: "approve", attach: "ac" })).status).toBe(409);
+    expect(await prisma.guestCommitment.count({ where: { conversationId: conv } })).toBe(2);
+  });
+
+  it("KONTROL: aynı saatte TEK konulu söz varken konusuz öneri bugünkü gibi GİZLİ (seçim gereksiz)", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const owner = await asOwner(orgId);
+    const conv = await conversationWith(propertyId, []);
+    await manualCommitment(orgId, conv, propertyId, owner.id, "ac", "m-ac");
+    await prisma.message.create({ data: { conversationId: conv, direction: "outbound", authorType: "host", senderName: "Ev Sahibi", body: "Teknisyen yarın 10:00'da gelecek." } });
+    expect(await getConversationSuggestions(orgId, conv)).toEqual([]);
+  });
+});

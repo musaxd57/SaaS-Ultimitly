@@ -1,6 +1,6 @@
 import { firstBreakdownDevice, foldTurkishAscii } from "@/lib/ai/fallback";
 import { explicitTimeMentions } from "@/lib/early-checkin/text-checks";
-import type { CommitmentKind, CommitmentTopic } from "@/lib/guest-commitments-core";
+import { commitmentTopicsCompatible, type CommitmentKind, type CommitmentTopic } from "@/lib/guest-commitments-core";
 import { deviceTopicsOf, topicsOf } from "@/lib/conversation-items/relation";
 
 // ---------------------------------------------------------------------------
@@ -222,51 +222,111 @@ function hasTimeInfo(folded: string, raw: string): boolean {
 export function detectHostPromise(text: string | null | undefined): HostPromise | null {
   if (typeof text !== "string" || text.trim() === "" || text.length > 4_000) return null;
   for (const raw of text.match(RAW_CLAUSES) ?? []) {
-    const clause = foldTurkishAscii(raw).toLowerCase();
-    if (clause.trim() === "" || /[?؟]\s*$/.test(raw) || CONDITIONAL.test(clause) || !PROMISE.test(clause)) continue;
-    if (QUESTION_PARTICLE.test(clause) || NEGATION.test(clause)) continue;
-    const segments = clause.split(SEGMENT_SPLIT);
-    const rawSegments = raw.split(RAW_SEGMENT_SPLIT);
-    const verbIdx = segments.map((seg, i) => (PROMISE.test(seg) ? i : -1)).filter((i) => i >= 0);
-    if (verbIdx.length === 0 || verbIdx.some((i) => negatedAfterVerb(segments[i]))) continue;
-    const topicIn = (t: string) => KIND_TOPICS.find(([, re]) => re.test(t))?.[0];
-    const withTopic = verbIdx.find((i) => topicIn(segments[i]) !== undefined);
-    const kind = withTopic !== undefined ? topicIn(segments[withTopic]) : topicIn(clause);
+    const c = promiseClause(raw);
+    if (!c) continue;
+    const withTopic = c.verbIdx.find((i) => c.topicIn(c.segments[i]) !== undefined);
+    const kind = withTopic !== undefined ? c.topicIn(c.segments[withTopic]) : c.topicIn(c.clause);
     if (!kind) continue;
-    // Kapsam: sözün parçası; bilgi yoksa soldaki (söz fiili TAŞIMAYAN) parçalar. Özgün metin aynı sayıda parçaya bölünemezse cümlecik.
-    const at = withTopic ?? verbIdx[0];
-    let from = at;
-    const aligned = rawSegments.length === segments.length;
-    const sliceOf = (a: number, b: number) => ({
-      folded: segments.slice(a, b + 1).join(","),
-      raw: aligned ? rawSegments.slice(a, b + 1).join(",") : raw,
-    });
-    // En fazla 3 parça sola (her adım dilimi yeniden tarar — sınırsız genişleme virgül dizisinde karesel olurdu).
-    while (from > 0 && at - from < 3 && !hasTimeInfo(sliceOf(from, at).folded, sliceOf(from, at).raw) && !PROMISE.test(segments[from - 1])) from--;
-    // Sağdaki ZAMAN bilgisi taşıyan, söz fiili ve konu TAŞIMAYAN parçalar da sözün parçasıdır ("Teknisyen gelecek, yarın sabah 10 gibi";
-    // "The technician will come tomorrow, around 9") — en fazla 2; "havlular yarın" gibi başka konulu parça katılmaz (Haiku 10-12 4. tur).
-    let to = at;
-    while (to + 1 < segments.length && to - at < 2) {
-      const next = sliceOf(to + 1, to + 1);
-      if (PROMISE.test(next.folded) || topicIn(next.folded) !== undefined || !hasTimeInfo(next.folded, next.raw)) break;
-      to++;
-    }
-    const scope = sliceOf(from, to);
-    // Tanınmayan gün (kapsamda) → öneri yok (bütün mesaj için: aynı mesajda başka söz de yanlış güne bağlanmasın).
-    if (DAY_UNKNOWN.test(scope.folded)) return null;
-    // "Bugün ya da yarın" → hangi gün? belirsiz → öneri yok.
-    if (DAY_TOMORROW.test(scope.folded) && DAY_TODAY.test(scope.folded)) return null;
-    const day: HostPromise["day"] = DAY_TOMORROW.test(scope.folded) ? "tomorrow" : "today";
-    const part = DAY_PARTS.find((d) => d.re.test(scope.folded));
-    const inMinutes = durationMinutes(scope.folded);
-    // 24 saati aşan süre ("48 saat içinde") bugün / yarın modelinin dışında → öneri yok (Haiku 10-12 4. tur: saat kipinde yuvarlanıyordu).
-    if (inMinutes !== null && inMinutes > 24 * 60) return null;
-    let timeCandidates = inMinutes === null ? timeMentions(scope.raw, scope.folded) : [];
-    timeCandidates = part ? fitToHalf(timeCandidates, part.half) : preferDaytime(timeCandidates);
-    const cue = inMinutes === null && timeCandidates.length === 0 && part ? { minutes: part.minutes, half: part.half } : null;
-    return { kind, topic: commitmentTopicOf(kind, scope.raw, scope.folded), day, timeCandidates, inMinutes, cue };
+    const p = promiseAt(c, withTopic ?? c.verbIdx[0], kind);
+    // Tanınmayan / belirsiz gün ya da 24 saati aşan süre → bütün mesaj için öneri yok (bugünkü sözleşme; ↓ çoklu okuma yalnız o sözü atlar).
+    return p === REJECT ? null : p;
   }
   return null;
+}
+
+/** Bir mesajda en fazla bu kadar söz önerilir (kurucu Q1-b, 10-17: "ikisini de öner"). */
+export const MAX_PROMISES_PER_MESSAGE = 3;
+
+/**
+ * Mesajdaki BÜTÜN sözler (kurucu Q1-b, 10-17: "Klima için teknisyen yarın 10'da gelecek. Musluk için usta 11'de gelecek." → iki öneri).
+ * Her cümlecik ayrı okunur; bir cümlecikte konusu kendi parçasında olan birden çok söz fiili varsa her biri ayrı söz ("Teknisyen yarın
+ * 10'da gelecek, havluları da bugün getireceğim"). Konusu yalnız cümlecikte olan söz bugünkü gibi tek. İLK söz `detectHostPromise` ile aynı
+ * cümlecikten gelir (öneri anahtarı geriye uyumlu). Tanınmayan / belirsiz gün yalnız O sözü düşürür (öteki sözlerin kendi zaman kapsamı
+ * var). Aynı tür + UYUMLU konulu ikinci söz alınmaz (onaylanan ilk söz onu zaten gizlerdi — `getConversationSuggestions`). Tavan 3. Metin SAKLANMAZ.
+ */
+export function detectHostPromises(text: string | null | undefined): HostPromise[] {
+  if (typeof text !== "string" || text.trim() === "" || text.length > 4_000) return [];
+  const out: HostPromise[] = [];
+  for (const raw of text.match(RAW_CLAUSES) ?? []) {
+    if (out.length >= MAX_PROMISES_PER_MESSAGE) break;
+    const c = promiseClause(raw);
+    if (!c) continue;
+    const topical = c.verbIdx.filter((i) => c.topicIn(c.segments[i]) !== undefined);
+    const picks: Array<readonly [number, CommitmentKind]> = topical.length
+      ? topical.map((i) => [i, c.topicIn(c.segments[i])!] as const)
+      : (() => {
+          const k = c.topicIn(c.clause);
+          return k ? [[c.verbIdx[0], k] as const] : [];
+        })();
+    for (const [at, kind] of picks) {
+      if (out.length >= MAX_PROMISES_PER_MESSAGE) break;
+      const p = promiseAt(c, at, kind);
+      if (p === REJECT) continue;
+      if (out.some((q) => q.kind === p.kind && commitmentTopicsCompatible(q.topic, p.topic))) continue;
+      out.push(p);
+    }
+  }
+  return out;
+}
+
+const REJECT = Symbol("reject");
+
+interface PromiseClause {
+  raw: string;
+  clause: string;
+  segments: string[];
+  rawSegments: string[];
+  verbIdx: number[];
+  topicIn: (t: string) => CommitmentKind | undefined;
+}
+
+/** Cümlecik söz taşıyabilir mi (soru / koşul / olumsuz değil, söz fiili var) — taşıyorsa parçaları. */
+function promiseClause(raw: string): PromiseClause | null {
+  const clause = foldTurkishAscii(raw).toLowerCase();
+  if (clause.trim() === "" || /[?؟]\s*$/.test(raw) || CONDITIONAL.test(clause) || !PROMISE.test(clause)) return null;
+  if (QUESTION_PARTICLE.test(clause) || NEGATION.test(clause)) return null;
+  const segments = clause.split(SEGMENT_SPLIT);
+  const rawSegments = raw.split(RAW_SEGMENT_SPLIT);
+  const verbIdx = segments.map((seg, i) => (PROMISE.test(seg) ? i : -1)).filter((i) => i >= 0);
+  if (verbIdx.length === 0 || verbIdx.some((i) => negatedAfterVerb(segments[i]))) return null;
+  const topicIn = (t: string) => KIND_TOPICS.find(([, re]) => re.test(t))?.[0];
+  return { raw, clause, segments, rawSegments, verbIdx, topicIn };
+}
+
+/** `at` parçasındaki söz fiilinin sözü (kapsam, gün, saat, konu). Tanınmayan / belirsiz gün ya da 24 saati aşan süre → REJECT. */
+function promiseAt(c: PromiseClause, at: number, kind: CommitmentKind): HostPromise | typeof REJECT {
+  const { raw, segments, rawSegments, topicIn } = c;
+  // Kapsam: sözün parçası; bilgi yoksa soldaki (söz fiili TAŞIMAYAN) parçalar. Özgün metin aynı sayıda parçaya bölünemezse cümlecik.
+  let from = at;
+  const aligned = rawSegments.length === segments.length;
+  const sliceOf = (a: number, b: number) => ({
+    folded: segments.slice(a, b + 1).join(","),
+    raw: aligned ? rawSegments.slice(a, b + 1).join(",") : raw,
+  });
+  // En fazla 3 parça sola (her adım dilimi yeniden tarar — sınırsız genişleme virgül dizisinde karesel olurdu).
+  while (from > 0 && at - from < 3 && !hasTimeInfo(sliceOf(from, at).folded, sliceOf(from, at).raw) && !PROMISE.test(segments[from - 1])) from--;
+  // Sağdaki ZAMAN bilgisi taşıyan, söz fiili ve konu TAŞIMAYAN parçalar da sözün parçasıdır ("Teknisyen gelecek, yarın sabah 10 gibi";
+  // "The technician will come tomorrow, around 9") — en fazla 2; "havlular yarın" gibi başka konulu parça katılmaz (Haiku 10-12 4. tur).
+  let to = at;
+  while (to + 1 < segments.length && to - at < 2) {
+    const next = sliceOf(to + 1, to + 1);
+    if (PROMISE.test(next.folded) || topicIn(next.folded) !== undefined || !hasTimeInfo(next.folded, next.raw)) break;
+    to++;
+  }
+  const scope = sliceOf(from, to);
+  // Tanınmayan gün (kapsamda) → öneri yok.
+  if (DAY_UNKNOWN.test(scope.folded)) return REJECT;
+  // "Bugün ya da yarın" → hangi gün? belirsiz → öneri yok.
+  if (DAY_TOMORROW.test(scope.folded) && DAY_TODAY.test(scope.folded)) return REJECT;
+  const day: HostPromise["day"] = DAY_TOMORROW.test(scope.folded) ? "tomorrow" : "today";
+  const part = DAY_PARTS.find((d) => d.re.test(scope.folded));
+  const inMinutes = durationMinutes(scope.folded);
+  // 24 saati aşan süre ("48 saat içinde") bugün / yarın modelinin dışında → öneri yok (Haiku 10-12 4. tur: saat kipinde yuvarlanıyordu).
+  if (inMinutes !== null && inMinutes > 24 * 60) return REJECT;
+  let timeCandidates = inMinutes === null ? timeMentions(scope.raw, scope.folded) : [];
+  timeCandidates = part ? fitToHalf(timeCandidates, part.half) : preferDaytime(timeCandidates);
+  const cue = inMinutes === null && timeCandidates.length === 0 && part ? { minutes: part.minutes, half: part.half } : null;
+  return { kind, topic: commitmentTopicOf(kind, scope.raw, scope.folded), day, timeCandidates, inMinutes, cue };
 }
 
 /**

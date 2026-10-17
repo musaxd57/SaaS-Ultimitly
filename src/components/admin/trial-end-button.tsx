@@ -6,9 +6,12 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 /**
- * Operatör: riskli deneme listesinde DENEMEYİ BİTİR / GERİ VER (kurucu Q4, 10-17). Bitirilen hesap kapanmaz; müşteri ayarlarda sebepsiz
+ * Operatör: riskli deneme listesinde DENEMEYİ BİTİR / YENİDEN BAŞLAT (kurucu Q4, 10-17). Bitirilen hesap kapanmaz; müşteri ayarlarda sebepsiz
  * onaylı metni görür. API yalnız 2FA'lı operatör, destek görünümünde kapalı, her işlem denetimde.
  */
+// Kurucu 10-17: "geri ver" garip duruyordu — düğme ne yaptığını söyler (bugünden YENİ deneme süresi başlar).
+const RESTART_HINT = "Bugünden başlayan yeni bir deneme süresi verir.";
+
 export function TrialEndButton({ organizationId, mode }: { organizationId: string; mode: "end" | "restore" | "card_exempt" }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -45,9 +48,17 @@ export function TrialEndButton({ organizationId, mode }: { organizationId: strin
 
   return (
     <span className="inline-flex items-center gap-1">
-      <Button type="button" size="sm" variant="outline" className="h-7 text-xs" disabled={busy} onClick={() => void run()}>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        className="h-7 text-xs"
+        disabled={busy}
+        onClick={() => void run()}
+        title={mode === "restore" ? RESTART_HINT : undefined}
+      >
         {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-        {mode === "end" ? "Denemeyi bitir" : mode === "restore" ? "Denemeyi geri ver" : "Kart şartını kaldır"}
+        {mode === "end" ? "Denemeyi bitir" : mode === "restore" ? "Denemeyi yeniden başlat" : "Kart şartını kaldır"}
       </Button>
       {error ? <span className="text-xs text-destructive">{error}</span> : null}
     </span>

@@ -6,10 +6,18 @@ import { buildOperationalTaskData, detectOperationalTask } from "@/lib/tasks/det
 import { TASK_TYPE } from "@/lib/constants";
 import { isChannelAutomation, resolveMessageAuthor } from "@/lib/message-author";
 import { addZonedDays, dateKeyInTimeZone, orgTimezone, zonedWallClockToUtc } from "@/lib/timezone";
-import { commitmentLabel, commitmentSlotAbsorbs, commitmentTopicsCompatible, type CommitmentKind, type CommitmentTopic } from "@/lib/guest-commitments-core";
+import {
+  COMMITMENT_TOPIC_LABELS,
+  commitmentLabel,
+  commitmentSlotAbsorbs,
+  commitmentTopicsCompatible,
+  isCommitmentTopic,
+  type CommitmentKind,
+  type CommitmentTopic,
+} from "@/lib/guest-commitments-core";
 import {
   applyWifiValue,
-  detectHostPromise,
+  detectHostPromises,
   extractWifiValues,
   kbContainsValue,
   maskSecret,
@@ -17,6 +25,7 @@ import {
   wifiTargetAmbiguous,
   SUGGESTION_WINDOW_DAYS,
   suggestionKey,
+  type HostPromise,
   type SuggestionDecision,
   type SuggestionKind,
 } from "./core";
@@ -51,8 +60,18 @@ export type SuggestionView =
       title: string;
       detail: string;
       evidenceAt: string;
-      /** `topic`: sözün konusu (I1; ev sahibinin mesajından kodla) — onay aynı konuyu yazar. */
-      proposal: { messageId: string; commitmentKind: CommitmentKind; topic: CommitmentTopic | null; day: "today" | "tomorrow"; time: string };
+      /**
+       * `topic`: sözün konusu (I1; ev sahibinin mesajından kodla) — onay aynı konuyu yazar. `attachTopics` (Q1-b): konusuz öneri aynı saatte
+       * birden çok farklı konulu açık söze uyuyor — onayda biri (ya da "yeni söz") seçilir.
+       */
+      proposal: {
+        messageId: string;
+        commitmentKind: CommitmentKind;
+        topic: CommitmentTopic | null;
+        day: "today" | "tomorrow";
+        time: string;
+        attachTopics?: CommitmentTopic[];
+      };
     }
   | {
       key: string;
@@ -115,8 +134,7 @@ function nowMinutesInTz(now: Date, tz: string): number {
  * Sözün MUTLAK son anı — mesajın YAZILDIĞI ana göre ("30 dakika içinde" = mesaj + 30 dk; "yarın" = mesajın ertesi günü). Onayda yeniden
  * üretilen öneri aynı ânı verir (Haiku 10-12: "şimdi"ye göre hesap onayda kayıyor, onay "düzenlendi" sayılıyordu).
  */
-function absolutePromiseDue(p: ReturnType<typeof detectHostPromise>, messageAt: Date, tz: string): Date | null {
-  if (!p) return null;
+function absolutePromiseDue(p: HostPromise, messageAt: Date, tz: string): Date | null {
   const due = promiseDue(p, nowMinutesInTz(messageAt, tz));
   const base = due.day === "tomorrow" ? addZonedDays(messageAt, 1, tz) : messageAt;
   const [y, mo, d] = dateKeyInTimeZone(base, tz).split("-").map(Number);
@@ -210,42 +228,58 @@ export async function getConversationSuggestions(organizationId: string, convers
       });
     } else if (author === "host" && !isChannelAutomation(m)) {
       // L5 (10-17): kanalın KENDİ otomatik mesajı ("Housekeeping will come tomorrow at 10" şablonu) ev sahibinin sözü DEĞİL.
-      const key = suggestionKey("commitment", m.id);
-      if (decided.has(key)) continue;
-      const promise = detectHostPromise(m.body);
-      if (!promise) continue;
-      // Mesajdan SONRA aynı türde ve UYUMLU konuda söz kaydedilmiş → öneri yok (I1: klima sözü musluk önerisini gizlemez). Saate BAKILMAZ
-      // (bilinçli, Haiku 10-17 tartışıldı): ev sahibi mesajdan sonra sözü elle FARKLI saatle kaydettiyse (ya da saati sonraki öneriyle
-      // değiştirdiyse) öneri onayı İKİNCİ söz + görev açardı. Bedeli: mesajdan sonra elle kaydedilen KONUSUZ söze konu yazılmaz (Q1 "a"
-      // yalnız mesajdan ÖNCE kaydedilmiş söz için — kurucunun örneğindeki sıra).
-      if (
-        commitments.some(
-          (c) => c.kind === promise.kind && commitmentTopicsCompatible(c.topic, promise.topic) && c.createdAt.getTime() >= m.createdAt.getTime(),
-        )
-      ) {
-        continue;
-      }
-      const dueAt = absolutePromiseDue(promise, m.createdAt, tz);
-      // Aynı tür + aynı an için öneriyi TAMAMEN karşılayan AÇIK söz zaten varsa (mesajdan ÖNCE elle açılmış ya da ev sahibi aynı sözü sonraki
-      // mesajda tekrarlamış) öneri gösterilmez — onay hiçbir şey değiştirmezdi ve öneri yenilemede geri gelirdi: ölü "Onayla" düğmesi (Opus
-      // 10-15 B1). Konusuz elle söz + KONULU öneri gösterilir: onay söze konu yazar (kurucu Q1 "a", `commitmentSlotAbsorbs`).
-      if (
-        dueAt &&
+      // Q1-b (kurucu 10-17, "ikisini de öner"): mesajdaki HER söz ayrı öneri. İlk sözün anahtarı mesaj kimliği (geriye uyumlu), sonrakiler
+      // `<mesaj>:<sıra>` — sıra mesajın metninden (değişmez) gelir, süzgeçlerden önce verilir → listede ve onayda aynı anahtar.
+      for (const [idx, promise] of detectHostPromises(m.body).entries()) {
+        if (out.length >= MAX_SUGGESTIONS) break;
+        const key = suggestionKey("commitment", idx === 0 ? m.id : `${m.id}:${idx}`);
+        if (decided.has(key)) continue;
+        // Mesajdan SONRA aynı türde ve UYUMLU konuda söz kaydedilmiş → öneri yok (I1: klima sözü musluk önerisini gizlemez). Saate BAKILMAZ
+        // (bilinçli, Haiku 10-17 tartışıldı): ev sahibi mesajdan sonra sözü elle FARKLI saatle kaydettiyse (ya da saati sonraki öneriyle
+        // değiştirdiyse) öneri onayı İKİNCİ söz + görev açardı. Bedeli: mesajdan sonra elle kaydedilen KONUSUZ söze konu yazılmaz (Q1 "a"
+        // yalnız mesajdan ÖNCE kaydedilmiş söz için — kurucunun örneğindeki sıra).
+        if (
+          commitments.some(
+            (c) => c.kind === promise.kind && commitmentTopicsCompatible(c.topic, promise.topic) && c.createdAt.getTime() >= m.createdAt.getTime(),
+          )
+        ) {
+          continue;
+        }
+        const dueAt = absolutePromiseDue(promise, m.createdAt, tz);
+        if (!dueAt) continue;
+        // Aynı tür + aynı an için öneriyi TAMAMEN karşılayan AÇIK söz zaten varsa (mesajdan ÖNCE elle açılmış ya da ev sahibi aynı sözü sonraki
+        // mesajda tekrarlamış) öneri gösterilmez — onay hiçbir şey değiştirmezdi ve öneri yenilemede geri gelirdi: ölü "Onayla" düğmesi (Opus
+        // 10-15 B1). Konusuz elle söz + KONULU öneri gösterilir: onay söze konu yazar (kurucu Q1 "a", `commitmentSlotAbsorbs`).
         // `taskId` dolu: onayın bağlanabildiği küme ile BİREBİR (`createGuestCommitment` görevsiz söze bağlanmaz — Haiku 10-17).
-        commitments.some((c) => c.status === "open" && c.taskId !== null && commitmentSlotAbsorbs(c, { kind: promise.kind, dueAt, topic: promise.topic }))
-      ) {
-        continue;
+        const absorbing = commitments.filter(
+          (c) => c.status === "open" && c.taskId !== null && commitmentSlotAbsorbs(c, { kind: promise.kind, dueAt, topic: promise.topic }),
+        );
+        // Q1-b (kurucu 10-17): KONUSUZ öneri aynı saatte İKİ ya da daha çok FARKLI konulu söze uyuyorsa hangisi olduğu belli değil → öneri
+        // gösterilir, onayda "hangi söze bağlansın?" sorulur (ya da yeni söz). Tek söze uyuyorsa bugünkü gibi gizlenir.
+        const attachTopics = promise.topic === null ? [...new Set(absorbing.map((c) => c.topic).filter(isCommitmentTopic))].sort() : [];
+        if (absorbing.length > 0 && attachTopics.length < 2) continue;
+        const due = relativeDay(dueAt, now, tz);
+        if (!due) continue;
+        const when = `${due.day === "tomorrow" ? "yarın" : "bugün"} ${due.time}`;
+        out.push({
+          key,
+          kind: "commitment",
+          title: `Söz kaydet: ${commitmentLabel(promise.kind, promise.topic)} — ${when}`,
+          detail:
+            attachTopics.length >= 2
+              ? `Aynı saatte kayıtlı sözler var (${attachTopics.map((t) => COMMITMENT_TOPIC_LABELS[t]).join(", ")}) — hangisine bağlanacağını seçin`
+              : "Misafire yazdığınız mesajdan — açık söz + görev açılır",
+          evidenceAt: fmtAt(m.createdAt),
+          proposal: {
+            messageId: m.id,
+            commitmentKind: promise.kind,
+            topic: promise.topic,
+            day: due.day,
+            time: due.time,
+            ...(attachTopics.length >= 2 ? { attachTopics } : {}),
+          },
+        });
       }
-      const due = dueAt ? relativeDay(dueAt, now, tz) : null;
-      if (!due) continue;
-      out.push({
-        key,
-        kind: "commitment",
-        title: `Söz kaydet: ${commitmentLabel(promise.kind, promise.topic)} — ${due.day === "tomorrow" ? "yarın" : "bugün"} ${due.time}`,
-        detail: "Misafire yazdığınız mesajdan — açık söz + görev açılır",
-        evidenceAt: fmtAt(m.createdAt),
-        proposal: { messageId: m.id, commitmentKind: promise.kind, topic: promise.topic, day: due.day, time: due.time },
-      });
     }
   }
   return out;

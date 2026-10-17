@@ -23,6 +23,8 @@ export function ActionSuggestions({ items }: { items: ActionSuggestionItem[] }) 
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [edits, setEdits] = useState<Record<string, { day: string; time: string }>>({});
+  // Q1-b (kurucu 10-17): aynı saatte birden çok söze uyan konusuz öneride seçim (konu ya da "new" = yeni söz).
+  const [attach, setAttach] = useState<Record<string, string>>({});
   // Söz önerisi mevcut söze bağlandıysa kısa bilgi (öneri listeden kalkınca da görünür — kurucu Q1 "a", 10-17).
   const [notice, setNotice] = useState<string | null>(null);
   if (items.length === 0 && !notice) return null;
@@ -33,10 +35,16 @@ export function ActionSuggestions({ items }: { items: ActionSuggestionItem[] }) 
     setNotice(null);
     try {
       const edit = edits[item.key];
+      const choice = attach[item.key];
       const res = await fetch("/api/ai-suggestions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key: item.key, decision, ...(edit ? { day: edit.day, time: edit.time } : {}) }),
+        body: JSON.stringify({
+          key: item.key,
+          decision,
+          ...(edit ? { day: edit.day, time: edit.time } : {}),
+          ...(choice && decision === "approve" ? { attach: choice } : {}),
+        }),
       });
       if (res.status === 409) {
         startTransition(() => router.refresh()); // öneri artık geçerli değil / başkası karar verdi
@@ -49,11 +57,11 @@ export function ActionSuggestions({ items }: { items: ActionSuggestionItem[] }) 
         if (body?.fields?.time) startTransition(() => router.refresh());
         return;
       }
-      const done = (await res.json().catch(() => null)) as { created?: { merged?: boolean; topicAttached?: boolean } } | null;
+      const done = (await res.json().catch(() => null)) as { created?: { merged?: boolean; topicAttached?: boolean; attachedTopic?: unknown } } | null;
       if (done?.created?.merged) {
-        const topic = (item.proposal as { topic?: unknown }).topic;
+        const topic = isCommitmentTopic(done.created.attachedTopic) ? done.created.attachedTopic : (item.proposal as { topic?: unknown }).topic;
         setNotice(
-          done.created.topicAttached && isCommitmentTopic(topic)
+          (done.created.topicAttached || done.created.attachedTopic) && isCommitmentTopic(topic)
             ? `Aynı saatte kaydettiğiniz söze bağlandı (${COMMITMENT_TOPIC_LABELS[topic]}); yeni görev açılmadı.`
             : "Aynı saatte kaydettiğiniz söze bağlandı; yeni görev açılmadı.",
         );
@@ -69,7 +77,8 @@ export function ActionSuggestions({ items }: { items: ActionSuggestionItem[] }) 
   return (
     <div className="space-y-2" data-testid="action-suggestions">
       {items.map((s) => {
-        const p = s.proposal as { day?: string; time?: string };
+        const p = s.proposal as { day?: string; time?: string; attachTopics?: unknown };
+        const attachTopics = Array.isArray(p.attachTopics) ? p.attachTopics.filter(isCommitmentTopic) : [];
         const edit = edits[s.key] ?? (s.kind === "commitment" ? { day: p.day ?? "today", time: p.time ?? "" } : undefined);
         return (
           <div key={s.key} className="rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900 dark:border-sky-500/25 dark:bg-sky-500/10 dark:text-sky-200">
@@ -100,8 +109,31 @@ export function ActionSuggestions({ items }: { items: ActionSuggestionItem[] }) 
                 />
               </div>
             ) : null}
+            {s.kind === "commitment" && attachTopics.length >= 2 ? (
+              <fieldset className="mt-2 space-y-1 text-xs" data-testid="attach-choice">
+                <legend className="mb-1 font-medium">Hangi söze bağlansın?</legend>
+                {[...attachTopics.map((t) => [t, `${COMMITMENT_TOPIC_LABELS[t]} sözüne bağla`] as const), ["new", "Yeni söz olarak kaydet"] as const].map(
+                  ([value, label]) => (
+                    <label key={value} className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name={`attach-${s.key}`}
+                        value={value}
+                        checked={attach[s.key] === value}
+                        onChange={() => setAttach({ ...attach, [s.key]: value })}
+                      />
+                      {label}
+                    </label>
+                  ),
+                )}
+              </fieldset>
+            ) : null}
             <div className="mt-2 flex gap-2">
-              <Button size="sm" disabled={busy !== null} onClick={() => decide(s, "approve")}>
+              <Button
+                size="sm"
+                disabled={busy !== null || (s.kind === "commitment" && attachTopics.length >= 2 && !attach[s.key])}
+                onClick={() => decide(s, "approve")}
+              >
                 Onayla
               </Button>
               <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => decide(s, "dismiss")}>

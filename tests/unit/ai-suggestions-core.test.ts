@@ -5,6 +5,8 @@ import {
   applyWifiValue,
   AUTO_PROMOTION_MIN_DECISIONS,
   detectHostPromise,
+  detectHostPromises,
+  MAX_PROMISES_PER_MESSAGE,
   extractWifiValues,
   kbContainsValue,
   maskSecret,
@@ -313,5 +315,72 @@ describe("süre (karesel iş yok)", () => {
       extractWifiValues(r);
       expect(performance.now() - t).toBeLessThan(1_000);
     }
+  });
+});
+
+describe("Q1-b (kurucu 10-17: '2'sini de öner') — mesajdaki BÜTÜN sözler", () => {
+  const brief = (t: string) => detectHostPromises(t).map((p) => [p.kind, p.topic, p.day, p.timeCandidates.join("|")]);
+
+  it("🚨 iki cümlede iki söz → iki söz (konu + gün + saat her birinin kendi kapsamından)", () => {
+    expect(brief("Klima için teknisyen yarın 10:00'da gelecek. Musluk için usta bugün 16:00'da gelecek.")).toEqual([
+      ["maintenance", "ac", "tomorrow", String(10 * 60)],
+      ["maintenance", "faucet", "today", String(16 * 60)],
+    ]);
+  });
+
+  it("aynı cümlecikte farklı türde iki söz fiili → iki söz", () => {
+    expect(brief("Teknisyen yarın 10:00'da gelecek, havluları da bugün 18:00'de getireceğim.")).toEqual([
+      ["maintenance", null, "tomorrow", String(10 * 60)],
+      ["towels", null, "today", String(18 * 60)],
+    ]);
+  });
+
+  it("🚨 İLK söz `detectHostPromise` ile BİREBİR (öneri anahtarı geriye uyumlu)", () => {
+    for (const t of [
+      "Klima için teknisyen yarın 10:00'da gelecek. Musluk için usta bugün 16:00'da gelecek.",
+      "Havluları bu akşam getireceğim.",
+      "Teknisyen yarın sabah gelecek, işi 2 saat sürer.",
+      "Klima için teşekkürler, yarın havlu getireceğim.",
+      "The technician will come tomorrow, around 9.",
+      "Yarın sabah, teknisyen gelecek.",
+      "Teknisyen yarın 10'da gelecek, havluları da bugün getireceğim.",
+    ]) {
+      const one = detectHostPromise(t);
+      expect(one, t).not.toBeNull();
+      expect(detectHostPromises(t)[0], t).toEqual(one);
+    }
+  });
+
+  it("tanınmayan gün YALNIZ o sözü düşürür (tek-söz okuyucusu bugünkü gibi bütün mesajı bırakır)", () => {
+    const t = "Teknisyen pazartesi gelecek. Havluları yarın 10:00'da getireceğim.";
+    expect(detectHostPromise(t)).toBeNull();
+    expect(brief(t)).toEqual([["towels", null, "tomorrow", String(10 * 60)]]);
+  });
+
+  it("soru / koşul / olumsuz cümlecik söz değildir; ötekiler okunur", () => {
+    expect(brief("Teknisyen yarın gelecek mi? Havluları bugün 18:00'de getireceğim.")).toEqual([["towels", null, "today", String(18 * 60)]]);
+    expect(brief("İsterseniz yarın havlu getirebilirim. Teknisyen gelmeyecek. Temizlikçi bugün 14:00'te gelecek.")).toEqual([
+      ["cleaning", null, "today", String(14 * 60)],
+    ]);
+  });
+
+  it("aynı tür + UYUMLU konu ikinci kez alınmaz (tekrar ya da konusuz + konulu); farklı konu alınır", () => {
+    expect(brief("Teknisyen yarın 10:00'da gelecek. Teknisyen yarın 10:00'da gelecek.")).toHaveLength(1);
+    expect(brief("Teknisyen yarın 10:00'da gelecek. Klima için usta yarın 11:00'de gelecek.")).toHaveLength(1);
+    expect(brief("Klima için teknisyen yarın 10:00'da gelecek. Kombi için usta yarın 11:00'de gelecek.")).toHaveLength(2);
+  });
+
+  it("tavan: en çok 3 söz", () => {
+    expect(MAX_PROMISES_PER_MESSAGE).toBe(3);
+    const t =
+      "Klima için teknisyen yarın 10:00'da gelecek. Musluk için usta yarın 11:00'de gelecek. Havluları bugün 18:00'de getireceğim. Temizlikçi yarın 14:00'te gelecek.";
+    expect(detectHostPromises(t)).toHaveLength(3);
+  });
+
+  it("boş / çok uzun / söz yok → boş liste", () => {
+    expect(detectHostPromises("")).toEqual([]);
+    expect(detectHostPromises(null)).toEqual([]);
+    expect(detectHostPromises("Teşekkürler, iyi tatiller!")).toEqual([]);
+    expect(detectHostPromises(`Teknisyen yarın gelecek. ${"a".repeat(4_000)}`)).toEqual([]);
   });
 });

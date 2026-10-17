@@ -8,8 +8,11 @@ import { Button } from "@/components/ui/button";
 /**
  * Operatör: deneme kimliği istisnası (kurucu onayı 10-10). Aynı ilan / takvim başka hesapta görüldüyse ve meşru bir durum varsa (ilan yeni
  * sahibe geçti vb.) kuruluş kimlik kuralından muaf olur. İki hâl (Haiku 10-17): K1-B işareti (`flag`, deneme zaten sürüyor) → "İşareti
- * kaldır"; ESKİ kuralla biten deneme (`ended`) → "Denemeyi geri ver" (yeni deneme süresi). API yalnız 2FA'lı operatör, her işlem denetimde.
+ * kaldır"; ESKİ kuralla biten deneme (`ended`) → "Denemeyi yeniden başlat" (yeni deneme süresi). API yalnız 2FA'lı operatör, her işlem denetimde.
  */
+// Kurucu 10-17: "geri ver" garip duruyordu — düğme ne yaptığını söyler (bugünden YENİ deneme süresi başlar).
+const RESTART_HINT = "Bugünden başlayan yeni bir deneme süresi verir.";
+
 export function TrialExemptButton({ organizationId, mode }: { organizationId: string; mode: "flag" | "ended" }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -43,9 +46,17 @@ export function TrialExemptButton({ organizationId, mode }: { organizationId: st
 
   return (
     <span className="inline-flex items-center gap-1">
-      <Button type="button" size="sm" variant="outline" className="h-7 text-xs" disabled={busy} onClick={() => void exempt()}>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        className="h-7 text-xs"
+        disabled={busy}
+        onClick={() => void exempt()}
+        title={mode === "ended" ? RESTART_HINT : undefined}
+      >
         {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-        {mode === "ended" ? "Denemeyi geri ver" : "İşareti kaldır"}
+        {mode === "ended" ? "Denemeyi yeniden başlat" : "İşareti kaldır"}
       </Button>
       {error ? <span className="text-xs text-destructive">{error}</span> : null}
     </span>
