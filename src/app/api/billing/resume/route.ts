@@ -128,7 +128,10 @@ export const POST = withOwner(async (session, req) => {
       return NextResponse.json({ pending: true, error: RESUME_TEXT.pending }, { status: 202 });
     }
   }
-  if (result.ok && result.status === "past_due") {
+  // Yanıtta durum yoksa / beklenmedikse (Haiku 10-17) başarı VARSAYILMAZ: Paddle'dan canlı durum okunur.
+  let okStatus = result.ok ? result.status : null;
+  if (result.ok && okStatus !== "active" && okStatus !== "past_due") okStatus = (await getSubscriptionStatus(r.providerRef))?.status ?? null;
+  if (result.ok && okStatus === "past_due") {
     // SANDBOX D1 (10-17, belge): tahsilat başarısızsa devam isteği hata DÖNMEZ — abonelik "ödeme gecikmiş" olur. Başarı denmez; kart
     // güncelleme bağlantısı verilir (Paddle aynı işlemi yeniden dener). Kilit kalkar: abonelik artık duraklatılmış değil, ikinci devam
     // zaten reddedilir (canlı durum).
@@ -136,6 +139,11 @@ export const POST = withOwner(async (session, req) => {
     await audit("billing.resume_payment_failed");
     const links = await createPortalSession(r.providerRef);
     return NextResponse.json({ error: RESUME_TEXT.declined, cardUpdateUrl: links?.updatePaymentMethod ?? links?.overview ?? null }, { status: 402 });
+  }
+  if (result.ok && okStatus !== "active") {
+    // Durum hâlâ belli değil (duraklatılmış görünüyor / okunamadı): başarı vaat edilmez, kilit KALIR (ikinci tahsilat olmasın).
+    await audit("billing.resume_pending");
+    return NextResponse.json({ pending: true, error: RESUME_TEXT.pending }, { status: 202 });
   }
   // Başarı: kilit webhook'a kadar KALIR (yerel satır Paddle olayıyla "active" olana dek ikinci bir devam denemesi açılmasın; olay kilidi
   // siler, gelmezse 15 dk sonra kendiliğinden düşer).

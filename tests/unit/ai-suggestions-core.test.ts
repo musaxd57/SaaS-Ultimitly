@@ -364,10 +364,15 @@ describe("Q1-b (kurucu 10-17: '2'sini de öner') — mesajdaki BÜTÜN sözler",
     ]);
   });
 
-  it("aynı tür + UYUMLU konu ikinci kez alınmaz (tekrar ya da konusuz + konulu); farklı konu alınır", () => {
+  it("yalnız BİREBİR tekrar alınmaz; konusuz + konulu farklı saatli iki söz İKİ öneri (Haiku 10-17); farklı konu alınır", () => {
     expect(brief("Teknisyen yarın 10:00'da gelecek. Teknisyen yarın 10:00'da gelecek.")).toHaveLength(1);
-    expect(brief("Teknisyen yarın 10:00'da gelecek. Klima için usta yarın 11:00'de gelecek.")).toHaveLength(1);
+    expect(brief("Teknisyen yarın 10:00'da gelecek. Klima için usta yarın 11:00'de gelecek.")).toEqual([
+      ["maintenance", null, "tomorrow", String(10 * 60)],
+      ["maintenance", "ac", "tomorrow", String(11 * 60)],
+    ]);
     expect(brief("Klima için teknisyen yarın 10:00'da gelecek. Kombi için usta yarın 11:00'de gelecek.")).toHaveLength(2);
+    // Aynı konu, farklı saat → iki söz (iki ziyaret).
+    expect(brief("Havluları bugün 14:00'te getireceğim. Havluları bugün 18:00'de de getireceğim.")).toHaveLength(2);
   });
 
   it("tavan: en çok 3 söz", () => {

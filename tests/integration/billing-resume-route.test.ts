@@ -41,6 +41,8 @@ type PaddleState = {
   addressId?: string | null;
   /** Devam isteği BAŞARILI dönerken abonelik durumu (sandbox D1: kart reddinde istek hata dönmez, `past_due`). */
   resumeOkStatus?: string;
+  /** Devam yanıtının gövdesindeki durum (verilmezse gerçek durum; null → alan yok). */
+  resumeBodyStatus?: string | null;
 };
 let previewBodies: Array<Record<string, unknown>> = [];
 let paddle: PaddleState;
@@ -70,7 +72,8 @@ function stubPaddle() {
         if (paddle.resumeDelayMs > 0) await new Promise((r) => setTimeout(r, paddle.resumeDelayMs));
         if (paddle.resume === "ok") {
           paddle.status = paddle.resumeOkStatus ?? "active";
-          return json(200, { data: { status: paddle.status } });
+          // `resumeBodyStatus: null` → yanıtta durum alanı YOK (Haiku 10-17).
+          return json(200, { data: paddle.resumeBodyStatus === null ? {} : { status: paddle.resumeBodyStatus ?? paddle.status } });
         }
         if (paddle.resume === "declined") return json(400, { error: { code: "subscription_payment_declined" } });
         if (paddle.resume === "rejected") return json(400, { error: { code: "subscription_locked" } });
@@ -322,6 +325,24 @@ describe("Aboneliği devam ettir", () => {
     expect((await doPreview()).status).toBe(400);
     expect(resumeCalls).toBe(1);
   });
+
+  it.each([
+    ["etkin", "active", 200],
+    ["ödeme gecikmiş", "past_due", 402],
+    ["hâlâ duraklatılmış", "paused", 202],
+  ] as [string, string, number][])(
+    "🚨 Haiku 10-17: devam yanıtında DURUM YOK → başarı varsayılmaz, canlı durum okunur: %s → %i",
+    async (_n, live, code) => {
+      paddle.resumeOkStatus = live;
+      paddle.resumeBodyStatus = null;
+      const r = await doResume(await token());
+      expect(r.status).toBe(code);
+      expect(resumeCalls).toBe(1);
+      expect(await prisma.auditLog.count({ where: { organizationId: orgId, action: "billing.resumed" } })).toBe(code === 200 ? 1 : 0);
+      // Belirsizde kilit KALIR (ikinci tahsilat yok); ödeme gecikmesinde kalkar.
+      expect(await prisma.systemLock.count({ where: { name: RESUME_PENDING_LOCK(orgId) } })).toBe(code === 402 ? 0 : 1);
+    },
+  );
 
   it("onaylanan tutar denetim kaydında (gerçek tahsilatla karşılaştırma için — kişisel veri yok)", async () => {
     await doResume(await token());

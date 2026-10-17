@@ -323,17 +323,19 @@ export async function importCanonicalThread(
   // sahibi yazdı" diye kapatmaz; istemde "[OTOMATİK MESAJ]" satırıdır (içindeki bilgi okunur, üslubu taklit edilmez — Q2-b). BİZİM gönderdiğimiz
   // mesaj asla buraya düşmez: kuyruk satırında sağlayıcı kimliği olan ya da yerel giden satırla aynı metni taşıyan (sahiplenme) mesaj ev
   // sahibi / yapay zekâ olarak kalır — sağlayıcı API ile gideni "otomasyon" diye etiketlese bile. Yazılmış satır yeniden YAZILMAZ (kayıtlı yazar).
+  // Boş gövdeli otomasyon da aday (yazılmaz ama cevap da sayılmaz — Haiku 10-17: misafirin sorusundan sonra gelen boş şablon konuşmayı
+  // "cevaplandı" yapıyordu). Yerel satırla eşleşme gövdeden, BOŞLUK / BÜYÜK-KÜÇÜK HARF farkı yok sayılarak (sağlayıcı gövdeyi
+  // normalleştirebilir; şüphede bizimdir — yanlış "bizim" bugünkü davranış, yanlış "otomasyon" cevabı yok sayar).
   const channelAutoCandidates = ordered.filter(
     (m) =>
       m.direction !== "inbound" &&
       !!m.externalId &&
-      !!m.body &&
-      !!m.body.trim() &&
       !storedAuthor.has(m.externalId) &&
       canonicalChannelSenderRole("outbound", m.senderRole) === CHANNEL_AUTOMATION_ROLE,
   );
   const channelAutomationIds = new Set<string>();
   if (channelAutoCandidates.length) {
+    const looseBody = (b: string | null | undefined) => (b ?? "").replace(/\s+/g, " ").trim().toLocaleLowerCase("tr");
     const [oursRows, orphanRows] = existing
       ? await Promise.all([
           db.messageOutbox.findMany({
@@ -341,14 +343,21 @@ export async function importCanonicalThread(
             select: { providerMessageId: true },
           }),
           db.message.findMany({
-            where: { conversationId: existing.id, direction: "outbound", externalId: null, body: { in: channelAutoCandidates.map((m) => m.body!) } },
+            where: { conversationId: existing.id, direction: "outbound", externalId: null },
+            orderBy: { createdAt: "desc" },
+            take: 500,
             select: { body: true },
           }),
         ])
       : [[], []];
     const ours = new Set(oursRows.map((r) => r.providerMessageId));
-    const orphanBodies = new Set(orphanRows.map((r) => r.body));
-    for (const m of channelAutoCandidates) if (!ours.has(m.externalId!) && !orphanBodies.has(m.body!)) channelAutomationIds.add(m.externalId!);
+    const orphanBodies = new Set(orphanRows.map((r) => looseBody(r.body)).filter((b) => b !== ""));
+    for (const m of channelAutoCandidates) {
+      if (ours.has(m.externalId!)) continue;
+      const loose = looseBody(m.body);
+      if (loose !== "" && orphanBodies.has(loose)) continue;
+      channelAutomationIds.add(m.externalId!);
+    }
   }
   const isAutomation = (m: CanonicalMessage): boolean =>
     !!m.externalId &&

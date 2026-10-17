@@ -1059,12 +1059,19 @@ async function maybeSendClosingCourtesy(opts: {
     // yani bu özelliğin var olma sebebi olan ping-pong. Geri alınamaz, ama
     // GÖRÜNÜR olmak zorunda: aksi hâlde ping-pong'un sebebi asla bulunamaz.
     // Id throttle anahtarına DEĞİL hata mesajına gider (↑gerekçe: holding-ack).
-    .catch((err) =>
-      reportError(
-        "closing-courtesy persist",
-        errorWithContext(err, ` (conversation ${opts.conversation.id})`),
-      ),
-    );
+    .catch(async (err) => {
+      // Eşzamanlı senkron bu nezaket mesajını ÖNCE içeri aldıysa (aynı sağlayıcı kimliği) satır bizimdir: yazar + döngü kilidi alanı
+      // düzeltilir (Q2, Haiku 10-17 — kanal "otomasyon" derse yazar otomatik mesaj, rol vermezse ev sahibi oluyordu; kilit kayboluyordu).
+      if (delivery.providerMessageId && isUniqueViolation(err, ["conversationId", "externalId"])) {
+        await prisma.message
+          .updateMany({
+            where: { conversationId: opts.conversation.id, externalId: delivery.providerMessageId, authorType: { in: ["automation", "host"] } },
+            data: { authorType: "ai", channelSenderRole: null, senderName: "GuestOps AI", aiIntent: CLOSING_COURTESY_INTENT },
+          })
+          .catch(() => {});
+      }
+      await reportError("closing-courtesy persist", errorWithContext(err, ` (conversation ${opts.conversation.id})`));
+    });
   return true;
 }
 
@@ -3703,6 +3710,16 @@ export async function applyChannelAutoReply(
     // message exists — still mark the conversation answered, or the expiring
     // outbound claim would let a later pass RE-SEND to the guest.
     if (!isUniqueViolation(err, ["conversationId", "externalId"])) throw err;
+    // Q2 (Haiku 10-17): senkron bu cevabı kanalın "otomasyon" rolüyle yazdıysa yazar otomatik mesaj olurdu → yapay zekânın cevabı
+    // "cevap değil" sayılır, sonraki geçiş aynı misafir mesajına İKİNCİ cevap üretebilirdi. Sağlayıcı kimliği bizim teslimimizden →
+    // yazar yapay zekâya düzeltilir (yalnız otomasyon yazılmış satır).
+    if (delivery.providerMessageId) {
+      await prisma.message.updateMany({
+        // "host" da: senkron bizim cevabımızı rol vermeyen kanaldan ev sahibi diye almış olabilir (Q2 öncesi de böyleydi).
+        where: { conversationId: conversation.id, externalId: delivery.providerMessageId, authorType: { in: ["automation", "host"] } },
+        data: { authorType: "ai", channelSenderRole: null, senderName: "GuestOps AI" },
+      });
+    }
     await conversationDone;
   }
 

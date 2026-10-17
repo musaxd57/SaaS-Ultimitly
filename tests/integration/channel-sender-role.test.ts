@@ -170,6 +170,30 @@ describe("Q2 — kanalın otomatik mesajı cevap sayılmaz (kurucu 10-17)", () =
     expect((await prisma.conversation.findFirstOrThrow({ where: { propertyId } })).status).toBe("answered");
   });
 
+  it("🚨 Haiku 10-17: misafirin sorusundan sonra BOŞ gövdeli kanal otomasyonu → satır yazılmaz ve konuşma cevaplanmış SAYILMAZ", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    await importThread(propertyId, [guestQ(), m("q-empty", { senderRole: "automation", body: "", createdAt: tmplAt })]);
+    expect((await prisma.conversation.findFirstOrThrow({ where: { propertyId } })).status).toBe("new");
+    expect(await prisma.message.count({ where: { externalId: "q-empty" } })).toBe(0);
+    // KONTROL: boş gövdeli EV SAHİBİ mesajı (ör. yalnız fotoğraf) bugünkü gibi cevap sayılır.
+    await resetDb();
+    const { propertyId: p2 } = await makeOrgWithProperty();
+    await importThread(p2, [guestQ(), m("q-photo", { senderRole: "host", body: "", createdAt: tmplAt })]);
+    expect((await prisma.conversation.findFirstOrThrow({ where: { propertyId: p2 } })).status).toBe("answered");
+  });
+
+  it("🚨 Haiku 10-17: sağlayıcı bizim kimliksiz cevabımızın gövdesini BOŞLUK / HARF farkıyla döndürürse yine bizimdir — otomatik mesaj yazılmaz, konuşma cevaplı", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    await importThread(propertyId, [guestQ()]);
+    const conv = await prisma.conversation.findFirstOrThrow({ where: { propertyId } });
+    await prisma.message.create({
+      data: { conversationId: conv.id, direction: "outbound", authorType: "host", senderName: "Ev Sahibi", body: "Otopark binanın arkasında.", createdAt: new Date("2026-10-12T13:56:30Z") },
+    });
+    await importThread(propertyId, [guestQ(), m("q-norm", { senderRole: "automation", body: "otopark  binanın\narkasında.", createdAt: tmplAt })]);
+    expect(await prisma.message.count({ where: { conversationId: conv.id, authorType: "automation" } })).toBe(0);
+    expect((await prisma.conversation.findUniqueOrThrow({ where: { id: conv.id } })).status).toBe("answered");
+  });
+
   it("🚨 yeni konuşmanın İLK senkronunda da (kuyruk / yerel satır yokken) kanal otomasyonu cevap sayılmaz", async () => {
     const { propertyId } = await makeOrgWithProperty();
     await importThread(propertyId, [

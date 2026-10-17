@@ -178,7 +178,7 @@ export async function getConversationSuggestions(organizationId: string, convers
     decidedSuggestionKeys(organizationId, since),
     prisma.guestCommitment.findMany({
       where: { conversationId: conversation.id, organizationId },
-      select: { kind: true, topic: true, createdAt: true, dueAt: true, status: true, taskId: true },
+      select: { kind: true, topic: true, createdAt: true, dueAt: true, status: true, taskId: true, clientRequestId: true },
     }),
   ]);
   const tz = orgTimezone(conversation.property.organization.timezone);
@@ -238,9 +238,16 @@ export async function getConversationSuggestions(organizationId: string, convers
         // (bilinçli, Haiku 10-17 tartışıldı): ev sahibi mesajdan sonra sözü elle FARKLI saatle kaydettiyse (ya da saati sonraki öneriyle
         // değiştirdiyse) öneri onayı İKİNCİ söz + görev açardı. Bedeli: mesajdan sonra elle kaydedilen KONUSUZ söze konu yazılmaz (Q1 "a"
         // yalnız mesajdan ÖNCE kaydedilmiş söz için — kurucunun örneğindeki sıra).
+        // AYNI mesajın başka bir önerisinden açılan söz bu kapıyı tetiklemez (Q1-b, Haiku 10-17: "Teknisyen 10:00 / Klima için usta 11:00"
+        // — ilk onay ikinciyi gizliyordu); onun saati uyuşuyorsa aşağıdaki aynı-an kapısı yine gizler.
+        const sibling = `sugg:${suggestionKey("commitment", m.id)}`;
         if (
           commitments.some(
-            (c) => c.kind === promise.kind && commitmentTopicsCompatible(c.topic, promise.topic) && c.createdAt.getTime() >= m.createdAt.getTime(),
+            (c) =>
+              c.kind === promise.kind &&
+              commitmentTopicsCompatible(c.topic, promise.topic) &&
+              c.createdAt.getTime() >= m.createdAt.getTime() &&
+              !(c.clientRequestId === sibling || c.clientRequestId?.startsWith(`${sibling}:`)),
           )
         ) {
           continue;

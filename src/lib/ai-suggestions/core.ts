@@ -1,6 +1,6 @@
 import { firstBreakdownDevice, foldTurkishAscii } from "@/lib/ai/fallback";
 import { explicitTimeMentions } from "@/lib/early-checkin/text-checks";
-import { commitmentTopicsCompatible, type CommitmentKind, type CommitmentTopic } from "@/lib/guest-commitments-core";
+import type { CommitmentKind, CommitmentTopic } from "@/lib/guest-commitments-core";
 import { deviceTopicsOf, topicsOf } from "@/lib/conversation-items/relation";
 
 // ---------------------------------------------------------------------------
@@ -242,7 +242,9 @@ export const MAX_PROMISES_PER_MESSAGE = 3;
  * Her cümlecik ayrı okunur; bir cümlecikte konusu kendi parçasında olan birden çok söz fiili varsa her biri ayrı söz ("Teknisyen yarın
  * 10'da gelecek, havluları da bugün getireceğim"). Konusu yalnız cümlecikte olan söz bugünkü gibi tek. İLK söz `detectHostPromise` ile aynı
  * cümlecikten gelir (öneri anahtarı geriye uyumlu). Tanınmayan / belirsiz gün yalnız O sözü düşürür (öteki sözlerin kendi zaman kapsamı
- * var). Aynı tür + UYUMLU konulu ikinci söz alınmaz (onaylanan ilk söz onu zaten gizlerdi — `getConversationSuggestions`). Tavan 3. Metin SAKLANMAZ.
+ * var). Yalnız BİREBİR tekrar (tür + konu + gün + saat okuması aynı) alınmaz; "Teknisyen yarın 10:00'da gelecek. Klima için usta yarın
+ * 11:00'de gelecek." İKİ söz (Haiku 10-17: konusuz + konulu ikinci söz düşüyordu — kurucu "her söz ayrı"). Aynı saatteki konusuz + konulu
+ * iki söz de gösterilir; onayda biri ötekine bağlanır (Q1 "a"). Tavan 3. Metin SAKLANMAZ.
  */
 export function detectHostPromises(text: string | null | undefined): HostPromise[] {
   if (typeof text !== "string" || text.trim() === "" || text.length > 4_000) return [];
@@ -262,7 +264,7 @@ export function detectHostPromises(text: string | null | undefined): HostPromise
       if (out.length >= MAX_PROMISES_PER_MESSAGE) break;
       const p = promiseAt(c, at, kind);
       if (p === REJECT) continue;
-      if (out.some((q) => q.kind === p.kind && commitmentTopicsCompatible(q.topic, p.topic))) continue;
+      if (out.some((q) => samePromise(q, p))) continue;
       out.push(p);
     }
   }
@@ -270,6 +272,18 @@ export function detectHostPromises(text: string | null | undefined): HostPromise
 }
 
 const REJECT = Symbol("reject");
+
+/** Aynı sözün mesaj içinde BİREBİR tekrarı mı (tür, konu, gün ve saat okuması aynı). */
+function samePromise(a: HostPromise, b: HostPromise): boolean {
+  return (
+    a.kind === b.kind &&
+    a.topic === b.topic &&
+    a.day === b.day &&
+    a.inMinutes === b.inMinutes &&
+    a.timeCandidates.join(",") === b.timeCandidates.join(",") &&
+    (a.cue?.minutes ?? null) === (b.cue?.minutes ?? null)
+  );
+}
 
 interface PromiseClause {
   raw: string;

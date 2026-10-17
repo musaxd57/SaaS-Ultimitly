@@ -144,6 +144,15 @@ export async function sendHostMessage(input: HostSendInput): Promise<HostSendRes
     // Delivery already succeeded; a dedupe-hit on the new @@unique([conversationId, externalId]) means a concurrent sync
     // imported this very reply first. Adopt the existing row and still mark answered.
     if (!isUniqueViolation(err, ["conversationId", "externalId"])) throw err;
+    // Q2 (Haiku 10-17): senkron bu satırı kanalın "otomasyon" rolüyle yazdıysa (sağlayıcı API ile gideni öyle etiketleyebilir) yazar
+    // otomatik mesaj olurdu → ev sahibinin cevabı "cevap değil" sayılır, konuşma yeniden açılırdı. Sağlayıcı kimliği BİZİM gönderimimizin
+    // yanıtından geliyor → yazar ev sahibine düzeltilir (yalnız otomasyon yazılmış satır; başka yazar korunur).
+    if (outcome.providerMessageId) {
+      await prisma.message.updateMany({
+        where: { conversationId: id, externalId: outcome.providerMessageId, authorType: "automation" },
+        data: { authorType: "host", channelSenderRole: null, senderName: input.senderName, aiAssisted: input.aiAssisted },
+      });
+    }
     message = await prisma.message.findFirst({
       where: { conversationId: id, externalId: outcome.providerMessageId ?? undefined },
     });

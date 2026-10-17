@@ -112,7 +112,7 @@ describe("sızma: kiracılar arası", () => {
     const op = await prisma.user.create({ data: { organizationId: a.orgId, email: "op@lixus.test", name: "Op", passwordHash: "x", role: "owner" } });
     vi.stubEnv("SUPERADMIN_EMAILS", "op@lixus.test");
     session = { userId: op.id, organizationId: a.orgId, role: "owner", email: "op@lixus.test", name: "Op", sessionEpoch: 0, mfa: true } as SessionPayload;
-    expect((await trialEndPost(post("/api/admin/trial-end", { organizationId: a.orgId, action: "card_exempt" }), ctx)).status).toBe(200);
+    expect((await trialEndPost(post("/api/admin/trial-end", { organizationId: a.orgId, action: "card_exempt" }))).status).toBe(200);
     expect(await stampOf(a.orgId)).toBeNull();
     expect(await stampOf(b.orgId)).not.toBeNull();
     expect(await getEntitlement(b.orgId)).toMatchObject({ cardRequired: true, active: false });
@@ -122,7 +122,7 @@ describe("sızma: kiracılar arası", () => {
     const a = await trialOrg("kendi@example.com", { identityReused: true });
     await evaluateTrialCardGates();
     session = { userId: a.userId, organizationId: a.orgId, role: "owner", email: "kendi@example.com", name: "Sahip", sessionEpoch: 0, mfa: true } as SessionPayload;
-    expect((await trialEndPost(post("/api/admin/trial-end", { organizationId: a.orgId, action: "card_exempt" }), ctx)).status).toBe(401);
+    expect((await trialEndPost(post("/api/admin/trial-end", { organizationId: a.orgId, action: "card_exempt" }))).status).toBe(401);
     expect(await stampOf(a.orgId)).not.toBeNull();
   });
 
