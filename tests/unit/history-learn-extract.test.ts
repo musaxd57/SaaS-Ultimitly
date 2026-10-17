@@ -545,7 +545,7 @@ describe("gateDraft — L3 tek konuşmalık bilgi (single_source)", () => {
   it.each([
     ["Size bir şişe şarap bıraktım.", 1],
     ["I left a bottle of wine for you in the fridge.", 1],
-    ["Yarın size ekstra havlu getireceğim.", 1],
+    ["Size ekstra havlu getireceğim.", 1],
   ])("🚨 işaretlenir: %s (destek %i)", (content, support) => {
     const g = gateDraft("Not", content, { supportConversations: support });
     expect(g.ok && g.flags).toEqual(["single_source"]); // ⬅️ ESKİDE [] (tek tıkla onaylanıyordu)
