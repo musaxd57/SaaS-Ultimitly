@@ -183,8 +183,8 @@
 | `a322c310` | `scrollIntoView` koruması + iki yolda görünür yere getirme + pin | yeşil | #1543 yeşil |
 | `a55a4842` | migration 78 (yalnız dizin) | yeşil | #1545 KIRMIZI — söz testinde milisaniye yarışı (ürün kodu değil); ↓ düzeltildi |
 | `08fcb660` … `fbe9a12b` | ikinci tarama düzeltmeleri, sert itirazcı + Haiku söz turları, S3-07/08/09 + migration 79, S7-08 testleri, CI #1545 yarışı + gece zaman bombası | g93 (`4a6ba778`) + g94 (`65f3c139`) yeşil | #1547 yeşil |
-| `6ca0ede0` … `e83bd552` | Paddle sel freni, panel testleri, Haiku son grup, Opus dilim sonu 3, T3, T6b, mutasyon v10 (31 mutant: 29 öldü, yaşayan 2'ye pin eklendi) | g95 yeşil (veritabanlı 4305 · veritabanısız 10212 · süre 3083) | #1549 (yazılırken sürüyordu; sonucu bir sonraki satırın itmesinde) |
-| `f083954d` … | A12 / A14 / baş harf / A16 + C1 yorumu + belge | g96 | — |
+| `6ca0ede0` … `e83bd552` | Paddle sel freni, panel testleri, Haiku son grup, Opus dilim sonu 3, T3, T6b, mutasyon v10 (31 mutant: 29 öldü, yaşayan 2'ye pin eklendi) | g95 yeşil (veritabanlı 4305 · veritabanısız 10212 · süre 3083) | #1549 yeşil |
+| `f083954d` … `5d221d99` | A12 / A14 / baş harf / A16 + C1 yorumu + belge | g96 yeşil (`48c916fe`; veritabanlı 4306 · veritabanısız 10212 · süre 3085; üstü yalnız belge) | izleniyor |
 
 Yerel tam kapı = paralel `npm test` (veritabanısız / veritabanlı / süre kolları) + tip + lint + derleme + bağımlılık denetimi. Not: g93 yeşildi ama
 İstanbul 05:39'dan sonra koştuğu için gece zaman bombasını göstermedi — bundan sonra söz testleri saatten bağımsız (gece simülasyonuyla doğrulandı).
