@@ -1152,6 +1152,10 @@ describe("Opus gece-4 dilim sonu 3: yanlış saat / kaçan kesin söz", () => {
       ["Temizlikçi diğer daireye gidince 3'te gelecek.", 15 * 60],
     ] as const)
       firm(t, m);
+    // Mutasyon v10 B-isten: 'işten dönünce' sözü yapanın işi; 'dönünce' çapası yalnız misafirin dönüşü.
+    expect(detectHostPromises("Teknisyen işten dönünce saat 7'de uğrayacak."), "işten dönünce").toMatchObject([
+      { kind: "maintenance", timeCandidates: [420, 1140] },
+    ]);
     // KONTROL: misafirin konaklama anı yine söz değil.
     for (const t of ["Çıkıştan sonra temizlik yapılacak", "Gelmeden önce daire temizlenecek", "Siz gidince temizlikçi gelecek", "Tatilden dönünce havlu getireceğim"]) none(t);
   });
@@ -1176,6 +1180,8 @@ describe("Opus gece-4 dilim sonu 3: yanlış saat / kaçan kesin söz", () => {
       "Teknisyen gelecek ama iptal olabilir.",
       "Teknisyen yarın gelmeyecek",
       "If the AC fails, the technician will come tomorrow at 10",
+      // Mutasyon v10 B-condWord: virgülsüz İngilizce koşul sözün kendi parçasında.
+      "Unless it rains the technician will come tomorrow at 10",
       "Eğer klima bozulursa teknisyen gelecek",
       "Gerekirse yarın teknisyen gelecek",
       "Teknisyen yarın 10'da gelecek, iptal olursa haber veririm",
