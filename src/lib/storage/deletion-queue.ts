@@ -142,6 +142,9 @@ export interface StorageDrainResult {
  */
 export const DRAIN_BUDGET_MS = 45_000;
 
+/** Test kancası (yarış testi): gösterim okunduktan SONRA, iptal kararından ÖNCE. Üretimde null. */
+export const __storageDrainHooks: { afterShownRead: null | (() => Promise<void>) } = { afterShownRead: null };
+
 export async function drainStorageDeletions(
   deps: { adapter?: StorageAdapter | null; now?: () => Date; batchSize?: number; budgetMs?: number; clock?: () => number } = {},
 ): Promise<StorageDrainResult> {
@@ -173,6 +176,7 @@ export async function drainStorageDeletions(
       });
       for (const r of rows) if (r.photoUrl) shown.add(r.photoUrl);
     }
+    if (__storageDrainHooks.afterShownRead) await __storageDrainHooks.afterShownRead();
   }
 
   let deleted = 0;

@@ -227,6 +227,22 @@ describe("outbox × ChannelConnection", () => {
     expect((await prisma.channelConnection.findFirstOrThrow({ where: { organizationId: orgId } })).revokedReason).toBe("send_403");
   });
 
+  it("gece-4 S3-06 KONTROL: AYNI rezervasyonda tekrarlanan 403 sistemik sayılmaz — bağlantı kopmaz, ikinci mesaj da kesin hata yolunda", async () => {
+    const { orgId, conversationId } = await seed();
+    await setOrgHospitableToken(orgId, "PAT-ok2", null);
+    fake.registerReservation(RES, "PAT-ok2");
+    fake.behave({ mode: "reject", status: 403 });
+    const a = await enqueue(orgId, conversationId, "k-same-1");
+    await drainOutboxOnce({ verifyCredential: async () => true });
+    // İlk mesajın denemeleri bitti (sıra kuralı ikinciyi bekletmesin); kaydı aynı rezervasyonda "okuma geçer, gönderim 403" izi taşır.
+    await prisma.messageOutbox.update({ where: { id: a.outboxId }, data: { status: "failed" } });
+    const b = await enqueue(orgId, conversationId, "k-same-2");
+    await drainOutboxOnce({ verifyCredential: async () => true });
+    expect(await row(a.outboxId)).toMatchObject({ lastErrorKind: "definitive_failure" });
+    expect(await row(b.outboxId)).toMatchObject({ lastErrorKind: "definitive_failure" });
+    expect((await prisma.channelConnection.findFirstOrThrow({ where: { organizationId: orgId } })).status).toBe("active");
+  });
+
   it("gece-4 S3-06 KONTROL: okuma da reddedildi (false) ya da bilinmiyor (null) → eski karar (PAT iptal, send_403)", async () => {
     for (const verdict of [false, null] as const) {
       await resetDb();

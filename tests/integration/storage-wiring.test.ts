@@ -8,6 +8,7 @@ import {
   enqueueStorageDeletions,
   drainStorageDeletions,
   hasPendingStorageDeletions,
+  __storageDrainHooks,
 } from "@/lib/storage/deletion-queue";
 import { STORAGE_PHOTO_URL_PREFIX } from "@/lib/storage/keys";
 import type { StorageAdapter } from "@/lib/storage/adapter";
@@ -199,6 +200,28 @@ describe("gece-4 S7-01: yüklenip göreve BAĞLANMAYAN fotoğraf kovada süresiz
     await enqueueStorageDeletions(prisma, orgId, [key]);
     expect((await prisma.storageDeletion.findUniqueOrThrow({ where: { objectKey: key } })).availableAt.getTime()).toBeLessThanOrEqual(Date.now());
     expect((await drainStorageDeletions({ adapter: fake })).deleted).toBe(1);
+    expect(fake.deletes).toEqual([key]);
+  });
+
+  it("Haiku gece-4 yarış: gösterim okunduktan sonra görev silinip niyet yazılırsa iptal YAPILMAZ — nesne sonraki geçişte silinir", async () => {
+    stubStorageEnv(true);
+    const { orgId, taskId } = await seed("owner");
+    const url = ((await (await uploadPOST(uploadReq({ taskId }), noCtx)).json()) as { url: string }).url;
+    const key = url.slice(STORAGE_PHOTO_URL_PREFIX.length);
+    await prisma.taskUpdate.create({ data: { taskId, photoUrl: url, note: "foto" } });
+    const later = () => new Date(Date.now() + 25 * 60 * 60_000);
+    __storageDrainHooks.afterShownRead = async () => {
+      // Boşaltıcı nesneyi "gösteriliyor" okudu; tam o anda görev silindi ve silme niyeti yazıldı.
+      await prisma.task.delete({ where: { id: taskId } });
+      await enqueueStorageDeletions(prisma, orgId, [key]);
+    };
+    try {
+      expect((await drainStorageDeletions({ adapter: fake, now: later })).deleted).toBe(0);
+    } finally {
+      __storageDrainHooks.afterShownRead = null;
+    }
+    expect(await prisma.storageDeletion.findUnique({ where: { objectKey: key } })).not.toBeNull(); // niyet yutulmadı
+    expect((await drainStorageDeletions({ adapter: fake, now: later })).deleted).toBe(1);
     expect(fake.deletes).toEqual([key]);
   });
 
