@@ -137,6 +137,7 @@ describe("işletme kapsamı (S7-08)", () => {
     expect(text).toContain("Misafir Alfa");
     expect(text).not.toContain("Misafir Beta");
     const out = JSON.stringify(await (await call(checkoutPreview as unknown as Handler, "/api/hospitable/checkout-test")).json());
+    expect(out).toContain("Misafir Alfa"); // Opus gece-4 E2: kendi misafiri görünmezse "Beta yok" iddiası boş geçerdi
     expect(out).not.toContain("Misafir Beta");
   });
 });

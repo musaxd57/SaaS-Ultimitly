@@ -151,11 +151,18 @@ describe("Geçmişten öğren paneli — durum yoklaması", () => {
     expect(learnGets(fn)).toBe(settled); // iş bitti → yoklama yok
     cleanup();
 
-    mockFetch({ learn: ["fail"] });
+    const failing = mockFetch({ learn: ["fail"] });
     render(<HistoryLearnPanel propertyId={P} />);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(9_000);
     });
     expect(await screen.findByText("Durum okunamadı. Sayfayı yenileyin.")).toBeTruthy();
+    // Opus gece-4 E3: üç hatadan sonra yoklama DURUR (sonsuz döngü yok).
+    const stopped = learnGets(failing);
+    expect(stopped).toBe(3);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20_000);
+    });
+    expect(learnGets(failing)).toBe(stopped);
   });
 });
