@@ -10,7 +10,7 @@
 | S8-01 FK dizinleri (mülk / hesap silme 15,6 sn → 0,1 sn) | ✅ migration 77 |
 | S8-02 Sync'te rezervasyon başına ~12 sorgu | AÇIK — bugünkü ölçekte (≈10 daire) etkisiz; 20+ büyük işletmede 2 dk'lık geçişi aşar. Railway açılınca ölçümle |
 | S8-03 Değişmeyen örüntü her geçişte yeniden yazılıyordu | ✅ `1800d8bd` (saatte bir tazeleme) |
-| S8-04 Zekâ geçişi her seferinde bütün KB'yi + olay listesini okuyor | AÇIK |
+| S8-04 Zekâ geçişi her seferinde bütün KB'yi + olay listesini okuyor | KISMEN: olay okuması ✅ migration 78 (10-18 yeniden ölçüm: 40 bin olayda 3,9 ms → 0,05 ms) · KB'nin her geçişte tam okunması AÇIK (bugün KB yazma rotaları hafızayı zaten anında eşitliyor; geçiş yalnız emniyet ağı → ölçümle) |
 | S8-05 AuditLog dizinleri | ✅ migration 77 · karar anahtarlarının konuşma başına yeniden okunması AÇIK |
 | S8-06 Gelen kutusu "son mesaj" için bütün mesajları okuyor | AÇIK — bugünkü hacimde 30 sn'de bir ~270 KB |
 

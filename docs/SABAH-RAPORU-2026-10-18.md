@@ -11,8 +11,8 @@
 - **Söz algılama v2** (sert itirazcı + Haiku + Opus, 3 tur): gün yalnız sözün kendi yerinden okunur, emin değilse kart sorar; yanlış günlü /
   saatli otomatik görev açan ~30 durum kapandı (ör. "Teknisyen yarın 10'da gelecek. Havlu getireceğim." havluyu artık bugüne yazmıyor, günü
   soruyor; "İyi akşamlar, teknisyen yarın 9'da" artık 21:00 değil 09:00; "The cleaning went well." artık görev açmıyor).
-- **Migration 76 + 77** (kurucunun 10-17 genel onayıyla): 76 sözü yapanı kaydeder (teknisyen gelecek ↔ ben getireceğim aynı saatte
-  karışmaz); 77 yalnız dizin (mülk / hesap silme 15,6 sn → 0,1 sn).
+- **Migration 76 + 77 + 78** (kurucunun 10-17 genel onayıyla): 76 sözü yapanı kaydeder (teknisyen gelecek ↔ ben getireceğim aynı saatte
+  karışmaz); 77 yalnız dizin (mülk / hesap silme 15,6 sn → 0,1 sn); 78 yalnız dizin (arka plandaki olay okuması geçmişi baştan taramaz).
 - **İtildi / CI:** ↓ §4.
 - **Railway kapalı** → canlıya bir şey gitmedi. Açılış belgesi güncellendi: önce yalnız veritabanı + yedek, sonra web servisi (yoksa yedek
   migration'dan SONRA alınırdı); `QR_PIN_PEPPER` / `ERASURE_HMAC_SECRET` eksikse servis hiç başlamaz uyarısı eklendi.

@@ -16,6 +16,9 @@ Opus F1–F19. Arıza kemeri (anahtar kapalı) İngilizce kısaltma / -ing / KB'
 dokunulmamış sistem görevi gider, mülk adı kilit içinde, önizleme günü org saat diliminde, kopya bağı yerine-koy zincirini izler, siteler arası GET
 koruması, ayar denetim kayıtları. Dolu veritabanı yükseltme provası 58→77 yeşil (`scripts/ops-migration-rehearsal-seed.py`). G6 kenarı (Paddle
 hata kayıtları) değiştirilmedi → T6b. S3-06 kapandı (401/403'te önce tek sayfa okuma); S7-01 kapandı (bağlanmayan yükleme 24 sa sonra silinir, silme kuyruğunda erteli kayıt, migration'sız).
+Sonra: CI #1539 kırmızısı (KB düzenleyicide korumasız `scrollIntoView`, zamanlamaya bağlı) düzeltildi + listede-var yolunda da kaydırma/odak + pin;
+migration 78 (yalnız dizin: `IngestEvent` bekleyen olay okuması, S8-04; sert itirazcı diğer S8 kalemlerini "Railway açılınca ölçümle" dedi). Açık
+performans kalemleri: `docs/arastirma-2026-10-18/S8-performans.md`.
 Açık: S7-03 (elle senkron global kilidi — mimari, ölçümle).
 Sabah raporu `docs/SABAH-RAPORU-2026-10-18.md`.
 

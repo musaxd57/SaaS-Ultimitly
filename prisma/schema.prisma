@@ -1330,7 +1330,7 @@ model ChannelConnection {
 // Tüketen kod (V1 Property Memory, Exception Feed) satırı id ile okur. KVKK süpürgeleri
 // bu tabloyu bilmez (kapsam dışı; kanarya yorumu scrub-scope-parity'de). Org silinince
 // cascade. entityId'ye FK YOK: satır silinse de "olay gerçekleşti" kaydı kalır (opak id).
-// dispatchedAt: ileride event tüketicisi işaretler (bugün tüketici yok).
+// dispatchedAt: tüketici (`modules/intelligence/consumer.ts`) olayı işleyince damgalar.
 // ---------------------------------------------------------------------------
 model IngestEvent {
   id                String    @id @default(cuid())
@@ -1349,6 +1349,9 @@ model IngestEvent {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, occurredAt])
+  // Tüketici her geçişte "işlenmemiş olaylar, en eskiden" okur (dispatchedAt NULL). Tablo hiç silinmez; bu dizin olmadan sorgu kurumun
+  // BÜTÜN işlenmiş geçmişini gezip eler (S8-04, migration 78). Btree `IS NULL`u dizin koşulu olarak kullanır.
+  @@index([organizationId, dispatchedAt, occurredAt])
   @@index([entityType, entityId])
 }
 
