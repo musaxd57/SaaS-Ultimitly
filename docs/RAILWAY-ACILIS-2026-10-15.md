@@ -153,3 +153,9 @@ bekleyen satır 10 dakikayı geçmemeli.
   ölçün) yaklaşılır. Tek kopyada da zararsız.
 - İkinci kopya AÇMAYIN: misafir mesajı işleme kapasitesini büyütmez (senkron tek kilit altında). Önce raporun §6 sırası (migration ön adımı,
   kapanış işleyicisi, işçi servisi) — kurucu kararıyla.
+
+## 7. Sayısal ayarlar — boş bırakın (kod varsayılanı), yalnız acil müdahalede (gece-4 S10-04)
+
+- `AI_DAILY_CALL_CAP` — işletme başına günlük yapay zekâ çağrı tavanını PLANDAN BAĞIMSIZ herkese uygular (boşken tavan plandan gelir;
+  `src/lib/ai/daily-budget.ts`). Yalnız maliyet kaçağında geçici fren; yazılırsa her pakete aynı sayı uygulanır — sonra silin.
+- `AI_DAILY_QR_SHARE_PERCENT` — günlük tavanın QR misafir sohbetine ayrılan payı (boşken %30; 1–100). Geçersiz değer sessizce varsayılana döner.

@@ -1,5 +1,9 @@
 # Lixus AI — Yol Haritası
 
+> ⚠️ **ESKİ BELGE (son içerik güncellemesi 2026-07-22).** Güncel yol planı: `docs/claude/yol-plani.md` (kurucu talimatı 09-07, bağlayıcı)
+> ve madde madde durum `docs/YOL-PLANI-DURUM-2026-10-09.md`. Aşağıdaki fazlar ve sıralar tarihsel kayıttır; karar için kullanmayın
+> (gece-4 S10-02).
+
 > Türkiye odaklı, çok kiracılı SaaS. Airbnb/Booking misafir mesajlarını yapay
 > zekâ ile yanıtlar; bireysel Türk hostlara satılır.
 >
