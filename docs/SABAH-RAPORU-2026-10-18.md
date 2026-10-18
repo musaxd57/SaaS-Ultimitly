@@ -103,7 +103,7 @@
   aynı söz yeniden önerilebilir. Bundan sonra biçim değişirse eski biçimi de tanıyan karar araması gerekir.
 - `probeToken` (tek sayfa, tek deneme) sözleşmesi doğrudan pinli değil; adaptör sınaması ve uçtan uca kablo testi var.
 - Sync'te rezervasyon başına ~12 sorgu (S8-02): bugünkü ölçekte (≈10 daire) sorun değil; 20+ büyük işletmede 2 dk'lık geçişi aşar → tasarım
-  `scratchpad/gece-17/S8.md`; Railway açılınca ölçümle.
+  `docs/arastirma-2026-10-18/S8-performans.md` (açık performans kalemlerinin hepsi orada); Railway açılınca ölçümle.
 - Gelen kutusu listesinde son mesaj için bütün mesajlar okunuyor (S8-06): bugünkü hacimde 30 sn'de bir ~270 KB; büyüyünce tek sorguya çevrilir.
 
 ## 4. İtme / CI

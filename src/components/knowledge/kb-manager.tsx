@@ -104,6 +104,24 @@ export interface KbItem {
   isActive: boolean;
 }
 
+// "Kaydedilen bilgiyi düzenle": düzenleyici listedeki kalemin içinde açılır — formdan uzakta (telefonda birkaç ekran aşağıda);
+// görünür yere kaydırılır ve başlık alanına odak verilir (S9-20: düğme görünürde hiçbir şey yapmıyordu). Kalem listede olsa da,
+// yenilemeden sonra gelse de AYNI yol. Yenileme yolunda düzenleyici bir efektin içinden açılır; kare çizimden ÖNCE gelebilir → alan
+// henüz yoksa sonraki karede yeniden bakılır (en fazla `frames` kare; sonra sessizce vazgeçilir — düzenleyici yine açıktır).
+export function revealEditor(itemId: string, frames = 10) {
+  requestAnimationFrame(() => {
+    const field = document.getElementById(`edit-title-${itemId}`);
+    if (!field) {
+      if (frames > 1) revealEditor(itemId, frames - 1);
+      return;
+    }
+    // ⚠️ KORUMALI ÇAĞRI (template-manager.tsx ile aynı ders): `scrollIntoView` jsdom'da YOK; `requestAnimationFrame` içinde
+    // olduğu için hata sınırı da yakalamaz — korumasız hâli CI #1539'u "unhandled error" ile kırdı.
+    field.scrollIntoView?.({ block: "center" });
+    (field as HTMLInputElement).focus({ preventScroll: true });
+  });
+}
+
 export function KbManager({
   properties,
   items,
@@ -356,13 +374,7 @@ export function KbManager({
     if (it) {
       setPendingEditId(null);
       startEdit(it);
-      // Düzenleyici listedeki kalemin içinde açılır — formdan uzakta (telefonda birkaç ekran aşağıda); görünür yere kaydırılır ve
-      // başlık alanına odak verilir (S9-20: "Kaydedilen bilgiyi düzenle" görünürde hiçbir şey yapmıyordu).
-      requestAnimationFrame(() => {
-        const field = document.getElementById(`edit-title-${it.id}`);
-        field?.scrollIntoView({ block: "center" });
-        (field as HTMLInputElement | null)?.focus({ preventScroll: true });
-      });
+      revealEditor(it.id);
     } else if (!refreshing) {
       // Yenileme bitti, kalem yine yok (bu arada silinmiş olabilir) → sessizce beklemek yerine söylenir.
       setPendingEditId(null);
@@ -460,7 +472,10 @@ export function KbManager({
                     size="sm"
                     onClick={() => {
                       const inList = items.find((i) => i.id === conflictItem.id);
-                      if (inList) startEdit(inList);
+                      if (inList) {
+                        startEdit(inList);
+                        revealEditor(inList.id);
+                      }
                       else {
                         setPendingEditId(conflictItem.id);
                         refresh();

@@ -18,7 +18,7 @@ const router = { push: vi.fn(), refresh: vi.fn() };
 vi.mock("next/navigation", () => ({ useRouter: () => router, usePathname: () => "/knowledge" }));
 vi.mock("@/lib/toast", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 
-import { KbManager } from "@/components/knowledge/kb-manager";
+import { KbManager, revealEditor } from "@/components/knowledge/kb-manager";
 import { KbTemplateSuggestions } from "@/components/knowledge/kb-template-suggestions";
 import { KbPastAnswers } from "@/components/knowledge/kb-past-answers";
 
@@ -63,6 +63,13 @@ afterEach(() => {
 });
 
 const PROPS = [{ id: "p1", name: "Lale 1" }];
+
+/** Kareyi bir sonraki zamanlayıcı turuna erteler: önce React çizer, sonra kare çağrısı koşar (tarayıcıdaki sıra). */
+const stubFrame = () =>
+  vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+    setTimeout(() => cb(0), 0);
+    return 0;
+  });
 
 describe("Bilgi tabanı formu (KbManager)", () => {
   const fill = (title: string, content: string) => {
@@ -134,6 +141,38 @@ describe("Bilgi tabanı formu (KbManager)", () => {
     expect(screen.queryByDisplayValue("Bina önünde ÜCRETLİ otopark var.")).toBeNull();
   });
 
+  it("S9-20 (CI #1539): düzenleyici açılınca görünür yere kaydırma `scrollIntoView` OLMAYAN ortamda da patlamaz; başlık alanı odak alır", async () => {
+    // jsdom'da `scrollIntoView` yok; çağrı `requestAnimationFrame` içinde → korumasız hâli hata sınırına da düşmeyen "unhandled error"du.
+    // Kare testin İÇİNDE, React düzenleyiciyi çizdikten sonra koşar (zamanlayıcıyla) — gerçek jsdom karesi testin bitiminden sonraya
+    // kalabiliyordu: CI'da kırmızı, yerelde yeşil.
+    expect((Element.prototype as unknown as { scrollIntoView?: unknown }).scrollIntoView).toBeUndefined();
+    stubFrame();
+    mockFetch({ fromTemplates: [] }, ["conflict"]);
+    const saved = { id: "kb-saved", propertyId: "p1", propertyName: "Lale 1", category: "general", title: "Otopark", content: "Bina önünde ücretli otopark var (güncel).", language: "tr", isActive: true };
+    render(<KbManager properties={PROPS} items={[saved]} />);
+    fill("Otopark", "Bina önünde ücretsiz otopark var.");
+    submit();
+    fireEvent.click(await screen.findByRole("button", { name: "Kaydedilen bilgiyi düzenle" }));
+    await waitFor(() => expect(document.activeElement?.id).toBe("edit-title-kb-saved"));
+  });
+
+  it("S9-20: kaydırma olan ortamda düzenleyici ortaya kaydırılır", async () => {
+    const scrollIntoView = vi.fn();
+    (Element.prototype as unknown as { scrollIntoView?: unknown }).scrollIntoView = scrollIntoView;
+    try {
+      stubFrame();
+      mockFetch({ fromTemplates: [] }, ["conflict"]);
+      const saved = { id: "kb-saved", propertyId: "p1", propertyName: "Lale 1", category: "general", title: "Otopark", content: "Bina önünde ücretli otopark var (güncel).", language: "tr", isActive: true };
+      render(<KbManager properties={PROPS} items={[saved]} />);
+      fill("Otopark", "Bina önünde ücretsiz otopark var.");
+      submit();
+      fireEvent.click(await screen.findByRole("button", { name: "Kaydedilen bilgiyi düzenle" }));
+      await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ block: "center" }));
+    } finally {
+      delete (Element.prototype as unknown as { scrollIntoView?: unknown }).scrollIntoView;
+    }
+  });
+
   it("kurucu D1: kaydedilen bilgi listede henüz yoksa liste yenilenir; kalem gelince düzenleyici GÜNCEL hâliyle açılır", async () => {
     mockFetch({ fromTemplates: [] }, ["conflict"]);
     const saved = { id: "kb-saved", propertyId: "p1", propertyName: "Lale 1", category: "general", title: "Otopark", content: "Bina önünde ücretli otopark var (yenilemeden sonra).", language: "tr", isActive: true };
@@ -146,6 +185,51 @@ describe("Bilgi tabanı formu (KbManager)", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Kaydedilen bilgiyi düzenle" }));
     expect(await screen.findByDisplayValue("Bina önünde ücretli otopark var (yenilemeden sonra).")).toBeTruthy();
     expect(screen.queryByText(/listede bulunamadı/)).toBeNull();
+  });
+
+  it("S9-20: liste yenilendikten sonra gelen kalemde de düzenleyici görünür yere getirilir (kaydırma olmayan ortamda da)", async () => {
+    stubFrame();
+    mockFetch({ fromTemplates: [] }, ["conflict"]);
+    const saved = { id: "kb-saved", propertyId: "p1", propertyName: "Lale 1", category: "general", title: "Otopark", content: "Bina önünde ücretli otopark var (yenilemeden sonra).", language: "tr", isActive: true };
+    let rerenderWith: (items: (typeof saved)[]) => void = () => {};
+    router.refresh.mockImplementationOnce(() => rerenderWith([saved]));
+    const view = render(<KbManager properties={PROPS} items={[]} />);
+    rerenderWith = (items) => view.rerender(<KbManager properties={PROPS} items={items} />);
+    fill("Otopark", "Bina önünde ücretsiz otopark var.");
+    submit();
+    fireEvent.click(await screen.findByRole("button", { name: "Kaydedilen bilgiyi düzenle" }));
+    await waitFor(() => expect(document.activeElement?.id).toBe("edit-title-kb-saved"));
+  });
+
+  it("S9-20: kare düzenleyici çizilmeden ÖNCE gelirse sonraki karede yeniden bakılır; alan hiç gelmezse sınırlı denemeden sonra durur", () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      frames.push(cb);
+      return frames.length;
+    });
+    const runFrame = () => frames.shift()?.(0);
+    // 1) İlk karede alan yok (henüz çizilmedi) → ikinci karede çizilmiş alana odak.
+    revealEditor("late");
+    runFrame();
+    expect(frames).toHaveLength(1);
+    const input = document.createElement("input");
+    input.id = "edit-title-late";
+    document.body.appendChild(input);
+    try {
+      runFrame();
+      expect(document.activeElement).toBe(input);
+      expect(frames).toHaveLength(0);
+    } finally {
+      input.remove();
+    }
+    // 2) Alan hiç gelmez → tam 3 kare denenir, kuyruk boşalır (sonsuz döngü yok).
+    revealEditor("never", 3);
+    let ran = 0;
+    while (frames.length > 0 && ran < 50) {
+      runFrame();
+      ran++;
+    }
+    expect(ran).toBe(3);
   });
 
   it("kurucu D1: kaydedilen bilgi listede yoksa (silinmiş olabilir) liste yenilenir ve sessiz kalınmaz", async () => {

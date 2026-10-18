@@ -87,7 +87,7 @@ export function SettingsSections({
     if (active === CONNECTION_VIEW_ID && seen.has(CONNECTION_VIEW_ID)) {
       scrollToHospitable.current = false;
       requestAnimationFrame(() => {
-        document.getElementById("hospitable")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        document.getElementById("hospitable")?.scrollIntoView?.({ behavior: "smooth", block: "start" });
       });
     }
   }, [active, seen]);
