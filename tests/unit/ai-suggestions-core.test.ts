@@ -1200,4 +1200,24 @@ describe("Opus gece-4 dilim sonu 3: yanlış saat / kaçan kesin söz", () => {
     // BİLİNEN SINIR (güvenli yön: söz kaybolur, yanlış saat yazılmaz): küçük harfle başlayan ikinci cümle birinciyle birleşir.
     expect(detectHostPromises("I'll bring towels at 6 p.m. the technician will come tomorrow.").map((p) => p.kind)).toEqual(["maintenance"]);
   });
+
+  it("baş harfli ad cümleyi bölmez ('M. Ali', 'A.Murat'); önceki cümlenin saati söze geçmez", () => {
+    firm("Teknisyenimiz M. Ali yarın 10'da gelecek.", 600);
+    firm("Teknisyen A.Murat yarın 10'da gelecek.", 600);
+    firm("Klimacı A.Mert yarın sabah 9'da gelecek.", 540);
+    // Gerçek cümle sonu birleşse de saat sızmaz.
+    for (const t of ["Toplantı saat 3'te, salon B. Teknisyen yarın gelecek.", "Checkout is at 11, gate B. The technician will come tomorrow."])
+      expect(detectHostPromises(t), t).toMatchObject([{ kind: "maintenance", day: "tomorrow", timeCandidates: [] }]);
+    firm("We switched to plan B. The technician will come tomorrow at 10.", 600);
+    // BİLİNEN SINIR (güvenli yön): önceki cümledeki koşul birleşen sözü düşürür.
+    none("Sorun olursa kapı B. Teknisyen yarın 10'da gelecek.");
+    // Yalnız TEK harf baş harftir ("TV.", "ARAYIN." cümle sonu) ve ardından büyük + küçük harfli SÖZCÜK gelir ("TEKNİSYEN" yeni cümle):
+    // aksi hâlde önceki cümlenin koşulu sözü düşürürdü.
+    for (const t of [
+      "Klima bozulursa haber verin lütfen TV. Teknisyen yarın 10'da gelecek.",
+      "Sorun olursa ARAYIN. Teknisyen yarın 10'da gelecek.",
+      "Sorun olursa kapı B. TEKNİSYEN yarın 10'da gelecek.",
+    ])
+      firm(t, 600);
+  });
 });

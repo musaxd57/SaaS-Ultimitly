@@ -324,8 +324,14 @@ export interface HostPromise {
 
 type DayHalf = "am" | "pm" | "night";
 
-/** Cümlecik + ayracı ("?" soru ayırt edilsin diye ayraç cümleciğe dahil). İki rakam arasındaki nokta ayraç DEĞİLDİR ("09.30", "1.5"). */
-const RAW_CLAUSES = /(?:[^.!?;\n…؟。]|(?<=\d)\.(?=\d))+[.!?;\n…؟。]*/gu;
+/**
+ * Cümlecik + ayracı ("?" soru ayırt edilsin diye ayraç cümleciğe dahil). İki rakam arasındaki nokta ayraç DEĞİLDİR ("09.30", "1.5"); tek
+ * büyük harfli baş harften sonra büyük harfle başlayan sözcük gelirse de değildir ("Teknisyenimiz M. Ali yarın 10'da gelecek", "A.Murat" —
+ * bölünürse sözün yapanı ve fiili ayrı cümleye düşüp söz kaçıyordu; Opus dilim sonu 3 mutasyon turu). Bedeli ölçüldü: "Blok A. Teknisyen
+ * …" gibi gerçek cümle sonu birleşir — saat önceki cümleden geçmez, yalnız önceki cümledeki koşul ("Sorun olursa kapı B. …") sözü düşürür
+ * (güvenli yön); derlem değişmedi (303/323).
+ */
+const RAW_CLAUSES = /(?:[^.!?;\n…؟。]|(?<=\d)\.(?=\d)|(?<=(?<![\p{L}\p{N}])\p{Lu})\.(?=\s?\p{Lu}\p{Ll}))+[.!?;\n…؟。]*/gu;
 /** Söz fiilinden sonra soru eki ("gelecek mi", "getirecek misiniz"). */
 const QUESTION_PARTICLE = /(?<![\p{L}\p{N}])m[iu](?:s[iu]n[iu]z|s[iu]n|y[iu]m)?(?![\p{L}])/u;
 /**
