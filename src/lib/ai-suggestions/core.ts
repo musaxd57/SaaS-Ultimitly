@@ -84,7 +84,7 @@ const CONFIRM_QUESTION = new RegExp(
  * Genel hal sorusu ("Is everything else ok?", "Daire nasıl, her şey tamam mı?") sözün TEYİDİ değildir — nezaket kapanışı (Opus gece-4 dilim
  * sonu B5: kapanış sorusundaki "ok / tamam" gerçek sözü düşürüyordu).
  */
-const GENERAL_CHECK = new RegExp(`${NL}(?:her\\s*sey\\p{L}{0,3}|baska|everything|anything|all\\s+good|daire\\p{L}{0,4}|konaklama\\p{L}{0,4}|the\\s+(?:apartment|flat|room|stay))${NR}`, "u");
+const GENERAL_CHECK = new RegExp(`${NL}(?:her\\s*sey\\p{L}{0,3}|baska\\s+(?:bir\\s+)?(?:sey\\p{L}{0,3}|ihtiyac\\p{L}{0,6}|soru\\p{L}{0,4}|istek\\p{L}{0,4}|isteg\\p{L}{0,4}|talep\\p{L}{0,4})|everything|anything|all\\s+good|daire\\p{L}{0,4}|konaklama\\p{L}{0,4}|the\\s+(?:apartment|flat|room|stay))${NR}`, "u");
 /** Aktarılan / geçmiş söz ("teknisyen yarın gelecek DEMİŞTİM", "GELEMEDİ") — söz fiilinin PARÇASINDA ise o söz değil (Opus 10-17). */
 const REPORTED = new RegExp(
   `${NL}(?:demistim|demistik|soylemistim|soylemistik|dedigim\\s+gibi|gelemedi|gelmedi|getiremedim|getiremedik|yapamadi|as\\s+i\\s+said|i\\s+told\\s+you)${NR}`,

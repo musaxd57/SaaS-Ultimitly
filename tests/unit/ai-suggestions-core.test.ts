@@ -819,8 +819,10 @@ describe("söz algılama v2 — gün kapsamı, dilek, iki söz, süre, devam (se
     for (const t of ["The technician will come tomorrow at 10. Is everything else ok?", "Teknisyen yarın 10'da gelecek. Daire nasıl, her şey tamam mı?"]) {
       expect(at(t, 9 * 60), t).toEqual([{ day: "tomorrow", precision: "time", time: "10:00", end: 600, card: false }]);
     }
-    // KONTROL: sözün kendisine dönük teyit hâlâ sözü bekletir (F15).
+    // KONTROL: sözün kendisine dönük teyit hâlâ sözü bekletir (F15) — "başka bir saat" de teyittir (Opus B5 kalıntısı).
     expect(detectHostPromises("Teknisyen yarın 10'da gelecek. Uygun mu?")).toEqual([]);
+    expect(detectHostPromises("Teknisyen yarın 10'da gelecek. Başka bir saat uygun mu?")).toEqual([]);
+    expect(at("Teknisyen yarın 10'da gelecek. Başka bir şey tamam mı?", 9 * 60)[0]).toMatchObject({ day: "tomorrow", time: "10:00" });
     expect(at("Teknisyen gece 12:30'da gelecek.", 13 * 60)).toEqual([{ day: "tomorrow", precision: "time", time: "00:30", end: 30, card: false }]);
     expect(at("I'll bring towels tonight at 12:30.", 13 * 60)[0]).toMatchObject({ day: "tomorrow", time: "00:30" });
     expect(at("Teknisyen yarın gece 12:30'da gelecek.", 13 * 60)[0]!.card).toBe(true);

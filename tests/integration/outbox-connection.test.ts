@@ -227,6 +227,35 @@ describe("outbox × ChannelConnection", () => {
     expect((await prisma.channelConnection.findFirstOrThrow({ where: { organizationId: orgId } })).revokedReason).toBe("send_403");
   });
 
+  it("🚨 Opus gece-4 B8: başka rezervasyonda da 403 AMA aynı bağlantıyla yakın zamanda başarılı gönderim var → mesaja kapalı kanal, bağlantı KOPMAZ", async () => {
+    const { orgId, propertyId, conversationId } = await seed();
+    await setOrgHospitableToken(orgId, "PAT-mixed", null);
+    fake.registerReservation(RES, "PAT-mixed");
+    fake.registerReservation("res-ok", "PAT-mixed");
+    fake.registerReservation("res-closed", "PAT-mixed");
+    // Başka kanaldaki rezervasyona gönderim başarılı.
+    const okConv = await prisma.conversation.create({ data: { propertyId, channel: "airbnb", guestIdentifier: "Deniz", status: "waiting", externalReservationId: "res-ok" } });
+    const ok = await enqueueOutbound({
+      organizationId: orgId, conversationId: okConv.id, channel: "airbnb", externalReservationId: "res-ok", reservationId: null,
+      body: "Merhaba!", senderName: "Host", authorType: "host", messageType: "manual", idempotencyKey: "k-ok",
+    });
+    await drainOutboxOnce({});
+    expect(await row(ok.outboxId)).toMatchObject({ status: "sent" });
+    // Mesaja kapalı kanaldaki iki rezervasyon 403 (okuma geçer).
+    fake.behave({ mode: "reject", status: 403 });
+    const first = await enqueue(orgId, conversationId, "k-closed-1");
+    await drainOutboxOnce({ verifyCredential: async () => true });
+    const closedConv = await prisma.conversation.create({ data: { propertyId, channel: "booking", guestIdentifier: "Ece", status: "waiting", externalReservationId: "res-closed" } });
+    const second = await enqueueOutbound({
+      organizationId: orgId, conversationId: closedConv.id, channel: "booking", externalReservationId: "res-closed", reservationId: null,
+      body: "Merhaba!", senderName: "Host", authorType: "host", messageType: "manual", idempotencyKey: "k-closed-2",
+    });
+    await drainOutboxOnce({ verifyCredential: async () => true });
+    expect(await row(first.outboxId)).toMatchObject({ lastErrorKind: "definitive_failure" });
+    expect(await row(second.outboxId)).toMatchObject({ lastErrorKind: "definitive_failure" });
+    expect((await prisma.channelConnection.findFirstOrThrow({ where: { organizationId: orgId } })).status).toBe("active");
+  });
+
   it("gece-4 S3-06 KONTROL: AYNI rezervasyonda tekrarlanan 403 sistemik sayılmaz — bağlantı kopmaz, ikinci mesaj da kesin hata yolunda", async () => {
     const { orgId, conversationId } = await seed();
     await setOrgHospitableToken(orgId, "PAT-ok2", null);

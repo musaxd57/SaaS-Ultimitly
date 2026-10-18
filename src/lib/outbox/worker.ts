@@ -1227,7 +1227,9 @@ async function processOne(
   // dokunulmaz. Okuma da reddedilirse ya da bilinmiyorsa eski karar (yenileme / iptal).
   // SİSTEMİK RET (Haiku gece-4): okuma yetkili ama YAZMA yetkisi olmayan belirteçte (salt-okuma kişisel anahtar, eksik kapsam) okuma geçer,
   // HER gönderim 403 alır — bu bir bağlantı sorunudur, ev sahibi yeniden bağlanmalı. Son 24 saatte BAŞKA bir rezervasyonda da "okuma geçer,
-  // gönderim reddedildi" görüldüyse eski karar (iptal + uyarı) verilir; tek rezervasyona özgü ret bağlantıyı koparmaz.
+  // gönderim reddedildi" görüldüyse VE aynı bağlantıyla son 24 saatte HİÇ başarılı gönderim yoksa eski karar (iptal + uyarı) verilir; tek
+  // rezervasyona özgü ret bağlantıyı koparmaz. Başarılı gönderim şartı (Opus gece-4 dilim sonu B8): mesaja kapalı TEK kanal o kanaldaki her
+  // rezervasyonda 403 üretir ama diğer kanallarda gönderim sürer — salt-okuma belirteç ise hiç gönderemez.
   let credentialStillValid = kind === "auth_revoked" ? await deps.verifyCredential(row, providerToken).catch(() => null) : null;
   if (credentialStillValid === true) {
     const sibling = await prisma.messageOutbox
@@ -1243,7 +1245,20 @@ async function processOne(
         select: { id: true },
       })
       .catch(() => null);
-    if (sibling) credentialStillValid = null;
+    const recentSend = sibling
+      ? await prisma.messageOutbox
+          .findFirst({
+            where: {
+              organizationId: row.organizationId,
+              status: "sent",
+              sentAt: { gte: new Date(now.getTime() - 24 * 60 * 60_000) },
+              ...(row.connectionId ? { connectionId: row.connectionId } : {}),
+            },
+            select: { id: true },
+          })
+          .catch(() => null)
+      : null;
+    if (sibling && !recentSend) credentialStillValid = null;
   }
   if (kind === "definitive_failure" || credentialStillValid === true) {
     if (attemptsExhausted(row.attemptCount)) {

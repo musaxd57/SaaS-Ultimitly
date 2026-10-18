@@ -66,7 +66,10 @@ Kurucu 10-15: "Railway'i açınca ekleyeceğimiz bayrakları unutma." Bu dosya T
    `RETENTION_MESSAGE_AGE_ANCHOR` (onay paketi) · `DURABLE_OUTBOX_ENABLED` (O1, kurucu 10-16: önce
    `DURABLE_OUTBOX_ORG_IDS=<kurucu org kimliği>` ile yalnız kurucu org; ilk gönderimler birlikte; geri dönüş = env'i sil, bekleyen satır yine
    bir kez gider — `DEPLOYMENT.md` §6; gece-4 S3-06 KAPANDI: gönderimde 401/403 gelince önce aynı belirteçle tek sayfalık okuma — okuma
-   çalışıyorsa ret o mesaja özgüdür, bağlantı iptal edilmez; ilk açılışta yine de "Gönderilenler → kuyruk" ekranını izleyin) ·
+   çalışıyorsa ret o mesaja özgüdür, bağlantı iptal edilmez; AMA son 24 saatte BAŞKA bir rezervasyonda da aynı ret varsa ve aynı bağlantıyla
+   o sürede HİÇ başarılı gönderim yoksa (salt-okuma / yazma yetkisiz belirteç) eski karar: bağlantı iptal + uyarı. Hospitable'ın 403 davranışı
+   canlıda ölçülmedi → ilk açılışta 401/403 olaylarının durum kodu + gövde SINIFI kaydedilip bu varsayım doğrulanmalı; "Gönderilenler →
+   kuyruk" ekranını izleyin) ·
    `ICAL_DISAPPEARANCE_RECONCILE_ENABLED` ·
    `UNVERIFIED_SWEEP_ENABLED` (önce `UNVERIFIED_SWEEP_DRY_RUN=1`) · `ALERT_EMAIL_VERIFY_ENABLED` · `HOST_DECISIONS_ENABLED` (+ `HOST_DECISION_AI_TEXT_ENABLED`;
    ⚠️ `DURABLE_OUTBOX_ENABLED` denemesi sürerken KAPALI kalsın — karar kartı kuyruğa girer girmez "onaylandı" kapanıyor, teslim düşerse

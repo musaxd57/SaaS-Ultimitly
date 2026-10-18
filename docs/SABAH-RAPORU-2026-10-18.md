@@ -57,7 +57,8 @@
   adı reddedilir · aynı adla eşzamanlı iki mülk açılmaz · takvim notunda `\\n` bozulması · bilgi tabanı "yerine koy" sonrası kopyalama
   ikinci çelişkili kopya açmıyor · kuyruktaki otomatik mesaj sizin "Otomatik yanıt" / "Giriş mesajı" anahtarınız kapalıysa gitmez ·
   başka siteden açılan bağlantı KVKK dökümü / teşhis kotasını yakamaz · daire / takvim ayarı değişiklikleri operatör denetim kaydına düşer ·
-  kalıcı kuyruk (anahtar kapalı) tek rezervasyondaki 403'te bütün bağlantıyı koparmıyor: önce aynı belirteçle tek sayfalık okuma (S3-06) ·
+  kalıcı kuyruk (anahtar kapalı) tek rezervasyondaki 403'te bütün bağlantıyı koparmıyor: önce aynı belirteçle tek sayfalık okuma; başka
+  rezervasyonda da ret + son 24 saatte hiç başarılı gönderim yoksa (yazma yetkisiz belirteç) eski karar, iptal + uyarı (S3-06) ·
   yüklenip göreve bağlanmayan fotoğraf (bağlantı koptu, ekran kapandı) 24 saat sonra kovadan silinir, migration'sız — mevcut silme kuyruğuna
   erteli kayıt; göreve bağlandıysa kayıt iptal (S7-01; KVKK "hesap silindi = her şey gitti" bu fotoğrafları da kapsar).
 - **Dolu veritabanı yükseltme provası (S10-10):** canlının seviyesi (58) + 37 tabloya 40'ar yapay satır → 59…77 hatasız (1,5 sn), sapma sıfır;
@@ -84,11 +85,21 @@
 | 15 | Duraklatılmış abonelik | düğmeler sebepsiz gri | "Aboneliğiniz duraklatıldığı için plan değiştirilemez…" |
 | 16 | Operatör ödeme incelemesi | saat UTC ama yazmıyor | " UTC" eki |
 
+- **Opus dilim sonu denetimi** (9 bulgu; dosya oturum notlarında): rezervasyon silmede yüklem kilit altında (B1), kalıcı kuyruk kablosu testli
+  (B3), "Is everything else ok?" / "her şey tamam mı?" gerçek sözü düşürmüyor (B5), "gece 12:30" ertesi gün 00:30 (B7), mesaja kapalı tek
+  kanal bağlantıyı koparmıyor (B8), belge (B9). Kiracılar arası sızma, KVKK değer sızıntısı, karesel iş bulunmadı.
+
 ## 3. Bilinen sınırlar / bilerek bırakılanlar
 - Elle "Mesajları çek" (540 günlük derin çekim) bütün işletmelerin 2 dakikalık senkron kilidini dakikalarca tutabiliyor (S7-03): bugün tek
   müşteride etkisiz; çok müşteride diğerlerinin otomatik cevabı gecikir. Düzeltme senkron mimarisine dokunuyor (işletme başına kilit ya da elle
   çekimde sığ pencere) → ayrı tur, ölçümle.
 
+- Kuyruktaki karşılama / giriş / çıkış mesajı, anahtar KAPALIYKEN vadesi gelirse iptal olur (S3-01, kalıcı kuyruk anahtarı kapalı). Anahtarı
+  açınca o rezervasyon zaten kapsam dışıdır (açılma anından sonra oluşan rezervasyonlar alır — bugünkü kural); kısa bir "kapat-aç" yakın varışlı
+  misafirin giriş mesajını düşürebilir ve gelen kutusunda iz yok (Opus B6, tasarım notu).
+- Söz öneri anahtarının biçimi bu gece iki kez değişti (konum + tür). Canlıda hiç açılmadığı için etkisiz; yerel veritabanında eski kararlar varsa
+  aynı söz yeniden önerilebilir. Bundan sonra biçim değişirse eski biçimi de tanıyan karar araması gerekir.
+- `probeToken` (tek sayfa, tek deneme) sözleşmesi doğrudan pinli değil; adaptör sınaması ve uçtan uca kablo testi var.
 - Sync'te rezervasyon başına ~12 sorgu (S8-02): bugünkü ölçekte (≈10 daire) sorun değil; 20+ büyük işletmede 2 dk'lık geçişi aşar → tasarım
   `scratchpad/gece-17/S8.md`; Railway açılınca ölçümle.
 - Gelen kutusu listesinde son mesaj için bütün mesajlar okunuyor (S8-06): bugünkü hacimde 30 sn'de bir ~270 KB; büyüyünce tek sorguya çevrilir.

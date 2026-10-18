@@ -874,7 +874,7 @@ const POWER_OFF_STEP = new RegExp(`${L}power(?:ing)? (?:(?:the|your|this) )?(?:\
  * ifadesi sözlükte olmasa da yeniden başlatma adımıdır (Haiku gece-4: "The TV keeps freezing" + "Please power it off for 30 seconds" kaçıyordu).
  */
 const POWER_CYCLE_STEP = new RegExp(
-  `${L}power(?:ing)? (?:(?:the|your|this) )?(?:\\p{L}{1,20} )?(?:off|down)(?: (?:(?:the|your|this) )?\\p{L}{1,20})? (?:for (?:\\d{1,3}|a few|a|one|ten|five|thirty) (?:seconds?|secs?|minutes?|mins?|moment)|and (?:wait|then)|then (?:turn|switch|power) (?:it )?(?:back )?on)${R}`,
+  `${L}power(?:ing)? (?:(?:the|your|this) )?(?:\\p{L}{1,20} )?(?:off|down)(?: (?:(?:the|your|this) )?\\p{L}{1,20})? (?:for (?:\\d{1,3}|a few|a|one|ten|five|thirty) (?:seconds?|secs?|minutes?|mins?|moment)|and wait|(?:and )?then (?:turn|switch|power) (?:it )?(?:back )?on)${R}`,
   "u",
 );
 

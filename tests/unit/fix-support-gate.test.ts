@@ -408,6 +408,8 @@ describe("gece-4 S4-03 / S4-08: İngilizce kısaltmalı arıza, -ing adımlar, b
     expect(unsupportedFixStep("Power off the router, then turn it back on.", thin, "Hello")).toBe(true);
     // Arıza ifadesi tanınınca kapatma adımı (bekleme olmadan) da adım.
     expect(unsupportedFixStep("Please power off the TV.", thin, "The TV is frozen.")).toBe(true);
+    // KONTROL: çıkış hatırlatmasındaki "… and then lock the door" yeniden başlatma değil (Opus gece-4 yan notu).
+    expect(unsupportedFixStep("Before you leave, please power off the AC and then lock the door.", thin, "Hello")).toBe(false);
     // KONTROL: çıplak "freezing" (oda soğuk) arıza değil → kapatma hatırlatması geçer.
     expect(unsupportedFixStep("Please power off the AC.", thin, "It's freezing in here!")).toBe(false);
   });
