@@ -118,7 +118,8 @@
   tomorrow" günü kaybetmiyor (A14); "Teknisyenimiz M. Ali yarın 10'da gelecek" baş harf cümleyi bölmüyor (mutasyonun yakaladığı kök); otomatik
   kipte bir konuşmada 5'ten çok bekleyen söz varken en eskisi kaybolmuyor (A16, kırmızı-önce testle). Denenip ALINMAYAN: "p.m." ardından
   küçük harfli özneyi cümle sonu saymak — derlemi 303'ten 301'e düşürdü ("Tomorrow at 2 p.m. the cleaner will come" çok daha yaygın).
-  Mutasyon v10–v13: 44 mutant, 41 öldü, 2 yeni pinle öldürüldü, 1 gerekçeli eşdeğer (1596 cümlede aynı sonuç). Bu gece ajan çalıştırılmadı
+  Mutasyon v10–v13: 43 mutant koşusu — 39'u ilk koşuda öldü, yaşayan 2'si yeni pinle kapandı, "p.m" sınır mutantı (iki koşuda) gerekçeli
+  eşdeğer (1596 cümlede aynı sonuç). Bu gece ajan çalıştırılmadı
   (kurucu talimatı) → bu dört düzeltmenin sert incelemesi sabah Opus turunda.
 
 ## 2b. Küçük metin düzeltmeleri (T6 — toplu "evet" yeterli; hepsi müşteri ekranı, uygulanmadı)

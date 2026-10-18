@@ -29,7 +29,12 @@ milisaniye yarışı; ararken bulunan gece zaman bombası (S1-02 kuralı 45 test
 Sabah (10-18, kurucu cevapları): T3 uygulandı (bilgi veremem yedi dilde tutulur), T6b uygulandı (işlenememiş ödeme olayı 2 yılda küçülür);
 T1 (talimat yok → cevabın tamamı tutulsun mu), T2 (e-posta seyrek), T4 (sade anlatıldı), T5 (gün bağlamdan — kural örneklerle soruldu) cevap
 bekliyor. Opus dilim sonu 3: söz algılamada 1 yeni gerileme + 4 yeni P2 + 2 eski P1 düzeltildi (derlem 303/323). Haiku son grup: kuyruk sağlığı
-okuması tek hatada sayıları kaybetmiyor. İtme: fbe9a12b (g94 yeşil, CI #1547).
+okuması tek hatada sayıları kaybetmiyor. İtme: fbe9a12b (g94 yeşil, CI #1547 yeşil) → e83bd552 (g95 yeşil; mutasyon v10 31 → 29 + 2 pin).
+Push sonrası (kurucu: gece başka ajan yok → sert inceleme sabah Opus turunda): "temizliğe / temizliği" konu (A12), sonu noktasız "p.m" (A14;
+küçük harfli özneyi cümle sonu saymak denendi, derlem 303 → 301 → alınmadı), baş harfli ad cümleyi bölmüyor ("M. Ali", mutasyonun bulduğu
+kök), otomatik kipte 5'ten çok bekleyen sözde en eskisi kaybolmuyor (A16, kırmızı-önce DB testi). Mutasyon v11–v13: 12 mutant koşusu, 10 öldü; "p.m"
+sınır mutantı (iki koşuda) gerekçeli eşdeğer ("p.max" — 1596 cümlede aynı sonuç). C1 yorum dürüstleştirildi; C2 (plan testi kopya SQL) ve A15 (öneri
+anahtarı cümlecik sırasına bağlı; anahtarlar canlıda hiç açılmadı) bilinen sınır.
 Açık: S7-03 (elle senkron global kilidi — mimari, ölçümle).
 Sabah raporu `docs/SABAH-RAPORU-2026-10-18.md`.
 
