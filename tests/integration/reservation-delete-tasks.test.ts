@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterAll, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { prisma, resetDb, makeOrgWithProperty, daysFromNow } from "../helpers/db";
 import type { SessionPayload } from "@/lib/auth";
+import { __reservationTaskHooks } from "@/lib/automation";
 
 // ---------------------------------------------------------------------------
 // Gece-4 S6-05: rezervasyon SİLİNİRKEN açık sistem yaşam döngüsü görevleri de gider (iptalle aynı küme). `Task.reservationId` SetNull →
@@ -69,6 +70,20 @@ describe("DELETE /api/reservations/[id] — açık otomatik görevler de gider (
     expect(await prisma.reservation.findUnique({ where: { id: r.id } })).toBeNull();
     for (const t of gone) expect(await prisma.task.findUnique({ where: { id: t.id } })).toBeNull();
     for (const t of kept) expect((await prisma.task.findUniqueOrThrow({ where: { id: t.id } })).reservationId).toBeNull();
+  });
+
+  it("🚨 Opus gece-4 B1 yarış: aday okunduktan sonra temizlikçi görevi başlatırsa görev SİLİNMEZ (yüklem kilit altında yeniden)", async () => {
+    const r = await seedReservation();
+    const t = await seedTask(r.id, { type: "cleaning", origin: "system", status: "todo" });
+    __reservationTaskHooks.afterDeleteCandidatesRead = async () => {
+      await prisma.task.update({ where: { id: t.id }, data: { status: "in_progress" } });
+    };
+    try {
+      expect((await del(r.id)).status).toBe(200);
+    } finally {
+      __reservationTaskHooks.afterDeleteCandidatesRead = null;
+    }
+    expect(await prisma.task.findUniqueOrThrow({ where: { id: t.id } })).toMatchObject({ status: "in_progress", reservationId: null });
   });
 
   it("başka kiracının rezervasyonu: 404, rezervasyon ve görevleri yerinde", async () => {

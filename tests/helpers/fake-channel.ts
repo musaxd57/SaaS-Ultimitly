@@ -72,7 +72,11 @@ export class FakeOutboundProvider {
     else this.defaultBehaviour = b;
   }
 
+  /** Gece-4 S3-06: kimlik bilgisi okuma doğrulamasının cevabı (`null` = bilinmiyor — eski karar; varsayılan). */
+  credentialCheck: boolean | null = null;
+
   reset(): void {
+    this.credentialCheck = null;
     this.owners.clear();
     this.perDestination.clear();
     this.defaultBehaviour = { mode: "succeed" };
@@ -140,6 +144,7 @@ export class FakeOutboundProvider {
         this.attempts.push({ destination: destination.externalReservationId, body, token: credential.token });
         return this.handle(destination.externalReservationId, body, credential.token);
       },
+      verifyCredential: async (credential: OutboundCredential): Promise<boolean | null> => (credential.token ? this.credentialCheck : null),
     };
   }
 }

@@ -814,6 +814,18 @@ describe("söz algılama v2 — gün kapsamı, dilek, iki söz, süre, devam (se
     expect(at("Sabah teknisyen gelecek.", 13 * 60)[0]).toMatchObject({ day: "tomorrow", dayPart: "morning" });
   });
 
+  it("Opus gece-4 dilim sonu B5 / B7: genel hal sorusu sözü düşürmez; 'gece 12:30' ertesi günün 00:30'u", () => {
+    const at = (t: string, now: number) => detectHostPromises(t).map((p) => ({ ...promiseWindow(p, now), card: p.dayUnclear || p.timeAmbiguous }));
+    for (const t of ["The technician will come tomorrow at 10. Is everything else ok?", "Teknisyen yarın 10'da gelecek. Daire nasıl, her şey tamam mı?"]) {
+      expect(at(t, 9 * 60), t).toEqual([{ day: "tomorrow", precision: "time", time: "10:00", end: 600, card: false }]);
+    }
+    // KONTROL: sözün kendisine dönük teyit hâlâ sözü bekletir (F15).
+    expect(detectHostPromises("Teknisyen yarın 10'da gelecek. Uygun mu?")).toEqual([]);
+    expect(at("Teknisyen gece 12:30'da gelecek.", 13 * 60)).toEqual([{ day: "tomorrow", precision: "time", time: "00:30", end: 30, card: false }]);
+    expect(at("I'll bring towels tonight at 12:30.", 13 * 60)[0]).toMatchObject({ day: "tomorrow", time: "00:30" });
+    expect(at("Teknisyen yarın gece 12:30'da gelecek.", 13 * 60)[0]!.card).toBe(true);
+  });
+
   it("Haiku gece-4 (Opus düzeltmeleri sonrası): sözün kendi günü varken günsüz soldaki dilim ödünç alınmaz; kesmesiz 'Ill / Well' dar fiille söz", () => {
     const at = (t: string, now: number) => detectHostPromises(t).map((p) => ({ ...promiseWindow(p, now), card: p.dayUnclear || p.timeAmbiguous }));
     // "Akşam" (bugünün akşamı) "yarın 9'da"ya bağlanmaz → yarın 09:00 (21:00 değil).

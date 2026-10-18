@@ -80,6 +80,11 @@ const CONFIRM_QUESTION = new RegExp(
   `${NL}(?:uygun|olur|musait\\p{L}{0,6}|tamam|sorun\\s+olur|ok(?:ay)?|works?|fine|alright|good\\s+for\\s+you|convenient)${NR}`,
   "u",
 );
+/**
+ * Genel hal sorusu ("Is everything else ok?", "Daire nasıl, her şey tamam mı?") sözün TEYİDİ değildir — nezaket kapanışı (Opus gece-4 dilim
+ * sonu B5: kapanış sorusundaki "ok / tamam" gerçek sözü düşürüyordu).
+ */
+const GENERAL_CHECK = new RegExp(`${NL}(?:her\\s*sey\\p{L}{0,3}|baska|everything|anything|all\\s+good|daire\\p{L}{0,4}|konaklama\\p{L}{0,4}|the\\s+(?:apartment|flat|room|stay))${NR}`, "u");
 /** Aktarılan / geçmiş söz ("teknisyen yarın gelecek DEMİŞTİM", "GELEMEDİ") — söz fiilinin PARÇASINDA ise o söz değil (Opus 10-17). */
 const REPORTED = new RegExp(
   `${NL}(?:demistim|demistik|soylemistim|soylemistik|dedigim\\s+gibi|gelemedi|gelmedi|getiremedim|getiremedik|yapamadi|as\\s+i\\s+said|i\\s+told\\s+you)${NR}`,
@@ -291,7 +296,8 @@ function fitToHalf(candidates: number[], half: DayHalf): number[] {
   const out = candidates.map((m) => {
     if (half === "pm" && m < 12 * 60) return m + 12 * 60;
     if (half === "night" && m >= 6 * 60 && m < 12 * 60) return m + 12 * 60; // "gece 11" → 23:00
-    if (half === "night" && m === 12 * 60) return 24 * 60; // "gece 12" gece yarısıdır (ertesi günün 00:00'ı), öğlen değil (Opus gece-4 F13)
+    // "gece 12" / "gece 12:30" gece yarısıdır (ertesi günün 00:xx'i), öğlen değil (Opus gece-4 F13; dilim sonu B7: 12:01–12:59 da).
+    if (half === "night" && m >= 12 * 60 && m < 13 * 60) return m + 12 * 60;
     return m;
   });
   const fitting = out.filter((m) =>
@@ -556,7 +562,7 @@ export function detectHostPromises(text: string | null | undefined): HostPromise
 function confirmQuestionFollows(next: string | undefined): boolean {
   if (!next || !/[?؟]\s*$/u.test(next) || next.length > 60) return false;
   const f = foldTurkishAscii(next).toLowerCase();
-  return CONFIRM_QUESTION.test(f) && !PROMISE.test(f);
+  return CONFIRM_QUESTION.test(f) && !PROMISE.test(f) && !GENERAL_CHECK.test(f);
 }
 
 /** Aynı ziyaret / teslim olabilir mi: tür aynı, konu uyumlu (biri boşsa uyumlu), yapan uyumlu (biri bilinmiyorsa uyumlu). */
@@ -810,7 +816,7 @@ function promiseAt(c: PromiseClause, at: number, kind: CommitmentKind, ctx: Mess
     durationOnTomorrow ||
     twoVerbs ||
     // "yarın gece 12" = yarın 00:00 mı, yarın gece 24:00 mı? belirsiz → kart (Opus gece-4 F13).
-    (part?.half === "night" && day === "tomorrow" && timeCandidates.includes(24 * 60));
+    (part?.half === "night" && day === "tomorrow" && timeCandidates.some((m) => m >= 24 * 60));
   const cue = inMinutes === null && timeCandidates.length === 0 && part ? { minutes: part.minutes, half: part.half, code: part.code, end: part.end } : null;
   const soon = inMinutes === null && timeCandidates.length === 0 && cue === null && SOON.test(scope.folded);
   const reschedule = RESCHEDULE.test(scope.folded);

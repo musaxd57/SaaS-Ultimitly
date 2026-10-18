@@ -243,6 +243,18 @@ describe("outbox × ChannelConnection", () => {
     expect((await prisma.channelConnection.findFirstOrThrow({ where: { organizationId: orgId } })).status).toBe("active");
   });
 
+  it("🚨 Opus gece-4 B3: üretim kablosu — bağımlılık enjekte EDİLMEDEN adaptörün doğrulaması okunur (okuma geçer → kesin hata, bağlantı kopmaz)", async () => {
+    const { orgId, conversationId } = await seed();
+    await setOrgHospitableToken(orgId, "PAT-wire", null);
+    fake.registerReservation(RES, "PAT-wire");
+    fake.behave({ mode: "reject", status: 403 });
+    fake.credentialCheck = true;
+    const { outboxId } = await enqueue(orgId, conversationId, "k-wire");
+    await drainOutboxOnce({});
+    expect(await row(outboxId)).toMatchObject({ lastErrorKind: "definitive_failure", attemptCount: 1 });
+    expect((await prisma.channelConnection.findFirstOrThrow({ where: { organizationId: orgId } })).status).toBe("active");
+  });
+
   it("gece-4 S3-06 KONTROL: okuma da reddedildi (false) ya da bilinmiyor (null) → eski karar (PAT iptal, send_403)", async () => {
     for (const verdict of [false, null] as const) {
       await resetDb();

@@ -1206,7 +1206,9 @@ export const __reservationTaskHooks: {
   afterExistingRead: null | ((reservationId: string) => Promise<void>);
   /** İptal temizliği kilit altında "iptal" okuduktan SONRA, silmeden ÖNCE (yeniden açma yarışı testi — Opus 10-15 O1). */
   afterCleanupLockedRead: null | ((reservationId: string) => Promise<void>);
-} = { afterExistingRead: null, afterCleanupLockedRead: null };
+  /** Rezervasyon silmede aday görevler okunduktan SONRA, satır kilidinden ÖNCE (yarış testi — Opus gece-4 dilim sonu B1). */
+  afterDeleteCandidatesRead: null | (() => Promise<void>);
+} = { afterExistingRead: null, afterCleanupLockedRead: null, afterDeleteCandidatesRead: null };
 
 const RESERVATION_TASKS_SELECT = {
   id: true,
@@ -1384,6 +1386,7 @@ export async function deleteReservationsWithAutoTasks(ids: string[], organizatio
     const candidates = (
       await tx.task.findMany({ where: { reservationId: { in: owned }, ...UNTOUCHED_AUTO_LIFECYCLE_TASK_WHERE }, select: { id: true } })
     ).map((t) => t.id);
+    if (__reservationTaskHooks.afterDeleteCandidatesRead) await __reservationTaskHooks.afterDeleteCandidatesRead();
     // Aday satırlar KİLİTLENİR ve kontrol listesi işareti kilit altında okunur (iptal onarımıyla aynı — Opus O1 / Haiku 10-15).
     const locked =
       candidates.length === 0
@@ -1392,7 +1395,9 @@ export async function deleteReservationsWithAutoTasks(ids: string[], organizatio
             Prisma.sql`SELECT "id", "checklistJson" FROM "Task" WHERE "id" IN (${Prisma.join(candidates)}) FOR UPDATE`,
           );
     const doomed = locked.filter((t) => !checklistTouched(t.checklistJson)).map((t) => t.id);
-    if (doomed.length > 0) await tx.task.deleteMany({ where: { id: { in: doomed } } });
+    // Yüklem kilit ALTINDA yeniden uygulanır (Opus gece-4 dilim sonu B1, kardeş iptal yolu gibi): kilit beklenirken başlanmış / fotoğraf
+    // eklenmiş görev silinmez.
+    if (doomed.length > 0) await tx.task.deleteMany({ where: { id: { in: doomed }, ...UNTOUCHED_AUTO_LIFECYCLE_TASK_WHERE } });
     const { count } = await tx.reservation.deleteMany({ where: { id: { in: owned } } });
     return count;
   }, RESERVATION_TASKS_TX);
