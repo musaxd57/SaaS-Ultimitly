@@ -169,6 +169,9 @@ export async function suggestionDecisions(organizationId: string, since: Date): 
 
 const fmtAt = (d: Date) => d.toISOString();
 
+/** Gece yarısından sonra "yarın"ın belirsiz olduğu son dakika (05:00 hariç; `ai/date-resolution.ts` after_midnight_relative ile aynı aralık). */
+const AFTER_MIDNIGHT_END_MIN = 5 * 60;
+
 /** İşletme diliminde günün dakikası (QR'daki `nowMinutesInTz` ile aynı hesap). */
 function nowMinutesInTz(now: Date, tz: string): number {
   const [h, m] = new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: false })
@@ -366,8 +369,12 @@ export async function getConversationSuggestions(
       // Q1-b (kurucu 10-17, "ikisini de öner"): mesajdaki HER söz ayrı öneri. Anahtar `<mesaj>:<konum>` — konum sözün METİNDEKİ yeri
       // ("<cümlecik>-<parça>"; sert itirazcı gece-4 K1 / Opus gece-3 F5): süzgeç kuralları değişse de aynı söz aynı anahtar (çıktı SIRASI
       // kayınca "yok sayılan" söz başka söze geçiyordu) → listede ve onayda aynı anahtar.
-      for (const promise of promisesOf(m.id, m.body ?? "")) {
+      for (const detected of promisesOf(m.id, m.body ?? "")) {
         if (out.length >= MAX_SUGGESTIONS) break;
+        // 00:00–04:59 arasında yazılan "yarın" çoğu zaman aynı sabahtır (uyumamış birinin dili — `ai/date-resolution.ts` after_midnight
+        // kuralı): gün tahmin edilmez, kendiliğinden kaydedilmez, kart günü sorar (gece-4 S1-02: görev bir gün geç açılıyordu).
+        const afterMidnightTomorrow = detected.dayExplicit && detected.day === "tomorrow" && nowMinutesInTz(m.createdAt, tz) < AFTER_MIDNIGHT_END_MIN;
+        const promise = afterMidnightTomorrow ? { ...detected, dayUnclear: true } : detected;
         const key = suggestionKey("commitment", `${m.id}:${promise.anchor}`);
         if (decided.has(key)) continue;
         // Mesajdan SONRA aynı türde ve UYUMLU konuda söz kaydedilmiş → öneri yok (I1: klima sözü musluk önerisini gizlemez). Saate BAKILMAZ

@@ -101,7 +101,9 @@ export function CommitmentsCard({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(wrong ? { status: "cancelled", reason: "wrong" } : { status: "cancelled" }),
       });
-      if (res.ok) router.refresh();
+      // 404 = söz zaten kapanmış (başka sekmede / görev bitince / konaklama bitince) → hata değil, liste yenilenir (gece-4 S1-18: bayat kart
+      // "Kaldırılamadı" diyip ekranda kalıyordu).
+      if (res.ok || res.status === 404) router.refresh();
       else toast.error(wrong ? "Kaldırılamadı. Lütfen tekrar deneyin." : "İptal edilemedi. Lütfen tekrar deneyin.");
     } catch {
       toast.error("Bağlantı hatası. Lütfen tekrar deneyin.");

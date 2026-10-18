@@ -149,6 +149,17 @@ export function addZonedDays(date: Date, n: number, tz: string): Date {
   return zonedDateStart(y, m, d + n, tz);
 }
 
+/** `date`'in `tz`'deki DUVAR SAATİNİ (saat:dakika) koruyarak takvim gününü n kaydırır ("bugün 23:59" → "yarın 23:59"); `addZonedDays` ise
+ *  yerel GECE YARISINI döner (gece-4 S1-03: söz onayında gün değişince pencere sonu 00:00'a düşüyordu). Saniye atılır. */
+export function shiftZonedDaysKeepingWallClock(date: Date, n: number, tz: string): Date {
+  const [y, m, d] = dateKeyInTimeZone(date, tz).split("-").map(Number);
+  const [h, mi] = new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: false })
+    .format(date)
+    .split(":")
+    .map(Number);
+  return zonedWallClockToUtc(y, m, d + n, h % 24, mi, 0, tz);
+}
+
 /**
  * Local-midnight instant of the CALENDAR day (y, m 1-12, d) in `tz`. Month/day
  * overflow normalizes like Date.UTC (m 13 → Ocak y+1, d 0 → önceki ayın son günü),

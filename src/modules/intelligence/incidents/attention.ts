@@ -216,6 +216,11 @@ export interface AttentionItem {
   commitmentTime?: string;
   /** Yalnız `commitment_due`: açık saatli söz mü (dilim / gün sözünde kalan süre gösterilmez — pencere sonu ev sahibine söylenmez, O12). */
   commitmentPrecise?: boolean;
+  /**
+   * Aynı konuşmada aynı ana düşen iki satırı ayıran kararlı kimlik (React anahtarı) — `commitment_due`: söz kimliği (gece-4 S1-15: "klima
+   * 18:00" ile "musluk 18:00" aynı anahtarı alıyordu; bir satır yenilemede kaybolabiliyordu). Ekranda gösterilmez.
+   */
+  rowKey?: string;
   /** Yalnız `commitment_due`: 1 günden uzun açık — TEK hatırlatma metni (söz → görev otomatik açıkken; kurucu 10-17 "Hatırlat, kapatma"). */
   commitmentReminder?: boolean;
   /** Yalnız `connection_unhealthy` (işletme düzeyi satır, mülksüz): son hatalı okumanın türü (bayat okumada yok). */
@@ -361,6 +366,7 @@ export async function findAttentionItems(
         // tavandan düşürmesin (Haiku 10-17 gece).
         take: COMMITMENT_SCAN_ROWS,
         select: {
+          id: true,
           kind: true,
           topic: true,
           dueAt: true,
@@ -593,6 +599,7 @@ export async function findAttentionItems(
         severity: c.duePrecision === "day" ? 60 : minutesLeft < 0 ? 96 : minutesLeft <= COMMITMENT_SOON_HOURS * 60 ? 89 : 60,
         occurredAt: c.dueAt,
         href: conversationHref(c.conversationId, c.conversation.channel),
+        rowKey: c.id,
         commitmentKind: c.kind,
         commitmentTopic: c.topic,
         minutesLeft,

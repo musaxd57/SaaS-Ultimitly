@@ -854,3 +854,127 @@ describe("söz algılama v2 — gün kapsamı, dilek, iki söz, süre, devam (se
     }
   });
 });
+
+describe("gece-4 izsiz bulgular — koşul, kararsızlık, konaklamaya bağlı / alışkanlık, p.m., tür sınırı, iki dilim, alt sınır (S1)", () => {
+  const none = (t: string) => expect(detectHostPromises(t), t).toEqual([]);
+
+  it("🚨 S1-06: ekle kurulan koşul söz değil (Türkçe -rsa / -mazsa / -ıyorsa / -dıysa / varsa / eksikse, İngilizce should / in case / let me know)", () => {
+    for (const t of [
+      "Klima çalışmazsa yarın teknisyen gelecek",
+      "Sorun devam ederse yarın teknisyen göndereceğim",
+      "Hâlâ çalışmıyorsa yarın usta gelecek",
+      "Bir sorun yaşarsanız yarın sabah ilk iş teknisyen göndereceğim",
+      "Bir sorun olursa teknisyen gelecek",
+      "Havlu lazımsa söyleyin, getiririm",
+      "Havlu eksikse getiririm",
+      "Havlu ihtiyacınız varsa getiririm",
+      "Havlu gerekiyorsa getiririz",
+      "Klima düzelmediyse yarın teknisyen gelecek",
+      "Çıkışta çöpleri bırakırsanız temizlik ekibi temizleyecek",
+      "Should the AC fail again, I'll send a technician",
+      "In case of any problem the technician will come",
+      "Let me know and I'll bring towels",
+      "Whenever you need, the cleaner will come",
+    ])
+      none(t);
+  });
+
+  it("KONTROL S1-06: sağdaki ayrı koşul, konu eki 'ise', 'Bursa' ve 'of course' sözü BOZMAZ", () => {
+    expect(detectHostPromises("Teknisyen yarın 10'da gelecek, sorun olursa bana yazın.")).toMatchObject([{ kind: "maintenance", day: "tomorrow", timeCandidates: [600] }]);
+    expect(detectHostPromises("Havlu ise yarın getireceğim.")).toMatchObject([{ kind: "towels", day: "tomorrow" }]);
+    expect(detectHostPromises("Bursa'dan teknisyen yarın 10'da gelecek.")).toMatchObject([{ kind: "maintenance", day: "tomorrow" }]);
+    expect(detectHostPromises("Of course, I will bring towels tomorrow.")).toMatchObject([{ kind: "towels", day: "tomorrow" }]);
+  });
+
+  it("S1-08: kararsızlık (herhalde / tahminen / büyük ihtimalle / olabilir) söz değil", () => {
+    for (const t of ["Teknisyen yarın gelecek herhalde", "Teknisyen tahminen yarın gelecek", "Teknisyen büyük ihtimalle yarın gelecek", "Teknisyen yarın 10'da orada olabilir, gelecek"]) none(t);
+  });
+
+  it("🚨 S1-19: konaklamaya bağlı an (çıkış / giriş / siz gelmeden) açık gün yoksa ve alışkanlık her zaman söz değil", () => {
+    for (const t of [
+      "Çıkıştan sonra temizlik yapılacak",
+      "Çıkışınızdan sonra temizlikçi gelecek",
+      "Siz çıkınca temizlik ekibi gelecek",
+      "Temizlik ekibi çıkış günü gelecek",
+      "Daire siz gelmeden önce temizlenecek",
+      "Çarşaflar çıkışta değiştirilecek",
+      "Check-out'tan sonra temizlik yapacağız",
+      "After you leave, the cleaner will come",
+      "The cleaner will come after you check out",
+      "Çıkış günü saat 11'de temizlikçi gelecek",
+      "Temizlikçi her sabah 9'da geliyor",
+      "Normalde temizlik ekibi 10'da geliyor",
+      "Temizlik ekibi genelde sabahları geliyor",
+      "Havlular her gün değiştirilecek",
+      "Housekeeping will come every morning",
+      "We will change the towels every 3 days",
+    ])
+      none(t);
+  });
+
+  it("KONTROL S1-19: açık gün varsa konaklama sözcüğü bozmaz; başka cümledeki çıkış saati de bozmaz", () => {
+    expect(detectHostPromises("Yarın çıkışınızdan sonra temizlikçi gelecek.")).toMatchObject([{ kind: "cleaning", day: "tomorrow" }]);
+    expect(detectHostPromises("Teknisyen yarın 10'da gelecek. Çıkış saatiniz 11:00.")).toMatchObject([{ kind: "maintenance", timeCandidates: [600] }]);
+    expect(detectHostPromises("Giriş kapısının kilidi için usta yarın gelecek.")).toMatchObject([{ kind: "maintenance", day: "tomorrow" }]);
+  });
+
+  it("🚨 S1-13: noktalı a.m. / p.m. cümleyi bölmez; saat öğleden sonraya doğru okunur, baştaki gün kaybolmaz", () => {
+    expect(detectHostPromises("The technician will come tomorrow at 2:30 p.m.")).toMatchObject([{ day: "tomorrow", timeCandidates: [14 * 60 + 30] }]);
+    expect(detectHostPromises("Tomorrow at 10:00 a.m., the technician will come.")).toMatchObject([{ day: "tomorrow", timeCandidates: [600] }]);
+    expect(detectHostPromises("The technician will come at 7 P.M. today.")).toMatchObject([{ timeCandidates: [19 * 60] }]);
+    // Cümle sonundaki p.m. ardından yeni cümle: ikinci cümle ayrı okunur.
+    expect(detectHostPromises("The technician will come tomorrow at 7 p.m. I will bring towels today.")).toMatchObject([
+      { kind: "maintenance", day: "tomorrow", timeCandidates: [19 * 60] },
+      { kind: "towels", day: "today" },
+    ]);
+  });
+
+  it("S1-05: kısa kökler yalnız kendi ekleriyle (pilav / ustalıkla / bakımlı konu değil; pil / usta / bakım konu)", () => {
+    for (const t of ["Akşam size pilav getireceğim", "Yarın size ustalıkla yapılmış bir hediye getireceğim", "Yarın size bakımlı bir araç göndereceğim", "Yarın size çaydanlık getireceğim"]) none(t);
+    expect(detectHostPromises("Yarın pilleri getireceğim.")).toMatchObject([{ kind: "supplies" }]);
+    expect(detectHostPromises("Ustamız yarın gelecek.")).toMatchObject([{ kind: "maintenance" }]);
+    expect(detectHostPromises("Bakım için teknisyen yarın gelecek.")).toMatchObject([{ kind: "maintenance" }]);
+    expect(detectHostPromises("Yarın çay ve şeker getireceğim.")).toMatchObject([{ kind: "supplies" }]);
+  });
+
+  it("S1-07: iki farklı gün dilimi → dilim seçilmez (gün kesinliği); 'akşamüstü' / 'gece yarısı' tek dilimdir", () => {
+    expect(detectHostPromises("Teknisyen yarın sabah ya da öğleden sonra gelecek")).toMatchObject([{ day: "tomorrow", cue: null, timeCandidates: [] }]);
+    expect(detectHostPromises("Teknisyen yarın akşamüstü gelecek")).toMatchObject([{ cue: { code: "late_afternoon" } }]);
+    expect(detectHostPromises("Teknisyen yarın gece yarısı gelecek")).toMatchObject([{ cue: { code: "midnight" } }]);
+    expect(detectHostPromises("Teknisyen yarın akşam gelecek")).toMatchObject([{ cue: { code: "evening" } }]);
+  });
+
+  it("S1-14 / S1-09: alt sınır, aralık ve 'yarın gece 1'de' kesin saat değil → kart saati sorar", () => {
+    for (const t of [
+      "Teknisyen yarın 10:30'dan sonra gelecek",
+      "The technician will come tomorrow after 5 pm",
+      "The technician will come between 2 and 4 pm tomorrow",
+      "Teknisyen yarın 10-11 gibi gelecek",
+      "Teknisyen yarın gece 1'de gelecek",
+    ])
+      expect(detectHostPromises(t), t).toMatchObject([{ timeAmbiguous: true }]);
+    // KONTROL: kesin saat belirsiz sayılmaz.
+    expect(detectHostPromises("Teknisyen yarın 10:30'da gelecek")).toMatchObject([{ timeAmbiguous: false, timeCandidates: [630] }]);
+    expect(detectHostPromises("Teknisyen bu gece 1'de gelecek")).toMatchObject([{ timeAmbiguous: false }]);
+  });
+
+  it("süre: yeni kalıplar uzun girdide doğrusal (koşul eki, alışkanlık, konaklama, aralık, a.m.)", () => {
+    const runs = [
+      `${"a".repeat(3_990)}ursa`,
+      "olursa ".repeat(570),
+      "her gun ".repeat(500),
+      `cikis${" ".repeat(3_990)}x`,
+      "10-".repeat(1_330),
+      `1${" ".repeat(1_990)}-${" ".repeat(1_990)}2`,
+      "after 1 ".repeat(500),
+      "a.m. ".repeat(800),
+      `10:30${" ".repeat(3_980)}'dan sonra`,
+      "siz gelmeden ".repeat(300),
+    ];
+    for (const r of runs) {
+      const t = performance.now();
+      detectHostPromises(r);
+      expect(performance.now() - t).toBeLessThan(1_000);
+    }
+  });
+});

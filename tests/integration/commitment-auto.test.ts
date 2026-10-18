@@ -32,6 +32,7 @@ import {
   applyHostCommitmentsAuto,
   closeStayEndedCommitments,
   sweepHostCommitmentsAuto,
+  __stayEndHooks,
 } from "@/lib/guest-commitments-auto";
 import { createGuestCommitment } from "@/lib/guest-commitments";
 import { commitmentDueAt, commitmentTaskTitle } from "@/lib/guest-commitments-core";
@@ -106,6 +107,9 @@ afterEach(() => {
  * yarısından hemen sonra koşarsa iki mesaj farklı günlere düşer (Opus 10-17 gece-3 F14: 21:00–21:10 UTC'de kırmızı). Yalnız `Date` sahtelenir,
  * BUGÜNÜN İstanbul öğlesine: gerçek günle aynı gün → veritabanının kendi zaman damgalarıyla (karar kaydı, söz satırı) gün karışmaz.
  */
+/** İşletme diliminde duvar saati "HH:MM". */
+const wallClock = (d: Date) => new Intl.DateTimeFormat("en-GB", { timeZone: TZ, hour: "2-digit", minute: "2-digit", hour12: false }).format(d);
+
 function pinIstanbulNoonToday(): Date {
   const noon = new Date(`${dateKeyInTimeZone(new Date(), TZ)}T09:00:00.000Z`);
   vi.useFakeTimers({ toFake: ["Date"], now: noon });
@@ -818,6 +822,73 @@ describe("konaklama bitince (kurucu: havlu / temizlik / eksik eşya kapansın, a
   });
 });
 
+describe("gece-4 S1-17: kilit sırası görev → söz + satır başına hata", () => {
+  const NOW = new Date("2026-11-20T09:00:00Z");
+  const yesterdayKey = () => dateKeyInTimeZone(addZonedDays(NOW, -1, TZ), TZ);
+
+  async function seedTowels() {
+    const s = await setup({ reservationDepartureKey: yesterdayKey() });
+    const base = { organizationId: s.orgId, conversationId: s.conversationId, propertyId: s.propertyId, reservationId: s.reservationId, actorUserId: null };
+    const towels = await createGuestCommitment({ ...base, dueAt: new Date(NOW.getTime() - 3_600_000), source: "auto" as const, kind: "towels" });
+    const cleaning = await createGuestCommitment({ ...base, dueAt: new Date(NOW.getTime() - 3_000_000), source: "auto" as const, kind: "cleaning" });
+    return { s, towels, cleaning };
+  }
+
+  /** Görev düzenlemesinin kilit sırası (`api/tasks/[id]`): önce görev satırı, kapı açılınca bağlı söz güncellenir. */
+  function taskEditHoldingLock(taskId: string) {
+    let release!: () => void;
+    let markLocked!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const locked = new Promise<void>((r) => (markLocked = r));
+    const done = prisma.$transaction(
+      async (tx) => {
+        await tx.$queryRaw`SELECT "id" FROM "Task" WHERE "id" = ${taskId} FOR UPDATE`;
+        markLocked();
+        await gate;
+        await tx.guestCommitment.updateMany({ where: { taskId }, data: { closedAt: null } });
+      },
+      { timeout: 20_000 },
+    );
+    return { locked, release, done };
+  }
+
+  it("🚨 konaklama kapatması eşzamanlı görev düzenlemesiyle kilitlenmez (deadlock yok); ikisi de tamamlanır", async () => {
+    const { towels } = await seedTowels();
+    const edit = taskEditHoldingLock(towels.taskId!);
+    await edit.locked;
+    const closing = closeStayEndedCommitments(NOW);
+    await new Promise((r) => setTimeout(r, 300)); // kapatma görev kilidini beklesin (eski sıra: sözü kilitleyip görevde beklerdi)
+    edit.release();
+    await expect(edit.done).resolves.toBeUndefined();
+    expect(await closing).toEqual({ closed: 2 });
+  });
+
+  it("🚨 'Yanlış, kaldır' da aynı sırada — eşzamanlı görev düzenlemesiyle kilitlenmez", async () => {
+    const { s, towels } = await seedTowels();
+    const edit = taskEditHoldingLock(towels.taskId!);
+    await edit.locked;
+    const removing = patchCommitment(s.conversationId, towels.id, { status: "cancelled", reason: "wrong" });
+    await new Promise((r) => setTimeout(r, 300));
+    edit.release();
+    await expect(edit.done).resolves.toBeUndefined();
+    expect((await removing).status).toBe(200);
+  });
+
+  it("tek satırın hatası öteki sözlerin kapanmasını durdurmaz (satır sonraki saatte denenir)", async () => {
+    const { towels } = await seedTowels();
+    __stayEndHooks.beforeRow = (id) => {
+      if (id === towels.id) throw new Error("satır hatası (test)");
+    };
+    try {
+      expect(await closeStayEndedCommitments(NOW)).toEqual({ closed: 1 });
+    } finally {
+      __stayEndHooks.beforeRow = undefined;
+    }
+    expect((await prisma.guestCommitment.findUniqueOrThrow({ where: { id: towels.id } })).status).toBe("open");
+    expect(await closeStayEndedCommitments(NOW)).toEqual({ closed: 1 });
+  });
+});
+
 describe("'Yanlış, kaldır' (kendiliğinden kaydedilen söz)", () => {
   it("🚨 otomatik söz → kapanır (neden 'wrong'), sistemin açtığı görev silinir; aynı mesajdan söz YENİDEN açılmaz", async () => {
     const s = await setup();
@@ -896,7 +967,48 @@ describe("öneri türü ve gün düzenlemesi (Opus O7 / O13)", () => {
     const c = await prisma.guestCommitment.findFirstOrThrow();
     const tomorrowKey = tomorrowKeyOf(msg.createdAt);
     expect(dateKeyInTimeZone(c.dueAt, TZ)).toBe(tomorrowKey);
+    // Gece-4 S1-03: pencere sonu (23:59) korunur — gece yarısına düşüp yarın bütün gün "gecikti" görünmez.
+    expect(wallClock(c.dueAt)).toBe("23:59");
     expect((await prisma.task.findUniqueOrThrow({ where: { id: c.taskId! } })).dueAt?.toISOString()).toBe(`${tomorrowKey}T12:00:00.000Z`);
+  });
+
+  it("🚨 gece-4 S1-02: 00:00–04:59 arasında yazılan 'yarın' kendiliğinden kaydedilmez, kart günü sorar; sabah yazılan aynı söz kaydedilir", async () => {
+    const lateNight = new Date(`${dateKeyInTimeZone(new Date(), TZ)}T21:40:00.000Z`); // ertesi gün 00:40 İstanbul
+    vi.useFakeTimers({ toFake: ["Date"], now: lateNight });
+    const s = await setup();
+    await hostSays(s.conversationId, "Yarın sabah 9'da teknisyen gelecek.", new Date(lateNight.getTime() - 60_000));
+    expect(await applyHostCommitmentsAuto(s.orgId, s.conversationId)).toEqual({ created: 0, rescheduled: 0, skipped: 1 });
+    const [card] = (await getConversationSuggestions(s.orgId, s.conversationId)).filter((x) => x.kind === "commitment");
+    expect(card.kind === "commitment" && card.proposal.dayUnclear).toBe(true);
+    expect(await prisma.guestCommitment.count()).toBe(0);
+    // KONTROL: sabah 08:00'de yazılan aynı söz yarına kendiliğinden kaydedilir.
+    const morning = new Date(`${dateKeyInTimeZone(new Date(), TZ)}T05:00:00.000Z`);
+    vi.setSystemTime(morning);
+    const s2 = await setup();
+    await hostSays(s2.conversationId, "Yarın sabah 9'da teknisyen gelecek.", new Date(morning.getTime() - 60_000));
+    expect((await applyHostCommitmentsAuto(s2.orgId, s2.conversationId)).created).toBe(1);
+  });
+
+  it("🚨 gece-4 S1-12: tek turda iki mesaj ESKİDEN yeniye işlenir — 'Havlu bugün 6'ya kadar' + 'Çarşafları da getiririm' 18:00'ı kaybetmez", async () => {
+    pinIstanbulNoonToday();
+    const s = await setup();
+    await hostSays(s.conversationId, "Havlu bugün 6'ya kadar getiririm.", new Date(Date.now() - 10 * 60_000));
+    await hostSays(s.conversationId, "Çarşafları da getiririm.", new Date(Date.now() - 5 * 60_000));
+    expect((await applyHostCommitmentsAuto(s.orgId, s.conversationId)).created).toBe(1);
+    const [c] = await prisma.guestCommitment.findMany();
+    expect([c.kind, c.duePrecision, wallClock(c.dueAt)]).toEqual(["towels", "time", "18:00"]);
+  });
+
+  it("🚨 gece-4 S1-03: 'yarın sabah' sözünü ev sahibi BUGÜNE çekerse 'Geçmiş bir saat' hatası yok — bugün sabah penceresinin sonu (12:00)", async () => {
+    const morning = new Date(`${dateKeyInTimeZone(new Date(), TZ)}T06:00:00.000Z`); // 09:00 İstanbul
+    vi.useFakeTimers({ toFake: ["Date"], now: morning });
+    const s = await setup();
+    await hostSays(s.conversationId, "Yarın sabah havlu getireceğim.", new Date(morning.getTime() - 60_000));
+    const [sugg] = (await getConversationSuggestions(s.orgId, s.conversationId)).filter((x) => x.kind === "commitment");
+    expect(sugg.kind === "commitment" && [sugg.proposal.day, sugg.proposal.precision]).toEqual(["tomorrow", "part"]);
+    expect((await decide({ key: sugg.key, decision: "approve", day: "today" })).status).toBe(200);
+    const c = await prisma.guestCommitment.findFirstOrThrow();
+    expect([dateKeyInTimeZone(c.dueAt, TZ), wallClock(c.dueAt), c.duePrecision, c.dayPart]).toEqual([dateKeyInTimeZone(morning, TZ), "12:00", "part", "morning"]);
   });
 });
 

@@ -118,7 +118,11 @@ async function applyLocked(organizationId: string, conversationId: string, now: 
     suggestions.flatMap((s) => (s.kind === "commitment" ? [s.proposal.messageId] : [])),
   );
   const out: AutoApplyResult = { created: 0, rescheduled: 0, skipped: 0 };
-  for (const s of suggestions) {
+  // ESKİDEN YENİYE (gece-4 S1-12): öneriler en yeni mesajdan gelir; tek turda iki mesaj işlenirse yenisi önce kaydedilip eskisinin önerisini
+  // gizliyordu ("Havlu bugün 6'ya kadar getiririm" + "Çarşafları da getiririm" → 18:00 kayboluyordu). Her karar öneriyi yeniden ürettiği için
+  // bu sıra, mesajları tek tek işleyen gönderim kancasıyla aynı sonucu verir. Aynı mesajın sözleri metindeki sırada kalır (kararlı sıralama).
+  const ordered = [...suggestions].sort((a, b) => (a.evidenceAt < b.evidenceAt ? -1 : a.evidenceAt > b.evidenceAt ? 1 : 0));
+  for (const s of ordered) {
     if (s.kind !== "commitment") continue;
     if (undelivered.has(s.proposal.messageId)) {
       out.skipped++;
@@ -231,26 +235,47 @@ export async function closeStayEndedCommitments(now: Date = new Date()): Promise
     // Konaklama bitti mi: oto-yanıtın "konaklama bitti" susması ve gelen kutusu paneliyle AYNI kural (`stayEndedBefore` — çıkış günü
     // boyunca söz açık kalır).
     if (!stayEndedBefore(checkOut, now, tz)) continue;
-    const done = await prisma.$transaction(async (tx) => {
-      const res = await tx.guestCommitment.updateMany({
-        where: { id: c.id, status: "open" },
-        data: { status: "cancelled", closedAt: now, closedReason: "stay_ended" },
-      });
-      if (res.count !== 1) return false;
-      if (c.taskId && isCommitmentKind(c.kind)) {
-        await tx.task.deleteMany({ where: untouchedCommitmentTaskWhere(c.taskId, c.kind, c.topic, c.dayPart) });
-      }
-      await writeAuditInTx(tx, {
-        organizationId: c.organizationId,
-        actorUserId: null,
-        action: "commitment.stay_ended",
-        metadata: { commitmentId: c.id, kind: c.kind },
-      });
-      return true;
-    });
+    // Satır başına hata yakalama (gece-4 S1-17): tek satırın hatası saatin geri kalan sözlerini kapatmayı durdurmaz; satır sonraki saatte
+    // yeniden denenir.
+    let done = false;
+    try {
+      await __stayEndHooks.beforeRow?.(c.id);
+      done = await closeOneStayEnded(c, now);
+    } catch (err) {
+      await reportError("commitment-stay-end", err);
+    }
     if (done) closed++;
   }
   return { closed };
+}
+
+/** Yalnız test: konaklama kapatmasında satır öncesi kanca (satır başına hata yakalamayı sınamak için). */
+export const __stayEndHooks: { beforeRow?: (commitmentId: string) => Promise<void> | void } = {};
+
+async function closeOneStayEnded(
+  c: { id: string; organizationId: string; kind: string; topic: string | null; dayPart: string | null; taskId: string | null },
+  now: Date,
+): Promise<boolean> {
+  return prisma.$transaction(async (tx) => {
+    // KİLİT SIRASI görev → söz (gece-4 S1-17): görev düzenleme (`api/tasks/[id]`) görevi kilitleyip sözü günceller; burada ters sıra
+    // eşzamanlı bir durum değişikliğiyle kilitlenmeye (deadlock) düşebiliyordu.
+    if (c.taskId) await tx.$queryRaw`SELECT "id" FROM "Task" WHERE "id" = ${c.taskId} FOR UPDATE`;
+    const res = await tx.guestCommitment.updateMany({
+      where: { id: c.id, status: "open" },
+      data: { status: "cancelled", closedAt: now, closedReason: "stay_ended" },
+    });
+    if (res.count !== 1) return false;
+    if (c.taskId && isCommitmentKind(c.kind)) {
+      await tx.task.deleteMany({ where: untouchedCommitmentTaskWhere(c.taskId, c.kind, c.topic, c.dayPart) });
+    }
+    await writeAuditInTx(tx, {
+      organizationId: c.organizationId,
+      actorUserId: null,
+      action: "commitment.stay_ended",
+      metadata: { commitmentId: c.id, kind: c.kind },
+    });
+    return true;
+  });
 }
 
 /** Yalnız test: işletme diliminde gün başlangıcı (günlük sınır sayımının penceresi). */

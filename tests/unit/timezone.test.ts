@@ -6,6 +6,7 @@ import {
   zonedDayRange,
   zonedDateStart,
   addZonedDays,
+  shiftZonedDaysKeepingWallClock,
 } from "@/lib/timezone";
 
 // Org-timezone tek kaynağı. Kritik sözleşmeler: bozuk/boş değer ASLA Intl'e
@@ -105,5 +106,25 @@ describe("DST — Berlin 23/25 saatlik günler (Codex 07-23 #4)", () => {
     // Istanbul: 24h ile birebir aynı (davranış değişikliği yok).
     const i0 = zonedDateStart(2026, 7, 16, "Europe/Istanbul");
     expect(addZonedDays(i0, 3, "Europe/Istanbul").getTime()).toBe(i0.getTime() + 3 * 24 * 60 * 60 * 1000);
+  });
+});
+
+describe("shiftZonedDaysKeepingWallClock — gün kayar, duvar saati kalır (gece-4 S1-03)", () => {
+  it("İstanbul: bugün 23:59 → yarın 23:59 / dün 23:59 (addZonedDays gece yarısını döner — fark burada)", () => {
+    const base = new Date("2026-10-18T20:59:00.000Z"); // 18 Ekim 23:59 İstanbul
+    expect(shiftZonedDaysKeepingWallClock(base, 1, "Europe/Istanbul").toISOString()).toBe("2026-10-19T20:59:00.000Z");
+    expect(shiftZonedDaysKeepingWallClock(base, -1, "Europe/Istanbul").toISOString()).toBe("2026-10-17T20:59:00.000Z");
+    expect(addZonedDays(base, 1, "Europe/Istanbul").toISOString()).toBe("2026-10-18T21:00:00.000Z"); // 19 Ekim 00:00 — eski davranış
+  });
+
+  it("gece penceresi ertesi güne taşan an (01:00) da aynı saatte kayar; ay sonu devrilir", () => {
+    const night = new Date("2026-10-31T22:00:00.000Z"); // 1 Kasım 01:00 İstanbul
+    expect(shiftZonedDaysKeepingWallClock(night, 1, "Europe/Istanbul").toISOString()).toBe("2026-11-01T22:00:00.000Z");
+    expect(shiftZonedDaysKeepingWallClock(night, -1, "Europe/Istanbul").toISOString()).toBe("2026-10-30T22:00:00.000Z");
+  });
+
+  it("Berlin DST geçişinde duvar saati korunur (sabit 24 saat değil)", () => {
+    const sat = new Date("2026-10-24T10:00:00.000Z"); // 24 Ekim 12:00 Berlin (UTC+2)
+    expect(shiftZonedDaysKeepingWallClock(sat, 1, "Europe/Berlin").toISOString()).toBe("2026-10-25T11:00:00.000Z"); // 25 Ekim 12:00 (UTC+1)
   });
 });

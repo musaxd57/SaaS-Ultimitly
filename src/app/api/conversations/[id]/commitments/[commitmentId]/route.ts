@@ -26,6 +26,8 @@ export const PATCH = withManage<{ id: string; commitmentId: string }>(async (ses
       ? await tx.guestCommitment.findFirst({ where: { ...where, source: "auto" }, select: { kind: true, topic: true, dayPart: true, taskId: true } })
       : null;
     if (wrong && !row) return false;
+    // KİLİT SIRASI görev → söz (gece-4 S1-17; görev düzenlemesiyle aynı sıra — ters sıra eşzamanlı durum değişikliğinde kilitlenirdi).
+    if (row?.taskId) await tx.$queryRaw`SELECT "id" FROM "Task" WHERE "id" = ${row.taskId} FOR UPDATE`;
     const res = await tx.guestCommitment.updateMany({
       where: wrong ? { ...where, source: "auto" } : where,
       data: { status: "cancelled", closedAt: new Date(), ...(wrong ? { closedReason: "wrong" } : {}) },

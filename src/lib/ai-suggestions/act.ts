@@ -6,7 +6,7 @@ import { createOperationalTaskFromMessage } from "@/lib/tasks/create";
 import { commitmentDueAt, createGuestCommitment, isCommitmentKind, isCommitmentTopic, lockCommitmentConversation } from "@/lib/guest-commitments";
 import { commitmentTaskDueAt, commitmentTaskTitle } from "@/lib/guest-commitments-core";
 import type { CommitmentTopic, DayPartCode, DuePrecision } from "@/lib/guest-commitments-core";
-import { addZonedDays } from "@/lib/timezone";
+import { shiftZonedDaysKeepingWallClock } from "@/lib/timezone";
 import { orgTimezone } from "@/lib/timezone";
 import { refreshPropertyMemoryBestEffort } from "@/modules/intelligence";
 import { applyWifiValue, extractWifiValues, parseSuggestionKey } from "./core";
@@ -139,10 +139,11 @@ export async function decideSuggestion(input: {
       commitmentPrecision = { duePrecision: "time", dayPart: null, dayKey: null };
     } else {
       // Gün dilimi / gün sözü (kurucu 10-17: saat uydurulmaz) → sunucunun yeniden ürettiği pencere sonu; ev sahibi günü değiştirdiyse
-      // pencere o güne kayar.
+      // pencere AYNI duvar saatiyle o güne kayar (gece-4 S1-03: gece yarısına düşüp bütün gün "gecikti" görünüyor ya da "Geçmiş bir saat"
+      // hatası veriyordu).
       const baseDue = new Date(base.dueAt);
       const shift = day === base.day ? 0 : day === "tomorrow" ? 1 : -1;
-      commitmentDue = Number.isNaN(baseDue.getTime()) ? null : shift === 0 ? baseDue : addZonedDays(baseDue, shift, tz);
+      commitmentDue = Number.isNaN(baseDue.getTime()) ? null : shift === 0 ? baseDue : shiftZonedDaysKeepingWallClock(baseDue, shift, tz);
       // Gün anahtarı TAKVİM aritmetiğiyle (Opus O13: UTC+12…+14 dilimlerinde "öğlen UTC" çapası günü kaydırıyordu).
       const dayKey = shift === 0 ? base.dayKey : shiftDayKey(base.dayKey, shift);
       commitmentPrecision = { duePrecision: base.precision, dayPart: base.dayPart ?? null, dayKey };

@@ -40,6 +40,11 @@ const ICONS: Record<AttentionKind, typeof AlertTriangle> = {
 };
 
 /** "5 Eki" — takvim günü; saat dilimi kaydırması olmasın diye UTC okunur (anahtar zaten gün). */
+/** Satırın React anahtarı: tür + hedef + an (+ aynı ana düşebilen satırlarda kararlı kimlik — gece-4 S1-15). */
+export function attentionRowKey(item: AttentionItem): string {
+  return `${item.kind}:${item.href}:${item.occurredAt.getTime()}${item.rowKey ? `:${item.rowKey}` : ""}`;
+}
+
 function dayLabel(key: string, offsetDays = 0): string {
   const [y, m, d] = key.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d + offsetDays)).toLocaleDateString("tr-TR", { day: "numeric", month: "short", timeZone: "UTC" });
@@ -212,7 +217,7 @@ export function AttentionPanel({
             item.kind === "channel_reactivation" && item.reservationId && canManageReservations ? item.reservationId : null;
           const row = (
             <Link
-              key={`${item.kind}:${item.href}:${item.occurredAt.getTime()}`}
+              key={attentionRowKey(item)}
               href={item.href}
               className="flex min-w-0 flex-1 items-start gap-3 rounded-lg border border-border px-3 py-2 hover:bg-accent"
             >
@@ -244,7 +249,7 @@ export function AttentionPanel({
           );
           // H2: "yeniden aç" düğmesi bağlantının DIŞINDA (bağlantı içinde düğme geçersiz HTML; tık satırı açmamalı).
           return reopen ? (
-            <div key={`${item.kind}:${item.href}:${item.occurredAt.getTime()}`} className="flex items-center gap-2">
+            <div key={attentionRowKey(item)} className="flex items-center gap-2">
               {row}
               <ReactivateReservationButton reservationId={reopen} />
             </div>

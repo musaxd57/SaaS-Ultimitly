@@ -9,6 +9,8 @@ import { render, screen, fireEvent, act, cleanup } from "@testing-library/react"
 
 const router = { push: vi.fn(), refresh: vi.fn() };
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
+const toastError = vi.fn();
+vi.mock("@/lib/toast", () => ({ toast: { success: vi.fn(), error: (...a: unknown[]) => toastError(...a), info: vi.fn() } }));
 
 import { CommitmentsCard, type CommitmentRow } from "@/components/inbox/commitments-card";
 
@@ -47,6 +49,27 @@ describe("CommitmentsCard — otomatik söz", () => {
     });
     expect(fetchMock.mock.calls[2]![0]).toBe("/api/conversations/conv1/commitments/c2");
     expect(JSON.parse(String(fetchMock.mock.calls[2]![1]!.body))).toEqual({ status: "cancelled" });
+  });
+
+  it("gece-4 S1-18: söz zaten kapanmışsa (404 — başka sekme / görev bitti) hata gösterilmez, liste yenilenir; başka hata yine söylenir", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    router.refresh.mockClear();
+    toastError.mockClear();
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 404, json: async () => ({ error: "Bulunamadı." }) })));
+    render(<CommitmentsCard conversationId="conv1" commitments={[autoRow]} readOnly={false} />);
+    await act(async () => {
+      fireEvent.click(screen.getByText("Yanlış, kaldır"));
+    });
+    expect(router.refresh).toHaveBeenCalledTimes(1);
+    expect(toastError).not.toHaveBeenCalled();
+    cleanup();
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 500, json: async () => ({}) })));
+    render(<CommitmentsCard conversationId="conv1" commitments={[autoRow]} readOnly={false} />);
+    await act(async () => {
+      fireEvent.click(screen.getByText("Yanlış, kaldır"));
+    });
+    expect(toastError).toHaveBeenCalledWith("Kaldırılamadı. Lütfen tekrar deneyin.");
+    expect(router.refresh).toHaveBeenCalledTimes(1);
   });
 
   it("dilim / gün sözünde kalan süre GÖSTERİLMEZ: 'açık' / 'gecikti' (O12)", () => {

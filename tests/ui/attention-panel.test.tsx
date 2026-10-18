@@ -259,6 +259,20 @@ describe("AttentionPanel", () => {
 // G9 / G10 / H2 (kurucu kararları 10-13): kanal iptal edilmiş rezervasyonu yeniden etkin gösteriyor (+ "yeniden aç" düğmesi yalnız
 // sahip / yönetici) · sağlayıcı arızası TEK satır.
 // ---------------------------------------------------------------------------
+describe("AttentionPanel — aynı konuşma + aynı andaki iki söz (gece-4 S1-15)", () => {
+  it("iki söz satırı ayrı anahtar alır: ikisi de görünür, React çift anahtar uyarısı yok", () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const row = { ...base, kind: "commitment_due" as const, certainty: "observed" as const, severity: 89, href: "/inbox/c1", commitmentKind: "maintenance" as const, minutesLeft: 30, commitmentTime: "18:00" };
+      render(<AttentionPanel items={[{ ...row, rowKey: "cm1", commitmentTopic: "ac" }, { ...row, rowKey: "cm2", commitmentTopic: "faucet" }]} />);
+      expect(screen.getAllByText(/18:00/).length).toBeGreaterThanOrEqual(2);
+      expect(errors.mock.calls.some((c) => String(c[0]).includes("same key"))).toBe(false);
+    } finally {
+      errors.mockRestore();
+    }
+  });
+});
+
 describe("AttentionPanel — kanal yeniden etkin + sağlayıcı arızası", () => {
   const reactivation: AttentionItem = {
     ...base,
