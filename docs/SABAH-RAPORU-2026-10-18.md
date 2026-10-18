@@ -13,6 +13,9 @@
   soruyor; "İyi akşamlar, teknisyen yarın 9'da" artık 21:00 değil 09:00; "The cleaning went well." artık görev açmıyor).
 - **Migration 76 + 77 + 78** (kurucunun 10-17 genel onayıyla): 76 sözü yapanı kaydeder (teknisyen gelecek ↔ ben getireceğim aynı saatte
   karışmaz); 77 yalnız dizin (mülk / hesap silme 15,6 sn → 0,1 sn); 78 yalnız dizin (arka plandaki olay okuması geçmişi baştan taramaz).
+- **İkinci tarama (gece yarısından sonra):** 135 bulgunun izi tek tek sürüldü — 50'si hiçbir yere bağlanmamıştı. İç olanlar düzeltildi (söz
+  algılamada 14 kural, demo sıfırlama, kiracı testi, açılış uyarıları, iki yeni pin; ↓ §2), müşteriye dokunan 18'i §T8'de soru.
+- **Migration 78** (yalnız dizin): arka plandaki olay okuması geçmişi baştan taramıyor (40 bin olayda 3,9 ms → 0,05 ms).
 - **İtildi / CI:** ↓ §4.
 - **Railway kapalı** → canlıya bir şey gitmedi. Açılış belgesi güncellendi: önce yalnız veritabanı + yedek, sonra web servisi (yoksa yedek
   migration'dan SONRA alınırdı); `QR_PIN_PEPPER` / `ERASURE_HMAC_SECRET` eksikse servis hiç başlamaz uyarısı eklendi.
@@ -29,6 +32,7 @@
 | T6 | Kartla deneme hukuk metni · mülk silme penceresi · sistem görevi silme · Airbnb "Not available" · 12 küçük metin | ayrıntı §T6 |
 | T6b | KVKK: hata / işlenemeyen Paddle olay kayıtları süresiz ad / e-posta taşıyor (G6 kararınızın kenarı) | 2 yıl sonra küçülsün |
 | T7 | SG1 / SG2 · Paddle ödeme kurtarma ayarı | — |
+| T8 | İkinci taramanın 18 sorusu: deneme e-postaları (ödeyen müşteriye "bitti", doğrulanmamış adres) · ödeme ekranı metinleri · kartla deneme (ilk daire, bitiş toleransı) · yıllık abone tespiti (para) · kuyruk zamanlaması · ekran davranışı · sınırlar · KVKK | her birinde önerim; ayrıntı §T8 |
 
 ## 2. Gece ne düzeltildi (müşteriye giden değişmedi ya da yalnız TUTMA yönünde)
 
@@ -63,6 +67,22 @@
   rezervasyonda da ret + son 24 saatte hiç başarılı gönderim yoksa (yazma yetkisiz belirteç) eski karar, iptal + uyarı (S3-06) ·
   yüklenip göreve bağlanmayan fotoğraf (bağlantı koptu, ekran kapandı) 24 saat sonra kovadan silinir, migration'sız — mevcut silme kuyruğuna
   erteli kayıt; göreve bağlandıysa kayıt iptal (S7-01; KVKK "hesap silindi = her şey gitti" bu fotoğrafları da kapsar).
+- **İkinci tarama — söz algılama (anahtar kapalı; yön hep "kaydetme / kart sorar"; mutasyon 25/25):** ekle kurulan koşul ("Klima
+  çalışmazsa yarın teknisyen gelecek", "Havlu lazımsa getiririm", "gelirsem") artık söz değil — sağdaki ayrı koşul ("…, sorun olursa yazın") sözü
+  bozmaz; "çıkıştan sonra / siz gelmeden" (açık gün yoksa) ve "her sabah / genelde" söz değil; "herhalde / tahminen" kararsız; "2:30 p.m." artık
+  14:30 (02:30 değil); "pilav / ustalıkla / bakımlı" konu değil; "sabah ya da öğleden sonra" dilim seçmez; "10:30'dan sonra / 10-11 gibi / yarın gece
+  1'de" kart saati sorar; 00:00–04:59 yazılan "yarın" kart günü sorar; onayda gün değişince son an gece yarısına düşmüyor; tek turda iki mesaj
+  eskiden yeniye; konaklama kapatması / "Yanlış, kaldır" / yeniden planlama görevi önce kilitler (eşzamanlı görev düzenlemesiyle kilitlenme yok —
+  gerçek PostgreSQL'de iki yönlü sınandı); dikkat panelinde aynı saatteki iki söz ayrı satır; zaten kapanmış söz için yanlış hata yok. Haiku'nun
+  incelemesi ayrıca eski bir hatayı buldu: saat değişikliği belirsizken varış fiilli ikinci söz düşüyordu.
+- **CI #1539 kırmızısı:** bilgi tabanı düzenleyicisinde korumasız `scrollIntoView` (test ortamında yok, zamanlamaya bağlı patlıyordu) → korumalı;
+  ayrıca "Kaydedilen bilgiyi düzenle" kalem listede varken de görünür yere kaydırıp odak veriyor (önceden yalnız yenileme yolunda). Pin: korumasız
+  `scrollIntoView(` kalmadı.
+- **Demo sıfırlama:** inceleyicinin eklediği talimat / Geçmişten öğren koşusu sıfırlamada kalıyordu → siliniyor; her modeli sınıflandıran pin.
+- **Kiracı sınırı:** gövdede kimlik alan "konuşma aç" rotası için saldırgan ↔ kurban testi (yabancı mülk / rezervasyon → 400).
+- **Pinler:** koddaki her `*_ENABLED` anahtarı Railway açılış belgesinde adıyla geçmek zorunda; sağlayıcı adlı alan pini `autoReplyHospitable`'ı da
+  görüyor. **Araç:** `scripts/ops-key-fingerprint.mjs` (şifreleme anahtarını değeri basmadan karşılaştırma — Railway belgesi §0).
+- **Açılış uyarıları:** `BILLING_ENFORCED` açık ama satın alma kurulmamış; sunucu / tarayıcı Paddle ortamı farklı (durdurmaz).
 - **Dolu veritabanı yükseltme provası (S10-10):** canlının seviyesi (58) + 37 tabloya 40'ar yapay satır → 59…77 hatasız (1,5 sn), sapma sıfır;
   araç `scripts/ops-migration-rehearsal-seed.py`.
 
@@ -105,6 +125,12 @@
 - Sync'te rezervasyon başına ~12 sorgu (S8-02): bugünkü ölçekte (≈10 daire) sorun değil; 20+ büyük işletmede 2 dk'lık geçişi aşar → tasarım
   `docs/arastirma-2026-10-18/S8-performans.md` (açık performans kalemlerinin hepsi orada); Railway açılınca ölçümle.
 - Gelen kutusu listesinde son mesaj için bütün mesajlar okunuyor (S8-06): bugünkü hacimde 30 sn'de bir ~270 KB; büyüyünce tek sorguya çevrilir.
+- Kalıcı kuyruk (anahtar kapalı) ölçek kalemleri — talep sorgusunda sınır / zaman aşımı yok (S3-07), teslim düzelticisi bütün gönderim geçmişini
+  tarıyor (S3-09), ödeme bekleyen yaşam döngüsü satırları iptal edilmiyor (S3-04), operatör "Kuyruk sağlığı" bilerek bekletilen satırı kırmızı
+  gösteriyor (S3-08): bugünkü hacimde etkisiz; anahtar açılmadan önce ölçümle (tablo `docs/arastirma-2026-10-18/S8-performans.md`).
+- "Bu gece teknisyen gelecek" 01:00'de yazılırsa gecikme uyarısı bir gün geç gelir (söz kaydı doğru; yalnız panel uyarısının zamanı).
+- "The cleaning crew will come…" (crew / team öznesi) söz sayılmıyor — söz kapsamını genişletmek ayrı karar.
+- Arıza kemerinde (anahtar kapalı) Almanca / Fransızca / İspanyolca / Rusça arıza sözcükleri yok (S4-03 eki).
 
 ## 4. İtme / CI
 (doldurulacak)

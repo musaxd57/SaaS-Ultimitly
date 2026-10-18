@@ -13,6 +13,10 @@
 | S8-04 Zekâ geçişi her seferinde bütün KB'yi + olay listesini okuyor | KISMEN: olay okuması ✅ migration 78 (10-18 yeniden ölçüm: 40 bin olayda 3,9 ms → 0,05 ms) · KB'nin her geçişte tam okunması AÇIK (bugün KB yazma rotaları hafızayı zaten anında eşitliyor; geçiş yalnız emniyet ağı → ölçümle) |
 | S8-05 AuditLog dizinleri | ✅ migration 77 · karar anahtarlarının konuşma başına yeniden okunması AÇIK |
 | S8-06 Gelen kutusu "son mesaj" için bütün mesajları okuyor | AÇIK — bugünkü hacimde 30 sn'de bir ~270 KB |
+| S3-07 Kalıcı kuyruk (anahtar kapalı): talep sorgusu kilitlenen katmanda sınırsız + 5 sn işlem süresi; büyük birikimde boşaltıcı takılabilir | AÇIK — çözüm önerisi: `{ timeout: 30_000 }` + kilit katmanında LIMIT + `(organizationId, externalReservationId, claimedAt)` dizini; FIFO anlamını bozmadan ölçümle |
+| S3-09 Kalıcı kuyruk: teslim düzelticisi `sent` geçmişini her geçişte baştan tarıyor (sentAt dizini yok, `ORDER BY id`) | AÇIK — `@@index([status, sentAt])` (migration) ya da `sentAt` sırası; düzeltme penceresi de kısaltılabilir (T8.12) |
+| S3-04 Kalıcı kuyruk: ödeme bekleyen yaşam döngüsü satırları hiç iptal edilmiyor, her geçişte ödeme yoklaması büyüyor | AÇIK — konaklaması bitmiş satırları bekletme kümesinden çıkar / iptal et |
+| S3-08 Operatör "Kuyruk sağlığı" bilerek bekletilen satırı kırmızı gösteriyor (alarm yolu düzeltildi, panel okuması değil) | AÇIK — panel `queueStallStates` ile aynı SQL'i kullansın |
 
 ---
 

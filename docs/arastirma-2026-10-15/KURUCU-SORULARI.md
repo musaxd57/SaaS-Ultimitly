@@ -960,3 +960,65 @@ yapılmıyorsa iz yalnız risk). Önerim: hata / alınmış satırlar 2 yıl son
   Lirası" ayrı ayrı yazılıyor, aylık raporda üç ayrı satır oluyor. Önerim: TL / ₺ / try → TRY, bilinmeyen kod reddedilir, varsayılan işletmenin
   fatura para birimi (₺). Uygun mu?
 - Sandbox: Paddle'ın ödeme kurtarma ayarında son denemeden sonra aboneliğin duraklatılmadan İPTALE düşmesi panelde doğrulanacak (SG3 kararı).
+
+### T8 · İkinci tarama (10-18 gece): 135 bulgunun izi sürüldü — 50'si hiçbir yere bağlanmamıştı; müşteriye dokunanlar burada (hiçbiri uygulanmadı)
+İç olanlar (söz algılamada 14 kural, demo sıfırlama, kiracı testleri, açılış uyarıları, pinler) gece yapıldı → sabah raporu §2. Aşağıdakiler e-posta /
+ekran metni / para / misafir mesajının zamanlamasını değiştirir. "Evet" yeterli; numarayla farklı isterseniz yazın.
+
+**E-posta (deneme)**
+- **T8.1 (S2-12) Ödeyen müşteriye "denemeniz bitti" gidebiliyor.** Saatlik iş listeyi okuduktan sonra müşteri öderse e-posta yine gidiyor.
+  ÖNCE: 23:59'da ödeyen müşteriye 00:00'da "Ücretsiz denemeniz sona erdi … otomatik misafir yanıtları şu anda kapalı". SONRA: gitmez (göndermeden
+  hemen önce "hâlâ deneme mi" bakılır; metin aynı). Uygun mu?
+- **T8.2 (S2-13) Doğrulanmamış adrese deneme e-postası.** Başkasının adresiyle kayıt olunursa o kişiye 13. ve 14. günde iki Lixus e-postası gidiyor.
+  Önerim: e-postasını doğrulamamış hesap sahibine deneme e-postası gitmez. Uygun mu?
+
+**Ödeme ekranı metinleri**
+- **T8.3 (S2-02) Kendi paketinizde etkin "Düşür" düğmesi** (deneme sürerken / ödeme gecikmişken). Tıklayınca "Zaten bu plandasınız." ya da genel hata.
+  Önerim: mevcut pakette düğme yerine "Mevcut plan"; kartla deneme sürerken paket değiştirme kapalı ve tek satır: "Deneme sürerken paket
+  değiştirilemez; deneme bitince değiştirebilirsiniz." Uygun mu?
+- **T8.4 (S2-03)** Paddle'a o an ulaşılamazsa AYLIK aboneye "Yıllık aboneliklerde plan değişikliği panelden yapılamıyor. Bize yazın…" çıkıyor.
+  Önerim: "Aboneliğinizin durumu şu anda doğrulanamadı; birkaç dakika sonra tekrar deneyin." (yine işlem yapılmaz). Uygun mu?
+- **T8.5 (S2-05)** İki sekmeden aynı anda paket değiştirilince kaybeden sekme "İşleminiz şu anda tamamlanamadı; planınız değişmedi." görüyor
+  (öteki sekme değiştiriyor). Önerim: "Önceki plan değişikliğiniz hâlâ işleniyor." (devam ettir ekranındaki aynı cümle). Para güvenli. Uygun mu?
+- **T8.6 (S2-01, kartla deneme kapalı)** Deneme bandı hep "Pro ücretsiz deneme: N gün kaldı." diyor; kartla Başlangıç / İşletme denemesinde yanlış.
+  Önerim: "{Paket adı} ücretsiz deneme: N gün kaldı." Uygun mu?
+
+**Kartla deneme (anahtar kapalı)**
+- **T8.7 (S2-08)** Kart istenen denemede İLK daire eklenemiyor ve cümle "Aboneliğiniz aktif değil. Daire eklemek için bir plan seçin." (bant
+  "kartınızı ekleyin" diyor). (a) daire eklemek açık kalsın, yalnız otomasyon kapalı — önerim · (b) kapalı kalsın, cümle "Devam etmek için
+  kartınızı ekleyin." Hangisi?
+- **T8.8 (S2-09)** Kartlı deneme bittiği an, Paddle'ın "ödendi" bildirimi gelene kadar (saniyeler–dakikalar; yeniden denemede daha uzun) müşteri
+  "deneme süreniz doldu — otomatik yanıtlar kapalı" görüyor ve O ARADA gelen misafir mesajları kalıcı olarak otomatik cevapsız kalıyor.
+  Önerim: kartlı denemede bitişe 6 saat tolerans (Paddle o sürede ödendi / ödenmedi bildirir). Ek süre gibi görünür — sizin kararınız.
+
+**Para**
+- **T8.9 (S2-15)** "Yıllık abone mi" bilgisi üç fiyat kimliğinden (env) okunuyor. Paddle'da ikinci bir yıllık fiyat (kampanya / yeniden oluşturulmuş
+  fiyat) olursa yıllık abone paket değiştirirken AYLIK fiyata taşınabilir (₺8.990 peşin ödenmiş abonelik ₺899'luk aylığa). Önerim: aboneliğin
+  kendi faturalama döngüsü okunur (alan adı sandbox'ta doğrulanacak), env listesi ikinci işaret; okunamazsa bugünkü gibi işlem yapılmaz. Uygun mu?
+
+**Misafir mesajının zamanlaması (kalıcı kuyruk — anahtar kapalı, canlıda bugün etkisiz)**
+- **T8.10 (S3-02)** Sağlayıcı zaman aşımında mesaj "belirsiz" kalınca aynı konuşmadaki sonraki mesajlar ~15 dk bekliyor; sonunda yine
+  incelemeye düşüyor (otomatik doğrulama yolu yok). ÖNCE: "Kapı kodu 4321" zaman aşımı → misafirin sonraki sorusunun cevabı ~15 dk sonra. SONRA:
+  tek kısa bekleme (3–5 dk, bir senkron turu) sonra incelemeye, sonraki mesajlar beklemez. Uygun mu?
+- **T8.11 (S3-01 eki)** İptal edilen rezervasyonun kuyruktaki YAPAY ZEKÂ cevabı gönderim anında yeniden bakılmıyor (karşılama / giriş / çıkış
+  bakılıyor). Önerim: iptal edilmiş rezervasyonda yapay zekâ cevabı da gitmez. Uygun mu?
+
+**Ekran davranışı**
+- **T8.12 (S3-03)** Konuşmayı "Yeni" işaretlerseniz, son 48 saatte teslim edilmiş bir cevap varsa 2 dk içinde "Cevaplandı"ya geri dönüyor.
+  Önerim: bu düzeltme yalnız son 15 dakikadaki gönderimlerde çalışsın (sizin işaretiniz kalır). Uygun mu?
+- **T8.13 (S1-16)** Dikkat panelinde en fazla 3 söz satırı; fazlası sessizce gizli. Önerim: son satırda "… ve N söz daha". Uygun mu?
+- **T8.14 (S6-02)** CSV'nin başlıkları / kodlaması / tarih biçimi farklıysa 0 satır okunuyor, mesaj yok. Önerim: "12 satır okundu, 3 satır atlandı
+  (tarih biçimi tanınmadı)." özeti + Windows Türkçe kodlama desteği. Uygun mu?
+- **T8.15 (S5-07 / S5-08, Geçmişten öğren — anahtar kapalı)** Panelde sayı tutarsızlıkları, reddedilen taslağın tekrar üretilmesi, "Vazgeç" yok;
+  talimat sınırı dolunca EN YENİ talimat sessizce düşüyor. Önerim: sınır dolunca eklerken "Talimat sınırına ulaştınız; önce bir talimatı silin."
+  (sessiz düşme yok) + panel düzeltmeleri anahtar açılmadan önce ayrı tur. Uygun mu?
+
+**Sınırlar**
+- **T8.16 (S5-09 = S7-04)** Bilgi tabanı yazımlarında işletme başına hız sınırı yok (pasif kalem sınırsız). Önerim: işletme başına dakikada 60 yazma
+  + toplam 2.000 kalem; aşınca "Çok hızlı ekleme yapıldı; bir dakika sonra tekrar deneyin." Uygun mu?
+- **T8.17 (S7-07)** Kayıt / şifre sıfırlama (anonim) ile gerçek girişler aynı parola-doğrulama kapısını paylaşıyor; saldırı yükünde gerçek
+  kullanıcı "şu an yoğun" (503) alabilir. Önerim: anonim uçlara ayrı ve daha küçük kapı → gerçek giriş öncelikli. Uygun mu?
+
+**KVKK**
+- **T8.18 (S5-06)** Geçmişten öğren'de ONAYLANAN taslağın başlık + içeriği süresiz duruyor (bilgi tabanına zaten aktarıldı). Önerim: onayda taslak
+  içeriği boşaltılır, iz (tarih / tür) kalır. Uygun mu?

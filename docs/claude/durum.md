@@ -19,6 +19,9 @@ hata kayıtları) değiştirilmedi → T6b. S3-06 kapandı (401/403'te önce tek
 Sonra: CI #1539 kırmızısı (KB düzenleyicide korumasız `scrollIntoView`, zamanlamaya bağlı) düzeltildi + listede-var yolunda da kaydırma/odak + pin;
 migration 78 (yalnız dizin: `IngestEvent` bekleyen olay okuması, S8-04; sert itirazcı diğer S8 kalemlerini "Railway açılınca ölçümle" dedi). Açık
 performans kalemleri: `docs/arastirma-2026-10-18/S8-performans.md`.
+İkinci tarama: 135 bulgu izlendi, 50 izsiz → iç olanlar düzeltildi (söz algılama 14 kural + Haiku 9 bulgu, mutasyon 25/25; demo sıfırlama + DMMF pini;
+POST /api/conversations kiracı testi; `*_ENABLED` ↔ Railway belgesi pini; anahtar parmak izi aracı; ödeme açılış uyarıları), müşteriye dokunan 18'i
+KURUCU-SORULARI §T8; hazır yama durum tablosu `docs/hazir-yamalar/DURUM.md`.
 Açık: S7-03 (elle senkron global kilidi — mimari, ölçümle).
 Sabah raporu `docs/SABAH-RAPORU-2026-10-18.md`.
 

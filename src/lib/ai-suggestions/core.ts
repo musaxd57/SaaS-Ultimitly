@@ -67,13 +67,38 @@ const CONDITIONAL = new RegExp(`${NL}(?:eger|isterseniz|istersen|gerekirse|ihtiy
  */
 const CONDITIONAL_SUFFIX = /(?<=\p{L}{2})(?:[aeiu]rs[ae]|m[ae]zs[ae]|[iu]yors[ae]|[ae]c[ae]ks[ae]|[dt][iu]ys[ae]|m[iu]ss[ae])(?:n[iu]z|n|k|m|l[ae]r)?$/u;
 const CONDITIONAL_WORD = new Set(["varsa", "yoksa", "eksikse", "lazimsa", "gerekliyse", "olsa", "olsaydi"]);
-const NOT_CONDITIONAL = new Set(["course", "courses", "universe", "reverse", "diverse", "inverse", "converse", "traverse", "adverse", "rehearse", "disperse", "immerse", "sparse", "parse", "coarse"]);
+const NOT_CONDITIONAL = new Set(["course", "courses", "universe", "reverse", "diverse", "inverse", "converse", "traverse", "adverse", "rehearse", "disperse", "immerse", "sparse", "parse", "coarse", "reimburse", "disburse", "hoarse", "hearse", "recurse"]);
+/** Ad + "-sa / -se" koşulu ("Klima bozuksa", "Müsaitseniz", "Evdeyseniz", "Ev boşsa") — sert itirazcı gece-4. */
+const CONDITIONAL_NOMINAL = /^(?:uygun|musait|bozuk|bos|mumkun|evde|arizali|gerekli|yeterli|eksik|lazim|yagmurlu)y?s[ae](?:n[iu]z|n|k|m)?$/u;
 const CONDITIONAL_EN = new RegExp(`^\\s*should${NR}|${NL}(?:in\\s+case|whenever|let\\s+(?:me|us)\\s+know|tell\\s+(?:me|us)|as\\s+needed|when\\s+you\\s+need)${NR}`, "u");
+/** Zaman / gereklilik koşulu öbekleri ("Sorun olduğunda…", "Havlu lazım olunca…", "Gerekir ise…") — sert itirazcı gece-4. */
+const CONDITIONAL_PHRASE = new RegExp(
+  `${NL}(?:gerekir\\s+ise|lazim\\s+(?:ise|olunca|oldugunda)|gerektiginde|ihtiyac\\p{L}{0,6}\\s+(?:olunca|oldugunda)|sorun\\s+(?:olunca|oldugunda|cikarsa|cikinca))${NR}`,
+  "u",
+);
 function hasConditionalWord(seg: string): boolean {
-  if (CONDITIONAL_EN.test(seg)) return true;
+  if (CONDITIONAL_EN.test(seg) || CONDITIONAL_PHRASE.test(seg)) return true;
   for (const w of seg.split(/[^\p{L}]+/u)) {
-    if (w.length < 4) continue;
-    if (CONDITIONAL_WORD.has(w) || (!NOT_CONDITIONAL.has(w) && CONDITIONAL_SUFFIX.test(w.slice(-12)))) return true;
+    if (isConditionalToken(w)) return true;
+  }
+  return false;
+}
+function isConditionalToken(w: string): boolean {
+  return w.length >= 4 && (CONDITIONAL_WORD.has(w) || CONDITIONAL_NOMINAL.test(w) || (!NOT_CONDITIONAL.has(w) && CONDITIONAL_SUFFIX.test(w.slice(-12))));
+}
+/** İngilizce koşul girişi (parça BAŞINDA): "Should the AC fail…", "In case of…", "Whenever you need…"; "Let me know / Tell me" yalnız tek başına. */
+const CONDITIONAL_EN_LEAD = new RegExp(`^\\s*(?:(?:should|in\\s+case|whenever|when\\s+you\\s+need|as\\s+needed|if\\s+needed|provided|assuming|depending\\s+on|if\\s+possible)${NR}|(?:please\\s+)?(?:let\\s+(?:me|us)\\s+know|tell\\s+(?:me|us))\\s*$)`, "u");
+/**
+ * Soldaki (söz fiilsiz) parça sözün KOŞULU mu: Türkçe koşul sözcüğü parçanın SONUNDA (ardında yalnız zaman sözcükleri) — "Sorun olursa,
+ * teknisyen gelecek" koşul; "Sorun olursa bana yazın, teknisyen yarın 10'da gelecek" koşul DEĞİL (koşulun kendi yüklemi var — sert itirazcı
+ * gece-4 Y1); İngilizce giriş parça başında.
+ */
+function conditionalLead(seg: string): boolean {
+  if (CONDITIONAL_EN_LEAD.test(seg)) return true;
+  for (const m of seg.matchAll(/\p{L}+/gu)) {
+    if (!isConditionalToken(m[0])) continue;
+    const rest = seg.slice((m.index ?? 0) + m[0].length);
+    if (!/\p{L}/u.test(rest) || segmentKind(rest) === "time") return true;
   }
   return false;
 }
@@ -82,7 +107,7 @@ function hasConditionalWord(seg: string): boolean {
  * "every morning" — tek seferlik söz değil (ölçüldü: her biri BUGÜN için görev açıp ertesi gün "gecikti" görünüyordu) → söz değil.
  */
 const HABITUAL = new RegExp(
-  `${NL}(?:her\\s+(?:gun|sabah|aksam|gece|hafta|ay|zaman)\\p{L}{0,3}|gunluk|haftalik|haftada\\s+(?:bir|iki|uc)|gunde\\s+(?:bir|iki|uc)|normalde|genelde|genellikle|sabahlari|aksamlari|usually|normally|every\\s+(?:day|morning|afternoon|evening|night|week|other\\s+day|\\d{1,2}\\s+days?)|daily|weekly|each\\s+(?:day|morning|evening))${NR}`,
+  `${NL}(?:her\\s+(?:gun|sabah|aksam|gece|hafta|ay|ogle)\\p{L}{0,3}|hergun\\p{L}{0,3}|gunluk|haftalik|haftada\\s+(?:bir|iki|uc)|gunde\\s+(?:bir|iki|uc)|ayda\\s+bir|normalde|genelde|genellikle|sabahlari|aksamlari|oglenleri|hafta\\s+sonlari|duzenli\\s+olarak|usually|normally|every\\s+(?:day|morning|afternoon|evening|night|week|other\\s+day|\\d{1,2}\\s+days?)|daily|weekly|each\\s+(?:day|morning|evening)|twice\\s+a\\s+(?:day|week)|once\\s+a\\s+(?:day|week)|on\\s+weekdays)${NR}`,
   "u",
 );
 /**
@@ -90,14 +115,14 @@ const HABITUAL = new RegExp(
  * takvim günü değil konaklama olayı. Sözün kendi kapsamında AÇIK gün ("yarın çıkışınızdan sonra") yoksa söz değil: gün tahmin edilmez.
  */
 const STAY_ANCHOR = new RegExp(
-  `${NL}(?:cikis\\p{L}{0,8}|cikinca|cikarken|cikmadan|ciktiktan|ciktiginizda|ayrildiktan|ayrilinca|ayrilmadan|check[\\s-]?out\\p{L}{0,6}|giris(?:inizden|inize|inizde|ten|te|e)\\s+(?:once|kadar|sonra)|giris\\s+gun\\p{L}{0,3}|check[\\s-]?in(?:den|e)?\\s+(?:once|kadar|sonra)|siz\\s+gel(?:meden|dikten|ince)|gelmeden\\s+once|varis\\p{L}{0,6}|konaklama\\p{L}{0,6}\\s+(?:suresince|sirasinda|boyunca)|(?:after|before|when|once|until)\\s+you\\s+(?:leave|check|arrive|go)|during\\s+your\\s+stay|(?:after|before|at)\\s+(?:check[\\s-]?(?:out|in)|departure|arrival))${NR}`,
+  `${NL}(?:(?<!yangin\\s)cikis(?!\\s+(?:kapi|yol|merdiven))\\p{L}{0,8}|cikinca|cikarken|cikmadan|ciktiktan|ciktiginizda|ayrildiktan|ayrilinca|ayrilmadan|check[\\s-]?out\\p{L}{0,6}|giris(?:inizden|inize|inizde|ten|te|e)\\s+(?:once|kadar|sonra)|giris\\s+gun\\p{L}{0,3}|check[\\s-]?in(?:den|e)?\\s+(?:once|kadar|sonra)|siz\\s+gel(?:meden|dikten|ince)|gelmeden\\s+once|varis\\p{L}{1,6}|(?:siz\\s+)?(?:evde\\s+)?yokken|giris\\s+yaptiktan\\s+sonra|geldiginiz(?:de|den\\s+sonra)|ayrildiginiz(?:da|dan\\s+sonra)|ayrilirken|(?:siz\\s+|cikip\\s+)?gidince|gittikten\\s+sonra|terk\\s+ettikten\\s+sonra|(?:konaklama|kalis)\\p{L}{0,6}\\s+(?:bit\\p{L}{0,8}|sona\\s+er\\p{L}{0,6})|kalis\\s+sureniz\\s+boyunca|donunce|while\\s+you\\s+are\\s+(?:out|away)|as\\s+soon\\s+as\\s+you\\s+(?:leave|arrive|check)|on\\s+the\\s+day\\s+of\\s+(?:departure|arrival)|konaklama\\p{L}{0,6}\\s+(?:suresince|sirasinda|boyunca)|(?:after|before|when|once|until)\\s+you\\s+(?:leave|check|arrive|go)|during\\s+your\\s+stay|(?:after|before|at)\\s+(?:check[\\s-]?(?:out|in)|departure|arrival))${NR}`,
   "u",
 );
 /** İptal / engel söz değildir ("teknisyen izinli", "won't come", "iptal oldu") — cümlecik boyunca (Haiku 10-12). */
 const NEGATION = new RegExp(`${NL}(?:iptal|olmayacak|gelmeyecek|gelemeyecek|izinli|won['’]?t|will\\s+not|cannot|can['’]?t|not\\s+coming|cancel\\p{L}*)${NR}`, "u");
 /** Kararsız söz (kurucu 10-17 gece; Opus: "belki / emin değilim" söz sayılıyordu) — cümlecikte varsa söz DEĞİL (görev açılmaz). */
 const HEDGE = new RegExp(
-  `${NL}(?:belki|galiba|sanirim|muhtemelen|herhalde|tahminen|buyuk\\s+(?:ihtimal|olasilik)l[ae]|olabilir|olabilecek|emin\\s+degil\\p{L}{0,6}|maybe|perhaps|probably|not\\s+sure)${NR}`,
+  `${NL}(?:belki|galiba|sanirim|muhtemelen|emin\\s+degil\\p{L}{0,6}|maybe|perhaps|probably|not\\s+sure)${NR}|(?:will|['’]ll)\\s+(?:likely|possibly|try\\s+to)${NR}`,
   "u",
 );
 /**
@@ -107,7 +132,12 @@ const HEDGE = new RegExp(
  * 10-17 gece 2. tur).
  */
 // Opus gece-4 F15: "umuyorum / umarız / I hope" da dilektir.
-const HEDGE_WISH = new RegExp(`${NL}(?:umarim|umariz|umuyorum|umuyoruz|insallah|hopefully|i\\s+hope|we\\s+hope)${NR}`, "u");
+// Gece-4 S1-08: "herhalde / tahminen / büyük ihtimalle / olabilir" de YEREL kararsızlık (sözün kapsamı + bitişik yalın parça): "Biraz gecikme
+// olabilir, teknisyen yarın 10'da gelecek" sözdür (sert itirazcı Y3 — cümlecik boyunca uygulanınca kesin söz düşüyordu).
+const HEDGE_WISH = new RegExp(
+  `${NL}(?:umarim|umariz|umuyorum|umuyoruz|insallah|hopefully|i\\s+hope|we\\s+hope|herhalde|tahminen|buyuk\\s+(?:ihtimal|olasilik)l[ae]|olabilir|elimden\\s+geldigince|(?:i|we)\\s+think|(?:most\\s+)?likely)${NR}`,
+  "u",
+);
 /**
  * Sözü ev sahibinin TEYİDE bağladığı soru ("…, uygun mu?", "…, olur mu?", "is that ok?") — söz henüz kesin değil (Opus 10-17 gece O3: ayrı
  * soru kuralı bunları da söz sayıyordu). "Başka bir ihtiyacınız var mı?" teyit DEĞİL, sözü bozmaz.
@@ -152,6 +182,8 @@ const PAST_PART = new RegExp(
   "gu",
 );
 /** Selam ("İyi akşamlar", "Good evening") gün dilimi değildir (Opus gece-4 F2: "İyi akşamlar teknisyen yarın 9'da gelecek" → yarın 21:00). */
+/** Öğün adı ("akşam yemeğinden önce", "öğle yemeği") gün dilimi değildir (sert itirazcı C3: "öğleden sonra, akşam yemeğinden önce" iki dilim sayılıyordu). */
+const MEAL_PART = new RegExp(`${NL}(?:aksam|ogle)\\s+(?:yemeg|yemek|ogun)\\p{L}{0,8}${NR}`, "gu");
 const GREETING_PART = new RegExp(`${NL}(?:(?:iyi|hayirli|tatli)\\s+(?:aksamlar|geceler|sabahlar|gunler)|good\\s+(?:morning|afternoon|evening|night))${NR}`, "gu");
 const PAST_REF = new RegExp(`${NL}(?:dun|gecen|onceki|demin|az\\s+once|yesterday|last\\s+(?:night|week)|earlier\\s+today)${NR}`, "u");
 
@@ -187,17 +219,17 @@ const DAY_UNKNOWN = new RegExp(
  * için teknisyen yarın 10'da gelecek" sözdür). Bitişik boşluk niceleyicileri arasındaki isteğe bağlı ayraç `\s*(?:X\s*)?` (karesel iş yok).
  */
 const CALENDAR_DATE = new RegExp(
-  `${NL}(?:\\d{1,2}\\s*(?:['’.]\\s*)?(?:ocak|subat|mart|nisan|mayis|haziran|temmuz|agustos|eylul|ekim|kasim|aralik)(?!l[iu])\\p{L}{0,5}|ayin\\s+(?:\\d{1,2}|ilk|son|sonu\\p{L}{0,4}|basi\\p{L}{0,4}|ortasi\\p{L}{0,4})|ay\\s+(?:sonu|basi|ortasi|icinde)\\p{L}{0,4}|(?:bu|gelecek|ertesi)\\s+ay(?:a|da|in|ki)?|\\d{1,2}[./]\\d{1,2}[./]\\d{2,4}|(?<!(?:no|daire|kapi|apt)\\s?[:.]?\\s?)(?!24/7(?:[^\\p{L}\\p{N}'’]|$))(?:0?[1-9]|[12]\\d|3[01])/(?:0?[1-9]|1[0-2])(?![\\d/])(?!\\s*(?:saat|hour|kat|floor|puan))|(?:2[4-9]|3[01])\\.(?:0?[1-9]|1[0-2])|january|february|march|april|june|july|august|september|october|november|december|may\\s+\\d{1,2}|\\d{1,2}(?:st|nd|rd|th)?\\s+(?:of\\s+)?may|(?:the|on)\\s+\\d{1,2}(?:st|nd|rd|th)(?!\\s+(?:floor|bedroom|room|flat|apartment|door))|\\d{1,2}(?:st|nd|rd|th)\\s+of|this\\s+month|end\\s+of\\s+(?:the\\s+)?month)${NR}`,
+  `${NL}(?:\\d{1,2}\\s*(?:['’.]\\s*)?(?:ocak|subat|mart|nisan|mayis|haziran|temmuz|agustos|eylul|ekim|kasim|aralik)(?!l[iu])\\p{L}{0,5}|ayin\\s+(?:\\d{1,2}|ilk|son|sonu\\p{L}{0,4}|basi\\p{L}{0,4}|ortasi\\p{L}{0,4})|ay\\s+(?:sonu|basi|ortasi|icinde)\\p{L}{0,4}|(?:bu|gelecek|ertesi)\\s+ay(?:a|da|in|ki)?|\\d{1,2}[./]\\d{1,2}[./]\\d{2,4}|\\d{4}[-./]\\d{1,2}[-./]\\d{1,2}|(?<!(?:no|daire|kapi|apt)\\s?[:.]?\\s?)(?!24/7(?:[^\\p{L}\\p{N}'’]|$))(?:0?[1-9]|[12]\\d|3[01])/(?:0?[1-9]|1[0-2])(?![\\d/])(?!\\s*(?:saat|hour|kat|floor|puan))|(?:2[4-9]|3[01])\\.(?:0?[1-9]|1[0-2])|january|february|march|april|june|july|august|september|october|november|december|may\\s+\\d{1,2}|\\d{1,2}(?:st|nd|rd|th)?\\s+(?:of\\s+)?may|(?:the|on)\\s+\\d{1,2}(?:st|nd|rd|th)(?!\\s+(?:floor|bedroom|room|flat|apartment|door))|\\d{1,2}(?:st|nd|rd|th)\\s+of|this\\s+month|end\\s+of\\s+(?:the\\s+)?month)${NR}`,
   "u",
 );
 
-// Kısa Türkçe kökler (usta, bakım, çay, şeker, pil) yalnız kendi ekleriyle: "pilav", "ustalıkla", "bakımlı", "çaydanlık", "şekerpare" konu
-// DEĞİL (gece-4 S1-05: "Akşam size pilav getireceğim" malzeme sözü açıyordu). Öteki Türkçe kökler önek olarak kalır ("klimayı", "teknisyeni").
+// Kısa Türkçe kökler (usta, bakım, çay, şeker, pil): başka sözcüğe dönüşen devamlar hariç ("pilav", "pilot", "ustalıkla", "bakımlı",
+// "çaydanlık", "çayır", "şekerpare" konu DEĞİL — gece-4 S1-05); çekim ekleri serbest ("ustayla", "bakımını", "pilinizi" — sert itirazcı Y6).
 const KIND_TOPICS: ReadonlyArray<readonly [CommitmentKind, RegExp]> = [
   [
     "maintenance",
     new RegExp(
-      `${NL}(?:teknisyen|tamir|usta(?:m|miz|si|sini|yi|ya|nin|dan|lar\\p{L}{0,3})?${NR}|tesisatci|elektrikci|teknik\\s+servis|servis\\s+(?:elemani|ekibi|gorevlisi|teknisyeni)|ariza|bakim(?:i|a|da|dan|ci\\p{L}{0,3})?${NR}|klima|kombi|sofben|petek|bulasik\\s+makinesi|camasir\\s+makinesi|buzdolabi|(?:technicians?|repair|fix|plumbers?|electricians?|maintenance|engineers?|heater|boiler)${NR})`,
+      `${NL}(?:teknisyen|tamir|usta(?!l[iu]k|ca)\\p{L}{0,10}${NR}|tesisatci|elektrikci|teknik\\s+servis|servis\\s+(?:elemani|ekibi|gorevlisi|teknisyeni)|ariza|bakim(?!l[iu]|siz)\\p{L}{0,8}${NR}|klima|kombi|sofben|petek|bulasik\\s+makinesi|camasir\\s+makinesi|buzdolabi|(?:technicians?|repair|fix|plumbers?|electricians?|maintenance|engineers?|heater|boiler)${NR})`,
       "u",
     ),
   ],
@@ -206,7 +238,7 @@ const KIND_TOPICS: ReadonlyArray<readonly [CommitmentKind, RegExp]> = [
   [
     "supplies",
     new RegExp(
-      `${NL}(?:tuvalet\\s+kagidi|kagit\\s+havlu|sampuan|sabun|deterjan|kahve|cay(?:i|in|lar\\p{L}{0,2})?${NR}|seker(?:i|ler\\p{L}{0,2})?${NR}|pil(?:i|in|e|den|ler\\p{L}{0,3})?${NR}|ampul|cop\\s+poseti|icme\\s+suyu|damacana|(?:toilet\\s+paper|shampoo|soap|coffee|tea|detergent|bulbs?|batter(?:y|ies)|supplies)${NR})`,
+      `${NL}(?:tuvalet\\s+kagidi|kagit\\s+havlu|sampuan|sabun|deterjan|kahve|cay(?!dan|ci|lik|ir)\\p{L}{0,8}${NR}|seker(?!pare|li|siz|lik)\\p{L}{0,8}${NR}|pil(?!av|ot|ic|li|ates)\\p{L}{0,8}${NR}|ampul|cop\\s+poseti|icme\\s+suyu|damacana|(?:toilet\\s+paper|shampoo|soap|coffee|tea|detergent|bulbs?|batter(?:y|ies)|supplies)${NR})`,
       "u",
     ),
   ],
@@ -323,7 +355,7 @@ const DAY_PARTS: ReadonlyArray<{ re: RegExp; minutes: number; half: DayHalf; cod
   { re: new RegExp(`${NL}aksamustu\\p{L}{0,3}${NR}`, "u"), minutes: 17 * 60, half: "pm", code: "late_afternoon", end: 19 * 60 },
   { re: new RegExp(`${NL}(?:aksam(?!lar)\\p{L}{0,5}|evening)${NR}`, "u"), minutes: 19 * 60, half: "pm", code: "evening", end: 23 * 60 + 59 },
   { re: new RegExp(`${NL}gece\\s+yarisi\\p{L}{0,3}${NR}`, "u"), minutes: 23 * 60 + 30, half: "night", code: "midnight", end: 25 * 60 },
-  { re: new RegExp(`${NL}(?:gece(?!n(?:de|ler|lerde)?(?![\\p{L}\\p{N}])|ler)\\p{L}{0,5}|tonight)${NR}`, "u"), minutes: 21 * 60, half: "night", code: "night", end: 30 * 60 },
+  { re: new RegExp(`${NL}(?:gece(?!n(?:de|ler|lerde)?(?![\\p{L}\\p{N}])|ler)\\p{L}{0,5}|tonight|(?:tomm?orr?ow|tmrw?)\\s+night)${NR}`, "u"), minutes: 21 * 60, half: "night", code: "night", end: 30 * 60 },
   { re: new RegExp(`${NL}(?:sabah(?!lar)\\p{L}{0,5}|morning)${NR}`, "u"), minutes: 10 * 60, half: "am", code: "morning", end: 12 * 60 },
   { re: new RegExp(`${NL}(?:ogle(?:n|ne|yin|ye)|noon|midday)${NR}`, "u"), minutes: 12 * 60, half: "pm", code: "noon", end: 14 * 60 },
 ];
@@ -349,19 +381,42 @@ function fitToHalf(candidates: number[], half: DayHalf): number[] {
  * ayrıca "akşam", "gece yarısı" ayrıca "gece" sayılmaz — `DAY_PARTS` sırası özelden genele).
  */
 function singleDayPart(text: string): (typeof DAY_PARTS)[number] | undefined {
-  let rest = text;
-  const hits: Array<(typeof DAY_PARTS)[number]> = [];
-  for (const d of DAY_PARTS) {
-    if (!d.re.test(rest)) continue;
-    hits.push(d);
-    rest = rest.replace(globalOf(d.re), " ");
+  const partsIn = (t: string) => {
+    let rest = t;
+    const hits: Array<(typeof DAY_PARTS)[number]> = [];
+    for (const d of DAY_PARTS) {
+      if (!d.re.test(rest)) continue;
+      hits.push(d);
+      rest = rest.replace(globalOf(d.re), " ");
+    }
+    return hits;
+  };
+  // Öğün adı ("akşam yemeğinden önce") başka bir dilim varken dilim sayılmaz; tek başınaysa dilimdir ("akşam yemeğinden sonra").
+  const hits = partsIn(text.replace(MEAL_PART, " "));
+  if (hits.length === 0) {
+    const withMeal = partsIn(text);
+    return withMeal.length === 1 ? withMeal[0] : undefined;
   }
-  return hits.length === 1 ? hits[0] : undefined;
+  if (hits.length === 1) return hits[0];
+  // Birden çok dilim: saati NİTELEYEN dilim ("Teknisyen yarın sabah 8'de, öğlen olmadan gelecek" → sabah); yoksa dilim seçilmez.
+  const qualifying = hits.filter((d) => clockQualifier(d).test(text));
+  return qualifying.length === 1 ? qualifying[0] : undefined;
+}
+const CLOCK_QUALIFIERS = new Map<string, RegExp>();
+function clockQualifier(d: (typeof DAY_PARTS)[number]): RegExp {
+  let re = CLOCK_QUALIFIERS.get(d.code);
+  if (!re) {
+    re = new RegExp(`(?:${d.re.source})\\s*(?:saat\\s*)?\\d`, "u");
+    CLOCK_QUALIFIERS.set(d.code, re);
+  }
+  return re;
 }
 
 /** Saatin alt sınırı ya da aralık: "10:30'dan sonra", "5'ten itibaren", "after 5", "between 2 and 4", "10-11", "2 ile 4 arası". */
+// Tireli aralık YALNIZ saat biçiminde ("10:00-11:00", "saat 10-11", "10-11 gibi / arası") — telefon, daire ("3-1"), "2-4 GHz" aralık değil
+// (sert itirazcı C2); "and / to" yalnız "between … and" / "from … to" içinde.
 const TIME_BOUND_OR_RANGE =
-  /\d{1,2}(?:[:.]\d{2})?\s*(?:[ap]m\s*)?(?:['’]\s*)?(?:[dt][ae]n)\s+(?:sonra|itibaren)|(?<![\p{L}\p{N}])(?:after|from|between|not\s+before)\s+\d|\d\s*[-–—]\s*\d|\d{1,2}(?:[:.]\d{2})?\s*(?:['’]\s*)?(?:ile|ila|to|until|and)\s+\d/u;
+  /\d{1,2}(?:[:.]\d{2})?\s*(?:[ap]m\s*)?(?:['’]\s*)?(?:[dt][ae]n)\s+(?:sonra|itibaren)|(?<![\p{L}\p{N}])(?:after|not\s+before)\s+\d|(?<![\p{L}\p{N}])between\s+\d{1,2}(?:[:.]\d{2})?\s*(?:[ap]m\s*)?(?:and|-)\s*\d|(?<![\p{L}\p{N}])from\s+\d{1,2}(?:[:.]\d{2})?\s*(?:[ap]m\s*)?(?:to|until|[-–—])\s*\d|\d{1,2}[:.]\d{2}\s*[-–—]\s*\d{1,2}[:.]\d{2}|(?<![\p{L}\p{N}])saat\s+\d{1,2}\s*[-–—]\s*\d{1,2}(?![\d])|(?<![\d.,/-])\d{1,2}\s*[-–—]\s*\d{1,2}(?![\d.,/-])\s*(?:['’]\s*)?\p{L}{0,4}\s+(?:gibi|arasi\p{L}{0,3}|civari\p{L}{0,3}|saatleri\p{L}{0,3})|\d{1,2}(?:[:.]\d{2})?\s*(?:['’]\s*)?(?:ile|ila)\s+\d/u;
 
 /** Gün dilimi yokken iki anlamlı saat ("saat 2" → 02:00 / 14:00): gündüz (07:00–21:00) adayı tercih edilir (Haiku 10-12 3. tur). */
 function preferDaytime(candidates: number[]): number[] {
@@ -541,7 +596,8 @@ const ON_THE_WAY = new RegExp(`${NL}(?:yolda(?:yim|yiz|lar)?|yola\\s+(?:cikti|ci
  * Noktalı "a.m. / p.m." cümleyi bölmesin (gece-4 S1-13: "…tomorrow at 2:30 p.m." 02:30 okunuyor, "Tomorrow at 10 a.m., the technician will
  * come." günü kaybediyordu) → "am / pm". Ardından büyük harfle yeni cümle başlıyorsa nokta cümle sonu olarak kalır.
  */
-const DOTTED_AMPM = /(?<![\p{L}\p{N}])([ap])\.\s?m\.(?=(\s+\p{Lu})?)/giu;
+// `i` bayrağı YOK: büyük harf ileri bakışı küçük harfi de tutardı ("…2:30 p.m. tomorrow." nokta kalıp günü koparıyordu — sert itirazcı C1).
+const DOTTED_AMPM = /(?<![\p{L}\p{N}])([aApP])\.\s?[mM]\.(?=(\s+\p{Lu})?)/gu;
 function normalizeAmPm(text: string): string {
   return text.replace(DOTTED_AMPM, (_m, l: string, next: string | undefined) => `${l.toLowerCase()}m${next ? "." : ""}`);
 }
@@ -853,12 +909,32 @@ function promiseAt(c: PromiseClause, at: number, kind: CommitmentKind, ctx: Mess
   const trailingWish = lastWish !== undefined && (!/\p{L}/u.test(wishRest) || segmentKind(wishRest) === "time");
   const ownScope = [...segments.slice(from, at), segments[at].slice(0, verbEnd), ...segments.slice(at + 1, to + 1)];
   if (ownScope.some((seg) => HEDGE_WISH.test(seg)) || trailingWish) return REJECT;
-  // Koşul / alışkanlık / konaklamaya bağlı an (gece-4 S1-06 / S1-19): sözün kapsamında ya da hemen solundaki söz fiilsiz parçada. Sağdaki ayrı
-  // parça bozmaz ("Teknisyen yarın 10'da gelecek, sorun olursa yazın" sözdür).
-  const leftOf = at > 0 && !PROMISE.test(segments[at - 1]!) ? Math.min(from, at - 1) : from;
-  const near = segments.slice(leftOf, to + 1);
-  if (near.some(hasConditionalWord) || near.some((seg) => HABITUAL.test(seg))) return REJECT;
-  if (near.some((seg) => STAY_ANCHOR.test(seg)) && !near.some((seg) => DAY_TODAY.test(seg) || DAY_TOMORROW.test(seg))) return REJECT;
+  // Koşul / alışkanlık / konaklamaya bağlı an (gece-4 S1-06 / S1-19; sert itirazcı gece-4 Y1–Y5 ile KONUMA bağlandı):
+  //  · koşul sözün KENDİ parçasında yalnız fiilden ÖNCE ("Klima çalışmazsa yarın teknisyen gelecek"); fiilden sonraki ("…gelecek sorun olursa
+  //    yazın") ve sağdaki ayrı parça bozmaz;
+  //  · kapsamın hemen solundaki söz fiilsiz parça ancak koşulla BİTİYORSA / koşulla BAŞLIYORSA ("Sorun olursa, teknisyen gelecek" · "Should the
+  //    AC fail, …"); kendi yüklemi olan istek ("Sorun olursa bana yazın, teknisyen yarın 10'da gelecek") sözü bozmaz — söz zamansızsa teklif
+  //    sayılır ("Havlu lazımsa söyleyin, getiririm");
+  //  · alışkanlık ve konaklamaya bağlı an, AÇIK bugün / yarın yoksa ("Haftalık temizlik için temizlikçi yarın 11'de gelecek" sözdür).
+  const ownVerb = PROMISE.exec(segments[at]!);
+  const ownBeforeVerb = ownVerb ? segments[at]!.slice(0, ownVerb.index) : segments[at]!;
+  const leftIdx = from > 0 && !PROMISE.test(segments[from - 1]!) && !RESCHEDULE.test(segments[from - 1]!) ? from - 1 : -1;
+  const leftSeg = leftIdx >= 0 ? segments[leftIdx]! : null;
+  const ownTimed = hasTimeInfo(sliceOf(from, to).folded, sliceOf(from, to).raw);
+  // Geniş zaman 1. kişi ("getiririm", "hallederim") soldaki koşulla TEKLİFTİR: "Havlu lazımsa yazın, yarın getiririm".
+  const aoristOffer = ownVerb !== null && /[aeiu]r[iu][mz]$/u.test(ownVerb[0]);
+  // Kararsızlık da aynı yönde: saatsiz söz, zamanı söyleyen soldaki parça kararsızsa söz değil ("Teknisyen yarın 10'da orada olabilir,
+  // gelecek"); selamlaşma dileği ("Umarım iyisinizdir, teknisyen gelecek") zaman taşımadığı için bozmaz.
+  const leftHedgedTime = leftSeg !== null && !ownTimed && HEDGE_WISH.test(leftSeg) && hasTimeInfo(sliceOf(leftIdx, leftIdx).folded, sliceOf(leftIdx, leftIdx).raw);
+  if (
+    hasConditionalWord(ownBeforeVerb) ||
+    leftHedgedTime ||
+    (leftSeg !== null && (conditionalLead(leftSeg) || ((!ownTimed || aoristOffer) && hasConditionalWord(leftSeg))))
+  )
+    return REJECT;
+  const near = segments.slice(leftIdx >= 0 ? leftIdx : from, to + 1);
+  const explicitDay = near.some((seg) => DAY_TODAY.test(seg) || DAY_TOMORROW.test(seg));
+  if (!explicitDay && near.some((seg) => HABITUAL.test(seg) || STAY_ANCHOR.test(seg))) return REJECT;
   // Tanınmayan gün / takvim tarihi (kapsamda) → öneri yok.
   if (DAY_UNKNOWN.test(scope.folded) || CALENDAR_DATE.test(scope.folded)) return REJECT;
   // "Bugün ya da yarın" → hangi gün? belirsiz → öneri yok.
