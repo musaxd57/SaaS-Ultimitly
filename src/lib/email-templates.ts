@@ -478,8 +478,11 @@ function ctaButton(href: string, label: string): string {
 // metindir: başkasının adresiyle kayıt olan biri o kişinin kutusuna Lixus imzalı ve "Merhaba
 // <kendi metni>" satırlı e-posta düşürtebiliyordu (doğrulama e-postasında kapatılan sınıfın
 // aynısı). Selamlama sabittir; adı geri eklemek bu açığı geri açar (test-pinli).
-/** "Your Pro trial ends in N days" — a few days before expiry. */
-export function trialEndingSoonEmail(daysLeft: number, settingsUrl: string): string {
+/**
+ * "Your Pro trial ends in N days" — a few days before expiry. Deneme süresi çağırandan gelir (`TRIAL_DAYS`, env ile değişebilir — gece-4
+ * S2-11: metin "14 günlük" sabit yazıyordu); varsayılan 14 ile çıktı birebir aynı.
+ */
+export function trialEndingSoonEmail(daysLeft: number, settingsUrl: string, trialDays: number = 14): string {
   const gun = daysLeft <= 1 ? "yarın" : `${daysLeft} gün sonra`;
   const body = `
     <h2 style="margin:0 0 8px;color:#0f172a;font-size:22px;font-weight:700;">
@@ -487,7 +490,7 @@ export function trialEndingSoonEmail(daysLeft: number, settingsUrl: string): str
     </h2>
     <p style="margin:0 0 16px;color:#64748b;font-size:15px;line-height:1.6;">
       Merhaba,<br/><br/>
-      14 günlük ücretsiz Pro denemeniz <strong>${gun}</strong> sona eriyor. Süre dolduğunda
+      ${trialDays} günlük ücretsiz Pro denemeniz <strong>${gun}</strong> sona eriyor. Süre dolduğunda
       panelinizi kullanmaya devam edebilirsiniz; ancak <strong>otomatik misafir yanıtları</strong>
       (oto-yanıt, karşılama, giriş/çıkış mesajları ve QR concierge) <strong>kapanır</strong>.
     </p>
@@ -502,15 +505,15 @@ export function trialEndingSoonEmail(daysLeft: number, settingsUrl: string): str
   return wrapEmail(body);
 }
 
-/** "Your trial ended — automatic messaging is paused." */
-export function trialEndedEmail(settingsUrl: string): string {
+/** "Your trial ended — automatic messaging is paused." (Deneme süresi çağırandan — ↑ S2-11.) */
+export function trialEndedEmail(settingsUrl: string, trialDays: number = 14): string {
   const body = `
     <h2 style="margin:0 0 8px;color:#0f172a;font-size:22px;font-weight:700;">
       Ücretsiz denemeniz sona erdi
     </h2>
     <p style="margin:0 0 16px;color:#64748b;font-size:15px;line-height:1.6;">
       Merhaba,<br/><br/>
-      14 günlük Pro denemeniz doldu. Hesabınız açık — panelleri kullanmaya, mesajları
+      ${trialDays} günlük Pro denemeniz doldu. Hesabınız açık — panelleri kullanmaya, mesajları
       görüntülemeye ve manuel yanıt vermeye devam edebilirsiniz. Ancak
       <strong>otomatik misafir yanıtları şu anda kapalı</strong>.
     </p>

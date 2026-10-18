@@ -44,3 +44,14 @@ describe("email templates escape guest/user-controlled HTML", () => {
     expect(html).toContain("&lt;img src=x");
   });
 });
+
+describe("deneme e-postaları süreyi çağırandan alır (gece-4 S2-11)", () => {
+  it("varsayılan 14 gün (bugünkü metin aynen); TRIAL_DAYS değişirse metin de değişir", async () => {
+    const { trialEndingSoonEmail, trialEndedEmail } = await import("@/lib/email-templates");
+    expect(trialEndingSoonEmail(1, "https://x/settings")).toContain("14 günlük ücretsiz Pro denemeniz");
+    expect(trialEndedEmail("https://x/settings")).toContain("14 günlük Pro denemeniz doldu.");
+    expect(trialEndingSoonEmail(1, "https://x/settings", 7)).toContain("7 günlük ücretsiz Pro denemeniz");
+    expect(trialEndedEmail("https://x/settings", 7)).toContain("7 günlük Pro denemeniz doldu.");
+    expect(trialEndingSoonEmail(1, "https://x/settings", 14)).toBe(trialEndingSoonEmail(1, "https://x/settings"));
+  });
+});

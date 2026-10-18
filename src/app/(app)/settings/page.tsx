@@ -21,6 +21,7 @@ import { HospitableConnectCard } from "@/components/settings/hospitable-connect-
 import { ChannelHealthLines, type ChannelHealthRow } from "@/components/settings/channel-health-line";
 import { connectionHealth, connectionHealthText } from "@/lib/channels/health";
 import { PaddlePlans } from "@/components/settings/paddle-plans";
+import { cancelNoticeDate } from "@/lib/billing/cancel-notice";
 import { checkoutPendingActive } from "@/lib/billing/checkout-pending";
 import { TRIAL_END_REASON_IDENTITY_REUSED, TRIAL_IDENTITY_REUSED_MESSAGE } from "@/lib/billing/trial-identity";
 import { TRIAL_END_REASON_OPERATOR, TRIAL_OPERATOR_ENDED_MESSAGE } from "@/lib/billing/trial-operator";
@@ -501,16 +502,7 @@ export default async function SettingsPage({
               cardTrialNotice={entitlement.cardRequired ? TRIAL_CARD_REQUIRED_MESSAGE : null}
               // Yenileme iptal edildi (kurucu 10-17): ödenmiş dönem sürerken kullanıcı paketini o tarihe kadar kullanır — tarih işletmenin
               // saat diliminde, uzun biçimde ("17 Kasım 2026").
-              cancelScheduledUntil={
-                entitlement.cancelAtPeriodEnd && entitlement.active && entitlement.periodEnd && entitlement.periodEnd.getTime() > Date.now()
-                  ? new Intl.DateTimeFormat(appLocale(), {
-                      day: "numeric",
-                      month: "long",
-                      year: "numeric",
-                      timeZone: orgTimezone(org?.timezone),
-                    }).format(entitlement.periodEnd)
-                  : null
-              }
+              cancelScheduledUntil={cancelNoticeDate(entitlement, orgTimezone(org?.timezone), appLocale())}
               annualAvailable={defaultPlans().every((p) => (paddleAnnualPriceByCode[p.code] ?? "") !== "")}
               plans={defaultPlans().map((p) => ({
                 code: p.code,

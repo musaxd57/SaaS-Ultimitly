@@ -563,6 +563,25 @@ export function checkProductionEnv(env) {
     );
   }
 
+  // ODEME YAPILANDIRMASI TUTARLILIGI (gece-4 S2-07) — UYARI, HATA DEGIL (canli yapilandirma dogru; .eu / hazirlik kopyasini korur):
+  //  1. BILLING_ENFORCED acik ama satin alma kurulmamis → suresi biten deneme kisitlanir, "Planlari gorun" bos bir ayarlar sayfasina gider.
+  //  2. Sunucu (PADDLE_ENV: portal / onizleme / plan degistirme) ile tarayici (NEXT_PUBLIC_PADDLE_ENV: odeme penceresi) farkli ortamda →
+  //     odeme canlida alinir, abonelik okumalari sandbox'a gider (404, sessiz). Iki deger de bos degilse kiyaslanir.
+  const billingOn = env.BILLING_ENFORCED === "true" || env.BILLING_ENFORCED === "1";
+  const checkoutToken = (env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN ?? "").trim();
+  const anyPriceId = PADDLE_PRICE_ID_KEYS.some((k) => (env[k] ?? "").trim());
+  if (billingOn && (!checkoutToken || !anyPriceId)) {
+    warnings.push(
+      "BILLING_ENFORCED is on but checkout is not configured (NEXT_PUBLIC_PADDLE_CLIENT_TOKEN or every PADDLE_PRICE_* is missing) — expired trials are limited while the billing page has nothing to buy.",
+    );
+  }
+  const paddleEnvOf = (v) => ((v ?? "").trim() === "production" ? "production" : "sandbox");
+  if ((env.PADDLE_ENV ?? "").trim() && (env.NEXT_PUBLIC_PADDLE_ENV ?? "").trim() && paddleEnvOf(env.PADDLE_ENV) !== paddleEnvOf(env.NEXT_PUBLIC_PADDLE_ENV)) {
+    warnings.push(
+      `PADDLE_ENV (${paddleEnvOf(env.PADDLE_ENV)}) and NEXT_PUBLIC_PADDLE_ENV (${paddleEnvOf(env.NEXT_PUBLIC_PADDLE_ENV)}) disagree — checkout and subscription reads would use different Paddle environments. Set both to the same value.`,
+    );
+  }
+
   // STRICT "1" FEATURE FLAGS — UYARI, HATA DEGIL (A7 #1, 09-27). Asagidaki bayraklar calisma aninda `=== "1"` ile okunur:
   // "true" / "yes" / "on" / " 1" KAPALI demektir. KB_* bayraklari "true"yu da kabul ettigi icin operator ayni aliskanlikla
   // AI_UNDERSTANDING_ENABLED=true yazip bayragi SESSIZCE kapali birakabiliyordu. Davranis DEGISMEZ; yalniz acilista gorunur.

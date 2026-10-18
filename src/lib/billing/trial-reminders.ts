@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { reportError } from "@/lib/report-error";
 import { emailService } from "@/lib/email";
 import { trialEndingSoonEmail, trialEndedEmail } from "@/lib/email-templates";
-import { billingEnforced } from "./subscription";
+import { billingEnforced, TRIAL_DAYS } from "./subscription";
 import { appBaseUrl } from "@/lib/auth/email-verify";
 
 // ---------------------------------------------------------------------------
@@ -101,7 +101,7 @@ export async function sendDueTrialReminders(now: Date = new Date()): Promise<Tri
       // Use sendReporting (not send) — send() swallows delivery failures and
       // returns void, so the old try/catch rollback was DEAD code: a failed mail
       // stayed stamped "sent" forever. Branch on the reported outcome instead.
-      const sent = await emailService.sendReporting(to, "Lixus AI — Ücretsiz denemeniz sona erdi", trialEndedEmail(settingsUrl()));
+      const sent = await emailService.sendReporting(to, "Lixus AI — Ücretsiz denemeniz sona erdi", trialEndedEmail(settingsUrl(), TRIAL_DAYS));
       if (sent.ok) {
         result.ended++;
       } else {
@@ -133,7 +133,7 @@ export async function sendDueTrialReminders(now: Date = new Date()): Promise<Tri
       const sent = await emailService.sendReporting(
         to,
         `Lixus AI — Pro denemeniz ${daysLeft <= 1 ? "yarın" : daysLeft + " gün sonra"} bitiyor`,
-        trialEndingSoonEmail(daysLeft, settingsUrl()),
+        trialEndingSoonEmail(daysLeft, settingsUrl(), TRIAL_DAYS),
       );
       if (sent.ok) {
         result.ending++;

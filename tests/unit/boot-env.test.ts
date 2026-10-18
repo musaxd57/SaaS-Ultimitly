@@ -533,3 +533,22 @@ describe("kimlik e-postası kuyruğu kapalıyken şifre sıfırlama e-postası g
     expect(checkProductionEnv({ ...base }).errors.join("\n")).not.toContain("EMAIL_OUTBOX_ENABLED");
   });
 });
+
+describe("ödeme yapılandırması tutarlılığı (gece-4 S2-07) — uyarı, açılışı durdurmaz", () => {
+  const base = { AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_ENC, RESEND_API_KEY: REAL_RESEND };
+  const warns = (env: Record<string, string>) => checkProductionEnv({ ...base, ...env }).warnings.join("\n");
+
+  it("BILLING_ENFORCED açık + satın alma kurulmamış → uyarı; kurulu → uyarı yok; kapalı → uyarı yok", () => {
+    expect(warns({ BILLING_ENFORCED: "true" })).toMatch(/BILLING_ENFORCED is on but checkout is not configured/);
+    expect(warns({ BILLING_ENFORCED: "1", NEXT_PUBLIC_PADDLE_CLIENT_TOKEN: "live_x" })).toMatch(/checkout is not configured/);
+    expect(warns({ BILLING_ENFORCED: "true", NEXT_PUBLIC_PADDLE_CLIENT_TOKEN: "live_x", PADDLE_PRICE_PRO: "pri_1" })).not.toMatch(/checkout is not configured/);
+    expect(warns({})).not.toMatch(/checkout is not configured/);
+  });
+
+  it("sunucu ve tarayıcı Paddle ortamı farklıysa uyarı; aynıysa ya da biri boşsa uyarı yok", () => {
+    expect(warns({ PADDLE_ENV: "production", NEXT_PUBLIC_PADDLE_ENV: "sandbox" })).toMatch(/PADDLE_ENV \(production\) and NEXT_PUBLIC_PADDLE_ENV \(sandbox\) disagree/);
+    expect(warns({ PADDLE_ENV: "production", NEXT_PUBLIC_PADDLE_ENV: "production" })).not.toMatch(/disagree/);
+    expect(warns({ PADDLE_ENV: "production" })).not.toMatch(/disagree/);
+    expect(checkProductionEnv({ ...base, PADDLE_ENV: "production", NEXT_PUBLIC_PADDLE_ENV: "sandbox", BILLING_ENFORCED: "true" }).errors).toEqual([]);
+  });
+});
