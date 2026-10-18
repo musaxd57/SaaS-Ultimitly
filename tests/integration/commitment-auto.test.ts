@@ -1116,6 +1116,13 @@ describe("Dikkat Gerektirenler — kesinlik + gecikme payı + 1 gün hatırlatma
     expect((await items(s.orgId)).map((x) => x.commitmentTime)).toEqual(["bugün akşam", "bugün gece"]);
   });
 
+  it("gece-4 S1-15: aynı konuşma + aynı andaki iki söz satırı ayrı kararlı kimlik taşır (söz kimliği)", async () => {
+    const s = await setup();
+    const a = await row(s, new Date("2026-10-10T13:00:00Z"), { duePrecision: "time" });
+    const b = await row(s, new Date("2026-10-10T13:00:00Z"), { duePrecision: "time" });
+    expect((await items(s.orgId)).map((x) => x.rowKey).sort()).toEqual([a.id, b.id].sort());
+  });
+
   it("🚨 dünden kalan saatsiz sözler (önem 60) bugün geciken saatli sözü (96) üç satırlık tavandan DÜŞÜRMEZ (Haiku 10-17 gece)", async () => {
     const s = await setup();
     for (const m of ["20:56", "20:57", "20:58"]) await row(s, new Date(`2026-10-09T${m}:00Z`), { duePrecision: "day" });
