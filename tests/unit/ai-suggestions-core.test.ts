@@ -1044,4 +1044,27 @@ describe("sert itirazcı gece-4 (354 cümle): yeni kurallar KESİN sözü düş�
       expect(performance.now() - t).toBeLessThan(1_000);
     }
   });
+
+  it("Haiku gece-4: süre girdileri SÖZ yolunu da çalıştırır — soldaki koşul parçası doğrusal (eskiden her koşul sözcüğü kalanı yeniden tarıyordu: 3.990 karakterde ~180 ms)", () => {
+    const S = ", teknisyen yarın 10'da gelecek";
+    const inputs = ["olursa ".repeat(565) + S, "bozuksa yarın ".repeat(282) + S, `1-2${" ".repeat(3_920)}x${S}`, "her gün ".repeat(495) + S, "siz gidince ".repeat(330) + S];
+    detectHostPromises(inputs[0]!); // ısınma (ilk çağrı kalıpları derler)
+    for (const r of inputs) {
+      expect(r.length).toBeLessThanOrEqual(4_000);
+      const t = performance.now();
+      detectHostPromises(r);
+      expect(performance.now() - t, r.slice(0, 20)).toBeLessThan(100);
+    }
+  });
+
+  it("Haiku gece-4: aynı konulu koşul sözü bozar (yüklemli de olsa); 'at 10 to 11' saati sorar; bilinen sınır: yüklemli alışkanlık / konaklama parçası", () => {
+    for (const t of ["Havlu lazımsa yazın, yarın getireceğim", "Klima bozulursa yazın, teknisyen yarın 10'da gelecek"]) none(t);
+    for (const t of ["Eksik bir şey varsa haber verin, havlu yarın getireceğim", "Havlu eksikse söyleyin, temizlikçi yarın 11'de gelecek", "Sorun olursa bana yazın, teknisyen yarın 10'da gelecek"]) some(t);
+    expect(detectHostPromises("The technician will come tomorrow at 10 to 11")).toMatchObject([{ timeAmbiguous: true }]);
+    expect(detectHostPromises("I'll bring 2 to 3 towels tomorrow at 10")).toMatchObject([{ timeAmbiguous: false, timeCandidates: [600] }]);
+    expect(detectHostPromises("We'll try to send the technician tomorrow")).toEqual([]);
+    // BİLİNEN SINIR (tutucu yön, kurucu kuralı "emin değilse görev açma"): soldaki parçanın kendi yüklemi olsa da alışkanlık / konaklama
+    // sözcüğü açık günsüz sözü düşürür — "Siz gidince kapıyı kilitleyin, teknisyen 10'da gelecek"te gün gerçekten belirsiz.
+    for (const t of ["Her gün kapıyı kontrol edin, teknisyen 10'da gelecek", "Siz gidince kapıyı kilitleyin, teknisyen 10'da gelecek"]) none(t);
+  });
 });

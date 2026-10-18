@@ -343,3 +343,14 @@ describe("arıza okuyucu bütün cümlecikleri okur (Codex 10-16: 64 cümlecik t
     expect([...faultDevicesOf(Array.from({ length: 200 }, (_, i) => `merhaba ${i}`).join(", "))]).toEqual([]);
   });
 });
+
+describe("görünmez karakter arızayı gizlemez (gece-4 S4-07; yalnız eşleştirme kopyası)", () => {
+  it("sözcüğün içindeki sıfır genişlikli boşluk / yumuşak tire / Braille boşluğu arıza okumasını bozmaz", () => {
+    for (const ch of ["\u200b", "\u00ad", "\u2060", "\u2800"]) {
+      expect(faultSignal(`Klima çalış${ch}mıyor`, ""), JSON.stringify(ch)).toBe(true);
+      expect([...faultDevicesOf(`Klima çalış${ch}mıyor`)], JSON.stringify(ch)).toEqual(["ac"]);
+    }
+    // aşırı-uygulama kontrolü: görünmez karakterli arızasız cümle arıza değil
+    expect(faultSignal("Klima\u200b nasıl açılıyor?", "")).toBe(false);
+  });
+});

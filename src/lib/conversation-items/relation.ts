@@ -91,9 +91,19 @@ export function requestTopics(queryTr: string, queryOriginal: string, kind: Item
   return [...new Set([...read(queryTr), ...read(queryOriginal), ...(KIND_TOPICS[kind] ?? [])])].sort();
 }
 
-/** Harf katlama (aksan, büyük harf, Türkçe ı/İ, Rusça ё): tehlike ve genel soru sözlükleri bu biçimde yazılır. */
+/**
+ * Harf katlama (aksan, büyük harf, Türkçe ı/İ, Rusça ё): tehlike ve genel soru sözlükleri bu biçimde yazılır. Görünmez karakterler (proje
+ * kuralı: Default_Ignorable + Cf + U+2800) önce silinir — gece-4 S4-07: sözcüğün içine sıfır genişlikli boşluk girince ("çalış|mıyor") arıza
+ * ve tarif adımı okunmuyordu (yalnız EŞLEŞTİRME kopyası; gönderilen metin değişmez).
+ */
 function fold(s: string): string {
-  return s.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase().replace(/ı/g, "i").replace(/[’‘ʼ`´]/g, "'");
+  return s
+    .replace(/[\p{Default_Ignorable_Code_Point}\p{Cf}\u2800]/gu, "")
+    .normalize("NFKD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .replace(/ı/g, "i")
+    .replace(/[’‘ʼ`´]/g, "'");
 }
 
 const L = "(?<![\\p{L}\\p{N}])";

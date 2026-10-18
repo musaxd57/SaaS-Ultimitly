@@ -95,12 +95,13 @@ const CONDITIONAL_EN_LEAD = new RegExp(`^\\s*(?:(?:should|in\\s+case|whenever|wh
  */
 function conditionalLead(seg: string): boolean {
   if (CONDITIONAL_EN_LEAD.test(seg)) return true;
-  for (const m of seg.matchAll(/\p{L}+/gu)) {
-    if (!isConditionalToken(m[0])) continue;
-    const rest = seg.slice((m.index ?? 0) + m[0].length);
-    if (!/\p{L}/u.test(rest) || segmentKind(rest) === "time") return true;
-  }
-  return false;
+  // Yalnız SON koşul sözcüğü okunur (Haiku gece-4: her koşul sözcüğü için kalan metni yeniden taramak uzun parçada karesel işti; önceki
+  // sözcüğün kalanı sonrakini içerdiğinden zaman parçası olamaz — sonuç aynı).
+  let lastEnd = -1;
+  for (const m of seg.matchAll(/\p{L}+/gu)) if (isConditionalToken(m[0])) lastEnd = (m.index ?? 0) + m[0].length;
+  if (lastEnd < 0) return false;
+  const rest = seg.slice(lastEnd);
+  return !/\p{L}/u.test(rest) || segmentKind(rest) === "time";
 }
 /**
  * ALIŞKANLIK / TEKRAR (gece-4 S1-19): "Temizlikçi her sabah 9'da geliyor", "Normalde 10'da geliyor", "Havlular her gün değiştirilecek",
@@ -122,7 +123,7 @@ const STAY_ANCHOR = new RegExp(
 const NEGATION = new RegExp(`${NL}(?:iptal|olmayacak|gelmeyecek|gelemeyecek|izinli|won['’]?t|will\\s+not|cannot|can['’]?t|not\\s+coming|cancel\\p{L}*)${NR}`, "u");
 /** Kararsız söz (kurucu 10-17 gece; Opus: "belki / emin değilim" söz sayılıyordu) — cümlecikte varsa söz DEĞİL (görev açılmaz). */
 const HEDGE = new RegExp(
-  `${NL}(?:belki|galiba|sanirim|muhtemelen|emin\\s+degil\\p{L}{0,6}|maybe|perhaps|probably|not\\s+sure)${NR}|(?:will|['’]ll)\\s+(?:likely|possibly|try\\s+to)${NR}`,
+  `${NL}(?:belki|galiba|sanirim|muhtemelen|emin\\s+degil\\p{L}{0,6}|maybe|perhaps|probably|not\\s+sure|will\\s+(?:likely|possibly|try\\s+to))${NR}|['’]ll\\s+(?:likely|possibly|try\\s+to)${NR}`,
   "u",
 );
 /**
@@ -133,7 +134,8 @@ const HEDGE = new RegExp(
  */
 // Opus gece-4 F15: "umuyorum / umarız / I hope" da dilektir.
 // Gece-4 S1-08: "herhalde / tahminen / büyük ihtimalle / olabilir" de YEREL kararsızlık (sözün kapsamı + bitişik yalın parça): "Biraz gecikme
-// olabilir, teknisyen yarın 10'da gelecek" sözdür (sert itirazcı Y3 — cümlecik boyunca uygulanınca kesin söz düşüyordu).
+// olabilir, teknisyen yarın 10'da gelecek" sözdür (sert itirazcı Y3 — cümlecik boyunca uygulanınca kesin söz düşüyordu). "Olabilecek" (sıfat:
+// "Olabilecek en kısa sürede göndereceğiz") kararsızlık DEĞİL — bu yüzden listede yalnız çekimsiz "olabilir" var.
 const HEDGE_WISH = new RegExp(
   `${NL}(?:umarim|umariz|umuyorum|umuyoruz|insallah|hopefully|i\\s+hope|we\\s+hope|herhalde|tahminen|buyuk\\s+(?:ihtimal|olasilik)l[ae]|olabilir|elimden\\s+geldigince|(?:i|we)\\s+think|(?:most\\s+)?likely)${NR}`,
   "u",
@@ -414,9 +416,10 @@ function clockQualifier(d: (typeof DAY_PARTS)[number]): RegExp {
 
 /** Saatin alt sınırı ya da aralık: "10:30'dan sonra", "5'ten itibaren", "after 5", "between 2 and 4", "10-11", "2 ile 4 arası". */
 // Tireli aralık YALNIZ saat biçiminde ("10:00-11:00", "saat 10-11", "10-11 gibi / arası") — telefon, daire ("3-1"), "2-4 GHz" aralık değil
-// (sert itirazcı C2); "and / to" yalnız "between … and" / "from … to" içinde.
+// (sert itirazcı C2); "and / to" yalnız "between … and" / "from … to" içinde, "to / until" ayrıca "at 10 to 11" biçiminde (Haiku gece-4: kesin
+// 10:00 okunuyordu — "10'a 10 kala" da olabilir); "2 to 3 towels" aralık değil.
 const TIME_BOUND_OR_RANGE =
-  /\d{1,2}(?:[:.]\d{2})?\s*(?:[ap]m\s*)?(?:['’]\s*)?(?:[dt][ae]n)\s+(?:sonra|itibaren)|(?<![\p{L}\p{N}])(?:after|not\s+before)\s+\d|(?<![\p{L}\p{N}])between\s+\d{1,2}(?:[:.]\d{2})?\s*(?:[ap]m\s*)?(?:and|-)\s*\d|(?<![\p{L}\p{N}])from\s+\d{1,2}(?:[:.]\d{2})?\s*(?:[ap]m\s*)?(?:to|until|[-–—])\s*\d|\d{1,2}[:.]\d{2}\s*[-–—]\s*\d{1,2}[:.]\d{2}|(?<![\p{L}\p{N}])saat\s+\d{1,2}\s*[-–—]\s*\d{1,2}(?![\d])|(?<![\d.,/-])\d{1,2}\s*[-–—]\s*\d{1,2}(?![\d.,/-])\s*(?:['’]\s*)?\p{L}{0,4}\s+(?:gibi|arasi\p{L}{0,3}|civari\p{L}{0,3}|saatleri\p{L}{0,3})|\d{1,2}(?:[:.]\d{2})?\s*(?:['’]\s*)?(?:ile|ila)\s+\d/u;
+  /\d{1,2}(?:[:.]\d{2})?\s*(?:[ap]m\s*)?(?:['’]\s*)?(?:[dt][ae]n)\s+(?:sonra|itibaren)|(?<![\p{L}\p{N}])(?:after|not\s+before)\s+\d|(?<![\p{L}\p{N}])between\s+\d{1,2}(?:[:.]\d{2})?\s*(?:[ap]m\s*)?(?:and|-)\s*\d|(?<![\p{L}\p{N}])from\s+\d{1,2}(?:[:.]\d{2})?\s*(?:[ap]m\s*)?(?:to|until|[-–—])\s*\d|\d{1,2}[:.]\d{2}\s*[-–—]\s*\d{1,2}[:.]\d{2}|(?<![\p{L}\p{N}])saat\s+\d{1,2}\s*[-–—]\s*\d{1,2}(?![\d])|(?<![\d.,/-])\d{1,2}\s*[-–—]\s*\d{1,2}(?![\d.,/-])(?:['’]?\p{L}{1,4})?\s+(?:gibi|arasi\p{L}{0,3}|civari\p{L}{0,3}|saatleri\p{L}{0,3})|\d{1,2}(?:[:.]\d{2})?\s*(?:['’]\s*)?(?:ile|ila)\s+\d|(?<![\p{L}\p{N}])at\s+\d{1,2}(?:[:.]\d{2})?\s*(?:[ap]m\s*)?(?:to|until|till)\s+\d/u;
 
 /** Gün dilimi yokken iki anlamlı saat ("saat 2" → 02:00 / 14:00): gündüz (07:00–21:00) adayı tercih edilir (Haiku 10-12 3. tur). */
 function preferDaytime(candidates: number[]): number[] {
@@ -926,9 +929,14 @@ function promiseAt(c: PromiseClause, at: number, kind: CommitmentKind, ctx: Mess
   // Kararsızlık da aynı yönde: saatsiz söz, zamanı söyleyen soldaki parça kararsızsa söz değil ("Teknisyen yarın 10'da orada olabilir,
   // gelecek"); selamlaşma dileği ("Umarım iyisinizdir, teknisyen gelecek") zaman taşımadığı için bozmaz.
   const leftHedgedTime = leftSeg !== null && !ownTimed && HEDGE_WISH.test(leftSeg) && hasTimeInfo(sliceOf(leftIdx, leftIdx).folded, sliceOf(leftIdx, leftIdx).raw);
+  // Soldaki koşul sözün KENDİ konusunu anıyorsa teklif o koşula bağlıdır, kendi yüklemi ve saati olsa da ("Havlu lazımsa yazın, yarın
+  // getireceğim" — Haiku gece-4: gelecek zamanla söz kalıyordu); başka konudaki istek ("Sorun olursa bana yazın, teknisyen yarın 10'da
+  // gelecek") bozmaz.
+  const leftSameTopicCondition = leftSeg !== null && topicIn(leftSeg) === kind && hasConditionalWord(leftSeg);
   if (
     hasConditionalWord(ownBeforeVerb) ||
     leftHedgedTime ||
+    leftSameTopicCondition ||
     (leftSeg !== null && (conditionalLead(leftSeg) || ((!ownTimed || aoristOffer) && hasConditionalWord(leftSeg))))
   )
     return REJECT;
