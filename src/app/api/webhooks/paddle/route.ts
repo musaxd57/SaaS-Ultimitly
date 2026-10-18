@@ -5,6 +5,7 @@ import { RESUME_PENDING_LOCK } from "@/lib/billing/resume";
 import { jsonOk, unauthorized, readTextCapped, MAX_WEBHOOK_BODY_BYTES, BodyTooLargeError, payloadTooLarge } from "@/lib/api";
 import { reportError, redactSensitive } from "@/lib/report-error";
 import { alertOnTransition, clearAlertState } from "@/lib/alert-state";
+import { clearBadSignatureThrottle, noteBadSignatureSuppressed, skipBadSignatureAlert } from "@/lib/billing/bad-signature-throttle";
 import { clearCheckoutPending } from "@/lib/billing/checkout-pending";
 import { adoptCorrelation, currentCorrelation, newCorrelationId, runWithCorrelation } from "@/lib/correlation";
 import { logEvent } from "@/lib/event-log";
@@ -750,18 +751,21 @@ export async function POST(req: NextRequest): Promise<Response> {
       // operatör doğru anahtarı boşuna değiştirirdi. Kabul / ret kararı AYNI (401); yalnız alarmın adı ve cümlesi ayrışır, ayrı durum
       // anahtarıyla (biri ötekini susturmaz).
       const keyMatches = verifyPaddleSignature({ signatureHeader, rawBody, secret, toleranceSeconds: Number.POSITIVE_INFINITY });
-      if (keyMatches) {
-        await alertOnTransition(
-          "paddle-webhook:signature-stale",
-          "paddle-webhook-signature-stale",
-          new Error("Paddle imzası anahtarla tutuyor ama zaman damgası 5 dakikalık pencerenin dışında — sunucu saati kaymış ya da eski bir teslimat tekrar edilmiş olabilir (anahtar DOĞRU, değiştirmeyin)"),
-        );
-      } else {
-        await alertOnTransition(
-          "paddle-webhook:signature-mismatch",
-          "paddle-webhook-signature-mismatch",
-          new Error("Paddle imzası doğrulanmadı — webhook anahtarı yanlış/rotasyona uğramış olabilir"),
-        );
+      const alertKey = keyMatches ? "paddle-webhook:signature-stale" : "paddle-webhook:signature-mismatch";
+      // Kimliksiz sel freni (gece-4 S2-06): bastırılmış alarm aynı süreçte 60 sn içinde yeniden yazılmaz (`bad-signature-throttle.ts`).
+      if (!skipBadSignatureAlert(alertKey)) {
+        const outcome = keyMatches
+          ? await alertOnTransition(
+              alertKey,
+              "paddle-webhook-signature-stale",
+              new Error("Paddle imzası anahtarla tutuyor ama zaman damgası 5 dakikalık pencerenin dışında — sunucu saati kaymış ya da eski bir teslimat tekrar edilmiş olabilir (anahtar DOĞRU, değiştirmeyin)"),
+            )
+          : await alertOnTransition(
+              alertKey,
+              "paddle-webhook-signature-mismatch",
+              new Error("Paddle imzası doğrulanmadı — webhook anahtarı yanlış/rotasyona uğramış olabilir"),
+            );
+        if (outcome === "suppressed") noteBadSignatureSuppressed(alertKey);
       }
     }
     return unauthorized();
@@ -771,6 +775,7 @@ export async function POST(req: NextRequest): Promise<Response> {
   await clearAlertState("paddle-webhook:signature-mismatch");
   await clearAlertState("paddle-webhook:signature-stale");
   await clearAlertState("paddle-webhook:dormant");
+  clearBadSignatureThrottle();
 
   let event: PaddleEvent | null = null;
   try {

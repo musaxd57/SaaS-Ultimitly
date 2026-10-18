@@ -24,6 +24,7 @@ vi.mock("@/lib/report-error", async (orig) => {
 
 import { POST } from "@/app/api/webhooks/paddle/route";
 import { prisma, resetDb } from "../helpers/db";
+import { clearBadSignatureThrottle } from "@/lib/billing/bad-signature-throttle";
 
 const SECRET = "test-webhook-hmac-key-not-a-real-secret";
 const BODY = JSON.stringify({ event_id: "evt_x", event_type: "subscription.activated", data: {} });
@@ -48,6 +49,7 @@ describe("Paddle webhook — imza uyuşmazlığı alarmı", () => {
   beforeEach(async () => {
     // Alarm durumu artık DB'de (`alert-state`, 09-23) → testler arası sızmasın.
     await resetDb();
+    clearBadSignatureThrottle(); // süreç belleğindeki sel freni testler arası sızmasın
     vi.clearAllMocks();
     reportErrorMock.mockResolvedValue({ notified: true, throttled: false, configured: true });
     vi.stubEnv("PADDLE_WEBHOOK_SECRET", SECRET);
@@ -120,6 +122,22 @@ describe("Paddle webhook — imza uyuşmazlığı alarmı", () => {
       expect(res.status).toBe(401); // kabul/ret kararı her istekte AYNI
     }
     expect(reportErrorMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("🚨 gece-4 S2-06: kimliksiz sel — bastırılan alarm aynı süreçte yeniden yazılmaz (25 istekte tek 'bastırıldı' günlüğü, eskiden 24)", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      for (let i = 0; i < 25; i++) expect((await POST(req(signWith("bambaska-anahtar")))).status).toBe(401);
+      expect(reportErrorMock).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls.filter(([m]) => String(m).includes("alarm bastırıldı"))).toHaveLength(1);
+      // Ayrı anahtar (eski zaman damgası) kendi alarmını yine hemen verir — fren anahtar başına.
+      const ts = Math.floor(Date.now() / 1000) - 3600;
+      const h1 = createHmac("sha256", SECRET).update(`${ts}:${BODY}`, "utf8").digest("hex");
+      await POST(req(`ts=${ts};h1=${h1}`));
+      expect(reportErrorMock.mock.calls.map((c) => c[0])).toEqual(["paddle-webhook-signature-mismatch", "paddle-webhook-signature-stale"]);
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it("DOĞRULANMIŞ bir olay durumu temizler → sonraki bozulma YENİDEN ve hemen bildirilir", async () => {
