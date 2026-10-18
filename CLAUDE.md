@@ -471,7 +471,9 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
   taraması + fail-open yok (CI #1058/#1076). Pin git'in varlığını ŞART koşmaz.
 - **Next.js `route.ts` yalnız bilinen rota alanlarını export eder** — sabitler yaprak modülde.
 - Prisma temsilcisine `vi.spyOn` sonraki testlere sızar → DB arızası testi AYRI dosyada. Testte sabit tarih +
-  `Date.now()` penceresi = zaman bombası (09-15). Yorumlarda `\uXXXX` kaçışı yazılmaz.
+  `Date.now()` penceresi = zaman bombası (09-15). 🚨 Günün SAATİNE bakan kural eklenince gerçek saatle koşan testler o saatlerde kırılır,
+  gündüz koşan kapı göstermez (10-18: gece yarısı kuralı 45 testi İstanbul 00:00–04:59'da kırıyordu) → kuralı "her zaman" sayan geçici
+  değişiklikle ilgili testleri koş; kural yalnız kendi (saati sabit) testinde açık kalsın. Yorumlarda `\uXXXX` kaçışı yazılmaz.
 - 🚨 **PUSH SONRASI CI SONUCU HER SEFER KONTROL EDİLİR** (kurucu 09-24): 739d83c'nin CI'si kırmızı kaldı ve 4 saat fark
   edilmedi → Railway "Wait for CI" yayını atladı, canlı eski sürümde kaldı. Kontrol `actions_list` (dal filtresi) →
   `list_workflow_jobs`. İşler 2–7 sn'de düşüp `runner_id: 0` ve log 404 ise KOD DEĞİL: Actions dakika/harcama limiti
@@ -527,7 +529,7 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 
 ## Durum
 > 📄 **Tam metin (bağlayıcı): `docs/claude/durum.md`** — bu alanda kod / karar değiştirmeden önce oku. Aşağıda yalnız madde başlıkları.
-**10-18 gece-4 (güncel):** 10 geniş inceleme → iç hatalar düzeltildi · söz algılama v2 (migration 76/77) · 78 yalnız dizin (olay okuması) · ikinci tarama: 50 izsiz bulgu → iç düzeltmeler + §T8 (18 soru) · kuyruk işletme anahtarını gönderimde okur · dolu DB yükseltme provası 58→77 yeşil (+78) · sorular §T (T1–T7, T6b) · rapor `docs/SABAH-RAPORU-2026-10-18.md` — `docs/claude/durum.md`.
+**10-18 gece-4 (güncel):** 10 geniş inceleme → iç hatalar düzeltildi · söz algılama v2 (migration 76/77) · 78 yalnız dizin (olay okuması) · ikinci tarama: 50 izsiz bulgu → iç düzeltmeler + §T8 (18+1 soru) · 79 yalnız dizin (kalıcı kuyruk) + talepte veritabanı tarafı zaman aşımı · kuyruk işletme anahtarını gönderimde okur · dolu DB yükseltme provası 58→77 yeşil (+78) · sorular §T (T1–T7, T6b) · rapor `docs/SABAH-RAPORU-2026-10-18.md` — `docs/claude/durum.md`.
 **10-17 gece-3:** Haiku 2–4. tur söz düzeltmeleri (takvim tarihi, yapan ayrımı, devam parçası) · Paddle anahtar olayı anahtarsız · SG3: duraklatma yok, iptalde dönem sonu kutusu · sandbox tur 3/4 — `docs/claude/durum.md`.
 **10-17 gece-2:** Söz → görev otomatik (migration 75, `HOST_COMMITMENT_AUTO_ENABLED` KAPALI; saat uydurulmaz, bağlamla saat taşıma, günde 20, konaklama bitince kapanış) · Opus düzeltmeleri · teyit SG1/SG2 — `docs/claude/durum.md`.
 **10-17 gece:** Q2 kanal otomasyonu cevap sayılmaz · Q1-b iki söz / "hangi söze bağlansın?" · KD1 + kartla deneme sızma testleri · Paddle sandbox D1/D2 düzeltmesi (önizleme toplamı satırlardan) — `docs/claude/durum.md`.
