@@ -96,8 +96,11 @@ async function applyLocked(organizationId: string, conversationId: string, now: 
   const org = await prisma.organization.findUnique({ where: { id: organizationId }, select: { autoCommitmentsEnabled: true, timezone: true } });
   if (!org?.autoCommitmentsEnabled) return ZERO;
   const tz = orgTimezone(org.timezone);
-  // Yalnız söz önerileri (Opus O7: görünmeyen görev önerileri 5 yerlik tavanı doldurup sözü aç bırakmasın).
-  const suggestions = (await getConversationSuggestions(organizationId, conversationId, now, { only: "commitment" })).filter(
+  // Yalnız söz önerileri (Opus O7: görünmeyen görev önerileri 5 yerlik tavanı doldurup sözü aç bırakmasın), TAVANSIZ (Opus dilim sonu 3
+  // A16: 5'ten çok bekleyen söz varken en eskisi bu turda görünmüyordu → ↓eskiden-yeniye sıra yalnız görünen 5'e uygulanıyordu).
+  const suggestions = (
+    await getConversationSuggestions(organizationId, conversationId, now, { only: "commitment", limit: Number.POSITIVE_INFINITY })
+  ).filter(
     (s) => s.kind === "commitment",
   );
   if (suggestions.length === 0) return ZERO;

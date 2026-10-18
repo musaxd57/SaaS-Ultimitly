@@ -265,9 +265,15 @@ export async function getConversationSuggestions(
   organizationId: string,
   conversationId: string,
   now: Date = new Date(),
-  /** Yalnız bu tür (Opus 10-17 gece O7): görünmeyen görev önerileri söz kartlarının 5 yerlik tavanını doldurmasın (otomatik kip, onay). */
-  opts: { only?: "task" | "commitment" } = {},
+  /**
+   * `only`: yalnız bu tür (Opus 10-17 gece O7): görünmeyen görev önerileri söz kartlarının 5 yerlik tavanını doldurmasın (otomatik kip, onay).
+   * `limit`: öneri tavanı (varsayılan ekrandaki 5). Otomatik kip ve onaydaki yeniden üretim TAVANSIZ okur (Opus dilim sonu 3 A16: 5'ten çok
+   * bekleyen söz varken en eskisi görünmüyor, yenisi önce kaydedilip eskisini gizliyordu). Öneri mesajlar arası bağımsızdır (yalnız kayıtlı
+   * sözlere bakar) → tavan yalnız listeyi keser, tek önerinin içeriğini değiştirmez. Okunan mesaj yine en çok 50.
+   */
+  opts: { only?: "task" | "commitment"; limit?: number } = {},
 ): Promise<SuggestionView[]> {
+  const cap = opts.limit ?? MAX_SUGGESTIONS;
   const conversation = await prisma.conversation.findFirst({
     where: { id: conversationId, property: { organizationId } },
     select: {
@@ -356,7 +362,7 @@ export async function getConversationSuggestions(
   const out: SuggestionView[] = [];
   const seenTaskKeys = new Set<string>();
   for (const m of messages) {
-    if (out.length >= MAX_SUGGESTIONS) break;
+    if (out.length >= cap) break;
     const author = resolveMessageAuthor(m).authorType;
     const cand = taskByMessage.get(m.id);
     if (cand) {
@@ -377,7 +383,7 @@ export async function getConversationSuggestions(
       // ("<cümlecik>-<parça>"; sert itirazcı gece-4 K1 / Opus gece-3 F5): süzgeç kuralları değişse de aynı söz aynı anahtar (çıktı SIRASI
       // kayınca "yok sayılan" söz başka söze geçiyordu) → listede ve onayda aynı anahtar.
       for (const detected of promisesOf(m.id, m.body ?? "")) {
-        if (out.length >= MAX_SUGGESTIONS) break;
+        if (out.length >= cap) break;
         // 00:00–04:59 arasında yazılan "yarın" çoğu zaman aynı sabahtır (uyumamış birinin dili — `ai/date-resolution.ts` after_midnight
         // kuralı): gün tahmin edilmez, kendiliğinden kaydedilmez, kart günü sorar (gece-4 S1-02: görev bir gün geç açılıyordu).
         const afterMidnightTomorrow =

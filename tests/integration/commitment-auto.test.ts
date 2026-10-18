@@ -1023,6 +1023,25 @@ describe("öneri türü ve gün düzenlemesi (Opus O7 / O13)", () => {
     expect([c.kind, c.duePrecision, wallClock(c.dueAt)]).toEqual(["towels", "time", "18:00"]);
   });
 
+  it("🚨 Opus dilim sonu 3 A16: konuşmada 5'ten çok bekleyen söz varken de en eskisi önce işlenir — ekrandaki 5'lik tavan otomatik yolu kesmez", async () => {
+    pinIstanbulNoonToday();
+    const s = await setup();
+    const at = (minAgo: number) => new Date(Date.now() - minAgo * 60_000);
+    await hostSays(s.conversationId, "Havlu bugün 6'ya kadar getiririm.", at(30));
+    await hostSays(s.conversationId, "Klima için teknisyen yarın 10:00'da gelecek.", at(25));
+    await hostSays(s.conversationId, "Musluk için usta yarın 11:00'de gelecek.", at(20));
+    await hostSays(s.conversationId, "Kombi için usta yarın 13:00'te gelecek.", at(15));
+    await hostSays(s.conversationId, "Kahveyi yarın 14:00'te getireceğim.", at(10));
+    await hostSays(s.conversationId, "Çarşafları da getiririm.", at(5));
+    // Ekran yine en yeni 5'i gösterir (en eski söz kartta yok).
+    expect((await getConversationSuggestions(s.orgId, s.conversationId)).filter((x) => x.kind === "commitment")).toHaveLength(5);
+    await applyHostCommitmentsAuto(s.orgId, s.conversationId);
+    await applyHostCommitmentsAuto(s.orgId, s.conversationId); // ikinci tur (zamanlanmış tarama) eski sözü artık kaybetmemeli
+    const towels = await prisma.guestCommitment.findMany({ where: { kind: "towels" } });
+    expect(towels.map((c) => [c.duePrecision, wallClock(c.dueAt)])).toEqual([["time", "18:00"]]);
+    expect(await prisma.guestCommitment.count({ where: { kind: { not: "towels" } } })).toBe(4);
+  });
+
   it("🚨 gece-4 S1-03: 'yarın sabah' sözünü ev sahibi BUGÜNE çekerse 'Geçmiş bir saat' hatası yok — bugün sabah penceresinin sonu (12:00)", async () => {
     const morning = new Date(`${dateKeyInTimeZone(new Date(), TZ)}T06:00:00.000Z`); // 09:00 İstanbul
     vi.useFakeTimers({ toFake: ["Date"], now: morning });

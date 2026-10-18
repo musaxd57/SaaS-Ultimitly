@@ -78,8 +78,12 @@ async function rederive(organizationId: string, key: string, now: Date): Promise
       select: { conversationId: true, conversation: { select: { propertyId: true } } },
     });
     if (!msg) return null;
-    // Yalnız anahtarın türü üretilir (Opus O7): öteki türün önerileri 5 yerlik tavanı doldurup bu öneriyi "gone" yapmasın.
-    const view = (await getConversationSuggestions(organizationId, msg.conversationId, now, { only: parsed.kind })).find((s) => s.key === key);
+    // Yalnız anahtarın türü üretilir (Opus O7): öteki türün önerileri 5 yerlik tavanı doldurup bu öneriyi "gone" yapmasın. Tavansız
+    // (Opus dilim sonu 3 A16): otomatik kip ekranda görünmeyen eski sözü de onaylar; ekranda gösterilmiş kart sonradan gelen yeni
+    // önerilerle listeden düşse de geçerlidir.
+    const view = (
+      await getConversationSuggestions(organizationId, msg.conversationId, now, { only: parsed.kind, limit: Number.POSITIVE_INFINITY })
+    ).find((s) => s.key === key);
     return view ? { view, propertyId: msg.conversation.propertyId, conversationId: msg.conversationId } : null;
   }
   const [messageId] = parsed.source.split(":");
