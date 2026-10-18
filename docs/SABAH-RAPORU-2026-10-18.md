@@ -29,8 +29,8 @@
 
 | # | Konu | Önerim |
 |---|---|---|
-| T1 🚨 | "Talimat yok" silicisi uydurma kuralı misafire gönderebiliyor ("Evcil hayvanlar kabul edilir") | kurucu: "uydurma kural olanağı vermemeli" → önerim: "talimat yok" geçen cevabın TAMAMI tutulur; onay bekleniyor |
-| T2 | Olası tehlike + anlama katmanı çalışmadı → kanalda size uyarı yok | kurucu: iyi ama e-posta seyrek → "Sorunlu" + konuşma başına tek e-posta + saatte en çok 3; onay bekleniyor |
+| T1 🚨 | "Talimat yok" silicisi uydurma kuralı misafire gönderebiliyor ("Evcil hayvanlar kabul edilir") | kurucu: "uydurma kural olanağı vermemeli" → önerim: "talimat yok" geçen cevabın TAMAMI tutulur; hazır yama yazıldı (`docs/hazir-yamalar/2026-10-18-T1-talimat-yok-tam-tutma.patch`, uygulanmadı); "evet" bekleniyor |
+| T2 | Olası tehlike + anlama katmanı çalışmadı → kanalda size uyarı yok | kurucu: iyi ama e-posta seyrek → "Sorunlu" + konuşma başına tek e-posta + saatte en çok 3; onay bekleniyor. Not: canlıdaki konuşma öğeleri kipi bu durumu ayrı yoldan işliyor — iki yol birlikte tasarlanacak (sert incelemeyle, ajanlar açılınca) |
 | T3 | "Bilgi veremem" İngilizcede gidiyor | ✅ kurucu "hiçbir dilde gitmemeli" → yedi dilde uygulandı (`f3c44079`) |
 | T4 🚨 | Geçmişten öğren "Giriş talimatı" taslağı otomatik giriş mesajınızın yerine geçebiliyor | sade anlatıldı; cevap bekleniyor |
 | T5 | Söz: geçmiş saat / gece 23:30 / "inşallah" / "7'de" | kurucu: "bağlamdan günü çıkarsın, genellikle aynı gün" → kural örneklerle soruldu; "yarın 7'de" + "inşallah" ayrıca |

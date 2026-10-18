@@ -893,7 +893,9 @@ Gece kurala uyuldu: misafire giden mesajı, müşterinin gördüğü metni ya da
   "Evcil hayvan için özel talimatımız yok, evcil hayvanlar kabul edilir." → "Evcil hayvanlar kabul edilir." gidiyor. SONRA: ikisi de hiç
   gitmez, siz cevaplarsınız (10-17 öncesi gibi). "Evet" gelince uygulanır; eski "basit iş" yaması seçenek B olarak duruyor.
 - **T2** — "önerin iyi ama hostu e posta yağmuruna tutmayalım fazla". Önerim (cevap bekliyor): "Sorunlu" + konuşma başına tek e-posta (ev sahibi
-  cevaplayana kadar tekrar yok) + işletme başına saatte en çok 3 (QR acil e-postasıyla aynı).
+  cevaplayana kadar tekrar yok) + işletme başına saatte en çok 3 (QR acil e-postasıyla aynı). Uygulama notu (10-18 sabah, kodda ölçüldü): kanalın eski
+  yükseltme yolu atomik "Sorunlu" işaretiyle zaten konuşma başına tek e-posta atıyor, ama canlıdaki konuşma öğeleri kipi bu durumu ayrı
+  yoldan işliyor → iki yol birlikte tasarlanacak; "evet" gelince sert incelemeyle yazılır.
 - **T3** — "BİLGİ VEREMEM HİÇBİR DİLDE GİTMEMELİ" → uygulanacak: bütün dillerde + Türkçe ek biçimler tutulur.
 - **T4** — "tam anlamadım" → sade anlatıldı (konuşmada); cevap bekliyor.
 - **T5** — "bağlamdan günü çıkarsın genellikle 7de aynı gündür özellikle host müşteriye belirsiz saat yazmaz bugünden bahsetme olasılığı
