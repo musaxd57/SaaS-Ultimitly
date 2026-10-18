@@ -20,8 +20,8 @@ describe("queueHealth", () => {
   it("boş kuyruk: sayı yok, bekleyen yok", async () => {
     const h = await queueHealth(new Date());
     expect(h).toEqual([
-      { queue: "message", byStatus: {}, oldestDueMs: null, failed24h: 0, review24h: 0 },
-      { queue: "email", byStatus: {}, oldestDueMs: null, failed24h: 0, review24h: null },
+      { queue: "message", byStatus: {}, oldestDueMs: null, claimableLagMs: null, failed24h: 0, review24h: 0 },
+      { queue: "email", byStatus: {}, oldestDueMs: null, claimableLagMs: null, failed24h: 0, review24h: null },
     ]);
   });
 
@@ -74,6 +74,32 @@ describe("queueHealth", () => {
     expect(m.failed24h).toBe(1); // yalnız "f-old-due" (bugün yazıldı); 25 saatlik "f-stale" dışarıda
     expect(m.review24h).toBe(1);
     expect(m.byStatus).toEqual({ pending: 1, failed: 2, sent: 1, review: 2 });
+  });
+
+  it("🚨 gece-4 S3-08: bilerek bekletilen satır 'gönderilebilir' sayılmaz (panel kırmızısı alarmla aynı süzgeç); işçinin alacağı satır sayılır", async () => {
+    const { orgId } = await makeOrgWithProperty();
+    const now = new Date();
+    const old = new Date(now.getTime() - 40 * 60_000);
+    // Genel otomatik mesaj anahtarı kapalı: karşılama şablonu bilerek bekler → vadesi gelmiş bekleyen var, gönderilebilir yok.
+    await prisma.messageOutbox.create({
+      data: { organizationId: orgId, channel: "airbnb", body: "hoş geldiniz", idempotencyKey: "w", status: "pending", availableAt: old, messageType: "welcome" },
+    });
+    vi.stubEnv("AUTO_REPLY_ENABLED", "");
+    try {
+      const held = (await queueHealth(now)).find((q) => q.queue === "message")!;
+      expect(held.oldestDueMs).toBeGreaterThanOrEqual(40 * 60_000 - 1_000);
+      expect(held.claimableLagMs).toBeNull();
+      // Elle cevap işçinin işidir → gönderilebilir en eski olarak sayılır.
+      await prisma.messageOutbox.create({
+        data: { organizationId: orgId, channel: "airbnb", body: "elle", idempotencyKey: "m", status: "pending", availableAt: new Date(now.getTime() - 12 * 60_000), messageType: "manual" },
+      });
+      const live = (await queueHealth(now)).find((q) => q.queue === "message")!;
+      expect(live.oldestDueMs).toBeGreaterThanOrEqual(40 * 60_000 - 1_000);
+      expect(live.claimableLagMs).toBeGreaterThanOrEqual(12 * 60_000 - 1_000);
+      expect(live.claimableLagMs).toBeLessThan(13 * 60_000);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it("kimlik e-postası kuyruğu: durum sayıları, vadesi gelmiş en eski bekleyen, son 24 saat başarısızlığı", async () => {

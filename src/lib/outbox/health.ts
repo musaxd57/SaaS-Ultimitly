@@ -15,8 +15,14 @@ export interface QueueHealth {
   queue: "message" | "email";
   /** Durum başına satır sayısı (kapalı küme; kuyruğun kendi durumları). */
   byStatus: Record<string, number>;
-  /** Vadesi gelmiş ama hâlâ `pending` duran en eski satırın bekleme süresi (ms); yoksa null. */
+  /** Vadesi gelmiş ama hâlâ `pending` duran en eski satırın bekleme süresi (ms); yoksa null. Bilerek bekletilen satırlar DAHİL. */
   oldestDueMs: number | null;
+  /**
+   * İşçinin ALABİLECEĞİ vadesi gelmiş en eski satırın bekleme süresi (ms; alarmın `queueStallStates` süzgeci — anahtar kapalıyken bekleyen
+   * otomatik şablon, abonelik bekletmesi, duraklatma ve konuşma sırası SAYILMAZ); yoksa null. Paneldeki kırmızı uyarı buna bakar (gece-4
+   * S3-08: bilerek bekletilen satır "yoklayıcı geride" gibi kırmızı görünüyordu, alarm ise doğru olarak susuyordu).
+   */
+  claimableLagMs: number | null;
   /**
    * Son 24 saatte terminal başarısızlığa (`failed`) düşen satır sayısı. YAKLAŞIK: düşüş anı ayrı tutulmuyor, satırın son güncellenme zamanına
    * bakılır — konuşma birleştirme (`conversations-cleanup.ts` satırı yeni konuşmaya taşır) eski satırı da pencereye sokabilir (Haiku 10-16).
@@ -37,7 +43,7 @@ const DAY_MS = 24 * 60 * 60_000;
 
 export async function queueHealth(now: Date = new Date()): Promise<QueueHealth[]> {
   const since = new Date(now.getTime() - DAY_MS);
-  const [mGroups, mOldest, mFailed, mReview, eGroups, eOldest, eFailed] = await Promise.all([
+  const [mGroups, mOldest, mFailed, mReview, eGroups, eOldest, eFailed, stall] = await Promise.all([
     prisma.messageOutbox.groupBy({ by: ["status"], _count: { _all: true } }),
     prisma.messageOutbox.findFirst({
       where: { status: "pending", availableAt: { lte: now } },
@@ -53,13 +59,28 @@ export async function queueHealth(now: Date = new Date()): Promise<QueueHealth[]
       select: { nextAttemptAt: true },
     }),
     prisma.emailOutbox.count({ where: { status: "failed", updatedAt: { gte: since } } }),
+    queueStallStates(now),
   ]);
   const counts = (groups: readonly { status: string; _count: { _all: number } }[]) =>
     Object.fromEntries(groups.map((g) => [g.status, g._count._all]));
   const lag = (at: Date | null | undefined) => (at ? Math.max(0, now.getTime() - at.getTime()) : null);
   return [
-    { queue: "message", byStatus: counts(mGroups), oldestDueMs: lag(mOldest?.availableAt), failed24h: mFailed, review24h: mReview },
-    { queue: "email", byStatus: counts(eGroups), oldestDueMs: lag(eOldest?.nextAttemptAt), failed24h: eFailed, review24h: null },
+    {
+      queue: "message",
+      byStatus: counts(mGroups),
+      oldestDueMs: lag(mOldest?.availableAt),
+      claimableLagMs: stall.message.lagMs,
+      failed24h: mFailed,
+      review24h: mReview,
+    },
+    {
+      queue: "email",
+      byStatus: counts(eGroups),
+      oldestDueMs: lag(eOldest?.nextAttemptAt),
+      claimableLagMs: stall.email.lagMs,
+      failed24h: eFailed,
+      review24h: null,
+    },
   ];
 }
 

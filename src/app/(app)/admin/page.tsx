@@ -679,9 +679,10 @@ export default async function AdminPage() {
             <p className="text-sm font-medium">Kuyruk sağlığı</p>
             <p className="text-xs text-muted-foreground">
               İş verisiyle aynı işlemde yazılan kuyruk satırlarını 2 dakikalık senkron (ve kimlik e-postası için 15 saniyelik yoklayıcı)
-              gönderir. Vadesi gelmiş satır {Math.round(QUEUE_LAG_WARN_MS / 60_000)} dakikadan uzun bekliyorsa yoklayıcı geride ya da durmuş
-              demektir — ya da genel otomatik mesaj anahtarı (`AUTO_REPLY_ENABLED`) kapalıdır: o zaman karşılama / giriş / çıkış mesajları
-              bilerek bekler.
+              gönderir. Gönderilebilir satır {Math.round(QUEUE_LAG_WARN_MS / 60_000)} dakikadan uzun bekliyorsa (kırmızı) yoklayıcı geride ya da
+              durmuş demektir. &quot;En eski vadesi gelmiş bekleyen&quot; bilerek bekletilenleri de sayar: genel otomatik mesaj anahtarı
+              (`AUTO_REPLY_ENABLED`) kapalıyken karşılama / giriş / çıkış mesajları, aboneliği kapalı işletmenin otomatik mesajları, duraklatılmış
+              gönderim ve aynı konuşmada sırasını bekleyen mesaj — bunlar kırmızı olmaz.
             </p>
             {/* İki AYRI anahtar (kurucu 10-16): hangisinin ne yaptığı açık yazılır. */}
             <ul className="space-y-1 rounded-lg border border-border bg-muted/40 p-3 text-xs" data-testid="queue-switches">
@@ -714,11 +715,13 @@ export default async function AdminPage() {
                         .map(([status, n]) => `${status} ${n}`)
                         .join(" · ")}
                   {" · "}en eski vadesi gelmiş bekleyen:{" "}
-                  {q.oldestDueMs == null ? (
+                  {q.oldestDueMs == null ? "yok" : `${Math.round(q.oldestDueMs / 60_000)} dk`}
+                  {" · "}gönderilebilir en eski:{" "}
+                  {q.claimableLagMs == null ? (
                     "yok"
                   ) : (
-                    <span className={q.oldestDueMs > QUEUE_LAG_WARN_MS ? "font-semibold text-destructive" : undefined}>
-                      {Math.round(q.oldestDueMs / 60_000)} dk
+                    <span className={q.claimableLagMs > QUEUE_LAG_WARN_MS ? "font-semibold text-destructive" : undefined}>
+                      {Math.round(q.claimableLagMs / 60_000)} dk
                     </span>
                   )}
                   {" · "}son 24 saatte kalıcı başarısız: {q.failed24h}
