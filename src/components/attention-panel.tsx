@@ -39,12 +39,12 @@ const ICONS: Record<AttentionKind, typeof AlertTriangle> = {
   provider_outage: ServerCrash,
 };
 
-/** "5 Eki" — takvim günü; saat dilimi kaydırması olmasın diye UTC okunur (anahtar zaten gün). */
 /** Satırın React anahtarı: tür + hedef + an (+ aynı ana düşebilen satırlarda kararlı kimlik — gece-4 S1-15). */
 export function attentionRowKey(item: AttentionItem): string {
   return `${item.kind}:${item.href}:${item.occurredAt.getTime()}${item.rowKey ? `:${item.rowKey}` : ""}`;
 }
 
+/** "5 Eki" — takvim günü; saat dilimi kaydırması olmasın diye UTC okunur (anahtar zaten gün). */
 function dayLabel(key: string, offsetDays = 0): string {
   const [y, m, d] = key.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d + offsetDays)).toLocaleDateString("tr-TR", { day: "numeric", month: "short", timeZone: "UTC" });

@@ -236,6 +236,15 @@ export async function applyDemoTenant(db: Db, ds: DemoDataset, opts: DemoApplyOp
       await tx.shadowVerdict.deleteMany({ where: { organizationId: DEMO_ORG_ID } });
       await tx.messageOutbox.deleteMany({ where: { organizationId: DEMO_ORG_ID } });
       await tx.automationRule.deleteMany({ where: { organizationId: DEMO_ORG_ID } });
+      // Geçmişten öğren + mülk talimatları (migration 65): veri kümesindeki mülkler silinmeyip güncellendiği için mülk zincirlemesi bunları
+      // götürmüyordu — inceleyicinin kaydettiği talimat bir sonraki sıfırlamada kalıyordu (gece-4 S10-09).
+      await tx.historyLearnComparison.deleteMany({ where: { property: { organizationId: DEMO_ORG_ID } } });
+      await tx.historyLearnRun.deleteMany({ where: { organizationId: DEMO_ORG_ID } }); // taslaklar zincirleme
+      await tx.historyLearnDraft.deleteMany({ where: { property: { organizationId: DEMO_ORG_ID } } });
+      await tx.propertyInstruction.deleteMany({ where: { organizationId: DEMO_ORG_ID } });
+      // Otomatik mesaj tekilleştirme kaydı silinen rezervasyonlara aittir (gece-4 S10-09, DMMF pini `demo-reset-coverage.test.ts`). Takvim
+      // bağlantısı SİLİNMEZ: varsa sıfırlama baştan reddedilir (↑ canlı bağlantı kemeri).
+      await tx.automatedMessageSend.deleteMany({ where: { organizationId: DEMO_ORG_ID } });
       // İnceleme sırasında eklenmiş, veri kümesinde olmayan mülkler.
       await tx.property.deleteMany({ where: { organizationId: DEMO_ORG_ID, id: { notIn: ds.properties.map((p) => p.id) } } });
 

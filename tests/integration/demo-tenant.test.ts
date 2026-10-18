@@ -71,6 +71,18 @@ describe("demo hesabı — uygulama", () => {
     expect([await snapshotOrg(a.orgId), await snapshotOrg(b.orgId)]).toEqual(before);
   });
 
+  it("🚨 gece-4 S10-09: inceleme sırasında eklenen talimat / Geçmişten öğren koşusu sıfırlamada silinir (mülkler kalır)", async () => {
+    const ds = buildDemoDataset({ now: NOW });
+    await applyDemoTenant(prisma, ds, { reviewerPasswordHash: PW_HASH, staffPasswordHash: STAFF_HASH });
+    const prop = await prisma.property.findFirstOrThrow({ where: { organizationId: DEMO_ORG_ID } });
+    await prisma.propertyInstruction.create({ data: { organizationId: DEMO_ORG_ID, propertyId: prop.id, content: "Havuz 22:00'de kapanır." } });
+    const run = await prisma.historyLearnRun.create({ data: { organizationId: DEMO_ORG_ID, propertyId: prop.id, model: "test" } });
+    await applyDemoTenant(prisma, ds, { reviewerPasswordHash: null, staffPasswordHash: STAFF_HASH });
+    expect(await prisma.property.count({ where: { id: prop.id } })).toBe(1);
+    expect(await prisma.propertyInstruction.count({ where: { organizationId: DEMO_ORG_ID } })).toBe(0);
+    expect(await prisma.historyLearnRun.count({ where: { id: run.id } })).toBe(0);
+  });
+
   it("🚨 Y7 (Haiku 10-14): demo sıfırlaması uyarı adresini boşaltırken kuşağı ARTIRIR — bekleyen doğrulama bağlantısı geçersiz", async () => {
     await applyDemoTenant(prisma, buildDemoDataset({ now: NOW }), { reviewerPasswordHash: PW_HASH, staffPasswordHash: STAFF_HASH });
     const g = await bumpAlertEmailGeneration(DEMO_ORG_ID); // sıfırlamadan ÖNCE istenmiş bağlantının kuşağı

@@ -65,14 +65,14 @@ const CONDITIONAL = new RegExp(`${NL}(?:eger|isterseniz|istersen|gerekirse|ihtiy
  * kısa ad ("Bursa") koşul DEĞİL; aynı sonla biten İngilizce sözcükler ("of course", "reverse", "diverse") de değil.
  * Yalnız sözün KENDİ parçasında ya da hemen solundaki parçada bozar: "Teknisyen yarın 10'da gelecek, sorun olursa yazın" sözdür.
  */
-const CONDITIONAL_SUFFIX = /(?<=\p{L}{2})(?:[aeiu]rs[ae]|m[ae]zs[ae]|[iu]yors[ae]|[ae]c[ae]ks[ae]|[dt][iu]ys[ae]|m[iu]ss[ae])(?:n[iu]z|n|k|l[ae]r)?$/u;
+const CONDITIONAL_SUFFIX = /(?<=\p{L}{2})(?:[aeiu]rs[ae]|m[ae]zs[ae]|[iu]yors[ae]|[ae]c[ae]ks[ae]|[dt][iu]ys[ae]|m[iu]ss[ae])(?:n[iu]z|n|k|m|l[ae]r)?$/u;
 const CONDITIONAL_WORD = new Set(["varsa", "yoksa", "eksikse", "lazimsa", "gerekliyse", "olsa", "olsaydi"]);
 const NOT_CONDITIONAL = new Set(["course", "courses", "universe", "reverse", "diverse", "inverse", "converse", "traverse", "adverse", "rehearse", "disperse", "immerse", "sparse", "parse", "coarse"]);
-const CONDITIONAL_EN = new RegExp(`${NL}(?:should|in\\s+case|whenever|let\\s+(?:me|us)\\s+know|tell\\s+(?:me|us)|as\\s+needed|when\\s+you\\s+need)${NR}`, "u");
+const CONDITIONAL_EN = new RegExp(`^\\s*should${NR}|${NL}(?:in\\s+case|whenever|let\\s+(?:me|us)\\s+know|tell\\s+(?:me|us)|as\\s+needed|when\\s+you\\s+need)${NR}`, "u");
 function hasConditionalWord(seg: string): boolean {
   if (CONDITIONAL_EN.test(seg)) return true;
   for (const w of seg.split(/[^\p{L}]+/u)) {
-    if (w.length < 5) continue;
+    if (w.length < 4) continue;
     if (CONDITIONAL_WORD.has(w) || (!NOT_CONDITIONAL.has(w) && CONDITIONAL_SUFFIX.test(w.slice(-12)))) return true;
   }
   return false;
@@ -361,7 +361,7 @@ function singleDayPart(text: string): (typeof DAY_PARTS)[number] | undefined {
 
 /** Saatin alt sınırı ya da aralık: "10:30'dan sonra", "5'ten itibaren", "after 5", "between 2 and 4", "10-11", "2 ile 4 arası". */
 const TIME_BOUND_OR_RANGE =
-  /\d{1,2}(?:[:.]\d{2})?\s*(?:['’]\s*)?(?:[dt][ae]n)\s+(?:sonra|itibaren)|(?<![\p{L}\p{N}])(?:after|from|between|not\s+before)\s+\d|\d\s*[-–—]\s*\d|\d{1,2}(?:[:.]\d{2})?\s*(?:['’]\s*)?(?:ile|ila|to|until|and)\s+\d/u;
+  /\d{1,2}(?:[:.]\d{2})?\s*(?:[ap]m\s*)?(?:['’]\s*)?(?:[dt][ae]n)\s+(?:sonra|itibaren)|(?<![\p{L}\p{N}])(?:after|from|between|not\s+before)\s+\d|\d\s*[-–—]\s*\d|\d{1,2}(?:[:.]\d{2})?\s*(?:['’]\s*)?(?:ile|ila|to|until|and)\s+\d/u;
 
 /** Gün dilimi yokken iki anlamlı saat ("saat 2" → 02:00 / 14:00): gündüz (07:00–21:00) adayı tercih edilir (Haiku 10-12 3. tur). */
 function preferDaytime(candidates: number[]): number[] {
@@ -620,8 +620,10 @@ export function detectHostPromises(text: string | null | undefined): HostPromise
       return r !== undefined && r[0] === ci && r[1] <= si && si <= r[2];
     });
   const orphanReschedule = ctx.rescheduleMarks.some(([ci, si]) => !covered(ci, si));
-  const checked = orphanReschedule ? found.map((p) => ({ ...p, timeAmbiguous: true })) : found;
-  return dropContinuations(checked).slice(0, MAX_PROMISES_PER_MESSAGE);
+  // Devam düşürmesi kopyalamadan ÖNCE: fiil / kapsam kayıtları (WeakMap) özgün nesnelere bağlı — kopyada varış fiili okunamıyor, "Tesisatçı da
+  // 1 saat içinde gelecek" ayrı söz olduğu hâlde işin süresi sanılıp düşüyordu (Haiku gece-4 S1 incelemesi).
+  const kept = dropContinuations(found);
+  return (orphanReschedule ? kept.map((p) => ({ ...p, timeAmbiguous: true })) : kept).slice(0, MAX_PROMISES_PER_MESSAGE);
 }
 
 /** Kısa, söz fiilsiz teyit sorusu cümleciği ("Uygun mu?", "Sizin için uygun mu?", "Is that ok?"). */

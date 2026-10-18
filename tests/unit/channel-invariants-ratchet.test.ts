@@ -83,8 +83,11 @@ function sourceFiles(dir: string): string[] {
   return out;
 }
 
-/** Şemanın `hospitable*` alanları (yerel değişken adları değil). */
-const HOSPITABLE_FIELDS = [...SCHEMA.matchAll(/^\s+(hospitable\w*)\s+\S+/gm)].map((m) => m[1]);
+/**
+ * Şemanın sağlayıcı adlı alanları (yerel değişken adları değil): `hospitable*` ve adın İÇİNDE "Hospitable" geçenler (gece-4 S10-03:
+ * `autoReplyHospitable` yalnız önek arayan desenden kaçıyordu — değişmez 20 "hospitable* alanlarını engelleyen pin").
+ */
+const HOSPITABLE_FIELDS = [...SCHEMA.matchAll(/^\s+(\w*[Hh]ospitable\w*)\s+\S+/gm)].map((m) => m[1]);
 
 /** Sağlayıcı sınırı: Channel Layer + sağlayıcı istemcisi / yardımcıları — burada okumak serbest. */
 const isProviderBoundary = (rel: string) => rel.startsWith("src/lib/channels/") || /^src\/lib\/hospitable[\w-]*\.ts$/.test(rel);
@@ -96,11 +99,22 @@ const KNOWN_CORE_READERS: Record<string, string> = {
   "src/lib/demo-tenant/apply-core.ts": "gerçek bağlantısı olan kuruluşa demo üreticisi DOKUNMAZ (jeton kolonu + bağlantı satırı kontrolü; güvenlik kemeri)",
   "src/lib/unverified-sweep.ts": "terk edilmiş hesap temizliği bağlanmış hesabı 'el değmiş' sayar (org kolonları + bağlantı satırı, V0.7 çift kaynak)",
   "src/lib/scheduled-sync.ts": "senkron edilecek kuruluş seçimi: jeton kolonu ya da aktif bağlantı satırı (V0.7 çift kaynak)",
+  // `Organization.autoReplyHospitable` = kanaldan bağımsız "otomatik yanıt açık" ürün bayrağı; yalnız kolon adı sağlayıcı adlı (V0 envanteri
+  // "ürün bayrağı sağlayıcı adlı"). Ad düzeltmesi migration'sız mümkün: `autoReplyEnabled @map("autoReplyHospitable")` (~9 dosya, ayrı tur).
+  "src/app/(app)/dashboard/page.tsx": "autoReplyHospitable — otomatik yanıt açık mı (pano kartı)",
+  "src/app/(app)/inbox/page.tsx": "autoReplyHospitable — gelen kutusu anahtarı",
+  "src/app/(app)/settings/page.tsx": "autoReplyHospitable — ayarlar görünümü",
+  "src/app/api/settings/route.ts": "autoReplyHospitable — ayar yazımı",
+  "src/components/inbox/auto-reply-toggle.tsx": "autoReplyHospitable — anahtar düğmesi",
+  "src/lib/automation.ts": "autoReplyHospitable — otomatik yanıt ana kapısı",
+  "src/lib/data-export.ts": "autoReplyHospitable — KVKK dışa aktarımında ayar alanı",
+  "src/lib/demo-tenant/dataset.ts": "autoReplyHospitable — demo kuruluş ayarı",
+  "src/lib/outbox/worker.ts": "autoReplyHospitable — gönderim anında işletme anahtarı (gece-4 S3-01)",
 };
 
 describe("değişmez 20 — çekirdek `hospitable*` şema alanı okumaz (büyüyemez liste)", () => {
   it("şemanın sağlayıcı alanları bulunuyor (pin boşa düşmesin)", () => {
-    expect(HOSPITABLE_FIELDS).toEqual(expect.arrayContaining(["hospitableId", "hospitableTokenEnc"]));
+    expect(HOSPITABLE_FIELDS).toEqual(expect.arrayContaining(["hospitableId", "hospitableTokenEnc", "autoReplyHospitable"]));
   });
 
   it("🚨 sınır dışında `hospitable*` şema alanı okuyan dosyalar = gerekçeli bilinen liste; yeni okuyucu kırmızı, düzelen satır listeden çıkar", () => {

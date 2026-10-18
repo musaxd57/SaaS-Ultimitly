@@ -151,12 +151,15 @@ export function addZonedDays(date: Date, n: number, tz: string): Date {
 
 /** `date`'in `tz`'deki DUVAR SAATİNİ (saat:dakika) koruyarak takvim gününü n kaydırır ("bugün 23:59" → "yarın 23:59"); `addZonedDays` ise
  *  yerel GECE YARISINI döner (gece-4 S1-03: söz onayında gün değişince pencere sonu 00:00'a düşüyordu). Saniye atılır. */
+const WALL_CLOCK_FORMATTERS = new Map<string, Intl.DateTimeFormat>();
 export function shiftZonedDaysKeepingWallClock(date: Date, n: number, tz: string): Date {
   const [y, m, d] = dateKeyInTimeZone(date, tz).split("-").map(Number);
-  const [h, mi] = new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: false })
-    .format(date)
-    .split(":")
-    .map(Number);
+  let fmt = WALL_CLOCK_FORMATTERS.get(tz);
+  if (!fmt) {
+    fmt = new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: false });
+    WALL_CLOCK_FORMATTERS.set(tz, fmt);
+  }
+  const [h, mi] = fmt.format(date).split(":").map(Number);
   return zonedWallClockToUtc(y, m, d + n, h % 24, mi, 0, tz);
 }
 

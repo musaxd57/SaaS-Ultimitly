@@ -226,6 +226,8 @@ export async function decideSuggestion(input: {
           select: { id: true, taskId: true, kind: true, topic: true, dueAt: true, dayPart: true },
         });
         if (!target || !target.taskId) return { status: "gone" } as const;
+        // KİLİT SIRASI görev → söz (gece-4 S1-17; görev düzenlemesi, konaklama kapatması ve "Yanlış, kaldır" ile aynı — ters sıra kilitlenirdi).
+        await tx.$queryRaw`SELECT "id" FROM "Task" WHERE "id" = ${target.taskId} FOR UPDATE`;
         const moved = await tx.guestCommitment.updateMany({
           where: { id: target.id, status: "open", dueAt: target.dueAt },
           data: {

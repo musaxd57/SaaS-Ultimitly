@@ -834,6 +834,16 @@ describe("gece-4 S1-17: kilit sırası görev → söz + satır başına hata", 
     return { s, towels, cleaning };
   }
 
+  /** Başka bir oturumun kilit beklediği GÖZLENENE kadar bekler (uykuya dayanmaz — Haiku: 300 ms beklemesi kilidi kanıtlamıyordu). */
+  async function lockWaiterSeen() {
+    for (let i = 0; i < 200; i++) {
+      const [r] = await prisma.$queryRaw<Array<{ n: bigint }>>`SELECT count(*) AS n FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'`;
+      if (Number(r!.n) > 0) return;
+      await new Promise((res) => setTimeout(res, 25));
+    }
+    throw new Error("kilit beklemesi gözlenmedi");
+  }
+
   /** Görev düzenlemesinin kilit sırası (`api/tasks/[id]`): önce görev satırı, kapı açılınca bağlı söz güncellenir. */
   function taskEditHoldingLock(taskId: string) {
     let release!: () => void;
@@ -857,7 +867,7 @@ describe("gece-4 S1-17: kilit sırası görev → söz + satır başına hata", 
     const edit = taskEditHoldingLock(towels.taskId!);
     await edit.locked;
     const closing = closeStayEndedCommitments(NOW);
-    await new Promise((r) => setTimeout(r, 300)); // kapatma görev kilidini beklesin (eski sıra: sözü kilitleyip görevde beklerdi)
+    await lockWaiterSeen(); // kapatma görev kilidinde BEKLİYOR (eski sıra: sözü kilitleyip görevde beklerdi)
     edit.release();
     await expect(edit.done).resolves.toBeUndefined();
     expect(await closing).toEqual({ closed: 2 });
@@ -868,7 +878,7 @@ describe("gece-4 S1-17: kilit sırası görev → söz + satır başına hata", 
     const edit = taskEditHoldingLock(towels.taskId!);
     await edit.locked;
     const removing = patchCommitment(s.conversationId, towels.id, { status: "cancelled", reason: "wrong" });
-    await new Promise((r) => setTimeout(r, 300));
+    await lockWaiterSeen();
     edit.release();
     await expect(edit.done).resolves.toBeUndefined();
     expect((await removing).status).toBe(200);

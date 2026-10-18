@@ -958,6 +958,19 @@ describe("gece-4 izsiz bulgular — koşul, kararsızlık, konaklamaya bağlı /
     expect(detectHostPromises("Teknisyen bu gece 1'de gelecek")).toMatchObject([{ timeAmbiguous: false }]);
   });
 
+  it("Haiku S1 incelemesi: 1. tekil koşul ('gelirsem'), 'X pm'den sonra', baştaki 'Should …' koşul; cümle ortasındaki 'should' sözü bozmaz", () => {
+    for (const t of ["Yarın gelirsem havlu getiririm", "Yarın uğrarsam havlu getiririm", "Should you need anything, I will bring towels tomorrow"]) none(t);
+    expect(detectHostPromises("Teknisyen yarın 5 pm'den sonra gelecek")).toMatchObject([{ timeAmbiguous: true }]);
+    expect(detectHostPromises("I will bring towels tomorrow, you should have them by 10")).toMatchObject([{ kind: "towels", day: "tomorrow" }]);
+  });
+
+  it("🚨 Haiku S1 incelemesi: saat değişikliği belirsizken de varış fiilli süreli söz ayrı söz kalır (kopyada fiil kaydı kayboluyordu)", () => {
+    expect(detectHostPromises("Teknisyen yarın 10'da gelecek. Tesisatçı da 1 saat içinde gelecek. Ertelendi.")).toMatchObject([
+      { kind: "maintenance", day: "tomorrow", timeCandidates: [600], timeAmbiguous: true },
+      { kind: "maintenance", inMinutes: 60, timeAmbiguous: true },
+    ]);
+  });
+
   it("süre: yeni kalıplar uzun girdide doğrusal (koşul eki, alışkanlık, konaklama, aralık, a.m.)", () => {
     const runs = [
       `${"a".repeat(3_990)}ursa`,
