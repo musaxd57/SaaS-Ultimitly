@@ -29,13 +29,13 @@
 
 | # | Konu | Önerim |
 |---|---|---|
-| T1 🚨 | "Talimat yok" silicisi uydurma kuralı misafire gönderebiliyor ("Evcil hayvanlar kabul edilir") | silme yalnız anahtar / kapı / çöp + sayısız; hazır yama var |
-| T2 | Olası tehlike + anlama katmanı çalışmadı → kanalda size uyarı yok | QR'daki gibi acil e-posta + "Sorunlu" |
-| T3 | "Bilgi veremem" İngilizcede gidiyor | aynı kural diğer dillere |
-| T4 🚨 | Geçmişten öğren "Giriş talimatı" taslağı otomatik giriş mesajınızın yerine geçebiliyor | bu türde taslak yazmasın |
-| T5 | Söz: geçmiş saat / gece 23:30 / "inşallah" / "7'de" | dördü de kart sorsun |
+| T1 🚨 | "Talimat yok" silicisi uydurma kuralı misafire gönderebiliyor ("Evcil hayvanlar kabul edilir") | kurucu: "uydurma kural olanağı vermemeli" → önerim: "talimat yok" geçen cevabın TAMAMI tutulur; onay bekleniyor |
+| T2 | Olası tehlike + anlama katmanı çalışmadı → kanalda size uyarı yok | kurucu: iyi ama e-posta seyrek → "Sorunlu" + konuşma başına tek e-posta + saatte en çok 3; onay bekleniyor |
+| T3 | "Bilgi veremem" İngilizcede gidiyor | ✅ kurucu "hiçbir dilde gitmemeli" → yedi dilde uygulandı (`f3c44079`) |
+| T4 🚨 | Geçmişten öğren "Giriş talimatı" taslağı otomatik giriş mesajınızın yerine geçebiliyor | sade anlatıldı; cevap bekleniyor |
+| T5 | Söz: geçmiş saat / gece 23:30 / "inşallah" / "7'de" | kurucu: "bağlamdan günü çıkarsın, genellikle aynı gün" → kural örneklerle soruldu; "yarın 7'de" + "inşallah" ayrıca |
 | T6 | Kartla deneme hukuk metni · mülk silme penceresi · sistem görevi silme · Airbnb "Not available" · 12 küçük metin | ayrıntı §T6 |
-| T6b | KVKK: hata / işlenemeyen Paddle olay kayıtları süresiz ad / e-posta taşıyor (G6 kararınızın kenarı) | 2 yıl sonra küçülsün |
+| T6b | KVKK: hata / işlenemeyen Paddle olay kayıtları süresiz ad / e-posta taşıyor (G6 kararınızın kenarı) | ✅ kurucu "2 yıl sonra küçülsün" → uygulandı (`f33e78d7`) |
 | T7 | SG1 / SG2 · Paddle ödeme kurtarma ayarı | — |
 | T8 | İkinci taramanın 18 sorusu: deneme e-postaları (ödeyen müşteriye "bitti", doğrulanmamış adres) · ödeme ekranı metinleri · kartla deneme (ilk daire, bitiş toleransı) · yıllık abone tespiti (para) · kuyruk zamanlaması · ekran davranışı · sınırlar · KVKK | her birinde önerim; ayrıntı §T8 |
 
@@ -109,6 +109,12 @@
 - **Söz testleri saatten bağımsız** (CI #1545): elle açılan söz bir dakika geri tarihlenir; gece yarısı kuralı yalnız kendi testinde açık
   (yalnız-test anahtarı, `__stayEndHooks` gibi). Gece simülasyonunda 29 dosya / 592 testten yalnız kuralın kendi testi kırmızı (beklenen).
 
+- **Opus dilim sonu 3 (sabah) — söz algılama, anahtar kapalı:** bu gecenin bir gerilemesi düzeltildi ("sabah 9'da değil akşam" eski saati
+  seçiyordu → saat sorulur); "3'ü 10 geçe" gece sanılmıyor; "2 or 3", "10 veya 11", "at 2-3", "from 2pm", "10'dan 12'ye kadar" kesin saat
+  değil; "ne olursa olsun / geç olsa da" koşul değil; "hava çıkışı", "teknisyen gelmeden önce" konaklama anı değil; en yaygın yeniden
+  zamanlama mesajı ("Teknisyen bugün gelemeyecek, yarın 10'da gelecek") artık söz. Derlem 303/323.
+- **T3 (kurucu kararı):** "bilgi veremem" yedi dilde tutulur. **T6b (kurucu kararı):** işlenememiş ödeme olayları 2 yılda küçülür.
+
 ## 2b. Küçük metin düzeltmeleri (T6 — toplu "evet" yeterli; hepsi müşteri ekranı, uygulanmadı)
 
 | # | Yer | Bugün | Önerilen |
@@ -163,7 +169,8 @@
 | … `b4cc74cf` | gece-4 ilk tarama düzeltmeleri, söz algılama v2, migration 76 / 77 | yeşil | #1539 KIRMIZI — KB düzenleyicide korumasız `scrollIntoView` (zamanlamaya bağlı) |
 | `a322c310` | `scrollIntoView` koruması + iki yolda görünür yere getirme + pin | yeşil | #1543 yeşil |
 | `a55a4842` | migration 78 (yalnız dizin) | yeşil | #1545 KIRMIZI — söz testinde milisaniye yarışı (ürün kodu değil); ↓ düzeltildi |
-| `08fcb660` … `65f3c139` (+ bu belge) | ikinci tarama düzeltmeleri, sert itirazcı + Haiku söz turları, S3-07/08/09 + migration 79, S7-08 testleri, CI #1545 yarışı + gece zaman bombası | g93 (`4a6ba778`) yeşil; g94 (`65f3c139`) — sonucu `docs/claude/durum.md` | itildikten sonra kontrol edilir |
+| `08fcb660` … `fbe9a12b` | ikinci tarama düzeltmeleri, sert itirazcı + Haiku söz turları, S3-07/08/09 + migration 79, S7-08 testleri, CI #1545 yarışı + gece zaman bombası | g93 (`4a6ba778`) + g94 (`65f3c139`) yeşil | #1547 (sonucu `docs/claude/durum.md`) |
+| `6ca0ede0` … | Paddle sel freni, panel testleri, Haiku son grup, Opus dilim sonu 3, T3, T6b | g95 (koşacak) | — |
 
 Yerel tam kapı = paralel `npm test` (veritabanısız / veritabanlı / süre kolları) + tip + lint + derleme + bağımlılık denetimi. Not: g93 yeşildi ama
 İstanbul 05:39'dan sonra koştuğu için gece zaman bombasını göstermedi — bundan sonra söz testleri saatten bağımsız (gece simülasyonuyla doğrulandı).

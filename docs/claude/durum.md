@@ -26,6 +26,10 @@ KURUCU-SORULARI §T8; hazır yama durum tablosu `docs/hazir-yamalar/DURUM.md`.
 mutasyon v9 26/29 + 3 yaşayan kapandı); S4-07 kalanı (arıza okuyucusu görünmez karakter); S3-08 panel; S3-07/S3-09 migration 79 + talepte
 veritabanı tarafı zaman aşımı (sert tasarım ajanı ölçtü, iki önerisi ölçümle reddedildi); S7-08 rota testleri; CI #1545 kırmızısı = test
 milisaniye yarışı; ararken bulunan gece zaman bombası (S1-02 kuralı 45 testi İstanbul 00:00–04:59'da kırıyordu) itilmeden kapandı. Soru T8.19.
+Sabah (10-18, kurucu cevapları): T3 uygulandı (bilgi veremem yedi dilde tutulur), T6b uygulandı (işlenememiş ödeme olayı 2 yılda küçülür);
+T1 (talimat yok → cevabın tamamı tutulsun mu), T2 (e-posta seyrek), T4 (sade anlatıldı), T5 (gün bağlamdan — kural örneklerle soruldu) cevap
+bekliyor. Opus dilim sonu 3: söz algılamada 1 yeni gerileme + 4 yeni P2 + 2 eski P1 düzeltildi (derlem 303/323). Haiku son grup: kuyruk sağlığı
+okuması tek hatada sayıları kaybetmiyor. İtme: fbe9a12b (g94 yeşil, CI #1547).
 Açık: S7-03 (elle senkron global kilidi — mimari, ölçümle).
 Sabah raporu `docs/SABAH-RAPORU-2026-10-18.md`.
 
