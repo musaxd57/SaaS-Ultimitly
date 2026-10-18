@@ -1231,6 +1231,13 @@ model MessageOutbox {
   // Migration 69 (kurucu I3, 10-17 "migration yapalım"): konuşma başına okuma — teslim edilmemiş taslak süzgeçleri + işçinin konuşma başına
   // FIFO alt sorgusu tam tablo taraması yerine dizinden. YALNIZ maliyet; davranış dizinden bağımsız (O1 Seçenek A).
   @@index([conversationId, status])
+  // Migration 79 (gece-4 S3-07 / S3-09; sert tasarım ajanı ölçtü — 2M satır, 20 bin birikim): YALNIZ maliyet, davranış dizinden bağımsız.
+  //  · talep sorgusunun rezervasyon başına "son 60 sn denemesi" alt sorgusu her aday için işletmenin bütün satırlarını tarıyordu (7,65 sn);
+  //    claimedAt dizini son 60 saniyenin taleplerini doğrudan bulur (üç sütunlu ayrı dizin bu dizin varken planlayıcıca seçilmedi — eklenmedi);
+  //  · kuyruk sağlığı "son 15 dk ilerleme" okuması (claimedAt OR sentAt) tam tablo tarıyordu (~1 sn → 0,03 ms, iki düz dizin BitmapOr);
+  //  · teslim etkisi onarıcısı son 48 saatin gönderilmişlerini sentAt'ten bulur (gönderilmiş satırlar silinmez — tablo büyür).
+  @@index([sentAt])
+  @@index([claimedAt])
 }
 
 // ---------------------------------------------------------------------------

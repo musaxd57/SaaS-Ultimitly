@@ -1022,3 +1022,9 @@ ekran metni / para / misafir mesajının zamanlamasını değiştirir. "Evet" ye
 **KVKK**
 - **T8.18 (S5-06)** Geçmişten öğren'de ONAYLANAN taslağın başlık + içeriği süresiz duruyor (bilgi tabanına zaten aktarıldı). Önerim: onayda taslak
   içeriği boşaltılır, iz (tarih / tür) kalır. Uygun mu?
+- **T8.19 (kuyruk adaleti, sert tasarım ajanı 10-18)** Kalıcı kuyruk (anahtar KAPALI) mesajları işletme ayırt etmeden en eskiden gönderir. Örnek:
+  büyük bir işletmenin 15:00'te kuyruğa giren 300 giriş mesajı varken başka bir işletmenin ev sahibinin 15:01'de yazdığı elle cevap bu 300'ün
+  arkasında kalır (2 dakikada 20 satır → ~30 dk gecikme; "hızlı uyandırma" da en eski 5 satırı alır, ev sahibinin cevabını değil). Önce: elle
+  cevap ~30 dk bekleyebilir. Sonra (önerim): elle cevap ve yapay zekâ cevabı ÖNCE, otomatik şablonlar (karşılama / giriş / çıkış) sonra; aynı
+  türde işletmeler sırayla (yaygın kuyruk tasarımı: öncelik sınıfları — belirli bir platformun iç düzenini doğrulamadım). Bugünkü hacimde (10 daire) etkisiz;
+  anahtar açılmadan önce karar. Böyle yapalım mı?

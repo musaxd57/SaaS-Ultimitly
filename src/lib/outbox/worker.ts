@@ -207,10 +207,12 @@ const defaultReconcile: OutboxReconcileFn = async (row) => {
  * So the scheduler drains when the flag is ON *or* when this returns true.
  */
 export async function hasDrainableOutbox(): Promise<boolean> {
-  const n = await prisma.messageOutbox.count({
+  // Tek satır yeter (gece-4 sert tasarım ajanı: sayım bütün birikimi geziyordu).
+  const row = await prisma.messageOutbox.findFirst({
     where: { status: { in: ["pending", "sending", "ambiguous", "reconciling"] } },
+    select: { id: true },
   });
-  return n > 0;
+  return row !== null;
 }
 
 /**
@@ -246,18 +248,28 @@ async function recoverStaleClaims(now: Date): Promise<number> {
  * claimed by at most one worker. `pending` → `sending`; `ambiguous` → `reconciling`.
  * attemptCount is incremented on every claim. Fair order by availableAt (oldest first).
  */
+/** Talep işleminin veritabanı tarafı tavanı (ms; işlem zaman aşımı 15 sn'den KISA). Yalnız testler değiştirir. */
+export const __claimTimeouts: { statementMs: number } = { statementMs: 10_000 };
+
 async function claimBatch(token: string, now: Date, expiry: Date, batchSize: number): Promise<OutboxRow[]> {
   // Abonelik erişimi kapalı işletmeler işlem DIŞINDA hesaplanır (erişim okuması talep kilidini uzatmasın).
   const billingBlocked = await billingBlockedOrgIds();
-  return prisma.$transaction(async (tx) => {
-    // Serialize the claim phase (Codex P1). Non-blocking: if a concurrent worker holds it,
-    // do nothing this pass — the rate count must never race another in-flight claim.
-    const gate = await tx.$queryRaw<Array<{ locked: boolean }>>(
-      Prisma.sql`SELECT pg_try_advisory_xact_lock(${OUTBOX_CLAIM_LOCK_KEY}::bigint) AS locked`,
-    );
-    if (!gate[0]?.locked) return [];
-    return claimBatchLocked(tx, token, now, expiry, batchSize, billingBlocked);
-  });
+  return prisma.$transaction(
+    async (tx) => {
+      // Serialize the claim phase (Codex P1). Non-blocking: if a concurrent worker holds it,
+      // do nothing this pass — the rate count must never race another in-flight claim.
+      const gate = await tx.$queryRaw<Array<{ locked: boolean }>>(
+        Prisma.sql`SELECT pg_try_advisory_xact_lock(${OUTBOX_CLAIM_LOCK_KEY}::bigint) AS locked`,
+      );
+      if (!gate[0]?.locked) return [];
+      // Gece-4 S3-07 (sert tasarım ajanı ölçtü): Prisma'nın işlem zaman aşımı çalışan SQL'i KESMEZ — büyük birikimde talep sorgusu arkada
+      // sürüp talep kilidini tutuyor, her geçiş boşa düşüyordu. Veritabanı tarafı tavan (işlem zaman aşımından KISA): kaçak sorgu kesilir,
+      // işlem geri alınır (talep yazılmaz), kilit bırakılır; sonraki geçiş yeniden dener. Migration 79 dizinleriyle normal talep milisaniyedir.
+      await tx.$executeRawUnsafe(`SET LOCAL statement_timeout = ${Math.max(1, Math.trunc(__claimTimeouts.statementMs))}`);
+      return claimBatchLocked(tx, token, now, expiry, batchSize, billingBlocked);
+    },
+    { timeout: 15_000 },
+  );
 }
 
 /**
