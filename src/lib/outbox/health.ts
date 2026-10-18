@@ -96,9 +96,11 @@ export async function queueHealth(now: Date = new Date()): Promise<QueueHealth[]
 //    ama satır ilerlemiyorsa ikisi de görür. Normal `/api/health` (Railway hazır olma yoklaması) DEĞİŞMEZ → yeniden başlatma döngüsü yok.
 // "İlerlemiyor" (Haiku 10-16 sahte alarm bulguları üzerine): (1) İŞÇİNİN ALABİLECEĞİ vadesi gelmiş satır 15 dk'dır bekliyor — genel otomatik
 // mesaj anahtarı kapalıyken bilerek bekleyen otomatik şablonlar ve aynı konuşmada önceki satırın arkasında sıra bekleyen satır (konuşma
-// sırası; önceki satır yeniden deneme beklemesinde olabilir) SAYILMAZ, işçinin talep sorgusuyla (`worker.ts` claimBatchLocked) BİREBİR aynı
-// süzgeç (uzlaştırma bekleyen `ambiguous` dahil; Haiku 10-16 ikinci tur); VE (2) son 15 dk'da kuyrukta hiç
-// ilerleme yok (sahiplenme / gönderim). Büyük birikim (her geçiş 20 satır) ilerlediği sürece alarm değildir.
+// sırası; önceki satır yeniden deneme beklemesinde olabilir) SAYILMAZ, işçinin talep sorgusuyla (`worker.ts` claimBatchLocked) aynı
+// süzgeç (uzlaştırma bekleyen `ambiguous` dahil; Haiku 10-16 ikinci tur) — TEK fark: rezervasyon başına dakikada 2 gönderim sınırı (`rn +
+// recent <= 2`) burada uygulanmaz; o sınırda bekleyen satır en çok 60 sn "gönderilebilir" görünür, 10 / 15 dk eşiklerine ulaşmaz (Opus
+// gece-4 dilim sonu 3 C1); VE (2) son 15 dk'da kuyrukta hiç ilerleme yok (sahiplenme / gönderim). Büyük birikim (her geçiş 20 satır)
+// ilerlediği sürece alarm değildir.
 // ---------------------------------------------------------------------------
 
 /** Vadesi gelmiş satır bu kadar bekledi ve bu süredir ilerleme yok → kuyruk ilerlemiyor. Yoklayıcı en geç 2 dk'da bir geçer. */

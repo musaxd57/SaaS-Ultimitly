@@ -1188,4 +1188,16 @@ describe("Opus gece-4 dilim sonu 3: yanlış saat / kaçan kesin söz", () => {
     ])
       none(t);
   });
+
+  it("A12 / A14: 'temizliğe / temizliği' çekimi konu sayılır; sonu noktasız 'p.m' günü koparmaz", () => {
+    firm("Ayşe Hanım yarın 11'de temizliğe gelecek.", 660);
+    firm("Temizliği yarın 11'de yapacağız", 660);
+    expect(detectHostPromises("Temizliği yarın 11'de yapacağız")[0]).toMatchObject({ kind: "cleaning", day: "tomorrow" });
+    for (const t of ["Temizliğe dikkat ederseniz seviniriz.", "Temizliği sabah yaptık.", "Temizliğiniz için teşekkürler, yarın görüşürüz."]) none(t);
+    expect(detectHostPromises("The technician will come at 2 p.m tomorrow")).toMatchObject([{ day: "tomorrow", timeCandidates: [840], dayUnclear: false }]);
+    // Virgülsüz öne alınmış zaman tek cümle kalır (küçük harfli özneyi cümle başı saymanın ölçülmüş bedeli).
+    expect(detectHostPromises("Tomorrow at 2 p.m. the cleaner will come")).toMatchObject([{ kind: "cleaning", day: "tomorrow", timeCandidates: [840] }]);
+    // BİLİNEN SINIR (güvenli yön: söz kaybolur, yanlış saat yazılmaz): küçük harfle başlayan ikinci cümle birinciyle birleşir.
+    expect(detectHostPromises("I'll bring towels at 6 p.m. the technician will come tomorrow.").map((p) => p.kind)).toEqual(["maintenance"]);
+  });
 });

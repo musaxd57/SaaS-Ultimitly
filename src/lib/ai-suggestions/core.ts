@@ -275,7 +275,7 @@ const KIND_TOPICS: ReadonlyArray<readonly [CommitmentKind, RegExp]> = [
       "u",
     ),
   ],
-  ["cleaning", new RegExp(`${NL}(?:temizlik|temizlikci|temizle|(?:cleaning|cleaners?|housekeeping|clean)${NR})`, "u")],
+  ["cleaning", new RegExp(`${NL}(?:temizli[kg]|temizle|(?:cleaning|cleaners?|housekeeping|clean)${NR})`, "u")],
   ["towels", new RegExp(`${NL}(?:havlu|carsaf|nevresim|yastik\\s+kilif|(?:towels?|sheets?|linens?|bedding)${NR})`, "u")],
   [
     "supplies",
@@ -645,7 +645,10 @@ const ON_THE_WAY = new RegExp(`${NL}(?:yolda(?:yim|yiz|lar)?|yola\\s+(?:cikti|ci
  * come." günü kaybediyordu) → "am / pm". Ardından büyük harfle yeni cümle başlıyorsa nokta cümle sonu olarak kalır.
  */
 // `i` bayrağı YOK: büyük harf ileri bakışı küçük harfi de tutardı ("…2:30 p.m. tomorrow." nokta kalıp günü koparıyordu — sert itirazcı C1).
-const DOTTED_AMPM = /(?<![\p{L}\p{N}])([aApP])\.\s?[mM]\.(?=(\s+\p{Lu})?)/gu;
+// Opus dilim sonu 3 A14: sonu noktasız "p.m" ("at 2 p.m tomorrow" cümleyi "p." den bölüp günü düşürüyordu) da tutulur. Küçük harfle
+// başlayan özne ("…at 6 p.m. the technician will come…") cümle sonu SAYILMAZ: ölçüldü, "Tomorrow at 2 p.m. the cleaner will come" (virgülsüz
+// öne alınmış zaman) çok daha yaygın; bölmek derlemde iki doğru okumayı bozdu (303 → 301).
+const DOTTED_AMPM = /(?<![\p{L}\p{N}])([aApP])\.\s?[mM](?:\.|(?![\p{L}\p{N}]))(?=(\s+\p{Lu})?)/gu;
 function normalizeAmPm(text: string): string {
   return text.replace(DOTTED_AMPM, (_m, l: string, next: string | undefined) => `${l.toLowerCase()}m${next ? "." : ""}`);
 }
