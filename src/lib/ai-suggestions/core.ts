@@ -415,11 +415,12 @@ function clockQualifier(d: (typeof DAY_PARTS)[number]): RegExp {
 }
 
 /** Saatin alt sınırı ya da aralık: "10:30'dan sonra", "5'ten itibaren", "after 5", "between 2 and 4", "10-11", "2 ile 4 arası". */
-// Tireli aralık YALNIZ saat biçiminde ("10:00-11:00", "saat 10-11", "10-11 gibi / arası") — telefon, daire ("3-1"), "2-4 GHz" aralık değil
+// Tireli aralık YALNIZ saat biçiminde ("saat 10-11", "10-11 gibi / arası"; "10:00-11:00" iki saat olarak zaten okunur ve sorulur — mutasyon v9
+// eşdeğerdi, ayrı dal kaldırıldı) — telefon, daire ("3-1"), "2-4 GHz" aralık değil
 // (sert itirazcı C2); "and / to" yalnız "between … and" / "from … to" içinde, "to / until" ayrıca "at 10 to 11" biçiminde (Haiku gece-4: kesin
 // 10:00 okunuyordu — "10'a 10 kala" da olabilir); "2 to 3 towels" aralık değil.
 const TIME_BOUND_OR_RANGE =
-  /\d{1,2}(?:[:.]\d{2})?\s*(?:[ap]m\s*)?(?:['’]\s*)?(?:[dt][ae]n)\s+(?:sonra|itibaren)|(?<![\p{L}\p{N}])(?:after|not\s+before)\s+\d|(?<![\p{L}\p{N}])between\s+\d{1,2}(?:[:.]\d{2})?\s*(?:[ap]m\s*)?(?:and|-)\s*\d|(?<![\p{L}\p{N}])from\s+\d{1,2}(?:[:.]\d{2})?\s*(?:[ap]m\s*)?(?:to|until|[-–—])\s*\d|\d{1,2}[:.]\d{2}\s*[-–—]\s*\d{1,2}[:.]\d{2}|(?<![\p{L}\p{N}])saat\s+\d{1,2}\s*[-–—]\s*\d{1,2}(?![\d])|(?<![\d.,/-])\d{1,2}\s*[-–—]\s*\d{1,2}(?![\d.,/-])(?:['’]?\p{L}{1,4})?\s+(?:gibi|arasi\p{L}{0,3}|civari\p{L}{0,3}|saatleri\p{L}{0,3})|\d{1,2}(?:[:.]\d{2})?\s*(?:['’]\s*)?(?:ile|ila)\s+\d|(?<![\p{L}\p{N}])at\s+\d{1,2}(?:[:.]\d{2})?\s*(?:[ap]m\s*)?(?:to|until|till)\s+\d/u;
+  /\d{1,2}(?:[:.]\d{2})?\s*(?:[ap]m\s*)?(?:['’]\s*)?(?:[dt][ae]n)\s+(?:sonra|itibaren)|(?<![\p{L}\p{N}])(?:after|not\s+before)\s+\d|(?<![\p{L}\p{N}])between\s+\d{1,2}(?:[:.]\d{2})?\s*(?:[ap]m\s*)?(?:and|-)\s*\d|(?<![\p{L}\p{N}])from\s+\d{1,2}(?:[:.]\d{2})?\s*(?:[ap]m\s*)?(?:to|until|[-–—])\s*\d|(?<![\p{L}\p{N}])saat\s+\d{1,2}\s*[-–—]\s*\d{1,2}(?![\d])|(?<![\d.,/-])\d{1,2}\s*[-–—]\s*\d{1,2}(?![\d.,/-])(?:['’]?\p{L}{1,4})?\s+(?:gibi|arasi\p{L}{0,3}|civari\p{L}{0,3}|saatleri\p{L}{0,3})|\d{1,2}(?:[:.]\d{2})?\s*(?:['’]\s*)?(?:ile|ila)\s+\d|(?<![\p{L}\p{N}])at\s+\d{1,2}(?:[:.]\d{2})?\s*(?:[ap]m\s*)?(?:to|until|till)\s+\d/u;
 
 /** Gün dilimi yokken iki anlamlı saat ("saat 2" → 02:00 / 14:00): gündüz (07:00–21:00) adayı tercih edilir (Haiku 10-12 3. tur). */
 function preferDaytime(candidates: number[]): number[] {

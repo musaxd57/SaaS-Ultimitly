@@ -1011,6 +1011,8 @@ describe("sert itirazcı gece-4 (354 cümle): yeni kurallar KESİN sözü düş�
     for (const t of ["Sorun olursa, teknisyen gelecek", "Klima çalışmazsa, teknisyen yarın gelecek", "Havlu lazımsa söyleyin, getiririm", "Havlu lazımsa yazın, yarın getiririm"]) none(t);
     // Mutasyon v9 yaşayanları: yüklemli koşul + SAATSİZ söz (başka konu) ve yüklemli koşul + saatli GENİŞ ZAMAN teklifi (konusuz koşul) söz değil.
     for (const t of ["Sorun olursa bana yazın, teknisyen gelecek", "Bir sorun olursa bana yazın, havlu getireceğim", "Eksik bir şey varsa yazın, havluları yarın getiririm"]) none(t);
+    // Mutasyon v9 ikinci tur: koşul sözcüğünden sonra yalnız zaman sözcükleri ("… ederse yarın sabah,") soldaki parçayı koşul yapar.
+    for (const t of ["Sorun devam ederse yarın sabah, teknisyen 10'da gelecek", "Olmazsa yarın, teknisyen 10'da gelecek"]) none(t);
   });
 
   it("Y3: yeni kararsızlık sözcükleri YEREL — sebep cümlesinde bozmaz, sözün kendisinde bozar", () => {
@@ -1024,7 +1026,7 @@ describe("sert itirazcı gece-4 (354 cümle): yeni kurallar KESİN sözü düş�
   });
 
   it("Y6/Y7: kısa kökün çekimleri konu ('ustayla', 'bakımını', 'pilinizi'); 'reimburse' koşul değil; ad + '-sa' koşulu ('bozuksa', 'müsaitseniz')", () => {
-    for (const t of ["Ustayla görüştüm, yarın 10'da gelecek", "Havuzun bakımını yarın yapacağız", "Kumandanın pilini yarın getireceğim", "Çayınızı akşam getireceğim", "I'll bring the towels and reimburse you tomorrow"]) some(t);
+    for (const t of ["Ustayla görüştüm, yarın 10'da gelecek", "Havuzun bakımını yarın yapacağız", "Kumandanın pilini yarın getireceğim", "Çayınızı akşam getireceğim", "I'll bring the towels and reimburse you tomorrow", "The reimburse form is ready and the technician will come tomorrow at 10"]) some(t);
     for (const t of ["Klima bozuksa yarın teknisyen gelecek", "Müsaitseniz yarın teknisyen gelecek", "Sorun olduğunda teknisyen gelecek", "Havlu lazım olunca getiririm", "Provided you are home, the technician will come tomorrow", "Teknisyen 2026-10-19 tarihinde gelecek"]) none(t);
   });
 
