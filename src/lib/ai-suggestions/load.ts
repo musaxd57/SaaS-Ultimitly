@@ -172,6 +172,13 @@ const fmtAt = (d: Date) => d.toISOString();
 /** Gece yarısından sonra "yarın"ın belirsiz olduğu son dakika (05:00 hariç; `ai/date-resolution.ts` after_midnight_relative ile aynı aralık). */
 const AFTER_MIDNIGHT_END_MIN = 5 * 60;
 
+/**
+ * Yalnız test: gece yarısı kuralını kapatır. Mesajlarını gerçek saatle yazan söz testleri (günlük sınır sayımı veritabanı saatine bakar)
+ * İstanbul 00:00–04:59'da koşunca bu kurala çarpıp kırmızı oluyordu (gece-4: ölçüldü, 45 test). Kuralın kendi testi saati sabitler ve
+ * kuralı AÇIK tutar; üretimde kimse değiştirmez.
+ */
+export const __afterMidnightRule: { enabled: boolean } = { enabled: true };
+
 /** İşletme diliminde günün dakikası (QR'daki `nowMinutesInTz` ile aynı hesap). */
 function nowMinutesInTz(now: Date, tz: string): number {
   const [h, m] = new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: false })
@@ -373,7 +380,8 @@ export async function getConversationSuggestions(
         if (out.length >= MAX_SUGGESTIONS) break;
         // 00:00–04:59 arasında yazılan "yarın" çoğu zaman aynı sabahtır (uyumamış birinin dili — `ai/date-resolution.ts` after_midnight
         // kuralı): gün tahmin edilmez, kendiliğinden kaydedilmez, kart günü sorar (gece-4 S1-02: görev bir gün geç açılıyordu).
-        const afterMidnightTomorrow = detected.dayExplicit && detected.day === "tomorrow" && nowMinutesInTz(m.createdAt, tz) < AFTER_MIDNIGHT_END_MIN;
+        const afterMidnightTomorrow =
+          __afterMidnightRule.enabled && detected.dayExplicit && detected.day === "tomorrow" && nowMinutesInTz(m.createdAt, tz) < AFTER_MIDNIGHT_END_MIN;
         const promise = afterMidnightTomorrow ? { ...detected, dayUnclear: true } : detected;
         const key = suggestionKey("commitment", `${m.id}:${promise.anchor}`);
         if (decided.has(key)) continue;

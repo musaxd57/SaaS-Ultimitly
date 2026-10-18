@@ -16,7 +16,7 @@ vi.mock("@/lib/api", async (orig) => {
 });
 
 import { POST } from "@/app/api/ai-suggestions/route";
-import { getConversationSuggestions } from "@/lib/ai-suggestions/load";
+import { __afterMidnightRule, getConversationSuggestions } from "@/lib/ai-suggestions/load";
 import { __aiSuggestionHooks } from "@/lib/ai-suggestions/act";
 import { createGuestCommitment } from "@/lib/guest-commitments";
 import { commitmentDueAt } from "@/lib/guest-commitments-core";
@@ -50,8 +50,13 @@ const WHEN = "yarın 10:00";
 beforeEach(async () => {
   await resetDb();
   vi.stubEnv("AI_ACTION_SUGGESTIONS_ENABLED", "1");
+  // Mesajlar gerçek saatle yazılır: gece yarısı kuralı (gece-4 S1-02) İstanbul 00:00–04:59'da koşan testleri kırmasın.
+  __afterMidnightRule.enabled = false;
 });
-afterEach(() => vi.unstubAllEnvs());
+afterEach(() => {
+  vi.unstubAllEnvs();
+  __afterMidnightRule.enabled = true;
+});
 
 describe("söz konusu", () => {
   it("🚨 aynı saatte 'klima' ve 'musluk' sözü → İKİ öneri, İKİ söz, İKİ görev (ESKİDE: tek söz, ikinci onay 'gone')", async () => {

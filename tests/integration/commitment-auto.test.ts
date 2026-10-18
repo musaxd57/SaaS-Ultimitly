@@ -25,7 +25,7 @@ vi.mock("@/lib/channels", async (orig) => ({
 
 import { POST as decideRoute } from "@/app/api/ai-suggestions/route";
 import { PATCH as commitmentPatch } from "@/app/api/conversations/[id]/commitments/[commitmentId]/route";
-import { getConversationSuggestions } from "@/lib/ai-suggestions/load";
+import { __afterMidnightRule, getConversationSuggestions } from "@/lib/ai-suggestions/load";
 import {
   AUTO_COMMITMENT_DAILY_CAP,
   SWEEP_CATCHUP_MINUTES,
@@ -96,11 +96,23 @@ beforeEach(async () => {
   await resetDb();
   mockSend.mockReset();
   vi.stubEnv("HOST_COMMITMENT_AUTO_ENABLED", "1");
+  // Mesajlar gerçek saatle yazılır: gece yarısı kuralı (S1-02) İstanbul 00:00–04:59'da koşan testleri kırmasın — kuralın kendi testi açar.
+  __afterMidnightRule.enabled = false;
 });
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.useRealTimers();
+  __afterMidnightRule.enabled = true;
 });
+
+/**
+ * Elle açılmış söz mesajdan ÖNCE açılmış olsun (CI #1545): söz ile hemen ardından gerçek saatle yazılan mesaj aynı milisaniyeye düşünce
+ * yükleyici mesajı "söz zaten kaydedildi" sayıyordu (`sourceAt >= mesaj`) — kırmızı CI'da. Diğer söz testleri de aynı geri tarihlemeyi yapar.
+ */
+async function openedEarlier<T extends { id: string }>(c: T): Promise<T> {
+  await prisma.guestCommitment.update({ where: { id: c.id }, data: { createdAt: new Date(Date.now() - 60_000) } });
+  return c;
+}
 
 /**
  * Gerçek saatle koşan (karar rotası `decide()` kendi `new Date()`ını kullanır) ama mesajları "10 / 5 dk önce" yazan testler İstanbul'da gece
@@ -335,7 +347,7 @@ describe("BAĞLAM — saat güncellemesi yalnız kesin eşleşmede (kurucu: 'ba�
 
   it("🚨 Opus O8: konusuz eski söz ('Teknisyen yarın 10'da') + konulu yeni saat ('Klima için teknisyen yarın 11'de') → kendiliğinden ne taşır ne ikinci görev açar; kart sorar", async () => {
     const s = await setup();
-    await createGuestCommitment({
+    await openedEarlier(await createGuestCommitment({
       organizationId: s.orgId,
       conversationId: s.conversationId,
       propertyId: s.propertyId,
@@ -344,7 +356,7 @@ describe("BAĞLAM — saat güncellemesi yalnız kesin eşleşmede (kurucu: 'ba�
       dueAt: commitmentDueAt({ day: "tomorrow", time: "10:00" }, TZ, new Date())!,
       actorUserId: null,
       source: "manual",
-    });
+    }));
     await hostSays(s.conversationId, "Klima için teknisyen yarın 11:00'de gelecek.", new Date());
     expect(await applyHostCommitmentsAuto(s.orgId, s.conversationId)).toEqual({ created: 0, rescheduled: 0, skipped: 1 });
     expect(await prisma.guestCommitment.count()).toBe(1);
@@ -688,7 +700,7 @@ describe("BAĞLAM — saat güncellemesi yalnız kesin eşleşmede (kurucu: 'ba�
 
   it("🚨 BELİRSİZ (konusuz, sözcüksüz yeni saat + açık söz) → KENDİLİĞİNDEN hiçbir şey değişmez; kart seçim ister; seçimle taşınır", async () => {
     const s = await setup();
-    const c1 = await createGuestCommitment({
+    const c1 = await openedEarlier(await createGuestCommitment({
       organizationId: s.orgId,
       conversationId: s.conversationId,
       propertyId: s.propertyId,
@@ -697,7 +709,7 @@ describe("BAĞLAM — saat güncellemesi yalnız kesin eşleşmede (kurucu: 'ba�
       dueAt: commitmentDueAt({ day: "tomorrow", time: "09:00" }, TZ, new Date())!,
       actorUserId: null,
       source: "manual",
-    });
+    }));
     // Mesaj sözden SONRA (bağlam: önce açılmış söz) — gerçek saat.
     await hostSays(s.conversationId, "Teknisyen yarın 15:00'te gelecek.", new Date());
     expect(await applyHostCommitmentsAuto(s.orgId, s.conversationId)).toEqual({ created: 0, rescheduled: 0, skipped: 1 });
@@ -718,7 +730,7 @@ describe("BAĞLAM — saat güncellemesi yalnız kesin eşleşmede (kurucu: 'ba�
 
   it("BELİRSİZ + 'Ayrı söz olarak kaydet' → mevcut söz DEĞİŞMEZ, yeni söz + görev", async () => {
     const s = await setup();
-    const c1 = await createGuestCommitment({
+    const c1 = await openedEarlier(await createGuestCommitment({
       organizationId: s.orgId,
       conversationId: s.conversationId,
       propertyId: s.propertyId,
@@ -727,7 +739,7 @@ describe("BAĞLAM — saat güncellemesi yalnız kesin eşleşmede (kurucu: 'ba�
       dueAt: commitmentDueAt({ day: "tomorrow", time: "09:00" }, TZ, new Date())!,
       actorUserId: null,
       source: "manual",
-    });
+    }));
     await hostSays(s.conversationId, "Teknisyen yarın 15:00'te gelecek.", new Date());
     const [sugg] = (await getConversationSuggestions(s.orgId, s.conversationId)).filter((x) => x.kind === "commitment");
     expect((await decide({ key: sugg.key, decision: "approve", attach: "new" })).status).toBe(200);
@@ -983,6 +995,7 @@ describe("öneri türü ve gün düzenlemesi (Opus O7 / O13)", () => {
   });
 
   it("🚨 gece-4 S1-02: 00:00–04:59 arasında yazılan 'yarın' kendiliğinden kaydedilmez, kart günü sorar; sabah yazılan aynı söz kaydedilir", async () => {
+    __afterMidnightRule.enabled = true; // kuralın kendi testi (saat sabit)
     const lateNight = new Date(`${dateKeyInTimeZone(new Date(), TZ)}T21:40:00.000Z`); // ertesi gün 00:40 İstanbul
     vi.useFakeTimers({ toFake: ["Date"], now: lateNight });
     const s = await setup();
