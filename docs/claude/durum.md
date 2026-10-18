@@ -22,6 +22,10 @@ performans kalemleri: `docs/arastirma-2026-10-18/S8-performans.md`.
 İkinci tarama: 135 bulgu izlendi, 50 izsiz → iç olanlar düzeltildi (söz algılama 14 kural + Haiku 9 bulgu, mutasyon 25/25; demo sıfırlama + DMMF pini;
 POST /api/conversations kiracı testi; `*_ENABLED` ↔ Railway belgesi pini; anahtar parmak izi aracı; ödeme açılış uyarıları), müşteriye dokunan 18'i
 KURUCU-SORULARI §T8; hazır yama durum tablosu `docs/hazir-yamalar/DURUM.md`.
+Üçüncü tur (10-18 sabah): sert itirazcı 354 cümle + Haiku → söz algılama konuma bağlı kurallar (derlem 175 → 301/323, karesel iş giderildi,
+mutasyon v9 26/29 + 3 yaşayan kapandı); S4-07 kalanı (arıza okuyucusu görünmez karakter); S3-08 panel; S3-07/S3-09 migration 79 + talepte
+veritabanı tarafı zaman aşımı (sert tasarım ajanı ölçtü, iki önerisi ölçümle reddedildi); S7-08 rota testleri; CI #1545 kırmızısı = test
+milisaniye yarışı; ararken bulunan gece zaman bombası (S1-02 kuralı 45 testi İstanbul 00:00–04:59'da kırıyordu) itilmeden kapandı. Soru T8.19.
 Açık: S7-03 (elle senkron global kilidi — mimari, ölçümle).
 Sabah raporu `docs/SABAH-RAPORU-2026-10-18.md`.
 

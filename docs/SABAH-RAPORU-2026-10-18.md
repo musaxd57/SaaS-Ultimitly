@@ -16,6 +16,11 @@
 - **İkinci tarama (gece yarısından sonra):** 135 bulgunun izi tek tek sürüldü — 50'si hiçbir yere bağlanmamıştı. İç olanlar düzeltildi (söz
   algılamada 14 kural, demo sıfırlama, kiracı testi, açılış uyarıları, iki yeni pin; ↓ §2), müşteriye dokunan 18'i §T8'de soru.
 - **Migration 78** (yalnız dizin): arka plandaki olay okuması geçmişi baştan taramıyor (40 bin olayda 3,9 ms → 0,05 ms).
+- **Migration 79** (yalnız dizin, kalıcı kuyruk): talep ve "kuyruk ilerliyor mu" okumaları geçmişi baştan taramıyor (sert tasarım ajanı ölçtü:
+  2M satırda talep 7,65 sn, sağlık ~1 sn → 0,03 ms) + talep sorgusuna veritabanı tarafı zaman aşımı.
+- **CI #1545 kırmızısı — test yarışı + bulunan zaman bombası:** söz testlerinden biri, sözle aynı milisaniyede yazılan mesajı "zaten işlenmiş"
+  sayıyordu (ürün kodu değil). Bunu ararken daha büyük bir şey çıktı: bu gecenin "gece yarısından sonra yarın" kuralı, gerçek saatle koşan 45
+  testi İstanbul 00:00–04:59'da kırmızıya düşürecekti (kural her zaman gece sayılarak ölçüldü). İtilmeden düzeltildi; ↓ §2.
 - **İtildi / CI:** ↓ §4.
 - **Railway kapalı** → canlıya bir şey gitmedi. Açılış belgesi güncellendi: önce yalnız veritabanı + yedek, sonra web servisi (yoksa yedek
   migration'dan SONRA alınırdı); `QR_PIN_PEPPER` / `ERASURE_HMAC_SECRET` eksikse servis hiç başlamaz uyarısı eklendi.
@@ -86,6 +91,24 @@
 - **Dolu veritabanı yükseltme provası (S10-10):** canlının seviyesi (58) + 37 tabloya 40'ar yapay satır → 59…77 hatasız (1,5 sn), sapma sıfır;
   araç `scripts/ops-migration-rehearsal-seed.py`.
 
+- **Sert itirazcı (354 cümle) + Haiku ikinci tur — söz algılama (anahtar kapalı):** koşul / kararsızlık sözcükleri konuma bağlandı ("Sorun
+  olursa bana yazın, teknisyen yarın 10'da gelecek" yine söz; "Havlu lazımsa yazın, yarın getireceğim" söz değil); "her sabah / çıkıştan sonra"
+  açık "yarın" varsa sözü bozmuyor; "çıkış kapısı / yangın çıkışı / varış saati" konaklama anı değil; "ustayla / bakımını / pilini" konu;
+  "2:30 p.m. tomorrow" günü kaybetmiyor; telefon / daire numarası ("0532-123 45 67", "3-1") saat aralığı değil; "akşam yemeğinden önce" dilimi
+  bozmuyor; "at 10 to 11" saati soruyor. Derlem 175/323 → 301/323 doğru. Koşul okuyucusundaki karesel iş giderildi (3.990 karakterde 180 ms →
+  4 ms). Mutasyon v9: 29 mutanttan 26'sı öldü; yaşayan 3'ün ikisi yeni pinle öldürüldü, biri eşdeğer çıkıp kod kaldırıldı.
+- **Arıza / tarif okuyucusu görünmez karakteri yok sayar** (S4-07 kalanı, anahtar kapalı): "çalış(sıfır genişlikli boşluk)mıyor" artık arıza.
+- **Operatör "Kuyruk sağlığı"** (S3-08): bilerek bekletilen satır (otomatik mesaj anahtarı kapalı, abonelik bekletmesi, duraklatma) artık
+  kırmızı görünmüyor; kırmızı yalnız işçinin alabileceği satır geride kalınca (alarmla aynı süzgeç).
+- **Kalıcı kuyruk ölçeği** (S3-07 / S3-09, anahtar kapalı): migration 79 + talep işleminde veritabanı tarafı 10 sn tavanı (Prisma'nın işlem
+  zaman aşımı çalışan sorguyu kesmiyordu — ajan ölçtü); kilitli tabloda talep 0,4 sn'de kesilip "talep yok" dönüyor (testli). Ajanın üç
+  önerisinden ikisi ölçümle REDDEDİLDİ: talep katmanına LIMIT (doygunlukta açlık karşı örneği) ve üç sütunlu dizin (claimedAt dizini varken
+  planlayıcı seçmedi).
+- **Testi olmayan beş rota** (S7-08): elle senkron, kopya temizliği, üç önizleme — personel 403, dakika tavanı doğru öznede, başka işletmenin
+  verisi ne okunur ne silinir.
+- **Söz testleri saatten bağımsız** (CI #1545): elle açılan söz bir dakika geri tarihlenir; gece yarısı kuralı yalnız kendi testinde açık
+  (yalnız-test anahtarı, `__stayEndHooks` gibi). Gece simülasyonunda 29 dosya / 592 testten yalnız kuralın kendi testi kırmızı (beklenen).
+
 ## 2b. Küçük metin düzeltmeleri (T6 — toplu "evet" yeterli; hepsi müşteri ekranı, uygulanmadı)
 
 | # | Yer | Bugün | Önerilen |
@@ -125,12 +148,22 @@
 - Sync'te rezervasyon başına ~12 sorgu (S8-02): bugünkü ölçekte (≈10 daire) sorun değil; 20+ büyük işletmede 2 dk'lık geçişi aşar → tasarım
   `docs/arastirma-2026-10-18/S8-performans.md` (açık performans kalemlerinin hepsi orada); Railway açılınca ölçümle.
 - Gelen kutusu listesinde son mesaj için bütün mesajlar okunuyor (S8-06): bugünkü hacimde 30 sn'de bir ~270 KB; büyüyünce tek sorguya çevrilir.
-- Kalıcı kuyruk (anahtar kapalı) ölçek kalemleri — talep sorgusunda sınır / zaman aşımı yok (S3-07), teslim düzelticisi bütün gönderim geçmişini
-  tarıyor (S3-09), ödeme bekleyen yaşam döngüsü satırları iptal edilmiyor (S3-04), operatör "Kuyruk sağlığı" bilerek bekletilen satırı kırmızı
-  gösteriyor (S3-08): bugünkü hacimde etkisiz; anahtar açılmadan önce ölçümle (tablo `docs/arastirma-2026-10-18/S8-performans.md`).
+- Kalıcı kuyruk (anahtar kapalı): ödeme bekleyen yaşam döngüsü satırları iptal edilmiyor (S3-04 — sınırlı, talepte elenir, 24 ay saklamayla biter;
+  ödeme gelince bayat olan veto ile iptal); teslim etkisi onarıcısı 48 saatte 5.000 gönderimi aşarsa en yenileri taramaz (bugünkü hacimde
+  etkisiz); işletmeler arası adalet kurucu sorusu T8.19. Tablo `docs/arastirma-2026-10-18/S8-performans.md`.
+- Söz: yüklemli alışkanlık / konaklama parçası açık günsüz sözü düşürür ("Siz gidince kapıyı kilitleyin, teknisyen 10'da gelecek" — gün
+  gerçekten belirsiz; tutucu yön, pinli). "Let me know, I'll bring towels tonight" koşul sayılır (tutucu).
 - "Bu gece teknisyen gelecek" 01:00'de yazılırsa gecikme uyarısı bir gün geç gelir (söz kaydı doğru; yalnız panel uyarısının zamanı).
 - "The cleaning crew will come…" (crew / team öznesi) söz sayılmıyor — söz kapsamını genişletmek ayrı karar.
 - Arıza kemerinde (anahtar kapalı) Almanca / Fransızca / İspanyolca / Rusça arıza sözcükleri yok (S4-03 eki).
 
 ## 4. İtme / CI
-(doldurulacak)
+| İtme | İçerik | Tam kapı (yerel) | CI |
+|---|---|---|---|
+| … `b4cc74cf` | gece-4 ilk tarama düzeltmeleri, söz algılama v2, migration 76 / 77 | yeşil | #1539 KIRMIZI — KB düzenleyicide korumasız `scrollIntoView` (zamanlamaya bağlı) |
+| `a322c310` | `scrollIntoView` koruması + iki yolda görünür yere getirme + pin | yeşil | #1543 yeşil |
+| `a55a4842` | migration 78 (yalnız dizin) | yeşil | #1545 KIRMIZI — söz testinde milisaniye yarışı (ürün kodu değil); ↓ düzeltildi |
+| `08fcb660` … `65f3c139` (+ bu belge) | ikinci tarama düzeltmeleri, sert itirazcı + Haiku söz turları, S3-07/08/09 + migration 79, S7-08 testleri, CI #1545 yarışı + gece zaman bombası | g93 (`4a6ba778`) yeşil; g94 (`65f3c139`) — sonucu `docs/claude/durum.md` | itildikten sonra kontrol edilir |
+
+Yerel tam kapı = paralel `npm test` (veritabanısız / veritabanlı / süre kolları) + tip + lint + derleme + bağımlılık denetimi. Not: g93 yeşildi ama
+İstanbul 05:39'dan sonra koştuğu için gece zaman bombasını göstermedi — bundan sonra söz testleri saatten bağımsız (gece simülasyonuyla doğrulandı).
