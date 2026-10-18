@@ -888,7 +888,10 @@ Gece kurala uyuldu: misafire giden mesajı, müşterinin gördüğü metni ya da
 ### §T kurucu cevapları (10-18 sabah, AYNEN alıntı + uygulama)
 - **T1** — "talimat yok hiçbirşey anlamına gelmiyor ki onun belirsiz olduğunu gösterir haksız mıyım uydurma kural olanağı vermemeli AIımıza".
   Önerim (cevap bekliyor): cevapta "talimatımız / bilgimiz yok" geçiyorsa cevabın TAMAMI tutulur (10-17 "ilk cümleyi sil" kararı geri alınır;
-  "anahtarı masaya bırakın" da uydurma olabilir). Hazır yama bu kadar sıkı değil — onay gelince yeniden yazılacak.
+  "anahtarı masaya bırakın" da uydurma olabilir). Hazır yama YAZILDI (ana dala uygulanmadı): `docs/hazir-yamalar/2026-10-18-T1-talimat-yok-tam-tutma.patch`
+  — ÖNCE: "Çıkış için özel talimatımız yok, anahtarı masaya bırakmanız yeterli." → misafire "Anahtarı masaya bırakmanız yeterli." gidiyor;
+  "Evcil hayvan için özel talimatımız yok, evcil hayvanlar kabul edilir." → "Evcil hayvanlar kabul edilir." gidiyor. SONRA: ikisi de hiç
+  gitmez, siz cevaplarsınız (10-17 öncesi gibi). "Evet" gelince uygulanır; eski "basit iş" yaması seçenek B olarak duruyor.
 - **T2** — "önerin iyi ama hostu e posta yağmuruna tutmayalım fazla". Önerim (cevap bekliyor): "Sorunlu" + konuşma başına tek e-posta (ev sahibi
   cevaplayana kadar tekrar yok) + işletme başına saatte en çok 3 (QR acil e-postasıyla aynı).
 - **T3** — "BİLGİ VEREMEM HİÇBİR DİLDE GİTMEMELİ" → uygulanacak: bütün dillerde + Türkçe ek biçimler tutulur.
