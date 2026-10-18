@@ -13,7 +13,9 @@ import { __claimTimeouts, drainOutboxOnce, type OutboxSendFn } from "@/lib/outbo
 // PG16'da ölçtü: 20 bin birikimde talep 7,65 sn → 49 ms, sağlık ilerleme okuması ~1 sn → 0,03 ms).
 // Planlar iki yönde sınanır (migration 78 testi gibi): dizin varken plan onu kullanır ve geçmiş taranıp elenmez; dizin aynı işlemde düşürülüp
 // geri alınınca geçmiş taranır — farkı yaratan bu dizinlerdir. Zaman aşımı: tablo başka oturumda kilitliyken talep sorgusu veritabanı
-// tarafında kesilir, geçiş "talep yok" ile döner (eskiden Prisma işlemi düşse de sorgu arkada sürüp talep kilidini tutuyordu).
+// tarafında kesilir, geçiş "talep yok" ile döner (eskiden Prisma işlemi düşse de sorgu arkada sürüp talep kilidini tutuyordu). Kapsam yalnız TALEP:
+// talepten önceki kurtarma güncellemesi (`recoverStaleClaims`, tek satırlık dizinli UPDATE) dış bir tablo kilidinde yine bekler — Haiku gece-4,
+// bilinçli: yavaşlığın kaynağı talep sorgusuydu; tablo kilidini tutan dış iş (migration) zaten her yazmayı durdurur.
 // ---------------------------------------------------------------------------
 
 const SENT_INDEX = "MessageOutbox_sentAt_idx";

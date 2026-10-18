@@ -23,6 +23,8 @@ export interface QueueHealth {
    * S3-08: bilerek bekletilen satır "yoklayıcı geride" gibi kırmızı görünüyordu, alarm ise doğru olarak susuyordu).
    */
   claimableLagMs: number | null;
+  /** Gönderilebilirlik okuması düştü (sayılar yine gösterilir — Haiku gece-4: tek hata bütün paneli "okunamadı" yapıyordu). */
+  claimableUnknown?: boolean;
   /**
    * Son 24 saatte terminal başarısızlığa (`failed`) düşen satır sayısı. YAKLAŞIK: düşüş anı ayrı tutulmuyor, satırın son güncellenme zamanına
    * bakılır — konuşma birleştirme (`conversations-cleanup.ts` satırı yeni konuşmaya taşır) eski satırı da pencereye sokabilir (Haiku 10-16).
@@ -59,7 +61,7 @@ export async function queueHealth(now: Date = new Date()): Promise<QueueHealth[]
       select: { nextAttemptAt: true },
     }),
     prisma.emailOutbox.count({ where: { status: "failed", updatedAt: { gte: since } } }),
-    queueStallStates(now),
+    queueStallStates(now).catch(() => null),
   ]);
   const counts = (groups: readonly { status: string; _count: { _all: number } }[]) =>
     Object.fromEntries(groups.map((g) => [g.status, g._count._all]));
@@ -69,7 +71,8 @@ export async function queueHealth(now: Date = new Date()): Promise<QueueHealth[]
       queue: "message",
       byStatus: counts(mGroups),
       oldestDueMs: lag(mOldest?.availableAt),
-      claimableLagMs: stall.message.lagMs,
+      claimableLagMs: stall?.message.lagMs ?? null,
+      ...(stall ? {} : { claimableUnknown: true }),
       failed24h: mFailed,
       review24h: mReview,
     },
@@ -77,7 +80,8 @@ export async function queueHealth(now: Date = new Date()): Promise<QueueHealth[]
       queue: "email",
       byStatus: counts(eGroups),
       oldestDueMs: lag(eOldest?.nextAttemptAt),
-      claimableLagMs: stall.email.lagMs,
+      claimableLagMs: stall?.email.lagMs ?? null,
+      ...(stall ? {} : { claimableUnknown: true }),
       failed24h: eFailed,
       review24h: null,
     },

@@ -107,7 +107,8 @@ afterEach(() => {
 
 /**
  * Elle açılmış söz mesajdan ÖNCE açılmış olsun (CI #1545): söz ile hemen ardından gerçek saatle yazılan mesaj aynı milisaniyeye düşünce
- * yükleyici mesajı "söz zaten kaydedildi" sayıyordu (`sourceAt >= mesaj`) — kırmızı CI'da. Diğer söz testleri de aynı geri tarihlemeyi yapar.
+ * yükleyici mesajı "söz zaten kaydedildi" sayıyordu (`sourceAt >= mesaj`) — kırmızı CI'da. commitment-topic / ai-action-suggestions testleri de elle
+ * açılan sözü aynı biçimde geri tarihler.
  */
 async function openedEarlier<T extends { id: string }>(c: T): Promise<T> {
   await prisma.guestCommitment.update({ where: { id: c.id }, data: { createdAt: new Date(Date.now() - 60_000) } });

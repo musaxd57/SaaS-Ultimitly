@@ -717,7 +717,9 @@ export default async function AdminPage() {
                   {" · "}en eski vadesi gelmiş bekleyen:{" "}
                   {q.oldestDueMs == null ? "yok" : `${Math.round(q.oldestDueMs / 60_000)} dk`}
                   {" · "}gönderilebilir en eski:{" "}
-                  {q.claimableLagMs == null ? (
+                  {q.claimableUnknown ? (
+                    <span className="text-destructive">okunamadı</span>
+                  ) : q.claimableLagMs == null ? (
                     "yok"
                   ) : (
                     <span className={q.claimableLagMs > QUEUE_LAG_WARN_MS ? "font-semibold text-destructive" : undefined}>

@@ -239,6 +239,9 @@ async function recoverStaleClaims(now: Date): Promise<number> {
   return res.count;
 }
 
+/** Talep işleminin veritabanı tarafı tavanı (ms; işlem zaman aşımı 15 sn'den KISA). Yalnız testler değiştirir. */
+export const __claimTimeouts: { statementMs: number } = { statementMs: 10_000 };
+
 /**
  * Atomically claim up to `batchSize` DUE rows for this worker token. The whole claim runs
  * inside a transaction that first takes a shared advisory lock (OUTBOX_CLAIM_LOCK_KEY) so the
@@ -248,9 +251,6 @@ async function recoverStaleClaims(now: Date): Promise<number> {
  * claimed by at most one worker. `pending` → `sending`; `ambiguous` → `reconciling`.
  * attemptCount is incremented on every claim. Fair order by availableAt (oldest first).
  */
-/** Talep işleminin veritabanı tarafı tavanı (ms; işlem zaman aşımı 15 sn'den KISA). Yalnız testler değiştirir. */
-export const __claimTimeouts: { statementMs: number } = { statementMs: 10_000 };
-
 async function claimBatch(token: string, now: Date, expiry: Date, batchSize: number): Promise<OutboxRow[]> {
   // Abonelik erişimi kapalı işletmeler işlem DIŞINDA hesaplanır (erişim okuması talep kilidini uzatmasın).
   const billingBlocked = await billingBlockedOrgIds();
