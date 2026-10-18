@@ -1072,3 +1072,114 @@ describe("sert itirazcı gece-4 (354 cümle): yeni kurallar KESİN sözü düş�
     for (const t of ["Her gün kapıyı kontrol edin, teknisyen 10'da gelecek", "Siz gidince kapıyı kilitleyin, teknisyen 10'da gelecek"]) none(t);
   });
 });
+
+describe("Opus gece-4 dilim sonu 3: yanlış saat / kaçan kesin söz", () => {
+  const none = (t: string) => expect(detectHostPromises(t), t).toEqual([]);
+  const amb = (t: string) => expect(detectHostPromises(t), t).toMatchObject([{ timeAmbiguous: true }]);
+  /** Kesin saat YOK: ya saat sorulur ya da hiç saat okunmaz (gün kesinliği — kart saati sorar). */
+  const notFirm = (t: string) => {
+    const [p] = detectHostPromises(t);
+    expect(p, t).toBeDefined();
+    expect(p!.timeAmbiguous || p!.timeCandidates.length === 0, t).toBe(true);
+  };
+  const firm = (t: string, minutes: number) => expect(detectHostPromises(t), t).toMatchObject([{ timeAmbiguous: false, timeCandidates: [minutes] }]);
+
+  it("🚨 A2: saat karşıtlığı / değişikliği — olumsuzlanan ya da eski saat seçilmez (saat sorulur ya da dilimsiz gün)", () => {
+    for (const t of ["Teknisyen sabah 9'da değil akşam gelecek.", "Havluları sabah 10'da değil akşam getireceğim.", "Teknisyen akşam 7'de değil sabah gelecek.", "Teknisyen 9 yerine 11'de gelecek", "The technician will come at 5 instead of 3"]) amb(t);
+    for (const t of ["Teknisyen yarın sabah 9'dan akşama kaydı.", "Teknisyen yarın sabah 9 yerine akşam gelecek."]) {
+      const [p] = detectHostPromises(t);
+      expect(p, t).toBeDefined();
+      expect([p!.timeCandidates, p!.cue?.code ?? null], t).toEqual([[], null]); // sabah ESKİ dilimdir
+    }
+    // KONTROL: saatten saate değişiklik yeni saati okur; olumsuz olmayan "sorun değil" bozmaz; iki dilimde saati niteleyen kalır.
+    firm("Teknisyen yarın 10'dan 11'e kaydı.", 660);
+    firm("Teknisyen yarın 10'da gelecek, sorun değil", 600);
+    firm("Teknisyen yarın sabah 8'de, öğlen olmadan gelecek", 480);
+  });
+
+  it("🚨 A1: 'geçe / kala' söyleyişi gece dilimi değil; saat sorulur", () => {
+    for (const t of ["Temizlikçi saat 3'ü 10 geçe gelecek.", "Teknisyen yarın 10'u çeyrek geçe gelecek.", "Teknisyen yarın 4'e 10 kala gelecek."]) {
+      const [p] = detectHostPromises(t);
+      expect(p?.timeAmbiguous, t).toBe(true);
+      expect(p?.cue?.code ?? null, t).not.toBe("night");
+    }
+    firm("Teknisyen bu gece 9'da gelecek", 21 * 60); // KONTROL: gerçek "gece" dilimi
+  });
+
+  it("A3 + E1: seçenek / tireli / alt sınır / aralık biçimleri kesin saat değil (her alt dal ayrı)", () => {
+    for (const t of [
+      "The technician will come tomorrow around 2 or 3.",
+      "The technician will come tomorrow at 2-3.",
+      "Teknisyen yarın 10 veya 11'de gelecek.",
+      "Teknisyen yarın 10 ya da 11 gibi gelecek.",
+      "The technician will come tomorrow from 2pm.",
+      "The technician will come tomorrow 2-3pm.",
+      "Teknisyen yarın 10'dan 12'ye kadar gelecek.",
+      "The technician will come tomorrow from 2 to 4 pm",
+      "Teknisyen yarın saat 10-11 gelecek",
+      "Teknisyen yarın 10 ile 11'de gelecek",
+      "Teknisyen yarın 10-11 civarı gelecek",
+      "Teknisyen yarın 10-11 saatleri arasında gelecek",
+      "The technician will come tomorrow not before 10",
+      "Teknisyen yarın 10'dan itibaren gelecek",
+      "The technician will come tomorrow at 10 until 12",
+      "The technician will come tomorrow at 10 till 12",
+    ])
+      notFirm(t);
+    // KONTROL: adet / adres / süre aralık değil.
+    firm("I'll bring 2 or 3 towels tomorrow at 10", 600);
+    firm("The technician will come tomorrow at 10 from 3 Main Street", 600);
+    firm("Teknisyen yarın 10'da gelecek, 2 veya 3 saat sürer", 600);
+  });
+
+  it("A6: karşıt-koşul ('ne olursa olsun', '-sa da', 'bile') kesin sözü düşürmez; zamanlı koşul ('olursa da') düşürür", () => {
+    for (const [t, m] of [
+      ["Ne olursa olsun teknisyen yarın 10'da gelecek.", 600],
+      ["Geç olsa da teknisyen bu akşam 9'da gelecek.", 21 * 60],
+      ["Trafik olsa bile teknisyen 3'te gelecek.", 15 * 60],
+      ["Yağmur yağsa da usta yarın 10'da gelecek", 600],
+    ] as const)
+      firm(t, m);
+    for (const t of ["Sorun olursa da teknisyen yarın gelecek", "Klima çalışmazsa yarın teknisyen gelecek"]) none(t);
+  });
+
+  it("A7 / A8: 'hava / su çıkışı, çıkış borusu' ve sözü yapanın kendi hareketi konaklama anı değil", () => {
+    for (const [t, m] of [
+      ["Klimanın hava çıkışından su damlıyor, teknisyen akşam 7'de gelecek.", 19 * 60],
+      ["Su çıkışı tıkalı, tesisatçı 3'te gelecek.", 15 * 60],
+      ["Kombinin çıkış borusu için usta 3'te gelecek.", 15 * 60],
+      ["Teknisyen gelmeden önce sizi arayacak, saat 3'te gelecek.", 15 * 60],
+      ["Temizlikçi diğer daireye gidince 3'te gelecek.", 15 * 60],
+    ] as const)
+      firm(t, m);
+    // KONTROL: misafirin konaklama anı yine söz değil.
+    for (const t of ["Çıkıştan sonra temizlik yapılacak", "Gelmeden önce daire temizlenecek", "Siz gidince temizlikçi gelecek", "Tatilden dönünce havlu getireceğim"]) none(t);
+  });
+
+  it("A10: İngilizce kip kararsızlığı yalnız sözün kendi parçasında; 'and will try to' ikinci fiilin", () => {
+    firm("The technician will come tomorrow at 10 and will try to fix the AC.", 600);
+    firm("We'll try to fix it, the technician will come tomorrow at 10.", 600);
+    for (const t of ["We'll try to send the technician tomorrow", "The technician will likely come tomorrow at 10", "The technician will possibly come tomorrow"]) none(t);
+  });
+
+  it("🚨 A11: en yaygın yeniden zamanlama mesajı — soldaki iptal / ayrı koşul yeni sözü düşürmez; sağdaki iptal ve öndeki koşul düşürür", () => {
+    for (const t of [
+      "Teknisyen bugün gelemeyecek, yarın 10'da gelecek.",
+      "The technician can't come today, he will come tomorrow at 10.",
+      "Bugün iptal oldu, teknisyen yarın 10'da gelecek.",
+      "Teknisyen bugün gelmeyecek ama yarın 10'da gelecek.",
+      "We'll fix the AC tomorrow at 10, if anything else comes up let us know.",
+      "Teknisyen yarın 10'da gelecek, gerekirse parçayı da değiştirecek.",
+    ])
+      expect(detectHostPromises(t), t).toMatchObject([{ day: "tomorrow", timeCandidates: [600] }]);
+    for (const t of [
+      "Teknisyen gelecek ama iptal olabilir.",
+      "Teknisyen yarın gelmeyecek",
+      "If the AC fails, the technician will come tomorrow at 10",
+      "Eğer klima bozulursa teknisyen gelecek",
+      "Gerekirse yarın teknisyen gelecek",
+      "Teknisyen yarın 10'da gelecek, iptal olursa haber veririm",
+    ])
+      none(t);
+  });
+});

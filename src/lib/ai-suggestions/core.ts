@@ -77,17 +77,32 @@ const CONDITIONAL_PHRASE = new RegExp(
   "u",
 );
 function hasConditionalWord(seg: string): boolean {
-  if (CONDITIONAL_EN.test(seg) || CONDITIONAL_PHRASE.test(seg)) return true;
-  for (const w of seg.split(/[^\p{L}]+/u)) {
-    if (isConditionalToken(w)) return true;
+  if (CONDITIONAL.test(seg) || CONDITIONAL_EN.test(seg) || CONDITIONAL_PHRASE.test(seg)) return true;
+  for (const m of seg.matchAll(/\p{L}+/gu)) {
+    if (isConditionalToken(m[0]) && !concessiveAfter(seg, (m.index ?? 0) + m[0].length)) return true;
   }
   return false;
 }
+/**
+ * KARŞIT-KOŞUL (Opus gece-4 A6): "Ne olursa olsun", "Geç olsa da", "Trafik olsa bile", "gelmese de" koşul değil, kesinlik vurgusu ("no
+ * matter what") — kesin söz düşüyordu. Koşul sözcüğünün ardında "bile" / "olsun" ya da "-sa da" (zamansız -sa: "olsa da", "gelmese de")
+ * varsa koşul sayılmaz. "olursa da" ("sorun olursa da yazın") koşul kalır.
+ */
+const CONCESSIVE_AFTER = /^\s+(?:bile|olsun)(?![\p{L}\p{N}])/u;
+const CONCESSIVE_DA = /^\s+d[ae](?![\p{L}\p{N}])/u;
+function concessiveAfter(seg: string, end: number): boolean {
+  const rest = seg.slice(end, end + 12);
+  if (CONCESSIVE_AFTER.test(rest)) return true;
+  if (!CONCESSIVE_DA.test(rest)) return false;
+  // "-sa da" yalnız zamansız -sa'da karşıt-koşul: "olsa da", "gelmese de", "yağsa da" (zamanlı "olursa da", "gelirse de" koşul kalır).
+  return TIMELESS_SA.test(seg.slice(Math.max(0, end - 12), end));
+}
+const TIMELESS_SA = /(?<![aeiu]r|yor|cek|cak|di|ti|mis|mus)s[ae]$/u;
 function isConditionalToken(w: string): boolean {
   return w.length >= 4 && (CONDITIONAL_WORD.has(w) || CONDITIONAL_NOMINAL.test(w) || (!NOT_CONDITIONAL.has(w) && CONDITIONAL_SUFFIX.test(w.slice(-12))));
 }
 /** İngilizce koşul girişi (parça BAŞINDA): "Should the AC fail…", "In case of…", "Whenever you need…"; "Let me know / Tell me" yalnız tek başına. */
-const CONDITIONAL_EN_LEAD = new RegExp(`^\\s*(?:(?:should|in\\s+case|whenever|when\\s+you\\s+need|as\\s+needed|if\\s+needed|provided|assuming|depending\\s+on|if\\s+possible)${NR}|(?:please\\s+)?(?:let\\s+(?:me|us)\\s+know|tell\\s+(?:me|us))\\s*$)`, "u");
+const CONDITIONAL_EN_LEAD = new RegExp(`^\\s*(?:(?:if|unless|eger|should|in\\s+case|whenever|when\\s+you\\s+need|as\\s+needed|if\\s+needed|provided|assuming|depending\\s+on|if\\s+possible)${NR}|(?:please\\s+)?(?:let\\s+(?:me|us)\\s+know|tell\\s+(?:me|us))\\s*$)`, "u");
 /**
  * Soldaki (söz fiilsiz) parça sözün KOŞULU mu: Türkçe koşul sözcüğü parçanın SONUNDA (ardında yalnız zaman sözcükleri) — "Sorun olursa,
  * teknisyen gelecek" koşul; "Sorun olursa bana yazın, teknisyen yarın 10'da gelecek" koşul DEĞİL (koşulun kendi yüklemi var — sert itirazcı
@@ -98,7 +113,10 @@ function conditionalLead(seg: string): boolean {
   // Yalnız SON koşul sözcüğü okunur (Haiku gece-4: her koşul sözcüğü için kalan metni yeniden taramak uzun parçada karesel işti; önceki
   // sözcüğün kalanı sonrakini içerdiğinden zaman parçası olamaz — sonuç aynı).
   let lastEnd = -1;
-  for (const m of seg.matchAll(/\p{L}+/gu)) if (isConditionalToken(m[0])) lastEnd = (m.index ?? 0) + m[0].length;
+  for (const m of seg.matchAll(/\p{L}+/gu)) {
+    const end = (m.index ?? 0) + m[0].length;
+    if (isConditionalToken(m[0]) && !concessiveAfter(seg, end)) lastEnd = end;
+  }
   if (lastEnd < 0) return false;
   const rest = seg.slice(lastEnd);
   return !/\p{L}/u.test(rest) || segmentKind(rest) === "time";
@@ -116,14 +134,14 @@ const HABITUAL = new RegExp(
  * takvim günü değil konaklama olayı. Sözün kendi kapsamında AÇIK gün ("yarın çıkışınızdan sonra") yoksa söz değil: gün tahmin edilmez.
  */
 const STAY_ANCHOR = new RegExp(
-  `${NL}(?:(?<!yangin\\s)cikis(?!\\s+(?:kapi|yol|merdiven))\\p{L}{0,8}|cikinca|cikarken|cikmadan|ciktiktan|ciktiginizda|ayrildiktan|ayrilinca|ayrilmadan|check[\\s-]?out\\p{L}{0,6}|giris(?:inizden|inize|inizde|ten|te|e)\\s+(?:once|kadar|sonra)|giris\\s+gun\\p{L}{0,3}|check[\\s-]?in(?:den|e)?\\s+(?:once|kadar|sonra)|siz\\s+gel(?:meden|dikten|ince)|gelmeden\\s+once|varis\\p{L}{1,6}|(?:siz\\s+)?(?:evde\\s+)?yokken|giris\\s+yaptiktan\\s+sonra|geldiginiz(?:de|den\\s+sonra)|ayrildiginiz(?:da|dan\\s+sonra)|ayrilirken|(?:siz\\s+|cikip\\s+)?gidince|gittikten\\s+sonra|terk\\s+ettikten\\s+sonra|(?:konaklama|kalis)\\p{L}{0,6}\\s+(?:bit\\p{L}{0,8}|sona\\s+er\\p{L}{0,6})|kalis\\s+sureniz\\s+boyunca|donunce|while\\s+you\\s+are\\s+(?:out|away)|as\\s+soon\\s+as\\s+you\\s+(?:leave|arrive|check)|on\\s+the\\s+day\\s+of\\s+(?:departure|arrival)|konaklama\\p{L}{0,6}\\s+(?:suresince|sirasinda|boyunca)|(?:after|before|when|once|until)\\s+you\\s+(?:leave|check|arrive|go)|during\\s+your\\s+stay|(?:after|before|at)\\s+(?:check[\\s-]?(?:out|in)|departure|arrival))${NR}`,
+  `${NL}(?:(?<!(?:yangin|hava|su|duman|gaz|egzoz|atik|gider)\\s)cikis(?!\\s+(?:kapi|yol|merdiven|boru|delig|agz|menfez|hortum))\\p{L}{0,8}|cikinca|cikarken|cikmadan|ciktiktan|ciktiginizda|ayrildiktan|ayrilinca|ayrilmadan|check[\\s-]?out\\p{L}{0,6}|giris(?:inizden|inize|inizde|ten|te|e)\\s+(?:once|kadar|sonra)|giris\\s+gun\\p{L}{0,3}|check[\\s-]?in(?:den|e)?\\s+(?:once|kadar|sonra)|siz\\s+gel(?:meden|dikten|ince)|(?<!(?:teknisyen|usta|temizlikci|gorevli|tamirci|ekip|elektrikci|tesisatci|kurye)\\p{L}{0,5}\\s)gelmeden\\s+once|varis\\p{L}{1,6}|(?:siz\\s+)?(?:evde\\s+)?yokken|giris\\s+yaptiktan\\s+sonra|geldiginiz(?:de|den\\s+sonra)|ayrildiginiz(?:da|dan\\s+sonra)|ayrilirken|(?:siz\\s+|cikip\\s+)gidince|gittiginiz\\p{L}{0,4}|(?<!(?:teknisyen|usta|temizlikci|gorevli|tamirci|ekip|elektrikci|tesisatci|kurye)\\p{L}{0,5}\\s)gittikten\\s+sonra|terk\\s+ettikten\\s+sonra|(?:konaklama|kalis)\\p{L}{0,6}\\s+(?:bit\\p{L}{0,8}|sona\\s+er\\p{L}{0,6})|kalis\\s+sureniz\\s+boyunca|(?<!isten\\s)donunce|dondugunuz\\p{L}{0,4}|while\\s+you\\s+are\\s+(?:out|away)|as\\s+soon\\s+as\\s+you\\s+(?:leave|arrive|check)|on\\s+the\\s+day\\s+of\\s+(?:departure|arrival)|konaklama\\p{L}{0,6}\\s+(?:suresince|sirasinda|boyunca)|(?:after|before|when|once|until)\\s+you\\s+(?:leave|check|arrive|go)|during\\s+your\\s+stay|(?:after|before|at)\\s+(?:check[\\s-]?(?:out|in)|departure|arrival))${NR}`,
   "u",
 );
 /** İptal / engel söz değildir ("teknisyen izinli", "won't come", "iptal oldu") — cümlecik boyunca (Haiku 10-12). */
 const NEGATION = new RegExp(`${NL}(?:iptal|olmayacak|gelmeyecek|gelemeyecek|izinli|won['’]?t|will\\s+not|cannot|can['’]?t|not\\s+coming|cancel\\p{L}*)${NR}`, "u");
 /** Kararsız söz (kurucu 10-17 gece; Opus: "belki / emin değilim" söz sayılıyordu) — cümlecikte varsa söz DEĞİL (görev açılmaz). */
 const HEDGE = new RegExp(
-  `${NL}(?:belki|galiba|sanirim|muhtemelen|emin\\s+degil\\p{L}{0,6}|maybe|perhaps|probably|not\\s+sure|will\\s+(?:likely|possibly|try\\s+to))${NR}|['’]ll\\s+(?:likely|possibly|try\\s+to)${NR}`,
+  `${NL}(?:belki|galiba|sanirim|muhtemelen|emin\\s+degil\\p{L}{0,6}|maybe|perhaps|probably|not\\s+sure)${NR}`,
   "u",
 );
 /**
@@ -136,6 +154,12 @@ const HEDGE = new RegExp(
 // Gece-4 S1-08: "herhalde / tahminen / büyük ihtimalle / olabilir" de YEREL kararsızlık (sözün kapsamı + bitişik yalın parça): "Biraz gecikme
 // olabilir, teknisyen yarın 10'da gelecek" sözdür (sert itirazcı Y3 — cümlecik boyunca uygulanınca kesin söz düşüyordu). "Olabilecek" (sıfat:
 // "Olabilecek en kısa sürede göndereceğiz") kararsızlık DEĞİL — bu yüzden listede yalnız çekimsiz "olabilir" var.
+/**
+ * İngilizce kip kararsızlığı ("will likely / possibly / try to", "'ll try to") yardımcı fiile bitişik → sözün KENDİ parçasında okunur (Opus
+ * gece-4 A10: cümlecik boyunca okununca "We'll try to fix it, the technician will come tomorrow at 10" kesin sözü düşüyordu). "and will try to"
+ * ikinci fiilin kararsızlığıdır ("…tomorrow at 10 and will try to fix the AC" ziyaret sözü kalır).
+ */
+const MODAL_HEDGE = new RegExp(`${NL}(?<!and\\s)will\\s+(?:likely|possibly|try\\s+to)${NR}|(?<!and\\s\\p{L}{1,12})['’]ll\\s+(?:likely|possibly|try\\s+to)${NR}`, "u");
 const HEDGE_WISH = new RegExp(
   `${NL}(?:umarim|umariz|umuyorum|umuyoruz|insallah|hopefully|i\\s+hope|we\\s+hope|herhalde|tahminen|buyuk\\s+(?:ihtimal|olasilik)l[ae]|olabilir|elimden\\s+geldigince|(?:i|we)\\s+think|(?:most\\s+)?likely)${NR}`,
   "u",
@@ -194,6 +218,22 @@ const PAST_REF = new RegExp(`${NL}(?:dun|gecen|onceki|demin|az\\s+once|yesterday
  * teknisyen yok"). Başka parçadaki ya da fiilden önceki "yok" sözü bozmaz ("Havlu yok demişsiniz, yarın getireceğim" — Haiku 10-12 2. tur).
  */
 const NEGATION_AFTER_VERB = new RegExp(`${NL}(?:degil|yok)${NR}`, "u");
+/**
+ * SAAT KARŞITLIĞI / DEĞİŞİKLİĞİ (Opus gece-4 A2): "sabah 9'da değil akşam", "9 yerine akşam", "sabah 9'dan akşama kaydı", "instead of 9" — iki
+ * saatten / dilimden hangisinin geçerli olduğu kodla okunmaz (Türkçede eski / olumsuzlanan saat çoğu zaman rakamla, yenisi rakamsız anılır;
+ * "saati niteleyen dilim" kuralı ESKİ saati seçiyordu) → dilim seçilmez, saat sorulur. Saatten SAATE değişiklik ("10'dan 11'e kaydı") karşıtlık
+ * değildir — yeni saat okunur. Sabit gövdeli, sınırlı niceleyiciler (karesel iş yok).
+ */
+/**
+ * "Geçe / kala" saat söyleyişi (Opus gece-4 A1): "3'ü 10 geçe", "10'u çeyrek geçe", "4'e 10 kala" — harf katlamada "geçe" "gece" olur ve gece
+ * dilimi sanılıyordu ("3'ü 10 geçe" → 03:00, "10'u çeyrek geçe" → gece). Dilim sayılmaz; saat dakikayla söylendiği için okuyucu kesin saati
+ * çıkaramaz → saat sorulur.
+ */
+const CLOCK_IDIOM = new RegExp(`\\d{1,2}['’]?\\p{L}{1,2}\\s(?:\\d{1,2}|ceyrek|yarim)\\s(?:gece|kala)${NR}`, "u");
+const TIME_CONTRAST = new RegExp(
+  `(?:\\d|${NL}(?:sabah|aksam|ogle\\p{L}{0,8}|gece))(?:['’]?\\p{L}{1,4})?\\s+(?:degil|yerine)${NR}|${NL}(?:instead\\s+of|rather\\s+than|not\\s+(?:at\\s+)?\\d)|\\d\\s?['’]?\\s?[dt][ae]n\\s(?:\\p{L}{1,12}\\s){0,2}?(?:sabah|aksam|ogle\\p{L}{0,8}|gece)\\p{L}{0,8}\\s?['’]?\\s?\\p{L}{0,4}\\s(?:kaydi|kaydirildi|kaydirdik|alindi|ertelendi)`,
+  "u",
+);
 /** Virgül parçası ayracı (karşıtlık bağlacı da parça başlatır). İki rakam arasındaki virgül ayraç DEĞİLDİR ("1,5 saat"). */
 const SEGMENT_SPLIT = /(?<!\d),|,(?!\d)|(?<![\p{L}\p{N}])(?:ama|fakat|ancak|but)(?![\p{L}\p{N}])/u;
 /**
@@ -400,7 +440,9 @@ function singleDayPart(text: string): (typeof DAY_PARTS)[number] | undefined {
     return withMeal.length === 1 ? withMeal[0] : undefined;
   }
   if (hits.length === 1) return hits[0];
-  // Birden çok dilim: saati NİTELEYEN dilim ("Teknisyen yarın sabah 8'de, öğlen olmadan gelecek" → sabah); yoksa dilim seçilmez.
+  // Birden çok dilim: saati NİTELEYEN dilim ("Teknisyen yarın sabah 8'de, öğlen olmadan gelecek" → sabah); yoksa dilim seçilmez. Karşıtlık /
+  // değişiklik varsa ("sabah 9'da değil akşam") niteleyen dilim ESKİ saattir → seçilmez (Opus gece-4 A2).
+  if (TIME_CONTRAST.test(text)) return undefined;
   const qualifying = hits.filter((d) => clockQualifier(d).test(text));
   return qualifying.length === 1 ? qualifying[0] : undefined;
 }
@@ -419,8 +461,9 @@ function clockQualifier(d: (typeof DAY_PARTS)[number]): RegExp {
 // eşdeğerdi, ayrı dal kaldırıldı) — telefon, daire ("3-1"), "2-4 GHz" aralık değil
 // (sert itirazcı C2); "and / to" yalnız "between … and" / "from … to" içinde, "to / until" ayrıca "at 10 to 11" biçiminde (Haiku gece-4: kesin
 // 10:00 okunuyordu — "10'a 10 kala" da olabilir); "2 to 3 towels" aralık değil.
+// Opus gece-4 A3: seçenek ("2 or 3", "10 veya 11", "10 ya da 11"), "at 2-3", "2-3pm", "from 2pm", "10'dan 12'ye kadar" da kesin saat değil.
 const TIME_BOUND_OR_RANGE =
-  /\d{1,2}(?:[:.]\d{2})?\s*(?:[ap]m\s*)?(?:['’]\s*)?(?:[dt][ae]n)\s+(?:sonra|itibaren)|(?<![\p{L}\p{N}])(?:after|not\s+before)\s+\d|(?<![\p{L}\p{N}])between\s+\d{1,2}(?:[:.]\d{2})?\s*(?:[ap]m\s*)?(?:and|-)\s*\d|(?<![\p{L}\p{N}])from\s+\d{1,2}(?:[:.]\d{2})?\s*(?:[ap]m\s*)?(?:to|until|[-–—])\s*\d|(?<![\p{L}\p{N}])saat\s+\d{1,2}\s*[-–—]\s*\d{1,2}(?![\d])|(?<![\d.,/-])\d{1,2}\s*[-–—]\s*\d{1,2}(?![\d.,/-])(?:['’]?\p{L}{1,4})?\s+(?:gibi|arasi\p{L}{0,3}|civari\p{L}{0,3}|saatleri\p{L}{0,3})|\d{1,2}(?:[:.]\d{2})?\s*(?:['’]\s*)?(?:ile|ila)\s+\d|(?<![\p{L}\p{N}])at\s+\d{1,2}(?:[:.]\d{2})?\s*(?:[ap]m\s*)?(?:to|until|till)\s+\d/u;
+  /\d{1,2}(?:[:.]\d{2})?\s*(?:[ap]m\s*)?(?:['’]\s*)?(?:[dt][ae]n)\s+(?:sonra|itibaren)|(?<![\p{L}\p{N}])(?:after|not\s+before)\s+\d|(?<![\p{L}\p{N}])between\s+\d{1,2}(?:[:.]\d{2})?\s*(?:[ap]m\s*)?(?:and|-)\s*\d|(?<![\p{L}\p{N}])from\s+\d{1,2}(?:[:.]\d{2})?\s*(?:[ap]m\s*)?(?:to|until|[-–—])\s*\d|(?<![\p{L}\p{N}])saat\s+\d{1,2}\s*[-–—]\s*\d{1,2}(?![\d])|(?<![\d.,/-])\d{1,2}\s*[-–—]\s*\d{1,2}(?![\d.,/-])(?:['’]?\p{L}{1,4})?\s+(?:gibi|arasi\p{L}{0,3}|civari\p{L}{0,3}|saatleri\p{L}{0,3})|\d{1,2}(?:[:.]\d{2})?\s*(?:['’]\s*)?(?:ile|ila)\s+\d|(?<![\p{L}\p{N}])at\s+\d{1,2}(?:[:.]\d{2})?\s*(?:[ap]m\s*)?(?:to|until|till)\s+\d|\d{1,2}(?:[:.]\d{2})?\s?(?:[ap]m)?\s+(?:or|veya|ya\s+da|yada)\s+\d{1,2}(?:[:.]\d{2}|\s?[ap]m|['’]\p{L}{1,4}|\s(?:gibi|civari|arasi|o['’]?clock)|\s?[.,!?;]|$)|(?<![\p{L}\p{N}])at\s+\d{1,2}\s?[-–—]\s?\d{1,2}(?![\d:]|\.\d)|(?<![\d.,/-])\d{1,2}\s?[-–—]\s?\d{1,2}\s?[ap]m|(?<![\p{L}\p{N}])(?:from\s+\d{1,2}(?:[:.]\d{2})?\s?(?:[ap]m|o['’]?clock|onwards?)|starting\s+(?:at\s+|from\s+)?\d)|\d{1,2}(?:[:.]\d{2})?\s?['’]?\s?[dt][ae]n\s+\d{1,2}(?:[:.]\d{2})?\s?['’]?\s?y?[ae]\s+kadar/u;
 
 /** Gün dilimi yokken iki anlamlı saat ("saat 2" → 02:00 / 14:00): gündüz (07:00–21:00) adayı tercih edilir (Haiku 10-12 3. tur). */
 function preferDaytime(candidates: number[]): number[] {
@@ -455,6 +498,7 @@ function hasTimeInfo(folded: string, raw: string): boolean {
 
 /** Düzenli ifadenin tümünü değiştirme (global) kopyası. */
 const globalOf = (re: RegExp) => new RegExp(re.source, re.flags.includes("g") ? re.flags : `${re.flags}g`);
+const CLOCK_IDIOM_G = globalOf(CLOCK_IDIOM);
 /** Zaman sözcükleri (süre, "hemen", gün, tanınmayan gün, takvim tarihi, gün dilimi, konu) — parça "yalnız zaman"mı sınaması için silinir. */
 let timeWordsG: RegExp[] | null = null;
 const TIME_FILLER_G = new RegExp(
@@ -774,12 +818,13 @@ interface PromiseClause {
 /** Cümlecik söz taşıyabilir mi (soru / koşul / olumsuz değil, söz fiili var) — taşıyorsa parçaları. */
 function promiseClause(raw: string, index: number): PromiseClause | null {
   const { clause, segments, rawSegments } = segmentClause(raw);
-  if (clause.trim() === "" || CONDITIONAL.test(clause)) return null;
+  if (clause.trim() === "") return null;
   if (!PROMISE.test(clause) && !RESCHEDULE.test(clause)) return null;
   // Soru YALNIZ sözün kapsamında söz bozar (↓ `promiseAt`): "Yarın havlu getireceğim, başka bir ihtiyacınız var mı?" bir söz + ayrı bir
-  // sorudur (Haiku 10-17 gece; eskiden cümlecik sonundaki "?" bütün sözü düşürüyordu). İptal / kararsızlık bilerek cümlecik boyunca kalır
-  // ("Teknisyen gelecek ama iptal olabilir", "…, galiba").
-  if (NEGATION.test(clause) || HEDGE.test(clause)) return null;
+  // sorudur (Haiku 10-17 gece; eskiden cümlecik sonundaki "?" bütün sözü düşürüyordu). Kararsızlık bilerek cümlecik boyunca kalır ("…,
+  // galiba"). İPTAL ve "eğer / if / gerekirse" artık konuma bağlı (↓ `promiseAt`; Opus gece-4 A11: "Teknisyen bugün gelemeyecek, yarın 10'da
+  // gelecek" en yaygın yeniden zamanlama mesajıydı ve düşüyordu; "…, if anything else comes up let us know" sözü bozuyordu).
+  if (HEDGE.test(clause)) return null;
   const verbIdx = segments.map((seg, i) => (PROMISE.test(seg) || RESCHEDULE.test(seg) ? i : -1)).filter((i) => i >= 0);
   if (verbIdx.length === 0 || verbIdx.some((i) => negatedAfterVerb(segments[i]))) return null;
   const topicIn = (t: string) => KIND_TOPICS.find(([, re]) => re.test(t))?.[0];
@@ -807,6 +852,8 @@ function promiseAt(c: PromiseClause, at: number, kind: CommitmentKind, ctx: Mess
   const { raw, segments, rawSegments, topicIn } = c;
   // Aktarılan / geçmiş söz (söz fiilinin kendi parçasında) söz değildir.
   if (REPORTED.test(segments[at]) || segments.slice(0, at).some((seg) => REPORTED_LEAD.test(seg))) return REJECT;
+  // İngilizce kip kararsızlığı yalnız sözün kendi parçasında (Opus gece-4 A10).
+  if (MODAL_HEDGE.test(segments[at]!)) return REJECT;
   // Kapsam: sözün parçası + soldaki / sağdaki YALIN zaman parçaları. Özgün metin aynı sayıda parçaya bölünemezse cümlecik.
   const aligned = rawSegments !== null && rawSegments.length === segments.length;
   const sliceOf = (a: number, b: number) => ({
@@ -897,6 +944,9 @@ function promiseAt(c: PromiseClause, at: number, kind: CommitmentKind, ctx: Mess
     }
   }
   const scope = sliceOf(from, to);
+  // İptal / engel sözün kapsamında ya da SAĞINDA bozar ("Teknisyen gelecek ama iptal olabilir"); soldaki ayrı parça bozmaz ("Teknisyen bugün
+  // gelemeyecek, yarın 10'da gelecek" — eski ziyaretin iptali, yeni sözün kendisi değil; Opus gece-4 A11).
+  if (segments.slice(from).some((seg) => NEGATION.test(seg))) return REJECT;
   // Soru sözün kapsamındaysa söz değil: soru eki ("gelecek mi") ya da cümlecik "?" ile bitiyor ve son parça kapsamda.
   if (QUESTION_PARTICLE.test(scope.folded) || (/[?؟]\s*$/.test(raw) && to === segments.length - 1)) return REJECT;
   // Sağdaki ayrı soru sözü TEYİDE bağlıyorsa ("…, uygun mu?", "…, olur mu?") söz henüz kesin değil (O3).
@@ -957,7 +1007,7 @@ function promiseAt(c: PromiseClause, at: number, kind: CommitmentKind, ctx: Mess
     promiseVerbCount(segments[at]) >= 2 && (kindsInSeg.size >= 2 || (ACTOR_VISIT.test(segments[at]!) && ACTOR_DELIVERY.test(segments[at]!)));
   // Geçmişe atıf ("dün gece") dilim sayılmaz. Birden çok FARKLI dilim ("sabah ya da öğleden sonra") → dilim seçilmez, gün kesinliği (gece-4
   // S1-07: listedeki ilk eşleşme kazanıyor, "öğleden sonra" yazılıyordu).
-  const part = twoVerbs ? undefined : singleDayPart(scope.folded.replace(PAST_PART, " ").replace(GREETING_PART, " "));
+  const part = twoVerbs ? undefined : singleDayPart(scope.folded.replace(PAST_PART, " ").replace(GREETING_PART, " ").replace(CLOCK_IDIOM_G, " "));
   // T2: açık saat süreyi yener ("Teknisyen 10'da gelecek, 2 saat içinde halleder" — süre işin uzunluğu).
   const clocks = twoVerbs ? [] : timeMentions(scope.raw, scope.folded);
   let inMinutes = clocks.length > 0 || twoVerbs ? null : durationMinutes(sliceOf(from, durationTo).folded);
@@ -979,7 +1029,11 @@ function promiseAt(c: PromiseClause, at: number, kind: CommitmentKind, ctx: Mess
     // yarın gecenin mi 01:00'i (gece-4 S1-09).
     (part?.half === "night" && day === "tomorrow" && timeCandidates.some((m) => m >= 24 * 60 || m < 6 * 60)) ||
     // Alt sınır / aralık ("10:30'dan sonra", "after 5 pm", "between 2 and 4", "10-11 gibi") kesin saat değil → kart saati sorar (gece-4 S1-14).
-    (timeCandidates.length > 0 && TIME_BOUND_OR_RANGE.test(scope.folded));
+    (timeCandidates.length > 0 && TIME_BOUND_OR_RANGE.test(scope.folded)) ||
+    // Saat karşıtlığı / değişikliği ("sabah 9'da değil akşam", "9 yerine 11") → hangi saat geçerli belli değil (Opus gece-4 A2).
+    ((timeCandidates.length > 0 || part !== undefined) && TIME_CONTRAST.test(scope.folded)) ||
+    // "3'ü 10 geçe / 4'e 10 kala": dakikalı söyleyiş okunmaz → saat sorulur (Opus gece-4 A1).
+    CLOCK_IDIOM.test(scope.folded);
   const cue = inMinutes === null && timeCandidates.length === 0 && part ? { minutes: part.minutes, half: part.half, code: part.code, end: part.end } : null;
   const soon = inMinutes === null && timeCandidates.length === 0 && cue === null && SOON.test(scope.folded);
   const reschedule = RESCHEDULE.test(scope.folded);
