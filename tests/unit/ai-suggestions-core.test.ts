@@ -1009,6 +1009,8 @@ describe("sert itirazcı gece-4 (354 cümle): yeni kurallar KESİN sözü düş�
     ])
       some(t);
     for (const t of ["Sorun olursa, teknisyen gelecek", "Klima çalışmazsa, teknisyen yarın gelecek", "Havlu lazımsa söyleyin, getiririm", "Havlu lazımsa yazın, yarın getiririm"]) none(t);
+    // Mutasyon v9 yaşayanları: yüklemli koşul + SAATSİZ söz (başka konu) ve yüklemli koşul + saatli GENİŞ ZAMAN teklifi (konusuz koşul) söz değil.
+    for (const t of ["Sorun olursa bana yazın, teknisyen gelecek", "Bir sorun olursa bana yazın, havlu getireceğim", "Eksik bir şey varsa yazın, havluları yarın getiririm"]) none(t);
   });
 
   it("Y3: yeni kararsızlık sözcükleri YEREL — sebep cümlesinde bozmaz, sözün kendisinde bozar", () => {
