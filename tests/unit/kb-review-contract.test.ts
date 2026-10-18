@@ -85,11 +85,15 @@ describe("A1 — KB onay sözleşmesi", () => {
   it("A5 alanları: sourceRef KB rotalarında hiç yazılmıyor; supersededById YALNIZ L2 yollarında (bilinçli güncelleme, kurucu 10-17)", () => {
     // Şema onları migration 53'te taşıyor. L2 (Geçmişten öğren "eskisinin yerine koy") supersededById'yi YAZAN tek yol: taslak onayı
     // (`history-learn/service.ts`); KB PATCH yalnız TEMİZLER (ev sahibi eskiyi yeniden etkinleştirince). Ekleme / kopyalama rotaları yazmaz.
-    for (const rel of ["src/app/api/kb/route.ts", "src/app/api/kb/[id]/copy/route.ts"]) {
-      const src = read(rel);
-      expect(src, rel).not.toMatch(/\bsupersededById\b/);
-      expect(src, rel).not.toMatch(/\bsourceRef\b/);
-    }
+    const add = read("src/app/api/kb/route.ts");
+    expect(add).not.toMatch(/\bsupersededById\b/);
+    expect(add).not.toMatch(/\bsourceRef\b/);
+    // Kopyalama (gece-4 S5-05) kopya bağını yerine-koy zinciri boyunca izlemek için supersededById'yi yalnız OKUR: `select { … : true }`,
+    // `where { … : { in: … } }` süzgeci ve `.supersededById` özellik okuması — bir değer ATAMAZ.
+    const copy = read("src/app/api/kb/[id]/copy/route.ts");
+    expect(copy).not.toMatch(/\bsourceRef\b/);
+    expect(copy.match(/supersededById\s*:(?!\s*(?:true\b|\{\s*in:))/g)).toBeNull();
+    expect(copy).toMatch(/supersededById: \{ in: frontier \}/);
     const patch = read("src/app/api/kb/[id]/route.ts");
     expect(patch).not.toMatch(/\bsourceRef\b/);
     // PATCH yalnız NULL'a çeker (temizleme); bir kimlik ATAMAZ.

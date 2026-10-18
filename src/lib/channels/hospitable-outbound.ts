@@ -1,6 +1,7 @@
 import "server-only";
 
-import { HospitableError, probeToken, sendMessage, type SendResult } from "@/lib/hospitable";
+import { probeToken, sendMessage, type SendResult } from "@/lib/hospitable";
+import { providerErrorStatus } from "@/lib/provider-errors";
 import { classifySendResult, type SendResultKind } from "@/lib/outbox/state";
 import type { OutboundAdapter, OutboundCredential, OutboundDestination, OutboundSendResult } from "./outbound";
 
@@ -75,7 +76,9 @@ export const hospitableOutboundAdapter: OutboundAdapter = {
       await probeToken(credential.token);
       return true;
     } catch (err) {
-      if (err instanceof HospitableError && (err.status === 401 || err.status === 403)) return false;
+      // Durum TEK KAYNAKTAN okunur (sarmal kör okunmaz — 09-23 kuralı, `provider-error-wrapper-pin.test.ts`).
+      const status = providerErrorStatus(err);
+      if (status === 401 || status === 403) return false;
       return null;
     }
   },

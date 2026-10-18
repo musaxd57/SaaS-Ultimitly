@@ -34,7 +34,9 @@
 
 - **Söz algılama v2** (anahtar `HOST_COMMITMENT_AUTO_ENABLED` / `AI_ACTION_SUGGESTIONS_ENABLED` kapalı): gün kuralları D1–D4, dilek H1, iki söz
   T1–T4, tekrar R1, taşıma F11, konum anahtarı, yapan kaydı; Opus'un 19 bulgusu (F1–F19) ve Haiku'nun 5 bulgusu. Sert itirazcının 43 cümlesi +
-  ~60 yeni pin; mutasyon 31/31.
+  ~60 yeni pin.
+- **Doğrulama zinciri:** her değişiklik grubunda Haiku dar inceleme (3 tur), dilim sonunda Opus "en derin ve sert" denetim (9 bulgu, hepsi
+  işlendi), mutasyon 7 tur (v2 31/31 · v3–v7 toplam 89 mutant; yaşayanların her biri ayırt edici pinle öldürüldü ya da hedef kod kaldırıldı).
 - **"Talimat yok" silicisi** (yalnız tutma yönünde): tanınmayan konu ("Jakuzi için…"), "kapıcı / kapı zili", "balkona çıkabilirsiniz", "Su / Para /
   İş için…" artık silinip gönderilmiyor.
 - **Kapalı anahtarlı arıza kemerleri** (`AI_FIX_SUPPORT_GATE_ENABLED`, kurucu 10-15 kararı): İngilizce "isn't working", "restarting / unplugging",
