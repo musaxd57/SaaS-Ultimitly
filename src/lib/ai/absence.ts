@@ -371,6 +371,32 @@ const MORE_ABSENCE_PATTERNS: readonly RegExp[] = [
     `لم (?:أتمكن|اتمكن|نتمكن|أستطع|استطع|نستطع) (?:من )?(?:تقديم|اقتراح|إيجاد|ايجاد|العثور على) (?:أي |اي )?(?:حل|حلا|حلول)(?![\\p{L}])`,
     "u",
   ),
+  // ── "BİLGİ VEREMEM" HİÇBİR DİLDE (kurucu 10-18 T3, AYNEN: "BİLGİ VEREMEM HİÇBİR DİLDE GİTMEMELİ"; 10-17 M1 yalnız Türkçe geniş zamanı
+  // tutuyordu). Özne 1. şahıs + olumsuz kip + VERME fiili + BİLGİ nesnesi: "I can't provide information about the TV", "Bu konuda bilgi
+  // sağlayamıyorum", "bilgi vermem mümkün değil". "I can't provide early check-in" (nesne bilgi değil), "Bilgilerinizi almadan kodu
+  // veremeyiz" (politika — mevcut dar kural) eşleşmez.
+  new RegExp(
+    `${L}(?:can't|cannot|can not|couldn't|could not|won't be able to|unable to|not able to|not in a position to) (?:provide|give|share|offer|disclose|supply)(?: (?:you|any|more|further|specific|detailed|exact|that|this|such|the)){0,3} ${EN_OBJ}`,
+    "u",
+  ),
+  new RegExp(
+    `${TR_OBJ} ${gap(2)}(?:sağlaya(?:mıyorum|mıyoruz|mam|mayız|mayacağım|mayacağız)|paylaşa(?:mıyorum|mıyoruz|mam|mayız)|suna(?:mıyorum|mıyoruz|mam|mayız)|ver(?:mem|memiz) mümkün değil(?:dir)?)(?![\\p{L}])`,
+    "u",
+  ),
+  new RegExp(
+    `(?:kann|können|könnte|könnten) (?:ich|wir)(?: \\p{L}{1,30}){0,3} (?:keine|keinerlei) ${gap(1)}${DE_INFO} ${gap(1)}(?:bereitstellen|mitteilen|teilen|nennen|machen|geben)(?![\\p{L}])`,
+    "u",
+  ),
+  new RegExp(
+    `${L}(?:je|nous) ne (?:peux|pouvons|suis|sommes) (?:pas|plus)(?: en mesure de)?(?: vous| te)? (?:donner|fournir|communiquer|partager|transmettre) (?:d'|de |des |les |l'|cette |ces |cet |la |le |plus d'|plus de |aucune? )?(?:\\p{L}{1,20} )?${FR_OBJ}`,
+    "u",
+  ),
+  new RegExp(`${L}no (?:puedo|podemos|podría|podríamos)(?: \\p{L}{1,20}){1,3} ${ES_OBJ}`, "u"),
+  new RegExp(`${L}не (?:могу|можем|смогу|сможем)(?: \\p{L}{1,20}){1,3} ${RU_OBJ}`, "u"),
+  new RegExp(
+    `(?:لا|لن) (?:أستطيع|استطيع|نستطيع|يمكنني|يمكننا) ${gap(2)}(?:تقديم|إعطاء|اعطاء|مشاركة|توفير)(?: \\p{L}{1,20}){0,2} (?:أي |اي )?${AR_OBJ}`,
+    "u",
+  ),
 ];
 
 /**

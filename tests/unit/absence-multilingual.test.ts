@@ -448,3 +448,38 @@ describe("'bilgim yok' yüklemi — yedi dil (kurucu kuralı dilden bağımsız)
     expect(admitsMissingKnowledge("Les règles ne sont pas précisées ici.")).toBe(true);
   });
 });
+
+describe("🚨 kurucu 10-18 T3: 'bilgi veremem' HİÇBİR dilde misafire gitmez", () => {
+  it("bilgi verme reddi yedi dilde tutulur (eskiden 13'ü gidiyordu)", () => {
+    for (const t of [
+      "I'm sorry, I can't provide information about the TV.",
+      "I'm unable to provide information on that.",
+      "I can't give you details about the neighbours.",
+      "Bu konuda bilgi sağlayamıyorum.",
+      "Size bu bilgiyi vermem mümkün değil.",
+      "Diğer misafirlerin bilgilerini paylaşamıyoruz.",
+      "Dazu können wir keine Angaben machen.",
+      "Je ne peux pas vous donner d'informations sur ce point.",
+      "Je ne suis pas en mesure de fournir ces informations.",
+      "No puedo proporcionar información sobre eso.",
+      "No podemos darle esa información.",
+      "Не могу предоставить информацию об этом.",
+      "لا أستطيع تقديم معلومات عن ذلك.",
+    ])
+      expect(admitsMissingKnowledge(t), t).toBe(true);
+  });
+
+  it("KONTROL: bilgi nesnesi olmayan ret, politika ve olgu cümleleri gider", () => {
+    for (const t of [
+      "I can't provide early check-in, sorry.",
+      "The Wi-Fi information is on the fridge.",
+      "Bilgilerinizi almadan giriş kodunu veremeyiz.",
+      "Bilgi için teşekkürler, yarın görüşürüz.",
+      "We can share the parking details: spot 12.",
+      "No podemos aceptar mascotas.",
+      "Не могу дождаться вашего приезда!",
+      "Je ne peux pas accepter d'animaux.",
+    ])
+      expect(admitsMissingKnowledge(t), t).toBe(false);
+  });
+});

@@ -885,6 +885,20 @@ göndermek eski cevabı "yeniden doğrulandı" saysın mı (önerim: hayır, "H�
 Gece kurala uyuldu: misafire giden mesajı, müşterinin gördüğü metni ya da parayı değiştiren hiçbir şey sorulmadan yapılmadı. Aşağıdakiler kodda
 ölçüldü; her birinde önce / sonra örneği ve önerim var. "Evet" yeterli; farklı isterseniz yazın.
 
+### §T kurucu cevapları (10-18 sabah, AYNEN alıntı + uygulama)
+- **T1** — "talimat yok hiçbirşey anlamına gelmiyor ki onun belirsiz olduğunu gösterir haksız mıyım uydurma kural olanağı vermemeli AIımıza".
+  Önerim (cevap bekliyor): cevapta "talimatımız / bilgimiz yok" geçiyorsa cevabın TAMAMI tutulur (10-17 "ilk cümleyi sil" kararı geri alınır;
+  "anahtarı masaya bırakın" da uydurma olabilir). Hazır yama bu kadar sıkı değil — onay gelince yeniden yazılacak.
+- **T2** — "önerin iyi ama hostu e posta yağmuruna tutmayalım fazla". Önerim (cevap bekliyor): "Sorunlu" + konuşma başına tek e-posta (ev sahibi
+  cevaplayana kadar tekrar yok) + işletme başına saatte en çok 3 (QR acil e-postasıyla aynı).
+- **T3** — "BİLGİ VEREMEM HİÇBİR DİLDE GİTMEMELİ" → uygulanacak: bütün dillerde + Türkçe ek biçimler tutulur.
+- **T4** — "tam anlamadım" → sade anlatıldı (konuşmada); cevap bekliyor.
+- **T5** — "bağlamdan günü çıkarsın genellikle 7de aynı gündür özellikle host müşteriye belirsiz saat yazmaz bugünden bahsetme olasılığı
+  yüksektir". Anladığım kural örneklerle soruldu (gün yoksa bugünün henüz gelmemiş gündüz saati; ikisi de geçtiyse yarın; "yarın 7'de" ve
+  "inşallah" ayrıca soruldu); cevap bekliyor.
+- **T6b** — "2 yıl sonra küçülsün" → uygulanacak.
+- Diğerleri: kurucu dosyaya bakacak.
+
 ### T1 · 🚨 "Talimat yok" silicisi uydurma kuralı misafire gönderebiliyor (misafire giden — en önemlisi)
 10-17'de "Çıkış için özel talimatımız yok, anahtarı masaya bırakmanız yeterli" cevabındaki ilk cümle silinsin dediniz; uygulandı. İnceleme,
 silinen cümlenin ARDINDAKİ kısmın çoğu zaman yapay zekânın uydurması olduğunu gösterdi ("talimat yok" = bilgi tabanında yok). Eskiden bu cevaplar
