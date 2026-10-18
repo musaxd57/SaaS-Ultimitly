@@ -653,7 +653,9 @@ const ON_THE_WAY = new RegExp(`${NL}(?:yolda(?:yim|yiz|lar)?|yola\\s+(?:cikti|ci
 // `i` bayrağı YOK: büyük harf ileri bakışı küçük harfi de tutardı ("…2:30 p.m. tomorrow." nokta kalıp günü koparıyordu — sert itirazcı C1).
 // Opus dilim sonu 3 A14: sonu noktasız "p.m" ("at 2 p.m tomorrow" cümleyi "p." den bölüp günü düşürüyordu) da tutulur. Küçük harfle
 // başlayan özne ("…at 6 p.m. the technician will come…") cümle sonu SAYILMAZ: ölçüldü, "Tomorrow at 2 p.m. the cleaner will come" (virgülsüz
-// öne alınmış zaman) çok daha yaygın; bölmek derlemde iki doğru okumayı bozdu (303 → 301).
+// öne alınmış zaman) çok daha yaygın; bölmek derlemde iki doğru okumayı bozdu (303 → 301). Noktasız "m"den sonra harf / rakam gelirse
+// sözcüğün parçasıdır, dokunulmaz ("p.max"). EŞDEĞER MUTANT (v12): bu sınır kaldırılınca derlem + test cümlelerinin 1596'sında sonuç aynı
+// (baş harfli adlar ↑RAW_CLAUSES ile zaten bölünmüyor) — yalnız gerçek dışı "p.max" gibi yazımda ayrışır; normalleştirici sözcük yemesin diye kalır.
 const DOTTED_AMPM = /(?<![\p{L}\p{N}])([aApP])\.\s?[mM](?:\.|(?![\p{L}\p{N}]))(?=(\s+\p{Lu})?)/gu;
 function normalizeAmPm(text: string): string {
   return text.replace(DOTTED_AMPM, (_m, l: string, next: string | undefined) => `${l.toLowerCase()}m${next ? "." : ""}`);
