@@ -114,6 +114,12 @@
   değil; "ne olursa olsun / geç olsa da" koşul değil; "hava çıkışı", "teknisyen gelmeden önce" konaklama anı değil; en yaygın yeniden
   zamanlama mesajı ("Teknisyen bugün gelemeyecek, yarın 10'da gelecek") artık söz. Derlem 303/323.
 - **T3 (kurucu kararı):** "bilgi veremem" yedi dilde tutulur. **T6b (kurucu kararı):** işlenememiş ödeme olayları 2 yılda küçülür.
+- **Push sonrası küçük kalanlar (Opus dilim sonu 3, anahtar kapalı):** "Ayşe Hanım yarın 11'de temizliğe gelecek" artık söz (A12); "at 2 p.m
+  tomorrow" günü kaybetmiyor (A14); "Teknisyenimiz M. Ali yarın 10'da gelecek" baş harf cümleyi bölmüyor (mutasyonun yakaladığı kök); otomatik
+  kipte bir konuşmada 5'ten çok bekleyen söz varken en eskisi kaybolmuyor (A16, kırmızı-önce testle). Denenip ALINMAYAN: "p.m." ardından
+  küçük harfli özneyi cümle sonu saymak — derlemi 303'ten 301'e düşürdü ("Tomorrow at 2 p.m. the cleaner will come" çok daha yaygın).
+  Mutasyon v10–v13: 44 mutant, 41 öldü, 2 yeni pinle öldürüldü, 1 gerekçeli eşdeğer (1596 cümlede aynı sonuç). Bu gece ajan çalıştırılmadı
+  (kurucu talimatı) → bu dört düzeltmenin sert incelemesi sabah Opus turunda.
 
 ## 2b. Küçük metin düzeltmeleri (T6 — toplu "evet" yeterli; hepsi müşteri ekranı, uygulanmadı)
 
@@ -162,6 +168,12 @@
 - "Bu gece teknisyen gelecek" 01:00'de yazılırsa gecikme uyarısı bir gün geç gelir (söz kaydı doğru; yalnız panel uyarısının zamanı).
 - "The cleaning crew will come…" (crew / team öznesi) söz sayılmıyor — söz kapsamını genişletmek ayrı karar.
 - Arıza kemerinde (anahtar kapalı) Almanca / Fransızca / İspanyolca / Rusça arıza sözcükleri yok (S4-03 eki).
+- Söz (anahtar kapalı): "I'll bring towels at 6 p.m. the technician will come tomorrow." küçük harfle başlayan ikinci cümle birleşir, havlu
+  sözü düşer (güvenli yön, pinli); "Sorun olursa kapı B. Teknisyen yarın 10'da gelecek." önceki cümlenin koşulu sözü düşürür (pinli). Öneri
+  anahtarı cümlecik sırasından kurulduğu için bölme kuralı değişince anahtar kayar (A15) — anahtarlar canlıda hiç açılmadı, etkisiz; açılmadan
+  önce karakter konumundan anahtar düşünülmeli (tasarım kararı, sert incelemeyle).
+- Kuyruk planı testleri (C2) işçinin gerçek sorgusunu değil eşdeğer kopyasını EXPLAIN ediyor; gerçek sorguyu sınamak üretim koduna yalnız test
+  için kanca ister → bırakıldı. Zaman aşımı testi gerçek yolu sınıyor.
 
 ## 4. İtme / CI
 | İtme | İçerik | Tam kapı (yerel) | CI |
@@ -169,8 +181,9 @@
 | … `b4cc74cf` | gece-4 ilk tarama düzeltmeleri, söz algılama v2, migration 76 / 77 | yeşil | #1539 KIRMIZI — KB düzenleyicide korumasız `scrollIntoView` (zamanlamaya bağlı) |
 | `a322c310` | `scrollIntoView` koruması + iki yolda görünür yere getirme + pin | yeşil | #1543 yeşil |
 | `a55a4842` | migration 78 (yalnız dizin) | yeşil | #1545 KIRMIZI — söz testinde milisaniye yarışı (ürün kodu değil); ↓ düzeltildi |
-| `08fcb660` … `fbe9a12b` | ikinci tarama düzeltmeleri, sert itirazcı + Haiku söz turları, S3-07/08/09 + migration 79, S7-08 testleri, CI #1545 yarışı + gece zaman bombası | g93 (`4a6ba778`) + g94 (`65f3c139`) yeşil | #1547 (sonucu `docs/claude/durum.md`) |
-| `6ca0ede0` … | Paddle sel freni, panel testleri, Haiku son grup, Opus dilim sonu 3, T3, T6b | g95 (koşacak) | — |
+| `08fcb660` … `fbe9a12b` | ikinci tarama düzeltmeleri, sert itirazcı + Haiku söz turları, S3-07/08/09 + migration 79, S7-08 testleri, CI #1545 yarışı + gece zaman bombası | g93 (`4a6ba778`) + g94 (`65f3c139`) yeşil | #1547 yeşil |
+| `6ca0ede0` … `e83bd552` | Paddle sel freni, panel testleri, Haiku son grup, Opus dilim sonu 3, T3, T6b, mutasyon v10 (31 mutant: 29 öldü, yaşayan 2'ye pin eklendi) | g95 yeşil (veritabanlı 4305 · veritabanısız 10212 · süre 3083) | #1549 (yazılırken sürüyordu; sonucu bir sonraki satırın itmesinde) |
+| `f083954d` … | A12 / A14 / baş harf / A16 + C1 yorumu + belge | g96 | — |
 
 Yerel tam kapı = paralel `npm test` (veritabanısız / veritabanlı / süre kolları) + tip + lint + derleme + bağımlılık denetimi. Not: g93 yeşildi ama
 İstanbul 05:39'dan sonra koştuğu için gece zaman bombasını göstermedi — bundan sonra söz testleri saatten bağımsız (gece simülasyonuyla doğrulandı).
