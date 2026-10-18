@@ -710,7 +710,7 @@ export function isRedactedPaddlePayload(json: string | null | undefined): boolea
   }
 }
 
-export function redactPaddlePayload(raw: string, note: "kvkk-erasure" | "retention-1y" | "org-deleted" = "kvkk-erasure"): string {
+export function redactPaddlePayload(raw: string, note: "kvkk-erasure" | "retention-1y" | "retention-2y" | "org-deleted" = "kvkk-erasure"): string {
   let p: Record<string, unknown>;
   try {
     p = asObj(JSON.parse(raw));
@@ -746,7 +746,9 @@ export function redactPaddlePayload(raw: string, note: "kvkk-erasure" | "retenti
 // Ham yük müşterinin adını / e-postasını / fatura adresini taşır ve yalnız hesap SİLİNİNCE küçülüyordu → silinmeyen müşterinin her
 // ödeme olayı süresiz ham kalıyordu. Kural: İŞLENMİŞ (`processed`) ve 12 aydan eski satırın yükü, hesap silmedeki AYNI izin listesine
 // (`redactPaddlePayload`) indirilir — olay kimliği (`providerEventId`, tekrar koruması), tür, durum, tarihler ve finansal iskelet KALIR;
-// ad / e-posta / adres ve gövdenin geri kalanı gider. `error` / `received` satırlarına DOKUNULMAZ (inceleme için). Zaten küçültülmüş satır
+// ad / e-posta / adres ve gövdenin geri kalanı gider. `error` / `received` satırları 24 aya kadar ham kalır (inceleme için); 24 aydan eskisi
+// de aynı biçimde küçülür (kurucu 10-18 T6b, aynen: "2 yıl sonra küçülsün" — inceleme bir yıl sonra da yapılmıyorsa ham iz yalnız risk;
+// durum + hata kodu + olay türü kalır, not "retention-2y"). Zaten küçültülmüş satır
 // (`redactedAt`) atlanır. Saatlik iş, parti başına sınırlı (birikmiş geçmiş birkaç saatte erir). `DATA_RETENTION_MONTHS`tan bağımsız.
 // 🚨 İNCELEME SATIRLARI (Opus F1, 10-16): ödeme S1/S2 sonrası incelemeye düşen olay `status:"error"` + `error:"needs_review: <kod>"` yazılır
 // (yeniden işlenebilsin diye "processed" DEĞİL). Bunlar da 12 ayda küçülür — yoksa ham yük süresiz kalırdı. Gerçek hata (`needs_review`
@@ -758,15 +760,21 @@ export const NEEDS_REVIEW_PREFIX = "needs_review:";
 
 /** Ham ödeme olayı yükünün saklama süresi (ay) — kurucu kararı. */
 export const PADDLE_WEBHOOK_RAW_RETENTION_MONTHS = 12;
+/** İşlenememiş (`error` / `received`) ödeme olayı yükünün saklama süresi (ay) — kurucu 10-18 T6b. */
+export const PADDLE_WEBHOOK_UNPROCESSED_RETENTION_MONTHS = 24;
 const PADDLE_MINIMIZE_BATCH = 500;
 
 export async function minimizeOldPaddleWebhooks(now: Date = new Date()): Promise<{ minimized: number }> {
   const cutoff = subMonths(now, PADDLE_WEBHOOK_RAW_RETENTION_MONTHS);
+  const unprocessedCutoff = subMonths(now, PADDLE_WEBHOOK_UNPROCESSED_RETENTION_MONTHS);
   const rows = await prisma.webhookEvent.findMany({
     where: {
       provider: "paddle",
-      OR: [{ status: "processed" }, { status: "error", error: { startsWith: NEEDS_REVIEW_PREFIX } }],
-      createdAt: { lt: cutoff },
+      OR: [
+        { status: "processed", createdAt: { lt: cutoff } },
+        { status: "error", error: { startsWith: NEEDS_REVIEW_PREFIX }, createdAt: { lt: cutoff } },
+        { status: { in: ["error", "received"] }, createdAt: { lt: unprocessedCutoff } },
+      ],
       NOT: { payloadJson: { contains: '"redactedAt"' } },
     },
     select: { id: true, payloadJson: true, status: true, error: true },
@@ -778,7 +786,12 @@ export async function minimizeOldPaddleWebhooks(now: Date = new Date()): Promise
     // Koşullu yazma: okuma ile yazma arasında satır değiştiyse (yeniden işleme, hesap silme) bu tur ona dokunmaz.
     const res = await prisma.webhookEvent.updateMany({
       where: { id: r.id, status: r.status, error: r.error, payloadJson: r.payloadJson },
-      data: { payloadJson: redactPaddlePayload(r.payloadJson, "retention-1y") },
+      data: {
+        payloadJson: redactPaddlePayload(
+          r.payloadJson,
+          r.status === "processed" || r.error?.startsWith(NEEDS_REVIEW_PREFIX) ? "retention-1y" : "retention-2y",
+        ),
+      },
     });
     minimized += res.count;
   }

@@ -6,7 +6,7 @@ import { minimizeOldPaddleWebhooks, PADDLE_WEBHOOK_RAW_RETENTION_MONTHS } from "
 // ---------------------------------------------------------------------------
 // G6 (kurucu kararı 10-13 "1 yıl"; ACIK-ISLER 08-08 §15): Paddle olay kayıtlarının ham yükü (müşteri adı / e-postası / fatura adresi)
 // yalnız hesap silinince küçülüyordu → silinmeyen müşterinin her ödeme olayı süresiz ham kalıyordu. Artık işlenmiş ve 12 aydan eski
-// satır küçülür; olay kimliği, tür, durum, tarih ve finansal iskelet kalır. Hata / alınmış satırlara dokunulmaz.
+// satır küçülür; olay kimliği, tür, durum, tarih ve finansal iskelet kalır. Hata / alınmış satırlar 24 ay sonra (kurucu 10-18 T6b).
 // ---------------------------------------------------------------------------
 
 const NOW = new Date("2026-10-13T12:00:00Z");
@@ -98,12 +98,28 @@ describe("minimizeOldPaddleWebhooks (G6)", () => {
     expect(after.error).toBe("needs_review: invalid_amount");
   });
 
-  it("hata ve alınmış (işlenmemiş) satırlara DOKUNULMAZ — inceleme için ham kalır", async () => {
+  it("hata ve alınmış (işlenmemiş) satırlara 24 aya kadar DOKUNULMAZ — inceleme için ham kalır", async () => {
     const err = await row("evt_err", { monthsAgo: 24, status: "error" });
     const rec = await row("evt_rec", { monthsAgo: 24, status: "received" });
     expect((await minimizeOldPaddleWebhooks(NOW)).minimized).toBe(0);
     expect((await prisma.webhookEvent.findUniqueOrThrow({ where: { id: err.id } })).payloadJson).toBe(rawPayload("evt_err"));
     expect((await prisma.webhookEvent.findUniqueOrThrow({ where: { id: rec.id } })).payloadJson).toBe(rawPayload("evt_rec"));
+  });
+
+  it("🚨 kurucu 10-18 T6b: 24 aydan eski hata / alınmış satır da küçülür; durum + hata kodu + olay türü kalır", async () => {
+    const err = await prisma.webhookEvent.create({
+      data: { provider: "paddle", eventType: "transaction.completed", providerEventId: "evt_err_old", payloadJson: rawPayload("evt_err_old"), status: "error", error: "org_not_found", createdAt: subMonths(NOW, 25) },
+    });
+    const rec = await row("evt_rec_old", { monthsAgo: 25, status: "received" });
+    expect((await minimizeOldPaddleWebhooks(NOW)).minimized).toBe(2);
+    for (const id of [err.id, rec.id]) {
+      const after = await prisma.webhookEvent.findUniqueOrThrow({ where: { id } });
+      for (const pii of ["Ayse", "ayse@example.com", "Lale Sokak", "34000", "1234567890"]) expect(after.payloadJson).not.toContain(pii);
+      expect(JSON.parse(after.payloadJson)).toMatchObject({ note: "retention-2y" });
+    }
+    const errAfter = await prisma.webhookEvent.findUniqueOrThrow({ where: { id: err.id } });
+    expect([errAfter.status, errAfter.error, errAfter.eventType]).toEqual(["error", "org_not_found", "transaction.completed"]);
+    expect((await prisma.webhookEvent.findUniqueOrThrow({ where: { id: rec.id } })).status).toBe("received");
   });
 
   it("başka sağlayıcının satırı ve zaten küçültülmüş satır değişmez", async () => {
@@ -140,7 +156,7 @@ describe("minimizeOldPaddleWebhooks (G6)", () => {
         providerEventId: `evt_err_${i}`,
         payloadJson: rawPayload(`evt_err_${i}`),
         status: "error",
-        createdAt: subMonths(NOW, 30),
+        createdAt: subMonths(NOW, 20), // 24 ay dolmamış: henüz uygun değil (T6b sonrası 24+ ay hata satırı da küçülür)
       })),
     });
     const target = await row("evt_after_errors", { monthsAgo: 13 });
