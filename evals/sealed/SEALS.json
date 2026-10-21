@@ -36,7 +36,7 @@
     },
     "state": "burned",
     "burnedAt": "2026-10-21",
-    "runSha": "069af573",
+    "runSha": "069af573c69be60dc2627ff7d1f801eb98d159e5",
     "report": "docs/olcum/anlama-e2e-kor-live-2026-10-21-rtblind.md"
   }
 }
