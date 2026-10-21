@@ -235,6 +235,26 @@ describe("Haiku 10-21 bulguları", () => {
     expect(f.mock.calls.length).toBe(before); // açık: ağa çıkılmadı
   });
 
+  it("iki kez geçici hata (503) alan çağrı sayacı SIFIRLAMAZ: arada 503 olsa da art arda zaman aşımları kesiciyi açar", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => timeout()));
+    for (let i = 0; i < REPLY_BREAKER_THRESHOLD - 1; i++) await suggestReply(input);
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("upstream", { status: 503 })));
+    await suggestReply(input); // iki deneme de 503 → sağlayıcı sağlıklı sayılmaz
+    vi.stubGlobal("fetch", vi.fn(async () => timeout()));
+    await suggestReply(input);
+    expect(breakerReports()).toBe(1);
+  });
+
+  it("KONTROL: kesin ret (400) sağlayıcının takılmadığını gösterir → sayaç sıfırlanır", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => timeout()));
+    for (let i = 0; i < REPLY_BREAKER_THRESHOLD - 1; i++) await suggestReply(input);
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 400 })));
+    await suggestReply(input);
+    vi.stubGlobal("fetch", vi.fn(async () => timeout()));
+    await suggestReply(input);
+    expect(breakerReports()).toBe(0);
+  });
+
   it("gövde okunurken zaman aşımı da sayılır", async () => {
     const hanging = () =>
       ({
