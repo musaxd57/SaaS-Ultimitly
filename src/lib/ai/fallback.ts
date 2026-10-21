@@ -191,6 +191,7 @@ const KEYWORDS: Record<Exclude<Intent, "general">, string[]> = {
     // "iptal ed" covers the declarative softened forms the old net missed:
     // "iptal edeceğim", "iptal ediyorum", "iptal ederim" (t→d consonant softening).
     "iptal ed", "iptal edebilir", "iptal etmek", "konaklamayı kısalt", "leave early", "leave sooner", "check out early",
+    "early check-out", "early check out", "early checkout", "erken check-out", "erken check out", "erken checkout",
     // Noun-form cancellation phrasings the verb-only net missed (TR/EN).
     "iptali", "iptal taleb", "iptal işlem", "iptal islem",
     "checking out early", "cut short", "shorten my stay", "end our reservation", "end the reservation",
@@ -215,8 +216,16 @@ const KEYWORDS: Record<Exclude<Intent, "general">, string[]> = {
     "speak to a human", "talk to a human", "speak to someone", "talk to someone", "speak to the host",
     "talk to the host",
   ],
-  early_checkin: ["erken giriş", "erken giris", "early check", "erken check", "early arrival"],
-  late_checkout: ["geç çıkış", "gec cikis", "late check", "geç check", "gec check", "late departure"],
+  // YÖN sözcüğe bağlı (kurucu W1, 10-21): "late check-in" geç ÇIKIŞ, "early check-out" erken GİRİŞ sayılıyordu — çıplak "late check" /
+  // "early check" iki yönü de yakalıyordu. Geç varış giriş sorusudur (↓ checkin); erken çıkış erken ayrılıştır (↑ early_departure).
+  early_checkin: [
+    "erken giriş", "erken giris", "early check-in", "early check in", "early checkin", "erken check-in", "erken check in", "erken checkin",
+    "early arrival",
+  ],
+  late_checkout: [
+    "geç çıkış", "gec cikis", "late check-out", "late check out", "late checkout", "geç check-out", "gec check-out", "geç check out",
+    "gec check out", "geç checkout", "gec checkout", "late departure",
+  ],
   checkin: ["giriş", "giris", "check-in", "check in", "checkin", "anahtar", "key", "nasıl gir", "nasil gir", "kapı kodu", "kapi kodu", "access"],
   checkout: ["çıkış", "cikis", "check-out", "check out", "checkout", "ne zaman çık", "ne zaman cik"],
   wifi: ["wifi", "wi-fi", "internet", "şifre", "sifre", "password", "wireless"],
@@ -758,6 +767,15 @@ export function __asciiFoldMissCount(): number {
   return asciiFoldMisses;
 }
 
+/**
+ * Kısa anahtar sözcükler TAM SÖZCÜK eşleşir (kurucu W2, 10-21): alt dize eşleşmesi "Turkey" içindeki "key"i giriş sorusu, "accessible"
+ * içindeki "access"i, "tvoj" içindeki "tv"yi cihaz sorusu sayıyordu. Çoğul / iyelik eki ("keys", "TV's") kabul. Sabit genişlikli geriye
+ * bakış + sınırlı tekrar — doğrusal.
+ */
+const WHOLE_WORD_KEYS: ReadonlyMap<string, RegExp> = new Map(
+  ["key", "tv", "access"].map((k) => [k, new RegExp(`(?<![\\p{L}\\p{N}])${k}(?:s|'s|’s)?(?![\\p{L}\\p{N}])`, "u")] as const),
+);
+
 /** Kelime ağı eşleşmesi: metin, ÜÇ katlamadan herhangi biriyle kelimeyi içeriyor mu? */
 function includesAnyFold(
   message: string,
@@ -776,7 +794,11 @@ function includesAnyFold(
   // ayıraçla parçalanmış) × ÜÇ katlama. Yalnızca EŞLEŞME EKLER.
   // (Adaylar/katlamalar ve kelimelerin ASCII katlaması ↑önbellekten — anlam aynı.)
   const asciiWords = asciiFoldedWords(words);
-  const hit = (hay: string, needle: string) => (allowWordGap ? phraseHit(hay, needle) : hay.includes(needle));
+  const hit = (hay: string, needle: string) => {
+    if (allowWordGap) return phraseHit(hay, needle);
+    const whole = WHOLE_WORD_KEYS.get(needle);
+    return whole ? whole.test(hay) : hay.includes(needle);
+  };
   for (const { std, tr, ascii } of foldedCandidatesOf(message)) {
     for (let k = 0; k < words.length; k++) {
       if (hit(std, words[k]) || hit(tr, words[k]) || hit(ascii, asciiWords[k])) return true;

@@ -461,3 +461,20 @@ describe("kelime-ağı boşlukları (denetim turu 07-17) — tehdit + tuzak", ()
     expect(detectGuestLanguage("Nasılsınız, giriş kaçta?")).toBe("tr");
   });
 });
+
+describe("kurucu W1 / W2 (10-21): yedek sınıflandırıcıda yön sözcüğü ve tam sözcük", () => {
+  it.each([
+    ["Can we do a late check-in around 23:00?", "checkin"],
+    ["We need an early check-out tomorrow at 6", "early_departure"],
+    ["Late checkout possible?", "late_checkout"],
+    ["Erken giriş yapabilir miyiz?", "early_checkin"],
+    ["Is there parking near the apartment in Turkey?", "parking"],
+    ["Is the flat wheelchair accessible?", "general"],
+    ["Where are the keys?", "checkin"],
+    ["Can I get the access code?", "checkin"],
+    ["Is there a smart tv?", "amenity"],
+    ["the TV's remote is missing", "amenity"],
+  ])("%s → %s", (m, intent) => {
+    expect(classifyFallback(m).intent).toBe(intent);
+  });
+});

@@ -143,3 +143,16 @@ describe("yeni parola politikası — 72 bayt (③)", () => {
     expect(newPasswordProblem(nfd)).toBeNull();
   });
 });
+
+describe("kurucu W6 (10-21): en az uzunluk saklanan (NFC) biçimin karakter sayısıdır", () => {
+  it("ayrık aksanlı 7 'ş' (14 UTF-16 birimi) reddedilir; birleşik yazımıyla aynı karar", () => {
+    const nfd = "ş".repeat(7);
+    expect(nfd.length).toBe(14);
+    expect(newPasswordProblem(nfd)).not.toBeNull();
+    expect(newPasswordProblem("ş".repeat(7))).not.toBeNull();
+  });
+  it("KONTROL: 8 karakter (NFD de olsa) kabul", () => {
+    expect(newPasswordProblem("ş".repeat(8))).toBeNull();
+    expect(newPasswordProblem("abcdefgh")).toBeNull();
+  });
+});

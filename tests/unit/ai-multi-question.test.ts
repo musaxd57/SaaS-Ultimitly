@@ -221,3 +221,16 @@ describe("uzun model yanıtı sessizce kesilip gönderilemez", () => {
     expect(result.confidence).toBeCloseTo(0.95);
   });
 });
+
+describe("kurucu W3 (10-21): ünlem dizisi soru sayılmaz", () => {
+  it("'Harika!! Süper!!' tek istek; '??' ve '?!' yine tek soru", () => {
+    expect(countGuestAsks("Harika!! Süper!!")).toBe(1);
+    expect(countGuestAsks("Harika!!! Süper!!! Teşekkürler!!!")).toBe(1);
+    expect(countGuestAsks("Wi-Fi şifresi nedir?! Otopark var mı??")).toBe(2);
+  });
+  it("uzun ünlem dizisinde karesel iş yok", () => {
+    const t0 = performance.now();
+    countGuestAsks("!".repeat(50_000));
+    expect(performance.now() - t0).toBeLessThan(500);
+  });
+});

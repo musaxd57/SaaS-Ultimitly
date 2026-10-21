@@ -590,3 +590,17 @@ describe("splitQuestions", () => {
     expect(splitQuestions("a? b? c? d? e? f?").length).toBeLessThanOrEqual(4);
   });
 });
+
+describe("kurucu W5 (10-21): iki harfli içerik sözcüğü de alt sorgudur", () => {
+  it("'Wi-Fi şifresi ne, TV nasıl açılır?' → TV parçası atılmaz", () => {
+    const parts = splitQuestions("Wi-Fi şifresi ne, TV nasıl açılır?");
+    expect(parts.some((p) => /\btv\b/i.test(p))).toBe(true);
+    expect(parts.some((p) => /wi-?fi|sifre|şifre/i.test(p))).toBe(true);
+  });
+  it("'Klima, TV?' iki alt sorgu", () => {
+    expect(splitQuestions("Klima, TV?").length).toBe(2);
+  });
+  it("KONTROL: içerik kökü olmayan iki harfli parça alt sorgu olmaz", () => {
+    expect(splitQuestions("Ve, de?").length).toBe(0);
+  });
+});

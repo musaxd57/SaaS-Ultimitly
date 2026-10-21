@@ -395,7 +395,9 @@ const SOFT_SPLIT = /,+|(?<!\s)\s+(?:ve|ayrica|ayrıca|bir de|and|also|plus)\s+/i
  */
 export function splitQuestions(message: string): string[] {
   const norm = normalizeForRetrieval(message);
-  const keep = (p: string) => p.length >= 3 && contentStems(p).length > 0;
+  // İki harfli içerik sözcüğü de alt sorgudur (kurucu W5, 10-21: "Wi-Fi şifresi ne, TV nasıl açılır?" → "tv" parçası düşüyor, TV kalemi hiç
+  // getirilmiyordu). İçerik kökü şartı (`contentStems`) aynen — tek başına durak sözcüğü / noktalama alt sorgu olmaz.
+  const keep = (p: string) => p.length >= 2 && contentStems(p).length > 0;
   const segs = norm
     .split(HARD_SPLIT)
     .map((seg) => seg.split(SOFT_SPLIT).map((p) => p.trim()).filter(keep))
@@ -502,7 +504,7 @@ export function retrievalQueries(
     const raw = eq?.text;
     if (typeof raw !== "string") continue;
     const sq = normalizeForRetrieval(raw).trim();
-    if (sq.length < 3 || contentStems(sq).length === 0) continue;
+    if (sq.length < 2 || contentStems(sq).length === 0) continue;
     const request = typeof eq.request === "number" && Number.isInteger(eq.request) && eq.request >= 0 ? eq.request : undefined;
     const same = queries.find((q) => q.subquery === sq);
     if (same) {

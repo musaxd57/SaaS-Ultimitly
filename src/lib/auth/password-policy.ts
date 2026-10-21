@@ -45,7 +45,9 @@ export function passwordExceedsByteLimit(password: string): boolean {
  * sahibini kilitleyebiliyordu).
  */
 export function newPasswordProblem(password: string): string | null {
-  if (password.length < PASSWORD_MIN_LENGTH) return `Şifre en az ${PASSWORD_MIN_LENGTH} karakter olmalı.`;
+  // Karakter = saklanan (NFC) biçimin kod noktası (kurucu W6, 10-21): ayrık aksanlı yazım (NFD) "ş"yi iki birim sayıp 7 harfli parolayı
+  // geçiriyordu; saklanan biçimde 7 karakterdir. Bayt üst sınırı da aynı biçime bakar (↓).
+  if (Array.from(normalizePassword(password)).length < PASSWORD_MIN_LENGTH) return `Şifre en az ${PASSWORD_MIN_LENGTH} karakter olmalı.`;
   if (passwordExceedsByteLimit(password)) return PASSWORD_TOO_LONG_MESSAGE;
   return null;
 }

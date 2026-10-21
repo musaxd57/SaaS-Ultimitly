@@ -836,8 +836,9 @@ export function countGuestAsks(message: string): number {
   const text = message.trim();
   if (!text) return 0;
   // Tekrarlı noktalama TEK soru sayılır: "Nasılsınız??" iki soru değildir
-  // (denetim yakaladı — vurgu için ?? yazmak yaygın).
-  const questionMarks = (text.replace(/[?？!！]{2,}/g, "?").match(/[?？]/g) ?? []).length;
+  // (denetim yakaladı — vurgu için ?? yazmak yaygın). Yalnız ÜNLEM dizisi soru değildir (kurucu W3, 10-21: "Harika!! Süper!!" iki soru
+  // sayılıp çok-soru dalı açılıyordu); "!?" / "?!" yine bir soru.
+  const questionMarks = (text.replace(/[?？][?？!！]*/g, "?").match(/[?？]/g) ?? []).length;
   // SATIR ≠ İSTEK. Ham satır saymak, Booking/Airbnb'de çok yaygın olan
   // "Merhaba,\n\nDün gece klima çalışmadı.\n\nTeşekkürler" biçimini 3 soru
   // sanıyordu — ve çok-soru dalı anti-spam kurallarını KAPATTIĞI için sıradan
