@@ -83,7 +83,7 @@ const CONDITIONAL_PHRASE = new RegExp(
  * müsaitliği koşul — öneri "kesin değil" olarak kalır (`tentative`). Başka koşul ("Klima bozulursa teknisyen gelecek") öneri DEĞİL (bugünkü).
  */
 const AVAILABILITY_COND = new RegExp(
-  `${NL}(?:(?:musait|uygun|bos|vakt?i|zaman\\p{L}{0,3}|firsat\\p{L}{0,3})\\s+(?:olursa|olur\\s+ise|bulursa|kalirsa)|mumkunse|mumkun\\s+olursa|imkan\\s+olursa|if\\s+(?:(?:he|she|they|it|someone|we)\\s+(?:is|are)\\s+)?(?:available|free|possible))${NR}`,
+  `${NL}(?:(?:musait|uygun|bos|vakt?i|zaman\\p{L}{0,3}|firsat\\p{L}{0,3})\\s+(?:olursa|olur\\s+ise|bulursa|kalirsa)|musaitse|mumkunse|mumkun\\s+olursa|imkan\\s+olursa|if\\s+(?:(?:he|she|they|it|someone|we)\\s+(?:is|are)\\s+)?(?:available|free|possible))${NR}`,
   "u",
 );
 const AVAILABILITY_COND_G = new RegExp(AVAILABILITY_COND.source, "gu");
@@ -1161,8 +1161,14 @@ export function contextHalfHint(texts: readonly string[]): "am" | "pm" | null {
 
 /** Önceki mesaj "şimdi / hemen / right now" diyorsa saatsiz söz şimdiye bağlıdır (kurucu T5: gece 23:30 "Havlu getireceğim"). */
 export function contextSaysNow(texts: readonly string[]): boolean {
-  return texts.some((t) => SOON.test(foldTurkishAscii(t.slice(0, 2_000)).toLowerCase()));
+  // "Şimdi değil, yarın bakalım" / "not now" şimdi DEMEK değildir (Haiku T5).
+  return texts.some((t) => {
+    const folded = foldTurkishAscii(t.slice(0, 2_000)).toLowerCase().replace(NOT_NOW_G, " ");
+    // Bağlamda yalın "now" da şimdidir ("Can you bring towels now?"); sözün kendisinde değil (`SOON`).
+    return SOON.test(folded) || /(?<![\p{L}\p{N}])(?:now|su\s+an)(?![\p{L}])/u.test(folded);
+  });
 }
+const NOT_NOW_G = /(?<![\p{L}\p{N}])(?:(?:simdi|hemen|birazdan)\s+(?:degil|olmaz|gerek\s+yok)|not\s+(?:now|right\s+now|yet))(?![\p{L}])/gu;
 
 /** İki gündüz okumalı saati bağlamın yarısına indirger ("yarın 7'de" + önceki "akşam" → 19:00). */
 export function withHalf(p: HostPromise, half: "am" | "pm"): HostPromise {

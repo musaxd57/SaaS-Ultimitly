@@ -1264,7 +1264,7 @@ describe("kurucu T5 (10-21) — algılayıcı: kesin değil, sabah / akşam beli
   });
 
   it("müsaitlik koşulu kesin değil; başka koşul (arıza) öneri değil", () => {
-    for (const t of ["Teknisyen müsait olursa yarın gelir.", "Müsait olursa usta yarın gelecek.", "Mümkünse yarın teknisyen göndereceğim.", "If he is available the technician will come tomorrow at 10."])
+    for (const t of ["Teknisyen müsait olursa yarın gelir.", "Teknisyen müsaitse yarın 10'da gelecek.", "Müsait olursa usta yarın gelecek.", "Mümkünse yarın teknisyen göndereceğim.", "If he is available the technician will come tomorrow at 10."])
       expect(detectHostPromises(t).map((p) => p.tentative), t).toEqual([true]);
     for (const t of ["Klima bozulursa teknisyen yarın gelecek.", "Müsait olursa ve klima bozulursa teknisyen yarın gelecek."]) expect(detectHostPromises(t), t).toEqual([]);
   });
@@ -1277,5 +1277,10 @@ describe("kurucu T5 (10-21) — algılayıcı: kesin değil, sabah / akşam beli
     expect(contextHalfHint(["İyi akşamlar, klima bozuk"])).toBeNull();
     expect(contextSaysNow(["Şimdi havlu getirebilir misiniz?"])).toBe(true);
     expect(contextSaysNow(["Yarın havlu getirebilir misiniz?"])).toBe(false);
+    // Haiku T5: olumsuz "şimdi değil / not now" şimdi değildir; yalın "now / şu an" şimdidir.
+    expect(contextSaysNow(["Şimdi değil, yarın bakalım"])).toBe(false);
+    expect(contextSaysNow(["not now, thanks"])).toBe(false);
+    expect(contextSaysNow(["Can you bring towels now?"])).toBe(true);
+    expect(contextSaysNow(["Şu an havlu lazım"])).toBe(true);
   });
 });

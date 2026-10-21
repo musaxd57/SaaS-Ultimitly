@@ -586,7 +586,7 @@ export async function getConversationSuggestions(
         const pastDue =
           promise.dayExplicit &&
           promise.day === "today" &&
-          window.precision === "time" &&
+          window.precision !== "day" &&
           dueAt.getTime() < m.createdAt.getTime() - 5 * 60_000 &&
           dayKey === dateKeyInTimeZone(now, tz);
         const day = pastDue ? "today" : relativeDayOf(dayKey, dueAt, now, tz);

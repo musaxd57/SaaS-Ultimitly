@@ -143,7 +143,6 @@ export function ActionSuggestions({ items }: { items: ActionSuggestionItem[] }) 
                     key={t}
                     size="sm"
                     variant={edit.time === t ? "default" : "outline"}
-                    disabled={moving}
                     onClick={() => setEdits({ ...edits, [s.key]: { ...edit, time: t } })}
                   >
                     {t}
@@ -197,7 +196,7 @@ export function ActionSuggestions({ items }: { items: ActionSuggestionItem[] }) 
               <Button
                 size="sm"
                 disabled={
-                  busy !== null || (needsChoice && !attach[s.key]) || (dayUnclear && !moving && !edit?.day) || (timeChoices.length > 0 && !moving && !edit?.time)
+                  busy !== null || (needsChoice && !attach[s.key]) || (dayUnclear && !moving && !edit?.day) || (timeChoices.length > 0 && !edit?.time)
                 }
                 onClick={() => decide(s, "approve")}
               >

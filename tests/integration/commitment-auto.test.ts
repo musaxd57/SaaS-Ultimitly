@@ -1280,6 +1280,32 @@ describe("kurucu T5 tablosu — mesaj anı + bağlam (10-21)", () => {
     expect([dateKeyInTimeZone(c.dueAt, TZ), wallClock(c.dueAt)]).toEqual([tomorrowKeyOf(t), "19:00"]);
   });
 
+  it("Haiku T5: saat seçeneği taşıma seçeneğiyle ATLANAMAZ — saat seçilmeden onay yok; seçilen saate taşınır", async () => {
+    const t = at(12);
+    const s = await setup();
+    await hostSays(s.conversationId, "Klima için teknisyen yarın 15:00'te gelecek.", new Date(t.getTime() - 30 * 60_000));
+    expect((await applyHostCommitmentsAuto(s.orgId, s.conversationId)).created).toBe(1);
+    await hostSays(s.conversationId, "Teknisyen yarın 7'de gelecek.", t);
+    const [card] = await cards(s);
+    expect(card.kind === "commitment" && card.proposal.timeChoices).toEqual(["07:00", "19:00"]);
+    const existing = await prisma.guestCommitment.findFirstOrThrow();
+    const attach = card.kind === "commitment" && card.proposal.moveOptions ? `move:${existing.id}` : undefined;
+    expect((await decide({ key: card.key, decision: "approve", ...(attach ? { attach } : {}) })).status).toBe(400);
+    expect((await decide({ key: card.key, decision: "approve", time: "19:00", ...(attach ? { attach } : {}) })).status).toBe(200);
+    const times = (await prisma.guestCommitment.findMany()).map((c) => wallClock(c.dueAt));
+    expect(times).toContain("19:00");
+    expect(times).not.toContain("07:00");
+  });
+
+  it("Haiku T5: açık 'bugün' + geçmiş DİLİM ('bugün sabah' 13:00'te) de gizlenmez, kart; kendiliğinden kaydedilmez", async () => {
+    const t = at(13);
+    const s = await setup();
+    await hostSays(s.conversationId, "Teknisyen bugün sabah gelecek.", t);
+    expect((await applyHostCommitmentsAuto(s.orgId, s.conversationId)).created).toBe(0);
+    const [card] = await cards(s);
+    expect(card.kind === "commitment" && [card.proposal.day, card.proposal.pastDue]).toEqual(["today", true]);
+  });
+
   it("'Teknisyen yarın 10'da gelecek inşallah.' → 'inşallah' sözü iptal etmez: kaydedilir", async () => {
     const t = at(12);
     const s = await setup();
