@@ -258,8 +258,8 @@ export function AutomationPrefsForm({
         <p className="mb-1.5 text-xs text-muted-foreground">
           Buraya kendi <span className="font-medium">geç çıkış / konaklama uzatma</span> teklifinizi
           (fiyat ve koşullar) yazarsanız, bir misafir geç çıkış veya kalışı uzatmayı sorduğunda AI
-          bu teklifi <span className="font-medium">yalnızca o soruda</span> misafire iletir ve son
-          onayı size bırakır (&ldquo;uygunluğu ev sahibimiz netleştirecek&rdquo;). Boş bırakırsanız
+          bu teklifi <span className="font-medium">yalnızca o soruda</span> misafire iletir; kesin söz vermez ve
+          konuyu size bırakır (misafire &ldquo;size döneceğiz&rdquo; gibi bir söz gitmez — cevabı siz verin). Boş bırakırsanız
           (varsayılan) AI fiyat söylemez, konuyu doğrudan size yönlendirir. AI{" "}
           <span className="font-medium">ödeme yöntemine girmez</span> — nakit/elden ya da platform
           üzerinden demez; ödemeyi misafirle siz ayarlarsınız.

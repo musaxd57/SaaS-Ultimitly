@@ -52,6 +52,11 @@ Durum: **PLAN** (kurucu: "işlerin bittikten sonra bunu da plana koy"). Bu belge
 3. **Kelime kuralları → aday bulucu + bağlam hakemi:** "bilgim yok" ölçüldü (16/17 doğru bırakma, 0/51 yanlış). Sıradakiler (Haiku
    envanterindeki model karşılığı OLMAYANLAR): "mesajınız kaydedildi" bildirimi, güvence / acil yönlendirme cümlesi, ödeme yöntemi,
    kaynaksız somut iddia. Her biri aynı yöntemle.
+   **Ölçüm (10-21 gece, aynı 6.149 gerçek cevap):** "mesajınız kaydedildi" (1.384) ve çıktı vetosu (1.948) bilinçli tutma (K10). Güvence
+   cümlesi kuralı (166) yalnız tehlike bağlamında tutar → pratikte zararsız. Acil yönlendirme (185) gerçek acillerde doğru. **Ödeme yöntemi
+   kuralı (103): ~95'i üçüncü tarafa ödeme bilgisi** ("otopark 150 TL, gişede nakit veya kartla", "bisiklet günlük 250 TL") — ev sahibine
+   platform dışı ödeme DEĞİL; kelime kuralı bu doğru cevapları tutuyor. Hakem sorusu: "taslak misafiri ev sahibine / daireye platform dışı
+   ödemeye (nakit, havale, IBAN, kapıda kart) yönlendiriyor mu?" → **soru T-d**.
 4. **Tek kıdemli okuyucu:** 3. adımdaki hakemleri tek çağrıda toplamak (bir şema, birkaç soru). Her otomatik cevap adayına ~1,6 sn ve
    1.000 mesajda ~$1 ekler; ayrı ayrı çağrıdan ucuz.
 5. **İstem:** sistem istemine "nasıl düşün" ilkeleri (niyet önce, dayanak, tarafsızlık) ve aynı sözcük / farklı anlam ikiz örnekleri
@@ -72,3 +77,6 @@ Durum: **PLAN** (kurucu: "işlerin bittikten sonra bunu da plana koy"). Bu belge
   cevaplasın, olay hakkında hiçbir şey söylemesin.)
 - **T-b:** 4. adımdaki tek kıdemli okuyucu her otomatik cevaba ~1,6 sn ekler. Kabul mü?
 - **T-c:** 7. adımdaki Claude ölçümünü (ücretli, ~$5–10 kredi) yapalım mı?
+- **T-d (ödeme yöntemi, 09-25 "şüphede reddet" kararınızı değiştirir):** Önce: "Otopark ücreti ne kadar?" → "Gül Sokak'ta ücretli açık
+  otopark, günlük 150 TL; gişede nakit veya kartla ödenir." cevabı ev sahibine tutuluyor. Sonra (hakemle): bu cevap gider; "Kapıda bana nakit
+  ödeyebilirsiniz" / "IBAN'a gönderin" gibi ev sahibine platform dışı ödeme yine tutulur. Uygulayalım mı?

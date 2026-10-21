@@ -497,7 +497,12 @@ const SKIP_REASON_LABELS: Record<string, string> = {
             initialDraft={preparedDraft}
             headerActions={
               <>
-                <LinkButton href={backHref} variant="outline" size="sm">
+                <LinkButton
+                  href={backHref}
+                  variant="outline"
+                  size="sm"
+                  aria-label={backHref.includes("status=problem") ? "Sorunlu konuşmalara dön" : "Mesajlara dön"}
+                >
                   <ArrowLeft className="size-4" />
                   <span className="hidden sm:inline">
                     {backHref.includes("status=problem") ? "Sorunlu konuşmalar" : "Mesajlar"}

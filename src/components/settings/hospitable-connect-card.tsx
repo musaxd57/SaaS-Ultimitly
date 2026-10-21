@@ -125,7 +125,7 @@ export function HospitableConnectCard({
           <strong>Bağlantı sağlayıcı tarafından reddedildi.</strong>{" "}
           {info.revokedReason === "refresh_invalid_grant"
             ? "Yetki yenilenemedi (oturum düşmüş olabilir)."
-            : "Token artık geçerli değil (401/403)."}{" "}
+            : "Bağlantı anahtarınızın süresi dolmuş ya da iptal edilmiş."}{" "}
           Aşağıdan yeniden bağlanın; bekleyen mesajlar yeniden bağlanınca gönderilir.
           {info.envAvailable ? " Bu sırada sistemin ortak kanal bağlantısı kullanılıyor." : ""}
         </div>
@@ -158,7 +158,7 @@ export function HospitableConnectCard({
           loaded into the browser. "Değiştir" unlocks it to enter a new one. */}
       {info.connected && !editing ? (
         <div className="space-y-3">
-          <Field label="Hospitable Personal Access Token" htmlFor="hosp-locked">
+          <Field label="Hospitable bağlantı anahtarı (Access Token)" htmlFor="hosp-locked">
             <div className="relative">
               <Input
                 id="hosp-locked"
@@ -172,7 +172,7 @@ export function HospitableConnectCard({
             </div>
           </Field>
           <p className="text-xs text-muted-foreground">
-            🔒 Bağlı ve kilitli. Token <strong>şifreli</strong> saklanıyor ve arayüzde tekrar
+            🔒 Bağlı ve kilitli. Bağlantı anahtarınız <strong>şifreli</strong> saklanıyor ve arayüzde tekrar
             görüntülenmez. Değiştirmek için &quot;Değiştir&quot;e basın.
           </p>
           <div className="flex flex-wrap gap-2">

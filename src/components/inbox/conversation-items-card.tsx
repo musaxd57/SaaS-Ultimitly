@@ -73,9 +73,15 @@ export function ConversationItemsCard({
             <div className="flex shrink-0 items-center gap-2">
               <Badge tone={i.tone}>{i.statusLabel}</Badge>
               {i.open && canManage ? (
-                <Button variant="outline" size="sm" onClick={() => done(i.id)} disabled={busy !== null}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => done(i.id)}
+                  disabled={busy !== null}
+                  aria-label={`Bitti olarak işaretle: ${i.kindLabel}`}
+                >
                   {busy === i.id ? <Loader2 className="size-4 animate-spin" /> : null}
-                  Tamamlandı
+                  Bitti olarak işaretle
                 </Button>
               ) : null}
             </div>

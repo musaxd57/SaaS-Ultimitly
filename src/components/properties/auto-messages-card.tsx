@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
+import { CHECKIN_LEAD_DAYS } from "@/lib/lifecycle-window";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/lib/toast";
@@ -36,7 +37,7 @@ export interface AutoMessageCardItem {
 
 const HINT: Record<AutoMessageKind, string> = {
   welcome: "Rezervasyon yapılınca gider.",
-  checkin: "Girişten birkaç gün önce gider (adres, kapı kodu, Wi-Fi gibi bilgiler için).",
+  checkin: `Girişe ${CHECKIN_LEAD_DAYS} gün kala gider (adres, kapı kodu, Wi-Fi gibi bilgiler için).`,
   checkout: "Çıkış günü sabah gider.",
 };
 
@@ -78,6 +79,9 @@ function AutoMessageEditor({ propertyId, item, canEdit }: { propertyId: string; 
         return;
       }
       setPreview({ forText: draft, result: data.preview });
+    } catch {
+      // UX inceleme 10-21 (H): bağlantı koparsa dönen simge kayboluyor, hiçbir şey yazmıyordu.
+      setError("Bağlantı koptu. İnternetinizi kontrol edip tekrar deneyin.");
     } finally {
       setBusy(null);
     }
@@ -102,6 +106,8 @@ function AutoMessageEditor({ propertyId, item, canEdit }: { propertyId: string; 
       setPreview({ forText: draft, result: data.preview });
       toast.success(`${AUTO_MESSAGE_LABEL[item.kind]} kaydedildi.`);
       router.refresh();
+    } catch {
+      setError("Bağlantı koptu. İnternetinizi kontrol edip tekrar deneyin.");
     } finally {
       setBusy(null);
     }

@@ -415,7 +415,7 @@ export function GuestChat({ token }: { token: string }) {
             rows={1}
             maxLength={2000}
             placeholder="Sorunuzu yazın…"
-            className="max-h-32 min-h-[40px] flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+            className="max-h-32 min-h-[40px] flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
           />
           <button
             type="submit"

@@ -243,6 +243,8 @@ export default async function PropertyDetailPage({
             endpoint={`/api/properties/${property.id}`}
             redirectTo="/properties"
             label="Mülkü sil"
+            confirmText={`“${property.name}” mülkünü silmek istiyor musunuz?`}
+            confirmBody="Bu mülkün rezervasyonları, misafir konuşmaları, görevleri, bilgi tabanı ve takvim bağlantıları da kalıcı olarak silinir. Bu işlem geri alınamaz."
           />
         ) : null}
       </PageHeader>

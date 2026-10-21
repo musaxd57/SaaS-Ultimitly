@@ -659,6 +659,13 @@ export function ConversationThread({
           </Button>
           {headerActions}
         </div>
+        {/* UX inceleme 10-21 (F): "Sorunlu" yapay zekâyı bu konuşmada KALICI durdurur (`automation.ts` status === "problem") — ev sahibi
+            not olsun diye seçip misafirin sonraki mesajlarının cevapsız kaldığını fark etmiyordu. */}
+        {status === "problem" ? (
+          <p className="basis-full text-xs text-amber-700 dark:text-amber-400">
+            Sorunlu konuşmada yapay zekâ cevap göndermez. Sorun çözülünce durumu “Cevaplandı” yapın.
+          </p>
+        ) : null}
       </div>
 
       {/* Messages */}

@@ -13,6 +13,8 @@ interface DeleteButtonProps {
   redirectTo?: string;
   label?: string;
   confirmText?: string;
+  /** Onay penceresinde başlığın altındaki açıklama (ne silineceği) — verilmezse yalnız başlık. */
+  confirmBody?: string;
 }
 
 export function DeleteButton({
@@ -20,6 +22,7 @@ export function DeleteButton({
   redirectTo,
   label = "Sil",
   confirmText = "Bu kaydı silmek istediğinize emin misiniz? Bu işlem geri alınamaz.",
+  confirmBody,
 }: DeleteButtonProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -30,7 +33,7 @@ export function DeleteButton({
   const { ref: btnRef, arm } = useRestoreFocusOnIdle<HTMLButtonElement>(loading);
 
   async function onDelete() {
-    if (!(await confirmDialog({ title: confirmText, confirmLabel: label, destructive: true })))
+    if (!(await confirmDialog({ title: confirmText, ...(confirmBody ? { body: confirmBody } : {}), confirmLabel: label, destructive: true })))
       return;
     arm();
     setLoading(true);

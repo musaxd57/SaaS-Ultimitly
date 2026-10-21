@@ -295,7 +295,7 @@ const PANELS = [
   {
     icon: LayoutDashboard,
     name: "Panel",
-    body: "Günlük AI özeti, bugünkü giriş/çıkışlar, bekleyen mesajlar ve doluluk — sabah açınca her şey bir bakışta.",
+    body: "Bugünkü giriş/çıkışlar, bekleyen mesajlar, dikkat gerektiren işler ve doluluk — sabah açınca her şey bir bakışta.",
   },
   {
     icon: MessageSquareReply,
