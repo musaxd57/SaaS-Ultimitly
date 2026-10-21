@@ -963,8 +963,11 @@ describe("'Yanlış, kaldır' (kendiliğinden kaydedilen söz)", () => {
 
   it("görev atanmışsa 'Yanlış, kaldır' sözü kapatır ama görevi BIRAKIR (O2)", async () => {
     const s = await setup();
-    await hostSays(s.conversationId, "Havlu getireceğim.");
-    await applyHostCommitmentsAuto(s.orgId, s.conversationId);
+    // Sabit an (İstanbul 12:00): saatsiz "Havlu getireceğim" günün sonuna yakın saatte kendiliğinden açılmaz (T5, geçmiş saat → kart) —
+    // gerçek saatle koşan test İstanbul ~22:00 sonrası kırmızıydı (10-21 gece tam kapı).
+    const NOW = new Date("2026-11-20T09:00:00Z");
+    await hostSays(s.conversationId, "Havlu getireceğim.", new Date(NOW.getTime() - 5_000));
+    await applyHostCommitmentsAuto(s.orgId, s.conversationId, NOW);
     const c = await prisma.guestCommitment.findFirstOrThrow();
     const staff = await prisma.user.create({ data: { organizationId: s.orgId, name: "T", email: `t2-${s.orgId}@x.com`, passwordHash: "x", role: "staff" } });
     await prisma.task.update({ where: { id: c.taskId! }, data: { assignedToId: staff.id } });
@@ -974,8 +977,11 @@ describe("'Yanlış, kaldır' (kendiliğinden kaydedilen söz)", () => {
 
   it("görev üzerinde çalışılıyorsa 'Yanlış, kaldır' sözü kapatır ama görevi BIRAKIR", async () => {
     const s = await setup();
-    await hostSays(s.conversationId, "Havlu getireceğim.");
-    await applyHostCommitmentsAuto(s.orgId, s.conversationId);
+    // Sabit an (İstanbul 12:00): saatsiz "Havlu getireceğim" günün sonuna yakın saatte kendiliğinden açılmaz (T5, geçmiş saat → kart) —
+    // gerçek saatle koşan test İstanbul ~22:00 sonrası kırmızıydı (10-21 gece tam kapı).
+    const NOW = new Date("2026-11-20T09:00:00Z");
+    await hostSays(s.conversationId, "Havlu getireceğim.", new Date(NOW.getTime() - 5_000));
+    await applyHostCommitmentsAuto(s.orgId, s.conversationId, NOW);
     const c = await prisma.guestCommitment.findFirstOrThrow();
     await prisma.task.update({ where: { id: c.taskId! }, data: { status: "in_progress" } });
     expect((await patchCommitment(s.conversationId, c.id, { status: "cancelled", reason: "wrong" })).status).toBe(200);
