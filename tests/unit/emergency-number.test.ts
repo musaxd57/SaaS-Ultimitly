@@ -265,3 +265,12 @@ describe("emergencyNumberReply — karar", () => {
     expect(wrong).toEqual([]);
   });
 });
+
+describe("Claude 2. dalga #70 (10-21): 'hotel / hôtel' ev sahibi anlaşmazlığı değildir", () => {
+  it.each(["We are at the hotel next door, my mother fainted", "Nous sommes à l'hôtel, ma mère s'est évanouie"])("anlaşmazlık değil: %s", (m) => {
+    expect(hostDisputeSignal(m)).toBe(false);
+  });
+  it.each(["L'hôte refuse de rendre la caution", "Notre hôte nous menace"])("KONTROL — Fransızca 'hôte' yine anlaşmazlık işareti: %s", (m) => {
+    expect(hostDisputeSignal(m)).toBe(true);
+  });
+});

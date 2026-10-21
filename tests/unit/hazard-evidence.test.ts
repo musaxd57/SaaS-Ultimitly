@@ -774,3 +774,30 @@ describe("🚨 Claude kod incelemesi 10-21 (doğrulandı): virgülsüz panik cü
     expect(level(m)).toBe(want);
   });
 });
+
+describe("Claude 2. dalga #78 / #21 (10-21): öznesiz kip fiili sigara değildir; inç işareti tırnak değildir", () => {
+  it.each([
+    ["The heater does smoke and smell burning right now"],
+    ["the oven could smoke, there is smoke everywhere"],
+  ])("duman bildirimi sigara sorusuna dönmez: %s", (m) => {
+    expect(hazardModule.hazardEvidenceOf(m).level).toBe("clear");
+  });
+
+  it.each([["Can we smoke on the balcony?"], ["Can I smoke here?"], ["Is it ok to smoke here?"], ["Where can we smoke?"], ["Do you smoke?"]])(
+    "KONTROL — kişi öznesiyle sigara sorusu yine acil değil: %s",
+    (m) => {
+      expect(hazardModule.hazardEvidenceOf(m).level).toBe("mentioned");
+    },
+  );
+
+  it("eşleşmemiş inç işareti ile sonraki tırnak arasındaki tehlike cümlesi silinmez", () => {
+    expect(hazardModule.hazardEvidenceOf('The 55" TV is fine but there\'s a strong gas smell in the kitchen "right now"').level).toBe("clear");
+  });
+
+  it.each([['He said "there is a fire" in the movie, lol'], ['The sign says "gas leak" but it\'s just a test']])(
+    "KONTROL — sözcük sınırındaki gerçek alıntı yine alıntı: %s",
+    (m) => {
+      expect(hazardModule.hazardEvidenceOf(m).level).toBe("none");
+    },
+  );
+});

@@ -140,7 +140,10 @@ const WATER_CONTACT = rx([
 ]);
 /** Sigara İÇME izni / alışkanlığı (İngilizce "smoke" fiili) — tehlike bildirimi değil, ev kuralı sorusu. */
 const SMOKING_HABIT = rx([
-  `${NL}(?:can|may|could|do|does|is\\s+it\\s+(?:ok|okay|allowed|possible|fine)\\s+to|are\\s+(?:we|guests)\\s+allowed\\s+to|allowed\\s+to|permitted\\s+to|want\\s+to|like\\s+to|where\\s+(?:can|to)|ok\\s+to)\\s+(?:(?:i|we|you|they|guests|one|people)\\s+)?smoke${NR}`,
+  // Kip fiili (can / may / could / do / does) yalnız KİŞİ öznesiyle sigaradır (Claude 2. dalga #78): "Can we smoke?" evet; "the heater does
+  // smoke and smells burning" / "the oven could smoke" duman BİLDİRİMİdir, öznesiz kip eşleşmez.
+  `${NL}(?:can|may|could|do|does)\\s+(?:i|we|you|they|guests|one|people)\\s+smoke${NR}`,
+  `${NL}(?:is\\s+it\\s+(?:ok|okay|allowed|possible|fine)\\s+to|are\\s+(?:we|guests)\\s+allowed\\s+to|allowed\\s+to|permitted\\s+to|want\\s+to|like\\s+to|where\\s+(?:can|to)|ok\\s+to)\\s+(?:(?:i|we|you|they|guests|one|people)\\s+)?smoke${NR}`,
   `${NL}smoking\\s+(?:is\\s+)?(?:allowed|permitted|prohibited|forbidden|area|areas|policy|ban|rules?|room|indoors|inside|outside|on\\s+the)${NR}`,
   `${NL}(?:no[-\\s]smoking|non[-\\s]?smok${LB}|smokers?|smoke[-\\s]free)${NR}`,
   `${NL}smoke\\s+(?:a\\s+)?(?:cigarettes?|cigars?|weed|shisha|hookah|vapes?|pipe)${NR}`,
@@ -412,7 +415,11 @@ const TR_QUESTION = rx([`${NL}(?:var|yok)\\s+m[iu]${NR}`, `${NL}m[iu]\\s+(?:var|
 
 const BARE_ALARM =
   /^(?:(?:imdat|help|hilfe|au\s+secours|socorro|ayuda|помогите|النجدة)\s+)?(?:yangin|fire|feuer|au\s+feu|feu|fuego|incendio|пожар|حريق)(?:\s+(?:var|imdat|help|hilfe))?$/iu;
-const QUOTED = /[“"«„][^“”"«»„\n]{1,80}[”"»“]/gu;
+/**
+ * Alıntı. Düz çift tırnak ("…") yalnız sözcük SINIRINDA açılıp kapanırsa alıntıdır (Claude 2. dalga #21): inç işareti ('55" TV', 'the 2"
+ * pipe') tırnak değildir — eşleşmemiş inç ile sonraki bir tırnak arasındaki gerçek tehlike cümlesi silinmez.
+ */
+const QUOTED = /[“«„][^“”"«»„\n]{1,80}[”"»“]|(?<![\p{L}\p{N}])"[^“”"«»„\n]{1,80}"(?![\p{L}\p{N}])/gu;
 /** Cümlecik sınırları: noktalama + virgül + karşıtlık bağlaçları ("yangın yok AMA duman var" iki ayrı cümlecik). Ayraç YAKALANIR (soru işareti). */
 const CLAUSE_SPLIT =
   /((?:(?<!\d)[.](?!\d)|[!?;,\n…؟،]|(?<![\p{L}\p{N}])(?:ama|fakat|ancak|lakin|but|however|aber|jedoch|mais|pero|sino|но|однако|لكن|ولكن)(?![\p{L}\p{N}]))+)/u;

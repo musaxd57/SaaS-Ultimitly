@@ -288,11 +288,40 @@ function liveSound(sentence: string, s: Span, firstHypo: number): boolean {
     if (otherDeviceStopped(sentence, s)) return false;
   } else {
     const neg = PLAIN_NEG.exec(before);
-    if (neg && !STOP_VERB.test(` ${neg[1]}`) && !DE_STOP_SEPARABLE.test(before)) return false;
+    // Olumsuzluk BAŞKA bir yüklemi bağlaçla bitiriyorsa sese uzanmaz (Claude 2. dalga #18): "The CO alarm is not working AND beeping",
+    // "çalışmıyor ve ötüyor" — "not … and" arasındaki sözcük ayrı yüklemdir, ses olumsuzlanmamıştır.
+    if (neg && !STOP_VERB.test(` ${neg[1]}`) && !DE_STOP_SEPARABLE.test(before) && !NEG_ENDS_IN_CONJUNCTION.test(` ${neg[1]}`)) return false;
     if (NEG_AFTER.test(sentence.slice(s.end, s.end + 14))) return false;
   }
   if (futureBefore(sentence, s)) return false;
-  return !(firstHypo < s.start);
+  return !(firstHypo < s.start) || hypotheticalReleased(sentence, firstHypo, s.start);
+}
+
+/** Olumsuzluk penceresinin son sözcüğü bağlaç mı ("not working and ", "nicht kaputt und ")? */
+const NEG_ENDS_IN_CONJUNCTION = /\s(?:and|or|but|und|oder|aber|et|ou|mais|y|o|pero|ve|veya|ama|и|или|но)\s$/u;
+/** Karşıtlık bağlacı: önceki varsayım / belirsizlik cümleciği burada KAPANIR ("Sorry if this is silly BUT the CO alarm is beeping"). */
+const CONTRAST = /(?:^|\s)(?:but|however|though|aber|jedoch|ama|ancak|fakat|lakin|mais|pero|sin embargo|но|однако)(?![\p{L}\p{N}])/u;
+/** Varsayım penceresi — sınırlı (her ses için doğrusal tarama karesel olmasın). */
+const HYPO_RELEASE_WINDOW = 200;
+
+/**
+ * Varsayım sözcüğü sesten ÖNCE ama başka bir cümlecikte (Claude 2. dalga #53): araya karşıtlık bağlacı girdiyse ("I don't know if it matters
+ * but the CO detector is beeping") ya da virgülden sonraki cümlecik SÜREN sesi söylüyorsa ("Not sure if it's serious, the CO alarm keeps
+ * beeping") ses canlıdır. Ayrımdan sonra YENİ bir varsayım sözcüğü varsa ("Not sure, but if the alarm beeps…") varsayım sürer. Virgülden
+ * sonra süreklilik işareti yoksa ("If we cook, will the CO alarm beep?") eski davranış (varsayım).
+ */
+function hypotheticalReleased(sentence: string, firstHypo: number, soundStart: number): boolean {
+  const from = Math.max(firstHypo, soundStart - HYPO_RELEASE_WINDOW);
+  const between = sentence.slice(from, soundStart);
+  let cut = -1;
+  const contrast = CONTRAST.exec(between);
+  if (contrast) cut = contrast.index + contrast[0].length;
+  else {
+    const comma = between.lastIndexOf(",");
+    if (comma >= 0 && ONGOING.test(sentence.slice(from + comma, Math.min(sentence.length, from + comma + HYPO_RELEASE_WINDOW)))) cut = comma + 1;
+  }
+  if (cut < 0) return false;
+  return spans(HYPOTHETICAL_ALL, blankPoliteConditionals(between.slice(cut))).length === 0;
 }
 
 /** Sıralı iki işaretçi: herhangi bir ad–fiil çifti ≤ NEAR karakter mi? O(D + S) (iki dizi de konuma göre sıralı). */

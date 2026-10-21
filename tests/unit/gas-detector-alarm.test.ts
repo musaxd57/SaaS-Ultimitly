@@ -629,3 +629,33 @@ describe("Y1 (10-14 dış inceleme): nezaket girişi gerçekleşen tehlikeyi var
     expect(performance.now() - t0).toBeLessThan(1500);
   });
 });
+
+describe("Claude 2. dalga #18 / #53 (10-21): bağlaçla biten olumsuzluk ve başka cümlecikteki varsayım sesi düşürmez", () => {
+  it.each([
+    "The CO alarm is not working and beeping loudly",
+    "Der CO-Melder ist nicht kaputt und piept die ganze Zeit",
+    "Sorry if this is silly but the CO alarm is beeping",
+    "I don't know if it matters but the CO detector is beeping nonstop",
+    "Not sure if it's serious, the CO alarm keeps beeping",
+    "Ich weiß nicht, ob es wichtig ist, aber der CO-Melder piept",
+  ])("canlı ses: %s", (m) => {
+    expect(gasDetectorSounding(m)).toBe(true);
+  });
+
+  it.each([
+    "The CO alarm is not beeping",
+    "The CO alarm is not working and not beeping",
+    "If the CO alarm beeps, what should we do?",
+    "If we cook, will the CO alarm beep?",
+    "I'm not sure if the CO alarm beeps when I cook",
+    "Not sure, but if the CO alarm beeps should we leave",
+    "Wenn der CO-Melder piept, was sollen wir tun?",
+  ])("KONTROL (aşırı uygulama yok) — bildirim değil: %s", (m) => {
+    expect(gasDetectorSounding(m)).toBe(false);
+  });
+
+  it("duman dedektöründe de aynı kural", () => {
+    expect(smokeDetectorSounding("The smoke alarm is not working and beeping")).toBe(true);
+    expect(smokeDetectorSounding("The smoke alarm is not beeping")).toBe(false);
+  });
+});

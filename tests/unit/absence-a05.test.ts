@@ -97,3 +97,20 @@ describe("A05 — 'bilgim yok' kapısı açıkları kapandı", () => {
     expect(admitsMissingKnowledge(cevap)).toBe(false);
   });
 });
+
+describe("Claude 2. dalga #69 (10-21): virgüller arasındaki yumuşatma sözcüğü 'bilgim yok'u gizlemez", () => {
+  it.each(["Bu konuda bilgim, maalesef, yok.", "I don't have, unfortunately, any information about that."])("tutulur: %s", (m) => {
+    expect(admitsMissingKnowledge(m)).toBe(true);
+  });
+  it.each(["Havuz, maalesef, 20:00'de kapanıyor.", "Unfortunately, the pool closes at 20:00, sadly, for everyone."])(
+    "KONTROL — bilgi veren cümle tutulmaz: %s",
+    (m) => {
+      expect(admitsMissingKnowledge(m)).toBe(false);
+    },
+  );
+  it("uzun virgül / boşluk dizisinde karesel iş yok", () => {
+    const t0 = performance.now();
+    admitsMissingKnowledge(`bilgim${", maalesef".repeat(5000)}, yok ${" ,".repeat(20000)}`);
+    expect(performance.now() - t0).toBeLessThan(1500);
+  });
+});

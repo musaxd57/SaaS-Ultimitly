@@ -544,6 +544,10 @@ function narratesInternalSource(folded: string): boolean {
   return false;
 }
 
+/** Virgüller arasındaki yumuşatma sözcüğü (↓ `foldedForms`). Boşluklar önceden teke indirildiği için karesel iş yok. */
+const INTERJECTION_BETWEEN_COMMAS =
+  /\s?,\s?(?:maalesef|ne yaz[ıi]k ki|[üu]zg[üu]n[üu]m|unfortunately|sadly|i'?m afraid|regrettably|leider|malheureusement|h[ée]las|lamentablemente|desafortunadamente|por desgracia|к сожалению|للأسف)\s?,\s?/giu;
+
 /** Ortak hazırlık: `admitsMissingKnowledge` ile aynı normalleştirme + iki katlama. */
 function foldedForms(text: string | null | undefined): [string, string] {
   // Görünmez karakter (ZWSP, yumuşak tire, biçim karakteri, boş braille) yalnız EŞLEŞME kopyasından silinir — "bilgim\u200B yok" kuralı
@@ -553,7 +557,10 @@ function foldedForms(text: string | null | undefined): [string, string] {
     .normalize("NFC")
     .replace(/[’‘ʼ]/g, "'")
     .replace(/[*_`~]+/g, "")
-    .replace(/\s+/g, " ");
+    .replace(/\s+/g, " ")
+    // Virgüller arasındaki ünlem / yumuşatma sözcüğü de yalnız EŞLEŞME kopyasından düşer (Claude 2. dalga #69): "Bu konuda bilgim, maalesef,
+    // yok" / "I don't have, unfortunately, any information" kalıbı virgül yüzünden kaçıyordu. Tutucu yön (yalnız tutma artar).
+    .replace(INTERJECTION_BETWEEN_COMMAS, " ");
   const marked = normalized.replace(SENTENCE_END, `$1${SEP}$2`);
   return [foldTurkishLower(marked), foldTurkishLowerTr(marked)];
 }
