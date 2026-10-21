@@ -8,7 +8,23 @@
 > `docs/history/CLAUDE-2026-10-02-sadelestirme-3-oncesi-tam-metin.md` ("Durum" bölümü). Kuralları yukarıdaki bölümlerde; yalnız Durum'da
 > yazılı olan kurallar (konuşma öğeleri, ev kuralları, canlı bayraklar) 10-02'de ilgili bölümlere taşındı. Bekleyen onaylar ↓.
 
-**10-21 gece-3 (güncel — clear sonrası BURADAN devam):** kurucu cevapları (W1–W9 + altyapı 1–8) işlendi; "kelime değil bağlam" ilk dilimi.
+**10-21 gece-4 (güncel — clear sonrası BURADAN devam; kurucu "gece modundasın, hiç soru sorma"):**
+- UX incelemesi (Opus, 24 bulgu) + görsel inceleme (39 ekran görüntüsü, 30 bulgu) + güvenlik incelemesi (2 yeni bulgu) koştu; raporlar
+  scratchpad'de (`review-ux-1021.md`, `screens/review-visual-1021.md`, `review-security-1021.md`). Ev sahibi ekranında müşteriye giden
+  AI cevabına dokunmayan düzeltmeler kodda: olası tehlike bandı ("beklemede" demez; etiketler `lib/inbox-skip-labels.ts`, kaydedilen her
+  gerekçenin etiketi pinli), bant eylem bağlantıları (plan bağlantısı yalnız sahibe), kurulum 1. adımı → Bağlantılar, Bilgi Tabanı başlığı
+  T4 sonrası doğru, "AI cevap öner" Ayarlar tonuyla, mobil 16 px alanlar, "Sorunlu" ipucu, mülk silme onayı ne silineceğini söyler, sade metinler.
+- Güvenlik P3: cevap modeli devre kesicisi KİRACI BAŞINA (ortak kesici ≥2 işletmeden zaman aşımıyla); Haiku: ortak kira israfı yok, dizi
+  3 dk aralıkla kopar, sessiz kiracı kaydı silinir.
+- Kırmızı takım geliştirme seti + tarafsızlık katmanı ölçümü: `docs/olcum/TARAFSIZLIK-VE-KIRMIZI-TAKIM-2026-10-21.md` (taban: misafire giden
+  yasak dize 0, serbest kalan tutuş 0; katman: özürlü taslak 9→0, geliştirme setinde gerileme yok). Kör kırmızı takım iş paketi (istek 3, $10)
+  bu push'la tetiklenir — çıktı mühürlü klasöre, içeriğe bakılmaz.
+- CI #1573 kırmızısı (eski pinler: 256 birleşim, yalnız-"1" bayrak listesi, ölçüm koşu kimliği, taşınan etiketler) düzeltildi.
+- Sorular (hiçbiri uygulanmadı): `docs/arastirma-2026-10-15/KURUCU-SORULARI.md` §U (U1 QR cihaz kilidi ele geçirme · U2 misafir ekranı dili ·
+  U3 sohbet kodu adı · U4 daire adı · U5 otomasyon anahtarı · U6 panel sırası · U7 "şikayetçi değil" kelime yanlış alarmı · U8 tehdit + masum
+  soru · U9 başka misafir bilgisi) + plan belgesi T-a…T-d.
+
+**10-21 gece-3 (önceki):** kurucu cevapları (W1–W9 + altyapı 1–8) işlendi; "kelime değil bağlam" ilk dilimi.
 - W1/W2/W3/W5/W6/W7/W9 kodda (önceki tur) · **W4** "bulamamak" yalnız ben / biz / kaynak öznesiyle itiraf (talimat / olgu tutulmaz) ·
   **W8** anlama istemine acil tanımı → tehlike sondası 48/48 acil yolu (önce 46), geliştirme setinde gerileme yok (yanlış bilgi 0, sızma 0).
 - **Bağlam hakemi** (`semantic/absence-judge.ts`, `AI_ABSENCE_JUDGE_ENABLED` + `_STRICT` KAPALI): gerçek 6.149 cevapta kelime kuralı 69 tuttu,
