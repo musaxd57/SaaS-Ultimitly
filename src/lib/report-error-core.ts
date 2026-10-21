@@ -22,14 +22,14 @@ export { errorWithContext, formatErrorForLog, prismaErrorSummary, redactJsonStru
 const lastEmailAt = new Map<string, number>();
 const EMAIL_THROTTLE_MS = 10 * 60 * 1000; // at most one alert email / context / 10 min
 // Bağlam dizesi işletme kimliği taşır (ör. `qr-cancelled-stay org=…`) → harita işletme × bağlam kadar büyür, hiç silinmiyordu (altyapı
-// envanteri 10-21, madde 41). Tavan aşılınca penceresi geçmiş damgalar silinir; hepsi tazeyse EN ESKİ DAMGA gider. Damga her yazılışta
-// sil + ekle ile haritanın sonuna taşınır (`stampEmail`), böylece ekleme sırası = damga sırası (Haiku 10-21: yerinde `set` sırayı
-// korur, taze damga silinebilirdi). Yalnız 10 dakikada 2.000'den fazla FARKLI bağlam hata verirse en eskisi bir e-postayı erken alır.
+// envanteri 10-21, madde 41). Tavan aşılınca EN ESKİ DAMGA gider. Damga her yazılışta sil + ekle ile haritanın sonuna taşınır
+// (`stampEmail`), böylece ekleme sırası = damga sırası (Haiku 10-21: yerinde `set` sırayı korur, taze damga silinebilirdi; tek istisna
+// gönderim düşünce geri çekilen damga — o zaten 1 dk içinde düşer); penceresi geçmiş damgalar baştadır, ayrı bir süpürme gerekmez (mutasyon M3 eşdeğer çıktı → kaldırıldı). Yalnız 10 dakikada 2.000'den
+// fazla FARKLI bağlam hata verirse en eskisi bir e-postayı erken alır.
 export const EMAIL_THROTTLE_MAX_KEYS = 2_000;
 
-function pruneEmailThrottle(now: number): void {
+function pruneEmailThrottle(): void {
   if (lastEmailAt.size < EMAIL_THROTTLE_MAX_KEYS) return;
-  for (const [key, at] of lastEmailAt) if (now - at >= EMAIL_THROTTLE_MS) lastEmailAt.delete(key);
   for (const key of lastEmailAt.keys()) {
     if (lastEmailAt.size < EMAIL_THROTTLE_MAX_KEYS) break;
     lastEmailAt.delete(key);
@@ -154,7 +154,7 @@ export async function reportError(context: string, err: unknown): Promise<Report
   if (now - (lastEmailAt.get(context) ?? 0) < EMAIL_THROTTLE_MS) {
     return { notified: false, throttled: true, configured: true, ...linked };
   }
-  pruneEmailThrottle(now);
+  pruneEmailThrottle();
   stampEmail(context, now);
 
   try {
