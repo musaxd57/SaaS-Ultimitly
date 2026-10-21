@@ -51,10 +51,14 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
 
 export const PUT = withManage<{ id: string }>(async (session, req, { params }) => {
   const { id } = await params;
+  const limited = await rateLimit(`auto-message-save:${session.userId}`, 30, 60_000);
+  if (!limited.ok) return tooManyRequests(limited.retryAfter);
   const data = await readJsonCappedOrNull<{ kind?: unknown; body?: unknown; expectedRevision?: unknown }>(req);
   if (!isAutoMessageKind(data?.kind)) return badRequest({ kind: KIND_ERROR });
   if (typeof data.body !== "string") return badRequest({ body: "Mesaj metni gerekli." });
   if (data.body.length > AUTO_MESSAGE_MAX_CHARS) return badRequest({ body: TOO_LONG });
+  // NUL karakteri PostgreSQL metninde saklanamaz (500 yerine anlaşılır ret — Haiku T4 #7).
+  if (data.body.includes("\u0000")) return badRequest({ body: "Mesajda geçersiz karakter var." });
   const expected = data.expectedRevision;
   if (typeof expected !== "number" || !Number.isInteger(expected) || expected < 0) return badRequest({ expectedRevision: STALE });
   const property = await propertyOf(session.organizationId, id);

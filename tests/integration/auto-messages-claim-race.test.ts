@@ -8,10 +8,21 @@ import { seedAutoMessage } from "../helpers/auto-message";
 // taklidi bütün dosyayı etkiler → ayrı dosya); veritabanında metin o an güncel sürümdedir.
 // ---------------------------------------------------------------------------
 
-const stale = vi.hoisted(() => ({ value: null as null | { id: string; revision: number; content: string } }));
+const stale = vi.hoisted(() => ({
+  value: null as null | { id: string; revision: number; content: string },
+  /** Okumanın hemen ardından çalışan kanca (yarışı kurmak için: ör. silme işlemi gövdeyi `[ANON]` yapar). */
+  onLoad: null as null | (() => Promise<void>),
+}));
 vi.mock("@/lib/auto-messages/store", async (orig) => {
   const actual = await orig<typeof import("@/lib/auto-messages/store")>();
-  return { ...actual, loadAutoMessage: vi.fn(async (...args: Parameters<typeof actual.loadAutoMessage>) => stale.value ?? actual.loadAutoMessage(...args)) };
+  return {
+    ...actual,
+    loadAutoMessage: vi.fn(async (...args: Parameters<typeof actual.loadAutoMessage>) => {
+      const out = stale.value ?? (await actual.loadAutoMessage(...args));
+      if (stale.onLoad) await stale.onLoad();
+      return out;
+    }),
+  };
 });
 vi.mock("@/lib/messaging", async (orig) => ({
   ...(await orig<typeof import("@/lib/messaging")>()),
@@ -22,6 +33,8 @@ vi.mock("@/lib/report-error", () => ({ reportError: vi.fn().mockResolvedValue(un
 
 import { sendDueWelcomes } from "@/lib/automation";
 import { sendOnChannel } from "@/lib/messaging";
+import { drainOutboxOnce, type OutboxSendFn } from "@/lib/outbox/worker";
+import { ANON_BODY } from "@/lib/data-retention";
 
 const mockSend = vi.mocked(sendOnChannel);
 
@@ -43,6 +56,7 @@ describe("kurucu T4 — kuyruk kapalı: seçimden sonra değişen metin", () => 
     await resetDb();
     vi.clearAllMocks();
     stale.value = null;
+    stale.onLoad = null;
     vi.stubEnv("AUTO_REPLY_ENABLED", "1");
   });
   afterEach(() => vi.unstubAllEnvs());
@@ -69,5 +83,27 @@ describe("kurucu T4 — kuyruk kapalı: seçimden sonra değişen metin", () => 
     stale.value = { id: v1.id, revision: v1.revision, content: "Kod 4821" };
     expect((await sendDueWelcomes(orgId)).sent).toBe(0);
     expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("🚨 kalıcı kuyruk: işçi metni yeniden kurarken misafir SİLİNDİ (gövde [ANON]) → yeniden kurma silinmiş gövdenin üstüne yazmaz, satır iptal", async () => {
+    vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
+    vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", "*");
+    const { orgId, propertyId } = await seed();
+    await seedAutoMessage(propertyId, "welcome", "Merhaba {isim}, kod 4821.");
+    await sendDueWelcomes(orgId);
+    await seedAutoMessage(propertyId, "welcome", "Merhaba {isim}, kod 7310."); // sürüm farkı → işçi yeniden kuracak
+    stale.onLoad = async () => {
+      await prisma.messageOutbox.updateMany({ where: { organizationId: orgId }, data: { body: ANON_BODY } });
+    };
+    const bodies: string[] = [];
+    const send: OutboxSendFn = async (row) => {
+      bodies.push(row.body);
+      return { ok: true, providerMessageId: "p1" };
+    };
+    const res = await drainOutboxOnce({ send, tokenFor: async () => "t" });
+    expect(bodies).toEqual([]);
+    expect(res.canceled).toBe(1);
+    const row = await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId } });
+    expect(row).toMatchObject({ status: "canceled", body: ANON_BODY });
   });
 });

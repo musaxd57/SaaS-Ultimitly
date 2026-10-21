@@ -4844,7 +4844,8 @@ export async function sendDueWelcomes(
       // Seçimden sonra AÇIKÇA SİLİNEN (KVKK) misafire mesaj gitmez (Haiku 10-14 son doğrulama) — öteki girişlerle aynı iki-sıralama kuralı:
       // silme kilidi + kapı İŞLEM İÇİNDE. Saklama süresiyle anonimleşmiş ama canlı konaklama ETKİLENMEZ (tombstone yok).
       if (await sourceReferenceErased(tx, organizationId, r.sourceReference)) return { count: 0 };
-      // Kurucu T4: seçimden sonra metin değiştiyse / boşaltıldıysa eski metin GİTMEZ — sonraki geçiş güncel metinle yeniden seçer.
+      // Kurucu T4: seçimden sonra metin değiştiyse / boşaltıldıysa eski metin GİTMEZ — sonraki geçiş güncel metinle yeniden seçer. Kalan
+      // pencere talep işleminin bitişiyle POST arası (milisaniye; kilit yok — bilinçli, sert inceleme T4 #10).
       if (!(await autoMessageStillAt(tx, welcome.id, welcome.revision))) return { count: 0 };
       const c = await tx.reservation.updateMany({
         where: { sourceReference: r.sourceReference, property: { organizationId }, welcomeSentAt: null, status: "confirmed" },
@@ -5062,7 +5063,8 @@ export async function sendDueCheckins(
       // Seçimden sonra AÇIKÇA SİLİNEN (KVKK) misafire mesaj gitmez (Haiku 10-14 son doğrulama) — öteki girişlerle aynı iki-sıralama kuralı:
       // silme kilidi + kapı İŞLEM İÇİNDE. Saklama süresiyle anonimleşmiş ama canlı konaklama ETKİLENMEZ (tombstone yok).
       if (await sourceReferenceErased(tx, organizationId, r.sourceReference)) return { count: 0 };
-      // Kurucu T4: seçimden sonra metin değiştiyse / boşaltıldıysa eski metin GİTMEZ — sonraki geçiş güncel metinle yeniden seçer.
+      // Kurucu T4: seçimden sonra metin değiştiyse / boşaltıldıysa eski metin GİTMEZ — sonraki geçiş güncel metinle yeniden seçer. Kalan
+      // pencere talep işleminin bitişiyle POST arası (milisaniye; kilit yok — bilinçli, sert inceleme T4 #10).
       if (!(await autoMessageStillAt(tx, tpl.id, tpl.revision))) return { count: 0 };
       const c = await tx.reservation.updateMany({
         where: {
@@ -5424,7 +5426,8 @@ export async function sendDueCheckouts(
       // Seçimden sonra AÇIKÇA SİLİNEN (KVKK) misafire mesaj gitmez (Haiku 10-14 son doğrulama) — öteki girişlerle aynı iki-sıralama kuralı:
       // silme kilidi + kapı İŞLEM İÇİNDE. Saklama süresiyle anonimleşmiş ama canlı konaklama ETKİLENMEZ (tombstone yok).
       if (await sourceReferenceErased(tx, organizationId, r.sourceReference)) return { count: 0 };
-      // Kurucu T4: seçimden sonra metin değiştiyse / boşaltıldıysa eski metin GİTMEZ — sonraki geçiş güncel metinle yeniden seçer.
+      // Kurucu T4: seçimden sonra metin değiştiyse / boşaltıldıysa eski metin GİTMEZ — sonraki geçiş güncel metinle yeniden seçer. Kalan
+      // pencere talep işleminin bitişiyle POST arası (milisaniye; kilit yok — bilinçli, sert inceleme T4 #10).
       if (!(await autoMessageStillAt(tx, tpl.id, tpl.revision))) return { count: 0 };
       const c = await tx.reservation.updateMany({
         where: {

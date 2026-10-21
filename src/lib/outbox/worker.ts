@@ -672,21 +672,39 @@ async function checkinNotYetDue(row: OutboxRow, now: Date): Promise<Date | null>
 /** Otomatik mesaj metni gönderilemez durumdaysa satırın yeniden deneme aralığı (ev sahibi düzeltene kadar bekler). */
 const TEMPLATE_WAIT_MS = 60 * 60_000;
 
-type LifecycleBodyCheck = { kind: "send"; body: string } | { kind: "wait"; reason: string } | { kind: "lost" };
+type LifecycleBodyCheck = { kind: "send"; body: string } | { kind: "wait"; reason: string } | { kind: "erased" } | { kind: "lost" };
+
+const LIFECYCLE_RESERVATION_SELECT = {
+  propertyId: true,
+  guestName: true,
+  property: { select: { name: true, organizationId: true, organization: { select: { aiSignature: true } } } },
+} as const;
 
 /**
  * Kurucu T4: kuyruktaki yaşam döngüsü satırının gövdesi güncel otomatik mesajla mı kuruldu? Sürüm aynıysa gövde AYNEN gider. Farklıysa (ev
  * sahibi metni değiştirdi) ya da sürüm yoksa (migration 80 öncesi satır) gövde GÜNCEL metinle AYNI satırda yeniden kurulur — anahtar değişmez,
  * rezervasyon başına tek satır kalır (yeni satır açmak belirsiz teslimde ÇİFT gönderim demekti — sert inceleme T4 #1). Metin yok / boş /
- * doldurulamıyorsa bekler (`wait`). Rezervasyonu bilinmeyen eski satır gövdesini korur (hedef yine ↑`lifecycleVeto`dan geçti).
+ * doldurulamıyorsa bekler (`wait`).
  */
 async function refreshLifecycleBody(row: OutboxRow, token: string, rowRevision: number | null, now: Date): Promise<LifecycleBodyCheck> {
-  if (!row.reservationId || !isAutoMessageKind(row.messageType)) return { kind: "send", body: row.body };
-  const reservation = await prisma.reservation.findUnique({
-    where: { id: row.reservationId },
-    select: { propertyId: true, guestName: true, property: { select: { name: true, organizationId: true, organization: { select: { aiSignature: true } } } } },
-  });
-  if (!reservation || reservation.property.organizationId !== row.organizationId) return { kind: "send", body: row.body };
+  if (!isAutoMessageKind(row.messageType)) return { kind: "send", body: row.body };
+  // Satırın rezervasyonu silinmiş olabilir (hayalet satır temizliği — `reservationId` ilişkisiz) ya da eski satırda hiç yoktur: aynı kaynak
+  // kimliğinin bu işletmedeki kopyasından okunur (↑`lifecycleVeto` ile aynı seçim). Hiç bulunamazsa eski gövde GÖNDERİLMEZ, bekler
+  // (Haiku T4 #1: kontrolsüz "gönder" dönüşü boşaltılmış metnin eskisini gönderiyordu).
+  const own = row.reservationId
+    ? await prisma.reservation.findUnique({ where: { id: row.reservationId }, select: LIFECYCLE_RESERVATION_SELECT })
+    : null;
+  const reservation =
+    own && own.property.organizationId === row.organizationId
+      ? own
+      : row.externalReservationId
+        ? await prisma.reservation.findFirst({
+            where: { sourceReference: row.externalReservationId, property: { organizationId: row.organizationId }, status: { not: "cancelled" } },
+            orderBy: [{ arrivalDate: "asc" }, { id: "asc" }],
+            select: LIFECYCLE_RESERVATION_SELECT,
+          })
+        : null;
+  if (!reservation) return { kind: "wait", reason: "template_unresolved" };
   const tpl = await loadAutoMessage(reservation.propertyId, row.messageType);
   if (!tpl) return { kind: "wait", reason: "template_missing" };
   if (rowRevision === tpl.revision) return { kind: "send", body: row.body };
@@ -702,11 +720,15 @@ async function refreshLifecycleBody(row: OutboxRow, token: string, rowRevision: 
     return { kind: "wait", reason: "template_unfilled" };
   }
   // Gövde KENDİ talebimiz koşuluyla yazılır (talep kaybedildiyse bu işçi hiçbir şey göndermez); gönderim izi (↓K7) yeni gövdeyi taşır.
+  // Silme (KVKK) talep edilmiş satırın gövdesini `[ANON]` yapar ama durumunu değiştirmez → yeniden kurma silinmiş gövdenin ÜSTÜNE yazmaz
+  // (Haiku T4 #2); silinmişse satır iptal edilir.
   const updated = await prisma.messageOutbox.updateMany({
-    where: { id: row.id, claimedBy: token, status: "sending" },
+    where: { id: row.id, claimedBy: token, status: "sending", body: { not: ANON_BODY } },
     data: { body, templateRevision: tpl.revision },
   });
-  return updated.count === 1 ? { kind: "send", body } : { kind: "lost" };
+  if (updated.count === 1) return { kind: "send", body };
+  const current = await prisma.messageOutbox.findFirst({ where: { id: row.id, claimedBy: token, status: "sending" }, select: { body: true } });
+  return current?.body === ANON_BODY ? { kind: "erased" } : { kind: "lost" };
 }
 
 /**
@@ -1253,6 +1275,11 @@ async function processOne(
   if (isAutoMessageKind(row.messageType)) {
     const fresh = await refreshLifecycleBody(row, token, live.templateRevision, liveNow);
     if (fresh.kind === "lost") return;
+    if (fresh.kind === "erased") {
+      await cancelRow(row, token, "erased");
+      acc.canceled++;
+      return;
+    }
     if (fresh.kind === "wait") {
       // Metin kaldırıldı / boşaltıldı / doldurulamıyor: GÖNDERİLMEZ, kaybolmaz da — ev sahibi düzeltince güncel metin gider (gönderici
       // kapısıyla aynı "bekler" kuralı); konaklama penceresi geçerse ↑`lifecycleVeto` satırı iptal eder. Deneme sayılmaz.

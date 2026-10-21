@@ -162,6 +162,24 @@ describe("kurucu T4 — kuyruktaki otomatik mesaj gönderimden önce güncel met
     expect(res.canceled).toBe(1);
   });
 
+  it("🚨 satırın rezervasyonu silindi (hayalet satır temizliği) → aynı kaynak kimliğinin kopyasından güncel metin kurulur; eski metin gitmez", async () => {
+    const { orgId, propertyId, reservationId } = await seedQueued();
+    await sendDueWelcomes(orgId);
+    const twin = await prisma.reservation.create({
+      data: {
+        propertyId, guestName: "Bircan Yılmaz", arrivalDate: new Date(Date.now() + 3 * 86_400_000),
+        departureDate: new Date(Date.now() + 5 * 86_400_000), channel: "airbnb", status: "confirmed", sourceReference: "res-1",
+      },
+    });
+    await prisma.reservation.delete({ where: { id: reservationId } });
+    await seedAutoMessage(propertyId, "welcome", "Merhaba {isim}, güncel kod 6060.");
+    const { send, bodies } = capture();
+    await drain(send);
+    expect(bodies).toHaveLength(1);
+    expect(bodies[0]).toContain("6060");
+    expect(twin.id).toBeTruthy();
+  });
+
   it("geçiş öncesi satır (sürüm YOK) güncel kayıttan yeniden kurulur — geçiş metni aynen taşıdığı için içerik aynı", async () => {
     const { orgId, reservationId } = await seedQueued("Merhaba {isim}, kod 4821.");
     await prisma.messageOutbox.create({
