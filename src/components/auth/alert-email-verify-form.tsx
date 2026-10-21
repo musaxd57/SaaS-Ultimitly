@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Loader2, CheckCircle2, AlertCircle, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { fragmentToken } from "@/lib/fragment-token";
 
 // ---------------------------------------------------------------------------
 // UYARI ADRESİ ONAYI (kurucu kararı 09-30). Belirteç URL PARÇASINDAN okunur (sunucuya, kayıtlara, Referer'a girmez) ve adres
@@ -21,14 +22,14 @@ export function AlertEmailVerifyForm() {
   useEffect(() => {
     if (started.current) return;
     started.current = true;
-    const m = /(?:^#|&)t=([A-Za-z0-9._~%-]+)(?:&|$)/.exec(window.location.hash);
+    const fromLink = fragmentToken(window.location.hash);
     window.history.replaceState(window.history.state, "", window.location.pathname + window.location.search);
-    if (!m) {
+    if (!fromLink) {
       setMessage("Bağlantıda onay anahtarı yok. E-postadaki bağlantıyı olduğu gibi açtığınızdan emin olun.");
       setState("failed");
       return;
     }
-    setToken(decodeURIComponent(m[1]!));
+    setToken(fromLink);
     setState("ready");
   }, []);
 

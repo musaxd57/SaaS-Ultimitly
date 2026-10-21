@@ -7,6 +7,7 @@ import { FormError } from "@/components/form-error";
 import { Field } from "@/components/form-field";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Button } from "@/components/ui/button";
+import { fragmentToken } from "@/lib/fragment-token";
 
 // ---------------------------------------------------------------------------
 // E-POSTA DOĞRULAMA — token URL FRAGMENT'inden okunur.
@@ -64,8 +65,7 @@ export function VerifyEmailForm() {
     if (started.current) return;
     started.current = true;
 
-    const raw = window.location.hash;
-    const m = /(?:^#|&)t=([A-Za-z0-9._~%-]+)(?:&|$)/.exec(raw);
+    const token = fragmentToken(window.location.hash);
     // Eşleşme OLMASA DA adres çubuğu temizlenir: kırpılmış/bozuk bir token da
     // geçmişte durmamalı. `history.state` KORUNUR — Next App Router'ın
     // yönlendirici durumu o nesnede yaşıyor.
@@ -75,13 +75,13 @@ export function VerifyEmailForm() {
       window.location.pathname + window.location.search,
     );
 
-    if (!m) {
+    if (!token) {
       setReason("missing");
       setState("failed");
       return;
     }
 
-    setToken(decodeURIComponent(m[1]));
+    setToken(token);
     setState("form");
   }, []);
 

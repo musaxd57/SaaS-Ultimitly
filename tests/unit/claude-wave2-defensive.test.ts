@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import path from "node:path";
 import { buildReplyPrompt } from "@/lib/ai/prompts";
 import type { SuggestReplyInput } from "@/lib/ai/types";
-import { dropSuperseded } from "@/lib/ai/retrieval/rerank";
+import { dropSuperseded, type Supersedable } from "@/lib/ai/retrieval/rerank";
 import { connectionHealth } from "@/lib/channels/health";
 import { guardedOutputPath } from "@/lib/eval-real/labeling";
 import { hasMoneyStatement } from "@/lib/ai/stay-money";
@@ -51,15 +51,24 @@ describe("#81 / #82 — iddia desteği dayanağı: misafir beyanı ve asistanın
   });
 });
 
+const kb = (id: string, supersededById: string | null): Supersedable => ({
+  id,
+  supersededById,
+  category: "general",
+  title: id,
+  content: id,
+  updatedAt: new Date("2026-10-01T00:00:00Z"),
+});
+
 describe("#29 — sürüm kuralı bozuk veride bütün kalemleri düşürmez", () => {
   it("kendine işaret eden halef kalemi düşürmez", () => {
-    expect(dropSuperseded([{ id: "a", supersededById: "a" }]).kept.map((i) => i.id)).toEqual(["a"]);
+    expect(dropSuperseded([kb("a", "a")]).kept.map((i) => i.id)).toEqual(["a"]);
   });
   it("karşılıklı döngüde ikisi de kalır", () => {
-    expect(dropSuperseded([{ id: "a", supersededById: "b" }, { id: "b", supersededById: "a" }]).kept.map((i) => i.id)).toEqual(["a", "b"]);
+    expect(dropSuperseded([kb("a", "b"), kb("b", "a")]).kept.map((i) => i.id)).toEqual(["a", "b"]);
   });
   it("KONTROL: gerçek halef eskiyi düşürür", () => {
-    expect(dropSuperseded([{ id: "a", supersededById: "b" }, { id: "b", supersededById: null }]).kept.map((i) => i.id)).toEqual(["b"]);
+    expect(dropSuperseded([kb("a", "b"), kb("b", null)]).kept.map((i) => i.id)).toEqual(["b"]);
   });
 });
 

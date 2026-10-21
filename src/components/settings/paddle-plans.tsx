@@ -216,6 +216,11 @@ export function PaddlePlans({
   const [busy, setBusy] = useState(false);
   // "Ödemeniz işleniyor" (kurucu onayı 10-10): ödeme ekranı başarıyla kapanınca ya da sunucu kilidi geçerliyken yeni ödeme ekranı açılmaz.
   const [processing, setProcessing] = useState(checkoutPending);
+  // Sunucu kilidi kalkınca (webhook geldi, sayfa yenilendi) kart da açılır (Claude 2. dalga arayüz P1-b): durum yalnız ilk değerle kuruluyordu,
+  // sayfa yenilense de "Ödemeniz işleniyor" kalıyordu. Yerel tamamlama sinyali (↓ checkout.completed) bunu ezmez — yalnız sunucu "bitti" derse.
+  useEffect(() => {
+    if (!checkoutPending) setProcessing(false);
+  }, [checkoutPending]);
   // Son açılan ödeme ekranının onay kaydı — tamamlanma sinyali sunucuya bununla gider (kilit yalnız kendi işletmesinin yeni onayıyla yazılır).
   const lastConsentRef = useRef<string | null>(null);
 
