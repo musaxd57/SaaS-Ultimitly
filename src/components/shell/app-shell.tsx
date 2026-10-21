@@ -403,7 +403,7 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
                 `dark`ı `<html>`'den kaldırıyor (karanlık mod yalnız panelde). */}
             <PanelTheme />
             <span className="hidden text-sm text-muted-foreground sm:inline">{user.orgName}</span>
-            <Button ref={logoutBtnRef} variant="ghost" size="sm" onClick={logout} disabled={loggingOut}>
+            <Button ref={logoutBtnRef} variant="ghost" size="sm" onClick={logout} disabled={loggingOut} aria-label="Çıkış yapın">
               {loggingOut ? <Loader2 className="size-4 animate-spin" /> : <LogOut className="size-4" />}
               <span className="hidden sm:inline">Çıkış</span>
             </Button>

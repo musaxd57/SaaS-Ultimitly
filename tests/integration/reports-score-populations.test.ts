@@ -195,6 +195,8 @@ describe("performans skoru — pay ve payda AYNI popülasyondan gelir", () => {
     expect(score.breakdown.occupancyRate).toBe(0);
     expect(score.hasData).toBe(true);
     expect(score.grade).toBe("F"); // gerçek veriye dayanan gerçek not
+    // Görsel inceleme 10-21 #20: skorun dayandığı konuşma sayısı ekrana taşınır (az veride "kesin değil" notu).
+    expect(score.sampleConversations).toBe(0);
   });
 
   it("İPTAL EDİLMİŞ rezervasyon 'veri' saymaz — org hâlâ boş durumda", async () => {

@@ -15,6 +15,8 @@ interface DeleteButtonProps {
   confirmText?: string;
   /** Onay penceresinde başlığın altındaki açıklama (ne silineceği) — verilmezse yalnız başlık. */
   confirmBody?: string;
+  /** Görünümü yumuşatmak için (ör. sayfa başlığında dolu kırmızı yerine çerçeveli). */
+  className?: string;
 }
 
 export function DeleteButton({
@@ -23,6 +25,7 @@ export function DeleteButton({
   label = "Sil",
   confirmText = "Bu kaydı silmek istediğinize emin misiniz? Bu işlem geri alınamaz.",
   confirmBody,
+  className,
 }: DeleteButtonProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -53,7 +56,7 @@ export function DeleteButton({
   }
 
   return (
-    <Button ref={btnRef} variant="destructive" size="sm" onClick={onDelete} disabled={loading}>
+    <Button ref={btnRef} variant="destructive" size="sm" onClick={onDelete} disabled={loading} className={className}>
       {loading ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
       {label}
     </Button>

@@ -321,7 +321,7 @@ export function TemplateManager({ properties, customTemplates, defaultTemplates,
                         </span>
                       )}
                     </div>
-                    <p className="whitespace-pre-wrap text-xs text-muted-foreground line-clamp-3">{t.body}</p>
+                    <p className="whitespace-pre-wrap text-sm text-foreground/80 line-clamp-3">{t.body}</p>
                   </div>
                   {canManage ? (
                     <div className="flex shrink-0 items-center gap-1">
@@ -373,7 +373,7 @@ export function TemplateManager({ properties, customTemplates, defaultTemplates,
               {canManage ? " Değiştirmek için “Kendime uyarla” deyin — içerik forma dolar, kaydettiğinizde kendi şablonunuz olur." : ""}
             </p>
             {defaultTemplates.map((t) => (
-              <Card key={t.id} className="opacity-80">
+              <Card key={t.id}>
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1 space-y-1.5">

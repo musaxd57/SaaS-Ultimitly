@@ -172,6 +172,11 @@ describe("AppShell — çıkış başarısız olduğunda SEBEBİ söylenir", () 
     plan: null,
   } as unknown as React.ComponentProps<typeof AppShell>;
 
+  it("telefonda yazısı gizlenen çıkış düğmesinin erişilebilir adı var (görsel inceleme 10-21 #15)", () => {
+    render(<AppShell {...shellProps}>içerik</AppShell>);
+    expect(screen.getByRole("button", { name: "Çıkış yapın" })).toBeTruthy();
+  });
+
   it("500'de yönlendirme YOK, hata mesajı VAR (buton sessizce geri açılmaz)", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 500 })));
     render(<AppShell {...shellProps}>içerik</AppShell>);

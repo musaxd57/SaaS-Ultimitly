@@ -26,6 +26,9 @@ import { EmptyState } from "@/components/empty-state";
 import type { BadgeTone } from "@/lib/constants";
 import { isDemoOrg } from "@/lib/demo-tenant/constants";
 
+/** Bundan az konuşmada skor "kesin değil" notuyla gösterilir (3 konuşmadan "%33 şikâyet" yanıltıcı). */
+const PERF_FEW_CONVERSATIONS = 20;
+
 /**
  * 🚨 PERFORMANS ROZETİ HEP YEŞİLDİ (ölçüldü, 09-11): `tone="success"` SABİT
  * literal'dı. Not (`getHostPerformance`) gerçekten değişiyor — A ≥90 · B ≥75 ·
@@ -216,6 +219,11 @@ export default async function ReportsPage() {
               <>
                 <p className="text-2xl font-semibold tabular-nums tracking-tight">{score.score}/100</p>
                 <p className="text-sm text-muted-foreground">{score.label}</p>
+                {score.sampleConversations < PERF_FEW_CONVERSATIONS ? (
+                  <p className="text-xs text-amber-700 dark:text-amber-400">
+                    Az veri: son 30 günde {score.sampleConversations} konuşma — skor henüz kesin değil.
+                  </p>
+                ) : null}
                 <div className="mt-3 space-y-1.5 border-t border-border pt-3 text-sm">
                   {score.breakdown.responseRate !== null ? (
                     <div className="flex items-center justify-between">

@@ -472,9 +472,6 @@ export default async function ConversationPage({
         <div className="min-w-0 space-y-4 lg:h-full lg:min-h-[26rem] lg:overflow-y-auto lg:pr-1">
           <ConversationItemsCard conversationId={conversation.id} items={itemRows} canManage={canManage(session)} />
           <ActionSuggestions items={actionSuggestions} />
-          {canManage(session) ? (
-            <CommitmentsCard conversationId={conversation.id} commitments={commitmentRows} readOnly={isImpersonating(session)} />
-          ) : null}
           {/* 🚨 "Mülk" KARTI KALDIRILDI (kurucu 09-11): adres çoğu hostta boş
               olduğu için kart pratikte TEK BİR SATIR gösteriyordu — giriş/çıkış
               saati. O satır artık konuşma kartının başlık satırında; adres,
@@ -565,6 +562,10 @@ export default async function ConversationPage({
               )}
             </CardContent>
           </Card>
+          {/* Görsel inceleme 10-21 #5: rezervasyon (tarihler, devir günü uyarısı) cevabı değiştirir → söz formundan ÖNCE. */}
+          {canManage(session) ? (
+            <CommitmentsCard conversationId={conversation.id} commitments={commitmentRows} readOnly={isImpersonating(session)} />
+          ) : null}
 
           {conversation.reservation ? (
             <Card>

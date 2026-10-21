@@ -629,6 +629,8 @@ export interface HostPerformanceScore {
   grade: PerformanceGrade;
   label: string;
   hasData: boolean; // false when there is nothing meaningful to score yet
+  /** Skorun dayandığı son 30 günlük konuşma sayısı — az veride ekranda "kesin değil" notu için (görsel inceleme 10-21 #20). */
+  sampleConversations: number;
 }
 
 /**
@@ -836,6 +838,7 @@ export async function getHostPerformanceScore(orgId: string): Promise<HostPerfor
     grade,
     label,
     hasData,
+    sampleConversations: recentConversations.length,
   };
 }
 

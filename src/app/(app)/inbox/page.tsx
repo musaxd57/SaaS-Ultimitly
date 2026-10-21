@@ -466,7 +466,7 @@ export default async function InboxPage({
                       <span className="sr-only">Acil</span>
                     </>
                   ) : null}
-                  <span className="text-xs text-muted-foreground">· {c.property.name}</span>
+                  <span className="min-w-0 truncate text-xs text-muted-foreground" title={c.property.name}>· {c.property.name}</span>
                 </div>
                 <p className="mt-0.5 truncate text-xs text-muted-foreground">
                   {c.messages[0] ? truncate(c.messages[0].body, 90) : "—"}
