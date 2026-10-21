@@ -1116,6 +1116,26 @@ describe("KONU BAZLI 'BİLGİM YOK' (H9, kurucu 10-16; anahtar AI_TOPIC_ABSENCE_
     vi.unstubAllGlobals();
   });
 
+  it("katı kip: hakem ilk okumada DÜŞERSE ayıklama bugünkü gibi; ayıklanan metin yine hakeme okutulur (eski 'düştü' hükmü yeni metne taşınmaz)", async () => {
+    vi.stubEnv("AI_TOPIC_ABSENCE_ENABLED", "1");
+    vi.stubEnv("AI_ABSENCE_JUDGE_ENABLED", "1");
+    vi.stubEnv("AI_ABSENCE_JUDGE_STRICT", "1");
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    const f = vi
+      .fn()
+      .mockImplementationOnce(async () => new Response("upstream down", { status: 503 }))
+      .mockImplementationOnce(judgeSays(false));
+    vi.stubGlobal("fetch", f);
+    const { conversationId } = await seed(TV_TRASH);
+    understands(tvTrashUnderstood());
+    mockSuggest.mockResolvedValueOnce(tvTrashReply());
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(true);
+    expect(f).toHaveBeenCalledTimes(2);
+    const second = JSON.parse(String((f.mock.calls[1][1] as RequestInit).body)).messages[1].content as string;
+    expect(second).not.toMatch(/bilgim yok/i);
+    vi.unstubAllGlobals();
+  });
+
   it("KONTROL — anahtar KAPALI: bugünkü gibi bütün cevap tutulur (reply_absence), misafire hiçbir şey gitmez", async () => {
     const { conversationId } = await seed(TV_TRASH);
     understands(tvTrashUnderstood());

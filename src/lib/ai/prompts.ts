@@ -27,6 +27,7 @@ import { dateReadingBlock, dateReadingEnabled, type DateReadingMessage } from ".
 import { ACTION_CLAIMS_PROMPT_BLOCK } from "./action-claims";
 import { buildItemsPromptBlock } from "@/lib/conversation-items/reply-block";
 import { codeGreetingEnabled, withoutCodeGreetingLine } from "./code-greeting";
+import { noApologyRuleEnabled } from "./no-apology-rule";
 import { nameMaskHidesEmergency, promptRedactionNames, redactGuestNamesForPrompt } from "./prompt-name-redaction";
 import { stripDividerRuns } from "./divider-spoof";
 
@@ -1380,6 +1381,51 @@ export const COURTESY_CODE_GREETING_REPLACEMENTS: readonly Replacement[] = [
   ['"reply":"İyiyiz, teşekkür ederiz.', '"reply":"Teşekkür ederiz.'],
 ];
 
+// ── TARAFSIZLIK / ÖZÜR YASAĞI (`no-apology-rule.ts`; anahtar `AI_NO_APOLOGY_RULE_ENABLED` KAPALI) ──────────────────────────────────
+// Kurucu 10-21: özür / "haklısınız" / kusur kabulü misafire gitmez; şikâyetin kendisi hakkında yorum yok. Taban istemin özür öğreten
+// her satırı ve dört örneği özürsüz hâliyle değişir. SON katman (öteki katmanların çapalarına dokunmaz; şikâyet takibi katmanı empati
+// satırını AYNEN bırakıp ardına ekler → bu katman o satırı yine bulur).
+/** Aynı kural, sıcak ton rehberinin (kullanıcı istemi) nezaket satırı için — yalnız o satır özrü anıyor. */
+export const NO_APOLOGY_TONE_REPLACEMENT: Replacement = [
+  'Nezaket kalıpları ("özür dileriz", "teşekkür ederiz") biz-formunda kalabilir.',
+  'Nezaket kalıpları ("teşekkür ederiz") biz-formunda kalabilir; ÖZÜR DİLEME (Bölüm 10.6 TARAFSIZLIK).',
+];
+export const NO_APOLOGY_REPLACEMENTS: readonly Replacement[] = [
+  [
+    'durur, özür/şikayet cevabında ise samimiyetsiz okunur ("Bunun için özür dileriz!").',
+    "durur, şikayet cevabında ise samimiyetsiz okunur.",
+  ],
+  ['İSTİSNA — NEZAKET KALIPLARI: "özür dileriz",\n    "teşekkür ederiz",', 'İSTİSNA — NEZAKET KALIPLARI:\n    "teşekkür ederiz",'],
+  [
+    '  - KUSUR/YÜKÜMLÜLÜK KABULÜ YASAK: "Haklısınız, kötü yapılmış", "bizim hatamız/\n' +
+      '    kusurumuz", "politikayı ihlal etmişiz" gibi kusur kabulü ve tazminat/iade iması\n' +
+      '    YAZMA. Empati + kontrol yeter: "Bunun için özür dileriz; kontrol edebilmemiz için\n' +
+      '    ilgili alanın fotoğrafını paylaşır mısınız?" (Kısa özür ≠ kusur kabulü; "haklısınız" deme.\n',
+    "  - TARAFSIZLIK (kurucu kuralı): olaylar net değilken ev sahibini haksız duruma düşürecek HİÇBİR şey yazma. ÖZÜR DİLEME — hiçbir\n" +
+      '    dilde ("özür dileriz", "kusura bakmayın", "apologies", "sorry", "Entschuldigung", "lo sentimos", "désolé" vb.); "haklısınız"\n' +
+      '    deme; kusur kabul etme ("bizim hatamız", "kötü yapılmış"); tazminat / iade / indirim iması yapma; misafiri ya da başkasını\n' +
+      "    suçlama. Şikâyetin kendisi hakkında yorum yapma (o konu ev sahibine kalır); cevap yalnız cevaplanabilir soruyu cevaplar.\n" +
+      "    Ödemeyi reddeden, iade / tazminat isteyen, kötü yorum ya da şikâyetle tehdit eden mesajda taahhüt, açıklama, savunma YAZMA.\n" +
+      '    Gerekirse tek soru: "Kontrol edebilmemiz için ilgili alanın fotoğrafını paylaşır mısınız?" (Özürsüz.\n',
+  ],
+  [
+    '    Şikayette kalıp = kısa profesyonel kabul + olgu: "Bunun için özür dileriz; mesajınız\n' +
+      '    kaydedildi, ev sahibiniz görebilir." (Kısa bir ÖZÜR cümlesi serbesttir — duygu anlatımı değildir.\n',
+    '    Şikayette kalıp = yalnız olgu: "Mesajınız\n' + '    kaydedildi, ev sahibiniz görebilir." (Özür cümlesi de YAZILMAZ — yukarıdaki TARAFSIZLIK.\n',
+  ],
+  ["  - Empati/özür EN FAZLA BİR cümle; hemen çözüme geç.\n", "  - Empati EN FAZLA BİR cümle ve özür DEĞİL; hemen çözüme geç.\n"],
+  [
+    '"reply":"Bunun için özür dileriz. Klimayla ilgili mesajınız kaydedildi; ev sahibiniz görebilir."',
+    '"reply":"Klimayla ilgili mesajınız kaydedildi; ev sahibiniz görebilir."',
+  ],
+  ['"reply":"Yaşadığınız sıkıntı için içtenlikle özür dileriz, hemen yardımcı olayım. Wi-Fi ağımız', '"reply":"Wi-Fi ağımız'],
+  [
+    " Apologies about the shower drainage; your report has been recorded and is visible to your host.",
+    " Your report about the shower drainage has been recorded and is visible to your host.",
+  ],
+  ['"reply":"Apologies for the trouble. Your message has been recorded', '"reply":"Your message has been recorded'],
+];
+
 /**
  * Sistem istemi KATMANLARI — taban istemin üstüne SABİT SIRAYLA uygulanır (kod selamı → ücret kuralı → bildirimsiz erteleme → giriş
  * kodu). Sıra, önceki sabitlerle (`REPLY_SYSTEM_PROMPT_CODE_GREETING`, `…_KB_FEE_RULE`, `…_CODE_GREETING_KB_FEE_RULE`) aynıdır; çapalar
@@ -1397,6 +1443,8 @@ export interface ReplyPromptFlags {
   itemsHeld?: boolean;
   /** Hâl hatır kuralı (`AI_COURTESY_RULE_ENABLED`). */
   courtesy?: boolean;
+  /** Tarafsızlık / özür yasağı (`AI_NO_APOLOGY_RULE_ENABLED`). */
+  noApology?: boolean;
 }
 /** Katmanın çapaları; birleşime bağlıysa (önceki bir katman çapayı değiştirdiyse) işlev. */
 type LayerReplacements = readonly Replacement[] | ((f: ReplyPromptFlags) => readonly Replacement[]);
@@ -1410,6 +1458,7 @@ const PROMPT_LAYERS: readonly (readonly [keyof ReplyPromptFlags, LayerReplacemen
   ["itemsHeld", ITEMS_HELD_REPLACEMENTS],
   // ÖRNEK 24'ün açılışı kod selamı katmanında değişir → hâl hatır katmanı o birleşimde kendi çapasını kullanır.
   ["courtesy", (f) => (f.codeGreeting ? COURTESY_CODE_GREETING_REPLACEMENTS : COURTESY_REPLACEMENTS)],
+  ["noApology", NO_APOLOGY_REPLACEMENTS],
 ];
 const derivedPromptCache = new Map<string, { text: string; missing: string[] }>();
 
@@ -1671,7 +1720,9 @@ Zaman bağlamı: ${timelineLine(timeline, {
     ? `\nYazıldığı an: ${guestStamp} — içindeki göreli günler ("yarın" vb.) bu güne göredir (00:00–04:59 arasında yazıldıysa "yarın" çoğu zaman yazıldığı günü kasteder).`
     : "";
 
-  const toneBlock = codeGreeting ? derivedTone[tone].text : TONE_GUIDANCE[tone];
+  const toneBase = codeGreeting ? derivedTone[tone].text : TONE_GUIDANCE[tone];
+  // Tarafsızlık katmanı (`no-apology-rule.ts`) açıkken ton rehberindeki "özür dileriz" nezaket örneği de düşer (sistem istemiyle çelişmesin).
+  const toneBlock = noApologyRuleEnabled() ? toneBase.replace(...NO_APOLOGY_TONE_REPLACEMENT) : toneBase;
 
   // Mirror the guest's message length numerically (Section 10.5, made concrete).
   const wordCount = guestMessage.trim().split(/\s+/).filter(Boolean).length;

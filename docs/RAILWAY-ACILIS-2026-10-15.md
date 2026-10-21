@@ -164,6 +164,9 @@ kalıcı "işlem yok" sayılıyor (niyet kapanır, yeni işlem açılır) — ye
   serbest değil — `docs/olcum/BAGLAM-HAKEMI-2026-10-21.md`). Hakem düşerse bugünkü kural. Misafire gideni değiştirir → kurucu + ilk denemeler.
 - `AI_ABSENCE_JUDGE_STRICT` — yalnız yukarıdakiyle birlikte: kelime kuralının KAÇIRDIĞI itirafı da tutar (500 gerçek cevapta 8 açık itiraf
   + 15 "ev sahibiniz söyleyebilir" geçiştirmesi). Her otomatik cevap adayına bir küçük çağrı ekler (~1,6 sn). Kurucu kararı (soru: belge §5).
+- `AI_NO_APOLOGY_RULE_ENABLED` (kurucu 10-21: "sofra kirli derse özür dilemesin, haklısınız üzgünüm demesin") — cevap istemi şikâyette özür /
+  "haklısınız" / kusur kabulü / tazminat iması öğretmez (bugünkü istem "Bunun için özür dileriz" kalıbını ÖĞRETİYOR; ölçüm: gönderilen 3.329
+  gerçek cevapta 1 açık kusur özrü, taslakların ~%9'unda özür). Misafire gideni değiştirir → açmadan önce gerçek model ölçümü + kurucu.
 - Cevap modeli bekleme tavanı 30 sn + devre kesici (art arda 3 zaman aşımı → 60 sn çağrı yok) + tek hızlı yeniden deneme — env YOK
   (`src/lib/ai/model-breaker.ts`). Ev sahibi yazma hız sınırı kişi başına dakikada 300 — env YOK (`src/lib/host-write-limit.ts`).
 - Dış izleyici + WAF + oturum anahtarı adımları: `docs/OPS-2026-10-21-dis-izleyici-waf-anahtar.md` (panel işleri, açılıştan sonra).

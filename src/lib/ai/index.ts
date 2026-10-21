@@ -9,6 +9,7 @@ import { stayDeferralPlainEnabled } from "./stay-deferral-plain";
 import { accessCodeCompleteEnabled } from "./access-code-complete";
 import { complaintFollowupRuleEnabled } from "@/lib/ai/complaint-followup";
 import { courtesyRuleEnabled } from "@/lib/ai/courtesy-rule";
+import { noApologyRuleEnabled } from "@/lib/ai/no-apology-rule";
 import { guestTurnLanguage, unansweredGuestTexts } from "./language-signal";
 import { suggestReplyFallback, classifyFallback } from "./fallback";
 import { timeCorrectedInMessage, timeStatedInMessage } from "./stated-time";
@@ -253,6 +254,7 @@ function replySystemPromptForItems(items: { mode: boolean; held: boolean }): str
     accessCodeComplete: accessCodeCompleteEnabled(),
     complaintFollowup: complaintFollowupRuleEnabled(),
     courtesy: courtesyRuleEnabled(),
+    noApology: noApologyRuleEnabled(),
     itemsMode: items.mode,
     itemsHeld: items.held,
   });
