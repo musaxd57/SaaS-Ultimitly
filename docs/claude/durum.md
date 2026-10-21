@@ -8,7 +8,17 @@
 > `docs/history/CLAUDE-2026-10-02-sadelestirme-3-oncesi-tam-metin.md` ("Durum" bölümü). Kuralları yukarıdaki bölümlerde; yalnız Durum'da
 > yazılı olan kurallar (konuşma öğeleri, ev kuralları, canlı bayraklar) 10-02'de ilgili bölümlere taşındı. Bekleyen onaylar ↓.
 
-**10-21 (güncel):** Kurucu 10-21 cevapları (T1 "B", T2 sınırlar, T4 ayrı bölüm + migration, T5 tablo) kodda; her biri Haiku incelemesi + düzeltme
+**10-21 öğleden sonra (güncel — clear sonrası BURADAN devam):** Codex 10-21 dört madde + Claude eval.
+- Codex P1 çift tahsilat → ödeme niyeti (migration 82 `CheckoutIntent`, `lib/billing/checkout-intent.ts`, anahtar `PADDLE_CHECKOUT_INTENT_ENABLED`
+  KAPALI; Paddle SANDBOX denemesi kurucuyla — doğrulanacaklar Railway belgesi §4). Haiku düzeltmeleri: iptal doğrulanmadan yer boşalmaz, ölü
+  işlem verilmez, anahtar geri kapatılırsa açık niyet ikinci ekranı engeller, webhook niyet kapatırken fırlatmaz.
+- Codex P1 T1 "uygulanmamış" → yanlış ölçüm (ham fonksiyon çağrılmış); üretim yolu dayanaklı silici — pin `t1-separation-measure.test.ts`.
+- Codex P2 söz kapatma yarışı → kilit sonrası görev durumu (`closeOneStayEnded`).
+- Codex P2 kopyalama hafızası → migration 81 `KbCopyOperation` (işlem başına ilk içerik izi; aynı kimlik + farklı iz 409; hedefsiz istekte kayıt yok).
+- Claude eval (Actions, kurucunun anahtarı): eski zorlu set gerileme yok; YENİ T1 ölçeri ciddi açıklar buldu → `docs/olcum/claude-zorlu-t1-2026-10-21-ANALIZ.md`
+  (iç kaynak kalıpları 21/30 kaçıyor — anahtarsız tutucu düzeltme SIRADAKİ İŞ; dayanak gevşetme + güvenlik bağı kurucuya önce/sonra sorulacak).
+- T4 kapısı g98 (`3f0c94fd`) + Codex düzeltmeleri için ayrı tam kapı + push + CI: durum aşağıdaki itme satırında / `git log origin/claude/great-edison-3zqpZ`.
+**10-21:** Kurucu 10-21 cevapları (T1 "B", T2 sınırlar, T4 ayrı bölüm + migration, T5 tablo) kodda; her biri Haiku incelemesi + düzeltme
 turu, T1 mutasyon 17/17. T5 (`6252a104`, `ea127b12`): "saat geçtiyse yarın" kuralı yok; geçmiş saat / sabah-akşam belirsizliği / kararsız söz
 (müsait olursa, belki) kart; "inşallah" iptal etmez; gece yarısı zamansız söz bağlam "şimdi" demiyorsa son tarihsiz. T2 (`29d2597f`, `8c54584f`):
 olası tehlike + anlama katmanı koşmadı → konuşma atomik "Sorunlu" (`hazard_unverified`), işletme başına saatte 3 e-posta, gitmeyen e-posta hak
