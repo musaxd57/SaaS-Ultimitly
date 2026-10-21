@@ -8,7 +8,19 @@
 > `docs/history/CLAUDE-2026-10-02-sadelestirme-3-oncesi-tam-metin.md` ("Durum" bölümü). Kuralları yukarıdaki bölümlerde; yalnız Durum'da
 > yazılı olan kurallar (konuşma öğeleri, ev kuralları, canlı bayraklar) 10-02'de ilgili bölümlere taşındı. Bekleyen onaylar ↓.
 
-**10-21 öğleden sonra (güncel — clear sonrası BURADAN devam):** Codex 10-21 dört madde + Claude eval.
+**10-21 akşam (güncel — clear sonrası BURADAN devam):** T4 kapı kırmızıları + Codex mutasyonu + Opus sert inceleme + iç kaynak kalıpları.
+- g98 kırmızıları test kurulumuydu (beş kuyruk testi dairenin otomatik mesaj kaydını kurmuyordu; kanarya `MessageOutbox.templateRevision`
+  kapsam dışı; ödeme niyeti testinde İşletme plan kodu `business`). Ürün davranışı değişmedi.
+- Codex düzeltmeleri mutasyon: 13 öldü + 2 gerekçeli eşdeğer (açılıştaki niyetin işlem kimliği hep boş; açık niyetin kapanış zamanı hep boş).
+- Opus sert inceleme B1–B7 (`docs/arastirma-2026-10-15/codex-1021-opus-sert.md`, durum tablosu dosya sonunda) hepsi düzeltildi: ödendi görülünce
+  sunucu "işleniyor" kilidi · Paddle 404 = kapalı · 24 sa mutlak üst sınır + operatör haberi · `billed`/`past_due` ödendi değil · yeniden verilen
+  işlemin süresi +30 dk · sahiplenme dalı önce görevi kilitler · kopya kaydı saatlik süpürge. Sandbox şüpheleri Railway belgesi §4'te
+  (İLK bakılacak: Paddle panelinde varsayılan ödeme bağlantısı).
+- Claude eval T1 sıra 1 YAPILDI (anahtarsız, yalnız TUTAR): iç kaynak işareti + aynı cümlede olumsuzluk, yedi dil (`absence.ts`
+  `INTERNAL_SOURCE_RULES`); ölçümde kaçan 21 biçim + lookalike kontrolleri pinli, mutasyon 8/8. Sıra 2–3 (dayanak gevşetme, güvenlik bağı)
+  misafire gideni değiştirir → kurucuya önce/sonra örnekli soru (`docs/olcum/claude-zorlu-t1-2026-10-21-ANALIZ.md`). Yeniden ölçüm:
+  `evals/claude-run-request.json` `request` +1 ile Actions.
+**10-21 öğleden sonra:** Codex 10-21 dört madde + Claude eval.
 - Codex P1 çift tahsilat → ödeme niyeti (migration 82 `CheckoutIntent`, `lib/billing/checkout-intent.ts`, anahtar `PADDLE_CHECKOUT_INTENT_ENABLED`
   KAPALI; Paddle SANDBOX denemesi kurucuyla — doğrulanacaklar Railway belgesi §4). Haiku düzeltmeleri: iptal doğrulanmadan yer boşalmaz, ölü
   işlem verilmez, anahtar geri kapatılırsa açık niyet ikinci ekranı engeller, webhook niyet kapatırken fırlatmaz.

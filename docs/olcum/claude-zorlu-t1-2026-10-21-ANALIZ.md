@@ -38,7 +38,7 @@ varsayılır — canlıda anlama modeli çoğu bağlı soruyu zaten "bağlı" i�
    Erişim kelime ağı "check-out / bırakma" gibi fiilleri yakalıyor; düzeltme 2. sıradaki tutucu kuralla dengelenmeli.
 
 ## Sıra (clear sonrası)
-1. İç kaynak kalıpları (1) — anahtarsız, tutucu yön (yalnız TUTAR), kurucunun 10-21 T1 kuralının ("iç kaynak anlatımı yazılmayacak") doğrudan
+1. ✅ (10-21 akşam, `absence.ts` `INTERNAL_SOURCE_RULES`; yeniden ölçüm bekliyor) İç kaynak kalıpları (1) — anahtarsız, tutucu yön (yalnız TUTAR), kurucunun 10-21 T1 kuralının ("iç kaynak anlatımı yazılmayacak") doğrudan
    uygulaması → yap, haber ver. Süre pini + yanlış tutma kontrolü ("Sistem / kayıt sözcüklü normal cevap" 0 kalmalı).
 2. Dayanak gevşetme (2) + yeni şart fiili (3) — misafire GİDENİ artırır (gereksiz tutma azalır) → önce/sonra örnekle kurucuya sor.
 3. Güvenlik bağı (4) + bağımsız soru (5) — müşteriye gideni değiştirir → kurucuya sor.

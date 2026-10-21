@@ -212,6 +212,14 @@ describe("ödeme niyeti — işletme başına tek açık Paddle işlemi", () => 
     expect(await prisma.checkoutIntent.findFirstOrThrow({ where: { organizationId: orgId } })).toMatchObject({ status: "open" });
   });
 
+  it("Opus B4: süresi dolan niyetin işlemi 'billed' → süpürge İPTAL DENEMEZ, yer korunur (mutlak üst sınıra kadar)", async () => {
+    await POST(postReq(), ctx);
+    paddle.statuses.set("txn_1", "billed");
+    await sweepCheckoutIntents(new Date(Date.now() + CHECKOUT_INTENT_TTL_MS + 60_000));
+    expect(paddle.canceled).toEqual([]);
+    expect(await prisma.checkoutIntent.findFirstOrThrow({ where: { organizationId: orgId } })).toMatchObject({ status: "open" });
+  });
+
   it("Opus B3: yeniden verilen işlemin süresi en az 30 dk ileri alınır (ikinci sekme öderken süpürge iptal etmesin)", async () => {
     await POST(postReq(), ctx);
     await prisma.checkoutIntent.updateMany({ where: { organizationId: orgId }, data: { expiresAt: new Date(Date.now() + 2 * 60_000) } });
