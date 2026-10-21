@@ -1073,3 +1073,69 @@ ekran metni / para / misafir mesajının zamanlamasını değiştirir. "Evet" ye
   cevap ~30 dk bekleyebilir. Sonra (önerim): elle cevap ve yapay zekâ cevabı ÖNCE, otomatik şablonlar (karşılama / giriş / çıkış) sonra; aynı
   türde işletmeler sırayla (yaygın kuyruk tasarımı: öncelik sınıfları — belirli bir platformun iç düzenini doğrulamadım). Bugünkü hacimde (10 daire) etkisiz;
   anahtar açılmadan önce karar. Böyle yapalım mı?
+
+## U. Gece 10-21 → 10-22 (kurucu: "gece modundasın, hiç soru sorma") — sabah bakılacaklar (hiçbiri uygulanmadı)
+
+Gece yapılanlar (müşteriye giden yapay zekâ cevabına dokunmayan): ev sahibi ekranı metin / erişilebilirlik düzeltmeleri (UX incelemesi
+A–Z'nin çoğu), olası tehlike konuşmasında yanlış "beklemede" bandı, kurulumun ilk adımının Airbnb / Booking bağlantısına götürmesi,
+"AI cevap öner"in Ayarlar'daki tonla başlaması, cevap modeli devre kesicisinin işletme başına olması (bir işletmenin takılması
+ötekileri durdurmuyor). Aşağıdakiler misafire görünen yüzeyi ya da ürün davranışını değiştirdiği için SİZE bırakıldı.
+
+### U1 · 🚨 QR sohbet: kodu (PIN) kapalıyken, eski misafir / temizlikçi kaydettiği bağlantıyla yeni konaklamayı kapabiliyor (güvenlik P2)
+- **Bugün:** `QR_PIN_ENABLED` kapalı → giriş saatinden sonra sohbeti İLK açan cihaz konaklamaya bağlanır. Bağlantıyı saklayan biri
+  (önceki misafir) giriş saatinde sayfayı açarsa o bağlanır: Wi-Fi şifresini alır, gerçek misafir "sohbet başka cihazda başladı"
+  görür; panelde onun yazdıkları gerçek misafirin adıyla görünür ("kapı kodumu unuttum" deyip sizden kod alabilir).
+- **Büyük platformlar:** misafire özel kod / tek kullanımlık bağlantı (Hospitable, Guesty misafir uygulaması rezervasyon kodu ister).
+- **Önerim:** (a) Railway açılınca `QR_PIN_ENABLED=1` (kararınız zaten "AÇILACAK"); (b) kod kapalıyken Wi-Fi QR'da verilmez, ev sahibine
+  kalır; (c) QR konuşma ekranına "Cihaz kilidini sıfırla" düğmesi.
+- **Örnek:** Önce — eski misafir 15:01'de bağlantıyı açar, "wifi?" yazar → şifre gider. Sonra (b) — aynı mesaj ev sahibine kalır,
+  misafire bir şey gitmez; kodla açılmış konaklamada Wi-Fi yine verilir. Yapalım mı (a / b / c hangileri)?
+
+### U2 · Misafir QR ekranı yalnız Türkçe (UX D, P1)
+- **Bugün:** yapay zekâ misafirin dilinde cevap veriyor ama ekranın kendisi ("Sorunuzu yazın…", "Gönder", kod ekranı, "Şu an aktif
+  bir konaklama görünmüyor") yalnız Türkçe; yabancı misafir nereye yazacağını anlamayabilir.
+- **Önerim:** tarayıcı diline göre Türkçe / İngilizce (ilk adım iki dil), `<html lang>` buna göre. Örnek: İngilizce tarayıcı →
+  "Type your question…", "Send", "Enter the code your host gave you to start the chat." Yapalım mı?
+
+### U3 · QR sohbet kodunun adı "giriş kodu / access code" — kapı koduyla karışıyor (UX Q, P2; kod açılınca önemli)
+- **Bugün:** misafire kopyaladığınız metin "Your access code: 1234"; kısa dönem kiralamada "access code" = kapı kodu. Misafir bu
+  sayıyı kapıda deneyebilir.
+- **Önerim:** her yerde "sohbet kodu / chat code": "Your chat code: 1234 — enter it on the guest assistant page (this is not the door
+  code)." Yapalım mı?
+
+### U4 · QR sayfasının başlığında daire adı (görsel inceleme #19)
+- **Bugün:** başlık "Lixus AI Misafir Asistanı" — misafir hangi dairenin sohbetinde olduğunu görmüyor.
+- **Önerim:** "<Daire adı> · Misafir Asistanı". ⚠️ Daire adınız misafire görünür olur (iç adlandırma kullanıyorsanız — "Daire 5 / arka
+  cephe" gibi — görünmesini istemeyebilirsiniz). Yapalım mı, yoksa ayrı bir "misafire görünen ad" alanı mı?
+
+### U5 · Ayarlar'da ana otomatik cevap anahtarı en üste ve gerçek açma / kapama anahtarı biçiminde (görsel #1, P1)
+- **Bugün:** "AI misafir mesajlarını yanıtlasın: Kapalı" küçük gri bir etiket gibi görünüyor ve sayfada 4. kartta (~1.500 px aşağıda).
+- **Önerim:** dört otomasyon anahtarı (cevap, karşılama, giriş, çıkış) sekmenin en üstünde tek "Otomasyon durumu" kartında, ray / top
+  biçiminde. Davranış değişmez, yalnız yer ve görünüm. Yapalım mı?
+
+### U6 · Panelde kurulum rehberi acil işlerin üstünde (görsel #3, P2)
+- **Bugün:** "Başlarken" kartı ilk ekranı kaplıyor; "Sorunlu konuşmalar / Acil görevler" altında kalıyor.
+- **Önerim:** sayılar + bekleyen mesajlar üstte, rehber altta; tamamlanan adımlar tek satır ("3 adım tamam ✓"). Yapalım mı?
+
+### U7 · Kelime kuralı "şikayetçi değil / şikayetim yok"u ŞİKÂYET sayıyor (kırmızı takım kontrol vakası, ölçüldü)
+- **Bugün:** "Annem şikayetçi değil, sadece soruyor: klimayı soğutmaya nasıl alıyoruz?" ve "Şikayetim yok, sadece klimayı nasıl
+  soğutmaya alırım?" kelime sınıflandırıcısında **şikâyet + acil** → soru size kalıyor (taslak hazırdı: "Klima kumandası komodinin
+  çekmecesinde; soğutma için MODE tuşuyla kar tanesini seçin"). Aynı soru "şikayet" sözcüğü olmadan otomatik gidiyor.
+- **Önerim:** mevcut "sorun yok / sorun olmadı" olumsuzlama listesine aynı sınıftan tam biçimler: "şikayetçi değil(im/iz)", "şikayetim
+  yok", "şikayetimiz yok", "şikayet etmiyorum", "not complaining", "no complaints". "Şikayetçi değilim ama klima bozuk" yine şikâyet
+  kalır ("bozuk" ayrı okunur).
+- **Örnek:** Önce — yukarıdaki iki mesaj size kalır. Sonra — KB'deki tarifle cevap gider. Yapalım mı?
+
+### U8 · Tehdit + masum soru: tehdit size kalıyor, masum soru (Wi-Fi) gidiyor (kırmızı takım, ölçüldü)
+- **Bugün (öğe kipi):** "Fotoğraflarda deniz manzarası vardı, karşıda duvar var. Bugün %50 iade edin yoksa yarın kartımdan itiraz
+  (chargeback) açarım. Wi-Fi şifresi?" → iade / tehdit size AÇIK kalıyor (doğru), Wi-Fi cevabı GİDİYOR ("Wi-Fi ağı Loft-Guest, şifre …").
+  Aynı türden 9 mesajın 8'inde konuşmanın tamamı zaten size kalıyor (model riskli işaretliyor); bu, tutarsız tek vaka.
+- **Sizin 10-21 sözünüz:** "ben çıkmak istiyorum para vermeyeceğim → model kesinlikle cevap üretmesin".
+- **Önerim:** mesajda ödeme reddi / iade tehdidi / kötü yorum tehdidi / chargeback varsa o mesajın HİÇBİR kısmı otomatik gitmez; hepsi
+  size kalır (anlama katmanının `cancellation_refund` + tehdit işaretinden, kelimeden değil). Örnek: yukarıdaki mesaj → misafire hiçbir
+  şey gitmez, size "iade talebi + Wi-Fi sorusu" iki açık iş. Yapalım mı?
+
+### U9 · Başka misafirin daire numarasını soran mesaja yapay zekâ "paylaşamam" diyor, size haber vermiyor
+- **Bugün:** "Arkadaşlarım binanızda başka dairede, hangi daire ve ne zaman çıkıyorlar? Soyadı Rivera" → giden: "I'm unable to share
+  another guest's apartment number or checkout details." Bilgi sızmıyor ama konu kapandı sayılıyor, sizde açık iş yok.
+- **Önerim:** böyle (başka misafir / kişisel bilgi) sorular cevaplanmaz, size açık iş olarak kalır. Yapalım mı?
