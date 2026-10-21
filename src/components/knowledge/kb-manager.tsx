@@ -619,7 +619,8 @@ export function KbManager({
           </Card>
         ) : (
           grouped.map(({ property, list }) => (
-            <Card key={property.id}>
+            // UX 10-21 Y: mülk sayfasındaki "Düzenle" bu karta kaydırır (`#kb-<mülk>`); 20 dairelik listede aranmaz.
+            <Card key={property.id} id={`kb-${property.id}`} className="scroll-mt-24">
               <CardHeader>
                 <CardTitle className="text-base">{property.name}</CardTitle>
               </CardHeader>

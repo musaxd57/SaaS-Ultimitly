@@ -461,7 +461,10 @@ export default async function PropertyDetailPage({
               <CardTitle className="flex items-center gap-2 text-base">
                 <BookOpen className="size-4 text-muted-foreground" /> Bilgi Tabanı
               </CardTitle>
-              <Link href="/knowledge" className="text-xs font-medium text-primary hover:underline">
+              <Link
+                href={`/knowledge?property=${encodeURIComponent(property.id)}#kb-${property.id}`}
+                className="text-xs font-medium text-primary hover:underline"
+              >
                 Düzenle
               </Link>
             </CardHeader>
