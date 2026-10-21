@@ -26,7 +26,7 @@ describe("AutomationPrefsForm — empty hold-hours guard", () => {
 
   it("a CLEARED hold-hours box is rejected client-side — Number('')=0 must never be sent", async () => {
     render(<AutomationPrefsForm {...PROPS} />);
-    const input = screen.getByLabelText(/İnsan devri bekleme süresi/i) as HTMLInputElement;
+    const input = screen.getByLabelText(/yapay zekânın beklemesi/i) as HTMLInputElement;
 
     // Clear the field (dirty vs baseline "12" → Kaydet enables) and submit.
     fireEvent.change(input, { target: { value: "" } });
@@ -42,7 +42,7 @@ describe("AutomationPrefsForm — empty hold-hours guard", () => {
 
   it("an explicit 0 is still a legal choice and IS sent", async () => {
     render(<AutomationPrefsForm {...PROPS} />);
-    const input = screen.getByLabelText(/İnsan devri bekleme süresi/i) as HTMLInputElement;
+    const input = screen.getByLabelText(/yapay zekânın beklemesi/i) as HTMLInputElement;
     fireEvent.change(input, { target: { value: "0" } });
     fireEvent.click(screen.getByRole("button", { name: /Kaydet/i }));
     expect(fetch).toHaveBeenCalledOnce();
@@ -61,7 +61,7 @@ describe("AutomationPrefsForm — söz → görev otomatik ayarı (kurucu 10-17 
   it("anahtar kapalı (verilmedi / null) → seçenek YOK ve alan GÖNDERİLMEZ", async () => {
     render(<AutomationPrefsForm {...PROPS} commitmentsAuto={null} />);
     expect(screen.queryByTestId("auto-commitments-toggle")).toBeNull();
-    fireEvent.change(screen.getByLabelText(/İnsan devri bekleme süresi/i), { target: { value: "5" } });
+    fireEvent.change(screen.getByLabelText(/yapay zekânın beklemesi/i), { target: { value: "5" } });
     fireEvent.click(screen.getByRole("button", { name: /Kaydet/i }));
     const [, init] = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
     expect(JSON.parse(String((init as RequestInit).body))).not.toHaveProperty("autoCommitmentsEnabled");

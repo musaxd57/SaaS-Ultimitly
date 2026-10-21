@@ -74,7 +74,7 @@ export function AutomationPrefsForm({
     // request). Blank is a mistake, not a choice — an explicit "0" still works.
     if (handoffHoldHours.trim() === "") {
       setSaved(false);
-      setError("İnsan devri bekleme süresi boş olamaz — 0 ile 72 arasında bir saat değeri girin.");
+      setError("Bekleme süresi boş olamaz — 0 ile 72 arasında bir saat girin.");
       return;
     }
     setBusy(true);
@@ -159,13 +159,11 @@ export function AutomationPrefsForm({
         <span className="text-sm">
           <span className="font-medium">Teşekkür ve övgü mesajına nezaket yanıtı</span>
           <span className="block text-xs text-muted-foreground">
-            Açarsanız: misafir konuşmayı &ldquo;teşekkürler / tamam / 👍&rdquo; gibi kısa bir kapanışla
-            bitirdiğinde ya da <span className="font-medium">salt övgü</span> yazdığında (&ldquo;her şey
-            harikaydı!&rdquo;), kendi dilinde tek satırlık kibar bir yanıt otomatik gider. İçinde soru,
-            talep veya şikâyet izi olan mesajlar bu yola <span className="font-medium">girmez</span> —
-            normal güvenlik akışına düşer. Aynı mesaja yalnızca bir kez yanıt verilir; nezaket yanıtına
-            gelen ikinci &ldquo;sağ olun&rdquo; sohbeti uzatmaz. Bu kısa yanıta otomatik-yanıt notu
-            eklenmez, imzanız eklenir. Kapalıyken (varsayılan) davranış bugünkü gibidir.
+            Açarsanız: misafir &ldquo;teşekkürler / tamam / 👍&rdquo; gibi kısa bir kapanışla ya da yalnız
+            övgüyle (&ldquo;her şey harikaydı!&rdquo;) yazdığında, kendi dilinde tek satırlık kibar bir yanıt
+            otomatik gider; imzanız eklenir. İçinde soru, talep ya da şikâyet olan mesaja bu yanıt
+            <span className="font-medium"> gitmez</span>. Aynı mesaja yalnız bir kez yanıt verilir. Kapalıyken
+            nezaket yanıtı gitmez.
           </span>
         </span>
       </label>
@@ -202,12 +200,10 @@ export function AutomationPrefsForm({
         <span className="text-sm">
           <span className="font-medium">Mesajlardan otomatik görev oluştur</span>
           <span className="block text-xs text-muted-foreground">
-            Açarsanız: bir misafir mesajı size &ldquo;Sorunlu&rdquo; olarak düştüğünde ve içinde fiziksel bir
-            operasyon sinyali varsa (arıza/bozuk cihaz, eksik malzeme, temizlik şikayeti) otomatik
-            olarak bir <span className="font-medium">görev</span> açılır — kategori, öncelik ve teslim
-            süresiyle. Aynı mülkte aynı gün aynı konu için tek görev oluşur (mükerrer engellenir).
-            Görev, Görevler ekranınıza düşer. Kapalıyken (varsayılan) davranış aynı kalır:
-            sadece &ldquo;Sorunlu&rdquo; işareti + e-posta, görev açılmaz.
+            Açarsanız: &ldquo;Sorunlu&rdquo; olan bir misafir mesajında arıza, eksik malzeme ya da temizlik
+            şikâyeti varsa Görevler ekranınızda otomatik bir <span className="font-medium">görev</span> açılır
+            (aynı daire, aynı gün, aynı konu için tek görev). Kapalıyken yalnız &ldquo;Sorunlu&rdquo; işareti ve
+            e-posta olur, görev açılmaz.
           </span>
         </span>
       </label>
@@ -277,7 +273,7 @@ export function AutomationPrefsForm({
 
       <div>
         <label htmlFor="hold-hours" className="block text-sm font-medium">
-          İnsan devri bekleme süresi (saat)
+          Misafir sizinle görüşmek isteyince yapay zekânın beklemesi (saat)
         </label>
         <p className="mb-1.5 text-xs text-muted-foreground">
           Misafir “gerçek bir kişiyle / ev sahibiyle görüşmek istiyorum” dediğinde, AI bu konuşmada
