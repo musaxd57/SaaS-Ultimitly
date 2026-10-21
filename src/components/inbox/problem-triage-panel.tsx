@@ -56,7 +56,7 @@ export function ProblemTriagePanel({ rows, timeZone }: { rows: TriageRow[]; time
       <div className="flex flex-wrap items-center gap-2">
         <h2 id="triage-heading" className="flex items-center gap-2 text-sm font-semibold">
           <AlertTriangle className="size-4 text-orange-600 dark:text-orange-400" />
-          Açık sorunlar — triyaj
+          Sorunlu konuşmalar — önerilen adımlar
         </h2>
         <span className="ml-auto text-xs text-muted-foreground">
           {rows.length} konuşma
@@ -86,7 +86,7 @@ export function ProblemTriagePanel({ rows, timeZone }: { rows: TriageRow[]; time
                 {r.source === "keyword" ? (
                   <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-500/15 dark:text-amber-300">
                     <Sparkles className="size-3" />
-                    Yalnız kelime eşleşmesi — AI doğrulaması yok
+                    Kelime eşleşmesiyle işaretlendi — mesajı okuyup doğrulayın
                   </span>
                 ) : null}
                 {/* Bayat: analiz BİR mesaja ait; sonrasında yeni mesaj geldiyse

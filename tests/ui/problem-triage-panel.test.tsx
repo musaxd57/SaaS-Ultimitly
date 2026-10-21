@@ -40,12 +40,12 @@ describe("ProblemTriagePanel", () => {
     // intent `complaint`, çünkü "not working" düz bir kelime eşleşmesi. O yol
     // model çapraz-kontrolü OLMADAN escalate ediyor. Rozet bunu görünür kılıyor.
     render(<ProblemTriagePanel rows={[{ ...base, source: "keyword" }]} timeZone="Europe/Istanbul" />);
-    expect(screen.getByText(/Yalnız kelime eşleşmesi/)).toBeTruthy();
+    expect(screen.getByText(/Kelime eşleşmesiyle işaretlendi/)).toBeTruthy();
     cleanup();
     // KONTROL: model kaynağında rozet YOK — bu olmadan "her zaman göster"
     // mutasyonu da yeşil geçerdi ve rozet anlamsızlaşırdı.
     render(<ProblemTriagePanel rows={[base]} timeZone="Europe/Istanbul" />);
-    expect(screen.queryByText(/Yalnız kelime eşleşmesi/)).toBeNull();
+    expect(screen.queryByText(/Kelime eşleşmesiyle işaretlendi/)).toBeNull();
   });
 
   it("bayat rozeti yalnız `stale` olduğunda görünür", () => {

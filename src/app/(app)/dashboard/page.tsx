@@ -116,8 +116,9 @@ export default async function DashboardPage() {
       // Açıklama başlığı TEKRARLAMAZ. Altı adımın beşi yeni bilgi veriyordu,
       // bu biri "bağlantınızı kurun"u iki kez söylüyordu: ilk açılışta en çok
       // okunan yüzeyde ölü metin, mobilde de üç satır boşa yer.
-      desc: "Airbnb / Booking hesabınızı bağlayın ya da ilanınızın takvim bağlantısını ekleyin; rezervasyonlarınız kendiliğinden gelir.",
-      href: "/properties",
+      // UX incelemesi 10-21 B: düğme Mülkler'e gidiyordu, orada hesap bağlantısına yol yoktu → doğrudan Ayarlar › Bağlantılar.
+      desc: "Airbnb / Booking hesabınızı bağlayın ya da dairenin sayfasından ilanınızın takvim bağlantısını ekleyin; rezervasyonlarınız kendiliğinden gelir.",
+      href: "/settings?tab=baglantilar",
       cta: "Bağla",
     },
     {

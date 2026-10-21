@@ -467,7 +467,7 @@ export function TaskBoard({ tasks, canManage = true }: { tasks: TaskCardData[]; 
 
             {/* Note input */}
             <textarea
-              placeholder="Not ekle…"
+              placeholder="Not ekleyin…"
               aria-label={`Görev notu: ${t.title}`}
               value={noteMap[t.id] ?? ""}
               onChange={(e) => {
@@ -596,8 +596,8 @@ export function TaskBoard({ tasks, canManage = true }: { tasks: TaskCardData[]; 
                 </button>
               </div>
           <p className="text-[11px] text-muted-foreground">
-            Liste yukarıdaki filtreye göre oluşur (ör. “Bu hafta”). Temizlikçine WhatsApp&apos;tan
-            gönder ya da kopyalayıp yapıştır.
+            Liste yukarıdaki filtreye göre oluşur (ör. “Bu hafta”). Temizlikçinize WhatsApp&apos;tan
+            gönderin ya da kopyalayıp yapıştırın.
           </p>
         </div>
       ) : null}

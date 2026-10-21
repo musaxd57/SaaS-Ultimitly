@@ -115,7 +115,7 @@ function detail(item: AttentionItem, canManageChannel: boolean): string {
     case "unanswered_aging":
       return item.propertyName;
     case "recurring_issue":
-      return `${item.propertyName} · ${item.evidenceCount ?? 0} sinyal`;
+      return `${item.propertyName} · ${item.evidenceCount ?? 0} kez tekrarladı`;
     case "calendar_conflict": {
       const range = item.nights ? nightsLabel(item.nights.from, item.nights.to) : "";
       const more = (item.conflictCount ?? 1) > 1 ? ` · ${(item.conflictCount ?? 1) - 1} çakışma daha` : "";

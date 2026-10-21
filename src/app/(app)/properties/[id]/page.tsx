@@ -520,8 +520,8 @@ export default async function PropertyDetailPage({
               ) : (
                 <>
                   <p className="text-xs text-muted-foreground">
-                    Bilgi Tabanı&apos;ndan {memory.facts.length} kalem hafızada
-                    {memory.patterns.length > 0 ? ` · ${memory.patterns.length} tekrarlayan örüntü` : ""}.
+                    Bu daire için Bilgi Tabanı&apos;nda {memory.facts.length} bilgi kayıtlı
+                    {memory.patterns.length > 0 ? ` · ${memory.patterns.length} sık tekrar eden konu` : ""}.
                   </p>
                   <ActionSuggestions items={wifiSuggestions} />
                   <MemoryContradictions
@@ -534,15 +534,15 @@ export default async function PropertyDetailPage({
                         <div key={p.id} className="flex items-center justify-between gap-2">
                           {/* Ham başlık ("complaint: 3 sinyal / 40 gün") İç kayıt biçimidir; host'a
                               kategorinin Türkçe adı gösterilir (demo denetimi 09-23). */}
-                          <span className="truncate text-sm">Tekrarlayan konu: {signalCategoryLabel(p.category)}</span>
-                          <Badge tone="warning">{p.evidenceCount} sinyal</Badge>
+                          <span className="truncate text-sm">Sık tekrar eden konu: {signalCategoryLabel(p.category)}</span>
+                          <Badge tone="warning">{p.evidenceCount} kez</Badge>
                         </div>
                       ))}
                     </div>
                   ) : null}
                   {memory.recentSignals.length === 0 ? (
                     <p className="text-sm text-muted-foreground">
-                      Henüz sinyal yok. Sinyaller misafir mesajlarından ve rezervasyon değişikliklerinden türer.
+                      Henüz kayıtlı konu yok. Misafir mesajları ve rezervasyon değişiklikleri burada konu olarak birikir.
                     </p>
                   ) : (
                     <div className="space-y-1">

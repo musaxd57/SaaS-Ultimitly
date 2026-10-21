@@ -128,6 +128,8 @@ interface Props {
   templateVars?: Record<string, string>;
   /** Owner/manager may send guest replies; staff get a read-only thread. */
   canReply?: boolean;
+  /** Ayarlar'daki yanıt tonu — "AI cevap öner" bununla başlar (UX incelemesi 10-21 P; eskiden hep "Sıcak"tı). */
+  defaultTone?: ReplyTone;
   /**
    * Sayfa eylemleri ("← Mesajlar", "Sil") — kartın BAŞLIK SATIRINDA, sağda.
    *
@@ -156,13 +158,14 @@ export function ConversationThread({
   propertyTitle,
   templateVars,
   canReply = true,
+  defaultTone = "warm",
   headerActions,
   initialDraft = null,
 }: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [composer, setComposer] = useState("");
-  const [tone, setTone] = useState<ReplyTone>("warm");
+  const [tone, setTone] = useState<ReplyTone>(defaultTone);
   const [suggestion, setSuggestion] = useState<Suggestion | null>(() => (initialDraft ? preparedSuggestion(initialDraft) : null));
   // Hangi mesajın taslağı panele zaten geldi: sayfa 30 sn'de bir yenilenir — kapatılan taslak geri gelmesin, "AI öner"in
   // zengin sonucu (kaynaklar, erken giriş kontrolü) aynı mesajın kayıtlı özetiyle EZİLMESİN. Yeni bir misafir mesajının
@@ -727,7 +730,8 @@ export function ConversationThread({
                   // Bu bir aç/kapa yüzeyi: durumu ve neyi açtığını bildirir.
                   aria-expanded={Boolean(translations[m.id])}
                   aria-controls={translations[m.id] ? `msg-translation-${m.id}` : undefined}
-                  className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-primary"
+                  // UX 10-21 R: 10 px / ~14 px yükseklik telefonda basılmıyordu (yabancı misafir mesajında en sık düğme).
+                  className="flex min-h-8 items-center gap-1 px-1 text-xs text-muted-foreground hover:text-primary"
                 >
                   {translatingId === m.id ? (
                     <Loader2 className="size-3 animate-spin" aria-hidden="true" />

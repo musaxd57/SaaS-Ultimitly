@@ -214,6 +214,11 @@ export const REPLY_TONE = optionMap<ReplyTone>([
   { value: "luxury", label: "Lüks", tone: "default" },
 ]);
 
+/** Kayıtlı ton (`Organization.aiReplyTone`) geçerliyse o, değilse "Sıcak" — otomatik cevap ile "AI cevap öner" aynı sesten başlar. */
+export function replyToneOrWarm(value: string | null | undefined): ReplyTone {
+  return REPLY_TONE.values.includes(value as ReplyTone) ? (value as ReplyTone) : "warm";
+}
+
 // --- Message Templates ------------------------------------------------------
 export type TemplateCategory =
   | "checkin"

@@ -184,9 +184,9 @@ export default async function TasksPage({
         <CardContent className="flex items-center gap-2.5 p-3 text-sm">
           <Sparkles className="size-4 shrink-0 text-primary" />
           <p className="text-muted-foreground">
-            <strong className="text-foreground">Görevleri AI yönetir:</strong> her rezervasyonda
-            check-in hazırlık + çıkış temizliği otomatik açılır; eksik olursa üstte “Eksik görevleri
-            oluştur” belirir. “Yeni görev” ile elle de ekleyebilirsiniz.
+            <strong className="text-foreground">Görevler otomatik açılır:</strong> her rezervasyonda
+            giriş hazırlığı ve çıkış temizliği eklenir; eksik olursa üstte “Eksik görevleri oluştur”
+            belirir. “Yeni görev” ile elle de ekleyebilirsiniz.
           </p>
         </CardContent>
       </Card>

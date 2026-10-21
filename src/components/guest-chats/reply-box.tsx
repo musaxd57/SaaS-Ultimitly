@@ -95,7 +95,8 @@ export function GuestChatReply({
           }}
           rows={1}
           maxLength={2000}
-          placeholder="Misafire yanıt yaz (Enter gönderir, Shift+Enter yeni satır)…"
+          aria-label="Misafire yanıtınız"
+          placeholder="Misafire yanıtınızı yazın (Enter gönderir, Shift+Enter yeni satır)…"
           className="max-h-28 min-h-[38px] flex-1 resize-none rounded-md border border-border bg-background px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
         />
         <button

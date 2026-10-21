@@ -385,9 +385,9 @@ export default async function SettingsPage({
             </p>
           ) : (
             <p className="text-sm text-muted-foreground">
-              Airbnb / Booking bağlantınız <strong>operatörünüz tarafından kurulur ve yönetilir</strong>.
-              Sizin bir şey yapmanıza gerek yok — bağlantı kurulduğunda misafir mesajlarınız otomatik
-              olarak buraya akmaya başlar.
+              Airbnb / Booking bağlantısını <strong>hesap sahibi</strong> kurar ve yönetir. Bağlantı yoksa
+              hesap sahibinden kurmasını isteyin; kurulduğunda misafir mesajlarınız otomatik olarak buraya
+              akmaya başlar.
             </p>
           )}
           <ChannelHealthLines rows={channelHealthRows} />

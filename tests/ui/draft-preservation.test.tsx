@@ -36,7 +36,7 @@ afterEach(() => {
 });
 
 describe("Y10 — QR cevap kutusu: başarılı gönderim YENİ taslağı silmez", () => {
-  const box = () => screen.getByPlaceholderText(/Misafire yanıt yaz/) as HTMLTextAreaElement;
+  const box = () => screen.getByPlaceholderText(/Misafire yanıtınızı yazın/) as HTMLTextAreaElement;
 
   it("🚨 A gönderilirken B yazıldı → A başarılı → kutuda B kalır", async () => {
     const { pending } = deferredFetch((_u, i) => i?.method === "POST", () => json(200, {}));

@@ -227,7 +227,7 @@ describe("AttentionPanel", () => {
     ];
     render(<AttentionPanel items={items} />);
     expect(screen.getByText(/otomatik sınıflandırma, doğrulayın/)).toBeTruthy();
-    expect(screen.getByText(/4 sinyal/)).toBeTruthy();
+    expect(screen.getByText(/4 kez tekrarladı/)).toBeTruthy();
   });
 
   it("her satır kendi hedefine bağlanır", () => {

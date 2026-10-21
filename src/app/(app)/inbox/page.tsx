@@ -396,7 +396,11 @@ export default async function InboxPage({
             description={
               query
                 ? `“${query}” ile eşleşen misafir bulunamadı. Arama yalnız misafir adında yapılır.`
-                : "Bu durumda bekleyen bir konuşmanız yok. Diğer sekmelere bakabilir ya da filtreyi temizleyebilirsiniz."
+                : status === "new" || status === "waiting"
+                  ? "Cevap bekleyen mesaj yok — her şey güncel."
+                  : status === "problem"
+                    ? "Sorunlu konuşma yok."
+                    : "Bu sekmede konuşma yok. Diğer sekmelere bakabilir ya da filtreyi temizleyebilirsiniz."
             }
           >
             <LinkButton href="/inbox" size="sm" variant="outline">

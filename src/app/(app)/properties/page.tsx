@@ -88,9 +88,16 @@ export default async function PropertiesPage() {
           }
         >
           {canManage ? (
-            <LinkButton href="/properties/new" size="sm">
-              <Plus className="size-4" /> İlk mülkü ekle
-            </LinkButton>
+            <div className="flex flex-wrap justify-center gap-2">
+              {!channelConnected ? (
+                <LinkButton href="/settings?tab=baglantilar" size="sm">
+                  Airbnb / Booking&apos;i bağlayın
+                </LinkButton>
+              ) : null}
+              <LinkButton href="/properties/new" size="sm" variant={channelConnected ? "default" : "outline"}>
+                <Plus className="size-4" /> İlk mülkü ekle
+              </LinkButton>
+            </div>
           ) : null}
         </EmptyState>
       ) : (
