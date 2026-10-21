@@ -651,6 +651,11 @@ describe("Claude 2. dalga #18 / #53 (10-21): bağlaçla biten olumsuzluk ve baş
     "Not sure, but if the CO alarm beeps should we leave",
     "Sorry if this is a dumb question but if the CO detector beeps should we leave",
     "Wenn der CO-Melder piept, was sollen wir tun?",
+    // Haiku 10-21: olumsuzluk iki sesi birlikte kapsar; soru cümlesinde varsayım serbest kalmaz.
+    "The CO alarm isn't beeping or buzzing, is it fine?",
+    "The CO alarm does not beep and buzz",
+    "If we're cooking but the CO alarm beeps, should we leave?",
+    "If we cook, will the CO alarm still beep?",
   ])("KONTROL (aşırı uygulama yok) — bildirim değil: %s", (m) => {
     expect(gasDetectorSounding(m)).toBe(false);
   });

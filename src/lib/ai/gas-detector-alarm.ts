@@ -277,7 +277,7 @@ const DE_STOP_SEPARABLE = /(?:^|\s)(?:hort|hoert)(?: \p{L}{1,12}){0,2} nicht auf
 const SOUNDS_OPINION =
   /^\s(?:like (?:(?:a|an)\s)?(?:good|great|nice|bad|fine|perfect|plan|idea|deal|fun|joke|lot|you|we|they|it will|it would)|good|great|fine|perfect|ok|okay|nice|right|reasonable|interesting|lovely|amazing|awesome|cool|wonderful|excellent|helpful|about right|to me|logical|easy|simple)(?![\p{L}\p{N}])/u;
 
-function liveSound(sentence: string, s: Span, firstHypo: number): boolean {
+function liveSound(sentence: string, s: Span, firstHypo: number, isQuestion = false): boolean {
   if (/^sound(?:s|ed|ing)$/u.test(sentence.slice(s.start, s.end)) && SOUNDS_OPINION.test(sentence.slice(s.end, s.end + 16))) return false;
   const before = sentence.slice(Math.max(0, s.start - 40), s.start);
   // Ses ÇALMIŞ (durdu / artık ötmüyor) → olumsuz denetimi atlanır (↑ STOPPED_NEG).
@@ -290,11 +290,15 @@ function liveSound(sentence: string, s: Span, firstHypo: number): boolean {
     const neg = PLAIN_NEG.exec(before);
     // Olumsuzluk BAŞKA bir yüklemi bağlaçla bitiriyorsa sese uzanmaz (Claude 2. dalga #18): "The CO alarm is not working AND beeping",
     // "çalışmıyor ve ötüyor" — "not … and" arasındaki sözcük ayrı yüklemdir, ses olumsuzlanmamıştır.
-    if (neg && !STOP_VERB.test(` ${neg[1]}`) && !DE_STOP_SEPARABLE.test(before) && !NEG_ENDS_IN_CONJUNCTION.test(` ${neg[1]}`)) return false;
+    // Bağlaçtan önceki sözcük kendisi bir SES ise olumsuzluk iki sesi birlikte kapsar ("isn't beeping or buzzing", Haiku 10-21).
+    const negReleased = NEG_ENDS_IN_CONJUNCTION.test(` ${neg?.[1] ?? ""}`) && !ANY_SOUND.test(` ${neg?.[1] ?? ""}`);
+    if (neg && !STOP_VERB.test(` ${neg[1]}`) && !DE_STOP_SEPARABLE.test(before) && !negReleased) return false;
     if (NEG_AFTER.test(sentence.slice(s.end, s.end + 14))) return false;
   }
   if (futureBefore(sentence, s)) return false;
-  return !(firstHypo < s.start) || hypotheticalReleased(sentence, firstHypo, s.start);
+  // Soru cümlesinde varsayım SERBEST BIRAKILMAZ (Haiku 10-21: "If we cook, will the CO alarm still beep?", "If we're cooking but the CO alarm
+  // beeps, should we leave?" sorudur — bildirim değil).
+  return !(firstHypo < s.start) || (!isQuestion && hypotheticalReleased(sentence, firstHypo, s.start));
 }
 
 /** Olumsuzluk penceresinin son sözcüğü bağlaç mı ("not working and ", "nicht kaputt und ")? */
@@ -346,7 +350,14 @@ export function smokeDetectorSounding(message: string | null | undefined): boole
 
 function detectorSounding(message: string | null | undefined, DETECTOR: Record<Lang, RegExp>): boolean {
   if (typeof message !== "string" || message.length === 0) return false;
-  const sentences = fold(message).split(/[.!?;؟\n]+/u).map((s) => s.trim());
+  // Cümle ayracı da tutulur: soru işaretiyle biten cümlede varsayım serbest bırakılmaz (↑ liveSound).
+  const pieces = fold(message).split(/([.!?;؟\n]+)/u);
+  const sentences: string[] = [];
+  const questions: boolean[] = [];
+  for (let i = 0; i < pieces.length; i += 2) {
+    sentences.push(pieces[i].trim());
+    questions.push(/[?؟]/u.test(pieces[i + 1] ?? ""));
+  }
   // Cümle başına BİR KEZ (maliyet pini: ses başına cümle taraması 50.000 karakterde karesel idi).
   const ongoing = sentences.map((s) => ONGOING.test(s));
   const hasSound = sentences.map((s) => ANY_SOUND.test(s));
@@ -361,7 +372,7 @@ function detectorSounding(message: string | null | undefined, DETECTOR: Record<L
     // Y1 (10-14 dış inceleme): nezaket kalıbı ("If you have a moment, our CO alarm is beeping") varsayım DEĞİL — tehlike okuyucusuyla
     // aynı liste, konum koruyarak boşlanır; gerçek varsayım ("If the CO alarm beeps, what should we do?") aynen kalır.
     const firstHypo = spans(HYPOTHETICAL_ALL, blankPoliteConditionals(sentence))[0]?.start ?? Infinity;
-    const live = (s: Span) => liveSound(sentence, s, firstHypo);
+    const live = (s: Span) => liveSound(sentence, s, firstHypo, questions[k]);
     // Canlı / hava kaynaklı olabilen fiiller (howl, whistle, honk, screech …) AYNI cümlede de öznesine bakar (Haiku 18. tur: "The wind is
     // whistling, where is the CO detector?", "The kids are screeching next to the smoke alarm"). Eski fiillerde bilinçli olarak yok —
     // "CO alarmı ve telefonum ötüyor" gerçek bildirimdir.

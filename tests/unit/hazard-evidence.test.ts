@@ -798,7 +798,7 @@ describe("Claude 2. dalga #78 / #21 (10-21): öznesiz kip fiili sigara değildir
     expect(hazardModule.hazardEvidenceOf('The 55" TV is fine but there\'s a strong gas smell in the kitchen "right now"').level).toBe("clear");
   });
 
-  it.each([['He said "there is a fire" in the movie, lol'], ['The sign says "gas leak" but it\'s just a test']])(
+  it.each([['He said "there is a fire" in the movie, lol'], ['The sign says "gas leak" but it\'s just a test'], ['Kapıdaki "yangın"ı gördüm, güzel bir afiş']])(
     "KONTROL — sözcük sınırındaki gerçek alıntı yine alıntı: %s",
     (m) => {
       expect(hazardModule.hazardEvidenceOf(m).level).toBe("none");

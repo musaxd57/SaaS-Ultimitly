@@ -416,10 +416,11 @@ const TR_QUESTION = rx([`${NL}(?:var|yok)\\s+m[iu]${NR}`, `${NL}m[iu]\\s+(?:var|
 const BARE_ALARM =
   /^(?:(?:imdat|help|hilfe|au\s+secours|socorro|ayuda|помогите|النجدة)\s+)?(?:yangin|fire|feuer|au\s+feu|feu|fuego|incendio|пожар|حريق)(?:\s+(?:var|imdat|help|hilfe))?$/iu;
 /**
- * Alıntı. Düz çift tırnak ("…") yalnız sözcük SINIRINDA açılıp kapanırsa alıntıdır (Claude 2. dalga #21): inç işareti ('55" TV', 'the 2"
- * pipe') tırnak değildir — eşleşmemiş inç ile sonraki bir tırnak arasındaki gerçek tehlike cümlesi silinmez.
+ * Alıntı. Düz çift tırnak ("…") yalnız sözcük SINIRINDA AÇILIRSA alıntıdır (Claude 2. dalga #21): inç işareti ('55" TV', 'the 2"
+ * pipe') tırnak değildir — eşleşmemiş inç ile sonraki bir tırnak arasındaki gerçek tehlike cümlesi silinmez. Kapanış tırnağından sonra harf
+ * gelebilir: Türkçe ek tırnağa bitişir ('"yangın"ı gördüm', Haiku 10-21).
  */
-const QUOTED = /[“«„][^“”"«»„\n]{1,80}[”"»“]|(?<![\p{L}\p{N}])"[^“”"«»„\n]{1,80}"(?![\p{L}\p{N}])/gu;
+const QUOTED = /[“«„][^“”"«»„\n]{1,80}[”"»“]|(?<![\p{L}\p{N}])"[^“”"«»„\n]{1,80}"/gu;
 /** Cümlecik sınırları: noktalama + virgül + karşıtlık bağlaçları ("yangın yok AMA duman var" iki ayrı cümlecik). Ayraç YAKALANIR (soru işareti). */
 const CLAUSE_SPLIT =
   /((?:(?<!\d)[.](?!\d)|[!?;,\n…؟،]|(?<![\p{L}\p{N}])(?:ama|fakat|ancak|lakin|but|however|aber|jedoch|mais|pero|sino|но|однако|لكن|ولكن)(?![\p{L}\p{N}]))+)/u;
