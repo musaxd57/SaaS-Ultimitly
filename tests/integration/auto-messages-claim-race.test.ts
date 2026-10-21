@@ -106,4 +106,26 @@ describe("kurucu T4 — kuyruk kapalı: seçimden sonra değişen metin", () => 
     const row = await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId } });
     expect(row).toMatchObject({ status: "canceled", body: ANON_BODY });
   });
+
+  it("🚨 kalıcı kuyruk: yeniden kurma sırasında talep BAŞKA işçiye geçti → bu işçi ne yazar ne gönderir", async () => {
+    vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
+    vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", "*");
+    const { orgId, propertyId } = await seed();
+    await seedAutoMessage(propertyId, "welcome", "Merhaba {isim}, kod 4821.");
+    await sendDueWelcomes(orgId);
+    await seedAutoMessage(propertyId, "welcome", "Merhaba {isim}, kod 7310.");
+    stale.onLoad = async () => {
+      await prisma.messageOutbox.updateMany({ where: { organizationId: orgId }, data: { claimedBy: "baska-isci" } });
+    };
+    const bodies: string[] = [];
+    const send: OutboxSendFn = async (row) => {
+      bodies.push(row.body);
+      return { ok: true, providerMessageId: "p1" };
+    };
+    await drainOutboxOnce({ send, tokenFor: async () => "t" });
+    expect(bodies).toEqual([]);
+    const row = await prisma.messageOutbox.findFirstOrThrow({ where: { organizationId: orgId } });
+    expect(row.body).toContain("4821"); // kaybeden işçi gövdeye dokunmadı
+    expect(row.claimedBy).toBe("baska-isci");
+  });
 });
