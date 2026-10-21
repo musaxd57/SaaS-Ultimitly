@@ -19,7 +19,13 @@
 - Kırmızı takım geliştirme seti + tarafsızlık katmanı ölçümü: `docs/olcum/TARAFSIZLIK-VE-KIRMIZI-TAKIM-2026-10-21.md` (taban: misafire giden
   yasak dize 0, serbest kalan tutuş 0; katman: özürlü taslak 9→0, geliştirme setinde gerileme yok). Kör kırmızı takım iş paketi (istek 3, $10)
   bu push'la tetiklenir — çıktı mühürlü klasöre, içeriğe bakılmaz.
-- CI #1573 kırmızısı (eski pinler: 256 birleşim, yalnız-"1" bayrak listesi, ölçüm koşu kimliği, taşınan etiketler) düzeltildi.
+- CI #1573 kırmızısı (eski pinler: 256 birleşim, yalnız-"1" bayrak listesi, ölçüm koşu kimliği, taşınan etiketler) düzeltildi; push
+  90d00071 CI 6/6 yeşil.
+- KÖR kırmızı takım seti (Claude iş paketi istek 3, $0.72, 71 senaryo) mühürlendi → tek koşu → YAKILDI (`SEALS.json`): misafire giden yasak
+  dize 0, acil 3/3, 69 tutuştan 67; iki "serbest" vakada gizli bilgi gitmedi (çeviri perdesi; yapay zekânın kendi reddi = U9 sınıfı).
+- Görsel düzeltmeler (Haiku hazırlığı): çıkış düğmesi adı, varsayılan şablon kontrastı, "Mülkü sil" çerçeveli, konuşma ekranında
+  rezervasyon söz formundan önce, gelen kutusunda daire adı kırpılır, rapor skorunda "az veri" notu, telefonda küçük düğme 40 px.
+  Mutasyon 13/13 (kesici, bant etiketleri / eylemleri, Sorunlu ipucu, ton).
 - Sorular (hiçbiri uygulanmadı): `docs/arastirma-2026-10-15/KURUCU-SORULARI.md` §U (U1 QR cihaz kilidi ele geçirme · U2 misafir ekranı dili ·
   U3 sohbet kodu adı · U4 daire adı · U5 otomasyon anahtarı · U6 panel sırası · U7 "şikayetçi değil" kelime yanlış alarmı · U8 tehdit + masum
   soru · U9 başka misafir bilgisi) + plan belgesi T-a…T-d.
