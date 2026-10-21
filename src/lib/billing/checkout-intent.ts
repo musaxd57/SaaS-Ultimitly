@@ -209,8 +209,9 @@ export async function openOrReuseCheckoutIntent(input: {
     // olarak yazıldı; Haiku 10-21 #3 bilinçli.)
     // Ödenmemiş ama ödeme ekranı açılamayan / iptal edilemeyen işlem (B4) ya da süresi dolmuş ama iptal edilemeyen işlem (B2): verilmez,
     // yenisi de açılmaz.
+    // Yaşı mutlak üst sınırı geçen niyet buraya gelmez: aynı istekte `closeStale` onu kapatır (iptal ya da doğrulanamadan kapanış + haber).
     const hardEnd = existing.createdAt.getTime() + CHECKOUT_INTENT_MAX_AGE_MS;
-    if ((status && UNPAYABLE_OPEN_STATES.has(status)) || existing.expiresAt < now || hardEnd <= now.getTime()) {
+    if ((status && UNPAYABLE_OPEN_STATES.has(status)) || existing.expiresAt < now) {
       return { kind: "busy", message: CHECKOUT_INTENT_BUSY_MESSAGE };
     }
     if (existing.priceId === input.priceId) {
