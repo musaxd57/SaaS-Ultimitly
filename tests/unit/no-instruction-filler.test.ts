@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { stripNoInstructionFiller } from "@/lib/ai/no-instruction-filler";
+import { sentenceGroundedInKb, stripNoInstructionFiller, stripNoInstructionFillerGrounded } from "@/lib/ai/no-instruction-filler";
 import { admitsMissingKnowledge } from "@/lib/ai/absence";
 
 // ---------------------------------------------------------------------------
@@ -222,5 +222,25 @@ describe("'bilgi veremem' ailesi (kurucu 10-17 M1: 'tabiki tutulsun … sussa da
     "Kimlik bilgilerinizi paylaşmazsanız anahtarı veremem.",
   ])("KONTROL tutulmaz: %s", (m) => {
     expect(admitsMissingKnowledge(m)).toBe(false);
+  });
+});
+
+describe("kurucu T1 — silme yalnız DAYANAKLI kalan yönergede (cevap yolu `stripNoInstructionFillerGrounded`)", () => {
+  const KB = ["Çıkış\nAnahtarı masaya bırakmanız yeterli. Çıkış saati 11:00.", "Çöp\nÇöpleri binanın arkasındaki konteynere atabilirsiniz."];
+  it("dayanaklı kalan → silinir; sayı da kalemde aynen olmalı", () => {
+    expect(stripNoInstructionFillerGrounded("Çıkış için özel talimatımız yok, anahtarı masaya bırakmanız yeterli.", "tr", KB)).toBe("Anahtarı masaya bırakmanız yeterli.");
+    expect(stripNoInstructionFillerGrounded("Çöp için özel bir talimat yok, konteynere atabilirsiniz.", "tr", KB)).toBe("Konteynere atabilirsiniz.");
+    expect(sentenceGroundedInKb("Çıkış saati 11:00.", KB)).toBe(true);
+    expect(sentenceGroundedInKb("Çıkış saati 14:00.", KB)).toBe(false); // sayı kalemde yok
+  });
+  it("🚨 dayanaksız kalan ya da bilgi tabanı yok → cevap AYNEN (bilgim yok kuralı tutar)", () => {
+    for (const t of ["Çıkış için özel talimatımız yok, kapıyı çekip çıkmanız yeterli.", "Evcil hayvan için özel talimatımız yok, evcil hayvanlar kabul edilir."])
+      expect(stripNoInstructionFillerGrounded(t, "tr", KB), t).toBe(t);
+    const t = "Çıkış için özel talimatımız yok, anahtarı masaya bırakmanız yeterli.";
+    expect(stripNoInstructionFillerGrounded(t, "tr", [])).toBe(t);
+    expect(stripNoInstructionFillerGrounded(t, "tr", undefined)).toBe(t);
+  });
+  it("KONTROL: silinecek bir şey yoksa cevap aynen", () => {
+    expect(stripNoInstructionFillerGrounded("Anahtarı masaya bırakmanız yeterli.", "tr", KB)).toBe("Anahtarı masaya bırakmanız yeterli.");
   });
 });

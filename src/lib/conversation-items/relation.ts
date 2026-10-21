@@ -1556,6 +1556,23 @@ export interface ItemRelationFacts {
   hazard: boolean;
   /** İsteğin sorgusu ücret / fiyat / ödeme soruyor (`moneyRequest`); yoksa (eski olgu) para isteği sayılmaz — cevap kemeri yine koşar. */
   money?: boolean;
+  /** ERİŞİM (kurucu T1, 10-21): istek giriş / çıkış / park / anahtar soruyor ya da talep kapı / kilit / otopark / asansör arızası (`accessFacts`). */
+  access?: boolean;
+}
+
+/**
+ * ERİŞİM OLGUSU (kurucu T1, 10-21 — "Otopark kapısı açılmıyor, nasıl çıkacağız?" → ikinci soru arızadan BAĞIMSIZ SAYILMAZ; "ayrıştırma
+ * belirsizse ilgili parça tutulur"; "modelin yalnız 'bağımsız' demesi gönderim izni olmaz"). Ölçüldü: "çıkacağız" getirme sözlüğünde
+ * `checkout`, "Otopark kapısı" `parking`, "Kapı açılmıyor" hiçbir kavram — konular çakışmadığı için istek bağımsız sayılıyordu. Erişim
+ * nesnesi arızası (kapı / kapı kodu / kilit / anahtar / otopark / garaj / bariyer / asansör / diyafon) + erişim isteği (giriş / çıkış / park
+ * / anahtar / kapı) aynı turdaysa istek ev sahibinde kalır. Katlanmış metinde tam sözcük başı; ek serbest (sınırlı).
+ */
+const ACCESS_TOPICS: ReadonlySet<string> = new Set(["checkin", "checkout", "keys", "parking", "elevator"]);
+const ACCESS_WORDS =
+  /(?<![\p{L}\p{N}])(?:kapi\p{L}{0,8}|kilit\p{L}{0,6}|anahtar\p{L}{0,6}|otopark\p{L}{0,6}|garaj\p{L}{0,6}|bariyer\p{L}{0,6}|turnike\p{L}{0,6}|asansor\p{L}{0,6}|diyafon\p{L}{0,6}|giris\p{L}{0,6}|gir(?:ece|eme|emi|ebil|elim|iyor|dik|meden)\p{L}{0,6}|cik(?:aca|acak|ama|amı|abil|alim|iyor|madan|is)\p{L}{0,6}|cikar\p{L}{0,8}|tasi(?:ya|yabil|mak|nir)\p{L}{0,6}|indir\p{L}{0,6}|doors?|gates?|locks?|keys?|parking|garage|barrier|elevator|lift|intercom|entrance|exit|get\s+(?:in|out)|leave|enter)(?![\p{L}\p{N}])/u;
+export function accessFacts(...texts: readonly string[]): (topics: readonly string[]) => boolean {
+  const worded = texts.some((t) => ACCESS_WORDS.test(fold(t ?? "")));
+  return (topics) => worded || topics.some((t) => ACCESS_TOPICS.has(t));
 }
 
 /**
@@ -1589,6 +1606,8 @@ export interface RequestFacts {
   hazard: boolean;
   /** Sorgusu ücret / fiyat / ödeme soruyor (`moneyRequest`) — para sorusu arıza çözümü olarak sunulmaz. */
   money?: boolean;
+  /** Giriş / çıkış / park / anahtar sorusu (`accessFacts`) — erişim arızasının yanında bağımsız sayılmaz (kurucu T1). */
+  access?: boolean;
   /**
    * İsteme giren bilgi tabanında bu isteğin konusunda bir TARİF kalemi var mı (`kbRecipeTopics`). Arıza çözümü yalnız `true` iken
    * cevaplanabilir; eksik = bilinmiyor = tarif yok (TUT). Plan her istek için yazar; kapı aynı olguyla aynı kararı verir.
@@ -1602,6 +1621,8 @@ export interface AnchorFacts {
   topics: readonly string[];
   /** Talebin mesajı tehlike sınıfına değiyor ("Sıcak su yok", "Sigorta attı"). */
   hazard: boolean;
+  /** Talep bir erişim nesnesinin arızası (kapı / kilit / otopark / asansör…; `accessFacts`). */
+  access?: boolean;
 }
 
 export type RequestDependency = "independent" | "fix" | "dependent";
@@ -1618,6 +1639,9 @@ function ownTopic(req: RequestFacts): boolean {
 export function requestDependency(req: RequestFacts, anchors: readonly AnchorFacts[]): RequestDependency {
   if (anchors.length === 0) return "independent";
   const complaint = anchors.some((a) => a.kind === "complaint_issue");
+  // Kurucu T1: erişim arızası + erişim sorusu → modelin "kendi konusu / takip" işareti ne olursa olsun bağımlı ("Otopark kapısı açılmıyor,
+  // nasıl çıkacağız?"). Arızanın KENDİ çözüm isteği ("nasıl açarım?") ↓ arıza çözümü kuralıyla kalır (tarif + tehlike + para şartı).
+  if (req.relation !== "fix_request" && req.access === true && anchors.some((a) => a.access === true && a.kind === "complaint_issue")) return "dependent";
   const anchorTopics = new Set(anchors.flatMap((a) => a.topics));
   const overlap = req.topics.some((t) => anchorTopics.has(t));
   if (req.relation === "own_topic") {

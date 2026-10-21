@@ -75,6 +75,26 @@ describe("suggestReply — 'talimat yok' yan cümlesi misafire yazılmaz (kurucu
     expect(admitsMissingKnowledge(r.reply)).toBe(true);
   });
 
+  // Kurucu T1 (10-21, aynen): "'Bilgimiz yok' cümlesini silmek, arkasındaki kanıtsız talimatı veya izni gönderilebilir hâle getirmeyecek."
+  it.each([
+    "Evcil hayvan için özel talimatımız yok, evcil hayvanlar kabul edilir.",
+    "Çıkış için özel talimatımız yok, saat 14:00'e kadar kalabilirsiniz.",
+    "Çıkış için özel talimatımız yok, kapıyı çekip çıkmanız yeterli.",
+    "Çıkış için özel talimatımız yok. Depozito iadesi 3 gün içinde yapılır.",
+  ])("🚨 kurucu T1: bilgi tabanında dayanağı olmayan kalan yönerge silme ile gönderilebilir OLMAZ — %s", async (text) => {
+    modelSays(text);
+    const r = await suggestReply(input); // bilgi tabanında yalnız "Anahtarı masaya bırakmanız yeterli."
+    expect(r.reply).toBe(text); // ⬅️ 10-17 silicisi kalan uydurmayı misafire gönderilebilir yapıyordu
+    expect(admitsMissingKnowledge(r.reply)).toBe(true);
+  });
+
+  it("kurucu T1 KONTROL: kalan yönerge bilgi tabanında AYNEN varsa silme bugünkü gibi; nezaket cümlesi şartın dışında", async () => {
+    modelSays("Çıkış için özel talimatımız yok, anahtarı masaya bırakmanız yeterli. İyi yolculuklar!");
+    const r = await suggestReply(input);
+    expect(r.reply).toBe("Anahtarı masaya bırakmanız yeterli. İyi yolculuklar!");
+    expect(admitsMissingKnowledge(r.reply)).toBe(false);
+  });
+
   it("KONTROL: 'talimat yok' taşımayan cevap değişmez", async () => {
     modelSays("Anahtarı masaya bırakmanız yeterli, iyi yolculuklar.");
     const r = await suggestReply(input);

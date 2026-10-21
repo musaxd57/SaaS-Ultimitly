@@ -4,6 +4,8 @@ import { extractTurnItems } from "@/lib/conversation-items/extract";
 import { composeItemsPlan, relationFactsOf } from "@/lib/conversation-items/plan";
 import { buildItemsPromptBlock } from "@/lib/conversation-items/reply-block";
 import {
+  accessFacts,
+  faultTopics,
   fixHazard,
   touchesHeldDevice,
   isFixRecipeText,
@@ -665,5 +667,42 @@ describe("cevap modelinin öğe bloğu — arıza çözümü işareti", () => {
     expect(fixed).toContain("YALNIZ bilgi tabanında yazan adımları ver");
     expect(fixed).toContain("CEVAPLAMA (answeredRequests'e koyma)");
     expect(fixed.startsWith(plain.slice(0, plain.indexOf("  - R1")))).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// KURUCU T1 (10-21): erişim arızası (kapı / kilit / otopark / asansör…) + aynı turdaki erişim sorusu (giriş / çıkış / park / anahtar / taşıma)
+// → modelin "kendi konusu" işaretine rağmen BAĞIMLI. Erişim dışı arıza ya da erişim dışı soru bugünkü gibi.
+// ---------------------------------------------------------------------------
+describe("kurucu T1 — erişim arızası + erişim sorusu bağımsız sayılmaz", () => {
+  const anchorOf = (t: string) => {
+    const topics = faultTopics(t, t, "complaint_issue");
+    return { kind: "complaint_issue" as const, topics, hazard: false, access: accessFacts(t)(topics) };
+  };
+  const reqOf = (t: string, kind: string) => {
+    const topics = requestTopics(t, t, kind as never);
+    return { kind: kind as never, relation: "own_topic" as const, topics, generic: false, hazard: false, money: false, access: accessFacts(t)(topics) };
+  };
+  it.each([
+    ["Otopark kapısı açılmıyor", "Nasıl çıkacağız?", "directions_transport"],
+    ["Kapı açılmıyor", "Nasıl gireceğiz?", "directions_transport"],
+    ["Kapı açılmıyor", "Kapı kodu ne?", "access_keys"],
+    ["Asansör çalışmıyor", "Bavulları nasıl çıkaracağız?", "luggage"],
+    ["The parking gate won't open", "How do we get out?", "directions_transport"],
+  ])("🚨 '%s' + '%s' → bağımlı", (fault, question, kind) => {
+    expect(requestDependency(reqOf(question, kind), [anchorOf(fault)])).toBe("dependent");
+  });
+  it.each([
+    ["Televizyonda görüntü yok", "Çöpleri nereye atıyoruz?", "trash"],
+    ["Televizyonda görüntü yok", "Wi-Fi şifresi ne?", "wifi"],
+    ["Klima çalışmıyor", "Taksi çağırabilir misiniz?", "directions_transport"],
+  ])("KONTROL: '%s' + '%s' → bağımsız", (fault, question, kind) => {
+    expect(requestDependency(reqOf(question, kind), [anchorOf(fault)])).toBe("independent");
+  });
+  it("erişim olgusu: sözcük ya da erişim konusu; zararsız soru erişim değil", () => {
+    expect(accessFacts("Kapı açılmıyor")([])).toBe(true);
+    expect(accessFacts("Eşyaları nasıl taşıyacağız?")([])).toBe(true);
+    expect(accessFacts("Çöpleri nereye atıyoruz?")(["trash"])).toBe(false);
+    expect(accessFacts("x")(["parking"])).toBe(true);
   });
 });

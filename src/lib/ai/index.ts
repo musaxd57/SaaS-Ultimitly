@@ -3,7 +3,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { buildReplyPrompt, replySystemPromptFor } from "./prompts";
 import { applyCodeGreeting, codeGreetingEnabled, salutationNameOf } from "./code-greeting";
-import { stripNoInstructionFiller } from "./no-instruction-filler";
+import { stripNoInstructionFillerGrounded } from "./no-instruction-filler";
 import { kbFeeRuleEnabled } from "./kb-fee-rule";
 import { stayDeferralPlainEnabled } from "./stay-deferral-plain";
 import { accessCodeCompleteEnabled } from "./access-code-complete";
@@ -286,6 +286,11 @@ export function replyPromptVersion(items: { mode: boolean; held: boolean } = { m
 
 /** Normalize a model-returned language value to a short code (2–3 letters), else
  *  "und" (BCP-47 "undetermined") so garbage can't ride through as a real language. */
+/** Modele verilen bilgi tabanı kalemleri (başlık + içerik) — "talimat yok" silicisinin dayanak şartı (kurucu T1). */
+function kbTextsOf(input: SuggestReplyInput): string[] {
+  return input.knowledgeBase.map((k) => `${k.title}\n${k.content}`);
+}
+
 function normalizeLang(v: unknown): string {
   if (typeof v !== "string") return "und";
   const primary = v.trim().toLowerCase().split(/[-_]/)[0];
@@ -552,10 +557,11 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
           // Cap every free-text field the model returns — an over-long value would
           // bloat the DB row / inbox UI / logs it lands on (no token guarantee
           // per-field). ↑capReply: iki eşik, biri gönderim biri saklama.
-          // "Talimat yok" yan cümlesi misafire yazılmaz (kurucu 10-17, `no-instruction-filler.ts`); selamdan ÖNCE, her yolda aynı.
+          // "Talimat yok" yan cümlesi misafire yazılmaz (kurucu 10-17, `no-instruction-filler.ts`); selamdan ÖNCE, her yolda aynı. Kurucu T1
+          // (10-21): silme ancak kalan yönergenin bilgi tabanında DAYANAĞI varsa — yoksa cevap aynen kalır, "bilgim yok" kuralı tutar.
           reply: codeGreetingEnabled()
-            ? codeGreetingReply(stripNoInstructionFiller(cappedReply.text, normalizeLang(parsed.detectedLanguage)), input, parsed.detectedLanguage)
-            : stripNoInstructionFiller(cappedReply.text, normalizeLang(parsed.detectedLanguage)),
+            ? codeGreetingReply(stripNoInstructionFillerGrounded(cappedReply.text, normalizeLang(parsed.detectedLanguage), kbTextsOf(input)), input, parsed.detectedLanguage)
+            : stripNoInstructionFillerGrounded(cappedReply.text, normalizeLang(parsed.detectedLanguage), kbTextsOf(input)),
           risk:
             typeof parsed.risk === "string" && parsed.risk.trim()
               ? parsed.risk.slice(0, 300)

@@ -157,18 +157,18 @@ function relationPlan<T extends PlanItem>(
   // Bağlayıcı talebin kendi olgusu yoksa (kelime ağının uyarı geçişinde açtığı şikâyet; anlama katmanı aynı mesajı başka türle — ör.
   // otopark — okudu) AYNI MESAJIN öteki isteklerinin konuları + tehlikesi: konusuz bağlayıcı "Otopark kapısı açılmıyor!" yanındaki
   // "Arabayla nasıl çıkarız?" sorusunu bağımsız bırakıyordu (15 ajan A06). Yalnız sıkılaştırır.
-  const messageFacts = (messageId: string | undefined): { topics: string[]; hazard: boolean } | undefined => {
+  const messageFacts = (messageId: string | undefined): { topics: string[]; hazard: boolean; access: boolean } | undefined => {
     if (!messageId) return undefined;
     const prefix = `${messageId}\u0000`;
     const same = [...relations.entries()].filter(([key]) => key.startsWith(prefix)).map(([, f]) => f);
     if (same.length === 0) return undefined;
-    return { topics: [...new Set(same.flatMap((f) => f.topics))].sort(), hazard: same.some((f) => f.hazard) };
+    return { topics: [...new Set(same.flatMap((f) => f.topics))].sort(), hazard: same.some((f) => f.hazard), access: same.some((f) => f.access === true) };
   };
   const anchors: AnchorFacts[] = held
     .filter((h) => !h.earlier && RELATION_ANCHOR_KINDS.has(h.kind))
     .map((h) => {
       const f = lookup(h.messageId, h.kind) ?? messageFacts(h.messageId);
-      return { kind: h.kind, topics: f?.topics ?? [], hazard: f?.hazard ?? false };
+      return { kind: h.kind, topics: f?.topics ?? [], hazard: f?.hazard ?? false, access: f?.access === true };
     });
   const factsOf = (i: T): RequestFacts => {
     const f = lookup(i.messageId, i.kind);
@@ -181,6 +181,7 @@ function relationPlan<T extends PlanItem>(
       hazard: f?.hazard ?? false,
       // Kör set 7 k7-22 (10-02): ücret / fiyat / ödeme sorusu arıza çözümü olarak sunulmaz.
       money: f?.money === true,
+      access: f?.access === true,
       // Karar 23 kör doğrulaması (10-01 öğlen): bilgi tabanında bu isteğin konusunda tarif kalemi var mı — kapı aynı olguyu okur.
       // İsteğin HER cihaz konusu tarifli olmalı (15 ajan A06: "klima ve TV çalışmıyor" isteğinde yalnız klima tarifi varken TV'ye de
       // çözüm sunuluyordu); cihaz konusu yoksa tarif yok.

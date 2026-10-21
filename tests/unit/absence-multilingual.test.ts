@@ -483,3 +483,20 @@ describe("🚨 kurucu 10-18 T3: 'bilgi veremem' HİÇBİR dilde misafire gitmez"
       expect(admitsMissingKnowledge(t), t).toBe(false);
   });
 });
+
+describe("kurucu T1 (10-21): iç kaynak / işleyiş anlatımı misafire gitmez — 'sistemimizde görünmüyor' ailesi", () => {
+  it.each([
+    "Rezervasyonunuz sistemimizde görünmüyor.",
+    "Bu bilgi sistemde yok.",
+    "Sistemimizde böyle bir kayıt bulunmuyor.",
+    "Your booking is not in our system.",
+    "I don't see it in our system.",
+    "Our system doesn't show any parking fee.",
+    "Bilgi tabanında yok.",
+    "Kayıtlarımda bulamadım.",
+  ])("TUTULUR: %s", (t) => expect(admitsMissingKnowledge(t)).toBe(true));
+  it.each(["Dairede merkezi ısıtma sistemi yok.", "The heating system is electric.", "Sistem çalışıyor, sorun yok.", "Our alarm system is on the wall."])(
+    "KONTROL — mülk olgusu, tutulmaz: %s",
+    (t) => expect(admitsMissingKnowledge(t)).toBe(false),
+  );
+});

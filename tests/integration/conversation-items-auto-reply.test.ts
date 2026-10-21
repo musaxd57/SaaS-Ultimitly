@@ -1161,3 +1161,57 @@ describe("KONU BAZLI 'BİLGİM YOK' (H9, kurucu 10-16; anahtar AI_TOPIC_ABSENCE_
     expect(JSON.parse(ev?.kbEvidenceJson ?? "{}").g?.d).toBe("items_held_touched");
   });
 });
+
+// ---------------------------------------------------------------------------
+// KURUCU T1 (10-21): "Otopark kapısı açılmıyor, nasıl çıkacağız?" → ikinci soru arızadan BAĞIMSIZ SAYILMAZ; modelin "kendi konusu"
+// demesi gönderim izni değildir. Ölçüldü: "çıkacağız" `checkout`, "Otopark kapısı" `parking` → konular çakışmıyor, istek bağımsız
+// sayılıp cevap gidiyordu. Erişim arızası + erişim sorusu → ikisi de ev sahibinde.
+// ---------------------------------------------------------------------------
+describe("kurucu T1 — erişim arızasının yanındaki erişim sorusu bağımsız sayılmaz", () => {
+  beforeEachTurn();
+  function understood(complaint: string, question: string, intent: string): MessageUnderstanding {
+    const u = parseUnderstanding(
+      {
+        language: "tr",
+        requests: [
+          { intent: "complaint_issue", relation: "own_topic", message: 1, query_tr: complaint, query_original: complaint },
+          { intent, relation: "own_topic", message: 1, query_tr: question, query_original: question },
+        ],
+        stay_change: STAY_NONE,
+        withdrawn: [],
+      },
+      { items: true, followup: true },
+    );
+    if (!u) throw new Error("fixture");
+    return u;
+  }
+
+  it("🚨 'Otopark kapısı açılmıyor, nasıl çıkacağız?' → cevap GİTMEZ, iki istek de ev sahibinde açık", async () => {
+    const { conversationId } = await seed("Otopark kapısı açılmıyor, nasıl çıkacağız?");
+    understands(understood("otopark kapısı açılmıyor", "nasıl çıkacağız", "directions_transport"));
+    mockSuggest.mockResolvedValueOnce(
+      // Cevap arızanın konusunu ANMIYOR (anarsa "tutulan konuya değen cevap" kapısı zaten tutardı) — bu kuralın kendisi sınanır.
+      verdict({ intent: "general", reply: "Çıkışta ana kapıdan çıkıp sağa dönebilirsiniz.", answeredRequests: { ok: true, refs: ["R1"] } }),
+    );
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(false); // ⬅️ eskiden çıkış tarifi misafire gidiyordu
+    expect(mockSend).not.toHaveBeenCalled();
+    const items = await itemsOf(conversationId);
+    expect(items.find((i) => i.kind === "directions_transport")?.status).not.toBe("answered");
+  });
+
+  it("🚨 'Kapı açılmıyor, nasıl gireceğiz?' (kapının kavramı yok) → yine bağımsız sayılmaz", async () => {
+    const { conversationId } = await seed("Kapı açılmıyor, nasıl gireceğiz?");
+    understands(understood("kapı açılmıyor", "nasıl gireceğiz", "access_keys"));
+    mockSuggest.mockResolvedValueOnce(verdict({ intent: "general", reply: "Kapı kodu 4829'dur.", answeredRequests: { ok: true, refs: ["R1"] } }));
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("KONTROL: erişim dışı arıza (klima) + çıkış saati sorusu → bağımsız soru bugünkü gibi cevaplanır", async () => {
+    const { conversationId } = await seed("Klima çalışmıyor, çıkış saati kaçta?");
+    understands(understood("klima çalışmıyor", "çıkış saati kaçta", "checkout_time"));
+    mockSuggest.mockResolvedValueOnce(verdict({ intent: "general", reply: "Çıkış saati 11:00'dir.", answeredRequests: { ok: true, refs: ["R1"] } }));
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(true);
+  });
+});
+

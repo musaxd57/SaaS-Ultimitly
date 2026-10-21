@@ -306,3 +306,60 @@ export function stripNoInstructionFiller(reply: string, language?: string | null
   const source = sourceLines.flatMap((l) => sentencesOf(l));
   return all.every((p, idx) => !p.whole && p.text === source[idx]) ? reply : collapsed.join("\n");
 }
+
+// ---------------------------------------------------------------------------
+// KURUCU T1 (10-21, aynen): "'Bilgimiz yok' cümlesini silmek, arkasındaki kanıtsız talimatı veya izni gönderilebilir hâle getirmeyecek."
+// Yapısal izin listesi (↑) kalan metnin KONUSUNA bakıyordu, DAYANAĞINA değil: "Çıkış için özel talimatımız yok, kapıyı çekip çıkmanız yeterli"
+// bilgi tabanında hiç yazmasa da siliniyor, uydurma yönerge misafire gidiyordu. Artık silme yapıldıysa kalan HER içerik cümlesi modele verilen
+// bilgi tabanının TEK bir kaleminde dayanak taşımalı (içerik sözcüklerinin en az %75'i — 5 harflik gövde — ve cümledeki HER sayı aynen);
+// taşımıyorsa cevaba dokunulmaz → "bilgim yok" kuralı bütün cevabı tutar, ev sahibi yanıtlar. Yalnız selam / nezaket cümlesi muaf. Bilgi
+// tabanı verilmezse silme YOK (dayanak doğrulanamaz).
+// ---------------------------------------------------------------------------
+
+const GROUND_STOPWORDS: ReadonlySet<string> = new Set([
+  "için", "icin", "olarak", "ancak", "fakat", "sadece", "yalnız", "yalniz", "lütfen", "lutfen", "bunu", "şunu", "sunu", "bizim", "sizin",
+  "yeterli", "olur", "olabilir", "edebilirsiniz", "yapabilirsiniz", "please", "just", "simply", "your", "with", "that", "this", "there",
+  "have", "will", "from", "into", "when", "then", "also", "only",
+]);
+const COURTESY_SENTENCE =
+  /^(?:merhaba|selam|sevgili|değerli|degerli|hello|hi|dear|hola|bonjour|hallo|здравствуйте)\b[^.!?]{0,40}[,.!]?$|iyi (?:yolculuklar|tatiller|günler|gunler|akşamlar|aksamlar|konaklamalar)|keyifli|teşekkür|tesekkur|thank|have a (?:nice|great|safe|good|lovely)|enjoy your|safe travels/iu;
+
+function groundTokens(text: string): string[] {
+  const folded = text
+    .toLocaleLowerCase("tr")
+    .normalize("NFKD")
+    .replace(/\p{M}/gu, "")
+    .replace(/ı/g, "i");
+  return folded
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((w) => w.length >= 4 && !GROUND_STOPWORDS.has(w) && !/^\d+$/.test(w))
+    .map((w) => w.slice(0, 5));
+}
+
+/** Cümle bilgi tabanının tek bir kaleminde dayanak taşıyor mu (↑ ölçüt). */
+export function sentenceGroundedInKb(sentence: string, kbTexts: readonly string[]): boolean {
+  const tokens = groundTokens(sentence);
+  const numbers = sentence.match(/\d+/g) ?? [];
+  if (tokens.length === 0 && numbers.length === 0) return true;
+  return kbTexts.some((kb) => {
+    const kbTokens = new Set(groundTokens(kb));
+    const hit = tokens.filter((t) => kbTokens.has(t)).length;
+    return (tokens.length === 0 || hit / tokens.length >= 0.75) && numbers.every((n) => kb.includes(n));
+  });
+}
+
+/**
+ * Cevap yolunun kullandığı silici (`suggestReply`): yapısal silme (↑) + dayanak şartı. Silme yapılmadıysa ya da kalan içerik dayanaksızsa
+ * cevap AYNEN döner.
+ */
+export function stripNoInstructionFillerGrounded(reply: string, language: string | null | undefined, kbTexts: readonly string[] | undefined): string {
+  const out = stripNoInstructionFiller(reply, language);
+  if (out === reply) return reply;
+  if (!kbTexts || kbTexts.length === 0) return reply;
+  const sentences = out
+    .split("\n")
+    .flatMap((l) => sentencesOf(l))
+    .map((s) => s.replace(/^[\s\-•*]+/u, "").trim())
+    .filter((s) => /\p{L}/u.test(s) && !COURTESY_SENTENCE.test(s.toLocaleLowerCase("tr")));
+  return sentences.every((s) => sentenceGroundedInKb(s, kbTexts)) ? out : reply;
+}

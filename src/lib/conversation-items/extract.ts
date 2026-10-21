@@ -18,7 +18,11 @@ import {
   type UnderstandingHistoryEntry,
 } from "@/lib/ai/semantic/understanding-schema";
 import { buildItemsForMessage, type BuiltItem, type ItemKind } from "./core";
+
+/** Giriş / çıkış SAATİ soruları (kurucu T1 erişim kuralının dışında). */
+const TIME_KINDS: ReadonlySet<ItemKind> = new Set<ItemKind>(["checkin_time", "checkout_time", "early_checkin", "late_checkout"]);
 import {
+  accessFacts,
   faultGuardEnabled,
   faultSignal,
   fixHazard,
@@ -102,12 +106,15 @@ export function extractTurnItems(input: {
       const bodyHazard = fixHazard(m.body);
       for (const r of requests) {
         const prev = relations[r.intent];
+        const topics = requestTopics(r.queryTr, r.queryOriginal, r.intent);
         const facts: ItemRelationFacts = {
           relation: r.relation ?? "unclear",
-          topics: requestTopics(r.queryTr, r.queryOriginal, r.intent),
+          topics,
           generic: isGenericFollowup(r.queryTr, r.queryOriginal),
           hazard: bodyHazard || fixHazard(r.queryTr) || fixHazard(r.queryOriginal),
           money: moneyRequest(r.queryTr, r.queryOriginal),
+          // Saat sorusu ("Çıkış saati kaçta?") erişim sorusu değildir — kapı arızası onu bağlamaz.
+          access: !TIME_KINDS.has(r.intent) && accessFacts(r.queryTr, r.queryOriginal)(topics),
         };
         relations[r.intent] = prev
           ? {
@@ -116,6 +123,7 @@ export function extractTurnItems(input: {
               generic: prev.generic && facts.generic,
               hazard: prev.hazard || facts.hazard,
               money: prev.money === true || facts.money === true,
+              access: prev.access === true || facts.access === true,
             }
           : facts;
       }
@@ -139,12 +147,14 @@ export function extractTurnItems(input: {
         hint: faulty.map((r) => r.queryTr).join(" · "),
       });
       if (relations) {
+        const faultyTopics = [...new Set(faulty.flatMap((r) => faultTopics(r.queryTr, r.queryOriginal, r.intent)))].sort();
         relations.complaint_issue = {
           relation: "own_topic",
-          topics: [...new Set(faulty.flatMap((r) => faultTopics(r.queryTr, r.queryOriginal, r.intent)))].sort(),
+          topics: faultyTopics,
           generic: false,
           hazard: faulty.some((r) => fixHazard(r.queryTr) || fixHazard(r.queryOriginal)) || fixHazard(m.body),
           money: false,
+          access: accessFacts(...faulty.flatMap((r) => [r.queryTr, r.queryOriginal]))(faultyTopics),
         };
       }
     }

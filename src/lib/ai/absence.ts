@@ -397,6 +397,13 @@ const MORE_ABSENCE_PATTERNS: readonly RegExp[] = [
     `(?:لا|لن) (?:أستطيع|استطيع|نستطيع|يمكنني|يمكننا) ${gap(2)}(?:تقديم|إعطاء|اعطاء|مشاركة|توفير)(?: \\p{L}{1,20}){0,2} (?:أي |اي )?${AR_OBJ}`,
     "u",
   ),
+  // ── İÇ KAYNAK / İŞLEYİŞ ANLATIMI (kurucu T1, 10-21: "misafire 'bilgi tabanında yok', 'kayıtlarımdan bulamadım', 'sistemimizde görünmüyor'
+  // gibi iç kaynak ve işleyiş anlatımı yazılmayacak"). İlk ikisi ↑ bilgi / kayıt nesnesiyle zaten tutuluyordu; "sistem" yoktu (ölçüldü).
+  // DAR: yalnız 1. şahıs iyelik ya da bulunma eki ("sistemimizde / sistemde / sistemimde") — "Dairede merkezi ısıtma sistemi yok" mülk
+  // olgusudur (3. şahıs "sistemi"), tutulmaz.
+  new RegExp(`${L}sistem(?:imiz|imizde|imizden|imde|imden|de|den)(?![\\p{L}]) ${gap(4)}(?:${TR_TIGHT}|${TR_LOOSE})`, "u"),
+  /(?<![\p{L}])(?:not|isn't|is not|aren't|are not|doesn't appear|does not appear|don't see (?:it|that|this|them|anything|your \p{L}{1,20})) (?:to be )?(?:in|on) (?:our|my|the) system(?![\p{L}])/u,
+  /(?<![\p{L}])(?:our|my|the) system (?:doesn't|does not|didn't|did not) (?:show|have|list|contain)(?![\p{L}])/u,
 ];
 
 /**
