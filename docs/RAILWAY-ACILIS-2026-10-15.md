@@ -165,7 +165,7 @@ kalıcı "işlem yok" sayılıyor (niyet kapanır, yeni işlem açılır) — ye
 - `AI_ABSENCE_JUDGE_STRICT` — yalnız yukarıdakiyle birlikte: kelime kuralının KAÇIRDIĞI itirafı da tutar (500 gerçek cevapta 8 açık itiraf
   + 15 "ev sahibiniz söyleyebilir" geçiştirmesi). Her otomatik cevap adayına bir küçük çağrı ekler (~1,6 sn). Kurucu kararı (soru: belge §5).
 - Cevap modeli bekleme tavanı 30 sn + devre kesici (art arda 3 zaman aşımı → 60 sn çağrı yok) + tek hızlı yeniden deneme — env YOK
-  (`src/lib/ai/model-breaker.ts`). Ev sahibi yazma hız sınırı kişi başına dakikada 120 — env YOK (`src/lib/host-write-limit.ts`).
+  (`src/lib/ai/model-breaker.ts`). Ev sahibi yazma hız sınırı kişi başına dakikada 300 — env YOK (`src/lib/host-write-limit.ts`).
 - Dış izleyici + WAF + oturum anahtarı adımları: `docs/OPS-2026-10-21-dis-izleyici-waf-anahtar.md` (panel işleri, açılıştan sonra).
 
 ## 6. Bağlantı havuzu ve kapanış (yatay ölçek denetimi 10-15, `docs/arastirma-2026-10-15/yatay-olcek.md`)

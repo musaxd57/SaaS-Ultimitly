@@ -48,7 +48,7 @@ export function withAuth<P = Record<string, never>>(handler: AuthedHandler<P>) {
     // K8 (kurucu kararı 09-28): bürünmüşken (destek görünümü) müşteri hesabında yazma yok — TEK boğaz.
     const readOnly = impersonationReadOnly(session, req.method);
     if (readOnly) return readOnly;
-    // Ev sahibi yazma hız sınırı (`host-write-limit.ts`, 10-21): okuma saymaz, yazma kişi başına dakikada 120.
+    // Ev sahibi yazma hız sınırı (`host-write-limit.ts`, 10-21): okuma saymaz, yazma kişi başına dakikada 300.
     const limited = await hostWriteLimited(session, req.method);
     if (limited) return limited;
     // TAKİP NUMARASI (kurucu kararı 10-10): her kimlikli istek kendi numarasıyla koşar — SUNUCUDA üretilir, istemcinin gönderdiği başlık

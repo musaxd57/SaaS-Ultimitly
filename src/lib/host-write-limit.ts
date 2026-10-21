@@ -5,13 +5,14 @@ import { tooManyRequests, type SessionPayload } from "@/lib/api";
 // EV SAHİBİ YAZMA HIZ SINIRI (altyapı envanteri 10-21 madde 75, kurucu "olur").
 //
 // Oturumlu yazma rotalarının (görev, bilgi tabanı, mülk ayarı, QR cevabı …) çoğunda kendi sınırı yoktu. Tek ortak kova: kişi başına
-// dakikada HOST_WRITE_LIMIT yazma. Ölçek: en hızlı gerçek kullanım (toplu düzenleme) saniyede bir iki tıklama; 120/dk yalnız bozuk bir
-// döngüyü / tarayıcı eklentisini / çalınmış oturumla toplu yazmayı keser. Okuma (GET/HEAD/OPTIONS) sınırlanmaz.
+// dakikada HOST_WRITE_LIMIT yazma. Ölçek: elle kullanım saniyede bir iki tıklama; en yoğun gerçek akış bilgi tabanı metin içe aktarımı
+// (kalem başına bir POST, `kb-import-text.tsx` — Haiku 10-21). 300/dk (saniyede 5) bunları rahat geçirir, yalnız bozuk bir döngüyü /
+// tarayıcı eklentisini / çalınmış oturumla toplu yazmayı keser. Okuma (GET/HEAD/OPTIONS) sınırlanmaz.
 // Kova kişiye bağlıdır (bürünmede gerçek operatör; bürünme zaten salt-okunur). Kendi sıkı sınırı olan rotalar (giriş, AI deneme,
 // içe aktarma) o sınırı korur; bu kova onların ÜSTÜNE gelen genel tavandır.
 // ---------------------------------------------------------------------------
 
-export const HOST_WRITE_LIMIT = 120;
+export const HOST_WRITE_LIMIT = 300;
 export const HOST_WRITE_WINDOW_MS = 60_000;
 
 const READ_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
