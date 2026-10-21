@@ -159,6 +159,15 @@ kalıcı "işlem yok" sayılıyor (niyet kapanır, yeni işlem açılır) — ye
   uyguladıysanız `npx prisma migrate deploy` yalnız 66'yı ekler.
 - GitHub Actions sırrı `ANTHROPIC_API_KEY` (Railway'e DEĞİL; yalnız test iş akışı) — kurucu 10-15 ekledi.
 
+- `AI_ABSENCE_JUDGE_ENABLED` (kurucu 10-21: "kelime bazlı tutmasın, bağlam bazlı tutsun") — "bilgim yok" kuralının adayını ikinci model
+  misafirin mesajıyla okur; itiraf değilse cevap gider (ölçüm: yanlış tutulan 17 gerçek cevaptan 16'sı serbest, 51 gerçek itirafın HİÇBİRİ
+  serbest değil — `docs/olcum/BAGLAM-HAKEMI-2026-10-21.md`). Hakem düşerse bugünkü kural. Misafire gideni değiştirir → kurucu + ilk denemeler.
+- `AI_ABSENCE_JUDGE_STRICT` — yalnız yukarıdakiyle birlikte: kelime kuralının KAÇIRDIĞI itirafı da tutar (500 gerçek cevapta 8 açık itiraf
+  + 15 "ev sahibiniz söyleyebilir" geçiştirmesi). Her otomatik cevap adayına bir küçük çağrı ekler (~1,6 sn). Kurucu kararı (soru: belge §5).
+- Cevap modeli bekleme tavanı 30 sn + devre kesici (art arda 3 zaman aşımı → 60 sn çağrı yok) + tek hızlı yeniden deneme — env YOK
+  (`src/lib/ai/model-breaker.ts`). Ev sahibi yazma hız sınırı kişi başına dakikada 120 — env YOK (`src/lib/host-write-limit.ts`).
+- Dış izleyici + WAF + oturum anahtarı adımları: `docs/OPS-2026-10-21-dis-izleyici-waf-anahtar.md` (panel işleri, açılıştan sonra).
+
 ## 6. Bağlantı havuzu ve kapanış (yatay ölçek denetimi 10-15, `docs/arastirma-2026-10-15/yatay-olcek.md`)
 
 - `DATABASE_URL` sonuna `?connection_limit=10` (zaten parametre varsa `&connection_limit=10`) ekleyin. Bugün tavan yok: Prisma çekirdek×2+1
