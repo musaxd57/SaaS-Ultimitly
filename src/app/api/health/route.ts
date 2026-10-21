@@ -25,6 +25,10 @@ export const dynamic = "force-dynamic";
 //   hazır olma yoklaması (normal mod) kuyruk yüzünden ASLA düşmez → yeniden
 //   başlatma döngüsü yok. Gövde yalnız "ok" / "stalled" söyler (sayı, kimlik yok).
 //
+// LIVENESS /api/health?live=1 (altyapı envanteri 10-21, madde 57): süreç cevap veriyor mu — veritabanına HİÇ dokunmaz. Kapsayıcı
+//   yöneticisi (Docker HEALTHCHECK / ileride ikinci kopya) "yeniden başlat" kararını buna bağlar; DB arızası süreci yeniden başlatma
+//   sebebi değildir (yeniden başlatma DB'yi düzeltmez, yalnız döngü üretir). Gövde yalnız { ok: true, live: true }.
+//
 // Heartbeat = SystemLock("scheduled-sync").updatedAt: every scheduler pass bumps
 // it (acquire + release), INCLUDING passes that do no work — zero orgs, per-org
 // Hospitable 402 skips, free-tier automation suppression, or a concurrent run
@@ -92,6 +96,9 @@ async function probeDb(): Promise<ProbeSnapshot | null | "db_down"> {
 }
 
 export async function GET(req: NextRequest) {
+  if (req.nextUrl.searchParams.get("live") === "1") {
+    return NextResponse.json({ ok: true, live: true }, { status: 200, headers: { "Cache-Control": "no-store" } });
+  }
   const strict = req.nextUrl.searchParams.get("strict") === "1";
 
   // Kısa ömürlü memoizasyon — gerekçe ve test yardımcısı lib/health-probe.ts'te. Önbellek boşsa süren yoklamaya katılınır (Y9).

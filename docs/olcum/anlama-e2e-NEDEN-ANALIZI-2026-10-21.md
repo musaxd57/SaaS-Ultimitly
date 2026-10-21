@@ -1,8 +1,10 @@
 # Anlama ölçümü — neden analizi ve kurucuya sorular (2026-10-21)
 
 Kaynak: `docs/olcum/anlama-e2e-dev-live-2026-10-21.md` (54 senaryo, 75 istek, gerçek model: cevap `gpt-6-luna` low, anlama / sıralayıcı `gpt-5.1`;
-Railway açılış listesi §1 bayrakları; denetçi `gpt-5.1`). İkinci kol (`AI_TOPIC_ABSENCE_ENABLED=1`) aynı sonucu verdi ama 3 satırda denetçi
-düştü (rapor GEÇERSİZ; denetçi düzeltildi, yeniden koşulacak). Tasarım: `docs/TASARIM-2026-10-21-anlama-olcumu.md`.
+Railway açılış listesi §1 bayrakları; denetçi `gpt-5.1`). İkinci kol (`AI_TOPIC_ABSENCE_ENABLED=1`) denetçi düzeltmesiyle yeniden koşuldu:
+**GEÇERLİ** (`docs/olcum/anlama-e2e-dev-topic_absence-2026-10-21.md`): yanlış bilgi 0/43, sızan tutma 0/24, acil 6/6, iddia denetçisi 61
+destekli / 0 yanlış bağ; gereksiz tutma 5/43; sessiz düşen 1 (aynı bulaşık makinesi senaryosu → soru D iki kolda da tekrarlandı). Tasarım:
+`docs/TASARIM-2026-10-21-anlama-olcumu.md`.
 
 ## Özet (canlı kol, düzeltilmiş ölçer)
 

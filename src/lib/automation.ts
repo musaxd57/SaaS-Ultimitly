@@ -1342,7 +1342,7 @@ export async function removeAutoTasksForCancelledReservation(
         ids.length === 0
           ? []
           : await tx.$queryRaw<{ id: string; checklistJson: string | null }[]>(
-              Prisma.sql`SELECT "id", "checklistJson" FROM "Task" WHERE "id" IN (${Prisma.join(ids)}) FOR UPDATE`,
+              Prisma.sql`SELECT "id", "checklistJson" FROM "Task" WHERE "id" IN (${Prisma.join(ids)}) ORDER BY "id" FOR UPDATE`,
             );
       target = { ...doomed, id: { in: locked.filter((t) => !checklistTouched(t.checklistJson)).map((t) => t.id) } };
     }
@@ -1386,7 +1386,7 @@ export async function deleteReservationsWithAutoTasks(ids: string[], organizatio
       candidates.length === 0
         ? []
         : await tx.$queryRaw<{ id: string; checklistJson: string | null }[]>(
-            Prisma.sql`SELECT "id", "checklistJson" FROM "Task" WHERE "id" IN (${Prisma.join(candidates)}) FOR UPDATE`,
+            Prisma.sql`SELECT "id", "checklistJson" FROM "Task" WHERE "id" IN (${Prisma.join(candidates)}) ORDER BY "id" FOR UPDATE`,
           );
     const doomed = locked.filter((t) => !checklistTouched(t.checklistJson)).map((t) => t.id);
     // Yüklem kilit ALTINDA yeniden uygulanır (Opus gece-4 dilim sonu B1, kardeş iptal yolu gibi): kilit beklenirken başlanmış / fotoğraf

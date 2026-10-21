@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { prismaLogEventSummary } from "./redact";
+import { slowQueryLine, slowQueryThresholdMs } from "./db-slow-query";
 
 // Prevent multiple Prisma instances during dev hot-reload.
 const globalForPrisma = globalThis as unknown as {
@@ -15,10 +16,21 @@ const globalForPrisma = globalThis as unknown as {
  */
 function createPrismaClient(): PrismaClient {
   if (process.env.NODE_ENV === "development") return new PrismaClient({ log: ["error", "warn"] });
-  const client = new PrismaClient({ log: [{ emit: "event", level: "error" }] });
-  (client as unknown as { $on(event: "error", cb: (e: { message?: unknown; target?: unknown }) => void): void }).$on("error", (e) => {
-    console.error(prismaLogEventSummary(e));
+  // Yavaş sorgu görünürlüğü (altyapı envanteri 10-21, madde 26): eşik açıksa sorgu olayı dinlenir, yalnız eşiği aşan tek satır yazılır.
+  const slowMs = slowQueryThresholdMs();
+  const client = new PrismaClient({
+    log: slowMs > 0 ? [{ emit: "event", level: "error" }, { emit: "event", level: "query" }] : [{ emit: "event", level: "error" }],
   });
+  const on = (client as unknown as { $on(event: string, cb: (e: Record<string, unknown>) => void): void }).$on.bind(client);
+  on("error", (e) => {
+    console.error(prismaLogEventSummary(e as { message?: unknown; target?: unknown }));
+  });
+  if (slowMs > 0) {
+    on("query", (e) => {
+      const line = slowQueryLine(e, slowMs);
+      if (line) console.warn(line);
+    });
+  }
   return client;
 }
 

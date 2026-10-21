@@ -582,6 +582,20 @@ export function checkProductionEnv(env) {
     );
   }
 
+  // GOZLEMLENEBILIRLIK + BAGLANTI HAVUZU (altyapi envanteri 10-21, madde 58 / 28) — UYARI, HATA DEGIL:
+  //  1. SENTRY_DSN yoksa uretim hatalari yalniz gunluge (ve ayarliysa uyari e-postasina) gider; hata takibi yok.
+  //  2. DATABASE_URL'de `connection_limit` yoksa Prisma havuzu CPU sayisina gore kendi tavanini secer; ikinci kopya / yogun cron
+  //     gecisinde Postgres baglanti sinirina dayanmak tahmin edilemez. Adresin kendisi (parola tasir) BASILMAZ, yalniz alan adi.
+  if (!sentryDsn) {
+    warnings.push("SENTRY_DSN is not set — production errors are only logged (and e-mailed if ERROR_ALERT_EMAIL is set); set it to track errors.");
+  }
+  const dbUrl = (env.DATABASE_URL ?? "").trim();
+  if (dbUrl && !/[?&]connection_limit=\d+/.test(dbUrl)) {
+    warnings.push(
+      "DATABASE_URL has no connection_limit — the database pool size is chosen implicitly. Add ?connection_limit=10 (or a value sized to your Postgres plan).",
+    );
+  }
+
   // STRICT "1" FEATURE FLAGS — UYARI, HATA DEGIL (A7 #1, 09-27). Asagidaki bayraklar calisma aninda `=== "1"` ile okunur:
   // "true" / "yes" / "on" / " 1" KAPALI demektir. KB_* bayraklari "true"yu da kabul ettigi icin operator ayni aliskanlikla
   // AI_UNDERSTANDING_ENABLED=true yazip bayragi SESSIZCE kapali birakabiliyordu. Davranis DEGISMEZ; yalniz acilista gorunur.

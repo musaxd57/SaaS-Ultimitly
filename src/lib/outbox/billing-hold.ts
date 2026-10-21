@@ -75,6 +75,8 @@ export const BILLING_HOLD_RETRY_MS = 10 * 60_000;
  * kuralında tıkanırdı (Haiku 10-16). Okuma hatası talebi DÜŞÜRMEZ: işletme başına hata → engelsiz sayılır (gönderim anı kemeri yeniden okur;
  * o da düşerse satır POST'suz geri bırakılır).
  */
+export const BILLING_READ_CONCURRENCY = 5;
+
 export async function billingBlockedOrgIds(): Promise<string[]> {
   if (!billingEnforced()) return [];
   try {
@@ -83,10 +85,17 @@ export async function billingBlockedOrgIds(): Promise<string[]> {
       select: { organizationId: true },
       distinct: ["organizationId"],
     });
-    const verdicts = await Promise.all(
-      pending.map(async ({ organizationId }) => ({ organizationId, allowed: await premiumAllowed(organizationId).catch(() => true) })),
-    );
-    return verdicts.filter((v) => !v.allowed).map((v) => v.organizationId);
+    // Sınırlı eşzamanlılık (altyapı envanteri 10-21, madde 44): işletme sayısı kadar paralel okuma bağlantı havuzunu doldurabilirdi.
+    const blocked: string[] = [];
+    for (let i = 0; i < pending.length; i += BILLING_READ_CONCURRENCY) {
+      const verdicts = await Promise.all(
+        pending
+          .slice(i, i + BILLING_READ_CONCURRENCY)
+          .map(async ({ organizationId }) => ({ organizationId, allowed: await premiumAllowed(organizationId).catch(() => true) })),
+      );
+      for (const v of verdicts) if (!v.allowed) blocked.push(v.organizationId);
+    }
+    return blocked;
   } catch (err) {
     void reportError("outbox-billing-blocked-read", err);
     return [];

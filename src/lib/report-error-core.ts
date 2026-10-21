@@ -21,6 +21,24 @@ export { errorWithContext, formatErrorForLog, prismaErrorSummary, redactJsonStru
 // a single blip; each distinct failure still gets one alert per window.
 const lastEmailAt = new Map<string, number>();
 const EMAIL_THROTTLE_MS = 10 * 60 * 1000; // at most one alert email / context / 10 min
+// Bağlam dizesi işletme kimliği taşır (ör. `qr-cancelled-stay org=…`) → harita işletme × bağlam kadar büyür, hiç silinmiyordu (altyapı
+// envanteri 10-21, madde 41). Tavan aşılınca penceresi geçmiş damgalar silinir; hepsi tazeyse en eski eklenen gider (pencere içinde
+// unutulan bağlam en kötü ihtimalle bir e-posta erken gider — sel değil, tavan yine tutar).
+export const EMAIL_THROTTLE_MAX_KEYS = 2_000;
+
+function pruneEmailThrottle(now: number): void {
+  if (lastEmailAt.size < EMAIL_THROTTLE_MAX_KEYS) return;
+  for (const [key, at] of lastEmailAt) if (now - at >= EMAIL_THROTTLE_MS) lastEmailAt.delete(key);
+  for (const key of lastEmailAt.keys()) {
+    if (lastEmailAt.size < EMAIL_THROTTLE_MAX_KEYS) break;
+    lastEmailAt.delete(key);
+  }
+}
+
+/** Test helper: throttle map size (memory bound). */
+export function __emailThrottleSizeForTest(): number {
+  return lastEmailAt.size;
+}
 
 function escapeHtml(s: string): string {
   return s
@@ -130,6 +148,7 @@ export async function reportError(context: string, err: unknown): Promise<Report
   if (now - (lastEmailAt.get(context) ?? 0) < EMAIL_THROTTLE_MS) {
     return { notified: false, throttled: true, configured: true, ...linked };
   }
+  pruneEmailThrottle(now);
   lastEmailAt.set(context, now);
 
   try {
