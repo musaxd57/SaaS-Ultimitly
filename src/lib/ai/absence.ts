@@ -399,9 +399,13 @@ const MORE_ABSENCE_PATTERNS: readonly RegExp[] = [
   ),
   // ── İÇ KAYNAK / İŞLEYİŞ ANLATIMI (kurucu T1, 10-21: "misafire 'bilgi tabanında yok', 'kayıtlarımdan bulamadım', 'sistemimizde görünmüyor'
   // gibi iç kaynak ve işleyiş anlatımı yazılmayacak"). İlk ikisi ↑ bilgi / kayıt nesnesiyle zaten tutuluyordu; "sistem" yoktu (ölçüldü).
-  // DAR: yalnız 1. şahıs iyelik ya da bulunma eki ("sistemimizde / sistemde / sistemimde") — "Dairede merkezi ısıtma sistemi yok" mülk
-  // olgusudur (3. şahıs "sistemi"), tutulmaz.
-  new RegExp(`${L}sistem(?:imiz|imizde|imizden|imde|imden|de|den)(?![\\p{L}]) ${gap(4)}(?:${TR_TIGHT}|${TR_LOOSE})`, "u"),
+  // DAR: yalnız BULUNMA / ÇIKMA eki ("sistemimizde / sistemde / sistemimden") — "Dairede merkezi ısıtma sistemi yok", "Asansör sistemimiz
+  // yok" mülk olgusudur, tutulmaz (Haiku T1 #5). "yok" yalnız hemen ardından ya da kayıt / bilgi / rezervasyon sözcüğünden sonra: "Klima
+  // sistemimizde bir sorun yok" normal cevaptır.
+  new RegExp(
+    `${L}sistem(?:imizde|imizden|imde|imden|de|den)(?![\\p{L}]) (?:${TR_TIGHT}|${gap(3)}${TR_LOOSE}|${gap(2)}(?:kay[ıi]t|kayd|bilgi|rezervasyon)\\p{L}{0,10} ${TR_TIGHT})`,
+    "u",
+  ),
   /(?<![\p{L}])(?:not|isn't|is not|aren't|are not|doesn't appear|does not appear|don't see (?:it|that|this|them|anything|your \p{L}{1,20})) (?:to be )?(?:in|on) (?:our|my|the) system(?![\p{L}])/u,
   /(?<![\p{L}])(?:our|my|the) system (?:doesn't|does not|didn't|did not) (?:show|have|list|contain)(?![\p{L}])/u,
 ];

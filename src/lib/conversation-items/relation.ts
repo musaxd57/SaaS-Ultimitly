@@ -1569,7 +1569,15 @@ export interface ItemRelationFacts {
  */
 const ACCESS_TOPICS: ReadonlySet<string> = new Set(["checkin", "checkout", "keys", "parking", "elevator"]);
 const ACCESS_WORDS =
-  /(?<![\p{L}\p{N}])(?:kapi\p{L}{0,8}|kilit\p{L}{0,6}|anahtar\p{L}{0,6}|otopark\p{L}{0,6}|garaj\p{L}{0,6}|bariyer\p{L}{0,6}|turnike\p{L}{0,6}|asansor\p{L}{0,6}|diyafon\p{L}{0,6}|giris\p{L}{0,6}|gir(?:ece|eme|emi|ebil|elim|iyor|dik|meden)\p{L}{0,6}|cik(?:aca|acak|ama|amı|abil|alim|iyor|madan|is)\p{L}{0,6}|cikar\p{L}{0,8}|tasi(?:ya|yabil|mak|nir)\p{L}{0,6}|indir\p{L}{0,6}|doors?|gates?|locks?|keys?|parking|garage|barrier|elevator|lift|intercom|entrance|exit|get\s+(?:in|out)|leave|enter)(?![\p{L}\p{N}])/u;
+  /(?<![\p{L}\p{N}])(?:kapi(?!ci)\p{L}{0,8}|kilit\p{L}{0,6}|anahtar\p{L}{0,6}|otopark\p{L}{0,6}|garaj\p{L}{0,6}|bariyer\p{L}{0,6}|turnike\p{L}{0,6}|asansor\p{L}{0,6}|diyafon\p{L}{0,6}|giris\p{L}{0,6}|gir(?:ece|eme|emi|ebil|elim|iyor|dik|meden)\p{L}{0,6}|cik(?:aca|acak|ama|amı|abil|alim|iyor|madan|is)\p{L}{0,6}|cikar\p{L}{0,8}|tasi(?:ya|yabil|mak|nir)\p{L}{0,6}|indir\p{L}{0,6}|doors?|gates?|locks?|keys?|parking|garage|barrier|elevator|lift|intercom|entrance|exit|get\s+(?:in|out)|leave|enter)(?![\p{L}\p{N}])/u;
+// Yalnız FİZİKSEL erişim nesnesi (giriş / çıkış FİİLLERİ hariç): saat türündeki istekte ("Çıkış saati kaçta?") çıkış sözcüğü erişim
+// sayılmaz, ama aynı istekte kapı / anahtar / otopark geçiyorsa erişimdir (Haiku T1 #4: "Çıkış saatinde anahtarı nereye bırakacağız?"
+// checkout_time etiketiyle erişim dışı kalıyor, garaj arızasından bağımsız sayılıyordu). "kapıcı" (görevli) kapı değildir (#7).
+const PHYSICAL_ACCESS_WORDS =
+  /(?<![\p{L}\p{N}])(?:kapi(?!ci)\p{L}{0,8}|kilit\p{L}{0,6}|anahtar\p{L}{0,6}|otopark\p{L}{0,6}|garaj\p{L}{0,6}|bariyer\p{L}{0,6}|turnike\p{L}{0,6}|asansor\p{L}{0,6}|diyafon\p{L}{0,6}|doors?|gates?|locks?|keys?|parking|garage|barrier|elevator|lift|intercom)(?![\p{L}\p{N}])/u;
+export function physicalAccessWords(...texts: readonly string[]): boolean {
+  return texts.some((t) => PHYSICAL_ACCESS_WORDS.test(fold(t ?? "")));
+}
 export function accessFacts(...texts: readonly string[]): (topics: readonly string[]) => boolean {
   const worded = texts.some((t) => ACCESS_WORDS.test(fold(t ?? "")));
   return (topics) => worded || topics.some((t) => ACCESS_TOPICS.has(t));

@@ -321,8 +321,27 @@ const GROUND_STOPWORDS: ReadonlySet<string> = new Set([
   "yeterli", "olur", "olabilir", "edebilirsiniz", "yapabilirsiniz", "please", "just", "simply", "your", "with", "that", "this", "there",
   "have", "will", "from", "into", "when", "then", "also", "only",
 ]);
-const COURTESY_SENTENCE =
-  /^(?:merhaba|selam|sevgili|değerli|degerli|hello|hi|dear|hola|bonjour|hallo|здравствуйте)\b[^.!?]{0,40}[,.!]?$|iyi (?:yolculuklar|tatiller|günler|gunler|akşamlar|aksamlar|konaklamalar)|keyifli|teşekkür|tesekkur|thank|have a (?:nice|great|safe|good|lovely)|enjoy your|safe travels/iu;
+// NEZAKET: cümle YALNIZ selam / iyi dilek / kapanış kalıplarından oluşuyorsa muaf. Kalıplar cümleden SİLİNİR, geriye içerik sözcüğü kalırsa
+// cümle dayanak ister (Haiku T1 #2: "Anahtarı masaya bırakın ve keyifli bir gün dileriz" kalıp herhangi bir yerde eşleştiği için bütünüyle
+// muaf sayılıyordu). Yaygın kapanışlar ("Başka bir sorunuz olursa çekinmeden yazabilirsiniz") da kalıp — gereksiz tutma (#6).
+// Selam + ad: ad yalnız BÜYÜK harfle başlayan sözcük (özgün metinde, küçültmeden önce) — "Merhaba, kapıyı çekin" içeriği yutulmaz.
+const GREETING =
+  /(?<![\p{L}])(?:[Mm]erhaba|[Ss]elam(?:lar)?|[Ss]evgili|[Dd]eğerli|[Dd]egerli|[Hh]ello|[Hh]i|[Hh]ey|[Dd]ear|[Hh]ola|[Bb]onjour|[Hh]allo|[Зз]дравствуйте)(?![\p{L}])(?:[ \t]+\p{Lu}\p{L}{0,20}){0,3}/gu;
+const COURTESY_PHRASES: readonly RegExp[] = [
+  /(?:size |sizlere )?(?:iyi|keyifli|güzel|guzel|harika|huzurlu) (?:bir )?(?:yolculuklar|tatiller|günler|gunler|gün|gun|akşamlar|aksamlar|akşam|aksam|konaklamalar|konaklama|tatil|geceler|hafta ?sonları)(?: dileriz| diliyoruz| dilerim| diliyorum)?/giu,
+  /(?:çok |cok )?(?:teşekkür(?:ler| ederiz| ederim)?|tesekkur(?:ler| ederiz| ederim)?|sağ ?olun|sag ?olun)/giu,
+  /başka (?:bir )?(?:sorunuz|sorunuz olursa|ihtiyacınız|isteğiniz)[^.!?]{0,60}?(?:yazabilirsiniz|ulaşabilirsiniz|buradayız|bildirin|sorabilirsiniz)/giu,
+  /size yardımcı olmaktan (?:memnuniyet|mutluluk) duyarız|yardımcı olabileceğimiz başka bir şey olursa[^.!?]{0,40}?(?:yazın|yazabilirsiniz)/giu,
+  /(?:many )?thanks?(?: you)?(?: so much| very much)?|have a (?:nice|great|safe|good|lovely|wonderful) (?:stay|trip|day|evening|time|journey)|enjoy your (?:stay|trip|time)|safe travels/giu,
+  /(?:let us know|feel free to (?:ask|reach out|contact us)|don't hesitate to (?:ask|reach out|contact us))[^.!?]{0,40}?(?:questions?|need anything|anything else)?/giu,
+];
+
+/** Nezaket kalıpları çıkarılmış cümle (küçük harf); kalan içerik dayanak ister, kalmazsa cümle muaftır. */
+function withoutCourtesy(sentence: string): string {
+  let rest = sentence.replace(GREETING, " ").toLocaleLowerCase("tr");
+  for (const re of COURTESY_PHRASES) rest = rest.replace(re, " ");
+  return rest;
+}
 
 function groundTokens(text: string): string[] {
   const folded = text
@@ -336,15 +355,45 @@ function groundTokens(text: string): string[] {
     .map((w) => w.slice(0, 5));
 }
 
-/** Cümle bilgi tabanının tek bir kaleminde dayanak taşıyor mu (↑ ölçüt). */
+// KUTUP (olumsuzluk): sözcük örtüşmesi "kabul edilmez" ile "kabul edilir"i, "Pets are not allowed" ile "pets are allowed"ı ayırmaz (gövdeler
+// aynı, olumsuzluk eki / "not" sayılmaz). Cümlenin kutbu, bilgi tabanı kaleminde ona EN ÇOK benzeyen cümlenin kutbuyla aynı olmalı; değilse
+// dayanak yok sayılır (tutucu yön: olumsuz bir kuralı olumluya çeviren cevap gitmez, ev sahibi yanıtlar).
+// Sözcük sözcük sınanır (misafir metninde karesel iş yok: kalıplar tek sözcüğe, çapalı).
+const NEGATION_WORD =
+  /^(?:değil\p{L}{0,8}|degil\p{L}{0,8}|yok\p{L}{0,4}|yasak\p{L}{0,8}|olmaz|hayır|hayir|not|no|never|cannot|can't|cant|don't|dont|doesn't|doesnt|isn't|isnt|aren't|arent|won't|wont|forbidden|prohibited)$/u;
+// Türkçe olumsuz fiil ekleri (sözcük sonu): gelmez · içilmez · gelmiyor · kullanmamalı · getirmeyin · girmeden. Gövde en az iki harf.
+const NEGATIVE_SUFFIX = /^\p{L}{2,40}?(?:m[ae]z|m[ae]zs[ıi]n[ıi]z|m[ae]zl[ae]r|m[ıiuü]yor\p{L}{0,8}|m[ae]m[ae]l[ıi]\p{L}{0,8}|m[ae]y[ıi]n(?:[ıi]z)?|m[ae]d[ae]n)$/u;
+
+function isNegative(text: string): boolean {
+  return text
+    .toLocaleLowerCase("tr")
+    .split(/[^\p{L}']+/u)
+    .some((w) => w.length <= 48 && (NEGATION_WORD.test(w) || NEGATIVE_SUFFIX.test(w)));
+}
+
+/** Cümle bilgi tabanının tek bir kaleminde dayanak taşıyor mu (↑ ölçüt + kutup). */
 export function sentenceGroundedInKb(sentence: string, kbTexts: readonly string[]): boolean {
   const tokens = groundTokens(sentence);
+  // Sayı TAM belirteç olarak (Haiku T1 #3: "2" bilgi tabanındaki "12:00"ın içinde bulunuyordu → yanlış saat gidiyordu).
   const numbers = sentence.match(/\d+/g) ?? [];
   if (tokens.length === 0 && numbers.length === 0) return true;
+  const negative = isNegative(sentence);
   return kbTexts.some((kb) => {
     const kbTokens = new Set(groundTokens(kb));
+    const kbNumbers = new Set(kb.match(/\d+/g) ?? []);
     const hit = tokens.filter((t) => kbTokens.has(t)).length;
-    return (tokens.length === 0 || hit / tokens.length >= 0.75) && numbers.every((n) => kb.includes(n));
+    if (!((tokens.length === 0 || hit / tokens.length >= 0.75) && numbers.every((n) => kbNumbers.has(n)))) return false;
+    if (tokens.length === 0) return true;
+    // Kalemde bu cümleye en çok benzeyen cümle (eşitlikte HERHANGİ biri aynı kutuptaysa yeter değil — hepsi aynı kutupta olmalı).
+    const scored = kb
+      .split(/\n|(?<=[.!?])\s+/u)
+      .map((s) => {
+        const st = new Set(groundTokens(s));
+        return { s, score: tokens.filter((t) => st.has(t)).length };
+      })
+      .filter((x) => x.score > 0);
+    const best = Math.max(0, ...scored.map((x) => x.score));
+    return scored.filter((x) => x.score === best).every((x) => isNegative(x.s) === negative);
   });
 }
 
@@ -359,7 +408,7 @@ export function stripNoInstructionFillerGrounded(reply: string, language: string
   const sentences = out
     .split("\n")
     .flatMap((l) => sentencesOf(l))
-    .map((s) => s.replace(/^[\s\-•*]+/u, "").trim())
-    .filter((s) => /\p{L}/u.test(s) && !COURTESY_SENTENCE.test(s.toLocaleLowerCase("tr")));
+    .map((s) => withoutCourtesy(s.replace(/^[\s\-•*]+/u, "")).trim())
+    .filter((s) => groundTokens(s).length > 0 || /\d/.test(s));
   return sentences.every((s) => sentenceGroundedInKb(s, kbTexts)) ? out : reply;
 }

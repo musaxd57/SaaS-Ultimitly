@@ -23,6 +23,7 @@ import { buildItemsForMessage, type BuiltItem, type ItemKind } from "./core";
 const TIME_KINDS: ReadonlySet<ItemKind> = new Set<ItemKind>(["checkin_time", "checkout_time", "early_checkin", "late_checkout"]);
 import {
   accessFacts,
+  physicalAccessWords,
   faultGuardEnabled,
   faultSignal,
   fixHazard,
@@ -114,7 +115,7 @@ export function extractTurnItems(input: {
           hazard: bodyHazard || fixHazard(r.queryTr) || fixHazard(r.queryOriginal),
           money: moneyRequest(r.queryTr, r.queryOriginal),
           // Saat sorusu ("Çıkış saati kaçta?") erişim sorusu değildir — kapı arızası onu bağlamaz.
-          access: !TIME_KINDS.has(r.intent) && accessFacts(r.queryTr, r.queryOriginal)(topics),
+          access: TIME_KINDS.has(r.intent) ? physicalAccessWords(r.queryTr, r.queryOriginal) : accessFacts(r.queryTr, r.queryOriginal)(topics),
         };
         relations[r.intent] = prev
           ? {

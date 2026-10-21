@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { accessFacts, faultTopics, requestDependency, requestTopics } from "@/lib/conversation-items/relation";
+import { accessFacts, faultTopics, physicalAccessWords, requestDependency, requestTopics } from "@/lib/conversation-items/relation";
 import { stripNoInstructionFillerGrounded } from "@/lib/ai/no-instruction-filler";
 
 // ---------------------------------------------------------------------------
@@ -26,6 +26,8 @@ const SEPARATION: Pair[] = [
   ["Klima çalışmıyor", "Klimayı nasıl çalıştırırız?", "appliance_help", "dependent"],
   ["Televizyonda görüntü yok", "Kumanda nerede?", "appliance_help", "dependent"],
   ["Sıcak su yok", "Kombi nasıl açılıyor?", "appliance_help", "dependent"],
+  // Haiku T1 #4: saat türü etiketli ama fiziksel erişim nesnesi taşıyan soru.
+  ["Garaj kapısı açılmıyor", "Çıkış saatinde anahtarı nereye bırakacağız?", "checkout_time", "dependent"],
   // Bağımsız olmalı (gereksiz tutma).
   ["Televizyonda görüntü yok", "Çöpleri nereye atıyoruz?", "trash", "independent"],
   ["Televizyonda görüntü yok", "Wi-Fi şifresi ne?", "wifi", "independent"],
@@ -35,6 +37,8 @@ const SEPARATION: Pair[] = [
   ["Televizyonda görüntü yok", "Otopark ücretsiz mi?", "parking", "independent"],
   ["Bulaşık makinesi çalışmıyor", "Çöpleri nereye atıyoruz?", "trash", "independent"],
   ["Kapı kilitlenmiyor", "Çıkış saati kaçta?", "checkout_time", "independent"],
+  // Haiku T1 #7: "kapıcı" görevlidir, kapı değil.
+  ["Kapı kodu çalışmıyor", "Resepsiyonda kapıcı var mı?", "other", "independent"],
 ];
 
 type Strip = [reply: string, kb: string[], expected: "send" | "hold"];
@@ -51,14 +55,30 @@ const GROUNDING: Strip[] = [
   ["Kahvaltı için özel talimatımız yok, kahvaltı 09:00-11:00 arasında servis edilir.", KB, "hold"],
   ["No special instructions for checkout, you can stay until 2 pm.", KB, "hold"],
   ["Çıkış için özel talimatımız yok, anahtarı masaya bırakmanız yeterli.", [], "hold"],
+  // Haiku T1 #1 — kutup: bilgi tabanı olumsuz, cevap olumlu (ve tersi).
+  ["Özel bir talimatımız yok. Evcil hayvanlar kabul edilir.", ["Evcil hayvan\nEvcil hayvan kabul edilmez."], "hold"],
+  ["Özel bir talimatımız yok. Evcil hayvanlar kabul edilmez.", ["Evcil hayvan\nEvcil hayvan kabul edilir."], "hold"],
+  ["No special instructions. Pets are allowed.", ["Pets\nPets are not allowed."], "hold"],
+  ["Özel bir talimatımız yok. Evcil hayvanlar kabul edilmez.", ["Evcil hayvan\nEvcil hayvan kabul edilmez."], "send"],
+  ["No special instructions. Pets are not allowed.", ["Pets\nPets are not allowed in the apartment."], "send"],
+  // #2 — nezaket kalıbı içerik cümlesini muaf yapmaz.
+  ["Çıkış için özel talimatımız yok. Anahtarı masaya bırakın ve keyifli bir gün dileriz.", ["Çıkış\nÇıkış saati 11:00'dir."], "hold"],
+  ["Özel talimatımız yok. Merhaba, kapıyı çekip kilitleyin.", ["Çıkış\nÇıkış saati 11:00'dir."], "hold"],
+  // #3 — sayı tam belirteç.
+  ["Özel talimatımız yok. Çıkış saat 2'ye kadar kalabilirsiniz.", ["Çıkış\nÇıkış saat 12:00'ye kadar kalabilirsiniz."], "hold"],
+  // #6 — yaygın kapanış cümlesi bütün cevabı tutmaz.
+  ["Çıkış için özel talimatımız yok, anahtarı masaya bırakmanız yeterli. Başka bir sorunuz olursa çekinmeden yazabilirsiniz.", KB, "send"],
+  ["Çıkış için özel talimatımız yok, anahtarı masaya bırakmanız yeterli. Size yardımcı olmaktan memnuniyet duyarız.", KB, "send"],
+  ["Merhaba Ayşe Hanım, çıkış için özel talimatımız yok, anahtarı masaya bırakmanız yeterli. İyi yolculuklar dileriz!", KB, "send"],
 ];
 
 function separationDecision([fault, question, kind]: Pair): "independent" | "dependent" {
   const aTopics = faultTopics(fault, fault, "complaint_issue");
   const rTopics = requestTopics(question, question, kind as never);
   const timeKind = ["checkin_time", "checkout_time", "early_checkin", "late_checkout"].includes(kind);
+  const access = timeKind ? physicalAccessWords(question) : accessFacts(question)(rTopics);
   const d = requestDependency(
-    { kind: kind as never, relation: "own_topic", topics: rTopics, generic: false, hazard: false, money: false, access: !timeKind && accessFacts(question)(rTopics) },
+    { kind: kind as never, relation: "own_topic", topics: rTopics, generic: false, hazard: false, money: false, access },
     [{ kind: "complaint_issue", topics: aTopics, hazard: false, access: accessFacts(fault)(aTopics) }],
   );
   return d === "independent" ? "independent" : "dependent";

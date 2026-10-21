@@ -494,8 +494,19 @@ describe("kurucu T1 (10-21): iç kaynak / işleyiş anlatımı misafire gitmez �
     "Our system doesn't show any parking fee.",
     "Bilgi tabanında yok.",
     "Kayıtlarımda bulamadım.",
+    "Rezervasyonunuz sistemimizde yok.",
+    "Sistemimizde kaydınız yok.",
   ])("TUTULUR: %s", (t) => expect(admitsMissingKnowledge(t)).toBe(true));
-  it.each(["Dairede merkezi ısıtma sistemi yok.", "The heating system is electric.", "Sistem çalışıyor, sorun yok.", "Our alarm system is on the wall."])(
+  it.each([
+    "Dairede merkezi ısıtma sistemi yok.",
+    "The heating system is electric.",
+    "Sistem çalışıyor, sorun yok.",
+    "Our alarm system is on the wall.",
+    // Haiku T1 #5: mülk olgusu / normal cevap ("sistemimiz yok" iyelik, "sistemimizde bir sorun yok").
+    "Asansör sistemimiz yok, merdiven kullanın.",
+    "Kapalı devre kamera sistemimiz yok.",
+    "Klima sistemimizde bir sorun yok, rahat kullanabilirsiniz.",
+  ])(
     "KONTROL — mülk olgusu, tutulmaz: %s",
     (t) => expect(admitsMissingKnowledge(t)).toBe(false),
   );
