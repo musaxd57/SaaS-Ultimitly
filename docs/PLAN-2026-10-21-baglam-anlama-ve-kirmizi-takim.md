@@ -60,9 +60,15 @@ Durum: **PLAN** (kurucu: "işlerin bittikten sonra bunu da plana koy"). Bu belge
    eğitim değil yöntem: talimat + örnek, bağımsız hakem (Llama Guard / NeMo deseni), kırmızı takım ölçümü. İleride ev sahibinin onayladığı
    cevaplarla ince ayar ayrı karar.
 
+7. **Modelin kendisini denemek ("beni anladığın gibi anlasın"):** aynı ölçüm setlerinde (anlama uçtan uca, tehlike sondası, kırmızı takım,
+   bilgim-yok hakemi) cevap / anlama / hakem katmanında Claude (Sonnet 5.5) ile gpt-5.1'i yan yana koşmak; doğruluk + gecikme + maliyet
+   tablosu. Geçiş ayrı karar: yeni alt-işleyen (KVKK aydınlatma metni), kod tarafı sağlayıcıdan bağımsız katman ister. Ölçüm, Actions'taki
+   Claude kredisiyle yapılabilir.
+
 ## Size sorular (adım 1 başlamadan)
 
 - **T-a:** "Yaşadığınız rahatsızlık için üzgünüz" gibi kusur KABUL ETMEYEN nezaket cümlesi de mi gitmesin, yoksa yalnız "haklısınız /
   özür dileriz / bizim hatamız / telafi edeceğiz" mi? (Öneri: hepsi gitmesin. Şikâyet zaten ev sahibinde. Cevap yalnız diğer soruyu
   cevaplasın, olay hakkında hiçbir şey söylemesin.)
 - **T-b:** 4. adımdaki tek kıdemli okuyucu her otomatik cevaba ~1,6 sn ekler. Kabul mü?
+- **T-c:** 7. adımdaki Claude ölçümünü (ücretli, ~$5–10 kredi) yapalım mı?
