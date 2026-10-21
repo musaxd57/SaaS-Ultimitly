@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { SKIP_REASON_ACTIONS, SKIP_REASON_LABELS } from "@/lib/inbox-skip-labels";
+import { SKIP_REASON_ACTIONS, SKIP_REASON_LABELS, skipReasonActionFor } from "@/lib/inbox-skip-labels";
 import { SETTINGS_NAV } from "@/lib/settings-nav";
 import { HAZARD_UNVERIFIED_REASON } from "@/lib/hazard-unverified-alert";
 import { MESSAGE_TOO_LONG_REASON } from "@/lib/ai/message-length";
@@ -69,5 +69,15 @@ describe("konuşma bandı etiketleri", () => {
     // Belirsiz teslimde ilk iş kanalı kontrol etmek — "bağlantıyı aç" yanlış yönlendirir; tehlikede eylem konuşmanın kendisi.
     expect(SKIP_REASON_ACTIONS[sendFailureReason("ambiguous")]).toBeUndefined();
     expect(SKIP_REASON_ACTIONS[HAZARD_UNVERIFIED_REASON]).toBeUndefined();
+  });
+
+  it("C / Haiku #4: plan bağlantısı yalnız hesap sahibine; bağlantı / saat bağlantısı her yöneticiye", () => {
+    expect(skipReasonActionFor("daily_budget", "owner")?.href).toBe("/settings?tab=faturalandirma");
+    expect(skipReasonActionFor("daily_budget", "manager")).toBeNull();
+    expect(skipReasonActionFor(BILLING_PAUSED_REASON, "manager")).toBeNull();
+    expect(skipReasonActionFor("outside_hours", "manager")?.href).toBe("/settings?tab=ai-otomasyon");
+    expect(skipReasonActionFor("not_connected", "manager")?.href).toBe("/settings?tab=baglantilar");
+    expect(skipReasonActionFor(null, "owner")).toBeNull();
+    expect(skipReasonActionFor("complaint", "owner")).toBeNull();
   });
 });

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
+import { SKIP_REASON_LABELS } from "@/lib/inbox-skip-labels";
 import { join } from "node:path";
 import { RESERVATION_CANCELLED_NOTE, skipNoteReasonFor } from "@/lib/inbox-skip-note";
 import { HANDOFF_NOTICE_REASON } from "@/lib/ai/output-veto";
@@ -19,6 +20,8 @@ describe("gelen kutusu notu anahtarı", () => {
   it("sayfa notu bu fonksiyondan alır ve iptal notunun metni var (yapay zekâ cevap vermiyor, kullanımdan düşülmüyor)", () => {
     const page = readFileSync(join(process.cwd(), "src/app/(app)/inbox/[id]/page.tsx"), "utf8");
     expect(page).toMatch(/skipNoteReasonFor\(\{[\s\S]{0,200}reservationStatus:\s*conversation\.reservation\?\.status/);
-    expect(page).toMatch(/\[RESERVATION_CANCELLED_NOTE\]:\s*"Rezervasyon iptal edilmiş — yapay zekâ cevap vermiyor/);
+    // Etiketler 10-21'de yaprak modüle taşındı (`inbox-skip-labels.ts`); sayfa oradan okur.
+    expect(page).toContain('import { SKIP_REASON_LABELS, skipReasonActionFor } from "@/lib/inbox-skip-labels"');
+    expect(SKIP_REASON_LABELS[RESERVATION_CANCELLED_NOTE]).toMatch(/^Rezervasyon iptal edilmiş — yapay zekâ cevap vermiyor/);
   });
 });

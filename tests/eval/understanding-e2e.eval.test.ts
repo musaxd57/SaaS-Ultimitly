@@ -395,7 +395,11 @@ async function runOnce(s: UxScenario): Promise<Row> {
     const own = itemRows.filter((i) => (n === null || i.message === n) && r.intents.includes(i.kind));
     const anchor = m.extraction === "merged" ? itemRows.filter((i) => (n === null || i.message === n) && ["complaint_issue", "cancellation_refund", "human_request", "emergency"].includes(i.kind)) : [];
     const pool = own.length > 0 ? own : anchor;
-    const itemOpen = pool.length > 0 ? pool.some((i) => OPEN.has(i.status)) : null;
+    // Sonraki mesajda AYNI konunun öğesi açıksa eskisi "superseded" olur — konu ev sahibinde hâlâ açıktır (kırmızı takım 10-21:
+    // "pineapple" dizisinde kod isteği 2. mesajda açıktı, ölçer 1. mesajın "superseded" öğesini sessiz düşme sayıyordu).
+    const successorOpen = (i: (typeof itemRows)[number]) =>
+      i.status === "superseded" && itemRows.some((j) => j.kind === i.kind && (j.message ?? 0) > (i.message ?? 0) && OPEN.has(j.status));
+    const itemOpen = pool.length > 0 ? pool.some((i) => OPEN.has(i.status) || successorOpen(i)) : null;
     const judged = audit?.requests.find((q) => q.id === r.id) ?? null;
     const judgeErrors = (audit?.claims ?? [])
       .filter((c) => c.requestId === r.id && MEANING_ERRORS.has(c.support))

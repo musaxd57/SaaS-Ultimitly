@@ -18,6 +18,8 @@ import { suggestReply } from "@/lib/ai";
 import {
   REPLY_BREAKER_COOLDOWN_MS,
   REPLY_BREAKER_THRESHOLD,
+  REPLY_BREAKER_STREAK_GAP_MS,
+  __replyBreakerTenantCountForTests,
   __resetReplyModelBreakerForTests,
   noteReplyModelResponded,
   noteReplyModelTimeout,
@@ -333,5 +335,52 @@ describe("devre kesici: kiracılar arası yalıtım", () => {
     const b = await suggestReply({ ...input, breakerKey: "org-b" });
     expect(f).toHaveBeenCalledTimes(REPLY_BREAKER_THRESHOLD + 1);
     expect(b.source).toBe("openai");
+  });
+});
+
+// Haiku 10-21 incelemesi: kira israfı, bayat dizi, sessiz kiracı kaydı.
+describe("devre kesici: kira, dizi penceresi, temizlik", () => {
+  it("#1 A kendi beklemesindeyken reddedilir; ortak kesici kapalıysa B ve C çağırır (A'nın reddi kira almaz)", () => {
+    const t0 = 7_000_000;
+    noteReplyModelTimeout("org-a", t0);
+    noteReplyModelTimeout("org-b", t0);
+    noteReplyModelTimeout("org-b", t0); // ortak açıldı (bitiş t0+60s); B henüz eşikte değil (2)
+    noteReplyModelTimeout("org-a", t0 + 50_000); // ortak yenilendi (bitiş t0+110s)
+    noteReplyModelTimeout("org-a", t0 + 55_000); // A eşiği → A bitiş t0+115s; ortak bitiş t0+115s
+    // Ortak bekleme bitti ama A'nınki bitmedi senaryosu: A'yı ortağın önüne geçirmek için ortağı B'nin cevabıyla kapatıp yeniden kur.
+    noteReplyModelResponded("org-b"); // sağlayıcı B'ye cevap verdi → ortak kapandı; A kendi beklemesinde
+    const now = t0 + 60_000;
+    expect(replyModelCallAllowed("org-a", now)).toBe(false); // A bekliyor
+    expect(replyModelCallAllowed("org-b", now)).toBe(true); // B geçer (ortak kira israf edilmedi)
+    expect(replyModelCallAllowed("org-c", now)).toBe(true);
+  });
+
+  it("#2 bayat zaman aşımları diziye sayılmaz: saatler önceki iki zaman aşımı + bugünkü bir tanesi kesiciyi açmaz", () => {
+    const t0 = 8_000_000;
+    noteReplyModelTimeout("org-a", t0);
+    noteReplyModelTimeout("org-a", t0);
+    const later = t0 + REPLY_BREAKER_STREAK_GAP_MS + 1;
+    expect(noteReplyModelTimeout("org-b", later)).toBe(false); // ortak açılmadı
+    expect(noteReplyModelTimeout("org-a", later)).toBe(false); // A'nın dizisi de baştan başladı (1)
+    expect(replyModelCallAllowed("org-c", later + 1)).toBe(true);
+    expect(replyModelCallAllowed("org-a", later + 1)).toBe(true);
+  });
+
+  it("#2 KONTROL: yakın aralıklı (30 sn) zaman aşımları dizi sayılır", () => {
+    const t0 = 9_000_000;
+    noteReplyModelTimeout("org-a", t0);
+    noteReplyModelTimeout("org-a", t0 + 30_000);
+    expect(noteReplyModelTimeout("org-a", t0 + 60_000)).toBe(true);
+  });
+
+  it("#3 sessizleşen kiracının kaydı silinir; açık beklemedeki kayıt silinmez", () => {
+    const t0 = 10_000_000;
+    noteReplyModelTimeout("org-a", t0);
+    for (let i = 0; i < REPLY_BREAKER_THRESHOLD; i++) noteReplyModelTimeout("org-b", t0); // B açık (bitiş t0+60s)
+    expect(__replyBreakerTenantCountForTests()).toBe(2);
+    noteReplyModelTimeout("org-c", t0 + 30_000);
+    expect(__replyBreakerTenantCountForTests()).toBe(3); // henüz bayat değil
+    noteReplyModelTimeout("org-c", t0 + REPLY_BREAKER_STREAK_GAP_MS + 1);
+    expect(__replyBreakerTenantCountForTests()).toBe(1); // A ve B (beklemesi bitmiş) silindi, C kaldı
   });
 });

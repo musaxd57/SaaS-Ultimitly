@@ -50,8 +50,16 @@ interface BreakerState {
   openUntil: number;
   /** Bekleme dolduktan sonraki TEK deneme kirası: kira süresince başka çağrı geçmez (eşzamanlı istekler hep birlikte beklemesin). */
   probeLeaseUntil: number;
+  /** Son zaman aşımının anı — dizi ancak zaman aşımları birbirine yakınsa "art arda"dır (Haiku 10-21 #2). */
+  lastAt: number;
 }
-const fresh = (): BreakerState => ({ consecutive: 0, openUntil: 0, probeLeaseUntil: 0 });
+const fresh = (): BreakerState => ({ consecutive: 0, openUntil: 0, probeLeaseUntil: 0, lastAt: 0 });
+/**
+ * İki zaman aşımı arasında bundan uzun süre geçtiyse dizi baştan başlar: saatler önceki iki zaman aşımı + bugünkü bir tanesi kesiciyi
+ * açmasın. Sıralı döngüde (30 sn tavanlı çağrılar) ardışık zaman aşımları ~30 sn arayla gelir; bekleme (60 sn) + deneme tavanı (en çok
+ * 60 sn) de bu sınırın içinde kalır — deneme yine düşerse kesici hemen yeniden açılır.
+ */
+export const REPLY_BREAKER_STREAK_GAP_MS = 180_000;
 let shared = fresh();
 /** Ortak dizideki zaman aşımlarının geldiği kiracılar. */
 let sharedKeys = new Set<string>();
@@ -66,12 +74,14 @@ export const REPLY_BREAKER_SHARED_MIN_TENANTS = 2;
 
 const keyOf = (key: string | null | undefined) => (key && key.trim() ? key : NO_TENANT);
 
-function allowed(state: BreakerState, now: number): boolean {
-  if (state.openUntil === 0) return true;
-  if (now < state.openUntil) return false;
-  if (now < state.probeLeaseUntil) return false;
-  state.probeLeaseUntil = now + PROBE_LEASE_MS;
-  return true;
+/** Çağrı bu kesiciden geçebilir mi (DURUM DEĞİŞMEZ). */
+function passable(state: BreakerState, now: number): boolean {
+  return state.openUntil === 0 || (now >= state.openUntil && now >= state.probeLeaseUntil);
+}
+
+/** Geçişi kullanır: açık kesicide bekleme dolduysa deneme kirasını alır. Önce `passable` ile bakılmış olmalı. */
+function claim(state: BreakerState, now: number): void {
+  if (state.openUntil !== 0) state.probeLeaseUntil = now + PROBE_LEASE_MS;
 }
 
 /** Eşiğe ulaştıysa (ya da deneme yine düştüyse) açar; `true` YALNIZ kapalıyken açıldığı anda. */
@@ -87,9 +97,13 @@ function trip(state: BreakerState, now: number): boolean {
  * çağrı geçer (deneme kirası) — sonucu kesiciyi kapatır (cevap geldi) ya da hemen yeniden açar (yine zaman aşımı).
  */
 export function replyModelCallAllowed(key?: string | null, now = Date.now()): boolean {
-  if (!allowed(shared, now)) return false;
   const t = tenants.get(keyOf(key));
-  return t ? allowed(t, now) : true;
+  // İKİSİNE DE önce bakılır, kira ancak ikisi de geçirince alınır (Haiku 10-21 #1): eskiden ortak kira önce alınıyordu; kiracı kendi
+  // beklemesindeyse çağrı reddediliyor ama ortak kira 65 sn boyunca BÜTÜN işletmeleri kapatıyordu.
+  if (!passable(shared, now) || (t && !passable(t, now))) return false;
+  claim(shared, now);
+  if (t) claim(t, now);
+  return true;
 }
 
 /**
@@ -98,11 +112,22 @@ export function replyModelCallAllowed(key?: string | null, now = Date.now()): bo
  */
 export function noteReplyModelTimeout(key?: string | null, now = Date.now()): boolean {
   const k = keyOf(key);
+  // Sessizleşen kiracıların kaydı silinir (Haiku 10-21 #3): dizisi bayatlamış ve beklemesi bitmiş kesici tutulmaz.
+  for (const [other, s] of tenants) {
+    if (other !== k && now - s.lastAt > REPLY_BREAKER_STREAK_GAP_MS && now >= s.openUntil) tenants.delete(other);
+  }
   let t = tenants.get(k);
   if (!t) {
     t = fresh();
     tenants.set(k, t);
   }
+  if (t.lastAt !== 0 && now - t.lastAt > REPLY_BREAKER_STREAK_GAP_MS) t.consecutive = 0;
+  if (shared.lastAt !== 0 && now - shared.lastAt > REPLY_BREAKER_STREAK_GAP_MS) {
+    shared.consecutive = 0;
+    sharedKeys = new Set();
+  }
+  t.lastAt = now;
+  shared.lastAt = now;
   t.consecutive++;
   shared.consecutive++;
   sharedKeys.add(k);
@@ -138,6 +163,11 @@ export function replyRetryDelayMs(retryAfter: string | null): number {
   const s = retryAfter === null ? NaN : Number(retryAfter.trim());
   if (Number.isFinite(s) && s >= 0) return Math.min(Math.round(s * 1000), REPLY_RETRY_AFTER_CAP_MS);
   return REPLY_RETRY_DELAY_MS;
+}
+
+/** TEST KANCASI: bellekte tutulan kiracı kesicisi sayısı (temizlik pini). */
+export function __replyBreakerTenantCountForTests(): number {
+  return tenants.size;
 }
 
 /** TEST KANCASI: kesiciyi sıfırla; isteğe bağlı yeniden deneme beklemesi (testler 1 sn beklemesin). */

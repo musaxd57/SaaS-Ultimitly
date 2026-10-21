@@ -34,7 +34,7 @@ function textOf(node: unknown): string {
 }
 
 const WAITING = "Misafir cevabınızı bekliyor";
-const LOW_CONF = "AI emin olamadı";
+const LOW_CONF = "Yapay zekâ emin olamadı";
 
 async function render(opts: { reason: string | null; trigger?: "last" | "earlier"; orgOfEvent?: "same" | "other" }): Promise<string> {
   const org = await prisma.organization.create({ data: { name: "Not Org" } });
