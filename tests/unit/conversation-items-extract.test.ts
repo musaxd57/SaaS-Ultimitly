@@ -172,6 +172,9 @@ describe("kurucu T1 (10-21): saat türündeki istekte erişim olgusu yalnız Fİ
   it("'Çıkış saatinde anahtarı nereye bırakacağız?' → erişim (anahtar), garaj arızası onu bağlar", () => {
     expect(relOf("Çıkış saatinde anahtarı nereye bırakacağız?")).toBe(true);
   });
+  it("'Çıkış saatinde kapıcı orada mı?' → erişim DEĞİL (kapıcı görevlidir, kapı değil — Haiku T1 #7)", () => {
+    expect(relOf("Çıkış saatinde kapıcı orada mı?")).toBe(false);
+  });
   it("KONTROL: 'Çıkış saati kaçta?' → erişim DEĞİL (çıkış fiili saat sorusunda erişim sayılmaz)", () => {
     expect(relOf("Çıkış saati kaçta?")).toBe(false);
   });

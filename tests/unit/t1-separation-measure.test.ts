@@ -61,6 +61,8 @@ const GROUNDING: Strip[] = [
   ["No special instructions. Pets are allowed.", ["Pets\nPets are not allowed."], "hold"],
   ["Özel bir talimatımız yok. Evcil hayvanlar kabul edilmez.", ["Evcil hayvan\nEvcil hayvan kabul edilmez."], "send"],
   ["No special instructions. Pets are not allowed.", ["Pets\nPets are not allowed in the apartment."], "send"],
+  // Eşik: kalemle kısmen örtüşen (3/5) uydurma ek yönerge gitmez.
+  ["Çıkış için özel talimatımız yok, anahtarı masaya bırakıp kapıyı kilitleyin.", KB, "hold"],
   // #2 — nezaket kalıbı içerik cümlesini muaf yapmaz.
   ["Çıkış için özel talimatımız yok. Anahtarı masaya bırakın ve keyifli bir gün dileriz.", ["Çıkış\nÇıkış saati 11:00'dir."], "hold"],
   ["Özel talimatımız yok. Merhaba, kapıyı çekip kilitleyin.", ["Çıkış\nÇıkış saati 11:00'dir."], "hold"],
