@@ -65,6 +65,8 @@ export const BILLING_NOTE_OVERWRITABLE: readonly string[] = [
   // İki "gönderilmedi" notu birbirini günceller (genel anahtar kapalıyken / abonelik kapalıyken).
   "auto_reply_disabled",
   BILLING_PAUSED_REASON,
+  // Kurucu W7 (10-21): kanal aboneliği kapalıyken hazırlanmış cevap, abonelik dönünce gönderilmedi.
+  "channel_paused",
 ];
 /** Gönderim anında yakalanan satıra bu kadar sonra yeniden bakılır (deneme sayılmaz). */
 export const BILLING_HOLD_RETRY_MS = 10 * 60_000;

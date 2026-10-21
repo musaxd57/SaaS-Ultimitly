@@ -388,6 +388,8 @@ const SKIP_REASON_LABELS: Record<string, string> = {
   auto_reply_disabled: "Otomatik yanıt kapalıyken hazırlanan cevap gönderilmedi — lütfen elle yanıtlayın",
   // N1 (kurucu 10-17, "tek gösterimlik uyarı"): abonelik kapalıyken gelen mesaj / hazırlanmış cevap — ödeme sonrası bayat cevap gitmez.
   billing_paused: "Abonelik aktif değilken bu mesaja otomatik yanıt gönderilmedi — lütfen elle yanıtlayın",
+  // Kurucu W7 (10-21): kanal bağlantısının aboneliği kapalıyken hazırlanan cevap, bağlantı dönünce bayat olduğu için gönderilmedi.
+  channel_paused: "Kanal bağlantısı kapalıyken hazırlanan cevap gönderilmedi — lütfen elle yanıtlayın",
   // K10-t (kurucu kararı 09-28): tek mesaj 8.000 karakteri aşıyor — yapay zekâ cevap üretmedi, metin modele verilmedi.
   message_too_long: "Mesaj çok uzun (8.000 karakterden fazla) — yapay zekâ cevap üretmedi; lütfen mesajı okuyup elle yanıtlayın",
   // Mevcut müşterilerin gündüz mesajlarının sessizce cevapsız kalmasının TEK

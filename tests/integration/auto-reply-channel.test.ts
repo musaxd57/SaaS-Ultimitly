@@ -1725,28 +1725,31 @@ describe("applyChannelAutoReply — Durable Outbox (flag ON, #5/#6)", () => {
   // `canceled` satır `/sent/queue`'dan da yeniden denenemez → MESAJ KALICI KAYIP.
   // Bu, bugün düzeltilen "enqueue'de hold" arızasıyla AYNI SINIF.
   // -------------------------------------------------------------------------
-  it("402 sonrası abonelik yenilenince mesaj GERÇEKTEN gider (hold onu iptal etmez)", async () => {
+  // 🚨 KURUCU W7 (10-21) bu sözleşmeyi DEĞİŞTİRDİ: "model cevabı aktif olduğu itibaren çalışsın" — kanal aboneliği kapalıyken hazırlanmış
+  // yapay zekâ cevabı, abonelik dönünce GİTMEZ (günler önceki mesaja bayat cevap); kayıp da değildir: satır iptal, gelen kutusunda tek not
+  // ("Kanal bağlantısı kapalıyken hazırlanan cevap gönderilmedi"), konuşma damgalı (aynı mesaja model yeniden koşmaz). Eski hata sınıfı
+  // (hold'un cevabı SESSİZCE iptal etmesi) burada da yok: iptal görünür ve sebepli.
+  it("402 sonrası abonelik yenilenince bekleyen AI cevabı GİTMEZ; iptal + gelen kutusunda not (kurucu W7)", async () => {
     const { orgId, conversationId } = await seed();
     await applyChannelAutoReply(conversationId);
 
-    // 1. geçiş: 402 → satır `blocked`.
     const blocked = vi.fn().mockResolvedValue({ ok: false, status: 402, error: "HTTP 402 - subscription not active" });
     await drainOutboxOnce({ send: blocked, tokenFor: async () => "test-token" });
     expect((await prisma.messageOutbox.findFirst({ where: { conversationId } }))?.status).toBe("blocked");
 
-    // Abonelik yenilendi → başarılı senkron satırı `pending`e döndürür.
     expect(await reactivateBlockedOutbox(orgId)).toBe(1);
 
-    // 2. geçiş: AYNI koşunun drain'i. ⬅️ ARIZADA burada `canceled` oluyordu.
     const ok = vi.fn().mockResolvedValue({ ok: true, providerMessageId: "p-after-402" });
     await drainOutboxOnce({ send: ok, tokenFor: async () => "test-token" });
 
     const row = await prisma.messageOutbox.findFirstOrThrow({ where: { conversationId } });
-    expect(row.status).toBe("sent");
-    expect(ok).toHaveBeenCalledTimes(1); // gerçekten POST edildi
-    const conv = await prisma.conversation.findUnique({ where: { id: conversationId } });
-    expect(conv?.status).toBe("answered");
+    expect(row.status).toBe("canceled");
+    expect(ok).not.toHaveBeenCalled(); // bayat cevap POST edilmedi
+    const conv = await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } });
+    expect(conv.skippedReason).toBe("channel_paused");
+    expect(conv.autoReplyAttemptedAt).toBeInstanceOf(Date); // aynı mesaja model yeniden koşmaz
   });
+
 
   it("BELİRSİZ sonuç 'iletilemedi' DEMEZ (misafire çift mesaj riski)", async () => {
     const { conversationId } = await seed();

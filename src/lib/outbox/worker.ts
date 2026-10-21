@@ -771,6 +771,11 @@ async function sendTimeVeto(row: OutboxRow, now: Date): Promise<string | null> {
   // yapay zekâ cevabı İPTAL edilir (`billing-hold.ts`); gelen kutusunda not görünür (↓çağıran, Y5 ile aynı yol).
   const billingVeto = await billingCancelReason(row);
   if (billingVeto) return billingVeto;
+  // Kurucu W7: kanal aboneliği kapalıyken bekleyen yapay zekâ cevabı, abonelik dönünce GİTMEZ (↑ `reactivateBlockedOutbox` işareti).
+  if (type === "ai" || type === "holding_ack") {
+    const mark = await prisma.messageOutbox.findUnique({ where: { id: row.id }, select: { lastErrorCode: true } });
+    if (mark?.lastErrorCode === CHANNEL_PAUSED_STALE_MARK) return CHANNEL_PAUSED_REASON;
+  }
   if (type === "welcome" || type === "checkin" || type === "checkout") return lifecycleVeto(row, now, await spannedBillingBlock(row));
   return replyVeto(row, now);
 }
@@ -1005,7 +1010,27 @@ async function signalOutboxStuck(row: OutboxRow, state: "review" | "failed" | "b
  * it is a no-op. Tenant-scoped by `organizationId` so one org can never reactivate another's rows.
  * Returns the number reactivated.
  */
+/**
+ * Kanal aboneliği (Hospitable 402) dönünce, kapalıyken kuyrukta bekleyen YAPAY ZEKÂ cevabına bu işaret konur; gönderim anı vetosu satırı İPTAL
+ * eder ve gelen kutusuna tek not yazar (kurucu W7, 10-21: "model cevabı aktif olduğu itibaren çalışsın" — günler önceki mesaja bayat cevap
+ * gitmez; N1 ile aynı ilke). Karşılama / giriş / çıkış mesajları kendi zaman kuralıyla (değişmez). Ev sahibinin elle cevabı değişmez.
+ */
+export const CHANNEL_PAUSED_STALE_MARK = "reactivated_after_block";
+export const CHANNEL_PAUSED_REASON = "channel_paused";
+
 export async function reactivateBlockedOutbox(organizationId: string, now: Date = new Date()): Promise<number> {
+  const stale = await prisma.messageOutbox.updateMany({
+    where: { organizationId, status: "blocked", body: { not: ANON_BODY }, messageType: { in: ["ai", "holding_ack"] } },
+    data: {
+      status: "pending",
+      attemptCount: 0,
+      availableAt: now,
+      claimedBy: null,
+      claimExpiresAt: null,
+      lastErrorKind: null,
+      lastErrorCode: CHANNEL_PAUSED_STALE_MARK,
+    },
+  });
   const res = await prisma.messageOutbox.updateMany({
     // İKİNCİ SAVUNMA (denetim, 08-01): gövdesi temizlenmiş bir satır ASLA
     // dirilmez. Birinci savunma süpürgelerin bu satırı `canceled` yapmasıdır
@@ -1024,7 +1049,7 @@ export async function reactivateBlockedOutbox(organizationId: string, now: Date 
       lastErrorCode: null,
     },
   });
-  return res.count;
+  return res.count + stale.count;
 }
 
 /**
@@ -1222,7 +1247,7 @@ async function processOne(
     // (Haiku 10-14: anahtar açılınca aynı mesaj için model boşuna yeniden koşuyor, aynı anahtar yutunca misafire hiç cevap gitmiyordu).
     // Misafir yeniden yazarsa yeni mesaj için cevap normal üretilir. N1 (10-17): abonelik kapalıyken iptal edilen cevap AYNI yol — ödeme
     // gelince o mesaja yeniden cevap üretilip bayat cevap gitmez; not gelen kutusunda bir kez görünür (ev sahibi yanıtlayınca kalkar).
-    if (canceled && (veto === "auto_reply_disabled" || veto === BILLING_PAUSED_REASON) && row.conversationId) {
+    if (canceled && (veto === "auto_reply_disabled" || veto === BILLING_PAUSED_REASON || veto === CHANNEL_PAUSED_REASON) && row.conversationId) {
       // Damga cevabın CEVAPLADIĞI mesajın anı (Haiku 10-14: konuşmanın son mesajı alınırsa anahtar kapalıyken gelen YENİ mesajlar da
       // "karar verildi" sayılır, açılınca hiç cevaplanmazdı). Tetik bilinmiyorsa damga yok — yalnız not.
       const outbox = await prisma.messageOutbox.findUnique({ where: { id: row.id }, select: { idempotencyKey: true } });
@@ -1239,8 +1264,11 @@ async function processOne(
       try {
         // Önce not (yalnız boş / geçici sebebin üstüne — "misafir insan istedi", şikâyet, risk notu EZİLMEZ; Haiku 10-17), sonra damga
         // (her durumda — bayat cevap engeli asıl iş). Sıra önemli: damga önce yazılsa not koşulu ("henüz karar yok") düşerdi.
+        // Kanal aboneliği notu (kurucu W7): cevap bu mesaj için ZATEN üretilmişti (deneme damgası tetikten sonra) — not yine yazılır; damga
+        // şartı yalnız "henüz karar verilmedi" yollarında (Y5 / N1) anlamlıdır.
+        const noteScope = veto === CHANNEL_PAUSED_REASON ? { id: row.conversationId, status: pendingDecision.status } : pendingDecision;
         await prisma.conversation.updateMany({
-          where: { ...pendingDecision, OR: [{ skippedReason: null }, { skippedReason: { in: [...BILLING_NOTE_OVERWRITABLE] } }] },
+          where: { ...noteScope, OR: [{ skippedReason: null }, { skippedReason: { in: [...BILLING_NOTE_OVERWRITABLE] } }] },
           data: { skippedReason: veto },
         });
         if (stamp) await prisma.conversation.updateMany({ where: pendingDecision, data: { autoReplyAttemptedAt: stamp } });
