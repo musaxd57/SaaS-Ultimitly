@@ -507,6 +507,25 @@ describe("karar kaydı", () => {
     expect(await claimDecisionNotification(prisma, { organizationId: w.org.id, id: fresh.id, now: new Date() })).toBe(true);
   });
 
+  it("KONTROL: kartla giden KARAR mesajı (başka kartın onayı) elle cevap sayılmaz → damga miras kalır", async () => {
+    const w = await world();
+    const base = { organizationId: w.org.id, conversationId: w.conversation.id, reservationId: w.reservation.id, lang: "tr", now: new Date() };
+    const m1 = await w.msg("13:00'te girip 13:00'te çıkabilir miyiz?", 60);
+    const [early, late] = await openTurnDecisions(prisma, {
+      ...base,
+      decisions: [
+        { kind: "early_checkin", messageId: m1.id, itemId: null, requestedTime: "13:00", dayKey: w.arrivalKey },
+        { kind: "late_checkout", messageId: m1.id, itemId: null, requestedTime: "13:00", dayKey: null },
+      ],
+    });
+    expect(await claimDecisionNotification(prisma, { organizationId: w.org.id, id: early.id, now: new Date() })).toBe(true);
+    const decisionMsg = await w.msg("Geç çıkış talebiniz onaylandı.", 50, "outbound", "host");
+    await prisma.decisionRequest.update({ where: { id: late.id }, data: { status: "approved", resultMessageId: decisionMsg.id } });
+    const m2 = await w.msg("Peki girişi 12:00 yapabilir miyiz?", 30);
+    const [fresh] = await openTurnDecisions(prisma, { ...base, decisions: [{ kind: "early_checkin", messageId: m2.id, itemId: null, requestedTime: "12:00", dayKey: w.arrivalKey }] });
+    expect((await prisma.decisionRequest.findUniqueOrThrow({ where: { id: fresh.id } })).notifiedAt).not.toBeNull();
+  });
+
   it("KONTROL: ev sahibi cevaplamadıysa yeni kart eski kartın bildirim damgasını alır (tekrar e-posta yok); otomatik mesaj cevap sayılmaz", async () => {
     const w = await world();
     const base = { organizationId: w.org.id, conversationId: w.conversation.id, reservationId: w.reservation.id, lang: "tr", now: new Date() };

@@ -71,5 +71,9 @@ describe("karesel iş yok (Claude kod incelemesi 10-21, ölçüldü: 50.000 sat�
   it("satır başı ve cümle başı kimlik konumu aynen maskelenir", () => {
     expect(maskGuestIdentity("Selam\n\n\nben Deniz", ["Deniz"], "guest")).not.toContain("Deniz");
     expect(maskGuestIdentity("Merhaba,\n  Deniz here", ["Deniz"], "guest")).not.toContain("Deniz");
+    // Satır sonundan sonra CR / bölünmez boşluk / sayfa sonu (Haiku 10-21: `[ \t]*` kaçırıyordu).
+    for (const gap of ["\r", "\u00a0", "\f", "\t"]) {
+      expect(maskGuestIdentity(`Merhaba\n${gap}Ben Deniz`, ["Deniz"], "guest"), JSON.stringify(gap)).not.toContain("Deniz");
+    }
   });
 });

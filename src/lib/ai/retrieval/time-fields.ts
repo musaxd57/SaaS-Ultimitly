@@ -89,7 +89,8 @@ const BARE_HOUR_G = new RegExp(
 /**
  * "11 buçukta" / "11'i çeyrek geçe" / "12'ye on kala" — "saat"siz (↓`clockTail` dakikayı çözer; çözülemeyen hiç okunmaz). Aradaki söz boşlukla
  * BAŞLAMAZ (`(?=\S)`): boşluk dizisi iki `\s+` ile ara söz arasında her bölünüşte yeniden denenip karesel geri izliyordu (Claude kod
- * incelemesi 10-21, ölçüldü: 16.000 boşlukta 6,4–15 sn). Anlam aynı — öndeki boşluğu zaten `\s+` yutar.
+ * incelemesi 10-21, ölçüldü: 16.000 boşlukta 6,4–15 sn). Gerçekçi metinde sonuç aynı (300.000 rastgele dizide fark 0); yalnız
+ * ara sözü TAMAMEN boşluk olan yapay biçim ("11'i   geçe") artık okunmaz.
  */
 const BARE_CLOCK_G =
   /(?<![\d:.,/])\b(1\d|2[0-3])(?=\s+bu[çc]u[kğg]|\s*['’]\s*(?:[ıiuü]\s+(?=\S)[^.,;]{1,24}?\s+ge[çc]e|y?[ae]\s+(?!kadar|dek)(?=\S)[^.,;]{1,24}?\s+kala|y?[ae]\s+(?:(?:yirmi|on)\s+be[şs]|be[şs]|on|[çc]eyrek|yirmi|\d{1,2})\s+var)(?![a-zçğıöşü]))/gi;

@@ -732,6 +732,7 @@ describe("🚨 Claude kod incelemesi 10-21 (doğrulandı): virgülsüz panik cü
     "Yangın var söndürmeye çalışıyoruz",
     // İki ayrı soru 'ne'si "ne … ne …" olumsuzlaması sanılıyordu.
     "Yangın çıktı ne yapacağız ne edeceğiz",
+    "Ne yapacağız ne edeceğiz yangın var",
     // Araya başka yüklem giren 'yok / gelmiyor' tehlikenin olumsuzu sanılıyordu.
     "Yangın çıktı çıkış yok",
     "Yangın var yardım gelmiyor",
@@ -763,6 +764,12 @@ describe("🚨 Claude kod incelemesi 10-21 (doğrulandı): virgülsüz panik cü
     ["Gaz kokusu kesinlikle yok.", "mentioned"],
     ["Yangın tüpü var mı?", "none"],
     ["Yangın tüpü var", "none"],
+    // Haiku incelemesi 10-21: düzeltmenin aşırı uygulama kontrolleri.
+    ["Yangın çıktı itfaiye söndürdü", "mentioned"],
+    ["Yangın çıktı söndürdünüz mü diye sordum, söndürüldü", "mentioned"],
+    ["Yangın çıkmış değil", "mentioned"],
+    ["Ne büyük yangın var ne duman", "mentioned"],
+    ["Ne yangın ne de sigara dumanı var", "mentioned"],
   ])("KONTROL %j → %s", (m, want) => {
     expect(level(m)).toBe(want);
   });

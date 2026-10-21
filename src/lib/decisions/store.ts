@@ -125,7 +125,7 @@ export async function openTurnDecisions(
       // Ev sahibi eski kartı (karta dokunmadan) konuşmadan ELLE cevapladıysa o bildirim kapanmış bir işin bildirimidir — yeni talep yeni
       // iştir, damga miras kalmaz (Claude kod incelemesi 10-21: yeni kart "bildirildi" doğuyor, e-posta hiç gitmiyordu). Kartla giden karar
       // mesajı ve otomatik mesaj cevap sayılmaz (okuma türetmesiyle aynı kural, `HOST_OUTBOUND_WHERE`).
-      const inherited = prior?.notifiedAt && !(await hostRepliedAfter(db, input.conversationId, prior.messageId)) ? prior.notifiedAt : null;
+      const inherited = prior?.notifiedAt && !(await hostRepliedAfter(db, input.organizationId, input.conversationId, prior.messageId)) ? prior.notifiedAt : null;
       try {
         row = await db.decisionRequest.create({
           data: {
@@ -379,18 +379,25 @@ const HOST_OUTBOUND_WHERE: Prisma.MessageWhereInput = {
   ],
 };
 
-/** Talep mesajından SONRA ev sahibinin elle yazdığı bir mesaj var mı (kartla giden karar mesajları hariç). Mesaj bulunamazsa yok sayılır. */
-async function hostRepliedAfter(db: Db, conversationId: string, messageId: string): Promise<boolean> {
-  const asked = await db.message.findUnique({ where: { id: messageId }, select: { createdAt: true, conversationId: true } });
-  if (!asked || asked.conversationId !== conversationId) return false;
+/**
+ * Talep mesajından SONRA ev sahibinin elle yazdığı bir mesaj var mı (kartla giden karar mesajları hariç). Talep mesajı bulunamazsa "var" sayılır:
+ * şüphede damga miras KALMAZ, yeni kart bildirilir (fazladan bir e-posta, kaçan bildirimden iyidir — Haiku 10-21). Sorgular işletme kapsamlı.
+ */
+async function hostRepliedAfter(db: Db, organizationId: string, conversationId: string, messageId: string): Promise<boolean> {
+  const asked = await db.message.findFirst({
+    where: { id: messageId, conversationId, conversation: { property: { organizationId } } },
+    select: { createdAt: true },
+  });
+  if (!asked) return true;
   const results = await db.decisionRequest.findMany({
-    where: { conversationId, resultMessageId: { not: null } },
+    where: { organizationId, conversationId, resultMessageId: { not: null } },
     select: { resultMessageId: true },
   });
   const resultIds = results.map((r) => r.resultMessageId).filter((v): v is string => v !== null);
   const reply = await db.message.findFirst({
     where: {
       conversationId,
+      conversation: { property: { organizationId } },
       ...HOST_OUTBOUND_WHERE,
       createdAt: { gt: asked.createdAt },
       ...(resultIds.length > 0 ? { id: { notIn: resultIds } } : {}),
