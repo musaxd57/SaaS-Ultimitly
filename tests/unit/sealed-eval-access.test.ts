@@ -19,6 +19,8 @@ import path from "node:path";
 const REPO = path.resolve(__dirname, "../..");
 const SEALED_DIR = path.join(REPO, "evals", "sealed");
 const NEEDLE = ["stay", "change", "final"].join("-");
+/** Anlama ölçümünün kör seti (10-21, `docs/TASARIM-2026-10-21-anlama-olcumu.md` §3) — aynı kurallar. */
+const NEEDLE_UX = ["understanding", "e2e", "blind"].join("-");
 
 /** Dosya adının geçmesine izin verilen yerler (yeni okuyucu = bilinçli liste değişikliği). */
 const ALLOWED = new Set([
@@ -26,6 +28,12 @@ const ALLOWED = new Set([
   `evals/sealed/${NEEDLE}.json`,
   "tests/eval/stay-change.eval.test.ts",
   "docs/EVAL-MUHURLU-FINAL.md",
+]);
+const ALLOWED_UX = new Set([
+  "evals/sealed/SEALS.json",
+  `evals/sealed/${NEEDLE_UX}.json`,
+  "tests/eval/understanding-e2e.eval.test.ts",
+  "docs/TASARIM-2026-10-21-anlama-olcumu.md",
 ]);
 const SKIP_DIRS = new Set([".git", "node_modules", ".next", "dist", "build", "coverage", "playwright-report", "test-results"]);
 const BINARY_EXT = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".pdf", ".woff", ".woff2", ".ttf", ".zip", ".gz"]);
@@ -76,6 +84,7 @@ describe("mühürlü final eval seti", () => {
         continue;
       }
       if (text.includes(NEEDLE) && !ALLOWED.has(rel)) offenders.push(rel);
+      if (text.includes(NEEDLE_UX) && !ALLOWED_UX.has(rel)) offenders.push(rel);
     }
     expect(offenders).toEqual([]);
   });
@@ -117,7 +126,9 @@ describe("mühürlü final eval seti", () => {
     for (const [name, seal] of inRepo.filter(([, s]) => s.state === "burned")) {
       expect(seal.burnedAt, name).toMatch(/^\d{4}-\d{2}-\d{2}$/);
       expect(seal.runSha, name).toMatch(/^[0-9a-f]{40}$/);
-      expect(seal.report ?? "", name).toMatch(/^docs\/olcum\/stay-change-FINAL-eval-\d{4}-\d{2}-\d{2}\.md$/);
+      expect(seal.report ?? "", name).toMatch(
+        /^docs\/olcum\/(?:stay-change-FINAL-eval-\d{4}-\d{2}-\d{2}|anlama-e2e-kor-[a-z_]+-\d{4}-\d{2}-\d{2}(?:-[a-z0-9._-]+)?)\.md$/,
+      );
       expect(existsSync(path.join(REPO, seal.report ?? "")), `${name}: yakma raporu depoda yok`).toBe(true);
     }
   });
@@ -131,6 +142,13 @@ describe("mühürlü final eval seti", () => {
     expect(read).toBeGreaterThan(guard);
     // Mühürlü dosya başka hiçbir yoldan okunmaz (tek okuma DATASET üzerinden).
     expect(src.split("SEALED_FILE").length - 1).toBe(2); // tanım + DATASET seçimi
+    // Anlama ölçümünün kör seti: mühür kontrolü okumadan ÖNCE, yalnız açık koşuda; tek okuma yolu DATASET.
+    const ux = readFileSync(path.join(REPO, "tests/eval/understanding-e2e.eval.test.ts"), "utf8");
+    expect(ux).toContain('const SEALED = process.env.EVAL_SEALED_FINAL === "1";');
+    expect(ux).toContain("const datasetBytes = enabled ? readFileSync(DATASET)");
+    expect(ux.indexOf("const datasetBytes = enabled")).toBeLessThan(ux.indexOf('if (SEALED && enabled)'));
+    expect(ux.split("readFileSync(DATASET").length - 1).toBe(1);
+    expect(ux).toContain("EVAL_UX_LIMIT / EVAL_UX_ONLY mühürlü koşuda kullanılamaz");
     // Normal test takımı bayrağı hiçbir koşulda set etmez.
     expect(readFileSync(path.join(REPO, "vitest.config.ts"), "utf8")).not.toContain("EVAL_SEALED_FINAL");
   });

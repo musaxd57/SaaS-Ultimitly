@@ -29,7 +29,7 @@ export default defineConfig({
   esbuild: { jsx: "automatic" },
   test: {
     environment: "node",
-    include: ["tests/eval/live-pipeline.eval.test.ts", "tests/eval/qr-live-pipeline.eval.test.ts"],
+    include: ["tests/eval/live-pipeline.eval.test.ts", "tests/eval/qr-live-pipeline.eval.test.ts", "tests/eval/understanding-e2e.eval.test.ts"],
     fileParallelism: false,
     globalSetup: ["tests/global-setup.ts"],
     env: {
