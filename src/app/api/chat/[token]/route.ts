@@ -16,6 +16,7 @@ import { emergencyNumberEnabled, emergencyNumberReply } from "@/lib/ai/emergency
 import { confidentLanguage } from "@/lib/ai/language-signal";
 import { evaluateIntentRisk, intentRiskEvidenceOf, understandingRiskOf } from "@/lib/ai/semantic/intent-risk";
 import { runStayChangeGuard, stayGuardEnabled } from "@/lib/ai/semantic/guard";
+import { absenceJudgeEnabled, absenceJudgeStrict, runAbsenceJudge } from "@/lib/ai/semantic/absence-judge";
 import {
   resolveGuestChat,
   bindOrCheckStay,
@@ -1139,6 +1140,17 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   };
   const gateResult = { ...result, reply: result.reply, usedSources: result.usedSources };
   let verdict = evaluateEscalation(gateResult, message, res.guestName, history, stayCtx);
+  // BAĞLAM HAKEMİ (kurucu 10-21, `semantic/absence-judge.ts`, anahtar KAPALI): kelime kuralının "bilgim yok" adayını ikinci model misafirin
+  // mesajıyla okur; katı kipte kapıdan geçen aday da okunur. Hüküm yalnız okunan metne uygulanır; hakem düşerse bugünkü kural.
+  if (absenceJudgeEnabled() && result.reply) {
+    const lexicalHold = verdict.reason === "absence_admission";
+    if (lexicalHold || (!verdict.escalate && absenceJudgeStrict())) {
+      await assertClaimHeld(); // sahiplik kaybedildiyse ücretli model çağrısı YAPILMAZ
+      const outcome = await runAbsenceJudge({ guestMessage: message, reply: result.reply, names: [res.guestName, res.guestGivenName] });
+      stayCtx = { ...stayCtx, absenceJudge: { reply: result.reply, outcome } };
+      verdict = evaluateEscalation(gateResult, message, res.guestName, history, stayCtx);
+    }
+  }
   if ((!verdict.escalate || verdict.reason === "availability_unconfirmed") && stayGuardEnabled()) {
     await assertClaimHeld(); // sahiplik kaybedildiyse ücretli model çağrısı YAPILMAZ
     const stayGuard = await runStayChangeGuard({

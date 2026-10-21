@@ -22,6 +22,14 @@ import {
 } from "@/lib/ai/availability-claims";
 import { runStayChangeGuard, stayGuardEnabled } from "@/lib/ai/semantic/guard";
 import {
+  absenceHolds,
+  absenceJudgeEnabled,
+  absenceJudgeStrict,
+  judgeReleases,
+  runAbsenceJudge,
+  type AbsenceJudgeOutcome,
+} from "@/lib/ai/semantic/absence-judge";
+import {
   earlyCheckinEvidenceOf,
   earlyCheckinHostNote,
   earlyCheckinPolicyAllowed,
@@ -237,6 +245,11 @@ export interface AutoReplyGateContext {
   stayTimes?: StayTimes | null;
   /** Bağımsız bekçinin sonucu (`AI_STAY_GUARD_ENABLED`); verilmezse bekçi koşmadı. */
   stayGuard?: StayGuardOutcome;
+  /**
+   * "Bilgim yok" bağlam hakeminin sonucu (`AI_ABSENCE_JUDGE_ENABLED`) + OKUDUĞU metin. Hüküm yalnız birebir aynı cevaba uygulanır
+   * (koddan kurulan metin modelinkinin yerine geçerse eski hüküm ona taşınmaz); verilmezse kelime kuralı karar verir.
+   */
+  absenceJudge?: { reply: string; outcome: AbsenceJudgeOutcome };
   /** Anlama katmanının konaklama sinyali (`AI_UNDERSTANDING_ENABLED`). */
   understanding?: UnderstandingStaySignal | null;
   /** Anlama katmanı açıktı ama başarısız oldu (yalnız kanıt: `sc.u = "failed"`; kararı değiştirmez). */
@@ -543,7 +556,9 @@ export function autoReplyGateVerdict(
   // ⚠️ ÖLÇÜT CEVABIN KENDİ İTİRAFIDIR, "kaynak yok" DEĞİL — "Giriş saati kaçta?"
   // cevabı MÜLK ALANINDAN gelir, kaynaksız görünür ama DAYANAKLIDIR (test-pinli).
   // QR rotasındaki `absence_admission` dalıyla PARİTE (aynı yüklem, tek kaynak).
-  if (admitsMissingKnowledge(result.reply)) return hold("reply_absence");
+  // BAĞLAM HAKEMİ (kurucu 10-21, `semantic/absence-judge.ts`, anahtar KAPALI): hakem okuduysa karar onun; yoksa kelime kuralı.
+  const judged = context?.absenceJudge && context.absenceJudge.reply === result.reply ? context.absenceJudge.outcome : undefined;
+  if (absenceHolds(admitsMissingKnowledge(result.reply), judged)) return hold("reply_absence");
   // ── ÇIKTI VETOSU (Codex denetimi §A, 09-12) ───────────────────────────────
   //
   // 🚨 Bu kapı 09-12'ye kadar cevap METNİNE yalnız `admitsMissingKnowledge` ile
@@ -2499,11 +2514,21 @@ export async function applyChannelAutoReply(
   // yeniden geçer. Eşlenemeyen / boş kalan / beyansız tur bugünkü gibi bütünüyle tutulur (`reply_absence`). Kurallar `topic-absence.ts`.
   // Kanıt izi (`ta`): ayıklanan cümle + düşen istek SAYISI (metin yok) — "kaç cevap kısmen gitti" ölçümü (Opus P3).
   let topicAbsenceTrace: { s: number; r: number } | undefined;
+  // ── BAĞLAM HAKEMİ (kurucu 10-21: "kelime bazlı tutmasın, bağlam bazlı tutsun"; `semantic/absence-judge.ts`, anahtar KAPALI) ──────────
+  // Kelime kuralı "bilgim yok" ADAYI bulduysa ikinci model cevabı misafirin mesajıyla birlikte okur. Hakem "itiraf değil" derse konu
+  // ayıklaması da koşmaz (ayıklanacak itiraf yok — "anahtarı bulamazsanız kutudadır" talimatı silinmesin). Hakem düşerse bugünkü kural.
+  const absenceNames = [conversation.guestIdentifier, conversation.reservation?.guestName, conversation.reservation?.guestGivenName];
+  const absenceGuestText = [...pendingGuestMessages, last.body].join("\n\n");
+  let absenceJudge: AbsenceJudgeOutcome | undefined;
+  if (absenceJudgeEnabled() && admitsMissingKnowledge(result.reply)) {
+    absenceJudge = await runAbsenceJudge({ guestMessage: absenceGuestText, reply: result.reply, names: absenceNames });
+  }
   if (
     topicAbsenceEnabled() &&
     itemsPlan &&
     result.answeredRequests?.ok === true &&
-    admitsMissingKnowledge(result.reply)
+    admitsMissingKnowledge(result.reply) &&
+    !judgeReleases(absenceJudge)
   ) {
     const stripped = stripTopicAbsence({
       reply: result.reply ?? "",
@@ -2515,8 +2540,11 @@ export async function applyChannelAutoReply(
     if (stripped.ok) {
       result = { ...result, reply: stripped.reply, answeredRequests: { ok: true, refs: stripped.answeredRefs } };
       topicAbsenceTrace = { s: stripped.droppedSentences, r: stripped.droppedRefs.length };
+      // Hakemin hükmü ESKİ metne aitti; ayıklanan metni kelime kuralı (ve katı kipte hakem yeniden) okur.
+      absenceJudge = undefined;
     }
   }
+  if (absenceJudge) gateContext.absenceJudge = { reply: result.reply, outcome: absenceJudge };
   // ── ANLAM KATMANI: bağımsız bekçi (09-24) ───────────────────────────────────
   // Bayrak açıkken (`AI_STAY_GUARD_ENABLED`) önce bekçisiz kapı; ikinci model taslağı YALNIZ iki durumda okur:
   // otomatik gönderim ADAYI (bekçi sıkılaştırabilir) ya da tek engeli müsaitlik onayı eksikliği olan taslak
@@ -2525,6 +2553,13 @@ export async function applyChannelAutoReply(
   // Kapı bekçinin hükmüyle BAŞTAN değerlendirilir. Önizleme (dryRun) de aynı yoldan — "gönderilirdi" dürüst kalsın.
   let gateFailure = autoReplyGateFailure(result, last.body, gateContext);
   let gatePassed = gateFailure === null;
+  // Bağlam hakemi KATI kip (`AI_ABSENCE_JUDGE_STRICT`): kapıdan geçen aday cevap, kelime kuralının kaçırdığı "bilgim yok" için de okunur.
+  if (gatePassed && !gateContext.absenceJudge && absenceJudgeStrict()) {
+    const outcome = await runAbsenceJudge({ guestMessage: absenceGuestText, reply: result.reply, names: absenceNames });
+    gateContext.absenceJudge = { reply: result.reply, outcome };
+    gateFailure = autoReplyGateFailure(result, last.body, gateContext);
+    gatePassed = gateFailure === null;
+  }
   // Bekleme sözü vetosu (09-25, kurucu kararı: "misafir hiçbir 'soruyorum/döneceğim' mesajı almayacak"): modelin "I'll check
   // with the host and get back to you" ertelemesi artık çıktı vetosuna takılır. Veto kapıda müsaitlikten ÖNCE koştuğu için
   // bekçi de burada koşar (doğrulanmış erken giriş iki modelin aynı saati okumasını ister) ve ↓erken giriş akışı yine koşar →

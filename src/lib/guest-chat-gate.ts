@@ -1,6 +1,7 @@
 import "server-only";
 
 import { admitsMissingKnowledge } from "@/lib/ai/absence";
+import { absenceHolds, type AbsenceJudgeOutcome } from "@/lib/ai/semantic/absence-judge";
 import { vetoOutgoingReply } from "@/lib/ai/output-veto";
 import { actionClaimHold, type ClaimedActionsDeclaration } from "@/lib/ai/action-claims";
 import { vetoAvailability, type AvailabilityPolicyOptions } from "@/lib/ai/availability-claims";
@@ -265,6 +266,8 @@ export function evaluateEscalation(
     verifiedExtension?: { text: string } | null;
     /** Kanıtsız arıza adımı kemeri (`relation.fixSupportContextOf`; anahtar kapalıyken alan yok → kural koşmaz). */
     kbFixSupport?: KbFixSupport;
+    /** "Bilgim yok" bağlam hakemi (`AI_ABSENCE_JUDGE_ENABLED`) + okuduğu metin; hüküm yalnız birebir aynı cevaba uygulanır. */
+    absenceJudge?: { reply: string; outcome: AbsenceJudgeOutcome };
   },
 ): { escalate: boolean; reason: EscalationReason | null } {
   const yes = (reason: EscalationReason) => ({ escalate: true, reason });
@@ -336,7 +339,9 @@ export function evaluateEscalation(
   // ⚠️ ÖLÇÜT CEVABIN KENDİ İTİRAFIDIR, "kaynak yok" DEĞİL: `usedSources` yalnız KB
   // kalemlerini sayar; "Giriş saati kaçta?" cevabı MÜLK ALANINDAN gelir, kaynaksız
   // görünür ama DAYANAKLIDIR ve gitmeye devam eder (test-pinli).
-  if (admitsMissingKnowledge(result.reply)) return yes("absence_admission");
+  // BAĞLAM HAKEMİ (kurucu 10-21, anahtar KAPALI): hakem bu metni okuduysa karar onun; yoksa kelime kuralı (kanal kapısıyla aynı yüklem).
+  const judged = stayCtx?.absenceJudge && stayCtx.absenceJudge.reply === result.reply ? stayCtx.absenceJudge.outcome : undefined;
+  if (absenceHolds(admitsMissingKnowledge(result.reply ?? ""), judged)) return yes("absence_admission");
   // ── ÇIKTI VETOSU (Codex denetimi §A, 09-12) ───────────────────────────────
   //
   // 🚨 Gerekçe KAPALI KÜMEDEN ve AYRI: canlıda "yer tutucu mu, makbuzsuz söz
