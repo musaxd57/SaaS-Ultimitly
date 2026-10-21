@@ -13,7 +13,12 @@ import { CHECKOUT_PENDING_MESSAGE } from "@/lib/billing/checkout-pending-shared"
 import { currentCorrelationId } from "@/lib/correlation";
 import { logEvent } from "@/lib/event-log";
 import { NextResponse } from "next/server";
-import { checkoutIntentEnabled, openOrReuseCheckoutIntent } from "@/lib/billing/checkout-intent";
+import {
+  CHECKOUT_INTENT_BUSY_MESSAGE,
+  checkoutIntentEnabled,
+  openCheckoutIntentExists,
+  openOrReuseCheckoutIntent,
+} from "@/lib/billing/checkout-intent";
 
 // Server-side record of the Ön Bilgilendirme + Mesafeli Satış acceptance at
 // CHECKOUT — the evidence counterpart to the client checkbox in paddle-plans.tsx.
@@ -93,6 +98,11 @@ export const POST = withOwner(async (session, req) => {
   // yukarıdaki canlı abonelik kontrolü yalnız webhook'un yazdığı satırı görür (ikinci sekmede ikinci abonelik penceresi).
   if (await checkoutPendingActive(session.organizationId)) {
     return badRequest({ _: CHECKOUT_PENDING_MESSAGE });
+  }
+
+  // Anahtar kapalıyken açık ödeme niyeti kalmışsa (anahtar açılıp geri kapatıldı): ikinci ödeme ekranı açılmaz.
+  if (!checkoutIntentEnabled() && (await openCheckoutIntentExists(session.organizationId))) {
+    return NextResponse.json({ error: CHECKOUT_INTENT_BUSY_MESSAGE }, { status: 409 });
   }
 
   const row = await prisma.checkoutConsent.create({

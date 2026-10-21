@@ -192,5 +192,12 @@ describe("KB kopyalama — istek kimliği", () => {
     await copyReq(sourceId, { targetPropertyIds: [a], requestId: RID2 });
     expect(await prisma.kbCopyOperation.count({ where: { organizationId: orgId, sourceItemId: "eski" } })).toBe(0);
   });
+
+  it("Haiku #7: geçerli hedef yoksa işlem kaydı açılmaz (boş istek sonraki gerçek denemeyi 409'a düşürmez)", async () => {
+    expect((await copyReq(sourceId, { targetPropertyIds: ["baska-isletmenin-mulku"], requestId: RID })).status).toBe(200);
+    expect(await prisma.kbCopyOperation.count()).toBe(0);
+    await prisma.knowledgeBaseItem.update({ where: { id: sourceId }, data: { content: "Ağ adı: Lale_6G." } });
+    expect((await copyReq(sourceId, { targetPropertyIds: [a], requestId: RID })).status).toBe(200);
+  });
 });
 

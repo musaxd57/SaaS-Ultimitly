@@ -195,4 +195,29 @@ describe("ödeme niyeti — işletme başına tek açık Paddle işlemi", () => 
     expect(paddle.created).toBe(0);
     expect(await prisma.checkoutIntent.count()).toBe(0);
   });
+
+  it("🚨 Haiku #1: süresi dolan işlem İPTAL EDİLEMEZSE yer boşalmaz — ikinci işlem açılmaz, aynı işlem yeniden verilir", async () => {
+    await POST(postReq(), ctx);
+    paddle.failCancel = true;
+    const later = new Date(Date.now() + CHECKOUT_INTENT_TTL_MS + 60_000);
+    await sweepCheckoutIntents(later);
+    expect((await prisma.checkoutIntent.findFirstOrThrow({ where: { organizationId: orgId } })).status).toBe("open");
+    expect(((await (await POST(postReq(), ctx)).json()) as Body).transactionId).toBe("txn_1");
+    expect(paddle.created).toBe(1);
+  });
+
+  it("Haiku #2: işlem Paddle'da zaten İPTAL edilmişse ölü işlem verilmez — niyet kapanır, yenisi açılır", async () => {
+    await POST(postReq(), ctx);
+    paddle.statuses.set("txn_1", "canceled");
+    expect(((await (await POST(postReq(), ctx)).json()) as Body).transactionId).toBe("txn_2");
+  });
+
+  it("🚨 Haiku #4: anahtar açıkken açılan niyet dururken anahtar KAPATILIRSA ikinci ödeme ekranı açılmaz (409)", async () => {
+    await POST(postReq(), ctx);
+    vi.stubEnv("PADDLE_CHECKOUT_INTENT_ENABLED", "");
+    const res = await POST(postReq(), ctx);
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as Body).error).toMatch(/Açık bir ödemeniz var/);
+  });
 });
+

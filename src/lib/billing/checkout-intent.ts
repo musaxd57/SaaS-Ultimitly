@@ -67,6 +67,15 @@ async function cancelTransaction(transactionId: string): Promise<boolean> {
   }
 }
 
+const CLOSED_STATES = new Set(["canceled"]);
+
+/** İptal eder; iptal çağrısı başarısız olsa da işlem Paddle'da zaten kapalıysa (iptal edilmiş) true. Ödenmiş / belirsiz → false. */
+async function cancelOrConfirmClosed(transactionId: string): Promise<boolean> {
+  if (await cancelTransaction(transactionId)) return true;
+  const status = await transactionStatus(transactionId);
+  return status !== null && CLOSED_STATES.has(status);
+}
+
 /** Süresi dolmuş açık niyetleri ve takılı "açılıyor" niyetlerini kapatır (yalnız bu işletme). */
 async function closeStale(organizationId: string, now: Date): Promise<void> {
   await prisma.checkoutIntent.updateMany({
@@ -85,7 +94,9 @@ async function closeStale(organizationId: string, now: Date): Promise<void> {
       await prisma.checkoutIntent.updateMany({ where: { id: e.id, status: "open" }, data: { status: "completed", openKey: null, closedAt: now } });
       continue;
     }
-    if (e.providerRef) await cancelTransaction(e.providerRef);
+    // İptal başarısız / belirsizse yer BOŞALTILMAZ (Haiku 10-21 #1): eski işlem hâlâ ödenebilirken ikinci işlem açılmasın — niyet açık kalır,
+    // sonraki süpürge / onay yeniden dener (aynı paket bu işlemi yeniden kullanır; Paddle aynı işlemi iki kez tahsil etmez).
+    if (e.providerRef && !(await cancelOrConfirmClosed(e.providerRef))) continue;
     await prisma.checkoutIntent.updateMany({ where: { id: e.id, status: "open" }, data: { status: "expired", openKey: null, closedAt: now } });
   }
 }
@@ -131,15 +142,24 @@ export async function openOrReuseCheckoutIntent(input: {
       select: { id: true, status: true, priceId: true, providerRef: true },
     });
     if (!existing) continue; // arada kapandı → yeniden dene
+    // Başka sekme Paddle'ı bekliyor ("açılıyor"): kısa süre sonra tekrar denenince AYNI işlemi alır (bilinçli; kiralama 30 sn).
     if (existing.status === "opening" || !existing.providerRef) return { kind: "busy", message: CHECKOUT_INTENT_OPENING_MESSAGE };
     const status = await transactionStatus(existing.providerRef);
     if (status && PAID_STATES.has(status)) {
       await prisma.checkoutIntent.updateMany({ where: { id: existing.id, status: "open" }, data: { status: "completed", openKey: null, closedAt: now } });
       return { kind: "paid" };
     }
+    // İşlem Paddle'da zaten iptal edilmişse (ör. önceki iptal çağrısı zaman aşımına uğradı ama uygulandı) ölü işlem yeniden verilmez — niyet
+    // kapanır, yenisi açılır (Haiku 10-21 #2).
+    if (status && CLOSED_STATES.has(status)) {
+      await prisma.checkoutIntent.updateMany({ where: { id: existing.id, status: "open" }, data: { status: "canceled", openKey: null, closedAt: now } });
+      continue;
+    }
+    // Aynı paket: aynı işlem. (Başka bir yöneticinin sekmesi de olsa ödeme ilk onayın kaydıyla işletmeye bağlanır — her kabul ayrıca delil
+    // olarak yazıldı; Haiku 10-21 #3 bilinçli.)
     if (existing.priceId === input.priceId) return { kind: "open", transactionId: existing.providerRef, reused: true };
-    // Farklı paket: eski ödenmemiş işlem iptal edilir, sonra yenisi açılır. İptal edilemezse yeni ekran YOK.
-    if (!(await cancelTransaction(existing.providerRef))) return { kind: "busy", message: CHECKOUT_INTENT_BUSY_MESSAGE };
+    // Farklı paket: eski ödenmemiş işlem iptal edilir, sonra yenisi açılır. İptal doğrulanamazsa yeni ekran YOK.
+    if (!(await cancelOrConfirmClosed(existing.providerRef))) return { kind: "busy", message: CHECKOUT_INTENT_BUSY_MESSAGE };
     await prisma.checkoutIntent.updateMany({ where: { id: existing.id, status: "open" }, data: { status: "canceled", openKey: null, closedAt: now } });
   }
   return { kind: "busy", message: CHECKOUT_INTENT_OPENING_MESSAGE };
@@ -181,12 +201,27 @@ async function createTransaction(
   return { kind: "open", transactionId, reused: false };
 }
 
-/** Webhook: işlem tamamlandı / ödendi → niyet kapanır (yoksa sessiz — anahtar kapalıyken açılmış ödeme). */
+/**
+ * Webhook: işlem tamamlandı / ödendi → niyet kapanır (yoksa sessiz — anahtar kapalıyken açılmış ödeme). FIRLATMAZ (Haiku 10-21 #6): niyet
+ * kapatılamazsa fatura / abonelik yazımı yine sürer; açık kalan niyeti süpürge Paddle durumundan "tamamlandı" diye kapatır.
+ */
 export async function completeCheckoutIntent(transactionId: string, now: Date = new Date()): Promise<void> {
-  await prisma.checkoutIntent.updateMany({
-    where: { providerRef: transactionId, status: { in: ["open", "opening"] } },
-    data: { status: "completed", openKey: null, closedAt: now },
-  });
+  try {
+    await prisma.checkoutIntent.updateMany({
+      where: { providerRef: transactionId, status: { in: ["open", "opening"] } },
+      data: { status: "completed", openKey: null, closedAt: now },
+    });
+  } catch (err) {
+    void reportError("checkout-intent-complete", err);
+  }
+}
+
+/**
+ * Anahtar KAPATILDIĞINDA hâlâ açık niyet varsa (geri alma): eski istemci yolu ikinci ödeme ekranı açmasın (Haiku 10-21 #4). Anahtar hiç
+ * açılmadıysa tablo boştur → bugünkü davranış aynen.
+ */
+export async function openCheckoutIntentExists(organizationId: string): Promise<boolean> {
+  return (await prisma.checkoutIntent.count({ where: { openKey: organizationId } })) > 0;
 }
 
 /** Saatlik süpürge: süresi dolan açık niyetler (bütün işletmeler) + 90 günden eski kapanmış niyetlerin silinmesi. */

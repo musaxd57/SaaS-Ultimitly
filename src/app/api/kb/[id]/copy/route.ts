@@ -97,7 +97,8 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   // kopyalama o alanı değiştirdiğinde eski işlem unutuluyordu — eski kimlikle yeniden deneme 200 alıp daireleri yeniden güncelliyordu
   // (ölçüldü). Artık işlem başına satır: ilk denemedeki kaynak içerik izi saklanır; aynı kimlik + farklı iz → 409 (hiçbir şey yazılmaz).
   // Aynı izle tekrar aşağıdaki bugünkü yoldan yalnız eksikleri yazar.
-  if (typeof rawRequestId === "string") {
+  // Geçerli hedef yoksa hiçbir şey yazılmaz → işlem kaydı da açılmaz (Haiku 10-21 #7: boş istek sonraki gerçek denemeyi 409'a düşürmesin).
+  if (typeof rawRequestId === "string" && targets.length > 0) {
     const opKey = { organizationId: session.organizationId, sourceItemId: id, requestId: rawRequestId };
     const hashAtStart = kbContentFingerprint(source);
     // Eski kayıtlar (30 gün) işletme kapsamında temizlenir — en iyi çaba.
