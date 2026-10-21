@@ -23,5 +23,17 @@
       "multiTurn": 14
     },
     "state": "sealed"
+  },
+  "understanding-e2e-redteam-blind.json": {
+    "sha256": "3dc19dd2789796ec7a8619de75a79ea6e4bee565d3b7b562a502c48997149173",
+    "sealedAt": "2026-10-21",
+    "author": "kör ajan (Claude iş paketi, istek 3, Sonnet): depodaki kodu, istemleri ve geliştirme setini OKUMADI; yalnız biçim + kategori listesi + misafire giden metinde yasak dizeler kuralı verildi. Geliştirici dosyayı açmadı; yalnız sayılar, boyut ve SHA-256 hesaplandı.",
+    "items": {
+      "scenarios": 71,
+      "requests": 117,
+      "pairs": 1,
+      "multiTurn": 6
+    },
+    "state": "sealed"
   }
 }

@@ -74,7 +74,9 @@ import {
 
 const SEALED = process.env.EVAL_SEALED_FINAL === "1";
 const SET = (process.env.EVAL_UX_SET?.trim() || "understanding-e2e-dev.json").replace(/[^a-z0-9._-]/gi, "");
-const SEALED_NAME = "understanding-e2e-blind.json";
+// Mühürlü set adı kapalı kümeden (kırmızı takım kör seti 10-21 — Claude iş paketi, ayrı yazar).
+const SEALED_NAMES = ["understanding-e2e-blind.json", "understanding-e2e-redteam-blind.json"] as const;
+const SEALED_NAME = SEALED_NAMES.find((n) => n === process.env.EVAL_SEALED_NAME?.trim()) ?? SEALED_NAMES[0];
 const DATASET = SEALED ? path.resolve(__dirname, "../../evals/sealed", SEALED_NAME) : path.resolve(__dirname, "../../evals", SET);
 
 const key = process.env.OPENAI_API_KEY?.trim() ?? "";
