@@ -302,6 +302,29 @@ describe("kurucu T2 — olası tehlike + anlama katmanı koşmadı (kanal)", () 
     expect(mockMail).not.toHaveBeenCalled();
   });
 
+  it("Haiku T2: yükseltme e-postası gitmezse işaret ve işaret zamanı geri konur — sonraki geçiş aynı ağır mesajı YENİDEN dener", async () => {
+    const first = await seedIn(null, SHORT);
+    await applyChannelAutoReply(first.id);
+    await prisma.message.create({ data: { conversationId: first.id, direction: "inbound", senderName: "Alex", body: "Prizden duman çıkıyor, yanık kokuyor!" } });
+    mockMail.mockClear();
+    mockMail.mockResolvedValueOnce({ ok: false } as never);
+    await sendDueAlerts(first.orgId);
+    expect(await prisma.conversation.findUniqueOrThrow({ where: { id: first.id } })).toMatchObject({ status: "problem", skippedReason: HAZARD_UNVERIFIED_REASON });
+    await sendDueAlerts(first.orgId);
+    expect(mockMail).toHaveBeenCalledTimes(2);
+    expect(String(mockMail.mock.calls[1]![2])).toContain("Prizden duman");
+  });
+
+  it("Haiku T2: alıcısı olmayan işletme saatlik hakkı YAKMAZ (Sorunlu işareti yine konur)", async () => {
+    const first = await seedIn(null, SHORT);
+    await prisma.organization.update({ where: { id: first.orgId }, data: { alertEmail: null } });
+    for (let i = 0; i < HAZARD_UNVERIFIED_EMAILS_PER_HOUR + 1; i++) await applyChannelAutoReply((await seedIn(first.orgId, SHORT)).id);
+    expect(mockMail).not.toHaveBeenCalled();
+    const counter = await prisma.rateLimitCounter.findFirst({ where: { key: { startsWith: "hazard-unverified-mail:" } } });
+    expect(counter?.count ?? 0).toBe(0);
+    expect(await prisma.conversation.count({ where: { skippedReason: HAZARD_UNVERIFIED_REASON } })).toBe(HAZARD_UNVERIFIED_EMAILS_PER_HOUR + 1);
+  });
+
   it("KONTROL: anlama katmanı koştu ve 'acil değil' dedi → işaret yok, e-posta yok (bugünkü davranış)", async () => {
     vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
     vi.stubGlobal("fetch", understandingFetch("wifi"));

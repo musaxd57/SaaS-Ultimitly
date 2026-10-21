@@ -58,15 +58,16 @@ export async function escalateUnverifiedHazard(input: HazardUnverifiedInput): Pr
     },
   });
   if (claimed.count !== 1) return { claimed: false };
-  const slot = await rateLimit(hazardUnverifiedMailKey(input.organizationId), HAZARD_UNVERIFIED_EMAILS_PER_HOUR, HOUR_MS);
-  if (!slot.ok) return { claimed: true, mailed: false, capped: true };
   const org = await prisma.organization.findUnique({
     where: { id: input.organizationId },
     // Alıcı: işletmenin uyarı adresi, yoksa SAHİBİN e-postası (personel değil, ortam yedeği asla — model yoluyla aynı kural).
     select: { name: true, alertEmail: true, users: { where: { role: "owner" }, orderBy: { createdAt: "asc" }, take: 1, select: { email: true } } },
   });
   const to = org?.alertEmail?.trim() || org?.users[0]?.email?.trim();
+  // Alıcı yoksa hak harcanmaz (Haiku T2: adressiz işletme her olayda saatlik hakkı yakıyordu).
   if (!to) return { claimed: true, mailed: false, capped: false };
+  const slot = await rateLimit(hazardUnverifiedMailKey(input.organizationId), HAZARD_UNVERIFIED_EMAILS_PER_HOUR, HOUR_MS);
+  if (!slot.ok) return { claimed: true, mailed: false, capped: true };
   const c = input.conversation;
   const html = complaintEscalationEmail(
     { id: c.id, guestIdentifier: c.guestIdentifier, channel: c.channel, priority: "urgent" },
@@ -76,6 +77,10 @@ export async function escalateUnverifiedHazard(input: HazardUnverifiedInput): Pr
   );
   const mail = await emailService.sendReporting(to, `⚠️ Acil misafir mesajı — ${c.guestIdentifier} (${c.property.name})`, html);
   if (!mail.ok) {
+    // Gitmeyen e-posta hak yemez (QR acil e-postasıyla aynı desen).
+    await prisma.rateLimitCounter
+      .updateMany({ where: { key: hazardUnverifiedMailKey(input.organizationId), count: { gt: 0 } }, data: { count: { decrement: 1 } } })
+      .catch(() => {});
     void reportError(`hazard-unverified-alert org=${input.organizationId}`, new Error("hazard e-mail failed; thread stays 'problem' for the host"));
     return { claimed: true, mailed: false, capped: false };
   }

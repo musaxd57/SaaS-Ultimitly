@@ -3049,6 +3049,8 @@ export async function applyChannelAutoReply(
     // öğe kipine sokmaz (`turn_level`, ↑); cevap modelinin acil / enjeksiyon etiketi ise bugünkü yükseltme yoluna düşer.
     if (itemsPlan && result.riskType !== "safety_emergency" && result.riskType !== "prompt_injection") {
       const heldAt = new Date();
+      // Kurucu T2: bu turda konan "olası tehlike" işareti (↓ risk görünürlüğü onu ezmesin — ağır tehlike yükseltmesi işarete bakar).
+      let itemsHazardEsc: Awaited<ReturnType<typeof escalateHazard>> = null;
       try {
         await settleItemsTurn(prisma, {
           organizationId: conversation.property.organizationId,
@@ -3070,10 +3072,11 @@ export async function applyChannelAutoReply(
             now: heldAt,
           });
         }
-        // Kurucu T2 (10-21): olası tehlike + anlama katmanı koşmadı → konuşma "Sorunlu" + (saatte en çok 3) tek acil e-posta; o zaman öğe /
-        // karar / bekleyen cevap e-postaları GİTMEZ (ev sahibi e-postaya boğulmasın — aynı mesaj zaten acil e-postada alıntılı).
-        const hazardEsc = gateContext.hazardUnverified ? await escalateHazard() : null;
-        if (!hazardEsc?.claimed) {
+        // Kurucu T2 (10-21): olası tehlike + anlama katmanı koşmadı → konuşma "Sorunlu" + (saatte en çok 3) tek acil e-posta; acil e-posta
+        // GİTTİYSE öğe / karar / bekleyen cevap e-postaları gitmez (ev sahibi e-postaya boğulmasın — aynı mesaj o e-postada alıntılı). E-posta
+        // gitmediyse (sınır, alıcı yok, gönderim hatası) bugünkü bildirimler aynen.
+        itemsHazardEsc = gateContext.hazardUnverified ? await escalateHazard() : null;
+        if (!(itemsHazardEsc?.claimed && itemsHazardEsc.mailed)) {
           const notice = await notifyItemsForHost({
             organizationId: conversation.property.organizationId,
             conversation,
@@ -3119,12 +3122,14 @@ export async function applyChannelAutoReply(
           })
           .catch((err) => void reportError(`conversation-items draft org=${conversation.property.organizationId}`, err));
       }
-      await persistRiskVisibility(
-        conversation.id,
-        result.source === "openai" ? "low_confidence_or_risky" : "ai_unavailable",
-        result.riskLevel,
-        result.riskType ?? lexicalRiskTypeOf(last.body, gateContext),
-      );
+      if (!itemsHazardEsc?.claimed) {
+        await persistRiskVisibility(
+          conversation.id,
+          result.source === "openai" ? "low_confidence_or_risky" : "ai_unavailable",
+          result.riskLevel,
+          result.riskType ?? lexicalRiskTypeOf(last.body, gateContext),
+        );
+      }
       await recordDecision({
         organizationId: conversation.property.organizationId,
         propertyId: conversation.propertyId,
@@ -5798,7 +5803,11 @@ export async function sendDueAlerts(
       // Yaşam-döngüsü göndericilerinde aynı desen zaten okunuyordu; burası atlanmıştı.
       // T2 yükseltmesinde geri alma işareti geri koyar (konuşma Sorunlu kalır, bir sonraki geçiş yeniden dener).
       const rolled = await (upgrade
-        ? prisma.conversation.updateMany({ where: { id: c.id, status: "problem", skippedReason: "complaint" }, data: { skippedReason: HAZARD_UNVERIFIED_REASON } })
+        ? prisma.conversation.updateMany({
+            where: { id: c.id, status: "problem", skippedReason: "complaint" },
+            // İşaret zamanı da geri konur — yoksa yeniden denemede ağır mesaj "işaretten önce" sayılıp kaybolurdu (Haiku T2).
+            data: { skippedReason: HAZARD_UNVERIFIED_REASON, aiTriagedAt: c.aiTriagedAt },
+          })
         : prisma.conversation.updateMany({ where: { id: c.id, status: "problem" }, data: { status: "new" } })
       ).catch(() => null);
       if (rolled === null || rolled.count === 0) escalationRollbackFailures++;
