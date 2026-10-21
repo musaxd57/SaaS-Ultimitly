@@ -173,18 +173,66 @@ export function valueVariants(value: string): string[] {
   return [...out];
 }
 
+/**
+ * Sıra sayısı noktası cümle sonu değildir ("-1. kattadır", "3. kat", "2. sokak"): rakamdan sonra gelen nokta + küçük harfle başlayan sözcük
+ * birleştirilir — yoksa cümlecik sınırı ("." + boşluk) varlığı değerinden ayırır (ölçüldü: "Spor salonu -1. kattadır ve 07:00–22:00 …").
+ */
+function joinOrdinals(text: string): string {
+  return text.replace(/(\d)\.(\s+\p{Ll})/gu, "$1$2");
+}
+
 /** Beklenen bilginin cevaptaki hâli: herhangi bir yazım biçimi varlığıyla aynı cümlecikte olumluysa "ok". */
 export function bindingVerdict(fact: UxFact, text: string): FactVerdict {
-  const verdicts = valueVariants(fact.value).map((v) => factVerdict({ value: v, field: fact.about }, text));
+  const t = joinOrdinals(text);
+  const verdicts = valueVariants(fact.value).map((v) => factVerdict({ value: v, field: fact.about }, t));
   if (verdicts.includes("ok")) return "ok";
   if (verdicts.includes("negated")) return "negated";
   if (verdicts.includes("misattributed")) return "misattributed";
   return "missing";
 }
 
-/** Yanlış bağ: komşu varlığın / koşulun değeri BU varlıkla aynı cümlecikte olumlu geçiyor ("Havuz 22:00'de kapanır"). */
-export function wrongBinding(fact: UxFact, text: string): boolean {
-  return bindingVerdict(fact, text) === "ok";
+const lc = (s: string) => s.toLocaleLowerCase("tr");
+
+/** `needle`ın metindeki her geçişinin konumu (rakam sınırlı; `factVerdict` ile aynı kural). */
+function positions(t: string, needle: string): number[] {
+  const out: number[] = [];
+  for (let i = t.indexOf(needle); i !== -1; i = t.indexOf(needle, i + 1)) {
+    const before = /\d/.test(needle[0] ?? "") && /\d/.test(t[i - 1] ?? "");
+    const after = /\d/.test(needle[needle.length - 1] ?? "") && /\d/.test(t[i + needle.length] ?? "");
+    if (!before && !after) out.push(i);
+  }
+  return out;
+}
+
+/** Değer konumuna en yakın ad geçişinin uzaklığı (yoksa sonsuz). */
+function nearest(t: string, at: number, len: number, aliases: readonly string[]): number {
+  let best = Infinity;
+  for (const a of aliases) {
+    for (const p of positions(t, lc(a))) {
+      const d = p + a.length <= at ? at - (p + a.length) : p >= at + len ? p - (at + len) : 0;
+      if (d < best) best = d;
+    }
+  }
+  return best;
+}
+
+/**
+ * Yanlış bağ: komşu varlığın / koşulun değeri BU varlıkla aynı cümlecikte olumlu geçiyor ("Havuz 22:00'de kapanır"). Aynı değer bu
+ * isteğin DOĞRU bir olgusuna da aitse (`own` — "60" hem süre olgusu hem yanlış-bağ adayı), değere en yakın ad hangisininse ona bağlı sayılır:
+ * "3 Stunden im Voraus … und dauert 60 Minuten" → 60'a en yakın ad "dauert" (doğru olgu) → yanlış bağ değil.
+ */
+export function wrongBinding(fact: UxFact, text: string, own: readonly UxFact[] = []): boolean {
+  if (bindingVerdict(fact, text) !== "ok") return false;
+  const t = lc(joinOrdinals(text));
+  const rivals = own.filter((f) => valueVariants(f.value).some((v) => valueVariants(fact.value).includes(v))).flatMap((f) => f.about);
+  if (rivals.length === 0) return true;
+  for (const v of valueVariants(fact.value)) {
+    const needle = lc(v);
+    for (const at of positions(t, needle)) {
+      if (nearest(t, at, needle.length, fact.about) < nearest(t, at, needle.length, rivals)) return true;
+    }
+  }
+  return false;
 }
 
 // ── İstek eşleme + ilişki ────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -328,7 +376,7 @@ export function factCheck(r: Pick<UxRequest, "facts" | "wrong">, text: string | 
   if (!text) return { facts: (r.facts ?? []).map(() => ({ verdict: "missing" as FactVerdict })), wrong: 0 };
   return {
     facts: (r.facts ?? []).map((f) => ({ verdict: bindingVerdict(f, text) })),
-    wrong: (r.wrong ?? []).filter((f) => wrongBinding(f, text)).length,
+    wrong: (r.wrong ?? []).filter((f) => wrongBinding(f, text, r.facts ?? [])).length,
   };
 }
 
@@ -365,8 +413,10 @@ export function requestOutcome(
     return { outcome: open ? "held_open" : "held_dropped", facts };
   }
   if (!answered) return { outcome: open ? "held_open" : "held_dropped", facts };
-  const wrongFact = facts.facts.some((f) => f.verdict === "negated" || f.verdict === "misattributed");
-  if (facts.wrong > 0 || wrongFact || o.judgeErrors > 0) return { outcome: "wrong_info", facts };
+  // Olumsuzlanmış olgu ("20:00 değil") kesin yanlıştır; "başka cümlecikte" (misattributed) yalnız cümle bölmesinin kaba okumasıdır —
+  // denetçi anlam hatası görmediyse "doğrulanmamış" sayılır, yanlış değil (ölçülen yanlış alarm: sıra sayısı, bağlaçlı uzun cümle).
+  const negated = facts.facts.some((f) => f.verdict === "negated");
+  if (facts.wrong > 0 || negated || o.judgeErrors > 0) return { outcome: "wrong_info", facts };
   const allFacts = facts.facts.every((f) => f.verdict === "ok");
   return { outcome: allFacts ? "ok" : "ok_unverified", facts };
 }

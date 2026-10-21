@@ -60,6 +60,21 @@ describe("yazılmış bağlar", () => {
     expect(bindingVerdict(pool, "Havuz 20:00 değil.")).toBe("negated");
   });
 
+  it("sıra sayısı noktası cümlecik sınırı değildir ('-1. kattadır ve 07:00–22:00')", () => {
+    expect(bindingVerdict({ about: ["spor salonu"], value: "22:00" }, "Spor salonu -1. kattadır ve 07:00–22:00 arası açıktır.")).toBe("ok");
+    // Cümle sonu nokta + BÜYÜK harf yine sınırdır.
+    expect(bindingVerdict({ about: ["havuz"], value: "22:00" }, "Havuz açık. Spor salonu 22:00'de kapanır.")).toBe("misattributed");
+  });
+
+  it("aynı değer doğru olguya da aitse en yakın ad belirler (bağlaçlı tek cümlecik)", () => {
+    const facts = [{ about: ["voraus"], value: "3" }, { about: ["dauert", "minuten"], value: "60" }];
+    const wrong = { about: ["voraus"], value: "60" };
+    expect(wrongBinding(wrong, "Eine Massage muss mindestens 3 Stunden im Voraus gebucht werden und dauert 60 Minuten.", facts)).toBe(false);
+    expect(wrongBinding(wrong, "Bitte 60 Stunden im Voraus buchen.", facts)).toBe(true);
+    // Rakip olgu yoksa eski kural (aynı cümlecik) aynen.
+    expect(wrongBinding({ about: ["havuz"], value: "22:00" }, "Havuz ve spor salonu 22:00'de kapanır.")).toBe(true);
+  });
+
   it("yalnız yazım biçimi eşdeğer sayılır (saat / para)", () => {
     expect(valueVariants("20:00")).toEqual(expect.arrayContaining(["20.00", "8 pm", "8:00 pm"]));
     expect(valueVariants("150 TL")).toEqual(expect.arrayContaining(["150 ₺", "₺150", "150TL"]));
@@ -117,6 +132,9 @@ describe("son sonuç", () => {
     expect(requestOutcome(ans, { ...base, sentText: "Havuz 22:00'ye kadar açık." }).outcome).toBe("wrong_info");
     expect(requestOutcome(ans, { ...base, sentText: "Havuz 20:00'ye kadar açık.", judgeErrors: 1 }).outcome).toBe("wrong_info");
     expect(requestOutcome(ans, { ...base, sentText: "Havuz akşam sekize kadar açık." }).outcome).toBe("ok_unverified");
+    // Başka cümlecikte kalan değer (kaba bölme) denetçi hata görmediyse doğrulanmamış; olumsuzlanan değer yanlış.
+    expect(requestOutcome(ans, { ...base, sentText: "Havuz açık. Kapanış 20:00." }).outcome).toBe("ok_unverified");
+    expect(requestOutcome(ans, { ...base, sentText: "Havuz 20:00 değil." }).outcome).toBe("wrong_info");
   });
 
   it("cevap beklenen ama gitmedi: ev sahibinde açıksa açık, değilse sessiz düştü", () => {

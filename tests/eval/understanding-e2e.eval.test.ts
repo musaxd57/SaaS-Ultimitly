@@ -283,6 +283,9 @@ interface Row {
   draft: string | null;
   skippedReason: string | null;
   gateDetail: string | null;
+  riskReason: string | null;
+  /** Ürün cevap modelini hiç çağırmadı / modelin cevabı kullanılmadı (`not_model`) — gözlemdir, ölçer arızası değil. */
+  modelSkipped: boolean;
   status: string | null;
   emails: number;
   understanding: "ok" | "failed" | "off" | "missing";
@@ -351,7 +354,7 @@ async function runOnce(s: UxScenario): Promise<Row> {
   const ev = await prisma.riskEvent.findFirst({
     where: { conversationId, surface: "auto_reply" },
     orderBy: [{ occurredAt: "desc" }, { id: "desc" }],
-    select: { kbEvidenceJson: true },
+    select: { kbEvidenceJson: true, reason: true },
   });
   let gateDetail: string | null = null;
   try {
@@ -426,12 +429,16 @@ async function runOnce(s: UxScenario): Promise<Row> {
     lang: s.lang,
     tags: s.tags ?? [],
     pair: s.pair ?? null,
-    ok: out.skippedReason !== "ai_unavailable" && understanding !== "failed" && judge !== "failed",
+    // `ai_unavailable` ürünün kendi kararı da olabilir (ör. tehlikeli arızada model cevabı kullanılmaz → `not_model`); satır geçerli
+    // gözlemdir. Ölçer yalnız anlama ya da denetçi düşerse satırı geçersiz sayar (bir kez yeniden dener).
+    ok: understanding !== "failed" && judge !== "failed",
     sent,
     sentText,
     draft,
     skippedReason: out.skippedReason ?? null,
     gateDetail,
+    riskReason: ev?.reason ?? null,
+    modelSkipped: out.skippedReason === "ai_unavailable",
     status: conv?.status ?? null,
     emails,
     understanding,
@@ -469,7 +476,8 @@ async function runOne(s: UxScenario): Promise<Row> {
     if (process.env.EVAL_LIVE_DEBUG === "1") console.error("[ux-debug]", err instanceof Error ? err.message.slice(0, 1500) : err);
     return {
       id: s.id, lang: s.lang, tags: s.tags ?? [], pair: s.pair ?? null, ok: false, error: err instanceof Error ? err.name : "error",
-      sent: false, sentText: null, draft: null, skippedReason: null, gateDetail: null, status: null, emails: 0, understanding: "missing",
+      sent: false, sentText: null, draft: null, skippedReason: null, gateDetail: null, riskReason: null, modelSkipped: false, status: null,
+      emails: 0, understanding: "missing",
       modelRequests: [], extraRequests: [], items: [], retrieved: [], judge: "skipped", claims: [], forbiddenSent: false, requests: [], ms: 0,
     };
   }
@@ -538,6 +546,7 @@ export function summarizeUx(rows: Row[]): string[] {
     `| çift | aynı sözcük / farklı anlam: iki senaryo da doğru | ${pct(fullPairs.filter((p) => p.every(rowCorrect)).length, fullPairs.length)} |`,
     `| senaryo | bütün istekleri doğru | ${pct(ok.filter(rowCorrect).length, ok.length)} |`,
     `| 🚨 yasak dize misafire giden | ${ok.filter((r) => r.forbiddenSent).length} | |`,
+    `| bilgi | ürün cevap modelini kullanmadı (not_model) | ${ok.filter((r) => r.modelSkipped).length} |`,
     "",
     "### Cevabın anlamı — iddia denetçisi (misafire giden cevaplar)",
     "",
@@ -567,7 +576,7 @@ function detailLines(rows: Row[]): string[] {
     const bad = r.requests.filter((q) => requestCorrect(q) === false);
     if (r.ok && bad.length === 0) continue;
     const s = data.scenarios.find((x) => x.id === r.id);
-    out.push(`### ${r.id} (${r.lang}${r.pair ? `, çift ${r.pair}` : ""}) — ${r.ok ? "" : `DÜŞTÜ ${r.error ?? ""} `}durum ${r.status ?? "?"}, gitti ${r.sent ? "evet" : "hayır"}${r.skippedReason ? `, ${r.skippedReason}` : ""}${r.gateDetail ? ` (${r.gateDetail})` : ""}`);
+    out.push(`### ${r.id} (${r.lang}${r.pair ? `, çift ${r.pair}` : ""}) — ${r.ok ? "" : `DÜŞTÜ ${r.error ?? ""} `}durum ${r.status ?? "?"}, gitti ${r.sent ? "evet" : "hayır"}${r.skippedReason ? `, ${r.skippedReason}` : ""}${r.gateDetail ? ` (${r.gateDetail})` : ""}${r.riskReason ? ` · risk ${r.riskReason}` : ""}`);
     if (s) out.push(`- mesaj: ${JSON.stringify(s.message)}${s.history?.length ? ` · geçmiş ${s.history.length}` : ""}`);
     out.push(`- model istekleri: ${r.modelRequests.map((m) => `${m.intent}/${m.relation ?? "-"}@${m.message ?? "?"} "${m.queryOriginal}"`).join(" · ") || "(yok)"}`);
     out.push(`- öğeler: ${r.items.map((i) => `${i.kind}:${i.status}@${i.message ?? "?"}`).join(" · ") || "(yok)"} · getirilen: ${r.retrieved.join(",") || "(yok)"}`);
