@@ -123,8 +123,21 @@ const ABSENCE_PATTERNS: readonly RegExp[] = [
   new RegExp(`(?:don't|do not|doesn't|does not|didn't|did not) have ${gap(4)}${EN_OBJ}`, "u"),
   // 🚨 `${L}no ` — sağdaki BOŞLUK şart: "Nothing/Note/Nobody/Normally" artık eşleşmez.
   new RegExp(`${L}no ${gap(3)}${EN_OBJ}`, "u"),
-  /(?:can't|cannot|can not|couldn't|could not) (?:find|locate|see)(?![\p{L}])/u,
-  /(?:not able|unable) to (?:find|locate|see)(?![\p{L}])/u,
+  // Kurucu W4 (10-21, "bağlam bazlı tutsun"): "bulamamak" yalnız BEN / BİZ öznesiyle ya da öznesiz cümle başında itiraftır. Çıplak kalıp
+  // misafire talimatı ("If you can't find the keys, they are in the lockbox") ve olguyu ("You can't see the sea") da tutuyordu. Öznesiz
+  // cümle soruysa ("Can't find the keys? They are in the lockbox.") yine talimattır.
+  new RegExp(
+    `${L}(?:i|we)(?: (?:really|just|still|unfortunately|simply|honestly))? (?:can't|cannot|can not|couldn't|could not) (?:find|locate|see)(?![\\p{L}])`,
+    "u",
+  ),
+  new RegExp(
+    `${L}(?:i|we)(?:'m|'re| am| are| was| were)?(?: (?:really|just|still|unfortunately|simply))? (?:not able|unable) to (?:find|locate|see)(?![\\p{L}])`,
+    "u",
+  ),
+  new RegExp(
+    `(?:^|${SEP} ?|${L}(?:sorry|unfortunately|apologies),? )(?:can't|cannot|can not|couldn't|could not|not able to|unable to) (?:find|locate|see)(?![\\p{L}])(?![^?${SEP}]{0,200}\\?)`,
+    "u",
+  ),
   // 🚨 `confirm` ÇAPA İSTER (ölçülmüş ayrım, `tests/unit/absence-detector.test.ts:48`):
   // "I'm unable to confirm whether parking is available." bir SAVUŞTURMADIR ve o
   // sınıf bilinçli olarak dışarıda — ayrıca "I cannot confirm your reservation
