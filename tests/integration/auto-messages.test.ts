@@ -224,6 +224,8 @@ describe("kurucu T4 — migration 80 veri taşıma: bugünkü seçimin AYNISI, m
     await kb("welcome", "pasif en yeni", t(4), { isActive: false });
     await kb("checkin", "giriş A", t(5));
     await kb("checkin", "giriş B", t(5));
+    await kb("checkout", "çıkış aynı", t(5));
+    await kb("checkout", "çıkış aynı", t(5)); // eşit zamanlı AYNI içerik → işaret YOK (seçim fark etmez)
     await kb("general", "bilgi", t(6));
     const before = await prisma.reservation.create({
       data: { propertyId, guestName: "X", arrivalDate: t(1), departureDate: t(9), status: "confirmed", welcomeSentAt: t(7) },
@@ -235,8 +237,10 @@ describe("kurucu T4 — migration 80 veri taşıma: bugünkü seçimin AYNISI, m
     const rows = await prisma.autoMessageTemplate.findMany({ where: { propertyId }, orderBy: { kind: "asc" } });
     expect(rows.map((r) => [r.kind, r.organizationId === orgId, r.revision])).toEqual([
       ["checkin", true, 1],
+      ["checkout", true, 1],
       ["welcome", true, 1],
     ]);
+    expect(rows.find((r) => r.kind === "checkout")).toMatchObject({ body: "çıkış aynı", needsReview: false });
     const welcome = rows.find((r) => r.kind === "welcome")!;
     expect(welcome).toMatchObject({ body: "yeni legacy", needsReview: false });
     const checkin = rows.find((r) => r.kind === "checkin")!;
