@@ -102,3 +102,15 @@ describe("kurucu T1 ölçümü — yanlış gönderim SIFIR, gereksiz tutma say�
     expect(needlessHold).toEqual([]);
   });
 });
+
+describe("Codex 10-21 (T1 'uygulanmamış' iddiası): üretim cevap yolu yalnız DAYANAKLI siliciyi çağırır", () => {
+  it("ai/index.ts ham siliciyi doğrudan çağırmaz; Codex'in cümlesi bilgi tabanı yokken AYNEN kalır (bilgim-yok kapısı tutar)", async () => {
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync("src/lib/ai/index.ts", "utf8");
+    expect(src).toMatch(/stripNoInstructionFillerGrounded\(/);
+    expect(src).not.toMatch(/stripNoInstructionFiller\(/);
+    const codex = "Evcil hayvan için özel talimatımız yok, evcil hayvanlar kabul edilir.";
+    expect(stripNoInstructionFillerGrounded(codex, "tr", [])).toBe(codex);
+    expect(stripNoInstructionFillerGrounded(codex, "tr", ["Evcil hayvan\nEvcil hayvan kabul edilmez."])).toBe(codex);
+  });
+});

@@ -271,7 +271,12 @@ async function closeOneStayEnded(
   return prisma.$transaction(async (tx) => {
     // KİLİT SIRASI görev → söz (gece-4 S1-17): görev düzenleme (`api/tasks/[id]`) görevi kilitleyip sözü günceller; burada ters sıra
     // eşzamanlı bir durum değişikliğiyle kilitlenmeye (deadlock) düşebiliyordu.
-    if (c.taskId) await tx.$queryRaw`SELECT "id" FROM "Task" WHERE "id" = ${c.taskId} FOR UPDATE`;
+    // Kilit ALINDIKTAN SONRA görev durumu yeniden okunur (Codex 10-21): liste "başlanmamış" dedikten sonra personel işe başlamışsa söz
+    // KAPANMAZ (görev sürerken söz panelden yanlışlıkla iptal oluyordu). Görev silinmişse söz kapanabilir.
+    if (c.taskId) {
+      const locked = await tx.$queryRaw<Array<{ status: string }>>`SELECT "status" FROM "Task" WHERE "id" = ${c.taskId} FOR UPDATE`;
+      if (locked.length > 0 && locked[0]!.status !== "todo") return false;
+    }
     const res = await tx.guestCommitment.updateMany({
       where: { id: c.id, status: "open" },
       data: { status: "cancelled", closedAt: now, closedReason: "stay_ended" },

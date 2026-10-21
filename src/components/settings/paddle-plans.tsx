@@ -20,7 +20,9 @@ import {
 // the rest of the dependency-free billing code). Minimal typings for the bits we
 // use so we avoid `any`.
 interface PaddleCheckoutOpenOptions {
-  items: { priceId: string; quantity: number }[];
+  /** İstemci kalemlerle açar YA DA sunucunun açtığı işlemi kimliğiyle (ödeme niyeti — Paddle.js v2 `transactionId`). */
+  items?: { priceId: string; quantity: number }[];
+  transactionId?: string;
   customer?: { email?: string };
   customData?: Record<string, unknown>;
   settings?: Record<string, unknown>;
@@ -290,6 +292,8 @@ export function PaddlePlans({
         // after the row is committed, so res.ok ⇒ the evidence exists. On any
         // failure (non-2xx or network) we stop and let the user retry.
         let consentId: string | undefined;
+        // Ödeme niyeti (anahtar açıkken sunucu döndürür): ödeme ekranı sunucunun açtığı TEK işlemle açılır — iki sekme aynı işlemi görür.
+        let transactionId: string | undefined;
         // ⚠️ SUNUCUNUN SEBEBİ EKRANA ÇIKMALI (denetim, 08-01). Eskiden gövde hiç
         // okunmuyordu: sunucu "Bu işletmenin zaten aktif bir aboneliği var" dese
         // bile host yalnız "Onayınız kaydedilemedi, tekrar deneyin" görüyor ve
@@ -311,7 +315,7 @@ export function PaddlePlans({
         }
         if (res) {
           // Gövde okunamazsa (boş / bozuk 5xx) ağ hatası DEĞİLDİR — sunucuya ulaşıldı, onay kaydı yazılamadı.
-          let body: { consentId?: string; error?: string; fields?: Record<string, string>; correlationId?: string } = {};
+          let body: { consentId?: string; transactionId?: string; error?: string; fields?: Record<string, string>; correlationId?: string } = {};
           try {
             body = (await res.json()) as typeof body;
           } catch {
@@ -319,6 +323,7 @@ export function PaddlePlans({
           }
           if (res.ok) {
             consentId = body.consentId;
+            transactionId = typeof body.transactionId === "string" ? body.transactionId : undefined;
           } else {
             serverReason = billingReason(body, BILLING_TEXT.consentFailed);
             setTrackingId(body.correlationId ?? null);
@@ -329,22 +334,28 @@ export function PaddlePlans({
           return;
         }
         lastConsentRef.current = consentId;
-        window.Paddle.Checkout.open({
-          items: [{ priceId, quantity: 1 }],
-          customer: { email },
-          // consentId is a server-trusted nonce → the webhook resolves the org from
-          // the session-derived consent row, not the client-sent organizationId.
-          // legalVersion travels with the transaction for cross-reference.
-          customData: { organizationId, consentId, legalVersion: LEGAL_VERSION },
-          // Auto-return to the app after payment instead of leaving the guest on
-          // Paddle's success screen; /settings reloads and shows the new plan.
-          settings: {
-            displayMode: "overlay",
-            theme: "light",
-            locale: "tr",
-            successUrl: `${window.location.origin}/settings?tab=faturalandirma`,
-          },
-        });
+        // Auto-return to the app after payment instead of leaving the guest on
+        // Paddle's success screen; /settings reloads and shows the new plan.
+        const settings = {
+          displayMode: "overlay",
+          theme: "light",
+          locale: "tr",
+          successUrl: `${window.location.origin}/settings?tab=faturalandirma`,
+        } as const;
+        if (transactionId) {
+          // Sunucunun işlemi: kalemler ve işletme bağı (custom_data) sunucuda yazıldı, istemci değiştiremez.
+          window.Paddle.Checkout.open({ transactionId, customer: { email }, settings });
+        } else {
+          window.Paddle.Checkout.open({
+            items: [{ priceId, quantity: 1 }],
+            customer: { email },
+            // consentId is a server-trusted nonce → the webhook resolves the org from
+            // the session-derived consent row, not the client-sent organizationId.
+            // legalVersion travels with the transaction for cross-reference.
+            customData: { organizationId, consentId, legalVersion: LEGAL_VERSION },
+            settings,
+          });
+        }
       } catch {
         setError(BILLING_TEXT.checkoutOpenFailed);
       } finally {

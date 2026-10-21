@@ -12,6 +12,8 @@ import { getEntitlement } from "@/lib/billing/subscription";
 import { CHECKOUT_PENDING_MESSAGE } from "@/lib/billing/checkout-pending-shared";
 import { currentCorrelationId } from "@/lib/correlation";
 import { logEvent } from "@/lib/event-log";
+import { NextResponse } from "next/server";
+import { checkoutIntentEnabled, openOrReuseCheckoutIntent } from "@/lib/billing/checkout-intent";
 
 // Server-side record of the Ön Bilgilendirme + Mesafeli Satış acceptance at
 // CHECKOUT — the evidence counterpart to the client checkbox in paddle-plans.tsx.
@@ -115,6 +117,20 @@ export const POST = withOwner(async (session, req) => {
     select: { id: true, planCode: true },
   });
   await logEvent("billing.consent.created", { plan: row.planCode, consentId: row.id });
+  // ÖDEME NİYETİ (Codex 10-21 P1, anahtar `PADDLE_CHECKOUT_INTENT_ENABLED` — kapalıyken bugünkü yol AYNEN): ödeme ekranı sunucunun açtığı
+  // TEK Paddle işlemiyle açılır; iki sekme aynı işlemi görür (iki tahsilat yok). Onay kaydı her durumda yazıldı (her kabul bir delildir).
+  if (checkoutIntentEnabled()) {
+    const intent = await openOrReuseCheckoutIntent({
+      organizationId: session.organizationId,
+      consentId: row.id,
+      planCode: row.planCode,
+      priceId: parsed.data.priceId,
+    });
+    if (intent.kind === "paid") return badRequest({ _: CHECKOUT_PENDING_MESSAGE });
+    if (intent.kind === "busy") return NextResponse.json({ error: intent.message }, { status: 409 });
+    if (intent.kind === "failed") return NextResponse.json({ error: intent.message }, { status: 503 });
+    return jsonOk({ ok: true, consentId: row.id, transactionId: intent.transactionId }, 201);
+  }
   // Return the row id as a server-trusted nonce: the client passes it in the Paddle
   // checkout's custom_data, and the webhook resolves the org FROM this row (whose
   // organizationId is session-derived) instead of trusting a client-sent org id.

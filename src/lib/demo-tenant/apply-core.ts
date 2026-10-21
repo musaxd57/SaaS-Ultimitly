@@ -248,6 +248,8 @@ export async function applyDemoTenant(db: Db, ds: DemoDataset, opts: DemoApplyOp
       await tx.automatedMessageSend.deleteMany({ where: { organizationId: DEMO_ORG_ID } });
       // Kurucu T4 (migration 80): dairenin otomatik mesajları — mülk silinmediği için zincirleme gitmez; veri kümesinden yeniden kurulur.
       await tx.autoMessageTemplate.deleteMany({ where: { organizationId: DEMO_ORG_ID } });
+      // Kopyalama işlem kaydı (migration 81) — işletmeye bağlı iç kayıt, sıfırlamada temizlenir.
+      await tx.kbCopyOperation.deleteMany({ where: { organizationId: DEMO_ORG_ID } });
       // İnceleme sırasında eklenmiş, veri kümesinde olmayan mülkler.
       await tx.property.deleteMany({ where: { organizationId: DEMO_ORG_ID, id: { notIn: ds.properties.map((p) => p.id) } } });
 

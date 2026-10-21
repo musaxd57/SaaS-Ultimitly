@@ -8,13 +8,13 @@ Kurucu 10-15: "Railway'i açınca ekleyeceğimiz bayrakları unutma." Bu dosya T
 0. **Önce yalnız veritabanı (gece-4 S10-08):** web servisi açılınca İLK iş `prisma migrate deploy` → yedek bundan SONRA alınırsa migration
    ÖNCESİ yedek olmaz. Sıra: Railway'de yalnız Postgres'i açın (web servisinin otomatik deploy'unu kapatın ya da kopya sayısını 0 tutun; dala
    push yapmayın) → aşağıdaki 1. adım (yedek + geri yükleme provası) → sonra web servisini açın. Kontrol: açmadan önce
-   `SELECT count(*) FROM _prisma_migrations` = **59** (00…58), ilk deploy'dan sonra **81** (00…80).
+   `SELECT count(*) FROM _prisma_migrations` = **59** (00…58), ilk deploy'dan sonra **83** (00…82).
    **Dolu veritabanı provası (gece-4 S10-10, 10-18):** 00…58 uygulanmış boş PG'ye 37 tablonun hepsine 40'ar yapay satır
    (`scripts/ops-migration-rehearsal-seed.py`, yabancı anahtarlarla bağlı) → 59…77 hatasız, 1,5 sn (10-18: 78 aynı prova veritabanında ayrıca uygulandı, 1,4 sn, sapma sıfır); `migrate diff` sapma sıfır. Statik tarama
    aynı sonucu verir: 59…78'deki bütün yabancı anahtarlar YENİ tablolarda, yeni kolonların hepsi boş bırakılabilir ya da varsayılanlı, benzersiz
    dizinler yeni tablo / yeni (boş) kolonlarda, veri güncelleyen ifade yok. Canlı veriyle prova değildir (gerçek veri yerelde yok — KVKK); yine de
    1. adımdaki yedek ŞART.
-1. **Taze yedek:** son itilen dal migration 59–80 içeriyor (tek güncel liste: `docs/MIGRATION-MANIFEST.md`) (açılışta `prisma migrate deploy` hepsini uygular). Açmadan önce 09-19
+1. **Taze yedek:** son itilen dal migration 59–82 içeriyor (tek güncel liste: `docs/MIGRATION-MANIFEST.md`) (açılışta `prisma migrate deploy` hepsini uygular). Açmadan önce 09-19
    yedeği ESKİ — Railway açılınca ilk iş `pg_dump` (web servisi deploy olmadan, ↑0) ve geri yükleme provası
    (`docs/OPS-2026-09-19-DURAKLATMA-VE-LOCAL-GELISTIRME.md`).
    Migration 80 (kurucu T4, otomatik mesajlar ayrı bölüm): açılıştan sonra her dairenin "Otomatik mesajlar" kartına bakın — metinler bilgi
@@ -105,6 +105,11 @@ bekleyen satır 10 dakikayı geçmemeli.
   gerçek 503: yerel/deneme ortamında vadesi geçmiş bir kuyruk satırıyla).
 
 ## 4. Listede olmayan, bilinçli KAPALI kalanlar (açmayın)
+
+`PADDLE_CHECKOUT_INTENT_ENABLED` (Codex 10-21 P1, migration 82: ödeme ekranı sunucunun açtığı TEK Paddle işlemiyle — iki sekme = iki tahsilat
+riskini kapatır. Kod + testler hazır; 🚨 Paddle SANDBOX denemesi kurucuyla birlikte yapılmadan AÇILMAZ — doğrulanacaklar: `POST /transactions`
+"ready" işlem; `Checkout.open({ transactionId })`; iki sekmede aynı işlem bir kez ödenir; `PATCH /transactions/{id} { status: "canceled" }` ödenmemiş
+işlemi iptal eder; ödenmiş işlem `GET` durumunda "paid"/"completed") ·
 
 `PADDLE_RESUME_ENABLED` (kurucu SG3 10-17: üründe "duraklatma" yok; iptal edilen yenilemede dönem sonu kutusu yeter) ·
 `KB_RETRIEVAL_WIDE_BUDGET` (kurucu: "şimdilik kapalı") · `KB_RERANK_PER_QUESTION` · `APP_TRUST_BROWSER_TIMEZONE` · `BILLING_ALLOW_CANCELED_PLAN_CHANGE`

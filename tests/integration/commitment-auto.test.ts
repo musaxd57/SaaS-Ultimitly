@@ -897,6 +897,21 @@ describe("gece-4 S1-17: kilit sırası görev → söz + satır başına hata", 
     expect((await removing).status).toBe(200);
   });
 
+  it("🚨 Codex 10-21: liste 'başlanmamış' dedikten SONRA personel göreve başladı → söz KAPANMAZ, görev durur", async () => {
+    const { towels } = await seedTowels();
+    expect(towels.taskId).toBeTruthy();
+    __stayEndHooks.beforeRow = async (id) => {
+      if (id === towels.id) await prisma.task.update({ where: { id: towels.taskId! }, data: { status: "in_progress" } });
+    };
+    try {
+      expect(await closeStayEndedCommitments(NOW)).toEqual({ closed: 1 }); // yalnız temizlik sözü
+    } finally {
+      __stayEndHooks.beforeRow = undefined;
+    }
+    expect((await prisma.guestCommitment.findUniqueOrThrow({ where: { id: towels.id } })).status).toBe("open");
+    expect((await prisma.task.findUniqueOrThrow({ where: { id: towels.taskId! } })).status).toBe("in_progress");
+  });
+
   it("tek satırın hatası öteki sözlerin kapanmasını durdurmaz (satır sonraki saatte denenir)", async () => {
     const { towels } = await seedTowels();
     __stayEndHooks.beforeRow = (id) => {

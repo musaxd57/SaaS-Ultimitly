@@ -10,6 +10,9 @@ import { NextResponse } from "next/server";
 import { KB_COPY_CONFLICT_MESSAGE, KB_IDEMPOTENCY_CONFLICT, sameKbContent } from "@/lib/kb/request-id";
 import { kbContentFingerprint } from "@/lib/kb/copy-fingerprint";
 
+/** Kopyalama işlem kaydının saklama süresi (tekrar penceresi bundan uzun olamaz). */
+const KB_COPY_OPERATION_TTL_MS = 30 * 86_400_000;
+
 // Copy a knowledge-base entry to one or more OTHER apartments. Lets the host
 // fill one apartment fully, then clone its info across the rest and only tweak
 // the apartment-specific bits (door code, wifi, address line).
@@ -88,6 +91,31 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     return badRequest({
       _: `Bu kayıt ${source.content.length.toLocaleString("tr-TR")} karakter ve kopyalama sınırı olan ${limits.kbCharsPerItem.toLocaleString("tr-TR")} karakteri aşıyor. Önce kaydı kısaltın, sonra kopyalayın.`,
     });
+  }
+
+  // KALICI İŞLEM KAYDI (Codex 10-21, migration 81): tekrar güvenliği yalnız kalemlerdeki `clientRequestId`e dayanınca, araya giren başka bir
+  // kopyalama o alanı değiştirdiğinde eski işlem unutuluyordu — eski kimlikle yeniden deneme 200 alıp daireleri yeniden güncelliyordu
+  // (ölçüldü). Artık işlem başına satır: ilk denemedeki kaynak içerik izi saklanır; aynı kimlik + farklı iz → 409 (hiçbir şey yazılmaz).
+  // Aynı izle tekrar aşağıdaki bugünkü yoldan yalnız eksikleri yazar.
+  if (typeof rawRequestId === "string") {
+    const opKey = { organizationId: session.organizationId, sourceItemId: id, requestId: rawRequestId };
+    const hashAtStart = kbContentFingerprint(source);
+    // Eski kayıtlar (30 gün) işletme kapsamında temizlenir — en iyi çaba.
+    await prisma.kbCopyOperation
+      .deleteMany({ where: { organizationId: session.organizationId, createdAt: { lt: new Date(Date.now() - KB_COPY_OPERATION_TTL_MS) } } })
+      .catch(() => {});
+    let firstHash: string;
+    try {
+      firstHash = (await prisma.kbCopyOperation.create({ data: { ...opKey, sourceHash: hashAtStart }, select: { sourceHash: true } })).sourceHash;
+    } catch (err) {
+      if (!isUniqueViolation(err, ["organizationId", "sourceItemId", "requestId"])) throw err;
+      firstHash = (
+        await prisma.kbCopyOperation.findUniqueOrThrow({ where: { organizationId_sourceItemId_requestId: opKey }, select: { sourceHash: true } })
+      ).sourceHash;
+    }
+    if (firstHash !== hashAtStart) {
+      return NextResponse.json({ error: KB_COPY_CONFLICT_MESSAGE, code: KB_IDEMPOTENCY_CONFLICT }, { status: 409 });
+    }
   }
 
   // Aynı kimlik, FARKLI içerik (kurucu 10-15): ilk deneme bazı dairelere yazdı, kaynak ARADA değişti, eski sekme aynı kimlikle yeniden

@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
+import { completeCheckoutIntent } from "@/lib/billing/checkout-intent";
 import { prisma } from "@/lib/db";
 import { RESUME_PENDING_LOCK } from "@/lib/billing/resume";
 import { jsonOk, unauthorized, readTextCapped, MAX_WEBHOOK_BODY_BYTES, BodyTooLargeError, payloadTooLarge } from "@/lib/api";
@@ -534,6 +535,10 @@ async function applyTransactionEvent(
   data: Record<string, unknown>,
   occurredAt: Date | null,
 ): Promise<TransactionOutcome | void> {
+  // Ödeme niyeti (Codex 10-21 P1): tamamlanan / ödenen işlemin açık niyeti kapanır — işletme bağı çözülemese de (alarm aşağıda) aynı işlem
+  // ikinci kez "açık" görünmesin. Anahtar kapalıyken tablo boştur, hiçbir şey yapmaz.
+  const intentRef = str(data.id);
+  if (intentRef) await completeCheckoutIntent(intentRef);
   // Transactions skip the price-match (their line items differ from the sub price);
   // the consent freshness (by occurred_at) + org binding still apply.
   const organizationId = await resolveOrgId(data, null, occurredAt);

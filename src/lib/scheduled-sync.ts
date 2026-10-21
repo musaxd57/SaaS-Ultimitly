@@ -1,6 +1,7 @@
 import "server-only";
 
 import { randomUUID } from "node:crypto";
+import { sweepCheckoutIntents } from "@/lib/billing/checkout-intent";
 import { prisma } from "@/lib/db";
 import { syncHospitable } from "@/lib/hospitable-sync";
 import { isPrimaryOrg } from "@/lib/hospitable-credentials";
@@ -902,6 +903,9 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
         await hourly("rate-limit-sweep", "scheduled-sync rate-limit-sweep", () => sweepExpiredRateLimits());
         // Ödeme olayı kayıtları (G6, kurucu kararı 10-13): işlenmiş ve 12 aydan eski satırın ham yükü (ad / e-posta / adres) küçülür.
         await hourly("paddle-webhook-minimize", "scheduled-sync paddle-webhook-minimize", () => minimizeOldPaddleWebhooks());
+        // Ödeme niyeti (Codex 10-21 P1, migration 82): süresi dolan açık ödeme ekranı kapanır (ödenmemiş işlem Paddle'da iptal), kapananlar
+        // 90 gün sonra silinir. Anahtar kapalıyken tablo boş → iş yok.
+        await hourly("checkout-intent-sweep", "scheduled-sync checkout-intent-sweep", () => sweepCheckoutIntents());
         // Parola sıfırlama challenge'ları: süresi dolmuş / tüketilmiş / iptal
         // edilmiş satırları topla. CANLI satıra dokunmaz; 24 saatlik gecikme
         // bilinçli (destek "sıfırlayamıyorum" derse izi bir süre daha durur).

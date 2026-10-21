@@ -25,6 +25,7 @@ const KEPT: Record<string, string> = {
   Subscription: "abonelik VARSA sıfırlama baştan reddedilir (canlı bağlantı kemeri) — demo hesabında yok",
   Invoice: "fatura kaydı — demo hesabında üretilmez; varsa iz",
   CheckoutConsent: "ödeme onayı kaydı — iz",
+  CheckoutIntent: "ödeme niyeti — onaya bağlı (onay korunur); demo hesabında ödeme ekranı açılmaz (migration 82)",
   ChannelConnection: "bağlantı VARSA sıfırlama baştan reddedilir (canlı bağlantı kemeri) — demo hesabında yok",
   CalendarSource: "takvim bağlantısı VARSA sıfırlama baştan reddedilir (canlı bağlantı kemeri; inceleyici eklerse operatör elle bakar)",
   ChannelListing: "bağlantıya bağlı ilan eşlemesi — bağlantıyla birlikte (demo hesabında yok)",

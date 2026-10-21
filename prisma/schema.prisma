@@ -185,6 +185,8 @@ model Organization {
   automatedMessageSends AutomatedMessageSend[]
   channelConnections    ChannelConnection[]
   autoMessageTemplates  AutoMessageTemplate[]
+  kbCopyOperations      KbCopyOperation[]
+  checkoutIntents       CheckoutIntent[]
   channelListings       ChannelListing[]
   aiGenerations         AiGeneration[]
   ingestEvents          IngestEvent[]
@@ -937,6 +939,7 @@ model CheckoutConsent {
   correlationId  String?
   createdAt      DateTime @default(now()) // = checkoutLegalAcceptedAt
 
+  intents      CheckoutIntent[]
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
 
@@ -1288,6 +1291,61 @@ model AutoMessageTemplate {
 
   @@unique([propertyId, kind])
   @@index([organizationId])
+}
+
+// ---------------------------------------------------------------------------
+// KbCopyOperation (Codex 10-21, migration 81) — BİLGİ TABANI KOPYALAMA İŞLEM KAYDI. Kopyalama tekrar güvenliği eskiden yalnız kalemlerdeki
+// değiştirilebilir `clientRequestId` alanına dayanıyordu: araya başka bir kopyalama girip o alanı değiştirince eski işlem UNUTULUYOR, eski
+// kimlikle yeniden deneme (kaynak arada değişmiş olsa da) daireleri yeniden güncelliyordu. Artık işlem başına KALICI satır: ilk denemedeki
+// kaynak içerik izi saklanır → aynı kimlik + farklı iz = 409 (hiçbir şey yazılmaz). Aynı izle tekrar bugünkü gibi yalnız eksikleri yazar.
+// Kaynak kalem silinse de satır kalır (FK yok; yalnız iz). 30 gün sonra silinir. Misafir verisi yok.
+// ---------------------------------------------------------------------------
+model KbCopyOperation {
+  id             String   @id @default(cuid())
+  organizationId String
+  sourceItemId   String
+  requestId      String
+  /// İlk denemede kaynağın içerik izi (`kbContentFingerprint`).
+  sourceHash     String
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, sourceItemId, requestId])
+  @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// CheckoutIntent (Codex 10-21 P1, migration 82; tasarım `docs/TASARIM-2026-10-16-faz2-migration-paketleri.md` §3) — ÖDEME NİYETİ.
+// İki sekme aynı anda onay verince iki AYRI ödeme ekranı açılıyor, iki tahsilat mümkün oluyordu. Anahtar `PADDLE_CHECKOUT_INTENT_ENABLED`
+// açıkken ödeme ekranı sunucunun açtığı TEK Paddle işlemiyle açılır: işletme başına en çok bir açık niyet (`openKey` = işletme, kapanınca
+// NULL — kısmi dizin yerine), iki sekme aynı işlemi görür. Delil kaydı `CheckoutConsent`te kalır (değişmez). Kapalıyken tablo boş kalır.
+// Takma adlı kimlikler (işletme, onay, Paddle işlem kimliği); misafir verisi yok. Kapanan niyet 90 gün sonra silinir.
+// ---------------------------------------------------------------------------
+model CheckoutIntent {
+  id             String    @id @default(cuid())
+  organizationId String
+  /// İşlemi açan onay (Paddle `custom_data.consentId` bu olur → webhook bugünkü gibi onaydan bağlar).
+  consentId      String
+  planCode       String
+  priceId        String
+  /// Paddle işlem kimliği (txn_…); NULL = Paddle çağrısı sürüyor.
+  providerRef    String?   @unique
+  /// opening · open · completed · canceled · expired · failed (kapalı küme, `lib/billing/checkout-intent.ts`).
+  status         String
+  /// Açık niyet tekil anahtarı: opening / open iken = organizationId, kapanınca NULL.
+  openKey        String?   @unique
+  /// Ödeme ekranının geçerliliği (3 sa; webhook onay tazeliği 24 sa sınırının içinde).
+  expiresAt      DateTime
+  closedAt       DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  consent      CheckoutConsent @relation(fields: [consentId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@index([status, expiresAt])
 }
 
 model AutomatedMessageSend {

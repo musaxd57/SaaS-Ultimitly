@@ -163,4 +163,34 @@ describe("KB kopyalama — istek kimliği", () => {
     expect(await r.json()).toMatchObject({ created: 1 });
     expect(await copiesIn(a)).toBe(1);
   });
+
+  it("🚨 Codex 10-21: araya BAŞKA kopyalama girip kalemdeki kimliği değiştirse de eski işlem unutulmaz — kaynak değiştiyse eski kimlikle tekrar 409, hiçbir şey yazılmaz", async () => {
+    // A işlemi (RID) iki daireye eski metni yazar.
+    expect((await copyReq(sourceId, { targetPropertyIds: [a, b], requestId: RID })).status).toBe(200);
+    // Kaynak değişir; B işlemi (RID2) yeni metni yazar → kalemlerin kimliği RID2 olur.
+    await prisma.knowledgeBaseItem.update({ where: { id: sourceId }, data: { content: "Ağ adı: Lale_6G." } });
+    expect((await copyReq(sourceId, { targetPropertyIds: [a, b], requestId: RID2 })).status).toBe(200);
+    const before = await prisma.knowledgeBaseItem.findMany({ where: { propertyId: { in: [a, b] } }, select: { id: true, content: true, updatedAt: true }, orderBy: { id: "asc" } });
+    // Eski A sekmesi aynı kimlikle yeniden dener: kaynak A'nın ilk denemesinden beri değişti → 409, daireler olduğu gibi.
+    const retry = await copyReq(sourceId, { targetPropertyIds: [a, b], requestId: RID });
+    expect(retry.status).toBe(409);
+    const after = await prisma.knowledgeBaseItem.findMany({ where: { propertyId: { in: [a, b] } }, select: { id: true, content: true, updatedAt: true }, orderBy: { id: "asc" } });
+    expect(after).toEqual(before);
+  });
+
+  it("KONTROL: kaynak DEĞİŞMEDEN aynı kimlikle tekrar 200 (araya başka işlem girse de)", async () => {
+    expect((await copyReq(sourceId, { targetPropertyIds: [a], requestId: RID })).status).toBe(200);
+    expect((await copyReq(sourceId, { targetPropertyIds: [b], requestId: RID2 })).status).toBe(200);
+    expect((await copyReq(sourceId, { targetPropertyIds: [a], requestId: RID })).status).toBe(200);
+    expect(await prisma.kbCopyOperation.count({ where: { organizationId: orgId } })).toBe(2);
+  });
+
+  it("işlem kaydı 30 günden eskiyse temizlenir (işletme kapsamı)", async () => {
+    await prisma.kbCopyOperation.create({
+      data: { organizationId: orgId, sourceItemId: "eski", requestId: RID, sourceHash: "x", createdAt: new Date(Date.now() - 31 * 86_400_000) },
+    });
+    await copyReq(sourceId, { targetPropertyIds: [a], requestId: RID2 });
+    expect(await prisma.kbCopyOperation.count({ where: { organizationId: orgId, sourceItemId: "eski" } })).toBe(0);
+  });
 });
+
