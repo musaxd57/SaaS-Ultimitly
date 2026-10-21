@@ -681,8 +681,8 @@ const LIFECYCLE_RESERVATION_SELECT = {
 } as const;
 
 /**
- * Kurucu T4: kuyruktaki yaşam döngüsü satırının gövdesi güncel otomatik mesajla mı kuruldu? Sürüm aynıysa gövde AYNEN gider. Farklıysa (ev
- * sahibi metni değiştirdi) ya da sürüm yoksa (migration 80 öncesi satır) gövde GÜNCEL metinle AYNI satırda yeniden kurulur — anahtar değişmez,
+ * Kurucu T4: kuyruktaki yaşam döngüsü satırının gövdesi POST'tan hemen önce dairenin GÜNCEL otomatik mesajından yeniden kurulur; farklıysa
+ * (ev sahibi metni değiştirdi, migration 80 öncesi satır) AYNI satıra yazılır — anahtar değişmez,
  * rezervasyon başına tek satır kalır (yeni satır açmak belirsiz teslimde ÇİFT gönderim demekti — sert inceleme T4 #1). Metin yok / boş /
  * doldurulamıyorsa bekler (`wait`).
  */
@@ -707,7 +707,8 @@ async function refreshLifecycleBody(row: OutboxRow, token: string, rowRevision: 
   if (!reservation) return { kind: "wait", reason: "template_unresolved" };
   const tpl = await loadAutoMessage(reservation.propertyId, row.messageType);
   if (!tpl) return { kind: "wait", reason: "template_missing" };
-  if (rowRevision === tpl.revision) return { kind: "send", body: row.body };
+  // Gövde HER gönderimde güncel kayıttan yeniden kurulur (deterministik; değişmediyse yazım yok). Yalnız sürüm kıyası YETMEZ: sürüm kayıt
+  // başına 1'den başlar — satır başka dairedeki kopyadan çözülünce "aynı sürüm" yanlışlıkla eski metni gönderiyordu (ölçüldü, 10-21).
   const propertyName = reservation.property.name;
   const body = buildGuestMessageBody(
     tpl.content,
@@ -722,6 +723,7 @@ async function refreshLifecycleBody(row: OutboxRow, token: string, rowRevision: 
   // Gövde KENDİ talebimiz koşuluyla yazılır (talep kaybedildiyse bu işçi hiçbir şey göndermez); gönderim izi (↓K7) yeni gövdeyi taşır.
   // Silme (KVKK) talep edilmiş satırın gövdesini `[ANON]` yapar ama durumunu değiştirmez → yeniden kurma silinmiş gövdenin ÜSTÜNE yazmaz
   // (Haiku T4 #2); silinmişse satır iptal edilir.
+  if (body === row.body && rowRevision === tpl.revision) return { kind: "send", body };
   const updated = await prisma.messageOutbox.updateMany({
     where: { id: row.id, claimedBy: token, status: "sending", body: { not: ANON_BODY } },
     data: { body, templateRevision: tpl.revision },

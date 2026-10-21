@@ -20,7 +20,7 @@ vi.mock("@/lib/report-error", () => ({ reportError: vi.fn().mockResolvedValue(un
 import { sendOnChannel } from "@/lib/messaging";
 import { reportError } from "@/lib/report-error";
 import { sendDueWelcomes } from "@/lib/automation";
-import { createKbWithAutoMessage } from "../helpers/auto-message";
+import { createKbWithAutoMessage, seedAutoMessage } from "../helpers/auto-message";
 
 const mockSend = vi.mocked(sendOnChannel);
 const reportErrorMock = vi.mocked(reportError);
@@ -256,6 +256,8 @@ describe("outbox lifecycle (FAZ 1) — flag ON", () => {
 
   it("C: a CHECK-OUT for a completed booking is NOT vetoed (consistent with the flag-OFF query); welcome IS", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
+    // Kurucu T4: işçi gönderimden önce dairenin otomatik mesajını okur — elle kurulan satırın gövdesi ("x") güncel sürümle (1) aynı.
+    for (const kind of ["welcome", "checkin", "checkout"] as const) await seedAutoMessage(propertyId, kind, "x");
     await enableAutoMessages(orgId);
     const mkLifecycleRow = async (type: "checkout" | "welcome", resStatus: string, ref: string, key: string) => {
       const res = await prisma.reservation.create({
@@ -269,7 +271,7 @@ describe("outbox lifecycle (FAZ 1) — flag ON", () => {
         data: {
           availableAt: new Date(), // vade kapısı TEK SAAT (JS) — şema varsayılanı veritabanı saati
           organizationId: orgId, conversationId: null, messageId: null, reservationId: res.id, channel: "airbnb",
-          externalReservationId: ref, messageType: type, body: "x", idempotencyKey: key, status: "pending",
+          externalReservationId: ref, messageType: type, body: "x", idempotencyKey: key, status: "pending", templateRevision: 1,
         },
       });
       return res.id;
@@ -290,6 +292,8 @@ describe("outbox lifecycle (FAZ 1) — flag ON", () => {
     // as live until the departure DAY is over — otherwise every same-day checkout dies in the
     // outbox as window_passed.
     const { orgId, propertyId } = await makeOrgWithProperty();
+    // Kurucu T4: işçi gönderimden önce dairenin otomatik mesajını okur — elle kurulan satırın gövdesi ("x") güncel sürümle (1) aynı.
+    for (const kind of ["welcome", "checkin", "checkout"] as const) await seedAutoMessage(propertyId, kind, "x");
     await enableAutoMessages(orgId);
     const mkRow = async (departure: Date, ref: string, key: string) => {
       const res = await prisma.reservation.create({
@@ -302,7 +306,7 @@ describe("outbox lifecycle (FAZ 1) — flag ON", () => {
       await prisma.messageOutbox.create({
         data: {
           organizationId: orgId, conversationId: null, messageId: null, reservationId: res.id, channel: "airbnb",
-          externalReservationId: ref, messageType: "checkout", body: "x", idempotencyKey: key, status: "pending",
+          externalReservationId: ref, messageType: "checkout", body: "x", idempotencyKey: key, status: "pending", templateRevision: 1,
           availableAt: new Date("2026-06-15T05:00:00Z"), // due before the fixed test clock below
         },
       });
@@ -327,6 +331,8 @@ describe("outbox lifecycle (FAZ 1) — flag ON", () => {
     // Kural artık sendDueCheckouts ile aynı: yalnız now'ın org-tz tarih anahtarı
     // departure'ın tarih anahtarını GEÇİNCE window_passed. (Istanbul paritesi C2'de pinli.)
     const { orgId, propertyId } = await makeOrgWithProperty();
+    // Kurucu T4: işçi gönderimden önce dairenin otomatik mesajını okur — elle kurulan satırın gövdesi ("x") güncel sürümle (1) aynı.
+    for (const kind of ["welcome", "checkin", "checkout"] as const) await seedAutoMessage(propertyId, kind, "x");
     await enableAutoMessages(orgId);
     await prisma.organization.update({ where: { id: orgId }, data: { timezone: "Europe/Berlin" } });
     const mkRow = async (departure: Date, ref: string, key: string) => {
@@ -340,7 +346,7 @@ describe("outbox lifecycle (FAZ 1) — flag ON", () => {
       await prisma.messageOutbox.create({
         data: {
           organizationId: orgId, conversationId: null, messageId: null, reservationId: res.id, channel: "airbnb",
-          externalReservationId: ref, messageType: "checkout", body: "x", idempotencyKey: key, status: "pending",
+          externalReservationId: ref, messageType: "checkout", body: "x", idempotencyKey: key, status: "pending", templateRevision: 1,
           availableAt: new Date("2026-01-01T00:00:00Z"), // her iki sabit saatten önce due
         },
       });
@@ -371,6 +377,8 @@ describe("outbox lifecycle (FAZ 1) — flag ON", () => {
     // Eski kural saklı değeri org dilimine çeviriyordu: 00:00Z New York'ta bir önceki günün 20:00'si → çıkış günü sabahı
     // kuyruktaki hatırlatma "geçti" diye iptal ediliyordu. Kural artık sendDueCheckouts ile AYNI (`calendarDateOf`).
     const { orgId, propertyId } = await makeOrgWithProperty();
+    // Kurucu T4: işçi gönderimden önce dairenin otomatik mesajını okur — elle kurulan satırın gövdesi ("x") güncel sürümle (1) aynı.
+    for (const kind of ["welcome", "checkin", "checkout"] as const) await seedAutoMessage(propertyId, kind, "x");
     await enableAutoMessages(orgId);
     await prisma.organization.update({ where: { id: orgId }, data: { timezone: "America/New_York" } });
     const mkRow = async (departure: Date, ref: string, key: string) => {
@@ -384,7 +392,7 @@ describe("outbox lifecycle (FAZ 1) — flag ON", () => {
       await prisma.messageOutbox.create({
         data: {
           organizationId: orgId, conversationId: null, messageId: null, reservationId: res.id, channel: "airbnb",
-          externalReservationId: ref, messageType: "checkout", body: "x", idempotencyKey: key, status: "pending",
+          externalReservationId: ref, messageType: "checkout", body: "x", idempotencyKey: key, status: "pending", templateRevision: 1,
           availableAt: new Date("2026-01-01T00:00:00Z"),
         },
       });
@@ -407,6 +415,8 @@ describe("outbox lifecycle (FAZ 1) — flag ON", () => {
     // bilgisini alamazdı). Kural: org gününe göre çıkış GÜNÜ başlayınca bayat (İstanbul'un yerel gece yarısı saklama biçiminde eski
     // davranışla birebir — aşağıdaki ikiz).
     const { orgId, propertyId } = await makeOrgWithProperty();
+    // Kurucu T4: işçi gönderimden önce dairenin otomatik mesajını okur — elle kurulan satırın gövdesi ("x") güncel sürümle (1) aynı.
+    for (const kind of ["welcome", "checkin", "checkout"] as const) await seedAutoMessage(propertyId, kind, "x");
     await enableAutoMessages(orgId);
     await prisma.organization.update({ where: { id: orgId }, data: { timezone: "America/New_York" } });
     const mkRow = async (arrival: Date, departure: Date, ref: string, key: string) => {
@@ -419,7 +429,7 @@ describe("outbox lifecycle (FAZ 1) — flag ON", () => {
       await prisma.messageOutbox.create({
         data: {
           organizationId: orgId, conversationId: null, messageId: null, reservationId: res.id, channel: "airbnb",
-          externalReservationId: ref, messageType: "checkin", body: "x", idempotencyKey: key, status: "pending",
+          externalReservationId: ref, messageType: "checkin", body: "x", idempotencyKey: key, status: "pending", templateRevision: 1,
           availableAt: new Date("2026-01-01T00:00:00Z"),
         },
       });
@@ -440,6 +450,8 @@ describe("outbox lifecycle (FAZ 1) — flag ON", () => {
 
   it("C5 ikizi: İstanbul'un yerel gece yarısı saklama biçiminde giriş vetosu eskisiyle BİREBİR (çıkış günü 00:30 bayat; bir önceki gece teslim)", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
+    // Kurucu T4: işçi gönderimden önce dairenin otomatik mesajını okur — elle kurulan satırın gövdesi ("x") güncel sürümle (1) aynı.
+    for (const kind of ["welcome", "checkin", "checkout"] as const) await seedAutoMessage(propertyId, kind, "x");
     await enableAutoMessages(orgId);
     await prisma.organization.update({ where: { id: orgId }, data: { timezone: "Europe/Istanbul" } });
     const mkRow = async (departure: Date, ref: string, key: string) => {
@@ -452,7 +464,7 @@ describe("outbox lifecycle (FAZ 1) — flag ON", () => {
       await prisma.messageOutbox.create({
         data: {
           organizationId: orgId, conversationId: null, messageId: null, reservationId: res.id, channel: "airbnb",
-          externalReservationId: ref, messageType: "checkin", body: "x", idempotencyKey: key, status: "pending",
+          externalReservationId: ref, messageType: "checkin", body: "x", idempotencyKey: key, status: "pending", templateRevision: 1,
           availableAt: new Date("2026-01-01T00:00:00Z"),
         },
       });

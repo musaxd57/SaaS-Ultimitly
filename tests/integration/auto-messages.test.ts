@@ -163,8 +163,11 @@ describe("kurucu T4 — kuyruktaki otomatik mesaj gönderimden önce güncel met
   });
 
   it("🚨 satırın rezervasyonu silindi (hayalet satır temizliği) → aynı kaynak kimliğinin kopyasından güncel metin kurulur; eski metin gitmez", async () => {
-    const { orgId, propertyId, reservationId } = await seedQueued();
+    const { orgId, reservationId } = await seedQueued();
     await sendDueWelcomes(orgId);
+    // Yeniden bağlama sonrası çift satır başka mülkte durur (mülk + kaynak kimliği benzersiz).
+    const other = await prisma.property.create({ data: { organizationId: orgId, name: "Lale 4" } });
+    const propertyId = other.id;
     const twin = await prisma.reservation.create({
       data: {
         propertyId, guestName: "Bircan Yılmaz", arrivalDate: new Date(Date.now() + 3 * 86_400_000),
@@ -277,7 +280,9 @@ describe("kurucu T4 — 'Otomatik mesajlar' rotası", () => {
     await resetDb();
     ({ orgId, propertyId } = await makeOrgWithProperty());
     await prisma.property.update({ where: { id: propertyId }, data: { name: "Lale Daire 5" } });
-    session = owner(orgId);
+    // Denetim kaydının faili gerçek kullanıcı olmalı (yabancı anahtar).
+    const user = await prisma.user.create({ data: { organizationId: orgId, name: "O", email: `o-${orgId}@x.com`, passwordHash: "x", role: "owner" } });
+    session = { ...owner(orgId), userId: user.id };
   });
 
   it("GET: üç tür, kayıt yokken boş + sürüm 0 + önizleme 'boş — gönderilmez'", async () => {
@@ -331,7 +336,7 @@ describe("kurucu T4 — 'Otomatik mesajlar' rotası", () => {
   });
 
   it("personel (kapı kodu görebilir metin) → 403", async () => {
-    session = owner(orgId, "staff");
+    session = { ...session, role: "staff" };
     expect((await GET(json("GET"), p(propertyId))).status).toBe(403);
     expect((await PUT(json("PUT", { kind: "checkin", body: "x", expectedRevision: 0 }), p(propertyId))).status).toBe(403);
   });
