@@ -153,11 +153,16 @@ export default async function CalendarPage({
   const splitCell = (info: DayInfo) => {
     const arrivals = info.arrivals.slice(0, CELL_CAP);
     const departures = info.departures.slice(0, CELL_CAP);
+    // Görsel / UX incelemesi 10-21 W: "+N diğer" düz metindi — yoğun günlerde kim giriyor görülemiyordu. Gizlenenler açılır listede.
+    const hiddenList = [
+      ...info.arrivals.slice(CELL_CAP).map((a) => ({ kind: "Giriş" as const, ...a })),
+      ...info.departures.slice(CELL_CAP).map((d) => ({ kind: "Çıkış" as const, ...d })),
+    ];
     return {
       arrivals,
       departures,
-      hidden:
-        info.arrivals.length - arrivals.length + (info.departures.length - departures.length),
+      hidden: hiddenList.length,
+      hiddenList,
     };
   };
 
@@ -332,9 +337,14 @@ export default async function CalendarPage({
                           </p>
                         ))}
                         {cell.hidden > 0 ? (
-                          <p className="text-[10px] text-muted-foreground">
-                            +{cell.hidden} diğer
-                          </p>
+                          <details className="text-[10px] text-muted-foreground">
+                            <summary className="cursor-pointer select-none hover:text-foreground">+{cell.hidden} diğer</summary>
+                            {cell.hiddenList.map((h, j) => (
+                              <p key={`h-${j}`} className="truncate" title={`${h.kind}: ${h.guest} — ${h.property}`}>
+                                {h.kind}: {h.guest}{propertyFilter ? "" : ` · ${h.property}`}
+                              </p>
+                            ))}
+                          </details>
                         ) : null}
                       </div>
                     </div>

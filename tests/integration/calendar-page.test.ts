@@ -148,6 +148,9 @@ describe("Takvim — gizlenen hareketler sessizce kaybolmaz", () => {
     const text = treeText(await CalendarPage({ searchParams: sp({ month: "2026-08" }) }));
     // 5 giriş − 3 gösterilen = 2 gizli. Eski kod 5 > 6 olmadığı için SUSUYORDU.
     expect(text).toContain("+2 diğer");
+    // UX 10-21 W: gizlenen misafirler açılır listede adlarıyla (eskiden yalnız sayı).
+    expect(text).toContain("Giriş: Giris4");
+    expect(text).toContain("Giriş: Giris5");
   });
 
   it("10 giriş / 1 çıkış: sayı GERÇEKTEN gizlenen kadar (toplam−6 değil)", async () => {
