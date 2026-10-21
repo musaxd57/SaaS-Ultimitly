@@ -135,15 +135,12 @@ describe("1 · Aynı kimlik, farklı içerik → açık uyuşmazlık", () => {
     await prisma.knowledgeBaseItem.update({ where: { id: src.id }, data: { content: "Yeni metin." } });
     const targets = order(a, c);
     const res = await copy(src.id, { targetPropertyIds: targets, requestId: RID });
-    if (targets.includes(a)) {
-      expect(res.status).toBe(409);
-    } else {
-      // Yalnız [C]: bu kimlikle C'de önceki kopya yok → karşılaştırılacak eski kopya yok; uyuşmazlık KANITLANAMAZ → güncel metin yazılır.
-      expect(res.status).toBe(200);
-    }
+    // Codex 10-21 P2 (migration 81 `KbCopyOperation`): işlemin İLK içerik izi kalıcı kayıtta → yalnız [C] hedefinde de uyuşmazlık
+    // KANITLANIR (eskiden C'de önceki kopya olmadığı için karşılaştırma yapılamıyor, güncel metin yazılıyordu — Codex'in bildirdiği açık).
+    expect(res.status).toBe(409);
     expect(await prisma.knowledgeBaseItem.count({ where: { propertyId: a } })).toBe(1);
     expect((await prisma.knowledgeBaseItem.findFirstOrThrow({ where: { propertyId: a } })).content).toBe("Eski metin.");
-    expect(await prisma.knowledgeBaseItem.count({ where: { propertyId: c } })).toBe(targets.includes(a) ? 0 : 1);
+    expect(await prisma.knowledgeBaseItem.count({ where: { propertyId: c } })).toBe(0);
   });
 });
 
