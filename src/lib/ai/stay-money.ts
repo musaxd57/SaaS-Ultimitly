@@ -56,7 +56,7 @@ const AMOUNT = rx([
   "يورو|دولار|ليرة|ليره|ريال|درهم|جنيه|دينار|د\\.إ|ر\\.س",
   // Birimsiz tutar: ücret sözcüğü + rakam ("fee is 45.00", "ücreti 500"). Saat bu biçimden sayılmaz ("12:00"). Başka
   // anlamı olan sözcükler yok: "charge" (telefon şarjı), "Preis…" türevleri ("preisgekrönt").
-  `${NL}(?:fees?|costs?|price|ucret\\p{L}*|fiyat\\p{L}*|geb[uü]hr\\p{L}*|preise?|frais|prix|tarif\\p{L}*|precio|coste?|costo|стоимост\\p{L}*|цен[аы]|رسوم|سعر|تكلفة)${NR}(?:\\s+(?:is|of|would\\s+be|will\\s+be))?\\s*[:=]?\\s*\\p{Nd}+(?!\\p{Nd})(?:[.,]\\p{Nd}+)?(?![.:]\\p{Nd})`,
+  `${NL}(?:fees?|costs?|price|ucret\\p{L}*|fiyat\\p{L}*|geb[uü]hr\\p{L}*|preise?|frais|prix|tarif\\p{L}*|precio|coste?|costo|стоимост\\p{L}*|цен[аы]|رسوم|سعر|تكلفة)${NR}(?:\\s+(?:is|of|would\\s+be|will\\s+be))?\\s*(?:[:=]\\s*)?\\p{Nd}+(?!\\p{Nd})(?:[.,]\\p{Nd}+)?(?![.:]\\p{Nd})`,
 ]);
 
 /** Yüzde: işaret rakama bitişik (her iki yanda) ya da yüzde sözcüğü ("yüzde yüz" = kesinlik deyimi, sayılmaz). */

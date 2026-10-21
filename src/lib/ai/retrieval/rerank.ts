@@ -145,7 +145,14 @@ export interface Supersedable extends KbChunkSource {
 /** Halefi kümede olan kalemleri düşür (sürüm kuralı). */
 export function dropSuperseded<T extends Supersedable>(items: readonly T[]): { kept: T[]; dropped: number } {
   const ids = new Set(items.map((i) => i.id));
-  const kept = items.filter((i) => !(i.supersededById && ids.has(i.supersededById)));
+  // Kendine işaret eden halef (bozuk veri) kalemi düşürmez (Claude 2. dalga #29); karşılıklı döngüde bütün kalemler düşmesin diye
+  // halefi de aynı kalemi işaret eden çiftin ikisi de tutulur.
+  const byId = new Map(items.map((i) => [i.id, i] as const));
+  const kept = items.filter((i) => {
+    const s = i.supersededById;
+    if (!s || s === i.id || !ids.has(s)) return true;
+    return byId.get(s)?.supersededById === i.id;
+  });
   return { kept, dropped: items.length - kept.length };
 }
 

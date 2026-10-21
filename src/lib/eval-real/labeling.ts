@@ -180,7 +180,8 @@ export function outputPathDecision(input: { relToRepo: string; insideRepo: boole
 export function guardedOutputPath(repo: string, target: string, isGitIgnored: (relToRepo: string) => boolean): string {
   const abs = path.resolve(repo, target);
   const rel = path.relative(repo, abs);
-  const insideRepo = !rel.startsWith("..") && !path.isAbsolute(rel);
+  // ".." BİR YOL PARÇASI olarak (Claude 2. dalga #60): "..adaylar.json" depo İÇİNDE bir dosya adıdır, dışarısı değil.
+  const insideRepo = rel !== ".." && !rel.startsWith(`..${path.sep}`) && !rel.startsWith("../") && !path.isAbsolute(rel);
   const d = outputPathDecision({ relToRepo: rel, insideRepo, gitIgnored: insideRepo && isGitIgnored(rel) });
   if (!d.ok) throw new Error(`çıktı yolu reddedildi: ${d.reason}`);
   return abs;

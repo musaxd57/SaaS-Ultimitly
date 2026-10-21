@@ -1874,7 +1874,8 @@ Cevap metninde (reply) yalnızca verilen veri, zaman bağlamı ve bilgi tabanın
       // giriyordu → İstanbul 08:00'de üretilen "Kahvaltı sabah 8'de" uydurması "dayanaklı" sayılıyordu (ölçüldü: batarya
       // günde dört dakikada kırmızı; 05:00Z'deki tam kapı koşusu düştü). Tarihler kalır, saat ve gece yarısı ipucu çıkar.
       clockLine({ ...timeline, hhmm: null }),
-      reservation ? res : "",
+      // Misafirin yazdığı çıkış saati BEYANDIR, doğrulanmış olgu değil (Claude 2. dalga #81; C-9): dayanak listesine girmez.
+      reservation ? (guestCheckoutLine ? res.replace(`\n${guestCheckoutLine}`, "") : res) : "",
       adjacencyDataLines(reservation, input.adjacency ?? null, property, timeline.timeZone),
       offerText ?? "",
       // Üslup rehberi BURADA YOK (F13, 09-26): yalnız üsluptur, dayanak değildir — yalnız rehberde geçen bir saat/tutar
@@ -1884,7 +1885,8 @@ Cevap metninde (reply) yalnızca verilen veri, zaman bağlamı ve bilgi tabanın
         .filter((l) => !l.trimStart().startsWith("- [NOT]"))
         .join("\n"),
     ].filter((x) => x.length > 0),
-    operator: selectedHistory.filter((m) => m.direction !== "inbound").map((m) => m.body),
+    // Asistanın KENDİ eski cevabı ev sahibi beyanı değildir (Claude 2. dalga #82): bir kez uydurulan bilgi sonraki cevapta "dayanaklı" sayılmasın.
+    operator: selectedHistory.filter((m) => m.direction !== "inbound" && m.author !== "ai").map((m) => m.body),
     guest: [guestMessage, ...selectedHistory.filter((m) => m.direction === "inbound").map((m) => m.body)],
     derivedNumbers: reservation ? stayNights(reservation.arrivalDate, reservation.departureDate) : [],
   };

@@ -51,7 +51,7 @@ export function connectionHealth(
   const errorIsLatest = row.lastReadErrorAt !== null && (row.lastReadOkAt === null || row.lastReadErrorAt > row.lastReadOkAt);
   if (errorIsLatest) {
     const kind = (row.lastReadErrorKind ?? "unknown") as IngestErrorKind;
-    return { state: "error", minutesSinceOk, errorKind: kind in CONNECTION_ERROR_TEXT ? kind : "unknown", ageMinutes };
+    return { state: "error", minutesSinceOk, errorKind: Object.prototype.hasOwnProperty.call(CONNECTION_ERROR_TEXT, kind) ? kind : "unknown", ageMinutes };
   }
   if (minutesSinceOk === null) return { state: "unknown", minutesSinceOk: null, errorKind: null, ageMinutes };
   return { state: minutesSinceOk > CONNECTION_STALE_MINUTES ? "stale" : "ok", minutesSinceOk, errorKind: null, ageMinutes };
