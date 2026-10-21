@@ -126,3 +126,12 @@ describe("U35 — alan adı ≠ IPv6 literal", () => {
     expect(isPrivateAddress(host)).toBe(true);
   });
 });
+
+describe("Claude 2. dalga #65 (10-21): sıkıştırılmamış IPv6 yazımı da özel sayılır", () => {
+  it.each(["0:0:0:0:0:0:0:1", "0000::1", "[0:0:0:0:0:0:0:1]", "fe80:0:0:0:0:0:0:1", "0:0:0:0:0:ffff:7f00:1"])("özel: %s", (a) => {
+    expect(isPrivateAddress(a)).toBe(true);
+  });
+  it.each(["2606:4700:4700::1111", "1.1.1.1"])("KONTROL — genel adres geçer: %s", (a) => {
+    expect(isPrivateAddress(a)).toBe(false);
+  });
+});

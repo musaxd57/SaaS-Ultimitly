@@ -128,6 +128,8 @@ export async function translate(
     return { ok: true, text };
   }
   if (text.length > MAX_INPUT_CHARS) return { ok: false, reason: "too_long" };
+  // Hedef dil de istemin SİSTEM satırına yazılır (Claude 2. dalga #58): kaynak dil gibi yalnız dil KODU biçimi kabul edilir.
+  if (!LANGUAGE_CODE.test(targetLanguage)) return { ok: false, reason: "failed" };
 
   const key = cacheKey(text, targetLanguage, sourceLanguage);
   const cached = cacheGet(key);

@@ -44,8 +44,17 @@ function mappedIpv4(h: string): string | null {
  * gate — one place decides what "private" means.
  */
 export function isPrivateAddress(address: string): boolean {
-  const h = address.toLowerCase().replace(/^\[|\]$/g, ""); // strip IPv6 [..] brackets
+  let h = address.toLowerCase().replace(/^\[|\]$/g, ""); // strip IPv6 [..] brackets
   if (!h) return true;
+  // IPv6 literali WHATWG biçimine indirilir (Claude 2. dalga #65): sıkıştırılmamış "0:0:0:0:0:0:0:1" / "0000::1" de "::1" olur — aşağıdaki
+  // önek ve eşitlik kuralları tek yazıma bakar. Çağıranlar bugün zaten normalize adres veriyor; bu savunma derinliğidir.
+  if (isIP(h) === 6) {
+    try {
+      h = new URL(`http://[${h}]/`).hostname.replace(/^\[|\]$/g, "");
+    } catch {
+      /* geçersiz literal: aşağıdaki kurallar ham yazımla devam eder */
+    }
+  }
   // IPv6 loopback / unspecified / link-local (fe80::/10 — fe80..febf, NOT just
   // fe80:) / site-local (fec0::/10, deprecated but still routable) / unique-local
   // (fc00::/7 = fc/fd). The first hextet spans 0xfe80..0xfeff → "fe8".."fef".
