@@ -38,3 +38,48 @@ okuyucusunun acili / tutmayı ARTIRMASI, yanlış daire verisinin gitmemesi, bay
 | P1-b | "Ödemeniz işleniyor" kilidi sunucu durumu değişince açılmıyor | düzelt | |
 | 2 · 6 · 7/21 · 12 · 22 · 23 · 24 · 10 · 19 · 13 · 25 · 1 · 4 | arayüz durum / çift gönderim / hata dalı | düzelt | |
 | 3 · 5 · 8 · 9 · 11 · 14 | operatör paneli / nadir | sonraki tur | |
+
+
+## Durum (10-21 gece, bu tur)
+
+**Düzeltildi + testli (kırmızı-önce + mutasyon 17/18, 1 gerekçeli eşdeğer):** #18 · #53 · #78 · #21 · #69 · #70 (güvenlik okuyucuları, tutucu) ·
+#95 (başka dairenin kapı kodu gidebiliyordu — gerçek PostgreSQL testi eski kodda kırmızı) · #11 (KVKK: anonim satıra ad geri yazımı, yarış
+testi) · #43 · #12 · #4 · #58 · #65 · #81 · #82 · #29 · #32 · #60 · #90 (eşdeğer, süre pinli) · arayüz P1-a (Ayarlar yönlendirmesi) · P1-b
+(ödeme kartı kilidi) · #7/#21 (bozuk e-posta bağlantısı). Eşdeğer mutant W1: iptal edilmiş kopyadan metin kurmama koruması — veto metin
+kurulmadan ÖNCE iptali durdurduğu için yalnız yarış savunması.
+
+**Sonraki tur (iç, müşteriye dokunmaz):** #2 · #8 · #9 · #7 (KB plan sınırı yarışı) · #0 · #27 · #23/#83 · #31 · #30 · arayüz 2 · 10 · 12 · 13 ·
+19 · 22 · 23 · 24 · 25 · 1 · 4 · operatör paneli 3 · 5 · 8 · 9 · 11 · 14.
+
+## Kurucuya sorular (müşteriye gideni / görünen sayıyı / kimlik akışını değiştirir — onaysız uygulanmadı)
+
+**W1 (#16) Yedek şablon "late check-in"i geç ÇIKIŞ sayıyor.** Model düştüğünde kullanılan sabit cevap yolu. Önce: "Can we do a late check-in
+around 23:00?" → "Our check-out time is 11:00. A late check-out may be possible…". Sonra: giriş saati cevabı ("Our check-in time is 15:00…").
+"early check-out" da erken GİRİŞ sayılıyor. Öneri: yön kelimesine bağla (late check-out / early check-in). Düzeltelim mi?
+
+**W2 (#15) Yedek şablonda kısa anahtar kelime alt dize eşleşiyor.** "Is there parking near the apartment in Turkey?" → "key" kelimesi "Turkey"
+içinde bulunup giriş saati şablonu çıkıyor. Öneri: kısa anahtarlar (key, tv, ac) tam sözcük. Düzeltelim mi?
+
+**W3 (#22) "!!" soru sayılıyor.** "Harika!! Süper!!" iki soru sayılıp istemde "birden çok soru var" ipucu açılıyor → cevap gereksiz uzayabilir.
+Öneri: yalnız "?" sayılsın. Düzeltelim mi?
+
+**W4 (#14) Öznesiz "can't find" bilgim-yok sayılıyor (gereksiz tutma).** "If you can't find the keys, they are in the lockbox" taslağı "bilgim
+yok" sanılıp ev sahibine tutuluyor. Öneri: yalnız birinci şahıs öznesiyle ("I / we can't find"). Bu GEVŞETMEDİR (daha çok cevap gider) —
+onay ister.
+
+**W5 (#28) İki harfli alt sorgular getirmeden düşüyor.** "Wi-Fi şifresi ne, TV nasıl açılır?" → yalnız Wi-Fi kalemi getiriliyor, "tv" alt
+sorgusu atılıyor. Öneri: 2 harfli içerik sözcüklerini de getir. Cevaba giren bilgi değişir — ölçümle birlikte açalım mı?
+
+**W6 (#26) Parola en az uzunluğu ham UTF-16 uzunluğuna bakıyor.** Ayrık aksanlı (NFD) 7 "ş" 14 sayılıp geçiyor, saklanan biçim 7 karakter.
+Öneri: normalleştirilmiş biçimin karakter sayısı. Kimlik akışı → onayınız.
+
+**W7 (#96) Hospitable 402 (abonelik bitti) sırasında kuyrukta bekleyen AI cevabı, abonelik dönünce GÜNLER sonra gidiyor.** N1 kararındaki
+"bayat mesaj gitmesin" ilkesinin aynısı. Öneri: 12 saatten eski bekleyen AI cevabı iptal edilir, gelen kutusunda tek not; karşılama / giriş /
+çıkış mesajları kendi zaman kuralıyla (değişmez). Saat eşiği sizin kararınız (öneri 12).
+
+**W8 (sonda) Arapça su baskını / prize su damlaması "acil" değil "şikâyet" sayıldı (2/48).** Mesaj ev sahibinde tutuldu ve e-posta gitti, ama
+"Sorunlu" işareti ve acil e-postası yok. Öneri: anlama istemine "aktif su baskını ve elektrikli eşyaya su = acil" örneği. İstem değişikliği,
+ölçümle — onay?
+
+**W9 (arayüz #6) Raporlar sayfasında "tutulan" toplamı, satırı olmayan üç sebebi de sayıyor** (tehlike, güvence, acil talimat). Öneri: üç
+satır ekle ("Tehlike bildirimi" vb.). Ev sahibinin gördüğü sayı / metin değişir.
