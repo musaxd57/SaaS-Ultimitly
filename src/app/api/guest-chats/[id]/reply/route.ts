@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { requireSession, unauthorized, canManage, forbidden, jsonOk, badRequest, notFound, readJsonCappedOrNull, impersonationReadOnly } from "@/lib/api";
 import { claimOutboundSend, releaseOutboundSend } from "@/lib/outbound-claim";
 import { acquireGuestChatThreadLock } from "@/lib/guest-chat";
+import { hostWriteLimited } from "@/lib/host-write-limit";
 
 // The host replies to a QR guest-chat thread from the "Misafir Sohbetleri" tab.
 // The reply is stored as an OUTBOUND message with the host's name (so it's shown
@@ -16,6 +17,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (readOnly) return readOnly;
   if (!session) return unauthorized();
   if (!canManage(session)) return forbidden();
+  const limited = await hostWriteLimited(session, req.method);
+  if (limited) return limited;
 
   const { id } = await params;
   const body = (await readJsonCappedOrNull(req)) as { body?: unknown } | null;

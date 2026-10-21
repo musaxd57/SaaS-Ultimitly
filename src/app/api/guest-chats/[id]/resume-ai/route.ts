@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { requireSession, unauthorized, canManage, forbidden, jsonOk, notFound, impersonationReadOnly } from "@/lib/api";
 import { AI_RESUME_MARKER, guestChatAiPausedFromMessages } from "@/lib/guest-chat";
 import { SYSTEM_EVENT_GUEST_CHAT_AI_RESUMED } from "@/lib/message-author";
+import { hostWriteLimited } from "@/lib/host-write-limit";
 
 // Owner/manager RE-ENABLES the QR AI for a thread it had handed off to the team.
 // The AI never auto-resumes on a timer (the host may have stepped into a sensitive
@@ -20,6 +21,8 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   if (readOnly) return readOnly;
   if (!session) return unauthorized();
   if (!canManage(session)) return forbidden();
+  const limited = await hostWriteLimited(session, _req.method);
+  if (limited) return limited;
 
   const { id } = await params;
   const convo = await prisma.conversation.findFirst({
