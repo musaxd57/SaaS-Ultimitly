@@ -19,6 +19,8 @@ import {
   REPLY_BREAKER_COOLDOWN_MS,
   REPLY_BREAKER_THRESHOLD,
   __resetReplyModelBreakerForTests,
+  noteReplyModelTimeout,
+  replyModelCallAllowed,
   replyRetryDelayMs,
   replyTimeoutMs,
 } from "@/lib/ai/model-breaker";
@@ -213,5 +215,56 @@ describe("zaman tavanı ve bekleme hesabı", () => {
     expect(replyRetryDelayMs("10")).toBe(3_000);
     expect(replyRetryDelayMs("abc")).toBe(1_000);
     expect(replyRetryDelayMs("-1")).toBe(1_000);
+  });
+});
+
+describe("Haiku 10-21 bulguları", () => {
+  it("önce hızlı 429, yeniden denemede takılma: zaman aşımları birikir, kesici açılır (geçici hata kesiciyi kapatmaz)", async () => {
+    const f = vi.fn(async (_u: string, _i?: RequestInit) => new Response("{}", { status: 429 }));
+    let n = 0;
+    f.mockImplementation(async () => {
+      n++;
+      if (n % 2 === 1) return new Response('{"error":{"code":"rate_limit_exceeded"}}', { status: 429 });
+      return timeout();
+    });
+    vi.stubGlobal("fetch", f);
+    for (let i = 0; i < REPLY_BREAKER_THRESHOLD; i++) await suggestReply(input);
+    expect(breakerReports()).toBe(1);
+    const before = f.mock.calls.length;
+    await suggestReply(input);
+    expect(f.mock.calls.length).toBe(before); // açık: ağa çıkılmadı
+  });
+
+  it("gövde okunurken zaman aşımı da sayılır", async () => {
+    const hanging = () =>
+      ({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        json: async () => timeout(),
+        text: async () => "",
+      }) as unknown as Response;
+    const f = vi.fn(async () => hanging());
+    vi.stubGlobal("fetch", f);
+    for (let i = 0; i < REPLY_BREAKER_THRESHOLD; i++) expect((await suggestReply(input)).source).toBe("fallback");
+    expect(breakerReports()).toBe(1);
+    await suggestReply(input);
+    expect(f).toHaveBeenCalledTimes(REPLY_BREAKER_THRESHOLD);
+  });
+
+  it("bekleme dolunca YALNIZ bir deneme geçer (eşzamanlı ikinci çağrı beklemez, model-yok yoluna gider)", () => {
+    const t0 = 1_000_000;
+    for (let i = 0; i < REPLY_BREAKER_THRESHOLD; i++) noteReplyModelTimeout(t0);
+    expect(replyModelCallAllowed(t0 + 1)).toBe(false);
+    const after = t0 + REPLY_BREAKER_COOLDOWN_MS;
+    expect(replyModelCallAllowed(after)).toBe(true); // deneme kirası
+    expect(replyModelCallAllowed(after + 10)).toBe(false); // kira süresince ikinci çağrı yok
+  });
+
+  it("açılış YALNIZ bir kez raporlanır: açıkken düşen çağrılar (deneme dahil) yeniden rapor üretmez", () => {
+    const t0 = 2_000_000;
+    const opened = Array.from({ length: REPLY_BREAKER_THRESHOLD + 3 }, () => noteReplyModelTimeout(t0));
+    expect(opened.filter(Boolean)).toHaveLength(1);
+    expect(noteReplyModelTimeout(t0 + REPLY_BREAKER_COOLDOWN_MS + 5)).toBe(false); // deneme yine düştü → yeniden açıldı, rapor yok
   });
 });

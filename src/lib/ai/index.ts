@@ -397,10 +397,14 @@ async function callOpenAI(system: string, user: string): Promise<{ content: stri
   if (!replyModelCallAllowed()) return null;
   const timeoutMs = replyTimeoutMs(isReasoningModel(model), effort);
   try {
+    // Tek hızlı yeniden deneme (kurucu 10-21 "model düşmesin"): geçici durum (408 · hız sınırı 429 · 5xx) ya da zaman aşımı OLMAYAN
+    // ağ hatası bir kez daha. Kalıcı arıza (kota / anahtar / model) gövdeye bakılarak ayrılır ve denenmez; zaman aşımı denenmez
+    // (bekleme ikiye katlanırdı). Gövde bir kez okunur (yeniden denenen cevabın gövdesi de tüketilir — bağlantı asılı kalmaz).
     let res: Response | null = null;
-    for (let attempt = 0; res === null; attempt++) {
+    let errorBody = "";
+    for (let attempt = 0; ; attempt++) {
       try {
-        const r = await fetch("https://api.openai.com/v1/chat/completions", {
+        res = await fetch("https://api.openai.com/v1/chat/completions", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -409,50 +413,42 @@ async function callOpenAI(system: string, user: string): Promise<{ content: stri
           body: JSON.stringify(payload),
           signal: AbortSignal.timeout(timeoutMs),
         });
-        // Tek hızlı yeniden deneme (kurucu 10-21 "model düşmesin"): geçici durum (408 · hız sınırı 429 · 5xx) bir kez daha.
-        // Kalıcı arıza (kota / anahtar / model) sınıflandırması gövdeye bakar → gövde okunur, karar verilir.
-        if (!r.ok && attempt === 0 && isRetryableReplyStatus(r.status)) {
-          const body = await r.clone().text().catch(() => "");
-          if (!classifyModelProviderFailure(r.status, body)) {
-            noteReplyModelResponded(); // sağlayıcı takılmadı, cevap verdi
-            await sleep(replyRetryDelayMs(r.headers.get("retry-after")));
-            continue;
-          }
-        }
-        res = r;
       } catch (err) {
-        if (isTimeoutError(err)) {
-          // Zaman aşımı yeniden DENENMEZ (bekleme ikiye katlanırdı); art arda eşiğe ulaşınca kesici açılır.
-          if (noteReplyModelTimeout()) {
-            void reportError("openai-reply devre kesici", new Error(`${REPLY_BREAKER_THRESHOLD} ardışık zaman aşımı; ${REPLY_BREAKER_COOLDOWN_MS / 1000} sn çağrı yok`));
-          }
-          throw err;
-        }
-        if (attempt > 0) throw err;
+        if (isTimeoutError(err) || attempt > 0) throw err;
         await sleep(replyRetryDelayMs(null));
+        continue;
       }
+      if (res.ok) break;
+      errorBody = await res.text().catch(() => res!.statusText);
+      if (attempt === 0 && isRetryableReplyStatus(res.status) && !classifyModelProviderFailure(res.status, errorBody)) {
+        await sleep(replyRetryDelayMs(res.headers.get("retry-after")));
+        continue;
+      }
+      break;
     }
-    noteReplyModelResponded();
     if (!res.ok) {
+      // Kesin / kalıcı ret sağlayıcının takılmadığını gösterir → kesici kapanır; geçici hata (iki kez 5xx / 429) kapatmaz.
+      if (!isRetryableReplyStatus(res.status)) noteReplyModelResponded();
       // Silent-degradation guard: every call here falls back to the deterministic
       // fallback on failure (by design — the guest always gets an answer), but a
       // persistent cause (bad/expired key, exhausted quota, deprecated model)
       // would otherwise degrade every reply with nobody noticing. Report, don't
       // throw — the fallback path below is unaffected.
-      const body = await res.text().catch(() => res.statusText);
       // 🚨 KALICI arıza (kredi bitti / anahtar reddedildi / model yok) GEÇİŞ tabanlı
       // alarma gider: bu dal 2 dakikalık oto-yanıt döngüsünün içinde koşar ve
       // `reportError` Sentry'yi hiç kısmaz (↑ "anahtar yok" dalının ölçümü) →
       // kredisi biten hesap alarm seli üretirdi (09-23 ölçümü, `provider-health.ts`).
-      const persistent = classifyModelProviderFailure(res.status, body);
-      if (persistent) void noteModelProviderPersistentFailure(persistent, res.status, body);
-      else void reportError(`openai-reply ${res.status}`, new Error(body));
+      const persistent = classifyModelProviderFailure(res.status, errorBody);
+      if (persistent) void noteModelProviderPersistentFailure(persistent, res.status, errorBody);
+      else void reportError(`openai-reply ${res.status}`, new Error(errorBody));
       return null;
     }
     // HTTP başarısı sağlayıcının (kota/anahtar/model) sağlıklı olduğunu gösterir;
     // açık olabilecek kalıcı arıza alarmını kapatır (sağlıklı yolda sorgu yok).
     noteModelProviderSuccess();
     const data = await res.json();
+    // Gövde de geldi: sağlayıcı takılmadı → kesici kapanır (gövde okurken zaman aşımı ↓dış yakalamada sayılır).
+    noteReplyModelResponded();
     const choice = data?.choices?.[0];
     const parsedUsage = parseLlmUsage(data);
     // Gönderilen düşünme çabası yanıtta YOK → karar kaydına koddan eklenir (Luna geçişi, 09-30: hangi ayarın hangi kararı
@@ -470,6 +466,13 @@ async function callOpenAI(system: string, user: string): Promise<{ content: stri
     }
     return { content: choice?.message?.content ?? null, usage };
   } catch (err) {
+    // Zaman aşımı TEK yerde sayılır (bağlantı ya da gövde okuma); kesici YALNIZ açıldığı anda raporlanır.
+    if (isTimeoutError(err) && noteReplyModelTimeout()) {
+      void reportError(
+        "openai-reply devre kesici",
+        new Error(`${REPLY_BREAKER_THRESHOLD} ardışık zaman aşımı; ${REPLY_BREAKER_COOLDOWN_MS / 1000} sn çağrı yok`),
+      );
+    }
     void reportError("openai-reply", err);
     return null;
   }

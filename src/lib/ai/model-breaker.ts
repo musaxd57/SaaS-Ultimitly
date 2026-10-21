@@ -9,7 +9,9 @@
 //  · Art arda REPLY_BREAKER_THRESHOLD zaman aşımı → REPLY_BREAKER_COOLDOWN_MS boyunca çağrı yapılmaz, sonuç bugünkü model-yok
 //    yoludur (kanal: `ai_unavailable`, damgalanmaz, sonraki turda yeniden denenir; QR: ev sahibine kalır). Misafire giden hiçbir
 //    şey değişmez — model cevabı yokken zaten hiçbir şey OTOMATİK gitmiyordu.
-//  · Bekleme bitince tek deneme: yine zaman aşımıysa kesici hemen yeniden açılır (sayaç sıfırlanmadı), cevap gelirse kapanır.
+//  · Bekleme bitince TEK deneme (kira): yine zaman aşımıysa kesici hemen yeniden açılır (sayaç sıfırlanmadı), cevap gelirse kapanır;
+//    kira süresince öteki çağrılar beklemez, doğrudan model-yok yoluna gider.
+//  · Geçici hata cevabı (408/429/5xx) kesiciyi KAPATMAZ: "önce hızlı 429, yeniden denemede takılma" deseni de birikir (Haiku 10-21).
 //  · Yalnız ZAMAN AŞIMI sayılır: hızlı dönen hata (5xx, ağ reddi) bekletmez, onun çaresi tek yeniden denemedir.
 //  · Tek hızlı yeniden deneme: geçici hata (408 · 429 hız sınırı · 5xx · zaman aşımı OLMAYAN ağ hatası) bir kez, kısa aralıkla
 //    yeniden denenir. Kalıcı arıza (kota / anahtar / model) ve zaman aşımı yeniden DENENMEZ (biri düzelmez, öteki beklemeyi ikiye
@@ -35,25 +37,42 @@ export function replyTimeoutMs(reasoning: boolean, effort: string | null): numbe
 
 let consecutiveTimeouts = 0;
 let openUntil = 0;
+/** Bekleme dolduktan sonraki TEK deneme kirası: kira süresince başka çağrı geçmez (eşzamanlı istekler hep birlikte beklemesin). */
+let probeLeaseUntil = 0;
 let retryDelayOverride: number | null = null;
+/** Tek deneme kirasının süresi: en uzun çağrı tavanı + pay (deneme takılırsa kira kendiliğinden düşer). */
+const PROBE_LEASE_MS = 65_000;
 
-/** Çağrı yapılabilir mi? Kesici açıkken `false` (bekleme süresi dolana kadar). */
+/**
+ * Çağrı yapılabilir mi? Kesici kapalıyken her zaman. Açıkken bekleme süresince hayır; bekleme dolunca YALNIZ bir çağrı geçer
+ * (deneme kirası) — sonucu kesiciyi kapatır (cevap geldi) ya da hemen yeniden açar (yine zaman aşımı).
+ */
 export function replyModelCallAllowed(now = Date.now()): boolean {
-  return now >= openUntil;
-}
-
-/** Zaman aşımı: sayaç artar; eşiğe ulaştıysa (ya da tek deneme yine düştüyse) kesici açılır. Açıldıysa `true`. */
-export function noteReplyModelTimeout(now = Date.now()): boolean {
-  consecutiveTimeouts++;
-  if (consecutiveTimeouts < REPLY_BREAKER_THRESHOLD) return false;
-  openUntil = now + REPLY_BREAKER_COOLDOWN_MS;
+  if (openUntil === 0) return true;
+  if (now < openUntil) return false;
+  if (now < probeLeaseUntil) return false;
+  probeLeaseUntil = now + PROBE_LEASE_MS;
   return true;
 }
 
-/** Sağlayıcı cevap verdi (HTTP durumu ne olursa olsun takılmadı): kesici kapanır. */
+/**
+ * Zaman aşımı (bağlantı ya da gövde okuma): sayaç artar; eşiğe ulaştıysa ya da deneme yine düştüyse kesici açılır.
+ * `true` YALNIZ kapalıyken AÇILDIĞI anda döner (açılış tek kez raporlansın — açıkken düşen çağrılar yeniden rapor üretmez).
+ */
+export function noteReplyModelTimeout(now = Date.now()): boolean {
+  consecutiveTimeouts++;
+  if (consecutiveTimeouts < REPLY_BREAKER_THRESHOLD) return false;
+  const wasClosed = openUntil === 0;
+  openUntil = now + REPLY_BREAKER_COOLDOWN_MS;
+  probeLeaseUntil = 0;
+  return wasClosed;
+}
+
+/** Sağlayıcı cevap verdi (başarı ya da kalıcı / kesin bir ret — takılmadı): kesici kapanır. Geçici hata (408/429/5xx) bunu ÇAĞIRMAZ. */
 export function noteReplyModelResponded(): void {
   consecutiveTimeouts = 0;
   openUntil = 0;
+  probeLeaseUntil = 0;
 }
 
 /** Zaman aşımı mı? `AbortSignal.timeout` → `TimeoutError`; eski çalışma zamanları `AbortError` verebilir. */
@@ -79,5 +98,6 @@ export function replyRetryDelayMs(retryAfter: string | null): number {
 export function __resetReplyModelBreakerForTests(retryDelayMs: number | null = null): void {
   consecutiveTimeouts = 0;
   openUntil = 0;
+  probeLeaseUntil = 0;
   retryDelayOverride = retryDelayMs;
 }
