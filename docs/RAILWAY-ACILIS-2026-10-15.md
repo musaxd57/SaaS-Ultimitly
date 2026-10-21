@@ -109,7 +109,11 @@ bekleyen satır 10 dakikayı geçmemeli.
 `PADDLE_CHECKOUT_INTENT_ENABLED` (Codex 10-21 P1, migration 82: ödeme ekranı sunucunun açtığı TEK Paddle işlemiyle — iki sekme = iki tahsilat
 riskini kapatır. Kod + testler hazır; 🚨 Paddle SANDBOX denemesi kurucuyla birlikte yapılmadan AÇILMAZ — doğrulanacaklar: `POST /transactions`
 "ready" işlem; `Checkout.open({ transactionId })`; iki sekmede aynı işlem bir kez ödenir; `PATCH /transactions/{id} { status: "canceled" }` ödenmemiş
-işlemi iptal eder; ödenmiş işlem `GET` durumunda "paid"/"completed") ·
+işlemi iptal eder; ödenmiş işlem `GET` durumunda "paid"/"completed". Opus 10-21 şüpheleri (`docs/arastirma-2026-10-15/codex-1021-opus-sert.md`
+"Doğrulanamayanlar"): İLK bakılacak — Paddle panelinde varsayılan ödeme bağlantısı yoksa `POST /transactions` reddedilir
+(`transaction_default_checkout_url_not_set`) → anahtar açılınca her ödeme 503 olur; müşterisiz işlem `draft` dönebilir ve `Checkout.open` kabul
+etmeli; sunucuda açılan işlemin `custom_data.consentId`'si `subscription.created` olayına taşınmalı. Anahtarı açtıktan sonra açık kalmış eski
+ödeme sekmeleri yenilenmeli (eski istemci sunucunun işlemini yok sayar — pencere kısa, Opus B5)) ·
 
 `PADDLE_RESUME_ENABLED` (kurucu SG3 10-17: üründe "duraklatma" yok; iptal edilen yenilemede dönem sonu kutusu yeter) ·
 `KB_RETRIEVAL_WIDE_BUDGET` (kurucu: "şimdilik kapalı") · `KB_RERANK_PER_QUESTION` · `APP_TRUST_BROWSER_TIMEZONE` · `BILLING_ALLOW_CANCELED_PLAN_CHANGE`

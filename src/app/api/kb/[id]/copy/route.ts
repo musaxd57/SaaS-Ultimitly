@@ -9,9 +9,7 @@ import { KB_REQUEST_ID_RE } from "@/lib/validators";
 import { NextResponse } from "next/server";
 import { KB_COPY_CONFLICT_MESSAGE, KB_IDEMPOTENCY_CONFLICT, sameKbContent } from "@/lib/kb/request-id";
 import { kbContentFingerprint } from "@/lib/kb/copy-fingerprint";
-
-/** Kopyalama işlem kaydının saklama süresi (tekrar penceresi bundan uzun olamaz). */
-const KB_COPY_OPERATION_TTL_MS = 30 * 86_400_000;
+import { KB_COPY_OPERATION_TTL_MS } from "@/lib/kb/copy-operation";
 
 // Copy a knowledge-base entry to one or more OTHER apartments. Lets the host
 // fill one apartment fully, then clone its info across the rest and only tweak

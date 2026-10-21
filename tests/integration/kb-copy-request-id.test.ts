@@ -13,6 +13,7 @@ vi.mock("@/lib/api", async (orig) => {
 
 import { POST as COPY } from "@/app/api/kb/[id]/copy/route";
 import { limitsForOrg } from "@/lib/billing/plan-limits";
+import { sweepKbCopyOperations } from "@/lib/kb/copy-operation";
 
 // ---------------------------------------------------------------------------
 // BİLGİ TABANI KOPYALAMA — TEKRAR GÜVENLİĞİ (idempotency denetimi 10-15, P1; migration YOK, 67'nin (mülk, kimlik) dizini).
@@ -191,6 +192,15 @@ describe("KB kopyalama — istek kimliği", () => {
     });
     await copyReq(sourceId, { targetPropertyIds: [a], requestId: RID2 });
     expect(await prisma.kbCopyOperation.count({ where: { organizationId: orgId, sourceItemId: "eski" } })).toBe(0);
+  });
+
+  it("Opus B7: bir daha kopyalamayan işletmenin 30 günü dolan kaydı saatlik süpürgeyle silinir; yenisi kalır", async () => {
+    await prisma.kbCopyOperation.create({
+      data: { organizationId: orgId, sourceItemId: "eski", requestId: RID, sourceHash: "x", createdAt: new Date(Date.now() - 31 * 86_400_000) },
+    });
+    await prisma.kbCopyOperation.create({ data: { organizationId: orgId, sourceItemId: "yeni", requestId: RID, sourceHash: "x" } });
+    expect(await sweepKbCopyOperations()).toEqual({ deleted: 1 });
+    expect((await prisma.kbCopyOperation.findMany({ select: { sourceItemId: true } })).map((r) => r.sourceItemId)).toEqual(["yeni"]);
   });
 
   it("Haiku #7: geçerli hedef yoksa işlem kaydı açılmaz (boş istek sonraki gerçek denemeyi 409'a düşürmez)", async () => {

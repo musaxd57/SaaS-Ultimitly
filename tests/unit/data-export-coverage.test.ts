@@ -40,7 +40,7 @@ const EXPORTED: Record<string, string> = {
 /** Bilinçli dışarıda — gerekçe. "⚠️ KARAR" = kurucu / avukat kararı bekliyor. */
 const EXCLUDED: Record<string, string> = {
   CheckoutIntent: "ödeme ekranı durumu — iç işletim; delil CheckoutConsent ve sonuç Invoice dökümde; takma adlı Paddle işlem kimliği, kapanıştan 90 gün sonra silinir (Codex 10-21, migration 82)",
-  KbCopyOperation: "kopyalama tekrar güvenliği iç kaydı (kaynak kimliği + içerik izi + sonuç sayıları) — içerik yok; 30 gün sonra silinir (Codex 10-21, migration 81)",
+  KbCopyOperation: "kopyalama tekrar güvenliği iç kaydı (kaynak kimliği + istek kimliği + içerik izi) — içerik yok; 30 gün sonra saatlik süpürgeyle silinir (Codex 10-21, migration 81)",
   SystemLock: "Sistem kilidi / işaret satırı — işletme verisi değil",
   RateLimitCounter: "Geçici hız sınırı sayacı",
   Lead: "Pazarlama başvurusu (operatör CRM) — işletme hesabına bağlı değil",

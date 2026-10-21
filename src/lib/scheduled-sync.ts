@@ -2,6 +2,7 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 import { sweepCheckoutIntents } from "@/lib/billing/checkout-intent";
+import { sweepKbCopyOperations } from "@/lib/kb/copy-operation";
 import { prisma } from "@/lib/db";
 import { syncHospitable } from "@/lib/hospitable-sync";
 import { isPrimaryOrg } from "@/lib/hospitable-credentials";
@@ -906,6 +907,8 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
         // Ödeme niyeti (Codex 10-21 P1, migration 82): süresi dolan açık ödeme ekranı kapanır (ödenmemiş işlem Paddle'da iptal), kapananlar
         // 90 gün sonra silinir. Anahtar kapalıyken tablo boş → iş yok.
         await hourly("checkout-intent-sweep", "scheduled-sync checkout-intent-sweep", () => sweepCheckoutIntents());
+        // KB kopyalama işlem kayıtları (migration 81): 30 günü dolan kayıt silinir (Opus 10-21 B7 — rota yalnız yeniden kopyalayan işletmeyi siliyordu).
+        await hourly("kb-copy-operation-sweep", "scheduled-sync kb-copy-operation-sweep", () => sweepKbCopyOperations());
         // Parola sıfırlama challenge'ları: süresi dolmuş / tüketilmiş / iptal
         // edilmiş satırları topla. CANLI satıra dokunmaz; 24 saatlik gecikme
         // bilinçli (destek "sıfırlayamıyorum" derse izi bir süre daha durur).

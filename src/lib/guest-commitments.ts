@@ -177,6 +177,9 @@ export async function createGuestCommitment(input: {
       );
       const same = compatible.find((c) => topic !== null && c.topic === topic) ?? compatible[0];
       if (same?.taskId) {
+        // Kilit sırası görev → söz (Opus 10-21 B6): görev PATCH'i, konaklama sonu kapatması ve "Yanlış, kaldır" önce GÖREVİ kilitler; bu dal
+        // önce sözü güncelliyordu → aynı anda çalışırlarsa veritabanı kilitlenmesi (40P01). Görev satırı önce kilitlenir.
+        await tx.$queryRaw`SELECT "id" FROM "Task" WHERE "id" = ${same.taskId} FOR UPDATE`;
         // SAHİPLENME (kurucu Q1 "a", 10-17): konusuz açık söze (elle form) KONULU öneri bağlanırsa yeni görev AÇILMAZ, söze konu YAZILIR —
         // ardından aynı saatteki BAŞKA konulu öneri ("musluk 18:00") bu söze uymaz, ayrı söz + görev açar. Koşullu yazım (yalnız hâlâ
         // konusuzsa); görev başlığı yalnız otomatik başlık duruyorsa güncellenir (ev sahibinin değiştirdiği başlığa dokunulmaz).

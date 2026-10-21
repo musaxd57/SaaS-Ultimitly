@@ -23,6 +23,8 @@ const { paddle } = vi.hoisted(() => ({
     failCreate: false,
     failCancel: false,
     createDelayMs: 0,
+    /** Paddle'ın bulamadığı işlemler (ör. sandbox işlemi canlı anahtarla soruldu) — GET ve PATCH 404. */
+    missing: new Set<string>(),
   },
 }));
 vi.mock("@/lib/payments/paddle", async (orig) => {
@@ -39,6 +41,7 @@ vi.mock("@/lib/payments/paddle", async (orig) => {
         return { data: { id, status: "ready" } };
       }
       const m = path.match(/^\/transactions\/(txn_\d+)$/);
+      if (m && paddle.missing.has(m[1]!)) throw new Error("Paddle HTTP 404 (entity_not_found) env=sandbox resource=transactions");
       if (m && init?.method === "PATCH") {
         if (paddle.failCancel) throw new Error("Paddle HTTP 400 (transaction_immutable) env=sandbox resource=transactions");
         paddle.canceled.push(m[1]!);
@@ -61,7 +64,15 @@ vi.mock("@/lib/report-error", () => ({ reportError: vi.fn().mockResolvedValue(un
 import { prisma, resetDb } from "../helpers/db";
 import { __resetRateLimit } from "@/lib/rate-limit";
 import { POST } from "@/app/api/billing/consent/route";
-import { completeCheckoutIntent, sweepCheckoutIntents, CHECKOUT_INTENT_TTL_MS } from "@/lib/billing/checkout-intent";
+import {
+  completeCheckoutIntent,
+  sweepCheckoutIntents,
+  CHECKOUT_INTENT_TTL_MS,
+  CHECKOUT_INTENT_MAX_AGE_MS,
+  CHECKOUT_INTENT_REUSE_GRACE_MS,
+} from "@/lib/billing/checkout-intent";
+import { clearCheckoutPending } from "@/lib/billing/checkout-pending";
+import { reportError } from "@/lib/report-error";
 
 const ctx = { params: Promise.resolve({} as Record<string, never>) };
 const postReq = (priceId = "pri_pro", planCode = "pro") =>
@@ -87,6 +98,8 @@ describe("ödeme niyeti — işletme başına tek açık Paddle işlemi", () => 
     sessionQueue.length = 0;
     Object.assign(paddle, { created: 0, canceled: [], failCreate: false, failCancel: false, createDelayMs: 0 });
     paddle.statuses.clear();
+    paddle.missing.clear();
+    vi.mocked(reportError).mockClear();
     vi.stubEnv("PADDLE_PRICE_PRO", "pri_pro");
     vi.stubEnv("PADDLE_PRICE_ISLETME", "pri_isletme");
     vi.stubEnv("PADDLE_CHECKOUT_INTENT_ENABLED", "1");
@@ -157,12 +170,86 @@ describe("ödeme niyeti — işletme başına tek açık Paddle işlemi", () => 
     expect(((await (await POST(postReq(), ctx)).json()) as Body).transactionId).toBe("txn_1");
   });
 
-  it("webhook işlemi tamamlayınca niyet kapanır; sonraki onay YENİ işlem açar", async () => {
+  it("🚨 Opus B1: işlem webhook'u ABONELİKTEN ÖNCE gelir → niyet kapanır AMA 'işleniyor' kilidi sunucuda yazılır; yeni işlem açılmaz", async () => {
     await POST(postReq(), ctx);
     await completeCheckoutIntent("txn_1");
     expect((await prisma.checkoutIntent.findFirstOrThrow({ where: { organizationId: orgId } })).status).toBe("completed");
-    // (Gerçekte canlı abonelik / işleniyor kilidi ikinci ödemeyi zaten engeller; burada yalnız niyetin kapandığı sınanır.)
+    const res = await POST(postReq(), ctx);
+    expect(res.status).toBe(400);
+    expect(JSON.stringify(await res.json())).toMatch(/işleniyor/i);
+    expect(paddle.created).toBe(1);
+    // Abonelik webhook'u kilidi kaldırınca (ör. abonelik sonra iptal edildi) yeni ödeme YENİ işlemle açılır.
+    await clearCheckoutPending(orgId);
     expect(((await (await POST(postReq(), ctx)).json()) as Body).transactionId).toBe("txn_2");
+  });
+
+  it("🚨 Opus B1: Paddle'da ödenmiş görüldü (sekme kapandı, webhook yok) → İKİNCİ ve ÜÇÜNCÜ tıklama da 'işleniyor'; Paddle'da tek işlem", async () => {
+    await POST(postReq(), ctx);
+    paddle.statuses.set("txn_1", "completed");
+    for (let i = 0; i < 2; i++) {
+      const res = await POST(postReq(), ctx);
+      expect(res.status).toBe(400);
+      expect(JSON.stringify(await res.json())).toMatch(/işleniyor/i);
+    }
+    expect(paddle.created).toBe(1);
+  });
+
+  it("Opus B1: süpürge süresi dolan niyetin işlemini ödenmiş bulursa da kilit yazılır", async () => {
+    await POST(postReq(), ctx);
+    paddle.statuses.set("txn_1", "paid");
+    await sweepCheckoutIntents(new Date(Date.now() + CHECKOUT_INTENT_TTL_MS + 60_000));
+    expect((await POST(postReq(), ctx)).status).toBe(400);
+    expect(paddle.created).toBe(1);
+  });
+
+  it.each(["billed", "past_due"])("🚨 Opus B4: '%s' ödendi SAYILMAZ ve işlem verilmez → 409 'açık bir ödemeniz var', niyet açık kalır", async (st) => {
+    await POST(postReq(), ctx);
+    paddle.statuses.set("txn_1", st);
+    const res = await POST(postReq(), ctx);
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as Body).error).toMatch(/Açık bir ödemeniz var/);
+    expect(paddle.created).toBe(1);
+    expect(await prisma.checkoutIntent.findFirstOrThrow({ where: { organizationId: orgId } })).toMatchObject({ status: "open" });
+  });
+
+  it("Opus B3: yeniden verilen işlemin süresi en az 30 dk ileri alınır (ikinci sekme öderken süpürge iptal etmesin)", async () => {
+    await POST(postReq(), ctx);
+    await prisma.checkoutIntent.updateMany({ where: { organizationId: orgId }, data: { expiresAt: new Date(Date.now() + 2 * 60_000) } });
+    const before = Date.now();
+    expect(((await (await POST(postReq(), ctx)).json()) as Body).transactionId).toBe("txn_1");
+    const intent = await prisma.checkoutIntent.findFirstOrThrow({ where: { organizationId: orgId } });
+    expect(intent.expiresAt.getTime()).toBeGreaterThanOrEqual(before + CHECKOUT_INTENT_REUSE_GRACE_MS - 1_000);
+  });
+
+  it("🚨 Opus B2: Paddle işlemi BULAMIYOR (404) → işlem kapalı sayılır: onayda yenisi açılır, süpürgede niyet kapanır", async () => {
+    await POST(postReq(), ctx);
+    paddle.missing.add("txn_1");
+    expect(((await (await POST(postReq(), ctx)).json()) as Body).transactionId).toBe("txn_2");
+    paddle.missing.add("txn_2");
+    await sweepCheckoutIntents(new Date(Date.now() + CHECKOUT_INTENT_TTL_MS + 60_000));
+    expect(await prisma.checkoutIntent.count({ where: { organizationId: orgId, openKey: { not: null } } })).toBe(0);
+  });
+
+  it("🚨 Opus B2: süresi dolmuş + iptal edilemeyen işlem YENİDEN VERİLMEZ (409); mutlak üst sınırda kapanır ve operatöre haber gider", async () => {
+    await POST(postReq(), ctx);
+    paddle.failCancel = true;
+    await prisma.checkoutIntent.updateMany({ where: { organizationId: orgId }, data: { expiresAt: new Date(Date.now() - 60_000) } });
+    const res = await POST(postReq(), ctx);
+    expect(res.status).toBe(409);
+    expect(paddle.created).toBe(1);
+    const created = (await prisma.checkoutIntent.findFirstOrThrow({ where: { organizationId: orgId } })).createdAt;
+    await sweepCheckoutIntents(new Date(created.getTime() + CHECKOUT_INTENT_MAX_AGE_MS - 60_000));
+    expect(await prisma.checkoutIntent.findFirstOrThrow({ where: { organizationId: orgId } })).toMatchObject({ status: "open" });
+    await sweepCheckoutIntents(new Date(created.getTime() + CHECKOUT_INTENT_MAX_AGE_MS + 60_000));
+    expect(await prisma.checkoutIntent.findFirstOrThrow({ where: { organizationId: orgId } })).toMatchObject({ status: "expired", openKey: null });
+    expect(vi.mocked(reportError).mock.calls.some(([where]) => where === "checkout-intent-unverified-close")).toBe(true);
+  });
+
+  it("Opus B2: anahtar KAPALIYKEN mutlak üst sınırı aşmış takılı niyet eski yolu KİLİTLEMEZ", async () => {
+    await POST(postReq(), ctx);
+    await prisma.checkoutIntent.updateMany({ where: { organizationId: orgId }, data: { createdAt: new Date(Date.now() - CHECKOUT_INTENT_MAX_AGE_MS - 60_000) } });
+    vi.stubEnv("PADDLE_CHECKOUT_INTENT_ENABLED", "");
+    expect((await POST(postReq(), ctx)).status).toBe(201);
   });
 
   it("süresi dolan açık niyet süpürgede iptal edilir ve kapanır; 90 günden eski kapalı niyet silinir", async () => {

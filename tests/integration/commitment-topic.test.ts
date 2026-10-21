@@ -453,3 +453,44 @@ describe("Q1-b (kurucu 10-17: '2'sini de öner')", () => {
     expect(await getConversationSuggestions(orgId, conv)).toEqual([]);
   });
 });
+
+// Opus 10-21 B6 — kilit sırası görev → söz: görev PATCH'i / konaklama sonu kapatması / "Yanlış, kaldır" önce GÖREVİ kilitler; sahiplenme dalı
+// önce SÖZÜ güncelliyordu → ikisi aynı anda koşarsa veritabanı kilitlenmesi. Kanıt: başka işlem görevi kilitli tutarken sahiplenme sözü
+// KİLİTLEMEZ (bekler); kilit kalkınca tamamlanır.
+describe("sahiplenme dalı kilit sırası (gerçek PostgreSQL)", () => {
+  it("🚨 görev başka işlemde kilitliyken söz satırı KİLİTLENMEZ (önce görev beklenir); kilit kalkınca konu yazılır", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const owner = await asOwner(orgId);
+    const conv = await conversationWith(propertyId, []);
+    const tz = orgTimezone((await prisma.organization.findUniqueOrThrow({ where: { id: orgId } })).timezone);
+    const dueAt = commitmentDueAt({ day: "tomorrow", time: "10:00" }, tz, new Date())!;
+    const manual = await createGuestCommitment({ organizationId: orgId, conversationId: conv, propertyId, reservationId: null, kind: "maintenance", dueAt, actorUserId: owner.id, clientRequestId: "elle-kilit" });
+
+    let release!: () => void;
+    const held = new Promise<void>((r) => (release = r));
+    let locked!: () => void;
+    const isLocked = new Promise<void>((r) => (locked = r));
+    const holder = prisma.$transaction(
+      async (tx) => {
+        await tx.$queryRaw`SELECT "id" FROM "Task" WHERE "id" = ${manual.taskId} FOR UPDATE`;
+        locked();
+        await held;
+      },
+      { timeout: 15_000 },
+    );
+    await isLocked;
+    const attach = createGuestCommitment({
+      organizationId: orgId, conversationId: conv, propertyId, reservationId: null, kind: "maintenance", topic: "ac", dueAt,
+      actorUserId: owner.id, clientRequestId: "oneri-kilit", mergeSameSlot: true,
+    });
+    await new Promise((r) => setTimeout(r, 400));
+    // Söz satırı serbest: NOWAIT kilidi alınabiliyor (ESKİDE sahiplenme sözü güncellemiş ve kilitlemiş olurdu → 55P03).
+    await expect(
+      prisma.$transaction(async (tx) => tx.$queryRaw`SELECT "id" FROM "GuestCommitment" WHERE "id" = ${manual.id} FOR UPDATE NOWAIT`),
+    ).resolves.toBeDefined();
+    release();
+    await holder;
+    expect(await attach).toMatchObject({ id: manual.id, reused: true, via: "slot", topicAttached: true });
+    expect(await prisma.guestCommitment.findUniqueOrThrow({ where: { id: manual.id } })).toMatchObject({ topic: "ac" });
+  }, 20_000);
+});
