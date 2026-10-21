@@ -1050,6 +1050,55 @@ describe("KONU BAZLI 'BİLGİM YOK' (H9, kurucu 10-16; anahtar AI_TOPIC_ABSENCE_
     expect(JSON.parse(ev?.kbEvidenceJson ?? "{}").ta).toEqual({ s: 1, r: 0 }); // ölçüm izi: bir cümle ayıklandı, istek düşmedi
   });
 
+  // Bağlam hakemi (kurucu 10-21, `AI_ABSENCE_JUDGE_ENABLED`): ayıklama YALNIZ hakemin de itiraf dediği cümleyi siler. Hakem "itiraf değil"
+  // derse cümle yerinde kalır ve cevap bütünüyle gider (hakem kararı); "itiraf" derse ayıklama bugünkü gibi.
+  const judgeSays = (admits: boolean) =>
+    vi.fn(async (_url: string, init?: RequestInit) => {
+      const name = JSON.parse(String(init?.body)).response_format?.json_schema?.name as string;
+      if (name !== "absence_judge") throw new Error(`beklenmeyen şema: ${name}`);
+      const content = JSON.stringify({ admits_missing_info: admits, quote: admits ? "Televizyonla ilgili bir bilgim yok." : "" });
+      return new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content } }] }), { status: 200 });
+    });
+
+  it("hakem 'itiraf değil' → ayıklama koşmaz (iz yok); cümle tutulan TV konusuna değdiği için cevap öteki kuraldan tutulur", async () => {
+    vi.stubEnv("AI_TOPIC_ABSENCE_ENABLED", "1");
+    vi.stubEnv("AI_ABSENCE_JUDGE_ENABLED", "1");
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    vi.stubGlobal("fetch", judgeSays(false));
+    const { conversationId } = await seed(TV_TRASH);
+    understands(tvTrashUnderstood());
+    mockSuggest.mockResolvedValueOnce(tvTrashReply());
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(false);
+    const ev = await prisma.riskEvent.findFirst({ where: { conversationId }, orderBy: { occurredAt: "desc" } });
+    const evidence = JSON.parse(ev?.kbEvidenceJson ?? "{}");
+    expect(evidence.ta).toBeUndefined(); // ayıklama koşmadı (hakem kararı)
+    expect(evidence.g?.d).not.toBe("reply_absence"); // "bilgim yok" değil, tutulan konuya değme tuttu
+    vi.unstubAllGlobals();
+  });
+
+  it("hakem 'itiraf' → ayıklama bugünkü gibi (cümle gitmez); katı kip ayıklanan metni yeniden okur", async () => {
+    vi.stubEnv("AI_TOPIC_ABSENCE_ENABLED", "1");
+    vi.stubEnv("AI_ABSENCE_JUDGE_ENABLED", "1");
+    vi.stubEnv("AI_ABSENCE_JUDGE_STRICT", "1");
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    const f = vi
+      .fn()
+      .mockImplementationOnce(judgeSays(true))
+      .mockImplementationOnce(judgeSays(false));
+    vi.stubGlobal("fetch", f);
+    const { conversationId } = await seed(TV_TRASH);
+    understands(tvTrashUnderstood());
+    mockSuggest.mockResolvedValueOnce(tvTrashReply());
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(true);
+    const body = JSON.stringify(mockSend.mock.calls[0]);
+    expect(body).toContain(TRASH);
+    expect(body).not.toMatch(/bilgim yok/i);
+    expect(f).toHaveBeenCalledTimes(2); // ikinci çağrı ayıklanmış metni okudu (eski hüküm yeni metne bağlanmadı)
+    const second = JSON.parse(String((f.mock.calls[1][1] as RequestInit).body)).messages[1].content as string;
+    expect(second).not.toMatch(/bilgim yok/i);
+    vi.unstubAllGlobals();
+  });
+
   it("KONTROL — anahtar KAPALI: bugünkü gibi bütün cevap tutulur (reply_absence), misafire hiçbir şey gitmez", async () => {
     const { conversationId } = await seed(TV_TRASH);
     understands(tvTrashUnderstood());

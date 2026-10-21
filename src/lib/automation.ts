@@ -2519,16 +2519,20 @@ export async function applyChannelAutoReply(
   // ayıklaması da koşmaz (ayıklanacak itiraf yok — "anahtarı bulamazsanız kutudadır" talimatı silinmesin). Hakem düşerse bugünkü kural.
   const absenceNames = [conversation.guestIdentifier, conversation.reservation?.guestName, conversation.reservation?.guestGivenName];
   const absenceGuestText = [...pendingGuestMessages, last.body].join("\n\n");
-  let absenceJudge: AbsenceJudgeOutcome | undefined;
+  // Hüküm OKUNDUĞU metinle birlikte saklanır: ayıklama metni değiştirirse eski hüküm yeni metne bağlanmaz (kapı birebir eşitlik arar).
+  let absenceJudge: { reply: string; outcome: AbsenceJudgeOutcome } | undefined;
   if (absenceJudgeEnabled() && admitsMissingKnowledge(result.reply)) {
-    absenceJudge = await runAbsenceJudge({ guestMessage: absenceGuestText, reply: result.reply, names: absenceNames });
+    absenceJudge = {
+      reply: result.reply,
+      outcome: await runAbsenceJudge({ guestMessage: absenceGuestText, reply: result.reply, names: absenceNames }),
+    };
   }
   if (
     topicAbsenceEnabled() &&
     itemsPlan &&
     result.answeredRequests?.ok === true &&
     admitsMissingKnowledge(result.reply) &&
-    !judgeReleases(absenceJudge)
+    !judgeReleases(absenceJudge?.outcome)
   ) {
     const stripped = stripTopicAbsence({
       reply: result.reply ?? "",
@@ -2540,11 +2544,9 @@ export async function applyChannelAutoReply(
     if (stripped.ok) {
       result = { ...result, reply: stripped.reply, answeredRequests: { ok: true, refs: stripped.answeredRefs } };
       topicAbsenceTrace = { s: stripped.droppedSentences, r: stripped.droppedRefs.length };
-      // Hakemin hükmü ESKİ metne aitti; ayıklanan metni kelime kuralı (ve katı kipte hakem yeniden) okur.
-      absenceJudge = undefined;
     }
   }
-  if (absenceJudge) gateContext.absenceJudge = { reply: result.reply, outcome: absenceJudge };
+  if (absenceJudge) gateContext.absenceJudge = absenceJudge;
   // ── ANLAM KATMANI: bağımsız bekçi (09-24) ───────────────────────────────────
   // Bayrak açıkken (`AI_STAY_GUARD_ENABLED`) önce bekçisiz kapı; ikinci model taslağı YALNIZ iki durumda okur:
   // otomatik gönderim ADAYI (bekçi sıkılaştırabilir) ya da tek engeli müsaitlik onayı eksikliği olan taslak
@@ -2554,7 +2556,8 @@ export async function applyChannelAutoReply(
   let gateFailure = autoReplyGateFailure(result, last.body, gateContext);
   let gatePassed = gateFailure === null;
   // Bağlam hakemi KATI kip (`AI_ABSENCE_JUDGE_STRICT`): kapıdan geçen aday cevap, kelime kuralının kaçırdığı "bilgim yok" için de okunur.
-  if (gatePassed && !gateContext.absenceJudge && absenceJudgeStrict()) {
+  // Metin hakemin okuduğundan farklıysa (ayıklama) yeniden okunur.
+  if (gatePassed && gateContext.absenceJudge?.reply !== result.reply && absenceJudgeStrict()) {
     const outcome = await runAbsenceJudge({ guestMessage: absenceGuestText, reply: result.reply, names: absenceNames });
     gateContext.absenceJudge = { reply: result.reply, outcome };
     gateFailure = autoReplyGateFailure(result, last.body, gateContext);

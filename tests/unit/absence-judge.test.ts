@@ -9,6 +9,8 @@ import {
   quoteFoundInReply,
   runAbsenceJudge,
 } from "@/lib/ai/semantic/absence-judge";
+import { autoReplyGateVerdict } from "@/lib/automation";
+import { evaluateEscalation } from "@/lib/guest-chat-gate";
 
 // Bağlam hakemi (kurucu 10-21) — saf karar ve çağrı sözleşmesi. Bağlantı davranışı: tests/integration/absence-judge-wiring.test.ts.
 
@@ -112,5 +114,41 @@ describe("çağrı sözleşmesi (asla fırlatmaz, her arıza 'failed')", () => {
     const r = await runAbsenceJudge({ guestMessage: "q", reply: "a".repeat(2_500), fetchImpl: f as unknown as typeof fetch });
     expect(r).toEqual({ status: "failed" });
     expect(f).not.toHaveBeenCalled();
+  });
+});
+
+// ── Kapılar: hüküm yalnız OKUNAN metne uygulanır (koddan kurulan metin yerine geçerse eski hüküm taşınmaz) ───────────────────────────
+
+describe("kapılar — hakem hükmü metne bağlı", () => {
+  const FACT = "For security, the safe is not available for guest use.";
+  const DEFLECT = "Your host can confirm whether there is a pool.";
+  const ok = { intent: "amenities", riskLevel: "none", confidence: 0.92, source: "openai", riskType: null as string | null };
+  const release = { status: "ok" as const, admits: false, quote: "" };
+  const admits = { status: "ok" as const, admits: true, quote: DEFLECT };
+
+  it("kanal: aynı metnin 'itiraf değil' hükmü kelime kuralını kaldırır; BAŞKA metnin hükmü kaldırmaz", () => {
+    expect(autoReplyGateVerdict({ ...ok, reply: FACT }, "Can we use the safe?")?.detail).toBe("reply_absence");
+    expect(autoReplyGateVerdict({ ...ok, reply: FACT }, "Can we use the safe?", { absenceJudge: { reply: FACT, outcome: release } })).toBeNull();
+    expect(
+      autoReplyGateVerdict({ ...ok, reply: FACT }, "Can we use the safe?", { absenceJudge: { reply: "another text", outcome: release } })?.detail,
+    ).toBe("reply_absence");
+  });
+
+  it("kanal: 'itiraf' hükmü kelime kuralının sustuğu metni tutar — yalnız o metin için", () => {
+    expect(autoReplyGateVerdict({ ...ok, reply: DEFLECT }, "Is there a pool?")).toBeNull();
+    expect(autoReplyGateVerdict({ ...ok, reply: DEFLECT }, "Is there a pool?", { absenceJudge: { reply: DEFLECT, outcome: admits } })?.detail).toBe(
+      "reply_absence",
+    );
+    expect(autoReplyGateVerdict({ ...ok, reply: DEFLECT }, "Is there a pool?", { absenceJudge: { reply: FACT, outcome: admits } })).toBeNull();
+  });
+
+  it("QR: aynı kural (parite)", () => {
+    const q = (reply: string, absenceJudge?: { reply: string; outcome: typeof release | typeof admits }) =>
+      evaluateEscalation({ ...ok, reply, usedSources: [] }, "Can we use the safe?", null, undefined, absenceJudge ? { absenceJudge } : undefined);
+    expect(q(FACT).reason).toBe("absence_admission");
+    expect(q(FACT, { reply: FACT, outcome: release }).reason).not.toBe("absence_admission");
+    expect(q(FACT, { reply: "x", outcome: release }).reason).toBe("absence_admission");
+    expect(q(DEFLECT, { reply: DEFLECT, outcome: admits }).reason).toBe("absence_admission");
+    expect(q(DEFLECT, { reply: FACT, outcome: admits }).reason).not.toBe("absence_admission");
   });
 });
