@@ -262,6 +262,7 @@ export default async function InboxPage({
           label={`Oto-yanıt (${activeWindow})`}
           enabled={org?.autoReplyHospitable ?? false}
           locked={automationLocked}
+          upgradeHref={session.role === "owner" ? "/settings?tab=faturalandirma" : undefined}
           title={`${windowSentence}, AI'ın %75+ emin olduğu BASİT sorulara (çöp günü, Wi-Fi, çevre önerisi gibi) otomatik cevap verir. Şikayet, iade, riskli ve belirsiz mesajlar HER ZAMAN size kalır.`}
         />
         <LinkButton href="/inbox/new">

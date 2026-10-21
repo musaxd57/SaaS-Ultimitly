@@ -4,6 +4,7 @@ import { useState } from "react";
 import { toast } from "@/lib/toast";
 import { useRestoreFocusOnIdle } from "@/lib/use-restore-focus";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Bot, Loader2, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -20,12 +21,15 @@ export function AutoReplyToggle({
   enabled,
   title,
   locked = false,
+  upgradeHref,
 }: {
   field: "autoReplyHospitable" | "autoWelcome" | "autoCheckin" | "autoCheckout";
   label: string;
   enabled: boolean;
   title?: string;
   locked?: boolean;
+  /** Kilitliyken plan sayfasına bağlantı (UX 10-21 G: kilitli düğme çıkışsızdı). Yalnız hesap sahibine verilir — başka rol sekmeyi görmez. */
+  upgradeHref?: string;
 }) {
   const router = useRouter();
   const [on, setOn] = useState(enabled);
@@ -56,6 +60,18 @@ export function AutoReplyToggle({
     } finally {
       setBusy(false);
     }
+  }
+
+  if (locked && upgradeHref) {
+    return (
+      <Link
+        href={upgradeHref}
+        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-muted/50 px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background"
+      >
+        <Lock className="size-3.5" aria-hidden="true" />
+        {label}: planınızı seçin
+      </Link>
+    );
   }
 
   return (
