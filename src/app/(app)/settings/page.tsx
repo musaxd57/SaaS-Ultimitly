@@ -260,11 +260,11 @@ export default async function SettingsPage({
               diyordu — ÜÇÜ DE YANLIŞTI ve host "hepsini kapattım" sanıyordu. */}
           <p className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
             <strong>Aşağıdaki üç mesaj bu anahtardan bağımsızdır.</strong> Karşılama, giriş ve
-            çıkış mesajları AI&apos;dan geçmez — sizin{" "}
-            <Link href="/knowledge" className="underline underline-offset-2">
-              Bilgi Tabanı
-            </Link>
-            &apos;na yazdığınız metin aynen gider. Bu anahtar kapalıyken de, kendi anahtarları
+            çıkış mesajları AI&apos;dan geçmez — her dairenin{" "}
+            <Link href="/properties" className="underline underline-offset-2">
+              mülk sayfasındaki
+            </Link>{" "}
+            &quot;Otomatik mesajlar&quot; bölümüne yazdığınız metin aynen gider. Bu anahtar kapalıyken de, kendi anahtarları
             açıksa gönderilirler.
           </p>
         </CardContent>
@@ -277,12 +277,12 @@ export default async function SettingsPage({
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">
             Açıkken, <strong>rezervasyon yapılır yapılmaz</strong> (birkaç dakika içinde) o dairenin{" "}
-            <strong>Karşılama Mesajı</strong> bilgi tabanı girişi <strong>tek sefer</strong> gönderilir
+            <strong>karşılama metni</strong> (mülk sayfası → Otomatik mesajlar) <strong>tek sefer</strong> gönderilir
             — sıcak bir &quot;hoş geldiniz / teşekkürler&quot; mesajı (adres/kod/Wi-Fi içermez, onlar
             Giriş Bilgileri&apos;nde). Metne{" "}
             <code className="rounded bg-muted px-1 py-0.5 text-xs">{"{isim}"}</code> yazarsanız
             misafirin adıyla değiştirilir. Bu özellik açıldıktan <strong>sonra</strong> yapılan
-            rezervasyonlara gider; eskilere gönderilmez. Karşılama girişi olmayan daireler atlanır.
+            rezervasyonlara gider; eskilere gönderilmez. Karşılama metni olmayan daireler atlanır.
           </p>
           <div className="flex flex-wrap items-center gap-3">
             <AutoReplyToggle
@@ -290,7 +290,7 @@ export default async function SettingsPage({
               label="Otomatik karşılama"
               enabled={org?.autoWelcome ?? false}
               locked={automationLocked}
-              title="Açıkken: rezervasyon onaylanınca, Bilgi Tabanı'ndaki Karşılama Mesajı misafire bir kez otomatik gider. AI anahtarından bağımsızdır."
+              title="Açıkken: rezervasyon onaylanınca, mülk sayfasındaki karşılama metni misafire bir kez otomatik gider. AI anahtarından bağımsızdır."
             />
           </div>
         </CardContent>
@@ -303,13 +303,13 @@ export default async function SettingsPage({
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">
             Açıkken, girişe <strong>4 gün kala</strong> o dairenin{" "}
-            <strong>Giriş Talimatı</strong> bilgi tabanı girişi misafirin adıyla{" "}
+            <strong>giriş metni</strong> (mülk sayfası → Otomatik mesajlar) misafirin adıyla{" "}
             <strong>tek sefer</strong> gönderilir — adres, kapı/kasa kodu, Wi-Fi gibi pratik
             bilgiler. Metne{" "}
             <code className="rounded bg-muted px-1 py-0.5 text-xs">{"{isim}"}</code> /{" "}
             <code className="rounded bg-muted px-1 py-0.5 text-xs">{"{daire}"}</code> yazabilirsiniz.
             Bu özellik açıldıktan <strong>sonra</strong> yapılan rezervasyonlara gider; eskilere
-            gönderilmez. Giriş Talimatı girişi olmayan daireler atlanır.
+            gönderilmez. Giriş metni olmayan daireler atlanır.
           </p>
           <div className="flex flex-wrap items-center gap-3">
             <AutoReplyToggle
@@ -317,7 +317,7 @@ export default async function SettingsPage({
               label="Otomatik giriş bilgileri"
               enabled={org?.autoCheckin ?? false}
               locked={automationLocked}
-              title="Açıkken: girişe 4 gün kala, Bilgi Tabanı'ndaki Giriş Talimatı misafire bir kez otomatik gider. AI anahtarından bağımsızdır."
+              title="Açıkken: girişe 4 gün kala, mülk sayfasındaki giriş metni misafire bir kez otomatik gider. AI anahtarından bağımsızdır."
             />
           </div>
         </CardContent>
@@ -330,10 +330,10 @@ export default async function SettingsPage({
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">
             Açıkken, <strong>çıkış günü sabah 08:00&apos;da</strong> o dairenin{" "}
-            <strong>Çıkış Mesajı</strong> bilgi tabanı girişi, misafirin adıyla{" "}
+            <strong>çıkış metni</strong> (mülk sayfası → Otomatik mesajlar), misafirin adıyla{" "}
             <strong>tek sefer</strong> aynı-gün hatırlatması olarak gönderilir. Metnin içine{" "}
             <code className="rounded bg-muted px-1 py-0.5 text-xs">{"{isim}"}</code> yazın (örn.
-            &quot;Merhaba {"{isim}"}, bugün çıkış günü...&quot;). Çıkış girişi olmayan daireler
+            &quot;Merhaba {"{isim}"}, bugün çıkış günü...&quot;). Çıkış metni olmayan daireler
             atlanır.
           </p>
           <div className="flex flex-wrap items-center gap-3">
@@ -342,7 +342,7 @@ export default async function SettingsPage({
               label="Otomatik çıkış mesajı"
               enabled={org?.autoCheckout ?? false}
               locked={automationLocked}
-              title="Açıkken: çıkış günü sabah 08:00'da, Bilgi Tabanı'ndaki Çıkış mesajı misafire bir kez gider. AI anahtarından bağımsızdır."
+              title="Açıkken: çıkış günü sabah 08:00'da, mülk sayfasındaki çıkış metni misafire bir kez gider. AI anahtarından bağımsızdır."
             />
           </div>
         </CardContent>

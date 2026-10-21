@@ -83,10 +83,11 @@ describe("Ayarlar — AI ana anahtarı", () => {
     expect(s).toMatch(/bu üç mesaj.*bağımsız|AI anahtarından BAĞIMSIZ|AI anahtarından bağımsız/i);
   });
 
-  it("🚨 KAYNAK yazılı: üç mesaj Bilgi Tabanı'ndan gelir", () => {
+  it("🚨 KAYNAK yazılı: üç mesaj mülk sayfasındaki Otomatik mesajlar bölümünden gelir (kurucu T4, 10-21 — eskiden Bilgi Tabanı)", () => {
     const s = read(SETTINGS);
     // Host "bu metni nereden değiştiririm" sorusunun cevabını ekranda görmeli.
-    expect(s).toContain("/knowledge");
+    expect(s).toContain('href="/properties"');
+    expect(s).toContain("Otomatik mesajlar");
   });
 
   it("alt anahtarlar KİLİTLENMEDİ (salt-UI kilit yalan söyler)", () => {
@@ -117,5 +118,17 @@ describe("anti-vakum — iddiaların dayandığı KOD gerçeği", () => {
 
   it("ana anahtar AI cevap yolunda GERÇEKTEN kapı (iddia tek yönlü değil)", () => {
     expect(read(AUTOMATION)).toMatch(/!org\.autoReplyHospitable/);
+  });
+});
+
+// Claude 2. dalga arayüz P1-a (10-21): kurucu T4'ten sonra karşılama / giriş / çıkış metni YALNIZ mülk sayfasındaki "Otomatik mesajlar"
+// bölümündedir; Ayarlar'daki kartlar ev sahibini artık okunmayan Bilgi Tabanı girişine yönlendiriyordu.
+describe("Ayarlar — otomatik mesaj kartları metnin YERİNİ doğru söyler", () => {
+  const src = readFileSync(join(process.cwd(), "src/app/(app)/settings/page.tsx"), "utf8");
+  it("Bilgi Tabanı girişi kaynak olarak geçmez; mülk sayfası → Otomatik mesajlar yazılır", () => {
+    expect(src).not.toMatch(/bilgi tabanı girişi/i);
+    expect(src).not.toMatch(/Bilgi Tabanı'ndaki (?:Karşılama|Giriş|Çıkış)/);
+    expect(src).not.toMatch(/href="\/knowledge"/);
+    expect(src.match(/Otomatik mesajlar/g)?.length ?? 0).toBeGreaterThanOrEqual(3);
   });
 });
