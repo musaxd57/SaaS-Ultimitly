@@ -366,6 +366,14 @@ describe("devre kesici: kira, dizi penceresi, temizlik", () => {
     expect(replyModelCallAllowed("org-a", later + 1)).toBe(true);
   });
 
+  it("#2 aynı işletmenin kendi bayat dizisi de sıfırlanır (araya başka işletme girmeden)", () => {
+    const t0 = 8_500_000;
+    noteReplyModelTimeout("org-a", t0);
+    noteReplyModelTimeout("org-a", t0);
+    expect(noteReplyModelTimeout("org-a", t0 + REPLY_BREAKER_STREAK_GAP_MS + 1)).toBe(false); // 3. ama bayat → dizi 1
+    expect(replyModelCallAllowed("org-a", t0 + REPLY_BREAKER_STREAK_GAP_MS + 2)).toBe(true);
+  });
+
   it("#2 KONTROL: yakın aralıklı (30 sn) zaman aşımları dizi sayılır", () => {
     const t0 = 9_000_000;
     noteReplyModelTimeout("org-a", t0);
