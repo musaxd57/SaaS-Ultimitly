@@ -382,6 +382,18 @@ export default async function ReportsPage() {
                       <Badge tone="muted">{heldCount("emergency_number")}</Badge>
                     </div>
                   ) : null}
+                  {heldCount("physical_hazard") > 0 ? (
+                    <div className="flex items-center justify-between px-3 py-2">
+                      <span>Tehlike bildirimi (yangın, gaz, duman, su baskını) — size bırakıldı</span>
+                      <Badge tone="muted">{heldCount("physical_hazard")}</Badge>
+                    </div>
+                  ) : null}
+                  {heldCount("hazard_reassurance") + heldCount("emergency_directive") > 0 ? (
+                    <div className="flex items-center justify-between px-3 py-2">
+                      <span>Tehlike konusunda güvence ya da acil yönlendirme içeren cevap — gönderilmedi</span>
+                      <Badge tone="muted">{heldCount("hazard_reassurance") + heldCount("emergency_directive")}</Badge>
+                    </div>
+                  ) : null}
                   {heldCount("understanding_risk") + heldCount("items_held") > 0 ? (
                     <div className="flex items-center justify-between px-3 py-2">
                       <span>Hassas konu — size bırakıldı</span>
