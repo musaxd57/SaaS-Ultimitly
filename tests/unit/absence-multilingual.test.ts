@@ -557,7 +557,7 @@ describe("kurucu T1 (10-21): iç kaynak işareti + olumsuzluk aynı cümlede —
     // Kaynağa DAYANAN olumlu cevap (bulunma eki yok / olumsuzluk olgu): tutulmaz.
     "Elimdeki bilgilere göre otopark ücretsiz, ek ücret yok.",
     // Bulunma eki şartının kendi kontrolü (olumsuzluk "ücret yok" istisnasına düşmesin): "bilgilere göre … yok" olgudur.
-    "Elimdeki bilgilere göre dairede havuz yok, bahçe kullanılabilir.",
+    "Elimdeki bilgilere göre havuz yok, bahçe kullanılabilir.",
     // İşaret ve olumsuzluk AYRI cümlelerde → tutulmaz (cümle sınırı).
     "The knowledge base lists the pool hours as 09:00-20:00. Nothing else is needed for check-in.",
     "Rezervasyon kayıtlarımızda bir sorun yok, girişiniz 15:00'te.",
