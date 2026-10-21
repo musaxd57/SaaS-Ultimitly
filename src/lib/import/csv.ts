@@ -177,7 +177,9 @@ function parseAmount(raw: string): number | undefined {
   const afterLast = cleaned.slice(lastSep + 1);
   const sepCount = (cleaned.match(/[.,]/g) ?? []).length;
   const leadingDigits = cleaned.slice(0, lastSep).replace(/[.,]/g, "").length;
-  const isThousands = afterLast.length === 3 && (sepCount > 1 || leadingDigits <= 3);
+  // Baştaki sıfır binlik grubu açmaz (Claude 2. dalga #43): "0.500" / "0,500" = 0,5 — 500 değil.
+  const leadingZero = /^0[.,]/.test(cleaned);
+  const isThousands = afterLast.length === 3 && !leadingZero && (sepCount > 1 || leadingDigits <= 3);
   const normalized = isThousands
     ? cleaned.replace(/[.,]/g, "")
     : `${cleaned.slice(0, lastSep).replace(/[.,]/g, "")}.${afterLast}`;

@@ -81,3 +81,17 @@ describe("U32 — CSV tarihi sunucu saat diliminden bağımsız", () => {
     }
   });
 });
+
+// Claude 2. dalga #43 (10-21): baştaki sıfır binlik grubu açmaz — "0.500" 500 okunuyordu (1000 kat).
+describe("#43 — baştaki sıfır ondalıktır", () => {
+  it.each([
+    ["0.500", 0.5],
+    ["0,500", 0.5],
+    ["-0.500", -0.5],
+  ])("%s → %d", (raw, expected) => expect(amount(raw)).toBe(expected));
+  it.each([
+    ["1.500", 1500],
+    ["12.000", 12000],
+    ["1.234.567", 1234567],
+  ])("KONTROL binlik aynen: %s → %d", (raw, expected) => expect(amount(raw)).toBe(expected));
+});

@@ -602,7 +602,15 @@ export const POST = withManage(async (session, req) => {
               select: { arrivalDate: true, departureDate: true },
             });
             const res = await tx.reservation.updateMany({
-              where: { id: c.existingId!, calendarSourceId: null, channel: "ics", status: { not: "cancelled" } },
+              // Ad / not yazılacaksa satır o anda da anonimleştirilmemiş olmalı (Claude 2. dalga #11, KVKK): sınıflandırma TX dışında —
+              // arada saklama süpürgesi satırı anonimleştirdiyse dosyadaki ad GERİ YAZILMAZ (count 0 → bu satır atlanır).
+              where: {
+                id: c.existingId!,
+                calendarSourceId: null,
+                channel: "ics",
+                status: { not: "cancelled" },
+                ...(c.scrubbed ? {} : { guestName: { not: ANON_NAME } }),
+              },
               data: {
                 arrivalDate: row.arrivalDate,
                 departureDate: row.departureDate,
