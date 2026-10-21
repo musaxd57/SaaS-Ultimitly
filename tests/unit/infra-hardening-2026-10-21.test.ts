@@ -102,6 +102,40 @@ describe("hata e-postası kısıtlama haritası: bellek tavanı (madde 41)", () 
   });
 });
 
+describe("hata e-postası kısıtlama haritası: tavanda en eski DAMGA gider (Haiku 10-21)", () => {
+  it("penceresi dolup yeniden damgalanan bağlam, tavan aşılınca taze olduğu için silinmez (yerinde set sırayı korusaydı silinirdi)", async () => {
+    vi.resetModules();
+    process.env.ERROR_ALERT_EMAIL = "ops@example.test";
+    process.env.RESEND_API_KEY = "test-key";
+    const sendReporting = vi.fn(async () => ({ ok: true }));
+    vi.doMock("@/lib/email-core", () => ({ emailService: { sendReporting } }));
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const core = await import("@/lib/report-error-core");
+      core.__resetReportThrottle();
+      const t0 = new Date("2026-10-21T10:00:00Z").getTime();
+      vi.setSystemTime(t0);
+      await core.reportError("ctx X", new Error("x"));
+      vi.setSystemTime(t0 + 60_000);
+      for (let i = 0; i < core.EMAIL_THROTTLE_MAX_KEYS - 2; i++) await core.reportError(`ctx Y${i}`, new Error("y"));
+      vi.setSystemTime(t0 + 10 * 60_000 + 30_000); // X'in penceresi doldu, Y'lerinki dolmadı
+      expect((await core.reportError("ctx X", new Error("x"))).throttled).toBe(false); // X yeniden damgalandı (en taze)
+      await core.reportError("ctx Y-last", new Error("y")); // harita tavana ulaştı
+      await core.reportError("ctx Z", new Error("z")); // tavan aşıldı → en eski DAMGA gider
+      expect(core.__emailThrottleSizeForTest()).toBeLessThanOrEqual(core.EMAIL_THROTTLE_MAX_KEYS);
+      expect((await core.reportError("ctx X", new Error("x"))).throttled).toBe(true);
+      expect((await core.reportError("ctx Y0", new Error("y"))).throttled).toBe(false); // en eski damga buydu, silindi
+    } finally {
+      vi.useRealTimers();
+      quiet.mockRestore();
+      vi.doUnmock("@/lib/email-core");
+      delete process.env.ERROR_ALERT_EMAIL;
+      delete process.env.RESEND_API_KEY;
+    }
+  });
+});
+
 describe("yavaş sorgu satırı (madde 26)", () => {
   it("eşiği aşan sorgu tek satır; parametre değerleri satıra girmez; uzun SQL kırpılır", async () => {
     const { slowQueryLine } = await import("@/lib/db-slow-query");

@@ -514,9 +514,9 @@ describe("boot gate — Sentry adresi şifreli olmalı (eski denetim DEN#27, 10-
     expect(sentryWarnings("https://")).toHaveLength(1);
   });
 
-  it("KONTROL: https adres ya da boş → uyarı yok; uyarı adresi (anahtarı) basmaz", () => {
+  it("KONTROL: https adres → uyarı yok; boş → yalnız 'ayarlı değil' uyarısı (altyapı envanteri 10-21), biçim uyarısı yok; uyarı adresi (anahtarı) basmaz", () => {
     expect(sentryWarnings("https://pubkey@o1.ingest.sentry.io/2")).toEqual([]);
-    expect(sentryWarnings("")).toEqual([]);
+    expect(sentryWarnings("")).toEqual([expect.stringMatching(/^SENTRY_DSN is not set/)]);
     expect(sentryWarnings("http://gizlianahtar@o1.ingest.sentry.io/2").join(" ")).not.toContain("gizlianahtar");
   });
 });

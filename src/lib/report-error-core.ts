@@ -22,8 +22,9 @@ export { errorWithContext, formatErrorForLog, prismaErrorSummary, redactJsonStru
 const lastEmailAt = new Map<string, number>();
 const EMAIL_THROTTLE_MS = 10 * 60 * 1000; // at most one alert email / context / 10 min
 // Bağlam dizesi işletme kimliği taşır (ör. `qr-cancelled-stay org=…`) → harita işletme × bağlam kadar büyür, hiç silinmiyordu (altyapı
-// envanteri 10-21, madde 41). Tavan aşılınca penceresi geçmiş damgalar silinir; hepsi tazeyse en eski eklenen gider (pencere içinde
-// unutulan bağlam en kötü ihtimalle bir e-posta erken gider — sel değil, tavan yine tutar).
+// envanteri 10-21, madde 41). Tavan aşılınca penceresi geçmiş damgalar silinir; hepsi tazeyse EN ESKİ DAMGA gider. Damga her yazılışta
+// sil + ekle ile haritanın sonuna taşınır (`stampEmail`), böylece ekleme sırası = damga sırası (Haiku 10-21: yerinde `set` sırayı
+// korur, taze damga silinebilirdi). Yalnız 10 dakikada 2.000'den fazla FARKLI bağlam hata verirse en eskisi bir e-postayı erken alır.
 export const EMAIL_THROTTLE_MAX_KEYS = 2_000;
 
 function pruneEmailThrottle(now: number): void {
@@ -33,6 +34,11 @@ function pruneEmailThrottle(now: number): void {
     if (lastEmailAt.size < EMAIL_THROTTLE_MAX_KEYS) break;
     lastEmailAt.delete(key);
   }
+}
+
+function stampEmail(context: string, at: number): void {
+  lastEmailAt.delete(context);
+  lastEmailAt.set(context, at);
 }
 
 /** Test helper: throttle map size (memory bound). */
@@ -149,7 +155,7 @@ export async function reportError(context: string, err: unknown): Promise<Report
     return { notified: false, throttled: true, configured: true, ...linked };
   }
   pruneEmailThrottle(now);
-  lastEmailAt.set(context, now);
+  stampEmail(context, now);
 
   try {
     // ⚠️ `send` DEĞİL `sendReporting` (denetim, 08-01). `send` sonucu YUTAR ve
@@ -173,10 +179,10 @@ export async function reportError(context: string, err: unknown): Promise<Report
     // başarısızlıkta silinseydi tek bir drain 20 e-posta DENEMESİ + 20 Sentry
     // olayı üretir, üstelik her deneme 12-15 sn timeout ile senkron içinde
     // bloklardı. Geri çekme hem tekrarı korur hem tavanı ≤1/dk'ya indirir.
-    if (!res.ok) lastEmailAt.set(context, now - (EMAIL_THROTTLE_MS - 60_000));
+    if (!res.ok) stampEmail(context, now - (EMAIL_THROTTLE_MS - 60_000));
     return { notified: res.ok, throttled: false, configured: true, ...linked };
   } catch {
-    lastEmailAt.set(context, now - (EMAIL_THROTTLE_MS - 60_000));
+    stampEmail(context, now - (EMAIL_THROTTLE_MS - 60_000));
     return { notified: false, throttled: false, configured: true, ...linked }; // Reporting must never throw.
   }
 }

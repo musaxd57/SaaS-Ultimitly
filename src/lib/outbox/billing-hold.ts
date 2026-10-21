@@ -69,14 +69,15 @@ export const BILLING_NOTE_OVERWRITABLE: readonly string[] = [
 /** Gönderim anında yakalanan satıra bu kadar sonra yeniden bakılır (deneme sayılmaz). */
 export const BILLING_HOLD_RETRY_MS = 10 * 60_000;
 
+/** `billingBlockedOrgIds` aynı anda en çok bu kadar işletmenin erişimini okur (altyapı envanteri 10-21, madde 44). */
+export const BILLING_READ_CONCURRENCY = 5;
+
 /**
  * Bekleyen YAŞAM DÖNGÜSÜ satırı olan ve erişimi KAPALI işletmeler (yapay zekâ cevabı bekletilmez, talep edilip iptal edilir — N1). VADESİ
  * gelmemiş (ertelenmiş) satırlar da sayılır: aksi hâlde ertelenen satırın işletmesi listeye girmez ve aynı konuşmadaki sonraki elle cevap sıra
  * kuralında tıkanırdı (Haiku 10-16). Okuma hatası talebi DÜŞÜRMEZ: işletme başına hata → engelsiz sayılır (gönderim anı kemeri yeniden okur;
  * o da düşerse satır POST'suz geri bırakılır).
  */
-export const BILLING_READ_CONCURRENCY = 5;
-
 export async function billingBlockedOrgIds(): Promise<string[]> {
   if (!billingEnforced()) return [];
   try {
