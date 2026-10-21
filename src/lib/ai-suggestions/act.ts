@@ -134,6 +134,8 @@ export async function decideSuggestion(input: {
     // saatini gönderirse seçeneğin saati ezilmez (Opus gece-4 F9).
     const typed = typeof input.edits?.time === "string" && input.edits.time.trim() !== "" ? input.edits.time.trim() : null;
     const time = typed !== null && !(moveOption && typed === view.proposal.time) ? typed : base.time;
+    // Kurucu T5: saat öğleden önce mi sonra mı belli değil ("yarın 7'de") — ev sahibi saati seçmeden onaylanmaz (otomatik kip de seçemez).
+    if (view.proposal.timeChoices && !moveOption && time === "") return { status: "invalid", field: "time", message: "Saati seçin." };
     edited = day !== base.day || time !== base.time;
     const org = await prisma.organization.findUnique({ where: { id: input.organizationId }, select: { timezone: true } });
     const tz = orgTimezone(org?.timezone);

@@ -79,7 +79,17 @@ export function ActionSuggestions({ items }: { items: ActionSuggestionItem[] }) 
   return (
     <div className="space-y-2" data-testid="action-suggestions">
       {items.map((s) => {
-        const p = s.proposal as { day?: string; time?: string; precision?: string; attachTopics?: unknown; moveOptions?: unknown; dayUnclear?: unknown };
+        const p = s.proposal as {
+          day?: string;
+          time?: string;
+          precision?: string;
+          attachTopics?: unknown;
+          moveOptions?: unknown;
+          dayUnclear?: unknown;
+          timeChoices?: unknown;
+        };
+        // Kurucu T5: saat öğleden önce mi sonra mı belli değil — iki seçenek; seçilmeden onay yok.
+        const timeChoices = s.kind === "commitment" && Array.isArray(p.timeChoices) ? p.timeChoices.filter((t): t is string => typeof t === "string") : [];
         // Sözün günü mesajdan okunamadı (D3) — gün önceden seçili gelmez; seçilmeden onay yok.
         const dayUnclear = s.kind === "commitment" && p.dayUnclear === true;
         const attachTopics = Array.isArray(p.attachTopics) ? p.attachTopics.filter(isCommitmentTopic) : [];
@@ -128,6 +138,17 @@ export function ActionSuggestions({ items }: { items: ActionSuggestionItem[] }) 
                   value={edit.time}
                   onChange={(e) => setEdits({ ...edits, [s.key]: { ...edit, time: e.target.value } })}
                 />
+                {timeChoices.map((t) => (
+                  <Button
+                    key={t}
+                    size="sm"
+                    variant={edit.time === t ? "default" : "outline"}
+                    disabled={moving}
+                    onClick={() => setEdits({ ...edits, [s.key]: { ...edit, time: t } })}
+                  >
+                    {t}
+                  </Button>
+                ))}
                 {/* Saat yazılmamış söz (kurucu 10-17: saat uydurulmaz) — boş bırakılırsa gün / dilim olarak kaydedilir. */}
                 {p.precision && p.precision !== "time" && edit.time === "" ? (
                   <span className="opacity-80" data-testid="no-time-hint">Saat belirtilmedi — isterseniz ekleyin</span>
@@ -175,7 +196,9 @@ export function ActionSuggestions({ items }: { items: ActionSuggestionItem[] }) 
             <div className="mt-2 flex gap-2">
               <Button
                 size="sm"
-                disabled={busy !== null || (needsChoice && !attach[s.key]) || (dayUnclear && !moving && !edit?.day)}
+                disabled={
+                  busy !== null || (needsChoice && !attach[s.key]) || (dayUnclear && !moving && !edit?.day) || (timeChoices.length > 0 && !moving && !edit?.time)
+                }
                 onClick={() => decide(s, "approve")}
               >
                 Onayla

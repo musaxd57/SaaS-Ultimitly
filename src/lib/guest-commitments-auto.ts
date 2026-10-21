@@ -132,8 +132,17 @@ async function applyLocked(organizationId: string, conversationId: string, now: 
       continue;
     }
     // Belirsiz: kart kalır (ev sahibi seçer) — hangi söz / yeni saat hangi sözün / mesajda birden çok saat (O9) / gün okunamadı (D3).
-    // Kesinliği düşüren taşıma (kayıtlı saat → yalnız gün / dilim) da kendiliğinden uygulanmaz (R1).
-    if (s.proposal.attachTopics || s.proposal.moveOptions || s.proposal.timeAmbiguous || s.proposal.dayUnclear || s.proposal.lowersPrecision) {
+    // Kesinliği düşüren taşıma (kayıtlı saat → yalnız gün / dilim) da kendiliğinden uygulanmaz (R1). Kurucu T5: kesin olmayan söz ("belki",
+    // "müsait olursa") ve yazıldığında geçmiş saat de kart kalır.
+    if (
+      s.proposal.attachTopics ||
+      s.proposal.moveOptions ||
+      s.proposal.timeAmbiguous ||
+      s.proposal.dayUnclear ||
+      s.proposal.lowersPrecision ||
+      s.proposal.tentative ||
+      s.proposal.pastDue
+    ) {
       out.skipped++;
       continue;
     }

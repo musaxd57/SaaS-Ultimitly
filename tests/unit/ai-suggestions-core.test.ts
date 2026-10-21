@@ -5,6 +5,8 @@ import {
   applyWifiValue,
   AUTO_PROMOTION_MIN_DECISIONS,
   detectHostPromise,
+  contextHalfHint,
+  contextSaysNow,
   detectHostPromises,
   MAX_PROMISES_PER_MESSAGE,
   extractWifiValues,
@@ -285,6 +287,7 @@ describe("C · söz — Haiku 10-12 3. tur", () => {
 });
 
 describe("söz → görev otomatik (kurucu 10-17 gece): kararsız / aktarılan söz yok · saat değişikliği bağlamla · saat uydurulmaz", () => {
+  // Kurucu T5 (10-21): "Müsait olursa / belki yarın gelir" → kesin söz olarak KAYDEDİLMEZ, belirsiz öneri olarak KALIR (eskiden hiç öneri yoktu).
   it.each([
     ["Belki yarın teknisyen gelecek.", "belki"],
     ["Teknisyen yarın gelecek galiba.", "galiba"],
@@ -293,6 +296,16 @@ describe("söz → görev otomatik (kurucu 10-17 gece): kararsız / aktarılan s
     ["Muhtemelen yarın havlu getiririm.", "muhtemelen"],
     ["Maybe the technician will come tomorrow.", "maybe"],
     ["Hopefully the cleaner will come today.", "hopefully"],
+    ["Teknisyen müsait olursa yarın gelir.", "müsait olursa"],
+    ["Belki yarın gelir teknisyen.", "belki + gelir"],
+    ["If he is available the technician will come tomorrow at 10.", "if available"],
+  ])("%s → KESİN DEĞİL öneri (%s; kurucu T5)", (text) => {
+    const ps = detectHostPromises(text);
+    expect(ps.length).toBeGreaterThan(0);
+    expect(ps.every((p) => p.tentative)).toBe(true);
+  });
+
+  it.each([
     ["Teknisyen yarın gelecek demiştim.", "aktarılan"],
     ["Dediğim gibi teknisyen yarın gelecek.", "aktarılan"],
     ["As I said, the technician will come tomorrow.", "aktarılan (EN)"],
@@ -309,7 +322,10 @@ describe("söz → görev otomatik (kurucu 10-17 gece): kararsız / aktarılan s
   });
 
   it("kararlı söz kararsızdan ayrı cümlecikte ise yalnız kararlı olan: 'Havlu getireceğim. Belki teknisyen de gelir.'", () => {
-    expect(detectHostPromises("Havlu getireceğim. Belki teknisyen de gelir.")).toMatchObject([{ kind: "towels" }]);
+    expect(detectHostPromises("Havlu getireceğim. Belki teknisyen de gelir.")).toMatchObject([
+      { kind: "towels", tentative: false },
+      { kind: "maintenance", tentative: true },
+    ]);
   });
 
   it.each([
@@ -329,7 +345,7 @@ describe("söz → görev otomatik (kurucu 10-17 gece): kararsız / aktarılan s
   });
 
   it("KONTROL: kararlılık sözcüğü SÖZÜN parçasında değilse kararsız sayılmaz mı? — HAYIR, bilerek cümlecik boyunca (kararsızlık sözü kapsar)", () => {
-    expect(detectHostPromises("Teknisyen yarın gelecek, galiba.")).toEqual([]);
+    expect(detectHostPromises("Teknisyen yarın gelecek, galiba.")).toMatchObject([{ tentative: true }]);
     expect(detectHostPromises("Teknisyen yarın gelecek.")).toMatchObject([{ kind: "maintenance" }]);
   });
 
@@ -378,7 +394,7 @@ describe("söz → görev otomatik (kurucu 10-17 gece): kararsız / aktarılan s
     expect(detectHostPromise("Yarın iki ayrı havlu getireceğim.")).toMatchObject({ kind: "towels", day: "tomorrow" });
     expect(detectHostPromise("Klimanın bir ayarı bozuk, teknisyen yarın gelecek.")).toMatchObject({ kind: "maintenance", day: "tomorrow" });
     expect(detectHostPromise("Teknisyen yarın 10'da gelecek, umarım sorun hemen çözülür.")).toMatchObject({ kind: "maintenance", timeCandidates: [600] });
-    expect(detectHostPromises("Umarım yarın teknisyen gelecek.")).toEqual([]);
+    expect(detectHostPromises("Umarım yarın teknisyen gelecek.")).toMatchObject([{ tentative: true }]);
     expect(detectHostPromises("Teknisyen 2 ay sonra gelecek.")).toEqual([]);
   });
 
@@ -406,9 +422,11 @@ describe("söz → görev otomatik (kurucu 10-17 gece): kararsız / aktarılan s
   it("🚨 Haiku 2. tur: selamlaşmadaki dilek sözü bozmaz; yalın 'Umarım,' / sözün içindeki dilek bozar", () => {
     expect(detectHostPromises("Umarım iyisinizdir, teknisyen yarın 10'da gelecek.")).toMatchObject([{ kind: "maintenance", day: "tomorrow", timeCandidates: [600] }]);
     expect(detectHostPromises("I hope you are well, the technician will come tomorrow at 10.")).toMatchObject([{ day: "tomorrow", timeCandidates: [600] }]);
-    expect(detectHostPromises("Umarım, teknisyen yarın 10'da gelecek.")).toEqual([]);
-    expect(detectHostPromises("İnşallah, teknisyen yarın gelecek.")).toEqual([]);
-    expect(detectHostPromises("Teknisyen inşallah yarın 10'da gelecek.")).toEqual([]);
+    expect(detectHostPromises("Umarım, teknisyen yarın 10'da gelecek.")).toMatchObject([{ tentative: true }]);
+    // Kurucu T5 (10-21): "inşallah" tek başına sözü iptal etmez — açık plan kaydedilebilir (teknisyenden teyit alındığı anlamına gelmez).
+    expect(detectHostPromises("İnşallah, teknisyen yarın gelecek.")).toMatchObject([{ day: "tomorrow", tentative: false }]);
+    expect(detectHostPromises("Teknisyen inşallah yarın 10'da gelecek.")).toMatchObject([{ day: "tomorrow", timeCandidates: [600], tentative: false }]);
+    expect(detectHostPromises("Teknisyen yarın 10'da gelecek inşallah.")).toMatchObject([{ day: "tomorrow", timeCandidates: [600], tentative: false }]);
   });
 
   it("🚨 Haiku 2. tur: aynı konu + aynı gün, FARKLI yapan → iki söz (teslim sözü tekrar sanılmaz)", () => {
@@ -632,8 +650,8 @@ describe("söz algılama v2 — gün kapsamı, dilek, iki söz, süre, devam (se
     detectHostPromises(text).map((p) => {
       const w = promiseWindow(p, 9 * 60);
       const at = w.precision === "time" ? w.time : w.precision === "part" ? w.dayPart : "day";
-      const card = p.dayUnclear || p.timeAmbiguous ? "CARD" : "auto";
-      return `${card} ${p.kind}/${p.topic ?? "-"}/${p.actor ?? "-"} ${w.day} ${at}${p.dayUnclear ? " dayUnclear" : ""}${p.timeAmbiguous ? " timeAmb" : ""}`;
+      const card = p.dayUnclear || p.timeAmbiguous || p.tentative ? "CARD" : "auto";
+      return `${card} ${p.kind}/${p.topic ?? "-"}/${p.actor ?? "-"} ${w.day} ${at}${p.dayUnclear ? " dayUnclear" : ""}${p.timeAmbiguous ? " timeAmb" : ""}${p.tentative ? " tentative" : ""}`;
     });
   it.each<[string, string[]]>([
     // D2: soldaki YALIN gün parçası (günü + dilimi) benimsenir.
@@ -646,15 +664,15 @@ describe("söz algılama v2 — gün kapsamı, dilek, iki söz, süre, devam (se
     ["Bugün klima bozuldu, teknisyen yarın 10'da gelecek.", ["auto maintenance/-/visit tomorrow 10:00"]],
     ["Yarın çıkış yapıyorsunuz, teknisyen bugün 15'te gelecek.", ["auto maintenance/-/visit today 15:00"]],
     ["Merhaba Cuma Bey, teknisyen yarın 10'da gelecek.", ["auto maintenance/-/visit tomorrow 10:00"]],
-    // H1: yalın olmayan dilek / "dilerim" bozmaz; yalın dilek parçası bozar.
+    // H1: yalın olmayan dilek / "dilerim" bozmaz; yalın dilek parçası sözü KESİN DEĞİL yapar (kurucu T5: kart, kendiliğinden kaydedilmez).
     ["Umarım her şey yolundadır, teknisyen yarın 10'da gelecek.", ["auto maintenance/-/visit tomorrow 10:00"]],
     ["Özür dilerim, teknisyen yarın 10'da gelecek.", ["auto maintenance/-/visit tomorrow 10:00"]],
     ["Teknisyen yarın 10'da gelecek, umarım sorun hemen çözülür.", ["auto maintenance/-/visit tomorrow 10:00"]],
     ["Havluları akşam getireceğim, umarım beğenirsiniz.", ["auto towels/-/delivery today evening"]],
-    ["Umarım yarın, teknisyen 10'da gelecek.", []],
-    ["Umarım ki, teknisyen yarın 10'da gelecek.", []],
-    ["Teknisyen yarın 10'da gelecek, umarım.", []],
-    ["The technician will come tomorrow at 10, hopefully.", []],
+    ["Umarım yarın, teknisyen 10'da gelecek.", ["CARD maintenance/-/visit tomorrow 10:00 tentative"]],
+    ["Umarım ki, teknisyen yarın 10'da gelecek.", ["CARD maintenance/-/visit tomorrow 10:00 tentative"]],
+    ["Teknisyen yarın 10'da gelecek, umarım.", ["CARD maintenance/-/visit tomorrow 10:00 tentative"]],
+    ["The technician will come tomorrow at 10, hopefully.", ["CARD maintenance/-/visit tomorrow 10:00 tentative"]],
     // D3: kendi günü yok + mesajda başka yerde yarın / tanınmayan gün → kart günü sorar; şimdiye bağlı söz muaf; "bugün" tetiklemez.
     ["Teknisyen yarın 10'da gelecek. Havlu getireceğim.", ["auto maintenance/-/visit tomorrow 10:00", "CARD towels/-/delivery today day dayUnclear"]],
     ["Teknisyen yarın 10'da gelecek. Havluları hemen getireceğim.", ["auto maintenance/-/visit tomorrow 10:00", "auto towels/-/delivery today soon"]],
@@ -666,7 +684,7 @@ describe("söz algılama v2 — gün kapsamı, dilek, iki söz, süre, devam (se
       "Tomorrow:\n- technician will come at 10\n- I'll bring towels at 6pm",
       ["CARD maintenance/-/visit today 10:00 dayUnclear", "CARD towels/-/delivery today 18:00 dayUnclear"],
     ],
-    ["Teknisyen yarın gelir. Havlu getireceğim.", ["CARD towels/-/delivery today day dayUnclear"]],
+    ["Teknisyen yarın gelir. Havlu getireceğim.", ["CARD maintenance/-/visit tomorrow day tentative", "CARD towels/-/delivery today day dayUnclear"]],
     ["Merhaba, yarın çıkışınız var, saat 11'de, teknisyen 10'da gelecek.", ["CARD maintenance/-/visit today 10:00 dayUnclear"]],
     // T3: zamansız devam (tür + konu + yapan uyumlu, iki yönde) düşer; konusu konusuz söze yazılır. Konusu farklı devam ayrı söz.
     ["Teknisyen yarın 10'da gelecek. Klimaya da bakacak.", ["auto maintenance/ac/visit tomorrow 10:00"]],
@@ -721,9 +739,9 @@ describe("söz algılama v2 — gün kapsamı, dilek, iki söz, süre, devam (se
     ["Teknisyen yarın 10'da gelecek, ertelendi.", ["CARD maintenance/-/visit tomorrow 10:00 timeAmb"]],
     // Fiilden sonraki dilek: ardında içerik varsa sonuca dilektir (söz kalır); yoksa sözü bozar.
     ["Teknisyen yarın 10'da gelecek umarım sorun çözülür.", ["auto maintenance/-/visit tomorrow 10:00"]],
-    ["Teknisyen yarın gelecek umarım.", []],
-    ["The technician will come tomorrow hopefully.", []],
-    ["Hopefully the technician will come tomorrow at 10.", []],
+    ["Teknisyen yarın gelecek umarım.", ["CARD maintenance/-/visit tomorrow day tentative"]],
+    ["The technician will come tomorrow hopefully.", ["CARD maintenance/-/visit tomorrow day tentative"]],
+    ["Hopefully the technician will come tomorrow at 10.", ["CARD maintenance/-/visit tomorrow 10:00 tentative"]],
     // Soldaki yalın saat parçası okunur.
     ["Teknisyen 10'da, yarın gelecek.", ["auto maintenance/-/visit tomorrow 10:00"]],
     // T1: ayrılamayan iki söz fiili (bağlaç yok) → saat / dilim okunmaz (22:00 uydurulmaz), kart.
@@ -752,8 +770,8 @@ describe("söz algılama v2 — gün kapsamı, dilek, iki söz, süre, devam (se
     // Opus gece-4 F15: teyit sorusu ayrı cümlede de sözü bekletir; "umuyorum / I hope" dilektir. KONTROL: genel soru bozmaz.
     ["Teknisyen yarın 10'da gelecek. Sizin için uygun mu?", []],
     ["The technician will come tomorrow at 10. Is that ok?", []],
-    ["Umuyorum teknisyen yarın 10'da gelecek.", []],
-    ["I hope the technician will come tomorrow at 10.", []],
+    ["Umuyorum teknisyen yarın 10'da gelecek.", ["CARD maintenance/-/visit tomorrow 10:00 tentative"]],
+    ["I hope the technician will come tomorrow at 10.", ["CARD maintenance/-/visit tomorrow 10:00 tentative"]],
     ["Teknisyen yarın 10'da gelecek. Başka bir ihtiyacınız var mı?", ["auto maintenance/-/visit tomorrow 10:00"]],
     // Opus gece-4 F16: ayrı varış sözü ("tesisatçı da 1 saat içinde gelecek") işin süresi değildir.
     ["Elektrikçi yarın 10'da gelecek, tesisatçı da 1 saat içinde gelecek.", ["auto maintenance/-/visit tomorrow 10:00", "auto maintenance/-/visit today 10:00"]],
@@ -886,8 +904,9 @@ describe("gece-4 izsiz bulgular — koşul, kararsızlık, konaklamaya bağlı /
     expect(detectHostPromises("Of course, I will bring towels tomorrow.")).toMatchObject([{ kind: "towels", day: "tomorrow" }]);
   });
 
-  it("S1-08: kararsızlık (herhalde / tahminen / büyük ihtimalle / olabilir) söz değil", () => {
-    for (const t of ["Teknisyen yarın gelecek herhalde", "Teknisyen tahminen yarın gelecek", "Teknisyen büyük ihtimalle yarın gelecek", "Teknisyen yarın 10'da orada olabilir, gelecek"]) none(t);
+  it("S1-08 + kurucu T5: kararsızlık (herhalde / tahminen / büyük ihtimalle / olabilir) kesin söz değil — kart", () => {
+    for (const t of ["Teknisyen yarın gelecek herhalde", "Teknisyen tahminen yarın gelecek", "Teknisyen büyük ihtimalle yarın gelecek", "Teknisyen yarın 10'da orada olabilir, gelecek"])
+      expect(detectHostPromises(t).map((p) => p.tentative), t).toEqual([true]);
   });
 
   it("🚨 S1-19: konaklamaya bağlı an (çıkış / giriş / siz gelmeden) açık gün yoksa ve alışkanlık her zaman söz değil", () => {
@@ -1017,7 +1036,8 @@ describe("sert itirazcı gece-4 (354 cümle): yeni kurallar KESİN sözü düş�
 
   it("Y3: yeni kararsızlık sözcükleri YEREL — sebep cümlesinde bozmaz, sözün kendisinde bozar", () => {
     for (const t of ["Biraz gecikme olabilir, teknisyen yarın 10'da gelecek", "Büyük ihtimalle filtre tıkanmış, teknisyen yarın 10'da gelecek", "Tahminen 2 saat sürer, usta yarın 10'da gelecek", "Olabilecek en kısa sürede teknisyen göndereceğiz", "Umarım iyisinizdir, teknisyen gelecek"]) some(t);
-    for (const t of ["Teknisyen yarın gelecek herhalde", "Teknisyen tahminen yarın gelecek", "Teknisyen yarın gelecek olabilir", "I think the technician will come tomorrow at 10", "The technician will likely come tomorrow at 10", "We'll try to send the technician tomorrow", "Elimden geldiğince yarın teknisyen göndereceğim"]) none(t);
+    for (const t of ["Teknisyen yarın gelecek herhalde", "Teknisyen tahminen yarın gelecek", "Teknisyen yarın gelecek olabilir", "I think the technician will come tomorrow at 10", "The technician will likely come tomorrow at 10", "We'll try to send the technician tomorrow", "Elimden geldiğince yarın teknisyen göndereceğim"])
+      expect(detectHostPromises(t).map((p) => p.tentative), t).toEqual([true]);
   });
 
   it("Y4/Y5: açık gün varsa alışkanlık / konaklama sözcüğü bozmaz; çıkış kapısı / yangın çıkışı / varış saati konaklama anı değil", () => {
@@ -1066,7 +1086,7 @@ describe("sert itirazcı gece-4 (354 cümle): yeni kurallar KESİN sözü düş�
     for (const t of ["Eksik bir şey varsa haber verin, havlu yarın getireceğim", "Havlu eksikse söyleyin, temizlikçi yarın 11'de gelecek", "Sorun olursa bana yazın, teknisyen yarın 10'da gelecek"]) some(t);
     expect(detectHostPromises("The technician will come tomorrow at 10 to 11")).toMatchObject([{ timeAmbiguous: true }]);
     expect(detectHostPromises("I'll bring 2 to 3 towels tomorrow at 10")).toMatchObject([{ timeAmbiguous: false, timeCandidates: [600] }]);
-    expect(detectHostPromises("We'll try to send the technician tomorrow")).toEqual([]);
+    expect(detectHostPromises("We'll try to send the technician tomorrow")).toMatchObject([{ tentative: true }]);
     // BİLİNEN SINIR (tutucu yön, kurucu kuralı "emin değilse görev açma"): soldaki parçanın kendi yüklemi olsa da alışkanlık / konaklama
     // sözcüğü açık günsüz sözü düşürür — "Siz gidince kapıyı kilitleyin, teknisyen 10'da gelecek"te gün gerçekten belirsiz.
     for (const t of ["Her gün kapıyı kontrol edin, teknisyen 10'da gelecek", "Siz gidince kapıyı kilitleyin, teknisyen 10'da gelecek"]) none(t);
@@ -1163,7 +1183,8 @@ describe("Opus gece-4 dilim sonu 3: yanlış saat / kaçan kesin söz", () => {
   it("A10: İngilizce kip kararsızlığı yalnız sözün kendi parçasında; 'and will try to' ikinci fiilin", () => {
     firm("The technician will come tomorrow at 10 and will try to fix the AC.", 600);
     firm("We'll try to fix it, the technician will come tomorrow at 10.", 600);
-    for (const t of ["We'll try to send the technician tomorrow", "The technician will likely come tomorrow at 10", "The technician will possibly come tomorrow"]) none(t);
+    for (const t of ["We'll try to send the technician tomorrow", "The technician will likely come tomorrow at 10", "The technician will possibly come tomorrow"])
+      expect(detectHostPromises(t).map((p) => p.tentative), t).toEqual([true]);
   });
 
   it("🚨 A11: en yaygın yeniden zamanlama mesajı — soldaki iptal / ayrı koşul yeni sözü düşürmez; sağdaki iptal ve öndeki koşul düşürür", () => {
@@ -1219,5 +1240,42 @@ describe("Opus gece-4 dilim sonu 3: yanlış saat / kaçan kesin söz", () => {
       "Sorun olursa kapı B. TEKNİSYEN yarın 10'da gelecek.",
     ])
       firm(t, 600);
+  });
+});
+
+describe("kurucu T5 (10-21) — algılayıcı: kesin değil, sabah / akşam belirsizliği, bu gece, bağlam ipucu", () => {
+  it("'yarın 7'de' / '8'de' sabah mı akşam mı belli değil; '10'da' gündüz tek okuma; dilim söylenince belirsizlik yok", () => {
+    expect(detectHostPromises("Teknisyen yarın 7'de gelecek.")).toMatchObject([{ timeCandidates: [420, 1140], halfAmbiguous: true }]);
+    expect(detectHostPromises("Teknisyen yarın 8'de gelecek.")).toMatchObject([{ halfAmbiguous: true }]);
+    expect(detectHostPromises("Teknisyen yarın 10'da gelecek.")).toMatchObject([{ timeCandidates: [600], halfAmbiguous: false }]);
+    expect(detectHostPromises("Teknisyen yarın akşam 7'de gelecek.")).toMatchObject([{ timeCandidates: [1140], halfAmbiguous: false }]);
+  });
+
+  it("'Bu gece 1'de' akşam yazıldıysa bu gecenin 01:00'i (ertesi gün), gece yarısından sonra yazıldıysa aynı gece", () => {
+    const [p] = detectHostPromises("Bu gece 1'de havlu getireceğim.");
+    expect(promiseWindow(p!, 21 * 60)).toMatchObject({ day: "tomorrow", time: "01:00" });
+    expect(promiseWindow(p!, 30)).toMatchObject({ day: "today", time: "01:00" });
+  });
+
+  it("3. şahıs geniş zaman ('yarın gelir') kesin değil; kesin söz fiili varsa alışkanlık betimlemesi sözü düşürmez", () => {
+    expect(detectHostPromises("Teknisyen yarın gelir.")).toMatchObject([{ day: "tomorrow", tentative: true }]);
+    expect(detectHostPromises("Temizlikçi her sabah 9'da gelir, yarın 11'de gelecek.")).toMatchObject([{ day: "tomorrow", timeCandidates: [660], tentative: false }]);
+    expect(detectHostPromises("Kira geliri yarın yatar.")).toEqual([]);
+  });
+
+  it("müsaitlik koşulu kesin değil; başka koşul (arıza) öneri değil", () => {
+    for (const t of ["Teknisyen müsait olursa yarın gelir.", "Müsait olursa usta yarın gelecek.", "Mümkünse yarın teknisyen göndereceğim.", "If he is available the technician will come tomorrow at 10."])
+      expect(detectHostPromises(t).map((p) => p.tentative), t).toEqual([true]);
+    for (const t of ["Klima bozulursa teknisyen yarın gelecek.", "Müsait olursa ve klima bozulursa teknisyen yarın gelecek."]) expect(detectHostPromises(t), t).toEqual([]);
+  });
+
+  it("bağlam ipucu: tek yarı → o; iki yarı / yok → null; geçmişe atıf ('dün akşam') sayılmaz; 'şimdi / hemen'", () => {
+    expect(contextHalfHint(["Teknisyen yarın akşam gelebilir mi?"])).toBe("pm");
+    expect(contextHalfHint(["Sabah erkenden çıkıyoruz"])).toBe("am");
+    expect(contextHalfHint(["Sabah mı akşam mı gelir?"])).toBeNull();
+    expect(contextHalfHint(["Dün akşam klima bozuldu"])).toBeNull();
+    expect(contextHalfHint(["İyi akşamlar, klima bozuk"])).toBeNull();
+    expect(contextSaysNow(["Şimdi havlu getirebilir misiniz?"])).toBe(true);
+    expect(contextSaysNow(["Yarın havlu getirebilir misiniz?"])).toBe(false);
   });
 });

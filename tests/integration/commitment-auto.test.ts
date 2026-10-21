@@ -39,7 +39,7 @@ import { commitmentDueAt, commitmentTaskTitle } from "@/lib/guest-commitments-co
 import { findAttentionItems } from "@/modules/intelligence/incidents/attention";
 import { sendOnChannel } from "@/lib/messaging";
 import { sendHostMessage } from "@/lib/host-send";
-import { addZonedDays, dateKeyInTimeZone } from "@/lib/timezone";
+import { addZonedDays, dateKeyInTimeZone, zonedWallClockToUtc } from "@/lib/timezone";
 import { __autoCommitmentInternals } from "@/lib/guest-commitments-auto";
 import { DEMO_ORG_ID } from "@/lib/demo-tenant/constants";
 
@@ -1210,5 +1210,116 @@ describe("görev başlığı tek kaynak", () => {
   it("konaklama kapatması ve 'Yanlış, kaldır' aynı başlık kuralıyla eşleşir (dilimli başlık dahil)", () => {
     expect(commitmentTaskTitle("towels", null, "evening")).toBe("Misafire söz: Havlu / çarşaf · akşam");
     expect(commitmentTaskTitle("towels", null, null)).toBe("Misafire söz: Havlu / çarşaf");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// KURUCU T5 (10-21, tablo AYNEN): gün ve saat mesajın YAZILDIĞI an + işletmenin saat dilimi + konuşma bağlamıyla okunur; "saat geçtiyse
+// yarın" otomatik kuralı YOK; bağlam çözemiyorsa kart sorar, gün / saat uydurulmaz.
+// ---------------------------------------------------------------------------
+describe("kurucu T5 tablosu — mesaj anı + bağlam (10-21)", () => {
+  const todayKey = () => dateKeyInTimeZone(new Date(), TZ);
+  /** Bugün İstanbul hh:mm (fake saat bu andan 1 dk sonraya kurulur — mesaj o anda yazılmış). */
+  const wall = (hh: number, mm = 0) => zonedWallClockToUtc(...(todayKey().split("-").map(Number) as [number, number, number]), hh, mm, 0, TZ);
+  const at = (hh: number, mm = 0) => {
+    const t = wall(hh, mm);
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date(t.getTime() + 60_000) });
+    return t;
+  };
+  const guestSays = (conversationId: string, body: string, when: Date) =>
+    prisma.message.create({ data: { conversationId, direction: "inbound", authorType: "guest", senderName: "Misafir", body, createdAt: when } });
+  const cards = async (s: { orgId: string; conversationId: string }) =>
+    (await getConversationSuggestions(s.orgId, s.conversationId)).filter((x) => x.kind === "commitment");
+
+  it("08:00 'Teknisyen 10'da gelecek.' → bağlam gündüz: bugün 10:00 kendiliğinden kaydedilir", async () => {
+    const t = at(8);
+    const s = await setup();
+    await hostSays(s.conversationId, "Teknisyen 10'da gelecek.", t);
+    expect((await applyHostCommitmentsAuto(s.orgId, s.conversationId)).created).toBe(1);
+    const c = await prisma.guestCommitment.findFirstOrThrow();
+    expect([dateKeyInTimeZone(c.dueAt, TZ), wallClock(c.dueAt)]).toEqual([todayKey(), "10:00"]);
+  });
+
+  it("🚨 10:30 'Teknisyen 10'da gelecek.' → yarına KENDİLİĞİNDEN taşınmaz; kart günü sorar", async () => {
+    const t = at(10, 30);
+    const s = await setup();
+    await hostSays(s.conversationId, "Teknisyen 10'da gelecek.", t);
+    expect((await applyHostCommitmentsAuto(s.orgId, s.conversationId)).created).toBe(0); // ⬅️ eskiden yarın 10:00 kaydediliyordu
+    const [card] = await cards(s);
+    expect(card.kind === "commitment" && card.proposal.dayUnclear).toBe(true);
+    expect(await prisma.guestCommitment.count()).toBe(0);
+  });
+
+  it("🚨 13:00 'Teknisyen bugün 11'de gelecek.' → açık gün değişmez; geçmiş saat GÖRÜNÜR (kart), düzeltmeden onay yok", async () => {
+    const t = at(13);
+    const s = await setup();
+    await hostSays(s.conversationId, "Teknisyen bugün 11'de gelecek.", t);
+    expect((await applyHostCommitmentsAuto(s.orgId, s.conversationId)).created).toBe(0);
+    const [card] = await cards(s); // ⬅️ eskiden hiç önerilmiyordu
+    expect(card.kind === "commitment" && [card.proposal.day, card.proposal.time, card.proposal.pastDue]).toEqual(["today", "11:00", true]);
+    expect(card.detail).toMatch(/geçmişti/);
+    expect((await decide({ key: card.key, decision: "approve" })).status).toBe(400);
+    expect((await decide({ key: card.key, decision: "approve", time: "15:00" })).status).toBe(200);
+    expect(wallClock((await prisma.guestCommitment.findFirstOrThrow()).dueAt)).toBe("15:00");
+  });
+
+  it("🚨 'Teknisyen yarın 7'de gelecek.' bağlamsız → 07:00 / 19:00 SORULUR; önceki mesaj 'akşam' diyorsa yarın 19:00 kendiliğinden", async () => {
+    const t = at(12);
+    const s = await setup();
+    await hostSays(s.conversationId, "Teknisyen yarın 7'de gelecek.", t);
+    expect((await applyHostCommitmentsAuto(s.orgId, s.conversationId)).created).toBe(0); // ⬅️ eskiden 07:00 kaydediliyordu
+    const [card] = await cards(s);
+    expect(card.kind === "commitment" && [card.proposal.timeChoices, card.proposal.time]).toEqual([["07:00", "19:00"], ""]);
+    expect((await decide({ key: card.key, decision: "approve" })).status).toBe(400); // saat seçilmeden onay yok
+    // Bağlam: misafir az önce akşamı sordu.
+    const s2 = await setup();
+    await guestSays(s2.conversationId, "Teknisyen yarın akşam gelebilir mi?", new Date(t.getTime() - 10 * 60_000));
+    await hostSays(s2.conversationId, "Teknisyen yarın 7'de gelecek.", t);
+    expect((await applyHostCommitmentsAuto(s2.orgId, s2.conversationId)).created).toBe(1);
+    const c = await prisma.guestCommitment.findFirstOrThrow({ where: { conversationId: s2.conversationId } });
+    expect([dateKeyInTimeZone(c.dueAt, TZ), wallClock(c.dueAt)]).toEqual([tomorrowKeyOf(t), "19:00"]);
+  });
+
+  it("'Teknisyen yarın 10'da gelecek inşallah.' → 'inşallah' sözü iptal etmez: kaydedilir", async () => {
+    const t = at(12);
+    const s = await setup();
+    await hostSays(s.conversationId, "Teknisyen yarın 10'da gelecek inşallah.", t);
+    expect((await applyHostCommitmentsAuto(s.orgId, s.conversationId)).created).toBe(1); // ⬅️ eskiden hiç öneri yoktu
+  });
+
+  it("🚨 'Teknisyen müsait olursa yarın gelir.' / 'Belki yarın gelir.' → kesin söz KAYDEDİLMEZ, belirsiz öneri kalır; onaylanırsa söz olur", async () => {
+    const t = at(12);
+    const s = await setup();
+    await hostSays(s.conversationId, "Teknisyen müsait olursa yarın gelir.", t);
+    expect((await applyHostCommitmentsAuto(s.orgId, s.conversationId)).created).toBe(0);
+    const [card] = await cards(s); // ⬅️ eskiden hiç öneri yoktu
+    expect(card.kind === "commitment" && card.proposal.tentative).toBe(true);
+    expect(card.detail).toMatch(/Kesin söz değil/);
+    expect((await decide({ key: card.key, decision: "approve" })).status).toBe(200);
+    expect(await prisma.guestCommitment.count()).toBe(1);
+  });
+
+  it("🚨 23:30 'Havlu getireceğim.' → bağlamsız son tarih YÜKLENMEZ (kart günü sorar); misafir 'şimdi' dediyse şimdiye bağlı kaydedilir", async () => {
+    const t = at(23, 30);
+    const s = await setup();
+    await hostSays(s.conversationId, "Havlu getireceğim.", t);
+    expect((await applyHostCommitmentsAuto(s.orgId, s.conversationId)).created).toBe(0); // ⬅️ eskiden bugün 23:59 kaydediliyordu
+    const [card] = await cards(s);
+    expect(card.kind === "commitment" && card.proposal.dayUnclear).toBe(true);
+    const s2 = await setup();
+    await guestSays(s2.conversationId, "Şimdi havlu getirebilir misiniz?", new Date(t.getTime() - 5 * 60_000));
+    await hostSays(s2.conversationId, "Havlu getireceğim.", t);
+    expect((await applyHostCommitmentsAuto(s2.orgId, s2.conversationId)).created).toBe(1);
+    const c = await prisma.guestCommitment.findFirstOrThrow({ where: { conversationId: s2.conversationId } });
+    expect([c.duePrecision, c.dayPart]).toEqual(["part", "soon"]);
+  });
+
+  it("'Bu gece 1'de havlu getireceğim.' 21:00'de → bu gecenin 01:00'i (ertesi takvim günü), geçmiş saat sanılıp kaybolmaz", async () => {
+    const t = at(21);
+    const s = await setup();
+    await hostSays(s.conversationId, "Bu gece 1'de havlu getireceğim.", t);
+    expect((await applyHostCommitmentsAuto(s.orgId, s.conversationId)).created).toBe(1); // ⬅️ eskiden bugün 01:00 → öneri yoktu
+    const c = await prisma.guestCommitment.findFirstOrThrow();
+    expect([dateKeyInTimeZone(c.dueAt, TZ), wallClock(c.dueAt)]).toEqual([tomorrowKeyOf(t), "01:00"]);
   });
 });

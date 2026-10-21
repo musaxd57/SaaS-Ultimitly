@@ -23,6 +23,8 @@ import {
 } from "@/lib/guest-commitments-core";
 import {
   applyWifiValue,
+  contextHalfHint,
+  contextSaysNow,
   detectHostPromises,
   hasPromiseTime,
   extractWifiValues,
@@ -30,6 +32,7 @@ import {
   maskSecret,
   promiseWindow,
   wifiTargetAmbiguous,
+  withHalf,
   SUGGESTION_WINDOW_DAYS,
   suggestionKey,
   type HostPromise,
@@ -105,6 +108,12 @@ export type SuggestionView =
         }>;
         /** Mesajda birden çok saat — kendiliğinden kaydedilmez, ev sahibi saati seçer (Opus O9). */
         timeAmbiguous?: true;
+        /** Kurucu T5: saat öğleden önce mi sonra mı belli değil ("yarın 7'de") — iki seçenek; seçilmeden onay yok (`time` boş). */
+        timeChoices?: string[];
+        /** Kurucu T5: kesin söz değil ("belki", "müsait olursa", "yarın gelir") — kendiliğinden kaydedilmez, ev sahibi onaylarsa söz olur. */
+        tentative?: true;
+        /** Kurucu T5: açık "bugün" + mesaj yazıldığında GEÇMİŞ saat ("Bugün 11'de" 13:00'te) — gösterilir, kendiliğinden kaydedilmez; saat düzeltilir ya da yok sayılır. */
+        pastDue?: true;
         /**
          * Sözün günü mesajdan okunamadı (kendi gün sözcüğü yok, mesajın başka yerinde yarın / tanınmayan gün geçiyor — sert itirazcı 10-17
          * gece-4, D3): kendiliğinden kaydedilmez, onay günü SEÇMEDEN geçmez (`decideSuggestion`; varsayılan "bugün" yok).
@@ -186,6 +195,46 @@ function nowMinutesInTz(now: Date, tz: string): number {
     .split(":")
     .map(Number);
   return ((h % 24) * 60 + m) % (24 * 60);
+}
+
+/** Kurucu T5: saati / günü / dilimi olmayan söz bu saatten sonra yazıldıysa ("Havlu getireceğim" 23:30) bugün 23:59 son an yüklenmez. */
+const LATE_NIGHT_MIN = 22 * 60;
+/** Bağlam penceresi: önceki en çok 3 mesaj, 12 saat içinde (gün yarısı ipucu); "şimdi" ipucu yalnız misafirin son 2 saatteki mesajından. */
+const CONTEXT_MESSAGES = 3;
+const CONTEXT_HALF_MS = 12 * 3_600_000;
+const CONTEXT_NOW_MS = 2 * 3_600_000;
+
+/**
+ * KURUCU T5 (10-21, tablo AYNEN uygulanır): gün ve saat MESAJIN YAZILDIĞI ana ve işletmenin saat dilimine göre, konuşma bağlamıyla okunur —
+ * senkronun çalıştığı ana göre değil. "Saat geçtiyse yarın" otomatik kuralı YOK (yanlış günü kesinleştirir):
+ *  · Gün sözcüğü yok + saat / sabah-öğle dilimi mesaj yazıldığında geçmiş ("Teknisyen 10'da gelecek" 10:30'da) → yarına taşınmaz, kart günü sorar.
+ *  · Saat öğleden önce mi sonra mı belli değil ("yarın 7'de" → 07:00 / 19:00): önceki mesajlar sabahı / akşamı söylüyorsa o; söylemiyorsa iki
+ *    seçenek sorulur. Bugün için tek okuma ileride kalmışsa o ("7'de" 15:00'te → 19:00).
+ *  · Saatsiz, günsüz söz gece 22:00'den sonra ("Havlu getireceğim" 23:30): misafir "şimdi / hemen" dediyse şimdiye bağlı; demediyse gün sorulur.
+ */
+function readInContext(
+  p: HostPromise,
+  messageAt: Date,
+  tz: string,
+  prior: { all: string[]; guestRecent: string[] },
+): { promise: HostPromise; timeChoices: string[] | null } {
+  const msgMin = nowMinutesInTz(messageAt, tz);
+  const fmt = (m: number) => `${String(Math.floor(m / 60) % 24).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+  let q = p;
+  let timeChoices: string[] | null = null;
+  if (q.halfAmbiguous) {
+    const hint = contextHalfHint(prior.all);
+    if (hint) q = withHalf(q, hint);
+    const oneUpcomingToday = q.day === "today" && q.timeCandidates.filter((m) => m > msgMin).length === 1;
+    if (q.halfAmbiguous && !oneUpcomingToday) timeChoices = [...q.timeCandidates].sort((a, b) => a - b).map(fmt);
+  }
+  if (!hasPromiseTime(q) && msgMin >= LATE_NIGHT_MIN) q = contextSaysNow(prior.guestRecent) ? { ...q, soon: true } : { ...q, dayUnclear: true };
+  if (!q.dayExplicit && q.day === "today" && q.inMinutes === null && !q.soon && timeChoices === null) {
+    const w = promiseWindow(q, msgMin);
+    const passed = w.day === "tomorrow" && (q.timeCandidates.length > 0 ? q.timeCandidates.every((m) => m <= msgMin) : q.cue !== null);
+    if (passed) q = { ...q, dayUnclear: true };
+  }
+  return { promise: q, timeChoices };
 }
 
 /**
@@ -361,6 +410,18 @@ export async function getConversationSuggestions(
 
   const out: SuggestionView[] = [];
   const seenTaskKeys = new Set<string>();
+  // Kurucu T5 bağlamı: sözden ÖNCEKİ mesajlar (liste yeniden eskiye sıralı → sonraki indeksler daha eski).
+  const indexOf = new Map(messages.map((x, i) => [x.id, i]));
+  const priorOf = (m: (typeof messages)[number]) => {
+    const i = indexOf.get(m.id) ?? messages.length;
+    const older = messages.slice(i + 1, i + 1 + CONTEXT_MESSAGES).filter((x) => m.createdAt.getTime() - x.createdAt.getTime() <= CONTEXT_HALF_MS);
+    return {
+      all: older.map((x) => x.body ?? ""),
+      guestRecent: older
+        .filter((x) => resolveMessageAuthor(x).authorType === "guest" && m.createdAt.getTime() - x.createdAt.getTime() <= CONTEXT_NOW_MS)
+        .map((x) => x.body ?? ""),
+    };
+  };
   for (const m of messages) {
     if (out.length >= cap) break;
     const author = resolveMessageAuthor(m).authorType;
@@ -388,7 +449,8 @@ export async function getConversationSuggestions(
         // kuralı): gün tahmin edilmez, kendiliğinden kaydedilmez, kart günü sorar (gece-4 S1-02: görev bir gün geç açılıyordu).
         const afterMidnightTomorrow =
           __afterMidnightRule.enabled && detected.dayExplicit && detected.day === "tomorrow" && nowMinutesInTz(m.createdAt, tz) < AFTER_MIDNIGHT_END_MIN;
-        const promise = afterMidnightTomorrow ? { ...detected, dayUnclear: true } : detected;
+        const read = readInContext(afterMidnightTomorrow ? { ...detected, dayUnclear: true } : detected, m.createdAt, tz, priorOf(m));
+        const promise = read.promise;
         const key = suggestionKey("commitment", `${m.id}:${promise.anchor}`);
         if (decided.has(key)) continue;
         // Mesajdan SONRA aynı türde ve UYUMLU konuda söz kaydedilmiş → öneri yok (I1: klima sözü musluk önerisini gizlemez). Saate BAKILMAZ
@@ -520,7 +582,14 @@ export async function getConversationSuggestions(
           const alt = absolutePromiseWindow({ ...promise, day: "tomorrow" }, m.createdAt, tz);
           if (relativeDayOf(alt.dayKey, alt.dueAt, now, tz)) ({ dayKey, dueAt, window } = alt);
         }
-        const day = relativeDayOf(dayKey, dueAt, now, tz);
+        // Kurucu T5: açık "bugün" + mesaj YAZILDIĞINDA geçmiş saat → gizlenmez, aynı gün boyunca kart olarak görünür (kendiliğinden kaydedilmez).
+        const pastDue =
+          promise.dayExplicit &&
+          promise.day === "today" &&
+          window.precision === "time" &&
+          dueAt.getTime() < m.createdAt.getTime() - 5 * 60_000 &&
+          dayKey === dateKeyInTimeZone(now, tz);
+        const day = pastDue ? "today" : relativeDayOf(dayKey, dueAt, now, tz);
         if (!day) continue;
         // Gün sözcüğü olmayan saat değişikliği eski sözün gününe uygulandıysa gün bellidir (↑ O4). Değişikliğin bağlanacağı söz YOKSA
         // ("Teknisyen 11'e kaydı." önceki kayıt olmadan) hangi günün saati değişti bilinmez → kart günü sorar (Haiku gece-4: bugüne açılıyordu).
@@ -534,13 +603,16 @@ export async function getConversationSuggestions(
           commitmentKind: promise.kind,
           topic: promise.topic,
           day,
-          time: window.precision === "time" ? window.time : "",
+          time: window.precision === "time" && !read.timeChoices ? window.time : "",
           precision: window.precision,
           ...(window.precision === "part" ? { dayPart: window.dayPart } : {}),
           dueAt: dueAt.toISOString(),
           dayKey,
           // Mesajda birden çok saat var — kendiliğinden kaydedilmez, ev sahibi saati seçer (O9).
-          ...(promise.timeAmbiguous ? { timeAmbiguous: true as const } : {}),
+          ...(promise.timeAmbiguous || read.timeChoices ? { timeAmbiguous: true as const } : {}),
+          ...(read.timeChoices ? { timeChoices: read.timeChoices } : {}),
+          ...(promise.tentative ? { tentative: true as const } : {}),
+          ...(pastDue ? { pastDue: true as const } : {}),
           ...(dayUnclear ? { dayUnclear: true as const } : {}),
           actor: promise.actor,
         };
@@ -568,11 +640,17 @@ export async function getConversationSuggestions(
               ? "Aynı türde açık söz var — bu onun yeni saati mi, ayrı bir söz mü?"
               : attachTopics.length >= 2
                 ? `Aynı saatte kayıtlı sözler var (${attachTopics.map((t) => COMMITMENT_TOPIC_LABELS[t]).join(", ")}) — hangisine bağlanacağını seçin`
-                : dayUnclear
-                  ? "Mesajınızda sözün günü belli değil — günü seçin"
-                  : promise.timeAmbiguous
-                    ? "Sözün saati mesajdan net anlaşılmadı — saati seçin"
-                    : "Misafire yazdığınız mesajdan — açık söz + görev açılır",
+                : pastDue
+                  ? "Mesajınızdaki saat yazıldığı anda geçmişti — saati düzeltin ya da yok sayın"
+                  : dayUnclear
+                    ? "Mesajınızda sözün günü belli değil — günü seçin"
+                    : read.timeChoices
+                      ? `Saat sabah mı akşam mı belli değil (${read.timeChoices.join(" / ")}) — saati seçin`
+                      : promise.timeAmbiguous
+                        ? "Sözün saati mesajdan net anlaşılmadı — saati seçin"
+                        : promise.tentative
+                          ? "Kesin söz değil (mesajda belirsizlik var) — kesinse onaylayın, söz + görev açılır"
+                          : "Misafire yazdığınız mesajdan — açık söz + görev açılır",
           evidenceAt: fmtAt(m.createdAt),
           proposal: {
             ...baseProposal,
