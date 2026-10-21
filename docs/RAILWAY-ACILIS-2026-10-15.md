@@ -113,7 +113,8 @@ işlemi iptal eder; ödenmiş işlem `GET` durumunda "paid"/"completed". Opus 10
 "Doğrulanamayanlar"): İLK bakılacak — Paddle panelinde varsayılan ödeme bağlantısı yoksa `POST /transactions` reddedilir
 (`transaction_default_checkout_url_not_set`) → anahtar açılınca her ödeme 503 olur; müşterisiz işlem `draft` dönebilir ve `Checkout.open` kabul
 etmeli; sunucuda açılan işlemin `custom_data.consentId`'si `subscription.created` olayına taşınmalı. Anahtarı açtıktan sonra açık kalmış eski
-ödeme sekmeleri yenilenmeli (eski istemci sunucunun işlemini yok sayar — pencere kısa, Opus B5)) ·
+ödeme sekmeleri yenilenmeli (eski istemci sunucunun işlemini yok sayar — pencere kısa, Opus B5). Haiku 10-21: Paddle `GET /transactions/{id}` 404'ü
+kalıcı "işlem yok" sayılıyor (niyet kapanır, yeni işlem açılır) — yeni açılmış işlemde geçici 404 görülürse bu varsayım gözden geçirilmeli) ·
 
 `PADDLE_RESUME_ENABLED` (kurucu SG3 10-17: üründe "duraklatma" yok; iptal edilen yenilemede dönem sonu kutusu yeter) ·
 `KB_RETRIEVAL_WIDE_BUDGET` (kurucu: "şimdilik kapalı") · `KB_RERANK_PER_QUESTION` · `APP_TRUST_BROWSER_TIMEZONE` · `BILLING_ALLOW_CANCELED_PLAN_CHANGE`
