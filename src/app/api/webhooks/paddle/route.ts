@@ -601,7 +601,8 @@ async function applyTransactionEvent(
         status: "paid",
         provider: "paddle",
         providerRef,
-        paidAt: new Date(),
+        // Ödeme ANI = sağlayıcının olay zamanı (Claude 2. dalga #12); gecikmeli / yeniden denenen webhook faturayı işleme anına taşımaz.
+        paidAt: occurredAt ?? new Date(),
       },
     });
     await logEvent("billing.invoice.recorded", { transactionRef: providerRef, amountMinor, currency }, { organizationId });

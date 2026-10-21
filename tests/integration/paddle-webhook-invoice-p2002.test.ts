@@ -138,4 +138,20 @@ describe("Paddle webhook — fatura yazımında P2002 (rakip teslim faturayı ar
     expect(invoices).toHaveLength(1);
     expect(invoices[0]).toMatchObject({ organizationId: orgId, amountMinor: 89900, currency: "TRY", status: "paid" });
   });
+
+  it("Claude 2. dalga #12 (10-21): faturanın ödeme anı OLAY zamanıdır — gecikmeli teslim faturayı işleme anına taşımaz", async () => {
+    const occurred = new Date(Date.now() - 3 * 3_600_000);
+    // Onay kaydı ödemeden ÖNCE (gerçek akış: ödeme penceresi açılınca yazılır) — olay zamanı onay tazeliğiyle de sınanır.
+    await prisma.checkoutConsent.update({ where: { id: consentId }, data: { createdAt: new Date(occurred.getTime() - 10 * 60_000) } });
+    const body = JSON.stringify({
+      event_id: "evt_late",
+      event_type: "transaction.completed",
+      occurred_at: occurred.toISOString(),
+      data: { id: "txn_late", status: "completed", custom_data: { consentId }, currency_code: "TRY", details: { totals: { grand_total: "89900" } } },
+    });
+    const res = await deliver(body);
+    expect(res.status).toBe(200);
+    const inv = await prisma.invoice.findFirstOrThrow({ where: { provider: "paddle", providerRef: "txn_late" } });
+    expect(inv.paidAt?.toISOString()).toBe(occurred.toISOString());
+  });
 });
