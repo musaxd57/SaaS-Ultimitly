@@ -8,7 +8,21 @@
 > `docs/history/CLAUDE-2026-10-02-sadelestirme-3-oncesi-tam-metin.md` ("Durum" bölümü). Kuralları yukarıdaki bölümlerde; yalnız Durum'da
 > yazılı olan kurallar (konuşma öğeleri, ev kuralları, canlı bayraklar) 10-02'de ilgili bölümlere taşındı. Bekleyen onaylar ↓.
 
-**10-21 akşam (güncel — clear sonrası BURADAN devam):** T4 kapı kırmızıları + Codex mutasyonu + Opus sert inceleme + iç kaynak kalıpları.
+**10-21 gece (güncel — clear sonrası BURADAN devam):** anlama ölçümü + Claude kredisi + 111 altyapı konusu.
+- Anlama ölçümü (kurucu: "kelime örtüşmesi değil, gerçek model bağlamı anlıyor mu"): tasarım `docs/TASARIM-2026-10-21-anlama-olcumu.md`, ölçer
+  `tests/eval/understanding-e2e*.ts` + iddia denetçisi (`tests/eval/claim-audit*.ts`), iki kol GEÇERLİ (`docs/olcum/anlama-e2e-dev-*-2026-10-21.md`):
+  yanlış bilgi 0, sızan tutma 0, acil 6/6; gereksiz tutma 5/43. Neden analizi + kurucu soruları A–F `docs/olcum/anlama-e2e-NEDEN-ANALIZI-2026-10-21.md`
+  (müsaitlik kapısı sözcükle, cevap modeli beyanı eksik, dayanak sözcük örtüşmesi, bulaşık makinesi sessiz düşüş, olumlu iç kaynak anlatımı,
+  koşullu bilgi). Mühürlü kör set A–F kararlarından SONRA, bir kez. Üretilmiş 286 senaryo `evals/understanding-e2e-gen.json` (insan gözü bekliyor).
+- Claude çalışma paketi (kurucunun $100 kredisi, Sonnet 5.5, GitHub Actions `claude-work.yml`): 1. dalga $23,87 (`docs/claude-work/2026-10-21/`:
+  pazar + strateji notu, 100 kod bulgusu → P1'ler doğrulandı ve düzeltildi `e78dca38`/`9f457249`, 286 senaryo, 165 metin önerisi — metinler
+  kurucu onayı ister). 2. dalga istek 2 (tavan $35): tehlike / şikâyet sondası, 86 P2 yeniden doğrulama, arayüz incelemesi, ikinci hakem, pazar
+  soruları. Sonuç Actions günlüğünden (`CWB64` satırları) çözülür.
+- 111 altyapı konusu (kurucu: "soru sormadan entegre et"): `docs/TASARIM-2026-10-21-altyapi-111-envanter.md` (durum + 8 kurucu sorusu) +
+  `docs/OPS-OLAY-YONETIMI-VE-SLO.md`. Kodda: hata e-postası haritası tavanı · ödeme bekletmesi 5 paralel · görev kilidi `ORDER BY id` ·
+  `/api/health?live=1` · yavaş sorgu satırı (`DB_SLOW_QUERY_MS`) · açılış uyarıları (Sentry yok, `connection_limit` yok). Mutasyon 11/11.
+
+**10-21 akşam (önceki):** T4 kapı kırmızıları + Codex mutasyonu + Opus sert inceleme + iç kaynak kalıpları.
 - g98 kırmızıları test kurulumuydu (beş kuyruk testi dairenin otomatik mesaj kaydını kurmuyordu; kanarya `MessageOutbox.templateRevision`
   kapsam dışı; ödeme niyeti testinde İşletme plan kodu `business`). Ürün davranışı değişmedi.
 - Codex düzeltmeleri mutasyon: 13 öldü + 2 gerekçeli eşdeğer (açılıştaki niyetin işlem kimliği hep boş; açık niyetin kapanış zamanı hep boş).
