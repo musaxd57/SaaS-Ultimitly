@@ -192,6 +192,7 @@ import { contextDiagnostics } from "@/lib/ai/context-diagnostics";
 import { codeBuiltResult } from "@/lib/ai/code-built-result";
 import { loadVerifiedExtension } from "@/lib/ai/verified-extension-load";
 import { createOperationalTaskFromMessage } from "@/lib/tasks/create";
+import { escalateUnverifiedHazard, HAZARD_UNVERIFIED_REASON } from "@/lib/hazard-unverified-alert";
 import { parseSupplyProfile, buildSupplyChecklist } from "@/lib/supply";
 import { emailService } from "@/lib/email";
 import {
@@ -1962,6 +1963,19 @@ export async function applyChannelAutoReply(
     .slice(lastOutboundIdx0 + 1)
     .filter((m) => m.direction === "inbound")
     .map((m) => m.body);
+  // Kurucu T2: olası tehlikeyi taşıyan cevapsız misafir mesajı (yoksa sonuncusu) — acil e-postada alıntılanır.
+  const escalateHazard = () => {
+    const unanswered = messages.slice(lastOutboundIdx0 + 1).filter((m) => m.direction === "inbound");
+    const trigger = unanswered.find((m) => hazardEvidenceOf(m.body).level === "possible") ?? unanswered.at(-1) ?? last;
+    return escalateUnverifiedHazard({
+      organizationId: conversation.property.organizationId,
+      conversation: { id: conversation.id, guestIdentifier: conversation.guestIdentifier, channel: conversation.channel, property: conversation.property },
+      trigger: { id: trigger.id, body: trigger.body },
+    }).catch((err) => {
+      void reportError(`hazard-unverified org=${conversation.property.organizationId}`, err);
+      return null;
+    });
+  };
   // Kapanışa uygun nokta (inceleme 09-25): misafir mesajından SONRA gitmiş bir cevap var (hoş geldiniz otomasyonundan
   // sonraki "İyi akşamlar" bir selamdır) VE yapay zekânın son cevabı soru/teklif değil ("…gönderebilirim" → "Olur" bir
   // cevaptır) — aksi hâlde iki yol da atlanır, model cevaplar.
@@ -3056,27 +3070,32 @@ export async function applyChannelAutoReply(
             now: heldAt,
           });
         }
-        const notice = await notifyItemsForHost({
-          organizationId: conversation.property.organizationId,
-          conversation,
-          messageIds: itemsTurnMessageIds,
-          now: heldAt,
-        });
-        // K10: cevap konuyu ev sahibine bırakıyordu ve tutuldu → misafire hiçbir şey gitmedi. Bu turun mesajları için hassas öğe
-        // e-postası zaten gittiyse (ya da daha önce gittiyse) ikinci e-posta YOK — mesaj başına tek bildirim. Karar kartı açıldıysa
-        // genel bildirim yerine "Karar bekliyor" gider (aynı talep satırı — ikisi birden asla).
-        // Kart bildirimi HER ZAMAN çağrılır: kartlar damgalanır (sonraki tur aynı talep için e-posta atmasın); e-posta yalnız bu turun
-        // mesajlarına hassas öğe e-postası gitmediyse gider (`notifyTurnDecisions` kendisi bakar).
-        if (turnDecisions.length > 0) await notifyDecisions();
-        if (notice.held.length === 0 && !turnCardsOpen) {
-          if (handoffHeld) {
-            await notifyHostReplyWaiting({
-              organizationId: conversation.property.organizationId,
-              conversation,
-              property: conversation.property,
-              messageId: last.id,
-              messageBody: last.body,
-            });
+        // Kurucu T2 (10-21): olası tehlike + anlama katmanı koşmadı → konuşma "Sorunlu" + (saatte en çok 3) tek acil e-posta; o zaman öğe /
+        // karar / bekleyen cevap e-postaları GİTMEZ (ev sahibi e-postaya boğulmasın — aynı mesaj zaten acil e-postada alıntılı).
+        const hazardEsc = gateContext.hazardUnverified ? await escalateHazard() : null;
+        if (!hazardEsc?.claimed) {
+          const notice = await notifyItemsForHost({
+            organizationId: conversation.property.organizationId,
+            conversation,
+            messageIds: itemsTurnMessageIds,
+            now: heldAt,
+          });
+          // K10: cevap konuyu ev sahibine bırakıyordu ve tutuldu → misafire hiçbir şey gitmedi. Bu turun mesajları için hassas öğe
+          // e-postası zaten gittiyse (ya da daha önce gittiyse) ikinci e-posta YOK — mesaj başına tek bildirim. Karar kartı açıldıysa
+          // genel bildirim yerine "Karar bekliyor" gider (aynı talep satırı — ikisi birden asla).
+          // Kart bildirimi HER ZAMAN çağrılır: kartlar damgalanır (sonraki tur aynı talep için e-posta atmasın); e-posta yalnız bu turun
+          // mesajlarına hassas öğe e-postası gitmediyse gider (`notifyTurnDecisions` kendisi bakar).
+          if (turnDecisions.length > 0) await notifyDecisions();
+          if (notice.held.length === 0 && !turnCardsOpen) {
+            if (handoffHeld) {
+              await notifyHostReplyWaiting({
+                organizationId: conversation.property.organizationId,
+                conversation,
+                property: conversation.property,
+                messageId: last.id,
+                messageBody: last.body,
+              });
+            }
           }
         }
       } catch (err) {
@@ -3180,6 +3199,8 @@ export async function applyChannelAutoReply(
     // Rozet: acil durum her etiketten ağırdır (devir cevabının `human_request` etiketi acil durumu gizlemesin — P3-1).
     const escalationRiskType =
       nluRiskType === "safety_emergency" ? nluRiskType : (result.riskType ?? lexicalRiskTypeOf(last.body, gateContext) ?? nluRiskType);
+    // Kurucu T2: model / anlama katmanı hassas sinyal vermedi ama olası tehlike doğrulanamadı → Sorunlu + seyrek acil e-posta (↑ öğe kipiyle aynı).
+    const hazardEsc = !options.dryRun && !modelSensitive && gateContext.hazardUnverified ? await escalateHazard() : null;
     if (!options.dryRun && modelSensitive) {
       try {
         const claimed = await prisma.conversation.updateMany({
@@ -3348,12 +3369,15 @@ export async function applyChannelAutoReply(
       return { sent: false, skippedReason: "escalated_to_human", ...meta };
     }
     if (!options.dryRun) {
-      await persistRiskVisibility(
-        conversation.id,
-        result.source === "openai" ? "low_confidence_or_risky" : "ai_unavailable",
-        result.riskLevel,
-        result.riskType ?? lexicalRiskTypeOf(last.body, gateContext),
-      );
+      // T2 işareti bu turda kondu → `skippedReason` işarette kalır (daha ağır tehlike onun üstüne yeniden bildirilir — `sendDueAlerts`).
+      if (!hazardEsc?.claimed) {
+        await persistRiskVisibility(
+          conversation.id,
+          result.source === "openai" ? "low_confidence_or_risky" : "ai_unavailable",
+          result.riskLevel,
+          result.riskType ?? lexicalRiskTypeOf(last.body, gateContext),
+        );
+      }
       await recordDecision({
         organizationId: conversation.property.organizationId,
         propertyId: conversation.propertyId,
@@ -5566,7 +5590,9 @@ export async function sendDueAlerts(
   const candidates = await prisma.conversation.findMany({
     where: {
       property: { organizationId },
-      status: "new",
+      // Kurucu T2: "olası tehlike" ile Sorunlu yapılmış konuşmada YENİ ve kelime ağının yakaladığı tehlike önceki olayın tekrarı DEĞİL —
+      // bugünkü acil yoldan (sınırsız) bildirilir (↓ `upgrade`).
+      OR: [{ status: "new" }, { status: "problem", skippedReason: HAZARD_UNVERIFIED_REASON }],
       // ⚠️ YAŞ PENCERESİ SQL'DE OLMAK ZORUNDA — TAVANLA BİRLİKTE (denetim, 08-01).
       // Filtre yalnız JS'te (`continue`) uygulanıyor, tavan (`take: 50`) SQL'de
       // duruyordu. Damgalanmış konuşmalar (`closing_ack`/`low_confidence_or_risky`/
@@ -5589,6 +5615,8 @@ export async function sendDueAlerts(
       // ("reservation_ended", `fenceUnlinkedTerminalStay`) ancak BURADA
       // okunabilir. Bekletme mesajı kapısı bunu kullanıyor.
       skippedReason: true,
+      status: true,
+      aiTriagedAt: true,
       property: { select: { name: true, address: true, city: true } },
       // ⚠️ TEK MESAJ YETMEZ (derin denetim, 08-01). Misafir arka arkaya yazınca
       // — önce şikayet, sonra zararsız bir takip — `take: 1` yalnız sonuncuyu
@@ -5635,10 +5663,13 @@ export async function sendDueAlerts(
     // Mesajlar YENİDEN ESKİYE geldi; cevaplanmamış pencere = ilk giden mesaja
     // kadar olan kısım. O pencerenin HERHANGİ birinde şikayet varsa uyarı gider.
     const outboundAt = realMessages.findIndex((m) => isAnsweringOutbound(m));
+    // Kurucu T2: "olası tehlike" işaretli konuşmada yalnız işaretten SONRA gelen mesajlar (aynı olay yeniden bildirilmez).
+    const upgrade = c.status === "problem";
+    const markedAt = c.aiTriagedAt?.getTime() ?? 0;
     const pending = (outboundAt === -1 ? realMessages : realMessages.slice(0, outboundAt)).filter(
       // Yaş sınırı MESAJ başına (Haiku 10-14): pencere 25'e çıkınca yalnız en yenisine bakmak 5 gün önceki cevapsız şikâyeti bugünkü
       // "merhaba?" ile yeniden uyarıya taşırdı.
-      (m) => m.direction === "inbound" && Date.now() - m.createdAt.getTime() <= ALERT_MAX_AGE_MS,
+      (m) => m.direction === "inbound" && Date.now() - m.createdAt.getTime() <= ALERT_MAX_AGE_MS && (!upgrade || m.createdAt.getTime() > markedAt),
     );
     // K10-t: 8.000 karakteri aşan mesajda tam sınıflandırma KOŞMAZ, yalnız hafif acil sözcük ağı (kurucu: "acil sözcük
     // aransın") — acil ise bugünkü acil yol (Sorunlu + ev sahibine acil e-posta). Acil değilse uyarı yok; konuşma "elle yanıtla"
@@ -5654,7 +5685,9 @@ export async function sendDueAlerts(
     };
     const alertHit = (m: { body: string }) =>
       exceedsGuestMessageLimit(m.body) ? isSafetyEmergencyText(m.body) : isAlertClass(classifyFallback(m.body)) || emergencyHit(m);
-    if (itemsFlag) {
+    // İşaretli konuşmada yalnız TEHLİKE yeniden bildirilir (şikâyet / iade değil — konuşma zaten ev sahibinde).
+    if (upgrade && !pending.some((m) => exceedsGuestMessageLimit(m.body) ? isSafetyEmergencyText(m.body) : emergencyHit(m))) continue;
+    if (itemsFlag && !upgrade) {
       const hits = pending.filter(alertHit);
       if (hits.length === 0) continue;
       if (!hits.some((m) => labelsHoldWholeTurn(exceedsGuestMessageLimit(m.body) ? ["safety_emergency"] : detectRiskTypes(m.body)))) {
@@ -5693,7 +5726,7 @@ export async function sendDueAlerts(
     let claimed = 0;
     try {
       const res = await prisma.conversation.updateMany({
-        where: { id: c.id, status: "new" },
+        where: upgrade ? { id: c.id, status: "problem", skippedReason: HAZARD_UNVERIFIED_REASON } : { id: c.id, status: "new" },
         data: {
           status: "problem",
           skippedReason: "complaint",
@@ -5763,9 +5796,11 @@ export async function sendDueAlerts(
       // "problem" kalır, aday listesi yalnız `status:"new"` seçtiği için satır bir
       // daha SEÇİLEMEZ ve host'a giden TEK acil şikayet bildirimi izsiz kaybolur.
       // Yaşam-döngüsü göndericilerinde aynı desen zaten okunuyordu; burası atlanmıştı.
-      const rolled = await prisma.conversation
-        .updateMany({ where: { id: c.id, status: "problem" }, data: { status: "new" } })
-        .catch(() => null);
+      // T2 yükseltmesinde geri alma işareti geri koyar (konuşma Sorunlu kalır, bir sonraki geçiş yeniden dener).
+      const rolled = await (upgrade
+        ? prisma.conversation.updateMany({ where: { id: c.id, status: "problem", skippedReason: "complaint" }, data: { skippedReason: HAZARD_UNVERIFIED_REASON } })
+        : prisma.conversation.updateMany({ where: { id: c.id, status: "problem" }, data: { status: "new" } })
+      ).catch(() => null);
       if (rolled === null || rolled.count === 0) escalationRollbackFailures++;
       escalationEmailFailures++;
       continue;

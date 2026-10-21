@@ -25,7 +25,9 @@ vi.mock("@/lib/report-error", async (orig) => {
 
 import { suggestReply } from "@/lib/ai";
 import { sendOnChannel } from "@/lib/messaging";
-import { applyChannelAutoReply } from "@/lib/automation";
+import { applyChannelAutoReply, sendDueAlerts } from "@/lib/automation";
+import { emailService } from "@/lib/email";
+import { HAZARD_UNVERIFIED_EMAILS_PER_HOUR, HAZARD_UNVERIFIED_REASON } from "@/lib/hazard-unverified-alert";
 import { __resetUnderstandingCache } from "@/lib/ai/semantic/understand";
 
 const mockSuggest = vi.mocked(suggestReply);
@@ -204,5 +206,108 @@ describe("kanal oto-yanıtı — bağlamla tehlike (51)", () => {
     const id = await seed("Çaydanlıktan duman çıkıyor ve babam bayıldı!");
     await applyChannelAutoReply(id);
     expect(mockSend).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// KURUCU T2 (10-21): olası tehlike + anlama katmanı koşmadı → tur bugün de tutuluyordu ama ev sahibine HİÇBİR uyarı gitmiyordu. Şimdi:
+// konuşma "Sorunlu" (panelde görünür) + tek acil e-posta; aynı olay tekrar işlenince ikinci e-posta yok; işletme başına saatte en çok 3;
+// sınıra takılan olay panelde kalır; YENİ ve daha ağır tehlike (kelime ağının yakaladığı) önceki olayın tekrarı sayılmaz, sınıra girmez.
+// ---------------------------------------------------------------------------
+describe("kurucu T2 — olası tehlike + anlama katmanı koşmadı (kanal)", () => {
+  const mockMail = vi.mocked(emailService.sendReporting);
+  const SHORT = "Kısa devre oldu, wifi şifresi neydi?";
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+    __resetUnderstandingCache();
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    vi.stubEnv("AUTO_REPLY_ENABLED", "1");
+    vi.stubEnv("KB_RETRIEVAL_MODE", "legacy");
+    mockSend.mockResolvedValue({ ok: true, externalId: "ext-1" } as never);
+    mockMail.mockResolvedValue({ ok: true } as never);
+    mockSuggest.mockResolvedValue({ ...BASE, intent: "wifi", reply: "Wi-Fi ağı Lale_5G." });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  /** Aynı işletmede yeni konuşma (uyarı adresi dolu). */
+  async function seedIn(orgId: string | null, body: string) {
+    const org = orgId
+      ? await prisma.organization.findUniqueOrThrow({ where: { id: orgId } })
+      : await prisma.organization.create({
+          data: { name: "Test Org", alertEmail: "host@example.com", autoReplyHospitable: true, autoReplyStartHour: 0, autoReplyEndHour: 0, timezone: "Europe/Istanbul" },
+        });
+    const property = await prisma.property.create({ data: { organizationId: org.id, name: "Lale", checkInTime: "15:00", checkOutTime: "11:00" } });
+    const conversation = await prisma.conversation.create({
+      data: {
+        propertyId: property.id,
+        channel: "airbnb",
+        guestIdentifier: "Alex",
+        status: "new",
+        externalReservationId: `res-${property.id}`,
+        messages: { create: [{ direction: "inbound", senderName: "Alex", body, createdAt: new Date(Date.now() - 60_000) }] },
+      },
+      select: { id: true },
+    });
+    return { orgId: org.id, id: conversation.id };
+  }
+
+  it("🚨 konuşma Sorunlu + TEK acil e-posta (misafire yine gitmez); aynı olay tekrar işlenince ikinci e-posta YOK", async () => {
+    const { id } = await seedIn(null, SHORT);
+    await applyChannelAutoReply(id);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(await prisma.conversation.findUniqueOrThrow({ where: { id } })).toMatchObject({ status: "problem", skippedReason: HAZARD_UNVERIFIED_REASON });
+    expect(mockMail).toHaveBeenCalledTimes(1); // ⬅️ eskiden ev sahibine hiçbir şey gitmiyordu
+    expect(String(mockMail.mock.calls[0]![2])).toContain("Kısa devre");
+    await applyChannelAutoReply(id);
+    await prisma.message.create({ data: { conversationId: id, direction: "inbound", senderName: "Alex", body: "Kısa devre oldu, ne yapalım?" } });
+    await applyChannelAutoReply(id);
+    expect(mockMail).toHaveBeenCalledTimes(1);
+  });
+
+  it("🚨 işletme başına saatte en çok 3 e-posta; sınıra takılan olay da panelde Sorunlu görünür", async () => {
+    const first = await seedIn(null, SHORT);
+    await applyChannelAutoReply(first.id);
+    const ids = [first.id];
+    for (let i = 0; i < HAZARD_UNVERIFIED_EMAILS_PER_HOUR; i++) {
+      const c = await seedIn(first.orgId, SHORT);
+      await applyChannelAutoReply(c.id);
+      ids.push(c.id);
+    }
+    expect(mockMail).toHaveBeenCalledTimes(HAZARD_UNVERIFIED_EMAILS_PER_HOUR);
+    const rows = await prisma.conversation.findMany({ where: { id: { in: ids } } });
+    expect(rows.every((r) => r.status === "problem" && r.skippedReason === HAZARD_UNVERIFIED_REASON)).toBe(true);
+  });
+
+  it("🚨 YENİ ve daha ağır tehlike önceki olayın tekrarı sayılmaz: sınır dolu olsa da bugünkü acil yoldan bildirilir", async () => {
+    const first = await seedIn(null, SHORT);
+    await applyChannelAutoReply(first.id);
+    for (let i = 0; i < HAZARD_UNVERIFIED_EMAILS_PER_HOUR; i++) await applyChannelAutoReply((await seedIn(first.orgId, SHORT)).id);
+    mockMail.mockClear();
+    // İşaretten SONRA, aynı konuşmada kelime ağının yakaladığı açık tehlike:
+    await prisma.message.create({ data: { conversationId: first.id, direction: "inbound", senderName: "Alex", body: "Prizden duman çıkıyor, yanık kokuyor!" } });
+    await sendDueAlerts(first.orgId);
+    expect(mockMail).toHaveBeenCalledTimes(1);
+    expect(String(mockMail.mock.calls[0]![2])).toContain("Prizden duman");
+    expect(await prisma.conversation.findUniqueOrThrow({ where: { id: first.id } })).toMatchObject({ status: "problem", skippedReason: "complaint" });
+    // KONTROL: işaretten sonra yeni mesaj yoksa ya da yeni mesaj tehlike değilse (şikâyet) yeniden bildirim yok.
+    mockMail.mockClear();
+    const second = await seedIn(first.orgId, SHORT);
+    await applyChannelAutoReply(second.id);
+    await prisma.message.create({ data: { conversationId: second.id, direction: "inbound", senderName: "Alex", body: "Oda çok kirli, iade istiyorum." } });
+    await sendDueAlerts(first.orgId);
+    expect(mockMail).not.toHaveBeenCalled();
+  });
+
+  it("KONTROL: anlama katmanı koştu ve 'acil değil' dedi → işaret yok, e-posta yok (bugünkü davranış)", async () => {
+    vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
+    vi.stubGlobal("fetch", understandingFetch("wifi"));
+    const { id } = await seedIn(null, SHORT);
+    await applyChannelAutoReply(id);
+    expect((await prisma.conversation.findUniqueOrThrow({ where: { id } })).skippedReason).not.toBe(HAZARD_UNVERIFIED_REASON);
+    expect(mockMail).not.toHaveBeenCalled();
   });
 });
