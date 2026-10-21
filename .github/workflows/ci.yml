@@ -277,3 +277,22 @@ jobs:
       # script'lerini CI'da kosturmamak demektir).
       - name: Zafiyet triaj kapisi
         run: node scripts/audit-check.mjs
+
+  # SIR TARAMASI (altyapi envanteri 10-21 madde 67, kurucu "olur"). Takip edilen agacta gitleaks (varsayilan kural seti +
+  # `.gitleaks.toml` izin listesi: yalniz test fikstuuru / test yapilandirmasi). Surum VE sha256 sabit (tedarik zinciri);
+  # yerelde iki yonlu denendi (temiz agac gecer, eklenen sahte anahtar yakalanir). npm ci YOK (kurulum gerekmiyor).
+  secret-scan:
+    runs-on: ubuntu-latest
+    if: >-
+      github.head_ref != 'claude/great-edison-3zqpZ' &&
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
+    steps:
+      - uses: actions/checkout@v4
+      - name: gitleaks (surum + sha256 sabit)
+        run: |
+          set -euo pipefail
+          curl -sSL -o /tmp/gl.tgz https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz
+          echo "5bc41815076e6ed6ef8fbecc9d9b75bcae31f39029ceb55da08086315316e3ba  /tmp/gl.tgz" | sha256sum -c -
+          tar xzf /tmp/gl.tgz -C /tmp gitleaks
+          /tmp/gitleaks dir . --no-banner --redact --config .gitleaks.toml --exit-code 1
