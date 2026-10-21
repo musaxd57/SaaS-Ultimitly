@@ -574,12 +574,7 @@ async function lifecycleVeto(row: OutboxRow, now: Date, spannedBillingBlock = fa
   // Öncelik (Haiku 10-14 son tur): satırın KENDİ rezervasyonu (iptal değilse) → onaylı kopya → iptal olmayan kopya → herhangi biri.
   // Başka mülkteki "bekliyor / tamamlandı" bir kopya ("window_passed", "reservation_completed") canlı rezervasyonun mesajını kalıcı
   // iptal etmesin — kuyruğa giriş de onaylı satırı seçer.
-  const res =
-    siblings.find((r) => r.id === row.reservationId && r.status !== "cancelled") ??
-    siblings.find((r) => r.status === "confirmed") ??
-    siblings.find((r) => r.status !== "cancelled") ??
-    siblings[0] ??
-    null;
+  const res = pickLifecycleReservation(siblings, row.reservationId);
   if (!res) return "reservation_gone";
   if (res.status === "cancelled") return "reservation_cancelled";
   // Açık silme (KVKK tombstone) kuyruğa girdikten SONRA geldiyse mesaj gitmez (Haiku 10-14; gövde "[ANON]" olmayabilir).
@@ -674,7 +669,24 @@ const TEMPLATE_WAIT_MS = 60 * 60_000;
 
 type LifecycleBodyCheck = { kind: "send"; body: string } | { kind: "wait"; reason: string } | { kind: "erased" } | { kind: "lost" };
 
+/**
+ * Satırın hangi rezervasyon kopyası adına gideceği — TEK kural (Claude 2. dalga #95): veto ile gövde yenileme AYNI kopyayı seçer. Önce satırın
+ * KENDİ rezervasyonu (iptal değilse) → onaylı kopya → iptal olmayan kopya → herhangi biri. Önceden yenileme iptal edilmiş kendi kopyasını ya da
+ * onaylıyı değil en erken kopyayı seçebiliyordu: veto B dairesini doğrularken metin A dairesinden (başka kapı kodu) kuruluyordu.
+ */
+export function pickLifecycleReservation<T extends { id: string; status: string }>(siblings: readonly T[], ownId: string | null): T | null {
+  return (
+    siblings.find((r) => r.id === ownId && r.status !== "cancelled") ??
+    siblings.find((r) => r.status === "confirmed") ??
+    siblings.find((r) => r.status !== "cancelled") ??
+    siblings[0] ??
+    null
+  );
+}
+
 const LIFECYCLE_RESERVATION_SELECT = {
+  id: true,
+  status: true,
   propertyId: true,
   guestName: true,
   property: { select: { name: true, organizationId: true, organization: { select: { aiSignature: true } } } },
@@ -691,19 +703,21 @@ async function refreshLifecycleBody(row: OutboxRow, token: string, rowRevision: 
   // Satırın rezervasyonu silinmiş olabilir (hayalet satır temizliği — `reservationId` ilişkisiz) ya da eski satırda hiç yoktur: aynı kaynak
   // kimliğinin bu işletmedeki kopyasından okunur (↑`lifecycleVeto` ile aynı seçim). Hiç bulunamazsa eski gövde GÖNDERİLMEZ, bekler
   // (Haiku T4 #1: kontrolsüz "gönder" dönüşü boşaltılmış metnin eskisini gönderiyordu).
-  const own = row.reservationId
-    ? await prisma.reservation.findUnique({ where: { id: row.reservationId }, select: LIFECYCLE_RESERVATION_SELECT })
-    : null;
-  const reservation =
-    own && own.property.organizationId === row.organizationId
-      ? own
-      : row.externalReservationId
-        ? await prisma.reservation.findFirst({
-            where: { sourceReference: row.externalReservationId, property: { organizationId: row.organizationId }, status: { not: "cancelled" } },
-            orderBy: [{ arrivalDate: "asc" }, { id: "asc" }],
-            select: LIFECYCLE_RESERVATION_SELECT,
-          })
-        : null;
+  // Kopya seçimi vetoyla AYNI kural (`pickLifecycleReservation`): kaynak kimliği varsa bütün kopyalar okunur, yoksa yalnız satırın kendisi.
+  const candidates = row.externalReservationId
+    ? await prisma.reservation.findMany({
+        where: { sourceReference: row.externalReservationId, property: { organizationId: row.organizationId } },
+        orderBy: [{ arrivalDate: "asc" }, { id: "asc" }],
+        select: LIFECYCLE_RESERVATION_SELECT,
+      })
+    : row.reservationId
+      ? (await prisma.reservation.findMany({ where: { id: row.reservationId }, select: LIFECYCLE_RESERVATION_SELECT })).filter(
+          (r) => r.property.organizationId === row.organizationId,
+        )
+      : [];
+  const picked = pickLifecycleReservation(candidates, row.reservationId);
+  // İptal edilmiş kopyadan metin kurulmaz (veto zaten iptali durdurur; yarışta bekler).
+  const reservation = picked && picked.status !== "cancelled" ? picked : null;
   if (!reservation) return { kind: "wait", reason: "template_unresolved" };
   const tpl = await loadAutoMessage(reservation.propertyId, row.messageType);
   if (!tpl) return { kind: "wait", reason: "template_missing" };

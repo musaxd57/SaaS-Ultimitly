@@ -341,3 +341,71 @@ describe("kurucu T4 — 'Otomatik mesajlar' rotası", () => {
     expect((await PUT(json("PUT", { kind: "checkin", body: "x", expectedRevision: 0 }), p(propertyId))).status).toBe(403);
   });
 });
+
+describe("Claude 2. dalga #95 (10-21): veto ile metin yenileme AYNI rezervasyon kopyasını seçer — başka dairenin metni / kapı kodu gitmez", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+    vi.stubEnv("AUTO_REPLY_ENABLED", "1");
+    vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
+    vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", "*");
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  async function seedTwoUnits() {
+    const { orgId, propertyId, reservationId } = await seedQueued("Merhaba {isim}, A dairesi kapı kodu 4821.");
+    const other = await prisma.property.create({ data: { organizationId: orgId, name: "Lale 5" } });
+    await seedAutoMessage(other.id, "welcome", "Merhaba {isim}, B dairesi kapı kodu 9999.");
+    await sendDueWelcomes(orgId);
+    const own = await prisma.reservation.findUniqueOrThrow({ where: { id: reservationId } });
+    return { orgId, propertyId, ownId: reservationId, otherPropertyId: other.id, own };
+  }
+
+  it("kendi kopyası İPTAL, aynı kaynak kimliğiyle başka dairede ONAYLI kopya → metin onaylı kopyanın dairesinden kurulur", async () => {
+    const { orgId, ownId, otherPropertyId, own } = await seedTwoUnits();
+    await prisma.reservation.update({ where: { id: ownId }, data: { status: "cancelled" } });
+    await prisma.reservation.create({
+      data: {
+        propertyId: otherPropertyId, guestName: "Bircan Yılmaz", arrivalDate: own.arrivalDate, departureDate: own.departureDate,
+        channel: "airbnb", status: "confirmed", sourceReference: "res-1",
+      },
+    });
+    const { send, bodies } = capture();
+    await drain(send);
+    expect(bodies).toHaveLength(1);
+    expect(bodies[0]).toContain("9999");
+    expect(bodies[0]).not.toContain("4821");
+  });
+
+  it("kendi kopyası silinmiş; erken tarihli BEKLEYEN kopya + onaylı kopya → onaylı kopyanın dairesi (vetoyla aynı)", async () => {
+    const { orgId, ownId, propertyId, otherPropertyId, own } = await seedTwoUnits();
+    await prisma.messageOutbox.updateMany({ where: { organizationId: orgId }, data: { reservationId: null } });
+    await prisma.reservation.delete({ where: { id: ownId } });
+    await prisma.reservation.create({
+      data: {
+        propertyId, guestName: "Bircan Yılmaz", arrivalDate: new Date(own.arrivalDate.getTime() - 86_400_000), departureDate: own.departureDate,
+        channel: "airbnb", status: "pending", sourceReference: "res-1",
+      },
+    });
+    await prisma.reservation.create({
+      data: {
+        propertyId: otherPropertyId, guestName: "Bircan Yılmaz", arrivalDate: own.arrivalDate, departureDate: own.departureDate,
+        channel: "airbnb", status: "confirmed", sourceReference: "res-1",
+      },
+    });
+    const { send, bodies } = capture();
+    await drain(send);
+    expect(bodies).toHaveLength(1);
+    expect(bodies[0]).toContain("9999");
+    expect(bodies[0]).not.toContain("4821");
+  });
+
+  it("KONTROL: kendi kopyası canlı → kendi dairesinin metni gider (davranış değişmedi)", async () => {
+    const { orgId } = await seedTwoUnits();
+    const { send, bodies } = capture();
+    await drain(send);
+    expect(bodies).toHaveLength(1);
+    expect(bodies[0]).toContain("4821");
+    expect(await rowOf(orgId)).toMatchObject({ status: "sent" });
+  });
+});
