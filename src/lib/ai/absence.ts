@@ -109,6 +109,13 @@ const EN_OBJ = "(?:information|info|records?|details?|data|notes?)(?![\\p{L}])";
 /** Bilginin YERİ (rehber / notlar / kayıtlar) — "isn't in the guide", "the guide doesn't cover …" (10-01, A05). */
 const EN_PLACE = "(?:house\\s+)?(?:guide|manual|handbook|notes?|records?|files?|information|details|knowledge\\s+base)";
 
+/**
+ * "Bulamamak" itirafının öznesi (W4 + Haiku 10-21): ben / biz ya da bizim kaynağımız / ekibimiz. Misafir ("you"), üçüncü kişi ("guests",
+ * "our cleaners") itiraf öznesi değildir. Özne ile fiil arasında en çok bir zarf ("really", "currently", "genuinely" — -ly sözcükleri).
+ */
+const FINDER_SUBJECT = "(?:i|we|(?:our|my) (?:team|staff|records?|notes?|system|guide|information|info))";
+const FINDER_ADVERB = "(?: (?:just|still|also|\\p{L}{2,15}ly))?";
+
 const ABSENCE_PATTERNS: readonly RegExp[] = [
   new RegExp(`${TR_OBJ} ${gap(1)}${TR_TIGHT}`, "u"),
   // Kurucu 10-17 (M1, aynen: "bilgi veremem cümlesi tabii ki tutulsun — müşteriye öyle denir mi, sussa daha iyi"): geniş zaman / gelecek
@@ -126,12 +133,9 @@ const ABSENCE_PATTERNS: readonly RegExp[] = [
   // Kurucu W4 (10-21, "bağlam bazlı tutsun"): "bulamamak" yalnız BEN / BİZ öznesiyle ya da öznesiz cümle başında itiraftır. Çıplak kalıp
   // misafire talimatı ("If you can't find the keys, they are in the lockbox") ve olguyu ("You can't see the sea") da tutuyordu. Öznesiz
   // cümle soruysa ("Can't find the keys? They are in the lockbox.") yine talimattır.
+  new RegExp(`${L}${FINDER_SUBJECT}${FINDER_ADVERB} (?:can't|cannot|can not|couldn't|could not) (?:find|locate|see)(?![\\p{L}])`, "u"),
   new RegExp(
-    `${L}(?:i|we)(?: (?:really|just|still|unfortunately|simply|honestly))? (?:can't|cannot|can not|couldn't|could not) (?:find|locate|see)(?![\\p{L}])`,
-    "u",
-  ),
-  new RegExp(
-    `${L}(?:i|we)(?:'m|'re| am| are| was| were)?(?: (?:really|just|still|unfortunately|simply))? (?:not able|unable) to (?:find|locate|see)(?![\\p{L}])`,
+    `${L}${FINDER_SUBJECT}(?:'m|'re| am| are| was| were)?${FINDER_ADVERB} (?:not able|unable) to (?:find|locate|see)(?![\\p{L}])`,
     "u",
   ),
   new RegExp(

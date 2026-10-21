@@ -45,3 +45,32 @@ describe("W4 — öznesiz soru cümlesi talimattır", () => {
     expect(admitsMissingKnowledge("Welcome! Unable to locate details on the pool.")).toBe(true);
   });
 });
+
+describe("Haiku 10-21: özne ile fiil arasındaki zarf / ekip öznesi — gerçek itiraf kaçmaz", () => {
+  it.each([
+    "I'm genuinely unable to find it.",
+    "I'm honestly unable to find it.",
+    "We currently can't locate the guide.",
+    "I actually couldn't find any record of that.",
+    "Our team couldn't find the manual.",
+    "My notes can't find anything on that.",
+  ])("tutulur: %s", (reply) => {
+    expect(admitsMissingKnowledge(reply)).toBe(true);
+  });
+  it.each([
+    "I think you can't miss it — it is the blue door.",
+    "Our cleaners can't find anything wrong with the boiler, it works fine.",
+  ])("KONTROL tutulmaz: %s", (reply) => {
+    expect(admitsMissingKnowledge(reply)).toBe(false);
+  });
+});
+
+describe("W4 kalıpları doğrusal (ReDoS pini)", () => {
+  it("uzun zarf / özne / tek sözcük dizilerinde 1 sn altında", () => {
+    for (const s of ["i " + "reallyly ".repeat(5000), "our team ".repeat(6000), `${"a".repeat(50_000)}ly can't find`, `${"x".repeat(14)}ly `.repeat(3000)]) {
+      const t0 = performance.now();
+      admitsMissingKnowledge(s);
+      expect(performance.now() - t0).toBeLessThan(1000);
+    }
+  });
+});
