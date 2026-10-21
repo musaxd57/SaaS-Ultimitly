@@ -649,6 +649,7 @@ describe("Claude 2. dalga #18 / #53 (10-21): bağlaçla biten olumsuzluk ve baş
     "If we cook, will the CO alarm beep?",
     "I'm not sure if the CO alarm beeps when I cook",
     "Not sure, but if the CO alarm beeps should we leave",
+    "Sorry if this is a dumb question but if the CO detector beeps should we leave",
     "Wenn der CO-Melder piept, was sollen wir tun?",
   ])("KONTROL (aşırı uygulama yok) — bildirim değil: %s", (m) => {
     expect(gasDetectorSounding(m)).toBe(false);

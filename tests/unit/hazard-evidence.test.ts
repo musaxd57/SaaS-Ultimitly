@@ -790,6 +790,10 @@ describe("Claude 2. dalga #78 / #21 (10-21): öznesiz kip fiili sigara değildir
     },
   );
 
+  it("iki inç işareti arasındaki tehlike cümlesi alıntı sayılmaz (açılış da sözcük sınırında olmalı)", () => {
+    expect(hazardModule.hazardEvidenceOf('The 2" pipe in the kitchen smells of gas, strong gas smell right now, see the 3" vent.').level).toBe("clear");
+  });
+
   it("eşleşmemiş inç işareti ile sonraki tırnak arasındaki tehlike cümlesi silinmez", () => {
     expect(hazardModule.hazardEvidenceOf('The 55" TV is fine but there\'s a strong gas smell in the kitchen "right now"').level).toBe("clear");
   });
