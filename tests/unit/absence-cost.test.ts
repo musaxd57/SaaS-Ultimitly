@@ -71,6 +71,13 @@ describe("dayanaklı silici + 'sistem' kalıbı — düşmanca girdide sınırl�
   it.each([
     ["'sistemimizde' tekrarı", "sistemimizde ".repeat(5_000) + "yok"],
     ["'sistemde kayıt' tekrarı", "sistemde kayıt ".repeat(5_000)],
+    // Claude T1 iç kaynak işareti (10-21): işaret ve olumsuzluk tekrarları, uzun tek sözcük, boşluk dizisi — tek cümle.
+    ["'elimdeki' tekrarı", "elimdeki ".repeat(5_000) + "bilgilerde yok"],
+    ["'bana verilen' + uzun sözcük", "bana verilen " + "a".repeat(40_000) + "da yok"],
+    ["'sorun yok' tekrarı", "kayıtlarımızda " + "bir sorun yok ".repeat(5_000)],
+    ["'the notes the host gave me' tekrarı", "the host gave me ".repeat(5_000) + "nothing"],
+    ["Arapça olumsuzluk tekrarı", "سجلاتنا " + "ولم ".repeat(10_000)],
+    ["boşluk dizisi", "knowledge base" + " ".repeat(40_000) + "nothing"],
   ])("%s → 1.500 ms altında", (_ad, girdi) => {
     expect(ms(() => admitsMissingKnowledge(girdi))).toBeLessThan(1_500);
   });

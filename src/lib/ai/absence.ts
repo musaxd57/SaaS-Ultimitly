@@ -459,6 +459,81 @@ const NO_INSTRUCTION_CLAUSE_PATTERNS: readonly RegExp[] = [
 /** Tek liste (her çağrıda yeniden kurulmasın). Yeni kalıplar KAPALI tekrar (`{0,n}`) kullanır — CLAUDE.md karesel iş kuralı. */
 const ALL_ABSENCE_PATTERNS: readonly RegExp[] = [...ABSENCE_PATTERNS, ...MORE_ABSENCE_PATTERNS, ...QUALIFIED_NO_INSTRUCTION_PATTERNS];
 
+// ── İÇ KAYNAK ANLATIMI — KAYNAK İŞARETİ + OLUMSUZLUK AYNI CÜMLEDE (Claude T1 ölçümü 10-21: 30 vakanın 21'i kaçtı) ───────────────────────
+// Kurucu T1 (10-21): "misafire 'bilgi tabanında yok', 'kayıtlarımdan bulamadım', 'sistemimizde görünmüyor' gibi iç kaynak ve işleyiş anlatımı
+// yazılmayacak". Kaçanlar nesne + yüklem dilbilgisine sığmıyordu: "the material I've been working from", "not in my prompt", "loaded into my
+// context", "FAQ entries I can pull up", "the lookup returned nothing", "in der mir vorliegenden Wissensdatenbank nichts hinterlegt", "la fiche du
+// logement qui m'a été transmise", "me configuraron para contestar solo con la ficha", "в карточке объекта, которую мне передали", "لا يوجد في
+// سجلاتنا", "bana tanımlanan bilgilerin içinde", "sistem sorgusunda eşleştiremedim". Ortak yapı: yapay zekânın KENDİ kaynağını / aramasını anlatan
+// bir İŞARET + aynı cümlede olumsuzluk. Yön yalnız TUTMAK (kapı kısıtlayıcı). İşaretler yalnız iç kaynaktır — çıplak "sistem / system / records"
+// İŞARET DEĞİL (mülk olgusu: "Klima sistemimizde sorun yok", "The heating system is electric" — ölçer kategorisi "Sistem / kayıt sözcüklü normal
+// cevap" 0 kalmalı); Türkçe "elimdeki / bana verilen …" yalnız bulunma ekiyle ("bilgilerde", "notlarında", "içinde") — "elimdeki bilgilere göre
+// otopark ücretsiz, ek ücret yok" olgudur. Olumsuzluk dil başına ayrı (İspanyolca "no" İngilizce "no deposit"i tutmasın). Kalıplar başı sabit
+// sözcükle başlar, tekrarlar kapalı — karesel iş yok (`absence-cost.test.ts`).
+const TR_GIVEN = "(?:tanımlanan|verilen|iletilen|sağlanan|aktarılan|gönderilen|yüklenen|paylaşılan)";
+/** Türkçe "yok" — "sorun / eksik / ücret … yok" olgudur, olumsuzluk sayılmaz ("Kayıtlarımızda bir sorun yok"). */
+const TR_PLAIN_YOK =
+  "(?<!(?:sorun|problem|eksik|eksiklik|hata|engel|sıkıntı|aksaklık|ücret|endişe|gerek|ihtiyaç|değişiklik) (?:[\\p{L}]{1,12} )?)yok(?:tur)?(?![\\p{L}])";
+const INTERNAL_SOURCE_RULES: ReadonlyArray<readonly [marker: RegExp, negation: RegExp]> = [
+  [
+    new RegExp(
+      `${L}(?:bilgi ?taban\\p{L}{0,8}|veri ?taban\\p{L}{0,8}|sistem sorgu\\p{L}{0,8}|(?:sorgu|arama|sorgulama)(?:m|mız)(?:da|la)(?![\\p{L}])|` +
+        `kay[ıi]tlar[ıi]m(?:[ıi]z)?(?:da|dan)(?![\\p{L}])|notlar[ıi]m(?:[ıi]z)?(?:da|dan)(?![\\p{L}])|` +
+        `(?:elimdeki|bana ${TR_GIVEN}) (?:\\p{L}{1,30} ){0,2}(?:\\p{L}{1,30}(?:de|da|te|ta)|içinde|arasında)(?![\\p{L}]))`,
+      "u",
+    ),
+    new RegExp(
+      `${L}(?:${TR_PLAIN_YOK}|değil|bulunmuyor|bulunmamakta|bulunamad|göremiyor|göremed|görünmüyor|bulamad|bulamıyor|eşleştiremed|eşleştiremiyor|` +
+        "eşleşmed|eşleşmiyor|rastlamad|rastlayamad|ulaşamad|ulaşamıyor|yer almıyor|yer almamakta|geçmiyor|çıkmad|çıkmıyor|verilmemiş|belirtilmemiş|" +
+        "tanımlanmamış|teyit edemiyor|teyit edemed|doğrulayamad|doğrulayamıyor|hiçbir şey)",
+      "u",
+    ),
+  ],
+  [
+    new RegExp(
+      `${L}(?:knowledge[ -]?base|database|(?:my|the|this) prompt(?![\\p{L}])|(?:in|into|to) my context(?![\\p{L}])|context window|` +
+        "(?:the|my|a|that|our) look-?up(?![\\p{L}])|faq entries|faqs? (?:i|we) (?:can|could|have)|" +
+        "(?:i've been|i have been|i was|i've|i have) (?:working from|given|provided|configured|set up|programmed)(?![\\p{L}])|" +
+        "(?:given|provided|passed|handed|supplied|loaded|fed) (?:to|into) (?:me|my)(?![\\p{L}])|" +
+        "(?:gave|has given|had given|provided|shared|sent|passed) me(?![\\p{L}])|" +
+        "(?:i|we) (?:searched|checked|queried|looked through|looked in) (?:the |our |my )?(?:knowledge base|records?|system|database|notes|files|faqs?))",
+      "u",
+    ),
+    /(?<![\p{L}])(?:nothing|none of|no (?:mention|record|records|entry|entries|information|info|details?|results?|match|matches|notes?|rule|rules|reference)(?![\p{L}])|(?:isn't|is not|aren't|are not|wasn't|was not|weren't|were not) (?:covered|mentioned|listed|included|there|anything|in|on|loaded|available|part)(?![\p{L}])|(?:don't|doesn't|didn't|do not|does not|did not) (?:mention|cover|include|show|list|contain|say|have|appear|find|see|turn up)(?![\p{L}])|couldn't|could not|can't find|cannot find|unable to|returned nothing|came up (?:empty|blank|short)|no luck)/u,
+  ],
+  [
+    /(?<![\p{L}])(?:wissensdatenbank|datenbank|datensatz|buchungsdaten|(?:mir|uns) (?:vorliegend\p{L}{0,3}|zur verfügung gestellt\p{L}{0,3}|übermittelt\p{L}{0,3}|mitgeteilt\p{L}{0,3})|(?:meinen|unseren) unterlagen|systemabfrage|systemsuche)/u,
+    /(?<![\p{L}])(?:nicht|nichts|kein\p{L}{0,3}|keinerlei|fehlt|fehlen)(?![\p{L}])/u,
+  ],
+  [
+    /(?<![\p{L}])(?:base de (?:données|connaissances)|(?:qui|que) (?:m'|nous )(?:a|ont) été (?:transmis|fourni|donné|communiqué)\p{L}{0,2}|(?:on|l'hôte) (?:m'a|nous a) (?:transmis|fourni|donné|communiqué)\p{L}{0,2}|(?:mon|notre) système(?! de)|(?:mes|nos) (?:fiches|dossiers|registres)(?![\p{L}])|fiche (?:du logement|de l'annonce|qui))/u,
+    /(?<![\p{L}])(?:ne(?![\p{L}])|n'|aucune?(?![\p{L}])|rien(?![\p{L}])|pas(?![\p{L}]))/u,
+  ],
+  [
+    /(?<![\p{L}])(?:base de datos|(?:nuestro|mi) sistema(?! de)|(?:nuestros|mis) registros|me (?:configuraron|programaron|pasaron|dieron|facilitaron|proporcionaron)(?![\p{L}])|ficha del alojamiento)/u,
+    /(?<![\p{L}])(?:no|nada|ningun[oa]?|ningún)(?![\p{L}])/u,
+  ],
+  [
+    /(?<![\p{L}])(?:баз\p{L}{0,3} данных|(?:в|из) (?:нашей|моей) систем\p{L}{0,3}|(?:мне|нам) (?:передали|предоставили|дали|выдали)|(?:переданн|предоставленн)\p{L}{0,4} (?:мне|нам)|(?:наших|моих) записях|карточк\p{L}{0,3} объекта)/u,
+    /(?<![\p{L}])(?:не|нет|ничего|никаких|ни)(?![\p{L}])/u,
+  ],
+  [
+    /(?:سجلات(?:نا|ي)|قاعدة (?:ال)?بيانات|نظام(?:نا|ي)(?![\p{L}])|ي?زوّ?دني|أعطاني|اعطاني|المقدمة لي)/u,
+    // Arapça bağlaç öneki bitişik yazılır ("ولم يظهر", "فلا").
+    /(?<![\p{L}])[وف]?(?:لا|لم|ليس|ليست|لن|غير)(?![\p{L}])/u,
+  ],
+];
+
+/** Bir cümlede iç kaynak işareti + aynı dilin olumsuzluğu var mı (katlanmış metin; cümle sınırı `SEP`). */
+function narratesInternalSource(folded: string): boolean {
+  for (const sentence of folded.split(SEP)) {
+    for (const [marker, negation] of INTERNAL_SOURCE_RULES) {
+      if (marker.test(sentence) && negation.test(sentence)) return true;
+    }
+  }
+  return false;
+}
+
 /** Ortak hazırlık: `admitsMissingKnowledge` ile aynı normalleştirme + iki katlama. */
 function foldedForms(text: string | null | undefined): [string, string] {
   // Görünmez karakter (ZWSP, yumuşak tire, biçim karakteri, boş braille) yalnız EŞLEŞME kopyasından silinir — "bilgim\u200B yok" kuralı
@@ -535,7 +610,9 @@ export function admitsMissingKnowledge(reply: string | null | undefined): boolea
   // information"). Vurgu işaretleri silinir, her boşluk dizisi TEK boşluk olur (sınıflandırıcının `normalizeForMatch`iyle aynı; yalnız
   // EŞLEŞME EKLER — kısıtlayıcı kapı).
   const [plain, turkish] = foldedForms(reply);
-  return ALL_ABSENCE_PATTERNS.some((re) => re.test(plain) || re.test(turkish));
+  return (
+    ALL_ABSENCE_PATTERNS.some((re) => re.test(plain) || re.test(turkish)) || narratesInternalSource(plain) || narratesInternalSource(turkish)
+  );
 }
 
 /** Rapor/hata metninde gösterilecek insan-okur özet (uydurma liste basma). */

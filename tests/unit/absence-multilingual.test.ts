@@ -511,3 +511,54 @@ describe("kurucu T1 (10-21): iç kaynak / işleyiş anlatımı misafire gitmez �
     (t) => expect(admitsMissingKnowledge(t)).toBe(false),
   );
 });
+
+// Claude T1 ölçümü (10-21, `docs/olcum/claude-zorlu-t1-2026-10-21.md`): iç kaynak anlatımı vakalarının 21 / 30'u kaçıyordu — nesne + yüklem
+// dilbilgisine sığmayan "bana verilen kaynak / istem / bağlam / arama" anlatımı. Kaynak işareti + aynı cümlede olumsuzluk (`absence.ts`).
+describe("kurucu T1 (10-21): iç kaynak işareti + olumsuzluk aynı cümlede — Claude ölçümünde kaçan biçimler", () => {
+  it.each([
+    "Zur Frage, ob Haustiere erlaubt sind, ist in der mir vorliegenden Wissensdatenbank leider nichts hinterlegt.",
+    "Sobre tu consulta del código de reserva, no aparece en nuestro sistema ninguna reserva con ese código.",
+    "أما بخصوص إمكانية الحصول على مناشف إضافية، لا يوجد في سجلاتنا ما يشير إلى ذلك.",
+    "About the hot tub: looking at the notes the host gave me, there's nothing that mentions one.",
+    "As for bringing your dog, that isn't covered in the material I've been working from, so I'd rather not guess.",
+    "Şömine kullanımıyla ilgili elimdeki bilgi notlarında herhangi bir açıklama yok, bu yüzden kullanmamanızı öneririm.",
+    "I tried to pull up your reservation to confirm the exact arrival time you booked, but the lookup returned nothing on my side.",
+    "Concernant le lit bébé, cela ne figure pas dans la fiche du logement qui m'a été transmise.",
+    "أما بخصوص سؤالك عن وجود مكواة في الفيلا، فالمضيف لم يزوّدني بأي تفاصيل عن ذلك.",
+    "I also searched the knowledge base for a luggage storage option after checkout and nothing came up.",
+    "Ob Sie den Garten abends nutzen dürfen (das steht leider nicht in den mir vorliegenden Hostinformationen), weiß der Gastgeber.",
+    "As for a heated-pool option, that isn't anything that's been loaded into my context for this property.",
+    "Rezervasyon numaranızı sistem sorgusunda eşleştiremedim, bu yüzden ödeme durumunuzu teyit edemiyorum.",
+    "Zum Spätcheckout: In Ihrem Buchungsdatensatz sehe ich dazu keinen Vermerk.",
+    "Pour les animaux, la base de données de l'hôte ne contient aucune règle.",
+    "Sobre el transporte al aeropuerto, me configuraron para contestar solo con la ficha del alojamiento y ahí no hay nada.",
+    "Что касается детской кроватки, в карточке объекта, которую мне передали, об этом ничего не сказано.",
+    "بحثت عن اسمكم في قاعدة بيانات الحجوزات ولم يظهر أي حجز بهذا الاسم.",
+    "On whether you can bring a bike inside, none of the FAQ entries I can pull up mention it.",
+    "Bahçedeki mangal konusunda bana tanımlanan bilgilerin içinde bir kural yok.",
+    "I can't tell you where the main gas valve is, since that location isn't in my prompt.",
+    // Türkçe ek biçimler
+    "Kayıtlarımızda bu konuda herhangi bir not bulunmuyor.",
+    "Bilgi tabanımızda havuz ısıtmasıyla ilgili bir şey yer almıyor.",
+  ])("TUTULUR: %s", (t) => expect(admitsMissingKnowledge(t)).toBe(true));
+
+  it.each([
+    // Ölçer kategorisi "Sistem / kayıt sözcüklü NORMAL cevap" — mülk olgusu, tutulmaz.
+    "Dairede merkezi ısıtma sistemi var, termostat salonda.",
+    "Alarm sistemimiz kapıda, giriş kodu ayrı gönderilecek.",
+    "Klima sistemimizde sorun yok, rahat kullanabilirsiniz.",
+    "Check-in is registered automatically by the building system, no need to call.",
+    "The heating system is electric and there is no gas in the flat.",
+    "Asansör sistemimiz yok, merdiven kullanılıyor.",
+    "Nuestro sistema de calefacción es eléctrico, no hace falta encenderlo.",
+    "Notre système de réservation vous enverra le code, rien à faire de votre côté.",
+    "Unser Alarmsystem ist nicht aktiv, Sie müssen nichts tun.",
+    "Система отопления электрическая, ничего включать не нужно.",
+    // Kaynağa DAYANAN olumlu cevap (bulunma eki yok / olumsuzluk olgu): tutulmaz.
+    "Elimdeki bilgilere göre otopark ücretsiz, ek ücret yok.",
+    "Rezervasyon kayıtlarımızda bir sorun yok, girişiniz 15:00'te.",
+    "I checked our records and your booking is confirmed for three nights; no deposit is needed.",
+    "The host gave me the lockbox code: 4821, no need to call.",
+    "Your booking is confirmed in our system and check-in is at 15:00.",
+  ])("KONTROL — normal cevap, tutulmaz: %s", (t) => expect(admitsMissingKnowledge(t)).toBe(false));
+});
