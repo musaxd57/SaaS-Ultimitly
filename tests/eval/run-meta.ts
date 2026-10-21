@@ -145,6 +145,11 @@ export const PIPELINE_FLAGS = [
   "AI_FIX_SUPPORT_GATE_ENABLED",
   // Konu bazlı "bilgim yok" (10-16, H9): kanal öğe kipinde yokluk cümlesi ayıklanır, bağımsız soru gider (misafire gideni değiştirir).
   "AI_TOPIC_ABSENCE_ENABLED",
+  // "Bilgim yok" bağlam hakemi (10-21, kurucu W4: "kelime bazlı değil bağlam bazlı"): yalnız TUTUŞU değiştirir (yanlış tutuşu bırakır).
+  "AI_ABSENCE_JUDGE_ENABLED",
+  "AI_ABSENCE_JUDGE_STRICT",
+  // Tarafsızlık / özür yasağı istem katmanı (10-21): cevap istemini değiştirir (misafire giden metni değiştirir).
+  "AI_NO_APOLOGY_RULE_ENABLED",
 ] as const;
 
 /** GÖNDERİLEN çabanın etiketi: klasik modele çaba hiç gitmez; reasoning modelinde ayarsız / tanınmayan değer = gönderilmez. */
