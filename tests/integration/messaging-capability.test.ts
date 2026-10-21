@@ -20,6 +20,7 @@ vi.mock("@/lib/report-error", () => ({
 import { sendOnChannel } from "@/lib/messaging";
 import { previewWelcomes, sendDueWelcomes, previewChannelAutoReplies } from "@/lib/automation";
 import { setOrgHospitableToken, resetPrimaryOrgCache } from "@/lib/hospitable-credentials";
+import { createKbWithAutoMessage } from "../helpers/auto-message";
 
 const mockSend = vi.mocked(sendOnChannel);
 const ORIGINAL_ENV = {
@@ -54,7 +55,7 @@ async function seedFixtures(propertyId: string) {
   await mk("Csv", { sourceReference: "csv-1", channel: "manual", calendarSourceId: null });
   await mk("Feed", { sourceReference: "feed-1", channel: "airbnb", calendarSourceId: source.id });
   await mk("NoRef", { sourceReference: null, channel: "airbnb", calendarSourceId: null });
-  await prisma.knowledgeBaseItem.create({
+  await createKbWithAutoMessage({
     data: { propertyId, category: "welcome", title: "Karşılama", content: "Hoş geldiniz!", isActive: true },
   });
 }

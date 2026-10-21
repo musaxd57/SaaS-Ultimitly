@@ -58,11 +58,12 @@ describe("A1 — KB onay sözleşmesi", () => {
 
   it("onay kapısı TEK KAYNAKTAN geliyor — yüzeyler kendi listesini yazmaz", () => {
     // Kapalı kümeyi elle tekrar yazan bir yüzey, küme değişince sessizce eskir.
+    // Kurucu T4 (10-21): `automation.ts` ve gönderilenler sayfası otomatik mesajı artık bilgi tabanından OKUMAZ (↓ ayrı pin).
     for (const rel of [
       "src/lib/ai/kb-fetch.ts",
-      "src/lib/automation.ts",
-      "src/app/(app)/sent/page.tsx",
       "src/modules/intelligence/memory/bootstrap.ts",
+      "src/app/(app)/properties/[id]/page.tsx",
+      "src/lib/auto-messages/store.ts",
     ]) {
       const src = read(rel);
       expect(src, rel).toMatch(/from "@\/lib\/kb-review"/);
@@ -70,16 +71,16 @@ describe("A1 — KB onay sözleşmesi", () => {
     }
   });
 
-  it("şablon yolları (gönderici + önizleme) BARE `isActive: true` ile sorgulamıyor", () => {
+  it("kurucu T4: şablon yolları (gönderici + önizleme) bilgi tabanından OKUMAZ — yalnız dairenin otomatik mesaj kaydı", () => {
     const src = read("src/lib/automation.ts");
     for (const cat of ["welcome", "checkin", "checkout"]) {
-      // Gönderici ve önizleme = 2 sorgu, ikisi de ortak fragmenti kullanır.
-      const gated = src.match(
-        new RegExp(`category: "${cat}", \\.\\.\\.GUEST_DELIVERABLE_KB_WHERE`, "g"),
-      );
-      expect(gated?.length, cat).toBe(2);
-      expect(src, cat).not.toContain(`category: "${cat}", isActive: true`);
+      // Gönderici ve önizleme = 2 okuma, ikisi de `loadAutoMessage`.
+      expect(src.match(new RegExp(`loadAutoMessage\\(r\\.propertyId, "${cat}"\\)`, "g"))?.length, cat).toBe(2);
+      expect(src, cat).not.toMatch(new RegExp(`category: "${cat}"`));
     }
+    const sent = read("src/app/(app)/sent/page.tsx");
+    expect(sent).toContain("prisma.autoMessageTemplate.findMany");
+    expect(sent).not.toMatch(/knowledgeBaseItem/);
   });
 
   it("A5 alanları: sourceRef KB rotalarında hiç yazılmıyor; supersededById YALNIZ L2 yollarında (bilinçli güncelleme, kurucu 10-17)", () => {

@@ -34,6 +34,7 @@ const EXPORTED: Record<string, string> = {
   GuestCommitment: "prisma.guestCommitment.findMany",
   PropertyInstruction: "prisma.propertyInstruction.findMany", // ev sahibinin yazdığı talimat (migration 65)
   HistoryLearnComparison: "prisma.historyLearnComparison.findMany", // ev sahibinin karşılaştırma notu (migration 65)
+  AutoMessageTemplate: "prisma.autoMessageTemplate.findMany", // ev sahibinin otomatik mesaj metni (kurucu T4, migration 80)
 };
 
 /** Bilinçli dışarıda — gerekçe. "⚠️ KARAR" = kurucu / avukat kararı bekliyor. */

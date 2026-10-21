@@ -26,6 +26,7 @@ import { sendOnChannel } from "@/lib/messaging";
 import { sendDueWelcomes, sendDueCheckins, sendDueCheckouts } from "@/lib/automation";
 import { eraseReservationData } from "@/lib/erasure";
 import { drainOutboxOnce, type OutboxSendFn } from "@/lib/outbox/worker";
+import { createKbWithAutoMessage } from "../helpers/auto-message";
 
 const mockSend = vi.mocked(sendOnChannel);
 const DAY = 86_400_000;
@@ -48,7 +49,7 @@ async function seed(kind: "welcome" | "checkin" | "checkout") {
     },
   });
   const property = await prisma.property.create({ data: { organizationId: org.id, name: "Deniz Daire" } });
-  await prisma.knowledgeBaseItem.create({
+  await createKbWithAutoMessage({
     data: { propertyId: property.id, category: kind, title: kind, content: `${kind} metni — kapı kodu 4821`, isActive: true },
   });
   const base = kind === "checkout" ? { arrival: -2 * DAY, departure: 0 } : { arrival: 1 * DAY, departure: 4 * DAY };

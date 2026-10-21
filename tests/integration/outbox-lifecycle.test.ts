@@ -20,6 +20,7 @@ vi.mock("@/lib/report-error", () => ({ reportError: vi.fn().mockResolvedValue(un
 import { sendOnChannel } from "@/lib/messaging";
 import { reportError } from "@/lib/report-error";
 import { sendDueWelcomes } from "@/lib/automation";
+import { createKbWithAutoMessage } from "../helpers/auto-message";
 
 const mockSend = vi.mocked(sendOnChannel);
 const reportErrorMock = vi.mocked(reportError);
@@ -35,7 +36,7 @@ async function seedWelcome(opts: { source?: string; welcomeSentAt?: Date | null 
     data: { name: "Org", autoWelcome: true, autoWelcomeEnabledAt: new Date(0), aiSignature: "İsa", autoReplyHospitable: true, autoCheckin: true, autoCheckout: true },
   });
   const property = await prisma.property.create({ data: { organizationId: org.id, name: "lale 3" } });
-  await prisma.knowledgeBaseItem.create({
+  await createKbWithAutoMessage({
     data: { propertyId: property.id, category: "welcome", title: "K", content: "Merhaba {isim}" },
   });
   const source = opts.source ?? "res-src-1";

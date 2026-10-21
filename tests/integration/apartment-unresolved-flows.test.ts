@@ -29,6 +29,7 @@ import { sendOnChannel } from "@/lib/messaging";
 import { sendDueWelcomes } from "@/lib/automation";
 import { requireAuth } from "@/lib/auth";
 import PropertyDetailPage from "@/app/(app)/properties/[id]/page";
+import { createKbWithAutoMessage } from "../helpers/auto-message";
 
 const mockSend = vi.mocked(sendOnChannel);
 const mockAuth = vi.mocked(requireAuth);
@@ -40,7 +41,7 @@ async function seed(propertyName: string, welcome: string) {
     data: { name: "Daire Org", timezone: "Europe/Istanbul", autoWelcome: true, autoWelcomeEnabledAt: enabledAt },
   });
   const property = await prisma.property.create({ data: { organizationId: org.id, name: propertyName } });
-  await prisma.knowledgeBaseItem.create({
+  await createKbWithAutoMessage({
     data: { propertyId: property.id, category: "welcome", title: "Karşılama mesajı", content: welcome, isActive: true },
   });
   const reservation = await prisma.reservation.create({

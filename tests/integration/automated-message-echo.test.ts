@@ -26,6 +26,7 @@ import { openItemCounts } from "@/lib/conversation-items/store";
 import { closableAfter } from "@/lib/ai/closing-turn";
 import { purgeAutomatedSends, AUTOMATED_SEND_RETENTION_MS, automatedBodyHash } from "@/lib/automated-sends";
 import { drainOutboxOnce } from "@/lib/outbox/worker";
+import { createKbWithAutoMessage } from "../helpers/auto-message";
 
 const mockSend = vi.mocked(sendOnChannel);
 const fake = new FakeIngestProvider();
@@ -53,7 +54,7 @@ async function seed() {
     where: { id: orgId },
     data: { autoWelcome: true, autoWelcomeEnabledAt: new Date("2026-01-01T00:00:00Z") },
   });
-  await prisma.knowledgeBaseItem.create({
+  await createKbWithAutoMessage({
     data: { propertyId, category: "welcome", title: "Karşılama", content: "Hoş geldiniz!\nGiriş 15:00, çıkış 11:00.", isActive: true },
   });
   await setOrgHospitableToken(orgId, TOKEN, "K7");

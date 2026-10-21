@@ -29,6 +29,7 @@ import {
   sendDueCheckouts,
   sendDueWelcomes,
 } from "@/lib/automation";
+import { createKbWithAutoMessage } from "../helpers/auto-message";
 
 const mockSend = vi.mocked(sendOnChannel);
 const midnight = (d: string) => new Date(`${d}T00:00:00.000Z`);
@@ -50,7 +51,7 @@ async function seed(timezone: string, stay: { arrival: Date; departure: Date }) 
   });
   const property = await prisma.property.create({ data: { organizationId: org.id, name: "Lale" } });
   for (const category of ["welcome", "checkin", "checkout"]) {
-    await prisma.knowledgeBaseItem.create({
+    await createKbWithAutoMessage({
       data: { propertyId: property.id, category, title: category, content: `${category} metni`, isActive: true },
     });
   }

@@ -43,6 +43,7 @@ import { reportError } from "@/lib/report-error";
 import { sendOnChannel } from "@/lib/messaging";
 import { sendDueWelcomes } from "@/lib/automation";
 import { withoutRandomIds } from "../helpers/random-ids";
+import { createKbWithAutoMessage } from "../helpers/auto-message";
 
 const mockReport = vi.mocked(reportError);
 const mockSend = vi.mocked(sendOnChannel);
@@ -62,7 +63,7 @@ async function seed() {
   const property = await prisma.property.create({
     data: { organizationId: org.id, name: "Lale 7" },
   });
-  await prisma.knowledgeBaseItem.create({
+  await createKbWithAutoMessage({
     data: {
       propertyId: property.id,
       category: "welcome",

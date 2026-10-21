@@ -43,6 +43,7 @@ import { drainOutboxOnce } from "@/lib/outbox/worker";
 import { sendDueWelcomes } from "@/lib/automation";
 import { __resetRateLimit } from "@/lib/rate-limit";
 import { POST as replyRoute } from "@/app/api/conversations/[id]/reply/route";
+import { createKbWithAutoMessage } from "../helpers/auto-message";
 
 const mockClient = vi.mocked(sendMessage);
 
@@ -126,7 +127,7 @@ describe("V0.1 outbound dispatch — üç üretim yolu", () => {
       data: { name: "Org", autoWelcome: true, autoWelcomeEnabledAt: new Date(0), aiSignature: "Sevgiler,\nİsa" },
     });
     const property = await prisma.property.create({ data: { organizationId: org.id, name: "lale 3" } });
-    await prisma.knowledgeBaseItem.create({
+    await createKbWithAutoMessage({
       data: { propertyId: property.id, category: "welcome", title: "Karşılama", content: "Daire 3 — Wifi: LALE/1234" },
     });
     const istToday = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Istanbul", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());

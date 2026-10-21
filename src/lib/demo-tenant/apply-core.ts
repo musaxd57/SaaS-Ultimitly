@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import { DEMO_ID_PREFIX, DEMO_LOGIN_EMAIL, DEMO_ORG_ID } from "./constants";
+import { isAutoMessageKind } from "../auto-messages/render";
 import { ALERT_EMAIL_GEN_PREFIX } from "../alert-email-generation-key";
 import type { DemoDataset } from "./dataset";
 
@@ -245,6 +246,8 @@ export async function applyDemoTenant(db: Db, ds: DemoDataset, opts: DemoApplyOp
       // Otomatik mesaj tekilleştirme kaydı silinen rezervasyonlara aittir (gece-4 S10-09, DMMF pini `demo-reset-coverage.test.ts`). Takvim
       // bağlantısı SİLİNMEZ: varsa sıfırlama baştan reddedilir (↑ canlı bağlantı kemeri).
       await tx.automatedMessageSend.deleteMany({ where: { organizationId: DEMO_ORG_ID } });
+      // Kurucu T4 (migration 80): dairenin otomatik mesajları — mülk silinmediği için zincirleme gitmez; veri kümesinden yeniden kurulur.
+      await tx.autoMessageTemplate.deleteMany({ where: { organizationId: DEMO_ORG_ID } });
       // İnceleme sırasında eklenmiş, veri kümesinde olmayan mülkler.
       await tx.property.deleteMany({ where: { organizationId: DEMO_ORG_ID, id: { notIn: ds.properties.map((p) => p.id) } } });
 
@@ -269,6 +272,14 @@ export async function applyDemoTenant(db: Db, ds: DemoDataset, opts: DemoApplyOp
         data: ds.kbItems.map((k) => ({ ...k, isActive: true, source: "host_manual", reviewState: "approved", approvedAt: now })),
       });
       await tx.messageTemplate.createMany({ data: ds.templates.map((t) => ({ ...t, organizationId: DEMO_ORG_ID, propertyId: null, isActive: true })) });
+      // Otomatik mesajlar: geçişle AYNI kural — veri kümesinin karşılama / giriş / çıkış kalemi (mülk + tür başına sonuncusu) aynen.
+      const autoByKey = new Map<string, { propertyId: string; kind: string; body: string }>();
+      for (const k of ds.kbItems) {
+        if (isAutoMessageKind(k.category)) autoByKey.set(`${k.propertyId}:${k.category}`, { propertyId: k.propertyId, kind: k.category, body: k.content });
+      }
+      if (autoByKey.size > 0) {
+        await tx.autoMessageTemplate.createMany({ data: [...autoByKey.values()].map((a) => ({ ...a, organizationId: DEMO_ORG_ID })) });
+      }
 
       const written = {
         properties: ds.properties.length,

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { baseUrlFromHost } from "@/lib/auth/email-verify";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
-import { ArrowLeft, BookOpen, Brain, CalendarDays, CalendarSync, ArrowDownToLine, QrCode } from "lucide-react";
+import { ArrowLeft, BookOpen, Brain, CalendarDays, CalendarSync, ArrowDownToLine, MessageSquareText, QrCode } from "lucide-react";
 import { requireManagerSession } from "@/lib/auth/manager-page";
 import { orgTimezone } from "@/lib/timezone";
 import { prisma } from "@/lib/db";
@@ -45,6 +45,9 @@ import { propertyInstructionsPromptEnabled } from "@/lib/history-learn/prompt-in
 import { houseRuleFormValues, loadHouseRules } from "@/lib/house-rules/store";
 import { apartmentResolvable, usesApartmentToken } from "@/lib/kb-placeholders";
 import { GUEST_DELIVERABLE_KB_WHERE } from "@/lib/kb-review";
+import { AutoMessagesCard } from "@/components/properties/auto-messages-card";
+import { AUTO_MESSAGE_LABEL } from "@/lib/auto-messages/render";
+import { loadAutoMessagesView } from "@/lib/auto-messages/store";
 import { LOCAL_TIPS_DEMAND_CAP, LOCAL_TIPS_DEMAND_DAYS, localTipsDemand } from "@/lib/local-tips-demand";
 import { localTipsPrefillHref } from "@/lib/kb-prefill";
 import { stayGuardEnabled } from "@/lib/ai/semantic/guard";
@@ -71,7 +74,7 @@ export default async function PropertyDetailPage({
       knowledgeBase: { where: { isActive: true }, orderBy: { category: "asc" } },
       reservations: { orderBy: { arrivalDate: "desc" }, take: 5 },
       calendarSources: { orderBy: { createdAt: "asc" } },
-      organization: { select: { qrChatPinRequired: true, timezone: true } },
+      organization: { select: { qrChatPinRequired: true, timezone: true, aiSignature: true } },
     },
   });
   if (!property) notFound();
@@ -97,6 +100,11 @@ export default async function PropertyDetailPage({
     canManage && houseRulesCardEnabled()
       ? houseRuleFormValues(await loadHouseRules(session.organizationId, property.id).catch(() => []))
       : null;
+  // Kurucu T4 (10-21): otomatik mesajlar (karşılama / giriş / çıkış) — giriş mesajı kapı kodu taşıyabilir → yalnız yönetici. Okunamazsa
+  // kart çıkmaz (sayfanın geri kalanı etkilenmez).
+  const autoMessages = canManage
+    ? await loadAutoMessagesView(session.organizationId, property, property.organization.aiSignature?.trim() || undefined).catch(() => null)
+    : null;
   const nightlyRateStale = nightlyRate ? Date.now() - nightlyRate.enteredAt.getTime() > RATE_STALE_DAYS * 86_400_000 : false;
   // B1 (kurucu 10-11): mülkte "Yerel Tavsiye" kalemi yokken son 30 günde çevre önerisi soran misafir sayısı — yalnız yönetici.
   // Okunamazsa hatırlatma çıkmaz (sayfanın geri kalanı etkilenmez).
@@ -174,16 +182,22 @@ export default async function PropertyDetailPage({
   // 🚨 DAİRE NUMARASI OKUNAMADI (kurucu kararı 09-30): `{daire}` kullanan misafire gidebilir kalemler bu mülk için
   // doldurulamıyorsa karşılama / giriş / çıkış mesajı GİTMEZ ve yapay zekâ numarayı söylemez — ev sahibi hangi metnin neden
   // durduğunu burada görür (düzeltme mülk adında). Numara okunabiliyorsa sorgu bile yapılmaz. Kalemler mülke bağlıdır.
+  // Kurucu T4: otomatik mesajlar artık ayrı tabloda — onlar da listelenir (gönderilmeyen asıl metinler onlar).
   const apartmentBlocked =
     canManage && !apartmentResolvable(property.name)
-      ? (
-          await prisma.knowledgeBaseItem.findMany({
-            where: { propertyId: property.id, ...GUEST_DELIVERABLE_KB_WHERE },
-            select: { id: true, title: true, content: true },
-            orderBy: { updatedAt: "desc" },
-            take: 400,
-          })
-        ).filter((k) => usesApartmentToken(k.title) || usesApartmentToken(k.content))
+      ? [
+          ...(autoMessages ?? [])
+            .filter((m) => usesApartmentToken(m.body))
+            .map((m) => ({ id: `auto-message-${m.kind}`, title: AUTO_MESSAGE_LABEL[m.kind] })),
+          ...(
+            await prisma.knowledgeBaseItem.findMany({
+              where: { propertyId: property.id, ...GUEST_DELIVERABLE_KB_WHERE },
+              select: { id: true, title: true, content: true },
+              orderBy: { updatedAt: "desc" },
+              take: 400,
+            })
+          ).filter((k) => usesApartmentToken(k.title) || usesApartmentToken(k.content)),
+        ]
       : [];
 
   // Sibling properties (for "copy supply profile to selected apartments").
@@ -257,8 +271,8 @@ export default async function PropertyDetailPage({
                   ))}
                 </ul>
                 <p>
-                  Bunlardan karşılama, giriş ve çıkış mesajları bu mülke gönderilmez; yapay zekâ da daire numarasını söylemez. Düzeltmek
-                  için mülk adına daire numarasını ekleyin (örnek: &quot;Lale Daire 5&quot;).
+                  Bunlardan otomatik mesajlar (karşılama, giriş, çıkış) bu mülke gönderilmez; yapay zekâ da daire numarasını söylemez.
+                  Düzeltmek için mülk adına daire numarasını ekleyin (örnek: &quot;Lale Daire 5&quot;).
                 </p>
               </CardContent>
             </Card>
@@ -312,6 +326,31 @@ export default async function PropertyDetailPage({
               ) : null}
             </CardContent>
           </Card>
+
+          {autoMessages ? (
+            <Card id="otomatik-mesajlar" data-testid="auto-messages-card">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <MessageSquareText className="size-4 text-muted-foreground" /> Otomatik mesajlar
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <AutoMessagesCard
+                  propertyId={property.id}
+                  canEdit={!isImpersonating(session)}
+                  items={autoMessages.map((m) => ({
+                    kind: m.kind,
+                    body: m.body,
+                    revision: m.revision,
+                    needsReview: m.needsReview,
+                    lastSkipReason: m.lastSkipReason,
+                    kbChangedAfter: m.kbChangedAfter,
+                    preview: m.preview,
+                  }))}
+                />
+              </CardContent>
+            </Card>
+          ) : null}
 
           <Card>
             <CardHeader>

@@ -24,6 +24,8 @@ export default async function PropertiesPage() {
       include: {
         _count: { select: { reservations: true, tasks: true, knowledgeBase: true, calendarSources: true } },
         knowledgeBase: { where: { isActive: true }, select: { category: true } },
+        // Kurucu T4 (10-21): giriş / çıkış mesajı artık ayrı "Otomatik mesajlar" kaydı (boş metin = gönderilmez → eksik).
+        autoMessages: { select: { kind: true, body: true } },
         // 🚨 SAĞLIK OKUNUYOR, SATIR SAYMAK YETMİYOR (kurucu, 09-11: "bozuk
         // besleme yeşil 'hazır' → düzelt"). Eski sorgu yalnız `_count` çekiyordu,
         // yani rozetin ölçütü "satır VAR MI" idi; kalıcı olarak bozuk bir besleme
@@ -44,6 +46,7 @@ export default async function PropertiesPage() {
   // shows the host exactly what's still missing.
   const readiness = (p: (typeof properties)[number]) => {
     const cats = new Set(p.knowledgeBase.map((k) => k.category));
+    const autoKinds = new Set(p.autoMessages.filter((m) => m.body.trim() !== "").map((m) => m.kind));
     // 🚨 BESLEME SAĞLIĞI DÖRT DURUMU AYIRIR (eskiden SIFIRINI ayırıyordu):
     // hiç senkron olmadı · son senkron başarılı · son senkron BAŞARISIZ · kaynak yok.
     // "Bozuk" ayrı bir hâldir: eksik DEĞİL, ama hazır da DEĞİL — host'un müdahale
@@ -53,9 +56,9 @@ export default async function PropertiesPage() {
     const hasChannel = channelLinked.has(p.id) || p._count.calendarSources > 0;
     const items: { label: string; done: boolean }[] = [
       { label: "Wi-Fi bilgisi", done: cats.has("wifi") },
-      { label: "Giriş talimatı", done: cats.has("checkin") },
+      { label: "Giriş talimatı", done: cats.has("checkin") || autoKinds.has("checkin") },
       { label: "Ev kuralları", done: cats.has("rules") },
-      { label: "Çıkış mesajı", done: cats.has("checkout") },
+      { label: "Çıkış mesajı", done: autoKinds.has("checkout") },
       // Bozuk besleme "tamam" SAYILMAZ: satır duruyor ama veri akmıyor.
       // Demo (inceleme) hesabında kanal adımı YOK: sahte bağlantı kurulmaz (kurucu kuralı) ve
       // inceleme ekibi bağlantı kuramaz — adım her kartta "eksik" görünürdü.

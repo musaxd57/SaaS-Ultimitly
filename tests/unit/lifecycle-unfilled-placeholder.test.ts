@@ -91,7 +91,8 @@ describe("gönderici kapısı — fail-closed", () => {
   });
 
   it("🚨 kapı tanınmayan tek parantezli / yüzdeli belirteci de sayar (10-01, A08: \"Kapı kodu: {kod}\" misafire HAM gidiyordu)", () => {
-    const s = src();
+    // Kurucu T4 (10-21): kapı gönderici / kuyruk işçisi / önizleme ortak modülüne taşındı.
+    const s = read("src/lib/auto-messages/render.ts");
     const at = s.indexOf("function hasUnfilledPlaceholders(");
     expect(at, "hasUnfilledPlaceholders bulunamadı").toBeGreaterThan(-1);
     const body = s.slice(at, s.indexOf("\n}", at));
@@ -110,12 +111,11 @@ describe("gönderici kapısı — fail-closed", () => {
 describe("Bilgi Tabanı ekranı — host DÜZELTMENİN YAPILACAĞI YERDE uyarılır", () => {
   const src = () => read("src/components/knowledge/kb-manager.tsx");
 
-  it("🚨 KOŞULSUZ 'otomatik gönderilir' VAADİ KALKTI", () => {
+  it("🚨 KOŞULSUZ 'otomatik gönderilir' VAADİ KALKTI; kurucu T4: bu kategori otomatik mesajı DEĞİŞTİRMEZ, düzenleme yeri gösterilir", () => {
     const s = src();
     expect(s).not.toContain("Bu metin misafire otomatik gönderilir.");
-    // Yerine KONTROL EDİLEBİLİR bir yönlendirme var (bileşen org ayarını
-    // props olarak ALMIYOR — bilmediğimiz şeyi iddia etmiyoruz).
-    expect(s).toContain("Bu kategori otomatik gönderim içindir");
+    expect(s).toContain("otomatik giden mesajı değiştirmez");
+    expect(s).toContain("#otomatik-mesajlar");
     expect(s).toContain("/settings?view=ai-otomasyon");
   });
 

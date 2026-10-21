@@ -184,6 +184,7 @@ model Organization {
   messageOutbox         MessageOutbox[]
   automatedMessageSends AutomatedMessageSend[]
   channelConnections    ChannelConnection[]
+  autoMessageTemplates  AutoMessageTemplate[]
   channelListings       ChannelListing[]
   aiGenerations         AiGeneration[]
   ingestEvents          IngestEvent[]
@@ -384,6 +385,7 @@ model Property {
   historyLearnDrafts  HistoryLearnDraft[]
   instructions        PropertyInstruction[]
   historyLearnReviews HistoryLearnComparison[]
+  autoMessages        AutoMessageTemplate[]
 
   @@index([organizationId])
   // Public QR concierge chat resolves a property by its secret chatToken on every
@@ -1218,6 +1220,10 @@ model MessageOutbox {
   lastErrorCode         String? // sanitized short code (e.g. "HTTP 500", "timeout") — no secrets
   sentAt                DateTime?
   reconciledAt          DateTime?
+  // Migration 80 (kurucu T4, 10-21): yaşam döngüsü satırı hangi `AutoMessageTemplate.revision` ile kuruldu. İşçi gönderimden ÖNCE güncel
+  // sürümle kıyaslar; farklıysa (ya da NULL — geçiş öncesi satır) gövdeyi AYNI satırda güncel metinle yeniden kurar, metin boş / doldurulamaz
+  // ise iptal eder. Anahtar değişmez (rezervasyon başına tek satır — çift gönderim yok). Yanıt satırlarında NULL.
+  templateRevision      Int?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
@@ -1251,6 +1257,39 @@ model MessageOutbox {
 // (`matchedExternalId`). Satır gönderimden ÖNCE yazılır (süreç POST ile kayıt arasında düşse de mesaj tanınır) ve
 // sonuçla kapanır (sent · unverified = belirsiz, teslim edilmiş olabilir · failed = teslim edilmedi, eşleşmez). 14 gün
 // sonra silinir. FK politikası MessageOutbox ile aynı: YALNIZ organizationId (hesap silme); rezervasyon kimliği opak.
+// ---------------------------------------------------------------------------
+// AutoMessageTemplate (kurucu T4, migration 80, 10-21) — DAİRE BAŞINA OTOMATİK MESAJ METNİ (karşılama · giriş · çıkış).
+// Önceden metin bilgi tabanından gelirdi (kategorinin EN SON güncellenen onaylı kalemi): bilgi tabanına kalem eklemek / düzenlemek / öğrenilen
+// taslağı onaylamak misafire giden otomatik mesajı SESSİZCE değiştiriyordu. Artık metin yalnız mülk sayfasındaki "Otomatik mesajlar"
+// bölümünden, önizlemeyle ve açık kayıtla değişir. Geçiş bugün gerçekten seçilecek metni AYNEN kopyalar (mesaj göndermez, gönderim damgalarına
+// dokunmaz). Bilgi tabanı kalemleri BİLGİ olarak kalır (yapay zekâ okur). `revision` her kayıtta artar — kuyruktaki eski metin gönderimden önce
+// yeniden kurulur (`MessageOutbox.templateRevision`). Boş metin = o mesaj gönderilmez (satır silinmez; iz kalır).
+// ---------------------------------------------------------------------------
+model AutoMessageTemplate {
+  id                   String    @id @default(cuid())
+  organizationId       String
+  propertyId           String
+  kind                 String // welcome | checkin | checkout (kapalı küme — `auto-messages/render.ts`)
+  body                 String    @default("")
+  revision             Int       @default(1)
+  /// Geçişte kopyalanan bilgi tabanı kalemi (yalnız iz; FK YOK — kalem silinse de metin kalır).
+  migratedFromKbItemId String?
+  /// Geçişte aynı anda güncellenmiş FARKLI içerikli iki kalem vardı (bugünkü seçim keyfiydi) — ev sahibi kontrol edip kaydedene kadar kartta uyarı.
+  needsReview          Boolean   @default(false)
+  /// Son atlama sebebi (unfilled · apartment_unresolved) — kart ev sahibine gösterir; kayıtta temizlenir.
+  lastSkipReason       String?
+  lastSkippedAt        DateTime?
+  updatedByUserId      String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  property     Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId, kind])
+  @@index([organizationId])
+}
+
 model AutomatedMessageSend {
   id                    String    @id @default(cuid())
   organizationId        String

@@ -51,6 +51,7 @@ import {
   sendDueCheckins,
   sendDueCheckouts,
 } from "@/lib/automation";
+import { createKbWithAutoMessage } from "../helpers/auto-message";
 
 const mockSuggest = vi.mocked(suggestReply);
 const mockSend = vi.mocked(sendOnChannel);
@@ -290,7 +291,7 @@ describe("yaşam döngüsü göndericileri — iptal + iCal/manuel kanal", () =>
       data: { organizationId: org.id, name: "Deniz Daire" },
     });
     for (const category of ["welcome", "checkin", "checkout"]) {
-      await prisma.knowledgeBaseItem.create({
+      await createKbWithAutoMessage({
         data: { propertyId: property.id, category, title: category, content: `${category} metni`, isActive: true },
       });
     }

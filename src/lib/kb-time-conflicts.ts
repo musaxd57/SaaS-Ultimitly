@@ -32,6 +32,11 @@ export interface KbTimeConflictItem {
   title: string;
   category: string;
   content: string;
+  /**
+   * Kalem dairenin OTOMATİK MESAJI mı (misafire AYNEN gider, modelden geçmez). Kurucu T4 (10-21): otomatik mesaj artık bilgi tabanı
+   * kategorisinden değil `AutoMessageTemplate`ten gelir — çağıran onları ayrı kalem olarak ekler; bilgi tabanı kalemi asla değildir.
+   */
+  sentAutomatically?: boolean;
 }
 
 export interface KbTimeConflictSide {
@@ -53,8 +58,6 @@ export interface KbTimeConflictRow {
   text: string;
 }
 
-/** Otomatik mesaj olarak misafire AYNEN giden kategoriler (modelden geçmez). */
-const AUTO_SENT = new Set(["checkin", "checkout"]);
 
 function capital(s: string): string {
   return s.charAt(0).toLocaleUpperCase("tr") + s.slice(1);
@@ -119,7 +122,7 @@ export function kbTimeConflicts(
         hits.find((h) => bad.includes(h.time) && (h.field === field || (field === "checkin" && h.field === "late_checkin")))?.clause ??
         fields.get(field)?.sentence ??
         "";
-      sides.push({ itemId: item.id, title: item.title, values: bad, sentence, sentAutomatically: AUTO_SENT.has(item.category) });
+      sides.push({ itemId: item.id, title: item.title, values: bad, sentence, sentAutomatically: item.sentAutomatically === true });
     }
     if (sides.length === 0) continue;
     const where = sides.map((s) => `“${s.title}” bilgisinde ${s.values.join(" / ")}`).join(", ");
@@ -155,7 +158,7 @@ export function kbTimeConflicts(
       title: holders[i].item.title,
       values: [...holders[i].f.times].sort(),
       sentence: holders[i].f.sentence,
-      sentAutomatically: AUTO_SENT.has(holders[i].item.category),
+      sentAutomatically: holders[i].item.sentAutomatically === true,
     }));
     const where = sides.map((s) => `“${s.title}” bilgisinde ${s.values.join(" / ")}`).join(", ");
     rows.push({

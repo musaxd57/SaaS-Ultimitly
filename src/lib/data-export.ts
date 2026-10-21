@@ -83,6 +83,7 @@ export async function buildOrganizationDataExport(organizationId: string) {
     guestCommitments,
     propertyInstructions,
     historyLearnReviews,
+    autoMessages,
   ] = await Promise.all([
     prisma.organization.findUnique({
       where: { id: organizationId },
@@ -325,6 +326,12 @@ export async function buildOrganizationDataExport(organizationId: string) {
       select: { id: true, propertyId: true, questionMessageId: true, aiAnswer: true, verdict: true, note: true, createdAt: true },
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     }),
+    // Kurucu T4 (migration 80): ev sahibinin yazdığı otomatik mesaj metinleri (karşılama / giriş / çıkış).
+    prisma.autoMessageTemplate.findMany({
+      where: { organizationId },
+      select: { id: true, propertyId: true, kind: true, body: true, revision: true, createdAt: true, updatedAt: true },
+      orderBy: [{ propertyId: "asc" }, { kind: "asc" }],
+    }),
   ]);
   if (!org) return null;
   return {
@@ -338,5 +345,6 @@ export async function buildOrganizationDataExport(organizationId: string) {
     guestCommitments,
     propertyInstructions,
     historyLearnReviews,
+    autoMessages,
   };
 }

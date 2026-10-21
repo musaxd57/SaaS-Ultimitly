@@ -42,6 +42,7 @@ import {
 } from "@/lib/automation";
 import { emailService } from "@/lib/email";
 import { automatedReplyNote } from "@/lib/automation";
+import { createKbWithAutoMessage } from "../helpers/auto-message";
 
 const mockSuggest = vi.mocked(suggestReply);
 const mockSend = vi.mocked(sendOnChannel);
@@ -800,7 +801,7 @@ describe("applyChannelAutoReply", () => {
       select: { propertyId: true },
     });
     for (const it of items) {
-      await prisma.knowledgeBaseItem.create({
+      await createKbWithAutoMessage({
         data: { propertyId: conv.propertyId, category: "general", title: it.title, content: it.content },
       });
     }
@@ -2088,7 +2089,7 @@ describe("sendDueWelcomes", () => {
       data: { organizationId: org.id, name: "lale 3" },
     });
     if (opts.withEntry !== false) {
-      await prisma.knowledgeBaseItem.create({
+      await createKbWithAutoMessage({
         data: {
           propertyId: property.id,
           category: "welcome",
@@ -2307,7 +2308,7 @@ describe("sendDueCheckins", () => {
       data: { organizationId: org.id, name: "lale 3" },
     });
     if (opts.withEntry !== false) {
-      await prisma.knowledgeBaseItem.create({
+      await createKbWithAutoMessage({
         data: {
           propertyId: property.id,
           category: "checkin",
@@ -2415,7 +2416,7 @@ describe("sendDueCheckouts", () => {
       data: { organizationId: org.id, name: "lale 3" },
     });
     if (opts.withEntry !== false) {
-      await prisma.knowledgeBaseItem.create({
+      await createKbWithAutoMessage({
         data: {
           propertyId: property.id,
           category: "checkout",

@@ -98,16 +98,9 @@ import { isCurrentStyleProfile, markStyleProfile } from "@/lib/ai/style-profile"
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
 import { retrieveKbForPrompt } from "@/lib/ai/kb-retrieve";
 import { sanitizePromptValue, selectHistoryForPrompt } from "@/lib/ai/prompts";
-import { ANY_DOUBLE_BRACE } from "@/lib/template-apply";
-import { GUEST_DELIVERABLE_KB_WHERE } from "@/lib/kb-review";
-import {
-  fillGuestPlaceholders,
-  guestFirstNameOf,
-  hasNamePlaceholder,
-  kbPlaceholderTokens,
-  leftoverGuestTokens,
-  unfilledTemplateTokens,
-} from "@/lib/kb-placeholders";
+import { apartmentResolvable, guestFirstNameOf, usesApartmentToken } from "@/lib/kb-placeholders";
+import { buildGuestMessageBody, hasUnfilledPlaceholders } from "@/lib/auto-messages/render";
+import { autoMessageStillAt, loadAutoMessage, recordAutoMessageSkip } from "@/lib/auto-messages/store";
 import { modelGuestFirstName } from "@/lib/ai/code-greeting";
 import { applyPromptKbAudit, buildKbEvidence } from "@/lib/ai/grounding";
 import { closableAfter, closingMayHide, lexicalClosingOnly, semanticClosingOnly } from "@/lib/ai/closing-turn";
@@ -4612,70 +4605,8 @@ export async function refreshStyleProfile(
 //  @/lib/kb-placeholders'a taşındı: aynı ikame üç yerde kopyalanmış, DÖRDÜNCÜ
 //  yüzeyde — QR asistanında — hiç yoktu. Tek kaynak, dört yüzey.)
 
-/** Şablon belirteçlerini canlı değerlere çözer (tek kaynak sarmalayıcısı). */
-function fillPlaceholders(text: string, firstName: string | null, propertyName?: string): string {
-  return fillGuestPlaceholders(text, { guestFirstName: firstName, propertyName });
-}
-
-/**
- * Build the welcome message body. If the host's template contains a {isim}
- * placeholder, substitute the tokens and send it verbatim (their own greeting +
- * sign-off). Otherwise prepend a greeting and append the org signature.
- */
-/**
- * 🚨 DOLDURULMAMIŞ YER TUTUCU TAŞIYAN YAŞAM-DÖNGÜSÜ METNİ MİSAFİRE GİTMEZ
- * (kurucu iş emri, 2026-09-11 — ölçülmüş misafir-görünür kusur).
- *
- * `KB_PRESETS`in "Giriş talimatı" ve "Çıkış" hazır şablonlarının İKİSİ de
- * doldurulmamış köşeli parantez taşıyor (`[AÇIK ADRES]` · `[ZİL / KAPI KODU
- * TARİFİ]` · `[ANAHTAR TESLİM ŞEKLİ]` · `[ANAHTAR BIRAKMA YERİ]`). Host rozete
- * basıp kaydedebiliyor ve kalem `approved` doğuyor.
- *
- * 🚨 ÜRÜNÜN `[…]` KORUMASI BU YOLDA DEVREDE DEĞİL: `packKnowledgeBase`in
- * `[NOT] DOLDURULMAMIŞ YER TUTUCU` uyarısı bir MODEL İSTEMİ notudur, oysa
- * yaşam-döngüsü mesajları modelden HİÇ GEÇMEZ (`kb-review.ts`: "içerikleri
- * misafire AYNEN gönderilir"). Yani misafir `Adres: [AÇIK ADRES]` okuyordu.
- *
- * `{{…}}` sınıfı da elenir: bu yolda hiçbir yerde çözülmüyor (`fillPlaceholders`
- * yalnız tek-parantez `{isim}`/`{daire}` sınıfını bilir), yani host elle
- * `{{wifiInfo}}` yazarsa misafire HAM gider.
- *
- * ⚠️ YÖN FAIL-CLOSED ve BEDELİ VAR: kalem düzeltilene kadar o daireye otomatik
- * mesaj GİTMEZ. Bu, ham belirteç göndermekten iyidir ama SESSİZ OLMAMALI —
- * host'a Bilgi Tabanı ekranında kalemin yanında söylenir (`kb-manager`), yani
- * uyarı tam düzeltmenin yapılacağı yerde çıkar.
- *
- * Yer tutucu ikamesinden SONRAKİ metin denetlenir: `{isim}` çözülmüş olur ve
- * yanlışlıkla "doldurulmamış" sayılmaz.
- */
-function hasUnfilledPlaceholders(filledBody: string): boolean {
-  // `{daire}` çözülemediyse (mülk adında numara yok / belirsiz) belirteç kalır → mesaj GİTMEZ, tahmin YOK (kurucu kararı 09-30).
-  // Tanınmayan "{kod}" / "%KOD%" de (10-01, A08) — `unfilledTemplateTokens`.
-  return (
-    kbPlaceholderTokens(filledBody).length > 0 ||
-    ANY_DOUBLE_BRACE.test(filledBody) ||
-    leftoverGuestTokens(filledBody).length > 0 ||
-    unfilledTemplateTokens(filledBody).length > 0
-  );
-}
-
-function buildGuestMessageBody(
-  content: string,
-  firstName: string | null,
-  signature?: string,
-  propertyName?: string,
-): string {
-  const trimmed = content.trim();
-  // Doldurmadan SONRA da kırpılır (09-28): ad bilinmiyorken şablonun ilk satırı yalnız "{isim}," ise satır gider ve arkasındaki
-  // boş satır mesajın başında kalıyordu.
-  const filled = fillPlaceholders(trimmed, firstName, propertyName).trim();
-  if (hasNamePlaceholder(trimmed)) {
-    return filled; // host's own greeting + sign-off, tokens resolved
-  }
-  // Ad bilinmiyorsa (yer tutucu ad: "Rezervasyon HM4K2" / "Misafir") selam adsız — kurucu kararı 09-28.
-  const greeting = firstName ? `Merhaba ${firstName},` : "Merhaba,";
-  return [greeting, "", filled, ...(signature ? ["", signature] : [])].join("\n");
-}
+// (fillPlaceholders / hasUnfilledPlaceholders / buildGuestMessageBody → `@/lib/auto-messages/render`a taşındı — kurucu T4 10-21: gönderici,
+//  kalıcı kuyruk işçisi ve "Otomatik mesajlar" önizlemesi AYNI kuralı okur.)
 
 /**
  * K7 (09-30): yaşam döngüsü mesajının GÖNDERİM İZİ — POST'tan ÖNCE yazılır (`automated-sends.ts`), sonuçla kapanır. Senkron
@@ -4849,11 +4780,7 @@ export async function sendDueWelcomes(
 
   const runErasureGuard = erasureGuardMemo(organizationId);
   for (const r of reservations) {
-    const welcome = await prisma.knowledgeBaseItem.findFirst({
-      where: { propertyId: r.propertyId, category: "welcome", ...GUEST_DELIVERABLE_KB_WHERE },
-      select: { content: true },
-      orderBy: { updatedAt: "desc" },
-    });
+    const welcome = await loadAutoMessage(r.propertyId, "welcome");
     if (!welcome) continue; // this apartment has no welcome text → skip
 
     const firstName = guestFirstNameOf(r.guestName);
@@ -4863,6 +4790,8 @@ export async function sendDueWelcomes(
     // düzeltince bir sonraki geçişte NORMAL gönderilir; kaybolmaz, bekler.
     if (hasUnfilledPlaceholders(body)) {
       unfilled++;
+      // Kurucu T4: ev sahibi atlamayı "Otomatik mesajlar" kartında görür (en iyi çaba, saatte bir yazım).
+      void recordAutoMessageSkip(welcome.id, usesApartmentToken(welcome.content) && !apartmentResolvable(r.property.name) ? "apartment_unresolved" : "unfilled");
       continue;
     }
 
@@ -4885,6 +4814,7 @@ export async function sendDueWelcomes(
           channel: r.channel,
           messageType: "welcome",
           body,
+          templateRevision: welcome.revision,
           idempotencyKey: `welcome:${organizationId}:${r.sourceReference}`,
         });
         if (!enq.deduped) sent++;
@@ -4914,6 +4844,8 @@ export async function sendDueWelcomes(
       // Seçimden sonra AÇIKÇA SİLİNEN (KVKK) misafire mesaj gitmez (Haiku 10-14 son doğrulama) — öteki girişlerle aynı iki-sıralama kuralı:
       // silme kilidi + kapı İŞLEM İÇİNDE. Saklama süresiyle anonimleşmiş ama canlı konaklama ETKİLENMEZ (tombstone yok).
       if (await sourceReferenceErased(tx, organizationId, r.sourceReference)) return { count: 0 };
+      // Kurucu T4: seçimden sonra metin değiştiyse / boşaltıldıysa eski metin GİTMEZ — sonraki geçiş güncel metinle yeniden seçer.
+      if (!(await autoMessageStillAt(tx, welcome.id, welcome.revision))) return { count: 0 };
       const c = await tx.reservation.updateMany({
         where: { sourceReference: r.sourceReference, property: { organizationId }, welcomeSentAt: null, status: "confirmed" },
         data: { welcomeSentAt: stampedAt },
@@ -5063,11 +4995,7 @@ export async function sendDueCheckins(
 
   const runErasureGuard = erasureGuardMemo(organizationId);
   for (const r of reservations) {
-    const tpl = await prisma.knowledgeBaseItem.findFirst({
-      where: { propertyId: r.propertyId, category: "checkin", ...GUEST_DELIVERABLE_KB_WHERE },
-      select: { content: true },
-      orderBy: { updatedAt: "desc" },
-    });
+    const tpl = await loadAutoMessage(r.propertyId, "checkin");
     if (!tpl) continue; // no check-in info entry for this apartment → skip
 
     const firstName = guestFirstNameOf(r.guestName);
@@ -5077,6 +5005,8 @@ export async function sendDueCheckins(
     // düzeltince bir sonraki geçişte NORMAL gönderilir; kaybolmaz, bekler.
     if (hasUnfilledPlaceholders(body)) {
       unfilled++;
+      // Kurucu T4: ev sahibi atlamayı "Otomatik mesajlar" kartında görür (en iyi çaba, saatte bir yazım).
+      void recordAutoMessageSkip(tpl.id, usesApartmentToken(tpl.content) && !apartmentResolvable(r.property.name) ? "apartment_unresolved" : "unfilled");
       continue;
     }
 
@@ -5095,6 +5025,7 @@ export async function sendDueCheckins(
           channel: r.channel,
           messageType: "checkin",
           body,
+          templateRevision: tpl.revision,
           // Rezervasyon başına TEK anahtar (Haiku 10-14: varış günlü anahtar belirsiz teslim + tarih değişiminde ÇİFT gönderime açıktı).
           // İleri tarihe taşınan satır iptal edilmez, işçide pencere açılana kadar ERTELENİR (`checkinNotYetDue`).
           idempotencyKey: `checkin:${organizationId}:${r.sourceReference}`,
@@ -5131,6 +5062,8 @@ export async function sendDueCheckins(
       // Seçimden sonra AÇIKÇA SİLİNEN (KVKK) misafire mesaj gitmez (Haiku 10-14 son doğrulama) — öteki girişlerle aynı iki-sıralama kuralı:
       // silme kilidi + kapı İŞLEM İÇİNDE. Saklama süresiyle anonimleşmiş ama canlı konaklama ETKİLENMEZ (tombstone yok).
       if (await sourceReferenceErased(tx, organizationId, r.sourceReference)) return { count: 0 };
+      // Kurucu T4: seçimden sonra metin değiştiyse / boşaltıldıysa eski metin GİTMEZ — sonraki geçiş güncel metinle yeniden seçer.
+      if (!(await autoMessageStillAt(tx, tpl.id, tpl.revision))) return { count: 0 };
       const c = await tx.reservation.updateMany({
         where: {
           sourceReference: r.sourceReference,
@@ -5198,12 +5131,28 @@ export async function sendDueCheckins(
   return { sent, considered: reservations.length, unfilled };
 }
 
+/** Önizleme satırının "gönderilmez" sebebi — gönderici kapısıyla aynı sıra (daire numarası önce, sonra doldurulmamış alan). */
+function previewBlocked(
+  content: string | null,
+  firstName: string | null,
+  signature: string | undefined,
+  propertyName: string,
+): WelcomePreview["blocked"] {
+  if (content == null || !hasUnfilledPlaceholders(buildGuestMessageBody(content, firstName, signature, propertyName))) return null;
+  return usesApartmentToken(content) && !apartmentResolvable(propertyName) ? "apartment_unresolved" : "unfilled";
+}
+
 export interface WelcomePreview {
   guest: string;
   property: string;
   hasEntry: boolean;
   alreadySent: boolean;
   body: string | null;
+  /**
+   * Kurucu T4 (Opus T4 #8): metin var ama GÖNDERİLMEYECEK — sebep (gönderici kapısıyla aynı kural). Eskiden önizleme doldurulmamış alanlı
+   * metni "gidecek" gibi gösteriyordu. null = gönderilebilir (ya da metin yok → `hasEntry` false).
+   */
+  blocked: "unfilled" | "apartment_unresolved" | null;
 }
 
 /**
@@ -5250,11 +5199,7 @@ export async function previewWelcomes(
 
   const previews: WelcomePreview[] = [];
   for (const r of reservations) {
-    const welcome = await prisma.knowledgeBaseItem.findFirst({
-      where: { propertyId: r.propertyId, category: "welcome", ...GUEST_DELIVERABLE_KB_WHERE },
-      select: { content: true },
-      orderBy: { updatedAt: "desc" },
-    });
+    const welcome = await loadAutoMessage(r.propertyId, "welcome");
     const firstName = guestFirstNameOf(r.guestName);
     previews.push({
       guest: r.guestName,
@@ -5262,6 +5207,7 @@ export async function previewWelcomes(
       hasEntry: Boolean(welcome),
       alreadySent: Boolean(r.welcomeSentAt),
       body: welcome ? buildGuestMessageBody(welcome.content, firstName, signature, r.property.name) : null,
+      blocked: previewBlocked(welcome?.content ?? null, firstName, signature, r.property.name),
     });
   }
   return previews;
@@ -5312,11 +5258,7 @@ export async function previewCheckins(
 
   const previews: WelcomePreview[] = [];
   for (const r of reservations) {
-    const tpl = await prisma.knowledgeBaseItem.findFirst({
-      where: { propertyId: r.propertyId, category: "checkin", ...GUEST_DELIVERABLE_KB_WHERE },
-      select: { content: true },
-      orderBy: { updatedAt: "desc" },
-    });
+    const tpl = await loadAutoMessage(r.propertyId, "checkin");
     const firstName = guestFirstNameOf(r.guestName);
     previews.push({
       guest: r.guestName,
@@ -5324,6 +5266,7 @@ export async function previewCheckins(
       hasEntry: Boolean(tpl),
       alreadySent: Boolean(r.checkinSentAt),
       body: tpl ? buildGuestMessageBody(tpl.content, firstName, signature, r.property.name) : null,
+      blocked: previewBlocked(tpl?.content ?? null, firstName, signature, r.property.name),
     });
   }
   return previews;
@@ -5426,11 +5369,7 @@ export async function sendDueCheckouts(
 
   const runErasureGuard = erasureGuardMemo(organizationId);
   for (const r of reservations) {
-    const tpl = await prisma.knowledgeBaseItem.findFirst({
-      where: { propertyId: r.propertyId, category: "checkout", ...GUEST_DELIVERABLE_KB_WHERE },
-      select: { content: true },
-      orderBy: { updatedAt: "desc" },
-    });
+    const tpl = await loadAutoMessage(r.propertyId, "checkout");
     if (!tpl) continue;
 
     const firstName = guestFirstNameOf(r.guestName);
@@ -5440,6 +5379,8 @@ export async function sendDueCheckouts(
     // düzeltince bir sonraki geçişte NORMAL gönderilir; kaybolmaz, bekler.
     if (hasUnfilledPlaceholders(body)) {
       unfilled++;
+      // Kurucu T4: ev sahibi atlamayı "Otomatik mesajlar" kartında görür (en iyi çaba, saatte bir yazım).
+      void recordAutoMessageSkip(tpl.id, usesApartmentToken(tpl.content) && !apartmentResolvable(r.property.name) ? "apartment_unresolved" : "unfilled");
       continue;
     }
 
@@ -5458,6 +5399,7 @@ export async function sendDueCheckouts(
           channel: r.channel,
           messageType: "checkout",
           body,
+          templateRevision: tpl.revision,
           idempotencyKey: `checkout:${organizationId}:${r.sourceReference}`,
         });
         if (!enq.deduped) sent++;
@@ -5482,6 +5424,8 @@ export async function sendDueCheckouts(
       // Seçimden sonra AÇIKÇA SİLİNEN (KVKK) misafire mesaj gitmez (Haiku 10-14 son doğrulama) — öteki girişlerle aynı iki-sıralama kuralı:
       // silme kilidi + kapı İŞLEM İÇİNDE. Saklama süresiyle anonimleşmiş ama canlı konaklama ETKİLENMEZ (tombstone yok).
       if (await sourceReferenceErased(tx, organizationId, r.sourceReference)) return { count: 0 };
+      // Kurucu T4: seçimden sonra metin değiştiyse / boşaltıldıysa eski metin GİTMEZ — sonraki geçiş güncel metinle yeniden seçer.
+      if (!(await autoMessageStillAt(tx, tpl.id, tpl.revision))) return { count: 0 };
       const c = await tx.reservation.updateMany({
         where: {
           sourceReference: r.sourceReference,
@@ -5972,11 +5916,7 @@ export async function previewCheckouts(
 
   const previews: WelcomePreview[] = [];
   for (const r of reservations) {
-    const tpl = await prisma.knowledgeBaseItem.findFirst({
-      where: { propertyId: r.propertyId, category: "checkout", ...GUEST_DELIVERABLE_KB_WHERE },
-      select: { content: true },
-      orderBy: { updatedAt: "desc" },
-    });
+    const tpl = await loadAutoMessage(r.propertyId, "checkout");
     const firstName = guestFirstNameOf(r.guestName);
     previews.push({
       guest: r.guestName,
@@ -5984,6 +5924,7 @@ export async function previewCheckouts(
       hasEntry: Boolean(tpl),
       alreadySent: Boolean(r.checkoutSentAt),
       body: tpl ? buildGuestMessageBody(tpl.content, firstName, signature, r.property.name) : null,
+      blocked: previewBlocked(tpl?.content ?? null, firstName, signature, r.property.name),
     });
   }
   return previews;

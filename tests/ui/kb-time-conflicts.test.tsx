@@ -39,9 +39,18 @@ describe("KbManager — uyuşmayan saatler", () => {
     expect(block.textContent).toContain("Uyuşmayan saatler");
     expect(block.textContent).toContain("Çıkış saati: mülk ayarlarında 11:00, “Çıkış” bilgisinde 12:00 yazıyor.");
     expect(block.textContent).toContain("“Çıkış”: Çıkış saati 12:00'dir");
-    expect(block.textContent).toContain("otomatik mesaj");
+    // Kurucu T4 (10-21): bilgi tabanı kalemi otomatik mesaj DEĞİL → otomatik mesaj notu yok.
+    expect(block.textContent).not.toContain("Otomatik mesajdaki saat");
     expect(screen.getByRole("link", { name: "Mülk ayarlarını aç" }).getAttribute("href")).toBe("/properties/p1");
     expect(screen.getByText("Saat uyuşmuyor")).toBeTruthy();
+  });
+
+  it("kurucu T4: dairenin otomatik çıkış mesajı çelişirse satırda 'otomatik mesaj' notu görünür", () => {
+    const rows = kbTimeConflicts({ checkInTime: "15:00", checkOutTime: "11:00" }, [
+      { id: "auto-message:a1", title: "Çıkış mesajı", category: "checkout", content: "Çıkış saati 12:00'dir.", sentAutomatically: true },
+    ]);
+    render(<KbManager properties={PROPS} items={[]} timeConflicts={{ p1: rows }} />);
+    expect(screen.getByTestId("kb-time-conflicts").textContent).toContain("Otomatik mesajdaki saat misafire aynen gider");
   });
 
   it("çelişki yoksa blok ve rozet YOK", () => {

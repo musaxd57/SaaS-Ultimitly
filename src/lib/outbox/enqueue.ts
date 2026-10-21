@@ -176,6 +176,11 @@ export interface EnqueueProactiveArgs {
   body: string;
   /** Deterministic identity: {type}:{org}:{reservation-anchor} — replay/restart never sends twice. */
   idempotencyKey: string;
+  /**
+   * Gövdenin kurulduğu `AutoMessageTemplate.revision` (kurucu T4, migration 80). İşçi gönderimden önce güncel sürümle kıyaslar; farklıysa
+   * gövdeyi AYNI satırda yeniden kurar (anahtar değişmez → çift gönderim yok). Tekrar-çarpmada (dedupe) mevcut satırın değeri korunur.
+   */
+  templateRevision?: number;
 }
 
 export interface EnqueueProactiveResult {
@@ -207,6 +212,7 @@ export async function enqueueProactive(args: EnqueueProactiveArgs): Promise<Enqu
         status: "pending",
         availableAt: new Date(), // ↓ENQUEUE_CLOCK
         connectionId,
+        templateRevision: args.templateRevision ?? null,
       },
       select: { id: true },
     });

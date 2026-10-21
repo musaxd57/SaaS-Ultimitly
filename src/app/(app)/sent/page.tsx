@@ -10,7 +10,6 @@ import { Pager } from "@/components/pager";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/empty-state";
 import { hasMessagingConnection } from "@/lib/channels";
-import { GUEST_DELIVERABLE_KB_WHERE } from "@/lib/kb-review";
 import { fillGuestPlaceholders, guestFirstNameOf } from "@/lib/kb-placeholders";
 import { fromNow, truncate, cn } from "@/lib/utils";
 import {
@@ -287,26 +286,16 @@ export default async function SentPage({
   const pagePropertyIds = Array.from(
     new Set(lifecycleRows.map((it) => rowPropertyIds.get(it.id)).filter((v): v is string => Boolean(v))),
   );
-  const kbItems = pagePropertyIds.length
-    ? await prisma.knowledgeBaseItem.findMany({
-        where: {
-          propertyId: { in: pagePropertyIds },
-          category: { in: ["welcome", "checkin", "checkout"] },
-          // Göndericiyle AYNI fragment (A1): bu satır "bugün gönderilecek olan
-          // şablon" diye gösteriliyor — gönderici onaysızı elerken burası
-          // gösterseydi ekran, ürünün yapmayacağı bir şeyi vaat ederdi.
-          ...GUEST_DELIVERABLE_KB_WHERE,
-          property: { organizationId: orgId }, // tenant isolation
-        },
-        select: { propertyId: true, category: true, content: true },
-        orderBy: { updatedAt: "desc" }, // newest active entry wins — same as the sender
+  // Kurucu T4 (10-21): göndericiyle AYNI kaynak — dairenin "Otomatik mesajlar" kaydı (bilgi tabanı artık kaynak değil). Boş metin
+  // gönderilmez → önizleme de yok.
+  const autoRows = pagePropertyIds.length
+    ? await prisma.autoMessageTemplate.findMany({
+        where: { propertyId: { in: pagePropertyIds }, organizationId: orgId }, // tenant isolation
+        select: { propertyId: true, kind: true, body: true },
       })
     : [];
   const kbByKey = new Map<string, string>();
-  for (const k of kbItems) {
-    const key = `${k.propertyId}:${k.category}`;
-    if (!kbByKey.has(key)) kbByKey.set(key, k.content); // newest active entry wins (sorted desc)
-  }
+  for (const k of autoRows) if (k.body.trim() !== "") kbByKey.set(`${k.propertyId}:${k.kind}`, k.body);
   for (const it of lifecycleRows) {
     const propertyId = rowPropertyIds.get(it.id);
     const content = propertyId ? kbByKey.get(`${propertyId}:${it.kind}`) : undefined;

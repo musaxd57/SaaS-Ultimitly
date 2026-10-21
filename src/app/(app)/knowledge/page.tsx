@@ -6,6 +6,7 @@ import { LinkButton } from "@/components/ui/link-button";
 import { EmptyState } from "@/components/empty-state";
 import { KbManager, type KbItem } from "@/components/knowledge/kb-manager";
 import { aiReadableForConflicts, kbTimeConflicts, type KbTimeConflictRow } from "@/lib/kb-time-conflicts";
+import { AUTO_MESSAGE_LABEL, type AutoMessageKind } from "@/lib/auto-messages/render";
 import { detectKbInstructionHijack } from "@/lib/ai/fallback";
 import { parseKbPrefill } from "@/lib/kb-prefill";
 
@@ -17,7 +18,7 @@ export default async function KnowledgePage({
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const session = await requireManagerSession();
-  const [properties, items] = await Promise.all([
+  const [properties, items, autoMessages] = await Promise.all([
     prisma.property.findMany({
       where: { organizationId: session.organizationId },
       select: { id: true, name: true, checkInTime: true, checkOutTime: true },
@@ -27,6 +28,10 @@ export default async function KnowledgePage({
       where: { property: { organizationId: session.organizationId } },
       include: { property: { select: { name: true } } },
       orderBy: [{ propertyId: "asc" }, { category: "asc" }],
+    }),
+    prisma.autoMessageTemplate.findMany({
+      where: { organizationId: session.organizationId, kind: { in: ["checkin", "checkout"] } },
+      select: { id: true, propertyId: true, kind: true, body: true },
     }),
   ]);
 
@@ -45,7 +50,11 @@ export default async function KnowledgePage({
   // halefi olmayan); taslak ya da pasif bir kalem host'a sahte çelişki göstermesin.
   const timeConflicts: Record<string, KbTimeConflictRow[]> = {};
   for (const p of properties) {
-    const rows = kbTimeConflicts(p, aiReadableForConflicts(items.filter((i) => i.propertyId === p.id)));
+    // Kurucu T4 (10-21): dairenin otomatik giriş / çıkış mesajı da kıyasa girer — misafire AYNEN gider, saat uyuşmazlığı burada görünür.
+    const autoItems = autoMessages
+      .filter((a) => a.propertyId === p.id && a.body.trim() !== "")
+      .map((a) => ({ id: `auto-message:${a.id}`, title: AUTO_MESSAGE_LABEL[a.kind as AutoMessageKind] ?? a.kind, category: a.kind, content: a.body, sentAutomatically: true }));
+    const rows = kbTimeConflicts(p, [...aiReadableForConflicts(items.filter((i) => i.propertyId === p.id)), ...autoItems]);
     if (rows.length > 0) timeConflicts[p.id] = rows;
   }
   // Yapay zekâya komut veren ifade taşıyan kalemler: `kb-fetch` onları isteme HİÇ koymaz (her

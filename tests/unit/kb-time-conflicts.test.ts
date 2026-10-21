@@ -14,12 +14,18 @@ let n = 0;
 const kb = (category: string, title: string, content: string) => ({ id: `k${++n}`, category, title, content });
 
 describe("kbTimeConflicts — KB ↔ mülk ayarı", () => {
-  it("çıkış kalemi 12:00, mülk ayarı 11:00 → tek satır; otomatik mesaj notu; sade metin", () => {
+  it("çıkış kalemi 12:00, mülk ayarı 11:00 → tek satır; sade metin; bilgi tabanı kalemi otomatik mesaj DEĞİL (kurucu T4)", () => {
     const rows = kbTimeConflicts(PROP, [kb("checkout", "Çıkış", "Çıkış saati 12:00'dir; anahtarı masaya bırakın.")]);
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ field: "checkout", kind: "property", propertyValue: "11:00" });
     expect(rows[0].text).toBe("Çıkış saati: mülk ayarlarında 11:00, “Çıkış” bilgisinde 12:00 yazıyor. Doğru olan hangisiyse diğerini düzeltin.");
-    expect(rows[0].sides[0]).toMatchObject({ values: ["12:00"], sentAutomatically: true, sentence: "Çıkış saati 12:00'dir" });
+    expect(rows[0].sides[0]).toMatchObject({ values: ["12:00"], sentAutomatically: false, sentence: "Çıkış saati 12:00'dir" });
+  });
+
+  it("kurucu T4: dairenin otomatik çıkış mesajı (ayrı kalem) 12:00 → otomatik mesaj notu", () => {
+    const rows = kbTimeConflicts(PROP, [{ ...kb("checkout", "Çıkış mesajı", "Çıkış saati 12:00'dir."), sentAutomatically: true }]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].sides[0]).toMatchObject({ values: ["12:00"], sentAutomatically: true });
   });
 
   it("mülkle UYUMLU bilgi tabanı → satır YOK (iki saat bir arada, geç çıkış, erken giriş, aralık)", () => {

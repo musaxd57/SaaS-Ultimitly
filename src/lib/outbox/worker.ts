@@ -21,6 +21,9 @@ import {
   type OutboundProvider,
 } from "@/lib/channels";
 import { ANON_BODY } from "@/lib/data-retention";
+import { buildGuestMessageBody, hasUnfilledPlaceholders, isAutoMessageKind } from "@/lib/auto-messages/render";
+import { loadAutoMessage, recordAutoMessageSkip } from "@/lib/auto-messages/store";
+import { apartmentResolvable, guestFirstNameOf, usesApartmentToken } from "@/lib/kb-placeholders";
 import { isHandoffExempt, sweepExpiredHandoffExempt } from "./handoff-exempt";
 import { outboxDeliveryPaused } from "./flag";
 import {
@@ -666,6 +669,46 @@ async function checkinNotYetDue(row: OutboxRow, now: Date): Promise<Date | null>
   return opensAt > now.getTime() ? new Date(opensAt) : null;
 }
 
+/** Otomatik mesaj metni gönderilemez durumdaysa satırın yeniden deneme aralığı (ev sahibi düzeltene kadar bekler). */
+const TEMPLATE_WAIT_MS = 60 * 60_000;
+
+type LifecycleBodyCheck = { kind: "send"; body: string } | { kind: "wait"; reason: string } | { kind: "lost" };
+
+/**
+ * Kurucu T4: kuyruktaki yaşam döngüsü satırının gövdesi güncel otomatik mesajla mı kuruldu? Sürüm aynıysa gövde AYNEN gider. Farklıysa (ev
+ * sahibi metni değiştirdi) ya da sürüm yoksa (migration 80 öncesi satır) gövde GÜNCEL metinle AYNI satırda yeniden kurulur — anahtar değişmez,
+ * rezervasyon başına tek satır kalır (yeni satır açmak belirsiz teslimde ÇİFT gönderim demekti — sert inceleme T4 #1). Metin yok / boş /
+ * doldurulamıyorsa bekler (`wait`). Rezervasyonu bilinmeyen eski satır gövdesini korur (hedef yine ↑`lifecycleVeto`dan geçti).
+ */
+async function refreshLifecycleBody(row: OutboxRow, token: string, rowRevision: number | null, now: Date): Promise<LifecycleBodyCheck> {
+  if (!row.reservationId || !isAutoMessageKind(row.messageType)) return { kind: "send", body: row.body };
+  const reservation = await prisma.reservation.findUnique({
+    where: { id: row.reservationId },
+    select: { propertyId: true, guestName: true, property: { select: { name: true, organizationId: true, organization: { select: { aiSignature: true } } } } },
+  });
+  if (!reservation || reservation.property.organizationId !== row.organizationId) return { kind: "send", body: row.body };
+  const tpl = await loadAutoMessage(reservation.propertyId, row.messageType);
+  if (!tpl) return { kind: "wait", reason: "template_missing" };
+  if (rowRevision === tpl.revision) return { kind: "send", body: row.body };
+  const propertyName = reservation.property.name;
+  const body = buildGuestMessageBody(
+    tpl.content,
+    guestFirstNameOf(reservation.guestName),
+    reservation.property.organization.aiSignature?.trim() || undefined,
+    propertyName,
+  );
+  if (hasUnfilledPlaceholders(body)) {
+    void recordAutoMessageSkip(tpl.id, usesApartmentToken(tpl.content) && !apartmentResolvable(propertyName) ? "apartment_unresolved" : "unfilled", now);
+    return { kind: "wait", reason: "template_unfilled" };
+  }
+  // Gövde KENDİ talebimiz koşuluyla yazılır (talep kaybedildiyse bu işçi hiçbir şey göndermez); gönderim izi (↓K7) yeni gövdeyi taşır.
+  const updated = await prisma.messageOutbox.updateMany({
+    where: { id: row.id, claimedBy: token, status: "sending" },
+    data: { body, templateRevision: tpl.revision },
+  });
+  return updated.count === 1 ? { kind: "send", body } : { kind: "lost" };
+}
+
 /**
  * Dispatch the correct send-time veto by messageType: lifecycle rows use the reservation-state
  * veto; every reply-shaped row (manual / ai / holding_ack / legacy NULL) goes through
@@ -1177,7 +1220,7 @@ async function processOne(
   // (milisaniye) — `erasure.ts`te belgeli "gönderim sürerken silindi" istisnası.
   const live = await prisma.messageOutbox.findFirst({
     where: { id: row.id, claimedBy: token, status: "sending" },
-    select: { body: true, claimExpiresAt: true },
+    select: { body: true, claimExpiresAt: true, templateRevision: true },
   });
   if (!live) return; // talep kaybedildi (süresi doldu / başka işçi aldı): bu işçi hiçbir şey göndermez
   // Talebin süresi DOLDU ama henüz kimse kurtarmadı (Opus 10-16 N5 ikinci kemer): bu satır için POST YAPILMADI — kesin "gönderilmedi".
@@ -1203,6 +1246,31 @@ async function processOne(
     return;
   }
   row = { ...row, body: live.body };
+
+  // KURUCU T4 (10-21): "Önceden kuyruğa alınmış giriş mesajı da gönderimden önce kontrol edilsin; silinen / pasifleştirilen kaydın eski
+  // metni gönderilmesin. Yeni kayıt seçildiğinde gecikmiş mesajlar körlemesine gönderilmesin." Yaşam döngüsü satırının metni POST'tan
+  // hemen önce dairenin GÜNCEL otomatik mesajıyla kıyaslanır (konaklama ve gönderim zamanı ↑`lifecycleVeto`da yeniden doğrulandı).
+  if (isAutoMessageKind(row.messageType)) {
+    const fresh = await refreshLifecycleBody(row, token, live.templateRevision, liveNow);
+    if (fresh.kind === "lost") return;
+    if (fresh.kind === "wait") {
+      // Metin kaldırıldı / boşaltıldı / doldurulamıyor: GÖNDERİLMEZ, kaybolmaz da — ev sahibi düzeltince güncel metin gider (gönderici
+      // kapısıyla aynı "bekler" kuralı); konaklama penceresi geçerse ↑`lifecycleVeto` satırı iptal eder. Deneme sayılmaz.
+      await settle(row, token, "sending", {
+        status: "pending",
+        availableAt: new Date(liveNow.getTime() + TEMPLATE_WAIT_MS),
+        attemptCount: { decrement: 1 },
+        lastErrorKind: null,
+        lastErrorCode: fresh.reason,
+        claimedBy: null,
+        claimExpiresAt: null,
+        claimedAt: null,
+      });
+      acc.retried++;
+      return;
+    }
+    row = { ...row, body: fresh.body };
+  }
 
   // K7 (09-30): yaşam döngüsü satırının GÖNDERİM İZİ — POST'tan ÖNCE (`automated-sends.ts`), sonuçla kapanır: senkron aynı
   // mesajı geri getirince "ev sahibi yazdı" değil "otomatik mesaj" olur. Yalnız teslim olmuş olabilecekler eşleşmeye açık.

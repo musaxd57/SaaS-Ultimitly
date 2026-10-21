@@ -419,7 +419,8 @@ export function KbManager({
 
   const grouped = properties
     .map((p) => ({ property: p, list: items.filter((i) => i.propertyId === p.id) }))
-    .filter((g) => g.list.length > 0);
+    // Kurucu T4: bilgi tabanında kalemi olmayan dairenin OTOMATİK MESAJI saat çelişkisi taşıyabilir — blok yine görünmeli.
+    .filter((g) => g.list.length > 0 || (timeConflicts[g.property.id] ?? []).length > 0);
 
   return (
     <div className="space-y-4">
@@ -534,7 +535,7 @@ export function KbManager({
             </Field>
             <Field label="Kategori" htmlFor="kb-category">
               <Select id="kb-category" value={form.category} onChange={(e) => set("category", e.target.value)}>
-                <optgroup label="Otomatik gönderilen mesajlar">
+                <optgroup label="Karşılama / giriş / çıkış bilgileri">
                   {triggerOptions.map((o) => (
                     <option key={o.value} value={o.value}>{o.label}</option>
                   ))}
@@ -546,16 +547,20 @@ export function KbManager({
                 </optgroup>
               </Select>
               {TRIGGER_CATEGORIES.has(form.category) ? (
-                /* 🚨 VAAT KOŞULSUZDU ve ÖLÇÜLDÜ (kurucu iş emri, 09-11): bu cümle
-                   org ayarına HİÇ BAKMADAN "gönderilir" diyordu. Host metni
-                   yazıyor, ekran "gider" diyor, gitmiyordu — çünkü
-                   autoWelcome/autoCheckin/autoCheckout şemada `false` ve ayrıca
-                   `*EnabledAt` damgası gerekiyor. Bileşen org ayarını props
-                   olarak ALMIYOR bile, o yüzden burada BİLMEDİĞİMİZ bir şey
-                   iddia etmek yerine KOŞULU söylüyoruz — uydurma bir kesinlik
-                   yerine host'un kontrol edebileceği bir yönlendirme. */
+                /* KURUCU T4 (10-21): bu kategoriler artık otomatik mesajın KAYNAĞI DEĞİL — bilgi olarak kalır (yapay zekâ okur). Misafire
+                   otomatik giden metin mülk sayfasındaki "Otomatik mesajlar" bölümünden, önizlemeyle değişir; burada kaydetmek onu
+                   değiştirmez. (09-11 dersi korunur: koşulsuz "gönderilir" vaadi YOK.) */
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Bu kategori otomatik gönderim içindir. Gönderimin açık olup olmadığını{" "}
+                  Bu kayıt yapay zekânın cevaplarında bilgi olarak kullanılır; otomatik giden mesajı değiştirmez. Karşılama, giriş ve çıkış
+                  mesajlarını{" "}
+                  {form.propertyId ? (
+                    <a href={`/properties/${form.propertyId}#otomatik-mesajlar`} className="text-primary hover:underline">
+                      dairenin Otomatik mesajlar bölümünden
+                    </a>
+                  ) : (
+                    "dairenin sayfasındaki Otomatik mesajlar bölümünden"
+                  )}{" "}
+                  düzenleyin; gönderimin açık olup olmadığını{" "}
                   <a href="/settings?view=ai-otomasyon" className="text-primary hover:underline">
                     Ayarlar → AI ve Otomasyon
                   </a>{" "}
@@ -644,7 +649,7 @@ export function KbManager({
                         <li key={`${row.kind}-${row.field}`} className="space-y-1">
                           <p>{row.text}</p>
                           {row.sides.some((s) => s.sentAutomatically) ? (
-                            <p className="text-xs">Giriş/çıkış bilgisi otomatik mesaj olarak da gönderiliyorsa misafire bu saat gider.</p>
+                            <p className="text-xs">Otomatik mesajdaki saat misafire aynen gider; dairenin Otomatik mesajlar bölümünden düzeltin.</p>
                           ) : null}
                           <ul className="space-y-0.5 text-xs opacity-80">
                             {row.sides.map((s) => (
@@ -699,7 +704,7 @@ export function KbManager({
                           </Badge>
                         ) : null}
                         {TRIGGER_CATEGORIES.has(item.category) && hasUnfilledField(item.content) ? (
-                          <Badge tone="warning" title="Doldurulmamış alan içerdiği için bu otomatik mesaj gönderilmiyor.">
+                          <Badge tone="warning" title="Bu kayıtta doldurulmamış alan var; düzeltin.">
                             Doldurulmamış alan
                           </Badge>
                         ) : null}
@@ -773,7 +778,7 @@ export function KbManager({
                                 setEditForm((f) => ({ ...f, category: e.target.value }))
                               }
                             >
-                              <optgroup label="Otomatik gönderilen mesajlar">
+                              <optgroup label="Karşılama / giriş / çıkış bilgileri">
                                 {triggerOptions.map((o) => (
                                   <option key={o.value} value={o.value}>
                                     {o.label}

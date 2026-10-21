@@ -2,21 +2,11 @@ import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from "vites
 import { prisma, resetDb, makeOrgWithProperty, daysFromNow } from "../helpers/db";
 
 // ---------------------------------------------------------------------------
-// A1 — ONAYSIZ ŞABLON MİSAFİRE GÖNDERİLMEZ (09-08).
-//
-// `fetchKnowledgeBaseForPrompt` kapısı yalnız MODELE giden yolu kapatır. Ama
-// karşılama / giriş / çıkış şablonları modelden GEÇMEZ: içerikleri misafire
-// AYNEN gönderilir (`buildGuestMessageBody`). Yani onay kapısı oraya
-// konmasaydı, kurucunun "host onayından önce aktifleşmesin" şartı ürünün en
-// doğrudan yüzeyinde açık kalırdı — çıkarılmış bir taslak, host hiç görmeden
-// misafirin telefonuna düşerdi.
-//
-// PARİTE ŞART: gönderici ile ÖNİZLEME aynı fragmenti kullanır
-// (`GUEST_DELIVERABLE_KB_WHERE`). Ayrışsalardı host önizlemede "gönderilecek"
-// görüp gerçekte gönderilmeyen (ya da tersi) bir şablonla karşılaşırdı.
-//
-// Bugün taslak ÜRETEN bir yol yok (A5 henüz yazılmadı) → bu test canlı davranışı
-// DEĞİŞTİRMEZ, gelecekteki kaçışı kapatır.
+// KURUCU T4 (10-21, migration 80) — OTOMATİK MESAJ BİLGİ TABANINDAN AYRI. Eskiden (A1, 09-08) karşılama / giriş / çıkış metni bilgi
+// tabanının en son onaylı kalemiydi; bu dosya onaylı / legacy / taslak ayrımını pinliyordu. Kurucu: "KB ekleme, düzenleme ve öğrenilen
+// taslağı onaylama otomatik mesajlara dokunmasın" → artık metin YALNIZ dairenin "Otomatik mesajlar" kaydından gelir; bilgi tabanı kalemi
+// hangi durumda olursa olsun (onaylı, taslak, sonradan düzenlenmiş) gönderilen metni değiştirmez. Boş ya da doldurulamayan metin gönderilmez,
+// ev sahibi kartta uyarı görür (son atlama sebebi). PARİTE korunur: önizleme ile gönderici AYNI kaydı ve AYNI kapıyı okur.
 // ---------------------------------------------------------------------------
 
 vi.mock("@/lib/messaging", () => ({
@@ -30,6 +20,7 @@ vi.mock("@/lib/report-error", () => ({
 import { sendOnChannel } from "@/lib/messaging";
 import { previewWelcomes, sendDueWelcomes } from "@/lib/automation";
 import { setOrgHospitableToken, resetPrimaryOrgCache } from "@/lib/hospitable-credentials";
+import { seedAutoMessage } from "../helpers/auto-message";
 
 const mockSend = vi.mocked(sendOnChannel);
 const ORIGINAL_AUTO_REPLY = process.env.AUTO_REPLY_ENABLED;
@@ -48,7 +39,7 @@ async function seedArrival(propertyId: string) {
   });
 }
 
-describe("A1 — onaysız şablon gönderilmez (gönderici ↔ önizleme paritesi)", () => {
+describe("kurucu T4 — otomatik mesaj yalnız 'Otomatik mesajlar' kaydından (bilgi tabanı değiştirmez)", () => {
   let orgId: string;
   let propertyId: string;
 
@@ -75,13 +66,13 @@ describe("A1 — onaysız şablon gönderilmez (gönderici ↔ önizleme parites
     await prisma.$disconnect();
   });
 
-  async function seedWelcome(reviewState: string) {
+  async function seedKbWelcome(reviewState: string, content: string) {
     await prisma.knowledgeBaseItem.create({
       data: {
         propertyId,
         category: "welcome",
         title: "Karşılama",
-        content: "Hoş geldiniz {isim}.",
+        content,
         isActive: true,
         source: reviewState === "draft" ? "extracted_draft" : "host_manual",
         reviewState,
@@ -89,43 +80,64 @@ describe("A1 — onaysız şablon gönderilmez (gönderici ↔ önizleme parites
       },
     });
   }
+  const sentBody = () => String(mockSend.mock.calls[0]?.[1]);
 
-  it("ONAYLI karşılama şablonu gönderilir (davranış korunur)", async () => {
-    await seedWelcome("approved");
+  it("🚨 bilgi tabanında ONAYLI karşılama kalemi var ama otomatik mesaj kaydı YOK → gönderilmez, önizleme 'metin yok' der", async () => {
+    await seedKbWelcome("approved", "Hoş geldiniz {isim}.");
     const preview = await previewWelcomes(orgId);
-    expect(preview[0]?.hasEntry).toBe(true);
-    const res = await sendDueWelcomes(orgId);
-    expect(res.sent).toBe(1);
-    expect(mockSend).toHaveBeenCalledTimes(1);
-  });
-
-  it("LEGACY (sözleşme öncesi) şablon gönderilmeye DEVAM eder", async () => {
-    await seedWelcome("legacy");
-    const preview = await previewWelcomes(orgId);
-    expect(preview[0]?.hasEntry).toBe(true);
-    const res = await sendDueWelcomes(orgId);
-    expect(res.sent).toBe(1);
-  });
-
-  it("TASLAK şablon GÖNDERİLMEZ ve önizleme de 'şablon yok' der (parite)", async () => {
-    await seedWelcome("draft");
-    const preview = await previewWelcomes(orgId);
-    // Host önizlemede taslağı "gönderilecek" diye GÖRMEZ.
     expect(preview[0]?.hasEntry).toBe(false);
     const res = await sendDueWelcomes(orgId);
     expect(res.sent).toBe(0);
     expect(mockSend).not.toHaveBeenCalled();
-    // Rezervasyon damgalanmaz → şablon onaylanınca normal akış devam eder.
     const row = await prisma.reservation.findFirstOrThrow({ where: { propertyId } });
     expect(row.welcomeSentAt).toBeNull();
   });
 
-  it("taslak varken ONAYLI ikinci şablon varsa onaylı olan gider", async () => {
-    await seedWelcome("approved");
-    await seedWelcome("draft");
+  it("🚨 otomatik mesaj kaydı gider; bilgi tabanına sonradan eklenen / düzenlenen / onaylanan kalem metni DEĞİŞTİRMEZ", async () => {
+    await seedAutoMessage(propertyId, "welcome", "Hoş geldiniz {isim}, kapı kodu 4821.");
+    await seedKbWelcome("approved", "YENİ KALEM — kapı kodu 9999.");
+    await seedKbWelcome("draft", "TASLAK — kapı kodu 7777.");
+    const kb = await prisma.knowledgeBaseItem.findFirstOrThrow({ where: { propertyId, reviewState: "approved" } });
+    await prisma.knowledgeBaseItem.update({ where: { id: kb.id }, data: { content: "DÜZENLENDİ — kapı kodu 1111." } });
+    const preview = await previewWelcomes(orgId);
+    expect(preview[0]?.body).toContain("4821");
     const res = await sendDueWelcomes(orgId);
     expect(res.sent).toBe(1);
-    // `sendOnChannel(target, body, token)` — gövde ikinci argüman.
-    expect(String(mockSend.mock.calls[0]?.[1])).toContain("Hoş geldiniz");
+    expect(sentBody()).toContain("4821");
+    expect(sentBody()).not.toMatch(/9999|7777|1111/);
+  });
+
+  it("boş otomatik mesaj GÖNDERİLMEZ (bilgi tabanında kalem olsa da); damga yok → metin yazılınca normal akış", async () => {
+    await seedAutoMessage(propertyId, "welcome", "   ");
+    await seedKbWelcome("approved", "Hoş geldiniz.");
+    expect((await previewWelcomes(orgId))[0]?.hasEntry).toBe(false);
+    expect((await sendDueWelcomes(orgId)).sent).toBe(0);
+    expect(mockSend).not.toHaveBeenCalled();
+    await seedAutoMessage(propertyId, "welcome", "Hoş geldiniz {isim}.");
+    expect((await sendDueWelcomes(orgId)).sent).toBe(1);
+  });
+
+  it("🚨 doldurulmamış alanlı otomatik mesaj GÖNDERİLMEZ; önizleme sebebi söyler; ev sahibine kartta son atlama sebebi yazılır", async () => {
+    await seedAutoMessage(propertyId, "welcome", "Adres: [AÇIK ADRES]");
+    const preview = await previewWelcomes(orgId);
+    expect(preview[0]).toMatchObject({ hasEntry: true, blocked: "unfilled" });
+    const res = await sendDueWelcomes(orgId);
+    expect(res).toMatchObject({ sent: 0, unfilled: 1 });
+    expect(mockSend).not.toHaveBeenCalled();
+    await vi.waitFor(async () => {
+      const tpl = await prisma.autoMessageTemplate.findFirstOrThrow({ where: { propertyId, kind: "welcome" } });
+      expect(tpl.lastSkipReason).toBe("unfilled");
+    });
+  });
+
+  it("daire numarası okunamayan mülkte {daire} kullanan mesaj → sebep 'apartment_unresolved'", async () => {
+    await seedAutoMessage(propertyId, "welcome", "Daire {daire} sizi bekliyor.");
+    const preview = await previewWelcomes(orgId);
+    expect(preview[0]).toMatchObject({ hasEntry: true, blocked: "apartment_unresolved" });
+    expect((await sendDueWelcomes(orgId)).sent).toBe(0);
+    await vi.waitFor(async () => {
+      const tpl = await prisma.autoMessageTemplate.findFirstOrThrow({ where: { propertyId, kind: "welcome" } });
+      expect(tpl.lastSkipReason).toBe("apartment_unresolved");
+    });
   });
 });

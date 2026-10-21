@@ -45,6 +45,11 @@ const COVERAGE: Record<string, Record<string, string>> = {
   },
   "properties/[id]/house-rules": { PUT: "tests/integration/house-rules.test.ts" },
   "properties/[id]/history-learn": { GET: "tests/integration/history-learn.test.ts", POST: "tests/integration/history-learn.test.ts" },
+  "properties/[id]/auto-messages": {
+    GET: "tests/integration/auto-messages.test.ts",
+    POST: "tests/integration/auto-messages.test.ts",
+    PUT: "tests/integration/auto-messages.test.ts",
+  },
   "properties/[id]/instructions": { GET: "tests/integration/history-learn.test.ts", POST: "tests/integration/history-learn.test.ts" },
   "properties/[id]/instructions/[instructionId]": { DELETE: "tests/integration/history-learn.test.ts" },
   "properties/[id]/instructions/presets": { PUT: "tests/integration/history-learn.test.ts" },
