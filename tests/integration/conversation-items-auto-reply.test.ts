@@ -1099,6 +1099,23 @@ describe("KONU BAZLI 'BİLGİM YOK' (H9, kurucu 10-16; anahtar AI_TOPIC_ABSENCE_
     vi.unstubAllGlobals();
   });
 
+  it("hakem 'itiraf' → ayıklama; katı kip KAPALIYKEN de ayıklanan metin yeniden okunur ve kalan itiraf tutulur (Haiku 10-21)", async () => {
+    vi.stubEnv("AI_TOPIC_ABSENCE_ENABLED", "1");
+    vi.stubEnv("AI_ABSENCE_JUDGE_ENABLED", "1");
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    const f = vi
+      .fn()
+      .mockImplementationOnce(judgeSays(true))
+      .mockImplementationOnce(judgeSays(true));
+    vi.stubGlobal("fetch", f);
+    const { conversationId } = await seed(TV_TRASH);
+    understands(tvTrashUnderstood());
+    mockSuggest.mockResolvedValueOnce(tvTrashReply());
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(false);
+    expect(f).toHaveBeenCalledTimes(2);
+    vi.unstubAllGlobals();
+  });
+
   it("KONTROL — anahtar KAPALI: bugünkü gibi bütün cevap tutulur (reply_absence), misafire hiçbir şey gitmez", async () => {
     const { conversationId } = await seed(TV_TRASH);
     understands(tvTrashUnderstood());

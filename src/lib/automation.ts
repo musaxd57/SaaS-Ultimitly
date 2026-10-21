@@ -2544,6 +2544,14 @@ export async function applyChannelAutoReply(
     if (stripped.ok) {
       result = { ...result, reply: stripped.reply, answeredRequests: { ok: true, refs: stripped.answeredRefs } };
       topicAbsenceTrace = { s: stripped.droppedSentences, r: stripped.droppedRefs.length };
+      // Hakem eski metinde itiraf gördüyse ayıklanan metni de okur: kalan cümlede kelime kuralının kaçırdığı bir itiraf kalmış olabilir
+      // (Haiku 10-21: "Gate access is not something my information covers…"). Hakem düşerse kelime kuralı (bugünkü davranış).
+      if (absenceJudge?.outcome.status === "ok" && absenceJudge.outcome.admits) {
+        absenceJudge = {
+          reply: result.reply,
+          outcome: await runAbsenceJudge({ guestMessage: absenceGuestText, reply: result.reply, names: absenceNames }),
+        };
+      }
     }
   }
   if (absenceJudge) gateContext.absenceJudge = absenceJudge;
