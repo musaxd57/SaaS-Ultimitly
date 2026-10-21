@@ -8,7 +8,20 @@
 > `docs/history/CLAUDE-2026-10-02-sadelestirme-3-oncesi-tam-metin.md` ("Durum" bölümü). Kuralları yukarıdaki bölümlerde; yalnız Durum'da
 > yazılı olan kurallar (konuşma öğeleri, ev kuralları, canlı bayraklar) 10-02'de ilgili bölümlere taşındı. Bekleyen onaylar ↓.
 
-**10-18 gece-4 (güncel):** 10 Sonnet geniş inceleme (son 3 günün 224 commit'i; bulgular `scratchpad/gece-17/S1–S10.md`, oturum dışı) → doğrulananlar
+**10-21 (güncel):** Kurucu 10-21 cevapları (T1 "B", T2 sınırlar, T4 ayrı bölüm + migration, T5 tablo) kodda; her biri Haiku incelemesi + düzeltme
+turu, T1 mutasyon 17/17. T5 (`6252a104`, `ea127b12`): "saat geçtiyse yarın" kuralı yok; geçmiş saat / sabah-akşam belirsizliği / kararsız söz
+(müsait olursa, belki) kart; "inşallah" iptal etmez; gece yarısı zamansız söz bağlam "şimdi" demiyorsa son tarihsiz. T2 (`29d2597f`, `8c54584f`):
+olası tehlike + anlama katmanı koşmadı → konuşma atomik "Sorunlu" (`hazard_unverified`), işletme başına saatte 3 e-posta, gitmeyen e-posta hak
+yemez, aynı konuşmadaki yeni kesin acil sınır dışında. T1 (`07aac0bd`, `9baea96b`, `ea99c6f2`): "talimat yok" silindikten sonra kalan içerik cümlesi
+bilgi tabanının tek kaleminde dayanak ister (≥%75 gövde, sayı tam belirteç, olumsuzluk kutbu aynı, nezaket kalıpları çıkarılır); "sistemimizde
+yok/görünmüyor" iç kaynak anlatımı; erişim ilişkisi (kapı/otopark/anahtar arızası + aynı konulu soru → bağlı; saat türünde yalnız fiziksel erişim
+sözcüğü; "kapıcı" kapı değil). Ölçüm `tests/unit/t1-separation-measure.test.ts` (yanlış gönderim 0, gereksiz tutma 0). T4 (`f280cfbc`, migration 80):
+`AutoMessageTemplate` + `MessageOutbox.templateRevision`; gönderici / önizleme / gönderilenler / mülk listesi / saat çelişkisi yeni kaynaktan;
+kuyrukta anahtar değişmez, işçi sürüm farkında aynı satırı yeniden kurar, metin yok / doldurulamıyorsa 1 sa bekletir; doğrudan yolda talep işlemi
+içinde sürüm kontrolü; rota (önizleme, sürüm 409, kiracılar arası 404, personel 403, metinsiz denetim) + kart (önizlemesiz kayıt yok); demo +
+dışa aktarma kapsamda. Sert tasarım incelemesi `scratchpad/T4-sert-inceleme.md` (oturum dışı): sürümlü anahtar → çift gönderim riski nedeniyle
+reddedildi. Sonraki dilim (kurucu fikri): şablondan farklı bilgi gönderilince fark + "şablona ekle?" · "diğer dairelere kopyala".
+**10-18 gece-4:** 10 Sonnet geniş inceleme (son 3 günün 224 commit'i; bulgular `scratchpad/gece-17/S1–S10.md`, oturum dışı) → doğrulananlar
 düzeltildi, müşteriye dokunanlar sorulmadan yapılmadı (KURUCU-SORULARI §T: T1–T7 + T6b). Söz algılama v2 (gün kendi kapsamından, belirsizse kart; iki
 söz / devam / süre kuralları; migration 76 yapan, 77 FK + AuditLog dizinleri — kurucunun 10-17 genel migration onayıyla) + sert itirazcı + Haiku × 3 +
 Opus F1–F19. Arıza kemeri (anahtar kapalı) İngilizce kısaltma / -ing / KB'de olmayan cihaz + Haiku iki tur yanlış pozitif / kaçan düzeltmesi.

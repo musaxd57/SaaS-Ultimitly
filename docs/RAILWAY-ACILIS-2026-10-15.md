@@ -8,15 +8,17 @@ Kurucu 10-15: "Railway'i açınca ekleyeceğimiz bayrakları unutma." Bu dosya T
 0. **Önce yalnız veritabanı (gece-4 S10-08):** web servisi açılınca İLK iş `prisma migrate deploy` → yedek bundan SONRA alınırsa migration
    ÖNCESİ yedek olmaz. Sıra: Railway'de yalnız Postgres'i açın (web servisinin otomatik deploy'unu kapatın ya da kopya sayısını 0 tutun; dala
    push yapmayın) → aşağıdaki 1. adım (yedek + geri yükleme provası) → sonra web servisini açın. Kontrol: açmadan önce
-   `SELECT count(*) FROM _prisma_migrations` = **59** (00…58), ilk deploy'dan sonra **80** (00…79).
+   `SELECT count(*) FROM _prisma_migrations` = **59** (00…58), ilk deploy'dan sonra **81** (00…80).
    **Dolu veritabanı provası (gece-4 S10-10, 10-18):** 00…58 uygulanmış boş PG'ye 37 tablonun hepsine 40'ar yapay satır
    (`scripts/ops-migration-rehearsal-seed.py`, yabancı anahtarlarla bağlı) → 59…77 hatasız, 1,5 sn (10-18: 78 aynı prova veritabanında ayrıca uygulandı, 1,4 sn, sapma sıfır); `migrate diff` sapma sıfır. Statik tarama
    aynı sonucu verir: 59…78'deki bütün yabancı anahtarlar YENİ tablolarda, yeni kolonların hepsi boş bırakılabilir ya da varsayılanlı, benzersiz
    dizinler yeni tablo / yeni (boş) kolonlarda, veri güncelleyen ifade yok. Canlı veriyle prova değildir (gerçek veri yerelde yok — KVKK); yine de
    1. adımdaki yedek ŞART.
-1. **Taze yedek:** son itilen dal migration 59–79 içeriyor (tek güncel liste: `docs/MIGRATION-MANIFEST.md`) (açılışta `prisma migrate deploy` hepsini uygular). Açmadan önce 09-19
+1. **Taze yedek:** son itilen dal migration 59–80 içeriyor (tek güncel liste: `docs/MIGRATION-MANIFEST.md`) (açılışta `prisma migrate deploy` hepsini uygular). Açmadan önce 09-19
    yedeği ESKİ — Railway açılınca ilk iş `pg_dump` (web servisi deploy olmadan, ↑0) ve geri yükleme provası
    (`docs/OPS-2026-09-19-DURAKLATMA-VE-LOCAL-GELISTIRME.md`).
+   Migration 80 (kurucu T4, otomatik mesajlar ayrı bölüm): açılıştan sonra her dairenin "Otomatik mesajlar" kartına bakın — metinler bilgi
+   tabanından AYNEN taşındı; `SELECT count(*) FROM "AutoMessageTemplate" WHERE "needsReview"` > 0 ise o kartlarda "kontrol edin" uyarısı var.
 2. **`ENCRYPTION_KEY` aynı kalır** (rotasyon ASLA). Kasadaki değerle Railway'deki aynı mı — yalnız parmak izi ile karşılaştırın.
 3. **Hospitable OAuth:** süresi dolmuş olabilir → Ayarlar → Bağlantılar'da yeniden bağlanın; `scripts/diagnose-hospitable-tokens.ts` salt-okuma.
 4. **Paddle:** kapalıyken gelen webhook'lar kaçtı → abonelik durumunu Paddle panosuyla karşılaştırın (reconcile).
@@ -78,7 +80,8 @@ Kurucu 10-15: "Railway'i açınca ekleyeceğimiz bayrakları unutma." Bu dosya T
 9. Kurucu inceleme notu (10-15 / 10-16; KURUCU-SORULARI §H): `AI_FAULT_GUARD_ENABLED` (arıza her yolda arıza: ev sahibine bırak + tek e-posta)
    · `AI_FIX_SUPPORT_GATE_ENABLED` (bilgi tabanında tarifi olmayan arıza adımı misafire gitmez; kanal + QR)
    · `AI_TOPIC_ABSENCE_ENABLED` (H9, kurucu 10-16: kanal öğe kipinde "bilgim yok" cümlesi ayıklanır, bağımsız soru cevaplanır, o konu ev
-     sahibinde açık kalır; QR'da yok — `docs/TASARIM-2026-10-16-faz3-konu-bazli-cevap.md` §6). Üçü de misafire gideni değiştirir
+     sahibinde açık kalır; QR'da yok — `docs/TASARIM-2026-10-16-faz3-konu-bazli-cevap.md` §6). 🔔 Kurucu 10-21 T1 "B Seçeneği Onaylı" → açılışta
+     `"1"` (anahtarsız kısım — dayanak şartı, iç kaynak anlatımı yok, erişim ilişkisi — zaten kodda). Üçü de misafire gideni değiştirir
    → ilk denemeler birlikte; ölçümler §H2 / §H8.
 10. `CHANNEL_AUTOMATION_NOT_REPLY_ENABLED` (kurucu Q2 10-17: "Hospitable'ın otomatik mesajı cevap verilmiş sayılmasın" — KARAR VERİLDİ, kod
    hazır, anahtar kapalı; açılmazsa karar uygulanmaz. Migration 71 ile birlikte; ilk denemeler birlikte — misafire giden cevabın tetiklenmesini

@@ -920,11 +920,23 @@ Bedeli (dürüst): "Çıkış saati 11:00'dir. Ek bir talimatımız bulunmuyor."
 ayıramıyor) → bu soruyu siz cevaplarsınız (10-17 öncesi gibi). İsterseniz sonraki adımda "saat bilgi tabanında aynen yazıyorsa sil" eklenir.
 Hazır yama (ana dala UYGULANMADI): `docs/hazir-yamalar/2026-10-18-T1-talimat-yok-silici-basit-is.patch` (105 test yeşil). Railway kapalı
 olduğu için şu an kimseye gitmiyor. Böyle yapalım mı?
+**CEVAP (kurucu 10-21): "B Seçeneği Onaylı"** + kurallar (iç kaynak anlatımı yok · soru bazlı konu / ilişki / dayanak · bağımsız + doğrulanmış
+cevaplanır, cevapsız / şikâyete bağlı konu sizde açık · belirsiz ayrıştırma tutulur · "bağımsız" demek izin değil · "bilgimiz yok"u silmek
+kanıtsız talimatı gönderilebilir yapmaz). **DURUM: kodda (10-21, `07aac0bd` + Haiku düzeltmeleri `9baea96b`/`ea99c6f2`).** Silmeden sonra
+kalan HER içerik cümlesi bilgi tabanının TEK bir kaleminde dayanak taşımalı (içerik sözcüklerinin ≥%75'i, her sayı tam belirteç olarak aynen,
+olumsuzluk kutbu aynı); değilse cevabın tamamı tutulur. Yukarıdaki 4 uydurma cümlenin 4'ü de tutulur; "anahtarı masaya bırakmanız yeterli"
+(bilgi tabanında yazıyorsa) gider. "Sistemimizde görünmüyor" ailesi misafire gitmez. Erişim ilişkisi: kapı / otopark / anahtar arızası varken
+aynı konudaki "nasıl çıkacağız?" sorusu bağlı sayılır (TV + çöp → çöp cevaplanır). Ölçüm (`tests/unit/t1-separation-measure.test.ts`): 22 ayrım
++ 24 dayanak vakası, yanlış gönderim 0, gereksiz tutma 0; mutasyon 17/17. Konu bazlı bilgim-yok anahtarı `AI_TOPIC_ABSENCE_ENABLED` açılışta "1".
+Yeni misafir cümlesi YAZILMADI (TV konusu sizde açık kalır, misafire metin gitmez). İki eski hazır yama artık geçersiz (`docs/hazir-yamalar/DURUM.md`).
 
 ### T2 · Olası tehlike ("Tost makinesinden duman çıktı") + anlama katmanı çalışmadı → kanalda size HİÇBİR uyarı gitmiyor
 QR'da aynı durumda size acil e-posta gidiyor; kanalda (Airbnb / Booking) misafire cevap gitmiyor (doğru) ama siz de haber almıyorsunuz — gelen
 kutusunu açana kadar. Misafire giden değişmez. Önerim: QR'daki gibi tek acil e-posta + konuşma "Sorunlu" işaretlenir (yapay zekâ o konuşmada
 durur, siz cevaplarsınız — bugünkü acil kuralınızla aynı). Alternatif: yalnız e-posta, konuşma durumu değişmez. Hangisi?
+**CEVAP (kurucu 10-21): sınırlar makul.** **DURUM: kodda (`29d2597f` + Haiku düzeltmeleri `8c54584f`).** Konuşma "Sorunlu" olur (atomik, aynı olay ikinci
+e-posta üretmez, siz cevaplayana kadar); işletme başına saatte en çok 3 e-posta (`hazard-unverified-alert.ts`), sınıra takılan olay panelde
+kalır; gitmeyen e-posta hak yemez. Aynı konuşmada YENİ mesajla gelen kesin acil (kelime ağı) bu sınırın DIŞINDA bugünkü acil yoldan bildirilir.
 
 ### T3 · "Bilgi veremem" yalnız Türkçede tutuluyor (misafire giden)
 10-17 kararınız ("tutulsun, sussa daha iyi") yalnız Türkçe fiillere uygulandı. İngilizce misafire hâlâ gidiyor: "I'm sorry, I can't provide
@@ -936,6 +948,15 @@ değil." da gidiyor. Önerim: aynı kural diğer dillere ve bu Türkçe biçimle
 yeni giriş kalemi olduğu için otomatik giriş mesajı olarak HER yeni misafire gider — adres / kat / anahtar adımlı asıl mesajınız gitmez (anahtar
 `HISTORY_LEARN_ENABLED` kapalı, canlıda yok). Önerim: Geçmişten öğren "Giriş talimatı" türünde taslak YAZMAZ (bu tür yalnız sizin otomatik
 mesajınız); bilgi "Sık sorulan" olarak eklenir. Böyle yapalım mı?
+**CEVAP (kurucu 10-21): her dairede ayrı "Otomatik mesajlar" bölümü; migration onaylı.** **DURUM: kodda (`f280cfbc`, migration 80).**
+Karşılama / giriş / çıkış metni artık mülk sayfasındaki "Otomatik mesajlar" kartından gelir; bilgi tabanına ekleme / düzenleme ve öğrenilen
+taslağı onaylama bu metni DEĞİŞTİRMEZ (bilgi tabanı kalemleri yapay zekâ için bilgi olarak kalır). Geçiş bugün gönderilecek metni AYNEN kopyalar,
+mesaj göndermez, gönderim kayıtlarına dokunmaz; aynı anda güncellenmiş farklı iki kayıt varsa kart "kontrol edin" der. Kaydetmeden önce önizleme
+şart (önizlenmemiş taslak kaydedilemez); boş / doldurulamayan metin gitmez, kartta sebep görünür. Kuyruktaki mesaj gönderimden hemen önce güncel
+metinle kıyaslanır: metin değiştiyse aynı satır güncel metinle yeniden kurulur (ikinci mesaj yok), boşaltıldıysa gitmez ve bekler; konaklama
+ve zaman yeniden doğrulanır. Bilgi tabanındaki ilgili kayıt sonradan değişirse kart "otomatik mesaj kendiliğinden değişmez" notu gösterir.
+**Sonraki dilim (sizin fikriniz, not edildi):** ev sahibi misafire şablondan farklı bilgi yazınca yalnız değişen kısım gösterilip "şablonunuza
+ekleyelim mi?" diye sorulsun, düğmeyle tamamı görülsün. Ayrıca: "diğer dairelere kopyala" düğmesi.
 
 ### T5 · Söz → görev (misafire bir şey gitmez; sizin görev listeniz) — dört küçük karar
 Gece söz algılaması baştan sağlamlaştırıldı (sert itirazcının 43 cümlesi + Haiku + Opus; ↓ durum). Dört durum yorum istiyor:
@@ -947,6 +968,11 @@ Gece söz algılaması baştan sağlamlaştırıldı (sert itirazcının 43 cüm
 - (d) "Teknisyen yarın 7'de gelecek." (sabah / akşam yok) → 07:00 kaydediliyor. Önerim: kart sorsun (07:00 mı 19:00 mı?). Bugün 3, 4, 5 gibi
   saatler zaten öğleden sonra okunuyor; 7–11 arası iki anlamlı.
 Dördü de "kart sorsun" olsun mu?
+**CEVAP (kurucu 10-21, tablo): kabul.** **DURUM: kodda (`6252a104` + Haiku düzeltmeleri `ea127b12`).** "Saat geçtiyse yarın" kuralı yok; gün ve
+saat yazıldığı an + işletme saat dilimi + bağlamla okunur. 10:30'da "10'da" → kart (yarına taşınmaz); "bugün 11'de" geçmişse → kart, düzeltme
+sorulur; "yarın 7'de" → bağlam yoksa 07:00 / 19:00 seçimi (seçilmeden onay kapalı); "inşallah" sözü iptal etmez; "müsait olursa / belki" →
+kesin söz değil, kart; gece 23:30 "havlu getireceğim" → bağlam "şimdi" diyorsa o, demiyorsa son tarih yüklenmez. Bilinçli bırakılan: gün
+içinde "7'de" (sabah 07 geçmişse) 19:00 okunur (sizin "genellikle aynı gün" sözünüz).
 
 ### T6 · Müşteriye görünen metinler (para / hukuk / ekran)
 - **Kartla deneme açılmadan önce (hukuk):** Ön Bilgilendirme formu ("deneme için kart bilgisi alınmaz") ve Kullanım Koşulları ("kredi kartı bilgisi
