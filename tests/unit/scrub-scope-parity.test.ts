@@ -217,12 +217,14 @@ describe("şema kanaryası — misafir modellerine yeni kolon", () => {
       //   · AiReviewLabel (migration 60) → yalnız note KAPSAM İÇİ (serbest metin; kurucu misafir cümlesini alıntılayabilir).
       //   · Message.channelSenderRole (String?, migration 71, L5 10-17) → KAPSAM DIŞI: kapalı küme rol etiketi (guest · host · automation ·
       //     unknown); misafirin ne metnini ne kimliğini taşır — `guestNameSource` / `connectionEvidence` emsali. KVKK ihracına girer.
+      //   · MessageOutbox.templateRevision (Int?, migration 80, T4 10-21) → KAPSAM DIŞI: otomatik mesaj kaydının sürüm sayacı; misafirin
+      //     ne metnini ne kimliğini taşır. Metnin kendisi ev sahibinin `AutoMessageTemplate` kaydıdır (misafir verisi değil).
       Message: 18,
       Conversation: 26,
       Reservation: 38,
       Task: 15,
       TaskUpdate: 6,
-      MessageOutbox: 23,
+      MessageOutbox: 24,
       AiGeneration: 23,
       AiReviewLabel: 5,
     };

@@ -19,13 +19,14 @@ vi.mock("next/headers", () => ({
 
 import { requireAuth } from "@/lib/auth";
 import SentPage from "@/app/(app)/sent/page";
+import { createKbWithAutoMessage } from "../helpers/auto-message";
 
 const mockAuth = vi.mocked(requireAuth);
 
 async function seed(guestName: string) {
   const org = await prisma.organization.create({ data: { name: "Gönderilenler Org" } });
   const property = await prisma.property.create({ data: { organizationId: org.id, name: "Lale" } });
-  await prisma.knowledgeBaseItem.create({
+  await createKbWithAutoMessage({
     data: { propertyId: property.id, category: "welcome", title: "Karşılama", content: "Merhaba {isim}, hoş geldiniz.", isActive: true },
   });
   await prisma.reservation.create({

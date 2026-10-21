@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
+import { seedAutoMessage } from "../helpers/auto-message";
 import { enqueueOutbound, enqueueProactive } from "@/lib/outbox/enqueue";
 import { drainOutboxOnce, type OutboxSendFn } from "@/lib/outbox/worker";
 
@@ -14,6 +15,8 @@ import { drainOutboxOnce, type OutboxSendFn } from "@/lib/outbox/worker";
 
 async function seed() {
   const { orgId, propertyId } = await makeOrgWithProperty();
+  // T4 (migration 80): yaşam döngüsü satırının metni dairenin otomatik mesaj kaydından gönderim anında yeniden kurulur.
+  for (const kind of ["welcome", "checkin", "checkout"] as const) await seedAutoMessage(propertyId, kind, "x");
   // Gerçek akışta otomatik satır yalnız işletme anahtarı AÇIKKEN kuyruğa girer (S3-01: gönderim anı da okur).
   await prisma.organization.update({
     where: { id: orgId },

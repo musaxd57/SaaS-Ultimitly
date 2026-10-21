@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { prisma, resetDb, makeOrgWithProperty, enableAutoMessages } from "../helpers/db";
+import { seedAutoMessage } from "../helpers/auto-message";
 
 // ---------------------------------------------------------------------------
 // ABONELİK ERİŞİMİ KAPANINCA KUYRUKTAKİ OTOMATİK MESAJ (Codex 10-16, ölçüldü). Kurucu kararı: "Geçerli ödenmiş dönem bitince ücretli
@@ -31,6 +32,8 @@ const atMidnight = (offset: number) => new Date(`${new Date(Date.now() + offset 
 
 async function seed() {
   const { orgId, propertyId } = await makeOrgWithProperty();
+  // T4 (migration 80): yaşam döngüsü satırının metni dairenin otomatik mesaj kaydından gönderim anında yeniden kurulur.
+  for (const kind of ["welcome", "checkin", "checkout"] as const) await seedAutoMessage(propertyId, kind, "x");
   await enableAutoMessages(orgId);
   // Yaşam döngüsü vetosu satırın rezervasyonunu okur (iptal / pencere / zaten gönderildi).
   await prisma.reservation.create({

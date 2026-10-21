@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { prisma, resetDb, makeOrgWithProperty, enableAutoMessages } from "../helpers/db";
+import { seedAutoMessage } from "../helpers/auto-message";
 
 // ---------------------------------------------------------------------------
 // Gönderim öncesi okuma (silme kapısı / kardeş satır) DB hatası verirse satır POST'suz GERİ bırakılır (Haiku 10-14). Eskiden satır
@@ -29,6 +30,8 @@ describe("gönderim öncesi okuma hatası → satır geri bırakılır", () => {
 
   it("🚨 silme kapısı okunamadı → POST yok, satır 'pending' (deneme sayılmaz, inceleme yok); sonraki koşu gönderir", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
+    // T4 (migration 80): yaşam döngüsü satırının metni dairenin otomatik mesaj kaydından gönderim anında yeniden kurulur.
+    for (const kind of ["welcome", "checkin", "checkout"] as const) await seedAutoMessage(propertyId, kind, "x");
     await enableAutoMessages(orgId);
     const reservation = await prisma.reservation.create({
       data: {

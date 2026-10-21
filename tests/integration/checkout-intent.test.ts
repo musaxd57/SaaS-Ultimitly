@@ -118,7 +118,7 @@ describe("ödeme niyeti — işletme başına tek açık Paddle işlemi", () => 
 
   it("farklı paket → eski ödenmemiş işlem iptal edilir, yenisi açılır", async () => {
     const first = (await (await POST(postReq(), ctx)).json()) as Body;
-    const second = (await (await POST(postReq("pri_isletme", "isletme"), ctx)).json()) as Body;
+    const second = (await (await POST(postReq("pri_isletme", "business"), ctx)).json()) as Body;
     expect(first.transactionId).toBe("txn_1");
     expect(second.transactionId).toBe("txn_2");
     expect(paddle.canceled).toEqual(["txn_1"]);
@@ -132,7 +132,7 @@ describe("ödeme niyeti — işletme başına tek açık Paddle işlemi", () => 
   it("🚨 farklı paket ama eski işlem iptal EDİLEMİYOR (ödeme başlamış olabilir) → yeni ekran YOK", async () => {
     await POST(postReq(), ctx);
     paddle.failCancel = true;
-    const res = await POST(postReq("pri_isletme", "isletme"), ctx);
+    const res = await POST(postReq("pri_isletme", "business"), ctx);
     expect(res.status).toBe(409);
     expect(((await res.json()) as Body).error).toMatch(/Açık bir ödemeniz var/);
     expect(paddle.created).toBe(1);

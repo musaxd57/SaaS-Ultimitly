@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma, resetDb, makeOrgWithProperty, enableAutoMessages } from "../helpers/db";
+import { seedAutoMessage } from "../helpers/auto-message";
 import { FakeOutboundProvider } from "../helpers/fake-channel";
 import { __setOutboundAdapterForTest } from "@/lib/channels";
 import { enqueueOutbound, enqueueProactive } from "@/lib/outbox/enqueue";
@@ -21,6 +22,8 @@ const row = (id: string) => prisma.messageOutbox.findUniqueOrThrow({ where: { id
 
 async function seed() {
   const { orgId, propertyId } = await makeOrgWithProperty();
+  // T4 (migration 80): yaşam döngüsü satırının metni dairenin otomatik mesaj kaydından gönderim anında yeniden kurulur.
+  for (const kind of ["welcome", "checkin", "checkout"] as const) await seedAutoMessage(propertyId, kind, "x");
   await enableAutoMessages(orgId);
   const reservation = await prisma.reservation.create({
     data: {
