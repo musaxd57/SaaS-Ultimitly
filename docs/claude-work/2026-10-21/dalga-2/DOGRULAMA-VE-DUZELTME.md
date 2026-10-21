@@ -83,3 +83,18 @@ sorgusu atılıyor. Öneri: 2 harfli içerik sözcüklerini de getir. Cevaba gir
 
 **W9 (arayüz #6) Raporlar sayfasında "tutulan" toplamı, satırı olmayan üç sebebi de sayıyor** (tehlike, güvence, acil talimat). Öneri: üç
 satır ekle ("Tehlike bildirimi" vb.). Ev sahibinin gördüğü sayı / metin değişir.
+
+## Kurucu cevapları (10-21 gece-3) — uygulandı
+
+| # | karar | durum |
+|---|---|---|
+| W1 | "late check-in" → giriş, "early check-out" → erken ayrılış (yedek şablon; model düşünce zaten misafire gitmiyor) | ✅ `290b161f` |
+| W2 | key / tv / access tam sözcük ("Turkey" giriş saati sanılmaz) | ✅ `290b161f` |
+| W3 | "!!" soru sayılmaz | ✅ `290b161f` |
+| W4 | "bulamamak" yalnız ben / biz / kaynak öznesiyle itiraf; talimat / olgu tutulmaz (+ Haiku: zarf ve ekip öznesi) | ✅ `a50fb374`, `70d72499` |
+| W5 | iki harfli alt sorgu (TV) getirilir | ✅ `290b161f` |
+| W6 | parola en az uzunluğu NFC karakter | ✅ `290b161f` |
+| W7 | kanal kapalıyken (402) bekleyen yapay zekâ cevabı açılınca gitmez, iptal + not | ✅ `f873deb3` |
+| W8 | anlama istemine acil tanımı + örnekler → sonda 48/48 acil yolu (önce 46), geliştirme setinde gerileme yok | ✅ `53e87fd1` |
+| W9 | raporlarda tehlike / güvence / acil talimat satırları | ✅ `23e359c0` |
+| bağlam | "kelime değil bağlam": bilgim-yok bağlam hakemi (anahtar KAPALI) + gerçek ölçüm | ✅ `1feffe55` … `1a7e9d03`, ölçüm `docs/olcum/BAGLAM-HAKEMI-2026-10-21.md` |

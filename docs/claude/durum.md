@@ -8,7 +8,19 @@
 > `docs/history/CLAUDE-2026-10-02-sadelestirme-3-oncesi-tam-metin.md` ("Durum" bölümü). Kuralları yukarıdaki bölümlerde; yalnız Durum'da
 > yazılı olan kurallar (konuşma öğeleri, ev kuralları, canlı bayraklar) 10-02'de ilgili bölümlere taşındı. Bekleyen onaylar ↓.
 
-**10-21 gece-2 (güncel — clear sonrası BURADAN devam):** Claude 2. dalga ($10,55) doğrulandı ve işlendi — takip `docs/claude-work/2026-10-21/dalga-2/DOGRULAMA-VE-DUZELTME.md`.
+**10-21 gece-3 (güncel — clear sonrası BURADAN devam):** kurucu cevapları (W1–W9 + altyapı 1–8) işlendi; "kelime değil bağlam" ilk dilimi.
+- W1/W2/W3/W5/W6/W7/W9 kodda (önceki tur) · **W4** "bulamamak" yalnız ben / biz / kaynak öznesiyle itiraf (talimat / olgu tutulmaz) ·
+  **W8** anlama istemine acil tanımı → tehlike sondası 48/48 acil yolu (önce 46), geliştirme setinde gerileme yok (yanlış bilgi 0, sızma 0).
+- **Bağlam hakemi** (`semantic/absence-judge.ts`, `AI_ABSENCE_JUDGE_ENABLED` + `_STRICT` KAPALI): gerçek 6.149 cevapta kelime kuralı 69 tuttu,
+  17'si itiraf değildi; hakem 16'sını bıraktı, 51 gerçek itirafın hiçbirini bırakmadı; 500 rastgele cevapta kelime kuralı 8 itiraf kaçırıyordu
+  (`docs/olcum/BAGLAM-HAKEMI-2026-10-21.md`). Hüküm okunan metne bağlı; konu ayıklaması sonrası yeniden okuma.
+- Altyapı: 3 devre kesici + tek yeniden deneme + 30 sn tavan (`ai/model-breaker.ts`) · 8 ev sahibi yazma sınırı 300/dk · 7 CI gitleaks ·
+  1/2/4/5 belge `docs/OPS-2026-10-21-dis-izleyici-waf-anahtar.md` (UptimeRobot, yedek kararı, AUTH_SECRET kararı, WAF adımları).
+- Haiku incelemesi: devre kesici 4 + W4 + hız sınırı + hakem bulguları doğrulandı ve düzeltildi (kırmızı-önce testler).
+- **Sıradaki plan (kurucu):** `docs/PLAN-2026-10-21-baglam-anlama-ve-kirmizi-takim.md` — tarafsızlık (özür / kusur kabulü yok), kırmızı takım,
+  öteki kelime kuralları → hakem. Sorular T-a, T-b. Açık: Q6 (gelen kutusu anında güncelleme) kurucuya cevap verildi (öneri: şimdilik hayır).
+
+**10-21 gece-2:** Claude 2. dalga ($10,55) doğrulandı ve işlendi — takip `docs/claude-work/2026-10-21/dalga-2/DOGRULAMA-VE-DUZELTME.md`.
 - Tehlike sondası gerçek akışta (`evals/understanding-e2e-probe-hazard.json`, rapor `docs/olcum/anlama-e2e-probe-hazard-live-2026-10-21.md`): modelsiz
   okuyucunun kaçırdığı 48 canlı acilin 46'sı acil yolunda, 2'si (Arapça su baskını) ev sahibinde tutuldu; misafire içerik 0; acil olmayan 22'nin hepsi tutuldu.
   Kod kapısı tek başına (model "güvenli" derse) 45/48'i geçirirdi → güvenlik asıl anlama katmanında; W8 sorusu.
