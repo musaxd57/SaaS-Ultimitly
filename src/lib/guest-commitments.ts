@@ -179,30 +179,36 @@ export async function createGuestCommitment(input: {
       if (same?.taskId) {
         // Kilit sırası görev → söz (Opus 10-21 B6): görev PATCH'i, konaklama sonu kapatması ve "Yanlış, kaldır" önce GÖREVİ kilitler; bu dal
         // önce sözü güncelliyordu → aynı anda çalışırlarsa veritabanı kilitlenmesi (40P01). Görev satırı önce kilitlenir.
-        await tx.$queryRaw`SELECT "id" FROM "Task" WHERE "id" = ${same.taskId} FOR UPDATE`;
-        // SAHİPLENME (kurucu Q1 "a", 10-17): konusuz açık söze (elle form) KONULU öneri bağlanırsa yeni görev AÇILMAZ, söze konu YAZILIR —
-        // ardından aynı saatteki BAŞKA konulu öneri ("musluk 18:00") bu söze uymaz, ayrı söz + görev açar. Koşullu yazım (yalnız hâlâ
-        // konusuzsa); görev başlığı yalnız otomatik başlık duruyorsa güncellenir (ev sahibinin değiştirdiği başlığa dokunulmaz).
-        let topicAttached = false;
-        if (topic !== null && same.topic === null) {
-          topicAttached = (await tx.guestCommitment.updateMany({ where: { id: same.id, topic: null }, data: { topic } })).count === 1;
-          if (topicAttached) {
-            await tx.task.updateMany({
-              where: { id: same.taskId, title: commitmentTaskTitle(input.kind, null, same.dayPart) },
-              data: { title: commitmentTaskTitle(input.kind, topic, same.dayPart) },
-            });
-            await writeAuditInTx(tx, {
-              organizationId: input.organizationId,
-              actorUserId: input.actorUserId,
-              action: "commitment.topic_attached",
-              metadata: { commitmentId: same.id, taskId: same.taskId, kind: input.kind, topic },
-            });
+        const lockedTask = await tx.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "Task" WHERE "id" = ${same.taskId} FOR UPDATE`;
+        // Kilitten SONRA yeniden doğrula (Haiku 10-21): okuma ile kilit arasında görev silinmiş / söz kapanmışsa bu söze BAĞLANILMAZ — iptal
+        // edilmiş söze konu yazılıp yetim görev kimliği dönüyordu. Doğrulama geçmezse yeni söz + görev açılır (↓).
+        const stillOpen =
+          lockedTask.length > 0 && (await tx.guestCommitment.count({ where: { id: same.id, status: "open", taskId: same.taskId } })) === 1;
+        if (stillOpen) {
+          // SAHİPLENME (kurucu Q1 "a", 10-17): konusuz açık söze (elle form) KONULU öneri bağlanırsa yeni görev AÇILMAZ, söze konu YAZILIR —
+          // ardından aynı saatteki BAŞKA konulu öneri ("musluk 18:00") bu söze uymaz, ayrı söz + görev açar. Koşullu yazım (yalnız hâlâ
+          // konusuzsa); görev başlığı yalnız otomatik başlık duruyorsa güncellenir (ev sahibinin değiştirdiği başlığa dokunulmaz).
+          let topicAttached = false;
+          if (topic !== null && same.topic === null) {
+            topicAttached = (await tx.guestCommitment.updateMany({ where: { id: same.id, topic: null, status: "open" }, data: { topic } })).count === 1;
+            if (topicAttached) {
+              await tx.task.updateMany({
+                where: { id: same.taskId, title: commitmentTaskTitle(input.kind, null, same.dayPart) },
+                data: { title: commitmentTaskTitle(input.kind, topic, same.dayPart) },
+              });
+              await writeAuditInTx(tx, {
+                organizationId: input.organizationId,
+                actorUserId: input.actorUserId,
+                action: "commitment.topic_attached",
+                metadata: { commitmentId: same.id, taskId: same.taskId, kind: input.kind, topic },
+              });
+            }
           }
+          // Bilinmeyen yapanlı söze (elle form) yapanı bilinen öneri bağlanınca yapan yazılır — sonra BAŞKA yapanın sözü buna birleşmesin
+          // (Opus gece-4 F19b).
+          if (actor !== null && same.actor === null) await tx.guestCommitment.updateMany({ where: { id: same.id, actor: null }, data: { actor } });
+          return { id: same.id, taskId: same.taskId, reused: true, via: "slot", topicAttached };
         }
-        // Bilinmeyen yapanlı söze (elle form) yapanı bilinen öneri bağlanınca yapan yazılır — sonra BAŞKA yapanın sözü buna birleşmesin
-        // (Opus gece-4 F19b).
-        if (actor !== null && same.actor === null) await tx.guestCommitment.updateMany({ where: { id: same.id, actor: null }, data: { actor } });
-        return { id: same.id, taskId: same.taskId, reused: true, via: "slot", topicAttached };
       }
     }
     if (__commitmentHooks.afterSameCheck) await __commitmentHooks.afterSameCheck();

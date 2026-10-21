@@ -540,6 +540,15 @@ describe("kurucu T1 (10-21): iç kaynak işareti + olumsuzluk aynı cümlede —
     // Türkçe ek biçimler
     "Kayıtlarımızda bu konuda herhangi bir not bulunmuyor.",
     "Bilgi tabanımızda havuz ısıtmasıyla ilgili bir şey yer almıyor.",
+    // Haiku 10-21 kaçanlar
+    "Sistemimizde böyle bir rezervasyon görünmüyor.",
+    "Bilgilerimde bu konuda bir şey yok.",
+    "In our system there is no booking under that name.",
+    "The guest guide I have doesn't cover pets.",
+    "Dans mes notes, rien sur les animaux.",
+    "En mis notas no aparece nada sobre mascotas.",
+    "In den mir zur Verfügung stehenden Informationen steht dazu nichts.",
+    "ليس في ملاحظاتي ما يخص الحيوانات.",
   ])("TUTULUR: %s", (t) => expect(admitsMissingKnowledge(t)).toBe(true));
 
   it.each([
@@ -564,5 +573,17 @@ describe("kurucu T1 (10-21): iç kaynak işareti + olumsuzluk aynı cümlede —
     "I checked our records and your booking is confirmed for three nights; no deposit is needed.",
     "The host gave me the lockbox code: 4821, no need to call.",
     "Your booking is confirmed in our system and check-in is at 15:00.",
+    // Haiku 10-21 yanlış pozitifleri (eskiden tutuluyordu)
+    "The host gave me the lockbox code, and there's nothing else you need to bring.",
+    "Tap the prompt on your phone, and nothing else is needed.",
+    "The host sent me the code, so you don't have to call ahead.",
+    "Kayıtlarımızda rezervasyonunuzda bir sorunu yok, giriş 15:00.",
+    "Elimdeki bilgilerde otopark için ek ücreti yok.",
+    "Notre système d'eau chaude fonctionne en continu, pas besoin de le régler.",
+    "Nuestro sistema eléctrico es automático, no hace falta encenderlo.",
+    "В нашей системе отопление работает круглый год, выключать не нужно.",
+    "نظامنا يسجل الحجز تلقائياً، ولا داعي لأي إجراء.",
+    "Me dieron las llaves del trastero y no hace falta reservar.",
+    "Elimdeki bilgilerde girişiniz 15:00; bahçe kapısı kilitli değil.",
   ])("KONTROL — normal cevap, tutulmaz: %s", (t) => expect(admitsMissingKnowledge(t)).toBe(false));
 });

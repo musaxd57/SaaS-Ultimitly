@@ -112,8 +112,13 @@ async function closeStale(organizationId: string, now: Date): Promise<void> {
     where: { organizationId, status: "opening", createdAt: { lt: new Date(now.getTime() - CHECKOUT_INTENT_OPENING_LEASE_MS) } },
     data: { status: "failed", openKey: null, closedAt: now },
   });
+  // Süresi dolan YA DA mutlak üst sınırı aşan (yeniden verme süreyi uzatmış olabilir — Haiku 10-21) açık niyetler.
   const expired = await prisma.checkoutIntent.findMany({
-    where: { organizationId, status: "open", expiresAt: { lt: now } },
+    where: {
+      organizationId,
+      status: "open",
+      OR: [{ expiresAt: { lt: now } }, { createdAt: { lte: new Date(now.getTime() - CHECKOUT_INTENT_MAX_AGE_MS) } }],
+    },
     select: { id: true, providerRef: true, consentId: true, createdAt: true },
   });
   for (const e of expired) {
@@ -183,7 +188,7 @@ export async function openOrReuseCheckoutIntent(input: {
     // Başka bir açık niyet var.
     const existing = await prisma.checkoutIntent.findUnique({
       where: { openKey: input.organizationId },
-      select: { id: true, status: true, priceId: true, providerRef: true, consentId: true, expiresAt: true },
+      select: { id: true, status: true, priceId: true, providerRef: true, consentId: true, expiresAt: true, createdAt: true },
     });
     if (!existing) continue; // arada kapandı → yeniden dene
     // Başka sekme Paddle'ı bekliyor ("açılıyor"): kısa süre sonra tekrar denenince AYNI işlemi alır (bilinçli; kiralama 30 sn).
@@ -204,11 +209,17 @@ export async function openOrReuseCheckoutIntent(input: {
     // olarak yazıldı; Haiku 10-21 #3 bilinçli.)
     // Ödenmemiş ama ödeme ekranı açılamayan / iptal edilemeyen işlem (B4) ya da süresi dolmuş ama iptal edilemeyen işlem (B2): verilmez,
     // yenisi de açılmaz.
-    if ((status && UNPAYABLE_OPEN_STATES.has(status)) || existing.expiresAt < now) return { kind: "busy", message: CHECKOUT_INTENT_BUSY_MESSAGE };
+    const hardEnd = existing.createdAt.getTime() + CHECKOUT_INTENT_MAX_AGE_MS;
+    if ((status && UNPAYABLE_OPEN_STATES.has(status)) || existing.expiresAt < now || hardEnd <= now.getTime()) {
+      return { kind: "busy", message: CHECKOUT_INTENT_BUSY_MESSAGE };
+    }
     if (existing.priceId === input.priceId) {
-      // Yeniden verilen işlem en az 30 dk daha geçerli kalır (B3) — ikinci sekme öderken süpürge iptal etmesin.
-      const graceUntil = new Date(now.getTime() + CHECKOUT_INTENT_REUSE_GRACE_MS);
+      // Yeniden verilen işlem en az 30 dk daha geçerli kalır (B3) — ikinci sekme öderken süpürge iptal etmesin; mutlak üst sınırı AŞMAZ.
+      const graceUntil = new Date(Math.min(now.getTime() + CHECKOUT_INTENT_REUSE_GRACE_MS, hardEnd));
       await prisma.checkoutIntent.updateMany({ where: { id: existing.id, status: "open", expiresAt: { lt: graceUntil } }, data: { expiresAt: graceUntil } });
+      // Okuma ile bu an arasında niyet kapandıysa (webhook ödendi dedi / başka istek iptal etti) ölü işlem VERİLMEZ (Haiku 10-21).
+      const still = await prisma.checkoutIntent.findUnique({ where: { id: existing.id }, select: { status: true } });
+      if (still?.status !== "open") return still?.status === "completed" ? { kind: "paid" } : { kind: "busy", message: CHECKOUT_INTENT_BUSY_MESSAGE };
       return { kind: "open", transactionId: existing.providerRef, reused: true };
     }
     // Farklı paket: eski ödenmemiş işlem iptal edilir, sonra yenisi açılır. İptal doğrulanamazsa yeni ekran YOK.

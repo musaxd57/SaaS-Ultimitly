@@ -25,6 +25,8 @@ const { paddle } = vi.hoisted(() => ({
     createDelayMs: 0,
     /** Paddle'ın bulamadığı işlemler (ör. sandbox işlemi canlı anahtarla soruldu) — GET ve PATCH 404. */
     missing: new Set<string>(),
+    /** GET durum okumasından hemen sonra çalışır (yarış penceresi: okuma ile yeniden verme arasında niyet kapanır). */
+    afterGet: null as null | (() => Promise<void>),
   },
 }));
 vi.mock("@/lib/payments/paddle", async (orig) => {
@@ -48,7 +50,11 @@ vi.mock("@/lib/payments/paddle", async (orig) => {
         paddle.statuses.set(m[1]!, "canceled");
         return { data: { id: m[1], status: "canceled" } };
       }
-      if (m) return { data: { id: m[1], status: paddle.statuses.get(m[1]!) ?? "ready" } };
+      if (m) {
+        const status = paddle.statuses.get(m[1]!) ?? "ready";
+        if (paddle.afterGet) await paddle.afterGet();
+        return { data: { id: m[1], status } };
+      }
       throw new Error(`beklenmeyen Paddle çağrısı ${path}`);
     }),
   };
@@ -99,6 +105,7 @@ describe("ödeme niyeti — işletme başına tek açık Paddle işlemi", () => 
     Object.assign(paddle, { created: 0, canceled: [], failCreate: false, failCancel: false, createDelayMs: 0 });
     paddle.statuses.clear();
     paddle.missing.clear();
+    paddle.afterGet = null;
     vi.mocked(reportError).mockClear();
     vi.stubEnv("PADDLE_PRICE_PRO", "pri_pro");
     vi.stubEnv("PADDLE_PRICE_ISLETME", "pri_isletme");
@@ -227,6 +234,33 @@ describe("ödeme niyeti — işletme başına tek açık Paddle işlemi", () => 
     expect(((await (await POST(postReq(), ctx)).json()) as Body).transactionId).toBe("txn_1");
     const intent = await prisma.checkoutIntent.findFirstOrThrow({ where: { organizationId: orgId } });
     expect(intent.expiresAt.getTime()).toBeGreaterThanOrEqual(before + CHECKOUT_INTENT_REUSE_GRACE_MS - 1_000);
+  });
+
+  it("🚨 Haiku 10-21: durum okunduktan sonra niyet webhook'la kapanırsa ölü işlem VERİLMEZ ('işleniyor')", async () => {
+    await POST(postReq(), ctx);
+    paddle.afterGet = async () => {
+      paddle.afterGet = null;
+      await completeCheckoutIntent("txn_1");
+    };
+    const res = await POST(postReq(), ctx);
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as Body).transactionId).toBeUndefined();
+  });
+
+  it("🚨 Haiku 10-21: yeniden verme 24 sa mutlak üst sınırı AŞAMAZ — süre sınırda kesilir; sınırı geçen niyet kapanır, yenisi açılır", async () => {
+    await POST(postReq(), ctx);
+    const created = new Date(Date.now() - CHECKOUT_INTENT_MAX_AGE_MS + 10 * 60_000);
+    await prisma.checkoutIntent.updateMany({ where: { organizationId: orgId }, data: { createdAt: created, expiresAt: new Date(Date.now() + 60_000) } });
+    expect(((await (await POST(postReq(), ctx)).json()) as Body).transactionId).toBe("txn_1");
+    const intent = await prisma.checkoutIntent.findFirstOrThrow({ where: { organizationId: orgId } });
+    expect(intent.expiresAt.getTime()).toBeLessThanOrEqual(created.getTime() + CHECKOUT_INTENT_MAX_AGE_MS);
+    // Süre henüz dolmamış ama yaş sınırı geçmiş niyet (sürekli yeniden verilmiş): onay yolu onu kapatır (iptal) ve yenisini açar.
+    await prisma.checkoutIntent.updateMany({
+      where: { organizationId: orgId },
+      data: { createdAt: new Date(Date.now() - CHECKOUT_INTENT_MAX_AGE_MS - 60_000), expiresAt: new Date(Date.now() + 20 * 60_000) },
+    });
+    expect(((await (await POST(postReq(), ctx)).json()) as Body).transactionId).toBe("txn_2");
+    expect(paddle.canceled).toEqual(["txn_1"]);
   });
 
   it("🚨 Opus B2: Paddle işlemi BULAMIYOR (404) → işlem kapalı sayılır: onayda yenisi açılır, süpürgede niyet kapanır", async () => {

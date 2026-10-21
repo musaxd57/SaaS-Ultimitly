@@ -493,4 +493,41 @@ describe("sahiplenme dalı kilit sırası (gerçek PostgreSQL)", () => {
     expect(await attach).toMatchObject({ id: manual.id, reused: true, via: "slot", topicAttached: true });
     expect(await prisma.guestCommitment.findUniqueOrThrow({ where: { id: manual.id } })).toMatchObject({ topic: "ac" });
   }, 20_000);
+
+  it("🚨 Haiku 10-21: okuma ile kilit arasında görev silinip söz kapanırsa iptal edilmiş söze BAĞLANILMAZ — yeni söz + görev açılır", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const owner = await asOwner(orgId);
+    const conv = await conversationWith(propertyId, []);
+    const tz = orgTimezone((await prisma.organization.findUniqueOrThrow({ where: { id: orgId } })).timezone);
+    const dueAt = commitmentDueAt({ day: "tomorrow", time: "10:00" }, tz, new Date())!;
+    const manual = await createGuestCommitment({ organizationId: orgId, conversationId: conv, propertyId, reservationId: null, kind: "maintenance", dueAt, actorUserId: owner.id, clientRequestId: "elle-sil" });
+
+    let release!: () => void;
+    const held = new Promise<void>((r) => (release = r));
+    let locked!: () => void;
+    const isLocked = new Promise<void>((r) => (locked = r));
+    const deleter = prisma.$transaction(
+      async (tx) => {
+        await tx.$queryRaw`SELECT "id" FROM "Task" WHERE "id" = ${manual.taskId} FOR UPDATE`;
+        locked();
+        await held;
+        await tx.guestCommitment.updateMany({ where: { id: manual.id }, data: { status: "canceled", taskId: null } });
+        await tx.task.delete({ where: { id: manual.taskId } });
+      },
+      { timeout: 15_000 },
+    );
+    await isLocked;
+    const attach = createGuestCommitment({
+      organizationId: orgId, conversationId: conv, propertyId, reservationId: null, kind: "maintenance", topic: "ac", dueAt,
+      actorUserId: owner.id, clientRequestId: "oneri-sil", mergeSameSlot: true,
+    });
+    await new Promise((r) => setTimeout(r, 300));
+    release();
+    await deleter;
+    const result = await attach;
+    expect(result.reused).toBe(false);
+    expect(result.id).not.toBe(manual.id);
+    expect(await prisma.guestCommitment.findUniqueOrThrow({ where: { id: manual.id } })).toMatchObject({ status: "canceled", topic: null });
+    expect(await prisma.guestCommitment.findUniqueOrThrow({ where: { id: result.id } })).toMatchObject({ status: "open", topic: "ac" });
+  }, 20_000);
 });

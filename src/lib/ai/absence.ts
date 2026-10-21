@@ -471,14 +471,14 @@ const ALL_ABSENCE_PATTERNS: readonly RegExp[] = [...ABSENCE_PATTERNS, ...MORE_AB
 // otopark ücretsiz, ek ücret yok" olgudur. Olumsuzluk dil başına ayrı (İspanyolca "no" İngilizce "no deposit"i tutmasın). Kalıplar başı sabit
 // sözcükle başlar, tekrarlar kapalı — karesel iş yok (`absence-cost.test.ts`).
 const TR_GIVEN = "(?:tanımlanan|verilen|iletilen|sağlanan|aktarılan|gönderilen|yüklenen|paylaşılan)";
-/** Türkçe "yok" — "sorun / eksik / ücret … yok" olgudur, olumsuzluk sayılmaz ("Kayıtlarımızda bir sorun yok"). */
+/** Türkçe "yok" — "sorun / eksik / ücret … yok" (çekimli de: "sorunu yok", "ücreti yok") olgudur, olumsuzluk sayılmaz. */
 const TR_PLAIN_YOK =
-  "(?<!(?:sorun|problem|eksik|eksiklik|hata|engel|sıkıntı|aksaklık|ücret|endişe|gerek|ihtiyaç|değişiklik) (?:[\\p{L}]{1,12} )?)yok(?:tur)?(?![\\p{L}])";
+  "(?<!(?:sorun|problem|eksik|eksiklik|hata|engel|sıkıntı|aksaklık|ücret|endişe|gerek|ihtiyaç|değişiklik)\\p{L}{0,5} (?:[\\p{L}]{1,12} )?)yok(?:tur)?(?![\\p{L}])";
 const INTERNAL_SOURCE_RULES: ReadonlyArray<readonly [marker: RegExp, negation: RegExp]> = [
   [
     new RegExp(
       `${L}(?:bilgi ?taban\\p{L}{0,8}|veri ?taban\\p{L}{0,8}|sistem sorgu\\p{L}{0,8}|(?:sorgu|arama|sorgulama)(?:m|mız)(?:da|la)(?![\\p{L}])|` +
-        `kay[ıi]tlar[ıi]m(?:[ıi]z)?(?:da|dan)(?![\\p{L}])|notlar[ıi]m(?:[ıi]z)?(?:da|dan)(?![\\p{L}])|` +
+        `kay[ıi]tlar[ıi]m(?:[ıi]z)?(?:da|dan)(?![\\p{L}])|notlar[ıi]m(?:[ıi]z)?(?:da|dan)(?![\\p{L}])|bilgiler[ıi]m(?:[ıi]z)?(?:de|den)(?![\\p{L}])|` +
         `(?:elimdeki|bana ${TR_GIVEN}) (?:\\p{L}{1,30} ){0,2}(?:\\p{L}{1,30}(?:de|da|te|ta)|içinde|arasında)(?![\\p{L}]))`,
       "u",
     ),
@@ -490,43 +490,53 @@ const INTERNAL_SOURCE_RULES: ReadonlyArray<readonly [marker: RegExp, negation: R
     ),
   ],
   [
+    // Haiku 10-21: çıplak "gave me / the prompt / I have set up" normal cevapta da geçer ("The host gave me the lockbox code, nothing else
+    // you need") → işaret yalnız KAYNAK nesnesiyle ("the notes the host gave me", "the guide I have") ya da açıkça iç bağlamla.
     new RegExp(
-      `${L}(?:knowledge[ -]?base|database|(?:my|the|this) prompt(?![\\p{L}])|(?:in|into|to) my context(?![\\p{L}])|context window|` +
+      `${L}(?:knowledge[ -]?base|database|(?:my|system) prompt(?![\\p{L}])|(?:in|into|to) my context(?![\\p{L}])|context window|` +
         "(?:the|my|a|that|our) look-?up(?![\\p{L}])|faq entries|faqs? (?:i|we) (?:can|could|have)|" +
-        "(?:i've been|i have been|i was|i've|i have) (?:working from|given|provided|configured|set up|programmed)(?![\\p{L}])|" +
-        "(?:given|provided|passed|handed|supplied|loaded|fed) (?:to|into) (?:me|my)(?![\\p{L}])|" +
-        "(?:gave|has given|had given|provided|shared|sent|passed) me(?![\\p{L}])|" +
+        "(?:i've been|i have been|i was|i am|i'm) (?:working from|configured|programmed)(?![\\p{L}])|working from|" +
+        "(?:loaded|fed) (?:to|into) (?:me|my)(?![\\p{L}])|" +
+        "(?:notes?|information|info|details|material|materials|instructions|documents?|guide|sheet|listing|data) (?:that )?(?:(?:the host|your host|the owner|they|you) )?(?:gave|has given|had given|provided|shared|sent|passed) me(?![\\p{L}])|" +
+        "(?:notes?|information|info|details|material|materials|guide|sheet|listing|data) (?:i|we) (?:have|was given|were given|got|received|can see|can access)(?![\\p{L}])|" +
+        "(?:in|on) (?:our|my) (?:system|records|notes|files)(?![\\p{L}])|" +
         "(?:i|we) (?:searched|checked|queried|looked through|looked in) (?:the |our |my )?(?:knowledge base|records?|system|database|notes|files|faqs?))",
       "u",
     ),
-    /(?<![\p{L}])(?:nothing|none of|no (?:mention|record|records|entry|entries|information|info|details?|results?|match|matches|notes?|rule|rules|reference)(?![\p{L}])|(?:isn't|is not|aren't|are not|wasn't|was not|weren't|were not) (?:covered|mentioned|listed|included|there|anything|in|on|loaded|available|part)(?![\p{L}])|(?:don't|doesn't|didn't|do not|does not|did not) (?:mention|cover|include|show|list|contain|say|have|appear|find|see|turn up)(?![\p{L}])|couldn't|could not|can't find|cannot find|unable to|returned nothing|came up (?:empty|blank|short)|no luck)/u,
+    /(?<![\p{L}])(?:nothing|none of|no (?:mention|record|records|entry|entries|information|info|details?|results?|match|matches|notes?|rule|rules|reference|booking|bookings|reservation|reservations)(?![\p{L}])|(?:isn't|is not|aren't|are not|wasn't|was not|weren't|were not) (?:covered|mentioned|listed|included|there|anything|in|on|loaded|available|part)(?![\p{L}])|(?:don't|doesn't|didn't|do not|does not|did not) (?:mention|cover|include|show|list|contain|say|appear|find|see|turn up)(?![\p{L}])|couldn't find|could not find|can't find|cannot find|unable to find|returned nothing|came up (?:empty|blank|short)|no luck)/u,
   ],
   [
-    /(?<![\p{L}])(?:wissensdatenbank|datenbank|datensatz|buchungsdaten|(?:mir|uns) (?:vorliegend\p{L}{0,3}|zur verfügung gestellt\p{L}{0,3}|übermittelt\p{L}{0,3}|mitgeteilt\p{L}{0,3})|(?:meinen|unseren) unterlagen|systemabfrage|systemsuche)/u,
+    /(?<![\p{L}])(?:wissensdatenbank|datenbank|datensatz|buchungsdaten|(?:mir|uns) (?:vorliegend\p{L}{0,3}|zur verfügung (?:gestellt|stehend)\p{L}{0,3}|übermittelt\p{L}{0,3}|mitgeteilt\p{L}{0,3})|(?:meinen|unseren) unterlagen|systemabfrage|systemsuche)/u,
     /(?<![\p{L}])(?:nicht|nichts|kein\p{L}{0,3}|keinerlei|fehlt|fehlen)(?![\p{L}])/u,
   ],
   [
-    /(?<![\p{L}])(?:base de (?:données|connaissances)|(?:qui|que) (?:m'|nous )(?:a|ont) été (?:transmis|fourni|donné|communiqué)\p{L}{0,2}|(?:on|l'hôte) (?:m'a|nous a) (?:transmis|fourni|donné|communiqué)\p{L}{0,2}|(?:mon|notre) système(?! de)|(?:mes|nos) (?:fiches|dossiers|registres)(?![\p{L}])|fiche (?:du logement|de l'annonce|qui))/u,
-    /(?<![\p{L}])(?:ne(?![\p{L}])|n'|aucune?(?![\p{L}])|rien(?![\p{L}])|pas(?![\p{L}]))/u,
+    // Haiku 10-21: "Notre système d'eau chaude …, pas besoin de le régler" olgudur → işaret yalnız YER ("dans notre système"), olumsuzluk
+    // yalnız YOKLUK yüklemi (çıplak "pas" / "ne" değil).
+    /(?<![\p{L}])(?:base de (?:données|connaissances)|(?:qui|que) (?:m'|nous )(?:a|ont) été (?:transmis|fourni|donné|communiqué)\p{L}{0,2}|(?:on|l'hôte) (?:m'a|nous a) (?:transmis|fourni|donné|communiqué)\p{L}{0,2}|dans (?:mon|notre) système|(?:dans|selon) (?:mes|nos) (?:notes|fiches|dossiers|registres)(?![\p{L}])|(?:mes|nos) (?:fiches|dossiers|registres)(?![\p{L}])|fiche (?:du logement|de l'annonce|qui))/u,
+    /(?<![\p{L}])(?:ne (?:figure|figurent|contient|contiennent|mentionne|mentionnent|indique|précise|trouve|vois|dispose|comporte|parle|apparaît|apparait)|n'(?:apparaît|apparait|apparaissent|y a (?:rien|pas|aucun)|ai (?:rien|pas trouvé|aucune?)|est pas (?:mentionn|indiqu|précis|renseign))|aucune?(?![\p{L}])|rien(?![\p{L}]))/u,
   ],
   [
-    /(?<![\p{L}])(?:base de datos|(?:nuestro|mi) sistema(?! de)|(?:nuestros|mis) registros|me (?:configuraron|programaron|pasaron|dieron|facilitaron|proporcionaron)(?![\p{L}])|ficha del alojamiento)/u,
-    /(?<![\p{L}])(?:no|nada|ningun[oa]?|ningún)(?![\p{L}])/u,
+    /(?<![\p{L}])(?:base de datos|en (?:nuestro|mi) sistema|(?:en|según) (?:mis|nuestras) notas|(?:nuestros|mis) registros|me (?:configuraron|programaron|pasaron|dieron|facilitaron|proporcionaron)(?![\p{L}])|ficha del alojamiento)/u,
+    /(?<![\p{L}])(?:no (?:aparece|aparecen|figura|figuran|consta|constan|encuentro|encontré|he encontrado|veo|vi|se (?:menciona|especifica|indica|recoge))(?![\p{L}])|nada(?![\p{L}])|ningun[oa]?(?![\p{L}])|ningún(?![\p{L}]))/u,
   ],
   [
-    /(?<![\p{L}])(?:баз\p{L}{0,3} данных|(?:в|из) (?:нашей|моей) систем\p{L}{0,3}|(?:мне|нам) (?:передали|предоставили|дали|выдали)|(?:переданн|предоставленн)\p{L}{0,4} (?:мне|нам)|(?:наших|моих) записях|карточк\p{L}{0,3} объекта)/u,
-    /(?<![\p{L}])(?:не|нет|ничего|никаких|ни)(?![\p{L}])/u,
+    /(?<![\p{L}])(?:баз\p{L}{0,3} данных|(?:в|из) (?:нашей|моей) систем\p{L}{0,3}|(?:мне|нам) (?:передали|предоставили|дали|выдали)|(?:переданн|предоставленн)\p{L}{0,4} (?:мне|нам)|(?:наших|моих) (?:записях|заметках)|карточк\p{L}{0,3} объекта)/u,
+    // Haiku 10-21: "…выключать не нужно" olgudur → yalnız YOKLUK yüklemi.
+    /(?<![\p{L}])(?:ничего не|ничего нет|не (?:указан|упомина|упомянут|найден|нашл|нашёл|нашел|вижу|видим|отображ|значит|сказано|написано|числится)\p{L}{0,4}|нет (?:данных|информации|записей|сведений|брони|бронирования)|отсутству\p{L}{0,6})/u,
   ],
   [
-    /(?:سجلات(?:نا|ي)|قاعدة (?:ال)?بيانات|نظام(?:نا|ي)(?![\p{L}])|ي?زوّ?دني|أعطاني|اعطاني|المقدمة لي)/u,
-    // Arapça bağlaç öneki bitişik yazılır ("ولم يظهر", "فلا").
-    /(?<![\p{L}])[وف]?(?:لا|لم|ليس|ليست|لن|غير)(?![\p{L}])/u,
+    /(?:سجلات(?:نا|ي)|قاعدة (?:ال)?بيانات|نظام(?:نا|ي)(?![\p{L}])|ملاحظات(?:نا|ي)|ي?زوّ?دني|أعطاني|اعطاني|المقدمة لي)/u,
+    // Arapça bağlaç öneki bitişik yazılır ("ولم يظهر", "فلا"). Haiku 10-21: "ولا داعي" (gerek yok) olumsuzluk sayılmaz — yalnız YOKLUK yüklemi.
+    /(?<![\p{L}])[وف]?(?:لا (?:يوجد|توجد|يظهر|تظهر|يذكر|تذكر)|لم (?:يظهر|تظهر|يزو|أجد|اجد|نجد|يذكر|يرد|تذكر|أعثر|اعثر)|ليس (?:في|لدي|لدينا|هناك)|غير (?:موجود|مذكور))/u,
   ],
 ];
 
-/** Bir cümlede iç kaynak işareti + aynı dilin olumsuzluğu var mı (katlanmış metin; cümle sınırı `SEP`). */
+/**
+ * Bir cümlede iç kaynak işareti + aynı dilin olumsuzluğu var mı (katlanmış metin). Cümle sınırı `SEP` + noktalı virgül + Arapça soru işareti
+ * (Haiku 10-21: "Elimdeki bilgilerde girişiniz 15:00; bahçe kapısı kilitli değil." iki ayrı yargıdır).
+ */
 function narratesInternalSource(folded: string): boolean {
-  for (const sentence of folded.split(SEP)) {
+  for (const sentence of folded.split(/[\u0000;؟]/u)) {
     for (const [marker, negation] of INTERNAL_SOURCE_RULES) {
       if (marker.test(sentence) && negation.test(sentence)) return true;
     }
