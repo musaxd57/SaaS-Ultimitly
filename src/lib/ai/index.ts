@@ -25,8 +25,21 @@ import {
   noteModelProviderPersistentFailure,
   noteModelProviderSuccess,
 } from "./provider-health";
+import {
+  REPLY_BREAKER_COOLDOWN_MS,
+  REPLY_BREAKER_THRESHOLD,
+  isRetryableReplyStatus,
+  isTimeoutError,
+  noteReplyModelResponded,
+  noteReplyModelTimeout,
+  replyModelCallAllowed,
+  replyRetryDelayMs,
+  replyTimeoutMs,
+} from "./model-breaker";
 
 export type { SuggestReplyInput, SuggestReplyResult, ClassifyResult } from "./types";
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 export function isAiConfigured(): boolean {
   return Boolean(process.env.OPENAI_API_KEY);
@@ -379,17 +392,47 @@ async function callOpenAI(system: string, user: string): Promise<{ content: stri
   else payload.max_tokens = 900;
   // Düşünme çabası yalnız AYARLIYSA ve reasoning modelinde (09-25 model kıyası; ayarsız = modelin varsayılanı).
   if (effort) payload.reasoning_effort = effort;
+  // Devre kesici (`model-breaker.ts`, kurucu 10-21 "bekleme uzamasın"): sağlayıcı art arda takıldıysa bekleme süresince çağrı
+  // yapılmaz → bugünkü model-yok yolu (kanal yeniden dener, QR ev sahibine bırakır). Her çağrı ayrıca raporlanmaz; açılış raporlanır.
+  if (!replyModelCallAllowed()) return null;
+  const timeoutMs = replyTimeoutMs(isReasoningModel(model), effort);
   try {
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${key}`,
-      },
-      body: JSON.stringify(payload),
-      // Reasoning models can be slower — allow a longer ceiling.
-      signal: AbortSignal.timeout(isReasoningModel(model) ? 60000 : 20000),
-    });
+    let res: Response | null = null;
+    for (let attempt = 0; res === null; attempt++) {
+      try {
+        const r = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${key}`,
+          },
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(timeoutMs),
+        });
+        // Tek hızlı yeniden deneme (kurucu 10-21 "model düşmesin"): geçici durum (408 · hız sınırı 429 · 5xx) bir kez daha.
+        // Kalıcı arıza (kota / anahtar / model) sınıflandırması gövdeye bakar → gövde okunur, karar verilir.
+        if (!r.ok && attempt === 0 && isRetryableReplyStatus(r.status)) {
+          const body = await r.clone().text().catch(() => "");
+          if (!classifyModelProviderFailure(r.status, body)) {
+            noteReplyModelResponded(); // sağlayıcı takılmadı, cevap verdi
+            await sleep(replyRetryDelayMs(r.headers.get("retry-after")));
+            continue;
+          }
+        }
+        res = r;
+      } catch (err) {
+        if (isTimeoutError(err)) {
+          // Zaman aşımı yeniden DENENMEZ (bekleme ikiye katlanırdı); art arda eşiğe ulaşınca kesici açılır.
+          if (noteReplyModelTimeout()) {
+            void reportError("openai-reply devre kesici", new Error(`${REPLY_BREAKER_THRESHOLD} ardışık zaman aşımı; ${REPLY_BREAKER_COOLDOWN_MS / 1000} sn çağrı yok`));
+          }
+          throw err;
+        }
+        if (attempt > 0) throw err;
+        await sleep(replyRetryDelayMs(null));
+      }
+    }
+    noteReplyModelResponded();
     if (!res.ok) {
       // Silent-degradation guard: every call here falls back to the deterministic
       // fallback on failure (by design — the guest always gets an answer), but a
