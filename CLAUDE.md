@@ -530,7 +530,8 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 
 ## Durum
 > 📄 **Tam metin (bağlayıcı): `docs/claude/durum.md`** — bu alanda kod / karar değiştirmeden önce oku. Aşağıda yalnız madde başlıkları.
-**10-21 gece (güncel):** anlama ölçümü iki kol geçerli + kurucu soruları A–F · Claude kredisi 1. dalga ($23,87) + 2. dalga · 111 altyapı konusu envanteri + iç sertleştirmeler + olay/SLO belgesi — `docs/claude/durum.md`.
+**10-21 gece-2 (güncel):** Claude 2. dalga doğrulandı: tehlike sondası gerçek akışta 46/48 acil yolu + 2 tutuldu, 0 sızma · ~25 doğrulanmış hata düzeltildi (başka daire metni, KVKK ad geri yazımı, gaz alarmı okuyucusu…) · kurucu soruları W1–W9 — `docs/claude/durum.md`.
+**10-21 gece:** anlama ölçümü iki kol geçerli + kurucu soruları A–F · Claude kredisi 1. dalga ($23,87) + 2. dalga · 111 altyapı konusu envanteri + iç sertleştirmeler + olay/SLO belgesi — `docs/claude/durum.md`.
 **10-21 akşam:** g98 kırmızıları test kurulumuydu · Codex mutasyonu · Opus B1–B7 düzeltildi (ödeme niyeti sertleştirme, kilit sırası, kopya süpürgesi) · Claude eval T1 sıra 1 (iç kaynak kalıpları, yedi dil) kodda — `docs/claude/durum.md`.
 **10-21 öğleden sonra:** Codex 4 madde: ödeme niyeti (migration 82, `PADDLE_CHECKOUT_INTENT_ENABLED` KAPALI, sandbox kurucuyla) · kopyalama işlem kaydı (migration 81) · söz kapatma yarışı · T1 pini; Claude eval T1 açıkları → `docs/olcum/claude-zorlu-t1-2026-10-21-ANALIZ.md` (sıradaki iş) — `docs/claude/durum.md`.
 **10-21:** kurucu T1–T5 cevapları kodda: T5 söz gün/saat tablosu · T2 olası tehlike + anlama yok → Sorunlu + saatte 3 e-posta · T1 "B": dayanak şartı (kutup, sayı, nezaket) + erişim ilişkisi + "sistemimizde yok" · T4 otomatik mesajlar ayrı bölüm (migration 80, kuyrukta aynı satırı yeniden kurma) — `docs/claude/durum.md`, `KURUCU-SORULARI.md` §T.

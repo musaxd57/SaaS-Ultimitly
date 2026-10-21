@@ -8,7 +8,19 @@
 > `docs/history/CLAUDE-2026-10-02-sadelestirme-3-oncesi-tam-metin.md` ("Durum" bölümü). Kuralları yukarıdaki bölümlerde; yalnız Durum'da
 > yazılı olan kurallar (konuşma öğeleri, ev kuralları, canlı bayraklar) 10-02'de ilgili bölümlere taşındı. Bekleyen onaylar ↓.
 
-**10-21 gece (güncel — clear sonrası BURADAN devam):** anlama ölçümü + Claude kredisi + 111 altyapı konusu.
+**10-21 gece-2 (güncel — clear sonrası BURADAN devam):** Claude 2. dalga ($10,55) doğrulandı ve işlendi — takip `docs/claude-work/2026-10-21/dalga-2/DOGRULAMA-VE-DUZELTME.md`.
+- Tehlike sondası gerçek akışta (`evals/understanding-e2e-probe-hazard.json`, rapor `docs/olcum/anlama-e2e-probe-hazard-live-2026-10-21.md`): modelsiz
+  okuyucunun kaçırdığı 48 canlı acilin 46'sı acil yolunda, 2'si (Arapça su baskını) ev sahibinde tutuldu; misafire içerik 0; acil olmayan 22'nin hepsi tutuldu.
+  Kod kapısı tek başına (model "güvenli" derse) 45/48'i geçirirdi → güvenlik asıl anlama katmanında; W8 sorusu.
+- İkinci hakem (Claude) 36 giden cevapta 0 anlam hatası — GPT denetçisiyle uyumlu.
+- 40 P2 + 32 arayüz bulgusu Haiku ile kodla doğrulandı; düzeltilenler (kırmızı-önce + mutasyon 17/18 + Haiku dört gerileme bulup düzeltildi):
+  gaz / duman / tırnak / bilgim-yok / acil numara okuyucuları (tutucu), kuyruktaki otomatik mesajda başka dairenin metni (#95), dosya aktarımında
+  anonim satıra ad geri yazımı (#11), CSV "0.500", fatura ödeme anı, QR cevabı sahiplenmesi, çeviri dil kodu, IPv6, gölge ölçü dayanağı, Ayarlar
+  yönlendirmesi, ödeme kartı kilidi, bozuk e-posta bağlantısı. Kurucu soruları W1–W9 (müşteriye giden şablon / metin / kimlik / bayat cevap eşiği).
+- Pazar (web arama kotası yarıda doldu): Airbnb API yalnız ortaklık; Booking.com yeni bağlantı sağlayıcı alımı "durduruldu" (resmî sayfa, tarih
+  eski) → yol planındaki "Airbnb Direct + Booking.com" için kurucuya not.
+
+**10-21 gece:** anlama ölçümü + Claude kredisi + 111 altyapı konusu.
 - Anlama ölçümü (kurucu: "kelime örtüşmesi değil, gerçek model bağlamı anlıyor mu"): tasarım `docs/TASARIM-2026-10-21-anlama-olcumu.md`, ölçer
   `tests/eval/understanding-e2e*.ts` + iddia denetçisi (`tests/eval/claim-audit*.ts`), iki kol GEÇERLİ (`docs/olcum/anlama-e2e-dev-*-2026-10-21.md`):
   yanlış bilgi 0, sızan tutma 0, acil 6/6; gereksiz tutma 5/43. Neden analizi + kurucu soruları A–F `docs/olcum/anlama-e2e-NEDEN-ANALIZI-2026-10-21.md`
