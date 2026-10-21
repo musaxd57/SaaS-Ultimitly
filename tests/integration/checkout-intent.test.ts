@@ -176,6 +176,26 @@ describe("ödeme niyeti — işletme başına tek açık Paddle işlemi", () => 
     expect(await prisma.checkoutIntent.count()).toBe(0);
   });
 
+  it("🚨 süresi dolan niyetin işlemi Paddle'da ÖDENMİŞ (webhook gelmedi) → süpürge İPTAL ETMEZ, niyet tamamlandı sayılır", async () => {
+    await POST(postReq(), ctx);
+    paddle.statuses.set("txn_1", "paid");
+    await sweepCheckoutIntents(new Date(Date.now() + CHECKOUT_INTENT_TTL_MS + 60_000));
+    expect(paddle.canceled).toEqual([]);
+    expect(await prisma.checkoutIntent.findFirstOrThrow({ where: { organizationId: orgId } })).toMatchObject({ status: "completed", openKey: null });
+  });
+
+  it("süresi dolan niyetin iptali reddedildi ama işlem Paddle'da ZATEN iptal → kapanır (yer takılı kalmaz); durum okunamazsa yer korunur", async () => {
+    await POST(postReq(), ctx);
+    paddle.failCancel = true;
+    const later = new Date(Date.now() + CHECKOUT_INTENT_TTL_MS + 60_000);
+    // Durum "ready" (iptal edilemedi, kapandığı da doğrulanmadı) → ödeme sürüyor olabilir, yer KORUNUR.
+    await sweepCheckoutIntents(later);
+    expect(await prisma.checkoutIntent.findFirstOrThrow({ where: { organizationId: orgId } })).toMatchObject({ status: "open", openKey: orgId });
+    paddle.statuses.set("txn_1", "canceled");
+    await sweepCheckoutIntents(later);
+    expect(await prisma.checkoutIntent.findFirstOrThrow({ where: { organizationId: orgId } })).toMatchObject({ status: "expired", openKey: null });
+  });
+
   it("🚨 KİRACI: B işletmesinin onayı A'nın işlem kimliğini ALMAZ (anahtar işletme)", async () => {
     const b = await owner("b");
     const ra = (await (await POST(postReq(), ctx)).json()) as Body;
