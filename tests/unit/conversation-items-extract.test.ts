@@ -153,3 +153,26 @@ describe("emin olunmayan tur öğeye bölünmez (bugünkü kapı)", () => {
     });
   });
 });
+
+describe("kurucu T1 (10-21): saat türündeki istekte erişim olgusu yalnız FİZİKSEL erişim sözcüğünden (Haiku T1 #4)", () => {
+  const relOf = (query: string) => {
+    const u = parseUnderstanding(
+      {
+        language: "tr",
+        requests: [{ intent: "checkout_time", message: 1, query_tr: query, query_original: query, relation: "own_topic" }],
+        stay_change: STAY_NONE,
+        withdrawn: [],
+      },
+      { items: true, followup: true },
+    );
+    const t = extractTurnItems({ history: H(["m1", "inbound", query]), guestMessage: query, understanding: u });
+    if (t.mode !== "items") throw new Error("öğe kipi bekleniyordu");
+    return t.messages[0].relations?.checkout_time?.access;
+  };
+  it("'Çıkış saatinde anahtarı nereye bırakacağız?' → erişim (anahtar), garaj arızası onu bağlar", () => {
+    expect(relOf("Çıkış saatinde anahtarı nereye bırakacağız?")).toBe(true);
+  });
+  it("KONTROL: 'Çıkış saati kaçta?' → erişim DEĞİL (çıkış fiili saat sorusunda erişim sayılmaz)", () => {
+    expect(relOf("Çıkış saati kaçta?")).toBe(false);
+  });
+});
