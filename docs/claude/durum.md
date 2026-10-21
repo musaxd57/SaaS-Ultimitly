@@ -20,6 +20,11 @@
   `INTERNAL_SOURCE_RULES`); ölçümde kaçan 21 biçim + lookalike kontrolleri pinli, mutasyon 8/8. Sıra 2–3 (dayanak gevşetme, güvenlik bağı)
   misafire gideni değiştirir → kurucuya önce/sonra örnekli soru (`docs/olcum/claude-zorlu-t1-2026-10-21-ANALIZ.md`). Yeniden ölçüm:
   `evals/claude-run-request.json` `request` +1 ile Actions.
+- Haiku 10-21 bulguları (`94eb572f`): ödeme niyeti yeniden vermede sayım kontrolü + 24 sa üst sınır · sahiplenmede kilit sonrası yeniden
+  doğrulama · iç kaynak kalıplarında yanlış pozitif daraltma (yedi dil) + kaçan biçimler. Yeniden vermedeki ölü yaş kontrolü eşdeğer mutant →
+  kaldırıldı (süpürge aynı istekte kapatır). Kabul testi: yalnız [C] hedefinde de aynı kimlik + farklı içerik 409 (eski pin kalıcı kayıttan
+  önceki zayıf davranışı sabitliyordu). Paddle 404'ün geçici olabileceği şüphesi sandbox listesinde (Railway belgesi §4).
+- Kapı: `0e51fcae` yerel tam kapı yeşil (test · tip · lint · build · audit) + CI yeşil (5 iş). Açık: T1 sıra 2–3 kurucu sorusu (yukarıda).
 **10-21 öğleden sonra:** Codex 10-21 dört madde + Claude eval.
 - Codex P1 çift tahsilat → ödeme niyeti (migration 82 `CheckoutIntent`, `lib/billing/checkout-intent.ts`, anahtar `PADDLE_CHECKOUT_INTENT_ENABLED`
   KAPALI; Paddle SANDBOX denemesi kurucuyla — doğrulanacaklar Railway belgesi §4). Haiku düzeltmeleri: iptal doğrulanmadan yer boşalmaz, ölü
