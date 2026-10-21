@@ -34,6 +34,9 @@
       "pairs": 1,
       "multiTurn": 6
     },
-    "state": "sealed"
+    "state": "burned",
+    "burnedAt": "2026-10-21",
+    "runSha": "069af573",
+    "report": "docs/olcum/anlama-e2e-kor-live-2026-10-21-rtblind.md"
   }
 }
