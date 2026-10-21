@@ -556,6 +556,10 @@ describe("kurucu T1 (10-21): iç kaynak işareti + olumsuzluk aynı cümlede —
     "Система отопления электрическая, ничего включать не нужно.",
     // Kaynağa DAYANAN olumlu cevap (bulunma eki yok / olumsuzluk olgu): tutulmaz.
     "Elimdeki bilgilere göre otopark ücretsiz, ek ücret yok.",
+    // Bulunma eki şartının kendi kontrolü (olumsuzluk "ücret yok" istisnasına düşmesin): "bilgilere göre … yok" olgudur.
+    "Elimdeki bilgilere göre dairede havuz yok, bahçe kullanılabilir.",
+    // İşaret ve olumsuzluk AYRI cümlelerde → tutulmaz (cümle sınırı).
+    "The knowledge base lists the pool hours as 09:00-20:00. Nothing else is needed for check-in.",
     "Rezervasyon kayıtlarımızda bir sorun yok, girişiniz 15:00'te.",
     "I checked our records and your booking is confirmed for three nights; no deposit is needed.",
     "The host gave me the lockbox code: 4821, no need to call.",
