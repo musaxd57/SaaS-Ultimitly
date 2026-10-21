@@ -15,7 +15,10 @@ import Anthropic from "@anthropic-ai/sdk";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import path from "node:path";
-import { validateUxDataset, type UxDataset, type UxScenario } from "../../tests/eval/understanding-e2e-scoring";
+import { scenarioKb, validateUxDataset, type UxDataset, type UxScenario } from "../../tests/eval/understanding-e2e-scoring";
+import { AUDIT_SCHEMA, AUDIT_SYSTEM, buildAuditUser, parseAudit, MEANING_ERRORS } from "../../tests/eval/claim-audit-core";
+import { hazardEvidenceOf } from "../../src/lib/ai/hazard-evidence";
+import { classifyFallback, isSafetyEmergencyText } from "../../src/lib/ai/fallback";
 
 const ROOT = path.resolve(process.cwd());
 const OUT = path.join(ROOT, "claude-work-out");
@@ -552,8 +555,220 @@ async function uxCopy(): Promise<void> {
   write("ux-copy/all.json", JSON.stringify(all, null, 2));
 }
 
+// ── 2. dalga: tehlike / şikâyet okuyucusu sondası ────────────────────────────────────────────────────────────────────────────
+const PROBE_THEMES = [
+  "süren yangın / duman / gaz kokusu / karbonmonoksit / su baskını / elektrik çarpması — virgülsüz, panik, yazım hatalı, emoji",
+  "aynı sözcüklerle acil OLMAYAN: yangın söndürücü / duman dedektörü / gaz ocağı / şömine / mum / sigara / mangal / buhar soruları",
+  "geçmiş ya da bitmiş olay: dün oldu, söndürdük, artık yok, geçti; ve 'dünden beri süren' (hâlâ süren)",
+  "varsayım / koşul: olursa ne yapalım, durumunda, if there is, en cas de",
+  "olumsuzlama: yangın yok, duman da yok; ne … ne …; araya başka yüklem giren cümleler ('yangın var yardım gelmiyor')",
+  "arıza ve şikâyet (acil değil): klima çalışmıyor, internet yok, sıcak su gelmiyor, kirli, gürültü — ve bunların bilgi sorusu ikizleri",
+  "çok dilli (en, de, fr, es, ru, ar) acil ve acil olmayan karışık",
+  "uzun dağınık mesajda tek cümlede gömülü gerçek acil durum",
+];
+
+async function probe(): Promise<void> {
+  const schema = {
+    type: "object",
+    additionalProperties: false,
+    required: ["items"],
+    properties: {
+      items: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["text", "lang", "emergency", "complaint", "why"],
+          properties: {
+            text: { type: "string" },
+            lang: { type: "string" },
+            emergency: { type: "boolean" },
+            complaint: { type: "boolean" },
+            why: { type: "string" },
+          },
+        },
+      },
+    },
+  };
+  const system = [
+    "You write test messages from short-term-rental guests to their host, to test a safety classifier. Return the JSON schema only.",
+    "Labels (the product owner's rules): emergency = a LIVE danger to people or property happening NOW (fire, smoke from something, gas smell, CO alarm, flooding, electric shock, injury, someone locked in / trapped). NOT emergency: questions about safety equipment, past events that are over, hypotheticals, negations, normal use of fire (fireplace, candle, cooking, smoking), steam, a detector battery chirp question. complaint = the guest reports something broken, dirty, noisy, missing or wrong (emergencies are also complaints).",
+    "Write realistic, varied messages: typos, no punctuation, mixed languages, long rambling text. Make roughly half emergency and half not. Explain each label in 'why' (one short sentence).",
+  ].join("\n");
+  const out: { text: string; lang: string; emergency: boolean; complaint: boolean; why: string; got: { level: string; emergencyText: boolean; intent: string; isComplaint: boolean } }[] = [];
+  const batches = Array.from({ length: 24 }, (_, i) => i);
+  await pool(batches, async (i) => {
+    const r = await call({
+      task: "probe",
+      system,
+      user: `Batch ${i + 1}. Theme: ${PROBE_THEMES[i % PROBE_THEMES.length]}. Mostly ${["Turkish", "Turkish", "English", "German", "French", "Spanish", "Russian", "Arabic"][i % 8]}. Write 22 messages.`,
+      effort: "medium",
+      maxTokens: 24000,
+      schema,
+    });
+    const parsed = r ? parseJson<{ items: { text: string; lang: string; emergency: boolean; complaint: boolean; why: string }[] }>(r.text) : null;
+    for (const it of parsed?.items ?? []) {
+      const h = hazardEvidenceOf(it.text);
+      const c = classifyFallback(it.text);
+      out.push({ ...it, got: { level: h.level, emergencyText: isSafetyEmergencyText(it.text), intent: c.intent, isComplaint: c.isComplaint } });
+    }
+  });
+  // Ürünün modelsiz kararı: "clear" = acil yolu (ev sahibine kritik, misafire bir şey gitmez); "possible" = karar modele; altı = acil değil.
+  const missed = out.filter((x) => x.emergency && x.got.level !== "clear" && x.got.level !== "possible" && !x.got.emergencyText);
+  const deferred = out.filter((x) => x.emergency && x.got.level === "possible");
+  const falseAlarm = out.filter((x) => !x.emergency && x.got.level === "clear");
+  const complaintMiss = out.filter((x) => x.complaint && !x.emergency && !x.got.isComplaint);
+  write("probe/sonda.json", JSON.stringify(out, null, 1));
+  write(
+    "probe/rapor.md",
+    [
+      `# Tehlike / şikâyet okuyucusu sondası (${out.length} mesaj, Claude etiketli — etiketler doğrulanmadı)`,
+      "",
+      `- acil (etiket) ama modelsiz okuyucu ne açık ne olası ne kelime acili: ${missed.length}`,
+      `- acil (etiket) → olası (karar modele): ${deferred.length}`,
+      `- acil değil (etiket) ama açık acil: ${falseAlarm.length}`,
+      `- şikâyet (etiket, acil değil) ama sınıflandırıcı şikâyet demedi: ${complaintMiss.length}`,
+      "",
+      "## Kaçan aciller",
+      ...missed.map((x) => `- ${JSON.stringify(x.text)} → ${x.got.level} · ${x.why}`),
+      "",
+      "## Yanlış alarmlar",
+      ...falseAlarm.map((x) => `- ${JSON.stringify(x.text)} → ${x.got.level} · ${x.why}`),
+      "",
+      "## Kaçan şikâyetler",
+      ...complaintMiss.map((x) => `- ${JSON.stringify(x.text)} → ${x.got.intent} · ${x.why}`),
+    ].join("\n"),
+  );
+}
+
+// ── 2. dalga: P2 bulgularının tek tek yeniden doğrulanması ───────────────────────────────────────────────────────────────────
+async function p2Recheck(): Promise<void> {
+  const all = JSON.parse(readFileSync(path.join(ROOT, "docs/claude-work/2026-10-21/code-review/bulgular.json"), "utf8")) as Record<string, unknown>[];
+  const p2 = all.map((f, id): Record<string, unknown> & { id: number } => ({ ...f, id })).filter((f) => f.severity === "P2");
+  const schema = {
+    type: "object",
+    additionalProperties: false,
+    required: ["verdict", "evidence", "fix"],
+    properties: { verdict: { type: "string", enum: ["confirmed", "refuted", "partly"] }, evidence: { type: "string" }, fix: { type: "string" } },
+  };
+  const results: unknown[] = [];
+  await pool(p2, async (f) => {
+    const file = String(f.file);
+    if (!existsSync(path.join(ROOT, file))) return;
+    const body = readFileSync(path.join(ROOT, file), "utf8")
+      .split("\n")
+      .map((l, i) => `${i + 1}| ${l}`)
+      .join("\n");
+    const r = await call({
+      task: "p2_recheck",
+      system:
+        "You verify a code-review finding written by another model (about half of such findings are wrong). Read the file, follow the logic, and decide confirmed / refuted / partly. Quote the decisive lines with line numbers in 'evidence'. If confirmed, give the minimal fix. Write evidence and fix in Turkish. Return the JSON schema only.",
+      user: `FINDING:\n${JSON.stringify(f, null, 1)}\n\nFILE ${file}:\n${body.slice(0, 400_000)}`,
+      effort: "high",
+      maxTokens: 16000,
+      schema,
+    });
+    const v = r ? parseJson<Record<string, unknown>>(r.text) : null;
+    if (v) results.push({ id: f.id, file, line: f.line, title: f.title, lens: f.lens, ...v });
+  });
+  write("p2-recheck/sonuc.json", JSON.stringify(results, null, 1));
+}
+
+// ── 2. dalga: arayüz kodu incelemesi ─────────────────────────────────────────────────────────────────────────────────────────
+async function codeReviewUi(): Promise<void> {
+  const files = repoFiles(["src/app/**/*.tsx", "src/components/**/*.tsx", "src/app/**/page.ts", "src/app/**/layout.ts"]).filter(
+    (f) => !f.startsWith("src/app/api/"),
+  );
+  const context = readFileSync(path.join(ROOT, "CLAUDE.md"), "utf8");
+  const lenses = [
+    "Lens: UI CORRECTNESS. Wrong state handling, stale data after mutations, missing error / loading states that hide failures, double-submit (no request id / disabled button), timezone display bugs, forms that send the wrong field, client-side checks that the server does not repeat.",
+    "Lens: UI SECURITY AND PRIVACY. dangerouslySetInnerHTML / unescaped HTML, secrets or other tenants' data in client bundles or props, server components leaking fields, missing role checks on pages, open redirects, guest personal data shown where it should be masked.",
+  ];
+  const all: unknown[] = [];
+  const jobs = lenses.flatMap((lens, li) => bundles(files, 300_000).map((b, bi) => ({ lens, li, b, bi })));
+  await pool(jobs, async (j) => {
+    const r = await call({
+      task: "code_review_ui",
+      system: [
+        "You are a senior React / Next.js reviewer. Report only REAL defects in the given code — no style. Each finding: exact file and line, a concrete failing scenario, quoted evidence. At most 15 per bundle. Write title / scenario / fix_hint in Turkish.",
+        j.lens,
+        "PROJECT RULES (context):",
+        context,
+      ].join("\n"),
+      user: j.b.text,
+      effort: "high",
+      maxTokens: 32000,
+      schema: FINDINGS_SCHEMA,
+    });
+    const findings = (r ? parseJson<{ findings: Record<string, unknown>[] }>(r.text)?.findings : null) ?? [];
+    all.push(...findings.map((f) => ({ ...f, lens: j.li === 0 ? "ui-dogruluk" : "ui-guvenlik" })));
+  });
+  write("code-review-ui/bulgular.json", JSON.stringify(all, null, 2));
+}
+
+// ── 2. dalga: ikinci hakem (Claude) — anlama ölçümünün misafire giden cevapları ──────────────────────────────────────────────
+async function judge2(): Promise<void> {
+  const side = JSON.parse(readFileSync(path.join(ROOT, "docs/olcum/anlama-e2e-dev-live-2026-10-21.json"), "utf8")) as {
+    rows: { id: string; sent: boolean; sentText: string | null; claims: { support: string; request: string }[]; requests: { id: string; addressed: string | null }[] }[];
+  };
+  const data = JSON.parse(readFileSync(path.join(ROOT, "evals/understanding-e2e-dev.json"), "utf8")) as UxDataset;
+  const rows = side.rows.filter((r) => r.sent && r.sentText);
+  const out: unknown[] = [];
+  await pool(rows, async (row) => {
+    const s = data.scenarios.find((x) => x.id === row.id);
+    if (!s || !row.sentText) return;
+    const kb = scenarioKb(data, s);
+    const reqs = s.requests.filter((q) => q.expect !== "none").map((q) => ({ id: q.id, span: q.span }));
+    const r = await call({
+      task: "judge2",
+      system: AUDIT_SYSTEM,
+      user: buildAuditUser({ kb, history: s.history ?? [], message: s.message, requests: reqs, reply: row.sentText }),
+      effort: "high",
+      maxTokens: 16000,
+      schema: AUDIT_SCHEMA.schema,
+    });
+    const audit = r ? parseAudit(parseJson(r.text), kb, reqs.map((q) => q.id)) : null;
+    if (!audit) return;
+    const claudeErrors = audit.claims.filter((c) => MEANING_ERRORS.has(c.support)).length;
+    const gptErrors = row.claims.filter((c) => ["misbound", "contradicted", "unsupported"].includes(c.support)).length;
+    const addressedDiff = audit.requests.filter((q) => (row.requests.find((x) => x.id === q.id)?.addressed ?? null) !== q.addressed).map((q) => q.id);
+    out.push({ id: row.id, claudeErrors, gptErrors, addressedDiff, claims: audit.claims });
+  });
+  write("judge2/sonuc.json", JSON.stringify(out, null, 1));
+}
+
+// ── 2. dalga: pazar — strateji notunun açık soruları ─────────────────────────────────────────────────────────────────────────
+async function marketFollowup(): Promise<void> {
+  const qs = [
+    { id: "11-airbnb-partner-yolu", q: "2026'da Airbnb Software Partner / API erişimi için güncel başvuru yolu: başvuru formu, kabul şartları (ilan sayısı, müşteri sayısı), süre, mesajlaşma API'sinin kapsamı, Türkiye'den başvuran küçük girişim örnekleri. Booking.com Connectivity Partner için aynısı. Adım adım bir başvuru planı çıkar." },
+    { id: "12-turk-ev-sahibi-pms", q: "Türkiye'deki kısa dönem kiralama ev sahipleri hangi araçları kullanıyor (PMS, kanal yöneticisi, otomatik mesaj): anket, forum, Facebook grubu, Ekşi Sözlük, Reddit, YouTube içerikleri; Hospitable, Guesty, Smoobu, Hostaway, Lodgify, Beds24, HotelRunner kullanımına dair Türkçe kanıtlar." },
+    { id: "13-ilk-musteri-kanallari", q: "Türkiye'de Airbnb ev sahibi topluluklarının somut listesi (Facebook / Telegram / WhatsApp grupları, üye sayıları, kurallar), co-host ve yönetim şirketleri listesi (İstanbul, Antalya, Muğla), ve bu kanallardan B2B SaaS satan şirketlerin deneyimleri." },
+  ];
+  await pool(qs, async (t) => {
+    const r = await call({
+      task: "market",
+      system: "Sen titiz bir pazar araştırmacısısın. Web aramasıyla güncel kaynak bul, Türkçe yaz. Her iddiaya kaynak (URL) ve tarih ver; bulamadığını açıkça yaz; tahmin üretme. Biçim: Markdown, önce 5-8 maddelik özet, sonda Kaynaklar.",
+      user: t.q,
+      effort: "high",
+      maxTokens: 32000,
+      webSearch: 15,
+    });
+    if (r) write(`market/${t.id}.md`, `# ${t.id}\n\n> Soru: ${t.q}\n\n${r.text}\n`);
+  });
+}
+
 // ── Ana akış ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-const TASKS: Record<string, () => Promise<void>> = { market, code_review: codeReview, scenarios, ux_copy: uxCopy };
+const TASKS: Record<string, () => Promise<void>> = {
+  market,
+  code_review: codeReview,
+  scenarios,
+  ux_copy: uxCopy,
+  probe,
+  p2_recheck: p2Recheck,
+  code_review_ui: codeReviewUi,
+  judge2,
+  market_followup: marketFollowup,
+};
 
 async function main(): Promise<void> {
   mkdirSync(OUT, { recursive: true });
