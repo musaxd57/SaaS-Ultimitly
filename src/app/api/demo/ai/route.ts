@@ -114,6 +114,7 @@ export async function POST(req: NextRequest) {
     // about the stay behave realistically. Result is returned only.
     const now = new Date();
     const result = await suggestReply({
+      breakerKey: "demo",
       guestMessage: message,
       property: DEMO_PROPERTY,
       reservation: {

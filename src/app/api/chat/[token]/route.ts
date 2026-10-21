@@ -1021,6 +1021,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   const kbDroppedTotal = ctx.knowledgeBaseDropped + kbSel.droppedItems;
 
   const replyInput: Parameters<typeof suggestReply>[0] = {
+    breakerKey: ctx.property.organizationId,
     guestMessage: message,
     property: {
       name: ctx.property.name,

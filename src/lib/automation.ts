@@ -2371,6 +2371,7 @@ export async function applyChannelAutoReply(
   const replyItems = itemsPlan && !itemsPlan.allHeld ? itemsPlan.replyItems : undefined;
   const replyStartedAt = Date.now();
   let result = await suggestReply({
+    breakerKey: conversation.property.organizationId,
     guestMessage: last.body,
     property: {
       name: conversation.property.name,

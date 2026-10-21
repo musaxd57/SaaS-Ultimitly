@@ -84,6 +84,7 @@ export async function dryRunReply(input: {
     dateContext: { now, timeZone: org?.timezone, reservation: sampleStay },
   });
   const result = await suggestReply({
+    breakerKey: input.organizationId,
     guestMessage: message,
     property: {
       name: property.name,

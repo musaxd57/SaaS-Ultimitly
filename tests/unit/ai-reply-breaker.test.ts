@@ -19,6 +19,7 @@ import {
   REPLY_BREAKER_COOLDOWN_MS,
   REPLY_BREAKER_THRESHOLD,
   __resetReplyModelBreakerForTests,
+  noteReplyModelResponded,
   noteReplyModelTimeout,
   replyModelCallAllowed,
   replyRetryDelayMs,
@@ -274,17 +275,63 @@ describe("Haiku 10-21 bulguları", () => {
 
   it("bekleme dolunca YALNIZ bir deneme geçer (eşzamanlı ikinci çağrı beklemez, model-yok yoluna gider)", () => {
     const t0 = 1_000_000;
-    for (let i = 0; i < REPLY_BREAKER_THRESHOLD; i++) noteReplyModelTimeout(t0);
-    expect(replyModelCallAllowed(t0 + 1)).toBe(false);
+    for (let i = 0; i < REPLY_BREAKER_THRESHOLD; i++) noteReplyModelTimeout("org-a", t0);
+    expect(replyModelCallAllowed("org-a", t0 + 1)).toBe(false);
     const after = t0 + REPLY_BREAKER_COOLDOWN_MS;
-    expect(replyModelCallAllowed(after)).toBe(true); // deneme kirası
-    expect(replyModelCallAllowed(after + 10)).toBe(false); // kira süresince ikinci çağrı yok
+    expect(replyModelCallAllowed("org-a", after)).toBe(true); // deneme kirası
+    expect(replyModelCallAllowed("org-a", after + 10)).toBe(false); // kira süresince ikinci çağrı yok
   });
 
   it("açılış YALNIZ bir kez raporlanır: açıkken düşen çağrılar (deneme dahil) yeniden rapor üretmez", () => {
     const t0 = 2_000_000;
-    const opened = Array.from({ length: REPLY_BREAKER_THRESHOLD + 3 }, () => noteReplyModelTimeout(t0));
+    const opened = Array.from({ length: REPLY_BREAKER_THRESHOLD + 3 }, () => noteReplyModelTimeout("org-a", t0));
     expect(opened.filter(Boolean)).toHaveLength(1);
-    expect(noteReplyModelTimeout(t0 + REPLY_BREAKER_COOLDOWN_MS + 5)).toBe(false); // deneme yine düştü → yeniden açıldı, rapor yok
+    expect(noteReplyModelTimeout("org-a", t0 + REPLY_BREAKER_COOLDOWN_MS + 5)).toBe(false); // deneme yine düştü → yeniden açıldı, rapor yok
+  });
+});
+
+// Güvenlik incelemesi 10-21 P3: kesici kiracı başına. Bir işletmenin (ya da misafirinin) art arda zaman aşımları öteki işletmeleri
+// durdurmaz; ortak kesici yalnız dizi EN AZ İKİ işletmeden gelince açılır (gerçek sağlayıcı arızası).
+describe("devre kesici: kiracılar arası yalıtım", () => {
+  it("bir işletmenin üç zaman aşımı YALNIZ onu bekletir; öteki işletme çağırmaya devam eder", () => {
+    const t0 = 3_000_000;
+    for (let i = 0; i < REPLY_BREAKER_THRESHOLD; i++) noteReplyModelTimeout("org-a", t0);
+    expect(replyModelCallAllowed("org-a", t0 + 1)).toBe(false);
+    expect(replyModelCallAllowed("org-b", t0 + 1)).toBe(true);
+    expect(replyModelCallAllowed(undefined, t0 + 1)).toBe(true);
+  });
+
+  it("art arda zaman aşımları iki işletmeden geliyorsa ortak kesici açılır: üçüncü işletme de bekler", () => {
+    const t0 = 4_000_000;
+    noteReplyModelTimeout("org-a", t0);
+    noteReplyModelTimeout("org-a", t0);
+    expect(noteReplyModelTimeout("org-b", t0)).toBe(true); // ortak açıldı (tek rapor)
+    expect(replyModelCallAllowed("org-c", t0 + 1)).toBe(false);
+    expect(replyModelCallAllowed("org-c", t0 + REPLY_BREAKER_COOLDOWN_MS)).toBe(true); // bekleme bitti → tek deneme
+  });
+
+  it("KONTROL: başka bir işletmenin cevabı ortak diziyi sıfırlar (sağlayıcı ayakta), saldırganın kendi dizisini değil", () => {
+    const t0 = 5_000_000;
+    noteReplyModelTimeout("org-a", t0);
+    noteReplyModelTimeout("org-b", t0);
+    noteReplyModelResponded("org-b");
+    noteReplyModelTimeout("org-a", t0);
+    expect(replyModelCallAllowed("org-c", t0 + 1)).toBe(true); // ortak dizi sıfırlandı: 1 zaman aşımı
+    expect(noteReplyModelTimeout("org-a", t0)).toBe(true); // org-a kendi dizisinde üçüncü → yalnız o açıldı
+    expect(replyModelCallAllowed("org-a", t0 + 1)).toBe(false);
+    expect(replyModelCallAllowed("org-c", t0 + 1)).toBe(true);
+  });
+
+  it("uçtan uca: A işletmesinin çağrıları takılınca kesici açılır, B işletmesinin çağrısı yine modele gider", async () => {
+    const f = vi.fn<() => Promise<Response>>(async () => timeout());
+    vi.stubGlobal("fetch", f);
+    for (let i = 0; i < REPLY_BREAKER_THRESHOLD; i++) await suggestReply({ ...input, breakerKey: "org-a" });
+    expect(f).toHaveBeenCalledTimes(REPLY_BREAKER_THRESHOLD);
+    await suggestReply({ ...input, breakerKey: "org-a" });
+    expect(f).toHaveBeenCalledTimes(REPLY_BREAKER_THRESHOLD); // A bekliyor
+    f.mockImplementation(async () => okResponse());
+    const b = await suggestReply({ ...input, breakerKey: "org-b" });
+    expect(f).toHaveBeenCalledTimes(REPLY_BREAKER_THRESHOLD + 1);
+    expect(b.source).toBe("openai");
   });
 });

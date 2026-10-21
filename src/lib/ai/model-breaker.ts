@@ -16,7 +16,8 @@
 //  · Tek hızlı yeniden deneme: geçici hata (408 · 429 hız sınırı · 5xx · zaman aşımı OLMAYAN ağ hatası) bir kez, kısa aralıkla
 //    yeniden denenir. Kalıcı arıza (kota / anahtar / model) ve zaman aşımı yeniden DENENMEZ (biri düzelmez, öteki beklemeyi ikiye
 //    katlardı).
-// Durum bellektedir (veritabanı yok); her kopya kendi kesicisini tutar.
+// Durum bellektedir (veritabanı yok); her kopya kendi kesicisini tutar. Kesici kiracı başınadır; ortak kesici yalnız birden çok
+// kiracının art arda takılmasında açılır (aşağıda).
 // ---------------------------------------------------------------------------
 
 export const REPLY_BREAKER_THRESHOLD = 3;
@@ -35,44 +36,89 @@ export function replyTimeoutMs(reasoning: boolean, effort: string | null): numbe
   return effort === "high" ? 60_000 : 30_000;
 }
 
-let consecutiveTimeouts = 0;
-let openUntil = 0;
-/** Bekleme dolduktan sonraki TEK deneme kirası: kira süresince başka çağrı geçmez (eşzamanlı istekler hep birlikte beklemesin). */
-let probeLeaseUntil = 0;
+/**
+ * Kesici durumu. KİRACI BAŞINA ayrı tutulur (güvenlik incelemesi 10-21 P3): eskiden tek ortak sayaç vardı — bir işletmenin (ya da
+ * misafirinin uzun cevap isteyen mesajlarının) art arda üç zaman aşımı, sunucudaki BÜTÜN işletmelerin cevap çağrısını 60 sn
+ * durduruyordu. Şimdi:
+ *  · kiracı kesicisi: o işletmenin art arda REPLY_BREAKER_THRESHOLD zaman aşımı → YALNIZ o işletme bekler;
+ *  · ortak kesici: art arda zaman aşımı dizisi EN AZ İKİ işletmeden geliyorsa (gerçek sağlayıcı arızası böyle görünür) herkes bekler.
+ * Herhangi bir işletmenin çağrısına sağlayıcı cevap verirse ortak dizi sıfırlanır (sağlayıcı ayakta); kiracı dizisi yalnız o
+ * kiracının kendi cevabıyla sıfırlanır.
+ */
+interface BreakerState {
+  consecutive: number;
+  openUntil: number;
+  /** Bekleme dolduktan sonraki TEK deneme kirası: kira süresince başka çağrı geçmez (eşzamanlı istekler hep birlikte beklemesin). */
+  probeLeaseUntil: number;
+}
+const fresh = (): BreakerState => ({ consecutive: 0, openUntil: 0, probeLeaseUntil: 0 });
+let shared = fresh();
+/** Ortak dizideki zaman aşımlarının geldiği kiracılar. */
+let sharedKeys = new Set<string>();
+const tenants = new Map<string, BreakerState>();
 let retryDelayOverride: number | null = null;
 /** Tek deneme kirasının süresi: en uzun çağrı tavanı + pay (deneme takılırsa kira kendiliğinden düşer). */
 const PROBE_LEASE_MS = 65_000;
+/** Kiracısı bilinmeyen çağrı (deneme / demo yolu) kendi kovasındadır. */
+const NO_TENANT = "_";
+/** Ortak kesicinin açılması için gereken ayrı kiracı sayısı. */
+export const REPLY_BREAKER_SHARED_MIN_TENANTS = 2;
 
-/**
- * Çağrı yapılabilir mi? Kesici kapalıyken her zaman. Açıkken bekleme süresince hayır; bekleme dolunca YALNIZ bir çağrı geçer
- * (deneme kirası) — sonucu kesiciyi kapatır (cevap geldi) ya da hemen yeniden açar (yine zaman aşımı).
- */
-export function replyModelCallAllowed(now = Date.now()): boolean {
-  if (openUntil === 0) return true;
-  if (now < openUntil) return false;
-  if (now < probeLeaseUntil) return false;
-  probeLeaseUntil = now + PROBE_LEASE_MS;
+const keyOf = (key: string | null | undefined) => (key && key.trim() ? key : NO_TENANT);
+
+function allowed(state: BreakerState, now: number): boolean {
+  if (state.openUntil === 0) return true;
+  if (now < state.openUntil) return false;
+  if (now < state.probeLeaseUntil) return false;
+  state.probeLeaseUntil = now + PROBE_LEASE_MS;
   return true;
 }
 
-/**
- * Zaman aşımı (bağlantı ya da gövde okuma): sayaç artar; eşiğe ulaştıysa ya da deneme yine düştüyse kesici açılır.
- * `true` YALNIZ kapalıyken AÇILDIĞI anda döner (açılış tek kez raporlansın — açıkken düşen çağrılar yeniden rapor üretmez).
- */
-export function noteReplyModelTimeout(now = Date.now()): boolean {
-  consecutiveTimeouts++;
-  if (consecutiveTimeouts < REPLY_BREAKER_THRESHOLD) return false;
-  const wasClosed = openUntil === 0;
-  openUntil = now + REPLY_BREAKER_COOLDOWN_MS;
-  probeLeaseUntil = 0;
+/** Eşiğe ulaştıysa (ya da deneme yine düştüyse) açar; `true` YALNIZ kapalıyken açıldığı anda. */
+function trip(state: BreakerState, now: number): boolean {
+  const wasClosed = state.openUntil === 0;
+  state.openUntil = now + REPLY_BREAKER_COOLDOWN_MS;
+  state.probeLeaseUntil = 0;
   return wasClosed;
 }
 
-/** Sağlayıcı cevap verdi (başarı ya da kalıcı / kesin bir ret — takılmadı): kesici kapanır. Geçici hata (408/429/5xx) bunu ÇAĞIRMAZ. */
-export function noteReplyModelResponded(): void {
-  consecutiveTimeouts = 0;
-  openUntil = 0;
-  probeLeaseUntil = 0;
+/**
+ * Çağrı yapılabilir mi? Önce ortak kesici, sonra kiracınınki. Açık kesicide bekleme süresince hayır; bekleme dolunca YALNIZ bir
+ * çağrı geçer (deneme kirası) — sonucu kesiciyi kapatır (cevap geldi) ya da hemen yeniden açar (yine zaman aşımı).
+ */
+export function replyModelCallAllowed(key?: string | null, now = Date.now()): boolean {
+  if (!allowed(shared, now)) return false;
+  const t = tenants.get(keyOf(key));
+  return t ? allowed(t, now) : true;
+}
+
+/**
+ * Zaman aşımı (bağlantı ya da gövde okuma). `true` YALNIZ bir kesici (kiracı ya da ortak) kapalıyken AÇILDIĞI anda döner — açılış
+ * tek kez raporlansın, açıkken düşen çağrılar yeniden rapor üretmez.
+ */
+export function noteReplyModelTimeout(key?: string | null, now = Date.now()): boolean {
+  const k = keyOf(key);
+  let t = tenants.get(k);
+  if (!t) {
+    t = fresh();
+    tenants.set(k, t);
+  }
+  t.consecutive++;
+  shared.consecutive++;
+  sharedKeys.add(k);
+  let opened = false;
+  if (t.consecutive >= REPLY_BREAKER_THRESHOLD) opened = trip(t, now) || opened;
+  if (shared.consecutive >= REPLY_BREAKER_THRESHOLD && sharedKeys.size >= REPLY_BREAKER_SHARED_MIN_TENANTS) {
+    opened = trip(shared, now) || opened;
+  }
+  return opened;
+}
+
+/** Sağlayıcı cevap verdi (başarı ya da kalıcı / kesin bir ret — takılmadı). Geçici hata (408/429/5xx) bunu ÇAĞIRMAZ. */
+export function noteReplyModelResponded(key?: string | null): void {
+  shared = fresh();
+  sharedKeys = new Set();
+  tenants.delete(keyOf(key));
 }
 
 /** Zaman aşımı mı? `AbortSignal.timeout` → `TimeoutError`; eski çalışma zamanları `AbortError` verebilir. */
@@ -96,8 +142,8 @@ export function replyRetryDelayMs(retryAfter: string | null): number {
 
 /** TEST KANCASI: kesiciyi sıfırla; isteğe bağlı yeniden deneme beklemesi (testler 1 sn beklemesin). */
 export function __resetReplyModelBreakerForTests(retryDelayMs: number | null = null): void {
-  consecutiveTimeouts = 0;
-  openUntil = 0;
-  probeLeaseUntil = 0;
+  shared = fresh();
+  sharedKeys = new Set();
+  tenants.clear();
   retryDelayOverride = retryDelayMs;
 }

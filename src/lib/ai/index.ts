@@ -341,7 +341,7 @@ export function parseLlmUsage(data: unknown): LlmUsage | undefined {
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
-async function callOpenAI(system: string, user: string): Promise<{ content: string | null; usage?: LlmUsage } | null> {
+async function callOpenAI(system: string, user: string, breakerKey?: string | null): Promise<{ content: string | null; usage?: LlmUsage } | null> {
   const key = process.env.OPENAI_API_KEY;
   if (!key) {
     // 🚨 SESSİZ TAM ARIZA — SİNYALSİZ BIRAKMA (denetim 08-08).
@@ -396,7 +396,7 @@ async function callOpenAI(system: string, user: string): Promise<{ content: stri
   if (effort) payload.reasoning_effort = effort;
   // Devre kesici (`model-breaker.ts`, kurucu 10-21 "bekleme uzamasın"): sağlayıcı art arda takıldıysa bekleme süresince çağrı
   // yapılmaz → bugünkü model-yok yolu (kanal yeniden dener, QR ev sahibine bırakır). Her çağrı ayrıca raporlanmaz; açılış raporlanır.
-  if (!replyModelCallAllowed()) return null;
+  if (!replyModelCallAllowed(breakerKey)) return null;
   const timeoutMs = replyTimeoutMs(isReasoningModel(model), effort);
   try {
     // Tek hızlı yeniden deneme (kurucu 10-21 "model düşmesin"): geçici durum (408 · hız sınırı 429 · 5xx) ya da zaman aşımı OLMAYAN
@@ -430,7 +430,7 @@ async function callOpenAI(system: string, user: string): Promise<{ content: stri
     }
     if (!res.ok) {
       // Kesin / kalıcı ret sağlayıcının takılmadığını gösterir → kesici kapanır; geçici hata (iki kez 5xx / 429) kapatmaz.
-      if (!isRetryableReplyStatus(res.status)) noteReplyModelResponded();
+      if (!isRetryableReplyStatus(res.status)) noteReplyModelResponded(breakerKey);
       // Silent-degradation guard: every call here falls back to the deterministic
       // fallback on failure (by design — the guest always gets an answer), but a
       // persistent cause (bad/expired key, exhausted quota, deprecated model)
@@ -450,7 +450,7 @@ async function callOpenAI(system: string, user: string): Promise<{ content: stri
     noteModelProviderSuccess();
     const data = await res.json();
     // Gövde de geldi: sağlayıcı takılmadı → kesici kapanır (gövde okurken zaman aşımı ↓dış yakalamada sayılır).
-    noteReplyModelResponded();
+    noteReplyModelResponded(breakerKey);
     const choice = data?.choices?.[0];
     const parsedUsage = parseLlmUsage(data);
     // Gönderilen düşünme çabası yanıtta YOK → karar kaydına koddan eklenir (Luna geçişi, 09-30: hangi ayarın hangi kararı
@@ -469,7 +469,7 @@ async function callOpenAI(system: string, user: string): Promise<{ content: stri
     return { content: choice?.message?.content ?? null, usage };
   } catch (err) {
     // Zaman aşımı TEK yerde sayılır (bağlantı ya da gövde okuma); kesici YALNIZ açıldığı anda raporlanır.
-    if (isTimeoutError(err) && noteReplyModelTimeout()) {
+    if (isTimeoutError(err) && noteReplyModelTimeout(breakerKey)) {
       void reportError(
         "openai-reply devre kesici",
         new Error(`${REPLY_BREAKER_THRESHOLD} ardışık zaman aşımı; ${REPLY_BREAKER_COOLDOWN_MS / 1000} sn çağrı yok`),
@@ -534,7 +534,7 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
   const declareActions = actionClaimsEnabled();
   // §C: istem TEK KEZ kurulur; metin modele, muhasebe karar kaydına gider.
   const prompt = replyPromptFor(input, declareActions);
-  const call = await callOpenAI(replySystemPrompt(input), prompt.text);
+  const call = await callOpenAI(replySystemPrompt(input), prompt.text, input.breakerKey);
   const raw = call?.content ?? null;
   const llmUsage = call?.usage;
   if (raw) {

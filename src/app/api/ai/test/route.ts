@@ -160,6 +160,7 @@ export const POST = withManage(async (session, req) => {
   });
 
   const result = await suggestReply({
+    breakerKey: session.organizationId,
     guestMessage: message,
     property: {
       name: property.name,

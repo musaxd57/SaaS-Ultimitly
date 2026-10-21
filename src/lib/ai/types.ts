@@ -63,6 +63,11 @@ export interface HistoryMessage {
 export interface SuggestReplyInput {
   guestMessage: string;
   /**
+   * Devre kesici kovası (`model-breaker.ts`): işletme kimliği. Modele / isteme GİTMEZ; yalnız bir işletmenin art arda zaman
+   * aşımlarının öteki işletmeleri durdurmaması için. Verilmezse ortak "bilinmeyen" kova.
+   */
+  breakerKey?: string | null;
+  /**
    * Konuşmanın görünen misafir adı (`Conversation.guestIdentifier`) — YALNIZ anahtar `AI_CODE_GREETING_ENABLED` açıkken, modele giden
    * istem metninden adı silmek için (rezervasyonsuz konuşmada da). Modele gitmez.
    */
