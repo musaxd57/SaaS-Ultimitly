@@ -150,6 +150,30 @@ describe("QR host handoff (AI pause + send-time veto)", () => {
     else process.env.GUEST_CHAT_ENABLED = ORIGINAL_ENV;
   });
 
+  it("🚨 yapay zekâ duraklatılmışken gelen AÇIK tehlike mesajı yine acil kaydı + ev sahibi uyarısı üretir (Claude kod incelemesi 10-21)", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    const token = await enableChat(propertyId);
+    const cookie = deviceCookie(await call(token, "Çöp ne zaman?"));
+    await hostReplies(propertyId);
+    mockSuggest.mockClear();
+    const json = await (await call(token, "Mutfakta yangın var, alevler yükseliyor!", cookie)).json();
+    expect(json.handoff).toBe(true);
+    expect(json.reply ?? null).toBeNull(); // misafire hiçbir şey gitmez
+    expect(mockSuggest).not.toHaveBeenCalled();
+    const events = await prisma.riskEvent.findMany({ where: { surface: "guest_chat", reason: "physical_hazard" } });
+    expect(events).toHaveLength(1);
+    expect(events[0].riskType).toBe("safety_emergency");
+  });
+
+  it("KONTROL: duraklatılmışken sıradan soru acil kaydı üretmez", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    const token = await enableChat(propertyId);
+    const cookie = deviceCookie(await call(token, "Çöp ne zaman?"));
+    await hostReplies(propertyId);
+    await call(token, "Peki otopark var mı?", cookie);
+    expect(await prisma.riskEvent.count({ where: { surface: "guest_chat", reason: "physical_hazard" } })).toBe(0);
+  });
+
   it("pauses the AI once a host has replied — the next guest message gets NO model call", async () => {
     const { propertyId } = await makeOrgWithProperty();
     const token = await enableChat(propertyId);

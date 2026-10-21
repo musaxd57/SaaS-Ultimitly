@@ -38,8 +38,12 @@ const GUEST_IDENTITY_LEADS = [
 ];
 /** Adın ARDINDAN gelen tanıtma sözü — cümle / cümlecik başında "Alex here", "Alex hier", "Alex ici". */
 const GUEST_IDENTITY_TRAILS = String.raw`(?:here|hier|ici)`;
-/** Cümle / cümlecik başında "Ben Deniz" (Türkçe) — metin başı, satır başı ya da . ! ? , ardı ("Merhaba, ben Deniz"). */
-const SENTENCE_START = String.raw`(?:^|[.!?,\n]\s*)`;
+/**
+ * Cümle / cümlecik başında "Ben Deniz" (Türkçe) — metin başı, satır başı ya da . ! ? , ardı ("Merhaba, ben Deniz"). Satır başı yalnız satır
+ * İÇİ boşluk yutar: `[.!?,\n]\s*` her "\n"den başlayıp kalan bütün satır sonu dizisini geri izliyordu (Claude kod incelemesi 10-21, ölçüldü:
+ * 50.000 satır sonunda 3,5–5,7 sn — kanal mesajında uzunluk tavanı yok).
+ */
+const SENTENCE_START = String.raw`(?:^|[.!?,]\s*|\n[ \t]*)`;
 /** İmza öncesi kapanış sözcükleri ("Teşekkürler, Deniz"). */
 const SIGN_OFF = String.raw`(?:teşekkürler|tesekkurler|teşekkür\s+ederim|saygılarımla|saygilarimla|sevgiler|iyi\s+günler|thanks|thank\s+you|best|regards|best\s+regards|kind\s+regards|cheers|danke|merci|gracias|спасибо|شكرا)`;
 /** Bizim metnimizde hitap: satır başında selam / saygı sözcüğü + ad. */

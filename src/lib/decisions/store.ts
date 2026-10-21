@@ -120,8 +120,12 @@ export async function openTurnDecisions(
           notifiedAt: { not: null },
         },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-        select: { notifiedAt: true },
+        select: { notifiedAt: true, messageId: true },
       });
+      // Ev sahibi eski kartı (karta dokunmadan) konuşmadan ELLE cevapladıysa o bildirim kapanmış bir işin bildirimidir — yeni talep yeni
+      // iştir, damga miras kalmaz (Claude kod incelemesi 10-21: yeni kart "bildirildi" doğuyor, e-posta hiç gitmiyordu). Kartla giden karar
+      // mesajı ve otomatik mesaj cevap sayılmaz (okuma türetmesiyle aynı kural, `HOST_OUTBOUND_WHERE`).
+      const inherited = prior?.notifiedAt && !(await hostRepliedAfter(db, input.conversationId, prior.messageId)) ? prior.notifiedAt : null;
       try {
         row = await db.decisionRequest.create({
           data: {
@@ -134,7 +138,7 @@ export async function openTurnDecisions(
             requestedTime: d.requestedTime,
             dayKey: d.dayKey,
             lang: input.lang,
-            notifiedAt: prior?.notifiedAt ?? null,
+            notifiedAt: inherited,
           },
         });
       } catch (err) {
@@ -374,6 +378,27 @@ const HOST_OUTBOUND_WHERE: Prisma.MessageWhereInput = {
     { authorType: null, senderName: { notIn: [...LEGACY_AI_SENDER_NAMES, LEGACY_AI_RESUME_SENDER] } },
   ],
 };
+
+/** Talep mesajından SONRA ev sahibinin elle yazdığı bir mesaj var mı (kartla giden karar mesajları hariç). Mesaj bulunamazsa yok sayılır. */
+async function hostRepliedAfter(db: Db, conversationId: string, messageId: string): Promise<boolean> {
+  const asked = await db.message.findUnique({ where: { id: messageId }, select: { createdAt: true, conversationId: true } });
+  if (!asked || asked.conversationId !== conversationId) return false;
+  const results = await db.decisionRequest.findMany({
+    where: { conversationId, resultMessageId: { not: null } },
+    select: { resultMessageId: true },
+  });
+  const resultIds = results.map((r) => r.resultMessageId).filter((v): v is string => v !== null);
+  const reply = await db.message.findFirst({
+    where: {
+      conversationId,
+      ...HOST_OUTBOUND_WHERE,
+      createdAt: { gt: asked.createdAt },
+      ...(resultIds.length > 0 ? { id: { notIn: resultIds } } : {}),
+    },
+    select: { id: true },
+  });
+  return reply !== null;
+}
 
 export type DecisionView = PersistedDecision & {
   effective: EffectiveDecisionStatus;

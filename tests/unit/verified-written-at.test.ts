@@ -96,3 +96,25 @@ describe("doğrulanmış uzatma — 'yarın' yazıldığı ana göre", () => {
     expect(mockTool).not.toHaveBeenCalled();
   });
 });
+
+describe("🚨 kanal: konaklamaya değen / bitişik aralık müsaitlik cevabı değildir (Claude kod incelemesi 10-21, QR ile aynı kural)", () => {
+  const ask = "Yarın daire müsait mi?"; // NOW'a göre 11 Ekim gecesi
+  it("çıkış günü 11 Ekim olan misafirin '11 Ekim gecesi' sorusu uzatmadır → takvim sorgusu yok", async () => {
+    const reservation = { arrivalDate: new Date("2026-10-08T12:00:00Z"), departureDate: new Date("2026-10-11T08:00:00Z") };
+    const r = await loadVerifiedAvailability({ ...base, guestTexts: [ask], lastGuestText: ask, reservation });
+    expect(r).toBeNull();
+    expect(mockTool).not.toHaveBeenCalled();
+  });
+  it("giriş gününde biten aralık (erken geliş) de değer → sorgu yok", async () => {
+    const reservation = { arrivalDate: new Date("2026-10-12T12:00:00Z"), departureDate: new Date("2026-10-15T08:00:00Z") };
+    const r = await loadVerifiedAvailability({ ...base, guestTexts: [ask], lastGuestText: ask, reservation });
+    expect(r).toBeNull();
+    expect(mockTool).not.toHaveBeenCalled();
+  });
+  it("KONTROL: konaklamaya değmeyen aralık sorulur", async () => {
+    const reservation = { arrivalDate: new Date("2026-10-01T12:00:00Z"), departureDate: new Date("2026-10-04T08:00:00Z") };
+    const r = await loadVerifiedAvailability({ ...base, guestTexts: [ask], lastGuestText: ask, reservation });
+    expect(mockTool).toHaveBeenCalledTimes(1);
+    expect(r).not.toBeNull();
+  });
+});

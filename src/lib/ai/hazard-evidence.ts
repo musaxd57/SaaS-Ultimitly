@@ -281,9 +281,15 @@ const NEG_BEFORE = rx([
   `${NL}(?:нет|не|без|ни)\\s+(?:(?!${NEG_CONJ}\\s)\\S+\\s+){0,2}$`,
   `(?:لا\\s+يوجد|ليس\\s+هناك|لا|بدون|ولا)\\s+(?:(?!${NEG_CONJ}\\s)\\S+\\s+){0,2}$`,
 ]);
+/**
+ * Araya giren Türkçe YÜKLEM (çekimli fiil ya da "var"): ardından gelen "yok / gelmiyor" artık tehlikenin değil başka bir önermenin
+ * yüklemidir — "Yangın çıktı çıkış yok", "Yangın var yardım gelmiyor", "Duman geliyor su gelmiyor" (Claude kod incelemesi 10-21, ölçüldü:
+ * virgülsüz yazılınca acil etiketi düşüyordu). Şüphede tehlike canlı kalır (tutucu yön). Pencere ≤30 karakter, karesel iş yok.
+ */
+const TR_PREDICATE = "(?:var|\\S*(?:yor|ti|di|tu|du|ti|mis|mus)(?:\\p{L}{0,3}))(?=\\s)";
 /** Olumsuzlama — tehlike adının ARDINDA (≤30 karakter). */
 const NEG_AFTER = rx([
-  `^\\s*(?:(?!${NEG_CONJ}\\s)\\S+\\s+){0,3}?(?:yok${LB}|degil${LB}|olmadi${LB}|cikmiyor|cikmadi|gelmiyor|gelmedi|kokmuyor|kokmadi|yanmiyor|yanmadi|basmadi|basmiyor|carpmadi|gormedik|duymadik)${NR}`,
+  `^\\s*(?:(?!${NEG_CONJ}\\s|${TR_PREDICATE}\\s)\\S+\\s+){0,3}?(?:yok${LB}|degil${LB}|olmadi${LB}|cikmiyor|cikmadi|gelmiyor|gelmedi|kokmuyor|kokmadi|yanmiyor|yanmadi|basmadi|basmiyor|carpmadi|gormedik|duymadik)${NR}`,
   `^\\s*(?:(?!${NEG_CONJ}\\s)\\S+\\s+){0,2}?(?:nicht|keine?n?)${NR}`,
   `^\\s*(?:(?!${NEG_CONJ}\\s)\\S+\\s+){0,2}?pas${NR}`,
   `^\\s*(?:(?!${NEG_CONJ}\\s)\\S+\\s+){0,2}?(?:нет|не\\s+было)${NR}`,
@@ -302,7 +308,7 @@ const NOT_ONLY = rx([
 ]);
 /** Geçmiş / bitmiş olay (cümlecik düzeyi). "Az önce / just now" BİLEREK yok — hâlâ süren olaydır. */
 const PAST = rx([
-  `${NL}(?:dun${LB}|gecen\\s+(?:gece|hafta|ay|sene|yil)|onceki\\s+(?:gun|gece)|sondurduk|sondu|sonduruldu|sondurdum|artik\\s+yok|gecti${NR}|gecmis\\s+olsun\\s+ama|evvelki)`,
+  `${NL}(?:dun${LB}|gecen\\s+(?:gece|hafta|ay|sene|yil)|onceki\\s+(?:gun|gece)|sondu(?:rdu(?:k|m|ler)|ruldu)?${NR}|artik\\s+yok|gecti${NR}|gecmis\\s+olsun\\s+ama|evvelki)`,
   `${NL}(?:yesterday|last\\s+(?:night|week|month|year)|the\\s+other\\s+day|put\\s+(?:it\\s+)?out|extinguished|no\\s+longer|it'?s\\s+out\\s+now|last\\s+time)${NR}`,
   `${NL}(?:gestern|letzte\\s+(?:nacht|woche)|gelöscht|geloscht|nicht\\s+mehr|vorgestern)${NR}`,
   `${NL}(?:hier|la\\s+semaine\\s+dernière|la\\s+semaine\\s+derniere|éteint${LB}|eteint${LB}|plus\\s+de\\s+(?:fumée|feu))${NR}`,
@@ -476,12 +482,16 @@ function negated(clause: string, at: number, len: number): boolean {
   const before = clause.slice(Math.max(0, at - 30), at);
   const after = clause.slice(at + len, at + len + 30);
   if (NOT_ONLY.test(before) || NOT_ONLY.test(after.slice(0, 12)) || UNSURE_AFTER.test(after)) return false;
-  return NEG_BEFORE.test(before) || NEG_AFTER.test(after) || neitherNor(clause);
+  return NEG_BEFORE.test(before) || NEG_AFTER.test(after) || neitherNor(clause, at);
 }
 
-/** Türkçe "ne … ne …" (ne yangın var ne duman): cümlecikte iki ayrı "ne". */
-function neitherNor(clause: string): boolean {
-  return (clause.match(/(?<![\p{L}\p{N}])ne(?=\s)/gu) ?? []).length >= 2;
+/**
+ * Türkçe "ne … ne …" (ne yangın var ne duman): cümlecikte iki ayrı "ne" VE anılışın hemen önünde biri ("ne yangın", "ne de duman"). İki soru
+ * "ne"si ("Yangın çıktı ne yapacağız ne edeceğiz") olumsuzlama değildir (Claude kod incelemesi 10-21, ölçüldü).
+ */
+function neitherNor(clause: string, at: number): boolean {
+  if ((clause.match(/(?<![\p{L}\p{N}])ne(?=\s)/gu) ?? []).length < 2) return false;
+  return /(?<![\p{L}\p{N}])ne\s+(?:d[ae]\s+)?$/u.test(clause.slice(Math.max(0, at - 12), at));
 }
 
 /**
@@ -495,6 +505,9 @@ const HAZARD_EVENT_VERB =
 function equipmentMention(clause: string, at: number, len: number): boolean {
   const mention = clause.slice(at, at + len);
   if (HAZARD_EVENT_VERB.test(mention)) return false;
+  // Olay fiili anılışın HEMEN ardında ("yangın çıktı", "yangın var", "duman çıkıyor"): anılış olayın öznesidir, yakındaki "çıkış / merdiven /
+  // ocak" ekipman adı değil yerdir (Claude kod incelemesi 10-21, ölçüldü). "Yangın tüpü var" → ilk sözcük "tüpü", ekipman kalır.
+  if (/^\s*(?:cikti|cikiyor|cikmis|var|basladi|basliyor|yayiliyor|buyuyor)(?![\p{L}\p{N}])/iu.test(clause.slice(at + len, at + len + 16))) return false;
   if (EQUIPMENT_IN_WORD.test(mention)) return true;
   const before = clause.slice(Math.max(0, at - 28), at);
   const after = clause.slice(at + len, at + len + 28);

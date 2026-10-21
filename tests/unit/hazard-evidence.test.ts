@@ -723,3 +723,47 @@ describe("kurucu kararı 10-14: 'kısa devre' = model karar verir (olası), elek
     expect(level("Kısa devre olursa ne yapmalıyım?")).not.toBe("clear");
   });
 });
+
+describe("🚨 Claude kod incelemesi 10-21 (doğrulandı): virgülsüz panik cümlesi açık tehlike kalır", () => {
+  // Önce: dördü de "anılış"a iniyordu (model katmanı koşmazsa acil etiketi düşüyordu); virgül konunca açıktı — anlam virgüle bağlı olamaz.
+  it.each([
+    // 'sondu' (söndü) öneki 'söndüremiyoruz' / 'söndürüyoruz'u geçmiş sayıyordu.
+    "Mutfakta yangın var söndüremiyoruz",
+    "Yangın var söndürmeye çalışıyoruz",
+    // İki ayrı soru 'ne'si "ne … ne …" olumsuzlaması sanılıyordu.
+    "Yangın çıktı ne yapacağız ne edeceğiz",
+    // Araya başka yüklem giren 'yok / gelmiyor' tehlikenin olumsuzu sanılıyordu.
+    "Yangın çıktı çıkış yok",
+    "Yangın var yardım gelmiyor",
+    // Olay fiili anılışın dışında kaldığından yakındaki 'çıkış / merdiven / ocak' ekipman sanılıyordu.
+    "Yangın çıktı çıkışı bulamıyoruz",
+    "Ocağın yanında yangın çıktı",
+  ])("%j → açık", (m) => {
+    expect(level(m)).toBe("clear");
+  });
+
+  it("anlam virgüle bağlı değil: virgülsüz hâl virgüllü hâlle aynı düzeyde (yalın duman olası — kurucu 10-14)", () => {
+    for (const [plain, comma] of [
+      ["Duman çıkıyor ne kadar tehlikeli ne yapmalıyız", "Duman çıkıyor, ne kadar tehlikeli ne yapmalıyız"],
+      ["Mutfakta yangın var söndüremiyoruz", "Mutfakta yangın var, söndüremiyoruz"],
+      ["Yangın çıktı çıkış yok", "Yangın çıktı, çıkış yok"],
+    ]) {
+      expect(level(plain), plain).toBe(level(comma));
+    }
+    expect(level("Duman çıkıyor ne kadar tehlikeli ne yapmalıyız")).toBe("possible");
+  });
+
+  it.each([
+    // Aşırı uygulama kontrolleri: gerçek olumsuzlama / geçmiş / ekipman aynen.
+    ["Ne yangın var ne duman, sadece kombi ses yapıyor.", "mentioned"],
+    ["Ne gaz kokusu var ne de duman.", "mentioned"],
+    ["Yangın söndü, her şey yolunda.", "mentioned"],
+    ["Dün yangın çıktı ama söndürdük.", "mentioned"],
+    ["Yangın falan yok, merak etmeyin.", "mentioned"],
+    ["Gaz kokusu kesinlikle yok.", "mentioned"],
+    ["Yangın tüpü var mı?", "none"],
+    ["Yangın tüpü var", "none"],
+  ])("KONTROL %j → %s", (m, want) => {
+    expect(level(m)).toBe(want);
+  });
+});

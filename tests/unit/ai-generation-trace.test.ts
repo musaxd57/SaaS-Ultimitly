@@ -107,3 +107,18 @@ describe("recordAiGeneration — yazıcının KENDİ anahtar kontrolü (gelecek 
     await expect(recordAiGeneration(base())).resolves.toBeUndefined();
   });
 });
+
+describe("🚨 tutulan taslaktaki sır değeri izde maskelenir (Claude kod incelemesi 10-21)", () => {
+  // Kapı kodu / acil yönergesi taşıdığı için misafire GİTMEYEN taslak izde ham kalıyor, operatörün kalite konsoluna düşüyordu.
+  const draft = "Merhaba, kapı kodu 4821. Wi-Fi şifresi lale2026. Giriş 15:00.";
+  it.each(["human_review", "no_reply"] as const)("%s kararında taslağın sır değerleri maskeli; saat korunur", (decision) => {
+    const r = aiGenerationRow(base({ decision, draftText: draft, sentText: null }));
+    expect(r?.draftText).not.toContain("4821");
+    expect(r?.draftText).not.toContain("lale2026");
+    expect(r?.draftText).toContain("15:00");
+  });
+  it("KONTROL: gönderilen cevabın taslağı aynen (misafire giden metinle aynı)", () => {
+    const r = aiGenerationRow(base({ decision: "auto_sent", draftText: draft, sentText: draft }));
+    expect(r?.draftText).toBe(draft);
+  });
+});

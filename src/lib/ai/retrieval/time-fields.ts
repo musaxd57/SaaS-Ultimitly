@@ -86,9 +86,13 @@ const BARE_HOUR_G = new RegExp(
   String.raw`(?<![\d:.,/])\b(1\d|2[0-3])\s*['’]\s*(?:[dt][ae]n(?=\s+(?:itibaren|itibar[ıi]yla|itibariyle|sonra|önce|once)(?![a-zçğıöşü]))|y?[ae](?=\s+(?:kadar|dek|değin|degin)(?![a-zçğıöşü])(?!\s+(?:\d+\s+)?${COUNTER}))|[dt][ae](?![a-zçğıöşü]))`,
   "gi",
 );
-/** "11 buçukta" / "11'i çeyrek geçe" / "12'ye on kala" — "saat"siz (↓`clockTail` dakikayı çözer; çözülemeyen hiç okunmaz). */
+/**
+ * "11 buçukta" / "11'i çeyrek geçe" / "12'ye on kala" — "saat"siz (↓`clockTail` dakikayı çözer; çözülemeyen hiç okunmaz). Aradaki söz boşlukla
+ * BAŞLAMAZ (`(?=\S)`): boşluk dizisi iki `\s+` ile ara söz arasında her bölünüşte yeniden denenip karesel geri izliyordu (Claude kod
+ * incelemesi 10-21, ölçüldü: 16.000 boşlukta 6,4–15 sn). Anlam aynı — öndeki boşluğu zaten `\s+` yutar.
+ */
 const BARE_CLOCK_G =
-  /(?<![\d:.,/])\b(1\d|2[0-3])(?=\s+bu[çc]u[kğg]|\s*['’]\s*(?:[ıiuü]\s+[^.,;]{1,24}?\s+ge[çc]e|y?[ae]\s+(?!kadar|dek)[^.,;]{1,24}?\s+kala|y?[ae]\s+(?:(?:yirmi|on)\s+be[şs]|be[şs]|on|[çc]eyrek|yirmi|\d{1,2})\s+var)(?![a-zçğıöşü]))/gi;
+  /(?<![\d:.,/])\b(1\d|2[0-3])(?=\s+bu[çc]u[kğg]|\s*['’]\s*(?:[ıiuü]\s+(?=\S)[^.,;]{1,24}?\s+ge[çc]e|y?[ae]\s+(?!kadar|dek)(?=\S)[^.,;]{1,24}?\s+kala|y?[ae]\s+(?:(?:yirmi|on)\s+be[şs]|be[şs]|on|[çc]eyrek|yirmi|\d{1,2})\s+var)(?![a-zçğıöşü]))/gi;
 /** "saat 10-11 arası", "10-11 arası" — iki uçlu dakikasız Türkçe aralık (ikinci uç ayrıca okunur). */
 const BARE_RANGE_G = /(?<![\d:.,/])\b(1\d|2[0-3])\s*[-–—]\s*(1\d|2[0-3])(?![\d:.])(?=\s+(?:arası|arasında|arasi|arasinda|saatleri|saatlerinde)(?![a-zçğıöşü]))/gi;
 /**

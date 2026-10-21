@@ -493,6 +493,32 @@ describe("karar kaydı", () => {
     expect(rows.find((r) => r.messageId === m2.id)).toMatchObject({ status: "resolved_by_policy", decidedTime: "12:00" });
   });
 
+  it("🚨 bildirim damgası mirası: ev sahibinin ELLE cevapladığı eski kart yeni karta 'bildirildi' damgası bırakmaz (Claude kod incelemesi 10-21)", async () => {
+    const w = await world();
+    const base = { organizationId: w.org.id, conversationId: w.conversation.id, reservationId: w.reservation.id, lang: "tr", now: new Date() };
+    const m1 = await w.msg("13:00'te girebilir miyiz?", 60);
+    const [old] = await openTurnDecisions(prisma, { ...base, decisions: [{ kind: "early_checkin", messageId: m1.id, itemId: null, requestedTime: "13:00", dayKey: w.arrivalKey }] });
+    expect(await claimDecisionNotification(prisma, { organizationId: w.org.id, id: old.id, now: new Date() })).toBe(true);
+    // Ev sahibi karta dokunmadan konuşmadan elle cevapladı (saklı durum "pending" kalır, "yanıtladınız" okumada türetilir).
+    await w.msg("Bakıp size döneceğim.", 50, "outbound", "host");
+    const m2 = await w.msg("Peki 12:00 olur mu?", 30);
+    const [fresh] = await openTurnDecisions(prisma, { ...base, decisions: [{ kind: "early_checkin", messageId: m2.id, itemId: null, requestedTime: "12:00", dayKey: w.arrivalKey }] });
+    expect((await prisma.decisionRequest.findUniqueOrThrow({ where: { id: fresh.id } })).notifiedAt).toBeNull();
+    expect(await claimDecisionNotification(prisma, { organizationId: w.org.id, id: fresh.id, now: new Date() })).toBe(true);
+  });
+
+  it("KONTROL: ev sahibi cevaplamadıysa yeni kart eski kartın bildirim damgasını alır (tekrar e-posta yok); otomatik mesaj cevap sayılmaz", async () => {
+    const w = await world();
+    const base = { organizationId: w.org.id, conversationId: w.conversation.id, reservationId: w.reservation.id, lang: "tr", now: new Date() };
+    const m1 = await w.msg("13:00'te girebilir miyiz?", 60);
+    const [old] = await openTurnDecisions(prisma, { ...base, decisions: [{ kind: "early_checkin", messageId: m1.id, itemId: null, requestedTime: "13:00", dayKey: w.arrivalKey }] });
+    expect(await claimDecisionNotification(prisma, { organizationId: w.org.id, id: old.id, now: new Date() })).toBe(true);
+    await w.msg("Hoş geldiniz!", 50, "outbound", "automation");
+    const m2 = await w.msg("Peki 12:00 olur mu?", 30);
+    const [fresh] = await openTurnDecisions(prisma, { ...base, decisions: [{ kind: "early_checkin", messageId: m2.id, itemId: null, requestedTime: "12:00", dayKey: w.arrivalKey }] });
+    expect((await prisma.decisionRequest.findUniqueOrThrow({ where: { id: fresh.id } })).notifiedAt).not.toBeNull();
+  });
+
   it("bildirim talebi tek seferlik; geri alma yalnız kendi damgasını açar", async () => {
     const w = await world();
     const m = await w.msg("Erken giriş?", 30);

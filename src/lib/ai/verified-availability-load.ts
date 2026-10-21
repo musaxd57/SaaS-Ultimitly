@@ -4,6 +4,7 @@ import { calendarDateOf } from "@/modules/availability/core";
 import { detectAvailabilityRequestKinds } from "@/lib/ai/availability-claims";
 import { runAvailabilityTool } from "@/lib/ai/tools/availability-tool-load";
 import { availabilityQueryOf, verifiedAvailabilityEnabled, type VerifiedAvailability } from "@/lib/ai/verified-availability";
+import { rangeTouchesStay } from "@/lib/ai/verified-qr";
 import type { DateResolutionContext } from "@/lib/ai/date-resolution";
 
 // ---------------------------------------------------------------------------
@@ -52,6 +53,9 @@ export async function loadVerifiedAvailability(input: {
   };
   const query = availabilityQueryOf(input.lastGuestText, dateCtx);
   if (!query) return null;
+  // Konaklamaya değen / bitişik aralık (çıkış gecesinden başlayan = uzatma, giriş gününde biten = erken geliş) müsaitlik değil konaklama
+  // değişikliğidir → ev sahibine. QR yolu aynı kuralı uyguluyordu, kanal yolu uygulamıyordu (Claude kod incelemesi 10-21).
+  if (dateCtx.reservation && rangeTouchesStay(query, dateCtx.reservation)) return null;
   const result = await runAvailabilityTool(input.organizationId, { propertyId: input.propertyId, ...query }, now);
   if (result.status !== "ok") return null;
   return { va: { query, result }, scope: { organizationId: input.organizationId, propertyId: input.propertyId }, dateCtx };

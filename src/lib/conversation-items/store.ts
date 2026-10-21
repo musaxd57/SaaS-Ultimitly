@@ -168,7 +168,9 @@ export async function applyItemEvent(
     const next = nextStatus(cur.status, cur.sensitivity, input.event);
     if (next === cur.status) continue;
     const res = await db.conversationItem.updateMany({
-      where: { id: row.id, organizationId: input.organizationId, status: row.status },
+      // CAS hassaslığı da kapsar: okuma ile yazma arasında eşzamanlı uyarı geçişi öğeyi hassasa yükselttiyse hesaplanan geçiş artık
+      // geçersizdir (hassas öğe yapay zekâ cevabıyla kapanmaz) → yazılmaz, öğe açık kalır (Claude kod incelemesi 10-21).
+      where: { id: row.id, organizationId: input.organizationId, status: row.status, sensitivity: row.sensitivity },
       data: {
         status: next,
         ...(TERMINAL.has(next) ? { resolvedAt: input.now } : {}),

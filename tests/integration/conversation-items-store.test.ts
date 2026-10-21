@@ -89,6 +89,33 @@ describe("yazma — iki geçiş aynı öğeyi BİRLEŞTİRİR", () => {
 });
 
 describe("geçişler — hassas öğe yapay zekânın cevabıyla kapanmaz", () => {
+  it("🚨 yarış: okuma ile yazma arasında hassaslığı yükselen öğe 'cevaplandı' olmaz (Claude kod incelemesi 10-21)", async () => {
+    const { conversationId, ids } = await seedConversation(orgId, propertyId, [["wifi", "inbound", "Wi-Fi?", 0]]);
+    const [wifi] = await upsertTurnItems(prisma, {
+      organizationId: orgId,
+      conversationId,
+      messages: [{ messageId: ids[0], items: buildItemsForMessage({ requests: [{ intent: "wifi" }], lexicalLabels: [] }) }],
+      now: at(1),
+    });
+    // Cevap geçişi öğeyi "hassas değil" okur; tam o anda eşzamanlı uyarı geçişi aynı öğeyi hassasa yükseltir.
+    const racing = {
+      ...prisma,
+      conversationItem: {
+        ...prisma.conversationItem,
+        findMany: async (args: Parameters<typeof prisma.conversationItem.findMany>[0]) => {
+          const rows = await prisma.conversationItem.findMany(args);
+          await prisma.conversationItem.update({ where: { id: wifi.id }, data: { sensitivity: "sensitive" } });
+          return rows;
+        },
+        updateMany: prisma.conversationItem.updateMany.bind(prisma.conversationItem),
+      },
+    } as unknown as typeof prisma;
+    expect(await applyItemEvent(racing, { organizationId: orgId, ids: [wifi.id], event: "answered", now: at(2), answeredByMessageId: "out-1" })).toBe(0);
+    const row = await prisma.conversationItem.findUniqueOrThrow({ where: { id: wifi.id } });
+    expect(row.status).toBe("open");
+    expect(row.answeredByMessageId).toBeNull();
+  });
+
   it("tut → ev sahibinde; cevap YALNIZ hassas olmayanı kapatır; kapanan geri açılmaz", async () => {
     const { conversationId, ids } = await seedConversation(orgId, propertyId, [
       ["iban", "inbound", "IBAN?", 0],

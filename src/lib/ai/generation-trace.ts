@@ -4,6 +4,7 @@ import "server-only";
 import { prisma } from "@/lib/db";
 import { reportError } from "@/lib/report-error";
 import type { LlmUsage } from "@/lib/ai/types";
+import { maskSecretValuesForAudit } from "@/lib/quality-audit";
 import type { ContextDiagnostics } from "./context-diagnostics";
 import type { VerifiedToolResult } from "./tools/contract";
 
@@ -117,7 +118,9 @@ export function aiGenerationRow(input: AiGenerationInput) {
     promptTokens: intOrNull(input.llm?.pt),
     completionTokens: intOrNull(input.llm?.ct),
     reasoningTokens: intOrNull(input.llm?.rt),
-    draftText: textOrNull(input.draftText),
+    // Misafire GİTMEYEN taslak (kapı kodu / acil yönergesi / sır nedeniyle tutulmuş olabilir) izde sır değerleri maskeli durur — operatörün
+    // kalite konsoluna ham kod düşmesin (Claude kod incelemesi 10-21). Gönderilen cevabın taslağı misafire giden metinle aynıdır, aynen.
+    draftText: textOrNull(input.decision === "auto_sent" || typeof input.draftText !== "string" ? input.draftText : maskSecretValuesForAudit(input.draftText)),
     // Gönderilen metin YALNIZ gönderim kararında anlamlıdır; tutulan / cevapsız kararda yazılmaz.
     sentText: input.decision === "auto_sent" ? textOrNull(input.sentText) : null,
     contextDiagnosticsJson: jsonOrNull(input.contextDiagnostics ?? null),

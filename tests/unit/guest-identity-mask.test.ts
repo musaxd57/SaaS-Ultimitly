@@ -59,3 +59,17 @@ describe("maskGuestIdentity — bizim metnimiz", () => {
     expect(maskGuestIdentity("Ben Eski misafir", ["Eski misafir"], "guest")).toBe("Ben Eski misafir");
   });
 });
+
+describe("karesel iş yok (Claude kod incelemesi 10-21, ölçüldü: 50.000 satır sonunda 3,5 sn)", () => {
+  it("uzun satır sonu dizisi doğrusal", () => {
+    const text = `Merhaba,${"\n".repeat(50_000)}x`;
+    maskGuestIdentity(text, ["Deniz Kaya"], "guest"); // ısınma
+    const t0 = performance.now();
+    maskGuestIdentity(text, ["Deniz Kaya"], "guest");
+    expect(performance.now() - t0).toBeLessThan(300);
+  });
+  it("satır başı ve cümle başı kimlik konumu aynen maskelenir", () => {
+    expect(maskGuestIdentity("Selam\n\n\nben Deniz", ["Deniz"], "guest")).not.toContain("Deniz");
+    expect(maskGuestIdentity("Merhaba,\n  Deniz here", ["Deniz"], "guest")).not.toContain("Deniz");
+  });
+});

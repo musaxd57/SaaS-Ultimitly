@@ -180,18 +180,25 @@ export const MEANING_ERRORS: ReadonlySet<ClaimSupport> = new Set(["misbound", "c
 export const JUDGE_MODEL = process.env.EVAL_JUDGE_MODEL?.trim() || "gpt-5.1";
 const JUDGE_EFFORT = process.env.EVAL_JUDGE_REASONING_EFFORT?.trim() || "high";
 
+/** Denetçi bir kez yeniden denenir (geçici arıza / düşünme payı kesilmesi); ikinci düşüşte satır "denetçi düştü" sayılır. */
 export async function auditReply(input: Parameters<typeof buildAuditUser>[0], apiKey: string): Promise<AuditResult | null> {
-  const res = await callStructuredJson({
-    apiKey,
-    model: JUDGE_MODEL,
-    system: AUDIT_SYSTEM,
-    user: buildAuditUser(input),
-    schema: SCHEMA,
-    timeoutMs: 120_000,
-    maxTokens: 4_000,
-    maxCompletionTokens: 16_000,
-    ...(isReasoningModel(JUDGE_MODEL) ? { reasoningEffort: JUDGE_EFFORT } : {}),
-  });
-  if (!res.ok) return null;
-  return parseAudit(res.data, input.kb, input.requests.map((r) => r.id));
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const res = await callStructuredJson({
+      apiKey,
+      model: JUDGE_MODEL,
+      system: AUDIT_SYSTEM,
+      user: buildAuditUser(input),
+      schema: SCHEMA,
+      timeoutMs: 180_000,
+      maxTokens: 6_000,
+      // Düşünme payı (10-21 ölçüldü: 16.000 tavanda 54 cevabın 3'ünde denetçi kesildi).
+      maxCompletionTokens: 40_000,
+      ...(isReasoningModel(JUDGE_MODEL) ? { reasoningEffort: JUDGE_EFFORT } : {}),
+    });
+    if (res.ok) {
+      const parsed = parseAudit(res.data, input.kb, input.requests.map((r) => r.id));
+      if (parsed) return parsed;
+    } else if (process.env.EVAL_LIVE_DEBUG === "1") console.error(`[claim-audit] ${res.error}`);
+  }
+  return null;
 }

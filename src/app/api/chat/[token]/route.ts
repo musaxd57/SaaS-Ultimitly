@@ -771,7 +771,32 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // Re-checked once more just before an AI reply would be stored (send-time veto
   // below), which also catches a host reply that lands WHILE the model is running.
   if (await guestChatAiPausedForStay(ctx.property.id, res.id)) {
-    await record(null, true);
+    const paused = await record(null, true);
+    // Ev sahibi devraldı ama AÇIK tehlike bildirimi yine acil kaydı + KRİTİK uyarı üretir (hızlı acil yoluyla aynı ölçüt ve aynı kayıtlar;
+    // misafire hiçbir şey gitmez). Eskiden duraklatmada erken dönülüyor, ev sahibine yalnız "acil" öncelikli konuşma kalıyordu
+    // (Claude kod incelemesi 10-21).
+    if (hazardEvidenceOf(message).level === "clear") {
+      await recordRiskEvent({
+        organizationId: ctx.property.organizationId,
+        propertyId: ctx.property.id,
+        conversationId: paused.conversationId,
+        surface: "guest_chat",
+        triggerId: paused.inboundMessageId,
+        finalDecision: "human_review",
+        riskLevel: "high",
+        riskType: "safety_emergency",
+        reason: "physical_hazard",
+        confidence: null,
+      });
+      await sendQrEscalationAlertBounded({
+        organizationId: ctx.property.organizationId,
+        propertyName: ctx.property.name,
+        reservationId: res.id,
+        eventId: qrEscalationEventId(paused.inboundMessageId, message, true),
+        reason: "ai_escalated",
+        critical: true,
+      });
+    }
     return finalize({ handoff: true });
   }
 
