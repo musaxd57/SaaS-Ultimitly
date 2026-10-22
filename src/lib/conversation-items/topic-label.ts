@@ -21,7 +21,15 @@ export const TOPIC_MAX_WORDS = 3;
 export const TOPIC_MAX_CHARS = 40;
 
 /** Sır / kimlik sözcükleri (katlanmış kök başlangıcı) — etikete GİRMEZ; ardındaki sözcük de girmez. */
-const SECRET_ROOTS = ["sifre", "parola", "password", "passwort", "kod", "code", "pin", "kart", "card", "iban", "hesap", "hesab", "account", "telefon", "phone", "numara", "number", "mail", "pasaport", "passport", "kimlik"];
+const SECRET_ROOTS = ["sifre", "parola", "password", "passwort", "kod", "code", "pin", "kart", "card", "iban", "hesap", "hesab", "account", "telefon", "phone", "numara", "number", "mail", "pasaport", "passport", "kimlik", "kombinasyon", "combination"];
+/** Tam sözcük sır adları ("wifi key / pass kelebek", WPA anahtarı) — kök değil: "keyif" sır değildir (Opus güvenlik 10-23 F11). */
+const SECRET_EXACT = new Set(["key", "keys", "pass", "passcode", "wpa", "wpa2", "psk", "ssid", "visa", "mastercard", "amex"]);
+/** Ağdan sonra "anahtar" Wi-Fi şifresidir ("wifi anahtarı kelebek"); tek başına (kapı anahtarı) sır değildir. */
+const NETWORK_WORDS = new Set(["wifi", "wi", "fi", "wlan", "ag", "agin", "network", "modem", "internet"]);
+/** Kodu / şifresi olan şeyler ("kapı kodu", "kasa şifresi") — sır sözcüğünün önündeki bu sözcük değer değil, konudur. */
+const CODED_THINGS = new Set(["kapi", "kapinin", "kasa", "kasanin", "modem", "router", "alarm", "garaj", "otopark", "bina", "binanin", "asansor", "kutu", "kutusu", "anahtar", "internet", "tv", "televizyon", "netflix", "ag", "agin", "wifi", "wi", "fi", "door", "safe", "gate", "lockbox"]);
+/** E-posta / alan adı parçaları — kendisi ve önündeki sözcük (adresin yerel kısmı) etikete girmez. */
+const EMAIL_PARTS = new Set(["gmail", "hotmail", "outlook", "yahoo", "icloud", "yandex", "protonmail", "live", "msn", "com", "net", "org", "edu", "tr"]);
 /** Unvanlar (katlanmış): ardından ("Mr Smith", "Bay Yılmaz") ya da önünden ("Ahmet bey", "Ayşe hanım") gelen sözcük kişi adıdır. */
 // "bay / bayan" bilerek YOK: Türkçede "bayan tuvalet" (kadın tuvaleti) da demektir (Haiku 10-23).
 const HONORIFIC_BEFORE = new Set(["mr", "mrs", "ms", "miss", "dr", "sayin", "herr", "frau", "monsieur", "madame"]);
@@ -44,6 +52,17 @@ const LINK = /@|https?:|www\.|[\p{L}\p{N}]\.\p{L}{2,}/iu;
 
 const fold = (s: string): string => normalizeForRetrieval(s).toLowerCase();
 
+/** Kiril / Yunan harfli adın Latin okunuşu (misafir profili "Иван", sorgu "ivan" — Opus güvenlik 10-23 F11). */
+const TRANSLIT: Readonly<Record<string, string>> = {
+  а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "e", ж: "zh", з: "z", и: "i", й: "y", к: "k", л: "l", м: "m", н: "n", о: "o", п: "p",
+  р: "r", с: "s", т: "t", у: "u", ф: "f", х: "h", ц: "ts", ч: "ch", ш: "sh", щ: "shch", ъ: "", ы: "y", ь: "", э: "e", ю: "yu", я: "ya",
+  α: "a", β: "v", γ: "g", δ: "d", ε: "e", ζ: "z", η: "i", θ: "th", ι: "i", κ: "k", λ: "l", μ: "m", ν: "n", ξ: "x", ο: "o", π: "p", ρ: "r",
+  σ: "s", ς: "s", τ: "t", υ: "y", φ: "f", χ: "ch", ψ: "ps", ω: "o",
+};
+const translit = (s: string): string => [...s].map((c) => TRANSLIT[c] ?? c).join("");
+/** Unvan — çekimli biçim de ("hanımın", "beyin"): tam eşleşme ya da unvan + hâl / iyelik eki ("beyaz" değil). */
+const honorific = (set: ReadonlySet<string>, f: string): boolean => set.has(f) || [...set].some((h) => f.startsWith(h) && CASE_SUFFIX.test(f.slice(h.length)));
+
 const hasInjection = (q: string): boolean => INJECTION_STRONG.test(q) || INSTRUCTION_ATTACK.test(q);
 
 /** Baş harfi büyük, gerisi küçük ("Ahmet", "Netflix") — "TV" / "WiFi" gibi kısaltmalar değil. */
@@ -58,10 +77,21 @@ const titleCase = (raw: string): boolean => {
  * onlarla başlayan çekimli biçimler etikete giremez).
  */
 export function itemTopicLabel(query: string | null | undefined, names: readonly (string | null | undefined)[] = []): string | null {
-  if (!query || hasInjection(query) || LINK.test(query)) return null;
-  const distinct = new Set(needTerms([query]));
+  if (!query) return null;
+  // Birleşik işaretler sözcüğü bölmesin ("ş̇ifre" → "ş" + işaret + "ifre" iki sözcük olup sır sözcüğünü kaçırıyordu).
+  const q = query.normalize("NFC").replace(/\p{M}+/gu, "");
+  if (hasInjection(q) || LINK.test(q)) return null;
+  const distinct = new Set(needTerms([q]));
   if (distinct.size === 0) return null;
-  const nameParts = [...new Set(names.flatMap((n) => (n ? fold(n).split(/[^\p{L}]+/u).filter((p: string) => p.length >= 2) : [])))];
+  const nameParts = [
+    ...new Set(
+      names.flatMap((n) => {
+        if (!n) return [];
+        const parts = fold(n).split(/[^\p{L}]+/u).filter((p: string) => p.length >= 2);
+        return [...parts, ...parts.map(translit)];
+      }),
+    ),
+  ];
   // Ad + çekim eki ("mehmetin", "alinin"); 4+ harfli adda her uzantı (kesmesiz yazım), kısa adda yalnız hâl eki — "Ali" "alışveriş"i,
   // "Can" "canlı"yı düşürmez (Haiku 10-23). Kısaltılmış ad ("alex" ← Alexander) da atılır.
   const isName = (f: string) =>
@@ -72,21 +102,31 @@ export function itemTopicLabel(query: string | null | undefined, names: readonly
         (f.startsWith(p) && CASE_SUFFIX.test(f.slice(p.length))) ||
         (f.length >= 4 && p.startsWith(f)),
     );
-  const isSecret = (f: string) => SECRET_ROOTS.some((r) => f.startsWith(r));
-  const raws = query.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  const raws = q.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
   const folded = raws.map(fold);
+  const isSecretAt = (i: number) => {
+    const f = folded[i] ?? "";
+    if (!f) return false;
+    if (SECRET_ROOTS.some((r) => f.startsWith(r)) || SECRET_EXACT.has(f)) return true;
+    return f.startsWith("anahtar") && NETWORK_WORDS.has(folded[i - 1] ?? "");
+  };
+  const topicless = (raw: string) => topicsWithSymptomsOf(raw).length === 0;
   const out: string[] = [];
   for (let i = 0; i < raws.length; i++) {
     const raw = raws[i];
     const f = folded[i];
     // Rakam taşıyan belirteç `needTerms`te zaten yok ("5g", "lale2025" — ölçüldü) → `distinct` onu eler.
     if (!distinct.has(f) || raw.length > 20) continue;
-    if (isName(f) || isSecret(f)) continue;
+    if (isName(f) || isSecretAt(i) || EMAIL_PARTS.has(f)) continue;
     const prev = folded[i - 1] ?? "";
     const next = folded[i + 1] ?? "";
     // Sır sözcüğünün ardındaki sözcük değerin kendisi olabilir; unvanın komşusu kişi adıdır.
-    if ((prev && isSecret(prev)) || HONORIFIC_BEFORE.has(prev) || HONORIFIC_AFTER.has(next)) continue;
-    if (HONORIFIC_BEFORE.has(f) || HONORIFIC_AFTER.has(f)) continue;
+    if ((prev && isSecretAt(i - 1)) || honorific(HONORIFIC_BEFORE, prev) || honorific(HONORIFIC_AFTER, next)) continue;
+    if (honorific(HONORIFIC_BEFORE, f) || honorific(HONORIFIC_AFTER, f)) continue;
+    // Değer sır sözcüğünden ÖNCE de yazılır ("kelebek şifresi" — kodu olan şey değilse: "kapı kodu" kalır); e-posta adresinin yerel kısmı
+    // alan adından önce gelir; bilinen adın YALIN hâlinin bitişiğindeki konusuz sözcük soyadıdır ("john smith"; "mehmetin odası" değil).
+    // Sözlükte konusu olan sözcük kalır ("wifi şifresi").
+    if (topicless(raw) && ((next && isSecretAt(i + 1) && !CODED_THINGS.has(f)) || EMAIL_PARTS.has(next) || nameParts.includes(prev) || nameParts.includes(next))) continue;
     // Sorgu küçük harfle yazılır; sözlükte konusu olmayan Büyük Harfli sözcük özel addır ("Ahmet", "Netflix").
     if (titleCase(raw) && topicsWithSymptomsOf(raw).length === 0) continue;
     const word = raw.toLocaleLowerCase("tr");

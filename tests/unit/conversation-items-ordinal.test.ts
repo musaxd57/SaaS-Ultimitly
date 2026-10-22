@@ -4,7 +4,7 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 // Migration 84 (kurucu 10-23 D) — aynı mesajda aynı türden ikinci istek AYRI öğe + kısa konu etiketi (C). Anahtar
 // `AI_ITEM_ORDINAL_ENABLED`; KAPALIYKEN bugünkü kural (birleşir, sıra 0, etiket yok) bayt bayt.
 // ---------------------------------------------------------------------------
-import { alignOrdinals, buildItemsForMessage, requestOrdinals, MAX_ORDINAL } from "@/lib/conversation-items/core";
+import { alignOrdinals, buildItemsForMessage, requestOrdinals, topicsCompatible, MAX_ORDINAL } from "@/lib/conversation-items/core";
 import { extractTurnItems } from "@/lib/conversation-items/extract";
 import { hintKey } from "@/lib/conversation-items/plan";
 import { itemOrdinalEnabled } from "@/lib/conversation-items/flag";
@@ -123,6 +123,16 @@ describe("yeniden işleme — istek ↔ satır eşlemesi (çoğaltma yok, yanlı
   it("ikinci okuma yeni bir istek buldu: eskisi kendi satırında, yenisi boş ilk sırada", () => {
     expect(alignOrdinals([R("amenities", "havuz"), R("amenities", "sauna")], [E("amenities", 0, "havuz")])).toEqual([0, 1]);
     expect(alignOrdinals([R("amenities", "sauna"), R("amenities", "havuz")], [E("amenities", 0, "havuz")])).toEqual([1, 0]);
+  });
+
+  it("🚨 F10 (Opus güvenlik 10-23): aynı mesajın yeniden okunuşunda istek sayısı = satır sayısı → başka sözcüklü istek eski satıra (çoğaltma yok)", () => {
+    expect(alignOrdinals([R("amenities", "spa merkezi")], [E("amenities", 0, "sauna")])).toEqual([0]);
+    expect(alignOrdinals([R("amenities", "yüzme havuzu"), R("amenities", "buhar odası")], [E("amenities", 0, "havuz"), E("amenities", 1, "sauna")])).toEqual([0, 1]);
+  });
+
+  it("🚨 F10: etiketsiz istek birden çok etiketli satır varken HİÇBİRİNE eşlenmez (havuz cevabı sauna satırını kapatamaz)", () => {
+    expect(alignOrdinals([R("amenities", null)], [E("amenities", 0, "havuz"), E("amenities", 1, "sauna")])).toEqual([2]);
+    expect(alignOrdinals([R("amenities", null)], [E("amenities", 0, "havuz")])).toEqual([0]);
   });
 
   it("🚨 etiketleri HİÇ benzemeyen istek ile satır eşlenmez (ilişki belirsiz → ayrı satır, kapatma yok)", () => {
@@ -253,5 +263,22 @@ describe("mutasyon 10-23 (D) yaşayanları", () => {
     const t = extractTurnItems({ history: [{ id: "m1", direction: "inbound", body }], guestMessage: body, understanding: u });
     if (t.mode !== "items") throw new Error("mode");
     expect(t.messages[0].faultKinds).toEqual(["appliance_help#1"]);
+  });
+});
+
+describe("F9 (Opus güvenlik 10-23): konu uyumu yalnız KONU sözcükleriyle", () => {
+  it("🚨 ortak fiil / nitelik / genel baş ad aynı konu yapmaz; ortak konu sözcüğü yapar", () => {
+    for (const [a, b] of [
+      ["sauna kullanılır", "havuz kullanılır"],
+      ["çamaşır makinesi çalışmıyor", "bulaşık makinesi çalışmıyor"],
+      ["havuz ücretli", "sauna ücretli"],
+      ["sauna açılış", "havuz açılış"],
+      ["buhar odası", "yatak odası"],
+    ]) {
+      expect(topicsCompatible(a, b)).toBe(false);
+    }
+    expect(topicsCompatible("havuz", "havuz ücretli")).toBe(true);
+    expect(topicsCompatible("yüzme havuzu", "havuz")).toBe(true);
+    expect(topicsCompatible("çamaşır makinesi", "çamaşır makinesi çalışmıyor")).toBe(true);
   });
 });

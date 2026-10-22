@@ -91,3 +91,25 @@ describe("Opus 10-23: etiket süzgeci", () => {
     expect(itemTopicLabel("WiFi kumanda")).toBe("wifi kumanda"); // kısaltma (baş harf + iç büyük harf) özel ad sayılmaz
   });
 });
+
+describe("Opus güvenlik 10-23 gece F11: etikette ad / sır kalmaz", () => {
+  it("🚨 çekimli unvan, Kiril yazılı misafir adı, bilinen adın bitişiğindeki soyadı etikete girmez", () => {
+    expect(itemTopicLabel("ayşe hanımın telefonu")).toBeNull();
+    expect(itemTopicLabel("ivan anahtar", ["Иван Петров"])).toBe("anahtar");
+    expect(itemTopicLabel("john smith araba", ["John"])).toBe("araba");
+    // Aşırı uygulama yok: "beyaz" unvan değil, "keyifli" sır değil.
+    expect(itemTopicLabel("beyaz havlu")).toBe("beyaz havlu");
+    expect(itemTopicLabel("keyifli kahvaltı")).toBe("keyifli kahvaltı");
+  });
+
+  it("🚨 değer sır sözcüğünden ÖNCE de yazılır; Wi-Fi 'key / pass / anahtarı', kart markası, birleşik işaret, e-posta parçaları", () => {
+    expect(itemTopicLabel("kelebek şifresi çalışmıyor wifi")).toBe("wifi");
+    for (const q of ["wifi pass kelebek", "wifi key kelebek", "wifi anahtarı kelebek"]) expect(itemTopicLabel(q)).toBe("wifi");
+    expect(itemTopicLabel("visa kelebek")).toBeNull();
+    expect(itemTopicLabel("ş\u0307ifre kelebek")).toBeNull();
+    expect(itemTopicLabel("musacinar gmail com adresi")).toBe("adresi");
+    // Konu sözcüğü sır sözcüğünün önünde kalır; ağsız "anahtar" (kapı anahtarı) sır değildir.
+    expect(itemTopicLabel("wifi şifresi")).toBe("wifi");
+    expect(itemTopicLabel("kapı anahtarı nerede")).toBe("kapı anahtarı");
+  });
+});

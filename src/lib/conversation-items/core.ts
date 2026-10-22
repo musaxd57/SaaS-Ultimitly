@@ -14,6 +14,7 @@
 // ---------------------------------------------------------------------------
 
 import { HIGH_STAKES_RISK_TYPE_LIST, NEVER_AUTO_REPLY_INTENT_LIST } from "@/lib/ai/gate-evidence";
+import { normalizeForRetrieval } from "@/lib/ai/retrieval/text";
 import { ALL_UNDERSTANDING_INTENTS, type UnderstandingIntent } from "@/lib/ai/semantic/understanding-schema";
 import type { ItemsRelationGate } from "./relation";
 
@@ -150,7 +151,26 @@ export interface ExistingOrdinal {
   topic: string | null;
 }
 
-const topicWords = (t: string | null | undefined): string[] => (t ? t.split(/\s+/u).filter(Boolean) : []);
+/**
+ * Etiketin KONU sözcükleri (Opus güvenlik 10-23 F9): fiil çekimi ("kullanılır", "çalışmıyor"), nitelik ("ücretli", "açılış", "saat") ve genel
+ * baş ad ("makinesi", "odası") konu değildir — "sauna kullanılır" ile "havuz kullanılır", "çamaşır makinesi" ile "bulaşık makinesi" aynı
+ * konu sayılıyordu (sıra kipinde yerine geçme başka tesisin isteğini kapatıyordu). Katlanmış biçimle sınanır, özgün sözcük döner.
+ */
+const NON_SUBJECT_ROOTS = [
+  "ucret", "fiyat", "price", "cost", "fee", "bedava", "free", "paid", "acilis", "kapan", "opening", "closing", "saat", "zaman", "time", "hour",
+  "kural", "rule", "sifre", "password", "adres", "konum", "mesafe", "numara", "temizl", "clean", "kullan", "usage", "kapasite",
+  "makine", "makina", "cihaz", "alet", "machine", "device", "appliance", "tesis", "facility", "calis", "bozuk", "sorun", "problem", "ariza",
+];
+const NON_SUBJECT_EXACT = new Set(["oda", "odasi", "odada", "alan", "alani", "room", "area", "var", "yok", "mevcut", "mumkun", "kabul", "izin", "serbest", "yasak", "open", "closed"]);
+function subjectWord(word: string): boolean {
+  const f = normalizeForRetrieval(word).toLowerCase();
+  if (f.length < 2 || NON_SUBJECT_EXACT.has(f) || NON_SUBJECT_ROOTS.some((r) => f.startsWith(r))) return false;
+  // Türkçe fiil çekimi (çoğul ad "-lar / -ler" hariç).
+  if (/l[ae]r$/.test(f)) return true;
+  // Çıplak "-ır" sonu konu adı da olur ("çamaşır") → yalnız belirgin çekim ekleri.
+  return !/(?:[iu]l[iu]r|[iu]n[iu]r|[ae]bil[iu]r|[iu]yor(?:uz|lar|sunuz)?|m[ae]kt[ae]d[iu]r|m[ae]k|m[ae]z)$/.test(f);
+}
+const topicWords = (t: string | null | undefined): string[] => (t ? t.split(/\s+/u).filter((w) => w && subjectWord(w)) : []);
 /** Etiket sözcükleri aynı mı — çekim toleranslı ("havuz" ~ "havuzu", "sauna" ~ "saunada"): eşit ya da en az 4 harflik biri ötekinin başı. */
 function topicWordMatch(a: string, b: string): boolean {
   if (a === b) return true;
@@ -212,11 +232,19 @@ export function alignOrdinals(
     }
     pairs.sort((a, b) => b.score - a.score || a.i - b.i || a.ordinal - b.ordinal);
     for (const p of pairs) if (!done.has(p.i) && !usedRows.has(p.ordinal)) take(p.i, p.ordinal);
+    // Etiketsiz taraf yalnız TEK aday varken eşlenir (Opus güvenlik 10-23 F10: etiketsiz istek ilk boş satıra gidiyordu — havuz cevabı
+    // sauna satırını cevaplandı sayabilirdi).
     for (const i of idx) {
       if (done.has(i)) continue;
-      const row = rows.find((r) => !usedRows.has(r.ordinal) && (!r.topic || !requests[i].topic));
-      if (row) take(i, row.ordinal);
+      const free = rows.filter((r) => !usedRows.has(r.ordinal));
+      const cands = requests[i].topic ? free.filter((r) => !r.topic) : free;
+      if (cands.length === 1) take(i, cands[0].ordinal);
     }
+    // Aynı mesajın yeniden okunuşunda bu türün istek sayısı satır sayısına eşitse kalanlar SIRAYLA eşlenir (F10: "sauna" ikinci okumada
+    // "spa merkezi" diye gelince yeni satır açılıyor, eski satır sonsuza dek açık kalıyordu — kurucu D "tekrar işleme kayıt çoğaltmasın").
+    const restReq = idx.filter((i) => !done.has(i));
+    const restRows = rows.filter((r) => !usedRows.has(r.ordinal));
+    if (restReq.length > 0 && idx.length === rows.length && restReq.length === restRows.length) restReq.forEach((i, k) => take(i, restRows[k].ordinal));
     for (const i of idx) {
       if (done.has(i)) continue;
       let free = -1;
