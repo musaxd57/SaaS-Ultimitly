@@ -70,7 +70,9 @@ const nextConfig = {
       "manifest-src 'none'",
       "media-src 'self'",
       "img-src 'self' data: https:",
-      `script-src 'self' 'unsafe-inline' ${paddleScript}`,
+      // Kayıt formu insan doğrulaması (U15, anahtar `SIGNUP_TURNSTILE_ENABLED`): betik + doğrulama isteği Cloudflare'den; widget bir
+      // <iframe>'dir (aşağıdaki `frame-src https:` kapsar). Rapor politikası uygulamayı DÜRÜST anlatsın diye yazılı.
+      `script-src 'self' 'unsafe-inline' ${paddleScript} https://challenges.cloudflare.com`,
       // Paddle overlay EBEVEYN dokümana HARİCİ bir stylesheet enjekte ediyor;
       // 'unsafe-inline' harici <link> URL'ini KAPSAMAZ → Paddle origin'i YAZILI
       // kalmalı, yoksa enforce günü overlay stilsiz açılır.
@@ -83,7 +85,7 @@ const nextConfig = {
       // Google'a gider ve alt-işleyen listemizde Google YOK).
       `style-src 'self' 'unsafe-inline' ${paddleScript}`,
       "font-src 'self' data:",
-      "connect-src 'self' https://*.paddle.com",
+      "connect-src 'self' https://*.paddle.com https://challenges.cloudflare.com",
       "frame-src 'self' https:",
       // 🚨 YALNIZ REPORT-ONLY POLITIKAYA (P1 #6, 08-09 (2)). Enforce basligina
       // EKLENMEZ: enforce politikasi bugun zaten sikca ihlal edilmiyor ve rapor

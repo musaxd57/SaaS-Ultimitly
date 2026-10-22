@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { RegisterForm } from "@/components/auth/register-form";
+import { turnstileSiteKey } from "@/lib/auth/turnstile";
 
 // Marka kök şablondan gelir ("%s · Lixus AI") — burada tekrarlanmaz.
 export const metadata: Metadata = { title: "Kayıt" };
@@ -22,7 +23,7 @@ export default function RegisterPage() {
           İşletmenizi ekleyin ve operasyonu yönetmeye başlayın.
         </p>
       </div>
-      <RegisterForm />
+      <RegisterForm turnstileSiteKey={turnstileSiteKey()} />
     </div>
   );
 }

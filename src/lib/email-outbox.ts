@@ -85,6 +85,34 @@ export function emailOutboxEnabled(): boolean {
   return process.env.EMAIL_OUTBOX_ENABLED === "1";
 }
 
+// ---------------------------------------------------------------------------
+// KAYIT E-POSTASI YAYMA (kurucu 10-22 U15: "Ya gerçekten 300 kişi kayıt olursa onu doğru şekilde çözelim"). Sert kayıt tavanı YOK: kayıtla
+// tetiklenen e-postalar (doğrulama + "bu adresle hesabınız var") son bir saatte `REGISTRATION_EMAIL_HOURLY_PACE` (varsayılan 300) adedi
+// geçince REDDEDİLMEZ — o tur alınmaz, kuyrukta bekler, saatlik pencere açıldıkça gider (doğrulama bağlantısı 24 saat geçerli). Amaç sahte
+// kayıt dalgasında e-posta sağlayıcısının itibarını korumak; şifre sıfırlama / değiştirme bu sıraya HİÇ girmez. Yayma başlayınca TEK uyarı
+// (geçiş tabanlı alarm, 24 sa hatırlatma), bitince kapanır. Taşma payı: eşzamanlı her boşaltma en fazla bir parti (10) kadar aşabilir.
+// ---------------------------------------------------------------------------
+export const REGISTRATION_PACED_KINDS: readonly EmailOutboxKind[] = ["verify_email", "account_exists"];
+export const REGISTRATION_EMAIL_HOURLY_PACE_DEFAULT = 300;
+const HOUR_MS = 60 * 60 * 1000;
+
+export function registrationEmailHourlyPace(): number {
+  const raw = (process.env.REGISTRATION_EMAIL_HOURLY_PACE ?? "").trim();
+  return /^[1-9]\d{0,5}$/.test(raw) ? Number(raw) : REGISTRATION_EMAIL_HOURLY_PACE_DEFAULT;
+}
+
+/** Son bir saatte gönderilen + şu an gönderimde olan kayıt e-postası sayısı tavana ulaştı mı. */
+async function registrationEmailsPaced(now: Date): Promise<{ paced: boolean; sentLastHour: number; pace: number }> {
+  const pace = registrationEmailHourlyPace();
+  const sentLastHour = await prisma.emailOutbox.count({
+    where: {
+      kind: { in: [...REGISTRATION_PACED_KINDS] },
+      OR: [{ sentAt: { gte: new Date(now.getTime() - HOUR_MS) } }, { status: { in: ["claimed", "sending"] } }],
+    },
+  });
+  return { paced: sentLastHour >= pace, sentLastHour, pace };
+}
+
 // Advisory-lock namespace — disjoint from erasure (40) and guest-chat (41).
 const EMAIL_OUTBOX_LOCK_NS = 42;
 
@@ -485,12 +513,17 @@ export async function drainEmailOutboxOnce(deps: EmailDrainDeps = {}): Promise<E
   result.canceled += expired.count;
 
   const claimUntil = new Date(now.getTime() + EMAIL_OUTBOX_CLAIM_TTL_MS);
+  // U15 yayma: tavan doluysa kayıt türleri bu tur ALINMAZ (iptal edilmez, beklemede kalır); diğer türler aynen akar.
+  const pacing = await registrationEmailsPaced(now);
+  const paceFilter = pacing.paced
+    ? Prisma.sql`AND "kind" NOT IN (${Prisma.join([...REGISTRATION_PACED_KINDS])})`
+    : Prisma.empty;
   const rows = await prisma.$queryRaw<ClaimedRow[]>(Prisma.sql`
     UPDATE "EmailOutbox"
     SET "status" = 'claimed', "claimedBy" = ${claimToken}, "claimExpiresAt" = ${claimUntil}, "updatedAt" = now()
     WHERE "id" IN (
       SELECT "id" FROM "EmailOutbox"
-      WHERE "status" = 'pending' AND "nextAttemptAt" <= ${now} AND "expiresAt" > ${now}
+      WHERE "status" = 'pending' AND "nextAttemptAt" <= ${now} AND "expiresAt" > ${now} ${paceFilter}
       ORDER BY "createdAt" ASC
       LIMIT ${batch}
       FOR UPDATE SKIP LOCKED
@@ -520,17 +553,33 @@ export async function drainEmailOutboxOnce(deps: EmailDrainDeps = {}): Promise<E
   // (ya da anahtar yokken `AUTH_SECRET`) kuyruğa alma ile gönderim arasında değişirse uçuştaki her sıfırlama / doğrulama e-postası
   // alarmsız kayboluyordu. Geçiş tabanlı alarm (CLAUDE.md periyodik alarm kuralı): ilk arızada bir kez + 24 sa hatırlatma; temiz
   // partide temizlenir. Yalnız satır alındıysa (boş geçiş durum okumaz).
-  if (rows.length > 0) {
+  if (rows.length > 0 || pacing.paced) {
     try {
       const alarm = await alertTracker("email-outbox:");
-      if (undecryptable > 0) {
+      if (rows.length > 0) {
+        if (undecryptable > 0) {
+          await alarm.fail(
+            "undecryptable",
+            "email-outbox undecryptable",
+            new Error(`email outbox: ${undecryptable} row(s) could not be decrypted and were canceled`),
+          );
+        } else {
+          await alarm.ok("undecryptable");
+        }
+      }
+      // Yayma alarmı: başlayınca bir kez (+ 24 sa hatırlatma), yayma bittiği ilk dolu turda kapanır. Konu sabit (kurucu aynı başlığı tanır).
+      if (pacing.paced) {
         await alarm.fail(
-          "undecryptable",
-          "email-outbox undecryptable",
-          new Error(`email outbox: ${undecryptable} row(s) could not be decrypted and were canceled`),
+          "registration-pace",
+          "Kayıt e-postaları yavaşlatıldı",
+          new Error(
+            `Son 1 saatte ${pacing.sentLastHour} kayıt e-postası (doğrulama / hesabınız var) gönderildi; tavan ${pacing.pace}. ` +
+              "Yeni e-postalar reddedilmiyor, kuyrukta bekleyip saatlik pencere açıldıkça gidiyor. Olağan dışı kayıt dalgası olabilir — " +
+              "Operatör panelinde son kayıtlara bakın.",
+          ),
         );
       } else {
-        await alarm.ok("undecryptable");
+        await alarm.ok("registration-pace");
       }
     } catch {
       // Alarm durumu okunamadı — gönderimi etkilemez.

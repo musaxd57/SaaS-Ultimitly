@@ -582,6 +582,20 @@ export function checkProductionEnv(env) {
     );
   }
 
+  // KAYIT INSAN DOGRULAMASI (U15, 10-22) — UYARI, HATA DEGIL: bayrak acik ama anahtarlardan biri eksikse dogrulama YAPILMAZ (yanlis
+  // yapilandirma butun kayitlari kilitlemesin); operator bunu acilista gorsun.
+  if (env.SIGNUP_TURNSTILE_ENABLED === "1" && (!(env.TURNSTILE_SITE_KEY ?? "").trim() || !(env.TURNSTILE_SECRET_KEY ?? "").trim())) {
+    warnings.push(
+      "SIGNUP_TURNSTILE_ENABLED is 1 but TURNSTILE_SITE_KEY or TURNSTILE_SECRET_KEY is missing — the sign-up form runs WITHOUT the human check. Set both keys.",
+    );
+  }
+  const pace = (env.REGISTRATION_EMAIL_HOURLY_PACE ?? "").trim();
+  if (pace && !/^[1-9]\d{0,5}$/.test(pace)) {
+    warnings.push(
+      "REGISTRATION_EMAIL_HOURLY_PACE must be a whole number from 1 to 999999 — the default (300) is used instead.",
+    );
+  }
+
   // GOZLEMLENEBILIRLIK + BAGLANTI HAVUZU (altyapi envanteri 10-21, madde 58 / 28) — UYARI, HATA DEGIL:
   //  1. SENTRY_DSN yoksa uretim hatalari yalniz gunluge (ve ayarliysa uyari e-postasina) gider; hata takibi yok.
   //  2. DATABASE_URL'de `connection_limit` yoksa Prisma havuzu CPU sayisina gore kendi tavanini secer; ikinci kopya / yogun cron
@@ -644,6 +658,7 @@ export const STRICT_ONE_FLAGS = Object.freeze([
   "AI_SENIOR_READER_ENABLED",
   "TRIAL_IDENTITY_ENABLED",
   "SIGNUP_NETWORK_TRACE_ENABLED",
+  "SIGNUP_TURNSTILE_ENABLED",
   "TRIAL_CARD_GATE_ENABLED",
   "CHANNEL_AUTOMATION_NOT_REPLY_ENABLED",
   "HOST_COMMITMENT_AUTO_ENABLED",

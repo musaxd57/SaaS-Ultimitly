@@ -94,6 +94,17 @@ Kurucu 10-15: "Railway'i açınca ekleyeceğimiz bayrakları unutma." Bu dosya T
    önce aydınlatma metni cümlesi Q3) · `TRIAL_CARD_GATE_ENABLED` (yüksek riskli denemede kart; migration 74) — 🚨 açmadan önce Paddle'da
    deneme süreli üç fiyat oluşturulup `PADDLE_PRICE_BASLANGIC_DENEME` / `PADDLE_PRICE_PRO_DENEME` / `PADDLE_PRICE_ISLETME_DENEME`
    eklenir (boşsa kapı kendiliğinden kapalı kalır).
+12. Kayıt saldırısına karşı (kurucu U15 10-22: "Ya gerçekten 300 kişi kayıt olursa onu doğru şekilde çözelim claudeflare kesin olsun") —
+   sert kayıt tavanı YOK. ① **Cloudflare** alan adının önüne (açılışta, kesin): DNS Cloudflare'e, proxy açık, "Bot Fight Mode" + kayıt
+   (`/api/auth/register`) ve giriş için hız kuralı. Proxy arkasında gerçek istemci IP'si değişir → `TRUSTED_PROXY_HOPS` yeniden ölçülür
+   (Railway 2 + Cloudflare 1 = 3 olabilir; ölçmeden değiştirme, `TRUST_CF_HEADER` EKLEME kuralı aynen). ② `SIGNUP_TURNSTILE_ENABLED`
+   (kayıt formunda Cloudflare Turnstile insan doğrulaması; KAPALI): açmak = Cloudflare panelinde Turnstile site anahtarı (alan adları:
+   lixusai.com + www) → `TURNSTILE_SITE_KEY` + `TURNSTILE_SECRET_KEY` + bayrak "1". Biri eksikse doğrulama yapılmaz, açılışta uyarı çıkar.
+   Cloudflare'e ulaşılamazsa kayıt GEÇER (hata kaydı düşer); Cloudflare "geçmedi" derse kayıt reddedilir. Gizlilik metnine Cloudflare
+   (ziyaretçinin tarayıcısı Cloudflare'e bağlanır) eklenmeden AÇILMAZ; ilk denemeler birlikte. ③ Doğrulama e-postası YAYMA (anahtarsız,
+   her zaman açık): kayıtla tetiklenen e-postalar (doğrulama + "bu adresle hesabınız var") son bir saatte `REGISTRATION_EMAIL_HOURLY_PACE`
+   (varsayılan 300) adedi geçince REDDEDİLMEZ, kuyrukta bekler ve saatlik pencere açıldıkça gider; o sırada size TEK uyarı e-postası gelir
+   (24 saatte bir hatırlatma, yayma bitince kapanır). Şifre sıfırlama / değiştirme e-postaları bu sıraya hiç girmez.
 
 ⚠️ Açılış kontrolü (10-16): `EMAIL_OUTBOX_ENABLED` "1" değilse açılış günlüğünde uyarı çıkar — şifre sıfırlama e-postası kuyruğa her zaman
 yazılır ama yalnız bu bayrak açıkken gönderilir. Operatör panelinde (Operasyon Teşhisi) "Kuyruk sağlığı" satırına bakın: vadesi gelmiş
@@ -184,6 +195,10 @@ kalıcı "işlem yok" sayılıyor (niyet kapanır, yeni işlem açılır) — ye
   `AI_NO_APOLOGY_RULE_ENABLED` açıkken). QR'da ① ve ③. Okuyucu (ya da iki okumadan biri) düşerse bugünkü kurallar — ek üç soru için kelime
   yedeği YOK, yani o turda bugünkü gibi gider. ⚠️ Bu anahtar bilgim-yok hakemini de KAPSAR (`AI_ABSENCE_JUDGE_ENABLED` + katı kip ayrıca
   gerekmez): kelime kuralının yanlış tuttuğu "bilgim yok" adayları da serbest kalır.
+  🔁 BİR KEZ YENİDEN YAZMA (kurucu 10-22: "gitmeme nedeni ve cümleleri aynı anlamda sınıra takılmadan … değiştirip tekrar deneyebilir
+  tekrar kontrolden geçerek … sürekli hosta mail gitmemezlik olmasın"): okuyucu ①/②/③'ten birini görürse model SEBEBİ not olarak alıp aynı
+  cevabı bir kez daha yazar (bir birim daha günlük kota); yeni taslak bütün kapılardan ve okuyucudan yeniden geçer. İkinci taslak da
+  takılırsa cevap ev sahibine taslak kalır — bu tutuş için e-posta GİTMEZ, döngü YOK. Kanıt kaydında `rw` (sebep kodları). QR'da da aynı.
   Maliyet: her otomatik cevap adayına iki küçük paralel çağrı (~1,6 sn, 1.000 mesajda ~$2). Misafire gideni değiştirir → açmadan önce
   gerçek model ölçümü (bilgim-yok seti + `evals/airbnb-message-policy.json` + kırmızı takım) + kurucu + ilk denemeler birlikte.
 - `AI_NO_APOLOGY_RULE_ENABLED` (kurucu 10-21: "sofra kirli derse özür dilemesin, haklısınız üzgünüm demesin") — cevap istemi şikâyette özür /

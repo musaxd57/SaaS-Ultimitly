@@ -9,6 +9,7 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
+import { TurnstileWidget, type TurnstileHandle } from "@/components/auth/turnstile-widget";
 
 type Fields = Record<string, string>;
 
@@ -30,8 +31,13 @@ function browserTimezone(): string {
   }
 }
 
-export function RegisterForm() {
+/** `turnstileSiteKey`: sunucu yalnız `SIGNUP_TURNSTILE_ENABLED` açık ve anahtarlar tamken verir (U15); yoksa widget yok, davranış eskisi. */
+export function RegisterForm({ turnstileSiteKey = null }: { turnstileSiteKey?: string | null } = {}) {
   const router = useRouter();
+  const [humanToken, setHumanToken] = useState("");
+  const [humanLoadError, setHumanLoadError] = useState(false);
+  const turnstile = useRef<TurnstileHandle>(null);
+  const needsHuman = Boolean(turnstileSiteKey) && !humanToken;
   const [form, setForm] = useState({
     organizationName: "",
     name: "",
@@ -128,10 +134,17 @@ export function RegisterForm() {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...submitted, consent, timezone: browserTimezone() }),
+        body: JSON.stringify({
+          ...submitted,
+          consent,
+          timezone: browserTimezone(),
+          ...(turnstileSiteKey ? { turnstileToken: humanToken } : {}),
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        // Belirteç tek kullanımlık — her başarısız gönderimden sonra yeni doğrulama gerekir.
+        if (turnstileSiteKey) turnstile.current?.reset();
         // İstek sürerken düzenlenen alanın eski hatası yeni değerin altına YAZILMAZ (Haiku 10-14: "zaten kayıtlı" b@… altında).
         if (data.fields) {
           const live = formRef.current;
@@ -286,7 +299,27 @@ export function RegisterForm() {
         </label>
         {fields.consent ? <p className="text-xs text-destructive">{fields.consent}</p> : null}
       </div>
-      <Button type="submit" className="w-full" disabled={loading || !consent}>
+      {turnstileSiteKey ? (
+        <div className="space-y-1">
+          <TurnstileWidget
+            ref={turnstile}
+            siteKey={turnstileSiteKey}
+            action="register"
+            onToken={(t) => {
+              setHumanToken(t);
+              if (t) clearFieldError("captcha");
+            }}
+            onLoadError={() => setHumanLoadError(true)}
+          />
+          {humanLoadError ? (
+            <p className="text-center text-xs text-destructive">
+              Güvenlik doğrulaması yüklenemedi. Sayfayı yenileyip tekrar deneyin.
+            </p>
+          ) : null}
+          {fields.captcha ? <p className="text-center text-xs text-destructive">{fields.captcha}</p> : null}
+        </div>
+      ) : null}
+      <Button type="submit" className="w-full" disabled={loading || !consent || needsHuman}>
         {loading ? <Loader2 className="size-4 animate-spin" /> : null}
         Hesap Oluştur
       </Button>

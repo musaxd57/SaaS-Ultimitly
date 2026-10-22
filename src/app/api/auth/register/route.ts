@@ -21,6 +21,7 @@ import { resolveNewOrgTimezone } from "@/lib/app-config";
 import { normalizeEmail } from "@/lib/email-identity";
 import { NEW_ORG_AUTO_REPLY_WINDOW } from "@/lib/constants";
 import { recordSignupNetwork } from "@/lib/billing/signup-network";
+import { verifyTurnstileToken } from "@/lib/auth/turnstile";
 
 // ⚠️ İKİ DAL DA BU GÖVDEYİ DÖNER — sabit tek yerde tutuluyor ki zamanla
 // AYRIŞMASINLAR. Sağlayıcı arızasında "yeni hesap" dalı 503, "hesabı var" dalı
@@ -86,6 +87,17 @@ export async function POST(req: NextRequest) {
         consent: "Devam etmek için lütfen Kullanım Koşulları ve Gizlilik Politikası'nı kabul edin.",
       });
     }
+
+    // U15 (kurucu 10-22): insan doğrulaması — anahtar kapalıyken "disabled", hiçbir şey değişmez. Hesap aramasından ÖNCE: cevap adresin
+    // kayıtlı olup olmadığından bağımsızdır (varlık sızmaz). Cloudflare'e ulaşılamazsa kayıt geçer (gerekçe `lib/auth/turnstile.ts`).
+    const human = await verifyTurnstileToken((data as { turnstileToken?: unknown } | null)?.turnstileToken, ip);
+    if (human === "rejected") {
+      return NextResponse.json(
+        { error: "Güvenlik doğrulaması tamamlanamadı. Lütfen tekrar deneyin.", fields: { captcha: "Doğrulamayı tamamlayın." } },
+        { status: 400 },
+      );
+    }
+    if (human === "unavailable") void reportError("register.turnstile-unavailable", new Error("turnstile siteverify unreachable; sign-up allowed"));
 
     const email = normalizeEmail(parsed.data.email);
     // 🚨 HESAP VARLIĞI SIZDIRILMAZ (Codex denetimi, 08-01 — madde 4).
