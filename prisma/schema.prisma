@@ -192,6 +192,7 @@ model Organization {
   ingestEvents          IngestEvent[]
   signals               Signal[]
   propertyMemories      PropertyMemory[]
+  verifiedAnswers       VerifiedAnswer[]
   conversationItems     ConversationItem[]
   decisionRequests      DecisionRequest[]
   guestCommitments      GuestCommitment[]
@@ -385,6 +386,7 @@ model Property {
   calendarSources     CalendarSource[]
   signals             Signal[]
   memories            PropertyMemory[]
+  verifiedAnswers     VerifiedAnswer[]
   channelListings     ChannelListing[]
   historyLearnRuns    HistoryLearnRun[]
   historyLearnDrafts  HistoryLearnDraft[]
@@ -943,8 +945,8 @@ model CheckoutConsent {
   createdAt      DateTime @default(now()) // = checkoutLegalAcceptedAt
 
   intents      CheckoutIntent[]
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([organizationId])
   @@index([correlationId])
@@ -2021,4 +2023,38 @@ model HistoryLearnComparison {
 
   @@unique([propertyId, questionMessageId])
   @@index([runId])
+}
+
+/// Doğrulanmış cevap tekrarı (migration 85; tasarım docs/TASARIM-2026-10-23-dogrulanmis-cevap-tekrari.md). Daire başına, ihtiyaç başına
+/// doğrulanmış cevap parçası. Misafir metni / kimliği / konuşma bağı YOK: `query` anlama katmanının Türkçe arama sorgusu (ad / sır / bağlantı
+/// / saldırı süzgecinden geçmiş). Yalnız gölge kipte yazılır (`AI_ANSWER_REUSE_SHADOW_ENABLED`); misafire bu tablodan hiçbir şey GİTMEZ.
+model VerifiedAnswer {
+  id               String    @id @default(cuid())
+  organizationId   String
+  propertyId       String
+  kind             String
+  language         String
+  query            String
+  partText         String
+  evidence         String
+  sourceRef        String // kb:<id> | property
+  fingerprint      String
+  confirmations    Int       @default(1)
+  /// Teyit veren konuşmaların iz özetleri (kimlik değil; aynı konuşma iki kez teyit sayılmaz — Opus güvenlik 10-23 F7). En çok 10.
+  conversationKeys String[]  @default([])
+  /// Gölge ölçüm: kayıt bu ihtiyaca kullanılabilir bulundu (misafire yine taze cevap gitti).
+  shadowHits       Int       @default(0)
+  /// Gölge ölçüm: kullanılabilir bulunan kayıt, o turun taze doğrulanmış cevabıyla AYNI bilgiyi vermedi (hedef 0).
+  shadowMismatches Int       @default(0)
+  lastConfirmedAt  DateTime
+  lastHitAt        DateTime?
+  disabledAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  property     Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId, kind, language])
+  @@index([organizationId])
 }

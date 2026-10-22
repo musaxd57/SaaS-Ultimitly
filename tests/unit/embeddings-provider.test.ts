@@ -159,8 +159,10 @@ describe("embedText — tek metin sarmalayıcı", () => {
  * 09-23: E5 üretim yolu BİLİNÇLİ olarak bağlandı — tek izinli çağıran anlamsal hazırlık modülüdür ve
  * o da `KB_SEMANTIC_RETRIEVAL` anahtarı KAPALIYKEN ağa çıkmaz (davranışsal pin
  * `kb-semantic-retrieval.test.ts`). Yeni bir çağıran bu listeye BİLİNÇLİ olarak eklenir.
+ * 10-23 (migration 85, kurucu onayı): doğrulanmış cevap tekrarının GÖLGE ölçümü iki cevabın anlam benzerliğini gömmeyle ölçer —
+ * `AI_ANSWER_REUSE_SHADOW_ENABLED` KAPALIYKEN ilk satırda döner, ağa çıkmaz (davranışsal pin `answer-reuse-shadow-hook.test.ts`).
  */
-const ALLOWED_PRODUCTION_IMPORTERS = ["src/lib/ai/embeddings/semantic-retrieval.ts"];
+const ALLOWED_PRODUCTION_IMPORTERS = ["src/lib/ai/embeddings/semantic-retrieval.ts", "src/lib/answer-reuse/shadow-hook.ts"];
 
 describe("🚨 MİMARİ PİN — üretimde TEK çağıran (anahtar arkasında)", () => {
   it("provider üretimde yalnız izinli modülden import edilir", () => {

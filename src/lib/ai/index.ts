@@ -611,14 +611,21 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
           ? (() => {
               const refs = items.answerable.map((a) => a.ref);
               const decl = parseAnswerParts(parsed.answers, refs);
-              if (!decl.ok) return { reply: "", answered: { ok: false as const, reason: "missing" as const }, verdicts: [], sources: [] as string[] };
+              if (!decl.ok)
+                return {
+                  reply: "",
+                  answered: { ok: false as const, reason: "missing" as const },
+                  verdicts: [],
+                  verified: [] as ReturnType<typeof composeVerifiedReply>["verified"],
+                  sources: [] as string[],
+                };
               const composed = composeVerifiedReply({
                 parts: decl.parts,
                 needs: items.answerable.map((a) => ({ ref: a.ref, terms: a.need?.terms ?? [], topics: a.need?.topics ?? [], queries: a.need?.queries ?? [] })),
                 sources: prompt.partSources ?? [],
               });
               const sources = composed.verdicts.flatMap((v) => (v.status === "verified" ? [v.source] : []));
-              return { reply: composed.reply, answered: { ok: true as const, refs: composed.refs }, verdicts: composed.verdicts, sources };
+              return { reply: composed.reply, answered: { ok: true as const, refs: composed.refs }, verdicts: composed.verdicts, verified: composed.verified, sources };
             })()
           : null;
         // Birleşik metin de aynı tavana tabi (Haiku 10-23: beş uzun parça tavanı aşıyordu); kesilirse güven ≤ 0.5 → gitmez.
@@ -719,7 +726,7 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
                   : parseAnsweredRequests(parsed.answeredRequests, input.conversationItems.answerable.map((a) => a.ref)),
               }
             : {}),
-          ...(partsOutcome ? { answerParts: partsOutcome.verdicts } : {}),
+          ...(partsOutcome ? { answerParts: partsOutcome.verdicts, verifiedParts: partsOutcome.verified } : {}),
         };
       }
     } catch {

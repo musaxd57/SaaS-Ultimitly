@@ -95,6 +95,11 @@ export interface ComposedReply {
   refs: string[];
   /** İstek başına karar (iz / ölçüm; metin YOK). */
   verdicts: PartVerdict[];
+  /**
+   * Doğrulanan parçaların METNİ + alıntısı + kaynağı (doğrulanmış cevap tekrarının gölge ölçümü, migration 85). İzlere / karar kaydına
+   * YAZILMAZ; yalnız gölge kayıt tablosuna (misafir metni değil — kalemden doğrulanmış cevap).
+   */
+  verified: { ref: string; text: string; evidence: string; source: string }[];
 }
 
 /** Parçaları doğrular ve birleştirir. Saf; istek sırası `needs` sırasıdır (R1, R2 …). */
@@ -103,6 +108,7 @@ export function composeVerifiedReply(input: { parts: readonly AnswerPart[]; need
   const seen = new Set<string>();
   const refs: string[] = [];
   const verdicts: PartVerdict[] = [];
+  const verified: ComposedReply["verified"] = [];
   for (const need of input.needs) {
     const part = input.parts.find((p) => p.ref === need.ref);
     if (!part) {
@@ -163,6 +169,7 @@ export function composeVerifiedReply(input: { parts: readonly AnswerPart[]; need
     }
     refs.push(need.ref);
     verdicts.push({ ref: need.ref, status: "verified", source: source.id });
+    verified.push({ ref: need.ref, text: part.text, evidence: part.evidence, source: source.id });
   }
-  return { reply: texts.join("\n"), refs, verdicts };
+  return { reply: texts.join("\n"), refs, verdicts, verified };
 }

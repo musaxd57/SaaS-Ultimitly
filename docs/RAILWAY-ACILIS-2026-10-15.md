@@ -14,7 +14,7 @@ Kurucu 10-15: "Railway'i açınca ekleyeceğimiz bayrakları unutma." Bu dosya T
    aynı sonucu verir: 59…78'deki bütün yabancı anahtarlar YENİ tablolarda, yeni kolonların hepsi boş bırakılabilir ya da varsayılanlı, benzersiz
    dizinler yeni tablo / yeni (boş) kolonlarda, veri güncelleyen ifade yok. Canlı veriyle prova değildir (gerçek veri yerelde yok — KVKK); yine de
    1. adımdaki yedek ŞART.
-1. **Taze yedek:** son itilen dal migration 59–84 içeriyor (tek güncel liste: `docs/MIGRATION-MANIFEST.md`) (açılışta `prisma migrate deploy` hepsini uygular). Açmadan önce 09-19
+1. **Taze yedek:** son itilen dal migration 59–85 içeriyor (tek güncel liste: `docs/MIGRATION-MANIFEST.md`) (açılışta `prisma migrate deploy` hepsini uygular). Açmadan önce 09-19
    yedeği ESKİ — Railway açılınca ilk iş `pg_dump` (web servisi deploy olmadan, ↑0) ve geri yükleme provası
    (`docs/OPS-2026-09-19-DURAKLATMA-VE-LOCAL-GELISTIRME.md`).
    Migration 80 (kurucu T4, otomatik mesajlar ayrı bölüm): açılıştan sonra her dairenin "Otomatik mesajlar" kartına bakın — metinler bilgi
@@ -229,6 +229,10 @@ kalıcı "işlem yok" sayılıyor (niyet kapanır, yeni işlem açılır) — ye
   sözcük, ad / telefon / şifre / saldırı talimatı süzülür, misafir kaynaklı veri, silme / anonimleştirmede gider). Kapalıyken bugünkü kural
   (aynı tür birleşir, sıra 0, etiket yok). Migration'ın kendisi etkisizdir (kanıt `docs/olcum/migration-84-kanit-2026-10-23.md`); anahtar
   açılmadan önce migration'lı yayın + taze yedek. `AI_ANSWER_PARTS_ENABLED` ile birlikte anlamlıdır (her istek kendi parçasını alır).
+- `AI_ANSWER_REUSE_SHADOW_ENABLED` (kurucu fikri 10-23 gece + Codex notu, migration 85 — kurucu ONAYI 10-23 sabah; Railway açılmadan önce TAZE YEDEK, migration bununla gider) — doğrulanmış cevap
+  tekrarının GÖLGE ölçümü: gönderilen oto-yanıttaki doğrulanmış parçalar daire başına kaydedilir, aynı ihtiyaca kayıttan cevap verilebilir
+  miydi ve kayıt taze cevapla aynı bilgiyi veriyor muydu sayılır (`shadowHits` / `shadowMismatches`). Misafire giden metne DOKUNMAZ.
+  Tasarım + ölçüm `docs/TASARIM-2026-10-23-dogrulanmis-cevap-tekrari.md`. `AI_ANSWER_PARTS_ENABLED` olmadan etkisiz.
 - Cevap modeli bekleme tavanı 30 sn + devre kesici (art arda 3 zaman aşımı → 60 sn çağrı yok) + tek hızlı yeniden deneme — env YOK
   (`src/lib/ai/model-breaker.ts`). Ev sahibi yazma hız sınırı kişi başına dakikada 300 — env YOK (`src/lib/host-write-limit.ts`).
 - Dış izleyici + WAF + oturum anahtarı adımları: `docs/OPS-2026-10-21-dis-izleyici-waf-anahtar.md` (panel işleri, açılıştan sonra).

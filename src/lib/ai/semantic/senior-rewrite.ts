@@ -92,6 +92,7 @@ export function mergeSeniorRewrite<
     claimAudit?: unknown;
     answeredRequests?: unknown;
     answerParts?: unknown;
+    verifiedParts?: unknown;
     claimedActions?: unknown;
     timeConflicts?: unknown;
     llmUsage?: unknown;
@@ -116,6 +117,8 @@ export function mergeSeniorRewrite<
     answeredRequests: retried.answeredRequests,
     // Cevap parçaları kipinde (10-23 A) yeni metin yeniden doğrulanmış parçalardan kurulur → karar da yeni çağrıdan.
     ...(retried.answerParts !== undefined || first.answerParts !== undefined ? { answerParts: retried.answerParts } : {}),
+    // Doğrulanan parça metinleri de yeni çağrıdan (gölge tekrar ölçümü yeniden yazılmış metne bakar).
+    ...(retried.verifiedParts !== undefined || first.verifiedParts !== undefined ? { verifiedParts: retried.verifiedParts } : {}),
     claimedActions: retried.claimedActions,
     timeConflicts: retried.timeConflicts,
     llmUsage: retried.llmUsage,

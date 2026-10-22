@@ -45,6 +45,7 @@ import { newCorrelationId, runWithCorrelation } from "@/lib/correlation";
 import { backfillTrialIdentitiesOnce, sweepTrialIdentities } from "@/lib/billing/trial-identity";
 import { checkSignupNetworkInfra, purgeSignupNetworkTraces } from "@/lib/billing/signup-network";
 import { evaluateTrialCardGates } from "@/lib/billing/trial-card-gate";
+import { sweepVerifiedAnswers } from "@/lib/answer-reuse/store";
 
 // ---------------------------------------------------------------------------
 // The one scheduled pass: pull new Hospitable messages for every organization,
@@ -909,6 +910,9 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
         await hourly("checkout-intent-sweep", "scheduled-sync checkout-intent-sweep", () => sweepCheckoutIntents());
         // KB kopyalama işlem kayıtları (migration 81): 30 günü dolan kayıt silinir (Opus 10-21 B7 — rota yalnız yeniden kopyalayan işletmeyi siliyordu).
         await hourly("kb-copy-operation-sweep", "scheduled-sync kb-copy-operation-sweep", () => sweepKbCopyOperations());
+        // Doğrulanmış cevap tekrarının gölge kaydı (migration 85): anahtardan BAĞIMSIZ — 90 gün dokunulmayan + kaynağı silinmiş / sonradan
+        // değişmiş kalemin eski kopyası (Wi-Fi şifresi gibi değer kalmasın; Opus 10-23 85 incelemesi).
+        await hourly("answer-reuse-sweep", "scheduled-sync answer-reuse-sweep", () => sweepVerifiedAnswers(prisma));
         // Parola sıfırlama challenge'ları: süresi dolmuş / tüketilmiş / iptal
         // edilmiş satırları topla. CANLI satıra dokunmaz; 24 saatlik gecikme
         // bilinçli (destek "sıfırlayamıyorum" derse izi bir süre daha durur).

@@ -285,6 +285,11 @@ export interface SuggestReplyResult {
    * yok · eksik · reddedildi (sebepleriyle). Metin YOK. Yalnız parça kipinde.
    */
   answerParts?: PartVerdict[];
+  /**
+   * Doğrulanan parçaların metni + alıntısı + kaynağı (yalnız parça kipinde). Doğrulanmış cevap tekrarının GÖLGE ölçümü okur
+   * (`answer-reuse/store.ts`, migration 85); izlere / karar kaydına YAZILMAZ.
+   */
+  verifiedParts?: { ref: string; text: string; evidence: string; source: string }[];
 }
 
 export interface ClassifyResult {

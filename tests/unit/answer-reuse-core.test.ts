@@ -204,3 +204,12 @@ describe("Haiku 10-23 gece-2 (3af7943d incelemesi): göreli zaman ekleri", () =>
     expect(entryEligible(tr("amenities", "havuz"), "Dünya kupası maçı ekranda.")).toBe("ok");
   });
 });
+
+describe("Haiku 10-23 gece-3: misafir izi görünen addan kurulmaz", () => {
+  it("🚨 rezervasyonsuz iki konuşma ayrı iz (ad 'Misafir' olsa da); aynı rezervasyonun iki konuşması tek iz", async () => {
+    const { guestKey } = await import("@/lib/answer-reuse/core");
+    expect(guestKey({ conversationId: "c1" })).not.toBe(guestKey({ conversationId: "c2" }));
+    expect(guestKey({ conversationId: "c1", reservationId: "r1" })).toBe(guestKey({ conversationId: "c2", reservationId: "r1" }));
+    expect(guestKey({ conversationId: "c1", externalReservationId: "x1" })).toBe(guestKey({ conversationId: "c9", externalReservationId: "x1" }));
+  });
+});

@@ -29,6 +29,38 @@ const SECRET_EXACT = new Set(["key", "keys", "pass", "passe", "passcode", "pw", 
 const SECRET_ROOTS_OTHER = ["парол", "код", "пин", "номер", "телефон", "паспорт", "карт", "contrase", "kennw"];
 /** Sır sözcüğünün önünde değer aranan en uzak sözcük. */
 const VALUE_WINDOW = 6;
+/**
+ * Gün / mevsim koşulu (katlanmış, BÜTÜN sözcük + çekim eki) — yalnız tekrar sorgusunda kalır ("wifi şifresi cumartesi değişiyor mu"). Baş
+ * eşleşmesi değil (Opus 10-23 85 incelemesi: "salıncak", "salih", "pazarlık" koşul sayılıp şifre değeri etikete giriyordu).
+ */
+const CONDITION_WORD =
+  /^(?:(?:pazartesi|sali|carsamba|persembe|cuma|cumartesi|pazar|hafta ?sonu|hafta ?ici|hafta)(?:si|lari|leri|nin|in|i|a|e|ya|ye|da|de|dan|den|nda|nde|ndan|nden|larin|lerin|larinda|lerinde)?|(?:yaz|kis|ilkbahar|sonbahar)(?:in|lari|leri|larin|lerin|larinda|lerinde)?|(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|weekend|weekday|summer|winter)s?|(?:montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|wochenende)s?)$/;
+/**
+ * Türkçe fiil çekimi (katlanmış) — tekrar sorgusunda kalır ("açılıyor", "ediliyor", "atılacak", "yapılır", "kullanılabilir"; Haiku 10-23 gece-3:
+ * 45 olağan sorudan 17'si yalnız fiil yüzünden kaydedilmiyordu). Fiil kişi adı değildir; "-mak / -mek" bilerek YOK ("Irmak" bir addır).
+ */
+const TURKISH_VERB_FORM = /(?:[iu]yor(?:um|uz|lar|sun|sunuz)?|[iu]l[iu]r|[iu]n[iu]r|[ae]c[ae]k(?:t[iu]r|m[iu]y[iu]z)?|[ae]bil[iu]r|[iu]l[ae]bil[iu]r|[iu]lm[ae]z|y[ae]biliri[mz])$/;
+/**
+ * Tekrar sorgusunda kalabilen sözcükler (Opus 10-23 85 incelemesi: sorgu misafirin sözcüklerini süzgeçsiz saklıyordu — "ayşe ile gelecek
+ * köpeğim max"). Sözlükte konusu olan sözcük, gün / mevsim koşulu, sır sözcüğünün kendisi ("wifi şifresi") ve bu kapalı soru / yüklem
+ * listesi kalır; listede olmayan AYIRT EDİCİ sözcük (küçük harfli üçüncü kişi adı olabilir) varsa sorgu HİÇ kaydedilmez.
+ */
+const REUSE_QUERY_WORDS = new Set(
+  (
+    "saat saati saatleri saatler kac kacta kacda kaca kadar kactan ne nedir neler nerede nerde nereye nasil hangi zaman zamani var yok mi mu " +
+    "misiniz miyiz mumkun izin izinli kabul yasak serbest ucret ucreti ucretli ucretsiz fiyat fiyati fiyatlari dahil acik acilis acilir " +
+    "kapali kapanis kapanir giris girisi cikis cikisi erken gec son kullanim kullanimi kural kurallari politika politikasi bilgi bilgisi " +
+    "bilgileri adres adresi konum konumu yer yeri mesafe uzak yakin yakinda icin ile ve veya mevcut bulunuyor oluyor nasil yapilir " +
+    "what time when where how is are there allowed free cost price fee open close opening closing hours check in out policy rules info " +
+    // Konaklama sözlüğünde konusu olmayan olağan adlar / eylemler (ad DEĞİL; kapsam ölçüldü — 28 gerçekçi sorgudan 9'u bunlarsız düşüyordu).
+    "teslim teslimi degisim degisimi degistirme yontem yontemi odeme makine makinesi sonu ici atma cagirma kullanma kullanmak temizlik temizligi " +
+    "yatak yatagi bebek cocuk sandalye mama sauna hamam jakuzi spa barbeku mangal taksi market eczane plaj havaalani transfer otobus metro durak " +
+    "restoran kahvalti havlu havlulari carsaf nevresim sampuan sabun kurutma utu bulasik camasir buzdolabi firin ocak mikrodalga kahve cay su " +
+    "sicak soguk isitma bagaj bavul emanet asansor merdiven balkon teras bahce bisiklet kiralama sigara gurultu sessizlik ziyaretci cop " +
+    "geri donusum filtre suzme surahi musluk suyu icme sebeke kumanda priz sarj nereye gun gunu gunleri bina binasi binaya oda odasi daire " +
+    "dairesi kat kati asagi yukari yan karsi on arka sonra once siklikla sik her"
+  ).split(" "),
+);
 /** Harfle yazılmış rakamlar etikete girmez ("kapı kodu dört beş bir iki" — kodun kendisi; Opus dilim sonu 10-23 R15). */
 const SPELLED_DIGITS = new Set(
   (
@@ -116,13 +148,38 @@ export function guestNameMatcher(names: readonly (string | null | undefined)[]):
  * onlarla başlayan çekimli biçimler etikete giremez).
  */
 export function itemTopicLabel(query: string | null | undefined, names: readonly (string | null | undefined)[] = []): string | null {
+  const out = keptWords(query, names, TOPIC_MAX_WORDS);
+  if (!out) return null;
+  const label = out.join(" ").slice(0, TOPIC_MAX_CHARS).trim();
+  return label.length >= 2 ? label : null;
+}
+
+/** Tekrar kaydının sorgusu (migration 85): etiketle AYNI süzgeç, sözcük tavanı yok; en çok 160 karakter. Saldırı / bağlantı izinde `null`. */
+export const REUSE_QUERY_MAX_CHARS = 160;
+export function sanitizedReuseQuery(query: string | null | undefined, names: readonly (string | null | undefined)[] = []): string | null {
+  // Ayırt edici sözcük süzgeci YOK: koşul ("cumartesi") ve soru yönü ("saati", "kaçta") sözcükleri tekrar kapısı için şart — süzülse
+  // cumartesiye özgü cevap genel soruya verilebilirdi. Ad / sır / unvan / özel ad / bağlantı / saldırı süzgeci aynen.
+  const out = keptWords(query, names, Number.POSITIVE_INFINITY, false);
+  if (!out) return null;
+  const q = out.join(" ").slice(0, REUSE_QUERY_MAX_CHARS).trim();
+  return q.length >= 2 ? q : null;
+}
+
+/** Süzgeçten geçen sözcükler (ilk görülme sırasıyla, küçük harf) ya da `null` (saldırı / bağlantı izi, boş sorgu). */
+function keptWords(
+  query: string | null | undefined,
+  names: readonly (string | null | undefined)[],
+  maxWords: number,
+  distinctOnly = true,
+): string[] | null {
   if (!query) return null;
   // Birleşik işaretler sözcüğü bölmesin ("ş̇ifre" → "ş" + işaret + "ifre" iki sözcük olup sır sözcüğünü kaçırıyordu); görünmez karakter de
   // ("şif\u200Bresi") ve tam genişlikli rakam ("２") — NFKC (Haiku 10-23 gece-3).
   const q = query.normalize("NFKC").replace(/[\p{M}\p{Cf}\p{Default_Ignorable_Code_Point}]+/gu, "");
   if (hasInjection(q) || LINK.test(q)) return null;
   const distinct = new Set(needTerms([q]));
-  if (distinct.size === 0) return null;
+  // Etikette ayırt edici sözcük yoksa etiket yok; tekrar sorgusunda soru / yüklem sözcükleri yeter ("check-in saati kaçta" — Haiku 10-23 gece-3).
+  if (distinct.size === 0 && distinctOnly) return null;
   const { nameParts, isName } = guestNameMatcher(names);
   const raws = q.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
   // Kiril / Yunan ikiz harfli sır sözcüğü ("ѕifresi" — Opus taze göz 10-23 F7) Latin okunuşuyla da tanınır.
@@ -183,23 +240,52 @@ export function itemTopicLabel(query: string | null | undefined, names: readonly
   for (let i = 0; i < raws.length; i++) {
     const raw = raws[i];
     const f = folded[i];
-    if (beforeSecret.has(i)) continue;
+    if (beforeSecret.has(i)) {
+      // Tekrar sorgusunda süzülen ayırt edici sözcük (değer olabilir) → sorgu HİÇ kaydedilmez.
+      if (!distinctOnly && distinct.has(f)) return null;
+      continue;
+    }
     if (isSecretAt(i)) {
       afterSecret = true;
       sinceSecret = 0;
+      // Etikette sır sözcüğü düşer; tekrar sorgusunda sorunun konusudur ("wifi şifresi") — aşağıdaki süzgeçlerden geçer.
+      if (distinctOnly) continue;
+    } else if (sinceSecret >= 0) {
+      sinceSecret = coded(i) ? -1 : sinceSecret + 1;
+    }
+    // Sır sözcüğünün hemen ardındaki üç sözcük değer olabilir (sözlük sözcüğü olsa da): etikette düşer; tekrar sorgusunda soru / koşul / yüklem
+    // sözcüğü kalır, öteki ayırt edici sözcük sorguyu kaydettirmez.
+    if (sinceSecret >= 1 && sinceSecret <= 3) {
+      if (distinctOnly) continue;
+      if (distinct.has(f) && !REUSE_QUERY_WORDS.has(f) && !CONDITION_WORD.test(f) && !TURKISH_VERB_FORM.test(f)) return null;
+    }
+    // Ardındaki AYIRT EDİCİ, sözlükte konusu olmayan sözcük değer olabilir → düşer; soru sözcüğü ("nedir") ve gün / mevsim koşulu
+    // ("cumartesi") tekrar sorgusunda kalır.
+    // Etikette (`distinctOnly`) sır sözcüğünden sonraki her konusuz sözcük düşer; koşul istisnası yalnız tekrar sorgusunda.
+    if (afterSecret && !isSecretAt(i) && topicless(raw) && (distinctOnly || (distinct.has(f) && !CONDITION_WORD.test(f)))) {
+      // Tekrar sorgusunda süzülen ayırt edici sözcük (değer olabilir) sorunun anlamını da götürür → sorgu HİÇ kaydedilmez.
+      if (!distinctOnly && distinct.has(f)) return null;
       continue;
     }
-    if (sinceSecret >= 0) sinceSecret = coded(i) ? -1 : sinceSecret + 1;
-    if (sinceSecret >= 1 && sinceSecret <= 3) continue;
-    if (afterSecret && topicless(raw)) continue;
+    // Tekrar sorgusunda sayı sorunun parçasıdır ("2 araç için otopark") — süzülürse "1 araçlık" cevabı iki araca verilebilirdi (Opus 10-23 85
+    // incelemesi): sayı taşıyan sorgu HİÇ kaydedilmez.
+    if (!distinctOnly && (SPELLED_DIGITS.has(f) || /\d/.test(raw))) return null;
     if (SPELLED_DIGITS.has(f)) continue;
     // Rakam taşıyan belirteç `needTerms`te zaten yok ("5g", "lale2025" — ölçüldü) → `distinct` onu eler.
-    if (!distinct.has(f) || raw.length > 20) continue;
-    if (isName(f) || isSecretAt(i) || EMAIL_PARTS.has(f)) continue;
+    if ((distinctOnly && !distinct.has(f)) || raw.length > 20 || /\d/.test(raw)) continue;
+    // Sır sözcüğünün KENDİSİ etikete girmez; tekrar sorgusunda ise sorunun konusudur ("wifi şifresi") — ardındaki sözcük (değer olabilir)
+    // her iki yerde de atılır.
+    if (isName(f) || (distinctOnly && isSecretAt(i)) || EMAIL_PARTS.has(f)) {
+      if (!distinctOnly && !isSecretAt(i)) return null;
+      continue;
+    }
     const prev = folded[i - 1] ?? "";
     const next = folded[i + 1] ?? "";
     // Sır sözcüğünün ardındaki sözcük değerin kendisi olabilir; unvanın komşusu kişi adıdır.
-    if ((prev && isSecretAt(i - 1)) || honorific(HONORIFIC_BEFORE, prev) || honorific(HONORIFIC_AFTER, next)) continue;
+    if ((prev && isSecretAt(i - 1)) || honorific(HONORIFIC_BEFORE, prev) || honorific(HONORIFIC_AFTER, next)) {
+      if (!distinctOnly && distinct.has(f) && !isSecretAt(i)) return null;
+      continue;
+    }
     if (honorific(HONORIFIC_BEFORE, f) || honorific(HONORIFIC_AFTER, f)) continue;
     // Değer sır sözcüğünden ÖNCE de yazılır ("kelebek şifresi" — kodu olan şey değilse: "kapı kodu" kalır); e-posta adresinin yerel kısmı
     // alan adından önce gelir; bilinen adın YALIN hâlinin bitişiğindeki konusuz sözcük soyadıdır ("john smith"; "mehmetin odası" değil).
@@ -208,11 +294,15 @@ export function itemTopicLabel(query: string | null | undefined, names: readonly
     if (topicless(raw) && ((next && isSecretAt(i + 1) && !CODED_THINGS.has(f)) || EMAIL_PARTS.has(next) || nameParts.includes(prev) || nameParts.includes(next))) continue;
     // Sorgu küçük harfle yazılır; sözlükte konusu olmayan Büyük Harfli sözcük özel addır ("Ahmet", "Netflix").
     if (titleCase(raw) && topicsWithSymptomsOf(raw).length === 0) continue;
+    if (!distinctOnly && !isSecretAt(i) && topicless(raw) && !REUSE_QUERY_WORDS.has(f) && !CONDITION_WORD.test(f) && !TURKISH_VERB_FORM.test(f)) {
+      // Kapalı listede olmayan ayırt edici sözcük → sorgu kaydedilmez; durak sözcüğü ("bir", "da") sessizce düşer.
+      if (distinct.has(f)) return null;
+      continue;
+    }
     const word = raw.toLocaleLowerCase("tr");
     if (out.includes(word)) continue;
     out.push(word);
-    if (out.length >= TOPIC_MAX_WORDS) break;
+    if (out.length >= maxWords) break;
   }
-  const label = out.join(" ").slice(0, TOPIC_MAX_CHARS).trim();
-  return label.length >= 2 ? label : null;
+  return out;
 }

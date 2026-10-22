@@ -1754,6 +1754,36 @@ describe("CEVAP PARÇALARI (kurucu 10-23 A, AI_ANSWER_PARTS_ENABLED)", () => {
     expect(rows.find((i) => i.kind === "about_assistant")).toMatchObject({ status: "pending_host", notified: false });
   });
 
+  it("🚨 doğrulanmış cevap tekrarı GÖLGE kipi (migration 85): gönderilen doğrulanmış parça daire kaydına yazılır; misafire giden metin anahtar kapalıyla BAYT BAYT aynı", async () => {
+    vi.stubEnv("AI_ANSWER_PARTS_ENABLED", "1");
+    vi.stubEnv("AI_ITEM_ORDINAL_ENABLED", "1");
+    const run = async () => {
+      const { conversationId } = await seed("Çıkış saat kaçta? Sauna var mı?");
+      understands(twoNeeds());
+      mockSuggest.mockResolvedValueOnce(
+        verdict({
+          intent: "checkout_time",
+          reply: "Çıkış saati 11:00.",
+          answeredRequests: { ok: true, refs: ["R1"] },
+          verifiedParts: [{ ref: "R1", text: "Çıkış saati 11:00.", evidence: "Check-out saati: 11:00", source: "property" }],
+        }),
+      );
+      const out = await applyChannelAutoReply(conversationId);
+      expect(out.sent).toBe(true);
+      return JSON.stringify(mockSend.mock.calls.at(-1));
+    };
+    const off = await run();
+    expect(await prisma.verifiedAnswer.count()).toBe(0);
+    vi.stubEnv("AI_ANSWER_REUSE_SHADOW_ENABLED", "1");
+    const on = await run();
+    expect(on).toBe(off);
+    const rows = await prisma.verifiedAnswer.findMany();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ kind: "checkout_time", sourceRef: "property", partText: "Çıkış saati 11:00.", confirmations: 1, language: "tr" });
+    // Sorgu misafirin metni değil, anlama katmanının süzülmüş Türkçe sorgusu.
+    expect(rows[0].query).toBe("çıkış saati kaçta");
+  });
+
   it("anahtar kapalı: cevap modeline parça kipi GİTMEZ (girdi bugünküyle aynı)", async () => {
     const { conversationId } = await seed("Çıkış saat kaçta? Sauna var mı?");
     understands(twoNeeds());

@@ -233,6 +233,17 @@ export function conversationKey(conversationId: string): string {
   return createHash("sha256").update(`reuse:${conversationId}`).digest("hex").slice(0, 16);
 }
 
+/**
+ * Teyidin geldiği MİSAFİRİN kalıcı olmayan izi (Opus 10-23 85 incelemesi: bağımsızlık konuşma başına sayılıyordu — aynı misafirin talep +
+ * rezervasyon konuşması tek başına 3 "bağımsız" teyit üretebiliyordu). Sıra: rezervasyon → dış rezervasyon kimliği → konuşma. Yalnız özet
+ * saklanır. Bilinen sınır: aynı misafirin AYRI rezervasyonları ayrı teyit sayılır.
+ */
+export function guestKey(input: { conversationId: string; reservationId?: string | null; externalReservationId?: string | null }): string {
+  // Görünen ad İZ DEĞİLDİR (Haiku 10-23 gece-3: rezervasyonsuz konuşmalarda ad çoğu kez "Misafir" — farklı misafirler tek iz olurdu).
+  const basis = input.reservationId ? `r:${input.reservationId}` : input.externalReservationId ? `x:${input.externalReservationId}` : `c:${input.conversationId}`;
+  return createHash("sha256").update(`reuse:${basis}`).digest("hex").slice(0, 16);
+}
+
 // ─── geçerlilik ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 export interface FingerprintItem {

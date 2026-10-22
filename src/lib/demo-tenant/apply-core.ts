@@ -227,6 +227,8 @@ export async function applyDemoTenant(db: Db, ds: DemoDataset, opts: DemoApplyOp
       await tx.conversation.deleteMany({ where: { property: { organizationId: DEMO_ORG_ID } } }); // mesajlar zincirleme
       await tx.task.deleteMany({ where: { property: { organizationId: DEMO_ORG_ID } } }); // güncellemeler zincirleme
       await tx.supplyRequest.deleteMany({ where: { property: { organizationId: DEMO_ORG_ID } } });
+      // Doğrulanmış cevap tekrarının gölge kaydı (migration 85) — demo sıfırlamasında kalmasın (Opus 10-23 85 incelemesi).
+      await tx.verifiedAnswer.deleteMany({ where: { organizationId: DEMO_ORG_ID } });
       await tx.reservation.deleteMany({ where: { property: { organizationId: DEMO_ORG_ID } } });
       await tx.knowledgeBaseItem.deleteMany({ where: { property: { organizationId: DEMO_ORG_ID } } });
       await tx.messageTemplate.deleteMany({ where: { organizationId: DEMO_ORG_ID } });

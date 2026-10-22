@@ -1,6 +1,7 @@
 import "server-only";
 
 import { Prisma } from "@prisma/client";
+import { observeAnswerReuseAfterSend, REUSE_SHADOW_DEADLINE_MS } from "@/lib/answer-reuse/shadow-hook";
 import { acquireErasureLock, loadErasureGuard } from "@/lib/erasure";
 import { STORAGE_PHOTO_URL_PREFIX } from "@/lib/storage/keys";
 import { enqueueUnreferencedPhotoDeletions } from "@/lib/storage/deletion-queue";
@@ -1827,6 +1828,7 @@ export async function applyChannelAutoReply(
           organizationId: true,
           checkInTime: true,
           checkOutTime: true,
+          updatedAt: true,
           address: true,
           city: true,
           organization: {
@@ -3158,6 +3160,51 @@ export async function applyChannelAutoReply(
   if (note) outboundParts.push(note);
   if (signature) outboundParts.push(signature);
   const outboundBody = outboundParts.join("\n\n");
+  // Doğrulanmış cevap tekrarı — GÖLGE ölçüm (migration 85, `AI_ANSWER_REUSE_SHADOW_ENABLED`): yalnız gönderim kararından SONRA, gönderilen
+  // metindeki doğrulanmış parçalarla; misafire giden metni / kapıları değiştirmez. Hata ana akışı durdurmaz.
+  // Sıcak yolu en çok REUSE_SHADOW_DEADLINE_MS bekletir (Opus 10-23 85 incelemesi: gömme çağrıları sıralı org döngüsünü yavaşlatabiliyordu);
+  // süre dolarsa ölçüm arka planda biter, sonucu beklenmez.
+  const observeReuseShadow = async () => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        observeReuseShadowRun(),
+        new Promise<null>((resolve) => {
+          timer = setTimeout(() => resolve(null), REUSE_SHADOW_DEADLINE_MS);
+        }),
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  };
+  const observeReuseShadowRun = () =>
+    observeAnswerReuseAfterSend(prisma, {
+      organizationId: conversation.property.organizationId,
+      propertyId: conversation.propertyId,
+      conversationId: conversation.id,
+      guest: {
+        reservationId: conversation.reservationId ?? null,
+        externalReservationId: conversation.externalReservationId ?? null,
+      },
+      kbAll: kbRaw,
+      verifiedParts: result.verifiedParts,
+      answeredRefs: result.answeredRequests?.ok === true ? result.answeredRequests.refs : null,
+      replyItems,
+      kbForModel,
+      kbVisible: kbVisible as unknown as readonly { id: string; updatedAt: Date; category: string; title: string; content: string }[],
+      property: {
+        checkInTime: conversation.property.checkInTime,
+        checkOutTime: conversation.property.checkOutTime,
+        updatedAt: conversation.property.updatedAt,
+      },
+      sentText: outboundBody,
+      language: guestLanguage ?? result.detectedLanguage,
+      guestNames: [conversation.guestIdentifier, conversation.reservation?.guestName, conversation.reservation?.guestGivenName],
+      now: new Date(),
+    }).catch((err) => {
+      void reportError(`answer-reuse shadow org=${conversation.property.organizationId}`, err);
+      return null;
+    });
 
   // ── KAPANIŞA SESSİZLİK — ANLAM YOLU (`semanticClosingHolds`) ────────────────────────────────────────────────────
   // Sözcük listesinin kaçırdığı teşekkür/onay: iki model "yalnız teşekkür/kapanış" + kapı YALNIZ düşük güvenden kapandı.
@@ -3767,6 +3814,7 @@ export async function applyChannelAutoReply(
       gateRiskLevel: result.riskLevel,
       gateRiskType: result.riskType,
     });
+    await observeReuseShadow();
     return { sent: true, queued: true, draft, ...meta };
   }
 
@@ -4046,6 +4094,7 @@ export async function applyChannelAutoReply(
       }).catch((err) => void reportError(`host-decisions policy org=${conversation.property.organizationId}`, err));
     }
   }
+  await observeReuseShadow();
   return { sent: true, draft, ...meta };
 }
 
