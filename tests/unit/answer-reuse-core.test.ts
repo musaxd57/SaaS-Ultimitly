@@ -1,0 +1,142 @@
+import { describe, it, expect, vi } from "vitest";
+
+// ---------------------------------------------------------------------------
+// DOĞRULANMIŞ CEVAP TEKRARI — saf çekirdek (kurucu fikri 10-23 + Codex notu). Örnekler Codex'in yazdıklarından: "Çıkış kaçta?" ile
+// "13:00'te çıkabilir miyiz?" ayrılmalı; "Çöpleri nereye atıyoruz?" ile "Cam şişeler için ayrı kutu var mı?" farklı; "Otopark var mı?"
+// cevabı ücret sorusuna verilmez; eski kayıt değişmeden YENİ istisna kalemi eklenirse kayıt geçersiz; tekrar sayısı doğruluk değildir.
+// ---------------------------------------------------------------------------
+vi.mock("server-only", () => ({}));
+
+import {
+  REUSE_STABLE_COUNT,
+  entryEligible,
+  relatedFingerprint,
+  revalidateEntry,
+  reuseGate,
+  sameAnswer,
+  type ReuseEntry,
+  type ReuseNeed,
+} from "@/lib/answer-reuse/core";
+
+const tr = (kind: string, query: string, extra: Partial<ReuseNeed> = {}): ReuseNeed => ({ kind, query, language: "tr", ...extra });
+
+describe("kapı — aynı ihtiyaç mı", () => {
+  it("aynı ihtiyaç başka sözcükle: çıkış saati (cevap 11:00) → ok", () => {
+    expect(reuseGate(tr("checkout_time", "çıkış saati"), tr("checkout_time", "çıkış saati kaçta"), "Çıkış saati 11:00.")).toBe("ok");
+  });
+
+  it("🚨 karar isteyen istek asla tekrar kullanılmaz: geç çıkış / 13:00'te çıkış (konaklama değişikliği)", () => {
+    expect(reuseGate(tr("checkout_time", "çıkış saati"), tr("late_checkout", "geç çıkış"), "Çıkış saati 11:00.")).toBe("kind_not_reusable");
+    expect(reuseGate(tr("checkout_time", "çıkış saati"), tr("checkout_time", "çıkış saati 13:00", { stayChange: true }), "Çıkış saati 11:00.")).toBe("stay_change");
+  });
+
+  it("🚨 benzeyen ama farklı alt soru: çöp yeri ≠ cam şişe geri dönüşümü; Wi-Fi şifresi ≠ ağ adı; köpek ≠ kedi", () => {
+    expect(reuseGate(tr("trash", "çöp atma yeri"), tr("trash", "cam şişe geri dönüşüm kutusu"), "Çöpleri bina girişindeki konteynere atabilirsiniz.")).toBe(
+      "terms_not_covered",
+    );
+    expect(reuseGate(tr("wifi", "wifi şifresi"), tr("wifi", "wifi ağ adı"), "Wi-Fi şifresi Lale2025.")).toBe("terms_not_covered");
+    expect(reuseGate(tr("pets", "evcil hayvan köpek kabul"), tr("pets", "evcil hayvan kedi kabul"), "Köpek kabul edilmez.")).toBe("terms_not_covered");
+  });
+
+  it("🚨 soru yönü cevapta yoksa kullanılmaz: 'otopark ücretli mi' ← 'otopark var' cevabı; 'kahvaltı kaçta' ← 'kahvaltı dahil' cevabı", () => {
+    expect(reuseGate(tr("parking", "otopark var mı"), tr("parking", "otopark ücret"), "Binanın önünde otopark var.")).not.toBe("ok");
+    expect(reuseGate(tr("amenities", "kahvaltı var mı"), tr("amenities", "kahvaltı saati"), "Kahvaltı fiyata dahildir.")).toBe("aspect_not_answered");
+    // Cevap o yönü taşıyorsa olur (saat değeri var).
+    expect(reuseGate(tr("amenities", "kahvaltı var mı"), tr("amenities", "kahvaltı saati"), "Kahvaltı 08:00-10:30 arası verilir.")).toBe("ok");
+  });
+
+  it("anlama katmanının iskele sözcükleri ihtiyacı ayırmaz ('… kabul POLİTİKASI', '… konteyneri YERİ') — ölçümde yanlış ret", () => {
+    expect(reuseGate(tr("pets", "evcil hayvan kabul"), tr("pets", "evcil hayvan kabul politikası"), "Evcil hayvan kabul edilmez.")).toBe("ok");
+    expect(reuseGate(tr("trash", "çöp konteyneri"), tr("trash", "çöp konteyneri yeri"), "Çöpleri bina girişindeki konteynere atabilirsiniz.")).toBe("ok");
+  });
+
+  it("🚨 ters yön: kayıt somut bir konu adıyorsa ('köpek') genel soruya ('evcil hayvan kabul politikası') verilmez", () => {
+    expect(reuseGate(tr("pets", "evcil hayvan köpek kabul"), tr("pets", "evcil hayvan kabul politikası"), "Köpek kabul edilmez.")).toBe("terms_not_covered");
+  });
+
+  it("koşul farklıysa (cumartesi) ilk sürümde kullanılmaz; dil farklıysa kullanılmaz", () => {
+    expect(reuseGate(tr("amenities", "havuz kapanış saati"), tr("amenities", "havuz cumartesi kapanış saati"), "Havuz 20:00'de kapanır.")).toBe(
+      "condition_mismatch",
+    );
+    expect(reuseGate(tr("checkout_time", "çıkış saati"), { kind: "checkout_time", query: "çıkış saati", language: "en" }, "Çıkış saati 11:00.")).toBe(
+      "language_mismatch",
+    );
+  });
+
+  it("şikâyet / kod / ödeme türleri kayda girmez ve tekrar kullanılmaz", () => {
+    for (const kind of ["complaint_issue", "access_keys", "payment_invoice", "emergency", "about_assistant", "local_recommendations"]) {
+      expect(reuseGate(tr(kind, "x"), tr(kind, "x"), "x")).toBe("kind_not_reusable");
+      expect(entryEligible(tr(kind, "x"), "x")).toBe("kind_not_reusable");
+    }
+  });
+});
+
+describe("kayıt adaylığı + kararlılık", () => {
+  it("🚨 göreli zaman ya da misafirin adı taşıyan parça kayda girmez (başka misafire / güne taşınamaz)", () => {
+    expect(entryEligible(tr("amenities", "havuz"), "Bugün havuz 20:00'de kapanıyor.")).toBe("relative_time");
+    expect(entryEligible(tr("amenities", "pool"), "The pool closes at 8 pm tonight.")).toBe("relative_time");
+    expect(entryEligible(tr("checkout_time", "çıkış"), "Alex, çıkış saati 11:00.", ["Alex Smith"])).toBe("guest_name");
+    expect(entryEligible(tr("checkout_time", "çıkış"), "Çıkış saati 11:00.", ["Alex Smith"])).toBe("ok");
+  });
+
+  it("aynı bilgi = aynı değerler + aynı olumluluk (üslup farkı önemsiz); farklı saat ya da olumsuzluk farklı bilgidir", () => {
+    expect(sameAnswer("Çıkış saati 11:00.", "Çıkış saatimiz 11:00'dir.")).toBe(true);
+    expect(sameAnswer("Çıkış saati 11:00.", "Çıkış saati 12:00.")).toBe(false);
+    expect(sameAnswer("Evcil hayvan kabul edilir.", "Evcil hayvan kabul edilmez.")).toBe(false);
+  });
+});
+
+describe("geçerlilik — dosya tarihine değil bugünkü içeriğe", () => {
+  const T0 = new Date("2026-10-01T10:00:00Z");
+  const CHECKOUT = { id: "kb1", updatedAt: T0, text: "Çıkış saati: 11:00. Anahtarı kutuya bırakın." };
+  const WIFI = { id: "kb2", updatedAt: T0, text: "Wi-Fi: Lale-5G, şifre Lale2025." };
+  const NEED = tr("checkout_time", "çıkış saati");
+  const entry = (over: Partial<ReuseEntry> = {}): ReuseEntry => ({
+    need: NEED,
+    partText: "Çıkış saati 11:00.",
+    evidence: "Çıkış saati: 11:00",
+    sourceId: "kb:kb1",
+    fingerprint: relatedFingerprint([CHECKOUT, WIFI], NEED.query),
+    confirmations: REUSE_STABLE_COUNT,
+    createdAt: T0,
+    ...over,
+  });
+  const now = new Date("2026-10-05T10:00:00Z");
+
+  it("kararlı + iz aynı + bugünkü metinle doğrulanıyor → kullanılabilir", () => {
+    const fp = relatedFingerprint([CHECKOUT, WIFI], NEED.query);
+    expect(revalidateEntry(entry(), { sourceText: CHECKOUT.text, otherSources: [WIFI.text], fingerprint: fp, now }, NEED)).toEqual({ ok: true });
+  });
+
+  it("🚨 kurucu kuralı: 3 bağımsız teyit olmadan kullanılmaz (tekrar sayısı kararlılıktır)", () => {
+    const fp = relatedFingerprint([CHECKOUT, WIFI], NEED.query);
+    expect(revalidateEntry(entry({ confirmations: REUSE_STABLE_COUNT - 1 }), { sourceText: CHECKOUT.text, otherSources: [], fingerprint: fp, now }, NEED)).toEqual({
+      ok: false,
+      reason: "not_stable",
+    });
+  });
+
+  it("🚨 Codex örneği: eski kalem DEĞİŞMEDEN yeni istisna kalemi eklenirse ('Tadilat nedeniyle bu hafta çıkış 10:00') kayıt geçersiz", () => {
+    const repair = { id: "kb3", updatedAt: now, text: "Tadilat nedeniyle bu hafta çıkış 10:00." };
+    const fp = relatedFingerprint([CHECKOUT, WIFI, repair], NEED.query);
+    expect(revalidateEntry(entry(), { sourceText: CHECKOUT.text, otherSources: [WIFI.text, repair.text], fingerprint: fp, now }, NEED)).toEqual({
+      ok: false,
+      reason: "sources_changed",
+    });
+  });
+
+  it("ilgisiz kalemin değişmesi (Wi-Fi) çıkış kaydını BOZMAZ", () => {
+    const wifi2 = { ...WIFI, updatedAt: now, text: "Wi-Fi: Lale-5G, şifre Yeni2026." };
+    expect(relatedFingerprint([CHECKOUT, wifi2], NEED.query)).toBe(relatedFingerprint([CHECKOUT, WIFI], NEED.query));
+  });
+
+  it("dayanak silindi / onayı kalktı → source_gone; süre doldu → expired; değer bugün başka → bağ sorunu", () => {
+    const fp = relatedFingerprint([CHECKOUT, WIFI], NEED.query);
+    expect(revalidateEntry(entry(), { sourceText: null, otherSources: [], fingerprint: fp, now }, NEED)).toEqual({ ok: false, reason: "source_gone" });
+    const late = new Date(T0.getTime() + 31 * 86_400_000);
+    expect(revalidateEntry(entry(), { sourceText: CHECKOUT.text, otherSources: [], fingerprint: fp, now: late }, NEED)).toEqual({ ok: false, reason: "expired" });
+    // Kalem 12:00'ye değişti ama iz (yanlışlıkla) aynı verildi: yeniden doğrulama yine yakalar.
+    const r = revalidateEntry(entry(), { sourceText: "Çıkış saati: 12:00.", otherSources: [], fingerprint: fp, now }, NEED);
+    expect(r.ok).toBe(false);
+  });
+});
