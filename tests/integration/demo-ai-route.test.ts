@@ -67,12 +67,8 @@ describe("POST /api/demo/ai — public landing demo", () => {
     vi.stubEnv("LANDING_DEMO_ENABLED", "1");
     const res = await POST(req("wifi şifresi nedir?"));
     expect(res.status).toBe(200);
-    expect(Object.keys(await res.json()).sort()).toEqual([
-      "confidence",
-      "reply",
-      "riskLevel",
-      "wouldAutoSend",
-    ]);
+    // U13 (kurucu 10-22): güven puanı ve risk düzeyi de dönmez — yalnız cevap + iki durumlu hüküm.
+    expect(Object.keys(await res.json()).sort()).toEqual(["reply", "wouldAutoSend"]);
   });
 
   it("stops at the durable global daily cap without calling the model", async () => {

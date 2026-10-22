@@ -169,10 +169,11 @@ export async function POST(req: NextRequest) {
     // saatte {DEMO_HOURLY_LIMIT} istekle sorgulanabilir bir HARİTAYA dönüşüyordu ("hangi ifade
     // hangi intent'e düşüyor, kapı hangi kolda vetoluyor"). Repo tam bu gerekçeyle
     // PRIVATE yapılmıştı ("yayınlanmış kara liste = kaçınma haritası").
+    // 🚨 U13 (kurucu 10-22: "ana sayfa demosunda öyle olmasın neden gitmediğini müşteriye bile çok şeffaf şekilde açıklamamıza gerek yok …
+    // kötü kişilere karşı ne olur ne olmaz"): güven puanı ve risk düzeyi de DÖNMEZ — demo yalnız iki durum gösterir (gönderilirdi / ev
+    // sahibinin onayına bırakılır). Puan + sebep, kapıyı deneye deneye "otomatik gider" ifadesini bulmanın haritasıydı.
     return jsonOk({
       reply: result.reply,
-      confidence: result.confidence,
-      riskLevel: result.riskLevel,
       wouldAutoSend,
     });
   } catch (err) {

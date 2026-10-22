@@ -12,12 +12,7 @@ import { Sparkles, Loader2, ShieldAlert, CheckCircle2 } from "lucide-react";
 
 interface DemoResult {
   reply: string;
-  intent: string;
-  confidence: number;
-  riskLevel: "none" | "low" | "medium" | "high";
-  detectedLanguage: string;
-  source: "openai" | "fallback";
-  /** REAL production-gate verdict, computed server-side (passesAutoReplySafetyGate). */
+  /** REAL production-gate verdict, computed server-side (passesAutoReplySafetyGate). Sunucu yalnız bunu döner (U13, kurucu 10-22). */
   wouldAutoSend?: boolean;
 }
 
@@ -70,12 +65,9 @@ export function LandingDemo() {
     }
   }
 
-  const risky = result ? result.riskLevel === "medium" || result.riskLevel === "high" : false;
-  // The badge states what the product would TRULY do: the server runs the real
-  // auto-send safety gate and returns its verdict. The local confidence/risk
-  // approximation remains only as a fallback for a stale cached bundle whose
-  // API response predates the field.
-  const wouldAutoSend = result ? (result.wouldAutoSend ?? (result.confidence >= 0.75 && !risky)) : false;
+  // The badge states what the product would TRULY do: the server runs the real auto-send safety gate and returns ONLY its verdict
+  // (U13, kurucu 10-22: puan / sebep yok). Alan gelmezse güvenli taraf: "onaya bırakılır".
+  const wouldAutoSend = result?.wouldAutoSend === true;
 
   return (
     <div className="mx-auto max-w-2xl rounded-2xl border border-border bg-card p-5 text-left shadow-sm sm:p-6">
@@ -145,18 +137,8 @@ export function LandingDemo() {
             ) : (
               <>
                 <ShieldAlert className="mt-0.5 size-3.5 shrink-0" />
-                <span>
-                  Bu mesaj otomatik yanıtlanmaz —{" "}
-                  {risky
-                    ? "güvenlik kapısı riskli/hassas konu tespit etti"
-                    : result.confidence < 0.75
-                      ? "güven eşiğin altında"
-                      : // Yüksek güven + görünürde risksiz ama sunucu kapısı yine de
-                        // tutmuş (ör. iade/iptal sınıfı, injection vetosu) → yanlış
-                        // "riskli tespit edildi" iddiası yerine dürüst genel neden.
-                        "güvenlik kapısı bu konuyu insan onayı gerektiren sınıfta tutuyor"}
-                  , ev sahibinin onayına bırakılır. Güvenlik kapısı tam olarak böyle çalışır.
-                </span>
+                {/* U13 (kurucu 10-22): sebep söylenmez — yalnız iki durum. */}
+                <span>Bu mesaj ev sahibinin onayına bırakılır.</span>
               </>
             )}
           </div>
