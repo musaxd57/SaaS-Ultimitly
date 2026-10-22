@@ -14,6 +14,7 @@ import {
   appBaseUrl,
   baseUrlFromHost,
   verifyUrl,
+  VERIFY_TTL_MS,
 } from "@/lib/auth/email-verify";
 import { POST as resendVerification } from "@/app/api/auth/resend-verification/route";
 
@@ -70,6 +71,22 @@ function postReq(url: string, body: unknown, extraHeaders?: Record<string, strin
     headers: { "content-type": "application/json", host: "www.lixusai.com", ...extraHeaders },
     body: JSON.stringify(body),
   });
+}
+
+/** U12 (10-22): kullanıcının son doğrulama bağlantısını 11 dakika önce üretilmiş gibi yaşlandırır (sessiz pencere dışına çıkar). */
+async function ageVerifyLink(email: string) {
+  await prisma.user.update({
+    where: { email },
+    data: { emailVerifyExpiresAt: new Date(Date.now() + VERIFY_TTL_MS - 11 * 60_000) },
+  });
+}
+
+/** Son giden doğrulama e-postasındaki token (bağlantı fragment'i `#t=`). */
+function tokenFromAnyLastMail(): string {
+  const html = String(mockSendReporting.mock.calls.at(-1)?.[2] ?? "");
+  const m = html.match(/#t=([0-9a-f]+)/);
+  if (!m) throw new Error("no token in e-mail");
+  return m[1];
 }
 
 const BEFORE = new Date(EMAIL_VERIFY_REQUIRED_FROM.getTime() - 86_400_000); // pre-cutoff
@@ -628,6 +645,55 @@ describe("registration → verification → login", () => {
     expect(withoutTokens).not.toContain("0850");
   });
 
+  it("🚨 U12 (kurucu 10-22): son 10 dakikada gönderilmiş geçerli bağlantı varsa yeni bağlantı ÜRETİLMEZ, e-posta gitmez; cevap yine 200", async () => {
+    const org = await prisma.organization.create({ data: { name: "X" } });
+    await prisma.user.create({
+      data: { organizationId: org.id, name: "Ada", email: "quiet@x.com", passwordHash: await hashPassword("secret123"), role: "owner", createdAt: AFTER },
+    });
+    // İlk istek: bağlantı üretilir, e-posta gider.
+    expect((await resendVerification(postReq("http://localhost/api/auth/resend-verification", { email: "quiet@x.com" }))).status).toBe(200);
+    expect(mockSendReporting).toHaveBeenCalledTimes(1);
+    const first = await prisma.user.findUniqueOrThrow({ where: { email: "quiet@x.com" } });
+    // Başkası hemen 3 kez daha basar: bağlantı DEĞİŞMEZ (kişinin e-postasındaki bağlantı geçerli kalır), yeni e-posta yok.
+    for (let i = 0; i < 3; i++) {
+      const r = await resendVerification(postReq("http://localhost/api/auth/resend-verification", { email: "quiet@x.com" }));
+      expect(r.status).toBe(200);
+    }
+    expect(mockSendReporting).toHaveBeenCalledTimes(1);
+    const after = await prisma.user.findUniqueOrThrow({ where: { email: "quiet@x.com" } });
+    expect(after.emailVerifyTokenHash).toBe(first.emailVerifyTokenHash);
+    // İlk e-postadaki bağlantı çalışır.
+    expect((await verifyEmail(verifyReq(tokenFromAnyLastMail()))).status).toBe(200);
+  });
+
+  it("U12: 10 dakika geçtikten sonra yeniden gönderme bugünkü gibi yeni bağlantı üretir", async () => {
+    const org = await prisma.organization.create({ data: { name: "X" } });
+    await prisma.user.create({
+      data: { organizationId: org.id, name: "Ada", email: "later@x.com", passwordHash: await hashPassword("secret123"), role: "owner", createdAt: AFTER },
+    });
+    await resendVerification(postReq("http://localhost/api/auth/resend-verification", { email: "later@x.com" }));
+    const first = await prisma.user.findUniqueOrThrow({ where: { email: "later@x.com" } });
+    await prisma.$executeRaw`UPDATE "RateLimitCounter" SET "resetAt" = (now() AT TIME ZONE 'utc') - interval '1 minute' WHERE "key" LIKE 'verify-resend%'`;
+    await ageVerifyLink("later@x.com");
+    await resendVerification(postReq("http://localhost/api/auth/resend-verification", { email: "later@x.com" }));
+    expect(mockSendReporting).toHaveBeenCalledTimes(2);
+    expect((await prisma.user.findUniqueOrThrow({ where: { email: "later@x.com" } })).emailVerifyTokenHash).not.toBe(first.emailVerifyTokenHash);
+  });
+
+  it("U12 (Haiku 10-22): kuyruksuz yolda e-posta GİTMEDİYSE sessiz pencere uygulanmaz — kişi hemen yeniden ister, yeni bağlantı gelir", async () => {
+    const org = await prisma.organization.create({ data: { name: "X" } });
+    await prisma.user.create({
+      data: { organizationId: org.id, name: "Ada", email: "fail@x.com", passwordHash: await hashPassword("secret123"), role: "owner", createdAt: AFTER },
+    });
+    mockSendReporting.mockResolvedValueOnce({ ok: false, error: "Resend HTTP 500" });
+    expect((await resendVerification(postReq("http://localhost/api/auth/resend-verification", { email: "fail@x.com" }))).status).toBe(200);
+    expect(mockSendReporting).toHaveBeenCalledTimes(1);
+    // Hemen ikinci istek: e-posta gerçekten tekrar denenir (10 dk beklemez) ve gelen bağlantı çalışır.
+    expect((await resendVerification(postReq("http://localhost/api/auth/resend-verification", { email: "fail@x.com" }))).status).toBe(200);
+    expect(mockSendReporting).toHaveBeenCalledTimes(2);
+    expect((await verifyEmail(verifyReq(tokenFromAnyLastMail()))).status).toBe(200);
+  });
+
   it("🚨 E-POSTA BOMBASI (09-23): aynı adrese 24 saatte en fazla 6 doğrulama e-postası (15 dk'lık kovalar dolsa da)", async () => {
     const org = await prisma.organization.create({ data: { name: "X" } });
     await prisma.user.create({
@@ -648,6 +714,8 @@ describe("registration → verification → login", () => {
       await prisma.$executeRaw`
         UPDATE "RateLimitCounter" SET "resetAt" = (now() AT TIME ZONE 'utc') - interval '1 minute'
         WHERE "key" LIKE 'verify-resend:%' OR "key" LIKE 'verify-resend-acct:%'`;
+      // U12 (10-22): son bağlantı 10 dakikadan eski sayılsın (yoksa sessiz pencere yeni bağlantıyı zaten engeller).
+      await ageVerifyLink("bomb@x.com");
     }
     expect(mockSendReporting).toHaveBeenCalledTimes(6);
   });
@@ -753,7 +821,8 @@ describe("register + resend — durable outbox (flag ON)", () => {
         consent: true,
       }),
     );
-    // İlk link HİÇ teslim edilmeden kullanıcı "yeniden gönder" der.
+    // İlk link HİÇ teslim edilmeden kullanıcı "yeniden gönder" der — 10 dakika sonra (U12: daha önce yeni bağlantı üretilmez).
+    await ageVerifyLink("ada@x.com");
     const res = await resendVerification(
       postReq("http://localhost/api/auth/resend-verification", { email: "ada@x.com" }),
     );

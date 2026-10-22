@@ -7,6 +7,8 @@ import { reportError } from "@/lib/report-error";
 import {
   makeVerifyToken,
   VERIFY_TTL_MS,
+  VERIFY_RESEND_QUIET_MS,
+  verifyLinkRecentlyIssued,
   verifyEmailHtml,
   verifyUrl,
   needsEmailVerification,
@@ -50,10 +52,14 @@ export async function POST(req: NextRequest) {
 
   const user = await prisma.user.findUnique({
     where: { email },
-    select: { id: true, createdAt: true, emailVerifiedAt: true },
+    select: { id: true, createdAt: true, emailVerifiedAt: true, emailVerifyExpiresAt: true },
   });
   // Only a genuinely-unverified, gated account gets a fresh link.
-  if (user && needsEmailVerification(user)) {
+  // 🚨 U12 (kurucu 10-22): son 10 dakikada üretilmiş geçerli bağlantı varsa YENİSİ ÜRETİLMEZ ve e-posta gitmez — cevap yine aynı 200.
+  // Eskiden başkası kurbanın adresiyle 6 kez basıp her seferinde öncekini geçersiz kılıyordu; kişi e-postadaki bağlantıya basınca "süresi
+  // dolmuş" görüyordu. Artık kutudaki bağlantı ÇALIŞMAYA DEVAM EDER. Günlük tavanın kendisi hâlâ başkasınca doldurulabilir (hesabın varlığına
+  // bakmadan sayılması numaralandırma korumasıdır, bilinçli) — o gün yalnız YENİDEN GÖNDERME kapanır, elindeki bağlantı değil.
+  if (user && needsEmailVerification(user) && !verifyLinkRecentlyIssued(user.emailVerifyExpiresAt)) {
     const { raw, hash } = makeVerifyToken();
     const expiresAt = new Date(Date.now() + VERIFY_TTL_MS);
     if (emailOutboxEnabled()) {
@@ -88,7 +94,17 @@ export async function POST(req: NextRequest) {
     // The response is DELIBERATELY uniform (always 200 — a different shape on failure
     // would only appear for real unverified accounts → account enumeration). But a
     // genuine send failure must page ops, not vanish (redacted — no recipient/token).
-    if (!sent.ok) void reportError("auth.resend_verification", new Error(sent.error ?? "email send failed"));
+    if (!sent.ok) {
+      void reportError("auth.resend_verification", new Error(sent.error ?? "email send failed"));
+      // Eski (kuyruksuz) yol: e-posta GİTMEDİ ama yeni bağlantı eskisini geçersiz kıldı — 10 dk sessizlik bu kişiyi boşuna bekletmesin
+      // (Haiku 10-22). Bağlantı "10 dk önce üretilmiş" sayılacak kadar geriye çekilir; ömrü yalnız o kadar kısalır.
+      await prisma.user
+        .updateMany({
+          where: { id: user.id, emailVerifyTokenHash: hash },
+          data: { emailVerifyExpiresAt: new Date(expiresAt.getTime() - VERIFY_RESEND_QUIET_MS) },
+        })
+        .catch(() => {});
+    }
   }
   return jsonOk({ ok: true });
 }

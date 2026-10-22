@@ -32,6 +32,20 @@ export function needsEmailVerification(user: {
 
 export const VERIFY_TTL_MS = 24 * 60 * 60 * 1000; // link valid for 24h
 
+/** Yeniden gönderme yolu: son bu kadar süre içinde üretilmiş geçerli bağlantı varsa yenisi üretilmez (U12, kurucu 10-22). */
+export const VERIFY_RESEND_QUIET_MS = 10 * 60 * 1000;
+
+/**
+ * Son {@link VERIFY_RESEND_QUIET_MS} içinde üretilmiş ve hâlâ geçerli bir doğrulama bağlantısı var mı? (U12, kurucu 10-22: "önerin iyi".)
+ * Kimliksiz "tekrar gönder" ucunu başkası tetikleyip her basışta yeni bağlantıyla öncekini geçersiz kılıyor, 6 basışta günlük tavanı
+ * doldurup gerçek kullanıcıyı 24 saat kilitleyebiliyordu. Bağlantının üretildiği an süre sonundan geri hesaplanır (ek kolon yok). Saf.
+ */
+export function verifyLinkRecentlyIssued(expiresAt: Date | null | undefined, now: Date = new Date()): boolean {
+  if (!expiresAt) return false;
+  const issuedAt = expiresAt.getTime() - VERIFY_TTL_MS;
+  return expiresAt.getTime() > now.getTime() && now.getTime() - issuedAt < VERIFY_RESEND_QUIET_MS;
+}
+
 /** Generate a fresh verification token: the raw token (for the URL) + its hash. */
 export function makeVerifyToken(): { raw: string; hash: string } {
   const raw = randomBytes(32).toString("hex"); // 256-bit, URL-safe
