@@ -1525,13 +1525,18 @@ model ConversationItem {
   notifiedAt          DateTime? // ev sahibine acil e-posta (atomik claim; gönderilemezse geri alınır)
   answeredByMessageId String?
   resolvedAt          DateTime?
+  // Migration 84 (kurucu 10-23 D): aynı mesajda aynı türden kaçıncı istek (0 = ilk; `AI_ITEM_ORDINAL_ENABLED` kapalıyken hep 0).
+  ordinal             Int       @default(0)
+  // Kısa konu etiketi (kurucu 10-23 C): anlama sorgusunun sözcüklerinden KODLA kurulur (≤3 sözcük / 40 karakter, ad / rakam / sır
+  // sözcüğü yok); misafir kaynaklı veri — silme talebinde boşaltılır, süre bazlı temizlikte satırla birlikte silinir. Modele GİTMEZ.
+  topic               String?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
-  @@unique([conversationId, messageId, kind])
+  @@unique([conversationId, messageId, kind, ordinal])
   @@index([organizationId, status])
   @@index([conversationId, status])
 }
