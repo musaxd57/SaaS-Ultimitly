@@ -59,13 +59,16 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
         ...(followUpDate !== undefined ? { followUpAt: followUpDate } : {}),
       },
     });
-    // İz (güvenlik 2. tur 10-22): operatörün tek izsiz yazmasıydı. Alan ADLARI + yeni durum; not / tarih değeri günlüğe girmez.
+    // İz (güvenlik 2. tur 10-22): operatörün tek izsiz yazmasıydı. Alan ADLARI + yeni durum; not / tarih değeri günlüğe girmez. İşletme
+    // seçeneği bilerek VERİLMEZ: bu rotada istek bağlamı yok → satır işletmesiz yazılır (aday işletmeye bağlı değil; o alanın adı bu
+    // dosyada geçerse rota kapsamı taraması rotayı yanlışlıkla "işletme kapsamlı" sayar — `api-route-scoping.test.ts`).
     const fields = [status !== undefined && "status", note !== undefined && "note", followUpDate !== undefined && "followUpAt"].filter(Boolean);
-    await logEvent(
-      "operator.lead.updated",
-      { leadId: lead.id, actorUserId: session.actorUserId ?? session.userId, context: fields.join(".") || "none", status: lead.status },
-      { organizationId: null },
-    );
+    await logEvent("operator.lead.updated", {
+      leadId: lead.id,
+      actorUserId: session.actorUserId ?? session.userId,
+      context: fields.join(".") || "none",
+      status: lead.status,
+    });
     return jsonOk({ ok: true, lead: { id: lead.id, status: lead.status, note: lead.note, followUpAt: lead.followUpAt } });
   } catch (err) {
     return serverError(undefined, err);
