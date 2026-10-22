@@ -128,6 +128,10 @@ Sık sorularda cevabın özü iki kolda aynı; değişen ifade (model her koşud
   yeniden yazmaya gider). Bilinçli bırakılan: F4 yeniden yazma günlük kotayı en fazla 1 aşabilir
   (önce bak, model cevap verince say; iki eşzamanlı istek ikisi de geçebilir — ücret etkisi tek çağrı). Rapor düzeltmeleri: 135 setin "yeni"
   kolunun hangi koddan olduğu, ölçer "SIZINTI" satırının anlamı, "limpieza" iddiasının yumuşatılması, spor salonu / sauna örneği, dosya yolu.
+- Mutasyon (kodu bilerek bozup testlerin yakalayıp yakalamadığını ölçme; `scripts/mutation-run.mjs`, 15 bozma): alıntı kanıtı
+  (benzer harf, tam genişlikli harf, noktalama, sözcük sınırı), kanıtsız oyların sayılması, iki okuma kuralı, yeniden okuma düşerse eski
+  hüküm, "yeniden yazıldı" izi (kanal + QR), yayma uyarısının kapanması. İlk koşuda 5 bozma yaşadı (testi eksik) → 5 yeni test → 15 / 15
+  yakalandı. Son tam kapı (veritabanlı 447 + veritabanısız 571 + süre 62 dosya) ve derleme yeşil.
 - Düzeltilmiş kodla (`d4956157`) hedefli 22 senaryo yeniden koşuldu (`docs/olcum/live-pipeline-2026-10-22-gpt-5.1-before-after-2026-10-22-ba1022-fix.md`):
 
   | ölçü | eski (`ebc20009`) | yeni (`d4956157`) |

@@ -22,7 +22,9 @@
   tekrarı yok · demo iki durum · takvim aktarımı 60 gün · kayıt Turnstile (`SIGNUP_TURNSTILE_ENABLED` KAPALI) + kayıt e-postası yayma
   (`REGISTRATION_EMAIL_HOURLY_PACE`, varsayılan 300; reddetmez, bekletir; tek uyarı, %80 histerezis). QR / panel U1–U3, U5, U6, U16.
 - Ölçüm: canlı hat eski (`ebc20009`) / yeni 135 senaryo + düzeltilmiş kodla 22 hedefli (sızma 0 / 0, özür 16/16 → 0/16, sık soru 9/9).
-  Açık: U4 (migration, onay + yedek) · T-c Claude yan yana (push sonrası Actions) · rapor §7 soruları (sauna konu eşlemesi, olumlu iç kaynak
+  Mutasyon 15 / 15 (5 eksik pin eklendi). T-c ✅ Claude Sonnet 5.5 / gpt-5.1 yan yana: güvenlikte fark yok, model değişikliği yok.
+  U4 HAZIR YAMA (`docs/hazir-yamalar/2026-10-22-U4-misafire-gorunen-ad.patch`, migration 83; onay + yedek bekliyor).
+  Açık: rapor §7 soruları (sauna konu eşlemesi, olumlu iç kaynak
   anlatımı, F5 boş KB notu). Bilinçli: F4 yeniden yazma günlük kotayı en fazla 1 aşabilir.
 
 **10-22 gece (önceki):**
