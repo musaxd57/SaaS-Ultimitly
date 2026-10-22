@@ -234,3 +234,30 @@ bilgisi (T-d, 10-22).
 - **Kalan (sonraki dilim):** soru başına ARAMA kanıtı (hangi isteğe hangi kalem getirildi) kanıt kaydına; doğrulanmış müsaitlik / erken giriş
   kod metni parça kipinde istek beyanıyla birleşmeli (ikisi de anahtar kapalı); QR aynı hatta.
 
+
+## 17. D — migration 84 tasarımı (kurucu: "evet, kanıtıyla")
+
+**Şema (yalnız ekleme + tekillik genişletme):**
+```sql
+ALTER TABLE "ConversationItem" ADD COLUMN "ordinal" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "ConversationItem" ADD COLUMN "topic" TEXT;
+DROP INDEX "ConversationItem_conversationId_messageId_kind_key";
+CREATE UNIQUE INDEX "ConversationItem_conversationId_messageId_kind_ordinal_key"
+  ON "ConversationItem"("conversationId", "messageId", "kind", "ordinal");
+```
+- Dolu tabloda güvenli: yeni kolon varsayılanlı (her eski satır `ordinal = 0`), yeni tekillik eskisinin ÜST KÜMESİ (eski üçlü zaten tekildi →
+  dörtlü de tekil; çakışma imkânsız). Satır silinmez, durum / bildirim (`notifiedAt`) / cevap bağı (`answeredByMessageId`) dokunulmaz;
+  migration hiçbir mesaj göndermez, hiçbir öğeyi kapatmaz (yalnız DDL). Tablo küçük (mesaj başına birkaç satır) → düz indeks.
+- **Davranış anahtarı `AI_ITEM_ORDINAL_ENABLED` (varsayılan KAPALI):** kapalıyken her şey bugünkü gibi (aynı türden ikinci istek birleşir,
+  `ordinal` hep 0, `topic` yazılmaz — anahtar dizgesi `hintKey(mesaj, tür)` sıra 0'da bayt bayt aynı). Açıkken aynı mesajdaki aynı türden
+  ikinci istek AYRI satır (`ordinal` 1, 2 …; tavan 4) ve kendi R kimliği → parça kipinde ("havuz kaçta, sauna kaçta") her biri ayrı
+  doğrulanır, biri cevaplanıp öteki açık kalabilir.
+- **Kısa konu etiketi `topic` (kurucu C, şartlarıyla):** misafir metni kopyalanmaz; anlama katmanının sorgu sözcüklerinden (`needTerms`)
+  KODLA kurulan en çok 3 sözcük / 40 karakter; rakam taşıyan, `@` / bağlantı benzeri, misafir adıyla eşleşen ve sır sözcüğü (şifre, kod, pin…)
+  içeren belirteç atılır; enjeksiyon kalıbı varsa etiket hiç yazılmaz. Modele GİTMEZ (yalnız panel ve "en çok sorulan, bilgi tabanında
+  olmayan" listesi). Misafir kaynaklı veri sayılır: süre bazlı temizlik (`DATA_RETENTION_MONTHS`, bugünkü politika — yeni bir süre
+  DEĞİL; satırın kendisi zaten aynı kesimde siliniyor) ve misafir silme talebi etiketi de siler; dışa aktarma kapsamı öğeyle aynı.
+- **Kanıt testleri (push şartı):** (1) dolu tabloya migration: satırlar, durum, `notifiedAt`, `answeredByMessageId` aynen, `ordinal = 0`;
+  (2) migration sonrası aynı turun yeniden işlenmesi satır çoğaltmaz (anahtar kapalı ve açık); (3) taze PG'de sıfır sapma
+  (`prisma migrate diff`); (4) anahtar kapalıyken mevcut öğe testlerinin tamamı değişmeden yeşil; (5) etiket temizleyicisi (ad / telefon /
+  şifre / enjeksiyon) + silme / temizlik paritesi. Yedek / geri yükleme doğrulaması ayrı (Railway açılışında, kurucu D).
