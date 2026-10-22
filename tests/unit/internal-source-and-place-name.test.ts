@@ -42,6 +42,7 @@ const NAMED = [
   "Konaklamayla ilgili bu tür bilgiler daire için hazırlanmış bilgilendirme notlarında yer alıyor.",
   "I use the apartment’s own written information and instructions that your host has provided for this listing.",
   "Ev sahibinizin notlarında havuzun 09:00'da açıldığı yazıyor.",
+  "Konaklamaya dair bu tür pratik bilgiler daire için hazırlanmış yazılı bilgilendirmeden ve yerel işletmelerin çalışma saatlerinden alınmıştır.",
 ];
 const PLAIN = [
   "Otopark ücreti gişede nakit veya kartla ödeniyor.",
@@ -58,6 +59,7 @@ const PLAIN = [
   "Ev sahibiniz size bir not bıraktı, masanın üzerinde.",
   "Towels provided by your host are in the wardrobe.",
   "Check-in is from 15:00; the building's records office is downstairs.",
+  "Yazılı bilgilendirme kartı girişteki masanın üzerinde.",
 ];
 
 describe("kodun açık sözcük yedeği — namesInternalSource", () => {

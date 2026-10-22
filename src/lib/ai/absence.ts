@@ -665,7 +665,10 @@ const INTERNAL_SOURCE_NAMED: readonly RegExp[] = [
       `bilgiler[ıi]m(?:[ıi]z)?(?:de|den|e göre)(?![\\p{L}])|elimdeki (?:bilgi|not|kay[ıi]t|veri|kaynak)\\p{L}{0,8}|` +
       `bana ${TR_GIVEN} (?:bilgi|not|kay[ıi]t|veri|talimat)\\p{L}{0,8}|bilgilendirme not\\p{L}{0,8}|` +
       // Canlı ölçüm 10-22: "…bilgiler daire için hazırlanmış bilgilendirme notlarında yer alıyor".
-      `(?:ev sahibi(?:niz|nizin|nin)?|dairenin|daireye ait) (?:bilgilendirme )?not(?:lar)?(?:ı|i|ın|in|ında|inde|da|de)\\p{L}{0,4}(?![\\p{L}]))`,
+      `(?:ev sahibi(?:niz|nizin|nin)?|dairenin|daireye ait) (?:bilgilendirme )?not(?:lar)?(?:ı|i|ın|in|ında|inde|da|de)\\p{L}{0,4}(?![\\p{L}])|` +
+      // Canlı ölçüm 10-22 (anahtarlar kapalı): "…bilgiler daire için hazırlanmış yazılı bilgilendirmeden … alınmıştır". Yalnız "-den / -e göre"
+      // (kaynak bildirir); dairedeki basılı kart ("yazılı bilgilendirme kartı masada") yakalanmaz.
+      `yaz[ıi]l[ıi] bilgilendirme(?:den|lerden|ye göre|lere göre)(?![\\p{L}]))`,
     "u",
   ),
   new RegExp(
