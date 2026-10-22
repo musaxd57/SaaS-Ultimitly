@@ -476,5 +476,6 @@ Bu dosyaya token/anahtar/parola yazma.
 
 ## Durum
 > 📄 **Tam metin (bağlayıcı): `docs/claude/durum.md`** — bu alanda kod / karar değiştirmeden önce oku. Aşağıda yalnız madde başlıkları.
-**10-22 akşam (güncel):** iç kaynak anlatımı misafire asla gitmez (istem + okuyucu 5. hüküm + bir kez yeniden yazma + anahtarsız kod yedeği) · iç daire adı modele gitmez · U4 ana dalda (migration 83) · ölçüm 4 → 0; açık soru rapor §7.1 (sauna) — `docs/claude/durum.md`.
+**10-23 gece (güncel):** Soru 1 kodda (misafirin kendi sözcükleri, anahtar kapalı) · Opus akşam bulguları kapandı · CLAUDE.md sadeleşti · İhtiyaç Defteri tasarımı + kurucu soruları A–E açık — rapor `docs/RAPOR-2026-10-23-gece-buyuk-rapor.md`, `docs/claude/durum.md`.
+**10-22 akşam:** iç kaynak anlatımı misafire asla gitmez (istem + okuyucu 5. hüküm + bir kez yeniden yazma + anahtarsız kod yedeği) · iç daire adı modele gitmez · U4 ana dalda (migration 83) · ölçüm 4 → 0; açık soru rapor §7.1 (sauna) — `docs/claude/durum.md`.
 **10-22 gündüz:** §U kararları kodda (özür yok · başka misafir bilgisi · kıdemli okuyucu + kanıt şartı + bir kez yeniden yazma · mizah · U10–U15 güvenlik); rapor `docs/RAPOR-2026-10-22-yapay-zeka-ne-ogrendi.md`; açık U4 + T-c — `docs/claude/durum.md`.

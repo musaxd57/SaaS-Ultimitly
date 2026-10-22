@@ -40,7 +40,14 @@ düzeltmeleri. Next.js 15.5.27 (iki yeni SSG/ISR danışması). Onay bekleyen be
 > `docs/history/CLAUDE-2026-10-02-sadelestirme-3-oncesi-tam-metin.md` ("Durum" bölümü). Kuralları yukarıdaki bölümlerde; yalnız Durum'da
 > yazılı olan kurallar (konuşma öğeleri, ev kuralları, canlı bayraklar) 10-02'de ilgili bölümlere taşındı. Bekleyen onaylar ↓.
 
-**10-22 akşam (güncel — clear sonrası BURADAN devam):** kurucu kararları kodda (rapor `docs/RAPOR-2026-10-22-yapay-zeka-ne-ogrendi.md` §8).
+**10-23 gece (güncel — clear sonrası BURADAN devam):** büyük rapor `docs/RAPOR-2026-10-23-gece-buyuk-rapor.md`. Soru 1 kodda (`topic-absence.needTerms`:
+misafirin kendi soru sözcükleri; gönderime izin veren eşleşme SIKI = yalnız çekim eki, tutma yönü GEVŞEK; anahtar `AI_TOPIC_ABSENCE_ENABLED` KAPALI) ·
+Opus akşam bulguları kapandı (gelen kutusu şablonunda iç ad yok, yedek liste aileleri, QR kapı sırası, erken giriş akışı, tek tıkla taslak uyarısı,
+`property:name` kaynağı) · CLAUDE.md sadeleşti (64 → 44 KB; `docs/claude/canli-durum.md` · `fiyat-ve-ozellikler.md` · `hospitable.md` ·
+`calisma-ortami.md`) · İhtiyaç Defteri tasarımı `docs/TASARIM-2026-10-23-ihtiyac-defteri.md` — kurucu soruları A–E AÇIK (F1 kod / gölge, F2 migration 84,
+F3 cevap parçaları, F4 ev sahibinin ilgisiz mesajı). Push `7cec46dc`.
+
+**10-22 akşam:** kurucu kararları kodda (rapor `docs/RAPOR-2026-10-22-yapay-zeka-ne-ogrendi.md` §8).
 - İç kaynak anlatımı misafire ASLA gitmez, olumlu da (kural `docs/claude/ai-guvenlik.md`): istem "KAYNAK ANLATMA YASAĞI" (eski "kayıtlarımda
   şu yazıyor" örneği kök nedendi, silindi; kaynak sorulsa bile o kısım cevaplanmaz) · kıdemli okuyucu 5. hüküm `internalSource` (+ kanıt alıntısı)
   → bir kez yeniden yazma (`reply_internal_source`, kanal + QR) · kod yedeği `absence.namesInternalSource` ANAHTARSIZ, dar (dairedeki kâğıt /

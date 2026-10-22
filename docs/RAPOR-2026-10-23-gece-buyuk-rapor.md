@@ -94,8 +94,12 @@ güncel: OAuth uygulaması Partner Portal'da PRODUCTION onaylı; webhook'lar aç
 amaç Hospitable'dan ayrılmak.
 
 ## 7. Test / push / CI
-- Tam kapı (`npm test` + build) her push öncesi; ilk paket (U4 + iç kaynak + daire adı) kapıdan geçti ve push edildi.
-- Son paketin kapı / push / CI sonucu ↓ (rapor sonunda güncellenir).
+- **1. paket** (U4 + iç kaynak + daire adı + 4 ölçüm): tam kapı yeşil → push `b571727f` → **CI #1617 yeşil**.
+- **2. paket** (Opus düzeltmeleri + CLAUDE.md + Soru 1 + Haiku düzeltmeleri + taslak uyarısı): ilk kapıda 2 kırmızı (benim eklediğim yeni alanı
+  tanımayan iki eski test — güncellendi) → son sürümde tam kapı **yeşil** (572 + 448 + 64 dosya, 18.458 test; build yeşil) → push `7cec46dc` →
+  CI #1619 (sonucu ↓).
+- Her yeni kural önce KIRMIZI (eski kodda düşen) sonra YEŞİL testle eklendi; sauna örneği ürünün gerçek akışından da (veritabanlı entegrasyon
+  testi) geçirildi.
 
 ## 8. Bilinen sınırlar (dürüst)
 - Misafir kaynağı AÇIKÇA sorunca ("bunu nereden biliyorsun?") model ikinci yazışta da kaynaktan söz edebiliyor → tutuluyor, e-posta yok.
