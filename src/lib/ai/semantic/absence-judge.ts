@@ -264,8 +264,10 @@ export function groundReading<R extends Reading>(reading: R | null, draftSeen: s
 }
 
 /**
- * Modelin cevabı → hüküm. Saf. "İtiraf var" diyorsa alıntı boş olabilir (yine itiraf sayılır, tutulur — tutucu yön). "İtiraf yok"
- * diyorsa geçerli; alıntı dolu gelirse çelişkidir → itiraf sayılır. Taslak hakeme TAMAMEN sığmıyorsa hüküm verilmez (`failed`).
+ * Modelin cevabı → hüküm. Saf. "İtiraf yok" diyorsa geçerli; alıntı dolu gelirse çelişkidir → itiraf sayılır. "İtiraf var" diyorsa
+ * alıntı taslakta geçmelidir: boş ya da taslakta olmayan alıntı (`runAbsenceJudge` → `groundReading`) oyu düşürür ve o metinde karar
+ * kelime kuralına kalır (10-22 kanıt şartı; eskiden boş alıntılı itiraf da tutardı). Taslak hakeme TAMAMEN sığmıyorsa hüküm verilmez.
+ * Kanıt şartı hem bilgim-yok hakeminde hem kıdemli okuyucuda geçerlidir (iki anahtar da kapalıyken hiçbiri koşmaz).
  */
 export function parseAbsenceJudgeVerdict(data: unknown): { admits: boolean; quote: string } | null {
   if (!data || typeof data !== "object") return null;

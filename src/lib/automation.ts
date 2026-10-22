@@ -2577,13 +2577,16 @@ export async function applyChannelAutoReply(
         }
         // Yeniden yazma düşerse (hata / yedek cevap) ilk taslak kalır — okuyucunun hükmü onu zaten tutar.
         if (retried?.source === "openai" && retried.reply) {
-          result = mergeSeniorRewrite(result, retried);
-          modelDraft = result.reply;
-          seniorRewrite = reasons;
-          seniorPrecheck = {
-            reply: result.reply,
-            outcome: await runAbsenceJudge({ guestMessage: absenceGuestText, reply: result.reply, names: absenceNames }),
-          };
+          const merged = mergeSeniorRewrite(result, retried);
+          const reread = await runAbsenceJudge({ guestMessage: absenceGuestText, reply: merged.reply, names: absenceNames });
+          // Yeni metin OKUNAMADIYSA (okuma düştü) ilk taslak kalır — okuyucunun hükmü onu zaten tutar; okunmamış metin kelime kurallarıyla
+          // tek başına gitmez (Haiku 10-22).
+          if (reread.status === "ok") {
+            result = merged;
+            modelDraft = result.reply;
+            seniorRewrite = reasons;
+            seniorPrecheck = { reply: result.reply, outcome: reread };
+          }
         }
       }
     }

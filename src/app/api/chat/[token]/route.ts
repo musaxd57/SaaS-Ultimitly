@@ -1184,14 +1184,16 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
         }).catch(() => null);
         replyLatencyMs += Date.now() - retryStartedAt;
         if (retried?.source === "openai" && retried.reply) {
-          result = mergeSeniorRewrite(result, retried);
-          doorCodeHeld = qrReplyHasDoorCode(result.reply, modelKbTexts);
-          qrSeniorRewrite = reasons;
+          const merged = mergeSeniorRewrite(result, retried);
           await assertClaimHeld();
-          qrSeniorPrecheck = {
-            reply: result.reply,
-            outcome: await runAbsenceJudge({ guestMessage: message, reply: result.reply, names: [res.guestName, res.guestGivenName] }),
-          };
+          const reread = await runAbsenceJudge({ guestMessage: message, reply: merged.reply, names: [res.guestName, res.guestGivenName] });
+          // Yeni metin okunamadıysa ilk taslak kalır (okuyucunun hükmü onu tutar) — kanal yoluyla aynı (Haiku 10-22).
+          if (reread.status === "ok") {
+            result = merged;
+            doorCodeHeld = qrReplyHasDoorCode(result.reply, modelKbTexts);
+            qrSeniorRewrite = reasons;
+            qrSeniorPrecheck = { reply: result.reply, outcome: reread };
+          }
         }
       }
     }

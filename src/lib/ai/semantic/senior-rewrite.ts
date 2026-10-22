@@ -57,10 +57,9 @@ export const SENIOR_REWRITE_GATE_DETAILS: ReadonlySet<string> = new Set([
   "reply_offplatform_payment",
   "reply_offplatform_contact",
   "reply_apology",
-  // Öğe kipinde ödeme öğesi tutuluyken okuyucu açıksa bu tutuşun tek sebebi okuyucunun "ev sahibine platform dışı ödeme" hükmüdür
-  // (`paymentHeldHolds`) — aynı düzeltilebilir sebep.
-  "items_payment_held",
 ]);
+// Not: öğe kipindeki `items_payment_held` bu kümede DEĞİL — okuyucu açıkken o tutuş yalnız "ev sahibine ödeme" hükmüyle olur ve kapı
+// aynı hükümle daha önce `reply_offplatform_payment` döner (Haiku 10-22: kümedeki kayıt ölüydü).
 export const SENIOR_REWRITE_QR_REASONS: ReadonlySet<string> = new Set(["offplatform_payment", "reply_apology"]);
 
 /**

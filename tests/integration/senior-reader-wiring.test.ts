@@ -196,6 +196,20 @@ describe("kıdemli okuyucu — kanal oto-yanıtı", () => {
     expect(await reasonOf(id)).toBe("reply_offplatform_contact");
   });
 
+  it("açık: yeniden yazılan metin OKUNAMAZSA (okuma düştü) ilk taslak kalır ve TUTULUR — okunmamış metin gitmez (Haiku 10-22)", async () => {
+    vi.stubEnv("AI_SENIOR_READER_ENABLED", "1");
+    let n = 0;
+    const flagged = readerFetch({ contact: true });
+    const f = vi.fn(async (url: string, init?: RequestInit) => (++n <= 2 ? flagged(url, init) : new Response("down", { status: 503 })));
+    vi.stubGlobal("fetch", f);
+    mockSuggest.mockResolvedValueOnce(DRAFT(CONTACT)).mockResolvedValue(DRAFT("Check-in is from 15:00. See you soon!"));
+    const id = await seedChannel();
+    await applyChannelAutoReply(id);
+    expect(mockSuggest).toHaveBeenCalledTimes(2);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(await reasonOf(id)).toBe("reply_offplatform_contact");
+  });
+
   it("🚨 açık: ilk taslak Airbnb'nin engelleyeceği iletişim taşıyor → model SEBEBİ not alıp aynı anlamda yeniden yazar → temiz taslak GİDER", async () => {
     vi.stubEnv("AI_SENIOR_READER_ENABLED", "1");
     const CLEAN = "Check-in is from 15:00. For anything else, just write to me here in this chat.";

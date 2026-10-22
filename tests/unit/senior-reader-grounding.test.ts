@@ -125,7 +125,6 @@ describe("yeniden yazma birleştirmesi (Opus 10-22 F1)", () => {
 
   it("yalnız okuyucunun düzeltilebilir sebepleri yeniden yazdırır", () => {
     expect([...SENIOR_REWRITE_GATE_DETAILS].sort()).toEqual([
-      "items_payment_held",
       "reply_apology",
       "reply_offplatform_contact",
       "reply_offplatform_payment",
