@@ -872,7 +872,8 @@ export function KbManager({
                             type="button"
                             onClick={() => toggleExpanded(item.id)}
                             aria-expanded={expandedIds.has(item.id)}
-                            className="mt-1 text-xs font-medium text-primary hover:underline"
+                            // Dokunma alanı 27 px (yazı 15 px'ti, 10-22): üst boşluk aynı (pt-1 = eski mt-1), alt dolgu eşit eksi payla.
+                            className="-mb-2 pb-2 pt-1 text-xs font-medium text-primary hover:underline"
                           >
                             {expandedIds.has(item.id) ? "Daralt" : "Devamını göster"}
                           </button>

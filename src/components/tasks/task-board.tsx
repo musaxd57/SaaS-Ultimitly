@@ -412,12 +412,13 @@ export function TaskBoard({ tasks, canManage = true }: { tasks: TaskCardData[]; 
           ))}
         </Select>
 
-        {/* Detail toggle — keeps the card compact (note input + photo hidden) */}
+        {/* Detail toggle — keeps the card compact (note input + photo hidden). Dokunma alanı 27 px (yazı 15 px'ti; temizlikçi telefonda
+            basıyor — 10-22 ölçüldü): dikey dolgu + eşit eksi pay, yazı ve kart aynı yerde. */}
         <button
           type="button"
           onClick={() => toggleExpanded(t.id)}
           aria-expanded={expanded.has(t.id)}
-          className="mt-2 flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+          className="-mb-1.5 mt-0.5 flex items-center gap-1 py-1.5 text-xs font-medium text-primary hover:underline"
         >
           {expanded.has(t.id) ? (
             <>

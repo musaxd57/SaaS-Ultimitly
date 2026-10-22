@@ -338,7 +338,7 @@ export default async function SentPage({
         {canManage(session) ? (
           <Link
             href="/sent/queue"
-            className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+            className="-my-1.5 inline-flex items-center gap-1 py-1.5 text-sm text-primary hover:underline"
           >
             <ListOrdered className="size-3.5" /> Gönderim kuyruğu durumu
           </Link>

@@ -116,7 +116,7 @@ export default async function OutboxQueuePage({
       >
         <Link
           href="/sent"
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+          className="-my-1.5 inline-flex items-center gap-1 py-1.5 text-sm text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="size-3.5" /> Gönderilenler
         </Link>

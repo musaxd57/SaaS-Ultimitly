@@ -388,7 +388,9 @@ export default async function DashboardPage() {
             </CardTitle>
             {/* Kart yeni + bekleyen + sorunlu konuşmaları gösterir; "Tümü" bu yüzden süzgeçsiz gelen kutusu (Haiku 10-22: "?status=new"
                 sorunluları gizliyordu). */}
-            <Link href="/inbox" className="text-xs font-medium text-primary hover:underline">
+            {/* Dokunma alanı: görünmez `::after` 8 px taşar (yazı 15 px'ti). Eksi pay KULLANILMAZ — başlığın `space-y-0`ı dikey payı sıfırlıyor,
+                başlık uzuyordu (10-22 ölçüldü). */}
+            <Link href="/inbox" className="relative text-xs font-medium text-primary after:absolute after:-inset-2 after:content-[''] hover:underline">
               Tümü
             </Link>
           </CardHeader>
@@ -432,7 +434,7 @@ export default async function DashboardPage() {
             <CardTitle className="flex items-center gap-2 text-base">
               <ListChecks className="size-4 text-muted-foreground" /> Bugünkü Görevler
             </CardTitle>
-            <Link href="/tasks" className="text-xs font-medium text-primary hover:underline">
+            <Link href="/tasks" className="relative text-xs font-medium text-primary after:absolute after:-inset-2 after:content-[''] hover:underline">
               Tümü
             </Link>
           </CardHeader>

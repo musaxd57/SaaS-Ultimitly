@@ -361,7 +361,7 @@ export function TemplateManager({ properties, customTemplates, defaultTemplates,
           type="button"
           onClick={() => setExpandedDefaults((s) => !s)}
           aria-expanded={expandedDefaults}
-          className="flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-foreground"
+          className="-my-1.5 flex items-center gap-2 py-1.5 text-sm font-semibold text-muted-foreground hover:text-foreground"
         >
           {expandedDefaults ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
           Varsayılan Şablonlar ({defaultTemplates.length})

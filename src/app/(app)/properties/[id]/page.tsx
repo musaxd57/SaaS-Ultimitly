@@ -463,7 +463,8 @@ export default async function PropertyDetailPage({
               </CardTitle>
               <Link
                 href={`/knowledge?property=${encodeURIComponent(property.id)}#kb-${property.id}`}
-                className="text-xs font-medium text-primary hover:underline"
+                // Dokunma alanı: görünmez `::after` 8 px taşar (eksi pay başlığın `space-y-0`ı yüzünden işlemiyor, 10-22).
+                className="relative text-xs font-medium text-primary after:absolute after:-inset-2 after:content-[''] hover:underline"
               >
                 Düzenle
               </Link>
