@@ -73,6 +73,32 @@ const titleCase = (raw: string): boolean => {
 };
 
 /**
+ * Misafir adı eşleyicisi (katlanmış sözcük): ad parçaları + Kiril / Yunan okunuşları; ad + çekim eki ("mehmetin", "alinin"); 4+ harfli adda
+ * her uzantı (kesmesiz yazım, "mehmetciğim"), kısa adda yalnız hâl eki — "Ali" "alışveriş"i, "Can" "canlı"yı düşürmez (Haiku 10-23).
+ * Kısaltılmış ad ("alex" ← Alexander) da eşlenir. Konu etiketi ve doğrulanmış cevap tekrarı (`answer-reuse/core.ts`) AYNI kuralı kullanır.
+ */
+export function guestNameMatcher(names: readonly (string | null | undefined)[]): { nameParts: string[]; isName: (folded: string) => boolean } {
+  const nameParts = [
+    ...new Set(
+      names.flatMap((n) => {
+        if (!n) return [];
+        const parts = fold(n).split(/[^\p{L}]+/u).filter((p: string) => p.length >= 2);
+        return [...parts, ...parts.map(translit)];
+      }),
+    ),
+  ];
+  const isName = (f: string) =>
+    nameParts.some(
+      (p) =>
+        p === f ||
+        (p.length >= 4 && f.startsWith(p)) ||
+        (f.startsWith(p) && CASE_SUFFIX.test(f.slice(p.length))) ||
+        (f.length >= 4 && p.startsWith(f)),
+    );
+  return { nameParts, isName };
+}
+
+/**
  * İsteğin kısa konu etiketi ya da `null`. `query` anlama katmanının Türkçe sorgusu; `names` misafirin bilinen adları (parçaları ve
  * onlarla başlayan çekimli biçimler etikete giremez).
  */
@@ -83,25 +109,7 @@ export function itemTopicLabel(query: string | null | undefined, names: readonly
   if (hasInjection(q) || LINK.test(q)) return null;
   const distinct = new Set(needTerms([q]));
   if (distinct.size === 0) return null;
-  const nameParts = [
-    ...new Set(
-      names.flatMap((n) => {
-        if (!n) return [];
-        const parts = fold(n).split(/[^\p{L}]+/u).filter((p: string) => p.length >= 2);
-        return [...parts, ...parts.map(translit)];
-      }),
-    ),
-  ];
-  // Ad + çekim eki ("mehmetin", "alinin"); 4+ harfli adda her uzantı (kesmesiz yazım), kısa adda yalnız hâl eki — "Ali" "alışveriş"i,
-  // "Can" "canlı"yı düşürmez (Haiku 10-23). Kısaltılmış ad ("alex" ← Alexander) da atılır.
-  const isName = (f: string) =>
-    nameParts.some(
-      (p) =>
-        p === f ||
-        (p.length >= 4 && f.startsWith(p)) ||
-        (f.startsWith(p) && CASE_SUFFIX.test(f.slice(p.length))) ||
-        (f.length >= 4 && p.startsWith(f)),
-    );
+  const { nameParts, isName } = guestNameMatcher(names);
   const raws = q.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
   const folded = raws.map(fold);
   const isSecretAt = (i: number) => {

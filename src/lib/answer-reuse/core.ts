@@ -17,9 +17,10 @@ import "server-only";
 // ---------------------------------------------------------------------------
 
 import { createHash } from "node:crypto";
-import { askedConditions, checkAnswerBinding, partSignature, type BindingIssue } from "@/lib/ai/answer-binding";
+import { askedConditions, checkAnswerBinding, contentCovered, partSignature, type BindingIssue } from "@/lib/ai/answer-binding";
 import { tokenize } from "@/lib/ai/retrieval/text";
 import { topicsWithSymptomsOf } from "@/lib/conversation-items/relation";
+import { guestNameMatcher } from "@/lib/conversation-items/topic-label";
 import { needTerms, needTermsInStrict } from "@/lib/conversation-items/topic-absence";
 
 /**
@@ -174,9 +175,12 @@ export function reuseGate(cached: ReuseNeed, incoming: ReuseNeed, part = ""): Re
 
 // ─── kayıt adaylığı ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-/** Kişiye / ana bağlı sözler: kayıtlı cevap başka misafire, başka güne taşınamaz. */
+/**
+ * Kişiye / ana bağlı sözler: kayıtlı cevap başka misafire, başka güne taşınamaz. Geçici durum ("bu hafta", "şu an", "currently",
+ * "temporarily") da kalıcılaşmamalı (Opus güvenlik 10-23 F7: "This week the pool closes at 18:00" kayda giriyordu).
+ */
 const RELATIVE_TIME =
-  /(?:^|[^\p{L}])(?:bugün|bugun|yarın|yarin|bu akşam|bu aksam|bu gece|dün|dun|today|tomorrow|tonight|yesterday|heute|morgen|gestern|heute abend|сегодня|завтра|вчера|aujourd|demain|hoy|mañana|manana)(?:[^\p{L}]|$)/iu;
+  /(?:^|[^\p{L}])(?:bugün|bugun|yarın|yarin|bu akşam|bu aksam|bu gece|bu sabah|bu hafta|bu ay|dün|dun|şu an|su an|şu anda|su anda|şimdi|simdi|şimdilik|simdilik|geçici|gecici|today|tomorrow|tonight|yesterday|this (?:week|evening|morning|month|weekend)|right now|currently|at the moment|temporarily|for now|heute|morgen|gestern|heute abend|diese woche|derzeit|zurzeit|momentan|vorübergehend|vorubergehend|сегодня|завтра|вчера|сейчас|на этой неделе|временно|aujourd|demain|cette semaine|actuellement|temporairement|hoy|mañana|manana|esta semana|actualmente|temporalmente)(?:[^\p{L}]|$)/iu;
 
 export type EntryEligibility = "ok" | "kind_not_reusable" | "relative_time" | "guest_name" | "empty";
 
@@ -184,10 +188,11 @@ export type EntryEligibility = "ok" | "kind_not_reusable" | "relative_time" | "g
 export function entryEligible(need: ReuseNeed, part: string, guestNames: readonly (string | null | undefined)[] = []): EntryEligibility {
   if (!REUSABLE_KINDS.has(need.kind) || need.stayChange) return "kind_not_reusable";
   if (!part.trim()) return "empty";
-  if (RELATIVE_TIME.test(part)) return "relative_time";
-  const words = new Set(fold(part));
-  const nameParts = guestNames.flatMap((n) => (n ? fold(n).filter((p) => p.length >= 2) : []));
-  if (nameParts.some((p) => words.has(p))) return "guest_name";
+  // Belirli tarih ("24 Ekim", "On 24 October") tek seferlik bir duruma aittir.
+  if (RELATIVE_TIME.test(part) || partSignature(part).values.some((v) => v.startsWith("date:"))) return "relative_time";
+  // Konu etiketinin ad kuralı (çekimli biçim, kesmesiz uzantı, Kiril okunuş): "Mehmetciğim", "Dear Ivan" ← "Иван Петров".
+  const { isName } = guestNameMatcher(guestNames);
+  if (fold(part).some((w) => isName(w))) return "guest_name";
   return "ok";
 }
 
@@ -196,6 +201,26 @@ export function sameAnswer(a: string, b: string): boolean {
   const x = partSignature(a);
   const y = partSignature(b);
   return x.negative === y.negative && x.values.join(",") === y.values.join(",");
+}
+
+/**
+ * Kayıtlı metin + yeni taze cevap → teyit kararı (Opus güvenlik 10-23 F7: değer + olumluluk aynıysa ilk metin aynen kalıyordu; tek misafirin
+ * eklediği "Smoking is also allowed inside" cümlesi sonraki misafirlere gidecek metin olurdu). Aynı bilgi + içerik birinin ötekini kapsaması:
+ *  · kayıtlı ⊆ yeni → teyit, kayıtlı metin kalır;
+ *  · yeni ⊆ kayıtlı → teyit, kayıt YENİ (daha dar) metne iner — fazla içerik düşer;
+ *  · ikisi de değil → farklı cevap (sıfırla).
+ * Böylece kayıtlı metin her teyidin paylaştığı içeriğe daralır.
+ */
+export function confirmAnswer(stored: string, fresh: string): { same: false } | { same: true; text: string } {
+  if (!sameAnswer(stored, fresh)) return { same: false };
+  if (contentCovered(stored, fresh)) return { same: true, text: stored };
+  if (contentCovered(fresh, stored)) return { same: true, text: fresh };
+  return { same: false };
+}
+
+/** Teyidin geldiği konuşmanın kalıcı olmayan izi (kimlik kaydedilmez; aynı konuşma iki kez teyit sayılmaz). */
+export function conversationKey(conversationId: string): string {
+  return createHash("sha256").update(`reuse:${conversationId}`).digest("hex").slice(0, 16);
 }
 
 // ─── geçerlilik ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────

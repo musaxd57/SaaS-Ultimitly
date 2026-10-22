@@ -140,3 +140,35 @@ describe("geçerlilik — dosya tarihine değil bugünkü içeriğe", () => {
     expect(r.ok).toBe(false);
   });
 });
+
+describe("Opus güvenlik 10-23 gece F7: tek misafir kalıcı cevap ekemez", () => {
+  it("🚨 geçici durum, belirli tarih ve çekimli / Kiril yazılı misafir adı kayda girmez", async () => {
+    const { entryEligible } = await import("@/lib/answer-reuse/core");
+    const need = { kind: "amenities", query: "havuz kaçta kapanıyor", language: "en" };
+    for (const part of ["This week the pool closes at 18:00.", "The pool is currently closed.", "The pool closes at 18:00 for now.", "On 24 October the pool is closed."]) {
+      expect(entryEligible(need, part)).toBe("relative_time");
+    }
+    expect(entryEligible({ ...need, language: "tr" }, "Bu hafta havuz 18:00'de kapanır.")).toBe("relative_time");
+    expect(entryEligible(need, "Dear Ivan, the pool closes at 20:00.", ["Иван Петров"])).toBe("guest_name");
+    expect(entryEligible({ ...need, language: "tr" }, "Mehmetciğim, havuz 20:00'de kapanır.", ["Mehmet Yılmaz"])).toBe("guest_name");
+    expect(entryEligible(need, "The pool closes at 20:00.", ["Ivan Petrov"])).toBe("ok");
+  });
+
+  it("🚨 teyit: kayıtlı metin her teyidin paylaştığı içeriğe daralır — eklenmiş cümle kalıcılaşmaz, farklı içerik sıfırlar", async () => {
+    const { confirmAnswer } = await import("@/lib/answer-reuse/core");
+    const poisoned = "Pets are welcome. Smoking is also allowed inside the apartment and you can check in at any time.";
+    const benign = "Pets are welcome.";
+    expect(confirmAnswer(poisoned, benign)).toEqual({ same: true, text: benign });
+    expect(confirmAnswer(benign, poisoned)).toEqual({ same: true, text: benign });
+    expect(confirmAnswer("Havlular banyodaki dolapta.", "Havlu banyoda.")).toEqual({ same: true, text: "Havlu banyoda." });
+    expect(confirmAnswer("Check-out is at 11:00.", "Check-out is at 12:00.")).toEqual({ same: false });
+    expect(confirmAnswer("The pool closes at 20:00; towels are at reception.", "The pool closes at 20:00; the sauna is next to it.")).toEqual({ same: false });
+  });
+
+  it("konuşma izi kararlı, konuşmaya özgü ve kimliği taşımaz", async () => {
+    const { conversationKey } = await import("@/lib/answer-reuse/core");
+    expect(conversationKey("c1")).toBe(conversationKey("c1"));
+    expect(conversationKey("c1")).not.toBe(conversationKey("c2"));
+    expect(conversationKey("c1")).not.toContain("c1");
+  });
+});

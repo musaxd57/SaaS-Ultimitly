@@ -1799,6 +1799,16 @@ const GENERIC_REGION_WORDS: ReadonlySet<string> = new Set(
 
 // ─── doğrulanmış cevap tekrarı için dışa açık okumalar (`answer-reuse/core.ts`) ───────────────────────────────────────────────────
 
+/**
+ * `text`in her içerik sözcüğü (yüklem / bağ fiili hariç) `by` içinde aynı kökle geçiyor mu — iki AYNI dilli cevabın içerik kıyası (doğrulanmış
+ * cevap tekrarı: kayıtlı metin yalnız her teyidin paylaştığı içeriğe daralır; tek misafirin eklediği cümle kalıcılaşmaz — Opus güvenlik 10-23 F7).
+ */
+export function contentCovered(text: string, by: string): boolean {
+  const tt = tokenize(text);
+  const bt = tokenize(by);
+  return tt.every((t, i) => !contentWord(tt, i, []) || PREDICATE_WORDS.has(t) || bt.some((b) => sameStem(t, b)));
+}
+
 /** Sorudaki gün / mevsim / kişi / sıklık koşul sınıfları ("cumartesi havuz kaçta" → `sat`) — iki soru aynı koşulu mu soruyor. */
 export function askedConditions(text: string): string[] {
   return [...conditionClasses(tokenize(text), "evidence")].sort();
