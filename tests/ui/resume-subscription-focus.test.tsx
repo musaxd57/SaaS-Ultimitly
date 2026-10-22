@@ -90,6 +90,37 @@ describe("devam ettir — odak", () => {
     expect(focused()?.textContent).toContain("henüz kesinleşmedi");
   });
 
+  it("tutar hesaplanamadı (önizleme hatası) → odak kilidi kalkan Devam et'e döner", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => json(502, { error: "Tutar şu anda hesaplanamadı; ödeme alınmadı." })));
+    render(<ResumeSubscription plans={plans} currentPlanCode="pro" locale="tr-TR" />);
+    fireEvent.click(screen.getByRole("button", { name: "Aboneliği devam ettir" }));
+    const trigger = screen.getByRole("button", { name: "Devam et" });
+    fireEvent.click(trigger);
+    (document.activeElement as HTMLElement | null)?.blur();
+    await waitFor(() => expect(focused()).toBe(trigger));
+    expect((trigger as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.getByRole("alert")).toBeTruthy();
+  });
+
+  it("tutar değişti (409) → yeni tutar gelir, odak yeni onayın Vazgeç'inde (ödeme düğmesinde değil)", async () => {
+    let previews = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) => {
+        if (url === "/api/billing/resume-preview") {
+          previews += 1;
+          return json(200, { ...PREVIEW, amount: previews === 1 ? "₺899,00" : "₺949,00", previewToken: `t${previews}` });
+        }
+        return json(409, { amountChanged: true, error: "Tutar değişti." });
+      }),
+    );
+    await openPreview();
+    fireEvent.click(screen.getByRole("button", { name: /899,00 öde ve devam ettir/ }));
+    await screen.findByRole("button", { name: /949,00 öde ve devam ettir/ });
+    await waitFor(() => expect(focused()?.textContent).toBe("Vazgeç"));
+    expect(screen.getByRole("group", { name: "Pro planınız hemen açılır." }).contains(focused())).toBe(true);
+  });
+
   it("kart reddi (402) → odak Devam et'e döner (yeniden denenebilir), hata uyarı olarak okunur", async () => {
     stubFetch(() => json(402, { error: "Ödeme alınamadı. Kart bilgilerinizi güncelleyin.", cardUpdateUrl: null }));
     await openPreview();

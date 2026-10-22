@@ -38,6 +38,8 @@ describe("bilgi tabanı kartı dar ekranda", () => {
     expect(cls(header)).toEqual(expect.arrayContaining(["flex", "flex-wrap"]));
     expect(cls(actions)).toContain("ml-auto");
     expect(cls(titleGroup)).toEqual(expect.arrayContaining(["min-w-0", "flex-wrap"]));
+    // Satır kırma kararı başlığın tam genişliğiyle değil sabit tabanla: uzun başlık masaüstünde düğmeleri alt satıra itmez.
+    expect(cls(titleGroup)).toEqual(expect.arrayContaining(["flex-1", "basis-32"]));
     expect(titleGroup.textContent).toContain("Konum bağlantısı");
 
     const body = screen.getByText(/^Yol: https:/);

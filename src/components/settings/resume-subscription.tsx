@@ -61,16 +61,20 @@ export function ResumeSubscription({
       const data = (await res.json().catch(() => ({}))) as Partial<Preview> & { error?: string; fields?: Record<string, string>; pendingVerification?: boolean };
       if (data.pendingVerification) {
         setNotice(data.error ?? BILLING_TEXT.changePending);
+        focusLater(() => noticeRef.current);
         return;
       }
       if (!res.ok || !data.previewToken || !data.confirm || !data.amount) {
         setError(billingReason(data, "Tutar şu anda hesaplanamadı; ödeme alınmadı. Birkaç dakika sonra tekrar deneyin."));
+        // "Devam et" istek sürerken kilitliydi (odak sayfa başına düşmüş olabilir) — kilit kalkınca ona dön, yeniden denenebilsin (Haiku 10-22).
+        focusLater(() => previewTriggerRef.current);
         return;
       }
       setPreview(data as Preview);
       if (noticeText) setNotice(noticeText);
     } catch {
       setError(BILLING_TEXT.network);
+      focusLater(() => previewTriggerRef.current);
     } finally {
       setBusy(false);
     }

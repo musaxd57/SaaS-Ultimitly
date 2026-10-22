@@ -684,8 +684,12 @@ export function KbManager({
                           31 px TAŞIYORDU (ölçüldü; min-w-0 ile taşma 0).
                           Başlık kırpılmaz, sarar. 10-22 (320 px ölçüldü): başlığa ~60 px
                           kalıyor, başlık düğmelerin ALTINA giriyordu → satır sarar
-                          (düğmeler sığmazsa alt satıra, sağa yaslı), rozetler de sarar. */}
-                      <div className="flex min-w-0 flex-wrap items-center gap-2">
+                          (düğmeler sığmazsa alt satıra, sağa yaslı), rozetler de sarar.
+                          `flex-1 basis-32`: satır kırma kararı içeriğin tam genişliğiyle
+                          değil 128 px ile verilir — başlığa en az bu kadar yer varsa
+                          düğmeler aynı satırda kalır (uzun başlık / çok rozet masaüstünde
+                          düğmeleri alt satıra itmez; Haiku 10-22). */}
+                      <div className="flex min-w-0 flex-1 basis-32 flex-wrap items-center gap-2">
                         <Badge tone={KB_CATEGORY.tone(item.category)}>
                           {KB_CATEGORY.label(item.category)}
                         </Badge>
