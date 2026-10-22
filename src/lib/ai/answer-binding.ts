@@ -55,6 +55,7 @@ export const BINDING_ISSUES = [
   "polarity_mismatch",
   "direction_mismatch",
   "unsupported_content",
+  "subject_mismatch",
 ] as const;
 export type BindingIssue = (typeof BINDING_ISSUES)[number];
 
@@ -69,6 +70,8 @@ export interface BindingInput {
   needTerms: readonly string[];
   /** İhtiyacın sözlük konuları (`requestTopics` / `topicsWithSymptomsOf`). */
   needTopics: readonly string[];
+  /** İstemde gösterilen ÖTEKİ kaynaklar (Opus 10-23 O6: aynı konunun koşullu değişkesi başka kalemde olabilir). */
+  otherSources?: readonly string[];
 }
 
 export interface BindingResult {
@@ -351,8 +354,59 @@ function hasSubject(text: string, subj: Subject): boolean {
       modifierOnly = true;
     }
   }
+  // Terim varken KABA sözlük konusuna düşülmez (Opus 10-23 K2: "kahvaltı" sorusuna "restoran"ın saati — ikisi de "restaurant"); ince konu
+  // ("Check-out saati" ↔ "çıkış") yine eşler.
   if (modifierOnly || subj.topics.length === 0) return false;
-  return topicsWithSymptomsOf(text).some((t) => subj.topics.includes(t));
+  const topics = subj.terms.length > 0 ? subj.topics.filter((t) => !COARSE_TOPICS.has(t)) : subj.topics;
+  return topics.length > 0 && topicsWithSymptomsOf(text).some((t) => topics.includes(t));
+}
+
+/** Birden çok tesisi / türü toplayan sözlük konuları: kimlik sayılmaz (kahvaltı / restoran / kafe → "restaurant"; köpek / evcil hayvan → "pets"). */
+const COARSE_TOPICS: ReadonlySet<string> = new Set(["restaurant", "pets"]);
+
+/**
+ * Konu sözcüğü sayılmayanlar (Opus 10-23 K2): genel baş adlar ("çamaşır MAKİNESİ" ↔ "bulaşık MAKİNESİ") ve fiiller ("kullanılabilir",
+ * "çalışır"). Katlanmış biçim; tam sözcük ya da en az 4 harflik baş.
+ */
+const GENERIC_HEADS = (
+  "makine makinesi makinasi alet aleti cihaz cihazi oda odasi odada alan alani saat saati saatleri kullanim kullanimi tesis tesisi " +
+  "machine device appliance room area hours time facility geraet gerat maschine zimmer bereich uhrzeit"
+).split(" ");
+const EN_DE_VERBS = new Set(
+  (
+    "open opens opened opening close closes closed closing use used using work works working cost costs start starts end ends allowed available rent rented book booked " +
+    "offnet oeffnet schliesst geoffnet kostet erlaubt gestattet " +
+    // Yüklem adları ("kabul ediliyor mu", "izin var mı"): konu değil.
+    "kabul izin mumkun serbest yasak permitted accepted welcome"
+  ).split(" "),
+);
+function isGenericOrVerb(t: string): boolean {
+  if (GENERIC_HEADS.includes(t) || EN_DE_VERBS.has(t)) return true;
+  // Gün / mevsim / koşul sözcüğü ("havuz CUMARTESİ kaçta") ve soru eki ("miyim") konu değildir.
+  if (lookup(t, CONDITION_TOKENS) !== undefined || /^m[iu](yim|yiz|sin|siniz|dir|dur)?$/.test(t)) return true;
+  // Türkçe fiil çekimi (çoğul ad "-lar / -ler" hariç): -ılır / -ınır / -abilir / -ıyor / -makta / -mak / -maz / 6+ harfli -ır.
+  if (/l[ae]r$/.test(t)) return false;
+  return /(?:[iu]l[iu]r|[iu]n[iu]r|[ae]bil[iu]r|[iu]yor(?:uz|lar|sunuz)?|m[ae]kt[ae]d[iu]r|m[ae]k|m[ae]z)$/.test(t) || (t.length >= 6 && /[iu]r$/.test(t));
+}
+
+/** Konu kimliği: terimin sözlük konusu (diller arası "pool" ~ "havuz") ya da terimin kendisi. */
+function subjectIdentity(term: string): string {
+  const topics = topicsWithSymptomsOf(term);
+  // Kimlik için kaba konu da olur ("evcil hayvan" / "pets" aynı şey); BAĞ kurmak için olmaz (`hasSubject` terim ister).
+  return topics.length > 0 ? `topic:${topics[0]}` : `term:${term}`;
+}
+
+/** Metinde geçen konu kimlikleri (niteleyen konumdaki sözcük sayılmaz). */
+function subjectIdentitiesIn(text: string, subj: Subject, identities: ReadonlySet<string>): Set<string> {
+  const out = new Set<string>();
+  const tokens = tokenize(text);
+  for (let i = 0; i < tokens.length; i++) {
+    if (tokens[i].length < 3 || modifierAt(tokens, i)) continue;
+    for (const term of subj.terms) if (needTermsInStrict([term], tokens[i]) > 0) out.add(subjectIdentity(term));
+  }
+  // Diller arası: parçanın "pool"u ihtiyacın "havuz"uyla aynı sözlük konusu.
+  for (const t of topicsWithSymptomsOf(text)) if (identities.has(`topic:${t}`)) out.add(`topic:${t}`);
+  return out;
 }
 
 // ─── yapı: cümle → değer grubu → yan cümle ───────────────────────────────────────────────────────────────────────────────────────
@@ -663,8 +717,10 @@ function documentOf(raw: string, subj: Subject) {
   const sentences = structure(text, claims, languageOf(raw) === "tr");
   const subjectIn = (s: string) => hasSubject(s, subj);
   const segPrefix = new Map<Sentence, number[]>();
-  const clauseCache = new Map<string, PlaceReading>();
+  // Önbellekler cümle nesnesine bağlı diziler (dize anahtarı yok — uzun kalemde milyonlarca anahtar üretiyordu).
+  const clauseCache = new Map<Sentence, (PlaceReading | undefined)[]>();
   const extraCache = new Map<Sentence, PlaceReading>();
+  const beforeCache = new Map<Sentence, PlaceReading[]>();
   let wholeSubject: boolean | undefined;
 
   /** Grubun konu yeri konuyu taşıyor mu: yer, grup bitişlerine göre bölünmüş parçaların birleşimi (önek toplamıyla O(1)). */
@@ -686,37 +742,55 @@ function documentOf(raw: string, subj: Subject) {
     return pre[gi + 1] - pre[k0] > 0;
   };
   const clausePlace = (sent: Sentence, ci: number) => {
-    const key = `${sent.s}:${ci}`;
-    let r = clauseCache.get(key);
-    if (!r) {
-      r = readPlace(text.slice(sent.clauses[ci][0], sent.clauses[ci][1]));
-      clauseCache.set(key, r);
-    }
-    return r;
+    let row = clauseCache.get(sent);
+    if (!row) clauseCache.set(sent, (row = []));
+    return (row[ci] ??= readPlace(text.slice(sent.clauses[ci][0], sent.clauses[ci][1])));
   };
   // Aynı cümlenin değersiz yan cümleleri: konuyu anıyorsa ya da yalnız nötr sözcüklüyse ("…, pazar hariç", "Yalnız yazın, …").
+  const extraEligible = (sent: Sentence, ci: number) => {
+    const cl = sent.clauses[ci];
+    return !sent.valuedClause[ci] && (subjectIn(text.slice(cl[0], cl[1])) || allNeutral(text, cl[0], cl[1]));
+  };
   const extraPlace = (sent: Sentence) => {
     let r = extraCache.get(sent);
     if (!r) {
-      const parts = sent.clauses
-        .map((cl, ci) => ({ cl, ci }))
-        .filter(({ cl, ci }) => !sent.valuedClause[ci] && (subjectIn(text.slice(cl[0], cl[1])) || allNeutral(text, cl[0], cl[1])))
-        .map(({ ci }) => clausePlace(sent, ci));
+      const parts = sent.clauses.map((_, ci) => ci).filter((ci) => extraEligible(sent, ci)).map((ci) => clausePlace(sent, ci));
       r = { conditions: new Set(parts.flatMap((p) => [...p.conditions])), negative: parts.some((p) => p.negative), directions: new Set() };
       extraCache.set(sent, r);
     }
     return r;
   };
+  // Değerin yan cümlesinden ÖNCEKİ değersiz yan cümleler (parça tarafı: "Hafta sonları: havuz 23:00'e kadar açık." — ama "Havuz 23:00'de
+  // kapanır, hafta sonu da açık." değere gün BAĞIŞLAMAZ, Opus 10-23 Y2). Önek okumaları cümle başına bir kez (tek değerli cümlede doğrusal).
+  const extraBefore = (sent: Sentence, ownCi: number): PlaceReading => {
+    let pre = beforeCache.get(sent);
+    if (!pre) {
+      pre = [{ conditions: new Set(), negative: false, directions: new Set() }];
+      for (let ci = 0; ci < sent.clauses.length; ci++) {
+        const last = pre[ci];
+        if (!extraEligible(sent, ci)) {
+          pre.push(last);
+          continue;
+        }
+        const p = clausePlace(sent, ci);
+        const grows = [...p.conditions].some((c) => !last.conditions.has(c)) || (p.negative && !last.negative);
+        pre.push(grows ? { conditions: new Set([...last.conditions, ...p.conditions]), negative: last.negative || p.negative, directions: last.directions } : last);
+      }
+      beforeCache.set(sent, pre);
+    }
+    return pre[ownCi];
+  };
   /** Değerin koşul / olumluluk / yön okuması. Yön yalnız kendi yan cümlesinden; koşul devralınan yan cümleden de (aile ezmesiyle). */
-  const placeCache = new Map<Sentence, Map<number, PlaceReading>>();
-  const placeOf = (sent: Sentence, gi: number): PlaceReading => {
-    let perSentence = placeCache.get(sent);
-    if (!perSentence) placeCache.set(sent, (perSentence = new Map()));
-    const cached = perSentence.get(gi);
+  const placeCache = new Map<Sentence, (PlaceReading | undefined)[][]>();
+  const placeOf = (sent: Sentence, gi: number, opts: { extraBeforeOnly?: boolean } = {}): PlaceReading => {
+    let rows = placeCache.get(sent);
+    if (!rows) placeCache.set(sent, (rows = [[], []]));
+    const row = rows[opts.extraBeforeOnly ? 1 : 0];
+    const cached = row[gi];
     if (cached) return cached;
     const ownCi = sent.groupClause[gi];
     const own = clausePlace(sent, ownCi);
-    const extra = extraPlace(sent);
+    const extra = opts.extraBeforeOnly ? extraBefore(sent, ownCi) : extraPlace(sent);
     const conditions = new Set([...own.conditions, ...extra.conditions]);
     const ownDay = [...own.conditions].some((c) => DAY_CLASSES.has(c));
     const ownSeason = [...own.conditions].some((c) => SEASON_CLASSES.has(c));
@@ -736,8 +810,20 @@ function documentOf(raw: string, subj: Subject) {
       }
     }
     const reading = { conditions, negative: own.negative || extra.negative, directions: own.directions };
-    perSentence.set(gi, reading);
+    row[gi] = reading;
     return reading;
+  };
+  /** Cümle düzeyi okumalar (istisna + koşulları, ücret tabanı) — cümle başına bir kez (değer başına yeniden okuma karesel/kübikti). */
+  const sentenceCache = new Map<Sentence, { exception: boolean; conds: string[]; basis: Set<string> }>();
+  const sentenceInfo = (sent: Sentence) => {
+    let r = sentenceCache.get(sent);
+    if (!r) {
+      const toks = tokenize(text.slice(sent.s, sent.e));
+      const exception = toks.some((t) => EXCEPTION_TOKENS.has(t));
+      r = { exception, conds: exception ? variantClassesOf(conditionClasses(toks, "evidence")) : [], basis: basisClasses(toks) };
+      sentenceCache.set(sent, r);
+    }
+    return r;
   };
   const hasSubjectAnywhere = () => (wholeSubject ??= subjectIn(text));
   /**
@@ -747,7 +833,10 @@ function documentOf(raw: string, subj: Subject) {
   const sentenceNeutral: (boolean | undefined)[] = [];
   const sentenceLocation: (boolean | undefined)[] = [];
   const sentenceSubject: (boolean | undefined)[] = [];
-  const boundAt = (si: number, gi: number) => {
+  // Yer başına bir kez (her parça değeri aynı yerleri yeniden sorar — önbelleksiz değer × yer kadar konu okuması).
+  const boundMemo: (boolean | undefined)[][] = [];
+  const boundAt = (si: number, gi: number): boolean => ((boundMemo[si] ??= [])[gi] ??= boundAtUncached(si, gi));
+  const boundAtUncached = (si: number, gi: number) => {
     const sent = sentences[si];
     if (boundTo(sent, gi)) return true;
     if (si === 0) return false;
@@ -765,7 +854,62 @@ function documentOf(raw: string, subj: Subject) {
     sentenceSubject[si - 1] ??= subjectIn(text.slice(prev.s, prev.e));
     return sentenceSubject[si - 1]!;
   };
-  return { text, sentences, subjectIn, boundAt, placeOf, hasSubjectAnywhere };
+  /** Bağlı grubun KONU yeri (metin): cümle içi yer ya da devralınan önceki cümle; bağsızsa null. */
+  const boundRegion = (si: number, gi: number): string | null => {
+    const sent = sentences[si];
+    if (boundTo(sent, gi)) return text.slice(sent.regionFrom[gi], sent.groups[gi].end);
+    if (!boundAt(si, gi)) return null;
+    const prev = sentences[si - 1];
+    return text.slice(prev.s, prev.e);
+  };
+  /**
+   * Konuya bağlı, gün / mevsim koşullu değer grupları (değer türüne göre, belge başına bir kez) — `variantOmitted` her parça değeri için
+   * yalnız bu listeyi tarar (önceden her değer + her yer için bütün kalem yeniden okunuyordu: uzun kalemde kübik).
+   */
+  const variantGroupCache = new Map<string, { claims: Span[]; conds: string[] }[]>();
+  const variantGroupsFor = (cls: string) => {
+    let list = variantGroupCache.get(cls);
+    if (!list) {
+      list = [];
+      for (let si = 0; si < sentences.length; si++) {
+        const sent = sentences[si];
+        for (let gi = 0; gi < sent.groups.length; gi++) {
+          const g = sent.groups[gi];
+          if (!g.claims.some((e) => e.cls === cls) || !boundAt(si, gi)) continue;
+          const conds = [...placeOf(sent, gi).conditions].filter((c) => DAY_CLASSES.has(c) || SEASON_CLASSES.has(c));
+          if (conds.length > 0) list.push({ claims: g.claims, conds });
+        }
+      }
+      variantGroupCache.set(cls, list);
+    }
+    return list;
+  };
+  /**
+   * Değersiz koşullu yan cümlelerin gün / mevsim koşulları ("Hafta sonu kapalıdır", "Pazar günleri kapalıdır"): yüklem ya da olumsuzluk
+   * taşıyan, konuyu anan ya da konusunu önceki cümleden devralan (cümle yalnız nötr sözcüklü) yan cümle. Değerden bağımsız → bir kez.
+   */
+  let valuelessConds: string[] | undefined;
+  const valuelessVariantConds = () => {
+    if (valuelessConds) return valuelessConds;
+    const out = new Set<string>();
+    for (let si = 0; si < sentences.length; si++) {
+      const sent = sentences[si];
+      const sentText = text.slice(sent.s, sent.e);
+      const inherits = si > 0 && allNeutral(text, sent.s, sent.e) && subjectIn(text.slice(sentences[si - 1].s, sentences[si - 1].e));
+      let sentSubject: boolean | undefined;
+      for (let ci = 0; ci < sent.clauses.length; ci++) {
+        if (sent.valuedClause[ci]) continue;
+        const [a, b] = sent.clauses[ci];
+        const clause = text.slice(a, b);
+        const toks = tokenize(clause);
+        if (!(hasPredicate(toks) || negative(toks))) continue;
+        if (!(subjectIn(clause) || inherits || (allNeutral(text, a, b) && (sentSubject ??= subjectIn(sentText))))) continue;
+        for (const c of conditionClasses(toks, "evidence")) if (DAY_CLASSES.has(c) || SEASON_CLASSES.has(c)) out.add(c);
+      }
+    }
+    return (valuelessConds = [...out]);
+  };
+  return { text, sentences, subjectIn, boundAt, boundRegion, placeOf, hasSubjectAnywhere, sentenceInfo, variantGroupsFor, valuelessVariantConds };
 }
 
 // ─── dayanaksız içerik (Haiku 10-23 F3: "Havuz 09:00-20:00 arası açık VE ÜCRETSİZDİR" alıntıda olmayan sözcükle gidiyordu) ─────────
@@ -813,8 +957,11 @@ function languageOf(text: string): string | null {
  * sözcüğü değil.
  */
 export function unsupportedContent(part: string, evidence: string, needTerms: readonly string[]): boolean {
-  const lp = languageOf(part);
-  if (!lp || lp !== languageOf(evidence)) return false;
+  const le = languageOf(evidence);
+  // Dili kestirilemeyen kısa parça ("Otopark konaklama boyunca 200 TL.") kalemle aynı yazı sistemindeyse kalemin dilinde sayılır (Opus 10-23
+  // Y5) — tutma yönünde: kısa İngilizce parça bu yolla içerik farkı verirse tutulur.
+  const lp = languageOf(part) ?? (le && scriptOf(part) === scriptOf(evidence) ? le : null);
+  if (!lp || lp !== le) return false;
   const ev = tokenize(evidence);
   const pt = tokenize(part);
   return pt.some((t, i) => {
@@ -824,6 +971,73 @@ export function unsupportedContent(part: string, evidence: string, needTerms: re
   });
 }
 
+// ─── Opus 10-23 sertleştirmesi: sayı sözcüğü, ücret kutbu, ücret tabanı, istisna ─────────────────────────────────────────────────
+
+/** Sözcükle yazılmış sayı / saat ("eight pm", "acht Uhr", "в восемь вечера", "akşam sekizde"): rakamlı değer yoksa değer kontrolü atlanırdı. */
+const NUMBER_WORDS: ReadonlySet<string> = new Set(
+  (
+    "two three four five six seven eight nine ten eleven twelve twenty thirty forty fifty sixty hundred noon midday midnight half quarter oclock " +
+    "zwei drei vier funf fuenf sechs sieben acht neun zehn elf zwolf zwoelf zwanzig dreissig vierzig funfzig fuenfzig hundert mittag mitternacht halb viertel " +
+    "deux trois quatre cinq sept huit neuf dix onze douze vingt trente cinquante cent midi minuit " +
+    "dos tres cuatro cinco seis siete ocho nueve diez doce veinte treinta cincuenta cien mediodia medianoche " +
+    "два три четыре пять шесть семь восемь девять десять одиннадцать двенадцать двадцать тридцать пятьдесят сто полдень полночь " +
+    "iki uc dort bes alti yedi sekiz dokuz yirmi otuz kirk elli bucuk sekizde dokuzda yedide onda"
+  ).split(" "),
+);
+const hasNumberWord = (tokens: readonly string[]) => tokens.some((t) => NUMBER_WORDS.has(t));
+
+const FEE_FREE = new Set("ucretsiz ucretsizdir bedava bedavadir free gratis kostenlos gratuit gratuite gratuito complimentary бесплатно бесплатный бесплатная бесплатное".split(" "));
+const FEE_PAID = new Set("ucretli ucretlidir paid charge charged chargeable fee fees kostenpflichtig gebuhr gebuehr payant payante платно платный платная платное".split(" "));
+/** Ücret kutbu: "ücretsiz" / "ücretli" (olumsuzlanmış "ücretsiz değil" / "not free" ücretlidir). Diller arası da okunur (Opus 10-23 Y4). */
+function feeClasses(tokens: readonly string[]): Set<"free" | "paid"> {
+  const out = new Set<"free" | "paid">();
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    if (FEE_FREE.has(t)) {
+      const negated = /^degil/.test(tokens[i + 1] ?? "") || NEGATING_PARTICLES.has(tokens[i - 1] ?? "") || (tokens[i - 1] ?? "") === "не";
+      out.add(negated ? "paid" : "free");
+    } else if (FEE_PAID.has(t)) out.add("paid");
+  }
+  return out;
+}
+
+/** Ücret tabanı (Opus 10-23 Y5): günlük ≠ gecelik ≠ kişi başı ≠ konaklama boyunca. Yalnız TUTAR değerinde okunur ("daily" sıklık da olabilir). */
+const BASIS_SINGLE: Readonly<Record<string, string>> = {
+  gunluk: "day", gunlugu: "day", daily: "day", taglich: "day",
+  gecelik: "night", gecesi: "night", nightly: "night",
+  saatlik: "hour", hourly: "hour", stundlich: "hour",
+  haftalik: "week", weekly: "week", wochentlich: "week",
+};
+const BASIS_AFTER_PER: Readonly<Record<string, string>> = {
+  night: "night", nights: "night", nacht: "night", nuit: "night", noche: "night", gece: "night",
+  day: "day", days: "day", tag: "day", jour: "day", dia: "day", gun: "day",
+  person: "person", persons: "person", people: "person", guest: "person", personne: "person", persona: "person", kisi: "person",
+  hour: "hour", stunde: "hour", heure: "hour", hora: "hour", saat: "hour",
+  week: "week", woche: "week", semaine: "week", semana: "week", hafta: "week",
+  stay: "stay", aufenthalt: "stay", sejour: "stay", estancia: "stay", konaklama: "stay",
+};
+function basisClasses(tokens: readonly string[]): Set<string> {
+  const out = new Set<string>();
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    const next = tokens[i + 1] ?? "";
+    if (BASIS_SINGLE[t]) out.add(BASIS_SINGLE[t]);
+    // "per night / pro Nacht / par nuit / por noche" · Türkçe "kişi başı / gece başı" · "konaklama boyunca" · "for the whole / entire stay".
+    if (["per", "pro", "par", "por", "a"].includes(t) && BASIS_AFTER_PER[next]) out.add(BASIS_AFTER_PER[next]);
+    if (BASIS_AFTER_PER[t] && /^bas/.test(next)) out.add(BASIS_AFTER_PER[t]);
+    if (t === "konaklama" && /^boyunca/.test(next)) out.add("stay");
+    if ((t === "whole" || t === "entire") && /^stay/.test(next)) out.add("stay");
+  }
+  return out;
+}
+
+/** İstisna / karşıtlık (Opus 10-23 Y7): "…, köpek hariç", "…, ama köpekler kabul edilmez". */
+const EXCEPTION_TOKENS = new Set(
+  "haric haricinde disinda except excluding but however ama fakat ausser außer aber sauf mais excepto salvo pero кроме но".split(" "),
+);
+
+const scriptOf = (text: string) => (/[Ѐ-ӿ]/u.test(text) ? "cyrillic" : /[Ͱ-Ͽ]/u.test(text) ? "greek" : /[؀-ۿ]/u.test(text) ? "arabic" : "latin");
+
 // ─── ana kural ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 export function checkAnswerBinding(input: BindingInput): BindingResult {
@@ -831,106 +1045,225 @@ export function checkAnswerBinding(input: BindingInput): BindingResult {
   const evidence = input.evidence.trim();
   if (!evidence) return { ok: false, issues: ["evidence_missing"] };
   if (!quoteGroundedIn(input.sourceText, evidence)) issues.add("evidence_not_in_source");
-  // Konu = nitelik olmayan sözcükler ve onların sözlük konuları ("havuz temizliği" → "havuz" / pool; "temizlik" / cleaning konu sayılmaz).
+  // Konu = nitelik olmayan, genel baş ad ve fiil olmayan sözcükler ("çamaşır makinesi" → "çamaşır"; Opus 10-23 K2) ve onların sözlük
+  // konuları ("havuz temizliği" → "havuz" / pool; "temizlik" nitelik).
   const nonAttribute = input.needTerms.filter((t) => !isAttribute(t));
+  const specific = nonAttribute.filter((t) => !isGenericOrVerb(t));
   const attributeTopics = new Set(topicsWithSymptomsOf(input.needTerms.filter(isAttribute).join(" ")));
   const subjectTopics = input.needTopics.filter((t) => !attributeTopics.has(t));
   const subj: Subject = {
-    terms: nonAttribute.length > 0 ? nonAttribute : input.needTerms,
+    terms: specific.length > 0 ? specific : nonAttribute.length > 0 ? nonAttribute : input.needTerms,
     topics: subjectTopics.length > 0 ? subjectTopics : input.needTopics,
   };
   const subjectKnown = subj.terms.length > 0 || subj.topics.length > 0;
   if (!subjectKnown) issues.add("subject_unknown");
+  // Konu kimlikleri: ihtiyaç İKİ tesis taşıyorsa ("havuz + sauna", Opus 10-23 K1) parça değerinin konusu kalemdekiyle aynı olmalı.
+  const identities = new Set(subj.terms.map(subjectIdentity));
+  if (subj.terms.length === 0) for (const t of subj.topics) identities.add(`topic:${t}`);
+  // Çok konulu ihtiyaç: kalemde GERÇEKTEN geçen ihtiyaç sözcükleri birden çok kimlik taşıyor ("havuz" + "sauna"). Çeviri çifti ("pazar" /
+  // "market", Türkçe sorgu + misafirin dili) kalemde yalnız bir dilde geçtiği için tek konu sayılır.
+  const presentIds = new Set(subj.terms.filter((t) => hasSubject(input.sourceText, { terms: [t], topics: [] })).map(subjectIdentity));
+  const multiSubject = presentIds.size > 1;
 
-  const ev = documentOf(evidence, subj);
-  // Parça da yapısıyla okunur: her değerin KENDİ gün koşulu (E ölçümü 10-23 — "Havuz hafta sonu 20:00'de kapanır" kalemdeki hafta sonu
-  // 23:00 değişkesine rağmen geçiyordu; parça düzeyindeki koşul kümesi hangi değerin hangi güne ait olduğunu bilmiyordu).
+  // Kalemin TAMAMI okunur (Opus 10-23 K3: alıntı cümle parçası olabilir, "Hafta sonu" / "pazar hariç" alıntının dışında kalırdı). Alıntı
+  // yalnız dayanak şartıdır; değer kalemin herhangi bir yerinde konuya bağlı ve o yerin bütün kontrollerinden geçiyorsa olur.
+  const ev = documentOf(input.sourceText, subj);
   const pdoc = documentOf(input.part, subj);
-  const partClaims: { c: Span; days: Set<string> }[] = [];
-  pdoc.sentences.forEach((sent) =>
-    sent.groups.forEach((g, gi) => {
-      const days = new Set(variantClassesOf(pdoc.placeOf(sent, gi).conditions));
-      for (const c of g.claims) partClaims.push({ c, days });
-    }),
-  );
   const partTokens = tokenize(input.part);
   const partConditions = conditionClasses(partTokens, "part");
   const partNegative = negative(partTokens);
   const partDirections = directions(partTokens);
+  const partFee = feeClasses(partTokens);
+  const partBasis = basisClasses(partTokens);
+  const partException = partTokens.some((t) => EXCEPTION_TOKENS.has(t));
+  // Uydurma koşul / taban kıyası istemdeki bütün kaynaklarla (değişke başka kalemde olabilir — O6).
+  const sourceTokens = tokenize([input.sourceText, evidence, ...(input.otherSources ?? [])].join("\n"));
+  const sourceConditions = conditionClasses(sourceTokens, "evidence");
+  const sourceBasis = basisClasses(sourceTokens);
   // Misafirin sorduğu gün ("cumartesi kaçta kapanıyor") — genel kuralın o güne özel söylenişi uydurma koşul değildir.
   const asked = conditionClasses([...input.needTerms], "evidence");
+  const otherDocs = (input.otherSources ?? []).filter((t) => t !== input.sourceText).map((t) => documentOf(t, subj));
 
-  const checkPlace = (r: PlaceReading, valueDays: ReadonlySet<string> = new Set()) => {
-    for (const cls of r.conditions) {
-      if (partConditions.has(cls)) continue;
-      // Değerin kendi günü bu koşulun özeli ("hafta sonu 23:00" → "cumartesi 23:00").
-      if (DAY_CLASSES.has(cls) && [...valueDays].some((d) => DAY_PARENT[d] === cls)) continue;
-      issues.add("condition_dropped");
-    }
-    if (r.negative !== partNegative) issues.add("polarity_mismatch");
-    if (r.directions.size === 1 && partDirections.size > 0 && !partDirections.has([...r.directions][0])) issues.add("direction_mismatch");
+  /** Parçanın değerleri: kendi gün / mevsim koşulu (değerden sonraki değersiz yan cümle sayılmaz) + kendi yönü + konu yeri. */
+  const partClaims: { c: Span; days: Set<string>; dirs: Set<"start" | "end">; negative: boolean; groupSize: number; region: string }[] = [];
+  pdoc.sentences.forEach((sent, si) =>
+    sent.groups.forEach((g, gi) => {
+      const place = pdoc.placeOf(sent, gi, { extraBeforeOnly: true });
+      const region = pdoc.boundRegion(si, gi) ?? input.part;
+      for (const c of g.claims) {
+        partClaims.push({ c, days: new Set(variantClassesOf(place.conditions)), dirs: place.directions, negative: place.negative, groupSize: g.claims.length, region });
+      }
+    }),
+  );
+  const singlePartGroup = pdoc.sentences.reduce((n, sent) => n + sent.groups.length, 0) === 1;
+  const partIdentitiesAll = subjectIdentitiesIn(input.part, subj, identities);
+
+  /** Parça konusu ↔ kalem konusu (aynı kimlik). Parça konusuz ve ihtiyaç tek konuluysa serbest. */
+  const subjectAgrees = (d: Doc, si: number, gi: number, partIds: Set<string>): boolean => {
+    // Tek konulu ihtiyaçta bağ zaten kalem tarafında kuruldu; parça tarafı kıyas yalnız çok konulu ihtiyaçta (çeviri kıyası gerekmez).
+    if (!multiSubject) return true;
+    if (partIds.size === 0) return !multiSubject;
+    const evIds = evRegionIds(d, si, gi);
+    return evIds.size === 0 || [...partIds].some((x) => evIds.has(x));
   };
 
-  // Parça kalemde hiç geçmeyen gün / mevsim / talep / dahil koşulu ekleyemez ("Havuz hafta sonu 09:00-20:00 açık" ← koşulsuz kalem).
-  const sourceConditions = conditionClasses(tokenize(`${input.sourceText}\n${evidence}`), "evidence");
+  /** İstisna / karşıtlık: cümlede varsa parça da taşımalı (ya da istisnanın gün / mevsim koşulunu anmalı). */
+  const sentenceChecks = (info: { exception: boolean; conds: readonly string[] }, local: Set<BindingIssue>) => {
+    if (!partException && info.exception) {
+      const conds = info.conds;
+      if (!(conds.length > 0 && conds.every((cls) => partConditions.has(cls) || coversDay(partConditions, cls)))) local.add("condition_dropped");
+    }
+  };
+  // Çok konulu ihtiyaçta kalem yerinin konu kimlikleri — yer başına bir kez (aynı yer her parça değeri için yeniden sorulur).
+  const regionIdCache = new Map<Doc, Map<number, Set<string>>>();
+  const evRegionIds = (d: Doc, si: number, gi: number): Set<string> => {
+    let m = regionIdCache.get(d);
+    if (!m) regionIdCache.set(d, (m = new Map()));
+    const key = si * 100_000 + gi;
+    let r = m.get(key);
+    if (!r) m.set(key, (r = subjectIdentitiesIn(d.boundRegion(si, gi) ?? "", subj, identities)));
+    return r;
+  };
+  // Ücret kutbu PARÇA düzeyinde: parçanın konusunu anan kalem cümleleri (+ ardındaki konusuz devam cümleleri) ne diyor ("Otopark
+  // ücretlidir." → "Parking is free." tutulur; "Havuz ücretsiz. Sauna ücretli." → "Sauna ücretsizdir" tutulur).
+  if (partFee.size > 0 && subjectKnown) {
+    const evFee = new Set<"free" | "paid">();
+    let carry = false;
+    for (const sent of ev.sentences) {
+      const sentText = ev.text.slice(sent.s, sent.e);
+      const ids = subjectIdentitiesIn(sentText, subj, identities);
+      const about: boolean =
+        ids.size > 0 ? !multiSubject || partIdentitiesAll.size === 0 || [...ids].some((x) => partIdentitiesAll.has(x)) : carry && allLocationNeutral(ev.text, sent.s, sent.e);
+      carry = about;
+      if (!about) continue;
+      for (const f of feeClasses(tokenize(sentText))) evFee.add(f);
+      if (claimSpans(sentText).claims.some((x) => x.cls === "money")) evFee.add("paid");
+    }
+    if (partFee.has("free") && !evFee.has("free")) issues.add(evFee.has("paid") ? "polarity_mismatch" : "condition_added");
+    if (partFee.has("paid") && evFee.has("free") && !evFee.has("paid")) issues.add("polarity_mismatch");
+  }
+
   /** Gün koşulu taşıyan parça değerlerinin kalemdeki yerleri (tümleyen kararı döngüden sonra). */
   const dayValues: { days: Set<string>; placeGeneral: boolean }[] = [];
 
-  let src: ReturnType<typeof documentOf> | undefined;
-  const variantCache = new Map<string, boolean>();
   if (partClaims.length > 0) {
-    for (const { c, days: valueDays } of partClaims) {
-      const hits: { si: number; sent: Sentence; gi: number }[] = [];
-      ev.sentences.forEach((sent, si) =>
-        sent.groups.forEach((g, gi) => {
-          if (g.claims.some((e) => sameValue(c, e))) hits.push({ si, sent, gi });
-        }),
-      );
+    for (const pc of partClaims) {
+      const { c, days: valueDays } = pc;
+      // Değer alıntının kaleminde ya da istemdeki öteki kalemlerde (aynı ihtiyacın değişkesi başka kalemde olabilir — O6).
+      const hits: { d: Doc; si: number; sent: Sentence; gi: number; idx: number }[] = [];
+      for (const d of [ev, ...otherDocs]) {
+        d.sentences.forEach((sent, si) =>
+          sent.groups.forEach((g, gi) => {
+            const idx = g.claims.findIndex((e) => sameValue(c, e));
+            if (idx >= 0) hits.push({ d, si, sent, gi, idx });
+          }),
+        );
+      }
       if (hits.length === 0) {
         issues.add("value_not_in_evidence");
         continue;
       }
       if (!subjectKnown) continue;
-      const bound = hits.find((h) => ev.boundAt(h.si, h.gi));
-      if (!bound) {
+      const bound = hits.filter((h) => h.d.boundAt(h.si, h.gi));
+      if (bound.length === 0) {
         issues.add(ev.hasSubjectAnywhere() ? "value_bound_elsewhere" : "subject_missing");
         continue;
       }
-      const place = ev.placeOf(bound.sent, bound.gi);
-      checkPlace(place, valueDays);
-      const placeDays = new Set(dayClassesOf(place.conditions));
-      const placeSeasons = [...place.conditions].filter((x) => SEASON_CLASSES.has(x));
-      const valueOnlyDays = new Set(dayClassesOf(valueDays));
-      if (valueOnlyDays.size > 0) dayValues.push({ days: valueOnlyDays, placeGeneral: placeDays.size === 0 });
-      // Değerin günü kalemdeki yerinin günü (ya da onun özeli) değilse yanlış güne bağlanmıştır ("hafta içi 23:00" ← "hafta sonu 23:00");
-      // mevsim de aynı ("kışın 23:00" ← "yaz aylarında 23:00").
-      if (placeDays.size > 0) {
-        for (const d of valueOnlyDays) if (!placeDays.has(d) && !(DAY_PARENT[d] && placeDays.has(DAY_PARENT[d]))) issues.add("condition_added");
+      // Değer kalemde birden çok yerde konuya bağlıysa: bütün kontrollerden geçen BİR yer yeter (o yer bu iddiayı tek başına taşır).
+      let best: { local: Set<BindingIssue>; placeGeneral: boolean } | null = null;
+      let partIds: Set<string> | undefined;
+      let omittedHere: boolean | undefined;
+      for (const h of bound) {
+        const local = new Set<BindingIssue>();
+        const place = h.d.placeOf(h.sent, h.gi);
+        if (multiSubject) {
+          if (!partIds) {
+            partIds = subjectIdentitiesIn(pc.region, subj, identities);
+            if (partIds.size === 0) partIds = partIdentitiesAll;
+          }
+          if (!subjectAgrees(h.d, h.si, h.gi, partIds)) local.add("subject_mismatch");
+        }
+        // Koşul DEĞER BAŞINA (Opus 10-23 Y2): gün / mevsim değerin kendi koşulunda; öteki sınıflar parçanın herhangi bir yerinde.
+        for (const cls of place.conditions) {
+          if (DAY_CLASSES.has(cls) ? coversDay(valueDays, cls) : SEASON_CLASSES.has(cls) ? valueDays.has(cls) : partConditions.has(cls)) continue;
+          local.add("condition_dropped");
+        }
+        // Olumluluk DEĞER BAŞINA ("Havuz 20:00'de kapanır; pazar günleri kapalı." — 20:00 olumlu).
+        if (place.negative !== pc.negative) local.add("polarity_mismatch");
+        // Yön DEĞER BAŞINA (Opus 10-23 Y1): aralığın ilk ucu açılış, son ucu kapanış; tek ucu yönsüz veren parça tutulur.
+        const g = h.sent.groups[h.gi];
+        const role: "start" | "end" | null = g.claims.length >= 2 ? (h.idx === 0 ? "start" : h.idx === g.claims.length - 1 ? "end" : null) : null;
+        const pDirs = pc.dirs.size > 0 ? pc.dirs : singlePartGroup ? partDirections : new Set<"start" | "end">();
+        if (role) {
+          if (pc.groupSize < 2 && (pDirs.size === 0 || !pDirs.has(role))) local.add("direction_mismatch");
+        } else if (place.directions.size === 1 && pDirs.size > 0 && !pDirs.has([...place.directions][0])) {
+          local.add("direction_mismatch");
+        }
+        const placeDays = new Set(dayClassesOf(place.conditions));
+        const placeSeasons = [...place.conditions].filter((x) => SEASON_CLASSES.has(x));
+        // Değerin günü kalemdeki yerinin günü (ya da onun özeli) değilse yanlış güne bağlanmıştır; mevsim de aynı.
+        if (placeDays.size > 0) {
+          for (const d of dayClassesOf(valueDays)) if (!placeDays.has(d) && !(DAY_PARENT[d] && placeDays.has(DAY_PARENT[d]))) local.add("condition_added");
+        }
+        if (placeSeasons.length > 0) {
+          for (const d of valueDays) if (SEASON_CLASSES.has(d) && !placeSeasons.includes(d)) local.add("condition_added");
+        }
+        // Koşulsuz değer: kalemde (ve istemdeki öteki kalemlerde) aynı konunun koşullu değişkesi varsa onu da anmalı; genel değer o
+        // değişkenin gününe VERİLEMEZ ("Havuz hafta sonu 20:00" ← "hafta sonu 23:00"; "Cumartesi 20:00" ← "Hafta sonu kapalıdır").
+        if (placeDays.size === 0 && placeSeasons.length === 0) {
+          // Yerden bağımsız (değer + parça koşulu) → parça değeri başına bir kez.
+          omittedHere ??= [ev, ...otherDocs].some((d) => variantOmitted(d, c, partConditions, valueDays));
+          if (omittedHere) local.add("variant_omitted");
+        }
+        const info = h.d.sentenceInfo(h.sent);
+        // Tutar: ücret tabanı kalemdekiyle aynı (günlük ≠ konaklama boyunca), parça kalemde olmayan taban uyduramaz.
+        if (c.cls === "money") {
+          const evBasis = info.basis;
+          if (evBasis.size > 0 && ![...evBasis].some((b) => partBasis.has(b))) local.add("condition_dropped");
+          for (const b of partBasis) if (!sourceBasis.has(b)) local.add("condition_added");
+        }
+        sentenceChecks(info, local);
+        const placeGeneral = placeDays.size === 0;
+        if (!best || local.size < best.local.size) best = { local, placeGeneral };
+        if (local.size === 0) break;
       }
-      if (placeSeasons.length > 0) {
-        for (const d of valueDays) if (SEASON_CLASSES.has(d) && !placeSeasons.includes(d)) issues.add("condition_added");
-      }
-      // Koşulsuz değer verildi: kalemde aynı konunun koşullu değişkesi varsa onu da anmalı (alıntı onu gizleyemez) ve genel değer o
-      // değişkenin gününe VERİLEMEZ ("Havuz hafta sonu 20:00" ← kalem: hafta sonu 23:00).
-      if (![...place.conditions].some((x) => DAY_CLASSES.has(x) || SEASON_CLASSES.has(x))) {
-        src ??= documentOf(input.sourceText, subj);
-        const key = `${c.cls}|${(c.tkeys ?? c.keys).join(",")}|${[...valueDays].sort().join(",")}`;
-        if (!variantCache.has(key)) variantCache.set(key, variantOmitted(src, c, partConditions, valueDays));
-        if (variantCache.get(key)) issues.add("variant_omitted");
+      if (best) {
+        for (const i of best.local) issues.add(i);
+        const valueOnlyDays = new Set(dayClassesOf(valueDays));
+        if (valueOnlyDays.size > 0) dayValues.push({ days: valueOnlyDays, placeGeneral: best.placeGeneral });
       }
     }
+  } else if (hasNumberWord(partTokens)) {
+    // Sözcükle yazılmış değer ("eight pm", "vier acht zwei eins"): rakamla doğrulanamaz → tutulur (Opus 10-23 Y6).
+    issues.add("value_not_in_evidence");
   } else if (subjectKnown) {
-    // Değersiz parça: konunun yan cümlesi kendi yüklemini taşıyorsa o yan cümle, taşımıyorsa bütün cümle okunur.
+    // Değersiz parça: parçanın konusunu anan yan cümle kendi yüklemini taşıyorsa o yan cümle, taşımıyorsa bütün cümle okunur. Çok konulu
+    // ihtiyaçta yalnız PARÇANIN konusunu anan yerler ("Havuz açıktır. Sauna kapalıdır." → "Havuz kapalıdır" tutulur).
     const places: string[] = [];
+    const sentencesRead = new Set<Sentence>();
     for (const sent of ev.sentences) {
       for (const cl of sent.clauses) {
         const clause = ev.text.slice(cl[0], cl[1]);
         if (!ev.subjectIn(clause)) continue;
+        if (multiSubject && partIdentitiesAll.size > 0) {
+          const ids = subjectIdentitiesIn(clause, subj, identities);
+          if (ids.size > 0 && ![...ids].some((x) => partIdentitiesAll.has(x))) continue;
+        }
         places.push(hasPredicate(tokenize(clause)) ? clause : ev.text.slice(sent.s, sent.e));
+        sentencesRead.add(sent);
       }
     }
-    if (places.length === 0) issues.add("subject_missing");
-    else checkPlace({ ...readPlace(places.join(" . ")), directions: new Set() });
+    if (partIdentitiesAll.size === 0 && multiSubject) issues.add("subject_mismatch");
+    // Değersiz parçada alıntı tek dayanaktır: konuyu anmayan alıntı (havuz cümlesiyle "evcil hayvan kabul edilmiyor") dayanak olmaz.
+    if (places.length === 0 || !hasSubject(evidence, subj)) issues.add("subject_missing");
+    else {
+      const r = readPlace(places.join(" . "));
+      for (const cls of r.conditions) if (!partConditions.has(cls) && !(DAY_CLASSES.has(cls) && coversDay(partConditions, cls))) issues.add("condition_dropped");
+      if (r.negative !== partNegative) issues.add("polarity_mismatch");
+      const local = new Set<BindingIssue>();
+      for (const st of sentencesRead) sentenceChecks(ev.sentenceInfo(st), local);
+      for (const i of local) issues.add(i);
+    }
   }
 
   for (const cls of partConditions) {
@@ -953,24 +1286,21 @@ export function checkAnswerBinding(input: BindingInput): BindingResult {
 }
 
 /**
- * Kalemde aynı türden, konuya bağlı (ya da konusuz bir sonraki cümlede), FARKLI ve gün / mevsim koşullu bir değer var mı — parça o koşulu
- * anmıyorsa (özeli de sayılır: "cumartesi" hafta sonunu anar) ya da genel değeri o koşulun gününe veriyorsa (`valueDays`) değişke ihmal
- * edilmiştir.
+ * Kalemde aynı konunun koşullu DEĞİŞKESİ: aynı türden, konuya bağlı, FARKLI ve gün / mevsim koşullu bir değer — ya da değersiz, konuya bağlı
+ * gün / mevsim yan cümlesi ("Hafta sonu kapalıdır", "Pazar günleri kapalıdır"; Opus 10-23 Y3). Parça o koşulu anmıyorsa (özeli de sayılır:
+ * "cumartesi" hafta sonunu anar) ya da genel değeri o koşulun gününe veriyorsa (`valueDays`) değişke ihmal edilmiştir.
  */
-function variantOmitted(src: ReturnType<typeof documentOf>, c: Span, partConditions: ReadonlySet<string>, valueDays: ReadonlySet<string>): boolean {
-  for (let si = 0; si < src.sentences.length; si++) {
-    const sent = src.sentences[si];
-    for (let gi = 0; gi < sent.groups.length; gi++) {
-      const g = sent.groups[gi];
-      if (!g.claims.some((e) => e.cls === c.cls) || g.claims.some((e) => sameValue(c, e))) continue;
-      if (!src.boundAt(si, gi)) continue;
-      for (const cls of src.placeOf(sent, gi).conditions) {
-        if (SEASON_CLASSES.has(cls) && (!partConditions.has(cls) || valueDays.has(cls))) return true;
-        if (DAY_CLASSES.has(cls) && (!coversDay(partConditions, cls) || coversDay(valueDays, cls))) return true;
-      }
-    }
+type Doc = ReturnType<typeof documentOf>;
+
+function variantOmitted(src: Doc, c: Span, partConditions: ReadonlySet<string>, valueDays: ReadonlySet<string>): boolean {
+  const omitted = (cls: string) =>
+    (SEASON_CLASSES.has(cls) && (!partConditions.has(cls) || valueDays.has(cls))) ||
+    (DAY_CLASSES.has(cls) && (!coversDay(partConditions, cls) || coversDay(valueDays, cls)));
+  for (const g of src.variantGroupsFor(c.cls)) {
+    if (g.claims.some((e) => sameValue(c, e))) continue;
+    if (g.conds.some(omitted)) return true;
   }
-  return false;
+  return src.valuelessVariantConds().some(omitted);
 }
 
 /** "№12" / "No 12" / "Nr. 12" kod gibi ayrışır ama SAYI 12'dir (E ölçümü 10-23: Rusça "место №12" ↔ "12 numaralı yer"). */

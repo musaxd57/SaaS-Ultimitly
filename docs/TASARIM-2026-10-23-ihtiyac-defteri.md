@@ -278,3 +278,33 @@ CREATE UNIQUE INDEX "ConversationItem_conversationId_messageId_kind_ordinal_key"
   (2) migration sonrası aynı turun yeniden işlenmesi satır çoğaltmaz (anahtar kapalı ve açık); (3) taze PG'de sıfır sapma
   (`prisma migrate diff`); (4) anahtar kapalıyken mevcut öğe testlerinin tamamı değişmeden yeşil; (5) etiket temizleyicisi (ad / telefon /
   şifre / enjeksiyon) + silme / temizlik paritesi. Yedek / geri yükleme doğrulaması ayrı (Railway açılışında, kurucu D).
+
+## 18. Opus derin incelemesi (10-23 akşam) → doğrulayıcı sertleştirme planı
+
+Opus 3 kritik + 7 yüksek yanlış-kabul sınıfı buldu (rapor `scratchpad/opus-review-1023.md`, özet aşağıda); hepsi anahtar KAPALI kodda.
+Kod kuralı olarak YAPILACAKLAR (deterministik, tutma yönünde):
+
+| # | sınıf | kural |
+|---|---|---|
+| K1 | ihtiyaç iki konu taşıyorsa ("havuz + sauna") herhangi biri bağ sayılıyor | parça tarafı konu: değerin parçadaki konusu ile kalemdeki bağlayan konusu aynı kimlik (terim ya da sözlük konusu; diller arası sözlük konusu) olmalı; çok konulu ihtiyaçta konusuz parça tutulur |
+| K2 | baş ad / fiil / kaba sözlük konusu bağ sayılıyor ("bulaşık makinesi" ↔ "çamaşır makinesi", "restoran" ↔ "kahvaltı") | konu terimlerinden genel baş adlar ve fiiller çıkar; terim varken sözlük konusuna düşülmez |
+| K3 | alıntı cümle parçası olabiliyor, koşul dışarıda kalıyor | doğrulama alıntıyı değil kalemin TAMAMINI okur (alıntı yalnız dayanak şartı); değer kalemin herhangi bir yerinde konuya bağlı ve o yerin bütün kontrollerinden geçiyorsa olur |
+| Y1 | yön parça düzeyinde | değer başına; aralığın ilk ucu açılış, son ucu kapanış; aralığın tek ucu yönsüz verilirse tutulur |
+| Y2 | koşul düşmesi parça düzeyinde | gün / mevsim değer başına; parçada değerden SONRAKİ değersiz yan cümle değere gün bağışlamaz |
+| Y3 | değersiz koşullu değişke görünmez ("Hafta sonu kapalıdır") | değişke taraması değersiz, konuya bağlı gün / mevsim yan cümlelerini de okur |
+| Y5 | ücret tabanı (günlük / gecelik / kişi başı / konaklama boyunca) | koşul sınıfı: kalemde varsa parçada da olmalı, parça uyduramaz |
+| Y6 | sözcükle yazılmış sayı ("eight pm", "acht Uhr") değer kontrolünü atlıyor | parçada sayı / saat sözcüğü varken rakamlı değer yoksa tutulur |
+| Y7 | aynı cümledeki istisna / karşıtlık ("…, köpek hariç", "ama …") | parça da istisna taşımalı (ya da istisnanın gün / mevsim koşulunu anmalı); yoksa tutulur |
+| Y4 (kısmen) | diller arası ücretsiz ↔ ücretli | ücret kutbu: parça "ücretsiz" diyorsa kalem de demeli; kalem ücretli / tutar veriyorsa "ücretsiz" tutulur |
+| O6 | değişke yalnız alıntının kalemi | değişke taraması istemdeki bütün kaynaklarda |
+| — | dili kestirilemeyen kısa parça içerik kontrolünü atlıyor | kalem dili biliniyorsa ve iki taraf aynı yazı sistemindeyse içerik kontrolü koşar |
+
+Kodla ÇÖZÜLEMEYEN kalan sınıf: diller arası içerik ("heated", "served in your room" gibi kalemde olmayan nitelik). Endüstride bu katman
+bir doğrulama modeliyle yapılır (dayanak / "groundedness" denetimi: parça + kalem cümlesi → "tam destekleniyor mu?"). Bu yeni bir model
+çağrısıdır (maliyet + gecikme) → kurucu kararı: parça kipi açılmadan önce kıdemli okuyucuya parça başına "kalem bunu tam destekliyor mu"
+sorusu eklensin mi? (soru, rapor §5).
+
+Orta: kaynak sorusu e-postası yalnız mesajın bütün açık işleri sessiz türdeyse susar; parça beyanı eksikse tur sessiz kalmaz (ev sahibine
+e-posta); sıra kipinde etiketi boş öğe "aynı konu" sayılmaz (belirsiz → kapatma yok); etiket adı önek eşleşmesi + unvan komşusu + büyük
+harfle başlayan özel ad + sır sözcüğünün ardındaki sözcük; "kullanım talimatı" saldırı izi sayılmaz; süre bazlı temizlik seçim bacağı;
+parça kaynakları yalnız isteme giren kalemler.

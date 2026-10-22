@@ -268,7 +268,8 @@ describe("Haiku 10-23 F3: alıntının taşımadığı içerik sözcüğü (ayn�
   const one = (src: string, part: string, q: string[], evidence = src) => checkAnswerBinding({ part, evidence, sourceText: src, ...need(q) });
 
   it("🚨 've ücretsizdir' alıntıda yok → gitmez; 'ücretli' ↔ 'ücretsiz' aynı kök sayılmaz", () => {
-    expect(one("Havuz 09:00-20:00 arası açıktır.", "Havuz 09:00-20:00 arası açık ve ücretsizdir.", ["havuz kaçta açık"]).issues).toEqual(["unsupported_content"]);
+    // Opus 10-23 ücret kutbu: kalemde "ücretsiz" yokken ayrıca uydurma koşul.
+    expect(one("Havuz 09:00-20:00 arası açıktır.", "Havuz 09:00-20:00 arası açık ve ücretsizdir.", ["havuz kaçta açık"]).issues).toEqual(["condition_added", "unsupported_content"]);
     expect(one("Otopark binanın altındadır ve ücretsizdir.", "Otopark binanın altında ve ücretlidir.", ["otopark"]).issues).toContain("unsupported_content");
     // Bilinen sınır: dili kestirilemeyen çok kısa parça ("Otopark ücretlidir.") kıyaslanmaz — okuyucunun kanıt şartı.
   });
@@ -432,5 +433,112 @@ describe("E ölçümü 10-23: değer başına koşul (eski açık)", () => {
   it("doğru eşleşme gider: genel değer koşulsuz ya da hafta içi, hafta sonu değeri hafta sonuyla", () => {
     expect(one("Havuz her gün 20:00'de kapanır; hafta sonu 23:00'e kadar açık.").ok).toBe(true);
     expect(one("Havuz hafta sonu 23:00'e kadar açık.").ok).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Opus derin inceleme 10-23 — yanlış kabul sınıfları (hepsi gerçek doğrulayıcı çıktısıyla bulundu). Her biri TUTULUR; yanındaki doğru
+// söyleyiş gider.
+// ---------------------------------------------------------------------------
+describe("Opus 10-23: yanlış kabuller — TUTULUR", () => {
+  const one = (src: string, part: string, q: string[], evidence = src, otherSources?: string[]) =>
+    checkAnswerBinding({ part, evidence, sourceText: src, ...need(q), ...(otherSources ? { otherSources } : {}) });
+
+  it("🚨 K1: iki konulu ihtiyaçta ('havuz + sauna') saunanın 22:00'ı havuza verilemez (Türkçe ve İngilizce parça)", () => {
+    const src = "Havuz 20:00'de kapanır. Sauna 22:00'de kapanır.";
+    const q = ["havuz ve sauna kaçta kapanıyor", "when do the pool and sauna close"];
+    expect(one(src, "Havuz 22:00'de kapanır.", q, "Sauna 22:00'de kapanır.").ok).toBe(false);
+    expect(one(src, "The pool closes at 10 pm.", q, "Sauna 22:00'de kapanır.").ok).toBe(false);
+    expect(one(src, "Sauna 22:00'de kapanır.", q, "Sauna 22:00'de kapanır.").ok).toBe(true);
+    expect(one(src, "The pool closes at 8 pm.", q, "Havuz 20:00'de kapanır.").ok).toBe(true);
+  });
+
+  it("🚨 K2: ortak baş ad ('makinesi') ve kaba sözlük konusu ('restoran' ~ 'kahvaltı') bağ kurmaz", () => {
+    const wm = "Çamaşır makinesi 22:00'den sonra kullanılmaz. Bulaşık makinesi her zaman kullanılabilir.";
+    const q = ["çamaşır makinesi ne zaman kullanılabilir"];
+    expect(one(wm, "Çamaşır makinesi her zaman kullanılabilir.", q, "Bulaşık makinesi her zaman kullanılabilir.").ok).toBe(false);
+    const rest = "Restoran 22:00'de kapanır.";
+    expect(one(rest, "Kahvaltı 22:00'de biter.", ["kahvaltı saati", "breakfast time"]).ok).toBe(false);
+    expect(one(rest, "Breakfast ends at 10 pm.", ["kahvaltı saati", "breakfast time"]).ok).toBe(false);
+  });
+
+  it("🚨 K3: alıntı cümle parçası olsa da kalemin koşulu okunur (hafta sonu, yaz, pazar hariç, cumartesi, talep üzerine)", () => {
+    const q = ["havuz kaçta kapanıyor"];
+    expect(one("Hafta sonu havuz 20:00'de kapanır.", "Havuz 20:00'de kapanır.", q, "havuz 20:00'de kapanır").ok).toBe(false);
+    expect(one("Yaz aylarında havuz 23:00'e kadar açıktır.", "Havuz 23:00'e kadar açık.", q, "havuz 23:00'e kadar açıktır").ok).toBe(false);
+    expect(one("Havuz 20:00'de kapanır, pazar hariç.", "Havuz 20:00'de kapanır.", q, "Havuz 20:00'de kapanır").ok).toBe(false);
+    expect(one("Cumartesi günleri havuz 22:00'de kapanır.", "Havuz 22:00'de kapanır.", q, "havuz 22:00'de kapanır").ok).toBe(false);
+    expect(one("Hafta sonu havuz 20:00'de kapanır.", "The pool closes at 8 pm.", [...q, "when does the pool close"], "havuz 20:00'de kapanır").ok).toBe(false);
+  });
+
+  it("🚨 Y1: yön değer başına; aralığın tek ucu yönsüz ya da ters yönle verilemez", () => {
+    const q = ["havuz saatleri", "pool hours"];
+    expect(one("Havuz 09:00'da açılır ve 20:00'de kapanır.", "Havuz 20:00'de açılır, 09:00'da kapanır.", q).ok).toBe(false);
+    const range = "Havuz 09:00-20:00 arası açıktır.";
+    expect(one(range, "Havuz 20:00'de açılır.", q).ok).toBe(false);
+    expect(one(range, "Havuz 09:00'da kapanır.", q).ok).toBe(false);
+    expect(one(range, "The pool opens at 8 pm.", q).ok).toBe(false);
+    expect(one(range, "Havuz 20:00'ye kadar açık.", q).ok).toBe(true);
+    expect(one(range, "Havuz 09:00-20:00 arası açık.", q).ok).toBe(true);
+  });
+
+  it("🚨 Y2: hafta sonu değeri, parçanın başka yerinde 'hafta sonu' geçti diye genel verilemez", () => {
+    const src = "Havuz 20:00'de kapanır. Hafta sonu 23:00'e kadar açık.";
+    const q = ["havuz kaçta kapanıyor"];
+    expect(one(src, "Havuz 23:00'de kapanır, hafta sonu da açık.", q).ok).toBe(false);
+    expect(one(src, "Havuz 23:00'de kapanır. Hafta sonu da açık.", q).ok).toBe(false);
+  });
+
+  it("🚨 Y3: değersiz koşullu değişke ('Hafta sonu kapalıdır', 'Pazar günleri kapalıdır') görünür", () => {
+    const src = "Havuz 20:00'de kapanır. Hafta sonu kapalıdır.";
+    expect(one(src, "Cumartesi havuz 20:00'de kapanır.", ["havuz cumartesi kaçta kapanıyor"], "Havuz 20:00'de kapanır.").ok).toBe(false);
+    expect(one(src, "Havuz 20:00'de kapanır.", ["havuz kaçta kapanıyor"], "Havuz 20:00'de kapanır.").ok).toBe(false);
+    const sun = "Havuz 20:00'de kapanır. Pazar günleri kapalıdır.";
+    expect(one(sun, "Havuz pazar 20:00'de kapanır.", ["havuz pazar kaçta kapanıyor"], "Havuz 20:00'de kapanır.").ok).toBe(false);
+    expect(one(sun, "Havuz 20:00'de kapanır; pazar günleri kapalı.", ["havuz kaçta kapanıyor"]).ok).toBe(true);
+  });
+
+  it("🚨 Y4: ücretli ↔ ücretsiz (diller arası); kalemde 'ücretsiz' yoksa 'free' uydurulamaz", () => {
+    const q = ["otopark ücretli mi", "is parking free"];
+    expect(one("Otopark ücretlidir.", "Parking is free.", q).ok).toBe(false);
+    expect(one("Otopark ücretsizdir.", "Parking is free.", q).ok).toBe(true);
+    const bf = "Kahvaltı 08:00-10:00 arası verilir.";
+    expect(one(bf, "Breakfast is free and served until 10:00.", ["kahvaltı", "breakfast"]).ok).toBe(false);
+    const two = "Havuz ücretsizdir. Sauna ücretlidir.";
+    expect(one(two, "Sauna ücretsizdir.", ["havuz ve sauna ücretli mi"]).ok).toBe(false);
+  });
+
+  it("🚨 Y5: ücret tabanı (günlük ≠ konaklama boyunca ≠ kişi başı)", () => {
+    const src = "Otopark günlük 200 TL.";
+    const q = ["otopark ücreti", "parking price"];
+    expect(one(src, "Otopark konaklama boyunca 200 TL.", q).ok).toBe(false);
+    expect(one(src, "Parking is 200 TL for the whole stay.", q).ok).toBe(false);
+    expect(one(src, "Otopark 200 TL.", q).ok).toBe(false);
+    expect(one(src, "Parking costs 200 TL per day.", q).ok).toBe(true);
+    expect(one(src, "Otopark günlük 200 TL.", q).ok).toBe(true);
+  });
+
+  it("🚨 Y6: sözcükle yazılmış sayı ('eight pm', 'acht Uhr', 'восемь', 'vier acht zwei eins') rakamsız tutulur", () => {
+    const src = "Havuz 22:00'de kapanır.";
+    const q = ["havuz kaçta kapanıyor", "when does the pool close"];
+    expect(one(src, "The pool closes at eight pm.", q).ok).toBe(false);
+    expect(one(src, "Der Pool schließt um acht Uhr abends.", q).ok).toBe(false);
+    expect(one(src, "Бассейн закрывается в восемь вечера.", q).ok).toBe(false);
+    expect(one("Kapı kodu 4821.", "Der Türcode lautet vier acht zwei eins.", ["kapı kodu", "door code"]).ok).toBe(false);
+  });
+
+  it("🚨 Y7: aynı cümledeki istisna / karşıtlık parçada da olmalı", () => {
+    const q = ["evcil hayvan kabul ediliyor mu", "are pets allowed"];
+    expect(one("Evcil hayvan kabul edilir, köpek hariç.", "Evcil hayvan kabul edilir.", q).ok).toBe(false);
+    expect(one("Evcil hayvan kabul edilir ama köpekler kabul edilmez.", "Evcil hayvan kabul edilir.", q).ok).toBe(false);
+    expect(one("Evcil hayvan kabul edilir, köpek hariç.", "Small dogs are welcome.", q).ok).toBe(false);
+    expect(one("Evcil hayvan kabul edilir, köpek hariç.", "Evcil hayvan kabul edilir, köpek hariç.", q).ok).toBe(true);
+  });
+
+  it("O6: koşullu değişke BAŞKA kalemdeyse de görünür", () => {
+    const a = "Havuz: Havuz 09:00-20:00 arası açıktır.";
+    const b = "Yaz dönemi: Havuz yaz aylarında 23:00'e kadar açıktır.";
+    expect(one(a, "Havuz 20:00'ye kadar açık.", ["havuz kaçta kapanıyor"], a, [a, b]).issues).toContain("variant_omitted");
+    expect(one(a, "Havuz 20:00'ye kadar açık; yaz aylarında 23:00'e kadar.", ["havuz kaçta kapanıyor"], a, [a, b]).ok).toBe(true);
   });
 });
