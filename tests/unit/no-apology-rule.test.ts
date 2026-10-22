@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { REPLY_SYSTEM_PROMPT, replySystemPromptFor, NO_APOLOGY_REPLACEMENTS, REPLY_SYSTEM_PROMPT_DERIVATION_MISSING } from "@/lib/ai/prompts";
 import { replyRequestIdentity } from "@/lib/ai";
+import { suggestReplyFallback } from "@/lib/ai/fallback";
 import type { SuggestReplyInput } from "@/lib/ai/types";
 
 // ---------------------------------------------------------------------------
@@ -24,6 +25,8 @@ const input: SuggestReplyInput = {
 /** Örneklerin "reply" alanları (istemde JSON satırları). */
 const exampleReplies = (prompt: string) => [...prompt.matchAll(/"reply":"((?:[^"\\]|\\.)*)"/g)].map((m) => m[1]);
 const APOLOGY = /özür dile|kusura bakma|apolog|sorry|entschuldig|lo sentimos|désolé/i;
+/** Kurucu 10-22 (T-a): "üzgünüz de gitmesin" — üzüntü / anlayış cümlesi de özür sayılır. */
+const SYMPATHY = /üzgün|rahatsızlık için|regret|inconvenience|tut uns leid/i;
 
 describe("tarafsızlık katmanı", () => {
   it("kapalıyken taban istem bayt bayt aynı", () => {
@@ -43,6 +46,29 @@ describe("tarafsızlık katmanı", () => {
     expect(on).not.toContain('NEZAKET KALIPLARI: "özür dileriz"');
     expect(on).toContain("TARAFSIZLIK (kurucu kuralı)");
     expect(on).toContain("Ödemeyi reddeden, iade / tazminat isteyen");
+  });
+
+  it("açıkken (10-22 T-a): üzüntü / anlayış cümlesi de yasak; örneklerde yok; şikâyette empati satırı yok", () => {
+    const on = replySystemPromptFor({ ...base, noApology: true });
+    expect(on).toContain('"üzgünüz", "yaşadığınız rahatsızlık için üzgünüz"');
+    expect(on).toContain('"sorry for the inconvenience"');
+    expect(on).toContain("Şikâyette empati / üzüntü / özür cümlesi YOK");
+    expect(on).not.toContain("Empati EN FAZLA BİR cümle");
+    expect(exampleReplies(on).filter((r) => SYMPATHY.test(r))).toEqual([]);
+  });
+
+  it("yedek (fallback) şikâyet taslağı: açıkken özürsüz (TR + EN), kapalıyken bugünkü metin", () => {
+    const complaint = (guestMessage: string) => suggestReplyFallback({ ...input, guestMessage }).reply;
+    const tr = "Klima çalışmıyor, çok sıcak, berbat bir durum.";
+    const en = "The air conditioning is broken and it is terrible.";
+    expect(complaint(tr)).toMatch(APOLOGY);
+    vi.stubEnv("AI_NO_APOLOGY_RULE_ENABLED", "1");
+    for (const m of [tr, en]) {
+      const reply = complaint(m);
+      expect(reply).not.toMatch(APOLOGY);
+      expect(reply).not.toMatch(SYMPATHY);
+      expect(reply).toMatch(/ilettim|notified/);
+    }
   });
 
   it("bütün anahtar birleşimlerinde çapa eksiği yok", () => {

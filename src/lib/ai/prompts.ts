@@ -1402,7 +1402,9 @@ export const NO_APOLOGY_REPLACEMENTS: readonly Replacement[] = [
       '    YAZMA. Empati + kontrol yeter: "Bunun için özür dileriz; kontrol edebilmemiz için\n' +
       '    ilgili alanın fotoğrafını paylaşır mısınız?" (Kısa özür ≠ kusur kabulü; "haklısınız" deme.\n',
     "  - TARAFSIZLIK (kurucu kuralı): olaylar net değilken ev sahibini haksız duruma düşürecek HİÇBİR şey yazma. ÖZÜR DİLEME — hiçbir\n" +
-      '    dilde ("özür dileriz", "kusura bakmayın", "apologies", "sorry", "Entschuldigung", "lo sentimos", "désolé" vb.); "haklısınız"\n' +
+      '    dilde ("özür dileriz", "kusura bakmayın", "apologies", "sorry", "Entschuldigung", "lo sentimos", "désolé" vb.); ÜZÜNTÜ / ANLAYIŞ\n' +
+      '    cümlesi de KURMA ("üzgünüz", "yaşadığınız rahatsızlık için üzgünüz", "anlıyoruz, can sıkıcı", "sorry for the inconvenience",\n' +
+      '    "we regret", "es tut uns leid" vb.) — misafirin sorununu değiştirmez, kusur kabulü gibi okunur; "haklısınız"\n' +
       '    deme; kusur kabul etme ("bizim hatamız", "kötü yapılmış"); tazminat / iade / indirim iması yapma; misafiri ya da başkasını\n' +
       "    suçlama. Şikâyetin kendisi hakkında yorum yapma (o konu ev sahibine kalır); cevap yalnız cevaplanabilir soruyu cevaplar.\n" +
       "    Ödemeyi reddeden, iade / tazminat isteyen, kötü yorum ya da şikâyetle tehdit eden mesajda taahhüt, açıklama, savunma YAZMA.\n" +
@@ -1413,7 +1415,10 @@ export const NO_APOLOGY_REPLACEMENTS: readonly Replacement[] = [
       '    kaydedildi, ev sahibiniz görebilir." (Kısa bir ÖZÜR cümlesi serbesttir — duygu anlatımı değildir.\n',
     '    Şikayette kalıp = yalnız olgu: "Mesajınız\n' + '    kaydedildi, ev sahibiniz görebilir." (Özür cümlesi de YAZILMAZ — yukarıdaki TARAFSIZLIK.\n',
   ],
-  ["  - Empati/özür EN FAZLA BİR cümle; hemen çözüme geç.\n", "  - Empati EN FAZLA BİR cümle ve özür DEĞİL; hemen çözüme geç.\n"],
+  [
+    "  - Empati/özür EN FAZLA BİR cümle; hemen çözüme geç.\n",
+    "  - Şikâyette empati / üzüntü / özür cümlesi YOK (kurucu 10-22: \"üzgünüz de gitmesin\"); doğrudan cevaplanabilir soruya geç.\n",
+  ],
   [
     '"reply":"Bunun için özür dileriz. Klimayla ilgili mesajınız kaydedildi; ev sahibiniz görebilir."',
     '"reply":"Klimayla ilgili mesajınız kaydedildi; ev sahibiniz görebilir."',

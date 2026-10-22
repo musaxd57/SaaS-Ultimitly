@@ -171,6 +171,9 @@ kalıcı "işlem yok" sayılıyor (niyet kapanır, yeni işlem açılır) — ye
 - `AI_NO_APOLOGY_RULE_ENABLED` (kurucu 10-21: "sofra kirli derse özür dilemesin, haklısınız üzgünüm demesin") — cevap istemi şikâyette özür /
   "haklısınız" / kusur kabulü / tazminat iması öğretmez (bugünkü istem "Bunun için özür dileriz" kalıbını ÖĞRETİYOR; ölçüm: gönderilen 3.329
   gerçek cevapta 1 açık kusur özrü, taslakların ~%9'unda özür). Misafire gideni değiştirir → açmadan önce gerçek model ölçümü + kurucu.
+  ✅ Kurucu 10-22 (T-a, aynen: "Üzgünüzde gitmesin adamın problemi varsa üzgün olması bir boku değiştirimiyor ve hatayı kabul ediyor gibi
+  olur öyle olmamalı"): AÇILIŞTA "1". Kural üzüntü / anlayış cümlesini de kapsar ("üzgünüz", "sorry for the inconvenience"); yedek (fallback)
+  şikâyet taslağı da özürsüz. Kırmızı takım ölçümünde özürlü taslak 9 → 0 (anahtar açık).
 - Cevap modeli bekleme tavanı 30 sn + devre kesici (art arda 3 zaman aşımı → 60 sn çağrı yok) + tek hızlı yeniden deneme — env YOK
   (`src/lib/ai/model-breaker.ts`). Ev sahibi yazma hız sınırı kişi başına dakikada 300 — env YOK (`src/lib/host-write-limit.ts`).
 - Dış izleyici + WAF + oturum anahtarı adımları: `docs/OPS-2026-10-21-dis-izleyici-waf-anahtar.md` (panel işleri, açılıştan sonra).

@@ -4,6 +4,7 @@ import { guestFirstNameOf } from "@/lib/kb-placeholders";
 import { codeGreetingEnabled, salutationNameOf } from "./code-greeting";
 import { gasDetectorSounding, smokeDetectorSounding } from "./gas-detector-alarm";
 import { hasDividerHeaderSpoof } from "./divider-spoof";
+import { noApologyRuleEnabled } from "./no-apology-rule";
 
 // Deterministic, keyword-based AI fallback. Used when no OPENAI_API_KEY is set,
 // or when the OpenAI call fails. Keeps the product usable without external APIs.
@@ -2755,12 +2756,17 @@ export function suggestReplyFallback(input: SuggestReplyInput): SuggestReplyResu
 
   switch (intent) {
     case "complaint":
-      body = isTr
-        // ⚠️ "ilettim … ilgileneceğiz" prompts.ts §10.5'in KELİMESİ KELİMESİNE yasakladığı
-        // ses karışımıydı (tekil eylem + çoğul eylem aynı cümlede). İngilizce kardeşi
-        // zaten tekildi, yani iki dil BİRBİRİYLE de çelişiyordu.
-        ? "Bunun için özür dileriz. Durumu hemen ekibimize ilettim; en kısa sürede size döneceğim."
-        : "Apologies for the issue you've experienced. I've notified our team right away and will get back to you as soon as possible.";
+      // TARAFSIZLIK (`AI_NO_APOLOGY_RULE_ENABLED`, kurucu 10-21 + 10-22 "üzgünüz de gitmesin"): açıkken şikâyet taslağı özürsüz.
+      body = noApologyRuleEnabled()
+        ? isTr
+          ? "Durumu hemen ekibimize ilettim; en kısa sürede size döneceğim."
+          : "I've notified our team right away and will get back to you as soon as possible."
+        : isTr
+          // ⚠️ "ilettim … ilgileneceğiz" prompts.ts §10.5'in KELİMESİ KELİMESİNE yasakladığı
+          // ses karışımıydı (tekil eylem + çoğul eylem aynı cümlede). İngilizce kardeşi
+          // zaten tekildi, yani iki dil BİRBİRİYLE de çelişiyordu.
+          ? "Bunun için özür dileriz. Durumu hemen ekibimize ilettim; en kısa sürede size döneceğim."
+          : "Apologies for the issue you've experienced. I've notified our team right away and will get back to you as soon as possible.";
       risk = "Şikayet/olası sorun algılandı. Yöneticiye iletilmeli; otomatik karar verilmedi.";
       break;
     case "refund":
