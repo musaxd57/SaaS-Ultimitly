@@ -45,20 +45,25 @@ describe("ReservationPinControl — PIN reveal + copy variants", () => {
     stubFetch();
     render(<ReservationPinControl reservationId="r1" initialHasPin={false} />);
 
-    fireEvent.click(screen.getByRole("button", { name: /Giriş kodu oluştur/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Sohbet kodu oluştur/ }));
     await screen.findByText("123456");
 
     fireEvent.click(screen.getByRole("button", { name: /Airbnb mesajı kopyala/ }));
     await screen.findByText("Mesaj kopyalandı");
     const msg = writeText.mock.calls[0][0] as string;
     expect(msg).toContain("123456"); // the code the guest needs
-    expect(msg).toContain("Your access code:"); // English source (Airbnb auto-translates)
+    expect(msg).toContain("Your chat code:"); // English source (Airbnb auto-translates)
     expect(msg).toMatch(/optionally/); // scope: optional use
     expect(msg).toMatch(/Airbnb messaging/); // scope: money/refund/urgent → Airbnb
     // Softened for message filters: no "QR" trigger word, no link, no Turkish body.
     expect(msg).not.toMatch(/QR/i);
     expect(msg).not.toMatch(/https?:\/\//);
     expect(msg).not.toMatch(/Giriş kodunuz|Merhaba/);
+    // U3 (kurucu 10-22): "access code" kısa dönem kiralamada kapı kodu demek — ad "chat code", kapı kodu olmadığı yazılı.
+    expect(msg).not.toMatch(/access code/i);
+    expect(msg).toContain("this is not the door code");
+    // Airbnb filtresi (docs/AIRBNB-MESAJ-KURALLARI.md): e-posta / telefon / sosyal medya yok.
+    expect(msg).not.toMatch(/@|whatsapp|telegram|instagram|\+?\d[\d ]{7,}\d/i);
     expect(localStorage.length).toBe(0);
     expect(sessionStorage.length).toBe(0);
   });
@@ -66,7 +71,7 @@ describe("ReservationPinControl — PIN reveal + copy variants", () => {
   it("there is NO check-in-guide copy button (removed — listing-level field would show a stale PIN)", async () => {
     stubFetch();
     render(<ReservationPinControl reservationId="r1" initialHasPin={false} />);
-    fireEvent.click(screen.getByRole("button", { name: /Giriş kodu oluştur/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Sohbet kodu oluştur/ }));
     await screen.findByText("123456");
     expect(screen.queryByRole("button", { name: /check-in/i })).toBeNull();
     expect(screen.queryByText(/filtresine tabi değildir/)).toBeNull();
@@ -74,28 +79,28 @@ describe("ReservationPinControl — PIN reveal + copy variants", () => {
 });
 
 describe("ReservationPinControl — removal confirmation", () => {
-  it("'Giriş kodunu kaldır' asks first; 'Vazgeç' aborts WITHOUT firing DELETE", async () => {
+  it("'Sohbet kodunu kaldır' asks first; 'Vazgeç' aborts WITHOUT firing DELETE", async () => {
     const fn = stubFetch();
     render(<ReservationPinControl reservationId="r1" initialHasPin={true} />);
 
-    fireEvent.click(screen.getByRole("button", { name: /Giriş kodunu kaldır/ }));
-    await screen.findByText(/giriş kodu kaldırılacak/);
+    fireEvent.click(screen.getByRole("button", { name: /Sohbet kodunu kaldır/ }));
+    await screen.findByText(/sohbet kodu kaldırılacak/);
     screen.getByText(/kod girmeden erişebilir/); // strict OFF consequence
     screen.getByText(/kilitli kalır/); // strict ON consequence
 
     fireEvent.click(screen.getByRole("button", { name: /^Vazgeç$/ }));
-    await screen.findByRole("button", { name: /Giriş kodunu kaldır/ });
+    await screen.findByRole("button", { name: /Sohbet kodunu kaldır/ });
     expect(fn.mock.calls.some((c) => (c[1] as RequestInit | undefined)?.method === "DELETE")).toBe(false);
   });
 
-  it("'Kodu kaldır' confirms → DELETE fires and the control returns to 'Giriş kodu oluştur'", async () => {
+  it("'Kodu kaldır' confirms → DELETE fires and the control returns to 'Sohbet kodu oluştur'", async () => {
     const fn = stubFetch();
     render(<ReservationPinControl reservationId="r1" initialHasPin={true} />);
 
-    fireEvent.click(screen.getByRole("button", { name: /Giriş kodunu kaldır/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Sohbet kodunu kaldır/ }));
     fireEvent.click(await screen.findByRole("button", { name: /Kodu kaldır/ }));
 
-    await screen.findByRole("button", { name: /Giriş kodu oluştur/ });
+    await screen.findByRole("button", { name: /Sohbet kodu oluştur/ });
     const del = fn.mock.calls.find((c) => (c[1] as RequestInit | undefined)?.method === "DELETE");
     expect(del?.[0]).toBe("/api/reservations/r1/chat-pin");
   });

@@ -159,13 +159,13 @@ describe("GuestChat (UI, two-way)", () => {
     render(<GuestChat token="tok" />);
 
     // PIN entry visible.
-    const input = await screen.findByPlaceholderText("Giriş kodu");
+    const input = await screen.findByPlaceholderText("Sohbet kodu");
     // Wrong PIN → generic error.
     fireEvent.change(input, { target: { value: "000000" } });
     fireEvent.click(screen.getByRole("button", { name: /Sohbeti aç/ }));
     await screen.findByText(/Kod hatalı/);
     // Correct PIN → unlocks and the chat thread loads.
-    fireEvent.change(screen.getByPlaceholderText("Giriş kodu"), { target: { value: "123456" } });
+    fireEvent.change(screen.getByPlaceholderText("Sohbet kodu"), { target: { value: "123456" } });
     fireEvent.click(screen.getByRole("button", { name: /Sohbeti aç/ }));
     await screen.findByText("Hoş geldiniz.");
     const postPin = fn.mock.calls.find((c) => {
@@ -183,8 +183,63 @@ describe("GuestChat (UI, two-way)", () => {
     });
     vi.stubGlobal("fetch", fn);
     render(<GuestChat token="t" />);
-    fireEvent.change(await screen.findByPlaceholderText("Giriş kodu"), { target: { value: "111111" } });
+    fireEvent.change(await screen.findByPlaceholderText("Sohbet kodu"), { target: { value: "111111" } });
     fireEvent.click(screen.getByRole("button", { name: /Sohbeti aç/ }));
     await screen.findByText(/Çok fazla deneme/);
+  });
+
+  // ── U2 (kurucu 10-22): İngilizce tarayıcıda ekranın kendisi İngilizce; `lang` ekran okuyucu için. ──
+  it("locale=en: başlık, açıklama, yazma kutusu, Gönder, ayraç ve gönderen etiketleri İngilizce; kök `lang=en`", async () => {
+    setupFetch([{ id: "h1", role: "host", text: "Hi, this is your host." }]);
+    const { container } = render(<GuestChat token="t" locale="en" />);
+    await screen.findByText("Lixus AI Guest Assistant");
+    expect(screen.getByText(/The host team can join the conversation/)).toBeTruthy();
+    expect(screen.getByPlaceholderText("Type your question…")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Send" })).toBeTruthy();
+    await screen.findByText("The host team joined the conversation");
+    expect(screen.getByText("👥 Host team")).toBeTruthy();
+    expect(container.querySelector('[lang="en"]')).not.toBeNull();
+    expect(screen.queryByText(/Sorunuzu yazın|Gönder|İşletme ekibi/)).toBeNull();
+  });
+
+  it("locale=en: sunucunun Türkçe sebep metni yerine İngilizce genel hata (Türkçe cümle yabancı misafire bir şey söylemez)", async () => {
+    const fn = vi.fn((_url: string, opts?: RequestInit) => {
+      const method = opts?.method ?? "GET";
+      if (method === "GET") return Promise.resolve({ ok: true, json: async () => ({ open: true, messages: [] }) });
+      return Promise.resolve({ ok: false, json: async () => ({ error: "Çok fazla istek. Lütfen biraz bekleyin." }) });
+    });
+    vi.stubGlobal("fetch", fn);
+    render(<GuestChat token="t" locale="en" />);
+    fireEvent.change(await screen.findByPlaceholderText("Type your question…"), { target: { value: "hi" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await screen.findByText("I can't reply right now. Please try again shortly.");
+    expect(screen.queryByText(/Çok fazla istek/)).toBeNull();
+  });
+
+  it("locale=en PIN ekranı: 'Chat code', kapı kodu olmadığı yazılı (U3)", async () => {
+    const fn = vi.fn((_url: string, opts?: RequestInit) => {
+      const method = opts?.method ?? "GET";
+      if (method === "GET") return Promise.resolve({ ok: true, status: 200, json: async () => ({ open: true, pinRequired: true, messages: [] }) });
+      return Promise.resolve({ ok: true, status: 200, json: async () => ({ pinRequired: true, pinError: true }) });
+    });
+    vi.stubGlobal("fetch", fn);
+    render(<GuestChat token="t" locale="en" />);
+    const input = await screen.findByPlaceholderText("Chat code");
+    expect(screen.getByText(/This is not the door code/)).toBeTruthy();
+    fireEvent.change(input, { target: { value: "000000" } });
+    fireEvent.click(screen.getByRole("button", { name: "Open chat" }));
+    await screen.findByText("Wrong code. Please check the chat code your host gave you.");
+  });
+
+  it("varsayılan (Türkçe) PIN ekranında da kapı kodu olmadığı yazılı (U3)", async () => {
+    const fn = vi.fn((_url: string, opts?: RequestInit) => {
+      const method = opts?.method ?? "GET";
+      if (method === "GET") return Promise.resolve({ ok: true, status: 200, json: async () => ({ open: true, pinRequired: true, messages: [] }) });
+      return Promise.resolve({ ok: true, status: 200, json: async () => ({}) });
+    });
+    vi.stubGlobal("fetch", fn);
+    render(<GuestChat token="t" />);
+    await screen.findByPlaceholderText("Sohbet kodu");
+    expect(screen.getByText(/Bu kod kapı kodu değildir/)).toBeTruthy();
   });
 });

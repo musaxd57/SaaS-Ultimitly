@@ -1,4 +1,5 @@
 import { Fragment } from "react";
+import { GUEST_COPY, type GuestLocale } from "./guest-chat-copy";
 
 // ---------------------------------------------------------------------------
 // Misafirin QR sohbet ekranındaki mesaj akışı — SAF (hook yok, ağ yok). İki yer AYNI bileşeni kullanır:
@@ -18,24 +19,25 @@ export interface GuestChatMessage {
 // Property.name — that name is the host's private label (often an owner name or
 // informal code) and must not leak onto this public, unauthenticated QR page.
 // The guest is physically in the unit, so no per-property label is needed.
-export const GUEST_ASSISTANT_TITLE = "Lixus AI Misafir Asistanı";
+// Metinler TEK kaynakta (`guest-chat-copy.ts`, Türkçe / İngilizce — kurucu 10-22 U2); aşağıdaki sabitler Türkçe sürüm (ev sahibinin
+// "misafirin gördüğü ekran" önizlemesi bunları okur).
+export const GUEST_ASSISTANT_TITLE = GUEST_COPY.tr.title;
 /** Tek seferlik açıklama — başlıkta BİR kez, her mesajın altında tekrar edilmez. */
-export const GUEST_CHAT_DISCLOSURE =
-  "Yanıtlar yapay zekâ tarafından hazırlanabilir. Gerektiğinde işletme ekibi görüşmeye katılabilir.";
+export const GUEST_CHAT_DISCLOSURE = GUEST_COPY.tr.disclosure;
 /** Henüz mesaj yokken misafirin gördüğü karşılama kartı. */
-export const GUEST_CHAT_INTRO =
-  "Merhaba! 👋 Konaklamanızla ilgili sorularınızı (çöp günü, cihazlar, kurallar, çevre önerileri…) buraya yazabilirsiniz.";
+export const GUEST_CHAT_INTRO = GUEST_COPY.tr.intro;
 /** Konaklama bitince misafirin gördüğü kapanış kartı. */
-export const GUEST_CHAT_CLOSED = "Konaklamanız sona erdiği için sohbet kapandı. İyi günler dileriz!";
+export const GUEST_CHAT_CLOSED = GUEST_COPY.tr.closed;
 // Wi-Fi artık bağlı cihazdaki misafire verilebilir (kurucu kararı 10-11) → not yalnız kapı kodunu anar (kurucu onaylı metin).
-export const GUEST_CHAT_FOOTER = "Otomatik asistan + ev sahibi. Kapı kodu gibi giriş bilgileri güvenlik için burada paylaşılmaz.";
+export const GUEST_CHAT_FOOTER = GUEST_COPY.tr.footer;
 
 /**
  * Mesaj balonları + devir ayraçları. Ayraçlar diziden türetilir: bir ev sahibi mesajı, önceki devir işareti "yeniden
  * etkinleştirildi" ise (ya da hiç yoksa) "İşletme ekibi görüşmeye katıldı" koşusunu başlatır; "resume" satırı balon değil,
  * "Lixus AI yeniden etkinleştirildi" ayracıdır.
  */
-export function GuestChatThread({ messages }: { messages: readonly GuestChatMessage[] }) {
+export function GuestChatThread({ messages, locale = "tr" }: { messages: readonly GuestChatMessage[]; locale?: GuestLocale }) {
+  const t = GUEST_COPY[locale];
   return (
     <>
       {messages.map((m, i) => {
@@ -44,7 +46,7 @@ export function GuestChatThread({ messages }: { messages: readonly GuestChatMess
         const resume = m.role === "resume";
         const prevMarker = [...messages.slice(0, i)].reverse().find((x) => x.role === "host" || x.role === "resume");
         const startsHostRun = host && (!prevMarker || prevMarker.role === "resume");
-        const separator = resume ? "Lixus AI yeniden etkinleştirildi" : startsHostRun ? "İşletme ekibi görüşmeye katıldı" : null;
+        const separator = resume ? t.separatorResume : startsHostRun ? t.separatorHost : null;
         return (
           <Fragment key={m.id}>
             {separator ? (
@@ -71,7 +73,7 @@ export function GuestChatThread({ messages }: { messages: readonly GuestChatMess
                         host ? "mb-0.5 text-[10px] font-semibold text-emerald-700" : "mb-0.5 text-[10px] font-semibold text-muted-foreground"
                       }
                     >
-                      {host ? "👥 İşletme ekibi" : "🤖 Lixus AI"}
+                      {host ? t.senderHost : t.senderAi}
                     </p>
                   ) : null}
                   <p className="whitespace-pre-wrap break-words">{m.text}</p>

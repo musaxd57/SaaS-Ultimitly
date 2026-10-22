@@ -1,15 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  GUEST_ASSISTANT_TITLE,
-  GUEST_CHAT_CLOSED,
-  GUEST_CHAT_DISCLOSURE,
-  GUEST_CHAT_FOOTER,
-  GUEST_CHAT_INTRO,
-  GuestChatThread,
-  type GuestChatMessage as ChatMessage,
-} from "@/components/guest-chat/guest-chat-thread";
+import { GuestChatThread, type GuestChatMessage as ChatMessage } from "@/components/guest-chat/guest-chat-thread";
+import { GUEST_COPY, type GuestLocale } from "@/components/guest-chat/guest-chat-copy";
 /**
  * Kaç ARDIŞIK başarısız yenilemeden sonra misafire söylenir.
  *
@@ -28,7 +21,9 @@ const STALL_AFTER_FAILURES = 3;
  * No PII or access codes are shown here; the access codes live in the
  * Airbnb-native check-in flow, never on this public surface.
  */
-export function GuestChat({ token }: { token: string }) {
+export function GuestChat({ token, locale = "tr" }: { token: string; locale?: GuestLocale }) {
+  // Ekran dili sunucuda `Accept-Language`tan seçilir (kurucu 10-22 U2); yapay zekânın cevabı zaten misafirin dilinde.
+  const t = GUEST_COPY[locale];
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -195,11 +190,8 @@ export function GuestChat({ token }: { token: string }) {
         // panelindeki kardeş yazma kutusu bunu ZATEN doğru yapıyor.
         // error kept in dedicated state so a background poll can't wipe it
         const body = (await res.json().catch(() => null)) as { error?: string } | null;
-        setError(
-          typeof body?.error === "string" && body.error.trim()
-            ? body.error
-            : "Şu an yanıt veremiyorum. Lütfen biraz sonra tekrar deneyin.",
-        );
+        // Sunucunun sebep metni Türkçe; İngilizce ekranda yerine aynı anlamda genel cümle (Türkçe cümle yabancı misafire bir şey söylemez).
+        setError(locale === "tr" && typeof body?.error === "string" && body.error.trim() ? body.error : t.replyFailed);
         return;
       }
       const data = (await res.json().catch(() => ({}))) as {
@@ -235,7 +227,7 @@ export function GuestChat({ token }: { token: string }) {
       await loadHistory();
     } catch {
       rollback();
-      setError("Bağlantı hatası. Lütfen tekrar deneyin.");
+      setError(t.connectionError);
     } finally {
       sendingRef.current = false;
       setSending(false);
@@ -261,7 +253,7 @@ export function GuestChat({ token }: { token: string }) {
         pinError?: boolean;
       };
       if (res.status === 429) {
-        setPinError("Çok fazla deneme. Lütfen birkaç dakika sonra tekrar deneyin.");
+        setPinError(t.pinTooMany);
         return;
       }
       if (data.unlocked) {
@@ -277,13 +269,13 @@ export function GuestChat({ token }: { token: string }) {
       }
       if (data.locked) {
         const mins = Math.max(1, Math.ceil((data.retryAfter ?? 0) / 60));
-        setPinError(`Çok fazla hatalı deneme. ${mins} dakika sonra tekrar deneyin.`);
+        setPinError(t.pinLocked(mins));
         return;
       }
       // pinError or anything else → one generic message (never reveals the code).
-      setPinError("Kod hatalı. Ev sahibinizin verdiği giriş kodunu kontrol edin.");
+      setPinError(t.pinWrong);
     } catch {
-      setPinError("Bağlantı hatası. Lütfen tekrar deneyin.");
+      setPinError(t.connectionError);
     } finally {
       setPinBusy(false);
     }
@@ -292,13 +284,11 @@ export function GuestChat({ token }: { token: string }) {
   // PIN gate screen: shown until this device unlocks the stay with the host's code.
   if (pinRequired && !boundElsewhere && !closed) {
     return (
-      <div className="mx-auto flex min-h-screen max-w-lg flex-col items-center justify-center gap-4 bg-background px-6 text-center">
+      <div lang={locale} className="mx-auto flex min-h-screen max-w-lg flex-col items-center justify-center gap-4 bg-background px-6 text-center">
         <div className="w-full max-w-xs space-y-4 rounded-lg border border-border bg-card p-6">
           <div>
-            <p className="text-base font-semibold">{GUEST_ASSISTANT_TITLE}</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Sohbeti başlatmak için ev sahibinizin size verdiği giriş kodunu girin.
-            </p>
+            <p className="text-base font-semibold">{t.title}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{t.pinPrompt}</p>
           </div>
           <form
             onSubmit={(e) => {
@@ -312,7 +302,8 @@ export function GuestChat({ token }: { token: string }) {
               onChange={(e) => setPinInput(e.target.value.replace(/\D/g, "").slice(0, 6))}
               inputMode="numeric"
               autoComplete="one-time-code"
-              placeholder="Giriş kodu"
+              placeholder={t.pinPlaceholder}
+              aria-label={t.pinPlaceholder}
               autoFocus
               className="w-full rounded-lg border border-border bg-background px-3 py-2 text-center text-lg tracking-[0.4em] focus:outline-none focus:ring-2 focus:ring-primary/40"
             />
@@ -321,12 +312,13 @@ export function GuestChat({ token }: { token: string }) {
               disabled={pinBusy || pinInput.replace(/\D/g, "").length < 4}
               className="w-full rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
             >
-              {pinBusy ? "Kontrol ediliyor…" : "Sohbeti aç"}
+              {pinBusy ? t.pinChecking : t.pinSubmit}
             </button>
           </form>
           {pinError ? <p className="text-sm text-destructive">{pinError}</p> : null}
+          {/* U3 (kurucu 10-22): "giriş kodu / access code" kapı koduyla karışıyordu — adı "sohbet kodu", kapı kodu olmadığı yazılı. */}
           <p className="text-[11px] text-muted-foreground">
-            Kodu bilmiyorsanız ev sahibinizle iletişime geçin.
+            {t.pinNotDoorCode} {t.pinUnknown}
           </p>
         </div>
       </div>
@@ -335,35 +327,32 @@ export function GuestChat({ token }: { token: string }) {
 
   // `min-h-dvh`: mobil tarayıcı çubuğu altında `100vh` yazma kutusunu kırpıyor.
   return (
-    <div className="mx-auto flex min-h-dvh max-w-lg flex-col bg-background">
+    <div lang={locale} className="mx-auto flex min-h-dvh max-w-lg flex-col bg-background">
       <header className="border-b border-border bg-card px-4 py-3">
-        <p className="text-sm font-semibold">{GUEST_ASSISTANT_TITLE}</p>
+        <p className="text-sm font-semibold">{t.title}</p>
         {/* One-time disclosure — shown ONCE here, never repeated under each message. */}
-        <p className="text-xs text-muted-foreground">{GUEST_CHAT_DISCLOSURE}</p>
+        <p className="text-xs text-muted-foreground">{t.disclosure}</p>
       </header>
 
       <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
         {messages.length === 0 && !closed && !boundElsewhere ? (
-          <div className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">{GUEST_CHAT_INTRO}</div>
+          <div className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">{t.intro}</div>
         ) : null}
 
         {boundElsewhere ? (
-          <div className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">
-            Bu konaklama için sohbet başka bir cihazda başlatılmış. Güvenliğiniz için sohbet yalnızca ilk
-            açılan cihazda görüntülenir. Yardıma ihtiyacınız varsa lütfen ev sahibinizle iletişime geçin.
-          </div>
+          <div className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">{t.boundElsewhere}</div>
         ) : null}
 
         {closed ? (
-          <div className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">{GUEST_CHAT_CLOSED}</div>
+          <div className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">{t.closed}</div>
         ) : null}
 
-        <GuestChatThread messages={messages} />
+        <GuestChatThread messages={messages} locale={locale} />
 
         {sending ? (
           <div className="flex justify-start">
             <div className="rounded-2xl rounded-bl-sm border border-border bg-card px-3 py-2 text-sm text-muted-foreground">
-              🤖 Lixus AI yazıyor…
+              {t.typing}
             </div>
           </div>
         ) : null}
@@ -391,7 +380,7 @@ export function GuestChat({ token }: { token: string }) {
           role="status"
           className="border-t border-border bg-muted/50 px-3 py-2 text-center text-xs text-muted-foreground"
         >
-          Yeni mesajlar şu an alınamıyor. Bağlantınızı kontrol edip sayfayı yenileyebilirsiniz.
+          {t.stalled}
         </div>
       ) : null}
 
@@ -414,7 +403,8 @@ export function GuestChat({ token }: { token: string }) {
             }}
             rows={1}
             maxLength={2000}
-            placeholder="Sorunuzu yazın…"
+            placeholder={t.inputPlaceholder}
+            aria-label={t.inputPlaceholder}
             className="max-h-32 min-h-[40px] flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
           />
           <button
@@ -422,15 +412,15 @@ export function GuestChat({ token }: { token: string }) {
             disabled={sending || !input.trim()}
             className="inline-flex h-10 shrink-0 items-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
           >
-            Gönder
+            {t.send}
           </button>
         </form>
       ) : null}
 
       <footer className="bg-card px-4 pb-4 text-center text-[11px] text-muted-foreground">
-        {GUEST_CHAT_FOOTER}{" "}
+        {t.footer}{" "}
         <a href="/gizlilik" className="underline">
-          Gizlilik
+          {t.privacy}
         </a>
       </footer>
     </div>

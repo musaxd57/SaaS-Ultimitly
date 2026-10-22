@@ -27,14 +27,19 @@ export function GuestNotice({
   title,
   body,
   hint,
+  lang,
+  brand = "Lixus AI Misafir Asistanı",
 }: {
   title: string;
   body: string;
   hint?: string;
+  /** Ekran dili (U2, 10-22): misafirin tarayıcı diline göre; ekran okuyucu doğru telaffuz etsin diye `lang` özniteliği. */
+  lang?: string;
+  brand?: string;
 }) {
   return (
     // `min-h-dvh`: mobil tarayıcı çubuğu altında `100vh` içeriği kırpıyor.
-    <div className="flex min-h-dvh flex-col bg-background px-5 py-10">
+    <div lang={lang} className="flex min-h-dvh flex-col bg-background px-5 py-10">
       <div className="mx-auto flex w-full max-w-md flex-1 flex-col items-center justify-center text-center">
         <div className="flex size-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-sm">
           <BrandMark className="size-8" />
@@ -47,9 +52,7 @@ export function GuestNotice({
           </p>
         ) : null}
       </div>
-      <p className="mx-auto mt-8 text-center text-[11px] text-muted-foreground">
-        Lixus AI Misafir Asistanı
-      </p>
+      <p className="mx-auto mt-8 text-center text-[11px] text-muted-foreground">{brand}</p>
     </div>
   );
 }

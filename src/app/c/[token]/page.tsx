@@ -4,6 +4,7 @@ import { GuestChat } from "@/components/guest-chat/guest-chat";
 import { GuestNotice } from "@/components/guest-chat/guest-notice";
 import { headers } from "next/headers";
 import { isSupportViewCookieHeader } from "@/lib/guest-chat-support-view";
+import { GUEST_COPY, guestLocaleFromAcceptLanguage } from "@/components/guest-chat/guest-chat-copy";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,9 @@ export const metadata: Metadata = {
  */
 export default async function GuestChatPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
+  // Ekran dili (kurucu 10-22 U2): tarayıcının dil tercihi — Türkçe ilk tercih değilse İngilizce.
+  const locale = guestLocaleFromAcceptLanguage((await headers()).get("accept-language"));
+  const t = GUEST_COPY[locale];
   // 🚨 Destek görünümü (bürünmüş operatör) misafir sohbetine GİRMEZ (kurucu kararı 09-30): sohbet açılsaydı konaklama bu cihaza
   // kilitlenir, gerçek misafir dışarıda kalırdı. Karar her şeyden önce — sohbet bileşeni (bağlayan uçlar) hiç yüklenmez.
   if (await isSupportViewCookieHeader((await headers()).get("cookie"))) {
@@ -49,24 +53,16 @@ export default async function GuestChatPage({ params }: { params: Promise<{ toke
   // QR panelden kapatılmış · abonelik bitmiş.
   if (!ctx) {
     return (
-      <GuestNotice
-        title="Bu sohbet şu anda kullanılamıyor"
-        body="Karekod artık geçerli değil ya da sohbet kapatılmış olabilir."
-        hint="Yardıma ihtiyacınız varsa lütfen ev sahibinizle iletişime geçin — rezervasyonunuzu yaptığınız uygulamanın mesaj bölümünden ulaşabilirsiniz."
-      />
+      <GuestNotice lang={locale} brand={t.title} title={t.unavailableTitle} body={t.unavailableBody} hint={t.unavailableHint} />
     );
   }
 
   // Closed outside an active stay (vacant / before check-in / after checkout).
   if (!ctx.open) {
     return (
-      <GuestNotice
-        title="Şu an aktif bir konaklama görünmüyor"
-        body="Sohbet yalnızca konaklamanız sürerken açıktır."
-        hint="Bir rezervasyonunuz varsa giriş gününüzde bu karekodu tekrar okutarak buraya ulaşabilirsiniz."
-      />
+      <GuestNotice lang={locale} brand={t.title} title={t.inactiveTitle} body={t.inactiveBody} hint={t.inactiveHint} />
     );
   }
 
-  return <GuestChat token={token} />;
+  return <GuestChat token={token} locale={locale} />;
 }

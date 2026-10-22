@@ -236,10 +236,10 @@ export function GuestChatSettings({
                   className="mt-0.5 size-4 rounded border-input"
                 />
                 <span>
-                  <span className="font-medium text-foreground">Tüm konaklamalarda giriş kodu zorunlu</span>{" "}
+                  <span className="font-medium text-foreground">Tüm konaklamalarda sohbet kodu zorunlu</span>{" "}
                   <span className="text-muted-foreground">(işletme geneli)</span>
                   <span className="mt-0.5 block text-[11px] text-muted-foreground">
-                    Açıkken her rezervasyon için misafir, ev sahibinin verdiği giriş kodunu girmeden sohbeti
+                    Açıkken her rezervasyon için misafir, ev sahibinin verdiği sohbet kodunu girmeden sohbeti
                     açamaz. Kod oluşturmadığınız rezervasyonlarda sohbet kilitli kalır. Kapalıyken yalnızca
                     kod oluşturduğunuz rezervasyonlarda kod istenir.
                   </span>
@@ -247,7 +247,7 @@ export function GuestChatSettings({
               </label>
               {strict && pinlessActiveUpcoming > 0 ? (
                 <div className="mt-2 rounded-md border border-amber-300 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-2.5 py-1.5 text-[11px] text-amber-900 dark:text-amber-200">
-                  ⚠️ Bu dairede giriş kodu olmayan {pinlessActiveUpcoming} aktif/yaklaşan konaklama var —
+                  ⚠️ Bu dairede sohbet kodu olmayan {pinlessActiveUpcoming} aktif/yaklaşan konaklama var —
                   zorunlu mod açık olduğu için bu misafirler kod oluşturana kadar sohbeti açamaz. Aşağıdaki
                   rezervasyon listesinden kod oluşturun.
                 </div>

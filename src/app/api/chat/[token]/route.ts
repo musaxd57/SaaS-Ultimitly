@@ -611,7 +611,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   if (binding.status === "unclaimed") {
     return jsonOk({
       pinRequired: true,
-      reply: "Sohbeti kullanmak için ev sahibinizin verdiği giriş kodunu girin.",
+      reply: "Sohbeti kullanmak için ev sahibinizin verdiği sohbet kodunu girin.",
     });
   }
   if (binding.status === "mismatch") {

@@ -25,14 +25,14 @@ afterEach(() => {
 
 const focused = () => document.activeElement as HTMLElement | null;
 
-describe("giriş kodunu kaldır onayı", () => {
-  it("onay açılınca odak Vazgeç'te; vazgeçince 'Giriş kodunu kaldır'a döner", async () => {
+describe("sohbet kodunu kaldır onayı", () => {
+  it("onay açılınca odak Vazgeç'te; vazgeçince 'Sohbet kodunu kaldır'a döner", async () => {
     vi.stubGlobal("fetch", vi.fn());
     render(<ReservationPinControl reservationId="r1" initialHasPin />);
-    fireEvent.click(screen.getByRole("button", { name: "Giriş kodunu kaldır" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sohbet kodunu kaldır" }));
     expect(focused()?.textContent).toBe("Vazgeç");
     fireEvent.click(screen.getByRole("button", { name: "Vazgeç" }));
-    await waitFor(() => expect(focused()?.textContent).toBe("Giriş kodunu kaldır"));
+    await waitFor(() => expect(focused()?.textContent).toBe("Sohbet kodunu kaldır"));
   });
 });
 
