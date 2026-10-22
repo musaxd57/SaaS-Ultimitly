@@ -24,7 +24,13 @@ import {
   seniorReaderEnabled,
   type AbsenceJudgeOutcome,
 } from "@/lib/ai/semantic/absence-judge";
-import { seniorRewriteNotes, seniorRewriteReasons } from "@/lib/ai/semantic/senior-rewrite";
+import {
+  mergeSeniorRewrite,
+  SENIOR_REWRITE_QR_REASONS,
+  seniorRewriteNotes,
+  seniorRewriteReasons,
+  type SeniorRewriteReason,
+} from "@/lib/ai/semantic/senior-rewrite";
 import { noApologyRuleEnabled } from "@/lib/ai/no-apology-rule";
 import {
   resolveGuestChat,
@@ -1110,32 +1116,8 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
       doorCodeHeld = firstDoorCode; // yönerge kotasız da gitmez: kapı `emergency_directive` ile devreder
     }
   }
-  // ── KIDEMLİ OKUYUCU: AYNI ANLAMDA BİR KEZ YENİDEN YAZ (kurucu 10-22; kanal yoluyla AYNI kural, `semantic/senior-rewrite.ts`) ────────
-  // Okuyucu ev sahibine platform dışı ödeme ya da (özür kuralı açıkken) özür görürse model sebebi not alıp bir kez daha yazar (bir birim QR
-  // kotası); yeni taslak kapıdan ve okuyucudan yeniden geçer, takılırsa bugünkü devir. QR bir OTA kanalı değil: iletişim kuralı burada yok.
-  let qrSeniorPrecheck: { reply: string; outcome: AbsenceJudgeOutcome } | undefined;
-  if (seniorReaderEnabled() && result.source === "openai" && result.reply && !doorCodeHeld) {
-    await assertClaimHeld(); // sahiplik kaybedildiyse ücretli model çağrısı YAPILMAZ
-    const outcome = await runAbsenceJudge({ guestMessage: message, reply: result.reply, names: [res.guestName, res.guestGivenName] });
-    qrSeniorPrecheck = { reply: result.reply, outcome };
-    const reasons = seniorRewriteReasons(seniorChecksOf(outcome), { contactHolds: false, apologyRule: noApologyRuleEnabled() });
-    if (reasons.length > 0) {
-      await assertClaimHeld();
-      const rewriteBudget = await consumeDailyAiBudgetForQr(ctx.property.organizationId, ctx.property.id);
-      if (rewriteBudget.ok) {
-        const retried = await suggestReply({
-          ...replyInput,
-          knowledgeBaseNotes: [...(retryNotes ?? kbSel.notes ?? []), ...seniorRewriteNotes(reasons)],
-        });
-        if (retried.source === "openai" && retried.reply) {
-          result = retried;
-          doorCodeHeld = qrReplyHasDoorCode(retried.reply, modelKbTexts);
-        }
-      }
-    }
-  }
   // İz gecikmesi = yalnız cevap modeli çağrıları (yeniden yazdırma dahil) — kanal iziyle aynı tanım; bekçi / kod metni sorgusu dışarıda.
-  const replyLatencyMs = Date.now() - replyStartedAt;
+  let replyLatencyMs = Date.now() - replyStartedAt;
 
   // (The QR model call passes reservation:null — the name never reaches the model
   // today — so this is defense-in-depth: if the name is ever wired into the
@@ -1175,6 +1157,46 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     // Olası tehlike + anlama katmanı koşmadı → model kararı yok, devir (Haiku 10-14; kanal kapısıyla parite).
     hazardUnverified: hazardDecision.unverifiedPossible,
   };
+  // ── KIDEMLİ OKUYUCU: AYNI ANLAMDA BİR KEZ YENİDEN YAZ (kurucu 10-22; kanal yoluyla AYNI kural, `semantic/senior-rewrite.ts`) ────────
+  // İlk taslak okunur ve okuyucunun hükmüyle kapıdan geçirilir; YALNIZ kapı onu tam da düzeltilebilir sebeple (ev sahibine platform dışı
+  // ödeme · özür kuralı açıkken özür) tutacaksa model sebebi not alıp bir kez daha yazar (bir birim QR kotası). Metin yeni çağrıdan, risk
+  // hükmü ilk çağrıdan (`mergeSeniorRewrite`, Opus 10-22 F1); yeni metin HEMEN okunur ve hüküm İLK değerlendirmeden önce bağlama yazılır —
+  // bekçi / müsaitlik dalı okunmamış ya da tutulan metni geçiremez (F3). QR bir OTA kanalı değil: iletişim kuralı burada yok.
+  let qrSeniorPrecheck: { reply: string; outcome: AbsenceJudgeOutcome } | undefined;
+  let qrSeniorRewrite: SeniorRewriteReason[] | undefined;
+  if (seniorReaderEnabled() && result.source === "openai" && result.reply && !doorCodeHeld) {
+    await assertClaimHeld(); // sahiplik kaybedildiyse ücretli model çağrısı YAPILMAZ
+    const outcome = await runAbsenceJudge({ guestMessage: message, reply: result.reply, names: [res.guestName, res.guestGivenName] });
+    qrSeniorPrecheck = { reply: result.reply, outcome };
+    const reasons = seniorRewriteReasons(seniorChecksOf(outcome), { contactHolds: false, apologyRule: noApologyRuleEnabled() });
+    const first =
+      reasons.length > 0
+        ? evaluateEscalation({ ...result }, message, res.guestName, history, { ...stayCtx, absenceJudge: qrSeniorPrecheck })
+        : null;
+    if (first?.escalate && SENIOR_REWRITE_QR_REASONS.has(first.reason ?? "")) {
+      await assertClaimHeld();
+      const rewriteBudget = await consumeDailyAiBudgetForQr(ctx.property.organizationId, ctx.property.id);
+      if (rewriteBudget.ok) {
+        const retryStartedAt = Date.now();
+        const retried = await suggestReply({
+          ...replyInput,
+          knowledgeBaseNotes: [...(retryNotes ?? kbSel.notes ?? []), ...seniorRewriteNotes(reasons)],
+        }).catch(() => null);
+        replyLatencyMs += Date.now() - retryStartedAt;
+        if (retried?.source === "openai" && retried.reply) {
+          result = mergeSeniorRewrite(result, retried);
+          doorCodeHeld = qrReplyHasDoorCode(result.reply, modelKbTexts);
+          qrSeniorRewrite = reasons;
+          await assertClaimHeld();
+          qrSeniorPrecheck = {
+            reply: result.reply,
+            outcome: await runAbsenceJudge({ guestMessage: message, reply: result.reply, names: [res.guestName, res.guestGivenName] }),
+          };
+        }
+      }
+    }
+  }
+  if (qrSeniorPrecheck && qrSeniorPrecheck.reply === result.reply) stayCtx = { ...stayCtx, absenceJudge: qrSeniorPrecheck };
   const gateResult = { ...result, reply: result.reply, usedSources: result.usedSources };
   let verdict = evaluateEscalation(gateResult, message, res.guestName, history, stayCtx);
   // BAĞLAM HAKEMİ (kurucu 10-21, `semantic/absence-judge.ts`, anahtar KAPALI): kelime kuralının "bilgim yok" adayını ikinci model misafirin
@@ -1349,6 +1371,8 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
         : undefined,
       // Ev kuralı GÖLGE ölçümü (#188 dilim 3): kanal oto-yanıtıyla AYNI giriş; karar DEĞİL, bayrak kapalıyken sorgu yok.
       houseRules: await houseRulesShadowFor({ organizationId: ctx.property.organizationId, propertyId: ctx.property.id, understood }),
+      // Kıdemli okuyucu yeniden yazdırdıysa sebep kodları (kapalı küme, metin yok) — kanal kaydıyla parite (Opus 10-22 F5).
+      seniorRewrite: qrSeniorRewrite,
     }),
     srcDeclared: finalResult.sourceAudit?.declared ?? null,
     srcVerified: finalResult.sourceAudit?.verified ?? null,

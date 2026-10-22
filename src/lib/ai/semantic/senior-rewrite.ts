@@ -47,3 +47,63 @@ export const SENIOR_REWRITE_NOTES: Record<SeniorRewriteReason, string> = {
 export function seniorRewriteNotes(reasons: readonly SeniorRewriteReason[]): string[] {
   return reasons.map((r) => SENIOR_REWRITE_NOTES[r]);
 }
+
+/**
+ * Yeniden yazma YALNIZ ilk taslak kapıda tam da bu sebeplerden biriyle tutulacaksa yapılır (Opus 10-22 F1): başka bir sebeple (şikâyet
+ * riski, "bilgim yok", güven) tutulan taslağı yeniden yazmak hem birimi boşa harcar hem de modelin ilk risk hükmünü ikinci çağrıyla
+ * değiştirme kapısı açar. Kanal kapısının ayrıntı kodları / QR kapısının sebepleri.
+ */
+export const SENIOR_REWRITE_GATE_DETAILS: ReadonlySet<string> = new Set([
+  "reply_offplatform_payment",
+  "reply_offplatform_contact",
+  "reply_apology",
+  // Öğe kipinde ödeme öğesi tutuluyken okuyucu açıksa bu tutuşun tek sebebi okuyucunun "ev sahibine platform dışı ödeme" hükmüdür
+  // (`paymentHeldHolds`) — aynı düzeltilebilir sebep.
+  "items_payment_held",
+]);
+export const SENIOR_REWRITE_QR_REASONS: ReadonlySet<string> = new Set(["offplatform_payment", "reply_apology"]);
+
+/**
+ * Yeniden yazılan cevabı ilk cevabın üstüne koyar: METİNLE ilgili alanlar (metin, kaynak / iddia denetimi, cevaplanan istekler, eylem
+ * beyanı, saat çakışması, eksik bilgi, kullanım) yeni çağrıdan; MESAJLA ilgili hüküm (niyet, risk düzeyi / türü, öncelik, dil, konaklama
+ * beyanı, misafirin yazdığı çıkış saati) ilk çağrıdan kalır, güven ikisinin küçüğü (Opus 10-22 F1: yeniden yazma notu "sorun hakkında
+ * yorum yapma" der; ikinci çağrının şikâyeti "düşük risk" diye etiketlemesi ilk hükmü silmesin — Sorunlu / acil e-posta ve risk kaydı
+ * aynı hükmü okur). Saf.
+ */
+export function mergeSeniorRewrite<
+  T extends {
+    reply: string;
+    confidence: number;
+    usedSources: string[];
+    missingInfo: string[];
+    sourceAudit?: unknown;
+    claimAudit?: unknown;
+    answeredRequests?: unknown;
+    claimedActions?: unknown;
+    timeConflicts?: unknown;
+    llmUsage?: unknown;
+    kbOmittedInPrompt?: number;
+    stayChange?: { asked: string; stance: string } | null;
+  },
+>(first: T, retried: T): T {
+  // Konaklama beyanının İSTEK yarısı mesajdan (ilk çağrı), TUTUM yarısı metinden (yeni çağrı); yeni çağrı tutum vermediyse "bilinmiyor".
+  const stayChange =
+    first.stayChange || retried.stayChange
+      ? { asked: first.stayChange?.asked ?? retried.stayChange?.asked ?? "unknown", stance: retried.stayChange?.stance ?? "unknown" }
+      : first.stayChange;
+  return {
+    ...first,
+    stayChange: stayChange as T["stayChange"],
+    reply: retried.reply,
+    confidence: Math.min(first.confidence, retried.confidence),
+    usedSources: retried.usedSources,
+    missingInfo: retried.missingInfo,
+    sourceAudit: retried.sourceAudit,
+    claimAudit: retried.claimAudit,
+    answeredRequests: retried.answeredRequests,
+    claimedActions: retried.claimedActions,
+    timeConflicts: retried.timeConflicts,
+    llmUsage: retried.llmUsage,
+    kbOmittedInPrompt: retried.kbOmittedInPrompt,
+  };
+}

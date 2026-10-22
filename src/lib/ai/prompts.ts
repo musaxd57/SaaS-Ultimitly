@@ -929,13 +929,13 @@ export function packKnowledgeBase(
   notes: readonly string[] = [],
 ): { text: string; omitted: number } {
   if (items.length === 0) {
-    return {
-      text:
-        alreadyDropped > 0
-          ? `(bilgi tabanı bu yanıta alınamadı — ${alreadyDropped} kalem yer sınırı nedeniyle dışarıda kaldı; 'bilgi yok' DEME, konuyu insana devret)`
-          : "(bilgi tabanı boş — bu mülk için kayıtlı bilgi yok)",
-      omitted: alreadyDropped,
-    };
+    const head =
+      alreadyDropped > 0
+        ? `(bilgi tabanı bu yanıta alınamadı — ${alreadyDropped} kalem yer sınırı nedeniyle dışarıda kaldı; 'bilgi yok' DEME, konuyu insana devret)`
+        : "(bilgi tabanı boş — bu mülk için kayıtlı bilgi yok)";
+    // Kodun notları (yeniden yazdırma sebebi, QR kapı kodu / acil yönergesi notu) bilgi tabanı boşken de modele ulaşır (Opus 10-22 F2:
+    // eskiden erken dönüş notları düşürüyordu — ikinci çağrı aynı istemin yeniden örneklemesiydi). Not yoksa metin bayt bayt aynı.
+    return { text: notes.length > 0 ? [head, ...notes.map((n) => `- [NOT] ${n}`)].join("\n") : head, omitted: alreadyDropped };
   }
   const lines: string[] = [];
   let used = 0;

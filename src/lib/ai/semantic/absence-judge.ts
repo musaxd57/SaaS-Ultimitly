@@ -59,7 +59,7 @@ export function absenceReaderStrict(): boolean {
  * bugünkü kelime kuralı karar verir. Saf; kanal ve QR kapısı AYNI fonksiyonu kullanır.
  */
 export function absenceHolds(lexicalHit: boolean, judge: AbsenceJudgeOutcome | undefined): boolean {
-  if (judge?.status === "ok") return judge.admits;
+  if (judge?.status === "ok") return judge.admits || (judge.ungrounded === true && lexicalHit);
   return lexicalHit;
 }
 
@@ -85,7 +85,10 @@ export const ABSENCE_JUDGE_SYSTEM_PROMPT = [
   "- refuses to share something for security or policy reasons while knowing it ('I can't share the door code in this chat');",
   "- gives a status ('there is no update yet on your late check-out request; your host decides');",
   "- gives the guest an instruction that mentions not finding something ('if you can't find the keys, they are in the lockbox');",
-  "- talks about other people not being listed or not having something.",
+  "- talks about other people not being listed or not having something;",
+  "- leaves part of the guest's message unanswered WITHOUT saying anything about it (for example it answers the trash question and says",
+  "  nothing about a problem the guest reported). Silence about a topic is NOT an admission: only a sentence that the draft actually",
+  "  contains and that SAYS the information is missing counts.",
   "",
   "quote: when admits_missing_info is true, copy the ONE sentence of the draft that says the information is missing, EXACTLY as written",
   "(same words, same language). When false, an empty string.",
@@ -185,11 +188,16 @@ export interface AbsenceJudgeInput {
   senior?: boolean;
 }
 
+/**
+ * `ungrounded`: bir okuma "itiraf var" dedi ama alıntısı okuyucunun gördüğü taslakta YOK (canlı hat 10-22: misafirin şikâyetine hiç
+ * değinmeyen çöp cevabında okuyucu taslakta olmayan "Duş suyuyla ilgili bilgi notlarımızda … bulunmuyor" cümlesini alıntıladı). O oy
+ * geçersizdir; itiraf kararı o metin için kelime kuralına kalır (`absenceHolds`) — serbest bırakma da sayılmaz (`judgeReleases`).
+ */
 export type AbsenceJudgeOutcome =
-  | { status: "ok"; admits: boolean; quote: string; checks?: SeniorChecks }
+  | { status: "ok"; admits: boolean; quote: string; checks?: SeniorChecks; ungrounded?: true }
   | { status: "failed" };
 
-type Reading = { admits: boolean; quote: string; checks?: SeniorChecks };
+type Reading = { admits: boolean; quote: string; checks?: SeniorChecks; ungrounded?: true };
 
 const knownNames = (input: Pick<AbsenceJudgeInput, "names">) =>
   (input.names ?? []).filter((n): n is string => typeof n === "string" && n.trim().length > 0);
@@ -218,6 +226,22 @@ export function buildAbsenceJudgeUserContent(input: AbsenceJudgeInput): string {
 }
 
 const squash = (s: string) => s.normalize("NFC").replace(/[’‘ʼ]/g, "'").replace(/\s+/g, " ").trim().toLowerCase();
+
+/**
+ * İtiraf alıntısı okuyucunun GÖRDÜĞÜ taslakta geçiyor mu. Saf, doğrusal. Harf büyüklüğü, tırnak / noktalama ve boşluk farkı yok sayılır
+ * (model alıntıyı tırnaksız ya da noktasız kopyalayabilir); kelimeler aynı sırada bitişik geçmeli. Boş alıntı = kanıt yok.
+ */
+export function quoteGroundedIn(draftSeen: string, quote: string): boolean {
+  const norm = (t: string) => squash(t).replace(/[\p{P}\p{S}]+/gu, " ").replace(/\s+/g, " ").trim();
+  const q = norm(quote);
+  return q.length > 0 && ` ${norm(draftSeen)} `.includes(` ${q} `);
+}
+
+/** "İtiraf var" diyen okumanın alıntısı taslakta yoksa o okumanın itiraf oyu düşer (`ungrounded`); öteki hükümleri aynen kalır. */
+export function groundReading<R extends Reading>(reading: R | null, draftSeen: string): R | null {
+  if (!reading || !reading.admits || quoteGroundedIn(draftSeen, reading.quote)) return reading;
+  return { ...reading, admits: false, quote: "", ungrounded: true };
+}
 
 /**
  * Modelin cevabı → hüküm. Saf. "İtiraf var" diyorsa alıntı boş olabilir (yine itiraf sayılır, tutulur — tutucu yön). "İtiraf yok"
@@ -282,7 +306,8 @@ export function combineAbsenceReadings(withGuest: Reading | null, draftOnly: Rea
       : {};
   if (withGuest.admits) return { status: "ok", admits: true, quote: withGuest.quote, ...checks };
   if (draftOnly.admits) return { status: "ok", admits: true, quote: draftOnly.quote, ...checks };
-  return { status: "ok", admits: false, quote: "", ...checks };
+  const ungrounded = withGuest.ungrounded || draftOnly.ungrounded ? { ungrounded: true as const } : {};
+  return { status: "ok", admits: false, quote: "", ...checks, ...ungrounded };
 }
 
 /** Bayraktan bağımsız çağrı (ölçer + bayraklı yol). İki okuma paralel (gecikme tek çağrınınki). */
@@ -310,7 +335,9 @@ export async function runAbsenceJudge(input: AbsenceJudgeInput): Promise<Absence
       return senior ? parseSeniorReaderVerdict(res.data) : parseAbsenceJudgeVerdict(res.data);
     };
     const [withGuest, draftOnly] = await Promise.all([read(buildAbsenceJudgeUserContent(input)), read(buildAbsenceJudgeDraftOnlyContent(input))]);
-    return combineAbsenceReadings(withGuest, draftOnly);
+    // Alıntı, okuyucuya giden (ad maskeli) taslakla kıyaslanır — modelin gördüğü metin.
+    const seen = fenceSafe(redactForSemanticModel(input.reply, knownNames(input), "ours"));
+    return combineAbsenceReadings(groundReading(withGuest, seen), groundReading(draftOnly, seen));
   } catch {
     return { status: "failed" };
   }
@@ -318,7 +345,7 @@ export async function runAbsenceJudge(input: AbsenceJudgeInput): Promise<Absence
 
 /** Hakem okudu ve itiraf YOK dedi (kelime kuralının adayı serbest). */
 export function judgeReleases(outcome: AbsenceJudgeOutcome | undefined): boolean {
-  return outcome?.status === "ok" && !outcome.admits;
+  return outcome?.status === "ok" && !outcome.admits && outcome.ungrounded !== true;
 }
 
 /** Kıdemli okuyucunun ek hükümleri — yalnız okuyucu bu metni okuduysa (yoksa `undefined` → kelime kuralları karar verir). */
