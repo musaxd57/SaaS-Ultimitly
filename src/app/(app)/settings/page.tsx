@@ -8,6 +8,7 @@ import { styleProfileBody } from "@/lib/ai/style-profile";
 import { BulkTimesForm } from "@/components/settings/bulk-times-form";
 import { NightHoursForm } from "@/components/settings/night-hours-form";
 import { DeleteAccountCard } from "@/components/settings/delete-account-card";
+import { DataExportButton } from "@/components/settings/data-export-button";
 import { AutoReplyToggle } from "@/components/inbox/auto-reply-toggle";
 import { Bot, HeartHandshake, KeyRound, LogOut } from "lucide-react";
 import { billingTabAvailable } from "@/lib/billing/billing-tab";
@@ -610,12 +611,8 @@ export default async function SettingsPage({
               olarak indirebilirsiniz. Şifreler, 2FA anahtarları ve kanal bağlantı
               anahtarları hiçbir zaman dâhil edilmez.
             </p>
-            <a
-              href="/api/account/export"
-              className="inline-flex items-center justify-center rounded-md border border-border bg-card px-4 py-2 text-sm font-medium hover:bg-accent"
-            >
-              Verilerimi indir (JSON)
-            </a>
+            {/* U10 (kurucu 10-22): döküm ŞİFREYLE iner + sahibe bilgi e-postası (düz bağlantı değil). */}
+            <DataExportButton />
             <p className="text-xs text-muted-foreground">
               Belirli bir misafire ait verileri silmek için ilgili rezervasyonu ve konuşmayı
               panelden silebilirsiniz; biri diğerini otomatik silmez, bu yüzden tam silme için ikisini de silin.{" "}
@@ -653,7 +650,7 @@ export default async function SettingsPage({
             <CardTitle className="text-base text-destructive">Hesabı Sil</CardTitle>
           </CardHeader>
           <CardContent>
-            <DeleteAccountCard />
+            <DeleteAccountCard twoFactorEnabled={Boolean(me?.twoFactorEnabledAt)} />
           </CardContent>
         </Card>
       ) : null}

@@ -36,7 +36,7 @@ export function reauthBlocked(userId: string) {
 }
 
 /** Yeniden doğrulama isteyen işlemler (kapalı küme — denetim kaydının `operation` alanı). */
-export type ReauthOperation = "2fa_setup" | "2fa_enable" | "2fa_disable" | "2fa_recovery_codes" | "account_delete";
+export type ReauthOperation = "2fa_setup" | "2fa_enable" | "2fa_disable" | "2fa_recovery_codes" | "account_delete" | "data_export";
 
 /**
  * Hatalı (ya da yeniden oynatılan) şifre/kod — günlük tavana sayılır VE denetim kaydına yazılır (DENETIM 08-09 #8: başarılı 2FA /

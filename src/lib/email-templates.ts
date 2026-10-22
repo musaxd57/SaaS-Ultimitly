@@ -600,3 +600,28 @@ export function qrEscalationEmail(
   `;
   return wrapEmail(body);
 }
+
+/**
+ * "Hesap verileriniz indirildi" (U10, kurucu 10-22: "şifre sorulsun" + indirme sonrası bilgi e-postası). Tam döküm misafir verisi ve
+ * takvim bağlantıları taşır — ele geçirilmiş bir oturumla indirilirse sahip HABER ALIR. Metin sade: ne oldu, ne zaman, siz değilseniz ne
+ * yapmalı. Kişisel veri / dosya içeriği YOK.
+ */
+export function dataExportNoticeEmail(atLabel: string, settingsUrl: string): string {
+  const body = `
+    <h2 style="margin:0 0 8px;color:#0f172a;font-size:22px;font-weight:700;">
+      Hesap verileriniz indirildi
+    </h2>
+    <p style="margin:0 0 16px;color:#64748b;font-size:15px;line-height:1.6;">
+      Merhaba,<br/><br/>
+      Lixus AI hesabınızın veri dökümü <strong>${esc(atLabel)}</strong> tarihinde indirildi.
+    </p>
+    <p style="margin:0 0 8px;color:#64748b;font-size:15px;line-height:1.6;">
+      Bu işlemi siz yapmadıysanız hemen şifrenizi değiştirin ve iki adımlı doğrulamayı açın:
+    </p>
+    ${ctaButton(settingsUrl, "Hesap güvenliği")}
+    <p style="margin:0;color:#94a3b8;font-size:13px;">
+      Bu e-posta bilgi amaçlıdır; siz yaptıysanız bir şey yapmanız gerekmez.
+    </p>
+  `;
+  return wrapEmail(body);
+}

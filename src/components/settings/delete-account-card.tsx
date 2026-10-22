@@ -10,17 +10,24 @@ import { Input } from "@/components/ui/input";
  * KVKK right-to-erasure: lets the OWNER permanently delete the whole account +
  * all data. Re-authenticates with the password; the server route (owner-only,
  * impersonation-blocked) does the cascade delete and clears the session.
+ * U11 (kurucu 10-22): 2FA açıksa doğrulama kodu da istenir (sunucu kapısı aynı kuralı uygular; bu alan yalnız kolaylık).
  */
-export function DeleteAccountCard() {
+export function DeleteAccountCard({ twoFactorEnabled = false }: { twoFactorEnabled?: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const needsCode = twoFactorEnabled && !code.trim();
 
   async function remove() {
     if (!password) {
       setError("Onaylamak için şifrenizi girin.");
+      return;
+    }
+    if (needsCode) {
+      setError("Doğrulama uygulamanızdaki kodu girin.");
       return;
     }
     setBusy(true);
@@ -29,7 +36,7 @@ export function DeleteAccountCard() {
       const res = await fetch("/api/account/delete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify(twoFactorEnabled ? { password, code: code.trim() } : { password }),
       });
       if (res.ok) {
         router.push("/");
@@ -37,7 +44,9 @@ export function DeleteAccountCard() {
         return;
       }
       const data = await res.json().catch(() => null);
-      setError(data?.fields?.password ?? data?.error ?? "Hesap silinemedi. Lütfen tekrar deneyin.");
+      setError(
+        data?.fields?.password ?? data?.fields?.code ?? data?.error ?? "Hesap silinemedi. Lütfen tekrar deneyin.",
+      );
     } catch {
       setError("Bağlantı hatası. Lütfen tekrar deneyin.");
     } finally {
@@ -110,9 +119,24 @@ export function DeleteAccountCard() {
             autoComplete="current-password"
             onChange={(e) => setPassword(e.target.value)}
           />
-          {error ? <p className="text-xs text-destructive">{error}</p> : null}
+          {twoFactorEnabled ? (
+            <Input
+              value={code}
+              placeholder="Doğrulama kodu (6 hane)"
+              aria-label="Doğrulama kodu"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={10}
+              onChange={(e) => setCode(e.target.value)}
+            />
+          ) : null}
+          {error ? (
+            <p role="alert" className="text-xs text-destructive">
+              {error}
+            </p>
+          ) : null}
           <div className="flex flex-wrap gap-2">
-            <Button variant="destructive" onClick={remove} disabled={busy || !password}>
+            <Button variant="destructive" onClick={remove} disabled={busy || !password || needsCode}>
               {busy ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
               Evet, kalıcı olarak sil
             </Button>
@@ -121,6 +145,7 @@ export function DeleteAccountCard() {
               onClick={() => {
                 setOpen(false);
                 setPassword("");
+                setCode("");
                 setError(null);
               }}
             >

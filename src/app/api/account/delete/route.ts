@@ -13,6 +13,9 @@ import {
   tooManyRequests, readJsonCappedOrNull } from "@/lib/api";
 import { rateLimit } from "@/lib/rate-limit";
 import { deleteAccountData } from "@/lib/data-retention";
+import { decryptSecret } from "@/lib/crypto";
+import { verifyTotpStep } from "@/lib/auth/totp";
+import { reportError } from "@/lib/report-error";
 
 // ---------------------------------------------------------------------------
 // PERMANENT account + data erasure (KVKK right-to-erasure / "hesabımı sil").
@@ -42,7 +45,7 @@ export async function POST(req: NextRequest) {
 
     const user = await prisma.user.findUnique({
       where: { id: session.userId },
-      select: { passwordHash: true },
+      select: { passwordHash: true, twoFactorEnabledAt: true, twoFactorSecret: true },
     });
     const ok = user?.passwordHash ? await verifyPassword(password, user.passwordHash) : false;
     if (!ok) {
@@ -71,6 +74,39 @@ export async function POST(req: NextRequest) {
     const blocked = await hasBillableSubscription(session.organizationId);
     if (blocked) {
       return NextResponse.json({ error: BILLABLE_BLOCK_TEXT }, { status: 409 });
+    }
+
+    // 🚨 U11 (kurucu 10-22: "Dediğin gibi olabilir"): 2FA AÇIKSA geri dönüşsüz silme doğrulama KODU da ister. Eskiden yalnız şifre
+    // yetiyordu — şifresi sızmış ama 2FA'lı bir hesap, ele geçirilmiş oturumla kalıcı olarak silinebiliyordu. Kod TÜKETİLİR (giriş ve
+    // 2FA kapatma rotasıyla aynı desen: koşullu yazma, aynı kod ikinci kez kullanılamaz); hata ortak günlük tavana sayılır. Sır
+    // çözülemezse güvenli taraf: silme YOK (operatör 2FA sıfırlaması gerekir). Abonelik kapısından SONRA (Haiku 10-22): 409 dönecek silmede
+    // kod boşuna yanmasın. Kurtarma kodu burada geçmez (2FA kapatma ile aynı; telefonu kaybeden sahip önce girişte kurtarma koduyla girip
+    // 2FA'yı yeniden kurar).
+    if (user?.twoFactorEnabledAt) {
+      const code = typeof data?.code === "string" ? data.code.replace(/\s+/g, "") : "";
+      if (!code) return badRequest({ code: "Silmek için doğrulama uygulamanızdaki kodu girin." });
+      let secret: string | null = null;
+      try {
+        secret = user.twoFactorSecret ? decryptSecret(user.twoFactorSecret) : null;
+      } catch {
+        secret = null;
+      }
+      if (!secret) {
+        void reportError("account.delete 2fa-secret-undecryptable", new Error(`userId=${session.userId}`));
+        return badRequest({ code: "Doğrulama anahtarınız okunamıyor; silme yapılamadı. Bize ulaşın." });
+      }
+      const step = verifyTotpStep(secret, code);
+      const burned =
+        step === null
+          ? { count: 0 }
+          : await prisma.user.updateMany({
+              where: { id: session.userId, OR: [{ twoFactorLastStep: null }, { twoFactorLastStep: { lt: step } }] },
+              data: { twoFactorLastStep: step },
+            });
+      if (burned.count === 0) {
+        await noteReauthFailure(session, "account_delete");
+        return badRequest({ code: "Kod hatalı, süresi geçmiş ya da az önce kullanıldı. Uygulamadaki yeni kodu girin." });
+      }
     }
 
     // 🚨 U41 + U42 (Codex 10-07): parola ve abonelik denetimi işlem DIŞINDA yapıldı; arada parola sıfırlanabilir (oturum sürümü artar)

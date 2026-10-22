@@ -18,7 +18,7 @@ vi.mock("@/lib/auth", async (orig) => {
 });
 
 import { GET as kbGet, POST as kbPost } from "@/app/api/kb/route";
-import { GET as exportGet } from "@/app/api/account/export/route";
+import { POST as exportPost } from "@/app/api/account/export/route";
 import { POST as guestChatReply } from "@/app/api/guest-chats/[id]/reply/route";
 import { POST as connectPost, DELETE as connectDelete } from "@/app/api/hospitable/connect/route";
 import { GET as oauthAuthorize } from "@/app/api/hospitable/oauth/authorize/route";
@@ -123,9 +123,9 @@ describe("K8 — salt-okunur destek görünümü", () => {
     expect((await kbGet(new NextRequest("http://localhost/api/kb"), noCtx)).status).toBe(200);
   });
 
-  it("🚨 tüm misafir verisini dışa aktarma bürünmüşken kapalı (GET olsa da)", async () => {
+  it("🚨 tüm misafir verisini dışa aktarma bürünmüşken kapalı (şifre verilse de — U10 sonrası POST)", async () => {
     currentSession = impersonated;
-    const res = await exportGet(new NextRequest("http://localhost/api/account/export"), noCtx);
+    const res = await exportPost(json("http://localhost/api/account/export", "POST", { password: "herhangi" }), noCtx);
     expect(res.status).toBe(403);
   });
 

@@ -13,14 +13,31 @@ vi.mock("@/lib/api", async (orig) => {
   const actual = await orig<typeof import("@/lib/api")>();
   return { ...actual, requireSession: vi.fn(async () => session) };
 });
+vi.mock("@/lib/email", () => ({
+  emailService: { send: vi.fn(), sendReporting: vi.fn(async () => ({ ok: true })) },
+}));
 
 import { NextRequest } from "next/server";
-import { GET as exportRoute } from "@/app/api/account/export/route";
+import { POST as exportRoute } from "@/app/api/account/export/route";
+import * as exportModule from "@/app/api/account/export/route";
 import { GET as adminExportRoute } from "@/app/api/admin/export/route";
+import { hashPassword } from "@/lib/auth/password";
+import { emailService } from "@/lib/email";
 
-describe("GET /api/account/export — complete + secret-free", () => {
+const PASSWORD = "secret123";
+/** U10 (kurucu 10-22): döküm şifreyle alınır — POST + JSON. */
+function exportReq(password: string | null = PASSWORD, headers: Record<string, string> = { "content-type": "application/json" }) {
+  return new NextRequest("http://localhost/api/account/export", {
+    method: "POST",
+    headers,
+    body: password === null ? "{}" : JSON.stringify({ password }),
+  });
+}
+
+describe("POST /api/account/export — complete + secret-free", () => {
   let orgId: string;
   let propertyId: string;
+  let ownerId: string;
 
   beforeEach(async () => {
     await resetDb();
@@ -28,7 +45,11 @@ describe("GET /api/account/export — complete + secret-free", () => {
     const made = await makeOrgWithProperty();
     orgId = made.orgId;
     propertyId = made.propertyId;
-    session = { userId: "u", organizationId: orgId, role: "owner", email: "o@x.com", name: "O", sessionEpoch: 0 };
+    const owner = await prisma.user.create({
+      data: { organizationId: orgId, name: "O", email: "o@x.com", passwordHash: await hashPassword(PASSWORD), role: "owner" },
+    });
+    ownerId = owner.id;
+    session = { userId: owner.id, organizationId: orgId, role: "owner", email: "o@x.com", name: "O", sessionEpoch: 0 };
   });
   afterAll(async () => {
     await prisma.$disconnect();
@@ -127,14 +148,14 @@ describe("GET /api/account/export — complete + secret-free", () => {
     // hands over feed credentials + billing; only the owner may take it.
     for (const role of ["staff", "manager"] as const) {
       session = { ...session, role };
-      const denied = await exportRoute(new NextRequest("http://localhost/api/account/export"), {
+      const denied = await exportRoute(exportReq(), {
         params: Promise.resolve({} as Record<string, never>),
       });
       expect(denied.status).toBe(403);
     }
     session = { ...session, role: "owner" };
 
-    const res = await exportRoute(new NextRequest("http://localhost/api/account/export"), {
+    const res = await exportRoute(exportReq(), {
       params: Promise.resolve({} as Record<string, never>),
     });
     expect(res.status).toBe(200);
@@ -169,8 +190,10 @@ describe("GET /api/account/export — complete + secret-free", () => {
     expect(data.checkoutConsents[0]).toMatchObject({ planCode: "pro", legalVersion: "2026-06", legalTextHash: "hash-abc" });
     expect(data.riskEvents[0]).toMatchObject({ finalDecision: "human_review", riskType: "complaint" });
     expect(data.organization.aiSignature).toBe("Sevgiler, Lale"); // settings included
-    expect(data.organization.users[0].acceptedLegalVersion).toBe("2026-06"); // consent evidence
-    expect(data.organization.users[0].acceptedLegalTextHash).toBe("hash-abc"); // tamper-evident companion
+    // U10: oturum sahibi artık gerçek bir kullanıcı (şifre doğrulaması) — onay kanıtı zengin fixture'ın kullanıcısında aranır.
+    const richUser = data.organization.users.find((u: { email: string }) => u.email === "owner@x.com");
+    expect(richUser.acceptedLegalVersion).toBe("2026-06"); // consent evidence
+    expect(richUser.acceptedLegalTextHash).toBe("hash-abc"); // tamper-evident companion
 
     // SECRET SCAN on the raw output — values AND field names.
     for (const leak of LEAKS) expect(text).not.toContain(leak);
@@ -203,7 +226,7 @@ describe("GET /api/account/export — complete + secret-free", () => {
     // Eski sıra: kota (org başına 3/saat) yetki kontrolünden ÖNCE tüketiliyordu → bir
     // yönetici üç reddedilen istekle sahibin dışa aktarımını bir saat kilitliyordu.
     const call = () =>
-      exportRoute(new NextRequest("http://localhost/api/account/export"), {
+      exportRoute(exportReq(), {
         params: Promise.resolve({} as Record<string, never>),
       });
     session = { ...session, role: "manager" };
@@ -212,17 +235,40 @@ describe("GET /api/account/export — complete + secret-free", () => {
     expect((await call()).status).toBe(200);
   });
 
-  it("🚨 gece-4 S7-05: başka siteden açılan bağlantı 403 — kota YANMAZ (sahibin dökümü kilitlenmez); aynı site ve adres çubuğu açılır", async () => {
-    const call = (site?: string) =>
-      exportRoute(
-        new NextRequest("http://localhost/api/account/export", site ? { headers: { "sec-fetch-site": site } } : undefined),
-        { params: Promise.resolve({} as Record<string, never>) },
-      );
-    for (let i = 0; i < 4; i++) expect((await call("cross-site")).status).toBe(403);
-    expect((await call("same-site")).status).toBe(403);
-    expect((await call("same-origin")).status).toBe(200);
-    expect((await call("none")).status).toBe(200);
-    expect((await call()).status).toBe(200);
+  it("🚨 gece-4 S7-05 → U10: başka siteden form POST'u (text/plain) 415 — kota YANMAZ; GET artık YOK (bağlantıyla tetiklenemez)", async () => {
+    const ctx = { params: Promise.resolve({} as Record<string, never>) };
+    for (let i = 0; i < 4; i++) expect((await exportRoute(exportReq(PASSWORD, { "content-type": "text/plain" }), ctx)).status).toBe(415);
+    expect((await exportRoute(exportReq(), ctx)).status).toBe(200);
+    expect("GET" in exportModule).toBe(false);
+  });
+
+  it("🚨 U10 (kurucu 10-22): şifre yoksa / hatalıysa döküm YOK, hatalı şifre ortak günlük tavana sayılır ve kayda yazılır; doğru şifrede indirme + bilgi e-postası", async () => {
+    const ctx = { params: Promise.resolve({} as Record<string, never>) };
+    const missing = await exportRoute(exportReq(null), ctx);
+    expect(missing.status).toBe(400);
+    const wrong = await exportRoute(exportReq("yanlis-sifre"), ctx);
+    expect(wrong.status).toBe(400);
+    expect(await wrong.text()).not.toContain("organization");
+    expect(await prisma.auditLog.count({ where: { organizationId: orgId, action: "account.reauth_failed" } })).toBe(1);
+    expect(vi.mocked(emailService.sendReporting)).not.toHaveBeenCalled();
+    // Hatalı şifre sahibin saatlik dışa aktarma hakkını YAKMAZ: üç hatadan sonra doğru şifre hâlâ çalışır.
+    for (let i = 0; i < 3; i++) await exportRoute(exportReq("yanlis"), ctx);
+    const ok = await exportRoute(exportReq(), ctx);
+    expect(ok.status).toBe(200);
+    // Sahibe bilgi e-postası (içerik / kişisel veri yok).
+    await vi.waitFor(() => expect(vi.mocked(emailService.sendReporting)).toHaveBeenCalledTimes(1));
+    const [to, subject, html] = vi.mocked(emailService.sendReporting).mock.calls[0];
+    expect(to).toBe("o@x.com");
+    expect(subject).toMatch(/verileriniz indirildi/i);
+    expect(String(html)).toMatch(/siz yapmadıysanız/i);
+    void ownerId;
+  });
+
+  it("U10 kısa kova: 15 dakikada 5 şifre denemesinden sonra doğru şifre de 429 (eşzamanlı tahmin patlaması kesilir); boş şifre sayılmaz", async () => {
+    const ctx = { params: Promise.resolve({} as Record<string, never>) };
+    for (let i = 0; i < 3; i++) expect((await exportRoute(exportReq(null), ctx)).status).toBe(400);
+    for (let i = 0; i < 5; i++) expect((await exportRoute(exportReq("yanlis"), ctx)).status).toBe(400);
+    expect((await exportRoute(exportReq(), ctx)).status).toBe(429);
   });
 
   it("PARİTE: admin export ↔ account export aynı yapıyı döner ve admin de secret-free", async () => {
@@ -241,8 +287,8 @@ describe("GET /api/account/export — complete + secret-free", () => {
     const adminData = JSON.parse(adminText);
 
     // Owner'ın kendi self-servis exportu.
-    session = { userId: "u", organizationId: orgId, role: "owner", email: "o@x.com", name: "O", sessionEpoch: 0 };
-    const selfRes = await exportRoute(new NextRequest("http://localhost/api/account/export"), {
+    session = { userId: ownerId, organizationId: orgId, role: "owner", email: "o@x.com", name: "O", sessionEpoch: 0 };
+    const selfRes = await exportRoute(exportReq(), {
       params: Promise.resolve({} as Record<string, never>),
     });
     expect(selfRes.status).toBe(200);

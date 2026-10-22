@@ -14,7 +14,8 @@ vi.mock("@/lib/api", async (orig) => {
 });
 
 import { PATCH as settingsPatch } from "@/app/api/settings/route";
-import { GET as exportGet } from "@/app/api/account/export/route";
+import { POST as exportPost } from "@/app/api/account/export/route";
+import { hashPassword } from "@/lib/auth/password";
 import { deleteAccountData } from "@/lib/data-retention";
 
 beforeEach(async () => {
@@ -25,7 +26,8 @@ beforeEach(async () => {
 async function seedOrg(role: SessionPayload["role"] = "owner") {
   const { orgId, propertyId } = await makeOrgWithProperty();
   const user = await prisma.user.create({
-    data: { organizationId: orgId, name: "O", email: "o@x.com", passwordHash: "x", role },
+    // Gerçek şifre özeti: KVKK dökümü artık şifreyle alınır (U10, kurucu 10-22).
+    data: { organizationId: orgId, name: "O", email: "o@x.com", passwordHash: await hashPassword("secret123"), role },
   });
   session = { userId: user.id, organizationId: orgId, role, email: "o@x.com", name: "O", sessionEpoch: 0 };
   return { orgId, propertyId };
@@ -85,8 +87,12 @@ describe("data export never leaks the PIN hash", () => {
     const hash = row!.chatPinHash!;
     expect(hash).toMatch(/^[0-9a-f]{64}$/);
 
-    const res = await exportGet(
-      new NextRequest("http://localhost/api/account/export"),
+    const res = await exportPost(
+      new NextRequest("http://localhost/api/account/export", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ password: "secret123" }),
+      }),
       { params: Promise.resolve({}) } as never,
     );
     expect(res.status).toBe(200);

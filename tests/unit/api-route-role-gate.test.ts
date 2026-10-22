@@ -112,7 +112,7 @@ const OWNER_ONLY: Record<string, string> = {
   "billing/portal POST": "ödeme portalı oturumu",
   "billing/resume POST": "duraklatılmış aboneliği devam ettir (para — anında tahsilat; I4 C)",
   "billing/resume-preview POST": "devam ettirme tutarı (tek kullanımlık onay belirteci üretir)",
-  "account/export GET": "hesabın TÜM verisinin dökümü (KVKK)",
+  "account/export POST": "hesabın TÜM verisinin dökümü (KVKK; U10 — şifreyle)",
   "account/delete POST": "hesabı kalıcı silme",
   "reservations/[id]/erase GET": "misafir verisini silme ön izlemesi (KVKK)",
   "reservations/[id]/erase POST": "misafir verisini silme (KVKK, geri alınamaz)",
