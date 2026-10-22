@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { AutoRefresh } from "@/components/inbox/auto-refresh";
 import { GuestChatReply } from "@/components/guest-chats/reply-box";
 import { GuestChatResumeAi } from "@/components/guest-chats/resume-ai-button";
+import { ResetDeviceButton } from "@/components/guest-chats/reset-device-button";
 import { ScrollToLatest } from "@/components/guest-chats/scroll-to-latest";
 import { guestChatPausedByConversation } from "@/lib/guest-chat";
 import { guestChatDisplayRole } from "@/lib/message-author";
@@ -69,7 +70,7 @@ export default async function GuestChatDetailPage({
       id: true,
       guestIdentifier: true,
       priority: true,
-      property: { select: { name: true } },
+      property: { select: { id: true, name: true } },
       reservation: { select: { guestName: true, arrivalDate: true, departureDate: true } },
       _count: { select: { messages: true } },
       messages: {
@@ -276,6 +277,10 @@ export default async function GuestChatDetailPage({
             </div>
           ) : null}
           <GuestChatReply conversationId={convo.id} aiPaused={aiPaused} />
+          {/* U1 (c) (kurucu 10-22): misafir sohbete ulaşamıyorsa kilit buradan da sıfırlanır (eskiden yalnız mülk sayfasında). */}
+          <div className="border-t border-border pt-3">
+            <ResetDeviceButton propertyId={convo.property.id} />
+          </div>
         </CardContent>
       </Card>
     </>
