@@ -177,6 +177,18 @@ describe("AppShell — çıkış başarısız olduğunda SEBEBİ söylenir", () 
     expect(screen.getByRole("button", { name: "Çıkış yapın" })).toBeTruthy();
   });
 
+  it("'İçeriğe geç' bağlantısı ilk odaklanan öğe ve içeriğe gider; hedef odaklanabilir (erişilebilirlik taraması 10-22)", () => {
+    const { container } = render(<AppShell {...shellProps}>içerik</AppShell>);
+    const skip = screen.getByRole("link", { name: "İçeriğe geç" });
+    expect(skip.getAttribute("href")).toBe("#icerik");
+    // Sekme sırasında ilk: belgede menüden ve diğer bağlantılardan ÖNCE gelir.
+    expect(container.querySelector("a, button")).toBe(skip);
+    const main = container.querySelector("main#icerik");
+    expect(main).not.toBeNull();
+    expect(main!.getAttribute("tabindex")).toBe("-1");
+    expect(main!.textContent).toContain("içerik");
+  });
+
   it("500'de yönlendirme YOK, hata mesajı VAR (buton sessizce geri açılmaz)", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 500 })));
     render(<AppShell {...shellProps}>içerik</AppShell>);

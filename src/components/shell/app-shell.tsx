@@ -317,6 +317,16 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
     //
     // Mobilde (tek sütun, tarayıcı çubukları `100vh`'yi yalan söyler) eski
     // davranış AYNEN: `lg:` önekli hiçbir kural etkin değil, sayfa normal akar.
+    <>
+    {/* "İçeriğe geç" (erişilebilirlik taraması 10-22): klavyeyle gezen kullanıcı menüyü atlayıp içeriğe iner; yalnız odaklanınca görünür.
+        Izgara kabuğunun DIŞINDA — ızgara hücresi kaplamaz. Hedef `<main>` (tabIndex -1): odak orada olunca ok tuşları içeriği kaydırır
+        (kayan bölgede odaklanabilir öğe olmayan sayfada — ör. Raporlar — klavye başka türlü kaydıramıyordu). */}
+    <a
+      href="#icerik"
+      className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[60] focus:rounded-md focus:bg-card focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-foreground focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-ring"
+    >
+      İçeriğe geç
+    </a>
     <div
       // `lg:overflow-hidden` EMNİYET KEMERİ: bugün taşıran bir çocuk yok (kabuğun
       // tüm çocukları `flex:none`, kayan tek öge `<main>`), ama onsuz taşan bir
@@ -432,7 +442,7 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
         {/* Kayan TEK öge (lg). `min-h-0` ŞART: flex çocuğunun varsayılan
             `min-height:auto`u içeriğin tamamı kadar büyür ve `overflow-y`
             hiç devreye girmez. */}
-        <main className="scrollbar-thin flex-1 px-4 py-6 sm:px-6 lg:min-h-0 lg:overflow-y-auto lg:px-8">
+        <main id="icerik" tabIndex={-1} className="scrollbar-thin flex-1 px-4 py-6 outline-none sm:px-6 lg:min-h-0 lg:overflow-y-auto lg:px-8">
           {/* Settings uses the two-column (side-nav + content) layout, so it gets a
               wider container; every other page stays at the reading-width cap. */}
           {/* 🚨 `fillsViewport` — SİHİRLİ SAYI YERİNE ESNEK DOLDURMA (ölçüldü 09-11).
@@ -460,5 +470,6 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
         </main>
       </div>
     </div>
+    </>
   );
 }

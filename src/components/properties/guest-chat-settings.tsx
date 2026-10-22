@@ -164,6 +164,7 @@ export function GuestChatSettings({
           <div className="flex items-center gap-2">
             <input
               readOnly
+              aria-label="Misafir bağlantısı"
               value={url}
               onFocus={(e) => e.currentTarget.select()}
               className="min-w-0 flex-1 rounded-md border border-border bg-muted px-2 py-1.5 text-xs"
@@ -183,6 +184,7 @@ export function GuestChatSettings({
               size={184}
               level="M"
               marginSize={2}
+              aria-label="Misafir sohbeti karekodu"
               className="rounded-md border border-border bg-white p-2"
             />
             {/* Hidden hi-res copy (1024px) — used only for a crisp printable download. */}

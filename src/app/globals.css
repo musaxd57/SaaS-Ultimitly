@@ -18,7 +18,9 @@
     --secondary-foreground: 222 47% 20%;
 
     --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
+    /* Erişilebilirlik taraması (axe, 10-22): 47% açık zeminde 4,48:1, `--muted` çipte 4,28:1 idi — WCAG AA (4,5:1) altında; 43% →
+       zemin 5,21 · muted 4,97 · en koyu renkli yüzey (#e9eef5) 4,67. */
+    --muted-foreground: 215 16% 43%;
 
     --accent: 213 94% 95%;
     --accent-foreground: 222 47% 20%;
@@ -134,7 +136,7 @@
  * durumu da yoktu.
  *
  * YENİ HÂL: başparmak `--muted-foreground` TAM OPAKLIKTA (iki temada da OKUNUR
- * olması için özellikle hesaplanmış tek ikincil renk; açık 215 16% 47%,
+ * olması için özellikle hesaplanmış tek ikincil renk; açık 215 16% 43%,
  * karanlık 215 22% 72% → 9,10:1), oluk `--muted` ile GERÇEK bir kanal.
  *
  * ⚠️ Bu bölüm bir kez YANLIŞ yazıldı ve inceleme turunda ölçülerek düzeltildi;

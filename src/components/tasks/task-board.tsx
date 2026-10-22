@@ -555,7 +555,7 @@ export function TaskBoard({ tasks, canManage = true }: { tasks: TaskCardData[]; 
                     : "border-border bg-card text-muted-foreground hover:bg-accent",
                 )}
               >
-                {f.label} <span className="opacity-70">({count})</span>
+                {f.label} <span className="tabular-nums">({count})</span>
               </button>
             );
           })}
