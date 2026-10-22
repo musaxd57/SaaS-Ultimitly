@@ -30,7 +30,8 @@ düzeltmeleri, ölçüm ve testlerdi. Kararınızı bekleyenler aşağıda, her 
   (`docs/arastirma-2026-10-15/GUVENLIK-2-TUR-2026-10-22.md`).
 - **Erişilebilirlik (otomatik tarama, 20 sayfa × masaüstü / telefon + misafir QR sayfası):** önce neredeyse her sayfada okunabilirlik
   (gri yazı zemine göre biraz soluktu), adsız alan / karekod ve klavyeyle kaydırılamayan Raporlar; sonra 0 ihlal. Gri ikincil yazı bir ton
-  koyulaştı (göz fark etmeyecek kadar), klavyeyle gezene "İçeriğe geç" bağlantısı eklendi.
+  koyulaştı (göz fark etmeyecek kadar), klavyeyle gezene "İçeriğe geç" bağlantısı eklendi. Klavyeyle kullanımda: onay sorusu açılınca
+  imleç "Vazgeç"e gelir, vazgeçince geri döner (önce sayfanın başına düşüyordu); açılır bölümler ekran okuyucuya açık / kapalı olduğunu söyler.
 - **Ölçüm (gerçek model, gerçek akış):** kırmızı takım geliştirme seti (80) + KÖR kırmızı takım seti (71, ayrı yazar, tek koşu): misafire
   giden yasak dize **0**, acil kaçağı **0**; tutulması gerekenlerin %97'si tutuldu, "serbest kalan" vakalarda gizli bilgi gitmedi.
   Ayrıntı `docs/olcum/TARAFSIZLIK-VE-KIRMIZI-TAKIM-2026-10-21.md`.

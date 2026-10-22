@@ -16,7 +16,12 @@
   43% (pin `tests/unit/theme-contrast.test.ts`), uyarı rozeti, karekod / bağlantı alanı adları, "İçeriğe geç" + odaklanabilir `<main>`.
   Açık bırakılan: tamamlanan görev kartı `opacity-70` (soluk gösterim tasarımı; ilk taramada kart içi metin 2,7:1 çıktı, ikinci taramada o
   kart ekranda yoktu — tasarım kararı, kurucuya sorulmadan değiştirilmedi).
-- Önceki push f1837b9e CI 6/6 yeşil.
+- Klavye erişilebilirliği (Haiku klavye incelemesi, axe'nin göremediği): satır içi onaylarda odak "Vazgeç"e iner, vazgeçince açan düğmeye
+  döner (karar kartı kapat / hazır metne dön, giriş kodunu kaldır); açılır bölüm düğmelerinde `aria-expanded`, görev süre süzgecinde
+  `aria-pressed`; mobil menü açıkken arka sütun `inert` (kapanınca odak `<body>`de kalmışsa hamburger'a döner). Mutasyon 12/12.
+  Açık: "Aboneliği devam ettir" önizlemesi açılınca odak kaybı (anahtar KAPALI, testi yok — ayrı iş); onay pencerelerinde arka plan `inert` değil
+  (odak tuzağı var).
+- Önceki push f1837b9e CI 6/6 yeşil; f3d60dd6 itildi.
 
 **10-21 gece-4 (önceki):**
 - UX incelemesi (Opus, 24 bulgu) + görsel inceleme (39 ekran görüntüsü, 30 bulgu) + güvenlik incelemesi (2 yeni bulgu) koştu; raporlar
