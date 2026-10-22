@@ -865,6 +865,7 @@ export function KbManager({
                           <button
                             type="button"
                             onClick={() => toggleExpanded(item.id)}
+                            aria-expanded={expandedIds.has(item.id)}
                             className="mt-1 text-xs font-medium text-primary hover:underline"
                           >
                             {expandedIds.has(item.id) ? "Daralt" : "Devamını göster"}

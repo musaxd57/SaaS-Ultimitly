@@ -416,6 +416,7 @@ export function TaskBoard({ tasks, canManage = true }: { tasks: TaskCardData[]; 
         <button
           type="button"
           onClick={() => toggleExpanded(t.id)}
+          aria-expanded={expanded.has(t.id)}
           className="mt-2 flex items-center gap-1 text-xs font-medium text-primary hover:underline"
         >
           {expanded.has(t.id) ? (
@@ -548,6 +549,7 @@ export function TaskBoard({ tasks, canManage = true }: { tasks: TaskCardData[]; 
                 key={f.value}
                 type="button"
                 onClick={() => setTimeRange(f.value)}
+                aria-pressed={active}
                 className={cn(
                   "rounded-full border px-3 py-1 text-sm font-medium transition-colors",
                   active
@@ -565,6 +567,8 @@ export function TaskBoard({ tasks, canManage = true }: { tasks: TaskCardData[]; 
           <button
             type="button"
             onClick={() => setShareOpen((s) => !s)}
+            aria-expanded={shareOpen}
+            aria-controls={shareOpen ? "temizlik-listesi-paylas" : undefined}
             className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-sm text-muted-foreground hover:bg-accent"
           >
             <Share2 className="size-3.5" /> Temizlik listesini paylaş ({cleaningTasks.length})
@@ -573,7 +577,7 @@ export function TaskBoard({ tasks, canManage = true }: { tasks: TaskCardData[]; 
       </div>
 
       {cleaningTasks.length > 0 && shareOpen ? (
-        <div className="space-y-2 rounded-lg border border-border bg-muted/30 p-3">
+        <div id="temizlik-listesi-paylas" className="space-y-2 rounded-lg border border-border bg-muted/30 p-3">
               <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words text-xs text-foreground">
                 {shareText}
               </pre>

@@ -60,6 +60,7 @@ export function SupplyStockForm({ initial }: { initial: Record<string, number> }
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
         className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left text-sm"
       >
         <span className="flex items-center gap-2 font-medium">

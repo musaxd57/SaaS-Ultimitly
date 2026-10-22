@@ -161,7 +161,7 @@ export function KbImportText({ properties }: { properties: { id: string; name: s
           <span className="flex items-center gap-2">
             <ClipboardPaste className="size-4 text-muted-foreground" /> Metinden bilgi çıkar
           </span>
-          <Button type="button" variant="ghost" size="sm" onClick={() => setOpen((v) => !v)}>
+          <Button type="button" variant="ghost" size="sm" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
             {open ? "Kapat" : "Aç"}
           </Button>
         </CardTitle>

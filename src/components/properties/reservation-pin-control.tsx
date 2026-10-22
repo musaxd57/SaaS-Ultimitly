@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { KeyRound, Copy, Loader2, MessageSquareText } from "lucide-react";
 
@@ -40,6 +40,9 @@ export function ReservationPinControl({
   const [copied, setCopied] = useState(false);
   const [msgCopied, setMsgCopied] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
+  // Onay açılınca odak "Vazgeç"e iner, vazgeçince "Giriş kodunu kaldır"a döner (erişilebilirlik 10-22: açan düğme kalkınca odak
+  // sayfanın başına düşüyordu).
+  const removeTriggerRef = useRef<HTMLButtonElement>(null);
 
   async function generate() {
     setBusy(true);
@@ -143,7 +146,11 @@ export function ReservationPinControl({
           <div className="mt-1.5 flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setConfirmRemove(false)}
+              autoFocus
+              onClick={() => {
+                setConfirmRemove(false);
+                requestAnimationFrame(() => removeTriggerRef.current?.focus());
+              }}
               disabled={busy}
               className="inline-flex h-7 items-center rounded-md border border-border px-2 text-[11px] font-medium hover:bg-accent disabled:opacity-50"
             >
@@ -172,6 +179,7 @@ export function ReservationPinControl({
           </button>
           {hasPin ? (
             <button
+              ref={removeTriggerRef}
               type="button"
               onClick={() => setConfirmRemove(true)}
               disabled={busy}

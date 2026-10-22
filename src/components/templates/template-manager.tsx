@@ -360,6 +360,7 @@ export function TemplateManager({ properties, customTemplates, defaultTemplates,
         <button
           type="button"
           onClick={() => setExpandedDefaults((s) => !s)}
+          aria-expanded={expandedDefaults}
           className="flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-foreground"
         >
           {expandedDefaults ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}

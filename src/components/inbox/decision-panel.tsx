@@ -132,6 +132,11 @@ function DecisionCard({ conversationId, d, readOnly, aiText }: { conversationId:
   const [busy, setBusy] = useState(false);
   const [confirmDismiss, setConfirmDismiss] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
+  // Satır içi onaylarda klavye odağı (erişilebilirlik 10-22): onay açılınca odak "Vazgeç"e iner; vazgeçince açan düğmeye döner —
+  // yoksa açan düğme kalkıp odak sayfanın başına düşüyordu.
+  const resetTriggerRef = useRef<HTMLButtonElement>(null);
+  const dismissTriggerRef = useRef<HTMLButtonElement>(null);
+  const focusLater = (target: () => HTMLElement | null) => requestAnimationFrame(() => target()?.focus());
   const [seen, setSeen] = useState<Seen | null>(null);
   const [notice, setNotice] = useState<{ tone: "warn" | "error"; text: string; latestMessageId?: string; problems?: string[] } | null>(null);
   // Yapay zekâ taslağı: hangi seçimler için (anahtar) istendi, geldi mi. Gelen metin yalnız AYNI seçimler hâlâ geçerliyse ve ev sahibi
@@ -435,6 +440,7 @@ function DecisionCard({ conversationId, d, readOnly, aiText }: { conversationId:
             ) : null}
             {!d.unverified ? (
               <Button
+                ref={dismissTriggerRef}
                 size="sm"
                 variant="ghost"
                 onClick={() => {
@@ -496,7 +502,16 @@ function DecisionCard({ conversationId, d, readOnly, aiText }: { conversationId:
               {busy ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}
               Evet, kapat
             </Button>
-            <Button size="sm" variant="ghost" onClick={() => setConfirmDismiss(false)} disabled={busy}>
+            <Button
+              size="sm"
+              variant="ghost"
+              autoFocus
+              onClick={() => {
+                setConfirmDismiss(false);
+                focusLater(() => dismissTriggerRef.current);
+              }}
+              disabled={busy}
+            >
               Vazgeç
             </Button>
           </span>
@@ -518,7 +533,7 @@ function DecisionCard({ conversationId, d, readOnly, aiText }: { conversationId:
             className="inline-flex min-h-6 items-center gap-1 py-1 text-xs font-medium text-muted-foreground hover:text-foreground"
             onClick={() => setShowAll((v) => !v)}
             aria-expanded={showAll}
-            aria-controls={linesId}
+            aria-controls={showAll ? linesId : undefined}
           >
             {showAll ? <ChevronUp className="size-3.5" aria-hidden="true" /> : <ChevronDown className="size-3.5" aria-hidden="true" />}
             {showAll
@@ -598,16 +613,25 @@ function DecisionCard({ conversationId, d, readOnly, aiText }: { conversationId:
                         setBody(preparedFor(mode.action, time, lang, includeFee, includeNote));
                         setEdited(false);
                         setConfirmReset(false);
+                        focusLater(() => document.getElementById(`${ids}-body`));
                       }}
                     >
                       Evet
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={() => setConfirmReset(false)}>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      autoFocus
+                      onClick={() => {
+                        setConfirmReset(false);
+                        focusLater(() => resetTriggerRef.current);
+                      }}
+                    >
                       Vazgeç
                     </Button>
                   </span>
                 ) : (
-                  <Button size="sm" variant="ghost" onClick={() => setConfirmReset(true)}>
+                  <Button ref={resetTriggerRef} size="sm" variant="ghost" onClick={() => setConfirmReset(true)}>
                     Hazır metne dön
                   </Button>
                 )
