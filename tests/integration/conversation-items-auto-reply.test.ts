@@ -1124,6 +1124,27 @@ describe("KONU BAZLI 'BİLGİM YOK' (H9, kurucu 10-16; anahtar AI_TOPIC_ABSENCE_
     vi.unstubAllGlobals();
   });
 
+  it("hakem 'itiraf' → ayıklama; ayıklanan metnin yeniden okuması DÜŞERSE eski hüküm geçerli → TUTULUR (okunmamış metin gitmez — Opus 10-22 F3)", async () => {
+    vi.stubEnv("AI_TOPIC_ABSENCE_ENABLED", "1");
+    vi.stubEnv("AI_ABSENCE_JUDGE_ENABLED", "1");
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    const down = async () => new Response("upstream down", { status: 503 });
+    const f = vi
+      .fn()
+      .mockImplementationOnce(judgeSays(true))
+      .mockImplementationOnce(judgeSays(true))
+      .mockImplementationOnce(down)
+      .mockImplementationOnce(down);
+    vi.stubGlobal("fetch", f);
+    const { conversationId } = await seed(TV_TRASH);
+    understands(tvTrashUnderstood());
+    mockSuggest.mockResolvedValueOnce(tvTrashReply());
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(false);
+    expect(f).toHaveBeenCalledTimes(4);
+    expect(mockSend).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
   it("katı kip: hakem ilk okumada DÜŞERSE ayıklama bugünkü gibi; ayıklanan metin yine hakeme okutulur (eski 'düştü' hükmü yeni metne taşınmaz)", async () => {
     vi.stubEnv("AI_TOPIC_ABSENCE_ENABLED", "1");
     vi.stubEnv("AI_ABSENCE_JUDGE_ENABLED", "1");

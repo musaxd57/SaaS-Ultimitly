@@ -194,6 +194,9 @@ describe("kıdemli okuyucu — kanal oto-yanıtı", () => {
     expect(f).toHaveBeenCalledTimes(2);
     expect(mockSend).not.toHaveBeenCalled();
     expect(await reasonOf(id)).toBe("reply_offplatform_contact");
+    // Metin değişmediyse "yeniden yazıldı" izi YOK (Opus 10-22 F6) — iz yalnız gerçekten değişen metinde.
+    const ev = await prisma.riskEvent.findFirstOrThrow({ where: { conversationId: id, surface: "auto_reply" } });
+    expect(JSON.parse(ev.kbEvidenceJson ?? "{}").rw).toBeUndefined();
   });
 
   it("açık: yeniden yazılan metin OKUNAMAZSA (okuma düştü) ilk taslak kalır ve TUTULUR — okunmamış metin gitmez (Haiku 10-22)", async () => {
@@ -372,6 +375,18 @@ describe("kıdemli okuyucu — QR misafir sohbeti", () => {
     expect(mockSuggest).toHaveBeenCalledTimes(2);
     expect(out.escalated).toBeFalsy();
     expect(out.reply).toBe(CLEAN);
+  });
+
+  it("açık: yeniden yazma AYNI metni dönerse devir; 'yeniden yazıldı' izi YOK (Opus 10-22 F6)", async () => {
+    vi.stubEnv("AI_SENIOR_READER_ENABLED", "1");
+    vi.stubGlobal("fetch", readerFetch({ payHost: true }));
+    mockSuggest.mockResolvedValue(DRAFT(PAY_HOST));
+    const token = await seedQr();
+    const out = await ask(token, "What time is check-in?");
+    expect(mockSuggest).toHaveBeenCalledTimes(2);
+    expect(out.escalated).toBe(true);
+    const ev = await prisma.riskEvent.findFirstOrThrow({ where: { surface: "guest_chat" }, orderBy: { occurredAt: "desc" } });
+    expect(JSON.parse(ev.kbEvidenceJson ?? "{}").rw).toBeUndefined();
   });
 
   it("açık: ev sahibine platform dışı ödeme → devir; platform dışı iletişim QR'da kural DEĞİL (OTA yok) → gider", async () => {

@@ -189,5 +189,18 @@ describe("email-outbox — kayıt e-postası yayma (U15)", () => {
     expect(await state()).toBe(0);
     expect(paceAlerts()).toHaveLength(1);
   });
-});
 
+  it("tavan 1 iken de uyarı pencere boşalınca kapanır (%80 eşiği en az 1 — Opus 10-22 F7)", async () => {
+    vi.stubEnv("REGISTRATION_EMAIL_HOURLY_PACE", "1");
+    const hist = await makeUser("hist@x.com");
+    await seedSentRegistrationMails(hist.id, 1);
+    const a = await makeUser("a@x.com");
+    await enqueueVerify(a.id, a.email);
+    await drainEmailOutboxOnce({ send: okSend() });
+    const state = () => prisma.systemLock.count({ where: { name: { contains: "registration-pace" } } });
+    expect(await state()).toBe(1);
+    await prisma.emailOutbox.updateMany({ where: { userId: hist.id }, data: { sentAt: new Date(Date.now() - 61 * 60_000) } });
+    await drainEmailOutboxOnce({ send: okSend() });
+    expect(await state()).toBe(0);
+  });
+});
