@@ -12,6 +12,7 @@ import {
   maySupersede,
   mergeItemFacts,
   nextStatus,
+  topicsCompatible,
   type BuiltItem,
   type EffectiveItemStatus,
   type ItemEvent,
@@ -21,6 +22,7 @@ import {
   type ItemStatus,
 } from "./core";
 import type { TurnWithdrawal } from "./extract";
+import { itemOrdinalEnabled } from "./flag";
 import { hostDecisionsEnabled } from "@/lib/decisions/flag";
 
 // ---------------------------------------------------------------------------
@@ -202,6 +204,7 @@ export async function applyWithdrawals(
   input: { organizationId: string; conversationId: string; withdrawals: readonly TurnWithdrawal[]; turnMessageIds: readonly string[]; now: Date },
 ): Promise<number> {
   const ids: string[] = [];
+  const ordinalMode = itemOrdinalEnabled();
   for (const w of input.withdrawals) {
     const rows = await db.conversationItem.findMany({
       where: {
@@ -211,8 +214,11 @@ export async function applyWithdrawals(
         status: { in: OPEN_STATUSES },
         ...("messageId" in w ? { messageId: w.messageId } : { messageId: { notIn: [...input.turnMessageIds] } }),
       },
-      select: { id: true },
+      select: { id: true, topic: true },
     });
+    // Sıra kipi (migration 84): vazgeçme yalnız (mesaj, tür) taşır. Aynı türden FARKLI konulu iki açık öğe varsa ("Sauna açık mı? Havuz
+    // açık mı?" → "Saunayı boşverin") hangisinden vazgeçildiği belli değil → hiçbiri kapanmaz (kurucu B: ilişki belirsizse kapatma yok).
+    if (ordinalMode && new Set(rows.map((r) => r.topic).filter((t): t is string => !!t)).size > 1) continue;
     ids.push(...rows.map((r) => r.id));
   }
   ids.push(...(await faultGuardCompanions(db, input, ids)));
@@ -259,6 +265,7 @@ export async function supersedeOlderItems(
   input: { organizationId: string; conversationId: string; turnItems: readonly PersistedItem[]; turnMessageOrder: readonly string[]; now: Date },
 ): Promise<number> {
   let superseded = 0;
+  const ordinalMode = itemOrdinalEnabled();
   const order = (messageId: string) => input.turnMessageOrder.indexOf(messageId);
   for (const newer of input.turnItems) {
     if (!OPEN_STATUSES.includes(newer.status)) continue;
@@ -278,6 +285,8 @@ export async function supersedeOlderItems(
       // Bu turdaki DAHA SONRAKİ mesajın öğesi "eski" değildir.
       if (olderIdx >= 0 && olderIdx > order(newer.messageId)) continue;
       if (!maySupersede(older, newer)) continue;
+      // Sıra kipi: yeni "havuz" isteği eski "sauna" öğesinin yerini almaz (iki etiket de var ve ortak sözcük yok).
+      if (ordinalMode && !topicsCompatible(older.topic, newer.topic)) continue;
       const n = await applyItemEvent(db, { organizationId: input.organizationId, ids: [older.id], event: "superseded", now: input.now });
       if (n === 1 && older.notifiedAt && !newer.notifiedAt) {
         await db.conversationItem.updateMany({

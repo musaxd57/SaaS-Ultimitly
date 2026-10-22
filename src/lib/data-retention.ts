@@ -440,6 +440,12 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
               where: { generation: { conversationId: { in: convIds }, ...aiTraceAge(cutoff) }, note: { not: null } },
               data: { note: null },
             }),
+            // Konuşma öğesinin kısa konu etiketi (migration 84, kurucu 10-23 C) misafirin sorusundan türer → mesaj gövdesiyle AYNI süpürgede,
+            // AYNI yaş kuralıyla boşaltılır; öğenin kendisi (tür / durum) ev sahibinin iş kaydı olarak kalır.
+            prisma.conversationItem.updateMany({
+              where: { conversationId: { in: convIds }, topic: { not: null }, ...aiTraceAge(cutoff) },
+              data: { topic: null },
+            }),
           ]
         : []),
       prisma.reservation.updateMany({
@@ -645,6 +651,11 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
       prisma.aiReviewLabel.updateMany({
         where: { generation: { conversationId: { in: orphanIds }, ...aiTraceAge(cutoff) }, note: { not: null } },
         data: { note: null },
+      }),
+      // Konuşma öğesinin konu etiketi (migration 84) — öksüz dalda da (kardeş dalla BİREBİR; parite kuralı).
+      prisma.conversationItem.updateMany({
+        where: { conversationId: { in: orphanIds }, topic: { not: null }, ...aiTraceAge(cutoff) },
+        data: { topic: null },
       }),
       ...bodyRedactions.map((r) => prisma.message.update({ where: { id: r.id }, data: { body: r.body } })),
       ...taskRedactions.map((t) =>

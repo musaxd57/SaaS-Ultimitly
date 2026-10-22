@@ -95,17 +95,26 @@ export async function planItemsTurn(
   },
 ): Promise<ItemsTurn> {
   // Sıra kipi (migration 84): yeniden işlenen mesajın istekleri mevcut satırlarla eşlenir (çoğaltma yok). Anahtar kapalıyken sorgu yok.
-  const existingItems = itemOrdinalEnabled()
+  const ordinalMode = itemOrdinalEnabled();
+  const existingItems = ordinalMode
     ? await db.conversationItem.findMany({
         where: { organizationId: input.organizationId, conversationId: input.conversationId, messageId: { in: [...input.expectedMessageIds] } },
         select: { messageId: true, kind: true, ordinal: true, topic: true },
       })
     : [];
+  // Konu etiketine misafirin adının parçası giremez (anlama katmanı sorguda adı zaten maskeler; bu kodun yedeği).
+  const guest = ordinalMode
+    ? await db.conversation.findFirst({
+        where: { id: input.conversationId, property: { organizationId: input.organizationId } },
+        select: { guestIdentifier: true, reservation: { select: { guestName: true, guestGivenName: true } } },
+      })
+    : null;
   const extracted = extractTurnItems({
     history: input.history,
     guestMessage: input.guestMessage,
     understanding: input.understanding,
     ...(existingItems.length > 0 ? { existingItems } : {}),
+    ...(guest ? { guestNames: [guest.guestIdentifier, guest.reservation?.guestName, guest.reservation?.guestGivenName] } : {}),
     ...(input.hazardCleared
       ? {
           labelsOf: (body: string) =>

@@ -41,9 +41,10 @@ export function hintKey(messageId: string, kind: ItemKind | string, ordinal = 0)
  * Turun CİHAZ ARIZASI istekleri (`hintKey`; anahtar `AI_FAULT_GUARD_ENABLED` — `extract` yalnız açıkken yazar). Boşsa `null` → plan bayt bayt
  * bugünkü. Ölçüm düzeneği de aynı fonksiyonu çağırır.
  */
-export function faultRequestsOf(messages: readonly { messageId: string; faultKinds?: readonly ItemKind[] }[]): Set<string> | null {
+export function faultRequestsOf(messages: readonly { messageId: string; faultKinds?: readonly string[] }[]): Set<string> | null {
   const out = new Set<string>();
-  for (const m of messages) for (const k of m.faultKinds ?? []) out.add(hintKey(m.messageId, k));
+  // Anahtar "tür" ya da sıra kipinde "tür#sıra" (`extract.keyOf`) — `hintKey` aynı biçimi kurar.
+  for (const m of messages) for (const k of m.faultKinds ?? []) out.add(hintKey(m.messageId, k as ItemKind));
   return out.size > 0 ? out : null;
 }
 
@@ -67,7 +68,7 @@ export function composeItemsPlan<T extends PlanItem>(input: {
    * modeline ayrı bölümde gösterilir, modelin risk etiketi ona göre verilmez; kapı yine hepsini tutulan sayar. `messageId`: ilişki
    * kipinde talebin olgularını bulmak için.
    */
-  held: readonly (ItemRiskFacts & { earlier?: boolean; messageId?: string })[];
+  held: readonly (ItemRiskFacts & { earlier?: boolean; messageId?: string; ordinal?: number })[];
   /** Anlama katmanının kısa Türkçe sorguları (`hintKey`). */
   hints: ReadonlyMap<string, string>;
   /**
@@ -97,7 +98,7 @@ export function composeItemsPlan<T extends PlanItem>(input: {
   const relation = relations ? relationPlan(input.turnItems, input.held, relations, input.kbRecipeTopics ?? new Set()) : null;
   // Şikâyete bağlı istek (kurucu kararı 10-01, `core.complaintDependent`): bu turda tutulan şikâyet varken bağımsız bilgi türü
   // olmayan istek cevaplanabilir SAYILMAZ — cevap modeline bırakılan istek olarak gösterilir.
-  const faulty = (i: T) => input.faultRequests?.has(hintKey(i.messageId, i.kind)) === true;
+  const faulty = (i: T) => input.faultRequests?.has(hintKey(i.messageId, i.kind, i.ordinal)) === true;
   // Arızalı istek, ilişki kipinde bile kendi konusu şikâyetle örtüşmediyse (konu çıkarılamadı) "bağımsız" kalmasın: yalnız tarifli
   // çözüm (`fix`) cevaplanabilir.
   const dependent = relation
@@ -176,7 +177,7 @@ export function composeItemsPlan<T extends PlanItem>(input: {
  */
 function relationPlan<T extends PlanItem>(
   turnItems: readonly T[],
-  held: readonly (ItemRiskFacts & { earlier?: boolean; messageId?: string })[],
+  held: readonly (ItemRiskFacts & { earlier?: boolean; messageId?: string; ordinal?: number })[],
   relations: ReadonlyMap<string, ItemRelationFacts>,
   recipeTopics: ReadonlySet<string>,
 ): { dependent: T[]; fix: Set<T>; anchors: AnchorFacts[]; factsOf: (item: T) => RequestFacts } {
@@ -195,7 +196,7 @@ function relationPlan<T extends PlanItem>(
   const anchors: AnchorFacts[] = held
     .filter((h) => !h.earlier && RELATION_ANCHOR_KINDS.has(h.kind))
     .map((h) => {
-      const f = lookup(h.messageId, h.kind) ?? messageFacts(h.messageId);
+      const f = lookup(h.messageId, h.kind, h.ordinal) ?? messageFacts(h.messageId);
       return { kind: h.kind, topics: f?.topics ?? [], hazard: f?.hazard ?? false, access: f?.access === true };
     });
   const factsOf = (i: T): RequestFacts => {

@@ -168,3 +168,49 @@ describe("yeniden işleme — istek ↔ satır eşlemesi (çoğaltma yok, yanlı
     expect(m.queries?.["amenities#1"]).toEqual(["sauna var mı", "Sauna var mı?"]);
   });
 });
+
+describe("Haiku 10-23 D incelemesi", () => {
+  it("etiket eşlemesi çekim toleranslı: ikinci okuma 'havuzu' dese de havuz satırına gider", async () => {
+    const { topicsCompatible } = await import("@/lib/conversation-items/core");
+    expect(alignOrdinals([{ intent: "amenities", topic: "sauna" }, { intent: "amenities", topic: "havuzu" }], [
+      { kind: "amenities", ordinal: 0, topic: "havuz" },
+      { kind: "amenities", ordinal: 1, topic: "sauna" },
+    ])).toEqual([1, 0]);
+    expect(topicsCompatible("havuz", "havuzu ısıtmalı")).toBe(true);
+    expect(topicsCompatible("havuz", "sauna")).toBe(false);
+    expect(topicsCompatible(null, "sauna")).toBe(true);
+    // Kısa sözcük öneki eşleşme sayılmaz ("su" ≁ "sauna").
+    expect(topicsCompatible("su", "sauna")).toBe(false);
+  });
+
+  it("misafirin adı etikete giremez (tur çıkarımı adları alır)", () => {
+    vi.stubEnv("AI_ITEM_ORDINAL_ENABLED", "1");
+    const u = parseUnderstanding(
+      {
+        language: "tr",
+        requests: [{ intent: "amenities", message: 1, query_tr: "Mehmet için ekstra havlu", query_original: "Mehmet için havlu?" }],
+        stay_change: STAY_NONE,
+        withdrawn: [],
+      },
+      { items: true },
+    )!;
+    const t = extractTurnItems({ history, guestMessage: history[0].body, understanding: u, guestNames: ["Mehmet Kaya"] });
+    if (t.mode !== "items") throw new Error("mode");
+    expect(t.messages[0].items[0].topic).toBe("ekstra havlu");
+  });
+
+  it("🚨 ilişki olgusu ve arıza anahtarı SIRAYLA okunur: ikinci şikâyetin konusu ilk şikâyetinkiyle karışmaz", async () => {
+    const { composeItemsPlan, faultRequestsOf } = await import("@/lib/conversation-items/plan");
+    const facts = (topics: string[]) => ({ relation: "own_topic" as const, topics, generic: false, hazard: false });
+    const relations = new Map([
+      [hintKey("m1", "complaint_issue"), facts(["ac"])],
+      [hintKey("m1", "complaint_issue", 1), facts(["tv"])],
+    ]);
+    const c0 = { id: "c0", messageId: "m1", kind: "complaint_issue" as const, sensitivity: "sensitive" as const, riskType: "complaint" };
+    const c1 = { ...c0, id: "c1", ordinal: 1 };
+    const plan = composeItemsPlan({ turnItems: [c0, c1], held: [c0, c1], hints: new Map(), relations, kbRecipeTopics: new Set<string>() });
+    expect(plan.gateItems.relation?.anchors.map((a) => a.topics)).toEqual([["ac"], ["tv"]]);
+    // Arıza anahtarı "tür#sıra": yalnız ikinci istek arızalı.
+    expect([...(faultRequestsOf([{ messageId: "m1", faultKinds: ["appliance_help#1"] }]) ?? [])]).toEqual([hintKey("m1", "appliance_help", 1)]);
+  });
+});

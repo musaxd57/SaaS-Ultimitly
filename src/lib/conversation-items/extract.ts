@@ -65,7 +65,8 @@ export type TurnItems =
         /** Tür (sıra kipinde aynı türden ikinci istek "tür#1") → olgu; `plan.hintKey` aynı biçimi kurar. */
         relations?: Partial<Record<string, ItemRelationFacts>>;
         /** Anahtar `AI_FAULT_GUARD_ENABLED` açıkken: bu mesajın CİHAZ ARIZASI istekleri (`relation.faultSignal`) — plan onları ev sahibine bırakır. */
-        faultKinds?: ItemKind[];
+        /** Arızalı isteklerin anahtarları ("tür"; sıra kipinde aynı türden ikinci istek "tür#1" — `plan.hintKey` aynı biçimi kurar). */
+        faultKinds?: string[];
         /**
          * Tür başına anlama katmanının BÜTÜN sorguları (Türkçe + özgün dil; aynı türden iki istek birleşse de hepsi). Konu bazlı "bilgim yok"
          * eşlemesi (`topic-absence.needTerms`, kurucu 10-22 Soru 1) sabit konu sözlüğü yerine misafirin kendi soru sözcüklerini okur. Kalıcı DEĞİL.
@@ -86,6 +87,8 @@ export function extractTurnItems(input: {
   labelsOf?: (body: string) => string[];
   /** Sıra kipinde: bu mesajların daha önce yazılmış öğeleri (yeniden işlemede istek ↔ satır eşlemesi, `core.alignOrdinals`). */
   existingItems?: readonly (ExistingOrdinal & { messageId: string })[];
+  /** Sıra kipinde: misafirin bilinen adları — parçaları konu etiketine giremez (`topic-label.itemTopicLabel`). */
+  guestNames?: readonly (string | null | undefined)[];
 }): TurnItems {
   const u = input.understanding;
   // `withdrawn` yalnız öğe kipinin çözücüsünde vardır: öğe kipinde üretilmemiş sonuç mesaj eşlemesi taşımaz.
@@ -114,7 +117,7 @@ export function extractTurnItems(input: {
   const messages = win.unanswered.map((m, i) => {
     const labels = labelsOf(m.body);
     const requests = u.requests.filter((r) => r.message === i + 1);
-    const topics = requests.map((r) => (ordinalMode ? itemTopicLabel(r.queryTr) : null));
+    const topics = requests.map((r) => (ordinalMode ? itemTopicLabel(r.queryTr, input.guestNames ?? []) : null));
     const ords = ordinalMode
       ? alignOrdinals(
           requests.map((r, j) => ({ intent: r.intent, topic: topics[j] })),
@@ -198,7 +201,7 @@ export function extractTurnItems(input: {
       ...(relations ? { relations } : {}),
       // Liste kipinde de (anlama katmanı ilişki işareti vermediyse) arızalı istek ev sahibine kalır (Opus N9, 10-15 gece: "Le wifi ne marche
       // pas" — Wi-Fi bağımsız tür sayıldığı için "modemi yeniden başlatın" uydurması bilgi tabanı şartı olmadan gidiyordu).
-      ...(faulty.length > 0 ? { faultKinds: [...new Set(faulty.map((r) => r.intent))] } : {}),
+      ...(faulty.length > 0 ? { faultKinds: [...new Set(faulty.map((r) => keyOf(requests.indexOf(r))))] } : {}),
     };
   });
   const withdrawals: TurnWithdrawal[] = [];

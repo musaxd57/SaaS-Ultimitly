@@ -151,11 +151,30 @@ export interface ExistingOrdinal {
 }
 
 const topicWords = (t: string | null | undefined): string[] => (t ? t.split(/\s+/u).filter(Boolean) : []);
+/** Etiket sözcükleri aynı mı — çekim toleranslı ("havuz" ~ "havuzu", "sauna" ~ "saunada"): eşit ya da en az 4 harflik biri ötekinin başı. */
+function topicWordMatch(a: string, b: string): boolean {
+  if (a === b) return true;
+  const [short, long] = a.length <= b.length ? [a, b] : [b, a];
+  return short.length >= 4 && long.startsWith(short);
+}
+/** İki etiketin ortak (çekim toleranslı) sözcük sayısı. */
+function topicOverlap(a: string | null | undefined, b: string | null | undefined): number {
+  const bw = topicWords(b);
+  return topicWords(a).filter((w) => bw.some((x) => topicWordMatch(w, x))).length;
+}
+/**
+ * İki öğe aynı konuyu mu anlatıyor: etiketlerden biri yoksa BİLİNMİYOR → bugünkü tür kuralı geçerli (true); ikisi de varsa ortak sözcük
+ * şart. Sıra kipinde vazgeçme / yerine geçme kararları "havuz" isteğiyle "sauna" öğesini kapatmasın diye (kurucu B: "bir ihtiyacı
+ * cevaplamak diğerlerini kapatmasın", "ilişki belirsizse otomatik kapatma").
+ */
+export function topicsCompatible(a: string | null | undefined, b: string | null | undefined): boolean {
+  return !a || !b || topicOverlap(a, b) > 0;
+}
 
 /**
  * Sıra kipinde YENİDEN İŞLENEN mesajın isteklerini mevcut satırlara eşler (migration 84, kurucu D: "tekrar işleme kayıt çoğaltmasın").
  * Anlama katmanı aynı mesajı ikinci okumada istekleri başka sırayla ya da başka sözcüklerle verebilir; salt sıra numarası o zaman havuz
- * cevabını sauna satırına bağlardı. Sıra: (1) aynı etiket, (2) ortak etiket sözcüğü (en çok ortak sözcük önce), (3) etiketi olmayan taraf
+ * cevabını sauna satırına bağlardı. Sıra: (1) aynı etiket, (2) ortak etiket sözcüğü (çekim toleranslı: "havuz" ~ "havuzu"; en çok ortak sözcük önce), (3) etiketi olmayan taraf
  * sırayla eşlenir (anahtar kapalı dönemin etiketsiz satırı / etiketi süzülmüş istek), (4) kalan istek boş ilk sıraya — etiketleri
  * birbirine HİÇ benzemeyen istek ile satır eşlenmez (ilişki belirsizse kapatma yok, kurucu B). Boş sıra kalmazsa tavandaki sırayla
  * birleşir. Mevcut satır yoksa `requestOrdinals` ile aynı sonuç. Saf.
@@ -185,10 +204,9 @@ export function alignOrdinals(
     const pairs: { i: number; ordinal: number; score: number }[] = [];
     for (const i of idx) {
       if (done.has(i)) continue;
-      const words = topicWords(requests[i].topic);
       for (const r of rows) {
         if (usedRows.has(r.ordinal)) continue;
-        const score = topicWords(r.topic).filter((w) => words.includes(w)).length;
+        const score = topicOverlap(requests[i].topic, r.topic);
         if (score > 0) pairs.push({ i, ordinal: r.ordinal, score });
       }
     }

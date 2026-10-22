@@ -174,3 +174,117 @@ describe("KVKK — misafir silme talebi etiketi boşaltır", () => {
     expect((await rowsOf(other.conversationId)).map((r) => r.topic)).toEqual(["havuz"]);
   });
 });
+
+describe("Haiku 10-23 D incelemesi — belirsizse kapatma yok (kurucu B), saklama süresi etiketi siler", () => {
+  async function seedTwo(second: string) {
+    const conversation = await prisma.conversation.create({
+      data: { propertyId, channel: "airbnb", guestIdentifier: "Alex", externalReservationId: `res-${Math.random()}`, status: "new", lastMessageAt: at(5) },
+    });
+    const m1 = await prisma.message.create({
+      data: { conversationId: conversation.id, direction: "inbound", body: BODY, senderName: "Alex", authorType: "guest", createdAt: at(0) },
+    });
+    const m2 = await prisma.message.create({
+      data: { conversationId: conversation.id, direction: "inbound", body: second, senderName: "Alex", authorType: "guest", createdAt: at(5) },
+    });
+    return { conversationId: conversation.id, m1: m1.id, m2: m2.id };
+  }
+  const turnTwo = (conversationId: string, m1: string, m2: string, second: string, raw: Record<string, unknown>, min: number) =>
+    planItemsTurn(prisma, {
+      organizationId: orgId,
+      conversationId,
+      history: [
+        { id: m1, direction: "inbound", body: BODY },
+        { id: m2, direction: "inbound", body: second },
+      ],
+      guestMessage: second,
+      understanding: parseUnderstanding({ language: "tr", stay_change: STAY_NONE, ...raw }, { items: true }),
+      expectedMessageIds: [m1, m2],
+      now: at(min),
+    });
+
+  it("🚨 'Saunayı boşverin' (vazgeçme yalnız tür taşır) → havuz VE sauna açık kalır; anahtar kapalıyken bugünkü kural (tek satır kapanır)", async () => {
+    const second = "Saunayı boşverin, teşekkürler.";
+    const raw = {
+      requests: [
+        { intent: "amenities", message: 1, query_tr: HAVUZ.q, query_original: HAVUZ.o },
+        { intent: "amenities", message: 1, query_tr: SAUNA.q, query_original: SAUNA.o },
+        { intent: "greeting_thanks", message: 2, query_tr: "teşekkür", query_original: second },
+      ],
+      withdrawn: [{ intent: "amenities", message: 1 }],
+    };
+    vi.stubEnv("AI_ITEM_ORDINAL_ENABLED", "1");
+    const on = await seedTwo(second);
+    await turnTwo(on.conversationId, on.m1, on.m2, second, raw, 6);
+    expect((await rowsOf(on.conversationId)).filter((r) => r.kind === "amenities").map((r) => [r.topic, r.status])).toEqual([
+      ["havuz", "open"],
+      ["sauna", "open"],
+    ]);
+    vi.stubEnv("AI_ITEM_ORDINAL_ENABLED", "");
+    const off = await seedTwo(second);
+    await turnTwo(off.conversationId, off.m1, off.m2, second, raw, 6);
+    expect((await rowsOf(off.conversationId)).filter((r) => r.kind === "amenities").map((r) => r.status)).toEqual(["withdrawn"]);
+  });
+
+  it("🚨 yeni 'havuz' isteği eski 'sauna' öğesinin yerini almaz; aynı konu (havuz → havuzu) alır", async () => {
+    vi.stubEnv("AI_ITEM_ORDINAL_ENABLED", "1");
+    const { conversationId, messageId } = await seed();
+    await turn(conversationId, messageId, [SAUNA], 1);
+    const later = await prisma.message.create({
+      data: { conversationId, direction: "inbound", body: "Havuz kaçta kapanıyor?", senderName: "Alex", authorType: "guest", createdAt: at(10) },
+    });
+    await planItemsTurn(prisma, {
+      organizationId: orgId,
+      conversationId,
+      history: [
+        { id: messageId, direction: "inbound", body: BODY },
+        { id: later.id, direction: "inbound", body: "Havuz kaçta kapanıyor?" },
+      ],
+      guestMessage: "Havuz kaçta kapanıyor?",
+      understanding: parseUnderstanding(
+        {
+          language: "tr",
+          requests: [
+            { intent: "amenities", message: 1, query_tr: SAUNA.q, query_original: SAUNA.o },
+            { intent: "amenities", message: 2, query_tr: HAVUZ.q, query_original: HAVUZ.o },
+          ],
+          stay_change: STAY_NONE,
+          withdrawn: [],
+        },
+        { items: true },
+      ),
+      expectedMessageIds: [messageId, later.id],
+      now: at(11),
+    });
+    const rows = await prisma.conversationItem.findMany({ where: { conversationId }, orderBy: { createdAt: "asc" }, select: { topic: true, status: true } });
+    expect(rows).toEqual([
+      { topic: "sauna", status: "open" },
+      { topic: "havuz", status: "open" },
+    ]);
+  });
+
+  it("süre bazlı anonimleştirme (DATA_RETENTION_MONTHS) etiketi boşaltır; öğe kalır", async () => {
+    vi.stubEnv("AI_ITEM_ORDINAL_ENABLED", "1");
+    vi.stubEnv("DATA_RETENTION_MONTHS", "24");
+    const old = new Date(Date.now() - 30 * 30 * 24 * 60 * 60 * 1000);
+    const reservation = await prisma.reservation.create({
+      data: { propertyId, guestName: "Alex Old", sourceReference: "res-ret-84", channel: "airbnb", status: "completed", arrivalDate: old, departureDate: new Date(old.getTime() + 86_400_000) },
+    });
+    const conversation = await prisma.conversation.create({
+      data: { propertyId, reservationId: reservation.id, channel: "airbnb", guestIdentifier: "Alex Old", status: "new", lastMessageAt: old },
+    });
+    const m = await prisma.message.create({
+      data: { conversationId: conversation.id, direction: "inbound", body: BODY, senderName: "Alex Old", authorType: "guest", createdAt: old },
+    });
+    await upsertTurnItems(prisma, {
+      organizationId: orgId,
+      conversationId: conversation.id,
+      messages: [{ messageId: m.id, items: buildItemsForMessage({ requests: [{ intent: "amenities", topic: "havuz" }], lexicalLabels: [], ordinals: [0] }) }],
+      now: old,
+    });
+    const { anonymizeOldGuestData } = await import("@/lib/data-retention");
+    await anonymizeOldGuestData();
+    expect(await prisma.conversationItem.findMany({ where: { conversationId: conversation.id }, select: { kind: true, topic: true } })).toEqual([
+      { kind: "amenities", topic: null },
+    ]);
+  });
+});
