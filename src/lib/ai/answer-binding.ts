@@ -37,10 +37,42 @@ import "server-only";
 
 import { claimSpans, foldForClaims } from "@/lib/ai/claim-support";
 import { confidentLanguage, languageEvidence } from "@/lib/ai/language-signal";
-import { tokenize } from "@/lib/ai/retrieval/text";
+import { tokenize as retrievalTokens } from "@/lib/ai/retrieval/text";
 import { quoteGroundedIn } from "@/lib/ai/semantic/absence-judge";
 import { baseForms, needTermsInStrict } from "@/lib/conversation-items/topic-absence";
-import { topicsWithSymptomsOf } from "@/lib/conversation-items/relation";
+import { topicsWithSymptomsOf as relationTopics } from "@/lib/conversation-items/relation";
+
+/**
+ * Sözlük konuları — uzun metinde (kalem / alıntı) çağrılar arası küçük önbellekle (R8 / R13: aynı kalem her ihtiyaç ve her kural için yeniden
+ * taranıyordu). Sonuç yalnız metnin kendisinden türer (belge önbelleğiyle aynı ilke: kiracıya özgü durum yok); dizi okunur, değiştirilmez.
+ */
+const TOPIC_CACHE_MAX = 64;
+const topicCache = new Map<string, string[]>();
+function topicsWithSymptomsOf(text: string): string[] {
+  if (text.length < 64) return relationTopics(text);
+  const hit = topicCache.get(text);
+  if (hit) {
+    topicCache.delete(text);
+    topicCache.set(text, hit);
+    return hit;
+  }
+  const v = relationTopics(text);
+  topicCache.set(text, v);
+  if (topicCache.size > TOPIC_CACHE_MAX) topicCache.delete(topicCache.keys().next().value as string);
+  return v;
+}
+
+/**
+ * Latin harflerinin işaretleri sökülür, ß → ss (Opus dilim sonu 10-23 R1): ortak belirteçleyici yalnız Türkçe harfleri katlıyordu →
+ * "schließt", "spätestens", "après", "fermé" sözlükteki ASCII biçimleriyle hiç eşleşmiyor, Almanca kapanış iki tarafta da görünmüyordu.
+ * Kiril "й" ve Arapça hemze kalır (yalnız Latin taban harfinin işareti). Bu modülün her okuması (sözlük, konu, içerik) aynı katlamadan geçer.
+ */
+const LATIN_MARKED = /[À-ɏḀ-ỿ]/u;
+function foldMarks(t: string): string {
+  return LATIN_MARKED.test(t) ? t.normalize("NFD").replace(/(\p{Script=Latin})\p{M}+/gu, "$1").replace(/ß/g, "ss").normalize("NFC") : t;
+}
+// "№" NFKC'de "No" olur → olumsuzluk sanılıyordu ("место № 12" — R12); numara işareti sözcük değildir.
+const tokenize = (s: string): string[] => retrievalTokens(s.replace(/№/g, " ")).map(foldMarks);
 
 export const BINDING_ISSUES = [
   "evidence_missing",
@@ -192,7 +224,12 @@ const coversDay = (valueDays: ReadonlySet<string>, cls: string) => valueDays.has
 
 function lookup(t: string, table: Readonly<Record<string, string>>): string | undefined {
   if (table[t]) return table[t];
-  for (const b of baseForms(t)) if (table[b]) return table[b];
+  for (const b of baseForms(t)) {
+    if (!table[b]) continue;
+    // Gün adı bulunma ekiyle kullanılmaz ("salı günü", "salıları"): İspanyolca "salida" (çıkış) salı sanılıyordu (Opus dilim sonu 10-23 R12).
+    if (DAY_CLASSES.has(table[b]) && /^n?[dt][ae]$/.test(t.slice(b.length))) continue;
+    return table[b];
+  }
   return undefined;
 }
 
@@ -264,6 +301,9 @@ const NEGATION_TOKENS: ReadonlySet<string> = new Set([
   "sans",
   "ferme",
   "interdit",
+  // "fermée" katlanınca (R1); eril "fermé" = "ferme", ardından değer gelirse fiildir (`negAt`).
+  "fermee",
+  "fermees",
   "cerrado",
   "prohibido",
   "nunca",
@@ -327,6 +367,9 @@ function feeAbsence(tokens: readonly string[], i: number): boolean {
 function negAt(tokens: readonly string[], i: number): boolean {
   const t = tokens[i];
   if (["no", "without", "kein", "keine", "keinen", "sans", "sin", "без"].includes(t) && feeAbsence(tokens, i)) return false;
+  // Sınır öbeği ("no later than", "не позднее") ve Fransızca "ferme à 20:00" (kapanır) olumsuzluk değildir — yön okumasında (R1).
+  if (BOUND_NEGATORS.has(t) && (LATER_WORDS.has(tokens[i + 1] ?? "") || EARLIER_WORDS.has(tokens[i + 1] ?? ""))) return false;
+  if (t === "ferme" && valueAhead(tokens, i)) return false;
   // İngilizce "can't / don't / isn't": kesme boşluğa döner ("can t") → "-n"den sonraki "t" olumsuzdur.
   return NEGATION_TOKENS.has(t) || negativeVerb(t) || (t === "t" && i > 0 && tokens[i - 1].endsWith("n"));
 }
@@ -356,26 +399,83 @@ const START_TOKENS = new Set([
   "oeffnet", "offnet", "ab", "nach", "apres", "desde",
   // Sınır sözcükleri (Opus güvenlik 10-23 F8): en erken = başlangıç.
   "earliest", "fruhestens", "fruehestens", "dalle", "dalla", "после",
+  // Öteki dillerin açılış / başlangıç fiilleri (Opus dilim sonu 10-23 R1: "Бассейн открывается", "abre", "ouvre", "beginnt" yön taşımıyordu).
+  "starting", "beginnt", "offnen", "oeffnen", "abre", "abren", "empieza", "empiezan", "comienza", "comienzan", "ouvre", "ouvrent", "apre", "aprono",
+  "inizia", "открывается", "открываются", "начинается", "начинаются", "يفتح", "تفتح", "يبدأ", "تبدأ",
 ]);
 const END_TOKENS = new Set([
   "kapanir", "kapanis", "kapaniyor", "kapanmaktadir", "biter", "bitis", "kadar", "once", "closes", "closing", "until", "till", "before", "ends",
   "schliesst", "bis", "vor", "avant", "hasta",
   // En geç = bitiş ("Check-out en geç 11:00" → "check out after 11:00" geçiyordu, Opus güvenlik 10-23 F8).
   "latest", "spatestens", "spaetestens", "entro", "до",
+  // R1: öteki dillerin kapanış / bitiş fiilleri.
+  "finishes", "endet", "enden", "schliessen", "cierra", "cierran", "termina", "terminan", "ferment", "chiude", "chiudono", "finisce", "fino", "jusqu",
+  "закрывается", "закрываются", "заканчивается", "заканчиваются", "يغلق", "تغلق", "ينتهي", "تنتهي", "حتى",
+  // R2: "Son giriş saati 23:00" / "en son" / "last check-in" / "sona erer" / "kilitlenir" bitiştir (giriş başlangıç DEĞİL).
+  "son", "last", "letzte", "letzter", "letzten", "последний", "последнее", "последняя", "sona", "bitiyor", "kilitlenir", "kilitleniyor", "locks",
 ]);
+/** Yalnız ardından değer gelince yön olan sözcükler ("open at 9", "close at 20:00", "by 15:00", "ferme à 20:00", "até às 20:00", "с 11:00"); "close to
+ * the beach", "by car", "с балконом" yön değildir. */
+const CONTEXT_START = new Set(["open", "start", "begin", "с"]);
+const CONTEXT_END = new Set(["close", "end", "finish", "by", "ferme", "ate"]);
+const VALUE_LINKS = new Set(["at", "um", "a", "las", "la", "le", "the", "around", "daily", "alle", "as", "o", "в", "الساعة"]);
+function valueAhead(tokens: readonly string[], i: number): boolean {
+  for (let k = i + 1; k <= i + 3 && k < tokens.length; k++) {
+    if (/^\d/.test(tokens[k])) return true;
+    if (!VALUE_LINKS.has(tokens[k])) return false;
+  }
+  return false;
+}
+/** Olumsuz sınır öbekleri: "no later than / not after / nicht später / не позднее" bitiş, "no earlier than / not before / nicht vor / не ранее"
+ * başlangıç — olumsuzluk değildir (R1: "check out no later than 11:00" olumsuzluk sanılıp tutuluyordu). */
+const BOUND_NEGATORS = new Set(["no", "not", "nicht", "не"]);
+const LATER_WORDS = new Set(["later", "after", "spater", "spaeter", "nach", "позднее", "позже"]);
+const EARLIER_WORDS = new Set(["earlier", "before", "fruher", "frueher", "vor", "ранее", "раньше"]);
 function directions(tokens: readonly string[]): Set<"start" | "end"> {
   const out = new Set<"start" | "end">();
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i];
+    const next = tokens[i + 1] ?? "";
+    if (BOUND_NEGATORS.has(t) && (LATER_WORDS.has(next) || EARLIER_WORDS.has(next))) {
+      out.add(LATER_WORDS.has(next) ? "end" : "start");
+      i++;
+      continue;
+    }
     if (START_TOKENS.has(t)) out.add("start");
     if (END_TOKENS.has(t)) out.add("end");
-    const next = tokens[i + 1] ?? "";
-    // İki belirteçli sınırlar: "en geç" / "en erken" · "au plus tard / tôt" · "a más tardar" · "no later than" · "не позднее / ранее".
-    if ((t === "en" && next === "gec") || (t === "plus" && next === "tard") || (t === "mas" && next === "tardar") || (t === "no" && next === "later")) out.add("end");
+    if (CONTEXT_START.has(t) && valueAhead(tokens, i)) out.add("start");
+    if (CONTEXT_END.has(t) && valueAhead(tokens, i)) out.add("end");
+    // İki belirteçli sınırlar: "en geç" / "en erken" · "au plus tard / tôt" · "a más tardar".
+    if ((t === "en" && next === "gec") || (t === "plus" && next === "tard") || (t === "mas" && next === "tardar")) out.add("end");
     if ((t === "en" && next === "erken") || (t === "plus" && next === "tot") || (t === "a" && next === "partir")) out.add("start");
-    if (t === "не" && next === "позднее") out.add("end");
-    if (t === "не" && next === "ранее") out.add("start");
   }
+  return out;
+}
+
+/**
+ * Alt / üst sınır (Opus dilim sonu 10-23 R3: "Minimum konaklama 3 gecedir" → "The maximum stay is 3 nights" geçiyordu — yön sözcüğü değil, koşul
+ * da değil). "min" (dakika) ve "au plus tard" (en geç = yön) sınır değildir.
+ */
+const MIN_ROOTS = ["minimum", "minimal", "mindestens", "asgari", "минимум", "almeno", "minimo"];
+const MAX_ROOTS = ["maksimum", "maks", "maximum", "max", "azami", "hochstens", "hoechstens", "maximal", "максимум", "massimo", "maximo"];
+function boundsOf(tokens: readonly string[]): Set<"min" | "max"> {
+  const out = new Set<"min" | "max">();
+  const root = (t: string, roots: readonly string[]) => roots.some((r) => t === r || (r.length >= 4 && t.startsWith(r)));
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    const next = tokens[i + 1] ?? "";
+    if (root(t, MIN_ROOTS) || (t === "en" && next === "az") || (t === "at" && next === "least") || (t === "al" && next === "menos") || (t === "au" && next === "moins")) out.add("min");
+    if ((t === "не" && next === "менее") || (t === "no" && next === "less")) out.add("min");
+    if (root(t, MAX_ROOTS) || (t === "en" && /^fazla/.test(next)) || (t === "up" && next === "to") || (t === "at" && next === "most") || (t === "no" && next === "more")) out.add("max");
+    if ((t === "не" && next === "более") || (t === "au" && next === "plus" && tokens[i + 2] !== "tard")) out.add("max");
+  }
+  return out;
+}
+/** Değerin sınırı: açık sınır sözcüğü + (saat / tarih dışında) tek yön — "4 kişiye kadar" üst, "200 TL'den itibaren" alt sınırdır. */
+function effectiveBounds(bounds: ReadonlySet<"min" | "max">, dirs: ReadonlySet<"start" | "end">, cls: string): Set<"min" | "max"> {
+  const out = new Set(bounds);
+  if (cls === "time" || cls === "date" || dirs.size !== 1) return out;
+  out.add(dirs.has("start") ? "min" : "max");
   return out;
 }
 
@@ -430,6 +530,19 @@ function hasSubject(text: string, subj: Subject): boolean {
   const topics = subj.terms.length > 0 ? subj.topics.filter((t) => !COARSE_TOPICS.has(t)) : subj.topics;
   return topics.length > 0 && topicsWithSymptomsOf(text).some((t) => topics.includes(t));
 }
+
+/** Ölçü birimi sözcükleri ("3 nights", "2 saat", "4 kişi") — konu değil; diller arası karşılığı kalemde başka sözcükle geçer (R13: "minimum nights"). */
+const UNIT_ROOTS = "nigh gece nacht nuit noch ноч day gun tag jour dia дн hour saat stund heur hora час week haft woch semai seman недел pers peop kisi челов minu daki".split(" ");
+
+/** Çok dilli işlev sözcükleri (zamir / iyelik / kip / tanımlık) — misafirin kendi sözcüklerinden ihtiyaç sözcüğüne karışır, konu değildir. */
+const FUNCTION_WORDS: ReadonlySet<string> = new Set(
+  (
+    "ich du sie wir ihr mein meine meinen meiner dein deine darf kann konnen muss will soll oder der die das den dem des ein ist sind hat haben " +
+    "je tu il elle nous vous ils mon ma mes ton est sont puis peut yo el ella nosotros mis son puedo puede podemos io lui lei noi voi mio mia sono " +
+    "posso possiamo you we they our can may must will would could should ben sen biz siz onlar benim bizim я ты он она мы вы они мой моя можно могу " +
+    "как где когда это"
+  ).split(" "),
+);
 
 /** Birden çok tesisi / türü toplayan sözlük konuları: kimlik sayılmaz (kahvaltı / restoran / kafe → "restaurant"; köpek / evcil hayvan → "pets"). */
 const COARSE_TOPICS: ReadonlySet<string> = new Set(["restaurant", "pets"]);
@@ -612,17 +725,21 @@ function isNeutralWord(w: string): boolean {
 }
 
 /** Yüklem taşıyor mu (değersiz parçada yan cümlenin kendi başına okunup okunamayacağı): "açıktır", "var", "bulunmuyor", "are welcome". */
-const PREDICATE_WORDS = new Set(["var", "yok", "degil", "mevcut", "is", "are", "was", "were", "has", "have", "allowed", "available", "permitted", "provided", "accepted", "welcome", "ist", "sind", "gibt", "erlaubt", "est", "sont"]);
+const PREDICATE_WORDS = new Set(["var", "yok", "degil", "mevcut", "is", "are", "was", "were", "has", "have", "allowed", "available", "permitted", "provided", "accepted", "welcome", "ist", "sind", "gibt", "erlaubt", "est", "sont", "possible", "moglich", "posible", "possibile"]);
 function hasPredicate(tokens: readonly string[]): boolean {
   return tokens.some(
     (t) => PREDICATE_WORDS.has(t) || NEGATION_TOKENS.has(t) || negativeVerb(t) || /([dt][iu]r|[iu]yor(uz|lar)?|[ae]bilir|[iu]l[iu]r|[ae]n[iu]r|[iu]n[iu]r)$/.test(t),
   );
 }
 
-function words(text: string, from: number, to: number): { w: string; at: number }[] {
-  const out: { w: string; at: number }[] = [];
+/** Sözcükler (katlanmış) + metindeki konumları; `end` HAM uzunluktan (ß → ss katlaması uzunluğu değiştirir). */
+function words(text: string, from: number, to: number): { w: string; at: number; end: number }[] {
+  const out: { w: string; at: number; end: number }[] = [];
   if (to <= from) return out;
-  for (const m of text.slice(from, to).matchAll(WORD_RE)) out.push({ w: m[0], at: from + (m.index ?? 0) });
+  for (const m of text.slice(from, to).matchAll(WORD_RE)) {
+    const at = from + (m.index ?? 0);
+    out.push({ w: foldMarks(m[0]), at, end: at + m[0].length });
+  }
   return out;
 }
 
@@ -756,12 +873,12 @@ function structure(text: string, claims: readonly Span[], tr = false): Sentence[
       const hi = firstAtOrAfter(b);
       if (lo > 0) {
         const p = ws[lo - 1];
-        const end = p.at + p.w.length;
+        const end = p.end;
         if (end > a && !allNeutral(text, a, Math.min(end, b))) return false;
       }
       if (hi > lo) {
         const last = ws[hi - 1];
-        if (last.at + last.w.length > b) return allNeutral(text, last.at, b) && bad[hi - 1] - bad[lo] === 0;
+        if (last.end > b) return allNeutral(text, last.at, b) && bad[hi - 1] - bad[lo] === 0;
       }
       return bad[hi] - bad[lo] === 0;
     };
@@ -806,6 +923,8 @@ interface PlaceReading {
   conditions: Set<string>;
   negative: boolean;
   directions: Set<"start" | "end">;
+  /** Alt / üst sınır ("en az / minimum / at least" ↔ "en fazla / maksimum / up to") — yalnız kendi yan cümlesinden (R3). */
+  bounds: Set<"min" | "max">;
 }
 
 /**
@@ -825,12 +944,13 @@ function caseAfter(text: string, at: number): string | null {
 
 function readPlace(text: string): PlaceReading {
   const t = tokenize(text);
-  return { conditions: conditionClasses(t, "evidence"), negative: negative(t), directions: directions(t) };
+  return { conditions: conditionClasses(t, "evidence"), negative: negative(t), directions: directions(t), bounds: boundsOf(t) };
 }
 
 /** Bir metnin (alıntı ya da kalem) yapısı + konu ve yer okumaları; her tablo bir kez kurulur → toplam doğrusal. */
 function documentOf(raw: string, subj: Subject) {
-  const { text, claims } = claimSpans(raw);
+  // "№" NFKC'de "No" olur (olumsuzluk sanılır — R12); uzunluk korunur.
+  const { text, claims } = claimSpans(raw.replace(/№/g, " "));
   const sentences = structure(text, claims, languageOf(raw) === "tr");
   const subjectIn = (s: string) => hasSubject(s, subj);
   const segPrefix = new Map<Sentence, number[]>();
@@ -872,7 +992,7 @@ function documentOf(raw: string, subj: Subject) {
     let r = extraCache.get(sent);
     if (!r) {
       const parts = sent.clauses.map((_, ci) => ci).filter((ci) => extraEligible(sent, ci)).map((ci) => clausePlace(sent, ci));
-      r = { conditions: new Set(parts.flatMap((p) => [...p.conditions])), negative: parts.some((p) => p.negative), directions: new Set() };
+      r = { conditions: new Set(parts.flatMap((p) => [...p.conditions])), negative: parts.some((p) => p.negative), directions: new Set(), bounds: new Set() };
       extraCache.set(sent, r);
     }
     return r;
@@ -882,7 +1002,7 @@ function documentOf(raw: string, subj: Subject) {
   const extraBefore = (sent: Sentence, ownCi: number): PlaceReading => {
     let pre = beforeCache.get(sent);
     if (!pre) {
-      pre = [{ conditions: new Set(), negative: false, directions: new Set() }];
+      pre = [{ conditions: new Set(), negative: false, directions: new Set(), bounds: new Set() }];
       for (let ci = 0; ci < sent.clauses.length; ci++) {
         const last = pre[ci];
         if (!extraEligible(sent, ci)) {
@@ -891,7 +1011,7 @@ function documentOf(raw: string, subj: Subject) {
         }
         const p = clausePlace(sent, ci);
         const grows = [...p.conditions].some((c) => !last.conditions.has(c)) || (p.negative && !last.negative);
-        pre.push(grows ? { conditions: new Set([...last.conditions, ...p.conditions]), negative: last.negative || p.negative, directions: last.directions } : last);
+        pre.push(grows ? { conditions: new Set([...last.conditions, ...p.conditions]), negative: last.negative || p.negative, directions: last.directions, bounds: last.bounds } : last);
       }
       beforeCache.set(sent, pre);
     }
@@ -928,7 +1048,7 @@ function documentOf(raw: string, subj: Subject) {
       if ((DAY_CLASSES.has(c) && ownDay) || (SEASON_CLASSES.has(c) && ownSeason)) continue;
       conditions.add(c);
     }
-    const reading = { conditions, negative: own.negative || extra.negative, directions: own.directions.size > 0 ? own.directions : (ellipticDirection(sent, gi) ?? labelDirection(sent, gi) ?? own.directions) };
+    const reading = { conditions, negative: own.negative || extra.negative, bounds: own.bounds, directions: own.directions.size > 0 ? own.directions : (ellipticDirection(sent, gi) ?? labelDirection(sent, gi) ?? own.directions) };
     row[gi] = reading;
     return reading;
   };
@@ -946,18 +1066,32 @@ function documentOf(raw: string, subj: Subject) {
       // Sondan başa tek geçiş (uzun virgüllü değer dizisinde değer başına zinciri yeniden yürümek karesel olurdu): `chain[k]` = k. grubun
       // ardındaki aynı ekli dizinin verdiği yön. Paylaşılan okuma kümesi — değiştirilmez.
       const n = sent.groups.length;
-      const kases = sent.groups.map((g) => caseAfter(text, g.end));
+      // Yön alan değer yan cümlesinin SONUNDA olmalı (yalnız hâl eki + noktalama): kendi yüklemi olan yan cümle ("kahvaltı 08:00'de VERİLİR",
+      // "temizlikçi 10:00'da GELİR") eksiltili değildir, komşusunun yönünü almaz (Opus dilim sonu 10-23 R4).
+      // Yalnız kısa kuyruk okunur (uzun virgülsüz yan cümlede her değer için sona kadar kesmek karesel olurdu).
+      const kases = sent.groups.map((g, k) => {
+        const b = sent.clauses[sent.groupClause[k]][1];
+        return b - g.end <= 12 && /^[’'`]?\p{L}{0,4}[\s\p{P}]*$/u.test(text.slice(g.end, b)) ? caseAfter(text, g.end) : null;
+      });
+      const kasesAny = sent.groups.map((g) => caseAfter(text, g.end));
       row = new Array<Set<"start" | "end"> | null>(n).fill(null);
+      // Devralınan yön değerin doğal yönüyle çelişemez: "Resepsiyon 09:00'da açılır, check-out 11:00'de." çıkışa "açılır" vermez (Opus dilim sonu
+      // 10-23 R4; yalnız yan cümle sonundaki değer alır → kendi yan cümlesi kısa, okuma doğrusal).
+      const fits = (k: number, d: Set<"start" | "end"> | null) => {
+        if (!d || !sent.groups[k].claims.every((c) => c.cls === "time")) return d;
+        const nat = checkInOutNatural(text.slice(sent.clauses[sent.groupClause[k]][0], sent.groups[k].end));
+        return nat && !d.has(nat) ? null : d;
+      };
       for (let k = n - 2; k >= 0; k--) {
-        if (!kases[k] || kases[k + 1] !== kases[k]) continue;
+        if (!kases[k] || kasesAny[k + 1] !== kases[k]) continue;
         const nd = clausePlace(sent, sent.groupClause[k + 1]).directions;
-        row[k] = nd.size === 1 ? nd : nd.size > 1 ? null : row[k + 1];
+        row[k] = fits(k, nd.size === 1 ? nd : nd.size > 1 ? null : row[k + 1]);
       }
       // İleri eksilti (Haiku 10-23 gece #6): "Havuz 20:00'de kapanır, sauna 22:00'de." — yüklem öndeki aynı ekli değerden; geri yön önceliklidir.
       for (let k = 1; k < n; k++) {
-        if (row[k] || !kases[k] || kases[k - 1] !== kases[k] || clausePlace(sent, sent.groupClause[k]).directions.size > 0) continue;
+        if (row[k] || !kases[k] || kasesAny[k - 1] !== kases[k] || clausePlace(sent, sent.groupClause[k]).directions.size > 0) continue;
         const pd = clausePlace(sent, sent.groupClause[k - 1]).directions;
-        row[k] = pd.size === 1 ? pd : pd.size > 1 ? null : row[k - 1];
+        row[k] = fits(k, pd.size === 1 ? pd : pd.size > 1 ? null : row[k - 1]);
       }
       ellipticCache.set(sent, row);
     }
@@ -1030,6 +1164,39 @@ function documentOf(raw: string, subj: Subject) {
     }
     sentenceSubject[si - 1] ??= subjectIn(text.slice(prev.s, prev.e));
     return sentenceSubject[si - 1]!;
+  };
+  /**
+   * Konu yerinin konu kimlikleri (çok konulu ihtiyaç): yer = grup bitişlerine göre bölünmüş parçaların birleşimi → parça başına bir kez okunur,
+   * yer başına yalnız küçük kümeler birleşir (Opus dilim sonu 10-23 R8: virgülle dizilmiş 380 değerde her değer yeri cümle başından yeniden
+   * okunuyordu — ihtiyaç başına 2,4 sn). Belge önbellekte → tur içinde de yeniden kullanılır.
+   */
+  const subjectIds = new Set(subj.terms.map(subjectIdentity));
+  if (subj.terms.length === 0) for (const t of subj.topics) subjectIds.add(`topic:${t}`);
+  const segIdCache = new Map<Sentence, Set<string>[]>();
+  const segIds = (sent: Sentence, k: number): Set<string> => {
+    let row = segIdCache.get(sent);
+    if (!row) segIdCache.set(sent, (row = []));
+    return (row[k] ??= subjectIdentitiesIn(text.slice(k > 0 ? sent.groups[k - 1].end : sent.s, sent.groups[k].end), subj, subjectIds));
+  };
+  const prevSentenceIds: (Set<string> | undefined)[] = [];
+  const regionIdMemo: (Set<string> | undefined)[][] = [];
+  const regionIdentities = (si: number, gi: number): Set<string> => {
+    const row = (regionIdMemo[si] ??= []);
+    const hit = row[gi];
+    if (hit) return hit;
+    const sent = sentences[si];
+    let out: Set<string>;
+    if (boundTo(sent, gi)) {
+      const from = sent.regionFrom[gi];
+      const k0 = sent.regionSeg[gi];
+      const firstFrom = k0 > 0 ? sent.groups[k0 - 1].end : sent.s;
+      out = new Set(from > firstFrom ? subjectIdentitiesIn(text.slice(from, sent.groups[k0].end), subj, subjectIds) : segIds(sent, k0));
+      for (let k = k0 + 1; k <= gi; k++) for (const x of segIds(sent, k)) out.add(x);
+    } else if (boundAt(si, gi)) {
+      const prev = sentences[si - 1];
+      out = prevSentenceIds[si - 1] ??= subjectIdentitiesIn(text.slice(prev.s, prev.e), subj, subjectIds);
+    } else out = new Set();
+    return (row[gi] = out);
   };
   /** Bağlı grubun KONU yeri (metin): cümle içi yer ya da devralınan önceki cümle; bağsızsa null. */
   const boundRegion = (si: number, gi: number): string | null => {
@@ -1130,7 +1297,7 @@ function documentOf(raw: string, subj: Subject) {
     }
     return (subjectConds = out);
   };
-  return { text, sentences, subjectIn, boundAt, boundRegion, placeOf, hasSubjectAnywhere, sentenceInfo, variantGroupsFor, valuelessVariantConds, subjectConditions, boundSitesFor };
+  return { text, sentences, subjectIn, boundAt, boundRegion, regionIdentities, placeOf, hasSubjectAnywhere, sentenceInfo, variantGroupsFor, valuelessVariantConds, subjectConditions, boundSitesFor };
 }
 
 /**
@@ -1166,7 +1333,7 @@ const MAX_RIVAL_SITES = 240;
 /** İçerik sayılmayan nezaket / dolgu sözcükleri (katlanmış; kök başlangıcı en az 4 harf, kısa olanlar tam). İddia sözcüğü ("free", "ücretsiz") YOK. */
 const FILLER_ROOTS = (
   "merhaba selam tabii elbette evet hayir maalesef lutfen rica tesekkur iyi keyifli tatil gunler size sizin sizi bize bizim burada orada " +
-  "bulun yer alir almaktadir mevcut kullan dile istediginiz isterseniz zaman her gun aksam sabah gece ogle olarak icin ayrica ancak hemen " +
+  "bulun yer alir almaktadir mevcut kullan dile istediginiz isterseniz her gun olarak icin ayrica ancak hemen " +
   "yaklasik herhangi bir tum ilgili konuda aylar sezon donem " +
   "hello sure please thank enjoy your stay you there here located available use welcome also just note kindly would like can will " +
   "every daily the this that these those our are have has get " +
@@ -1174,10 +1341,21 @@ const FILLER_ROOTS = (
   // Nezaket kapanışları (Haiku 10-23 gece #4: "We hope you enjoy your stay." / "Wir wünschen Ihnen einen schönen Aufenthalt." yabancı dil
   // yan cümle kuralında olgu sanılıyordu).
   "hope wish glad happy pleasant great lovely wonderful forward know question further anything else help " +
-  "wunsch schon aufenthalt angenehm fragen melden jederzeit souhait sejour agreable dese estancia agradable disfrut pregunta " +
-  "augur soggiorno piacevole domand желаем приятн отдых вопрос обращайтесь надеемся eine einen einem einer eines sich"
+  "wunsch schon angenehm fragen melden souhait sejour agreable dese estancia agradable disfrut pregunta " +
+  "augur soggiorno piacevole domand желаем приятн отдых вопрос обращайтесь надеемся eine einen einem einer eines sich " +
+  // "da / de / ayrıca" zarfları olgu değildir (R7 yan cümle sayımı: "Eine Sauna gibt es ebenfalls" doğru cevaptır).
+  "ebenfalls auch aussi egalement tambien igualmente anche также тоже too either"
 ).split(" ");
+/**
+ * Yalnız TAM sözcük dolgu ("Aufenthalt" = konaklama; "Aufenthaltsraum" = salon, olgu). Günün saati ve süreklilik ("akşam", "gece", "her zaman",
+ * "jederzeit") dolgu DEĞİLDİR — "Havuz 20:00'de kapanır; gece de kullanabilirsiniz" olgu ekler (Opus dilim sonu 10-23 R10).
+ */
+const FILLER_EXACT = new Set(
+  // Genel kullanım / sunum fiilleri ("can't be USED", "is SERVED from 08:00") olgu değildir — Türkçe karşılıkları ("kullan-", "servis edil-") da sayılmaz.
+  "aufenthalt used using usable served serves serving serviert servido servito offered provided benutzt genutzt utilise utilisee usado usada usato".split(" "),
+);
 function isFiller(t: string, prev: string): boolean {
+  if (FILLER_EXACT.has(t)) return true;
   if (t === "free" && prev === "feel") return true;
   if (t === "feel") return true;
   return FILLER_ROOTS.some((r) => t === r || (r.length >= 4 && t.startsWith(r)));
@@ -1234,6 +1412,10 @@ const FACILITY_ROOTS: Readonly<Record<string, readonly string[]>> = {
   spa: ["spa"],
   gym: ["gym", "fitness", "spor", "тренаж", "фитнес", "gimnasio", "palestra"],
   steam: ["buhar", "steam", "dampfbad", "парилк"],
+  // Saati karışabilen öteki yerler (Opus dilim sonu 10-23 R13 / R7 eki: "The pool and the bar close at 20:00" — "bar" 3 harf, içerik sayılmıyordu).
+  bar: ["bar", "бар"],
+  restaurant: ["restoran", "restaurant", "ristorante", "ресторан"],
+  reception: ["resepsiyon", "reception", "rezeption", "recepcion", "ресепшн", "ресепшен", "регистрац"],
 };
 function facilitiesIn(text: string): Set<string> {
   const out = new Set<string>();
@@ -1245,8 +1427,32 @@ function facilitiesIn(text: string): Set<string> {
   return out;
 }
 
+/** Diller arası niteleyici sınıfları (rakip değer kuralı — "Geç çıkış 13:00" ↔ "Late check-out until 13:00"). Kök başlangıcı (en az 4 harf) ya da tam. */
+const QUALIFIER_ROOTS: Readonly<Record<string, readonly string[]>> = {
+  late: ["gec", "late", "spat", "spaet", "tard", "tardi", "поздн"],
+  early: ["erken", "early", "fruh", "frueh", "tot", "temprano", "presto", "ранн"],
+  child: ["cocuk", "child", "children", "kid", "kids", "kinder", "enfant", "nino", "nina", "bambin", "дет"],
+  adult: ["yetiskin", "adult", "erwachsen", "adulte", "adulto", "взросл"],
+  outdoor: ["acik", "outdoor", "outside", "aussen", "exterieur", "exterior", "aperto", "открыт"],
+  indoor: ["kapali", "indoor", "inside", "innen", "hallenbad", "interieur", "interior", "coperto", "крыт"],
+};
+function qualifierClass(t: string): string | null {
+  for (const [id, roots] of Object.entries(QUALIFIER_ROOTS)) if (roots.some((r) => t === r || (r.length >= 4 && t.startsWith(r)))) return id;
+  return null;
+}
+
 /** Yan cümle bağlaçları (çok dilli) — yabancı dil parçasında yan cümle kuralı için. */
 const CLAUSE_CONJUNCTION = /\s+(?:and|und|et|y|e|и|ve|but|aber|mais|pero|но|ama|also|plus|también|auch|aussi|тоже)\s+/iu;
+
+/** Parçanın yan cümleleri (noktalama + çok dilli bağlaç; sıra sayısının noktası bölmez). */
+function partClauses(part: string): string[] {
+  return part
+    .replace(/(?<![\d:.,])(\d{1,3})\.(?=\s+\p{L})/gu, "$1")
+    .split(/[.!?;,]+(?!\d)/u)
+    .flatMap((x) => x.split(CLAUSE_CONJUNCTION))
+    .map((x) => x.trim())
+    .filter(Boolean);
+}
 
 /** Kıyasta içerik sayılan sözcük: en az 4 harf, rakamsız, nötr / koşul / olumsuzluk / dolgu / edilgen yardımcı fiil değil, ihtiyacın sözcüğü değil. */
 function contentWord(toks: readonly string[], i: number, needTerms: readonly string[]): boolean {
@@ -1257,6 +1463,11 @@ function contentWord(toks: readonly string[], i: number, needTerms: readonly str
   if (/^edil/.test(t) || (t === "servis" && /^edil/.test(toks[i + 1] ?? ""))) return false;
   // Süre yardımcıları ("11:00'e kadar devam ediyor / sürer" ← "verilir"; E ölçümü v5): olgu değil, olumsuzu olumluluk kontrolünde.
   if (/^(?:devam|surer|suruyor|surmekte)/.test(t)) return false;
+  // Sınır öbeği sözcükleri ("no later THAN", "no earlier than", "nicht später als") olgu değildir — yön okumasında (R1).
+  if (LATER_WORDS.has(t) || EARLIER_WORDS.has(t) || t === "than" || t === "als") return false;
+  // Saat adı ve kip fiili ("Check-out TIME is 11:00", "You NEED to check out by 11:00") olgu değildir (R12: Türkçe "Check-out saati: 11:00"
+  // satırı İngilizce sanılıp sözcük kıyasına giriyordu).
+  if (GENERIC_REGION_WORDS.has(t) || MODAL_WORDS.has(t)) return false;
   return !(needTerms.length > 0 && needTermsInStrict(needTerms, t) > 0);
 }
 
@@ -1271,9 +1482,10 @@ function contentWord(toks: readonly string[], i: number, needTerms: readonly str
 export function unsupportedContent(
   part: string,
   evidence: string,
-  needTerms: readonly string[],
+  rawNeedTerms: readonly string[],
   opts: { sourceText?: string; needTopics?: readonly string[] } = {},
 ): boolean {
+  const needTerms = rawNeedTerms.map(foldMarks);
   const ref = quoteSentences(opts.sourceText, evidence);
   const le = languageOf(ref) ?? languageOf(evidence) ?? (opts.sourceText ? languageOf(opts.sourceText) : null);
   // Dili kestirilemeyen kısa parça ("Otopark konaklama boyunca 200 TL.") kalemle aynı yazı sistemindeyse kalemin dilinde sayılır (Opus 10-23
@@ -1293,19 +1505,32 @@ export function unsupportedContent(
     return toks.reduce((n, t, i) => n + (contentWord(toks, i, needTerms) && !PREDICATE_WORDS.has(t) ? 1 : 0), 0);
   };
   // Sıra sayısının noktası ("im 3. Stock", "3. katta") yan cümle bölmez; saatin ardındaki nokta ("20:00. Please …") böler.
-  const clauses = part
-    .replace(/(?<![\d:.,])(\d{1,3})\.(?=\s+\p{L})/gu, "$1")
-    .split(/[.!?;,]+(?!\d)/u)
-    .flatMap((x) => x.split(CLAUSE_CONJUNCTION))
-    .map((x) => x.trim())
-    .filter(Boolean);
+  const clauses = partClauses(part);
+  // İhtiyaç sözcüğünü / izinli konuyu anan yan cümle de olgu ekleyebilir ("Pets are allowed, and pets may stay alone in the apartment", "der
+  // Pool ist beheizt" — Opus dilim sonu 10-23 R7): böyle yan cümlenin KENDİ olgu sözcükleri (ihtiyaç sözcüğü, izinli sözlük konusu, ücret
+  // sözcüğü ve yüklem dışındakiler — ücret kutbu ayrıca kıyaslanır) alıntınınkini aşamaz.
+  // Konu sözcüğü tek başına ya da komşusuyla izinli konuya düşer ("домашние животные", "بالحيوانات الأليفة"); izin / yasak yüklemi olumluluk
+  // kontrolündedir ("не допускаются", "لا يسمح").
+  const topical = (toks: readonly string[], i: number) =>
+    [toks[i], `${toks[i - 1] ?? ""} ${toks[i]}`, `${toks[i]} ${toks[i + 1] ?? ""}`].some((x) => topicsWithSymptomsOf(x).some((y) => allowed.has(y)));
+  const ownFacts = (toks: readonly string[]) =>
+    toks.reduce(
+      (n, t, i) =>
+        n + (contentWord(toks, i, needTerms) && !PREDICATE_WORDS.has(t) && !feeWordAt(toks, i) && !grantWord(t) && !topical(toks, i) ? 1 : 0),
+      0,
+    );
+  // Alıntı tarafı sade sayılır (ihtiyaç sözcüğü ve yüklem dışı her içerik sözcüğü) — çeviri karşılığı bulunamayan alıntı sözcüğü cevaba pay bırakır.
+  const refFacts = rt.reduce((n, t, i) => n + (contentWord(rt, i, needTerms) && !PREDICATE_WORDS.has(t) ? 1 : 0), 0);
   for (const c of clauses) {
     const toks = tokenize(c);
     if (contentCount(c) === 0) continue;
-    if (claimSpans(c).claims.length > 0) continue;
-    if (needTerms.length > 0 && toks.some((t) => t.length >= 3 && needTermsInStrict(needTerms, t) > 0)) continue;
-    if (topicsWithSymptomsOf(c).some((t) => allowed.has(t))) continue;
-    return true;
+    // Değer taşıyan yan cümle de yeni konu / olgu ekleyemez ("Der Pool und der Aufenthaltsraum schließen um 20:00 Uhr" — R7 eki).
+    if (claimSpans(c).claims.length > 0) {
+      if (ownFacts(toks) > refFacts) return true;
+      continue;
+    }
+    const anchored = (needTerms.length > 0 && toks.some((t) => t.length >= 3 && needTermsInStrict(needTerms, t) > 0)) || topicsWithSymptomsOf(c).some((t) => allowed.has(t));
+    if (!anchored || ownFacts(toks) > refFacts) return true;
   }
   // Sayımda ihtiyaç sözcükleri İKİ tarafta da sayılır (çeviride "evcil hayvan" → "Haustiere" ihtiyaç sözcüğü olmaktan çıkar); yüklem / bağ
   // fiili ("sind", "are allowed") Türkçede ek olduğundan sayılmaz.
@@ -1357,6 +1582,12 @@ function feeClasses(tokens: readonly string[]): Set<"free" | "paid"> {
   return out;
 }
 
+/** Ücret sözcüğü ("free", "charge", "extra charge", "ücretsiz", "Gebühr") — kutbu `feeClasses` kıyaslar, olgu sayımına girmez. */
+function feeWordAt(tokens: readonly string[], i: number): boolean {
+  const t = tokens[i];
+  return FEE_FREE.has(t) || FEE_PAID.has(t) || FEE_NOUN.test(t) || (/^(?:extra|additional|zusatzlich|supplementaire|adicional)/.test(t) && FEE_NOUN.test(tokens[i + 1] ?? ""));
+}
+
 /** Ücret tabanı (Opus 10-23 Y5): günlük ≠ gecelik ≠ kişi başı ≠ konaklama boyunca. Yalnız TUTAR değerinde okunur ("daily" sıklık da olabilir). */
 const BASIS_SINGLE: Readonly<Record<string, string>> = {
   gunluk: "day", gunlugu: "day", daily: "day", taglich: "day",
@@ -1396,7 +1627,9 @@ const scriptOf = (text: string) => (/[Ѐ-ӿ]/u.test(text) ? "cyrillic" : /[Ͱ-Ͽ
 
 // ─── ana kural ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-export function checkAnswerBinding(input: BindingInput): BindingResult {
+export function checkAnswerBinding(raw: BindingInput): BindingResult {
+  // İhtiyaç sözcükleri de aynı aksan katlamasından (iki taraf simetrik — R1).
+  const input: BindingInput = { ...raw, needTerms: raw.needTerms.map(foldMarks) };
   const issues = new Set<BindingIssue>();
   const evidence = input.evidence.trim();
   if (!evidence) return { ok: false, issues: ["evidence_missing"] };
@@ -1431,6 +1664,7 @@ export function checkAnswerBinding(input: BindingInput): BindingResult {
   const partConditions = conditionClasses(partTokens, "part");
   const partNegative = negative(partTokens);
   const partDirections = directions(partTokens);
+  const partBounds = boundsOf(partTokens);
   const partFee = feeClasses(partTokens);
   const partBasis = basisClasses(partTokens);
   const partException = partTokens.some((t) => EXCEPTION_TOKENS.has(t));
@@ -1460,13 +1694,15 @@ export function checkAnswerBinding(input: BindingInput): BindingResult {
   const asked = conditionClasses([...input.needTerms], "evidence");
 
   /** Parçanın değerleri: kendi gün / mevsim koşulu (değerden sonraki değersiz yan cümle sayılmaz) + kendi yönü + konu yeri. */
-  const partClaims: { c: Span; days: Set<string>; dirs: Set<"start" | "end">; negative: boolean; groupSize: number; region: string }[] = [];
+  const partClaims: { c: Span; days: Set<string>; dirs: Set<"start" | "end">; bounds: Set<"min" | "max">; negative: boolean; groupSize: number; region: string; ids: () => Set<string> }[] = [];
   pdoc.sentences.forEach((sent, si) =>
     sent.groups.forEach((g, gi) => {
       const place = pdoc.placeOf(sent, gi, { extraBeforeOnly: true });
       const region = pdoc.boundRegion(si, gi) ?? input.part;
+      // Değer yerinin konu kimlikleri belgeden (parça başına bir kez okunan parçalar — R8); bağsız değer bütün parçayı okur.
+      const ids = () => (pdoc.boundAt(si, gi) ? pdoc.regionIdentities(si, gi) : subjectIdentitiesIn(input.part, subj, identities));
       for (const c of g.claims) {
-        partClaims.push({ c, days: new Set(variantClassesOf(place.conditions)), dirs: place.directions, negative: place.negative, groupSize: g.claims.length, region });
+        partClaims.push({ c, days: new Set(variantClassesOf(place.conditions)), dirs: place.directions, bounds: place.bounds, negative: place.negative, groupSize: g.claims.length, region, ids });
       }
     }),
   );
@@ -1490,14 +1726,8 @@ export function checkAnswerBinding(input: BindingInput): BindingResult {
       if (!(conds.length > 0 && conds.every((cls) => partConditions.has(cls) || coversDay(partConditions, cls)))) local.add("condition_dropped");
     }
   };
-  // Çok konulu ihtiyaçta kalem yerinin konu kimlikleri — yer başına bir kez (aynı yer her parça değeri için yeniden sorulur).
-  const regionIdCache = new Map<Doc, Set<string>[][]>();
-  const evRegionIds = (d: Doc, si: number, gi: number): Set<string> => {
-    let rows = regionIdCache.get(d);
-    if (!rows) regionIdCache.set(d, (rows = []));
-    const row = (rows[si] ??= []);
-    return (row[gi] ??= subjectIdentitiesIn(d.boundRegion(si, gi) ?? "", subj, identities));
-  };
+  // Çok konulu ihtiyaçta kalem yerinin konu kimlikleri — belgede yer başına bir kez.
+  const evRegionIds = (d: Doc, si: number, gi: number): Set<string> => d.regionIdentities(si, gi);
   type Hit = { d: Doc; si: number; sent: Sentence; gi: number; idx: number };
   /** Konu yerinin niteleyici sözcükleri: ihtiyacın kendi sözcükleri, nötr / dolgu / nitelik / yön sözcükleri ve kalem satırının kategori öneki hariç. */
   const regionWordCache = new Map<Doc, string[][][]>();
@@ -1531,9 +1761,14 @@ export function checkAnswerBinding(input: BindingInput): BindingResult {
    *    olduğu bilinmez. Niteleyicili rakip ("Çıkış 11:00" ↔ "Geç çıkış 13:00") ayrı bir şeydir, çelişki değil.
    * Aynı cümlede aynı konu yerinden dizilen değerler ("08:00, 09:00 ve 10:00") liste sayılır; parçanın kendisi de verdiği değer taraf tutmaz.
    */
-  const carriesQualifier = (w: string) =>
-    partTokens.some((t) => sameStem(w, t)) || topicsWithSymptomsOf(w).some((x) => topicsWithSymptomsOf(input.part).includes(x));
-  const rivalIssue = (c: Span, h: Hit, place: PlaceReading, partIds: Set<string>): BindingIssue | null => {
+  // Niteleyici parça DEĞERİNİN kendi yerinde aranır (Opus dilim sonu 10-23 R5: "Çıkış 13:00'e kadar, geç çıkış da mümkündür" niteleyiciyi başka
+  // yan cümlede anıp genel çıkışı 13:00 diye veriyordu); diller arası küçük niteleyici sözlüğü ("çocuk" ~ "children", "geç" ~ "late").
+  const carriesQualifier = (w: string, region: string) => {
+    const rt = tokenize(region);
+    const q = qualifierClass(w);
+    return rt.some((t) => sameStem(w, t) || (q !== null && qualifierClass(t) === q)) || topicsWithSymptomsOf(w).some((x) => topicsWithSymptomsOf(region).includes(x));
+  };
+  const rivalIssue = (c: Span, h: Hit, place: PlaceReading, partIds: Set<string>, partRegion: string): BindingIssue | null => {
     if (variantClassesOf(place.conditions).length > 0) return null;
     let dropped = false;
     const g = h.sent.groups[h.gi];
@@ -1564,7 +1799,7 @@ export function checkAnswerBinding(input: BindingInput): BindingResult {
         if (mineExtra.length === 0 && theirsExtra.length === 0) return "value_conflict";
         // Parçanın dayandığı yer niteleyicili, rakip genel değer: parça niteleyiciyi anmalı (Haiku 10-23 gece #2: "Çıkış saati 11:00. Geç
         // çıkış 13:00'e kadar" kaleminden "Çıkış saati 13:00'e kadar" geçiyordu).
-        if (mineExtra.length > 0 && theirsExtra.length === 0 && !mineExtra.every(carriesQualifier)) dropped = true;
+        if (mineExtra.length > 0 && theirsExtra.length === 0 && !mineExtra.every((w) => carriesQualifier(w, partRegion))) dropped = true;
       }
     }
     return dropped ? "condition_dropped" : null;
@@ -1626,7 +1861,7 @@ export function checkAnswerBinding(input: BindingInput): BindingResult {
         const place = h.d.placeOf(h.sent, h.gi);
         if (multiAt(h.d)) {
           if (!partIds) {
-            partIds = subjectIdentitiesIn(pc.region, subj, identities);
+            partIds = pc.ids();
             if (partIds.size === 0) partIds = partIdentitiesAll;
           }
           if (!subjectAgrees(h.d, h.si, h.gi, partIds)) local.add("subject_mismatch");
@@ -1646,10 +1881,26 @@ export function checkAnswerBinding(input: BindingInput): BindingResult {
           if (pc.groupSize < 2 && (pDirs.size === 0 || !pDirs.has(role))) local.add("direction_mismatch");
         } else if (place.directions.size === 1 && pDirs.size > 0 && !pDirs.has([...place.directions][0])) {
           local.add("direction_mismatch");
+        } else if (place.directions.size === 1 && pDirs.size === 0) {
+          // Kalem tek yön veriyor, parçanın değeri yön taşımıyor (Opus dilim sonu 10-23 R1: sözlükte olmayan fiil — "cierra", "закрывается" —
+          // yön kıyasını sessizce atlatıyordu; "açılır" → "kapanır" geçiyordu). Okunamayan yön GEÇMEZ: parçada hiç yön sözcüğü yoksa yalnız
+          // değerin doğal yönü ("Giriş 15:00'ten itibaren" → "Check-in is at 15:00") serbest; parçanın tek yönü başka değerdeyse o yön sayılır.
+          const placeDir = [...place.directions][0];
+          if (partDirections.size === 0 ? !naturalDirection(c, place.directions, h.d.boundRegion(h.si, h.gi) ?? "") : partDirections.size === 1 && !partDirections.has(placeDir)) {
+            local.add("direction_mismatch");
+          }
         } else if (place.directions.size === 0 && pDirs.size > 0 && !naturalDirection(c, pDirs, h.d.boundRegion(h.si, h.gi) ?? "")) {
           // Kalem yön vermiyorsa parça yön UYDURAMAZ (Opus güvenlik 10-23 F8: "Havuz 20:00" → "20:00'ye kadar açık" / "20:00'de açılır");
           // yalnız değerin doğal yönü serbest: giriş saati "-den itibaren", çıkış saati "en geç / -e kadar", kişi sayısı "-e kadar".
           local.add("direction_mismatch");
+        }
+        // Alt / üst sınır DEĞER BAŞINA (R3): ters sınır tutulur; kalemin alt sınırını düşüren parça da ("Minimum 3 gece" → "3 gece") — üst sınır
+        // doğal okumadır ("4 kişiye kadar" → "4 kişilik").
+        if (c.cls !== "time" && c.cls !== "date") {
+          const eb = effectiveBounds(place.bounds, place.directions, c.cls);
+          const pb = effectiveBounds(pc.bounds.size > 0 ? pc.bounds : singlePartGroup ? partBounds : new Set(), pDirs, c.cls);
+          if (eb.size === 1 && pb.size > 0 && !pb.has([...eb][0])) local.add("direction_mismatch");
+          else if (eb.has("min") && eb.size === 1 && pb.size === 0) local.add("condition_dropped");
         }
         const placeDays = new Set(dayClassesOf(place.conditions));
         const placeSeasons = [...place.conditions].filter((x) => SEASON_CLASSES.has(x));
@@ -1682,7 +1933,7 @@ export function checkAnswerBinding(input: BindingInput): BindingResult {
       if (best) {
         for (const i of best.local) issues.add(i);
         if (best.local.size === 0) {
-          const rival = rivalIssue(c, best.h, best.place, partIds ?? partIdentitiesAll);
+          const rival = rivalIssue(c, best.h, best.place, partIds ?? partIdentitiesAll, pc.region);
           if (rival) issues.add(rival);
         }
         hitDocs.add(best.h.d);
@@ -1723,6 +1974,13 @@ export function checkAnswerBinding(input: BindingInput): BindingResult {
       const r = readPlace(places.join(" . "));
       for (const cls of r.conditions) if (!partConditions.has(cls) && !(DAY_CLASSES.has(cls) && coversDay(partConditions, cls))) issues.add("condition_dropped");
       if (r.negative !== partNegative) issues.add("polarity_mismatch");
+      // Olumluluk YAN CÜMLE başına da (Opus dilim sonu 10-23 R13): "Smoking is not allowed inside, BUT IT IS ALLOWED on the balcony" bütünüyle
+      // olumsuz okunup "Dairede sigara içmek yasaktır" kalemine uyuyordu. Konuyu anan ya da izin / yasak yüklemi taşıyan her yan cümle kalemin
+      // olumluluğunda olmalı.
+      else if (partClauses(input.part).some((cl) => {
+        const t = tokenize(cl);
+        return (hasSubject(cl, subj) || t.some(grantWord) || t.some((_, i) => negAt(t, i))) && negative(t) !== r.negative;
+      })) issues.add("polarity_mismatch");
       // Değersiz parça konu cümlesindeki KISITI düşüremez (Opus güvenlik 10-23 F1b; kurucu A "koşul düşerse GİTMEZ"): "10 kg'a kadar evcil
       // hayvan kabul edilir" → "Evcil hayvan kabul edilir", "…, gecelik 300 TL" ücreti, "Küçük evcil hayvanlar…" niteliği. Kısıt = konu
       // cümlesinde (çok konulu ihtiyaçta başka tesisin yan cümlesi hariç) saat / tutar / sayı / süre / kişi değeri ya da üst sınır / küçüklük
@@ -1732,10 +1990,22 @@ export function checkAnswerBinding(input: BindingInput): BindingResult {
       if ([...restrict].some((x) => !partRestrict.has(x))) issues.add("condition_dropped");
       // Ücret sorusunda ("otopark ücretli mi") ve VARLIK cevabında ("Evet, havuz var." ← "Havuz 09:00-20:00 arası açıktır.") yalnız tutar
       // düşmüş sayılır — saat / sayı başka bir sorunun cevabıdır; izin cevabında ("kabul edilir", "allowed") her kısıt sayılır.
-      const feeAsked = input.needTerms.some((t) => FEE_ASPECT.test(t)) || existenceAnswer(partTokens);
+      // Varlık muafiyeti yalnız SAF varlık cevabında: izin / açıklık / süreklilik bildiren parça ("we have a pet-friendly apartment and pets
+      // are WELCOME", "there is a pool, OPEN all day", "kabulümüz var") her kısıtı taşımalı (Opus dilim sonu 10-23 R6).
+      // Ücret sorusunda ücretsizliğin KENDİ sınırı (süre / adet / kişi / yaş: "ilk 2 saat ücretsiz", "0-6 yaş arası ücretsiz") düşemez; yalnız
+      // saat / tarih başka sorunun cevabıdır (Opus dilim sonu 10-23 R9). Saf varlık cevabında yalnız tutar.
+      const feeNeed = input.needTerms.some((t) => FEE_ASPECT.test(t));
+      const pureExistence = existenceAnswer(partTokens) && !grantsOrQualifies(partTokens);
+      // Saat / tarih ücret sözcüğüyle AYNI yan cümledeyse ücretsizliğin sınırıdır ("Otopark 22:00'ye kadar ücretsizdir", "3 saate kadar").
+      const droppable = (x: Span, feeClause: boolean) =>
+        restrictiveClaim(ev.text, x) &&
+        (feeNeed ? (x.cls !== "time" && x.cls !== "date") || feeClause : pureExistence ? x.cls === "money" || x.cls === "percent" : true);
       const dropsValue = [...sentencesRead].some((st) =>
         st.groups.some((g, gi) => {
-          if (!g.claims.some((x) => restrictiveClaim(ev.text, x) && (!feeAsked || x.cls === "money" || x.cls === "percent"))) return false;
+          const [ca, cb] = st.clauses[st.groupClause[gi]];
+          const ct = feeNeed ? tokenize(ev.text.slice(ca, cb)) : [];
+          const feeClause = ct.some((_, i) => feeWordAt(ct, i));
+          if (!g.claims.some((x) => droppable(x, feeClause))) return false;
           if (!multiSubject || partIdentitiesAll.size === 0) return true;
           // Çok konulu ihtiyaçta başka tesisin yan cümlesindeki değer ("Havuz ücretsiz, sauna 200 TL." → "Havuz ücretsizdir") düşmüş sayılmaz.
           const [a, b] = st.clauses[st.groupClause[gi]];
@@ -1766,6 +2036,65 @@ export function checkAnswerBinding(input: BindingInput): BindingResult {
   }
   // Tesis adı (havuz / sauna / hamam / jakuzi / spor salonu / buhar odası …) dayanağında olmadan anılamaz — ihtiyaç sorsa bile (Haiku 10-23
   // gece #1 / #3: "Havuz ve sauna 20:00'de kapanır", "The sauna closes at 20:00" yalnız havuz kalemiyle geçiyordu; "sauna" sözlükte yok).
+  // İhtiyacın kalemde HİÇ geçmeyen konusu parçada anılamaz (Opus dilim sonu 10-23 R13: "havuz ve resepsiyon" ihtiyacına havuz kalemiyle "The pool
+  // and the reception close at 20:00", "köpek ve kedi"ye "Köpek ve kedi kabul edilir" geçiyordu — tesis listesi yalnız 7 aileyi tanıyordu).
+  //  - Kalemdeki konu sözlük konusuyla da karşılanır (kaba konu hariç: kedi ≠ köpek).
+  //  - Yok sayılan sözcük kalemle AYNI sözlük ailesindeyse (kaba konu dahil: "pets" ↔ "evcil hayvan") çevirisi olabilir → yalnız ikisi de parçada
+  //    harfiyen anılıyorsa tutulur ("Köpek ve kedi").
+  //  - Başka ailedeyse parça kalemin konusunu da anıyorsa tutulur; anmıyorsa misafirin dilindeki çeviri olabilir ("pazar" kalemi, "market").
+  //  - Ücret / izin / yüklem / nitelik / işlev sözcükleri ("free", "allowed", "und") konu değildir.
+  if (subjectKnown) {
+    const topicOf = (t: string) => {
+      const id = subjectIdentity(t);
+      return id.startsWith("topic:") && !COARSE_TOPICS.has(id.slice(6)) ? id.slice(6) : null;
+    };
+    const literal = (text: string, t: string) => hasSubject(text, { terms: [t], topics: [] });
+    // Uzun kalem metninin sözlük konuları çağrı içinde bir kez.
+    const topicsMemo = new Map<string, string[]>();
+    const topicsIn = (text: string) => {
+      let v = topicsMemo.get(text);
+      if (!v) topicsMemo.set(text, (v = topicsWithSymptomsOf(text)));
+      return v;
+    };
+    const mentions = (text: string, t: string) => {
+      const topic = topicOf(t);
+      return (topic !== null && topicsIn(text).includes(topic)) || literal(text, t);
+    };
+    // Önce parçada anılan aday sözcükler (kısa metin); kalem taraması yalnız aday varsa ve tembel (uzun kalemde her ihtiyaç için sözlük taraması
+    // ölçüldü: süre testleri 2-3 kat yavaşlıyordu).
+    const candidates = subj.terms.filter(
+      (t) =>
+        !(t.length < 3 || isNeutralWord(t) || isFiller(t, "") || FUNCTION_WORDS.has(t) || PREDICATE_WORDS.has(t) || grantWord(t) || isAttribute(t)) &&
+        !(FEE_ASPECT.test(t) || FEE_FREE.has(t) || FEE_PAID.has(t) || UNIT_ROOTS.some((r) => t.startsWith(r))) &&
+        mentions(input.part, t),
+    );
+    if (candidates.length > 0) {
+      const itemTexts = [...new Set([input.sourceText, ...[...hitDocs].filter((d) => d !== ev).map((d) => d.text)])];
+      const presentMemo = new Map<string, boolean>();
+      const isPresent = (t: string) => {
+        let v = presentMemo.get(t);
+        if (v === undefined) presentMemo.set(t, (v = itemTexts.some((x) => mentions(x, t))));
+        return v;
+      };
+      const absent = candidates.filter((t) => !isPresent(t));
+      if (absent.length > 0) {
+        const present = subj.terms.filter(isPresent);
+        const itemTopics = new Set(itemTexts.flatMap((x) => topicsIn(x)));
+        const partTopics = topicsIn(input.part);
+        const partHasPresent = present.some((t) => mentions(input.part, t) || topicsWithSymptomsOf(t).some((x) => partTopics.includes(x)));
+        const pt = tokenize(input.part);
+        for (const t of absent) {
+          // Aile parçadaki komşu sözcükle de okunur ("домашние" tek başına konu değil, "домашние животные" evcil hayvan).
+          const around = pt.flatMap((w, i) => (needTermsInStrict([t], w) > 0 ? [w, `${pt[i - 1] ?? ""} ${w}`, `${w} ${pt[i + 1] ?? ""}`] : []));
+          const sameFamily = [t, ...around].some((x) => topicsWithSymptomsOf(x).some((y) => itemTopics.has(y)));
+          if (sameFamily ? literal(input.part, t) && present.some((p) => literal(input.part, p)) : partHasPresent) {
+            issues.add("subject_missing");
+            break;
+          }
+        }
+      }
+    }
+  }
   const allowedFacilities = new Set([...facilitiesIn(input.sourceText), ...facilitiesIn(evidence), ...[...hitDocs].flatMap((d) => [...facilitiesIn(d.text)])]);
   if ([...facilitiesIn(input.part)].some((f) => !allowedFacilities.has(f))) issues.add("subject_mismatch");
   if (unsupportedContent(input.part, evidence, input.needTerms, { sourceText: input.sourceText, needTopics: input.needTopics })) issues.add("unsupported_content");
@@ -1824,6 +2153,18 @@ function existenceAnswer(tokens: readonly string[]): boolean {
       (t === "we" && tokens[i + 1] === "have"),
   );
 }
+/** İzin / açıklık / süreklilik bildiren sözcükler (kök başlangıcı en az 4 harf ya da tam): varlık cevabını izin cevabına çevirir. */
+const GRANT_ROOTS = (
+  "kabul izin serbest mumkun yapilabil kullanilabil kullanabil getirebil girebil acik allow permit welcome accept possib erlaub gestatt " +
+  "willkommen moglich autoris admis bienvenu aceptad bienvenid consent ammess accettat разреш допуска можно возможн принима open avail geoffnet " +
+  "offen ouvert abierto aperto открыт доступ always anytime immer toujours siempre sempre всегда круглосуточ toegesta permess يسمح مسموح"
+).split(" ");
+const grantWord = (t: string) => GRANT_ROOTS.some((r) => t === r || (r.length >= 4 && t.startsWith(r)));
+function grantsOrQualifies(tokens: readonly string[]): boolean {
+  return tokens.some(
+    (t, i) => GRANT_ROOTS.some((r) => t === r || (r.length >= 4 && t.startsWith(r))) || (t === "her" && tokens[i + 1] === "zaman") || (t === "all" && tokens[i + 1] === "day"),
+  );
+}
 /** İhtiyacın ücret sözcükleri ("ücretli mi", "fiyatı", "is it free"). */
 const FEE_ASPECT = /^(?:ucret|fiyat|price|cost|fee|free|paid|bedava|gebuhr|preis|kosten|prix|precio|gratis)/;
 /**
@@ -1836,16 +2177,22 @@ function restrictiveClaim(text: string, c: Span): boolean {
   if (c.cls !== "number") return false;
   const after = text.slice(c.end, c.end + 16);
   const before = text.slice(Math.max(0, c.at - 16), c.at);
-  return /^\s*(?:kg|kilo|lb|pound|[’'`]?y?[ae]\s+kadar|kadar)/iu.test(after) || /(?:fazla|maks\w*|max\w*|azami|up to|at most|en az|minimum)\s*$/iu.test(before);
+  // Yaş / adet sınırı da kısıttır (R9: "0-6 yaş arası çocuklar", "children under 6", "1 araç için").
+  return (
+    /^\s*(?:kg|kilo|lb|pound|[’'`]?y?[ae]\s+kadar|kadar|ya[sş]|age|years?|jahre|ans|a[nñ]os|лет|ara[cç]|car|vehicle|auto|fahrzeug|voiture|saat|hours?|stunden?|heures?|horas?|час|gece|nights?|n[aä]chte?|g[uü]n|days?|tage?|dakika|min)/iu.test(after) ||
+    /(?<!\p{L})(?:fazla|maks\w*|max\w*|azami|up to|at most|en az|minimum|under|over|below|above|unter|ab|moins de|plus de|menos de|до|младше|старше)\s*$/iu.test(before)
+  );
 }
 /** Kısıt sözcükleri (yalnız değersiz parçada): üst sınır ("en fazla", "maksimum", "up to", "at most") ve küçüklük ("küçük", "small"). */
-function restrictionClasses(tokens: readonly string[]): Set<"max" | "small"> {
-  const out = new Set<"max" | "small">();
+function restrictionClasses(tokens: readonly string[]): Set<"max" | "small" | "first"> {
+  const out = new Set<"max" | "small" | "first">();
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i];
     const next = tokens[i + 1] ?? "";
     if (/^(?:maks|max|azami|hochstens|hoechstens|максимум|maximal)/.test(t) || (t === "en" && /^fazla/.test(next)) || ((t === "up" || t === "at") && (next === "to" || next === "most")) || (t === "no" && next === "more")) out.add("max");
     if (/^(?:kucuk|small|little|klein|petit|pequen|piccol|маленьк|небольш)/.test(t)) out.add("small");
+    // "ilk gün / first night / erste Stunde" — ücretsizliğin ya da iznin sınırı (R9).
+    if (/^(?:ilk|first|erste|erst|premier|premiere|primer|primera|primo|prima|перв)/.test(t)) out.add("first");
   }
   return out;
 }
@@ -1854,15 +2201,30 @@ function restrictionClasses(tokens: readonly string[]): Set<"max" | "small"> {
  * Yönsüz kalem değerinin DOĞAL yönü (parça yalnız onu ekleyebilir): giriş saati başlangıç ("Check-in: 15:00" → "15:00'ten itibaren"), çıkış
  * saati bitiş ("en geç 11:00", "by 11:00"), kişi sayısı üst sınır ("4 kişiye kadar"). Konu yeri hem girişi hem çıkışı anıyorsa doğal yön yok.
  */
+/** Yerin giriş / çıkış adına göre doğal yön (giriş başlangıç, çıkış bitiş); ikisi de ya da hiçbiri yoksa null. */
+function checkInOutNatural(region: string): "start" | "end" | null {
+  const t = tokenize(region);
+  const checkIn = t.some((w, i) => /^giris/.test(w) || w === "checkin" || (w === "check" && t[i + 1] === "in") || w === "einchecken" || /^заезд/.test(w));
+  const checkOut = t.some((w, i) => /^cikis/.test(w) || w === "checkout" || (w === "check" && t[i + 1] === "out") || w === "auschecken" || /^выезд/.test(w));
+  return checkIn === checkOut ? null : checkIn ? "start" : "end";
+}
+
 function naturalDirection(c: Span, partDirs: ReadonlySet<"start" | "end">, region: string): boolean {
   if (partDirs.size !== 1) return false;
   const want = [...partDirs][0];
   if (c.cls === "people") return want === "end";
   if (c.cls !== "time") return false;
-  const t = tokenize(region);
-  const checkIn = t.some((w, i) => /^giris/.test(w) || w === "checkin" || (w === "check" && t[i + 1] === "in") || w === "einchecken" || /^заезд/.test(w));
-  const checkOut = t.some((w, i) => /^cikis/.test(w) || w === "checkout" || (w === "check" && t[i + 1] === "out") || w === "auschecken" || /^выезд/.test(w));
+  const t = tokenize(region.replace(KB_LINE_PREFIX, ""));
+  const inWord = (w: string, i: number) => /^giris/.test(w) || w === "checkin" || (w === "check" && t[i + 1] === "in") || w === "einchecken" || /^заезд/.test(w);
+  const outWord = (w: string, i: number) => /^cikis/.test(w) || w === "checkout" || (w === "check" && t[i + 1] === "out") || w === "auschecken" || /^выезд/.test(w);
+  const checkIn = t.some(inWord);
+  const checkOut = t.some(outWord);
   if (checkIn === checkOut) return false;
+  // Yalın etiket ("Giriş saati: 15:00", "Check-out 11:00"): yerde giriş / çıkış adı, saat adı ve nötr sözcük dışında sözcük varsa ("Giriş KAPISI
+  // 23:00", "Giriş İŞLEMLERİ 22:00", "Son giriş") doğal yön yoktur (Opus dilim sonu 10-23 R2).
+  // Yön sözcükleri nötrdür (kalemin kendi yönü ayrıca kıyaslanır: "Son giriş 23:00" bitiş, giriş için doğal değil).
+  const bare = t.every((w, i) => /\d/.test(w) || inWord(w, i) || outWord(w, i) || GENERIC_REGION_WORDS.has(w) || isNeutralWord(w) || w === "erken" || w === "gec" || isFiller(w, t[i - 1] ?? ""));
+  if (!bare) return false;
   return want === (checkIn ? "start" : "end");
 }
 
@@ -1880,6 +2242,7 @@ const KB_LINE_PREFIX = /^\s*-\s*\[[^\]\n]{1,40}\]/u;
 /** Konu yerinde niteleyici sayılmayan genel saat / zaman adları ("Çıkış saati 11:00" ↔ "Check-out: 11:00"). */
 /** Ücret adı (konu yerinde niteleyici sayılmaz: "Havuz ücreti 200 TL" ↔ "Havuz 300 TL" çelişir). */
 const FEE_WORD = /^(?:ucret|fiyat|price|cost|fee|preis|prix|precio|tarif)/;
+const MODAL_WORDS: ReadonlySet<string> = new Set("need needs must should have please kindly done alle".split(" "));
 const GENERIC_REGION_WORDS: ReadonlySet<string> = new Set(
   "saat saati saatler saatleri saatimiz time times uhrzeit zeit heure horaire horaires hora horario время".split(" "),
 );

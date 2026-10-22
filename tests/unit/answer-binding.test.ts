@@ -761,3 +761,134 @@ describe("Haiku 10-23 gece (821ce991 incelemesi)", () => {
     expect(run("Otopark günlük 200 TL.", "Parking is free of charge.", park).ok).toBe(false);
   });
 });
+
+describe("Opus dilim sonu 10-23 (c268349b incelemesi R1–R13)", () => {
+  const run = (src: string, part: string, q: string[], o: { evidence?: string; others?: string[] } = {}) =>
+    checkAnswerBinding({ part, evidence: o.evidence ?? src, sourceText: src, ...need(q), ...(o.others ? { otherSources: o.others } : {}) });
+  const POOLQ = ["havuz kaçta kapanıyor", "when does the pool close"];
+  const CI = ["giriş saati kaçta", "check-in time"];
+  const CO = ["çıkış saati kaçta", "checkout time"];
+  const PETQ = ["evcil hayvan kabul ediliyor mu", "are pets allowed"];
+
+  it("🚨 R1: sözlükte olmayan yön fiili kıyası atlatamaz ('açılır' → 'kapanır' her dilde tutulur); aksanlı yazım ve olumsuz sınır öbeği doğru okunur", () => {
+    const opens = "Havuz 09:00'da açılır.";
+    for (const part of ["Бассейн закрывается в 09:00.", "La piscina cierra a las 09:00.", "La piscine ferme à 09:00.", "يغلق المسبح الساعة 09:00.", "The pool and the sauna close at 09:00."]) {
+      expect(run(opens, part, POOLQ).issues, part).toContain("direction_mismatch");
+    }
+    expect(run("Kahvaltı 08:00'de başlar.", "Das Frühstück endet um 08:00 Uhr.", ["kahvaltı kaçta", "breakfast time"]).issues).toContain("direction_mismatch");
+    expect(run("Check-out en geç 11:00.", "Le départ est possible après 11:00.", CO).issues).toContain("direction_mismatch");
+    // Doğru cevaplar: Almanca "schließt" (ß), Fransızca "ferme à" (kapanır — olumsuzluk değil), "no later than" (bitiş).
+    expect(run("Havuz 20:00'de kapanır.", "Der Pool schließt um 20:00 Uhr.", POOLQ).ok).toBe(true);
+    expect(run("Havuz 20:00'de kapanır.", "La piscine ferme à 20:00.", POOLQ).ok).toBe(true);
+    expect(run("Check-out en geç 11:00.", "Please check out no later than 11:00.", CO).ok).toBe(true);
+    expect(run("Check-in 15:00'ten itibaren.", "Check-in is possible no earlier than 15:00.", CI).ok).toBe(true);
+  });
+
+  it("🚨 R2: 'son giriş' bitiştir; giriş kapısı / işlemleri doğal yön değildir", () => {
+    expect(run("Son giriş saati 23:00.", "Check-in is from 23:00.", CI).ok).toBe(false);
+    expect(run("Son giriş saati 23:00.", "Check-in is possible until 23:00.", CI).ok).toBe(true);
+    expect(run("Son giriş saati 23:00.", "The latest check-in time is 23:00.", CI).ok).toBe(true);
+    expect(run("Giriş işlemleri 22:00'de sona erer.", "Check-in starts at 22:00.", CI).ok).toBe(false);
+    expect(run("Giriş kapısı 23:00'te kilitlenir.", "Check-in is from 23:00.", CI).ok).toBe(false);
+    expect(run("Giriş saati: 15:00", "Check-in is from 15:00.", CI).ok).toBe(true);
+  });
+
+  it("🚨 R3: alt ↔ üst sınır değer başına kıyaslanır; alt sınır düşürülemez", () => {
+    const nights = ["en az kaç gece kalmam gerekiyor", "minimum nights"];
+    expect(run("Minimum konaklama 3 gecedir.", "The maximum stay is 3 nights.", nights).issues).toContain("direction_mismatch");
+    expect(run("Minimum konaklama 3 gecedir.", "En fazla 3 gece kalabilirsiniz.", nights).issues).toContain("direction_mismatch");
+    expect(run("Minimum konaklama 3 gecedir.", "The minimum stay is 3 nights.", nights).ok).toBe(true);
+    expect(run("Minimum konaklama 3 gecedir.", "You need to stay at least 3 nights.", nights).ok).toBe(true);
+    expect(run("Minimum konaklama 3 gecedir.", "The stay is 3 nights.", nights).issues).toContain("condition_dropped");
+    expect(run("En fazla 2 evcil hayvan kabul edilir.", "At least 2 pets are allowed.", ["kaç evcil hayvan", "how many pets"]).ok).toBe(false);
+  });
+
+  it("🚨 R4: kendi yüklemi olan yan cümle komşusunun yönünü almaz; devralınan yön değerin doğal yönüyle çelişemez", () => {
+    const BF = ["kahvaltı kaçta", "breakfast time"];
+    expect(run("Havuz 20:00'de kapanır, kahvaltı 08:00'de verilir.", "Breakfast is served until 08:00.", BF).ok).toBe(false);
+    expect(run("Havuz 20:00'de kapanır, kahvaltı 08:00'de verilir.", "Breakfast ends at 08:00.", BF).ok).toBe(false);
+    expect(run("Kahvaltı 08:00'de verilir, havuz 20:00'de kapanır.", "Kahvaltı 08:00'e kadar verilir.", BF).ok).toBe(false);
+    expect(run("Havuz 20:00'de kapanır, kahvaltı 08:00'de verilir.", "Breakfast is served at 08:00.", BF).ok).toBe(true);
+    expect(run("Resepsiyon 09:00'da açılır, check-out 11:00'de.", "Check-out is possible from 11:00.", CO).ok).toBe(false);
+    expect(run("Resepsiyon 09:00'da açılır, check-out 11:00'de.", "Check-out is at 11:00 at the latest.", CO).ok).toBe(true);
+    // Gerçek eksilti hâlâ okunur.
+    expect(run("Havuz 20:00'de kapanır, sauna 22:00'de.", "Sauna 22:00'de kapanır.", ["sauna kaçta kapanıyor", "when does the sauna close"]).ok).toBe(true);
+  });
+
+  it("🚨 R5: niteleyici değerin KENDİ yerinde aranır; diller arası niteleyici sözlüğü", () => {
+    const src = "Çıkış saati 11:00. Geç çıkış 13:00'e kadar mümkündür.";
+    expect(run(src, "Çıkış 13:00'e kadar, geç çıkış da mümkündür.", CO).ok).toBe(false);
+    expect(run(src, "Late check-out is possible until 13:00.", CO).ok).toBe(true);
+    const kids = "Havuz 20:00'de kapanır. Çocuk havuzu 18:00'de kapanır.";
+    expect(run(kids, "Havuz 18:00'de kapanır, çocuklar da kullanabilir.", POOLQ).ok).toBe(false);
+    expect(run(kids, "The children's pool closes at 18:00.", POOLQ).ok).toBe(true);
+  });
+
+  it("🚨 R6: varlık muafiyeti yalnız SAF varlık cevabında; izin / açıklık bildiren parça her kısıtı taşır", () => {
+    const kg = "10 kg'a kadar evcil hayvan kabul edilir.";
+    expect(run(kg, "Yes, we have a pet-friendly apartment and pets are welcome.", PETQ).ok).toBe(false);
+    expect(run(kg, "Evet, evcil hayvan kabulümüz var.", PETQ).ok).toBe(false);
+    const P = ["havuz var mı", "is there a pool"];
+    expect(run("Havuz 09:00-20:00 arası açıktır.", "Yes, there is a pool, open all day.", P).ok).toBe(false);
+    expect(run("Havuz 09:00-20:00 arası açıktır.", "Evet, havuz var.", P).ok).toBe(true);
+  });
+
+  it("🚨 R7: diller arası ihtiyaç / değer yan cümlesine eklenen olgu tutulur; düz çeviri gider", () => {
+    const pets = "Evcil hayvan kabul edilir.";
+    expect(run(pets, "Pets are allowed, and pets may stay alone in the apartment.", PETQ).ok).toBe(false);
+    expect(run(pets, "Pets are welcome; pets can sleep on the sofa.", PETQ).ok).toBe(false);
+    expect(run("Havuz 20:00'de kapanır.", "Der Pool schließt um 20:00 Uhr, der Pool ist beheizt.", POOLQ).ok).toBe(false);
+    expect(run("Havuz 20:00'de kapanır.", "Der Pool und der Aufenthaltsraum schließen um 20:00 Uhr.", POOLQ).ok).toBe(false);
+    expect(run("Havuz 20:00'de kapanır.", "The pool and the bar close at 20:00.", POOLQ).ok).toBe(false);
+    expect(run("Havuz 21:00'den sonra kullanılamaz.", "The pool can't be used after 21:00.", ["havuz", "pool"]).ok).toBe(true);
+    expect(run("Evcil hayvan kabul edilmez.", "Домашние животные не допускаются.", [...PETQ, "домашние животные допускаются?"]).ok).toBe(true);
+    const de = "Havuz her gün 20:00'de, sauna 22:00'de kapanır. Hafta sonu havuz 23:00'e kadar açıktır.";
+    expect(run(de, "Der Pool schließt täglich um 20:00 Uhr; am Wochenende ist er bis 23:00 Uhr geöffnet. Eine Sauna gibt es ebenfalls; sie schließt um 22:00 Uhr.", ["Wann schließt der Pool und gibt es eine Sauna?"]).ok).toBe(true);
+  });
+
+  it("🚨 R9: ücret sorusunda ücretsizliğin kendi sınırı (süre / yaş / adet / 'ilk') düşürülemez", () => {
+    const park = ["otopark ücretli mi", "is parking free"];
+    expect(run("Otopark ilk 2 saat ücretsizdir.", "Otopark ücretsizdir.", park).issues).toContain("condition_dropped");
+    expect(run("Otopark 3 saate kadar ücretsizdir.", "Parking is free of charge.", park).ok).toBe(false);
+    expect(run("0-6 yaş arası çocuklar ücretsizdir.", "Children stay free of charge.", ["çocuk ücretli mi", "are children free"]).ok).toBe(false);
+    expect(run("İlk gün kahvaltı ücretsizdir.", "Kahvaltı ücretsizdir.", ["kahvaltı ücretli mi"]).ok).toBe(false);
+    // Saat başka sorunun cevabıdır.
+    expect(run("Otopark 08:00-22:00 arası açıktır ve ücretsizdir.", "Otopark ücretsizdir.", park).ok).toBe(true);
+  });
+
+  it("🚨 R10: günün saati / 'her zaman' dolgu değildir — 'gece de kullanabilirsiniz' olgu ekler", () => {
+    const P = "Havuz 20:00'de kapanır.";
+    expect(run(P, "Havuz 20:00'de kapanır; gece de kullanabilirsiniz.", POOLQ).ok).toBe(false);
+    expect(run(P, "Havuz 20:00'de kapanır, ama havuzu her zaman kullanabilirsiniz.", POOLQ).ok).toBe(false);
+    expect(run(P, "Der Pool schließt um 20:00 Uhr, Sie können ihn aber jederzeit nutzen.", POOLQ).ok).toBe(false);
+  });
+
+  it("R12: doğal giriş / çıkış cevapları ve İspanyolca 'salida' tutulmaz; '№' olumsuzluk değildir", () => {
+    const block = "Adres: Lale Sokak 1\nCheck-in saati: 15:00\nCheck-out saati: 11:00";
+    for (const part of ["Check-out time is 11:00.", "You need to check out by 11:00.", "Check-out must be done by 11:00.", "La salida es a las 11:00.", "Check-out è alle 11:00."]) {
+      expect(run(block, part, CO, { evidence: "Check-out saati: 11:00" }).ok, part).toBe(true);
+    }
+    expect(run(block, "Check-in time is 15:00.", CI, { evidence: "Check-in saati: 15:00" }).ok).toBe(true);
+    expect(run("Otopark yeriniz 12 numaradır.", "Ваше парковочное место № 12.", ["otopark yeri", "парковка"]).issues).not.toContain("polarity_mismatch");
+  });
+
+  it("🚨 R13: ihtiyacın kalemde olmayan ikinci konusu anılamaz; çeviri çifti ve ücret sözcüğü konu sayılmaz", () => {
+    const P = "Havuz 20:00'de kapanır.";
+    const two = ["havuz ve resepsiyon kaçta kapanıyor", "when do the pool and reception close"];
+    expect(run(P, "The pool and the reception close at 20:00.", two).ok).toBe(false);
+    expect(run(P, "Havuz ve resepsiyon 20:00'de kapanır.", two).ok).toBe(false);
+    expect(run("Köpek kabul edilir.", "Köpek ve kedi kabul edilir.", ["köpek ve kedi kabul ediliyor mu"]).ok).toBe(false);
+    const smoke = ["balkonda sigara içilebilir mi", "can I smoke on the balcony"];
+    expect(run("Dairede sigara içmek yasaktır.", "Smoking is not allowed inside, but it is allowed on the balcony.", smoke).ok).toBe(false);
+    expect(run("Evcil hayvan kabul edilir.", "Yes, pets are allowed and can stay in the garden.", ["evcil hayvan bahçede kalabilir mi", "can the dog stay in the garden"]).ok).toBe(false);
+    // Çeviri çifti / ücret sözcüğü.
+    expect(run("Evcil hayvan kabul edilmez.", "Pets are not allowed.", PETQ).ok).toBe(true);
+    expect(run("Otopark ücretsizdir.", "Parking is free.", ["otopark ücretli mi", "is parking free"]).ok).toBe(true);
+    expect(run("Semt pazarı 500 m uzakta.", "The local market is 500 m away.", ["pazar nerede", "where is the market"]).ok).toBe(true);
+  });
+
+  it("R13: değersiz izin cevabında her izin / yasak yan cümlesi kalemin olumluluğunda", () => {
+    expect(run("Evcil hayvan kabul edilmez.", "Pets are not allowed, but small pets are welcome.", PETQ).issues).toContain("polarity_mismatch");
+    expect(run("Evcil hayvan kabul edilmez.", "Unfortunately pets are not allowed.", PETQ).ok).toBe(true);
+  });
+});

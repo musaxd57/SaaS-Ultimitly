@@ -77,3 +77,24 @@ describe("answer-binding maliyet — Opus güvenlik 10-23 F4", () => {
     expect(performance.now() - t0).toBeLessThan(2500);
   });
 });
+
+describe("answer-binding maliyet — Opus dilim sonu 10-23 R8", () => {
+  it("🚨 çok konulu ihtiyaç + virgülle dizilmiş yüzlerce değer: değer yerinin konu kimlikleri parça başına bir kez (eski: ihtiyaç başına 2,4 sn)", () => {
+    const hh = (i: number) => `${String(Math.floor(i / 60) % 24).padStart(2, "0")}:${String(i % 60).padStart(2, "0")}`;
+    let src = "Havuz ve sauna saatleri: ";
+    let n = 0;
+    for (; n < 380; n++) {
+      const add = `saat ${hh(n)}, `;
+      if (src.length + add.length > 4950) break;
+      src += add;
+    }
+    src += "kapanır.";
+    const vals: string[] = [];
+    for (let j = n - 1; j >= 0 && ("Havuz ve sauna " + vals.join(", ")).length < 585; j--) vals.unshift(hh(j));
+    const part = `Havuz ve sauna ${vals.join(", ")}.`;
+    const q = ["havuz ve sauna kaçta kapanıyor", "when do the pool and sauna close"];
+    const t0 = performance.now();
+    checkAnswerBinding({ part, evidence: src, sourceText: src, needTerms: needTerms(q), needTopics: ["pool"] });
+    expect(performance.now() - t0).toBeLessThan(1200);
+  });
+});
