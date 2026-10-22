@@ -1603,6 +1603,28 @@ describe("CEVAP PARÇALARI (kurucu 10-23 A, AI_ANSWER_PARTS_ENABLED)", () => {
     expect(rows.find((i) => i.kind === "amenities")?.status).not.toBe("answered");
   });
 
+  it("🚨 hiçbir parça doğrulanmadı: misafire hiçbir şey gitmez, ev sahibine TEK 'Misafir cevabınızı bekliyor' e-postası (Haiku 10-23)", async () => {
+    vi.stubEnv("AI_ANSWER_PARTS_ENABLED", "1");
+    const { conversationId } = await seed("Çıkış saat kaçta? Sauna var mı?");
+    understands(twoNeeds());
+    mockSuggest.mockResolvedValueOnce(
+      verdict({
+        intent: "checkout_time",
+        reply: "",
+        answeredRequests: { ok: true, refs: [] },
+        answerParts: [
+          { ref: "R1", status: "no_info" },
+          { ref: "R2", status: "no_info" },
+        ],
+      }),
+    );
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(mockMail).toHaveBeenCalledTimes(1);
+    expect((await itemsOf(conversationId)).every((i) => i.status !== "answered")).toBe(true);
+  });
+
   it("anahtar kapalı: cevap modeline parça kipi GİTMEZ (girdi bugünküyle aynı)", async () => {
     const { conversationId } = await seed("Çıkış saat kaçta? Sauna var mı?");
     understands(twoNeeds());

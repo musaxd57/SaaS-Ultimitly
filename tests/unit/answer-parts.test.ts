@@ -37,14 +37,14 @@ describe("anahtar", () => {
 
 describe("beyan — STRICT", () => {
   const refs = ["R1", "R2"];
-  it("dizi değil → missing; bozuk kayıt → malformed; bilinmeyen kimlik → unknown_ref; ikinci kayıt yok sayılır", () => {
+  it("dizi değil → missing; bozuk / tanınmayan / tekrar eden kayıt TEK TEK atlanır (tek 'R0' öteki parçaları düşürmez)", () => {
     expect(parseAnswerParts(undefined, refs)).toEqual({ ok: false, reason: "missing" });
-    expect(parseAnswerParts([{ ref: "R1", status: "maybe" }], refs)).toEqual({ ok: false, reason: "malformed" });
-    expect(parseAnswerParts(["R1"], refs)).toEqual({ ok: false, reason: "malformed" });
-    expect(parseAnswerParts([{ ref: "R9", status: "answered", text: "x", evidence: "y" }], refs)).toEqual({ ok: false, reason: "unknown_ref" });
     expect(
       parseAnswerParts(
         [
+          { ref: "R0", status: "answered", text: "x", evidence: "y" },
+          { ref: "R2", status: "maybe" },
+          "R1",
           { ref: "R1", status: "answered", text: " A ", evidence: " B " },
           { ref: "R1", status: "no_info" },
         ],
@@ -212,5 +212,55 @@ describe("suggestReply — parça kipi", () => {
     expect(on.partSources?.[2].text).toContain("Check-out saati: 11:00");
     const { parts: _p, ...noParts } = ITEMS;
     expect("partSources" in buildReplyPrompt({ ...input, conversationItems: noParts })).toBe(false);
+  });
+});
+
+describe("suggestReply — parça kipi, Haiku 10-23 düzeltmeleri", () => {
+  beforeEach(() => vi.stubEnv("OPENAI_API_KEY", "test-key"));
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+  const R1 = { ref: "R1", status: "answered", text: "Çıkış saati 11:00.", evidence: "Check-out saati: 11:00" };
+
+  it("🚨 modelin serbest reply'ı boş olsa da doğrulanan parça gider (yedeğe düşmez)", async () => {
+    openAiReturns({ ...MODEL, reply: "", answers: [R1] });
+    const r = await suggestReply({ ...input, conversationItems: ITEMS });
+    expect(r.source).toBe("openai");
+    expect(r.reply).toBe("Çıkış saati 11:00.");
+    expect(r.answeredRequests).toEqual({ ok: true, refs: ["R1"] });
+  });
+
+  it("hiçbir parça doğrulanmadıysa metin BOŞ — kodun selamı da eklenmez", async () => {
+    vi.stubEnv("AI_CODE_GREETING_ENABLED", "1");
+    openAiReturns({ ...MODEL, answers: [{ ref: "R1", status: "no_info", text: "", evidence: "" }] });
+    const r = await suggestReply({ ...input, conversationItems: ITEMS });
+    expect(r.reply).toBe("");
+    expect(r.answeredRequests).toEqual({ ok: true, refs: [] });
+  });
+
+  it("kaynak beyanı yalnız doğrulanan parçanın kaynağı (atılan serbest metnin beyanı değil)", async () => {
+    openAiReturns({ ...MODEL, usedSources: ["kb:rules", "kb:wifi", "property:checkOutTime"], answers: [R1] });
+    const r = await suggestReply({ ...input, conversationItems: ITEMS });
+    expect(r.usedSources).toEqual(["property:checkOutTime"]);
+  });
+
+  it("🚨 birleşik metin de gönderim tavanına (2000) tabi: aşarsa güven ≤ 0.5 → otomatik gitmez", async () => {
+    const body = (i: number) => `Bahçe ${["bir", "iki", "üç", "dört"][i]} misafirlere açıktır ve ${"bahçede dinlenebilir, kitap okuyabilir, çay içebilirsiniz; ".repeat(8)}`.trim();
+    const kb = [0, 1, 2, 3].map((i) => ({ category: "amenities", title: `Bahçe ${i}`, content: body(i) }));
+    const items: ReplyItemsInput = {
+      answerable: [0, 1, 2, 3].map((i) => ({ ref: `R${i + 1}`, kind: "amenities" as const, hint: "bahçe", need: { terms: needTerms(["bahçe"]), topics: [] } })),
+      held: [],
+      parts: true,
+    };
+    openAiReturns({ ...MODEL, answers: [0, 1, 2, 3].map((i) => ({ ref: `R${i + 1}`, status: "answered", text: body(i), evidence: body(i) })) });
+    const r = await suggestReply({ ...input, knowledgeBase: kb, conversationItems: items });
+    expect(r.answeredRequests).toEqual({ ok: true, refs: ["R1", "R2", "R3", "R4"] });
+    expect(r.confidence).toBeLessThanOrEqual(0.5);
+  });
+
+  it("mülk bilgisindeki kodun '(belirtilmemiş …)' işareti alıntılanabilir kaynak değildir", () => {
+    const on = buildReplyPrompt({ ...input, conversationItems: ITEMS });
+    expect(on.partSources?.find((s) => s.id === "property")?.text).not.toContain("belirtilmemiş");
   });
 });

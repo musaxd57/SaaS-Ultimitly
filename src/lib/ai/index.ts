@@ -548,8 +548,12 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
   if (raw) {
     try {
       const parsed = JSON.parse(raw) as Record<string, unknown>;
-      if (parsed && typeof parsed.reply === "string" && parsed.reply.trim()) {
-        const cappedReply = capReply(parsed.reply);
+      // Parça kipinde (kurucu 10-23 A) misafire giden metni kod kurar → modelin serbest `reply`ı boş olabilir (Haiku 10-23: boş reply
+      // doğrulanmış parçaları yedeğe düşürüyordu). Kip dışında bugünkü kural: reply şart.
+      const partsMode = input.conversationItems?.parts === true;
+      const replyRaw = typeof parsed?.reply === "string" ? parsed.reply : partsMode ? "" : null;
+      if (parsed && replyRaw !== null && (replyRaw.trim() || partsMode)) {
+        const cappedReply = capReply(replyRaw);
         const priorityRaw = String(parsed.priority ?? "standard");
         const priority: Priority = (["urgent", "standard", "low"] as const).includes(
           priorityRaw as Priority,
@@ -607,19 +611,30 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
           ? (() => {
               const refs = items.answerable.map((a) => a.ref);
               const decl = parseAnswerParts(parsed.answers, refs);
-              if (!decl.ok) return { reply: "", answered: { ok: false as const, reason: decl.reason === "unknown_ref" ? ("unknown_ref" as const) : ("missing" as const) }, verdicts: [] };
+              if (!decl.ok) return { reply: "", answered: { ok: false as const, reason: "missing" as const }, verdicts: [], sources: [] as string[] };
               const composed = composeVerifiedReply({
                 parts: decl.parts,
                 needs: items.answerable.map((a) => ({ ref: a.ref, terms: a.need?.terms ?? [], topics: a.need?.topics ?? [] })),
                 sources: prompt.partSources ?? [],
               });
-              return { reply: composed.reply, answered: { ok: true as const, refs: composed.refs }, verdicts: composed.verdicts };
+              const sources = composed.verdicts.flatMap((v) => (v.status === "verified" ? [v.source] : []));
+              return { reply: composed.reply, answered: { ok: true as const, refs: composed.refs }, verdicts: composed.verdicts, sources };
             })()
           : null;
-        const replyText = partsOutcome ? partsOutcome.reply : cappedReply.text;
+        // Birleşik metin de aynı tavana tabi (Haiku 10-23: beş uzun parça tavanı aşıyordu); kesilirse güven ≤ 0.5 → gitmez.
+        const shown = partsOutcome ? capReply(partsOutcome.reply) : cappedReply;
+        const replyText = shown.text;
+        // Kaynak beyanı parça kipinde YALNIZ doğrulanan parçaların kaynaklarından (atılan serbest metnin beyanı değil).
+        const partsKbCategories = partsOutcome
+          ? new Set(partsOutcome.sources.flatMap((id) => (id.startsWith("kb:") ? [input.knowledgeBase[Number(id.slice(3)) - 1]?.category ?? ""] : [])))
+          : null;
+        const partsUsesProperty = partsOutcome?.sources.includes("property") === true;
+        const usedSourcesShown = partsKbCategories
+          ? verified.filter((v) => (v.startsWith("kb:") ? partsKbCategories.has(v.slice(3)) : v.startsWith("property:") ? partsUsesProperty : false))
+          : verified;
         return {
           intent: intentKnown ? intentRaw : "general",
-          confidence: cappedReply.truncated
+          confidence: shown.truncated
             ? // KESİLMİŞ YANIT ASLA OTOMATİK GİTMEZ. Kapı confidence ≥ 0.75
               // ister; 0.5'e kıstığımızda yanıt taslak olarak host'a görünür
               // ama misafire gönderilmez. (↑capReply gerekçesi.)
@@ -632,9 +647,12 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
           // per-field). ↑capReply: iki eşik, biri gönderim biri saklama.
           // "Talimat yok" yan cümlesi misafire yazılmaz (kurucu 10-17, `no-instruction-filler.ts`); selamdan ÖNCE, her yolda aynı. Kurucu T1
           // (10-21): silme ancak kalan yönergenin bilgi tabanında DAYANAĞI varsa — yoksa cevap aynen kalır, "bilgim yok" kuralı tutar.
-          reply: codeGreetingEnabled()
-            ? codeGreetingReply(stripNoInstructionFillerGrounded(replyText, normalizeLang(parsed.detectedLanguage), kbTextsOf(input)), input, parsed.detectedLanguage)
-            : stripNoInstructionFillerGrounded(replyText, normalizeLang(parsed.detectedLanguage), kbTextsOf(input)),
+          // Doğrulanan parça yoksa metin BOŞ kalır — kodun selamı eklenmez (Haiku 10-23: yalnız "Merhaba," okuyucuya gidiyordu).
+          reply: !replyText.trim()
+            ? ""
+            : codeGreetingEnabled()
+              ? codeGreetingReply(stripNoInstructionFillerGrounded(replyText, normalizeLang(parsed.detectedLanguage), kbTextsOf(input)), input, parsed.detectedLanguage)
+              : stripNoInstructionFillerGrounded(replyText, normalizeLang(parsed.detectedLanguage), kbTextsOf(input)),
           risk:
             typeof parsed.risk === "string" && parsed.risk.trim()
               ? parsed.risk.slice(0, 300)
@@ -656,7 +674,7 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
             typeof parsed.riskType === "string" && RISK_TYPES.has(parsed.riskType)
               ? parsed.riskType
               : null,
-          usedSources: verified,
+          usedSources: usedSourcesShown,
           // A2: BEYAN ↔ DOĞRULANAN yan yana. `verifyUsedSources` uydurma atıfı
           // zaten eliyordu ama KAÇ TANE elediği hiçbir yere yazılmıyordu; fark
           // canlıda "model olmayan bir kaynağa dayandığını söyledi" sinyalidir.

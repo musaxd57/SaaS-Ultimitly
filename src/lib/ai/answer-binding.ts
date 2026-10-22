@@ -36,6 +36,7 @@
 import "server-only";
 
 import { claimSpans } from "@/lib/ai/claim-support";
+import { confidentLanguage, languageEvidence } from "@/lib/ai/language-signal";
 import { tokenize } from "@/lib/ai/retrieval/text";
 import { quoteGroundedIn } from "@/lib/ai/semantic/absence-judge";
 import { baseForms, needTermsInStrict } from "@/lib/conversation-items/topic-absence";
@@ -53,6 +54,7 @@ export const BINDING_ISSUES = [
   "variant_omitted",
   "polarity_mismatch",
   "direction_mismatch",
+  "unsupported_content",
 ] as const;
 export type BindingIssue = (typeof BINDING_ISSUES)[number];
 
@@ -685,6 +687,62 @@ function documentOf(raw: string, subj: Subject) {
   return { text, sentences, subjectIn, boundAt, placeOf, hasSubjectAnywhere };
 }
 
+// ─── dayanaksız içerik (Haiku 10-23 F3: "Havuz 09:00-20:00 arası açık VE ÜCRETSİZDİR" alıntıda olmayan sözcükle gidiyordu) ─────────
+
+/** İçerik sayılmayan nezaket / dolgu sözcükleri (katlanmış; kök başlangıcı en az 4 harf, kısa olanlar tam). İddia sözcüğü ("free", "ücretsiz") YOK. */
+const FILLER_ROOTS = (
+  "merhaba selam tabii elbette evet hayir maalesef lutfen rica tesekkur iyi keyifli tatil gunler size sizin sizi bize bizim burada orada " +
+  "bulun yer alir almaktadir mevcut kullan dile istediginiz isterseniz zaman her gun aksam sabah gece ogle olarak icin ayrica ancak hemen " +
+  "yaklasik herhangi bir tum ilgili konuda aylar sezon donem " +
+  "hello sure please thank enjoy your stay you there here located available use welcome also just note kindly would like can will " +
+  "every daily the this that these those our are have has get " +
+  "hallo gerne bitte danke ihnen ihr wir unser gibt befindet steht nutzen konnen jeden taglich"
+).split(" ");
+function isFiller(t: string, prev: string): boolean {
+  if (t === "free" && prev === "feel") return true;
+  if (t === "feel") return true;
+  return FILLER_ROOTS.some((r) => t === r || (r.length >= 4 && t.startsWith(r)));
+}
+
+/** Aynı kök mü: çekim biçimleri kesişir ya da ortak baş ≥ 4 harf (kısa sözcükte tamamı) — "-lı / -sız" ayrımı korunur (ücretli ≠ ücretsiz). */
+function sameStem(a: string, b: string): boolean {
+  if (a === b) return true;
+  const fa = baseForms(a);
+  for (const f of baseForms(b)) if (fa.has(f)) return true;
+  let cp = 0;
+  while (cp < a.length && cp < b.length && a[cp] === b[cp]) cp++;
+  // Türkçe kökler kısa ("gir-", "kira-"): ortak baş 4 harf yeter; olumluluk ayrımı zaten olumsuzluk kontrolündedir.
+  if (cp < Math.min(4, Math.min(a.length, b.length))) return false;
+  const privative = (x: string) => /^s[iu]z/.test(x);
+  return privative(a.slice(cp)) === privative(b.slice(cp));
+}
+
+function languageOf(text: string): string | null {
+  const c = confidentLanguage(text);
+  if (c) return c;
+  const ev = languageEvidence(text);
+  if (ev.size === 1) return [...ev][0];
+  // Yalnız Türkçeye özgü harf (ğ ı ş İ — ö / ü Almancada da var): kısa Türkçe parça da kıyaslanır.
+  return /[ğışĞİŞ]/u.test(text) ? "tr" : null;
+}
+
+/**
+ * Parçada alıntının taşımadığı içerik sözcüğü var mı — YALNIZ parça ve alıntı aynı dildeyse (çeviride sözcük kıyası anlamsız; o
+ * yol kıdemli okuyucunun kanıt şartında). İçerik = en az 4 harf, rakamsız, nötr / koşul / olumsuzluk / dolgu değil, ihtiyacın kendi
+ * sözcüğü değil.
+ */
+export function unsupportedContent(part: string, evidence: string, needTerms: readonly string[]): boolean {
+  const lp = languageOf(part);
+  if (!lp || lp !== languageOf(evidence)) return false;
+  const ev = tokenize(evidence);
+  const pt = tokenize(part);
+  return pt.some((t, i) => {
+    if (t.length < 4 || /\d/.test(t) || isNeutralWord(t) || isFiller(t, pt[i - 1] ?? "")) return false;
+    if (needTerms.length > 0 && needTermsInStrict(needTerms, t) > 0) return false;
+    return !ev.some((e) => sameStem(t, e));
+  });
+}
+
 // ─── ana kural ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 export function checkAnswerBinding(input: BindingInput): BindingResult {
@@ -763,6 +821,7 @@ export function checkAnswerBinding(input: BindingInput): BindingResult {
     if (places.length === 0) issues.add("subject_missing");
     else checkPlace({ ...readPlace(places.join(" . ")), directions: new Set() });
   }
+  if (unsupportedContent(input.part, evidence, input.needTerms)) issues.add("unsupported_content");
   const list = BINDING_ISSUES.filter((i) => issues.has(i));
   return { ok: list.length === 0, issues: list };
 }

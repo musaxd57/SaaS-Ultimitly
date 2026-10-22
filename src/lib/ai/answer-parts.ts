@@ -37,28 +37,28 @@ export interface AnswerPart {
   evidence: string;
 }
 
-export type AnswerPartsDeclaration = { ok: true; parts: AnswerPart[] } | { ok: false; reason: "missing" | "malformed" | "unknown_ref" };
+export type AnswerPartsDeclaration = { ok: true; parts: AnswerPart[] } | { ok: false; reason: "missing" };
 
 /** Parça metni / alıntı tavanı (karakter). Uzun parça doğrulanamaz sayılır — bir isteğin cevabı birkaç cümledir. */
 export const PART_TEXT_MAX = 600;
 export const PART_EVIDENCE_MAX = 600;
 
 /**
- * Modelin `answers` alanını STRICT çözer: dizi değilse "missing"; tanınmayan istek kimliği "unknown_ref"; bozuk kayıt "malformed" (kapı
- * tutar — eksik beyan cevaplandı sayılmaz). Aynı kimliğin ikinci kaydı yok sayılır (ilk kayıt geçerli).
+ * Modelin `answers` alanını çözer: dizi değilse "missing" (kapı tutar). Bozuk kayıt, tanınmayan istek kimliği ve aynı kimliğin ikinci
+ * kaydı TEK TEK atlanır (Haiku 10-23: tek bir "R0" bütün doğrulanmış parçaları düşürüyordu) — atlanan kayıt hiçbir isteği cevaplamaz,
+ * misafire giden metne giremez; güvenli yön.
  */
 export function parseAnswerParts(raw: unknown, refs: readonly string[]): AnswerPartsDeclaration {
   if (!Array.isArray(raw)) return { ok: false, reason: "missing" };
   const parts: AnswerPart[] = [];
   for (const x of raw) {
-    if (!x || typeof x !== "object") return { ok: false, reason: "malformed" };
+    if (!x || typeof x !== "object") continue;
     const r = x as Record<string, unknown>;
-    if (typeof r.ref !== "string") return { ok: false, reason: "malformed" };
-    if (!refs.includes(r.ref)) return { ok: false, reason: "unknown_ref" };
-    if (!(ANSWER_PART_STATUSES as readonly unknown[]).includes(r.status)) return { ok: false, reason: "malformed" };
+    if (typeof r.ref !== "string" || !refs.includes(r.ref)) continue;
+    if (!(ANSWER_PART_STATUSES as readonly unknown[]).includes(r.status)) continue;
+    if (parts.some((p) => p.ref === r.ref)) continue;
     const text = typeof r.text === "string" ? r.text.trim() : "";
     const evidence = typeof r.evidence === "string" ? r.evidence.trim() : "";
-    if (parts.some((p) => p.ref === r.ref)) continue;
     parts.push({ ref: r.ref, status: r.status as AnswerPartStatus, text, evidence });
   }
   return { ok: true, parts };

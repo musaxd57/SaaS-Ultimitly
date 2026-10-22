@@ -2821,6 +2821,11 @@ export async function applyChannelAutoReply(
   // Haiku tur 2: anlama katmanı mesajdaki BÜTÜN istekleri müsaitlik (ya da selam) görmeli — "15 Ekim müsait mi, wifi şifresi nedir"
   // ikinci soruyu sessizce düşürmesin; dil KODLA belirlenmeli (modelin dil tahminine düşülmez); modelin kendi niyet etiketi riskli
   // değilse (şikâyet / iade … etiketi kod metniyle ezilmesin).
+  // Cevap parçaları kipinde (10-23 A) modelin beyanı yalnız DOĞRULANAN parçalardır; kod metni (müsaitlik / uzatma) cevabın yerine
+  // geçince o türün istekleri cevaplandı sayılır (Haiku 10-23: model "no_info" dediğinde beyan boş kalıyor, kod metni tutuluyordu).
+  // Parça kipi dışında modelin beyanı aynen (bugünkü davranış).
+  const partsCodeTextRefs = (kind: string) =>
+    replyItems?.parts ? { answeredRequests: { ok: true as const, refs: replyItems.answerable.filter((a) => a.kind === kind).map((a) => a.ref) } } : {};
   // Kaynak / asistan sorusu (kurucu 10-23) ikinci konu sayılmaz: kendisi panelde açık kalır, yanındaki soru onun yüzünden tutulmaz.
   const understoodOnlyAvailability =
     !!understood &&
@@ -2834,7 +2839,7 @@ export async function applyChannelAutoReply(
     if (lang && singleQuestion && verifiedAvailabilityUsable(verifiedAvailabilityRun.va, verifiedAvailabilityRun.scope, now)) {
       const text = verifiedAvailabilityText(verifiedAvailabilityRun.va, lang, todayKey(now, orgTimezone(org.timezone)));
       if (text) {
-        const vaResult = { ...verifiedEarlyCheckinResult(result, text), intent: "availability" };
+        const vaResult = { ...verifiedEarlyCheckinResult(result, text), intent: "availability", ...partsCodeTextRefs("availability") };
         const vaContext: AutoReplyGateContext = { ...gateContext, verifiedAvailability: { text }, stayGuard: await stayGuardFor(text) };
         if (autoReplyGateFailure(vaResult, last.body, vaContext) === null) {
           result = vaResult;
@@ -2871,7 +2876,7 @@ export async function applyChannelAutoReply(
     if (lang && singleQuestion && verifiedAvailabilityUsable(verifiedExtensionRun.va, verifiedExtensionRun.scope, now)) {
       const text = verifiedExtensionText(verifiedExtensionRun.va, lang, todayKey(now, orgTimezone(org.timezone)));
       if (text) {
-        const exResult = { ...verifiedEarlyCheckinResult(result, text), intent: "extend_stay" };
+        const exResult = { ...verifiedEarlyCheckinResult(result, text), intent: "extend_stay", ...partsCodeTextRefs("extend_stay") };
         const exContext: AutoReplyGateContext = { ...gateContext, verifiedExtension: { text }, stayGuard: await stayGuardFor(text) };
         if (autoReplyGateFailure(exResult, last.body, exContext) === null) {
           result = exResult;
@@ -3179,6 +3184,10 @@ export async function applyChannelAutoReply(
   // Kurucu kararı 10-01 (`AI_HOST_DECISION_HOLD_ENABLED`): hassas konaklama isteğinde tutulan doğrulanmış erteleme de devir
   // tutuşudur — misafire bir şey gitmedi, ev sahibi kararı bekliyor (aynı tek bildirim).
   const handoffHeld = result.source === "openai" && (carriesHandoffNotice(result.reply) || stayEval.deferralHeld === true);
+  // Cevap parçaları kipi (10-23 A): hiçbir parça doğrulanamadı → misafire hiçbir şey gitmedi ve "ev sahibine soracağım" cümlesi de
+  // YAZILMADI (kip onu üretmez). Ev sahibi bugünkü devir tutuşundaki gibi mesaj başına BİR "Misafir cevabınızı bekliyor" e-postası alır
+  // (Haiku 10-23: tur sessiz kalıyordu). Kısmen doğrulanan turda giden metin var; açık istek panelde.
+  const partsNothingVerified = replyItems?.parts === true && result.source === "openai" && !result.reply.trim() && (result.answerParts?.length ?? 0) > 0;
   if (!gatePassed) {
     // ── KONUŞMA ÖĞELERİ — TUTULAN TUR (kurucu kararları 09-26) ───────────────────────────────────────────────────
     // Acil / enjeksiyon turu bugünkü yoldan (Sorunlu + acil e-posta): öğeler tutulur, e-postayı bugünkü yol atar.
@@ -3238,7 +3247,7 @@ export async function applyChannelAutoReply(
           if (turnDecisions.length > 0) await notifyDecisions();
           // Kaynak / asistan sorusu (kurucu 10-23) tek başına tutulduysa "Misafir cevabınızı bekliyor" e-postası da YOK — panelde açık.
           if (notice.held.length === 0 && notice.quiet.length === 0 && !turnCardsOpen) {
-            if (handoffHeld) {
+            if (handoffHeld || partsNothingVerified) {
               await notifyHostReplyWaiting({
                 organizationId: conversation.property.organizationId,
                 conversation,

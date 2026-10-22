@@ -270,6 +270,18 @@ describe("doğrulanmış müsaitlik otomatik cevabı — koddan kurulan metin", 
     expect(open.find((i) => i.kind === "about_assistant")).toMatchObject({ status: "pending_host" });
   });
 
+  it("🚨 cevap parçaları kipinde (10-23 A) model 'no_info' dese de müsaitlik KOD METNİ gider ve müsaitlik isteği cevaplandı sayılır", async () => {
+    vi.stubEnv("AI_CONVERSATION_ITEMS_ENABLED", "1");
+    vi.stubEnv("AI_ANSWER_PARTS_ENABLED", "1");
+    vi.stubGlobal("fetch", understandingFetch("availability", ["availability"]));
+    mockSuggest.mockResolvedValue({ ...verdict, reply: "", answeredRequests: { ok: true, refs: [] }, answerParts: [{ ref: "R1", status: "no_info" }] } as never);
+    const { conversationId } = await seed();
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(true);
+    expectCodeSent(CODE_AVAILABLE);
+    const rows = await prisma.conversationItem.findMany({ where: { conversationId }, select: { kind: true, status: true } });
+    expect(rows.find((i) => i.kind === "availability")).toMatchObject({ status: "answered" });
+  });
+
   it("🚨 İKİNCİ SORU (soru işaretsiz): anlama katmanı müsaitlik + wifi görür → gitmez", async () => {
     vi.stubGlobal("fetch", understandingFetch("availability", ["availability", "wifi"]));
     const { conversationId } = await seed({ message: `${human(D1)} ile ${human(D2)} arası müsait mi, wifi şifresi nedir` });

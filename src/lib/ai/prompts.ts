@@ -1989,7 +1989,11 @@ Cevap metninde (reply) yalnızca verilen veri, zaman bağlamı ve bilgi tabanın
     derivedNumbers: reservation ? stayNights(reservation.arrivalDate, reservation.departureDate) : [],
   };
   const partSources = input.conversationItems?.parts
-    ? [...knowledgeBase.map((k, i) => ({ id: `kb:${i + 1}`, text: kbLine(k) })), { id: "property", text: propertyFacts }]
+    ? [
+        ...knowledgeBase.map((k, i) => ({ id: `kb:${i + 1}`, text: kbLine(k) })),
+        // Kodun "(belirtilmemiş — asla uydurma)" işareti olgu değildir → alıntılanamasın (Haiku 10-23).
+        { id: "property", text: propertyFacts.split("\n").filter((l) => !l.includes("(belirtilmemiş")).join("\n") },
+      ]
     : null;
   return { text, kbOmitted: packed.omitted, claimContext, timeConflicts: conflicts, ...(partSources ? { partSources } : {}) };
 }

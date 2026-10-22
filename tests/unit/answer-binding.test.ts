@@ -262,3 +262,22 @@ describe("Haiku 10-23 yanlış geçişler", () => {
     expect(one("Havuz saat 9'da kapanır.", "Havuz saat 9'da kapanır.", ["havuz"]).ok).toBe(true);
   });
 });
+
+describe("Haiku 10-23 F3: alıntının taşımadığı içerik sözcüğü (aynı dilde)", () => {
+  const one = (src: string, part: string, q: string[], evidence = src) => checkAnswerBinding({ part, evidence, sourceText: src, ...need(q) });
+
+  it("🚨 've ücretsizdir' alıntıda yok → gitmez; 'ücretli' ↔ 'ücretsiz' aynı kök sayılmaz", () => {
+    expect(one("Havuz 09:00-20:00 arası açıktır.", "Havuz 09:00-20:00 arası açık ve ücretsizdir.", ["havuz kaçta açık"]).issues).toEqual(["unsupported_content"]);
+    expect(one("Otopark binanın altındadır ve ücretsizdir.", "Otopark binanın altında ve ücretlidir.", ["otopark"]).issues).toContain("unsupported_content");
+    // Bilinen sınır: dili kestirilemeyen çok kısa parça ("Otopark ücretlidir.") kıyaslanmaz — okuyucunun kanıt şartı.
+  });
+
+  it("çekim / açıklama / nezaket farkı içerik sayılmaz", () => {
+    expect(one("Çamaşır makinesi banyodadır.", "Merhaba, çamaşır makinesi banyoda bulunuyor.", ["çamaşır makinesi var mı"]).ok).toBe(true);
+    expect(one("Havuz her gün 20:00'de kapanır.", "Havuz her gün 20:00'de kapanıyor.", ["havuz"]).ok).toBe(true);
+  });
+
+  it("bilinen sınır: çeviride sözcük kıyası yapılmaz (kıdemli okuyucunun kanıt şartı)", () => {
+    expect(one("Havuz 09:00-20:00 arası açıktır.", "The pool is open 09:00-20:00.", ["havuz", "pool"]).ok).toBe(true);
+  });
+});
