@@ -1076,6 +1076,57 @@ ekran metni / para / misafir mesajının zamanlamasını değiştirir. "Evet" ye
 
 ## U. Gece 10-21 → 10-22 (kurucu: "gece modundasın, hiç soru sorma") — sabah bakılacaklar (hiçbiri uygulanmadı)
 
+### §U + T-a…T-d kurucu cevapları (10-22 sabah, AYNEN alıntı + uygulama kararı)
+
+- **T-a:** "Üzgünüzde gitmesin adamın problemi varsa üzgün olması bir boku değiştirimiyor ve hatayı kabul ediyor gibi olur öyle olmamalı."
+  → Şikâyette HİÇBİR özür / nezaket / üzüntü kalıbı misafire gitmez ("üzgünüz", "rahatsızlık için üzgünüz", "sorry for the inconvenience"
+  dahil); cevap yalnız diğer soruyu cevaplar, olay hakkında hiçbir şey söylemez.
+- **T-d:** "Evet 3. Taraf ödeme şeyleri gidebilir ama emin ol genede airbnb'de yazarsak airbnb'nin mesaj engelleme ihtimalinde modele onu
+  söyleyelim ve airbnb'nin tuttuğu mesajları bizim modele öğretelim gerekirse migrationlu platform dışı ödeme gene tutulabilir bu arada zaten
+  ödemeyi ibandan alabilirim yazmaya çalışırsa model benim bildiğim zaten airbnb engelliyor"
+  → Üçüncü tarafa ödeme bilgisi gider; ev sahibine platform dışı ödeme tutulur. + Airbnb kural / örnek dosyası (modele talimat + gönderim
+  öncesi kontrol + test seti + açılışta Airbnb'nin reddettiği gerçek mesajlar dosyaya; gerekirse migration).
+- **U7:** "Evet önerin gibi olsun" → uygulanır.
+- **U8:** "Bence wifi şifresi gidebilir ama sorunu yutmasın her türlü hosta haber verilsin" → bugünkü davranış (Wi-Fi gider, iade / tehdit
+  öğesi ev sahibinde açık + mesaj başına bir "acil" e-postası, `conversation-items/flow.ts`) korunur; o mesajla test pinlenir.
+- **U9:** "Evet olur" → başka misafir / kişisel bilgi sorusu cevaplanmaz, ev sahibine açık iş.
+- **T-b:** "Bütün kontrolleri tek çağrıda toplaması ne işe yarar…" → açıklandı; sonra seçim "Evet, tek okuyucu (Önerilen)" + 2. mesaj:
+  "Tamam olabilir de bizim modelimizde kelime kelime bakmasın direk bizim koddan işi halledebiliyormuyuz yoksa benlik sorun yok bütün
+  kontrolleri tek çağrıda toplayabiliriz en iyi şekilde kontrol sağlansın" → tek kıdemli okuyucu; kelime kuralları yalnız okuyucu düşerse yedek.
+- **T-c:** "Evet" → Claude yan yana ölçüm (~$5–10).
+- **S2:** "Kandırmasına izin verilmesin ona testler ile geliştirelim öğretelim bu arada OpenAI modelini bu şekilde train edebiliriz dimi bize
+  vereceği cevaplar için?" + 2. mesaj: "fine tunining yapalım o zaman benim hali hazırda olan çektiğim mesajlardan yapabiliriz ilerde şimdilik
+  test ile öğret bir sürü gizli kötü birisi gibi testleri yapalım" → misafir metnini görmeyen ikinci kontrol + bol gizli kötü niyetli test;
+  fine-tuning İLERİDE (kurucunun mesajlarından; ad / telefon ayıklama + aydınlatma maddesi şartıyla), şimdi değil.
+- **U1:** "Olur 3'ü birden" + "Tamamdır aynen sohbet kodu girilsin 3'ünüde ekle yalnız kodu nerden yazıcaz ama o misafire gidecek mesajı
+  airbnb durdurmayacağına emin olalım direk airbnb'nin engellediği mesajları bizim modele bir dosyada koyabiliriz airbnb'nin neye göre
+  engellediğini falanda öğrenir airbnb bununla ilgili birşey yayınlamış olabilir kontrol et gerekirse örneklerle fine tuning yapalım bu
+  kısımda da" → (a) açılışta `QR_PIN_ENABLED=1`, (b) kod kapalıyken QR'da Wi-Fi yok, (c) cihaz kilidini sıfırla düğmesi (rota VAR:
+  `api/properties/[id]/reset-chat`; QR konuşma ekranına da). Kod yeri: Mülk sayfası → Rezervasyonlar → "kod oluştur" → Kopyala → Airbnb
+  mesajı (metin filtre dostu: bağlantı / iletişim / "QR" yok).
+- **U2:** "Evet önerin iyi" → QR ekranı TR / EN.
+- **U3:** "Evet önerin iyi bu kısım neresi için geçerli o kod ne için bu arada o kodu kim gönderiyor misafire qr'dan mı gidiyor direk mesaj
+  yerinden mi?" → "sohbet kodu / chat code (this is not the door code)"; açıklandı (ev sahibi Airbnb mesajıyla gönderir).
+- **U4:** "U4'ü tam anlamadım" → açıklandı; seçim "Ayrı 'misafire görünen ad' (Önerilen)" — migration (Property'ye boş olabilen tek
+  sütun); push öncesi AYRICA açık onay.
+- **U5:** "Olur ama güzel yap görünüşü yerinide" → otomasyon kartı en üstte, gerçek anahtar biçimi, özenli tasarım.
+- **U6:** "Biten adımlar gitsin zaten o şekilde kısalır ve isterlerse kapstabiliyorlar haksızmıyım?biten adımlar tek satır (“3 adım tamam
+  ✓”). Böyle olabilir ama yerini şimdilik değiştirme" → biten adımlar tek satır; kartın YERİ DEĞİŞMEZ (kart zaten katlanabiliyor).
+- **U16:** "Dediğin gibi olsun a iyi" → üstü çizili başlık + "Tamamlandı" rozeti (soluklaştırma yok).
+- **U10:** "Tamamdır dediğin çok iyi şifre sorulsun 2FA'yı ekstra girdirtmeye gerek var mı sen seç 2 türlüde olur" → şifre + indirildi
+  e-postası; 2FA kodu YOK (girişte zaten istendi; geri dönüşsüz silmeye U11 ile eklenir).
+- **U11:** "Dediğin gibi olabilir" → 2FA açıksa hesap silmede doğrulama kodu.
+- **U12:** "U12 için önerin iyi" → son 10 dk'da geçerli bağlantı varsa yeni bağlantı / e-posta yok.
+- **U13:** "Tabiki kesinlikle ana sayfa demosunda öyle olmasın neden gitmediğini müşteriye bile çok şeffaf şekilde açıklamamıza gerek yoksa
+  söylemeyelim bence kötü kişilere karşı ne olur ne olmaz diye" → demo yalnız iki durum; puan / sebep sunucudan da dönmez.
+- **U14:** "Son 60 gün olsun ve ilerisi olsun" → takvim aktarımı: son 60 günde çıkış yapanlar + gelecek.
+- **U15:** "Kayıt tavanı neden ekliyorsun ki orda doğru şekilde ddosa karşı kendimizi iyi koruyalım" → açıklandı; seçim: "Ya gerçekten 300
+  kişi kayıt olursa onu doğru şekilde çözelim claudeflare kesin olsun bide çözüm düşün ona göre yapalım" → sert tavan YOK; Cloudflare
+  (açılışta, kesin) + kayıt formunda Turnstile (anahtar arkasında, ilk denemeler birlikte) + doğrulama e-postası olağan dışı hızda
+  reddedilmez, kuyrukta yayılır + tek uyarı.
+- **U16 dışı not:** QR kodu açılmadan önce "PIN DoS" (10 yanlış kodla 15 dk kilit) birlikte bakılacak.
+
+
 Gece yapılanlar (müşteriye giden yapay zekâ cevabına dokunmayan): ev sahibi ekranı metin / erişilebilirlik düzeltmeleri (UX incelemesi
 A–Z'nin çoğu), olası tehlike konuşmasında yanlış "beklemede" bandı, kurulumun ilk adımının Airbnb / Booking bağlantısına götürmesi,
 "AI cevap öner"in Ayarlar'daki tonla başlaması, cevap modeli devre kesicisinin işletme başına olması (bir işletmenin takılması
