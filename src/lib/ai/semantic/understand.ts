@@ -55,6 +55,11 @@ export function understandingThreatRuleEnabled(): boolean {
   return process.env.AI_UNDERSTANDING_THREAT_RULE_ENABLED === "1";
 }
 
+/** Başka kişinin bilgisi kuralı (kurucu kararı 10-22 U9, `UNDERSTANDING_PRIVACY_RULE_ADDENDUM`); VARSAYILAN KAPALI. */
+export function understandingPrivacyRuleEnabled(): boolean {
+  return process.env.AI_UNDERSTANDING_PRIVACY_RULE_ENABLED === "1";
+}
+
 export const UNDERSTANDING_SYSTEM_PROMPT = [
   "You are the language-understanding step of a short-term-rental guest messaging assistant. You do NOT answer the guest.",
   "Read the guest's UNANSWERED message(s) in the context of the recent conversation and return ONLY the JSON schema.",
@@ -149,6 +154,19 @@ export const UNDERSTANDING_THREAT_RULE_ADDENDUM = [
   'Examples: "Sıcak su iki gündür yok, düzelmezse polise gideceğim." -> requests include complaint_issue. "The heating is broken and nobody answers, I will report you to the police." -> requests include complaint_issue. "Babam düştü, ambulansı nasıl çağırırız?" -> [emergency] only.',
 ].join("\n");
 
+/**
+ * BAŞKA KİŞİNİN BİLGİSİ eki (kurucu kararı 10-22 U9, "Evet olur"; anahtar `AI_UNDERSTANDING_PRIVACY_RULE_ENABLED`, VARSAYILAN KAPALI —
+ * kapalıyken istem ve önbellek anahtarı bayt bayt eski). Kırmızı takım vakası (ölçüldü): başka misafirin dairesini / çıkışını soran mesaja
+ * yapay zekâ "paylaşamam" diyordu — bilgi sızmıyordu ama konu kapandı sayılıyor, ev sahibinde açık iş kalmıyordu. Ek bu soruları
+ * `human_request`e bağlar: "sessiz + açık iş" (misafire bir şey gitmez, ev sahibine öğe + e-posta). Misafirin KENDİ rezervasyonu bu değildir.
+ * Örnekler ölçüm setlerinden FARKLI (ezber olmasın).
+ */
+export const UNDERSTANDING_PRIVACY_RULE_ADDENDUM = [
+  "",
+  "OTHER PEOPLE'S INFORMATION: a question about ANOTHER guest or another person — which apartment or room they stay in, their name or surname, when they arrive or leave, their phone, booking or details, who stayed here before — is intent human_request: only the host may decide, it is never answered automatically. The guest's OWN booking (their own check-in or check-out time, their own reservation) is NOT this: use the usual intent.",
+  'Examples: "Kuzenim de bu binada kalıyor, kaçta çıkacaklarını söyler misiniz?" -> [human_request]. "Who stayed in this flat last week? I think I know them." -> [human_request]. "Bizim çıkış saatimiz kaç?" -> [checkout_time].',
+].join("\n");
+
 /** Anlama katmanının sistem istemi — kiplere göre TEK kurucu (çağrı ve ölçer istem kimliği aynı fonksiyondan). */
 export function understandingSystemPromptFor(opts: {
   items?: boolean;
@@ -156,6 +174,7 @@ export function understandingSystemPromptFor(opts: {
   complaintFollowup?: boolean;
   english?: boolean;
   threat?: boolean;
+  privacy?: boolean;
 }): string {
   const relation = opts.items === true && opts.complaintFollowup === true;
   return [
@@ -165,6 +184,7 @@ export function understandingSystemPromptFor(opts: {
     ...(relation ? [UNDERSTANDING_RELATION_ADDENDUM] : opts.complaintFollowup ? [UNDERSTANDING_COMPLAINT_FOLLOWUP_ADDENDUM] : []),
     ...(opts.english ? [UNDERSTANDING_ENGLISH_QUERY_ADDENDUM] : []),
     ...(opts.threat ? [UNDERSTANDING_THREAT_RULE_ADDENDUM] : []),
+    ...(opts.privacy ? [UNDERSTANDING_PRIVACY_RULE_ADDENDUM] : []),
   ].join("\n");
 }
 
@@ -312,9 +332,11 @@ export async function understandGuestMessages(input: UnderstandingInput): Promis
     const english = input.english === true;
     // Şikâyet tehdidi kuralı bütün çağıranlar için aynı karar (anahtar burada okunur); kapalıyken istem + anahtar bayt bayt eski.
     const threat = understandingThreatRuleEnabled();
+    // Başka kişinin bilgisi kuralı (10-22 U9): aynı tek karar noktası; kapalıyken istem + anahtar bayt bayt eski.
+    const privacy = understandingPrivacyRuleEnabled();
     // Öğe / kural kipi ayrı önbellek girdisi (farklı şema); ikisi de kapalıyken — ve yalnız öğe kipinde — anahtar bayt bayt eskisi.
     // Şikâyet takibi eki ve İngilizce köprü de ayrı girdi (farklı istem / şema); kapalıyken anahtar değişmez.
-    const mode = `${items ? "\u0000items" : ""}${rules ? "\u0000rules" : ""}${complaintFollowup ? "\u0000cfu" : ""}${english ? "\u0000en" : ""}${threat ? "\u0000thr" : ""}`;
+    const mode = `${items ? "\u0000items" : ""}${rules ? "\u0000rules" : ""}${complaintFollowup ? "\u0000cfu" : ""}${english ? "\u0000en" : ""}${threat ? "\u0000thr" : ""}${privacy ? "\u0000prv" : ""}`;
     const key = mode ? cacheKey(`${model}${mode}`, user) : cacheKey(model, user);
     const hit = cache.get(key);
     if (hit && Date.now() - hit.at < CACHE_TTL_MS) {
@@ -325,7 +347,7 @@ export async function understandGuestMessages(input: UnderstandingInput): Promis
     const res = await callStructuredJson({
       apiKey,
       model,
-      system: understandingSystemPromptFor({ items, rules, complaintFollowup, english, threat }),
+      system: understandingSystemPromptFor({ items, rules, complaintFollowup, english, threat, privacy }),
       user,
       schema: understandingSchemaFor({ items, rules, followup: complaintFollowup, english }),
       timeoutMs: semanticTimeoutMs(model),

@@ -174,6 +174,10 @@ kalıcı "işlem yok" sayılıyor (niyet kapanır, yeni işlem açılır) — ye
   ✅ Kurucu 10-22 (T-a, aynen: "Üzgünüzde gitmesin adamın problemi varsa üzgün olması bir boku değiştirimiyor ve hatayı kabul ediyor gibi
   olur öyle olmamalı"): AÇILIŞTA "1". Kural üzüntü / anlayış cümlesini de kapsar ("üzgünüz", "sorry for the inconvenience"); yedek (fallback)
   şikâyet taslağı da özürsüz. Kırmızı takım ölçümünde özürlü taslak 9 → 0 (anahtar açık).
+- `AI_UNDERSTANDING_PRIVACY_RULE_ENABLED` (kurucu 10-22 U9, aynen: "Evet olur") — başka misafirin / başka kişinin bilgisini (daire, ad,
+  çıkış saati, telefon, önceki misafir) soran istek anlama katmanında `human_request` olur: misafire HİÇBİR ŞEY gitmez, ev sahibine açık iş +
+  e-posta (bugün yapay zekâ "paylaşamam" deyip konuyu kapatıyordu). ✅ Kurucu onaylı → AÇILIŞTA "1"; açmadan önce küçük gerçek model ölçümü
+  (kırmızı takım geliştirme setindeki başka-misafir vakaları + kendi rezervasyonunu soran kontrol vakaları).
 - Cevap modeli bekleme tavanı 30 sn + devre kesici (art arda 3 zaman aşımı → 60 sn çağrı yok) + tek hızlı yeniden deneme — env YOK
   (`src/lib/ai/model-breaker.ts`). Ev sahibi yazma hız sınırı kişi başına dakikada 300 — env YOK (`src/lib/host-write-limit.ts`).
 - Dış izleyici + WAF + oturum anahtarı adımları: `docs/OPS-2026-10-21-dis-izleyici-waf-anahtar.md` (panel işleri, açılıştan sonra).

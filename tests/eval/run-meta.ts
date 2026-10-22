@@ -6,7 +6,12 @@ import { semanticModel, semanticReasoningEffort } from "@/lib/ai/semantic/config
 import { embeddingModel } from "@/lib/ai/embeddings/model";
 import { createHash } from "node:crypto";
 import { replyPromptVersion, replyRequestIdentity } from "@/lib/ai";
-import { understandingEnglishQueryEnabled, understandingSystemPromptFor, understandingThreatRuleEnabled } from "@/lib/ai/semantic/understand";
+import {
+  understandingEnglishQueryEnabled,
+  understandingPrivacyRuleEnabled,
+  understandingSystemPromptFor,
+  understandingThreatRuleEnabled,
+} from "@/lib/ai/semantic/understand";
 import { conversationItemsEnabled } from "@/lib/conversation-items/flag";
 import { houseRulesShadowEnabled } from "@/lib/house-rules/flag";
 import { complaintFollowupRuleEnabled } from "@/lib/ai/complaint-followup";
@@ -70,6 +75,7 @@ export interface UnderstandingMode {
   complaintFollowup?: boolean;
   english?: boolean;
   threat?: boolean;
+  privacy?: boolean;
 }
 
 /**
@@ -98,6 +104,7 @@ export function understandingModeLabel(m: UnderstandingMode): string {
       m.complaintFollowup === true ? "cfu" : "",
       m.english === true ? "en" : "",
       m.threat === true ? "thr" : "",
+      m.privacy === true ? "prv" : "",
     ]
       .filter(Boolean)
       .join("+") || "temel"
@@ -196,6 +203,7 @@ export function evalRuntime(opts: { understanding?: UnderstandingMode } = {}): E
         complaintFollowup: given.complaintFollowup === true,
         english: given.english === true,
         threat: given.threat === true,
+        privacy: given.privacy === true,
       }
     : {
         items: conversationItemsEnabled(),
@@ -203,6 +211,7 @@ export function evalRuntime(opts: { understanding?: UnderstandingMode } = {}): E
         complaintFollowup: complaintFollowupRuleEnabled(),
         english: understandingEnglishQueryEnabled(),
         threat: understandingThreatRuleEnabled(),
+        privacy: understandingPrivacyRuleEnabled(),
       };
   const understandingSystem = understandingSystemPromptFor(mode);
   const variant = replyRequestIdentity(REPLY_VARIANT_INPUT);
