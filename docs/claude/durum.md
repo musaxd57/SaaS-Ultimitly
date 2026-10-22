@@ -27,7 +27,7 @@
 - Güvenlik 3. tur (Opus, 10-19'dan beri değişen 120 dosya; P1/P2 yok — `docs/arastirma-2026-10-15/GUVENLIK-3-TUR-2026-10-22.md`): S1 hesapsız
   demo cevap modeli kesicisinde yalnız kendi kovasında (ortak durdurmaya katılamaz); S2 "bilgim yok" hakemi misafir metniyle kandırılabilir →
   anahtar KAPALI, açılış koşulu Railway belgesinde.
-- Push'lar: f1837b9e ve f3d60dd6 CI yeşil; 55f2da86 itildi (CI sonucu bir sonraki push notunda).
+- Push'lar: f1837b9e ve f3d60dd6 CI yeşil. 55f2da86 CI kırmızı: security-audit + verify (tek test `audit-gate-fail-closed` "gerçek ağaçta yeşil") — sebep npm denetim servisi (503, 503, 400 "endpoint is being retired"), kod değil; kapı tasarım gereği fail-closed. Yerelde aynı kapı yeşil (4 üretim danışması, 4 triaj). Bu oturumun GitHub izni yeniden çalıştırmaya yetmiyor (403) → sonraki push'un CI'ı kapsar.
 
 **10-21 gece-4 (önceki):**
 - UX incelemesi (Opus, 24 bulgu) + görsel inceleme (39 ekran görüntüsü, 30 bulgu) + güvenlik incelemesi (2 yeni bulgu) koştu; raporlar
