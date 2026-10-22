@@ -164,6 +164,15 @@ describe("yeniden yazma birleştirmesi (Opus 10-22 F1)", () => {
     expect(m.stayChange).toEqual({ asked: "late_checkout", stance: "none" });
   });
 
+  it("cevap parçaları kipinde (10-23 A) parça kararları yeni çağrıdan; kip dışında alan hiç yok", () => {
+    const m = mergeSeniorRewrite(
+      { ...first, answerParts: [{ ref: "R1", status: "verified", source: "kb:1" }] },
+      { ...retried, answerParts: [{ ref: "R1", status: "no_info" }] },
+    );
+    expect(m.answerParts).toEqual([{ ref: "R1", status: "no_info" }]);
+    expect("answerParts" in mergeSeniorRewrite(first, retried)).toBe(false);
+  });
+
   it("yalnız okuyucunun düzeltilebilir sebepleri yeniden yazdırır", () => {
     expect([...SENIOR_REWRITE_GATE_DETAILS].sort()).toEqual([
       "reply_apology",
