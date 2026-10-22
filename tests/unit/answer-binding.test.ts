@@ -403,6 +403,16 @@ describe("Haiku 10-23 (gevşetmelerin yanlış kabulleri) — hepsi TUTULUR", ()
     expect(one(src, "Havuz her gün 20:00'de kapanır; pazar 23:00'e kadar açık.", ["havuz kaçta kapanıyor"]).ok).toBe(true);
   });
 
+  it("🚨 iki mevsimli kalemde mevsimler yer değiştiremez (mutasyon 10-23 V11)", () => {
+    const src = "Havuz yaz aylarında 23:00'e kadar açık. Kış aylarında 20:00'de kapanır.";
+    expect(one(src, "Havuz kışın 23:00'e kadar açık; yazın 20:00'de kapanır.", ["havuz kaçta kapanıyor"]).ok).toBe(false);
+    expect(one(src, "Havuz yazın 23:00'e kadar açık; kışın 20:00'de kapanır.", ["havuz kaçta kapanıyor"]).ok).toBe(true);
+  });
+
+  it("tümleyen yalnız değerle: değersiz 'Havuz hafta içi açık' tümleyen sayılmaz (temkinli; mutasyon 10-23 V12)", () => {
+    expect(one("Havuz açıktır. Hafta sonu havuz kapalıdır.", "Havuz hafta içi açık.", ["havuz açık mı"]).issues).toContain("condition_added");
+  });
+
   it("🚨 mevsim de değer başına: 'Havuz yazın 20:00'de kapanır' ← kalem 'yaz aylarında 23:00'", () => {
     const src = "Havuz 20:00'de kapanır. Yaz aylarında 23:00'e kadar açık.";
     expect(one(src, "Havuz yazın 20:00'de kapanır.", ["havuz kaçta kapanıyor"]).ok).toBe(false);

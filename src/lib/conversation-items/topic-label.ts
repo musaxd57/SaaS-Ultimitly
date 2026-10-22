@@ -44,7 +44,8 @@ export function itemTopicLabel(query: string | null | undefined, names: readonly
   for (const raw of query.split(/[^\p{L}\p{N}]+/u)) {
     if (!raw) continue;
     const f = fold(raw);
-    if (!distinct.has(f) || /\p{N}/u.test(raw) || raw.length > 20) continue;
+    // Rakam taşıyan belirteç `needTerms`te zaten yok ("5g", "lale2025" — ölçüldü) → `distinct` onu eler.
+    if (!distinct.has(f) || raw.length > 20) continue;
     if (nameParts.has(f) || SECRET_ROOTS.some((r) => f.startsWith(r))) continue;
     const word = raw.toLocaleLowerCase("tr");
     if (out.includes(word)) continue;

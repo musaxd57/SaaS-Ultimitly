@@ -219,3 +219,39 @@ describe("Haiku 10-23 D incelemesi", () => {
     expect(listPlan.answerable.map((x) => x.item.id)).toEqual(["a0"]);
   });
 });
+
+describe("mutasyon 10-23 (D) yaşayanları", () => {
+  it("aynı etiket kısmi eşleşmeden ÖNCE gelir ('havuz' isteği 'havuz ısıtma' değil 'havuz' satırına)", () => {
+    expect(alignOrdinals([{ intent: "amenities", topic: "havuz" }], [
+      { kind: "amenities", ordinal: 0, topic: "havuz ısıtma" },
+      { kind: "amenities", ordinal: 1, topic: "havuz" },
+    ])).toEqual([1]);
+  });
+
+  it("3 harfli sözcük başka sözcüğün başı olsa da eşleşmez ('bar' ≁ 'barbekü')", async () => {
+    const { topicsCompatible } = await import("@/lib/conversation-items/core");
+    expect(topicsCompatible("bar", "barbekü")).toBe(false);
+    expect(topicsCompatible("sauna", "saunada")).toBe(true);
+  });
+
+  it("arıza anahtarı tür#sıra: yalnız ikinci (arızalı) istek işaretlenir", () => {
+    vi.stubEnv("AI_ITEM_ORDINAL_ENABLED", "1");
+    vi.stubEnv("AI_FAULT_GUARD_ENABLED", "1");
+    const body = "Klimanın kumandası nerede? Televizyon çalışmıyor.";
+    const u = parseUnderstanding(
+      {
+        language: "tr",
+        requests: [
+          { intent: "appliance_help", message: 1, query_tr: "klima kumandası nerede", query_original: "Klimanın kumandası nerede?" },
+          { intent: "appliance_help", message: 1, query_tr: "televizyon çalışmıyor", query_original: "Televizyon çalışmıyor." },
+        ],
+        stay_change: STAY_NONE,
+        withdrawn: [],
+      },
+      { items: true },
+    )!;
+    const t = extractTurnItems({ history: [{ id: "m1", direction: "inbound", body }], guestMessage: body, understanding: u });
+    if (t.mode !== "items") throw new Error("mode");
+    expect(t.messages[0].faultKinds).toEqual(["appliance_help#1"]);
+  });
+});

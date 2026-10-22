@@ -303,3 +303,31 @@ describe("Haiku 10-23 D incelemesi — belirsizse kapatma yok (kurucu B), saklam
     }
   });
 });
+
+describe("mutasyon 10-23 (D) yaşayanları — veritabanı", () => {
+  it("yeniden yazımda olgular kendi SIRASININ satırına birleşir (sıra 1'in kaynağı sıra 0'a geçmez)", async () => {
+    const { conversationId, messageId } = await seed();
+    const item = (ordinal: number, sources: ("understanding" | "lexical")[]) => ({
+      requestIndex: ordinal,
+      kind: "amenities" as const,
+      ...(ordinal > 0 ? { ordinal } : {}),
+      sensitivity: "none" as const,
+      riskType: null,
+      sources,
+    });
+    await upsertTurnItems(prisma, { organizationId: orgId, conversationId, messages: [{ messageId, items: [item(0, ["understanding"]), item(1, ["understanding"])] }], now: at(1) });
+    await upsertTurnItems(prisma, { organizationId: orgId, conversationId, messages: [{ messageId, items: [item(1, ["lexical"])] }], now: at(2) });
+    const rows = await prisma.conversationItem.findMany({ where: { conversationId }, orderBy: { ordinal: "asc" }, select: { ordinal: true, sources: true } });
+    expect(rows).toEqual([
+      { ordinal: 0, sources: "understanding" },
+      { ordinal: 1, sources: "understanding,lexical" },
+    ]);
+  });
+
+  it("misafirin adı (konuşmadaki ad) etikete girmez", async () => {
+    vi.stubEnv("AI_ITEM_ORDINAL_ENABLED", "1");
+    const { conversationId, messageId } = await seed();
+    await turn(conversationId, messageId, [{ q: "Alex için ekstra havlu", o: "Alex için havlu?" }], 1);
+    expect((await rowsOf(conversationId)).map((r) => r.topic)).toEqual(["ekstra havlu"]);
+  });
+});

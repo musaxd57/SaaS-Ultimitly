@@ -937,12 +937,13 @@ export function checkAnswerBinding(input: BindingInput): BindingResult {
     if (!INVENTABLE_CLASSES.has(cls) || sourceConditions.has(cls)) continue;
     // Gün adı: kalemdeki ailesinin özeli ya da misafirin sorduğu gün — değer başına kontrol yukarıda (yanlış güne / değişkeye bağ).
     if (DAY_PARENT[cls] && (sourceConditions.has(DAY_PARENT[cls]) || asked.has(cls))) continue;
-    // Tümleyen ("hafta içi" ← genel kural + hafta sonu istisnası): bu koşulu taşıyan HER değer kalemde genel yerden gelmeli ve aynı değer
-    // istisna gününü taşımamalı; en az bir değer olmalı (değersiz parçada tümleyen yok).
+    // Tümleyen ("hafta içi" ← genel kural + hafta sonu istisnası): bu koşulu taşıyan HER değer kalemde genel yerden gelmeli; en az bir
+    // değer olmalı (değersiz parçada tümleyen yok — temkinli). Aynı değere istisna gününü de veren parça ("hafta içi ve hafta sonu 20:00")
+    // değişke kuralında (`variantOmitted`) tutulur.
     const comp = DAY_COMPLEMENT[cls];
     if (comp && sourceConditions.has(comp)) {
       const carriers = dayValues.filter((v) => v.days.has(cls));
-      if (carriers.length > 0 && carriers.every((v) => v.placeGeneral && !v.days.has(comp))) continue;
+      if (carriers.length > 0 && carriers.every((v) => v.placeGeneral)) continue;
     }
     issues.add("condition_added");
   }
