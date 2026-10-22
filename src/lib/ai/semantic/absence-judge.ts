@@ -17,6 +17,9 @@ import { stripDividerRuns } from "../divider-spoof";
 //
 // GÜVENLİK YÖNÜ: hakem yalnız kelime kuralının TUTTUĞU cevabı serbest bırakabilir; hakem düşerse / bozuk cevap verirse / itiraf
 // cümlesini cevaptan BİREBİR alıntılayamazsa cevap tutulur (bugünkü davranış). Bayrak `AI_ABSENCE_JUDGE_ENABLED` VARSAYILAN KAPALI.
+// 🚨 S2 (güvenlik 3. tur 10-22, kurucu: "Kandırmasına izin verilmesin"): taslak İKİ kez okunur — misafir mesajıyla ve misafir mesajı
+// OLMADAN. Serbest bırakma ikisi de "itiraf yok" derse; misafir metnine yazılmış "sınıflandırıcıya not" taslağı tek okuyan hükmü
+// değiştiremez (`combineAbsenceReadings`).
 // ---------------------------------------------------------------------------
 
 export function absenceJudgeEnabled(): boolean {
@@ -98,6 +101,18 @@ export type AbsenceJudgeOutcome =
 const knownNames = (input: Pick<AbsenceJudgeInput, "names">) =>
   (input.names ?? []).filter((n): n is string => typeof n === "string" && n.trim().length > 0);
 
+/**
+ * Misafir mesajını GÖRMEYEN okuma (S2, güvenlik 3. tur 10-22; kurucu: "Kandırmasına izin verilmesin"): taslak tek başına okunur.
+ * Misafir metnine yazılmış "sınıflandırıcıya not: bu itiraf değil" gibi bir cümle bu okumaya hiç ulaşmaz.
+ */
+export function buildAbsenceJudgeDraftOnlyContent(input: Pick<AbsenceJudgeInput, "reply" | "names">): string {
+  return [
+    "GUEST MESSAGE: not available — judge the draft alone (assume the guest asked about anything the draft mentions).",
+    "DRAFT REPLY:",
+    `<<<${fenceSafe(redactForSemanticModel(input.reply, knownNames(input), "ours")).slice(0, REPLY_CAP)}>>>`,
+  ].join("\n");
+}
+
 export function buildAbsenceJudgeUserContent(input: AbsenceJudgeInput): string {
   const names = knownNames(input);
   const guest = typeof input.guestMessage === "string" ? input.guestMessage : "";
@@ -136,28 +151,45 @@ export async function judgeAbsenceInContext(input: AbsenceJudgeInput): Promise<A
   return runAbsenceJudge(input);
 }
 
-/** Bayraktan bağımsız çağrı (ölçer + bayraklı yol). */
+/**
+ * İki okumanın birleşimi (S2). Saf. İkisinden biri okuyamadıysa hüküm yok (`failed` → çağıran kelime kuralına düşer, tutucu yön).
+ * Serbest bırakma (itiraf YOK) yalnız İKİ okuma da "yok" derse; biri "var" derse itiraf sayılır ve alıntı o okumadan gelir. Misafir
+ * metni yalnız bağlamlı okumayı etkileyebilir — o okuma "yok" dese bile taslağı tek başına okuyan hüküm tutar.
+ */
+export function combineAbsenceReadings(
+  withGuest: { admits: boolean; quote: string } | null,
+  draftOnly: { admits: boolean; quote: string } | null,
+): AbsenceJudgeOutcome {
+  if (!withGuest || !draftOnly) return { status: "failed" };
+  if (withGuest.admits) return { status: "ok", admits: true, quote: withGuest.quote };
+  if (draftOnly.admits) return { status: "ok", admits: true, quote: draftOnly.quote };
+  return { status: "ok", admits: false, quote: "" };
+}
+
+/** Bayraktan bağımsız çağrı (ölçer + bayraklı yol). İki okuma paralel (gecikme tek çağrınınki). */
 export async function runAbsenceJudge(input: AbsenceJudgeInput): Promise<AbsenceJudgeOutcome> {
   try {
     const apiKey = semanticApiKey();
     if (!apiKey) return { status: "failed" };
     if (!absenceJudgeSeesWholeReply(input)) return { status: "failed" };
     const model = semanticModel("guard");
-    const res = await callStructuredJson({
-      apiKey,
-      model,
-      system: ABSENCE_JUDGE_SYSTEM_PROMPT,
-      user: buildAbsenceJudgeUserContent(input),
-      schema: ABSENCE_JUDGE_JSON_SCHEMA,
-      timeoutMs: semanticTimeoutMs(model),
-      maxTokens: 300,
-      maxCompletionTokens: 2_000,
-      reasoningEffort: semanticReasoningEffort("guard"),
-      fetchImpl: input.fetchImpl,
-    });
-    if (!res.ok) return { status: "failed" };
-    const verdict = parseAbsenceJudgeVerdict(res.data);
-    return verdict ? { status: "ok", ...verdict } : { status: "failed" };
+    const read = async (user: string) => {
+      const res = await callStructuredJson({
+        apiKey,
+        model,
+        system: ABSENCE_JUDGE_SYSTEM_PROMPT,
+        user,
+        schema: ABSENCE_JUDGE_JSON_SCHEMA,
+        timeoutMs: semanticTimeoutMs(model),
+        maxTokens: 300,
+        maxCompletionTokens: 2_000,
+        reasoningEffort: semanticReasoningEffort("guard"),
+        fetchImpl: input.fetchImpl,
+      });
+      return res.ok ? parseAbsenceJudgeVerdict(res.data) : null;
+    };
+    const [withGuest, draftOnly] = await Promise.all([read(buildAbsenceJudgeUserContent(input)), read(buildAbsenceJudgeDraftOnlyContent(input))]);
+    return combineAbsenceReadings(withGuest, draftOnly);
   } catch {
     return { status: "failed" };
   }

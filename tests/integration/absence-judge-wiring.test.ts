@@ -127,12 +127,13 @@ describe("bağlam hakemi — kanal oto-yanıtı", () => {
     mockSuggest.mockResolvedValue(DRAFT(FACT));
     const id = await seedChannel("Can we use the safe?");
     await applyChannelAutoReply(id);
-    expect(f).toHaveBeenCalledTimes(1);
+    // S2 (10-22): iki okuma — misafir mesajıyla ve misafir mesajı OLMADAN; serbest bırakma ikisi de "itiraf yok" derse.
+    expect(f).toHaveBeenCalledTimes(2);
     expect(mockSend).toHaveBeenCalledTimes(1);
-    // Hakem misafirin mesajını da gördü (bağlam), cevap çitlerin içinde.
-    const user = JSON.parse(String((f.mock.calls[0][1] as RequestInit).body)).messages[1].content as string;
-    expect(user).toContain("Can we use the safe?");
-    expect(user).toContain(FACT);
+    const users = f.mock.calls.map((c) => JSON.parse(String((c[1] as RequestInit).body)).messages[1].content as string);
+    // Bağlamlı okuma misafirin mesajını gördü; ikinci okuma görmedi. İkisinde de cevap çitlerin içinde.
+    expect(users.filter((u) => u.includes("Can we use the safe?"))).toHaveLength(1);
+    expect(users.every((u) => u.includes(FACT))).toBe(true);
   });
 
   it("anahtar AÇIK + hakem 'itiraf' → tutulur", async () => {
@@ -241,7 +242,7 @@ describe("bağlam hakemi — QR misafir sohbeti (kanal kapısıyla aynı kural)"
     vi.stubGlobal("fetch", f);
     mockSuggest.mockResolvedValue(DRAFT(FACT));
     const out = await ask(await seedQr(), "Can we use the safe?");
-    expect(f).toHaveBeenCalledTimes(1);
+    expect(f).toHaveBeenCalledTimes(2); // S2: bağlamlı + yalnız taslak okuması
     expect(out.escalated).toBeFalsy();
     expect(out.reply).toBe(FACT);
   });
