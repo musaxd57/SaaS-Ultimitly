@@ -1542,11 +1542,11 @@ describe("KAYNAK / ASİSTAN SORUSU (kurucu 10-23)", () => {
     expect(mockMail).not.toHaveBeenCalled();
   });
 
-  it("🚨 yalnız kaynak sorusu + cevap 'ev sahibime ilettim' diyor: tutulur, 'Misafir cevabınızı bekliyor' e-postası da YOK (Haiku 10-23)", async () => {
+  it("🚨 yalnız kaynak sorusu + cevap 'mesajınız iletildi' diyor: tutulur, 'Misafir cevabınızı bekliyor' e-postası da YOK (Haiku 10-23)", async () => {
     const { conversationId } = await seed("Bunu nereden biliyorsun?");
     understands(assistantUnderstood([{ intent: "about_assistant", message: 1 }]));
     mockSuggest.mockResolvedValueOnce(
-      verdict({ intent: "general", reply: "Sorunuzu ev sahibime ilettim, en kısa sürede dönüş yapacak.", answeredRequests: { ok: true, refs: [] } }),
+      verdict({ intent: "general", reply: "Mesajınız ev sahibimize iletildi, en kısa sürede dönüş yapılacak.", answeredRequests: { ok: true, refs: [] } }),
     );
     expect((await applyChannelAutoReply(conversationId)).sent).toBe(false);
     expect(mockSend).not.toHaveBeenCalled();

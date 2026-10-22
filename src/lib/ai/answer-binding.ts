@@ -449,10 +449,10 @@ const NEUTRAL_WORDS: ReadonlySet<string> = new Set([
 ]);
 
 function isNeutralWord(w: string): boolean {
-  // Olumsuzluk da yeni konu getirmez: "Otopark 3. katta değil, 2. katta" → 2. kat otoparkındır.
+  // Olumsuzluk da yeni konu getirmez: "Otopark 3. katta değil, 2. katta" → 2. kat otoparkındır. Sayılar ayrıca sayılmaz: değerler
+  // `claimSpans` aralığıdır, kalan rakam dizisi içerik sayılır (mutasyon B23: ayrı rakam kuralı hiçbir girdide fark yaratmadı).
   return (
     w.length < 3 ||
-    /^\d/.test(w) ||
     NEUTRAL_WORDS.has(w) ||
     NEGATION_TOKENS.has(w) ||
     negativeVerb(w) ||
