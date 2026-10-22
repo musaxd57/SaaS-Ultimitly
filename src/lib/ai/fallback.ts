@@ -89,10 +89,12 @@ const KEYWORDS: Record<Exclude<Intent, "general">, string[]> = {
   complaint: [
     // NB: bare "problem"/"sorun" are NOT listed here — they appear in very common
     // positive closings ("no problem", "sorun yok"). They're matched separately,
-    // negation-guarded, in hasUnnegatedProblemWord() below.
-    "çalışmıyo", "calismiyo", "kirli", "bozuk", "şikayet", "sikayet",
+    // negation-guarded, in hasUnnegatedProblemWord() below. Same for the complaint NOUN
+    // ("şikayet" / "complaint"): "Şikayetim yok, sadece klimayı nasıl açarım?" is a question,
+    // not a complaint (kurucu 10-22, U7) → hasUnnegatedComplaintNoun() below.
+    "çalışmıyo", "calismiyo", "kirli", "bozuk",
     "kötü", "kotu", "berbat", "leak", "su akıyor", "koku", "böcek", "bocek", "broken",
-    "dirty", "not working", "complaint", "rezalet", "iğrenç", "igrenc",
+    "dirty", "not working", "rezalet", "iğrenç", "igrenc",
     // Strong, unambiguous English complaint signals (enriched — the cross-check
     // must catch these even when the model mislabels; over-escalation is safe).
     "terrible", "awful", "horrible", "unacceptable", "disgusting", "filthy",
@@ -804,6 +806,33 @@ function includesAnyFold(
     for (let k = 0; k < words.length; k++) {
       if (hit(std, words[k]) || hit(tr, words[k]) || hit(ascii, asciiWords[k])) return true;
     }
+  }
+  return false;
+}
+
+/**
+ * ŞİKÂYET ADI — olumsuzlama guard'lı (kurucu 10-22, U7; kırmızı takım kontrol vakası, ölçüldü).
+ * "Annem şikayetçi değil, sadece soruyor: klimayı soğutmaya nasıl alıyoruz?" ve "Şikayetim yok, sadece …" kelime
+ * ağında ŞİKÂYET + ACİL sayılıyordu (soru ev sahibine kalıyor, bilgi tabanı tarifi gitmiyordu); aynı soru sözcüksüz
+ * otomatik gidiyordu. Kök (`şikayet` / `sikayet` / `complaint`) düz listeden ÇIKTI, burada okunur: `includesAnyFold` ile
+ * AYNI adaylar (homoglif, ayrık harf, birleştirici işaret) × üç katlama — o ağın sağlamlığı korunur; yalnız aşağıdaki
+ * TAM olumsuz ifadeler her adaydan silinir. "Şikayetçi değilim ama klima bozuk" yine şikâyet ("bozuk" düz listede).
+ * ⚠️ `PROBLEM_NEGATIONS` kuralı burada da geçerli: yalnız FİİLİ OLUMSUZ TAM ifade; olumlu bir şikâyetin öneki OLAN giriş yazılmaz.
+ */
+const COMPLAINT_NOUN_STEMS = ["şikayet", "complaint"] as const;
+const COMPLAINT_NOUN_STEMS_ASCII = ["sikayet", "complaint"] as const;
+const COMPLAINT_NOUN_NEGATIONS = [
+  "şikayetçi değil", "şikayetçi olmadı", "şikayetim yok", "şikayetimiz yok", "şikayet yok",
+  "şikayetim olmadı", "şikayetimiz olmadı", "şikayet etmiyo", "şikayette bulunmuyo",
+  "no complaint", "not a complaint", "zero complaints", "without complaint",
+] as const;
+const COMPLAINT_NOUN_NEGATIONS_ASCII = COMPLAINT_NOUN_NEGATIONS.map((n) => foldTurkishAscii(n));
+function hasUnnegatedComplaintNoun(message: string): boolean {
+  const strip = (hay: string, negs: readonly string[]) => negs.reduce((acc, n) => acc.split(n).join(" "), hay);
+  for (const { std, tr, ascii } of foldedCandidatesOf(message)) {
+    if (COMPLAINT_NOUN_STEMS.some((w) => strip(std, COMPLAINT_NOUN_NEGATIONS).includes(w))) return true;
+    if (COMPLAINT_NOUN_STEMS.some((w) => strip(tr, COMPLAINT_NOUN_NEGATIONS).includes(w))) return true;
+    if (COMPLAINT_NOUN_STEMS_ASCII.some((w) => strip(ascii, COMPLAINT_NOUN_NEGATIONS_ASCII).includes(w))) return true;
   }
   return false;
 }
@@ -1571,6 +1600,7 @@ function detectIntent(message: string): Intent {
         // olumsuzlama girdisiyle eşleşir ve "Hiçbir sorun yaşamadık." ÖVGÜSÜ complaint'e döner.
         // `collapseSeparated` ("s o r u n") aynı sebeple DIŞARIDA: eleme tarafı katlanmıyor.
         hasUnnegatedProblemWord(foldTurkishLower(deconfuse(normalizeForMatch(message)))) ||
+        hasUnnegatedComplaintNoun(message) ||
         hasNegativeVerbComplaint(message) ||
         hasDeviceBreakdown(message))
     ) {
@@ -2114,6 +2144,7 @@ export function detectGuestLanguage(message: string): string {
  * (09-11, pinli). Adı ne diyorsa onu yapar: yalnız `KEYWORDS.complaint` ağına bakar.
  * `complaint` niyetinin ÜÇ kaynağı daha var ve hiçbiri kelime ağında DEĞİL:
  *   • `hasUnnegatedProblemWord` ("Klimada sorun var")
+ *   • `hasUnnegatedComplaintNoun` ("Şikayetim var" — "şikayetim yok" değil; 10-22)
  *   • `hasNegativeVerbComplaint` ("Sıcak su gelmiyor")
  *   • `hasDeviceBreakdown` ("Klimayı açtık, bozuldu")
  * Yani "bu mesaj şikâyet mi?" sorusunun cevabı `classifyFallback`tır; bu fonksiyonu o soru
