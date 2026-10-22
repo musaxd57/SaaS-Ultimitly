@@ -78,7 +78,8 @@ describe("Opus 10-23: etiket süzgeci", () => {
   });
 
   it("🚨 sır sözcüğünün ARDINDAKİ sözcük (değerin kendisi olabilir) etikete girmez", () => {
-    expect(itemTopicLabel("wifi şifresi kelebek bağlanmıyor")).toBe("wifi bağlanmıyor");
+    // R15 (Opus dilim sonu 10-23): sır sözcüğünden sonra yalnız sözlükte konusu olan sözcük kalır ("bağlanmıyor" da düşer).
+    expect(itemTopicLabel("wifi şifresi kelebek bağlanmıyor")).toBe("wifi");
     expect(itemTopicLabel("kapı kodu papatya")).toBe("kapı");
   });
 
@@ -111,5 +112,17 @@ describe("Opus güvenlik 10-23 gece F11: etikette ad / sır kalmaz", () => {
     // Konu sözcüğü sır sözcüğünün önünde kalır; ağsız "anahtar" (kapı anahtarı) sır değildir.
     expect(itemTopicLabel("wifi şifresi")).toBe("wifi");
     expect(itemTopicLabel("kapı anahtarı nerede")).toBe("kapı anahtarı");
+  });
+});
+
+describe("Opus dilim sonu 10-23 R15: sır sözcüğünden sonraki her sözcük ve harfle yazılmış rakam etikete girmez", () => {
+  it("🚨 'wifi şifresi hala kelebek mi', 'parolası mavi ejderha', 'pw kelebek', 'kapı kodu dört beş bir iki'", () => {
+    expect(itemTopicLabel("wifi şifresi hala kelebek mi")).toBe("wifi");
+    expect(itemTopicLabel("wifi şifresi olarak kelebek yazıyorum çalışmıyor")).toBe("wifi");
+    expect(itemTopicLabel("wifi parolası mavi ejderha")).toBe("wifi");
+    expect(itemTopicLabel("wifi pw kelebek")).toBe("wifi");
+    expect(itemTopicLabel("kapı kodu dört beş bir iki")).toBe("kapı");
+    expect(itemTopicLabel("telefonum beş beş beş")).toBeNull();
+    expect(itemTopicLabel("havuz kaçta kapanıyor")).toBe("havuz");
   });
 });

@@ -17,7 +17,7 @@ import "server-only";
 // ---------------------------------------------------------------------------
 
 import { createHash } from "node:crypto";
-import { askedConditions, checkAnswerBinding, contentCovered, partSignature, type BindingIssue } from "@/lib/ai/answer-binding";
+import { askedConditions, checkAnswerBinding, contentCovered, literallyCovered, partSignature, type BindingIssue } from "@/lib/ai/answer-binding";
 import { tokenize } from "@/lib/ai/retrieval/text";
 import { topicsWithSymptomsOf } from "@/lib/conversation-items/relation";
 import { guestNameMatcher } from "@/lib/conversation-items/topic-label";
@@ -179,8 +179,14 @@ export function reuseGate(cached: ReuseNeed, incoming: ReuseNeed, part = ""): Re
  * Kişiye / ana bağlı sözler: kayıtlı cevap başka misafire, başka güne taşınamaz. Geçici durum ("bu hafta", "şu an", "currently",
  * "temporarily") da kalıcılaşmamalı (Opus güvenlik 10-23 F7: "This week the pool closes at 18:00" kayda giriyordu).
  */
-const RELATIVE_TIME =
-  /(?:^|[^\p{L}])(?:bugün|bugun|yarın|yarin|bu akşam|bu aksam|bu gece|bu sabah|bu hafta|bu ay|dün|dun|şu an|su an|şu anda|su anda|şimdi|simdi|şimdilik|simdilik|geçici|gecici|today|tomorrow|tonight|yesterday|this (?:week|evening|morning|month|weekend)|right now|currently|at the moment|temporarily|for now|heute|morgen|gestern|heute abend|diese woche|derzeit|zurzeit|momentan|vorübergehend|vorubergehend|сегодня|завтра|вчера|сейчас|на этой неделе|временно|aujourd|demain|cette semaine|actuellement|temporairement|hoy|mañana|manana|esta semana|actualmente|temporalmente)(?:[^\p{L}]|$)/iu;
+const RELATIVE_TIME = new RegExp(
+  String.raw`(?:^|[^\p{L}])(?:bugün|bugun|yarın|yarin|bu akşam|bu aksam|bu gece|bu sabah|bu hafta|bu ay|dün|dun|şu an|su an|şu anda|su anda|şimdi|simdi|şimdilik|simdilik|geçici|gecici|today|tomorrow|tonight|yesterday|this (?:week|evening|morning|month|weekend)|right now|currently|at the moment|temporarily|for now|heute|morgen|gestern|heute abend|diese woche|derzeit|zurzeit|momentan|vorübergehend|vorubergehend|сегодня|завтра|вчера|сейчас|на этой неделе|временно|aujourd|demain|cette semaine|actuellement|temporairement|hoy|mañana|manana|esta semana|actualmente|temporalmente|` +
+    // R11: "şimdi / artık / bu sezon / until further notice / next week / aktuell …" da zamana bağlı.
+    `now|until further notice|for the time being|these days|next (?:week|month)|this (?:summer|winter|season|year)|aktuell|jetzt|bis auf weiteres|` +
+    `n[aä]chste woche|diesen sommer|en ce moment|la semaine prochaine|ahora|la pr[oó]xima semana|este verano|пока|в этом сезоне|` +
+    String.raw`bu sezon|şu sıralar|su siralar|artık|artik|gelecek hafta|önümüzdeki|onumuzdeki|yakında|yakinda)(?:[^\p{L}]|$)`,
+  "iu",
+);
 
 export type EntryEligibility = "ok" | "kind_not_reusable" | "relative_time" | "guest_name" | "empty";
 
@@ -213,8 +219,10 @@ export function sameAnswer(a: string, b: string): boolean {
  */
 export function confirmAnswer(stored: string, fresh: string): { same: false } | { same: true; text: string } {
   if (!sameAnswer(stored, fresh)) return { same: false };
-  if (contentCovered(stored, fresh)) return { same: true, text: stored };
-  if (contentCovered(fresh, stored)) return { same: true, text: fresh };
+  // Kayıtlı metin yalnız HARFİYEN kapsanıyorsa kalır; taze metin harfiyen ya da aynı söyleyişle (çıkış ~ check-out) kapsanıyorsa onun yerini
+  // alır — kayıt hiçbir zaman sözlük konusu kısayoluyla korunmaz (R11).
+  if (literallyCovered(stored, fresh)) return { same: true, text: stored };
+  if (literallyCovered(fresh, stored) || contentCovered(fresh, stored)) return { same: true, text: fresh };
   return { same: false };
 }
 

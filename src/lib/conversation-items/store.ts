@@ -12,6 +12,7 @@ import {
   maySupersede,
   mergeItemFacts,
   nextStatus,
+  labelCovers,
   topicsCompatible,
   type BuiltItem,
   type EffectiveItemStatus,
@@ -289,7 +290,8 @@ export async function supersedeOlderItems(
       // Sıra kipi: yeni "havuz" isteği eski "sauna" öğesinin yerini almaz. Yer alma bir KAPATMADIR → yalnız iki etiket de var ve ortak
       // sözcük taşıyorsa; etiketi olmayan taraf ilişkiyi belirsiz bırakır (Opus 10-23; kurucu B). Bedeli: etiketsiz takip mesajının yeni
       // hassas öğesi eski öğenin bildirim damgasını devralmaz (o mesaj için ayrı bildirim olabilir).
-      if (ordinalMode && !(older.topic && newer.topic && topicsCompatible(older.topic, newer.topic))) continue;
+      // R14: ortak TEK konu sözcüğü yetmez — yeni etiket eskinin bütün sözcüklerini taşımalı ("havuz ısıtmalı" ≠ "havuz açılıyor").
+      if (ordinalMode && !(older.topic && newer.topic && topicsCompatible(older.topic, newer.topic) && labelCovers(newer.topic, older.topic))) continue;
       const n = await applyItemEvent(db, { organizationId: input.organizationId, ids: [older.id], event: "superseded", now: input.now });
       if (n === 1 && older.notifiedAt && !newer.notifiedAt) {
         await db.conversationItem.updateMany({

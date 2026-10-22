@@ -172,3 +172,22 @@ describe("Opus güvenlik 10-23 gece F7: tek misafir kalıcı cevap ekemez", () =
     expect(conversationKey("c1")).not.toContain("c1");
   });
 });
+
+describe("Opus dilim sonu 10-23 R11: kayıtlı metin yalnız harfiyen kapsanırsa kalır", () => {
+  it("🚨 tek misafirin eki ('late check-out available', 'gece de kullanılabilir', 'dogs and cats welcome') teyitle kalıcılaşmaz", async () => {
+    const { confirmAnswer } = await import("@/lib/answer-reuse/core");
+    expect(confirmAnswer("Check-out is at 11:00; late check-out available.", "Check-out is at 11:00.")).toEqual({ same: true, text: "Check-out is at 11:00." });
+    expect(confirmAnswer("Havuz 20:00'de kapanır, gece de kullanılabilir.", "Havuz 20:00'de kapanır.")).toEqual({ same: true, text: "Havuz 20:00'de kapanır." });
+    expect(confirmAnswer("Pets are allowed; dogs and cats welcome.", "Pets are allowed.")).toEqual({ same: true, text: "Pets are allowed." });
+    // Taze metin aynı söyleyişle (çıkış ~ check-out) kapsanıyorsa onun yerini alır; kayıt sözlük kısayoluyla korunmaz.
+    expect(confirmAnswer("Çıkış saati 11:00.", "Check-out saati 11:00.")).toEqual({ same: true, text: "Check-out saati 11:00." });
+    expect(confirmAnswer("Check-out is at 11:00.", "Check-out time is 11:00.")).toEqual({ same: true, text: "Check-out is at 11:00." });
+  });
+
+  it("göreli zaman listesi: 'now / until further notice / next week / aktuell / bu sezon / artık' kayda girmez", () => {
+    for (const t of ["The pool is closed now.", "The pool is closed until further notice.", "Next week the pool opens at 09:00.", "Der Pool ist aktuell geschlossen.", "Bu sezon havuz 21:00'de kapanır.", "Havuz artık 21:00'de kapanıyor."]) {
+      expect(entryEligible(tr("amenities", "havuz"), t), t).toBe("relative_time");
+    }
+    expect(entryEligible(tr("amenities", "havuz"), "The pool closes at 20:00; it is well known.")).toBe("ok");
+  });
+});

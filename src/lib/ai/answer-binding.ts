@@ -2262,6 +2262,16 @@ export function contentCovered(text: string, by: string): boolean {
   return tt.every((t, i) => !contentWord(tt, i, []) || PREDICATE_WORDS.has(t) || bt.some((b) => sameStem(t, b)) || sameTopic(i));
 }
 
+/**
+ * HARFİYEN kapsama: `text`in 3+ harfli her sözcüğü (rakam hariç, dolgu dahil) `by` içinde aynı kökle geçiyor mu. Doğrulanmış cevap tekrarında
+ * kayıtlı metnin KORUNMASI bununla (Opus dilim sonu 10-23 R11: sözlük konusu kısayolu "late check-out available" ekini "check-out" sayıp
+ * kayıtta bırakıyordu; tek misafirin eklediği cümle teyitlerle kalıcılaşıyordu).
+ */
+export function literallyCovered(text: string, by: string): boolean {
+  const bt = tokenize(by);
+  return tokenize(text).every((t) => t.length < 3 || /\d/.test(t) || bt.some((b) => sameStem(t, b)));
+}
+
 /** Sorudaki gün / mevsim / kişi / sıklık koşul sınıfları ("cumartesi havuz kaçta" → `sat`) — iki soru aynı koşulu mu soruyor. */
 export function askedConditions(text: string): string[] {
   return [...conditionClasses(tokenize(text), "evidence")].sort();

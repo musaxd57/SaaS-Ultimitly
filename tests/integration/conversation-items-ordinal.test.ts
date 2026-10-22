@@ -340,6 +340,43 @@ describe("Haiku 10-23 D incelemesi — belirsizse kapatma yok (kurucu B), saklam
     ]);
   });
 
+  it("🚨 R14 (Opus dilim sonu 10-23): 'Havuz ısıtmalı mı?' önceki 'Havuz kaçta açılıyor?' sorusunu KAPATMAZ (tek ortak konu sözcüğü yetmez)", async () => {
+    vi.stubEnv("AI_ITEM_ORDINAL_ENABLED", "1");
+    const OPENS = { q: "havuz kaçta açılıyor", o: "Havuz kaçta açılıyor?" };
+    const HEATED = { q: "havuz ısıtmalı mı", o: "Havuz ısıtmalı mı?" };
+    const { conversationId, messageId } = await seed();
+    await turn(conversationId, messageId, [OPENS], 1);
+    const later = await prisma.message.create({
+      data: { conversationId, direction: "inbound", body: "Havuz ısıtmalı mı?", senderName: "Alex", authorType: "guest", createdAt: at(10) },
+    });
+    await planItemsTurn(prisma, {
+      organizationId: orgId,
+      conversationId,
+      history: [
+        { id: messageId, direction: "inbound", body: BODY },
+        { id: later.id, direction: "inbound", body: "Havuz ısıtmalı mı?" },
+      ],
+      guestMessage: "Havuz ısıtmalı mı?",
+      understanding: parseUnderstanding(
+        {
+          language: "tr",
+          requests: [
+            { intent: "amenities", message: 1, query_tr: OPENS.q, query_original: OPENS.o },
+            { intent: "amenities", message: 2, query_tr: HEATED.q, query_original: HEATED.o },
+          ],
+          stay_change: STAY_NONE,
+          withdrawn: [],
+        },
+        { items: true },
+      ),
+      expectedMessageIds: [messageId, later.id],
+      now: at(11),
+    });
+    const rows = await prisma.conversationItem.findMany({ where: { conversationId }, orderBy: { createdAt: "asc" }, select: { topic: true, status: true } });
+    expect(rows.map((r) => r.status)).toEqual(["open", "open"]);
+    expect(rows.every((r) => r.topic)).toBe(true);
+  });
+
   it("süre bazlı anonimleştirme (DATA_RETENTION_MONTHS) etiketi boşaltır; öğe kalır", async () => {
     vi.stubEnv("AI_ITEM_ORDINAL_ENABLED", "1");
     vi.stubEnv("DATA_RETENTION_MONTHS", "24");

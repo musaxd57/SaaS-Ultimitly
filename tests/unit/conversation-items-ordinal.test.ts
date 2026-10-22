@@ -4,7 +4,7 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 // Migration 84 (kurucu 10-23 D) — aynı mesajda aynı türden ikinci istek AYRI öğe + kısa konu etiketi (C). Anahtar
 // `AI_ITEM_ORDINAL_ENABLED`; KAPALIYKEN bugünkü kural (birleşir, sıra 0, etiket yok) bayt bayt.
 // ---------------------------------------------------------------------------
-import { alignOrdinals, buildItemsForMessage, requestOrdinals, topicsCompatible, MAX_ORDINAL } from "@/lib/conversation-items/core";
+import { alignOrdinals, buildItemsForMessage, labelCovers, requestOrdinals, topicsCompatible, MAX_ORDINAL } from "@/lib/conversation-items/core";
 import { extractTurnItems } from "@/lib/conversation-items/extract";
 import { hintKey } from "@/lib/conversation-items/plan";
 import { itemOrdinalEnabled } from "@/lib/conversation-items/flag";
@@ -125,9 +125,23 @@ describe("yeniden işleme — istek ↔ satır eşlemesi (çoğaltma yok, yanlı
     expect(alignOrdinals([R("amenities", "sauna"), R("amenities", "havuz")], [E("amenities", 0, "havuz")])).toEqual([1, 0]);
   });
 
-  it("🚨 F10 (Opus güvenlik 10-23): aynı mesajın yeniden okunuşunda istek sayısı = satır sayısı → başka sözcüklü istek eski satıra (çoğaltma yok)", () => {
-    expect(alignOrdinals([R("amenities", "spa merkezi")], [E("amenities", 0, "sauna")])).toEqual([0]);
-    expect(alignOrdinals([R("amenities", "yüzme havuzu"), R("amenities", "buhar odası")], [E("amenities", 0, "havuz"), E("amenities", 1, "sauna")])).toEqual([0, 1]);
+  it("🚨 R14 (Opus dilim sonu 10-23, F10'u daraltır): etiketleri HİÇ benzemeyen istek eski satıra sırayla eşlenmez — yeni sıra açılır", () => {
+    // Önce (F10): "spa merkezi" → "sauna" satırı, "bulaşık makinesi" → "çamaşır makinesi" satırı (cevap yanlış satırı kapatabiliyordu).
+    expect(alignOrdinals([R("amenities", "spa merkezi")], [E("amenities", 0, "sauna")])).toEqual([1]);
+    expect(alignOrdinals([R("amenities", "bulaşık makinesi")], [E("amenities", 0, "çamaşır makinesi")])).toEqual([1]);
+    expect(alignOrdinals([R("amenities", "sauna"), R("amenities", "otopark")], [E("amenities", 0, "havuz"), E("amenities", 1, "sauna")])).toEqual([1, 2]);
+    // Ortak sözcük hâlâ eşler; bir tarafı etiketsiz çiftler hâlâ sırayla.
+    expect(alignOrdinals([R("amenities", "yüzme havuzu"), R("amenities", "buhar odası")], [E("amenities", 0, "havuz"), E("amenities", 1, "sauna")])).toEqual([0, 2]);
+    expect(alignOrdinals([R("amenities", null), R("amenities", null)], [E("amenities", 0, "havuz"), E("amenities", 1, "sauna")])).toEqual([0, 1]);
+  });
+
+  it("R14: yerine geçme için yeni etiket eskinin bütün sözcüklerini taşımalı ('havuz ısıtmalı' ≠ 'havuz açılıyor')", () => {
+    expect(labelCovers("havuz ısıtmalı", "havuz açılıyor")).toBe(false);
+    expect(labelCovers("havuz kapanış", "havuz")).toBe(true);
+    expect(labelCovers("havuzu", "havuz")).toBe(true);
+    expect(labelCovers("havuz", "havuz kapanış")).toBe(false);
+    expect(labelCovers(null, "havuz")).toBe(false);
+    expect(labelCovers("havuz", null)).toBe(false);
   });
 
   it("🚨 F10: etiketsiz istek birden çok etiketli satır varken HİÇBİRİNE eşlenmez (havuz cevabı sauna satırını kapatamaz)", () => {

@@ -192,6 +192,20 @@ export function topicsCompatible(a: string | null | undefined, b: string | null 
 }
 
 /**
+ * Yeni etiket eskisinin BÜTÜN sözcüklerini (konu + yön / nitelik: "havuz AÇILIYOR") taşıyor mu — yerine geçme bir kapatmadır, ortak tek konu
+ * sözcüğü yetmez (Opus dilim sonu 10-23 R14: "havuz ısıtmalı mı" sorusu "havuz kaçta açılıyor" sorusunu kapatıyordu; ilk soru hiç cevaplanmadan
+ * panelden düşüyordu).
+ */
+export function labelCovers(newer: string | null | undefined, older: string | null | undefined): boolean {
+  if (!newer || !older) return false;
+  const nw = newer.split(/\s+/u).filter(Boolean);
+  return older
+    .split(/\s+/u)
+    .filter(Boolean)
+    .every((w) => nw.some((x) => topicWordMatch(w, x)));
+}
+
+/**
  * Sıra kipinde YENİDEN İŞLENEN mesajın isteklerini mevcut satırlara eşler (migration 84, kurucu D: "tekrar işleme kayıt çoğaltmasın").
  * Anlama katmanı aynı mesajı ikinci okumada istekleri başka sırayla ya da başka sözcüklerle verebilir; salt sıra numarası o zaman havuz
  * cevabını sauna satırına bağlardı. Sıra: (1) aynı etiket, (2) ortak etiket sözcüğü (çekim toleranslı: "havuz" ~ "havuzu"; en çok ortak sözcük önce), (3) etiketi olmayan taraf
@@ -240,11 +254,14 @@ export function alignOrdinals(
       const cands = requests[i].topic ? free.filter((r) => !r.topic) : free;
       if (cands.length === 1) take(i, cands[0].ordinal);
     }
-    // Aynı mesajın yeniden okunuşunda bu türün istek sayısı satır sayısına eşitse kalanlar SIRAYLA eşlenir (F10: "sauna" ikinci okumada
-    // "spa merkezi" diye gelince yeni satır açılıyor, eski satır sonsuza dek açık kalıyordu — kurucu D "tekrar işleme kayıt çoğaltmasın").
+    // Aynı mesajın yeniden okunuşunda bu türün istek sayısı satır sayısına eşitse kalanlar SIRAYLA eşlenir — yalnız her çiftte bir taraf
+    // etiketsizse (F10). İki etiket birbirine hiç benzemiyorsa ("bulaşık makinesi" ↔ "çamaşır makinesi") eşlenmez, yeni sıra açılır (Opus dilim
+    // sonu 10-23 R14; kurucu B "ilişki belirsizse kapatma"): bedeli aynı soru için ikinci açık satır, karşılığı cevapsız sorunun cevaplandı sayılması.
     const restReq = idx.filter((i) => !done.has(i));
     const restRows = rows.filter((r) => !usedRows.has(r.ordinal));
-    if (restReq.length > 0 && idx.length === rows.length && restReq.length === restRows.length) restReq.forEach((i, k) => take(i, restRows[k].ordinal));
+    if (restReq.length > 0 && idx.length === rows.length && restReq.length === restRows.length && restReq.every((i, k) => !requests[i].topic || !restRows[k].topic)) {
+      restReq.forEach((i, k) => take(i, restRows[k].ordinal));
+    }
     for (const i of idx) {
       if (done.has(i)) continue;
       let free = -1;

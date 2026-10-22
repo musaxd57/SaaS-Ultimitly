@@ -23,7 +23,15 @@ export const TOPIC_MAX_CHARS = 40;
 /** Sır / kimlik sözcükleri (katlanmış kök başlangıcı) — etikete GİRMEZ; ardındaki sözcük de girmez. */
 const SECRET_ROOTS = ["sifre", "parola", "password", "passwort", "kod", "code", "pin", "kart", "card", "iban", "hesap", "hesab", "account", "telefon", "phone", "numara", "number", "mail", "pasaport", "passport", "kimlik", "kombinasyon", "combination"];
 /** Tam sözcük sır adları ("wifi key / pass kelebek", WPA anahtarı) — kök değil: "keyif" sır değildir (Opus güvenlik 10-23 F11). */
-const SECRET_EXACT = new Set(["key", "keys", "pass", "passcode", "wpa", "wpa2", "psk", "ssid", "visa", "mastercard", "amex"]);
+const SECRET_EXACT = new Set(["key", "keys", "pass", "passcode", "pw", "pwd", "wpa", "wpa2", "psk", "ssid", "visa", "mastercard", "amex"]);
+/** Harfle yazılmış rakamlar etikete girmez ("kapı kodu dört beş bir iki" — kodun kendisi; Opus dilim sonu 10-23 R15). */
+const SPELLED_DIGITS = new Set(
+  (
+    "sifir bir iki uc dort bes alti yedi sekiz dokuz on yirmi otuz kirk elli yuz bin " +
+    "zero one two three four five six seven eight nine ten eleven twelve hundred thousand " +
+    "null eins zwei drei vier funf sechs sieben acht neun zehn"
+  ).split(" "),
+);
 /** Ağdan sonra "anahtar" Wi-Fi şifresidir ("wifi anahtarı kelebek"); tek başına (kapı anahtarı) sır değildir. */
 const NETWORK_WORDS = new Set(["wifi", "wi", "fi", "wlan", "ag", "agin", "network", "modem", "internet"]);
 /** Kodu / şifresi olan şeyler ("kapı kodu", "kasa şifresi") — sır sözcüğünün önündeki bu sözcük değer değil, konudur. */
@@ -120,9 +128,18 @@ export function itemTopicLabel(query: string | null | undefined, names: readonly
   };
   const topicless = (raw: string) => topicsWithSymptomsOf(raw).length === 0;
   const out: string[] = [];
+  // Sır sözcüğünden SONRAKİ sözcük değerin parçası olabilir ("wifi şifresi HALA kelebek mi", "parolası mavi ejderha") → yalnız sözlükte
+  // konusu olan sözcük kalır ("kelebek şifresi çalışmıyor WIFI") (R15: yalnız hemen ardındaki sözcük düşüyordu).
+  let afterSecret = false;
   for (let i = 0; i < raws.length; i++) {
     const raw = raws[i];
     const f = folded[i];
+    if (isSecretAt(i)) {
+      afterSecret = true;
+      continue;
+    }
+    if (afterSecret && topicless(raw)) continue;
+    if (SPELLED_DIGITS.has(f)) continue;
     // Rakam taşıyan belirteç `needTerms`te zaten yok ("5g", "lale2025" — ölçüldü) → `distinct` onu eler.
     if (!distinct.has(f) || raw.length > 20) continue;
     if (isName(f) || isSecretAt(i) || EMAIL_PARTS.has(f)) continue;
