@@ -1,10 +1,11 @@
-# Hazır yamalar — durum (10-18, gece-4 S10-12)
+# Hazır yamalar — durum (10-23 gece; önceki: 10-18, gece-4 S10-12)
 
 Ölçüm: her yama için `git apply --check` (uygulanabilir mi) ve `git apply -R --check` (zaten ağaçta mı); "uygulanamıyor" tek başına "yerine
 konuldu" demek değildir — akıbet ayrıca git geçmişinden doğrulandı (sha sütunu).
 
 | Yama | Durum | Kanıt |
 |---|---|---|
+| `2026-10-23-migration-85-dogrulanmis-cevap-tekrari-golge.patch` | **BEKLİYOR** (kurucu onayı: migration 85 — yeni tablo `VerifiedAnswer`, yalnız GÖLGE kip `AI_ANSWER_REUSE_SHADOW_ENABLED`; misafire bu tablodan hiçbir şey gitmez; push öncesi taze `pg_dump`) — Opus güvenlik F7 sertleştirmesiyle (bağımsız konuşma teyidi, ortak içeriğe daralan metin, geçici durum / tarih / ad süzgeci) | `git apply --check` ✓ · taze PG'de sıfır sapma (`prisma migrate diff` boş) · ilgili DB testleri 89/89 |
 | `2026-10-07-U17-otopark-tahsisi.patch` | **BEKLİYOR** (kurucu kararı; 10-08 Sabah Kararları 63–68 listesi) — temiz uygulanıyor | `git apply --check` ✓ |
 | `2026-10-07-U29-f06-dogrulanamayan-oturum.patch` | **BEKLİYOR** (kurucu kararı; 10-08 Sabah Kararları 63–68 listesi) — temiz uygulanıyor | `git apply --check` ✓ |
 | `2026-10-22-U4-misafire-gorunen-ad.patch` | UYGULANDI (kurucu 10-22 akşam: "U4'ü push edebilirsin"; migration 83 — Railway açılışında önce taze yedek, `docs/RAILWAY-ACILIS-2026-10-15.md` 1. adım) | ana dalda · örnek yazı "Kat 2 Daire 3" |
