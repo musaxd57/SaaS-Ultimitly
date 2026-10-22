@@ -14,6 +14,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/empty-state";
 import { AutoReplyToggle } from "@/components/inbox/auto-reply-toggle";
+import { billingTabAvailable } from "@/lib/billing/billing-tab";
 import { AutoReplyTestButton } from "@/components/inbox/auto-reply-test-button";
 import { HospitableSyncButton } from "@/components/inbox/hospitable-sync-button";
 import { AutoRefresh } from "@/components/inbox/auto-refresh";
@@ -262,7 +263,7 @@ export default async function InboxPage({
           label={`Oto-yanıt (${activeWindow})`}
           enabled={org?.autoReplyHospitable ?? false}
           locked={automationLocked}
-          upgradeHref={session.role === "owner" ? "/settings?tab=faturalandirma" : undefined}
+          upgradeHref={billingTabAvailable(session.role) ? "/settings?tab=faturalandirma" : undefined}
           title={`${windowSentence}, AI'ın %75+ emin olduğu BASİT sorulara (çöp günü, Wi-Fi, çevre önerisi gibi) otomatik cevap verir. Şikayet, iade, riskli ve belirsiz mesajlar HER ZAMAN size kalır.`}
         />
         <LinkButton href="/inbox/new">

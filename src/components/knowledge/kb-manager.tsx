@@ -611,6 +611,12 @@ export function KbManager({
         {listError ? (
           <FormError>{listError}</FormError>
         ) : null}
+        {/* Bilgisi olmayan dairenin kartı çizilmez; mülk sayfasındaki "Düzenle" bağlantısı (#kb-<mülk>) yine bir hedef bulsun (Haiku 10-22). */}
+        {properties
+          .filter((p) => !grouped.some((g) => g.property.id === p.id))
+          .map((p) => (
+            <div key={`kb-anchor-${p.id}`} id={`kb-${p.id}`} className="scroll-mt-24" aria-hidden="true" />
+          ))}
         {grouped.length === 0 ? (
           <Card>
             <CardContent className="py-10 text-center text-sm text-muted-foreground">

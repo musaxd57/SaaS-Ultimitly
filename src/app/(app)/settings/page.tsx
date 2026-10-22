@@ -9,6 +9,7 @@ import { BulkTimesForm } from "@/components/settings/bulk-times-form";
 import { NightHoursForm } from "@/components/settings/night-hours-form";
 import { DeleteAccountCard } from "@/components/settings/delete-account-card";
 import { AutoReplyToggle } from "@/components/inbox/auto-reply-toggle";
+import { billingTabAvailable } from "@/lib/billing/billing-tab";
 import { AiTestCard } from "@/components/settings/ai-test-card";
 import { TestEmailButton } from "@/components/settings/test-email-button";
 import { AlertEmailForm } from "@/components/settings/alert-email-form";
@@ -146,10 +147,8 @@ export default async function SettingsPage({
     pro: process.env.PADDLE_PRICE_PRO_YILLIK?.trim() || "",
     business: process.env.PADDLE_PRICE_ISLETME_YILLIK?.trim() || "",
   };
-  const paddleReady =
-    isOwner &&
-    Boolean(paddleClientToken) &&
-    Object.values(paddlePriceByCode).some((id) => id.length > 0);
+  // Tek kural `billingTabAvailable` (gelen kutusu kilitli anahtarı ve konuşma bandı da aynı kurala bakar).
+  const paddleReady = isOwner && billingTabAvailable(session.role);
   const entitlement = paddleReady ? await getEntitlement(session.organizationId) : null;
   // Can we offer the Paddle-hosted "manage subscription" portal (change plan /
   // cancel / update card)? Only when the org has a real Paddle subscription AND

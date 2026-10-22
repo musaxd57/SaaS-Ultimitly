@@ -34,6 +34,7 @@ import { aiSuggestExceedsLength, MESSAGE_TOO_LONG_REASON } from "@/lib/ai/messag
 import { HANDOFF_NOTICE_REASON } from "@/lib/ai/output-veto";
 import { skipNoteReasonFor } from "@/lib/inbox-skip-note";
 import { SKIP_REASON_LABELS, skipReasonActionFor } from "@/lib/inbox-skip-labels";
+import { billingTabAvailable } from "@/lib/billing/billing-tab";
 import { hostDecisionsEnabled } from "@/lib/decisions/flag";
 import { decisionAiTextEnabled } from "@/lib/decisions/ai-text";
 import { listConversationDecisions } from "@/lib/decisions/store";
@@ -195,7 +196,8 @@ export default async function ConversationPage({
     heldReason: heldEvent?.reason ?? null,
     reservationStatus: conversation.reservation?.status ?? null,
   });
-  const bandAction = skipReasonActionFor(skipNoteReason ?? conversation.skippedReason, session.role);
+  // Plan bağlantısı yalnız Faturalandırma sekmesi gerçekten varken (sahip + Paddle yapılandırılmış).
+  const bandAction = skipReasonActionFor(skipNoteReason ?? conversation.skippedReason, billingTabAvailable(session.role));
 
   // HOST KARAR MOTORU (Faz 1, `HOST_DECISIONS_ENABLED`): ev sahibinin kararını bekleyen konaklama istekleri sayfanın EN ÜSTÜNDE
   // (telefonda da ilk görünen). Yalnız sahip / yönetici (kart misafir mesajının türevi — personel görmez). Okuma hatası sayfayı düşürmez.

@@ -71,13 +71,13 @@ describe("konuşma bandı etiketleri", () => {
     expect(SKIP_REASON_ACTIONS[HAZARD_UNVERIFIED_REASON]).toBeUndefined();
   });
 
-  it("C / Haiku #4: plan bağlantısı yalnız hesap sahibine; bağlantı / saat bağlantısı her yöneticiye", () => {
-    expect(skipReasonActionFor("daily_budget", "owner")?.href).toBe("/settings?tab=faturalandirma");
-    expect(skipReasonActionFor("daily_budget", "manager")).toBeNull();
-    expect(skipReasonActionFor(BILLING_PAUSED_REASON, "manager")).toBeNull();
-    expect(skipReasonActionFor("outside_hours", "manager")?.href).toBe("/settings?tab=ai-otomasyon");
-    expect(skipReasonActionFor("not_connected", "manager")?.href).toBe("/settings?tab=baglantilar");
-    expect(skipReasonActionFor(null, "owner")).toBeNull();
-    expect(skipReasonActionFor("complaint", "owner")).toBeNull();
+  it("C / Haiku #4: plan bağlantısı yalnız Faturalandırma sekmesi açılabilirken; bağlantı / saat bağlantısı her yöneticiye", () => {
+    expect(skipReasonActionFor("daily_budget", true)?.href).toBe("/settings?tab=faturalandirma");
+    expect(skipReasonActionFor("daily_budget", false)).toBeNull();
+    expect(skipReasonActionFor(BILLING_PAUSED_REASON, false)).toBeNull();
+    expect(skipReasonActionFor("outside_hours", false)?.href).toBe("/settings?tab=ai-otomasyon");
+    expect(skipReasonActionFor("not_connected", false)?.href).toBe("/settings?tab=baglantilar");
+    expect(skipReasonActionFor(null, true)).toBeNull();
+    expect(skipReasonActionFor("complaint", true)).toBeNull();
   });
 });

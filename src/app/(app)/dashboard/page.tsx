@@ -386,8 +386,9 @@ export default async function DashboardPage() {
             <CardTitle className="flex items-center gap-2 text-base">
               <MessageSquare className="size-4 text-muted-foreground" /> Bekleyen Mesajlar
             </CardTitle>
-            {/* UX 10-21 Y: "Bekleyen" kartının bağlantısı bekleyenlere süzülür (eskiden bütün gelen kutusu). */}
-            <Link href="/inbox?status=new" className="text-xs font-medium text-primary hover:underline">
+            {/* Kart yeni + bekleyen + sorunlu konuşmaları gösterir; "Tümü" bu yüzden süzgeçsiz gelen kutusu (Haiku 10-22: "?status=new"
+                sorunluları gizliyordu). */}
+            <Link href="/inbox" className="text-xs font-medium text-primary hover:underline">
               Tümü
             </Link>
           </CardHeader>

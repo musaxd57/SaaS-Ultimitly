@@ -82,7 +82,7 @@ const HOURS = { href: "/settings?tab=ai-otomasyon", label: "Saatleri değiştiri
 const CONNECTION = { href: "/settings?tab=baglantilar", label: "Bağlantıyı açın" } as const;
 const PLAN = { href: "/settings?tab=faturalandirma", label: "Planı görün", ownerOnly: true } as const;
 
-/** `ownerOnly`: hedef sekmeyi yalnız hesap sahibi görür (Faturalandırma) — başka role bağlantı çizilmez (Haiku 10-21 #4). */
+/** `ownerOnly`: hedef sekme (Faturalandırma) yalnız `billingTabAvailable` doğruyken var — yoksa bağlantı çizilmez (Haiku 10-21 #4, 10-22). */
 export const SKIP_REASON_ACTIONS: Record<string, { href: string; label: string; ownerOnly?: boolean }> = {
   outside_hours: HOURS,
   not_connected: CONNECTION,
@@ -92,9 +92,9 @@ export const SKIP_REASON_ACTIONS: Record<string, { href: string; label: string; 
   [BILLING_PAUSED_REASON]: PLAN,
 };
 
-/** Bu kullanıcıya gösterilecek eylem (rol süzgeci tek yerde). */
-export function skipReasonActionFor(reason: string | null | undefined, role: string): { href: string; label: string } | null {
+/** Bu kullanıcıya gösterilecek eylem. `canOpenBilling` = `billingTabAvailable(rol)` (sahip + Paddle yapılandırılmış). */
+export function skipReasonActionFor(reason: string | null | undefined, canOpenBilling: boolean): { href: string; label: string } | null {
   const action = reason ? SKIP_REASON_ACTIONS[reason] : undefined;
-  if (!action || (action.ownerOnly && role !== "owner")) return null;
+  if (!action || (action.ownerOnly && !canOpenBilling)) return null;
   return action;
 }
