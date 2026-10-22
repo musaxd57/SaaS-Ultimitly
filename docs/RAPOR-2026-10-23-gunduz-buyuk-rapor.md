@@ -60,7 +60,8 @@
 ## 4. Güvenlik / kalite
 - Next.js 15.5.28 (iki yeni danışma; zafiyet kapısı kırmızıya dönmüştü).
 - İnceleme döngüsü: her değişiklik grubundan sonra Haiku; dilim sonunda Opus derin kontrol (§6).
-- Mutasyon: (sonuç).
+- Mutasyon (yalnız `scripts/mutation-run.mjs`, ayrık worktree): doğrulayıcı 21 mutant → 17 + yeni pinlerle 2 daha öldürüldü; 1 ölü kod
+  silindi, 1 eşdeğer (gerekçesi commit'te). Migration 84 / etiket 27 mutant → 20 + yeni pinlerle 6 daha; 1 ölü kod silindi, 1 eşdeğer.
 - Tam kapı + CI: (sonuç).
 - **Hatam (açıkça):** önceki turda tam kapı koşarken ayrı bir veritabanı testi başlattım; kapının veritabanı kolu düştü. Yalnız kapı
   süreçleri durduruldu, testler tek başına yeniden koşuldu (93/93), kapı baştan koşuldu.
