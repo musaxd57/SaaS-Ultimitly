@@ -21,7 +21,8 @@
   `aria-pressed`; mobil menü açıkken arka sütun `inert` (kapanınca odak `<body>`de kalmışsa hamburger'a döner). Mutasyon 12/12.
   Karanlık tema taraması (32 sayfa): tek kalan tamamlanan kart soluklaştırması (soru U16) + Raporlar'da axe "kaydırılabilir bölge
   odaklanabilir değil" (`<main>` tabIndex -1: "İçeriğe geç" hedefi; her sayfaya ek Tab durağı EKLENMEDİ — Chromium kaydırılabilir bölgeyi
-  klavyeyle zaten odaklıyor; bilinçli).
+  klavyeyle zaten odaklıyor; bilinçli). İlk turda kalan sayfalar (hazırlık, iptaller, giden kuyruk, yeni mesaj, faturalandırma / bağlantılar /
+  ekip / güvenlik sekmeleri) + temizlikçi görünümü iki temada tarandı: tek bulgu yine tamamlanan kart (U16).
   Açık: "Aboneliği devam ettir" önizlemesi açılınca odak kaybı (anahtar KAPALI, testi yok — ayrı iş); onay pencerelerinde arka plan `inert` değil
   (odak tuzağı var).
 - Güvenlik 3. tur (Opus, 10-19'dan beri değişen 120 dosya; P1/P2 yok — `docs/arastirma-2026-10-15/GUVENLIK-3-TUR-2026-10-22.md`): S1 hesapsız

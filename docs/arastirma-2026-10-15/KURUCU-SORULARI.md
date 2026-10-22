@@ -1191,7 +1191,7 @@ A–Z'nin çoğu), olası tehlike konuşmasında yanlış "beklemede" bandı, ku
 ### U16 · Tamamlanan görev kartı fazla soluk (erişilebilirlik taraması, küçük)
 - **Bugün:** "Tamamlandı" sütunundaki kartlar %70 opaklıkta; içindeki gri yazı açık temada 2,7:1, karanlık temada "Ayrıntılar" düğmesi
   3,9:1 (okunabilirlik eşiği 4,5:1). Taramadaki diğer her şey düzeltildi; bu bilinçli bir tasarım (bitenler geri plana çekilsin) olduğu için
-  dokunulmadı.
+  dokunulmadı. Temizlikçi görünümünde de aynı kart var (telefonda, gün ışığında okunacak ekran — tarama orada da yalnız bunu buldu).
 - **Önerim:** kart soluklaştırma yerine başlığın üstü çizili + "Tamamlandı" rozeti (yazılar tam okunur, kartın bittiği yine belli olur);
   ya da opaklığı %85'e çıkarmak (fark küçük, eşiğe yaklaşır ama tam geçmez). Hangisi?
 
