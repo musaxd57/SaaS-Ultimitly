@@ -61,6 +61,13 @@ describe("dokunma alanı — sunucu sayfaları (kaynak)", () => {
     expect(read("src/app/(app)/properties/[id]/page.tsx")).toContain(`className="${HEADER_LINK}"`);
   });
 
+  it("herkese açık sayfalar: 'Şifremi unuttum?' satır içi dolgu (25 px), yasal sayfa altbilgisi dolgu + eşit eksi pay (28 px)", () => {
+    expect(read("src/components/auth/login-form.tsx")).toContain(`<Link href="/sifremi-unuttum" className="py-1 text-sm text-primary hover:underline">`);
+    const legal = read("src/app/(legal)/layout.tsx");
+    expect(legal.split(`className="-my-1.5 py-1.5 hover:text-foreground"`).length - 1).toBe(4);
+    expect(legal).not.toContain(`className="hover:text-foreground"`);
+  });
+
   it("gönderilenler ↔ kuyruk bağlantıları dikey dolgu + eşit eksi pay", () => {
     for (const p of ["src/app/(app)/sent/page.tsx", "src/app/(app)/sent/queue/page.tsx"]) {
       expect(read(p)).toMatch(/className="-my-1\.5 inline-flex items-center gap-1 py-1\.5 text-sm/);

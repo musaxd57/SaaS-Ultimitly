@@ -226,7 +226,8 @@ export function LoginForm() {
       </Field>
       {!twoFactor ? (
         <div className="text-right">
-          <Link href="/sifremi-unuttum" className="text-sm text-primary hover:underline">
+          {/* Satır içi bağlantı: dikey dolgu satır yüksekliğini değiştirmez, yalnız dokunma alanını 25 px yapar (yazı 17 px'ti, 10-22). */}
+          <Link href="/sifremi-unuttum" className="py-1 text-sm text-primary hover:underline">
             Şifremi unuttum?
           </Link>
         </div>
