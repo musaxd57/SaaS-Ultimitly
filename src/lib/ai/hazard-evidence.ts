@@ -170,6 +170,26 @@ const FIRE_SLANG = rx([
   `${NL}(?:you(?:'re|\\s+are|\\s+guys\\s+are)|u\\s+r|we(?:'re|\\s+are))\\s+(?:so\\s+|really\\s+|totally\\s+|absolutely\\s+)?on\\s+fire${NR}`,
   `${NL}(?:place|view|apartment|flat|spot|stay|location|vibe|décor|decor)\\s+(?:is|was)\\s+(?:so\\s+|absolutely\\s+|literally\\s+)?fire(?!\\s+(?:in|at|on|near))${NR}`,
 ]);
+/**
+ * MECAZ / ŞAKA (kurucu 10-22: "model espri anlayışı olarak iyi mi … mübalağayı falan anlayabilsin"). Benzetme kalıbı ("…yanıyor SANKİ",
+ * "…GİBİ", "as if", "like a", "o KADAR … ki") AYNI cümlecikte + mesajda gülme / şaka işareti ("😂", "haha", "lol", "şaka") → tehlike sözcüğü
+ * büyük olasılıkla mecazdır. Kod bu durumda KARAR VERMEZ: açık hüküm verilmez, en fazla `possible` — karar anlama modelinin (bağlamı okur);
+ * model koşmazsa / düşerse güvenli taraf (olası tehlike + anlama yok → devir, T2) aynen. İki sinyal birlikte şart (tek başına benzetme ya
+ * da tek başına gülme mecaz sayılmaz: "duman gibi bir koku var" gerçek olabilir). Gaz bu kuralın DIŞINDA (gaz her zaman açık — G4).
+ * Katlanmış metin (benzetme) / ham metin (gülme işareti — emoji katlamada korunsun diye ham metinden).
+ */
+const FIGURATIVE = rx([
+  `${NL}(?:sanki|gibi|misali|adeta|as\s+if|as\s+though|like\s+a|like\s+an|kind\s+of\s+like|wie\s+ein|comme\s+si|como\s+si|как\s+будто)${NR}`,
+  `${NL}o\s+kadar${NR}`,
+]);
+/**
+ * "Şaka değil / not joking / no joke / cidden" bir OLUMSUZLAMA değil, VURGUDUR (mizah ölçümü 10-22: "Not joking: water is pouring from the
+ * ceiling onto the lamp" olumsuzlanmış sayılıp `mentioned`a iniyordu). Değerlendirmeden önce nötrlenir. Katlanmış biçim.
+ */
+const NOT_JOKING = /(?<![\p{L}\p{N}])(?:not\s+(?:joking|kidding)|no\s+joke|i'?m\s+(?:not\s+joking|serious)|saka\s+degil|saka\s+yapmiyorum|cidden)(?![\p{L}\p{N}])/giu;
+const PLAYFUL =
+  /[😂🤣😅😄😁😆😍😜😝🙃😹😛]|(?<![\p{L}\p{N}])(?:(?:ha){2,}|(?:he){2,}|(?:ja){2,}|lol|lmao|rofl|xd|jk|just\s+kidding|şaka|saka|scherz|ахах)(?![\p{L}\p{N}])/iu;
+
 /** Ürün / cihaz adı ("Fire TV", "Fire Stick") — tehlike anılışı değil; taramadan önce nötrlenir. */
 const FIRE_PRODUCT = /(?<![\p{L}\p{N}])fire\s*(?:tv|stick|tablet|hd|os)(?![\p{L}\p{N}])/giu;
 
@@ -210,7 +230,9 @@ const MENTION: Record<HazardKind, RegExp> = {
   ]),
   water: rxg([
     `${NL}(?:su\\s+bas${LB}|su\\s+baskin${LB}|sel\\s+(?:var|bast${LB})|su\\s+tas${LB}|tavandan\\s+su|su\\s+(?:akiyor|damliyor|siziyor|kaciriyor|fiskiriyor|ulasti|ulasiyor|giriyor|girdi)|su\\s+kacag${LB}|tasti|tasiyor)`,
-    `${NL}(?:flood${LB}|water\\s+(?:leak${LB}|is\\s+leaking|everywhere|pouring|dripping|coming\\s+(?:in|through|from))|leak${LB}\\s+from\\s+the\\s+ceiling|overflow${LB})`,
+    // "water IS pouring / KEEPS dripping / 'S coming in" (mizah ölçümü 10-22: "Not joking: water is pouring from the ceiling onto the lamp"
+    // kelime ağında HİÇ tehlike sayılmıyordu — yardımcı fiil yoktu). Yardımcı fiil isteğe bağlı tek sözcük, karesel iş yok.
+    `${NL}(?:flood${LB}|water\\s+(?:is\\s+|keeps\\s+|'s\\s+|was\\s+)?(?:leak${LB}|everywhere|pouring|dripping|gushing|coming\\s+(?:in|through|from|down))|leak${LB}\\s+from\\s+the\\s+ceiling|overflow${LB})`,
     `${NL}(?:uberflutet|überflutet|überschwemm${LB}|uberschwemm${LB}|wasserschaden|wasser\\s+(?:läuft|lauft|tropft|steht)|rohrbruch)`,
     `${NL}(?:inond${LB}|dégât\\s+des\\s+eaux|degat\\s+des\\s+eaux|fuite\\s+d'?\\s?eau|l'eau\\s+coule)`,
     `${NL}(?:inund${LB}|fuga\\s+de\\s+agua|gotea${LB}|agua\\s+por\\s+todas\\s+partes|se\\s+sale\\s+el\\s+agua)`,
@@ -551,6 +573,8 @@ interface MessageSignals {
   waterReachesElectric: boolean;
   electricAnomaly: boolean;
   benignSmokeSource: boolean;
+  /** Mesajda gülme / şaka işareti (↑`PLAYFUL`). */
+  playful: boolean;
 }
 
 function clauseLevel(clause: Clause, signals: MessageSignals, next: string | null): { level: HazardLevel; kinds: HazardKind[] } {
@@ -621,7 +645,12 @@ function clauseVerdict(
     clear.add("smoke");
   }
   if ((kinds.has("smoke") || kinds.has("gas")) && signals.breath) clear.add(kinds.has("gas") ? "gas" : "smoke");
-  return capQuestion(clear, kinds, clause.question);
+  const verdict = capQuestion(clear, kinds, clause.question);
+  // Mecaz / şaka (↑`FIGURATIVE` + `PLAYFUL`): açık hüküm verilmez, karar anlama modelinde. Gaz ve nefes darlığı HARİÇ (her zaman açık).
+  if (verdict.level === "clear" && signals.playful && !signals.breath && !verdict.kinds.includes("gas") && FIGURATIVE.test(text)) {
+    return { level: "possible", kinds: verdict.kinds };
+  }
+  return verdict;
 }
 
 /** Canlı cümleciklerden birinde su ELEKTRİK nesnesine temas ediyor mu ("…avizenin içine damlıyor")? */
@@ -637,7 +666,7 @@ export function hazardEvidenceOf(message: string | null | undefined): HazardEvid
   if (typeof message !== "string" || message.trim() === "") return { level: "none", kinds: [] };
   // K6 bağlam kuralı (yer / eşya sorusu, "acil değil") AYNEN önce; sonra çift tırnaklı / «» kısa alıntılar ve ürün adları değerlendirmeden çıkar.
   const contextual = neutralizeNonEmergency(foldTurkishAscii(message.slice(0, 8_000).replace(/\s+/g, " ")));
-  const folded = contextual.replace(QUOTED, " ").replace(FIRE_PRODUCT, " ");
+  const folded = contextual.replace(QUOTED, " ").replace(FIRE_PRODUCT, " ").replace(NOT_JOKING, " ");
   // Yalnız haykırış ("Yangın!", "Fire!!", "Au feu !", "¡Fuego!", "Пожар!") açık tehlikedir; ünlemsiz tek sözcük ("Yangın") modele kalır.
   if (BARE_ALARM.test(folded.replace(/[\s!¡.]+/gu, " ").trim()) && /[!¡]/u.test(folded)) return { level: "clear", kinds: ["fire"] };
   // Mesaj düzeyi sinyaller (yanık kokusu, nefes, suyun elektriğe teması) yalnız olumsuzlanmamış / geçmiş olmayan cümleciklerden sayılır.
@@ -650,6 +679,7 @@ export function hazardEvidenceOf(message: string | null | undefined): HazardEvid
     waterReachesElectric: waterReachesElectric(liveClauses),
     electricAnomaly: ELECTRIC_ANOMALY.test(live),
     benignSmokeSource: BENIGN_SMOKE_SOURCE.test(live),
+    playful: PLAYFUL.test(message.slice(0, 8_000)),
   };
   let best: HazardEvidence = { level: "none", kinds: [] };
   const kinds = new Set<HazardKind>();
