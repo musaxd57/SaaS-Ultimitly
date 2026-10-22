@@ -81,7 +81,18 @@ interface Scenario {
     forbidden?: string[];
     /** 10-01: giden metin hiçbir para tutarı söylememeli (konaklama fiyatı / indirim / iade / tazminat). */
     noPrice?: boolean;
+    /**
+     * 10-23 E (ihtiyaç bazlı ölçüm): İNSANIN yazdığı ihtiyaç listesi. answered = `all` desenlerinin hepsi giden metinde (ve tek öğeliyse öğe
+     * "answered"); open = `forbid` desenleri giden metinde yok ve öğe "answered" sayılmadı. Desenler büyük/küçük harf duyarsız düzenli ifade.
+     */
+    needs?: NeedSpec[];
   };
+}
+interface NeedSpec {
+  kind: string;
+  want: "answered" | "open";
+  all?: string[];
+  forbid?: string[];
 }
 interface Dataset {
   version: number;
@@ -163,7 +174,12 @@ function usd(): number {
   return total;
 }
 const realFetch = globalThis.fetch;
+/** 10-23 E: "okuyucu hata verdi" kolu — kıdemli okuyucu çağrısı (şema `senior_reader`) gerçek ağa gitmeden 503 döner. */
+const READER_FAIL = process.env.EVAL_LIVE_READER_FAIL === "1";
 function meteredFetch(input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]): ReturnType<typeof fetch> {
+  if (READER_FAIL && typeof init?.body === "string" && init.body.includes('"name":"senior_reader"')) {
+    return Promise.resolve(new Response(JSON.stringify({ error: { message: "eval: reader failure arm" } }), { status: 503 }));
+  }
   return realFetch(input, init).then(async (res) => {
     if (String(typeof input === "string" ? input : input instanceof URL ? input.href : input.url).includes("api.openai.com")) {
       try {
@@ -325,8 +341,44 @@ interface Row {
    */
   modelCalls?: number;
   rw?: readonly string[] | null;
+  /** 10-23 E: ihtiyaç başına sonuç + öğe durumları + parça kararları + "bilgim yok" / iç kaynak sızıntısı (giden metinde). */
+  needs?: NeedResult[];
+  itemStates?: { kind: string; status: string }[];
+  parts?: readonly { ref: string; status: string; issues?: readonly string[] }[] | null;
+  absenceLeak?: boolean;
   ms: number;
   error?: string;
+}
+
+interface NeedResult {
+  kind: string;
+  want: "answered" | "open";
+  /** answered: bütün desenler giden metinde · open: yasak desen yok. */
+  textOk: boolean;
+  /** Tek öğeli türde öğe durumu beklentiyle uyumlu mu (aynı türden iki ihtiyaç varsa ölçülmez → null). */
+  statusOk: boolean | null;
+  /** 🚨 open beklenip giden metinde yasak desen ya da öğe "answered" — yanlış "cevaplandı". */
+  wrongAnswered: boolean;
+}
+
+const rx = (p: string) => new RegExp(p, "iu");
+/** "Bilgim yok" ve iç kaynak anlatımı (kurucu: ikisi de misafire ASLA gitmez) — ölçerin kendi deseni, ürünün kalıbından bağımsız. */
+const ABSENCE_LEAK =
+  /bilgi(m| tabanı| tabanımda)|kayıtlar(ım|ımızda)|notlar(ım|ımızda)|(don'?t|do not) have (any )?(information|details)|knowledge base|my records|according to (my|our) (records|notes)|keine (informationen|angaben)|нет информации/iu;
+
+export function scoreNeeds(needs: readonly NeedSpec[], sentText: string | null, items: readonly { kind: string; status: string }[]): NeedResult[] {
+  const text = sentText ?? "";
+  return needs.map((n) => {
+    const sameKind = needs.filter((x) => x.kind === n.kind).length;
+    const ofKind = items.filter((i) => i.kind === n.kind);
+    const answeredItem = ofKind.some((i) => i.status === "answered");
+    const statusOk = sameKind > 1 || ofKind.length !== 1 ? null : n.want === "answered" ? answeredItem : !answeredItem;
+    const allOk = (n.all ?? []).every((p) => rx(p).test(text)) && (n.want !== "answered" || text.length > 0);
+    const forbidHit = (n.forbid ?? []).some((p) => rx(p).test(text));
+    const textOk = n.want === "answered" ? allOk && !forbidHit : !forbidHit;
+    const wrongAnswered = n.want === "open" ? forbidHit || (sameKind === 1 && ofKind.length === 1 && answeredItem) : forbidHit;
+    return { kind: n.kind, want: n.want, textOk, statusOk, wrongAnswered };
+  });
 }
 
 let lastStart = 0;
@@ -405,7 +457,7 @@ async function runOnce(s: Scenario): Promise<Omit<Row, "retried">> {
     where: { id: conversationId },
     select: { status: true, priority: true, guestIdentifier: true },
   });
-  const items = await prisma.conversationItem.findMany({ where: { conversationId }, select: { status: true } });
+  const items = await prisma.conversationItem.findMany({ where: { conversationId }, select: { status: true, kind: true } });
   const inbound = await prisma.message.findFirst({
     where: { conversationId, direction: "inbound" },
     orderBy: { createdAt: "desc" },
@@ -447,6 +499,14 @@ async function runOnce(s: Scenario): Promise<Omit<Row, "retried">> {
     sources: raw?.source === "openai" ? { verified: raw.usedSources ?? [], declared: raw.sourceAudit?.declared ?? 0 } : null,
     modelCalls: spySuggest.mock.calls.length,
     rw: Array.isArray(evidence.rw) ? evidence.rw : null,
+    ...(s.expect.needs
+      ? {
+          needs: scoreNeeds(s.expect.needs, sentText, items),
+          itemStates: items.map((i) => ({ kind: i.kind, status: i.status })),
+          parts: raw?.source === "openai" && raw.answerParts ? raw.answerParts.map((v) => ({ ref: v.ref, status: v.status, ...("issues" in v ? { issues: v.issues } : {}) })) : null,
+          absenceLeak: sentText ? ABSENCE_LEAK.test(sentText) : false,
+        }
+      : {}),
     ms,
   };
 }
@@ -628,6 +688,36 @@ describe.skipIf(!enabled)(`CANLI HAT — ${MODEL}`, () => {
             "",
           ]
         : []),
+      ...(rows.some((r) => r.needs)
+        ? (() => {
+            const all = rows.filter((r) => r.ok && r.needs).flatMap((r) => r.needs!.map((n) => ({ ...n, id: r.id })));
+            const ans = all.filter((n) => n.want === "answered");
+            const open = all.filter((n) => n.want === "open");
+            const st = all.filter((n) => n.statusOk !== null);
+            return [
+              `## İhtiyaç bazlı sonuç (kurucu 10-23 E) — okuyucu hatası kolu: \`EVAL_LIVE_READER_FAIL=${READER_FAIL ? "1" : "(boş)"}\``,
+              "",
+              "| ölçü | değer |",
+              "|---|---|",
+              `| cevaplanması gereken ihtiyaç: doğru değerle misafire giden | ${pct(ans.filter((n) => n.textOk).length, ans.length)} |`,
+              `| açık kalması gereken ihtiyaç: açık kaldı | ${pct(open.filter((n) => n.textOk && !n.wrongAnswered).length, open.length)} |`,
+              `| 🚨 yanlış "cevaplandı" / yanlış değer misafire giden (hedef 0) | ${all.filter((n) => n.wrongAnswered).length} |`,
+              `| öğe durumu beklentiyle uyumlu (tek öğeli tür) | ${pct(st.filter((n) => n.statusOk).length, st.length)} |`,
+              `| 🚨 "bilgim yok" / iç kaynak anlatımı misafire giden (hedef 0) | ${rows.filter((r) => r.absenceLeak).length} |`,
+              `| giden mesaj | ${rows.filter((r) => r.ok && r.sent).length}/${rows.filter((r) => r.ok).length} |`,
+              "",
+              "| senaryo | ihtiyaçlar (✔ doğru · ✖ yanlış) | öğeler | parça kararları |",
+              "|---|---|---|---|",
+              ...rows
+                .filter((r) => r.needs)
+                .map(
+                  (r) =>
+                    `| ${r.id} | ${r.needs!.map((n) => `${n.kind}:${n.want}${n.textOk && !n.wrongAnswered ? "✔" : "✖"}`).join(" ")} | ${(r.itemStates ?? []).map((i) => `${i.kind}=${i.status}`).join(" ")} | ${(r.parts ?? []).map((p) => `${p.ref}=${p.status}${p.issues ? `(${p.issues.join(",")})` : ""}`).join(" ") || "—"} |`,
+                ),
+              "",
+            ];
+          })()
+        : []),
       "## Misafire giden cevaplar (sentetik veri; insan gözü için)",
       "",
       ...rows.filter((r) => r.sent).map((r) => `- **${r.id}** (${r.cls}/${r.lang}): ${reviewQuote(r.sentText ?? "", name)}`),
@@ -665,6 +755,36 @@ describe.skipIf(!enabled)(`CANLI HAT — ${MODEL}`, () => {
 });
 
 describe("canlı hat ölçeri — çevrimdışı pinler", () => {
+  it("10-23 E ihtiyaç puanı: doğru değer / yasak değer / açık kalma / aynı türden iki ihtiyaçta öğe durumu ölçülmez", () => {
+    const needs: NeedSpec[] = [
+      { kind: "checkout_time", want: "answered", all: ["11[:.]00"] },
+      { kind: "amenities", want: "open", forbid: ["hamam"] },
+    ];
+    const items = [
+      { kind: "checkout_time", status: "answered" },
+      { kind: "amenities", status: "open" },
+    ];
+    expect(scoreNeeds(needs, "Çıkış saati 11:00.", items)).toEqual([
+      { kind: "checkout_time", want: "answered", textOk: true, statusOk: true, wrongAnswered: false },
+      { kind: "amenities", want: "open", textOk: true, statusOk: true, wrongAnswered: false },
+    ]);
+    // Açık kalması gereken konu metne girdi ve öğe "answered" → yanlış cevaplandı.
+    const bad = scoreNeeds(needs, "Çıkış 11:00. Hamam yok.", [items[0], { kind: "amenities", status: "answered" }]);
+    expect(bad[1]).toMatchObject({ textOk: false, wrongAnswered: true, statusOk: false });
+    // Hiçbir şey gitmedi: cevaplanması gereken yanlış (eksik), açık olan doğru.
+    expect(scoreNeeds(needs, null, items).map((n) => n.textOk)).toEqual([false, true]);
+    // Aynı türden iki ihtiyaç: öğe durumu ölçülmez; yasak değer misafire giderse yanlış.
+    const two: NeedSpec[] = [
+      { kind: "amenities", want: "answered", all: ["20[:.]00"] },
+      { kind: "amenities", want: "answered", all: ["22[:.]00"], forbid: ["23[:.]00"] },
+    ];
+    expect(scoreNeeds(two, "Havuz 20:00, sauna 22:00.", [{ kind: "amenities", status: "answered" }]).map((n) => [n.textOk, n.statusOk])).toEqual([
+      [true, null],
+      [true, null],
+    ]);
+    expect(scoreNeeds(two, "Havuz 20:00, sauna 23:00.", [])[1].wrongAnswered).toBe(true);
+  });
+
   it("canlı bayrak listesi anlam katmanlarını 5.1'e sabitler ve ölçülen kolları (cevap modeli, çaba, ücret kuralı) YAZMAZ", () => {
     expect(LIVE_FLAGS.AI_SEMANTIC_MODEL).toBe("gpt-5.1");
     for (const k of ["OPENAI_MODEL", "OPENAI_REASONING_EFFORT", "AI_KB_FEE_RULE_ENABLED", "AI_CODE_GREETING_ENABLED", "AI_STAY_DEFERRAL_PLAIN_ENABLED", "AI_ACCESS_CODE_COMPLETE_ENABLED", "AI_HOST_DECISION_HOLD_ENABLED", "AI_COMPLAINT_FOLLOWUP_RULE_ENABLED"]) {
