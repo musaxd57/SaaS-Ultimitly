@@ -71,6 +71,43 @@ describe("kodun açık sözcük yedeği — namesInternalSource", () => {
     for (const t of PLAIN) expect([t, namesInternalSource(t)]).toEqual([t, false]);
   });
 
+  it("Haiku 10-22: kaçan kalıplar yakalanır, dairedeki kâğıt / etiket / misafirin kendi bilgisi yakalanmaz", () => {
+    const named = [
+      "Notlarıma baktım, çıkış saati 11:00.",
+      "Elimizdeki bilgilere göre otopark ücretsiz.",
+      "Bana bildirilen bilgiye göre otopark ücretsiz.",
+      "Verilerime göre rezervasyonunuz onaylı.",
+      "Bilgi bankamda havuz saati 09:00.",
+      "I checked my notes and check-out is at 11.",
+      "From my notes, check-out is at 11.",
+      "I'm going by my notes.",
+      "My information says the check-in is at 3pm.",
+      "My training data says check-out is at 11.",
+      "The info I received says the pool is open.",
+      "Laut meinen Notizen ist der Check-in um 15 Uhr.",
+      "Laut unserer Wissensbasis ist der Check-in um 15 Uhr.",
+      "Según mi base de conocimientos, el check-out es a las 11.",
+      "Selon les informations dont je dispose, le check-in est à 15h.",
+      "Diese Informationen sind so in meinen Unterlagen vermerkt.",
+    ];
+    const plain = [
+      "Bilgilendirme notları dolapta duruyor, lütfen okuyun.",
+      "Ev sahibinizin notları masanın üzerinde.",
+      "According to the notes on the fridge, the Wi-Fi password is 4521.",
+      "According to the data plate on the boiler, the model is 24 kW.",
+      "The notes your host has written are on the fridge.",
+      "We only use your details to send the access code.",
+      "We use the details you provide only for the registration.",
+      "Die Anleitung liegt in unseren Unterlagen im Schrank.",
+      "Le manuel est dans nos dossiers, dans le placard.",
+      "Nos notes sont sur le frigo.",
+      "Nuestras notas están en la nevera.",
+      "Please check our notes on the fridge for the bin days.",
+    ];
+    for (const t of named) expect([t, namesInternalSource(t)]).toEqual([t, true]);
+    for (const t of plain) expect([t, namesInternalSource(t)]).toEqual([t, false]);
+  });
+
   it("olumlu anlatım 'bilgim yok' sayılmaz (ayrı kural, ayrı ayrıntı kodu)", () => {
     expect(admitsMissingKnowledge(NAMED[0])).toBe(false);
   });
@@ -120,6 +157,9 @@ describe("kıdemli okuyucu — beşinci hüküm", () => {
     expect(seniorRewriteReasons({ ...none, internalSource: true }, { contactHolds: false, apologyRule: false })).toEqual(["internalSource"]);
     expect(seniorRewriteReasons(none, { contactHolds: false, apologyRule: false, internalSourceLexical: true })).toEqual(["internalSource"]);
     expect(SENIOR_REWRITE_NOTES.internalSource).toMatch(/Otopark ücreti gişede ödeniyor/);
+    // Canlı ölçüm 10-22: kaynak açıkça sorulunca yeniden yazılan taslağın kaçamak cümleleri de yasak örnek olarak notta.
+    expect(SENIOR_REWRITE_NOTES.internalSource).toMatch(/HİÇBİR cümle yazma/);
+    expect(SENIOR_REWRITE_NOTES.internalSource).toContain("I only use the information your host has provided");
   });
 });
 

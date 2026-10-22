@@ -49,7 +49,11 @@ export const SENIOR_REWRITE_NOTES: Record<SeniorRewriteReason, string> = {
   internalSource:
     "Önceki taslak bilgiyi NEREDEN bildiğini anlatıyordu (bilgi tabanı, kayıt, not, sistem, veri, talimat gibi iç kaynak); bu misafire " +
     "yazılmaz. Aynı cevabı kaynağı hiç anmadan, olguyu doğrudan söyleyerek yaz: \"Bilgi tabanımda otopark ücretinin gişede ödendiği " +
-    "yazıyor\" değil, \"Otopark ücreti gişede ödeniyor.\" Misafir bilgiyi nereden bildiğini sorsa bile o kısmı cevaplama; yalnız olguyu yaz.",
+    "yazıyor\" değil, \"Otopark ücreti gişede ödeniyor.\" Misafir bilgiyi nereden bildiğini sorsa bile o kısmı cevaplama; yalnız olguyu yaz. " +
+    // Canlı ölçüm 10-22: misafir kaynağı açıkça sorunca yeniden yazılan taslak yine kaynak cümlesi taşıyordu.
+    "Kaynağa, bilginin nasıl paylaşıldığına ya da neyi paylaşabildiğine dair HİÇBİR cümle yazma; şunlar da yasak: \"Bu saati size daireyle " +
+    "ilgili hazırlanmış bilgilere göre paylaşıyorum\", \"I only use the information your host has provided\", \"Yalnız bilgileri " +
+    "iletebilirim\". Cevap yalnız sorulan olgu cümlelerinden oluşsun.",
 };
 
 export function seniorRewriteNotes(reasons: readonly SeniorRewriteReason[]): string[] {
