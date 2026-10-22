@@ -164,8 +164,9 @@ function softened(w: string): string | null {
 /**
  * Sözcüğün olası çekimsiz biçimleri: kendisi + (en az 4 harf kalıyorsa) bir çekim eki sökülmüş hâli + sözcük sonu yumuşamış hâli.
  * "saunanın" → {saunanin, sauna}; "saunada" → {saunada, sauna}; "dolap" → {dolap, dolab}; "dolabın" → {dolabin, dolab}.
+ * Cevap parçası doğrulayıcısı da gün adlarını bununla okur ("cumartesileri" → "cumartesi").
  */
-function baseForms(w: string): Set<string> {
+export function baseForms(w: string): Set<string> {
   const out = new Set([w]);
   const soft = softened(w);
   if (soft && soft.length >= 4) out.add(soft);
@@ -205,6 +206,14 @@ const overlapWith =
     a.filter((t) => b.some((u) => same(t, u))).length;
 const overlapLoose = overlapWith(sameWordLoose);
 const overlapStrict = overlapWith(sameWordStrict);
+
+/**
+ * İsteğin sözcüklerinden kaçı metinde SIKI eşleşmeyle geçiyor (yalnız çekim eki — "havuz" ~ "havuzumuz", "kapı" ≁ "kapıcı"). Cevap parçası
+ * doğrulayıcısı (`ai/answer-binding.ts`) değerin yanındaki konuyu bununla okur — gönderime izin veren karar olduğu için SIKI.
+ */
+export function needTermsInStrict(terms: readonly string[], text: string): number {
+  return overlapStrict(terms, distinctiveTokens(text));
+}
 
 export function stripTopicAbsence(input: {
   reply: string;

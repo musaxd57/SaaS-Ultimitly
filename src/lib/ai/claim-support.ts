@@ -746,6 +746,19 @@ function codeSupported(tok: string, ix: Index): boolean {
 
 const CONSTANT_KEYS = new Set(["k112", "k155", "k156", "k110", "k177", "k911", "k999"]);
 
+/**
+ * Metindeki somut değerler, KONUMLARIYLA (yalnız eşleştirme — ham değer kaydedilmez). Konumlar `text` alanındaki DÖNÜŞTÜRÜLMÜŞ metne
+ * göredir (katlama + sayı sözcükleri). Kullanan: cevap parçası doğrulayıcısı (`ai/answer-binding.ts`, kurucu 10-23 A — değer konuya bağlı
+ * mı; yalnız `AI_ANSWER_PARTS_ENABLED` açıkken karar verir). Bu modülün kendi denetimi (`auditClaims`) hâlâ yalnız ÖLÇÜMDÜR.
+ */
+export function claimSpans(text: string): {
+  text: string;
+  claims: { cls: ClaimClass; keys: string[]; tkeys?: string[]; at: number; end: number }[];
+} {
+  const t = wordsToDigits(foldForClaims(text), "unit");
+  return { text: t, claims: extract(t, text).map(({ cls, keys, tkeys, at, end }) => ({ cls, keys, ...(tkeys ? { tkeys } : {}), at, end })) };
+}
+
 /** Cevaptaki iddiaları çıkar ve desteğini sınıfla. Saf; asla fırlatmaması çağıranda sarılarak sağlanır. */
 export function auditClaims(reply: string, ctx: ClaimContext): ClaimAudit {
   const claims = extract(wordsToDigits(foldForClaims(reply), "unit"), reply);
