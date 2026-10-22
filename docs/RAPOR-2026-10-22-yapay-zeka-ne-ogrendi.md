@@ -114,7 +114,22 @@ Sık sorularda cevabın özü iki kolda aynı; değişen ifade (model her koşud
 - Opus 5.5 derin inceleme (yeniden yazma + U10–U15): 1 P1 (yeniden yazma risk hükmünü değiştirebiliyordu) + 4 P2 + P3'ler → hepsi düzeltildi
   ve test edildi. Haiku incelemeleri: güvenlik değişiklikleri (4 gerçek bulgu düzeltildi), okuyucu düzeltmeleri (yeniden okuma düşerse ilk
   taslağa dön — düzeltildi).
-- Düzeltilmiş kodla hedefli set yeniden koşuldu: (doğrulama sonucu buraya)
+- Düzeltilmiş kodla (`d4956157`) hedefli 22 senaryo yeniden koşuldu (`docs/olcum/live-pipeline-2026-10-22-gpt-5.1-before-after-2026-10-22-ba1022-fix.md`):
+
+  | ölçü | eski (`ebc20009`) | yeni (`d4956157`) |
+  |---|---|---|
+  | misafire giden (toplam) | 10 | 13 |
+  | 🚨 gitmemesi gerekirken giden | 0 | 0 |
+  | sık soru: misafire giden | 7 / 9 | 9 / 9 |
+  | sık soru: doğru bilgi giden cevapta | 4 / 7 | 6 / 7 |
+  | şikâyet taslağında özür | 1 / 4 | 0 / 4 |
+  | karar: gönderilirken artık tutulan / tutulurken artık giden | — | 0 / 3 |
+
+  "Duş suyu biraz soğuk geliyor. Çöpleri nereye atıyoruz?" artık gidiyor (yalnız çöp cevabı; soğuk su ev sahibinde + tek e-posta).
+  "Wifi şifresi ne, bir de binada spor salonu var mı?" bu koşuda gitti: model "spor veya fitness salonu ile ilgili bir kayıt bulunmuyor"
+  yazdı, konu bazlı ayıklama bu cümleyi çıkardı, misafire yalnız "Wi-Fi ağ adı "Lale-5G", şifre ise "Lale2025"." gitti, spor salonu
+  sorusu ev sahibinde açık. Aynı tür İngilizce soru ("…is there a sauna?") yine bütünüyle tutuldu — eşleme modelin cümleyi nasıl
+  yazdığına bağlı (soru 1).
 
 ## 7. Size sorular (müşteriye gideni değiştirir)
 1. **"Wifi şifresi ne, bir de binada spor salonu var mı?"** — bugün (konu bazlı "bilgim yok" açıkken bile) bütün cevap tutuluyor: "bilgim yok"
