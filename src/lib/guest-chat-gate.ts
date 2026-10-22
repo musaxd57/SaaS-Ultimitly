@@ -364,10 +364,6 @@ export function evaluateEscalation(
   // ile "Konu yönetime bildirilmiştir" (makbuzsuz) BİREBİR aynı şablon.
   const vetoed = vetoOutgoingReply(result.reply);
   if (vetoed !== null) return yes(vetoed);
-  // Kurucu 10-22 ("bilgi tabanıyla ilgili … hiçbir şey müşteriye gitmemeli"; çıktı vetosunun ARDINDA — aynı taslakta yer tutucu varsa
-  // kayıt o sebebi taşır): okuyucu okuduysa onun hükmü; ayrıca kodun açık sözcük yedeği (okuyucu kapalı / düştü / kaçırdı) — ANAHTARSIZ.
-  // Okuyucu açıksa rota bir kez yeniden yazdırır.
-  if (senior?.internalSource || namesInternalSource(result.reply ?? "")) return yes("reply_internal_source");
   // ── EYLEM BEYANI (MÇ §4) — kanal kapısıyla AYNI yüklem ve AYNI yer (çıktı vetosunun ardında). Makbuz yok → devir. ──
   const claim = actionClaimHold(result.claimedActions);
   if (claim !== null) return yes(claim);
@@ -377,6 +373,11 @@ export function evaluateEscalation(
   }
   // ── ACİL ARAMA YÖNERGESİ MİSAFİRE GİTMEZ (kurucu kararı 10-11: "112'yi arayın yazmasın … hiçbir şekilde") ──
   if (hasEmergencyCallDirective(result.reply)) return yes("emergency_directive");
+  // Kurucu 10-22 ("bilgi tabanıyla ilgili … hiçbir şey müşteriye gitmemeli"; çıktı vetosunun ve acil arama yönergesinin ARDINDA — kanal
+  // kapısıyla aynı sıra (Opus 10-22): aynı taslakta yer tutucu / "112'yi arayın" varsa kayıt o sebebi taşır ve boşuna ücretli yeniden yazma
+  // koşmaz): okuyucu okuduysa onun hükmü; ayrıca kodun açık sözcük yedeği (okuyucu kapalı / düştü / kaçırdı) — ANAHTARSIZ. Okuyucu açıksa
+  // rota bir kez yeniden yazdırır.
+  if (senior?.internalSource || namesInternalSource(result.reply ?? "")) return yes("reply_internal_source");
   // ── KANITSIZ ARIZA ADIMI (kurucu 10-15; anahtar `AI_FIX_SUPPORT_GATE_ENABLED`) — kanal kapısıyla AYNI yüklem. Bilgi tabanında tarifi /
   // konusu olmayan cihaz için adım misafire gitmez, ev sahibine devredilir. ──
   // Koddan kurulan doğrulanmış müsaitlik / uzatma metni muaf (kanal kapısındaki `codeBuiltGrant` paritesi — Haiku 10-15 gece).

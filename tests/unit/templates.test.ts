@@ -20,6 +20,23 @@ describe("şablon ikamesi tek kaynak", () => {
     expect(out).not.toContain("1234");
     expect(applyTemplateBody("Merhaba {{guestName}},", { propertyName: "X" })).not.toContain("Misafir");
   });
+
+  it("Opus 10-22: '_' ile başlayan iç değer (iç mülk adı) {{…}} olarak yazılmaz; {daire} numarası ondan okunur", () => {
+    const vars = { guestName: "Ayşe Yılmaz", propertyName: "Kat 2 Daire 3", _apartmentSource: "Lale Daire 5" };
+    expect(applyTemplateBody("Konaklayacağınız daire: {{propertyName}}.", vars)).toBe("Konaklayacağınız daire: Kat 2 Daire 3.");
+    expect(applyTemplateBody("İç: {{_apartmentSource}}", vars)).not.toContain("Lale");
+    expect(applyTemplateBody("Daire no: {daire}", vars)).toBe("Daire no: 5");
+  });
+});
+
+describe("gelen kutusu şablon değişkenleri — iç ad misafire gitmez (Opus 10-22)", () => {
+  it("sayfa {{propertyName}}'i misafire görünen adla doldurur, iç adı yalnız _apartmentSource'a koyar", async () => {
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync("src/app/(app)/inbox/[id]/page.tsx", "utf8");
+    expect(src).toMatch(/propertyName: normalizeGuestDisplayName\(conversation\.property\.guestDisplayName\) \?\? ""/);
+    expect(src).toMatch(/_apartmentSource: conversation\.property\.name/);
+    expect(src).not.toMatch(/propertyName: conversation\.property\.name/);
+  });
 });
 
 describe("DEFAULT_TEMPLATES", () => {

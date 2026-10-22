@@ -661,40 +661,57 @@ export function admitsMissingKnowledge(reply: string | null | undefined): boolea
 const INTERNAL_SOURCE_NAMED: readonly RegExp[] = [
   new RegExp(
     `${L}(?:bilgi ?taban\\p{L}{0,8}|veri ?taban\\p{L}{0,8}|bilgi banka\\p{L}{0,6}|sistem sorgu\\p{L}{0,8}|` +
+      // Opus 10-22: "Sistemde giriş saatiniz 15:00 görünüyor" (istemin kendi örneği), "Kayıtlarda … görünüyor", "Kayıtlı / Mevcut / hazırlanmış
+      // bilgilere göre". Çıplak "sistemde" (iyeliksiz bulunma) mülk olgusu değildir ("ısıtma sistemimizde" / "sisteminde" ayrı biçim); "size
+      // gönderilen bilgilere göre" misafirin kendi aldığı bilgidir → TR_GIVEN burada YOK.
+      `sistemde(?:ki)?(?![\\p{L}])|kay[ıi]tlar(?:da|dan|a göre)(?:ki)?(?![\\p{L}])|` +
+      `(?:kay[ıi]tl[ıi]|mevcut|eldeki|hazırlanm[ıi]ş) bilgi(?:ye|lere) göre(?![\\p{L}])|` +
       `kay[ıi]tlar[ıi]m(?:[ıi]z)?(?:da|dan|a göre|a bak\\p{L}{0,8})(?![\\p{L}])|notlar[ıi]m(?:[ıi]z)?(?:da|dan|a göre|a bak\\p{L}{0,8})(?![\\p{L}])|` +
       `bilgiler[ıi]m(?:[ıi]z)?(?:de|den|e göre)(?![\\p{L}])|verilerim(?:iz)?(?:de|den|e göre)(?![\\p{L}])|` +
       `elim(?:iz)?deki (?:bilgi|not|kay[ıi]t|veri|kaynak)\\p{L}{0,8}|` +
       `bana (?:${TR_GIVEN}|bildirilen|söylenen) (?:bilgi|not|kay[ıi]t|veri|talimat)\\p{L}{0,8}|` +
       // Haiku 10-22: yalnız "-da / -dan / -a göre" (kaynak bildirir) — "Bilgilendirme notları dolapta" (dairedeki kâğıt) yakalanmaz.
-      `bilgilendirme not(?:un|lar[ıi]n|lar[ıi]m(?:[ıi]z)?)(?:da|dan|a göre)(?![\\p{L}])|` +
+      // Opus 10-22: önünde yer sıfatı varsa ("mutfaktaki bilgilendirme notunda") dairedeki kâğıttır.
+      `(?<![\\p{L}](?:da|de|ta|te)ki )bilgilendirme not(?:un|lar[ıi]n|lar[ıi]m(?:[ıi]z)?)(?:da|dan|a göre)(?![\\p{L}])|` +
       // Canlı ölçüm 10-22: "…bilgiler daire için hazırlanmış bilgilendirme notlarında yer alıyor". Aynı ek kuralı: "Ev sahibinizin notları
       // masada" yakalanmaz.
-      `(?:ev sahibi(?:niz|nizin|nin)?|dairenin|daireye ait) (?:bilgilendirme )?not(?:un|lar[ıi]n)(?:da|dan|a göre)(?![\\p{L}])|` +
+      // Yalnız ÇOĞUL ("notlarında"): tekil "Ev sahibinizin notunda …" bıraktığı kâğıt olabilir (Opus 10-22).
+      `(?:ev sahibi(?:niz|nizin|nin)?|dairenin|daireye ait) (?:bilgilendirme )?notlar[ıi]n(?:da|dan|a göre)(?![\\p{L}])|` +
       // Canlı ölçüm 10-22 (anahtarlar kapalı): "…bilgiler daire için hazırlanmış yazılı bilgilendirmeden … alınmıştır". Yalnız "-den / -e göre"
       // (kaynak bildirir); dairedeki basılı kart ("yazılı bilgilendirme kartı masada") yakalanmaz.
       `yaz[ıi]l[ıi] bilgilendirme(?:den|lerden|ye göre|lere göre)(?![\\p{L}]))`,
     "u",
   ),
   new RegExp(
-    `${L}(?:knowledge[ -]?base|database|system prompt|context window|training data|(?:in|from) (?:my|our) (?:records|system)(?![\\p{L}])|` +
+    `${L}(?:knowledge[ -]?base|database|system prompt|context window|training data|in (?:my|our) (?:records|system)(?![\\p{L}])|` +
+      // "from our system" YOK — "… sent from our system" gönderim anlatır (Opus 10-22).
+      "from (?:my|our) records(?![\\p{L}])|(?:the|our) system (?:shows|says|indicates|lists)(?![\\p{L}])|(?:i|we) can see (?:in|on) (?:the|our) system(?![\\p{L}])|" +
+      // Opus 10-22: "As per our records", "Per my notes", "Based on the information provided".
+      "(?:as )?per (?:my|our) (?:records|notes|files|data|information)(?![\\p{L}])|as per the (?:records|notes|information|data|system)(?![\\p{L}])|" +
+      "based on (?:the |my |our )?(?:information|info|details|data|notes|records) (?:provided|given|available|i have|we have|on file)(?![\\p{L}])|" +
       // "my" (yapay zekânın kendisi) yeter; "our notes" dairedeki kâğıt olabilir ("in our notes on the fridge").
       "(?:in|from) my (?:notes|files|data)(?![\\p{L}])|" +
       "i(?:'ve| have)? (?:checked|looked at|looked through|went through|double-checked) (?:my|our) (?:notes|records|files|system|information|data)(?![\\p{L}])|" +
       "(?:my|our) (?:notes|records|files|information|info|data) (?:say|says|show|shows|indicate|indicates|mention|mentions|state|states|suggest|suggests)(?![\\p{L}])|" +
       // Haiku 10-22: ardından yer / nesne gelirse dairedeki kâğıt ya da etikettir ("according to the notes on the fridge", "the data plate").
-      "according to (?:my|our|the) (?:notes|records|information|info|data|files|system)(?![\\p{L}])(?! (?:on|in|at|by|inside|near|next|plate|sheet|label|sticker)(?![\\p{L}]))|" +
+      "according to (?:my|our|the) (?:notes|records|information|info|data|files|system)(?![\\p{L}])(?! (?:on|in|at|by|inside|near|next|plate|sheet|label|sticker|board|sign|card|poster|leaflet|booklet|binder|folder|book)(?![\\p{L}]))|" +
       "(?:the )?(?:information|info|details|notes|data) (?:i have|i've got|i was given|i've been given|i received|i've received|provided to me|given to me|we have on file)(?![\\p{L}])|" +
       // Canlı ölçüm 10-22: "I use the apartment's own written information and instructions that your host has provided". "notes / written"
       // YOK — "The notes your host has written are on the fridge" dairedeki kâğıttır (Haiku 10-22).
-      "(?:information|details|instructions) (?:that )?(?:your|the) host (?:has )?(?:provided|shared|given|set up|prepared)(?![\\p{L}])|" +
+      // Ardından platform / uygulama / kitapçık gelirse misafiri oraya yönlendirir ("… your host has provided in the Airbnb app", Opus 10-22).
+      "(?:information|details|instructions) (?:that )?(?:your|the) host (?:has )?(?:provided|shared|given|set up|prepared)(?![\\p{L}])" +
+      "(?! (?:in|on|via|through) (?:the |your )?(?:airbnb|booking|app|platform|guidebook|guide|manual|welcome|house)(?![\\p{L}]))|" +
       // Misafirin KENDİ bilgisi ("We only use your details to send the access code" — kişisel veri cevabı) kaynak anlatımı değildir.
       "(?:i|we)(?:'m| am|'re| are)? (?:only )?(?:use|using|rely on|relying on|go by|going by|work from|working from|draw on|drawing on) " +
-      "(?:the |only |what )?(?!your |you )(?:[\\p{L}'’]{1,20} ){0,3}(?:information|details|notes|data)(?![\\p{L}])(?! (?:you|that you|which you)(?![\\p{L}])))",
+      // "We only use the personal data required for the police registration" kişisel veri cevabıdır (Opus 10-22).
+      "(?:the |only |what )?(?!your |you )(?:[\\p{L}'’]{1,20} ){0,3}(?<!(?:personal|your|guest|guests['’]?) )(?:information|details|notes|data)(?![\\p{L}])" +
+      "(?! (?:you|that you|which you)(?![\\p{L}])))",
     "u",
   ),
   // Haiku 10-22: yer bildiren ek gelirse dairedeki dosya / kâğıttır ("in unseren Unterlagen im Schrank", "Nos notes sont sur le frigo",
   // "Nuestras notas están en la nevera") — Fransızca / İspanyolca yalnız kaynak edatıyla ("selon / según …").
-  /(?<![\p{L}])(?:wissensdatenbank|wissensbasis|datenbank|(?:meinen|unseren) unterlagen(?! (?:im|in|auf|am|unter|neben)(?![\p{L}]))|(?:laut|nach|gemäß) (?:meinen|unseren) (?:notizen|unterlagen|daten|informationen|aufzeichnungen)|mir vorliegend\p{L}{0,3}|base de (?:données|connaissances)|(?:selon|d['’]après) (?:mes|nos) (?:notes|fiches|dossiers|registres|informations|données)(?![\p{L}])|informations dont (?:je|nous) dispos\p{L}{0,4}|base de datos|base de conocimientos?|(?:según|de acuerdo con) (?:mis|nuestras) notas|en mis notas|(?:según|de acuerdo con|en) (?:mis|nuestros) registros|баз\p{L}{0,3} данных|(?:наших|моих) (?:записях|заметках)|قاعدة (?:ال)?بيانات|سجلات(?:نا|ي)|ملاحظات(?:نا|ي))/u,
+  // Opus 10-22: "Según nuestros datos", "Meinen Informationen zufolge", "По нашим данным", Arapçada bitişik ön ek ("لسجلاتنا").
+  /(?<![\p{L}])(?:wissensdatenbank|wissensbasis|datenbank|(?:meinen|unseren) unterlagen(?! (?:im|in|auf|am|unter|neben)(?![\p{L}]))|(?:laut|nach|gemäß) (?:meinen|unseren) (?:notizen|unterlagen|daten|informationen|aufzeichnungen)|mir vorliegend\p{L}{0,3}|base de (?:données|connaissances)|(?:selon|d['’]après) (?:mes|nos) (?:notes|fiches|dossiers|registres|informations|données)(?![\p{L}])|informations dont (?:je|nous) dispos\p{L}{0,4}|base de datos|base de conocimientos?|(?:según|de acuerdo con) (?:mis|nuestras) notas|en mis notas|(?:según|de acuerdo con|en) (?:mis|nuestros) registros|(?:según|de acuerdo con) (?:mis|nuestros) datos|(?:meinen|unseren) (?:informationen|daten|unterlagen|notizen|aufzeichnungen) zufolge|баз\p{L}{0,3} данных|(?:наших|моих) (?:записях|заметках)|по (?:нашим|моим) (?:данным|записям)|قاعدة (?:ال)?بيانات|[لبو]?سجلات(?:نا|ي)|[لبو]?ملاحظات(?:نا|ي))/u,
 ];
 
 /**

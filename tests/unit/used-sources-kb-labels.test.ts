@@ -132,3 +132,28 @@ describe("bilgi tabanı atfı kalemin KATEGORİSİNE iner (gerçek kaleme denk g
     expect((await verified(["property:checkInTime", "property:door_code", "kb:klima"])).used).toEqual(["property:checkInTime", "kb:faq"]);
   });
 });
+
+describe("Opus 10-22: 'property:name' yalnız misafire görünen ad isteme gittiyse kaynak sayılır (iç ad istemde YOK)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  async function usedWith(property: SuggestReplyInput["property"], usedSources: string[]) {
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    openAiReturns(usedSources);
+    const r = await suggestReply({ ...input(), property });
+    return r.usedSources;
+  }
+
+  it("görünen ad yoksa düşer, varsa kalır; şehir yoksa 'property:city' düşer", async () => {
+    expect(await usedWith({ name: "Lale 7", checkInTime: "15:00", checkOutTime: "11:00" }, ["property:name"])).toEqual([]);
+    expect(
+      await usedWith({ name: "Lale 7", guestDisplayName: "Kat 2 Daire 3", checkInTime: "15:00", checkOutTime: "11:00" }, ["property:name"]),
+    ).toEqual(["property:name"]);
+    expect(await usedWith({ name: "Lale 7", checkInTime: "15:00", checkOutTime: "11:00" }, ["property:city"])).toEqual([]);
+    expect(await usedWith({ name: "Lale 7", city: "İzmir", checkInTime: "15:00", checkOutTime: "11:00" }, ["property:city"])).toEqual([
+      "property:city",
+    ]);
+  });
+});

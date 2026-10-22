@@ -108,6 +108,37 @@ describe("kodun açık sözcük yedeği — namesInternalSource", () => {
     for (const t of plain) expect([t, namesInternalSource(t)]).toEqual([t, false]);
   });
 
+  it("Opus 10-22: kaçan aileler yakalanır, dairedeki kâğıt / uygulama yönlendirmesi / kişisel veri / gönderim yakalanmaz", () => {
+    const named = [
+      "As per our records, check-in is at 3pm.",
+      "Based on the information provided, check-out is at 11.",
+      "Per my notes, the pool opens at 9.",
+      "The system shows that your check-in is at 15:00.",
+      "I can see in the system that you arrive Friday.",
+      "Sistemde giriş saatiniz 15:00 görünüyor.",
+      "Kayıtlı bilgilere göre otopark ücretsiz.",
+      "Mevcut bilgilere göre havuz 09:00'da açılıyor.",
+      "Kayıtlarda çıkış saati 11:00 görünüyor.",
+      "Bu saati size daireyle ilgili hazırlanmış bilgilere göre paylaşıyorum.",
+      "По нашим данным, заезд в 15:00.",
+      "Según nuestros datos, el check-in es a las 15:00.",
+      "Meinen Informationen zufolge ist der Check-in um 15 Uhr.",
+      "وفقًا لسجلاتنا، تسجيل الوصول الساعة 3.",
+    ];
+    const plain = [
+      "Wi-Fi şifresi mutfaktaki bilgilendirme notunda yazıyor.",
+      "Ev sahibinizin notunda Wi-Fi şifresi yazıyor.",
+      "You can find the self check-in instructions your host has provided in the Airbnb app.",
+      "We only use the personal data required for the police registration.",
+      "The confirmation e-mail was sent from our system yesterday.",
+      "According to the information board in the lobby, breakfast starts at 8.",
+      "Size gönderilen bilgilere göre giriş 15:00'te.",
+      "Isıtma sistemimizde termostat salonda.",
+    ];
+    for (const t of named) expect([t, namesInternalSource(t)]).toEqual([t, true]);
+    for (const t of plain) expect([t, namesInternalSource(t)]).toEqual([t, false]);
+  });
+
   it("olumlu anlatım 'bilgim yok' sayılmaz (ayrı kural, ayrı ayrıntı kodu)", () => {
     expect(admitsMissingKnowledge(NAMED[0])).toBe(false);
   });
@@ -186,6 +217,13 @@ describe("kapı — kanal ve QR aynı yüklem", () => {
     });
     const plain = { ...ok, reply: PLAIN[0] };
     expect(autoReplyGateVerdict(plain, "Otopark kartla ödenir mi?", { absenceJudge: read(plain.reply, false) })).toBeNull();
+  });
+
+  it("Opus 10-22: teşhis kipinde (erken giriş akışının tetiği) çıktı vetosu gibi atlanır; QR'da acil arama yönergesi ÖNCE gelir", () => {
+    const named = { ...ok, reply: NAMED[0] };
+    expect(autoReplyGateVerdict(named, "Otopark?", { skipOutputVetoForDiagnosis: true })?.detail).not.toBe("reply_internal_source");
+    const both = { ...ok, reply: "Bilgi tabanımda yazdığına göre acil durumda 112'yi arayın." };
+    expect(evaluateEscalation(both, "Ne yapmalıyım?", "Alex", []).reason).toBe("emergency_directive");
   });
 
   it("QR: aynı kural", () => {

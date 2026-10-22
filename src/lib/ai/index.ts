@@ -1,4 +1,5 @@
 import { defuseBlockDelimiters } from "./retrieval/kb-line";
+import { normalizeGuestDisplayName } from "@/lib/guest-display-name";
 import "server-only";
 import { createHash } from "node:crypto";
 import { buildReplyPrompt, replySystemPromptFor } from "./prompts";
@@ -168,7 +169,10 @@ function verifyNonKbSource(src: string, input: SuggestReplyInput): boolean {
     // a fabricated source (e.g. "property:door_code") that then showed as a
     // "used context" chip, contradicting the invented-source-dropped guarantee.
     const field = src.slice("property:".length);
-    return field === "checkInTime" || field === "checkOutTime" || field === "name" || field === "city";
+    // "name": istemde iç ad YOK (kurucu 10-22); yalnız misafire görünen ad gittiyse ("Misafire görünen daire adı: …") kaynak sayılır (Opus 10-22).
+    if (field === "name") return normalizeGuestDisplayName(input.property.guestDisplayName) !== null;
+    if (field === "city") return Boolean(input.property.city);
+    return field === "checkInTime" || field === "checkOutTime";
   }
   if (src.startsWith("reservation:")) {
     // Whitelist the REAL reservation-context fields (same rationale as the

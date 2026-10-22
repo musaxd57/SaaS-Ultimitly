@@ -610,7 +610,11 @@ export function autoReplyGateVerdict(
   // "bilgi tabanıyla ilgili … hiçbir şey müşteriye gitmemeli"): cevap bilgiyi NEREDEN bildiğini anlatıyorsa gitmez — okuyucu
   // okuduysa onun hükmü, ayrıca kodun açık sözcük yedeği (okuyucu kapalı / düştü / kaçırdı; `absence.namesInternalSource`) — ANAHTARSIZ.
   // Okuyucu açıksa ilk taslak bir kez yeniden yazdırılır (`SENIOR_REWRITE_GATE_DETAILS`).
-  if (senior?.internalSource || namesInternalSource(result.reply ?? "")) return hold("reply_internal_source");
+  // Teşhis kipinde (erken giriş akışının tetiği) çıktı vetosu gibi atlanır (Opus 10-22): akış modelin metnini koddan kurulanla değiştirir —
+  // kaynak cümlesi zaten gitmez; atlanmazsa "Kayıtlarımda giriş 15:00 …" taslağı doğrulanmış erken giriş akışını hiç koşturmuyordu.
+  if (!context?.skipOutputVetoForDiagnosis && (senior?.internalSource || namesInternalSource(result.reply ?? ""))) {
+    return hold("reply_internal_source");
+  }
   // ── 51: ALARM BAĞLAMLA KALKTIYSA KAYNAKSIZ GÜVENCE GİTMEZ (kurucu: "'normaldir, güvenlidir' diye kaynaksız güvence verilmesin") ──
   if (context?.hazardCleared && hasSafetyReassurance(result.reply) && !kbSupportsReassurance(context.kbFacts)) {
     return hold("hazard_reassurance");
@@ -2681,7 +2685,8 @@ export async function applyChannelAutoReply(
   // tutardı. Kapı güvenden / riskten kapanıyorsa akış yine KOŞMAZ (güven tabanı kalkmaz — P2, 09-24).
   // Eylem beyanı (`action_claim*`) aynı sınıftır: modelin metnindeki söz/iddia — akış o metni koddan kurulanla değiştirir.
   const withoutOutputVeto = () =>
-    (gateFailure === "blocked" && autoReplyGateVerdict(result, last.body, gateContext)?.detail === "reply_output_veto") ||
+    (gateFailure === "blocked" &&
+      ["reply_output_veto", "reply_internal_source"].includes(autoReplyGateVerdict(result, last.body, gateContext)?.detail ?? "")) ||
     gateFailure === "action_claim" ||
     gateFailure === "action_claim_undeclared"
       ? autoReplyGateFailure(result, last.body, { ...gateContext, skipOutputVetoForDiagnosis: true })

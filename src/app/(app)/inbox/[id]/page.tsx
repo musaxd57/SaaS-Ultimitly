@@ -51,6 +51,7 @@ import { isOpenDecision } from "@/lib/decisions/core";
 import { DecisionPanel } from "@/components/inbox/decision-panel";
 import { CommitmentsCard, type CommitmentRow } from "@/components/inbox/commitments-card";
 import { ActionSuggestions } from "@/components/ai-suggestions/action-suggestions";
+import { normalizeGuestDisplayName } from "@/lib/guest-display-name";
 import { aiActionSuggestionsEnabled, getConversationSuggestions } from "@/lib/ai-suggestions/load";
 import { commitmentLateAt, hostCommitmentAutoEnabled, isCommitmentKind, storedCommitmentWhen, type CommitmentKind } from "@/lib/guest-commitments-core";
 
@@ -81,7 +82,7 @@ export default async function ConversationPage({
       // Yalnız sayfanın kullandığı alanlar (DENETIM 08-09 #10 / ACIK-08 §15): `property: true` sunucuya `icalToken`, `chatToken` gibi
       // erişim sırlarını, `reservation: true` misafir iletişim alanlarını da çekiyordu. İstemciye bugün de yalnız projeksiyon gidiyor;
       // daraltma savunma derinliği — bir sonraki eklenen prop'un sırrı sızdırması yapısal olarak imkânsız (alan yoksa tür hatası).
-      property: { select: { name: true, checkInTime: true, checkOutTime: true, address: true, city: true } },
+      property: { select: { name: true, guestDisplayName: true, checkInTime: true, checkOutTime: true, address: true, city: true } },
       reservation: {
         select: {
           id: true,
@@ -356,7 +357,11 @@ export default async function ConversationPage({
   const wifiItem = kb.find((k) => k.category === "wifi");
   const templateVars: Record<string, string> = {
     guestName: conversation.reservation?.guestName ?? conversation.guestIdentifier,
-    propertyName: conversation.property.name,
+    // Kurucu 10-22 ("müşteriye daire adı ne … kat 2 daire 3 gibidir"): şablonun {{propertyName}} alanı İÇ ad değil, misafire görünen ad
+    // (U4); boşsa doldurulmaz (yazma alanında görünen boşluğu ev sahibi tamamlar). `{daire}` numarası iç addan okunur (`_apartmentSource`,
+    // "_" ile başlayan anahtar şablonda {{…}} olarak doldurulmaz — Opus 10-22).
+    propertyName: normalizeGuestDisplayName(conversation.property.guestDisplayName) ?? "",
+    _apartmentSource: conversation.property.name,
     checkInTime: conversation.property.checkInTime,
     checkOutTime: conversation.property.checkOutTime,
     wifiInfo: wifiItem ? wifiItem.content : "",

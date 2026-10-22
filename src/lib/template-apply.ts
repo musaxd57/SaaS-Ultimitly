@@ -82,14 +82,16 @@ export function applyTemplateBody(body: string, vars?: Record<string, string>): 
         // 🚨 `hasOwn`: `{{constructor}}` / `{{toString}}` düz indekslemede
         // PROTOTİP üyesine çözülür ve fonksiyon truthy olduğu için yazma alanına
         // `function Object() { … }` basılırdı.
-        const value = Object.hasOwn(vars, dblKey) ? vars[dblKey] : undefined;
+        // "_" ile başlayan anahtar iç değerdir (ör. `_apartmentSource` = iç mülk adı, yalnız `{daire}` numarasını okumak için) — şablona
+        // {{…}} olarak YAZILMAZ (Opus 10-22: iç ad misafire gitmez).
+        const value = !dblKey.startsWith("_") && Object.hasOwn(vars, dblKey) ? vars[dblKey] : undefined;
         return value ? value : match; // eşleşmeyen aşağıdaki temizlikte düşer
       }
       if (!single) return match;
       // Değeri çözülemeyen belirteç (bilinmeyen anahtar, adsız rezervasyon,
       // belirsiz daire numarası) DOKUNULMAZ: uydurma değer yazmaktansa host
       // belirteci görsün ve düzeltsin.
-      return resolveGuestPlaceholder(single, { guestFirstName, propertyName: vars.propertyName }) ?? match;
+      return resolveGuestPlaceholder(single, { guestFirstName, propertyName: vars._apartmentSource ?? vars.propertyName }) ?? match;
     });
   }
   return out.replace(LEFTOVER_DOUBLE, "").replace(/\n{3,}/g, "\n\n").trim();
