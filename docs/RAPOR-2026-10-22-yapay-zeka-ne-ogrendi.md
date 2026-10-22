@@ -158,7 +158,11 @@ Sık sorularda cevabın özü iki kolda aynı; değişen ifade (model her koşud
    yeniden yazma → "Otopark ücreti gişede nakit veya kartla ödeniyor." gider. Önerim (b). Hangisi?
 3. **Duman alarmı "öttü ama geçti".** Bilgi: bugünkü kod bunu "olası tehlike" sayıyor, kararı anlama modeli veriyor — bir koşuda Sorunlu + e-posta,
    son koşuda tutuldu + tek e-posta (Sorunlu değil). Her iki durumda cevap gitmiyor, size haber gidiyor. Ek bir değişiklik önermiyorum.
-4. **U4** misafire görünen daire adı (yeni sütun → migration). Kod hazırlanacak; itmeden önce açık onayınız + taze yedek.
+4. **U4 misafire görünen daire adı — HAZIR, itilmedi** (`docs/hazir-yamalar/2026-10-22-U4-misafire-gorunen-ad.patch`, migration 83: boş
+   olabilen tek sütun). Mülk Ayarları'nda "Misafire görünen ad (isteğe bağlı)" alanı. Önce: QR başlığı her zaman "Lixus AI Misafir Asistanı".
+   Sonra: alanı "Deniz Manzaralı Daire" yaparsanız başlık "Deniz Manzaralı Daire · Misafir Asistanı" (İngilizce tarayıcıda "… · Guest
+   Assistant"); boş bırakırsanız bugünkü gibi. İç mülk adınız ("Daire 5 / arka cephe") misafire hiçbir durumda gösterilmez. İtmek için
+   açık onayınız + taze veritabanı yedeği (Railway açılınca) gerekiyor — "U4'ü it" demeniz yeterli.
 5. **Bilgi tabanı boşken yeniden yazma notu (Opus F5).** Kod artık QR'ın kapı kodu / acil yönergesi yeniden yazma notunu bilgi tabanı boşken
    de modele iletiyor (eskiden not düşüyordu, ikinci çağrı aynı istemin tekrarıydı). Yalnız güvenli yönde (kod / yönerge daha az gider);
    anahtarlar kapalıyken de geçerli. Bilginize.
