@@ -1081,9 +1081,12 @@ describe("KONU BAZLI 'BİLGİM YOK' (H9, kurucu 10-16; anahtar AI_TOPIC_ABSENCE_
     vi.stubEnv("AI_ABSENCE_JUDGE_ENABLED", "1");
     vi.stubEnv("AI_ABSENCE_JUDGE_STRICT", "1");
     vi.stubEnv("OPENAI_API_KEY", "test-key");
+    // S2 (10-22): hakemin her koşusu İKİ okuma (misafir mesajıyla + misafir mesajı olmadan) → çağrılar çift çift.
     const f = vi
       .fn()
       .mockImplementationOnce(judgeSays(true))
+      .mockImplementationOnce(judgeSays(true))
+      .mockImplementationOnce(judgeSays(false))
       .mockImplementationOnce(judgeSays(false));
     vi.stubGlobal("fetch", f);
     const { conversationId } = await seed(TV_TRASH);
@@ -1093,9 +1096,11 @@ describe("KONU BAZLI 'BİLGİM YOK' (H9, kurucu 10-16; anahtar AI_TOPIC_ABSENCE_
     const body = JSON.stringify(mockSend.mock.calls[0]);
     expect(body).toContain(TRASH);
     expect(body).not.toMatch(/bilgim yok/i);
-    expect(f).toHaveBeenCalledTimes(2); // ikinci çağrı ayıklanmış metni okudu (eski hüküm yeni metne bağlanmadı)
-    const second = JSON.parse(String((f.mock.calls[1][1] as RequestInit).body)).messages[1].content as string;
-    expect(second).not.toMatch(/bilgim yok/i);
+    expect(f).toHaveBeenCalledTimes(4); // ikinci koşu (çağrı 3-4) ayıklanmış metni okudu (eski hüküm yeni metne bağlanmadı)
+    for (const i of [2, 3]) {
+      const later = JSON.parse(String((f.mock.calls[i][1] as RequestInit).body)).messages[1].content as string;
+      expect(later).not.toMatch(/bilgim yok/i);
+    }
     vi.unstubAllGlobals();
   });
 
@@ -1103,16 +1108,13 @@ describe("KONU BAZLI 'BİLGİM YOK' (H9, kurucu 10-16; anahtar AI_TOPIC_ABSENCE_
     vi.stubEnv("AI_TOPIC_ABSENCE_ENABLED", "1");
     vi.stubEnv("AI_ABSENCE_JUDGE_ENABLED", "1");
     vi.stubEnv("OPENAI_API_KEY", "test-key");
-    const f = vi
-      .fn()
-      .mockImplementationOnce(judgeSays(true))
-      .mockImplementationOnce(judgeSays(true));
+    const f = vi.fn(judgeSays(true)); // her okuma "itiraf" (S2: iki koşu × iki okuma)
     vi.stubGlobal("fetch", f);
     const { conversationId } = await seed(TV_TRASH);
     understands(tvTrashUnderstood());
     mockSuggest.mockResolvedValueOnce(tvTrashReply());
     expect((await applyChannelAutoReply(conversationId)).sent).toBe(false);
-    expect(f).toHaveBeenCalledTimes(2);
+    expect(f).toHaveBeenCalledTimes(4);
     vi.unstubAllGlobals();
   });
 
@@ -1121,18 +1123,23 @@ describe("KONU BAZLI 'BİLGİM YOK' (H9, kurucu 10-16; anahtar AI_TOPIC_ABSENCE_
     vi.stubEnv("AI_ABSENCE_JUDGE_ENABLED", "1");
     vi.stubEnv("AI_ABSENCE_JUDGE_STRICT", "1");
     vi.stubEnv("OPENAI_API_KEY", "test-key");
+    // S2: ilk koşunun bir okuması düşerse hüküm yok; ikinci koşu (katı kip, ayıklanmış metin) iki okumayla "itiraf değil".
     const f = vi
       .fn()
       .mockImplementationOnce(async () => new Response("upstream down", { status: 503 }))
+      .mockImplementationOnce(judgeSays(true))
+      .mockImplementationOnce(judgeSays(false))
       .mockImplementationOnce(judgeSays(false));
     vi.stubGlobal("fetch", f);
     const { conversationId } = await seed(TV_TRASH);
     understands(tvTrashUnderstood());
     mockSuggest.mockResolvedValueOnce(tvTrashReply());
     expect((await applyChannelAutoReply(conversationId)).sent).toBe(true);
-    expect(f).toHaveBeenCalledTimes(2);
-    const second = JSON.parse(String((f.mock.calls[1][1] as RequestInit).body)).messages[1].content as string;
-    expect(second).not.toMatch(/bilgim yok/i);
+    expect(f).toHaveBeenCalledTimes(4);
+    for (const i of [2, 3]) {
+      const later = JSON.parse(String((f.mock.calls[i][1] as RequestInit).body)).messages[1].content as string;
+      expect(later).not.toMatch(/bilgim yok/i);
+    }
     vi.unstubAllGlobals();
   });
 
@@ -1332,5 +1339,69 @@ describe("U8 (kurucu 10-22: 'wifi şifresi gidebilir ama sorunu yutmasın her t�
     const sentBody = String(mockSend.mock.calls[0]?.[0] ? JSON.stringify(mockSend.mock.calls[0]) : "");
     expect(sentBody).toContain("Wi-Fi");
     expect(sentBody).not.toMatch(/iade|refund|itiraz|chargeback/i);
+  });
+});
+
+// ── T-d (kurucu 10-22: "3. Taraf ödeme şeyleri gidebilir"): kıdemli okuyucu (`AI_SENIOR_READER_ENABLED`) ödeme öğesi tutuluyken üçüncü tarafa
+// ödeme bilgisini serbest bırakır; ev sahibine platform dışı ödeme yine tutulur. Okuyucu sahte fetch (şema `senior_reader`, iki okuma).
+describe("T-d — ödeme öğesi tutuluyken üçüncü tarafa ödeme bilgisi (kıdemli okuyucu)", () => {
+  beforeEachTurn();
+  afterEach(() => vi.unstubAllGlobals());
+  const IBAN_PARKING = "IBAN'ınızı atar mısınız? Bir de otopark var mı?";
+  const PARKING_REPLY = "Sokağın başındaki belediye otoparkı günlük 150 TL; ücret gişede nakit ya da kartla ödeniyor.";
+  const readerSays = (payHost: boolean) =>
+    vi.fn(async (_url: string, init?: RequestInit) => {
+      const name = JSON.parse(String(init?.body)).response_format?.json_schema?.name as string;
+      if (name !== "senior_reader") throw new Error(`beklenmeyen şema: ${name}`);
+      const v = { admits_missing_info: false, quote: "", pays_host_off_platform: payHost, payment_quote: "", off_platform_contact: false, contact_quote: "", apology_or_fault: false, apology_quote: "" };
+      return new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify(v) } }] }), { status: 200 });
+    });
+  const turn = async () => {
+    const { conversationId } = await seed(IBAN_PARKING);
+    understands(
+      understood([
+        { intent: "payment_invoice", message: 1 },
+        { intent: "parking", message: 1 },
+      ]),
+    );
+    mockSuggest.mockResolvedValueOnce(verdict({ intent: "parking", reply: PARKING_REPLY, answeredRequests: { ok: true, refs: ["R1"] } }));
+    return { conversationId, out: await applyChannelAutoReply(conversationId) };
+  };
+
+  it("ÖNCE (okuyucu kapalı): kelime kuralı 'nakit'i görür, otopark cevabı tutulur", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    const f = readerSays(false);
+    vi.stubGlobal("fetch", f);
+    const { out } = await turn();
+    expect(out.sent).toBe(false);
+    expect(f).not.toHaveBeenCalled();
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("SONRA (okuyucu açık, 'ev sahibine değil'): otopark cevabı gider; ödeme öğesi ev sahibinde açık kalır", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    vi.stubEnv("AI_SENIOR_READER_ENABLED", "1");
+    const f = readerSays(false);
+    vi.stubGlobal("fetch", f);
+    const { conversationId, out } = await turn();
+    expect(f).toHaveBeenCalledTimes(2);
+    expect(out.sent).toBe(true);
+    expect(JSON.stringify(mockSend.mock.calls[0])).toContain("gişede");
+    expect(await itemsOf(conversationId)).toContainEqual({
+      body: IBAN_PARKING,
+      kind: "payment_invoice",
+      sensitivity: "sensitive",
+      status: "pending_host",
+      notified: true,
+    });
+  });
+
+  it("okuyucu 'ev sahibine platform dışı ödeme' derse tutulur", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    vi.stubEnv("AI_SENIOR_READER_ENABLED", "1");
+    vi.stubGlobal("fetch", readerSays(true));
+    const { out } = await turn();
+    expect(out.sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
   });
 });
