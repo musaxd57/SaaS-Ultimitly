@@ -30,6 +30,8 @@ describe("iletişim formu", () => {
     render(<LeadForm />);
     const phone = screen.getByLabelText(/Telefon numaranız/);
     expect(classes(phone)).toEqual(expect.arrayContaining(["min-w-0", "flex-1"]));
+    // Alanın kendi yazı boyutu yok, kutudan devralır — alana `text-sm` eklenirse telefonda yeniden 14 px olur (Haiku 10-22).
+    expect(classes(phone).some((c) => /^text-(xs|sm)$/.test(c))).toBe(false);
     expect(classes(phone.parentElement!)).toEqual(expect.arrayContaining(["text-base", "sm:text-sm"]));
     expect(classes(phone.parentElement!)).not.toContain("text-sm");
     const message = screen.getByLabelText("Mesajınız (opsiyonel)");

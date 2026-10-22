@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { refreshAfterBilling } from "@/components/settings/refresh-after-billing";
 import { formatMinor } from "@/lib/utils";
@@ -44,6 +44,13 @@ export function ResumeSubscription({
   const [notice, setNotice] = useState<string | null>(null);
   const [cardUpdateUrl, setCardUpdateUrl] = useState<string | null>(null);
   const current = plans.find((p) => p.code === currentPlanCode);
+  // Klavye odağı (erişilebilirlik 10-22): açan düğme kalkınca odak sayfanın başına düşüyordu. Paket seçimi açılınca seçili pakete, tutar onayı
+  // açılınca "Vazgeç"e iner (yanlışlıkla Enter ödeme almasın); vazgeçince açan düğmeye, sonuç gelince durum satırına / "Devam et"e döner.
+  const openTriggerRef = useRef<HTMLButtonElement>(null);
+  const previewTriggerRef = useRef<HTMLButtonElement>(null);
+  const noticeRef = useRef<HTMLParagraphElement>(null);
+  const focusLater = (target: () => HTMLElement | null) => requestAnimationFrame(() => target()?.focus());
+  const ids = useId();
 
   async function loadPreview(noticeText?: string) {
     setBusy(true);
@@ -94,16 +101,19 @@ export function ResumeSubscription({
         setPreview(null);
         setOpen(false);
         setNotice("Aboneliğiniz devam ettirildi. Birkaç saniye içinde açılacak.");
+        focusLater(() => noticeRef.current);
         refreshAfterBilling(router);
         return;
       }
       if (data.pending) {
         setPreview(null);
         setNotice(data.error ?? BILLING_TEXT.changePending);
+        focusLater(() => noticeRef.current);
         refreshAfterBilling(router);
         return;
       }
       setPreview(null);
+      focusLater(() => previewTriggerRef.current);
       if (res.status === 402) {
         setError(data.error ?? "Ödeme alınamadı. Kart bilgilerinizi güncelleyin.");
         setCardUpdateUrl(data.cardUpdateUrl ?? null);
@@ -117,12 +127,14 @@ export function ResumeSubscription({
       } else {
         // Sunucudan okunabilir cevap yok (zaman aşımı / ağ geçidi hatası): ödeme ALINMIŞ olabilir — "alınmadı" DENMEZ (Haiku 10-17).
         setNotice(UNCERTAIN);
+        focusLater(() => noticeRef.current);
         refreshAfterBilling(router);
       }
     } catch {
       // Bağlantı istek yolda koptu: istek Paddle'a ulaşmış olabilir → sonuç vaat edilmez, sayfa yenilenir.
       setPreview(null);
       setNotice(UNCERTAIN);
+      focusLater(() => noticeRef.current);
       refreshAfterBilling(router);
     } finally {
       setBusy(false);
@@ -134,6 +146,7 @@ export function ResumeSubscription({
     <div className="space-y-2 rounded-md border border-primary/40 bg-accent/30 p-3" data-testid="resume-subscription">
       {!open ? (
         <button
+          ref={openTriggerRef}
           type="button"
           onClick={() => {
             setOpen(true);
@@ -145,11 +158,13 @@ export function ResumeSubscription({
         </button>
       ) : (
         <div className="space-y-2">
-          <p className="text-sm font-medium">Paketinizi seçin</p>
-          <div className="space-y-1">
+          <p id={`${ids}-plans`} className="text-sm font-medium">
+            Paketinizi seçin
+          </p>
+          <div role="radiogroup" aria-labelledby={`${ids}-plans`} className="space-y-1">
             {plans.map((p) => (
               <label key={p.code} className="flex items-center gap-2 text-sm">
-                <input type="radio" name="resume-plan" checked={chosen === p.code} onChange={() => setChosen(p.code)} />
+                <input type="radio" name="resume-plan" checked={chosen === p.code} onChange={() => setChosen(p.code)} autoFocus={chosen === p.code} />
                 <span>
                   {p.name} — {formatMinor(p.priceMinor, p.currency, locale)} / ay
                   {p.code === currentPlanCode ? <span className="ml-1 text-xs text-muted-foreground">(önceki paketiniz)</span> : null}
@@ -164,9 +179,18 @@ export function ResumeSubscription({
             </p>
           ) : null}
           {preview ? (
-            <div className="space-y-1 rounded-md border border-border bg-background p-3">
-              <p className="text-base font-semibold">{preview.confirm.headline}</p>
-              <p className="text-[11px] leading-snug text-muted-foreground">{preview.confirm.fine}</p>
+            <div
+              role="group"
+              aria-labelledby={`${ids}-headline`}
+              aria-describedby={`${ids}-fine`}
+              className="space-y-1 rounded-md border border-border bg-background p-3"
+            >
+              <p id={`${ids}-headline`} className="text-base font-semibold">
+                {preview.confirm.headline}
+              </p>
+              <p id={`${ids}-fine`} className="text-[11px] leading-snug text-muted-foreground">
+                {preview.confirm.fine}
+              </p>
               <div className="flex gap-2 pt-1">
                 <button
                   type="button"
@@ -178,7 +202,11 @@ export function ResumeSubscription({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setPreview(null)}
+                  autoFocus
+                  onClick={() => {
+                    setPreview(null);
+                    focusLater(() => previewTriggerRef.current);
+                  }}
                   disabled={busy}
                   className="inline-flex h-8 items-center rounded-md border border-border px-3 text-xs font-medium hover:bg-accent disabled:opacity-50"
                 >
@@ -189,6 +217,7 @@ export function ResumeSubscription({
           ) : (
             <div className="flex gap-2">
               <button
+                ref={previewTriggerRef}
                 type="button"
                 onClick={() => void loadPreview()}
                 disabled={busy}
@@ -198,7 +227,10 @@ export function ResumeSubscription({
               </button>
               <button
                 type="button"
-                onClick={() => setOpen(false)}
+                onClick={() => {
+                  setOpen(false);
+                  focusLater(() => openTriggerRef.current);
+                }}
                 disabled={busy}
                 className="inline-flex h-8 items-center rounded-md border border-border px-3 text-xs font-medium hover:bg-accent disabled:opacity-50"
               >
@@ -209,7 +241,7 @@ export function ResumeSubscription({
         </div>
       )}
       {notice ? (
-        <p role="status" className="text-xs text-muted-foreground">
+        <p ref={noticeRef} role="status" tabIndex={-1} className="text-xs text-muted-foreground outline-none">
           {notice}
         </p>
       ) : null}
