@@ -13,7 +13,8 @@ import { withoutSecretKbItems } from "@/lib/guest-chat";
 //
 // Bu dosya o gerçeği OLDUĞU GİBİ pinler (davranışı DEĞİŞTİRMEZ):
 //  • KB kalemindeki kod ELENİR (kapı çalışıyor),
-//  • mülk ADINDAKİ/ADRESTEKİ aynı kod modele GİDER.
+//  • mülk ADRESİNDEKİ aynı kod modele GİDER. (Mülkün iç ADI 10-22'den beri modele hiç gitmez — kurucu: "müşteriye daire adı ne";
+//    misafire görünen ad (U4) ev sahibinin herkese açık QR başlığında zaten yayımladığı etikettir.)
 //
 // 🚨 Bu bir GÜVENLİK KARARIDIR ve bu turda UYGULANMADI: QR halka açık bir
 // yüzeydir (bağlantı dairenin içinde asılıdır, sohbeti açan kişi rezervasyon
@@ -58,9 +59,10 @@ describe("QR: sır kapısı KB kalemlerini süzer, mülk KİMLİK alanlarını S
     expect(prompt).not.toContain(CODE_IN_KB);
   });
 
-  it("🚨 mülk ADINDAKİ aynı kod modele GİDER (bugünkü davranış, ayrı onayda)", () => {
+  it("🚨 mülk ADI (iç ad) artık modele HİÇ gitmez → adındaki kod da gitmez (kurucu 10-22: 'müşteriye daire adı ne')", () => {
     const { prompt } = promptFor({ name: `Lale 5 - kapı kodu ${CODE_IN_NAME}` });
-    expect(prompt).toContain(CODE_IN_NAME);
+    expect(prompt).not.toContain(CODE_IN_NAME);
+    expect(prompt).not.toContain("Lale 5");
   });
 
   it("🚨 ADRESTEKİ kod da modele GİDER", () => {

@@ -584,10 +584,6 @@ export function autoReplyGateVerdict(
   if (senior?.payHost) return hold("reply_offplatform_payment");
   if (senior?.contact && context?.offPlatformContactHolds === true) return hold("reply_offplatform_contact");
   if (senior?.apology && noApologyRuleEnabled()) return hold("reply_apology");
-  // Kurucu 10-22 ("bilgi tabanıyla ilgili … hiçbir şey müşteriye gitmemeli"): cevap bilgiyi NEREDEN bildiğini anlatıyorsa gitmez — okuyucu
-  // okuduysa onun hükmü, ayrıca kodun açık sözcük yedeği (okuyucu kapalı / düştü / kaçırdı; `absence.namesInternalSource`) — ANAHTARSIZ.
-  // Okuyucu açıksa ilk taslak bir kez yeniden yazdırılır (`SENIOR_REWRITE_GATE_DETAILS`).
-  if (senior?.internalSource || namesInternalSource(result.reply ?? "")) return hold("reply_internal_source");
   // ── ÇIKTI VETOSU (Codex denetimi §A, 09-12) ───────────────────────────────
   //
   // 🚨 Bu kapı 09-12'ye kadar cevap METNİNE yalnız `admitsMissingKnowledge` ile
@@ -610,6 +606,11 @@ export function autoReplyGateVerdict(
   if (!context?.skipOutputVetoForDiagnosis && hasEmergencyCallDirective(result.reply)) {
     return hold("reply_output_veto");
   }
+  // Kurucu 10-22 (çıktı vetosunun ARDINDA — aynı taslakta yer tutucu / acil yönergesi varsa kayıt o sebebi taşır;
+  // "bilgi tabanıyla ilgili … hiçbir şey müşteriye gitmemeli"): cevap bilgiyi NEREDEN bildiğini anlatıyorsa gitmez — okuyucu
+  // okuduysa onun hükmü, ayrıca kodun açık sözcük yedeği (okuyucu kapalı / düştü / kaçırdı; `absence.namesInternalSource`) — ANAHTARSIZ.
+  // Okuyucu açıksa ilk taslak bir kez yeniden yazdırılır (`SENIOR_REWRITE_GATE_DETAILS`).
+  if (senior?.internalSource || namesInternalSource(result.reply ?? "")) return hold("reply_internal_source");
   // ── 51: ALARM BAĞLAMLA KALKTIYSA KAYNAKSIZ GÜVENCE GİTMEZ (kurucu: "'normaldir, güvenlidir' diye kaynaksız güvence verilmesin") ──
   if (context?.hazardCleared && hasSafetyReassurance(result.reply) && !kbSupportsReassurance(context.kbFacts)) {
     return hold("hazard_reassurance");

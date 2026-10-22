@@ -126,7 +126,8 @@ describe("buildReplyUserPrompt", () => {
   });
 
   it("includes property facts and knowledge base", () => {
-    expect(prompt).toContain("Galata Loft");
+    // Kurucu 10-22: mülkün İÇ adı modele GİTMEZ (misafire görünen ad yoksa istemde ad satırı hiç yok).
+    expect(prompt).not.toContain("Galata Loft");
     expect(prompt).toContain("15:00");
     expect(prompt).toContain("misafir2024");
   });

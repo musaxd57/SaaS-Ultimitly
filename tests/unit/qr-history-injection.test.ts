@@ -29,7 +29,8 @@ const clean = {
   confidence: 0.95,
   source: "openai",
   riskType: null,
-  reply: "Wi-Fi bilgisi bilgi tabanında kayıtlı.",
+  // Kurucu 10-22: "bilgi tabanında kayıtlı" gibi iç kaynak anlatımı artık kendi başına tutulur → zararsız cevap olgu cümlesi.
+  reply: "Çöpler salı günü toplanır.",
   usedSources: ["kb:wifi"],
 };
 

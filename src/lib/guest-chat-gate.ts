@@ -353,9 +353,6 @@ export function evaluateEscalation(
   const senior = seniorChecksOf(judged);
   if (senior?.payHost) return yes("offplatform_payment");
   if (senior?.apology && noApologyRuleEnabled()) return yes("reply_apology");
-  // Kurucu 10-22 ("bilgi tabanıyla ilgili … hiçbir şey müşteriye gitmemeli"): okuyucu okuduysa onun hükmü; ayrıca kodun açık sözcük yedeği
-  // (okuyucu kapalı / düştü / kaçırdı) — ANAHTARSIZ. Okuyucu açıksa rota bir kez yeniden yazdırır.
-  if (senior?.internalSource || namesInternalSource(result.reply ?? "")) return yes("reply_internal_source");
   // ── ÇIKTI VETOSU (Codex denetimi §A, 09-12) ───────────────────────────────
   //
   // 🚨 Gerekçe KAPALI KÜMEDEN ve AYRI: canlıda "yer tutucu mu, makbuzsuz söz
@@ -367,6 +364,10 @@ export function evaluateEscalation(
   // ile "Konu yönetime bildirilmiştir" (makbuzsuz) BİREBİR aynı şablon.
   const vetoed = vetoOutgoingReply(result.reply);
   if (vetoed !== null) return yes(vetoed);
+  // Kurucu 10-22 ("bilgi tabanıyla ilgili … hiçbir şey müşteriye gitmemeli"; çıktı vetosunun ARDINDA — aynı taslakta yer tutucu varsa
+  // kayıt o sebebi taşır): okuyucu okuduysa onun hükmü; ayrıca kodun açık sözcük yedeği (okuyucu kapalı / düştü / kaçırdı) — ANAHTARSIZ.
+  // Okuyucu açıksa rota bir kez yeniden yazdırır.
+  if (senior?.internalSource || namesInternalSource(result.reply ?? "")) return yes("reply_internal_source");
   // ── EYLEM BEYANI (MÇ §4) — kanal kapısıyla AYNI yüklem ve AYNI yer (çıktı vetosunun ardında). Makbuz yok → devir. ──
   const claim = actionClaimHold(result.claimedActions);
   if (claim !== null) return yes(claim);
