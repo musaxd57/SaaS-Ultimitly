@@ -6,7 +6,7 @@ import { complaintEscalationEmail } from "@/lib/email-templates";
 import { detectRiskTypes } from "@/lib/ai/fallback";
 import { contextLabels } from "@/lib/ai/hazard-evidence";
 import type { MessageUnderstanding, UnderstandingHistoryEntry } from "@/lib/ai/semantic/understanding-schema";
-import { buildLexicalItems, hasEmergency, isOpenForHost, labelsHoldWholeTurn, type BuiltItem, type ItemsGateInput } from "./core";
+import { buildLexicalItems, hasEmergency, isOpenForHost, labelsHoldWholeTurn, type BuiltItem, type ItemKind, type ItemsGateInput } from "./core";
 import { extractTurnItems, type ItemsDegradedReason } from "./extract";
 import type { ReplyItemsInput } from "./reply-block";
 import { composeItemsPlan, faultRequestsOf, hintKey, relationFactsOf } from "./plan";
@@ -137,6 +137,9 @@ export async function planItemsTurn(
   const turnHeld = held.filter((h) => inTurn.has(h.messageId));
   const hints = new Map<string, string>();
   for (const m of extracted.messages) for (const it of m.items) if (it.hint) hints.set(hintKey(m.messageId, it.kind), it.hint);
+  // Konu bazlı "bilgim yok" (kurucu 10-22 Soru 1): isteğin bütün sorguları (yalnız anahtar açıkken plan okur).
+  const needQueries = new Map<string, readonly string[]>();
+  for (const m of extracted.messages) for (const [kind, qs] of Object.entries(m.queries ?? {})) if (qs) needQueries.set(hintKey(m.messageId, kind as ItemKind), qs);
   // İlişki kipi (kurucu kararı 10-01 sabah): anlama katmanı istek başına işaret verdiyse olgular plana gider; yoksa bugünkü liste kuralı.
   const relations = relationFactsOf(extracted.messages);
   const faultRequests = faultRequestsOf(extracted.messages);
@@ -150,6 +153,7 @@ export async function planItemsTurn(
       turnItems,
       held: heldForPlan,
       hints,
+      needQueries,
       ...(relations ? { relations, kbRecipeTopics: kbRecipeTopics(input.knowledgeBase ?? []) } : {}),
       ...(faultRequests ? { faultRequests } : {}),
     }),

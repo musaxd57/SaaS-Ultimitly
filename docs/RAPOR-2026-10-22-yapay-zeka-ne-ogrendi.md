@@ -178,7 +178,9 @@ Sık sorularda cevabın özü iki kolda aynı; değişen ifade (model her koşud
      varsa (spor salonu, havuz, otopark…). "Sauna" o listede yok → hiçbir şey gitmiyor, iki soru da sizde bekliyor.
    - Öneri: hangi sorunun cevaplanamadığını sabit listeden değil, mesajı sorulara bölen anlama katmanından okumak. Sonra: misafire
      "Çıkış saati 11:00." gider; sauna sorusu sizde açık iş olarak kalır (misafire "bilgim yok" yine GİTMEZ).
-   - Yapayım mı? (evet / hayır yeterli)
+   - ✅ **Kurucu 10-22 gece: "önerin çok mantıklı" → YAPILDI (anahtar `AI_TOPIC_ABSENCE_ENABLED` KAPALI; açılışta sizinle).** Eşleme artık
+     misafirin kendi soru sözcükleriyle (`conversation-items/topic-absence.ts` `needTerms`). Codex'in 8 maddesiyle birlikte büyük resim:
+     `docs/TASARIM-2026-10-23-ihtiyac-defteri.md` (sorular A–E).
 2. ~~Olumlu iç kaynak anlatımı~~ — **karar verildi (10-22 akşam): bilgi tabanı, kayıt, not, model, veri, sistem — kaynağa dair HİÇBİR şey
    misafire gitmez. Uygulandı → §8.**
 3. **Duman alarmı "öttü ama geçti".** Bilgi: bugünkü kod bunu "olası tehlike" sayıyor, kararı anlama modeli veriyor — bir koşuda Sorunlu + e-posta,

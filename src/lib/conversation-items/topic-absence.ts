@@ -29,6 +29,7 @@
 
 import { admitsMissingKnowledge } from "@/lib/ai/absence";
 import { withoutCodeGreetingLine } from "@/lib/ai/code-greeting";
+import { isStopword, tokenize } from "@/lib/ai/retrieval/text";
 import { topicsWithSymptomsOf } from "./relation";
 
 /** Anahtar: yalnız tam "1" açar (`scripts/env-check.mjs` STRICT_ONE_FLAGS). */
@@ -103,12 +104,57 @@ function hedges(text: string): boolean {
   return HEDGES.some((h) => forms.some((f) => f.includes(h)));
 }
 
+// ── İSTEĞİN KENDİ SÖZCÜKLERİ (kurucu 10-22 Soru 1: "önerin çok mantıklı") ────────────────────────────────────────────────────────────────
+// Konu eşlemesi eskiden YALNIZ sabit konu sözlüğüyle yapılıyordu (`topicsWithSymptomsOf`): "What time is checkout, and is there a sauna?"
+// cevabındaki "I don't have information about a sauna." cümlesi bir konuya eşlenemiyor ("sauna" sözlükte yok), cevabın TAMAMI tutuluyordu.
+// Artık her isteğin anlama katmanındaki sorguları (Türkçe + özgün dil) içerik köklerine iner (`needTerms`); "bilgim yok" cümlesi ortak kökü
+// en çok olan isteğe (eşitlikte HEPSİNE — fazla eşleme tutma yönündedir) bağlanır. Genel / yokluk sözcükleri ("bilgi, konu, kayıt, saat,
+// information, host …") eşleşme sayılmaz: "Bu konuda bilgim yok." yine hiçbir isteğe bağlanmaz → bütün cevap tutulur (bugünkü gibi).
+// Sözlük eşlemesi AYNEN durur; kök eşlemesi yalnız EKLER. Saf, doğrusal.
+
+/**
+ * Eşleşme sayılmayan genel / yokluk sözcükleri — katlanmış (ASCII) KÖK BAŞLANGIÇLARI: belirteç ya bunlardan birine eşittir ya da (kök en az 4
+ * harfse) onunla başlar ("bilgim", "bilgiler", "information", "hours" …). Kök bulucu (`retrieval/text.stem`) BİLEREK kullanılmaz: yabancı
+ * kökenli sözcüğü ek sanıp kırpıyor ("sauna" → "sa", ölçüldü).
+ */
+const GENERIC_NEED_ROOTS = (
+  "bilgi konu kayit not notlar detay ayrinti maalesef yok var mevcut elim sahib sor iste ulas iletisim paylas belirt yaz kesin emin " +
+  "soyle simdi sistem veri daire saat zaman gun acik kapali kapan ilgili durum olan nedir kac " +
+  "inform info detail record note notes unfortunate host ask contact know sure have don doesn isn aren can cannot provid share " +
+  "availab current time hour open clos day apartment propert system data regard mention list specific any some what when there " +
+  "keine leider gastgeber malheureuse lamentable informaci anfitri"
+).split(" ");
+
+function isGenericToken(t: string): boolean {
+  return GENERIC_NEED_ROOTS.some((g) => t === g || (g.length >= 4 && t.startsWith(g)));
+}
+
+/** Metnin ayırt edici sözcükleri: katlanmış belirteç, en az 3 harf, durak / genel / yokluk sözcüğü ve rakam DEĞİL. */
+function distinctiveTokens(text: string): string[] {
+  return tokenize(text).filter((t) => t.length >= 3 && !/\d/.test(t) && !isStopword(t) && !isGenericToken(t));
+}
+
+/** İsteğin sorgularının (Türkçe + özgün dil) ayırt edici sözcükleri — plan kurar, kapı okur. */
+export function needTerms(queries: readonly string[]): string[] {
+  return [...new Set(queries.flatMap((q) => distinctiveTokens(q)))].sort();
+}
+
+/** İki sözcük aynı kavram mı: eşit ya da (kısası en az 4 harf) biri ötekinin başı — Türkçe çekim ("saunanın" ~ "sauna"). */
+function sameWord(a: string, b: string): boolean {
+  if (a === b) return true;
+  const [s, l] = a.length <= b.length ? [a, b] : [b, a];
+  return s.length >= 4 && l.startsWith(s);
+}
+
+/** `a`daki kaç sözcüğün `b`de karşılığı var. */
+const overlap = (a: readonly string[], b: readonly string[]): number => a.filter((t) => b.some((u) => sameWord(t, u))).length;
+
 export function stripTopicAbsence(input: {
   reply: string;
   /** Cevap modelinin beyanı (`answeredRequests.refs`). */
   answeredRefs: readonly string[];
-  /** Cevaplanabilir isteklerin konuları (plan verir, `ItemsGateInput.answerableTopics`). */
-  answerableTopics: readonly { ref: string; topics: readonly string[] }[];
+  /** Cevaplanabilir isteklerin konuları + kendi sözcükleri (plan verir, `ItemsGateInput.answerableTopics`; `terms` yoksa yalnız sözlük). */
+  answerableTopics: readonly { ref: string; topics: readonly string[]; terms?: readonly string[] }[];
   /** Ev sahibine bırakılan cihazlar (`ItemsGateInput.heldDeviceTopics`). */
   heldDeviceTopics: readonly string[];
   /** Kodun selam satırını tanımak için hitap adı (`reservation.guestGivenName`; yoksa yalnız adsız selam tanınır). */
@@ -142,6 +188,11 @@ export function stripTopicAbsence(input: {
       const topics = topicsWithSymptomsOf(seg);
       const touchesHeld = topics.some((t) => held.has(t));
       const refs = input.answerableTopics.filter((r) => r.topics.some((t) => topics.includes(t))).map((r) => r.ref);
+      // Kurucu 10-22 Soru 1: sözlük eşlemesine EK olarak isteğin kendi sözcükleri — en çok ortak kökü olan istek(ler).
+      const segStems = distinctiveTokens(seg);
+      const scores = input.answerableTopics.map((r) => ({ ref: r.ref, n: overlap(r.terms ?? [], segStems) }));
+      const best = Math.max(0, ...scores.map((x) => x.n));
+      if (best > 0) for (const x of scores) if (x.n === best && !refs.includes(x.ref)) refs.push(x.ref);
       if (!touchesHeld && refs.length === 0) return { ok: false, reason: "unattributed" };
       for (const r of refs) dropped.add(r);
     }
@@ -154,21 +205,36 @@ export function stripTopicAbsence(input: {
   if (!reply) return { ok: false, reason: "nothing_left" };
 
   const keptTopics = kept.map((s) => topicsWithSymptomsOf(s));
+  const keptStems = kept.map((s) => distinctiveTokens(s));
+  const answeredRefs = input.answeredRefs.filter((r) => !dropped.has(r));
+  const termsOfRef = new Map(input.answerableTopics.map((r) => [r.ref, r.terms ?? []]));
+  const remainingTerms = [...new Set(answeredRefs.flatMap((r) => termsOfRef.get(r) ?? []))];
   const droppedTopics = new Set(input.answerableTopics.filter((r) => dropped.has(r.ref)).flatMap((r) => r.topics));
-  if (droppedTopics.size > 0 && keptTopics.some((ts) => ts.some((t) => droppedTopics.has(t)))) {
+  // Düşen isteğin KENDİNE ÖZGÜ sözcükleri (cevaplanan bir istekle ortak sözcük düşen konunun kanıtı sayılmaz).
+  const droppedTerms = [...new Set([...dropped].flatMap((r) => termsOfRef.get(r) ?? []))].filter((t) => overlap([t], remainingTerms) === 0);
+  if (
+    (droppedTopics.size > 0 && keptTopics.some((ts) => ts.some((t) => droppedTopics.has(t)))) ||
+    (droppedTerms.length > 0 && keptStems.some((ss) => overlap(droppedTerms, ss) > 0))
+  ) {
     return { ok: false, reason: "dropped_topic_kept" };
   }
   if (admitsMissingKnowledge(reply)) return { ok: false, reason: "still_absent" };
   if (hedges(reply)) return { ok: false, reason: "hedged_kept" };
 
-  const answeredRefs = input.answeredRefs.filter((r) => !dropped.has(r));
   if (answeredRefs.length === 0) return { ok: false, reason: "nothing_answered" };
   const topicsOfRef = new Map(input.answerableTopics.map((r) => [r.ref, r.topics]));
   const remaining = new Set(answeredRefs.flatMap((r) => topicsOfRef.get(r) ?? []));
-  if (keptTopics.some((ts) => !ts.some((t) => remaining.has(t)))) return { ok: false, reason: "unanchored_kept" };
+  // Kalan her cümle kalan bir isteğe sözlük konusuyla YA DA isteğin kendi sözcüğüyle bağlanır (kural 5); kalan her istek kalan metinde
+  // sözlük konusuyla ya da kendi sözcüğüyle karşılık bulur (kural 6).
+  if (kept.some((_, i) => !keptTopics[i].some((t) => remaining.has(t)) && overlap(keptStems[i], remainingTerms) === 0)) {
+    return { ok: false, reason: "unanchored_kept" };
+  }
   for (const ref of answeredRefs) {
     const topics = topicsOfRef.get(ref) ?? [];
-    if (topics.length === 0 || !keptTopics.some((ts) => ts.some((t) => topics.includes(t)))) return { ok: false, reason: "uncovered_answered" };
+    const terms = termsOfRef.get(ref) ?? [];
+    const byTopic = topics.length > 0 && keptTopics.some((ts) => ts.some((t) => topics.includes(t)));
+    const byTerm = terms.length > 0 && keptStems.some((ss) => overlap(terms, ss) > 0);
+    if (!byTopic && !byTerm) return { ok: false, reason: "uncovered_answered" };
   }
   return { ok: true, reply: greeting + reply, answeredRefs, droppedRefs: [...dropped].sort(), droppedSentences };
 }

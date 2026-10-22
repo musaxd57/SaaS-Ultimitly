@@ -1050,6 +1050,56 @@ describe("KONU BAZLI 'BİLGİM YOK' (H9, kurucu 10-16; anahtar AI_TOPIC_ABSENCE_
     expect(JSON.parse(ev?.kbEvidenceJson ?? "{}").ta).toEqual({ s: 1, r: 0 }); // ölçüm izi: bir cümle ayıklandı, istek düşmedi
   });
 
+  // Kurucu 10-22 Soru 1: sabit konu sözlüğünde OLMAYAN konu ("sauna") misafirin kendi soru sözcüğüyle eşlenir — çıkış saati gider, sauna
+  // isteği ev sahibinde açık kalır. Eskiden "bilgim yok" cümlesi konusuz sayılıp cevabın TAMAMI tutuluyordu.
+  function checkoutSaunaUnderstood(): MessageUnderstanding {
+    const u = parseUnderstanding(
+      {
+        language: "en",
+        requests: [
+          { intent: "checkout_time", relation: "independent", message: 1, query_tr: "çıkış saati kaçta", query_original: "what time is checkout" },
+          { intent: "amenities", relation: "independent", message: 1, query_tr: "sauna var mı", query_original: "is there a sauna" },
+        ],
+        stay_change: STAY_NONE,
+        withdrawn: [],
+      },
+      { items: true, followup: true },
+    );
+    if (!u) throw new Error("fixture");
+    return u;
+  }
+  const CHECKOUT = "Checkout time is at 11:00.";
+  const checkoutSaunaReply = () =>
+    verdict({
+      intent: "general",
+      detectedLanguage: "en",
+      reply: `${CHECKOUT} I don't have any information about a sauna.`,
+      answeredRequests: { ok: true, refs: ["R1", "R2"] },
+    });
+
+  it("🚨 Soru 1 (anahtar AÇIK): çıkış saati gider; sauna 'bilgim yok' cümlesi GİTMEZ, sauna isteği ev sahibinde AÇIK", async () => {
+    vi.stubEnv("AI_TOPIC_ABSENCE_ENABLED", "1");
+    const { conversationId } = await seed("What time is checkout, and is there a sauna?");
+    understands(checkoutSaunaUnderstood());
+    mockSuggest.mockResolvedValueOnce(checkoutSaunaReply());
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(true);
+    const body = JSON.stringify(mockSend.mock.calls[0]);
+    expect(body).toContain(CHECKOUT);
+    expect(body).not.toMatch(/sauna|information/i);
+    const items = await itemsOf(conversationId);
+    expect(items.find((i) => i.kind === "checkout_time")).toMatchObject({ status: "answered" });
+    expect(items.find((i) => i.kind === "amenities")?.status).not.toBe("answered");
+  });
+
+  it("KONTROL (anahtar KAPALI): aynı tur bugünkü gibi bütünüyle tutulur", async () => {
+    const { conversationId } = await seed("What time is checkout, and is there a sauna?");
+    understands(checkoutSaunaUnderstood());
+    mockSuggest.mockResolvedValueOnce(checkoutSaunaReply());
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
   // Bağlam hakemi (kurucu 10-21, `AI_ABSENCE_JUDGE_ENABLED`): ayıklama YALNIZ hakemin de itiraf dediği cümleyi siler. Hakem "itiraf değil"
   // derse cümle yerinde kalır ve cevap bütünüyle gider (hakem kararı); "itiraf" derse ayıklama bugünkü gibi.
   const judgeSays = (admits: boolean) =>

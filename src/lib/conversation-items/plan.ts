@@ -16,7 +16,7 @@ import {
   type RequestFacts,
 } from "./relation";
 import type { ReplyItemsInput } from "./reply-block";
-import { topicAbsenceEnabled } from "./topic-absence";
+import { needTerms, topicAbsenceEnabled } from "./topic-absence";
 
 type PlanItem = { messageId: string; kind: ItemKind; sensitivity: ItemSensitivity };
 
@@ -66,6 +66,11 @@ export function composeItemsPlan<T extends PlanItem>(input: {
   held: readonly (ItemRiskFacts & { earlier?: boolean; messageId?: string })[];
   /** Anlama katmanının kısa Türkçe sorguları (`hintKey`). */
   hints: ReadonlyMap<string, string>;
+  /**
+   * Tür başına isteğin BÜTÜN sorguları (Türkçe + özgün dil, `hintKey`; konu bazlı "bilgim yok" eşlemesi — kurucu 10-22 Soru 1). Verilmezse
+   * yalnız ipucu sorgusu okunur. Yalnız `AI_TOPIC_ABSENCE_ENABLED` açıkken kapı girdisine girer.
+   */
+  needQueries?: ReadonlyMap<string, readonly string[]>;
   /**
    * İlişki kipi (`extract.ItemRelationFacts`, `hintKey` ile): anlama katmanı işaret verdiyse. Verilmezse bugünkü liste kuralı BİREBİR.
    * Tutulan öğeler için mesaj kimliği `held[].messageId`den okunur.
@@ -136,7 +141,16 @@ export function composeItemsPlan<T extends PlanItem>(input: {
       // Cevaplanan isteklerin hiçbiri cihaz değilse cevaptaki adsız "makine / cihaz" yalnız bırakılan cihaz olabilir (15 ajan A06).
       ...(heldDeviceTopics.length > 0 && deviceTopicsOf([...answeredTopics]).length === 0 ? { heldDeviceGenericRef: true } : {}),
       // Konu bazlı "bilgim yok" (H9, kurucu 10-16; anahtar kapalıyken alan yok).
-      ...(topicAbsenceEnabled() ? { answerableTopics: answerable.map(({ ref, item }) => ({ ref, topics: topicsOfItem(item) })) } : {}),
+      // Kurucu 10-22 Soru 1: konu ayrıca misafirin kendi soru sözcükleriyle (`terms`) — sabit konu sözlüğünde olmayan "sauna" da eşlenir.
+      ...(topicAbsenceEnabled()
+        ? {
+            answerableTopics: answerable.map(({ ref, item }) => {
+              const key = hintKey(item.messageId, item.kind);
+              const queries = input.needQueries?.get(key) ?? [input.hints.get(key) ?? ""];
+              return { ref, topics: topicsOfItem(item), terms: needTerms(queries) };
+            }),
+          }
+        : {}),
     },
     allHeld: answerable.length === 0,
   };

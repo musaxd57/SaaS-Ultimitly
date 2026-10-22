@@ -63,6 +63,11 @@ export type TurnItems =
         relations?: Partial<Record<ItemKind, ItemRelationFacts>>;
         /** Anahtar `AI_FAULT_GUARD_ENABLED` açıkken: bu mesajın CİHAZ ARIZASI istekleri (`relation.faultSignal`) — plan onları ev sahibine bırakır. */
         faultKinds?: ItemKind[];
+        /**
+         * Tür başına anlama katmanının BÜTÜN sorguları (Türkçe + özgün dil; aynı türden iki istek birleşse de hepsi). Konu bazlı "bilgim yok"
+         * eşlemesi (`topic-absence.needTerms`, kurucu 10-22 Soru 1) sabit konu sözlüğü yerine misafirin kendi soru sözcüklerini okur. Kalıcı DEĞİL.
+         */
+        queries?: Partial<Record<ItemKind, string[]>>;
       }[];
       withdrawals: TurnWithdrawal[];
     }
@@ -159,10 +164,16 @@ export function extractTurnItems(input: {
         };
       }
     }
+    const queries: Partial<Record<ItemKind, string[]>> = {};
+    for (const r of requests) {
+      const list = (queries[r.intent] ??= []);
+      for (const q of [r.queryTr, r.queryOriginal]) if (q && !list.includes(q)) list.push(q);
+    }
     return {
       messageId: m.id as string,
       items,
       labels,
+      queries,
       ...(relations ? { relations } : {}),
       // Liste kipinde de (anlama katmanı ilişki işareti vermediyse) arızalı istek ev sahibine kalır (Opus N9, 10-15 gece: "Le wifi ne marche
       // pas" — Wi-Fi bağımsız tür sayıldığı için "modemi yeniden başlatın" uydurması bilgi tabanı şartı olmadan gidiyordu).
