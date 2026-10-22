@@ -12,8 +12,9 @@
 > V0: `docs/V0-CHANNEL-INDEPENDENCE-INVENTORY.md`.
 > 🗂️ **Konu dosyaları (10-08, kurucu: ".md'ye yığma, taşı, silme"):** büyük bölümler AYNEN `docs/claude/`e taşındı; burada yalnız
 > madde başlıkları + yol. O alanda iş yapmadan ÖNCE ilgili dosya okunur, kural orada da BAĞLAYICIDIR: `yol-plani.md` · `retrieval.md` ·
-> `ai-guvenlik.md` · `kalici-kararlar.md` · `acik-isler.md` · `kalici-urun-kararlari.md` · `durum.md`. YENİ ayrıntı / tur anlatısı buraya
-> DEĞİL ilgili konu dosyasına yazılır; buraya yalnız tek satırlık başlık + yol girer.
+> `ai-guvenlik.md` · `kalici-kararlar.md` · `acik-isler.md` · `kalici-urun-kararlari.md` · `durum.md` · (10-23) `canli-durum.md` ·
+> `fiyat-ve-ozellikler.md` · `hospitable.md` · `calisma-ortami.md`. YENİ ayrıntı / tur anlatısı buraya DEĞİL ilgili konu dosyasına yazılır;
+> buraya yalnız tek satırlık başlık + yol girer (kurucu 10-22 gece: "her turda okumak yerine gerektiğinde oku").
 
 ## Ürün
 **Lixus AI** (lixusai.com) — Türkiye odaklı, çok kiracılı SaaS; kısa dönem kiralama hostlarının
@@ -181,47 +182,24 @@ Bu dosyaya token/anahtar/parola yazma.
 - 🚨 MİSAFİRİN DİLİNDE CEVAP (09-25, `ai/language-signal.ts`; kurucu: "5.1'in zayıf noktasını düzelt"):
 - Üslup: duygu beyanı/temenni/çelişki/dolgu-soru yasak; "siz"; ben-dili. Injection kara listesi yapısal olarak
 
-## Canlı durum (Railway env'leri — özet)
-| Env | Durum |
-|---|---|
-| `AUTO_REPLY_ENABLED=1` · `REGISTRATION_OPEN=1` · `TRIAL_EMAILS_ENABLED=1` · `LANDING_DEMO_ENABLED=1` · `GUEST_CHAT_ENABLED` · `DATA_RETENTION_MONTHS=24` | açık |
-| `BILLING_ENFORCED=true` | deneme bitince ücretsiz sürüm (kilit yok), oto-mesaj kapanır; `PRIMARY_ORG_ID` muaf |
-| Paddle PRODUCTION | canlı; gerçek ödeme + in-app upgrade/downgrade doğrulandı; `PADDLE_PLAN_CHANGE_ENABLED=1`; yıllık fiyat env'leri set |
-| `OPENAI_MODEL=gpt-5.1` · `SHADOW_AI_ENABLED=1` (`SHADOW_AI_MODEL=gpt-5.6-luna`, `SHADOW_AI_ORG_IDS`=kurucu org, anahtar `OPENAI_API_KEY`'e düşer) · supply-ai OpenAI luna | Akash artık HİÇBİR yerde işleyen değil; `SUPPLY_AI_MODEL/BASE_URL` eski Akash değerleriyse SİL. KVKK metinlerindeki Akash satırları avukat paketinden önce güncellenmeli |
-| `AI_UNDERSTANDING_ENABLED=1` · `AI_STAY_GUARD_ENABLED=1` (09-25) · `AI_CONVERSATION_ITEMS_ENABLED=1` · `KB_SEMANTIC_RETRIEVAL=1` · `KB_RERANK_ENABLED=1` (#186) · `HOUSE_RULES_CARD_ENABLED=1` · `AI_HOUSE_RULES_SHADOW=1` (09-26) | açık (kurucu beyanı; ölçümler ilgili maddelerde) |
-| `AI_SEMANTIC_MODEL=gpt-5.1` · `OPENAI_TRANSLATE_MODEL=gpt-5.1` · `AI_CODE_GREETING_ENABLED=1` · `AI_HOST_DECISION_HOLD_ENABLED=1` · `AI_ACCESS_CODE_COMPLETE_ENABLED=1` · `AI_COMPLAINT_FOLLOWUP_RULE_ENABLED=1` · `AI_KB_FEE_RULE_ENABLED=1` (10-02) | kurucu beyanı ("bütün bayrakları ekledim"; Railway'de teyit edilmedi). Cevap modeli önerisi `OPENAI_MODEL=gpt-6-luna` + `OPENAI_REASONING_EFFORT=medium` + `OPENAI_STYLE_MODEL=gpt-6-luna` + `OPENAI_STYLE_REASONING_EFFORT=none` (`docs/SABAH-RAPORU-2026-10-01.md` §7) |
-| Hospitable OAuth canlı; kurucu org aboneliği 402 (veri donmuş, bug değil) | `TRUST_CF_HEADER` EKLEME |
-| `TRUSTED_PROXY_HOPS=2` · `SENTRY_DSN` + `ERROR_ALERT_EMAIL` · `EMAIL_OUTBOX_ENABLED=1` · `CALENDAR_URL_CONTRACT_ENABLED=1` (prod'da düz feed URL kalmadı) · `STORAGE_ENABLED=1` (Tigris `lixus-uploads`, virtual-hosted) | kanıtlı canlı |
-| `PASSWORD_RESET_CHALLENGE_ENABLED` | artık okunmuyor (Faz 3), silinmesi davranışı değiştirmez |
-| BİLİNÇLİ KAPALI | 🔔 **açılmayı bekleyen yapay zekâ anahtarları (kurucu 10-09: "bayrağı unutturma")**: `AI_VERIFIED_AVAILABILITY_ENABLED` (doğrulanmış müsaitlik, kanal) · `AI_VERIFIED_EXTENSION_ENABLED` (doğrulanmış uzatma, kanal; Airbnb rezervasyonu) · `AI_VERIFIED_QR_ENABLED` (ikisinin QR karşılığı) · `AI_DATE_RESOLUTION_ENABLED` (istemde tarih okuması; kör eval sonucu `docs/olcum/`) · `AI_UNDERSTANDING_EN_QUERY_ENABLED` (İngilizce köprü sorgusu, getirme; `docs/olcum/RAG-AYRISTIRMA-2026-10-10.md`) · `AI_EMERGENCY_NUMBER_ENABLED` (QR acil numara sorusu → yalnız numara, servis başına; `docs/claude/ai-guvenlik.md`) · `AI_FAULT_GUARD_ENABLED` (arıza her yolda arıza: kod arızayı ev sahibine bırakır + tek e-posta, 10-15) · `AI_FIX_SUPPORT_GATE_ENABLED` (bilgi tabanında tarifi / konusu olmayan cihaz için adım gitmez, kanal + QR, 10-15; ikisi `docs/arastirma-2026-10-15/KURUCU-SORULARI.md` §H) · `PADDLE_CHECKOUT_INTENT_ENABLED` (ödeme niyeti, migration 82; Paddle sandbox denemesi kurucuyla) · `AI_TOPIC_ABSENCE_ENABLED` (H9 konu bazlı "bilgim yok": ayıklanır, bağımsız soru gider, konu ev sahibinde açık; kanal öğe kipi, 10-16; 🔔 kurucu 10-21 T1 "B onaylı" → açılışta "1") — açma = kurucu + ilk denemeler birlikte · `ATTENTION_GAP_ENABLED` (panoda yetim boşluk satırı; kurucu onayladı 10-11, tutarsız — açmak = env "1") · `AI_ACTION_SUGGESTIONS_ENABLED` (⑤ ilk dilim: görev / Wi-Fi / söz önerisi + tek tıkla onay; kurucu 10-12 "A + B + C" — açmak = env "1"; `docs/TASARIM-2026-10-11-otonom-ai-ilk-dilim-onerisi.md` §5) · `TRIAL_IDENTITY_ENABLED` (deneme kimliği, migration 61; açmadan önce aydınlatma metni) · `CHANNEL_METADATA_WRITE` / `AI_GENERATION_TRACE_ENABLED` (migration 60 yazıcıları) · `DURABLE_OUTBOX_ENABLED` · `ICAL_DISAPPEARANCE_RECONCILE_ENABLED` · `UNVERIFIED_SWEEP_*` · `RETENTION_MESSAGE_AGE_ANCHOR` (onay paketi: `docs/RETENTION-MESSAGE-AGE-ANCHOR-ONAY-PAKETI.md`) · `GUEST_ERASURE_ENABLED` (avukat imzası) · `QR_PIN_ENABLED` (kurucu 10-11: AÇILACAK — Railway açılınca env "1", ilk denemeler birlikte; QR ilk cihaz kilidini çözer) · `APP_TRUST_BROWSER_TIMEZONE` · 10-12 → 10-18 ekleri (ne işe yaradıkları + sıra Railway belgesinde; koddaki her `*_ENABLED` orada adıyla geçmek ZORUNDA — pin `railway-doc-flags.test.ts`): `HISTORY_LEARN_ENABLED` · `PROPERTY_INSTRUCTIONS_PROMPT_ENABLED` (misafire gideni değiştirir) · `HISTORY_LEARN_CUSTOMER_COMPARE_ENABLED` / `HISTORY_LEARN_CUSTOMER_INSTRUCTIONS_ENABLED` (kapalı kalır) · `CHANNEL_AUTOMATION_NOT_REPLY_ENABLED` · `HOST_DECISION_AI_TEXT_ENABLED` · `AI_COURTESY_RULE_ENABLED` · `AI_STAY_DEFERRAL_PLAIN_ENABLED` · `AI_UNDERSTANDING_THREAT_RULE_ENABLED` · `QR_ESCALATION_EMAIL_ENABLED` · `QR_INFORMATIONAL_BAND_ENABLED` · `SIGNUP_NETWORK_TRACE_ENABLED` · `TRIAL_CARD_GATE_ENABLED` · `PADDLE_RESUME_ENABLED` · `UNVERIFIED_SWEEP_ENABLED` |
+## Canlı durum (Railway env'leri)
+> 📄 **Tam metin (bağlayıcı): `docs/claude/canli-durum.md`** — env / bayrak / model / canlıya açma işinden önce oku. Özet: Railway 10-02
+> akşamdan beri KAPALI (canlı yok; push yalnız CI'dan geçer, deploy olmaz); cevap modeli `OPENAI_MODEL=gpt-5.1`; açılmayı bekleyen
+> anahtarlar + sıra `docs/RAILWAY-ACILIS-2026-10-15.md` (koddaki her `*_ENABLED` orada adıyla geçer — pin `railway-doc-flags.test.ts`).
 
-## Fiyat (kullanıcı onaylı, FLAT)
-Başlangıç ₺449 (1-2 daire) · Pro ₺899 (3-7) · İşletme ₺1.699 (8-25; `propertyLimit=25`, "25+ → bize ulaşın").
-Yıllık = aylık×10 (₺4.490/8.990/16.990). 14 gün tam Pro deneme, kart yok. Kartlar daire sayısı +
-kullanım hacmi + destek ile ayrışır; özellik kilidi YOK. USD/TRY ₺46. `legal-entity.ts` dolu.
+## Fiyat + mevcut özellikler
+> 📄 **Tam metin: `docs/claude/fiyat-ve-ozellikler.md`** — fiyat / plan / landing işinden ve yeni özellik eklemeden önce oku (var olan
+> özellik yeniden eklenmez).
 
-## Hospitable ortaklığı
-Amaç: Lixus müşterisine "sadece-API" paketi (~$7/daire) → $29/ay Hospitable engelini kaldırmak. Gerçekler:
-API yalnız ücretli planlarda; Hospitable partnerlerden OAuth vendor flow bekliyor (bizde ana yol; PAT
-fallback: my.hospitable.com → Apps → API access → Access tokens, Read+Write). Patrick (07-02): Connect
-kapandı, public API+OAuth tek yol, white-label şimdilik yok ("trafik gösterince pilot"); "tek ana hesap →
-çoklu host" property-manager modeli mümkün (tenant izolasyonu yeniden tasarım ister — kullanıcı onayı).
-Partner Portal partners.hospitable.com. Dürtme yok.
-
-## Mevcut özellikler (tekrar ekleme)
-Panel: dashboard (AI özet + onboarding), inbox (AI öner + risk rozeti), Mesajlar, QR Misafir Sohbetleri,
-Gönderilenler (+`/sent/queue` outbox ops), Görevler (Kanban), Takvim, İptaller, Mülkler (+"Mülk Hafızası" kartı, V1), Bilgi Tabanı,
-Şablonlar, Raporlar, sekmeli Ayarlar (Takvim akışı gizliliği, geç çıkış teklifi, 2FA, faturalandırma).
-Mülk sayfası "Otomatik mesajlar" kartı (kurucu T4 10-21, migration 80): karşılama / giriş / çıkış metni YALNIZ buradan (önizlemeli, sürümlü);
-bilgi tabanı kalemleri otomatik mesajı değiştirmez. Mülk sayfası Kanal Takvimleri İKİ seçenek: **takvim bağlantısı** (URL, düzenli senkron) + **Dosyadan içe aktar**
-(tek seferlik `.ics`; önizleme kaydetmeden mülk + eklenecek/güncellenecek/iptal/atlanacak sayısını gösterir;
-`mode=preview` YAZMAZ ve ayrı kotadadır; dosya yalnız KENDİ satırına dokunur — `calendarSourceId` NULL + `channel`
-"ics"; feed satırı `owned_by_feed` ile atlanır; eksik satır iptal EDİLMEZ; iptalli satır canlı dosyayla geri AÇILMAZ).
-Operatör paneli: müşteri yönetimi + impersonation + Lead CRM + Operasyon Teşhisi + 2FA sıfırlama.
-Landing: 3-seviye kartlar + canlı demo. KVKK: export, retention, erasure (bayraklı), kayıt onayı. VDP:
-`/guvenlik` + `security.txt` (posta kutusu `security@lixusai.com` açılmalı).
+## Hospitable
+> 📄 **Tam metin: `docs/claude/hospitable.md`** — Hospitable / OAuth / senkron / webhook işinden önce oku. Özet: OAuth uygulaması Partner
+> Portal'da PRODUCTION onaylı; webhook'lar açılabilir ama KULLANILMIYOR (kurmak yeni sistem → önce sor); amaç Hospitable'dan AYRILMAK,
+> Hospitable'a özgü yeni ekran / özellik yapılmaz.
 
 ## Çalışma tarzı
+- 🚨 **KODDAN ÖNCE UZUN DÜŞÜN (kurucu 10-22 gece):** "en iyi, en uzun vadeli yöntem ne olabilir" — kodlamaya başlamadan önce mevcut kodda ne
+  var / ne eksik envanteri, araştırma, alternatif akışlar ve tasarım belgesi; acele çıktı yok. Tasarım `docs/TASARIM-*.md`'ye yazılır, müşteriye
+  dokunan kısım önce/sonra örnekli soruya döner.
 - 🚨 **ALT AJAN = HAIKU 5.5 (kurucu 10-08: "haiku 5.5'i subagentin olarak kullan, bol bol yardım etsin"):** tarama / envanter / ölçüm /
   doğrulama işleri `Agent` aracıyla `model: "haiku"` (çoğunlukla `subagent_type: Explore`) çalıştırılır; dar, net, kısa çıktılı görev
   verilir; bulgular kodla doğrulanır; kodu Claude yazar. Yasak dosyalar (sealed / private / holdout) ajana da AÇILMAZ.
@@ -418,43 +396,10 @@ Landing: 3-seviye kartlar + canlı demo. KVKK: export, retention, erasure (bayra
 **🔔 GOAL BİTTİKTEN SONRA OKU (kurucu 10-10):** Correlation ID / takip numarası (önce ödeme zinciri; destek ekranında numarayla arama; İLK DİLİM ✅ 10-12, §6) → `docs/TASARIM-2026-10-10-correlation-id-takip-numarasi.md` — kurucu kararları §5 (kapsam önce ödeme · hata ekranında numara · migration onaylı · KALICI yalnız-ekle olay günlüğü, güvenlik şartlarıyla) · Load balancer / yatay ölçek (bugün gerekmiyor; 2 kopya ön koşulları + karar soruları) → `docs/TASARIM-2026-10-10-load-balancer-yatay-olcek.md`
 **Diğer açıklar:** Codex P2 (F09–F18) · `docs/DENETIM-2026-08-09.md` (27) · `docs/ACIK-ISLER-2026-08-08.md` (16) ·
 
-## 🚨 ÇALIŞMA BİÇİMİ (09-19 → 09-24 güncel): RAILWAY AYIN 1'İNE KADAR AKTİF, GELİŞTİRME LOCAL'DE
-🚨 **10-02 AKŞAM: Railway aboneliği BİTTİ** (kurucu) → CANLI YOK; dal push'u yalnız CI'dan geçer, deploy olmaz (geri açılınca dalın son yeşil
-commit'i gider — migration'lı RC'lerden önce taze yedek kuralı aynen). Kurucu yerelde çalışıyor (`.env.local`, yerel PG 5434); prod `ENCRYPTION_KEY`
-yerelde YOK (doğru). Son itilen RC72 (`d905c41`, CI #1290 yeşil).
-🚨 **10-02 sabah: Railway HÂLÂ AKTİF** (kurucu canlıya bayrak ekledi) → dal push'u = CI yeşilse CANLI deploy. (Akşam bitti ↑.)
-🚨 **09-24 kurucu: "Railway ayın 1'ine kadar aktif"** → dal push'u = CI yeşilse CANLI deploy (tarihli "duraklatıldı,
-canlıya bir şey gitmedi" varsayımı YANLIŞTI). Aşağıdaki 09-19 duraklatma notu ayın 1'inden sonrası için geçerlidir.
-Kurucu Railway **ücretli planından çıktı** (servis SİLİNMEDİ, proje bitmeye yakın geri açılacak).
-Duraklatma öncesi tam yedek ALINDI ve **GERİ YÜKLENEBİLİRLİĞİ KANITLANDI** (aşağıda).
-Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCAL-GELISTIRME.md`.
-- **Local ortam tek komut:** `scripts/ops-local-dev-setup.ps1` (idempotent). Yerel küme
-  `%LOCALAPPDATA%\lixus-dev-pg`, **PORT 5434**, DB `lixus_dev`, `.env.local` TAZE ÜRETİLMİŞ sırlarla
-  (prod `ENCRYPTION_KEY` local'e KOPYALANMAZ — local DB'de şifreli prod verisi yok, kopyalamak yalnız
-  sırrı yayar). Giriş `demo@guestops.ai / demo1234`. 🚨 **PORT 5434, 5433 DEĞİL:** 5433'ü test
-  harness'ı sahipleniyor ve her `vitest run` onu `stop -m immediate` + `initdb` ile SIFIRLIYOR —
-  dev DB'si oraya kurulsaydı ilk `npm test` onu silerdi. İki küme ayrı → `npm test` ve `npm run dev`
-  aynı anda sorunsuz.
-- 🚨 **PROD DUMP'I LOCAL'E YÜKLENMEZ** (bilinçli): içinde gerçek misafir adları/telefonları/17.462
-  mesaj var; demo seed geliştirme için yeterli. Gerçek veriyle ölçüm AYRI karar (KVKK).
-- **Yedek (09-19 10:42Z):** `lixus-prod-pause-2026-09-19-104239.{dump,sql,-manifest.txt}`; arşiv 1,48 MB
-  SHA256 `F91DAF20…DCCB3F7`. **Prova: restore exit=0, 0,7 sn; satır sayıları manifestle BİREBİR**
-  (org 9 · mülk 11 · rezervasyon 1542 · konuşma 1329 · mesaj 17462 · takvim 0); ASSERT migration=56,
-  bitmemiş=0. ⚠️ **Şifreli-alan kanıtı ALINMADI (vakumlu):** `CalendarSource=0` — kurucu doğruladı,
-  iCal beslemeleri BİLEREK kaldırılmış. Pratik sonuç: DB'de şifreli veri kalmamış görünüyor, yani
-  **dump tek başına kurtarma için YETİYOR**; anahtar yine kasada, ayrı yerde.
-- **Operatör araçlarında ölçülen dört kusur düzeltildi (hepsi araçların kendindeydi):** ① `initdb`
-  hatası `*> $null` ile yutuluyordu (teşhis edilemez kurtarma aracı) → log + kuyruk basılır ·
-  ② sürüm seçimi yalnız `.exe` varlığına bakıyordu, PG 18 **istemci-kurulumu** seçilip tam kurulu 17
-  atlanıyordu → `share\postgres.bki` de aranır (`-NeedsServer`; yedek ALMA scriptleri bu şartı GEÇMEZ,
-  onlara sunucu gerekmiyor) · ③ o ayrım iki aracı farklı sürüme ayırdı → yedek script'i uyarır
-  (⚠️ "pg_dump 18 → pg_restore 17 düşer" TAHMİNİM YANLIŞ ÇIKTI, ölçüm 0,7 sn'de çalıştığını gösterdi;
-  uyarı kesin hüküm değil RİSK NOTU olarak dürüstleştirildi) · ④ boş takvim tablosunda prova
-  "şifreli alanlar DOĞRULANDI" diye YEŞİL basıyordu → `CalendarSource=0` iken artık VAKUMLU olduğunu
-  açıkça yazar (tuzak dosyanın kendi yorumunda vardı, NİHAİ HÜKME yansımamıştı).
-- **Duraklatmada duranlar:** QR misafir sohbeti (dairedeki sticker ölü sayfaya düşer) · oto-yanıt/senkron
-  (540 günlük geri pencere toparlar) · e-posta kuyruğu · **Paddle webhook'ları (durum KAYABİLİR → geri
-  dönüşte reconcile)** · Hospitable OAuth refresh (süresi dolabilir, KONTROL ET).
+## Çalışma ortamı (Railway duraklatma, yerel geliştirme, yedek)
+> 📄 **Tam metin (bağlayıcı): `docs/claude/calisma-ortami.md`** — Railway / yedek / yerel veritabanı / geri açma işinden önce oku. Özet:
+> yerel dev PG **5434** (5433 test harness'ının, her `vitest run` sıfırlar); PROD DUMP'I LOCAL'E YÜKLENMEZ; migration'lı yayından önce
+> taze yedek.
 
 ## Çalışma dersleri (turlardan damıtıldı — gerekçeler arşivde)
 - 🚨 **Yıkıcı bir betik "denemek" için ASLA çalıştırılmaz** — koruma SAF karar fonksiyonuyla sınanır (09-23:
@@ -533,33 +478,3 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 > 📄 **Tam metin (bağlayıcı): `docs/claude/durum.md`** — bu alanda kod / karar değiştirmeden önce oku. Aşağıda yalnız madde başlıkları.
 **10-22 akşam (güncel):** iç kaynak anlatımı misafire asla gitmez (istem + okuyucu 5. hüküm + bir kez yeniden yazma + anahtarsız kod yedeği) · iç daire adı modele gitmez · U4 ana dalda (migration 83) · ölçüm 4 → 0; açık soru rapor §7.1 (sauna) — `docs/claude/durum.md`.
 **10-22 gündüz:** §U kararları kodda (özür yok · başka misafir bilgisi · kıdemli okuyucu + kanıt şartı + bir kez yeniden yazma · mizah · U10–U15 güvenlik); rapor `docs/RAPOR-2026-10-22-yapay-zeka-ne-ogrendi.md`; açık U4 + T-c — `docs/claude/durum.md`.
-**10-22 gece:** güvenlik 2. tur (başka siteden yazma kapısı, aday güncellemesi izi; sorular U10–U15) · erişilebilirlik taraması 40 → 0 ihlal (ikincil metin rengi, "İçeriğe geç") — `docs/claude/durum.md`.
-**10-21 gece-4:** UX / görsel / güvenlik incelemeleri → ev sahibi ekranı düzeltmeleri · devre kesici kiracı başına · kırmızı takım + tarafsızlık ölçümü (yasak dize 0, özürlü taslak 9→0) · sorular §U (U1–U9) — `docs/claude/durum.md`.
-**10-21 gece-3:** W1–W9 kodda (W8 → acil 48/48) · bilgim-yok bağlam hakemi (anahtar KAPALI; gerçek cevapta 16/17 doğru bırakma, 0/51 yanlış) · devre kesici + 30 sn · yazma sınırı · gitleaks · sıradaki plan `docs/PLAN-2026-10-21-baglam-anlama-ve-kirmizi-takim.md` — `docs/claude/durum.md`.
-**10-21 gece-2:** Claude 2. dalga doğrulandı: tehlike sondası gerçek akışta 46/48 acil yolu + 2 tutuldu, 0 sızma · ~25 doğrulanmış hata düzeltildi (başka daire metni, KVKK ad geri yazımı, gaz alarmı okuyucusu…) · kurucu soruları W1–W9 — `docs/claude/durum.md`.
-**10-21 gece:** anlama ölçümü iki kol geçerli + kurucu soruları A–F · Claude kredisi 1. dalga ($23,87) + 2. dalga · 111 altyapı konusu envanteri + iç sertleştirmeler + olay/SLO belgesi — `docs/claude/durum.md`.
-**10-21 akşam:** g98 kırmızıları test kurulumuydu · Codex mutasyonu · Opus B1–B7 düzeltildi (ödeme niyeti sertleştirme, kilit sırası, kopya süpürgesi) · Claude eval T1 sıra 1 (iç kaynak kalıpları, yedi dil) kodda — `docs/claude/durum.md`.
-**10-21 öğleden sonra:** Codex 4 madde: ödeme niyeti (migration 82, `PADDLE_CHECKOUT_INTENT_ENABLED` KAPALI, sandbox kurucuyla) · kopyalama işlem kaydı (migration 81) · söz kapatma yarışı · T1 pini; Claude eval T1 açıkları → `docs/olcum/claude-zorlu-t1-2026-10-21-ANALIZ.md` (sıradaki iş) — `docs/claude/durum.md`.
-**10-21:** kurucu T1–T5 cevapları kodda: T5 söz gün/saat tablosu · T2 olası tehlike + anlama yok → Sorunlu + saatte 3 e-posta · T1 "B": dayanak şartı (kutup, sayı, nezaket) + erişim ilişkisi + "sistemimizde yok" · T4 otomatik mesajlar ayrı bölüm (migration 80, kuyrukta aynı satırı yeniden kurma) — `docs/claude/durum.md`, `KURUCU-SORULARI.md` §T.
-**10-18 gece-4:** 10 geniş inceleme → iç hatalar düzeltildi · söz algılama v2 (migration 76/77) · 78 yalnız dizin (olay okuması) · ikinci tarama: 50 izsiz bulgu → iç düzeltmeler + §T8 (18+1 soru) · 79 yalnız dizin (kalıcı kuyruk) + talepte veritabanı tarafı zaman aşımı · kuyruk işletme anahtarını gönderimde okur · dolu DB yükseltme provası 58→77 yeşil (+78) · sorular §T (T1–T7, T6b) · sabah: T3 + T6b uygulandı, söz kalanları (A12 / A14 / baş harf / A16) · rapor `docs/SABAH-RAPORU-2026-10-18.md` — `docs/claude/durum.md`.
-**10-17 gece-3:** Haiku 2–4. tur söz düzeltmeleri (takvim tarihi, yapan ayrımı, devam parçası) · Paddle anahtar olayı anahtarsız · SG3: duraklatma yok, iptalde dönem sonu kutusu · sandbox tur 3/4 — `docs/claude/durum.md`.
-**10-17 gece-2:** Söz → görev otomatik (migration 75, `HOST_COMMITMENT_AUTO_ENABLED` KAPALI; saat uydurulmaz, bağlamla saat taşıma, günde 20, konaklama bitince kapanış) · Opus düzeltmeleri · teyit SG1/SG2 — `docs/claude/durum.md`.
-**10-17 gece:** Q2 kanal otomasyonu cevap sayılmaz · Q1-b iki söz / "hangi söze bağlansın?" · KD1 + kartla deneme sızma testleri · Paddle sandbox D1/D2 düzeltmesi (önizleme toplamı satırlardan) — `docs/claude/durum.md`.
-**10-17 akşam:** I1 + Q1 "a" · Q3/Q4 · I4 C devam ettir + kartla deneme kapısı (migration 74, anahtarlar KAPALI) · L1/L4 tasarımı; sorular KURUCU-SORULARI §S — `docs/claude/durum.md`.
-**10-17 öğleden sonra:** S2 migration 69–72 kodda (I3 dizin · L2 yerine koy · L5 kanal gönderen rolü 1. faz · K1 deneme işareti + kayıt ağı izi, anahtar KAPALI); sorular Q1–Q4 (+Q2-b) → `docs/arastirma-2026-10-15/KURUCU-SORULARI.md` §Q — `docs/claude/durum.md`.
-**10-17 sabah:** S1 kurucu kararları kodda (H9/M1 silici izin listesi · K4 elle temizlik · N1 bayat otomatik mesaj yok · K3 ödeme metinleri); S2 migration tasarımı + sorular → `docs/arastirma-2026-10-15/KURUCU-SORULARI.md` §Q — `docs/claude/durum.md`.
-**10-16 akşam:** `npm test` = paralel kapı (3 işçi, ~%18 kısa; geri dönüş `test:serial`) · H9 konu bazlı "bilgim yok" (`AI_TOPIC_ABSENCE_ENABLED` KAPALI; Haiku + Opus bulguları işlendi) · Codex akşam 6 bulgu düzeltildi (ödeme yükü tekrarı, kuyrukta abonelik bekletmesi, KB kopya kimliği, 64 cümle tavanı, gönderilmemiş host mesajı, sağlık yoklaması); sorular K/L/M/N → `docs/arastirma-2026-10-15/KURUCU-SORULARI.md`.
-**10-16 öğleden sonra:** ek süre yok (past_due dönem başı) · elle mesaj hızlı uyandırma · kuyruk anahtarları ayrı · QR kilit yenileme + her ücretli adımdan önce sahiplik; sorular J1–J9 → `docs/arastirma-2026-10-15/KURUCU-SORULARI.md` §J.
-**10-16 öğle:** kurucu kararları Faz 1 (migration 68 ana dalda · söz tekrarı · e-posta tekrar kimliği · ödeme S1/S2/S4 · O1 liste anahtarı `DURABLE_OUTBOX_ORG_IDS` + kapatma testleri · QR tamamlanmış kayıt 24 sa + bayat işçi koruması); Faz 2/3 + sorular I1–I3 → `docs/arastirma-2026-10-15/KURUCU-SORULARI.md` §I.
-**10-15 gece:** idempotency bitişi (iptal yolları tek kilit) + kurucu D1/D4/D6/D7 kodda; D2/D3 migration 68 onayı bekliyor; inceleme notun için iki KAPALI anahtar (arıza her yolda arıza · kanıtsız arıza adımı) + Opus N1–N12; 10-16 gece Opus ikinci + üçüncü tur (§H8, soru H9) + kalıcı kuyruk envanteri / kuyruk sağlığı (soru H10, `docs/TASARIM-2026-10-16-transactional-outbox.md`); 10-16 sabah O1 hazırlık ENGEL'i kapandı (kuyruk yolu öğe kipinde devir kilidi kurmaz) — `docs/claude/durum.md`.
-**10-15 öğleden sonra:** V sonrası beş araştırma + müşteriye dokunmayan tekrar güvenliği düzeltmeleri; sorular `docs/arastirma-2026-10-15/KURUCU-SORULARI.md` — `docs/claude/durum.md`.
-**10-15 gündüz:** Geçmişten öğren (migration 65; taslak müşteride, karşılaştırma operatörde, daire tercihleri hazır seçenek; anahtarlar KAPALI) — `docs/claude/durum.md`.
-**10-15 gece:** Y1–Y10 + Haiku ikinci tur itildi; hazır yamalar KB istek kimliği (migration 65) + G1/G1b; RAG köprü önerisi — `docs/claude/durum.md`.
-**10-13 sabah:** G1–G11 kurucu cevapları uygulandı (G1 hazır yama, kredi bekliyor) + yeni sorular H1–H3 — `docs/KURUCU-YOKKEN-KARARLAR-2026-10-09.md`.
-**10-12 gece:** S1 bavul kapısı · S2 QR iptal edilmiş rezervasyon · ⑤ ilk dilim öneriler (`AI_ACTION_SUGGESTIONS_ENABLED` KAPALI) · takip numarası ilk dilimi (migration 63) — `docs/claude/durum.md`.
-**10-08 gece:** Codex `15c8663` bulguları (U16–U44 + yeni 1–11) döngüde dört turda işlendi ve İTİLDİ (`87ba35d`; takip tablosu
-`docs/INCELEME-2026-10-07-codex-u16-u44.md`, her bulguda regresyon testi, yarışlar gerçek PostgreSQL'de). Kimlik yarışları (U13/U40/U41/U43/U44),
-silinen metnin gönderimi (Y1), özgün mesaj kaybı (Y2), tehlike okuyucu (U3), takvim / CSV / ICS / gün başı / rapor / sağlık düzeltmeleri, ölçer
-düzeltmeleri. Next.js 15.5.27 (iki yeni SSG/ISR danışması). Onay bekleyen beş değişiklik HAZIR YAMA (`docs/hazir-yamalar/`, ana dala UYGULANMADI)
-+ Sabah Kararları 63–68. Railway hâlâ kapalı.
-- Bekleyen onaylar, 10-07 ve öncesi durum paragrafları, Host Copilot, K1–K18: tam metinde.

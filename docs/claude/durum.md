@@ -3,6 +3,38 @@
 > CLAUDE.md'den 2026-10-08'de AYNEN taşındı (kurucu: ".md'ye yığma, gerekli yerlere taşı, gerekli şeyleri silme").
 > Bu dosyadaki kurallar CLAUDE.md'deki kadar BAĞLAYICIDIR. İlgili alanda iş yapmadan önce oku.
 
+## CLAUDE.md "Durum" özet satırları (10-23'te AYNEN taşındı; en yeni ikisi CLAUDE.md'de kalır)
+**10-22 gece:** güvenlik 2. tur (başka siteden yazma kapısı, aday güncellemesi izi; sorular U10–U15) · erişilebilirlik taraması 40 → 0 ihlal (ikincil metin rengi, "İçeriğe geç") — `docs/claude/durum.md`.
+**10-21 gece-4:** UX / görsel / güvenlik incelemeleri → ev sahibi ekranı düzeltmeleri · devre kesici kiracı başına · kırmızı takım + tarafsızlık ölçümü (yasak dize 0, özürlü taslak 9→0) · sorular §U (U1–U9) — `docs/claude/durum.md`.
+**10-21 gece-3:** W1–W9 kodda (W8 → acil 48/48) · bilgim-yok bağlam hakemi (anahtar KAPALI; gerçek cevapta 16/17 doğru bırakma, 0/51 yanlış) · devre kesici + 30 sn · yazma sınırı · gitleaks · sıradaki plan `docs/PLAN-2026-10-21-baglam-anlama-ve-kirmizi-takim.md` — `docs/claude/durum.md`.
+**10-21 gece-2:** Claude 2. dalga doğrulandı: tehlike sondası gerçek akışta 46/48 acil yolu + 2 tutuldu, 0 sızma · ~25 doğrulanmış hata düzeltildi (başka daire metni, KVKK ad geri yazımı, gaz alarmı okuyucusu…) · kurucu soruları W1–W9 — `docs/claude/durum.md`.
+**10-21 gece:** anlama ölçümü iki kol geçerli + kurucu soruları A–F · Claude kredisi 1. dalga ($23,87) + 2. dalga · 111 altyapı konusu envanteri + iç sertleştirmeler + olay/SLO belgesi — `docs/claude/durum.md`.
+**10-21 akşam:** g98 kırmızıları test kurulumuydu · Codex mutasyonu · Opus B1–B7 düzeltildi (ödeme niyeti sertleştirme, kilit sırası, kopya süpürgesi) · Claude eval T1 sıra 1 (iç kaynak kalıpları, yedi dil) kodda — `docs/claude/durum.md`.
+**10-21 öğleden sonra:** Codex 4 madde: ödeme niyeti (migration 82, `PADDLE_CHECKOUT_INTENT_ENABLED` KAPALI, sandbox kurucuyla) · kopyalama işlem kaydı (migration 81) · söz kapatma yarışı · T1 pini; Claude eval T1 açıkları → `docs/olcum/claude-zorlu-t1-2026-10-21-ANALIZ.md` (sıradaki iş) — `docs/claude/durum.md`.
+**10-21:** kurucu T1–T5 cevapları kodda: T5 söz gün/saat tablosu · T2 olası tehlike + anlama yok → Sorunlu + saatte 3 e-posta · T1 "B": dayanak şartı (kutup, sayı, nezaket) + erişim ilişkisi + "sistemimizde yok" · T4 otomatik mesajlar ayrı bölüm (migration 80, kuyrukta aynı satırı yeniden kurma) — `docs/claude/durum.md`, `KURUCU-SORULARI.md` §T.
+**10-18 gece-4:** 10 geniş inceleme → iç hatalar düzeltildi · söz algılama v2 (migration 76/77) · 78 yalnız dizin (olay okuması) · ikinci tarama: 50 izsiz bulgu → iç düzeltmeler + §T8 (18+1 soru) · 79 yalnız dizin (kalıcı kuyruk) + talepte veritabanı tarafı zaman aşımı · kuyruk işletme anahtarını gönderimde okur · dolu DB yükseltme provası 58→77 yeşil (+78) · sorular §T (T1–T7, T6b) · sabah: T3 + T6b uygulandı, söz kalanları (A12 / A14 / baş harf / A16) · rapor `docs/SABAH-RAPORU-2026-10-18.md` — `docs/claude/durum.md`.
+**10-17 gece-3:** Haiku 2–4. tur söz düzeltmeleri (takvim tarihi, yapan ayrımı, devam parçası) · Paddle anahtar olayı anahtarsız · SG3: duraklatma yok, iptalde dönem sonu kutusu · sandbox tur 3/4 — `docs/claude/durum.md`.
+**10-17 gece-2:** Söz → görev otomatik (migration 75, `HOST_COMMITMENT_AUTO_ENABLED` KAPALI; saat uydurulmaz, bağlamla saat taşıma, günde 20, konaklama bitince kapanış) · Opus düzeltmeleri · teyit SG1/SG2 — `docs/claude/durum.md`.
+**10-17 gece:** Q2 kanal otomasyonu cevap sayılmaz · Q1-b iki söz / "hangi söze bağlansın?" · KD1 + kartla deneme sızma testleri · Paddle sandbox D1/D2 düzeltmesi (önizleme toplamı satırlardan) — `docs/claude/durum.md`.
+**10-17 akşam:** I1 + Q1 "a" · Q3/Q4 · I4 C devam ettir + kartla deneme kapısı (migration 74, anahtarlar KAPALI) · L1/L4 tasarımı; sorular KURUCU-SORULARI §S — `docs/claude/durum.md`.
+**10-17 öğleden sonra:** S2 migration 69–72 kodda (I3 dizin · L2 yerine koy · L5 kanal gönderen rolü 1. faz · K1 deneme işareti + kayıt ağı izi, anahtar KAPALI); sorular Q1–Q4 (+Q2-b) → `docs/arastirma-2026-10-15/KURUCU-SORULARI.md` §Q — `docs/claude/durum.md`.
+**10-17 sabah:** S1 kurucu kararları kodda (H9/M1 silici izin listesi · K4 elle temizlik · N1 bayat otomatik mesaj yok · K3 ödeme metinleri); S2 migration tasarımı + sorular → `docs/arastirma-2026-10-15/KURUCU-SORULARI.md` §Q — `docs/claude/durum.md`.
+**10-16 akşam:** `npm test` = paralel kapı (3 işçi, ~%18 kısa; geri dönüş `test:serial`) · H9 konu bazlı "bilgim yok" (`AI_TOPIC_ABSENCE_ENABLED` KAPALI; Haiku + Opus bulguları işlendi) · Codex akşam 6 bulgu düzeltildi (ödeme yükü tekrarı, kuyrukta abonelik bekletmesi, KB kopya kimliği, 64 cümle tavanı, gönderilmemiş host mesajı, sağlık yoklaması); sorular K/L/M/N → `docs/arastirma-2026-10-15/KURUCU-SORULARI.md`.
+**10-16 öğleden sonra:** ek süre yok (past_due dönem başı) · elle mesaj hızlı uyandırma · kuyruk anahtarları ayrı · QR kilit yenileme + her ücretli adımdan önce sahiplik; sorular J1–J9 → `docs/arastirma-2026-10-15/KURUCU-SORULARI.md` §J.
+**10-16 öğle:** kurucu kararları Faz 1 (migration 68 ana dalda · söz tekrarı · e-posta tekrar kimliği · ödeme S1/S2/S4 · O1 liste anahtarı `DURABLE_OUTBOX_ORG_IDS` + kapatma testleri · QR tamamlanmış kayıt 24 sa + bayat işçi koruması); Faz 2/3 + sorular I1–I3 → `docs/arastirma-2026-10-15/KURUCU-SORULARI.md` §I.
+**10-15 gece:** idempotency bitişi (iptal yolları tek kilit) + kurucu D1/D4/D6/D7 kodda; D2/D3 migration 68 onayı bekliyor; inceleme notun için iki KAPALI anahtar (arıza her yolda arıza · kanıtsız arıza adımı) + Opus N1–N12; 10-16 gece Opus ikinci + üçüncü tur (§H8, soru H9) + kalıcı kuyruk envanteri / kuyruk sağlığı (soru H10, `docs/TASARIM-2026-10-16-transactional-outbox.md`); 10-16 sabah O1 hazırlık ENGEL'i kapandı (kuyruk yolu öğe kipinde devir kilidi kurmaz) — `docs/claude/durum.md`.
+**10-15 öğleden sonra:** V sonrası beş araştırma + müşteriye dokunmayan tekrar güvenliği düzeltmeleri; sorular `docs/arastirma-2026-10-15/KURUCU-SORULARI.md` — `docs/claude/durum.md`.
+**10-15 gündüz:** Geçmişten öğren (migration 65; taslak müşteride, karşılaştırma operatörde, daire tercihleri hazır seçenek; anahtarlar KAPALI) — `docs/claude/durum.md`.
+**10-15 gece:** Y1–Y10 + Haiku ikinci tur itildi; hazır yamalar KB istek kimliği (migration 65) + G1/G1b; RAG köprü önerisi — `docs/claude/durum.md`.
+**10-13 sabah:** G1–G11 kurucu cevapları uygulandı (G1 hazır yama, kredi bekliyor) + yeni sorular H1–H3 — `docs/KURUCU-YOKKEN-KARARLAR-2026-10-09.md`.
+**10-12 gece:** S1 bavul kapısı · S2 QR iptal edilmiş rezervasyon · ⑤ ilk dilim öneriler (`AI_ACTION_SUGGESTIONS_ENABLED` KAPALI) · takip numarası ilk dilimi (migration 63) — `docs/claude/durum.md`.
+**10-08 gece:** Codex `15c8663` bulguları (U16–U44 + yeni 1–11) döngüde dört turda işlendi ve İTİLDİ (`87ba35d`; takip tablosu
+`docs/INCELEME-2026-10-07-codex-u16-u44.md`, her bulguda regresyon testi, yarışlar gerçek PostgreSQL'de). Kimlik yarışları (U13/U40/U41/U43/U44),
+silinen metnin gönderimi (Y1), özgün mesaj kaybı (Y2), tehlike okuyucu (U3), takvim / CSV / ICS / gün başı / rapor / sağlık düzeltmeleri, ölçer
+düzeltmeleri. Next.js 15.5.27 (iki yeni SSG/ISR danışması). Onay bekleyen beş değişiklik HAZIR YAMA (`docs/hazir-yamalar/`, ana dala UYGULANMADI)
++ Sabah Kararları 63–68. Railway hâlâ kapalı.
+- Bekleyen onaylar, 10-07 ve öncesi durum paragrafları, Host Copilot, K1–K18: tam metinde.
+
 ## Durum
 > Tur anlatıları (09-23 → 10-01 gece 2) 10-02'de AYNEN arşive taşındı (kurucu: ".md çok uzamış … gerekli yerlere taşırsın"):
 > `docs/history/CLAUDE-2026-10-02-sadelestirme-3-oncesi-tam-metin.md` ("Durum" bölümü). Kuralları yukarıdaki bölümlerde; yalnız Durum'da

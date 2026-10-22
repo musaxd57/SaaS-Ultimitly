@@ -196,6 +196,15 @@ function bundles(files: string[], cap: number): { files: string[]; text: string 
   return out;
 }
 
+/** Depodaki bir belgenin tamamı (yoksa boş). */
+function docFile(rel: string): string {
+  try {
+    return readFileSync(path.join(ROOT, rel), "utf8");
+  } catch {
+    return "";
+  }
+}
+
 /** CLAUDE.md'nin bir bölümü (başlıktan bir sonraki "## " başlığına kadar). */
 function claudeSection(title: string): string {
   const md = readFileSync(path.join(ROOT, "CLAUDE.md"), "utf8");
@@ -254,7 +263,8 @@ async function market(): Promise<void> {
     reports.push(`## ${t.id}\n${r.text}`);
   });
   if (reports.length === 0) return;
-  const product = [claudeSection("Ürün"), claudeSection("Fiyat (kullanıcı onaylı, FLAT)"), claudeSection("Hospitable ortaklığı"), claudeSection("Mevcut özellikler (tekrar ekleme)")].join("\n\n");
+  // 10-23: fiyat / Hospitable / özellik bölümleri CLAUDE.md'den `docs/claude/`e AYNEN taşındı — oradan okunur.
+  const product = [claudeSection("Ürün"), docFile("docs/claude/fiyat-ve-ozellikler.md"), docFile("docs/claude/hospitable.md")].join("\n\n");
   const s = await call({
     task: "market",
     system: "Sen deneyimli bir B2B SaaS strateji danışmanısın. Türkçe, somut ve dürüst yaz; abartı ve klişe yok.",
