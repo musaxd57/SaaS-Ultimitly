@@ -6,6 +6,9 @@ import { orgTimezone } from "@/lib/timezone";
 
 export const dynamic = "force-dynamic";
 
+/** Takvim aktarımına giren geçmiş pencere (U14, kurucu 10-22): son bu kadar günde çıkış yapanlar + gelecek. */
+const ICAL_FEED_PAST_DAYS = 60;
+
 /**
  * Public iCal feed for a single property, secured by an unguessable token.
  * External channels (Airbnb, Booking.com, Google Calendar) subscribe to this
@@ -44,8 +47,14 @@ export async function GET(
     where: { id: found.id },
     include: {
       organization: { select: { icalShowGuestName: true, timezone: true } },
+      // U14 (kurucu 10-22, "Son 60 gün olsun ve ilerisi olsun"): yalnız son 60 günde çıkış yapanlar + gelecek. Eskiden hesabın açıldığı
+      // günden beri BÜTÜN rezervasyonlar her çekişte üçüncü tarafa (Airbnb / Booking / Google) gidiyordu — ad açıksa geçmiş misafir adları
+      // da. Kanallar engel için yalnız bugün ve sonrasını kullanır; 60 gün geriye bakış ev sahibinin kendi takviminde yakın geçmişi korur.
       reservations: {
-        where: { status: { in: ["confirmed", "completed", "pending"] } },
+        where: {
+          status: { in: ["confirmed", "completed", "pending"] },
+          departureDate: { gte: new Date(Date.now() - ICAL_FEED_PAST_DAYS * 86_400_000) },
+        },
         orderBy: { arrivalDate: "asc" },
       },
     },
