@@ -7,6 +7,7 @@ import { kbFactsOf } from "@/lib/ai/availability-claims";
 import { badRequest, jsonOk, notFound, serverError, tooManyRequests, parseJsonBody, payloadTooLarge, hasJsonContentType, unsupportedMediaType } from "@/lib/api";
 import { rateLimit, rateLimitClientKey } from "@/lib/rate-limit";
 import { DEMO_HOURLY_LIMIT } from "@/lib/constants";
+import { ANONYMOUS_BREAKER_KEY } from "@/lib/ai/model-breaker";
 
 // ---------------------------------------------------------------------------
 // PUBLIC landing-page AI demo — "type a guest message, see the real answer".
@@ -114,7 +115,7 @@ export async function POST(req: NextRequest) {
     // about the stay behave realistically. Result is returned only.
     const now = new Date();
     const result = await suggestReply({
-      breakerKey: "demo",
+      breakerKey: ANONYMOUS_BREAKER_KEY,
       guestMessage: message,
       property: DEMO_PROPERTY,
       reservation: {

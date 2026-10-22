@@ -16,6 +16,7 @@ import { reportError } from "@/lib/report-error";
 import { alertOnTransition } from "@/lib/alert-state";
 import { suggestReply } from "@/lib/ai";
 import {
+  ANONYMOUS_BREAKER_KEY,
   REPLY_BREAKER_COOLDOWN_MS,
   REPLY_BREAKER_THRESHOLD,
   REPLY_BREAKER_STREAK_GAP_MS,
@@ -339,6 +340,49 @@ describe("devre kesici: kiracılar arası yalıtım", () => {
 });
 
 // Haiku 10-21 incelemesi: kira israfı, bayat dizi, sessiz kiracı kaydı.
+describe("devre kesici: hesapsız demo ortak kesiciye dokunmaz (güvenlik 3. tur 10-22, S1)", () => {
+  it("demo + tek işletme art arda zaman aşımı: ortak kesici AÇILMAZ, üçüncü işletme çağırmaya devam eder", () => {
+    const t0 = 9_000_000;
+    noteReplyModelTimeout(ANONYMOUS_BREAKER_KEY, t0);
+    noteReplyModelTimeout(ANONYMOUS_BREAKER_KEY, t0);
+    noteReplyModelTimeout("org-a", t0);
+    expect(replyModelCallAllowed("org-c", t0 + 1)).toBe(true);
+    // KONTROL: aynı dizi iki GERÇEK işletmeden gelseydi ortak kesici açılırdı.
+    __resetReplyModelBreakerForTests(0);
+    noteReplyModelTimeout("org-b", t0);
+    noteReplyModelTimeout("org-b", t0);
+    noteReplyModelTimeout("org-a", t0);
+    expect(replyModelCallAllowed("org-c", t0 + 1)).toBe(false);
+  });
+
+  it("demonun kendi kesicisi yine çalışır: üç zaman aşımı yalnız demoyu bekletir", () => {
+    const t0 = 9_100_000;
+    for (let i = 0; i < REPLY_BREAKER_THRESHOLD; i++) noteReplyModelTimeout(ANONYMOUS_BREAKER_KEY, t0);
+    expect(replyModelCallAllowed(ANONYMOUS_BREAKER_KEY, t0 + 1)).toBe(false);
+    expect(replyModelCallAllowed("org-a", t0 + 1)).toBe(true);
+  });
+
+  it("ortak kesicinin tek deneme kirası demoya verilmez; gerçek işletme alır", () => {
+    const t0 = 9_200_000;
+    noteReplyModelTimeout("org-a", t0);
+    noteReplyModelTimeout("org-a", t0);
+    noteReplyModelTimeout("org-b", t0);
+    const after = t0 + REPLY_BREAKER_COOLDOWN_MS;
+    expect(replyModelCallAllowed(ANONYMOUS_BREAKER_KEY, after)).toBe(false);
+    expect(replyModelCallAllowed("org-c", after)).toBe(true); // kira hâlâ boştaydı
+    expect(replyModelCallAllowed("org-d", after + 1)).toBe(false); // kira alındı
+  });
+
+  it("demonun cevabı ortak diziyi sıfırlamaz (gerçek arızayı demo isteğiyle örtemez)", () => {
+    const t0 = 9_300_000;
+    noteReplyModelTimeout("org-a", t0);
+    noteReplyModelTimeout("org-b", t0);
+    noteReplyModelResponded(ANONYMOUS_BREAKER_KEY);
+    expect(noteReplyModelTimeout("org-a", t0)).toBe(true);
+    expect(replyModelCallAllowed("org-c", t0 + 1)).toBe(false);
+  });
+});
+
 describe("devre kesici: kira, dizi penceresi, temizlik", () => {
   it("#1 A kendi beklemesindeyken reddedilir; ortak kesici kapalıysa B ve C çağırır (A'nın reddi kira almaz)", () => {
     const t0 = 7_000_000;

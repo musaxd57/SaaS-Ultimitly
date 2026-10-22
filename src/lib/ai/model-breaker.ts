@@ -74,6 +74,15 @@ export const REPLY_BREAKER_SHARED_MIN_TENANTS = 2;
 
 const keyOf = (key: string | null | undefined) => (key && key.trim() ? key : NO_TENANT);
 
+/**
+ * Hesapsız (anonim) çağrının kovası — ana sayfa demosu (güvenlik 3. tur 10-22, S1). Yalnız KENDİ kesicisini taşır; ortak kesiciye
+ * hiç dokunmaz: zaman aşımı ortak diziye "ikinci kiracı" olarak sayılmaz (hesabı olmayan biri tek başına demo + kendi deneme
+ * işletmesiyle bütün işletmelerin cevabını durduramasın), bekleme bitince ortak tek deneme kirasını alamaz (kurtarmayı anonim istekler
+ * tutmasın), cevabı ortak diziyi sıfırlamaz (gerçek arızayı demo isteğiyle örtemesin). Ortak kesici açıkken demo da bekler.
+ */
+export const ANONYMOUS_BREAKER_KEY = "demo";
+const isAnonymous = (k: string) => k === ANONYMOUS_BREAKER_KEY;
+
 /** Çağrı bu kesiciden geçebilir mi (DURUM DEĞİŞMEZ). */
 function passable(state: BreakerState, now: number): boolean {
   return state.openUntil === 0 || (now >= state.openUntil && now >= state.probeLeaseUntil);
@@ -97,11 +106,14 @@ function trip(state: BreakerState, now: number): boolean {
  * çağrı geçer (deneme kirası) — sonucu kesiciyi kapatır (cevap geldi) ya da hemen yeniden açar (yine zaman aşımı).
  */
 export function replyModelCallAllowed(key?: string | null, now = Date.now()): boolean {
-  const t = tenants.get(keyOf(key));
+  const k = keyOf(key);
+  const t = tenants.get(k);
+  // Anonim çağrı ortak kesicinin deneme aşamasında (açık, bekleme bitti) geçemez: tek deneme kirası gerçek işletmelerin.
+  if (isAnonymous(k) && shared.openUntil !== 0) return false;
   // İKİSİNE DE önce bakılır, kira ancak ikisi de geçirince alınır (Haiku 10-21 #1): eskiden ortak kira önce alınıyordu; kiracı kendi
   // beklemesindeyse çağrı reddediliyor ama ortak kira 65 sn boyunca BÜTÜN işletmeleri kapatıyordu.
   if (!passable(shared, now) || (t && !passable(t, now))) return false;
-  claim(shared, now);
+  if (!isAnonymous(k)) claim(shared, now);
   if (t) claim(t, now);
   return true;
 }
@@ -122,6 +134,11 @@ export function noteReplyModelTimeout(key?: string | null, now = Date.now()): bo
     tenants.set(k, t);
   }
   if (t.lastAt !== 0 && now - t.lastAt > REPLY_BREAKER_STREAK_GAP_MS) t.consecutive = 0;
+  if (isAnonymous(k)) {
+    t.lastAt = now;
+    t.consecutive++;
+    return t.consecutive >= REPLY_BREAKER_THRESHOLD ? trip(t, now) : false;
+  }
   if (shared.lastAt !== 0 && now - shared.lastAt > REPLY_BREAKER_STREAK_GAP_MS) {
     shared.consecutive = 0;
     sharedKeys = new Set();
@@ -141,9 +158,12 @@ export function noteReplyModelTimeout(key?: string | null, now = Date.now()): bo
 
 /** Sağlayıcı cevap verdi (başarı ya da kalıcı / kesin bir ret — takılmadı). Geçici hata (408/429/5xx) bunu ÇAĞIRMAZ. */
 export function noteReplyModelResponded(key?: string | null): void {
-  shared = fresh();
-  sharedKeys = new Set();
-  tenants.delete(keyOf(key));
+  const k = keyOf(key);
+  if (!isAnonymous(k)) {
+    shared = fresh();
+    sharedKeys = new Set();
+  }
+  tenants.delete(k);
 }
 
 /** Zaman aşımı mı? `AbortSignal.timeout` → `TimeoutError`; eski çalışma zamanları `AbortError` verebilir. */
