@@ -211,6 +211,11 @@ kalıcı "işlem yok" sayılıyor (niyet kapanır, yeni işlem açılır) — ye
   çıkış saati, telefon, önceki misafir) soran istek anlama katmanında `human_request` olur: misafire HİÇBİR ŞEY gitmez, ev sahibine açık iş +
   e-posta (bugün yapay zekâ "paylaşamam" deyip konuyu kapatıyordu). ✅ Kurucu onaylı → AÇILIŞTA "1"; açmadan önce küçük gerçek model ölçümü
   (kırmızı takım geliştirme setindeki başka-misafir vakaları + kendi rezervasyonunu soran kontrol vakaları).
+- `AI_ASSISTANT_QUESTION_ITEM_ENABLED` (kurucu 10-23, aynen: "'Bunu nereden biliyorsun?' gibi kaynak sorularında otomatik cevap gitmesin;
+  kaynak, bilgi tabanı, istem veya sistem açıklanmasın. Soru panelde açık kalsın, cevaplandı sayılmasın. Aynı mesajdaki bağımsız ve güvenle
+  cevaplanabilen diğer sorular bundan dolayı tutulmasın.") — anlama katmanında ayrı istek `about_assistant` (yalnız öğe kipinde): ev sahibinde
+  açık iş, e-posta YOK; aynı mesajın Wi-Fi / otopark sorusu cevaplanır. ✅ Kurucu kararı → AÇILIŞTA "1" (ilk denemeler birlikte). QR'da öğe
+  sistemi olmadığından QR bugünkü gibi (bütün cevap tutulur).
 - Cevap modeli bekleme tavanı 30 sn + devre kesici (art arda 3 zaman aşımı → 60 sn çağrı yok) + tek hızlı yeniden deneme — env YOK
   (`src/lib/ai/model-breaker.ts`). Ev sahibi yazma hız sınırı kişi başına dakikada 300 — env YOK (`src/lib/host-write-limit.ts`).
 - Dış izleyici + WAF + oturum anahtarı adımları: `docs/OPS-2026-10-21-dis-izleyici-waf-anahtar.md` (panel işleri, açılıştan sonra).

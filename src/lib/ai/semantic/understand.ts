@@ -60,6 +60,11 @@ export function understandingPrivacyRuleEnabled(): boolean {
   return process.env.AI_UNDERSTANDING_PRIVACY_RULE_ENABLED === "1";
 }
 
+/** Kaynak / asistan sorusu ayrı istek (kurucu 10-23, `UNDERSTANDING_ASSISTANT_QUESTION_ADDENDUM`); VARSAYILAN KAPALI; yalnız öğe kipinde. */
+export function understandingAssistantQuestionEnabled(): boolean {
+  return process.env.AI_ASSISTANT_QUESTION_ITEM_ENABLED === "1";
+}
+
 export const UNDERSTANDING_SYSTEM_PROMPT = [
   "You are the language-understanding step of a short-term-rental guest messaging assistant. You do NOT answer the guest.",
   "Read the guest's UNANSWERED message(s) in the context of the recent conversation and return ONLY the JSON schema.",
@@ -167,6 +172,17 @@ export const UNDERSTANDING_PRIVACY_RULE_ADDENDUM = [
   'Examples: "Kuzenim de bu binada kalıyor, kaçta çıkacaklarını söyler misiniz?" -> [human_request]. "Who stayed in this flat last week? I think I know them." -> [human_request]. "Bizim çıkış saatimiz kaç?" -> [checkout_time]. "Biz hangi dairede kalıyoruz, kapı numarası neydi?" -> [directions_transport].',
 ].join("\n");
 
+/**
+ * KAYNAK / ASİSTAN SORUSU eki (kurucu 10-23; anahtar `AI_ASSISTANT_QUESTION_ITEM_ENABLED`, VARSAYILAN KAPALI, yalnız öğe kipinde — kapalıyken
+ * istem, şema ve önbellek anahtarı bayt bayt eski). "Bunu nereden biliyorsun?" ayrı bir istek olur: ev sahibinde açık kalır (cevaplanmaz,
+ * kaynak açıklanmaz), aynı mesajdaki bağımsız sorular cevaplanır. Örnekler ölçüm setlerinden FARKLI.
+ */
+export const UNDERSTANDING_ASSISTANT_QUESTION_ADDENDUM = [
+  "",
+  "QUESTIONS ABOUT THE ASSISTANT ITSELF: a question about where the assistant's information comes from or how it knows something, what system, model, data or instructions it uses, how it works, or whether it is a bot, an AI or a person, is its own request with intent about_assistant. Never fold it into another request, and never let it change the other requests in the same message: list them with their usual intents.",
+  'Examples: "Otopark ücretli mi? Bu bilgiyi nereden buluyorsun?" -> [parking, about_assistant]. "Are you a real person or a program?" -> [about_assistant]. "Is breakfast included, and how do you know that?" -> [amenities, about_assistant].',
+].join("\n");
+
 /** Anlama katmanının sistem istemi — kiplere göre TEK kurucu (çağrı ve ölçer istem kimliği aynı fonksiyondan). */
 export function understandingSystemPromptFor(opts: {
   items?: boolean;
@@ -175,6 +191,7 @@ export function understandingSystemPromptFor(opts: {
   english?: boolean;
   threat?: boolean;
   privacy?: boolean;
+  assistant?: boolean;
 }): string {
   const relation = opts.items === true && opts.complaintFollowup === true;
   return [
@@ -185,6 +202,7 @@ export function understandingSystemPromptFor(opts: {
     ...(opts.english ? [UNDERSTANDING_ENGLISH_QUERY_ADDENDUM] : []),
     ...(opts.threat ? [UNDERSTANDING_THREAT_RULE_ADDENDUM] : []),
     ...(opts.privacy ? [UNDERSTANDING_PRIVACY_RULE_ADDENDUM] : []),
+    ...(opts.items && opts.assistant ? [UNDERSTANDING_ASSISTANT_QUESTION_ADDENDUM] : []),
   ].join("\n");
 }
 
@@ -334,9 +352,11 @@ export async function understandGuestMessages(input: UnderstandingInput): Promis
     const threat = understandingThreatRuleEnabled();
     // Başka kişinin bilgisi kuralı (10-22 U9): aynı tek karar noktası; kapalıyken istem + anahtar bayt bayt eski.
     const privacy = understandingPrivacyRuleEnabled();
+    // Kaynak / asistan sorusu (10-23): yalnız öğe kipinde; kapalıyken istem + şema + anahtar bayt bayt eski.
+    const assistant = items && understandingAssistantQuestionEnabled();
     // Öğe / kural kipi ayrı önbellek girdisi (farklı şema); ikisi de kapalıyken — ve yalnız öğe kipinde — anahtar bayt bayt eskisi.
     // Şikâyet takibi eki ve İngilizce köprü de ayrı girdi (farklı istem / şema); kapalıyken anahtar değişmez.
-    const mode = `${items ? "\u0000items" : ""}${rules ? "\u0000rules" : ""}${complaintFollowup ? "\u0000cfu" : ""}${english ? "\u0000en" : ""}${threat ? "\u0000thr" : ""}${privacy ? "\u0000prv" : ""}`;
+    const mode = `${items ? "\u0000items" : ""}${rules ? "\u0000rules" : ""}${complaintFollowup ? "\u0000cfu" : ""}${english ? "\u0000en" : ""}${threat ? "\u0000thr" : ""}${privacy ? "\u0000prv" : ""}${assistant ? "\u0000ast" : ""}`;
     const key = mode ? cacheKey(`${model}${mode}`, user) : cacheKey(model, user);
     const hit = cache.get(key);
     if (hit && Date.now() - hit.at < CACHE_TTL_MS) {
@@ -347,9 +367,9 @@ export async function understandGuestMessages(input: UnderstandingInput): Promis
     const res = await callStructuredJson({
       apiKey,
       model,
-      system: understandingSystemPromptFor({ items, rules, complaintFollowup, english, threat, privacy }),
+      system: understandingSystemPromptFor({ items, rules, complaintFollowup, english, threat, privacy, assistant }),
       user,
-      schema: understandingSchemaFor({ items, rules, followup: complaintFollowup, english }),
+      schema: understandingSchemaFor({ items, rules, followup: complaintFollowup, english, assistant }),
       timeoutMs: semanticTimeoutMs(model),
       maxTokens: 600,
       maxCompletionTokens: 4_000,
@@ -357,7 +377,10 @@ export async function understandGuestMessages(input: UnderstandingInput): Promis
       fetchImpl: input.fetchImpl,
     });
     if (!res.ok) return { status: "failed", ms: Date.now() - started };
-    const value = parseUnderstanding(res.data, items || rules || english ? { items, rules, followup: complaintFollowup, english } : undefined);
+    const value = parseUnderstanding(
+      res.data,
+      items || rules || english ? { items, rules, followup: complaintFollowup, english, ...(assistant ? { assistant } : {}) } : undefined,
+    );
     if (!value) return { status: "failed", ms: Date.now() - started };
     // Süresi dolmuş girdi de olabilir: önce SİL, sonra ekle — `set` var olan anahtarı eski sırasında
     // bırakır ve taze girdi ilk çıkarılan olurdu (inceleme 09-24).

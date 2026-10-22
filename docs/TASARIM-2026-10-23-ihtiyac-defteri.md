@@ -119,3 +119,105 @@ metindir → saklama süresi (24 ay) ve silme talebi kapsamına girer.
   önceki mesaja gönderme ("peki o kaçta kapanıyor?") · değer takası (havuz / sauna saatleri) · sıra değişimi.
 - İki kol: (1) doğru kalem isteme ELLE konur → anlama + yazma hatası; (2) gerçek arama → arama hatası farkı.
 - Kanal ve QR ayrı ayrı.
+
+---
+
+## 8. Kurucu kararları 10-23 (A–E + kaynak sorusu + SSS önbelleği fikri)
+
+| # | karar (kurucu + Codex notu) | uygulama ilkesi |
+|---|---|---|
+| A | Soru bazlı cevap: EVET. Değer konuya bağlanmalı (havuz sorusu → havuzun kapanış bilgisi → 20:00); saunanın 22:00'ı havuza dayanak olamaz; yer / kural / koşul doğrulanır; farklı dil, olumsuz ve koşullu cümleyle sınanır | parça doğrulaması KODDA: değer alıntıda geçmeli, alıntının o değeri taşıyan YAN CÜMLESİ ihtiyacın kendi sözcüğünü taşımalı, alıntıdaki koşul ("hafta sonu", "yalnız", "except") ve olumsuzluk ("değil", "closed") parçada korunmalı |
+| B | İlgisiz ev sahibi mesajı açık işi kapatmaz: EVET (kesin). Şikâyete cevap = arıza çözüldü DEĞİL; bir ihtiyacı cevaplamak diğerlerini kapatmaz; kutucuk seçtirmeden; ilişki belirsizse otomatik KAPATMAZ; paneldeki yeni durumlar ÖNCE örnekle gösterilir | uygulamadan önce panel örnekleri (§11) sorulacak |
+| C | Kısa konu etiketi: EVET, kimlik DEĞİL (iki sauna sorusu iki ihtiyaç). Şartlar: kısa + sınırlı, ham kopya değil; ad / telefon / şifre / saldırı talimatı taşımaz (kontrol edilir); modele geri verilirse misafirden türemiş VERİ olarak kalır; kaynak mesaj silinir / anonimleşirse etiket de | "24 ay": YENİ öneri değil — canlıdaki mevcut saklama politikası (`DATA_RETENTION_MONTHS=24`, `docs/claude/canli-durum.md`); etiket aynı silme / anonimleştirme yollarına (`anonymizeOldGuestData`, `maskReservationRows`, açık silme) eklenir — parite pini zaten zorluyor |
+| D | Migration 84: EVET, kanıtıyla: eski açık işler, bildirim kayıtları, cevap bağlantıları korunur; geçiş mesaj göndermez, iş kapatmaz; aynı mesaj yeniden işlenince kayıt çoğalmaz; yedek + geri yükleme doğrulaması ayrı | §12 kanıt listesi |
+| E | Ücretli ölçüm: YAP. İki kol = ONAYLI Luna yapılandırması (10-10, `KURUCU-YOKKEN-KARARLAR-2026-10-09.md` #7: cevap + bekçi `gpt-6-luna` `low`; anlama, sıralayıcı, karar metni 5.1; çeviri Luna `medium`; üslup Luna `none`) ile eski akış / yeni akış. Yalnız cevap değil: hangi soru cevaplandı, hangisi açık kaldı, hangi kaynak kullanıldı. Okuyucu açık / kapalı / hata verdiğinde ayrı | §13 |
+| KS | "Bunu nereden biliyorsun?" gibi kaynak / asistan sorularında otomatik cevap GİTMEZ; kaynak, bilgi tabanı, istem, sistem açıklanmaz; soru panelde AÇIK kalır, cevaplandı sayılmaz; aynı mesajdaki bağımsız, güvenle cevaplanabilen sorular bundan dolayı TUTULMAZ | §9 — ilk uygulanan |
+| O | Okuyucunun "güvenli" demesi TEK BAŞINA gönderim izni değildir; yetki, sır, kaynak kapsamı ve kayıt tutarlılığı kontrolleri KODDA kalır | bugün böyle (§14); yeni parça doğrulaması da kodda |
+| SSS | Kurucu fikri: daire başına sık sorulan sorular embedding ile tutulsun; benzer soru gelince bilgi tabanı değişmemişse cevap doğrudan gitsin — para + zaman tasarrufu, RAG / embedding gelişir | §10 — tasarım + sorular; parça yapısına (F3) dayanır |
+
+## 9. Kaynak / asistan sorusu (KS) — ilk dilim
+
+- Anlama katmanına yeni kapalı niyet `about_assistant` ("bunu nereden biliyorsun", "hangi sistemi / modeli kullanıyorsun", "bot musun",
+  "bu bilgiyi nereden aldın"). Öğe: hassas (cevaplanmaz, panelde açık), **e-posta YOK** (acil değil; panelde "asistan / kaynak sorusu").
+- Cevap modeline "EV SAHİBİNE BIRAKILAN" olarak gider → model ona değinmez; aynı mesajdaki Wi-Fi sorusu cevaplanır.
+- Model yine de kaynak anlatırsa bugünkü iç kaynak kapısı tutar (bir kez yeniden yazar) — kemer aynen.
+- Anahtar `AI_ASSISTANT_QUESTION_ITEM_ENABLED` (kapalıyken şema / istem bayt bayt eski). QR'da öğe sistemi olmadığı için QR bugünkü gibi
+  (bütün cevap tutulur) — QR, F3'le aynı hatta geçince düzelir.
+
+## 10. SSS önbelleği (kurucu fikri) — tasarım
+
+**Ne kazandırır:** aynı dairede "Wi-Fi şifresi ne?", "çöpler nereye?", "otopark var mı?" gibi sorular tekrar tekrar geliyor. Her seferinde
+cevap modeli (en pahalı çağrı, 3–8 sn) yeniden yazıyor. Önbellek isabetinde cevap modeli HİÇ çağrılmaz.
+
+**Doğru birim = doğrulanmış CEVAP PARÇASI (F3), bütün mesaj değil.** Mesaj "Wi-Fi + otopark" diye iki soru taşıyabilir; parça tek ihtiyacın
+cevabıdır ve hangi bilgi tabanı kaleminin hangi SÜRÜMÜNE dayandığını taşır. Önbellek satırı:
+
+```
+mülk · dil · niyet türü · ihtiyacın embedding'i · cevap parçası metni · dayanak kalemleri (kimlik + updatedAt) · mülk alanları (giriş/çıkış saati) · ilk gönderim · isabet sayısı
+```
+
+**Akış:** anlama katmanı ihtiyaçları ayırır (bugünkü çağrı) → her cevaplanabilir ihtiyacın sorgusu embedding'e çevrilir (çok ucuz) → aynı mülk +
+aynı dil + aynı tür içinde benzerlik ≥ eşik ve **dayanak kalemlerin hepsi hâlâ aynı sürümde, aktif ve onaylı** → parça hazır. Turun BÜTÜN
+cevaplanabilir ihtiyaçları isabetliyse cevap modeli çağrılmaz; kodun selamı + parçalar birleştirilir ve **bugünkü bütün kod kapılarından**
+geçer (okuyucu açıksa o da okur — ucuz model). Biri bile kaçarsa bugünkü akış (ilk sürümde karışık mod yok).
+
+**Asla önbelleğe girmeyenler:** konaklama değişikliği (erken giriş / geç çıkış / uzatma / müsaitlik), giriş / kapı / anahtar kodu, ödeme,
+şikâyet / arıza, acil, insan talebi, kaynak sorusu; rezervasyona ya da zamana bağlı her şey ("bugün", "yarın", misafirin adı); misafire
+özel saat. QR'da Wi-Fi şifresi bugünkü cihaz kuralına (K7) tabi — önbellek kapıyı atlatmaz.
+
+**Kim yazar:** yalnız GERÇEKTEN teslim edilmiş ve bütün kapılardan geçmiş parça; ev sahibi sonradan "yanlış" derse satır silinir.
+Bilgi tabanında dayanak kalemi değişince satır kendiliğinden geçersiz (sürüm karşılaştırması — "değişip değişmediğine bakarak").
+
+**Ev sahibine görünür değer:** mülk sayfasında "Sık sorulanlar" listesi (soru · cevap · kaç kez · son kullanım) + "bilgi tabanında olmayan,
+en çok sorulanlar" (F2 defterinin "dayanak yok" satırlarından). Bu RAG'ı her daire için zamanla güçlendirir.
+
+**Ölçülecek:** geçmiş ölçüm setlerinde isabet oranı, yanlış isabet (yanlış soruya hazır cevap) = 0 hedefi, tasarruf (çağrı + saniye).
+
+**Sorular (§15):** S1 hangi türler (Wi-Fi şifresi dahil mi?) · S2 benzerlik eşiği / ilk sürümde yalnız birebir yakın sorular · S3 "Sık sorulanlar"
+ekranı · S4 migration (yeni tablo).
+
+## 11. B — panel örnekleri (uygulamadan ÖNCE onay)
+
+| durum | bugün | öneri |
+|---|---|---|
+| Misafir "Klima çalışmıyor" (tutuldu) → siz "Hoş geldiniz!" | iş "Yanıtladınız" olur, açık listeden düşer; yapay zekâ şikâyeti artık "tutulan" saymaz | iş AÇIK kalır; yapay zekâ şikâyeti tutulan saymaya devam eder |
+| Siz "Teknisyen yarın 10'da geliyor" | "Yanıtladınız" | "Ev sahibi yazdı" (sarı) — iş açık; "Tamamlandı" sizin tıklamanızla |
+| Misafir "TV + mikrodalga nasıl?" → siz yalnız TV'yi cevapladınız | ikisi de "Yanıtladınız" | ilk sürüm: ikisi de "Ev sahibi yazdı" (sarı, açık); hangisine değindiğinizi anlamak model çağrısı ister — 2. sürüm önerisi |
+
+## 12. D — migration 84 kanıt listesi
+
+1. Yalnız EKLER: `ordinal Int @default(0)` + `topic String?`; benzersizlik `(conversationId, messageId, kind)` → `(…, ordinal)` (dar anahtar
+   zaten benzersiz → mevcut satırlar yeni anahtarda da benzersiz; dolu tabloda güvenli).
+2. Taze PostgreSQL'de: önce 83'e kadar göç + gerçekçi satırlar (açık / bekleyen / bildirilmiş / cevaplanmış öğe), sonra 84 → satır sayısı,
+   durum, `notifiedAt`, `answeredByMessageId` BİREBİR; hiçbir giden mesaj / e-posta satırı oluşmaz.
+3. Aynı mesaj iki kez işlenir → öğe sayısı değişmez (tekrar güvenliği testi).
+4. Sıfır sapma (`migrate diff` boş), geri dönüş SQL'i yazılı; yayından önce taze yedek + geri yükleme provası (kural aynen).
+
+## 13. E — ücretli ölçüm planı
+
+- Kollar: (1) eski akış (bugünkü kod, onaylı Luna yapılandırması) (2) yeni akış (parça modu + kaynak sorusu + soru bazlı "bilgim yok").
+  Her kol: okuyucu açık / kapalı / hata verdiğinde (sahte 503) — 2 × 3.
+- Set: ~40 senaryo, her birinde İNSANIN yazdığı ihtiyaç listesi (`needs`) + beklenen durum (cevaplandı / açık) + beklenen dayanak + değer.
+  Aynı türden iki ihtiyaç, sözlükte olmayan konu, olumsuz ("sauna bulunmuyor" → cevaplanabilir), koşullu (hafta sonu), değer takası
+  (havuz / sauna), kaynak sorusu, farklı diller, önceki mesaja gönderme.
+- Ölçü: ihtiyaç başına doğru durum, yanlış "cevaplandı" (hedef 0), yanlış değer (hedef 0), kaynak / iç ad / "bilgim yok" sızıntısı (0),
+  giden metin sayısı, maliyet, süre. Tahmini maliyet ≈ $6–10.
+
+## 14. O — okuyucu neyi tek başına AÇAMAZ (bugün)
+
+Okuyucu yalnız TUTAR ya da bir kez yeniden YAZDIRIR; şu kod kapılarını hiçbir hükmü açamaz: sır / kapı kodu / Wi-Fi cihaz kuralı, kiracı ve
+yetki, çıktı vetosu (söz / yer tutucu), acil yönergesi, müsaitlik / fiyat iddiası, iç kaynak yedeği. Okuyucunun "hayır" hükmünün bir KELİME
+kuralını geçersiz kıldığı iki yer var, ikisi de sizin kararınız: "bilgim yok" kelime adayı (bağlam hakemi, 10-21) ve üçüncü tarafa ödeme
+bilgisi (T-d, 10-22).
+
+## 15. Yol haritası (sıra = bağımlılık)
+
+1. **KS** kaynak sorusu ayrı ihtiyaç (anahtarlı) — kod + test.
+2. **F1** parça doğrulayıcısı (değer ↔ konu ↔ koşul ↔ olumsuzluk) saf modül + testler; soru başına arama kanıtını kanıt kaydına taşı.
+3. **F3** parça modu (anahtarlı): istemde kalem kimlikleri [K1…], cevap modelinden ihtiyaç başına parça, kod doğrulaması, kod birleştirmesi;
+   öğe yalnız doğrulanan parçayla "cevaplandı".
+4. **E** ücretli ölçüm (onaylı) → sonuç + önce / sonra örnekleri size.
+5. **D** migration 84 + kanıt testleri (push sizin onayınızla verildi; yayından önce yedek).
+6. **B** panel örneklerinize göre (onaydan sonra).
+7. **SSS önbelleği** (S1–S4 cevaplarından sonra; F3'e dayanır).
+8. QR aynı hatta (öğe + parça).

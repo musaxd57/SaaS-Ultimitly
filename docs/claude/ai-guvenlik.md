@@ -124,6 +124,12 @@
   "in unseren Unterlagen im Schrank") ve misafirin KENDİ bilgisi ("We only use your details …") tutulmaz. Kapıda okuyucu "hayır" dese de yedek
   tutar (VEYA — kurucu "hiçbir şey gitmesin"; ödemedeki T-d gibi okuyucu yedeği EZMEZ); kesinlik kalıbı daraltarak sağlanır. Kaynağı açıkça
   soran misafirde yeniden yazma notu kaçamak kaynak cümlelerini de yasak örnek gösterir (`senior-rewrite.ts`).
+- 🚨 **KAYNAK / ASİSTAN SORUSU CEVAPLANMAZ, AÇIK KALIR (kurucu 10-23, aynen: "'Bunu nereden biliyorsun?' gibi kaynak sorularında otomatik
+  cevap gitmesin; kaynak, bilgi tabanı, istem veya sistem açıklanmasın. Soru panelde açık kalsın, cevaplandı sayılmasın. Aynı mesajdaki bağımsız
+  ve güvenle cevaplanabilen diğer sorular bundan dolayı tutulmasın."):** anlama katmanında ayrı istek `about_assistant` (anahtar
+  `AI_ASSISTANT_QUESTION_ITEM_ENABLED`, yalnız öğe kipinde; kapalıyken şema / istem / çözücü bayt bayt eski). Öğe hassas (cevap modeline
+  "ev sahibine bırakılan"), e-posta YOK (`core.NO_NOTIFY_KINDS`), arama sorgusu değil. Model yine de kaynak anlatırsa iç kaynak kapısı tutar.
+  QR'da öğe sistemi yok → bugünkü gibi bütün cevap tutulur.
 - 🚨 **MÜLKÜN İÇ ADI MODELE GİTMEZ (kurucu 10-22 akşam: "müşteriye daire adı ne … daire numarası anca verilir … kat 2 daire 3 gibidir"):**
   `Property.name` ev sahibinin kendi etiketidir; cevap istemine YAZILMAZ. Misafire görünen ad (`guestDisplayName`, U4, migration 83) varsa
   istemde yalnız o ("Misafire görünen daire adı: Kat 2 Daire 3"), yoksa ad satırı hiç yok. Bilgi tabanı `{{daire}}` yer tutucusu numarayı

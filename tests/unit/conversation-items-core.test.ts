@@ -23,7 +23,7 @@ import {
   type ItemSensitivity,
   type ItemStatus,
 } from "@/lib/conversation-items/core";
-import { UNDERSTANDING_INTENTS, type UnderstandingIntent } from "@/lib/ai/semantic/understanding-schema";
+import { ALL_UNDERSTANDING_INTENTS, UNDERSTANDING_INTENTS, type UnderstandingIntent } from "@/lib/ai/semantic/understanding-schema";
 
 // ---------------------------------------------------------------------------
 // KONUŞMA ÖĞELERİ — saf çekirdek (kurucu kararları 09-26; tasarım `docs/TASARIM-2026-09-26-konusma-ogeleri.md`).
@@ -36,7 +36,9 @@ const pick = (items: BuiltItem[]) => items.map((i) => [i.requestIndex, i.kind, i
 
 describe("kapalı kümeler", () => {
   it("öğe türü = anlama katmanının niyet kümesi (tek kaynak)", () => {
-    expect([...ITEM_KINDS]).toEqual([...UNDERSTANDING_INTENTS]);
+    // Kurucu 10-23: kalıcı tür kümesi = temel niyet kümesi + kaynak / asistan sorusu (yalnız anahtarla üretilir, her zaman OKUNUR).
+    expect([...ITEM_KINDS]).toEqual([...ALL_UNDERSTANDING_INTENTS]);
+    expect([...ITEM_KINDS]).toEqual([...UNDERSTANDING_INTENTS, "about_assistant"]);
     expect(isItemKind("payment_invoice")).toBe(true);
     expect(isItemKind("iban")).toBe(false);
   });

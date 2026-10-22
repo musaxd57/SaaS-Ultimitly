@@ -48,7 +48,16 @@ export const UNDERSTANDING_INTENTS = [
   "greeting_thanks",
   "other",
 ] as const;
-export type UnderstandingIntent = (typeof UNDERSTANDING_INTENTS)[number];
+/**
+ * KAYNAK / ASİSTAN SORUSU (kurucu 10-23: "'Bunu nereden biliyorsun?' gibi kaynak sorularında otomatik cevap gitmesin; kaynak, bilgi tabanı,
+ * istem veya sistem açıklanmasın. Soru panelde açık kalsın, cevaplandı sayılmasın. Aynı mesajdaki bağımsız ve güvenle cevaplanabilen diğer
+ * sorular bundan dolayı tutulmasın."). Yalnız anahtar `AI_ASSISTANT_QUESTION_ITEM_ENABLED` + öğe kipinde şemaya / isteme girer — kapalıyken
+ * şema, istem ve çözücü bayt bayt eski (`UNDERSTANDING_INTENTS` DEĞİŞMEDİ).
+ */
+export const ASSISTANT_QUESTION_INTENT = "about_assistant" as const;
+/** Bütün niyetler (kalıcı öğe türü bunlardan biridir) — temel küme + kaynak / asistan sorusu. */
+export const ALL_UNDERSTANDING_INTENTS = [...UNDERSTANDING_INTENTS, ASSISTANT_QUESTION_INTENT] as const;
+export type UnderstandingIntent = (typeof ALL_UNDERSTANDING_INTENTS)[number];
 
 export const UNDERSTANDING_LANGUAGES = ["tr", "en", "de", "fr", "es", "ru", "ar", "other"] as const;
 
@@ -244,19 +253,24 @@ const ENGLISH_FIELD = { query_en: { type: "string" } } as const;
  * Kipe göre şema: öğe kipi (`items`), kural kipi (`rules`), ilişki kipi (`followup`, yalnız öğe kipiyle) ve İngilizce köprü (`english`)
  * birlikte açılabilir. Ek alan yokken var olan NESNE döner.
  */
-export function understandingSchemaFor(opts: { items?: boolean; rules?: boolean; followup?: boolean; english?: boolean } = {}) {
+export function understandingSchemaFor(
+  opts: { items?: boolean; rules?: boolean; followup?: boolean; english?: boolean; assistant?: boolean } = {},
+) {
   const base = opts.items ? UNDERSTANDING_JSON_SCHEMA_ITEMS : UNDERSTANDING_JSON_SCHEMA;
   const relation = opts.items === true && opts.followup === true;
   const english = opts.english === true;
-  if (!opts.rules && !relation && !english) return base;
+  // Kaynak / asistan sorusu yalnız öğe kipinde (ayrı öğe olarak tutulabildiği için).
+  const assistant = opts.items === true && opts.assistant === true;
+  if (!opts.rules && !relation && !english && !assistant) return base;
   const item = base.schema.properties.requests.items;
+  const intentEnum = assistant ? { intent: { type: "string", enum: [...ALL_UNDERSTANDING_INTENTS] } } : {};
   const extraRequired = [
     ...(opts.rules ? ["rule_topic", "rule_stance"] : []),
     ...(relation ? ["relation"] : []),
     ...(english ? ["query_en"] : []),
   ];
   return {
-    name: `${base.name}${opts.rules ? "_rules" : ""}${relation ? "_rel" : ""}${english ? "_en" : ""}`,
+    name: `${base.name}${opts.rules ? "_rules" : ""}${relation ? "_rel" : ""}${english ? "_en" : ""}${assistant ? "_asst" : ""}`,
     strict: true as const,
     schema: {
       ...base.schema,
@@ -269,6 +283,7 @@ export function understandingSchemaFor(opts: { items?: boolean; rules?: boolean;
             required: [...item.required, ...extraRequired],
             properties: {
               ...item.properties,
+              ...intentEnum,
               ...(opts.rules ? RULE_FIELDS : {}),
               ...(relation ? RELATION_FIELD : {}),
               ...(english ? ENGLISH_FIELD : {}),
@@ -328,7 +343,7 @@ function cleanQuery(v: unknown): string | null {
  */
 export function parseUnderstanding(
   raw: unknown,
-  opts?: { items?: boolean; rules?: boolean; followup?: boolean; english?: boolean },
+  opts?: { items?: boolean; rules?: boolean; followup?: boolean; english?: boolean; assistant?: boolean },
 ): MessageUnderstanding | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   const r = raw as Record<string, unknown>;
@@ -339,11 +354,13 @@ export function parseUnderstanding(
   const rules = opts?.rules === true;
   const relation = items && opts?.followup === true;
   const english = opts?.english === true;
+  // Kaynak / asistan sorusu yalnız kip açıkken tanınır (kapalıyken o niyetli kalem bugünkü gibi DÜŞER).
+  const intents: readonly string[] = items && opts?.assistant === true ? ALL_UNDERSTANDING_INTENTS : UNDERSTANDING_INTENTS;
   const requests: UnderstoodRequest[] = [];
   for (const it of r.requests.slice(0, MAX_UNDERSTOOD_REQUESTS)) {
     if (!it || typeof it !== "object") continue;
     const x = it as Record<string, unknown>;
-    if (!member(UNDERSTANDING_INTENTS, x.intent)) continue;
+    if (!member(intents as readonly UnderstandingIntent[], x.intent)) continue;
     // Sorgusuz kalem de TUTULUR (inceleme 09-24): risk niyeti (acil, insan talebi) ve "tek konu mu?" kararı sorgu
     // metnine bağlı değildir — eskiden boş sorgulu kalem DÜŞÜYOR ve o sinyal sessizce kayboluyordu. Sorgu üretimi
     // (`understandingQueries`) boş sorguları atlar.
@@ -377,7 +394,7 @@ export function parseUnderstanding(
     for (const w of Array.isArray(r.withdrawn) ? r.withdrawn : []) {
       if (!w || typeof w !== "object") continue;
       const x = w as Record<string, unknown>;
-      if (!member(UNDERSTANDING_INTENTS, x.intent) || typeof x.message !== "number" || !Number.isInteger(x.message) || x.message < 0) continue;
+      if (!member(intents as readonly UnderstandingIntent[], x.intent) || typeof x.message !== "number" || !Number.isInteger(x.message) || x.message < 0) continue;
       const entry = { intent: x.intent, message: x.message };
       if (!withdrawn.some((e) => e.intent === entry.intent && e.message === entry.message)) withdrawn.push(entry);
     }
@@ -401,7 +418,8 @@ export function understandingQueries(
   if (!u) return [];
   const out: { text: string; turkish: boolean; request: number }[] = [];
   const seen = new Set<string>();
-  const requests = u.requests.filter((r) => r.intent !== "greeting_thanks");
+  // Kaynak / asistan sorusu da arama sorgusu DEĞİLDİR (bilgi tabanında "nereden biliyorsun" aranmaz).
+  const requests = u.requests.filter((r) => r.intent !== "greeting_thanks" && r.intent !== ASSISTANT_QUESTION_INTENT);
   const passes: [(r: UnderstoodRequest) => string, boolean][] = [
     [(r) => r.queryTr, true],
     [(r) => r.queryOriginal, u.language === "tr"],

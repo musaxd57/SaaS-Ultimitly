@@ -6,7 +6,7 @@ import { complaintEscalationEmail } from "@/lib/email-templates";
 import { detectRiskTypes } from "@/lib/ai/fallback";
 import { contextLabels } from "@/lib/ai/hazard-evidence";
 import type { MessageUnderstanding, UnderstandingHistoryEntry } from "@/lib/ai/semantic/understanding-schema";
-import { buildLexicalItems, hasEmergency, isOpenForHost, labelsHoldWholeTurn, type BuiltItem, type ItemKind, type ItemsGateInput } from "./core";
+import { NO_NOTIFY_KINDS, buildLexicalItems, hasEmergency, isOpenForHost, labelsHoldWholeTurn, type BuiltItem, type ItemKind, type ItemsGateInput } from "./core";
 import { extractTurnItems, type ItemsDegradedReason } from "./extract";
 import type { ReplyItemsInput } from "./reply-block";
 import { composeItemsPlan, faultRequestsOf, hintKey, relationFactsOf } from "./plan";
@@ -263,12 +263,13 @@ export async function notifyHeldItems(
   if (input.messageIds.length === 0) return notice;
   const rows = await db.conversationItem.findMany({
     where: { organizationId: input.organizationId, conversationId: input.conversation.id, messageId: { in: [...input.messageIds] } },
-    select: { id: true, messageId: true, status: true, sensitivity: true, notifiedAt: true },
+    select: { id: true, messageId: true, status: true, sensitivity: true, notifiedAt: true, kind: true },
   });
   const alreadyNotified = new Set(rows.filter((r) => r.notifiedAt !== null).map((r) => r.messageId));
   const byMessage = new Map<string, string[]>();
   for (const r of rows) {
-    if (r.status !== "pending_host" || r.sensitivity === "none") continue;
+    // Kurucu 10-23: kaynak / asistan sorusu panelde açık kalır, e-posta istemez.
+    if (r.status !== "pending_host" || r.sensitivity === "none" || NO_NOTIFY_KINDS.has(r.kind)) continue;
     if (!notice.held.includes(r.messageId)) notice.held.push(r.messageId);
     if (r.notifiedAt !== null) continue;
     byMessage.set(r.messageId, [...(byMessage.get(r.messageId) ?? []), r.id]);

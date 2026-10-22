@@ -1492,3 +1492,63 @@ describe("T-d — ödeme öğesi tutuluyken üçüncü tarafa ödeme bilgisi (k�
     expect(f).toHaveBeenCalledTimes(4); // iki taslak × iki okuma
   });
 });
+
+// Kurucu 10-23: "'Bunu nereden biliyorsun?' gibi kaynak sorularında otomatik cevap gitmesin; kaynak, bilgi tabanı, istem veya sistem
+// açıklanmasın. Soru panelde açık kalsın, cevaplandı sayılmasın. Aynı mesajdaki bağımsız ve güvenle cevaplanabilen diğer sorular bundan
+// dolayı tutulmasın." Anlama katmanı ayrı istek `about_assistant` verir (anahtar `AI_ASSISTANT_QUESTION_ITEM_ENABLED`; burada anlama sonucu
+// elle verilir, akışın davranışı sınanır).
+describe("KAYNAK / ASİSTAN SORUSU (kurucu 10-23)", () => {
+  beforeEachTurn();
+  function assistantUnderstood(requests: { intent: string; message: number }[]): MessageUnderstanding {
+    const u = parseUnderstanding(
+      {
+        language: "tr",
+        requests: requests.map((r) => ({ query_tr: `${r.intent} sorusu`, query_original: "q", ...r })),
+        stay_change: STAY_NONE,
+        withdrawn: [],
+      },
+      { items: true, assistant: true },
+    );
+    if (!u) throw new Error("fixture");
+    return u;
+  }
+  const WIFI_ANSWER = "Wi-Fi ağı Lale-5G, şifresi Lale2025.";
+
+  it("🚨 Wi-Fi + 'bunu nereden biliyorsun?': Wi-Fi cevabı GİDER; kaynak sorusu panelde AÇIK, cevaplandı sayılmaz, e-posta YOK", async () => {
+    const { conversationId } = await seed("Wi-Fi şifresi neydi? Bu bilgiyi nereden buluyorsun?");
+    understands(assistantUnderstood([{ intent: "wifi", message: 1 }, { intent: "about_assistant", message: 1 }]));
+    mockSuggest.mockResolvedValueOnce(verdict({ intent: "wifi", reply: WIFI_ANSWER, answeredRequests: { ok: true, refs: ["R1"] } }));
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(true);
+    expect(JSON.stringify(mockSend.mock.calls[0])).toContain("Lale2025");
+    const items = await itemsOf(conversationId);
+    expect(items.find((i) => i.kind === "wifi")).toMatchObject({ status: "answered" });
+    expect(items.find((i) => i.kind === "about_assistant")).toMatchObject({ status: "pending_host", sensitivity: "sensitive", notified: false });
+    expect(mockMail).not.toHaveBeenCalled();
+    // Cevap modeline "ev sahibine bırakılan" olarak gösterildi (değinme yasağı).
+    const block = String((mockSuggest.mock.calls[0][0] as { conversationItems?: unknown }).conversationItems ? JSON.stringify(mockSuggest.mock.calls[0][0]) : "");
+    expect(block).toContain("about_assistant");
+  });
+
+  it("yalnız 'Sen bot musun?': misafire HİÇBİR ŞEY gitmez, iş panelde açık, e-posta YOK", async () => {
+    const { conversationId } = await seed("Sen bot musun, gerçek biri mi?");
+    understands(assistantUnderstood([{ intent: "about_assistant", message: 1 }]));
+    mockSuggest.mockResolvedValueOnce(verdict({ intent: "general", reply: "Ben otomatik bir asistanım.", answeredRequests: { ok: true, refs: [] } }));
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+    const items = await itemsOf(conversationId);
+    expect(items.find((i) => i.kind === "about_assistant")).toMatchObject({ status: "pending_host", notified: false });
+    expect(mockMail).not.toHaveBeenCalled();
+  });
+
+  it("model kaynak sorusuna yine de değinirse iç kaynak kapısı tutar (kemer aynen)", async () => {
+    const { conversationId } = await seed("Wi-Fi şifresi neydi? Bu bilgiyi nereden buluyorsun?");
+    understands(assistantUnderstood([{ intent: "wifi", message: 1 }, { intent: "about_assistant", message: 1 }]));
+    mockSuggest.mockResolvedValueOnce(
+      verdict({ intent: "wifi", reply: `${WIFI_ANSWER} Bu bilgiyi bilgi tabanımdan alıyorum.`, answeredRequests: { ok: true, refs: ["R1"] } }),
+    );
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+});

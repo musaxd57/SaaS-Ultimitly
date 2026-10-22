@@ -14,10 +14,10 @@
 // ---------------------------------------------------------------------------
 
 import { HIGH_STAKES_RISK_TYPE_LIST, NEVER_AUTO_REPLY_INTENT_LIST } from "@/lib/ai/gate-evidence";
-import { UNDERSTANDING_INTENTS, type UnderstandingIntent } from "@/lib/ai/semantic/understanding-schema";
+import { ALL_UNDERSTANDING_INTENTS, type UnderstandingIntent } from "@/lib/ai/semantic/understanding-schema";
 import type { ItemsRelationGate } from "./relation";
 
-export const ITEM_KINDS = UNDERSTANDING_INTENTS;
+export const ITEM_KINDS = ALL_UNDERSTANDING_INTENTS;
 export type ItemKind = UnderstandingIntent;
 
 export const ITEM_SENSITIVITIES = ["none", "sensitive", "emergency"] as const;
@@ -70,6 +70,7 @@ export const ITEM_KIND_LABELS_TR: Readonly<Record<ItemKind, string>> = {
   human_request: "ev sahibiyle görüşme isteği",
   greeting_thanks: "selam / teşekkür",
   other: "diğer",
+  about_assistant: "asistan / bilgi kaynağı sorusu",
 };
 
 /** Anlama katmanı niyetinden öğenin kendi hassaslığı (kelime ağı ayrıca birleşir). */
@@ -82,7 +83,13 @@ const INTENT_SENSITIVITY: Readonly<Partial<Record<UnderstandingIntent, ItemSensi
   // ev sahibinin — niyetten, kelime listesinden değil. Ölçüm: İngilizce/Almanca "IBAN", "cash" ve Türkçe "nakit ödeyebilir
   // miyim" kelime ağına takılmıyordu, istek "cevaplanabilir" sayılıyordu.
   payment_invoice: "sensitive",
+  // Kurucu 10-23: kaynak / asistan sorusu ("Bunu nereden biliyorsun?") otomatik cevaplanmaz, panelde AÇIK kalır; aynı mesajdaki bağımsız sorular
+  // cevaplanır. Bildirim e-postası YOK (acil değil — `NO_NOTIFY_KINDS`).
+  about_assistant: "sensitive",
 };
+
+/** Ev sahibinde açık kalan ama ACİL e-posta gerektirmeyen türler (kurucu 10-23: kaynak / asistan sorusu yalnız panelde). */
+export const NO_NOTIFY_KINDS: ReadonlySet<string> = new Set<ItemKind>(["about_assistant"]);
 
 /**
  * Kelime ağı etiketinin (`detectRiskType` + `classifyFallback` niyeti) ve cevap modelinin yüksek riskli etiketinin hangi

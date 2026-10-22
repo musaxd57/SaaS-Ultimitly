@@ -1,5 +1,5 @@
 import { CLAIM_CLASSES, type ClaimAudit } from "./claim-support";
-import { UNDERSTANDING_INTENTS } from "./semantic/understanding-schema";
+import { ALL_UNDERSTANDING_INTENTS } from "./semantic/understanding-schema";
 import { INTENT_RISK_KINDS, INTENT_RISK_REASON } from "./semantic/intent-risk";
 import { STAY_REPLY_INTENTS } from "./semantic/stay-change";
 import { EARLY_CHECKIN_CHECKS } from "@/lib/early-checkin/core";
@@ -422,7 +422,7 @@ const SEM_STATUSES = new Set(["ok", "cold", "unavailable", "not_needed"]);
 const UN_STATUSES = new Set(["ok", "cached", "failed"]);
 /** Yeniden sıralayıcı durumları — kapalı küme (`ai/semantic/rerank.ts`, #186). */
 const RR_STATUSES = new Set(["ok", "failed", "skipped"]);
-const INTENT_SET: ReadonlySet<string> = new Set(UNDERSTANDING_INTENTS);
+const INTENT_SET: ReadonlySet<string> = new Set(ALL_UNDERSTANDING_INTENTS);
 
 export function buildKbEvidence(input: KbEvidenceInput): string | null {
   const retrieved = input.retrieved
