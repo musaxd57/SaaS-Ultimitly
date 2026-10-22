@@ -69,20 +69,28 @@ const NOTHING = {
   apology_or_fault: false,
   apology_quote: "",
 };
+/** Gerçek okuyucu gibi: "evet" dediği hükümde taslaktan bir cümle alıntılar (kanıt şartı, `groundReading`) — testlerde sorunlu cümle sonda. */
+function lastDraftSentence(init?: RequestInit): string {
+  const user = String(JSON.parse(String(init?.body)).messages?.[1]?.content ?? "");
+  const draft = user.split("DRAFT REPLY:")[1]?.replace(/^\s*<<</, "").replace(/>>>\s*$/, "") ?? "";
+  const parts = draft.split(/(?<=[.!?])\s+/).map((x) => x.trim()).filter(Boolean);
+  return parts.at(-1) ?? "";
+}
 function readerFetch(c: Checks | null) {
   return vi.fn(async (_url: string, init?: RequestInit) => {
     const name = JSON.parse(String(init?.body)).response_format?.json_schema?.name as string;
     if (name !== "senior_reader") throw new Error(`beklenmeyen şema: ${name}`);
     if (!c) return new Response("upstream down", { status: 503 });
+    const q = lastDraftSentence(init);
     const verdict = {
       admits_missing_info: false,
       quote: "",
       pays_host_off_platform: c.payHost === true,
-      payment_quote: "",
+      payment_quote: c.payHost ? q : "",
       off_platform_contact: c.contact === true,
-      contact_quote: "",
+      contact_quote: c.contact ? q : "",
       apology_or_fault: c.apology === true,
-      apology_quote: "",
+      apology_quote: c.apology ? q : "",
     };
     return new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify(verdict) } }] }), {
       status: 200,
@@ -195,7 +203,7 @@ describe("kıdemli okuyucu — kanal oto-yanıtı", () => {
     const f = vi.fn(async (_url: string, init?: RequestInit) => {
       const user = JSON.parse(String(init?.body)).messages[1].content as string;
       const contact = /whatsapp/i.test(user.split("DRAFT REPLY:")[1] ?? "");
-      const v = { ...NOTHING, off_platform_contact: contact };
+      const v = { ...NOTHING, off_platform_contact: contact, contact_quote: contact ? lastDraftSentence(init) : "" };
       return new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify(v) } }] }), { status: 200 });
     });
     vi.stubGlobal("fetch", f);

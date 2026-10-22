@@ -44,6 +44,21 @@ describe("alıntı kanıtı", () => {
     expect(groundReading(null, DRAFT)).toBeNull();
   });
 
+  it("ek hükümler: dayanaksız 'evet' oyu düşer, dayanaklı oy kalır; alıntı alanı yoksa okuma aynen", () => {
+    const r = groundReading(
+      {
+        admits: false,
+        quote: "",
+        checks: { payHost: true, contact: true, apology: false },
+        checkQuotes: { payHost: "Ücreti bana nakit ödeyebilirsiniz.", contact: "mavi konteyneri kullanın", apology: "" },
+      },
+      DRAFT,
+    );
+    expect(r?.checks).toEqual({ payHost: false, contact: true, apology: false });
+    const legacy = groundReading({ admits: false, quote: "", checks: { ...NO, payHost: true } }, DRAFT);
+    expect(legacy?.checks?.payHost).toBe(true);
+  });
+
   it("birleşim: dayanaksız oy tek başına itiraf değil, serbest bırakma da değil — karar kelime kuralına kalır", () => {
     const out = combineAbsenceReadings(
       { admits: false, quote: "", checks: NO, ungrounded: true },

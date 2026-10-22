@@ -197,7 +197,14 @@ export type AbsenceJudgeOutcome =
   | { status: "ok"; admits: boolean; quote: string; checks?: SeniorChecks; ungrounded?: true }
   | { status: "failed" };
 
-type Reading = { admits: boolean; quote: string; checks?: SeniorChecks; ungrounded?: true };
+type Reading = {
+  admits: boolean;
+  quote: string;
+  checks?: SeniorChecks;
+  /** Ek hükümlerin alıntıları (yalnız kıdemli okuyucu): "evet" oyu taslakta geçen cümleyle desteklenmeli (`groundReading`). */
+  checkQuotes?: { payHost: string; contact: string; apology: string };
+  ungrounded?: true;
+};
 
 const knownNames = (input: Pick<AbsenceJudgeInput, "names">) =>
   (input.names ?? []).filter((n): n is string => typeof n === "string" && n.trim().length > 0);
@@ -237,10 +244,23 @@ export function quoteGroundedIn(draftSeen: string, quote: string): boolean {
   return q.length > 0 && ` ${norm(draftSeen)} `.includes(` ${q} `);
 }
 
-/** "İtiraf var" diyen okumanın alıntısı taslakta yoksa o okumanın itiraf oyu düşer (`ungrounded`); öteki hükümleri aynen kalır. */
+/**
+ * KANIT ŞARTI (canlı hat 10-22): "evet" oyu ancak taslakta GEÇEN bir cümleyi alıntılıyorsa sayılır.
+ *  · İtiraf oyu dayanaksızsa düşer ve `ungrounded` işaretlenir — o metinde itiraf kararı kelime kuralına kalır (`absenceHolds`).
+ *  · Ek hükümlerin (ödeme / iletişim / özür) dayanaksız "evet" oyu düşer; öteki okumanın oyu aynen geçerlidir (iki okumadan biri "evet"
+ *    derse evet kuralı değişmez). Ölçülen dalgalanma: "Una limpieza extra … 400 TL." taslağı tek okumada "ev sahibine ödeme" sayıldı (aynı
+ *    taslak 6/6 tekrar okumada "hayır").
+ * Alıntı alanı olmayan okuma (eski şema / test) aynen kalır.
+ */
 export function groundReading<R extends Reading>(reading: R | null, draftSeen: string): R | null {
-  if (!reading || !reading.admits || quoteGroundedIn(draftSeen, reading.quote)) return reading;
-  return { ...reading, admits: false, quote: "", ungrounded: true };
+  if (!reading) return reading;
+  let out: R = reading;
+  if (out.checks && out.checkQuotes) {
+    const keep = (k: keyof SeniorChecks) => out.checks![k] && quoteGroundedIn(draftSeen, out.checkQuotes![k]);
+    out = { ...out, checks: { payHost: keep("payHost"), contact: keep("contact"), apology: keep("apology") } };
+  }
+  if (out.admits && !quoteGroundedIn(draftSeen, out.quote)) out = { ...out, admits: false, quote: "", ungrounded: true };
+  return out;
 }
 
 /**
@@ -269,7 +289,12 @@ export function parseSeniorReaderVerdict(data: unknown): Reading | null {
   const contact = flag("off_platform_contact", "contact_quote");
   const apology = flag("apology_or_fault", "apology_quote");
   if (payHost === null || contact === null || apology === null) return null;
-  return { ...base, checks: { payHost, contact, apology } };
+  const q = (k: string) => (d[k] as string).trim();
+  return {
+    ...base,
+    checks: { payHost, contact, apology },
+    checkQuotes: { payHost: q("payment_quote"), contact: q("contact_quote"), apology: q("apology_quote") },
+  };
 }
 
 /** Taslak hakeme kesilmeden gidiyor mu? Kesilirse kuyruktaki itirafı görmeden "yok" diyebilirdi. */
