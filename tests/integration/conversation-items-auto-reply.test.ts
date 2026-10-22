@@ -1356,7 +1356,7 @@ describe("T-d — ödeme öğesi tutuluyken üçüncü tarafa ödeme bilgisi (k�
       const v = { admits_missing_info: false, quote: "", pays_host_off_platform: payHost, payment_quote: "", off_platform_contact: false, contact_quote: "", apology_or_fault: false, apology_quote: "" };
       return new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify(v) } }] }), { status: 200 });
     });
-  const turn = async () => {
+  const turn = async (rewriteReply?: string) => {
     const { conversationId } = await seed(IBAN_PARKING);
     understands(
       understood([
@@ -1365,6 +1365,10 @@ describe("T-d — ödeme öğesi tutuluyken üçüncü tarafa ödeme bilgisi (k�
       ]),
     );
     mockSuggest.mockResolvedValueOnce(verdict({ intent: "parking", reply: PARKING_REPLY, answeredRequests: { ok: true, refs: ["R1"] } }));
+    // Okuyucu düzeltilebilir sorun görürse (172) aynı cevap bir kez yeniden yazdırılır — ikinci taslak sırada.
+    if (rewriteReply) {
+      mockSuggest.mockResolvedValueOnce(verdict({ intent: "parking", reply: rewriteReply, answeredRequests: { ok: true, refs: ["R1"] } }));
+    }
     return { conversationId, out: await applyChannelAutoReply(conversationId) };
   };
 
@@ -1396,12 +1400,15 @@ describe("T-d — ödeme öğesi tutuluyken üçüncü tarafa ödeme bilgisi (k�
     });
   });
 
-  it("okuyucu 'ev sahibine platform dışı ödeme' derse tutulur", async () => {
+  it("okuyucu 'ev sahibine platform dışı ödeme' derse bir kez yeniden yazdırılır; yeni taslak da takılırsa tutulur (e-posta yok)", async () => {
     vi.stubEnv("OPENAI_API_KEY", "test-key");
     vi.stubEnv("AI_SENIOR_READER_ENABLED", "1");
-    vi.stubGlobal("fetch", readerSays(true));
-    const { out } = await turn();
+    const f = readerSays(true);
+    vi.stubGlobal("fetch", f);
+    const { out } = await turn("Otopark ücreti gişede ödeniyor; ayrıca bana nakit verebilirsiniz.");
     expect(out.sent).toBe(false);
     expect(mockSend).not.toHaveBeenCalled();
+    expect(mockSuggest).toHaveBeenCalledTimes(2); // ilk taslak + tek yeniden yazma (döngü yok)
+    expect(f).toHaveBeenCalledTimes(4); // iki taslak × iki okuma
   });
 });

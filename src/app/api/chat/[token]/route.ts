@@ -16,7 +16,16 @@ import { emergencyNumberEnabled, emergencyNumberReply } from "@/lib/ai/emergency
 import { confidentLanguage } from "@/lib/ai/language-signal";
 import { evaluateIntentRisk, intentRiskEvidenceOf, understandingRiskOf } from "@/lib/ai/semantic/intent-risk";
 import { runStayChangeGuard, stayGuardEnabled } from "@/lib/ai/semantic/guard";
-import { absenceReaderActive, absenceReaderStrict, runAbsenceJudge } from "@/lib/ai/semantic/absence-judge";
+import {
+  absenceReaderActive,
+  absenceReaderStrict,
+  runAbsenceJudge,
+  seniorChecksOf,
+  seniorReaderEnabled,
+  type AbsenceJudgeOutcome,
+} from "@/lib/ai/semantic/absence-judge";
+import { seniorRewriteNotes, seniorRewriteReasons } from "@/lib/ai/semantic/senior-rewrite";
+import { noApologyRuleEnabled } from "@/lib/ai/no-apology-rule";
 import {
   resolveGuestChat,
   bindOrCheckStay,
@@ -1083,6 +1092,8 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   const firstDoorCode = Boolean(result.reply) && qrReplyHasDoorCode(result.reply, modelKbTexts);
   const firstDirective = hasEmergencyCallDirective(result.reply);
   let doorCodeHeld = false;
+  // Yeniden yazdırmada modele giden notlar (kıdemli okuyucunun yeniden yazdırması ↓ bunların ÜSTÜNE ekler — önceki kural kaybolmasın).
+  let retryNotes: string[] | undefined;
   if (firstDoorCode || firstDirective) {
     await assertClaimHeld(); // sahiplik kaybedildiyse kota düşülmez ve ücretli model çağrısı YAPILMAZ (Haiku 10-16: kontrol kotadan ÖNCE)
     const retryBudget = await consumeDailyAiBudgetForQr(ctx.property.organizationId, ctx.property.id);
@@ -1092,10 +1103,35 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
         ...(firstDoorCode ? [QR_DOOR_CODE_RETRY_NOTE] : []),
         ...(firstDirective ? [QR_EMERGENCY_DIRECTIVE_RETRY_NOTE] : []),
       ];
+      retryNotes = notes;
       result = await suggestReply({ ...replyInput, knowledgeBaseNotes: notes });
       doorCodeHeld = Boolean(result.reply) && qrReplyHasDoorCode(result.reply, modelKbTexts);
     } else {
       doorCodeHeld = firstDoorCode; // yönerge kotasız da gitmez: kapı `emergency_directive` ile devreder
+    }
+  }
+  // ── KIDEMLİ OKUYUCU: AYNI ANLAMDA BİR KEZ YENİDEN YAZ (kurucu 10-22; kanal yoluyla AYNI kural, `semantic/senior-rewrite.ts`) ────────
+  // Okuyucu ev sahibine platform dışı ödeme ya da (özür kuralı açıkken) özür görürse model sebebi not alıp bir kez daha yazar (bir birim QR
+  // kotası); yeni taslak kapıdan ve okuyucudan yeniden geçer, takılırsa bugünkü devir. QR bir OTA kanalı değil: iletişim kuralı burada yok.
+  let qrSeniorPrecheck: { reply: string; outcome: AbsenceJudgeOutcome } | undefined;
+  if (seniorReaderEnabled() && result.source === "openai" && result.reply && !doorCodeHeld) {
+    await assertClaimHeld(); // sahiplik kaybedildiyse ücretli model çağrısı YAPILMAZ
+    const outcome = await runAbsenceJudge({ guestMessage: message, reply: result.reply, names: [res.guestName, res.guestGivenName] });
+    qrSeniorPrecheck = { reply: result.reply, outcome };
+    const reasons = seniorRewriteReasons(seniorChecksOf(outcome), { contactHolds: false, apologyRule: noApologyRuleEnabled() });
+    if (reasons.length > 0) {
+      await assertClaimHeld();
+      const rewriteBudget = await consumeDailyAiBudgetForQr(ctx.property.organizationId, ctx.property.id);
+      if (rewriteBudget.ok) {
+        const retried = await suggestReply({
+          ...replyInput,
+          knowledgeBaseNotes: [...(retryNotes ?? kbSel.notes ?? []), ...seniorRewriteNotes(reasons)],
+        });
+        if (retried.source === "openai" && retried.reply) {
+          result = retried;
+          doorCodeHeld = qrReplyHasDoorCode(retried.reply, modelKbTexts);
+        }
+      }
     }
   }
   // İz gecikmesi = yalnız cevap modeli çağrıları (yeniden yazdırma dahil) — kanal iziyle aynı tanım; bekçi / kod metni sorgusu dışarıda.
@@ -1146,8 +1182,14 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   if (absenceReaderActive() && result.reply) {
     const lexicalHold = verdict.reason === "absence_admission";
     if (lexicalHold || (!verdict.escalate && absenceReaderStrict())) {
-      await assertClaimHeld(); // sahiplik kaybedildiyse ücretli model çağrısı YAPILMAZ
-      const outcome = await runAbsenceJudge({ guestMessage: message, reply: result.reply, names: [res.guestName, res.guestGivenName] });
+      // Kıdemli okuyucu bu metni zaten okuduysa (↑ ön okuma) hüküm o — aynı metin ikinci kez okunmaz.
+      let outcome: AbsenceJudgeOutcome;
+      if (qrSeniorPrecheck && qrSeniorPrecheck.reply === result.reply) {
+        outcome = qrSeniorPrecheck.outcome;
+      } else {
+        await assertClaimHeld(); // sahiplik kaybedildiyse ücretli model çağrısı YAPILMAZ
+        outcome = await runAbsenceJudge({ guestMessage: message, reply: result.reply, names: [res.guestName, res.guestGivenName] });
+      }
       stayCtx = { ...stayCtx, absenceJudge: { reply: result.reply, outcome } };
       verdict = evaluateEscalation(gateResult, message, res.guestName, history, stayCtx);
     }

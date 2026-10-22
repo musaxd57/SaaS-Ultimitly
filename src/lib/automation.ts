@@ -32,6 +32,7 @@ import {
   seniorReaderEnabled,
   type AbsenceJudgeOutcome,
 } from "@/lib/ai/semantic/absence-judge";
+import { seniorRewriteNotes, seniorRewriteReasons, type SeniorRewriteReason } from "@/lib/ai/semantic/senior-rewrite";
 import { noApologyRuleEnabled } from "@/lib/ai/no-apology-rule";
 import { offPlatformContactHoldsFor } from "@/lib/channels/airbnb-message-policy";
 import {
@@ -2391,7 +2392,7 @@ export async function applyChannelAutoReply(
   // Öğe kipi bloğu: istem ve üretim izinin istem sürümü AYNI değerden (`replyPromptItemsOf`).
   const replyItems = itemsPlan && !itemsPlan.allHeld ? itemsPlan.replyItems : undefined;
   const replyStartedAt = Date.now();
-  let result = await suggestReply({
+  const replyInput: Parameters<typeof suggestReply>[0] = {
     breakerKey: conversation.property.organizationId,
     guestMessage: last.body,
     property: {
@@ -2459,11 +2460,12 @@ export async function applyChannelAutoReply(
     hostInstructions: await loadPromptInstructions(conversation.property.organizationId, conversation.propertyId),
     adjacency,
     lateCheckoutOfferText: org.lateCheckoutOfferText,
-  });
-  const replyLatencyMs = Date.now() - replyStartedAt;
+  };
+  let result = await suggestReply(replyInput);
+  let replyLatencyMs = Date.now() - replyStartedAt;
   // Modelin ÖZGÜN taslağı — `result` aşağıda kod metniyle (doğrulanmış erken giriş / müsaitlik) değişebilir; iz ikisini ayrı tutar
-  // (taslak = model, gönderilen = misafire giden).
-  const modelDraft = result.reply;
+  // (taslak = model, gönderilen = misafire giden). Kıdemli okuyucu yeniden yazdırdıysa (↓) taslak = yeniden yazılan.
+  let modelDraft = result.reply;
 
   // Safety gate: only auto-send safe, confident replies (cross-checked against
   // the guest's own words, so a mislabelled complaint/refund never slips through).
@@ -2480,6 +2482,42 @@ export async function applyChannelAutoReply(
     .slice(lastOutboundIdx + 1)
     .filter((m) => m.direction === "inbound" && m.id !== last.id)
     .map((m) => m.body);
+
+  // ── KIDEMLİ OKUYUCU: İLK TASLAĞI OKU, DÜZELTİLEBİLİR SORUNDA AYNI ANLAMDA BİR KEZ YENİDEN YAZDIR (kurucu 10-22) ─────────────────────
+  // "airbnbnin engelleyeceği bir cevap üretildiyse … gitmeme nedeni ve cümleleri aynı anlamda sınıra takılmadan … değiştirip tekrar
+  // deneyebilir tekrar kontrolden geçerek ve … sürekli hosta mail gitmemezlik olmasın". Okuyucu ev sahibine platform dışı ödeme, Airbnb'nin
+  // engellediği iletişim (yalnız o pencerede) ya da özür (özür kuralı açıkken) görürse model sebebi not olarak alıp aynı cevabı bir kez
+  // daha yazar (bir birim daha kota); yeni taslak aşağıdaki BÜTÜN kapılardan ve okuyucudan yeniden geçer. İkinci taslak da takılırsa cevap
+  // ev sahibine taslak kalır — bu tutuş için e-posta YOK (bugünkü tutuşlar gibi). Anahtar kapalıyken bu blok hiç koşmaz.
+  const absenceNames = [conversation.guestIdentifier, conversation.reservation?.guestName, conversation.reservation?.guestGivenName];
+  const absenceGuestText = [...pendingGuestMessages, last.body].join("\n\n");
+  let seniorPrecheck: { reply: string; outcome: AbsenceJudgeOutcome } | undefined;
+  let seniorRewrite: SeniorRewriteReason[] | undefined;
+  if (seniorReaderEnabled() && result.source === "openai" && result.reply) {
+    const outcome = await runAbsenceJudge({ guestMessage: absenceGuestText, reply: result.reply, names: absenceNames });
+    seniorPrecheck = { reply: result.reply, outcome };
+    const reasons = seniorRewriteReasons(seniorChecksOf(outcome), {
+      contactHolds: offPlatformContactHoldsFor(conversation),
+      apologyRule: noApologyRuleEnabled(),
+    });
+    if (reasons.length > 0) {
+      // İkinci çağrı da kotadan düşer (önizleme kotasız koşuda yalnız gerçek çağrı — ilk çağrıyla aynı kural).
+      const charge = options.dryRun && !options.previewBudget ? { ok: true } : await consumeDailyAiBudget(conversation.property.organizationId);
+      if (charge.ok) {
+        const retryStartedAt = Date.now();
+        const retried = await suggestReply({ ...replyInput, knowledgeBaseNotes: [...(kbSel.notes ?? []), ...seniorRewriteNotes(reasons)] }).catch(
+          () => null,
+        );
+        replyLatencyMs += Date.now() - retryStartedAt;
+        // Yeniden yazma düşerse (hata / yedek cevap) ilk taslak kalır — okuyucunun hükmü onu zaten tutar.
+        if (retried?.source === "openai" && retried.reply) {
+          result = retried;
+          modelDraft = retried.reply;
+          seniorRewrite = reasons;
+        }
+      }
+    }
+  }
 
   // Host Karar Motoru: bu turun cevapsız misafir mesajları (son mesaj dahil) — aynı talebin kartı yeniden kullanılır, bildirim kilidi
   // ve hassas e-posta kontrolü bu kümeye bakar.
@@ -2541,16 +2579,16 @@ export async function applyChannelAutoReply(
   // ── BAĞLAM HAKEMİ (kurucu 10-21: "kelime bazlı tutmasın, bağlam bazlı tutsun"; `semantic/absence-judge.ts`, anahtar KAPALI) ──────────
   // Kelime kuralı "bilgim yok" ADAYI bulduysa ikinci model cevabı misafirin mesajıyla birlikte okur. Hakem "itiraf değil" derse konu
   // ayıklaması da koşmaz (ayıklanacak itiraf yok — "anahtarı bulamazsanız kutudadır" talimatı silinmesin). Hakem düşerse bugünkü kural.
-  const absenceNames = [conversation.guestIdentifier, conversation.reservation?.guestName, conversation.reservation?.guestGivenName];
-  const absenceGuestText = [...pendingGuestMessages, last.body].join("\n\n");
   // Hüküm OKUNDUĞU metinle birlikte saklanır: ayıklama metni değiştirirse eski hüküm yeni metne bağlanmaz (kapı birebir eşitlik arar).
-  let absenceJudge: { reply: string; outcome: AbsenceJudgeOutcome } | undefined;
+  // Kıdemli okuyucunun ön okuması (↑) bu metni zaten okuduysa hüküm o — aynı metin ikinci kez okunmaz.
+  let absenceJudge: { reply: string; outcome: AbsenceJudgeOutcome } | undefined =
+    seniorPrecheck && seniorPrecheck.reply === result.reply ? seniorPrecheck : undefined;
   // Kıdemli okuyucu (T-b): ödeme öğesi tutuluyken kelime kuralının tutacağı ödeme cevabı da okunur (üçüncü tarafa ödeme serbest kalsın).
   const seniorPaymentCandidate =
     seniorReaderEnabled() &&
     itemsPlan?.gateItems.paymentHeld === true &&
     namesPaymentMethod(result.reply ?? "", { paymentContext: true });
-  if (absenceReaderActive() && (admitsMissingKnowledge(result.reply) || seniorPaymentCandidate)) {
+  if (!absenceJudge && absenceReaderActive() && (admitsMissingKnowledge(result.reply) || seniorPaymentCandidate)) {
     absenceJudge = {
       reply: result.reply,
       outcome: await runAbsenceJudge({ guestMessage: absenceGuestText, reply: result.reply, names: absenceNames }),
@@ -2951,6 +2989,7 @@ export async function applyChannelAutoReply(
       gate: gateEvidenceOf(result, last.body, gateContext, finalGateVerdict),
       houseRules: houseRulesShadow,
       topicAbsence: topicAbsenceTrace,
+      seniorRewrite,
     }),
   };
 

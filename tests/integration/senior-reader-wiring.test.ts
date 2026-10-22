@@ -27,6 +27,8 @@ vi.mock("@/lib/report-error", async (orig) => {
 
 import { NextRequest } from "next/server";
 import { suggestReply } from "@/lib/ai";
+import { emailService } from "@/lib/email";
+import { SENIOR_REWRITE_NOTES } from "@/lib/ai/semantic/senior-rewrite";
 import { sendOnChannel } from "@/lib/messaging";
 import { applyChannelAutoReply } from "@/lib/automation";
 import { POST as CHAT } from "@/app/api/chat/[token]/route";
@@ -57,6 +59,16 @@ const DRAFT = (reply: string) => ({
 });
 
 type Checks = Partial<{ payHost: boolean; contact: boolean; apology: boolean }>;
+const NOTHING = {
+  admits_missing_info: false,
+  quote: "",
+  pays_host_off_platform: false,
+  payment_quote: "",
+  off_platform_contact: false,
+  contact_quote: "",
+  apology_or_fault: false,
+  apology_quote: "",
+};
 function readerFetch(c: Checks | null) {
   return vi.fn(async (_url: string, init?: RequestInit) => {
     const name = JSON.parse(String(init?.body)).response_format?.json_schema?.name as string;
@@ -145,16 +157,71 @@ describe("kıdemli okuyucu — kanal oto-yanıtı", () => {
     expect(mockSend).toHaveBeenCalledTimes(1);
   });
 
-  it("açık: kelime adayı olmayan aday da okunur (iki okuma) — Airbnb ön soruda platform dışı iletişim TUTULUR", async () => {
+  it("açık: kelime adayı olmayan aday da okunur — Airbnb ön soruda platform dışı iletişim: bir kez yeniden yazılır, yine takılırsa TUTULUR", async () => {
+    vi.stubEnv("AI_SENIOR_READER_ENABLED", "1");
+    const f = readerFetch({ contact: true });
+    vi.stubGlobal("fetch", f);
+    // Yeniden yazılan taslak FARKLI metin (aynı metin olsaydı okuyucunun hükmü yeniden kullanılır, ikinci okuma olmazdı — ayrı test).
+    mockSuggest.mockResolvedValueOnce(DRAFT(CONTACT)).mockResolvedValue(DRAFT(`${CONTACT} See you soon!`));
+    const id = await seedChannel();
+    await applyChannelAutoReply(id);
+    // İlk taslak (iki okuma) → yeniden yazma → yeni taslak (iki okuma): 4 okuma, 2 cevap çağrısı, TEK yeniden yazma.
+    expect(f).toHaveBeenCalledTimes(4);
+    expect(mockSuggest).toHaveBeenCalledTimes(2);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(await reasonOf(id)).toBe("reply_offplatform_contact");
+    // Kurucu: "cevap gitmedi diye sürekli hosta mail gitmesin" — bu tutuş e-posta göndermez.
+    expect(vi.mocked(emailService.send)).not.toHaveBeenCalled();
+    expect(vi.mocked(emailService.sendReporting)).not.toHaveBeenCalled();
+  });
+
+  it("açık: yeniden yazma AYNI metni dönerse okuyucu ikinci kez çağrılmaz (hüküm aynı metne bağlı), cevap yine tutulur", async () => {
     vi.stubEnv("AI_SENIOR_READER_ENABLED", "1");
     const f = readerFetch({ contact: true });
     vi.stubGlobal("fetch", f);
     mockSuggest.mockResolvedValue(DRAFT(CONTACT));
     const id = await seedChannel();
     await applyChannelAutoReply(id);
+    expect(mockSuggest).toHaveBeenCalledTimes(2);
     expect(f).toHaveBeenCalledTimes(2);
     expect(mockSend).not.toHaveBeenCalled();
     expect(await reasonOf(id)).toBe("reply_offplatform_contact");
+  });
+
+  it("🚨 açık: ilk taslak Airbnb'nin engelleyeceği iletişim taşıyor → model SEBEBİ not alıp aynı anlamda yeniden yazar → temiz taslak GİDER", async () => {
+    vi.stubEnv("AI_SENIOR_READER_ENABLED", "1");
+    const CLEAN = "Check-in is from 15:00. For anything else, just write to me here in this chat.";
+    // Okuyucu metne bakar: WhatsApp geçen taslak "iletişim", geçmeyen temiz.
+    const f = vi.fn(async (_url: string, init?: RequestInit) => {
+      const user = JSON.parse(String(init?.body)).messages[1].content as string;
+      const contact = /whatsapp/i.test(user.split("DRAFT REPLY:")[1] ?? "");
+      const v = { ...NOTHING, off_platform_contact: contact };
+      return new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify(v) } }] }), { status: 200 });
+    });
+    vi.stubGlobal("fetch", f);
+    mockSuggest.mockResolvedValueOnce(DRAFT(CONTACT)).mockResolvedValueOnce(DRAFT(CLEAN));
+    const id = await seedChannel();
+    await applyChannelAutoReply(id);
+    expect(mockSuggest).toHaveBeenCalledTimes(2);
+    // İkinci çağrı sebebi biliyor: Airbnb notu modele gitti.
+    const notes = (mockSuggest.mock.calls[1][0] as { knowledgeBaseNotes?: string[] }).knowledgeBaseNotes ?? [];
+    expect(notes).toContain(SENIOR_REWRITE_NOTES.contact);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(mockSend.mock.calls[0])).toContain("write to me here in this chat");
+    expect(JSON.stringify(mockSend.mock.calls[0])).not.toMatch(/whatsapp/i);
+    // Kanıt kaydı: yeniden yazma sebebi (kapalı küme kod, metin yok).
+    const ev = await prisma.riskEvent.findFirstOrThrow({ where: { conversationId: id, surface: "auto_reply" } });
+    expect(JSON.parse(ev.kbEvidenceJson ?? "{}").rw).toEqual(["contact"]);
+  });
+
+  it("açık: onaylı konaklamada iletişim bilgisi kural değil → yeniden yazma YOK, ilk taslak gider", async () => {
+    vi.stubEnv("AI_SENIOR_READER_ENABLED", "1");
+    vi.stubGlobal("fetch", readerFetch({ contact: true }));
+    mockSuggest.mockResolvedValue(DRAFT(CONTACT));
+    const id = await seedChannel({ reservation: "confirmed_in_stay" });
+    await applyChannelAutoReply(id);
+    expect(mockSuggest).toHaveBeenCalledTimes(1);
+    expect(mockSend).toHaveBeenCalledTimes(1);
   });
 
   it("açık: talep (pending) rezervasyonda da tutulur; onaylı konaklama SÜRERKEN iletişim bilgisi gider (Airbnb de paylaşır)", async () => {
@@ -266,6 +333,23 @@ describe("kıdemli okuyucu — QR misafir sohbeti", () => {
     const out = await ask(await seedQr(), "What time is check-in?");
     expect(f).not.toHaveBeenCalled();
     expect(out.escalated).toBeFalsy();
+  });
+
+  it("açık: ev sahibine ödeme ilk taslakta → bir kez yeniden yazılır; temiz taslak misafire gider (devir yok)", async () => {
+    vi.stubEnv("AI_SENIOR_READER_ENABLED", "1");
+    const CLEAN = "Check-in is from 15:00. The cleaning fee is part of your booking total.";
+    const f = vi.fn(async (_url: string, init?: RequestInit) => {
+      const user = JSON.parse(String(init?.body)).messages[1].content as string;
+      const payHost = /in cash/i.test(user.split("DRAFT REPLY:")[1] ?? "");
+      const v = { ...NOTHING, pays_host_off_platform: payHost };
+      return new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify(v) } }] }), { status: 200 });
+    });
+    vi.stubGlobal("fetch", f);
+    mockSuggest.mockResolvedValueOnce(DRAFT(PAY_HOST)).mockResolvedValueOnce(DRAFT(CLEAN));
+    const out = await ask(await seedQr(), "What time is check-in?");
+    expect(mockSuggest).toHaveBeenCalledTimes(2);
+    expect(out.escalated).toBeFalsy();
+    expect(out.reply).toBe(CLEAN);
   });
 
   it("açık: ev sahibine platform dışı ödeme → devir; platform dışı iletişim QR'da kural DEĞİL (OTA yok) → gider", async () => {

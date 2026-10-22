@@ -266,6 +266,11 @@ export interface KbEvidenceInput {
    * yalnız ayıklama olduysa (metin YOK). Verilmezse alan yazılmaz (kanıt biçimi karakteri karakterine aynı).
    */
   topicAbsence?: { s: number; r: number };
+  /**
+   * Kıdemli okuyucunun ilk taslakta bulduğu ve yeniden yazdırdığı sebepler (kurucu 10-22, `semantic/senior-rewrite.ts`): yalnız yeniden
+   * yazma olduysa; kapalı küme kodlar (metin YOK). Verilmezse alan yazılmaz.
+   */
+  seniorRewrite?: readonly string[];
   /** Yapay zekâyı ele geçirme ifadesi taşıdığı için istemden çıkarılan kalem sayısı (`kb-fetch`). */
   hijackScreened?: number;
   /**
@@ -492,6 +497,8 @@ export function buildKbEvidence(input: KbEvidenceInput): string | null {
     input.topicAbsence && Number.isInteger(input.topicAbsence.s) && input.topicAbsence.s > 0 && Number.isInteger(input.topicAbsence.r) && input.topicAbsence.r >= 0
       ? { s: Math.min(input.topicAbsence.s, 99), r: Math.min(input.topicAbsence.r, 99) }
       : undefined;
+  const rwCodes = (input.seniorRewrite ?? []).filter((c): c is string => c === "payHost" || c === "contact" || c === "apology");
+  const rw = rwCodes.length > 0 ? [...new Set(rwCodes)] : undefined;
   const extra = {
     ...(claims ? { claims } : {}),
     ...(llm ? { llm } : {}),
@@ -502,8 +509,9 @@ export function buildKbEvidence(input: KbEvidenceInput): string | null {
     ...(g ? { g } : {}),
     ...(hr ? { hr } : {}),
     ...(ta ? { ta } : {}),
+    ...(rw ? { rw } : {}),
   };
-  if (retrieved.length === 0 && used.length === 0 && !retrieval && !claims && !llm && !hj && !sc && !ir && !ec && !g && !hr && !ta) return null;
+  if (retrieved.length === 0 && used.length === 0 && !retrieval && !claims && !llm && !hj && !sc && !ir && !ec && !g && !hr && !ta && !rw) return null;
   const body = JSON.stringify({ retrieved, used, ...(retrieval ? { retrieval } : {}), ...extra });
   if (body.length <= EVIDENCE_CHAR_CAP) return body;
   // SESSİZ KIRPMA YOK: kaç kalemin kanıttan düştüğü açıkça yazılır, yoksa
