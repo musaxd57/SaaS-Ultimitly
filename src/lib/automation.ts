@@ -29,6 +29,7 @@ import {
   paymentHeldHolds,
   runAbsenceJudge,
   seniorChecksOf,
+  seniorUngroundedChecksOf,
   seniorReaderEnabled,
   type AbsenceJudgeOutcome,
 } from "@/lib/ai/semantic/absence-judge";
@@ -637,7 +638,7 @@ export function autoReplyGateVerdict(
     if (!decl || !decl.ok) return hold(decl?.ok === false && decl.reason === "unknown_ref" ? "items_touch_held" : "items_undeclared");
     if (decl.refs.length === 0) return hold("items_nothing_answered");
     // T-d (kurucu 10-22): okuyucu okuduysa yalnız ev sahibine platform dışı ödeme tutar ("otopark gişede nakit" gider); yoksa kelime kuralı.
-    if (items.paymentHeld && paymentHeldHolds(namesPaymentMethod(result.reply ?? "", { paymentContext: true }), senior)) {
+    if (items.paymentHeld && paymentHeldHolds(namesPaymentMethod(result.reply ?? "", { paymentContext: true }), senior, seniorUngroundedChecksOf(judged))) {
       return hold("items_payment_held");
     }
     // Kurucu kararı 10-01: bu turun tutulan şikâyetine BAĞLI istek cevaplanabilir sayılmışsa (plan dışı yol / gelecekteki değişiklik)
@@ -2586,9 +2587,10 @@ export async function applyChannelAutoReply(
           // Yeni metin OKUNAMADIYSA (okuma düştü) ilk taslak kalır — okuyucunun hükmü onu zaten tutar; okunmamış metin kelime kurallarıyla
           // tek başına gitmez (Haiku 10-22).
           if (reread.status === "ok") {
+            // `rw` yalnız metin GERÇEKTEN değiştiyse (Opus 10-22 F6).
+            if (merged.reply !== result.reply) seniorRewrite = reasons;
             result = merged;
             modelDraft = result.reply;
-            seniorRewrite = reasons;
             seniorPrecheck = { reply: result.reply, outcome: reread };
           }
         }
@@ -2639,10 +2641,10 @@ export async function applyChannelAutoReply(
       // Hakem eski metinde itiraf gördüyse ayıklanan metni de okur: kalan cümlede kelime kuralının kaçırdığı bir itiraf kalmış olabilir
       // (Haiku 10-21: "Gate access is not something my information covers…"). Hakem düşerse kelime kuralı (bugünkü davranış).
       if (absenceJudge?.outcome.status === "ok" && absenceJudge.outcome.admits) {
-        absenceJudge = {
-          reply: result.reply,
-          outcome: await runAbsenceJudge({ guestMessage: absenceGuestText, reply: result.reply, names: absenceNames }),
-        };
+        const reread = await runAbsenceJudge({ guestMessage: absenceGuestText, reply: result.reply, names: absenceNames });
+        // Ayıklanan metin OKUNAMAZSA eski hüküm (itiraf + varsa ödeme / özür "evet"leri) yeni metne bağlanır → tutulur; okunmamış metin
+        // kelime kurallarıyla tek başına gitmez (Opus 10-22 F3).
+        absenceJudge = { reply: result.reply, outcome: reread.status === "ok" ? reread : absenceJudge.outcome };
       }
     }
   }

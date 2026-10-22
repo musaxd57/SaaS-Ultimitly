@@ -583,7 +583,7 @@ const LATIN_RE = /\p{Script=Latin}/u;
  * tek Kiril harf sokulur) ve daha uzun bir Rusça metinde çarpışma İLKESEL olarak
  * mümkün. Kapsamı dar tutmak bedava.
  */
-function deconfuse(s: string): string {
+export function deconfuse(s: string): string {
   // ⚠️ KOŞUL "Latin VAR MI" — eskiden "Latin VE (Kiril|Yunan)" idi ve harita
   // büyüyünce o kapı yeni yazı sistemlerini DIŞARIDA bırakıyordu: Ermenice tek
   // harf sokulmuş bir yangın ihbarı hiç sökülmeden geçiyordu. Hangi sistemin

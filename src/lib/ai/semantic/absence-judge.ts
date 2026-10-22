@@ -5,6 +5,7 @@ import { semanticApiKey, semanticModel, semanticReasoningEffort, semanticTimeout
 import { redactForSemanticModel } from "./redact";
 import { fenceSafe } from "./fence";
 import { stripDividerRuns } from "../divider-spoof";
+import { deconfuse } from "../fallback";
 
 // ---------------------------------------------------------------------------
 // BAĞLAM HAKEMİ — "bilgim yok" (kurucu 10-21: "kelime bazlı tutmasın, bağlam / anlam / amaç bazlı tutsun").
@@ -194,7 +195,15 @@ export interface AbsenceJudgeInput {
  * geçersizdir; itiraf kararı o metin için kelime kuralına kalır (`absenceHolds`) — serbest bırakma da sayılmaz (`judgeReleases`).
  */
 export type AbsenceJudgeOutcome =
-  | { status: "ok"; admits: boolean; quote: string; checks?: SeniorChecks; ungrounded?: true }
+  | {
+      status: "ok";
+      admits: boolean;
+      quote: string;
+      checks?: SeniorChecks;
+      ungrounded?: true;
+      /** Ek hükümlerden YALNIZ bir okumanın dayanaksız "evet" dediği (o hüküm için karar bugünkü kurala kalır, Opus 10-22 F1). */
+      ungroundedChecks?: Partial<Record<keyof SeniorChecks, true>>;
+    }
   | { status: "failed" };
 
 type Reading = {
@@ -204,6 +213,7 @@ type Reading = {
   /** Ek hükümlerin alıntıları (yalnız kıdemli okuyucu): "evet" oyu taslakta geçen cümleyle desteklenmeli (`groundReading`). */
   checkQuotes?: { payHost: string; contact: string; apology: string };
   ungrounded?: true;
+  ungroundedChecks?: Partial<Record<keyof SeniorChecks, true>>;
 };
 
 const knownNames = (input: Pick<AbsenceJudgeInput, "names">) =>
@@ -239,7 +249,13 @@ const squash = (s: string) => s.normalize("NFC").replace(/[’‘ʼ]/g, "'").rep
  * (model alıntıyı tırnaksız ya da noktasız kopyalayabilir); kelimeler aynı sırada bitişik geçmeli. Boş alıntı = kanıt yok.
  */
 export function quoteGroundedIn(draftSeen: string, quote: string): boolean {
-  const norm = (t: string) => squash(t).replace(/[\p{P}\p{S}]+/gu, " ").replace(/\s+/g, " ").trim();
+  // Görünmez karakter / uyumluluk biçimi / benzer harf (Kiril "а" ↔ Latin "a") farkı da yok sayılır (Opus 10-22 F1: taslak homoglif
+  // taşırken modelin düz harfle kopyaladığı sadık alıntı düşmesin). İki taraf AYNI normalleştirmeden geçer.
+  const norm = (t: string) =>
+    deconfuse(squash(t.normalize("NFKC").replace(/[\p{Default_Ignorable_Code_Point}\p{Cf}\u2800]/gu, "")))
+      .replace(/[\p{P}\p{S}]+/gu, " ")
+      .replace(/\s+/g, " ")
+      .trim();
   const q = norm(quote);
   return q.length > 0 && ` ${norm(draftSeen)} `.includes(` ${q} `);
 }
@@ -256,8 +272,15 @@ export function groundReading<R extends Reading>(reading: R | null, draftSeen: s
   if (!reading) return reading;
   let out: R = reading;
   if (out.checks && out.checkQuotes) {
-    const keep = (k: keyof SeniorChecks) => out.checks![k] && quoteGroundedIn(draftSeen, out.checkQuotes![k]);
-    out = { ...out, checks: { payHost: keep("payHost"), contact: keep("contact"), apology: keep("apology") } };
+    const checks = { ...out.checks };
+    const ungroundedChecks: Partial<Record<keyof SeniorChecks, true>> = {};
+    for (const k of ["payHost", "contact", "apology"] as const) {
+      if (checks[k] && !quoteGroundedIn(draftSeen, out.checkQuotes[k])) {
+        checks[k] = false;
+        ungroundedChecks[k] = true;
+      }
+    }
+    out = { ...out, checks, ...(Object.keys(ungroundedChecks).length > 0 ? { ungroundedChecks } : {}) };
   }
   if (out.admits && !quoteGroundedIn(draftSeen, out.quote)) out = { ...out, admits: false, quote: "", ungrounded: true };
   return out;
@@ -321,18 +344,23 @@ export function combineAbsenceReadings(withGuest: Reading | null, draftOnly: Rea
   if (!withGuest || !draftOnly) return { status: "failed" };
   // Kıdemli okuyucu soruları da AYNI kural: biri "evet" derse evet. Yalnız bir okumada varsa (olmamalı) hüküm yok.
   if (Boolean(withGuest.checks) !== Boolean(draftOnly.checks)) return { status: "failed" };
-  const checks =
-    withGuest.checks && draftOnly.checks
-      ? {
-          checks: {
-            payHost: withGuest.checks.payHost || draftOnly.checks.payHost,
-            contact: withGuest.checks.contact || draftOnly.checks.contact,
-            apology: withGuest.checks.apology || draftOnly.checks.apology,
-          },
-        }
-      : {};
+  // Kanıt şartı (10-22) + Opus 10-22 F1/F2: dayanaklı "evet" tek okumada yeter; dayanaksız "evet" ancak İKİ okuma da aynı hükmü verdiyse
+  // sayılır (iki bağımsız okumanın uyuşması güçlü işarettir — alıntı yalnız biçimce tutmadı). Yalnız bir okumadaki dayanaksız "evet" o
+  // hüküm için kararı bugünkü kurala bırakır (`ungrounded` / `ungroundedChecks`).
+  let checks: { checks?: SeniorChecks; ungroundedChecks?: Partial<Record<keyof SeniorChecks, true>> } = {};
+  if (withGuest.checks && draftOnly.checks) {
+    const merged = {} as SeniorChecks;
+    const ungr: Partial<Record<keyof SeniorChecks, true>> = {};
+    for (const k of ["payHost", "contact", "apology"] as const) {
+      const both = withGuest.ungroundedChecks?.[k] === true && draftOnly.ungroundedChecks?.[k] === true;
+      merged[k] = withGuest.checks[k] || draftOnly.checks[k] || both;
+      if (!merged[k] && (withGuest.ungroundedChecks?.[k] || draftOnly.ungroundedChecks?.[k])) ungr[k] = true;
+    }
+    checks = { checks: merged, ...(Object.keys(ungr).length > 0 ? { ungroundedChecks: ungr } : {}) };
+  }
   if (withGuest.admits) return { status: "ok", admits: true, quote: withGuest.quote, ...checks };
   if (draftOnly.admits) return { status: "ok", admits: true, quote: draftOnly.quote, ...checks };
+  if (withGuest.ungrounded && draftOnly.ungrounded) return { status: "ok", admits: true, quote: "", ...checks };
   const ungrounded = withGuest.ungrounded || draftOnly.ungrounded ? { ungrounded: true as const } : {};
   return { status: "ok", admits: false, quote: "", ...checks, ...ungrounded };
 }
@@ -384,8 +412,21 @@ export function seniorChecksOf(outcome: AbsenceJudgeOutcome | undefined): Senior
  * Ödeme öğesi tutuluyken cevaptaki ödeme (T-d, kurucu 10-22: "3. taraf ödeme şeyleri gidebilir"). Okuyucu okuduysa yalnız EV SAHİBİNE
  * platform dışı ödeme tutar; okumadıysa / düştüyse bugünkü kelime kuralı (şüphede tut). Saf.
  */
-export function paymentHeldHolds(lexicalHit: boolean, checks: SeniorChecks | undefined): boolean {
-  return checks ? checks.payHost : lexicalHit;
+export function paymentHeldHolds(
+  lexicalHit: boolean,
+  checks: SeniorChecks | undefined,
+  ungroundedChecks?: Partial<Record<keyof SeniorChecks, true>>,
+): boolean {
+  if (!checks) return lexicalHit;
+  // Yalnız bir okumanın dayanaksız "ödeme" oyu varsa kelime kuralı karar verir (Opus 10-22 F1 — oy sessizce "hayır"a dönmesin).
+  return checks.payHost || (ungroundedChecks?.payHost === true && lexicalHit);
+}
+
+/** Ek hükümlerden dayanaksız kalanlar — yalnız okuyucu bu metni okuduysa. */
+export function seniorUngroundedChecksOf(
+  outcome: AbsenceJudgeOutcome | undefined,
+): Partial<Record<keyof SeniorChecks, true>> | undefined {
+  return outcome?.status === "ok" ? outcome.ungroundedChecks : undefined;
 }
 
 /** Ölçer için: hakemin alıntısı taslakta birebir (boşluk / kesme işareti farkı hariç) geçiyor mu? */

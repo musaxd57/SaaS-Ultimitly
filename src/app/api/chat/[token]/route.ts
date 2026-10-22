@@ -1193,9 +1193,9 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
               : await runAbsenceJudge({ guestMessage: message, reply: merged.reply, names: [res.guestName, res.guestGivenName] });
           // Yeni metin okunamadıysa ilk taslak kalır (okuyucunun hükmü onu tutar) — kanal yoluyla aynı (Haiku 10-22).
           if (reread.status === "ok") {
+            if (merged.reply !== result.reply) qrSeniorRewrite = reasons; // `rw` yalnız metin değiştiyse (Opus 10-22 F6)
             result = merged;
             doorCodeHeld = qrReplyHasDoorCode(result.reply, modelKbTexts);
-            qrSeniorRewrite = reasons;
             qrSeniorPrecheck = { reply: result.reply, outcome: reread };
           }
         }

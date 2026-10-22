@@ -580,7 +580,7 @@ export async function drainEmailOutboxOnce(deps: EmailDrainDeps = {}): Promise<E
               "Operatör panelinde son kayıtlara bakın.",
           ),
         );
-      } else if (pacing.sentLastHour < Math.floor(pacing.pace * 0.8)) {
+      } else if (pacing.sentLastHour < Math.max(1, Math.floor(pacing.pace * 0.8))) {
         // Histerezis (Opus 10-22): sayı tavanın hemen altına inip yeniden aşınca uyarı her turda yeniden açılmasın — durum yalnız tavanın
         // %80'inin altında kapanır ("tek uyarı").
         await alarm.ok("registration-pace");

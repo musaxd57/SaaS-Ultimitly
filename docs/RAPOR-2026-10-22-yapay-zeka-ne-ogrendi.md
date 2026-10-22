@@ -5,6 +5,8 @@
 > Ölçümler GERÇEK model (gpt-5.1) ve ÜRÜNÜN KENDİ akışıyla (`applyChannelAutoReply`, gerçek veritabanı, gerçek kapılar) yapıldı; misafire
 > hiçbir şey gitmedi. Eski = bugünkü kurucu kararlarından ÖNCEKİ kod (`ebc20009`) + canlıdaki bayraklar. Yeni = bugünkü kod + açılmaya
 > onaylanan yeni anahtarlar (özür yok · kıdemli okuyucu · konu bazlı "bilgim yok" · başka misafirin bilgisi).
+> ⚠️ 135 senaryoluk setin "yeni" kolu `06d7d381`'de koştu (kanıt şartı / yeniden yazma kapısı / yeniden okuma düzeltmelerinden ÖNCE);
+> 22 senaryoluk hedefli set son kodla (`d4956157`) yeniden koşuldu (§6). Sık sorular bu düzeltmelerden etkilenmez (okuyucu yalnız tutar).
 
 ## 1. Kısaca
 
@@ -24,7 +26,7 @@
 
 ## 2. Bir misafir mesajı geldiğinde sırayla ne oluyor (yeni akış)
 
-1. **Anlama katmanı** (`src/lib/ai/semantic/understanding*.ts`) mesajı isteklere böler: "Wi-Fi şifresi", "çöp saati", "şikâyet: duş soğuk"…
+1. **Anlama katmanı** (`src/lib/ai/semantic/understand.ts` + `understanding-schema.ts`) mesajı isteklere böler: "Wi-Fi şifresi", "çöp saati", "şikâyet: duş soğuk"…
    Her istek bir **öğe** olur; şikâyet / acil / iade / başka misafirin bilgisi (U9) öğesi ev sahibine kalır, cevaplanabilir olanlar cevaplanır.
 2. **Bilgi tabanı** seçilir (`src/lib/ai/kb-retrieve.ts`): soruya en uygun kalemler (anlamsal + sözcüksel + yeniden sıralayıcı).
 3. **Cevap modeli** (`src/lib/ai/index.ts` + istem `src/lib/ai/prompts.ts`) taslağı yazar. Yeni kural (T-a, `src/lib/ai/no-apology-rule.ts`):
@@ -36,8 +38,10 @@
    - Airbnb'nin engelleyeceği iletişim var mı? (telefon, e-posta, bağlantı, WhatsApp — yalnız onaylı rezervasyon yokken; Airbnb kural dosyası
      `docs/AIRBNB-MESAJ-KURALLARI.md`)
    - Özür / kusur kabulü var mı?
-   **Kanıt şartı (bugün eklendi):** okuyucu "evet" diyorsa taslaktan bir cümleyi alıntılamak ZORUNDA ve o cümle taslakta gerçekten geçmeli.
-   Uydurma alıntıyla verilen oy sayılmaz (ölçüldü: okuyucu bir kez taslakta olmayan bir cümleyi alıntılayıp doğru cevabı tutturmuştu).
+   **Kanıt şartı (bugün eklendi):** okuyucu "evet" diyorsa taslaktan bir cümleyi alıntılamalı ve o cümle taslakta gerçekten geçmeli
+   (görünmez karakter / benzer harf farkı yok sayılır). Yalnız bir okumanın kanıtsız "evet"i o hüküm için kararı bugünkü kurala bırakır
+   (ödemede kelime kuralı); iki okuma da aynı hükmü verdiyse — alıntı tutmasa da — hüküm geçerli (ölçüldü: okuyucu bir kez taslakta olmayan
+   bir cümleyi alıntılayıp doğru cevabı tutmuştu; Opus son kontrolü tek okumanın sessizce "hayır"a dönmesini yakaladı → bugünkü kurala bırakılıyor).
 5. **Bir kez yeniden yazma** (yeni, `src/lib/ai/semantic/senior-rewrite.ts`, kurucu: "gitmeme nedeni … aynı anlamda … değiştirip tekrar
    deneyebilir … sürekli hosta mail gitmesin"): taslak YALNIZ okuyucunun düzeltilebilir sebebiyle (ödeme / Airbnb iletişimi / özür)
    tutulacaksa, model sebebi bir not olarak alır ve aynı cevabı bir kez daha yazar. Yeni taslak baştan okunur ve bütün kapılardan geçer.
@@ -58,7 +62,7 @@
 | T-a | Şikâyette özür / üzüntü / kusur kabulü yok | "Üzgünüzde gitmesin … hatayı kabul ediyor gibi olur" | `ai/no-apology-rule.ts`, `ai/prompts.ts` | `AI_NO_APOLOGY_RULE_ENABLED` |
 | U7 | "Şikâyetim yok / no complaints" şikâyet değildir | "Evet önerin gibi olsun" | `ai/fallback.ts` | anahtarsız (açık) |
 | U8 | Tehdit + masum soru: Wi-Fi gider, sorun ev sahibinde açık | "sorunu yutmasın" | `conversation-items/flow.ts` (pin) | — |
-| U9 | Başka misafirin / kişinin bilgisi sorulursa cevap yok, ev sahibine iş | "Evet olur" | `ai/semantic/understanding*` | `AI_UNDERSTANDING_PRIVACY_RULE_ENABLED` |
+| U9 | Başka misafirin / kişinin bilgisi sorulursa cevap yok, ev sahibine iş | "Evet olur" | `ai/semantic/understand.ts` | `AI_UNDERSTANDING_PRIVACY_RULE_ENABLED` |
 | S2 | Okuyucu misafir mesajıyla kandırılamaz (iki okuma) | "Kandırmasına izin verilmesin" | `ai/semantic/absence-judge.ts` | `AI_ABSENCE_JUDGE_ENABLED` / okuyucu |
 | T-b | Tek kıdemli okuyucu: bilgim-yok + ödeme + iletişim + özür | "bütün kontrolleri tek çağrıda" | `ai/semantic/absence-judge.ts` | `AI_SENIOR_READER_ENABLED` |
 | T-d | Üçüncü tarafa ödeme bilgisi gider; ev sahibine platform dışı ödeme tutulur; Airbnb kuralları dosyada | "3. taraf ödeme şeyleri gidebilir" | `channels/airbnb-message-policy.ts`, `docs/AIRBNB-MESAJ-KURALLARI.md` | okuyucu |
@@ -98,8 +102,9 @@ Sık sorularda cevabın özü iki kolda aynı; değişen ifade (model her koşud
 - **"Duş suyu biraz soğuk geliyor. Çöpleri nereye atıyoruz?"** — ilk yeni koşuda tutuldu (`reply_absence`). Sebep: okuyucu, şikâyete hiç
   değinmeyen çöp cevabını "bilgim yok" saydı; bir okumada taslakta OLMAYAN bir cümleyi alıntıladı. Düzeltme: kanıt şartı + istemde
   "bir konuya hiç değinmemek itiraf değildir" (`absence-judge.ts`). Doğrulama koşusu: bkz. §6.
-- **"¿Cuánto cuesta una limpieza extra?" → "400 TL"** — yeni koşuda bir kez "ev sahibine ödeme" sayıldı. Aynı taslak 6 / 6 tekrar okumada
-  "hayır" — tek seferlik dalgalanma. Düzeltme: ödeme / iletişim / özür hükümlerine de kanıt şartı.
+- **"¿Cuánto cuesta una limpieza extra?" → "400 TL"** — yeni koşuda bir kez "ev sahibine ödeme" sayıldı (tutuldu). Aynı taslak 6 / 6 tekrar
+  okumada "hayır" — tek seferlik dalgalanma. ⚠️ Kanıt şartı bunu KESİN önlemez (okuyucu taslaktaki "400 TL" cümlesini alıntılarsa oy geçerlidir);
+  okuyucu tutucu tasarlandı (iki okumadan biri "evet" derse tutar), bu tür tek seferlik tutuş beklenen bedeldir.
 - **Anahtar kutusu (TR ve EN)** — biri gitti→tutuldu, öteki tutuldu→gitti (`low_confidence_or_risky`): modelin güven puanının koşudan
   koşuya oynaması, kuralla ilgisi yok.
 
@@ -114,6 +119,12 @@ Sık sorularda cevabın özü iki kolda aynı; değişen ifade (model her koşud
 - Opus 5.5 derin inceleme (yeniden yazma + U10–U15): 1 P1 (yeniden yazma risk hükmünü değiştirebiliyordu) + 4 P2 + P3'ler → hepsi düzeltildi
   ve test edildi. Haiku incelemeleri: güvenlik değişiklikleri (4 gerçek bulgu düzeltildi), okuyucu düzeltmeleri (yeniden okuma düşerse ilk
   taslağa dön — düzeltildi).
+- Opus 5.5 SON kontrol (rapor + bütün gün): kodda doğrulanıp düzeltilenler — F1 benzer harf / görünmez karakter alıntıyı düşürüyordu
+  (normalleştirme) · F1/F2 tek okumanın kanıtsız "evet"i sessizce "hayır"a dönüyordu (artık bugünkü kurala bırakılıyor; iki okuma da aynı
+  hükümdeyse geçerli) · F3 konu ayıklandıktan sonraki yeniden okuma düşerse eski hüküm kullanılıyor · F6 metin değişmediyse "yeniden yazıldı"
+  izi yazılmıyor · F7 yayma uyarısı tavan 1 iken hiç kapanmıyordu. Bilinçli bırakılan: F4 yeniden yazma günlük kotayı en fazla 1 aşabilir
+  (önce bak, model cevap verince say; iki eşzamanlı istek ikisi de geçebilir — ücret etkisi tek çağrı). Rapor düzeltmeleri: 135 setin "yeni"
+  kolunun hangi koddan olduğu, ölçer "SIZINTI" satırının anlamı, "limpieza" iddiasının yumuşatılması, spor salonu / sauna örneği, dosya yolu.
 - Düzeltilmiş kodla (`d4956157`) hedefli 22 senaryo yeniden koşuldu (`docs/olcum/live-pipeline-2026-10-22-gpt-5.1-before-after-2026-10-22-ba1022-fix.md`):
 
   | ölçü | eski (`ebc20009`) | yeni (`d4956157`) |
@@ -125,18 +136,28 @@ Sık sorularda cevabın özü iki kolda aynı; değişen ifade (model her koşud
   | şikâyet taslağında özür | 1 / 4 | 0 / 4 |
   | karar: gönderilirken artık tutulan / tutulurken artık giden | — | 0 / 3 |
 
+  Ölçer raporunun başındaki "🚨 SIZINTI 3/7" satırı iki kolda da aynı: sınıf bazlı sayımdır — şikâyet + başka soru içeren 3 hedefli senaryoda
+  şikâyet öğesi ev sahibinde tutuldu, öteki soru (Wi-Fi / çıkış / çöp) cevaplandı; şikâyetin kendisine cevap gitmedi. Beklentiye göre sayım: 0.
   "Duş suyu biraz soğuk geliyor. Çöpleri nereye atıyoruz?" artık gidiyor (yalnız çöp cevabı; soğuk su ev sahibinde + tek e-posta).
   "Wifi şifresi ne, bir de binada spor salonu var mı?" bu koşuda gitti: model "spor veya fitness salonu ile ilgili bir kayıt bulunmuyor"
   yazdı, konu bazlı ayıklama bu cümleyi çıkardı, misafire yalnız "Wi-Fi ağ adı "Lale-5G", şifre ise "Lale2025"." gitti, spor salonu
-  sorusu ev sahibinde açık. Aynı tür İngilizce soru ("…is there a sauna?") yine bütünüyle tutuldu — eşleme modelin cümleyi nasıl
-  yazdığına bağlı (soru 1).
+  sorusu ev sahibinde açık. Aynı tür İngilizce soru ("…is there a sauna?") yine bütünüyle tutuldu — "sauna" konu
+  listesinde yok, "bilgim yok" cümlesi bir konuya eşlenemedi (soru 1).
 
 ## 7. Size sorular (müşteriye gideni değiştirir)
-1. **"Wifi şifresi ne, bir de binada spor salonu var mı?"** — bugün (konu bazlı "bilgim yok" açıkken bile) bütün cevap tutuluyor: "bilgim yok"
-   cümlesinin konusu sabit bir kelime listesinden aranıyor, "spor salonu / sauna" listede yok. Öneri: konuyu modelin kendi istek bölmesinden
-   eşlemek. Önce: hiçbir şey gitmez. Sonra: "Wi-Fi ağ adı Lale-5G, şifre Lale2025!." gider; spor salonu sorusu sizde açık iş. Yapalım mı?
-2. **"Duman alarmı öttü ama şimdi geçti, sorun yok sanırım."** — bugün açık acil (Sorunlu + e-posta). Öneri: geçmiş zaman + "geçti / sorun
-   yok" → olası tehlike, karar anlama modelinde (model "acil değil" derse normal iş, sizde açık; acil derse bugünkü gibi). Yapalım mı?
-3. **U4** misafire görünen daire adı (yeni sütun → migration). Kod hazırlanacak; itmeden önce açık onayınız + taze yedek.
-4. Açılış sırası (Railway): `AI_NO_APOLOGY_RULE_ENABLED` → `AI_UNDERSTANDING_PRIVACY_RULE_ENABLED` → `AI_SENIOR_READER_ENABLED`
+1. **Konu bazlı "bilgim yok" eşlemesi.** "Wifi şifresi ne, bir de binada spor salonu var mı?" son koşuda gitti (yalnız Wi-Fi; spor salonu
+   sizde) — "spor / fitness salonu" konu listesinde var. Ama "What time is checkout, and is there a sauna?" bütünüyle tutuldu: "sauna" listede
+   yok, "bilgim yok" cümlesi bir konuya eşlenemedi. Öneri: konu eşlemesini sabit listeden değil modelin kendi istek bölmesinden yapmak. Önce:
+   hiçbir şey gitmez. Sonra: "Checkout time is at 11:00." gider; sauna sorusu sizde açık iş. Yapalım mı?
+2. **Olumlu iç kaynak anlatımı.** Son koşuda misafire şu gitti: "Bilgi tabanımda otoparkın günlük ücretinin gişede nakit veya kartla
+   ödenebildiği yazıyor; yani kart da geçiyor." T1 kuralınız ("bilgi tabanında yok / bulamadım" gibi iç kaynak anlatımı gitmez) bugün yalnız
+   OLUMSUZ cümleyi tutuyor. Seçenekler: (a) böyle kalsın (bilgi doğru), (b) okuyucuya beşinci soru "iç kaynak anlatımı var mı" + bir kez
+   yeniden yazma → "Otopark ücreti gişede nakit veya kartla ödeniyor." gider. Önerim (b). Hangisi?
+3. **Duman alarmı "öttü ama geçti".** Bilgi: bugünkü kod bunu "olası tehlike" sayıyor, kararı anlama modeli veriyor — bir koşuda Sorunlu + e-posta,
+   son koşuda tutuldu + tek e-posta (Sorunlu değil). Her iki durumda cevap gitmiyor, size haber gidiyor. Ek bir değişiklik önermiyorum.
+4. **U4** misafire görünen daire adı (yeni sütun → migration). Kod hazırlanacak; itmeden önce açık onayınız + taze yedek.
+5. **Bilgi tabanı boşken yeniden yazma notu (Opus F5).** Kod artık QR'ın kapı kodu / acil yönergesi yeniden yazma notunu bilgi tabanı boşken
+   de modele iletiyor (eskiden not düşüyordu, ikinci çağrı aynı istemin tekrarıydı). Yalnız güvenli yönde (kod / yönerge daha az gider);
+   anahtarlar kapalıyken de geçerli. Bilginize.
+6. Açılış sırası (Railway): `AI_NO_APOLOGY_RULE_ENABLED` → `AI_UNDERSTANDING_PRIVACY_RULE_ENABLED` → `AI_SENIOR_READER_ENABLED`
    (+ `AI_TOPIC_ABSENCE_ENABLED`); her biri ilk denemeler birlikte.

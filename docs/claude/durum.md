@@ -8,7 +8,23 @@
 > `docs/history/CLAUDE-2026-10-02-sadelestirme-3-oncesi-tam-metin.md` ("Durum" bölümü). Kuralları yukarıdaki bölümlerde; yalnız Durum'da
 > yazılı olan kurallar (konuşma öğeleri, ev kuralları, canlı bayraklar) 10-02'de ilgili bölümlere taşındı. Bekleyen onaylar ↓.
 
-**10-22 gece (güncel — clear sonrası BURADAN devam; gece modu sürüyor):**
+**10-22 gündüz (güncel — clear sonrası BURADAN devam):** kurucu §U kararları kodda + rapor `docs/RAPOR-2026-10-22-yapay-zeka-ne-ogrendi.md`.
+- Misafire giden (anahtarlı, Railway açılışında sırayla): T-a özür yok (`AI_NO_APOLOGY_RULE_ENABLED`) · U9 başka misafirin bilgisi
+  (`AI_UNDERSTANDING_PRIVACY_RULE_ENABLED`) · T-b kıdemli okuyucu tek model iki okuma (`ai/semantic/absence-judge.ts`,
+  `AI_SENIOR_READER_ENABLED`): itiraf / ev sahibine ödeme / platform dışı iletişim / özür; T-d okuyucu okuduysa yalnız ev sahibine platform
+  dışı ödeme tutar. KANIT ŞARTI: "evet" oyu taslaktan alıntı ister (`quoteGroundedIn`, NFKC + görünmez + benzer harf); tek okumanın kanıtsız
+  "evet"i bugünkü kelime kuralına bırakılır, iki okuma aynı hükümdeyse geçerli. YENİDEN YAZMA BİR KEZ (görev 172, `ai/semantic/senior-rewrite.ts`):
+  yalnız okuyucunun düzeltilebilir sebebi (ödeme / iletişim / özür) ilk kapı hükmüyse; metin yeni çağrıdan, niyet / risk ilk çağrıdan; yeni
+  metin yeniden okunur, okunamazsa ilk taslak kalır; ev sahibine tek e-posta. U7 / U8 / S2 kapı dosyası pinleri.
+- Mizah / mübalağa (görev 173): `ai/hazard-evidence.ts` + `evals/humor-exaggeration.json` (30 vaka; ölçüm `docs/olcum/MIZAH-MUBALAGA-2026-10-22.md`).
+- Güvenlik U10–U15: dışa aktarma POST + şifre + kova + "indirildi" e-postası · 2FA'lı hesap silme kod ister · 10 dk doğrulama bağlantısı
+  tekrarı yok · demo iki durum · takvim aktarımı 60 gün · kayıt Turnstile (`SIGNUP_TURNSTILE_ENABLED` KAPALI) + kayıt e-postası yayma
+  (`REGISTRATION_EMAIL_HOURLY_PACE`, varsayılan 300; reddetmez, bekletir; tek uyarı, %80 histerezis). QR / panel U1–U3, U5, U6, U16.
+- Ölçüm: canlı hat eski (`ebc20009`) / yeni 135 senaryo + düzeltilmiş kodla 22 hedefli (sızma 0 / 0, özür 16/16 → 0/16, sık soru 9/9).
+  Açık: U4 (migration, onay + yedek) · T-c Claude yan yana (push sonrası Actions) · rapor §7 soruları (sauna konu eşlemesi, olumlu iç kaynak
+  anlatımı, F5 boş KB notu). Bilinçli: F4 yeniden yazma günlük kotayı en fazla 1 aşabilir.
+
+**10-22 gece (önceki):**
 - Güvenlik 2. tur (Opus, P1 yok; rapor `docs/arastirma-2026-10-15/GUVENLIK-2-TUR-2026-10-22.md`): başka siteden yazma kapısı
   `crossSiteWrite` (`lib/route-guard.ts`) ortak kapıda + dört gövdesiz rotada (QR yeniden aç, bürünmeden çıkış, kalite denetimi, kanal
   bağlantısını kaldır); operatör aday güncellemesi olay günlüğünde (`operator.lead.updated`). Mutasyon 13/13. Kalanlar kurucu soruları U10–U15.
