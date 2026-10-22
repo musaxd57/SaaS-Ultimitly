@@ -118,6 +118,7 @@ describe("konuşma sayfası — hazır taslak bağlantısı", () => {
       intent: "payment",
       confidence: 0.9,
       availabilityCheck: null,
+      internalSourceCheck: false,
     });
   });
 

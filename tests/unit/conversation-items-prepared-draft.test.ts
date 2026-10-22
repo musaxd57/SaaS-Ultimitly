@@ -24,6 +24,7 @@ describe("preparedDraftOf — hangi taslak gösterilir", () => {
       intent: "general",
       confidence: 0.9,
       availabilityCheck: null,
+      internalSourceCheck: false,
     });
   });
 
