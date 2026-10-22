@@ -37,6 +37,9 @@ export const OPERATIONAL_EVENTS = {
   "job.failed": "error",
   "job.org.processed": "info",
   "job.outbox.row": "info",
+  // Operatör yazması (güvenlik 2. tur 10-22): müşteri adayı kaydı işletmesiz olduğu için denetim kaydına (AuditLog, işletme ister) yazılamaz;
+  // iz burada — yalnız aday + operatör kimliği, değişen alanların ADI ve yeni durum (not / tarih değeri yazılmaz).
+  "operator.lead.updated": "info",
 } as const;
 export type OperationalEventName = keyof typeof OPERATIONAL_EVENTS;
 
@@ -70,6 +73,8 @@ const DATA_KEYS: Record<string, RegExp | "number" | "boolean"> = {
   durationMs: "number",
   replies: "number",
   outboxId: /^c[a-z0-9]{7,40}$/,
+  leadId: /^c[a-z0-9]{7,40}$/,
+  actorUserId: /^c[a-z0-9]{7,40}$/,
   errored: "boolean",
   // Sentry olay kimliği (takip numarası dilim G): tam 32 KÜÇÜK onaltılık — kişisel veri biçimi taşıyamaz. Uzun rakam kuralından VE
   // telefon / kimlik biçimli değer süzgecinden (`redactSensitive`) muaf: ölçüldü (Opus 10-15 B12, 20.000 rastgele kimlik) — %37,7'sinde
@@ -85,7 +90,7 @@ const LONG_DIGITS_EXEMPT = new Set(["sentryEventId"]);
  * uzun değer bugünkü rakam ve redaksiyon kurallarından geçer. Bu anahtarları yalnız kod yazar, değer veritabanı satırının kimliğidir
  * (`outboxId` işçi, `consentId` onay kaydı / veritabanında doğrulanmış onay satırı).
  */
-const CUID_KEYS = new Set(["consentId", "outboxId"]);
+const CUID_KEYS = new Set(["consentId", "outboxId", "leadId", "actorUserId"]);
 const CUID_EXACT = /^c[a-z0-9]{24}$/;
 const PHONE_LENGTH_DIGITS = /\d{10,}/;
 const LONG_DIGITS = /\d{7,}/;

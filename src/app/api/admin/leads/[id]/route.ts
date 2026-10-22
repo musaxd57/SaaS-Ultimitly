@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { requireSession, unauthorized, badRequest, notFound, jsonOk, serverError, readJsonCappedOrNull, forbidden } from "@/lib/api";
 import { isSuperAdmin } from "@/lib/admin";
 import { isImpersonating, OPERATOR_SUPPORT_VIEW_MESSAGE } from "@/lib/auth/impersonation";
+import { logEvent } from "@/lib/event-log";
 
 // ---------------------------------------------------------------------------
 // Operator panel: mini sales pipeline on landing-page leads. SUPER-ADMIN ONLY
@@ -58,6 +59,13 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
         ...(followUpDate !== undefined ? { followUpAt: followUpDate } : {}),
       },
     });
+    // İz (güvenlik 2. tur 10-22): operatörün tek izsiz yazmasıydı. Alan ADLARI + yeni durum; not / tarih değeri günlüğe girmez.
+    const fields = [status !== undefined && "status", note !== undefined && "note", followUpDate !== undefined && "followUpAt"].filter(Boolean);
+    await logEvent(
+      "operator.lead.updated",
+      { leadId: lead.id, actorUserId: session.actorUserId ?? session.userId, context: fields.join(".") || "none", status: lead.status },
+      { organizationId: null },
+    );
     return jsonOk({ ok: true, lead: { id: lead.id, status: lead.status, note: lead.note, followUpAt: lead.followUpAt } });
   } catch (err) {
     return serverError(undefined, err);

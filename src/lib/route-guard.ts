@@ -10,6 +10,7 @@ import {
   type SessionPayload,
 } from "@/lib/api";
 import { hostWriteLimited } from "@/lib/host-write-limit";
+import { isReadOnlyMethod } from "@/lib/auth/impersonation";
 
 // ---------------------------------------------------------------------------
 // Route auth wrappers. Fold the repeated preamble — requireSession → 401, the
@@ -45,6 +46,9 @@ export function withAuth<P = Record<string, never>>(handler: AuthedHandler<P>) {
   return async (req: NextRequest, ctx: RouteCtx<P>): Promise<Response> => {
     const session = await requireSession();
     if (!session) return unauthorized();
+    // Başka siteden yazma (güvenlik 2. tur 10-22): çerez `SameSite=Lax` başka siteden POST'u zaten oturumsuz bırakır; bu kapı kardeş alt
+    // alan adından (same-site) gelen ve gövdesiz (JSON ön-uçuşu tetiklemeyen) yazmayı da keser. Yazma kovasından ÖNCE — sayaç yakılmaz.
+    if (crossSiteWrite(req)) return forbidden();
     // K8 (kurucu kararı 09-28): bürünmüşken (destek görünümü) müşteri hesabında yazma yok — TEK boğaz.
     const readOnly = impersonationReadOnly(session, req.method);
     if (readOnly) return readOnly;
@@ -68,6 +72,14 @@ export function withAuth<P = Record<string, never>>(handler: AuthedHandler<P>) {
       return withCorrelationHeader(res, currentCorrelationId() ?? correlationId);
     });
   };
+}
+
+/** Tarayıcının `Sec-Fetch-Site` başlığına göre başka siteden gelen yazma isteği. Başlık yoksa (sunucu istemcisi, test, eski tarayıcı)
+ *  geçer — asıl kapı çerezdir; okuma (GET/HEAD/OPTIONS) hiç bakılmaz. `none` = adres çubuğu / yer imi (kullanıcının kendisi). */
+export function crossSiteWrite(req: Request): boolean {
+  if (isReadOnlyMethod(req.method)) return false;
+  const site = req.headers.get("sec-fetch-site");
+  return Boolean(site && site !== "same-origin" && site !== "none");
 }
 
 /** Yanıta takip numarası başlığı (değişmez başlıklı yanıtta — ör. `Response.redirect` — sessizce atlanır). */

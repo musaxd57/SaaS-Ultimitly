@@ -86,5 +86,20 @@ describe("PATCH /api/admin/leads/[id] — operator mini-CRM", () => {
     session = makeSession(OPERATOR_EMAIL);
     const res = await PATCH(req({ status: "won" }), ctx("nonexistent"));
     expect(res.status).toBe(404);
+    expect(await prisma.operationalEvent.count({ where: { event: "operator.lead.updated" } })).toBe(0);
+  });
+
+  it("iz (güvenlik 2. tur 10-22): her güncelleme olay günlüğüne — aday + operatör kimliği, alan ADLARI, yeni durum; not / tarih değeri YOK", async () => {
+    // Tam cuid biçimi + 7 rakamlık dizi: cuid muafiyeti olmadan uzun rakam kuralı kimliği düşürürdü.
+    const operatorId = "cop1234567aaaaaaaaaaaaaaa";
+    session = { ...makeSession(OPERATOR_EMAIL), userId: operatorId };
+    await PATCH(req({ status: "contacted", note: "WhatsApp'tan yazıldı 05321234567", followUpAt: "2026-07-10" }), ctx(leadId));
+    await PATCH(req({ note: null }), ctx(leadId));
+    const rows = await prisma.operationalEvent.findMany({ where: { event: "operator.lead.updated" }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
+    expect(rows).toHaveLength(2);
+    expect(rows.every((r) => r.organizationId === null)).toBe(true);
+    expect(JSON.parse(rows[0].dataJson!)).toEqual({ leadId, actorUserId: operatorId, context: "status.note.followUpAt", status: "contacted" });
+    expect(JSON.parse(rows[1].dataJson!)).toEqual({ leadId, actorUserId: operatorId, context: "note", status: "contacted" });
+    expect(rows.map((r) => r.dataJson).join(" ")).not.toMatch(/WhatsApp|0532|2026-07-10/);
   });
 });

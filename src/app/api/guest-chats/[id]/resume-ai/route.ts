@@ -4,6 +4,7 @@ import { requireSession, unauthorized, canManage, forbidden, jsonOk, notFound, i
 import { AI_RESUME_MARKER, guestChatAiPausedFromMessages } from "@/lib/guest-chat";
 import { SYSTEM_EVENT_GUEST_CHAT_AI_RESUMED } from "@/lib/message-author";
 import { hostWriteLimited } from "@/lib/host-write-limit";
+import { crossSiteWrite } from "@/lib/route-guard";
 
 // Owner/manager RE-ENABLES the QR AI for a thread it had handed off to the team.
 // The AI never auto-resumes on a timer (the host may have stepped into a sensitive
@@ -16,6 +17,8 @@ import { hostWriteLimited } from "@/lib/host-write-limit";
 // Idempotent: a no-op (200) when the AI is already active.
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireSession();
+  // Gövdesiz yazma: başka siteden (kardeş alt alan adı dahil) gelen istek yapay zekâyı yeniden açamaz (`withAuth` ile aynı kural).
+  if (crossSiteWrite(_req)) return forbidden();
   // K8 (kurucu kararı 09-28): bürünmüşken müşteri hesabında yazma yok.
   const readOnly = session ? impersonationReadOnly(session, _req.method) : null;
   if (readOnly) return readOnly;

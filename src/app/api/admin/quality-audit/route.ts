@@ -14,6 +14,7 @@ import {
 import { rateLimit } from "@/lib/rate-limit";
 import { isSuperAdmin } from "@/lib/admin";
 import { isImpersonating, OPERATOR_SUPPORT_VIEW_MESSAGE } from "@/lib/auth/impersonation";
+import { crossSiteWrite } from "@/lib/route-guard";
 import { writeAudit } from "@/lib/audit";
 import { QualityAuditError, qualityAuditConfigured, runQualityAudit } from "@/lib/quality-audit";
 
@@ -28,6 +29,8 @@ export async function POST(req: NextRequest) {
   const session = await requireSession();
   if (!session) return unauthorized();
   if (!isSuperAdmin(session)) return unauthorized();
+  // Boş gövde de kabul edilir (ücretli denetim): başka siteden gelen istek koşturamaz (`withAuth` ile aynı kural).
+  if (crossSiteWrite(req)) return forbidden();
   // Destek görünümünde operatör yazması YOK — önce çıkış (kurucu kararı 10-11; `OPERATOR_SUPPORT_VIEW_MESSAGE`).
   if (isImpersonating(session)) return forbidden(OPERATOR_SUPPORT_VIEW_MESSAGE);
   // Operatör kimliğine bağlı tavan (Haiku operatör denetimi 10-10): her çağrı ücretli bir model denetimi — ele geçirilmiş oturum döngüyle
