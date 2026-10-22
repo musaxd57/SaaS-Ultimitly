@@ -202,7 +202,9 @@ export default async function ReportsPage() {
         </p>
       ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      {/* `grid-cols-1` (minmax(0, 1fr)): telefonda örtük `auto` sütun en uzun daire adı kadar genişliyordu — "Doluluk" satırındaki `truncate`
+          hiç devreye girmiyor, kartlar sayfadan taşıyordu (320 px ölçüldü, 10-22). */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Host performance + response time */}
         <Card>
           <CardHeader className="flex-row items-center justify-between space-y-0">
