@@ -19,7 +19,10 @@ export function DeleteAccountCard({ twoFactorEnabled = false }: { twoFactorEnabl
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const needsCode = twoFactorEnabled && !code.trim();
+  // Sayfa açıkken başka sekmede 2FA açıldıysa sunucu kod ister → alan o anda belirir (Opus 10-22).
+  const [serverAskedCode, setServerAskedCode] = useState(false);
+  const askCode = twoFactorEnabled || serverAskedCode;
+  const needsCode = askCode && !code.trim();
 
   async function remove() {
     if (!password) {
@@ -36,7 +39,7 @@ export function DeleteAccountCard({ twoFactorEnabled = false }: { twoFactorEnabl
       const res = await fetch("/api/account/delete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(twoFactorEnabled ? { password, code: code.trim() } : { password }),
+        body: JSON.stringify(askCode ? { password, code: code.trim() } : { password }),
       });
       if (res.ok) {
         router.push("/");
@@ -44,6 +47,7 @@ export function DeleteAccountCard({ twoFactorEnabled = false }: { twoFactorEnabl
         return;
       }
       const data = await res.json().catch(() => null);
+      if (data?.fields?.code) setServerAskedCode(true);
       setError(
         data?.fields?.password ?? data?.fields?.code ?? data?.error ?? "Hesap silinemedi. Lütfen tekrar deneyin.",
       );
@@ -119,7 +123,7 @@ export function DeleteAccountCard({ twoFactorEnabled = false }: { twoFactorEnabl
             autoComplete="current-password"
             onChange={(e) => setPassword(e.target.value)}
           />
-          {twoFactorEnabled ? (
+          {askCode ? (
             <Input
               value={code}
               placeholder="Doğrulama kodu (6 hane)"

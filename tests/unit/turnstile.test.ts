@@ -91,4 +91,14 @@ describe("turnstile — sunucu doğrulaması", () => {
     const garbage = vi.fn(async () => new Response("<html>", { status: 200 }));
     expect(await verifyTurnstileToken("tok", null, { fetch: garbage })).toBe("unavailable");
   });
+
+  it("Cloudflare bizim gizli anahtarımızı reddederse (yanlış yapılandırma) → unavailable (kayıtlar kilitlenmez)", async () => {
+    on();
+    for (const code of ["invalid-input-secret", "missing-input-secret"]) {
+      expect(await verifyTurnstileToken("tok", null, { fetch: reply({ success: false, "error-codes": [code] }) })).toBe("unavailable");
+    }
+    expect(await verifyTurnstileToken("tok", null, { fetch: reply({ success: false, "error-codes": ["invalid-input-response"] }) })).toBe(
+      "rejected",
+    );
+  });
 });

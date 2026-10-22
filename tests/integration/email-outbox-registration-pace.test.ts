@@ -153,4 +153,41 @@ describe("email-outbox — kayıt e-postası yayma (U15)", () => {
     await drainEmailOutboxOnce({ send });
     expect(send).not.toHaveBeenCalled();
   });
+
+  it("parti içinde şifre e-postası birikmiş kayıt e-postalarından ÖNCE alınır (tavan dolu değilken de)", async () => {
+    vi.stubEnv("REGISTRATION_EMAIL_HOURLY_PACE", "300");
+    const a = await makeUser("a@x.com");
+    const b = await makeUser("b@x.com");
+    await enqueueVerify(a.id, a.email); // daha eski
+    await enqueueChange(b.id, b.email); // daha yeni
+    const send = okSend();
+    await drainEmailOutboxOnce({ send, batchSize: 1 });
+    expect(send.mock.calls.map((c) => c[0])).toEqual(["b@x.com"]);
+  });
+
+  it("uyarı histerezisi: tavanın hemen altına inince açık kalır, %80'in altında kapanır (tekrarlı uyarı yok)", async () => {
+    const hist = await makeUser("hist@x.com");
+    await seedSentRegistrationMails(hist.id, 5);
+    const a = await makeUser("a@x.com");
+    await enqueueVerify(a.id, a.email);
+    await drainEmailOutboxOnce({ send: okSend() });
+    expect(paceAlerts()).toHaveLength(1);
+    const state = () => prisma.systemLock.count({ where: { name: { contains: "registration-pace" } } });
+    expect(await state()).toBe(1);
+    // Bir tarihçe satırı pencereden çıkar → 4/5 (≥ %80): kayıt e-postası gider ama durum KAPANMAZ.
+    const one = await prisma.emailOutbox.findFirstOrThrow({ where: { userId: hist.id } });
+    await prisma.emailOutbox.update({ where: { id: one.id }, data: { sentAt: new Date(Date.now() - 61 * 60_000) } });
+    const b = await makeUser("b@x.com");
+    await enqueueVerify(b.id, b.email);
+    await drainEmailOutboxOnce({ send: okSend() });
+    expect(await state()).toBe(1);
+    // Hepsi pencereden çıkar → kapanır; yeni bir tavan aşımı yeniden TEK uyarı üretir.
+    await prisma.emailOutbox.updateMany({ data: { sentAt: new Date(Date.now() - 61 * 60_000) } });
+    const c = await makeUser("c@x.com");
+    await enqueueVerify(c.id, c.email);
+    await drainEmailOutboxOnce({ send: okSend() });
+    expect(await state()).toBe(0);
+    expect(paceAlerts()).toHaveLength(1);
+  });
 });
+

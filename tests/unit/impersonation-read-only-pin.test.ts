@@ -104,7 +104,8 @@ describe("K8 — her yazma ucu salt-okunur bürünmeyi uygular", () => {
   });
 
   it("🚨 GET olsa da müşteri verisini toplu indiren / kanal bağlantısı yazan uçlar açık kontrol taşır", () => {
-    for (const key of ["account/export GET", "hospitable/oauth/authorize GET", "hospitable/oauth/callback GET"]) {
+    // U10 (10-22): veri dışa aktarma artık POST + şifre — açık bürünme kontrolü POST işleyicisinde de şart.
+    for (const key of ["account/export POST", "hospitable/oauth/authorize GET", "hospitable/oauth/callback GET"]) {
       const h = all.find((x) => x.key === key);
       expect(h, key).toBeDefined();
       expect(h!.body, key).toMatch(/isImpersonating\(/);

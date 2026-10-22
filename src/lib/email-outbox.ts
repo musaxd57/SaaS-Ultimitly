@@ -90,7 +90,9 @@ export function emailOutboxEnabled(): boolean {
 // tetiklenen e-postalar (doğrulama + "bu adresle hesabınız var") son bir saatte `REGISTRATION_EMAIL_HOURLY_PACE` (varsayılan 300) adedi
 // geçince REDDEDİLMEZ — o tur alınmaz, kuyrukta bekler, saatlik pencere açıldıkça gider (doğrulama bağlantısı 24 saat geçerli). Amaç sahte
 // kayıt dalgasında e-posta sağlayıcısının itibarını korumak; şifre sıfırlama / değiştirme bu sıraya HİÇ girmez. Yayma başlayınca TEK uyarı
-// (geçiş tabanlı alarm, 24 sa hatırlatma), bitince kapanır. Taşma payı: eşzamanlı her boşaltma en fazla bir parti (10) kadar aşabilir.
+// (geçiş tabanlı alarm, 24 sa hatırlatma), sayı tavanın %80'inin altına inince kapanır. Taşma payı: eşzamanlı her boşaltma en fazla bir
+// parti (10) kadar aşabilir. Parti içinde kayıt dışı türler (şifre sıfırlama / değiştirme) HER ZAMAN önce alınır — birikmiş kayıt
+// e-postaları onları bekletmez (Opus 10-22).
 // ---------------------------------------------------------------------------
 export const REGISTRATION_PACED_KINDS: readonly EmailOutboxKind[] = ["verify_email", "account_exists"];
 export const REGISTRATION_EMAIL_HOURLY_PACE_DEFAULT = 300;
@@ -524,7 +526,7 @@ export async function drainEmailOutboxOnce(deps: EmailDrainDeps = {}): Promise<E
     WHERE "id" IN (
       SELECT "id" FROM "EmailOutbox"
       WHERE "status" = 'pending' AND "nextAttemptAt" <= ${now} AND "expiresAt" > ${now} ${paceFilter}
-      ORDER BY "createdAt" ASC
+      ORDER BY ("kind" IN (${Prisma.join([...REGISTRATION_PACED_KINDS])})) ASC, "createdAt" ASC
       LIMIT ${batch}
       FOR UPDATE SKIP LOCKED
     )
@@ -578,7 +580,9 @@ export async function drainEmailOutboxOnce(deps: EmailDrainDeps = {}): Promise<E
               "Operatör panelinde son kayıtlara bakın.",
           ),
         );
-      } else {
+      } else if (pacing.sentLastHour < Math.floor(pacing.pace * 0.8)) {
+        // Histerezis (Opus 10-22): sayı tavanın hemen altına inip yeniden aşınca uyarı her turda yeniden açılmasın — durum yalnız tavanın
+        // %80'inin altında kapanır ("tek uyarı").
         await alarm.ok("registration-pace");
       }
     } catch {

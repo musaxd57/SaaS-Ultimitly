@@ -9,8 +9,11 @@ import "server-only";
 // Karar kuralları:
 //   · Anahtar açık ama iki anahtardan biri eksik → doğrulama YOK (yanlış yapılandırma bütün kayıtları kilitlemesin); açılış uyarısı basar.
 //   · Cloudflare "geçmedi" derse (success:false, eylem adı uyuşmuyor, belirteç yok) → kayıt REDDEDİLİR.
-//   · Cloudflare'e ulaşılamazsa (ağ hatası, zaman aşımı, 5xx, okunamayan cevap) → kayıt GEÇER + hata kaydı. Cloudflare kesintisi bütün
-//     kayıtları durdurmaz; IP başına saatlik kova ve doğrulama e-postası yayma (email-outbox) yine çalışır.
+//   · Doğrulama ucuna ulaşılamazsa (ağ hatası, zaman aşımı, 5xx, okunamayan cevap) ya da Cloudflare bizim gizli anahtarımızı reddederse
+//     (yanlış yapılandırma) → kayıt GEÇER + hata kaydı; IP başına saatlik kova ve doğrulama e-postası yayma (email-outbox) yine çalışır.
+//   · ⚠️ Dürüst sınır (Opus 10-22): Cloudflare TAMAMEN erişilemezse formdaki widget yüklenemez, belirteç üretilmez ve "Hesap Oluştur"
+//     kapalı kalır — o süre kayıt durur (ziyaretçi "doğrulama yüklenemedi" görür). Belirteçsiz isteği geçirmek saldırgana kapıyı açardı;
+//     çare anahtarı kapatmaktır (`SIGNUP_TURNSTILE_ENABLED`).
 // Belirteç tek kullanımlıktır (Cloudflare tarafında); ikinci gönderimde success:false döner.
 // ---------------------------------------------------------------------------
 
@@ -63,14 +66,20 @@ export async function verifyTurnstileToken(
     return "unavailable";
   }
   if (!res.ok) return "unavailable";
-  let data: { success?: unknown; action?: unknown } | null;
+  let data: { success?: unknown; action?: unknown; "error-codes"?: unknown } | null;
   try {
-    data = (await res.json()) as { success?: unknown; action?: unknown } | null;
+    data = (await res.json()) as { success?: unknown; action?: unknown; "error-codes"?: unknown } | null;
   } catch {
     return "unavailable";
   }
   if (!data || typeof data !== "object") return "unavailable";
-  if (data.success !== true) return "rejected";
+  if (data.success !== true) {
+    // Yanlış / eksik gizli anahtar BİZİM yapılandırma hatamızdır, ziyaretçinin değil: bütün kayıtları kilitlemesin (Opus 10-22) —
+    // "ulaşılamıyor" gibi geçer, rota hata kaydı düşer.
+    const codes = Array.isArray(data["error-codes"]) ? data["error-codes"] : [];
+    if (codes.some((c) => c === "invalid-input-secret" || c === "missing-input-secret")) return "unavailable";
+    return "rejected";
+  }
   // Eylem adı Cloudflare cevabında varsa birebir uymalı (başka bir formun belirteci kayıtta kullanılamaz).
   if (data.action !== undefined && data.action !== TURNSTILE_REGISTER_ACTION) return "rejected";
   return "ok";

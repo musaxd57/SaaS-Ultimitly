@@ -64,4 +64,19 @@ describe("U11 — silme kartında 2FA kodu", () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ password: "sifre" });
   });
+
+  it("sayfa 2FA'sız açıldı ama sunucu kod istedi (başka sekmede açılmış) → kod alanı belirir, ikinci denemede kod gider", async () => {
+    fetchMock
+      .mockResolvedValueOnce(new Response(JSON.stringify({ fields: { code: "Silmek için doğrulama uygulamanızdaki kodu girin." } }), { status: 400 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    render(<DeleteAccountCard />);
+    openCard();
+    fireEvent.click(screen.getByRole("button", { name: /Evet, kalıcı olarak sil/ }));
+    expect(await screen.findByLabelText("Doğrulama kodu")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Doğrulama kodu"), { target: { value: "123456" } });
+    fireEvent.click(screen.getByRole("button", { name: /Evet, kalıcı olarak sil/ }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ password: "sifre", code: "123456" });
+  });
 });
+
