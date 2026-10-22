@@ -1,7 +1,8 @@
 import "server-only";
 
 import { admitsMissingKnowledge } from "@/lib/ai/absence";
-import { absenceHolds, type AbsenceJudgeOutcome } from "@/lib/ai/semantic/absence-judge";
+import { absenceHolds, seniorChecksOf, type AbsenceJudgeOutcome } from "@/lib/ai/semantic/absence-judge";
+import { noApologyRuleEnabled } from "@/lib/ai/no-apology-rule";
 import { vetoOutgoingReply } from "@/lib/ai/output-veto";
 import { actionClaimHold, type ClaimedActionsDeclaration } from "@/lib/ai/action-claims";
 import { vetoAvailability, type AvailabilityPolicyOptions } from "@/lib/ai/availability-claims";
@@ -154,6 +155,9 @@ export const ESCALATION_REASONS = [
   // Kanıtsız arıza adımı (kurucu 10-15: "BOZUKLAR İÇİN BİLGİ TABANINDA YAZMAYAN ÖNERİLER VEREMEZ"; anahtar `AI_FIX_SUPPORT_GATE_ENABLED`) —
   // kanal kapısıyla AYNI yüklem (`relation.fixSupportHolds`).
   "fix_unsupported",
+  // Kıdemli okuyucu (T-b, kurucu 10-22; anahtar `AI_SENIOR_READER_ENABLED`): ev sahibine platform dışı ödeme (T-d) · özür / kusur kabulü (T-a).
+  "offplatform_payment",
+  "reply_apology",
 ] as const;
 
 export type EscalationReason = (typeof ESCALATION_REASONS)[number];
@@ -342,6 +346,11 @@ export function evaluateEscalation(
   // BAĞLAM HAKEMİ (kurucu 10-21, anahtar KAPALI): hakem bu metni okuduysa karar onun; yoksa kelime kuralı (kanal kapısıyla aynı yüklem).
   const judged = stayCtx?.absenceJudge && stayCtx.absenceJudge.reply === result.reply ? stayCtx.absenceJudge.outcome : undefined;
   if (absenceHolds(admitsMissingKnowledge(result.reply ?? ""), judged)) return yes("absence_admission");
+  // ── KIDEMLİ OKUYUCU (T-b, kurucu 10-22; anahtar `AI_SENIOR_READER_ENABLED` KAPALI) — kanal kapısıyla AYNI hükümler, yalnız TUTAR. QR bir
+  // OTA kanalı değil: platform dışı iletişim kuralı (Airbnb) burada koşmaz.
+  const senior = seniorChecksOf(judged);
+  if (senior?.payHost) return yes("offplatform_payment");
+  if (senior?.apology && noApologyRuleEnabled()) return yes("reply_apology");
   // ── ÇIKTI VETOSU (Codex denetimi §A, 09-12) ───────────────────────────────
   //
   // 🚨 Gerekçe KAPALI KÜMEDEN ve AYRI: canlıda "yer tutucu mu, makbuzsuz söz

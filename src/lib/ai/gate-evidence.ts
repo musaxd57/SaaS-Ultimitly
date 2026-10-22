@@ -43,6 +43,10 @@ export const GATE_BLOCK_DETAILS = [
   // 51 (kurucu onayı 10-02 akşam, `ai/hazard-evidence.ts`): fiziksel tehlike alarmı bağlamla kalktı ama cevap kaynaksız güvence verdi
   // ("normaldir, güvenlidir") — bilgi tabanında dayanağı yoksa gitmez.
   "hazard_reassurance",
+  // Kıdemli okuyucu (T-b, kurucu 10-22; anahtar `AI_SENIOR_READER_ENABLED`): okuyucu bu metni okudu ve —
+  "reply_offplatform_payment", // misafiri ev sahibine / daireye platform dışı ödemeye yönlendiriyor (T-d; üçüncü tarafa ödeme bilgisi değil)
+  "reply_offplatform_contact", // Airbnb'de onaysız / çıkıştan sonra platform dışı iletişim (Airbnb engeller)
+  "reply_apology", // özür / üzüntü / kusur kabulü / telafi sözü (T-a; özür kuralı açıkken)
 ] as const;
 export type GateBlockDetail = (typeof GATE_BLOCK_DETAILS)[number];
 

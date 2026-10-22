@@ -51,6 +51,11 @@ const ITEMS_COMPLAINT = {
   },
 };
 
+// Kıdemli okuyucunun (T-b) hükmü: "bilgim yok" değil + verilen ek hükümler.
+function seniorRead(c: Partial<{ payHost: boolean; contact: boolean; apology: boolean }>) {
+  return { status: "ok" as const, admits: false, quote: "", checks: { payHost: false, contact: false, apology: false, ...c } };
+}
+
 // İlişki kipi (kurucu kararı 10-01 sabah, Sabah Kararları 18 "a"): şikâyet turunda R1 = cevaplanan arıza çözümü (Wi-Fi modemi).
 const ITEMS_FIX = {
   items: {
@@ -131,10 +136,36 @@ describe("kapı hükmü — her `blocked` kontrolü kendi ayrıntı koduyla", ()
       { kbFixSupport: { recipeTopics: [], subjectTopics: ["wifi"] } },
       "reply_fix_unsupported",
     ],
+    // Kıdemli okuyucu (T-b, kurucu 10-22): okuyucu bu metni okudu — üç ek hüküm yalnız TUTAR.
+    [
+      "kıdemli okuyucu: ev sahibine platform dışı ödeme (T-d)",
+      { ...ok, reply: "The Wi-Fi password is Lale2025. You can pay the cleaning fee to me in cash on arrival." },
+      WIFI_Q,
+      { absenceJudge: { reply: "The Wi-Fi password is Lale2025. You can pay the cleaning fee to me in cash on arrival.", outcome: seniorRead({ payHost: true }) } },
+      "reply_offplatform_payment",
+    ],
+    [
+      "kıdemli okuyucu: Airbnb'de onaysız konuşmada platform dışı iletişim",
+      { ...ok, reply: "The Wi-Fi password is Lale2025. Message me on WhatsApp for anything else." },
+      WIFI_Q,
+      {
+        absenceJudge: { reply: "The Wi-Fi password is Lale2025. Message me on WhatsApp for anything else.", outcome: seniorRead({ contact: true }) },
+        offPlatformContactHolds: true,
+      },
+      "reply_offplatform_contact",
+    ],
+    [
+      "kıdemli okuyucu: özür / kusur kabulü (T-a, özür kuralı açık)",
+      { ...ok, reply: "We are sorry for the inconvenience. The Wi-Fi password is Lale2025." },
+      WIFI_Q,
+      { absenceJudge: { reply: "We are sorry for the inconvenience. The Wi-Fi password is Lale2025.", outcome: seniorRead({ apology: true }) } },
+      "reply_apology",
+    ],
   ];
   for (const [name, result, msg, ctx, detail] of cases) {
     it(`${name} → blocked/${detail}`, () => {
       vi.stubEnv("AI_FIX_SUPPORT_GATE_ENABLED", detail === "reply_fix_unsupported" ? "1" : "");
+      vi.stubEnv("AI_NO_APOLOGY_RULE_ENABLED", detail === "reply_apology" ? "1" : "");
       try {
         const v = autoReplyGateVerdict(result, msg, ctx);
         expect(v).toEqual({ reason: "blocked", detail });

@@ -89,6 +89,8 @@ const REASONS = new Set([
   "emergency_number",
   // QR cevabında bilgi tabanında tarifi / konusu olmayan cihaz için adım (kurucu 10-15; anahtar `AI_FIX_SUPPORT_GATE_ENABLED`; QR kapısı ile BİREBİR).
   "fix_unsupported",
+  // Kıdemli okuyucu (T-b, kurucu 10-22; anahtar `AI_SENIOR_READER_ENABLED`; QR kapısı ile BİREBİR): ev sahibine platform dışı ödeme · özür.
+  "offplatform_payment", "reply_apology",
 ]);
 /**
  * 🚨 PARİTE: QR kapısının her `EscalationReason` değeri BURADA da olmalı.

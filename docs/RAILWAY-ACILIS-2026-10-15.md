@@ -166,8 +166,19 @@ kalıcı "işlem yok" sayılıyor (niyet kapanır, yeni işlem açılır) — ye
   bir cümleyle kelime kuralının tuttuğu "bilgim yok" cevabını serbest bıraktırabilir (yalnız o misafire gider, veri sızmaz). Serbest
   bırakma yönünde misafir metnini görmeyen ikinci kontrol (yalnız taslakla hakem) ya da iki okumanın uyuşması şartı eklenmeli —
   `docs/arastirma-2026-10-15/GUVENLIK-3-TUR-2026-10-22.md`.
+  ✅ S2 KODDA (10-22, kurucu: "Kandırmasına izin verilmesin"): taslak iki kez okunur (misafir mesajıyla + misafir mesajı OLMADAN, paralel);
+  serbest bırakma ikisi de "itiraf yok" derse. Çağrı sayısı ikiye çıktı (gecikme aynı). Açmadan önce hakem ölçümü YENİDEN koşulur
+  (`tests/eval/absence-judge.eval.test.ts`) — 16/17 · 0/51 sonucu tek okumayla alınmıştı.
 - `AI_ABSENCE_JUDGE_STRICT` — yalnız yukarıdakiyle birlikte: kelime kuralının KAÇIRDIĞI itirafı da tutar (500 gerçek cevapta 8 açık itiraf
   + 15 "ev sahibiniz söyleyebilir" geçiştirmesi). Her otomatik cevap adayına bir küçük çağrı ekler (~1,6 sn). Kurucu kararı (soru: belge §5).
+- `AI_SENIOR_READER_ENABLED` (T-b, kurucu 10-22: "bütün kontrolleri tek çağrıda toplayabiliriz en iyi şekilde kontrol sağlansın") — KIDEMLİ
+  OKUYUCU: bilgim-yok hakeminin AYNI çağrısı (iki okuma) taslağa üç soru daha sorar ve kelime adayını beklemeden kapıdan geçen HER otomatik
+  cevap adayını okur: ① ev sahibine / daireye platform dışı ödeme → tutulur (T-d: "otopark gişede nakit" gibi üçüncü tarafa ödeme bilgisi
+  artık gider; ödeme öğesi tutuluyken de) ② Airbnb'de onaylı rezervasyon yokken (ön soru, talep, iptal) ya da çıkıştan bir günden fazla
+  sonra telefon / e-posta / WhatsApp / bağlantı / platform dışına taşıma → tutulur (Airbnb engeller; `docs/AIRBNB-MESAJ-KURALLARI.md`)
+  ③ özür / üzüntü / kusur kabulü → tutulur (yalnız `AI_NO_APOLOGY_RULE_ENABLED` açıkken). QR'da ① ve ③. Okuyucu düşerse bugünkü kurallar.
+  Maliyet: her otomatik cevap adayına iki küçük paralel çağrı (~1,6 sn, 1.000 mesajda ~$2). Misafire gideni değiştirir → açmadan önce
+  gerçek model ölçümü (bilgim-yok seti + `evals/airbnb-message-policy.json` + kırmızı takım) + kurucu + ilk denemeler birlikte.
 - `AI_NO_APOLOGY_RULE_ENABLED` (kurucu 10-21: "sofra kirli derse özür dilemesin, haklısınız üzgünüm demesin") — cevap istemi şikâyette özür /
   "haklısınız" / kusur kabulü / tazminat iması öğretmez (bugünkü istem "Bunun için özür dileriz" kalıbını ÖĞRETİYOR; ölçüm: gönderilen 3.329
   gerçek cevapta 1 açık kusur özrü, taslakların ~%9'unda özür). Misafire gideni değiştirir → açmadan önce gerçek model ölçümü + kurucu.

@@ -23,12 +23,17 @@ import {
 import { runStayChangeGuard, stayGuardEnabled } from "@/lib/ai/semantic/guard";
 import {
   absenceHolds,
-  absenceJudgeEnabled,
-  absenceJudgeStrict,
+  absenceReaderActive,
+  absenceReaderStrict,
   judgeReleases,
+  paymentHeldHolds,
   runAbsenceJudge,
+  seniorChecksOf,
+  seniorReaderEnabled,
   type AbsenceJudgeOutcome,
 } from "@/lib/ai/semantic/absence-judge";
+import { noApologyRuleEnabled } from "@/lib/ai/no-apology-rule";
+import { offPlatformContactHoldsFor } from "@/lib/channels/airbnb-message-policy";
 import {
   earlyCheckinEvidenceOf,
   earlyCheckinHostNote,
@@ -250,6 +255,12 @@ export interface AutoReplyGateContext {
    * (koddan kurulan metin modelinkinin yerine geçerse eski hüküm ona taşınmaz); verilmezse kelime kuralı karar verir.
    */
   absenceJudge?: { reply: string; outcome: AbsenceJudgeOutcome };
+  /**
+   * Kıdemli okuyucu (T-b, `AI_SENIOR_READER_ENABLED`): okuyucunun "platform dışı iletişim" hükmü bu konuşmada TUTAR mı? Yalnız Airbnb
+   * kanalında ve onaylı / tamamlanmış rezervasyon YOKKEN (ön soru, talep, iptal) — Airbnb iletişim bilgisini rezervasyon onayından önce
+   * engeller. Anahtar kapalıyken alan yazılmaz.
+   */
+  offPlatformContactHolds?: boolean;
   /** Anlama katmanının konaklama sinyali (`AI_UNDERSTANDING_ENABLED`). */
   understanding?: UnderstandingStaySignal | null;
   /** Anlama katmanı açıktı ama başarısız oldu (yalnız kanıt: `sc.u = "failed"`; kararı değiştirmez). */
@@ -559,6 +570,13 @@ export function autoReplyGateVerdict(
   // BAĞLAM HAKEMİ (kurucu 10-21, `semantic/absence-judge.ts`, anahtar KAPALI): hakem okuduysa karar onun; yoksa kelime kuralı.
   const judged = context?.absenceJudge && context.absenceJudge.reply === result.reply ? context.absenceJudge.outcome : undefined;
   if (absenceHolds(admitsMissingKnowledge(result.reply), judged)) return hold("reply_absence");
+  // ── KIDEMLİ OKUYUCU (T-b, kurucu 10-22; anahtar `AI_SENIOR_READER_ENABLED` KAPALI) ─────────────────────────────────────────────
+  // Okuyucu BU metni okuduysa üç ek hüküm — yalnız TUTAR: ev sahibine platform dışı ödeme (T-d), Airbnb'de onaysız konuşmada platform dışı
+  // iletişim (Airbnb engeller), özür / kusur kabulü (T-a, özür kuralı açıkken). Okumadıysa hiçbiri koşmaz (bugünkü davranış).
+  const senior = seniorChecksOf(judged);
+  if (senior?.payHost) return hold("reply_offplatform_payment");
+  if (senior?.contact && context?.offPlatformContactHolds === true) return hold("reply_offplatform_contact");
+  if (senior?.apology && noApologyRuleEnabled()) return hold("reply_apology");
   // ── ÇIKTI VETOSU (Codex denetimi §A, 09-12) ───────────────────────────────
   //
   // 🚨 Bu kapı 09-12'ye kadar cevap METNİNE yalnız `admitsMissingKnowledge` ile
@@ -611,7 +629,10 @@ export function autoReplyGateVerdict(
     const decl = result.answeredRequests;
     if (!decl || !decl.ok) return hold(decl?.ok === false && decl.reason === "unknown_ref" ? "items_touch_held" : "items_undeclared");
     if (decl.refs.length === 0) return hold("items_nothing_answered");
-    if (items.paymentHeld && namesPaymentMethod(result.reply ?? "", { paymentContext: true })) return hold("items_payment_held");
+    // T-d (kurucu 10-22): okuyucu okuduysa yalnız ev sahibine platform dışı ödeme tutar ("otopark gişede nakit" gider); yoksa kelime kuralı.
+    if (items.paymentHeld && paymentHeldHolds(namesPaymentMethod(result.reply ?? "", { paymentContext: true }), senior)) {
+      return hold("items_payment_held");
+    }
     // Kurucu kararı 10-01: bu turun tutulan şikâyetine BAĞLI istek cevaplanabilir sayılmışsa (plan dışı yol / gelecekteki değişiklik)
     // cevap gitmez — planın ikinci kemeri. İlişki kipinde (10-01 sabah, Sabah Kararları 17 + 18 "a") karar `relation.relationGateHold`:
     // yanlış "bağımsız" işaretiyle gelen bağlı istek de tutulur (kod koruması), cevaplanan arıza çözümü bilgi tabanına dayanmalı ve
@@ -2508,6 +2529,8 @@ export async function applyChannelAutoReply(
     ...hazardContextFor(understood),
     // Konuşma öğeleri kipi (yalnız tur öğeye bölündüyse): sinyaller öğe kapsamında karar verir.
     ...(itemsPlan ? { items: itemsPlan.gateItems } : {}),
+    // Kıdemli okuyucu (T-b): Airbnb'de onaylı rezervasyon yokken platform dışı iletişim tutulur (anahtar kapalıyken alan yok).
+    ...(seniorReaderEnabled() ? { offPlatformContactHolds: offPlatformContactHoldsFor(conversation) } : {}),
   };
   // ── KONU BAZLI "BİLGİM YOK" (H9, kurucu kararı 10-16; anahtar `AI_TOPIC_ABSENCE_ENABLED`, VARSAYILAN KAPALI) ─────────────────
   // Öğe kipinde "bilgim yok" diyen cümle AYIKLANIR (misafire yine GİTMEZ); konusu bırakılan bir cihaza ya da cevaplanabilir bir isteğe
@@ -2522,7 +2545,12 @@ export async function applyChannelAutoReply(
   const absenceGuestText = [...pendingGuestMessages, last.body].join("\n\n");
   // Hüküm OKUNDUĞU metinle birlikte saklanır: ayıklama metni değiştirirse eski hüküm yeni metne bağlanmaz (kapı birebir eşitlik arar).
   let absenceJudge: { reply: string; outcome: AbsenceJudgeOutcome } | undefined;
-  if (absenceJudgeEnabled() && admitsMissingKnowledge(result.reply)) {
+  // Kıdemli okuyucu (T-b): ödeme öğesi tutuluyken kelime kuralının tutacağı ödeme cevabı da okunur (üçüncü tarafa ödeme serbest kalsın).
+  const seniorPaymentCandidate =
+    seniorReaderEnabled() &&
+    itemsPlan?.gateItems.paymentHeld === true &&
+    namesPaymentMethod(result.reply ?? "", { paymentContext: true });
+  if (absenceReaderActive() && (admitsMissingKnowledge(result.reply) || seniorPaymentCandidate)) {
     absenceJudge = {
       reply: result.reply,
       outcome: await runAbsenceJudge({ guestMessage: absenceGuestText, reply: result.reply, names: absenceNames }),
@@ -2566,7 +2594,7 @@ export async function applyChannelAutoReply(
   let gatePassed = gateFailure === null;
   // Bağlam hakemi KATI kip (`AI_ABSENCE_JUDGE_STRICT`): kapıdan geçen aday cevap, kelime kuralının kaçırdığı "bilgim yok" için de okunur.
   // Metin hakemin okuduğundan farklıysa (ayıklama) yeniden okunur.
-  if (gatePassed && gateContext.absenceJudge?.reply !== result.reply && absenceJudgeStrict()) {
+  if (gatePassed && gateContext.absenceJudge?.reply !== result.reply && absenceReaderStrict()) {
     const outcome = await runAbsenceJudge({ guestMessage: absenceGuestText, reply: result.reply, names: absenceNames });
     gateContext.absenceJudge = { reply: result.reply, outcome };
     gateFailure = autoReplyGateFailure(result, last.body, gateContext);
