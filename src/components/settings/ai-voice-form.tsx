@@ -124,7 +124,7 @@ export function AiVoiceForm({
             <summary className="cursor-pointer text-sm font-medium">
               Lixus AI sizin üslubunuzdan ne öğrendi?
             </summary>
-            <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">
+            <p className="mt-2 whitespace-pre-wrap break-words text-xs leading-relaxed text-muted-foreground">
               {styleProfile.trim()}
             </p>
             <p className="mt-2 text-[11px] text-muted-foreground">

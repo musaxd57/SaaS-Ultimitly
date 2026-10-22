@@ -677,13 +677,15 @@ export function KbManager({
                 ) : null}
                 {list.map((item) => (
                   <div key={item.id} className="rounded-lg border border-border p-3">
-                    <div className="flex items-start justify-between gap-2">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
                       {/* min-w-0: sağdaki 4 aksiyon düğmesi `min-w-[40px]` ile
                           SABİT (~171 px). Bu grup küçülemezse 360 px'de ikisi
                           birden satıra sığmıyor ve düğmeler kartın kenarından
                           31 px TAŞIYORDU (ölçüldü; min-w-0 ile taşma 0).
-                          Başlık kırpılmaz, sarar. */}
-                      <div className="flex min-w-0 items-center gap-2">
+                          Başlık kırpılmaz, sarar. 10-22 (320 px ölçüldü): başlığa ~60 px
+                          kalıyor, başlık düğmelerin ALTINA giriyordu → satır sarar
+                          (düğmeler sığmazsa alt satıra, sağa yaslı), rozetler de sarar. */}
+                      <div className="flex min-w-0 flex-wrap items-center gap-2">
                         <Badge tone={KB_CATEGORY.tone(item.category)}>
                           {KB_CATEGORY.label(item.category)}
                         </Badge>
@@ -716,7 +718,7 @@ export function KbManager({
                           </Badge>
                         ) : null}
                       </div>
-                      <div className="flex items-center gap-1">
+                      <div className="ml-auto flex items-center gap-1">
                         <button
                           type="button"
                           // TOGGLE (kurucu, 09-08): kalem açıkken tekrar tıklamak
@@ -854,7 +856,7 @@ export function KbManager({
                             // rengidir; kalemin gövdesini onunla çizmek, kullanıcının
                             // girdiği veriyi çevresindeki açıklamalarla aynı ağırlığa
                             // düşürüyordu (kullanıcı: "belirginliği artabilir").
-                            "mt-1.5 whitespace-pre-wrap text-sm text-foreground/90",
+                            "mt-1.5 whitespace-pre-wrap break-words text-sm text-foreground/90",
                             !expandedIds.has(item.id) && "line-clamp-3",
                           )}
                         >

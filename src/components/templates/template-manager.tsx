@@ -321,7 +321,7 @@ export function TemplateManager({ properties, customTemplates, defaultTemplates,
                         </span>
                       )}
                     </div>
-                    <p className="whitespace-pre-wrap text-sm text-foreground/80 line-clamp-3">{t.body}</p>
+                    <p className="whitespace-pre-wrap break-words text-sm text-foreground/80 line-clamp-3">{t.body}</p>
                   </div>
                   {canManage ? (
                     <div className="flex shrink-0 items-center gap-1">
@@ -388,7 +388,7 @@ export function TemplateManager({ properties, customTemplates, defaultTemplates,
                         </span>
                         <Badge tone="muted">Varsayılan</Badge>
                       </div>
-                      <p className="whitespace-pre-wrap text-xs text-muted-foreground line-clamp-3">{t.body}</p>
+                      <p className="whitespace-pre-wrap break-words text-xs text-muted-foreground line-clamp-3">{t.body}</p>
                     </div>
                     {canManage ? (
                       <button

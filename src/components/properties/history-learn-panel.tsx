@@ -164,18 +164,18 @@ function ComparisonCard({ c, canInstruct, onDone }: { c: Comparison; canInstruct
   return (
     <div className="space-y-2 rounded-md border p-3" data-testid="history-learn-comparison">
       <p className="text-xs text-muted-foreground">Misafir sordu</p>
-      <p className="whitespace-pre-wrap text-sm">{c.question ?? "Mesaj artık yok."}</p>
+      <p className="whitespace-pre-wrap break-words text-sm">{c.question ?? "Mesaj artık yok."}</p>
       <div className="grid gap-2 sm:grid-cols-2">
         <div className="space-y-1">
           <p className="text-xs text-muted-foreground">Sizin cevabınız</p>
-          <p className="whitespace-pre-wrap text-sm">{c.hostAnswer ?? "Mesaj artık yok."}</p>
+          <p className="whitespace-pre-wrap break-words text-sm">{c.hostAnswer ?? "Mesaj artık yok."}</p>
         </div>
         <div className="space-y-1">
           <p className="text-xs text-muted-foreground">
             Yapay zekâ bugün böyle cevaplardı{" "}
             {c.wouldAutoSend === true ? "(kendiliğinden gönderirdi)" : c.wouldAutoSend === false ? "(size bırakırdı)" : ""}
           </p>
-          <p className="whitespace-pre-wrap text-sm">
+          <p className="whitespace-pre-wrap break-words text-sm">
             {c.closing ? "Cevap gerekmez (misafir konuşmayı kapatıyor)." : (c.aiAnswer ?? "Cevap üretilemedi.")}
           </p>
         </div>
@@ -332,7 +332,7 @@ function DraftCard({ draft, onDone }: { draft: Draft; onDone: () => void }) {
       {draft.sample ? (
         <p className="rounded-md bg-muted/50 px-2.5 py-2 text-xs text-muted-foreground" data-testid="history-learn-sample">
           {draft.fromNote ? "Karşılaştırılan eski cevabınız" : "Örnek cevabınız"} ({draft.sample.month}):{" "}
-          <span className="whitespace-pre-wrap">“{draft.sample.text}”</span>
+          <span className="whitespace-pre-wrap break-words">“{draft.sample.text}”</span>
         </p>
       ) : null}
       {draft.conflict ? (
@@ -362,7 +362,7 @@ function DraftCard({ draft, onDone }: { draft: Draft; onDone: () => void }) {
               />
               <span>
                 <strong>«{m.title}»</strong> kaydının yerine koy <span className="text-muted-foreground">({MATCH_KIND_TEXT[m.kind]})</span>
-                <span className="block whitespace-pre-wrap text-muted-foreground">“{m.preview}”</span>
+                <span className="block whitespace-pre-wrap break-words text-muted-foreground">“{m.preview}”</span>
               </span>
             </label>
           ))}

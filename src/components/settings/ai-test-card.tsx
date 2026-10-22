@@ -173,7 +173,7 @@ export function AiTestCard({ properties }: { properties: { id: string; name: str
                   : "Bu mesaja cevap gerekmez: misafire hiçbir şey gönderilmez. Konuşmada açık bir konu yoksa “Cevap gerekmedi” olarak işaretlenir."}
               </p>
               {result.closingReplyEnabled && result.closingReplyPreview && !result.closingSemantic ? (
-                <pre className="whitespace-pre-wrap rounded border border-sky-200 dark:border-sky-500/30 bg-white dark:bg-card p-2 font-sans text-sky-900 dark:text-sky-200">
+                <pre className="whitespace-pre-wrap break-words rounded border border-sky-200 dark:border-sky-500/30 bg-white dark:bg-card p-2 font-sans text-sky-900 dark:text-sky-200">
                   {result.closingReplyPreview}
                 </pre>
               ) : null}
@@ -212,7 +212,7 @@ export function AiTestCard({ properties }: { properties: { id: string; name: str
           {/* On a closing/pure-praise the model draft is DEAD weight: nothing is sent (kurucu kuralı 09-25), and with
               the courtesy ON the blue preview above IS the outgoing message — a second, never-sent text only confuses. */}
           {result.closingAck ? null : (
-            <pre className="whitespace-pre-wrap font-sans text-sm">{result.reply}</pre>
+            <pre className="whitespace-pre-wrap break-words font-sans text-sm">{result.reply}</pre>
           )}
         </div>
       ) : null}

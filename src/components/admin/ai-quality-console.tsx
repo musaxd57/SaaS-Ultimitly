@@ -226,11 +226,11 @@ function GenerationCard({
       <div className="grid gap-2 md:grid-cols-2">
         <div>
           <div className="text-xs font-medium text-muted-foreground">Modelin taslağı</div>
-          <p className="whitespace-pre-wrap">{g.draftText ?? "— (saklama süresi doldu ya da yok)"}</p>
+          <p className="whitespace-pre-wrap break-words">{g.draftText ?? "— (saklama süresi doldu ya da yok)"}</p>
         </div>
         <div>
           <div className="text-xs font-medium text-muted-foreground">Misafire giden</div>
-          <p className="whitespace-pre-wrap">{g.sentText ?? "— (gönderilmedi)"}</p>
+          <p className="whitespace-pre-wrap break-words">{g.sentText ?? "— (gönderilmedi)"}</p>
         </div>
       </div>
       {g.labels.length > 0 ? (

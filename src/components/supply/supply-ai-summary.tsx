@@ -54,7 +54,7 @@ export function SupplyAiSummary({ days, enabled }: { days: number; enabled: bool
       {busy ? (
         <p className="mt-2 text-xs text-muted-foreground">Birkaç saniye sürebilir…</p>
       ) : null}
-      {summary ? <p className="mt-2 whitespace-pre-wrap text-sm">{summary}</p> : null}
+      {summary ? <p className="mt-2 whitespace-pre-wrap break-words text-sm">{summary}</p> : null}
       {error ? <p className="mt-2 text-sm text-muted-foreground">{error}</p> : null}
     </div>
   );

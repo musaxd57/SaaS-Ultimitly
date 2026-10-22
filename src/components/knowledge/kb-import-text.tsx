@@ -247,7 +247,7 @@ export function KbImportText({ properties }: { properties: { id: string; name: s
                           <Badge tone={KB_CATEGORY.tone(i.category)}>{KB_CATEGORY.label(i.category)}</Badge>
                           <span className="text-xs text-muted-foreground">satır {i.lines.join(", ")}</span>
                         </span>
-                        <span className="mt-1 block whitespace-pre-wrap text-xs">{i.content}</span>
+                        <span className="mt-1 block whitespace-pre-wrap break-words text-xs">{i.content}</span>
                       </span>
                     </label>
                   ))}

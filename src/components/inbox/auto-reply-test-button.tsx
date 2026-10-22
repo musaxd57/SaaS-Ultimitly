@@ -204,7 +204,7 @@ export function AutoReplyTestButton({ locked = false }: { locked?: boolean }) {
                               <span className="ml-auto">%{Math.round(p.confidence * 100)} emin</span>
                             ) : null}
                           </div>
-                          <p className="whitespace-pre-wrap text-sm">{p.reply}</p>
+                          <p className="whitespace-pre-wrap break-words text-sm">{p.reply}</p>
                         </div>
                       ))}
                     </section>

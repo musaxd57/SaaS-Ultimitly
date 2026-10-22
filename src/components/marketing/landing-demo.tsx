@@ -131,7 +131,7 @@ export function LandingDemo() {
 
       {result ? (
         <div className="mt-3 space-y-2 rounded-lg border border-border bg-background p-3">
-          <p className="whitespace-pre-wrap text-sm">{result.reply}</p>
+          <p className="whitespace-pre-wrap break-words text-sm">{result.reply}</p>
           <div
             className={`flex items-start gap-1.5 rounded-md px-2.5 py-1.5 text-xs ${
               wouldAutoSend ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"

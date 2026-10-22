@@ -1109,7 +1109,7 @@ export function ConversationThread({
                         ? "Kontroller uygun. Erken giriş için hazır cevap:"
                         : "Erken giriş için hazır cevap (yukarıdaki uyarıları kontrol edip gönderin):"}
                     </p>
-                    <p className="whitespace-pre-wrap rounded-md bg-muted p-2 text-sm">{suggestion.earlyCheckin.draft}</p>
+                    <p className="whitespace-pre-wrap break-words rounded-md bg-muted p-2 text-sm">{suggestion.earlyCheckin.draft}</p>
                     {canReply ? (
                       <Button size="sm" variant="outline" onClick={() => setComposer(suggestion.earlyCheckin?.draft ?? "")}>
                         <Wand2 className="size-4" /> Bu cevabı kullan
@@ -1120,7 +1120,7 @@ export function ConversationThread({
               </div>
             ) : null}
 
-            <p className="whitespace-pre-wrap rounded-md bg-card p-3 text-sm">{suggestion.reply}</p>
+            <p className="whitespace-pre-wrap break-words rounded-md bg-card p-3 text-sm">{suggestion.reply}</p>
 
             {canReply ? (
               <div className="flex flex-wrap gap-2">

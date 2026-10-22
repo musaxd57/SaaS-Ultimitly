@@ -179,7 +179,7 @@ export function KbPastAnswers() {
                     ) : null}
                   </div>
                   <p className="mb-1 text-xs text-muted-foreground">{s.title}</p>
-                  <p className="whitespace-pre-wrap text-sm">{s.content}</p>
+                  <p className="whitespace-pre-wrap break-words text-sm">{s.content}</p>
                   <div className="mt-3">
                     <Button size="sm" onClick={() => add(s, k)} disabled={isAdded || busy === k}>
                       {busy === k ? (
@@ -216,7 +216,7 @@ export function KbPastAnswers() {
               <p className="mb-1 text-xs text-muted-foreground">
                 Örnek soru: <span className="italic">“{s.exampleQuestion}”</span>
               </p>
-              <p className="whitespace-pre-wrap text-sm">{s.answer}</p>
+              <p className="whitespace-pre-wrap break-words text-sm">{s.answer}</p>
               <div className="mt-3">
                 <Button size="sm" onClick={() => add({ ...s, content: s.answer }, k)} disabled={isAdded || busy === k}>
                   {busy === k ? (

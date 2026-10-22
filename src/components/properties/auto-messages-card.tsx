@@ -148,7 +148,7 @@ function AutoMessageEditor({ propertyId, item, canEdit }: { propertyId: string; 
       {current ? (
         <div className="space-y-1 rounded-md border border-border bg-muted/40 p-3">
           <p className="text-xs font-medium text-muted-foreground">Misafire böyle gider (örnek ad: Ayşe)</p>
-          {current.text ? <p className="whitespace-pre-wrap text-sm">{current.text}</p> : null}
+          {current.text ? <p className="whitespace-pre-wrap break-words text-sm">{current.text}</p> : null}
           <IssueNote preview={current} />
         </div>
       ) : dirty ? (
