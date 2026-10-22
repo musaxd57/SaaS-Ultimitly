@@ -67,7 +67,10 @@ describe("istem", () => {
 
   it("ek başka kişinin bilgisini human_request'e bağlar; misafirin KENDİ rezervasyonu hariç", () => {
     expect(UNDERSTANDING_PRIVACY_RULE_ADDENDUM).toContain("is intent human_request");
-    expect(UNDERSTANDING_PRIVACY_RULE_ADDENDUM).toContain("The guest's OWN booking");
+    expect(UNDERSTANDING_PRIVACY_RULE_ADDENDUM).toContain("The guest's OWN stay is NOT this");
+    // Canlı ölçüm 10-22: "Hangi dairede kalıyoruz, dairenin adı ne?" misafirin KENDİ dairesi → başka kişinin bilgisi DEĞİL (tutulup e-posta gidiyordu).
+    expect(UNDERSTANDING_PRIVACY_RULE_ADDENDUM).toContain("which apartment, room, floor or door number they are in, its name");
+    expect(UNDERSTANDING_PRIVACY_RULE_ADDENDUM).toContain("[directions_transport]");
     expect(UNDERSTANDING_PRIVACY_RULE_ADDENDUM).toContain("[checkout_time]");
   });
 

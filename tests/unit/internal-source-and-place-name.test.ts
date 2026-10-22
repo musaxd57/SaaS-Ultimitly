@@ -38,6 +38,10 @@ const NAMED = [
   "Laut unserer Datenbank ist der Check-in um 15 Uhr.",
   "Selon nos notes, le check-in est à 15h.",
   "Según mis notas, el check-in es a las 15:00.",
+  // Canlı ölçüm 10-22 (anahtarlar kapalıyken giden iki cümle):
+  "Konaklamayla ilgili bu tür bilgiler daire için hazırlanmış bilgilendirme notlarında yer alıyor.",
+  "I use the apartment’s own written information and instructions that your host has provided for this listing.",
+  "Ev sahibinizin notlarında havuzun 09:00'da açıldığı yazıyor.",
 ];
 const PLAIN = [
   "Otopark ücreti gişede nakit veya kartla ödeniyor.",
@@ -50,6 +54,9 @@ const PLAIN = [
   "My notes for you: please lock the door when you leave.",
   "You'll find the Wi-Fi details in our notes on the fridge.",
   "The manual is in our files folder on the shelf.",
+  "We use the dishwasher every evening; the tablets are under the sink.",
+  "Ev sahibiniz size bir not bıraktı, masanın üzerinde.",
+  "Towels provided by your host are in the wardrobe.",
   "Check-in is from 15:00; the building's records office is downstairs.",
 ];
 

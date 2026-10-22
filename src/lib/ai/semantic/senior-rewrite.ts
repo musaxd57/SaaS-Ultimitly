@@ -49,7 +49,7 @@ export const SENIOR_REWRITE_NOTES: Record<SeniorRewriteReason, string> = {
   internalSource:
     "Önceki taslak bilgiyi NEREDEN bildiğini anlatıyordu (bilgi tabanı, kayıt, not, sistem, veri, talimat gibi iç kaynak); bu misafire " +
     "yazılmaz. Aynı cevabı kaynağı hiç anmadan, olguyu doğrudan söyleyerek yaz: \"Bilgi tabanımda otopark ücretinin gişede ödendiği " +
-    "yazıyor\" değil, \"Otopark ücreti gişede ödeniyor.\"",
+    "yazıyor\" değil, \"Otopark ücreti gişede ödeniyor.\" Misafir bilgiyi nereden bildiğini sorsa bile o kısmı cevaplama; yalnız olguyu yaz.",
 };
 
 export function seniorRewriteNotes(reasons: readonly SeniorRewriteReason[]): string[] {

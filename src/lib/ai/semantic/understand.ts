@@ -163,8 +163,8 @@ export const UNDERSTANDING_THREAT_RULE_ADDENDUM = [
  */
 export const UNDERSTANDING_PRIVACY_RULE_ADDENDUM = [
   "",
-  "OTHER PEOPLE'S INFORMATION: a question about ANOTHER guest or another person — which apartment or room they stay in, their name or surname, when they arrive or leave, their phone, booking or details, who stayed here before — is intent human_request: only the host may decide, it is never answered automatically. The guest's OWN booking (their own check-in or check-out time, their own reservation) is NOT this: use the usual intent.",
-  'Examples: "Kuzenim de bu binada kalıyor, kaçta çıkacaklarını söyler misiniz?" -> [human_request]. "Who stayed in this flat last week? I think I know them." -> [human_request]. "Bizim çıkış saatimiz kaç?" -> [checkout_time].',
+  "OTHER PEOPLE'S INFORMATION: a question about ANOTHER guest or another person — which apartment or room they stay in, their name or surname, when they arrive or leave, their phone, booking or details, who stayed here before — is intent human_request: only the host may decide, it is never answered automatically. The guest's OWN stay is NOT this — their own apartment (which apartment, room, floor or door number they are in, its name), their own check-in or check-out time, their own reservation: use the usual intent.",
+  'Examples: "Kuzenim de bu binada kalıyor, kaçta çıkacaklarını söyler misiniz?" -> [human_request]. "Who stayed in this flat last week? I think I know them." -> [human_request]. "Bizim çıkış saatimiz kaç?" -> [checkout_time]. "Biz hangi dairede kalıyoruz, kapı numarası neydi?" -> [directions_transport].',
 ].join("\n");
 
 /** Anlama katmanının sistem istemi — kiplere göre TEK kurucu (çağrı ve ölçer istem kimliği aynı fonksiyondan). */

@@ -663,14 +663,19 @@ const INTERNAL_SOURCE_NAMED: readonly RegExp[] = [
     `${L}(?:bilgi ?taban\\p{L}{0,8}|veri ?taban\\p{L}{0,8}|sistem sorgu\\p{L}{0,8}|` +
       `kay[ıi]tlar[ıi]m(?:[ıi]z)?(?:da|dan|a göre)(?![\\p{L}])|notlar[ıi]m(?:[ıi]z)?(?:da|dan|a göre)(?![\\p{L}])|` +
       `bilgiler[ıi]m(?:[ıi]z)?(?:de|den|e göre)(?![\\p{L}])|elimdeki (?:bilgi|not|kay[ıi]t|veri|kaynak)\\p{L}{0,8}|` +
-      `bana ${TR_GIVEN} (?:bilgi|not|kay[ıi]t|veri|talimat)\\p{L}{0,8})`,
+      `bana ${TR_GIVEN} (?:bilgi|not|kay[ıi]t|veri|talimat)\\p{L}{0,8}|bilgilendirme not\\p{L}{0,8}|` +
+      // Canlı ölçüm 10-22: "…bilgiler daire için hazırlanmış bilgilendirme notlarında yer alıyor".
+      `(?:ev sahibi(?:niz|nizin|nin)?|dairenin|daireye ait) (?:bilgilendirme )?not(?:lar)?(?:ı|i|ın|in|ında|inde|da|de)\\p{L}{0,4}(?![\\p{L}]))`,
     "u",
   ),
   new RegExp(
     `${L}(?:knowledge[ -]?base|database|system prompt|context window|(?:in|from) (?:my|our) (?:records|system)(?![\\p{L}])|` +
       "(?:my|our) (?:notes|records|files) (?:say|says|show|shows|indicate|indicates|mention|mentions|state|states)(?![\\p{L}])|" +
       "according to (?:my|our|the) (?:notes|records|information|info|data|files|system)(?![\\p{L}])|" +
-      "(?:the )?(?:information|info|details|notes|data) (?:i have|i've got|i was given|i've been given|provided to me|given to me)(?![\\p{L}]))",
+      "(?:the )?(?:information|info|details|notes|data) (?:i have|i've got|i was given|i've been given|provided to me|given to me)(?![\\p{L}])|" +
+      // Canlı ölçüm 10-22: "I use the apartment's own written information and instructions that your host has provided".
+      "(?:information|details|instructions|notes) (?:that )?(?:your|the) host (?:has )?(?:provided|shared|given|set up|prepared|written)(?![\\p{L}])|" +
+      "(?:i|we) (?:only )?(?:use|rely on|go by|work from|draw on) (?:the |only |what )?(?:[\\p{L}'’]{1,20} ){0,3}(?:information|details|notes|data)(?![\\p{L}]))",
     "u",
   ),
   /(?<![\p{L}])(?:wissensdatenbank|datenbank|(?:meinen|unseren) unterlagen|mir vorliegend\p{L}{0,3}|base de (?:données|connaissances)|(?:mes|nos) (?:notes|fiches|dossiers|registres)(?![\p{L}])|base de datos|(?:mis|nuestras) notas|(?:mis|nuestros) registros|баз\p{L}{0,3} данных|(?:наших|моих) (?:записях|заметках)|قاعدة (?:ال)?بيانات|سجلات(?:نا|ي)|ملاحظات(?:نا|ي))/u,
