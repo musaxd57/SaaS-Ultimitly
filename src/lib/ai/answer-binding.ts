@@ -1806,7 +1806,10 @@ const GENERIC_REGION_WORDS: ReadonlySet<string> = new Set(
 export function contentCovered(text: string, by: string): boolean {
   const tt = tokenize(text);
   const bt = tokenize(by);
-  return tt.every((t, i) => !contentWord(tt, i, []) || PREDICATE_WORDS.has(t) || bt.some((b) => sameStem(t, b)));
+  const byTopics = new Set(topicsWithSymptomsOf(by));
+  // Aynı sözlük konusu ("çıkış" ~ "check-out") da kapsar — Türkçe cevapta iki söyleyiş de olağan.
+  const sameTopic = (i: number) => topicsWithSymptomsOf(`${tt[i]} ${tt[i + 1] ?? ""}`).some((x) => byTopics.has(x));
+  return tt.every((t, i) => !contentWord(tt, i, []) || PREDICATE_WORDS.has(t) || bt.some((b) => sameStem(t, b)) || sameTopic(i));
 }
 
 /** Sorudaki gün / mevsim / kişi / sıklık koşul sınıfları ("cumartesi havuz kaçta" → `sat`) — iki soru aynı koşulu mu soruyor. */
