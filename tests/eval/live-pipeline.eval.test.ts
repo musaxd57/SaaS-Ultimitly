@@ -85,7 +85,8 @@ interface Scenario {
 }
 interface Dataset {
   version: number;
-  property: { name: string; checkInTime: string; checkOutTime: string; address?: string; city?: string };
+  /** `guestDisplayName` (U4, misafire görünen ad) yalnız bu alanı bilen kodda yazılır — eski kod kolunda yok sayılır. */
+  property: { name: string; guestDisplayName?: string; checkInTime: string; checkOutTime: string; address?: string; city?: string };
   kbSets: Record<string, { category: string; title: string; content: string }[]>;
   scenarios: Scenario[];
 }
@@ -206,6 +207,7 @@ async function seed(s: Scenario): Promise<{ conversationId: string }> {
     data: {
       organizationId: org.id,
       name: data.property.name,
+      guestDisplayName: data.property.guestDisplayName ?? null,
       checkInTime: data.property.checkInTime,
       checkOutTime: data.property.checkOutTime,
       address: data.property.address ?? null,
