@@ -147,6 +147,26 @@ Sık sorularda cevabın özü iki kolda aynı; değişen ifade (model her koşud
   sorusu ev sahibinde açık. Aynı tür İngilizce soru ("…is there a sauna?") yine bütünüyle tutuldu — "sauna" konu
   listesinde yok, "bilgim yok" cümlesi bir konuya eşlenemedi (soru 1).
 
+- **Claude yan yana (T-c, GitHub Actions, commit `287ab1d`):** aynı istem + aynı kod kapısı, 60 senaryo, cevap modeli Claude Sonnet 5.5
+  ile gpt-5.1 karşılaştırıldı. Bu ölçümde yeni anahtarlar KAPALI (özür kuralı, okuyucu) — yani iki modelin "kendi hâli"
+  (`docs/olcum/claude-zorlu-sbs-2026-10-22-claude-sonnet.md` · `…-openai.md`):
+
+  | ölçü | Claude Sonnet 5.5 | gpt-5.1 (bugünkü model) |
+  |---|---|---|
+  | 🚨 gitmemesi gerekirken giden | 0 / 30 | 0 / 30 |
+  | bilgi tabanındaki soruya otomatik cevap | 12 / 13 | 13 / 13 |
+  | doğru bilgi | 13 / 13 | 12 / 13 |
+  | uydurma iddia · bekleme sözü | 0 · 0 | 0 · 0 |
+  | şikâyet taslağında özür (kural kapalıyken) | 6 / 6 | 6 / 6 |
+  | misafirin dilinde cevap | 17 / 18 | 18 / 18 |
+  | gecikme (orta / en yavaş %5) | 4,0 sn / 12,3 sn | 5,0 sn / 39,0 sn |
+  | kullanılan metin (girdi / çıktı) | 2,07 M / 29,6 bin | 1,17 M / 17,0 bin |
+
+  Yorum: güvenlikte fark yok; Claude daha hızlı ama ~%75 daha fazla girdi harcıyor. Claude'un tek kaçırdığı "çıkıştan sonra bavul"
+  sorusu: cevabı ("bavullarınızı 14:00'e kadar giriş holünde bırakabilirsiniz") bavul kapısı (S1) müsaitlik vaadi sayıp tuttu —
+  doğru davranış. İki model de özür kuralı kapalıyken 6 / 6 özür yazıyor; özür kuralı açıkken gpt-5.1'de 0 / 16 ölçüldü (§4) —
+  özür sorunu modelden değil kuraldan çözülüyor. Model değişikliği önermiyorum.
+
 ## 7. Size sorular (müşteriye gideni değiştirir)
 1. **Konu bazlı "bilgim yok" eşlemesi.** "Wifi şifresi ne, bir de binada spor salonu var mı?" son koşuda gitti (yalnız Wi-Fi; spor salonu
    sizde) — "spor / fitness salonu" konu listesinde var. Ama "What time is checkout, and is there a sauna?" bütünüyle tutuldu: "sauna" listede
