@@ -48,6 +48,8 @@ const PLAIN = [
   "Wi-Fi ağı Lale-5G, şifresi Lale2025.",
   "Notları buzdolabının üstüne bırakabilirsiniz.",
   "My notes for you: please lock the door when you leave.",
+  "You'll find the Wi-Fi details in our notes on the fridge.",
+  "The manual is in our files folder on the shelf.",
   "Check-in is from 15:00; the building's records office is downstairs.",
 ];
 

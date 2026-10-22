@@ -484,8 +484,9 @@ const ALL_ABSENCE_PATTERNS: readonly RegExp[] = [...ABSENCE_PATTERNS, ...MORE_AB
 // سجلاتنا", "bana tanımlanan bilgilerin içinde", "sistem sorgusunda eşleştiremedim". Ortak yapı: yapay zekânın KENDİ kaynağını / aramasını anlatan
 // bir İŞARET + aynı cümlede olumsuzluk. Yön yalnız TUTMAK (kapı kısıtlayıcı). İşaretler yalnız iç kaynaktır — çıplak "sistem / system / records"
 // İŞARET DEĞİL (mülk olgusu: "Klima sistemimizde sorun yok", "The heating system is electric" — ölçer kategorisi "Sistem / kayıt sözcüklü normal
-// cevap" 0 kalmalı); Türkçe "elimdeki / bana verilen …" yalnız bulunma ekiyle ("bilgilerde", "notlarında", "içinde") — "elimdeki bilgilere göre
-// otopark ücretsiz, ek ücret yok" olgudur. Olumsuzluk dil başına ayrı (İspanyolca "no" İngilizce "no deposit"i tutmasın). Kalıplar başı sabit
+// cevap" 0 kalmalı); Türkçe "elimdeki / bana verilen …" yalnız bulunma ekiyle ("bilgilerde", "notlarında", "içinde"). (Bu liste yalnız
+// İTİRAF ailesidir; "elimdeki bilgilere göre otopark ücretsiz" gibi OLUMLU iç kaynak anlatımını kurucu 10-22 ayrıca yasakladı →
+// ↓`namesInternalSource`, ayrı ayrıntı kodu `reply_internal_source`.) Olumsuzluk dil başına ayrı (İspanyolca "no" İngilizce "no deposit"i tutmasın). Kalıplar başı sabit
 // sözcükle başlar, tekrarlar kapalı — karesel iş yok (`absence-cost.test.ts`).
 const TR_GIVEN = "(?:tanımlanan|verilen|iletilen|sağlanan|aktarılan|gönderilen|yüklenen|paylaşılan)";
 /** Türkçe "yok" — "sorun / eksik / ücret … yok" (çekimli de: "sorunu yok", "ücreti yok") olgudur, olumsuzluk sayılmaz. */
@@ -666,7 +667,7 @@ const INTERNAL_SOURCE_NAMED: readonly RegExp[] = [
     "u",
   ),
   new RegExp(
-    `${L}(?:knowledge[ -]?base|database|system prompt|context window|(?:in|from|on) (?:my|our) (?:notes|records|files|system)(?![\\p{L}])|` +
+    `${L}(?:knowledge[ -]?base|database|system prompt|context window|(?:in|from) (?:my|our) (?:records|system)(?![\\p{L}])|` +
       "(?:my|our) (?:notes|records|files) (?:say|says|show|shows|indicate|indicates|mention|mentions|state|states)(?![\\p{L}])|" +
       "according to (?:my|our|the) (?:notes|records|information|info|data|files|system)(?![\\p{L}])|" +
       "(?:the )?(?:information|info|details|notes|data) (?:i have|i've got|i was given|i've been given|provided to me|given to me)(?![\\p{L}]))",
