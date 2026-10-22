@@ -135,7 +135,7 @@ export function GuestChatSettings({
       <p className="text-xs text-muted-foreground">
         Dairenin içine asacağınız QR&apos;ı okutan misafir, bilgi tabanından genel sorularını yapay zekâya
         sorar; çözülemeyen konu size mesaj olarak düşer. Güvenlik için kapı kodu burada paylaşılmaz; Wi-Fi bilgisi
-        yalnız bu konaklamaya bağlanmış cihazdaki misafire verilir.
+        yalnız sohbet koduyla açılan konaklamada verilir (kodsuz konaklamada Wi-Fi sorusu size kalır).
       </p>
 
       <button

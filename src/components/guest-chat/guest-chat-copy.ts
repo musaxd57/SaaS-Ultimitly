@@ -21,9 +21,10 @@ export function guestLocaleFromAcceptLanguage(header: string | null | undefined)
     .slice(0, 20)
     .forEach((part, at) => {
       const [tag, ...params] = part.trim().split(";");
-      const lang = (tag ?? "").trim().toLowerCase().split("-")[0] ?? "";
+      const lang = (tag ?? "").trim().toLowerCase().split(/[-_]/)[0] ?? "";
       if (!/^[a-z]{2,3}$/.test(lang)) return;
-      const qParam = params.map((p) => p.trim()).find((p) => p.startsWith("q="));
+      // "q=0.5", "Q=0.5", "q = 0.5" — hepsi aynı ağırlık (Haiku 10-22).
+      const qParam = params.map((p) => p.replace(/\s+/g, "").toLowerCase()).find((p) => p.startsWith("q="));
       const q = qParam ? Number(qParam.slice(2)) : 1;
       if (!Number.isFinite(q) || q <= 0) return;
       if (!best || q > best.q) best = { lang, q, at };

@@ -20,6 +20,10 @@ describe("Accept-Language → ekran dili", () => {
     ["*", "tr"],
     ["en;q=0,tr;q=0.1", "tr"],
     ["garbage;;;", "tr"],
+    // Büyük harfli / boşluklu ağırlık ve alt çizgili etiket (Haiku 10-22).
+    ["en;Q=0.1,tr;q=0.9", "tr"],
+    ["en; q = 0.2, tr;q=0.8", "tr"],
+    ["tr_TR", "tr"],
   ])("%s → %s", (header, expected) => {
     expect(guestLocaleFromAcceptLanguage(header)).toBe(expected);
   });

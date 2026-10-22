@@ -18,6 +18,12 @@ afterEach(() => {
 });
 
 describe("ResetDeviceButton", () => {
+  it("onay metni sıfırlamanın DAİRE genelinde olduğunu söyler", () => {
+    render(<ResetDeviceButton propertyId="p1" />);
+    fireEvent.click(screen.getByRole("button", { name: /Cihaz kilidini sıfırla/ }));
+    expect(screen.getByText(/Bu dairenin sohbet kilidi/)).toBeTruthy();
+  });
+
   it("onay ister; Vazgeç istek göndermez ve odağı düğmeye geri verir", async () => {
     render(<ResetDeviceButton propertyId="p1" />);
     fireEvent.click(screen.getByRole("button", { name: /Cihaz kilidini sıfırla/ }));
@@ -31,8 +37,7 @@ describe("ResetDeviceButton", () => {
     render(<ResetDeviceButton propertyId="p1" />);
     fireEvent.click(screen.getByRole("button", { name: /Cihaz kilidini sıfırla/ }));
     fireEvent.click(screen.getByRole("button", { name: /Evet, sıfırla/ }));
-    await screen.findByRole("status");
-    expect(screen.getByRole("status").textContent).toMatch(/Sıfırlandı/);
+    await waitFor(() => expect(screen.getByRole("status").textContent).toMatch(/Sıfırlandı/));
     const [url, init] = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
     expect(url).toBe("/api/properties/p1/reset-chat");
     expect((init as RequestInit).method).toBe("POST");
@@ -44,6 +49,9 @@ describe("ResetDeviceButton", () => {
     fireEvent.click(screen.getByRole("button", { name: /Cihaz kilidini sıfırla/ }));
     fireEvent.click(screen.getByRole("button", { name: /Evet, sıfırla/ }));
     await screen.findByRole("alert");
-    expect(screen.getByRole("button", { name: /Evet, sıfırla/ })).toBeTruthy();
+    const yes = screen.getByRole("button", { name: /Evet, sıfırla/ });
+    expect(yes).toBeTruthy();
+    // Meşgulken bile düğme odak dışına itilmez (disabled değil, aria-disabled) — hata sonrası odak yerinde.
+    expect((yes as HTMLButtonElement).disabled).toBe(false);
   });
 });

@@ -8,11 +8,11 @@ import { GUEST_COPY, guestLocaleFromAcceptLanguage } from "@/components/guest-ch
 
 export const dynamic = "force-dynamic";
 
-// Public guest concierge page — never indexed.
-export const metadata: Metadata = {
-  title: "Misafir Yardım",
-  robots: { index: false, follow: false },
-};
+// Public guest concierge page — never indexed. Sekme başlığı da misafirin dilinde (U2, Haiku 10-22).
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = guestLocaleFromAcceptLanguage((await headers()).get("accept-language"));
+  return { title: locale === "en" ? "Guest Help" : "Misafir Yardım", robots: { index: false, follow: false } };
+}
 
 /**
  * The public page a guest reaches by scanning the in-apartment QR. Mirrors the

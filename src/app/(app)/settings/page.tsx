@@ -339,8 +339,8 @@ export default async function SettingsPage({
             <Link href="/properties" className="underline underline-offset-2">
               mülk sayfasındaki
             </Link>{" "}
-            &quot;Otomatik mesajlar&quot; bölümüne yazdığınız metin aynen gider. Bu anahtar kapalıyken de, kendi anahtarları
-            açıksa gönderilirler.
+            &quot;Otomatik mesajlar&quot; bölümüne yazdığınız metin aynen gider. AI anahtarı kapalıyken de, kendi anahtarları
+            açıksa gönderilirler. Dört anahtar da sayfanın üstündeki &quot;Otomasyon durumu&quot; kartındadır.
           </p>
         </CardContent>
       </Card>
