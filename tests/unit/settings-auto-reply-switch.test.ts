@@ -55,8 +55,10 @@ const code = (rel: string) =>
 describe("Ayarlar — AI ana anahtarı", () => {
   it("🚨 `autoReplyHospitable` AYARLAR'DA var (eskiden 0 geçiş)", () => {
     const s = read(SETTINGS);
-    expect(s).toContain('field="autoReplyHospitable"');
-    expect(s).toMatch(/enabled=\{org\?\.autoReplyHospitable/);
+    // U5 (kurucu 10-22): dört anahtar sekmenin en üstündeki "Otomasyon durumu" kartında, satır listesinden çizilir.
+    expect(s).toContain('field: "autoReplyHospitable"');
+    expect(s).toMatch(/enabled: org\?\.autoReplyHospitable/);
+    expect(s).toContain('variant="switch"');
     // Sorgu alanı da seçilmeli, yoksa anahtar hep kapalı görünür.
     expect(s).toMatch(/autoReplyHospitable:\s*true/);
   });

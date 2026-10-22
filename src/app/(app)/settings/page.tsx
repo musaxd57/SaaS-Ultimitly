@@ -9,6 +9,7 @@ import { BulkTimesForm } from "@/components/settings/bulk-times-form";
 import { NightHoursForm } from "@/components/settings/night-hours-form";
 import { DeleteAccountCard } from "@/components/settings/delete-account-card";
 import { AutoReplyToggle } from "@/components/inbox/auto-reply-toggle";
+import { Bot, HeartHandshake, KeyRound, LogOut } from "lucide-react";
 import { billingTabAvailable } from "@/lib/billing/billing-tab";
 import { AiTestCard } from "@/components/settings/ai-test-card";
 import { TestEmailButton } from "@/components/settings/test-email-button";
@@ -222,6 +223,90 @@ export default async function SettingsPage({
     </>
   );
 
+  // ── OTOMASYON DURUMU (kurucu 10-22 U5: "Olur ama güzel yap görünüşü yerinide") ──────────────────────────────────────────────────
+  // Dört açma / kapama anahtarı sekmenin EN ÜSTÜNDE tek kartta, gerçek anahtar biçiminde (ray + top). Eskiden ana AI anahtarı küçük gri
+  // bir çip gibi görünüyordu ve sayfanın ~1.500 px aşağısındaydı; üç zamanlanmış mesajın anahtarı da kendi uzun açıklama kartlarının
+  // içindeydi. Davranış aynı (aynı alanlar, aynı abonelik kilidi); ayrıntılı açıklamalar aşağıdaki kartlarda kalır. Anahtarlar yalnız
+  // BURADA — aynı alan için iki kontrol durum olarak ayrışırdı.
+  const automationRows = [
+    {
+      field: "autoReplyHospitable" as const,
+      icon: Bot,
+      title: "AI misafir mesajlarını yanıtlasın",
+      desc: "Güvenli, düşük riskli cevaplar otomatik gider; riskli ya da belirsiz her mesaj size kalır.",
+      enabled: org?.autoReplyHospitable ?? false,
+    },
+    {
+      field: "autoWelcome" as const,
+      icon: HeartHandshake,
+      title: "Karşılama mesajı",
+      desc: "Rezervasyon onaylanınca bir kez gider.",
+      enabled: org?.autoWelcome ?? false,
+    },
+    {
+      field: "autoCheckin" as const,
+      icon: KeyRound,
+      title: "Giriş bilgileri mesajı",
+      desc: "Girişe 4 gün kala bir kez gider.",
+      enabled: org?.autoCheckin ?? false,
+    },
+    {
+      field: "autoCheckout" as const,
+      icon: LogOut,
+      title: "Çıkış mesajı",
+      desc: "Çıkış günü sabah 08:00'de bir kez gider.",
+      enabled: org?.autoCheckout ?? false,
+    },
+  ];
+  const automationStatusView = (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base">Otomasyon durumu</CardTitle>
+        <p className="text-sm text-muted-foreground">Misafire kendiliğinden giden mesajları buradan açıp kapatırsınız.</p>
+      </CardHeader>
+      <CardContent className="pt-0">
+        <ul className="divide-y divide-border">
+          {automationRows.map((r) => (
+            <li key={r.field} className="flex items-center gap-3 py-3">
+              <span
+                aria-hidden="true"
+                className={
+                  r.enabled && !automationLocked
+                    ? "flex size-9 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400"
+                    : "flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"
+                }
+              >
+                <r.icon className="size-4" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium">{r.title}</p>
+                <p id={`automation-${r.field}-desc`} className="text-xs text-muted-foreground">
+                  {r.desc}
+                </p>
+              </div>
+              <AutoReplyToggle
+                variant="switch"
+                field={r.field}
+                label={r.title}
+                enabled={r.enabled}
+                locked={automationLocked}
+                describedBy={`automation-${r.field}-desc`}
+              />
+            </li>
+          ))}
+        </ul>
+        <p className="mt-2 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+          Karşılama, giriş ve çıkış mesajları AI&apos;dan geçmez ve AI anahtarından bağımsızdır: her dairenin{" "}
+          <Link href="/properties" className="underline underline-offset-2">
+            mülk sayfasındaki
+          </Link>{" "}
+          &quot;Otomatik mesajlar&quot; bölümüne yazdığınız metin aynen gider.
+          {automationLocked ? " Aboneliğiniz aktif değil; otomatik mesajlar şu an duraklatıldı." : null}
+        </p>
+      </CardContent>
+    </Card>
+  );
+
   // ── İşletme Ayarları › Otomatik Mesajlar — the scheduled messages ────────────
   const autoMessagesView = (
     <>
@@ -245,15 +330,6 @@ export default async function SettingsPage({
             size bırakılır. Kapatırsanız AI cevap <strong>göndermez</strong>; öneri düğmesi
             Mesajlar ekranında çalışmaya devam eder.
           </p>
-          <div className="flex flex-wrap items-center gap-3">
-            <AutoReplyToggle
-              field="autoReplyHospitable"
-              label="AI misafir mesajlarını yanıtlasın"
-              enabled={org?.autoReplyHospitable ?? false}
-              locked={automationLocked}
-              title="Açıkken: misafirin yazdığı mesaja AI cevap üretir; güvenlik kapısından geçen düşük riskli cevaplar otomatik gider."
-            />
-          </div>
           {/* 🚨 BAĞIMSIZLIK AÇIKÇA YAZILI. Ölçüldü: üç gönderici bu alanı
               okumuyor. Eskiden üç ipucu da "Ana şalter de açık olmalı"
               diyordu — ÜÇÜ DE YANLIŞTI ve host "hepsini kapattım" sanıyordu. */}
@@ -283,15 +359,6 @@ export default async function SettingsPage({
             misafirin adıyla değiştirilir. Bu özellik açıldıktan <strong>sonra</strong> yapılan
             rezervasyonlara gider; eskilere gönderilmez. Karşılama metni olmayan daireler atlanır.
           </p>
-          <div className="flex flex-wrap items-center gap-3">
-            <AutoReplyToggle
-              field="autoWelcome"
-              label="Otomatik karşılama"
-              enabled={org?.autoWelcome ?? false}
-              locked={automationLocked}
-              title="Açıkken: rezervasyon onaylanınca, mülk sayfasındaki karşılama metni misafire bir kez otomatik gider. AI anahtarından bağımsızdır."
-            />
-          </div>
         </CardContent>
       </Card>
 
@@ -310,15 +377,6 @@ export default async function SettingsPage({
             Bu özellik açıldıktan <strong>sonra</strong> yapılan rezervasyonlara gider; eskilere
             gönderilmez. Giriş metni olmayan daireler atlanır.
           </p>
-          <div className="flex flex-wrap items-center gap-3">
-            <AutoReplyToggle
-              field="autoCheckin"
-              label="Otomatik giriş bilgileri"
-              enabled={org?.autoCheckin ?? false}
-              locked={automationLocked}
-              title="Açıkken: girişe 4 gün kala, mülk sayfasındaki giriş metni misafire bir kez otomatik gider. AI anahtarından bağımsızdır."
-            />
-          </div>
         </CardContent>
       </Card>
 
@@ -335,15 +393,6 @@ export default async function SettingsPage({
             &quot;Merhaba {"{isim}"}, bugün çıkış günü...&quot;). Çıkış metni olmayan daireler
             atlanır.
           </p>
-          <div className="flex flex-wrap items-center gap-3">
-            <AutoReplyToggle
-              field="autoCheckout"
-              label="Otomatik çıkış mesajı"
-              enabled={org?.autoCheckout ?? false}
-              locked={automationLocked}
-              title="Açıkken: çıkış günü sabah 08:00'da, mülk sayfasındaki çıkış metni misafire bir kez gider. AI anahtarından bağımsızdır."
-            />
-          </div>
         </CardContent>
       </Card>
 
@@ -621,6 +670,7 @@ export default async function SettingsPage({
   const viewContent: Record<string, React.ReactNode> = {
     "ai-otomasyon": (
       <>
+        {automationStatusView}
         {aiView}
         {autoMessagesView}
         {bulkTimesView}

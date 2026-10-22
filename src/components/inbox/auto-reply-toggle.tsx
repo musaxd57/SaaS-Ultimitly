@@ -22,6 +22,8 @@ export function AutoReplyToggle({
   title,
   locked = false,
   upgradeHref,
+  variant = "chip",
+  describedBy,
 }: {
   field: "autoReplyHospitable" | "autoWelcome" | "autoCheckin" | "autoCheckout";
   label: string;
@@ -30,6 +32,13 @@ export function AutoReplyToggle({
   locked?: boolean;
   /** Kilitliyken plan sayfasına bağlantı (UX 10-21 G: kilitli düğme çıkışsızdı). Yalnız hesap sahibine verilir — başka rol sekmeyi görmez. */
   upgradeHref?: string;
+  /**
+   * Görünüm. `chip` (varsayılan): Mesajlar başlığındaki sakin durum çipi. `switch` (kurucu 10-22 U5, Ayarlar'daki "Otomasyon durumu"
+   * kartı): gerçek açma / kapama anahtarı — ray + top, `role="switch"`; adı satırdaki başlıktan (`label`), açıklaması `describedBy`.
+   */
+  variant?: "chip" | "switch";
+  /** `switch` görünümünde satır açıklamasının kimliği (ekran okuyucu anahtarla birlikte okur). */
+  describedBy?: string;
 }) {
   const router = useRouter();
   const [on, setOn] = useState(enabled);
@@ -62,6 +71,62 @@ export function AutoReplyToggle({
     }
   }
 
+  if (variant === "switch") {
+    const active = on && !locked;
+    return (
+      <span className="inline-flex shrink-0 items-center gap-2">
+        {/* Durum renkle değil yazıyla da okunur (WCAG 1.4.1); anahtarın kendisi `aria-checked` ile duyurulur. */}
+        <span
+          aria-hidden="true"
+          className={cn(
+            "w-12 text-right text-xs font-medium",
+            active
+              ? "text-emerald-700 dark:text-emerald-400"
+              : "text-muted-foreground",
+          )}
+        >
+          {locked ? "Kilitli" : active ? "Açık" : "Kapalı"}
+        </span>
+        <button
+          ref={btnRef}
+          type="button"
+          role="switch"
+          aria-checked={active}
+          aria-label={label}
+          aria-describedby={describedBy}
+          onClick={toggle}
+          disabled={busy || locked}
+          title={
+            locked
+              ? "Aboneliğiniz aktif değil — açmak için bir plan seçin."
+              : title
+          }
+          className={cn(
+            "relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full p-0.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-60",
+            // Kapalı ray kart zemininden en az 3:1 ayrışır (WCAG 1.4.11); durum ayrıca yanındaki "Açık / Kapalı" yazısıyla okunur.
+            active
+              ? "bg-emerald-600 dark:bg-emerald-500"
+              : "bg-muted-foreground/70",
+          )}
+        >
+          <span
+            aria-hidden="true"
+            className={cn(
+              "inline-flex size-5 items-center justify-center rounded-full bg-white shadow-sm transition-transform duration-200",
+              active ? "translate-x-5" : "translate-x-0",
+            )}
+          >
+            {busy ? (
+              <Loader2 className="size-3 animate-spin text-muted-foreground" />
+            ) : locked ? (
+              <Lock className="size-3 text-muted-foreground" />
+            ) : null}
+          </span>
+        </button>
+      </span>
+    );
+  }
+
   if (locked && upgradeHref) {
     return (
       <Link
@@ -90,7 +155,11 @@ export function AutoReplyToggle({
       onClick={toggle}
       disabled={busy || locked}
       aria-pressed={locked ? undefined : on}
-      title={locked ? "Aboneliğiniz aktif değil — açmak için Ayarlar'dan bir plan seçin." : title}
+      title={
+        locked
+          ? "Aboneliğiniz aktif değil — açmak için Ayarlar'dan bir plan seçin."
+          : title
+      }
       className={cn(
         "inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:opacity-50",
         on && !locked

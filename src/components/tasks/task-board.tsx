@@ -66,7 +66,7 @@ const SELECT_STATUSES = TASK_STATUS.options.filter(
  * "Bugün" işaretinde ise done BİLİNÇLİ olarak filtreden AYRIŞIR: "Bugün (N)"
  * sayacı bugüne tarihli tamamlanmış görevi de sayar (o pencerenin işi), ama
  * işaret "bugün YAPILACAK" demektir — bitmiş bir kartta bekleyen iş varmış
- * izlenimi verirdi. Tamamlanmış kart zaten sönük ve "Tamamlandı" sütununda.
+ * izlenimi verirdi. Tamamlanmış kartın başlığı zaten üstü çizili, "Tamamlandı" rozetli ve o sütunda.
  *
  * Gelecekteki görevlere ek YOK: 50 kartın hepsinde rozet, rozeti gürültüye
  * çevirir ve tam da ayırt etmesi gereken şeyi ayırt edilemez yapar.
@@ -333,15 +333,13 @@ export function TaskBoard({ tasks, canManage = true }: { tasks: TaskCardData[]; 
   function renderCard(t: TaskCardData) {
     const due = dueEmphasis(t);
     return (
-      <div
-        key={t.id}
-        className={cn(
-          "rounded-lg border border-border bg-card p-3 shadow-sm transition-opacity",
-          t.status === "done" && "opacity-70",
-        )}
-      >
+      // Biten görev SOLUKLAŞTIRILMAZ (kurucu 10-22 U16 "a"): %70 opaklıkta gri yazı 2,7:1'e düşüyordu (eşik 4,5:1; temizlikçi telefonda,
+      // gün ışığında okur). Bittiği başlığın üstü çizili + "Tamamlandı" rozetiyle belli; yazıların hepsi tam okunur.
+      <div key={t.id} className="rounded-lg border border-border bg-card p-3 shadow-sm">
         <div className="flex items-start justify-between gap-2">
-          <p className="min-w-0 break-words text-sm font-medium leading-snug">{t.title}</p>
+          <p className={cn("min-w-0 break-words text-sm font-medium leading-snug", t.status === "done" && "line-through decoration-1")}>
+            {t.title}
+          </p>
           {canManage ? (
             <button
               type="button"
@@ -359,6 +357,7 @@ export function TaskBoard({ tasks, canManage = true }: { tasks: TaskCardData[]; 
           ) : null}
         </div>
         <div className="mt-2 flex flex-wrap gap-1.5">
+          {t.status === "done" ? <Badge tone="success">Tamamlandı</Badge> : null}
           <Badge tone={TASK_TYPE.tone(t.type)}>{TASK_TYPE.label(t.type)}</Badge>
           {/* Only flag priority when it's urgent — 'Standart' is just noise on 50+ cards */}
           {t.priority === "urgent" ? (

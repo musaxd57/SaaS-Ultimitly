@@ -221,60 +221,58 @@ export function OnboardingGuide({ steps }: { steps: OnboardingStep[] }) {
           />
         </div>
 
+        {/* BİTEN ADIMLAR TEK SATIR (kurucu 10-22 U6: "Biten adımlar gitsin zaten o şekilde kısalır … yerini şimdilik değiştirme"):
+            tamamlanan her adım ayrı satırda üstü çizili duruyordu; kart kalan işi göstermekten çok biteni gösteriyordu. Artık bitenler
+            tek özet satırı ("3 adım tamam"), kalanlar eskisi gibi kendi numarasıyla. Kartın yeri ve katlama aynı. */}
         <ol className="mt-4 space-y-2">
+          {doneCount > 0 ? (
+            <li className="flex items-center gap-3 rounded-lg border border-border bg-card/50 px-3 py-2">
+              <CheckCircle2
+                className={cn("size-5 shrink-0 text-emerald-600 dark:text-emerald-400", justAdvanced && "lxo-pop")}
+                aria-hidden="true"
+              />
+              <p className="text-sm font-medium text-muted-foreground">
+                {doneCount} adım tamam
+                <span className="sr-only">: {steps.filter((s) => s.done).map((s) => s.title).join(", ")}</span>
+              </p>
+            </li>
+          ) : null}
           {steps.map((s, i) => {
+            if (s.done) return null;
             const isNext = i === nextIndex;
             return (
               <li
                 key={s.title}
                 className={cn(
                   "flex items-center gap-3 rounded-lg border px-3 py-2.5",
-                  s.done
-                    ? "border-border bg-card/50"
-                    : isNext
-                      ? "border-primary/40 bg-card"
-                      : "border-border bg-card/50",
+                  isNext ? "border-primary/40 bg-card" : "border-border bg-card/50",
                 )}
               >
                 <span className="shrink-0">
-                  {s.done ? (
-                    <CheckCircle2
-                      className={cn(
-                        "size-5 text-emerald-600 dark:text-emerald-400",
-                        // Yalnız YENİ tamamlananlar patlar — hepsi değil.
-                        justAdvanced && seenCount !== null && i >= seenCount && "lxo-pop",
-                      )}
-                    />
-                  ) : (
-                    <span
-                      className={cn(
-                        "flex size-5 items-center justify-center rounded-full border text-[11px] font-semibold",
-                        isNext ? "border-primary text-primary" : "border-muted-foreground/40 text-muted-foreground",
-                      )}
-                    >
-                      {i + 1}
-                    </span>
-                  )}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className={cn("text-sm font-medium", s.done && "text-muted-foreground line-through")}>
-                    {s.title}
-                  </p>
-                  {!s.done ? <p className="text-xs text-muted-foreground">{s.desc}</p> : null}
-                </div>
-                {!s.done ? (
-                  <Link
-                    href={s.href}
+                  <span
                     className={cn(
-                      "inline-flex shrink-0 items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
-                      isNext
-                        ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                        : "border border-border hover:bg-accent",
+                      "flex size-5 items-center justify-center rounded-full border text-[11px] font-semibold",
+                      isNext ? "border-primary text-primary" : "border-muted-foreground/40 text-muted-foreground",
                     )}
                   >
-                    {s.cta} <ArrowRight className="size-3.5" />
-                  </Link>
-                ) : null}
+                    {i + 1}
+                  </span>
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium">{s.title}</p>
+                  <p className="text-xs text-muted-foreground">{s.desc}</p>
+                </div>
+                <Link
+                  href={s.href}
+                  className={cn(
+                    "inline-flex shrink-0 items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
+                    isNext
+                      ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                      : "border border-border hover:bg-accent",
+                  )}
+                >
+                  {s.cta} <ArrowRight className="size-3.5" />
+                </Link>
               </li>
             );
           })}
