@@ -19,7 +19,7 @@ import type { ReplyItemsInput } from "./reply-block";
 import { needTerms, topicAbsenceEnabled } from "./topic-absence";
 import { answerPartsEnabled } from "@/lib/ai/answer-parts";
 
-type PlanItem = { messageId: string; kind: ItemKind; sensitivity: ItemSensitivity };
+type PlanItem = { messageId: string; kind: ItemKind; sensitivity: ItemSensitivity; ordinal?: number };
 
 export interface ComposedItemsPlan<T extends PlanItem> {
   answerable: { ref: string; item: T }[];
@@ -29,9 +29,12 @@ export interface ComposedItemsPlan<T extends PlanItem> {
   allHeld: boolean;
 }
 
-/** İpucu anahtarı (mesaj + tür — bir mesajda her tür bir öğedir). */
-export function hintKey(messageId: string, kind: ItemKind): string {
-  return `${messageId}\u0000${kind}`;
+/**
+ * İpucu anahtarı (mesaj + tür; sıra kipinde aynı türden ikinci istek "tür#sıra" — `extract` olgu ve sorgu haritalarını AYNI biçimle
+ * kurar). Sıra 0'da anahtar bugünkünün bayt bayt aynısı.
+ */
+export function hintKey(messageId: string, kind: ItemKind | string, ordinal = 0): string {
+  return `${messageId}\u0000${kind}${ordinal > 0 ? `#${ordinal}` : ""}`;
 }
 
 /**
@@ -108,8 +111,8 @@ export function composeItemsPlan<T extends PlanItem>(input: {
     : undefined;
   // Ev sahibine bırakılan arızaların cihazları (kör set 5): bu turun tutulan öğeleri + bağlı istekler; cevaplanan isteklerin konuları
   // çıkarılır (arıza tarifi kendi cihazına değinir). İlişki kipinde olgulardan, yoksa anlama katmanının ipucu sorgusundan.
-  const topicsOfItem = (item: { messageId?: string; kind: ItemKind }): readonly string[] => {
-    const key = item.messageId ? hintKey(item.messageId, item.kind) : null;
+  const topicsOfItem = (item: { messageId?: string; kind: ItemKind; ordinal?: number }): readonly string[] => {
+    const key = item.messageId ? hintKey(item.messageId, item.kind, item.ordinal) : null;
     const facts = key && relations ? relations.get(key) : undefined;
     return facts ? facts.topics : requestTopics((key && input.hints.get(key)) || "", "", item.kind);
   };
@@ -122,7 +125,7 @@ export function composeItemsPlan<T extends PlanItem>(input: {
   // Cevap parçaları kipi (kurucu 10-23 A): istek başına sözcük + konu doğrulayıcıya gider (istemde YOK); kapalıyken alan yok.
   const parts = answerPartsEnabled();
   const needOf = (item: T) => {
-    const key = hintKey(item.messageId, item.kind);
+    const key = hintKey(item.messageId, item.kind, item.ordinal);
     const queries = input.needQueries?.get(key) ?? [input.hints.get(key) ?? ""];
     return { terms: needTerms(queries), topics: topicsOfItem(item) };
   };
@@ -132,7 +135,7 @@ export function composeItemsPlan<T extends PlanItem>(input: {
       answerable: answerable.map(({ ref, item }) => ({
         ref,
         kind: item.kind,
-        hint: input.hints.get(hintKey(item.messageId, item.kind)) ?? "",
+        hint: input.hints.get(hintKey(item.messageId, item.kind, item.ordinal)) ?? "",
         ...(relation?.fix.has(item) ? { fix: true } : {}),
         ...(parts ? { need: needOf(item) } : {}),
       })),
@@ -155,7 +158,7 @@ export function composeItemsPlan<T extends PlanItem>(input: {
       ...(topicAbsenceEnabled()
         ? {
             answerableTopics: answerable.map(({ ref, item }) => {
-              const key = hintKey(item.messageId, item.kind);
+              const key = hintKey(item.messageId, item.kind, item.ordinal);
               const queries = input.needQueries?.get(key) ?? [input.hints.get(key) ?? ""];
               return { ref, topics: topicsOfItem(item), terms: needTerms(queries) };
             }),
@@ -177,7 +180,8 @@ function relationPlan<T extends PlanItem>(
   relations: ReadonlyMap<string, ItemRelationFacts>,
   recipeTopics: ReadonlySet<string>,
 ): { dependent: T[]; fix: Set<T>; anchors: AnchorFacts[]; factsOf: (item: T) => RequestFacts } {
-  const lookup = (messageId: string | undefined, kind: ItemKind) => (messageId ? relations.get(hintKey(messageId, kind)) : undefined);
+  const lookup = (messageId: string | undefined, kind: ItemKind, ordinal = 0) =>
+    messageId ? relations.get(hintKey(messageId, kind, ordinal)) : undefined;
   // Bağlayıcı talebin kendi olgusu yoksa (kelime ağının uyarı geçişinde açtığı şikâyet; anlama katmanı aynı mesajı başka türle — ör.
   // otopark — okudu) AYNI MESAJIN öteki isteklerinin konuları + tehlikesi: konusuz bağlayıcı "Otopark kapısı açılmıyor!" yanındaki
   // "Arabayla nasıl çıkarız?" sorusunu bağımsız bırakıyordu (15 ajan A06). Yalnız sıkılaştırır.
@@ -195,7 +199,7 @@ function relationPlan<T extends PlanItem>(
       return { kind: h.kind, topics: f?.topics ?? [], hazard: f?.hazard ?? false, access: f?.access === true };
     });
   const factsOf = (i: T): RequestFacts => {
-    const f = lookup(i.messageId, i.kind);
+    const f = lookup(i.messageId, i.kind, i.ordinal);
     const topics = f?.topics ?? [];
     return {
       kind: i.kind,

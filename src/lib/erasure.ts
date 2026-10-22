@@ -608,6 +608,9 @@ async function maskReservationRows(
     // Misafire verilen sözler (migration 62): metin taşımaz ama konaklamaya bağlı davranış kaydıdır → misafir silmesinde silinir (veri
     // en aza indirme; Haiku KVKK denetimi B3, 10-10). Bağlı görev (başlığı yalnız tür + kapalı kümeden konu: "Misafire söz: Arıza / bakım · klima") ev sahibinin işi olarak kalır.
     await db.guestCommitment.deleteMany({ where: { organizationId, conversationId: { in: convIds } } });
+    // Konuşma öğesinin kısa konu etiketi (migration 84, kurucu 10-23 C) misafirin sorusundan türer → misafir silmesinde boşaltılır (öğenin
+    // kendisi — tür / durum — ev sahibinin iş kaydı olarak kalır, metin taşımaz).
+    await db.conversationItem.updateMany({ where: { organizationId, conversationId: { in: convIds }, topic: { not: null } }, data: { topic: null } });
     // Geçmişten öğren (migration 65, Opus 10-15 KVKK): onaylanmamış taslak maskeye rağmen misafir kırıntısı taşıyabilir ve kanıtı JSON'da
     // durur → silinen konaklamanın mülkündeki ONAYLANMAMIŞ taslaklar silinir (yeniden üretilebilir; onaylanan = ev sahibinin bilgi tabanı
     // kalemi, kalır). Bu konaklamanın sorularına ait cevap karşılaştırmaları (yapay zekâ cevabı + not) silinir.

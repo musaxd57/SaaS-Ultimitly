@@ -17,7 +17,9 @@ import {
   type MessageUnderstanding,
   type UnderstandingHistoryEntry,
 } from "@/lib/ai/semantic/understanding-schema";
-import { buildItemsForMessage, type BuiltItem, type ItemKind } from "./core";
+import { alignOrdinals, buildItemsForMessage, type BuiltItem, type ExistingOrdinal, type ItemKind } from "./core";
+import { itemOrdinalEnabled } from "./flag";
+import { itemTopicLabel } from "./topic-label";
 
 /** Giriş / çıkış SAATİ soruları (kurucu T1 erişim kuralının dışında). */
 const TIME_KINDS: ReadonlySet<ItemKind> = new Set<ItemKind>(["checkin_time", "checkout_time", "early_checkin", "late_checkout"]);
@@ -60,14 +62,15 @@ export type TurnItems =
         messageId: string;
         items: BuiltItem[];
         labels: string[];
-        relations?: Partial<Record<ItemKind, ItemRelationFacts>>;
+        /** Tür (sıra kipinde aynı türden ikinci istek "tür#1") → olgu; `plan.hintKey` aynı biçimi kurar. */
+        relations?: Partial<Record<string, ItemRelationFacts>>;
         /** Anahtar `AI_FAULT_GUARD_ENABLED` açıkken: bu mesajın CİHAZ ARIZASI istekleri (`relation.faultSignal`) — plan onları ev sahibine bırakır. */
         faultKinds?: ItemKind[];
         /**
          * Tür başına anlama katmanının BÜTÜN sorguları (Türkçe + özgün dil; aynı türden iki istek birleşse de hepsi). Konu bazlı "bilgim yok"
          * eşlemesi (`topic-absence.needTerms`, kurucu 10-22 Soru 1) sabit konu sözlüğü yerine misafirin kendi soru sözcüklerini okur. Kalıcı DEĞİL.
          */
-        queries?: Partial<Record<ItemKind, string[]>>;
+        queries?: Partial<Record<string, string[]>>;
       }[];
       withdrawals: TurnWithdrawal[];
     }
@@ -81,6 +84,8 @@ export function extractTurnItems(input: {
   understanding: MessageUnderstanding | null | undefined;
   /** Kelime ağı (test kancası); varsayılan her tutan ağın etiketi. */
   labelsOf?: (body: string) => string[];
+  /** Sıra kipinde: bu mesajların daha önce yazılmış öğeleri (yeniden işlemede istek ↔ satır eşlemesi, `core.alignOrdinals`). */
+  existingItems?: readonly (ExistingOrdinal & { messageId: string })[];
 }): TurnItems {
   const u = input.understanding;
   // `withdrawn` yalnız öğe kipinin çözücüsünde vardır: öğe kipinde üretilmemiş sonuç mesaj eşlemesi taşımaz.
@@ -103,15 +108,27 @@ export function extractTurnItems(input: {
   // liste kuralını koşar.
   const relationMode = u.requests.some((r) => r.relation !== undefined);
   const faultGuard = faultGuardEnabled();
+  // Sıra kipi (migration 84, kurucu 10-23 D): aynı mesajda aynı türden ikinci istek ayrı öğe; anahtar "tür#sıra" (sıra 0'da yalnız tür —
+  // kapalıyken bütün anahtarlar bayt bayt bugünkü).
+  const ordinalMode = itemOrdinalEnabled();
   const messages = win.unanswered.map((m, i) => {
     const labels = labelsOf(m.body);
     const requests = u.requests.filter((r) => r.message === i + 1);
-    let relations: Partial<Record<ItemKind, ItemRelationFacts>> | undefined;
+    const topics = requests.map((r) => (ordinalMode ? itemTopicLabel(r.queryTr) : null));
+    const ords = ordinalMode
+      ? alignOrdinals(
+          requests.map((r, j) => ({ intent: r.intent, topic: topics[j] })),
+          (input.existingItems ?? []).filter((e) => e.messageId === m.id),
+        )
+      : requests.map(() => 0);
+    const keyOf = (j: number) => (ords[j] > 0 ? `${requests[j].intent}#${ords[j]}` : requests[j].intent);
+    let relations: Partial<Record<string, ItemRelationFacts>> | undefined;
     if (relationMode) {
       relations = {};
       const bodyHazard = fixHazard(m.body);
-      for (const r of requests) {
-        const prev = relations[r.intent];
+      for (const [j, r] of requests.entries()) {
+        const key = keyOf(j);
+        const prev = relations[key];
         const topics = requestTopics(r.queryTr, r.queryOriginal, r.intent);
         const facts: ItemRelationFacts = {
           relation: r.relation ?? "unclear",
@@ -122,7 +139,7 @@ export function extractTurnItems(input: {
           // Saat sorusu ("Çıkış saati kaçta?") erişim sorusu değildir — kapı arızası onu bağlamaz.
           access: TIME_KINDS.has(r.intent) ? physicalAccessWords(r.queryTr, r.queryOriginal) : accessFacts(r.queryTr, r.queryOriginal)(topics),
         };
-        relations[r.intent] = prev
+        relations[key] = prev
           ? {
               relation: stricterRelation(prev.relation, facts.relation) ?? "unclear",
               topics: [...new Set([...prev.topics, ...facts.topics])].sort(),
@@ -135,8 +152,12 @@ export function extractTurnItems(input: {
       }
     }
     const items = buildItemsForMessage({
-      requests: requests.map((r) => ({ intent: r.intent, hint: r.queryTr })),
+      requests: requests.map((r, j) => {
+        const topic = topics[j];
+        return { intent: r.intent, hint: r.queryTr, ...(topic ? { topic } : {}) };
+      }),
       lexicalLabels: labels,
+      ...(ordinalMode ? { ordinals: ords } : {}),
     });
     // ARIZA EV SAHİBİNE KALIR (anahtar `AI_FAULT_GUARD_ENABLED`): mesajda cihaz arızası isteği var ama şikâyet / acil öğesi yoksa kod bir
     // şikâyet öğesi EKLER (kaynak `fault_guard`) — ev sahibi bildirimi ve tutulan istek kuralları bu öğe üzerinden koşar. Öğenin kendi
@@ -164,9 +185,9 @@ export function extractTurnItems(input: {
         };
       }
     }
-    const queries: Partial<Record<ItemKind, string[]>> = {};
-    for (const r of requests) {
-      const list = (queries[r.intent] ??= []);
+    const queries: Partial<Record<string, string[]>> = {};
+    for (const [j, r] of requests.entries()) {
+      const list = (queries[keyOf(j)] ??= []);
       for (const q of [r.queryTr, r.queryOriginal]) if (q && !list.includes(q)) list.push(q);
     }
     return {

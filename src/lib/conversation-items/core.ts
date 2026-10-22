@@ -126,11 +126,102 @@ export interface UnderstoodItemInput {
   intent: UnderstandingIntent;
   /** Anlama katmanının kısa Türkçe arama sorgusu (cevap istemindeki ipucu; kalıcı DEĞİL). */
   hint?: string;
+  /** Kısa konu etiketi (yalnız sıra kipinde; `topic-label.ts` kurar — misafir metni kopyası DEĞİL). */
+  topic?: string;
+}
+
+/** Aynı mesajda aynı türden en çok kaç ayrı öğe (0…MAX_ORDINAL); fazlası sonuncuyla birleşir. */
+export const MAX_ORDINAL = 4;
+
+/** İsteklerin sırası (aynı türden kaçıncı): ["amenities","wifi","amenities"] → [0,0,1]. Tavanda kalır. Çıkarım ve öğe kurucu AYNI kural. */
+export function requestOrdinals(intents: readonly string[]): number[] {
+  const seen = new Map<string, number>();
+  return intents.map((k) => {
+    const n = seen.get(k) ?? 0;
+    seen.set(k, n + 1);
+    return Math.min(n, MAX_ORDINAL);
+  });
+}
+
+/** Aynı mesajın daha önce yazılmış bir öğesi (sıra eşlemesi için yalnız bu üçü). */
+export interface ExistingOrdinal {
+  kind: string;
+  ordinal: number;
+  topic: string | null;
+}
+
+const topicWords = (t: string | null | undefined): string[] => (t ? t.split(/\s+/u).filter(Boolean) : []);
+
+/**
+ * Sıra kipinde YENİDEN İŞLENEN mesajın isteklerini mevcut satırlara eşler (migration 84, kurucu D: "tekrar işleme kayıt çoğaltmasın").
+ * Anlama katmanı aynı mesajı ikinci okumada istekleri başka sırayla ya da başka sözcüklerle verebilir; salt sıra numarası o zaman havuz
+ * cevabını sauna satırına bağlardı. Sıra: (1) aynı etiket, (2) ortak etiket sözcüğü (en çok ortak sözcük önce), (3) etiketi olmayan taraf
+ * sırayla eşlenir (anahtar kapalı dönemin etiketsiz satırı / etiketi süzülmüş istek), (4) kalan istek boş ilk sıraya — etiketleri
+ * birbirine HİÇ benzemeyen istek ile satır eşlenmez (ilişki belirsizse kapatma yok, kurucu B). Boş sıra kalmazsa tavandaki sırayla
+ * birleşir. Mevcut satır yoksa `requestOrdinals` ile aynı sonuç. Saf.
+ */
+export function alignOrdinals(
+  requests: readonly { intent: string; topic?: string | null }[],
+  existing: readonly ExistingOrdinal[],
+): number[] {
+  const base = requestOrdinals(requests.map((r) => r.intent));
+  if (existing.length === 0) return base;
+  const out = [...base];
+  for (const kind of new Set(requests.map((r) => r.intent))) {
+    const rows = existing.filter((e) => e.kind === kind).sort((a, b) => a.ordinal - b.ordinal);
+    if (rows.length === 0) continue;
+    const idx = requests.flatMap((r, i) => (r.intent === kind ? [i] : []));
+    const done = new Map<number, number>();
+    const usedRows = new Set<number>();
+    const take = (i: number, ordinal: number) => {
+      done.set(i, ordinal);
+      usedRows.add(ordinal);
+    };
+    for (const i of idx) {
+      const t = requests[i].topic ?? null;
+      const row = t ? rows.find((r) => !usedRows.has(r.ordinal) && r.topic === t) : undefined;
+      if (row) take(i, row.ordinal);
+    }
+    const pairs: { i: number; ordinal: number; score: number }[] = [];
+    for (const i of idx) {
+      if (done.has(i)) continue;
+      const words = topicWords(requests[i].topic);
+      for (const r of rows) {
+        if (usedRows.has(r.ordinal)) continue;
+        const score = topicWords(r.topic).filter((w) => words.includes(w)).length;
+        if (score > 0) pairs.push({ i, ordinal: r.ordinal, score });
+      }
+    }
+    pairs.sort((a, b) => b.score - a.score || a.i - b.i || a.ordinal - b.ordinal);
+    for (const p of pairs) if (!done.has(p.i) && !usedRows.has(p.ordinal)) take(p.i, p.ordinal);
+    for (const i of idx) {
+      if (done.has(i)) continue;
+      const row = rows.find((r) => !usedRows.has(r.ordinal) && (!r.topic || !requests[i].topic));
+      if (row) take(i, row.ordinal);
+    }
+    for (const i of idx) {
+      if (done.has(i)) continue;
+      let free = -1;
+      for (let o = 0; o <= MAX_ORDINAL; o++) {
+        if (!rows.some((r) => r.ordinal === o) && ![...done.values()].includes(o)) {
+          free = o;
+          break;
+        }
+      }
+      done.set(i, free >= 0 ? free : MAX_ORDINAL);
+    }
+    for (const i of idx) out[i] = done.get(i) ?? out[i];
+  }
+  return out;
 }
 
 export interface BuiltItem {
   requestIndex: number;
   kind: ItemKind;
+  /** Aynı mesajda aynı türden kaçıncı istek (sıra kipi; yoksa 0). */
+  ordinal?: number;
+  /** Kısa konu etiketi (sıra kipi; yoksa yok). */
+  topic?: string;
   sensitivity: ItemSensitivity;
   riskType: string | null;
   sources: ItemSource[];
@@ -179,18 +270,27 @@ export function buildLexicalItems(labels: readonly string[]): BuiltItem[] {
 export function buildItemsForMessage(input: {
   requests: readonly UnderstoodItemInput[];
   lexicalLabels: readonly string[];
+  /**
+   * Sıra kipi (`AI_ITEM_ORDINAL_ENABLED`, migration 84): istek başına sıra (`requestOrdinals` / `alignOrdinals`) — aynı türden ikinci istek
+   * AYRI öğe; aynı (tür, sıra) birleşir, ilki kalır. Verilmezse bugünkü kural: aynı türden istekler birleşir, ilk sıra kalır.
+   */
+  ordinals?: readonly number[];
 }): BuiltItem[] {
   if (input.requests.length === 0) return buildLexicalItems(input.lexicalLabels);
   const items: BuiltItem[] = [];
+  const ords = input.ordinals ?? null;
   input.requests.forEach((r, i) => {
-    if (items.some((it) => it.kind === r.intent)) return;
+    const ordinal = ords ? (ords[i] ?? 0) : 0;
+    if (items.some((it) => it.kind === r.intent && (it.ordinal ?? 0) === ordinal)) return;
     items.push({
       requestIndex: i,
       kind: r.intent,
+      ...(ordinal > 0 ? { ordinal } : {}),
       sensitivity: INTENT_SENSITIVITY[r.intent] ?? "none",
       riskType: null,
       sources: ["understanding"],
       ...(r.hint ? { hint: r.hint } : {}),
+      ...(ords && r.topic ? { topic: r.topic } : {}),
     });
   });
   for (const label of input.lexicalLabels) {

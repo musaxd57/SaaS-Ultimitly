@@ -10,3 +10,12 @@ import { understandingEnabled } from "@/lib/ai/semantic/understand";
 export function conversationItemsEnabled(): boolean {
   return process.env.AI_CONVERSATION_ITEMS_ENABLED === "1" && understandingEnabled();
 }
+
+/**
+ * Aynı mesajda aynı türden ikinci istek AYRI öğe (migration 84 `ordinal`; kurucu 10-23 D) + kısa konu etiketi (`topic`, kurucu C).
+ * Yalnız tam "1" açar; varsayılan KAPALI → her mesajda tür başına tek öğe, `ordinal` hep 0, etiket yazılmaz (bayt bayt bugünkü).
+ */
+export function itemOrdinalEnabled(): boolean {
+  return process.env.AI_ITEM_ORDINAL_ENABLED === "1";
+}
+

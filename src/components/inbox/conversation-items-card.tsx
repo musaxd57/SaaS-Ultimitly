@@ -11,6 +11,8 @@ import { toast } from "@/lib/toast";
 export interface ConversationItemRow {
   id: string;
   kindLabel: string;
+  /** Kısa konu etiketi (migration 84; misafir kaynaklı, kod süzdü — "sauna"). Yoksa yalnız tür adı görünür. */
+  topic?: string | null;
   statusLabel: string;
   tone: "destructive" | "warning" | "secondary" | "success" | "muted";
   /** Ev sahibinin işi mi (açık / size bırakıldı) — yalnız bunlarda "Tamamlandı" düğmesi. */
@@ -67,7 +69,10 @@ export function ConversationItemsCard({
         {items.map((i) => (
           <div key={i.id} className="flex items-center justify-between gap-2">
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm">{i.kindLabel}</p>
+              <p className="truncate text-sm">
+                {i.kindLabel}
+                {i.topic ? <span className="text-muted-foreground"> · {i.topic}</span> : null}
+              </p>
               <p className="text-xs text-muted-foreground">{i.at}</p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
@@ -78,7 +83,7 @@ export function ConversationItemsCard({
                   size="sm"
                   onClick={() => done(i.id)}
                   disabled={busy !== null}
-                  aria-label={`Bitti olarak işaretle: ${i.kindLabel}`}
+                  aria-label={`Bitti olarak işaretle: ${i.kindLabel}${i.topic ? ` · ${i.topic}` : ""}`}
                 >
                   {busy === i.id ? <Loader2 className="size-4 animate-spin" /> : null}
                   Bitti olarak işaretle

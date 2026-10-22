@@ -243,6 +243,7 @@ export default async function ConversationPage({
     .map((v) => ({
       id: v.id,
       kindLabel: itemKindLabel(v.kind),
+      topic: v.topic ?? null,
       statusLabel: ITEM_STATUS_LABELS_TR[v.effective],
       tone: itemTone(v.effective, v.sensitivity),
       open: isOpenForHost(v.effective),

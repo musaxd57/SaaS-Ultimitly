@@ -165,6 +165,8 @@ export const PIPELINE_FLAGS = [
   "AI_ASSISTANT_QUESTION_ITEM_ENABLED",
   // Cevap parçaları (10-23 A): cevap istemini değiştirir ve misafire giden metni kod kurar (öğe kipinde).
   "AI_ANSWER_PARTS_ENABLED",
+  // Aynı türden ikinci istek ayrı öğe (10-23 D, migration 84): cevap istemindeki istek listesini (R1, R2 …) değiştirir.
+  "AI_ITEM_ORDINAL_ENABLED",
 ] as const;
 
 /** GÖNDERİLEN çabanın etiketi: klasik modele çaba hiç gitmez; reasoning modelinde ayarsız / tanınmayan değer = gönderilmez. */

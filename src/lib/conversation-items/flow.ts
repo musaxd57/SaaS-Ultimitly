@@ -8,6 +8,7 @@ import { contextLabels } from "@/lib/ai/hazard-evidence";
 import type { MessageUnderstanding, UnderstandingHistoryEntry } from "@/lib/ai/semantic/understanding-schema";
 import { NO_NOTIFY_KINDS, buildLexicalItems, hasEmergency, isOpenForHost, labelsHoldWholeTurn, type BuiltItem, type ItemKind, type ItemsGateInput } from "./core";
 import { extractTurnItems, type ItemsDegradedReason } from "./extract";
+import { itemOrdinalEnabled } from "./flag";
 import type { ReplyItemsInput } from "./reply-block";
 import { composeItemsPlan, faultRequestsOf, hintKey, relationFactsOf } from "./plan";
 import { kbRecipeTopics } from "./relation";
@@ -93,10 +94,18 @@ export async function planItemsTurn(
     hazardClearedAsIssue?: boolean;
   },
 ): Promise<ItemsTurn> {
+  // Sıra kipi (migration 84): yeniden işlenen mesajın istekleri mevcut satırlarla eşlenir (çoğaltma yok). Anahtar kapalıyken sorgu yok.
+  const existingItems = itemOrdinalEnabled()
+    ? await db.conversationItem.findMany({
+        where: { organizationId: input.organizationId, conversationId: input.conversationId, messageId: { in: [...input.expectedMessageIds] } },
+        select: { messageId: true, kind: true, ordinal: true, topic: true },
+      })
+    : [];
   const extracted = extractTurnItems({
     history: input.history,
     guestMessage: input.guestMessage,
     understanding: input.understanding,
+    ...(existingItems.length > 0 ? { existingItems } : {}),
     ...(input.hazardCleared
       ? {
           labelsOf: (body: string) =>
@@ -136,7 +145,7 @@ export async function planItemsTurn(
   const inTurn = new Set(turnMessageIds);
   const turnHeld = held.filter((h) => inTurn.has(h.messageId));
   const hints = new Map<string, string>();
-  for (const m of extracted.messages) for (const it of m.items) if (it.hint) hints.set(hintKey(m.messageId, it.kind), it.hint);
+  for (const m of extracted.messages) for (const it of m.items) if (it.hint) hints.set(hintKey(m.messageId, it.kind, it.ordinal), it.hint);
   // Konu bazlı "bilgim yok" (kurucu 10-22 Soru 1): isteğin bütün sorguları (yalnız anahtar açıkken plan okur).
   const needQueries = new Map<string, readonly string[]>();
   for (const m of extracted.messages) for (const [kind, qs] of Object.entries(m.queries ?? {})) if (qs) needQueries.set(hintKey(m.messageId, kind as ItemKind), qs);

@@ -48,6 +48,10 @@ export interface PersistedItem {
   notifiedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
+  /** Migration 84: aynı mesajda aynı türden kaçıncı istek (yalnız > 0 iken alan var). */
+  ordinal?: number;
+  /** Kısa konu etiketi (misafir kaynaklı; yalnız varsa alan var). */
+  topic?: string;
 }
 
 type Row = {
@@ -63,6 +67,8 @@ type Row = {
   notifiedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
+  ordinal?: number;
+  topic?: string | null;
 };
 
 const SOURCE_SET: ReadonlySet<string> = new Set(ITEM_SOURCES);
@@ -85,6 +91,8 @@ export function toPersisted(r: Row): PersistedItem {
     notifiedAt: r.notifiedAt,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
+    ...(r.ordinal ? { ordinal: r.ordinal } : {}),
+    ...(r.topic ? { topic: r.topic } : {}),
   };
 }
 
@@ -110,6 +118,9 @@ export async function upsertTurnItems(
       messageId: m.messageId,
       requestIndex: it.requestIndex,
       kind: it.kind,
+      // Migration 84: sıra kipinde aynı türden ikinci istek ayrı satır; etiket yalnız ilk yazımda (çakışan satıra dokunulmaz).
+      ordinal: it.ordinal ?? 0,
+      ...(it.topic ? { topic: it.topic } : {}),
       sensitivity: it.sensitivity,
       riskType: it.riskType,
       sources: it.sources.join(","),
@@ -129,7 +140,7 @@ export async function upsertTurnItems(
     let lost = false;
     for (const m of input.messages) {
       for (const it of m.items) {
-        const row = rows.find((r) => r.messageId === m.messageId && r.kind === it.kind);
+        const row = rows.find((r) => r.messageId === m.messageId && r.kind === it.kind && r.ordinal === (it.ordinal ?? 0));
         if (!row) continue;
         const cur = toPersisted(row);
         const merged = mergeItemFacts(cur, it);
