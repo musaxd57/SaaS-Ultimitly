@@ -264,3 +264,33 @@ describe("suggestReply — parça kipi, Haiku 10-23 düzeltmeleri", () => {
     expect(on.partSources?.find((s) => s.id === "property")?.text).not.toContain("belirtilmemiş");
   });
 });
+
+describe("Opus 10-23: kaynak listesi", () => {
+  const ONLY_GENERAL = [{ id: "kb:1", text: kbLine({ category: "rules", title: "Havuz", content: "Havuz 20:00'de kapanır." }) }];
+  const WITH_VARIANT = [...ONLY_GENERAL, { id: "kb:2", text: kbLine({ category: "rules", title: "Hafta sonu", content: "Hafta sonları havuz 23:00'e kadar açıktır." }) }];
+  const part = p("R2", "Havuz 20:00'de kapanıyor.", "Havuz 20:00'de kapanır.");
+
+  it("🚨 koşullu değişke BAŞKA kalemdeyse genel değer onu anmadan gitmez (öteki kaynaklar da okunur — O6)", () => {
+    // Kontrol: değişke istemde yokken genel değer doğrulanır.
+    expect(composeVerifiedReply({ parts: [part], needs: [NEEDS[1]], sources: ONLY_GENERAL }).refs).toEqual(["R2"]);
+    const out = composeVerifiedReply({ parts: [part], needs: [NEEDS[1]], sources: WITH_VARIANT });
+    expect(out.refs).toEqual([]);
+    expect(out.verdicts).toEqual([{ ref: "R2", status: "rejected", issues: ["variant_omitted"] }]);
+    // Değişkeyi de anan parça gider (değeri öteki kalemden doğrulanır).
+    const both = p("R2", "Havuz 20:00'de kapanıyor; hafta sonları 23:00'e kadar açık.", "Havuz 20:00'de kapanır.");
+    expect(composeVerifiedReply({ parts: [both], needs: [NEEDS[1]], sources: WITH_VARIANT }).refs).toEqual(["R2"]);
+  });
+
+  it("🚨 bütçeden düşen kalem kaynak listesinde YOK (model görmediği metne dayanamaz)", () => {
+    const big = (t: string) => ({ category: "rules", title: t, content: `${t} kuralları: ${"ayrıntılı açıklama satırı. ".repeat(500)}` });
+    const kb = [big("Bahçe"), big("Teras"), { category: "rules", title: "Havuz", content: "Havuz 20:00'de kapanır." }];
+    const on = buildReplyPrompt({ ...input, knowledgeBase: kb, conversationItems: ITEMS });
+    expect(on.kbOmitted).toBeGreaterThan(0);
+    const ids = on.partSources?.map((s) => s.id) ?? [];
+    // Bütçeye giren kalemler (ilk kalem her zaman girer) ve mülk bilgisi; düşen kalem listede yok, sıra numarası kendi yerinde kalır.
+    expect(ids[0]).toBe("kb:1");
+    expect(ids).toContain("property");
+    expect(ids.length).toBe(1 + (3 - on.kbOmitted));
+    for (const s of on.partSources ?? []) if (s.id.startsWith("kb:")) expect(on.text).toContain(s.text);
+  });
+});

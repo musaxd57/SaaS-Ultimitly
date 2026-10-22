@@ -937,7 +937,7 @@ export function packKnowledgeBase(
   selection: "all" | "retrieved" = "all",
   /** Seçicinin dürüst notları (hibrit): bloğun sonuna `[NOT]` satırı olarak eklenir. */
   notes: readonly string[] = [],
-): { text: string; omitted: number } {
+): { text: string; omitted: number; kept: number[] } {
   if (items.length === 0) {
     const head =
       alreadyDropped > 0
@@ -945,16 +945,18 @@ export function packKnowledgeBase(
         : "(bilgi tabanı boş — bu mülk için kayıtlı bilgi yok)";
     // Kodun notları (yeniden yazdırma sebebi, QR kapı kodu / acil yönergesi notu) bilgi tabanı boşken de modele ulaşır (Opus 10-22 F2:
     // eskiden erken dönüş notları düşürüyordu — ikinci çağrı aynı istemin yeniden örneklemesiydi). Not yoksa metin bayt bayt aynı.
-    return { text: notes.length > 0 ? [head, ...notes.map((n) => `- [NOT] ${n}`)].join("\n") : head, omitted: alreadyDropped };
+    return { text: notes.length > 0 ? [head, ...notes.map((n) => `- [NOT] ${n}`)].join("\n") : head, omitted: alreadyDropped, kept: [] };
   }
   const lines: string[] = [];
+  // İsteme GİREN kalemlerin sırası (parça kipinin kaynak listesi yalnız bunlardan — bütçeden düşen kalem modelin görmediği metindir).
+  const kept: number[] = [];
   let used = 0;
   let omitted = alreadyDropped;
   const placeholders: { title: string; tokens: string[] }[] = [];
   // Bütçe biçimli satırı VE satır ayracını sayar (seçicinin ön hesabıyla AYNI ölçü, `kbBlockChars`). ≤30 kalemlik bilgi tabanı
   // bütçeyi yalnız dar ek pay kadar aşıyorsa kalem düşmez (`kbFitsWhole`, kurucu kararı 09-27 #209); genel bütçe büyümez.
   const budget = kbFitsWhole(items) ? KB_CHAR_BUDGET + SMALL_KB_MARGIN_CHARS : KB_CHAR_BUDGET;
-  for (const k of items) {
+  for (const [i, k] of items.entries()) {
     const line = kbLine(k);
     const add = line.length + (lines.length > 0 ? 1 : 0);
     if (used + add > budget && lines.length > 0) {
@@ -962,6 +964,7 @@ export function packKnowledgeBase(
       continue;
     }
     lines.push(line);
+    kept.push(i);
     used += add;
     // 🚨 YALNIZ `content` TARANIR — 6. TURUN BAŞLIK TARAMASI GERİ ALINDI (7. tur incelemesi).
     // Gerekçe "başlık da isteme yazılıyor" DOĞRUYDU ama BEDELİ ÖLÇÜLMEMİŞTİ: başlıklar ETİKET
@@ -996,7 +999,7 @@ export function packKnowledgeBase(
             "Sorulan konu yukarıda yoksa 'bilgi yok' DEME — konuyu insana devret.",
     );
   }
-  return { text: lines.join("\n"), omitted };
+  return { text: lines.join("\n"), omitted, kept };
 }
 
 export interface TimeConflict {
@@ -1990,7 +1993,9 @@ Cevap metninde (reply) yalnızca verilen veri, zaman bağlamı ve bilgi tabanın
   };
   const partSources = input.conversationItems?.parts
     ? [
-        ...knowledgeBase.map((k, i) => ({ id: `kb:${i + 1}`, text: kbLine(k) })),
+        // Yalnız isteme GİREN kalemler (Opus 10-23): bütçeden düşen kalem modelin görmediği metindir — alıntı ona dayanamaz, değişke
+        // taraması da onu okumaz.
+        ...packed.kept.map((i) => ({ id: `kb:${i + 1}`, text: kbLine(knowledgeBase[i]) })),
         // Kodun "(belirtilmemiş — asla uydurma)" işareti olgu değildir → alıntılanamasın (Haiku 10-23).
         { id: "property", text: propertyFacts.split("\n").filter((l) => !l.includes("(belirtilmemiş")).join("\n") },
       ]

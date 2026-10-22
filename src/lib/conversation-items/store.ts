@@ -218,7 +218,8 @@ export async function applyWithdrawals(
     });
     // Sıra kipi (migration 84): vazgeçme yalnız (mesaj, tür) taşır. Aynı türden FARKLI konulu iki açık öğe varsa ("Sauna açık mı? Havuz
     // açık mı?" → "Saunayı boşverin") hangisinden vazgeçildiği belli değil → hiçbiri kapanmaz (kurucu B: ilişki belirsizse kapatma yok).
-    if (ordinalMode && new Set(rows.map((r) => r.topic).filter((t): t is string => !!t)).size > 1) continue;
+    // Etiketsiz öğe (süzülmüş etiket / anahtar öncesi satır) de "aynı konu" sayılmaz — birden çok aday varken belirsizdir (Opus 10-23).
+    if (ordinalMode && rows.length > 1 && (rows.some((r) => !r.topic) || new Set(rows.map((r) => r.topic)).size > 1)) continue;
     ids.push(...rows.map((r) => r.id));
   }
   ids.push(...(await faultGuardCompanions(db, input, ids)));
@@ -285,8 +286,10 @@ export async function supersedeOlderItems(
       // Bu turdaki DAHA SONRAKİ mesajın öğesi "eski" değildir.
       if (olderIdx >= 0 && olderIdx > order(newer.messageId)) continue;
       if (!maySupersede(older, newer)) continue;
-      // Sıra kipi: yeni "havuz" isteği eski "sauna" öğesinin yerini almaz (iki etiket de var ve ortak sözcük yok).
-      if (ordinalMode && !topicsCompatible(older.topic, newer.topic)) continue;
+      // Sıra kipi: yeni "havuz" isteği eski "sauna" öğesinin yerini almaz. Yer alma bir KAPATMADIR → yalnız iki etiket de var ve ortak
+      // sözcük taşıyorsa; etiketi olmayan taraf ilişkiyi belirsiz bırakır (Opus 10-23; kurucu B). Bedeli: etiketsiz takip mesajının yeni
+      // hassas öğesi eski öğenin bildirim damgasını devralmaz (o mesaj için ayrı bildirim olabilir).
+      if (ordinalMode && !(older.topic && newer.topic && topicsCompatible(older.topic, newer.topic))) continue;
       const n = await applyItemEvent(db, { organizationId: input.organizationId, ids: [older.id], event: "superseded", now: input.now });
       if (n === 1 && older.notifiedAt && !newer.notifiedAt) {
         await db.conversationItem.updateMany({

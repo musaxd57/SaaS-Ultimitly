@@ -119,7 +119,17 @@ export function composeVerifiedReply(input: { parts: readonly AnswerPart[]; need
       verdicts.push({ ref: need.ref, status: "rejected", issues: ["source_not_found"] });
       continue;
     }
-    const binding = checkAnswerBinding({ part: part.text, evidence: part.evidence, sourceText: source.text, needTerms: need.terms, needTopics: need.topics });
+    // İstemdeki öteki kaynaklar da okunur (Opus 10-23 O6): aynı konunun koşullu değişkesi başka kalemde olabilir ("Havuz 20:00" ↔ ayrı
+    // kalemde "Hafta sonu havuz 23:00") — genel değer o değişkeyi anmadan gitmez; uydurma koşul kıyası da bütün kaynaklarla.
+    const otherSources = input.sources.filter((s) => s !== source).map((s) => s.text);
+    const binding = checkAnswerBinding({
+      part: part.text,
+      evidence: part.evidence,
+      sourceText: source.text,
+      otherSources,
+      needTerms: need.terms,
+      needTopics: need.topics,
+    });
     if (!binding.ok) {
       verdicts.push({ ref: need.ref, status: "rejected", issues: binding.issues });
       continue;

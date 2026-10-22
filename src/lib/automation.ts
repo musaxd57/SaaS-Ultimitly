@@ -3186,8 +3186,9 @@ export async function applyChannelAutoReply(
   const handoffHeld = result.source === "openai" && (carriesHandoffNotice(result.reply) || stayEval.deferralHeld === true);
   // Cevap parçaları kipi (10-23 A): hiçbir parça doğrulanamadı → misafire hiçbir şey gitmedi ve "ev sahibine soracağım" cümlesi de
   // YAZILMADI (kip onu üretmez). Ev sahibi bugünkü devir tutuşundaki gibi mesaj başına BİR "Misafir cevabınızı bekliyor" e-postası alır
-  // (Haiku 10-23: tur sessiz kalıyordu). Kısmen doğrulanan turda giden metin var; açık istek panelde.
-  const partsNothingVerified = replyItems?.parts === true && result.source === "openai" && !result.reply.trim() && (result.answerParts?.length ?? 0) > 0;
+  // (Haiku 10-23: tur sessiz kalıyordu). Kısmen doğrulanan turda giden metin var; açık istek panelde. Model parça beyanını hiç
+  // yazmadıysa da (beyan eksik → metin boş) tur sessiz kalmaz (Opus 10-23).
+  const partsNothingVerified = replyItems?.parts === true && result.source === "openai" && !result.reply.trim();
   if (!gatePassed) {
     // ── KONUŞMA ÖĞELERİ — TUTULAN TUR (kurucu kararları 09-26) ───────────────────────────────────────────────────
     // Acil / enjeksiyon turu bugünkü yoldan (Sorunlu + acil e-posta): öğeler tutulur, e-postayı bugünkü yol atar.

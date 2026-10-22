@@ -216,6 +216,9 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
               },
               // Yapay zekâ üretim izi (migration 60): süpürge eski izin metnini null'lar → sonlanır. Yaş sınırı Message ile AYNI.
               { conversations: { some: { aiGenerations: { some: aiTraceTextLeft(cutoff) } } } },
+              // Öğe konu etiketi (migration 84, misafir kaynaklı): süpürge eski etiketi null'lar → sonlanır (Opus 10-23 — ilk süpürgeden
+              // SONRA yazılan etiket hiçbir bacağa düşmüyordu).
+              { conversations: { some: { items: { some: { topic: { not: null }, ...aiTraceAge(cutoff) } } } } },
               // Görev açıklaması misafirin HAM metni (şikayet / akıllı görev) —
               // aşağıda ANON_BODY yapılır → sonlanır. NULL hariç (Prisma `not`
               // NULL'u dışlar; açıkça yazıldı ki niyet okunabilsin).
@@ -513,6 +516,7 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
               { aiActionSuggestion: { not: null } },
               { aiMissingInfoJson: { not: null } },
               { aiGenerations: { some: aiTraceTextLeft(cutoff) } },
+              { items: { some: { topic: { not: null }, ...aiTraceAge(cutoff) } } },
             ]
           : []),
       ],

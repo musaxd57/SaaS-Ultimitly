@@ -289,18 +289,23 @@ export async function notifyHeldItems(
   });
   const alreadyNotified = new Set(rows.filter((r) => r.notifiedAt !== null).map((r) => r.messageId));
   const byMessage = new Map<string, string[]>();
+  // Sessiz türden OLMAYAN açık işi olan mesajlar (Opus 10-23): "Wi-Fi şifresi? Bunu nereden biliyorsun?" — Wi-Fi cevaplanamadıysa
+  // açık iştir; kaynak sorusunun sessizliği onun bildirimini de susturmaz.
+  const loud = new Set<string>();
   for (const r of rows) {
     // Kurucu 10-23: kaynak / asistan sorusu panelde açık kalır, e-posta istemez.
     if (r.status === "pending_host" && NO_NOTIFY_KINDS.has(r.kind)) {
       if (!notice.quiet.includes(r.messageId)) notice.quiet.push(r.messageId);
       continue;
     }
+    if (r.status === "open" || r.status === "pending_host") loud.add(r.messageId);
     if (r.status !== "pending_host" || r.sensitivity === "none") continue;
     if (!notice.held.includes(r.messageId)) notice.held.push(r.messageId);
     if (r.notifiedAt !== null) continue;
     byMessage.set(r.messageId, [...(byMessage.get(r.messageId) ?? []), r.id]);
   }
-  notice.quiet = notice.quiet.filter((m) => !notice.held.includes(m));
+  // Yalnız mesajın BÜTÜN açık işleri sessiz türdeyse "sessiz" (bekleyen cevap e-postası da gitmez).
+  notice.quiet = notice.quiet.filter((m) => !notice.held.includes(m) && !loud.has(m));
   if (!input.to) return notice;
   if (byMessage.size > 0) {
     await db.systemLock.deleteMany({ where: { name: { startsWith: HELD_MAIL_PREFIX }, lockedUntil: { lt: input.now } } }).catch(() => {});

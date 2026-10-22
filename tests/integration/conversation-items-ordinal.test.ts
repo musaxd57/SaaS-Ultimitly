@@ -225,6 +225,84 @@ describe("Haiku 10-23 D incelemesi — belirsizse kapatma yok (kurucu B), saklam
     expect((await rowsOf(off.conversationId)).filter((r) => r.kind === "amenities").map((r) => r.status)).toEqual(["withdrawn"]);
   });
 
+  it("🚨 etiketsiz satır (anahtar öncesi) + etiketli satır, 'Saunayı boşverin' → ikisi de AÇIK (etiketsiz öğe 'aynı konu' sayılmaz — Opus 10-23)", async () => {
+    const second = "Saunayı boşverin, teşekkürler.";
+    const { conversationId, m1, m2 } = await seedTwo(second);
+    // Anahtar kapalı dönem: m1'in havuz isteği etiketsiz sıra 0 satırı.
+    await turnTwo(
+      conversationId,
+      m1,
+      m2,
+      second,
+      {
+        requests: [
+          { intent: "amenities", message: 1, query_tr: HAVUZ.q, query_original: HAVUZ.o },
+          { intent: "greeting_thanks", message: 2, query_tr: "teşekkür", query_original: second },
+        ],
+        withdrawn: [],
+      },
+      3,
+    );
+    expect((await rowsOf(conversationId)).filter((r) => r.kind === "amenities").map((r) => [r.topic, r.status])).toEqual([[null, "open"]]);
+    vi.stubEnv("AI_ITEM_ORDINAL_ENABLED", "1");
+    await turnTwo(
+      conversationId,
+      m1,
+      m2,
+      second,
+      {
+        requests: [
+          { intent: "amenities", message: 1, query_tr: HAVUZ.q, query_original: HAVUZ.o },
+          { intent: "amenities", message: 1, query_tr: SAUNA.q, query_original: SAUNA.o },
+          { intent: "greeting_thanks", message: 2, query_tr: "teşekkür", query_original: second },
+        ],
+        withdrawn: [{ intent: "amenities", message: 1 }],
+      },
+      6,
+    );
+    expect((await rowsOf(conversationId)).filter((r) => r.kind === "amenities").map((r) => [r.topic, r.status])).toEqual([
+      [null, "open"],
+      ["sauna", "open"],
+    ]);
+  });
+
+  it("🚨 etiketsiz eski öğenin yerini yeni etiketli istek ALMAZ (ilişki belirsiz → kapatma yok — Opus 10-23)", async () => {
+    const { conversationId, messageId } = await seed();
+    await turn(conversationId, messageId, [SAUNA], 1); // anahtar kapalı: etiketsiz
+    vi.stubEnv("AI_ITEM_ORDINAL_ENABLED", "1");
+    const later = await prisma.message.create({
+      data: { conversationId, direction: "inbound", body: "Sauna kaçta açılıyor?", senderName: "Alex", authorType: "guest", createdAt: at(10) },
+    });
+    await planItemsTurn(prisma, {
+      organizationId: orgId,
+      conversationId,
+      history: [
+        { id: messageId, direction: "inbound", body: BODY },
+        { id: later.id, direction: "inbound", body: "Sauna kaçta açılıyor?" },
+      ],
+      guestMessage: "Sauna kaçta açılıyor?",
+      understanding: parseUnderstanding(
+        {
+          language: "tr",
+          requests: [
+            { intent: "amenities", message: 1, query_tr: SAUNA.q, query_original: SAUNA.o },
+            { intent: "amenities", message: 2, query_tr: "sauna kaçta açılıyor", query_original: "Sauna kaçta açılıyor?" },
+          ],
+          stay_change: STAY_NONE,
+          withdrawn: [],
+        },
+        { items: true },
+      ),
+      expectedMessageIds: [messageId, later.id],
+      now: at(11),
+    });
+    const rows = await prisma.conversationItem.findMany({ where: { conversationId }, orderBy: { createdAt: "asc" }, select: { topic: true, status: true } });
+    expect(rows).toEqual([
+      { topic: null, status: "open" },
+      { topic: "sauna açılıyor", status: "open" },
+    ]);
+  });
+
   it("🚨 yeni 'havuz' isteği eski 'sauna' öğesinin yerini almaz; aynı konu (havuz → havuzu) alır", async () => {
     vi.stubEnv("AI_ITEM_ORDINAL_ENABLED", "1");
     const { conversationId, messageId } = await seed();
@@ -301,6 +379,42 @@ describe("Haiku 10-23 D incelemesi — belirsizse kapatma yok (kurucu B), saklam
         { kind: "amenities", topic: null },
       ]);
     }
+  });
+
+  it("🚨 zaten temizlenmiş kayıtta kalan eski etiket de seçilir ve boşalır — iki dal (seçim bacağı = sonlanma kuralı, Opus 10-23)", async () => {
+    vi.stubEnv("AI_ITEM_ORDINAL_ENABLED", "1");
+    vi.stubEnv("DATA_RETENTION_MONTHS", "24");
+    vi.stubEnv("RETENTION_MESSAGE_AGE_ANCHOR", "1");
+    const { ANON_BODY } = await import("@/lib/data-retention");
+    const { ANON_NAME, ANON_ID } = await import("@/lib/anon-sentinels");
+    const old = new Date(Date.now() - 30 * 30 * 24 * 60 * 60 * 1000);
+    // Başka hiçbir bacağa düşmeyen kayıt: ad / kimlik / gövde zaten temiz; yalnız öğe etiketi kalmış.
+    const reservation = await prisma.reservation.create({
+      data: { propertyId, guestName: ANON_NAME, sourceReference: "res-ret-84b", channel: "airbnb", status: "completed", arrivalDate: old, departureDate: new Date(old.getTime() + 86_400_000) },
+    });
+    const conversation = await prisma.conversation.create({
+      data: { propertyId, reservationId: reservation.id, channel: "airbnb", guestIdentifier: ANON_ID, status: "new", lastMessageAt: old },
+    });
+    const orphan = await prisma.conversation.create({ data: { propertyId, channel: "airbnb", guestIdentifier: ANON_ID, status: "new", lastMessageAt: old } });
+    for (const [conv, topic] of [
+      [conversation.id, "havuz"],
+      [orphan.id, "sauna"],
+    ] as const) {
+      const m = await prisma.message.create({ data: { conversationId: conv, direction: "inbound", body: ANON_BODY, senderName: ANON_ID, authorType: "guest", createdAt: old } });
+      await upsertTurnItems(prisma, {
+        organizationId: orgId,
+        conversationId: conv,
+        messages: [{ messageId: m.id, items: buildItemsForMessage({ requests: [{ intent: "amenities", topic }], lexicalLabels: [], ordinals: [0] }) }],
+        now: old,
+      });
+    }
+    const { anonymizeOldGuestData } = await import("@/lib/data-retention");
+    await anonymizeOldGuestData();
+    for (const id of [conversation.id, orphan.id]) {
+      expect((await prisma.conversationItem.findMany({ where: { conversationId: id }, select: { topic: true } })).map((r) => r.topic)).toEqual([null]);
+    }
+    // Sonlanma: ikinci koşu bir şey seçmez (etiket kalmadı).
+    expect((await anonymizeOldGuestData()).anonymized).toBe(0);
   });
 });
 
