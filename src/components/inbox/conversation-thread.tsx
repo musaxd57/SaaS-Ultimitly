@@ -95,6 +95,8 @@ interface Suggestion {
   availabilityCheck?: AvailabilityVetoReason | null;
   /** Doğrulanmış erken giriş kontrolü (09-24): kontrol listesi + uygunsa koddan kurulan hazır cevap. */
   earlyCheckin?: (EarlyCheckinPanelData & { draft: string | null }) | null;
+  /** Kurucu 10-22: taslak bilginin kaynağını anlatıyor (sunucu yüklemi `namesInternalSource`). */
+  internalSourceCheck?: boolean;
   /** Kayıtlı taslak (sayfa açılınca yüklendi; misafire gitmedi) — güven rozeti yerine "hazır taslak" yazar. */
   prepared?: boolean;
 }
@@ -108,6 +110,7 @@ function preparedSuggestion(d: PreparedDraft): Suggestion {
     risk: null,
     source: "openai",
     availabilityCheck: d.availabilityCheck,
+    internalSourceCheck: d.internalSourceCheck,
     prepared: true,
   };
 }
@@ -1075,6 +1078,19 @@ export function ConversationThread({
                     : suggestion.availabilityCheck === "availability_claim"
                     ? "Bu taslak takvim hakkında kesin bir şey söylüyor. Göndermeden önce kanal takviminden kontrol edin."
                     : "Misafir tarih ya da saat değişikliği istiyor. Misafire söz vermeden önce kanal takviminden kontrol edin."}
+                </span>
+              </p>
+            ) : null}
+
+            {suggestion.internalSourceCheck ? (
+              <p
+                data-testid="internal-source-warning"
+                className="flex items-start gap-2 rounded-md bg-orange-50 dark:bg-orange-500/10 px-2.5 py-2 text-xs text-orange-800 dark:text-orange-300"
+              >
+                <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+                <span>
+                  <span className="font-medium">Kaynak cümlesi:</span> Bu taslak bilgiyi nereden aldığını anlatıyor (bilgi tabanı, kayıtlar,
+                  notlar gibi). Göndermeden önce o cümleyi çıkarın; misafire yalnız bilginin kendisini yazın.
                 </span>
               </p>
             ) : null}

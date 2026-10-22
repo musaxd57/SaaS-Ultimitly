@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { namesInternalSource } from "@/lib/ai/absence";
 import { kbForStayScopeRawAndFilled, styleProfileForPrompt } from "@/lib/guest-chat";
 import { aiSuggestSchema } from "@/lib/validators";
 import { suggestReply } from "@/lib/ai";
@@ -290,5 +291,8 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
       }
     : null;
 
-  return jsonOk({ ...result, reply: hostDraft, availabilityCheck, earlyCheckin });
+  // Kurucu 10-22 ("bilgi tabanıyla ilgili … hiçbir şey müşteriye gitmemeli"; Opus 10-22): taslak bilginin kaynağını anlatıyorsa ev sahibi
+  // tek tıkla göndermeden önce uyarıyı görür (otomatik gönderim kapısıyla aynı yüklem).
+  const internalSourceCheck = namesInternalSource(hostDraft);
+  return jsonOk({ ...result, reply: hostDraft, availabilityCheck, earlyCheckin, internalSourceCheck });
 });

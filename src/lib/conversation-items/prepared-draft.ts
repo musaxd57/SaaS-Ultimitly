@@ -1,3 +1,4 @@
+import { namesInternalSource } from "@/lib/ai/absence";
 import { vetoAvailability, type AvailabilityVetoReason } from "@/lib/ai/availability-claims";
 import { isAutomationMessage } from "@/lib/message-author";
 
@@ -29,6 +30,8 @@ export interface PreparedDraft {
   intent: string;
   confidence: number;
   availabilityCheck: AvailabilityVetoReason | null;
+  /** Kurucu 10-22 (Opus): taslak bilginin NEREDEN geldiğini anlatıyor ("Bilgi tabanımda … yazıyor") — ev sahibi göndermeden önce görür. */
+  internalSourceCheck: boolean;
 }
 
 export function preparedDraftOf(
@@ -58,5 +61,6 @@ export function preparedDraftOf(
       stayTimes: opts.stayTimes,
       hostOfferText: opts.hostOfferText,
     }),
+    internalSourceCheck: namesInternalSource(reply),
   };
 }

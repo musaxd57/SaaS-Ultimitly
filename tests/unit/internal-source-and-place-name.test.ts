@@ -262,3 +262,15 @@ describe("cevap istemi", () => {
     expect(without).toContain("Check-in saati: 15:00");
   });
 });
+
+describe("hazır taslak — ev sahibi tek tıkla göndermeden önce uyarı (Opus 10-22)", () => {
+  it("preparedDraftOf kaynak cümlesini işaretler", async () => {
+    const { preparedDraftOf } = await import("@/lib/conversation-items/prepared-draft");
+    const msgs = (draft: string) => [
+      { id: "m1", direction: "inbound", body: "Otopark ücretli mi?", aiSuggestedReply: draft, aiIntent: "parking", aiConfidence: 0.9 },
+    ];
+    const opts = { stayTimes: null, hostOfferText: null };
+    expect(preparedDraftOf(msgs("Bilgi tabanımda otopark ücretsiz yazıyor."), opts)?.internalSourceCheck).toBe(true);
+    expect(preparedDraftOf(msgs("Otopark ücretsiz."), opts)?.internalSourceCheck).toBe(false);
+  });
+});

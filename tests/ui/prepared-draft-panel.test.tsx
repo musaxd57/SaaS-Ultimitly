@@ -26,7 +26,14 @@ const baseProps = {
   canReply: true,
 } as unknown as Props;
 
-const DRAFT = { messageId: "m1", reply: "Ödeme bilgisini kontrol edip size dönüş yapacağım.", intent: "payment", confidence: 0.9, availabilityCheck: null };
+const DRAFT = {
+  messageId: "m1",
+  reply: "Ödeme bilgisini kontrol edip size dönüş yapacağım.",
+  intent: "payment",
+  confidence: 0.9,
+  availabilityCheck: null,
+  internalSourceCheck: false,
+};
 
 describe("ConversationThread — hazır taslak", () => {
   beforeEach(() => {
@@ -58,6 +65,14 @@ describe("ConversationThread — hazır taslak", () => {
     const w = screen.getByTestId("availability-warning");
     expect(w.textContent).toContain("Bu konuşmada tarih, saat ya da müsaitlik konusu var.");
     expect(w.textContent).not.toContain("kesin bir şey söylüyor");
+  });
+
+  it("kurucu 10-22: taslak bilginin kaynağını anlatıyorsa ev sahibi uyarıyı görür; anlatmıyorsa uyarı yok", () => {
+    render(<ConversationThread {...baseProps} initialDraft={{ ...DRAFT, reply: "Bilgi tabanımda otopark ücretsiz yazıyor.", internalSourceCheck: true }} />);
+    expect(screen.getByTestId("internal-source-warning").textContent).toContain("Göndermeden önce o cümleyi çıkarın");
+    cleanup();
+    render(<ConversationThread {...baseProps} initialDraft={DRAFT} />);
+    expect(screen.queryByTestId("internal-source-warning")).toBeNull();
   });
 
   it("kapatılan taslak yenilemede (aynı mesaj) geri GELMEZ; yeni mesajın taslağı gelir", () => {
