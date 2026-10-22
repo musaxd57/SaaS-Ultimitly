@@ -19,6 +19,9 @@
 - Klavye erişilebilirliği (Haiku klavye incelemesi, axe'nin göremediği): satır içi onaylarda odak "Vazgeç"e iner, vazgeçince açan düğmeye
   döner (karar kartı kapat / hazır metne dön, giriş kodunu kaldır); açılır bölüm düğmelerinde `aria-expanded`, görev süre süzgecinde
   `aria-pressed`; mobil menü açıkken arka sütun `inert` (kapanınca odak `<body>`de kalmışsa hamburger'a döner). Mutasyon 12/12.
+  Karanlık tema taraması (32 sayfa): tek kalan tamamlanan kart soluklaştırması (soru U16) + Raporlar'da axe "kaydırılabilir bölge
+  odaklanabilir değil" (`<main>` tabIndex -1: "İçeriğe geç" hedefi; her sayfaya ek Tab durağı EKLENMEDİ — Chromium kaydırılabilir bölgeyi
+  klavyeyle zaten odaklıyor; bilinçli).
   Açık: "Aboneliği devam ettir" önizlemesi açılınca odak kaybı (anahtar KAPALI, testi yok — ayrı iş); onay pencerelerinde arka plan `inert` değil
   (odak tuzağı var).
 - Önceki push f1837b9e CI 6/6 yeşil; f3d60dd6 itildi.

@@ -1188,6 +1188,13 @@ A–Z'nin çoğu), olası tehlike konuşmasında yanlış "beklemede" bandı, ku
 - **Önerim:** saatte toplam 200 yeni kayıt tavanı; aşılınca yeni kayıt "Şu an çok yoğunuz, birkaç dakika sonra tekrar deneyin" der ve size
   tek uyarı e-postası gider. Normal günde kimse fark etmez. Yapalım mı? (Rakam sizin beklediğiniz kayıt hızına göre değişebilir.)
 
+### U16 · Tamamlanan görev kartı fazla soluk (erişilebilirlik taraması, küçük)
+- **Bugün:** "Tamamlandı" sütunundaki kartlar %70 opaklıkta; içindeki gri yazı açık temada 2,7:1, karanlık temada "Ayrıntılar" düğmesi
+  3,9:1 (okunabilirlik eşiği 4,5:1). Taramadaki diğer her şey düzeltildi; bu bilinçli bir tasarım (bitenler geri plana çekilsin) olduğu için
+  dokunulmadı.
+- **Önerim:** kart soluklaştırma yerine başlığın üstü çizili + "Tamamlandı" rozeti (yazılar tam okunur, kartın bittiği yine belli olur);
+  ya da opaklığı %85'e çıkarmak (fark küçük, eşiğe yaklaşır ama tam geçmez). Hangisi?
+
 **Açılış listesine not (yeni soru değil):** `QR_PIN_ENABLED` açılınca QR fotoğrafına sahip biri, henüz kimsenin bağlanmadığı bir konaklamayı
 15 dakikada 10 yanlış kodla kilitleyebilir (doğru kod da beklemeye girer). Tasarımı `kalici-kararlar` "PIN DoS"ta var, uygulanmadı —
 QR kodunu açmadan önce birlikte bakalım.
