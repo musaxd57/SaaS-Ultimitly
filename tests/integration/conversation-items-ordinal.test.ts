@@ -281,10 +281,25 @@ describe("Haiku 10-23 D incelemesi — belirsizse kapatma yok (kurucu B), saklam
       messages: [{ messageId: m.id, items: buildItemsForMessage({ requests: [{ intent: "amenities", topic: "havuz" }], lexicalLabels: [], ordinals: [0] }) }],
       now: old,
     });
+    // Öksüz dal (rezervasyonsuz konuşma, kendi son mesaj zamanıyla yaşlanır) — kardeş dalla BİREBİR (parite kuralı).
+    const orphan = await prisma.conversation.create({
+      data: { propertyId, channel: "airbnb", guestIdentifier: "Alex Orphan", status: "new", lastMessageAt: old },
+    });
+    const om = await prisma.message.create({
+      data: { conversationId: orphan.id, direction: "inbound", body: BODY, senderName: "Alex Orphan", authorType: "guest", createdAt: old },
+    });
+    await upsertTurnItems(prisma, {
+      organizationId: orgId,
+      conversationId: orphan.id,
+      messages: [{ messageId: om.id, items: buildItemsForMessage({ requests: [{ intent: "amenities", topic: "sauna" }], lexicalLabels: [], ordinals: [0] }) }],
+      now: old,
+    });
     const { anonymizeOldGuestData } = await import("@/lib/data-retention");
     await anonymizeOldGuestData();
-    expect(await prisma.conversationItem.findMany({ where: { conversationId: conversation.id }, select: { kind: true, topic: true } })).toEqual([
-      { kind: "amenities", topic: null },
-    ]);
+    for (const id of [conversation.id, orphan.id]) {
+      expect(await prisma.conversationItem.findMany({ where: { conversationId: id }, select: { kind: true, topic: true } })).toEqual([
+        { kind: "amenities", topic: null },
+      ]);
+    }
   });
 });

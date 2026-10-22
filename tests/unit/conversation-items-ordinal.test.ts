@@ -210,7 +210,12 @@ describe("Haiku 10-23 D incelemesi", () => {
     const c1 = { ...c0, id: "c1", ordinal: 1 };
     const plan = composeItemsPlan({ turnItems: [c0, c1], held: [c0, c1], hints: new Map(), relations, kbRecipeTopics: new Set<string>() });
     expect(plan.gateItems.relation?.anchors.map((a) => a.topics)).toEqual([["ac"], ["tv"]]);
-    // Arıza anahtarı "tür#sıra": yalnız ikinci istek arızalı.
-    expect([...(faultRequestsOf([{ messageId: "m1", faultKinds: ["appliance_help#1"] }]) ?? [])]).toEqual([hintKey("m1", "appliance_help", 1)]);
+    // Arıza anahtarı "tür#sıra": yalnız ikinci istek arızalı → yalnız o ev sahibine kalır, ilki ("kumanda nerede?") cevaplanabilir.
+    const faults = faultRequestsOf([{ messageId: "m1", faultKinds: ["appliance_help#1"] }]);
+    expect([...(faults ?? [])]).toEqual([hintKey("m1", "appliance_help", 1)]);
+    const a0 = { id: "a0", messageId: "m1", kind: "appliance_help" as const, sensitivity: "none" as const, riskType: null };
+    const a1 = { ...a0, id: "a1", ordinal: 1 };
+    const listPlan = composeItemsPlan({ turnItems: [a0, a1], held: [], hints: new Map(), ...(faults ? { faultRequests: faults } : {}) });
+    expect(listPlan.answerable.map((x) => x.item.id)).toEqual(["a0"]);
   });
 });
