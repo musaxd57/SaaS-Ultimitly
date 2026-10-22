@@ -18,6 +18,7 @@ vi.mock("@/lib/email", () => ({ emailService: { send: vi.fn(), sendReporting: vi
 
 import { suggestReply } from "@/lib/ai";
 import { emailService } from "@/lib/email";
+import { setReservationPin } from "@/lib/guest-chat-pin";
 import { POST } from "@/app/api/chat/[token]/route";
 import { maybeSendQrEscalationEmail, QR_CRITICAL_EMAILS_PER_HOUR } from "@/lib/guest-chat-alerts";
 import { consumeDailyAiBudgetForQr } from "@/lib/ai/daily-budget";
@@ -309,14 +310,38 @@ describe("18 — cevapta kapı kodu: bir kez yeniden yaz, sonra devir", () => {
     expect(await prisma.riskEvent.count({ where: { reason: "emergency_directive" } })).toBe(1);
   });
 
-  it("KONTROL: Wi-Fi şifresi içeren cevap yeniden YAZDIRILMAZ (Wi-Fi verilir — kurucu kararı 10-11)", async () => {
-    const { token, propertyId } = await seed();
+  it("KONTROL: sohbet koduyla açılan konaklamada Wi-Fi şifresi içeren cevap yeniden YAZDIRILMAZ (Wi-Fi verilir — kurucu kararı 10-11)", async () => {
+    // U1 (b) (kurucu 10-22): Wi-Fi YALNIZ sohbet koduyla açılan konaklamada verilir.
+    vi.stubEnv("QR_PIN_ENABLED", "1");
+    const { token, propertyId, reservationId } = await seed();
+    const pin = await setReservationPin(reservationId);
+    const unlock = await POST(
+      new Request(`http://localhost/api/chat/${token}`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-forwarded-for": "10.2.0.1" },
+        body: JSON.stringify({ pin }),
+      }) as never,
+      { params: Promise.resolve({ token }) } as never,
+    );
+    expect(((await unlock.json()) as { unlocked?: boolean }).unlocked).toBe(true);
+    const cookie = deviceCookie(unlock);
     await prisma.knowledgeBaseItem.create({ data: { propertyId, category: "wifi", title: "Wi-Fi", content: "Ağ LaleNet, şifre gunes1907" } });
     mockSuggest.mockResolvedValue(reply("Wi-Fi ağı LaleNet, şifresi gunes1907."));
-    const res = await ask(token, "Wifi şifresi ne?");
+    const res = await ask(token, "Wifi şifresi ne?", cookie);
     expect(res.status).toBe(200);
     expect(mockSuggest).toHaveBeenCalledTimes(1);
     const kbSent = (mockSuggest.mock.calls[0][0] as { knowledgeBase: { content: string }[] }).knowledgeBase.map((k) => k.content).join("\n");
     expect(kbSent).toContain("gunes1907"); // Wi-Fi kalemi modele GİDER
+  });
+
+  it("🚨 U1 (b): sohbet kodu istenmeyen konaklamada Wi-Fi kalemi modele HİÇ gitmez (bağlantıyı saklayan eski misafir şifreyi alamaz)", async () => {
+    const { token, propertyId } = await seed();
+    await prisma.knowledgeBaseItem.create({ data: { propertyId, category: "wifi", title: "Wi-Fi", content: "Ağ LaleNet, şifre gunes1907" } });
+    await prisma.knowledgeBaseItem.create({ data: { propertyId, category: "faq", title: "Çöp", content: "Çöp salı günü alınır." } });
+    mockSuggest.mockResolvedValue(reply("Bu konuda ev sahibinize iletiyorum."));
+    await ask(token, "Wifi şifresi ne?");
+    const kbSent = (mockSuggest.mock.calls[0][0] as { knowledgeBase: { content: string }[] }).knowledgeBase.map((k) => k.content).join("\n");
+    expect(kbSent).not.toContain("gunes1907");
+    expect(kbSent).toContain("Çöp salı günü"); // diğer kalemler yerinde
   });
 });

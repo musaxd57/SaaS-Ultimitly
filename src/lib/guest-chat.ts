@@ -1558,10 +1558,14 @@ export async function resolveGuestChat(
   // büyüyordu. Tek yol `ai/kb-fetch.ts` (tavan + kaç kalemin düştüğü).
   // Gizli kategoriler WHERE'de eleniyor, yani tavan yalnız GÖSTERİLEBİLİR
   // kalemler arasından seçiyor — slot israfı yok ve düşen sayısı da doğru.
+  // 🚨 U1 (b) (kurucu 10-22, "Olur 3'ü birden"): sohbet kodu İSTENMEYEN konaklamada (QR kodu kapalı ya da bu rezervasyona kod verilmemiş)
+  // Wi-Fi kalemi modele HİÇ girmez. O durumda sohbeti giriş saatinden sonra ilk açan cihaz bağlanır — bağlantıyı saklayan eski misafir /
+  // temizlikçi de olabilir. Wi-Fi sorusu ev sahibine kalır (model bilgiyi bilmez → "bilgim yok" misafire gitmez, devir). Kodla açılan
+  // konaklamada Wi-Fi bugünkü gibi verilir (↑dosya başı istisna). Kapı kodu her durumda zaten yok.
   const kb = await fetchKnowledgeBaseForPrompt({
     propertyId: property.id,
     isActive: true,
-    category: { notIn: [...QR_SECRET_CATEGORIES] },
+    category: { notIn: pinRequired ? [...QR_SECRET_CATEGORIES] : [...QR_SECRET_CATEGORIES, "wifi"] },
   });
   const { items: kbRaw, dropped: kbDropped } = kb;
   // Drop any item whose text looks like an access secret, even in an allowed

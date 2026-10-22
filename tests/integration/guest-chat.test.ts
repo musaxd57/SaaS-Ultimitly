@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { prisma, resetDb, makeOrgWithProperty, daysFromNow } from "../helpers/db";
 import { resolveGuestChat, generateChatToken, QR_SECRET_CATEGORIES, PREBOOKING_SECRET_CATEGORIES } from "@/lib/guest-chat";
 import { withoutRandomIds } from "../helpers/random-ids";
+import { setReservationPin } from "@/lib/guest-chat-pin";
 
 async function enableChat(propertyId: string): Promise<string> {
   const token = generateChatToken();
@@ -32,7 +33,11 @@ async function activeStay(propertyId: string) {
 describe("resolveGuestChat (public QR concierge foundation)", () => {
   beforeEach(resetDb);
 
+  afterEach(() => vi.unstubAllEnvs());
+
   it("resolves an enabled token to its apartment + door-code-free, active KB (Wi-Fi allowed — kurucu kararı 10-11)", async () => {
+    // Wi-Fi yalnız sohbet koduyla açılan konaklamada (U1 b, kurucu 10-22) — bu vaka kodlu.
+    vi.stubEnv("QR_PIN_ENABLED", "1");
     const { propertyId, orgId } = await makeOrgWithProperty();
     await prisma.knowledgeBaseItem.createMany({
       data: [
@@ -42,7 +47,7 @@ describe("resolveGuestChat (public QR concierge foundation)", () => {
         { propertyId, category: "rules", title: "Kural", content: "Sigara yok.", isActive: false },
       ],
     });
-    await activeStay(propertyId);
+    await setReservationPin((await activeStay(propertyId)).id);
     const token = await enableChat(propertyId);
 
     const ctx = await resolveGuestChat(token);
@@ -65,7 +70,35 @@ describe("resolveGuestChat (public QR concierge foundation)", () => {
     expect(withoutRandomIds(blob)).not.toContain("4821");
   });
 
+  it("🚨 U1 (b): sohbet kodu istenmeyen konaklamada (kod kapalı ya da bu rezervasyona kod yok) Wi-Fi kalemi QR'a HİÇ girmez", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    await prisma.knowledgeBaseItem.createMany({
+      data: [
+        { propertyId, category: "faq", title: "Çöp", content: "Çöp salı günü." },
+        { propertyId, category: "wifi", title: "Wifi", content: "Şifre: SECRET123" },
+      ],
+    });
+    const stay = await activeStay(propertyId);
+    const token = await enableChat(propertyId);
+    // Kod anahtarı kapalı → Wi-Fi yok.
+    let ctx = await resolveGuestChat(token);
+    expect(ctx!.pinRequired).toBe(false);
+    expect(ctx!.knowledgeBase.map((k) => k.category)).toEqual(["faq"]);
+    expect(JSON.stringify(ctx!.knowledgeBase)).not.toContain("SECRET123");
+    // Anahtar açık ama bu rezervasyona kod verilmemiş → yine yok.
+    vi.stubEnv("QR_PIN_ENABLED", "1");
+    ctx = await resolveGuestChat(token);
+    expect(ctx!.pinRequired).toBe(false);
+    expect(JSON.stringify(ctx!.knowledgeBase)).not.toContain("SECRET123");
+    // Kod verilince → Wi-Fi girer.
+    await setReservationPin(stay.id);
+    ctx = await resolveGuestChat(token);
+    expect(ctx!.pinRequired).toBe(true);
+    expect(JSON.stringify(ctx!.knowledgeBase)).toContain("SECRET123");
+  });
+
   it("🚨 Wi-Fi kalemi kapı / kutu izi taşıyorsa QR'a GİRMEZ (değer olmasa da); Wi-Fi'nin gündelik adı 'Wi-Fi kodu' girer", async () => {
+    vi.stubEnv("QR_PIN_ENABLED", "1");
     const { propertyId } = await makeOrgWithProperty();
     await prisma.knowledgeBaseItem.createMany({
       data: [
@@ -75,7 +108,7 @@ describe("resolveGuestChat (public QR concierge foundation)", () => {
         { propertyId, category: "wifi", title: "Wifi kodu", content: "Wi-Fi kodu: 12345678 (ağ adı LaleNet)" },
       ],
     });
-    await activeStay(propertyId);
+    await setReservationPin((await activeStay(propertyId)).id);
     const token = await enableChat(propertyId);
 
     const blob = JSON.stringify((await resolveGuestChat(token))!.knowledgeBase);
