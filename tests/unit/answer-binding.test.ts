@@ -542,3 +542,35 @@ describe("Opus 10-23: yanlış kabuller — TUTULUR", () => {
     expect(one(a, "Havuz 20:00'ye kadar açık; yaz aylarında 23:00'e kadar.", ["havuz kaçta kapanıyor"], a, [a, b]).ok).toBe(true);
   });
 });
+
+describe("E v4 neden analizi + Haiku 10-23 (2. tur)", () => {
+  const one = (src: string, part: string, q: string[], otherSources?: string[]) =>
+    checkAnswerBinding({ part, evidence: src, sourceText: src, ...need(q), ...(otherSources ? { otherSources } : {}) });
+  const BREAKFAST = "Kahvaltı 08:00-10:30 arası, hafta sonu 11:00'e kadar zemin kattaki kafede verilir.";
+
+  it("🚨 eksiltili 'kadar': 'hafta içi 10:30'a, hafta sonu 11:00'e kadar' doğru cevap GİDER (ölçümde yanlış ret)", () => {
+    expect(one(BREAKFAST, "Kahvaltı hafta içi 10:30'a, hafta sonu 11:00'e kadar servis ediliyor.", ["kahvaltı kaçta bitiyor"]).ok).toBe(true);
+  });
+
+  it("'servis edil-' içerik sayılmaz ama olumsuzu ('servis edilmez') olumluluk kontrolünde TUTULUR", () => {
+    expect(one(BREAKFAST, "Kahvaltı hafta sonu 11:00'e kadar servis edilmez.", ["kahvaltı kaçta bitiyor"]).issues).toContain("polarity_mismatch");
+  });
+
+  it("aşırı uygulama yok: bulunma eki ('10:30'da') ya da 'kadar'sız kardeş BİTİŞ sayılmaz — tutulur", () => {
+    expect(one(BREAKFAST, "Kahvaltı hafta içi 10:30'da, hafta sonu 11:00'e kadar servis ediliyor.", ["kahvaltı kaçta bitiyor"]).issues).toContain("direction_mismatch");
+    expect(one(BREAKFAST, "Kahvaltı hafta içi 10:30'a, hafta sonu 11:00'e başlıyor.", ["kahvaltı kaçta bitiyor"]).ok).toBe(false);
+  });
+
+  it("🚨 kalem tarafı da aynı okur: 'hafta içi 20:00'ye, hafta sonu 23:00'e kadar' → '20:00'de açılıyor' TUTULUR (eskiden geçiyordu)", () => {
+    const src = "Havuz hafta içi 20:00'ye, hafta sonu 23:00'e kadar açıktır.";
+    expect(one(src, "Havuz hafta içi 20:00'de açılıyor.", ["havuz kaçta açılıyor"]).issues).toContain("direction_mismatch");
+    expect(one(src, "Havuz hafta içi 20:00'ye kadar açık.", ["havuz kaçta kapanıyor"]).ok).toBe(true);
+  });
+
+  it("🚨 ilgisiz kalemin koşulu uydurma koşulu doğrulamaz ('hafta sonu kahvaltı' → 'hafta sonu havuz' tutulur); konuya bağlı değişke doğrular", () => {
+    const pool = "Havuz 20:00'e kadar açıktır.";
+    const part = "Hafta sonu havuz 20:00'e kadar açık.";
+    expect(one(pool, part, ["havuz kaçta kapanıyor"], ["Hafta sonu kahvaltı 09:00-11:00 arası verilir."]).issues).toContain("condition_added");
+    expect(one(pool, part, ["havuz kaçta kapanıyor"], ["Hafta sonu havuz da 20:00'e kadar açıktır."]).ok).toBe(true);
+  });
+});

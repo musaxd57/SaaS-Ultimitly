@@ -163,9 +163,9 @@ function topicOverlap(a: string | null | undefined, b: string | null | undefined
   return topicWords(a).filter((w) => bw.some((x) => topicWordMatch(w, x))).length;
 }
 /**
- * İki öğe aynı konuyu mu anlatıyor: etiketlerden biri yoksa BİLİNMİYOR → bugünkü tür kuralı geçerli (true); ikisi de varsa ortak sözcük
- * şart. Sıra kipinde vazgeçme / yerine geçme kararları "havuz" isteğiyle "sauna" öğesini kapatmasın diye (kurucu B: "bir ihtiyacı
- * cevaplamak diğerlerini kapatmasın", "ilişki belirsizse otomatik kapatma").
+ * İki etiket birbiriyle ÇELİŞMİYOR mu: biri yoksa çelişki bilinmiyor (true); ikisi de varsa ortak sözcük şart. Yalnız "çelişmez"
+ * okumasıdır — KAPATAN kararlar (`store.ts` yerine geçme / vazgeçme) iki etiketi de AYRICA şart koşar (Opus 10-23: etiketsiz öğe "aynı
+ * konu" sayılmaz; kurucu B: "ilişki belirsizse otomatik kapatma").
  */
 export function topicsCompatible(a: string | null | undefined, b: string | null | undefined): boolean {
   return !a || !b || topicOverlap(a, b) > 0;

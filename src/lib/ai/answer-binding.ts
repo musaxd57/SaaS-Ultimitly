@@ -706,6 +706,11 @@ interface PlaceReading {
   directions: Set<"start" | "end">;
 }
 
+/** Değerin hemen ardındaki yönelme eki ("10:30'a", "20:00'ye") — ardından harf / rakam gelmez. */
+const DATIVE_AFTER = /^[’'`]?y?[ae](?![\p{L}\p{N}])/u;
+/** Paylaşılan okuma — değiştirilmez. */
+const END_ONLY = new Set<"start" | "end">(["end"]);
+
 function readPlace(text: string): PlaceReading {
   const t = tokenize(text);
   return { conditions: conditionClasses(t, "evidence"), negative: negative(t), directions: directions(t) };
@@ -803,15 +808,48 @@ function documentOf(raw: string, subj: Subject) {
       if (sent.clauses[mid][1] <= from) lo = mid + 1;
       else hi = mid;
     }
-    for (let ci = lo; ci < ownCi; ci++) {
-      for (const c of clausePlace(sent, ci).conditions) {
-        if ((DAY_CLASSES.has(c) && ownDay) || (SEASON_CLASSES.has(c) && ownSeason)) continue;
-        conditions.add(c);
-      }
+    // Aralıktaki koşul sınıfları önek sayımlarından (cümle başına bir kez): virgülle dizilmiş binlerce değerde her grup için aralığı
+    // yeniden yürümek karesel olurdu (Haiku 10-23).
+    const prefix = condPrefixOf(sent);
+    for (const [c, counts] of prefix) {
+      if (counts[ownCi] - counts[lo] <= 0) continue;
+      if ((DAY_CLASSES.has(c) && ownDay) || (SEASON_CLASSES.has(c) && ownSeason)) continue;
+      conditions.add(c);
     }
-    const reading = { conditions, negative: own.negative || extra.negative, directions: own.directions };
+    const reading = { conditions, negative: own.negative || extra.negative, directions: own.directions.size > 0 ? own.directions : ellipticEnd(sent, gi) ? END_ONLY : own.directions };
     row[gi] = reading;
     return reading;
+  };
+  /**
+   * Türkçe eksiltili "kadar" (E ölçümü v4: "Kahvaltı hafta içi 10:30'a, hafta sonu 11:00'e kadar"): tek değer yönelme ekiyle ("10:30'a")
+   * biter, hemen ardındaki değer de yönelme ekli ve kendi yan cümlesinde "kadar" taşıyorsa ilk değer de BİTİŞtir. Dar: bulunma eki
+   * ("10:30'da") ya da "kadar"sız kardeş yön vermez. İki taraf (parça + kalem) aynı okur.
+   */
+  const ellipticEnd = (sent: Sentence, gi: number): boolean => {
+    const g = sent.groups[gi];
+    const next = sent.groups[gi + 1];
+    if (!next || g.claims.length !== 1) return false;
+    if (!DATIVE_AFTER.test(text.slice(g.end, g.end + 4)) || !DATIVE_AFTER.test(text.slice(next.end, next.end + 4))) return false;
+    const nd = clausePlace(sent, sent.groupClause[gi + 1]).directions;
+    return nd.size === 1 && nd.has("end");
+  };
+  /** Cümlenin yan cümle koşullarının önek sayımları: `counts[k]` = ilk k yan cümlede o sınıfı taşıyanların sayısı. */
+  const condPrefixCache = new Map<Sentence, Map<string, Int32Array>>();
+  const condPrefixOf = (sent: Sentence): Map<string, Int32Array> => {
+    let m = condPrefixCache.get(sent);
+    if (m) return m;
+    m = new Map();
+    const n = sent.clauses.length;
+    for (let ci = 0; ci < n; ci++) {
+      for (const c of clausePlace(sent, ci).conditions) {
+        let counts = m.get(c);
+        if (!counts) m.set(c, (counts = new Int32Array(n + 1)));
+        counts[ci + 1] += 1;
+      }
+    }
+    for (const counts of m.values()) for (let k = 1; k <= n; k++) counts[k] += counts[k - 1];
+    condPrefixCache.set(sent, m);
+    return m;
   };
   /** Cümle düzeyi okumalar (istisna + koşulları, ücret tabanı) — cümle başına bir kez (değer başına yeniden okuma karesel/kübikti). */
   const sentenceCache = new Map<Sentence, { exception: boolean; conds: string[]; basis: Set<string> }>();
@@ -909,7 +947,30 @@ function documentOf(raw: string, subj: Subject) {
     }
     return (valuelessConds = [...out]);
   };
-  return { text, sentences, subjectIn, boundAt, boundRegion, placeOf, hasSubjectAnywhere, sentenceInfo, variantGroupsFor, valuelessVariantConds };
+  /**
+   * Konuya bağlı yerlerin koşul sınıfları: bağlı değer gruplarının yeri + konuyu anan değersiz yan cümleler. Öteki kalemlerden uydurma
+   * koşul kıyasına YALNIZ bunlar girer (Haiku 10-23: ilgisiz kalemin "hafta sonu kahvaltı" sözü havuz parçasındaki "hafta sonu"nu
+   * doğrulamasın).
+   */
+  let subjectConds: Set<string> | undefined;
+  const subjectConditions = (): Set<string> => {
+    if (subjectConds) return subjectConds;
+    const out = new Set<string>();
+    sentences.forEach((sent, si) =>
+      sent.groups.forEach((_, gi) => {
+        if (boundAt(si, gi)) for (const c of placeOf(sent, gi).conditions) out.add(c);
+      }),
+    );
+    for (const sent of sentences) {
+      sent.clauses.forEach(([a, b], ci) => {
+        if (sent.valuedClause[ci]) return;
+        const clause = text.slice(a, b);
+        if (subjectIn(clause)) for (const c of conditionClasses(tokenize(clause), "evidence")) out.add(c);
+      });
+    }
+    return (subjectConds = out);
+  };
+  return { text, sentences, subjectIn, boundAt, boundRegion, placeOf, hasSubjectAnywhere, sentenceInfo, variantGroupsFor, valuelessVariantConds, subjectConditions };
 }
 
 // ─── dayanaksız içerik (Haiku 10-23 F3: "Havuz 09:00-20:00 arası açık VE ÜCRETSİZDİR" alıntıda olmayan sözcükle gidiyordu) ─────────
@@ -966,6 +1027,9 @@ export function unsupportedContent(part: string, evidence: string, needTerms: re
   const pt = tokenize(part);
   return pt.some((t, i) => {
     if (t.length < 4 || /\d/.test(t) || isNeutralWord(t) || isFiller(t, pt[i - 1] ?? "")) return false;
+    // Edilgen yardımcı fiil ("ediliyor", "edilir") ve "servis edil-" (= "verilir") içerik değildir (E ölçümü v4: "servis ediliyor" ←
+    // "verilir"); olumsuzu ("servis edilmez") olumsuzluk kontrolünde ayrıca tutulur.
+    if (/^edil/.test(t) || (t === "servis" && /^edil/.test(pt[i + 1] ?? ""))) return false;
     if (needTerms.length > 0 && needTermsInStrict(needTerms, t) > 0) return false;
     return !ev.some((e) => sameStem(t, e));
   });
@@ -1076,13 +1140,15 @@ export function checkAnswerBinding(input: BindingInput): BindingResult {
   const partFee = feeClasses(partTokens);
   const partBasis = basisClasses(partTokens);
   const partException = partTokens.some((t) => EXCEPTION_TOKENS.has(t));
-  // Uydurma koşul / taban kıyası istemdeki bütün kaynaklarla (değişke başka kalemde olabilir — O6).
-  const sourceTokens = tokenize([input.sourceText, evidence, ...(input.otherSources ?? [])].join("\n"));
+  const otherDocs = (input.otherSources ?? []).filter((t) => t !== input.sourceText).map((t) => documentOf(t, subj));
+  // Uydurma koşul kıyası: alıntının kalemi + öteki kalemlerin YALNIZ konuya bağlı yerleri (değişke başka kalemde olabilir — O6; ilgisiz
+  // kalemin koşulu sayılmaz). Ücret tabanı yalnız alıntının kaleminden.
+  const sourceTokens = tokenize([input.sourceText, evidence].join("\n"));
   const sourceConditions = conditionClasses(sourceTokens, "evidence");
+  for (const d of otherDocs) for (const c of d.subjectConditions()) sourceConditions.add(c);
   const sourceBasis = basisClasses(sourceTokens);
   // Misafirin sorduğu gün ("cumartesi kaçta kapanıyor") — genel kuralın o güne özel söylenişi uydurma koşul değildir.
   const asked = conditionClasses([...input.needTerms], "evidence");
-  const otherDocs = (input.otherSources ?? []).filter((t) => t !== input.sourceText).map((t) => documentOf(t, subj));
 
   /** Parçanın değerleri: kendi gün / mevsim koşulu (değerden sonraki değersiz yan cümle sayılmaz) + kendi yönü + konu yeri. */
   const partClaims: { c: Span; days: Set<string>; dirs: Set<"start" | "end">; negative: boolean; groupSize: number; region: string }[] = [];
@@ -1115,14 +1181,12 @@ export function checkAnswerBinding(input: BindingInput): BindingResult {
     }
   };
   // Çok konulu ihtiyaçta kalem yerinin konu kimlikleri — yer başına bir kez (aynı yer her parça değeri için yeniden sorulur).
-  const regionIdCache = new Map<Doc, Map<number, Set<string>>>();
+  const regionIdCache = new Map<Doc, Set<string>[][]>();
   const evRegionIds = (d: Doc, si: number, gi: number): Set<string> => {
-    let m = regionIdCache.get(d);
-    if (!m) regionIdCache.set(d, (m = new Map()));
-    const key = si * 100_000 + gi;
-    let r = m.get(key);
-    if (!r) m.set(key, (r = subjectIdentitiesIn(d.boundRegion(si, gi) ?? "", subj, identities)));
-    return r;
+    let rows = regionIdCache.get(d);
+    if (!rows) regionIdCache.set(d, (rows = []));
+    const row = (rows[si] ??= []);
+    return (row[gi] ??= subjectIdentitiesIn(d.boundRegion(si, gi) ?? "", subj, identities));
   };
   // Ücret kutbu PARÇA düzeyinde: parçanın konusunu anan kalem cümleleri (+ ardındaki konusuz devam cümleleri) ne diyor ("Otopark
   // ücretlidir." → "Parking is free." tutulur; "Havuz ücretsiz. Sauna ücretli." → "Sauna ücretsizdir" tutulur).
@@ -1323,4 +1387,20 @@ function sameValue(a: Span, b: Span): boolean {
   // Alıntıdaki belirsiz saat ("saat 9" = 09:00 | 21:00) parçadaki KESİN saate dayanak olmaz; belirsizliği aynen taşıyan parça olur.
   if (a.cls === "time" && b.keys.length > 1 && a.keys.length === 1) return false;
   return keysOf(a).some((k) => b.keys.includes(k));
+}
+
+// ─── doğrulanmış cevap tekrarı için dışa açık okumalar (`answer-reuse/core.ts`) ───────────────────────────────────────────────────
+
+/** Sorudaki gün / mevsim / kişi / sıklık koşul sınıfları ("cumartesi havuz kaçta" → `sat`) — iki soru aynı koşulu mu soruyor. */
+export function askedConditions(text: string): string[] {
+  return [...conditionClasses(tokenize(text), "evidence")].sort();
+}
+
+/** Cevabın imzası: değer anahtarları (saat / tutar / kod / sayı) + olumluluk — iki taze cevap AYNI bilgiyi mi veriyor. */
+export function partSignature(text: string): { values: string[]; negative: boolean } {
+  const { claims } = claimSpans(text);
+  return {
+    values: [...new Set(claims.map((c) => `${c.cls}:${[...keysOf(c)].sort().join("|")}`))].sort(),
+    negative: negative(tokenize(text)),
+  };
 }

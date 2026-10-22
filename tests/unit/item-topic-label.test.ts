@@ -56,10 +56,25 @@ describe("Opus 10-23: etiket süzgeci", () => {
     expect(itemTopicLabel("aydınlatma lamba", ["Ay Lin"])).toBe("aydınlatma lamba");
   });
 
-  it("🚨 unvanın komşusu kişi adıdır: 'ahmet bey', 'mr smith', 'bayan yılmaz' etikete girmez", () => {
+  it("🚨 unvanın komşusu kişi adıdır: 'ahmet bey', 'mr smith', 'sayın yılmaz' etikete girmez; 'bayan tuvalet' unvan DEĞİL", () => {
     expect(itemTopicLabel("ahmet bey havlu")).toBe("havlu");
     expect(itemTopicLabel("mr smith towel")).toBe("towel");
-    expect(itemTopicLabel("bayan yılmaz havlu")).toBe("havlu");
+    expect(itemTopicLabel("sayın yılmaz havlu")).toBe("havlu");
+    expect(itemTopicLabel("bayan tuvalet nerede")).toBe("bayan tuvalet");
+  });
+
+  it("kısa adda yalnız hâl eki atılır: 'Ali' → 'alinin' gider, 'alışveriş' kalır; 'Can' → 'canlı' kalır", () => {
+    expect(itemTopicLabel("alinin havlusu", ["Ali"])).toBe("havlusu");
+    expect(itemTopicLabel("alışveriş merkezi", ["Ali Kaya"])).toBe("alışveriş merkezi");
+    expect(itemTopicLabel("canlı müzik", ["Can"])).toBe("canlı müzik");
+  });
+
+  it("olağan talimat sözü etiket kalır ('yeni kullanım talimatı', 'uygulama talimatı', 'ısıtma sistemi kullanım talimatı')", () => {
+    expect(itemTopicLabel("yeni kullanım talimatı var mı")).not.toBeNull();
+    expect(itemTopicLabel("uygulama talimatı")).not.toBeNull();
+    expect(itemTopicLabel("ısıtma sistemi kullanım talimatı")).not.toBeNull();
+    expect(itemTopicLabel("talimatları uygula havuz")).toBeNull();
+    expect(itemTopicLabel("yeni talimat havuz")).toBeNull();
   });
 
   it("🚨 sır sözcüğünün ARDINDAKİ sözcük (değerin kendisi olabilir) etikete girmez", () => {

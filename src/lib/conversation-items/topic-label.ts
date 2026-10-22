@@ -9,7 +9,8 @@
 // sözcük ve 40 karakter. Atılan: rakam, "@" / bağlantı, 20 harften uzun sözcük, misafirin adının parçası (ve onunla başlayan çekimli
 // biçimi: "mehmetin"), unvanın komşusu ("Ahmet bey", "Mr Smith"), sır sözcüğü (şifre, kod, pin, kart, iban …) ve ARDINDAKİ sözcük
 // (değerin kendisi olabilir: "şifre kelebek"), sözlükte konusu olmayan Büyük Harfle Başlayan sözcük (özel ad — sorgu küçük harfle
-// yazılır). Sorguda talimat-ele-geçirme izi varsa etiket HİÇ yazılmaz. Modele GİTMEZ.
+// yazılır; küçük harfle yazılmış, misafirin adı olmayan üçüncü kişi adı bu kuralla yakalanamaz — anlama katmanı ad yazmaz talimatlıdır,
+// bilinen sınır). Sorguda talimat-ele-geçirme izi varsa etiket HİÇ yazılmaz. Modele GİTMEZ.
 // ---------------------------------------------------------------------------
 
 import { normalizeForRetrieval } from "@/lib/ai/retrieval/text";
@@ -22,27 +23,28 @@ export const TOPIC_MAX_CHARS = 40;
 /** Sır / kimlik sözcükleri (katlanmış kök başlangıcı) — etikete GİRMEZ; ardındaki sözcük de girmez. */
 const SECRET_ROOTS = ["sifre", "parola", "password", "passwort", "kod", "code", "pin", "kart", "card", "iban", "hesap", "hesab", "account", "telefon", "phone", "numara", "number", "mail", "pasaport", "passport", "kimlik"];
 /** Unvanlar (katlanmış): ardından ("Mr Smith", "Bay Yılmaz") ya da önünden ("Ahmet bey", "Ayşe hanım") gelen sözcük kişi adıdır. */
-const HONORIFIC_BEFORE = new Set(["mr", "mrs", "ms", "miss", "dr", "bay", "bayan", "sayin", "herr", "frau", "monsieur", "madame"]);
+// "bay / bayan" bilerek YOK: Türkçede "bayan tuvalet" (kadın tuvaleti) da demektir (Haiku 10-23).
+const HONORIFIC_BEFORE = new Set(["mr", "mrs", "ms", "miss", "dr", "sayin", "herr", "frau", "monsieur", "madame"]);
 const HONORIFIC_AFTER = new Set(["bey", "beyefendi", "hanim", "hanimefendi", "hoca", "hocam", "abi", "abla"]);
 /**
  * Talimat-ele-geçirme izleri — biri varsa etiket hiç yazılmaz. Kesin izler tek başına ("ignore", "yoksay", "rol yap", emir "unut");
- * "talimat / komut / instructions" yalnız saldırı bağlamıyla ("önceki / tüm / sistem talimatları") — "çamaşır makinesi kullanım
- * talimatı" misafirin olağan sorusudur (Opus 10-23). "unut" yalnız emir biçimi ("unuttum" misafirin olağan sözü). JS `\b` ASCII'dir
- * → harf sınırı açıkça yazıldı.
+ * "talimat / komut / instructions" yalnız BİTİŞİK saldırı bağlamıyla: önünde niteleyici ("önceki / tüm / sistem talimatları", "previous
+ * instructions") ya da ardında yürütme emri ("komutu çalıştır", "talimatları uygula"). "Çamaşır makinesi kullanım talimatı", "yeni kullanım
+ * talimatı var mı", "uygulama talimatı" misafirin olağan sorusudur (Opus + Haiku 10-23). "unut" yalnız emir biçimi ("unuttum" olağan söz).
+ * JS `\b` ASCII'dir → harf sınırı açıkça yazıldı.
  */
 const INJECTION_STRONG =
   /\b(?:ignore|disregard|system\s*prompt|jailbreak|developer\s*mode|act\s+as)\b|(?:^|[^\p{L}])(?:yoksay|rol\s*yap|görmezden\s*gel|gormezden\s*gel)|(?:^|[^\p{L}])unut(?:un)?(?:[^\p{L}]|$)/iu;
-const INSTRUCTION_WORD = /\binstructions?\b|(?:^|[^\p{L}])(?:talimat|komut)/iu;
-// Bağlam: niteleyici ("önceki / tüm / sistem") ya da yürütme fiili ("şu komutu çalıştır", "run / follow these instructions"). Yalnız
-// "kullanım talimatı" bağlam taşımaz → etiket kalır.
-const INSTRUCTION_CONTEXT =
-  /\b(?:previous|prior|above|all|system|your|new|run|execute|follow)\b|(?:^|[^\p{L}])(?:önceki|onceki|tüm|tum|bütün|butun|yukarıdaki|yukaridaki|sistem|senin|yeni)(?:[^\p{L}]|$)|(?:^|[^\p{L}])(?:çalıştır|calistir|uygula)/iu;
+const INSTRUCTION_ATTACK =
+  /\b(?:previous|prior|above|all|system|your|new)\s+instructions?\b|\b(?:follow|run|execute|obey)\s+(?:(?:these|those|the|my|this|following)\s+)?instructions?\b|(?:^|[^\p{L}])(?:önceki|onceki|tüm|tum|bütün|butun|yukarıdaki|yukaridaki|sistem|senin|yeni)\s+(?:talimat|komut)|(?:^|[^\p{L}])(?:talimat|komut)\p{L}{0,8}\s+(?:çalıştır|calistir|uygula|unut|yoksay)(?:ın|in|un|ınız|iniz)?(?:[^\p{L}]|$)/iu;
+/** Ad ardından gelen hâl / iyelik eki (katlanmış): "ali" + "nin", "can" + "a", "ece" + "yle". */
+const CASE_SUFFIX = /^(?:n?[iu]n|y?[iu]|y?[ae]|n?d[ae]n?|n?t[ae]n?|y?l[ae]|l[ae]r|n?[iu]m|n?[iu]z)$/;
 /** Bağlantı / adres izi: "@", "http", "www." ve şemasız alan adı ("lixusai.com"). */
 const LINK = /@|https?:|www\.|[\p{L}\p{N}]\.\p{L}{2,}/iu;
 
 const fold = (s: string): string => normalizeForRetrieval(s).toLowerCase();
 
-const hasInjection = (q: string): boolean => INJECTION_STRONG.test(q) || (INSTRUCTION_WORD.test(q) && INSTRUCTION_CONTEXT.test(q));
+const hasInjection = (q: string): boolean => INJECTION_STRONG.test(q) || INSTRUCTION_ATTACK.test(q);
 
 /** Baş harfi büyük, gerisi küçük ("Ahmet", "Netflix") — "TV" / "WiFi" gibi kısaltmalar değil. */
 const titleCase = (raw: string): boolean => {
@@ -60,8 +62,16 @@ export function itemTopicLabel(query: string | null | undefined, names: readonly
   const distinct = new Set(needTerms([query]));
   if (distinct.size === 0) return null;
   const nameParts = [...new Set(names.flatMap((n) => (n ? fold(n).split(/[^\p{L}]+/u).filter((p: string) => p.length >= 2) : [])))];
+  // Ad + çekim eki ("mehmetin", "alinin"); 4+ harfli adda her uzantı (kesmesiz yazım), kısa adda yalnız hâl eki — "Ali" "alışveriş"i,
+  // "Can" "canlı"yı düşürmez (Haiku 10-23). Kısaltılmış ad ("alex" ← Alexander) da atılır.
   const isName = (f: string) =>
-    nameParts.some((p) => p === f || (p.length >= 3 && f.startsWith(p)) || (f.length >= 4 && p.startsWith(f)));
+    nameParts.some(
+      (p) =>
+        p === f ||
+        (p.length >= 4 && f.startsWith(p)) ||
+        (f.startsWith(p) && CASE_SUFFIX.test(f.slice(p.length))) ||
+        (f.length >= 4 && p.startsWith(f)),
+    );
   const isSecret = (f: string) => SECRET_ROOTS.some((r) => f.startsWith(r));
   const raws = query.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
   const folded = raws.map(fold);
