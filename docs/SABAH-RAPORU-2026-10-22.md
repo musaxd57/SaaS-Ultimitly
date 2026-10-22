@@ -27,7 +27,9 @@ düzeltmeleri, ölçüm ve testlerdi. Kararınızı bekleyenler aşağıda, her 
 - **Güvenlik:** cevap modeli devre kesicisi işletme başına (bir işletmenin takılması ötekileri durdurmuyor) + Haiku'nun üç ek düzeltmesi;
   mutasyon 13/13. Güvenlik 2. tur (Opus, P1 yok): başka siteden gelen yazma isteği artık her ortak kapıda reddediliyor (kardeş alt alan
   adı / gövdesiz istek açığı); operatörün aday güncellemesi olay günlüğünde. Kalanlar soru U10–U15
-  (`docs/arastirma-2026-10-15/GUVENLIK-2-TUR-2026-10-22.md`).
+  (`docs/arastirma-2026-10-15/GUVENLIK-2-TUR-2026-10-22.md`). Güvenlik 3. tur (son üç günün kodu): ciddi bulgu yok; ana sayfa demosunu
+  kullanan biri artık bütün işletmelerin yapay zekâ cevabını durduramaz; "bilgim yok" hakemi anahtarı açılmadan önce bir ek kontrol
+  ister (Railway açılış listesine yazıldı).
 - **Erişilebilirlik (otomatik tarama, 20 sayfa × masaüstü / telefon + misafir QR sayfası):** önce neredeyse her sayfada okunabilirlik
   (gri yazı zemine göre biraz soluktu), adsız alan / karekod ve klavyeyle kaydırılamayan Raporlar; sonra 0 ihlal. Gri ikincil yazı bir ton
   koyulaştı (göz fark etmeyecek kadar), klavyeyle gezene "İçeriğe geç" bağlantısı eklendi. Klavyeyle kullanımda: onay sorusu açılınca

@@ -24,7 +24,10 @@
   klavyeyle zaten odaklıyor; bilinçli).
   Açık: "Aboneliği devam ettir" önizlemesi açılınca odak kaybı (anahtar KAPALI, testi yok — ayrı iş); onay pencerelerinde arka plan `inert` değil
   (odak tuzağı var).
-- Önceki push f1837b9e CI 6/6 yeşil; f3d60dd6 itildi.
+- Güvenlik 3. tur (Opus, 10-19'dan beri değişen 120 dosya; P1/P2 yok — `docs/arastirma-2026-10-15/GUVENLIK-3-TUR-2026-10-22.md`): S1 hesapsız
+  demo cevap modeli kesicisinde yalnız kendi kovasında (ortak durdurmaya katılamaz); S2 "bilgim yok" hakemi misafir metniyle kandırılabilir →
+  anahtar KAPALI, açılış koşulu Railway belgesinde.
+- Push'lar: f1837b9e ve f3d60dd6 CI yeşil; 55f2da86 itildi (CI sonucu bir sonraki push notunda).
 
 **10-21 gece-4 (önceki):**
 - UX incelemesi (Opus, 24 bulgu) + görsel inceleme (39 ekran görüntüsü, 30 bulgu) + güvenlik incelemesi (2 yeni bulgu) koştu; raporlar
