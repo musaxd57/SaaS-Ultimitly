@@ -26,8 +26,9 @@ describe("değer ↔ konu (havuz / sauna)", () => {
   });
 
   it("doğru eşleşme gider: havuz 20:00 · sauna 22:00 (Türkçe ve İngilizce parça)", () => {
-    expect(check("Havuz her gün 20:00'de kapanıyor.", "Havuz her gün 20:00'de, sauna 22:00'de kapanır.").ok).toBe(true);
-    expect(check("The pool closes at 20:00 every day.", "Havuz her gün 20:00'de, sauna 22:00'de kapanır.").ok).toBe(true);
+    const ev = "Havuz her gün 20:00'de, sauna 22:00'de kapanır.";
+    expect(checkAnswerBinding({ part: "Havuz her gün 20:00'de kapanıyor.", evidence: ev, sourceText: ev, ...POOL }).ok).toBe(true);
+    expect(checkAnswerBinding({ part: "The pool closes at 20:00 every day.", evidence: ev, sourceText: ev, ...POOL }).ok).toBe(true);
     expect(check("Sauna 22:00'de kapanıyor.", "Havuz her gün 20:00'de, sauna 22:00'de kapanır.", SAUNA).ok).toBe(true);
   });
 
@@ -98,7 +99,9 @@ describe("aralık, konusuz değişke, söz dizimi", () => {
   it("konusuz hafta sonu değişkesi önceki konuyu devralır, koşulu kendine aittir", () => {
     expect(b("Hafta sonu kahvaltı 11:00'e kadar.").ok).toBe(true);
     expect(b("Kahvaltı 11:00'e kadar.").issues).toEqual(["condition_dropped"]);
-    expect(b("Kahvaltı 08:00-10:30 arası.").ok).toBe(true);
+    // Koşulsuz değer + kalemde koşullu değişke → değişke de anılmalı.
+    expect(b("Kahvaltı 08:00-10:30 arası.").issues).toEqual(["variant_omitted"]);
+    expect(b("Kahvaltı 08:00-10:30 arası, hafta sonu 11:00'e kadar.").ok).toBe(true);
   });
 
   it("🚨 konu değerden SONRA gelirse devralma yok: 'Havuz 20:00'de, 22:00'de sauna kapanır'", () => {
@@ -161,5 +164,101 @@ describe("aralık, konusuz değişke, söz dizimi", () => {
   it("bilinen sınır (tutma yönü): 'ücretsizdir' ↔ 'ücretli değil' farklı olumluluk sayılır", () => {
     const src = "Otopark ücretsizdir.";
     expect(checkAnswerBinding({ part: "Otopark ücretli değil.", evidence: src, sourceText: src, ...need(["otopark ücretli mi"]) }).issues).toEqual(["polarity_mismatch"]);
+  });
+});
+
+// ─── Haiku 10-23 incelemesi: yanlış GEÇİŞ sınıfları (her biri önce bu kodda geçiyordu) ──────────────────────────────────────────
+describe("Haiku 10-23 yanlış geçişler", () => {
+  const one = (src: string, part: string, q: string[], evidence = src) => checkAnswerBinding({ part, evidence, sourceText: src, ...need(q) });
+
+  it("1. çift olumsuz birbirini götürür: 'kapalıdır' ↔ 'kapalı değildir', 'yasaktır' ↔ 'yasak değil', 'prohibited' ↔ 'not prohibited'", () => {
+    expect(one("Havuz kapalıdır.", "Havuz kapalı değildir.", ["havuz açık mı"]).issues).toEqual(["polarity_mismatch"]);
+    expect(one("Evcil hayvan yasaktır.", "Evcil hayvan yasak değil.", ["evcil hayvan"]).issues).toEqual(["polarity_mismatch"]);
+    expect(one("Pets are prohibited.", "Pets are not prohibited.", ["pets"]).issues).toEqual(["polarity_mismatch"]);
+    expect(one("Havuz kapalı değildir.", "Havuz açık.", ["havuz açık mı"]).ok).toBe(true);
+  });
+
+  it("2. yön: açılır ↔ kapanır, -e kadar ↔ -den itibaren, -den sonra ↔ -den önce", () => {
+    expect(one("Havuz 09:00'da açılır.", "Havuz 09:00'da kapanır.", ["havuz"]).issues).toEqual(["direction_mismatch"]);
+    expect(one("Havuz 20:00'ye kadar açık.", "Havuz 20:00'den itibaren açık.", ["havuz"]).issues).toEqual(["direction_mismatch"]);
+    expect(one("Giriş 14:00'ten sonra.", "Giriş 14:00'ten önce.", ["giriş"]).issues).toEqual(["direction_mismatch"]);
+    expect(one("Havuz 20:00'ye kadar açık.", "The pool is open until 20:00.", ["havuz", "pool"]).ok).toBe(true);
+    expect(one("Havuz 09:00'da açılır, 20:00'de kapanır.", "Havuz 20:00'de açılır.", ["havuz"]).issues).toEqual(["direction_mismatch"]);
+  });
+
+  it("2b. 'KDV dahil' ↔ 'KDV hariç'", () => {
+    expect(one("Kahvaltı 150 TL, KDV dahil.", "Kahvaltı 150 TL, KDV hariç.", ["kahvaltı ücreti"]).issues).toContain("condition_dropped");
+    expect(one("Kahvaltı 150 TL, KDV dahil.", "Breakfast is 150 TL, VAT included.", ["kahvaltı ücreti", "breakfast price"]).ok).toBe(true);
+  });
+
+  it("3. değersiz parça karışık cümlede kendi yan cümlesini okur ('Havuz açıktır, sauna kapalıdır'); yüklemsiz konu bütün cümleyi okur", () => {
+    expect(one("Havuz açıktır, sauna kapalıdır.", "Havuz kapalıdır.", ["havuz açık mı"]).issues).toEqual(["polarity_mismatch"]);
+    expect(one("Havuz açıktır, sauna kapalıdır.", "Havuz açık.", ["havuz açık mı"]).ok).toBe(true);
+    expect(one("Otopark var, asansör yok.", "Otopark yok.", ["otopark var mı"]).issues).toEqual(["polarity_mismatch"]);
+    expect(one("Evcil hayvanlar, küçük köpekler hariç, kabul edilmez.", "Evcil hayvan kabul ediliyor.", ["evcil hayvan"]).issues).toContain("polarity_mismatch");
+    expect(one("Evcil hayvanlar, küçük köpekler hariç, kabul edilmez.", "Küçük köpekler hariç evcil hayvan kabul edilmiyor.", ["evcil hayvan"]).ok).toBe(true);
+  });
+
+  it("4a. kendi yan cümlesinde başka konu varsa virgül geçilmez ('Havuz temizliği nedeniyle, sauna 22:00'de kapanır')", () => {
+    expect(one("Havuz temizliği nedeniyle, sauna 22:00'de kapanır.", "Havuz 22:00'de kapanır.", ["havuz kaçta kapanıyor"]).issues).toEqual(["value_bound_elsewhere"]);
+    expect(one("Havuz, 20:00'de kapanır.", "Havuz 20:00'de kapanır.", ["havuz kaçta kapanıyor"]).ok).toBe(true);
+  });
+
+  it("4b. niteleyen konum konu sayılmaz ('havuzun yanındaki bar', 'the bar next to the pool')", () => {
+    expect(one("Havuzun yanındaki bar 20:00'de kapanır.", "Havuz 20:00'de kapanır.", ["havuz kaçta kapanıyor"]).ok).toBe(false);
+    expect(one("The bar next to the pool closes at 20:00.", "The pool closes at 20:00.", ["when does the pool close"]).ok).toBe(false);
+    expect(one("Drinks are served by the pool until 20:00.", "The pool is open until 20:00.", ["when does the pool close"]).ok).toBe(false);
+  });
+
+  it("4c. nitelik sözcüğü konu değil ('havuz temizliği' ← 'Sauna temizliği 22:00'); konu + nitelik birlikte olunca geçer", () => {
+    expect(one("Sauna temizliği 22:00'de.", "Havuz temizliği 22:00'de.", ["havuz temizliği ne zaman"]).ok).toBe(false);
+    expect(one("Havuz temizliği her sabah 08:00'de yapılır.", "Havuz temizliği her sabah 08:00'de.", ["havuz temizliği ne zaman"]).ok).toBe(true);
+    expect(one("Otopark ücretsizdir, 7/24 açıktır.", "Otopark ücretsiz.", ["otopark ücretli mi"]).ok).toBe(true);
+  });
+
+  it("5. konusuz yan cümledeki koşul: 'pazar hariç', 'Yalnız yazın, …'", () => {
+    expect(one("Havuz 09:00-20:00 arası açıktır, pazar hariç.", "Havuz 09:00-20:00 arası açık.", ["havuz kaçta açık"]).issues).toContain("condition_dropped");
+    expect(one("Havuz 09:00-20:00 arası açıktır, pazar hariç.", "Havuz pazar hariç 09:00-20:00 arası açık.", ["havuz kaçta açık"]).ok).toBe(true);
+    expect(one("Yalnız yazın, havuz 09:00-20:00 açıktır.", "Havuz 09:00-20:00 açık.", ["havuz kaçta açık"]).issues).toContain("condition_dropped");
+  });
+
+  it("6. devralınan yan cümlenin koşulu ('Havuz hafta sonları 09:00'da açılır ve 20:00'de kapanır'); kendi gün koşulu ezer", () => {
+    expect(one("Havuz hafta sonları 09:00'da açılır ve 20:00'de kapanır.", "Havuz 20:00'de kapanır.", ["havuz kaçta kapanıyor"]).issues).toContain("condition_dropped");
+    expect(one("Havuz hafta sonları 09:00'da açılır ve 20:00'de kapanır.", "Hafta sonları havuz 20:00'de kapanır.", ["havuz kaçta kapanıyor"]).ok).toBe(true);
+  });
+
+  it("7. parça kalemde olmayan gün / mevsim koşulu uyduramaz", () => {
+    expect(one("Havuz 09:00-20:00 arası açık.", "Havuz hafta sonu 09:00-20:00 arası açık.", ["havuz kaçta açık"]).issues).toEqual(["condition_added"]);
+  });
+
+  it("8. alıntı koşullu değişkeyi gizleyemez (kalemde 'Hafta sonu 23:00'e kadar açık')", () => {
+    const src = "Havuz 20:00'de kapanır; hafta sonları 22:00'ye kadar açıktır.";
+    expect(one(src, "Havuz 20:00'de kapanır.", ["havuz kaçta kapanıyor"], "Havuz 20:00'de kapanır").issues).toEqual(["variant_omitted"]);
+    const src2 = "Havuz 20:00'de kapanır. Hafta sonu 23:00'e kadar.";
+    expect(one(src2, "Havuz 20:00'de kapanır.", ["havuz kaçta kapanıyor"], "Havuz 20:00'de kapanır.").issues).toEqual(["variant_omitted"]);
+    expect(one(src, "Havuz 20:00'de kapanır, hafta sonları 22:00'ye kadar açık.", ["havuz kaçta kapanıyor"]).ok).toBe(true);
+    // Konusuz cümle önceki cümlenin konusunu devralır; başka içerik sözcüğü taşıyan cümle devralmaz.
+    expect(one("Havuz 20:00'de kapanır. 22:00'de sauna kapanır.", "Havuz 22:00'de kapanır.", ["havuz kaçta kapanıyor"]).issues).toEqual(["value_bound_elsewhere"]);
+  });
+
+  it("9. sözlük: 'hafta sonlarında', 'haftasonu', 'yaz aylarında', 'Wochenenden', 'rezervasyon zorunludur', 'außer'", () => {
+    expect(one("Havuz hafta sonlarında 09:00'da açılır.", "Havuz 09:00'da açılır.", ["havuz"]).issues).toContain("condition_dropped");
+    expect(one("Havuz haftasonu 09:00'da açılır.", "Havuz 09:00'da açılır.", ["havuz"]).issues).toContain("condition_dropped");
+    expect(one("Havuz yaz aylarında 09:00'da açılır.", "Havuz 09:00'da açılır.", ["havuz"]).issues).toContain("condition_dropped");
+    expect(one("Der Pool öffnet an Wochenenden um 09:00.", "Der Pool öffnet um 09:00.", ["pool"]).issues).toContain("condition_dropped");
+    expect(one("Masaj 09:00-20:00 arasında, rezervasyon zorunludur.", "Masaj 09:00-20:00 arasında.", ["masaj"]).issues).toContain("condition_dropped");
+    expect(one("Pool täglich 09:00-20:00, außer Montag.", "Pool täglich 09:00-20:00.", ["pool"]).issues).toContain("condition_dropped");
+  });
+
+  it("10. olumsuz fiil: 'kiralamıyoruz', 'giremezsiniz', 'etmem'; 'unavailable', 'gesperrt'", () => {
+    expect(one("Şezlong kiralamıyoruz.", "Şezlong kiralıyoruz.", ["şezlong"]).issues).toEqual(["polarity_mismatch"]);
+    expect(one("Havuza 22:00'den sonra giremezsiniz.", "Havuza 22:00'den sonra girebilirsiniz.", ["havuz"]).issues).toEqual(["polarity_mismatch"]);
+    expect(one("Sauna is unavailable.", "Sauna is available.", ["sauna"]).issues).toEqual(["polarity_mismatch"]);
+    expect(one("Die Sauna ist gesperrt.", "Die Sauna ist offen.", ["sauna"]).issues).toEqual(["polarity_mismatch"]);
+  });
+
+  it("11. belirsiz saat ('saat 9') kesin saate dayanak olmaz; belirsizliği taşıyan parça olur", () => {
+    expect(one("Havuz saat 9'da kapanır.", "Havuz 21:00'de kapanır.", ["havuz"]).issues).toEqual(["value_not_in_evidence"]);
+    expect(one("Havuz saat 9'da kapanır.", "Havuz saat 9'da kapanır.", ["havuz"]).ok).toBe(true);
   });
 });

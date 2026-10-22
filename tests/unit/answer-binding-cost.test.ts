@@ -24,6 +24,13 @@ describe("answer-binding maliyet", () => {
     }
   });
 
+  it("koşullu değişke taraması (kalemin tamamı) uzun kalemde doğrusal", () => {
+    const src = "Havuz 20:00'de kapanır, hafta sonu 23:00'te. ".repeat(1_500) + "Havuz 21:00'de kapanır.";
+    const t0 = performance.now();
+    checkAnswerBinding({ part: "Havuz 21:00'de kapanıyor. ".repeat(50), evidence: "Havuz 21:00'de kapanır.", sourceText: src, ...POOL });
+    expect(performance.now() - t0).toBeLessThan(4000);
+  });
+
   it("uzun tek sözcük / boşluk dizisi / bağlaç dizisi", () => {
     for (const ev of ["a".repeat(50_000), " ".repeat(50_000) + "20:00", "ve ".repeat(15_000) + "20:00", "20:00 - ".repeat(5_000)]) {
       const t0 = performance.now();
