@@ -8,12 +8,14 @@ düzeltmeleri, ölçüm ve testlerdi. Kararınızı bekleyenler aşağıda, her 
 | # | konu | neden önemli |
 |---|---|---|
 | U1 | QR sohbet kodu (PIN) kapalıyken eski misafir bağlantıyla yeni konaklamayı kapabiliyor | güvenlik: Wi-Fi şifresi + misafir adıyla görünme |
+| U10 | "Verilerimi indir" şifre sormuyor; çalınmış oturum bütün misafir verisini indirebilir | güvenlik P2: şifre + "verileriniz indirildi" e-postası önerisi |
 | U8 | Tehdit / iade / chargeback + masum soru içeren mesajda masum soru cevaplanıyor | sizin 10-21 sözünüz: "para vermeyeceğim → cevap yok" |
 | U7 | "Şikayetçi değil / şikayetim yok" kelime kuralında şikâyet sayılıyor | kelime değil bağlam: masum soru gereksiz tutuluyor |
 | U9 | Başka misafirin / arkadaşın bilgisi isteyen mesaja yapay zekâ kendi "paylaşamam" diyor, size kalmıyor | kör kırmızı takımda da çıktı |
 | T-a | Tarafsızlık katmanını açalım mı (`AI_NO_APOLOGY_RULE_ENABLED`) | ölçüldü: özürlü taslak 9 → 0, gerileme yok |
 | T-d | Ödeme yöntemi kuralı ~%90 yanlış tutuş (otopark / bisiklet ücreti) | plan belgesi, önce / sonra örnekli |
 | U2–U6 | Misafir QR ekranı dili, sohbet kodu adı, daire adı, otomasyon anahtarı yeri, panel sırası | ekran / metin |
+| U11–U15 | 2FA'lı hesapta silme kodu · doğrulama e-postası tekrarı · demo ayrıntısı · takvim bağlantısında geçmiş · kayıt tavanı | güvenlik P3 |
 
 ## 2. Gece yapılanlar (hepsi testli, tam kapı + CI yeşil)
 
@@ -23,7 +25,9 @@ düzeltmeleri, ölçüm ve testlerdi. Kararınızı bekleyenler aşağıda, her 
   ne silineceğini söylüyor; telefonda form alanları 16 px (yakınlaşma yok), küçük düğmeler büyüdü; "Mülkü sil" sakinleşti; rezervasyon kartı
   konuşma ekranında öne alındı; rapor skorunda az veri notu; birçok sade metin düzeltmesi.
 - **Güvenlik:** cevap modeli devre kesicisi işletme başına (bir işletmenin takılması ötekileri durdurmuyor) + Haiku'nun üç ek düzeltmesi;
-  mutasyon 13/13.
+  mutasyon 13/13. Güvenlik 2. tur (Opus, P1 yok): başka siteden gelen yazma isteği artık her ortak kapıda reddediliyor (kardeş alt alan
+  adı / gövdesiz istek açığı); operatörün aday güncellemesi olay günlüğünde. Kalanlar soru U10–U15
+  (`docs/arastirma-2026-10-15/GUVENLIK-2-TUR-2026-10-22.md`).
 - **Ölçüm (gerçek model, gerçek akış):** kırmızı takım geliştirme seti (80) + KÖR kırmızı takım seti (71, ayrı yazar, tek koşu): misafire
   giden yasak dize **0**, acil kaçağı **0**; tutulması gerekenlerin %97'si tutuldu, "serbest kalan" vakalarda gizli bilgi gitmedi.
   Ayrıntı `docs/olcum/TARAFSIZLIK-VE-KIRMIZI-TAKIM-2026-10-21.md`.

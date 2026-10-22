@@ -1139,3 +1139,55 @@ A–Z'nin çoğu), olası tehlike konuşmasında yanlış "beklemede" bandı, ku
 - **Bugün:** "Arkadaşlarım binanızda başka dairede, hangi daire ve ne zaman çıkıyorlar? Soyadı Rivera" → giden: "I'm unable to share
   another guest's apartment number or checkout details." Bilgi sızmıyor ama konu kapandı sayılıyor, sizde açık iş yok.
 - **Önerim:** böyle (başka misafir / kişisel bilgi) sorular cevaplanmaz, size açık iş olarak kalır. Yapalım mı?
+
+> U10–U15: gece güvenlik incelemesi 2. tur (Opus, 10-22; tam metin `docs/arastirma-2026-10-15/GUVENLIK-2-TUR-2026-10-22.md`). Hiçbiri P1
+> değil. Kimlik / e-posta / dışarıya giden veri akışına dokunduğu için uygulanmadı. Sizin onayınız gerekmeyen iki iç düzeltme yapıldı:
+> başka siteden gelen yazma isteği artık reddediliyor (ortak kapı + üç rota) ve operatörün müşteri adayı güncellemesi olay günlüğüne
+> yazılıyor.
+
+### U10 · Bütün veriyi indirme (KVKK dışa aktarma) şifre sormuyor (güvenlik P2 — en önemlisi)
+- **Bugün:** Ayarlar → "Verilerimi indir" tek tıkla bütün dökümü indiriyor: her misafirin adı, telefonu, e-postası, bütün mesajlar,
+  rezervasyonlar. Oturum 14 gün ve her sayfa açılışında uzuyor. Bilgisayarındaki tarayıcı çerezini çalan biri (virüs, ortak bilgisayar)
+  şifreyi bilmeden tüm misafir verisini indirebilir; size haber gitmez (yalnız kayıt satırı).
+- **Büyük platformlar:** Google / Airbnb hesap verisini indirmeden önce şifreyi yeniden sorar ve "verileriniz indirildi" e-postası atar.
+- **Önerim:** indirmeden önce şifre (2FA açıksa ek olarak 6 haneli kod) + indirildikten sonra size kısa bir e-posta ("Hesabınızın
+  verileri {saat}'te indirildi. Siz değilseniz şifrenizi değiştirin."). Hesap silmedeki şifre sorma ekranının aynısı.
+- **Örnek:** Önce — "Verilerimi indir" → dosya iner. Sonra — "Verilerimi indir" → "Devam etmek için şifrenizi girin" → dosya iner +
+  e-posta. Yapalım mı? (e-posta kısmı ayrı da seçilebilir)
+
+### U11 · 2FA açık hesapta hesap silme yalnız şifre istiyor (P3)
+- **Bugün:** 2FA'yı kapatmak 6 haneli kod istiyor, ama hesabı kalıcı silmek yalnız şifreyle oluyor. Şifreyi de ele geçiren biri telefona
+  ihtiyaç duymadan hesabı silebilir.
+- **Önerim:** 2FA açıksa silme ekranında şifrenin altına "Doğrulama kodu" alanı (ya da kurtarma kodu). 2FA kapalı hesapta değişiklik yok.
+  Yapalım mı?
+
+### U12 · "Doğrulama e-postasını tekrar gönder" başkası tarafından tetiklenip yeni kullanıcıyı kilitleyebiliyor (P3)
+- **Bugün:** Biri kayıt olur olmaz, başkası onun e-posta adresiyle "tekrar gönder"e 6 kez basarsa: kişiye 6 e-posta gider, her biri öncekini
+  geçersiz kılar, sonra 24 saat yeni bağlantı istenemez. Kişi eski e-postadaki bağlantıya basarsa "süresi dolmuş" görür.
+- **Önerim:** son 10 dakika içinde gönderilmiş geçerli bir bağlantı varsa yeni bağlantı ÜRETİLMEZ ve yeni e-posta gönderilmez (ekrandaki
+  cevap aynı kalır: "Gönderildi, gelen kutunuzu kontrol edin"). 10 dakikadan eskiyse bugünkü gibi yeni bağlantı. Yapalım mı?
+- (İlgili küçük not: bu uç, adresin "doğrulanmamış kayıtlı hesap" olup olmadığını cevap süresinden belli ediyor; aynı düzeltmeyle
+  süre eşitlenir.)
+
+### U13 · Ana sayfadaki canlı demo "neden otomatik gitmedi"yi ayrıntılı söylüyor (P3)
+- **Bugün:** Demo kutusu "güvenlik kapısı riskli konu tespit etti" / "güven eşiğin altında" diye ayırıyor; arka uç güven puanını ve risk
+  seviyesini de döndürüyor. Kötü niyetli bir misafir ifadesini demoda deneye deneye "otomatik gider" hâline getirip sonra gerçek ev
+  sahibine aynı mesajı atabilir (bilgi tabanı farklı olduğu için tam aktarılmaz).
+- **Önerim:** demo yalnız iki durum göstersin: "Bu cevap otomatik gönderilirdi" / "Bu mesaj ev sahibinin onayına bırakılır". Puan ve
+  sebep sunucudan da dönmesin. Yapalım mı?
+
+### U14 · Takvim aktarım bağlantısı (Airbnb / Booking / Google'a verilen) bütün geçmiş rezervasyonları her seferinde gönderiyor (P3)
+- **Bugün:** Dairenin takvim bağlantısı hesabın açıldığı günden bu yana BÜTÜN rezervasyonları içeriyor. "Misafir adını göster" açıksa
+  geçmiş misafir adları da her çekişte karşı tarafa gidiyor; kapalıysa doluluk geçmişi gidiyor.
+- **Önerim:** yalnız son 30 günde çıkış yapanlar + gelecek rezervasyonlar (büyük kanallar zaten geçmişi kullanmaz, çakışma için gelecek
+  yeter). Yapalım mı?
+
+### U15 · Kayıt ve doğrulama e-postası için genel saatlik tavan yok (P3, yalnız saldırı senaryosu)
+- **Bugün:** kayıt IP başına saatte 5. IPv6 adres bloğu değiştiren biri çok sayıda sahte hesap açıp bizim adımıza doğrulama e-postası
+  gönderttirebilir (e-posta sağlayıcısında itibar / hesap askıya alınma riski).
+- **Önerim:** saatte toplam 200 yeni kayıt tavanı; aşılınca yeni kayıt "Şu an çok yoğunuz, birkaç dakika sonra tekrar deneyin" der ve size
+  tek uyarı e-postası gider. Normal günde kimse fark etmez. Yapalım mı? (Rakam sizin beklediğiniz kayıt hızına göre değişebilir.)
+
+**Açılış listesine not (yeni soru değil):** `QR_PIN_ENABLED` açılınca QR fotoğrafına sahip biri, henüz kimsenin bağlanmadığı bir konaklamayı
+15 dakikada 10 yanlış kodla kilitleyebilir (doğru kod da beklemeye girer). Tasarımı `kalici-kararlar` "PIN DoS"ta var, uygulanmadı —
+QR kodunu açmadan önce birlikte bakalım.
