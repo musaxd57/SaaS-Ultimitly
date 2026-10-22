@@ -4,6 +4,8 @@
 > Bu dosyadaki kurallar CLAUDE.md'deki kadar BAĞLAYICIDIR. İlgili alanda iş yapmadan önce oku.
 
 ## CLAUDE.md "Durum" özet satırları (10-23'te AYNEN taşındı; en yeni ikisi CLAUDE.md'de kalır)
+**10-23 gece:** Soru 1 kodda (misafirin kendi sözcükleri, anahtar kapalı) · Opus akşam bulguları kapandı · CLAUDE.md sadeleşti · İhtiyaç Defteri tasarımı + kurucu soruları A–E açık — rapor `docs/RAPOR-2026-10-23-gece-buyuk-rapor.md`, `docs/claude/durum.md`.
+**10-22 akşam:** iç kaynak anlatımı misafire asla gitmez (istem + okuyucu 5. hüküm + bir kez yeniden yazma + anahtarsız kod yedeği) · iç daire adı modele gitmez · U4 ana dalda (migration 83) · ölçüm 4 → 0; açık soru rapor §7.1 (sauna) — `docs/claude/durum.md`.
 **10-22 gündüz:** §U kararları kodda (özür yok · başka misafir bilgisi · kıdemli okuyucu + kanıt şartı + bir kez yeniden yazma · mizah · U10–U15 güvenlik); rapor `docs/RAPOR-2026-10-22-yapay-zeka-ne-ogrendi.md`; açık U4 + T-c — `docs/claude/durum.md`.
 **10-22 gece:** güvenlik 2. tur (başka siteden yazma kapısı, aday güncellemesi izi; sorular U10–U15) · erişilebilirlik taraması 40 → 0 ihlal (ikincil metin rengi, "İçeriğe geç") — `docs/claude/durum.md`.
 **10-21 gece-4:** UX / görsel / güvenlik incelemeleri → ev sahibi ekranı düzeltmeleri · devre kesici kiracı başına · kırmızı takım + tarafsızlık ölçümü (yasak dize 0, özürlü taslak 9→0) · sorular §U (U1–U9) — `docs/claude/durum.md`.
@@ -41,7 +43,18 @@ düzeltmeleri. Next.js 15.5.27 (iki yeni SSG/ISR danışması). Onay bekleyen be
 > `docs/history/CLAUDE-2026-10-02-sadelestirme-3-oncesi-tam-metin.md` ("Durum" bölümü). Kuralları yukarıdaki bölümlerde; yalnız Durum'da
 > yazılı olan kurallar (konuşma öğeleri, ev kuralları, canlı bayraklar) 10-02'de ilgili bölümlere taşındı. Bekleyen onaylar ↓.
 
-**10-23 gece (güncel — clear sonrası BURADAN devam):** büyük rapor `docs/RAPOR-2026-10-23-gece-buyuk-rapor.md`. Soru 1 kodda (`topic-absence.needTerms`:
+**10-23 gece-2 (güncel — clear sonrası BURADAN devam):** rapor `docs/RAPOR-2026-10-23-gece-2-cevap-tekrari-ve-guvenlik.md`. Kurucu fikri (aynı soru
+4. kez → kayıtlı doğru cevap) + Codex notu: tasarım `docs/TASARIM-2026-10-23-dogrulanmis-cevap-tekrari.md`; saf çekirdek ana dalda
+(`src/lib/answer-reuse/core.ts`, hiçbir akışa bağlı DEĞİL); gölge kip (yazar ama göndermez) migration 85 hazır yama
+`docs/hazir-yamalar/2026-10-23-migration-85-dogrulanmis-cevap-tekrari-golge.patch` (çalışma dalı `wip/answer-reuse-85`; kurucu onayı + taze yedek
+bekliyor). Teyit yalnız başka konuşmadan; kayıtlı metin yalnız HARFİYEN kapsanırsa kalır (R11). Opus güvenlik F1–F11 + dilim sonu R1–R15 kapandı
+(doğrulayıcı: aksan katlama, çok dilli yön fiilleri, okunamayan yön geçmez, son giriş = bitiş, en az ↔ en fazla, eksiltili yön yalnız yan cümle
+sonunda, niteleyici değerin yerinde, saf varlık muafiyeti, diller arası olgu sayımı, ücretsizlik sınırı, kalemde olmayan ikinci konu, yan cümle
+bazlı olumluluk, uzun metin konu önbelleği; sıra kipi ilişkisiz satırı kapatmaz (F10 daraltıldı, kurucu B); etikette şifre değeri yok). 139 gerçek
+parça kıyas seti 108/139 değişmedi (+2 doğru Almanca). Anahtarlar KAPALI (`AI_ANSWER_PARTS_ENABLED`, `AI_ITEM_ORDINAL_ENABLED`,
+`AI_ANSWER_REUSE_SHADOW_ENABLED`).
+
+**10-23 gece:** büyük rapor `docs/RAPOR-2026-10-23-gece-buyuk-rapor.md`. Soru 1 kodda (`topic-absence.needTerms`:
 misafirin kendi soru sözcükleri; gönderime izin veren eşleşme SIKI = yalnız çekim eki, tutma yönü GEVŞEK; anahtar `AI_TOPIC_ABSENCE_ENABLED` KAPALI) ·
 Opus akşam bulguları kapandı (gelen kutusu şablonunda iç ad yok, yedek liste aileleri, QR kapı sırası, erken giriş akışı, tek tıkla taslak uyarısı,
 `property:name` kaynağı) · CLAUDE.md sadeleşti (64 → 44 KB; `docs/claude/canli-durum.md` · `fiyat-ve-ozellikler.md` · `hospitable.md` ·
