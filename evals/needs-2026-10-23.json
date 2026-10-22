@@ -83,10 +83,10 @@
         { "kind": "amenities", "want": "open", "forbid": ["şezlong"] } ] } },
     { "id": "n-en-checkout-sauna", "class": "two_kinds", "lang": "en", "kb": "full", "message": "What time is checkout, and is there a sauna?",
       "expect": { "autoSend": "any", "needs": [
-        { "kind": "checkout_time", "want": "answered", "all": ["11[:.]00|11 ?am"] },
+        { "kind": "checkout_time", "want": "answered", "all": ["11[:.]00|11(?::00)? ?am"] },
         { "kind": "amenities", "want": "answered", "all": ["sauna"] } ] } },
     { "id": "n-en-pool-saturday", "class": "conditional", "lang": "en", "kb": "full", "message": "When does the pool close on Saturday?",
-      "expect": { "autoSend": "any", "needs": [ { "kind": "amenities", "want": "answered", "all": ["23[:.]00|11 ?pm"], "forbid": ["22[:.]00|10 ?pm"] } ] } },
+      "expect": { "autoSend": "any", "needs": [ { "kind": "amenities", "want": "answered", "all": ["23[:.]00|11(?::00)? ?pm"], "forbid": ["22[:.]00|10(?::00)? ?pm"] } ] } },
     { "id": "n-en-breakfast-included", "class": "negative_kb", "lang": "en", "kb": "full", "message": "Is breakfast included in the price?",
       "expect": { "autoSend": "any", "needs": [ { "kind": "amenities", "want": "answered", "all": ["not included|isn'?t included|250"] } ] } },
     { "id": "n-en-smoke-balcony", "class": "negative_kb", "lang": "en", "kb": "full", "message": "Can we smoke on the balcony?",

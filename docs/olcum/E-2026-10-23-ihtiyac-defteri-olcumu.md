@@ -67,6 +67,25 @@ okunuyor (genel değer, kendi değişkesi olan güne verilemez; değerin günü 
 6. Kısa Türkçe fiil kökü ("atılır" ~ "atabilirsiniz") — karşılık: başka fiil ("bırakılır" ≠ "atabilirsiniz") içerik sayılır.
 7. "№12" sayı 12 — karşılık: "№13" tutulur.
 
-## 3. Düzeltme sonrası yeniden ölçüm
+## 3. Düzeltme sonrası yeniden ölçüm (aynı set, aynı yapılandırma)
 
-(aşağıda — yeni akışın üç kolu aynı set, aynı yapılandırma)
+Ölçer düzeltmesi: "11:00 PM" biçimi beklenti kalıbına uymuyordu (`11 ?pm` → `11(?::00)? ?pm`; doğru cevap yanlış sayılıyordu). Bütün kollar
+aynı kalıpla YENİDEN puanlandı (çevrimdışı, kayıtlı `sentText` üzerinden):
+
+| kol | doğru değerle cevaplanan | açık kalması gereken açık kaldı | 🚨 yanlış değer | sızıntı | giden mesaj | maliyet |
+|---|---|---|---|---|---|---|
+| eski · okuyucu açık | 31/38 | 7/8 | **1** | 0 | 24/32 | $0.10 |
+| eski · okuyucu kapalı | 31/38 | 8/8 | 0 | 0 | 24/32 | $0.09 |
+| eski · okuyucu hata | 31/38 | 8/8 | 0 | 0 | 24/32 | $0.09 |
+| yeni (ilk) · açık / kapalı / hata | 24 / 23 / 23 | 8/8 | 0 | 0 | 21 / 19 / 20 | $0.10 / 0.09 / 0.09 |
+| yeni v2 (gevşetmeler, Haiku ÖNCESİ) · açık / kapalı / hata | 33 / 30 / 32 | 8/8 | 0 | 0 | 27 / 24 / 26 | ~$0.09 |
+| **yeni v3 (Haiku sertleştirmesi SONRASI — kodda olan)** · açık / kapalı / hata | **30 / 28 / 28** | **8/8** | **0** | **0** | 26 / 25 / 23 | $0.09 / 0.09 / 0.10 |
+
+Okuma:
+- v2 → v3 farkı Haiku'nun bulduğu yanlış-kabul sınıflarının kapatılmasının bedeli (kısa fiil kökü geri alındı, Rusça kat okunmuyor,
+  koşulsuz ikinci değer devralmıyor). Kurucunun önceliği ("yanlış gitmesin") gereği bilinçli.
+- v3'te kalan açık (eski akışa göre 1–3 ihtiyaç): (a) aynı mesajda "havuz + sauna" — `AI_ITEM_ORDINAL_ENABLED` KAPALIYKEN iki istek tek
+  öğede birleşiyor, model tek parçada yalnız havuzu yazınca sauna cevapsız kalıyor (D anahtarı bunun için; ayrı kol §4); (b) "Bisiklet
+  ücretsiz değil; …" — model kalemde olmayan bir olumsuzlama ekledi → tutuldu (güvenli yön); (c) çatı değişimi ("atılır" → "atabilirsiniz");
+  (d) Rusça kat sözcüğü. Hepsi TUTMA yönünde: ev sahibi panelde açık işi görür, misafire yanlış bir şey gitmez.
+- Yeni akışın üç kolunda da yanlış değer 0, açık kalması gereken 8/8, "bilgim yok" / iç kaynak 0. Okuyucu hata verdiğinde de aynı.
