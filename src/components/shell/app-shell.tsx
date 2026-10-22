@@ -118,8 +118,9 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
     return () => {
       window.removeEventListener("keydown", onKey);
       document.body.style.overflow = prevOverflow;
-      // Focus restore: tetikleyen öğeye (yoksa hamburger'a) geri dön.
-      (prevFocus ?? menuButton)?.focus?.();
+      // Focus restore: tetikleyen öğeye (yoksa hamburger'a) geri dön. Ana sütun menü açıkken `inert` olduğu için tarayıcı oradaki odağı
+      // bırakır — efekt koştuğunda `activeElement` çoğu zaman `<body>`dur; o durumda da hamburger'a dönülür.
+      (prevFocus && prevFocus !== document.body ? prevFocus : menuButton)?.focus?.();
     };
   }, [mobileOpen]);
 
@@ -364,8 +365,9 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
         </div>
       ) : null}
 
-      {/* Main column */}
-      <div className="flex min-h-[calc(100vh/0.95)] flex-col lg:h-full lg:min-h-0">
+      {/* Main column — mobil menü açıkken `inert` (erişilebilirlik 10-22): menü odağı kendi içinde tutuyordu ama arkadaki sayfa ekran
+          okuyucunun gezinmesinde kalıyordu; kapanınca nitelik kalkar, odak hamburger'a döner. */}
+      <div inert={mobileOpen} className="flex min-h-[calc(100vh/0.95)] flex-col lg:h-full lg:min-h-0">
         {impersonating ? (
           <div className="flex flex-wrap items-center justify-between gap-2 bg-amber-500 px-4 py-2 text-sm font-medium text-amber-950 sm:px-6">
             <span>

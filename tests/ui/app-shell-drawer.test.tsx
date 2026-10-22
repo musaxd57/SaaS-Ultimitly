@@ -48,13 +48,31 @@ describe("AppShell — mobil drawer modal sözleşmesi + logout res.ok", () => {
     expect(dialog).toBeTruthy();
     expect(dialog.getAttribute("aria-modal")).toBe("true");
     expect(document.body.style.overflow).toBe("hidden"); // arkaplan kilitli
-    expect(screen.getByRole("button", { name: "Menüyü aç" }).getAttribute("aria-expanded")).toBe("true");
+    expect(burger.getAttribute("aria-expanded")).toBe("true");
+    // Arkadaki sayfa (ana sütun) menü açıkken `inert` — ekran okuyucu ve klavye oraya düşmez (10-22).
+    expect(document.querySelector("main#icerik")!.closest("[inert]")).not.toBeNull();
     await act(async () => {
       fireEvent.keyDown(window, { key: "Escape" });
     });
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(document.body.style.overflow).toBe(""); // kilit kalktı
     expect(document.activeElement).toBe(burger); // focus restore
+    expect(document.querySelector("main#icerik")!.closest("[inert]")).toBeNull();
+  });
+
+  it("menü açılırken odak tarayıcıca bırakılmış olsa da (inert ana sütun → <body>) kapanınca hamburger'a döner", async () => {
+    renderShell();
+    const burger = screen.getByRole("button", { name: "Menüyü aç" });
+    // Tarayıcı davranışı: inert olan atadaki odak düşer. jsdom inert'i uygulamaz → tıklamadan önce odağı <body>'ye bırakıyoruz.
+    (document.activeElement as HTMLElement | null)?.blur?.();
+    expect(document.activeElement).toBe(document.body);
+    await act(async () => {
+      fireEvent.click(burger);
+    });
+    await act(async () => {
+      fireEvent.keyDown(window, { key: "Escape" });
+    });
+    expect(document.activeElement).toBe(burger);
   });
 
   it("impersonation exit: HTTP 500'de /admin'e YÖNLENDİRME YOK (yanlış bağlam riski); 200'de gider", async () => {
