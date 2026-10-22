@@ -35,7 +35,7 @@
 
 import "server-only";
 
-import { claimSpans } from "@/lib/ai/claim-support";
+import { claimSpans, foldForClaims } from "@/lib/ai/claim-support";
 import { confidentLanguage, languageEvidence } from "@/lib/ai/language-signal";
 import { tokenize } from "@/lib/ai/retrieval/text";
 import { quoteGroundedIn } from "@/lib/ai/semantic/absence-judge";
@@ -56,6 +56,7 @@ export const BINDING_ISSUES = [
   "direction_mismatch",
   "unsupported_content",
   "subject_mismatch",
+  "value_conflict",
 ] as const;
 export type BindingIssue = (typeof BINDING_ISSUES)[number];
 
@@ -266,9 +267,46 @@ const NEGATION_TOKENS: ReadonlySet<string> = new Set([
   "cerrado",
   "prohibido",
   "nunca",
+  // Rusça / İtalyanca / Portekizce / Arapça / Felemenkçe / Lehçe (Opus güvenlik 10-23 F3: "Домашние животные не допускаются" ←
+  // "Evcil hayvan kabul edilir" geçiyordu). "bez" bilerek YOK (Türkçede "bez" = kumaş).
+  "не",
+  "нет",
+  "нельзя",
+  "запрещено",
+  "запрещен",
+  "запрещены",
+  "закрыт",
+  "закрыто",
+  "non",
+  "vietato",
+  "vietata",
+  "chiuso",
+  "chiusa",
+  "senza",
+  "mai",
+  "nao",
+  "não",
+  "proibido",
+  "proibida",
+  "fechado",
+  "fechada",
+  "لا",
+  "ممنوع",
+  "مغلق",
+  "niet",
+  "geen",
+  "verboden",
+  "gesloten",
+  "zonder",
+  "nooit",
+  "zakaz",
+  "zabronione",
+  "zamkniete",
 ]);
-/** Ardındaki olumsuz sözcüğü OLUMLUYA çeviren olumsuzluk ekleri ("not prohibited", "nicht verboten"). */
-const NEGATING_PARTICLES: ReadonlySet<string> = new Set(["not", "never", "no", "nicht", "nie", "pas", "jamais", "t", "kein", "keine", "nunca"]);
+/** Ardındaki olumsuz sözcüğü OLUMLUYA çeviren olumsuzluk ekleri ("not prohibited", "nicht verboten", "не запрещено", "non vietato"). */
+const NEGATING_PARTICLES: ReadonlySet<string> = new Set([
+  "not", "never", "no", "nicht", "nie", "pas", "jamais", "t", "kein", "keine", "nunca", "не", "non", "nao", "não", "niet", "geen", "لا",
+]);
 
 /** Türkçe olumsuz fiil ekleri (katlanmış): "edilmiyor / kiralamıyoruz / izin verilmez / giremezsiniz / etmem / kabul edilmemektedir". */
 function negativeVerb(t: string): boolean {
@@ -304,13 +342,30 @@ function negative(tokens: readonly string[]): boolean {
 }
 
 /** Yön: açılış / başlangıç ↔ kapanış / bitiş ("açılır, -den itibaren, from, after" ↔ "kapanır, -e kadar, until, before"). */
-const START_TOKENS = new Set(["acilir", "acilis", "aciliyor", "acilmaktadir", "baslar", "baslangic", "itibaren", "sonra", "opens", "opening", "from", "after", "starts", "begins", "oeffnet", "offnet", "ab", "nach", "apres", "desde"]);
-const END_TOKENS = new Set(["kapanir", "kapanis", "kapaniyor", "kapanmaktadir", "biter", "bitis", "kadar", "once", "closes", "closing", "until", "till", "before", "ends", "schliesst", "bis", "vor", "avant", "hasta"]);
+const START_TOKENS = new Set([
+  "acilir", "acilis", "aciliyor", "acilmaktadir", "baslar", "baslangic", "itibaren", "sonra", "opens", "opening", "from", "after", "starts", "begins",
+  "oeffnet", "offnet", "ab", "nach", "apres", "desde",
+  // Sınır sözcükleri (Opus güvenlik 10-23 F8): en erken = başlangıç.
+  "earliest", "fruhestens", "fruehestens", "dalle", "dalla", "после",
+]);
+const END_TOKENS = new Set([
+  "kapanir", "kapanis", "kapaniyor", "kapanmaktadir", "biter", "bitis", "kadar", "once", "closes", "closing", "until", "till", "before", "ends",
+  "schliesst", "bis", "vor", "avant", "hasta",
+  // En geç = bitiş ("Check-out en geç 11:00" → "check out after 11:00" geçiyordu, Opus güvenlik 10-23 F8).
+  "latest", "spatestens", "spaetestens", "entro", "до",
+]);
 function directions(tokens: readonly string[]): Set<"start" | "end"> {
   const out = new Set<"start" | "end">();
-  for (const t of tokens) {
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
     if (START_TOKENS.has(t)) out.add("start");
     if (END_TOKENS.has(t)) out.add("end");
+    const next = tokens[i + 1] ?? "";
+    // İki belirteçli sınırlar: "en geç" / "en erken" · "au plus tard / tôt" · "a más tardar" · "no later than" · "не позднее / ранее".
+    if ((t === "en" && next === "gec") || (t === "plus" && next === "tard") || (t === "mas" && next === "tardar") || (t === "no" && next === "later")) out.add("end");
+    if ((t === "en" && next === "erken") || (t === "plus" && next === "tot") || (t === "a" && next === "partir")) out.add("start");
+    if (t === "не" && next === "позднее") out.add("end");
+    if (t === "не" && next === "ранее") out.add("start");
   }
   return out;
 }
@@ -341,6 +396,12 @@ function modifierAt(tokens: readonly string[], i: number): boolean {
 interface Subject {
   terms: readonly string[];
   topics: readonly string[];
+}
+
+/** Kaba ön süzgeç — `hasSubject`in üst kümesi (niteleyen konum ve kaba sözlük konusu da sayılır): metin konuyu herhangi bir biçimde anıyor mu. */
+function mentionsSubject(text: string, subj: Subject): boolean {
+  if (subj.terms.length > 0 && tokenize(text).some((t) => t.length >= 3 && needTermsInStrict(subj.terms, t) > 0)) return true;
+  return subj.topics.length > 0 && topicsWithSymptomsOf(text).some((t) => subj.topics.includes(t));
 }
 
 /** Metinde konu var mı: SIKI sözcük eşleşmesi (niteleyen konum hariç); sözcük yalnız niteleyen konumda geçiyorsa sözlük konusu da sayılmaz. */
@@ -664,6 +725,38 @@ function structure(text: string, claims: readonly Span[], tr = false): Sentence[
       valuedClause[k] = true;
     }
 
+    // Nötr olmayan sözcüklerin önek sayımı (cümle başına bir kez): yan cümle başından her grubun değerine kadar yeniden yürümek uzun virgülsüz
+    // yan cümlede karesel oluyordu (Opus güvenlik 10-23 F4: virgülsüz 24.000 karakterlik kalemde 3,7 sn). Aralığın ucunu kesen sözcük
+    // `allNeutral` gibi kesik hâliyle okunur → sonuç birebir aynı.
+    const ws = words(text, s, e);
+    const bad = new Int32Array(ws.length + 1);
+    ws.forEach((x, i) => (bad[i + 1] = bad[i] + (isNeutralWord(x.w) ? 0 : 1)));
+    const firstAtOrAfter = (x: number) => {
+      let lo = 0;
+      let hi = ws.length;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (ws[mid].at < x) lo = mid + 1;
+        else hi = mid;
+      }
+      return lo;
+    };
+    const neutralIn = (a: number, b: number): boolean => {
+      if (b <= a) return true;
+      const lo = firstAtOrAfter(a);
+      const hi = firstAtOrAfter(b);
+      if (lo > 0) {
+        const p = ws[lo - 1];
+        const end = p.at + p.w.length;
+        if (end > a && !allNeutral(text, a, Math.min(end, b))) return false;
+      }
+      if (hi > lo) {
+        const last = ws[hi - 1];
+        if (last.at + last.w.length > b) return allNeutral(text, last.at, b) && bad[hi - 1] - bad[lo] === 0;
+      }
+      return bad[hi] - bad[lo] === 0;
+    };
+
     // Konu yeri: önceki grubun bitişinden. Devralma — ardı (sonraki gruba / cümle sonuna kadar) nötr ve aradaki boşluklar nötr ise geri
     // yürü. Kendi yan cümlesinde değerden önce içerik sözcüğü varsa yan cümle sınırını GEÇMEZ ("Havuz temizliği nedeniyle, sauna 22:00").
     const gapNeutral = groups.map((g, gi) => (gi === 0 ? false : allNeutral(text, groups[gi - 1].end, g.at)));
@@ -681,7 +774,7 @@ function structure(text: string, claims: readonly Span[], tr = false): Sentence[
       const j = afterNeutral ? reach[gi] : gi;
       const inherited = j > 0 ? groups[j - 1].end : s;
       const clauseStart = clauses[groupClause[gi]][0];
-      return allNeutral(text, clauseStart, g.at) ? inherited : Math.max(inherited, clauseStart);
+      return neutralIn(clauseStart, g.at) ? inherited : Math.max(inherited, clauseStart);
     });
     // regionFrom'un düştüğü parça: bitişi regionFrom'dan büyük ilk grup (ikili arama — grup bitişleri artan).
     const regionSeg = regionFrom.map((from, gi) => {
@@ -706,10 +799,20 @@ interface PlaceReading {
   directions: Set<"start" | "end">;
 }
 
-/** Değerin hemen ardındaki yönelme eki ("10:30'a", "20:00'ye") — ardından harf / rakam gelmez. */
-const DATIVE_AFTER = /^[’'`]?y?[ae](?![\p{L}\p{N}])/u;
-/** Paylaşılan okuma — değiştirilmez. */
-const END_ONLY = new Set<"start" | "end">(["end"]);
+/**
+ * Değerin hemen ardındaki hâl eki — ayrılma ("09:00'dan"), bulunma ("20:00'de"), yönelme ("10:30'a", "20:00'ye"); ardından harf / rakam
+ * gelmez. Sıra önemli: ayrılma eki bulunma ekiyle başlar.
+ */
+const CASE_AFTER: readonly (readonly [string, RegExp])[] = [
+  ["abl", /^[’'`]?n?[dt][ae]n(?![\p{L}\p{N}])/u],
+  ["loc", /^[’'`]?n?[dt][ae](?![\p{L}\p{N}])/u],
+  ["dat", /^[’'`]?y?[ae](?![\p{L}\p{N}])/u],
+];
+function caseAfter(text: string, at: number): string | null {
+  const s = text.slice(at, at + 5);
+  for (const [k, re] of CASE_AFTER) if (re.test(s)) return k;
+  return null;
+}
 
 function readPlace(text: string): PlaceReading {
   const t = tokenize(text);
@@ -816,22 +919,34 @@ function documentOf(raw: string, subj: Subject) {
       if ((DAY_CLASSES.has(c) && ownDay) || (SEASON_CLASSES.has(c) && ownSeason)) continue;
       conditions.add(c);
     }
-    const reading = { conditions, negative: own.negative || extra.negative, directions: own.directions.size > 0 ? own.directions : ellipticEnd(sent, gi) ? END_ONLY : own.directions };
+    const reading = { conditions, negative: own.negative || extra.negative, directions: own.directions.size > 0 ? own.directions : (ellipticDirection(sent, gi) ?? own.directions) };
     row[gi] = reading;
     return reading;
   };
   /**
-   * Türkçe eksiltili "kadar" (E ölçümü v4: "Kahvaltı hafta içi 10:30'a, hafta sonu 11:00'e kadar"): tek değer yönelme ekiyle ("10:30'a")
-   * biter, hemen ardındaki değer de yönelme ekli ve kendi yan cümlesinde "kadar" taşıyorsa ilk değer de BİTİŞtir. Dar: bulunma eki
-   * ("10:30'da") ya da "kadar"sız kardeş yön vermez. İki taraf (parça + kalem) aynı okur.
+   * Türkçe eksiltili yüklem (E ölçümü v4 + Opus güvenlik 10-23 F8): "Kahvaltı hafta içi 10:30'a, hafta sonu 11:00'e kadar" · "Havuz hafta
+   * içi 09:00'da, hafta sonu 10:00'da açılır" · "Havuz 09:00'dan, sauna 10:00'dan itibaren açık". Kendi yan cümlesinde yön sözcüğü olmayan
+   * TEK değer, ardından AYNI hâl ekini taşıyan değerler geliyorsa yönünü dizinin ilk yönlü yan cümlesinden alır. Ek farklıysa ("10:30'da, …
+   * 11:00'e kadar") ya da o yan cümle iki yönlüyse yön verilmez. İki taraf (parça + kalem) aynı okur.
    */
-  const ellipticEnd = (sent: Sentence, gi: number): boolean => {
-    const g = sent.groups[gi];
-    const next = sent.groups[gi + 1];
-    if (!next || g.claims.length !== 1) return false;
-    if (!DATIVE_AFTER.test(text.slice(g.end, g.end + 4)) || !DATIVE_AFTER.test(text.slice(next.end, next.end + 4))) return false;
-    const nd = clausePlace(sent, sent.groupClause[gi + 1]).directions;
-    return nd.size === 1 && nd.has("end");
+  const ellipticCache = new Map<Sentence, (Set<"start" | "end"> | null)[]>();
+  const ellipticDirection = (sent: Sentence, gi: number): Set<"start" | "end"> | null => {
+    if (sent.groups[gi].claims.length !== 1) return null;
+    let row = ellipticCache.get(sent);
+    if (!row) {
+      // Sondan başa tek geçiş (uzun virgüllü değer dizisinde değer başına zinciri yeniden yürümek karesel olurdu): `chain[k]` = k. grubun
+      // ardındaki aynı ekli dizinin verdiği yön. Paylaşılan okuma kümesi — değiştirilmez.
+      const n = sent.groups.length;
+      const kases = sent.groups.map((g) => caseAfter(text, g.end));
+      row = new Array<Set<"start" | "end"> | null>(n).fill(null);
+      for (let k = n - 2; k >= 0; k--) {
+        if (!kases[k] || kases[k + 1] !== kases[k]) continue;
+        const nd = clausePlace(sent, sent.groupClause[k + 1]).directions;
+        row[k] = nd.size === 1 ? nd : nd.size > 1 ? null : row[k + 1];
+      }
+      ellipticCache.set(sent, row);
+    }
+    return row[gi];
   };
   /** Cümlenin yan cümle koşullarının önek sayımları: `counts[k]` = ilk k yan cümlede o sınıfı taşıyanların sayısı. */
   const condPrefixCache = new Map<Sentence, Map<string, Int32Array>>();
@@ -952,6 +1067,27 @@ function documentOf(raw: string, subj: Subject) {
    * koşul kıyasına YALNIZ bunlar girer (Haiku 10-23: ilgisiz kalemin "hafta sonu kahvaltı" sözü havuz parçasındaki "hafta sonu"nu
    * doğrulamasın).
    */
+  /**
+   * Konuya bağlı TEK değerli gruplar (değer türüne göre, belge başına bir kez) — çelişki kuralı (Opus güvenlik 10-23 F6): aynı konunun aynı
+   * türden, aynı yönde, koşulsuz İKİ farklı değeri ("Havuz 20:00'de kapanır." + "A Blok havuzu 22:00'de kapanır.", eski başlık "Havuz 23:00").
+   * Aralık / liste grubu ("09:00-20:00", "08:00, 09:00 ve 10:00") çelişki sayılmaz.
+   */
+  const boundSiteCache = new Map<string, { si: number; gi: number; claim: Span }[]>();
+  const boundSitesFor = (cls: string) => {
+    let list = boundSiteCache.get(cls);
+    if (!list) {
+      list = [];
+      for (let si = 0; si < sentences.length; si++) {
+        const groups = sentences[si].groups;
+        for (let gi = 0; gi < groups.length; gi++) {
+          const g = groups[gi];
+          if (g.claims.length === 1 && g.claims[0].cls === cls && boundAt(si, gi)) list.push({ si, gi, claim: g.claims[0] });
+        }
+      }
+      boundSiteCache.set(cls, list);
+    }
+    return list;
+  };
   let subjectConds: Set<string> | undefined;
   const subjectConditions = (): Set<string> => {
     if (subjectConds) return subjectConds;
@@ -970,8 +1106,34 @@ function documentOf(raw: string, subj: Subject) {
     }
     return (subjectConds = out);
   };
-  return { text, sentences, subjectIn, boundAt, boundRegion, placeOf, hasSubjectAnywhere, sentenceInfo, variantGroupsFor, valuelessVariantConds, subjectConditions };
+  return { text, sentences, subjectIn, boundAt, boundRegion, placeOf, hasSubjectAnywhere, sentenceInfo, variantGroupsFor, valuelessVariantConds, subjectConditions, boundSitesFor };
 }
+
+/**
+ * Kalem belgeleri tur içinde yeniden kullanılır (Opus güvenlik 10-23 F4: aynı istemdeki kalemler her ihtiyaç için yeniden ayrıştırılıyordu).
+ * Anahtar = konu + metnin TAMAMI (aynı metin + aynı konu → aynı belge; belge saf okumalardan ibaret). Küçük, en eski çıkar.
+ */
+const DOC_CACHE_MAX = 64;
+const docCache = new Map<string, Doc>();
+function cachedDocument(raw: string, subj: Subject): Doc {
+  const key = `${subj.terms.join("\u0002")}\u0001${subj.topics.join("\u0002")}\u0001${raw}`;
+  const hit = docCache.get(key);
+  if (hit) {
+    docCache.delete(key);
+    docCache.set(key, hit);
+    return hit;
+  }
+  const d = documentOf(raw, subj);
+  docCache.set(key, d);
+  if (docCache.size > DOC_CACHE_MAX) docCache.delete(docCache.keys().next().value as string);
+  return d;
+}
+
+/**
+ * Bir değerin incelenen kalem yeri tavanı: aynı değer yüzlerce kez geçen (kiracının yazdığı) kalemde her yer için konu yerini yeniden okumak
+ * karesel olurdu. Tavanı aşan kalemde temiz yer bulunamazsa parça TUTULUR (güvenli yön); doğal kalemde bir değer birkaç yerde geçer.
+ */
+const MAX_SITES_PER_VALUE = 48;
 
 // ─── dayanaksız içerik (Haiku 10-23 F3: "Havuz 09:00-20:00 arası açık VE ÜCRETSİZDİR" alıntıda olmayan sözcükle gidiyordu) ─────────
 
@@ -1013,26 +1175,87 @@ function languageOf(text: string): string | null {
 }
 
 /**
- * Parçada alıntının taşımadığı içerik sözcüğü var mı — YALNIZ parça ve alıntı aynı dildeyse (çeviride sözcük kıyası anlamsız; o
- * yol kıdemli okuyucunun kanıt şartında). İçerik = en az 4 harf, rakamsız, nötr / koşul / olumsuzluk / dolgu değil, ihtiyacın kendi
- * sözcüğü değil.
+ * Alıntının düştüğü kalem cümle(ler)i — kıyasın dayanağı. Kısa alıntı ("20:00", "Havuz", kategori adı) dili kestirilemediği için kıyası
+ * atlatıyordu (Opus güvenlik 10-23 F2: "Havuz 20:00'de kapanır; havlu ve terlik verilir, erken girişte de…" alıntı "20:00" ile geçti).
+ * Alıntı tek bir cümlede bulunamazsa alıntının kendisi.
  */
-export function unsupportedContent(part: string, evidence: string, needTerms: readonly string[]): boolean {
-  const le = languageOf(evidence);
+function quoteSentences(sourceText: string | undefined, evidence: string): string {
+  if (!sourceText) return evidence;
+  // Harf / rakam sayısı alıntınınkinden az olan cümle alıntıyı içeremez → normalleştirme yalnız aday cümlede (uzun alıntıda her cümle için
+  // alıntıyı yeniden normalleştirmek karesel oluyordu — maliyet testi).
+  const letters = (t: string) => t.replace(/[^\p{L}\p{N}]+/gu, "").length;
+  const need = letters(evidence);
+  const hits = sourceText
+    .split(/(?<=[.!?;])\s+|\n+/u)
+    .filter((s) => s.trim() && letters(s) >= need && quoteGroundedIn(s, evidence));
+  return hits.length > 0 ? hits.join(" ") : evidence;
+}
+
+/** Yan cümle bağlaçları (çok dilli) — yabancı dil parçasında yan cümle kuralı için. */
+const CLAUSE_CONJUNCTION = /\s+(?:and|und|et|y|e|и|ve|but|aber|mais|pero|но|ama|also|plus|también|auch|aussi|тоже)\s+/iu;
+
+/** Kıyasta içerik sayılan sözcük: en az 4 harf, rakamsız, nötr / koşul / olumsuzluk / dolgu / edilgen yardımcı fiil değil, ihtiyacın sözcüğü değil. */
+function contentWord(toks: readonly string[], i: number, needTerms: readonly string[]): boolean {
+  const t = toks[i];
+  if (t.length < 4 || /\d/.test(t) || isNeutralWord(t) || isFiller(t, toks[i - 1] ?? "")) return false;
+  // Edilgen yardımcı fiil ("ediliyor", "edilir") ve "servis edil-" (= "verilir") içerik değildir (E ölçümü v4: "servis ediliyor" ←
+  // "verilir"); olumsuzu ("servis edilmez") olumsuzluk kontrolünde ayrıca tutulur.
+  if (/^edil/.test(t) || (t === "servis" && /^edil/.test(toks[i + 1] ?? ""))) return false;
+  return !(needTerms.length > 0 && needTermsInStrict(needTerms, t) > 0);
+}
+
+/**
+ * Parçada alıntının (düştüğü cümlenin) taşımadığı içerik var mı.
+ *  - Aynı dil: alıntıda kökü olmayan her içerik sözcüğü dayanaksızdır.
+ *  - Başka dil (ya da dil kestirilemiyor): sözcük kıyası anlamsız → iki yapısal sınır (Opus güvenlik 10-23 F2: "Pets are welcome. Smoking is
+ *    allowed inside and early check-in is always possible." / "… send a photo of your passport … on WhatsApp" geçiyordu): parçanın sözlük
+ *    konuları alıntının, ihtiyacın ve ihtiyaç sözcüklerinin konularında olmalı; içerik sözcüğü sayısı alıntınınkini en çok 2 (uzun alıntıda
+ *    yarısı kadar) aşabilir — çeviri aşağı yukarı aynı sayıda içerik sözcüğü taşır, eklenen olgu sayıyı büyütür.
+ */
+export function unsupportedContent(
+  part: string,
+  evidence: string,
+  needTerms: readonly string[],
+  opts: { sourceText?: string; needTopics?: readonly string[] } = {},
+): boolean {
+  const ref = quoteSentences(opts.sourceText, evidence);
+  const le = languageOf(ref) ?? languageOf(evidence) ?? (opts.sourceText ? languageOf(opts.sourceText) : null);
   // Dili kestirilemeyen kısa parça ("Otopark konaklama boyunca 200 TL.") kalemle aynı yazı sistemindeyse kalemin dilinde sayılır (Opus 10-23
   // Y5) — tutma yönünde: kısa İngilizce parça bu yolla içerik farkı verirse tutulur.
-  const lp = languageOf(part) ?? (le && scriptOf(part) === scriptOf(evidence) ? le : null);
-  if (!lp || lp !== le) return false;
-  const ev = tokenize(evidence);
+  const lp = languageOf(part) ?? (le && scriptOf(part) === scriptOf(ref) ? le : null);
+  const rt = tokenize(ref);
   const pt = tokenize(part);
-  return pt.some((t, i) => {
-    if (t.length < 4 || /\d/.test(t) || isNeutralWord(t) || isFiller(t, pt[i - 1] ?? "")) return false;
-    // Edilgen yardımcı fiil ("ediliyor", "edilir") ve "servis edil-" (= "verilir") içerik değildir (E ölçümü v4: "servis ediliyor" ←
-    // "verilir"); olumsuzu ("servis edilmez") olumsuzluk kontrolünde ayrıca tutulur.
-    if (/^edil/.test(t) || (t === "servis" && /^edil/.test(pt[i + 1] ?? ""))) return false;
-    if (needTerms.length > 0 && needTermsInStrict(needTerms, t) > 0) return false;
-    return !ev.some((e) => sameStem(t, e));
-  });
+  // Dil iki tarafta da kestirilemiyorsa ("Parking costs 200 TL." / "Otopark 3. katta.") yapısal sınırlar uygulanır (sözcük kıyası kısa
+  // İngilizce parçayı Türkçe kaleme karşı haksız tutardı).
+  if (lp && lp === le) return pt.some((t, i) => contentWord(pt, i, needTerms) && !rt.some((e) => sameStem(t, e)));
+  const allowed = new Set([...topicsWithSymptomsOf(ref), ...(opts.needTopics ?? []), ...topicsWithSymptomsOf(needTerms.join(" "))]);
+  if (topicsWithSymptomsOf(part).some((t) => !allowed.has(t))) return true;
+  // Her yan cümle bir değer, ihtiyacın bir sözcüğü ya da izinli bir sözlük konusu taşımalı: "Yes, pets are allowed and there is a garden."
+  // sayı sınırının altında kalan TEK eklenmiş olguyu da tutar (E ölçümü v4'ün 80+ yabancı dil parçasında yanlış ret 0).
+  const contentCount = (c: string) => {
+    const toks = tokenize(c);
+    return toks.reduce((n, t, i) => n + (contentWord(toks, i, needTerms) && !PREDICATE_WORDS.has(t) ? 1 : 0), 0);
+  };
+  // Sıra sayısının noktası ("im 3. Stock", "3. katta") yan cümle bölmez; saatin ardındaki nokta ("20:00. Please …") böler.
+  const clauses = part
+    .replace(/(?<![\d:.,])(\d{1,3})\.(?=\s+\p{L})/gu, "$1")
+    .split(/[.!?;,]+(?!\d)/u)
+    .flatMap((x) => x.split(CLAUSE_CONJUNCTION))
+    .map((x) => x.trim())
+    .filter(Boolean);
+  for (const c of clauses) {
+    const toks = tokenize(c);
+    if (contentCount(c) === 0) continue;
+    if (claimSpans(c).claims.length > 0) continue;
+    if (needTerms.length > 0 && toks.some((t) => t.length >= 3 && needTermsInStrict(needTerms, t) > 0)) continue;
+    if (topicsWithSymptomsOf(c).some((t) => allowed.has(t))) continue;
+    return true;
+  }
+  // Sayımda ihtiyaç sözcükleri İKİ tarafta da sayılır (çeviride "evcil hayvan" → "Haustiere" ihtiyaç sözcüğü olmaktan çıkar); yüklem / bağ
+  // fiili ("sind", "are allowed") Türkçede ek olduğundan sayılmaz.
+  const count = (toks: readonly string[]) => toks.reduce((n, t, i) => n + (contentWord(toks, i, []) && !PREDICATE_WORDS.has(t) ? 1 : 0), 0);
+  const refCount = count(rt);
+  return count(pt) > Math.max(refCount + 2, Math.ceil(refCount * 1.5));
 }
 
 // ─── Opus 10-23 sertleştirmesi: sayı sözcüğü, ücret kutbu, ücret tabanı, istisna ─────────────────────────────────────────────────
@@ -1045,7 +1268,11 @@ const NUMBER_WORDS: ReadonlySet<string> = new Set(
     "deux trois quatre cinq sept huit neuf dix onze douze vingt trente cinquante cent midi minuit " +
     "dos tres cuatro cinco seis siete ocho nueve diez doce veinte treinta cincuenta cien mediodia medianoche " +
     "два три четыре пять шесть семь восемь девять десять одиннадцать двенадцать двадцать тридцать пятьдесят сто полдень полночь " +
-    "iki uc dort bes alti yedi sekiz dokuz yirmi otuz kirk elli bucuk sekizde dokuzda yedide onda"
+    "iki uc dort bes alti yedi sekiz dokuz yirmi otuz kirk elli bucuk sekizde dokuzda yedide onda " +
+    // Portekizce / İtalyanca / Felemenkçe (Opus güvenlik 10-23 F1: "às dez da noite" havuz 20:00'ye gidiyordu).
+    "dois duas quatro sete oito nove dez vinte trinta meia " +
+    "due quattro cinque sette otto dieci undici dodici venti trenta mezzogiorno mezzanotte " +
+    "twee drie vijf zes zeven negen tien twaalf twintig dertig middernacht"
   ).split(" "),
 );
 const hasNumberWord = (tokens: readonly string[]) => tokens.some((t) => NUMBER_WORDS.has(t));
@@ -1131,8 +1358,10 @@ export function checkAnswerBinding(input: BindingInput): BindingResult {
 
   // Kalemin TAMAMI okunur (Opus 10-23 K3: alıntı cümle parçası olabilir, "Hafta sonu" / "pazar hariç" alıntının dışında kalırdı). Alıntı
   // yalnız dayanak şartıdır; değer kalemin herhangi bir yerinde konuya bağlı ve o yerin bütün kontrollerinden geçiyorsa olur.
-  const ev = documentOf(input.sourceText, subj);
+  const ev = cachedDocument(input.sourceText, subj);
   const pdoc = documentOf(input.part, subj);
+  // Okunamayan rakam yazısı (eşlem tablosunda olmayan ondalık rakam): değer doğrulanamaz → tutulur (Opus güvenlik 10-23 F1).
+  if (/\p{Nd}/u.test(foldForClaims(input.part).replace(/[0-9]/g, ""))) issues.add("value_not_in_evidence");
   const partTokens = tokenize(input.part);
   const partConditions = conditionClasses(partTokens, "part");
   const partNegative = negative(partTokens);
@@ -1140,7 +1369,22 @@ export function checkAnswerBinding(input: BindingInput): BindingResult {
   const partFee = feeClasses(partTokens);
   const partBasis = basisClasses(partTokens);
   const partException = partTokens.some((t) => EXCEPTION_TOKENS.has(t));
-  const otherDocs = (input.otherSources ?? []).filter((t) => t !== input.sourceText).map((t) => documentOf(t, subj));
+  // Konuyu hiç anmayan öteki kalem değer, değişke ya da koşul veremez → belge kurulmaz (Opus güvenlik 10-23 F4: her ihtiyaç için istemdeki
+  // BÜTÜN kalemler yeniden ayrıştırılıyordu; 8 × 3.000 karakterde 10 ihtiyaç 5 sn olay döngüsü).
+  const otherDocs = (input.otherSources ?? []).filter((t) => t !== input.sourceText && mentionsSubject(t, subj)).map((t) => cachedDocument(t, subj));
+  // Çok konululuk değeri VEREN kalemle birlikte okunur (Opus güvenlik 10-23 F6-UPGRADE: alıntı "Havuz kullanımı serbesttir." + öteki kalem
+  // "Havuz 20:00'de, sauna 22:00'de kapanır." → "Sauna 20:00'de kapanır" geçiyordu; konu kimlikleri yalnız alıntının kaleminden okunuyordu).
+  const multiCache = new Map<Doc, boolean>();
+  const multiAt = (d: Doc): boolean => {
+    if (d === ev) return multiSubject;
+    let m = multiCache.get(d);
+    if (m === undefined) {
+      const ids = new Set(presentIds);
+      for (const t of subj.terms) if (hasSubject(d.text, { terms: [t], topics: [] })) ids.add(subjectIdentity(t));
+      multiCache.set(d, (m = ids.size > 1));
+    }
+    return m;
+  };
   // Uydurma koşul kıyası: alıntının kalemi + öteki kalemlerin YALNIZ konuya bağlı yerleri (değişke başka kalemde olabilir — O6; ilgisiz
   // kalemin koşulu sayılmaz). Ücret tabanı yalnız alıntının kaleminden.
   const sourceTokens = tokenize([input.sourceText, evidence].join("\n"));
@@ -1167,8 +1411,8 @@ export function checkAnswerBinding(input: BindingInput): BindingResult {
   /** Parça konusu ↔ kalem konusu (aynı kimlik). Parça konusuz ve ihtiyaç tek konuluysa serbest. */
   const subjectAgrees = (d: Doc, si: number, gi: number, partIds: Set<string>): boolean => {
     // Tek konulu ihtiyaçta bağ zaten kalem tarafında kuruldu; parça tarafı kıyas yalnız çok konulu ihtiyaçta (çeviri kıyası gerekmez).
-    if (!multiSubject) return true;
-    if (partIds.size === 0) return !multiSubject;
+    if (!multiAt(d)) return true;
+    if (partIds.size === 0) return false;
     const evIds = evRegionIds(d, si, gi);
     return evIds.size === 0 || [...partIds].some((x) => evIds.has(x));
   };
@@ -1187,6 +1431,67 @@ export function checkAnswerBinding(input: BindingInput): BindingResult {
     if (!rows) regionIdCache.set(d, (rows = []));
     const row = (rows[si] ??= []);
     return (row[gi] ??= subjectIdentitiesIn(d.boundRegion(si, gi) ?? "", subj, identities));
+  };
+  type Hit = { d: Doc; si: number; sent: Sentence; gi: number; idx: number };
+  /** Konu yerinin niteleyici sözcükleri: ihtiyacın kendi sözcükleri, nötr / dolgu / nitelik / yön sözcükleri ve kalem satırının kategori öneki hariç. */
+  const regionWordCache = new Map<Doc, string[][][]>();
+  const regionWords = (d: Doc, si: number, gi: number): string[] => {
+    let rows = regionWordCache.get(d);
+    if (!rows) regionWordCache.set(d, (rows = []));
+    const row = (rows[si] ??= []);
+    if (row[gi]) return row[gi];
+    const toks = tokenize((d.boundRegion(si, gi) ?? "").replace(KB_LINE_PREFIX, ""));
+    return (row[gi] = toks.filter(
+      (t, i) =>
+        !/\d/.test(t) &&
+        !isNeutralWord(t) &&
+        !isFiller(t, toks[i - 1] ?? "") &&
+        !isAttribute(t) &&
+        !GENERIC_REGION_WORDS.has(t) &&
+        !START_TOKENS.has(t) &&
+        !END_TOKENS.has(t) &&
+        !(input.needTerms.length > 0 && needTermsInStrict(input.needTerms, t) > 0),
+    ));
+  };
+  const partValues = partClaims.map((x) => x.c);
+  /**
+   * Aynı konunun RAKİP değeri (Opus güvenlik 10-23 F6): parça değerinin dayandığı yer dışında konuya bağlı, aynı türden, FARKLI, aynı koşul /
+   * olumluluk / (ikisi de yönlüyse) aynı yönde bir değer daha varsa kalem(ler) çelişiyor demektir → tutulur:
+   *  - değer alıntının kaleminde DEĞİL, öteki kalemden geliyor ve alıntının kalemi konuya başka değer veriyorsa ("Havuz 20:00'de kapanır."
+   *    alıntısıyla "A Blok havuzu 22:00" kaleminden "Havuz 22:00'de kapanır"): alıntı parçayı çürütüyor;
+   *  - iki yerin konu yeri birbirinden fazla niteleyici taşımıyorsa (eski başlık "Havuz 23:00" ↔ içerik "Havuz 20:00"): hangisinin doğru
+   *    olduğu bilinmez. Niteleyicili rakip ("Çıkış 11:00" ↔ "Geç çıkış 13:00") ayrı bir şeydir, çelişki değil.
+   * Aynı cümlede aynı konu yerinden dizilen değerler ("08:00, 09:00 ve 10:00") liste sayılır; parçanın kendisi de verdiği değer taraf tutmaz.
+   */
+  const rivalIssue = (c: Span, h: Hit, place: PlaceReading, partIds: Set<string>): boolean => {
+    if (variantClassesOf(place.conditions).length > 0) return false;
+    const g = h.sent.groups[h.gi];
+    const role = g.claims.length >= 2 ? (h.idx === 0 ? "start" : h.idx === g.claims.length - 1 ? "end" : null) : null;
+    const dirs = role ? new Set<"start" | "end">([role]) : place.directions;
+    const basis = c.cls === "money" ? h.d.sentenceInfo(h.sent).basis : null;
+    for (const d of [ev, ...otherDocs]) {
+      const sites = d.boundSitesFor(c.cls);
+      // Tavanı aşan kalemde rakip aranamaz → çelişki sayılır (güvenli yön; yüzlerce değerli tarife tutulur).
+      if (sites.length > MAX_SITES_PER_VALUE) return true;
+      for (const s of sites) {
+        if (d === h.d && s.si === h.si && (s.gi === h.gi || d.sentences[s.si].regionFrom[s.gi] === h.sent.regionFrom[h.gi])) continue;
+        if (valuesOverlap(c, s.claim) || partValues.some((v) => valuesOverlap(v, s.claim))) continue;
+        const sent = d.sentences[s.si];
+        const p = d.placeOf(sent, s.gi);
+        if (!sameSet(p.conditions, place.conditions) || p.negative !== place.negative) continue;
+        if (p.directions.size > 0 && dirs.size > 0 && !sameSet(p.directions, dirs)) continue;
+        if (basis && !sameSet(d.sentenceInfo(sent).basis, basis)) continue;
+        if (multiAt(d) && partIds.size > 0) {
+          const ids = evRegionIds(d, s.si, s.gi);
+          if (ids.size > 0 && ![...partIds].some((x) => ids.has(x))) continue;
+        }
+        if (d === ev && h.d !== ev) return true;
+        const mine = regionWords(h.d, h.si, h.gi);
+        const theirs = regionWords(d, s.si, s.gi);
+        if (mine.every((w) => theirs.some((x) => sameStem(w, x))) && theirs.every((w) => mine.some((x) => sameStem(w, x)))) return true;
+      }
+    }
+    return false;
   };
   // Ücret kutbu PARÇA düzeyinde: parçanın konusunu anan kalem cümleleri (+ ardındaki konusuz devam cümleleri) ne diyor ("Otopark
   // ücretlidir." → "Parking is free." tutulur; "Havuz ücretsiz. Sauna ücretli." → "Sauna ücretsizdir" tutulur).
@@ -1210,6 +1515,7 @@ export function checkAnswerBinding(input: BindingInput): BindingResult {
   /** Gün koşulu taşıyan parça değerlerinin kalemdeki yerleri (tümleyen kararı döngüden sonra). */
   const dayValues: { days: Set<string>; placeGeneral: boolean }[] = [];
 
+  let anchored = false;
   if (partClaims.length > 0) {
     for (const pc of partClaims) {
       const { c, days: valueDays } = pc;
@@ -1233,14 +1539,15 @@ export function checkAnswerBinding(input: BindingInput): BindingResult {
         issues.add(ev.hasSubjectAnywhere() ? "value_bound_elsewhere" : "subject_missing");
         continue;
       }
+      if (bound.some((h) => h.d === ev)) anchored = true;
       // Değer kalemde birden çok yerde konuya bağlıysa: bütün kontrollerden geçen BİR yer yeter (o yer bu iddiayı tek başına taşır).
-      let best: { local: Set<BindingIssue>; placeGeneral: boolean } | null = null;
+      let best: { local: Set<BindingIssue>; placeGeneral: boolean; h: Hit; place: PlaceReading } | null = null;
       let partIds: Set<string> | undefined;
       let omittedHere: boolean | undefined;
-      for (const h of bound) {
+      for (const h of bound.slice(0, MAX_SITES_PER_VALUE)) {
         const local = new Set<BindingIssue>();
         const place = h.d.placeOf(h.sent, h.gi);
-        if (multiSubject) {
+        if (multiAt(h.d)) {
           if (!partIds) {
             partIds = subjectIdentitiesIn(pc.region, subj, identities);
             if (partIds.size === 0) partIds = partIdentitiesAll;
@@ -1261,6 +1568,10 @@ export function checkAnswerBinding(input: BindingInput): BindingResult {
         if (role) {
           if (pc.groupSize < 2 && (pDirs.size === 0 || !pDirs.has(role))) local.add("direction_mismatch");
         } else if (place.directions.size === 1 && pDirs.size > 0 && !pDirs.has([...place.directions][0])) {
+          local.add("direction_mismatch");
+        } else if (place.directions.size === 0 && pDirs.size > 0 && !naturalDirection(c, pDirs, h.d.boundRegion(h.si, h.gi) ?? "")) {
+          // Kalem yön vermiyorsa parça yön UYDURAMAZ (Opus güvenlik 10-23 F8: "Havuz 20:00" → "20:00'ye kadar açık" / "20:00'de açılır");
+          // yalnız değerin doğal yönü serbest: giriş saati "-den itibaren", çıkış saati "en geç / -e kadar", kişi sayısı "-e kadar".
           local.add("direction_mismatch");
         }
         const placeDays = new Set(dayClassesOf(place.conditions));
@@ -1288,14 +1599,21 @@ export function checkAnswerBinding(input: BindingInput): BindingResult {
         }
         sentenceChecks(info, local);
         const placeGeneral = placeDays.size === 0;
-        if (!best || local.size < best.local.size) best = { local, placeGeneral };
+        if (!best || local.size < best.local.size) best = { local, placeGeneral, h, place };
         if (local.size === 0) break;
       }
       if (best) {
         for (const i of best.local) issues.add(i);
+        if (best.local.size === 0 && rivalIssue(c, best.h, best.place, partIds ?? partIdentitiesAll)) issues.add("value_conflict");
         const valueOnlyDays = new Set(dayClassesOf(valueDays));
         if (valueOnlyDays.size > 0) dayValues.push({ days: valueOnlyDays, placeGeneral: best.placeGeneral });
       }
+    }
+    // Çapa (Opus güvenlik 10-23 F6): öteki kalem yalnız İKİNCİ değeri (değişke, ek bilgi) verebilir — parçanın en az bir değeri alıntının
+    // kendi kaleminde konuya bağlı olmalı. Değerin tamamı başka kalemden geliyorsa alıntı süstür ("misafirlerimiz havuzu kullanabilir"
+    // alıntısıyla "Daire 3 için: Havuz 22:00'de kapanır" kaleminden "The pool closes at 22:00").
+    if (subjectKnown && !anchored && !issues.has("value_not_in_evidence") && !issues.has("value_bound_elsewhere") && !issues.has("subject_missing")) {
+      issues.add("value_not_in_evidence");
     }
   } else if (hasNumberWord(partTokens)) {
     // Sözcükle yazılmış değer ("eight pm", "vier acht zwei eins"): rakamla doğrulanamaz → tutulur (Opus 10-23 Y6).
@@ -1324,6 +1642,27 @@ export function checkAnswerBinding(input: BindingInput): BindingResult {
       const r = readPlace(places.join(" . "));
       for (const cls of r.conditions) if (!partConditions.has(cls) && !(DAY_CLASSES.has(cls) && coversDay(partConditions, cls))) issues.add("condition_dropped");
       if (r.negative !== partNegative) issues.add("polarity_mismatch");
+      // Değersiz parça konu cümlesindeki KISITI düşüremez (Opus güvenlik 10-23 F1b; kurucu A "koşul düşerse GİTMEZ"): "10 kg'a kadar evcil
+      // hayvan kabul edilir" → "Evcil hayvan kabul edilir", "…, gecelik 300 TL" ücreti, "Küçük evcil hayvanlar…" niteliği. Kısıt = konu
+      // cümlesinde (çok konulu ihtiyaçta başka tesisin yan cümlesi hariç) saat / tutar / sayı / süre / kişi değeri ya da üst sınır / küçüklük
+      // sözcüğü; kimlik bildiren değer (kod, telefon, kat, "12 numaralı yer") kısıt değildir.
+      const restrict = restrictionClasses(tokenize(places.join(" . ")));
+      const partRestrict = restrictionClasses(partTokens);
+      if ([...restrict].some((x) => !partRestrict.has(x))) issues.add("condition_dropped");
+      // Ücret sorusunda ("otopark ücretli mi") ve VARLIK cevabında ("Evet, havuz var." ← "Havuz 09:00-20:00 arası açıktır.") yalnız tutar
+      // düşmüş sayılır — saat / sayı başka bir sorunun cevabıdır; izin cevabında ("kabul edilir", "allowed") her kısıt sayılır.
+      const feeAsked = input.needTerms.some((t) => FEE_ASPECT.test(t)) || existenceAnswer(partTokens);
+      const dropsValue = [...sentencesRead].some((st) =>
+        st.groups.some((g, gi) => {
+          if (!g.claims.some((x) => restrictiveClaim(ev.text, x) && (!feeAsked || x.cls === "money" || x.cls === "percent"))) return false;
+          if (!multiSubject || partIdentitiesAll.size === 0) return true;
+          // Çok konulu ihtiyaçta başka tesisin yan cümlesindeki değer ("Havuz ücretsiz, sauna 200 TL." → "Havuz ücretsizdir") düşmüş sayılmaz.
+          const [a, b] = st.clauses[st.groupClause[gi]];
+          const ids = subjectIdentitiesIn(ev.text.slice(a, b), subj, identities);
+          return ids.size === 0 || [...ids].some((x) => partIdentitiesAll.has(x));
+        }),
+      );
+      if (dropsValue) issues.add("condition_dropped");
       const local = new Set<BindingIssue>();
       for (const st of sentencesRead) sentenceChecks(ev.sentenceInfo(st), local);
       for (const i of local) issues.add(i);
@@ -1344,7 +1683,7 @@ export function checkAnswerBinding(input: BindingInput): BindingResult {
     }
     issues.add("condition_added");
   }
-  if (unsupportedContent(input.part, evidence, input.needTerms)) issues.add("unsupported_content");
+  if (unsupportedContent(input.part, evidence, input.needTerms, { sourceText: input.sourceText, needTopics: input.needTopics })) issues.add("unsupported_content");
   const list = BINDING_ISSUES.filter((i) => issues.has(i));
   return { ok: list.length === 0, issues: list };
 }
@@ -1388,6 +1727,75 @@ function sameValue(a: Span, b: Span): boolean {
   if (a.cls === "time" && b.keys.length > 1 && a.keys.length === 1) return false;
   return keysOf(a).some((k) => b.keys.includes(k));
 }
+
+/** Değersiz parçanın düşüremeyeceği değer türleri (kimlik bildirenler — kod, telefon, adres, kat — hariç). */
+const RESTRICTIVE_CLASSES: ReadonlySet<string> = new Set(["time", "date", "money", "percent", "distance", "duration", "people", "count"]);
+/** Varlık cevabı: "var / mevcut / bulunur", "there is / are", "we have", "es gibt", "есть" (izin ya da açıklık bildirmez). */
+function existenceAnswer(tokens: readonly string[]): boolean {
+  return tokens.some(
+    (t, i) =>
+      /^(?:var|vardir|mevcut|mevcuttur|bulunur|bulunuyor|bulunmaktadir|gibt|есть)$/.test(t) ||
+      (t === "there" && /^(?:is|are)$/.test(tokens[i + 1] ?? "")) ||
+      (t === "we" && tokens[i + 1] === "have"),
+  );
+}
+/** İhtiyacın ücret sözcükleri ("ücretli mi", "fiyatı", "is it free"). */
+const FEE_ASPECT = /^(?:ucret|fiyat|price|cost|fee|free|paid|bedava|gebuhr|preis|kosten|prix|precio|gratis)/;
+/**
+ * Kısıt bildiren değer: saat / tarih / tutar / yüzde / mesafe / süre / kişi / adet. "7/24" sınır değil (her zaman açık); çıplak sayı yalnız
+ * sınır bağlamında ("10 kg'a kadar", "en fazla 1") — "Daire 3", "12 numaralı yer" bir kimliktir.
+ */
+function restrictiveClaim(text: string, c: Span): boolean {
+  if (c.keys.includes("x24x7")) return false;
+  if (RESTRICTIVE_CLASSES.has(c.cls)) return true;
+  if (c.cls !== "number") return false;
+  const after = text.slice(c.end, c.end + 16);
+  const before = text.slice(Math.max(0, c.at - 16), c.at);
+  return /^\s*(?:kg|kilo|lb|pound|[’'`]?y?[ae]\s+kadar|kadar)/iu.test(after) || /(?:fazla|maks\w*|max\w*|azami|up to|at most|en az|minimum)\s*$/iu.test(before);
+}
+/** Kısıt sözcükleri (yalnız değersiz parçada): üst sınır ("en fazla", "maksimum", "up to", "at most") ve küçüklük ("küçük", "small"). */
+function restrictionClasses(tokens: readonly string[]): Set<"max" | "small"> {
+  const out = new Set<"max" | "small">();
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    const next = tokens[i + 1] ?? "";
+    if (/^(?:maks|max|azami|hochstens|hoechstens|максимум|maximal)/.test(t) || (t === "en" && /^fazla/.test(next)) || ((t === "up" || t === "at") && (next === "to" || next === "most")) || (t === "no" && next === "more")) out.add("max");
+    if (/^(?:kucuk|small|little|klein|petit|pequen|piccol|маленьк|небольш)/.test(t)) out.add("small");
+  }
+  return out;
+}
+
+/**
+ * Yönsüz kalem değerinin DOĞAL yönü (parça yalnız onu ekleyebilir): giriş saati başlangıç ("Check-in: 15:00" → "15:00'ten itibaren"), çıkış
+ * saati bitiş ("en geç 11:00", "by 11:00"), kişi sayısı üst sınır ("4 kişiye kadar"). Konu yeri hem girişi hem çıkışı anıyorsa doğal yön yok.
+ */
+function naturalDirection(c: Span, partDirs: ReadonlySet<"start" | "end">, region: string): boolean {
+  if (partDirs.size !== 1) return false;
+  const want = [...partDirs][0];
+  if (c.cls === "people") return want === "end";
+  if (c.cls !== "time") return false;
+  const t = tokenize(region);
+  const checkIn = t.some((w, i) => /^giris/.test(w) || w === "checkin" || (w === "check" && t[i + 1] === "in") || w === "einchecken" || /^заезд/.test(w));
+  const checkOut = t.some((w, i) => /^cikis/.test(w) || w === "checkout" || (w === "check" && t[i + 1] === "out") || w === "auschecken" || /^выезд/.test(w));
+  if (checkIn === checkOut) return false;
+  return want === (checkIn ? "start" : "end");
+}
+
+/** İki değer aynı bilgiyi verebiliyor mu (belirsiz "saat 9" iki saatle de örtüşür) — rakip değer kuralında "farklı değer" bunun değilidir. */
+function valuesOverlap(a: Span, b: Span): boolean {
+  if (!sameClass(a, b)) return false;
+  if (a.tkeys && b.tkeys) return a.tkeys.some((k) => b.tkeys!.includes(k));
+  return keysOf(a).some((k) => keysOf(b).includes(k));
+}
+
+const sameSet = <T,>(a: ReadonlySet<T>, b: ReadonlySet<T>) => a.size === b.size && [...a].every((x) => b.has(x));
+
+/** Kalem satırının kategori öneki ("- [AMENITIES] …", `kbLine`) konu yerinin niteleyicisi değildir. */
+const KB_LINE_PREFIX = /^\s*-\s*\[[^\]\n]{1,40}\]/u;
+/** Konu yerinde niteleyici sayılmayan genel saat / zaman adları ("Çıkış saati 11:00" ↔ "Check-out: 11:00"). */
+const GENERIC_REGION_WORDS: ReadonlySet<string> = new Set(
+  "saat saati saatler saatleri saatimiz time times uhrzeit zeit heure horaire horaires hora horario время".split(" "),
+);
 
 // ─── doğrulanmış cevap tekrarı için dışa açık okumalar (`answer-reuse/core.ts`) ───────────────────────────────────────────────────
 

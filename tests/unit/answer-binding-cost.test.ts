@@ -51,3 +51,29 @@ describe("answer-binding maliyet", () => {
     }
   });
 });
+
+// 🚨 Opus güvenlik 10-23 F4 (ölçüldü, düzeltme öncesi): virgülsüz tek yan cümlede her değer için yan cümle başından yürünüyordu —
+// "Havuz x 21:00 x 21:00 …" 24.000 karakterde 3,7 sn; 8 kalem × 3.000 karakterde 10 ihtiyaç 5 sn (her ihtiyaç bütün kalemleri yeniden
+// ayrıştırıyordu). Düzeltme: önek sayımı + tur içi belge önbelleği + değer başına incelenen yer tavanı.
+describe("answer-binding maliyet — Opus güvenlik 10-23 F4", () => {
+  it("virgülsüz yan cümlede yüzlerce değer: doğrusal", () => {
+    const src = "Havuz " + "x 21:00 ".repeat(3_000);
+    const t0 = performance.now();
+    checkAnswerBinding({ part: "Havuz 21:00'de kapanır, hafta sonu 22:00.", evidence: src.slice(0, 40), sourceText: src, ...POOL, otherSources: [src, `${src} `] });
+    expect(performance.now() - t0).toBeLessThan(2500);
+  });
+
+  it("aynı istemde çok ihtiyaç: kalemler ihtiyaç başına yeniden ayrıştırılmaz", async () => {
+    const { composeVerifiedReply } = await import("@/lib/ai/answer-parts");
+    const { kbLine } = await import("@/lib/ai/retrieval/kb-line");
+    const sources = Array.from({ length: 8 }, (_, i) => ({
+      id: `kb:${i + 1}`,
+      text: kbLine({ category: "rules", title: `Kural ${i}`, content: ("Havuz " + "x 21:00 ".repeat(400)).slice(0, 3_000) }),
+    }));
+    const needs = Array.from({ length: 10 }, (_, i) => ({ ref: `R${i + 1}`, terms: ["havuz", "pool"], topics: ["pool"] }));
+    const parts = needs.map((n) => ({ ref: n.ref, status: "answered" as const, text: "Havuz 21:00'de kapanır.", evidence: "Havuz x 21:00" }));
+    const t0 = performance.now();
+    composeVerifiedReply({ parts, needs, sources });
+    expect(performance.now() - t0).toBeLessThan(2500);
+  });
+});

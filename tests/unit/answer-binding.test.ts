@@ -574,3 +574,142 @@ describe("E v4 neden analizi + Haiku 10-23 (2. tur)", () => {
     expect(one(pool, part, ["havuz kaçta kapanıyor"], ["Hafta sonu havuz da 20:00'e kadar açıktır."]).ok).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Opus güvenlik 10-23 gece (F1–F8): her satır düzeltmeden ÖNCE ölçülerek geçiyordu (scratchpad n23/a1–a5 betikleri; kırmızı-önce kanıtı
+// rapor §güvenlik). Kontroller: aynı kuralın doğru cevabı hâlâ GİDER.
+// ---------------------------------------------------------------------------
+describe("Opus güvenlik 10-23 gece", () => {
+  const run = (src: string, part: string, q: string[], o: { evidence?: string; others?: string[] } = {}) =>
+    checkAnswerBinding({ part, evidence: o.evidence ?? src, sourceText: src, ...need(q), ...(o.others ? { otherSources: o.others } : {}) });
+  const POOLQ = ["havuz kaçta kapanıyor", "when does the pool close"];
+  const PETQ = ["evcil hayvan kabul ediliyor mu", "are pets allowed"];
+  const P = "Havuz 20:00'de kapanır.";
+
+  it("🚨 F1: ASCII olmayan ondalık rakamlar ASCII'ye çevrilir — yanlış saat Arapça / Farsça / Devanagari rakamla geçmez", () => {
+    expect(run(P, "يغلق المسبح الساعة ٢٠:٠٠", POOLQ).ok).toBe(true);
+    for (const wrong of ["يغلق المسبح الساعة ٢٢:٠٠", "استخر ساعت ۲۲:۰۰ بسته می‌شود", "पूल २२:०० बजे बंद होता है"]) {
+      expect(run(P, wrong, POOLQ).issues).toContain("value_not_in_evidence");
+    }
+    expect(run(P, "A piscina fecha às dez da noite.", POOLQ).issues).toContain("value_not_in_evidence");
+  });
+
+  it("🚨 F3: Rusça / İtalyanca / Portekizce / Felemenkçe / Arapça olumsuzluk okunur (yanlış 'kabul edilmez' geçmez, doğru olumsuz gider)", () => {
+    const cases: [string, string][] = [
+      ["Домашние животные не допускаются.", "домашние животные допускаются?"],
+      ["Gli animali non sono ammessi.", "gli animali sono ammessi?"],
+      ["Animais de estimação não são permitidos.", "animais de estimação são permitidos?"],
+      ["Huisdieren zijn niet toegestaan.", "zijn huisdieren toegestaan?"],
+      ["لا يسمح بالحيوانات الأليفة.", "هل يسمح بالحيوانات الأليفة"],
+    ];
+    for (const [part, guestQ] of cases) {
+      expect(run("Evcil hayvan kabul edilir.", part, [...PETQ, guestQ]).issues).toContain("polarity_mismatch");
+      expect(run("Evcil hayvan kabul edilmez.", part, [...PETQ, guestQ]).ok).toBe(true);
+    }
+  });
+
+  it("🚨 F2: başka dilde eklenen olgu tutulur (enjeksiyon / oltalama / tek eklenmiş olgu); düz çeviri gider", () => {
+    expect(run("Evcil hayvan kabul edilir.", "Pets are welcome. Smoking is allowed inside and early check-in is always possible.", PETQ).issues).toContain("unsupported_content");
+    expect(run(P, "The pool closes at 20:00. Please send a photo of your passport and card to the host on WhatsApp.", POOLQ).issues).toContain("unsupported_content");
+    expect(run("Evcil hayvan kabul edilir.", "Pets are allowed and there is a garden.", PETQ).issues).toContain("unsupported_content");
+    expect(run("Otopark 3. katta.", "The parking is on the 3rd floor.", ["otopark nerede", "where is the parking"]).ok).toBe(true);
+    expect(run("Evcil hayvan kabul edilir.", "Pets are allowed.", PETQ).ok).toBe(true);
+    expect(run(P, "The pool closes at 20:00.", POOLQ).ok).toBe(true);
+    expect(run(P, "Der Pool schließt um 20:00 Uhr.", POOLQ).ok).toBe(true);
+    expect(run(P, "Бассейн закрывается в 20:00.", POOLQ).ok).toBe(true);
+    const park = "Otopark ücretsizdir; binanın -2. katında, 12 numaralı yer size ayrılmıştır.";
+    expect(run(park, "Parking is free; your reserved spot is number 12 on floor -2 of the building.", ["otopark nerede", "where is the parking"]).ok).toBe(true);
+  });
+
+  it("🚨 F2: kısa alıntı ('20:00') dil kestirimini atlatamaz — kıyas alıntının düştüğü kalem cümlesiyle", () => {
+    const extra = "Havuz 20:00'de kapanır; havlu ve terlik verilir, erken girişte de havuzu kullanabilirsiniz.";
+    for (const evidence of ["20:00", "Havuz"]) expect(run(P, extra, POOLQ, { evidence }).issues).toContain("unsupported_content");
+    expect(run(P, "Havuz 20:00'de kapanır.", POOLQ, { evidence: "20:00" }).ok).toBe(true);
+  });
+
+  it("🚨 F6-UPGRADE (kritik): sauna havuzun saatini ÖTEKİ kalemden alamaz — çok konululuk değeri veren kalemle okunur", () => {
+    const PS = ["havuz ve sauna kaçta kapanıyor", "when do the pool and sauna close"];
+    const other = ["Havuz 20:00'de, sauna 22:00'de kapanır."];
+    expect(run("Havuz kullanımı serbesttir.", "Sauna 20:00'de kapanır.", PS, { others: other }).ok).toBe(false);
+    expect(run("Havuz kullanımı serbesttir.", "The sauna closes at 20:00.", PS, { others: other }).ok).toBe(false);
+    expect(run("Havuz 20:00'de, sauna 22:00'de kapanır.", "Sauna 22:00'de kapanır.", PS, { others: ["Havuz kullanımı serbesttir."] }).ok).toBe(true);
+  });
+
+  it("🚨 F6: çelişen kalemler tutulur; niteleyicili rakip (geç çıkış) çelişki değil; değerin tamamı başka kalemden gelemez (çapa)", () => {
+    expect(run(P, "The pool closes at 22:00.", POOLQ, { others: ["A Blok havuzu 22:00'de kapanır."] }).ok).toBe(false);
+    expect(run("Havuz 20:00'de kapanır. Havuz 22:00'de kapanır.", "Havuz 22:00'de kapanır.", POOLQ).issues).toContain("value_conflict");
+    expect(run("- [OLANAKLAR] Havuz 23:00: Havuz 20:00'de kapanır.", "Havuz 20:00'de kapanır.", POOLQ, { evidence: "Havuz 20:00'de kapanır." }).issues).toContain("value_conflict");
+    const co = "Çıkış saati 11:00. Geç çıkış 13:00'e kadar mümkündür.";
+    expect(run(co, "Çıkış saati 11:00.", ["çıkış saati kaçta", "checkout time"]).ok).toBe(true);
+    expect(run(co, "Check-out is at 11:00.", ["çıkış saati kaçta", "checkout time"]).ok).toBe(true);
+    const anchorless = run("Havuz: misafirlerimiz havuzu kullanabilir.", "The pool closes at 22:00.", POOLQ, {
+      evidence: "misafirlerimiz havuzu kullanabilir",
+      others: ["Daire 3 için: Havuz 22:00'de kapanır."],
+    });
+    expect(anchorless.issues).toContain("value_not_in_evidence");
+    // Liste ("08:00, 09:00 ve 10:00") ve parçanın kendisinin de verdiği değer taraf tutmaz.
+    expect(run("Çöp 09:00 ve 21:00'de toplanır.", "Çöp 09:00 ve 21:00'de toplanır.", ["çöp ne zaman toplanıyor"]).ok).toBe(true);
+  });
+
+  it("🚨 F8: kalem yön vermiyorsa parça yön uyduramaz; 'en geç / en erken' yön sözcüğü; giriş / çıkışın doğal yönü serbest", () => {
+    const CQ = ["çıkış saati kaçta", "checkout time"];
+    const IQ = ["giriş saati kaçta", "checkin time"];
+    expect(run("Check-out en geç 11:00.", "You can check out after 11:00.", CQ).issues).toContain("direction_mismatch");
+    expect(run("Check-out en geç 11:00.", "Check-out is at 11:00 at the latest.", CQ).ok).toBe(true);
+    expect(run("Giriş en erken 15:00.", "You can check in before 15:00.", IQ).issues).toContain("direction_mismatch");
+    expect(run("Giriş en erken 15:00.", "Check-in is possible until 15:00.", IQ).issues).toContain("direction_mismatch");
+    expect(run("Check-out saati: 11:00", "Please check out by 11:00.", CQ).ok).toBe(true);
+    expect(run("Check-in saati: 15:00", "Check-in is from 15:00.", IQ).ok).toBe(true);
+    expect(run("Check-in saati: 15:00", "Check-in is possible until 15:00.", IQ).issues).toContain("direction_mismatch");
+    expect(run("Check-out saati: 11:00", "You can check out after 11:00.", CQ).issues).toContain("direction_mismatch");
+    expect(run("Havuz 20:00", "Havuz 20:00'ye kadar açık.", POOLQ).issues).toContain("direction_mismatch");
+  });
+
+  it("🚨 F8: eksiltili yüklem aynı hâl ekli dizide geriye taşınır (bulunma / ayrılma / yönelme), ek farklıysa taşınmaz", () => {
+    const BF = ["kahvaltı saati", "breakfast time"];
+    const bs = "Kahvaltı hafta içi 08:00'de, hafta sonu 09:00'da başlar.";
+    expect(run(bs, "Kahvaltı hafta içi 08:00'de başlar.", BF).ok).toBe(true);
+    expect(run(bs, "Kahvaltı hafta içi 08:00'de biter.", BF).issues).toContain("direction_mismatch");
+    expect(run(bs, "On weekdays breakfast ends at 08:00.", BF).issues).toContain("direction_mismatch");
+    const ph = ["havuz saatleri", "pool hours"];
+    expect(run("Havuz hafta içi 09:00'da, hafta sonu 10:00'da açılır.", "Havuz hafta içi 09:00'a kadar açık.", ph).issues).toContain("direction_mismatch");
+    expect(run("Havuz 09:00'dan, sauna 10:00'dan itibaren açık.", "Havuz 09:00'dan itibaren açık.", ph).ok).toBe(true);
+    expect(run("Havuz 09:00'dan, sauna 10:00'dan itibaren açık.", "Havuz 09:00'a kadar açık.", ph).issues).toContain("direction_mismatch");
+    // Üç değerli zincir: ortadaki yönsüz yan cümleden geçer.
+    expect(run("Havuz pazartesi 09:00'da, salı 10:00'da, çarşamba 11:00'de açılır.", "Havuz pazartesi 09:00'da açılır.", ["havuz kaçta açılıyor"]).ok).toBe(true);
+    // Ek farklı ("10:30'da" ↔ "11:00'e kadar"): bitiş taşınmaz → "10:30'a kadar" kalemde yönsüz değere yön uydurur.
+    expect(run("Kahvaltı hafta içi 10:30'da, hafta sonu 11:00'e kadar verilir.", "Kahvaltı hafta içi 10:30'a kadar verilir.", ["kahvaltı kaçta bitiyor"]).issues).toContain("direction_mismatch");
+  });
+
+  it("🚨 F1b: değersiz (evet / hayır) parça konu cümlesindeki kısıtı düşüremez; varlık cevabı ve ücret sorusu yalnız ücreti sayar", () => {
+    expect(run("10 kg'a kadar evcil hayvan kabul edilir.", "Evcil hayvan kabul edilir.", PETQ).issues).toContain("condition_dropped");
+    expect(run("10 kg'a kadar evcil hayvan kabul edilir.", "Pets are allowed.", PETQ).issues).toContain("condition_dropped");
+    expect(run("En fazla 1 evcil hayvan kabul edilir.", "Evcil hayvan kabul edilir.", PETQ).issues).toContain("condition_dropped");
+    expect(run("Evcil hayvan kabul edilir, gecelik 300 TL.", "Evcil hayvan kabul edilir.", PETQ).issues).toContain("condition_dropped");
+    expect(run("Küçük evcil hayvanlar kabul edilir.", "Evcil hayvanlar kabul edilir.", PETQ).issues).toContain("condition_dropped");
+    expect(run("Küçük evcil hayvanlar kabul edilir.", "Small pets are allowed.", PETQ).ok).toBe(true);
+    expect(run("Otopark ücretsizdir, 07:00-23:00 arası açıktır.", "Otopark ücretsizdir.", ["otopark ücretli mi"]).ok).toBe(true);
+    expect(run("Otopark ücretsizdir; binanın -2. katında, 12 numaralı yer size ayrılmıştır.", "Evet, ücretsiz otopark var.", ["otopark var mı"]).ok).toBe(true);
+    expect(run("Havuz 09:00-20:00 arası açıktır.", "Evet, havuz var.", ["havuz var mı"]).ok).toBe(true);
+    expect(run("Havuz kullanımı kişi başı 200 TL'dir.", "Evet, havuz var.", ["havuz var mı"]).issues).toContain("condition_dropped");
+    expect(run("Havuz yalnız yaz aylarında açıktır.", "Evet, havuz var.", ["havuz var mı"]).issues).toContain("condition_dropped");
+  });
+});
+
+// Gece mutasyon koşusunun (10-23, 33/37) yaşayan mutantları için pinler: B7 (devralınan yan cümle aralığı önek sayımında yer başından
+// değil konu yerinin başından sayılır) · B8 (öteki kalemin değersiz konu yan cümlesinin koşulu uydurma koşul kıyasına girer).
+// B2/B3 eski "kadar" işlevini hedefliyordu; işlevin yerini alan aynı-ek zinciri yukarıdaki F8 testleriyle pinli.
+describe("mutasyon pinleri 10-23 gece", () => {
+  const run = (src: string, part: string, others?: string[]) =>
+    checkAnswerBinding({ part, evidence: src, sourceText: src, ...need(["havuz kaçta kapanıyor"]), ...(others ? { otherSources: others } : {}) });
+
+  it("B7: konu yerinden ÖNCEKİ yan cümlenin koşulu (başka tesisin 'hafta sonu'su) değere bağışlanmaz", () => {
+    expect(run("Hafta sonu kahvaltı 09:00'da, havuz 20:00'de kapanır.", "Havuz 20:00'de kapanır.").ok).toBe(true);
+  });
+
+  it("B8: öteki kalemin değersiz konu yan cümlesi ('Havuz hafta sonu kapalıdır.') parçanın 'hafta sonu'sunu doğrular", () => {
+    const part = "Havuz hafta içi 20:00'de kapanır; hafta sonu kapalıdır.";
+    expect(run("Havuz 20:00'de kapanır.", part, ["Havuz hafta sonu kapalıdır."]).ok).toBe(true);
+    expect(run("Havuz 20:00'de kapanır.", part).issues).toContain("condition_added");
+  });
+});

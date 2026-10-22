@@ -246,7 +246,9 @@ describe("suggestReply — parça kipi, Haiku 10-23 düzeltmeleri", () => {
   });
 
   it("🚨 birleşik metin de gönderim tavanına (2000) tabi: aşarsa güven ≤ 0.5 → otomatik gitmez", async () => {
-    const body = (i: number) => `Bahçe ${["bir", "iki", "üç", "dört"][i]} misafirlere açıktır ve ${"bahçede dinlenebilir, kitap okuyabilir, çay içebilirsiniz; ".repeat(8)}`.trim();
+    // Dört kalem dört AYRI bahçe (eski veri "Bahçe bir / iki misafirlere" aynı konuya dört farklı kişi sayısı veriyordu → artık çelişki
+    // sayılıp tutulur, Opus güvenlik 10-23 F6; bu testin konusu tavan).
+    const body = (i: number) => `${["Ön", "Arka", "Yan", "Çatı"][i]} bahçe misafirlere açıktır ve ${"bahçede dinlenebilir, kitap okuyabilir, çay içebilirsiniz; ".repeat(8)}`.trim();
     const kb = [0, 1, 2, 3].map((i) => ({ category: "amenities", title: `Bahçe ${i}`, content: body(i) }));
     const items: ReplyItemsInput = {
       answerable: [0, 1, 2, 3].map((i) => ({ ref: `R${i + 1}`, kind: "amenities" as const, hint: "bahçe", need: { terms: needTerms(["bahçe"]), topics: [] } })),

@@ -3247,14 +3247,19 @@ export async function applyChannelAutoReply(
           // mesajlarına hassas öğe e-postası gitmediyse gider (`notifyTurnDecisions` kendisi bakar).
           if (turnDecisions.length > 0) await notifyDecisions();
           // Kaynak / asistan sorusu (kurucu 10-23) tek başına tutulduysa "Misafir cevabınızı bekliyor" e-postası da YOK — panelde açık.
-          if (notice.held.length === 0 && notice.quiet.length === 0 && !turnCardsOpen) {
+          // Sessizlik TUR düzeyinde (Opus güvenlik 10-23 F5): "Havuz kaçta?" + ayrı mesajda "Bunu nereden biliyorsun?" — havuz açık işse
+          // e-posta gider ve açık işi taşıyan mesajı gösterir (kaynak sorusunu değil).
+          const quietOnly = notice.quiet.length > 0 && notice.loud.length === 0;
+          if (notice.held.length === 0 && !quietOnly && !turnCardsOpen) {
             if (handoffHeld || partsNothingVerified) {
+              const loudLast = notice.loud.length > 0 ? messages.find((m) => m.id === notice.loud[notice.loud.length - 1]) : undefined;
+              const shown = loudLast ?? last;
               await notifyHostReplyWaiting({
                 organizationId: conversation.property.organizationId,
                 conversation,
                 property: conversation.property,
-                messageId: last.id,
-                messageBody: last.body,
+                messageId: shown.id,
+                messageBody: shown.body,
               });
             }
           }

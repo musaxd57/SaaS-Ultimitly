@@ -243,6 +243,8 @@ export interface HeldItemsNotice {
   failed: string[];
   held: string[];
   quiet: string[];
+  /** Sessiz türden OLMAYAN açık / bekleyen işi olan mesajlar (verilen sırayla) — turun sessizliği bunlara bakar (Opus güvenlik 10-23 F5). */
+  loud: string[];
 }
 
 /**
@@ -281,7 +283,7 @@ export async function notifyHeldItems(
     now: Date;
   },
 ): Promise<HeldItemsNotice> {
-  const notice: HeldItemsNotice = { mailed: [], failed: [], held: [], quiet: [] };
+  const notice: HeldItemsNotice = { mailed: [], failed: [], held: [], quiet: [], loud: [] };
   if (input.messageIds.length === 0) return notice;
   const rows = await db.conversationItem.findMany({
     where: { organizationId: input.organizationId, conversationId: input.conversation.id, messageId: { in: [...input.messageIds] } },
@@ -306,6 +308,7 @@ export async function notifyHeldItems(
   }
   // Yalnız mesajın BÜTÜN açık işleri sessiz türdeyse "sessiz" (bekleyen cevap e-postası da gitmez).
   notice.quiet = notice.quiet.filter((m) => !notice.held.includes(m) && !loud.has(m));
+  notice.loud = input.messageIds.filter((m) => loud.has(m));
   if (!input.to) return notice;
   if (byMessage.size > 0) {
     await db.systemLock.deleteMany({ where: { name: { startsWith: HELD_MAIL_PREFIX }, lockedUntil: { lt: input.now } } }).catch(() => {});

@@ -1665,6 +1665,38 @@ describe("CEVAP PARÇALARI (kurucu 10-23 A, AI_ANSWER_PARTS_ENABLED)", () => {
     expect(rows.find((i) => i.kind === "about_assistant")).toMatchObject({ status: "pending_host", notified: false });
   });
 
+  it("🚨 F5: kaynak sorusu AYRI mesajdaysa açık işin e-postasını susturmaz; e-posta açık işi taşıyan mesajı gösterir (Opus güvenlik 10-23)", async () => {
+    vi.stubEnv("AI_ANSWER_PARTS_ENABLED", "1");
+    const { conversationId } = await seed("Wi-Fi şifresi neydi?");
+    await guestWrites(conversationId, "Bu bilgileri nereden alıyorsun?", 5);
+    understands(
+      parseUnderstanding(
+        {
+          language: "tr",
+          requests: [
+            { intent: "wifi", message: 1, query_tr: "wifi şifresi", query_original: "Wi-Fi şifresi neydi?" },
+            { intent: "about_assistant", message: 2, query_tr: "bilgi kaynağı", query_original: "Bu bilgileri nereden alıyorsun?" },
+          ],
+          stay_change: STAY_NONE,
+          withdrawn: [],
+        },
+        { items: true, assistant: true },
+      )!,
+    );
+    mockSuggest.mockResolvedValueOnce(
+      verdict({ intent: "wifi", reply: "", answeredRequests: { ok: true, refs: [] }, answerParts: [{ ref: "R1", status: "rejected", issues: ["value_not_in_evidence"] }] }),
+    );
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(mockMail).toHaveBeenCalledTimes(1);
+    const mail = JSON.stringify(mockMail.mock.calls[0]);
+    expect(mail).toContain("Wi-Fi şifresi neydi?");
+    expect(mail).not.toContain("nereden alıyorsun");
+    const rows = await itemsOf(conversationId);
+    expect(rows.find((i) => i.kind === "about_assistant")).toMatchObject({ status: "pending_host", notified: false });
+  });
+
   it("anahtar kapalı: cevap modeline parça kipi GİTMEZ (girdi bugünküyle aynı)", async () => {
     const { conversationId } = await seed("Çıkış saat kaçta? Sauna var mı?");
     understands(twoNeeds());

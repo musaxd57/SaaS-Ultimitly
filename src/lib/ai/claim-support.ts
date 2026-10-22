@@ -93,10 +93,23 @@ interface Claim {
 
 // ─── normalizasyon ─────────────────────────────────────────────────────────
 
-/** NFKC + Türkçe küçük harf + ASCII katlama; rakamlar dokunulmaz. */
+/**
+ * Yaygın ondalık rakam yazılarının sıfır kod noktaları (Arapça-Hint, Farsça, Devanagari, Bengal, Gurmukhi, Gucerat, Tamil, Telugu,
+ * Kannada, Malayalam, Tay, Lao, Tibet, Myanmar, Kmer, Moğol). Opus güvenlik 10-23 F1: "٢٢:٠٠" / "۲۲:۰۰" / "२२:००" `\d` değildi →
+ * değer hiç okunmuyor, doğrulama atlanıyordu. Tam genişlik NFKC ile zaten ASCII olur.
+ */
+const DIGIT_ZEROS = [0x660, 0x6f0, 0x966, 0x9e6, 0xa66, 0xae6, 0xbe6, 0xc66, 0xce6, 0xd66, 0xe50, 0xed0, 0xf20, 0x1040, 0x17e0, 0x1810];
+function asciiDigit(d: string): string {
+  const c = d.codePointAt(0) ?? 0;
+  for (const z of DIGIT_ZEROS) if (c >= z && c <= z + 9) return String(c - z);
+  return d;
+}
+
+/** NFKC + Türkçe küçük harf + ASCII katlama; yaygın yazılardaki ondalık rakamlar ASCII'ye çevrilir. */
 export function foldForClaims(s: string): string {
   return s
     .normalize("NFKC")
+    .replace(/[^\x00-\x7F]/gu, (ch) => (/\p{Nd}/u.test(ch) ? asciiDigit(ch) : ch))
     .replace(/İ/g, "i")
     .replace(/I/g, "ı")
     .toLocaleLowerCase("tr")
