@@ -23,8 +23,12 @@
   odaklanabilir değil" (`<main>` tabIndex -1: "İçeriğe geç" hedefi; her sayfaya ek Tab durağı EKLENMEDİ — Chromium kaydırılabilir bölgeyi
   klavyeyle zaten odaklıyor; bilinçli). İlk turda kalan sayfalar (hazırlık, iptaller, giden kuyruk, yeni mesaj, faturalandırma / bağlantılar /
   ekip / güvenlik sekmeleri) + temizlikçi görünümü iki temada tarandı: tek bulgu yine tamamlanan kart (U16).
-  Açık: "Aboneliği devam ettir" önizlemesi açılınca odak kaybı (anahtar KAPALI, testi yok — ayrı iş); onay pencerelerinde arka plan `inert` değil
-  (odak tuzağı var).
+  "Aboneliği devam ettir" odağı KAPANDI (59f72349 + 08f6a507: seçimde pakete, onayda Vazgeç'e — ödeme düğmesine ASLA, sonuçta durum satırı /
+  Devam et; `tests/ui/resume-subscription-focus.test.tsx`). Açık: onay pencerelerinde arka plan `inert` değil (odak tuzağı var).
+- Telefon görünümü (Playwright 320 / 390 px, 17 panel + QR + tanıtım; ekran sunucusu PG 5441 `ux_screens`, betikler kazı defterinde):
+  tanıtım demosu / iletişim formu `min-w-0` + telefonda 16 px; bilgi tabanı kartı başlığı sarar (`flex-1 basis-32`, düğmeler `ml-auto`);
+  her `whitespace-pre-wrap` `break-words` taşır (pin `tests/unit/long-text-wraps.test.ts`); Raporlar ızgarası `grid-cols-1` (uzun daire adıyla
+  587 px taşma). Uzun ad + uzun bağlantıyla tam tarama temiz.
 - Güvenlik 3. tur (Opus, 10-19'dan beri değişen 120 dosya; P1/P2 yok — `docs/arastirma-2026-10-15/GUVENLIK-3-TUR-2026-10-22.md`): S1 hesapsız
   demo cevap modeli kesicisinde yalnız kendi kovasında (ortak durdurmaya katılamaz); S2 "bilgim yok" hakemi misafir metniyle kandırılabilir →
   anahtar KAPALI, açılış koşulu Railway belgesinde.

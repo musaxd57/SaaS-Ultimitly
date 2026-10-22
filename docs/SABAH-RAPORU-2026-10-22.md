@@ -37,6 +37,14 @@ düzeltmeleri, ölçüm ve testlerdi. Kararınızı bekleyenler aşağıda, her 
   imleç "Vazgeç"e gelir, vazgeçince geri döner (önce sayfanın başına düşüyordu); açılır bölümler ekran okuyucuya açık / kapalı olduğunu söyler.
 - **E-postalar telefonda:** size ve ekibinize giden bütün bildirim e-postaları (görev, şikâyet, cevap bekliyor, karar, rezervasyon, deneme,
   QR) ve doğrulama / şifre e-postaları telefonda ekrandan taşıyordu (yana kaydırmak gerekiyordu). Artık ekrana sığıyor; yazılar aynı.
+- **Telefonda görünüm (en dar telefon 320 px ve yaygın 390 px; 17 panel sayfası + misafir QR + tanıtım sayfaları ölçüldü):** ana sayfa
+  demosu ve iletişim formu sayfayı yana kaydırıyordu → düzeldi; bu alanlara dokununca iPhone artık yakınlaştırmıyor. Bilgi Tabanı kartında
+  başlık düzenle / kopyala simgelerinin altına giriyordu → dar telefonda simgeler alt satıra iniyor (390 px ve üstü tek satır, eskisi gibi).
+  Uzun bağlantı (Google Haritalar gibi) bilgi tabanı, şablon, yapay zekâ önerisi ve otomatik mesaj kutularında kesiliyordu → satıra
+  bölünüyor. Raporlar sayfası uzun daire adıyla telefonda 587 px'e taşıyordu → ad kısaltılıyor. Aynı uzun ad + uzun bağlantıyla bütün
+  sayfalar yeniden tarandı: taşma yok. Yazılar ve davranış aynı.
+- **"Aboneliği devam ettir" (anahtar kapalı) klavyeyle:** her adımda imleç sayfanın başına düşüyordu → paket seçimine, tutar onayında
+  "Vazgeç"e iner (Enter'a yanlışlıkla basmak ödeme almaz), hata / sonuç gelince "Devam et"e ya da durum satırına döner.
 - **Ölçüm (gerçek model, gerçek akış):** kırmızı takım geliştirme seti (80) + KÖR kırmızı takım seti (71, ayrı yazar, tek koşu): misafire
   giden yasak dize **0**, acil kaçağı **0**; tutulması gerekenlerin %97'si tutuldu, "serbest kalan" vakalarda gizli bilgi gitmedi.
   Ayrıntı `docs/olcum/TARAFSIZLIK-VE-KIRMIZI-TAKIM-2026-10-21.md`.
@@ -44,7 +52,7 @@ düzeltmeleri, ölçüm ve testlerdi. Kararınızı bekleyenler aşağıda, her 
 ## 3. Gönderim ve CI durumu (dürüst kayıt)
 
 - İtilen her paket önce yerelde tam test kapısından + derlemeden geçti, sonra CI'da kontrol edildi. Yeşil: f1837b9e · f3d60dd6 · 13016ce1 ·
-  8556c5e7 (her biri 6/6 iş).
+  8556c5e7 · ac62f070 · c7cf0b17 (her biri 6/6 iş); 1ad79f52 ve sonrası bu raporun son güncellemesinde CI'da.
 - 55f2da86 CI'da kırmızıydı: sebep kod değil, npm'in güvenlik denetim servisi o saatte cevap vermedi (503, 503, 400). Denetim kapısı bilerek
   "servis yoksa geçme" diye kurulu. Bu oturumun GitHub izni yeniden çalıştırmaya yetmedi; bir sonraki push (13016ce1) aynı kodu içeriyor ve 6/6
   yeşil.
