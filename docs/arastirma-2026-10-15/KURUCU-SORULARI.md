@@ -1142,7 +1142,7 @@ A–Z'nin çoğu), olası tehlike konuşmasında yanlış "beklemede" bandı, ku
 
 > U10–U15: gece güvenlik incelemesi 2. tur (Opus, 10-22; tam metin `docs/arastirma-2026-10-15/GUVENLIK-2-TUR-2026-10-22.md`). Hiçbiri P1
 > değil. Kimlik / e-posta / dışarıya giden veri akışına dokunduğu için uygulanmadı. Sizin onayınız gerekmeyen iki iç düzeltme yapıldı:
-> başka siteden gelen yazma isteği artık reddediliyor (ortak kapı + üç rota) ve operatörün müşteri adayı güncellemesi olay günlüğüne
+> başka siteden gelen yazma isteği artık reddediliyor (ortak kapı + dört rota) ve operatörün müşteri adayı güncellemesi olay günlüğüne
 > yazılıyor.
 
 ### U10 · Bütün veriyi indirme (KVKK dışa aktarma) şifre sormuyor (güvenlik P2 — en önemlisi)

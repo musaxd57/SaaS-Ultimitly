@@ -1,6 +1,6 @@
 # Güvenlik incelemesi 2. tur — 2026-10-22 (Opus, salt okuma)
 
-> Durum (Claude, 10-22): F3 düzeltildi (ortak kapı `withAuth` + üç gövdesiz rota, `crossSiteWrite`; Origin yedeği eklenmedi —
+> Durum (Claude, 10-22): F3 düzeltildi (ortak kapı `withAuth` + dört gövdesiz rota, `crossSiteWrite`; Origin yedeği eklenmedi —
 > Sec-Fetch-Site göndermeyen eski tarayıcı + kardeş alt alan adı birlikte gerektiği için) · F8 düzeltildi (`operator.lead.updated` olay
 > günlüğünde) · F1 / F2 / F4+F5 / F6 / F9 / F7 → kurucu soruları U10–U15 (`KURUCU-SORULARI.md` §U). Aşağısı incelemenin özgün metni.
 

@@ -4,7 +4,7 @@ import type { SessionPayload } from "@/lib/auth";
 // ---------------------------------------------------------------------------
 // Başka siteden yazma kapısı (güvenlik 2. tur 10-22): oturum çerezi `SameSite=Lax` olduğu için başka siteden POST zaten oturumsuz gelir;
 // açık kalan iki yol kardeş alt alan adından (same-site) gelen istek ve JSON ön-uçuşu tetiklemeyen GÖVDESİZ yazmaydı. Ortak kapı
-// (`withAuth`) ve kapı dışındaki üç gövdesiz yazma rotası tarayıcının `Sec-Fetch-Site` başlığına bakar. Başlık yoksa geçer (sunucu
+// (`withAuth`) ve kapı dışındaki dört gövdesiz yazma rotası tarayıcının `Sec-Fetch-Site` başlığına bakar. Başlık yoksa geçer (sunucu
 // istemcisi / eski tarayıcı — asıl kapı çerez); okuma hiç bakılmaz.
 // ---------------------------------------------------------------------------
 
@@ -32,6 +32,7 @@ import { hostWriteLimited } from "@/lib/host-write-limit";
 import { POST as resumeAi } from "@/app/api/guest-chats/[id]/resume-ai/route";
 import { POST as adminExit } from "@/app/api/admin/exit/route";
 import { POST as qualityAudit } from "@/app/api/admin/quality-audit/route";
+import { DELETE as connectDelete } from "@/app/api/hospitable/connect/route";
 
 const owner: SessionPayload = {
   userId: "u1",
@@ -114,6 +115,20 @@ describe("ortak kapı dışındaki gövdesiz yazma rotaları", () => {
     expect(exitImpersonation).not.toHaveBeenCalled();
     expect((await adminExit(req("POST", "same-origin", "http://localhost/api/admin/exit"))).status).toBe(200);
     expect(exitImpersonation).toHaveBeenCalledTimes(1);
+  });
+
+  it("QR yeniden aç: oturumsuz başka siteden istek yine 401 (kapı oturumdan sonra)", async () => {
+    session = null;
+    const res = await resumeAi(req("POST", "cross-site", "http://localhost/api/guest-chats/c1/resume-ai"), {
+      params: Promise.resolve({ id: "c1" }),
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it("kanal bağlantısını kaldır (DELETE, gövdesiz): başka siteden 403, kaldırma koşmaz", async () => {
+    const res = await connectDelete(req("DELETE", "same-site", "http://localhost/api/hospitable/connect"));
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ error: expect.any(String) });
   });
 
   it("kalite denetimi (ücretli): başka siteden 403, denetim koşmaz", async () => {

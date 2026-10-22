@@ -136,7 +136,7 @@ describe("K8 — salt-okunur destek görünümü", () => {
     });
     expect(reply.status).toBe(403);
     expect((await connectPost(json("http://localhost/api/hospitable/connect", "POST", { token: "t" }))).status).toBe(403);
-    expect((await connectDelete()).status).toBe(403);
+    expect((await connectDelete(new NextRequest("http://localhost/api/hospitable/connect", { method: "DELETE" }))).status).toBe(403);
   });
 
   it("🚨 OAuth ile kanal bağlama bürünmüşken ayarlara geri döner (akış başlamaz)", async () => {

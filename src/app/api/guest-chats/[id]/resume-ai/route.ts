@@ -17,12 +17,12 @@ import { crossSiteWrite } from "@/lib/route-guard";
 // Idempotent: a no-op (200) when the AI is already active.
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireSession();
-  // Gövdesiz yazma: başka siteden (kardeş alt alan adı dahil) gelen istek yapay zekâyı yeniden açamaz (`withAuth` ile aynı kural).
-  if (crossSiteWrite(_req)) return forbidden();
   // K8 (kurucu kararı 09-28): bürünmüşken müşteri hesabında yazma yok.
   const readOnly = session ? impersonationReadOnly(session, _req.method) : null;
   if (readOnly) return readOnly;
   if (!session) return unauthorized();
+  // Gövdesiz yazma: başka siteden (kardeş alt alan adı dahil) gelen istek yapay zekâyı yeniden açamaz (`withAuth` ile aynı kural).
+  if (crossSiteWrite(_req)) return forbidden();
   if (!canManage(session)) return forbidden();
   const limited = await hostWriteLimited(session, _req.method);
   if (limited) return limited;

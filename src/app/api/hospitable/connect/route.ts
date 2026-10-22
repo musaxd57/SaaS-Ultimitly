@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { impersonationReadOnly, requireSession, unauthorized, serverError, tooManyRequests, readJsonCappedOrNull } from "@/lib/api";
+import { impersonationReadOnly, requireSession, unauthorized, forbidden, serverError, tooManyRequests, readJsonCappedOrNull } from "@/lib/api";
 import { rateLimit } from "@/lib/rate-limit";
 import { verifyToken, HospitableError } from "@/lib/hospitable";
 import { isSuperAdmin } from "@/lib/admin";
@@ -10,6 +10,7 @@ import {
   isPrimaryOrg,
 } from "@/lib/hospitable-credentials";
 import { writeAudit } from "@/lib/audit";
+import { crossSiteWrite } from "@/lib/route-guard";
 
 // Each account's channel token is managed by that account's OWNER (self-service)
 // or by the operator/super-admin on their behalf (incl. while impersonating). The
@@ -119,9 +120,11 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function DELETE() {
+export async function DELETE(req: NextRequest) {
   const session = await requireSession();
   if (!session) return unauthorized();
+  // Gövdesiz yazma: başka siteden (kardeş alt alan adı dahil) gelen istek bağlantıyı kaldıramaz (`withAuth` ile aynı kural).
+  if (crossSiteWrite(req)) return forbidden();
   // K8 (kurucu kararı 09-28): bürünmüşken bağlantı kaldırılamaz (salt-okunur destek görünümü).
   const readOnly = impersonationReadOnly(session, "DELETE");
   if (readOnly) return readOnly;
