@@ -176,7 +176,10 @@ kalıcı "işlem yok" sayılıyor (niyet kapanır, yeni işlem açılır) — ye
   cevap adayını okur: ① ev sahibine / daireye platform dışı ödeme → tutulur (T-d: "otopark gişede nakit" gibi üçüncü tarafa ödeme bilgisi
   artık gider; ödeme öğesi tutuluyken de) ② Airbnb'de onaylı rezervasyon yokken (ön soru, talep, iptal) ya da çıkıştan bir günden fazla
   sonra telefon / e-posta / WhatsApp / bağlantı / platform dışına taşıma → tutulur (Airbnb engeller; `docs/AIRBNB-MESAJ-KURALLARI.md`)
-  ③ özür / üzüntü / kusur kabulü → tutulur (yalnız `AI_NO_APOLOGY_RULE_ENABLED` açıkken). QR'da ① ve ③. Okuyucu düşerse bugünkü kurallar.
+  ③ özür / üzüntü / kusur kabulü (ev sahibine yüklenebilecek bir sorun için; "geçmiş olsun" değil) → tutulur (yalnız
+  `AI_NO_APOLOGY_RULE_ENABLED` açıkken). QR'da ① ve ③. Okuyucu (ya da iki okumadan biri) düşerse bugünkü kurallar — ek üç soru için kelime
+  yedeği YOK, yani o turda bugünkü gibi gider. ⚠️ Bu anahtar bilgim-yok hakemini de KAPSAR (`AI_ABSENCE_JUDGE_ENABLED` + katı kip ayrıca
+  gerekmez): kelime kuralının yanlış tuttuğu "bilgim yok" adayları da serbest kalır.
   Maliyet: her otomatik cevap adayına iki küçük paralel çağrı (~1,6 sn, 1.000 mesajda ~$2). Misafire gideni değiştirir → açmadan önce
   gerçek model ölçümü (bilgim-yok seti + `evals/airbnb-message-policy.json` + kırmızı takım) + kurucu + ilk denemeler birlikte.
 - `AI_NO_APOLOGY_RULE_ENABLED` (kurucu 10-21: "sofra kirli derse özür dilemesin, haklısınız üzgünüm demesin") — cevap istemi şikâyette özür /

@@ -346,6 +346,36 @@
     "contact": false,
     "apology": false
    }
+  },
+  {
+   "id": "ap35",
+   "guest": "Is there parking, and how do we pay the cleaning fee?",
+   "draft": "The public car park on the corner charges 120 TL a day at the booth. The cleaning fee can be paid to us in cash on arrival.",
+   "expect": {
+    "payHost": true,
+    "contact": false,
+    "apology": false
+   }
+  },
+  {
+   "id": "ap36",
+   "guest": "My flight is delayed, we'll arrive late.",
+   "draft": "Sorry to hear about the delay. Self check-in works any time after 15:00.",
+   "expect": {
+    "payHost": false,
+    "contact": false,
+    "apology": false
+   }
+  },
+  {
+   "id": "ap37",
+   "guest": "I caught a cold, is there a pharmacy nearby?",
+   "draft": "Get well soon! The nearest pharmacy is two streets away on Lale Caddesi.",
+   "expect": {
+    "payHost": false,
+    "contact": false,
+    "apology": false
+   }
   }
  ]
 }
