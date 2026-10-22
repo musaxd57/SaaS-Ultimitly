@@ -253,6 +253,11 @@ export interface UnderstandingInput {
    * şema, istem ve önbellek anahtarı bayt bayt eskisi.
    */
   english?: boolean;
+  /**
+   * Kaynak / asistan sorusu ayrı istek (kurucu 10-23, `AI_ASSISTANT_QUESTION_ITEM_ENABLED`; yalnız öğe kipinde). `false` = bu yüzeyde
+   * öğe paneli yok (QR) → anahtar açık olsa da kip açılmaz, şema / istem / önbellek anahtarı bugünkü gibi. Verilmezse anahtar karar verir.
+   */
+  assistantQuestion?: boolean;
   fetchImpl?: typeof fetch;
 }
 
@@ -353,7 +358,7 @@ export async function understandGuestMessages(input: UnderstandingInput): Promis
     // Başka kişinin bilgisi kuralı (10-22 U9): aynı tek karar noktası; kapalıyken istem + anahtar bayt bayt eski.
     const privacy = understandingPrivacyRuleEnabled();
     // Kaynak / asistan sorusu (10-23): yalnız öğe kipinde; kapalıyken istem + şema + anahtar bayt bayt eski.
-    const assistant = items && understandingAssistantQuestionEnabled();
+    const assistant = items && input.assistantQuestion !== false && understandingAssistantQuestionEnabled();
     // Öğe / kural kipi ayrı önbellek girdisi (farklı şema); ikisi de kapalıyken — ve yalnız öğe kipinde — anahtar bayt bayt eskisi.
     // Şikâyet takibi eki ve İngilizce köprü de ayrı girdi (farklı istem / şema); kapalıyken anahtar değişmez.
     const mode = `${items ? "\u0000items" : ""}${rules ? "\u0000rules" : ""}${complaintFollowup ? "\u0000cfu" : ""}${english ? "\u0000en" : ""}${threat ? "\u0000thr" : ""}${privacy ? "\u0000prv" : ""}${assistant ? "\u0000ast" : ""}`;

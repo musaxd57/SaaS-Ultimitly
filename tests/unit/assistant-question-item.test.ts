@@ -63,6 +63,15 @@ describe("anahtar AÇIK (öğe kipi)", () => {
     expect(understandingSchemaFor({ assistant: true })).not.toHaveProperty("name", expect.stringContaining("_asst"));
   });
 
+  it("vazgeçme listesi de kaynak sorusunu taşır (misafir 'boşverin' deyince öğe kapanabilsin); anahtar kapalıyken liste eski kümede", () => {
+    type W = { schema: { properties: { withdrawn: { items: { properties: { intent: { enum: string[] } } } } } } };
+    expect((understandingSchemaFor({ items: true, assistant: true }) as unknown as W).schema.properties.withdrawn.items.properties.intent.enum).toContain("about_assistant");
+    expect((understandingSchemaFor({ items: true }) as unknown as W).schema.properties.withdrawn.items.properties.intent.enum).not.toContain("about_assistant");
+    const w = { ...raw, withdrawn: [{ intent: "about_assistant", message: 0 }] };
+    expect(parseUnderstanding(w, { items: true, assistant: true })?.withdrawn).toEqual([{ intent: "about_assistant", message: 0 }]);
+    expect(parseUnderstanding(w, { items: true })?.withdrawn).toEqual([]);
+  });
+
   it("istem eki yalnız öğe kipinde", () => {
     expect(understandingSystemPromptFor({ items: true, assistant: true })).toContain(UNDERSTANDING_ASSISTANT_QUESTION_ADDENDUM);
     expect(understandingSystemPromptFor({ assistant: true })).not.toContain("QUESTIONS ABOUT THE ASSISTANT ITSELF");

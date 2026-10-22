@@ -206,4 +206,20 @@ describe("çağrı — öğe kipi ayrı şema, istem eki ve önbellek girdisi", 
     await (await retrieveKbForPrompt(base)).understanding;
     expect(bodyOf(f, 2).response_format.json_schema).toEqual(UNDERSTANDING_JSON_SCHEMA);
   });
+
+  it("kaynak sorusu kipi (10-23) QR'da açılmaz: assistantQuestion=false → öğe şeması bayt bayt aynı; verilmezse '_asst'", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    vi.stubEnv("AI_UNDERSTANDING_ENABLED", "1");
+    vi.stubEnv("AI_CONVERSATION_ITEMS_ENABLED", "1");
+    vi.stubEnv("AI_ASSISTANT_QUESTION_ITEM_ENABLED", "1");
+    const f = modelReturns(RAW_ITEMS);
+    vi.stubGlobal("fetch", f);
+    const base = { items: [], guestMessage: "Bunu nereden biliyorsun?", history: [] };
+    await (await retrieveKbForPrompt({ ...base, assistantQuestion: false })).understanding;
+    expect(bodyOf(f).response_format.json_schema).toEqual(UNDERSTANDING_JSON_SCHEMA_ITEMS);
+    expect(bodyOf(f).messages[0].content).toBe(`${UNDERSTANDING_SYSTEM_PROMPT}\n${UNDERSTANDING_ITEMS_PROMPT_ADDENDUM}`);
+    __resetUnderstandingCache();
+    await (await retrieveKbForPrompt(base)).understanding;
+    expect(bodyOf(f, 1).response_format.json_schema.name).toBe("guest_message_understanding_items_asst");
+  });
 });

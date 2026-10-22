@@ -216,11 +216,15 @@ export async function recordModelItems(
   return rows;
 }
 
-/** Bildirim sonucu (mesaj kimlikleri): e-posta gitti · e-posta düştü (claim geri alındı) · ev sahibinde tutulan. */
+/**
+ * Bildirim sonucu (mesaj kimlikleri): e-posta gitti · e-posta düştü (claim geri alındı) · ev sahibinde tutulan · YALNIZ sessiz türden
+ * (`NO_NOTIFY_KINDS`, kaynak / asistan sorusu) tutulan öğesi olan — panelde açık, e-posta YOK (bekleyen cevap e-postası da).
+ */
 export interface HeldItemsNotice {
   mailed: string[];
   failed: string[];
   held: string[];
+  quiet: string[];
 }
 
 /**
@@ -259,7 +263,7 @@ export async function notifyHeldItems(
     now: Date;
   },
 ): Promise<HeldItemsNotice> {
-  const notice: HeldItemsNotice = { mailed: [], failed: [], held: [] };
+  const notice: HeldItemsNotice = { mailed: [], failed: [], held: [], quiet: [] };
   if (input.messageIds.length === 0) return notice;
   const rows = await db.conversationItem.findMany({
     where: { organizationId: input.organizationId, conversationId: input.conversation.id, messageId: { in: [...input.messageIds] } },
@@ -269,11 +273,16 @@ export async function notifyHeldItems(
   const byMessage = new Map<string, string[]>();
   for (const r of rows) {
     // Kurucu 10-23: kaynak / asistan sorusu panelde açık kalır, e-posta istemez.
-    if (r.status !== "pending_host" || r.sensitivity === "none" || NO_NOTIFY_KINDS.has(r.kind)) continue;
+    if (r.status === "pending_host" && NO_NOTIFY_KINDS.has(r.kind)) {
+      if (!notice.quiet.includes(r.messageId)) notice.quiet.push(r.messageId);
+      continue;
+    }
+    if (r.status !== "pending_host" || r.sensitivity === "none") continue;
     if (!notice.held.includes(r.messageId)) notice.held.push(r.messageId);
     if (r.notifiedAt !== null) continue;
     byMessage.set(r.messageId, [...(byMessage.get(r.messageId) ?? []), r.id]);
   }
+  notice.quiet = notice.quiet.filter((m) => !notice.held.includes(m));
   if (!input.to) return notice;
   if (byMessage.size > 0) {
     await db.systemLock.deleteMany({ where: { name: { startsWith: HELD_MAIL_PREFIX }, lockedUntil: { lt: input.now } } }).catch(() => {});

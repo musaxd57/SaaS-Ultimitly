@@ -186,6 +186,27 @@ describe("anlama katmanının tarih satırı — yüzey bağlantısı", () => {
     expect(dateLineOf()).not.toMatch(/booking/i);
   });
 
+  it("🚨 kaynak sorusu kipi (kurucu 10-23) QR'da kapalı: QR çağrısı assistantQuestion=false taşır, kanal çağrısında alan yok (anahtar karar verir)", async () => {
+    const { propertyId, conversationId } = await seedStay();
+    await applyChannelAutoReply(conversationId);
+    expect(spy.mock.calls[0][0]).not.toHaveProperty("assistantQuestion");
+    const token = `qrtok_${Math.random().toString(36).slice(2)}${"x".repeat(12)}`;
+    await prisma.property.update({ where: { id: propertyId }, data: { chatEnabled: true, chatToken: token } });
+    await prisma.reservation.create({
+      data: { propertyId, guestName: "Test Misafir", arrivalDate: new Date(Date.now() - DAY), departureDate: new Date(Date.now() + 2 * DAY), status: "confirmed", channel: "manual", currency: "EUR" },
+    });
+    const res = await CHAT(
+      new NextRequest(`http://localhost/api/chat/${token}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: "Bunu nereden biliyorsun?", requestId: `g-${Math.random().toString(36).slice(2)}` }),
+      }),
+      { params: Promise.resolve({ token }) },
+    );
+    expect(res.status).toBe(200);
+    expect(spy.mock.calls.at(-1)![0].assistantQuestion).toBe(false);
+  });
+
   // ── F14b (09-26): mesajın YAZILDIĞI an — tarih satırıyla aynı karar noktası ─────────────────────────────────────
   const contentOf = (i = 0) => buildUnderstandingUserContent(spy.mock.calls[i]![0]);
 

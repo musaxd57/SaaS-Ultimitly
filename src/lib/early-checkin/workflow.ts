@@ -9,7 +9,7 @@
 import { createHash } from "node:crypto";
 import { stayRequestKinds, type AvailabilityPolicyOptions, type StayRequestKind } from "@/lib/ai/availability-claims";
 import { durableOutboxEnabledFor } from "@/lib/outbox/flag";
-import { NOT_FULLY_READ_MARGIN, type MessageUnderstanding } from "@/lib/ai/semantic/understanding-schema";
+import { ASSISTANT_QUESTION_INTENT, NOT_FULLY_READ_MARGIN, type MessageUnderstanding } from "@/lib/ai/semantic/understanding-schema";
 import {
   agreeRequestedTime,
   decideEarlyCheckin,
@@ -71,8 +71,11 @@ export function earlyCheckinPolicyAllowed(run: Pick<EarlyCheckinRun, "facts">, g
   return !guestTexts.some((t) => explicitTimeMentions(t).length > 0);
 }
 
-/** Anlama katmanında erken girişle birlikte cevabı etkilemeyen niyetler (tek konu sayılır). */
-const SINGLE_TOPIC_INTENTS: ReadonlySet<string> = new Set(["early_checkin", "checkin_time", "greeting_thanks"]);
+/**
+ * Anlama katmanında erken girişle birlikte cevabı etkilemeyen niyetler (tek konu sayılır). Kaynak / asistan sorusu (kurucu 10-23) da: o
+ * soru panelde açık kalır, yanındaki erken giriş isteği onun yüzünden taslağa düşmez.
+ */
+const SINGLE_TOPIC_INTENTS: ReadonlySet<string> = new Set(["early_checkin", "checkin_time", "greeting_thanks", ASSISTANT_QUESTION_INTENT]);
 
 /**
  * Cevap modelinin kendi niyet etiketi de konuyu erken giriş / giriş olarak görmeli (inceleme 09-24, P1-2): tek konu

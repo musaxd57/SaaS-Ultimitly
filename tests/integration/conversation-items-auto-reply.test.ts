@@ -1542,6 +1542,18 @@ describe("KAYNAK / ASİSTAN SORUSU (kurucu 10-23)", () => {
     expect(mockMail).not.toHaveBeenCalled();
   });
 
+  it("🚨 yalnız kaynak sorusu + cevap 'ev sahibime ilettim' diyor: tutulur, 'Misafir cevabınızı bekliyor' e-postası da YOK (Haiku 10-23)", async () => {
+    const { conversationId } = await seed("Bunu nereden biliyorsun?");
+    understands(assistantUnderstood([{ intent: "about_assistant", message: 1 }]));
+    mockSuggest.mockResolvedValueOnce(
+      verdict({ intent: "general", reply: "Sorunuzu ev sahibime ilettim, en kısa sürede dönüş yapacak.", answeredRequests: { ok: true, refs: [] } }),
+    );
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect((await itemsOf(conversationId)).find((i) => i.kind === "about_assistant")).toMatchObject({ status: "pending_host", notified: false });
+    expect(mockMail).not.toHaveBeenCalled();
+  });
+
   it("model kaynak sorusuna yine de değinirse iç kaynak kapısı tutar (kemer aynen)", async () => {
     const { conversationId } = await seed("Wi-Fi şifresi neydi? Bu bilgiyi nereden buluyorsun?");
     understands(assistantUnderstood([{ intent: "wifi", message: 1 }, { intent: "about_assistant", message: 1 }]));

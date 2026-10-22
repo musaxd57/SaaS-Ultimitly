@@ -86,11 +86,14 @@ function understandingFetch(kind: "availability" | "extend" | "none", intents: s
       });
       return new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content } }] }), { status: 200 });
     }
-    if (name !== "guest_message_understanding") throw new Error(`beklenmeyen şema: ${name}`);
+    if (!name.startsWith("guest_message_understanding")) throw new Error(`beklenmeyen şema: ${name}`);
+    // Öğe kipi (kaynak sorusu testi): istek başına mesaj numarası + vazgeçme listesi.
+    const items = name.includes("_items");
     const v = {
       language,
-      requests: intents.map((intent) => ({ intent, query_tr: "soru", query_original: "soru" })),
+      requests: intents.map((intent) => ({ intent, query_tr: "soru", query_original: "soru", ...(items ? { message: 1 } : {}) })),
       stay_change: { requested: kind !== "none", kind, checkin_time: null, checkout_time: null },
+      ...(items ? { withdrawn: [] } : {}),
     };
     return new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify(v) } }] }), { status: 200 });
   });
@@ -252,6 +255,19 @@ describe("doğrulanmış müsaitlik otomatik cevabı — koddan kurulan metin", 
     vi.stubGlobal("fetch", understandingFetch("none", ["parking"]));
     const { conversationId } = await seed({ message: `Otopark ${human(D1)} ile ${human(D2)} arası müsait mi?` });
     expect((await applyChannelAutoReply(conversationId)).sent).toBe(false);
+  });
+
+  it("🚨 kaynak sorusu (kurucu 10-23) ikinci konu sayılmaz: müsaitlik KOD METNİ gider, kaynak sorusu panelde açık kalır", async () => {
+    vi.stubEnv("AI_CONVERSATION_ITEMS_ENABLED", "1");
+    vi.stubEnv("AI_ASSISTANT_QUESTION_ITEM_ENABLED", "1");
+    vi.stubGlobal("fetch", understandingFetch("availability", ["availability", "about_assistant"]));
+    // Öğe kipinde cevap modeli cevapladığı isteği beyan eder (R1 = müsaitlik; kaynak sorusu ev sahibinde).
+    mockSuggest.mockResolvedValue({ ...verdict, answeredRequests: { ok: true, refs: ["R1"] } } as never);
+    const { conversationId } = await seed({ message: `${human(D1)} ile ${human(D2)} arası müsait mi, bunu nereden bileceksin` });
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(true);
+    expectCodeSent(CODE_AVAILABLE);
+    const open = await prisma.conversationItem.findMany({ where: { conversationId }, select: { kind: true, status: true } });
+    expect(open.find((i) => i.kind === "about_assistant")).toMatchObject({ status: "pending_host" });
   });
 
   it("🚨 İKİNCİ SORU (soru işaretsiz): anlama katmanı müsaitlik + wifi görür → gitmez", async () => {

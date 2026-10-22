@@ -130,7 +130,7 @@ import {
   hasOpenHostWork,
   notClosingHandledWhere,
 } from "@/lib/conversation-attention";
-import type { MessageUnderstanding } from "@/lib/ai/semantic/understanding-schema";
+import { ASSISTANT_QUESTION_INTENT, type MessageUnderstanding } from "@/lib/ai/semantic/understanding-schema";
 import { consumeDailyAiBudget, peekDailyAiBudget } from "@/lib/ai/daily-budget";
 import { rateLimit } from "@/lib/rate-limit";
 import {
@@ -2821,11 +2821,12 @@ export async function applyChannelAutoReply(
   // Haiku tur 2: anlama katmanı mesajdaki BÜTÜN istekleri müsaitlik (ya da selam) görmeli — "15 Ekim müsait mi, wifi şifresi nedir"
   // ikinci soruyu sessizce düşürmesin; dil KODLA belirlenmeli (modelin dil tahminine düşülmez); modelin kendi niyet etiketi riskli
   // değilse (şikâyet / iade … etiketi kod metniyle ezilmesin).
+  // Kaynak / asistan sorusu (kurucu 10-23) ikinci konu sayılmaz: kendisi panelde açık kalır, yanındaki soru onun yüzünden tutulmaz.
   const understoodOnlyAvailability =
     !!understood &&
     understood.requests.length > 0 &&
     understood.requests.some((q) => q.intent === "availability") &&
-    understood.requests.every((q) => q.intent === "availability" || q.intent === "greeting_thanks");
+    understood.requests.every((q) => q.intent === "availability" || q.intent === "greeting_thanks" || q.intent === ASSISTANT_QUESTION_INTENT);
   if (!earlyCheckinSent && verifiedAvailabilityRun && understoodOnlyAvailability && !NEVER_AUTO_REPLY_INTENTS.has(result.intent)) {
     const lang = verifiedAvailabilityLang(guestLanguage);
     const singleQuestion = pendingGuestMessages.length === 0 && (last.body.match(/\?/g)?.length ?? 0) <= 1 && last.body.length <= 300;
@@ -2856,7 +2857,7 @@ export async function applyChannelAutoReply(
     !!understood &&
     understood.requests.length > 0 &&
     understood.requests.some((q) => q.intent === "extend_stay") &&
-    understood.requests.every((q) => q.intent === "extend_stay" || q.intent === "greeting_thanks");
+    understood.requests.every((q) => q.intent === "extend_stay" || q.intent === "greeting_thanks" || q.intent === ASSISTANT_QUESTION_INTENT);
   if (
     !earlyCheckinSent &&
     !gateContext.verifiedAvailability &&
@@ -3235,7 +3236,8 @@ export async function applyChannelAutoReply(
           // Kart bildirimi HER ZAMAN çağrılır: kartlar damgalanır (sonraki tur aynı talep için e-posta atmasın); e-posta yalnız bu turun
           // mesajlarına hassas öğe e-postası gitmediyse gider (`notifyTurnDecisions` kendisi bakar).
           if (turnDecisions.length > 0) await notifyDecisions();
-          if (notice.held.length === 0 && !turnCardsOpen) {
+          // Kaynak / asistan sorusu (kurucu 10-23) tek başına tutulduysa "Misafir cevabınızı bekliyor" e-postası da YOK — panelde açık.
+          if (notice.held.length === 0 && notice.quiet.length === 0 && !turnCardsOpen) {
             if (handoffHeld) {
               await notifyHostReplyWaiting({
                 organizationId: conversation.property.organizationId,

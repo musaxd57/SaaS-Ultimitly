@@ -67,6 +67,12 @@ export interface KbRetrieveInput<T extends KbChunkSource> extends KbSelectInput<
     reservation?: { status: string; arrivalDate: Date | string; departureDate: Date | string } | null;
   };
   /**
+   * Kaynak / asistan sorusunu ayrı istek olarak tanı (kurucu 10-23; anahtar `AI_ASSISTANT_QUESTION_ITEM_ENABLED`). Yalnız açık işi panelde
+   * tutabilen yüzeyler ister; QR `false` verir (orada öğe paneli yok — Haiku 10-23: QR'ın tek konulu doğrulanmış cevapları ve acil numara
+   * satırı bu niyeti görünce düşüyordu). Verilmezse anahtar karar verir.
+   */
+  assistantQuestion?: boolean;
+  /**
    * 🚨 YER TUTUCU İKAMESİ SEÇİMDEN SONRA (#189, 09-26). Verilirse `items` HAM kalemlerdir (`{isim}`/`{daire}` çözülmemiş):
    * seçim, anlamsal puan ve yeniden sıralayıcı ham metinle çalışır; değerler YALNIZ seçilen parçalara uygulanır. Neden:
    * misafir adı metne aramadan ÖNCE girince parça metni her misafirde farklı oluyordu → anlamsal vektör deposu (içerik
@@ -115,7 +121,7 @@ export function namelessRetrievalInput<T extends KbChunkSource>(
 }
 
 export async function retrieveKbForPrompt<T extends KbChunkSource>(input: KbRetrieveInput<T>): Promise<KbRetrieveResult<T>> {
-  const { stayTimes, redactNames, dateContext, placeholders, ...rawRest } = input;
+  const { stayTimes, redactNames, dateContext, placeholders, assistantQuestion, ...rawRest } = input;
   const rest = namelessRetrievalInput(rawRest, redactNames);
   // GENİŞ BLOK BÜTÇESİ (#189, kurucu 09-27 "hazırla, sonra aç"; `KB_RETRIEVAL_WIDE_BUDGET` varsayılan KAPALI): TEK karar noktası.
   // Çağıran bütçeyi kendisi verdiyse (ölçer / test) dokunulmaz. Küçük bilgi tabanı ve legacy yolu bütçe okumaz (etkisiz).
@@ -157,6 +163,8 @@ export async function retrieveKbForPrompt<T extends KbChunkSource>(input: KbRetr
     ...(complaintFollowupRuleEnabled() ? { complaintFollowup: true } : {}),
     // İngilizce köprü sorgusu (10-10, karar #13) — aynı karar noktası; kapalıyken alan hiç gitmez.
     ...(understandingEnglishQueryEnabled() ? { english: true } : {}),
+    // Kaynak / asistan sorusu (10-23): yalnız açıkça kapatan yüzey (QR) için alan gider; diğerlerinde çağrı bayt bayt aynı.
+    ...(assistantQuestion === false ? { assistantQuestion: false } : {}),
   });
   const queriesNeeded =
     understandingEnabled() &&

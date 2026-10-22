@@ -473,6 +473,9 @@ describe("istek türü birleşimi + kapı muafiyeti — yalnız KODDAN kurulan m
     expect(singleTopicEarlyCheckin(u("early_checkin"))).toBe(true);
     expect(singleTopicEarlyCheckin(u("early_checkin", "greeting_thanks", "checkin_time"))).toBe(true);
     expect(singleTopicEarlyCheckin(u("early_checkin", "wifi"))).toBe(false);
+    // Kurucu 10-23: kaynak / asistan sorusu ikinci konu sayılmaz (kendisi panelde açık kalır).
+    expect(singleTopicEarlyCheckin(u("early_checkin", "about_assistant"))).toBe(true);
+    expect(singleTopicEarlyCheckin(u("about_assistant"))).toBe(false);
     expect(singleTopicEarlyCheckin(u("checkin_time"))).toBe(false);
     expect(singleTopicEarlyCheckin(null)).toBe(false);
   });

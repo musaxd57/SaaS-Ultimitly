@@ -1033,6 +1033,9 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     redactNames: [res.guestName, res.guestGivenName],
     // Anlama katmanının tarih satırı (bayrak açıkken): QR'da rezervasyon ayrıntısı bilinçli verilmez → yalnız bugün/yarın.
     dateContext: { now: new Date(), timeZone: org?.timezone },
+    // Kurucu 10-23 kaynak sorusu kipi QR'da AÇILMAZ: QR'da açık iş paneli yok; niyet burada tek konulu doğrulanmış cevapları ve acil numara
+    // satırını düşürüyordu (Haiku 10-23). QR'ın kaynak sorusu davranışı ayrı iş (QR öğe dilimi).
+    assistantQuestion: false,
   });
   const kbDroppedTotal = ctx.knowledgeBaseDropped + kbSel.droppedItems;
 

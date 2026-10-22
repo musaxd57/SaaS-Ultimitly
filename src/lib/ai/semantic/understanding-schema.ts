@@ -264,6 +264,11 @@ export function understandingSchemaFor(
   if (!opts.rules && !relation && !english && !assistant) return base;
   const item = base.schema.properties.requests.items;
   const intentEnum = assistant ? { intent: { type: "string", enum: [...ALL_UNDERSTANDING_INTENTS] } } : {};
+  // Vazgeçme listesi de aynı kümeyi taşır (Haiku 10-23: kaynak sorusundan vazgeçen misafirin öğesi açık kalıyordu).
+  const withdrawnItem = UNDERSTANDING_JSON_SCHEMA_ITEMS.schema.properties.withdrawn.items;
+  const withdrawnEnum = assistant
+    ? { withdrawn: { type: "array", items: { ...withdrawnItem, properties: { ...withdrawnItem.properties, ...intentEnum } } } }
+    : {};
   const extraRequired = [
     ...(opts.rules ? ["rule_topic", "rule_stance"] : []),
     ...(relation ? ["relation"] : []),
@@ -290,6 +295,7 @@ export function understandingSchemaFor(
             },
           },
         },
+        ...withdrawnEnum,
       },
     },
   };

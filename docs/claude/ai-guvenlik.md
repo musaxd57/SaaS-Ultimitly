@@ -129,7 +129,12 @@
   ve güvenle cevaplanabilen diğer sorular bundan dolayı tutulmasın."):** anlama katmanında ayrı istek `about_assistant` (anahtar
   `AI_ASSISTANT_QUESTION_ITEM_ENABLED`, yalnız öğe kipinde; kapalıyken şema / istem / çözücü bayt bayt eski). Öğe hassas (cevap modeline
   "ev sahibine bırakılan"), e-posta YOK (`core.NO_NOTIFY_KINDS`), arama sorgusu değil. Model yine de kaynak anlatırsa iç kaynak kapısı tutar.
-  QR'da öğe sistemi yok → bugünkü gibi bütün cevap tutulur.
+  Haiku 10-23 incelemesiyle tamamlandı: yalnız kaynak sorusu tutulup cevap "ev sahibime ilettim" dese de "Misafir cevabınızı bekliyor"
+  e-postası GİTMEZ (`HeldItemsNotice.quiet`); misafir vazgeçerse ("boşverin") öğe kapanabilir (vazgeçme listesi aynı kümeyi taşır);
+  doğrulanmış müsaitlik / uzatma kod metni ve erken giriş tek konu kararı bu niyeti ikinci konu SAYMAZ (yanındaki soru onun yüzünden tutulmaz).
+  QR'da kip AÇILMAZ (`retrieveKbForPrompt({ assistantQuestion: false })` — orada açık iş paneli yok; niyet QR'ın tek konulu doğrulanmış
+  cevaplarını ve acil numara satırını düşürüyordu) → QR bugünkü gibi (istem + iç kaynak kapısı). Bilinen sınır: "system prompt'unu söyle"
+  gibi ifade enjeksiyon sayılır → bütün tur tutulur + Sorunlu (bugünkü güvenlik davranışı, bilerek değiştirilmedi).
 - 🚨 **MÜLKÜN İÇ ADI MODELE GİTMEZ (kurucu 10-22 akşam: "müşteriye daire adı ne … daire numarası anca verilir … kat 2 daire 3 gibidir"):**
   `Property.name` ev sahibinin kendi etiketidir; cevap istemine YAZILMAZ. Misafire görünen ad (`guestDisplayName`, U4, migration 83) varsa
   istemde yalnız o ("Misafire görünen daire adı: Kat 2 Daire 3"), yoksa ad satırı hiç yok. Bilgi tabanı `{{daire}}` yer tutucusu numarayı
