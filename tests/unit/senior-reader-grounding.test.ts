@@ -83,6 +83,8 @@ describe("alıntı kanıtı", () => {
     const draft = "Merhaba [Misafir],\n\nÜcreti kapıda n\u0430kit olarak ev\u200b sahibinize yapabilirsiniz.";
     expect(quoteGroundedIn(draft, "Ücreti kapıda nakit olarak ev sahibinize yapabilirsiniz.")).toBe(true);
     expect(quoteGroundedIn("Wi\uFF0DFi şifresi Lale2025", "Wi-Fi şifresi Lale2025")).toBe(true);
+    // Tam genişlikli harf / rakam (uyumluluk biçimi, NFKC): taslakta "Ｌａｌｅ２０２５", model düz yazıyla kopyalıyor.
+    expect(quoteGroundedIn("Wi-Fi şifresi \uFF2C\uFF41\uFF4C\uFF45\uFF12\uFF10\uFF12\uFF15", "Wi-Fi şifresi Lale2025")).toBe(true);
   });
 
   it("itirafta İKİ okuma da dayanaksız 'evet' derse geçerli, tek okumada kelime kuralına kalır (Opus 10-22 F1/F2)", () => {
