@@ -163,6 +163,9 @@ Sık sorularda cevabın özü iki kolda aynı; değişen ifade (model her koşud
    Sonra: alanı "Deniz Manzaralı Daire" yaparsanız başlık "Deniz Manzaralı Daire · Misafir Asistanı" (İngilizce tarayıcıda "… · Guest
    Assistant"); boş bırakırsanız bugünkü gibi. İç mülk adınız ("Daire 5 / arka cephe") misafire hiçbir durumda gösterilmez. İtmek için
    açık onayınız + taze veritabanı yedeği (Railway açılınca) gerekiyor — "U4'ü it" demeniz yeterli.
+   Ek soru (bugün de böyle, U4'ten bağımsız): yapay zekânın istemine mülk bilgisi olarak İÇ adınız gidiyor ("Ad: Daire 5 / arka cephe");
+   model cevapta bunu yazabilir ("Daire 5 / arka cephe'ye hoş geldiniz"). U4 gelince istemde misafire görünen ad (boşsa iç ad) kullanılsın
+   mı? Önerim evet.
 5. **Bilgi tabanı boşken yeniden yazma notu (Opus F5).** Kod artık QR'ın kapı kodu / acil yönergesi yeniden yazma notunu bilgi tabanı boşken
    de modele iletiyor (eskiden not düşüyordu, ikinci çağrı aynı istemin tekrarıydı). Yalnız güvenli yönde (kod / yönerge daha az gider);
    anahtarlar kapalıyken de geçerli. Bilginize.
