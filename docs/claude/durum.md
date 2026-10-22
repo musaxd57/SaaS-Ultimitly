@@ -28,6 +28,9 @@
 - Güvenlik 3. tur (Opus, 10-19'dan beri değişen 120 dosya; P1/P2 yok — `docs/arastirma-2026-10-15/GUVENLIK-3-TUR-2026-10-22.md`): S1 hesapsız
   demo cevap modeli kesicisinde yalnız kendi kovasında (ortak durdurmaya katılamaz); S2 "bilgim yok" hakemi misafir metniyle kandırılabilir →
   anahtar KAPALI, açılış koşulu Railway belgesinde.
+- E-postalar telefonda (390 / 320 px, Chromium ölçümü): ev sahibi bildirimleri 632 px (uzun bağlantılı misafir mesajıyla 1.387 px), kimlik
+  e-postaları 512 px'ti → kart "akışkan melez" (Outlook için `width` niteliği + CSS `width:100%;max-width`), içerik uzun sözcüğü böler;
+  metin değişmedi. Pin `tests/unit/email-mobile-width.test.ts`, mutasyon 3/3. ⚠️ `width:Npx;max-width:100%` tablo düzeninde YETMEZ.
 - Push'lar: f1837b9e ve f3d60dd6 CI yeşil. 55f2da86 CI kırmızı: security-audit + verify (tek test `audit-gate-fail-closed` "gerçek ağaçta yeşil") — sebep npm denetim servisi (503, 503, 400 "endpoint is being retired"), kod değil; kapı tasarım gereği fail-closed. Yerelde aynı kapı yeşil (4 üretim danışması, 4 triaj). Bu oturumun GitHub izni yeniden çalıştırmaya yetmiyor (403) → sonraki push'un CI'ı kapsar.
 
 **10-21 gece-4 (önceki):**

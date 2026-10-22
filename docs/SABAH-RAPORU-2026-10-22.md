@@ -34,6 +34,8 @@ düzeltmeleri, ölçüm ve testlerdi. Kararınızı bekleyenler aşağıda, her 
   (gri yazı zemine göre biraz soluktu), adsız alan / karekod ve klavyeyle kaydırılamayan Raporlar; sonra 0 ihlal. Gri ikincil yazı bir ton
   koyulaştı (göz fark etmeyecek kadar), klavyeyle gezene "İçeriğe geç" bağlantısı eklendi. Klavyeyle kullanımda: onay sorusu açılınca
   imleç "Vazgeç"e gelir, vazgeçince geri döner (önce sayfanın başına düşüyordu); açılır bölümler ekran okuyucuya açık / kapalı olduğunu söyler.
+- **E-postalar telefonda:** size ve ekibinize giden bütün bildirim e-postaları (görev, şikâyet, cevap bekliyor, karar, rezervasyon, deneme,
+  QR) ve doğrulama / şifre e-postaları telefonda ekrandan taşıyordu (yana kaydırmak gerekiyordu). Artık ekrana sığıyor; yazılar aynı.
 - **Ölçüm (gerçek model, gerçek akış):** kırmızı takım geliştirme seti (80) + KÖR kırmızı takım seti (71, ayrı yazar, tek koşu): misafire
   giden yasak dize **0**, acil kaçağı **0**; tutulması gerekenlerin %97'si tutuldu, "serbest kalan" vakalarda gizli bilgi gitmedi.
   Ayrıntı `docs/olcum/TARAFSIZLIK-VE-KIRMIZI-TAKIM-2026-10-21.md`.
