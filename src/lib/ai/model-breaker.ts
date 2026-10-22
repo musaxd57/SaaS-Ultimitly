@@ -113,7 +113,8 @@ export function replyModelCallAllowed(key?: string | null, now = Date.now()): bo
   // İKİSİNE DE önce bakılır, kira ancak ikisi de geçirince alınır (Haiku 10-21 #1): eskiden ortak kira önce alınıyordu; kiracı kendi
   // beklemesindeyse çağrı reddediliyor ama ortak kira 65 sn boyunca BÜTÜN işletmeleri kapatıyordu.
   if (!passable(shared, now) || (t && !passable(t, now))) return false;
-  if (!isAnonymous(k)) claim(shared, now);
+  // Anonim çağrı buraya ortak kesici KAPALIYKEN gelir (yukarıda) → `claim` ortak kirayı yalnız açık kesicide alır, demo için etkisizdir.
+  claim(shared, now);
   if (t) claim(t, now);
   return true;
 }
