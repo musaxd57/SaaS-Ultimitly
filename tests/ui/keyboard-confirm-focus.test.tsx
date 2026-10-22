@@ -88,6 +88,17 @@ describe("karar kartı satır içi onayları", () => {
     expect((screen.getByLabelText("Misafire gidecek mesaj") as HTMLTextAreaElement).value).not.toBe("Kendi yazdığım metin.");
   });
 
+  it("Onayla / Reddet düğmeleri yalnız açtıkları düzenleyici ekrandayken ona işaret eder", () => {
+    render(<DecisionPanel conversationId="c1" decisions={[card]} />);
+    const decline = screen.getByRole("button", { name: /Reddet/ });
+    expect(decline.hasAttribute("aria-controls")).toBe(false);
+    fireEvent.click(decline);
+    const id = decline.getAttribute("aria-controls");
+    expect(id && document.getElementById(id)).toBeTruthy();
+    const approve = screen.getAllByRole("button").find((b) => b.getAttribute("aria-expanded") === "false" && /Onayla/.test(b.textContent ?? ""));
+    expect(approve?.hasAttribute("aria-controls")).toBe(false);
+  });
+
   it("kontrol listesi düğmesi yalnız liste ekrandayken ona işaret eder", () => {
     render(<DecisionPanel conversationId="c1" decisions={[card]} />);
     const toggle = screen.getByRole("button", { name: /Kontrol listesini/ });

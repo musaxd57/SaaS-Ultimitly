@@ -422,7 +422,7 @@ function DecisionCard({ conversationId, d, readOnly, aiText }: { conversationId:
                   onClick={() => open("approve")}
                   disabled={busy}
                   aria-expanded={mode?.action === "approve"}
-                  aria-controls={editorId}
+                  aria-controls={mode?.action === "approve" ? editorId : undefined}
                 >
                   <CheckCircle2 className="size-4" aria-hidden="true" /> Onayla
                 </Button>
@@ -432,7 +432,7 @@ function DecisionCard({ conversationId, d, readOnly, aiText }: { conversationId:
                   onClick={() => open("decline")}
                   disabled={busy}
                   aria-expanded={mode?.action === "decline"}
-                  aria-controls={editorId}
+                  aria-controls={mode?.action === "decline" ? editorId : undefined}
                 >
                   <XCircle className="size-4" aria-hidden="true" /> Reddet
                 </Button>
