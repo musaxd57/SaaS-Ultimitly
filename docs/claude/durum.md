@@ -12,8 +12,9 @@
 - Misafire giden (anahtarlı, Railway açılışında sırayla): T-a özür yok (`AI_NO_APOLOGY_RULE_ENABLED`) · U9 başka misafirin bilgisi
   (`AI_UNDERSTANDING_PRIVACY_RULE_ENABLED`) · T-b kıdemli okuyucu tek model iki okuma (`ai/semantic/absence-judge.ts`,
   `AI_SENIOR_READER_ENABLED`): itiraf / ev sahibine ödeme / platform dışı iletişim / özür; T-d okuyucu okuduysa yalnız ev sahibine platform
-  dışı ödeme tutar. KANIT ŞARTI: "evet" oyu taslaktan alıntı ister (`quoteGroundedIn`, NFKC + görünmez + benzer harf); tek okumanın kanıtsız
-  "evet"i bugünkü kelime kuralına bırakılır, iki okuma aynı hükümdeyse geçerli. YENİDEN YAZMA BİR KEZ (görev 172, `ai/semantic/senior-rewrite.ts`):
+  dışı ödeme tutar. KANIT ŞARTI yalnız itirafta karar değiştirir: alıntı taslakta geçmeli (`quoteGroundedIn`, NFKC + görünmez + benzer harf
+  iki tarafa birlikte); tek okumanın kanıtsız itirafı kelime kuralına kalır, iki okuma aynıysa geçerli. Ek hükümlerde kanıtsız "evet" de tutar
+  (`seniorChecksOf`, yeniden yazma sebebi). YENİDEN YAZMA BİR KEZ (görev 172, `ai/semantic/senior-rewrite.ts`):
   yalnız okuyucunun düzeltilebilir sebebi (ödeme / iletişim / özür) ilk kapı hükmüyse; metin yeni çağrıdan, niyet / risk ilk çağrıdan; yeni
   metin yeniden okunur, okunamazsa ilk taslak kalır; ev sahibine tek e-posta. U7 / U8 / S2 kapı dosyası pinleri.
 - Mizah / mübalağa (görev 173): `ai/hazard-evidence.ts` + `evals/humor-exaggeration.json` (30 vaka; ölçüm `docs/olcum/MIZAH-MUBALAGA-2026-10-22.md`).

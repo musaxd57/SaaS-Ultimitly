@@ -38,10 +38,11 @@
    - Airbnb'nin engelleyeceği iletişim var mı? (telefon, e-posta, bağlantı, WhatsApp — yalnız onaylı rezervasyon yokken; Airbnb kural dosyası
      `docs/AIRBNB-MESAJ-KURALLARI.md`)
    - Özür / kusur kabulü var mı?
-   **Kanıt şartı (bugün eklendi):** okuyucu "evet" diyorsa taslaktan bir cümleyi alıntılamalı ve o cümle taslakta gerçekten geçmeli
-   (görünmez karakter / benzer harf farkı yok sayılır). Yalnız bir okumanın kanıtsız "evet"i o hüküm için kararı bugünkü kurala bırakır
-   (ödemede kelime kuralı); iki okuma da aynı hükmü verdiyse — alıntı tutmasa da — hüküm geçerli (ölçüldü: okuyucu bir kez taslakta olmayan
-   bir cümleyi alıntılayıp doğru cevabı tutmuştu; Opus son kontrolü tek okumanın sessizce "hayır"a dönmesini yakaladı → bugünkü kurala bırakılıyor).
+   **Kanıt şartı (bugün eklendi):** okuyucu "bilgim yok" diyorsa taslaktan bir cümleyi alıntılamalı ve o cümle taslakta gerçekten geçmeli
+   (görünmez karakter / benzer harf farkı yok sayılır). Yalnız bir okumanın kanıtsız itirafı kararı bugünkü kelime kuralına bırakır; iki
+   okuma da itiraf dediyse — alıntı tutmasa da — geçerli (ölçüldü: okuyucu bir kez taslakta olmayan bir cümleyi alıntılayıp doğru cevabı
+   tutmuştu). Ödeme / iletişim / özür hükümlerinde kanıtsız "evet" de TUTAR: üçü bir kez yeniden yazma sebebidir, yanlış tutuş yeniden
+   yazma + yeniden okumayla kendiliğinden düzelir; sessizce "hayır"a dönen gerçek ihlal ise misafire giderdi (Opus + Haiku son kontrolü).
 5. **Bir kez yeniden yazma** (yeni, `src/lib/ai/semantic/senior-rewrite.ts`, kurucu: "gitmeme nedeni … aynı anlamda … değiştirip tekrar
    deneyebilir … sürekli hosta mail gitmesin"): taslak YALNIZ okuyucunun düzeltilebilir sebebiyle (ödeme / Airbnb iletişimi / özür)
    tutulacaksa, model sebebi bir not olarak alır ve aynı cevabı bir kez daha yazar. Yeni taslak baştan okunur ve bütün kapılardan geçer.
@@ -103,8 +104,8 @@ Sık sorularda cevabın özü iki kolda aynı; değişen ifade (model her koşud
   değinmeyen çöp cevabını "bilgim yok" saydı; bir okumada taslakta OLMAYAN bir cümleyi alıntıladı. Düzeltme: kanıt şartı + istemde
   "bir konuya hiç değinmemek itiraf değildir" (`absence-judge.ts`). Doğrulama koşusu: bkz. §6.
 - **"¿Cuánto cuesta una limpieza extra?" → "400 TL"** — yeni koşuda bir kez "ev sahibine ödeme" sayıldı (tutuldu). Aynı taslak 6 / 6 tekrar
-  okumada "hayır" — tek seferlik dalgalanma. ⚠️ Kanıt şartı bunu KESİN önlemez (okuyucu taslaktaki "400 TL" cümlesini alıntılarsa oy geçerlidir);
-  okuyucu tutucu tasarlandı (iki okumadan biri "evet" derse tutar), bu tür tek seferlik tutuş beklenen bedeldir.
+  okumada "hayır" — tek seferlik dalgalanma. Okuyucu tutucu tasarlandı (iki okumadan biri "evet" derse tutar); bu koşu yeniden yazma
+  eklenmeden önceydi. Bugünkü kodda bu tür tutuş bir kez yeniden yazma + yeniden okumaya gider; ikinci okuma da "evet" derse ev sahibinde kalır.
 - **Anahtar kutusu (TR ve EN)** — biri gitti→tutuldu, öteki tutuldu→gitti (`low_confidence_or_risky`): modelin güven puanının koşudan
   koşuya oynaması, kuralla ilgisi yok.
 
@@ -122,7 +123,9 @@ Sık sorularda cevabın özü iki kolda aynı; değişen ifade (model her koşud
 - Opus 5.5 SON kontrol (rapor + bütün gün): kodda doğrulanıp düzeltilenler — F1 benzer harf / görünmez karakter alıntıyı düşürüyordu
   (normalleştirme) · F1/F2 tek okumanın kanıtsız "evet"i sessizce "hayır"a dönüyordu (artık bugünkü kurala bırakılıyor; iki okuma da aynı
   hükümdeyse geçerli) · F3 konu ayıklandıktan sonraki yeniden okuma düşerse eski hüküm kullanılıyor · F6 metin değişmediyse "yeniden yazıldı"
-  izi yazılmıyor · F7 yayma uyarısı tavan 1 iken hiç kapanmıyordu. Bilinçli bırakılan: F4 yeniden yazma günlük kotayı en fazla 1 aşabilir
+  izi yazılmıyor · F7 yayma uyarısı tavan 1 iken hiç kapanmıyordu. Haiku son incelemesi: "Wi-Fi" geçen Rusça taslakta saf Kiril alıntı
+  düşüyordu (benzer harf sökümü artık iki tarafa birlikte) · ek hükümlerde tek okumanın kanıtsız "evet"i hâlâ "hayır"a dönüyordu (artık tutar,
+  yeniden yazmaya gider). Bilinçli bırakılan: F4 yeniden yazma günlük kotayı en fazla 1 aşabilir
   (önce bak, model cevap verince say; iki eşzamanlı istek ikisi de geçebilir — ücret etkisi tek çağrı). Rapor düzeltmeleri: 135 setin "yeni"
   kolunun hangi koddan olduğu, ölçer "SIZINTI" satırının anlamı, "limpieza" iddiasının yumuşatılması, spor salonu / sauna örneği, dosya yolu.
 - Düzeltilmiş kodla (`d4956157`) hedefli 22 senaryo yeniden koşuldu (`docs/olcum/live-pipeline-2026-10-22-gpt-5.1-before-after-2026-10-22-ba1022-fix.md`):

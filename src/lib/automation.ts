@@ -29,7 +29,6 @@ import {
   paymentHeldHolds,
   runAbsenceJudge,
   seniorChecksOf,
-  seniorUngroundedChecksOf,
   seniorReaderEnabled,
   type AbsenceJudgeOutcome,
 } from "@/lib/ai/semantic/absence-judge";
@@ -638,7 +637,7 @@ export function autoReplyGateVerdict(
     if (!decl || !decl.ok) return hold(decl?.ok === false && decl.reason === "unknown_ref" ? "items_touch_held" : "items_undeclared");
     if (decl.refs.length === 0) return hold("items_nothing_answered");
     // T-d (kurucu 10-22): okuyucu okuduysa yalnız ev sahibine platform dışı ödeme tutar ("otopark gişede nakit" gider); yoksa kelime kuralı.
-    if (items.paymentHeld && paymentHeldHolds(namesPaymentMethod(result.reply ?? "", { paymentContext: true }), senior, seniorUngroundedChecksOf(judged))) {
+    if (items.paymentHeld && paymentHeldHolds(namesPaymentMethod(result.reply ?? "", { paymentContext: true }), senior)) {
       return hold("items_payment_held");
     }
     // Kurucu kararı 10-01: bu turun tutulan şikâyetine BAĞLI istek cevaplanabilir sayılmışsa (plan dışı yol / gelecekteki değişiklik)

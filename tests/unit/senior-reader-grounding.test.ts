@@ -17,7 +17,7 @@ import {
   judgeReleases,
   quoteGroundedIn,
   paymentHeldHolds,
-  seniorUngroundedChecksOf,
+  seniorChecksOf,
   ABSENCE_JUDGE_SYSTEM_PROMPT,
 } from "@/lib/ai/semantic/absence-judge";
 import { mergeSeniorRewrite, SENIOR_REWRITE_GATE_DETAILS, SENIOR_REWRITE_QR_REASONS } from "@/lib/ai/semantic/senior-rewrite";
@@ -85,23 +85,34 @@ describe("alıntı kanıtı", () => {
     expect(quoteGroundedIn("Wi\uFF0DFi şifresi Lale2025", "Wi-Fi şifresi Lale2025")).toBe(true);
   });
 
-  it("İKİ okuma da dayanaksız 'evet' derse hüküm geçerli (itiraf + ek hüküm); tek okumada dayanaksızsa karar bugünkü kurala kalır (Opus 10-22 F1/F2)", () => {
+  it("itirafta İKİ okuma da dayanaksız 'evet' derse geçerli, tek okumada kelime kuralına kalır (Opus 10-22 F1/F2)", () => {
     const both = combineAbsenceReadings(
-      { admits: false, quote: "", checks: NO, ungrounded: true, ungroundedChecks: { payHost: true } },
-      { admits: false, quote: "", checks: NO, ungrounded: true, ungroundedChecks: { payHost: true } },
+      { admits: false, quote: "", checks: NO, ungrounded: true },
+      { admits: false, quote: "", checks: NO, ungrounded: true },
     );
-    expect(both).toMatchObject({ status: "ok", admits: true, checks: { payHost: true } });
+    expect(both).toMatchObject({ status: "ok", admits: true });
+    expect(absenceHolds(false, both)).toBe(true);
+  });
+
+  it("ek hükümlerde dayanaksız 'evet' (tek okumada da) TUTAR — sessizce 'hayır'a dönmez (Haiku 10-22)", () => {
     const one = combineAbsenceReadings(
-      { admits: false, quote: "", checks: NO, ungroundedChecks: { payHost: true } },
+      { admits: false, quote: "", checks: NO, ungroundedChecks: { payHost: true, apology: true } },
       { admits: false, quote: "", checks: NO },
     );
-    expect(one).toMatchObject({ status: "ok", admits: false, checks: { payHost: false }, ungroundedChecks: { payHost: true } });
-    // Öğe kipinde ödeme: tek dayanaksız oy → kelime kuralı karar verir (sessizce "hayır" değil).
-    const ungr = seniorUngroundedChecksOf(one);
-    expect(paymentHeldHolds(true, one.status === "ok" ? one.checks : undefined, ungr)).toBe(true);
-    expect(paymentHeldHolds(false, one.status === "ok" ? one.checks : undefined, ungr)).toBe(false);
+    expect(one).toMatchObject({ status: "ok", admits: false, checks: NO, ungroundedChecks: { payHost: true, apology: true } });
+    expect(seniorChecksOf(one)).toEqual({ payHost: true, contact: false, apology: true });
+    expect(paymentHeldHolds(false, seniorChecksOf(one))).toBe(true);
     // Dayanaksız oy yoksa okuyucunun "hayır"ı kelime kuralını ezer (T-d: üçüncü tarafa ödeme bilgisi gider).
-    expect(paymentHeldHolds(true, NO, undefined)).toBe(false);
+    const clean = combineAbsenceReadings({ admits: false, quote: "", checks: NO }, { admits: false, quote: "", checks: NO });
+    expect(seniorChecksOf(clean)).toEqual(NO);
+    expect(paymentHeldHolds(true, seniorChecksOf(clean))).toBe(false);
+    expect(paymentHeldHolds(true, undefined)).toBe(true);
+  });
+
+  it("Rusça taslakta Latin sözcük varken saf Kiril alıntı kanıttır (benzer harf sökümü iki tarafa birlikte — Haiku 10-22)", () => {
+    expect(quoteGroundedIn("Wi-Fi: Нет информации о парковке.", "Нет информации о парковке")).toBe(true);
+    expect(quoteGroundedIn("Нет информации о парковке.", "Нет информации о парковке")).toBe(true);
+    expect(quoteGroundedIn("Wi-Fi: Нет информации о парковке.", "Нет информации о бассейне")).toBe(false);
   });
 
   it("istem: bir konuya hiç değinmemek itiraf değildir", () => {

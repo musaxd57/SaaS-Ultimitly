@@ -250,14 +250,16 @@ const squash = (s: string) => s.normalize("NFC").replace(/[’‘ʼ]/g, "'").rep
  */
 export function quoteGroundedIn(draftSeen: string, quote: string): boolean {
   // Görünmez karakter / uyumluluk biçimi / benzer harf (Kiril "а" ↔ Latin "a") farkı da yok sayılır (Opus 10-22 F1: taslak homoglif
-  // taşırken modelin düz harfle kopyaladığı sadık alıntı düşmesin). İki taraf AYNI normalleştirmeden geçer.
+  // taşırken modelin düz harfle kopyaladığı sadık alıntı düşmesin). İki taraf AYNI normalleştirmeden geçer: benzer harf sökümü
+  // (`deconfuse`, yalnız Latin harf taşıyan metinde koşar) İKİSİNE BİRLİKTE uygulanır — "Wi-Fi" geçen Rusça taslakta saf Kiril alıntı
+  // tek başına sökülmeyip düşmesin (Haiku 10-22).
   const norm = (t: string) =>
-    deconfuse(squash(t.normalize("NFKC").replace(/[\p{Default_Ignorable_Code_Point}\p{Cf}\u2800]/gu, "")))
+    squash(t.normalize("NFKC").replace(/[\p{Default_Ignorable_Code_Point}\p{Cf}\u2800]/gu, ""))
       .replace(/[\p{P}\p{S}]+/gu, " ")
       .replace(/\s+/g, " ")
       .trim();
-  const q = norm(quote);
-  return q.length > 0 && ` ${norm(draftSeen)} `.includes(` ${q} `);
+  const [draft, q] = deconfuse(`${norm(draftSeen)}\u0000${norm(quote)}`).split("\u0000");
+  return q.length > 0 && ` ${draft} `.includes(` ${q} `);
 }
 
 /**
@@ -344,16 +346,16 @@ export function combineAbsenceReadings(withGuest: Reading | null, draftOnly: Rea
   if (!withGuest || !draftOnly) return { status: "failed" };
   // Kıdemli okuyucu soruları da AYNI kural: biri "evet" derse evet. Yalnız bir okumada varsa (olmamalı) hüküm yok.
   if (Boolean(withGuest.checks) !== Boolean(draftOnly.checks)) return { status: "failed" };
-  // Kanıt şartı (10-22) + Opus 10-22 F1/F2: dayanaklı "evet" tek okumada yeter; dayanaksız "evet" ancak İKİ okuma da aynı hükmü verdiyse
-  // sayılır (iki bağımsız okumanın uyuşması güçlü işarettir — alıntı yalnız biçimce tutmadı). Yalnız bir okumadaki dayanaksız "evet" o
-  // hüküm için kararı bugünkü kurala bırakır (`ungrounded` / `ungroundedChecks`).
+  // Kanıt şartı (10-22) + Opus 10-22 F1/F2: dayanaklı "evet" tek okumada yeter. İTİRAFTA dayanaksız "evet" ancak İKİ okuma da aynı hükmü
+  // verdiyse sayılır (iki bağımsız okumanın uyuşması güçlü işarettir — alıntı yalnız biçimce tutmadı); yalnız bir okumadaki dayanaksız
+  // itiraf kararı kelime kuralına bırakır (`ungrounded`). Ek hükümlerde dayanaksız oy `ungroundedChecks`te taşınır ve `seniorChecksOf`
+  // onu "evet" sayar (yeniden yazma sebebi — Haiku 10-22).
   let checks: { checks?: SeniorChecks; ungroundedChecks?: Partial<Record<keyof SeniorChecks, true>> } = {};
   if (withGuest.checks && draftOnly.checks) {
     const merged = {} as SeniorChecks;
     const ungr: Partial<Record<keyof SeniorChecks, true>> = {};
     for (const k of ["payHost", "contact", "apology"] as const) {
-      const both = withGuest.ungroundedChecks?.[k] === true && draftOnly.ungroundedChecks?.[k] === true;
-      merged[k] = withGuest.checks[k] || draftOnly.checks[k] || both;
+      merged[k] = withGuest.checks[k] || draftOnly.checks[k];
       if (!merged[k] && (withGuest.ungroundedChecks?.[k] || draftOnly.ungroundedChecks?.[k])) ungr[k] = true;
     }
     checks = { checks: merged, ...(Object.keys(ungr).length > 0 ? { ungroundedChecks: ungr } : {}) };
@@ -405,28 +407,27 @@ export function judgeReleases(outcome: AbsenceJudgeOutcome | undefined): boolean
 
 /** Kıdemli okuyucunun ek hükümleri — yalnız okuyucu bu metni okuduysa (yoksa `undefined` → kelime kuralları karar verir). */
 export function seniorChecksOf(outcome: AbsenceJudgeOutcome | undefined): SeniorChecks | undefined {
-  return outcome?.status === "ok" ? outcome.checks : undefined;
+  if (outcome?.status !== "ok") return undefined;
+  // Ek hükümlerde (ödeme / iletişim / özür) dayanaksız "evet" de TUTAR (Haiku 10-22): üçü de bir kez yeniden yazma sebebidir — yanlış tutuş
+  // yeniden yazma + yeniden okumayla kendiliğinden düzelir, sessizce "hayır"a dönen gerçek ihlal ise misafire gider. Kanıt şartı yalnız
+  // İTİRAF hükmünde kararı değiştirir (itiraf yeniden yazılmaz; `absenceHolds`). Dayanaksız oylar ayrıca `ungroundedChecks`te izlenir.
+  const u = outcome.ungroundedChecks;
+  if (!u || !outcome.checks) return outcome.checks;
+  return {
+    payHost: outcome.checks.payHost || u.payHost === true,
+    contact: outcome.checks.contact || u.contact === true,
+    apology: outcome.checks.apology || u.apology === true,
+  };
 }
 
 /**
  * Ödeme öğesi tutuluyken cevaptaki ödeme (T-d, kurucu 10-22: "3. taraf ödeme şeyleri gidebilir"). Okuyucu okuduysa yalnız EV SAHİBİNE
  * platform dışı ödeme tutar; okumadıysa / düştüyse bugünkü kelime kuralı (şüphede tut). Saf.
  */
-export function paymentHeldHolds(
-  lexicalHit: boolean,
-  checks: SeniorChecks | undefined,
-  ungroundedChecks?: Partial<Record<keyof SeniorChecks, true>>,
-): boolean {
+export function paymentHeldHolds(lexicalHit: boolean, checks: SeniorChecks | undefined): boolean {
+  // `checks` `seniorChecksOf`tan gelir: dayanaksız "ödeme" oyu da `payHost` sayılır (sessizce "hayır"a dönmez).
   if (!checks) return lexicalHit;
-  // Yalnız bir okumanın dayanaksız "ödeme" oyu varsa kelime kuralı karar verir (Opus 10-22 F1 — oy sessizce "hayır"a dönmesin).
-  return checks.payHost || (ungroundedChecks?.payHost === true && lexicalHit);
-}
-
-/** Ek hükümlerden dayanaksız kalanlar — yalnız okuyucu bu metni okuduysa. */
-export function seniorUngroundedChecksOf(
-  outcome: AbsenceJudgeOutcome | undefined,
-): Partial<Record<keyof SeniorChecks, true>> | undefined {
-  return outcome?.status === "ok" ? outcome.ungroundedChecks : undefined;
+  return checks.payHost;
 }
 
 /** Ölçer için: hakemin alıntısı taslakta birebir (boşluk / kesme işareti farkı hariç) geçiyor mu? */
