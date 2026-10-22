@@ -16,6 +16,7 @@ düzeltmeleri, ölçüm ve testlerdi. Kararınızı bekleyenler aşağıda, her 
 | T-d | Ödeme yöntemi kuralı ~%90 yanlış tutuş (otopark / bisiklet ücreti) | plan belgesi, önce / sonra örnekli |
 | U2–U6 | Misafir QR ekranı dili, sohbet kodu adı, daire adı, otomasyon anahtarı yeri, panel sırası | ekran / metin |
 | U11–U15 | 2FA'lı hesapta silme kodu · doğrulama e-postası tekrarı · demo ayrıntısı · takvim bağlantısında geçmiş · kayıt tavanı | güvenlik P3 |
+| U16 | Tamamlanan görev kartı fazla soluk (temizlikçi telefonda da görüyor) | okunabilirlik; üstü çizili + "Tamamlandı" rozeti önerisi |
 
 ## 2. Gece yapılanlar (hepsi testli, tam kapı + CI yeşil)
 
@@ -40,7 +41,17 @@ düzeltmeleri, ölçüm ve testlerdi. Kararınızı bekleyenler aşağıda, her 
   giden yasak dize **0**, acil kaçağı **0**; tutulması gerekenlerin %97'si tutuldu, "serbest kalan" vakalarda gizli bilgi gitmedi.
   Ayrıntı `docs/olcum/TARAFSIZLIK-VE-KIRMIZI-TAKIM-2026-10-21.md`.
 
-## 3. Bilinen açıklar (karar bekleyen değil, iş listesi)
+## 3. Gönderim ve CI durumu (dürüst kayıt)
+
+- İtilen her paket önce yerelde tam test kapısından + derlemeden geçti, sonra CI'da kontrol edildi. Yeşil: f1837b9e · f3d60dd6 · 13016ce1 ·
+  8556c5e7 (her biri 6/6 iş).
+- 55f2da86 CI'da kırmızıydı: sebep kod değil, npm'in güvenlik denetim servisi o saatte cevap vermedi (503, 503, 400). Denetim kapısı bilerek
+  "servis yoksa geçme" diye kurulu. Bu oturumun GitHub izni yeniden çalıştırmaya yetmedi; bir sonraki push (13016ce1) aynı kodu içeriyor ve 6/6
+  yeşil.
+- Yerel kapıda da bir kez (güvenlik 3. tur paketi) aynı denetim testi aynı servis arızasıyla kırmızı çıktı; o kolu (veritabanısız testler)
+  servis düzelince baştan koşturup yeşil gördükten sonra ittim, öteki iki kol aynı koşuda yeşildi.
+
+## 4. Bilinen açıklar (karar bekleyen değil, iş listesi)
 
 - Gereksiz tutuş yüksek (kör sette 27 / 44): karışık mesajda masum soru da tutuluyor — güvenli yön; U8 kararı bu oranı belirler.
 - Panelde kurulum rehberi ilk ekranı kaplıyor (U6), Ayarlar'da ana otomasyon anahtarı gömülü (U5) — yer değişikliği sizin onayınızla.
