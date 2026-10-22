@@ -178,11 +178,28 @@ ekranı · S4 migration (yeni tablo).
 
 ## 11. B — panel örnekleri (uygulamadan ÖNCE onay)
 
-| durum | bugün | öneri |
+**Kurucu B (10-23, aynen özet):** ilgisiz ev sahibi mesajı açık işleri kapatmasın · şikâyete cevap vermek arızanın çözüldüğü demek değil · bir
+ihtiyacı cevaplamak diğerlerini kapatmasın · ev sahibine işaretleme kutusu olmasın · ilişki belirsizse otomatik kapatma.
+
+**Bugün (ölçüldü, kodda):** ev sahibi konuşmaya herhangi bir mesaj yazınca, o mesajdan ÖNCEKİ bütün açık işler "Yanıtladınız" görünür
+(`effectiveStatus` — mesajın içeriğine bakılmaz). Yani beş şartın üçünü bugünkü kural çiğniyor.
+
+**Öneri (ilk sürüm — model çağrısı YOK, yalnız kod):** ev sahibinin mesajı açık işleri KAPATMAZ; iş "Ev sahibi yazdı" (sarı) olur ve açık
+listede KALIR. Kapanış üç yoldan: (1) yapay zekânın doğrulanmış parçası o isteği cevapladı (bugün var), (2) misafir "tamam / düzeldi /
+teşekkürler" dedi ve anlama katmanı o işi geri çekti / tamamladı (bugün var — `withdrawn`), (3) ev sahibi isterse "Bitti" der (bugünkü
+düğme; zorunlu değil). **İkinci sürüm (ayrı onay):** ev sahibinin mesajını anlama katmanı okur → hangi işe değindiğini ve "çözüldü" mü
+"ilgileniyorum" mu dediğini işaretler; yalnız açık ve tek anlamlıysa o iş kapanır, belirsizse açık kalır (model çağrısı, mesaj başına ~1 sn).
+
+| durum | bugün | öneri (ilk sürüm) |
 |---|---|---|
-| Misafir "Klima çalışmıyor" (tutuldu) → siz "Hoş geldiniz!" | iş "Yanıtladınız" olur, açık listeden düşer; yapay zekâ şikâyeti artık "tutulan" saymaz | iş AÇIK kalır; yapay zekâ şikâyeti tutulan saymaya devam eder |
-| Siz "Teknisyen yarın 10'da geliyor" | "Yanıtladınız" | "Ev sahibi yazdı" (sarı) — iş açık; "Tamamlandı" sizin tıklamanızla |
-| Misafir "TV + mikrodalga nasıl?" → siz yalnız TV'yi cevapladınız | ikisi de "Yanıtladınız" | ilk sürüm: ikisi de "Ev sahibi yazdı" (sarı, açık); hangisine değindiğinizi anlamak model çağrısı ister — 2. sürüm önerisi |
+| Misafir "Klima çalışmıyor" (tutuldu) → siz "Hoş geldiniz!" | iş "Yanıtladınız", listeden düşer | iş AÇIK kalır ("Ev sahibi yazdı" sarı); yapay zekâ şikâyeti tutulan saymaya devam eder |
+| Siz "Teknisyen yarın 10'da geliyor" | "Yanıtladınız" | "Ev sahibi yazdı" — açık; misafir "düzeldi, teşekkürler" yazınca kapanır (2. yol) |
+| Misafir "TV + mikrodalga nasıl?" → siz yalnız TV'yi cevapladınız | ikisi de "Yanıtladınız" | ikisi de "Ev sahibi yazdı" (açık); 2. sürümde TV kapanır, mikrodalga açık kalır |
+| Misafir "Havuz kaçta kapanıyor? Sauna var mı?" → yapay zekâ yalnız havuzu doğruladı | — | havuz "AI yanıtladı", sauna açık (bugün parça kipinde var — D ile ayrı satır) |
+| Siz "Tamamdır" (neye dair belli değil) | hepsi "Yanıtladınız" | hepsi açık kalır (belirsiz → kapatma yok) |
+
+Soru: ilk sürüm bu mu olsun (kapanış yalnız yapay zekâ / misafir / sizin "Bitti"nizle; "Bitti" düğmesi kalsın mı)? İkinci sürüm (ev sahibi
+mesajını okuyan model) ayrıca istenir mi?
 
 ## 12. D — migration 84 kanıt listesi
 

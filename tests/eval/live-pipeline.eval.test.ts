@@ -174,6 +174,11 @@ function usd(): number {
   return total;
 }
 const realFetch = globalThis.fetch;
+/**
+ * 10-23 E neden analizi: parça kipinde cevap modelinin HAM `answers` kaydı (metin + alıntı; sentetik veri). Üretim kararı (`answerParts`)
+ * bilinçli olarak metin taşımaz — doğrulayıcının neden reddettiğini görmek için yalnız ölçerde tutulur. Senaryo başında sıfırlanır.
+ */
+let partsRawLog: unknown[] = [];
 /** 10-23 E: "okuyucu hata verdi" kolu — kıdemli okuyucu çağrısı (şema `senior_reader`) gerçek ağa gitmeden 503 döner. */
 const READER_FAIL = process.env.EVAL_LIVE_READER_FAIL === "1";
 function meteredFetch(input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]): ReturnType<typeof fetch> {
@@ -194,6 +199,12 @@ function meteredFetch(input: Parameters<typeof fetch>[0], init?: Parameters<type
         row.out += num(u.completion_tokens);
         row.reasoning += num((u.completion_tokens_details as Record<string, unknown> | undefined)?.reasoning_tokens);
         usageByModel.set(m, row);
+        const content = (j as { choices?: { message?: { content?: unknown } }[] }).choices?.[0]?.message?.content;
+        if (typeof content === "string" && content.includes('"answers"')) {
+          const answers = (JSON.parse(content) as { answers?: unknown }).answers;
+          // Yalnız cevap modelinin parça dizisi (`ref` taşıyan kayıtlar); başka katmanın aynı adlı alanı alınmaz.
+          if (Array.isArray(answers) && answers.some((a) => a && typeof a === "object" && "ref" in a)) partsRawLog.push(answers);
+        }
       } catch {
         /* JSON olmayan yanıt: sayılmaz */
       }
@@ -346,6 +357,8 @@ interface Row {
   itemStates?: { kind: string; status: string }[];
   parts?: readonly { ref: string; status: string; issues?: readonly string[] }[] | null;
   absenceLeak?: boolean;
+  /** Ölçer içi neden analizi: cevap modelinin ham parça kayıtları (çağrı başına; sentetik veri). */
+  partsRaw?: readonly unknown[];
   ms: number;
   error?: string;
 }
@@ -437,6 +450,7 @@ async function runOnce(s: Scenario): Promise<Omit<Row, "retried">> {
   mockSend.mockResolvedValue({ ok: true, externalId: `ext-${s.id}` } as never);
   mockMail.mockClear();
   spySuggest.mockClear();
+  partsRawLog = [];
   const { conversationId } = await seed(s);
   const t0 = Date.now();
   const out = await applyChannelAutoReply(conversationId);
@@ -505,6 +519,7 @@ async function runOnce(s: Scenario): Promise<Omit<Row, "retried">> {
           itemStates: items.map((i) => ({ kind: i.kind, status: i.status })),
           parts: raw?.source === "openai" && raw.answerParts ? raw.answerParts.map((v) => ({ ref: v.ref, status: v.status, ...("issues" in v ? { issues: v.issues } : {}) })) : null,
           absenceLeak: sentText ? ABSENCE_LEAK.test(sentText) : false,
+          ...(partsRawLog.length > 0 ? { partsRaw: partsRawLog } : {}),
         }
       : {}),
     ms,

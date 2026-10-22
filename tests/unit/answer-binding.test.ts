@@ -115,7 +115,8 @@ describe("aralık, konusuz değişke, söz dizimi", () => {
     const bf = need(["when is breakfast"]);
     const r = (part: string) => checkAnswerBinding({ part, evidence: src, sourceText: src, ...bf });
     expect(r("On weekends breakfast is 09:00-11:00.").ok).toBe(true);
-    expect(r("On weekdays breakfast is 09:00-11:00.").issues).toEqual(["condition_dropped"]);
+    // Değer başına koşul (E ölçümü 10-23): hafta sonu değeri hafta içine bağlanmış → ayrıca "condition_added".
+    expect(r("On weekdays breakfast is 09:00-11:00.").issues).toEqual(["condition_dropped", "condition_added"]);
     expect(r("Breakfast is 09:00-11:00.").issues).toEqual(["condition_dropped"]);
   });
 
@@ -279,5 +280,147 @@ describe("Haiku 10-23 F3: alıntının taşımadığı içerik sözcüğü (ayn�
 
   it("bilinen sınır: çeviride sözcük kıyası yapılmaz (kıdemli okuyucunun kanıt şartı)", () => {
     expect(one("Havuz 09:00-20:00 arası açıktır.", "The pool is open 09:00-20:00.", ["havuz", "pool"]).ok).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Kurucu E ölçümü (10-23) — doğru cevabın YANLIŞ reddi: ham parçalar ölçerde okundu, her sınıf burada; her birinin TEHLİKELİ karşılığı
+// (yanlış değeri gönderen hâli) ayrıca TUTULUR.
+// ---------------------------------------------------------------------------
+describe("E ölçümü 10-23: doğru cevabın yanlış reddi + tehlikeli karşılığı", () => {
+  const one = (src: string, part: string, q: string[], evidence = src) => checkAnswerBinding({ part, evidence, sourceText: src, ...need(q) });
+  const PARK = "Otopark ücretsizdir; binanın -2. katında, 12 numaralı yer size ayrılmıştır.";
+  const POOLKB = "Havuz her gün 20:00'de, sauna 22:00'de kapanır. Hafta sonu havuz 23:00'e kadar açıktır.";
+  const BREAKFAST = "Kahvaltı 08:00-10:30 arası, hafta sonu 11:00'e kadar zemin kattaki kafede verilir.";
+
+  it("1. ';' sonrası yalnız yer sözcüklü devam cümlesi konuyu taşır (kat, numaralı yer, size ayrılmış)", () => {
+    expect(one(PARK, "Otopark ücretsizdir; binanın -2. katındaki 12 numaralı yer size ayrılmıştır.", ["otopark ücretli mi"]).ok).toBe(true);
+  });
+
+  it("🚨 1-karşı. devam cümlesi başka bir tesis adı taşıyorsa devralma YOK (sauna / kafe / spa)", () => {
+    expect(one("Havuz 20:00'de kapanır; sauna 22:00'de kapanır.", "Havuz 22:00'de kapanır.", ["havuz kaçta kapanıyor"]).issues).toContain("value_bound_elsewhere");
+    expect(one("Havuz 20:00'de kapanır; kafe 23:00'e kadar açıktır.", "Havuz 23:00'e kadar açık.", ["havuz kaçta kapanıyor"]).ok).toBe(false);
+    expect(one("Havuz zemin kattadır; spa 3. kattadır.", "Havuz 3. kattadır.", ["havuz hangi katta"]).ok).toBe(false);
+    // "Ayrılış" (çıkış) bir konudur; yer sözcüğü sayılmaz.
+    expect(one("Giriş 14:00'tedir. Ayrılış 11:00'dir.", "Giriş 11:00'dir.", ["giriş saati"]).ok).toBe(false);
+  });
+
+  it("2. kodun sonundaki '!' cümleyi de bitirir: ardındaki cümle konuyu çalmaz (Wi-Fi şifresi)", () => {
+    const src = "Wi-Fi: Ağ adı: Lale-5G, şifre: Lale2025! Modem salondaki TV ünitesinin altındadır.";
+    expect(one(src, "Wi-Fi şifresi Lale2025!.", ["wifi şifresi"]).ok).toBe(true);
+  });
+
+  it("🚨 2-karşı. '!' ile biten koddan sonraki cümlenin değeri yine kendi konusuna bağlı (kapı kodu Wi-Fi şifresi olmaz)", () => {
+    const src = "Wi-Fi şifresi: Lale2025! Kapı kodu: 4455.";
+    expect(one(src, "Wi-Fi şifresi 4455.", ["wifi şifresi"]).ok).toBe(false);
+  });
+
+  it("3. değerden sonraki yer bildiren (-de / -deki) ve yüklem sözcükleri yeni konu değildir ('zemin kattaki kafede verilir')", () => {
+    expect(one(BREAKFAST, "Kahvaltı hafta sonu 11:00'e kadar veriliyor.", ["kahvaltı kaça kadar"]).ok).toBe(true);
+  });
+
+  it("🚨 3-karşı. değerden sonra YALIN bir tesis adı gelirse o değer onundur ('11:00'e kadar kafe açıktır')", () => {
+    const src = "Kahvaltı 08:00-10:30 arası, hafta sonu 11:00'e kadar kafe açıktır.";
+    expect(one(src, "Kahvaltı hafta sonu 11:00'e kadar veriliyor.", ["kahvaltı kaça kadar"]).ok).toBe(false);
+  });
+
+  it("4. hafta sonu istisnası olan kalemde genel değeri 'hafta içi' diye vermek doğru (tümleyen); kahvaltı ve havuz", () => {
+    expect(one(BREAKFAST, "Kahvaltı hafta içi 10:30'a kadar, hafta sonu 11:00'e kadar veriliyor.", ["kahvaltı kaça kadar"]).ok).toBe(true);
+    expect(one(POOLKB, "Havuz hafta içi 20:00'de kapanıyor; hafta sonu 23:00'e kadar açık.", ["havuz 22:00'ye kadar açık mı"]).ok).toBe(true);
+  });
+
+  it("🚨 4-karşı. tümleyen ters bağlanamaz (hafta içi 23:00 / hafta sonu 20:00); istisnasız kalemde 'hafta içi' uydurulamaz", () => {
+    expect(one(POOLKB, "Havuz hafta içi 23:00'e kadar açık; hafta sonu 20:00'de kapanıyor.", ["havuz kaçta kapanıyor"]).ok).toBe(false);
+    expect(one(BREAKFAST, "Kahvaltı hafta içi 11:00'e kadar, hafta sonu 10:30'a kadar veriliyor.", ["kahvaltı kaça kadar"]).ok).toBe(false);
+    expect(one("Havuz her gün 20:00'de kapanır.", "Havuz hafta içi 20:00'de kapanır.", ["havuz kaçta kapanıyor"]).issues).toContain("condition_added");
+  });
+
+  it("5. misafir bir GÜNÜ sorduysa o gün hafta sonunun / genel kuralın özelidir (İngilizce parça, Türkçe kalem)", () => {
+    const q = ["havuz cumartesi kaçta kapanıyor", "When does the pool close on Saturday?"];
+    expect(one(POOLKB, "The pool closes at 23:00 on Saturdays.", q, "Hafta sonu havuz 23:00'e kadar açıktır.").ok).toBe(true);
+    expect(one("Havuz her gün 20:00'de kapanır.", "Havuz cumartesi 20:00'de kapanır.", ["havuz cumartesi kaçta kapanıyor"]).ok).toBe(true);
+  });
+
+  it("5b. 'cumartesi' hafta sonu değişkesini ANMIŞ sayılır: genel değer + cumartesi değeri birlikte doğru", () => {
+    expect(one(POOLKB, "Havuz her gün 20:00'de kapanır; cumartesi 23:00'e kadar açık.", ["havuz cumartesi kaçta kapanıyor"]).ok).toBe(true);
+  });
+
+  it("🚨 5-karşı. sorulmayan gün uydurulamaz; cumartesiye genel değer verilemez (kalemde hafta sonu değişkesi var); hafta içi değeri cumartesiye taşınamaz", () => {
+    expect(one("Havuz her gün 20:00'de kapanır.", "Havuz cumartesi 20:00'de kapanır.", ["havuz kaçta kapanıyor"]).issues).toContain("condition_added");
+    expect(one(POOLKB, "Havuz cumartesi 20:00'de kapanır.", ["havuz cumartesi kaçta kapanıyor"]).ok).toBe(false);
+    expect(one("Havuz hafta içi 20:00'de kapanır.", "Havuz cumartesi 20:00'de kapanır.", ["havuz cumartesi kaçta kapanıyor"]).ok).toBe(false);
+  });
+
+  it("6. bilinen sınır (Haiku 10-23): çatı değişimi içerik sayılır — 'atılır' → 'atabilirsiniz' doğru olsa da 'Kapı 08:00'de açılır' → 'açabilirsiniz' anlamı değiştirir; ikisi de TUTULUR", () => {
+    expect(one("Çöpler bina girişinin sağındaki konteynere atılır.", "Çöpleri bina girişinin sağındaki konteynere atabilirsiniz.", ["çöp nereye atılır"]).issues).toContain("unsupported_content");
+    expect(one("Kapı 08:00'de açılır.", "Kapıyı 08:00'de açabilirsiniz.", ["kapı kaçta açılıyor"]).ok).toBe(false);
+  });
+
+  it("🚨 6-karşı. başka yön içerik sayılır ('sağındaki' ≠ 'solundaki')", () => {
+    const src = "Çöpler bina girişinin sağındaki konteynere atılır.";
+    expect(one(src, "Çöpler bina girişinin solundaki konteynere atılır.", ["çöp nereye atılır"]).issues).toContain("unsupported_content");
+  });
+
+  it("7. parçadaki '№12' sayı 12'dir (Rusça parça, Türkçe kalem); başka numara tutulur; bilinen sınır: Rusça kat sözcüğü ('на уровне -2') okunmaz", () => {
+    const q = ["otopark var mı", "Есть ли парковка?"];
+    expect(one(PARK, "Парковка бесплатная, за Вами закреплено место №12.", q).ok).toBe(true);
+    expect(one(PARK, "Парковка бесплатная, место №13.", q).issues).toContain("value_not_in_evidence");
+    expect(one(PARK, "Парковка бесплатная, на уровне -2 здания.", q).ok).toBe(false);
+  });
+});
+
+describe("Haiku 10-23 (gevşetmelerin yanlış kabulleri) — hepsi TUTULUR", () => {
+  const one = (src: string, part: string, q: string[], evidence = src) => checkAnswerBinding({ part, evidence, sourceText: src, ...need(q) });
+
+  it("🚨 yer sözcüklü devam cümlesi, önceki cümlede aynı türden değer varken konuyu devralmaz", () => {
+    expect(one("Sauna 2. katta. Yer size ayrılmıştır, 3. kat.", "Sauna 3. kat.", ["sauna kaçıncı katta"]).ok).toBe(false);
+    expect(one("Havuz 20:00'de kapanır. Yer size ayrılmıştır, 23:00'e kadar.", "Havuz 23:00'e kadar açık.", ["havuz kaçta kapanıyor"]).ok).toBe(false);
+    expect(one("Havuz 20:00'de kapanır. Size 23:00'e kadar açık.", "Havuz 23:00'e kadar açık.", ["havuz kaçta kapanıyor"]).ok).toBe(false);
+  });
+
+  it("🚨 cümle İÇİNDE yer sözcükleri nötr değil ('Sauna 22:00'de, yer size ayrılmıştır, 20:00'de')", () => {
+    expect(one("Sauna 22:00'de, yer size ayrılmıştır, 20:00'de.", "Sauna 20:00'de kapanıyor.", ["sauna kaçta kapanıyor"]).ok).toBe(false);
+  });
+
+  it("🚨 kat ≠ numara ('Otopark 12. katta' ← '12 numaralı yer'; '-2. kat' ← '2 numaralı yer')", () => {
+    expect(one("Otopark -2. katta, 12 numaralı yer size ayrılmıştır.", "Otopark 12. katta.", ["otopark kaçıncı kat"]).ok).toBe(false);
+    expect(one("Otopark 2 numaralı yerde.", "Otopark -2. katta.", ["otopark nerede"]).ok).toBe(false);
+  });
+
+  it("🚨 koşulsuz ikinci değerin ardındaki yer bildiren ad konuyu taşımaz ('Havuz 20:00'de, 22:00'ye kadar kafede açık')", () => {
+    expect(one("Havuz 20:00'de, 22:00'ye kadar kafede açık.", "Havuz 22:00'ye kadar açık.", ["havuz kaçta kapanıyor"]).ok).toBe(false);
+  });
+
+  it("🚨 kalemdeki 'No12' bir koddur (kapı şifresi otopark yeri numarası olmaz)", () => {
+    const src = "Havuz 20:00'de kapanır. Otopark kapısı şifresi No12.";
+    expect(one(src, "Otopark 12.", ["otopark yeri numarası"], "Otopark kapısı şifresi No12.").ok).toBe(false);
+  });
+
+  it("🚨 yalın 'Pazar' + saat gündür: cumartesiye pazar değeri verilemez; pazar sorusuna doğru değer gider", () => {
+    const src = "Havuz her gün 20:00'de kapanır. Pazar 23:00'e kadar açık.";
+    expect(one(src, "Cumartesi havuz 23:00'e kadar açık.", ["cumartesi havuz kaçta kapanıyor"]).ok).toBe(false);
+    expect(one(src, "Pazar havuz 20:00'de kapanır.", ["pazar havuz kaçta kapanıyor"]).ok).toBe(false);
+    expect(one(src, "Havuz her gün 20:00'de kapanır; pazar 23:00'e kadar açık.", ["havuz kaçta kapanıyor"]).ok).toBe(true);
+  });
+
+  it("🚨 mevsim de değer başına: 'Havuz yazın 20:00'de kapanır' ← kalem 'yaz aylarında 23:00'", () => {
+    const src = "Havuz 20:00'de kapanır. Yaz aylarında 23:00'e kadar açık.";
+    expect(one(src, "Havuz yazın 20:00'de kapanır.", ["havuz kaçta kapanıyor"]).ok).toBe(false);
+    expect(one(src, "Havuz 20:00'de kapanır; yaz aylarında 23:00'e kadar açık.", ["havuz kaçta kapanıyor"]).ok).toBe(true);
+  });
+});
+
+describe("E ölçümü 10-23: değer başına koşul (eski açık)", () => {
+  const POOLKB = "Havuz her gün 20:00'de, sauna 22:00'de kapanır. Hafta sonu havuz 23:00'e kadar açıktır.";
+  const one = (part: string, q = ["havuz kaçta kapanıyor"]) => checkAnswerBinding({ part, evidence: POOLKB, sourceText: POOLKB, ...need(q) });
+
+  it("🚨 genel değer, kendi değişkesi olan güne verilemez ('Havuz hafta sonu 20:00'de kapanır' — kalem: hafta sonu 23:00)", () => {
+    expect(one("Havuz hafta sonu 20:00'de kapanır.").ok).toBe(false);
+    expect(one("Havuz hafta içi ve hafta sonu 20:00'de kapanır.").ok).toBe(false);
+  });
+
+  it("doğru eşleşme gider: genel değer koşulsuz ya da hafta içi, hafta sonu değeri hafta sonuyla", () => {
+    expect(one("Havuz her gün 20:00'de kapanır; hafta sonu 23:00'e kadar açık.").ok).toBe(true);
+    expect(one("Havuz hafta sonu 23:00'e kadar açık.").ok).toBe(true);
   });
 });

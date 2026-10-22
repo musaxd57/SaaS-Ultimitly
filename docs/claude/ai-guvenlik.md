@@ -144,6 +144,13 @@
   doğrulanamayan istek panelde açık kalır, "cevaplandı" yalnız doğrulananlar. Beyan eksik / bozuksa metin boş (hiçbir şey gitmez) — modelin
   `reply`ına geri DÜŞÜLMEZ. Birleşik metin bugünkü bütün kapılardan geçer. İstem satırına kalem kimliği (`[K1]`) EKLENMEDİ: kalem satırı
   seçicinin bütçe ölçüsüyle pinli, alıntı kaynağı tek başına belirler. Açmadan önce ücretli ölçüm (E) + birleşik mesaj biçimi onayı.
+  **E ölçümü 10-23 sonrası (rapor `docs/olcum/E-2026-10-23-ihtiyac-defteri-olcumu.md`):** koşul DEĞER BAŞINA okunur — genel değer, kalemde
+  kendi değişkesi olan güne verilemez ("Havuz hafta sonu 20:00" ← kalem "hafta sonu 23:00" GİTMEZ; eski açık kapandı). Gün ailesi: cumartesi /
+  pazar hafta sonunun özelidir; genel kuralın bir güne özel söylenişi yalnız misafir o günü SORDUYSA. "Hafta içi" yalnız tümleyen olarak
+  (genel kural + hafta sonu istisnası) ve değer başına doğrulanınca. Konu devralmasında yer / tahsis sözcükleri (kat, numaralı yer, size
+  ayrılmış) nötr — içerik kıyasında DEĞİL ("sağındaki" ≠ "solundaki"); tesis adı / "giriş" / "ayrılış" nötr değil. Kodun sonundaki "!" / "?"
+  cümleyi bitirir; Türkçe kalemde son değerin ardındaki yer bildiren ad (-de / -deki) ve yüklem özne değil; "№12" = 12; kısa Türkçe fiil kökü
+  ("atılır" ~ "atabilirsiniz"). Her gevşetmenin tehlikeli karşılığı testte TUTULUR. Ölçer ham parçayı (`partsRaw`) yalnız ölçümde kaydeder.
 - 🚨 **MÜLKÜN İÇ ADI MODELE GİTMEZ (kurucu 10-22 akşam: "müşteriye daire adı ne … daire numarası anca verilir … kat 2 daire 3 gibidir"):**
   `Property.name` ev sahibinin kendi etiketidir; cevap istemine YAZILMAZ. Misafire görünen ad (`guestDisplayName`, U4, migration 83) varsa
   istemde yalnız o ("Misafire görünen daire adı: Kat 2 Daire 3"), yoksa ad satırı hiç yok. Bilgi tabanı `{{daire}}` yer tutucusu numarayı

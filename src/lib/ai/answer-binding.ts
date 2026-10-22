@@ -174,6 +174,17 @@ const SEASON_CLASSES = new Set(["summer", "winter"]);
 /** Parçanın kalemde hiç geçmeden EKLEYEMEYECEĞİ koşullar (yalnız / hariç / koşullu cevap üslubunda doğal geçer — denetlenmez). */
 const INVENTABLE_CLASSES = new Set([...DAY_CLASSES, ...SEASON_CLASSES, "on_request", "included"]);
 const DAY_TOKENS = new Set(Object.entries(CONDITION_TOKENS).filter(([, c]) => DAY_CLASSES.has(c)).map(([t]) => t));
+/**
+ * Gün adı → ailesi (E ölçümü 10-23): cumartesi / pazar hafta sonunun, pazartesi–cuma hafta içinin ÖZELİDİR. "Hafta sonu 23:00'e kadar
+ * açık" kalemi "On Saturdays the pool closes at 23:00" parçasının dayanağıdır; tersi değil (hafta sonu iddiası cumartesi kaleminden çıkmaz).
+ */
+const DAY_PARENT: Readonly<Record<string, string>> = { sat: "weekend", sun: "weekend", mon: "weekday", tue: "weekday", wed: "weekday", thu: "weekday", fri: "weekday" };
+/** Tümleyen: kalem genel kural + "hafta sonu" istisnası veriyorsa genel değer "hafta içi" diye verilebilir (ve tersi) — yalnız DEĞER BAŞINA doğrulanınca. */
+const DAY_COMPLEMENT: Readonly<Record<string, string>> = { weekday: "weekend", weekend: "weekday" };
+const dayClassesOf = (conds: ReadonlySet<string>) => [...conds].filter((c) => DAY_CLASSES.has(c));
+const variantClassesOf = (conds: ReadonlySet<string>) => [...conds].filter((c) => DAY_CLASSES.has(c) || SEASON_CLASSES.has(c));
+/** Değerin gün koşulu kalemdeki `cls` değişkesinin gününe denk düşüyor mu (aynı sınıf ya da onun özeli: hafta sonu ↔ cumartesi). */
+const coversDay = (valueDays: ReadonlySet<string>, cls: string) => valueDays.has(cls) || [...valueDays].some((d) => DAY_PARENT[d] === cls);
 
 function lookup(t: string, table: Readonly<Record<string, string>>): string | undefined {
   if (table[t]) return table[t];
@@ -196,7 +207,8 @@ function conditionClasses(tokens: readonly string[], side: "evidence" | "part"):
       out.add("on_request");
     } else if ((t === "subject" && next === "to") || (t === "if" && next === "available")) out.add("conditional");
     // "Pazar" çarşı da demek ("semt pazarı") → gün adı yalnız "pazar günü / pazar hariç / cumartesi ve pazar" gibi.
-    else if ((t === "pazar" || t === "pazari" || t === "pazarlari") && (/^(gun|haric|disinda|kapali|acik)/.test(next) || DAY_TOKENS.has(prev) || (prev === "ve" && DAY_TOKENS.has(tokens[i - 2] ?? "")))) {
+    // Yalın "Pazar" ardından saat gelirse gündür ("Pazar 23:00'e kadar açık" — Haiku 10-23); "semt pazarı" çekimli kalır.
+    else if ((t === "pazar" || t === "pazari" || t === "pazarlari") && (/^(gun|haric|disinda|kapali|acik)/.test(next) || (t === "pazar" && /^\d/.test(next)) || DAY_TOKENS.has(prev) || (prev === "ve" && DAY_TOKENS.has(tokens[i - 2] ?? "")))) {
       out.add("sun");
     } else {
       const c = lookup(t, CONDITION_TOKENS) ?? (side === "part" ? PART_ONLY_CONDITION_TOKENS[t] : undefined);
@@ -410,6 +422,19 @@ const NEUTRAL_WORDS: ReadonlySet<string> = new Set([
   "sonlari",
   "sonlarinda",
   "sonunda",
+  // Mevsim öbeği ("yaz aylarında", "kış sezonunda") koşul sözcüğüdür, yeni konu değil (Haiku 10-23: yaz değişkesi konuya bağlanmıyor,
+  // "Havuz yazın 20:00" geçiyordu).
+  "yaz",
+  "kis",
+  "ay",
+  "aylari",
+  "aylarinda",
+  "aylarda",
+  "sezon",
+  "sezonu",
+  "sezonunda",
+  "donem",
+  "doneminde",
   "ici",
   "icinde",
   "ise",
@@ -477,22 +502,63 @@ function words(text: string, from: number, to: number): { w: string; at: number 
   return out;
 }
 
+/**
+ * YER / TAHSİS sözcükleri (E ölçümü 10-23: "Otopark ücretsizdir; binanın -2. katında, 12 numaralı yer size ayrılmıştır." — devam cümlesi
+ * yalnız yer anlatır, yeni konu getirmez). YALNIZ konu devralmasında nötr; içerik kıyasında ("sağındaki" ≠ "solundaki") içerik kalır.
+ * Tesis adı (kafe, spa, sauna …) ve konu olabilen sözcükler ("giriş", "ayrılış" — giriş / çıkış saati) BİLEREK yok.
+ */
+const LOCATION_WORDS: ReadonlySet<string> = new Set([
+  "kat", "kati", "katin", "katta", "kattadir", "katinda", "katindaki", "kattaki", "katindadir",
+  "yer", "yeri", "yerde", "yerdir", "numara", "numarali", "numarasi", "numaralidir",
+  "sag", "sagda", "saginda", "sagindaki", "sol", "solda", "solunda", "solundaki", "karsi", "karsisinda", "karsisindaki",
+  "yan", "yaninda", "yanindaki", "alt", "altinda", "altindaki", "altindadir", "ust", "ustunde", "ustundeki", "arka", "arkasinda", "arkasindaki",
+  "size", "sizin", "ayrilmistir", "ayrilmis", "tahsis", "tahsislidir",
+  "floor", "level", "spot", "space", "building", "number", "reserved", "assigned", "ground", "basement", "left", "right",
+  "etage", "stock", "platz", "gebaude", "nummer", "reserviert",
+]);
+const LOCATION_ROOTS = ["bina", "zemin", "bodrum", "metre", "ileri", "kose"];
+function isLocationWord(w: string): boolean {
+  return LOCATION_WORDS.has(w) || LOCATION_ROOTS.some((r) => w.startsWith(r));
+}
 const allNeutral = (text: string, from: number, to: number) => words(text, from, to).every((x) => isNeutralWord(x.w));
+/** Yalnız CÜMLE düzeyi devralmada (ve değişkenin ardında): nötr sözcük ya da yer / tahsis sözcüğü. Cümle içi aralıkta yer sözcüğü nötr DEĞİL. */
+const allLocationNeutral = (text: string, from: number, to: number) =>
+  words(text, from, to).every((x) => isNeutralWord(x.w) || isLocationWord(x.w));
+
+/**
+ * Değerin ARDI (Türkçe kalem): yer bildiren ad (-de / -da / -deki: "zemin kattaki kafede") ve yüklem ("verilir", "kullanılabilir") özne
+ * değildir — "11:00'e kadar zemin kattaki kafede verilir" değeri kahvaltınındır. Yalın ad ("11:00'e kadar KAFE açıktır") öznedir → devralma
+ * yok (yüklem kalıpları yalın ad ya da çoğul ad sonuyla — "havuzlar" — eşleşmez).
+ */
+function trailingAdjunct(w: string): boolean {
+  if (w.length < 5) return false;
+  return /(?:n?[dt][ae]|n?[dt][ae]ki)$/.test(w) || /(?:[iu]l[iu]r|[iu]n[iu]r|[ae]bil[iu]r|[iu]yor(?:uz|lar|sunuz)?|m[ae]kt[ae]d[iu]r|[dt][iu]r)$/.test(w);
+}
+const allNeutralAfter = (text: string, from: number, to: number) =>
+  words(text, from, to).every((x) => isNeutralWord(x.w) || isLocationWord(x.w) || trailingAdjunct(x.w));
 
 /**
  * Cümleler (dönüştürülmüş metinde): . ! ? ; satır sonu — değerin İÇİNDEKİ nokta ("20.00", "3. kat") bölmez. Her cümlede değer grupları
  * (aralık birleşir), yan cümleler ve her grubun konu yerinin başlangıcı. Tek geçiş + işaret dizileri → metin uzunluğunda doğrusal.
  */
-function structure(text: string, claims: readonly Span[]): Sentence[] {
+function structure(text: string, claims: readonly Span[], tr = false): Sentence[] {
   const sorted = [...claims].sort((a, b) => a.at - b.at);
   const inClaim = new Uint8Array(text.length + 1);
-  for (const c of sorted) for (let i = c.at + 1; i < c.end && i < text.length; i++) inClaim[i] = 1;
+  const claimLast = new Uint8Array(text.length + 1);
+  for (const c of sorted) {
+    for (let i = c.at + 1; i < c.end && i < text.length; i++) inClaim[i] = 1;
+    if (c.end > c.at) claimLast[c.end - 1] = 1;
+  }
 
   const bounds: [number, number][] = [];
   let start = 0;
   for (let i = 0; i < text.length; i++) {
     const c = text[i];
-    const boundary = (c === "!" || c === "?" || c === ";" || c === "\n" || (c === "." && !/\d/.test(text[i + 1] ?? ""))) && !inClaim[i];
+    const punct = c === "!" || c === "?" || c === ";" || c === "\n" || (c === "." && !/\d/.test(text[i + 1] ?? ""));
+    // Kodun SON karakteri olan "!" / "?" ("şifre: Lale2025! Modem …") ardından boşluk geliyorsa cümleyi de bitirir (E ölçümü 10-23:
+    // ardındaki cümle değerin "ardı" sayılıp konuyu çalıyordu). Kodun kendisi değişmez.
+    const codeEnd = (c === "!" || c === "?") && claimLast[i] === 1 && (i + 1 >= text.length || /\s/.test(text[i + 1]));
+    const boundary = punct && (!inClaim[i] || codeEnd);
     if (boundary) {
       if (i > start) bounds.push([start, i]);
       start = i + 1;
@@ -549,8 +615,15 @@ function structure(text: string, claims: readonly Span[]): Sentence[] {
     const gapNeutral = groups.map((g, gi) => (gi === 0 ? false : allNeutral(text, groups[gi - 1].end, g.at)));
     const reach: number[] = [];
     groups.forEach((_, gi) => reach.push(gi > 0 && gapNeutral[gi] ? reach[gi - 1] : gi));
+    // Son değerin ardı (Türkçe kalem) yalnız değer kendi gün / mevsim koşuluyla bir DEĞİŞKE ise gevşer ("…, hafta sonu 11:00'e kadar zemin
+    // kattaki kafede verilir"); koşulsuz ikinci değer ("Havuz 20:00'de, 22:00'ye kadar kafede açık") başka bir şeyindir → devralmaz.
+    const variantClause = (gi: number) => {
+      const [a, b] = clauses[groupClause[gi]];
+      return [...conditionClasses(tokenize(text.slice(a, b)), "evidence")].some((c) => DAY_CLASSES.has(c) || SEASON_CLASSES.has(c));
+    };
     const regionFrom = groups.map((g, gi) => {
-      const afterNeutral = gi + 1 < groups.length ? gapNeutral[gi + 1] : allNeutral(text, g.end, e);
+      const afterNeutral =
+        gi + 1 < groups.length ? gapNeutral[gi + 1] : allNeutral(text, g.end, e) || (tr && variantClause(gi) && allNeutralAfter(text, g.end, e));
       const j = afterNeutral ? reach[gi] : gi;
       const inherited = j > 0 ? groups[j - 1].end : s;
       const clauseStart = clauses[groupClause[gi]][0];
@@ -587,7 +660,7 @@ function readPlace(text: string): PlaceReading {
 /** Bir metnin (alıntı ya da kalem) yapısı + konu ve yer okumaları; her tablo bir kez kurulur → toplam doğrusal. */
 function documentOf(raw: string, subj: Subject) {
   const { text, claims } = claimSpans(raw);
-  const sentences = structure(text, claims);
+  const sentences = structure(text, claims, languageOf(raw) === "tr");
   const subjectIn = (s: string) => hasSubject(s, subj);
   const segPrefix = new Map<Sentence, number[]>();
   const clauseCache = new Map<string, PlaceReading>();
@@ -672,6 +745,7 @@ function documentOf(raw: string, subj: Subject) {
    * açıktır.") önceki cümlenin konusundan. Başka içerik sözcüğü taşıyan cümle devralmaz ("…. 22:00'de sauna kapanır.").
    */
   const sentenceNeutral: (boolean | undefined)[] = [];
+  const sentenceLocation: (boolean | undefined)[] = [];
   const sentenceSubject: (boolean | undefined)[] = [];
   const boundAt = (si: number, gi: number) => {
     const sent = sentences[si];
@@ -680,7 +754,14 @@ function documentOf(raw: string, subj: Subject) {
     const prev = sentences[si - 1];
     // Cümle başına bir kez (bağsız değer dizisinde her değer aynı soruyu sorar — ölçüldü: önbelleksiz 4.000 cümlede 11 sn).
     sentenceNeutral[si] ??= allNeutral(text, sent.s, sent.e);
-    if (!sentenceNeutral[si]) return false;
+    if (!sentenceNeutral[si]) {
+      // Yalnız yer anlatan devam cümlesi ("…; binanın -2. katında, 12 numaralı yer size ayrılmıştır.") konuyu devralır — ama önceki cümle
+      // aynı türden bir değeri ZATEN veriyorsa ("Sauna 2. katta. Yer size ayrılmıştır, 3. kat.") ikinci değer o konunun değildir (Haiku 10-23).
+      sentenceLocation[si] ??= allLocationNeutral(text, sent.s, sent.e);
+      if (!sentenceLocation[si]) return false;
+      const cls = new Set(sent.groups[gi].claims.map((c) => c.cls));
+      if (prev.groups.some((g) => g.claims.some((c) => cls.has(c.cls)))) return false;
+    }
     sentenceSubject[si - 1] ??= subjectIn(text.slice(prev.s, prev.e));
     return sentenceSubject[si - 1]!;
   };
@@ -762,26 +843,43 @@ export function checkAnswerBinding(input: BindingInput): BindingResult {
   if (!subjectKnown) issues.add("subject_unknown");
 
   const ev = documentOf(evidence, subj);
-  const pt = claimSpans(input.part);
+  // Parça da yapısıyla okunur: her değerin KENDİ gün koşulu (E ölçümü 10-23 — "Havuz hafta sonu 20:00'de kapanır" kalemdeki hafta sonu
+  // 23:00 değişkesine rağmen geçiyordu; parça düzeyindeki koşul kümesi hangi değerin hangi güne ait olduğunu bilmiyordu).
+  const pdoc = documentOf(input.part, subj);
+  const partClaims: { c: Span; days: Set<string> }[] = [];
+  pdoc.sentences.forEach((sent) =>
+    sent.groups.forEach((g, gi) => {
+      const days = new Set(variantClassesOf(pdoc.placeOf(sent, gi).conditions));
+      for (const c of g.claims) partClaims.push({ c, days });
+    }),
+  );
   const partTokens = tokenize(input.part);
   const partConditions = conditionClasses(partTokens, "part");
   const partNegative = negative(partTokens);
   const partDirections = directions(partTokens);
+  // Misafirin sorduğu gün ("cumartesi kaçta kapanıyor") — genel kuralın o güne özel söylenişi uydurma koşul değildir.
+  const asked = conditionClasses([...input.needTerms], "evidence");
 
-  const checkPlace = (r: PlaceReading) => {
-    for (const cls of r.conditions) if (!partConditions.has(cls)) issues.add("condition_dropped");
+  const checkPlace = (r: PlaceReading, valueDays: ReadonlySet<string> = new Set()) => {
+    for (const cls of r.conditions) {
+      if (partConditions.has(cls)) continue;
+      // Değerin kendi günü bu koşulun özeli ("hafta sonu 23:00" → "cumartesi 23:00").
+      if (DAY_CLASSES.has(cls) && [...valueDays].some((d) => DAY_PARENT[d] === cls)) continue;
+      issues.add("condition_dropped");
+    }
     if (r.negative !== partNegative) issues.add("polarity_mismatch");
     if (r.directions.size === 1 && partDirections.size > 0 && !partDirections.has([...r.directions][0])) issues.add("direction_mismatch");
   };
 
   // Parça kalemde hiç geçmeyen gün / mevsim / talep / dahil koşulu ekleyemez ("Havuz hafta sonu 09:00-20:00 açık" ← koşulsuz kalem).
   const sourceConditions = conditionClasses(tokenize(`${input.sourceText}\n${evidence}`), "evidence");
-  for (const cls of partConditions) if (INVENTABLE_CLASSES.has(cls) && !sourceConditions.has(cls)) issues.add("condition_added");
+  /** Gün koşulu taşıyan parça değerlerinin kalemdeki yerleri (tümleyen kararı döngüden sonra). */
+  const dayValues: { days: Set<string>; placeGeneral: boolean }[] = [];
 
   let src: ReturnType<typeof documentOf> | undefined;
   const variantCache = new Map<string, boolean>();
-  if (pt.claims.length > 0) {
-    for (const c of pt.claims) {
+  if (partClaims.length > 0) {
+    for (const { c, days: valueDays } of partClaims) {
       const hits: { si: number; sent: Sentence; gi: number }[] = [];
       ev.sentences.forEach((sent, si) =>
         sent.groups.forEach((g, gi) => {
@@ -799,12 +897,25 @@ export function checkAnswerBinding(input: BindingInput): BindingResult {
         continue;
       }
       const place = ev.placeOf(bound.sent, bound.gi);
-      checkPlace(place);
-      // Koşulsuz değer verildi: kalemde aynı konunun koşullu değişkesi varsa onu da anmalı (alıntı onu gizleyemez).
+      checkPlace(place, valueDays);
+      const placeDays = new Set(dayClassesOf(place.conditions));
+      const placeSeasons = [...place.conditions].filter((x) => SEASON_CLASSES.has(x));
+      const valueOnlyDays = new Set(dayClassesOf(valueDays));
+      if (valueOnlyDays.size > 0) dayValues.push({ days: valueOnlyDays, placeGeneral: placeDays.size === 0 });
+      // Değerin günü kalemdeki yerinin günü (ya da onun özeli) değilse yanlış güne bağlanmıştır ("hafta içi 23:00" ← "hafta sonu 23:00");
+      // mevsim de aynı ("kışın 23:00" ← "yaz aylarında 23:00").
+      if (placeDays.size > 0) {
+        for (const d of valueOnlyDays) if (!placeDays.has(d) && !(DAY_PARENT[d] && placeDays.has(DAY_PARENT[d]))) issues.add("condition_added");
+      }
+      if (placeSeasons.length > 0) {
+        for (const d of valueDays) if (SEASON_CLASSES.has(d) && !placeSeasons.includes(d)) issues.add("condition_added");
+      }
+      // Koşulsuz değer verildi: kalemde aynı konunun koşullu değişkesi varsa onu da anmalı (alıntı onu gizleyemez) ve genel değer o
+      // değişkenin gününe VERİLEMEZ ("Havuz hafta sonu 20:00" ← kalem: hafta sonu 23:00).
       if (![...place.conditions].some((x) => DAY_CLASSES.has(x) || SEASON_CLASSES.has(x))) {
         src ??= documentOf(input.sourceText, subj);
-        const key = `${c.cls}|${(c.tkeys ?? c.keys).join(",")}`;
-        if (!variantCache.has(key)) variantCache.set(key, variantOmitted(src, c, partConditions));
+        const key = `${c.cls}|${(c.tkeys ?? c.keys).join(",")}|${[...valueDays].sort().join(",")}`;
+        if (!variantCache.has(key)) variantCache.set(key, variantOmitted(src, c, partConditions, valueDays));
         if (variantCache.get(key)) issues.add("variant_omitted");
       }
     }
@@ -821,13 +932,31 @@ export function checkAnswerBinding(input: BindingInput): BindingResult {
     if (places.length === 0) issues.add("subject_missing");
     else checkPlace({ ...readPlace(places.join(" . ")), directions: new Set() });
   }
+
+  for (const cls of partConditions) {
+    if (!INVENTABLE_CLASSES.has(cls) || sourceConditions.has(cls)) continue;
+    // Gün adı: kalemdeki ailesinin özeli ya da misafirin sorduğu gün — değer başına kontrol yukarıda (yanlış güne / değişkeye bağ).
+    if (DAY_PARENT[cls] && (sourceConditions.has(DAY_PARENT[cls]) || asked.has(cls))) continue;
+    // Tümleyen ("hafta içi" ← genel kural + hafta sonu istisnası): bu koşulu taşıyan HER değer kalemde genel yerden gelmeli ve aynı değer
+    // istisna gününü taşımamalı; en az bir değer olmalı (değersiz parçada tümleyen yok).
+    const comp = DAY_COMPLEMENT[cls];
+    if (comp && sourceConditions.has(comp)) {
+      const carriers = dayValues.filter((v) => v.days.has(cls));
+      if (carriers.length > 0 && carriers.every((v) => v.placeGeneral && !v.days.has(comp))) continue;
+    }
+    issues.add("condition_added");
+  }
   if (unsupportedContent(input.part, evidence, input.needTerms)) issues.add("unsupported_content");
   const list = BINDING_ISSUES.filter((i) => issues.has(i));
   return { ok: list.length === 0, issues: list };
 }
 
-/** Kalemde aynı türden, konuya bağlı (ya da konusuz bir sonraki cümlede), FARKLI ve gün / mevsim koşullu bir değer var mı. */
-function variantOmitted(src: ReturnType<typeof documentOf>, c: Span, partConditions: ReadonlySet<string>): boolean {
+/**
+ * Kalemde aynı türden, konuya bağlı (ya da konusuz bir sonraki cümlede), FARKLI ve gün / mevsim koşullu bir değer var mı — parça o koşulu
+ * anmıyorsa (özeli de sayılır: "cumartesi" hafta sonunu anar) ya da genel değeri o koşulun gününe veriyorsa (`valueDays`) değişke ihmal
+ * edilmiştir.
+ */
+function variantOmitted(src: ReturnType<typeof documentOf>, c: Span, partConditions: ReadonlySet<string>, valueDays: ReadonlySet<string>): boolean {
   for (let si = 0; si < src.sentences.length; si++) {
     const sent = src.sentences[si];
     for (let gi = 0; gi < sent.groups.length; gi++) {
@@ -835,16 +964,32 @@ function variantOmitted(src: ReturnType<typeof documentOf>, c: Span, partConditi
       if (!g.claims.some((e) => e.cls === c.cls) || g.claims.some((e) => sameValue(c, e))) continue;
       if (!src.boundAt(si, gi)) continue;
       for (const cls of src.placeOf(sent, gi).conditions) {
-        if ((DAY_CLASSES.has(cls) || SEASON_CLASSES.has(cls)) && !partConditions.has(cls)) return true;
+        if (SEASON_CLASSES.has(cls) && (!partConditions.has(cls) || valueDays.has(cls))) return true;
+        if (DAY_CLASSES.has(cls) && (!coversDay(partConditions, cls) || coversDay(valueDays, cls))) return true;
       }
     }
   }
   return false;
 }
 
+/** "№12" / "No 12" / "Nr. 12" kod gibi ayrışır ama SAYI 12'dir (E ölçümü 10-23: Rusça "место №12" ↔ "12 numaralı yer"). */
+function keysOf(s: Span): readonly string[] {
+  if (s.cls !== "code") return s.keys;
+  const extra = s.keys.flatMap((k) => {
+    const m = /^c(?:no|nr|num)(\d{1,6})$/i.exec(k);
+    return m ? [`n${Number(m[1])}`] : [];
+  });
+  return extra.length > 0 ? [...s.keys, ...extra] : s.keys;
+}
+
+/** Aynı sayısal anahtarı taşıyabilen sınıflar yalnız kendi ailesiyle eşleşir: kat ≠ numara ≠ kişi ("Otopark 12. katta" ← "12 numaralı yer" değil). */
+const sameClass = (a: Span, b: Span) => a.cls === b.cls || (a.cls === "code" && b.cls === "number" && keysOf(a) !== a.keys);
+
+/** `a` PARÇANIN değeri, `b` alıntının / kalemin. "№12" yalnız parça tarafında sayıdır (kalemdeki "şifre No12" bir koddur — Haiku 10-23). */
 function sameValue(a: Span, b: Span): boolean {
+  if (!sameClass(a, b)) return false;
   if (a.tkeys && b.tkeys) return a.tkeys.some((k) => b.tkeys!.includes(k));
   // Alıntıdaki belirsiz saat ("saat 9" = 09:00 | 21:00) parçadaki KESİN saate dayanak olmaz; belirsizliği aynen taşıyan parça olur.
   if (a.cls === "time" && b.keys.length > 1 && a.keys.length === 1) return false;
-  return a.keys.some((k) => b.keys.includes(k));
+  return keysOf(a).some((k) => b.keys.includes(k));
 }
