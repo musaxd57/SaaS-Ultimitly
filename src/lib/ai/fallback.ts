@@ -819,7 +819,8 @@ function includesAnyFold(
  * TAM olumsuz ifadeler her adaydan silinir. "Şikayetçi değilim ama klima bozuk" yine şikâyet ("bozuk" düz listede).
  * ⚠️ `PROBLEM_NEGATIONS` kuralı burada da geçerli: yalnız FİİLİ OLUMSUZ TAM ifade; olumlu bir şikâyetin öneki OLAN giriş yazılmaz.
  */
-const COMPLAINT_NOUN_STEMS = ["şikayet", "complaint"] as const;
+// İngilizce kök yalnız ASCII okumada: İngilizce metnin ASCII katlaması kendisidir (mutasyon 10-22: std listesindeki "complaint" ölü koddu).
+const COMPLAINT_NOUN_STEMS = ["şikayet"] as const;
 const COMPLAINT_NOUN_STEMS_ASCII = ["sikayet", "complaint"] as const;
 const COMPLAINT_NOUN_NEGATIONS = [
   "şikayetçi değil", "şikayetçi olmadı", "şikayetim yok", "şikayetimiz yok", "şikayet yok",
