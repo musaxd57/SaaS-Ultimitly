@@ -531,7 +531,8 @@ Kontrol listesi + geri açma adımları: `docs/OPS-2026-09-19-DURAKLATMA-VE-LOCA
 
 ## Durum
 > 📄 **Tam metin (bağlayıcı): `docs/claude/durum.md`** — bu alanda kod / karar değiştirmeden önce oku. Aşağıda yalnız madde başlıkları.
-**10-21 gece-4 (güncel):** UX / görsel / güvenlik incelemeleri → ev sahibi ekranı düzeltmeleri · devre kesici kiracı başına · kırmızı takım + tarafsızlık ölçümü (yasak dize 0, özürlü taslak 9→0) · sorular §U (U1–U9) — `docs/claude/durum.md`.
+**10-22 gece (güncel):** güvenlik 2. tur (başka siteden yazma kapısı, aday güncellemesi izi; sorular U10–U15) · erişilebilirlik taraması 40 → 0 ihlal (ikincil metin rengi, "İçeriğe geç") — `docs/claude/durum.md`.
+**10-21 gece-4:** UX / görsel / güvenlik incelemeleri → ev sahibi ekranı düzeltmeleri · devre kesici kiracı başına · kırmızı takım + tarafsızlık ölçümü (yasak dize 0, özürlü taslak 9→0) · sorular §U (U1–U9) — `docs/claude/durum.md`.
 **10-21 gece-3:** W1–W9 kodda (W8 → acil 48/48) · bilgim-yok bağlam hakemi (anahtar KAPALI; gerçek cevapta 16/17 doğru bırakma, 0/51 yanlış) · devre kesici + 30 sn · yazma sınırı · gitleaks · sıradaki plan `docs/PLAN-2026-10-21-baglam-anlama-ve-kirmizi-takim.md` — `docs/claude/durum.md`.
 **10-21 gece-2:** Claude 2. dalga doğrulandı: tehlike sondası gerçek akışta 46/48 acil yolu + 2 tutuldu, 0 sızma · ~25 doğrulanmış hata düzeltildi (başka daire metni, KVKK ad geri yazımı, gaz alarmı okuyucusu…) · kurucu soruları W1–W9 — `docs/claude/durum.md`.
 **10-21 gece:** anlama ölçümü iki kol geçerli + kurucu soruları A–F · Claude kredisi 1. dalga ($23,87) + 2. dalga · 111 altyapı konusu envanteri + iç sertleştirmeler + olay/SLO belgesi — `docs/claude/durum.md`.

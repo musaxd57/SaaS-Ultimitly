@@ -28,6 +28,9 @@ düzeltmeleri, ölçüm ve testlerdi. Kararınızı bekleyenler aşağıda, her 
   mutasyon 13/13. Güvenlik 2. tur (Opus, P1 yok): başka siteden gelen yazma isteği artık her ortak kapıda reddediliyor (kardeş alt alan
   adı / gövdesiz istek açığı); operatörün aday güncellemesi olay günlüğünde. Kalanlar soru U10–U15
   (`docs/arastirma-2026-10-15/GUVENLIK-2-TUR-2026-10-22.md`).
+- **Erişilebilirlik (otomatik tarama, 20 sayfa × masaüstü / telefon + misafir QR sayfası):** önce neredeyse her sayfada okunabilirlik
+  (gri yazı zemine göre biraz soluktu), adsız alan / karekod ve klavyeyle kaydırılamayan Raporlar; sonra 0 ihlal. Gri ikincil yazı bir ton
+  koyulaştı (göz fark etmeyecek kadar), klavyeyle gezene "İçeriğe geç" bağlantısı eklendi.
 - **Ölçüm (gerçek model, gerçek akış):** kırmızı takım geliştirme seti (80) + KÖR kırmızı takım seti (71, ayrı yazar, tek koşu): misafire
   giden yasak dize **0**, acil kaçağı **0**; tutulması gerekenlerin %97'si tutuldu, "serbest kalan" vakalarda gizli bilgi gitmedi.
   Ayrıntı `docs/olcum/TARAFSIZLIK-VE-KIRMIZI-TAKIM-2026-10-21.md`.

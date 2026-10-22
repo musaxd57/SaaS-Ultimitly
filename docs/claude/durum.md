@@ -8,7 +8,17 @@
 > `docs/history/CLAUDE-2026-10-02-sadelestirme-3-oncesi-tam-metin.md` ("Durum" bölümü). Kuralları yukarıdaki bölümlerde; yalnız Durum'da
 > yazılı olan kurallar (konuşma öğeleri, ev kuralları, canlı bayraklar) 10-02'de ilgili bölümlere taşındı. Bekleyen onaylar ↓.
 
-**10-21 gece-4 (güncel — clear sonrası BURADAN devam; kurucu "gece modundasın, hiç soru sorma"):**
+**10-22 gece (güncel — clear sonrası BURADAN devam; gece modu sürüyor):**
+- Güvenlik 2. tur (Opus, P1 yok; rapor `docs/arastirma-2026-10-15/GUVENLIK-2-TUR-2026-10-22.md`): başka siteden yazma kapısı
+  `crossSiteWrite` (`lib/route-guard.ts`) ortak kapıda + dört gövdesiz rotada (QR yeniden aç, bürünmeden çıkış, kalite denetimi, kanal
+  bağlantısını kaldır); operatör aday güncellemesi olay günlüğünde (`operator.lead.updated`). Mutasyon 13/13. Kalanlar kurucu soruları U10–U15.
+- Erişilebilirlik (axe, 20 sayfa × masaüstü / telefon + misafir QR): önce 4 kural türü neredeyse her sayfada; sonra 0. İkincil metin rengi
+  43% (pin `tests/unit/theme-contrast.test.ts`), uyarı rozeti, karekod / bağlantı alanı adları, "İçeriğe geç" + odaklanabilir `<main>`.
+  Açık bırakılan: tamamlanan görev kartı `opacity-70` (soluk gösterim tasarımı; ilk taramada kart içi metin 2,7:1 çıktı, ikinci taramada o
+  kart ekranda yoktu — tasarım kararı, kurucuya sorulmadan değiştirilmedi).
+- Önceki push f1837b9e CI 6/6 yeşil.
+
+**10-21 gece-4 (önceki):**
 - UX incelemesi (Opus, 24 bulgu) + görsel inceleme (39 ekran görüntüsü, 30 bulgu) + güvenlik incelemesi (2 yeni bulgu) koştu; raporlar
   scratchpad'de (`review-ux-1021.md`, `screens/review-visual-1021.md`, `review-security-1021.md`). Ev sahibi ekranında müşteriye giden
   AI cevabına dokunmayan düzeltmeler kodda: olası tehlike bandı ("beklemede" demez; etiketler `lib/inbox-skip-labels.ts`, kaydedilen her
