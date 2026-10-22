@@ -360,7 +360,7 @@ async function executeCompare(
 ): Promise<void> {
   const property = await prisma.property.findFirstOrThrow({
     where: { id: run.propertyId, organizationId: run.organizationId },
-    select: { id: true, name: true, checkInTime: true, checkOutTime: true, address: true, city: true },
+    select: { id: true, name: true, guestDisplayName: true, checkInTime: true, checkOutTime: true, address: true, city: true },
   });
   const model = process.env.OPENAI_MODEL?.trim() || null;
   let calls = 0;

@@ -7,7 +7,7 @@ konuldu" demek değildir — akıbet ayrıca git geçmişinden doğrulandı (sha
 |---|---|---|
 | `2026-10-07-U17-otopark-tahsisi.patch` | **BEKLİYOR** (kurucu kararı; 10-08 Sabah Kararları 63–68 listesi) — temiz uygulanıyor | `git apply --check` ✓ |
 | `2026-10-07-U29-f06-dogrulanamayan-oturum.patch` | **BEKLİYOR** (kurucu kararı; 10-08 Sabah Kararları 63–68 listesi) — temiz uygulanıyor | `git apply --check` ✓ |
-| `2026-10-22-U4-misafire-gorunen-ad.patch` | **BEKLİYOR** (kurucu U4 "Ayrı misafire görünen ad" seçti; migration 83 → itmeden önce açık onay + taze yedek) — temiz uygulanıyor; uygulandıktan sonra `npx prisma generate` | `git apply --check` ✓ · migrate diff boş · U4 testleri 7/7 + önizleme 8/8 · Haiku 2 tur |
+| `2026-10-22-U4-misafire-gorunen-ad.patch` | UYGULANDI (kurucu 10-22 akşam: "U4'ü push edebilirsin"; migration 83 — Railway açılışında önce taze yedek, `docs/RAILWAY-ACILIS-2026-10-15.md` 1. adım) | ana dalda · örnek yazı "Kat 2 Daire 3" |
 | `2026-10-15-anlama-ariza-kullanim-ayrimi.patch` | **BEKLİYOR** (kurucu kararı) — temiz uygulanıyor | `git apply --check` ✓ |
 | `2026-10-18-T1-talimat-yok-silici-basit-is.patch` | **GEÇERSİZ (10-21)** — kurucu "B" tarifini daha geniş kurallarla verdi; ana dalda dayanak şartıyla uygulandı (`07aac0bd`), bu yama UYGULANMAYACAK — `KURUCU-SORULARI.md` §T1 | `git apply --check` ✓ |
 | `2026-10-18-T1-talimat-yok-tam-tutma.patch` | **GEÇERSİZ (10-21)** — kurucu A yerine B'yi seçti (ana dalda `07aac0bd`); bu yama UYGULANMAYACAK — `KURUCU-SORULARI.md` §T1 | `git apply --check` ✓ · ilgili 3 dosya 170 test yeşil · yamasız 3 kırmızı · tip + lint temiz |

@@ -10,6 +10,7 @@ import { ANON_NAME } from "@/lib/data-retention";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { countPriorOperatorReplies } from "@/lib/operator-replies";
 import { qrPinEnabled } from "@/lib/guest-chat-pin";
+import { normalizeGuestDisplayName } from "@/lib/guest-display-name";
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
 import { styleProfileBody } from "@/lib/ai/style-profile";
 import { contextDiagnostics, type ContextDiagnostics } from "@/lib/ai/context-diagnostics";
@@ -952,6 +953,8 @@ export interface GuestChatContext {
     checkOutTime: string;
     address: string | null;
     city: string | null;
+    /** Misafire görünen ad (U4) — QR başlığı. İç ad (`name`) ekrana ASLA çıkmaz; boş → yalnız marka. */
+    guestDisplayName: string | null;
   };
   /** True only during an active stay (arrival day → checkOutTime on departure day,
    *  Istanbul). When false the chat is closed (vacant / before check-in / after
@@ -1381,6 +1384,7 @@ export async function resolveGuestChat(
       checkOutTime: true,
       address: true,
       city: true,
+      guestDisplayName: true,
       chatEnabled: true,
       // Org strict-mode toggle (Faz 5): when on, EVERY not-yet-claimed stay needs
       // a PIN. Read here so the PIN gate is computed in one place. timezone: the
@@ -1410,6 +1414,8 @@ export async function resolveGuestChat(
     checkOutTime: property.checkOutTime,
     address: property.address,
     city: property.city,
+    // Okurken de aynı kural (elle DB'ye yazılmış görünmez karakter / uzun değer başlığa taşmasın).
+    guestDisplayName: normalizeGuestDisplayName(property.guestDisplayName),
   };
 
   // OPEN only during an active stay: from the arrival day through the property's

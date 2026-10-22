@@ -497,7 +497,9 @@ export function buildKbEvidence(input: KbEvidenceInput): string | null {
     input.topicAbsence && Number.isInteger(input.topicAbsence.s) && input.topicAbsence.s > 0 && Number.isInteger(input.topicAbsence.r) && input.topicAbsence.r >= 0
       ? { s: Math.min(input.topicAbsence.s, 99), r: Math.min(input.topicAbsence.r, 99) }
       : undefined;
-  const rwCodes = (input.seniorRewrite ?? []).filter((c): c is string => c === "payHost" || c === "contact" || c === "apology");
+  const rwCodes = (input.seniorRewrite ?? []).filter(
+    (c): c is string => c === "payHost" || c === "contact" || c === "apology" || c === "internalSource",
+  );
   const rw = rwCodes.length > 0 ? [...new Set(rwCodes)] : undefined;
   const extra = {
     ...(claims ? { claims } : {}),

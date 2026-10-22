@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { propertySchema, zodFieldErrors } from "@/lib/validators";
+import { normalizeGuestDisplayName } from "@/lib/guest-display-name";
 import { badRequest, jsonOk, forbidden, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { generateCalendarToken } from "@/lib/export/ics";
@@ -68,6 +69,7 @@ export const POST = withManage(async (session, req) => {
     checkInTime: d.checkInTime,
     checkOutTime: d.checkOutTime,
     cleaningBufferMinutes: d.cleaningBufferMinutes,
+    guestDisplayName: normalizeGuestDisplayName(d.guestDisplayName),
     notes: d.notes || null,
     icalToken: generateCalendarToken(),
   };

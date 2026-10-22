@@ -113,6 +113,17 @@
   konu — jakuzi, sauna — silinmez); kalan metin yalnız selam / nezaket kabuğu değildir ("Merhaba Ayşe Hanım." gitmez); kalan metin yine "bilgim
   yok" demez. Şart tutmazsa metne dokunulmaz → "bilgim yok" kuralı bütün cevabı tutar. Misafire yeni söz eklenmez; bağlaç ("ama", "so")
   atılır; yan cümle sınırı ayraç + boşluk ("15:00" bölünmez). Pinler `no-instruction-filler*.test.ts` + `absence-cost.test.ts` (doğrusal).
+- 🚨 **İÇ KAYNAK ANLATIMI MİSAFİRE ASLA GİTMEZ — OLUMLU DA (kurucu 10-22 akşam, aynen: "bilgi tabanıyla ilgili kendi kullandığı model işlev
+  özellik veri için baktığı hiçbir şey müşteriye gitmemeli"):** canlı ölçümde "Bilgi tabanımda otoparkın … yazıyor" gitti; kök istemdeydi (sıcak
+  ton örneği "kayıtlarımda şu yazıyor" — KALDIRILDI). Üç katman: ① istem Bölüm 10.5 "KAYNAK ANLATMA YASAĞI" + Bölüm 12 madde 14 (olguyu
+  doğrudan söyle) · ② kıdemli okuyucu beşinci hüküm `names_internal_source` (anlamla; bir kez yeniden yazma sebebi `internalSource`) ·
+  ③ kodun açık sözcük YEDEĞİ `absence.namesInternalSource` (ANAHTARSIZ; bilerek dar: bilgi tabanı / kayıtlarımda / notlarımda / elimdeki
+  bilgilere göre / knowledge base / according to my notes / our records show … yedi dil; çıplak "sistem / system / guide" YOK — mülk olgusu).
+  Kanal `reply_internal_source`, QR aynı sebep. "Bilgim yok" cümlesi (KURAL-3) ayrı kural, zaten gitmez.
+- 🚨 **MÜLKÜN İÇ ADI MODELE GİTMEZ (kurucu 10-22 akşam: "müşteriye daire adı ne … daire numarası anca verilir … kat 2 daire 3 gibidir"):**
+  `Property.name` ev sahibinin kendi etiketidir; cevap istemine YAZILMAZ. Misafire görünen ad (`guestDisplayName`, U4, migration 83) varsa
+  istemde yalnız o ("Misafire görünen daire adı: Kat 2 Daire 3"), yoksa ad satırı hiç yok. Bilgi tabanı `{{daire}}` yer tutucusu numarayı
+  iç addan kodla çıkarır (değişmedi).
 - **Çıktı vetosu / makbuzsuz iddia:** ↓Kalıcı ürün kararları. `hasUnsourcedSpecificClaim` BUGÜN ÜRETİMDE KOŞMAZ
   (yalnız `QR_INFORMATIONAL_BAND_ENABLED` açıkken; varsayılan kapalı). QR bilgi bandı (0.45–0.75, kapalı): bant
   güvenlik dallarının ARDINDA; kaynaksız somut iddia gönderilmez (`unsourced_claim`); açma sırası eval → tek mülk.

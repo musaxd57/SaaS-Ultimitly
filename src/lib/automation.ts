@@ -5,7 +5,7 @@ import { acquireErasureLock, loadErasureGuard } from "@/lib/erasure";
 import { STORAGE_PHOTO_URL_PREFIX } from "@/lib/storage/keys";
 import { enqueueUnreferencedPhotoDeletions } from "@/lib/storage/deletion-queue";
 import { HISTORY_MESSAGE_CAP } from "@/lib/ai/limits";
-import { admitsMissingKnowledge } from "@/lib/ai/absence";
+import { admitsMissingKnowledge, namesInternalSource } from "@/lib/ai/absence";
 import { carriesHandoffNotice, HANDOFF_NOTICE_REASON, vetoOutgoingReply } from "@/lib/ai/output-veto";
 import { notifyHostReplyWaiting } from "@/lib/host-reply-waiting";
 import { actionClaimHold, type ActionClaimReason, type ClaimedActionsDeclaration } from "@/lib/ai/action-claims";
@@ -584,6 +584,10 @@ export function autoReplyGateVerdict(
   if (senior?.payHost) return hold("reply_offplatform_payment");
   if (senior?.contact && context?.offPlatformContactHolds === true) return hold("reply_offplatform_contact");
   if (senior?.apology && noApologyRuleEnabled()) return hold("reply_apology");
+  // Kurucu 10-22 ("bilgi tabanıyla ilgili … hiçbir şey müşteriye gitmemeli"): cevap bilgiyi NEREDEN bildiğini anlatıyorsa gitmez — okuyucu
+  // okuduysa onun hükmü, ayrıca kodun açık sözcük yedeği (okuyucu kapalı / düştü / kaçırdı; `absence.namesInternalSource`) — ANAHTARSIZ.
+  // Okuyucu açıksa ilk taslak bir kez yeniden yazdırılır (`SENIOR_REWRITE_GATE_DETAILS`).
+  if (senior?.internalSource || namesInternalSource(result.reply ?? "")) return hold("reply_internal_source");
   // ── ÇIKTI VETOSU (Codex denetimi §A, 09-12) ───────────────────────────────
   //
   // 🚨 Bu kapı 09-12'ye kadar cevap METNİNE yalnız `admitsMissingKnowledge` ile
@@ -1814,6 +1818,7 @@ export async function applyChannelAutoReply(
       property: {
         select: {
           name: true,
+          guestDisplayName: true,
           organizationId: true,
           checkInTime: true,
           checkOutTime: true,
@@ -2403,6 +2408,7 @@ export async function applyChannelAutoReply(
     guestMessage: last.body,
     property: {
       name: conversation.property.name,
+      guestDisplayName: conversation.property.guestDisplayName,
       checkInTime: conversation.property.checkInTime,
       checkOutTime: conversation.property.checkOutTime,
       address: conversation.property.address,
@@ -2560,6 +2566,7 @@ export async function applyChannelAutoReply(
     const reasons = seniorRewriteReasons(seniorChecksOf(outcome), {
       contactHolds: offPlatformContactHoldsFor(conversation),
       apologyRule: noApologyRuleEnabled(),
+      internalSourceLexical: namesInternalSource(result.reply),
     });
     const firstDetail =
       reasons.length > 0 ? autoReplyGateVerdict(result, last.body, { ...gateContext, absenceJudge: seniorPrecheck })?.detail : undefined;

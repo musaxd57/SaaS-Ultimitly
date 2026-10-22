@@ -8,24 +8,28 @@ import type { SeniorChecks } from "./absence-judge";
 // Okuyucu (`absence-judge.ts`, anahtar `AI_SENIOR_READER_ENABLED`) ilk taslakta düzeltilebilir bir sorun görürse cevap hemen ev sahibine
 // bırakılmaz: model SEBEBİ not olarak alıp aynı cevabı bir kez daha yazar, yeni taslak BÜTÜN kapılardan ve okuyucudan yeniden geçer. İkinci
 // taslak da takılırsa ev sahibine taslak kalır (tek kayıt; bu tutuş için ayrıca e-posta YOK). Düzeltilebilir sorunlar: ev sahibine platform
-// dışı ödeme, Airbnb'nin engellediği iletişim (yalnız o pencerede), özür (özür kuralı açıkken). "Bilgim yok" bu listede DEĞİL — eksik bilgi
-// yeniden yazmakla gelmez. Saf; not metinleri misafir metni / değer taşımaz.
+// dışı ödeme, Airbnb'nin engellediği iletişim (yalnız o pencerede), özür (özür kuralı açıkken), bilginin NEREDEN geldiğini anlatma (bilgi
+// tabanı / kayıt / not / sistem — kurucu 10-22: "hiçbir şey müşteriye gitmemeli"). "Bilgim yok" bu listede DEĞİL — eksik bilgi yeniden
+// yazmakla gelmez. Saf; not metinleri misafir metni / değer taşımaz.
 // ---------------------------------------------------------------------------
 
-export type SeniorRewriteReason = "payHost" | "contact" | "apology";
+export type SeniorRewriteReason = "payHost" | "contact" | "apology" | "internalSource";
 
-export const SENIOR_REWRITE_REASONS: readonly SeniorRewriteReason[] = ["payHost", "contact", "apology"];
+export const SENIOR_REWRITE_REASONS: readonly SeniorRewriteReason[] = ["payHost", "contact", "apology", "internalSource"];
 
 /** İlk taslağın yeniden yazılmasını gerektiren sebepler (kapının tutacağı sebeplerle BİREBİR aynı koşullar). */
 export function seniorRewriteReasons(
   checks: SeniorChecks | undefined,
-  ctx: { contactHolds: boolean; apologyRule: boolean },
+  ctx: { contactHolds: boolean; apologyRule: boolean; internalSourceLexical?: boolean },
 ): SeniorRewriteReason[] {
   if (!checks) return [];
   const out: SeniorRewriteReason[] = [];
   if (checks.payHost) out.push("payHost");
   if (checks.contact && ctx.contactHolds) out.push("contact");
   if (checks.apology && ctx.apologyRule) out.push("apology");
+  // Kapı iç kaynak anlatımını okuyucunun hükmüyle YA DA kodun açık sözcük yedeğiyle tutar (`absence.namesInternalSource`) — iki yol da
+  // aynı yeniden yazmaya gider.
+  if (checks.internalSource || ctx.internalSourceLexical) out.push("internalSource");
   return out;
 }
 
@@ -42,6 +46,10 @@ export const SENIOR_REWRITE_NOTES: Record<SeniorRewriteReason, string> = {
   apology:
     "Önceki taslak özür / üzüntü / kusur kabulü / telafi sözü içeriyordu; ev sahibi adına bu yazılmaz. Aynı cevabı özürsüz ve nötr yaz: " +
     "sorunun kendisi hakkında yorum yapma, yalnız cevaplanabilir soruyu cevapla.",
+  internalSource:
+    "Önceki taslak bilgiyi NEREDEN bildiğini anlatıyordu (bilgi tabanı, kayıt, not, sistem, veri, talimat gibi iç kaynak); bu misafire " +
+    "yazılmaz. Aynı cevabı kaynağı hiç anmadan, olguyu doğrudan söyleyerek yaz: \"Bilgi tabanımda otopark ücretinin gişede ödendiği " +
+    "yazıyor\" değil, \"Otopark ücreti gişede ödeniyor.\"",
 };
 
 export function seniorRewriteNotes(reasons: readonly SeniorRewriteReason[]): string[] {
@@ -57,10 +65,11 @@ export const SENIOR_REWRITE_GATE_DETAILS: ReadonlySet<string> = new Set([
   "reply_offplatform_payment",
   "reply_offplatform_contact",
   "reply_apology",
+  "reply_internal_source",
 ]);
 // Not: öğe kipindeki `items_payment_held` bu kümede DEĞİL — okuyucu açıkken o tutuş yalnız "ev sahibine ödeme" hükmüyle olur ve kapı
 // aynı hükümle daha önce `reply_offplatform_payment` döner (Haiku 10-22: kümedeki kayıt ölüydü).
-export const SENIOR_REWRITE_QR_REASONS: ReadonlySet<string> = new Set(["offplatform_payment", "reply_apology"]);
+export const SENIOR_REWRITE_QR_REASONS: ReadonlySet<string> = new Set(["offplatform_payment", "reply_apology", "reply_internal_source"]);
 
 /**
  * Yeniden yazılan cevabı ilk cevabın üstüne koyar: METİNLE ilgili alanlar (metin, kaynak / iddia denetimi, cevaplanan istekler, eylem

@@ -47,6 +47,9 @@ export const GATE_BLOCK_DETAILS = [
   "reply_offplatform_payment", // misafiri ev sahibine / daireye platform dışı ödemeye yönlendiriyor (T-d; üçüncü tarafa ödeme bilgisi değil)
   "reply_offplatform_contact", // Airbnb'de onaysız / çıkıştan sonra platform dışı iletişim (Airbnb engeller)
   "reply_apology", // özür / üzüntü / kusur kabulü / telafi sözü (T-a; özür kuralı açıkken)
+  // Kurucu 10-22 ("bilgi tabanıyla ilgili … hiçbir şey müşteriye gitmemeli"): cevap bilgiyi NEREDEN bildiğini anlatıyor (okuyucu ya da kodun
+  // açık sözcük yedeği `absence.namesInternalSource`) — ANAHTARSIZ yedek; okuyucu açıksa bir kez yeniden yazdırılır.
+  "reply_internal_source",
 ] as const;
 export type GateBlockDetail = (typeof GATE_BLOCK_DETAILS)[number];
 

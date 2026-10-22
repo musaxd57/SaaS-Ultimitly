@@ -37,6 +37,7 @@ export const DRY_RUN_GUEST_GIVEN_NAME = "Ada";
 export interface DryRunProperty {
   id: string;
   name: string;
+  guestDisplayName?: string | null;
   checkInTime: string;
   checkOutTime: string;
   address: string | null;
@@ -88,6 +89,7 @@ export async function dryRunReply(input: {
     guestMessage: message,
     property: {
       name: property.name,
+      guestDisplayName: property.guestDisplayName,
       checkInTime: property.checkInTime,
       checkOutTime: property.checkOutTime,
       address: property.address,

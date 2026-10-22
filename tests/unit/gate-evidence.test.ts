@@ -52,8 +52,8 @@ const ITEMS_COMPLAINT = {
 };
 
 // Kıdemli okuyucunun (T-b) hükmü: "bilgim yok" değil + verilen ek hükümler.
-function seniorRead(c: Partial<{ payHost: boolean; contact: boolean; apology: boolean }>) {
-  return { status: "ok" as const, admits: false, quote: "", checks: { payHost: false, contact: false, apology: false, ...c } };
+function seniorRead(c: Partial<{ payHost: boolean; contact: boolean; apology: boolean; internalSource: boolean }>) {
+  return { status: "ok" as const, admits: false, quote: "", checks: { payHost: false, contact: false, apology: false, internalSource: false, ...c } };
 }
 
 // İlişki kipi (kurucu kararı 10-01 sabah, Sabah Kararları 18 "a"): şikâyet turunda R1 = cevaplanan arıza çözümü (Wi-Fi modemi).
@@ -160,6 +160,13 @@ describe("kapı hükmü — her `blocked` kontrolü kendi ayrıntı koduyla", ()
       WIFI_Q,
       { absenceJudge: { reply: "We are sorry for the inconvenience. The Wi-Fi password is Lale2025.", outcome: seniorRead({ apology: true }) } },
       "reply_apology",
+    ],
+    [
+      "iç kaynak anlatımı — kodun açık sözcük yedeği (okuyucu yok; kurucu 10-22)",
+      { ...ok, reply: "According to my notes, the Wi-Fi password is Lale2025." },
+      WIFI_Q,
+      undefined,
+      "reply_internal_source",
     ],
   ];
   for (const [name, result, msg, ctx, detail] of cases) {

@@ -135,6 +135,7 @@ export async function buildOrganizationDataExport(organizationId: string) {
             checkInTime: true,
             checkOutTime: true,
             notes: true,
+            guestDisplayName: true,
             createdAt: true,
             // FEED URL IS A CAPABILITY SECRET — never exported verbatim.
             // Anyone holding it can read the property's booking calendar from

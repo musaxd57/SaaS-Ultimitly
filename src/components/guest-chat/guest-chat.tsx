@@ -21,9 +21,19 @@ const STALL_AFTER_FAILURES = 3;
  * No PII or access codes are shown here; the access codes live in the
  * Airbnb-native check-in flow, never on this public surface.
  */
-export function GuestChat({ token, locale = "tr" }: { token: string; locale?: GuestLocale }) {
+export function GuestChat({
+  token,
+  locale = "tr",
+  placeName,
+}: {
+  token: string;
+  locale?: GuestLocale;
+  /** U4: ev sahibinin "misafire görünen ad"ı (sunucuda normalleştirilmiş). Yoksa başlık yalnız marka. */
+  placeName?: string | null;
+}) {
   // Ekran dili sunucuda `Accept-Language`tan seçilir (kurucu 10-22 U2); yapay zekânın cevabı zaten misafirin dilinde.
   const t = GUEST_COPY[locale];
+  const title = placeName ? t.titleFor(placeName) : t.title;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -287,7 +297,7 @@ export function GuestChat({ token, locale = "tr" }: { token: string; locale?: Gu
       <div lang={locale} className="mx-auto flex min-h-screen max-w-lg flex-col items-center justify-center gap-4 bg-background px-6 text-center">
         <div className="w-full max-w-xs space-y-4 rounded-lg border border-border bg-card p-6">
           <div>
-            <p className="text-base font-semibold">{t.title}</p>
+            <p className="text-base font-semibold">{title}</p>
             <p className="mt-1 text-sm text-muted-foreground">{t.pinPrompt}</p>
           </div>
           <form
@@ -329,7 +339,7 @@ export function GuestChat({ token, locale = "tr" }: { token: string; locale?: Gu
   return (
     <div lang={locale} className="mx-auto flex min-h-dvh max-w-lg flex-col bg-background">
       <header className="border-b border-border bg-card px-4 py-3">
-        <p className="text-sm font-semibold">{t.title}</p>
+        <p className="text-sm font-semibold">{title}</p>
         {/* One-time disclosure — shown ONCE here, never repeated under each message. */}
         <p className="text-xs text-muted-foreground">{t.disclosure}</p>
       </header>

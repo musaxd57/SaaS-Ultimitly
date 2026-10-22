@@ -64,5 +64,6 @@ export default async function GuestChatPage({ params }: { params: Promise<{ toke
     );
   }
 
-  return <GuestChat token={token} locale={locale} />;
+  // U4: yalnız açık sohbette (ve kod ekranında) misafire görünen ad; "kullanılamıyor / aktif konaklama yok" ekranları yalnız marka.
+  return <GuestChat token={token} locale={locale} placeName={ctx.property.guestDisplayName} />;
 }

@@ -299,6 +299,7 @@ export default async function PropertyDetailPage({
                   checkOutTime: property.checkOutTime,
                   cleaningBufferMinutes: property.cleaningBufferMinutes,
                   notes: property.notes ?? "",
+                  guestDisplayName: property.guestDisplayName ?? "",
                 }}
               />
               {/* Para içeren ayarlar (gecelik aralık, erken giriş ücreti) YALNIZ yöneticiye görünür — kurucu: temizlik

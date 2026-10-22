@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { installTurkishZodErrors } from "@/lib/zod-tr";
 import { PASSWORD_TOO_LONG_MESSAGE, passwordExceedsByteLimit } from "@/lib/auth/password-policy";
+import { GUEST_DISPLAY_NAME_MAX, guestDisplayNameTooLong } from "@/lib/guest-display-name";
 
 // ⚠️ MODÜL SEVİYESİNDE, BİLİNÇLİ BİR YAN ETKİ (08-06). Zod'un VARSAYILAN hata
 // metinleri İngilizce ve doğrudan müşterinin ekranına çıkıyordu ("String must
@@ -97,6 +98,14 @@ export const propertySchema = z.object({
   checkOutTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "SS:DD formatında olmalı (00:00–23:59)").default("11:00"),
   cleaningBufferMinutes: z.coerce.number().int().min(0).max(1440).default(120),
   notes: z.string().max(5000).optional().or(z.literal("")),
+  // U4 (kurucu 10-22): misafire görünen ad — QR başlığı. Kaydederken `normalizeGuestDisplayName` (görünmez karakter / boşluk temizliği).
+  // Uzunluk TEMİZLENMİŞ ada göre (emoji / görünmez karakter ham sayıyı şişirmesin); ham tavan yalnız aşırı büyük gövdeye karşı.
+  guestDisplayName: z
+    .string()
+    .max(1000)
+    .refine((v) => !guestDisplayNameTooLong(v), `En fazla ${GUEST_DISPLAY_NAME_MAX} karakter olabilir.`)
+    .optional()
+    .or(z.literal("")),
   // Supply/linen prep profile: qty-per-arrival for known items only. Partial (any
   // subset of keys), each 0–999. Unknown keys are rejected so a bad client can't
   // stuff arbitrary data into the JSON column.

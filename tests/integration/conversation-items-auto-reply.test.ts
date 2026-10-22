@@ -1383,7 +1383,7 @@ describe("T-d — ödeme öğesi tutuluyken üçüncü tarafa ödeme bilgisi (k�
       // Gerçek okuyucu gibi "evet" dediği hükümde taslaktan alıntı verir (kanıt şartı) — sorunlu cümle taslağın sonunda.
       const draft = String(JSON.parse(String(init?.body)).messages?.[1]?.content ?? "").split("DRAFT REPLY:")[1] ?? "";
       const last = draft.replace(/^\s*<<</, "").replace(/>>>\s*$/, "").split(/(?<=[.!?])\s+/).filter(Boolean).at(-1) ?? "";
-      const v = { admits_missing_info: false, quote: "", pays_host_off_platform: payHost, payment_quote: payHost ? last.trim() : "", off_platform_contact: false, contact_quote: "", apology_or_fault: false, apology_quote: "" };
+      const v = { admits_missing_info: false, quote: "", pays_host_off_platform: payHost, payment_quote: payHost ? last.trim() : "", off_platform_contact: false, contact_quote: "", apology_or_fault: false, apology_quote: "", names_internal_source: false, source_quote: "" };
       return new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify(v) } }] }), { status: 200 });
     });
   const turn = async (rewriteReply?: string) => {

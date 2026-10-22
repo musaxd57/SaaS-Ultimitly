@@ -116,11 +116,34 @@ describe("GuestChat (UI, two-way)", () => {
   it("shows the branded assistant title (never an internal property name)", async () => {
     setupFetch([]);
     render(<GuestChat token="t" />);
-    // The header shows the fixed brand — the guest page no longer has any prop
-    // through which a host's private Property.name could ever be rendered.
+    // The header shows the fixed brand. The only place name it can show is the host's separate "misafire görünen ad" (U4,
+    // `placeName`) — never the private Property.name (the page passes `guestDisplayName`, see the integration test).
     await screen.findByText("Lixus AI Misafir Asistanı");
     // The AI-disclosure notice appears ONCE under the title (not per message).
     await screen.findByText(/Gerektiğinde işletme ekibi görüşmeye katılabilir/);
+  });
+
+  it("U4: misafire görünen ad verildiyse başlık '<ad> · Misafir Asistanı' (TR) / '<ad> · Guest Assistant' (EN)", async () => {
+    setupFetch([]);
+    render(<GuestChat token="t" placeName="Deniz Manzaralı Daire" />);
+    await screen.findByText("Deniz Manzaralı Daire · Misafir Asistanı");
+    expect(screen.queryByText("Lixus AI Misafir Asistanı")).toBeNull();
+    cleanup();
+    setupFetch([]);
+    render(<GuestChat token="t" locale="en" placeName="Sea View Flat" />);
+    await screen.findByText("Sea View Flat · Guest Assistant");
+  });
+
+  it("U4: kod ekranında da aynı başlık; ad boşsa yalnız marka", async () => {
+    const fn = vi.fn(() => Promise.resolve({ ok: true, status: 200, json: async () => ({ open: true, pinRequired: true, messages: [] }) }));
+    vi.stubGlobal("fetch", fn);
+    render(<GuestChat token="t" placeName="Deniz Manzaralı Daire" />);
+    await screen.findByPlaceholderText("Sohbet kodu");
+    expect(screen.getByText("Deniz Manzaralı Daire · Misafir Asistanı")).toBeTruthy();
+    cleanup();
+    setupFetch([]);
+    render(<GuestChat token="t" placeName={null} />);
+    await screen.findByText("Lixus AI Misafir Asistanı");
   });
 
   it("shows a friendly error when the POST fails", async () => {

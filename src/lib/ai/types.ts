@@ -41,7 +41,13 @@ export interface AdjacencyContext {
 }
 
 export interface PropertyContext {
+  /**
+   * Mülkün İÇ adı (ev sahibinin kendi etiketi — "Daire 5 / arka cephe"). Kurucu 10-22: misafire GİTMEZ → cevap istemine YAZILMAZ;
+   * yalnız kodun işleri için (bilgi tabanı `{{daire}}` yer tutucusunun numarası).
+   */
   name: string;
+  /** Misafire görünen ad (U4, "Kat 2 Daire 3") — istemde yalnız bu ad görünür; boşsa istemde hiç ad yok. */
+  guestDisplayName?: string | null;
   checkInTime: string;
   checkOutTime: string;
   address?: string | null;

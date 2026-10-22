@@ -8,6 +8,7 @@ import { acquireErasureLock, loadErasureGuard } from "@/lib/erasure";
 import { ANON_NAME } from "@/lib/data-retention";
 import { ESCALATION_REASON_CODES } from "@/lib/risk-events";
 import { detectRiskType, isSafetyEmergencyText } from "@/lib/ai/fallback";
+import { namesInternalSource } from "@/lib/ai/absence";
 import { ESCALATE_INTENTS, evaluateEscalation, qrAvailabilityPolicy } from "@/lib/guest-chat-gate";
 import { evaluateAvailability, kbFactsOf, stayEvidenceOf } from "@/lib/ai/availability-claims";
 import { fixSupportContextOf } from "@/lib/conversation-items/relation";
@@ -1040,6 +1041,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     guestMessage: message,
     property: {
       name: ctx.property.name,
+      guestDisplayName: ctx.property.guestDisplayName,
       checkInTime: ctx.property.checkInTime,
       checkOutTime: ctx.property.checkOutTime,
       address: ctx.property.address,
@@ -1168,7 +1170,11 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     await assertClaimHeld(); // sahiplik kaybedildiyse ücretli model çağrısı YAPILMAZ
     const outcome = await runAbsenceJudge({ guestMessage: message, reply: result.reply, names: [res.guestName, res.guestGivenName] });
     qrSeniorPrecheck = { reply: result.reply, outcome };
-    const reasons = seniorRewriteReasons(seniorChecksOf(outcome), { contactHolds: false, apologyRule: noApologyRuleEnabled() });
+    const reasons = seniorRewriteReasons(seniorChecksOf(outcome), {
+      contactHolds: false,
+      apologyRule: noApologyRuleEnabled(),
+      internalSourceLexical: namesInternalSource(result.reply ?? ""),
+    });
     const first =
       reasons.length > 0
         ? evaluateEscalation({ ...result }, message, res.guestName, history, { ...stayCtx, absenceJudge: qrSeniorPrecheck })

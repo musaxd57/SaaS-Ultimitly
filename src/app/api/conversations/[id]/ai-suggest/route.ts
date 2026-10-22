@@ -164,6 +164,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     guestMessage: lastInbound.body,
     property: {
       name: conversation.property.name,
+      guestDisplayName: conversation.property.guestDisplayName,
       checkInTime: conversation.property.checkInTime,
       checkOutTime: conversation.property.checkOutTime,
       address: conversation.property.address,

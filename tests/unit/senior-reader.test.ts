@@ -39,6 +39,8 @@ const FULL = {
   contact_quote: "",
   apology_or_fault: false,
   apology_quote: "",
+  names_internal_source: false,
+  source_quote: "",
 };
 const reply = (content: unknown) =>
   new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify(content) } }] }));
@@ -89,7 +91,7 @@ describe("anahtar ve istem", () => {
       expect(bodyOf(on, i).response_format?.json_schema?.name).toBe("senior_reader");
       expect(bodyOf(on, i).messages[0].content).toBe(SENIOR_READER_SYSTEM_PROMPT);
     }
-    expect(r).toEqual({ status: "ok", admits: false, quote: "", checks: { payHost: false, contact: false, apology: false } });
+    expect(r).toEqual({ status: "ok", admits: false, quote: "", checks: { payHost: false, contact: false, apology: false, internalSource: false } });
   });
 
   it("okuyucu açıkken eski (eksik alanlı) cevap → hüküm yok (kelime kuralına düşer)", async () => {
@@ -102,7 +104,7 @@ describe("anahtar ve istem", () => {
 
 describe("ayrıştırma ve birleşim (saf)", () => {
   it("her soru: evet ya da dolu alıntı → evet; eksik / yanlış tip → null", () => {
-    expect(parseSeniorReaderVerdict(FULL)?.checks).toEqual({ payHost: false, contact: false, apology: false });
+    expect(parseSeniorReaderVerdict(FULL)?.checks).toEqual({ payHost: false, contact: false, apology: false, internalSource: false });
     expect(parseSeniorReaderVerdict({ ...FULL, payment_quote: "Pay me in cash." })?.checks?.payHost).toBe(true);
     expect(parseSeniorReaderVerdict({ ...FULL, off_platform_contact: true })?.checks?.contact).toBe(true);
     expect(parseSeniorReaderVerdict({ ...FULL, apology_quote: "Sorry!" })?.checks?.apology).toBe(true);
@@ -114,17 +116,17 @@ describe("ayrıştırma ve birleşim (saf)", () => {
 
   it("birleşim: her soru iki okumanın VEYA'sı; yalnız birinde soru varsa hüküm yok", () => {
     const base = { admits: false, quote: "" };
-    const none = { ...base, checks: { payHost: false, contact: false, apology: false } };
-    expect(combineAbsenceReadings(none, { ...base, checks: { payHost: true, contact: false, apology: false } })).toEqual({
+    const none = { ...base, checks: { payHost: false, contact: false, apology: false, internalSource: false } };
+    expect(combineAbsenceReadings(none, { ...base, checks: { payHost: true, contact: false, apology: false, internalSource: false } })).toEqual({
       status: "ok",
       admits: false,
       quote: "",
-      checks: { payHost: true, contact: false, apology: false },
+      checks: { payHost: true, contact: false, apology: false, internalSource: false },
     });
-    expect(combineAbsenceReadings({ ...base, checks: { payHost: false, contact: true, apology: false } }, none)).toMatchObject({
+    expect(combineAbsenceReadings({ ...base, checks: { payHost: false, contact: true, apology: false, internalSource: false } }, none)).toMatchObject({
       checks: { contact: true },
     });
-    expect(combineAbsenceReadings(none, { ...base, checks: { payHost: false, contact: false, apology: true } })).toMatchObject({
+    expect(combineAbsenceReadings(none, { ...base, checks: { payHost: false, contact: false, apology: true, internalSource: false } })).toMatchObject({
       checks: { apology: true },
     });
     expect(combineAbsenceReadings(none, base)).toEqual({ status: "failed" });
@@ -133,7 +135,7 @@ describe("ayrıştırma ve birleşim (saf)", () => {
   });
 
   it("ödeme öğesi kuralı: okuyucu okuduysa yalnız ev sahibine ödeme tutar; okumadıysa kelime kuralı", () => {
-    const checks = (payHost: boolean) => ({ payHost, contact: false, apology: false });
+    const checks = (payHost: boolean) => ({ payHost, contact: false, apology: false, internalSource: false });
     expect(paymentHeldHolds(true, checks(false))).toBe(false);
     expect(paymentHeldHolds(false, checks(true))).toBe(true);
     expect(paymentHeldHolds(true, undefined)).toBe(true);
@@ -190,9 +192,9 @@ describe("kapı hükmü (kanal)", () => {
     answerableKinds: ["wifi" as const],
   };
   const declared = { ...ok, answeredRequests: { ok: true as const, refs: ["R1"] } };
-  const read = (c: Partial<{ payHost: boolean; contact: boolean; apology: boolean }>, text = ok.reply) => ({
+  const read = (c: Partial<{ payHost: boolean; contact: boolean; apology: boolean; internalSource: boolean }>, text = ok.reply) => ({
     reply: text,
-    outcome: { status: "ok" as const, admits: false, quote: "", checks: { payHost: false, contact: false, apology: false, ...c } },
+    outcome: { status: "ok" as const, admits: false, quote: "", checks: { payHost: false, contact: false, apology: false, internalSource: false, ...c } },
   });
 
   it("T-d ÖNCE/SONRA: ödeme öğesi tutuluyken üçüncü tarafa ödeme — okuyucusuz tutulur, okuyucu 'ev sahibine değil' derse gider", () => {
@@ -229,8 +231,8 @@ describe("kapı hükmü (kanal)", () => {
 
 describe("kapı hükmü (QR)", () => {
   const draft = { intent: "check_in", riskLevel: "none", confidence: 0.92, source: "openai", riskType: null, reply: "Check-in is from 15:00." };
-  const ctx = (c: Partial<{ payHost: boolean; contact: boolean; apology: boolean }>) => ({
-    absenceJudge: { reply: draft.reply, outcome: { status: "ok" as const, admits: false, quote: "", checks: { payHost: false, contact: false, apology: false, ...c } } },
+  const ctx = (c: Partial<{ payHost: boolean; contact: boolean; apology: boolean; internalSource: boolean }>) => ({
+    absenceJudge: { reply: draft.reply, outcome: { status: "ok" as const, admits: false, quote: "", checks: { payHost: false, contact: false, apology: false, internalSource: false, ...c } } },
   });
   it("ev sahibine ödeme → devir; özür → devir yalnız kural açıkken; iletişim QR'da kural değil", () => {
     expect(evaluateEscalation(draft, "When is check-in?", "Alex", [], ctx({})).reason).toBeNull();

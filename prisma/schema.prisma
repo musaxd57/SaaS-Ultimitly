@@ -360,6 +360,9 @@ model Property {
   checkOutTime          String   @default("11:00")
   cleaningBufferMinutes Int      @default(120)
   notes                 String?
+  // Misafire görünen ad (U4, kurucu 10-22; migration 83): QR sohbet başlığı "<ad> · Misafir Asistanı". Boş → yalnız marka. İç ad (`name`)
+  // herkese açık sayfaya ASLA çıkmaz. Yazım / okuma kuralı tek kaynak `lib/guest-display-name.ts`. Additive & nullable.
+  guestDisplayName      String?
   // Supply/linen prep profile: JSON object { supplyItemKey: qtyPerArrival } the host
   // fills once (e.g. {"carsaf_takimi":2,"havlu":4,"cop_poseti":2}). Drives the
   // deterministic prep/shopping plan (arrivals-in-range × this). Null = not set →

@@ -149,6 +149,16 @@ describe("K14 — misafirin gördüğü ekran (salt okunur önizleme)", () => {
     for (const t of ["form", "textarea", "input", "button"]) expect(types, t).not.toContain(t);
   });
 
+  it("U4: başlık misafirin gördüğünün aynısı — misafire görünen ad varsa '<ad> · Misafir Asistanı', yoksa marka; iç ad ASLA", async () => {
+    const { conversation, property } = await seed();
+    let { text } = await render(conversation.id);
+    expect(text).toContain("Lixus AI Misafir Asistanı");
+    await prisma.property.update({ where: { id: property.id }, data: { guestDisplayName: "Deniz Manzaralı" } });
+    ({ text } = await render(conversation.id));
+    expect(text).toContain("Deniz Manzaralı · Misafir Asistanı");
+    expect(text).not.toContain("Lixus AI Misafir Asistanı");
+  });
+
   it("🚨 sayfa HİÇBİR satır yazmaz (cihaz bağlama / okundu / sayaç / kayıt yok)", async () => {
     const { conversation } = await seed();
     const before = await dbSnapshot();

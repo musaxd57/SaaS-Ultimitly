@@ -91,6 +91,8 @@ const REASONS = new Set([
   "fix_unsupported",
   // Kıdemli okuyucu (T-b, kurucu 10-22; anahtar `AI_SENIOR_READER_ENABLED`; QR kapısı ile BİREBİR): ev sahibine platform dışı ödeme · özür.
   "offplatform_payment", "reply_apology",
+  // Kurucu 10-22: iç kaynak anlatımı ("bilgi tabanımda … yazıyor") misafire gitmez (QR kapısı ile BİREBİR).
+  "reply_internal_source",
 ]);
 /**
  * 🚨 PARİTE: QR kapısının her `EscalationReason` değeri BURADA da olmalı.

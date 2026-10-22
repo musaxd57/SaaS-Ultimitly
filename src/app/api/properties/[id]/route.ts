@@ -9,6 +9,7 @@ import { earlyCheckinRuleWhere } from "@/lib/early-checkin/rules";
 import { houseRulesWhere } from "@/lib/house-rules/store";
 import { STORAGE_PHOTO_URL_PREFIX } from "@/lib/storage/keys";
 import { enqueueUnreferencedPhotoDeletions } from "@/lib/storage/deletion-queue";
+import { normalizeGuestDisplayName } from "@/lib/guest-display-name";
 
 // ⚠️ GİZLİ TOKEN'LAR YANITTAN ÇIKARILIR — GERİ EKLEME.
 // `icalToken` takvim beslemesinin, `chatToken` QR concierge'in TEK kimlik
@@ -78,6 +79,8 @@ export const PATCH = withManage<{ id: string }>(async (session, req, { params })
       checkOutTime: d.checkOutTime,
       cleaningBufferMinutes: d.cleaningBufferMinutes,
       notes: d.notes === "" ? null : d.notes,
+      // U4: misafire görünen ad — gönderilmediyse dokunulmaz, boş → temizlenir (başlık yalnız marka).
+      guestDisplayName: d.guestDisplayName === undefined ? undefined : normalizeGuestDisplayName(d.guestDisplayName),
       // Only touch the profile when the client actually sent one (partial PATCH).
       supplyProfileJson:
         d.supplyProfile === undefined ? undefined : serializeSupplyProfile(d.supplyProfile),

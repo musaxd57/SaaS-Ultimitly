@@ -16,6 +16,8 @@ import {
   GuestChatThread,
   type GuestChatMessage,
 } from "@/components/guest-chat/guest-chat-thread";
+import { GUEST_COPY } from "@/components/guest-chat/guest-chat-copy";
+import { normalizeGuestDisplayName } from "@/lib/guest-display-name";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +49,7 @@ export default async function GuestScreenPreviewPage({ params }: { params: Promi
     select: {
       id: true,
       externalReservationId: true,
-      property: { select: { id: true, name: true, chatToken: true } },
+      property: { select: { id: true, name: true, chatToken: true, guestDisplayName: true } },
       messages: {
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         take: GUEST_CHAT_MESSAGE_WINDOW,
@@ -56,6 +58,9 @@ export default async function GuestScreenPreviewPage({ params }: { params: Promi
     },
   });
   if (!convo) notFound();
+  // U4: misafirin gördüğü başlığın aynısı ("<misafire görünen ad> · Misafir Asistanı"; ad yoksa yalnız marka).
+  const placeName = normalizeGuestDisplayName(convo.property.guestDisplayName);
+  const previewTitle = placeName ? GUEST_COPY.tr.titleFor(placeName) : GUEST_ASSISTANT_TITLE;
 
   const messages: GuestChatMessage[] = convo.messages
     .slice()
@@ -95,7 +100,7 @@ export default async function GuestScreenPreviewPage({ params }: { params: Promi
       {/* Telefon çerçevesi: misafirin ekranıyla aynı başlık / akış / altbilgi. */}
       <div className="mx-auto flex w-full max-w-sm flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-sm">
         <header className="border-b border-border bg-card px-4 py-3">
-          <p className="text-sm font-semibold">{GUEST_ASSISTANT_TITLE}</p>
+          <p className="text-sm font-semibold">{previewTitle}</p>
           <p className="text-xs text-muted-foreground">{GUEST_CHAT_DISCLOSURE}</p>
         </header>
         <div className="max-h-[60vh] space-y-3 overflow-y-auto px-4 py-4">

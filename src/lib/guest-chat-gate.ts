@@ -1,6 +1,6 @@
 import "server-only";
 
-import { admitsMissingKnowledge } from "@/lib/ai/absence";
+import { admitsMissingKnowledge, namesInternalSource } from "@/lib/ai/absence";
 import { absenceHolds, seniorChecksOf, type AbsenceJudgeOutcome } from "@/lib/ai/semantic/absence-judge";
 import { noApologyRuleEnabled } from "@/lib/ai/no-apology-rule";
 import { vetoOutgoingReply } from "@/lib/ai/output-veto";
@@ -158,6 +158,8 @@ export const ESCALATION_REASONS = [
   // Kıdemli okuyucu (T-b, kurucu 10-22; anahtar `AI_SENIOR_READER_ENABLED`): ev sahibine platform dışı ödeme (T-d) · özür / kusur kabulü (T-a).
   "offplatform_payment",
   "reply_apology",
+  // Kurucu 10-22: cevap bilgiyi NEREDEN bildiğini anlatıyor (bilgi tabanı / kayıt / not / sistem) — kanal kapısıyla AYNI yüklem.
+  "reply_internal_source",
 ] as const;
 
 export type EscalationReason = (typeof ESCALATION_REASONS)[number];
@@ -351,6 +353,9 @@ export function evaluateEscalation(
   const senior = seniorChecksOf(judged);
   if (senior?.payHost) return yes("offplatform_payment");
   if (senior?.apology && noApologyRuleEnabled()) return yes("reply_apology");
+  // Kurucu 10-22 ("bilgi tabanıyla ilgili … hiçbir şey müşteriye gitmemeli"): okuyucu okuduysa onun hükmü; ayrıca kodun açık sözcük yedeği
+  // (okuyucu kapalı / düştü / kaçırdı) — ANAHTARSIZ. Okuyucu açıksa rota bir kez yeniden yazdırır.
+  if (senior?.internalSource || namesInternalSource(result.reply ?? "")) return yes("reply_internal_source");
   // ── ÇIKTI VETOSU (Codex denetimi §A, 09-12) ───────────────────────────────
   //
   // 🚨 Gerekçe KAPALI KÜMEDEN ve AYRI: canlıda "yer tutucu mu, makbuzsuz söz

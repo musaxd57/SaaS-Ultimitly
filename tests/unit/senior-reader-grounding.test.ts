@@ -24,7 +24,7 @@ import { mergeSeniorRewrite, SENIOR_REWRITE_GATE_DETAILS, SENIOR_REWRITE_QR_REAS
 import { packKnowledgeBase } from "@/lib/ai/prompts";
 
 const DRAFT = "Merhaba [Misafir],\n\nÇöp konteynerleri binanın arka tarafında, otopark girişinin yanındadır; geri dönüşüm için mavi konteyneri kullanın.";
-const NO = { payHost: false, contact: false, apology: false };
+const NO = { payHost: false, contact: false, apology: false, internalSource: false };
 
 describe("alıntı kanıtı", () => {
   it("taslaktaki cümle (büyük-küçük harf / tırnak / noktalama / boşluk farkıyla) kanıttır", () => {
@@ -51,12 +51,12 @@ describe("alıntı kanıtı", () => {
       {
         admits: false,
         quote: "",
-        checks: { payHost: true, contact: true, apology: false },
-        checkQuotes: { payHost: "Ücreti bana nakit ödeyebilirsiniz.", contact: "mavi konteyneri kullanın", apology: "" },
+        checks: { payHost: true, contact: true, apology: false, internalSource: false },
+        checkQuotes: { payHost: "Ücreti bana nakit ödeyebilirsiniz.", contact: "mavi konteyneri kullanın", apology: "", internalSource: "" },
       },
       DRAFT,
     );
-    expect(r?.checks).toEqual({ payHost: false, contact: true, apology: false });
+    expect(r?.checks).toEqual({ payHost: false, contact: true, apology: false, internalSource: false });
     const legacy = groundReading({ admits: false, quote: "", checks: { ...NO, payHost: true } }, DRAFT);
     expect(legacy?.checks?.payHost).toBe(true);
   });
@@ -102,7 +102,7 @@ describe("alıntı kanıtı", () => {
       { admits: false, quote: "", checks: NO },
     );
     expect(one).toMatchObject({ status: "ok", admits: false, checks: NO, ungroundedChecks: { payHost: true, apology: true } });
-    expect(seniorChecksOf(one)).toEqual({ payHost: true, contact: false, apology: true });
+    expect(seniorChecksOf(one)).toEqual({ payHost: true, contact: false, apology: true, internalSource: false });
     expect(paymentHeldHolds(false, seniorChecksOf(one))).toBe(true);
     // Dayanaksız oy yoksa okuyucunun "hayır"ı kelime kuralını ezer (T-d: üçüncü tarafa ödeme bilgisi gider).
     const clean = combineAbsenceReadings({ admits: false, quote: "", checks: NO }, { admits: false, quote: "", checks: NO });
@@ -167,10 +167,11 @@ describe("yeniden yazma birleştirmesi (Opus 10-22 F1)", () => {
   it("yalnız okuyucunun düzeltilebilir sebepleri yeniden yazdırır", () => {
     expect([...SENIOR_REWRITE_GATE_DETAILS].sort()).toEqual([
       "reply_apology",
+      "reply_internal_source",
       "reply_offplatform_contact",
       "reply_offplatform_payment",
     ]);
-    expect([...SENIOR_REWRITE_QR_REASONS].sort()).toEqual(["offplatform_payment", "reply_apology"]);
+    expect([...SENIOR_REWRITE_QR_REASONS].sort()).toEqual(["offplatform_payment", "reply_apology", "reply_internal_source"]);
     expect(SENIOR_REWRITE_GATE_DETAILS.has("reply_absence")).toBe(false);
   });
 });

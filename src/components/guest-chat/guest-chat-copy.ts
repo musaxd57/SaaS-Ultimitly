@@ -36,6 +36,8 @@ export function guestLocaleFromAcceptLanguage(header: string | null | undefined)
 
 export interface GuestChatCopy {
   title: string;
+  /** U4: ev sahibi "misafire görünen ad" girdiyse başlık "<ad> · Misafir Asistanı" (iç mülk adı ASLA). */
+  titleFor: (place: string) => string;
   disclosure: string;
   intro: string;
   closed: string;
@@ -73,6 +75,7 @@ export const GUEST_COPY: Record<GuestLocale, GuestChatCopy> = {
   tr: {
     // Sabit marka adı — iç mülk adı (ev sahibinin özel etiketi) bu herkese açık sayfaya ASLA çıkmaz.
     title: "Lixus AI Misafir Asistanı",
+    titleFor: (place) => `${place} · Misafir Asistanı`,
     disclosure: "Yanıtlar yapay zekâ tarafından hazırlanabilir. Gerektiğinde işletme ekibi görüşmeye katılabilir.",
     intro: "Merhaba! 👋 Konaklamanızla ilgili sorularınızı (çöp günü, cihazlar, kurallar, çevre önerileri…) buraya yazabilirsiniz.",
     closed: "Konaklamanız sona erdiği için sohbet kapandı. İyi günler dileriz!",
@@ -109,6 +112,7 @@ export const GUEST_COPY: Record<GuestLocale, GuestChatCopy> = {
   },
   en: {
     title: "Lixus AI Guest Assistant",
+    titleFor: (place) => `${place} · Guest Assistant`,
     disclosure: "Replies may be prepared by AI. The host team can join the conversation when needed.",
     intro: "Hello! 👋 You can ask questions about your stay here (rubbish days, appliances, house rules, local tips…).",
     closed: "Your stay has ended, so this chat is now closed. Have a great day!",

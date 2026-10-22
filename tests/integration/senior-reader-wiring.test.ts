@@ -58,7 +58,7 @@ const DRAFT = (reply: string) => ({
   statedCheckoutTime: null,
 });
 
-type Checks = Partial<{ payHost: boolean; contact: boolean; apology: boolean }>;
+type Checks = Partial<{ payHost: boolean; contact: boolean; apology: boolean; internalSource: boolean }>;
 const NOTHING = {
   admits_missing_info: false,
   quote: "",
@@ -68,6 +68,8 @@ const NOTHING = {
   contact_quote: "",
   apology_or_fault: false,
   apology_quote: "",
+  names_internal_source: false,
+  source_quote: "",
 };
 /** Gerçek okuyucu gibi: "evet" dediği hükümde taslaktan bir cümle alıntılar (kanıt şartı, `groundReading`) — testlerde sorunlu cümle sonda. */
 function lastDraftSentence(init?: RequestInit): string {
@@ -91,6 +93,8 @@ function readerFetch(c: Checks | null) {
       contact_quote: c.contact ? q : "",
       apology_or_fault: c.apology === true,
       apology_quote: c.apology ? q : "",
+      names_internal_source: c.internalSource === true,
+      source_quote: c.internalSource ? q : "",
     };
     return new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify(verdict) } }] }), {
       status: 200,
@@ -237,6 +241,42 @@ describe("kıdemli okuyucu — kanal oto-yanıtı", () => {
     // Kanıt kaydı: yeniden yazma sebebi (kapalı küme kod, metin yok).
     const ev = await prisma.riskEvent.findFirstOrThrow({ where: { conversationId: id, surface: "auto_reply" } });
     expect(JSON.parse(ev.kbEvidenceJson ?? "{}").rw).toEqual(["contact"]);
+  });
+
+  it("🚨 kurucu 10-22: taslak bilgiyi NEREDEN bildiğini anlatıyor → bir kez yeniden yazılır, olgu doğrudan söylenen taslak GİDER", async () => {
+    vi.stubEnv("AI_SENIOR_READER_ENABLED", "1");
+    const NARRATED = "Check-in is from 15:00. My knowledge base says early bag drop is possible from 12:00.";
+    const CLEAN = "Check-in is from 15:00. Early bag drop is possible from 12:00.";
+    // Okuyucu metne bakar: "knowledge base" geçen taslak iç kaynak anlatımı.
+    const f = vi.fn(async (_url: string, init?: RequestInit) => {
+      const user = JSON.parse(String(init?.body)).messages[1].content as string;
+      const internal = /knowledge base/i.test(user.split("DRAFT REPLY:")[1] ?? "");
+      const v = { ...NOTHING, names_internal_source: internal, source_quote: internal ? lastDraftSentence(init) : "" };
+      return new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify(v) } }] }), { status: 200 });
+    });
+    vi.stubGlobal("fetch", f);
+    mockSuggest.mockResolvedValueOnce(DRAFT(NARRATED)).mockResolvedValueOnce(DRAFT(CLEAN));
+    const id = await seedChannel();
+    await applyChannelAutoReply(id);
+    expect(mockSuggest).toHaveBeenCalledTimes(2);
+    const notes = (mockSuggest.mock.calls[1][0] as { knowledgeBaseNotes?: string[] }).knowledgeBaseNotes ?? [];
+    expect(notes).toContain(SENIOR_REWRITE_NOTES.internalSource);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(mockSend.mock.calls[0])).toContain("Early bag drop is possible from 12:00.");
+    expect(JSON.stringify(mockSend.mock.calls[0])).not.toMatch(/knowledge base/i);
+    const ev = await prisma.riskEvent.findFirstOrThrow({ where: { conversationId: id, surface: "auto_reply" } });
+    expect(JSON.parse(ev.kbEvidenceJson ?? "{}").rw).toEqual(["internalSource"]);
+  });
+
+  it("kurucu 10-22: okuyucu KAPALIYKEN de kodun yedeği iç kaynak anlatımını tutar (anahtarsız)", async () => {
+    const f = readerFetch({});
+    vi.stubGlobal("fetch", f);
+    mockSuggest.mockResolvedValue(DRAFT("Bilgi tabanımda giriş saatinin 15:00 olduğu yazıyor."));
+    const id = await seedChannel();
+    await applyChannelAutoReply(id);
+    expect(f).not.toHaveBeenCalled();
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(await reasonOf(id)).toBe("reply_internal_source");
   });
 
   it("açık: onaylı konaklamada iletişim bilgisi kural değil → yeniden yazma YOK, ilk taslak gider", async () => {

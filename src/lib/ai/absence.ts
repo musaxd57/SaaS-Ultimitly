@@ -649,6 +649,41 @@ export function admitsMissingKnowledge(reply: string | null | undefined): boolea
   );
 }
 
+// ── İÇ KAYNAK ANLATIMI — OLUMLU DA GİTMEZ (kurucu 10-22, aynen: "bilgi tabanıyla ilgili kendi kullandığı model işlev özellik veri için baktığı
+// hiçbir şey müşteriye gitmemeli") ───────────────────────────────────────────────────────────────────────────────────────────────────────
+// Canlı ölçümde misafire giden: "Bilgi tabanımda otoparkın günlük ücretinin gişede nakit veya kartla ödenebildiği yazıyor; yani kart da
+// geçiyor." ↑`narratesInternalSource` yalnız İŞARET + OLUMSUZLUĞU tutuyordu ("bilgim yok" ailesi). Asıl karar kıdemli okuyucunun
+// (`semantic/absence-judge.ts`, anlamla; bir kez yeniden yazdırır); bu liste YEDEKTİR (okuyucu kapalı / düştü / kaçırdı) ve bilerek DAR:
+// yalnız yapay zekânın kendi kaynağını adlandıran açık sözcükler. Çıplak "sistem / system / records / guide" YOK (mülk olgusu: "Isıtma
+// sistemimiz…", "the guide we have in the drawer" — dairedeki basılı kılavuz iç kaynak değildir). Kalıplar başı sabit sözcükle başlar,
+// tekrarlar kapalı — karesel iş yok.
+const INTERNAL_SOURCE_NAMED: readonly RegExp[] = [
+  new RegExp(
+    `${L}(?:bilgi ?taban\\p{L}{0,8}|veri ?taban\\p{L}{0,8}|sistem sorgu\\p{L}{0,8}|` +
+      `kay[ıi]tlar[ıi]m(?:[ıi]z)?(?:da|dan|a göre)(?![\\p{L}])|notlar[ıi]m(?:[ıi]z)?(?:da|dan|a göre)(?![\\p{L}])|` +
+      `bilgiler[ıi]m(?:[ıi]z)?(?:de|den|e göre)(?![\\p{L}])|elimdeki (?:bilgi|not|kay[ıi]t|veri|kaynak)\\p{L}{0,8}|` +
+      `bana ${TR_GIVEN} (?:bilgi|not|kay[ıi]t|veri|talimat)\\p{L}{0,8})`,
+    "u",
+  ),
+  new RegExp(
+    `${L}(?:knowledge[ -]?base|database|system prompt|context window|(?:in|from|on) (?:my|our) (?:notes|records|files|system)(?![\\p{L}])|` +
+      "(?:my|our) (?:notes|records|files) (?:say|says|show|shows|indicate|indicates|mention|mentions|state|states)(?![\\p{L}])|" +
+      "according to (?:my|our|the) (?:notes|records|information|info|data|files|system)(?![\\p{L}])|" +
+      "(?:the )?(?:information|info|details|notes|data) (?:i have|i've got|i was given|i've been given|provided to me|given to me)(?![\\p{L}]))",
+    "u",
+  ),
+  /(?<![\p{L}])(?:wissensdatenbank|datenbank|(?:meinen|unseren) unterlagen|mir vorliegend\p{L}{0,3}|base de (?:données|connaissances)|(?:mes|nos) (?:notes|fiches|dossiers|registres)(?![\p{L}])|base de datos|(?:mis|nuestras) notas|(?:mis|nuestros) registros|баз\p{L}{0,3} данных|(?:наших|моих) (?:записях|заметках)|قاعدة (?:ال)?بيانات|سجلات(?:نا|ي)|ملاحظات(?:نا|ي))/u,
+];
+
+/**
+ * Cevap, bilgiyi NEREDEN bildiğini (bilgi tabanı / kayıt / not / veri tabanı / istem …) adıyla anlatıyor mu — olumlu ya da olumsuz. `true` ise
+ * metin misafire gitmez (kanal `reply_internal_source`, QR aynı sebep); okuyucu açıksa bir kez yeniden yazdırılır. Saf, doğrusal.
+ */
+export function namesInternalSource(reply: string | null | undefined): boolean {
+  const [plain, turkish] = foldedForms(reply);
+  return INTERNAL_SOURCE_NAMED.some((re) => re.test(plain) || re.test(turkish));
+}
+
 /** Rapor/hata metninde gösterilecek insan-okur özet (uydurma liste basma). */
 export const ABSENCE_CONTRACT_NOTE =
   "bilginin KAYITLARDA olmadığını açıkça söylemeli (savuşturma değil) — src/lib/ai/absence.ts";

@@ -20,6 +20,8 @@ export interface PropertyFormData {
   checkOutTime: string;
   cleaningBufferMinutes: number;
   notes: string;
+  /** U4: misafire görünen ad (QR başlığı). Boş = başlıkta yalnız marka. */
+  guestDisplayName: string;
 }
 
 const empty: PropertyFormData = {
@@ -31,6 +33,7 @@ const empty: PropertyFormData = {
   checkOutTime: "11:00",
   cleaningBufferMinutes: 120,
   notes: "",
+  guestDisplayName: "",
 };
 
 export function PropertyForm({
@@ -95,6 +98,20 @@ export function PropertyForm({
 
       <Field label="Mülk adı" htmlFor="name" error={fields.name}>
         <Input id="name" value={form.name} onChange={(e) => set("name", e.target.value)} required />
+      </Field>
+
+      <Field
+        label="Misafire görünen ad (isteğe bağlı)"
+        htmlFor="guestDisplayName"
+        error={fields.guestDisplayName}
+        hint="Misafir sohbet ekranının başlığında görünür. Yukarıdaki mülk adı misafire hiç gösterilmez."
+      >
+        <Input
+          id="guestDisplayName"
+          value={form.guestDisplayName}
+          onChange={(e) => set("guestDisplayName", e.target.value)}
+          placeholder="ör. Kat 2 Daire 3"
+        />
       </Field>
 
       <Field label="Adres" htmlFor="address" error={fields.address}>

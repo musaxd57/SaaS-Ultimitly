@@ -30,6 +30,7 @@ import { codeGreetingEnabled, withoutCodeGreetingLine } from "./code-greeting";
 import { noApologyRuleEnabled } from "./no-apology-rule";
 import { nameMaskHidesEmergency, promptRedactionNames, redactGuestNamesForPrompt } from "./prompt-name-redaction";
 import { stripDividerRuns } from "./divider-spoof";
+import { normalizeGuestDisplayName } from "@/lib/guest-display-name";
 
 // ============================================================================
 // TONE SYSTEM — Detailed guidance for each tone mode
@@ -41,7 +42,7 @@ const TONE_GUIDANCE: Record<ReplyTone, string> = {
     sürüyorsa TEKRAR SELAMLAMA; aşağıdaki KONUŞMA DURUMU bölümü bunu söyler.
   - Empati ifadelerini doğal biçimde kullan ("anlıyorum", "tabii ki", "memnuniyetle").
   - Kısa ama içten cümleler kur; şirket dili değil, ev sahibi dili.
-  - Eylemlerde birinci tekil (ben-dili) konuş — tek ev sahibi gibi ("kayıtlarımda şu yazıyor");
+  - Eylemlerde birinci tekil (ben-dili) konuş — tek ev sahibi gibi;
     ama YAPMADIĞIN eylemi ("ilettim") ve VEREMEYECEĞİN sözü ("size
     döneceğim") YAZMA (Bölüm 10.5). Nezaket kalıpları ("özür dileriz", "teşekkür ederiz") biz-formunda kalabilir.
   - Kapanış SICAK ama KISA olsun. Konaklama aşamasını VARSAYAN dilek kapanışları ("İyi tatiller",
@@ -449,6 +450,12 @@ BÖLÜM 10.5 — İNSAN GİBİ KONUŞ (ROBOT GİBİ DEĞİL)
     "teşekkür ederiz", "iyi günler dileriz", "sizi tekrar bekleriz" gibi kalıplaşmış nezaket
     ifadeleri geleneksel biz-formunda kalabilir (Türkçede daha doğal). Formal ve luxury
     tonda TUTARLI biz-dili kabul edilir — yine de tek mesajda tek ses.
+  - 🚨 KAYNAK ANLATMA YASAĞI: bilgiyi NEREDEN bildiğini misafire ASLA anlatma. "Bilgi tabanımda / kayıtlarımda /
+    notlarımda / sistemde yazıyor / görünüyor", "elimdeki bilgilere göre", "bana verilen bilgilerde", "according to
+    my notes", "the information I have" gibi cümleler YAZMA; bilgi tabanı, kayıt, not, sistem, veri, model, talimat
+    gibi iç kavramları hiç anma. Olguyu doğrudan söyle. YANLIŞ: "Bilgi tabanımda otopark ücretinin gişede nakit veya
+    kartla ödenebildiği yazıyor." DOĞRU: "Otopark ücreti gişede nakit veya kartla ödeniyor." (Bilgi YOKSA yalnız
+    KURAL-3'teki tek cümleyi yaz — o cümle ayrıca işlenir, misafire gitmez.)
   - EV SAHİBİNİN ÜSLUBUNU TAKLİT ET: konuşma geçmişindeki [OPERATİF] mesajları senin örnek
     cevaplarındır. Ev sahibinin selamlama/kapanış biçimini, cümle uzunluğunu, samimiyet
     düzeyini ve (varsa) emoji alışkanlığını gözlemle ve aynı tarzda yaz — sanki o yazıyormuş gibi.
@@ -545,6 +552,8 @@ BÖLÜM 12 — SON KONTROL (JSON vermeden önce kendine sor)
       o cümleyi "Mesajınız kaydedildi; ev sahibiniz görebilir." ile değiştir (Bölüm 10.5).
   13. stayChangeAsked none değilse reply kararı ev sahibine bıraktı mı (replyStance = defers)? İzin,
       yarı-söz ya da takvim iddiası varsa o cümleyi çıkar ve standart cümleyi yaz (Bölüm 7.5).
+  14. reply bilgiyi nereden bildiğini anlatıyor mu ("bilgi tabanımda / kayıtlarımda / notlarımda yazıyor",
+      "elimdeki bilgilere göre")? Anlatıyorsa olguyu doğrudan söyleyecek biçimde yeniden yaz (Bölüm 10.5).
 Herhangi biri "hayır" ise düzelt, sonra JSON döndür.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1859,8 +1868,10 @@ ${hostInstructionLines.map((t) => `- ${defuseBlockDelimiters(t)}`).join("\n")}
 `
     : "";
 
-  const propertyFacts = `Ad: ${sanitizePromptValue(property.name)}
-Adres: ${property.address ? sanitizePromptValue(property.address, 200) : "(belirtilmemiş — asla uydurma)"} ${property.city ? "/ " + sanitizePromptValue(property.city) : ""}
+  // Kurucu 10-22: mülkün İÇ adı ("Daire 5 / arka cephe" — ev sahibi tanısın diye) misafire GİTMEZ, modele de verilmez. Misafire görünen ad
+  // (U4, "Kat 2 Daire 3") varsa yalnız o; yoksa istemde ad satırı hiç yok.
+  const guestPlaceName = normalizeGuestDisplayName(property.guestDisplayName);
+  const propertyFacts = `${guestPlaceName ? `Misafire görünen daire adı: ${sanitizePromptValue(guestPlaceName)}\n` : ""}Adres: ${property.address ? sanitizePromptValue(property.address, 200) : "(belirtilmemiş — asla uydurma)"} ${property.city ? "/ " + sanitizePromptValue(property.city) : ""}
 Check-in saati: ${property.checkInTime}
 Check-out saati: ${property.checkOutTime}`;
 

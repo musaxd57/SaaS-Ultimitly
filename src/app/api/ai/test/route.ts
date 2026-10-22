@@ -164,6 +164,7 @@ export const POST = withManage(async (session, req) => {
     guestMessage: message,
     property: {
       name: property.name,
+      guestDisplayName: property.guestDisplayName,
       checkInTime: property.checkInTime,
       checkOutTime: property.checkOutTime,
       address: property.address,
