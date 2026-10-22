@@ -91,10 +91,14 @@ export function identityEmailShell(o: IdentityEmailOptions): string {
   // elle kopyalaması kolaylaşıyor. Değerler BİRBİRİNE BAĞLI — aralığı
   // değiştiren indent'i de yarısına ayarlamalı.
   // ⚠️ Dış tablo `width="100%"`, iç tablo sabit 480 — Outlook'un tek güvenilir
-  // ortalama yolu budur (`margin:0 auto` orada çalışmaz).
+  // ortalama yolu budur (`margin:0 auto` orada çalışmaz). İç tablonun CSS'i
+  // `width:100%;max-width:480px` (görsel inceleme 10-22, ölçüldü): eskisi
+  // `width:480px;max-width:100%` idi ve tablo düzeninde sabit CSS genişliği hücrenin
+  // en küçük genişliği olduğu için telefonda (390 px) kart 512 px kalıyordu.
+  // Outlook CSS genişliği okumaz, `width="480"` niteliğini kullanır.
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f8fafc;padding:32px 16px">
   <tr><td align="center">
-    <table role="presentation" width="480" cellpadding="0" cellspacing="0" border="0" style="width:480px;max-width:100%">
+    <table role="presentation" width="480" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:480px">
       <tr><td align="center" style="padding-bottom:20px">
         <span style="font-family:system-ui,-apple-system,Segoe UI,Arial,sans-serif;font-size:17px;font-weight:700;color:#0f172a;letter-spacing:-0.2px">Lixus<span style="color:#64748b"> AI</span></span>
       </td></tr>
