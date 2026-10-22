@@ -57,6 +57,10 @@ Kurucu 10-15: "Railway'i açınca ekleyeceğimiz bayrakları unutma." Bu dosya T
 
 1. `QR_PIN_ENABLED` (kurucu 10-11: AÇILACAK). 🚨 **ÖNCE `QR_PIN_PEPPER` ekleyin** (rastgele, en az 32 karakter, `AUTH_SECRET` ile AYNI
    OLMAZ) — yoksa açılış denetimi (`scripts/verify-env.mjs`) üretimde süreci başlatmaz, servis çöker (gece-4 S10-04).
+   ✅ Kurucu 10-22 U1 ("Olur 3'ü birden"): (a) açılışta "1" · (b) KODDA: sohbet kodu istenmeyen konaklamada Wi-Fi QR'da VERİLMEZ (anahtar
+   kapalıyken HİÇBİR konaklamada Wi-Fi gitmez — bu anahtarı açmak Wi-Fi'yi QR'da geri getirir, yalnız kodla açılan konaklamada) · (c) KODDA:
+   QR sohbet ekranında "Cihaz kilidini sıfırla". ⚠️ Açmadan önce "PIN DoS" (10 yanlış kodla 15 dk kilit) birlikte bakılacak (kurucu notu).
+   Sohbet kodu Airbnb mesajıyla gider (Mülk → Rezervasyonlar → "Sohbet kodu oluştur" → "Airbnb mesajı kopyala"); metin filtre dostu.
 2. `AI_DATE_RESOLUTION_ENABLED` + `AI_CONVERSATION_STATE_ENABLED` (güvenlik ölçüleri 0, gereksiz soru 0).
 3. `AI_VERIFIED_AVAILABILITY_ENABLED` → `AI_VERIFIED_EXTENSION_ENABLED` → `AI_VERIFIED_QR_ENABLED`.
 4. `AI_UNDERSTANDING_EN_QUERY_ENABLED` (İngilizce köprü sorgusu; 110 → 115 / 120).
