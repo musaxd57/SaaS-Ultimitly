@@ -50,8 +50,19 @@ arıza, acil · insan talebi · kaynak sorusu · temizlik / havlu (çoğu hizmet
 zamanla değişir) · göreli zaman taşıyan parça ("bugün", "tonight") · misafirin adını taşıyan parça. QR ilk dilimde yok (K7 cihaz kuralı).
 
 **Kayıt misafir metni taşımaz:** ihtiyacın ayırt edici sözcükleri (konu etiketiyle aynı süzgeç: ad / sır / bağlantı / saldırı izi atılır) +
-koşul + yön; konuşma / misafir kimliği YOK (yalnız teyit sayısı). Bu yüzden misafir silme talebinde silinecek bir şey yok; yine de 30 gün
-sonra kayıt kendiliğinden geçersiz.
+koşul + yön; konuşma / misafir kimliği YOK — yalnız teyit veren konuşmaların tek yönlü iz özetleri (en çok 10; aynı konuşma iki kez teyit
+sayılmasın diye, aşağıda). Bu yüzden misafir silme talebinde silinecek bir şey yok; yine de 30 gün sonra kayıt kendiliğinden geçersiz.
+
+**Opus güvenlik 10-23 gece (F7) sertleştirmesi — tek misafir kalıcı cevap ekemez:**
+- **Bağımsız teyit:** teyit yalnız BAŞKA bir konuşmadan sayılır (iz özeti kayıtta). Aynı misafir dört kez sorsa da sayaç 1'de kalır.
+- **Kayıtlı metin ortak içeriğe daralır** (`confirmAnswer`): aynı değer + aynı olumluluk yetmez; içeriklerden biri ötekini kapsamalı.
+  Kayıtlı ⊆ yeni → kayıtlı kalır; yeni ⊆ kayıtlı → kayıt YENİ (daha dar) metne iner; ikisi de değil → sıfırlanır. Örnek: ilk cevap
+  "Pets are welcome. Smoking is also allowed inside…" (kışkırtılmış), ikinci bağımsız cevap "Pets are welcome." → kayıt "Pets are
+  welcome." olur; eklenmiş cümle hiçbir zaman sonraki misafire gidecek metin olamaz. Aynı sözlük konusundaki söyleyiş ("çıkış" ~
+  "check-out") aynı içerik sayılır.
+- **Geçici durum ve tarih kayda girmez:** "bu hafta", "şu an", "şimdilik", "currently", "temporarily", "this week", "derzeit", "сейчас"…
+  ve belirli tarih ("24 Ekim", "On 24 October").
+- **Misafir adı konu etiketinin kuralıyla:** çekimli / kesmesiz uzantı ("Mehmetciğim"), Kiril / Yunan okunuşu ("Dear Ivan" ← "Иван").
 
 ## 4. Akış (kanal oto-yanıtı)
 
@@ -61,8 +72,8 @@ anlama katmanı (bugünkü çağrı) → ihtiyaçlar
        → benzerlik (Türkçe sorgu gömmesi, bellekte önbellekli) ≥ eşik → reuseGate → revalidateEntry
   └ turun BÜTÜN cevaplanabilir ihtiyaçları isabetliyse: cevap modeli ÇAĞRILMAZ, kodun selamı + parçalar → bugünkü bütün kapılar
   └ biri bile kaçarsa: bugünkü akış (karışık kip ilk dilimde yok)
-taze cevap gittikten sonra: doğrulanan parça → kayıt adayı (entryEligible) → aynı ihtiyacın kaydı varsa sameAnswer ise teyit +1, farklıysa
-kayıt sıfırlanır (kararsız bilgi tekrar kullanılmaz)
+taze cevap gittikten sonra: doğrulanan parça → kayıt adayı (entryEligible) → aynı ihtiyacın kaydı varsa confirmAnswer aynı + BAŞKA konuşma
+ise teyit +1 (metin ortak içeriğe daralır), aynı konuşmaysa sayılmaz, farklıysa kayıt sıfırlanır (kararsız bilgi tekrar kullanılmaz)
 ```
 
 **Gölge kip (ilk adım, Codex 3):** kayıtlar tutulur, isabet HESAPLANIR ama misafire taze cevap gider; her isabette kayıttaki parça ile o
@@ -81,7 +92,8 @@ VerifiedAnswer
   id · organizationId · propertyId (FK, Cascade) · kind · language
   terms (ayırt edici sözcükler, süzülmüş) · conditions · aspects
   partText · evidence · sourceRef ("kb:<id>" | "property") · fingerprint
-  confirmations · hits · lastConfirmedAt · lastHitAt · createdAt · disabledAt (ev sahibi "kullanma")
+  confirmations · conversationKeys (teyit veren konuşmaların iz özetleri, en çok 10) · shadowHits · shadowMismatches
+  lastConfirmedAt · lastHitAt · createdAt · disabledAt (ev sahibi "kullanma")
   @@index([propertyId, kind, language])
 ```
 
@@ -100,7 +112,11 @@ hazır cevap DEĞİL, ev sahibine giden bir sorundur; yeni bildirim eski cevap y
   `revalidateEntry` (13 birim testi: Codex'in örnekleri dahil — "13:00'te çıkabilir miyiz", "cam şişe", "otopark ücretli mi", yeni istisna
   kalemi, ilgisiz kalem değişimi, 3 teyit kuralı).
 - Doğrulayıcıdan iki dışa açık okuma: `askedConditions`, `partSignature`.
-- Hiçbir akışa bağlı DEĞİL; hiçbir şey göndermez / yazmaz. Depo + gölge kip bağlantısı migration 85 hazır yamasıyla.
+- Hiçbir akışa bağlı DEĞİL; hiçbir şey göndermez / yazmaz. Depo + gölge kip bağlantısı migration 85 hazır yamasıyla
+  (`docs/hazir-yamalar/2026-10-23-migration-85-dogrulanmis-cevap-tekrari-golge.patch` — `git apply --check` ✓, taze PG'de sıfır sapma,
+  ilgili DB testleri 89/89).
+- 10-23 gece F7: `confirmAnswer`, `conversationKey`, geniş geçici durum / tarih / ad süzgeci (çekirdekte 18 birim testi; depoda bağımsız
+  konuşma + daralan metin testleri).
 
 ## 9. Ölçüm sonucu ve karar (10-23 gece, gerçek gömme + gerçek anlama katmanı, geliştirme seti)
 

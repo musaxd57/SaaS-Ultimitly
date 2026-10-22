@@ -316,8 +316,17 @@ function negativeVerb(t: string): boolean {
   );
 }
 
+/** "no (extra) charge" / "without charge" / "keine Gebühr" ücret yokluğudur (ücretsiz), olumsuz cevap değil — ücret kutbu ayrıca okur. */
+const FEE_NOUN = /^(?:charge|charges|fee|fees|cost|costs|gebuhr|gebuehr|frais|cargo|плат)/;
+function feeAbsence(tokens: readonly string[], i: number): boolean {
+  const n1 = tokens[i + 1] ?? "";
+  const n2 = tokens[i + 2] ?? "";
+  return FEE_NOUN.test(n1) || (/^(?:extra|additional|zusatzlich|supplementaire|adicional)/.test(n1) && FEE_NOUN.test(n2));
+}
+
 function negAt(tokens: readonly string[], i: number): boolean {
   const t = tokens[i];
+  if (["no", "without", "kein", "keine", "keinen", "sans", "sin", "без"].includes(t) && feeAbsence(tokens, i)) return false;
   // İngilizce "can't / don't / isn't": kesme boşluğa döner ("can t") → "-n"den sonraki "t" olumsuzdur.
   return NEGATION_TOKENS.has(t) || negativeVerb(t) || (t === "t" && i > 0 && tokens[i - 1].endsWith("n"));
 }
@@ -919,7 +928,7 @@ function documentOf(raw: string, subj: Subject) {
       if ((DAY_CLASSES.has(c) && ownDay) || (SEASON_CLASSES.has(c) && ownSeason)) continue;
       conditions.add(c);
     }
-    const reading = { conditions, negative: own.negative || extra.negative, directions: own.directions.size > 0 ? own.directions : (ellipticDirection(sent, gi) ?? own.directions) };
+    const reading = { conditions, negative: own.negative || extra.negative, directions: own.directions.size > 0 ? own.directions : (ellipticDirection(sent, gi) ?? labelDirection(sent, gi) ?? own.directions) };
     row[gi] = reading;
     return reading;
   };
@@ -944,9 +953,24 @@ function documentOf(raw: string, subj: Subject) {
         const nd = clausePlace(sent, sent.groupClause[k + 1]).directions;
         row[k] = nd.size === 1 ? nd : nd.size > 1 ? null : row[k + 1];
       }
+      // İleri eksilti (Haiku 10-23 gece #6): "Havuz 20:00'de kapanır, sauna 22:00'de." — yüklem öndeki aynı ekli değerden; geri yön önceliklidir.
+      for (let k = 1; k < n; k++) {
+        if (row[k] || !kases[k] || kases[k - 1] !== kases[k] || clausePlace(sent, sent.groupClause[k]).directions.size > 0) continue;
+        const pd = clausePlace(sent, sent.groupClause[k - 1]).directions;
+        row[k] = pd.size === 1 ? pd : pd.size > 1 ? null : row[k - 1];
+      }
       ellipticCache.set(sent, row);
     }
     return row[gi];
+  };
+  /**
+   * Etiket biçimi (Haiku 10-23 gece #5): "Havuz kapanış saati: 20:00" / "Pool closing time: 20:00" — yön sözcüğü iki noktanın ÖBÜR yanında,
+   * değerin konu yerinde. Yalnız konu yeri başka bir değer taşımıyorsa ve tek yön veriyorsa.
+   */
+  const labelDirection = (sent: Sentence, gi: number): Set<"start" | "end"> | null => {
+    if (sent.regionSeg[gi] !== gi) return null;
+    const d = directions(tokenize(text.slice(sent.regionFrom[gi], sent.groups[gi].at)));
+    return d.size === 1 ? d : null;
   };
   /** Cümlenin yan cümle koşullarının önek sayımları: `counts[k]` = ilk k yan cümlede o sınıfı taşıyanların sayısı. */
   const condPrefixCache = new Map<Sentence, Map<string, Int32Array>>();
@@ -1134,6 +1158,8 @@ function cachedDocument(raw: string, subj: Subject): Doc {
  * karesel olurdu. Tavanı aşan kalemde temiz yer bulunamazsa parça TUTULUR (güvenli yön); doğal kalemde bir değer birkaç yerde geçer.
  */
 const MAX_SITES_PER_VALUE = 48;
+/** Rakip değer taraması tavanı (konu yeri sözcükleri yer başına bir kez okunur); aşan kalem tarife sayılır → tutulur (Haiku 10-23 gece #8). */
+const MAX_RIVAL_SITES = 240;
 
 // ─── dayanaksız içerik (Haiku 10-23 F3: "Havuz 09:00-20:00 arası açık VE ÜCRETSİZDİR" alıntıda olmayan sözcükle gidiyordu) ─────────
 
@@ -1144,7 +1170,12 @@ const FILLER_ROOTS = (
   "yaklasik herhangi bir tum ilgili konuda aylar sezon donem " +
   "hello sure please thank enjoy your stay you there here located available use welcome also just note kindly would like can will " +
   "every daily the this that these those our are have has get " +
-  "hallo gerne bitte danke ihnen ihr wir unser gibt befindet steht nutzen konnen jeden taglich"
+  "hallo gerne bitte danke ihnen ihr wir unser gibt befindet steht nutzen konnen jeden taglich " +
+  // Nezaket kapanışları (Haiku 10-23 gece #4: "We hope you enjoy your stay." / "Wir wünschen Ihnen einen schönen Aufenthalt." yabancı dil
+  // yan cümle kuralında olgu sanılıyordu).
+  "hope wish glad happy pleasant great lovely wonderful forward know question further anything else help " +
+  "wunsch schon aufenthalt angenehm fragen melden jederzeit souhait sejour agreable dese estancia agradable disfrut pregunta " +
+  "augur soggiorno piacevole domand желаем приятн отдых вопрос обращайтесь надеемся eine einen einem einer eines sich"
 ).split(" ");
 function isFiller(t: string, prev: string): boolean {
   if (t === "free" && prev === "feel") return true;
@@ -1191,6 +1222,29 @@ function quoteSentences(sourceText: string | undefined, evidence: string): strin
   return hits.length > 0 ? hits.join(" ") : evidence;
 }
 
+/**
+ * Çok dilli tesis adları → kimlik (sözlük konusu olmayanlar dahil: "sauna"). Kök başlangıcı (en az 4 harf) ya da kısa adda tam belirteç.
+ * Yalnız birbirine karışıp yanlış saat / ücret alabilecek tesisler.
+ */
+const FACILITY_ROOTS: Readonly<Record<string, readonly string[]>> = {
+  pool: ["havuz", "pool", "piscin", "schwimmbad", "бассейн"],
+  sauna: ["sauna", "сауна", "саун"],
+  hamam: ["hamam", "hammam", "хамам"],
+  jacuzzi: ["jakuzi", "jacuzzi", "whirlpool", "джакузи"],
+  spa: ["spa"],
+  gym: ["gym", "fitness", "spor", "тренаж", "фитнес", "gimnasio", "palestra"],
+  steam: ["buhar", "steam", "dampfbad", "парилк"],
+};
+function facilitiesIn(text: string): Set<string> {
+  const out = new Set<string>();
+  for (const t of tokenize(text)) {
+    for (const [id, roots] of Object.entries(FACILITY_ROOTS)) {
+      if (roots.some((r) => t === r || (r.length >= 4 && t.startsWith(r)))) out.add(id);
+    }
+  }
+  return out;
+}
+
 /** Yan cümle bağlaçları (çok dilli) — yabancı dil parçasında yan cümle kuralı için. */
 const CLAUSE_CONJUNCTION = /\s+(?:and|und|et|y|e|и|ve|but|aber|mais|pero|но|ama|also|plus|también|auch|aussi|тоже)\s+/iu;
 
@@ -1201,6 +1255,8 @@ function contentWord(toks: readonly string[], i: number, needTerms: readonly str
   // Edilgen yardımcı fiil ("ediliyor", "edilir") ve "servis edil-" (= "verilir") içerik değildir (E ölçümü v4: "servis ediliyor" ←
   // "verilir"); olumsuzu ("servis edilmez") olumsuzluk kontrolünde ayrıca tutulur.
   if (/^edil/.test(t) || (t === "servis" && /^edil/.test(toks[i + 1] ?? ""))) return false;
+  // Süre yardımcıları ("11:00'e kadar devam ediyor / sürer" ← "verilir"; E ölçümü v5): olgu değil, olumsuzu olumluluk kontrolünde.
+  if (/^(?:devam|surer|suruyor|surmekte)/.test(t)) return false;
   return !(needTerms.length > 0 && needTermsInStrict(needTerms, t) > 0);
 }
 
@@ -1287,7 +1343,16 @@ function feeClasses(tokens: readonly string[]): Set<"free" | "paid"> {
     if (FEE_FREE.has(t)) {
       const negated = /^degil/.test(tokens[i + 1] ?? "") || NEGATING_PARTICLES.has(tokens[i - 1] ?? "") || (tokens[i - 1] ?? "") === "не";
       out.add(negated ? "paid" : "free");
-    } else if (FEE_PAID.has(t)) out.add("paid");
+    } else if (FEE_PAID.has(t)) {
+      // "free of charge" / "no (extra) charge" / "without charge" ücretsizdir (Haiku 10-23 gece #10).
+      const p1 = tokens[i - 1] ?? "";
+      const p2 = tokens[i - 2] ?? "";
+      if ((p1 === "of" && p2 === "free") || ["no", "without"].includes(p1) || (["extra", "additional"].includes(p1) && ["no", "without"].includes(p2))) {
+        if (!(p1 === "of" && p2 === "free")) out.add("free");
+        continue;
+      }
+      out.add("paid");
+    }
   }
   return out;
 }
@@ -1414,7 +1479,8 @@ export function checkAnswerBinding(input: BindingInput): BindingResult {
     if (!multiAt(d)) return true;
     if (partIds.size === 0) return false;
     const evIds = evRegionIds(d, si, gi);
-    return evIds.size === 0 || [...partIds].some((x) => evIds.has(x));
+    // Parçanın değer yeri İKİ tesisi anıyorsa ("Havuz ve sauna 20:00'de kapanır") kalem yeri ikisini de taşımalı (Haiku 10-23 gece #1).
+    return evIds.size === 0 || [...partIds].every((x) => evIds.has(x));
   };
 
   /** İstisna / karşıtlık: cümlede varsa parça da taşımalı (ya da istisnanın gün / mevsim koşulunu anmalı). */
@@ -1441,13 +1507,15 @@ export function checkAnswerBinding(input: BindingInput): BindingResult {
     const row = (rows[si] ??= []);
     if (row[gi]) return row[gi];
     const toks = tokenize((d.boundRegion(si, gi) ?? "").replace(KB_LINE_PREFIX, ""));
+    // Nitelik sözcüğü niteleyicidir ("Havuz TEMİZLİĞİ 14:00" kapanış saatine rakip değildir — Haiku 10-23 gece #7); yalnız ücret / saat adı
+    // ve "açık / kapalı" dışındaki nötr sözcükler düşer ("AÇIK havuz" ≠ "havuz").
     return (row[gi] = toks.filter(
       (t, i) =>
         !/\d/.test(t) &&
-        !isNeutralWord(t) &&
+        (!isNeutralWord(t) || t === "acik" || t === "kapali") &&
         !isFiller(t, toks[i - 1] ?? "") &&
-        !isAttribute(t) &&
         !GENERIC_REGION_WORDS.has(t) &&
+        !FEE_WORD.test(t) &&
         !START_TOKENS.has(t) &&
         !END_TOKENS.has(t) &&
         !(input.needTerms.length > 0 && needTermsInStrict(input.needTerms, t) > 0),
@@ -1463,8 +1531,11 @@ export function checkAnswerBinding(input: BindingInput): BindingResult {
    *    olduğu bilinmez. Niteleyicili rakip ("Çıkış 11:00" ↔ "Geç çıkış 13:00") ayrı bir şeydir, çelişki değil.
    * Aynı cümlede aynı konu yerinden dizilen değerler ("08:00, 09:00 ve 10:00") liste sayılır; parçanın kendisi de verdiği değer taraf tutmaz.
    */
-  const rivalIssue = (c: Span, h: Hit, place: PlaceReading, partIds: Set<string>): boolean => {
-    if (variantClassesOf(place.conditions).length > 0) return false;
+  const carriesQualifier = (w: string) =>
+    partTokens.some((t) => sameStem(w, t)) || topicsWithSymptomsOf(w).some((x) => topicsWithSymptomsOf(input.part).includes(x));
+  const rivalIssue = (c: Span, h: Hit, place: PlaceReading, partIds: Set<string>): BindingIssue | null => {
+    if (variantClassesOf(place.conditions).length > 0) return null;
+    let dropped = false;
     const g = h.sent.groups[h.gi];
     const role = g.claims.length >= 2 ? (h.idx === 0 ? "start" : h.idx === g.claims.length - 1 ? "end" : null) : null;
     const dirs = role ? new Set<"start" | "end">([role]) : place.directions;
@@ -1472,7 +1543,7 @@ export function checkAnswerBinding(input: BindingInput): BindingResult {
     for (const d of [ev, ...otherDocs]) {
       const sites = d.boundSitesFor(c.cls);
       // Tavanı aşan kalemde rakip aranamaz → çelişki sayılır (güvenli yön; yüzlerce değerli tarife tutulur).
-      if (sites.length > MAX_SITES_PER_VALUE) return true;
+      if (sites.length > MAX_RIVAL_SITES) return "value_conflict";
       for (const s of sites) {
         if (d === h.d && s.si === h.si && (s.gi === h.gi || d.sentences[s.si].regionFrom[s.gi] === h.sent.regionFrom[h.gi])) continue;
         if (valuesOverlap(c, s.claim) || partValues.some((v) => valuesOverlap(v, s.claim))) continue;
@@ -1485,13 +1556,18 @@ export function checkAnswerBinding(input: BindingInput): BindingResult {
           const ids = evRegionIds(d, s.si, s.gi);
           if (ids.size > 0 && ![...partIds].some((x) => ids.has(x))) continue;
         }
-        if (d === ev && h.d !== ev) return true;
+        if (d === ev && h.d !== ev) return "value_conflict";
         const mine = regionWords(h.d, h.si, h.gi);
         const theirs = regionWords(d, s.si, s.gi);
-        if (mine.every((w) => theirs.some((x) => sameStem(w, x))) && theirs.every((w) => mine.some((x) => sameStem(w, x)))) return true;
+        const mineExtra = mine.filter((w) => !theirs.some((x) => sameStem(w, x)));
+        const theirsExtra = theirs.filter((w) => !mine.some((x) => sameStem(w, x)));
+        if (mineExtra.length === 0 && theirsExtra.length === 0) return "value_conflict";
+        // Parçanın dayandığı yer niteleyicili, rakip genel değer: parça niteleyiciyi anmalı (Haiku 10-23 gece #2: "Çıkış saati 11:00. Geç
+        // çıkış 13:00'e kadar" kaleminden "Çıkış saati 13:00'e kadar" geçiyordu).
+        if (mineExtra.length > 0 && theirsExtra.length === 0 && !mineExtra.every(carriesQualifier)) dropped = true;
       }
     }
-    return false;
+    return dropped ? "condition_dropped" : null;
   };
   // Ücret kutbu PARÇA düzeyinde: parçanın konusunu anan kalem cümleleri (+ ardındaki konusuz devam cümleleri) ne diyor ("Otopark
   // ücretlidir." → "Parking is free." tutulur; "Havuz ücretsiz. Sauna ücretli." → "Sauna ücretsizdir" tutulur).
@@ -1516,6 +1592,7 @@ export function checkAnswerBinding(input: BindingInput): BindingResult {
   const dayValues: { days: Set<string>; placeGeneral: boolean }[] = [];
 
   let anchored = false;
+  const hitDocs = new Set<Doc>();
   if (partClaims.length > 0) {
     for (const pc of partClaims) {
       const { c, days: valueDays } = pc;
@@ -1604,7 +1681,11 @@ export function checkAnswerBinding(input: BindingInput): BindingResult {
       }
       if (best) {
         for (const i of best.local) issues.add(i);
-        if (best.local.size === 0 && rivalIssue(c, best.h, best.place, partIds ?? partIdentitiesAll)) issues.add("value_conflict");
+        if (best.local.size === 0) {
+          const rival = rivalIssue(c, best.h, best.place, partIds ?? partIdentitiesAll);
+          if (rival) issues.add(rival);
+        }
+        hitDocs.add(best.h.d);
         const valueOnlyDays = new Set(dayClassesOf(valueDays));
         if (valueOnlyDays.size > 0) dayValues.push({ days: valueOnlyDays, placeGeneral: best.placeGeneral });
       }
@@ -1683,6 +1764,10 @@ export function checkAnswerBinding(input: BindingInput): BindingResult {
     }
     issues.add("condition_added");
   }
+  // Tesis adı (havuz / sauna / hamam / jakuzi / spor salonu / buhar odası …) dayanağında olmadan anılamaz — ihtiyaç sorsa bile (Haiku 10-23
+  // gece #1 / #3: "Havuz ve sauna 20:00'de kapanır", "The sauna closes at 20:00" yalnız havuz kalemiyle geçiyordu; "sauna" sözlükte yok).
+  const allowedFacilities = new Set([...facilitiesIn(input.sourceText), ...facilitiesIn(evidence), ...[...hitDocs].flatMap((d) => [...facilitiesIn(d.text)])]);
+  if ([...facilitiesIn(input.part)].some((f) => !allowedFacilities.has(f))) issues.add("subject_mismatch");
   if (unsupportedContent(input.part, evidence, input.needTerms, { sourceText: input.sourceText, needTopics: input.needTopics })) issues.add("unsupported_content");
   const list = BINDING_ISSUES.filter((i) => issues.has(i));
   return { ok: list.length === 0, issues: list };
@@ -1793,6 +1878,8 @@ const sameSet = <T,>(a: ReadonlySet<T>, b: ReadonlySet<T>) => a.size === b.size 
 /** Kalem satırının kategori öneki ("- [AMENITIES] …", `kbLine`) konu yerinin niteleyicisi değildir. */
 const KB_LINE_PREFIX = /^\s*-\s*\[[^\]\n]{1,40}\]/u;
 /** Konu yerinde niteleyici sayılmayan genel saat / zaman adları ("Çıkış saati 11:00" ↔ "Check-out: 11:00"). */
+/** Ücret adı (konu yerinde niteleyici sayılmaz: "Havuz ücreti 200 TL" ↔ "Havuz 300 TL" çelişir). */
+const FEE_WORD = /^(?:ucret|fiyat|price|cost|fee|preis|prix|precio|tarif)/;
 const GENERIC_REGION_WORDS: ReadonlySet<string> = new Set(
   "saat saati saatler saatleri saatimiz time times uhrzeit zeit heure horaire horaires hora horario время".split(" "),
 );

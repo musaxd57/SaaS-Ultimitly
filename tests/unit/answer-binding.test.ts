@@ -713,3 +713,51 @@ describe("mutasyon pinleri 10-23 gece", () => {
     expect(run("Havuz 20:00'de kapanır.", part).issues).toContain("condition_added");
   });
 });
+
+// Haiku 10-23 gece incelemesi (821ce991): 3 yanlış kabul TUTULUR, 5 yanlış tutma + "free of charge" GİDER.
+describe("Haiku 10-23 gece (821ce991 incelemesi)", () => {
+  const run = (src: string, part: string, q: string[], others?: string[]) =>
+    checkAnswerBinding({ part, evidence: src, sourceText: src, ...need(q), ...(others ? { otherSources: others } : {}) });
+  const POOLQ = ["havuz kaçta kapanıyor", "when does the pool close"];
+  const PS = ["havuz ve sauna kaçta kapanıyor", "when do the pool and sauna close"];
+  const CO = ["çıkış saati kaçta", "what time is check-out"];
+
+  it("🚨 kalemde olmayan tesis anılamaz (ihtiyaç sorsa da): 'Havuz ve sauna 20:00', 'The sauna closes at 20:00' ← yalnız havuz kalemi", () => {
+    expect(run("Havuz 20:00'de kapanır.", "Havuz ve sauna 20:00'de kapanır.", PS).ok).toBe(false);
+    expect(run("Havuz 20:00'de kapanır.", "The pool and the sauna close at 20:00.", PS).ok).toBe(false);
+    expect(run("Havuz açıktır.", "Havuz ve sauna açıktır.", ["havuz ve sauna açık mı"]).ok).toBe(false);
+    expect(run("Havuz 20:00'de kapanır.", "The sauna closes at 20:00.", POOLQ).ok).toBe(false);
+    expect(run("Havuz 20:00'de kapanır.", "Die Sauna schließt um 20:00 Uhr.", POOLQ).ok).toBe(false);
+    // İki tesisi taşıyan değer yeri: parçanın iki tesisi de kalem yerinde olmalı.
+    expect(run("Havuz 20:00'de, sauna 22:00'de kapanır.", "Havuz ve sauna 20:00'de kapanır.", PS).ok).toBe(false);
+    expect(run("Havuz ve sauna 20:00'de kapanır.", "Havuz ve sauna 20:00'de kapanır.", PS).ok).toBe(true);
+  });
+
+  it("🚨 niteleyicili değişke ('Geç çıkış 13:00') genel değer gibi verilemez; niteleyiciyle gider", () => {
+    const src = "Çıkış saati 11:00. Geç çıkış 13:00'e kadar mümkündür.";
+    expect(run(src, "Çıkış saati 13:00'e kadar.", CO).ok).toBe(false);
+    expect(run(src, "Geç çıkış 13:00'e kadar mümkündür.", CO).ok).toBe(true);
+    expect(run(src, "Çıkış saati 11:00.", CO).ok).toBe(true);
+  });
+
+  it("yanlış tutmalar gider: nezaket kapanışı, etiketli yön ('Kapanış saati: 20:00'), ileri eksilti, rakip olmayan nitelik, çok satırlı bakım listesi", () => {
+    expect(run("Havuz 20:00'de kapanır.", "The pool closes at 20:00. We hope you enjoy your stay.", POOLQ).ok).toBe(true);
+    expect(run("Havuz 20:00'de kapanır.", "Der Pool schließt um 20:00 Uhr. Wir wünschen Ihnen einen schönen Aufenthalt.", POOLQ).ok).toBe(true);
+    expect(run("Havuz kapanış saati: 20:00.", "Havuz 20:00'de kapanır.", POOLQ).ok).toBe(true);
+    expect(run("Pool closing time: 20:00.", "The pool closes at 20:00.", POOLQ).ok).toBe(true);
+    expect(run("Havuz 20:00'de kapanır, sauna 22:00'de.", "Sauna 22:00'de kapanır.", ["sauna kaçta kapanıyor", "when does the sauna close"]).ok).toBe(true);
+    expect(run("Havuz 20:00'de kapanır. Havuz temizliği 14:00'te yapılır.", "Havuz 20:00'de kapanır.", POOLQ).ok).toBe(true);
+    expect(run("Havuz 20:00'de kapanır. Açık havuz 18:00'de kapanır.", "Havuz 20:00'de kapanır.", POOLQ).ok).toBe(true);
+    const maintenance = Array.from({ length: 50 }, (_, i) => `Havuz bakımı ${String(i % 24).padStart(2, "0")}:15'te yapılır.`).join(" ");
+    expect(run(`Havuz 20:00'de kapanır. ${maintenance}`, "Havuz 20:00'de kapanır.", POOLQ).ok).toBe(true);
+    // Süre yardımcısı ("devam ediyor" ← "verilir"; E ölçümü v5).
+    expect(run("Kahvaltı 08:00-10:30 arası, hafta sonu 11:00'e kadar zemin kattaki kafede verilir.", "Hafta sonu kahvaltı 11:00'e kadar devam ediyor.", ["hafta sonu kahvaltı kaça kadar"]).ok).toBe(true);
+  });
+
+  it("'free of charge' / 'no extra charge' ücretsizdir (önceden ücretli okunuyordu)", () => {
+    const park = ["otopark ücretli mi", "is parking free"];
+    expect(run("Otopark ücretsizdir.", "Parking is free of charge.", park).ok).toBe(true);
+    expect(run("Otopark ücretsizdir.", "There is no extra charge for parking.", park).ok).toBe(true);
+    expect(run("Otopark günlük 200 TL.", "Parking is free of charge.", park).ok).toBe(false);
+  });
+});
