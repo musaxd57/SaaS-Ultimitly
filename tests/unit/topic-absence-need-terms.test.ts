@@ -102,6 +102,57 @@ describe("konu bazlı bilgim yok — misafirin sözcükleriyle eşleme", () => {
     expect(out).toEqual({ ok: false, reason: "unattributed" });
   });
 
+  it("Haiku 10-22: gönderime izin veren eşleşme SIKI — 'check' ~ 'checkout' ve 'kapı' ~ 'kapıcı' karşılık sayılmaz", () => {
+    const en = stripTopicAbsence({
+      reply: "I don't have information about a sauna. Please check with your host.",
+      answeredRefs: ["R1", "R2"],
+      answerableTopics: [checkout, sauna],
+      heldDeviceTopics: [],
+    });
+    expect(en.ok).toBe(false);
+    const kapici = { ref: "R1", topics: topicsWithSymptomsOf("kapıcı kaçta geliyor"), terms: needTerms(["kapıcı kaçta geliyor"]) };
+    const tr = stripTopicAbsence({
+      reply: "Kapı şifreniz 4411'dir. Sauna hakkında bilgim yok.",
+      answeredRefs: ["R1", "R2"],
+      answerableTopics: [kapici, sauna],
+      heldDeviceTopics: [],
+    });
+    expect(tr.ok).toBe(false);
+  });
+
+  it("Haiku 10-22: Almanca işlev sözcüğü ('gibt') yokluk cümlesini bir isteğe BAĞLAMAZ → tutulur", () => {
+    const de = stripTopicAbsence({
+      reply: "Der Check-in ist ab 15 Uhr. Dazu gibt es keine Information.",
+      answeredRefs: ["R1", "R2"],
+      answerableTopics: [checkout, { ...sauna, terms: needTerms(["sauna var mı", "gibt es eine Sauna"]) }],
+      heldDeviceTopics: [],
+    });
+    expect(de.ok).toBe(false);
+  });
+
+  it("Haiku 10-22: düşen konu kalan metinde ÇEKİMLİ / yumuşamış geçiyorsa (dolap → dolabın, oda → odasında) tutulur", () => {
+    const dolap = { ref: "R2", topics: topicsWithSymptomsOf("dolap ölçüleri"), terms: needTerms(["dolap ölçüleri ne"]) };
+    const wifi = { ref: "R1", topics: topicsWithSymptomsOf("wifi şifresi"), terms: needTerms(["wifi şifresi"]) };
+    const out = stripTopicAbsence({
+      reply: "Wi-Fi şifresi Lale2025, modem dolabın içinde. Dolap ölçüleri hakkında bilgim yok.",
+      answeredRefs: ["R1", "R2"],
+      answerableTopics: [wifi, dolap],
+      heldDeviceTopics: [],
+    });
+    expect(out).toEqual({ ok: false, reason: "dropped_topic_kept" });
+  });
+
+  it("sıkı eşleşme çekimi tanır: 'sauna' ~ 'saunada' (kalan istek kendi sözcüğüyle karşılık bulur)", () => {
+    const hamam = { ref: "R1", topics: [], terms: needTerms(["saunanın saatleri"]) };
+    const out = stripTopicAbsence({
+      reply: "Saunada havlu var. Jakuzi hakkında bilgim yok.",
+      answeredRefs: ["R1", "R2"],
+      answerableTopics: [hamam, { ref: "R2", topics: [], terms: needTerms(["jakuzi var mı"]) }],
+      heldDeviceTopics: [],
+    });
+    expect(out.ok && out.reply).toBe("Saunada havlu var.");
+  });
+
   it("uzun girdide doğrusal (karesel iş yok)", () => {
     const long = "sauna ".repeat(20_000);
     const t0 = performance.now();

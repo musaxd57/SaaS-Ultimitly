@@ -122,7 +122,10 @@ const GENERIC_NEED_ROOTS = (
   "soyle simdi sistem veri daire saat zaman gun acik kapali kapan ilgili durum olan nedir kac " +
   "inform info detail record note notes unfortunate host ask contact know sure have don doesn isn aren can cannot provid share " +
   "availab current time hour open clos day apartment propert system data regard mention list specific any some what when there " +
-  "keine leider gastgeber malheureuse lamentable informaci anfitri"
+  "keine leider gastgeber malheureuse lamentable informaci anfitri " +
+  // Haiku 10-22: yaygın işlev / yokluk sözcükleri — "Dazu gibt es keine Information" "gibt" ile sauna isteğine bağlanıyordu.
+  "gibt der die das dem den ist eine einen wann dazu also check guest pas sais heure est quelle sur une des les " +
+  "sahip cevap verem dair eldeki bilmiyor bunu buna degil ama please"
 ).split(" ");
 
 function isGenericToken(t: string): boolean {
@@ -139,15 +142,69 @@ export function needTerms(queries: readonly string[]): string[] {
   return [...new Set(queries.flatMap((q) => distinctiveTokens(q)))].sort();
 }
 
-/** İki sözcük aynı kavram mı: eşit ya da (kısası en az 4 harf) biri ötekinin başı — Türkçe çekim ("saunanın" ~ "sauna"). */
-function sameWord(a: string, b: string): boolean {
-  if (a === b) return true;
-  const [s, l] = a.length <= b.length ? [a, b] : [b, a];
-  return s.length >= 4 && l.startsWith(s);
+/**
+ * Katlanmış Türkçe ÇEKİM ekleri (hâl / iyelik / çoğul — türetme eki YOK: "-cı, -lık, -lı, -sız" yeni sözcük kurar: "kapı" ≠ "kapıcı",
+ * "temiz" ≠ "temizlik") + İngilizce çoğul. Sıkı eşleşme yalnız bunları kabul eder (Haiku 10-22: "check" ~ "checkout", "kapı" ~ "kapıcı").
+ */
+const INFLECTIONS = new Set(
+  (
+    "a e i u ya ye yi yu da de ta te dan den tan ten in un nin nun yla yle la le na ne ni nu nda nde ndan nden " +
+    "lar ler lari leri larin lerin larda lerde lardan lerden lara lere si su sin sun sini sina sine sinda sinde sindan sinden " +
+    "im um imiz umuz iniz unuz mi mu miz muz niz nuz s es"
+  ).split(" "),
+);
+
+/** Sözcük sonu ünsüz yumuşaması (katlanmış): dolap → dolab(ı), kitap → kitab(ı), yatak → yatag(ı), renk → reng(i), sokak → sokag(ı). */
+function softened(w: string): string | null {
+  const last = w[w.length - 1];
+  const soft = last === "p" ? "b" : last === "t" ? "d" : last === "k" ? "g" : last === "c" ? "c" : null;
+  return soft && soft !== last ? w.slice(0, -1) + soft : null;
 }
 
-/** `a`daki kaç sözcüğün `b`de karşılığı var. */
-const overlap = (a: readonly string[], b: readonly string[]): number => a.filter((t) => b.some((u) => sameWord(t, u))).length;
+/**
+ * Sözcüğün olası çekimsiz biçimleri: kendisi + (en az 4 harf kalıyorsa) bir çekim eki sökülmüş hâli + sözcük sonu yumuşamış hâli.
+ * "saunanın" → {saunanin, sauna}; "saunada" → {saunada, sauna}; "dolap" → {dolap, dolab}; "dolabın" → {dolabin, dolab}.
+ */
+function baseForms(w: string): Set<string> {
+  const out = new Set([w]);
+  const soft = softened(w);
+  if (soft && soft.length >= 4) out.add(soft);
+  for (let k = 1; k <= 6 && w.length - k >= 4; k++) if (INFLECTIONS.has(w.slice(-k))) out.add(w.slice(0, -k));
+  return out;
+}
+
+/**
+ * SIKI eşleşme — yalnız GÖNDERİME izin veren kararlarda (kalan cümle kalan isteğe bağlı mı, kalan istek kalan metinde karşılık buluyor mu):
+ * iki sözcüğün çekimsiz biçimleri ortak (yalnız ÇEKİM eki sökülür). "sauna" ~ "saunada" ~ "saunanın" ✓, "dolap" ~ "dolabın" ✓,
+ * "check" ~ "checkout" ✗, "kapı" ~ "kapıcı" ✗, "park" ~ "parking" ✗ (şüphede tut).
+ */
+function sameWordStrict(a: string, b: string): boolean {
+  if (a === b) return true;
+  if (a.length < 3 || b.length < 3) return false;
+  const fa = baseForms(a);
+  for (const f of baseForms(b)) if (fa.has(f)) return true;
+  return false;
+}
+
+/**
+ * GEVŞEK eşleşme — yalnız TUTMA yönündeki kararlarda ("bilgim yok" cümlesini isteğe bağlama, kalan metinde düşen konuyu arama): kısası
+ * (ya da yumuşamış hâli) en az 3 harf ve uzunun başı ("oda" ~ "odasında", "dolap" ~ "dolabın"). Fazla eşleşme daha çok tutar.
+ */
+function sameWordLoose(a: string, b: string): boolean {
+  if (a === b) return true;
+  const [s, l] = a.length <= b.length ? [a, b] : [b, a];
+  if (s.length < 3) return false;
+  const soft = softened(s);
+  return l.startsWith(s) || (soft !== null && l.startsWith(soft));
+}
+
+/** `a`daki kaç sözcüğün `b`de karşılığı var (`same` kararın yönüne göre sıkı ya da gevşek). */
+const overlapWith =
+  (same: (x: string, y: string) => boolean) =>
+  (a: readonly string[], b: readonly string[]): number =>
+    a.filter((t) => b.some((u) => same(t, u))).length;
+const overlapLoose = overlapWith(sameWordLoose);
+const overlapStrict = overlapWith(sameWordStrict);
 
 export function stripTopicAbsence(input: {
   reply: string;
@@ -190,7 +247,7 @@ export function stripTopicAbsence(input: {
       const refs = input.answerableTopics.filter((r) => r.topics.some((t) => topics.includes(t))).map((r) => r.ref);
       // Kurucu 10-22 Soru 1: sözlük eşlemesine EK olarak isteğin kendi sözcükleri — en çok ortak kökü olan istek(ler).
       const segStems = distinctiveTokens(seg);
-      const scores = input.answerableTopics.map((r) => ({ ref: r.ref, n: overlap(r.terms ?? [], segStems) }));
+      const scores = input.answerableTopics.map((r) => ({ ref: r.ref, n: overlapLoose(r.terms ?? [], segStems) }));
       const best = Math.max(0, ...scores.map((x) => x.n));
       if (best > 0) for (const x of scores) if (x.n === best && !refs.includes(x.ref)) refs.push(x.ref);
       if (!touchesHeld && refs.length === 0) return { ok: false, reason: "unattributed" };
@@ -211,10 +268,10 @@ export function stripTopicAbsence(input: {
   const remainingTerms = [...new Set(answeredRefs.flatMap((r) => termsOfRef.get(r) ?? []))];
   const droppedTopics = new Set(input.answerableTopics.filter((r) => dropped.has(r.ref)).flatMap((r) => r.topics));
   // Düşen isteğin KENDİNE ÖZGÜ sözcükleri (cevaplanan bir istekle ortak sözcük düşen konunun kanıtı sayılmaz).
-  const droppedTerms = [...new Set([...dropped].flatMap((r) => termsOfRef.get(r) ?? []))].filter((t) => overlap([t], remainingTerms) === 0);
+  const droppedTerms = [...new Set([...dropped].flatMap((r) => termsOfRef.get(r) ?? []))].filter((t) => overlapStrict([t], remainingTerms) === 0);
   if (
     (droppedTopics.size > 0 && keptTopics.some((ts) => ts.some((t) => droppedTopics.has(t)))) ||
-    (droppedTerms.length > 0 && keptStems.some((ss) => overlap(droppedTerms, ss) > 0))
+    (droppedTerms.length > 0 && keptStems.some((ss) => overlapLoose(droppedTerms, ss) > 0))
   ) {
     return { ok: false, reason: "dropped_topic_kept" };
   }
@@ -226,14 +283,14 @@ export function stripTopicAbsence(input: {
   const remaining = new Set(answeredRefs.flatMap((r) => topicsOfRef.get(r) ?? []));
   // Kalan her cümle kalan bir isteğe sözlük konusuyla YA DA isteğin kendi sözcüğüyle bağlanır (kural 5); kalan her istek kalan metinde
   // sözlük konusuyla ya da kendi sözcüğüyle karşılık bulur (kural 6).
-  if (kept.some((_, i) => !keptTopics[i].some((t) => remaining.has(t)) && overlap(keptStems[i], remainingTerms) === 0)) {
+  if (kept.some((_, i) => !keptTopics[i].some((t) => remaining.has(t)) && overlapStrict(keptStems[i], remainingTerms) === 0)) {
     return { ok: false, reason: "unanchored_kept" };
   }
   for (const ref of answeredRefs) {
     const topics = topicsOfRef.get(ref) ?? [];
     const terms = termsOfRef.get(ref) ?? [];
     const byTopic = topics.length > 0 && keptTopics.some((ts) => ts.some((t) => topics.includes(t)));
-    const byTerm = terms.length > 0 && keptStems.some((ss) => overlap(terms, ss) > 0);
+    const byTerm = terms.length > 0 && keptStems.some((ss) => overlapStrict(terms, ss) > 0);
     if (!byTopic && !byTerm) return { ok: false, reason: "uncovered_answered" };
   }
   return { ok: true, reply: greeting + reply, answeredRefs, droppedRefs: [...dropped].sort(), droppedSentences };
