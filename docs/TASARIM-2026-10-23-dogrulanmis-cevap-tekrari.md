@@ -102,9 +102,30 @@ hazır cevap DEĞİL, ev sahibine giden bir sorundur; yeni bildirim eski cevap y
 - Doğrulayıcıdan iki dışa açık okuma: `askedConditions`, `partSignature`.
 - Hiçbir akışa bağlı DEĞİL; hiçbir şey göndermez / yazmaz. Depo + gölge kip bağlantısı migration 85 hazır yamasıyla.
 
-## 9. Ölçüm sonucu ve karar
+## 9. Ölçüm sonucu ve karar (10-23 gece, gerçek gömme + gerçek anlama katmanı, geliştirme seti)
 
-(ölçüm bitince doldurulur)
+90 soru · 170 çift (aynı ihtiyaç 38 · benzeyen ama farklı 42 · alakasız 90). Eşik 0,70:
+
+| yöntem | doğru tekrar | 🚨 yanlış tekrar |
+|---|---|---|
+| misafirin ham metni benzerliği | 5/38 | 9/132 |
+| anlama katmanının Türkçe sorgusu benzerliği | 38/38 | **10/132** |
+| sorgu benzerliği + kod kapısı (`reuseGate`) | **27/38** | **0/132** |
+| aynı + yalnız aynı dil (ilk dilim) | 8/38 | 0/132 |
+
+Okuma:
+- **Codex haklı, ölçüldü:** benzerlik tek başına izin olamaz. Ham metinde "Otopark var mı?" ↔ "Otopark ücretli mi?" 0,86 — gerçek eş
+  anlamlılardan YÜKSEK. Türkçe sorgu benzerliği bütün eş anlamlıları buluyor ama 10 yanlış tekrar (kedi ↔ köpek 0,87, cumartesi ↔ genel
+  0,84, "ek ücret" 0,80, "dahil mi" 0,79 …).
+- **Kod kapısı yanlış tekrarı 0'a indiriyor**, eşik 0,50–0,65 arası aynı sonuç (izin kapıdan geliyor). Kaçan 11 eş anlamlı: 3'ü bilinçli
+  dışarıda tür (klima kullanımı), 2'si bilinçli temkin (köpek cevabı genel evcil hayvan sorusuna verilmez), kalanlar çöp fiilleri
+  ("atılır / bırakma"), "en erken", "banyo havlusu" — hepsi TUTMA yönünde (taze cevap üretilir).
+- **Anlama katmanı eş anlamlıları zaten birleştiriyor:** 5 dilde 7 çıkış sorusunun hepsi "çıkış saati checkout" sorgusuna dönüştü → kayıt
+  anahtarı misafirin metni değil, bu sorgudur.
+- "Aynı dil" kuralı ilk dilimde geri çağırmayı düşürür (set Türkçe çapalı, eş anlamlıların çoğu başka dilde); üretimde her dilin kendi kaydı
+  olur. Çeviriyle dil aşırı tekrar ikinci dilim (çeviri modeli + doğrulama ister).
+- Geliştirme setidir; aynı yazarın setinde 0 yanlış, kör sette de 0 olacağı anlamına gelmez → anahtar açılmadan önce ayrı yazarlı kör set +
+  gölge kipte gerçek akış ölçümü.
 
 ## 10. Kurucuya (sabah)
 
