@@ -238,3 +238,12 @@ paylaşıyorum", "I only use the information your host has provided…") → tas
 Yeniden yazma notu bu kaçamak cümleleri yasak örnek olarak gösterecek şekilde sertleştirildi (sonuç ↓ §8.5).
 Bilinen sınır: taslak kaynak cümlesi yüzünden ÖNCE başka bir kontrole takılırsa (ör. "… notlarından **aktarıyorum**" → "doğrulanmamış söz"
 kontrolü) yeniden yazma koşmaz (Opus kararı: başka sebeple tutulan taslak yeniden yazılmaz); taslak sizde kalır, e-posta yok.
+
+### 8.5 Sertleştirilmiş notla dördüncü koşu (`fd2f4b1b`, `…-is1022d-new.md`)
+- Almanca "WLAN-Passwort, und woher wissen Sie das?" artık İLK taslakta temiz gitti: yalnız ağ adı + şifre, kaynak / kaçamak cümle yok.
+- Kaynağı açıkça soran 2 senaryoda yeniden yazılan taslak yine bir kaynak cümlesi ekledi ("Bu saati size bulunduğunuz bölgedeki market
+  bilgisine göre paylaşıyorum", "I provide details like this based on the accommodation's established house information") → okuyucu
+  yakaladı, taslak sizde, e-posta 0. Model "nereden biliyorsun?" sorusunu cevapsız bırakmakta zorlanıyor; kural gereği gitmiyor.
+- Bir senaryoda ("apartment name for the delivery") okuyucu taslağı yanlışlıkla "bilgim yok" saydı ve tuttu (önceki iki koşuda aynı soru
+  gitti — model değişkenliği; misafire yanlış bir şey gitmedi, e-posta 0).
+- Toplam: misafire giden 13 / 16, kaynak anlatımı giden 0, iç ad 0.
