@@ -1,0 +1,132 @@
+// ---------------------------------------------------------------------------
+// CEVAP PARÇALARI — ihtiyaç başına cevap + kod doğrulaması + kod birleştirmesi (kurucu 10-23 A; anahtar `AI_ANSWER_PARTS_ENABLED`,
+// varsayılan KAPALI; yalnız konuşma öğeleri kipinde).
+//
+// Kurucunun akışı (aynen): "Mesajı anlamlandır → gerçek ihtiyaçları ayır → her ihtiyaca kaynak bul → cevapları ayrı üret → uygun
+// parçaları birleştir → yalnız gerçekten cevaplanan işleri kapat." · "'Sauna hakkında bilgim yok' üretilip sonra ayıklanmasın."
+//
+// Cevap modeli KONUŞMA ÖĞELERİ bloğundaki her cevaplanacak istek (R1, R2 …) için bir parça yazar: durum ("answered" | "no_info"),
+// yalnız o isteğin cevabı (selam / kapanış / başka istek YOK) ve o cevabı destekleyen BİREBİR alıntı. Kod (model çağrısı YOK):
+//   1. alıntıyı istemde gösterilen bir kaynakta bulur (bilgi tabanı satırı ya da mülk bilgisi; okuyucunun kanıt kuralı — NFKC + görünmez
+//      karakter + benzer harf). İstem satırına kimlik EKLENMEDİ (`[K1]`): kalem satırının biçimi seçicinin bütçe ölçüsüyle pinli; alıntı
+//      kaynağı zaten tek başına belirler.
+//   2. `answer-binding` ile değer ↔ konu ↔ koşul ↔ olumsuzluk ↔ yön bağını doğrular.
+//   3. Doğrulanan parçaları istek sırasıyla birleştirir; misafire giden metin YALNIZ bunlardır. "no_info" ve doğrulanamayan parça HİÇBİR
+//      cümle üretmez (iç kayıt) — istek ev sahibinin panelinde açık kalır, cevaplandı sayılmaz.
+// Birleşik metin bugünkü bütün kapılardan (çıktı vetosu, sır, iç kaynak, kıdemli okuyucu …) yine geçer; parça doğrulaması onların YERİNE
+// değil, ÖNÜNE eklenir.
+// ---------------------------------------------------------------------------
+
+import "server-only";
+
+import { checkAnswerBinding, type BindingIssue } from "@/lib/ai/answer-binding";
+import { quoteGroundedIn } from "@/lib/ai/semantic/absence-judge";
+
+/** Anahtar yalnız tam "1" ile açılır (`STRICT_ONE_FLAGS`). */
+export function answerPartsEnabled(): boolean {
+  return process.env.AI_ANSWER_PARTS_ENABLED === "1";
+}
+
+export const ANSWER_PART_STATUSES = ["answered", "no_info"] as const;
+export type AnswerPartStatus = (typeof ANSWER_PART_STATUSES)[number];
+
+export interface AnswerPart {
+  ref: string;
+  status: AnswerPartStatus;
+  text: string;
+  evidence: string;
+}
+
+export type AnswerPartsDeclaration = { ok: true; parts: AnswerPart[] } | { ok: false; reason: "missing" | "malformed" | "unknown_ref" };
+
+/** Parça metni / alıntı tavanı (karakter). Uzun parça doğrulanamaz sayılır — bir isteğin cevabı birkaç cümledir. */
+export const PART_TEXT_MAX = 600;
+export const PART_EVIDENCE_MAX = 600;
+
+/**
+ * Modelin `answers` alanını STRICT çözer: dizi değilse "missing"; tanınmayan istek kimliği "unknown_ref"; bozuk kayıt "malformed" (kapı
+ * tutar — eksik beyan cevaplandı sayılmaz). Aynı kimliğin ikinci kaydı yok sayılır (ilk kayıt geçerli).
+ */
+export function parseAnswerParts(raw: unknown, refs: readonly string[]): AnswerPartsDeclaration {
+  if (!Array.isArray(raw)) return { ok: false, reason: "missing" };
+  const parts: AnswerPart[] = [];
+  for (const x of raw) {
+    if (!x || typeof x !== "object") return { ok: false, reason: "malformed" };
+    const r = x as Record<string, unknown>;
+    if (typeof r.ref !== "string") return { ok: false, reason: "malformed" };
+    if (!refs.includes(r.ref)) return { ok: false, reason: "unknown_ref" };
+    if (!(ANSWER_PART_STATUSES as readonly unknown[]).includes(r.status)) return { ok: false, reason: "malformed" };
+    const text = typeof r.text === "string" ? r.text.trim() : "";
+    const evidence = typeof r.evidence === "string" ? r.evidence.trim() : "";
+    if (parts.some((p) => p.ref === r.ref)) continue;
+    parts.push({ ref: r.ref, status: r.status as AnswerPartStatus, text, evidence });
+  }
+  return { ok: true, parts };
+}
+
+/** İstemde modele gösterilen bir kaynak: bilgi tabanı satırı (`kbLine` biçimi) ya da mülk bilgisi bloğu. */
+export interface PartSource {
+  id: string;
+  text: string;
+}
+
+export interface PartNeed {
+  ref: string;
+  /** İhtiyacın kendi sözcükleri (`topic-absence.needTerms`) ve sözlük konuları. */
+  terms: readonly string[];
+  topics: readonly string[];
+}
+
+export type PartVerdict =
+  | { ref: string; status: "verified"; source: string }
+  | { ref: string; status: "no_info" | "missing" }
+  | { ref: string; status: "rejected"; issues: (BindingIssue | "text_missing" | "too_long" | "source_not_found")[] };
+
+export interface ComposedReply {
+  /** Misafire gidecek metin: doğrulanan parçalar, istek sırasıyla, satır satır. Hiç yoksa boş dize (hiçbir şey gitmez). */
+  reply: string;
+  /** Doğrulanan isteklerin kimlikleri (yalnız bunlar "cevaplandı"). */
+  refs: string[];
+  /** İstek başına karar (iz / ölçüm; metin YOK). */
+  verdicts: PartVerdict[];
+}
+
+/** Parçaları doğrular ve birleştirir. Saf; istek sırası `needs` sırasıdır (R1, R2 …). */
+export function composeVerifiedReply(input: { parts: readonly AnswerPart[]; needs: readonly PartNeed[]; sources: readonly PartSource[] }): ComposedReply {
+  const texts: string[] = [];
+  const refs: string[] = [];
+  const verdicts: PartVerdict[] = [];
+  for (const need of input.needs) {
+    const part = input.parts.find((p) => p.ref === need.ref);
+    if (!part) {
+      verdicts.push({ ref: need.ref, status: "missing" });
+      continue;
+    }
+    if (part.status === "no_info") {
+      verdicts.push({ ref: need.ref, status: "no_info" });
+      continue;
+    }
+    if (!part.text || !part.evidence) {
+      verdicts.push({ ref: need.ref, status: "rejected", issues: ["text_missing"] });
+      continue;
+    }
+    if (part.text.length > PART_TEXT_MAX || part.evidence.length > PART_EVIDENCE_MAX) {
+      verdicts.push({ ref: need.ref, status: "rejected", issues: ["too_long"] });
+      continue;
+    }
+    const source = input.sources.find((s) => quoteGroundedIn(s.text, part.evidence));
+    if (!source) {
+      verdicts.push({ ref: need.ref, status: "rejected", issues: ["source_not_found"] });
+      continue;
+    }
+    const binding = checkAnswerBinding({ part: part.text, evidence: part.evidence, sourceText: source.text, needTerms: need.terms, needTopics: need.topics });
+    if (!binding.ok) {
+      verdicts.push({ ref: need.ref, status: "rejected", issues: binding.issues });
+      continue;
+    }
+    texts.push(part.text);
+    refs.push(need.ref);
+    verdicts.push({ ref: need.ref, status: "verified", source: source.id });
+  }
+  return { reply: texts.join("\n"), refs, verdicts };
+}

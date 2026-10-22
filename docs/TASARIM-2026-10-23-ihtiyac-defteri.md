@@ -221,3 +221,16 @@ bilgisi (T-d, 10-22).
 6. **B** panel örneklerinize göre (onaydan sonra).
 7. **SSS önbelleği** (S1–S4 cevaplarından sonra; F3'e dayanır).
 8. QR aynı hatta (öğe + parça).
+
+## 16. Uygulama notları (10-23, F1 + F3 kodda — anahtar KAPALI)
+
+- **F1 doğrulayıcı** (`ai/answer-binding.ts`): değer ↔ konu ↔ koşul ↔ olumsuzluk ↔ yön. Haiku incelemesinin 11 yanlış geçiş sınıfı kapandı
+  (çift olumsuz, açılır ↔ kapanır, karışık cümle, niteleyen konum "havuzun yanındaki bar", nitelik sözcüğü "havuz temizliği", konusuz koşul
+  "…, pazar hariç", alıntının gizlediği hafta sonu değişkesi, sözlük, belirsiz "saat 9"). Mutasyon 21/21 + 28/31 → yaşayanlar düzeltildi.
+  Bilinen sınır (tutma yönünde): "ücretsizdir" ↔ "ücretli değil"; konu değerden SONRA ("09:00-20:00 arası havuz açık"); parantezli değişke.
+- **F3 parça kipi** (`ai/answer-parts.ts`): §4'teki `[K1]` kalem kimliği YERİNE alıntının kendisi kaynağı belirler (kalem satırı seçicinin
+  bütçe ölçüsüyle pinli; kimlik eklemek o pini ve istem önbelleğini bozardı; alıntı zaten birebir aranıyor). Mülk bilgisi (giriş / çıkış
+  saati, adres) de kaynak. Birleşik metin: doğrulanan parçalar satır satır, selamsız — selam `AI_CODE_GREETING_ENABLED` ile kodun selamı.
+- **Kalan (sonraki dilim):** soru başına ARAMA kanıtı (hangi isteğe hangi kalem getirildi) kanıt kaydına; doğrulanmış müsaitlik / erken giriş
+  kod metni parça kipinde istek beyanıyla birleşmeli (ikisi de anahtar kapalı); QR aynı hatta.
+

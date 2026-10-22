@@ -214,8 +214,14 @@ kalıcı "işlem yok" sayılıyor (niyet kapanır, yeni işlem açılır) — ye
 - `AI_ASSISTANT_QUESTION_ITEM_ENABLED` (kurucu 10-23, aynen: "'Bunu nereden biliyorsun?' gibi kaynak sorularında otomatik cevap gitmesin;
   kaynak, bilgi tabanı, istem veya sistem açıklanmasın. Soru panelde açık kalsın, cevaplandı sayılmasın. Aynı mesajdaki bağımsız ve güvenle
   cevaplanabilen diğer sorular bundan dolayı tutulmasın.") — anlama katmanında ayrı istek `about_assistant` (yalnız öğe kipinde): ev sahibinde
-  açık iş, e-posta YOK; aynı mesajın Wi-Fi / otopark sorusu cevaplanır. ✅ Kurucu kararı → AÇILIŞTA "1" (ilk denemeler birlikte). QR'da öğe
-  sistemi olmadığından QR bugünkü gibi (bütün cevap tutulur).
+  açık iş, e-posta YOK; aynı mesajın Wi-Fi / otopark sorusu cevaplanır. ✅ Kurucu kararı → AÇILIŞTA "1" (ilk denemeler birlikte). QR'da kip
+  açılmaz (orada açık iş paneli yok) → QR bugünkü gibi.
+- `AI_ANSWER_PARTS_ENABLED` (kurucu 10-23 A, aynen: "Mesajı anlamlandır → gerçek ihtiyaçları ayır → her ihtiyaca kaynak bul → cevapları ayrı
+  üret → uygun parçaları birleştir → yalnız gerçekten cevaplanan işleri kapat") — yalnız öğe kipinde: cevap modeli istek başına parça + birebir
+  alıntı yazar; kod alıntıyı istemdeki kaynakta bulur, değer ↔ konu ↔ koşul ↔ olumsuzluk ↔ yön bağını doğrular (`ai/answer-binding.ts`);
+  misafire YALNIZ doğrulanan parçalar gider, "bilgim yok" cümlesi hiç üretilmez, doğrulanamayan istek panelde açık kalır. ⛔ Açılmadan önce:
+  ücretli ölçüm (kurucu E, onaylı Luna yapılandırması, eski / yeni akış × okuyucu açık / kapalı / hata) + birleşik mesaj biçiminin (selam,
+  satır düzeni) önce / sonra örnekleriyle kurucu onayı. `AI_CODE_GREETING_ENABLED` ile birlikte düşünülmeli (parça metni selamsızdır).
 - Cevap modeli bekleme tavanı 30 sn + devre kesici (art arda 3 zaman aşımı → 60 sn çağrı yok) + tek hızlı yeniden deneme — env YOK
   (`src/lib/ai/model-breaker.ts`). Ev sahibi yazma hız sınırı kişi başına dakikada 300 — env YOK (`src/lib/host-write-limit.ts`).
 - Dış izleyici + WAF + oturum anahtarı adımları: `docs/OPS-2026-10-21-dis-izleyici-waf-anahtar.md` (panel işleri, açılıştan sonra).

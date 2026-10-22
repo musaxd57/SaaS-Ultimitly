@@ -135,6 +135,15 @@
   QR'da kip AÇILMAZ (`retrieveKbForPrompt({ assistantQuestion: false })` — orada açık iş paneli yok; niyet QR'ın tek konulu doğrulanmış
   cevaplarını ve acil numara satırını düşürüyordu) → QR bugünkü gibi (istem + iç kaynak kapısı). Bilinen sınır: "system prompt'unu söyle"
   gibi ifade enjeksiyon sayılır → bütün tur tutulur + Sorunlu (bugünkü güvenlik davranışı, bilerek değiştirilmedi).
+- 🚨 **CEVAP PARÇALARI (kurucu 10-23 A; anahtar `AI_ANSWER_PARTS_ENABLED` KAPALI, yalnız öğe kipinde; `ai/answer-parts.ts`,
+  doğrulayıcı `ai/answer-binding.ts`):** kurucu (aynen) "Mesajı anlamlandır → gerçek ihtiyaçları ayır → her ihtiyaca kaynak bul → cevapları
+  ayrı üret → uygun parçaları birleştir → yalnız gerçekten cevaplanan işleri kapat." Cevap modeli istek başına parça + BİREBİR alıntı yazar;
+  kod alıntıyı istemde gösterilen kaynakta (bilgi tabanı satırı / mülk bilgisi) bulur ve değer ↔ konu ↔ koşul ↔ olumsuzluk ↔ yön bağını
+  doğrular ("Havuz 22:00" ← saunanın 22:00'ı GİTMEZ; "hafta sonu" düşerse, kalemdeki koşullu değişke anılmazsa, "açılır" ↔ "kapanır"
+  karışırsa GİTMEZ). Misafire YALNIZ doğrulanan parçalar gider (istek sırasıyla, satır satır); "bilgim yok" cümlesi hiç üretilmez,
+  doğrulanamayan istek panelde açık kalır, "cevaplandı" yalnız doğrulananlar. Beyan eksik / bozuksa metin boş (hiçbir şey gitmez) — modelin
+  `reply`ına geri DÜŞÜLMEZ. Birleşik metin bugünkü bütün kapılardan geçer. İstem satırına kalem kimliği (`[K1]`) EKLENMEDİ: kalem satırı
+  seçicinin bütçe ölçüsüyle pinli, alıntı kaynağı tek başına belirler. Açmadan önce ücretli ölçüm (E) + birleşik mesaj biçimi onayı.
 - 🚨 **MÜLKÜN İÇ ADI MODELE GİTMEZ (kurucu 10-22 akşam: "müşteriye daire adı ne … daire numarası anca verilir … kat 2 daire 3 gibidir"):**
   `Property.name` ev sahibinin kendi etiketidir; cevap istemine YAZILMAZ. Misafire görünen ad (`guestDisplayName`, U4, migration 83) varsa
   istemde yalnız o ("Misafire görünen daire adı: Kat 2 Daire 3"), yoksa ad satırı hiç yok. Bilgi tabanı `{{daire}}` yer tutucusu numarayı

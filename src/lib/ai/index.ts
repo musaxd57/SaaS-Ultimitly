@@ -19,6 +19,7 @@ import { auditClaimsSafe } from "./claim-support";
 import { parseStayChangeDeclaration } from "./semantic/stay-change";
 import { actionClaimsEnabled, parseClaimedActions } from "./action-claims";
 import { parseAnsweredRequests } from "@/lib/conversation-items/reply-block";
+import { composeVerifiedReply, parseAnswerParts } from "./answer-parts";
 import type { Priority } from "@/lib/constants";
 import { DEFAULT_OPENAI_MODEL, isReasoningModel, layerReasoningEffort, replyReasoningEffort } from "./model-family";
 import { reportError } from "@/lib/report-error";
@@ -245,12 +246,14 @@ function replySystemPrompt(input: SuggestReplyInput): string {
   return replySystemPromptForItems(replyPromptItemsOf(input.conversationItems));
 }
 
-/** Çağrının öğe kipi bitleri — istem ve sürüm kimliği AYNI fonksiyondan. */
-export function replyPromptItemsOf(items: SuggestReplyInput["conversationItems"]): { mode: boolean; held: boolean } {
-  return { mode: items !== undefined, held: (items?.held.length ?? 0) > 0 };
+/** Çağrının öğe kipi bitleri — istem ve sürüm kimliği AYNI fonksiyondan. Parça kipi (kurucu 10-23 A) yalnız açıkken alan taşır. */
+export function replyPromptItemsOf(items: SuggestReplyInput["conversationItems"]): ReplyPromptItems {
+  return { mode: items !== undefined, held: (items?.held.length ?? 0) > 0, ...(items?.parts ? { parts: true } : {}) };
 }
 
-function replySystemPromptForItems(items: { mode: boolean; held: boolean }): string {
+type ReplyPromptItems = { mode: boolean; held: boolean; parts?: boolean };
+
+function replySystemPromptForItems(items: ReplyPromptItems): string {
   return replySystemPromptFor({
     codeGreeting: codeGreetingEnabled(),
     kbFeeRule: kbFeeRuleEnabled(),
@@ -261,6 +264,7 @@ function replySystemPromptForItems(items: { mode: boolean; held: boolean }): str
     noApology: noApologyRuleEnabled(),
     itemsMode: items.mode,
     itemsHeld: items.held,
+    itemsParts: items.parts === true,
   });
 }
 
@@ -299,7 +303,7 @@ export function replyRequestIdentity(input: SuggestReplyInput): { model: string;
  * bağlıdır (misafir / mülk verisi taşımaz), yani kimlik çağrının GERÇEK sistem istemidir. TEK KAYNAK — ölçüm raporu
  * (`tests/eval/run-meta.ts` `prompts.reply`, öğe kipi dışı) ve üretim izi (`AiGeneration.promptVersion`, çağrının bitleriyle).
  */
-export function replyPromptVersion(items: { mode: boolean; held: boolean } = { mode: false, held: false }): string {
+export function replyPromptVersion(items: ReplyPromptItems = { mode: false, held: false }): string {
   return createHash("sha256").update(replySystemPromptForItems(items)).digest("hex").slice(0, 12);
 }
 
@@ -596,6 +600,23 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
         // atıf sayısı) hesaplanamadan kayboluyordu.
         const declaredSources = sanitizeStringList(parsed.usedSources, 8, 60);
         const verified = verifyUsedSources(declaredSources, input);
+        // CEVAP PARÇALARI (kurucu 10-23 A; yalnız öğe + parça kipinde): misafire giden metin modelin `reply`ı DEĞİL, kodun doğruladığı
+        // parçaların birleşimidir; "cevaplandı" yalnız doğrulanan istekler. Beyan eksik / bozuksa metin boş + beyan geçersiz (kapı tutar).
+        const items = input.conversationItems;
+        const partsOutcome = items?.parts
+          ? (() => {
+              const refs = items.answerable.map((a) => a.ref);
+              const decl = parseAnswerParts(parsed.answers, refs);
+              if (!decl.ok) return { reply: "", answered: { ok: false as const, reason: decl.reason === "unknown_ref" ? ("unknown_ref" as const) : ("missing" as const) }, verdicts: [] };
+              const composed = composeVerifiedReply({
+                parts: decl.parts,
+                needs: items.answerable.map((a) => ({ ref: a.ref, terms: a.need?.terms ?? [], topics: a.need?.topics ?? [] })),
+                sources: prompt.partSources ?? [],
+              });
+              return { reply: composed.reply, answered: { ok: true as const, refs: composed.refs }, verdicts: composed.verdicts };
+            })()
+          : null;
+        const replyText = partsOutcome ? partsOutcome.reply : cappedReply.text;
         return {
           intent: intentKnown ? intentRaw : "general",
           confidence: cappedReply.truncated
@@ -612,8 +633,8 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
           // "Talimat yok" yan cümlesi misafire yazılmaz (kurucu 10-17, `no-instruction-filler.ts`); selamdan ÖNCE, her yolda aynı. Kurucu T1
           // (10-21): silme ancak kalan yönergenin bilgi tabanında DAYANAĞI varsa — yoksa cevap aynen kalır, "bilgim yok" kuralı tutar.
           reply: codeGreetingEnabled()
-            ? codeGreetingReply(stripNoInstructionFillerGrounded(cappedReply.text, normalizeLang(parsed.detectedLanguage), kbTextsOf(input)), input, parsed.detectedLanguage)
-            : stripNoInstructionFillerGrounded(cappedReply.text, normalizeLang(parsed.detectedLanguage), kbTextsOf(input)),
+            ? codeGreetingReply(stripNoInstructionFillerGrounded(replyText, normalizeLang(parsed.detectedLanguage), kbTextsOf(input)), input, parsed.detectedLanguage)
+            : stripNoInstructionFillerGrounded(replyText, normalizeLang(parsed.detectedLanguage), kbTextsOf(input)),
           risk:
             typeof parsed.risk === "string" && parsed.risk.trim()
               ? parsed.risk.slice(0, 300)
@@ -674,8 +695,13 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
           ...(declareActions ? { claimedActions: parseClaimedActions(parsed.claimedActions) } : {}),
           // Konuşma öğeleri beyanı YALNIZ blok verildiyse: STRICT (eksik/bozuk/bırakılan kimlik → kapı tutar).
           ...(input.conversationItems
-            ? { answeredRequests: parseAnsweredRequests(parsed.answeredRequests, input.conversationItems.answerable.map((a) => a.ref)) }
+            ? {
+                answeredRequests: partsOutcome
+                  ? partsOutcome.answered
+                  : parseAnsweredRequests(parsed.answeredRequests, input.conversationItems.answerable.map((a) => a.ref)),
+              }
             : {}),
+          ...(partsOutcome ? { answerParts: partsOutcome.verdicts } : {}),
         };
       }
     } catch {

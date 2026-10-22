@@ -161,6 +161,10 @@ export const PIPELINE_FLAGS = [
   "AI_UNDERSTANDING_PRIVACY_RULE_ENABLED",
   // Kıdemli okuyucu (10-22 T-b): ikinci okuma şeması + istemi ve kapıyı değiştirir (misafire gideni yalnız TUTARAK / ödeme öğesinde bırakarak).
   "AI_SENIOR_READER_ENABLED",
+  // Kaynak / asistan sorusu (10-23 KS): anlama şemasını + istemini değiştirir (öğe kipinde).
+  "AI_ASSISTANT_QUESTION_ITEM_ENABLED",
+  // Cevap parçaları (10-23 A): cevap istemini değiştirir ve misafire giden metni kod kurar (öğe kipinde).
+  "AI_ANSWER_PARTS_ENABLED",
 ] as const;
 
 /** GÖNDERİLEN çabanın etiketi: klasik modele çaba hiç gitmez; reasoning modelinde ayarsız / tanınmayan değer = gönderilmez. */

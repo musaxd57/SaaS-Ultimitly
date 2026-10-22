@@ -15,9 +15,21 @@ export interface ReplyItemsInput {
    * Cevaplanabilir istekler. `hint` anlama katmanının kısa Türkçe arama sorgusu (PII'siz; yoksa tür adı). `fix`: şikâyet edilen arızanın
    * çözümü (kurucu kararı 10-01 sabah, Sabah Kararları 18 "a") — yalnız bilgi tabanındaki adımlarla cevaplanır.
    */
-  answerable: readonly { ref: string; kind: ItemKind; hint: string; fix?: boolean }[];
+  answerable: readonly {
+    ref: string;
+    kind: ItemKind;
+    hint: string;
+    fix?: boolean;
+    /** Cevap parçaları kipinde (kurucu 10-23 A) isteğin kendi sözcükleri + sözlük konuları — parça doğrulayıcısı okur; istemde YOK. */
+    need?: { terms: readonly string[]; topics: readonly string[] };
+  }[];
   /** Ev sahibine bırakılan istekler (bu tur + önceki turlar; `earlier` = önceki bir turun mesajında — K8). */
   held: readonly { kind: ItemKind; earlier?: boolean }[];
+  /**
+   * Cevap parçaları kipi (`AI_ANSWER_PARTS_ENABLED`, `ai/answer-parts.ts`): cevap modeli istek başına parça + alıntı yazar, misafire
+   * yalnız kodun doğruladığı parçalar gider. Verilmezse istem ve sonuç bayt bayt eski.
+   */
+  parts?: true;
 }
 
 export type AnsweredRequestsDeclaration =

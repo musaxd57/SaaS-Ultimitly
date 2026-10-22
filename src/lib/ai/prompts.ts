@@ -1331,6 +1331,26 @@ export const ITEMS_MODE_REPLACEMENTS: readonly Replacement[] = [
   ],
 ];
 
+// ── CEVAP PARÇALARI (kurucu 10-23 A; anahtar `AI_ANSWER_PARTS_ENABLED` KAPALI; yalnız öğe kipiyle) ─────────────────────────────
+// Kurucu: "her ihtiyaca kaynak bul → cevapları ayrı üret → uygun parçaları birleştir → yalnız gerçekten cevaplanan işleri kapat";
+// "'Sauna hakkında bilgim yok' üretilip sonra ayıklanmasın". Model istek başına parça + birebir alıntı yazar; misafire giden metni
+// KOD kurar (`ai/answer-parts.ts`, doğrulayıcı `ai/answer-binding.ts`). Tek çapa: öğe kipinin `answeredRequests` satırı.
+export const ANSWER_PARTS_REPLACEMENTS: readonly Replacement[] = [
+  [
+    '  "answeredRequests": ["<KONUŞMA ÖĞELERİ bloğundaki cevapladığın isteklerin kimlikleri, ör. R1; hiçbirini cevaplamadıysan boş dizi>"]\n}',
+    '  "answeredRequests": ["<KONUŞMA ÖĞELERİ bloğundaki cevapladığın isteklerin kimlikleri, ör. R1; hiçbirini cevaplamadıysan boş dizi>"],\n' +
+      '  "answers": [{"ref": "<R1>", "status": "<answered|no_info>", "text": "<yalnız bu isteğin cevabı>", "evidence": "<birebir alıntı>"}]\n}\n' +
+      "CEVAP PARÇALARI (answers): KONUŞMA ÖĞELERİ bloğundaki HER cevaplanacak istek için TEK kayıt yaz.\n" +
+      '  - status "answered" YALNIZ BİLGİ TABANI ya da MÜLK BİLGİSİ bu isteği AÇIKÇA cevaplıyorsa. text = yalnız o isteğin cevabı\n' +
+      "    (selam, kapanış, başka istek YOK), misafirin dilinde, bilginin nereden geldiği anılmadan. evidence = o bilginin geçtiği satırdan\n" +
+      "    BİREBİR kopya (çevirme, özetleme yok; en fazla iki cümle). Değeri sorulan şeye bağla (havuz sorusuna havuzun saati); koşulu\n" +
+      '    ("hafta sonu", "yalnız yazın", "talep üzerine") ve olumsuzluğu aynen koru; aynı konunun koşullu başka değeri varsa onu da yaz.\n' +
+      '  - status "no_info": bilgi yoksa ya da emin değilsen — text ve evidence BOŞ; o istek için reply\'da da "bilgim yok / ev sahibine\n' +
+      '    soracağım" YAZMA (istek ev sahibinde açık kalır).\n' +
+      "  - Misafire giden metni sistem bu parçalardan kurar; alıntısı tutmayan parça gitmez.",
+  ],
+];
+
 export const ITEMS_HELD_REPLACEMENTS: readonly Replacement[] = [
   [
     "  6) TON + üslup (Bölüm 10 / 10.5)\n",
@@ -1456,6 +1476,8 @@ export interface ReplyPromptFlags {
   itemsMode?: boolean;
   /** Bu turda EV SAHİBİNE BIRAKILAN istek var (konuşma öğeleri) — anahtar değil, çağrı başına (`ai/index.ts`). */
   itemsHeld?: boolean;
+  /** Cevap parçaları kipi (`AI_ANSWER_PARTS_ENABLED`; yalnız öğe kipiyle anlamlı — öğe kipi kapalıyken katman boş). */
+  itemsParts?: boolean;
   /** Hâl hatır kuralı (`AI_COURTESY_RULE_ENABLED`). */
   courtesy?: boolean;
   /** Tarafsızlık / özür yasağı (`AI_NO_APOLOGY_RULE_ENABLED`). */
@@ -1470,6 +1492,8 @@ const PROMPT_LAYERS: readonly (readonly [keyof ReplyPromptFlags, LayerReplacemen
   ["accessCodeComplete", ACCESS_CODE_COMPLETE_REPLACEMENTS],
   ["complaintFollowup", COMPLAINT_FOLLOWUP_REPLACEMENTS],
   ["itemsMode", ITEMS_MODE_REPLACEMENTS],
+  // Parça kipi öğe kipinin çıktı satırına bağlı: öğe kipi kapalıyken çapa yok, katman boş (her birleşim eksiksiz — pinli).
+  ["itemsParts", (f) => (f.itemsMode ? ANSWER_PARTS_REPLACEMENTS : [])],
   ["itemsHeld", ITEMS_HELD_REPLACEMENTS],
   // ÖRNEK 24'ün açılışı kod selamı katmanında değişir → hâl hatır katmanı o birleşimde kendi çapasını kullanır.
   ["courtesy", (f) => (f.codeGreeting ? COURTESY_CODE_GREETING_REPLACEMENTS : COURTESY_REPLACEMENTS)],
@@ -1538,6 +1562,11 @@ export function buildReplyPrompt(input: SuggestReplyInput): {
   claimContext: ClaimContext;
   /** İstemin çelişki bloğunu basan AYNI hesap — kapı bunu okur (`time-conflict-gate.ts`, P4-b kodda). */
   timeConflicts: TimeConflict[];
+  /**
+   * Cevap parçaları kipinde (kurucu 10-23 A) modelin alıntı gösterebileceği kaynaklar — istemde GÖSTERİLEN biçimleriyle: bilgi tabanı
+   * satırları (`kbLine`) + mülk bilgisi bloğu. Parça kipi kapalıyken alan YOK (dönüş bayt bayt eski).
+   */
+  partSources?: { id: string; text: string }[];
 } {
   // `input.language` (org ayarı) istemde KULLANILMAZ: misafire yazılan cevabın dilini belirlemez (09-25, ↓DİL).
   const { property, reservation, knowledgeBase, history, openTopics, guestMessage, tone } = input;
@@ -1959,7 +1988,10 @@ Cevap metninde (reply) yalnızca verilen veri, zaman bağlamı ve bilgi tabanın
     guest: [guestMessage, ...selectedHistory.filter((m) => m.direction === "inbound").map((m) => m.body)],
     derivedNumbers: reservation ? stayNights(reservation.arrivalDate, reservation.departureDate) : [],
   };
-  return { text, kbOmitted: packed.omitted, claimContext, timeConflicts: conflicts };
+  const partSources = input.conversationItems?.parts
+    ? [...knowledgeBase.map((k, i) => ({ id: `kb:${i + 1}`, text: kbLine(k) })), { id: "property", text: propertyFacts }]
+    : null;
+  return { text, kbOmitted: packed.omitted, claimContext, timeConflicts: conflicts, ...(partSources ? { partSources } : {}) };
 }
 
 const HISTORY_AUTHOR_LABEL = { guest: "MİSAFİR", host: "EV SAHİBİ", ai: "ASİSTAN", automation: "OTOMATİK MESAJ" } as const;

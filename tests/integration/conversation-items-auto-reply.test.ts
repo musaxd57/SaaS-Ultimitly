@@ -1564,3 +1564,52 @@ describe("KAYNAK / ASİSTAN SORUSU (kurucu 10-23)", () => {
     expect(mockSend).not.toHaveBeenCalled();
   });
 });
+
+describe("CEVAP PARÇALARI (kurucu 10-23 A, AI_ANSWER_PARTS_ENABLED)", () => {
+  beforeEachTurn();
+  const twoNeeds = () =>
+    parseUnderstanding(
+      {
+        language: "tr",
+        requests: [
+          { intent: "checkout_time", message: 1, query_tr: "çıkış saati kaçta", query_original: "Çıkış saat kaçta?" },
+          { intent: "amenities", message: 1, query_tr: "sauna var mı", query_original: "Sauna var mı?" },
+        ],
+        stay_change: STAY_NONE,
+        withdrawn: [],
+      },
+      { items: true },
+    )!;
+
+  it("🚨 anahtar açık: cevap modeline parça kipi + istek başına sözcükler gider; yalnız doğrulanan istek 'cevaplandı', öteki açık kalır", async () => {
+    vi.stubEnv("AI_ANSWER_PARTS_ENABLED", "1");
+    const { conversationId } = await seed("Çıkış saat kaçta? Sauna var mı?");
+    understands(twoNeeds());
+    // suggestReply parça kipinde böyle döner: metin = doğrulanan parçalar, beyan = doğrulanan istekler.
+    mockSuggest.mockResolvedValueOnce(
+      verdict({ intent: "checkout_time", reply: "Çıkış saati 11:00.", answeredRequests: { ok: true, refs: ["R1"] } }),
+    );
+    const out = await applyChannelAutoReply(conversationId);
+    const items = mockSuggest.mock.calls[0][0].conversationItems!;
+    expect(items.parts).toBe(true);
+    expect(items.answerable.map((a) => [a.ref, a.kind, a.need?.terms])).toEqual([
+      ["R1", "checkout_time", expect.arrayContaining(["cikis"])],
+      ["R2", "amenities", expect.arrayContaining(["sauna"])],
+    ]);
+    expect(out.sent).toBe(true);
+    expect(JSON.stringify(mockSend.mock.calls[0])).toContain("Çıkış saati 11:00.");
+    const rows = await itemsOf(conversationId);
+    expect(rows.find((i) => i.kind === "checkout_time")).toMatchObject({ status: "answered" });
+    expect(rows.find((i) => i.kind === "amenities")?.status).not.toBe("answered");
+  });
+
+  it("anahtar kapalı: cevap modeline parça kipi GİTMEZ (girdi bugünküyle aynı)", async () => {
+    const { conversationId } = await seed("Çıkış saat kaçta? Sauna var mı?");
+    understands(twoNeeds());
+    mockSuggest.mockResolvedValueOnce(verdict({ intent: "checkout_time", reply: "Çıkış saati 11:00.", answeredRequests: { ok: true, refs: ["R1"] } }));
+    await applyChannelAutoReply(conversationId);
+    const items = mockSuggest.mock.calls[0][0].conversationItems!;
+    expect("parts" in items).toBe(false);
+    expect(items.answerable.every((a) => !("need" in a))).toBe(true);
+  });
+});

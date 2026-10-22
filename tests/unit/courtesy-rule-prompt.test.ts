@@ -90,7 +90,7 @@ describe("hâl hatır — cevap istemi katmanı", () => {
 
   it("tüm katman birleşimlerinde kayıp çapa YOK (256 birleşim)", () => {
     const missing = REPLY_SYSTEM_PROMPT_DERIVATION_MISSING();
-    expect(Object.keys(missing)).toHaveLength(512); // + tarafsızlık katmanı (10-21) → dokuz katman
+    expect(Object.keys(missing)).toHaveLength(1024); // + tarafsızlık katmanı (10-21) → dokuz; + cevap parçaları (10-23 A) → on katman
     for (const [name, m] of Object.entries(missing)) expect(m, name).toEqual([]);
   });
 

@@ -17,6 +17,7 @@ import {
 } from "./relation";
 import type { ReplyItemsInput } from "./reply-block";
 import { needTerms, topicAbsenceEnabled } from "./topic-absence";
+import { answerPartsEnabled } from "@/lib/ai/answer-parts";
 
 type PlanItem = { messageId: string; kind: ItemKind; sensitivity: ItemSensitivity };
 
@@ -118,6 +119,13 @@ export function composeItemsPlan<T extends PlanItem>(input: {
   ]
     .filter((t) => !answeredTopics.has(t))
     .sort();
+  // Cevap parçaları kipi (kurucu 10-23 A): istek başına sözcük + konu doğrulayıcıya gider (istemde YOK); kapalıyken alan yok.
+  const parts = answerPartsEnabled();
+  const needOf = (item: T) => {
+    const key = hintKey(item.messageId, item.kind);
+    const queries = input.needQueries?.get(key) ?? [input.hints.get(key) ?? ""];
+    return { terms: needTerms(queries), topics: topicsOfItem(item) };
+  };
   return {
     answerable,
     replyItems: {
@@ -126,7 +134,9 @@ export function composeItemsPlan<T extends PlanItem>(input: {
         kind: item.kind,
         hint: input.hints.get(hintKey(item.messageId, item.kind)) ?? "",
         ...(relation?.fix.has(item) ? { fix: true } : {}),
+        ...(parts ? { need: needOf(item) } : {}),
       })),
+      ...(parts ? { parts: true as const } : {}),
       held: [
         ...input.held.map((h) => (h.earlier ? { kind: h.kind, earlier: true } : { kind: h.kind })),
         ...dependent.map((d) => ({ kind: d.kind })),

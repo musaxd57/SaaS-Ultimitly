@@ -1,4 +1,5 @@
 import type { AnsweredRequestsDeclaration, ReplyItemsInput } from "@/lib/conversation-items/reply-block";
+import type { PartVerdict } from "@/lib/ai/answer-parts";
 import type { ClaimedActionsDeclaration } from "./action-claims";
 import type { ClaimAudit } from "./claim-support";
 import type { ConversationStateSummary } from "./conversation-state";
@@ -279,6 +280,11 @@ export interface SuggestReplyResult {
    * bırakılan/bilinmeyen kimlik → kapı tutar). Yokluğu = beyan istenmedi.
    */
   answeredRequests?: AnsweredRequestsDeclaration;
+  /**
+   * Cevap parçaları kipinde (kurucu 10-23 A, `ai/answer-parts.ts`) istek başına kodun kararı: doğrulandı (kaynak kimliğiyle) · bilgi
+   * yok · eksik · reddedildi (sebepleriyle). Metin YOK. Yalnız parça kipinde.
+   */
+  answerParts?: PartVerdict[];
 }
 
 export interface ClassifyResult {
