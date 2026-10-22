@@ -8,7 +8,18 @@
 > `docs/history/CLAUDE-2026-10-02-sadelestirme-3-oncesi-tam-metin.md` ("Durum" bölümü). Kuralları yukarıdaki bölümlerde; yalnız Durum'da
 > yazılı olan kurallar (konuşma öğeleri, ev kuralları, canlı bayraklar) 10-02'de ilgili bölümlere taşındı. Bekleyen onaylar ↓.
 
-**10-22 gündüz (güncel — clear sonrası BURADAN devam):** kurucu §U kararları kodda + rapor `docs/RAPOR-2026-10-22-yapay-zeka-ne-ogrendi.md`.
+**10-22 akşam (güncel — clear sonrası BURADAN devam):** kurucu kararları kodda (rapor `docs/RAPOR-2026-10-22-yapay-zeka-ne-ogrendi.md` §8).
+- İç kaynak anlatımı misafire ASLA gitmez, olumlu da (kural `docs/claude/ai-guvenlik.md`): istem "KAYNAK ANLATMA YASAĞI" (eski "kayıtlarımda
+  şu yazıyor" örneği kök nedendi, silindi; kaynak sorulsa bile o kısım cevaplanmaz) · kıdemli okuyucu 5. hüküm `internalSource` (+ kanıt alıntısı)
+  → bir kez yeniden yazma (`reply_internal_source`, kanal + QR) · kod yedeği `absence.namesInternalSource` ANAHTARSIZ, dar (dairedeki kâğıt /
+  etiket / misafirin kendi bilgisi tutulmaz — Haiku 10-22 pinli) · kapıda çıktı vetosunun ardında.
+- İç daire adı modele gitmez; U4 ana dalda (migration 83 `Property.guestDisplayName`, boşsa ad satırı yok). U9 eki: misafirin kendi dairesi başka
+  kişinin bilgisi değil.
+- Ölçüm (16 senaryo, gpt-5.1): kaynağını anlatan cevap misafire 4 → 0 (anahtarlar kapalıyken 1 → kalıp eklendi) · iç ad 2 → 0 · "dairenin adı ne?"
+  → "Kat 3 Daire 12" 2 / 2. Ölçer artık `modelCalls` + `rw` yazar (yeniden yazma sayımı). Açık: kaynağı AÇIKÇA soran misafirde ikinci taslak da
+  kaynaktan söz edebiliyor → tutulur, e-posta yok (not sertleştirildi, §8.5). Kurucu sorusu açık: §7 madde 1 (sauna / konu eşlemesi).
+
+**10-22 gündüz:** kurucu §U kararları kodda + rapor `docs/RAPOR-2026-10-22-yapay-zeka-ne-ogrendi.md`.
 - Misafire giden (anahtarlı, Railway açılışında sırayla): T-a özür yok (`AI_NO_APOLOGY_RULE_ENABLED`) · U9 başka misafirin bilgisi
   (`AI_UNDERSTANDING_PRIVACY_RULE_ENABLED`) · T-b kıdemli okuyucu tek model iki okuma (`ai/semantic/absence-judge.ts`,
   `AI_SENIOR_READER_ENABLED`): itiraf / ev sahibine ödeme / platform dışı iletişim / özür; T-d okuyucu okuduysa yalnız ev sahibine platform

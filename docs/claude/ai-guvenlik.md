@@ -119,7 +119,11 @@
   doğrudan söyle) · ② kıdemli okuyucu beşinci hüküm `names_internal_source` (anlamla; bir kez yeniden yazma sebebi `internalSource`) ·
   ③ kodun açık sözcük YEDEĞİ `absence.namesInternalSource` (ANAHTARSIZ; bilerek dar: bilgi tabanı / kayıtlarımda / notlarımda / elimdeki
   bilgilere göre / knowledge base / according to my notes / our records show … yedi dil; çıplak "sistem / system / guide" YOK — mülk olgusu).
-  Kanal `reply_internal_source`, QR aynı sebep. "Bilgim yok" cümlesi (KURAL-3) ayrı kural, zaten gitmez.
+  Kanal `reply_internal_source`, QR aynı sebep. "Bilgim yok" cümlesi (KURAL-3) ayrı kural, zaten gitmez. Yedek YALNIZ kaynak bildiren ek /
+  edatla tutar (Haiku 10-22, pinli): dairedeki kâğıt / etiket ("notes on the fridge", "Bilgilendirme notları dolapta", "data plate",
+  "in unseren Unterlagen im Schrank") ve misafirin KENDİ bilgisi ("We only use your details …") tutulmaz. Kapıda okuyucu "hayır" dese de yedek
+  tutar (VEYA — kurucu "hiçbir şey gitmesin"; ödemedeki T-d gibi okuyucu yedeği EZMEZ); kesinlik kalıbı daraltarak sağlanır. Kaynağı açıkça
+  soran misafirde yeniden yazma notu kaçamak kaynak cümlelerini de yasak örnek gösterir (`senior-rewrite.ts`).
 - 🚨 **MÜLKÜN İÇ ADI MODELE GİTMEZ (kurucu 10-22 akşam: "müşteriye daire adı ne … daire numarası anca verilir … kat 2 daire 3 gibidir"):**
   `Property.name` ev sahibinin kendi etiketidir; cevap istemine YAZILMAZ. Misafire görünen ad (`guestDisplayName`, U4, migration 83) varsa
   istemde yalnız o ("Misafire görünen daire adı: Kat 2 Daire 3"), yoksa ad satırı hiç yok. Bilgi tabanı `{{daire}}` yer tutucusu numarayı

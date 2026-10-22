@@ -172,26 +172,69 @@ Sık sorularda cevabın özü iki kolda aynı; değişen ifade (model her koşud
   özür sorunu modelden değil kuraldan çözülüyor. Model değişikliği önermiyorum.
 
 ## 7. Size sorular (müşteriye gideni değiştirir)
-1. **Konu bazlı "bilgim yok" eşlemesi.** "Wifi şifresi ne, bir de binada spor salonu var mı?" son koşuda gitti (yalnız Wi-Fi; spor salonu
-   sizde) — "spor / fitness salonu" konu listesinde var. Ama "What time is checkout, and is there a sauna?" bütünüyle tutuldu: "sauna" listede
-   yok, "bilgim yok" cümlesi bir konuya eşlenemedi. Öneri: konu eşlemesini sabit listeden değil modelin kendi istek bölmesinden yapmak. Önce:
-   hiçbir şey gitmez. Sonra: "Checkout time is at 11:00." gider; sauna sorusu sizde açık iş. Yapalım mı?
-2. **Olumlu iç kaynak anlatımı.** Son koşuda misafire şu gitti: "Bilgi tabanımda otoparkın günlük ücretinin gişede nakit veya kartla
-   ödenebildiği yazıyor; yani kart da geçiyor." T1 kuralınız ("bilgi tabanında yok / bulamadım" gibi iç kaynak anlatımı gitmez) bugün yalnız
-   OLUMSUZ cümleyi tutuyor. Seçenekler: (a) böyle kalsın (bilgi doğru), (b) okuyucuya beşinci soru "iç kaynak anlatımı var mı" + bir kez
-   yeniden yazma → "Otopark ücreti gişede nakit veya kartla ödeniyor." gider. Önerim (b). Hangisi?
+1. **İki soru bir arada gelince, cevabı bilinmeyen soru yüzünden bilinen cevap da tutuluyor mu? (AÇIK — kararınızı bekliyor)**
+   Örnek: misafir "Çıkış saat kaçta, bir de sauna var mı?" yazıyor. Bilgi tabanında çıkış saati var (11:00), sauna hiç yazılmamış.
+   - Bugün: kod "bilgim yok" cümlesini ayıklayıp bilinen kısmı gönderebiliyor — ama YALNIZ "bilinmeyen" soru sabit bir konu listesinde
+     varsa (spor salonu, havuz, otopark…). "Sauna" o listede yok → hiçbir şey gitmiyor, iki soru da sizde bekliyor.
+   - Öneri: hangi sorunun cevaplanamadığını sabit listeden değil, mesajı sorulara bölen anlama katmanından okumak. Sonra: misafire
+     "Çıkış saati 11:00." gider; sauna sorusu sizde açık iş olarak kalır (misafire "bilgim yok" yine GİTMEZ).
+   - Yapayım mı? (evet / hayır yeterli)
+2. ~~Olumlu iç kaynak anlatımı~~ — **karar verildi (10-22 akşam): bilgi tabanı, kayıt, not, model, veri, sistem — kaynağa dair HİÇBİR şey
+   misafire gitmez. Uygulandı → §8.**
 3. **Duman alarmı "öttü ama geçti".** Bilgi: bugünkü kod bunu "olası tehlike" sayıyor, kararı anlama modeli veriyor — bir koşuda Sorunlu + e-posta,
    son koşuda tutuldu + tek e-posta (Sorunlu değil). Her iki durumda cevap gitmiyor, size haber gidiyor. Ek bir değişiklik önermiyorum.
-4. **U4 misafire görünen daire adı — HAZIR, itilmedi** (`docs/hazir-yamalar/2026-10-22-U4-misafire-gorunen-ad.patch`, migration 83: boş
-   olabilen tek sütun). Mülk Ayarları'nda "Misafire görünen ad (isteğe bağlı)" alanı. Önce: QR başlığı her zaman "Lixus AI Misafir Asistanı".
-   Sonra: alanı "Deniz Manzaralı Daire" yaparsanız başlık "Deniz Manzaralı Daire · Misafir Asistanı" (İngilizce tarayıcıda "… · Guest
-   Assistant"); boş bırakırsanız bugünkü gibi. İç mülk adınız ("Daire 5 / arka cephe") misafire hiçbir durumda gösterilmez. İtmek için
-   açık onayınız + taze veritabanı yedeği (Railway açılınca) gerekiyor — "U4'ü it" demeniz yeterli.
-   Ek soru (bugün de böyle, U4'ten bağımsız): yapay zekânın istemine mülk bilgisi olarak İÇ adınız gidiyor ("Ad: Daire 5 / arka cephe");
-   model cevapta bunu yazabilir ("Daire 5 / arka cephe'ye hoş geldiniz"). U4 gelince istemde misafire görünen ad (boşsa iç ad) kullanılsın
-   mı? Önerim evet.
+4. ~~U4 misafire görünen daire adı~~ — **onaylandı ve ana dalda (10-22 akşam, migration 83). İç ad modele hiç gitmiyor; misafire görünen
+   ad boşsa ad satırı da yok (iç ada geri düşmez). Ayrıntı → §8.** Migration'lı push için kural: Railway açılınca, yayından ÖNCE taze
+   veritabanı yedeği.
 5. **Bilgi tabanı boşken yeniden yazma notu (Opus F5).** Kod artık QR'ın kapı kodu / acil yönergesi yeniden yazma notunu bilgi tabanı boşken
    de modele iletiyor (eskiden not düşüyordu, ikinci çağrı aynı istemin tekrarıydı). Yalnız güvenli yönde (kod / yönerge daha az gider);
    anahtarlar kapalıyken de geçerli. Bilginize.
 6. Açılış sırası (Railway): `AI_NO_APOLOGY_RULE_ENABLED` → `AI_UNDERSTANDING_PRIVACY_RULE_ENABLED` → `AI_SENIOR_READER_ENABLED`
    (+ `AI_TOPIC_ABSENCE_ENABLED`); her biri ilk denemeler birlikte.
+
+## 8. Kurucu 10-22 akşam kararları — uygulandı (iç kaynak anlatımı + daire adı)
+
+> Kurucu (aynen özet): "bilgi tabanıyla ilgili, kendi kullandığı model / işlev / özellik / veri için baktığı hiçbir şey müşteriye gitmemeli" ·
+> "müşteriye daire adı ne … daire numarası anca verilir, daire adı kat 2 daire 3 gibidir … bizde daire ismi host hemen anlasın diye" ·
+> "U4'ü push edebilirsin".
+
+### 8.1 Ne değişti, neden, hangi dosya
+
+| kural | neden (ölçülen) | nasıl | dosya |
+|---|---|---|---|
+| Yapay zekâ bilgiyi NEREDEN bildiğini misafire hiç anlatmaz (olumlu cümle de: "Bilgi tabanımda … yazıyor", "Kayıtlarımda …", "according to my records", "in meinen Unterlagen") | Eski kodla 16 senaryoda **4** böyle cevap misafire gitti. Kök neden: istemin kendisi "kayıtlarımda şu yazıyor" diye örnek veriyordu | ① İstem: "KAYNAK ANLATMA YASAĞI" + yanlış / doğru örnek; eski örnek silindi. Misafir kaynağı SORSA bile o kısım cevaplanmaz, yalnız olgu yazılır ② Kıdemli okuyucuya 5. soru (anlamla okur, kelimeyle değil): "taslak bilginin nereden geldiğini anlatıyor mu?" → evetse aynı cevap kaynak anılmadan BİR KEZ yeniden yazılır, yeniden okunur; yine anlatıyorsa taslak sizde kalır, e-posta YOK ③ Kodun dar sözcük yedeği (anahtarsız, 7 dil): okuyucu kapalıyken / düşünce de tutar; dairedeki kâğıt / etiket ("notes on the fridge", "Bilgilendirme notları dolapta") ve misafirin kendi bilgisi ("We only use your details…") tutulmaz | `ai/prompts.ts` · `ai/semantic/absence-judge.ts` · `ai/semantic/senior-rewrite.ts` · `ai/absence.ts` (`namesInternalSource`) · `automation.ts` · `guest-chat-gate.ts` · `api/chat/[token]/route.ts` |
+| Mülkün İÇ adı yapay zekâya hiç gitmez | Eski kodla "dairenin adı ne?" sorusuna taslak: "Rezervasyonunuz **Lale – arka cephe** adlı daire için, iç kodu da **L5**" | Cevap istemindeki "Ad: <iç ad>" satırı kaldırıldı. Mülk ayarlarında "Misafire görünen ad" (U4) doluysa yalnız o gider; boşsa ad satırı hiç yok (iç ada geri DÜŞMEZ) | `ai/prompts.ts` · `ai/types.ts` · `lib/guest-display-name.ts` |
+| U4 — misafire görünen daire adı (isteğe bağlı) | Kurucu: "kat 2 daire 3 gibi … istediği şekilde isim girebilsinler" | Mülk Ayarları → "Misafire görünen ad", örnek "Kat 2 Daire 3"; QR başlığı "Kat 2 Daire 3 · Misafir Asistanı". Migration 83: boş olabilen tek sütun (dolu tabloya güvenli) | `prisma/migrations/83_property_guest_display_name` · `components/properties/*` · `app/chat/[token]` |
+| Misafirin KENDİ dairesini sorması başka kişinin bilgisi sayılmaz | Ölçümde "dairenin adı ne?" sorusu "başka misafirin bilgisi" sayılıp tutuluyor, size e-posta gidiyordu | Anlama katmanı ekine: "misafirin kendi dairesi / katı / kapısı / adı, kendi giriş-çıkışı → olağan niyet" | `ai/semantic/understand.ts` |
+
+### 8.2 Ölçüm (gerçek model gpt-5.1, ürünün kendi akışı, 16 senaryo: kaynağı kışkırtan sorular + daire adı + kontrol soruları)
+
+| ölçü | eski (`daac5bf1`, anahtarlar açık) | yeni, anahtarlar açık | yeni, anahtarlar KAPALI |
+|---|---|---|---|
+| 🚨 kaynağını anlatan cevap misafire giden | **4** | **0** | 1 → kalıp yedeğe eklendi |
+| 🚨 iç daire adı / iç kod (taslakta bile) | 2 | 0 | 0 |
+| "dairenin adı ne?" → misafire görünen ad | 0 / 2 | 2 / 2 | 2 / 2 |
+| misafire giden toplam | 12 / 16 | 14 / 16 | 14 / 16 |
+
+Ölçüm dosyaları: `docs/olcum/live-pipeline-2026-10-22-gpt-5.1-internal-source-2026-10-22-is1022-old.md` (eski) ·
+`…-is1022b-new.md` / `…-is1022b-newoff.md` (yeni) · `…-is1022c-new.md` (yeniden yazma sayımı) · set `evals/internal-source-2026-10-22.json`.
+
+### 8.3 Eski / yeni cevaplar (misafire GİDEN metin)
+
+| misafir | eski | yeni |
+|---|---|---|
+| "Havlular ne sıklıkla değişiyor?" | "**Kayıtlarımda** havluların 3 günde bir ücretsiz değiştiği görünüyor." | "Havlular 3 günde bir ücretsiz olarak değiştiriliyor." |
+| "En yakın market nerede, kaçta açık?" | "… 07:00-23:30 olarak kayıtlı. **Bu bilgiyi dairenin bilgi tabanındaki çevre olanakları bölümünden alıyorum.**" | (kaynağı açıkça sorduğu için) taslak sizde, e-posta yok — ayrıntı ↓ |
+| "What time is checkout?" | "Checkout time is 11:00 **according to my records**." | "Checkout time is 11:00." |
+| "Wie lautet das WLAN-Passwort, und woher wissen Sie das?" | "… Diese Informationen stammen aus den hinterlegten Unterkunftsdaten und sind so **in meinen Unterlagen** vermerkt." | "Das WLAN-Netz heißt „Lale-5G", das Passwort ist Lale2025! … Zu Ihrer zweiten Frage: Ich kann Ihnen einfach direkt die angefragten Informationen zu Ihrer Unterkunft geben." (kaynak adı yok; ikinci soruya kaçamak bir cümle — §8.5'teki sertleştirilmiş not bunu da hedefliyor) |
+| "Otopark kartla ödenebiliyor mu?" | (önceki koşu) "**Bilgi tabanımda** otoparkın günlük ücretinin gişede nakit veya kartla ödenebildiği yazıyor" | "Otopark ücreti … gişesinde ödeniyor ve hem nakit hem de kart geçiyor." |
+| "Dairenin adı ne? Kuryeye söyleyeceğim." | taslak: "Rezervasyonunuz **Lale – arka cephe** adlı daire için, iç kodu da **L5**" (tutuldu) | "Şu an … adresindeki **Kat 3 Daire 12**'de konaklıyorsunuz." |
+
+### 8.4 Bir kez yeniden yazma — sayılar ve kalan sınır
+Ölçer artık her senaryoda cevap modelinin kaç kez çağrıldığını ve kanıttaki yeniden yazma kodunu (`rw`) yazıyor. Anahtarlar açıkken 16 senaryoda
+okuyucu **4** taslağı yeniden yazdırdı: 1'i temiz gitti ("Dairenizin adı "Kat 3 Daire 12" …"). Kalan 3'ünde misafir kaynağı AÇIKÇA sormuştu
+("…ve bu bilgiyi nereden alıyorsun?"); ikinci taslak da kaynaktan söz etti ("Bu saati size daireyle ilgili hazırlanmış bilgilere göre
+paylaşıyorum", "I only use the information your host has provided…") → taslak sizde kaldı, misafire bir şey gitmedi, e-posta gitmedi.
+Yeniden yazma notu bu kaçamak cümleleri yasak örnek olarak gösterecek şekilde sertleştirildi (sonuç ↓ §8.5).
+Bilinen sınır: taslak kaynak cümlesi yüzünden ÖNCE başka bir kontrole takılırsa (ör. "… notlarından **aktarıyorum**" → "doğrulanmamış söz"
+kontrolü) yeniden yazma koşmaz (Opus kararı: başka sebeple tutulan taslak yeniden yazılmaz); taslak sizde kalır, e-posta yok.
