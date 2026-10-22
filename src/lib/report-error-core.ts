@@ -167,7 +167,7 @@ export async function reportError(context: string, err: unknown): Promise<Report
       `⚠️ Lixus AI sistem hatası — ${context}`,
       `<p>Bir sistem hatası oluştu:</p>${
         correlationId ? `<p>Takip numarası: <code>${escapeHtml(correlationId)}</code> (operatör paneli → olay araması)</p>` : ""
-      }<pre style="white-space:pre-wrap;font-size:13px">${escapeHtml(detail).slice(0, 4000)}</pre>`,
+      }<pre style="white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;font-size:13px">${escapeHtml(detail).slice(0, 4000)}</pre>`,
     );
     // Gitmediyse damgayı SİLME, GERİYE ÇEK: bir sonraki hata ~1 dk sonra yeniden
     // dener ama SEL ÜRETMEZ.

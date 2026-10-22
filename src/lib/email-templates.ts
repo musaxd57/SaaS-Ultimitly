@@ -52,7 +52,8 @@ const FOOTER = `
 `;
 
 /**
- * Kabuk (görsel inceleme 10-22, telefon genişliği ölçüldü): `width="600"` niteliği Outlook için kalır (CSS genişliği okumaz); CSS
+ * Kabuk (görsel inceleme 10-22, telefon genişliği ölçüldü): `width="600"` niteliği + yalnız Outlook'un okuduğu `<!--[if mso]>` sabit
+ * 600 px "hayalet tablo" (Haiku: Word motoru `max-width` okumaz, `width:100%` ile kartı tam genişliğe yayabilirdi); CSS
  * `width:100%;max-width:600px` telefonda kartı ekrana sığdırır ("akışkan melez" desen). ⚠️ `width:600px;max-width:100%` YETMEZ —
  * tablo düzeninde sabit CSS genişliği hücrenin en küçük genişliği olur, kart yine 600 px kalır (ölçüldü). Eskiden yalnız nitelik vardı →
  * 390 px ekranda 632 px; misafir mesajındaki uzun bağlantı / sözcük 1.387 px'e kadar itiyordu — içerik hücresi artık uzun sözcüğü böler.
@@ -69,6 +70,7 @@ function wrapEmail(bodyContent: string): string {
   <table width="100%" cellpadding="0" cellspacing="0" style="padding:32px 16px;">
     <tr>
       <td align="center">
+        <!--[if mso]><table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
         <table width="600" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;background:#ffffff;border-radius:8px;border:1px solid #e2e8f0;overflow:hidden;">
           <tr>
             <td style="padding:0 32px 32px;word-wrap:break-word;overflow-wrap:anywhere;word-break:break-word;">
@@ -78,6 +80,7 @@ function wrapEmail(bodyContent: string): string {
             </td>
           </tr>
         </table>
+        <!--[if mso]></td></tr></table><![endif]-->
       </td>
     </tr>
   </table>

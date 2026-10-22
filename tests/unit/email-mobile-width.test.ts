@@ -40,6 +40,9 @@ describe("ev sahibi e-postaları telefonda sığar", () => {
       // Eski desen telefonda 600 px'te kalıyordu — geri gelmesin.
       expect(card).not.toMatch(/(^|[;"])\s*width:600px/);
       expect(html).toMatch(/overflow-wrap:anywhere/);
+      // Outlook (Word motoru) `max-width` okumaz: yalnız onun gördüğü sabit 600 px "hayalet tablo" kartı sarar (Haiku 10-22).
+      expect(html).toMatch(/<!--\[if mso\]><table role="presentation" width="600"[^>]*><tr><td><!\[endif\]-->\s*<table width="600"/);
+      expect(html).toContain("<!--[if mso]></td></tr></table><![endif]-->");
     });
   }
 });
@@ -47,9 +50,12 @@ describe("ev sahibi e-postaları telefonda sığar", () => {
 describe("kimlik e-postası kabuğu telefonda sığar", () => {
   it("iç tablo `width=\"480\"` niteliği + CSS `width:100%;max-width:480px`", () => {
     const html = identityEmailShell({ heading: "Doğrulayın", intro: "Merhaba", action: { label: "Doğrula", url: "https://x.test/#t=a" }, footnote: "Not" });
-    const inner = /<table role="presentation" width="480"[^>]*>/.exec(html)?.[0] ?? "";
+    // Biçimli iç tablo (Outlook'un hayalet tablosu `style` taşımaz — onu atla).
+    const inner = /<table role="presentation" width="480"[^>]*style="[^"]*"[^>]*>/.exec(html)?.[0] ?? "";
     expect(inner, "iç tablo").not.toBe("");
     expect(inner).toContain("width:100%;max-width:480px");
     expect(inner).not.toMatch(/(^|[;"])\s*width:480px/);
+    expect(html).toMatch(/<!--\[if mso\]><table role="presentation" width="480"[^>]*><tr><td><!\[endif\]-->\s*<table role="presentation" width="480"/);
+    expect(html).toContain("<!--[if mso]></td></tr></table><![endif]-->");
   });
 });
