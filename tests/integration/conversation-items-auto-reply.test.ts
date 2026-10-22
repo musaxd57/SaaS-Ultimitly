@@ -1301,3 +1301,36 @@ describe("kurucu T1 — erişim arızasının yanındaki erişim sorusu bağıms
   });
 });
 
+
+describe("U8 (kurucu 10-22: 'wifi şifresi gidebilir ama sorunu yutmasın her türlü hosta haber verilsin')", () => {
+  beforeEachTurn();
+  // Kırmızı takım vakası (ölçüldü 10-21): iade / itiraz tehdidi + masum soru AYNI mesajda.
+  const THREAT_WIFI =
+    "Fotoğraflarda deniz manzarası vardı, karşıda duvar var. Bugün %50 iade edin yoksa yarın kartımdan itiraz (chargeback) açarım. Wi-Fi şifresi?";
+
+  it("Wi-Fi cevabı gider; iade / tehdit öğesi ev sahibinde AÇIK + mesaj için TEK acil e-posta (yutulmaz)", async () => {
+    const { orgId, conversationId } = await seed(THREAT_WIFI);
+    understands(
+      understood([
+        { intent: "cancellation_refund", message: 1 },
+        { intent: "wifi", message: 1 },
+      ]),
+    );
+    mockSuggest.mockResolvedValueOnce(wifiAnswer({ riskType: "money_refund", riskLevel: "medium" }));
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(true);
+    const items = await itemsOf(conversationId);
+    expect(items).toContainEqual({ body: THREAT_WIFI, kind: "cancellation_refund", sensitivity: "sensitive", status: "pending_host", notified: true });
+    expect(items).toContainEqual({ body: THREAT_WIFI, kind: "wifi", sensitivity: "none", status: "answered", notified: false });
+    // Ev sahibine haber: e-posta tam bir kez ve gövdesinde misafirin mesajı.
+    expect(mockMail).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(mockMail.mock.calls[0])).toContain("chargeback");
+    // Konuşma ev sahibinin açık işlerinde kalır (kapanış gizlemesi bu öğeyi yutmaz).
+    const messages = await prisma.message.findMany({ where: { conversationId }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
+    expect(await hasOpenHostWork(orgId, messages)).toBe(true);
+    // Misafire giden metin yalnız Wi-Fi: iade / tehdit hakkında hiçbir şey söylenmez.
+    const sentBody = String(mockSend.mock.calls[0]?.[0] ? JSON.stringify(mockSend.mock.calls[0]) : "");
+    expect(sentBody).toContain("Wi-Fi");
+    expect(sentBody).not.toMatch(/iade|refund|itiraz|chargeback/i);
+  });
+});
