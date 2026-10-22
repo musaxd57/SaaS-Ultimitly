@@ -142,7 +142,7 @@ export function LeadForm() {
         "532 ..." yazmaya başlıyor). Değer state'te ÖNEKSİZ tutulur ve gönderimde
         birleştirilir — böylece boş alan "+90" diye sahte bir kayıt üretmez.
       */}
-      <div className="flex h-10 w-full items-center rounded-md border border-input bg-card text-sm focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-1 focus-within:ring-offset-background">
+      <div className="flex h-10 w-full items-center rounded-md border border-input bg-card text-base sm:text-sm focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-1 focus-within:ring-offset-background">
         <span className="select-none border-r border-input px-3 text-muted-foreground" aria-hidden="true">
           {PHONE_PREFIX}
         </span>
@@ -157,7 +157,9 @@ export function LeadForm() {
           placeholder="532 123 45 67 (opsiyonel)"
           value={form.phone}
           onChange={(e) => set("phone", formatTrPhone(e.target.value))}
-          className="h-full flex-1 rounded-r-md bg-transparent px-3 outline-none placeholder:text-muted-foreground"
+          // `min-w-0`: alanın doğal en küçük genişliği 320 px ekranda kutuyu taşırıyordu (sayfa yana kayıyordu, 10-22 ölçüldü). Telefonda 16 px
+          // (üst kutu): iOS 16 px altı alana odaklanınca sayfayı yakınlaştırır — paylaşılan `Input` bileşeniyle aynı kural.
+          className="h-full min-w-0 flex-1 rounded-r-md bg-transparent px-3 outline-none placeholder:text-muted-foreground"
         />
       </div>
       {errors.phone ? <p className="text-xs text-destructive">{errors.phone}</p> : null}
@@ -176,7 +178,7 @@ export function LeadForm() {
           onChange={(e) => set("message", e.target.value.slice(0, MESSAGE_MAX))}
           rows={3}
           maxLength={MESSAGE_MAX}
-          className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-base sm:text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
         {/* Sayaç yalnız SONA YAKLAŞINCA çıkar — boş formda gereksiz gürültü olmasın. */}
         {form.message.length > MESSAGE_MAX * 0.7 ? (

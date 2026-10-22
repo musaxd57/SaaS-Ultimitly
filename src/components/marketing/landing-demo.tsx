@@ -110,13 +110,15 @@ export function LandingDemo() {
           }}
           maxLength={500}
           placeholder="Misafir mesajını yazın…"
-          className="h-10 flex-1 rounded-md border border-input bg-background px-3 text-sm"
+          // `min-w-0`: metin kutusunun doğal en küçük genişliği 320 px ekranda "Dene"yi dışarı itiyordu (sayfa 370 px, yana kayma — 10-22
+          // ölçüldü). Telefonda 16 px yazı: iOS 16 px altı alana odaklanınca sayfayı yakınlaştırır (panel alanlarıyla aynı kural).
+          className="h-10 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-base sm:text-sm"
         />
         <button
           type="button"
           onClick={() => run()}
           disabled={busy || !message.trim()}
-          className="inline-flex h-10 items-center gap-1.5 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
         >
           {busy ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
           Dene
