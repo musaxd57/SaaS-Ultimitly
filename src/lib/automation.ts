@@ -2578,7 +2578,11 @@ export async function applyChannelAutoReply(
         // Yeniden yazma düşerse (hata / yedek cevap) ilk taslak kalır — okuyucunun hükmü onu zaten tutar.
         if (retried?.source === "openai" && retried.reply) {
           const merged = mergeSeniorRewrite(result, retried);
-          const reread = await runAbsenceJudge({ guestMessage: absenceGuestText, reply: merged.reply, names: absenceNames });
+          // Aynı metin döndüyse hüküm o metne zaten bağlı — ikinci kez okunmaz (tutulur).
+          const reread =
+            merged.reply === seniorPrecheck.reply
+              ? seniorPrecheck.outcome
+              : await runAbsenceJudge({ guestMessage: absenceGuestText, reply: merged.reply, names: absenceNames });
           // Yeni metin OKUNAMADIYSA (okuma düştü) ilk taslak kalır — okuyucunun hükmü onu zaten tutar; okunmamış metin kelime kurallarıyla
           // tek başına gitmez (Haiku 10-22).
           if (reread.status === "ok") {

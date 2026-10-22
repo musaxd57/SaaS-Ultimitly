@@ -1186,7 +1186,11 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
         if (retried?.source === "openai" && retried.reply) {
           const merged = mergeSeniorRewrite(result, retried);
           await assertClaimHeld();
-          const reread = await runAbsenceJudge({ guestMessage: message, reply: merged.reply, names: [res.guestName, res.guestGivenName] });
+          // Aynı metin döndüyse hüküm o metne zaten bağlı — ikinci kez okunmaz.
+          const reread =
+            merged.reply === qrSeniorPrecheck.reply
+              ? qrSeniorPrecheck.outcome
+              : await runAbsenceJudge({ guestMessage: message, reply: merged.reply, names: [res.guestName, res.guestGivenName] });
           // Yeni metin okunamadıysa ilk taslak kalır (okuyucunun hükmü onu tutar) — kanal yoluyla aynı (Haiku 10-22).
           if (reread.status === "ok") {
             result = merged;

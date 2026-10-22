@@ -363,7 +363,7 @@ describe("kıdemli okuyucu — QR misafir sohbeti", () => {
     const f = vi.fn(async (_url: string, init?: RequestInit) => {
       const user = JSON.parse(String(init?.body)).messages[1].content as string;
       const payHost = /in cash/i.test(user.split("DRAFT REPLY:")[1] ?? "");
-      const v = { ...NOTHING, pays_host_off_platform: payHost };
+      const v = { ...NOTHING, pays_host_off_platform: payHost, payment_quote: payHost ? lastDraftSentence(init) : "" };
       return new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify(v) } }] }), { status: 200 });
     });
     vi.stubGlobal("fetch", f);

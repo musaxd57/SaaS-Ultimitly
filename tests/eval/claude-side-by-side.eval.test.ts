@@ -8,6 +8,7 @@ import { retrieveKbForPrompt } from "@/lib/ai/kb-retrieve";
 import { autoReplyGateFailure } from "@/lib/automation";
 import { claudeKey, extractJson, CLAUDE_GEN_MODEL } from "./claude-client";
 import { GREETING, promiseInReply } from "./reply-metrics";
+import { writeSidecar } from "./sidecar";
 import { languageMatches, factsHit, factsStrict, type FactSpec } from "./reply-scoring";
 
 // ---------------------------------------------------------------------------
@@ -296,7 +297,8 @@ afterAll(() => {
     ),
   ].join("\n");
   writeFileSync(path.join(dir, `${name}.md`), md);
-  writeFileSync(path.join(dir, `${name}.json`), JSON.stringify({ provider: PROVIDER, model, sha, rows }, null, 1));
+  // Yan dosya + kimlik bloğu (katman modelleri, commit, bayraklar) ortak yazıcıdan — her ölçüm raporu bunu taşır (pin).
+  writeSidecar(dir, `${name}.md`, { suite: "claude-side-by-side", version: 1, meta: { provider: PROVIDER, model, sha, n: rows.length }, rows });
 });
 
 describe.skipIf(!enabled)(`cevap katmanı yan yana (${PROVIDER})`, () => {

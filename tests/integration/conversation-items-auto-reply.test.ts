@@ -1056,7 +1056,13 @@ describe("KONU BAZLI 'BİLGİM YOK' (H9, kurucu 10-16; anahtar AI_TOPIC_ABSENCE_
     vi.fn(async (_url: string, init?: RequestInit) => {
       const name = JSON.parse(String(init?.body)).response_format?.json_schema?.name as string;
       if (name !== "absence_judge") throw new Error(`beklenmeyen şema: ${name}`);
-      const content = JSON.stringify({ admits_missing_info: admits, quote: admits ? "Televizyonla ilgili bir bilgim yok." : "" });
+      // Gerçek hakem gibi itirafı OKUDUĞU taslaktan alıntılar (kanıt şartı 10-22): ilk okumada "bilgim yok" cümlesi, ayıklanmış metinde
+      // kalan son cümle (kelime kuralının kaçırdığı itirafı temsil eder).
+      const user = String(JSON.parse(String(init?.body)).messages?.[1]?.content ?? "");
+      const draft = (user.split("DRAFT REPLY:")[1] ?? "").replace(/^\s*<<</, "").replace(/>>>\s*$/, "");
+      const sentences = draft.split(/(?<=[.!?])\s+/).map((x) => x.trim()).filter(Boolean);
+      const quote = sentences.find((x) => /bilgim yok/i.test(x)) ?? sentences.at(-1) ?? "";
+      const content = JSON.stringify({ admits_missing_info: admits, quote: admits ? quote : "" });
       return new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content } }] }), { status: 200 });
     });
 
