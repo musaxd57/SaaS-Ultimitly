@@ -452,6 +452,11 @@ describe("Haiku 10-23 gece-3 — sorulan saatin YÖNÜ, '24 saat önceden', çok
     // Yönsüz soru ("havuz saatleri") ve iki yönlü soru ("açılış kapanış saatleri") her saati kabul eder.
     expect(composeVerifiedReply({ parts: [p("R1", opens, opens)], needs: [needQ(["havuz saatleri"])], sources: kb }).refs).toEqual(["R1"]);
     expect(composeVerifiedReply({ parts: [p("R1", opens, opens)], needs: [needQ(["havuz açılış kapanış saatleri"])], sources: kb }).refs).toEqual(["R1"]);
+    // İki yön ilk kapanışla gelse de yön aranmaz (mutasyon E24: ilk yön seçiliyordu).
+    expect(composeVerifiedReply({ parts: [p("R1", opens, opens)], needs: [needQ(["havuz kapanış ve açılış saatleri"])], sources: kb }).refs).toEqual(["R1"]);
+    // İki saatli aralık "-e kadar" taşısa da açılış sorusunu cevaplar (mutasyon E21: tek saat şartı).
+    const range2 = "Havuz 09:00'dan 20:00'ye kadar açıktır.";
+    expect(composeVerifiedReply({ parts: [p("R1", range2, range2)], needs: [needQ(["havuz açılış saati"])], sources: src(range2) }).refs).toEqual(["R1"]);
   });
 
   it("🚨 '24 saat önceden' her zaman açık sayılmaz; '24 saat açık' ve başka dillerde 24 saat açık sayılır", () => {
