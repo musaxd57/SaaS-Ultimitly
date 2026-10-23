@@ -57,6 +57,11 @@ başına ANAHTAR SÖZCÜK sorgularından, `answer-binding.askedAspects`) cevapla
 bir istek cevapsız + tur tutuldu → ev sahibine tek e-posta; parça kipi yalnız sıra kipiyle (`AI_ITEM_ORDINAL_ENABLED=1`) açılır; bu okumada
 karşılığı olmayan eski açık satır cevaplanabilir değil; aynı metin bir kez; çelişen standart saat mülk kaynağından düşer. Açık sorular rapor §6
 (6–8: kısmi gönderimde e-posta, iki tesiste yarım cevap, parça kipinde güven eşiği). E v6: 31/38 doğru, 8/8 açık, 0 yanlış.
+Gece sonu (§3e, `6c59ee3c`): Opus "taze göz" (gecenin bütün farkı) 8 bulgu → sorulan yön denetimi konuya bağlı (`missingAspects(…, subjectTerms)`:
+olumsuzluk yalnız SORULAN konuya, saatsiz cevap yalnız yüklem, ücret sorusunda konu sözcüğü cevap değil, rakam + para birimi tutar, iki yön →
+aralık şart, çalışma saatleri yön sormaz) + konu etiketi değer penceresi (bitişik dizi, ağ sözcüğü önündeki değer, ikiz harf, sırdan sonraki 3
+sözcük); 147 gerçek parçada karar değişmedi. Mutasyon night4 67/90, yaşayan 23'ün hepsi pinli (T4 gerçek sızma, kapandı). Migration 85 WIP
+`6c59ee3c` üstüne yeniden kuruldu (etiket çakışması çözüldü). Açık soru §6-10 (eski satırda sessiz tur e-postası).
 
 **10-23 gece:** büyük rapor `docs/RAPOR-2026-10-23-gece-buyuk-rapor.md`. Soru 1 kodda (`topic-absence.needTerms`:
 misafirin kendi soru sözcükleri; gönderime izin veren eşleşme SIKI = yalnız çekim eki, tutma yönü GEVŞEK; anahtar `AI_TOPIC_ABSENCE_ENABLED` KAPALI) ·

@@ -15,7 +15,10 @@
 - **Parça kipi (her soruya ayrı doğrulanmış cevap)** artık soruyu gerçekten cevaplamayan doğru cümleyle soruyu kapatmıyor ("Havuz kaçta?" ↔ "Havuz
   ısıtmalıdır" gitmez), cevapsız soru kalan tutulmuş turda ev sahibine e-posta gidiyor. Gerçek modelle ölçümde yanlış cevap 0, yeni denetimler
   hiçbir doğru cevabı tutmadı.
-- **Kararınızı bekleyen 9 soru** §6'da, her biri örnekli. En önemlileri: 1 (migration 85), 6 (kısmi cevapta e-posta), 9 (genel soruya yalnız
+- **Son tur (gece sonu):** gecenin bütün farkı bağlamsız bir Opus'a okutuldu → 8 bulgu, en ağırı parça kipinde konuyla ilgisiz bir cümlenin
+  ("Havuzda cankurtaran yoktur") saat sorusunu kapatabilmesi — 7'si kapandı, 147 gerçek model cevabında hiçbir karar değişmedi. Mutasyon turu
+  23 yaşayan mutantın hepsini pinledi; biri konu etiketinde gerçek şifre sızma yolu çıktı ("mavi kelebek wlan şifresi"), kapandı (§3e).
+- **Kararınızı bekleyen 10 soru** §6'da, her biri örnekli. En önemlileri: 1 (migration 85), 6 (kısmi cevapta e-posta), 9 (genel soruya yalnız
   istisna cevabı).
 - Ücretli ölçüm bu gece toplam ~$0,33 (onaylı E kapsamı).
 
@@ -184,6 +187,32 @@ sıfır sapma aynen, ilgili DB testleri 95/95, birim 116/116). Bulunan ve kapana
 Bilinen sınırlar (yama): aynı misafirin AYRI rezervasyonları ayrı teyit sayılır; kalıcı kuyruk açıkken ölçüm teslimden önce yazılır; küçük harfli
 üçüncü kişi adı ETİKETE hâlâ girebilir (etiket ev sahibine görünür, misafire gitmez — migration 84 bilinen sınırı; kayıt sorgusuna girmez).
 
+## 3e. Gecenin bütün farkına "taze göz" Opus incelemesi (8 bulgu) + mutasyon turu (`6c59ee3c`)
+
+Opus'a gecenin bütün kod farkı (`8f7f3b87..HEAD`) bağlamsız verildi ("benim sonucumu değil, kodu oku"). 8 bulgu; 7'si kodda kapandı, her biri
+eski kodda kırmızı testle pinli (kırmızı-önce: 9 test eski kodda kırmızı, yeni kodda yeşil):
+
+| # | bulgu (Opus'un ölçtüğü örnek) | şimdi |
+|---|---|---|
+| F1 🔴 | "Cevapsız cevap" sözcükleri parçanın HERHANGİ bir yerinde aranıyordu: "Havuz kaçta açılıyor?" ↔ "**Kapalı** havuz ısıtmalıdır" (kapalı = iç mekân), "Havuz **her zaman** temizdir", "Havuzda cankurtaran **yoktur**", "Otopark **ücreti** check-out'ta nakit ödenir", "**Paid** parking is available", "Otopark site **dahilinde**dir" soruyu kapatıp misafire gidiyordu; "24 **H**aziran", "24 **saatlik**" gün boyu açık sayılıyordu | olumsuzluk yalnız SORULAN KONUYA bağlıysa cevap ("Havuz yoktur", "Pets are not allowed" ✓; "Havuzda cankurtaran yoktur" ✗); saatsiz cevap yalnız yüklem ("kışın kapalıdır", "her zaman açıktır"); ücret sorusunda konu sözcükleri cevap değil, yalnız "ücretsiz / dahildir / ücret alınmaz / free / included"; birim sözcük sınırında biter |
+| F2 | İki yön sorulunca ("kaçta açılıp kaçta kapanıyor") tek yön isteği kapatıyordu; "kapatılır", "başlıyor", "açılıp" yön sözlüğünde yoktu; yön sözcüksüz tek saat ("Kahvaltı 08:00'de servis edilir") "kaça kadar"ı cevaplıyordu | iki yön → aralık ya da iki yönlü iki saat şart ("09:00'dan 20:00'ye kadar" dahil); fiiller eklendi; yönsüz tek saat yalnız doğal yönüyle geçer ("Check-out saati 11:00" → "çıkış kaça kadar" ✓) |
+| F3 | Doğru Türkçe fiyat tutuluyordu ("200 liradır", "20 eurodur" — bu gecenin kendi gerilemesi) | rakam + para birimi tutar sayılır |
+| F4 | "Açılış saatleri / opening hours / Öffnungszeiten" yalnız açılış sanılıyordu ("open until 20:00" tutuluyordu) | çalışma saatleri yön sormaz; kapanışı da anan sorgu iki yön sorar |
+| F6 | Konu etiketi değer penceresi sözlük sözcüklerini de düşürüp etiketi boşaltıyordu ("giriş kodu" → boş, "klima kumandası kodu" → boş) | değer bitişik dizi (en uzak konusuz sözcüğe kadar); uzaktaki sözlük sözcükleri kalır ("giriş", "klima kumandası") |
+| F7 🔴 | Etikete şifre değeri sızma yolları: "kelebek wifi şifresi" → "kelebek wifi"; Kiril ikiz harfli "ѕifresi kelebek"; 5 sözcüklük değer; sırdan sonraki sözlük sözcüğü ("wifi şifresi kahve DENİZ mi"); Rusça "пароль" | ağ / kodu olan şeyin önündeki konusuz değer düşer; ikiz harf Latin okunuşuyla tanınır; pencere 6 sözcük; sırdan sonraki 3 sözcük düşer; Rusça / İspanyolca sır kökleri |
+| F5 | (Fazladan TUTMA) iki tesis birleşimi "havuz yanındaki bar" gibi yer belirtecini ikinci tesis sayıyor | §7 bilinen sınır — yanlış göndermez |
+| F8 | (Fazladan TUTMA, kod okumasıyla) turun tek açık satırı eski okumadan kalmışsa ve serbest cevapta devir sözü yoksa ev sahibine e-posta gitmez (taslak panelde) | §6 soru 10 — e-posta akışı kararı sizde |
+
+**Ölçüm:** E v7'nin ve önceki koşuların 147 gerçek model parçasında eski / yeni "sorulan yön cevaplandı mı" kararı **hiç değişmedi** (17 / 17 tutma,
+0 ters dönüş) — yeni denetimler gerçek cevaplarda haksız tutma üretmedi. 41 elle yazılmış örnekte (Opus'un örnekleri + doğru cevaplar) hepsi
+beklendiği gibi.
+
+**Mutasyon turu (`scripts/mutation-run.mjs`, ayrık worktree, M0 kontrol koşusu yeşil):** e2e 29 mutantın 27'si öldü (E21 / E24 önceden pinlendi);
+gecenin doğrulayıcı + etiket mutantları **90'da 67 öldü, 23 yaşadı**. Yaşayan 23'ün HER biri için mutantla özgün kodun çıktısını ayıran girdi
+çevrimdışı ölçüldü ve pin olarak yazıldı (N1, N2, N4, N5, N8, N9, N11, N12, N17, N18, N20, N21, N22, N24, N25, R1b, R2b, R13f, R15b, H4, H5, T1).
+Biri (T4) gerçek açık çıktı: tek sözcüklük kural "MAVİ kelebek ağ şifresi"nde "mavi"yi, "mavi kelebek **wlan** şifresi"nde iki sözcüğü birden
+etikete bırakıyordu → genel kural yazıldı, eski kural ölü kod olarak silindi.
+
 ## 4. Gerçek modelle yeniden ölçüm (E v5 / v6 / v7, onaylı Luna yapılandırması)
 
 | kol | doğru değerle cevaplanan | açık kalması gereken açık kaldı | 🚨 yanlış | "bilgim yok" / iç kaynak | giden mesaj |
@@ -209,7 +238,8 @@ v5 + v6 + v7 = $0,33 (onaylı E kapsamı).
 | Tam kapı g7 (`8f7f3b87`: Opus 2. tur + Haiku 2. tur) | veritabanısız 578 · veritabanlı 449 · süre 65 dosya yeşil · derleme yeşil → push → **CI yeşil** (6/6 iş) |
 | Tam kapı g8 (`a953544c`: Opus uçtan uca + Haiku 3. tur) | 578 · 449 · 65 yeşil · derleme yeşil → push (`851a9742`, iki belge commit'iyle) → CI: §5 sonu |
 | Kırmızı-önce | her yeni test düzeltmesiz kodda koşturuldu: uçtan uca 9 test kırmızı, Haiku 3. tur 6 test kırmızı, etiket 2 test kırmızı → düzeltmeyle yeşil |
-| Mutasyon (`scripts/mutation-run.mjs`, ayrık worktree) | MUTASYON_SONUC |
+| Mutasyon (`scripts/mutation-run.mjs`, ayrık worktree) | e2e 27/29 (2 yaşayan önceden pinli) · gece doğrulayıcı + etiket 67/90 → yaşayan 23'ün hepsi pinlendi, 1'i gerçek açık (T4, kapandı) — §3e |
+| Opus taze göz (gecenin bütün farkı) | 8 bulgu: 7 kodda kapandı (kırmızı-önce 9 test), 2'si fazladan tutma → §6-10 / §7 — §3e |
 | Gerçek model (E v7) | yeni denetimler 0 haksız tutma; yanlış 0 |
 | Hazır yama (migration 85) | DB testleri 95/95, birim 116/116, `git apply --check` ✓ (push YOK) |
 | Son kapı g9 (etiket düzeltmesi + belgeler) | G9_SONUC |
@@ -245,7 +275,18 @@ v5 + v6 + v7 = $0,33 (onaylı E kapsamı).
    bilgi tabanında genel kural varsa, yalnız istisnayı söyleyen cevap gitmesin (istek açık kalır; model genel + istisna yazarsa — "Hafta içi
    20:00, hafta sonu 23:00" — gider). Misafir "hafta sonu kaçta?" diye sorduysa yalnız istisna yine gider. **Önerim: evet.**
 
+10. **Eski okumadan kalan tek açık satır (Opus taze göz F8, yalnız sıra kipi açıkken):** bir turun tek açık sorusu önceki okumadan kalmışsa ve bu
+    turun yeniden okuması onu üretmediyse (misafir aynı mesajı başka anlamla yeniden yazmış gibi), parça kipi o soruyu bu turun cevabıyla
+    kapatmıyor (doğru — bayat satır). Ama o turda misafire bir şey gitmiyor ve ev sahibine "Misafir cevabınızı bekliyor" e-postası da gitmiyor;
+    yalnız panelde taslak kalıyor. Örnek: misafir "Havuz kaçta?" yazdı (satır açıldı), sonra mesajını "teşekkürler, hallettim" diye düzeltti →
+    eski satır açık, tur sessiz. Seçenek: bu durumda da tek e-posta (mesaj başına bir kez). Önerim: evet, ama e-posta akışı olduğu için
+    sormadan açmadım.
+
 ## 7. Bilinen sınırlar (hepsi TUTMA yönünde — yanlış göndermez, ev sahibine bırakır)
+- İki tesis birleşimi yer belirtecini de tesis sayar ("havuz yanındaki bar kaçta kapanıyor" ↔ "Bar 23:00'te kapanır" tutulur; Opus taze göz F5).
+- "Ne zamana kadar / until when" saat sorusu sayılmıyor (tarih de sorabilir) — o soruda saat denetimi yok, bağ denetimi aynen.
+- Konu etiketi: sır sözcüğünün önündeki TEK sözlük sözcüğü ("kahve şifresi") kodu olan şey sayılıp etikette kalır; "bisiklet kilidi şifresi"
+  etiket vermez. Etiket yalnız ev sahibine görünür.
 - Kapasite soruları ("daire kaç kişilik") her zaman ev sahibine kalır ("kişi / kapasite" nitelik sözcüğü, konu sözcüğü kalmıyor).
 - Kalem yön vermiyorsa ("Kahvaltı 08:00'de verilir") parçanın "from 08:00" demesi tutulur (yön uydurma kuralı).
 - İhtiyaç sözcükleri yalnız Türkçe gelirse başka dildeki ikinci konu ("Der Pool und der **Garten**") yalnız tesis listesindeyse yakalanır —
