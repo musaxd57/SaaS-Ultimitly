@@ -397,7 +397,7 @@ function negative(tokens: readonly string[]): boolean {
 
 /** Yön: açılış / başlangıç ↔ kapanış / bitiş ("açılır, -den itibaren, from, after" ↔ "kapanır, -e kadar, until, before"). */
 const START_TOKENS = new Set([
-  "acilir", "acilis", "aciliyor", "acilmaktadir", "acilip", "baslar", "basliyor", "baslamaktadir", "baslamakta", "baslangic", "itibaren", "sonra", "opens", "opening", "from", "after", "starts", "begins",
+  "acilir", "acilis", "aciliyor", "acilmaktadir", "acilip", "itibariyla", "itibariyle", "baslar", "basliyor", "baslamaktadir", "baslamakta", "baslangic", "itibaren", "sonra", "opens", "opening", "from", "after", "starts", "begins",
   "oeffnet", "offnet", "ab", "nach", "apres", "desde",
   // Sınır sözcükleri (Opus güvenlik 10-23 F8): en erken = başlangıç.
   "earliest", "fruhestens", "fruehestens", "dalle", "dalla", "после",
@@ -2421,7 +2421,14 @@ export function askedAspects(queries: readonly string[]): AskedAspect[] {
  * "pool opening hours" ↔ "The pool is open until 20:00." tutuluyordu). Tekil "açılış saati" / "opening time" yön sorar.
  */
 const HOURS_OF_OPERATION =
-  /(?<!\p{L})(?:opening (?:hours|times)|acilis saatleri|calisma saatleri|offnungszeit\p{L}*|horaires? d.ouverture|horarios? de apertura|orari di apertura|часы работы)(?!\p{L})/u;
+  /(?<!\p{L})(?:opening (?:hours|times)|acilis saatleri|calisma saatleri|offnungszeit\p{L}*|horaires? d.ouverture|horarios? de apertura|orari di apertura|часы работы)(?!\p{L})/gu;
+/**
+ * Soru cümlesindeki yön fiili (soruda değer olmadığı için `directions`ın "değer ardından" şartı burada aranmaz): "what time does the pool OPEN",
+ * "when does it CLOSE"; "kaçTAN kaÇA" iki yön (Haiku 10-23 gece-4: "open and close" ve "kaçtan kaça açık" yönsüz okunuyordu).
+ */
+const QUESTION_START = /(?<!\p{L})(?:open|opens|offnet|ouvre|ouvrent|abre|abren|apre|aprono|открыва\p{L}*)(?!\p{L})/u;
+const QUESTION_END = /(?<!\p{L})(?:close|closes|closing|schliesst|schliessen|ferme|ferment|cierra|cierran|chiude|chiudono|закрыва\p{L}*)(?!\p{L})/u;
+const FROM_TO_ASKED = /(?<!\p{L})kactan (?:\p{L}+ )?kaca(?!\p{L})/u;
 
 const CLOSING_ASKED = /(?<!\p{L})(?:kapanis\p{L}*|kapanma\p{L}*|closing|close|schliess\p{L}*|fermeture|cierre|chiusura|закрыт\p{L}*)(?!\p{L})/u;
 
@@ -2434,9 +2441,14 @@ export function askedDirection(queries: readonly string[]): "start" | "end" | "b
   const d = new Set<"start" | "end">();
   for (const q of queries) {
     const f = foldAsk(q);
+    if (!ASKS_CLOCK.test(f)) continue;
+    // Çalışma saatleri öbeği yön taşımaz; sorgunun GERİ KALANI taşıyabilir ("havuz çalışma saatleri kaçta AÇILIYOR" — Haiku 10-23 gece-4).
     // Kapanışı da açıkça anan sorgu ("kapanış ve açılış saatleri") iki yön sorar.
-    if (!ASKS_CLOCK.test(f) || (HOURS_OF_OPERATION.test(f) && !CLOSING_ASKED.test(f))) continue;
-    for (const x of directions(tokenize(q))) d.add(x);
+    const rest = CLOSING_ASKED.test(f) ? f : f.replace(HOURS_OF_OPERATION, " ");
+    for (const x of directions(tokenize(rest))) d.add(x);
+    if (QUESTION_START.test(rest)) d.add("start");
+    if (QUESTION_END.test(rest)) d.add("end");
+    if (FROM_TO_ASKED.test(rest)) (d.add("start"), d.add("end"));
   }
   return d.size === 2 ? "both" : d.size === 1 ? [...d][0] : null;
 }
@@ -2452,18 +2464,32 @@ const CLOCKLESS_TIME_ANSWER = new RegExp(
     [
       String.raw`(?:her zaman|gun boyu|butun gun|tum gun|gece gunduz|surekli) (?:\p{L}+ )?(?:acik\p{L}*|kullanilabilir\p{L}*|hizmet ver\p{L}*)`,
       String.raw`acik degil\p{L}*|kullanilamaz\p{L}*|hizmet vermi\p{L}*|kapanmaz|kapanmamaktadir`,
-      String.raw`kapali(?:dir|tir)?${CLAUSE_END}|gece yarisi\p{L}*|oglen\p{L}*|ogle(?:den|ye|de)(?!\p{L})`,
+      String.raw`kapali(?:dir|tir)?(?: (?:olacak|kalacak|kalir|kaliyor)\p{L}*)?${CLAUSE_END}`,
       String.raw`(?:always|all day|around the clock|day and night) (?:\p{L}+ )?(?:open|available|accessible)|open (?:\p{L}+ )?(?:all day|around the clock|day and night|at all times|always)`,
-      String.raw`(?:is|are|stays|remains|will be) (?:\p{L}+ )?closed|closed${CLAUSE_END}|not open|not available|unavailable|midnight|noon`,
-      String.raw`immer (?:\p{L}+ )?(?:geoffnet|offen)|rund um die uhr|ganztag\p{L}*|(?:ist|sind|bleibt|bleiben) (?:\p{L}+ )?geschlossen|geschlossen${CLAUSE_END}|mitternacht|mittags?`,
-      String.raw`toujours ouvert\p{L}*|toute la journee|(?:est|sont|reste) (?:\p{L}+ )?ferme\p{L}*|ferme(?:e|es|s)?${CLAUSE_END}|minuit|midi`,
-      String.raw`siempre abiert\p{L}*|todo el dia|(?:esta|estan|permanece) (?:\p{L}+ )?cerrad\p{L}*|cerrad[ao]s?${CLAUSE_END}|medianoche|mediodia`,
-      String.raw`sempre apert\p{L}*|tutto il giorno|(?:e|sono|resta) chius\p{L}*|chius[oaie]${CLAUSE_END}|mezzanotte|mezzogiorno`,
-      String.raw`всегда открыт\p{L}*|круглосуточно|закрыт[аоы]?|полноч\p{L}*|полден\p{L}*|день и ночь`,
+      String.raw`(?:is|are|stays|remains|will be) (?:\p{L}+ )?closed|closed${CLAUSE_END}|not open|not available|unavailable`,
+      String.raw`immer (?:\p{L}+ )?(?:geoffnet|offen)|rund um die uhr|ganztag\p{L}*|(?:ist|sind|bleibt|bleiben) (?:\p{L}+ )?geschlossen|geschlossen${CLAUSE_END}`,
+      String.raw`toujours ouvert\p{L}*|toute la journee|(?:est|sont|reste) (?:\p{L}+ )?ferme\p{L}*|ferme(?:e|es|s)?${CLAUSE_END}`,
+      String.raw`siempre abiert\p{L}*|todo el dia|(?:esta|estan|permanece) (?:\p{L}+ )?cerrad\p{L}*|cerrad[ao]s?${CLAUSE_END}`,
+      String.raw`sempre apert\p{L}*|tutto il giorno|(?:e|sono|resta) chius\p{L}*|chius[oaie]${CLAUSE_END}`,
+      String.raw`всегда открыт\p{L}*|круглосуточно|закрыт[аоы]?|день и ночь`,
     ].join("|") +
     String.raw`)(?!\p{L})`,
   "u",
 );
+/**
+ * Sözcükle söylenen SAAT ("gece yarısı", "öğlen", "midnight", "noon", "Mitternacht", "minuit"…): saat gibi YÖN denetiminden geçer — "Havuz
+ * öğlene kadar açık" açılış sorusunu cevaplamaz (Haiku 10-23 gece-4: saatsiz cevap sayılıp yönü aranmıyordu).
+ */
+const CLOCK_WORD =
+  /(?<!\p{L})(?:gece yarisi\p{L}*|oglen\p{L}*|ogle(?:den|ye|de)|midnight|noon|mitternacht|mittags?|minuit|midi|medianoche|mediodia|mezzanotte|mezzogiorno|полноч\p{L}*|полден\p{L}*)(?!\p{L})/u;
+/**
+ * Konunun BAŞKA bir yönü (temizlik, bakım, ısıtma): "Havuz temizliği 09:00'da başlar" havuzun açılış sorusunu cevaplamaz (Haiku 10-23
+ * gece-4). Soru da aynı yönü soruyorsa ("havuz temizliği kaçta") cevaptır.
+ */
+const FACET = /(?<!\p{L})(?:temizli\p{L}*|temizle\p{L}*|bakim\p{L}*|isitma\p{L}*|isitil\p{L}*|ilaclama\p{L}*|cleaning|maintenance|heating|reinigung|wartung|heizung|nettoyage|entretien|chauffage|limpieza|mantenimiento|calefaccion|pulizia|manutenzione|riscaldamento|уборк\p{L}*|обслуживан\p{L}*|подогрев\p{L}*)(?!\p{L})/u;
+/** "24 saat" ancak açıklık yüklemiyle saat cevabıdır ("24 saat açık"); "bakım 24 saat sürer" süredir (Haiku 10-23 gece-4). */
+const OPEN_WORD = /(?<!\p{L})(?:acik\p{L}*|hizmet\p{L}*|kullanilabilir\p{L}*|open|available|accessible|geoffnet|offen|ouvert\p{L}*|abiert\p{L}*|apert\p{L}*|открыт\p{L}*|مفتوح)(?!\p{L})/u;
+const SLASH_ROUND = /(?<![\d/])(?:7 ?\/ ?24|24 ?\/ ?7|24 ?\/ ?24|24 ?h ?\/ ?24)(?![\d/])/u;
 /**
  * "7/24 / 24 saat / 24 hours / 24 horas / 24 Stunden / 24 часа / 24 ساعة / 24h/24" açık — ARDINDAN "önce(den) / sonra / içinde / in advance /
  * vorher / заранее" gelmiyorsa (Haiku 10-23 gece-3: "Havuz 24 saat önceden ısıtılır." kapanış saati sorusunu cevaplıyordu). Birim sözcük
@@ -2487,6 +2513,15 @@ const AMOUNTLESS_PRICE_ANSWER = new RegExp(
     String.raw`)(?!\p{L})`,
   "u",
 );
+/** Olumsuzlanmış tutarsız cevap ("ücrete dahil DEĞİLDİR", "NOT free", "nicht inklusive") ücret cevabı değildir (Haiku 10-23 gece-4). */
+const NEGATED_AMOUNTLESS =
+  /(?<!\p{L})(?:(?:ucretsiz|dahil|bedava)\p{L}* degil\p{L}*|(?:not|isn.t|aren.t) (?:\p{L}+ )?(?:free|included|complimentary)|nicht (?:\p{L}+ )?(?:kostenlos|inklusive|inbegriffen|gratis)|(?:n.est|ne sont) pas (?:\p{L}+ )?(?:gratuit|inclus)\p{L}*|no (?:es|esta|estan) (?:\p{L}+ )?(?:gratis|gratuit|incluid)\p{L}*|non (?:e )?(?:gratuit|inclus)\p{L}*|не (?:\p{L}+ )?(?:бесплатн|включен)\p{L}*)(?!\p{L})/u;
+/** Dahil / ücretsiz mi sorusu (evet / hayır): olumsuz cevap ("kahvaltı fiyata dahil değildir") da cevaptır. */
+const ASKS_INCLUSION =
+  /(?<!\p{L})(?:dahil\p{L}*|ucretsiz\p{L}*|bedava\p{L}*|included|include|includes|free|complimentary|inklusive|inbegriffen|kostenlos|inclus\p{L}*|gratuit\p{L}*|incluid\p{L}*|gratis|incluso|бесплатн\p{L}*|включен\p{L}*)(?!\p{L})/u;
+/** Ücret ödenmediğini söyleyen yüklem ("ücret ödemeniz gerekmez", "ödeme gerekmez", "you don't need to pay"). */
+const NO_PAYMENT_NEEDED =
+  /(?<!\p{L})(?:(?:ucret|para|odeme)\p{L}* (?:\p{L}+ )?(?:gerekmez|gerekmiyor|gerek yok)|(?:don.t|do not|doesn.t|does not) (?:need|have) to pay|nichts (?:zu )?zahlen)(?!\p{L})/u;
 /**
  * Tutar — `claimSpans` okumazsa da: rakam + para birimi ("200 liradır", "20 eurodur", "10 dolardır", "500 рублей", "₺200"; Opus taze göz
  * 10-23 F3: doğru Türkçe fiyatlar tutuluyordu).
@@ -2510,23 +2545,33 @@ const DENIAL_SKIP = new Set(
     "maalesef kesinlikle hicbir sekilde surette burada dairede evde sitede otelde icinde olarak ne yazik ki " +
     "is are be been strictly unfortunately currently also here inside the a an any allowed " +
     "ist sind leider hier streng der die das ein eine einen est sont malheureusement ici de d le la les un une des " +
-    "esta estan aqui el los las e sono qui il lo gli не здесь тоже"
+    "esta estan aqui el los las e sono qui il lo gli не здесь тоже anda an simdilik artik henuz su moment presently at"
   ).split(" "),
 );
 function deniesSubject(text: string, subjectTerms: readonly string[]): boolean {
   if (subjectTerms.length === 0) return false;
   const termTopics = new Set(topicsWithSymptomsOf(subjectTerms.join(" ")));
   const termFacilities = facilitiesIn(subjectTerms.join(" "));
+  // Bulunma / ayrılma hâli ("havuzDA cankurtaran yok") konunun kendisi değildir (Haiku 10-23 gece-4).
+  const locative = (w: string) => !subjectTerms.includes(w) && /(?:[dt][ae]|[dt][ae]n|[dt][ae]ki|n[dt][ae])$/.test(w);
   const isSubject = (w: string) =>
-    (w.length >= 3 && needTermsInStrict(subjectTerms, w) > 0) ||
-    topicsWithSymptomsOf(w).some((t) => termTopics.has(t)) ||
-    [...facilitiesIn(w)].some((f) => termFacilities.has(f));
+    !locative(w) &&
+    ((w.length >= 3 && needTermsInStrict(subjectTerms, w) > 0) ||
+      topicsWithSymptomsOf(w).some((t) => termTopics.has(t)) ||
+      [...facilitiesIn(w)].some((f) => termFacilities.has(f)));
   const words = (s: string) => s.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
-  const firstContent = (ws: readonly string[]) => ws.find((w) => !DENIAL_SKIP.has(w) && !/(?:mek|mak)$/.test(w));
+  const skippable = (w: string) => DENIAL_SKIP.has(w) || /(?:mek|mak)$/.test(w);
+  const firstContent = (ws: readonly string[]) => ws.find((w) => !skippable(w));
   for (const m of text.matchAll(DENIAL_AFTER)) {
-    const before = words(text.slice(0, m.index)).slice(-4).reverse();
-    const w = firstContent(before);
-    if (w && isSubject(w)) return true;
+    // Konu yan cümlenin ilk içerik sözcüğü olmalı (önündeki niteleyici alt türdür: "ÇOCUK havuzu yoktur", "ISITMALI havuzumuz yoktur" —
+    // Haiku 10-23 gece-4); yer zarfı ("sitemizde havuz bulunmamaktadır") ve yardımcı sözcükler atlanır.
+    const clause = text.slice(0, m.index).split(/[.!?;,:]/u).pop() ?? "";
+    const before = words(clause);
+    const rev = [...before].reverse();
+    const w = firstContent(rev);
+    if (!w || !isSubject(w)) continue;
+    const at = before.lastIndexOf(w);
+    if (before.slice(0, at).every((x) => skippable(x) || locative(x) || isSubject(x))) return true;
   }
   for (const m of text.matchAll(DENIAL_BEFORE)) {
     const w = firstContent(words(text.slice(m.index + m[0].length)).slice(0, 4));
@@ -2557,28 +2602,36 @@ export function missingAspects(
   aspects: readonly AskedAspect[],
   direction: "start" | "end" | "both" | null = null,
   subjectTerms: readonly string[] = [],
+  queries: readonly string[] = [],
 ): AskedAspect[] {
   if (aspects.length === 0) return [];
   const { text: normalized, claims } = claimSpans(part);
   const text = foldAsk(part);
   if (deniesSubject(text, subjectTerms)) return [];
+  // Konunun başka bir yönü (temizlik / bakım / ısıtma) soruda yoksa parça sorulanı cevaplamaz.
+  if (FACET.test(text) && !FACET.test(foldAsk(subjectTerms.join(" ")))) return [...aspects];
   const times = claims.filter((c) => c.cls === "time");
+  const clockWords = CLOCK_WORD.test(text) ? 1 : 0;
   const answersTime = (): boolean => {
-    if (ROUND_THE_CLOCK.test(text) || CLOCKLESS_TIME_ANSWER.test(text)) return true;
-    if (times.length === 0) return false;
+    if (SLASH_ROUND.test(text) || (ROUND_THE_CLOCK.test(text) && OPEN_WORD.test(text)) || CLOCKLESS_TIME_ANSWER.test(text)) return true;
+    const n = times.length + clockWords;
+    if (n === 0) return false;
     if (!direction) return true;
     const dirs = directions(tokenize(part));
-    const range = times.length >= 2 && (timeRange(normalized, times) || (dirs.has("start") && dirs.has("end")));
+    const range = n >= 2 && (timeRange(normalized, times) || (dirs.has("start") && dirs.has("end")));
     // İki yön soruldu: aralık ya da iki yönlü iki saat ("09:00'da açılır, 20:00'de kapanır") şart.
     if (direction === "both") return range;
     if (range) return true;
     // Tek yön soruldu: parçanın yönü sorulanı içermeli ("kapanış saati" ↔ "09:00'da açılır" cevap değildir). Yön sözcüğü yoksa yalnız
     // değerin doğal yönü serbest ("Check-out saati 11:00" → "çıkış kaça kadar"); "Kahvaltı 08:00'de servis edilir" "kaça kadar"ı cevaplamaz.
     if (dirs.size > 0) return dirs.has(direction);
-    return times.length === 1 && naturalDirection(times[0], new Set([direction]), part);
+    return times.length === 1 && clockWords === 0 && naturalDirection(times[0], new Set([direction]), part);
   };
   const answersPrice = (): boolean =>
-    claims.some((c) => c.cls === "money" || c.cls === "percent") || LOCAL_AMOUNT.test(text) || AMOUNTLESS_PRICE_ANSWER.test(text);
+    claims.some((c) => c.cls === "money" || c.cls === "percent") ||
+    LOCAL_AMOUNT.test(text) ||
+    NO_PAYMENT_NEEDED.test(text) ||
+    (AMOUNTLESS_PRICE_ANSWER.test(text) && (!NEGATED_AMOUNTLESS.test(text) || ASKS_INCLUSION.test(foldAsk(queries.join(" ")))));
   return aspects.filter((a) => (a === "time" ? !answersTime() : !answersPrice()));
 }
 

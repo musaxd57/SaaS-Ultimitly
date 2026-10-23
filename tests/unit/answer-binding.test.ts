@@ -1112,3 +1112,56 @@ describe("Opus taze göz 10-23 F1–F4: sorulan yön (saat / ücret) gerçekten 
     expect(askedDirection(["havuz kapanış ve açılış saatleri"])).toBe("both");
   });
 });
+
+describe("Haiku 10-23 gece-4 (6c59ee3c incelemesi): sorulan yön denetiminin kalan açıkları", () => {
+  const miss = (q: string[], part: string) => missingAspects(part, askedAspects(q), askedDirection(q), needTerms(q), q);
+
+  it("🚨 çalışma saatleri öbeği sorgunun geri kalanındaki yönü silmez; soru fiili ve 'kaçtan kaça' yön sorar", () => {
+    expect(miss(["havuz çalışma saatleri kaçta açılıyor"], "Havuz 20:00'de kapanır.")).toEqual(["time"]);
+    expect(askedDirection(["what time does the pool open and close"])).toBe("both");
+    expect(miss(["what time does the pool open and close"], "The pool is open until 20:00.")).toEqual(["time"]);
+    expect(miss(["havuz kaçtan kaça açık"], "Havuz 20:00'ye kadar açık.")).toEqual(["time"]);
+    expect(miss(["what time does the pool open"], "The pool closes at 20:00.")).toEqual(["time"]);
+    expect(miss(["what time does the pool open"], "The pool opens at 09:00.")).toEqual([]);
+    expect(miss(["what time does the pool close"], "The pool opens at 09:00.")).toEqual(["time"]);
+    expect(miss(["what time does the pool close"], "The pool closes at 20:00.")).toEqual([]);
+  });
+
+  it("🚨 sözcükle söylenen saat ('öğlen', 'midnight') yön denetiminden geçer", () => {
+    expect(miss(["havuz kaçta açılıyor"], "Havuz öğlene kadar açık.")).toEqual(["time"]);
+    expect(miss(["havuz kaçta açılıyor"], "The pool is open until midnight.")).toEqual(["time"]);
+    expect(miss(["havuz kaçta kapanıyor"], "The pool closes at midnight.")).toEqual([]);
+    expect(miss(["havuz kaçta kapanıyor"], "Havuz gece yarısına kadar açık.")).toEqual([]);
+  });
+
+  it("🚨 alt türün ('çocuk havuzu', 'ısıtmalı havuzumuz') ya da bulunma hâlinin ('havuzda cankurtaran') yokluğu konunun yokluğu değildir", () => {
+    expect(miss(["havuz kaçta açılıyor"], "Isıtmalı havuzumuz yoktur.")).toEqual(["time"]);
+    expect(miss(["havuz kaçta açılıyor"], "Çocuk havuzu yoktur.")).toEqual(["time"]);
+    expect(miss(["havuz kaçta açılıyor"], "Cankurtaran havuzda yok.")).toEqual(["time"]);
+    expect(miss(["havuz kaçta açılıyor"], "Maalesef sitemizde havuz bulunmamaktadır.")).toEqual([]);
+    expect(miss(["havuz kaçta açılıyor"], "Havuzumuz şu anda yoktur.")).toEqual([]);
+  });
+
+  it("🚨 konunun başka bir yönü (temizlik / ısıtma / bakım) ve süre ('24 saat sürer') saat cevabı değildir", () => {
+    expect(miss(["havuz kaçta açılıyor"], "Havuz temizliği 09:00'da başlar.")).toEqual(["time"]);
+    expect(miss(["havuz kaçta açılıyor"], "Havuz ısıtması sabah 07:00'de başlar.")).toEqual(["time"]);
+    expect(miss(["havuz kaçta kapanıyor"], "Havuz bakımı 24 saat sürer.")).toEqual(["time"]);
+    expect(miss(["pool closing time"], "Pool heating takes 24 hours.")).toEqual(["time"]);
+    expect(miss(["havuz kaçta kapanıyor"], "Havuz rezervasyonu 24 saat geçerlidir.")).toEqual(["time"]);
+    expect(miss(["havuz kaçta kapanıyor"], "Havuz 24 saat açıktır.")).toEqual([]);
+    expect(miss(["pool hours"], "The pool is open 24 hours.")).toEqual([]);
+    expect(miss(["havuz temizliği kaçta"], "Havuz temizliği 09:00'da başlar.")).toEqual([]);
+  });
+
+  it("🚨 olumsuzlanmış 'dahil / ücretsiz' tutar sorusunu cevaplamaz; evet / hayır sorusunu cevaplar", () => {
+    expect(miss(["havuz ücreti ne kadar"], "Havuz kullanımı ücrete dahil değildir.")).toEqual(["price"]);
+    expect(miss(["havuz ücreti ne kadar"], "Havuz kullanımı ücretsiz değildir.")).toEqual(["price"]);
+    expect(miss(["Is breakfast included in the price?"], "Breakfast is not included in the price.")).toEqual([]);
+    expect(miss(["havuz ücreti ne kadar"], "Havuz kullanımı için ücret ödemeniz gerekmez.")).toEqual([]);
+  });
+
+  it("yüklem biçimleri: 'itibarıyla açıktır', 'kapalı olacaktır'", () => {
+    expect(miss(["havuz kaçta açılıyor"], "Havuz 09:00 itibarıyla açıktır.")).toEqual([]);
+    expect(miss(["havuz kaçta kapanıyor"], "Havuz kışın kapalı olacaktır.")).toEqual([]);
+  });
+});

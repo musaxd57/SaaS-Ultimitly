@@ -201,3 +201,18 @@ describe("Opus taze göz 10-23 F6 / F7: değer penceresi konuyu boşaltmaz, kala
     expect(itemTopicLabel("dört beş bir iki yazıyorum kapı açılmıyor")).toBe("yazıyorum kapı açılmıyor");
   });
 });
+
+describe("Haiku 10-23 gece-4: yanlış yazılmış sır sözcüğü ve ağ sözcüğünün önündeki çok sözcüklü değer", () => {
+  it("🚨 'pasvord / şifere / şifra / kood / kapıkodu' sırdır; ardındaki değer etikete girmez", () => {
+    expect(itemTopicLabel("wifi pasvord kelebek")).toBe("wifi");
+    expect(itemTopicLabel("wifi şifere kelebek")).toBe("wifi");
+    expect(itemTopicLabel("wifi şifra kelebek ejderha")).toBe("wifi");
+    expect(itemTopicLabel("kapı kood kelebek")).toBe("kapı");
+    expect(itemTopicLabel("kapikodu kelebek")).toBeNull();
+  });
+
+  it("🚨 ağ sözcüğünün önündeki sözlük sözcüklü değer en uzak konusuz sözcüğe kadar düşer", () => {
+    expect(itemTopicLabel("kelebek kahve deniz havuz wifi şifresi")).toBe("wifi");
+    expect(itemTopicLabel("havuz ısıtması bozuk wifi şifresi nedir")).toBe("havuz ısıtması wifi");
+  });
+});

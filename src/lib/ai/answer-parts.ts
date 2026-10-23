@@ -145,7 +145,7 @@ export function composeVerifiedReply(input: { parts: readonly AnswerPart[]; need
     // ısıtmalıdır."; "Sauna ve havuz kaçta?" ↔ yalnız havuz. İstek ev sahibinde açık kalır.
     const queries = need.queries ?? [];
     const scope: ("aspect_missing" | "subject_partial")[] = [];
-    if (missingAspects(part.text, askedAspects(queries), askedDirection(queries), need.terms).length > 0) scope.push("aspect_missing");
+    if (missingAspects(part.text, askedAspects(queries), askedDirection(queries), need.terms, queries).length > 0) scope.push("aspect_missing");
     if (missesAskedFacility(part.text, queries)) scope.push("subject_partial");
     if (scope.length > 0) {
       verdicts.push({ ref: need.ref, status: "rejected", issues: scope });

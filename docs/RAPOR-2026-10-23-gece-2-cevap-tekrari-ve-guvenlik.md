@@ -203,6 +203,15 @@ eski kodda kırmızı testle pinli (kırmızı-önce: 9 test eski kodda kırmız
 | F5 | (Fazladan TUTMA) iki tesis birleşimi "havuz yanındaki bar" gibi yer belirtecini ikinci tesis sayıyor | §7 bilinen sınır — yanlış göndermez |
 | F8 | (Fazladan TUTMA, kod okumasıyla) turun tek açık satırı eski okumadan kalmışsa ve serbest cevapta devir sözü yoksa ev sahibine e-posta gitmez (taslak panelde) | §6 soru 10 — e-posta akışı kararı sizde |
 
+**Haiku 4. tur (`6c59ee3c`'nin dar incelemesi) — 19 bulgu, hepsi ölçülerek doğrulandı ve kapandı:** kendi gerilemem (sorguda "çalışma
+saatleri" öbeği "kaçta AÇILIYOR"un yönünü siliyordu) · sözcükle saat ("Havuz öğlene kadar açık", "open until midnight") açılış sorusunu
+kapatıyordu → artık saat gibi yön denetiminden geçer · alt türün / bulunma hâlinin yokluğu ("ÇOCUK havuzu yoktur", "Cankurtaran havuzDA yok")
+konunun yokluğu sayılıyordu · konunun başka bir yönü ("Havuz TEMİZLİĞİ 09:00'da başlar") ve süre ("bakım 24 saat sürer") saat cevabı
+sayılıyordu · "open and close", "kaçtan kaça" yönsüz okunuyordu · "ücrete dahil DEĞİLDİR" tutar sorusunu kapatıyordu (evet / hayır sorusunda
+— "kahvaltı dahil mi?" — cevap olarak kalır) · etikette yanlış yazılmış sır sözcüğü ("pasvord", "şifere", "kood", "kapıkodu") ve ağ sözcüğünün
+önündeki sözlük sözcüklü değer. 4 fazladan tutma da düzeldi ("09:00 itibarıyla açıktır", "kapalı olacaktır", "şu anda yoktur", "ücret ödemeniz
+gerekmez"). 156 gerçek model parçasında eski / yeni karar yine **0 fark**.
+
 **Ölçüm:** E v7'nin ve önceki koşuların 147 gerçek model parçasında eski / yeni "sorulan yön cevaplandı mı" kararı **hiç değişmedi** (17 / 17 tutma,
 0 ters dönüş) — yeni denetimler gerçek cevaplarda haksız tutma üretmedi. 41 elle yazılmış örnekte (Opus'un örnekleri + doğru cevaplar) hepsi
 beklendiği gibi.

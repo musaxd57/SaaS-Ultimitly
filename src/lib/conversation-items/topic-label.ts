@@ -131,7 +131,7 @@ export function itemTopicLabel(query: string | null | undefined, names: readonly
     const f = folded[i] ?? "";
     if (!f) return false;
     // Yanlış yazım / bitişik yazım da sırdır ("passwd", "pasword", "pswd", "wifi sife", "wifisifresi" — Haiku 10-23 gece-2).
-    if (SECRET_ROOTS.some((r) => f.startsWith(r)) || SECRET_ROOTS_OTHER.some((r) => f.startsWith(r)) || SECRET_EXACT.has(f) || /(?:sifre|parola|passw|pasw|passphr|pswd|kennwort)/.test(f)) return true;
+    if (SECRET_ROOTS.some((r) => f.startsWith(r)) || SECRET_ROOTS_OTHER.some((r) => f.startsWith(r)) || SECRET_EXACT.has(f) || /(?:sifre|sifer|sifra|parola|passw|pasw|pasv|passphr|pswd|kennwort)/.test(f) || /^koo?d/.test(f) || (f.length > 5 && /kod(?:u|unu|um)?$/.test(f))) return true;
     // "kilit / gizli kelimesi" de sırdır (Haiku 10-23 gece-3); tek başına "kelime" değil.
     if (f.startsWith("kelime") && /^(?:kilit|gizli|anahtar|guvenlik)/.test(folded[i - 1] ?? "")) return true;
     // Niteleyici de sır adının parçasıdır ("KİLİT kelimesi") — sözlük sözcüğü olduğu için pencerede kalmasın.
@@ -160,10 +160,17 @@ export function itemTopicLabel(query: string | null | undefined, names: readonly
       if (topicless(raws[w])) farthestValue = n;
     });
     for (let n = 0; n <= farthestValue; n++) beforeSecret.add(window[n]);
-    // Kodu olan şeyin / ağ sözcüğünün ÖNÜNDEKİ konusuz sözcükler de değerdir ("MAVİ kelebek ağ şifresi", "kelebek wifi şifresi" — mutasyon
-    // turu + Opus taze göz 10-23 F7); konusu olan sözcükte durur ("havuz ısıtması bozuk, wifi şifresi" konuyu korur).
+    // Kodu olan şeyin / ağ sözcüğünün ÖNÜNDEKİ değer de aynı kuralla düşer ("MAVİ kelebek ağ şifresi", "kelebek wifi şifresi", "kelebek kahve
+    // deniz havuz wifi şifresi" — mutasyon turu + Opus taze göz F7 + Haiku 10-23 gece-4); en uzak konusuz sözcükten uzaktaki sözlük sözcüğü kalır
+    // ("havuz ısıtması bozuk, wifi şifresi" → "havuz ısıtması").
     if (k >= 0 && k >= j - VALUE_WINDOW && coded(k)) {
-      for (let m = k - 1; m >= 0 && m >= k - 3 && topicless(raws[m]) && !coded(m) && !isSecretAt(m); m--) beforeSecret.add(m);
+      const outer: number[] = [];
+      for (let m = k - 1; m >= 0 && m >= k - 4 && !coded(m) && !isSecretAt(m); m--) outer.push(m);
+      let far = -1;
+      outer.forEach((w, n) => {
+        if (topicless(raws[w])) far = n;
+      });
+      for (let n = 0; n <= far; n++) beforeSecret.add(outer[n]);
     }
   }
   const out: string[] = [];
