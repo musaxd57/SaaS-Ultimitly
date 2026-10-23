@@ -2,7 +2,7 @@ import "server-only";
 
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { emailService } from "@/lib/email";
-import { REPLY_WAITING_MAIL_PREFIX } from "@/lib/host-reply-waiting";
+import { REPLY_WAITING_MAIL_PREFIX, replyWaitingSettled } from "@/lib/host-reply-waiting";
 import { complaintEscalationEmail } from "@/lib/email-templates";
 import { detectRiskTypes } from "@/lib/ai/fallback";
 import { contextLabels } from "@/lib/ai/hazard-evidence";
@@ -195,13 +195,15 @@ export async function settleItemsTurn(
     answerable: readonly { ref: string; item: PersistedItem }[];
     now: Date;
     answeredRefs: readonly string[] | null;
+    /** Cevabı taşıyan giden mesaj: kalıcı kuyrukta teslim düşerse yalnız bu mesajın kapattığı öğeler geri açılır (`reopenItemsAnsweredBy`). */
+    answeredByMessageId?: string | null;
   },
 ): Promise<void> {
   const heldIds = input.turnItems.filter((i) => i.sensitivity !== "none").map((i) => i.id);
   await applyItemEvent(db, { organizationId: input.organizationId, ids: heldIds, event: "held", now: input.now });
   if (input.answeredRefs && input.answeredRefs.length > 0) {
     const ids = input.answerable.filter((a) => input.answeredRefs!.includes(a.ref)).map((a) => a.item.id);
-    await applyItemEvent(db, { organizationId: input.organizationId, ids, event: "answered", now: input.now });
+    await applyItemEvent(db, { organizationId: input.organizationId, ids, event: "answered", now: input.now, answeredByMessageId: input.answeredByMessageId ?? null });
   }
 }
 
@@ -385,7 +387,7 @@ export async function notifyOpenNeeds(
     organizationId: string;
     items: readonly PersistedItem[];
     now: Date;
-    notify: (messageId: string) => Promise<"mailed" | "deduped" | "no_recipient" | "failed" | "unavailable">;
+    notify: (messageId: string) => Promise<"mailed" | "deduped" | "in_flight" | "no_recipient" | "failed" | "unavailable">;
   },
 ): Promise<OpenNeedNotice> {
   const claimed: string[] = [];
@@ -419,11 +421,19 @@ export async function notifyOpenNeeds(
     // son mesaj seçilince o mesaja e-posta önceden gittiyse ötekinin ihtiyacı hiç bildirilmiyordu). Hepsine gittiyse bildirim zaten yapılmıştır.
     const mailed = await db.systemLock.findMany({
       where: { name: { in: claimedMessages.map((m) => `${REPLY_WAITING_MAIL_PREFIX}${m}`) } },
-      select: { name: true },
+      select: { name: true, holder: true, updatedAt: true },
     });
     const mailedSet = new Set(mailed.map((r) => r.name.slice(REPLY_WAITING_MAIL_PREFIX.length)));
     const target = [...claimedMessages].reverse().find((m) => !mailedSet.has(m));
-    if (!target) return "deduped";
+    if (!target) {
+      // Codex 10-23 (bildirim yarışı): öteki yolun e-postası UÇUŞTAYSA (talep var, "gönderildi" onayı yok) sonucu belli değil — o e-posta
+      // düşerse bu ihtiyaç hiç bildirilmezdi. Kayıtlar geri verilir; sonraki geçiş onaylıyı "bildirildi", silineni yeniden dener.
+      if (mailed.some((r) => !replyWaitingSettled(r, input.now))) {
+        await release();
+        return "not_sent";
+      }
+      return "deduped";
+    }
     const outcome = await input.notify(target);
     if (outcome === "mailed" || outcome === "deduped") return outcome;
     await release();

@@ -25,6 +25,7 @@ import { buildGuestMessageBody, hasUnfilledPlaceholders, isAutoMessageKind } fro
 import { loadAutoMessage, recordAutoMessageSkip } from "@/lib/auto-messages/store";
 import { apartmentResolvable, guestFirstNameOf, usesApartmentToken } from "@/lib/kb-placeholders";
 import { isHandoffExempt, sweepExpiredHandoffExempt } from "./handoff-exempt";
+import { reopenItemsAnsweredBy } from "@/lib/conversation-items/store";
 import { outboxDeliveryPaused } from "./flag";
 import {
   BILLING_NOTE_OVERWRITABLE,
@@ -925,6 +926,9 @@ async function applyFailureEffect(row: OutboxRow, kind: SendResultKind): Promise
   // satırları etkiler ama sözleşme net olmalı.
   if (type !== "ai") return;
   if (!row.conversationId) return;
+  // Kalıcı "gitmedi" (kesin hata / kanal engeli — engelli yapay zekâ satırı abonelik dönünce de İPTAL edilir): bu cevapla kapanan öğeler ev
+  // sahibinde yeniden açık. Belirsiz teslim (gitmiş olabilir) DEĞİL.
+  if ((kind === "definitive_failure" || kind === "blocked") && row.messageId) await reopenAnsweredItems(row);
   try {
     const convo = await prisma.conversation.findUnique({
       where: { id: row.conversationId },
@@ -1062,13 +1066,26 @@ export async function reactivateBlockedOutbox(organizationId: string, now: Date 
  * draft is filtered everywhere, yet stays queryable for export/audit as "not delivered".
  */
 async function cancelRow(row: OutboxRow, token: string, reason: string): Promise<boolean> {
-  return settle(row, token, "sending", {
+  const done = await settle(row, token, "sending", {
     status: "canceled",
     lastErrorKind: "canceled",
     lastErrorCode: reason,
     claimedBy: null,
     claimExpiresAt: null,
   });
+  // İptal edilen yapay zekâ cevabı hiç gitmedi → onunla kapanan öğeler ev sahibinde yeniden açık (silme talebinde öğeler zaten temizlenir).
+  if (done && row.messageType === "ai" && row.messageId && reason !== "erased") await reopenAnsweredItems(row);
+  return done;
+}
+
+/** En iyi çaba: öğe defteri hatası teslim durumunu bozmaz, iz bırakır. */
+async function reopenAnsweredItems(row: OutboxRow): Promise<void> {
+  if (!row.messageId) return;
+  try {
+    await reopenItemsAnsweredBy(prisma, { organizationId: row.organizationId, messageId: row.messageId });
+  } catch (err) {
+    void reportError("outbox-reopen-items", err);
+  }
 }
 
 /** Short, secret-free error code from a provider error string (no raw body / tokens). */

@@ -75,9 +75,13 @@ Kurallar (kurucunun şartları):
    işlem onayı, güncellik (bağ denetimi, sır kapısı, eylem beyanı, bayat kaynak, son metnin beş okuyucu hükmü, bütün kapı) kodda kalır.
 3. Belirsizlikte parça tutulur: `partly` / `no` / bağ yanlış / istisna tek başına / parça okuyucunun cevabında YOK / okuyucu düştü ya da
    bozuk cevap verdi → o parça (okuyucu bütünüyle düştüyse BÜTÜN parçalar) tutulur.
-4. Tek okuma (misafir mesajıyla): okuyucu yalnız TUTABİLDİĞİ için misafir metnine yazılmış "kontrolcüye not" en kötü ihtimalle okuyucuyu
-   susturur = bugünkü davranış (kodun doğruladığı parça gider); yanlış bir şeyi göndertemez. (Bilgim-yok hakeminin iki okuması SERBEST
-   BIRAKMA kararı içindir; burada serbest bırakma yok.)
+4. Tek okuma (misafir mesajıyla). ⚠️ **10-23 öğle DÜZELTME (Codex):** buradaki eski cümle ("okuyucu susturulursa kodun doğruladığı parça
+   gider") Opus G1'den beri YANLIŞTIR. Güncel davranış (testle pinli, `tests/unit/answer-parts.test.ts`): okuyucu kapalıysa, HTTP hatası
+   verirse, bozuk cevap dönerse ya da bir parçayı hiç anmazsa o parça (düştüyse BÜTÜN parçalar) TUTULUR (`reader_unread`). Susturmak hiçbir
+   şeyi göndertmez. **S3 sonrası açık risk (dürüst kayıt):** anlam denetimi artık okuyucuda olduğundan misafir metnine yazılmış "kontrolcüye
+   not" okuyucuyu "evet"e yöneltirse, kodun eskiden tutacağı bir ANLAM hatası (ör. saunanın saati havuza) gidebilir — ama yalnız misafirin
+   kendi sorusuna, yalnız bilgi tabanındaki bir değerle: uydurma değer, kaynakta olmayan alıntı, sır, yetki, işlem onayı ve bütün kapı kodda
+   kaldığından okuyucunun "evet"i bunları açamaz. Okuyucu misafir metnini çitli + "güvenilmeyen veri" olarak görür.
 5. Maliyet: parça kipinde doğrulanmış en az bir parça varsa tur başına bir küçük çağrı (`guard` modeli). Kip kapalıyken çağrı yok, istem
    ve şema değişmez (son metin okuyucusu bayt bayt aynı).
 
@@ -102,8 +106,10 @@ sınar; parantez yan cümle sınırı olarak eklendi (Opus F2: "Havuz 22:00'ye k
 destekliyor mu" ile "ihtiyacı karşılıyor mu" ayrı karar — okuyucuya `supported_by_notes` EKLENDİ (ayrıca `binding_ok`, `answers_request`). (3)
 içeride "cevaplayamıyorum" — VAR (`no_info`, okuyucu `partly` / `no`) + `unsure` EKLENDİ. (4) okuyucu SON metni görsün — onaylanan parça son metinde
 aynen durmuyorsa tur tutulur (EKLENDİ); son metnin beş kuralı zaten kıdemli okuyucuda. (5) yetki / sır / güncellik kodda — VAR. (6) "cevap hazır /
-gönderildi / çözüldü" — VAR (doğrudan gönderimde teslimden SONRA "cevaplandı"; hassas öğe cevapla kapanmaz); AÇIK: kalıcı kuyruk anahtarı açıkken
-öğe kuyruğa girişte "cevaplandı" oluyor — kuyruk açılmadan önce kalıcı teslim hatasında öğe yeniden açılmalı.
+gönderildi / çözüldü" — VAR (doğrudan gönderimde teslimden SONRA "cevaplandı"; hassas öğe cevapla kapanmaz). ✅ 10-23 öğle (Codex): kalıcı
+kuyrukta öğe kuyruğa girişte "cevaplandı" olur ama cevabı taşıyan mesaj öğeye yazılır; teslim kalıcı olarak gitmezse (kesin hata · kanal engeli ·
+gönderim anı vetosuyla iptal) işçi YALNIZ o mesajın kapattığı öğeleri ev sahibinde yeniden açar (`reopenItemsAnsweredBy`; belirsiz teslimde
+açmaz; testi `tests/integration/outbox-items-reopen.test.ts`).
 
 **Model gücü — A / B / C:** A = okuyucu kapalı (yalnız kod) · B = aynı model + açık anlam görevi (Luna, düşük çaba) · C = B + YALNIZ okuyucuda
 daha güçlü ayar (`AI_PART_READER_MODEL` / `AI_PART_READER_REASONING_EFFORT`). Önce `evals/part-reader-dev.json` (32 soru–kaynak–parça, etiketli;
@@ -141,6 +147,8 @@ kaynaktaki "kişi başı 250 TL" düştüğü için tutuluyor (kurucu A: "koşul
 gibi anlama katmanının yanlış türe koyduğu istek; (c) yön denetimi ("open until 23:00" ↔ "close") — sorgu kaydı olmadan yeniden üretilemedi.
 
 **İnceleme bulguları (Haiku, e31eb346):** son metin denetiminde boş / selamdan ibaret parça her metinde "duruyor" sayılıyordu → düzeltildi
-(73da88c2, adla selam dahil); harf / boşluk farkı artık değişiklik sayılmaz. Bilinen dar yarış: aynı mesaja başka bir geçişin e-posta talebi
-uçuştayken bu geçiş "zaten gönderildi" sayar; öteki geçişin kuyruğa yazması başarısız olursa o ihtiyaç bildirimsiz kalır (kuyruğa yazma
-hatası nadir; panelde açık görünür). Bir turda iki mesajda iki açık ihtiyaç → TEK e-posta (konuşmaya), ikisi de bildirilmiş sayılır (tasarım).
+(73da88c2, adla selam dahil); harf / boşluk farkı artık değişiklik sayılmaz. ✅ 10-23 öğle (Codex) kapandı — eski "bilinen dar yarış"
+(aynı mesaja başka bir geçişin e-posta talebi uçuştayken bu geçiş "zaten gönderildi" sayıyordu; öteki e-posta düşerse ihtiyaç bildirimsiz
+kalıyordu): talep satırına e-posta gidince "gönderildi" onayı yazılır (`confirmReplyWaitingSent`, "Karar bekliyor" da yazar); onaysız ve 10
+dakikadan yeni talep "uçuşta" sayılır — açık ihtiyaç kaydı yazılmaz / geri verilir, sonraki geçiş yeniden bakar (testler
+`host-reply-waiting-confirm.test.ts`, `conversation-items-ordinal.test.ts`). Bir turda iki mesajda iki açık ihtiyaç → TEK e-posta (konuşmaya), ikisi de bildirilmiş sayılır (tasarım).

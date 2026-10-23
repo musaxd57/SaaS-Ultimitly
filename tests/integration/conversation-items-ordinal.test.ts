@@ -612,10 +612,35 @@ describe("Soru 10 (kurucu 10-23 sabah) — sessiz kalan açık ihtiyaç: kalıc�
 
   it("🚨 Opus 10-23 sabah F8: hedef, 'Misafir cevabınızı bekliyor' e-postası HENÜZ gitmemiş mesaj; hepsine gittiyse bildirim yapılmış sayılır", async () => {
     const { messageId, plan } = await staleSetup();
-    // Bu mesaja e-posta önceden gitmiş (mesaj başına talep satırı var) → e-posta yok, kayıt kalır.
-    await prisma.systemLock.create({ data: { name: `reply-waiting-mail:${messageId}`, lockedUntil: at(60 * 24) } });
+    // Bu mesaja e-posta önceden gitmiş (mesaj başına talep satırı "gönderildi" onaylı) → e-posta yok, kayıt kalır.
+    await prisma.systemLock.create({ data: { name: `reply-waiting-mail:${messageId}`, lockedUntil: at(60 * 24), holder: "sent" } });
     const notify = vi.fn(async () => "mailed" as const);
     expect(await notifyOpenNeeds(prisma, { organizationId: orgId, items: plan.staleOpen!, now: at(6), notify })).toBe("deduped");
+    expect(notify).not.toHaveBeenCalled();
+    expect(await locks()).toHaveLength(1);
+  });
+
+  it("🚨 Codex 10-23 (bildirim yarışı): öteki yolun e-postası UÇUŞTAYSA (talep var, onay yok) 'bildirildi' sayılmaz — kayıt geri verilir, sonraki geçiş karar verir", async () => {
+    const { messageId, plan } = await staleSetup();
+    // Talep yeni alınmış, sonucu belli değil (`holder` boş, az önce yazıldı) → bu geçiş kendi kaydını TUTMAZ.
+    await prisma.systemLock.create({ data: { name: `reply-waiting-mail:${messageId}`, lockedUntil: new Date(Date.now() + 86_400_000) } });
+    const notify = vi.fn(async () => "mailed" as const);
+    expect(await notifyOpenNeeds(prisma, { organizationId: orgId, items: plan.staleOpen!, now: new Date(), notify })).toBe("not_sent");
+    expect(notify).not.toHaveBeenCalled();
+    expect(await locks()).toHaveLength(0);
+    // Uçuştaki e-posta düştü (talep silindi) → sonraki geçiş bu ihtiyacı kendisi bildirir.
+    await prisma.systemLock.deleteMany({ where: { name: `reply-waiting-mail:${messageId}` } });
+    expect(await notifyOpenNeeds(prisma, { organizationId: orgId, items: plan.staleOpen!, now: new Date(), notify })).toBe("mailed");
+    expect(notify).toHaveBeenCalledWith(messageId);
+    expect(await locks()).toHaveLength(1);
+  });
+
+  it("onaysız ama ESKİ talep (onay yazılamamış başarılı gönderim / eski kayıt) sonuçlanmış sayılır — sonsuz 'uçuşta' yok", async () => {
+    const { messageId, plan } = await staleSetup();
+    await prisma.systemLock.create({ data: { name: `reply-waiting-mail:${messageId}`, lockedUntil: new Date(Date.now() + 86_400_000) } });
+    const notify = vi.fn(async () => "mailed" as const);
+    const later = new Date(Date.now() + 11 * 60_000);
+    expect(await notifyOpenNeeds(prisma, { organizationId: orgId, items: plan.staleOpen!, now: later, notify })).toBe("deduped");
     expect(notify).not.toHaveBeenCalled();
     expect(await locks()).toHaveLength(1);
   });

@@ -197,6 +197,20 @@ export async function applyItemEvent(
 }
 
 /**
+ * Kalıcı kuyrukta cevap misafire HİÇ ulaşmadı (kesin teslim hatası · kanal engeli · gönderim anı vetosuyla iptal — Codex 10-23): o mesajla
+ * "cevaplandı" kapanan öğeler ev sahibinde yeniden AÇIK olur (`pending_host`; gönderilmeyen cevapla ihtiyaç kapanmış görünmesin). Yalnız BU
+ * mesajın kapattığı ve hâlâ `answered` olan satırlar — arada ev sahibi kapattıysa / başka geçiş değiştirdiyse dokunulmaz (durum koşulu).
+ * Belirsiz teslim (`review`: gitmiş olabilir) burada DEĞİL. Dönüş: açılan öğe sayısı.
+ */
+export async function reopenItemsAnsweredBy(db: Db, input: { organizationId: string; messageId: string }): Promise<number> {
+  const res = await db.conversationItem.updateMany({
+    where: { organizationId: input.organizationId, answeredByMessageId: input.messageId, status: "answered" },
+    data: { status: "pending_host", resolvedAt: null, answeredByMessageId: null },
+  });
+  return res.count;
+}
+
+/**
  * Misafirin vazgeçmeleri (anlama katmanı, `extract.ts`): bu turun mesajındaki öğe ya da ÖNCEKİ turların aynı türden açık
  * öğeleri. Acil öğe `core.nextStatus` gereği kapanmaz.
  */

@@ -3789,10 +3789,12 @@ export async function applyChannelAutoReply(
     // A concurrent run already queued this exact reply — don't double-count or re-run
     // the decision bookkeeping (the winner already did it).
     if (enq.deduped) return { sent: false, skippedReason: "already_queued", draft, ...meta };
-    // Konuşma öğeleri: karar KESİN (kuyruk teslim eder) → cevabın kapsadığı güvenli istekler "cevaplandı", hassaslar tutulur.
-    // Bilinen sınır (kuyruk bayrağı üretimde kapalı): teslim sonradan kalıcı düşerse öğe "cevaplandı" kalır.
+    // Konuşma öğeleri: karar KESİN (kuyruk teslim eder) → cevabın kapsadığı güvenli istekler "cevaplandı", hassaslar tutulur. Cevabı taşıyan
+    // mesaj öğeye yazılır: teslim sonradan kalıcı düşerse (kesin hata / engel / iptal) işçi YALNIZ bu mesajın kapattığı öğeleri ev sahibinde
+    // yeniden açar (Codex 10-23; `reopenItemsAnsweredBy`).
     if (itemsPlan) {
       await settleSentTurnItems({
+        answeredByMessageId: enq.messageId,
         organizationId: conversation.property.organizationId,
         conversation,
         plan: itemsPlan,
@@ -4256,6 +4258,8 @@ async function settleSentTurnItems(input: {
   messageIds: readonly string[];
   model: { intent: string; riskType: string | null | undefined; riskLevel: string };
   lastMessageId: string;
+  /** Kuyruk yolunda cevabı taşıyan giden mesaj (satır içi yolda teslim zaten doğrulandı → gerekmez). */
+  answeredByMessageId?: string;
 }): Promise<void> {
   const now = new Date();
   try {
@@ -4265,6 +4269,7 @@ async function settleSentTurnItems(input: {
       answerable: input.plan.answerable,
       now,
       answeredRefs: input.answeredRefs,
+      answeredByMessageId: input.answeredByMessageId ?? null,
     });
     // Gönderilen cevap her zaman modelindir (kapının ilk kontrolü) — kaynak ayrıca sınanmaz.
     await recordModelItems(prisma, {

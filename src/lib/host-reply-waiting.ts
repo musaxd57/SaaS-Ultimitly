@@ -28,7 +28,26 @@ const PREFIX = REPLY_WAITING_MAIL_PREFIX;
 export const REPLY_WAITING_CLAIM_TTL_MS = 45 * 24 * 60 * 60 * 1000;
 const CLAIM_TTL_MS = REPLY_WAITING_CLAIM_TTL_MS;
 
-export type HostReplyWaitingOutcome = "mailed" | "deduped" | "no_recipient" | "failed" | "unavailable";
+/**
+ * "Gönderildi" onayı (Codex 10-23, bildirim yarışı): talep satırı e-postadan ÖNCE alınır, sonuç belli olunca `holder = SENT` yazılır. Onaysız
+ * talep = e-posta UÇUŞTA (gidebilir de düşebilir de — düşerse talep silinir). Başka bir yol onaysız talebi "zaten bildirildi" sayıp kendi
+ * kaydını tutarsa ve uçuştaki e-posta düşerse ihtiyaç hiç bildirilmiyordu. "Karar bekliyor" e-postası (`decisions/notify.ts`) da aynı onayı yazar.
+ */
+export const REPLY_WAITING_SENT = "sent";
+/** Onaysız talep bu süreden eskiyse sonuçlanmış sayılır (onay yazılamayan başarılı gönderim / eski kayıtlar; e-posta saniyeler sürer). */
+export const REPLY_WAITING_IN_FLIGHT_MS = 10 * 60_000;
+
+export function replyWaitingSettled(lock: { holder: string | null; updatedAt: Date }, now: Date): boolean {
+  return lock.holder === REPLY_WAITING_SENT || now.getTime() - lock.updatedAt.getTime() > REPLY_WAITING_IN_FLIGHT_MS;
+}
+
+/** E-posta gittikten sonra talebe onay yazar (en iyi çaba — yazılamazsa talep `REPLY_WAITING_IN_FLIGHT_MS` sonra sonuçlanmış sayılır). */
+export async function confirmReplyWaitingSent(name: string): Promise<void> {
+  await prisma.systemLock.updateMany({ where: { name }, data: { holder: REPLY_WAITING_SENT } }).catch(() => {});
+}
+
+/** `in_flight`: bu mesaja başka bir geçişin e-postası şu an gönderiliyor (sonucu belli değil) — çağıran "bildirildi" SAYMAZ. */
+export type HostReplyWaitingOutcome = "mailed" | "deduped" | "in_flight" | "no_recipient" | "failed" | "unavailable";
 
 export async function notifyHostReplyWaiting(input: {
   organizationId: string;
@@ -61,7 +80,11 @@ export async function notifyHostReplyWaiting(input: {
       await prisma.systemLock.create({ data: { name, lockedUntil: new Date(now.getTime() + CLAIM_TTL_MS) } });
       claimed = true;
     } catch (err) {
-      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") return "deduped";
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+        const held = await prisma.systemLock.findUnique({ where: { name }, select: { holder: true, updatedAt: true } }).catch(() => null);
+        // Okunamadıysa ya da arada silindiyse (öteki e-posta düştü) temkinli yön: "uçuşta" — çağıran kendi kaydını tutmaz, sonra yeniden dener.
+        return held && replyWaitingSettled(held, now) ? "deduped" : "in_flight";
+      }
       return "unavailable";
     }
 
@@ -85,6 +108,7 @@ export async function notifyHostReplyWaiting(input: {
       );
       return "failed";
     }
+    await confirmReplyWaitingSent(name);
     return "mailed";
   } catch (err) {
     // Talepten SONRAKİ beklenmedik hata talebi tüketmiş bırakmasın (e-posta gitmedi).

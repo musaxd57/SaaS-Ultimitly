@@ -6,7 +6,7 @@ import { emailService } from "@/lib/email";
 import { decisionPendingEmail } from "@/lib/email-templates";
 import { appBaseUrl } from "@/lib/auth/email-verify";
 import { reportError } from "@/lib/report-error";
-import { REPLY_WAITING_CLAIM_TTL_MS, REPLY_WAITING_MAIL_PREFIX } from "@/lib/host-reply-waiting";
+import { confirmReplyWaitingSent, REPLY_WAITING_CLAIM_TTL_MS, REPLY_WAITING_MAIL_PREFIX } from "@/lib/host-reply-waiting";
 import { HELD_MAIL_PREFIX } from "@/lib/conversation-items/flow";
 import { DECISION_DAY_SUFFIX_TR, TEXT_DECISION_KINDS, decisionTitle, formatDecisionDay } from "./core";
 import { claimDecisionNotification, releaseDecisionNotification, type PersistedDecision } from "./store";
@@ -95,6 +95,7 @@ export async function notifyTurnDecisions(input: {
       html,
     );
     if (!mail.ok) throw new Error("decision-pending e-mail failed; claims released, the card stays visible in the inbox");
+    await confirmReplyWaitingSent(lockName);
     return "mailed";
   } catch (err) {
     // Gitmeyen e-postanın talepleri geri verilir (aynı mesaj yeniden değerlendirilirse yeniden denenir).
