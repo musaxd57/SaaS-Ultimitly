@@ -85,7 +85,7 @@ kalınca açmak kurucu kararı.
 `evals/answer-reuse-2026-10-23.json` (geliştirme seti, 10 grup; kör set ayrıca yazılmadan anahtar açılmaz), ölçer
 `tests/eval/answer-reuse-similarity.eval.test.ts`, rapor `docs/olcum/cevap-tekrari-benzerlik-2026-10-23.md`. Sonuç ve okuma: §9.
 
-## 6. Veri modeli (migration 85 — HAZIR YAMA, kurucu onayı olmadan ana dala girmez)
+## 6. Veri modeli (migration 85 — ✅ 10-23 sabah kurucu onayıyla ANA DALDA, `prisma/migrations/85_verified_answer`; gölge kip anahtarı `AI_ANSWER_REUSE_SHADOW_ENABLED` KAPALI)
 
 ```
 VerifiedAnswer
