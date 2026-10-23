@@ -2072,3 +2072,39 @@ describe("CEVAP PARÇALARI (kurucu 10-23 A, AI_ANSWER_PARTS_ENABLED)", () => {
     expect(items.answerable.every((a) => !("need" in a))).toBe(true);
   });
 });
+
+describe("KISMİ CEVAP + AÇIK GÜVENLİ İHTİYAÇ (kurucu 10-23 akşam 4.1 B: mesaj başına TEK 'Misafir cevabınızı bekliyor')", () => {
+  beforeEachTurn();
+  const BOTH = "Wi-Fi şifresi neydi? Sitede sauna var mı?";
+  const WIFI_ANSWER = "Wi-Fi ağı Lale-5G, şifresi Lale2025.";
+
+  it("🚨 cevap iki güvenli istekten yalnız birini kapsadı → misafire cevap gider, ev sahibine TEK e-posta; açık ihtiyaç kalıcı kayda yazılır", async () => {
+    const { conversationId } = await seed(BOTH);
+    understands(understood([{ intent: "wifi", message: 1 }, { intent: "amenities", message: 1 }]));
+    mockSuggest.mockResolvedValueOnce(verdict({ intent: "wifi", reply: WIFI_ANSWER, answeredRequests: { ok: true, refs: ["R1"] } }));
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(true);
+    expect(mockMail).toHaveBeenCalledTimes(1);
+    const rows = await itemsOf(conversationId);
+    expect(rows.find((i) => i.kind === "wifi")?.status).toBe("answered");
+    expect(rows.find((i) => i.kind === "amenities")?.status).not.toBe("answered");
+    // Kalıcı kayıt: aynı ihtiyaca ikinci e-posta gitmez (Soru 10 kaydı).
+    expect(await prisma.systemLock.count({ where: { name: { startsWith: "open-need-mail:" } } })).toBe(1);
+  });
+
+  it("KONTROL: cevap bütün güvenli istekleri kapsadıysa e-posta YOK", async () => {
+    const { conversationId } = await seed(BOTH);
+    understands(understood([{ intent: "wifi", message: 1 }, { intent: "amenities", message: 1 }]));
+    mockSuggest.mockResolvedValueOnce(verdict({ intent: "wifi", reply: WIFI_ANSWER, answeredRequests: { ok: true, refs: ["R1", "R2"] } }));
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(true);
+    expect(mockMail).not.toHaveBeenCalled();
+  });
+
+  it("🚨 aynı mesaja hassas öğe e-postası gittiyse ikinci ('cevabınızı bekliyor') e-posta YOK — mesaj başına tek bildirim", async () => {
+    const { conversationId } = await seed(`${IBAN} ${BOTH}`);
+    understands(understood([{ intent: "payment_invoice", message: 1 }, { intent: "wifi", message: 1 }, { intent: "amenities", message: 1 }]));
+    mockSuggest.mockResolvedValueOnce(verdict({ intent: "wifi", reply: WIFI_ANSWER, answeredRequests: { ok: true, refs: ["R1"] } }));
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(true);
+    expect(mockMail).toHaveBeenCalledTimes(1);
+  });
+});

@@ -4321,12 +4321,36 @@ async function settleSentTurnItems(input: {
       ),
       now,
     });
-    await notifyItemsForHost({
+    const notice = await notifyItemsForHost({
       organizationId: input.organizationId,
       conversation: input.conversation,
       messageIds: input.messageIds,
       now,
     });
+    // KISMİ CEVAP + AÇIK GÜVENLİ İHTİYAÇ (kurucu 10-23 akşam 4.1 B): misafire bir kısım gitti, öteki güvenli ihtiyaç ("Sitede sauna var mı?" — bilgi
+    // yok) yalnız panelde açık kalıyordu. Artık o ihtiyacın mesajına TEK "Misafir cevabınızı bekliyor" e-postası gider; kalıcı kayıt (Soru 10,
+    // `notifyOpenNeeds`) aynı ihtiyaca / mesaja ikinci e-postayı önler. Hassas öğe e-postası giden mesaja ikinci e-posta YOK (mesaj başına tek
+    // bildirim); kaynak / asistan sorusu e-posta almaz (`NO_NOTIFY_KINDS`). "Gider ama açık kalır" parçası da bildirilir (cevaplandı sayılmadı).
+    const answered = new Set(input.answeredRefs);
+    const heldMessages = new Set(notice.held);
+    const openSafe = input.plan.answerable.filter((a) => !answered.has(a.ref) && !heldMessages.has(a.item.messageId)).map((a) => a.item);
+    if (openSafe.length > 0) {
+      await notifyOpenNeeds(prisma, {
+        organizationId: input.organizationId,
+        items: openSafe,
+        now,
+        notify: async (messageId) => {
+          const m = await prisma.message.findFirst({ where: { id: messageId, conversationId: input.conversation.id }, select: { body: true } });
+          return notifyHostReplyWaiting({
+            organizationId: input.organizationId,
+            conversation: input.conversation,
+            property: input.conversation.property,
+            messageId,
+            messageBody: m?.body ?? "",
+          });
+        },
+      });
+    }
   } catch (err) {
     void reportError(`conversation-items sent org=${input.organizationId}`, err);
   }

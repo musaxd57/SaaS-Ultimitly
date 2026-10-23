@@ -245,6 +245,20 @@ describe("birleşim kuralı — İSTEK bacağı", () => {
     );
   });
 
+  it("🚨 KURUCU 10-23 akşam 4.10 (A, 'sakın B'yi yapma'): 'Giriş saati kaçta? 12'de girebilir miyiz?' turunda standart giriş saati de GİTMEZ", () => {
+    // B ("Giriş saatimiz 15:00." gider, erken giriş açık kalır) misafire "12 olmaz" diye ret gibi okunur; ev sahibi 12'yi onaylarsa çelişki doğar.
+    const msg = "Giriş saati kaçta? 12'de girebilir miyiz?";
+    const reply = "Giriş saatimiz 15:00.";
+    const u = { requested: true, kind: "early_checkin" as const, checkinTime: "12:00", checkoutTime: null };
+    // Sebep yola göre "onaysız istek" ya da "müsaitlik iddiası" — ikisi de TUTAR.
+    expect(evaluateAvailability(reply, [msg], { understanding: u, stayTimes: STAY }).reason).toMatch(/^availability_(?:unconfirmed|claim)$/);
+    expect(evaluateAvailability(reply, [msg], { declared: { asked: "early_checkin", stance: "none" }, stayTimes: STAY }).reason).toMatch(
+      /^availability_(?:unconfirmed|claim)$/,
+    );
+    // KONTROL: erken giriş isteği yokken aynı cevap gider.
+    expect(evaluateAvailability(reply, ["Giriş saati kaçta?"], { declared: { asked: "none", stance: "none" }, stayTimes: STAY }).reason).toBeNull();
+  });
+
   it("geçersiz duruş (`unknown`) tanınmayan ≠ temiz: iddia sayılır (geçerli izin duruşundan gevşek olamaz)", () => {
     expect(vetoAvailability(PLAIN, ["Wifi?"], { declared: { asked: "none", stance: "unknown" } })).toBe("availability_claim");
   });
