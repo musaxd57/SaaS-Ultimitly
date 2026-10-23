@@ -1056,6 +1056,8 @@ describe("Opus taze göz 10-23 F1–F4: sorulan yön (saat / ücret) gerçekten 
 
   it("🚨 F1: konu hakkında başka bir olgu saat / ücret sorusunu KAPATMAZ (sıfat 'kapalı', 'her zaman temiz', 'öğle yemeği', konu sözcüğü 'ücret / paid', 'dahilinde', başka şeyin yokluğu / yasağı)", () => {
     expect(miss(["havuz kaçta açılıyor"], "Kapalı havuz ısıtmalıdır.")).toEqual(["time"]);
+    // Yüklem olmayan "kapalı" (iç mekân) — konu yönü sözcüğü taşımayan örnekle de (mutasyon A4: yan cümle sonu şartı).
+    expect(miss(["havuz kaçta açılıyor"], "Kapalı havuz çok büyüktür.")).toEqual(["time"]);
     expect(miss(["havuz kaçta açılıyor"], "Havuz her zaman temizdir.")).toEqual(["time"]);
     expect(miss(["havuz kaçta açılıyor"], "Havuzda cankurtaran yoktur.")).toEqual(["time"]);
     expect(miss(["havuz kaçta kapanıyor"], "Havuz alanında cam şişe yasaktır.")).toEqual(["time"]);
@@ -1070,6 +1072,9 @@ describe("Opus taze göz 10-23 F1–F4: sorulan yön (saat / ücret) gerçekten 
     expect(miss(["havuz kaçta açılıyor"], "Havuz 24 Haziran'da sezona açılır.")).toEqual(["time"]);
     expect(miss(["havuz kaçta kapanıyor"], "Havuz bakımı 24 hafta sürer.")).toEqual(["time"]);
     expect(miss(["sauna saatleri"], "Sauna 24 saatlik rezervasyonla kullanılır.")).toEqual(["time"]);
+    // Açıklık yüklemi olsa da birim sözcük sınırında biter (mutasyon A6).
+    expect(miss(["havuz kaçta kapanıyor"], "Havuz 24 Haziran'dan itibaren açıktır.")).toEqual(["time"]);
+    expect(miss(["havuz kaçta kapanıyor"], "Sauna 24 saatlik rezervasyonla açıktır.")).toEqual(["time"]);
   });
 
   it("konunun KENDİ yokluğu / yasağı, yüklem 'kapalıdır', gün boyu açık, ücretsiz / dahildir / ücret alınmaz cevaptır", () => {
