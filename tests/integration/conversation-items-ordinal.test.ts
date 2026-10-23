@@ -522,3 +522,23 @@ describe("mutasyon 10-23 (D) yaşayanları — veritabanı", () => {
     expect((await rowsOf(conversationId)).map((r) => r.topic)).toEqual(["ekstra havlu"]);
   });
 });
+
+describe("Opus e2e 10-23 F5 — parça kipinde yalnız bu okumanın satırları cevaplanabilir", () => {
+  beforeEach(() => vi.stubEnv("AI_ITEM_ORDINAL_ENABLED", "1"));
+
+  it("🚨 ikinci okuma tek istek görürse öteki açık satır ipucusuz istek kimliği OLMAZ (açık kalır); parça kipi kapalıyken bugünkü kural", async () => {
+    const { conversationId, messageId } = await seed();
+    const first = await turn(conversationId, messageId, [HAVUZ, SAUNA], 0);
+    expect(first.mode === "items" && first.answerable.length).toBe(2);
+    // Tur tutuldu (satırlar açık); sonraki geçiş mesajı TEK istek olarak okudu.
+    vi.stubEnv("AI_ANSWER_PARTS_ENABLED", "1");
+    const second = await turn(conversationId, messageId, [SAUNA], 5);
+    if (second.mode !== "items") throw new Error(second.mode);
+    expect(second.turnItems).toHaveLength(2);
+    expect(second.answerable.map((a) => [a.ref, a.item.topic])).toEqual([["R1", "sauna"]]);
+    expect(second.replyItems.answerable.map((a) => a.hint)).toEqual(["sauna var mı"]);
+    vi.stubEnv("AI_ANSWER_PARTS_ENABLED", "");
+    const legacy = await turn(conversationId, messageId, [SAUNA], 6);
+    expect(legacy.mode === "items" && legacy.answerable.length).toBe(2);
+  });
+});

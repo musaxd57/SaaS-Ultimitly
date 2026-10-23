@@ -21,7 +21,7 @@ export interface ReplyItemsInput {
     hint: string;
     fix?: boolean;
     /** Cevap parçaları kipinde (kurucu 10-23 A) isteğin kendi sözcükleri + sözlük konuları — parça doğrulayıcısı okur; istemde YOK. */
-    need?: { terms: readonly string[]; topics: readonly string[] };
+    need?: { terms: readonly string[]; topics: readonly string[]; queries?: readonly string[] };
   }[];
   /** Ev sahibine bırakılan istekler (bu tur + önceki turlar; `earlier` = önceki bir turun mesajında — K8). */
   held: readonly { kind: ItemKind; earlier?: boolean }[];

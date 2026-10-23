@@ -614,7 +614,7 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
               if (!decl.ok) return { reply: "", answered: { ok: false as const, reason: "missing" as const }, verdicts: [], sources: [] as string[] };
               const composed = composeVerifiedReply({
                 parts: decl.parts,
-                needs: items.answerable.map((a) => ({ ref: a.ref, terms: a.need?.terms ?? [], topics: a.need?.topics ?? [] })),
+                needs: items.answerable.map((a) => ({ ref: a.ref, terms: a.need?.terms ?? [], topics: a.need?.topics ?? [], queries: a.need?.queries ?? [] })),
                 sources: prompt.partSources ?? [],
               });
               const sources = composed.verdicts.flatMap((v) => (v.status === "verified" ? [v.source] : []));

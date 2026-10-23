@@ -1996,8 +1996,18 @@ Cevap metninde (reply) yalnızca verilen veri, zaman bağlamı ve bilgi tabanın
         // Yalnız isteme GİREN kalemler (Opus 10-23): bütçeden düşen kalem modelin görmediği metindir — alıntı ona dayanamaz, değişke
         // taraması da onu okumaz.
         ...packed.kept.map((i) => ({ id: `kb:${i + 1}`, text: kbLine(knowledgeBase[i]) })),
-        // Kodun "(belirtilmemiş — asla uydurma)" işareti olgu değildir → alıntılanamasın (Haiku 10-23).
-        { id: "property", text: propertyFacts.split("\n").filter((l) => !l.includes("(belirtilmemiş")).join("\n") },
+        // Kodun "(belirtilmemiş — asla uydurma)" işareti olgu değildir → alıntılanamasın (Haiku 10-23). Bilgi tabanıyla ÇELİŞEN standart
+        // saat de kaynak değildir (Opus e2e 10-23 F9; "Zaman bağlamı" satırı da onu düşürür): o saati söyleyen parça kendi başına reddedilir,
+        // turun öteki doğrulanmış parçaları çelişki yüzünden toptan tutulmaz.
+        {
+          id: "property",
+          text: propertyFacts
+            .split("\n")
+            .filter((l) => !l.includes("(belirtilmemiş"))
+            .filter((l) => !(l.startsWith("Check-in saati:") && conflicts.some((c) => c.field === "checkInTime")))
+            .filter((l) => !(l.startsWith("Check-out saati:") && conflicts.some((c) => c.field === "checkOutTime")))
+            .join("\n"),
+        },
       ]
     : null;
   return { text, kbOmitted: packed.omitted, claimContext, timeConflicts: conflicts, ...(partSources ? { partSources } : {}) };

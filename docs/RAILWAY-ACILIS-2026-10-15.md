@@ -222,6 +222,8 @@ kalıcı "işlem yok" sayılıyor (niyet kapanır, yeni işlem açılır) — ye
   misafire YALNIZ doğrulanan parçalar gider, "bilgim yok" cümlesi hiç üretilmez, doğrulanamayan istek panelde açık kalır. ⛔ Açılmadan önce:
   ücretli ölçüm (kurucu E, onaylı Luna yapılandırması, eski / yeni akış × okuyucu açık / kapalı / hata) + birleşik mesaj biçiminin (selam,
   satır düzeni) önce / sonra örnekleriyle kurucu onayı. `AI_CODE_GREETING_ENABLED` ile birlikte düşünülmeli (parça metni selamsızdır).
+  🚨 YALNIZ `AI_ITEM_ORDINAL_ENABLED=1` ile birlikte etkilidir (Opus e2e 10-23 F4): sıra kipi kapalıyken aynı türden iki soru tek işte birleşir
+  ve bir sorunun cevabı ötekini de kapatabiliyordu — kod bu yüzden parça kipini sıra kipi olmadan AÇMAZ (`conversation-items/plan.ts`).
 - `AI_ITEM_ORDINAL_ENABLED` (kurucu 10-23 D, migration 84 — "evet, kanıtla") — aynı mesajda aynı türden ikinci istek (havuz + sauna ikisi de
   "olanaklar") AYRI açık iş olur (`ConversationItem.ordinal`); her işin yanında kısa konu etiketi (`topic`, kurucu C: ham metin değil, en çok 3
   sözcük, ad / telefon / şifre / saldırı talimatı süzülür, misafir kaynaklı veri, silme / anonimleştirmede gider). Kapalıyken bugünkü kural

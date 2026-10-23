@@ -3188,7 +3188,14 @@ export async function applyChannelAutoReply(
   // YAZILMADI (kip onu üretmez). Ev sahibi bugünkü devir tutuşundaki gibi mesaj başına BİR "Misafir cevabınızı bekliyor" e-postası alır
   // (Haiku 10-23: tur sessiz kalıyordu). Kısmen doğrulanan turda giden metin var; açık istek panelde. Model parça beyanını hiç
   // yazmadıysa da (beyan eksik → metin boş) tur sessiz kalmaz (Opus 10-23).
-  const partsNothingVerified = replyItems?.parts === true && result.source === "openai" && !result.reply.trim();
+  // Opus e2e 10-23 F1: bir parça doğrulanıp öteki istek cevapsız kaldıysa (bilgi yok / doğrulanamadı) ve tur tutulduysa misafire yine HİÇBİR
+  // şey gitmedi — eski kipte model o istek için "ev sahibinize iletiyorum" yazar, tutuş devir tutuşu olur ve e-posta giderdi; parça kipi o
+  // cümleyi üretmediği için ev sahibi habersiz kalıyordu. Cevapsız istek = parça kipinin devir işareti. Bütün parçaları doğrulanmış ama
+  // başka sebeple tutulan tur eski kiple aynı (e-posta yok, panelde).
+  const partsUnanswered =
+    replyItems?.parts === true &&
+    result.source === "openai" &&
+    (!result.reply.trim() || (result.answerParts ?? []).some((v) => v.status !== "verified"));
   if (!gatePassed) {
     // ── KONUŞMA ÖĞELERİ — TUTULAN TUR (kurucu kararları 09-26) ───────────────────────────────────────────────────
     // Acil / enjeksiyon turu bugünkü yoldan (Sorunlu + acil e-posta): öğeler tutulur, e-postayı bugünkü yol atar.
@@ -3251,7 +3258,7 @@ export async function applyChannelAutoReply(
           // e-posta gider ve açık işi taşıyan mesajı gösterir (kaynak sorusunu değil).
           const quietOnly = notice.quiet.length > 0 && notice.loud.length === 0;
           if (notice.held.length === 0 && !quietOnly && !turnCardsOpen) {
-            if (handoffHeld || partsNothingVerified) {
+            if (handoffHeld || partsUnanswered) {
               const loudLast = notice.loud.length > 0 ? messages.find((m) => m.id === notice.loud[notice.loud.length - 1]) : undefined;
               const shown = loudLast ?? last;
               await notifyHostReplyWaiting({

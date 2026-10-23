@@ -261,6 +261,21 @@ describe("suggestReply — parça kipi, Haiku 10-23 düzeltmeleri", () => {
     expect(r.confidence).toBeLessThanOrEqual(0.5);
   });
 
+  it("🚨 istek sorguları doğrulayıcıya ulaşır: saat sorusuna saatsiz parça suggestReply'da da gitmez (Opus e2e 10-23 F2 bağlantısı)", async () => {
+    const withQueries: ReplyItemsInput = {
+      ...ITEMS,
+      answerable: ITEMS.answerable.map((a) => (a.ref === "R2" ? { ...a, need: { ...a.need!, queries: ["havuz kapanış saati"] } } : a)),
+    };
+    const kb = [{ category: "rules", title: "Havuz", content: "Havuz ısıtmalıdır." }];
+    openAiReturns({ ...MODEL, answers: [{ ref: "R2", status: "answered", text: "Havuz ısıtmalıdır.", evidence: "Havuz ısıtmalıdır." }] });
+    const r = await suggestReply({ ...input, knowledgeBase: kb, conversationItems: withQueries });
+    expect(r.reply).toBe("");
+    expect(r.answerParts?.find((v) => v.ref === "R2")).toEqual({ ref: "R2", status: "rejected", issues: ["aspect_missing"] });
+    // Kontrol: sorgu yokken (bugünkü kural) aynı parça doğrulanır.
+    openAiReturns({ ...MODEL, answers: [{ ref: "R2", status: "answered", text: "Havuz ısıtmalıdır.", evidence: "Havuz ısıtmalıdır." }] });
+    expect((await suggestReply({ ...input, knowledgeBase: kb, conversationItems: ITEMS })).reply).toBe("Havuz ısıtmalıdır.");
+  });
+
   it("mülk bilgisindeki kodun '(belirtilmemiş …)' işareti alıntılanabilir kaynak değildir", () => {
     const on = buildReplyPrompt({ ...input, conversationItems: ITEMS });
     expect(on.partSources?.find((s) => s.id === "property")?.text).not.toContain("belirtilmemiş");
@@ -294,5 +309,162 @@ describe("Opus 10-23: kaynak listesi", () => {
     expect(ids).toContain("property");
     expect(ids.length).toBe(1 + (3 - on.kbOmitted));
     for (const s of on.partSources ?? []) if (s.id.startsWith("kb:")) expect(on.text).toContain(s.text);
+  });
+});
+
+// ─── Opus e2e 10-23 (parça kipinin uçtan uca incelemesi, `scratchpad/opus-e2e-parts.md`) ─────────────────────────────────────────
+
+describe("Opus e2e 10-23 F2 — sorulan YÖN: doğru ama sorulanı cevaplamayan parça isteği kapatmaz", () => {
+  const src = (content: string, category = "rules") => [{ id: "kb:1", text: kbLine({ category, title: "Bilgi", content }) }];
+  const needQ = (ref: string, queries: string[], topics: string[] = []) => ({ ref, terms: needTerms(queries), topics, queries });
+
+  it("🚨 'Havuz kaçta açılıyor?' ↔ 'Havuz ısıtmalıdır.' gitmez, açık kalır; saatli cevap gider", () => {
+    const n = needQ("R1", ["havuz kaçta açılıyor", "Havuz kaçta açılıyor?"], ["pool"]);
+    const off = composeVerifiedReply({ parts: [p("R1", "Havuz ısıtmalıdır.", "Havuz ısıtmalıdır.")], needs: [n], sources: src("Havuz ısıtmalıdır.") });
+    expect(off.refs).toEqual([]);
+    expect(off.reply).toBe("");
+    expect(off.verdicts).toEqual([{ ref: "R1", status: "rejected", issues: ["aspect_missing"] }]);
+    const ok = composeVerifiedReply({ parts: [p("R1", "Havuz 09:00'da açılır.", "Havuz 09:00'da açılır.")], needs: [n], sources: src("Havuz 09:00'da açılır.") });
+    expect(ok.refs).toEqual(["R1"]);
+  });
+
+  it("🚨 'Otopark ücreti ne kadar?' ↔ konum cevabı gitmez; 'ücretsizdir' / tutar gider", () => {
+    const kb = src("Otopark binanın arkasındadır, ücretsizdir.", "parking");
+    const n = needQ("R1", ["otopark ücreti ne kadar"], ["parking"]);
+    const where = composeVerifiedReply({ parts: [p("R1", "Otopark binanın arkasındadır.", "Otopark binanın arkasındadır")], needs: [n], sources: kb });
+    expect(where.refs).toEqual([]);
+    expect(where.verdicts[0]).toEqual({ ref: "R1", status: "rejected", issues: ["aspect_missing"] });
+    const free = composeVerifiedReply({ parts: [p("R1", "Otopark ücretsizdir.", "Otopark binanın arkasındadır, ücretsizdir.")], needs: [n], sources: kb });
+    expect(free.refs).toEqual(["R1"]);
+    const paid = src("Otopark günlük 200 TL'dir.", "parking");
+    expect(composeVerifiedReply({ parts: [p("R1", "Otopark günlük 200 TL'dir.", "Otopark günlük 200 TL'dir.")], needs: [n], sources: paid }).refs).toEqual(["R1"]);
+  });
+
+  it("konuyu yok sayan / yasaklayan cevap saat ve ücret sorusunu da cevaplar; başka niteliğin olumsuzu cevaplamaz", () => {
+    const pets = needQ("R1", ["evcil hayvan ücreti"], ["pets"]);
+    const no = "Evcil hayvan kabul edilmemektedir.";
+    expect(composeVerifiedReply({ parts: [p("R1", no, no)], needs: [pets], sources: src(no) }).refs).toEqual(["R1"]);
+    const pool = needQ("R1", ["havuz açılış saati"], ["pool"]);
+    const none = "Havuz yoktur.";
+    expect(composeVerifiedReply({ parts: [p("R1", none, none)], needs: [pool], sources: src(none) }).refs).toEqual(["R1"]);
+    const notHeated = "Havuz ısıtmalı değildir.";
+    expect(composeVerifiedReply({ parts: [p("R1", notHeated, notHeated)], needs: [pool], sources: src(notHeated) }).verdicts).toEqual([
+      { ref: "R1", status: "rejected", issues: ["aspect_missing"] },
+    ]);
+  });
+
+  it("saatsiz ama sorulanı cevaplayan söyleyiş: '7/24 açık' / 'kış aylarında kapalı' gider", () => {
+    const n = needQ("R1", ["havuz kaçta açılıyor"], ["pool"]);
+    for (const t of ["Havuz 7/24 açıktır.", "Havuz kış aylarında kapalıdır."]) {
+      expect(composeVerifiedReply({ parts: [p("R1", t, t)], needs: [n], sources: src(t) }).refs).toEqual(["R1"]);
+    }
+  });
+
+  it("aşırı uygulama yok: yön sorulmadıysa (var mı / nerede / ne zaman) bugünkü kural; sorgu yoksa yön aranmaz", () => {
+    const kb = src("Otopark binanın arkasındadır. Havuz ısıtmalıdır.");
+    const where = needQ("R1", ["otopark nerede", "Where is the parking?"], ["parking"]);
+    expect(composeVerifiedReply({ parts: [p("R1", "Otopark binanın arkasındadır.", "Otopark binanın arkasındadır.")], needs: [where], sources: kb }).refs).toEqual(["R1"]);
+    const exists = needQ("R1", ["havuz var mı"], ["pool"]);
+    expect(composeVerifiedReply({ parts: [p("R1", "Havuz ısıtmalıdır.", "Havuz ısıtmalıdır.")], needs: [exists], sources: kb }).refs).toEqual(["R1"]);
+    // "ne kadar" tek başına ücret değildir (mesafe / derinlik de olur).
+    const far = needQ("R1", ["otopark ne kadar uzakta"], ["parking"]);
+    expect(composeVerifiedReply({ parts: [p("R1", "Otopark binanın arkasındadır.", "Otopark binanın arkasındadır.")], needs: [far], sources: kb }).refs).toEqual(["R1"]);
+    const noQueries = { ref: "R1", terms: needTerms(["havuz kaçta açılıyor"]), topics: ["pool"] };
+    expect(composeVerifiedReply({ parts: [p("R1", "Havuz ısıtmalıdır.", "Havuz ısıtmalıdır.")], needs: [noQueries], sources: kb }).refs).toEqual(["R1"]);
+  });
+
+  it("çok dilli sorgu: İngilizce / Almanca / Rusça saat ve ücret sorusu", async () => {
+    const { askedAspects } = await import("@/lib/ai/answer-binding");
+    expect(askedAspects(["What time does the pool open?"])).toEqual(["time"]);
+    expect(askedAspects(["Um wie viel Uhr schließt die Sauna?"])).toEqual(["time"]);
+    expect(askedAspects(["Во сколько закрывается бассейн?"])).toEqual(["time"]);
+    expect(askedAspects(["How much is parking?"])).toEqual(["price"]);
+    expect(askedAspects(["Is parking free?"])).toEqual(["price"]);
+    expect(askedAspects(["Was kostet das Parken?"])).toEqual(["price"]);
+    expect(askedAspects(["Сколько стоит парковка?"])).toEqual(["price"]);
+    // Çakışmalar: telefon şarj aleti, sigarasız daire, merkeze uzaklık, yol tarifi — yön değil.
+    expect(askedAspects(["Is there a phone charger?", "Is the apartment smoke-free?", "Далеко до центра?", "Yolu tarif eder misiniz?", "Feel free to"])).toEqual([]);
+  });
+});
+
+describe("Opus e2e 10-23 F3 — tek sorguda iki tesis: yalnız birini cevaplayan parça isteği kapatmaz", () => {
+  const kb = [{ id: "kb:1", text: kbLine({ category: "rules", title: "Saatler", content: "Havuz 09:00-20:00 arası, sauna 10:00-22:00 arası açıktır." }) }];
+  const n = { ref: "R1", terms: needTerms(["sauna ve havuz kaçta açık"]), topics: ["pool"], queries: ["sauna ve havuz kaçta açık"] };
+
+  it("🚨 yalnız havuz → gitmez, açık kalır; ikisi birden → gider", () => {
+    const one = composeVerifiedReply({ parts: [p("R1", "Havuz 09:00-20:00 arası açıktır.", "Havuz 09:00-20:00 arası")], needs: [n], sources: kb });
+    expect(one.refs).toEqual([]);
+    expect(one.verdicts[0]).toEqual({ ref: "R1", status: "rejected", issues: ["subject_partial"] });
+    const both = composeVerifiedReply({
+      parts: [p("R1", "Havuz 09:00-20:00 arası, sauna 10:00-22:00 arası açıktır.", "Havuz 09:00-20:00 arası, sauna 10:00-22:00 arası açıktır.")],
+      needs: [n],
+      sources: kb,
+    });
+    expect(both.refs).toEqual(["R1"]);
+  });
+
+  it("çeviri çifti aynı tesis kimliğini taşır; tek tesisli sorgu bugünkü kural", () => {
+    const en = { ...n, queries: ["havuz kaçta açık", "When does the pool open?"] };
+    expect(composeVerifiedReply({ parts: [p("R1", "Havuz 09:00-20:00 arası açıktır.", "Havuz 09:00-20:00 arası")], needs: [en], sources: kb }).refs).toEqual(["R1"]);
+    // Sorgulardan biri tek tesis adlıyorsa istek o tesisindir (öteki sorgu cümlenin tamamını taşımış olabilir).
+    const mixed = { ...n, queries: ["havuz kapanış saati", "Wann schließt der Pool und gibt es eine Sauna"] };
+    expect(composeVerifiedReply({ parts: [p("R1", "Havuz 09:00-20:00 arası açıktır.", "Havuz 09:00-20:00 arası")], needs: [mixed], sources: kb }).refs).toEqual(["R1"]);
+  });
+
+  it("anlama katmanının gerçek sorgu biçimi (anahtar sözcük): 'havuz sauna kapanış saati' iki tesis ister; 'otopark ücreti' ücret ister", () => {
+    const merged = { ...n, queries: ["havuz sauna kapanış saati", "havuz sauna kapanış saati"] };
+    expect(composeVerifiedReply({ parts: [p("R1", "Havuz 09:00-20:00 arası açıktır.", "Havuz 09:00-20:00 arası")], needs: [merged], sources: kb }).verdicts[0]).toEqual({
+      ref: "R1",
+      status: "rejected",
+      issues: ["subject_partial"],
+    });
+    // Anahtar sözcük sorgusunda saat sorusu "saati / saatleri" ile gelir.
+    const heated = [{ id: "kb:1", text: kbLine({ category: "rules", title: "Havuz", content: "Havuz ısıtmalıdır." }) }];
+    const hours = { ref: "R1", terms: needTerms(["havuz açılış saati"]), topics: ["pool"], queries: ["havuz açılış saati", "pool opening hours"] };
+    expect(composeVerifiedReply({ parts: [p("R1", "Havuz ısıtmalıdır.", "Havuz ısıtmalıdır.")], needs: [hours], sources: heated }).refs).toEqual([]);
+    // Çeviri ikinci tesisi başka adla anarsa ("sauna" ↔ "spa"): sorgulardan BİRİNİN tesislerinin hepsini anan parça yeter.
+    const spa = { ...n, queries: ["havuz ve sauna saatleri", "pool and spa hours"] };
+    const both = "Havuz 09:00-20:00 arası, sauna 10:00-22:00 arası açıktır.";
+    expect(composeVerifiedReply({ parts: [p("R1", both, both)], needs: [spa], sources: kb }).refs).toEqual(["R1"]);
+    const park = [{ id: "kb:1", text: kbLine({ category: "parking", title: "Otopark", content: "Otopark binanın arkasındadır, ücretsizdir." }) }];
+    const fee = { ref: "R1", terms: needTerms(["otopark ücreti"]), topics: ["parking"], queries: ["otopark ücreti", "parking fee"] };
+    expect(composeVerifiedReply({ parts: [p("R1", "Otopark binanın arkasındadır.", "Otopark binanın arkasındadır")], needs: [fee], sources: park }).refs).toEqual([]);
+  });
+});
+
+describe("Opus e2e 10-23 F7 — aynı metin bir kez gider; sonraki parçanın selamı atılır", () => {
+  it("🚨 iki istek aynı cümleyle cevaplandı: ikisi de kapanır, metin BİR kez", () => {
+    const kb = [{ id: "kb:1", text: kbLine({ category: "rules", title: "Havuz", content: "Havuz 09:00-20:00 arası açıktır." }) }];
+    const needs = [
+      { ref: "R1", terms: needTerms(["havuz kaçta açılıyor"]), topics: ["pool"], queries: ["havuz kaçta açılıyor"] },
+      { ref: "R2", terms: needTerms(["havuz kaçta kapanıyor"]), topics: ["pool"], queries: ["havuz kaçta kapanıyor"] },
+    ];
+    const t = "Havuz 09:00-20:00 arası açıktır.";
+    const out = composeVerifiedReply({ parts: [p("R1", t, t), p("R2", `${t} `, t)], needs, sources: kb });
+    expect(out.refs).toEqual(["R1", "R2"]);
+    expect(out.reply).toBe(t);
+  });
+
+  it("ikinci parçanın baştaki selamı atılır, ilkinin selamı kalır", () => {
+    const out = composeVerifiedReply({
+      parts: [p("R1", "Merhaba! Çıkış saati 11:00.", "Check-out saati: 11:00"), p("R2", "Merhaba, havuz her gün 20:00'de kapanıyor.", "Havuz her gün 20:00'de")],
+      needs: [NEEDS[0], NEEDS[1]],
+      sources: SOURCES,
+    });
+    expect(out.refs).toEqual(["R1", "R2"]);
+    expect(out.reply).toBe("Merhaba! Çıkış saati 11:00.\nHavuz her gün 20:00'de kapanıyor.");
+  });
+});
+
+describe("Opus e2e 10-23 F9 — bilgi tabanıyla çelişen standart saat parça kaynağı değildir", () => {
+  it("🚨 mülk 15:00 ↔ bilgi tabanı 14:00: mülk kaynağında giriş saati satırı yok, çıkış saati (çelişmeyen) kalır", () => {
+    const kb = [{ category: "rules", title: "Giriş", content: "Giriş saati 14:00'tür." }];
+    const on = buildReplyPrompt({ ...input, knowledgeBase: kb, conversationItems: ITEMS });
+    const property = on.partSources?.find((s) => s.id === "property")?.text ?? "";
+    expect(on.timeConflicts.map((c) => c.field)).toContain("checkInTime");
+    expect(property).not.toContain("Check-in saati");
+    expect(property).toContain("Check-out saati: 11:00");
+    // Kontrol: çelişki yokken satır kaynakta.
+    expect(buildReplyPrompt({ ...input, conversationItems: ITEMS }).partSources?.find((s) => s.id === "property")?.text).toContain("Check-in saati: 15:00");
   });
 });

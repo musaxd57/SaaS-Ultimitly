@@ -273,6 +273,8 @@ describe("doğrulanmış müsaitlik otomatik cevabı — koddan kurulan metin", 
   it("🚨 cevap parçaları kipinde (10-23 A) model 'no_info' dese de müsaitlik KOD METNİ gider ve müsaitlik isteği cevaplandı sayılır", async () => {
     vi.stubEnv("AI_CONVERSATION_ITEMS_ENABLED", "1");
     vi.stubEnv("AI_ANSWER_PARTS_ENABLED", "1");
+    // Parça kipi yalnız sıra kipiyle birlikte açılır (Opus e2e 10-23 F4).
+    vi.stubEnv("AI_ITEM_ORDINAL_ENABLED", "1");
     vi.stubGlobal("fetch", understandingFetch("availability", ["availability"]));
     mockSuggest.mockResolvedValue({ ...verdict, reply: "", answeredRequests: { ok: true, refs: [] }, answerParts: [{ ref: "R1", status: "no_info" }] } as never);
     const { conversationId } = await seed();

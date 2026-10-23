@@ -1583,6 +1583,8 @@ describe("CEVAP PARÇALARI (kurucu 10-23 A, AI_ANSWER_PARTS_ENABLED)", () => {
 
   it("🚨 anahtar açık: cevap modeline parça kipi + istek başına sözcükler gider; yalnız doğrulanan istek 'cevaplandı', öteki açık kalır", async () => {
     vi.stubEnv("AI_ANSWER_PARTS_ENABLED", "1");
+    // Parça kipi yalnız sıra kipiyle birlikte açılır (Opus e2e 10-23 F4).
+    vi.stubEnv("AI_ITEM_ORDINAL_ENABLED", "1");
     const { conversationId } = await seed("Çıkış saat kaçta? Sauna var mı?");
     understands(twoNeeds());
     // suggestReply parça kipinde böyle döner: metin = doğrulanan parçalar, beyan = doğrulanan istekler.
@@ -1605,6 +1607,8 @@ describe("CEVAP PARÇALARI (kurucu 10-23 A, AI_ANSWER_PARTS_ENABLED)", () => {
 
   it("🚨 hiçbir parça doğrulanmadı: misafire hiçbir şey gitmez, ev sahibine TEK 'Misafir cevabınızı bekliyor' e-postası (Haiku 10-23)", async () => {
     vi.stubEnv("AI_ANSWER_PARTS_ENABLED", "1");
+    // Parça kipi yalnız sıra kipiyle birlikte açılır (Opus e2e 10-23 F4).
+    vi.stubEnv("AI_ITEM_ORDINAL_ENABLED", "1");
     const { conversationId } = await seed("Çıkış saat kaçta? Sauna var mı?");
     understands(twoNeeds());
     mockSuggest.mockResolvedValueOnce(
@@ -1625,8 +1629,57 @@ describe("CEVAP PARÇALARI (kurucu 10-23 A, AI_ANSWER_PARTS_ENABLED)", () => {
     expect((await itemsOf(conversationId)).every((i) => i.status !== "answered")).toBe(true);
   });
 
+  it("🚨 bir parça doğrulandı, öteki cevapsız ve tur TUTULDU: misafire hiçbir şey gitmez, ev sahibine TEK e-posta (Opus e2e 10-23 F1)", async () => {
+    vi.stubEnv("AI_ANSWER_PARTS_ENABLED", "1");
+    vi.stubEnv("AI_ITEM_ORDINAL_ENABLED", "1");
+    const { conversationId } = await seed("Çıkış saat kaçta? Sauna var mı?");
+    understands(twoNeeds());
+    // Güven tabanın altında → kapı tutar (eski kipte model sauna için "ev sahibinize iletiyorum" yazar, devir tutuşu e-posta atardı).
+    mockSuggest.mockResolvedValueOnce(
+      verdict({
+        intent: "checkout_time",
+        confidence: 0.6,
+        reply: "Çıkış saati 11:00.",
+        answeredRequests: { ok: true, refs: ["R1"] },
+        answerParts: [
+          { ref: "R1", status: "verified", source: "property" },
+          { ref: "R2", status: "no_info" },
+        ],
+      }),
+    );
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(mockMail).toHaveBeenCalledTimes(1);
+    expect((await itemsOf(conversationId)).every((i) => i.status !== "answered")).toBe(true);
+  });
+
+  it("aşırı uygulama yok: bütün parçalar doğrulandı ama tur başka sebeple tutuldu → eski kiple aynı (e-posta yok, panelde)", async () => {
+    vi.stubEnv("AI_ANSWER_PARTS_ENABLED", "1");
+    vi.stubEnv("AI_ITEM_ORDINAL_ENABLED", "1");
+    const { conversationId } = await seed("Çıkış saat kaçta? Sauna var mı?");
+    understands(twoNeeds());
+    mockSuggest.mockResolvedValueOnce(
+      verdict({
+        intent: "checkout_time",
+        confidence: 0.6,
+        reply: "Çıkış saati 11:00.\nSauna yoktur.",
+        answeredRequests: { ok: true, refs: ["R1", "R2"] },
+        answerParts: [
+          { ref: "R1", status: "verified", source: "property" },
+          { ref: "R2", status: "verified", source: "kb:1" },
+        ],
+      }),
+    );
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(false);
+    expect(mockMail).not.toHaveBeenCalled();
+  });
+
   it("🚨 parça beyanı HİÇ yoksa (metin boş) tur sessiz kalmaz: ev sahibine TEK 'Misafir cevabınızı bekliyor' e-postası (Opus 10-23)", async () => {
     vi.stubEnv("AI_ANSWER_PARTS_ENABLED", "1");
+    // Parça kipi yalnız sıra kipiyle birlikte açılır (Opus e2e 10-23 F4).
+    vi.stubEnv("AI_ITEM_ORDINAL_ENABLED", "1");
     const { conversationId } = await seed("Çıkış saat kaçta? Sauna var mı?");
     understands(twoNeeds());
     mockSuggest.mockResolvedValueOnce(verdict({ intent: "checkout_time", reply: "", answeredRequests: { ok: false, reason: "missing" } }));
@@ -1638,6 +1691,8 @@ describe("CEVAP PARÇALARI (kurucu 10-23 A, AI_ANSWER_PARTS_ENABLED)", () => {
 
   it("🚨 Wi-Fi doğrulanamadı + kaynak sorusu: kaynak sorusunun sessizliği Wi-Fi'nin bildirimini SUSTURMAZ — tek e-posta; kaynak sorusu bildirilmiş sayılmaz (Opus 10-23)", async () => {
     vi.stubEnv("AI_ANSWER_PARTS_ENABLED", "1");
+    // Parça kipi yalnız sıra kipiyle birlikte açılır (Opus e2e 10-23 F4).
+    vi.stubEnv("AI_ITEM_ORDINAL_ENABLED", "1");
     const { conversationId } = await seed("Wi-Fi şifresi neydi? Bu bilgiyi nereden buluyorsun?");
     understands(
       parseUnderstanding(
@@ -1667,6 +1722,8 @@ describe("CEVAP PARÇALARI (kurucu 10-23 A, AI_ANSWER_PARTS_ENABLED)", () => {
 
   it("🚨 F5: kaynak sorusu AYRI mesajdaysa açık işin e-postasını susturmaz; e-posta açık işi taşıyan mesajı gösterir (Opus güvenlik 10-23)", async () => {
     vi.stubEnv("AI_ANSWER_PARTS_ENABLED", "1");
+    // Parça kipi yalnız sıra kipiyle birlikte açılır (Opus e2e 10-23 F4).
+    vi.stubEnv("AI_ITEM_ORDINAL_ENABLED", "1");
     const { conversationId } = await seed("Wi-Fi şifresi neydi?");
     await guestWrites(conversationId, "Bu bilgileri nereden alıyorsun?", 5);
     understands(

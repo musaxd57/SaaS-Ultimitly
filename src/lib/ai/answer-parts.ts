@@ -19,7 +19,8 @@
 
 import "server-only";
 
-import { checkAnswerBinding, type BindingIssue } from "@/lib/ai/answer-binding";
+import { askedAspects, checkAnswerBinding, missesAskedFacility, missingAspects, type BindingIssue } from "@/lib/ai/answer-binding";
+import { stripLeadingGreeting } from "@/lib/ai/code-greeting";
 import { quoteGroundedIn } from "@/lib/ai/semantic/absence-judge";
 
 /** Anahtar yalnız tam "1" ile açılır (`STRICT_ONE_FLAGS`). */
@@ -75,12 +76,17 @@ export interface PartNeed {
   /** İhtiyacın kendi sözcükleri (`topic-absence.needTerms`) ve sözlük konuları. */
   terms: readonly string[];
   topics: readonly string[];
+  /**
+   * İsteğin anlama katmanı sorguları (Türkçe + özgün dil; plan verir, istemde YOK). Sorulan AÇIK yön (saat / ücret) ve tek sorguda birden çok
+   * tesis buradan okunur (Opus e2e 10-23 F2 / F3); yoksa yön denetimi yapılmaz (bugünkü kural).
+   */
+  queries?: readonly string[];
 }
 
 export type PartVerdict =
   | { ref: string; status: "verified"; source: string }
   | { ref: string; status: "no_info" | "missing" }
-  | { ref: string; status: "rejected"; issues: (BindingIssue | "text_missing" | "too_long" | "source_not_found")[] };
+  | { ref: string; status: "rejected"; issues: (BindingIssue | "text_missing" | "too_long" | "source_not_found" | "aspect_missing" | "subject_partial")[] };
 
 export interface ComposedReply {
   /** Misafire gidecek metin: doğrulanan parçalar, istek sırasıyla, satır satır. Hiç yoksa boş dize (hiçbir şey gitmez). */
@@ -94,6 +100,7 @@ export interface ComposedReply {
 /** Parçaları doğrular ve birleştirir. Saf; istek sırası `needs` sırasıdır (R1, R2 …). */
 export function composeVerifiedReply(input: { parts: readonly AnswerPart[]; needs: readonly PartNeed[]; sources: readonly PartSource[] }): ComposedReply {
   const texts: string[] = [];
+  const seen = new Set<string>();
   const refs: string[] = [];
   const verdicts: PartVerdict[] = [];
   for (const need of input.needs) {
@@ -134,7 +141,24 @@ export function composeVerifiedReply(input: { parts: readonly AnswerPart[]; need
       verdicts.push({ ref: need.ref, status: "rejected", issues: binding.issues });
       continue;
     }
-    texts.push(part.text);
+    // Doğru ama sorulanı cevaplamayan parça isteği KAPATMAZ ve gitmez (Opus e2e 10-23 F2 / F3): "Havuz kaçta açılıyor?" ↔ "Havuz
+    // ısıtmalıdır."; "Sauna ve havuz kaçta?" ↔ yalnız havuz. İstek ev sahibinde açık kalır.
+    const queries = need.queries ?? [];
+    const scope: ("aspect_missing" | "subject_partial")[] = [];
+    if (missingAspects(part.text, askedAspects(queries)).length > 0) scope.push("aspect_missing");
+    if (missesAskedFacility(part.text, queries)) scope.push("subject_partial");
+    if (scope.length > 0) {
+      verdicts.push({ ref: need.ref, status: "rejected", issues: scope });
+      continue;
+    }
+    // Aynı metin iki isteği birlikte cevaplayabilir ("Havuz kaçta açılıyor, kaçta kapanıyor?" ↔ "Havuz 09:00-20:00 arası açıktır.") — iki istek
+    // de kapanır, metin misafire BİR kez gider (Opus e2e 10-23 F7: aynı satır iki kez gidiyordu).
+    const key = part.text.toLocaleLowerCase("tr").replace(/[\s.!?,;:]+/gu, " ").trim();
+    if (!seen.has(key)) {
+      seen.add(key);
+      // İkinci ve sonraki parçanın baştaki selamı atılır (metnin ortasında "Merhaba!" kalmasın); ilk parçanınki kodun selam kuralına kalır.
+      texts.push(texts.length > 0 ? stripLeadingGreeting(part.text) : part.text);
+    }
     refs.push(need.ref);
     verdicts.push({ ref: need.ref, status: "verified", source: source.id });
   }

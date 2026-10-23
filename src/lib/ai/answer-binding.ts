@@ -2387,3 +2387,73 @@ export function partSignature(text: string): { values: string[]; negative: boole
     negative: negative(tokenize(text)),
   };
 }
+
+// ─── sorulan YÖN + çok tesisli istek (Opus e2e 10-23 F2 / F3; `answer-parts.ts`) ─────────────────────────────────────────────────
+// Bağ denetimi konunun DEĞERİNİ doğrular, sorunun NE sorduğunu değil: "Havuz kaçta açılıyor?" isteği doğru ama başka şey söyleyen "Havuz
+// ısıtmalıdır." parçasıyla kapanıyordu; "Otopark ücreti ne kadar?" konum cevabıyla. Yalnız AÇIK iki yön okunur (saat, ücret) — "ne zaman /
+// when" gün de olabilir, "nerede" sözcük listesiyle okunamaz (şüphede yön aranmaz, bugünkü kural).
+
+/** Soru / cevap metni: küçük harf (Türkçe), işaretsiz harf, tek boşluk. */
+function foldAsk(s: string): string {
+  return s.toLocaleLowerCase("tr").normalize("NFKD").replace(/\p{M}/gu, "").replace(/ı/g, "i").replace(/ß/g, "ss").replace(/\s+/g, " ");
+}
+
+/** Açık saat sorusu ("kaçta", "saat kaç", "what time", "um wie viel Uhr"); "ne zaman / when / wann" SAYILMAZ (gün de olabilir). */
+const ASKS_CLOCK =
+  /(?<!\p{L})(?:kac(?:ta|da)|kaca kadar|saat kac|saat(?:i|leri|ler)|what time|which time|(?<!how many )hours|opening times?|closing times?|check.?(?:in|out) time|um wie ?viel uhr|bis wann|wie spat|uhrzeit|offnungszeit\p{L}*|a quelle heure|horaires?|a que hora|horarios?|a che ora|orari|orario|во сколько|до скольки|в какое время|часы работы)(?!\p{L})/u;
+/** Ücret sorusu ("ücreti ne kadar", "kaç TL", "how much is", "is it free", "kostet"). Çıplak "ne kadar / how much / combien" sayılmaz (mesafe / adet de olur). */
+const ASKS_PRICE =
+  /(?<!\p{L})(?:ucret\p{L}*|fiyat\p{L}*|kac (?:para|lira|tl|euro|dolar)|ne kadar tutar\p{L}*|cost\p{L}*|price\p{L}*|fees?|charges?|charged|how much (?:is|are|does|do|for|will|would|to|extra)|(?<!(?:feel|smoke|gluten|pet|sugar|lactose|nut|allergy|duty|tax)[ -]?)free(?! time)|paid|kost(?:et|en|enlos)|preis\p{L}*|gebuhr\p{L}*|umsonst|prix|combien (?:coute|ca coute|pour)|cout(?:e|ent)?|tarifs|tarifa|tariffa|frais|gratuit\p{L}*|payant\p{L}*|precio\p{L}*|cuesta|cuanto (?:cuesta|vale)|costo|coste|gratis|prezzo|quanto costa|сколько стоит|цен(?:а|ы|у|е|ой|ник\p{L}*)|стоимост\p{L}*|(?:о|за)?плат(?:а|ы|у|е|но|ный|ная|ное|ить|ят)|бесплатн\p{L}*|тариф\p{L}*|(?:ال)?سعر|(?:ال)?رسوم|(?:ال)?مجان\p{L}*)(?!\p{L})/u;
+
+export type AskedAspect = "time" | "price";
+
+/** İsteğin sorguları (Türkçe + özgün dil) hangi AÇIK yönü soruyor. */
+export function askedAspects(queries: readonly string[]): AskedAspect[] {
+  const q = queries.map(foldAsk);
+  const out: AskedAspect[] = [];
+  if (q.some((x) => ASKS_CLOCK.test(x))) out.push("time");
+  if (q.some((x) => ASKS_PRICE.test(x))) out.push("price");
+  return out;
+}
+
+/** Saat sorusunu saatsiz cevaplayan söyleyişler: her zaman açık / gün boyu / kapalı / kullanılamaz / gece yarısı / öğlen. */
+const CLOCKLESS_TIME_ANSWER =
+  /(?<!\p{L})(?:her zaman|gun boyu|butun gun|tum gun|24 saat|kapali\p{L}*|acik degil\p{L}*|kullanilamaz|hizmet vermi\p{L}*|gece yarisi\p{L}*|ogle\p{L}*|always|all day|around the clock|24 hours|closed|not open|not available|unavailable|midnight|noon|immer|ganztag\p{L}*|rund um die uhr|geschlossen|mitternacht|mittag\p{L}*|toujours|toute la journee|ferme\p{L}*|minuit|midi|siempre|todo el dia|cerrad\p{L}*|medianoche|mediodia|sempre|tutto il giorno|chius\p{L}*|mezzanotte|mezzogiorno|всегда|круглосуточно|закрыт\p{L}*|полноч\p{L}*|полден\p{L}*|مغلق|دائما)(?!\p{L})/u;
+/** Ücret sorusunu tutarsız cevaplayan söyleyişler: ücretsiz / dahil / ücret alınmaz / free / included. */
+const AMOUNTLESS_PRICE_ANSWER =
+  /(?<!\p{L})(?:ucret\p{L}*|fiyat\p{L}*|bedava|dahil\p{L}*|para (?:alinmaz|odenmez|istenmez)|free|included|includes|inclusive|complimentary|no charge|no extra|at no cost|cost\p{L}*|price\p{L}*|fees?|charge\p{L}*|paid|pay\p{L}*|kostenlos|gratis|inklusive|inbegriffen|gebuhr\p{L}*|kost(?:et|en)|preis\p{L}*|gratuit\p{L}*|inclus\p{L}*|payant\p{L}*|frais|prix|incluid\p{L}*|precio\p{L}*|gratuito|incluso|prezzo|costo|бесплатн\p{L}*|включ\p{L}*|(?:о|за)?плат(?:а|ы|у|е|но|ный|ная|ное|ить|ят)|цен(?:а|ы|у|е|ой)|стоимост\p{L}*|(?:ال)?مجان\p{L}*|مشمول\p{L}*|(?:ال)?رسوم|(?:ال)?سعر)(?!\p{L})/u;
+
+/**
+ * Konunun kendisini yok sayan / yasaklayan cevap saat ve ücret sorusunu da cevaplar ("Evcil hayvan için ücret var mı?" ↔ "Evcil hayvan kabul
+ * edilmez."; "Havuz kaçta açılıyor?" ↔ "Havuz yoktur."). Yalnız VARLIK / İZİN olumsuzluğu — "ısıtmalı değildir" gibi başka bir niteliğin
+ * olumsuzu sayılmaz.
+ */
+const SUBJECT_DENIED =
+  /(?<!\p{L})(?:yok(?:tur|tu)?|bulunma(?:maktadir|z)|mevcut degil\p{L}*|kabul edil(?:mez|memektedir)|izin veril(?:mez|memektedir)|yasak\p{L}*|not allowed|not permitted|no (?:pets|parking|pool|sauna|smoking)|there is no|there are no|we do not have|we don't have|nicht erlaubt|nicht gestattet|gibt es (?:keine?n?|nicht)|verboten|interdit\p{L}*|pas autorise\p{L}*|il n.y a pas|no se permite\p{L}*|no hay|prohibid\p{L}*|non (?:e )?(?:consentit|ammess)\p{L}*|vietat\p{L}*|non c.e|нет|запрещ\p{L}*|не допуска\p{L}*|لا يوجد|ممنوع)(?!\p{L})/u;
+
+/** Parçanın cevaplamadığı sorulan yönler (boş = hepsi cevaplandı): saat sorusu saat ya da saatsiz cevap, ücret sorusu tutar ya da ücret sözcüğü ister. */
+export function missingAspects(part: string, aspects: readonly AskedAspect[]): AskedAspect[] {
+  if (aspects.length === 0) return [];
+  const { claims } = claimSpans(part);
+  const text = foldAsk(part);
+  if (SUBJECT_DENIED.test(text)) return [];
+  return aspects.filter((a) =>
+    a === "time"
+      ? !claims.some((c) => c.cls === "time" || c.keys.includes("x24x7")) && !CLOCKLESS_TIME_ANSWER.test(text)
+      : !claims.some((c) => c.cls === "money" || c.cls === "percent") && !AMOUNTLESS_PRICE_ANSWER.test(text),
+  );
+}
+
+/**
+ * Tek sorgu İKİ+ tesis soruyorsa ("sauna ve havuz kaçta açık" — anlama katmanı iki isteği bir isteğe katabilir) parça hepsini anmalı:
+ * yalnız havuzu cevaplayan parça isteği kapatırsa sauna sorusu kaybolur. Çok dilli tesis kökleri (`FACILITY_ROOTS`) — çeviri çifti aynı
+ * kimliği taşır; sorgulardan BİRİNİN tesislerinin hepsi parçada geçiyorsa yeter. Anlama katmanının sorguları istek başına ANAHTAR SÖZCÜKTÜR
+ * ("havuz kapanış saati"), misafirin cümlesi değil (`semantic/understand.ts`).
+ */
+export function missesAskedFacility(part: string, queries: readonly string[]): boolean {
+  const named = queries.map((q) => facilitiesIn(q)).filter((g) => g.size > 0);
+  // Sorgulardan biri TEK tesis adlıyorsa istek o tesisindir (öteki sorgu cümlenin tamamını taşımış olabilir) — şüphede bugünkü kural.
+  if (named.length === 0 || named.some((g) => g.size === 1)) return false;
+  const inPart = facilitiesIn(part);
+  return named.every((g) => [...g].some((f) => !inPart.has(f)));
+}

@@ -18,6 +18,7 @@ import {
 import type { ReplyItemsInput } from "./reply-block";
 import { needTerms, topicAbsenceEnabled } from "./topic-absence";
 import { answerPartsEnabled } from "@/lib/ai/answer-parts";
+import { itemOrdinalEnabled } from "./flag";
 
 type PlanItem = { messageId: string; kind: ItemKind; sensitivity: ItemSensitivity; ordinal?: number };
 
@@ -92,6 +93,12 @@ export function composeItemsPlan<T extends PlanItem>(input: {
    * konusu → örtüşme; tarif varsa çözüm). Verilmezse bugünkü kural BİREBİR.
    */
   faultRequests?: ReadonlySet<string>;
+  /**
+   * Bu geçişin anlama okumasından ÇIKAN öğeler (`hintKey`). Cevap parçaları kipinde yalnız bunlar cevaplanabilir (Opus e2e 10-23 F5): turun
+   * mesajlarında önceki geçişten kalmış açık satır (bu okumada karşılığı yok) ipucusuz bir R-kimliği oluyordu — model sorusunu hiç görmeden
+   * aynı türden bir parçayla kapatabiliyordu. O satır açık kalır (ev sahibinde), ne gösterilir ne kapanır. Verilmezse bugünkü kural.
+   */
+  producedKeys?: ReadonlySet<string>;
 }): ComposedItemsPlan<T> {
   const relations = input.relations;
   // İlişki kipi (kurucu kararı 10-01 sabah): olgular varsa karar `relation.requestDependency`, yoksa bugünkü liste kuralı BİREBİR.
@@ -104,8 +111,13 @@ export function composeItemsPlan<T extends PlanItem>(input: {
   const dependent = relation
     ? [...relation.dependent, ...input.turnItems.filter((i) => i.sensitivity === "none" && faulty(i) && !relation.dependent.includes(i) && !relation.fix.has(i))]
     : input.turnItems.filter((i) => i.sensitivity === "none" && (complaintDependent(i.kind, input.held) || faulty(i)));
+  // Cevap parçaları kipi (kurucu 10-23 A) yalnız sıra kipiyle birlikte (Opus e2e 10-23 F4): sıra kipi kapalıyken aynı türden iki soru tek
+  // öğede birleşir, model yalnız ilk soruyu görür ama doğrulayıcı ikisinin sözcükleriyle okur — havuz cevabı sauna sorusunu da kapatıyordu.
+  const parts = answerPartsEnabled() && itemOrdinalEnabled();
+  const produced = parts ? input.producedKeys : undefined;
   const answerable = input.turnItems
     .filter((i) => i.sensitivity === "none" && !dependent.includes(i))
+    .filter((i) => !produced || produced.has(hintKey(i.messageId, i.kind, i.ordinal)))
     .map((item, idx) => ({ ref: `R${idx + 1}`, item }));
   const relationGate: ItemsGateInput["relation"] = relation
     ? { requests: answerable.map(({ ref, item }) => ({ ...relation.factsOf(item), ref })), anchors: relation.anchors }
@@ -123,12 +135,11 @@ export function composeItemsPlan<T extends PlanItem>(input: {
   ]
     .filter((t) => !answeredTopics.has(t))
     .sort();
-  // Cevap parçaları kipi (kurucu 10-23 A): istek başına sözcük + konu doğrulayıcıya gider (istemde YOK); kapalıyken alan yok.
-  const parts = answerPartsEnabled();
+  // Cevap parçaları kipi: istek başına sözcük + konu + sorgular doğrulayıcıya gider (istemde YOK); kapalıyken alan yok.
   const needOf = (item: T) => {
     const key = hintKey(item.messageId, item.kind, item.ordinal);
     const queries = input.needQueries?.get(key) ?? [input.hints.get(key) ?? ""];
-    return { terms: needTerms(queries), topics: topicsOfItem(item) };
+    return { terms: needTerms(queries), topics: topicsOfItem(item), queries: queries.filter((q) => q.trim()) };
   };
   return {
     answerable,

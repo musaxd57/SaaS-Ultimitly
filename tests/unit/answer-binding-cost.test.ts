@@ -98,3 +98,16 @@ describe("answer-binding maliyet — Opus dilim sonu 10-23 R8", () => {
     expect(performance.now() - t0).toBeLessThan(1200);
   });
 });
+
+describe("answer-binding maliyet — Opus e2e 10-23 sorulan yön / tesis", () => {
+  it("yön ve tesis okumaları uzun girdide doğrusal (tek sözcük / boşluk dizisi / tekrarlanan kalıp başı)", async () => {
+    const { askedAspects, missingAspects, missesAskedFacility } = await import("@/lib/ai/answer-binding");
+    for (const s of ["a".repeat(50_000), " ".repeat(50_000), "kac ".repeat(12_000), "how much ".repeat(6_000), "smoke-".repeat(8_000) + "free", "havuz sauna ".repeat(4_000)]) {
+      const t0 = performance.now();
+      askedAspects([s]);
+      missingAspects(s, ["time", "price"]);
+      missesAskedFacility(s, [s]);
+      expect(performance.now() - t0).toBeLessThan(1000);
+    }
+  });
+});

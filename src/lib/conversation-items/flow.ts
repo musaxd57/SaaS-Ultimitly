@@ -174,6 +174,7 @@ export async function planItemsTurn(
       needQueries,
       ...(relations ? { relations, kbRecipeTopics: kbRecipeTopics(input.knowledgeBase ?? []) } : {}),
       ...(faultRequests ? { faultRequests } : {}),
+      producedKeys: new Set(extracted.messages.flatMap((m) => m.items.map((it) => hintKey(m.messageId, it.kind, it.ordinal)))),
     }),
   };
 }

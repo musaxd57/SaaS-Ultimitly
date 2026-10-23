@@ -304,3 +304,36 @@ describe("F9 (Opus güvenlik 10-23): konu uyumu yalnız KONU sözcükleriyle", (
     expect(topicsCompatible("çamaşır makinesi", "çamaşır makinesi çalışmıyor")).toBe(true);
   });
 });
+
+describe("Opus e2e 10-23 — parça kipinin planı", () => {
+  const a = (id: string, ordinal = 0, messageId = "m1") => ({ id, messageId, kind: "amenities" as const, sensitivity: "none" as const, riskType: null, ...(ordinal ? { ordinal } : {}) });
+  const hints = new Map([
+    [hintKey("m1", "amenities"), "sauna var mı"],
+    [hintKey("m1", "amenities", 1), "havuz kaçta kapanıyor"],
+  ]);
+
+  it("🚨 F4: parça kipi yalnız sıra kipiyle birlikte (sıra kipi kapalıyken birleşen istekte havuz cevabı sauna sorusunu kapatıyordu)", async () => {
+    const { composeItemsPlan } = await import("@/lib/conversation-items/plan");
+    vi.stubEnv("AI_ANSWER_PARTS_ENABLED", "1");
+    const off = composeItemsPlan({ turnItems: [a("x0")], held: [], hints });
+    expect(off.replyItems.parts).toBeUndefined();
+    expect(off.replyItems.answerable[0].need).toBeUndefined();
+    vi.stubEnv("AI_ITEM_ORDINAL_ENABLED", "1");
+    const on = composeItemsPlan({ turnItems: [a("x0")], held: [], hints });
+    expect(on.replyItems.parts).toBe(true);
+    expect(on.replyItems.answerable[0].need?.queries).toEqual(["sauna var mı"]);
+  });
+
+  it("🚨 F5: bu geçişin okumasında karşılığı olmayan eski açık satır parça kipinde cevaplanabilir DEĞİL (ipucusuz R-kimliği olmaz)", async () => {
+    const { composeItemsPlan } = await import("@/lib/conversation-items/plan");
+    vi.stubEnv("AI_ANSWER_PARTS_ENABLED", "1");
+    vi.stubEnv("AI_ITEM_ORDINAL_ENABLED", "1");
+    // Önceki geçişin iki satırı (sauna 0, havuz 1); bu geçiş mesajı TEK istek okudu → yalnız sıra 0 üretildi.
+    const produced = new Set([hintKey("m1", "amenities")]);
+    const plan = composeItemsPlan({ turnItems: [a("s0"), a("p1", 1)], held: [], hints, producedKeys: produced });
+    expect(plan.answerable.map((x) => [x.ref, x.item.id])).toEqual([["R1", "s0"]]);
+    // Kontrol: parça kipi kapalıyken bugünkü kural (iki satır da cevaplanabilir).
+    vi.stubEnv("AI_ANSWER_PARTS_ENABLED", "0");
+    expect(composeItemsPlan({ turnItems: [a("s0"), a("p1", 1)], held: [], hints, producedKeys: produced }).answerable).toHaveLength(2);
+  });
+});
