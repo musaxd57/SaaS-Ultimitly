@@ -22,10 +22,20 @@ import { parseAnsweredRequests } from "@/lib/conversation-items/reply-block";
 import { ITEM_KIND_LABELS_TR } from "@/lib/conversation-items/core";
 import { stayTimeline, understandingDateLine } from "./stay-timeline";
 import { orgTimezone } from "@/lib/timezone";
-import { composeVerifiedReply, parseAnswerParts } from "./answer-parts";
+import { composeVerifiedReply, groundEvidence, parseAnswerParts } from "./answer-parts";
+import {
+  addLlmUsage,
+  buildPartRewriteUserContent,
+  mergeRewrittenParts,
+  PART_REWRITE_MAX,
+  partRewriteEnabled,
+  partRewriteSystemPrompt,
+  partRewriteTargets,
+  type PartRewriteReason,
+} from "./part-rewrite";
 import { sourceMentionsNeed } from "./answer-binding";
 import { seniorReaderEnabled } from "./semantic/absence-judge";
-import { PART_READER_EARLIER_MAX, partReaderHolds, runPartReader } from "./semantic/part-reader";
+import { PART_READER_EARLIER_MAX, partReaderHolds, runPartReader, type PartReaderHold } from "./semantic/part-reader";
 import type { Priority } from "@/lib/constants";
 import { DEFAULT_OPENAI_MODEL, isReasoningModel, layerReasoningEffort, replyReasoningEffort } from "./model-family";
 import { reportError } from "@/lib/report-error";
@@ -646,6 +656,7 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
                   verdicts: [],
                   verified: [] as ReturnType<typeof composeVerifiedReply>["verified"],
                   sources: [] as string[],
+                  rewriteUsage: undefined as LlmUsage | undefined,
                 };
               const needs = items.answerable.map((a) => ({ ref: a.ref, terms: a.need?.terms ?? [], topics: a.need?.topics ?? [], queries: a.need?.queries ?? [] }));
               const partSources = prompt.partSources ?? [];
@@ -657,49 +668,104 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
               // okunur; okuyucu yalnız TUTAR (sorulanı cevaplamıyor / yarım / yanlış bağ / tek başına istisna), düşerse bütün parçalar tutulur.
               // Okuyucu KAPALIYSA (anahtar yok / anlam katmanı anahtarı eksik) da bütün parçalar tutulur (Opus 10-23 G1): "genel kural + istisna"
               // (Soru 9) ve "sorulanı cevaplıyor mu" denetimi yalnız okuyucuda — okuyucusuz parça kipi bunları hiç sınamadan gönderiyordu.
-              if (composed.verified.length > 0 && !seniorReaderEnabled()) {
-                const holds = partReaderHolds({ status: "failed" }, composed.verified.map((v) => v.ref));
-                composed = composeVerifiedReply({ parts: decl.parts, needs, sources: partSources, holds, meaningJudge });
-              } else if (composed.verified.length > 0) {
-                const reader = await runPartReader({
-                  // Bugün + konaklama günleri (kör set incelemesi 10-23: Temmuz'da geleceğini söyleyen misafire sezon dışı saat).
-                  dateLine: understandingDateLine(
-                    stayTimeline({ now: input.now ?? new Date(), timeZone: orgTimezone(input.timeZone), reservation: input.reservation ?? null }),
-                    input.reservation !== undefined,
-                  ),
+              // Bugün + konaklama günleri (kör set incelemesi 10-23: Temmuz'da geleceğini söyleyen misafire sezon dışı saat).
+              const dateLine = understandingDateLine(
+                stayTimeline({ now: input.now ?? new Date(), timeZone: orgTimezone(input.timeZone), reservation: input.reservation ?? null }),
+                input.reservation !== undefined,
+              );
+              const requestOf = (ref: string) => {
+                const a = items.answerable.find((x) => x.ref === ref);
+                // İstek misafirin KENDİ sözleriyle (Codex S2): sorgu listesi [Türkçe arama sorgusu, özgün dildeki sorgu] — sonuncusu özgün.
+                const queries = a?.need?.queries ?? [];
+                return { request: queries[queries.length - 1] || a?.hint || "", ...(a ? { topic: ITEM_KIND_LABELS_TR[a.kind] } : {}) };
+              };
+              // Parçanın notları: dayandığı kalem ilk; aynı konuyu anan öteki kalemler ardından (değişke / istisna başka kalemde olabilir — Opus
+              // 10-23 sabah F10). Alıntının geçtiği öteki kalemler de (#199: genel kural + istisnası iki kalemde) — konu sözcüğü eşleşmese bile.
+              // Dayanağı bulunamayan parçada (kodun "alıntı yok" tutuşu) yalnız konuyu anan kalemler.
+              const notesOf = (ref: string, source?: string, alsoCited?: readonly string[]) => {
+                const a = items.answerable.find((x) => x.ref === ref);
+                const primary = source ? (partSources.find((s) => s.id === source)?.text ?? "") : "";
+                const cited = new Set(alsoCited ?? []);
+                const related = partSources
+                  .filter((s) => s.id !== source && (cited.has(s.id) || sourceMentionsNeed(s.text, a?.need?.terms ?? [], a?.need?.topics ?? [])))
+                  .map((s) => s.text);
+                return primary ? [primary, ...related] : related;
+              };
+              const readParts = (verified: ReturnType<typeof composeVerifiedReply>["verified"]) =>
+                runPartReader({
+                  dateLine,
                   guestMessage: guest.turn.join("\n"),
                   earlierConversation: guest.earlier,
-                  parts: composed.verified.map((v) => {
-                    const a = items.answerable.find((x) => x.ref === v.ref);
-                    const primary = partSources.find((s) => s.id === v.source)?.text ?? "";
-                    // Dayandığı kalem ilk; aynı konuyu anan öteki kalemler ardından (değişke / istisna başka kalemde olabilir — Opus 10-23 sabah F10).
-                    // Alıntının geçtiği öteki kalemler de (#199: genel kural + istisnası iki kalemde) — konu sözcüğü eşleşmese bile.
-                    const cited = new Set(v.alsoCited ?? []);
-                    const related = partSources
-                      .filter((s) => s.id !== v.source && (cited.has(s.id) || sourceMentionsNeed(s.text, a?.need?.terms ?? [], a?.need?.topics ?? [])))
-                      .map((s) => s.text);
-                    // İstek misafirin KENDİ sözleriyle (Codex S2): sorgu listesi [Türkçe arama sorgusu, özgün dildeki sorgu] — sonuncusu özgün.
-                    const queries = a?.need?.queries ?? [];
-                    return {
-                      ref: v.ref,
-                      request: queries[queries.length - 1] || a?.hint || "",
-                      ...(a ? { topic: ITEM_KIND_LABELS_TR[a.kind] } : {}),
-                      text: v.text,
-                      notes: [primary, ...related],
-                    };
-                  }),
+                  parts: verified.map((v) => ({ ref: v.ref, ...requestOf(v.ref), text: v.text, notes: notesOf(v.ref, v.source, v.alsoCited) })),
                   names: [input.reservation?.guestName, input.reservation?.guestGivenName, input.guestIdentifier],
                 });
-                const holds = partReaderHolds(reader, composed.verified.map((v) => v.ref));
-                const keepOpen = reader.status === "ok" ? reader.keepOpen : undefined;
+              let holds = new Map<string, PartReaderHold>();
+              let keepOpen: Set<string> | undefined;
+              if (composed.verified.length > 0 && !seniorReaderEnabled()) {
+                holds = partReaderHolds({ status: "failed" }, composed.verified.map((v) => v.ref));
+                composed = composeVerifiedReply({ parts: decl.parts, needs, sources: partSources, holds, meaningJudge });
+              } else if (composed.verified.length > 0) {
+                const reader = await readParts(composed.verified);
+                holds = partReaderHolds(reader, composed.verified.map((v) => v.ref));
+                keepOpen = reader.status === "ok" ? reader.keepOpen : undefined;
                 if (holds.size > 0 || keepOpen) composed = composeVerifiedReply({ parts: decl.parts, needs, sources: partSources, holds, meaningJudge, keepOpen });
+              }
+              // TUTULAN PARÇAYI BİR KEZ YENİDEN YAZ (kurucu 10-23 akşam 4.9, `part-rewrite.ts`): okuyucu koşarken, düzeltilebilir sebeple tutulan
+              // parçalar aynı notlardan bir kez yeniden yazılır; yeni parça kodun bütün denetimlerinden ve okuyucudan YENİDEN geçer.
+              let rewriteUsage: LlmUsage | undefined;
+              const targets = partRewriteEnabled() && seniorReaderEnabled() ? partRewriteTargets(composed.verdicts) : new Map<string, PartRewriteReason[]>();
+              if (targets.size > 0) {
+                const targetList = [...targets].slice(0, PART_REWRITE_MAX).map(([ref, reasons]) => {
+                  const prev = decl.parts.find((p) => p.ref === ref);
+                  const v = composed.verified.find((x) => x.ref === ref);
+                  // Okuyucunun tuttuğu parça kodun doğruladığı kaynağa sahiptir; kodun tuttuğu parçada dayanak yok → konuyu anan kalemler.
+                  const grounded = prev?.evidence ? groundEvidence(partSources, prev.evidence) : null;
+                  return {
+                    ref,
+                    ...requestOf(ref),
+                    previous: prev?.text ?? "",
+                    reasons,
+                    notes: notesOf(ref, v?.source ?? grounded?.source.id, grounded?.cited.map((c) => c.id)),
+                  };
+                });
+                const call = await callOpenAI(
+                  partRewriteSystemPrompt({ feeRule: kbFeeRuleEnabled() }),
+                  buildPartRewriteUserContent({ language: normalizeLang(parsed.detectedLanguage), dateLine, guestMessage: guest.turn.join("\n"), targets: targetList }),
+                  input.breakerKey,
+                );
+                rewriteUsage = call?.usage;
+                const rewrittenDecl = (() => {
+                  try {
+                    return call?.content ? parseAnswerParts((JSON.parse(call.content) as { answers?: unknown })?.answers, targetList.map((t) => t.ref)) : null;
+                  } catch {
+                    return null;
+                  }
+                })();
+                const rewritten = rewrittenDecl?.ok ? rewrittenDecl.parts : [];
+                if (rewritten.length > 0) {
+                  const rewrittenRefs = new Set(rewritten.map((p) => p.ref));
+                  const parts = mergeRewrittenParts(decl.parts, rewritten);
+                  // Yeniden yazılmayan parçaların ilk hükmü aynen kalır; yeniden yazılanlar okuyucuya YENİDEN gider.
+                  const baseHolds = new Map([...holds].filter(([ref]) => !rewrittenRefs.has(ref)));
+                  const baseOpen = new Set([...(keepOpen ?? [])].filter((ref) => !rewrittenRefs.has(ref)));
+                  let next = composeVerifiedReply({ parts, needs, sources: partSources, holds: baseHolds, meaningJudge, keepOpen: baseOpen });
+                  const fresh = next.verified.filter((v) => rewrittenRefs.has(v.ref));
+                  if (fresh.length > 0) {
+                    const reader = await readParts(fresh);
+                    const freshHolds = partReaderHolds(reader, fresh.map((v) => v.ref));
+                    holds = new Map([...baseHolds, ...freshHolds]);
+                    keepOpen = new Set([...baseOpen, ...(reader.status === "ok" ? (reader.keepOpen ?? []) : [])]);
+                    next = composeVerifiedReply({ parts, needs, sources: partSources, holds, meaningJudge, keepOpen });
+                  }
+                  composed = { ...next, verdicts: next.verdicts.map((v) => (rewrittenRefs.has(v.ref) ? { ...v, rewritten: true as const } : v)) };
+                }
               }
               const sources = composed.verdicts.flatMap((v) => (v.status === "verified" ? [v.source] : []));
               // Gönderilen ama isteği kapatmayan parçalar ayrı taşınır (Opus 10-23 öğle B4): kapı "gönderilecek bir şey var mı" ve tehlike
               // kemerlerinde onları da okur, kapatma yalnız `refs`.
               const openRefs = composed.verdicts.flatMap((v) => (v.status === "verified" && v.openAfterSend ? [v.ref] : []));
               const answered = { ok: true as const, refs: composed.refs, ...(openRefs.length > 0 ? { openRefs } : {}) };
-              return { reply: composed.reply, answered, verdicts: composed.verdicts, verified: composed.verified, sources };
+              return { reply: composed.reply, answered, verdicts: composed.verdicts, verified: composed.verified, sources, rewriteUsage };
             })()
           : null;
         // Birleşik metin de aynı tavana tabi (Haiku 10-23: beş uzun parça tavanı aşıyordu); kesilirse güven ≤ 0.5 → gitmez.
@@ -770,7 +836,11 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
             const claimAudit = auditClaimsSafe(cappedReply.text, prompt.claimContext);
             return claimAudit ? { claimAudit } : {};
           })(),
-          ...(llmUsage ? { llmUsage } : {}),
+          // Parça yeniden yazma çağrısının kullanımı da sayılır (4.9; ölçüm maliyeti).
+          ...(() => {
+            const usage = addLlmUsage(llmUsage, partsOutcome?.rewriteUsage);
+            return usage ? { llmUsage: usage } : {};
+          })(),
           missingInfo: sanitizeStringList(parsed.missingInfo, 5, 80),
           statedCheckoutTime:
             // Format-valid AND deterministically evidenced in the guest's own

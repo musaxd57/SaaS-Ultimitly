@@ -227,6 +227,12 @@ kalıcı "işlem yok" sayılıyor (niyet kapanır, yeni işlem açılır) — ye
   🚨 `AI_SENIOR_READER_ENABLED=1` ile birlikte açılmalı (kurucu 10-23 sabah Soru 9 / 11 + Codex): "soruyu gerçekten cevaplıyor mu / kaynakta
   yazıyor mu / sorulmayan istisna tek başına mı" PARÇA OKUYUCUSUNUN sorusudur, kod yalnız yapıyı sınar. İsteğe bağlı: `AI_PART_READER_MODEL` /
   `AI_PART_READER_REASONING_EFFORT` yalnız parça okuyucusunun modeli / çabası (boşken kıdemli okuyucunun ayarı; C kolu ölçümüyle seçilir).
+- `AI_PART_REWRITE_ENABLED` (kurucu 10-23 akşam 4.9, aynen: "önerini beğendim test ile yap en doğrusu nasıl olucaksa öyle yapalım hep") —
+  parça kipinde okuyucu ya da kod bir parçayı DÜZELTİLEBİLİR sebeple tutarsa (sorulanı cevaplamıyor / yarım / değer yanlış şeye bağlı / notlarda
+  olmayan söz / alıntı birebir değil / sayı alıntıda yok / ters olumluluk / çok uzun) cevap modeli o parçayı BİR KEZ aynı notlardan yeniden
+  yazar; yeni parça kodun bütün denetimlerinden ve okuyucudan yeniden geçer, yine tutulursa ev sahibinde açık kalır (`ai/part-rewrite.ts`).
+  Bedeli: tutulan parça olan turda bir cevap modeli + bir okuyucu çağrısı daha. `AI_ANSWER_PARTS_ENABLED` + `AI_SENIOR_READER_ENABLED`
+  olmadan etkisiz. Açmadan önce yanmış setle önce / sonra ölçümü (rapor `docs/RAPOR-2026-10-23-aksam-s1-kurucu-kararlari.md`).
 - `AI_ITEM_ORDINAL_ENABLED` (kurucu 10-23 D, migration 84 — "evet, kanıtla") — aynı mesajda aynı türden ikinci istek (havuz + sauna ikisi de
   "olanaklar") AYRI açık iş olur (`ConversationItem.ordinal`); her işin yanında kısa konu etiketi (`topic`, kurucu C: ham metin değil, en çok 3
   sözcük, ad / telefon / şifre / saldırı talimatı süzülür, misafir kaynaklı veri, silme / anonimleştirmede gider). Kapalıyken bugünkü kural

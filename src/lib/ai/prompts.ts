@@ -1339,6 +1339,14 @@ export const ITEMS_MODE_REPLACEMENTS: readonly Replacement[] = [
 // Kurucu: "her ihtiyaca kaynak bul → cevapları ayrı üret → uygun parçaları birleştir → yalnız gerçekten cevaplanan işleri kapat";
 // "'Sauna hakkında bilgim yok' üretilip sonra ayıklanmasın". Model istek başına parça + birebir alıntı yazar; misafire giden metni
 // KOD kurar (`ai/answer-parts.ts`, doğrulayıcı `ai/answer-binding.ts`). Tek çapa: öğe kipinin `answeredRequests` satırı.
+/**
+ * Kurucu 10-23 akşam 4.9 ("klima kumandasını bulmadan onu neden sorsun … asıl soruya sorulan cevabı vermiyor"): nasıl yapılır sorusunda yer
+ * tek başına cevap değildir — kalem adımları da yazıyorsa ikisi birlikte. Ücret kuralı katmanının da çapası (`PARTS_FEE_INCLUDED_REPLACEMENTS`).
+ */
+const PARTS_HOW_TO_LINE =
+  "  - Misafir bir şeyi NASIL yapacağını / kullanacağını soruyorsa kalemin yazdığı adımları yaz; yer (kumandanın / anahtarın nerede\n" +
+  "    olduğu) tek başına cevap değildir — kalem ikisini de yazıyorsa ikisi birlikte (ör. \"Kumanda komodinin çekmecesinde; soğutma için\n" +
+  "    mavi kar tanesi tuşuna basın.\").\n";
 export const ANSWER_PARTS_REPLACEMENTS: readonly Replacement[] = [
   [
     '  "answeredRequests": ["<KONUŞMA ÖĞELERİ bloğundaki cevapladığın isteklerin kimlikleri, ör. R1; hiçbirini cevaplamadıysan boş dizi>"]\n}',
@@ -1351,9 +1359,23 @@ export const ANSWER_PARTS_REPLACEMENTS: readonly Replacement[] = [
       '    ("hafta sonu", "yalnız yazın", "talep üzerine") ve olumsuzluğu aynen koru; aynı konunun koşullu başka değeri varsa onu da yaz.\n' +
       '    Misafir evet / hayır sorduysa ve bilgi açıkça evet ya da hayır diyorsa text "Evet," ya da "Hayır," ile başlar (misafirin dilinde),\n' +
       '    ardından bilgi; günü / dönemi açıkça yaz (ör. "Evet, hafta içi 22:00\'ye, hafta sonu 23:00\'e kadar açık.").\n' +
+      PARTS_HOW_TO_LINE +
       '  - status "no_info": bilgi yoksa ya da emin değilsen — text ve evidence BOŞ; o istek için reply\'da da "bilgim yok / ev sahibine\n' +
       '    soracağım" YAZMA (istek ev sahibinde açık kalır).\n' +
       "  - Misafire giden metni sistem bu parçalardan kurar; alıntısı tutmayan parça gitmez.",
+  ],
+];
+
+/**
+ * Ücret kuralı da açıkken (kurucu 10-23 akşam 4.2 "önerin iyi": "Kahvaltı dahil mi?" → "Dahil değil; kişi başı 250 TL."): dahil / ücretsiz
+ * sorusunda kalem ücreti yazıyorsa ücret de koşuluyla söylenir. Ücret kuralı kapalıyken KURAL-4 her tutarı yasaklar → satır EKLENMEZ.
+ */
+export const PARTS_FEE_INCLUDED_REPLACEMENTS: readonly Replacement[] = [
+  [
+    PARTS_HOW_TO_LINE,
+    PARTS_HOW_TO_LINE +
+      "  - Misafir bir hizmetin fiyata DAHİL mi / ücretsiz mi olduğunu soruyorsa ve aynı kalem dahil olmadığını ve ücretini yazıyorsa\n" +
+      '    ücreti de koşuluyla AYNEN yaz (ör. "Dahil değil; kişi başı 250 TL."); evidence ücret cümlesini de kapsar.\n',
   ],
 ];
 
@@ -1499,7 +1521,8 @@ const PROMPT_LAYERS: readonly (readonly [keyof ReplyPromptFlags, LayerReplacemen
   ["complaintFollowup", COMPLAINT_FOLLOWUP_REPLACEMENTS],
   ["itemsMode", ITEMS_MODE_REPLACEMENTS],
   // Parça kipi öğe kipinin çıktı satırına bağlı: öğe kipi kapalıyken çapa yok, katman boş (her birleşim eksiksiz — pinli).
-  ["itemsParts", (f) => (f.itemsMode ? ANSWER_PARTS_REPLACEMENTS : [])],
+  // Ücret kuralı da açıksa "dahil mi" satırı parça katmanının kendi satırına bağlanır (4.2).
+  ["itemsParts", (f) => (f.itemsMode ? [...ANSWER_PARTS_REPLACEMENTS, ...(f.kbFeeRule ? PARTS_FEE_INCLUDED_REPLACEMENTS : [])] : [])],
   ["itemsHeld", ITEMS_HELD_REPLACEMENTS],
   // ÖRNEK 24'ün açılışı kod selamı katmanında değişir → hâl hatır katmanı o birleşimde kendi çapasını kullanır.
   ["courtesy", (f) => (f.codeGreeting ? COURTESY_CODE_GREETING_REPLACEMENTS : COURTESY_REPLACEMENTS)],

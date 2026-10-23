@@ -90,7 +90,7 @@ type ScopeIssue = "aspect_missing" | "subject_partial";
 /** Parça okuyucusunun tuttuğu parça (Soru 11; `semantic/part-reader.ts`). */
 type ReaderIssue = `reader_${PartReaderHold}`;
 
-export type PartVerdict =
+export type PartVerdict = (
   | {
       ref: string;
       status: "verified";
@@ -106,7 +106,11 @@ export type PartVerdict =
       issues: (BindingIssue | "text_missing" | "too_long" | "source_not_found" | ScopeIssue | ReaderIssue)[];
       /** Okuyucu tuttuğunda kodun aynı parçada gördüğü anlam bulguları (ölçüm: okuyucu ile kod aynı şeyi mi gördü). */
       advisory?: (BindingIssue | ScopeIssue)[];
-    };
+    }
+) & {
+  /** Bu hüküm, tutulan ilk parçanın BİR KEZ yeniden yazılmış hâline ait (`part-rewrite.ts`; iz / ölçüm). */
+  rewritten?: true;
+};
 
 export interface ComposedReply {
   /** Misafire gidecek metin: doğrulanan parçalar, istek sırasıyla, satır satır. Hiç yoksa boş dize (hiçbir şey gitmez). */
