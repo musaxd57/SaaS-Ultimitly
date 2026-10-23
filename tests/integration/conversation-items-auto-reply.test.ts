@@ -1714,6 +1714,64 @@ describe("CEVAP PARÇALARI (kurucu 10-23 A, AI_ANSWER_PARTS_ENABLED)", () => {
     expect((await itemsOf(conversationId)).every((i) => i.status !== "answered")).toBe(true);
   });
 
+  describe("Opus 10-23 öğle B4 — 'gider ama açık kalır' parçası (yalnız bilinen özel durum)", () => {
+    const oneNeed = () =>
+      parseUnderstanding(
+        {
+          language: "tr",
+          requests: [{ intent: "amenities", message: 1, query_tr: "sauna kaçta kapanıyor", query_original: "Sauna kaçta kapanıyor?" }],
+          stay_change: STAY_NONE,
+          withdrawn: [],
+        },
+        { items: true },
+      )!;
+    const text = "Sauna hafta sonu 22:00'de kapanıyor.";
+    const openVerdict = (over: Partial<SuggestReplyResult> = {}) =>
+      verdict({
+        intent: "amenities",
+        reply: text,
+        usedSources: ["kb:1"],
+        answeredRequests: { ok: true, refs: [], openRefs: ["R1"] },
+        answerParts: [{ ref: "R1", status: "verified", source: "kb:1", openAfterSend: true }],
+        verifiedParts: [{ ref: "R1", text, evidence: "Sauna hafta sonu 22:00'de kapanır.", source: "kb:1" }],
+        ...over,
+      });
+
+    it("🚨 tek soruluk tur sessiz kalmaz: parça misafire GİDER, istek 'cevaplandı' sayılmaz (ev sahibinde açık)", async () => {
+      vi.stubEnv("AI_ANSWER_PARTS_ENABLED", "1");
+      vi.stubEnv("AI_ITEM_ORDINAL_ENABLED", "1");
+      const { conversationId } = await seed("Sauna kaçta kapanıyor?");
+      understands(oneNeed());
+      mockSuggest.mockResolvedValueOnce(openVerdict());
+      const out = await applyChannelAutoReply(conversationId);
+      expect(out.sent).toBe(true);
+      expect(JSON.stringify(mockSend.mock.calls[0])).toContain("22:00");
+      expect((await itemsOf(conversationId)).find((i) => i.kind === "amenities")?.status).not.toBe("answered");
+    });
+
+    it("🚨 tur başka sebeple TUTULURSA açık kalacak parça cevapsız istek sayılır: ev sahibine TEK e-posta", async () => {
+      vi.stubEnv("AI_ANSWER_PARTS_ENABLED", "1");
+      vi.stubEnv("AI_ITEM_ORDINAL_ENABLED", "1");
+      const { conversationId } = await seed("Sauna kaçta kapanıyor?");
+      understands(oneNeed());
+      mockSuggest.mockResolvedValueOnce(openVerdict({ confidence: 0.6 }));
+      const out = await applyChannelAutoReply(conversationId);
+      expect(out.sent).toBe(false);
+      expect(mockMail).toHaveBeenCalledTimes(1);
+    });
+
+    it("🚨 açık kalacak parçanın metni son cevapta değiştiyse beyan geçersiz → tur tutulur (onaylı parça aynen gitmeli)", async () => {
+      vi.stubEnv("AI_ANSWER_PARTS_ENABLED", "1");
+      vi.stubEnv("AI_ITEM_ORDINAL_ENABLED", "1");
+      const { conversationId } = await seed("Sauna kaçta kapanıyor?");
+      understands(oneNeed());
+      mockSuggest.mockResolvedValueOnce(openVerdict({ reply: "Sauna 23:00'te kapanıyor." }));
+      const out = await applyChannelAutoReply(conversationId);
+      expect(out.sent).toBe(false);
+      expect(mockSend).not.toHaveBeenCalled();
+    });
+  });
+
   it("aşırı uygulama yok: bütün parçalar doğrulandı ama tur başka sebeple tutuldu → eski kiple aynı (e-posta yok, panelde)", async () => {
     vi.stubEnv("AI_ANSWER_PARTS_ENABLED", "1");
     vi.stubEnv("AI_ITEM_ORDINAL_ENABLED", "1");

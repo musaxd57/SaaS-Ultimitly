@@ -235,6 +235,29 @@ describe("#199 kör set incelemesi 10-23 — alıntı iki kalemi birleştirebili
     expect(ok.verdicts[0]).toMatchObject({ status: "verified", source: "kb:1" });
   });
 
+  it("Haiku 10-23 öğle: alıntı konusuz genel bir cümleyle başlasa da bağ denetimine konuyu anan kalemin cümlesi gider; kodun tuttuğu parçanın anlam bulgusu ize yazılır", () => {
+    const src = [
+      { id: "kb:1", text: kbLine({ category: "general", title: "Genel saatler", content: "Resepsiyon hafta içi 09:00–20:00 arası açıktır." }) },
+      { id: "kb:2", text: kbLine({ category: "amenities", title: "Havuz", content: "Havuz hafta içi 09:00–20:00 arası açıktır." }) },
+    ];
+    const out = composeVerifiedReply({
+      parts: [p("R1", "Havuz hafta içi 20:00'de kapanıyor.", "Resepsiyon hafta içi 09:00–20:00 arası açıktır. Havuz hafta içi 09:00–20:00 arası açıktır.")],
+      needs: [{ ref: "R1", terms: needTerms(["havuz hafta içi kaçta kapanıyor"]), topics: [] }],
+      sources: src,
+      meaningJudge: "reader",
+    });
+    expect(out.verdicts[0]).toMatchObject({ status: "verified", source: "kb:2" });
+    expect(out.verified[0]).toMatchObject({ source: "kb:2", alsoCited: ["kb:1"] });
+    // Kodun tuttuğu (uydurma saat) parçada anlam bulguları da izde.
+    const held = composeVerifiedReply({
+      parts: [p("R1", "Sauna hafta içi 21:00'de kapanıyor.", "Havuz hafta içi 09:00–20:00 arası açıktır.")],
+      needs: [{ ref: "R1", terms: needTerms(["havuz hafta içi kaçta kapanıyor"]), topics: [] }],
+      sources: src,
+      meaningJudge: "reader",
+    });
+    expect(held.verdicts[0]).toMatchObject({ status: "rejected", issues: expect.arrayContaining(["value_not_in_evidence"]), advisory: expect.any(Array) });
+  });
+
   it("🚨 Opus 10-23 öğle B1: ters olumluluk (izin ↔ yasak) okuyucu koşarken de KODDA tutulur", () => {
     const src = [{ id: "kb:1", text: kbLine({ category: "rules", title: "Evcil hayvan", content: "Evcil hayvan kabul edilmez." }) }];
     const out = composeVerifiedReply({

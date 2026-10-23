@@ -339,8 +339,8 @@ export function composeVerifiedReply(input: {
     const blocking = byReader ? binding.issues.filter((i) => CODE_KEPT_ISSUES.has(i)) : binding.issues;
     if (blocking.length > 0) {
       // Okuyucu kipinde kodun tuttuğu parçanın anlam bulguları da ize yazılır ("okuyucu ile kod aynı şeyi mi gördü" ölçümü — Opus B12).
-      const seen = byReader ? binding.issues.filter((i) => !CODE_KEPT_ISSUES.has(i)) : [];
-      verdicts.push({ ref: need.ref, status: "rejected", issues: blocking, ...(seen.length > 0 ? { advisory: seen } : {}) });
+      const meaningSeen = byReader ? binding.issues.filter((i) => !CODE_KEPT_ISSUES.has(i)) : [];
+      verdicts.push({ ref: need.ref, status: "rejected", issues: blocking, ...(meaningSeen.length > 0 ? { advisory: meaningSeen } : {}) });
       continue;
     }
     // Doğru ama sorulanı cevaplamayan parça isteği KAPATMAZ ve gitmez (Opus e2e 10-23 F2 / F3): "Havuz kaçta açılıyor?" ↔ "Havuz
