@@ -317,3 +317,23 @@ tabanının ilk kararı sözcükseldir ("cold"). 100 ev sahibi × 10 daire × ~3
   işletme silinince satır kalmaz · başka dairenin satırı okunmaz · bozuk satır → cold + satır silinir · zaman aşımı → cold, yarım harita yok ·
   sorgu vektörü tabloya girmez · envanterler (dışa aktarma, demo sıfırlama, kiracılar arası, Railway bayrak listesi, "1" bayrakları).
 - **Sıra:** S1 (tek yazma kancası, pinli) → S3 → S5 ölçüm (içe aktarma boyutunda bilgi tabanı: tamamı / seçim, sıcak / soğuk) → S6 ekran.
+
+### 10.1 S3 uygulama kararları (kod öncesi son hâl, 10-23 gece)
+
+Kod incelemesi sonrası tasarım sadeleşti (aynı güvenceler, daha az kolon / daha az kırılma noktası):
+
+- **Satır yalnız kaleme bağlı:** `KbChunkVector { id · kbItemId (FK → KnowledgeBaseItem, onDelete Cascade) · model · textHash · dims · vector (Bytes) ·
+  createdAt }`, tekil (`kbItemId, model, textHash`). `organizationId / propertyId` kolonu YOK: kalem → daire → işletme silme zinciri zaten
+  cascade; kiracı yalıtımı okumanın kendisinde (aşağıda). `variant` kolonu YOK: QR biçimi (yer tutucusu doldurulmuş metin) farklı `textHash`
+  verir, tekil anahtar ikisini zaten ayırır.
+- **Okuma kalem kimliğiyle:** `prepareSemanticScores` bellekte eksik parça bulunca, eksik parçaların KENDİ kalem kimlikleri + model ile satır
+  ister (`kbItemId IN (…) AND model = …`), özetleri bellekte eşler. Kalem kimlikleri çağıranın kiracı süzgeçli bilgi tabanı okumasından gelir
+  → başka işletmenin satırı istenemez. Zaman sınırı 250 ms; bozuk satır (boyut ≠ 1.536 / bayt ≠ boyut × 4 / sonlu olmayan sayı) silinir,
+  eksik sayılır; hâlâ eksik varsa bugünkü gibi `cold` + arka plan ısıtması (YARIM HARİTA YOK).
+- **Yazma yalnız ısıtmadan:** `scheduleWarm` metin → kalem kimliği eşlemesini parçalayıcının çıktısından alır; sağlayıcıdan dönen vektör
+  belleğe + tabloya (`createMany skipDuplicates`). Sorgu vektörü tabloya ASLA yazılmaz (sorgu yolu `scheduleWarm`dan geçmez — pin).
+- **Bayat satır temizliği tek kancada:** `afterKbItemsChanged` (S1) değişen dairelerin kalemleri için `createdAt < kalem.updatedAt` olan
+  satırları siler (tek SQL; metni değişmeyen kalem bir kez yeniden ısıtılır — ucuz). Açılış ısıtması başka modelin satırlarını siler.
+- **Anahtar:** `KB_VECTOR_STORE_ENABLED` (yalnız "1"), varsayılan KAPALI → kapalıyken tabloya okuma / yazma / silme YOK (bayt bayt bugünkü).
+- **Envanterler:** KVKK dışa aktarma "türetilmiş — metni bilgi tabanı dökümünde" gerekçesiyle dışarıda; Railway açılış listesi; "1" bayrakları;
+  migration manifesti; kiracılar arası davranış testi (başka işletmenin kalem kimliğiyle okuma sıfır satır).
