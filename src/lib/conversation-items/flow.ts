@@ -357,7 +357,11 @@ export async function notifyHeldItems(
 
 /** Sessiz kalan açık ihtiyacın satır başına kalıcı bildirim kaydı öneki (kurucu 10-23 sabah, Soru 10). */
 export const OPEN_NEED_MAIL_PREFIX = "open-need-mail:";
-const OPEN_NEED_MAIL_TTL_MS = 45 * 24 * 60 * 60 * 1000;
+/**
+ * Kaydın ömrü (Haiku 10-23 sabah): 45 günlük talep süresi dolunca ev sahibi hâlâ yazmamışsa aynı satır yeniden bildirilebiliyordu; kurucu
+ * "aynı açık ihtiyaç için daha önce bildirim gittiyse yeniden gitmesin" → bir yıl (satır saklama süresinin ötesi, kayıtta metin yok).
+ */
+const OPEN_NEED_MAIL_TTL_MS = 365 * 24 * 60 * 60 * 1000;
 
 /** `mailed` / `deduped` (o mesaja e-posta zaten gitmişti — kayıt kalır) · `none` (bildirilecek açık ihtiyaç yok) · `not_sent` (kayıt geri alındı). */
 export type OpenNeedNotice = "mailed" | "deduped" | "none" | "not_sent";

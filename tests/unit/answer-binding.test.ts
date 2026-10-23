@@ -1281,6 +1281,13 @@ describe("Soru 9 — yalnız istisnayı söyleyen parça (omitsGeneralRule)", ()
     expect(omits(SEASON, "Havuz yaz aylarında 22:00'ye kadar açık.", ["havuz yazın kaçta kapanıyor"])).toBe(false);
   });
 
+  it("🚨 kaynaktaki genel değerin ARDINDAKİ değersiz gün yan cümlesi onu değişke yapmaz (Haiku 10-23 sabah)", () => {
+    const src = "Havuz 22:00'de kapanır, hafta sonu da açık. Hafta sonları 23:00'e kadar açıktır.";
+    expect(omits(src, "Hafta sonları havuz 23:00'e kadar açıktır.", ["havuz kaçta kapanıyor"])).toBe(true);
+    // Ardında gün olan değer parçanın kendi değeriyse istisna sayılmaz.
+    expect(omits("Havuz 23:00'e kadar açık, hafta sonu.", "Havuz hafta sonu 23:00'e kadar açık.", ["havuz kaçta kapanıyor"])).toBe(false);
+  });
+
   it("değersiz öteki değişke de sayılır ('Hafta içi kapalıdır' — misafir her gün açık sanmasın)", () => {
     expect(omits("Havuz hafta sonu 23:00'e kadar açık. Hafta içi kapalıdır.", "Havuz hafta sonu 23:00'e kadar açık.", ["havuz kaçta kapanıyor"])).toBe(true);
   });

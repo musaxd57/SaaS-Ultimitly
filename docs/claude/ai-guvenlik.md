@@ -160,7 +160,7 @@
   cevaplamıyor / yarım / yanlış bağ / tek başına istisna); cevabında olmayan / bozuk / tekrarlanan parça ve okuyucu düşerse BÜTÜN parçalar
   tutulur; kodun tuttuğunu serbest bırakamaz; tek okuma (serbest bırakma yetkisi olmadığı için). İstem örnekleri ölçüm setinin konularından
   farklı (pinli). (10) Sessiz tutulan turda önceki okumadan kalmış AÇIK ihtiyaç (`plan.staleOpen`) → satır başına kalıcı kayıt
-  (`SystemLock open-need-mail:<satır>`, 45 gün) ÖNCE, sonra mevcut "Misafir cevabınızı bekliyor" yolu (mesaj başına tek); e-posta gitmezse
+  (`SystemLock open-need-mail:<satır>`, bir yıl) ÖNCE, sonra mevcut "Misafir cevabınızı bekliyor" yolu (mesaj başına tek); e-posta gitmezse
   kayıt geri alınır; güncel durum yeniden okunur (vazgeçilen / cevaplanan satır bildirilmez); `notifiedAt` BİLEREK kullanılmadı (acil e-posta
   tekilleştirmesi onu mesaj düzeyinde okur). Kör ölçüm: `live-pipeline` mühürlü kip (`EVAL_SEALED_FINAL=1`, yalnız sayı).
 - 🚨 **MÜLKÜN İÇ ADI MODELE GİTMEZ (kurucu 10-22 akşam: "müşteriye daire adı ne … daire numarası anca verilir … kat 2 daire 3 gibidir"):**

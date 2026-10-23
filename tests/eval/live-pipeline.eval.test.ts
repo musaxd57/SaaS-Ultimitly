@@ -116,8 +116,16 @@ const SEALED_NAME_RAW = process.env.EVAL_SEALED_NAME?.trim();
 if (SEALED_NAME_RAW && !(SEALED_NAMES as readonly string[]).includes(SEALED_NAME_RAW)) throw new Error(`EVAL_SEALED_NAME tanınmıyor: ${SEALED_NAME_RAW}`);
 const SEALED_NAME = SEALED_NAMES.find((n) => n === SEALED_NAME_RAW) ?? SEALED_NAMES[0];
 const DATASET = SEALED ? path.resolve(__dirname, "../../evals/sealed", SEALED_NAME) : path.resolve(__dirname, "../../evals", SET);
+const key = process.env.OPENAI_API_KEY?.trim() ?? "";
+const dbUrl = process.env.DATABASE_URL ?? "";
+/** Ayrı veritabanı ZORUNLU: 5433 test harness'ının (tam kapılar) veritabanıdır — orada koşmak kapıların koşusunu bozar. */
+const separateDb = /^postgresql:\/\/[^@]*@(localhost|127\.0\.0\.1):(\d+)\//.exec(dbUrl)?.[2] !== "5433" && /localhost|127\.0\.0\.1/.test(dbUrl);
+const enabled =
+  process.env.RUN_REAL_EVAL === "1" && key.length > 20 && !key.startsWith("test-") && process.env.EVAL_LIVE_PIPELINE === "1" && separateDb;
+// Mühürlü set yalnız AÇIK (gerçek model) koşuda okunur; kapalı koşu mührü okuyamaz / yakamaz.
+if (SEALED && !enabled) throw new Error("EVAL_SEALED_FINAL=1 yalnız gerçek canlı hat koşusunda (RUN_REAL_EVAL + EVAL_LIVE_PIPELINE + ayrı veritabanı).");
 const datasetBytes = readFileSync(DATASET);
-if (SEALED) {
+if (SEALED && enabled) {
   const seals = JSON.parse(readFileSync(path.resolve(__dirname, "../../evals/sealed/SEALS.json"), "utf8")) as Record<string, { sha256?: string; state?: string }>;
   const seal = seals[SEALED_NAME];
   if (!seal || seal.state !== "sealed") throw new Error("mühürlü set 'sealed' durumunda değil (yanmış ya da kayıtsız).");
@@ -125,13 +133,6 @@ if (SEALED) {
   if (process.env.EVAL_LIVE_LIMIT || process.env.EVAL_LIVE_ONLY) throw new Error("EVAL_LIVE_LIMIT / EVAL_LIVE_ONLY mühürlü koşuda kullanılamaz.");
 }
 const data = JSON.parse(datasetBytes.toString("utf8")) as Dataset;
-
-const key = process.env.OPENAI_API_KEY?.trim() ?? "";
-const dbUrl = process.env.DATABASE_URL ?? "";
-/** Ayrı veritabanı ZORUNLU: 5433 test harness'ının (tam kapılar) veritabanıdır — orada koşmak kapıların koşusunu bozar. */
-const separateDb = /^postgresql:\/\/[^@]*@(localhost|127\.0\.0\.1):(\d+)\//.exec(dbUrl)?.[2] !== "5433" && /localhost|127\.0\.0\.1/.test(dbUrl);
-const enabled =
-  process.env.RUN_REAL_EVAL === "1" && key.length > 20 && !key.startsWith("test-") && process.env.EVAL_LIVE_PIPELINE === "1" && separateDb;
 
 const MODEL = process.env.OPENAI_MODEL?.trim() || "gpt-5.1";
 const LIMIT = Number(process.env.EVAL_LIVE_LIMIT) > 0 ? Math.trunc(Number(process.env.EVAL_LIVE_LIMIT)) : Infinity;

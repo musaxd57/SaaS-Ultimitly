@@ -1792,39 +1792,51 @@ describe("CEVAP PARÇALARI (kurucu 10-23 A, AI_ANSWER_PARTS_ENABLED)", () => {
     mockSuggest.mockResolvedValueOnce(verdict({ intent: "checkout_time", confidence: 0.3, reply: "Çıkış saati 11:00.", answeredRequests: { ok: true, refs: ["R1"] } }));
     expect((await applyChannelAutoReply(conversationId)).sent).toBe(false);
     expect(mockMail).not.toHaveBeenCalled();
-    // 2. geçiş (parça kipi açık): misafir "Teşekkürler" yazdı; yeni okuma ilk mesajdan istek ÜRETMEDİ → iki satır bayat açık, tur sessiz.
+    // 2. geçiş (parça kipi açık): misafir "Teşekkürler" yazdı; yeni okuma ilk mesajdan yalnız çıkış sorusunu üretti → sauna satırı bayat açık.
+    // Bütün parçalar doğrulandı ama tur güvenden tutuldu (devir yok, cevapsız parça yok) → bugüne kadar sessizdi.
     vi.stubEnv("AI_ANSWER_PARTS_ENABLED", "1");
     await guestWrites(conversationId, "Teşekkürler", 1);
-    const noRequests = () =>
-      understands(parseUnderstanding({ language: "tr", requests: [], stay_change: STAY_NONE, withdrawn: [] }, { items: true })!);
-    noRequests();
-    mockSuggest.mockResolvedValueOnce(verdict({ reply: "Rica ederim." }));
+    const reread = () =>
+      understands(
+        parseUnderstanding(
+          {
+            language: "tr",
+            requests: [
+              { intent: "checkout_time", message: 1, query_tr: "çıkış saati kaçta", query_original: "Çıkış saat kaçta?" },
+              { intent: "greeting_thanks", message: 2, query_tr: "teşekkür", query_original: "Teşekkürler" },
+            ],
+            stay_change: STAY_NONE,
+            withdrawn: [],
+          },
+          { items: true },
+        )!,
+      );
+    const allVerifiedButHeld = () =>
+      mockSuggest.mockImplementationOnce(async (input) => {
+        const refs = input.conversationItems?.answerable.map((a) => a.ref) ?? [];
+        return verdict({
+          intent: "checkout_time",
+          confidence: 0.3,
+          reply: "Çıkış saati 11:00.",
+          answeredRequests: { ok: true, refs },
+          answerParts: refs.map((ref) => ({ ref, status: "verified" as const, source: "property" })),
+        });
+      });
+    reread();
+    allVerifiedButHeld();
     expect((await applyChannelAutoReply(conversationId)).sent).toBe(false);
     expect(mockSend).not.toHaveBeenCalled();
+    // Bayat satır cevaplanabilir istek olarak modele GİTMEDİ (Opus e2e F5) ve ev sahibine tek e-posta gitti; e-posta ihtiyacın mesajını gösterir.
+    expect(mockSuggest.mock.calls[1][0].conversationItems?.answerable.map((a) => a.kind)).not.toContain("amenities");
     expect(mockMail).toHaveBeenCalledTimes(1);
     expect(JSON.stringify(mockMail.mock.calls[0])).toContain("Sauna var mı?");
-    expect(await prisma.systemLock.count({ where: { name: { startsWith: "open-need-mail:" } } })).toBe(2);
+    expect(await prisma.systemLock.count({ where: { name: { startsWith: "open-need-mail:" } } })).toBe(1);
     // 3. geçiş: aynı tur yeniden işlendi → kayıt var, ikinci e-posta YOK.
-    noRequests();
-    mockSuggest.mockResolvedValueOnce(verdict({ reply: "Rica ederim." }));
+    reread();
+    allVerifiedButHeld();
     await applyChannelAutoReply(conversationId);
     expect(mockMail).toHaveBeenCalledTimes(1);
-  });
-
-  it("🚨 Soru 10: misafir vazgeçtiyse (anlama katmanının 'withdrawn' okuması) bayat satır kapanır → e-posta YOK", async () => {
-    vi.stubEnv("AI_ITEM_ORDINAL_ENABLED", "1");
-    const { conversationId } = await seed("Sauna var mı?");
-    understands(understood([{ intent: "amenities", message: 1 }]));
-    mockSuggest.mockResolvedValueOnce(verdict({ intent: "amenities", confidence: 0.3, reply: "Evet.", answeredRequests: { ok: true, refs: ["R1"] } }));
-    await applyChannelAutoReply(conversationId);
-    expect(mockMail).not.toHaveBeenCalled();
-    vi.stubEnv("AI_ANSWER_PARTS_ENABLED", "1");
-    await guestWrites(conversationId, "Saunayı boşverin, gerek kalmadı.", 1);
-    understands(parseUnderstanding({ language: "tr", requests: [], stay_change: STAY_NONE, withdrawn: [{ intent: "amenities", message: 1 }] }, { items: true })!);
-    mockSuggest.mockResolvedValueOnce(verdict({ reply: "Tamamdır." }));
-    await applyChannelAutoReply(conversationId);
-    expect(mockMail).not.toHaveBeenCalled();
-    expect((await itemsOf(conversationId)).find((i) => i.kind === "amenities")?.status).toBe("withdrawn");
+    expect((await itemsOf(conversationId)).find((i) => i.kind === "amenities")?.status).toBe("open");
   });
 
   it("anahtar kapalı: cevap modeline parça kipi GİTMEZ (girdi bugünküyle aynı)", async () => {

@@ -2780,7 +2780,9 @@ export function omitsGeneralRule(input: {
       for (let gi = 0; gi < sent.groups.length; gi++) {
         const g = sent.groups[gi];
         if (!g.claims.some((e) => classes.has(e.cls)) || !d.boundAt(si, gi)) continue;
-        const place = d.placeOf(sent, gi);
+        // Kaynak tarafı da parça gibi değerin ÖNÜNDEKİ koşulla okunur: ardındaki değersiz gün yan cümlesi ("…22:00'de kapanır, hafta sonu da
+        // açık") genel değeri hafta sonuna bağlamaz (Haiku 10-23 sabah: genel kural değişke sanılıyor, tek başına istisna gidiyordu).
+        const place = d.placeOf(sent, gi, { extraBeforeOnly: true });
         if (!otherCondition(variantClassesOf(place.conditions))) continue;
         if (partDirs.size > 0 && place.directions.size > 0 && ![...place.directions].some((x) => partDirs.has(x))) continue;
         if (g.claims.some((e) => classes.has(e.cls) && !claims.some((x) => sameValue(x.c, e)))) return true;

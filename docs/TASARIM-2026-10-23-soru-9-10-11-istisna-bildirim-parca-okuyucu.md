@@ -44,7 +44,7 @@ Kural (kurucunun şartları):
 - Yalnız GERÇEK açık ihtiyaç: satır `open` / `pending_host` (cevaplandı · vazgeçildi · yerine geçildi · bitti DEĞİL), kaynak / asistan
   sorusu değil (`NO_NOTIFY_KINDS`), turun mesajlarından (ev sahibi bu mesajlardan sonra yazmadı — tur tanımı). Misafirin vazgeçmesi anlama
   katmanının `withdrawn` okumasıyla satırı kapatır (`applyWithdrawals`) → bildirim yok. Ev sahibi yazdıysa mesaj tura girmez → bildirim yok.
-- ÖNCE kalıcı kayıt: satır başına benzersiz talep satırı (`SystemLock` `open-need-mail:<satır>`, 45 gün; `create` yarışını tek kazanan —
+- ÖNCE kalıcı kayıt: satır başına benzersiz talep satırı (`SystemLock` `open-need-mail:<satır>`, bir yıl; `create` yarışını tek kazanan —
   eşzamanlı ya da yeniden işlenen geçişte ikinci e-posta yok). Kaydı zaten olan satır e-posta tetiklemez → yeniden işleme / her tarama yeni
   e-posta üretmez. (`ConversationItem.notifiedAt` BİLEREK kullanılmadı: bugün yalnız hassas satırlarda dolu ve "mesaj zaten bildirildi"
   okumaları — acil e-posta tekilleştirmesi — onu mesaj düzeyinde okur; güvenli satıra yazılırsa aynı mesajın sonraki hassas öğesinin acil

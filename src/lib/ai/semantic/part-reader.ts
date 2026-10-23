@@ -117,15 +117,18 @@ export type PartReaderOutcome = { status: "ok"; holds: Map<string, PartReaderHol
 const knownNames = (input: Pick<PartReaderInput, "names">) =>
   (input.names ?? []).filter((n): n is string => typeof n === "string" && n.trim().length > 0);
 
-const fenced = (text: string, names: readonly string[], author: "guest" | "ours", cap: number) =>
-  `<<<${fenceSafe(redactForSemanticModel(author === "guest" ? stripDividerRuns(text) : text, names, author)).slice(0, cap)}>>>`;
+/** `tail`: uzun metnin SONU okunur (turun en yeni mesajı — sorulan gün / ihtiyaç çoğunlukla oradadır; Haiku 10-23 sabah). */
+const fenced = (text: string, names: readonly string[], author: "guest" | "ours", cap: number, tail = false) => {
+  const safe = fenceSafe(redactForSemanticModel(author === "guest" ? stripDividerRuns(text) : text, names, author));
+  return `<<<${tail ? safe.slice(-cap) : safe.slice(0, cap)}>>>`;
+};
 
 export function buildPartReaderUserContent(input: PartReaderInput): string {
   const names = knownNames(input);
   const earlier = (input.earlierGuestMessages ?? []).filter((m) => m.trim()).slice(-EARLIER_MAX);
   return [
     "GUEST MESSAGE (this turn):",
-    fenced(input.guestMessage, names, "guest", GUEST_CAP),
+    fenced(input.guestMessage, names, "guest", GUEST_CAP, true),
     "EARLIER GUEST MESSAGES (oldest first):",
     earlier.length > 0 ? earlier.map((m) => fenced(m, names, "guest", EARLIER_CAP)).join("\n") : "none",
     "PARTS:",

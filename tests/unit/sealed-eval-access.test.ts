@@ -21,6 +21,8 @@ const SEALED_DIR = path.join(REPO, "evals", "sealed");
 const NEEDLE = ["stay", "change", "final"].join("-");
 /** Anlama ölçümünün kör seti (10-21, `docs/TASARIM-2026-10-21-anlama-olcumu.md` §3) — aynı kurallar. */
 const NEEDLE_UX = ["understanding", "e2e", "blind"].join("-");
+/** İhtiyaç bazlı uçtan uca kör set (kurucu 10-23 sabah, Soru 11; `docs/TASARIM-2026-10-23-soru-9-10-11-istisna-bildirim-parca-okuyucu.md` §4). */
+const NEEDLE_E = ["needs", "blind", "2026", "10", "23"].join("-");
 
 /** Dosya adının geçmesine izin verilen yerler (yeni okuyucu = bilinçli liste değişikliği). */
 const ALLOWED = new Set([
@@ -35,6 +37,7 @@ const ALLOWED_UX = new Set([
   "tests/eval/understanding-e2e.eval.test.ts",
   "docs/TASARIM-2026-10-21-anlama-olcumu.md",
 ]);
+const ALLOWED_E = new Set(["evals/sealed/SEALS.json", `evals/sealed/${NEEDLE_E}.json`, "tests/eval/live-pipeline.eval.test.ts"]);
 const SKIP_DIRS = new Set([".git", "node_modules", ".next", "dist", "build", "coverage", "playwright-report", "test-results"]);
 const BINARY_EXT = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".pdf", ".woff", ".woff2", ".ttf", ".zip", ".gz"]);
 
@@ -85,6 +88,7 @@ describe("mühürlü final eval seti", () => {
       }
       if (text.includes(NEEDLE) && !ALLOWED.has(rel)) offenders.push(rel);
       if (text.includes(NEEDLE_UX) && !ALLOWED_UX.has(rel)) offenders.push(rel);
+      if (text.includes(NEEDLE_E) && !ALLOWED_E.has(rel)) offenders.push(rel);
     }
     expect(offenders).toEqual([]);
   });
@@ -127,7 +131,7 @@ describe("mühürlü final eval seti", () => {
       expect(seal.burnedAt, name).toMatch(/^\d{4}-\d{2}-\d{2}$/);
       expect(seal.runSha, name).toMatch(/^[0-9a-f]{40}$/);
       expect(seal.report ?? "", name).toMatch(
-        /^docs\/olcum\/(?:stay-change-FINAL-eval-\d{4}-\d{2}-\d{2}|anlama-e2e-kor-[a-z_]+-\d{4}-\d{2}-\d{2}(?:-[a-z0-9._-]+)?)\.md$/,
+        /^docs\/olcum\/(?:stay-change-FINAL-eval-\d{4}-\d{2}-\d{2}|anlama-e2e-kor-[a-z_]+-\d{4}-\d{2}-\d{2}(?:-[a-z0-9._-]+)?|live-pipeline-\d{4}-\d{2}-\d{2}-[a-z0-9._-]+-kor(?:-[a-z0-9._-]+)?)\.md$/,
       );
       expect(existsSync(path.join(REPO, seal.report ?? "")), `${name}: yakma raporu depoda yok`).toBe(true);
     }
@@ -149,6 +153,18 @@ describe("mühürlü final eval seti", () => {
     expect(ux.indexOf("const datasetBytes = enabled")).toBeLessThan(ux.indexOf('if (SEALED && enabled)'));
     expect(ux.split("readFileSync(DATASET").length - 1).toBe(1);
     expect(ux).toContain("EVAL_UX_LIMIT / EVAL_UX_ONLY mühürlü koşuda kullanılamaz");
+    // İhtiyaç bazlı uçtan uca kör set (Soru 11): mühür kontrolü içerik ayrıştırılmadan ÖNCE, yalnız açık koşuda; kısmi koşu yasak; tek okuma.
+    const live = readFileSync(path.join(REPO, "tests/eval/live-pipeline.eval.test.ts"), "utf8");
+    expect(live).toContain('const SEALED = process.env.EVAL_SEALED_FINAL === "1";');
+    const liveGuard = live.indexOf('if (SEALED && !enabled) throw new Error("EVAL_SEALED_FINAL=1');
+    const liveRead = live.indexOf("const datasetBytes = readFileSync(DATASET);");
+    const liveSeal = live.indexOf('if (!seal || seal.state !== "sealed") throw new Error(');
+    const liveParse = live.indexOf('const data = JSON.parse(datasetBytes.toString("utf8")) as Dataset;');
+    for (const [name, at] of Object.entries({ liveGuard, liveRead, liveSeal, liveParse })) expect(at, name).toBeGreaterThan(-1);
+    expect(liveGuard).toBeLessThan(liveRead);
+    expect(liveSeal).toBeLessThan(liveParse);
+    expect(live.split("readFileSync(DATASET").length - 1).toBe(1);
+    expect(live).toContain("EVAL_LIVE_LIMIT / EVAL_LIVE_ONLY mühürlü koşuda kullanılamaz");
     // Normal test takımı bayrağı hiçbir koşulda set etmez.
     expect(readFileSync(path.join(REPO, "vitest.config.ts"), "utf8")).not.toContain("EVAL_SEALED_FINAL");
   });
