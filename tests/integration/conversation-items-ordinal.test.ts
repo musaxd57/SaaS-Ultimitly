@@ -377,6 +377,46 @@ describe("Haiku 10-23 D incelemesi — belirsizse kapatma yok (kurucu B), saklam
     expect(rows.every((r) => r.topic)).toBe(true);
   });
 
+  it("🚨 Haiku 10-23 gece-2: aynı soru başka fiil çekimiyle ('açılıyor' → 'açılır') eskinin yerini alır; 'Havuz açık mı?' ('havuz') 'Havuz ısıtmalı mı?' ile kapanmaz", async () => {
+    vi.stubEnv("AI_ITEM_ORDINAL_ENABLED", "1");
+    const pairs: [{ q: string; o: string }, { q: string; o: string }, string[]][] = [
+      [{ q: "havuz kaçta açılıyor", o: "Havuz kaçta açılıyor?" }, { q: "havuz ne zaman açılır", o: "Havuz ne zaman açılır?" }, ["superseded", "open"]],
+      [{ q: "havuz açık mı", o: "Havuz açık mı?" }, { q: "havuz ısıtmalı mı", o: "Havuz ısıtmalı mı?" }, ["open", "open"]],
+    ];
+    for (const [first, second, expected] of pairs) {
+      const { conversationId, messageId } = await seed();
+      await turn(conversationId, messageId, [first], 1);
+      const later = await prisma.message.create({
+        data: { conversationId, direction: "inbound", body: second.o, senderName: "Alex", authorType: "guest", createdAt: at(10) },
+      });
+      await planItemsTurn(prisma, {
+        organizationId: orgId,
+        conversationId,
+        history: [
+          { id: messageId, direction: "inbound", body: BODY },
+          { id: later.id, direction: "inbound", body: second.o },
+        ],
+        guestMessage: second.o,
+        understanding: parseUnderstanding(
+          {
+            language: "tr",
+            requests: [
+              { intent: "amenities", message: 1, query_tr: first.q, query_original: first.o },
+              { intent: "amenities", message: 2, query_tr: second.q, query_original: second.o },
+            ],
+            stay_change: STAY_NONE,
+            withdrawn: [],
+          },
+          { items: true },
+        ),
+        expectedMessageIds: [messageId, later.id],
+        now: at(11),
+      });
+      const rows = await prisma.conversationItem.findMany({ where: { conversationId }, orderBy: { createdAt: "asc" }, select: { topic: true, status: true } });
+      expect(rows.map((r) => r.status), JSON.stringify(rows)).toEqual(expected);
+    }
+  });
+
   it("süre bazlı anonimleştirme (DATA_RETENTION_MONTHS) etiketi boşaltır; öğe kalır", async () => {
     vi.stubEnv("AI_ITEM_ORDINAL_ENABLED", "1");
     vi.stubEnv("DATA_RETENTION_MONTHS", "24");

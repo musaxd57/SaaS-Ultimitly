@@ -23,7 +23,7 @@ export const TOPIC_MAX_CHARS = 40;
 /** Sır / kimlik sözcükleri (katlanmış kök başlangıcı) — etikete GİRMEZ; ardındaki sözcük de girmez. */
 const SECRET_ROOTS = ["sifre", "parola", "password", "passwort", "kod", "code", "pin", "kart", "card", "iban", "hesap", "hesab", "account", "telefon", "phone", "numara", "number", "mail", "pasaport", "passport", "kimlik", "kombinasyon", "combination"];
 /** Tam sözcük sır adları ("wifi key / pass kelebek", WPA anahtarı) — kök değil: "keyif" sır değildir (Opus güvenlik 10-23 F11). */
-const SECRET_EXACT = new Set(["key", "keys", "pass", "passcode", "pw", "pwd", "wpa", "wpa2", "psk", "ssid", "visa", "mastercard", "amex"]);
+const SECRET_EXACT = new Set(["key", "keys", "pass", "passcode", "pw", "pwd", "sife", "wpa", "wpa2", "psk", "ssid", "visa", "mastercard", "amex"]);
 /** Harfle yazılmış rakamlar etikete girmez ("kapı kodu dört beş bir iki" — kodun kendisi; Opus dilim sonu 10-23 R15). */
 const SPELLED_DIGITS = new Set(
   (
@@ -123,7 +123,8 @@ export function itemTopicLabel(query: string | null | undefined, names: readonly
   const isSecretAt = (i: number) => {
     const f = folded[i] ?? "";
     if (!f) return false;
-    if (SECRET_ROOTS.some((r) => f.startsWith(r)) || SECRET_EXACT.has(f)) return true;
+    // Yanlış yazım / bitişik yazım da sırdır ("passwd", "pasword", "pswd", "wifi sife", "wifisifresi" — Haiku 10-23 gece-2).
+    if (SECRET_ROOTS.some((r) => f.startsWith(r)) || SECRET_EXACT.has(f) || /(?:sifre|parola|passw|pasw|pswd|kennwort)/.test(f)) return true;
     return f.startsWith("anahtar") && NETWORK_WORDS.has(folded[i - 1] ?? "");
   };
   const topicless = (raw: string) => topicsWithSymptomsOf(raw).length === 0;
@@ -151,7 +152,8 @@ export function itemTopicLabel(query: string | null | undefined, names: readonly
     // Değer sır sözcüğünden ÖNCE de yazılır ("kelebek şifresi" — kodu olan şey değilse: "kapı kodu" kalır); e-posta adresinin yerel kısmı
     // alan adından önce gelir; bilinen adın YALIN hâlinin bitişiğindeki konusuz sözcük soyadıdır ("john smith"; "mehmetin odası" değil).
     // Sözlükte konusu olan sözcük kalır ("wifi şifresi").
-    if (topicless(raw) && ((next && isSecretAt(i + 1) && !CODED_THINGS.has(f)) || EMAIL_PARTS.has(next) || nameParts.includes(prev) || nameParts.includes(next))) continue;
+    // İki sözcüklük değer de olur ("MAVİ kelebek şifresi").
+    if (topicless(raw) && ((next && (isSecretAt(i + 1) || (topicless(raws[i + 1] ?? "") && isSecretAt(i + 2))) && !CODED_THINGS.has(f)) || EMAIL_PARTS.has(next) || nameParts.includes(prev) || nameParts.includes(next))) continue;
     // Sorgu küçük harfle yazılır; sözlükte konusu olmayan Büyük Harfli sözcük özel addır ("Ahmet", "Netflix").
     if (titleCase(raw) && topicsWithSymptomsOf(raw).length === 0) continue;
     const word = raw.toLocaleLowerCase("tr");

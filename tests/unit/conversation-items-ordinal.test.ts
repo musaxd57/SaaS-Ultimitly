@@ -135,6 +135,14 @@ describe("yeniden işleme — istek ↔ satır eşlemesi (çoğaltma yok, yanlı
     expect(alignOrdinals([R("amenities", null), R("amenities", null)], [E("amenities", 0, "havuz"), E("amenities", 1, "sauna")])).toEqual([0, 1]);
   });
 
+  it("🚨 Haiku 10-23 gece-2: kısa kökün çekimi aynı satır ('su' ↔ 'suyu', 'çöp' ↔ 'çöpü', 'kat' ↔ 'katta'); konu sözcüğü olmayan etiket sırayla eşlenir", () => {
+    for (const [a, b] of [["suyu", "su"], ["çöpü", "çöp"], ["katta", "kat"], ["ücreti", "ücret"], ["kuralları", "kural"], ["temizlikte", "temizlik"]]) {
+      expect(alignOrdinals([R("amenities", a)], [E("amenities", 0, b)]), `${a} ↔ ${b}`).toEqual([0]);
+    }
+    expect(alignOrdinals([R("amenities", "bulaşık makinesi")], [E("amenities", 0, "çamaşır makinesi")])).toEqual([1]);
+    expect(labelCovers("havuz açılır", "havuz açılıyor")).toBe(true);
+  });
+
   it("R14: yerine geçme için yeni etiket eskinin bütün sözcüklerini taşımalı ('havuz ısıtmalı' ≠ 'havuz açılıyor')", () => {
     expect(labelCovers("havuz ısıtmalı", "havuz açılıyor")).toBe(false);
     expect(labelCovers("havuz kapanış", "havuz")).toBe(true);

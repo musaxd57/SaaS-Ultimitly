@@ -172,10 +172,13 @@ function subjectWord(word: string): boolean {
 }
 const topicWords = (t: string | null | undefined): string[] => (t ? t.split(/\s+/u).filter((w) => w && subjectWord(w)) : []);
 /** Etiket sözcükleri aynı mı — çekim toleranslı ("havuz" ~ "havuzu", "sauna" ~ "saunada"): eşit ya da en az 4 harflik biri ötekinin başı. */
+/** Kısa kökün çekim eki ("su" → "suyu", "çöp" → "çöpü", "kat" → "katta"; Haiku 10-23 gece-2: yeniden okumada yeni satır açılıyordu). */
+const SHORT_INFLECTION = /^(?:[ynsş])?(?:[ıiuü]|[ae]|[dt][ae]|[dt][ae]n|l[ae]r|l[ae]r[ıi]|n[dt][ae]|n[dt][ae]n)$/u;
 function topicWordMatch(a: string, b: string): boolean {
   if (a === b) return true;
   const [short, long] = a.length <= b.length ? [a, b] : [b, a];
-  return short.length >= 4 && long.startsWith(short);
+  if (short.length >= 4 && long.startsWith(short)) return true;
+  return short.length >= 2 && long.startsWith(short) && SHORT_INFLECTION.test(long.slice(short.length));
 }
 /** İki etiketin ortak (çekim toleranslı) sözcük sayısı. */
 function topicOverlap(a: string | null | undefined, b: string | null | undefined): number {
@@ -199,10 +202,16 @@ export function topicsCompatible(a: string | null | undefined, b: string | null 
 export function labelCovers(newer: string | null | undefined, older: string | null | undefined): boolean {
   if (!newer || !older) return false;
   const nw = newer.split(/\s+/u).filter(Boolean);
+  // Fiil çekimi farkı aynı sözcüktür ("açılıyor" ~ "açılır": ortak baş en az 5 harf, ikisi de en az 6).
+  const verbVariant = (a: string, b: string) => {
+    let cp = 0;
+    while (cp < a.length && cp < b.length && a[cp] === b[cp]) cp++;
+    return cp >= 5 && a.length >= 6 && b.length >= 6;
+  };
   return older
     .split(/\s+/u)
     .filter(Boolean)
-    .every((w) => nw.some((x) => topicWordMatch(w, x)));
+    .every((w) => nw.some((x) => topicWordMatch(w, x) || verbVariant(w, x)));
 }
 
 /**
@@ -259,7 +268,7 @@ export function alignOrdinals(
     // sonu 10-23 R14; kurucu B "ilişki belirsizse kapatma"): bedeli aynı soru için ikinci açık satır, karşılığı cevapsız sorunun cevaplandı sayılması.
     const restReq = idx.filter((i) => !done.has(i));
     const restRows = rows.filter((r) => !usedRows.has(r.ordinal));
-    if (restReq.length > 0 && idx.length === rows.length && restReq.length === restRows.length && restReq.every((i, k) => !requests[i].topic || !restRows[k].topic)) {
+    if (restReq.length > 0 && idx.length === rows.length && restReq.length === restRows.length && restReq.every((i, k) => topicWords(requests[i].topic).length === 0 || topicWords(restRows[k].topic).length === 0)) {
       restReq.forEach((i, k) => take(i, restRows[k].ordinal));
     }
     for (const i of idx) {

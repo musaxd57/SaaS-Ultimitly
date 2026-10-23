@@ -892,3 +892,46 @@ describe("Opus dilim sonu 10-23 (c268349b incelemesi R1–R13)", () => {
     expect(run("Evcil hayvan kabul edilmez.", "Unfortunately pets are not allowed.", PETQ).ok).toBe(true);
   });
 });
+
+describe("Haiku 10-23 gece-2 (cafa3492 incelemesi)", () => {
+  const run = (src: string, part: string, q: string[]) => checkAnswerBinding({ part, evidence: src, sourceText: src, ...need(q) });
+  const PO = ["havuz kaçta kapanıyor", "when does the pool close"];
+
+  it("🚨 yanlış kabuller TUTULUR: 'no later check-out', 'must pay', check-in ↔ check-out, sınır tersine çevirme, iki yön, eklenen niteleyici", () => {
+    expect(run("Geç çıkış yapılabilir.", "There is no later check-out.", ["geç çıkış yapabilir miyim", "can i check out late"]).ok).toBe(false);
+    expect(run("Havuz ücretsizdir.", "You must pay for the pool.", ["havuz ücretli mi", "is the pool free"]).ok).toBe(false);
+    expect(run("Check-out saati: 11:00", "Check-in is at 11:00.", ["check-out saat kaçta", "what time is check-out"]).ok).toBe(false);
+    expect(run("En fazla 14 gece kalınabilir.", "More than 14 nights can be booked.", ["kaç gece kalabilirim", "how many nights can i stay"]).ok).toBe(false);
+    expect(run("En fazla 14 gece kalınabilir.", "14 geceden fazla kalınabilir.", ["kaç gece kalabilirim"]).ok).toBe(false);
+    expect(run("Havuz 20:00'de kapanır.", "The pool closes after 20:00.", PO).ok).toBe(false);
+    expect(run("Havuz 20:00'de kapanır.", "The pool is open from 20:00 until closing.", PO).ok).toBe(false);
+    expect(run("Çocuklar için havuz 10:00'da açılır. Havuz 09:00'da açılır.", "The pool opens at 09:00 for children.", ["havuz kaçta açılıyor", "when does the pool open"]).ok).toBe(false);
+  });
+
+  it("🚨 kısa Türkçe kalem de Türkçe kıyaslanır ('Havlu verilir' → 'Havlu kiralanır' / 'Kendi havlunuzu getirmeniz gerekir' / 'Köpek ve kedi')", () => {
+    const T = ["havlu var mı", "are towels provided"];
+    expect(run("Havlu verilir.", "Havlu kiralanır.", T).ok).toBe(false);
+    expect(run("Havlu verilir.", "Kendi havlunuzu getirmeniz gerekir.", T).ok).toBe(false);
+    expect(run("Havlu verilir.", "Evet, havlu verilir.", T).ok).toBe(true);
+    expect(run("Köpekler kabul edilir.", "Köpek ve kedi kabul edilir.", ["köpek kabul ediliyor mu", "are dogs allowed"]).ok).toBe(false);
+  });
+
+  it("🚨 karışık olumluluklu kalem: tek yönü veren parça tutulur, iki yönü veren gider", () => {
+    const src = "Dairede sigara içmek yasaktır, balkonda içilebilir.";
+    const Q = ["sigara içebilir miyiz", "can we smoke"];
+    expect(run(src, "Balkonda sigara içmek yasaktır.", Q).ok).toBe(false);
+    expect(run(src, "Smoking is not allowed inside, but you can smoke on the balcony.", Q).ok).toBe(true);
+  });
+
+  it("yanlış tutmalar gider: '24/7', '24 hours', 'son las 11:00', 'fecha às 20h', 'in the apartment', 'не позднее'", () => {
+    const open = ["havuz kaçta açık", "when is the pool open"];
+    expect(run("Havuz 7/24 açıktır.", "The pool is open 24/7.", open).ok).toBe(true);
+    expect(run("Havuz 24 saat açıktır.", "The pool is open 24 hours.", open).ok).toBe(true);
+    expect(run("Check-out a las 11:00.", "Son las 11:00 para el check-out.", ["hora de salida", "check-out time"]).ok).toBe(true);
+    expect(run("Las salidas son a las 11:00.", "Check-out is at 11:00.", ["hora de salida", "check-out time"]).ok).toBe(true);
+    expect(run("A piscina fecha até às 20h.", "A piscina fecha às 20h.", ["a que horas fecha a piscina", "when does the pool close"]).ok).toBe(true);
+    expect(run("Evcil hayvan kabul edilmez.", "Pets are not allowed in the apartment.", ["evcil hayvan kabul ediliyor mu", "are pets allowed"]).ok).toBe(true);
+    expect(run("Check-out saati: 11:00", "Выезд не позднее 11:00.", ["çıkış saati kaçta", "checkout time"]).ok).toBe(true);
+    expect(run("Havuz 09:00-20:00 arası, sauna 10:00-22:00 arası açık.", "Havuz 09:00-20:00 arası açık.", ["havuz kaçta kapanıyor", "when does the pool close"]).ok).toBe(true);
+  });
+});

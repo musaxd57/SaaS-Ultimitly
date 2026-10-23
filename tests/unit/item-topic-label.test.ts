@@ -126,3 +126,11 @@ describe("Opus dilim sonu 10-23 R15: sır sözcüğünden sonraki her sözcük v
     expect(itemTopicLabel("havuz kaçta kapanıyor")).toBe("havuz");
   });
 });
+
+describe("Haiku 10-23 gece-2: şifre sözcüğünün yanlış / bitişik yazımı ve iki sözcüklük değer", () => {
+  it("🚨 'passwd / pasword / pswd / sife / wifisifresi' sırdır; 'mavi kelebek şifresi' etiket vermez", () => {
+    for (const q of ["passwd kelebek", "pasword kelebek", "pswd kelebek", "wifisifresi kelebek", "mavi kelebek şifresi"]) expect(itemTopicLabel(q), q).toBeNull();
+    expect(itemTopicLabel("wifi sife kelebek")).toBe("wifi");
+    expect(itemTopicLabel("kelebek şifresi çalışmıyor wifi")).toBe("wifi");
+  });
+});

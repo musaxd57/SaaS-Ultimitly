@@ -179,8 +179,12 @@ describe("Opus dilim sonu 10-23 R11: kayıtlı metin yalnız harfiyen kapsanırs
     expect(confirmAnswer("Check-out is at 11:00; late check-out available.", "Check-out is at 11:00.")).toEqual({ same: true, text: "Check-out is at 11:00." });
     expect(confirmAnswer("Havuz 20:00'de kapanır, gece de kullanılabilir.", "Havuz 20:00'de kapanır.")).toEqual({ same: true, text: "Havuz 20:00'de kapanır." });
     expect(confirmAnswer("Pets are allowed; dogs and cats welcome.", "Pets are allowed.")).toEqual({ same: true, text: "Pets are allowed." });
-    // Taze metin aynı söyleyişle (çıkış ~ check-out) kapsanıyorsa onun yerini alır; kayıt sözlük kısayoluyla korunmaz.
-    expect(confirmAnswer("Çıkış saati 11:00.", "Check-out saati 11:00.")).toEqual({ same: true, text: "Check-out saati 11:00." });
+    // Haiku 10-23 gece-2: sözlük konusu kısayolu iki yönde de kalktı — farklı söyleyiş ("çıkış" ↔ "check-out") teyit sayılmaz (güvenli yön:
+    // daha az teyit); taze metnin eki de kayda giremez.
+    expect(confirmAnswer("Çıkış saati 11:00.", "Check-out saati 11:00.")).toEqual({ same: false });
+    expect(confirmAnswer("Pets are allowed. Garden is quiet.", "Pets are allowed. Dogs and cats welcome.")).toEqual({ same: false });
+    expect(confirmAnswer("Havuz 20:00'de kapanır. TV ve WC.", "Havuz 20:00'de kapanır.")).toEqual({ same: true, text: "Havuz 20:00'de kapanır." });
+    expect(confirmAnswer("Yer yok.", "Yerinde yok.")).toEqual({ same: false });
     expect(confirmAnswer("Check-out is at 11:00.", "Check-out time is 11:00.")).toEqual({ same: true, text: "Check-out is at 11:00." });
   });
 
@@ -189,5 +193,14 @@ describe("Opus dilim sonu 10-23 R11: kayıtlı metin yalnız harfiyen kapsanırs
       expect(entryEligible(tr("amenities", "havuz"), t), t).toBe("relative_time");
     }
     expect(entryEligible(tr("amenities", "havuz"), "The pool closes at 20:00; it is well known.")).toBe("ok");
+  });
+});
+
+describe("Haiku 10-23 gece-2 (3af7943d incelemesi): göreli zaman ekleri", () => {
+  it("'bugünkü / bugüne kadar / şimdiye kadar / şu anki / bu yıl / bu yaz' kayda girmez; 'Dünya' (dün değil) girer", () => {
+    for (const t of ["Bugünkü havuz saati 20:00.", "Bugüne kadar havuz kapalı.", "Şimdiye kadar açık.", "Şu anki fiyat 200 TL.", "Bu yıl havuz yok.", "Bu yaz havuz 22:00'ye kadar açık."]) {
+      expect(entryEligible(tr("amenities", "havuz"), t), t).toBe("relative_time");
+    }
+    expect(entryEligible(tr("amenities", "havuz"), "Dünya kupası maçı ekranda.")).toBe("ok");
   });
 });
