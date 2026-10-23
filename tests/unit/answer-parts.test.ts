@@ -205,6 +205,8 @@ describe("#199 kör set incelemesi 10-23 — alıntı iki kalemi birleştirebili
   it("🚨 bir cümlesi bile kaynakta yoksa (uydurma ek) alıntı dayanaksız; tek sözcüklük parça dayanak sayılmaz", () => {
     expect(groundEvidence(TWO, "Havuz hafta içi 09:00–20:00 arası açıktır. Havuz gece 24:00'e kadar ısıtılır.")).toBeNull();
     expect(groundEvidence(TWO, "Evet. Havuz hafta içi 09:00–20:00 arası açıktır.")).toBeNull();
+    // Kaynakta birebir geçse de tek sözcüklük cümle ("Havuz." kalem başlığı) dayanak sayılmaz.
+    expect(groundEvidence(TWO, "Hafta sonu havuz 09:00–23:00 arası açıktır. Havuz.")).toBeNull();
     expect(groundEvidence(TWO, "")).toBeNull();
     // Uydurma değer yine kodda düşer (çok parçalı alıntı değer denetimini gevşetmez).
     const out = composeVerifiedReply({

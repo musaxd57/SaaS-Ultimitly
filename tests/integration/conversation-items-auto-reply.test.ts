@@ -49,6 +49,7 @@ import { applyChannelAutoReply, sendDueAlerts } from "@/lib/automation";
 import { hasOpenHostWork } from "@/lib/conversation-attention";
 import { hostVoiceDraft } from "@/lib/ai/host-voice";
 import { drainOutboxOnce } from "@/lib/outbox/worker";
+import { OUTBOX_MAX_ATTEMPTS } from "@/lib/outbox/state";
 import { handoffExemptName } from "@/lib/outbox/handoff-exempt";
 
 const mockSuggest = vi.mocked(suggestReply);
@@ -553,6 +554,23 @@ describe("insan talebi — kalıcı kuyruk açıkken aynı devir kararı (Opus O
     await deliver();
     expect((await prisma.messageOutbox.findUniqueOrThrow({ where: { id: row.id } })).status).toBe("sent");
     expect((await conv(conversationId)).autoReplyHoldUntil).toBeNull();
+  });
+
+  it("🚨 Codex 10-23: kuyruktan teslim KESİN düşerse cevapla kapanan Wi-Fi öğesi ev sahibinde yeniden açık (otomasyon cevap mesajını öğeye yazar)", async () => {
+    const { conversationId } = await seed("Wi-Fi şifresi neydi?");
+    understands(understood([{ intent: "wifi", message: 1 }]));
+    mockSuggest.mockResolvedValueOnce(wifiAnswer());
+    await applyChannelAutoReply(conversationId);
+    const row = await prisma.messageOutbox.findFirstOrThrow({ where: { conversationId } });
+    const wifi = await prisma.conversationItem.findFirstOrThrow({ where: { conversationId, kind: "wifi" } });
+    expect(wifi).toMatchObject({ status: "answered", answeredByMessageId: row.messageId });
+    let clock = Date.now();
+    for (let i = 0; i < OUTBOX_MAX_ATTEMPTS + 2; i++) {
+      await drainOutboxOnce({ send: async () => ({ ok: false, error: "Hospitable API hatası (HTTP 400)" }), tokenFor: async () => "t", now: () => new Date(clock) });
+      clock += 60 * 60_000;
+    }
+    expect((await prisma.messageOutbox.findUniqueOrThrow({ where: { id: row.id } })).status).toBe("failed");
+    expect((await prisma.conversationItem.findUniqueOrThrow({ where: { id: wifi.id } })).status).toBe("pending_host");
   });
 
   it("🚨 B1: önceki geçişin öğesi turda dururken bu geçiş öğe kipine GİRMEDİ (anlama düştü) → teslimde kilit KURULUR (satır içi yolla aynı)", async () => {
