@@ -112,8 +112,9 @@ export function guestNameMatcher(names: readonly (string | null | undefined)[]):
  */
 export function itemTopicLabel(query: string | null | undefined, names: readonly (string | null | undefined)[] = []): string | null {
   if (!query) return null;
-  // Birleşik işaretler sözcüğü bölmesin ("ş̇ifre" → "ş" + işaret + "ifre" iki sözcük olup sır sözcüğünü kaçırıyordu).
-  const q = query.normalize("NFC").replace(/\p{M}+/gu, "");
+  // Birleşik işaretler sözcüğü bölmesin ("ş̇ifre" → "ş" + işaret + "ifre" iki sözcük olup sır sözcüğünü kaçırıyordu); görünmez karakter de
+  // ("şif\u200Bresi") ve tam genişlikli rakam ("２") — NFKC (Haiku 10-23 gece-3).
+  const q = query.normalize("NFKC").replace(/[\p{M}\p{Cf}\p{Default_Ignorable_Code_Point}]+/gu, "");
   if (hasInjection(q) || LINK.test(q)) return null;
   const distinct = new Set(needTerms([q]));
   if (distinct.size === 0) return null;
@@ -124,9 +125,22 @@ export function itemTopicLabel(query: string | null | undefined, names: readonly
     const f = folded[i] ?? "";
     if (!f) return false;
     // Yanlış yazım / bitişik yazım da sırdır ("passwd", "pasword", "pswd", "wifi sife", "wifisifresi" — Haiku 10-23 gece-2).
-    if (SECRET_ROOTS.some((r) => f.startsWith(r)) || SECRET_EXACT.has(f) || /(?:sifre|parola|passw|pasw|pswd|kennwort)/.test(f)) return true;
+    if (SECRET_ROOTS.some((r) => f.startsWith(r)) || SECRET_EXACT.has(f) || /(?:sifre|parola|passw|pasw|passphr|pswd|kennwort)/.test(f)) return true;
+    // "kilit / gizli kelimesi" de sırdır (Haiku 10-23 gece-3); tek başına "kelime" değil.
+    if (f.startsWith("kelime") && /^(?:kilit|gizli|anahtar|guvenlik)/.test(folded[i - 1] ?? "")) return true;
     return f.startsWith("anahtar") && NETWORK_WORDS.has(folded[i - 1] ?? "");
   };
+  // Sır sözcüğünün ÖNÜNDEKİ değer birden çok sözcük olabilir ve sözlük sözcüğü taşıyabilir ("kelebek mavi KAHVE şifresi" — Haiku 10-23 gece-3:
+  // iki sözcüklük pencere sözlük sözcüğünde kırılıyordu). Sır sözcüğünden geriye en çok 4 sözcük, kodu olan şeye / ağ sözcüğüne ("kapı kodu",
+  // "wifi şifresi") kadar düşer.
+  const beforeSecret = new Set<number>();
+  for (let j = 0; j < raws.length; j++) {
+    if (!isSecretAt(j)) continue;
+    for (let k = j - 1; k >= 0 && k >= j - 4; k--) {
+      if (CODED_THINGS.has(folded[k]) || NETWORK_WORDS.has(folded[k]) || isSecretAt(k)) break;
+      beforeSecret.add(k);
+    }
+  }
   const topicless = (raw: string) => topicsWithSymptomsOf(raw).length === 0;
   const out: string[] = [];
   // Sır sözcüğünden SONRAKİ sözcük değerin parçası olabilir ("wifi şifresi HALA kelebek mi", "parolası mavi ejderha") → yalnız sözlükte
@@ -135,6 +149,7 @@ export function itemTopicLabel(query: string | null | undefined, names: readonly
   for (let i = 0; i < raws.length; i++) {
     const raw = raws[i];
     const f = folded[i];
+    if (beforeSecret.has(i)) continue;
     if (isSecretAt(i)) {
       afterSecret = true;
       continue;

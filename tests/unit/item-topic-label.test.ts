@@ -134,3 +134,19 @@ describe("Haiku 10-23 gece-2: şifre sözcüğünün yanlış / bitişik yazım�
     expect(itemTopicLabel("kelebek şifresi çalışmıyor wifi")).toBe("wifi");
   });
 });
+
+describe("Haiku 10-23 gece-3: etikete şifre değeri sızma yolları", () => {
+  it("🚨 sır sözcüğünün ÖNÜNDEKİ çok sözcüklü değer (sözlük sözcüğü taşısa da) düşer; kodu olan şey / ağ sözcüğü kalır", () => {
+    expect(itemTopicLabel("kelebek mavi kahve şifresi")).toBeNull();
+    expect(itemTopicLabel("evin wifi şifresi")).toBe("evin wifi");
+    expect(itemTopicLabel("kapı kodu nedir")).toBe("kapı");
+  });
+
+  it("🚨 görünmez karakter sır sözcüğünü bölmez; 'passphrase' ve 'kilit kelimesi' de sırdır", () => {
+    expect(itemTopicLabel("şif​resi kelebek")).toBeNull();
+    expect(itemTopicLabel("passphrase kelebek nedir")).toBeNull();
+    expect(itemTopicLabel("kilit kelimesi kelebek")).toBeNull();
+    // Olağan "kelime" sır değildir.
+    expect(itemTopicLabel("kelime oyunu var mı")).not.toBeNull();
+  });
+});
