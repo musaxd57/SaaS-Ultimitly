@@ -135,6 +135,16 @@ serbest cevabı hiç gitmiyor). Bulunanlar "soruyu cevaplamadan kapatma" ve "ev 
 | F7 | Aynı parça iki kez gidiyordu; her parçanın selamı metnin ortasında kalıyordu | "Wi-Fi şifresi: …\nWi-Fi şifresi: …" | metin bir kez (iki istek de kapanır); 2. ve sonraki parçanın baştaki selamı atılır |
 | F9 | Bilgi tabanıyla ÇELİŞEN standart giriş saati parça kaynağıydı → çelişki bütün turu tutuyordu | — | çelişen satır kaynaktan düşer: yalnız o parça reddedilir, öteki doğrulanmış parçalar gidebilir |
 
+**Haiku 3. tur (bu düzeltmelerin incelemesi, 11 bulgu):** kapandı — "kapanış saati" sorusu tek açılış saatiyle (ve tersi) kapanmaz (aralık ve yönsüz
+soru serbest); "Havuz 24 saat önceden ısıtılır" artık "7/24 açık" sayılmıyor; "24 horas / 24 Stunden / 24 часа / 24h/24" sayılıyor; aynı işe düşen
+iki tek-tesisli sorgu da iki tesis sayılıyor; tekrar anahtarı selamsız metinden ("Merhaba! Havuz…" ile "Havuz…" bir kez), "1.500 TL" ile "1,500 TL"
+birleşmiyor; "hangi saatte / kaçtan / Frühstückszeit / breakfast time" ve Arapça fiyat sözcükleri okunuyor. Çürütülen: "eski satır parça
+denetimini atlatır" — cevaplanacak istek kalmayınca kapı zaten tutuyor (`items_nothing_answered`). Bilinçli bırakılan: çıplak "ne kadar"
+(mesafe de olur), "geç çıkış saati + ücreti" birlikte sorulunca saatsiz cevap tutulur (şüphede tut).
+
+**Gerçek modelle etkisi (E v7, aşağıda):** yeni yön / tesis denetimleri 32 senaryoda **hiçbir** gerçek cevabı reddetmedi (aspect_missing /
+subject_partial = 0); 163 gerçek parça kıyas setinde de fark yok.
+
 Kalanlar (kod değişmedi, karar sizde — §6): **F6** kısmi gönderimde cevapsız güvenli soru için e-posta yok (bugünkü kısmi cevap kuralı,
 10-16 tasarımı) · **F8** kapı, parça kipinde de modelin ATILAN serbest cevabının güven / eylem beyanını okuyor (yalnız fazladan tutma; gevşetmek
 güvenlik kapısı kararı) · **F10** kalıcı kuyrukta teslim düşerse istek "cevaplandı" kalır (bilinen sınır) · **F11** ihtiyaç başına ~60–80 ms
@@ -146,12 +156,17 @@ doğrusal (tavan gerekmedi).
 |---|---|---|---|---|---|
 | yeni akış · okuyucu açık · v4 (dünkü kod) | 30/38 | 8/8 | 0 | 0 | 25/32 |
 | yeni akış · okuyucu açık · v5 (bu gecenin ilk sertleştirmesiyle) | 30/38 | 8/8 | 0 | 0 | 25/32 |
-| yeni akış · okuyucu açık · **v6 (Opus 2. tur R1–R15 sonrası, `3af7943d`)** | **31/38** | **8/8** | **0** | **0** | **26/32** |
+| yeni akış · okuyucu açık · v6 (Opus 2. tur R1–R15 sonrası, `3af7943d`) | 31/38 | 8/8 | 0 | 0 | 26/32 |
+| yeni akış · okuyucu açık · **v7 (uçtan uca + Haiku 3. tur sonrası, `a953544c`)** | **27/38** | **8/8** | **0** | **0** | **24/32** |
 
 v5'te farklılaşan 4 senaryonun ikisi kazanç, ikisi kayıp: biri modelin kendi düşük güveni (doğrulayıcı değil), öteki "devam ediyor"
 söyleyişi — bu gece düzeltildi. Rapor: `docs/olcum/live-pipeline-2026-10-22-gpt-6-luna-needs-2026-10-23-e1023-new-on-v5.{md,json}`.
 v6 ($0,11): yön / sınır / ikinci konu sertleştirmesi doğru cevap kaybettirmedi, bir doğru cevap daha gitti; yanlış hâlâ 0. Rapor:
-`…-e1023-new-on-v6.{md,json}`. Ücretli ölçüm toplamı bu gece: v5 + v6 = $0,22 (onaylı E kapsamı).
+`…-e1023-new-on-v6.{md,json}`. **v7 ($0,107):** 4 senaryo düştü, HİÇBİRİ bu gecenin denetimlerinden değil — ikisi modelin kendi düşük güveni
+(bir parça doğrulandı, öteki "bilgi yok" → tur tutuldu; artık ev sahibine e-posta gider — F1), biri anlama katmanının iki soruyu tek isteğe
+katması + Almanca zamirli cevap (bilinen sınır), biri genel soruya yalnız hafta sonu saatinin verilmesi (§6 soru 9). Bir senaryo kazanıldı.
+Model çeşitliliği tek koşuda ±3 oynuyor (v5 → v6 → v7: 30 → 31 → 27); yanlış ve "bilgim yok" her koşuda 0. Ücretli ölçüm toplamı bu gece:
+v5 + v6 + v7 = $0,33 (onaylı E kapsamı).
 
 ## 5. Kalite kapıları
 
@@ -181,6 +196,12 @@ v6 ($0,11): yön / sınır / ikinci konu sertleştirmesi doğru cevap kaybettirm
    kodla doğrulanmış bir tur, modelin "emin değilim" demesiyle tutulabiliyor (yalnız fazladan tutma, yanlış gönderme yok). Gevşetmek
    güvenlik kapısı kararıdır. E v6'da sayıldı: bütün parçaları doğrulanıp tutulan tur **0**; "bir parça doğrulandı + biri bilgi yok" ile
    tutulan **2** tur (n-tr-giris-erken, n-tr-anahtar-hamam) — ikisi de F1 sınıfı, artık ev sahibine e-posta gider. Önerim: şimdilik değiştirmeyelim.
+9. **Genel soruya yalnız istisna (E v7'de gerçek model yaptı):** misafir "Havuz 22:00'ye kadar açık mı?" · bilgi tabanı "Havuz her gün 20:00'de
+   kapanır. Hafta sonu 23:00'e kadar açıktır." · model: "Havuz hafta sonu 23:00'e kadar açıktır." — **bugün GİDER** (doğru ama eksik: hafta içi
+   20:00'yi söylemiyor, misafir "evet 22'ye kadar açık" anlayabilir). Kodu yazdım ve ölçtüm (163 gerçek cevapta yalnız bu tek cevap etkileniyor),
+   ama eski bir pin bilinçli olarak "yalnız hafta sonu cevabı gider" diyor, o yüzden uygulamadım. Seçenek: misafir gün / mevsim sormadıysa ve
+   bilgi tabanında genel kural varsa, yalnız istisnayı söyleyen cevap gitmesin (istek açık kalır; model genel + istisna yazarsa — "Hafta içi
+   20:00, hafta sonu 23:00" — gider). Misafir "hafta sonu kaçta?" diye sorduysa yalnız istisna yine gider. **Önerim: evet.**
 
 ## 7. Bilinen sınırlar (hepsi TUTMA yönünde — yanlış göndermez, ev sahibine bırakır)
 - Kapasite soruları ("daire kaç kişilik") her zaman ev sahibine kalır ("kişi / kapasite" nitelik sözcüğü, konu sözcüğü kalmıyor).
