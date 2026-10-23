@@ -16,6 +16,8 @@ export type SameValueKind = "parking_spot" | "access_code";
 
 export interface ScanKbItem {
   id: string;
+  /** Kiracı: tarama YALNIZ bir işletmenin kalemlerini karşılaştırır (Opus 10-23 akşam R8 — kapı kodu kiracılar arası karşılaştırılamaz). */
+  organizationId: string;
   propertyId: string;
   title: string;
   content: string;
@@ -78,6 +80,8 @@ export function labeledValues(raw: string): LabeledValue[] {
 
 /** Aynı etiketli değeri taşıyan, en az iki FARKLI dairedeki kalemler. Çağıran yalnız etkin + onaylı kalemleri verir. */
 export function sameValueAcrossProperties(items: readonly ScanKbItem[]): SameValueFinding[] {
+  // Kapalı hata yönü: birden çok işletmenin kalemi gelirse bulgu ÜRETİLMEZ, çağıran hatası fırlatılır (sessiz kiracılar arası sızıntı yok).
+  if (new Set(items.map((i) => i.organizationId)).size > 1) throw new Error("kb-scan: items from more than one organization");
   const byValue = new Map<string, { value: LabeledValue; items: Map<string, { propertyId: string; itemId: string }> }>();
   for (const item of items) {
     for (const v of labeledValues(`${item.title}\n${item.content}`)) {

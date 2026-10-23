@@ -219,9 +219,9 @@ bir özet e-posta? Önerim (a) (e-posta kalabalığı yok). Kalıcı soru kaydı
 Bilgi tabanı önerisi (bugün 1 / 3) — Lale 1
 Bahçe ile ilgili iki ayrı kayıt var:
   "Bahçe 21:00'e kadar açık."  ·  "Cumartesi bahçe 23:00'e kadar açık."
-Böyle birleştireyim mi?
-  "Bahçe cumartesi hariç 21:00'e, cumartesi 23:00'e kadar açık."
-[Onayla] [Düzenle] [Böyle kalsın]
+Tek kayıtta yan yana koyalım mı? (sizin cümleleriniz, kelimesi kelimesine)
+  "Bahçe 21:00'e kadar açık. Cumartesi bahçe 23:00'e kadar açık."
+[Birleştir] [Düzenle] [Böyle kalsın]
 → Onaylanınca: "Lale 2 ve Lale 3'te de aynı iki kayıt var. Onlara da uygulayayım mı?"  [Lale 2 ☑] [Lale 3 ☑]  [Uygula]
 ```
 
@@ -266,3 +266,32 @@ açılmadan önce hazır yama.
 Sıradaki dilimler (sorularınızın cevabına göre): yükleme + inceleme ekranı (7-A, 7-B) · modelle konu ayırma (yalnız blok numarası döner, aynı
 `assembleDrafts` yolundan geçer) + ölçümü · tarama kartı ve günlük soru kaydı (7-C, migration) · eksik bilgi döngüsü (7-D; L1 geçmiş cevap
 araması) · kalıcı gömme deposu (7-E, migration).
+
+## 9. Opus son kontrolü (10-23 akşam) ve uygulananlar
+
+Kurucu kararı (10-23 akşam, aynen): "en iyi şekilde yap çok önemli uzun uzun düşün acele etme öneri için haiku modelinden yardım al son
+kontrolleri yaptırt opusa öneride al" → §7 önerileri onaylandı (önce yükleme, sonra şablon + dışa aktarma; plan sınırına sayılır; tarama kartı
+panelde; eksik bilgi döngüsü e-posta + panel; kalıcı gömme deposu). Opus incelemesi `docs/INCELEME-2026-10-23-aksam-opus-bilgi-tabani.md` (aynen); bulguların KODLA doğrulanmış hâli ve durum:
+
+| # | Bulgu (Opus) | Kodla doğrulama | Durum |
+|---|---|---|---|
+| R1 | Kapı / anahtar paragrafı "Genel"e düşüyor; "Genel" QR'a ve aday misafire açık. "Giriş Talimatı"nın engel gerekçesi eskimiş | `auto-messages/store.ts loadAutoMessage` (otomatik mesajlar ayrı şablon kaydından), `guest-chat.ts QR_SECRET_CATEGORIES = ["checkin"]`, `PREBOOKING_SECRET_CATEGORIES` | ✅ S0: erişim paragrafı yalnız KOD kapısıyla "Giriş Talimatı" taslağına (`access` işareti); konu ayırıcı (kod / ileride model) o kategoriyi seçemez |
+| R1-b | Başlıksız bütün paragraflar tek "Genel" kalemde → tek sorunlu paragraf kalemin tamamını QR'dan düşürür | `document.ts sectionByHeadings` | ✅ S0: "Genel" yalnız bitişik + aynı sayfa |
+| R2 | Taramada model birleştirme cümlesi yazıyor → kapsam hatası ("hafta sonu 23:00") sınavdan geçer | tasarım §5 / §7-C örneği | ✅ Tasarım düzeltildi: birleştirme = ev sahibinin İKİ cümlesi yan yana, ayırma = cümleler ayrı kalemlerde; model yalnız BULUR, yazmaz (kurucunun "model bilgi yazamaz" ilkesiyle aynı) |
+| R3 | PDF'de boş satır yok → başlık / paragraf bulunmaz; Word tabloları dağılır; bozuk Türkçe karakter | pdf.js `getTextContent` biçimi; `document.ts:80,98` | ⏳ S2 (saf yardımcılar: sayfa metni yeniden kurma, bozuk karakter dedektörü, tablo satırı → "etiket: değer") |
+| R4 | İçe aktarma tavanı 20.000, kayıt yolu 3.000 → çoğu taslak 400 alırdı; say-sonra-yaz yarışı; kaynak işaretçisi yazılmıyor | `plan-limits.ts`, `api/kb/route.ts:76,81-92,108` | ✅ S0: tavan tek kaynak `billing/kb-item-cap.ts` (3.000). ⏳ S4: toplu uç, mülk satırı kilidi, belirlenimci istek kimliği, `sourceRef` |
+| R5 | Belgede gizli "önceki talimatları unut" metni tek tıkla içeri girer | ele geçirme süzgeci yalnız OKUMA anında | ✅ S0: her paragraf yazmadan ÖNCE taslak kapısından (`gateDraft`) → `hijack` nedeniyle atlanır, ev sahibine söylenir; ödeme / hassas işaretli taslak tek tıkla onaya girmez |
+| R6 | Kalıcı gömme: silinen metnin vektörü kalır (KVKK) | `ai-suggestions/act.ts:343`, kopya rotası | ⏳ S1 + S3: tek yazma kancası (pinli), `kbItemId` cascade, saatlik süpürücü, yazma yalnız `kb-warm` |
+| R7 | Sıra çelişkisi: §3 "depo önce", §8 "yükleme önce" | — | ✅ Sıra: S0 → S1 → S2 → S3 (depo, anahtar kapalı) → S4 (yalnız sunucu API) → S5 ölçüm → S6 ekran. Kurucunun "önce yükleme" kararı üç dosya özelliği arasındaki sıradır (yükleme → şablon → dışa aktarma); depo ekrandan önce gelir |
+| R8 | Kiracı yalıtımı: tarama bulucusu işletme kimliği almıyor | `kb-scan/same-value.ts` | ✅ S0: `organizationId` zorunlu, karışık işletmede hata (kapalı yön). ⏳ S3: anlamsal getirmeye `propertyId` |
+| R9 | Tarayıcı CSP `worker-src 'none'` + pdf.js açığı (GHSA-hq66) | `next.config.mjs:58` | ⏳ S6: yalnız içe aktarma sayfasında CSP istisnası, pdf.js ≥ 6.2.108 (betik kapalı), sahte işçiye düşme yok |
+| R10 | Tarama / bölümleme modeli misafir kotasını yer | `daily-budget.ts:211` | ✅ Tasarım: tarama MODELSİZ; isteğe bağlı model bölümlemesi ev sahibi başlatır, ayrı sayılır |
+
+**Süre (S0, ölçüldü):** her paragraf kapıdan geçince 18.000 kısa satırlık belge 5,6 sn sürdü → önce bölümün tamamı tek seferde kapıdan geçer, iz
+yoksa paragraflara bakılmaz + aynı metnin sonucu önbellekte + paragraf tavanı 1.500 (aşan kısım "kesildi"). En kötü düşmanca belge ≈ 0,55 sn.
+
+**Opus'un dört sorusu — kurucu kararlarıyla nasıl çözüldü:** (a) erişim paragrafı → "Giriş Talimatı": güvenli yön (QR / aday misafir görmez),
+müşteriye giden cevabı GENİŞLETMEZ, uygulandı; (b) birleştirmede yalnız ev sahibinin cümleleri: kurucunun "model bilgi yazamaz" ilkesi, uygulandı;
+(c) "eksik temel bilgi" soruları (Wi-Fi yok, çıkış yok): kurucunun 09-11'de kaldırdığı A3 yüzeyi — EKLENMEDİ, tarama yalnız çelişki / tekrar /
+yer tutucu / evcil hayvan uyarısı sorar; (d) tarama kararları KVKK dışa aktarmasına: metin taşımaz, sonuç bilgi tabanının dışa aktarmasında —
+gerekçeli dışarıda (ayrı soru gerekmez).

@@ -242,10 +242,10 @@ describe("ev kuralları çekirdeği (gölge) — evcil hayvan kuralı koddan sö
 describe("bilgi tabanı taraması — 'yasak' kalemi uyarısı (seçenek A)", () => {
   it("daire başına yasak kalemleri bulur; izinli / ilgisiz kalem bulgu değildir; uyarı metni kurucunun seçtiği", () => {
     const f = petForbiddenFindings([
-      { id: "k2", propertyId: "p1", title: "Kurallar", content: "Evcil hayvan kabul edilmez." },
-      { id: "k1", propertyId: "p1", title: "Pets", content: "No pets allowed." },
-      { id: "k3", propertyId: "p2", title: "Evcil hayvan", content: "Evcil hayvanlar ücretsiz kabul edilir." },
-      { id: "k4", propertyId: "p2", title: "Otopark", content: "Otopark yoktur." },
+      { id: "k2", organizationId: "org-1", propertyId: "p1", title: "Kurallar", content: "Evcil hayvan kabul edilmez." },
+      { id: "k1", organizationId: "org-1", propertyId: "p1", title: "Pets", content: "No pets allowed." },
+      { id: "k3", organizationId: "org-1", propertyId: "p2", title: "Evcil hayvan", content: "Evcil hayvanlar ücretsiz kabul edilir." },
+      { id: "k4", organizationId: "org-1", propertyId: "p2", title: "Otopark", content: "Otopark yoktur." },
     ]);
     expect(f).toEqual([{ propertyId: "p1", itemIds: ["k1", "k2"] }]);
     expect(PET_FORBIDDEN_WARNING).toContain("Yardımcı hayvanlar");

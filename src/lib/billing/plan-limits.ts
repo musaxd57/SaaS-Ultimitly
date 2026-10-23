@@ -1,4 +1,5 @@
 import { getEntitlement, isFounderOrg } from "@/lib/billing/subscription";
+import { KB_CHARS_PER_ITEM } from "@/lib/billing/kb-item-cap";
 
 // ---------------------------------------------------------------------------
 // PLAN BAŞINA KULLANIM SINIRLARI (kullanıcı kararı, 2026-07-31).
@@ -30,21 +31,7 @@ export interface PlanLimits {
   qrQuestionsPerPropertyPerDay: number;
 }
 
-/**
- * TEK bir kaydın karakter tavanı — plana göre DEĞİŞMEZ, bilerek.
- *
- * Sebebi: kayıt sayısını sınırlarsan, kullanıcı her şeyi tek kayda doldurup
- * sınırı anlamsız kılabilir ("giriş mesajına hepsini yazarım"). Bu tavan o kaçışı
- * kapatır. Plana bağlamak yerine sabit tutuyoruz çünkü amacı ayrıştırma değil,
- * sayı-sınırının delinmesini engellemek. Ayrışma zaten KAYIT SAYISINDA.
- *
- * 3.000 karakter ≈ 420 Türkçe kelime. BOŞLUKLAR DA SAYILIR (`.length`). Hazır
- * şablonlarımızın en uzunu ~300 karakter, yani 10 kat pay var — meşru hiçbir
- * kaydı kesmez. Önceki değer 20.000'di; tek bir kayıtla AI istemini şişirmeye
- * fazlasıyla yetiyordu. (Kısaca 2.000 denendi, kullanıcı 3.000'e döndürdü:
- * "ne olur ne olmaz", ve 420 kelimeden uzun bir bilgi kaydı pratikte yazılmıyor.)
- */
-const KB_CHARS_PER_ITEM = 3_000;
+// Tek kaydın karakter tavanı: tek kaynak `kb-item-cap.ts` (dosyadan içe aktarma da aynı sayıyı okur).
 
 /**
  * Plan bazlı sınırlar.

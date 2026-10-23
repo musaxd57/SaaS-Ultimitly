@@ -54,11 +54,11 @@ describe("etiketli değer", () => {
 
 describe("aynı değer iki farklı dairede", () => {
   const items = [
-    { id: "a", propertyId: "lale-1", title: "Otopark", content: "Otopark ücretsizdir; 12 numaralı yer size ayrılmıştır." },
-    { id: "b", propertyId: "lale-2", title: "Otopark", content: "Otopark: no 12, bina arkasında." },
-    { id: "c", propertyId: "lale-2", title: "Giriş", content: "Kapı kodu 4590." },
-    { id: "d", propertyId: "lale-2", title: "Giriş (yedek)", content: "Kapı kodu 4590, pil biterse anahtar resepsiyonda." },
-    { id: "e", propertyId: "lale-3", title: "Otopark", content: "Otopark: 14 numaralı yer." },
+    { id: "a", organizationId: "org-1", propertyId: "lale-1", title: "Otopark", content: "Otopark ücretsizdir; 12 numaralı yer size ayrılmıştır." },
+    { id: "b", organizationId: "org-1", propertyId: "lale-2", title: "Otopark", content: "Otopark: no 12, bina arkasında." },
+    { id: "c", organizationId: "org-1", propertyId: "lale-2", title: "Giriş", content: "Kapı kodu 4590." },
+    { id: "d", organizationId: "org-1", propertyId: "lale-2", title: "Giriş (yedek)", content: "Kapı kodu 4590, pil biterse anahtar resepsiyonda." },
+    { id: "e", organizationId: "org-1", propertyId: "lale-3", title: "Otopark", content: "Otopark: 14 numaralı yer." },
   ];
 
   it("🚨 iki dairede aynı otopark numarası bulgu; aynı dairedeki tekrar (kapı kodu iki kalemde) bulgu DEĞİL; farklı numara bulgu değil", () => {
@@ -75,11 +75,18 @@ describe("aynı değer iki farklı dairede", () => {
   });
 
   it("aynı giriş kodu iki dairede bulgu (ortak bina kapısı olabilir — soru ev sahibine, karar onun)", () => {
-    const shared = [...items, { id: "f", propertyId: "lale-3", title: "Bina", content: "Bina kapısı kodu 4590." }];
+    const shared = [...items, { id: "f", organizationId: "org-1", propertyId: "lale-3", title: "Bina", content: "Bina kapısı kodu 4590." }];
     expect(sameValueAcrossProperties(shared).map((f) => [f.kind, f.value, f.items.map((i) => i.propertyId)])).toEqual([
       ["access_code", "4590", ["lale-2", "lale-2", "lale-3"]],
       ["parking_spot", "12", ["lale-1", "lale-2"]],
     ]);
+  });
+
+  it("🚨 Opus 10-23 akşam R8: iki işletmenin kalemi birlikte gelirse karşılaştırma YAPILMAZ (hata) — kapı kodu kiracılar arası eşleşmez", () => {
+    expect(() => sameValueAcrossProperties([...items, { id: "x", organizationId: "org-2", propertyId: "lale-9", title: "Giriş", content: "Kapı kodu 4590." }])).toThrow(
+      /more than one organization/,
+    );
+    expect(sameValueAcrossProperties([])).toEqual([]);
   });
 
   it("süre: uzun etiket tekrarı / rakam dizisi doğrusal", () => {
