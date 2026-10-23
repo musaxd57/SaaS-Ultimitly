@@ -2556,7 +2556,7 @@ const LOCAL_AMOUNT =
 const DENIAL_AFTER =
   /(?<!\p{L})(?:yok(?:tur|tu)?|bulunma(?:maktadir|z)|bulunmuyor|mevcut degil\p{L}*|kabul edil(?:mez|memektedir|miyor)|izin veril(?:mez|memektedir|miyor)|yasak(?:tir)?|not allowed|not permitted|prohibited|forbidden|nicht erlaubt|nicht gestattet|verboten|interdit\p{L}*|pas autorise\p{L}*|no se permite\p{L}*|prohibid\p{L}*|non (?:e )?(?:consentit|ammess)\p{L}*|vietat\p{L}*|нет|запрещ\p{L}*|не допуска\p{L}*|ممنوع)(?!\p{L})/gu;
 const DENIAL_BEFORE =
-  /(?<!\p{L})(?:no(?!\s*[,.!;:])|there is no|there are no|we do not have|we don.t have|gibt es (?:keine?n?|nicht)|kein\p{L}*|il n.y a pas(?: de| d)?|pas de|no hay|non c.e|нет|لا يوجد)(?!\p{L})/gu;
+  /(?<!\p{L})(?:no|there is no|there are no|we do not have|we don.t have|gibt es (?:keine?n?|nicht)|kein\p{L}*|il n.y a pas(?: de| d)?|pas de|no hay|non c.e|нет|لا يوجد)(?!\p{L})/gu;
 /** Olumsuzluk ile konu arasında atlanabilen sözcükler (yardımcı fiil, zarf, mastar, tanımlık). */
 const DENIAL_SKIP = new Set(
   (
@@ -2572,8 +2572,7 @@ function subjectMatcher(subjectTerms: readonly string[]) {
   // Bulunma / ayrılma hâli ("havuzDA cankurtaran yok") konunun kendisi değildir (Haiku 10-23 gece-4). Sözlük konusu eşleşmesi bilerek YOK
   // ("Şezlong yoktur" havuzun yokluğu değildir — Opus 10-23 R4 F8); çeviri sözcükleri ihtiyaç sözcüklerinde zaten var.
   const locative = (w: string) => !subjectTerms.includes(w) && /(?:[dt][ae]|[dt][ae]n|[dt][ae]ki|n[dt][ae])$/.test(w);
-  const isSubject = (w: string) =>
-    !locative(w) && ((w.length >= 3 && needTermsInStrict(subjectTerms, w) > 0) || [...facilitiesIn(w)].some((f) => termFacilities.has(f)));
+  const isSubject = (w: string) => (w.length >= 3 && needTermsInStrict(subjectTerms, w) > 0) || [...facilitiesIn(w)].some((f) => termFacilities.has(f));
   const skippable = (w: string) => DENIAL_SKIP.has(w) || TEMPORAL_SKIP.test(w) || /(?:mek|mak)$/.test(w);
   return { isSubject, locative, skippable };
 }
@@ -2598,8 +2597,8 @@ function deniesSubject(text: string, subjectTerms: readonly string[]): boolean {
   const m = subjectMatcher(subjectTerms);
   for (const d of text.matchAll(DENIAL_AFTER)) if (subjectBefore(text, d.index, m)) return true;
   for (const d of text.matchAll(DENIAL_BEFORE)) {
-    // Olumsuzluktan sonraki ilk içerik sözcüğü konu olmalı ve ardından başka bir ad gelmemeli ("There is no pool BAR", "No pool ACCESS before
-    // 09:00" — Opus 10-23 R4 F8).
+    // Olumsuzluktan sonraki ilk içerik sözcüğü (aynı yan cümlede — "No, the pool…" ünlemi boş yan cümledir) konu olmalı ve ardından başka bir
+    // ad gelmemeli ("There is no pool BAR", "No pool ACCESS before 09:00" — Opus 10-23 R4 F8).
     const clause = text.slice(d.index + d[0].length).split(/[.!?;,:]/u)[0] ?? "";
     const after = plainWords(clause);
     const i = after.findIndex((x) => !m.skippable(x));
