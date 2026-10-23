@@ -72,6 +72,11 @@ interface Scenario {
   guest?: { name: string; givenName: string | null; nameSource: string };
   /** Org cevap tonu (yoksa şema varsayılanı "warm"). */
   tone?: string;
+  /**
+   * Konaklama tarihleri (YYYY-MM-DD). Yoksa misafir dün gelir, bugün + 3 çıkar. Mevsim / gün beklentisi taşıyan senaryo tarihini açıkça
+   * verir (kör set incelemesi 10-23: Temmuz / kış / salı beklentileri harness'ın ekim konaklamasına uymuyordu).
+   */
+  stay?: { arrival: string; departure: string };
   expect: {
     autoSend: "yes" | "no" | "any";
     facts?: FactSpec[];
@@ -302,8 +307,8 @@ async function seed(s: Scenario): Promise<{ conversationId: string }> {
       guestName,
       guestGivenName: s.guest ? s.guest.givenName : "Alex",
       guestNameSource: s.guest?.nameSource ?? "channel",
-      arrivalDate: new Date(now - day),
-      departureDate: new Date(now + 3 * day),
+      arrivalDate: s.stay ? new Date(`${s.stay.arrival}T12:00:00Z`) : new Date(now - day),
+      departureDate: s.stay ? new Date(`${s.stay.departure}T09:00:00Z`) : new Date(now + 3 * day),
       channel: "airbnb",
       status: "confirmed",
       sourceReference: `res-${s.id}`,
@@ -419,8 +424,18 @@ const rx = (p: string) => new RegExp(p, "iu");
 const ABSENCE_LEAK =
   /bilgi(m| tabanı| tabanımda)|kayıtlar(ım|ımızda)|notlar(ım|ımızda)|(don'?t|do not) have (any )?(information|details)|knowledge base|my records|according to (my|our) (records|notes)|keine (informationen|angaben)|нет информации/iu;
 
+/**
+ * Otomatik cevabın sonundaki açıklama satırı ("(Bu yanıt otomatik asistan tarafından hazırlandı.)", yedi dil — `automation.ts`) ölçümde
+ * misafire söylenmiş içerik sayılmaz (kör set incelemesi 10-23: asistan sorusunda "asistan / otomatik" yasağı her gidende yanlış gönderim
+ * sayıyordu).
+ */
+const DISCLOSURE_LINE = /\n*\((?:Bu yanıt|This reply|Diese Antwort|Cette réponse|Esta respuesta|تم إعداد|Этот ответ)[^()\n]{0,120}\)\s*$/u;
+export function withoutDisclosure(text: string): string {
+  return text.replace(DISCLOSURE_LINE, "");
+}
+
 export function scoreNeeds(needs: readonly NeedSpec[], sentText: string | null, items: readonly { kind: string; status: string }[]): NeedResult[] {
-  const text = sentText ?? "";
+  const text = withoutDisclosure(sentText ?? "");
   return needs.map((n) => {
     const sameKind = needs.filter((x) => x.kind === n.kind).length;
     const ofKind = items.filter((i) => i.kind === n.kind);
@@ -926,6 +941,10 @@ describe("canlı hat ölçeri — çevrimdışı pinler", () => {
     expect(pairOut[1]).toMatchObject({ textOk: true, wrongAnswered: false });
     // Hiç değeri gitmeyen ihtiyaç yanlış değil, gereksiz tutma.
     expect(scoreNeeds(pair, "Sauna 21:00'de kapanır.", [])[0]).toMatchObject({ textOk: false, wrongAnswered: false });
+    // Kör set incelemesi 10-23: otomatik cevabın açıklama satırı misafire söylenen içerik değildir (asistan sorusu yasakları).
+    const about: NeedSpec[] = [{ kind: "about_assistant", want: "open", forbid: ["asistan", "otomatik"] }];
+    expect(scoreNeeds(about, "Sauna yok.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)", [])[0]).toMatchObject({ textOk: true, wrongAnswered: false });
+    expect(scoreNeeds(about, "Ben otomatik bir asistanım.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)", [])[0]).toMatchObject({ wrongAnswered: true });
   });
 
   it("canlı bayrak listesi anlam katmanlarını 5.1'e sabitler ve ölçülen kolları (cevap modeli, çaba, ücret kuralı) YAZMAZ", () => {

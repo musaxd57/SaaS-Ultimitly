@@ -710,6 +710,8 @@ describe("suggestReply — parça okuyucusu (AI_SENIOR_READER_ENABLED, parça ki
     expect(r2).toContain("REQUEST (guest's words): <<<Havuz kaçta kapanıyor?>>>");
     expect(r2).not.toContain("havuz çalışma saatleri kapanış saati");
     expect(seen).toContain("GUEST: <<<Sitede havuz var mı?>>>");
+    // Bugün satırı her zaman (rezervasyonsuz konuşmada konaklama günü yazılmaz).
+    expect(seen).toContain("DATES: Today (property time zone)");
     expect(seen).toContain("HOST: <<<Evet, bahçe katında havuz var.>>>");
   });
 

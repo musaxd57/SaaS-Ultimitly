@@ -20,6 +20,8 @@ import { parseStayChangeDeclaration } from "./semantic/stay-change";
 import { actionClaimsEnabled, parseClaimedActions } from "./action-claims";
 import { parseAnsweredRequests } from "@/lib/conversation-items/reply-block";
 import { ITEM_KIND_LABELS_TR } from "@/lib/conversation-items/core";
+import { stayTimeline, understandingDateLine } from "./stay-timeline";
+import { orgTimezone } from "@/lib/timezone";
 import { composeVerifiedReply, parseAnswerParts } from "./answer-parts";
 import { sourceMentionsNeed } from "./answer-binding";
 import { seniorReaderEnabled } from "./semantic/absence-judge";
@@ -658,6 +660,11 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
                 composed = composeVerifiedReply({ parts: decl.parts, needs, sources: partSources, holds });
               } else if (composed.verified.length > 0) {
                 const reader = await runPartReader({
+                  // Bugün + konaklama günleri (kör set incelemesi 10-23: Temmuz'da geleceğini söyleyen misafire sezon dışı saat).
+                  dateLine: understandingDateLine(
+                    stayTimeline({ now: input.now ?? new Date(), timeZone: orgTimezone(input.timeZone), reservation: input.reservation ?? null }),
+                    input.reservation !== undefined,
+                  ),
                   guestMessage: guest.turn.join("\n"),
                   earlierConversation: guest.earlier,
                   parts: composed.verified.map((v) => {

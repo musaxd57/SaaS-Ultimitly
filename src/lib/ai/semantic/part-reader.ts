@@ -57,7 +57,9 @@ export const PART_READER_SYSTEM_PROMPT = [
   "Judge every part ONLY against ITS OWN request (the REQUEST line above it). The guest's message often contains other questions too — they",
   "are separate requests, answered or left open elsewhere. A part is never \"partly\" or \"no\" because it does not answer the guest's OTHER",
   "questions. Use the guest's messages and the earlier conversation (the host's replies too — 'and how much is it?' refers to what was",
-  "discussed before) only to understand what THIS request means and whether the guest asked about a special case.",
+  "discussed before) only to understand what THIS request means and whether the guest asked about a special case. DATES tells you today and",
+  "the guest's stay: a part that gives the hours of a season, day or period that does not cover the guest's stay (or the date the guest",
+  "named) is binding_ok false.",
   "",
   "answers_request:",
   '- "yes" when the part gives the guest what this request asks for (the asked time, price, place, permission, instruction, yes/no). A',
@@ -162,6 +164,11 @@ export interface PartReaderInput {
   earlierGuestMessages?: readonly string[];
   /** Turdan ÖNCEKİ konuşma, iki taraflı (eskiden yeniye); son 16 mesaj okunur. */
   earlierConversation?: readonly { from: "guest" | "host"; text: string }[];
+  /**
+   * Bugün + konaklama günleri (mülk saat diliminde, kodun satırı `understandingDateLine`). Kör set incelemesi 10-23: "hafta sonu / yaz / salı"
+   * koşulunun misafire uyup uymadığı tarih olmadan okunamıyordu.
+   */
+  dateLine?: string;
   parts: readonly PartReaderPart[];
   /** Redaksiyon için bilinen adlar (misafir kimliği, rezervasyon adı). */
   names?: readonly (string | null | undefined)[];
@@ -190,6 +197,7 @@ export function buildPartReaderUserContent(input: PartReaderInput): string {
     .filter((m) => m.text.trim())
     .slice(-EARLIER_MAX);
   return [
+    ...(input.dateLine ? [`DATES: ${input.dateLine}`] : []),
     "GUEST MESSAGE (this turn):",
     fenced(input.guestMessage, names, "guest", GUEST_CAP, true),
     "EARLIER CONVERSATION (oldest first; GUEST = the guest, HOST = the host or the assistant):",

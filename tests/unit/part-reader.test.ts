@@ -107,6 +107,12 @@ describe("okuyucunun gördüğü metin", () => {
     expect(PART_READER_SYSTEM_PROMPT).toContain("the host's replies too");
   });
 
+  it("🚨 kör set incelemesi 10-23: okuyucu bugünü ve konaklama günlerini görür (sezon / gün koşulu misafire uyuyor mu)", () => {
+    const text = buildPartReaderUserContent({ guestMessage: "m", dateLine: "Today (property time zone): Fri 2026-10-23. Guest's booking: check-in day Thu 2026-10-22, check-out day Mon 2026-10-26.", parts: [] });
+    expect(text.startsWith("DATES: Today (property time zone): Fri 2026-10-23.")).toBe(true);
+    expect(PART_READER_SYSTEM_PROMPT).toContain("does not cover the guest's stay");
+  });
+
   it("uzun tur metni 8.000 karaktere kadar okunur (kurucu: cimrilik yok)", () => {
     const long = `${"a".repeat(7_000)} SON-SORU`;
     expect(buildPartReaderUserContent({ guestMessage: long, parts: [] })).toContain("a".repeat(6_900));
