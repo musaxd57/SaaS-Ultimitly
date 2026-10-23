@@ -1839,6 +1839,55 @@ describe("CEVAP PARÇALARI (kurucu 10-23 A, AI_ANSWER_PARTS_ENABLED)", () => {
     expect((await itemsOf(conversationId)).find((i) => i.kind === "amenities")?.status).toBe("open");
   });
 
+  it("🚨 Soru 10 (Opus 10-23 sabah F8): bugünkü 'Misafir cevabınızı bekliyor' e-postası giden turda bayat açık ihtiyaç da BİLDİRİLMİŞ sayılır — sonraki sessiz turda ikinci e-posta YOK", async () => {
+    vi.stubEnv("AI_ITEM_ORDINAL_ENABLED", "1");
+    const { conversationId } = await seed("Çıkış saat kaçta? Sauna var mı?");
+    understands(twoNeeds());
+    mockSuggest.mockResolvedValueOnce(verdict({ intent: "checkout_time", confidence: 0.3, reply: "Çıkış saati 11:00.", answeredRequests: { ok: true, refs: ["R1"] } }));
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(false);
+    expect(mockMail).not.toHaveBeenCalled();
+    vi.stubEnv("AI_ANSWER_PARTS_ENABLED", "1");
+    await guestWrites(conversationId, "Teşekkürler", 1);
+    const reread = () =>
+      understands(
+        parseUnderstanding(
+          {
+            language: "tr",
+            requests: [
+              { intent: "checkout_time", message: 1, query_tr: "çıkış saati kaçta", query_original: "Çıkış saat kaçta?" },
+              { intent: "greeting_thanks", message: 2, query_tr: "teşekkür", query_original: "Teşekkürler" },
+            ],
+            stay_change: STAY_NONE,
+            withdrawn: [],
+          },
+          { items: true },
+        )!,
+      );
+    // 2. geçiş: çıkış parçası doğrulanamadı → bugünkü cevapsız parça e-postası gider; tur bayat sauna satırını da taşıyor.
+    reread();
+    mockSuggest.mockResolvedValueOnce(
+      verdict({ intent: "checkout_time", reply: "", answeredRequests: { ok: true, refs: [] }, answerParts: [{ ref: "R1", status: "rejected", issues: ["value_not_in_evidence"] }] }),
+    );
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(false);
+    expect(mockMail).toHaveBeenCalledTimes(1);
+    const sauna = (await itemsOf(conversationId)).find((i) => i.kind === "amenities")!;
+    expect(await prisma.systemLock.count({ where: { name: `open-need-mail:${sauna.id}` } })).toBe(1);
+    // 3. geçiş: aynı tur sessiz tutuldu (bütün parçalar doğrulandı, güven düşük) → sauna satırı için ikinci e-posta YOK.
+    reread();
+    mockSuggest.mockImplementationOnce(async (input) => {
+      const refs = input.conversationItems?.answerable.map((a) => a.ref) ?? [];
+      return verdict({
+        intent: "checkout_time",
+        confidence: 0.3,
+        reply: "Çıkış saati 11:00.",
+        answeredRequests: { ok: true, refs },
+        answerParts: refs.map((ref) => ({ ref, status: "verified" as const, source: "property" })),
+      });
+    });
+    await applyChannelAutoReply(conversationId);
+    expect(mockMail).toHaveBeenCalledTimes(1);
+  });
+
   it("🚨 Codex 10-23 madde 4: onaylanan parça gönderilecek SON metinde aynen durmuyorsa (sonradan değişti) tur TUTULUR, istek açık kalır", async () => {
     vi.stubEnv("AI_ANSWER_PARTS_ENABLED", "1");
     vi.stubEnv("AI_ITEM_ORDINAL_ENABLED", "1");
