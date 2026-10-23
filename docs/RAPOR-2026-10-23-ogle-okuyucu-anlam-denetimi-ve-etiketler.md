@@ -238,4 +238,5 @@ Tam metin: `docs/TASARIM-2026-10-23-bilgi-tabani-dosya-rag-ve-tarama.md` (envant
   önerim evet, Railway açılmadan önce hazır yama) · 7-F (sık soruya kayıttan cevap: gölge kipte ölçüm sürer) · 7-G (ince ayar: önce ~500
   etiketle eşleştirilmiş deneme).
 
-**Mutasyon sonucu (öğle dilimi, 32 mutant):** _(koşu sürüyor — sonuç buraya)_
+**Mutasyon sonucu (öğle dilimi, `5385879a`, ayrık çalışma ağacında):** 32 / 32 öldürüldü (M16'nın çapası bugünkü "talep okunamazsa da uçuşta"
+düzeltmesiyle değişmişti — güncellenip ayrıca koşuldu) + Haiku 2. tur düzeltmelerinin 4 mutantı 4 / 4 → **36 / 36, yaşayan yok**.
