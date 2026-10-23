@@ -7,6 +7,7 @@ import { enqueueOutbound } from "@/lib/outbox/enqueue";
 import { drainOutboxOnce, type OutboxSendFn } from "@/lib/outbox/worker";
 import { OUTBOX_MAX_ATTEMPTS } from "@/lib/outbox/state";
 import { settleItemsTurn } from "@/lib/conversation-items/flow";
+import { ANON_BODY } from "@/lib/data-retention";
 
 // ---------------------------------------------------------------------------
 // Codex 10-23: kalıcı kuyrukta öğe kuyruğa GİRİŞTE "cevaplandı" oluyordu; teslim kalıcı düşerse (kesin hata · kanal engeli · gönderim anı
@@ -106,6 +107,22 @@ describe("kalıcı kuyruk: gitmeyen cevapla ihtiyaç kapanmış görünmez", () 
     await drainOutboxOnce({ send: async () => ({ ok: false, error: "network reset" }), reconcile: async () => ({ found: false }), tokenFor: async () => "t" });
     expect((await outbox(amb.outboxId)).status).not.toBe("failed");
     expect((await item(amb.itemId)).status).toBe("answered");
+  });
+
+  it("🚨 Opus 10-23 öğle B6: kanal engeli (402, abonelik pasif) → öğe yeniden açık; KVKK silme iptali → öğe AÇILMAZ (silinecek veri)", async () => {
+    const blocked = await seed();
+    await drainOutboxOnce({ send: async () => ({ ok: false, error: "Hospitable API hatası (HTTP 402)" }), tokenFor: async () => "t" });
+    expect((await outbox(blocked.outboxId)).status).toBe("blocked");
+    expect((await item(blocked.itemId)).status).toBe("pending_host");
+
+    await resetDb();
+    const erased = await seed();
+    await prisma.messageOutbox.update({ where: { id: erased.outboxId }, data: { body: ANON_BODY } });
+    const send = vi.fn<OutboxSendFn>(async () => ({ ok: true, providerMessageId: "x" }));
+    await drainOutboxOnce({ send, tokenFor: async () => "t" });
+    expect(send).not.toHaveBeenCalled();
+    expect(await outbox(erased.outboxId)).toMatchObject({ status: "canceled", lastErrorCode: "erased" });
+    expect((await item(erased.itemId)).status).toBe("answered");
   });
 
   it("aradan ev sahibi kapattıysa (done) ya da öğe başka mesajla kapandıysa dokunulmaz", async () => {

@@ -103,8 +103,10 @@ function hardSplit(content: string, span: Span): Span[] {
     const limit = start + CHUNK_MAX_CHARS;
     const window = content.slice(start, limit);
     const ws = lastSafeSpace(window);
-    // Boşluk yoksa (patolojik tek kelime) tavanda sert kes.
-    const cut = ws > 0 ? start + ws : limit;
+    // Boşluk yoksa (patolojik tek kelime) tavanda sert kes — vekil çiftini (emoji) ortadan bölmeden (Haiku 10-23 öğle: parça yarım
+    // karakterle bitiyordu).
+    const hard = /[\uD800-\uDBFF]/.test(content[limit - 1] ?? "") ? limit - 1 : limit;
+    const cut = ws > 0 ? start + ws : hard;
     out.push({ start, end: cut });
     start = cut;
     while (start < span.end && content[start] === " ") start++;

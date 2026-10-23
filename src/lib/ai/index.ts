@@ -695,7 +695,11 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
                 if (holds.size > 0 || keepOpen) composed = composeVerifiedReply({ parts: decl.parts, needs, sources: partSources, holds, meaningJudge, keepOpen });
               }
               const sources = composed.verdicts.flatMap((v) => (v.status === "verified" ? [v.source] : []));
-              return { reply: composed.reply, answered: { ok: true as const, refs: composed.refs }, verdicts: composed.verdicts, verified: composed.verified, sources };
+              // Gönderilen ama isteği kapatmayan parçalar ayrı taşınır (Opus 10-23 öğle B4): kapı "gönderilecek bir şey var mı" ve tehlike
+              // kemerlerinde onları da okur, kapatma yalnız `refs`.
+              const openRefs = composed.verdicts.flatMap((v) => (v.status === "verified" && v.openAfterSend ? [v.ref] : []));
+              const answered = { ok: true as const, refs: composed.refs, ...(openRefs.length > 0 ? { openRefs } : {}) };
+              return { reply: composed.reply, answered, verdicts: composed.verdicts, verified: composed.verified, sources };
             })()
           : null;
         // Birleşik metin de aynı tavana tabi (Haiku 10-23: beş uzun parça tavanı aşıyordu); kesilirse güven ≤ 0.5 → gitmez.

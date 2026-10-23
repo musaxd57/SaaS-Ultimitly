@@ -128,10 +128,17 @@ export function foldForClaims(s: string): string {
 }
 
 /** Rusça / Almanca / Fransızca / İspanyolca kat sözcükleri (`foldForClaims` biçiminde: küçük harf, "é" korunur). */
-const FLOOR_WORDS_INTL = "(?:этаж[а-яё]{0,3}|etage|étage|stockwerk|stock|piso|planta)";
-const FLOOR_INTL_PREFIX = new RegExp(`(?<![\\p{L}\\d.-])(-?)(\\d{1,2})(?:-?(?:м|й|ом|ем|ий|ой)|\\.|e|er|ème|º|°)?\\s?${FLOOR_WORDS_INTL}(?![\\p{L}])`, "gu");
-// Sonek biçiminde Almanca "Stock" YOK: İngilizce "in stock 5" kat sayılıyordu (önek "2. Stock" kalır).
-const FLOOR_INTL_SUFFIX = new RegExp(`(?<![\\p{L}])${FLOOR_WORDS_INTL.replace("|stock|", "|")}(?::|\\s(?:nr\\.?|no\\.?|№|n[°º]))?\\s(-?)(\\d{1,2})(?!\\d)`, "gu");
+// Almanca "Stock" ayrı: İngilizce "in stock 5" / "5 stock items" kat sayılıyordu → yalnız noktalı sıra sayısıyla önek ("2. Stock"), sonek yok.
+const FLOOR_WORDS_INTL = "(?:этаж[а-яё]{0,3}|etage|étage|stockwerk|piso|planta)";
+// Sıra eki: Rusça "-м / -й …", Almanca nokta, Fransızca "e / er / ème", İspanyolca "º / ª" (`foldForClaims` NFKC'si onları "o" / "a" yapar —
+// Opus 10-23 öğle B3: "3º piso" kat okunmuyordu). Önünde "rakam + boşluk" olan EKSİ aralıktır, bodrum değil ("на 10 -15 этаже"); işaretsiz
+// sayı için bu dışlama yok ("Daire 12 3. Stock" kat 3 — Haiku 10-23 öğle).
+const FLOOR_INTL_PREFIX = new RegExp(
+  `(?<![\\p{L}\\d.-])((?<!\\d\\s)-|)(\\d{1,2})(?:(?:-?(?:м|й|ом|ем|ий|ой)|\\.|e|er|ème|o|a|°)?\\s?${FLOOR_WORDS_INTL}|\\.\\s?stock)(?![\\p{L}])`,
+  "gu",
+);
+// Sonek biçiminde aralık kat değildir ("этаж 2-3").
+const FLOOR_INTL_SUFFIX = new RegExp(`(?<![\\p{L}])${FLOOR_WORDS_INTL}(?::|\\s(?:nr\\.?|no\\.?|№|n[°º]))?\\s(-?)(\\d{1,2})(?!\\d|-\\d)`, "gu");
 
 const TR_UNITS: Record<string, number> = { bir: 1, iki: 2, uc: 3, dort: 4, bes: 5, alti: 6, yedi: 7, sekiz: 8, dokuz: 9 };
 const TR_TENS: Record<string, number> = { on: 10, yirmi: 20, otuz: 30, kirk: 40, elli: 50, altmis: 60, yetmis: 70, seksen: 80, doksan: 90 };

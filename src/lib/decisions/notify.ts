@@ -6,7 +6,7 @@ import { emailService } from "@/lib/email";
 import { decisionPendingEmail } from "@/lib/email-templates";
 import { appBaseUrl } from "@/lib/auth/email-verify";
 import { reportError } from "@/lib/report-error";
-import { confirmReplyWaitingSent, REPLY_WAITING_CLAIM_TTL_MS, REPLY_WAITING_MAIL_PREFIX } from "@/lib/host-reply-waiting";
+import { confirmReplyWaitingSent, replyWaitingSettled, REPLY_WAITING_CLAIM_TTL_MS, REPLY_WAITING_MAIL_PREFIX } from "@/lib/host-reply-waiting";
 import { HELD_MAIL_PREFIX } from "@/lib/conversation-items/flow";
 import { DECISION_DAY_SUFFIX_TR, TEXT_DECISION_KINDS, decisionTitle, formatDecisionDay } from "./core";
 import { claimDecisionNotification, releaseDecisionNotification, type PersistedDecision } from "./store";
@@ -22,7 +22,7 @@ import { claimDecisionNotification, releaseDecisionNotification, type PersistedD
 //  · Misafir metni taşımaz; bağlantı `appBaseUrl()`den. Asla fırlatmaz.
 // ---------------------------------------------------------------------------
 
-export type DecisionNoticeOutcome = "mailed" | "deduped" | "no_recipient" | "failed" | "none";
+export type DecisionNoticeOutcome = "mailed" | "deduped" | "in_flight" | "no_recipient" | "failed" | "none";
 
 export async function notifyTurnDecisions(input: {
   organizationId: string;
@@ -71,8 +71,15 @@ export async function notifyTurnDecisions(input: {
       await prisma.systemLock.create({ data: { name: lockName, lockedUntil: new Date(now.getTime() + REPLY_WAITING_CLAIM_TTL_MS) } });
       locked = true;
     } catch (err) {
-      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") return "deduped";
-      throw err;
+      if (!(err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002")) throw err;
+      // Talep var: onaylıysa (e-posta gitti) ya da eskiyse "deduped". Onaysız ve yeniyse öteki yolun e-postası UÇUŞTA — düşebilir; kart
+      // damgaları geri verilir ki o e-posta düşerse sonraki geçiş kartı bildirebilsin (Opus 10-23 öğle B7: kartlar "bildirildi" kalıyordu).
+      const lock = await prisma.systemLock.findUnique({ where: { name: lockName }, select: { holder: true, updatedAt: true } });
+      if (!lock || replyWaitingSettled(lock, now)) return "deduped";
+      for (const d of claimed) {
+        await releaseDecisionNotification(prisma, { organizationId: input.organizationId, id: d.id, claimedAt: now }).catch(() => {});
+      }
+      return "in_flight";
     }
     const titles = claimed.map((d) => decisionTitle(d.kind, d.requestedTime));
     const first = claimed[0];

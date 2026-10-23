@@ -34,6 +34,18 @@ vi.mock("@/lib/ai/semantic/understand", async (orig) => {
   const actual = await orig<typeof import("@/lib/ai/semantic/understand")>();
   return { ...actual, understandingEnabled: () => true, understandGuestMessages: vi.fn() };
 });
+// Opus 10-23 öğle B5: öğe kapatmadan ÖNCE araya bir iş sokabilmek için geçirgen sarmalayıcı (varsayılan: hiçbir şey yapmaz).
+const settleHook = vi.hoisted(() => ({ before: null as null | (() => Promise<void>) }));
+vi.mock("@/lib/conversation-items/flow", async (orig) => {
+  const actual = await orig<typeof import("@/lib/conversation-items/flow")>();
+  return {
+    ...actual,
+    settleItemsTurn: async (...args: Parameters<typeof actual.settleItemsTurn>) => {
+      if (settleHook.before) await settleHook.before();
+      return actual.settleItemsTurn(...args);
+    },
+  };
+});
 vi.mock("@/lib/report-error", async (orig) => {
   const actual = await orig<typeof import("@/lib/report-error")>();
   return { ...actual, reportError: vi.fn(async () => ({ notified: true, throttled: false, configured: true })) };
@@ -571,6 +583,36 @@ describe("insan talebi — kalıcı kuyruk açıkken aynı devir kararı (Opus O
     }
     expect((await prisma.messageOutbox.findUniqueOrThrow({ where: { id: row.id } })).status).toBe("failed");
     expect((await prisma.conversationItem.findUniqueOrThrow({ where: { id: wifi.id } })).status).toBe("pending_host");
+  });
+
+  it("🚨 Opus 10-23 öğle B5: kuyruk satırı öğe kapanmadan ÖNCE iptal edildiyse (işçi yarışı) öğe yine ev sahibinde açık kalır", async () => {
+    const { conversationId } = await seed("Wi-Fi şifresi neydi?");
+    understands(understood([{ intent: "wifi", message: 1 }]));
+    mockSuggest.mockResolvedValueOnce(wifiAnswer());
+    // Kapatmadan hemen önce işçi satırı iptal etmiş gibi (gönderim anı vetosu): yeniden açma o an 0 satır bulurdu.
+    settleHook.before = async () => {
+      await prisma.messageOutbox.updateMany({ where: { conversationId }, data: { status: "canceled", lastErrorKind: "canceled", lastErrorCode: "superseded" } });
+    };
+    try {
+      await applyChannelAutoReply(conversationId);
+    } finally {
+      settleHook.before = null;
+    }
+    const wifi = await prisma.conversationItem.findFirstOrThrow({ where: { conversationId, kind: "wifi" } });
+    expect(wifi).toMatchObject({ status: "pending_host", answeredByMessageId: null });
+    // KONTROL: silme iptali (KVKK) öğeyi açmaz.
+    const second = await seed("Wi-Fi şifresi neydi?");
+    understands(understood([{ intent: "wifi", message: 1 }]));
+    mockSuggest.mockResolvedValueOnce(wifiAnswer());
+    settleHook.before = async () => {
+      await prisma.messageOutbox.updateMany({ where: { conversationId: second.conversationId }, data: { status: "canceled", lastErrorKind: "canceled", lastErrorCode: "erased" } });
+    };
+    try {
+      await applyChannelAutoReply(second.conversationId);
+    } finally {
+      settleHook.before = null;
+    }
+    expect((await prisma.conversationItem.findFirstOrThrow({ where: { conversationId: second.conversationId, kind: "wifi" } })).status).toBe("answered");
   });
 
   it("🚨 B1: önceki geçişin öğesi turda dururken bu geçiş öğe kipine GİRMEDİ (anlama düştü) → teslimde kilit KURULUR (satır içi yolla aynı)", async () => {

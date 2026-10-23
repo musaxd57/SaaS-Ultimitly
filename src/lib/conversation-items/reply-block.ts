@@ -32,9 +32,21 @@ export interface ReplyItemsInput {
   parts?: true;
 }
 
+/**
+ * `refs`: cevabın KAPATTIĞI istekler. `openRefs` (yalnız cevap parçaları kipi): metinde cevabı GİDEN ama isteği kapatmayan istekler —
+ * genel soruya bilgi tabanının bildiği tek özel durum ("yalnız hafta sonu"; `answer-parts` `openAfterSend`). Kapının "metinde ne var"
+ * denetimleri (bir şey gönderiliyor mu · arıza çözümü kemerleri · onaylı parça aynen duruyor mu) ikisini birlikte okur (`sentRefs`);
+ * kapatma (`settleItemsTurn`) ve gölge kayıt yalnız `refs` (Opus 10-23 öğle B4: tek soruluk turda parça "gönderilmiyor" sanılıp tur
+ * sessizce tutuluyordu, tehlike kemeri de o parçayı okumuyordu).
+ */
 export type AnsweredRequestsDeclaration =
-  | { ok: true; refs: string[] }
+  | { ok: true; refs: string[]; openRefs?: string[] }
   | { ok: false; reason: "missing" | "unknown_ref" };
+
+/** Metinde cevabı giden bütün istekler (kapatan + açık kalan). */
+export function sentRefs(decl: Extract<AnsweredRequestsDeclaration, { ok: true }>): string[] {
+  return [...decl.refs, ...(decl.openRefs ?? []).filter((r) => !decl.refs.includes(r))];
+}
 
 const HINT_MAX = 80;
 

@@ -77,6 +77,14 @@ describe("öğe kipi — güvenli kısım cevaplanır, hassas öğe sessizce tut
     );
   });
 
+  it("🚨 Opus 10-23 öğle B4: yalnız 'gider ama açık kalır' parçası taşıyan tur sessiz kalmaz (gönderilecek metin var); kapatma listesi boş kalır", () => {
+    const open = { ...wifiReply, answeredRequests: { ok: true as const, refs: [] as string[], openRefs: ["R1"] } };
+    expect(autoReplyGateFailure(open, WIFI, ctx({ items }))).toBeNull();
+    const item = (kind: string) => ({ kind }) as unknown as ItemsTurnPlan["answerable"][number]["item"];
+    const plan = { answerable: [{ ref: "R1", item: item("wifi") }] } as unknown as ItemsTurnPlan;
+    expect(itemsAnsweredRefs(plan, open, false)).toEqual([]);
+  });
+
   it("ödeme öğesi tutuluyken cevapta ödeme yöntemi / yeri adı → TUTAR; ödeme tutulmuyorsa bu kontrol yok", () => {
     for (const reply of ["Wi-Fi şifresi Lale2025. Ödeme havale ile yapılabilir.", "Wi-Fi: Lale2025. Ödemeyi kapıda nakit alabiliriz."]) {
       expect([reply, autoReplyGateVerdict({ ...wifiReply, reply }, WIFI, ctx({ items }))?.detail]).toEqual([reply, "items_payment_held"]);

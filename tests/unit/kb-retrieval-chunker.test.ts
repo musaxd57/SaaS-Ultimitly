@@ -85,3 +85,17 @@ describe("chunker — deterministik, metni değiştirmez", () => {
     expect(new Set(c.map(chunkKey)).size).toBe(c.length);
   });
 });
+
+describe("sert kesim vekil çiftini bölmez (Haiku 10-23 öğle)", () => {
+  it("🚨 boşluksuz emoji dizisinde hiçbir parça yarım karakterle bitmez / başlamaz; birleşim metni aynen verir", () => {
+    const content = `a${"😀".repeat(500)}`;
+    const parts = chunkText(content);
+    expect(parts.length).toBeGreaterThan(1);
+    for (const p of parts) {
+      expect(/^[\uDC00-\uDFFF]/.test(p)).toBe(false);
+      expect(/[\uD800-\uDBFF]$/.test(p)).toBe(false);
+      expect(p.length).toBeLessThanOrEqual(CHUNK_MAX_CHARS);
+    }
+    expect(parts.join("")).toBe(content);
+  });
+});

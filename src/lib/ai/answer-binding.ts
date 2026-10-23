@@ -1709,9 +1709,20 @@ function needSubject(needTerms: readonly string[], needTopics: readonly string[]
   };
 }
 
+/**
+ * Cevabın BAŞINDAKİ tek evet / hayır ünlemi (ardından virgül / nokta / ünlem / iki nokta / tire) olumluluk okumasına girmez: istem evet /
+ * hayır sorusuna cevabın "Evet," / "Hayır," ile başlamasını istiyor (kurucu etiket notu 10-23) ve "No, the pool closes at 20:00." değerin
+ * olumsuzluğu değildir (Opus 10-23 öğle B11: ters olumluluk kodda tutulunca doğru "No," / "Нет," / "Non," cevapları tutuluyordu). Ünlemin
+ * DOĞRULUĞU (soru "22:00'ye kadar açık mı" iken "Evet, 20:00'de kapanır") anlam sorusudur — okuyucunun. Ünlemden ibaret metin olduğu gibi kalır.
+ */
+const LEADING_YES_NO = /^\s*(?:evet|hay[ıi]r|yes|no|ja|nein|да|нет|s[íì]|si|oui|non|sim|n[ãa]o|tak|nie)\s*[,.!:;—–-]\s*(?=\S)/iu;
+export function withoutLeadingYesNo(text: string): string {
+  return text.replace(LEADING_YES_NO, "");
+}
+
 export function checkAnswerBinding(raw: BindingInput): BindingResult {
-  // İhtiyaç sözcükleri de aynı aksan katlamasından (iki taraf simetrik — R1).
-  const input: BindingInput = { ...raw, needTerms: raw.needTerms.map(foldMarks) };
+  // İhtiyaç sözcükleri de aynı aksan katlamasından (iki taraf simetrik — R1). Baştaki evet / hayır ünlemi değer okumasına girmez (B11).
+  const input: BindingInput = { ...raw, part: withoutLeadingYesNo(raw.part), needTerms: raw.needTerms.map(foldMarks) };
   const issues = new Set<BindingIssue>();
   const evidence = input.evidence.trim();
   if (!evidence) return { ok: false, issues: ["evidence_missing"] };
@@ -2404,7 +2415,8 @@ export function partSignature(text: string): { values: string[]; negative: boole
   const { claims } = claimSpans(text);
   return {
     values: [...new Set(claims.map((c) => `${c.cls}:${[...keysOf(c)].sort().join("|")}`))].sort(),
-    negative: negative(tokenize(text)),
+    // Tekrar kaydının "aynı bilgi" kıyası da baştaki evet / hayır ünlemini okumaz ("No, …" ile "…" aynı bilgi — B11).
+    negative: negative(tokenize(withoutLeadingYesNo(text))),
   };
 }
 

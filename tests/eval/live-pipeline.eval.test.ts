@@ -600,7 +600,7 @@ async function runOnce(s: Scenario): Promise<Omit<Row, "retried">> {
       ? {
           needs: scoreNeeds(s.expect.needs, sentText, items),
           itemStates: items.map((i) => ({ kind: i.kind, status: i.status })),
-          parts: raw?.source === "openai" && raw.answerParts ? raw.answerParts.map((v) => ({ ref: v.ref, status: v.status, ...("issues" in v ? { issues: v.issues } : {}), ...("advisory" in v && v.advisory ? { advisory: v.advisory } : {}) })) : null,
+          parts: raw?.source === "openai" && raw.answerParts ? raw.answerParts.map((v) => ({ ref: v.ref, status: v.status, ...("issues" in v ? { issues: v.issues } : {}), ...("advisory" in v && v.advisory ? { advisory: v.advisory } : {}), ...("openAfterSend" in v && v.openAfterSend ? { openAfterSend: true } : {}) })) : null,
           absenceLeak: sentText ? ABSENCE_LEAK.test(sentText) : false,
           ...(partsRawLog.length > 0 ? { partsRaw: partsRawLog } : {}),
           ...(requestsRawLog.length > 0 ? { requestsRaw: requestsRawLog } : {}),

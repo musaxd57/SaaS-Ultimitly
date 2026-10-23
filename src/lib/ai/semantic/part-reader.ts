@@ -16,12 +16,15 @@ import { stripDividerRuns } from "../divider-spoof";
 // kaynaktaki AYNI şeye bağlı mı · misafirin sormadığı bir istisnayı genel kuralı anmadan mı veriyor (Soru 9'un anlam karşılığı).
 //
 // GÜVENLİK YÖNÜ (kurucu: "Okuyucunun 'evet' demesi tek başına gönderim izni olmasın … Belirsizlikte ilgili parça tutulsun"):
-//  · Okuyucu yalnız TUTAR: kodun doğruladığı parçayı düşürebilir, kodun tuttuğunu serbest bırakamaz (yetki, sır, işlem onayı, güncellik
-//    ve bütün kapı kodda kalır).
-//  · Okuyucunun cevabında bulunmayan / bozuk / tekrarlanan parça TUTULUR; okuyucu düşerse BÜTÜN parçalar tutulur.
-//  · Tek okuma (misafir mesajıyla): serbest bırakma yetkisi olmadığından misafir metnine yazılmış "kontrolcüye not" en kötü ihtimalle
-//    okuyucuyu "evet"e çeker = yalnız kodun denetimi kalır — kodun tutacağı bir şeyi göndertemez. (Okuyucu KAPALIYKEN parça kipi bütün
-//    parçaları tutar — Opus 10-23 G1, `ai/index.ts`.)
+//  · Kodda kalan denetimleri (`CODE_KEPT_ISSUES`: alıntı kaynakta · sayı / saat / tutar alıntıda ve konuyu anan kalemde · iki kaynak
+//    çelişkisi · konu bilinmiyor · ters olumluluk) ve yetki, sır, işlem onayı, güncellik, bütün kapı okuyucu SERBEST BIRAKAMAZ.
+//  · 🚨 Codex S3 (10-23 öğle): okuyucu koşarken kodun öteki ANLAM bulguları (konu, koşul, değişke, değer bağı, içerik, sorulan yön) TUTMAZ,
+//    `advisory` olarak ize yazılır — bu bulgularda okuyucunun "evet"i fiilen gönderim izni olur (Opus 10-23 öğle B1: eski "okuyucu yalnız
+//    tutar" cümlesi bu yüzden artık eksikti). Yukarıdaki kurucu şartıyla gerilimi var → parça kipi açılmadan önce kurucuya soruldu (rapor
+//    `docs/RAPOR-2026-10-23-ogle-okuyucu-anlam-denetimi-ve-etiketler.md` §4). Misafir metnindeki "kontrolcüye not" okuyucuyu "evet"e çekerse
+//    bu anlam bulgularının önünde yalnız okuyucu kalır; kodda kalanlar yine tutar.
+//  · Okuyucunun cevabında bulunmayan / bozuk / tekrarlanan parça TUTULUR; okuyucu düşerse / kapalıysa BÜTÜN parçalar tutulur (Opus 10-23 G1,
+//    `ai/index.ts`).
 // Anahtar: kıdemli okuyucununki (`AI_SENIOR_READER_ENABLED`); yalnız parça kipinde (`AI_ANSWER_PARTS_ENABLED`) çağrılır.
 // ---------------------------------------------------------------------------
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { auditClaims, type ClaimContext } from "@/lib/ai/claim-support";
+import { auditClaims, claimSpans, type ClaimContext } from "@/lib/ai/claim-support";
 
 // ---------------------------------------------------------------------------
 // P5 İDDİA DESTEĞİ — ÇEVİRİDE BİRİM VE SAYI SÖZCÜĞÜ (kurucu 09-27: "P5'i şimdi canlı açma. 10 dakika = 10 minutes geçerken gerçekten
@@ -253,6 +253,28 @@ describe("🚨 öteki dillerde kat sözcüğü (kör set incelemesi 10-23: Rusç
     expect(u("Квартиры на 3-4 этаже.", ctx("Daireler 3. ve 4. katlardadır."))).toBe(0);
     // İngilizce "stock" kat değildir (Almanca sonek biçimi bilerek yok).
     expect(u("We have 5 in stock 5 days a week.", ctx("Haftada 5 gün açığız."))).toBe(0);
+  });
+
+  it("🚨 Opus 10-23 öğle B3: İspanyolca sıra eki ('3º piso', '2ª planta') kattır; aralık ve İngilizce 'stock' kat değildir", () => {
+    expect(u("Está en el 3º piso.", ctx("Daire 3. kattadır."))).toBe(0);
+    expect(u("Está en la 2ª planta.", ctx("Daire 2. kattadır."))).toBe(0);
+    expect(u("Está en el 4º piso.", ctx("Daire 3. kattadır."))).toBe(1);
+    const keys = (s: string) => claimSpans(s).claims.flatMap((c) => c.tkeys ?? []);
+    // "rakam + boşluk + eksi" aralıktır (bodrum -15 değil); sonek biçiminde de aralık kat değildir.
+    expect(keys("Квартиры на 10 -15 этаже.")).not.toContain("floor|-15");
+    expect(keys("Квартира: этаж 2-3.")).toEqual([]);
+    // İngilizce "5 stock items" / "12 stock" kat değil; Almanca noktalı "3. Stock" kat.
+    expect(keys("We have 5 stock items.")).toEqual([]);
+    expect(keys("12 stock")).toEqual([]);
+    expect(keys("Die Wohnung ist im 3. Stock.")).toEqual(["floor|3"]);
+    expect(u("Die Wohnung ist im 4. Stock.", ctx("Daire 3. kattadır."))).toBe(1);
+    // Aralık dışlaması yalnız EKSİ işaretine: önünde sayı olan işaretsiz kat yine kattır (Haiku 10-23 öğle).
+    expect(keys("Daire 12 3. Stock")).toEqual(["floor|3"]);
+    expect(keys("квартира 12 3 этаж")).toEqual(["floor|3"]);
+    expect(keys("Apt 12 2e étage")).toEqual(["floor|2"]);
+    // Eksi kat önekte aynen (aralık dışlaması bodrumu bozmaz).
+    expect(keys("Parkplatz auf -2 Etage")).toEqual(["floor|-2"]);
+    expect(keys("на -2 этаже")).toEqual(["floor|-2"]);
   });
 });
 

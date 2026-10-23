@@ -16,7 +16,7 @@ vi.mock("@/lib/report-error", async (orig) => {
 import { emailService } from "@/lib/email";
 import { notifyTurnDecisions } from "@/lib/decisions/notify";
 import { openTurnDecisions } from "@/lib/decisions/store";
-import { REPLY_WAITING_MAIL_PREFIX } from "@/lib/host-reply-waiting";
+import { REPLY_WAITING_MAIL_PREFIX, REPLY_WAITING_SENT } from "@/lib/host-reply-waiting";
 import { HELD_MAIL_PREFIX } from "@/lib/conversation-items/flow";
 
 const mockMail = vi.mocked(emailService.sendReporting);
@@ -39,8 +39,9 @@ async function world() {
     now: new Date(),
     decisions: [{ kind: "early_checkin", messageId: m1.id, itemId: null, requestedTime: "13:00", dayKey: null }],
   });
-  const notify = () =>
+  const notify = (now?: Date) =>
     notifyTurnDecisions({
+      ...(now ? { now } : {}),
       organizationId: org.id,
       conversation: { id: conversation.id, guestIdentifier: "Ada" },
       property: { name: "Lale" },
@@ -63,9 +64,22 @@ describe("karar bildirimi — tur başına tek e-posta", () => {
 
   it("kilit turun SON mesajında (K10 ile aynı): o mesaj için 'Misafir cevabınızı bekliyor' gittiyse 'Karar bekliyor' gitmez", async () => {
     const w = await world();
-    await prisma.systemLock.create({ data: { name: `${REPLY_WAITING_MAIL_PREFIX}${w.m2.id}`, lockedUntil: new Date(Date.now() + 3_600_000) } });
+    await prisma.systemLock.create({
+      data: { name: `${REPLY_WAITING_MAIL_PREFIX}${w.m2.id}`, lockedUntil: new Date(Date.now() + 3_600_000), holder: REPLY_WAITING_SENT },
+    });
     expect(await w.notify()).toBe("deduped");
     expect(mockMail).not.toHaveBeenCalled();
+  });
+
+  it("🚨 Opus 10-23 öğle B7: öteki yolun e-postası UÇUŞTAYSA (onaysız, yeni talep) 'in_flight' — kart damgası geri verilir, sonraki geçiş bildirebilir", async () => {
+    const w = await world();
+    await prisma.systemLock.create({ data: { name: `${REPLY_WAITING_MAIL_PREFIX}${w.m2.id}`, lockedUntil: new Date(Date.now() + 3_600_000) } });
+    expect(await w.notify()).toBe("in_flight");
+    expect(mockMail).not.toHaveBeenCalled();
+    expect((await prisma.decisionRequest.findUniqueOrThrow({ where: { id: w.card.id } })).notifiedAt).toBeNull();
+    // Onaysız ama eski talep (10 dk'dan eski) sonuçlanmış sayılır → "deduped", damga kalır.
+    expect(await w.notify(new Date(Date.now() + 11 * 60_000))).toBe("deduped");
+    expect((await prisma.decisionRequest.findUniqueOrThrow({ where: { id: w.card.id } })).notifiedAt).not.toBeNull();
   });
 
   it("hassas öğe e-postası turun ESKİ mesajına gittiyse e-posta yok, kart yine damgalanır", async () => {

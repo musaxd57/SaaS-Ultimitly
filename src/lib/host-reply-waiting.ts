@@ -34,7 +34,13 @@ const CLAIM_TTL_MS = REPLY_WAITING_CLAIM_TTL_MS;
  * kaydını tutarsa ve uçuştaki e-posta düşerse ihtiyaç hiç bildirilmiyordu. "Karar bekliyor" e-postası (`decisions/notify.ts`) da aynı onayı yazar.
  */
 export const REPLY_WAITING_SENT = "sent";
-/** Onaysız talep bu süreden eskiyse sonuçlanmış sayılır (onay yazılamayan başarılı gönderim / eski kayıtlar; e-posta saniyeler sürer). */
+/**
+ * Onaysız talep bu süreden eskiyse sonuçlanmış sayılır (onay yazılamayan başarılı gönderim / eski kayıtlar; e-posta saniyeler sürer).
+ * 🚨 BİLİNÇLİ SEÇİM (Opus 10-23 öğle B8): talep alındıktan sonra, e-posta gitmeden süreç ölürse (yeniden başlatma) talep 45 gün durur ve 10 dk
+ * sonra "sonuçlanmış" sayılır → o mesaj için bildirim KAYBOLUR (bu kural öncesinde de böyleydi). "Gönderildi ama onay yazılamadı" ile "hiç
+ * gönderilmedi" bugün ayırt edilemiyor; tersine kural ÇİFT e-posta üretirdi. İhtiyaç panelde açık kalır. Ayırt etmek için talebe zaman damgalı
+ * "alındı" işareti + sağlayıcı tekrar anahtarıyla bir kez yeniden deneme (açık iş).
+ */
 export const REPLY_WAITING_IN_FLIGHT_MS = 10 * 60_000;
 
 export function replyWaitingSettled(lock: { holder: string | null; updatedAt: Date }, now: Date): boolean {

@@ -23,7 +23,7 @@ export interface ShadowHookInput {
   guest?: { reservationId?: string | null; externalReservationId?: string | null };
   /** Dairenin BÜTÜN onaylı + etkin kalemleri (misafirin konaklama durumuna göre süzülmemiş) — yalnız parmak izi. Yoksa `kbVisible`. */
   kbAll?: readonly { id: string; updatedAt: Date; category: string; title: string; content: string }[];
-  verifiedParts: readonly { ref: string; text: string; evidence: string; source: string; alsoCited?: string[] }[] | undefined;
+  verifiedParts: readonly { ref: string; text: string; evidence: string; quote?: string; source: string; alsoCited?: string[] }[] | undefined;
   answeredRefs: readonly string[] | null;
   replyItems: ReplyItemsInput | undefined;
   /** İstemdeki bilgi tabanı kalemleri, istem SIRASIYLA ("kb:N" → N-1). Çalışma anında `id` taşır. */
@@ -60,18 +60,21 @@ export async function observeAnswerReuseAfterSend(db: PrismaClient, input: Shado
     if (!refs.has(v.ref) || !input.sentText.includes(v.text)) continue;
     // Birden çok kaleme dayanan parça (#199) tek kalemle yeniden doğrulanamaz → kayda alınmaz (ölçüm dürüst kalır).
     if (v.alsoCited?.length) continue;
+    // Yeniden doğrulama kalemle birebir alıntıyı ister: çevrilmiş başlığı atılmış alıntı (`quote`) saklanır (Opus 10-23 öğle B9: ham alıntı
+    // "Интернет: …" her yeniden doğrulamada `evidence_not_in_source` ile düşüyordu).
+    const evidence = v.quote ?? v.evidence;
     const item = input.replyItems.answerable.find((a) => a.ref === v.ref);
     if (!item?.hint) continue;
     let sourceRef: string | null = null;
     // Mülk kaynağından yalnız giriş / çıkış saati satırına dayanan parça kaydedilir (Opus 10-23 85 incelemesi: istemin mülk kaynağında adres
     // de var, kancanın yeniden doğrulama metninde yok → adres cevabı hiç "kullanılabilir" sayılamıyordu; kayda almamak ölçümü dürüst tutar).
-    if (v.source === "property") sourceRef = propertySourceText(input.property).includes(v.evidence.trim()) ? "property" : null;
+    if (v.source === "property") sourceRef = propertySourceText(input.property).includes(evidence.trim()) ? "property" : null;
     else if (/^kb:\d+$/.test(v.source)) {
       const row = input.kbForModel[Number(v.source.slice(3)) - 1] as { id?: unknown } | undefined;
       if (row && typeof row.id === "string") sourceRef = `kb:${row.id}`;
     }
     if (!sourceRef) continue;
-    parts.push({ need: { kind: item.kind, query: item.hint, language: input.language }, partText: v.text, evidence: v.evidence, sourceRef });
+    parts.push({ need: { kind: item.kind, query: item.hint, language: input.language }, partText: v.text, evidence, sourceRef });
   }
   if (parts.length === 0) return null;
   const propertySource: FingerprintItem = { id: "property", updatedAt: input.property.updatedAt ?? new Date(0), text: propertySourceText(input.property) };

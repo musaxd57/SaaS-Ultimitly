@@ -159,8 +159,15 @@ describe("Codex S3 (10-23 sabah-3) — okuyucu koşarken anlam denetimi okuyucun
     });
   });
 
-  it("kodda kalan küme bilinçli: yapı + kaynak geçerliliği + sayı (Codex S3 listesi; büyürse / küçülürse bu test bilerek güncellenir)", () => {
-    expect([...CODE_KEPT_ISSUES].sort()).toEqual(["evidence_missing", "evidence_not_in_source", "subject_unknown", "value_conflict", "value_not_in_evidence"]);
+  it("kodda kalan küme bilinçli: yapı + kaynak geçerliliği + sayı + ters olumluluk (Codex S3 listesi + Opus B1; büyürse / küçülürse bu test bilerek güncellenir)", () => {
+    expect([...CODE_KEPT_ISSUES].sort()).toEqual([
+      "evidence_missing",
+      "evidence_not_in_source",
+      "polarity_mismatch",
+      "subject_unknown",
+      "value_conflict",
+      "value_not_in_evidence",
+    ]);
   });
 });
 
@@ -187,7 +194,9 @@ describe("#199 kör set incelemesi 10-23 — alıntı iki kalemi birleştirebili
     expect(out.verified[0]).toMatchObject({ source: "kb:1", alsoCited: ["kb:2"] });
   });
 
-  it("🚨 ikinci kalem konu sözcüğünü anmasa da (\"Cumartesi ve pazar …\") alıntılandıysa değeri aranır: sayı denetimi geçer, anlam okuyucuya", () => {
+  it("🚨 Opus 10-23 öğle B2: konuyu ANMAYAN alıntılanmış kalem değer kaynağı değildir — değeri yalnız orada olan parça kodda tutulur", () => {
+    // Bilinçli bedel (TUTMA yönü): konu sözcüğü geçmeyen istisna kalemi ("Hafta sonu: Cumartesi ve pazar …") artık parçaya değer veremez,
+    // istek ev sahibinde açık kalır. Karşılığında alıntıya ilgisiz bir kalemin cümlesini eklemek uydurma değeri sayı denetiminden geçiremez.
     const split = [
       TWO[0],
       { id: "kb:2", text: kbLine({ category: "amenities", title: "Hafta sonu", content: "Cumartesi ve pazar 09:00–23:00 arası açıktır." }) },
@@ -198,8 +207,89 @@ describe("#199 kör set incelemesi 10-23 — alıntı iki kalemi birleştirebili
       sources: split,
       meaningJudge: "reader",
     });
-    expect(out.verdicts[0]).toMatchObject({ status: "verified", source: "kb:1" });
-    expect(out.verified[0]).toMatchObject({ alsoCited: ["kb:2"] });
+    expect(out.verdicts[0]).toMatchObject({ status: "rejected", issues: expect.arrayContaining(["value_not_in_evidence"]) });
+    expect(out.refs).toEqual([]);
+  });
+
+  it("🚨 Opus 10-23 öğle B2: otopark ücreti havuz ücreti diye, spa saati havuz saati diye alıntıya eklenerek GEÇMEZ (okuyucu kipinde de)", () => {
+    const src = [
+      { id: "kb:1", text: kbLine({ category: "amenities", title: "Havuz", content: "Havuz hafta içi 09:00–20:00 arası açıktır." }) },
+      { id: "kb:2", text: kbLine({ category: "parking", title: "Otopark", content: "Otopark ücreti günlük 300 TL'dir." }) },
+      { id: "kb:3", text: kbLine({ category: "amenities", title: "Spa", content: "Hafta sonu 10:00–23:00 arası açıktır." }) },
+    ];
+    const run = (q: string, text: string, evidence: string) =>
+      composeVerifiedReply({ parts: [p("R1", text, evidence)], needs: [{ ref: "R1", terms: needTerms([q]), topics: [] }], sources: src, meaningJudge: "reader" });
+    const fee = run("havuz ücreti ne kadar", "Havuz kullanımı günlük 300 TL.", "Havuz hafta içi 09:00–20:00 arası açıktır. Otopark ücreti günlük 300 TL'dir.");
+    expect(fee.verdicts[0]).toMatchObject({ status: "rejected", issues: expect.arrayContaining(["value_not_in_evidence"]) });
+    expect(fee.reply).toBe("");
+    const spa = run("havuz hafta sonu kaçta kapanıyor", "Havuz hafta sonu 23:00'te kapanıyor.", "Havuz hafta içi 09:00–20:00 arası açıktır. Hafta sonu 10:00–23:00 arası açıktır.");
+    expect(spa.verdicts[0]).toMatchObject({ status: "rejected", issues: expect.arrayContaining(["value_not_in_evidence"]) });
+    // Konuyu anan istisna kalemi (gerçek #199 vakası) değer kaynağı olmaya devam eder.
+    const pool = [src[0], { id: "kb:4", text: kbLine({ category: "amenities", title: "Havuz hafta sonu", content: "Hafta sonu havuz 09:00–23:00 arası açıktır." }) }];
+    const ok = composeVerifiedReply({
+      parts: [p("R1", "Havuz hafta sonu 23:00'te kapanıyor.", "Havuz hafta içi 09:00–20:00 arası açıktır. Hafta sonu havuz 09:00–23:00 arası açıktır.")],
+      needs: [{ ref: "R1", terms: needTerms(["havuz hafta sonu kaçta kapanıyor"]), topics: [] }],
+      sources: pool,
+      meaningJudge: "reader",
+    });
+    expect(ok.verdicts[0]).toMatchObject({ status: "verified", source: "kb:1" });
+  });
+
+  it("🚨 Opus 10-23 öğle B1: ters olumluluk (izin ↔ yasak) okuyucu koşarken de KODDA tutulur", () => {
+    const src = [{ id: "kb:1", text: kbLine({ category: "rules", title: "Evcil hayvan", content: "Evcil hayvan kabul edilmez." }) }];
+    const out = composeVerifiedReply({
+      parts: [p("R1", "Evet, evcil hayvan kabul edilir.", "Evcil hayvan kabul edilmez.")],
+      needs: [{ ref: "R1", terms: needTerms(["evcil hayvan kabul ediliyor mu"]), topics: [] }],
+      sources: src,
+      meaningJudge: "reader",
+    });
+    expect(out.verdicts[0]).toMatchObject({ status: "rejected", issues: expect.arrayContaining(["polarity_mismatch"]) });
+    expect(out.reply).toBe("");
+    // Doğru olumsuz cevap okuyucu kipinde gider.
+    const right = composeVerifiedReply({
+      parts: [p("R1", "Hayır, evcil hayvan kabul edilmiyor.", "Evcil hayvan kabul edilmez.")],
+      needs: [{ ref: "R1", terms: needTerms(["evcil hayvan kabul ediliyor mu"]), topics: [] }],
+      sources: src,
+      meaningJudge: "reader",
+    });
+    expect(right.verdicts[0]).toMatchObject({ status: "verified" });
+  });
+
+  it("🚨 Opus 10-23 öğle B11: cevabın başındaki 'No, / Нет, / Non, / Hayır,' ünlemi ters olumluluk SAYILMAZ (istem evet / hayır ile başlatıyor)", () => {
+    const pool = [{ id: "kb:1", text: kbLine({ category: "amenities", title: "Havuz", content: "Havuz her gün 09:00–20:00 arası açıktır." }) }];
+    for (const text of ["No, the pool closes at 20:00.", "Нет, бассейн закрывается в 20:00.", "Non, la piscine ferme à 20:00.", "Hayır, havuz 20:00'de kapanıyor."]) {
+      const out = composeVerifiedReply({
+        parts: [p("R1", text, "Havuz her gün 09:00–20:00 arası açıktır.")],
+        needs: [{ ref: "R1", terms: needTerms(["havuz 21:00'de açık mı"]), topics: [] }],
+        sources: pool,
+        meaningJudge: "reader",
+      });
+      expect([text, out.verdicts[0].status]).toEqual([text, "verified"]);
+    }
+    // Ünlem sökülse de değerin kendi olumluluğu okunur: "Yes, pets are allowed." ↔ "kabul edilmez" yine tutulur.
+    const pets = [{ id: "kb:1", text: kbLine({ category: "rules", title: "Evcil hayvan", content: "Evcil hayvan kabul edilmez." }) }];
+    const yes = composeVerifiedReply({
+      parts: [p("R1", "Yes, pets are allowed.", "Evcil hayvan kabul edilmez.")],
+      needs: [{ ref: "R1", terms: needTerms(["evcil hayvan kabul ediliyor mu", "are pets allowed"]), topics: [] }],
+      sources: pets,
+      meaningJudge: "reader",
+    });
+    expect(yes.verdicts[0]).toMatchObject({ status: "rejected", issues: expect.arrayContaining(["polarity_mismatch"]) });
+  });
+
+  it("🚨 Opus 10-23 öğle B2 ikinci tur: alıntının cümle SIRASI ters çevrilse de konuyu anmayan kalem değer vermez; kodun tuttuğu parçanın anlam bulgusu ize yazılır", () => {
+    const src = [
+      { id: "kb:1", text: kbLine({ category: "amenities", title: "Havuz", content: "Havuz hafta içi 09:00–20:00 arası açıktır." }) },
+      { id: "kb:2", text: kbLine({ category: "parking", title: "Otopark", content: "Otopark ücreti günlük 300 TL'dir." }) },
+    ];
+    const out = composeVerifiedReply({
+      parts: [p("R1", "Havuz kullanımı günlük 300 TL.", "Otopark ücreti günlük 300 TL'dir. Havuz hafta içi 09:00–20:00 arası açıktır.")],
+      needs: [{ ref: "R1", terms: needTerms(["havuz ücreti ne kadar"]), topics: [] }],
+      sources: src,
+      meaningJudge: "reader",
+    });
+    expect(out.verdicts[0]).toMatchObject({ status: "rejected" });
+    expect(out.reply).toBe("");
   });
 
   it("🚨 bir cümlesi bile kaynakta yoksa (uydurma ek) alıntı dayanaksız; tek sözcüklük parça dayanak sayılmaz", () => {
@@ -241,6 +331,16 @@ describe("#199 kör set incelemesi 10-23 — alıntı iki kalemi birleştirebili
     expect(groundEvidence(pool, "Бассейн: Şezlong ücretsizdir.")).toBeNull();
     // Çok parçalı alıntıda harf tabanı başlığı atılmış metne uygulanır ("Hafta sonu: 23:00." başlıkla 9 harf, kendisi 0).
     expect(groundEvidence(pool, "Havuz 23:00'e kadar açıktır. Pool: 23:00.")).toBeNull();
+  });
+
+  it("🚨 Opus 10-23 öğle B10: Rusça / Fransızca / İspanyolca gün, gece, sezon, tatil ve olumsuzluk / ücret 'başlıkları' da ATILMAZ", () => {
+    const pool = [{ id: "kb:1", text: kbLine({ category: "amenities", title: "Havuz", content: "Havuz 23:00'e kadar açıktır." }) }];
+    for (const title of ["В выходные", "Le week-end", "Пятница", "Los sábados", "Le samedi", "Gece", "Nachts", "At night", "Sezon dışı", "Off-season", "Tatillerde", "On holidays", "Bei Regen", "VIP", "Ücretli", "Yasak", "Kapalı", "Closed", "Not allowed"]) {
+      expect([title, groundEvidence(pool, `${title}: Havuz 23:00'e kadar açıktır.`)]).toEqual([title, null]);
+    }
+    // KONTROL: çevrilmiş konu başlığı hâlâ atılır.
+    expect(groundEvidence(pool, "Бассейн: Havuz 23:00'e kadar açıktır.")).toMatchObject({ quote: "Havuz 23:00'e kadar açıktır." });
+    expect(groundEvidence(pool, "Piscine: Havuz 23:00'e kadar açıktır.")).toMatchObject({ quote: "Havuz 23:00'e kadar açıktır." });
   });
 });
 
@@ -871,11 +971,12 @@ describe("suggestReply — parça okuyucusu (AI_SENIOR_READER_ENABLED, parça ki
     expect(seen).toContain("HOST: <<<Evet, bahçe katında havuz var.>>>");
   });
 
-  it("🚨 #199: alıntı iki kalemden geliyorsa okuyucu İKİSİNİ de not olarak görür (ikincisi konu sözcüğünü anmasa da)", async () => {
+  it("🚨 #199: alıntı iki kalemden geliyorsa okuyucu İKİSİNİ de not olarak görür (ikinci kalemin içeriği konu sözcüğünü anmasa da)", async () => {
     vi.stubEnv("AI_SENIOR_READER_ENABLED", "1");
+    // İkinci kalem konuyu yalnız BAŞLIĞINDA anıyor: değer kaynağıdır (Opus 10-23 öğle B2: konuyu hiç anmayan kalem değer veremez).
     const kb = [
       { category: "amenities", title: "Havuz", content: "Havuz hafta içi 09:00–20:00 arası açıktır." },
-      { category: "amenities", title: "Hafta sonu", content: "Cumartesi ve pazar 09:00–23:00 arası açıktır." },
+      { category: "amenities", title: "Havuz hafta sonu", content: "Cumartesi ve pazar 09:00–23:00 arası açıktır." },
     ];
     const two = [
       {
@@ -908,7 +1009,8 @@ describe("suggestReply — parça okuyucusu (AI_SENIOR_READER_ENABLED, parça ki
     );
     const r = await suggestReply({ ...input, conversationItems: ITEMS });
     expect(r.reply).toBe("Çıkış saati 11:00.\nHavuz her gün 20:00'de kapanıyor.");
-    expect(r.answeredRequests).toEqual({ ok: true, refs: ["R1"] });
+    // Açık kalacak parça beyanda AYRI taşınır (Opus 10-23 öğle B4): kapı "gönderilecek metin" ve tehlike kemerlerinde onu da okur.
+    expect(r.answeredRequests).toEqual({ ok: true, refs: ["R1"], openRefs: ["R2"] });
     expect(r.answerParts?.find((v) => v.ref === "R2")).toMatchObject({ status: "verified", openAfterSend: true });
     // Okuyucu tutarsa "açık kalsın" işareti anlamsız: parça gitmez (tutma önce gelir).
     routedFetch(

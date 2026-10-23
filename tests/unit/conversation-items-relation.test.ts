@@ -367,6 +367,10 @@ describe("kapı — hatalı 'bağımsız' işareti DOĞRUDAN verilse de bağlı 
     const hot = verdict({ reply: "Kombinin altındaki sıfırlama düğmesine 5 saniye basılı tutun.", usedSources: ["kb:faq"] });
     expect(autoReplyGateVerdict(hot, MSG, gate([req({ kind: "appliance_help", relation: "fix_request", topics: [] })], [anchor([])]))?.detail).toBe("items_fix_hazard");
   });
+  it("🚨 Opus 10-23 öğle B4: açık kalacak (yalnız bilinen özel durum) çözüm parçası da tehlike kemerinden geçer — refs dışında olması kemeri kapatmaz", () => {
+    const hot = verdict({ reply: "Kombinin altındaki sıfırlama düğmesine 5 saniye basılı tutun.", usedSources: ["kb:faq"], answeredRequests: { ok: true, refs: [], openRefs: ["R1"] } });
+    expect(autoReplyGateVerdict(hot, MSG, gate([req({ kind: "appliance_help", relation: "fix_request", topics: [] })], [anchor([])]))?.detail).toBe("items_fix_hazard");
+  });
   it("KONTROL: bilgi tabanına dayanan tehlikesiz çözüm ilişki kemerinden geçer; bağımsız çöp sorusu da", () => {
     const ok = autoReplyGateVerdict(verdict(), MSG, gate([req({ relation: "fix_request" })], [anchor(["parking"])]));
     expect(ok?.detail ?? "geçti").not.toMatch(/^items_/);

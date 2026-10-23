@@ -20,7 +20,7 @@
 
 import "server-only";
 
-import { askedAspects, askedConditions, askedDirection, checkAnswerBinding, missesAskedFacility, missingAspects, type BindingIssue } from "@/lib/ai/answer-binding";
+import { askedAspects, askedConditions, askedDirection, checkAnswerBinding, missesAskedFacility, missingAspects, sourceMentionsNeed, type BindingIssue } from "@/lib/ai/answer-binding";
 import { stripLeadingGreeting } from "@/lib/ai/code-greeting";
 import { quoteGroundedIn } from "@/lib/ai/semantic/absence-judge";
 import type { PartReaderHold } from "@/lib/ai/semantic/part-reader";
@@ -120,7 +120,8 @@ export interface ComposedReply {
    * YAZILMAZ; yalnız gölge kayıt tablosuna (misafir metni değil — kalemden doğrulanmış cevap).
    */
   /** `alsoCited`: alıntının dayanak kaleminden SONRA geçtiği öteki kaynaklar (#199). */
-  verified: { ref: string; text: string; evidence: string; source: string; alsoCited?: string[] }[];
+  /** `quote`: kodun dayanak kalemde bulduğu alıntı — misafirin diline çevrilmiş başlık atıldıysa ham `evidence`ten farklıdır (yalnız o zaman yazılır). */
+  verified: { ref: string; text: string; evidence: string; quote?: string; source: string; alsoCited?: string[] }[];
 }
 
 /**
@@ -155,6 +156,25 @@ const flat = (t: string) =>
     .trim();
 
 /**
+ * Koşul / olumluluk taşıyan çok dilli "başlık" sözcükleri (Opus 10-23 öğle B10): `askedConditions` Türkçe / İngilizce / Almanca gün ve dönemleri
+ * tanır; Rusça / Fransızca / İspanyolca gün adları, gece / akşam, sezon, tatil, yağmur, VIP ve ücret / yasak / kapalı / olumsuzluk sözcükleri
+ * de başlık diye ATILMAZ — atılırsa alıntı kalemde bulunur ama koşul ya da olumsuzluk sessizce düşer.
+ */
+const CONDITIONAL_TITLE = new RegExp(
+  [
+    "выходн|суббот|воскрес|пятниц|понедел|вторник|сред[аыу]|четверг|ноч|вечер|утр[оа]|сегодня|завтра|платн|запрещ|закрыт",
+    "week-?end|weekday|samedi|dimanche|vendredi|lundi|mardi|mercredi|jeudi|nuit|soir|matin|aujourd|demain|payant|interdit|ferm[ée]",
+    "s[áa]bado|domingo|viernes|lunes|martes|mi[ée]rcoles|jueves|noche|tarde|mañana|temporada|feriado|lluvia|pago|prohib|cerrad",
+    "nacht|abend|morgen|heute|wochenende|samstag|sonntag|freitag|ferien|regen|kostenpflicht|verboten|geschlossen|nicht",
+    "night|evening|morning|today|tomorrow|season|saison|holiday|vacances|rain|pluie|paid|forbidden|closed",
+    "gece|ak[şs]am|sabah|bugün|yarın|sezon|tatil|bayram|[üu]cret|yasak|kapal[ıi]",
+    // Kısa sözcükler harf sınırıyla (JS `\b` Kiril / Türkçe harfi sözcük saymaz).
+    "(?<!\\p{L})(?:not|no|pas|sin|ohne|sans|vip|нет|без|hoy)(?!\\p{L})",
+  ].join("|"),
+  "u",
+);
+
+/**
  * Alıntının bir parçasının dayanağı. Önce birebir. Olmazsa: model kalem başlığını misafirin diline çevirip alıntıya katabiliyor (kör set
  * incelemesi 10-23: "Интернет: Wi-Fi adı …" ↔ kalemde "İnternet: Wi-Fi adı …"). Başlık atılır ve kalan YALNIZ bir bilgi tabanı kaleminin
  * İÇERİĞİNİN BAŞINDA aranır — ortadaki bir cümlenin önüne konan "Hafta sonu:" gibi bir niteleyici başlık sayılmaz (Haiku 10-23: koşul
@@ -167,7 +187,9 @@ function groundedSegment(sources: readonly PartSource[], segment: string): { sou
   if (rest === segment || letterCount(rest) < MIN_SEGMENT_LETTERS) return undefined;
   // Gün / mevsim / koşul taşıyan "başlık" atılmaz ("Hafta sonu: Havuz 23:00'e kadar açıktır." — kalemin başlığı "Havuz" iken model başına koşul
   // koymuş olabilir; o koşul kalemde yok).
-  if (askedConditions(segment.slice(0, segment.length - rest.length)).length > 0) return undefined;
+  const title = segment.slice(0, segment.length - rest.length);
+  // İki küçük harf katlaması: Türkçe ("KAPALI" → "kapalı") ve dil bağımsız ("VIP" → "vip"; Türkçe yerelde "vıp" olurdu).
+  if (askedConditions(title).length > 0 || [title.toLocaleLowerCase("tr"), title.toLowerCase()].some((t) => CONDITIONAL_TITLE.test(t))) return undefined;
   const head = flat(rest);
   const source = sources.find((src) => {
     // `kbLine` biçimi: "- [KATEGORİ] Başlık: içerik".
@@ -189,8 +211,14 @@ export function groundEvidence(
   sources: readonly PartSource[],
   evidence: string,
 ): { source: PartSource; quote: string; cited: PartSource[] } | null {
+  const hits = groundedHits(sources, evidence);
+  return hits ? { ...hits[0], cited: [...new Set(hits.map((h) => h.source))] } : null;
+}
+
+/** Alıntının her cümlesinin dayanağı (yazılış sırasıyla); tek parça alıntıda tek kayıt. Dayanaksız cümle → null. */
+function groundedHits(sources: readonly PartSource[], evidence: string): { source: PartSource; quote: string }[] | null {
   const whole = groundedSegment(sources, evidence);
-  if (whole) return { ...whole, cited: [whole.source] };
+  if (whole) return [whole];
   const segments = evidence
     .split(QUOTE_SENTENCE_END)
     .map((x) => x.trim())
@@ -203,8 +231,20 @@ export function groundEvidence(
     if (!hit || letterCount(hit.quote) < MIN_SEGMENT_LETTERS) return null;
     hits.push(hit);
   }
-  return { ...hits[0], cited: [...new Set(hits.map((h) => h.source))] };
+  return hits;
 }
+
+/**
+ * Değer kaynağı seçerken KONU sayılmayan ihtiyaç sözcükleri (Haiku 10-23 öğle: "havuz hafta sonu kaçta" isteğinin "hafta / sonu" sözcükleri
+ * "Spa: Hafta sonu 10:00–23:00" kaleminde geçtiği için Spa konuyu anıyor sayılıyor, saati havuza geçiyordu). Tek sözcüklük gün / mevsim adları
+ * bağ denetiminin konu süzgecinde zaten konu değil; bunlar iki sözcüklük koşulların parçaları ve zaman sözcükleri.
+ */
+const NON_SUBJECT_TERMS: ReadonlySet<string> = new Set([
+  "hafta", "sonu", "sonlari", "sonlarinda", "sonunda", "ici", "icinde", "gun", "gunu", "gunleri", "gunler", "her", "aksam", "aksamlari",
+  "sabah", "sabahlari", "gece", "geceleri", "ogle", "ogleden", "saat", "kac", "kaca", "kacta", "kadar", "week", "weekend", "weekends",
+  "weekday", "weekdays", "day", "days", "night", "nights", "morning", "evening", "time", "wochenende", "woche", "tag", "tage", "nacht",
+  "abend", "semaine", "jour", "nuit", "soir", "fin", "semana", "dia", "noche",
+]);
 
 /**
  * Parça okuyucusu koşarken de KODDA kalan denetimler (Codex S3: "kod sayı / birimi, okuyucu tutarın hangi hizmete ve koşula ait olduğunu
@@ -214,6 +254,9 @@ export function groundEvidence(
  * Ölçüm (`docs/olcum/part-reader-vs-code-2026-10-23-luna-low.json`, 39 vaka × 2): kodun doğru tuttuğu 23 kötü taslağın 23'ünü okuyucu iki
  * okumada da tuttu; kod 16 doğru cevabın 12'sini gereksiz tuttu, okuyucu 1'ini (iki okumada). Kör setin incelemesi: kodun 19 tutmasının 19'u
  * gereksizdi.
+ * Ters olumluluk (izin ↔ yasak, ücretsiz ↔ ücretli, açık ↔ kapalı) da KODDA kalır (Opus 10-23 öğle B1): ev sahibini en çok haksız duruma
+ * düşüren sınıf ("Evet, evcil hayvan kabul edilir" ↔ kalemde "kabul edilmez") tek bir model hükmüne bırakılmaz; aynı ölçümde kodun 12
+ * gereksiz tutmasının hiçbiri bu bulgu değildi, 4 kötü taslağı tuttu.
  */
 export const CODE_KEPT_ISSUES: ReadonlySet<BindingIssue> = new Set<BindingIssue>([
   "evidence_missing",
@@ -221,6 +264,7 @@ export const CODE_KEPT_ISSUES: ReadonlySet<BindingIssue> = new Set<BindingIssue>
   "value_not_in_evidence",
   "value_conflict",
   "subject_unknown",
+  "polarity_mismatch",
 ]);
 
 /**
@@ -264,28 +308,39 @@ export function composeVerifiedReply(input: {
       verdicts.push({ ref: need.ref, status: "rejected", issues: ["too_long"] });
       continue;
     }
-    const grounded = groundEvidence(input.sources, part.evidence);
-    if (!grounded) {
+    const hits = groundedHits(input.sources, part.evidence);
+    if (!hits) {
       verdicts.push({ ref: need.ref, status: "rejected", issues: ["source_not_found"] });
       continue;
     }
-    const { source, quote, cited } = grounded;
+    const cited = [...new Set(hits.map((h) => h.source))];
     // İstemdeki öteki kaynaklar da okunur (Opus 10-23 O6): aynı konunun koşullu değişkesi başka kalemde olabilir ("Havuz 20:00" ↔ ayrı
     // kalemde "Hafta sonu havuz 23:00") — genel değer o değişkeyi anmadan gitmez; uydurma koşul kıyası da bütün kaynaklarla.
-    // Alıntı birden çok kalemden geliyorsa (#199) dayanak metni o kalemlerin TAMAMI: ikinci kalemin değeri konu sözcüğünü anmasa da
-    // aranır (öteki kaynaklar yalnız konuyu anıyorsa okunur); alıntının ilk cümlesi dayanak kaleminde geçer.
-    const otherSources = input.sources.filter((s) => !cited.includes(s)).map((s) => s.text);
+    // Alıntı birden çok kalemden geliyorsa (#199) dayanak metni dayanak kalemi + alıntılanan ve İSTEĞİN KONUSUNU ANAN öteki kalemler (genel
+    // kural ile istisnası iki kalemde: "Bahçe 21:00" + "Cumartesi bahçe 23:00"). Konuyu anmayan alıntılanmış kalem değer kaynağı SAYILMAZ, öteki
+    // kaynaklar gibi okunur (Opus 10-23 öğle B2: alıntıya "Otopark ücreti günlük 300 TL'dir." cümlesini eklemek, havuz ücreti diye uydurulan
+    // 300 TL'yi koddaki sayı denetiminden geçiriyordu). Okuyucu yine bütün alıntılanan kalemleri not olarak görür (`alsoCited`).
+    const subjectTerms = need.terms.filter((t) => !NON_SUBJECT_TERMS.has(t));
+    const mentioning = cited.filter((c) => sourceMentionsNeed(c.text, subjectTerms.length > 0 ? subjectTerms : need.terms, need.topics));
+    // Dayanak kalem de süzülür (Opus B2 ikinci tur: cümle sırası ters çevrilince konuyu anmayan otopark kalemi dayanak olup değeri
+    // taşıyordu). Hiçbir alıntılanan kalem konuyu anmıyorsa (çeviri / çekim körlüğü) ilk kalem — anlam okuyucuya. Bağ denetimine giden
+    // alıntı, değer kaynağı olan kalemdeki İLK cümledir (Haiku 10-23 öğle: konusuz genel bir cümleyle başlayan doğru alıntı tutuluyordu).
+    const valueSources = mentioning.length > 0 ? mentioning : [hits[0].source];
+    const { source, quote } = hits.find((h) => valueSources.includes(h.source)) ?? hits[0];
+    const otherSources = input.sources.filter((s) => !valueSources.includes(s)).map((s) => s.text);
     const binding = checkAnswerBinding({
       part: part.text,
       evidence: quote,
-      sourceText: cited.map((c) => c.text).join("\n"),
+      sourceText: valueSources.map((c) => c.text).join("\n"),
       otherSources,
       needTerms: need.terms,
       needTopics: need.topics,
     });
     const blocking = byReader ? binding.issues.filter((i) => CODE_KEPT_ISSUES.has(i)) : binding.issues;
     if (blocking.length > 0) {
-      verdicts.push({ ref: need.ref, status: "rejected", issues: blocking });
+      // Okuyucu kipinde kodun tuttuğu parçanın anlam bulguları da ize yazılır ("okuyucu ile kod aynı şeyi mi gördü" ölçümü — Opus B12).
+      const seen = byReader ? binding.issues.filter((i) => !CODE_KEPT_ISSUES.has(i)) : [];
+      verdicts.push({ ref: need.ref, status: "rejected", issues: blocking, ...(seen.length > 0 ? { advisory: seen } : {}) });
       continue;
     }
     // Doğru ama sorulanı cevaplamayan parça isteği KAPATMAZ ve gitmez (Opus e2e 10-23 F2 / F3): "Havuz kaçta açılıyor?" ↔ "Havuz
@@ -332,8 +387,9 @@ export function composeVerifiedReply(input: {
       ref: need.ref,
       text: part.text,
       evidence: part.evidence,
+      ...(quote !== part.evidence ? { quote } : {}),
       source: source.id,
-      ...(cited.length > 1 ? { alsoCited: cited.slice(1).map((c) => c.id) } : {}),
+      ...(cited.length > 1 ? { alsoCited: cited.filter((c) => c !== source).map((c) => c.id) } : {}),
     });
   }
   return { reply: texts.join("\n"), refs, verdicts, verified };

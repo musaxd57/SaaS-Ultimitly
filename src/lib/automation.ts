@@ -186,7 +186,8 @@ import {
   type ItemsTurn,
   type ItemsTurnPlan,
 } from "@/lib/conversation-items/flow";
-import type { AnsweredRequestsDeclaration } from "@/lib/conversation-items/reply-block";
+import { sentRefs, type AnsweredRequestsDeclaration } from "@/lib/conversation-items/reply-block";
+import { reopenItemsAnsweredBy } from "@/lib/conversation-items/store";
 import { stripTopicAbsence, topicAbsenceEnabled } from "@/lib/conversation-items/topic-absence";
 import { namesPaymentMethod } from "@/lib/payment-method-guard";
 import { hasRecordedHandoff, hostVoiceDraft } from "@/lib/ai/host-voice";
@@ -648,7 +649,8 @@ export function autoReplyGateVerdict(
     if (items.answerableKinds.length === 0) return hold("items_nothing_answered");
     const decl = result.answeredRequests;
     if (!decl || !decl.ok) return hold(decl?.ok === false && decl.reason === "unknown_ref" ? "items_touch_held" : "items_undeclared");
-    if (decl.refs.length === 0) return hold("items_nothing_answered");
+    // Gönderilip açık kalan parça da "gönderilecek bir şey"dir (Opus 10-23 öğle B4) — yalnız onu taşıyan tek soruluk tur sessiz kalmaz.
+    if (sentRefs(decl).length === 0) return hold("items_nothing_answered");
     // T-d (kurucu 10-22): okuyucu okuduysa yalnız ev sahibine platform dışı ödeme tutar ("otopark gişede nakit" gider); yoksa kelime kuralı.
     if (items.paymentHeld && paymentHeldHolds(namesPaymentMethod(result.reply ?? "", { paymentContext: true }), senior)) {
       return hold("items_payment_held");
@@ -660,7 +662,8 @@ export function autoReplyGateVerdict(
     if (items.relation) {
       const relationHold = relationGateHold(items.relation, {
         text: result.reply ?? "",
-        answeredRefs: decl.refs,
+        // Arıza çözümü kemerleri metinde GİDEN her çözümü okur — açık kalacak olanı da (B4).
+        answeredRefs: sentRefs(decl),
         usedSources: result.usedSources,
       });
       if (relationHold) return hold(relationHold);
@@ -2644,15 +2647,19 @@ export async function applyChannelAutoReply(
     admitsMissingKnowledge(result.reply) &&
     !judgeReleases(absenceJudge?.outcome)
   ) {
+    const declared = result.answeredRequests;
     const stripped = stripTopicAbsence({
       reply: result.reply ?? "",
-      answeredRefs: result.answeredRequests.refs,
+      answeredRefs: sentRefs(declared),
       answerableTopics: itemsPlan.gateItems.answerableTopics ?? [],
       heldDeviceTopics: itemsPlan.gateItems.heldDeviceTopics ?? [],
       greetingName: conversation.reservation?.guestGivenName ?? null,
     });
     if (stripped.ok) {
-      result = { ...result, reply: stripped.reply, answeredRequests: { ok: true, refs: stripped.answeredRefs } };
+      // Açık kalacak parçalar ayıklamadan sonra da açık kalır (kapatma listesine geçmez).
+      const openRefs = stripped.answeredRefs.filter((r) => (declared.openRefs ?? []).includes(r));
+      const refs = stripped.answeredRefs.filter((r) => !openRefs.includes(r));
+      result = { ...result, reply: stripped.reply, answeredRequests: { ok: true, refs, ...(openRefs.length > 0 ? { openRefs } : {}) } };
       topicAbsenceTrace = { s: stripped.droppedSentences, r: stripped.droppedRefs.length };
       // Hakem eski metinde itiraf gördüyse ayıklanan metni de okur: kalan cümlede kelime kuralının kaçırdığı bir itiraf kalmış olabilir
       // (Haiku 10-21: "Gate access is not something my information covers…"). Hakem düşerse kelime kuralı (bugünkü davranış).
@@ -2677,7 +2684,8 @@ export async function applyChannelAutoReply(
   // sayılmaz (selam silinince ilk harf büyür); selamdan ibaret ya da boş parça hiçbir metinde "duruyor" sayılmaz (Haiku 10-23 sabah: boş
   // dize her metnin içindedir).
   if (replyItems?.parts && result.source === "openai" && result.answeredRequests?.ok === true && (result.verifiedParts?.length ?? 0) > 0) {
-    const answeredRefs = result.answeredRequests.refs;
+    // Gönderilip açık kalacak parça da onaylı parçadır: değişirse beyan geçersiz (B4).
+    const answeredRefs = sentRefs(result.answeredRequests);
     // Karşılaştırma biçimi tekrar anahtarıyla AYNI (`partTextKey`: Türkçe i, boşluk, sondaki noktalama — Opus 10-23 G3).
     const finalText = foldPartText(result.reply ?? "");
     const altered = (result.verifiedParts ?? []).some((v) => {
@@ -3261,7 +3269,8 @@ export async function applyChannelAutoReply(
   const partsUnanswered =
     replyItems?.parts === true &&
     result.source === "openai" &&
-    (!result.reply.trim() || (result.answerParts ?? []).some((v) => v.status !== "verified"));
+    // Açık kalacak parça da cevapsız istektir (B4): tur tutulduysa misafire hiçbir şey gitmedi, ihtiyaç açık.
+    (!result.reply.trim() || (result.answerParts ?? []).some((v) => v.status !== "verified" || v.openAfterSend === true));
   if (!gatePassed) {
     // ── KONUŞMA ÖĞELERİ — TUTULAN TUR (kurucu kararları 09-26) ───────────────────────────────────────────────────
     // Acil / enjeksiyon turu bugünkü yoldan (Sorunlu + acil e-posta): öğeler tutulur, e-postayı bugünkü yol atar.
@@ -3803,6 +3812,17 @@ export async function applyChannelAutoReply(
         model: result,
         lastMessageId: last.id,
       });
+      // Opus 10-23 öğle B5: kuyruk satırı yazıldıktan sonra, öğe kapanmadan ÖNCE işçi satırı iptal etmiş / kesin düşürmüş olabilir (elle
+      // gönderimin `kickOutboxDrain`'i, gönderim anı vetosu) — işçinin yeniden açması o an kapanmamış öğeyi bulamamıştı. Kapatmadan sonra satır
+      // bir kez okunur; gitmediyse (silme iptali hariç) bu mesajın kapattığı öğeler yeniden açılır (idempotent, işçiyle aynı kural).
+      try {
+        const row = await prisma.messageOutbox.findUnique({ where: { id: enq.outboxId }, select: { status: true, lastErrorCode: true } });
+        if (row && NOT_DELIVERED_STATUSES.includes(row.status as (typeof NOT_DELIVERED_STATUSES)[number]) && row.lastErrorCode !== "erased") {
+          await reopenItemsAnsweredBy(prisma, { organizationId: conversation.property.organizationId, messageId: enq.messageId });
+        }
+      } catch (err) {
+        void reportError("outbox-reopen-items", err);
+      }
     }
     if (turnDecisions.length > 0) await notifyDecisions();
 
