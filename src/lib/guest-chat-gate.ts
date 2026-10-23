@@ -1,6 +1,7 @@
 import "server-only";
 
 import { admitsMissingKnowledge, namesInternalSource } from "@/lib/ai/absence";
+import { mentionsAssistanceAnimal, mentionsPets } from "@/lib/conversation-items/pet-policy";
 import { absenceHolds, seniorChecksOf, type AbsenceJudgeOutcome } from "@/lib/ai/semantic/absence-judge";
 import { noApologyRuleEnabled } from "@/lib/ai/no-apology-rule";
 import { vetoOutgoingReply } from "@/lib/ai/output-veto";
@@ -160,6 +161,9 @@ export const ESCALATION_REASONS = [
   "reply_apology",
   // Kurucu 10-22: cevap bilgiyi NEREDEN bildiğini anlatıyor (bilgi tabanı / kayıt / not / sistem) — kanal kapısıyla AYNI yüklem.
   "reply_internal_source",
+  // Kurucu 10-23 akşam 4.4 (seçenek A) — kanal kapısıyla AYNI kural: evcil hayvandan söz eden cevap yalnız bilgi tabanı kodla "ücretsiz kabul"
+  // diyorsa gider; yardımcı hayvan hiç.
+  "reply_pet_policy",
 ] as const;
 
 export type EscalationReason = (typeof ESCALATION_REASONS)[number];
@@ -274,6 +278,8 @@ export function evaluateEscalation(
     kbFixSupport?: KbFixSupport;
     /** "Bilgim yok" bağlam hakemi (`AI_ABSENCE_JUDGE_ENABLED`) + okuduğu metin; hüküm yalnız birebir aynı cevaba uygulanır. */
     absenceJudge?: { reply: string; outcome: AbsenceJudgeOutcome };
+    /** Modelin gördüğü bilgi tabanı evcil hayvanı kodla okunduğunda açıkça ÜCRETSİZ ve KOŞULSUZ kabul ediyor (`pet-policy.kbPetsFreeAllowed`). */
+    petsFreeAllowed?: boolean;
   },
 ): { escalate: boolean; reason: EscalationReason | null } {
   const yes = (reason: EscalationReason) => ({ escalate: true, reason });
@@ -378,6 +384,8 @@ export function evaluateEscalation(
   // koşmaz): okuyucu okuduysa onun hükmü; ayrıca kodun açık sözcük yedeği (okuyucu kapalı / düştü / kaçırdı) — ANAHTARSIZ. Okuyucu açıksa
   // rota bir kez yeniden yazdırır.
   if (senior?.internalSource || namesInternalSource(result.reply ?? "")) return yes("reply_internal_source");
+  // Evcil / yardımcı hayvan (kurucu 10-23 akşam 4.4) — kanal kapısıyla AYNI kural ("model sallamasın").
+  if (mentionsPets(result.reply) && (stayCtx?.petsFreeAllowed !== true || mentionsAssistanceAnimal(result.reply))) return yes("reply_pet_policy");
   // ── KANITSIZ ARIZA ADIMI (kurucu 10-15; anahtar `AI_FIX_SUPPORT_GATE_ENABLED`) — kanal kapısıyla AYNI yüklem. Bilgi tabanında tarifi /
   // konusu olmayan cihaz için adım misafire gitmez, ev sahibine devredilir. ──
   // Koddan kurulan doğrulanmış müsaitlik / uzatma metni muaf (kanal kapısındaki `codeBuiltGrant` paritesi — Haiku 10-15 gece).

@@ -2323,9 +2323,15 @@ const OVERSTAY_REFUSAL_PHRASES = [
 // RULE VIOLATION (pet in a no-pet listing, party/event, over-capacity guests,
 // smoking inside) — the host, not the bot, decides these (deposit / allergy /
 // liability / neighbour issues). Over-flagging to a human is the safe side.
-const RULE_VIOLATION_PHRASES = [
+/**
+ * Kural ihlali kelime ağının EVCİL HAYVAN ailesi (kurucu 10-23 akşam 4.3: "köpek sorusu bütün mesajı tutmasın"). Ağ bütünüyle AYNI kalır
+ * (`RULE_VIOLATION_PHRASES` iki ailenin birleşimi); yalnız öğe kipi etiketin hangi aileden geldiğini okur (`ruleViolationIsPetsOnly`).
+ */
+const PET_RULE_PHRASES = [
   "evcil hayvan", "köpeğ", "kopeg", "köpek getir", "kopek getir", "kedimi getir", "köpeğimi", "kopegimi",
   "my dog", "my cat", "bring a dog", "bring my dog", "bring our dog", "bring a pet", "pet friendly",
+];
+const OTHER_RULE_PHRASES = [
   // (Türkçe "parti" ALT DİZE DEĞİL — ↓TR_PARTY_RE, 10-02 kurucu onayı, Sabah Kararları 49 sınıfı: alt dize İspanyolca / Fransızca "partir"
   // ("¿A partir de qué hora…?", "Nous devons partir à 10h"), "compartido", "partie" ve İngilizce "particular" içinde kural ihlali
   // üretiyordu. İngilizce "party" alt dizesi "partying"i de tutar; çoğul "parties" ayrıca yazılır.)
@@ -2336,6 +2342,20 @@ const RULE_VIOLATION_PHRASES = [
   "extra guest", "more guests", "additional guest", "how many people can stay", "friends stay over", "friends staying over",
   "içeride sigara", "iceride sigara", "sigara içebilir", "smoke inside", "smoking inside",
 ];
+const RULE_VIOLATION_PHRASES = [...PET_RULE_PHRASES, ...OTHER_RULE_PHRASES];
+
+/**
+ * Kural ihlali etiketi YALNIZ evcil hayvan ailesinden mi (parti / fazla kişi / sigara / çıkışı reddetme yok)? Öğe kipi etiketi o zaman
+ * evcil hayvan isteğine bağlar; aksi hâlde bugünkü kural (atfedilemezse bütün mesaj). Saf.
+ */
+export function ruleViolationIsPetsOnly(message: string): boolean {
+  return (
+    includesAnyFold(message, PET_RULE_PHRASES) &&
+    !includesAnyFold(message, OTHER_RULE_PHRASES) &&
+    !includesAnyFold(message, OVERSTAY_REFUSAL_PHRASES) &&
+    !hasTurkishPartyWord(message)
+  );
+}
 
 /**
  * Türkçe "parti" — YALNIZ tam sözcük + ad çekimleri (10-02, kurucu onayı; Sabah Kararları 49 sınıfı): "parti", "partiye", "partide",

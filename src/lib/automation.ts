@@ -43,6 +43,7 @@ import {
 import { noApologyRuleEnabled } from "@/lib/ai/no-apology-rule";
 import { offPlatformContactHoldsFor } from "@/lib/channels/airbnb-message-policy";
 import { containsContactValue } from "@/lib/contact-redact";
+import { kbPetsFreeAllowed, mentionsAssistanceAnimal, mentionsPets } from "@/lib/conversation-items/pet-policy";
 import {
   earlyCheckinEvidenceOf,
   earlyCheckinHostNote,
@@ -274,6 +275,11 @@ export interface AutoReplyGateContext {
    * engeller. Anahtar kapalıyken alan yazılmaz.
    */
   offPlatformContactHolds?: boolean;
+  /**
+   * Kurucu 10-23 akşam 4.4: modele giden bilgi tabanı evcil hayvanı kodla okunduğunda açıkça ÜCRETSİZ ve KOŞULSUZ kabul ediyor
+   * (`conversation-items/pet-policy.kbPetsFreeAllowed`). Değilse evcil hayvandan söz eden cevap gitmez.
+   */
+  petsFreeAllowed?: boolean;
   /** Anlama katmanının konaklama sinyali (`AI_UNDERSTANDING_ENABLED`). */
   understanding?: UnderstandingStaySignal | null;
   /** Anlama katmanı açıktı ama başarısız oldu (yalnız kanıt: `sc.u = "failed"`; kararı değiştirmez). */
@@ -591,6 +597,9 @@ export function autoReplyGateVerdict(
   if (senior?.contact && context?.offPlatformContactHolds === true) return hold("reply_offplatform_contact");
   // Kod yedeği (anahtarsız, kurucu 10-23 akşam 4.5): okuyucu okumasa da telefon / e-posta / bağlantı DEĞERİ aynı pencerede gitmez.
   if (context?.offPlatformContactHolds === true && containsContactValue(result.reply)) return hold("reply_offplatform_contact");
+  // Evcil / yardımcı hayvan (kurucu 10-23 akşam 4.4, seçenek A; anahtarsız): "model sallamasın" — evcil hayvandan söz eden cevap yalnız bilgi
+  // tabanı kodla "ücretsiz kabul" diyorsa gider; yardımcı hayvan sorusu her zaman ev sahibine (Airbnb kuralı yere / hayvan türüne göre değişir).
+  if (mentionsPets(result.reply) && (context?.petsFreeAllowed !== true || mentionsAssistanceAnimal(result.reply))) return hold("reply_pet_policy");
   if (senior?.apology && noApologyRuleEnabled()) return hold("reply_apology");
   // ── ÇIKTI VETOSU (Codex denetimi §A, 09-12) ───────────────────────────────
   //
@@ -2565,6 +2574,7 @@ export async function applyChannelAutoReply(
     // Airbnb'de onaylı rezervasyon yokken platform dışı iletişim tutulur: okuyucunun hükmü (T-b) + iletişim DEĞERİ için anahtarsız kod
     // yedeği (kurucu 10-23 akşam 4.5: "host kendi telefon numarasını yazamaz … rezervasyondan önce"; okuyucu kapalı / düştüyse de).
     offPlatformContactHolds: offPlatformContactHoldsFor(conversation),
+    petsFreeAllowed: kbPetsFreeAllowed(kbForModel),
   };
 
   // ── KIDEMLİ OKUYUCU: İLK TASLAĞI OKU, DÜZELTİLEBİLİR SORUNDA AYNI ANLAMDA BİR KEZ YENİDEN YAZDIR (kurucu 10-22) ─────────────────────
@@ -2592,7 +2602,12 @@ export async function applyChannelAutoReply(
       const budgetOk = metered ? (await peekDailyAiBudget(conversation.property.organizationId)).ok : true;
       if (budgetOk) {
         const retryStartedAt = Date.now();
-        const retried = await suggestReply({ ...replyInput, knowledgeBaseNotes: [...(kbSel.notes ?? []), ...seniorRewriteNotes(reasons)] }).catch(
+        const retried = await suggestReply({
+          ...replyInput,
+          knowledgeBaseNotes: [...(kbSel.notes ?? []), ...seniorRewriteNotes(reasons)],
+          // Parça kipinde tutulan parça bu turda zaten bir kez yeniden yazıldı (4.9: tur başına bir kez).
+          partRewriteDone: true,
+        }).catch(
           () => null,
         );
         replyLatencyMs += Date.now() - retryStartedAt;

@@ -50,6 +50,9 @@ export const GATE_BLOCK_DETAILS = [
   // Kurucu 10-22 ("bilgi tabanıyla ilgili … hiçbir şey müşteriye gitmemeli"): cevap bilgiyi NEREDEN bildiğini anlatıyor (okuyucu ya da kodun
   // açık sözcük yedeği `absence.namesInternalSource`) — ANAHTARSIZ yedek; okuyucu açıksa bir kez yeniden yazdırılır.
   "reply_internal_source",
+  // Kurucu 10-23 akşam 4.4 (seçenek A, ANAHTARSIZ kod yedeği): cevap evcil hayvandan söz ediyor ama bilgi tabanı kodla okunduğunda açıkça
+  // "ücretsiz kabul" demiyor (ücretli / koşullu / yasak / belirsiz) ya da yardımcı hayvandan söz ediyor — ev sahibine kalır.
+  "reply_pet_policy",
 ] as const;
 export type GateBlockDetail = (typeof GATE_BLOCK_DETAILS)[number];
 

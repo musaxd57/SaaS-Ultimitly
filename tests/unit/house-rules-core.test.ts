@@ -63,18 +63,19 @@ describe("decideHouseRule — karar tablosu (tasarım §2.C)", () => {
     expect(decideHouseRule({ topic: "smoking", stance: "announces" }, rules)).toEqual({ kind: "state_rule", policy: "forbidden", notifyHost: true });
   });
 
+  // Kurucu 10-23 akşam 4.4: evcil hayvan artık bu tabloya girmez (her durumda ev sahibine — `tests/unit/pet-policy.test.ts`); örnek konu sigara.
   it("İZİNLİ: izin isteyene / sorana izin söylenir; yapacağını söyleyen normal cevap alır", () => {
-    const rules = [rule("pets", "allowed")];
-    expect(decideHouseRule({ topic: "pets", stance: "asks_permission" }, rules)).toEqual({ kind: "state_rule", policy: "allowed", notifyHost: false });
-    expect(decideHouseRule({ topic: "pets", stance: "asks_info" }, rules)).toEqual({ kind: "state_rule", policy: "allowed", notifyHost: false });
-    expect(decideHouseRule({ topic: "pets", stance: "announces" }, rules)).toEqual({ kind: "normal" });
+    const rules = [rule("smoking", "allowed")];
+    expect(decideHouseRule({ topic: "smoking", stance: "asks_permission" }, rules)).toEqual({ kind: "state_rule", policy: "allowed", notifyHost: false });
+    expect(decideHouseRule({ topic: "smoking", stance: "asks_info" }, rules)).toEqual({ kind: "state_rule", policy: "allowed", notifyHost: false });
+    expect(decideHouseRule({ topic: "smoking", stance: "announces" }, rules)).toEqual({ kind: "normal" });
   });
 
   it("KURAL YOK / bana sor / yalnız öneri: izin isteği ve duyuru ev sahibinde; bilgi sorusu normal akış", () => {
-    for (const rules of [[], [rule("pets", "ask_host")], [rule("pets", "forbidden", "suggested")]]) {
-      expect(decideHouseRule({ topic: "pets", stance: "asks_permission" }, rules)).toEqual({ kind: "hold" });
-      expect(decideHouseRule({ topic: "pets", stance: "announces" }, rules)).toEqual({ kind: "hold" });
-      expect(decideHouseRule({ topic: "pets", stance: "asks_info" }, rules)).toEqual({ kind: "normal" });
+    for (const rules of [[], [rule("smoking", "ask_host")], [rule("smoking", "forbidden", "suggested")]]) {
+      expect(decideHouseRule({ topic: "smoking", stance: "asks_permission" }, rules)).toEqual({ kind: "hold" });
+      expect(decideHouseRule({ topic: "smoking", stance: "announces" }, rules)).toEqual({ kind: "hold" });
+      expect(decideHouseRule({ topic: "smoking", stance: "asks_info" }, rules)).toEqual({ kind: "normal" });
     }
   });
 

@@ -1,4 +1,6 @@
 import type { SeniorChecks } from "./absence-judge";
+import { addLlmUsage } from "../llm-usage";
+import type { LlmUsage } from "../types";
 
 // ---------------------------------------------------------------------------
 // KIDEMLİ OKUYUCU → AYNI ANLAMDA BİR KEZ YENİDEN YAZ (kurucu 10-22, aynen: "airbnbnin engelleyeceği bir cevap üretildiyse … gitmeme nedeni
@@ -121,7 +123,8 @@ export function mergeSeniorRewrite<
     ...(retried.verifiedParts !== undefined || first.verifiedParts !== undefined ? { verifiedParts: retried.verifiedParts } : {}),
     claimedActions: retried.claimedActions,
     timeConflicts: retried.timeConflicts,
-    llmUsage: retried.llmUsage,
+    // İki çağrının kullanımı birlikte sayılır (Haiku 10-23 akşam: ilk çağrının — parça yeniden yazması dahil — kullanımı düşüyordu).
+    llmUsage: addLlmUsage(first.llmUsage as LlmUsage | undefined, retried.llmUsage as LlmUsage | undefined),
     kbOmittedInPrompt: retried.kbOmittedInPrompt,
   };
 }

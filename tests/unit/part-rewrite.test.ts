@@ -327,6 +327,27 @@ describe("suggestReply — tutulan parça bir kez yeniden yazılır", () => {
     expect(r.reply).not.toContain("kapıdan");
   });
 
+  it("🚨 Haiku 10-23 akşam: kıdemli okuyucunun yeniden yazma TURUNDA parça ikinci kez yeniden yazılmaz (tur başına bir kez)", async () => {
+    const calls = net({ rewrite: [BETTER], readers: [{ R1: "partly" }] });
+    const r = await suggestReply({ ...input, conversationItems: ITEMS, partRewriteDone: true });
+    expect(calls).toMatchObject({ reader: 1, rewrite: 0 });
+    expect(r.answerParts?.find((v) => v.ref === "R1")).toEqual({ ref: "R1", status: "rejected", issues: ["reader_partial"] });
+  });
+
+  it("🚨 Haiku 10-23 akşam: kod selamı açıkken misafirin adı yeniden yazma isteminde de maskelenir (cevap istemiyle aynı kural)", async () => {
+    vi.stubEnv("AI_CODE_GREETING_ENABLED", "1");
+    const calls = net({ rewrite: [BETTER], readers: [{ R1: "partly" }, {}] });
+    await suggestReply({
+      ...input,
+      guestMessage: "Adım Deniz. Klimayı nasıl soğutmaya alırım? Wi-Fi şifresi ne?",
+      reservation: { guestName: "Deniz Kaya", guestGivenName: "Deniz", arrivalDate: "2026-09-24", departureDate: "2026-09-28", status: "confirmed" },
+      conversationItems: ITEMS,
+    });
+    expect(calls.rewrite).toBe(1);
+    expect(calls.rewriteBody).toContain("Klimayı nasıl soğutmaya alırım?");
+    expect(calls.rewriteBody).not.toContain("Deniz");
+  });
+
   it("okuyucu KAPALIYKEN yeniden yazma yok (parçalar zaten tutulur)", async () => {
     vi.stubEnv("AI_SENIOR_READER_ENABLED", "");
     const calls = net({ rewrite: [BETTER], readers: [] });

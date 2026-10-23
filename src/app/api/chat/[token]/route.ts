@@ -79,6 +79,7 @@ import {
 import { CLOSING_HANDLED_REASON, CLOSING_OPEN_REASON, hasOpenHostWork } from "@/lib/conversation-attention";
 import { applyPromptKbAudit, buildKbEvidence } from "@/lib/ai/grounding";
 import { houseRulesShadowFor } from "@/lib/house-rules/shadow";
+import { kbPetsFreeAllowed } from "@/lib/conversation-items/pet-policy";
 import { retrieveKbForPrompt } from "@/lib/ai/kb-retrieve";
 import { loadConversationStateForConversation } from "@/lib/ai/conversation-state-loader";
 import { orgTimezone } from "@/lib/timezone";
@@ -1152,6 +1153,8 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     understandingRisk: understandingRiskOf(understood),
     // Modelin gördüğü bilgi tabanı (24 EK): yazılı sabit otopark yeri tahsisi takvim iddiası sayılmaz — kanalla parite.
     kbFacts: kbFactsOf(kbSel.items),
+    // Kurucu 10-23 akşam 4.4: evcil hayvan cevabı yalnız bilgi tabanı kodla "ücretsiz kabul" diyorsa gider.
+    petsFreeAllowed: kbPetsFreeAllowed(kbSel.items),
     // Kanıtsız arıza adımı kemeri — kanal kapısıyla AYNI yüklem ve bağlam (anahtar kapalıyken alan yok).
     ...fixSupportContextOf(kbSel.items),
     // 56: kodun dil tespiti emin değilken (kısa / karışık soru) misafirin dili için MODEL görüşü — önce bağımsız anlama katmanı.

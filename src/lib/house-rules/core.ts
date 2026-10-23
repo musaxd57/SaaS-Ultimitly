@@ -79,6 +79,10 @@ export function decideHouseRule(understanding: RuleUnderstanding | null, rules: 
   }
   const { topic, stance } = understanding;
   if (stance === "not_about_guest") return { kind: "not_applicable" };
+  // Kurucu 10-23 akşam 4.4 (seçenek A): evcil hayvan kuralı koddan söylenmez — "izinli" ücret / koşul taşıyabilir (kart ücreti bilmez),
+  // "yasak" ise Airbnb'de misafir ücret ödeyip hayvanı ekleyebilir ve yardımcı hayvan reddedilemez. Ev sahibine kalır; tek istisna bilgi
+  // tabanının kodla okunan "ücretsiz kabul"ü (`conversation-items/pet-policy.ts`, cevap yolunda).
+  if (topic === "pets") return { kind: "hold" };
   let policy = effectivePolicy(rules, topic);
   // İzin cümlesi olmayan konuda "izinli" otomatik izne dönüşmez.
   if (policy === "allowed" && !ALLOWED_TOPICS.has(topic)) policy = "ask_host";

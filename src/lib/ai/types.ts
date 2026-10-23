@@ -179,6 +179,11 @@ export interface SuggestReplyInput {
    * çözülür; verilmezse istem bayt bayt aynı, alan sonuçta YOK.
    */
   conversationItems?: ReplyItemsInput;
+  /**
+   * Bu çağrı kıdemli okuyucunun YENİDEN YAZMA turu (`semantic/senior-rewrite.ts`): parça kipinde tutulan parça burada ikinci kez yeniden
+   * yazılmaz (kurucu 10-23 akşam 4.9: tur başına bir kez — Haiku: yeniden yazma turu parça yeniden yazmasını tekrar çağırıyordu).
+   */
+  partRewriteDone?: boolean;
 }
 
 /** Model çağrısının token kullanımı (yalnız sayılar + sunulan model adı; metin YOK). */

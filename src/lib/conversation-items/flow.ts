@@ -13,6 +13,7 @@ import { itemOrdinalEnabled } from "./flag";
 import type { ReplyItemsInput } from "./reply-block";
 import { composeItemsPlan, faultRequestsOf, hintKey, relationFactsOf } from "./plan";
 import { kbRecipeTopics } from "./relation";
+import { kbPetsFreeAllowed } from "./pet-policy";
 import {
   applyItemEvent,
   applyWithdrawals,
@@ -118,6 +119,8 @@ export async function planItemsTurn(
     understanding: input.understanding,
     ...(existingItems.length > 0 ? { existingItems } : {}),
     ...(guest ? { guestNames: [guest.guestIdentifier, guest.reservation?.guestName, guest.reservation?.guestGivenName] } : {}),
+    // Kurucu 10-23 akşam 4.4: evcil hayvan isteği yalnız bilgi tabanı açıkça "ücretsiz kabul" diyorsa cevaplanabilir (kod okur, model değil).
+    ...(kbPetsFreeAllowed(input.knowledgeBase ?? []) ? { petsFreeAllowed: true } : {}),
     ...(input.hazardCleared
       ? {
           labelsOf: (body: string) =>

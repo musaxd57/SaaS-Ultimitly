@@ -87,6 +87,9 @@ const INTENT_SENSITIVITY: Readonly<Partial<Record<UnderstandingIntent, ItemSensi
   // Kurucu 10-23: kaynak / asistan sorusu ("Bunu nereden biliyorsun?") otomatik cevaplanmaz, panelde AÇIK kalır; aynı mesajdaki bağımsız sorular
   // cevaplanır. Bildirim e-postası YOK (acil değil — `NO_NOTIFY_KINDS`).
   about_assistant: "sensitive",
+  // Kurucu 10-23 akşam 4.4 (seçenek A): evcil hayvan isteği ev sahibine kalır — Airbnb'de misafir ücret ödeyip hayvanı ekleyebilir, yardımcı
+  // hayvan reddedilemez. TEK istisna: bilgi tabanı kodla okunduğunda açıkça "ücretsiz kabul" (`pet-policy.kbPetsFreeAllowed`, çağıran verir).
+  pets: "sensitive",
 };
 
 /** Ev sahibinde açık kalan ama ACİL e-posta gerektirmeyen türler (kurucu 10-23: kaynak / asistan sorusu yalnız panelde). */
@@ -109,7 +112,18 @@ const LABEL_KIND_AFFINITY: Readonly<Record<string, readonly UnderstandingIntent[
   human_request: ["human_request"],
   access_security: ["access_keys"],
   rule_violation: ["house_rules"],
+  // Kurucu 10-23 akşam 4.4: yardımcı / hizmet / destek hayvanı — evcil hayvan isteğini tutar ("ayrışsın": ev sahibi ayrı etiketle görür).
+  assistance_animal: ["pets", "house_rules"],
 };
+
+/**
+ * Kurucu 10-23 akşam 4.3: kelime ağının kural ihlali etiketi YALNIZ evcil hayvan ailesinden geldiyse ("köpeğimizi getirebilir miyiz?") evcil
+ * hayvan isteğine de bağlanır — bütün mesaj tutulmaz. Parti / fazla kişi / sigara / çıkışı reddetme bugünkü gibi (`LABEL_KIND_AFFINITY`).
+ */
+const PET_RULE_VIOLATION_KINDS: readonly UnderstandingIntent[] = ["pets", "house_rules"];
+
+/** Cevap modelinin TUR etiketinin ek atfı (4.3): modelin "kural ihlali"si evcil hayvan sorusunda tutulan evcil hayvan isteğine aittir. */
+const MODEL_LABEL_EXTRA_KINDS: Readonly<Record<string, readonly UnderstandingIntent[]>> = { rule_violation: ["pets"] };
 
 /** Acil sayılan etiketler (öğe hassaslığı `emergency`). */
 const EMERGENCY_LABELS: ReadonlySet<string> = new Set(["safety_emergency"]);
@@ -347,6 +361,13 @@ export function buildItemsForMessage(input: {
    * AYRI öğe; aynı (tür, sıra) birleşir, ilki kalır. Verilmezse bugünkü kural: aynı türden istekler birleşir, ilk sıra kalır.
    */
   ordinals?: readonly number[];
+  /** Kural ihlali etiketi yalnız evcil hayvan ailesinden (`fallback.ruleViolationIsPetsOnly`) — 4.3. */
+  petRuleOnly?: boolean;
+  /**
+   * Bilgi tabanı kodla okunduğunda evcil hayvanı açıkça ÜCRETSİZ ve KOŞULSUZ kabul ediyor (`pet-policy.kbPetsFreeAllowed`) ve misafir yardımcı
+   * hayvandan söz etmiyor — 4.4: evcil hayvan isteği cevaplanabilir (ve yalnız evcil hayvan ailesinden kural ihlali etiketi onu tutmaz).
+   */
+  petsFreeAllowed?: boolean;
 }): BuiltItem[] {
   if (input.requests.length === 0) return buildLexicalItems(input.lexicalLabels);
   const items: BuiltItem[] = [];
@@ -358,7 +379,7 @@ export function buildItemsForMessage(input: {
       requestIndex: i,
       kind: r.intent,
       ...(ordinal > 0 ? { ordinal } : {}),
-      sensitivity: INTENT_SENSITIVITY[r.intent] ?? "none",
+      sensitivity: r.intent === "pets" && input.petsFreeAllowed === true ? "none" : (INTENT_SENSITIVITY[r.intent] ?? "none"),
       riskType: null,
       sources: ["understanding"],
       ...(r.hint ? { hint: r.hint } : {}),
@@ -367,7 +388,10 @@ export function buildItemsForMessage(input: {
   });
   for (const label of input.lexicalLabels) {
     const to: ItemSensitivity = EMERGENCY_LABELS.has(label) ? "emergency" : "sensitive";
-    const affinity = LABEL_KIND_AFFINITY[label] ?? [];
+    const petRule = label === "rule_violation" && input.petRuleOnly === true;
+    // Evcil hayvan sorusu bilgi tabanında doğrulanmış "ücretsiz kabul"se o sorunun kendi kelime etiketi onu tutmaz (evcil hayvan isteği varsa).
+    if (petRule && input.petsFreeAllowed === true && items.some((it) => it.kind === "pets")) continue;
+    const affinity = petRule ? PET_RULE_VIOLATION_KINDS : (LABEL_KIND_AFFINITY[label] ?? []);
     const targets = items.filter((it) => affinity.includes(it.kind));
     // Atfedilemeyen etiket mesajın TAMAMINI hassas yapar (birleşim: "istek yok" gerçek isteği silemez).
     for (const it of targets.length > 0 ? targets : items) raise(it, to, label, "lexical");
@@ -405,7 +429,7 @@ export type ItemRiskFacts = Pick<BuiltItem, "kind" | "sensitivity" | "riskType">
 export function replyRiskAttributable(riskType: string | null | undefined, items: readonly ItemRiskFacts[]): boolean {
   if (!riskType) return true;
   if (TURN_LEVEL_LABELS.has(riskType)) return false;
-  const affinity = LABEL_KIND_AFFINITY[riskType] ?? [];
+  const affinity = [...(LABEL_KIND_AFFINITY[riskType] ?? []), ...(MODEL_LABEL_EXTRA_KINDS[riskType] ?? [])];
   return items.some((it) => it.sensitivity !== "none" && (it.riskType === riskType || affinity.includes(it.kind)));
 }
 

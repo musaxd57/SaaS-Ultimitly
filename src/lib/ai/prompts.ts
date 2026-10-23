@@ -1241,10 +1241,11 @@ const KB_FEE_RULE_REPLACEMENTS: readonly Replacement[] = [
     // Kurucu ifadesi (10-01): "Fiyat söyleme" yasağı ile istenen davranış çelişmesin — olumlu kural, yasak satırın YERİNE.
     "  ÜCRET KURALI: Onaylı bilgi tabanındaki sabit hizmet ücretini, koşullarıyla birlikte söyle. Konaklama fiyatı, indirim, iade\n" +
       "  veya tazminat konusunda fiyat üretme ya da onay verme.\n" +
-      "  Sabit hizmet ücreti = misafirin sorduğu hizmetin (ör. otopark, ara temizlik, ek yatak, evcil hayvan, bagaj, havalimanı\n" +
-      "  transferi) bilgi tabanında AÇIKÇA yazan ücreti: tutarı ve koşulunu (gün başına, tek yön, önceden haber verme…) bilgi\n" +
+      "  Sabit hizmet ücreti = misafirin sorduğu hizmetin (ör. otopark, ara temizlik, ek yatak, bagaj, havalimanı transferi) bilgi\n" +
+      "  tabanında AÇIKÇA yazan ücreti: tutarı ve koşulunu (gün başına, tek yön, önceden haber verme…) bilgi\n" +
       "  tabanındaki gibi AYNEN yaz — yuvarlama, hesaplama, toplam, indirim yok. Erken giriş / geç çıkış ücreti bu kurala GİRMEZ\n" +
-      '  (Bölüm 7.5 ve "EV SAHİBİ GEÇ ÇIKIŞ / UZATMA TEKLİFİ" bloğu geçerli); bilgi tabanında yazmayan hiçbir tutarı söyleme.\n' +
+      '  (Bölüm 7.5 ve "EV SAHİBİ GEÇ ÇIKIŞ / UZATMA TEKLİFİ" bloğu geçerli); evcil hayvan ücreti de GİRMEZ (evcil hayvan\n' +
+      "  ücreti, kabulü ve koşulu ev sahibinin kararıdır; yazma); bilgi tabanında yazmayan hiçbir tutarı söyleme.\n" +
       '  Diğer para konuları her zaman "bu konu ev sahibinizin kararıdır"',
   ],
 ];

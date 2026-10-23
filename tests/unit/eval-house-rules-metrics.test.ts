@@ -48,9 +48,10 @@ describe("ev kuralları eval — karar ölçüleri", () => {
 
   it("kural yokken bilgi sorusu (normal) → model 'izin istiyor' (tutma) derse gereksiz tutma; tersi ve ikisi de tutma değil", () => {
     const m = summarizeHouseRules([
-      row({ id: "i", expect: [u("pets", "asks_info")], predicted: [u("pets", "asks_permission")] }),
-      row({ id: "j", expect: [u("pets", "asks_permission")], predicted: [u("pets", "asks_info")] }),
-      row({ id: "h", expect: [u("pets", "asks_permission")], predicted: [u("pets", "announces")] }),
+      // Kurucu 10-23 akşam 4.4: evcil hayvan konusu karar tablosunda her durumda ev sahibine — genel örnek konu sigara.
+      row({ id: "i", expect: [u("smoking", "asks_info")], predicted: [u("smoking", "asks_permission")] }),
+      row({ id: "j", expect: [u("smoking", "asks_permission")], predicted: [u("smoking", "asks_info")] }),
+      row({ id: "h", expect: [u("smoking", "asks_permission")], predicted: [u("smoking", "announces")] }),
     ]);
     expect(m.needlessHold).toEqual(["i"]);
   });
@@ -59,8 +60,8 @@ describe("ev kuralları eval — karar ölçüleri", () => {
     expect(effectsByTopic([{ topic: "drugs", stance: "asks_permission" } as never], FORBIDDEN_ALL).size).toBe(0);
   });
 
-  it("yanlış konu: sigara sorusuna evcil hayvan kuralı → yanlış kural cümlesi + konu kaçtı", () => {
-    const m = summarizeHouseRules([row({ id: "w", expect: [u("smoking", "asks_permission")], predicted: [u("pets", "asks_permission")] })]);
+  it("yanlış konu: sigara sorusuna ziyaretçi kuralı → yanlış kural cümlesi + konu kaçtı", () => {
+    const m = summarizeHouseRules([row({ id: "w", expect: [u("smoking", "asks_permission")], predicted: [u("visitors", "asks_permission")] })]);
     expect(m.wrongRuleStated).toEqual(["w"]);
     expect(m.missedTopic).toEqual(["w"]);
   });

@@ -8,7 +8,8 @@
 // gerçekten okunup eşlendiğinde.
 // ---------------------------------------------------------------------------
 
-import { detectRiskTypes } from "@/lib/ai/fallback";
+import { detectRiskTypes, ruleViolationIsPetsOnly } from "@/lib/ai/fallback";
+import { mentionsAssistanceAnimal } from "./pet-policy";
 import {
   MAX_UNDERSTOOD_REQUESTS,
   NOT_FULLY_READ_MARGIN,
@@ -89,6 +90,11 @@ export function extractTurnItems(input: {
   existingItems?: readonly (ExistingOrdinal & { messageId: string })[];
   /** Sıra kipinde: misafirin bilinen adları — parçaları konu etiketine giremez (`topic-label.itemTopicLabel`). */
   guestNames?: readonly (string | null | undefined)[];
+  /**
+   * Kurucu 10-23 akşam 4.4: cevap modeline giden bilgi tabanı evcil hayvanı kodla okunduğunda açıkça ÜCRETSİZ ve KOŞULSUZ kabul ediyor
+   * (`pet-policy.kbPetsFreeAllowed`). Verilmezse evcil hayvan isteği ev sahibine kalır.
+   */
+  petsFreeAllowed?: boolean;
 }): TurnItems {
   const u = input.understanding;
   // `withdrawn` yalnız öğe kipinin çözücüsünde vardır: öğe kipinde üretilmemiş sonuç mesaj eşlemesi taşımaz.
@@ -115,7 +121,9 @@ export function extractTurnItems(input: {
   // kapalıyken bütün anahtarlar bayt bayt bugünkü).
   const ordinalMode = itemOrdinalEnabled();
   const messages = win.unanswered.map((m, i) => {
-    const labels = labelsOf(m.body);
+    // Yardımcı / hizmet / destek hayvanı (4.4 "ayrışsın"): evcil hayvan isteğini AYRI etiketle tutar; "ücretsiz kabul" istisnası uygulanmaz.
+    const assistance = mentionsAssistanceAnimal(m.body);
+    const labels = assistance ? [...labelsOf(m.body), "assistance_animal"] : labelsOf(m.body);
     const requests = u.requests.filter((r) => r.message === i + 1);
     const topics = requests.map((r) => (ordinalMode ? itemTopicLabel(r.queryTr, input.guestNames ?? []) : null));
     const ords = ordinalMode
@@ -161,6 +169,9 @@ export function extractTurnItems(input: {
       }),
       lexicalLabels: labels,
       ...(ordinalMode ? { ordinals: ords } : {}),
+      // 4.3: kural ihlali etiketi yalnız evcil hayvan ailesindense evcil hayvan isteğini tutar (bütün mesajı değil).
+      ...(labels.includes("rule_violation") && ruleViolationIsPetsOnly(m.body) ? { petRuleOnly: true } : {}),
+      ...(input.petsFreeAllowed === true && !assistance ? { petsFreeAllowed: true } : {}),
     });
     // ARIZA EV SAHİBİNE KALIR (anahtar `AI_FAULT_GUARD_ENABLED`): mesajda cihaz arızası isteği var ama şikâyet / acil öğesi yoksa kod bir
     // şikâyet öğesi EKLER (kaynak `fault_guard`) — ev sahibi bildirimi ve tutulan istek kuralları bu öğe üzerinden koşar. Öğenin kendi

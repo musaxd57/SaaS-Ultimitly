@@ -19,7 +19,7 @@ import "server-only";
 
 import type { AnswerPart, PartVerdict } from "@/lib/ai/answer-parts";
 import { fenceSafe } from "@/lib/ai/semantic/fence";
-import type { LlmUsage } from "@/lib/ai/types";
+export { addLlmUsage } from "@/lib/ai/llm-usage";
 
 /** Anahtar yalnız tam "1" ile açılır (`STRICT_ONE_FLAGS`). */
 export function partRewriteEnabled(): boolean {
@@ -164,16 +164,4 @@ export function buildPartRewriteUserContent(input: {
 export function mergeRewrittenParts(original: readonly AnswerPart[], rewritten: readonly AnswerPart[]): AnswerPart[] {
   const byRef = new Map(rewritten.map((p) => [p.ref, p]));
   return original.map((p) => byRef.get(p.ref) ?? p);
-}
-
-/** İki çağrının sayısal kullanımı toplanır (model adı / çaba ilk çağrıdan). Saf. */
-export function addLlmUsage(a: LlmUsage | undefined, b: LlmUsage | undefined): LlmUsage | undefined {
-  if (!a || !b) return a ?? b;
-  const sum = (x?: number, y?: number) => (x === undefined && y === undefined ? undefined : (x ?? 0) + (y ?? 0));
-  const out: LlmUsage = { ...a };
-  for (const k of ["pt", "ct", "cpt", "rt"] as const) {
-    const v = sum(a[k], b[k]);
-    if (v !== undefined) out[k] = v;
-  }
-  return out;
 }

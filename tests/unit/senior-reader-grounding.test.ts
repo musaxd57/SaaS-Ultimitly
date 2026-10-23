@@ -164,6 +164,13 @@ describe("yeniden yazma birleştirmesi (Opus 10-22 F1)", () => {
     expect(m.stayChange).toEqual({ asked: "late_checkout", stance: "none" });
   });
 
+  it("🚨 Haiku 10-23 akşam: iki çağrının kullanımı TOPLANIR (ilk çağrının — parça yeniden yazması dahil — maliyeti düşmez)", () => {
+    type WithUsage = typeof first & { llmUsage?: unknown };
+    const m = mergeSeniorRewrite<WithUsage>({ ...first, llmUsage: { pt: 1000, ct: 100, m: "x" } }, { ...retried, llmUsage: { pt: 900, ct: 80, rt: 5 } });
+    expect(m.llmUsage).toEqual({ pt: 1900, ct: 180, rt: 5, m: "x" });
+    expect(mergeSeniorRewrite<WithUsage>(first, { ...retried, llmUsage: { pt: 1 } }).llmUsage).toEqual({ pt: 1 });
+  });
+
   it("cevap parçaları kipinde (10-23 A) parça kararları yeni çağrıdan; kip dışında alan hiç yok", () => {
     const m = mergeSeniorRewrite(
       { ...first, answerParts: [{ ref: "R1", status: "verified", source: "kb:1" }] },

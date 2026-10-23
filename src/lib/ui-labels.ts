@@ -92,6 +92,7 @@ const RISK_TYPE_LABELS: Record<string, string> = {
   safety_emergency: "güvenlik / acil durum",
   discrimination: "ayrımcılık içeriği",
   rule_violation: "kural ihlali sinyali",
+  assistance_animal: "yardımcı hayvan (Airbnb: hizmet hayvanı reddedilemez, ücret alınamaz)",
   access_security: "giriş / erişim sorunu",
   prompt_injection: "misafir mesajında şüpheli talimat",
 };

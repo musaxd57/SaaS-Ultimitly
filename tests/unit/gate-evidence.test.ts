@@ -168,6 +168,13 @@ describe("kapı hükmü — her `blocked` kontrolü kendi ayrıntı koduyla", ()
       undefined,
       "reply_internal_source",
     ],
+    [
+      "evcil hayvan — bilgi tabanı 'ücretsiz kabul' demiyor (kurucu 10-23 akşam 4.4, anahtarsız kod yedeği)",
+      { ...ok, reply: "Yes, your puppy is welcome." },
+      "Can we bring our puppy?",
+      undefined,
+      "reply_pet_policy",
+    ],
   ];
   for (const [name, result, msg, ctx, detail] of cases) {
     it(`${name} → blocked/${detail}`, () => {

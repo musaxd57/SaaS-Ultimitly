@@ -23,6 +23,8 @@ import { ITEM_KIND_LABELS_TR } from "@/lib/conversation-items/core";
 import { stayTimeline, understandingDateLine } from "./stay-timeline";
 import { orgTimezone } from "@/lib/timezone";
 import { composeVerifiedReply, groundEvidence, parseAnswerParts } from "./answer-parts";
+import { promptRedactionNames, redactGuestNamesForPrompt } from "./prompt-name-redaction";
+import { stripDividerRuns } from "./divider-spoof";
 import {
   addLlmUsage,
   buildPartRewriteUserContent,
@@ -713,7 +715,10 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
               // TUTULAN PARÇAYI BİR KEZ YENİDEN YAZ (kurucu 10-23 akşam 4.9, `part-rewrite.ts`): okuyucu koşarken, düzeltilebilir sebeple tutulan
               // parçalar aynı notlardan bir kez yeniden yazılır; yeni parça kodun bütün denetimlerinden ve okuyucudan YENİDEN geçer.
               let rewriteUsage: LlmUsage | undefined;
-              const targets = partRewriteEnabled() && seniorReaderEnabled() ? partRewriteTargets(composed.verdicts) : new Map<string, PartRewriteReason[]>();
+              const targets =
+                partRewriteEnabled() && seniorReaderEnabled() && input.partRewriteDone !== true
+                  ? partRewriteTargets(composed.verdicts)
+                  : new Map<string, PartRewriteReason[]>();
               if (targets.size > 0) {
                 const targetList = [...targets].slice(0, PART_REWRITE_MAX).map(([ref, reasons]) => {
                   const prev = decl.parts.find((p) => p.ref === ref);
@@ -730,7 +735,19 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
                 });
                 const call = await callOpenAI(
                   partRewriteSystemPrompt({ feeRule: kbFeeRuleEnabled() }),
-                  buildPartRewriteUserContent({ language: normalizeLang(parsed.detectedLanguage), dateLine, guestMessage: guest.turn.join("\n"), targets: targetList }),
+                  buildPartRewriteUserContent({
+                    language: normalizeLang(parsed.detectedLanguage),
+                    dateLine,
+                    // Cevap istemiyle AYNI kural: bölüm çizgisi taklidi silinir; kod selamı açıkken misafirin adı kimlik konumunda maskelenir
+                    // (Haiku 10-23 akşam: yeniden yazma istemi adı ham gönderiyordu).
+                    guestMessage: (() => {
+                      const t = stripDividerRuns(guest.turn.join("\n"));
+                      return codeGreetingEnabled()
+                        ? redactGuestNamesForPrompt(t, promptRedactionNames([input.reservation?.guestName, input.reservation?.guestGivenName, input.guestIdentifier]), "guest")
+                        : t;
+                    })(),
+                    targets: targetList,
+                  }),
                   input.breakerKey,
                 );
                 rewriteUsage = call?.usage;

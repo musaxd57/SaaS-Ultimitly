@@ -93,6 +93,8 @@ const REASONS = new Set([
   "offplatform_payment", "reply_apology",
   // Kurucu 10-22: iç kaynak anlatımı ("bilgi tabanımda … yazıyor") misafire gitmez (QR kapısı ile BİREBİR).
   "reply_internal_source",
+  // Kurucu 10-23 akşam 4.4: evcil / yardımcı hayvan cevabı (QR devir sebebi; kanal kapısı ayrıntı kodu `reply_pet_policy`).
+  "reply_pet_policy",
 ]);
 /**
  * 🚨 PARİTE: QR kapısının her `EscalationReason` değeri BURADA da olmalı.
