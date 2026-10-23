@@ -528,6 +528,20 @@ describe("applyChannelAutoReply", () => {
     );
   });
 
+  // Opus 10-23 akşam F1: parça yeniden yazma (4.9) ikinci bir cevap modeli çağrısıdır → günlük kotadan bir birim daha (kıdemli okuyucunun
+  // yeniden yazmasıyla aynı muhasebe); yeniden yazma olmayan tur bir birim.
+  it("F1: parça yeniden yazma olan tur günlük kotadan İKİ birim, olmayan tur BİR birim düşer", async () => {
+    const used = async (orgId: string) =>
+      (await prisma.rateLimitCounter.findUnique({ where: { key: `ai-daily:${orgId}` }, select: { count: true } }))?.count ?? 0;
+    const plain = await seed({ guestMessage: "Merhaba, check-in saat kaçta?" });
+    await applyChannelAutoReply(plain.conversationId);
+    expect(await used(plain.orgId)).toBe(1);
+    mockSuggest.mockResolvedValue({ ...SAFE_REPLY, partRewriteBilled: true });
+    const rewritten = await seed({ guestMessage: "Merhaba, check-in saat kaçta?" });
+    await applyChannelAutoReply(rewritten.conversationId);
+    expect(await used(rewritten.orgId)).toBe(2);
+  });
+
   // Opus 10-23 akşam C1 (kurucu 4.5: "host kendi telefon numarasını yazamaz … rezervasyondan önce"): Ayarlar ekranı imzaya telefon yazmayı
   // öneriyor; imza gövdenin sonuna eklendiği için onaysız Airbnb konuşmasında cevap TUTULUR (imzadan satır silmek kurucu sorusu).
   it("🚨 C1: Airbnb'de onaylı rezervasyon yokken imzada telefon → cevap gitmez (signature_offplatform_contact); onaylı konaklamada gider", async () => {

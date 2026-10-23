@@ -125,6 +125,9 @@ export function kbForbidsPets(kb: readonly { title: string; content: string }[])
   return false;
 }
 
+/** Giriş / çıkış konusu (hayvanı anmayan cümlede başka bir sorunun cevabıdır: "Check-in is not possible before 15:00" — Haiku 10-23 akşam). */
+const STAY_TIME_SUBJECT =
+  /(?<![\p{L}])(?:check ?-?in|check ?-?out|giris\p{L}{0,6}|cikis\p{L}{0,6}|anreise|abreise|arrivee|depart|llegada|salida|заезд\p{L}{0,2}|выезд\p{L}{0,2})(?![\p{L}])/u;
 /** Kibar olumsuz kalıp ("No problem", "Sorun değil") olumsuzluk değildir. */
 const POLITE_NEGATION =
   /(?<![\p{L}])(?:no problem|no worries|not a problem|sorun (?:degil|yok)|problem (?:degil|yok)|kein problem|pas de probleme|no hay problema|без проблем)(?![\p{L}])/gu;
@@ -144,7 +147,7 @@ export function petReplyStraysFromFreeKb(reply: string | null | undefined, petTu
     const plain = f.replace(FREE_G, " ").replace(POLITE_NEGATION, " ");
     if (PET_WORD.test(f) || ASSISTANCE_ANIMAL.test(f)) {
       if (NEGATIVE.test(plain) || CONDITION.test(plain) || FEE_WORD.test(plain)) return true;
-    } else if (petTurn && !OTHER_SUBJECT.test(f) && (NEGATIVE.test(plain) || FEE_WORD.test(plain))) {
+    } else if (petTurn && !OTHER_SUBJECT.test(f) && !STAY_TIME_SUBJECT.test(f) && (NEGATIVE.test(plain) || FEE_WORD.test(plain))) {
       return true;
     }
   }

@@ -89,3 +89,34 @@ okuyucunun doğruladığı "Bisiklet kilit şifresi 5190." gider, kuaför sorusu
 Bilgi tabanında "Ekstra yatak gecelik 300 TL" yazıyorsa ücret kuralı (`AI_KB_FEE_RULE_ENABLED`) açıkken cevap verilebilirdi. Fiyat sorusu
 ev sahibinde mi kalsın (bugünkü), yoksa bilgi tabanında yazan HİZMET ücreti sorusu cevaplansın mı (iade / iptal / ödeme sorunları yine
 sizde)?
+
+## 5. Opus 5.5 derin kontrolü (bu dilimin kodu) → düzeltmeler
+
+Opus 17 bulgu bildirdi (`docs/INCELEME-2026-10-23-aksam-opus-bilgi-tabani.md` ayrı; bu bölüm cevap yolunun bulguları). Her biri kodda ölçülerek
+doğrulandı; hepsi "daha çok tutar" yönünde olduğu için uygulandı (müşteriye giden metni DEĞİŞTİRMEZ, yalnız gitmesi gerekmeyeni tutar). Her
+düzeltme önce kırmızı test, sonra kod (düzeltme geri alınınca test yeniden kırmızı — ölçüldü).
+
+| bulgu | sorun (örnek) | düzeltme |
+|---|---|---|
+| A1 | "If you need parking, ask your host" / "Merak ederseniz ev sahibinize sorabilirsiniz" "koşullu talimat" sayılıp GİDİYORDU | Koşul muafiyeti yalnız OLAY / ARIZA / ACİL koşulunda ("anahtarı kaybederseniz", "Wi-Fi çalışmazsa", "acil bir durumda") |
+| A2 | "I'd recommend contacting your host", "Bu sorunuzu ev sahibinize iletebilirsiniz", "Your host would know", "N'hésitez pas à contacter votre hôte", "Le recomiendo contactar con su anfitrión", "Рекомендую связаться с хозяином", "Bitte setzen Sie sich mit Ihrem Gastgeber in Verbindung" yakalanmıyordu | 20 yeni kalıp (ulaç, mastar, "host'a / mülk sahibi / site yöneticisi") |
+| A3 | Cümlenin başka yan cümlesindeki telefon ("Resepsiyon: 0212…, otopark için ev sahibinize sorabilirsiniz") yönlendirmeyi kurtarıyordu | Telefon / e-posta muafiyeti yalnız yönlendirmenin KENDİ yan cümlesinde |
+| A4 | "Please text your host when you arrive" (varış talimatı) yönlendirme sayılabiliyordu | Varış / giriş talimatı muaf (kontrol testi) |
+| A5 | "…ev sahibinize sorabilirsiniz, taksi aramanıza gerek yok" — olumsuzluk başka fiile aitken yönlendirme kalkıyordu | Olumsuzluk ev sahibine bağlı aranır ("ev sahibinize sormanıza gerek yok") |
+| A6 | Madde düzenli cevapta başka satırdaki koşul / telefon yönlendirmeyi kurtarıyordu | Satır sonu cümle sınırı (bu düzeltmenin ilk hâli 50.000 boşlukta 3,3 sn sürüyordu — ölçüldü, doğrusala indirildi, süre pini eklendi) |
+| E1 | Bilgi tabanı "Havuz şu an kapalı. Havuz havluları dolaptadır." iken "Havuz açık." parçası DOĞRULANIYORDU (iki cümle birleşince "kapalı havuz" sıfat sanılıyordu) | Yerler arasına cümle ayracı; "Havuz şu an kapalı spor salonu açık" gibi virgülsüz yazımda da yüklem okunur ("Sitenin kapalı yüzme havuzu açıktır" sıfat kalır) |
+| B4 | Bilgi tabanı "ücretsiz kabul" derken model "Maalesef kabul edilmiyor" ya da "gecelik 200 TL ile getirebilirsiniz" yazarsa GİDİYORDU | "Ücretsiz kabul" yolunda cevabın evcil hayvan cümlesi de okunur: olumsuzluk / koşul / rakam / ücret → tutulur (kanal + QR) |
+| C1 | İmzaya telefon yazılmışsa (Ayarlar ekranı bunu öneriyor) Airbnb ön sorusu cevabı telefonla gidiyordu — 4.5'in yasakladığı durum | İmzada iletişim değeri varken Airbnb onaysız konuşmada cevap da kapanış nezaketi de gitmez (`signature_offplatform_contact`) → **soru 4.14** |
+| D1 | Dosyadan bilgi tabanı: "The key is under the flower pot", "La clé est sous le paillasson", "Ключ под ковриком" Genel'e (aday misafire açık) düşüyordu; uzun paragrafta kod öteki parçada kalınca da; "Network / Password" Wi-Fi değil Genel | Anahtar / kilit dört dilde, erişim kararı paragraf düzeyinde, Wi-Fi ağı / şifresi Wi-Fi'ye (rezervasyon öncesi kapalı) |
+| G1 | Teşhis betiği "hiçbir şey yazmaz" diyordu, OAuth token yenilemesi yazabilir | Yorum düzeltildi |
+
+Açık kalan küçükler (müşteriye giden metni değiştirmez, sonraki tur): **C2** kısmi gönderim turunda "Misafir cevabınızı bekliyor" e-postası
+o an gönderilemezse yeniden denenmiyor (panelde görünür; güvenli yön) · **F1** parça yeniden yazma ikinci bir model çağrısı ama günlük kotaya
+sayılmıyor, okuyucunun iki çağrısı maliyet ölçümüne girmiyor.
+
+**4.14 — İmzada telefon numarası varken Airbnb ön sorusuna cevap:** Ayarlar ekranı imzaya "📞 +90 5XX…" yazmayı öneriyor; Airbnb rezervasyon
+onayından önce iletişim bilgisini engeller (4.5'te "rezervasyondan önce yazamaz" dediniz). **Şimdi (bu turda kodda):** imzada telefon /
+e-posta / bağlantı varsa onaysız konuşmada cevap hiç gitmez, size kalır. Örnek — "Otopark var mı?" (bilgi tabanı "Ücretsiz otopark var",
+imza "Sevgiler, Ali / 📞 +90 532 …"): **şimdi** hiçbir şey gitmez. **Öneri:** onaysız konuşmada imzanın telefon satırı çıkarılıp cevap
+gitsin: "Evet, ücretsiz otopark var.\n\nSevgiler, Ali". Onaylı konaklamada imza bugünkü gibi tam gider. Telefon satırını çıkarıp göndereyim
+mi, yoksa tutmaya devam mı?

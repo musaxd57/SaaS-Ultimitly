@@ -4,8 +4,7 @@ import { badRequest, jsonOk, notFound, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { limitsForOrg } from "@/lib/billing/plan-limits";
 import { KB_ITEM_CAP } from "@/lib/ai/limits";
-import { refreshPropertyMemoryBestEffort } from "@/modules/intelligence";
-import { warmPropertyKbVectorsBestEffort } from "@/lib/ai/embeddings/kb-warm";
+import { afterKbItemsChanged } from "@/lib/kb/after-change";
 import { withoutClientRequestId } from "@/lib/kb/request-id";
 
 // ---------------------------------------------------------------------------
@@ -79,8 +78,7 @@ export const PATCH = withManage<{ id: string }>(async (session, req, { params })
   const changed = Object.entries(d).some(([key, value]) => value !== undefined && current[key] !== value);
   if (!changed) {
     // Yazım yok ama hafıza / vektör eşitlemesi yine koşar (idempotent; kaydet bunların kendini onarma yoluydu — Haiku 2. tur).
-    await refreshPropertyMemoryBestEffort(session.organizationId, existing.propertyId);
-    warmPropertyKbVectorsBestEffort(existing.propertyId);
+    await afterKbItemsChanged({ organizationId: session.organizationId, propertyIds: [existing.propertyId] });
     const unchanged = await prisma.knowledgeBaseItem.findUnique({ where: { id } });
     return jsonOk(unchanged ? withoutClientRequestId(unchanged) : unchanged);
   }
@@ -91,9 +89,8 @@ export const PATCH = withManage<{ id: string }>(async (session, req, { params })
     where: { id },
     data: reactivatesRetired ? { ...d, supersededById: null, supersededAt: null } : d,
   });
-  // V1: içerik/pasif-aktif değişimi hafızaya anında yansır (pasif → retired).
-  await refreshPropertyMemoryBestEffort(session.organizationId, existing.propertyId);
-  warmPropertyKbVectorsBestEffort(existing.propertyId); // #189: yazma anında ısıtma
+  // V1: içerik/pasif-aktif değişimi hafızaya anında yansır (pasif → retired); #189 yazma anında ısıtma — tek kanca.
+  await afterKbItemsChanged({ organizationId: session.organizationId, propertyIds: [existing.propertyId] });
   return jsonOk(withoutClientRequestId(item));
 });
 
@@ -109,8 +106,7 @@ export const DELETE = withManage<{ id: string }>(async (session, _req, { params 
     where: { id, property: { organizationId: session.organizationId } },
   });
   if (result.count === 0) return notFound();
-  // V1: hard delete → hafıza kalemi retired (silinmez; tarihçe).
-  await refreshPropertyMemoryBestEffort(session.organizationId, existing.propertyId);
-  warmPropertyKbVectorsBestEffort(existing.propertyId); // #189: yazma anında ısıtma
+  // V1: hard delete → hafıza kalemi retired (silinmez; tarihçe); #189 yazma anında ısıtma — tek kanca.
+  await afterKbItemsChanged({ organizationId: session.organizationId, propertyIds: [existing.propertyId] });
   return jsonOk({ ok: true });
 });

@@ -15,6 +15,12 @@ vi.mock("@/lib/api", async (orig) => {
   return { ...actual, requireSession: vi.fn(async () => session) };
 });
 
+// Bilgi tabanı yazma kancası (S1): davranış aynen (gerçek fonksiyon), çağrı izlenir — Wi-Fi onayı kancayı doğru mülkle çağırmalı.
+vi.mock("@/lib/kb/after-change", async (orig) => {
+  const actual = await orig<typeof import("@/lib/kb/after-change")>();
+  return { afterKbItemsChanged: vi.fn(actual.afterKbItemsChanged) };
+});
+import { afterKbItemsChanged } from "@/lib/kb/after-change";
 import { POST } from "@/app/api/ai-suggestions/route";
 import { __afterMidnightRule, getConversationSuggestions, getPropertyWifiSuggestions, suggestionDecisions } from "@/lib/ai-suggestions/load";
 import { promotionReadiness } from "@/lib/ai-suggestions/core";
@@ -294,6 +300,8 @@ describe("B · Wi-Fi bilgi tabanı düzeltmesi", () => {
     expect((await decide({ key: s.key, decision: "approve" })).status).toBe(200);
     expect((await prisma.knowledgeBaseItem.findUniqueOrThrow({ where: { id: kb.id } })).content).toBe("Ağ LaleNet, şifre: YeniSifre22");
     expect(await getPropertyWifiSuggestions(orgId, propertyId)).toEqual([]);
+    // S1: onay bilgi tabanını değiştirdi → tek kanca (Mülk Hafızası + ısıtma; ısıtma burada eksikti).
+    expect(vi.mocked(afterKbItemsChanged)).toHaveBeenCalledWith({ organizationId: orgId, propertyIds: [propertyId] });
   });
 
   it("hedef belirsizse öneri YOK: iki Wi-Fi kalemi (ana + misafir ağı) ya da kalemde iki şifre (Haiku 10-12)", async () => {

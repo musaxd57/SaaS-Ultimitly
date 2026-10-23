@@ -759,8 +759,14 @@ const ARRIVAL_INSTRUCTION = new RegExp(
     "bei (?:ihrer )?ankunft|vor (?:ihrer )?ankunft|ankunftszeit|à votre arrivée|heure d'arrivée|a su llegada|hora de llegada|по прибытии|время прибытия)(?![\\p{L}])",
   "u",
 );
-/** Yan cümle ayracı (iletişim değeri muafiyeti yalnız yönlendirmenin KENDİ yan cümlesinde — Opus A3). URL'deki ":" bölünmez. */
-const CLAUSE_SPLIT = /[,;]|\s(?:ya da|veya|yahut|or|oder|ou|o)\s/u;
+/**
+ * Bilgi İSTEME fiili (sor / ask / danış …): varış talimatı muafiyeti bunlarda geçmez (Haiku 10-23 akşam: "Upon arrival, you can ask your host
+ * about the parking" / "Girişten önce ev sahibinize sorabilirsiniz" bilgi yönlendirmesidir; "varınca ev sahibinizi arayın / yazın" değildir).
+ */
+const INFO_VERB =
+  /(?<![\p{L}])(?:ask\p{L}{0,3}|enquir\p{L}{0,4}|inquir\p{L}{0,4}|check(?:ing)? with|clarif\p{L}{0,4}|sor(?:abilir|man[ıi]z|mak)\p{L}{0,8}|dan[ıi][şs]\p{L}{0,10}|[öo][ğg]ren\p{L}{0,10}|teyit\p{L}{0,6}|fragen|nachfragen|erfragen|demander|preguntar\p{L}{0,3}|consultar|спрос\p{L}{0,4}|уточн\p{L}{0,4})(?![\p{L}])/u;
+/** Yan cümle ayracı (iletişim değeri muafiyeti yalnız yönlendirmenin KENDİ yan cümlesinde — Opus A3; "ve / and" Haiku 10-23 akşam). URL'deki ":" bölünmez. */
+const CLAUSE_SPLIT = /[,;]|\s(?:ya da|veya|yahut|ve|or|and|oder|und|ou|et|o|y|и|или)\s/u;
 function contactValueInReferralClause(form: string): boolean {
   const referral = form.split(CLAUSE_SPLIT).filter((c) => HOST_REFERRAL_PATTERNS.some((re) => re.test(c)));
   // Kalıp yan cümle ayracını aşıyorsa ("Ev sahibiniz, bu konuda …") cümlenin tamamına bakılır (eski davranış).
@@ -811,7 +817,9 @@ const IF_I_WERE_YOU = /(?<![\p{L}])if [iı] (?:were|was) you(?![\p{L}])/gu;
 
 /** Koşul bilgi İSTEĞİYSE ("daha fazla bilgi isterseniz", "if you'd like more details") yine yönlendirmedir. */
 const INFO_CONDITION =
-  /(?<![\p{L}])(?:bilgi|detay|ayr[ıi]nt[ıi]|information|info|details|auskunft|informationen|renseignements|información|detalles|информаци)/u;
+  // Soru / merak koşulu da bilgi koşuludur (Haiku 10-23 akşam: "If you have any questions about the alarm, please ask your host" — "alarm"
+  // olay sözcüğü sayılıp muaf geçiyordu).
+  /(?<![\p{L}])(?:bilgi|detay|ayr[ıi]nt[ıi]|information|info|details|auskunft|informationen|renseignements|información|detalles|информаци|questions?|soru(?:nuz|lar\p{L}{0,6}|su|yu|ya)?(?![\p{L}])|merak\p{L}{0,8}|wonder\p{L}{0,3}|curious|fragen?|pregunta\p{L}{0,1}|вопрос\p{L}{0,3})/u;
 
 /**
  * Cevap misafiri bilgi için ev sahibine yönlendiriyor mu (kurucu 10-23 akşam 4.5)? Cümle bazında; iletişim değeri taşıyan ve olay koşullu
@@ -820,8 +828,11 @@ const INFO_CONDITION =
 export function refersGuestToHost(reply: string | null | undefined): boolean {
   // Satır sonu da cümle sınırıdır (Opus 10-23 akşam A6): madde düzenli cevapta başka satırdaki koşul / telefon yönlendirmeyi kurtarmasın.
   // Yalnız bu yüklemde (ortak `foldedForms` öteki kalıpları daraltmasın).
-  // `\s*\n` boşluk dizisinde karesel (50.000 boşluk 3,3 sn ölçüldü) — yalnız satır sonu karakterleri değişir.
-  const [plain, turkish] = foldedForms((reply ?? "").replace(/[\r\n]+/g, ". "));
+  // Yalnız YENİ madde / cümle başlatan satır sonu sınırdır (madde işareti, rakam, büyük harf) — cümle ortasında kırılan satır ("Please contact\n
+  // your host …") boşluk olur (Haiku 10-23 akşam). `\s*\n` boşluk dizisinde karesel (50.000 boşluk 3,3 sn ölçüldü) → ileri bakış satır
+  // sonunu GEÇMEZ (`[^\S\n]*`), toplam doğrusal.
+  const lines = (reply ?? "").replace(/\r/g, "").replace(/\n+(?=[^\S\n]*[-•*–\p{N}\p{Lu}])/gu, ". ").replace(/\n+/g, " ");
+  const [plain, turkish] = foldedForms(lines);
   // İki katlamanın AYNI cümlesi birlikte okunur (SEP katlamadan önce konur → cümle sayısı eşit): Türkçe katlamada "If" → "ıf" olur ve
   // koşul görünmez; yalnız biri yetmez.
   const ps = plain.split(SEP);
@@ -833,7 +844,9 @@ export function refersGuestToHost(reply: string | null | undefined): boolean {
     if (forms.some((f) => NEGATED_REFERRAL.test(f))) continue;
     // "If I were you, …" koşul değil tavsiye kalıbıdır (Haiku 10-23 akşam) — koşul aranmadan önce silinir.
     const conditionForms = forms.map((f) => f.replace(WHETHER_IF, "$1$2whether").replace(IF_I_WERE_YOU, " "));
-    const eventInstruction = conditionForms.some((f) => (EVENT_CONDITION.test(f) && EVENT_WORDS.test(f)) || ARRIVAL_INSTRUCTION.test(f));
+    const eventInstruction = conditionForms.some(
+      (f) => (EVENT_CONDITION.test(f) && EVENT_WORDS.test(f)) || (ARRIVAL_INSTRUCTION.test(f) && !INFO_VERB.test(f)),
+    );
     if (eventInstruction && !conditionForms.some((f) => INFO_CONDITION.test(f))) continue;
     return true;
   }

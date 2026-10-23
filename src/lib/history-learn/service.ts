@@ -3,8 +3,7 @@ import "server-only";
 import { prisma } from "@/lib/db";
 import { isSuperAdmin } from "@/lib/admin-core";
 import type { SessionPayload } from "@/lib/auth";
-import { refreshPropertyMemoryBestEffort } from "@/modules/intelligence";
-import { warmPropertyKbVectorsBestEffort } from "@/lib/ai/embeddings/kb-warm";
+import { afterKbItemsChanged } from "@/lib/kb/after-change";
 import { limitsForOrg } from "@/lib/billing/plan-limits";
 import { reportError } from "@/lib/report-error";
 import { ANON_BODY } from "@/lib/data-retention";
@@ -751,8 +750,7 @@ export async function reviewHistoryLearnDraft(input: {
   }
   if (kbItemId === "plan_items") return { ok: false, reason: "plan_items" };
   if (!kbItemId) return { ok: false, reason: "already_reviewed" };
-  await refreshPropertyMemoryBestEffort(input.organizationId, draft.propertyId);
-  warmPropertyKbVectorsBestEffort(draft.propertyId);
+  await afterKbItemsChanged({ organizationId: input.organizationId, propertyIds: [draft.propertyId] });
   return { ok: true, kbItemId, replacedKbItemId: replaceId };
 }
 

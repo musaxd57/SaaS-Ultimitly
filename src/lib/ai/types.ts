@@ -262,6 +262,11 @@ export interface SuggestReplyResult {
    * olmaktan çıkarıp GÖZLEME çevirir (`cpt/pt` oranı). Metin taşımaz. Opsiyonel = ölçülmedi.
    */
   llmUsage?: LlmUsage;
+  /**
+   * Parça yeniden yazma (4.9, `part-rewrite.ts`) bu turda İKİNCİ bir cevap modeli çağrısı yaptı ve model cevap verdi (Opus 10-23 akşam F1):
+   * günlük kotadan bir birim daha düşülür (kıdemli okuyucunun yeniden yazmasıyla aynı muhasebe). Yoksa alan yok.
+   */
+  partRewriteBilled?: true;
   /** What was missing to answer fully (short phrases; empty when nothing). */
   missingInfo: string[];
   /** The guest's own stated departure/check-out time as "HH:MM" (24h), or null. */

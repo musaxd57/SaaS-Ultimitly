@@ -860,6 +860,7 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
             const usage = addLlmUsage(llmUsage, partsOutcome?.rewriteUsage);
             return usage ? { llmUsage: usage } : {};
           })(),
+          ...(partsOutcome?.rewriteUsage ? { partRewriteBilled: true as const } : {}),
           missingInfo: sanitizeStringList(parsed.missingInfo, 5, 80),
           statedCheckoutTime:
             // Format-valid AND deterministically evidenced in the guest's own

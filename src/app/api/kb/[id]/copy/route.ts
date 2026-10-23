@@ -2,8 +2,7 @@ import { prisma } from "@/lib/db";
 import { badRequest, jsonOk, notFound, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { limitsForOrg } from "@/lib/billing/plan-limits";
-import { refreshPropertyMemoryBestEffort } from "@/modules/intelligence";
-import { warmPropertyKbVectorsBestEffort } from "@/lib/ai/embeddings/kb-warm";
+import { afterKbItemsChanged } from "@/lib/kb/after-change";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { KB_REQUEST_ID_RE } from "@/lib/validators";
 import { NextResponse } from "next/server";
@@ -307,10 +306,8 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     created++;
     warmTargets.push(t.id);
   }
-  // V1: hedef mülklerin hafızası anında eşitlenir (org kapsamı; fırlatmaz).
-  if (warmTargets.length > 0) await refreshPropertyMemoryBestEffort(session.organizationId);
-  // #189: hedef mülklerin anlamsal vektörleri yazma anında (beklemez, fırlatmaz).
-  for (const id of warmTargets) warmPropertyKbVectorsBestEffort(id);
+  // V1 + #189: hedef mülklerin hafızası (birden çok mülkte işletme kapsamında) ve anlamsal vektörleri yazma anında — tek kanca (fırlatmaz).
+  await afterKbItemsChanged({ organizationId: session.organizationId, propertyIds: warmTargets });
 
   const notices: string[] = [];
   if (skippedAtLimit > 0) {

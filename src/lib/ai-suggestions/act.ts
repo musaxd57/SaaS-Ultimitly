@@ -8,7 +8,7 @@ import { commitmentTaskDueAt, commitmentTaskTitle } from "@/lib/guest-commitment
 import type { CommitmentTopic, DayPartCode, DuePrecision } from "@/lib/guest-commitments-core";
 import { shiftZonedDaysKeepingWallClock } from "@/lib/timezone";
 import { orgTimezone } from "@/lib/timezone";
-import { refreshPropertyMemoryBestEffort } from "@/modules/intelligence";
+import { afterKbItemsChanged } from "@/lib/kb/after-change";
 import { applyWifiValue, extractWifiValues, parseSuggestionKey } from "./core";
 import {
   getConversationSuggestions,
@@ -354,9 +354,10 @@ export async function decideSuggestion(input: {
     return { status: "done", decision: input.decision === "approve" ? "approved" : "dismissed", created } as const;
   });
 
-  // Bilgi tabanı değişti → Mülk Hafızası eşitlensin (çelişki uyarısı yeniden değerlendirilir). İşlem dışında, en iyi çaba.
+  // Bilgi tabanı değişti → Mülk Hafızası eşitlensin (çelişki uyarısı yeniden değerlendirilir) + değişen Wi-Fi kaleminin vektörü ısıtılsın
+  // (S1: ısıtma burada EKSİKTİ — tek kanca). İşlem dışında, en iyi çaba.
   if (result.status === "done" && result.decision === "approved" && view.kind === "kb_wifi") {
-    await refreshPropertyMemoryBestEffort(input.organizationId, propertyId);
+    await afterKbItemsChanged({ organizationId: input.organizationId, propertyIds: [propertyId] });
   }
   return result;
 }

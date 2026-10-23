@@ -230,6 +230,10 @@ describe("Opus 10-23 akşam KB incelemesi (S0): blok başına kapı, erişim bil
     expect(lp.drafts[0].content).toContain("Ardından 4590 yazıp çevirin.");
     // Wi-Fi ağı / şifresi aday misafire açık Genel'e değil Wi-Fi'ye (rezervasyon öncesi kapalı).
     expect(plan("Network: LaleNet\nPassword: abc12345").drafts[0].category).toBe("wifi");
+    expect(importCategoryOf("Network name: LaleNet-5G")).toBe("wifi");
+    // Haiku 10-23 akşam: İngilizce "lock" FİİLİ ev kuralıdır ("kilitleyin" gibi), erişim değil; ad ("the lock code") erişimdir.
+    expect(plan("Please lock the door when you leave.").drafts[0].flags).not.toContain("access");
+    expect(plan("The lock code is on your booking page.").drafts[0].flags).toContain("access");
     // KONTROL (aşırı uygulama yok): "clean / keyboard / o'clock / block" erişim değil; erişimsiz uzun paragraf Genel'de kalır.
     for (const t of ["Cleaning is done every three days.", "The keyboard is on the desk.", "Breakfast at 9 o'clock.", "The block has a lift."]) {
       expect([t, plan(t).drafts[0].flags]).toEqual([t, expect.not.arrayContaining(["access"])]);

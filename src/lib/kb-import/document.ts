@@ -338,7 +338,7 @@ function hasPlaceholder(text: string): boolean {
 const ACCESS_WORDS =
   // Opus 10-23 akşam D1: çıplak İngilizce "key / keys / lock", Fransızca "clé", İspanyolca "llave", Rusça "ключ" ("The key is under the flower
   // pot", "La clé est sous le paillasson") Genel'e düşüyordu. Kısa sözcükler TAM biçim ("clean" / "keyboard" eşleşmez); işaretler sökülmüş metin.
-  /(?<![\p{L}\p{N}])(?:anahtar\p{L}{0,10}|kilit(?:li|ler|leri)?|kilid[iı]n?|keys?|lock(?:s|ed)?|cles?|llaves?|serrure|cerradura|ключ\p{L}{0,3}|(?:keybox|key box|key safe|lockbox|lock box|keypad|tus takimi|smart lock|akilli kilit|schlussel|boite a cles?)\p{L}{0,10})(?![\p{L}\p{N}])/u;
+  /(?<![\p{L}\p{N}])(?:anahtar\p{L}{0,10}|kilit(?:li|ler|leri)?|kilid[iı]n?|keys?|lock(?:s|ed)?(?! (?:the|your|it|up|all|them|doors?|windows?)(?![\p{L}]))|cles?|llaves?|serrure|cerradura|ключ\p{L}{0,3}|(?:keybox|key box|key safe|lockbox|lock box|keypad|tus takimi|smart lock|akilli kilit|schlussel|boite a cles?)\p{L}{0,10})(?![\p{L}\p{N}])/u;
 
 /** Paragrafta yalnız giriş / çıkış saati mi var (kalan sözcükler 12 harften az), hangi alan önerileri çıkıyor. */
 function propertyFieldsOf(text: string): { fields: KbFieldSuggestion[]; fieldOnly: boolean } {

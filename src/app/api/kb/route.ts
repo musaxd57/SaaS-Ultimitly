@@ -4,8 +4,7 @@ import { badRequest, jsonOk, propertyInOrg, readJsonCappedOrNull } from "@/lib/a
 import { withManage } from "@/lib/route-guard";
 import { limitsForOrg } from "@/lib/billing/plan-limits";
 import { KB_ITEM_CAP } from "@/lib/ai/limits";
-import { refreshPropertyMemoryBestEffort } from "@/modules/intelligence";
-import { warmPropertyKbVectorsBestEffort } from "@/lib/ai/embeddings/kb-warm";
+import { afterKbItemsChanged } from "@/lib/kb/after-change";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { NextResponse } from "next/server";
 import { KB_CREATE_CONFLICT_MESSAGE, KB_IDEMPOTENCY_CONFLICT, sameKbContent, withoutClientRequestId } from "@/lib/kb/request-id";
@@ -59,8 +58,7 @@ export const POST = withManage(async (session, req) => {
         { status: 409 },
       );
     }
-    await refreshPropertyMemoryBestEffort(session.organizationId, d.propertyId);
-    warmPropertyKbVectorsBestEffort(d.propertyId);
+    await afterKbItemsChanged({ organizationId: session.organizationId, propertyIds: [d.propertyId] });
     return jsonOk(withoutClientRequestId(prior), 200);
   };
   if (d.requestId) {
@@ -119,9 +117,7 @@ export const POST = withManage(async (session, req) => {
     }
     throw err;
   }
-  // V1: KB = mülk hafızasının kaynağı → hafıza anında eşitlenir (fırlatmaz; KB kaydı başarılı kalır).
-  await refreshPropertyMemoryBestEffort(session.organizationId, d.propertyId);
-  // #189: anlamsal vektörler yazma anında (misafirin bir sonraki mesajı sözcüksele düşmesin; beklemez, fırlatmaz).
-  warmPropertyKbVectorsBestEffort(d.propertyId);
+  // V1 + #189: hafıza anında eşitlenir, anlamsal vektörler yazma anında ısıtılır — tek kanca (fırlatmaz; KB kaydı başarılı kalır).
+  await afterKbItemsChanged({ organizationId: session.organizationId, propertyIds: [d.propertyId] });
   return jsonOk(withoutClientRequestId(item), 201);
 });

@@ -3221,6 +3221,9 @@ export async function applyChannelAutoReply(
   // konuşma 2 dakikada bir yeniden modelleniyordu).
   if ((!options.dryRun || options.previewBudget) && (result.source === "openai" || result.llmUsage)) {
     await consumeDailyAiBudget(conversation.property.organizationId).catch(() => {});
+    // Parça yeniden yazma ikinci bir cevap modeli çağrısıdır (Opus 10-23 akşam F1) — bir birim daha. Çağrı `suggestReply` içinde olduğu için
+    // önceden bakılamaz; tavan en çok bir birim aşılabilir (tur başına tek yeniden yazma).
+    if (result.partRewriteBilled) await consumeDailyAiBudget(conversation.property.organizationId).catch(() => {});
   }
   const modelBilled = result.source !== "openai" && Boolean(result.llmUsage);
 

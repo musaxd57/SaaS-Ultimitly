@@ -161,6 +161,7 @@ describe("ev sahibine yönlendirme", () => {
   it("🚨 Opus 10-23 akşam A2: eksik biçimler — İngilizce ulaç / 'should be able to' / 'would know' / çoğul / 'Airbnb host'; TR 'ilet-', 'hosta', 'mülk sahibi'; DE / FR / ES / RU mastar", () => {
     for (const t of [
       "I'd recommend contacting your host about the parking.",
+      "Try asking your host about it.",
       "I suggest reaching out to your host for the details.",
       "Please consider messaging your host about it.",
       "Your host should be able to clarify this.",
@@ -194,6 +195,36 @@ describe("ev sahibine yönlendirme", () => {
     expect(refersGuestToHost("Otopark için https://lale.example.com/rehber sayfasına bakabilir ya da ev sahibinize sorabilirsiniz.")).toBe(true);
     // KONTROL: sorulan iletişim değerini veren yönlendirme gider.
     expect(refersGuestToHost("Ev sahibinize 0532 123 45 67 numarasından ulaşabilirsiniz.")).toBe(false);
+  });
+
+  it("🚨 Opus 10-23 akşam A5: olumsuzluk EV SAHİBİNE bağlı — başka fiilin 'gerek yok'u yönlendirmeyi kaldırmaz", () => {
+    expect(refersGuestToHost("Please ask your host about the parking; there is no need to call a taxi.")).toBe(true);
+    expect(refersGuestToHost("Otopark için ev sahibinize sorabilirsiniz, taksi aramanıza gerek yok.")).toBe(true);
+    // KONTROL: yönlendirmenin kendi olumsuzu yönlendirme değildir.
+    expect(refersGuestToHost("No need to contact your host, check-in is self-service.")).toBe(false);
+    expect(refersGuestToHost("Ev sahibinize sormanıza gerek yok, kahvaltı 08:00'de başlar.")).toBe(false);
+  });
+
+  it("🚨 Haiku 10-23 akşam: varış muafiyeti bilgi İSTEME fiilinde geçmez; soru koşulu olay sözcüğüyle de bilgi koşuludur; 've / and' yan cümle ayırır; cümle ortası satır sonu sınır değildir", () => {
+    for (const t of [
+      "Upon arrival, you can ask your host about the parking.",
+      "Girişten önce ev sahibinize sorabilirsiniz.",
+      "If you have any questions about the alarm, please ask your host.",
+      "Taksi için 0532 123 45 67 numarasını arayın ve otopark için ev sahibinize sorabilirsiniz.",
+      "Please contact\nyour host about the parking.",
+    ]) {
+      expect(refersGuestToHost(t), t).toBe(true);
+    }
+    // KONTROL: varış talimatı ("arayın / yazın") ve acil durum talimatı muaf kalır.
+    expect(refersGuestToHost("Vardığınızda bir sorun olursa ev sahibinizi arayın.")).toBe(false);
+    expect(refersGuestToHost("If the alarm goes off, call your host.")).toBe(false);
+  });
+
+  it("🚨 Opus 10-23 akşam A6: satır sonu cümle sınırıdır — başka satırdaki koşul / telefon yönlendirmeyi kurtarmaz", () => {
+    expect(refersGuestToHost("- Otopark için ev sahibinize sorabilirsiniz\n- Anahtarı kaybederseniz ev sahibinizi arayın")).toBe(true);
+    expect(refersGuestToHost("Otopark için ev sahibinize sorabilirsiniz\nResepsiyon 0212 555 66 77")).toBe(true);
+    // KONTROL: koşul aynı satırdaysa olay talimatıdır.
+    expect(refersGuestToHost("Wi-Fi şifresi: Lale2024\nAnahtarı kaybederseniz ev sahibinizi arayın")).toBe(false);
   });
 
   it("çok cümlede yalnız yönlendirme cümlesi sayılır; başka cümledeki koşul onu kurtarmaz", () => {

@@ -278,6 +278,9 @@ describe("kapı kod yedeği — 'model sallamasın'", () => {
     expect(petReplyStraysFromFreeKb("No problem — pets are welcome at no extra fee.", true)).toBe(false);
     expect(petReplyStraysFromFreeKb("Evet, köpeğinizi getirebilirsiniz. Wi-Fi şifresi: Lale2024.", true)).toBe(false);
     expect(petReplyStraysFromFreeKb("Evet, getirebilirsiniz. Giriş saati 15:00'tir.", true)).toBe(false);
+    // Başka hizmetin ücreti / giriş saatinin olumsuzu evcil hayvan cevabı değildir (mutasyon B4-other + Haiku 10-23 akşam).
+    expect(petReplyStraysFromFreeKb("Evet, köpeğinizi getirebilirsiniz. Otopark ücreti gecelik 100 TL.", true)).toBe(false);
+    expect(petReplyStraysFromFreeKb("Yes, your dog is welcome. Check-in is not possible before 15:00.", true)).toBe(false);
     // Hayvan sorulmayan turda hayvanı anmayan cümle okunmaz (öğe kipi: evcil hayvan isteği ayrı öğe).
     expect(petReplyStraysFromFreeKb("Otopark ücreti gecelik 100 TL.", false)).toBe(false);
     expect(autoReplyGateVerdict({ ...ok, reply: "Evet, evcil hayvanınızı ücretsiz getirebilirsiniz." }, "Can we bring our puppy?", { petsFreeAllowed: true })).toBeNull();
