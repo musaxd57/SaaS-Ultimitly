@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
 import { upsertTurnItems } from "@/lib/conversation-items/store";
 import { buildItemsForMessage, requestOrdinals } from "@/lib/conversation-items/core";
-import { notifyOpenNeeds, OPEN_NEED_MAIL_PREFIX, planItemsTurn } from "@/lib/conversation-items/flow";
+import { notifyOpenNeeds, OPEN_NEED_MAIL_PREFIX, planItemsTurn, recordOpenNeedsNotified } from "@/lib/conversation-items/flow";
 import { parseUnderstanding } from "@/lib/ai/semantic/understanding-schema";
 
 vi.mock("@/lib/email", () => ({ emailService: { send: vi.fn(async () => ({ ok: true })) } }));
@@ -608,6 +608,24 @@ describe("Soru 10 (kurucu 10-23 sabah) — sessiz kalan açık ihtiyaç: kalıc�
     expect(await notifyOpenNeeds(prisma, { organizationId: orgId, items: plan.staleOpen!, now: at(6), notify })).toBe("none");
     expect(notify).not.toHaveBeenCalled();
     expect(await locks()).toHaveLength(0);
+  });
+
+  it("🚨 Opus 10-23 sabah F8: hedef, 'Misafir cevabınızı bekliyor' e-postası HENÜZ gitmemiş mesaj; hepsine gittiyse bildirim yapılmış sayılır", async () => {
+    const { messageId, plan } = await staleSetup();
+    // Bu mesaja e-posta önceden gitmiş (mesaj başına talep satırı var) → e-posta yok, kayıt kalır.
+    await prisma.systemLock.create({ data: { name: `reply-waiting-mail:${messageId}`, lockedUntil: at(60 * 24) } });
+    const notify = vi.fn(async () => "mailed" as const);
+    expect(await notifyOpenNeeds(prisma, { organizationId: orgId, items: plan.staleOpen!, now: at(6), notify })).toBe("deduped");
+    expect(notify).not.toHaveBeenCalled();
+    expect(await locks()).toHaveLength(1);
+  });
+
+  it("🚨 F8: bugünkü devir / cevapsız parça e-postası turun açık ihtiyaçlarını KAYDEDER → sonraki bayat tur ikinci e-posta atmaz", async () => {
+    const { plan } = await staleSetup();
+    await recordOpenNeedsNotified(prisma, { items: [...plan.turnItems, ...(plan.staleOpen ?? [])], now: at(5) });
+    const notify = vi.fn(async () => "mailed" as const);
+    expect(await notifyOpenNeeds(prisma, { organizationId: orgId, items: plan.staleOpen!, now: at(6), notify })).toBe("none");
+    expect(notify).not.toHaveBeenCalled();
   });
 
   it("kaynak / asistan sorusu bildirim istemez; başka işletmenin satırı okunmaz", async () => {

@@ -412,7 +412,12 @@ export function scoreNeeds(needs: readonly NeedSpec[], sentText: string | null, 
     const allOk = (n.all ?? []).every((p) => rx(p).test(text)) && (n.want !== "answered" || text.length > 0);
     const forbidHit = (n.forbid ?? []).some((p) => rx(p).test(text));
     const textOk = n.want === "answered" ? allOk && !forbidHit : !forbidHit;
-    const wrongAnswered = n.want === "open" ? forbidHit || (sameKind === 1 && ofKind.length === 1 && answeredItem) : forbidHit;
+    // Opus 10-23 sabah F9: cevaplanması gereken ihtiyacın öğesi "cevaplandı" kapandı ama giden metinde beklenen değer yok → yanlış "cevaplandı"
+    // (eksik / yanıltıcı cevap gitti ve iş kapandı); eskiden "gereksiz tutma" sayılıyordu.
+    const wrongAnswered =
+      n.want === "open"
+        ? forbidHit || (sameKind === 1 && ofKind.length === 1 && answeredItem)
+        : forbidHit || (sameKind === 1 && ofKind.length === 1 && answeredItem && !allOk);
     return { kind: n.kind, want: n.want, textOk, statusOk, wrongAnswered };
   });
 }
@@ -701,11 +706,8 @@ describe.skipIf(!enabled)(`CANLI HAT — ${MODEL}`, () => {
         `| 🚨 "bilgim yok" / iç kaynak anlatımı giden (hedef 0) | ${rows.filter((r) => r.absenceLeak).length} |`,
         `| giden mesaj | ${rows.filter((r) => r.ok && r.sent).length}/${rows.filter((r) => r.ok).length} |`,
         "",
-        "| senaryo | ihtiyaçlar (✔ doğru · ✖ yanlış gönderim · ○ gereksiz tutma) |",
-        "|---|---|",
-        ...rows
-          .filter((r) => r.needs)
-          .map((r) => `| ${r.id} | ${r.needs!.map((n) => `${n.kind}:${n.want}${n.wrongAnswered ? "✖" : n.textOk ? "✔" : "○"}`).join(" ")} |`),
+        // Opus 10-23 sabah F14: yalnız toplu sayı + kimlik (ihtiyaç türü / sonuç dökümü setin yapısını sızdırır).
+        "Senaryo kimlikleri: " + rows.map((r) => `\`${r.id}\``).join(" "),
         "",
         "## Düşen satırlar",
         "",
@@ -882,6 +884,13 @@ describe("canlı hat ölçeri — çevrimdışı pinler", () => {
       [true, null],
     ]);
     expect(scoreNeeds(two, "Havuz 20:00, sauna 23:00.", [])[1].wrongAnswered).toBe(true);
+    // Opus 10-23 sabah F9: eksik cevap gitti ve öğe "cevaplandı" kapandı → yanlış "cevaplandı" (gereksiz tutma DEĞİL).
+    const partial: NeedSpec[] = [{ kind: "amenities", want: "answered", all: ["22[:.]00", "23[:.]00"] }];
+    const sentPartial = scoreNeeds(partial, "Hafta sonu havuz 23:00'e kadar açık.", [{ kind: "amenities", status: "answered" }]);
+    expect(sentPartial[0]).toMatchObject({ textOk: false, wrongAnswered: true });
+    expect(needMetrics(sentPartial)).toMatchObject({ wrong: 1, needlessHold: 0 });
+    // Hiçbir şey gitmedi, öğe açık → gereksiz tutma.
+    expect(needMetrics(scoreNeeds(partial, null, [{ kind: "amenities", status: "open" }]))).toMatchObject({ wrong: 0, needlessHold: 1 });
   });
 
   it("canlı bayrak listesi anlam katmanlarını 5.1'e sabitler ve ölçülen kolları (cevap modeli, çaba, ücret kuralı) YAZMAZ", () => {

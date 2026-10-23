@@ -2,6 +2,7 @@ import "server-only";
 
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { emailService } from "@/lib/email";
+import { REPLY_WAITING_MAIL_PREFIX } from "@/lib/host-reply-waiting";
 import { complaintEscalationEmail } from "@/lib/email-templates";
 import { detectRiskTypes } from "@/lib/ai/fallback";
 import { contextLabels } from "@/lib/ai/hazard-evidence";
@@ -401,19 +402,28 @@ export async function notifyOpenNeeds(
     const open = candidates.filter((c) => liveIds.has(c.id));
     if (open.length === 0) return "none";
     await db.systemLock.deleteMany({ where: { name: { startsWith: OPEN_NEED_MAIL_PREFIX }, lockedUntil: { lt: input.now } } }).catch(() => {});
-    let target: string | null = null;
+    const claimedMessages: string[] = [];
     for (const it of open) {
       try {
         await db.systemLock.create({ data: { name: `${OPEN_NEED_MAIL_PREFIX}${it.id}`, lockedUntil: new Date(input.now.getTime() + OPEN_NEED_MAIL_TTL_MS) } });
         claimed.push(it.id);
-        target = it.messageId;
+        claimedMessages.push(it.messageId);
       } catch (err) {
         if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") continue;
         await release();
         return "not_sent";
       }
     }
-    if (!target) return "none";
+    if (claimedMessages.length === 0) return "none";
+    // Hedef: kaydı alınan satırların mesajlarından "Misafir cevabınızı bekliyor" e-postası HENÜZ gitmemiş en yenisi (Opus 10-23 sabah F8: hep
+    // son mesaj seçilince o mesaja e-posta önceden gittiyse ötekinin ihtiyacı hiç bildirilmiyordu). Hepsine gittiyse bildirim zaten yapılmıştır.
+    const mailed = await db.systemLock.findMany({
+      where: { name: { in: claimedMessages.map((m) => `${REPLY_WAITING_MAIL_PREFIX}${m}`) } },
+      select: { name: true },
+    });
+    const mailedSet = new Set(mailed.map((r) => r.name.slice(REPLY_WAITING_MAIL_PREFIX.length)));
+    const target = [...claimedMessages].reverse().find((m) => !mailedSet.has(m));
+    if (!target) return "deduped";
     const outcome = await input.notify(target);
     if (outcome === "mailed" || outcome === "deduped") return outcome;
     await release();
@@ -421,6 +431,20 @@ export async function notifyOpenNeeds(
   } catch {
     await release();
     return "not_sent";
+  }
+}
+
+/**
+ * Bugünkü "Misafir cevabınızı bekliyor" yolu (devir / cevapsız parça) e-postayı gönderdiyse ya da o mesaja zaten gönderilmişse turun açık
+ * ihtiyaçları da BİLDİRİLMİŞ sayılır (Opus 10-23 sabah F8): sonraki turda aynı satır bayat açık kalırsa ikinci e-posta gitmez. Kayıt yazılamazsa
+ * (zaten var / depo okunamadı) sessizce geçilir — bu kayıt yalnız tekrarı önler.
+ */
+export async function recordOpenNeedsNotified(db: Db, input: { items: readonly PersistedItem[]; now: Date }): Promise<void> {
+  for (const it of input.items) {
+    if (NO_NOTIFY_KINDS.has(it.kind) || !OPEN.has(it.status)) continue;
+    await db.systemLock
+      .create({ data: { name: `${OPEN_NEED_MAIL_PREFIX}${it.id}`, lockedUntil: new Date(input.now.getTime() + OPEN_NEED_MAIL_TTL_MS) } })
+      .catch(() => {});
   }
 }
 

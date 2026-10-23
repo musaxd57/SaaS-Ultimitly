@@ -122,7 +122,7 @@ import { sanitizePromptValue, selectHistoryForPrompt } from "@/lib/ai/prompts";
 import { apartmentResolvable, guestFirstNameOf, usesApartmentToken } from "@/lib/kb-placeholders";
 import { buildGuestMessageBody, hasUnfilledPlaceholders } from "@/lib/auto-messages/render";
 import { autoMessageStillAt, loadAutoMessage, recordAutoMessageSkip } from "@/lib/auto-messages/store";
-import { modelGuestFirstName } from "@/lib/ai/code-greeting";
+import { modelGuestFirstName, stripLeadingGreeting } from "@/lib/ai/code-greeting";
 import { applyPromptKbAudit, buildKbEvidence } from "@/lib/ai/grounding";
 import { closableAfter, closingMayHide, lexicalClosingOnly, semanticClosingOnly } from "@/lib/ai/closing-turn";
 import {
@@ -177,6 +177,7 @@ import {
   notifyHeldItems,
   notifyOpenNeeds,
   planItemsTurn,
+  recordOpenNeedsNotified,
   recordLexicalAlertItems,
   recordModelItems,
   settleItemsTurn,
@@ -2669,6 +2670,15 @@ export async function applyChannelAutoReply(
   // (ikinci inceleme 09-24: iki bağımsız modelin erteleme hükmü bu tutuşu ancak bekçi koşarsa kaldırabilir —
   // "Das muss Ihr Gastgeber entscheiden" gibi kelime ağının tanımadığı doğru ertelemeler hep tutuluyordu).
   // Kapı bekçinin hükmüyle BAŞTAN değerlendirilir. Önizleme (dryRun) de aynı yoldan — "gönderilirdi" dürüst kalsın.
+  // Codex 10-23 (madde 4: "önceki taslağın onayı, değişmiş metne otomatik taşınmasın"): cevap parçaları kipinde kodun ve okuyucunun ONAYLADIĞI
+  // her parça gönderilecek SON metinde AYNEN durmalı — selam, dolgu silme, konu ayıklaması ya da yeniden yazma sonrası değişen parça eski onayla
+  // gitmez: beyan geçersiz sayılır → kapı turu tutar (istekler ev sahibinde açık kalır).
+  if (replyItems?.parts && result.source === "openai" && result.answeredRequests?.ok === true && (result.verifiedParts?.length ?? 0) > 0) {
+    const answeredRefs = result.answeredRequests.refs;
+    const finalText = result.reply ?? "";
+    const altered = (result.verifiedParts ?? []).some((v) => answeredRefs.includes(v.ref) && !finalText.includes(stripLeadingGreeting(v.text)));
+    if (altered) result = { ...result, answeredRequests: { ok: false, reason: "missing" } };
+  }
   let gateFailure = autoReplyGateFailure(result, last.body, gateContext);
   let gatePassed = gateFailure === null;
   // Bağlam hakemi KATI kip (`AI_ABSENCE_JUDGE_STRICT`): kapıdan geçen aday cevap, kelime kuralının kaçırdığı "bilgim yok" için de okunur.
@@ -3309,13 +3319,21 @@ export async function applyChannelAutoReply(
             if (handoffHeld || partsUnanswered) {
               const loudLast = notice.loud.length > 0 ? messages.find((m) => m.id === notice.loud[notice.loud.length - 1]) : undefined;
               const shown = loudLast ?? last;
-              await notifyHostReplyWaiting({
+              const waiting = await notifyHostReplyWaiting({
                 organizationId: conversation.property.organizationId,
                 conversation,
                 property: conversation.property,
                 messageId: shown.id,
                 messageBody: shown.body,
               });
+              // Parça kipinde (Soru 10, Opus 10-23 sabah F8): bu e-posta turun açık ihtiyaçlarını da bildirmiş sayılır — sonraki turda bayat kalan aynı
+              // satır için ikinci e-posta gitmez. Kip kapalıyken alan yok → yazma yok.
+              if (itemsPlan.staleOpen && (waiting === "mailed" || waiting === "deduped")) {
+                await recordOpenNeedsNotified(prisma, {
+                  items: [...itemsPlan.turnItems.filter((i) => i.sensitivity === "none"), ...itemsPlan.staleOpen],
+                  now: heldAt,
+                });
+              }
             } else if ((itemsPlan.staleOpen?.length ?? 0) > 0) {
               // Soru 10 (kurucu 10-23 sabah): önceki okumadan kalmış açık ihtiyaç (bu okuma üretmedi → cevaplanamadı) ve tur sessiz → satır başına
               // kalıcı kayıt + o ihtiyacın mesajına tek "Misafir cevabınızı bekliyor" (aynı ihtiyaca / mesaja ikinci e-posta yok).

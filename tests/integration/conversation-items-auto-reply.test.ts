@@ -1839,6 +1839,38 @@ describe("CEVAP PARÇALARI (kurucu 10-23 A, AI_ANSWER_PARTS_ENABLED)", () => {
     expect((await itemsOf(conversationId)).find((i) => i.kind === "amenities")?.status).toBe("open");
   });
 
+  it("🚨 Codex 10-23 madde 4: onaylanan parça gönderilecek SON metinde aynen durmuyorsa (sonradan değişti) tur TUTULUR, istek açık kalır", async () => {
+    vi.stubEnv("AI_ANSWER_PARTS_ENABLED", "1");
+    vi.stubEnv("AI_ITEM_ORDINAL_ENABLED", "1");
+    const { conversationId } = await seed("Çıkış saat kaçta? Sauna var mı?");
+    understands(twoNeeds());
+    mockSuggest.mockResolvedValueOnce(
+      verdict({
+        intent: "checkout_time",
+        // Onaylanan parça "Çıkış saati 11:00." — giden metin başka bir şey söylüyor.
+        reply: "Çıkış saati 12:00.",
+        answeredRequests: { ok: true, refs: ["R1"] },
+        verifiedParts: [{ ref: "R1", text: "Çıkış saati 11:00.", evidence: "Check-out saati: 11:00", source: "property" }],
+      }),
+    );
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect((await itemsOf(conversationId)).find((i) => i.kind === "checkout_time")?.status).not.toBe("answered");
+    // Kontrol: metin parçayı aynen taşıyorsa (selam eklenmiş olsa da) gider.
+    const second = await seed("Çıkış saat kaçta? Sauna var mı?");
+    understands(twoNeeds());
+    mockSuggest.mockResolvedValueOnce(
+      verdict({
+        intent: "checkout_time",
+        reply: "Merhaba Alex,\n\nÇıkış saati 11:00.",
+        answeredRequests: { ok: true, refs: ["R1"] },
+        verifiedParts: [{ ref: "R1", text: "Merhaba! Çıkış saati 11:00.", evidence: "Check-out saati: 11:00", source: "property" }],
+      }),
+    );
+    expect((await applyChannelAutoReply(second.conversationId)).sent).toBe(true);
+  });
+
   it("anahtar kapalı: cevap modeline parça kipi GİTMEZ (girdi bugünküyle aynı)", async () => {
     const { conversationId } = await seed("Çıkış saat kaçta? Sauna var mı?");
     understands(twoNeeds());

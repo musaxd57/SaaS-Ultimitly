@@ -3,6 +3,7 @@ import { replyCallParams } from "@/lib/ai";
 import { decisionWriterCallParams } from "@/lib/decisions/ai-text";
 import { isReasoningModel, layerReasoningEffort } from "@/lib/ai/model-family";
 import { semanticModel, semanticReasoningEffort } from "@/lib/ai/semantic/config";
+import { PART_READER_SYSTEM_PROMPT, partReaderModel, partReaderReasoningEffort } from "@/lib/ai/semantic/part-reader";
 import { embeddingModel } from "@/lib/ai/embeddings/model";
 import { createHash } from "node:crypto";
 import { replyPromptVersion, replyRequestIdentity } from "@/lib/ai";
@@ -52,6 +53,8 @@ export interface EvalRuntime {
     style?: { model: string; reasoning?: string };
     /** Ev sahibi karar metni yazıcısı (`AI_DECISION_TEXT_MODEL` → cevap modeli); 10-09 öncesi yan dosyada YOK. */
     decision?: LayerRuntime;
+    /** Parça okuyucusu (`AI_PART_READER_MODEL` → kıdemli okuyucunun ayarı; C kolu, 10-23); 10-23 öğlen öncesi yan dosyada YOK. */
+    partReader?: LayerRuntime;
     /** Anlamsal getirme (gömme). */
     embedding: { model: string };
   };
@@ -61,7 +64,7 @@ export interface EvalRuntime {
    * İstem kimliği (10-01, kurucu: "her raporda istem kimliği"): modele giden sistem istemlerinin SHA-256 ilk 12 hanesi.
    * `understandingMode`: anlama isteminin hangi kiple kurulduğu (`understandingModeLabel`) — kimlik bu kipin istemidir.
    */
-  prompts?: { reply: string; replyVariant?: string; understanding: string; understandingMode?: string };
+  prompts?: { reply: string; replyVariant?: string; understanding: string; understandingMode?: string; partReader?: string };
 }
 
 /**
@@ -239,6 +242,7 @@ export function evalRuntime(opts: { understanding?: UnderstandingMode } = {}): E
       translate: auxLayer(process.env.OPENAI_TRANSLATE_MODEL?.trim() || reply.model, process.env.OPENAI_TRANSLATE_REASONING_EFFORT),
       style: auxLayer(process.env.OPENAI_STYLE_MODEL?.trim() || reply.model, process.env.OPENAI_STYLE_REASONING_EFFORT),
       decision: { model: decision.model, reasoning: reasoningLabel(decision.model, decision.effort) },
+      partReader: { model: partReaderModel(), reasoning: reasoningLabel(partReaderModel(), partReaderReasoningEffort()) },
       embedding: { model: embeddingModel() },
     },
     flags: Object.fromEntries(PIPELINE_FLAGS.map((f) => [f, process.env[f]?.trim() || "(boş)"])),
@@ -247,6 +251,7 @@ export function evalRuntime(opts: { understanding?: UnderstandingMode } = {}): E
       reply: replyPromptVersion(),
       replyVariant: sha12(`${variant.system}\n${variant.user}`),
       understanding: sha12(understandingSystem),
+      partReader: sha12(PART_READER_SYSTEM_PROMPT),
       understandingMode: understandingModeLabel(mode),
     },
   };

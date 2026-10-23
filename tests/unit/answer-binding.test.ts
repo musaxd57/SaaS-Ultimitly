@@ -6,7 +6,7 @@ import { describe, it, expect, vi } from "vitest";
 // ---------------------------------------------------------------------------
 vi.mock("server-only", () => ({}));
 
-import { askedAspects, askedDirection, checkAnswerBinding, contentCovered, missingAspects, omitsGeneralRule, unsupportedContent } from "@/lib/ai/answer-binding";
+import { askedAspects, askedDirection, checkAnswerBinding, contentCovered, missingAspects, unsupportedContent } from "@/lib/ai/answer-binding";
 import { needTerms } from "@/lib/conversation-items/topic-absence";
 import { topicsWithSymptomsOf } from "@/lib/conversation-items/relation";
 
@@ -1242,80 +1242,21 @@ describe("Opus 10-23 R4 (1a0e502a incelemesi): kendi gerilemelerim + eksik kalan
 });
 
 // ---------------------------------------------------------------------------
-// Soru 9 (kurucu 10-23 sabah): genel kural + istisna. "Sorun, istisnanın bulunması değil, soruyu eksik veya yanıltıcı cevaplaması." Bağ
-// denetimi (`checkAnswerBinding`) yalnız değerin DOĞRU yere bağlandığını sınar — "hafta sonu 23:00" bağ olarak doğrudur (↑ "doğru eşleşme
-// gider"). Sorulana göre EKSİK olması ayrı kapsam denetimidir (`omitsGeneralRule`, parça kipinde `composeVerifiedReply` çağırır).
+// Soru 9 (kurucu 10-23 sabah: "genel kural + istisna") KODDA DEĞİL, parça okuyucusunda (`semantic/part-reader.ts`, `exception_without_rule`):
+// sözcük tabanlı ilk sürüm Opus 10-23 sabah incelemesinde 7 bulgu verdi ("diğer günlerde", "normalde", parantez, başka konudaki gün sözcüğü,
+// temizlik saati "genel kural" sanılıyor …) — kurucu + Codex: "kelime listelerini büyütmek değil, anlam ilişkisini değerlendirmek". Bağ denetimi
+// yalnız YAPIYI sınar: parantezdeki istisna genel değere sızmaz.
 // ---------------------------------------------------------------------------
-describe("Soru 9 — yalnız istisnayı söyleyen parça (omitsGeneralRule)", () => {
-  const KB2 = "Havuz hafta içi 22:00'ye, hafta sonu 23:00'e kadar açıktır.";
-  const omits = (src: string, part: string, q: string[], ctx: string[] = [], otherSources?: string[]) =>
-    omitsGeneralRule({ part, sourceText: src, otherSources, needTerms: needTerms(q), needTopics: [], askedContext: [...q, ...ctx] });
+describe("parantez yan cümle sınırıdır (Opus 10-23 sabah F2)", () => {
+  const src = "Havuz 22:00'ye kadar açık (hafta sonu 23:00'e kadar).";
+  const c = (part: string) => checkAnswerBinding({ part, evidence: src, sourceText: src, ...need(["havuz kaçta kapanıyor"]) });
 
-  it("🚨 kurucunun örneği: 'Havuz 22:00'ye kadar açık mı?' ↔ 'Hafta sonu 23:00'e kadar açık.' → TUTULUR; iki günü de söyleyen gider", () => {
-    expect(omits(KB2, "Havuz hafta sonu 23:00'e kadar açık.", ["havuz 22:00'ye kadar açık mı"])).toBe(true);
-    expect(omits(KB2, "Havuz hafta içi 22:00'ye, hafta sonu 23:00'e kadar açık.", ["havuz 22:00'ye kadar açık mı"])).toBe(false);
-    // Bağ olarak ikisi de doğru (kapsam ayrı denetim).
-    expect(checkAnswerBinding({ part: "Havuz hafta sonu 23:00'e kadar açık.", evidence: KB2, sourceText: KB2, ...need(["havuz 22:00'ye kadar açık mı"]) }).ok).toBe(true);
+  it("🚨 parantezdeki gün genel değere bağlanmaz: 'Hafta sonu havuz 22:00'ye kadar açık' TUTULUR", () => {
+    expect(c("Hafta sonu havuz 22:00'ye kadar açık.").ok).toBe(false);
   });
 
-  it("🚨 misafir o günü sorduysa ya da önceki mesajda söylediyse gider (cumartesi hafta sonunun özelidir; pazartesi hafta içinin)", () => {
-    expect(omits(KB2, "Havuz hafta sonu 23:00'e kadar açık.", ["hafta sonu havuz kaçta kapanıyor"])).toBe(false);
-    expect(omits(KB2, "Havuz hafta sonu 23:00'e kadar açık.", ["havuz kaçta kapanıyor"], ["Cumartesi geliyoruz."])).toBe(false);
-    expect(omits(KB2, "Havuz hafta içi 22:00'ye kadar açık.", ["havuz kaçta kapanıyor"], ["Pazartesi geleceğiz."])).toBe(false);
-    // Başka gün sorulduysa istisna yine TUTULUR (yanlış güne cevap).
-    expect(omits(KB2, "Havuz hafta sonu 23:00'e kadar açık.", ["havuz kaçta kapanıyor"], ["Salı akşamı gelebilir miyiz?"])).toBe(true);
-  });
-
-  it("🚨 genel kural kaynakta YOKSA kural koşmaz (tek bilgi istisnadır, uydurulmaz)", () => {
-    expect(omits("Hafta sonu havuz 23:00'e kadar açıktır.", "Havuz hafta sonu 23:00'e kadar açık.", ["havuz kaçta kapanıyor"])).toBe(false);
-  });
-
-  it("genel kural + istisna kalemi: yalnız istisna tutulur; genel + istisna gider; kahvaltı, otopark ücreti, mevsim de aynı", () => {
-    const POOL = "Havuz her gün 20:00'de kapanır. Hafta sonu 23:00'e kadar açıktır.";
-    expect(omits(POOL, "Havuz hafta sonu 23:00'e kadar açıktır.", ["havuz 22:00'ye kadar açık mı"])).toBe(true);
-    expect(omits(POOL, "Havuz her gün 20:00'de kapanır; hafta sonu 23:00'e kadar açık.", ["havuz kaçta kapanıyor"])).toBe(false);
-    expect(omits("Kahvaltı 08:00-10:30 arası, hafta sonu 11:00'e kadar verilir.", "Kahvaltı hafta sonu 11:00'e kadar veriliyor.", ["kahvaltı kaça kadar"])).toBe(true);
-    expect(omits("Otopark günlük 200 TL, hafta sonu 300 TL.", "Otopark hafta sonu 300 TL.", ["otopark ücreti ne kadar"])).toBe(true);
-    const SEASON = "Havuz yaz aylarında 22:00'ye kadar açık, kışın 18:00'de kapanır.";
-    expect(omits(SEASON, "Havuz yaz aylarında 22:00'ye kadar açık.", ["havuz kaçta kapanıyor"])).toBe(true);
-    expect(omits(SEASON, "Havuz yaz aylarında 22:00'ye kadar açık.", ["havuz yazın kaçta kapanıyor"])).toBe(false);
-  });
-
-  it("🚨 kaynaktaki genel değerin ARDINDAKİ değersiz gün yan cümlesi onu değişke yapmaz (Haiku 10-23 sabah)", () => {
-    const src = "Havuz 22:00'de kapanır, hafta sonu da açık. Hafta sonları 23:00'e kadar açıktır.";
-    expect(omits(src, "Hafta sonları havuz 23:00'e kadar açıktır.", ["havuz kaçta kapanıyor"])).toBe(true);
-    // Ardında gün olan değer parçanın kendi değeriyse istisna sayılmaz.
-    expect(omits("Havuz 23:00'e kadar açık, hafta sonu.", "Havuz hafta sonu 23:00'e kadar açık.", ["havuz kaçta kapanıyor"])).toBe(false);
-  });
-
-  it("🚨 E ölçümü 10-23 sabah: genel kuralın değerlerinden BİRİNİ söyleyen parça genel kuralı anmıştır (açılış saatini tekrarlaması gerekmez)", () => {
-    const K = "Kahvaltı: Kahvaltı fiyata dahil değildir; kişi başı 250 TL. Kahvaltı 08:00-10:30 arası, hafta sonu 11:00'e kadar zemin kattaki kafede verilir.";
-    expect(omits(K, "Kahvaltı hafta içi 10:30'a, hafta sonu 11:00'e kadar servis ediliyor.", ["kahvaltı kaça kadar"])).toBe(false);
-    expect(omits(K, "Kahvaltı hafta sonu 11:00'e kadar servis ediliyor.", ["kahvaltı kaça kadar"])).toBe(true);
-  });
-
-  it("değersiz öteki değişke de sayılır ('Hafta içi kapalıdır' — misafir her gün açık sanmasın)", () => {
-    expect(omits("Havuz hafta sonu 23:00'e kadar açık. Hafta içi kapalıdır.", "Havuz hafta sonu 23:00'e kadar açık.", ["havuz kaçta kapanıyor"])).toBe(true);
-  });
-
-  it("genel değer YÖN olarak farklıysa (açılış sorusu, genel kalem yalnız kapanış veriyor) istisna tek cevaptır → gider", () => {
-    expect(omits("Havuz 20:00'de kapanır. Hafta sonu 10:00'da açılır.", "Havuz hafta sonu 10:00'da açılır.", ["havuz kaçta açılıyor"])).toBe(false);
-  });
-
-  it("genel kural BAŞKA kalemde de okunur (O6); konuyu anmayan kalem okunmaz", () => {
-    const ONLY_WEEKEND = "Hafta sonları havuz 23:00'e kadar açıktır.";
-    expect(omits(ONLY_WEEKEND, "Havuz hafta sonu 23:00'e kadar açık.", ["havuz kaçta kapanıyor"], [], ["Havuz 20:00'de kapanır."])).toBe(true);
-    expect(omits(ONLY_WEEKEND, "Havuz hafta sonu 23:00'e kadar açık.", ["havuz kaçta kapanıyor"], [], ["Resepsiyon 20:00'de kapanır."])).toBe(false);
-  });
-
-  it("çok konulu ihtiyaçta koşmaz (konu ayrımı bağ denetiminin ve tesis kapsamının işi)", () => {
-    expect(omits("Havuz 20:00'de, sauna hafta sonu 23:00'te kapanır.", "Sauna hafta sonu 23:00'te kapanır.", ["sauna kaçta kapanıyor"])).toBe(false);
-    // Mutasyon Q6 (10-23 sabah): iki tesis soran ihtiyaçta havuzun 20:00'ı saunanın "genel kuralı" sayılmaz (yarım cevabı `missesAskedFacility` tutar).
-    expect(omits("Havuz 20:00'de, sauna hafta sonu 23:00'te kapanır.", "Sauna hafta sonu 23:00'te kapanır.", ["havuz ve sauna kaçta kapanıyor"])).toBe(false);
-  });
-
-  it("genel değeri de söyleyen parça 'yalnız istisna' değildir — başka değişkenin eksikliği bu kuralın değil `variant_omitted`ın işi (mutasyon Q1)", () => {
-    const src = "Havuz 20:00'de kapanır. Havuz hafta sonu 23:00'e kadar açık. Havuz kış aylarında 18:00'de kapanır.";
-    expect(omits(src, "Havuz 20:00'de kapanır, hafta sonu 23:00'e kadar açık.", ["havuz kaçta kapanıyor"])).toBe(false);
+  it("doğru okumalar gider (genel + istisna; yalnız istisna — kapsamı okuyucu değerlendirir)", () => {
+    expect(c("Havuz 22:00'ye kadar, hafta sonu 23:00'e kadar açık.").ok).toBe(true);
+    expect(c("Hafta sonu havuz 23:00'e kadar açık.").ok).toBe(true);
   });
 });

@@ -89,3 +89,23 @@ kalır." → kod: yön sözcüğü yok, belirsiz (bugün tutuluyor) · okuyucu: 
 Uçtan uca gerçek model (E koşucusu, onaylı Luna yapılandırması) parça kipi AÇIK + okuyucu AÇIK, son kodla: misafire giden YANLIŞ parça
 sayısı (hedef 0) ve GEREKSİZ tutma (doğru cevabı olan isteğin tutulması) AYRI sayılır; her hata için neden analizi (`failure-analysis`).
 Kör set mühürlü kalır (yazarı ayrı; dosyaları ajan dahil kimse açmaz) — kör koşu yalnız sayı döker. Parça kipi kurucu kararına kadar KAPALI.
+
+## 5. Güncelleme (10-23 öğlen) — Opus incelemesi + Codex önerisi sonrası
+
+**Soru 9 koda değil okuyucuya taşındı.** Sözcük tabanlı ilk sürüm (`omitsGeneralRule`) Opus derin incelemesinde 7 bulgu verdi, hepsi denenerek
+doğrulandı: "diğer günlerde 22:00", "normalde 22:00", parantezli istisna, iki sözcüklü tesis adı, aynı mesajın BAŞKA sorusundaki gün sözcüğü
+("hafta sonu kahvaltı var mı?"), "yazın" (yaz mevsimi ↔ "WhatsApp'tan yazın") yanlış gönderim; "havuz temizliği 14:00" gibi ilgisiz saatin "genel
+kural" sanılması gereksiz tutma. Kurucu ve Codex: "kelime listelerini büyütmek değil, anlam ilişkisini değerlendirmek". Kod artık yalnız YAPIYI
+sınar; parantez yan cümle sınırı olarak eklendi (Opus F2: "Havuz 22:00'ye kadar açık (hafta sonu 23:00'e kadar)" → "Hafta sonu 22:00" gidiyordu).
+
+**Codex'in altı maddesi — koddaki karşılığı:** (1) istek başına kimlik + okuyucu asıl mesajı / önceki mesajları görür — VAR. (2) "kaynak
+destekliyor mu" ile "ihtiyacı karşılıyor mu" ayrı karar — okuyucuya `supported_by_notes` EKLENDİ (ayrıca `binding_ok`, `answers_request`). (3)
+içeride "cevaplayamıyorum" — VAR (`no_info`, okuyucu `partly` / `no`) + `unsure` EKLENDİ. (4) okuyucu SON metni görsün — onaylanan parça son metinde
+aynen durmuyorsa tur tutulur (EKLENDİ); son metnin beş kuralı zaten kıdemli okuyucuda. (5) yetki / sır / güncellik kodda — VAR. (6) "cevap hazır /
+gönderildi / çözüldü" — VAR (doğrudan gönderimde teslimden SONRA "cevaplandı"; hassas öğe cevapla kapanmaz); AÇIK: kalıcı kuyruk anahtarı açıkken
+öğe kuyruğa girişte "cevaplandı" oluyor — kuyruk açılmadan önce kalıcı teslim hatasında öğe yeniden açılmalı.
+
+**Model gücü — A / B / C:** A = okuyucu kapalı (yalnız kod) · B = aynı model + açık anlam görevi (Luna, düşük çaba) · C = B + YALNIZ okuyucuda
+daha güçlü ayar (`AI_PART_READER_MODEL` / `AI_PART_READER_REASONING_EFFORT`). Önce `evals/part-reader-dev.json` (32 soru–kaynak–parça, etiketli;
+Codex'in havuz / havuz barı üç satırı dahil) ile okuyucu tek başına, sonra bütün akış (geliştirme seti), en sonda mühürlü kör set. İnce ayar YOK;
+üretim izleri eğitim verisine çevrilmez.

@@ -12,10 +12,20 @@ import {
   partReaderHolds,
   PART_READER_MAX_PARTS,
   PART_READER_SYSTEM_PROMPT,
+  partReaderModel,
+  partReaderReasoningEffort,
   runPartReader,
 } from "@/lib/ai/semantic/part-reader";
 
-const row = (ref: string, over: Record<string, unknown> = {}) => ({ ref, answers_request: "yes", binding_ok: true, exception_without_rule: false, quote: "", ...over });
+const row = (ref: string, over: Record<string, unknown> = {}) => ({
+  ref,
+  answers_request: "yes",
+  supported_by_notes: true,
+  binding_ok: true,
+  exception_without_rule: false,
+  quote: "",
+  ...over,
+});
 
 describe("parsePartReaderVerdict — tutucu yön", () => {
   it("hepsi evet → tutma yok", () => {
@@ -36,6 +46,17 @@ describe("parsePartReaderVerdict — tutucu yön", () => {
       ["R1", "R2", "R3", "R4", "R5"],
     );
     expect(Object.fromEntries(h!)).toEqual({ R1: "not_answered", R2: "binding", R3: "exception_only", R4: "partial", R5: "not_answered" });
+  });
+
+  it("🚨 Codex 10-23: 'kaynakta yazıyor mu' ile 'soruyu cevaplıyor mu' AYRI karar — biri olumlu diye öteki olumlu sayılmaz; 'emin değilim' de tutar", () => {
+    const h = parsePartReaderVerdict(
+      { parts: [row("R1", { supported_by_notes: false }), row("R2", { answers_request: "unsure" }), row("R3", { answers_request: "no", supported_by_notes: true })] },
+      ["R1", "R2", "R3"],
+    );
+    expect(Object.fromEntries(h!)).toEqual({ R1: "unsupported", R2: "unsure", R3: "not_answered" });
+    // Alanı eksik eski biçim (destek sorusu yok) okunmadı sayılır.
+    const old = parsePartReaderVerdict({ parts: [{ ref: "R1", answers_request: "yes", binding_ok: true, exception_without_rule: false, quote: "" }] }, ["R1"]);
+    expect(Object.fromEntries(old!)).toEqual({ R1: "unread" });
   });
 
   it("🚨 cevapta olmayan, iki kez gelen ya da alanı bozuk parça 'okunmadı' sayılır ve TUTULUR; tanınmayan kimlik yok sayılır", () => {
@@ -61,7 +82,7 @@ describe("okuyucunun gördüğü metin", () => {
     const text = buildPartReaderUserContent({
       guestMessage: "Merhaba ben Ayşe Demir, terasta 23:00'e kadar kalabilir miyiz?",
       earlierGuestMessages: ["bir", "iki", "üç", "dört"],
-      parts: [{ ref: "R1", request: "teras kaça kadar açık", text: "Teras 22:00'ye kadar açık.", note: "[rules] Teras: Teras 22:00'ye kadar açık." }],
+      parts: [{ ref: "R1", request: "teras kaça kadar açık", text: "Teras 22:00'ye kadar açık.", notes: ["[rules] Teras: Teras 22:00'ye kadar açık."] }],
       names: ["Ayşe Demir"],
     });
     expect(text).not.toContain("Ayşe");
@@ -87,6 +108,7 @@ describe("okuyucunun gördüğü metin", () => {
     expect(PART_READER_SYSTEM_PROMPT).toContain("Judge every part ONLY against ITS OWN request");
     expect(PART_READER_SYSTEM_PROMPT).toContain("A part is never \"partly\" or \"no\" because it does not answer the guest's OTHER");
     expect(PART_READER_SYSTEM_PROMPT).toContain("yes/no question answered with the relevant fact is \"yes\"");
+    expect(PART_READER_SYSTEM_PROMPT).toContain("Being correct and being an answer are SEPARATE questions");
   });
 
   it("istem örnekleri ölçüm setinin konularından farklı (havuz / sauna / otopark / kahvaltı geçmez)", () => {
@@ -94,8 +116,31 @@ describe("okuyucunun gördüğü metin", () => {
   });
 });
 
+describe("C kolu — yalnız okuyucunun modeli (Codex 10-23)", () => {
+  it("boşken kıdemli okuyucunun ayarı; doluyken yalnız okuyucu değişir; tanınmayan çaba gönderilmez", () => {
+    vi.stubEnv("AI_STAY_GUARD_MODEL", "gpt-6-luna");
+    vi.stubEnv("AI_STAY_GUARD_REASONING_EFFORT", "low");
+    vi.stubEnv("AI_PART_READER_MODEL", "");
+    vi.stubEnv("AI_PART_READER_REASONING_EFFORT", "");
+    expect(partReaderModel()).toBe("gpt-6-luna");
+    expect(partReaderReasoningEffort()).toBe("low");
+    vi.stubEnv("AI_PART_READER_MODEL", "gpt-6");
+    vi.stubEnv("AI_PART_READER_REASONING_EFFORT", "high");
+    expect(partReaderModel()).toBe("gpt-6");
+    expect(partReaderReasoningEffort()).toBe("high");
+    vi.stubEnv("AI_PART_READER_REASONING_EFFORT", "turbo");
+    expect(partReaderReasoningEffort()).toBe("low");
+    vi.unstubAllEnvs();
+  });
+
+  it("okuyucunun gördüğü notlar: dayandığı kalem ilk, ardından öteki kalemler (çitli, tavanlı)", () => {
+    const text = buildPartReaderUserContent({ guestMessage: "m", parts: [{ ref: "R1", request: "q", text: "t", notes: ["birinci kalem", "ikinci kalem"] }] });
+    expect(text).toContain("NOTES: <<<birinci kalem\n---\nikinci kalem>>>");
+  });
+});
+
 describe("runPartReader", () => {
-  const parts = [{ ref: "R1", request: "q", text: "t", note: "n" }];
+  const parts = [{ ref: "R1", request: "q", text: "t", notes: ["n"] }];
 
   it("anahtar yoksa çağrı yok → düştü", async () => {
     const f = vi.fn();
@@ -111,7 +156,7 @@ describe("runPartReader", () => {
 
   it("🚨 tavanın ötesindeki parça okunmaz → tutulur", async () => {
     vi.stubEnv("OPENAI_API_KEY", "test-key");
-    const many = Array.from({ length: PART_READER_MAX_PARTS + 1 }, (_, i) => ({ ref: `R${i + 1}`, request: "q", text: "t", note: "n" }));
+    const many = Array.from({ length: PART_READER_MAX_PARTS + 1 }, (_, i) => ({ ref: `R${i + 1}`, request: "q", text: "t", notes: ["n"] }));
     const f = vi.fn(async () =>
       new Response(
         JSON.stringify({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify({ parts: many.map((m) => row(m.ref)) }) } }] }),

@@ -151,18 +151,20 @@
   ayrılmış) nötr — içerik kıyasında DEĞİL ("sağındaki" ≠ "solundaki"); tesis adı / "giriş" / "ayrılış" nötr değil. Kodun sonundaki "!" / "?"
   cümleyi bitirir; Türkçe kalemde son değerin ardındaki yer bildiren ad (-de / -deki) ve yüklem özne değil; "№12" = 12; kısa Türkçe fiil kökü
   ("atılır" ~ "atabilirsiniz"). Her gevşetmenin tehlikeli karşılığı testte TUTULUR. Ölçer ham parçayı (`partsRaw`) yalnız ölçümde kaydeder.
-- 🚨 **PARÇA KİPİ — KURUCU 10-23 SABAH (Soru 9 / 10 / 11; hepsi parça kipinin içinde, kip KAPALI; tasarım
-  `docs/TASARIM-2026-10-23-soru-9-10-11-istisna-bildirim-parca-okuyucu.md`):** (9) misafirin SORMADIĞI istisnayı genel kuralı anmadan veren parça
-  gitmez (`omitsGeneralRule`, `general_omitted`: "Havuz 22:00'ye kadar açık mı?" ↔ "Hafta sonu 23:00'e kadar açık." — kalemde hafta içi 22:00);
-  misafir o günü / mevsimi sorduysa ya da önceki mesajında söylediyse gider; kaynakta genel kural yoksa kural koşmaz; aynı mesajdaki bağımsız
-  parçalar gider. Yeni sözcük listesi YOK (bağ denetiminin gün / mevsim sınıfları). (11) PARÇA OKUYUCUSU (`semantic/part-reader.ts`, kıdemli
-  okuyucunun anahtarı): kodun doğruladığı parçaları + isteklerini + kaynak kalemlerini okur (ilk taslağı değil); YALNIZ TUTAR (sorulanı
-  cevaplamıyor / yarım / yanlış bağ / tek başına istisna); cevabında olmayan / bozuk / tekrarlanan parça ve okuyucu düşerse BÜTÜN parçalar
-  tutulur; kodun tuttuğunu serbest bırakamaz; tek okuma (serbest bırakma yetkisi olmadığı için). İstem örnekleri ölçüm setinin konularından
-  farklı (pinli). (10) Sessiz tutulan turda önceki okumadan kalmış AÇIK ihtiyaç (`plan.staleOpen`) → satır başına kalıcı kayıt
-  (`SystemLock open-need-mail:<satır>`, bir yıl) ÖNCE, sonra mevcut "Misafir cevabınızı bekliyor" yolu (mesaj başına tek); e-posta gitmezse
-  kayıt geri alınır; güncel durum yeniden okunur (vazgeçilen / cevaplanan satır bildirilmez); `notifiedAt` BİLEREK kullanılmadı (acil e-posta
-  tekilleştirmesi onu mesaj düzeyinde okur). Kör ölçüm: `live-pipeline` mühürlü kip (`EVAL_SEALED_FINAL=1`, yalnız sayı).
+- 🚨 **PARÇA KİPİ — KURUCU 10-23 SABAH (Soru 9 / 10 / 11 + Codex "anlam ilişkisi" önerisi; hepsi parça kipinin içinde, kip KAPALI; tasarım
+  `docs/TASARIM-2026-10-23-soru-9-10-11-istisna-bildirim-parca-okuyucu.md`):** kural: SÖZCÜK LİSTESİ BÜYÜTÜLMEZ — "soruyu gerçekten cevaplıyor
+  mu / kaynakta yazıyor mu / koşul ve istisna doğru şeye mi bağlı / sorulmayan istisna tek başına mı" PARÇA OKUYUCUSUNUN (`semantic/part-reader.ts`,
+  kıdemli okuyucunun anahtarı) sorularıdır; kod YAPIYI sınar (değer ↔ kaynak bağı, sayı, olumsuzluk, parantez yan cümle sınırı) + yetki / sır /
+  güncellik. Soru 9'un sözcük tabanlı ilk kodu Opus 10-23 sabah incelemesinde 7 bulgu verdi ve KALDIRILDI. Okuyucu: kodun doğruladığı parçaları +
+  isteklerini + dayandıkları kalemi VE aynı konuyu anan öteki kalemleri okur; ayrı kararlar `answers_request` (yes / partly / no / unsure) ·
+  `supported_by_notes` · `binding_ok` · `exception_without_rule`; YALNIZ TUTAR; cevabında olmayan / bozuk parça ve okuyucu düşerse BÜTÜN parçalar
+  tutulur. Onaylanan parça gönderilecek SON metinde aynen durmuyorsa beyan geçersiz → tur tutulur (Codex madde 4). C kolu için yalnız okuyucuya
+  model / çaba: `AI_PART_READER_MODEL` / `AI_PART_READER_REASONING_EFFORT` (boşken kıdemli okuyucunun ayarı). Parça kipi açılacaksa okuyucu da
+  AÇIK olmalı (anlam denetimi onda). (10) Sessiz tutulan turda önceki okumadan kalmış AÇIK ihtiyaç (`plan.staleOpen`) → satır başına kalıcı kayıt
+  (`SystemLock open-need-mail:<satır>`, bir yıl) ÖNCE, sonra mevcut "Misafir cevabınızı bekliyor" yolu (mesaj başına tek; hedef henüz e-posta
+  gitmemiş en yeni mesaj); bugünkü devir / cevapsız parça e-postası da turun açık ihtiyaçlarını kaydeder (ikinci e-posta yok); e-posta gitmezse
+  kayıt geri alınır; güncel durum yeniden okunur; `notifiedAt` BİLEREK kullanılmadı. Ölçüm: `live-pipeline` mühürlü kip (yalnız toplu sayı),
+  yanlış "cevaplandı" (eksik cevap gitti + iş kapandı) gereksiz tutmadan ayrı; okuyucu karşılaştırma seti `evals/part-reader-dev.json`.
 - 🚨 **MÜLKÜN İÇ ADI MODELE GİTMEZ (kurucu 10-22 akşam: "müşteriye daire adı ne … daire numarası anca verilir … kat 2 daire 3 gibidir"):**
   `Property.name` ev sahibinin kendi etiketidir; cevap istemine YAZILMAZ. Misafire görünen ad (`guestDisplayName`, U4, migration 83) varsa
   istemde yalnız o ("Misafire görünen daire adı: Kat 2 Daire 3"), yoksa ad satırı hiç yok. Bilgi tabanı `{{daire}}` yer tutucusu numarayı

@@ -19,7 +19,7 @@
 
 import "server-only";
 
-import { askedAspects, askedDirection, checkAnswerBinding, missesAskedFacility, missingAspects, omitsGeneralRule, type BindingIssue } from "@/lib/ai/answer-binding";
+import { askedAspects, askedDirection, checkAnswerBinding, missesAskedFacility, missingAspects, type BindingIssue } from "@/lib/ai/answer-binding";
 import { stripLeadingGreeting } from "@/lib/ai/code-greeting";
 import { quoteGroundedIn } from "@/lib/ai/semantic/absence-judge";
 import type { PartReaderHold } from "@/lib/ai/semantic/part-reader";
@@ -84,8 +84,8 @@ export interface PartNeed {
   queries?: readonly string[];
 }
 
-/** Kodun kapsam denetimleri: sorulan yön / tesis / genel kural (Soru 9). */
-type ScopeIssue = "aspect_missing" | "subject_partial" | "general_omitted";
+/** Kodun kapsam denetimleri: sorulan yön / tesis. */
+type ScopeIssue = "aspect_missing" | "subject_partial";
 /** Parça okuyucusunun tuttuğu parça (Soru 11; `semantic/part-reader.ts`). */
 type ReaderIssue = `reader_${PartReaderHold}`;
 
@@ -110,15 +110,13 @@ export interface ComposedReply {
 
 /**
  * Parçaları doğrular ve birleştirir. Saf; istek sırası `needs` sırasıdır (R1, R2 …).
- *  · `askedContext`: misafirin bu turdaki ve önceki mesajları — Soru 9'da sorulan değişke ("cumartesi geliyoruz") buradan da okunur.
- *  · `holds`: parça okuyucusunun TUTTUĞU parçalar (Soru 11). Yalnız kodun bütün denetimlerinden GEÇMİŞ parçaya uygulanır; okuyucu hiçbir
- *    parçayı serbest bırakamaz.
+ *  · `holds`: parça okuyucusunun TUTTUĞU parçalar (Soru 11; Soru 9 "genel kural + istisna" da okuyucunun sorusudur). Yalnız kodun bütün
+ *    denetimlerinden GEÇMİŞ parçaya uygulanır; okuyucu hiçbir parçayı serbest bırakamaz.
  */
 export function composeVerifiedReply(input: {
   parts: readonly AnswerPart[];
   needs: readonly PartNeed[];
   sources: readonly PartSource[];
-  askedContext?: readonly string[];
   holds?: ReadonlyMap<string, PartReaderHold>;
 }): ComposedReply {
   const texts: string[] = [];
@@ -170,20 +168,6 @@ export function composeVerifiedReply(input: {
     const scope: ScopeIssue[] = [];
     if (missingAspects(part.text, askedAspects(queries), askedDirection(queries), need.terms, queries).length > 0) scope.push("aspect_missing");
     if (missesAskedFacility(part.text, queries)) scope.push("subject_partial");
-    // Soru 9 (kurucu 10-23 sabah): misafirin sormadığı istisnayı genel kuralı anmadan veren parça gitmez ("Havuz 22:00'ye kadar açık mı?" ↔
-    // "Hafta sonu 23:00'e kadar açık." — kalemde hafta içi 22:00). Misafir o günü sorduysa / önceden söylediyse gider.
-    if (
-      omitsGeneralRule({
-        part: part.text,
-        sourceText: source.text,
-        otherSources,
-        needTerms: need.terms,
-        needTopics: need.topics,
-        askedContext: [...queries, ...(input.askedContext ?? [])],
-      })
-    ) {
-      scope.push("general_omitted");
-    }
     if (scope.length > 0) {
       verdicts.push({ ref: need.ref, status: "rejected", issues: scope });
       continue;

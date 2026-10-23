@@ -545,24 +545,19 @@ describe("Opus e2e 10-23 F9 — bilgi tabanıyla çelişen standart saat parça 
 // ---------------------------------------------------------------------------
 // Kurucu 10-23 sabah — Soru 9 (genel kural + istisna) ve Soru 11 (parça okuyucusu) birleştirmede.
 // ---------------------------------------------------------------------------
-describe("Soru 9 — birleştirmede: yalnız istisna tutulur, bağımsız parça gider", () => {
+describe("Soru 9 — genel kural + istisna okuyucunun sorusu: okuyucu 'tek başına istisna' derse parça tutulur, bağımsız parça gider", () => {
   const POOL_KB = [{ id: "kb:1", text: kbLine({ category: "rules", title: "Havuz", content: "Havuz hafta içi 22:00'ye, hafta sonu 23:00'e kadar açıktır." }) }, ...SOURCES.slice(2)];
   const poolNeed = { ref: "R1", terms: needTerms(["havuz 22:00'ye kadar açık mı"]), topics: ["pool"], queries: ["havuz 22:00'ye kadar açık mı"] };
   const outNeed = { ref: "R2", terms: needTerms(["çıkış saati kaçta"]), topics: ["checkout"], queries: ["çıkış saati kaçta"] };
   const weekendOnly = p("R1", "Havuz hafta sonu 23:00'e kadar açık.", "Havuz hafta içi 22:00'ye, hafta sonu 23:00'e kadar açıktır.");
   const checkout = p("R2", "Çıkış saati 11:00.", "Check-out saati: 11:00");
 
-  it("🚨 kurucunun örneği: istisna parçası TUTULUR (istek açık), aynı mesajdaki çıkış saati GİDER", () => {
-    const out = composeVerifiedReply({ parts: [weekendOnly, checkout], needs: [poolNeed, outNeed], sources: POOL_KB });
+  it("🚨 kurucunun örneği: kod parçayı DOĞRULAR (değer doğru yerde), okuyucunun 'exception_only' hükmü tutar; çıkış saati GİDER", () => {
+    expect(composeVerifiedReply({ parts: [weekendOnly, checkout], needs: [poolNeed, outNeed], sources: POOL_KB }).refs).toEqual(["R1", "R2"]);
+    const out = composeVerifiedReply({ parts: [weekendOnly, checkout], needs: [poolNeed, outNeed], sources: POOL_KB, holds: new Map([["R1", "exception_only" as const]]) });
     expect(out.refs).toEqual(["R2"]);
     expect(out.reply).toBe("Çıkış saati 11:00.");
-    expect(out.verdicts[0]).toEqual({ ref: "R1", status: "rejected", issues: ["general_omitted"] });
-  });
-
-  it("uygun cevap (hafta içi + hafta sonu) gider; misafir önceki mesajda cumartesi dediyse yalnız hafta sonu da gider", () => {
-    const both = p("R1", "Havuz hafta içi 22:00'ye, hafta sonu 23:00'e kadar açık.", "Havuz hafta içi 22:00'ye, hafta sonu 23:00'e kadar açıktır.");
-    expect(composeVerifiedReply({ parts: [both], needs: [poolNeed], sources: POOL_KB }).refs).toEqual(["R1"]);
-    expect(composeVerifiedReply({ parts: [weekendOnly], needs: [poolNeed], sources: POOL_KB, askedContext: ["Cumartesi geliyoruz."] }).refs).toEqual(["R1"]);
+    expect(out.verdicts[0]).toEqual({ ref: "R1", status: "rejected", issues: ["reader_exception_only"] });
   });
 });
 
@@ -632,8 +627,8 @@ describe("suggestReply — parça okuyucusu (AI_SENIOR_READER_ENABLED, parça ki
     const f = routedFetch({ ...MODEL, answers }, (body) => {
       seen = body;
       return readerSays([
-        { ref: "R1", answers_request: "yes", binding_ok: true, exception_without_rule: false, quote: "" },
-        { ref: "R2", answers_request: "no", binding_ok: true, exception_without_rule: false, quote: "Havuz her gün 20:00'de kapanıyor." },
+        { ref: "R1", answers_request: "yes", supported_by_notes: true, binding_ok: true, exception_without_rule: false, quote: "" },
+        { ref: "R2", answers_request: "no", supported_by_notes: true, binding_ok: true, exception_without_rule: false, quote: "Havuz her gün 20:00'de kapanıyor." },
       ])();
     });
     const r = await suggestReply({ ...input, conversationItems: ITEMS });
@@ -641,6 +636,10 @@ describe("suggestReply — parça okuyucusu (AI_SENIOR_READER_ENABLED, parça ki
     expect(seen).toContain("R1 · REQUEST");
     expect(seen).toContain("R2 · REQUEST");
     expect(seen).not.toContain("R3 · REQUEST");
+    // Okuyucu parçanın dayandığı kalemi ve aynı konuyu anan öteki kalemleri görür (havuz kalemi); konuyu anmayan Wi-Fi kalemi R2'nin notlarında yok.
+    const r2 = seen.slice(seen.indexOf("R2 · REQUEST"));
+    expect(r2).toContain("Havuz her gün 20:00");
+    expect(r2).not.toContain("Lale2025");
     expect(r.reply).toBe("Çıkış saati 11:00.");
     expect(r.answeredRequests).toEqual({ ok: true, refs: ["R1"] });
     expect(r.answerParts?.[1]).toEqual({ ref: "R2", status: "rejected", issues: ["reader_not_answered"] });

@@ -850,7 +850,9 @@ function structure(text: string, claims: readonly Span[], tr = false): Sentence[
     for (const g of groups) for (let i = g.at; i < g.end && i < text.length; i++) inGroup[i] = 1;
 
     const cuts: number[] = [];
-    for (let i = s; i < e; i++) if ((text[i] === "," || text[i] === ":") && !inGroup[i] && !inClaim[i]) cuts.push(i);
+    // Parantez de yan cümle sınırıdır (Opus 10-23 sabah F2: "Havuz 22:00'ye kadar açık (hafta sonu 23:00'e kadar)." — parantezdeki gün 22:00'ın
+    // kendi yan cümlesine düşüyordu → "Hafta sonu havuz 22:00'ye kadar açık" doğrulanıyordu).
+    for (let i = s; i < e; i++) if ((text[i] === "," || text[i] === ":" || text[i] === "(" || text[i] === ")") && !inGroup[i] && !inClaim[i]) cuts.push(i);
     for (const { w, at } of words(text, s, e)) if (CLAUSE_WORDS.has(w) && !inGroup[at]) cuts.push(at);
     cuts.sort((a, b) => a - b);
     const clauses: [number, number][] = [];
@@ -2729,72 +2731,11 @@ export function missesAskedFacility(part: string, queries: readonly string[]): b
 }
 
 /**
- * SORU 9 (kurucu 10-23 sabah): yalnız istisnayı söyleyen parça. Parçanın BÜTÜN değerleri bir değişkeye (gün / mevsim) bağlıysa ve kaynak
- * (alıntının kalemi + istemdeki öteki kalemler) aynı konuya aynı türden BAŞKA bir değer veriyorsa (genel kural ya da öteki değişke; değersiz
- * değişke — "hafta içi kapalı" — da sayılır) misafir "evet, 22'ye kadar açık" anlayabilir → parça tutulur, istek açık kalır.
- *  · Misafir o değişkeyi SORDUYSA (isteğin sorguları · bu turun ve önceki misafir mesajları — `askedContext`) gider: "hafta sonu kaçta",
- *    önceki mesajda "cumartesi geliyoruz" (cumartesi hafta sonunun özelidir).
- *  · Kaynakta genel kural / öteki değişke YOKSA koşmaz: yalnız istisnayı söylemek tek doğru bilgidir (genel değer uydurulamaz).
- *  · Genel kuralı da anan parça ("hafta içi 22:00, hafta sonu 23:00") gider. Yönü farklı genel değer (açılış ↔ kapanış) sayılmaz.
- *  · Çok konulu ihtiyaçta (iki tesis) koşmaz — konu ayrımı bağ denetiminin işi.
- * Yeni sözcük listesi YOK: gün / mevsim sınıfları bağ denetiminin aynı okuyucusundan.
+ * Kalem bu ihtiyacın konusunu anıyor mu (bağ denetiminin AYNI konu okuması). Parça okuyucusu parçanın dayandığı kalemin yanında aynı konuyu
+ * anan öteki kalemleri de görür (Opus 10-23 sabah F10: değişke / istisna başka kalemde olabilir).
  */
-export function omitsGeneralRule(input: {
-  part: string;
-  sourceText: string;
-  otherSources?: readonly string[];
-  needTerms: readonly string[];
-  needTopics: readonly string[];
-  askedContext: readonly string[];
-}): boolean {
-  const subj = needSubject(input.needTerms.map(foldMarks), input.needTopics);
+export function sourceMentionsNeed(text: string, needTerms: readonly string[], needTopics: readonly string[]): boolean {
+  const subj = needSubject(needTerms.map(foldMarks), needTopics);
   if (subj.terms.length === 0 && subj.topics.length === 0) return false;
-  const presentIds = new Set(subj.terms.filter((t) => hasSubject(input.sourceText, { terms: [t], topics: [] })).map(subjectIdentity));
-  if (presentIds.size > 1) return false;
-  const pdoc = documentOf(input.part, subj);
-  const claims: { c: Span; days: string[]; dirs: Set<"start" | "end"> }[] = [];
-  pdoc.sentences.forEach((sent) =>
-    sent.groups.forEach((g, gi) => {
-      const place = pdoc.placeOf(sent, gi, { extraBeforeOnly: true });
-      for (const c of g.claims) claims.push({ c, days: variantClassesOf(place.conditions), dirs: place.directions });
-    }),
-  );
-  if (claims.length === 0 || claims.some((x) => x.days.length === 0)) return false;
-  const variants = new Set(claims.flatMap((x) => x.days));
-  const asked = conditionClasses(tokenize([...input.needTerms, ...input.askedContext].join("\n")), "evidence");
-  // Sorulan değişke: aynı sınıf, onun özeli ("cumartesi" → hafta sonu) ya da onun üst ailesi ("hafta sonu" sorusuna "cumartesi" değeri).
-  const askedCovers = (v: string) =>
-    SEASON_CLASSES.has(v) ? asked.has(v) : coversDay(asked, v) || (DAY_PARENT[v] !== undefined && asked.has(DAY_PARENT[v]));
-  if ([...variants].every(askedCovers)) return false;
-  const classes = new Set(claims.map((x) => x.c.cls));
-  const partDirs = new Set(claims.flatMap((x) => [...x.dirs]));
-  // Kaynaktaki konu yeri, parçanın değişkelerinden BAŞKA bir koşulda mı (genel kural = koşulsuz; öteki değişke = parçanınkileri kapsamayan).
-  const otherCondition = (conds: readonly string[]) =>
-    conds.length === 0 || !conds.some((k) => variants.has(k) || [...variants].some((v) => DAY_PARENT[v] === k || DAY_PARENT[k] === v));
-  // Konuyu anmayan kalem bağ kuramaz (değer de değersiz değişke de konuya bağlı okunur) → süzgeç yalnız maliyet içindir (Opus güvenlik 10-23 F4
-  // emsali); mutasyon Q8 bu yüzden gerekçeli EŞDEĞER.
-  const docs = [input.sourceText, ...(input.otherSources ?? []).filter((t) => t !== input.sourceText && mentionsSubject(t, subj))].map((t) =>
-    cachedDocument(t, subj),
-  );
-  for (const d of docs) {
-    for (let si = 0; si < d.sentences.length; si++) {
-      const sent = d.sentences[si];
-      for (let gi = 0; gi < sent.groups.length; gi++) {
-        const g = sent.groups[gi];
-        if (!g.claims.some((e) => classes.has(e.cls)) || !d.boundAt(si, gi)) continue;
-        // Kaynak tarafı da parça gibi değerin ÖNÜNDEKİ koşulla okunur: ardındaki değersiz gün yan cümlesi ("…22:00'de kapanır, hafta sonu da
-        // açık") genel değeri hafta sonuna bağlamaz (Haiku 10-23 sabah: genel kural değişke sanılıyor, tek başına istisna gidiyordu).
-        const place = d.placeOf(sent, gi, { extraBeforeOnly: true });
-        if (!otherCondition(variantClassesOf(place.conditions))) continue;
-        if (partDirs.size > 0 && place.directions.size > 0 && ![...place.directions].some((x) => partDirs.has(x))) continue;
-        // Parça bu yerin değerlerinden BİRİNİ söylüyorsa genel kural anılmıştır (E ölçümü 10-23 sabah: kalem "08:00-10:30 arası, hafta sonu
-        // 11:00'e kadar" · soru "kaça kadar" · parça "hafta içi 10:30'a, hafta sonu 11:00'e kadar" — açılış saati 08:00'i tekrarlamadığı için
-        // tutuluyordu). O değeri değişkenin gününe veren parçayı `variant_omitted` / koşul denetimi zaten tutar.
-        const valued = g.claims.filter((e) => classes.has(e.cls));
-        if (valued.length > 0 && !valued.some((e) => claims.some((x) => sameValue(x.c, e)))) return true;
-      }
-    }
-    if (d.valuelessVariantConds().some((k) => otherCondition([k]))) return true;
-  }
-  return false;
+  return mentionsSubject(text, subj);
 }

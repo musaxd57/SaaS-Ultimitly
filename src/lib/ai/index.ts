@@ -20,6 +20,7 @@ import { parseStayChangeDeclaration } from "./semantic/stay-change";
 import { actionClaimsEnabled, parseClaimedActions } from "./action-claims";
 import { parseAnsweredRequests } from "@/lib/conversation-items/reply-block";
 import { composeVerifiedReply, parseAnswerParts } from "./answer-parts";
+import { sourceMentionsNeed } from "./answer-binding";
 import { seniorReaderEnabled } from "./semantic/absence-judge";
 import { partReaderHolds, runPartReader } from "./semantic/part-reader";
 import type { Priority } from "@/lib/constants";
@@ -540,8 +541,8 @@ function capReply(text: string): { text: string; truncated: boolean } {
 }
 
 /**
- * Misafirin bu turdaki mesajları + konuşmadaki ÖNCEKİ misafir mesajları (son üçü; her biri 1.000 karakterle) — cevap parçalarında sorulan
- * gün / mevsim (Soru 9: "cumartesi geliyoruz") ve parça okuyucusunun bağlamı (Soru 11).
+ * Misafirin bu turdaki mesajları + konuşmadaki ÖNCEKİ misafir mesajları (son üçü; her biri 1.000 karakterle) — parça okuyucusunun bağlamı
+ * (Soru 11; Soru 9'da misafirin daha önce söylediği gün: "cumartesi geliyoruz").
  */
 function guestContextOf(input: SuggestReplyInput): { turn: string[]; earlier: string[] } {
   const history = input.history ?? [];
@@ -640,8 +641,7 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
               const needs = items.answerable.map((a) => ({ ref: a.ref, terms: a.need?.terms ?? [], topics: a.need?.topics ?? [], queries: a.need?.queries ?? [] }));
               const partSources = prompt.partSources ?? [];
               const guest = guestContextOf(input);
-              const askedContext = [...guest.turn, ...guest.earlier];
-              let composed = composeVerifiedReply({ parts: decl.parts, needs, sources: partSources, askedContext });
+              let composed = composeVerifiedReply({ parts: decl.parts, needs, sources: partSources });
               // PARÇA OKUYUCUSU (kurucu 10-23 sabah, Soru 11; kıdemli okuyucunun anahtarı): kodun doğruladığı parçalar + istekleri + kaynakları
               // okunur; okuyucu yalnız TUTAR (sorulanı cevaplamıyor / yarım / yanlış bağ / tek başına istisna), düşerse bütün parçalar tutulur.
               if (seniorReaderEnabled() && composed.verified.length > 0) {
@@ -650,17 +650,22 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
                   earlierGuestMessages: guest.earlier,
                   parts: composed.verified.map((v) => {
                     const a = items.answerable.find((x) => x.ref === v.ref);
+                    const primary = partSources.find((s) => s.id === v.source)?.text ?? "";
+                    // Dayandığı kalem ilk; aynı konuyu anan öteki kalemler ardından (değişke / istisna başka kalemde olabilir — Opus 10-23 sabah F10).
+                    const related = partSources
+                      .filter((s) => s.id !== v.source && sourceMentionsNeed(s.text, a?.need?.terms ?? [], a?.need?.topics ?? []))
+                      .map((s) => s.text);
                     return {
                       ref: v.ref,
                       request: a?.hint || a?.need?.queries?.[0] || "",
                       text: v.text,
-                      note: partSources.find((s) => s.id === v.source)?.text ?? "",
+                      notes: [primary, ...related],
                     };
                   }),
                   names: [input.reservation?.guestName, input.reservation?.guestGivenName, input.guestIdentifier],
                 });
                 const holds = partReaderHolds(reader, composed.verified.map((v) => v.ref));
-                if (holds.size > 0) composed = composeVerifiedReply({ parts: decl.parts, needs, sources: partSources, askedContext, holds });
+                if (holds.size > 0) composed = composeVerifiedReply({ parts: decl.parts, needs, sources: partSources, holds });
               }
               const sources = composed.verdicts.flatMap((v) => (v.status === "verified" ? [v.source] : []));
               return { reply: composed.reply, answered: { ok: true as const, refs: composed.refs }, verdicts: composed.verdicts, verified: composed.verified, sources };

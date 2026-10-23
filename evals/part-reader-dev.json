@@ -1,0 +1,365 @@
+{
+ "version": 1,
+ "_about": "Parça okuyucusu karşılaştırma seti (Codex / kurucu 10-23: aynı soru-kaynak-cevap örnekleriyle okuyucu kolları B / C). Etiketler geliştiricinin; kurucu kontrolüne açık. Kurgusal mülk Lale.",
+ "cases": [
+  {
+   "id": "codex-1-bar-cevap-degil",
+   "guest": "Havuz kaçta açılıyor?",
+   "request": "havuz kaçta açılıyor",
+   "part": "Havuz barı 11:00'de açılıyor.",
+   "notes": [
+    "[amenities] Havuz: Havuz barı 11:00'de açılır. Havuz 09:00-20:00 arası açıktır."
+   ],
+   "expect": "hold",
+   "why": "havuz barı ≠ havuz (cevaplamıyor)"
+  },
+  {
+   "id": "codex-2-bar-bilgisi-havuza-tasindi",
+   "guest": "Havuz kaçta açılıyor?",
+   "request": "havuz kaçta açılıyor",
+   "part": "Havuz 11:00'de açılıyor.",
+   "notes": [
+    "[amenities] Havuz: Havuz barı 11:00'de açılır. Havuz 09:00-20:00 arası açıktır."
+   ],
+   "expect": "hold",
+   "why": "barın saati havuza taşındı"
+  },
+  {
+   "id": "codex-3-bar-sorusu",
+   "guest": "Havuz barı kaçta açılıyor?",
+   "request": "havuz barı kaçta açılıyor",
+   "part": "Havuz barı 11:00'de açılıyor.",
+   "notes": [
+    "[amenities] Havuz: Havuz barı 11:00'de açılır. Havuz 09:00-20:00 arası açıktır."
+   ],
+   "expect": "keep",
+   "why": "soru + kaynak uyumlu"
+  },
+  {
+   "id": "s9-istisna-tek-basina",
+   "guest": "Havuz 22:00'ye kadar açık mı?",
+   "request": "havuz 22:00'ye kadar açık mı",
+   "part": "Havuz hafta sonu 23:00'e kadar açık.",
+   "notes": [
+    "[amenities] Havuz: Havuz hafta içi 22:00'ye, hafta sonu 23:00'e kadar açıktır."
+   ],
+   "expect": "hold",
+   "why": "kurucu Soru 9"
+  },
+  {
+   "id": "s9-genel-ve-istisna",
+   "guest": "Havuz 22:00'ye kadar açık mı?",
+   "request": "havuz 22:00'ye kadar açık mı",
+   "part": "Havuz hafta içi 22:00'ye, hafta sonu 23:00'e kadar açık.",
+   "notes": [
+    "[amenities] Havuz: Havuz hafta içi 22:00'ye, hafta sonu 23:00'e kadar açıktır."
+   ],
+   "expect": "keep",
+   "why": "kurucunun uygun cevabı"
+  },
+  {
+   "id": "s9-hafta-sonu-soruldu",
+   "guest": "Hafta sonu havuz kaçta kapanıyor?",
+   "request": "hafta sonu havuz kaçta kapanıyor",
+   "part": "Hafta sonu havuz 23:00'e kadar açık.",
+   "notes": [
+    "[amenities] Havuz: Havuz hafta içi 22:00'ye, hafta sonu 23:00'e kadar açıktır."
+   ],
+   "expect": "keep",
+   "why": "misafir istisnayı sordu"
+  },
+  {
+   "id": "s9-onceki-mesaj-cumartesi",
+   "guest": "Havuz kaçta kapanıyor?",
+   "earlier": [
+    "Cumartesi geliyoruz, iki kişiyiz."
+   ],
+   "request": "havuz kaçta kapanıyor",
+   "part": "Hafta sonu havuz 23:00'e kadar açık.",
+   "notes": [
+    "[amenities] Havuz: Havuz hafta içi 22:00'ye, hafta sonu 23:00'e kadar açıktır."
+   ],
+   "expect": "keep",
+   "why": "önceki mesajda gün belirtildi"
+  },
+  {
+   "id": "s9-genel-kural-yok",
+   "guest": "Havuz kaçta kapanıyor?",
+   "request": "havuz kaçta kapanıyor",
+   "part": "Hafta sonu havuz 23:00'e kadar açık.",
+   "notes": [
+    "[amenities] Havuz: Hafta sonu havuz 23:00'e kadar açıktır."
+   ],
+   "expect": "keep",
+   "why": "kaynakta genel kural yok"
+  },
+  {
+   "id": "s9-baska-konuda-gun",
+   "guest": "Bahçe kaça kadar açık?",
+   "earlier": [
+    "Pazar günü market açık mı?"
+   ],
+   "request": "bahçe kaça kadar açık",
+   "part": "Cumartesi bahçe 23:00'e kadar açık.",
+   "notes": [
+    "[amenities] Bahçe: Bahçe 21:00'e kadar açık, cumartesi 23:00'e kadar."
+   ],
+   "expect": "hold",
+   "why": "gün başka konuda geçti"
+  },
+  {
+   "id": "s9-istisna-baska-kalemde",
+   "guest": "Bahçede 22:00'ye kadar oturabilir miyiz?",
+   "request": "bahçe kaça kadar açık",
+   "part": "Cumartesi bahçe 23:00'e kadar açık.",
+   "notes": [
+    "[amenities] Bahçe (cumartesi): Cumartesi bahçe 23:00'e kadar açık.",
+    "[amenities] Bahçe: Bahçe 21:00'e kadar açık."
+   ],
+   "expect": "hold",
+   "why": "genel kural öteki kalemde"
+  },
+  {
+   "id": "evet-hayir-ucret",
+   "guest": "Bisiklet ücretsiz mi?",
+   "request": "bisiklet ücretsiz mi",
+   "part": "Bisiklet ücretsiz değil; talep üzerine günlük 200 TL'ye kiralanıyor.",
+   "notes": [
+    "[amenities] Bisiklet: Bisiklet talep üzerine günlük 200 TL'ye kiralanır."
+   ],
+   "expect": "keep",
+   "why": "evet/hayır sorusuna olguyla cevap"
+  },
+  {
+   "id": "oteki-soru-yarim-degil-wifi",
+   "guest": "Wi-Fi şifresi neydi? Bunu nereden biliyorsun?",
+   "request": "wifi şifresi",
+   "part": "Wi-Fi şifresi Lale2025!",
+   "notes": [
+    "[wifi] Wi-Fi: Ağ Lale-5G, şifre Lale2025!"
+   ],
+   "expect": "keep",
+   "why": "öteki soru ayrı istek"
+  },
+  {
+   "id": "oteki-soru-yarim-degil-giris",
+   "guest": "Giriş saati kaçta? Erken giriş mümkün mü?",
+   "request": "giriş saati kaçta",
+   "part": "Giriş saatimiz 15:00.",
+   "notes": [
+    "Check-in saati: 15:00\nCheck-out saati: 11:00"
+   ],
+   "expect": "keep",
+   "why": "erken giriş ayrı istek"
+  },
+  {
+   "id": "yanlis-numara",
+   "guest": "Otopark var mı?",
+   "request": "otopark var mı",
+   "part": "Evet, ücretsiz otopark var; size 7 numaralı yer ayrıldı.",
+   "notes": [
+    "[parking] Otopark: Otopark ücretsizdir; 12 numaralı yer size ayrılmıştır."
+   ],
+   "expect": "hold",
+   "why": "kaynakta 12, parçada 7"
+  },
+  {
+   "id": "dahil-mi-dogru",
+   "guest": "Kahvaltı dahil mi?",
+   "request": "kahvaltı dahil mi",
+   "part": "Kahvaltı fiyata dahil değil; kişi başı 250 TL.",
+   "notes": [
+    "[amenities] Kahvaltı: Kahvaltı fiyata dahil değildir; kişi başı 250 TL."
+   ],
+   "expect": "keep",
+   "why": "destekli + cevap"
+  },
+  {
+   "id": "ek-olgu",
+   "guest": "Kahvaltı dahil mi?",
+   "request": "kahvaltı dahil mi",
+   "part": "Kahvaltı fiyata dahil değil; kişi başı 250 TL, çocuklar ücretsiz.",
+   "notes": [
+    "[amenities] Kahvaltı: Kahvaltı fiyata dahil değildir; kişi başı 250 TL."
+   ],
+   "expect": "hold",
+   "why": "çocuklar ücretsiz kaynakta yok"
+  },
+  {
+   "id": "saat-baska-tesise",
+   "guest": "Sauna kaça kadar açık?",
+   "request": "sauna kaça kadar açık",
+   "part": "Sauna 20:00'de kapanır.",
+   "notes": [
+    "[amenities] Havuz ve sauna: Havuz 20:00'de, sauna 22:00'de kapanır."
+   ],
+   "expect": "hold",
+   "why": "havuzun saati saunaya"
+  },
+  {
+   "id": "ayni-konu-cevap-degil-isitma",
+   "guest": "Havuz ısıtmalı mı?",
+   "request": "havuz ısıtmalı mı",
+   "part": "Havuz 09:00-20:00 arası açık.",
+   "notes": [
+    "[amenities] Havuz: Havuz ısıtmalıdır, 09:00-20:00 arası açıktır."
+   ],
+   "expect": "hold",
+   "why": "ısıtma sorusuna saat"
+  },
+  {
+   "id": "ayni-konu-cevap-degil-saat",
+   "guest": "Havuz kaçta açılıyor?",
+   "request": "havuz kaçta açılıyor",
+   "part": "Havuz ısıtmalıdır.",
+   "notes": [
+    "[amenities] Havuz: Havuz ısıtmalıdır, 09:00-20:00 arası açıktır."
+   ],
+   "expect": "hold",
+   "why": "saat sorusuna ısıtma"
+  },
+  {
+   "id": "olumsuz-dogru",
+   "guest": "Evcil hayvan kabul ediyor musunuz?",
+   "request": "evcil hayvan kabul ediliyor mu",
+   "part": "Evcil hayvan kabul edilmiyor.",
+   "notes": [
+    "[rules] Evcil hayvan: Evcil hayvan kabul edilmez."
+   ],
+   "expect": "keep",
+   "why": "olumsuz cevap destekli"
+  },
+  {
+   "id": "kosul-dusmus",
+   "guest": "Köpeğimle gelebilir miyim?",
+   "request": "köpekle gelinebilir mi",
+   "part": "Evet, evcil hayvan kabul ediyoruz.",
+   "notes": [
+    "[rules] Evcil hayvan: 10 kg altı evcil hayvan kabul edilir, gecelik 100 TL."
+   ],
+   "expect": "hold",
+   "why": "10 kg + ücret koşulu düştü"
+  },
+  {
+   "id": "yeniden-ifade",
+   "guest": "Çöpü nereye atayım?",
+   "request": "çöp nereye atılıyor",
+   "part": "Çöpleri bina girişinin sağındaki konteynere atabilirsiniz.",
+   "notes": [
+    "[rules] Çöp: Çöpler bina girişinin sağındaki konteynere atılır."
+   ],
+   "expect": "keep",
+   "why": "yeniden ifade"
+  },
+  {
+   "id": "ceviri-en",
+   "guest": "What's the wifi password?",
+   "request": "wifi şifresi",
+   "part": "The Wi-Fi network is Lale-5G and the password is Lale2025.",
+   "notes": [
+    "[wifi] Wi-Fi: Ağ Lale-5G, şifre Lale2025."
+   ],
+   "expect": "keep",
+   "why": "çeviri"
+  },
+  {
+   "id": "ceviri-de-tam",
+   "guest": "Wann schließt der Pool?",
+   "request": "havuz kaçta kapanıyor",
+   "part": "Der Pool schließt um 20:00 Uhr, am Wochenende um 23:00 Uhr.",
+   "notes": [
+    "[amenities] Havuz: Havuz her gün 20:00'de kapanır. Hafta sonu 23:00'e kadar açıktır."
+   ],
+   "expect": "keep",
+   "why": "çeviri, genel + istisna"
+  },
+  {
+   "id": "ceviri-de-bugun",
+   "guest": "Wann schließt der Pool?",
+   "request": "havuz kaçta kapanıyor",
+   "part": "Der Pool schließt heute um 20:00 Uhr.",
+   "notes": [
+    "[amenities] Havuz: Havuz her gün 20:00'de kapanır. Hafta sonu 23:00'e kadar açıktır."
+   ],
+   "expect": "hold",
+   "why": "'heute' uydurma + istisna yok"
+  },
+  {
+   "id": "ek-soz",
+   "guest": "Check-out saati kaçta?",
+   "request": "çıkış saati kaçta",
+   "part": "Çıkış saatiniz 11:00; geç çıkış için ev sahibiniz size yardımcı olacaktır.",
+   "notes": [
+    "Check-in saati: 15:00\nCheck-out saati: 11:00"
+   ],
+   "expect": "hold",
+   "why": "kaynakta olmayan söz"
+  },
+  {
+   "id": "yarim-tarif",
+   "guest": "Klimayı nasıl soğutmaya alırım?",
+   "request": "klima soğutma nasıl açılır",
+   "part": "Klima kumandası komodinin çekmecesinde.",
+   "notes": [
+    "[appliances] Klima: Klima kumandası komodinin çekmecesinde; mavi kar tanesi tuşu soğutma."
+   ],
+   "expect": "hold",
+   "why": "yarım cevap"
+  },
+  {
+   "id": "olmayan-tesis",
+   "guest": "Spor salonunuz var mı?",
+   "request": "spor salonu var mı",
+   "part": "Havuz 09:00-20:00 arası açık.",
+   "notes": [
+    "[amenities] Havuz: Havuz 09:00-20:00 arası açıktır."
+   ],
+   "expect": "hold",
+   "why": "başka tesis"
+  },
+  {
+   "id": "bavul-dogru",
+   "guest": "Çıkıştan sonra bavulumu bırakabilir miyim?",
+   "request": "çıkıştan sonra bavul bırakılabilir mi",
+   "part": "Evet, bavulunuzu 14:00'e kadar resepsiyonda bırakabilirsiniz.",
+   "notes": [
+    "[checkout] Bavul: Bavullar çıkıştan sonra 14:00'e kadar resepsiyonda tutulabilir."
+   ],
+   "expect": "keep",
+   "why": "destekli"
+  },
+  {
+   "id": "bavul-uydurma-sure",
+   "guest": "Çıkıştan sonra bavulumu bırakabilir miyim?",
+   "request": "çıkıştan sonra bavul bırakılabilir mi",
+   "part": "Evet, bavulunuzu akşama kadar bırakabilirsiniz.",
+   "notes": [
+    "[checkout] Bavul: Bavullar çıkıştan sonra 14:00'e kadar resepsiyonda tutulabilir."
+   ],
+   "expect": "hold",
+   "why": "14:00 → akşam"
+  },
+  {
+   "id": "ic-istisna-atlanmis",
+   "guest": "Pazar günü bahçe kaça kadar açık?",
+   "request": "pazar bahçe kaça kadar açık",
+   "part": "Hafta sonu bahçe 23:00'e kadar açık.",
+   "notes": [
+    "[amenities] Bahçe: Bahçe hafta sonu 23:00'e kadar açık, pazar günleri 21:00'de kapanır."
+   ],
+   "expect": "hold",
+   "why": "pazar istisnası atlandı (Opus F7)"
+  },
+  {
+   "id": "parantez-istisna",
+   "guest": "Bahçe kaça kadar açık?",
+   "request": "bahçe kaça kadar açık",
+   "part": "Bahçe 21:00'e kadar açık (cumartesi 23:00'e kadar).",
+   "notes": [
+    "[amenities] Bahçe: Bahçe 21:00'e kadar açık (cumartesi 23:00'e kadar)."
+   ],
+   "expect": "keep",
+   "why": "genel + parantez istisna"
+  }
+ ]
+}
