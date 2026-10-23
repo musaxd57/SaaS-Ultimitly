@@ -1878,6 +1878,11 @@ export async function applyChannelAutoReply(
           departureDate: true,
           status: true,
           guestCheckoutTime: true,
+          // Kişi / evcil hayvan sayıları (migration 86): modele bağlam (bilinmeyen satır yok).
+          guestAdults: true,
+          guestChildren: true,
+          guestInfants: true,
+          guestPets: true,
         },
       },
       // Mesajlar burada OKUNMAZ (madde 10): erken çıkışlardan sonra sondan sayfa sayfa (`channel-thread-window.ts`).
@@ -2447,6 +2452,10 @@ export async function applyChannelAutoReply(
           departureDate: conversation.reservation.departureDate,
           status: conversation.reservation.status,
           guestCheckoutTime: conversation.reservation.guestCheckoutTime,
+          guestAdults: conversation.reservation.guestAdults,
+          guestChildren: conversation.reservation.guestChildren,
+          guestInfants: conversation.reservation.guestInfants,
+          guestPets: conversation.reservation.guestPets,
         }
       : null,
     // Yalnız adsız yapay zekâ anahtarı açıkken, istem metninden adı silmek için (modele gitmez).

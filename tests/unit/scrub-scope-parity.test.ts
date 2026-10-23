@@ -219,9 +219,12 @@ describe("şema kanaryası — misafir modellerine yeni kolon", () => {
       //     unknown); misafirin ne metnini ne kimliğini taşır — `guestNameSource` / `connectionEvidence` emsali. KVKK ihracına girer.
       //   · MessageOutbox.templateRevision (Int?, migration 80, T4 10-21) → KAPSAM DIŞI: otomatik mesaj kaydının sürüm sayacı; misafirin
       //     ne metnini ne kimliğini taşır. Metnin kendisi ev sahibinin `AutoMessageTemplate` kaydıdır (misafir verisi değil).
+      //   · Reservation.guestAdults / guestChildren / guestInfants / guestPets (Int?, migration 86, kurucu 10-23 akşam) → KAPSAM DIŞI:
+      //     kanalın verdiği kişi / evcil hayvan SAYISI; ne ad ne metin ne kimlik taşır (`sourcePlatform` emsali). Anonim satırda da doğrudur;
+      //     KVKK ihracına girer (`data-export.ts`).
       Message: 18,
       Conversation: 26,
-      Reservation: 38,
+      Reservation: 42,
       Task: 15,
       TaskUpdate: 6,
       MessageOutbox: 24,

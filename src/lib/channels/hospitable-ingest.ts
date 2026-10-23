@@ -16,6 +16,7 @@ import {
   type CanonicalProperty,
   type CanonicalReservation,
   type CanonicalReservationStatus,
+  type GuestParty,
   type IngestAdapter,
   type IngestCredential,
   type IngestErrorKind,
@@ -211,7 +212,31 @@ export function normalizeReservation(r: HospitableReservation): CanonicalReserva
     lastMessageAt: canonicalDate(r.last_message_at),
     terminal: status === "cancelled" || status === "completed",
     sourcePlatform: sourcePlatformOf(r.platform),
+    // Kişi sayıları (migration 86): alan adları gerçek veriyle doğrulanana kadar YAZILMAZ (kurucu: "doğrulayamazsam boş kalır, uydurma yok").
+    ...(hospitableGuestCountsEnabled() ? { party: guestPartyOf(r) } : {}),
   };
+}
+
+/** Yalnız tam "1" açar. Açmadan önce `scripts/diagnose-hospitable-guest-fields.ts` ile alan ADLARI gerçek yanıtta doğrulanır. */
+export function hospitableGuestCountsEnabled(): boolean {
+  return process.env.HOSPITABLE_GUEST_COUNTS_ENABLED === "1";
+}
+
+/** 0–99 arası tam sayı; başka her şey bilinmiyor (null). */
+function count(v: unknown): number | null {
+  return typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= 99 ? v : null;
+}
+
+/**
+ * Hospitable rezervasyonunun `guests` nesnesinden sayılar (`adult_count` / `child_count` / `infant_count` / `pet_count`). Nesne ya da alan
+ * yoksa / biçimi bozuksa o alan null. Hiçbiri bilinmiyorsa null (yazılacak bir şey yok). Saf.
+ */
+export function guestPartyOf(r: HospitableReservation): GuestParty | null {
+  const g = (r as { guests?: unknown }).guests;
+  if (!g || typeof g !== "object") return null;
+  const o = g as Record<string, unknown>;
+  const party: GuestParty = { adults: count(o.adult_count), children: count(o.child_count), infants: count(o.infant_count), pets: count(o.pet_count) };
+  return Object.values(party).some((v) => v !== null) ? party : null;
 }
 
 export function normalizeMessage(m: HospitableMessage): CanonicalMessage {

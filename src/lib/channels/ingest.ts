@@ -56,6 +56,14 @@ export interface CanonicalGuest {
   phone: string | null;
 }
 
+/** Rezervasyon kişi sayıları; her alan ayrı ayrı bilinmeyebilir (null). */
+export interface GuestParty {
+  adults: number | null;
+  children: number | null;
+  infants: number | null;
+  pets: number | null;
+}
+
 export interface CanonicalReservation {
   externalId: string;
   code: string | null;
@@ -78,6 +86,11 @@ export interface CanonicalReservation {
    * yetenek ASLA buradan çıkarılmaz (değişmez #20). Yoksa null.
    */
   sourcePlatform?: string | null;
+  /**
+   * Rezervasyondaki kişi / evcil hayvan sayıları (migration 86) — YALNIZ sağlayıcının kendi sayı alanından; alan adı gerçek veriyle
+   * doğrulanana kadar sağlayıcı eşlemesi KAPALI (`HOSPITABLE_GUEST_COUNTS_ENABLED`). null / yok = bilinmiyor (tahmin yok).
+   */
+  party?: GuestParty | null;
 }
 
 export interface CanonicalMessage {

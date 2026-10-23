@@ -166,6 +166,7 @@ export async function buildOrganizationDataExport(organizationId: string) {
                 totalAmount: true, totalAmountDec: true, currency: true, notes: true,
                 guestCheckoutTime: true, welcomeSentAt: true, checkinSentAt: true,
                 checkoutSentAt: true, createdAt: true,
+                guestAdults: true, guestChildren: true, guestInfants: true, guestPets: true,
               },
             },
             conversations: {

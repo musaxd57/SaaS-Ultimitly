@@ -1,4 +1,5 @@
 import "server-only";
+import { guestPartyLineTr } from "./guest-party";
 import type { ReplyTone } from "@/lib/constants";
 // Tavanlar YAPRAK modülde: tarayıcıya giden ekranlar bu dosyayı (75 KB sistem
 // promptu + eğitim örnekleri) import etmek ZORUNDA kalmasın diye. ↓ai/limits.ts
@@ -1673,7 +1674,7 @@ ${conflicts
     : "";
   const res = reservation
     ? `${codeGreeting ? "" : `Misafir: ${sanitizePromptValue(reservation.guestName)}\n`}Giriş: ${timeline.arrival ? formatDayTr(timeline.arrival) : fmtDate(reservation.arrivalDate)} | Çıkış: ${timeline.departure ? formatDayTr(timeline.departure) : fmtDate(reservation.departureDate)}
-Durum: ${reservation.status}${guestCheckoutLine ? `\n${guestCheckoutLine}` : ""}
+Durum: ${reservation.status}${guestCheckoutLine ? `\n${guestCheckoutLine}` : ""}${guestPartyLineTr(reservation) ? `\n${guestPartyLineTr(reservation)}` : ""}
 Zaman bağlamı: ${timelineLine(timeline, {
         // Bilgi tabanıyla ÇELİŞEN standart saat bu satırda tekrarlanmaz (P4-b bloğu "kesin saat söyleme" der).
         checkInTime: conflicts.some((c) => c.field === "checkInTime") ? null : property.checkInTime,

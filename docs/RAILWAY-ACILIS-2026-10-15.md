@@ -14,7 +14,7 @@ Kurucu 10-15: "Railway'i açınca ekleyeceğimiz bayrakları unutma." Bu dosya T
    aynı sonucu verir: 59…78'deki bütün yabancı anahtarlar YENİ tablolarda, yeni kolonların hepsi boş bırakılabilir ya da varsayılanlı, benzersiz
    dizinler yeni tablo / yeni (boş) kolonlarda, veri güncelleyen ifade yok. Canlı veriyle prova değildir (gerçek veri yerelde yok — KVKK); yine de
    1. adımdaki yedek ŞART.
-1. **Taze yedek:** son itilen dal migration 59–85 içeriyor (tek güncel liste: `docs/MIGRATION-MANIFEST.md`) (açılışta `prisma migrate deploy` hepsini uygular). Açmadan önce 09-19
+1. **Taze yedek:** son itilen dal migration 59–86 içeriyor (tek güncel liste: `docs/MIGRATION-MANIFEST.md`) (açılışta `prisma migrate deploy` hepsini uygular). Açmadan önce 09-19
    yedeği ESKİ — Railway açılınca ilk iş `pg_dump` (web servisi deploy olmadan, ↑0) ve geri yükleme provası
    (`docs/OPS-2026-09-19-DURAKLATMA-VE-LOCAL-GELISTIRME.md`).
    Migration 80 (kurucu T4, otomatik mesajlar ayrı bölüm): açılıştan sonra her dairenin "Otomatik mesajlar" kartına bakın — metinler bilgi
@@ -233,6 +233,11 @@ kalıcı "işlem yok" sayılıyor (niyet kapanır, yeni işlem açılır) — ye
   yazar; yeni parça kodun bütün denetimlerinden ve okuyucudan yeniden geçer, yine tutulursa ev sahibinde açık kalır (`ai/part-rewrite.ts`).
   Bedeli: tutulan parça olan turda bir cevap modeli + bir okuyucu çağrısı daha. `AI_ANSWER_PARTS_ENABLED` + `AI_SENIOR_READER_ENABLED`
   olmadan etkisiz. Açmadan önce yanmış setle önce / sonra ölçümü (rapor `docs/RAPOR-2026-10-23-aksam-s1-kurucu-kararlari.md`).
+- `HOSPITABLE_GUEST_COUNTS_ENABLED` (migration 86, kurucu 10-23 akşam: "kimlerin geldiğini kaç kişi evcil hayvan var mı onu görsün") —
+  Hospitable rezervasyonundaki kişi / evcil hayvan sayıları `Reservation.guestAdults/Children/Infants/Pets`e yazılır; cevap modeli ve parça
+  okuyucusu bağlam olarak görür. ⛔ AÇMADAN ÖNCE: `scripts/diagnose-hospitable-guest-fields.ts` (salt-okuma, yalnız alan ADLARI) gerçek
+  yanıtta `guests.adult_count / child_count / infant_count / pet_count` adlarını göstermeli; adlar farklıysa eşleme düzeltilir. Kapalıyken
+  sütunlar boş kalır, istem bayt bayt aynı.
 - `AI_ITEM_ORDINAL_ENABLED` (kurucu 10-23 D, migration 84 — "evet, kanıtla") — aynı mesajda aynı türden ikinci istek (havuz + sauna ikisi de
   "olanaklar") AYRI açık iş olur (`ConversationItem.ordinal`); her işin yanında kısa konu etiketi (`topic`, kurucu C: ham metin değil, en çok 3
   sözcük, ad / telefon / şifre / saldırı talimatı süzülür, misafir kaynaklı veri, silme / anonimleştirmede gider). Kapalıyken bugünkü kural

@@ -24,6 +24,11 @@ export interface ReservationContext {
   status: string;
   /** The guest's own previously-stated check-out time ("HH:MM"), if known. */
   guestCheckoutTime?: string | null;
+  /** Rezervasyondaki kişi / evcil hayvan sayıları (migration 86); null / yok = bilinmiyor. */
+  guestAdults?: number | null;
+  guestChildren?: number | null;
+  guestInfants?: number | null;
+  guestPets?: number | null;
 }
 
 /** Neighbouring bookings for the SAME property — for turnover-day reasoning. */

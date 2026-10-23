@@ -490,6 +490,13 @@ model Reservation {
   feedMissingCount           Int? //      consecutive reliable runs missing it (NULL = 0)
   feedFirstMissingAt         DateTime? // when the current missing streak began (min-duration anchor)
   guestCheckoutTime          String? // guest's own stated departure time (e.g. "18:00"); null → use property default
+  // Rezervasyondaki kişi / evcil hayvan sayıları (migration 86, kurucu onayı 10-23 akşam: "kimlerin geldiğini kaç kişi evcil hayvan var mı onu
+  // görsün"). YALNIZ kanalın kendi sayı alanından yazılır (alan adı gerçek veriyle doğrulanmadan eşleme KAPALI — `HOSPITABLE_GUEST_COUNTS_ENABLED`);
+  // tahmin yok, NULL = bilinmiyor (0 değil). Kişisel veri değildir (sayı); modele ve okuyucuya bağlam olarak gider.
+  guestAdults                Int?
+  guestChildren              Int?
+  guestInfants               Int?
+  guestPets                  Int?
   // Per-stay QR concierge device binding: the FIRST device to open the chat this
   // stay claims it (sha256 of an httpOnly per-stay secret). Any other device
   // scanning the same fixed physical QR gets no history — so a past guest/cleaner

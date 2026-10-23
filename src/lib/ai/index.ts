@@ -21,6 +21,7 @@ import { actionClaimsEnabled, parseClaimedActions } from "./action-claims";
 import { parseAnsweredRequests } from "@/lib/conversation-items/reply-block";
 import { ITEM_KIND_LABELS_TR } from "@/lib/conversation-items/core";
 import { stayTimeline, understandingDateLine } from "./stay-timeline";
+import { guestPartySentenceEn } from "./guest-party";
 import { orgTimezone } from "@/lib/timezone";
 import { composeVerifiedReply, groundEvidence, parseAnswerParts } from "./answer-parts";
 import { promptRedactionNames, redactGuestNamesForPrompt } from "./prompt-name-redaction";
@@ -671,10 +672,11 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
               // Okuyucu KAPALIYSA (anahtar yok / anlam katmanı anahtarı eksik) da bütün parçalar tutulur (Opus 10-23 G1): "genel kural + istisna"
               // (Soru 9) ve "sorulanı cevaplıyor mu" denetimi yalnız okuyucuda — okuyucusuz parça kipi bunları hiç sınamadan gönderiyordu.
               // Bugün + konaklama günleri (kör set incelemesi 10-23: Temmuz'da geleceğini söyleyen misafire sezon dışı saat).
-              const dateLine = understandingDateLine(
-                stayTimeline({ now: input.now ?? new Date(), timeZone: orgTimezone(input.timeZone), reservation: input.reservation ?? null }),
-                input.reservation !== undefined,
-              );
+              const dateLine =
+                understandingDateLine(
+                  stayTimeline({ now: input.now ?? new Date(), timeZone: orgTimezone(input.timeZone), reservation: input.reservation ?? null }),
+                  input.reservation !== undefined,
+                ) + guestPartySentenceEn(input.reservation);
               const requestOf = (ref: string) => {
                 const a = items.answerable.find((x) => x.ref === ref);
                 // İstek misafirin KENDİ sözleriyle (Codex S2): sorgu listesi [Türkçe arama sorgusu, özgün dildeki sorgu] — sonuncusu özgün.

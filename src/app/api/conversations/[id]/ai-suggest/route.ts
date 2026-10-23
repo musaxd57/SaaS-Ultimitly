@@ -179,6 +179,11 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
           departureDate: conversation.reservation.departureDate,
           status: conversation.reservation.status,
           guestCheckoutTime: conversation.reservation.guestCheckoutTime,
+          // Kişi / evcil hayvan sayıları (migration 86) — oto-yanıtla aynı bağlam.
+          guestAdults: conversation.reservation.guestAdults,
+          guestChildren: conversation.reservation.guestChildren,
+          guestInfants: conversation.reservation.guestInfants,
+          guestPets: conversation.reservation.guestPets,
         }
       : null,
     // Yalnız adsız yapay zekâ anahtarı açıkken, istem metninden adı silmek için (modele gitmez).

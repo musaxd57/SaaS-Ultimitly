@@ -131,6 +131,8 @@ export async function upsertCanonicalReservation(
 
   // Ham platform adı (migration 60 B): anahtar açıkken ve sağlayıcı verdiyse; yalnız gösterim / teşhis (olay değildir).
   const sourcePlatform = channelMetadataWriteEnabled() ? (r.sourcePlatform ?? null) : null;
+  // Kişi sayıları (migration 86): yalnız kanal VERDİYSE (sağlayıcı eşlemesi anahtarlı); verilmeyen alan yazılmaz (eski değer silinmez).
+  const party = r.party ?? null;
   const existing = await db.reservation.findFirst({
     where: { propertyId, sourceReference: srcRef },
     select: {
@@ -150,6 +152,10 @@ export async function upsertCanonicalReservation(
       connectionId: true,
       // Anahtar kapalıyken yeni kolon OKUNMAZ (sorgu bugünküyle aynı).
       sourcePlatform: sourcePlatform !== null,
+      guestAdults: party !== null,
+      guestChildren: party !== null,
+      guestInfants: party !== null,
+      guestPets: party !== null,
     },
   });
 
@@ -197,12 +203,23 @@ export async function upsertCanonicalReservation(
     // Köken / hitap adı alanları OLAY DEĞİLDİR (bağlantı damgası gibi): yalnız onlar değişince `reservation.updated` üretilmez,
     // alan listesine de girmez (olay şeması aynı kalır).
     if (sourcePlatform !== null && sourcePlatform !== existing.sourcePlatform) data.sourcePlatform = sourcePlatform;
+    if (party) {
+      if (party.adults !== null && party.adults !== existing.guestAdults) data.guestAdults = party.adults;
+      if (party.children !== null && party.children !== existing.guestChildren) data.guestChildren = party.children;
+      if (party.infants !== null && party.infants !== existing.guestInfants) data.guestInfants = party.infants;
+      if (party.pets !== null && party.pets !== existing.guestPets) data.guestPets = party.pets;
+    }
+    // Kişi sayıları da olay değildir (bağlam; yapay `reservation.updated` üretilmez).
     const isMetadataKey = (k: string) =>
       k === "connectionId" ||
       k === "connectionEvidence" ||
       k === "guestGivenName" ||
       k === "guestNameSource" ||
-      k === "sourcePlatform";
+      k === "sourcePlatform" ||
+      k === "guestAdults" ||
+      k === "guestChildren" ||
+      k === "guestInfants" ||
+      k === "guestPets";
     const contentChanged = Object.keys(data).some((k) => !isMetadataKey(k));
     if (Object.keys(data).length > 0) {
       await db.reservation.update({ where: { id: existing.id }, data });
@@ -248,6 +265,10 @@ export async function upsertCanonicalReservation(
         connectionEvidence: ctx.connectionId ? "ingest" : undefined,
         ingestedAt: new Date(),
         sourcePlatform: sourcePlatform ?? undefined,
+        guestAdults: party?.adults ?? undefined,
+        guestChildren: party?.children ?? undefined,
+        guestInfants: party?.infants ?? undefined,
+        guestPets: party?.pets ?? undefined,
       },
       select: { id: true },
     });
