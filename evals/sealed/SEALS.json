@@ -52,6 +52,10 @@
       "languages": 5,
       "bytes": 25775
     },
-    "state": "sealed"
+    "state": "burned",
+    "burnedAt": "2026-10-23",
+    "runSha": "b47f246f260a6696acaca4f8b0aacf9360b568f1",
+    "report": "docs/olcum/live-pipeline-2026-10-23-gpt-6-luna-kor-e1023-new-on-kor.md",
+    "compareReport": "docs/olcum/live-pipeline-2026-10-23-gpt-6-luna-kor-e1023-old-on-kor.md"
   }
 }

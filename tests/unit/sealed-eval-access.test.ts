@@ -37,7 +37,16 @@ const ALLOWED_UX = new Set([
   "tests/eval/understanding-e2e.eval.test.ts",
   "docs/TASARIM-2026-10-21-anlama-olcumu.md",
 ]);
-const ALLOWED_E = new Set(["evals/sealed/SEALS.json", `evals/sealed/${NEEDLE_E}.json`, "tests/eval/live-pipeline.eval.test.ts"]);
+// Yakma raporu (10-23 sabah: iki kol, yalnız toplu sayı) seti adıyla anar — yakma kaydının kendisi.
+const ALLOWED_E = new Set([
+  "evals/sealed/SEALS.json",
+  `evals/sealed/${NEEDLE_E}.json`,
+  "tests/eval/live-pipeline.eval.test.ts",
+  "docs/olcum/live-pipeline-2026-10-23-gpt-6-luna-kor-e1023-new-on-kor.md",
+  "docs/olcum/live-pipeline-2026-10-23-gpt-6-luna-kor-e1023-new-on-kor.json",
+  "docs/olcum/live-pipeline-2026-10-23-gpt-6-luna-kor-e1023-old-on-kor.md",
+  "docs/olcum/live-pipeline-2026-10-23-gpt-6-luna-kor-e1023-old-on-kor.json",
+]);
 const SKIP_DIRS = new Set([".git", "node_modules", ".next", "dist", "build", "coverage", "playwright-report", "test-results"]);
 const BINARY_EXT = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".pdf", ".woff", ".woff2", ".ttf", ".zip", ".gz"]);
 

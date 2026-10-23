@@ -1,4 +1,4 @@
-# Rapor — 10-23 öğleden sonra: Soru 9 / 10 / 11, Codex'in "anlam ilişkisi" önerisi, son kontrol ve kör ölçüm
+# Rapor — 10-23 sabah (2): Soru 9 / 10 / 11, Codex'in "anlam ilişkisi" önerisi, son kontrol ve kör ölçüm
 
 > Kurucu (10-23 sabah): Soru 9 (genel kural + istisna), Soru 10 (sessiz kalan gerçek açık ihtiyaç için tek e-posta), Soru 11 (okuyucu anlam
 > üzerinden ayırsın, gönderilecek SON parçaları görsün, "evet"i tek başına izin olmasın, belirsizde tutsun) · "Parça kipi, son kodla uçtan uca
@@ -9,17 +9,35 @@
 
 ## 0. Bir dakikalık özet
 
-- **Kör ölçüm (mühürlü set, ayrı yazar, bir kez):** §1 — SONUÇ BURAYA.
-- **Yanlış gönderim:** geliştirme setinde bugünkü her koşuda 0. Okuyucu + kod iki katman: okuyucunun bir koşuda kaçırdığı "bugün kapanıyor"
-  cevabını kod zaten tutuyor; kodun parantez açığını okuyucu tutuyor.
-- **Gereksiz tutma hâlâ yüksek:** geliştirme setinde 38 cevabın 10–12'si gereksiz tutuluyor. Kaynakları §3'te ayrı ayrı; açmadan önce sırada.
+- **Kör ölçüm yapıldı (mühürlü set, ayrı yazar, 45 senaryo / 62 ihtiyaç, bir kez — set artık yandı):** yeni akış yanlış gönderimi **9'dan
+  1'e** indirdi ama doğru cevabı da **27'den 14'e** düşürdü (§1). Yani bugünkü hâliyle parça kipi "çok temkinli": misafire yanlış bilgi
+  neredeyse hiç gitmiyor, ama doğru cevabı olan soruların yarısı ev sahibine kalıyor.
+- **Önerim:** parça kipi KAPALI kalsın (sizin şartınız: "kör ölçüm geçene kadar kapalı"). Gereksiz tutmanın ana kaynakları belli (§3) —
+  müşteriye gideni değiştirdikleri için önce size soruyorum (§5), sonra YENİ bir kör setle yeniden ölçerim.
 - **Son kontrolde iki ciddi açık bulundu ve kapandı** (Opus): okuyucu kapalıyken parça kipi Soru 9'u hiç sınamadan gönderiyordu; parantez
   düzeltmem "(şu anda bakım nedeniyle kapalı)" kaydını değerden koparıyordu. İkisi de eski kodda kırmızı testle pinli (§2).
-- **Kararınızı bekleyen sorular** §5'te, örnekli.
+- **Canlıda hiçbir şey değişmedi.** Kapı yeşil (4533 + 10933 test, build), push edildi (§6).
 
 ## 1. Kör ölçüm (mühürlü set — yalnız toplu sayı)
 
-SONUÇ BURAYA (yeni akış + okuyucu · bugünkü akış).
+Set: 10-23 mühürlü ihtiyaç kör seti (`evals/sealed/`) — ayrı bir ajan yazdı (kodu, istemleri, geliştirme setini görmedi); ben açmadım, yalnız sayıları
+görüyorum. Aynı commit (`b47f246f`), aynı onaylı Luna yapılandırması, iki kol; set bu koşuyla yandı (`SEALS.json`).
+
+| ölçü | bugünkü akış | yeni akış (parça kipi + okuyucu) |
+|---|---|---|
+| cevaplanması gereken ihtiyaç: doğru değerle giden | 27 / 40 (%68) | 14 / 40 (%35) |
+| 🚨 **yanlış gönderim** (yanlış değer / yanlış "cevaplandı") | **9** | **1** |
+| açık kalması gereken ihtiyaç: açık kaldı | 18 / 22 | 21 / 22 |
+| gereksiz tutma (cevabı olan ihtiyaç gitmedi / eksik gitti) | 8 | 26 |
+| "bilgim yok" / iç kaynak anlatımı giden | 0 | 0 |
+| misafire giden mesaj | 27 / 45 | 14 / 45 |
+| maliyet | $0,16 | $0,15 |
+
+Raporlar: `docs/olcum/live-pipeline-2026-10-23-gpt-6-luna-kor-e1023-new-on-kor.md` · `…-old-on-kor.md`. Kör set kuralı gereği hangi senaryonun
+nerede düştüğünü görmüyorum (yalnız toplu sayı) — neden analizi geliştirme setinden (§3).
+
+**Okuma:** yeni akış güvenlik tarafında açıkça daha iyi (9 → 1 yanlış), kapsama tarafında açıkça daha kötü (27 → 14 doğru). Kör setteki tek
+yanlış gönderimin ne olduğunu bilmiyorum; geliştirme setinde bugün hiç görülmedi.
 
 ## 2. Ne yapıldı
 
@@ -49,7 +67,8 @@ kaynağı (her biri cevap kaydıyla tek tek okundu):
 | Tur düzeyinde tutma | 1 | "Giriş saati kaçta? Erken giriş mümkün mü?" → giriş saati doğruydu, tur erken giriş yüzünden tutuldu | Soru 6 / kısmi gönderim kararı. |
 | **Doğru tutma** (model yanlış parça yazdı) | 1 | "(Havuz var mı?) Peki kaçta kapanıyor?" → "Hafta sonu havuz 23:00'e kadar açıktır." — okuyucu "tek başına istisna" diye tuttu | Soru 9 tam istendiği gibi çalıştı. |
 
-Koşudan koşuya oynama büyük: aynı kodla okuyucu açık 28 · 31 · 26 / 38 (cevap modelinin taslağı her koşuda farklı).
+Koşudan koşuya oynama büyük: okuyucu açık son üç geliştirme koşusu 31 · 28 · 26 / 38 (kod küçük farklarla; cevap modelinin taslağı her koşuda
+farklı). Kör sette gereksiz tutma oranı geliştirme setinden çok daha yüksek (26 / 40) — geliştirme setine fazla uymuşuz.
 
 ## 4. Okuyucu karşılaştırması (A / B / C)
 
@@ -64,4 +83,34 @@ C daha iyi değil → bırakıldı. Bu set istemi ayarlamak için kullanıldı; 
 
 ## 5. Kararınızı bekleyen sorular
 
-SORULAR BURAYA.
+**S1 — Parça kipi şimdilik KAPALI kalsın mı?** Önerim: evet. Kör ölçüm "yanlış gönderim neredeyse yok" ama "doğru cevabın yarısı da ev
+sahibine kalıyor" dedi. Bugünkü akış açık kalır; aşağıdaki iyileştirmelerden sonra **yeni** bir kör set (yine ayrı yazar) ile yeniden ölçerim.
+
+**S2 — Okuyucu isteği misafirin KENDİ sözleriyle görsün mü?** Bugün okuyucu, anlama katmanının genişlettiği sorguyu görüyor.
+- Örnek: misafir "Kahvaltı kaça kadar?" yazdı · anlama katmanı "kahvaltı saatleri kahvaltı kaça kadar" yaptı · cevap "Hafta içi 10:30'a, hafta
+  sonu 11:00'e kadar." → **bugün:** okuyucu tuttu, ev sahibine kaldı · **önerim:** okuyucu "Kahvaltı kaça kadar?" görür → cevap gider.
+- Böyle yapalım mı?
+
+**S3 — Kodun sözcük denetimlerinden "anlam" olanlar okuyucuya geçsin mi?** (Soru 9'da yaptığımız gibi; değer / sayı / "kaynakta yazıyor mu"
+denetimleri kodda KALIR.)
+- "Çöpler nereye?" · kaynak "Çöpler bina girişinin sağındaki konteynere atılır." · cevap "Çöpleri bina girişinin sağındaki konteynere
+  atabilirsiniz." → **bugün:** kod "kaynakta bu sözcüklerle yazmıyor" diye tutuyor · **önerim:** okuyucu "aynı bilgi" der → gider.
+- "Is breakfast included?" · kaynak "Kahvaltı fiyata dahil değildir; kişi başı 250 TL." · cevap "Breakfast is not included in the price. It costs
+  250 TL per person." → **bugün:** kod "It" sözcüğünde konuyu bulamıyor, tutuyor · **önerim:** gider.
+- Rusça "Время выезда — до 11:00." (çıkış saati) → **bugün:** kod Türkçe konu sözcüğünü bulamayıp tutuyor · **önerim:** gider.
+- Böyle yapalım mı?
+
+**S4 — Okuyucu setini siz etiketler misiniz?** (Codex: "insan etiketleriyle karşılaştıralım".) 35 soru–kaynak–cevap örneğini bugün ben
+etiketledim. İnceleme sayfasına "gitsin / tutulsun" seçimiyle koyarım; sizin işaretleriniz ölçümün doğru cevabı olur. Yapayım mı?
+
+Önceki rapordan hâlâ açık: Soru 6 (kısmi cevap gittiğinde ev sahibine e-posta) — `docs/RAPOR-2026-10-23-gece-2-cevap-tekrari-ve-guvenlik.md` §6.
+
+## 6. Kapı / push / CI
+
+| adım | sonuç |
+|---|---|
+| Hedefli testler | 508 / 508 + yeni pinler |
+| Mutasyon | 21 mutant → 19 öldü, 2 yaşayan (M4 ilgili kalem, M14 bildirim kaydı) pinlendi → 2 / 2 öldü |
+| Tam kapı (`b47f246f`) | veritabanlı 4533 / 4533, veritabanısız 10933 geçti; build yeşil |
+| Push | `20ade78e..f3bcf2be` (15 commit) |
+| CI | CI BURAYA |

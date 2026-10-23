@@ -4,6 +4,7 @@
 > Bu dosyadaki kurallar CLAUDE.md'deki kadar BAĞLAYICIDIR. İlgili alanda iş yapmadan önce oku.
 
 ## CLAUDE.md "Durum" özet satırları (10-23'te AYNEN taşındı; en yeni ikisi CLAUDE.md'de kalır)
+**10-23 gündüz:** kurucu A–E + kaynak sorusu kodda (anahtarlar KAPALI): istek başına doğrulanmış parça (değer ↔ konu ↔ koşul DEĞER BAŞINA) · kaynak sorusu açık iş · migration 84 (sıra + konu etiketi, belirsizse kapatma yok) · E ölçümü + neden analizi · next 15.5.28 güvenlik; sorular rapor §5 — `docs/RAPOR-2026-10-23-gunduz-buyuk-rapor.md`.
 **10-23 gece:** Soru 1 kodda (misafirin kendi sözcükleri, anahtar kapalı) · Opus akşam bulguları kapandı · CLAUDE.md sadeleşti · İhtiyaç Defteri tasarımı + kurucu soruları A–E açık — rapor `docs/RAPOR-2026-10-23-gece-buyuk-rapor.md`, `docs/claude/durum.md`.
 **10-22 akşam:** iç kaynak anlatımı misafire asla gitmez (istem + okuyucu 5. hüküm + bir kez yeniden yazma + anahtarsız kod yedeği) · iç daire adı modele gitmez · U4 ana dalda (migration 83) · ölçüm 4 → 0; açık soru rapor §7.1 (sauna) — `docs/claude/durum.md`.
 **10-22 gündüz:** §U kararları kodda (özür yok · başka misafir bilgisi · kıdemli okuyucu + kanıt şartı + bir kez yeniden yazma · mizah · U10–U15 güvenlik); rapor `docs/RAPOR-2026-10-22-yapay-zeka-ne-ogrendi.md`; açık U4 + T-c — `docs/claude/durum.md`.
@@ -43,7 +44,18 @@ düzeltmeleri. Next.js 15.5.27 (iki yeni SSG/ISR danışması). Onay bekleyen be
 > `docs/history/CLAUDE-2026-10-02-sadelestirme-3-oncesi-tam-metin.md` ("Durum" bölümü). Kuralları yukarıdaki bölümlerde; yalnız Durum'da
 > yazılı olan kurallar (konuşma öğeleri, ev kuralları, canlı bayraklar) 10-02'de ilgili bölümlere taşındı. Bekleyen onaylar ↓.
 
-**10-23 gece-2 (güncel — clear sonrası BURADAN devam):** rapor `docs/RAPOR-2026-10-23-gece-2-cevap-tekrari-ve-guvenlik.md`. Kurucu fikri (aynı soru
+**10-23 sabah-2 (güncel — clear sonrası BURADAN devam):** rapor `docs/RAPOR-2026-10-23-sabah-parca-okuyucu-ve-kor-olcum.md`, tasarım
+`docs/TASARIM-2026-10-23-soru-9-10-11-istisna-bildirim-parca-okuyucu.md` (§5 Codex karşılığı, §6 ölçümler). Kodda (anahtarlar KAPALI): Soru 9
+yalnız parça okuyucusunda (`exception_without_rule`; sözcük tabanlı `omitsGeneralRule` kaldırıldı) · okuyucu KAPALIYKEN parça kipi bütün parçaları
+tutar (Opus G1) · parantez yalnız kendi değerini taşıyorsa yan cümle sınırı (G2) · son metin denetimi = tekrar anahtarıyla aynı biçim
+(`partTextKey` / `foldPartText`, selamdan ibaret parça sayılmaz) · okuyucu notları 6000 karakter, sığmayan parça tutulur (G4) · Soru 10
+`notifyOpenNeeds` / `recordOpenNeedsNotified` (SystemLock `open-need-mail:<öğe>` 1 yıl) · ölçer: istekler yan dosyada, aynı türden iki ihtiyaçta
+yalnız istisna giden = yanlış, mühürlü yan dosya yalnız toplu sayı. Okuyucu karşılaştırma seti `evals/part-reader-dev.json` (35); C kolu (yüksek
+çaba) daha iyi değil. 10-23 mühürlü ihtiyaç kör seti YANDI (`b47f246f`): bugünkü akış 27/40 doğru · 9 yanlış; yeni akış 14/40 · 1 yanlış.
+Açık: kurucu S1 (kip kapalı kalsın) · S2 (okuyucu misafirin kendi sözleriyle) · S3 (kodun anlam denetimleri okuyucuya) · S4 (okuyucu setini kurucu
+etiketlesin) · bilinen dar yarış G5 (uçuştaki bekleyen-cevap talebi) · sonraki kör ölçüm için YENİ set (ayrı yazar).
+
+**10-23 gece-2:** rapor `docs/RAPOR-2026-10-23-gece-2-cevap-tekrari-ve-guvenlik.md`. Kurucu fikri (aynı soru
 4. kez → kayıtlı doğru cevap) + Codex notu: tasarım `docs/TASARIM-2026-10-23-dogrulanmis-cevap-tekrari.md`; saf çekirdek ana dalda
 (`src/lib/answer-reuse/core.ts`, hiçbir akışa bağlı DEĞİL); gölge kip (yazar ama göndermez) migration 85 hazır yama
 `docs/hazir-yamalar/2026-10-23-migration-85-dogrulanmis-cevap-tekrari-golge.patch` (çalışma dalı `wip/answer-reuse-85`; kurucu onayı + taze yedek
