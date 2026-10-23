@@ -2771,6 +2771,8 @@ export function omitsGeneralRule(input: {
   // Kaynaktaki konu yeri, parçanın değişkelerinden BAŞKA bir koşulda mı (genel kural = koşulsuz; öteki değişke = parçanınkileri kapsamayan).
   const otherCondition = (conds: readonly string[]) =>
     conds.length === 0 || !conds.some((k) => variants.has(k) || [...variants].some((v) => DAY_PARENT[v] === k || DAY_PARENT[k] === v));
+  // Konuyu anmayan kalem bağ kuramaz (değer de değersiz değişke de konuya bağlı okunur) → süzgeç yalnız maliyet içindir (Opus güvenlik 10-23 F4
+  // emsali); mutasyon Q8 bu yüzden gerekçeli EŞDEĞER.
   const docs = [input.sourceText, ...(input.otherSources ?? []).filter((t) => t !== input.sourceText && mentionsSubject(t, subj))].map((t) =>
     cachedDocument(t, subj),
   );

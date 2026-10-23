@@ -1302,7 +1302,14 @@ describe("Soru 9 — yalnız istisnayı söyleyen parça (omitsGeneralRule)", ()
     expect(omits(ONLY_WEEKEND, "Havuz hafta sonu 23:00'e kadar açık.", ["havuz kaçta kapanıyor"], [], ["Resepsiyon 20:00'de kapanır."])).toBe(false);
   });
 
-  it("çok konulu ihtiyaçta koşmaz (konu ayrımı bağ denetiminin işi)", () => {
+  it("çok konulu ihtiyaçta koşmaz (konu ayrımı bağ denetiminin ve tesis kapsamının işi)", () => {
     expect(omits("Havuz 20:00'de, sauna hafta sonu 23:00'te kapanır.", "Sauna hafta sonu 23:00'te kapanır.", ["sauna kaçta kapanıyor"])).toBe(false);
+    // Mutasyon Q6 (10-23 sabah): iki tesis soran ihtiyaçta havuzun 20:00'ı saunanın "genel kuralı" sayılmaz (yarım cevabı `missesAskedFacility` tutar).
+    expect(omits("Havuz 20:00'de, sauna hafta sonu 23:00'te kapanır.", "Sauna hafta sonu 23:00'te kapanır.", ["havuz ve sauna kaçta kapanıyor"])).toBe(false);
+  });
+
+  it("genel değeri de söyleyen parça 'yalnız istisna' değildir — başka değişkenin eksikliği bu kuralın değil `variant_omitted`ın işi (mutasyon Q1)", () => {
+    const src = "Havuz 20:00'de kapanır. Havuz hafta sonu 23:00'e kadar açık. Havuz kış aylarında 18:00'de kapanır.";
+    expect(omits(src, "Havuz 20:00'de kapanır, hafta sonu 23:00'e kadar açık.", ["havuz kaçta kapanıyor"])).toBe(false);
   });
 });
