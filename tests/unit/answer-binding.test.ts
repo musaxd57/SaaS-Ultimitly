@@ -1099,6 +1099,7 @@ describe("Opus taze göz 10-23 F1–F4: sorulan yön (saat / ücret) gerçekten 
     expect(miss(["havuz kaçta açılıyor ve kapanıyor"], "Havuz 09:00-20:00 arası açıktır.")).toEqual([]);
     expect(miss(["havuz kaçta açılıp kaçta kapanıyor"], "Havuz 09:00 ile 20:00 arasında açıktır.")).toEqual([]);
     expect(miss(["havuz açılış saati"], "Havuz 20:00'de kapatılır.")).toEqual(["time"]);
+    expect(miss(["havuz kapanış saati"], "Havuz 20:00'de kapatılır.")).toEqual([]);
     expect(miss(["kahvaltı kaça kadar"], "Kahvaltı 08:00'de başlıyor.")).toEqual(["time"]);
     expect(miss(["kahvaltı kaça kadar"], "Kahvaltı 08:00'de servis edilir.")).toEqual(["time"]);
     // Değerin doğal yönü serbest; doğru yön gider.
