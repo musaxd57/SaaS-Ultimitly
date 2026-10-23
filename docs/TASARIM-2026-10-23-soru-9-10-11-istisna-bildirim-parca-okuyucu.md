@@ -109,3 +109,38 @@ gönderildi / çözüldü" — VAR (doğrudan gönderimde teslimden SONRA "cevap
 daha güçlü ayar (`AI_PART_READER_MODEL` / `AI_PART_READER_REASONING_EFFORT`). Önce `evals/part-reader-dev.json` (32 soru–kaynak–parça, etiketli;
 Codex'in havuz / havuz barı üç satırı dahil) ile okuyucu tek başına, sonra bütün akış (geliştirme seti), en sonda mühürlü kör set. İnce ayar YOK;
 üretim izleri eğitim verisine çevrilmez.
+
+## 6. Ölçüm sonuçları (10-23 öğleden sonra; geliştirme seti — kör set ayrı)
+
+**Okuyucu tek başına** (`evals/part-reader-dev.json`, vaka × 2 tekrar):
+
+| kol | yanlış geçiş | gereksiz tutma | düşen | kararsız | ort. süre |
+|---|---|---|---|---|---|
+| B (Luna, düşük çaba) — ilk istem, 32 vaka | 0 | 2 | 0 | 0 | 1920 ms |
+| C (Luna, yüksek çaba yalnız okuyucuda) — ilk istem | 0 | 2 | 3 | 1 | 2968 ms |
+| B — son istem, 33 vaka | 0 | 0 | 0 | 0 | 1835 ms |
+
+C daha iyi değil (aynı tutma + düşen çağrı + kararsızlık + %50 yavaş) → C kolu bırakıldı. Son istem iki kural ekledi: "kaynak tek durumu
+anlatıyorsa o durumu veren parça tam cevaptır" ve "isteğin sormadığını bırakmak yarım cevap değildir" ("kaça kadar" sorusunda açılış saati).
+Bu set istemi ayarlamak için kullanıldı — gerçek sınav mühürlü kör settir.
+
+**Bütün akış** (`evals/needs-2026-10-23.json`, 32 senaryo / 38 cevaplanacak + 8 açık kalacak ihtiyaç, e31eb346):
+
+| kol | doğru değerle giden | açık kalan | yanlış gönderim | gereksiz tutma |
+|---|---|---|---|---|
+| A — okuyucu kapalı | 31/38 | 8/8 | 0 | 7 |
+| B — okuyucu açık | 28/38 | 8/8 | 0 | 10 |
+
+Okuyucunun eklediği tutmalar: "Kahvaltı kaça kadar?" (açılış saati yok diye "yarım" — istem düzeltildi, okuyucu setine eklendi) ve "Bisiklet
+ücretsiz mi?" (anlama katmanı isteği otopark sandı; okuyucu bisiklet cevabını o isteğe uymadığı için tuttu — kök neden anlama katmanı). Öteki
+farklar iki koşu arasındaki taslak farkı: kodun yön / koşul denetimi ("aspect_missing", "condition_dropped") aynı soruya farklı yazılmış taslakları
+farklı tuttu. Ölçer artık anlama katmanının okuduğu istekleri de yazar (hangi sorguyla tutulduğu görülsün; mühürlü rapor yazmaz).
+
+**Kod denetimlerinin gereksiz tuttuğu sınıflar (karar kurucuda — müşteriye gideni değiştirir):** (a) "Kahvaltı fiyata dahil değil" cevabı
+kaynaktaki "kişi başı 250 TL" düştüğü için tutuluyor (kurucu A: "koşul düşerse gitmez" — tutar burada koşul değil ek bilgi); (b) "Bisiklet ücreti"
+gibi anlama katmanının yanlış türe koyduğu istek; (c) yön denetimi ("open until 23:00" ↔ "close") — sorgu kaydı olmadan yeniden üretilemedi.
+
+**İnceleme bulguları (Haiku, e31eb346):** son metin denetiminde boş / selamdan ibaret parça her metinde "duruyor" sayılıyordu → düzeltildi
+(73da88c2, adla selam dahil); harf / boşluk farkı artık değişiklik sayılmaz. Bilinen dar yarış: aynı mesaja başka bir geçişin e-posta talebi
+uçuştayken bu geçiş "zaten gönderildi" sayar; öteki geçişin kuyruğa yazması başarısız olursa o ihtiyaç bildirimsiz kalır (kuyruğa yazma
+hatası nadir; panelde açık görünür). Bir turda iki mesajda iki açık ihtiyaç → TEK e-posta (konuşmaya), ikisi de bildirilmiş sayılır (tasarım).
