@@ -212,6 +212,20 @@ sayılıyordu · "open and close", "kaçtan kaça" yönsüz okunuyordu · "ücre
 önündeki sözlük sözcüklü değer. 4 fazladan tutma da düzeldi ("09:00 itibarıyla açıktır", "kapalı olacaktır", "şu anda yoktur", "ücret ödemeniz
 gerekmez"). 156 gerçek model parçasında eski / yeni karar yine **0 fark**.
 
+**Opus R4 (Haiku 4. tur düzeltmelerinin bağlamsız derin incelemesi) — 16 bulgu:** üçü KENDİ gerilemem çıktı ve kapandı: "itibarıyla"yı açılış
+sözcüğü saymıştım ("Havuz 20:00 itibarıyla kapanır" açılış sorusunu cevaplıyordu) · "kapalı kalır" yüklemini konuya bağlamadan eklemiştim
+("Havuz KAPISI her zaman kapalı kalır") · "ödeme gerekmez"i geniş tutmuştum ("ÖN ödeme gerekmez", "şimdi ödemenize gerek yok"). Ayrıca:
+saatsiz yüklem ("closed", "kapalıdır") artık sorulan konuya bağlı olmalı ("Please keep the pool GATE closed" tutulur; "Havuz pazartesi günleri
+kapalıdır" cevaptır) · saatle birlikte kapalılık / erişim yasağı yönü ters çevirdiği için yön sorusunda tutulur ("09:00'a KADAR kapalıdır",
+"No pool access BEFORE 09:00") · yön yalnız saat taşıyan yan cümleden okunur ("…, SONRA güvenlik kapıyı kilitler"), "öğleden sonra /
+après-midi" yön değil · "There is no pool BAR", "No, the pool…", "Şezlong yoktur" havuzun yokluğu değil · başka dillerde temizlik fiili
+("is cleaned", "wird gereinigt", "se limpia") · olumsuz dahil biçimleri ("dahil edilmemiştir", "no longer free") · tarih olan "24/7" ve
+olumsuz "24 saat açık değildir" · "ücretsiz mi, ne kadar" karışık soruda olumsuz cevap tutarı vermez · etikette "şifr / şfre / psw / parolo".
+Fazladan tutmalar da düzeldi ("open UNTIL" kapanışı sorar, "Bu sitede havuz bulunmamaktadır", "ısıtmalı havuzumuz 08:00'de açılır").
+Kalan bilinen sınırlar (§7): "Havuz BARI 11:00'de açılır" (tesis tamlaması), konu alt öğesinin ücretsizliği ("Havuz HAVLUSU ücretsizdir"),
+sözlük sözcüklü şifre değeri etikette ("kahve deniz şifresi"). 156 gerçek model parçasında eski / yeni karar **0 fark** (ilk denemem 7 haksız
+tutma üretmişti — "başka şeyden söz eden yan cümle" süzgeci "servis ediliyor", "ise" gibi sözcükleri başka konu sayıyordu; kaldırıldı).
+
 **Ölçüm:** E v7'nin ve önceki koşuların 147 gerçek model parçasında eski / yeni "sorulan yön cevaplandı mı" kararı **hiç değişmedi** (17 / 17 tutma,
 0 ters dönüş) — yeni denetimler gerçek cevaplarda haksız tutma üretmedi. 41 elle yazılmış örnekte (Opus'un örnekleri + doğru cevaplar) hepsi
 beklendiği gibi.
@@ -248,13 +262,13 @@ gece: v5 + v6 + v7 + v8 = $0,45 (onaylı E kapsamı).
 | ne | sonuç |
 |---|---|
 | Tam kapı g7 (`8f7f3b87`: Opus 2. tur + Haiku 2. tur) | veritabanısız 578 · veritabanlı 449 · süre 65 dosya yeşil · derleme yeşil → push → **CI yeşil** (6/6 iş) |
-| Tam kapı g8 (`a953544c`: Opus uçtan uca + Haiku 3. tur) | 578 · 449 · 65 yeşil · derleme yeşil → push (`851a9742`, iki belge commit'iyle) → CI: §5 sonu |
+| Tam kapı g8 (`a953544c`: Opus uçtan uca + Haiku 3. tur) | 578 · 449 · 65 yeşil · derleme yeşil → push (`851a9742`, iki belge commit'iyle) → **CI yeşil** (6/6 iş: derleme, migration zinciri, sır taraması, güvenlik, e2e, doğrulama) |
 | Kırmızı-önce | her yeni test düzeltmesiz kodda koşturuldu: uçtan uca 9 test kırmızı, Haiku 3. tur 6 test kırmızı, etiket 2 test kırmızı → düzeltmeyle yeşil |
 | Mutasyon (`scripts/mutation-run.mjs`, ayrık worktree) | e2e 27/29 (2 yaşayan önceden pinli) · gece doğrulayıcı + etiket 67/90 → yaşayan 23'ün hepsi pinlendi, 1'i gerçek açık (T4, kapandı) — §3e |
 | Opus taze göz (gecenin bütün farkı) | 8 bulgu: 7 kodda kapandı (kırmızı-önce 9 test), 2'si fazladan tutma → §6-10 / §7 — §3e |
 | Gerçek model (E v7) | yeni denetimler 0 haksız tutma; yanlış 0 |
 | Hazır yama (migration 85) | DB testleri 95/95, birim 116/116, `git apply --check` ✓ (push YOK) |
-| Tam kapı g9 (`6c59ee3c`: Opus taze göz F1–F7 + mutasyon pinleri) | veritabanısız 578 · veritabanlı 4.507 test · süre 65 dosya yeşil · derleme yeşil → push (`32d73a57`, iki belge commit'iyle) → CI: §5 sonu |
+| Tam kapı g9 (`6c59ee3c`: Opus taze göz F1–F7 + mutasyon pinleri) | veritabanısız 578 · veritabanlı 4.507 test · süre 65 dosya yeşil · derleme yeşil → push (`32d73a57`, iki belge commit'iyle) → **CI yeşil** |
 | Mutasyon — Haiku 4. tur kodu (`1a0e502a`, 43 mutant) | 40/43 → yaşayan 3 (A4, A6, A18: yeni kural eski kuralı gölgeliyordu) pinlendi, yeniden koşu 3/3 öldü → **43/43** |
 | Kırmızı-önce (gece sonu) | Opus taze göz testleri eski kodda 9 kırmızı; Haiku 4. tur testleri `6c59ee3c`'de 8 kırmızı → düzeltmeyle yeşil |
 | Son kapı g10 (`d9f369f5`: Haiku 4. tur + mutasyon pinleri) | G10_SONUC |
@@ -302,6 +316,8 @@ gece: v5 + v6 + v7 + v8 = $0,45 (onaylı E kapsamı).
 - "Ne zamana kadar / until when" saat sorusu sayılmıyor (tarih de sorabilir) — o soruda saat denetimi yok, bağ denetimi aynen.
 - Konu etiketi: sır sözcüğünün önündeki TEK sözlük sözcüğü ("kahve şifresi") kodu olan şey sayılıp etikette kalır; "bisiklet kilidi şifresi"
   etiket vermez. Etiket yalnız ev sahibine görünür.
+- Tesis tamlaması ("Havuz BARI 11:00'de açılır") ve konunun alt öğesinin ücretsizliği ("Havuz HAVLUSU ücretsizdir") parça kipinde sorulan
+  konunun cevabı sayılabilir (Opus R4 F4 / F10; kalemin kendisi bağ denetiminden geçmiş olmalı — uydurma değer gitmez).
 - Kapasite soruları ("daire kaç kişilik") her zaman ev sahibine kalır ("kişi / kapasite" nitelik sözcüğü, konu sözcüğü kalmıyor).
 - Kalem yön vermiyorsa ("Kahvaltı 08:00'de verilir") parçanın "from 08:00" demesi tutulur (yön uydurma kuralı).
 - İhtiyaç sözcükleri yalnız Türkçe gelirse başka dildeki ikinci konu ("Der Pool und der **Garten**") yalnız tesis listesindeyse yakalanır —

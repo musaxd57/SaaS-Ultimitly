@@ -216,3 +216,9 @@ describe("Haiku 10-23 gece-4: yanlış yazılmış sır sözcüğü ve ağ sözc
     expect(itemTopicLabel("havuz ısıtması bozuk wifi şifresi nedir")).toBe("havuz ısıtması wifi");
   });
 });
+
+describe("Opus 10-23 R4: yanlış yazılmış sır sözcüğünün kalanları", () => {
+  it("🚨 'şifr / şfre / psw / parolo' sırdır; ardındaki değer etikete girmez", () => {
+    for (const q of ["wifi şifr kelebek", "wifi şfre kelebek", "wifi psw kelebek", "wifi parolo kelebek"]) expect(itemTopicLabel(q), q).toBe("wifi");
+  });
+});

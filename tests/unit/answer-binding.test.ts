@@ -1168,6 +1168,75 @@ describe("Haiku 10-23 gece-4 (6c59ee3c incelemesi): sorulan yön denetiminin kal
 
   it("yüklem biçimleri: 'itibarıyla açıktır', 'kapalı olacaktır'", () => {
     expect(miss(["havuz kaçta açılıyor"], "Havuz 09:00 itibarıyla açıktır.")).toEqual([]);
-    expect(miss(["havuz kaçta kapanıyor"], "Havuz kışın kapalı olacaktır.")).toEqual([]);
+    // "kapalı kalır / olacak" yüklemi konuya bağlanamadığı için geri alındı ("Havuz KAPISI her zaman kapalı kalır" — Opus 10-23 R4 F2) → tutulur.
+    expect(miss(["havuz kaçta kapanıyor"], "Havuz kışın kapalı olacaktır.")).toEqual(["time"]);
+  });
+});
+
+describe("Opus 10-23 R4 (1a0e502a incelemesi): kendi gerilemelerim + eksik kalan düzeltmeler", () => {
+  const miss = (q: string[], part: string) => missingAspects(part, askedAspects(q), askedDirection(q), needTerms(q), q);
+  const POOL_OPEN = ["havuz kaçta açılıyor", "when does the pool open"];
+  const POOL_CLOSE = ["havuz kaçta kapanıyor", "when does the pool close"];
+
+  it("🚨 gerileme F1 / F2 / F3: 'itibarıyla' yön değil; 'kapalı kalır' konuya bağlanamaz; ön ödeme / depozito / şimdi ödeme ücret cevabı değil", () => {
+    expect(miss(["havuz kaçta açılıyor"], "Havuz saat 20:00 itibarıyla kapanır.")).toEqual(["time"]);
+    expect(miss(["havuz kaçta açılıyor"], "Havuz kapısı her zaman kapalı kalır.")).toEqual(["time"]);
+    expect(miss(["otopark ücreti ne kadar"], "Otopark için ön ödeme gerekmez.")).toEqual(["price"]);
+    expect(miss(["havuz ücreti ne kadar"], "Havuz için depozito ödemesi gerekmez.")).toEqual(["price"]);
+    expect(miss(["otopark ücreti ne kadar", "how much is parking"], "You don't need to pay now; the parking fee is collected at check-in.")).toEqual(["price"]);
+    expect(miss(["otopark ücreti ne kadar"], "Otopark için ücret ödemeniz gerekmez.")).toEqual([]);
+  });
+
+  it("🚨 F4 / F5 / F6: başka dillerde temizlik fiili; saatle birlikte kapalılık / erişim yasağı (yön ters); konuya bağlı olmayan 'closed'", () => {
+    expect(miss(POOL_OPEN, "The pool is cleaned from 07:00.")).toEqual(["time"]);
+    expect(miss(["havuz kaçta açılıyor", "wann öffnet der pool"], "Der Pool wird ab 7 Uhr gereinigt.")).toEqual(["time"]);
+    expect(miss(["havuz kaçta açılıyor", "a que hora abre la piscina"], "La piscina se limpia desde las 07:00.")).toEqual(["time"]);
+    expect(miss(POOL_OPEN, "The pool is closed after 20:00.")).toEqual(["time"]);
+    expect(miss(["havuz kaçta kapanıyor"], "Havuz 09:00'a kadar kapalıdır.")).toEqual(["time"]);
+    expect(miss(POOL_CLOSE, "No pool access before 09:00.")).toEqual(["time"]);
+    expect(miss(POOL_OPEN, "Please keep the pool gate closed.")).toEqual(["time"]);
+    // Konuya bağlı kapalılık yüklemi (gün / mevsim sözcükleri atlanır) cevaptır.
+    expect(miss(["havuz kaçta kapanıyor"], "Havuz pazartesi günleri kapalıdır.")).toEqual([]);
+    expect(miss(POOL_CLOSE, "The pool is closed on Mondays.")).toEqual([]);
+    expect(miss(["havuz kaçta kapanıyor", "wann schließt der pool"], "Der Pool ist montags geschlossen.")).toEqual([]);
+    expect(miss(["havuz kaçta kapanıyor"], "Havuz şu anda kullanılamaz.")).toEqual([]);
+  });
+
+  it("🚨 F7 / F15: yön yalnız saat taşıyan yan cümleden; 'öğleden sonra / après-midi' yön değil", () => {
+    expect(miss(["havuz kaçta açılıyor"], "Havuz 20:00'de kapanır, sonra güvenlik kapıyı kilitler.")).toEqual(["time"]);
+    expect(miss(POOL_OPEN, "The pool closes at 20:00, after that the gate is locked.")).toEqual(["time"]);
+    expect(miss(["havuz kaçta açılıyor"], "Havuz öğleden sonra 18:00'de kapanır.")).toEqual(["time"]);
+    expect(miss(["havuz kaçta kapanıyor"], "Havuz 09:00'da açılır, gece yarısına kadar müzik yasaktır.")).toEqual(["time"]);
+    expect(miss(["havuz kaçta açılıyor", "a quelle heure ouvre la piscine"], "La piscine ferme l'après-midi à 18h.")).toEqual(["time"]);
+    // Eksiltili yan cümle kendi saatiyle sayılır (gerçek model cevapları).
+    expect(miss(["Kahvaltı kaça kadar?"], "Kahvaltı hafta içi 10:30'a, hafta sonu 11:00'e kadar servis ediliyor.")).toEqual([]);
+    expect(miss(["Havuz kaçta kapanıyor?"], "Havuz hafta içi 20:00'de, hafta sonları ise 23:00'te kapanıyor.")).toEqual([]);
+  });
+
+  it("🚨 F8: 'no pool BAR', 'No, the pool…' ve başka şeyin yokluğu ('Şezlong yoktur') konunun yokluğu değildir", () => {
+    expect(miss(POOL_OPEN, "There is no pool bar.")).toEqual(["time"]);
+    expect(miss(POOL_OPEN, "No, the pool is not heated.")).toEqual(["time"]);
+    expect(miss(["havuz kaçta açılıyor"], "Şezlong yoktur.")).toEqual(["time"]);
+    expect(miss(["havuz kaçta açılıyor"], "Bu sitede havuz bulunmamaktadır.")).toEqual([]);
+    expect(miss(["havuz kaçta açılıyor"], "Bizim sitede havuz yoktur.")).toEqual([]);
+  });
+
+  it("🚨 F9 / F11 / F14: olumsuz dahil / ücretsiz biçimleri; tarih olan '24/7'; olumsuz '24 saat açık'; 'ücretsiz mi, ne kadar' karışık soru", () => {
+    expect(miss(["havuz ücreti ne kadar"], "Havuz kullanımı fiyata dahil edilmemiştir.")).toEqual(["price"]);
+    expect(miss(["parking fee how much"], "Parking is no longer free.")).toEqual(["price"]);
+    expect(miss(["otopark ücreti ne kadar", "is parking free or how much does it cost"], "Parking is not free.")).toEqual(["price"]);
+    expect(miss(["how much is the gluten-free breakfast"], "Gluten-free breakfast is not included.")).toEqual(["price"]);
+    expect(miss(["is parking free", "otopark ücretsiz mi"], "Parking is not free.")).toEqual([]);
+    expect(miss(["havuz kaçta açılıyor"], "Havuz 24/7 tarihinde sezona açılır.")).toEqual(["time"]);
+    expect(miss(POOL_CLOSE, "The pool is not open 24 hours.")).toEqual(["time"]);
+    expect(miss(["havuz kaçta kapanıyor"], "Havuz 24 saat açık değildir.")).toEqual(["time"]);
+  });
+
+  it("F12: 'open until' kapanışı sorar; 'ısıtmalı havuz' sıfatı yön değil; ayrı yan cümledeki bakım saati açılış cevabını bozmaz", () => {
+    expect(askedDirection(["what time is the pool open until"])).toBe("end");
+    expect(miss(["what time is the pool open until"], "The pool is open until 22:00.")).toEqual([]);
+    expect(miss(["havuz kaça kadar açık"], "Havuz 22:00'ye kadar açık.")).toEqual([]);
+    expect(miss(["havuz kaçta açılıyor"], "Isıtmalı havuzumuz 08:00'de açılır.")).toEqual([]);
+    expect(miss(["havuz kaçta açılıyor"], "Havuz 08:00'de açılır; bakım pazartesi yapılır.")).toEqual([]);
   });
 });

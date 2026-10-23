@@ -131,7 +131,7 @@ export function itemTopicLabel(query: string | null | undefined, names: readonly
     const f = folded[i] ?? "";
     if (!f) return false;
     // Yanlış yazım / bitişik yazım da sırdır ("passwd", "pasword", "pswd", "wifi sife", "wifisifresi" — Haiku 10-23 gece-2).
-    if (SECRET_ROOTS.some((r) => f.startsWith(r)) || SECRET_ROOTS_OTHER.some((r) => f.startsWith(r)) || SECRET_EXACT.has(f) || /(?:sifre|sifer|sifra|parola|passw|pasw|pasv|passphr|pswd|kennwort)/.test(f) || /^koo?d/.test(f) || (f.length > 5 && /kod(?:u|unu|um)?$/.test(f))) return true;
+    if (SECRET_ROOTS.some((r) => f.startsWith(r)) || SECRET_ROOTS_OTHER.some((r) => f.startsWith(r)) || SECRET_EXACT.has(f) || /(?:sifre|sifer|sifra|sifr|sfre|parol|passw|pasw|pasv|passphr|pswd|psw|kennwort)/.test(f) || /^koo?d/.test(f) || (f.length > 5 && /kod(?:u|unu|um)?$/.test(f))) return true;
     // "kilit / gizli kelimesi" de sırdır (Haiku 10-23 gece-3); tek başına "kelime" değil.
     if (f.startsWith("kelime") && /^(?:kilit|gizli|anahtar|guvenlik)/.test(folded[i - 1] ?? "")) return true;
     // Niteleyici de sır adının parçasıdır ("KİLİT kelimesi") — sözlük sözcüğü olduğu için pencerede kalmasın.
