@@ -641,7 +641,12 @@ export function noInstructionClauseResidue(text: string | null | undefined): str
 // Kalıplar sabit sözcükle başlar, boşluklar sınırlı ({0,4} sözcük, cümle sınırını geçmez) — karesel iş yok (süre pini testte).
 const HOST_TR = `${L}(?:ev ?sahib(?:i|in|im)\\p{L}{0,8}|host(?:'?(?:unuz|unuza|unuzdan|unuzla|umuz)))`;
 const VERB_TR =
-  "(?:sor(?:abilir|man[ıi]z|ar[ıi]m)\\p{L}{0,8}|dan[ıi][şs](?:abilir|[ıi]n(?![\\p{L}])|[ıi]n[ıi]z|man[ıi]z)\\p{L}{0,8}|" +
+  // "sor-" yalnız misafir öznesiyle ("ev sahibiniz giriş saatinizi sorabilir" ev sahibinin sorusudur — Haiku 10-23 akşam).
+  "(?:sor(?:abilirsiniz|man[ıi]z|ar[ıi]m)\\p{L}{0,8}|" +
+  // Haiku 10-23 akşam: konuş / görüş / yaz / ara / mesaj yalnız misafir öznesiyle (ikinci çoğul ya da emir; "ev sahibiniz sizi arayabilir" değil).
+  "konu[şs](?:abilirsiniz|un(?![\\p{L}])|unuz|man[ıi]z)\\p{L}{0,8}|g[öo]r[üu][şs](?:ebilirsiniz|[üu]n(?![\\p{L}])|[üu]n[üu]z|men[ie]z)\\p{L}{0,8}|" +
+  "yaz(?:abilirsiniz|[ıi]n(?![\\p{L}])|[ıi]n[ıi]z|man[ıi]z)\\p{L}{0,8}|ara(?:yabilirsiniz|y[ıi]n(?![\\p{L}])|y[ıi]n[ıi]z|man[ıi]z)\\p{L}{0,8}|" +
+  "mesaj (?:atabilirsiniz|g[öo]nderebilirsiniz|yazabilirsiniz|at[ıi]n(?![\\p{L}])|g[öo]nderin)\\p{L}{0,8}|dan[ıi][şs](?:abilir|[ıi]n(?![\\p{L}])|[ıi]n[ıi]z|man[ıi]z)\\p{L}{0,8}|" +
   "ula[şs](?:abilir|[ıi]n(?![\\p{L}])|[ıi]n[ıi]z|man[ıi]z)\\p{L}{0,8}|ba[şs]vur(?:abilir|un(?![\\p{L}])|unuz|man[ıi]z)\\p{L}{0,8}|" +
   "(?:ileti[şs]im|irtibat)\\p{L}{0,2} ge[çc](?:ebilir|in(?![\\p{L}])|iniz|men[ie]z)\\p{L}{0,8}|" +
   "iste(?:yebilir|yin|meniz)\\p{L}{0,8}|teyit (?:edebilir|edin|etmeniz|ettirebilir|alabilir)\\p{L}{0,8}|" +
@@ -657,12 +662,14 @@ const HOST_REFERRAL_PATTERNS: readonly RegExp[] = [
   // Türkçe: ad öbeği önce, yüklem en çok dört sözcük sonra ("Otopark için ev sahibinizle iletişime geçebilirsiniz", "Ev sahibiniz, bu konuda
   // size kesin bilgi verebilir").
   new RegExp(`${HOST_TR},? ${gap(4)}${VERB_TR}`, "u"),
+  // Emir "sorun" yalnız yönelme ekli ev sahibinden sonra ("ev sahibinize sorun"); "sorun" ad olarak da geçer.
+  new RegExp(`${L}(?:ev ?sahib(?:i|in)ize|host'?unuza),? ${gap(3)}sor(?:un|unuz)(?![\\p{L}])`, "u"),
   new RegExp(
-    `${L}(?:ask|check with|confirm with|contact|reach out to|get in touch with|message|consult|speak (?:to|with)|talk to|reach|enquire with|inquire with) ${EN_HOST}(?![\\p{L}])`,
+    `${L}(?:ask|check with|confirm with|contact|reach out to|get in touch with|message|consult|speak (?:to|with)|talk to|reach|enquire with|inquire with|email|e-mail|write to|text|call|phone) ${EN_HOST}(?![\\p{L}])`,
     "u",
   ),
   new RegExp(
-    `${L}${EN_HOST} (?:can|could|may|might|should|would be able to|will be able to|is able to|is happy to|would be happy to|will happily) ` +
+    `${L}${EN_HOST} (?:can|could|may|might|should|may be able to|might be able to|could be able to|would be able to|will be able to|is able to|is happy to|would be happy to|will happily) ` +
       `(?:${W} ){0,2}(?:tell|confirm|advise|answer|clarify|let you know|inform|help|assist|update)(?![\\p{L}])`,
     "u",
   ),
@@ -675,6 +682,7 @@ const HOST_REFERRAL_PATTERNS: readonly RegExp[] = [
     `${L}(?:fragen sie|wenden sie sich (?:bitte )?an|kontaktieren sie|erkundigen sie sich (?:bitte )?bei|melden sie sich (?:bitte )?bei|klären sie (?:das|dies) (?:bitte )?mit|schreiben sie) (?:(?:bitte|gerne|direkt) )?${DE_HOST}(?![\\p{L}])`,
     "u",
   ),
+  new RegExp(`${L}(?:bei|von) ${DE_HOST} (?:${W} ){0,2}(?:erfragen|erfahren|nachfragen)(?![\\p{L}])`, "u"),
   new RegExp(
     `${L}(?:ihr|ihre|der|die) (?:gastgeber(?:in)?|vermieter(?:in)?|host) (?:kann|könnte|wird ihnen) (?:${W} ){0,3}(?:sagen|bestätigen|helfen|auskunft|mitteilen|beantworten|klären|informieren)(?![\\p{L}])`,
     "u",
@@ -701,11 +709,26 @@ const HOST_REFERRAL_PATTERNS: readonly RegExp[] = [
 ];
 /** Olay koşulu (talimat) — bilgi isteği koşulu DEĞİL. */
 const EVENT_CONDITION = new RegExp(
-  "(?<![\\p{L}])(?:if|in case|should (?:you|the|there)|unless|falls|wenn|sollte|en cas d|au cas où|en caso de|если|в случае|eğer)(?![\\p{L}])|" +
+  "(?<![\\p{L}])(?:if|in case|should (?:you|the|there)|unless|falls|wenn|sollte|en cas d|au cas où|en caso de|если|в случае|eğer|" +
+    "in an emergency|im notfall|en urgence|en una emergencia|в экстренн\\p{L}*|acil (?:bir )?durumda)(?![\\p{L}])|" +
     "(?<![\\p{L}])si (?!vous souhaitez|vous voulez|usted desea|desea)|\\p{L}(?:rsan[ıi]z|rseniz|rsa|rse)(?![\\p{L}])|" +
     "(?:ma|me)s[ıi] (?:halinde|durumunda)|(?<![\\p{L}])(?:durumunda|halinde|takdirde)(?![\\p{L}])",
   "u",
 );
+/**
+ * Soru fiilinin "if / si" tümleci ("ask your host IF you can check out late", "your host can tell you IF parking is free", "demandez à votre
+ * hôte SI …") koşul değil "-ip -mediği"dir (Haiku 10-23 akşam: yönlendirme koşul sanılıp geçiyordu). Koşul aranmadan önce "whether" olur.
+ * "contact your host if you lose the key" (iletişim fiili) koşul kalır.
+ */
+const WHETHER_IF =
+  /(?<![\p{L}])(ask|asking|check|checking|tell|tells|confirm|know|find out|let you know|demandez|demander|vérifiez|pregunte|pregúntele|preguntar|consulte)((?:[^.!?\n]){0,40}?)(?<![\p{L}])(?:if|si)(?![\p{L}])/gu;
+/**
+ * Yönlendirme fiilinin OLUMSUZU ("ev sahibinize sormanıza gerek yok", "no need to contact your host") yönlendirme değildir (Haiku 10-23 akşam).
+ * Gerek sözcüğü fiile bitişik aranır — aynı cümlenin başka bir yerindeki "gerek yok" yönlendirmeyi sessizce kaldırmasın.
+ */
+const NEGATED_REFERRAL =
+  /(?:sor|dan[ıi][şs]|ula[şs]|ba[şs]vur|ge[çc]|konu[şs]|g[öo]r[üu][şs]|yaz|ara|iste|[öo][ğg]ren|teyit et)(?:ma|me)(?:n[ıi]z[ae]?|k|z)? (?:gerek|ihtiya[çc]|l[üu]zum)\p{L}{0,3} (?:yok|kalmad[ıi])|(?:sor|dan[ıi][şs]|ula[şs]|ba[şs]vur|ge[çc]|konu[şs]|g[öo]r[üu][şs]|yaz|ara|iste|[öo][ğg]ren|teyit et)(?:ma|me)(?:n[ıi]z[ae])? gerek(?:mez|miyor|memektedir)|(?<![\p{L}])(?:no need|(?:you )?(?:don'?t|do not|won'?t) need|needn'?t|not necessary|unnecessary)(?: for you)? to (?:ask|check|confirm|contact|reach|message|consult|speak|talk|get in touch|email|write|call|text)|(?<![\p{L}])pas besoin de (?:demander|contacter)|no (?:es necesario|hace falta) (?:preguntar|contactar|consultar)|не нужно (?:спрашивать|уточнять|обращаться)/u;
+
 /** Koşul bilgi İSTEĞİYSE ("daha fazla bilgi isterseniz", "if you'd like more details") yine yönlendirmedir. */
 const INFO_CONDITION =
   /(?<![\p{L}])(?:bilgi|detay|ayr[ıi]nt[ıi]|information|info|details|auskunft|informationen|renseignements|información|detalles|информаци)/u;
@@ -724,7 +747,9 @@ export function refersGuestToHost(reply: string | null | undefined): boolean {
     const forms = [ps[i], ts[i] ?? ps[i]];
     if (!forms.some((f) => HOST_REFERRAL_PATTERNS.some((re) => re.test(f)))) continue;
     if (forms.some((f) => containsContactValue(f))) continue;
-    if (forms.some((f) => EVENT_CONDITION.test(f)) && !forms.some((f) => INFO_CONDITION.test(f))) continue;
+    if (forms.some((f) => NEGATED_REFERRAL.test(f))) continue;
+    const conditionForms = forms.map((f) => f.replace(WHETHER_IF, "$1$2whether"));
+    if (conditionForms.some((f) => EVENT_CONDITION.test(f)) && !conditionForms.some((f) => INFO_CONDITION.test(f))) continue;
     return true;
   }
   return false;

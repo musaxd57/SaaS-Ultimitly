@@ -65,6 +65,45 @@ describe("ev sahibine yönlendirme", () => {
     }
   });
 
+  it("🚨 Haiku 10-23 akşam: konuş / görüş / yaz / ara / emir 'sorun'; e-posta / yazma; 'ask … if' tümleci; Almanca erfragen", () => {
+    for (const t of [
+      "Bu konuyu ev sahibinizle konuşabilirsiniz.",
+      "Sauna için ev sahibinizle görüşebilirsiniz.",
+      "Ev sahibinize yazabilirsiniz.",
+      "Ev sahibinizi arayabilirsiniz.",
+      "Ev sahibinize sorun.",
+      "Ev sahibinize mesaj atabilirsiniz.",
+      "Please ask your host if you can check out late.",
+      "Your host can tell you if the parking is free.",
+      "Please email your host about the pool.",
+      "Please write to your host about the pool.",
+      "Your host might be able to tell you about the sauna.",
+      "Das können Sie bei Ihrem Gastgeber erfragen.",
+      "Demandez à votre hôte si le parking est gratuit.",
+    ]) {
+      expect(refersGuestToHost(t), t).toBe(true);
+    }
+  });
+
+  it("🚨 Haiku 10-23 akşam: yönlendirmenin OLUMSUZU yönlendirme değildir; ev sahibinin kendi eylemi değildir; acil durum talimatı", () => {
+    for (const t of [
+      "Ev sahibinize sormanıza gerek yok, kahvaltı 08:00'de başlar.",
+      "Ev sahibinizle iletişime geçmenize gerek yok. Check-in 15:00.",
+      "You don't need to contact your host, parking is free.",
+      "There's no need to check with your host; check-in is at 15:00.",
+      "Ev sahibiniz giriş saatinizi sorabilir.",
+      "Ev sahibiniz sizi arayabilir.",
+      "Ev sahibiniz sorun olmadığını belirtti.",
+      "In an emergency, call your host.",
+      "Acil bir durumda ev sahibinizi arayabilirsiniz.",
+      "Contact your host if you lose the key.",
+    ]) {
+      expect(refersGuestToHost(t), t).toBe(false);
+    }
+    // Aynı cümlede başka bir şeyin "gerek yok"u yönlendirmeyi KALDIRMAZ (olumsuzluk fiile bitişik aranır).
+    expect(refersGuestToHost("Havlu getirmenize gerek yok ama otopark için ev sahibinize sorabilirsiniz.")).toBe(true);
+  });
+
   it("çok cümlede yalnız yönlendirme cümlesi sayılır; başka cümledeki koşul onu kurtarmaz", () => {
     expect(refersGuestToHost("Çöpler bina girişindeki konteynere atılır. Sauna için ev sahibinize sorabilirsiniz.")).toBe(true);
     expect(refersGuestToHost("Anahtarı kaybederseniz resepsiyona gidin. Otopark için ev sahibinize sorabilirsiniz.")).toBe(true);
@@ -72,10 +111,10 @@ describe("ev sahibine yönlendirme", () => {
   });
 
   it("iletişim değeri: telefon (10–15 rakam), e-posta, bağlantı; saat / tarih / kapı kodu / fiyat değil", () => {
-    for (const t of ["+90 532 123 45 67", "0532 123 45 67", "info@example.com", "https://example.com/x", "www.example.com"]) {
+    for (const t of ["+90 532 123 45 67", "0532 123 45 67", "info@example.com", "https://example.com/x", "www.example.com", "bit.ly/3xYzAb", "t.me/lixusdestek", "airbnb.com/rooms/123"]) {
       expect(containsContactValue(t), t).toBe(true);
     }
-    for (const t of ["15:00", "12.10.2026", "Kapı kodu 4590", "1.500 TL", "lixusai.com", ""]) {
+    for (const t of ["15:00", "12.10.2026", "Kapı kodu 4590", "1.500 TL", "lixusai.com", "Fiyat 250 TL/gece", "15.00/16.00 arası", "a.m./p.m.", ""]) {
       expect(containsContactValue(t), t).toBe(false);
     }
   });

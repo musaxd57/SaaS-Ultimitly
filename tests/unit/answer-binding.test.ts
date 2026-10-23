@@ -1314,4 +1314,21 @@ describe("ters olumluluk — 'kapalı' sıfat / talimat, olumsuzlanmış ücrets
     expect(pol("Spa açık.", "Spa kapalı havuz açık.", ["spa"])).toContain("polarity_mismatch");
     expect(pol("Ücretsiz otopark var.", "Otopark ücretlidir.", ["otopark"])).toContain("polarity_mismatch");
   });
+
+  it("🚨 Haiku 10-23 akşam: durum bildiren 'kapalı tutuluyor / tutulmaktadır' yüklemdir; baştaki / iyelikli 'kapalı otopark(ı)' sıfattır", () => {
+    for (const src of ["Havuz şu an kapalı tutulmaktadır.", "Havuz kapalı tutuluyor, sauna kullanılabilir.", "Havuz kapalı tutulur."]) {
+      expect([src, pol("Havuz açık.", src, ["havuz"])]).toEqual([src, expect.arrayContaining(["polarity_mismatch"])]);
+    }
+    // Talimat biçimleri olumsuzluk değildir.
+    for (const src of ["Klima çalışırken balkon kapısını kapalı tutun.", "Kışın balkon kapısı kapalı tutulmalıdır."]) {
+      expect([src, pol("Klima kumandası komodinde.", `Klima kumandası komodinde. ${src}`, ["klima", "kumanda"])]).not.toEqual([
+        src,
+        expect.arrayContaining(["polarity_mismatch"]),
+      ]);
+    }
+    expect(pol("Kapalı otopark açıktır.", "Kapalı otopark 08:00-22:00 arası açıktır.", ["otopark"])).not.toContain("polarity_mismatch");
+    expect(pol("Sitenin kapalı otoparkı açık.", "Sitenin kapalı otoparkı 08:00-22:00 arası açıktır.", ["otopark"])).not.toContain("polarity_mismatch");
+    // KONTROL: yüklem "kapalı" + ardından başka tesisin kendi yüklemi → öncekinin yüklemi (olumsuz) kalır.
+    expect(pol("Spa açık.", "Spa kapalı havuz açık.", ["spa"])).toContain("polarity_mismatch");
+  });
 });

@@ -35,8 +35,11 @@ const mockSend = vi.mocked(sendOnChannel);
 
 /** Gerçek ölçümden (10-21): kelime kuralı "is not available" görüp tutuyordu; cevap bir OLGUDUR, itiraf değil. */
 const FACT = "For security, the safe is not available for guest use.";
-/** Kelime kuralının SUSTUĞU geçiştirme ("bilgim yok"un örtük hâli). */
-const DEFLECT = "Your host can confirm whether there is a pool.";
+/**
+ * Kelime kuralının SUSTUĞU geçiştirme ("bilgim yok"un örtük hâli). Kurucu 10-23 akşam 4.5'ten beri "Your host can confirm …" yönlendirmesini
+ * kelime kuralı da tutar; burada yönlendirmesiz bir geçiştirme gerekir.
+ */
+const DEFLECT = "Whether there is a pool is best checked on arrival.";
 
 const DRAFT = (reply: string) => ({
   intent: "amenities",

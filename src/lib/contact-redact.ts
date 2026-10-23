@@ -36,8 +36,11 @@ function digitCount(s: string): number {
   return n;
 }
 
-/** Bağlantı: şema ya da "www." ile başlayan adres (çıplak alan adı "lixusai.com" sayılmaz — cümle içi nokta yanlış pozitif verir). */
-const URL = /(?:https?:\/\/|(?<![\p{L}\p{N}.])www\.)[^\s<>"')\]]{2,200}/iu;
+/**
+ * Bağlantı: şema ya da "www." ile başlayan adres; şemasız alan adı yalnız YOL taşıyorsa ("bit.ly/3xYz", "t.me/kanal", "airbnb.com/rooms/1" —
+ * Haiku 10-23 akşam). Çıplak alan adı ("lixusai.com") sayılmaz — cümle içi nokta yanlış pozitif verir.
+ */
+const URL = /(?:https?:\/\/|(?<![\p{L}\p{N}.])www\.)[^\s<>"')\]]{2,200}|(?<![\p{L}\p{N}.@/])(?:[a-z0-9-]{1,63}\.){1,4}[a-z]{2,24}\/[^\s<>"')\]]{1,200}/iu;
 
 /**
  * Metin bir iletişim DEĞERİ taşıyor mu: telefon (maskeyle aynı kural, 10–15 rakam), e-posta ya da bağlantı (kurucu 10-23 akşam 4.5: onaylı

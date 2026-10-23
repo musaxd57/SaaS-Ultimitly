@@ -372,10 +372,21 @@ function feeAbsence(tokens: readonly string[], i: number): boolean {
  * havuz açık") "kapalı" öncekinin yüklemidir. Yan cümle virgülde biter ("Havuz kapalı, sauna açık" → "kapalı" son belirteç).
  */
 const INDOOR_NOUN = /^(?:havuz|otopark|garaj|park|alan|spor|salon|mekan|balkon|teras|mutfak|yuzme|oyun|jakuzi|sauna|hamam|fitness|bolum|kisim|carsi|yer)/;
+/** İyelik ekli tesis adı ("kapalı havuzu / otoparkı") hep ad öbeğidir — "kapalı" sıfat. */
+const INDOOR_POSSESSED = /^(?:havuz|otopark|garaj|alan|salon|balkon|teras|mutfak|hamam|bolum|kisim|mekan|park)[iu]$|^(?:sauna|jakuzi)s[iu]$/;
+/**
+ * Yalnız TALİMAT / gereklilik biçimi ("kapalı tutun / tutmanız / tutulmalı"); durum bildiren edilgen ("kapalı tutuluyor / tutulmaktadır /
+ * tutulur") yüklemdir, olumsuz kalır (Haiku 10-23 akşam: "Havuz şu an kapalı tutulmaktadır" ↔ "Havuz açık" çelişkisi kaçıyordu).
+ */
+const KEEP_CLOSED_INSTRUCTION = /^tut(?:un|unuz|mayi|maniz|mali|malisiniz|malidir|ulmali|ulmalidir|ulmasi|ulmasini)$/;
 function closedIsNotPredicate(tokens: readonly string[], i: number): boolean {
   const next = tokens[i + 1] ?? "";
-  if (/^tut/.test(next)) return true;
-  return INDOOR_NOUN.test(next) && !/^(?:acik|kapali)/.test(tokens[i + 2] ?? "");
+  if (KEEP_CLOSED_INSTRUCTION.test(next)) return true;
+  if (!INDOOR_NOUN.test(next)) return false;
+  // Metnin başındaki "Kapalı otopark …" ya da iyelikli ad öbeği önceki bir öznenin yüklemi olamaz (Haiku 10-23 akşam: "Kapalı otopark
+  // açıktır" ters olumluluk sayılıyordu).
+  if (i === 0 || INDOOR_POSSESSED.test(next)) return true;
+  return !/^(?:acik|kapali)/.test(tokens[i + 2] ?? "");
 }
 
 function negAt(tokens: readonly string[], i: number): boolean {

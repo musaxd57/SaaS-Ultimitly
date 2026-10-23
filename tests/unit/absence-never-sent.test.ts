@@ -64,8 +64,10 @@ describe("'bilgim yok' misafire GİTMEZ — oto-yanıt kapısı", () => {
       expect(admitsMissingKnowledge(reply), reply).toBe(true);
       expect(passesAutoReplySafetyGate({ ...BENIGN, reply }, "Otopark var mı?"), reply).toBe(false);
     }
-    // Yönlendirme yüklemi olmayan ev sahibi anması (konuşma önerisi, olgu) gitmeye devam eder.
-    for (const reply of ["Bu konuyu ev sahibinizle konuşabilirsiniz.", "Ev sahibiniz sizi kapıda karşılayacak."]) {
+    // Haiku 10-23 akşam: "konuşabilirsiniz / görüşebilirsiniz / yazabilirsiniz" de yönlendirmedir (misafir öznesi).
+    expect(admitsMissingKnowledge("Bu konuyu ev sahibinizle konuşabilirsiniz.")).toBe(true);
+    // Yönlendirme yüklemi olmayan ev sahibi anması (olgu, ev sahibinin kendi eylemi) gitmeye devam eder.
+    for (const reply of ["Ev sahibiniz sizi kapıda karşılayacak.", "Ev sahibiniz giriş saatinizi sorabilir."]) {
       expect(admitsMissingKnowledge(reply), reply).toBe(false);
     }
   });
@@ -286,7 +288,7 @@ describe("🚨 KAÇAK PİNLERİ — modelin GERÇEKTE yazdığı yokluk ifadeler
     // ürünün MEŞRU bir davranışını keserdi. Ölçülmüş karşı örnek:
     expect(admitsMissingKnowledge("Sorunuzu tam anladığımdan emin değilim, hangi tarihten bahsediyorsunuz?")).toBe(false);
     expect(admitsMissingKnowledge("Bu konuda emin değilim.")).toBe(false);
-    expect(admitsMissingKnowledge("Bu konuyu ev sahibinizle konuşabilirsiniz.")).toBe(false);
+    expect(admitsMissingKnowledge("Bu konuyu ev sahibinizle konuşabilirsiniz.")).toBe(true);
     expect(admitsMissingKnowledge("Bu konuda ev sahibinizle iletişime geçebilirsiniz.")).toBe(true);
   });
 });
