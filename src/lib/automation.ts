@@ -122,7 +122,7 @@ import { sanitizePromptValue, selectHistoryForPrompt } from "@/lib/ai/prompts";
 import { apartmentResolvable, guestFirstNameOf, usesApartmentToken } from "@/lib/kb-placeholders";
 import { buildGuestMessageBody, hasUnfilledPlaceholders } from "@/lib/auto-messages/render";
 import { autoMessageStillAt, loadAutoMessage, recordAutoMessageSkip } from "@/lib/auto-messages/store";
-import { modelGuestFirstName, stripLeadingGreeting } from "@/lib/ai/code-greeting";
+import { isGreetingOnly, modelGuestFirstName, stripLeadingGreeting } from "@/lib/ai/code-greeting";
 import { applyPromptKbAudit, buildKbEvidence } from "@/lib/ai/grounding";
 import { closableAfter, closingMayHide, lexicalClosingOnly, semanticClosingOnly } from "@/lib/ai/closing-turn";
 import {
@@ -2672,11 +2672,18 @@ export async function applyChannelAutoReply(
   // Kapı bekçinin hükmüyle BAŞTAN değerlendirilir. Önizleme (dryRun) de aynı yoldan — "gönderilirdi" dürüst kalsın.
   // Codex 10-23 (madde 4: "önceki taslağın onayı, değişmiş metne otomatik taşınmasın"): cevap parçaları kipinde kodun ve okuyucunun ONAYLADIĞI
   // her parça gönderilecek SON metinde AYNEN durmalı — selam, dolgu silme, konu ayıklaması ya da yeniden yazma sonrası değişen parça eski onayla
-  // gitmez: beyan geçersiz sayılır → kapı turu tutar (istekler ev sahibinde açık kalır).
+  // gitmez: beyan geçersiz sayılır → kapı turu tutar (istekler ev sahibinde açık kalır). Büyük / küçük harf ve boşluk farkı değişiklik
+  // sayılmaz (selam silinince ilk harf büyür); selamdan ibaret ya da boş parça hiçbir metinde "duruyor" sayılmaz (Haiku 10-23 sabah: boş
+  // dize her metnin içindedir).
   if (replyItems?.parts && result.source === "openai" && result.answeredRequests?.ok === true && (result.verifiedParts?.length ?? 0) > 0) {
     const answeredRefs = result.answeredRequests.refs;
-    const finalText = result.reply ?? "";
-    const altered = (result.verifiedParts ?? []).some((v) => answeredRefs.includes(v.ref) && !finalText.includes(stripLeadingGreeting(v.text)));
+    const fold = (s: string) => s.toLocaleLowerCase("tr").replace(/\s+/gu, " ").trim();
+    const finalText = fold(result.reply ?? "");
+    const altered = (result.verifiedParts ?? []).some((v) => {
+      if (!answeredRefs.includes(v.ref)) return false;
+      const body = fold(stripLeadingGreeting(v.text));
+      return body === "" || isGreetingOnly(v.text) || !finalText.includes(body);
+    });
     if (altered) result = { ...result, answeredRequests: { ok: false, reason: "missing" } };
   }
   let gateFailure = autoReplyGateFailure(result, last.body, gateContext);

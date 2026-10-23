@@ -1869,6 +1869,30 @@ describe("CEVAP PARÇALARI (kurucu 10-23 A, AI_ANSWER_PARTS_ENABLED)", () => {
       }),
     );
     expect((await applyChannelAutoReply(second.conversationId)).sent).toBe(true);
+    // Haiku 10-23 sabah: selamdan ibaret "cevap" parçası her selamlı metinde "duruyor" sayılıyordu → tutulur.
+    const third = await seed("Çıkış saat kaçta? Sauna var mı?");
+    understands(twoNeeds());
+    mockSuggest.mockResolvedValueOnce(
+      verdict({
+        intent: "checkout_time",
+        reply: "Merhaba Alex,\n\nÇıkış saati 11:00.",
+        answeredRequests: { ok: true, refs: ["R1"] },
+        verifiedParts: [{ ref: "R1", text: "Merhaba Alex,", evidence: "Check-out saati: 11:00", source: "property" }],
+      }),
+    );
+    expect((await applyChannelAutoReply(third.conversationId)).sent).toBe(false);
+    // Yalnız harf büyüklüğü / boşluk farkı (selam silinince ilk harf büyür; metin selamla aynı satırda) değişiklik sayılmaz → gider.
+    const fourth = await seed("Çıkış saat kaçta? Sauna var mı?");
+    understands(twoNeeds());
+    mockSuggest.mockResolvedValueOnce(
+      verdict({
+        intent: "checkout_time",
+        reply: "Merhaba Alex, çıkış  saati 11:00.",
+        answeredRequests: { ok: true, refs: ["R1"] },
+        verifiedParts: [{ ref: "R1", text: "Merhaba! çıkış saati 11:00.", evidence: "Check-out saati: 11:00", source: "property" }],
+      }),
+    );
+    expect((await applyChannelAutoReply(fourth.conversationId)).sent).toBe(true);
   });
 
   it("anahtar kapalı: cevap modeline parça kipi GİTMEZ (girdi bugünküyle aynı)", async () => {

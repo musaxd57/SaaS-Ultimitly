@@ -3,6 +3,7 @@ import {
   applyCodeGreeting,
   codeGreetingEnabled,
   greetingLine,
+  isGreetingOnly,
   modelGuestFirstName,
   salutationNameOf,
   stripLeadingGreeting,
@@ -234,5 +235,14 @@ describe("selam ayıklayıcı içeriğe dokunmaz (Codex 09-30 C3)", () => {
     expect(applyCodeGreeting({ reply: "Merhaba!\nÇıkış 11:00.", firstReply: true, tone: "warm", language: "tr", name: "Ada" })).toBe(
       "Merhaba Ada,\n\nÇıkış 11:00.",
     );
+  });
+});
+
+describe("yalnız selam mı (parça kipi son metin denetimi, Haiku 10-23 sabah)", () => {
+  it("adlı ya da adsız yalnız selam → evet; arkasında içerik olan selam ve selamsız metin → hayır", () => {
+    for (const t of ["Merhaba", "Merhaba Alex,", "Hi there 👋", "Günaydın Ayşe Hanım!", "Merhaba,\n"]) expect(isGreetingOnly(t)).toBe(true);
+    for (const t of ["Merhaba Alex, çıkış 11:00.", "Merhaba! Çıkış saati 11:00.", "Çıkış saati 11:00.", "Hi Michael, the pool closes at 20:00."]) {
+      expect(isGreetingOnly(t)).toBe(false);
+    }
   });
 });

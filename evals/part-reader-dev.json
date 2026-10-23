@@ -186,6 +186,17 @@
    "why": "çocuklar ücretsiz kaynakta yok"
   },
   {
+   "id": "e-v3-kaca-kadar-bitis-yeter",
+   "guest": "Kahvaltı kaça kadar?",
+   "request": "kahvaltı kaça kadar",
+   "part": "Kahvaltı hafta içi 10:30'a, hafta sonu 11:00'e kadar servis ediliyor.",
+   "notes": [
+    "[amenities] Kahvaltı: Kahvaltı 08:00-10:30 arası, hafta sonu 11:00'e kadar zemin kattaki kafede verilir."
+   ],
+   "expect": "keep",
+   "why": "E ölçümü v3 (gerçek akış): 'kaça kadar' sorusuna iki bitiş saati tam cevap; açılış saati sorulmadı"
+  },
+  {
    "id": "saat-baska-tesise",
    "guest": "Sauna kaça kadar açık?",
    "request": "sauna kaça kadar açık",

@@ -200,6 +200,11 @@ const realFetch = globalThis.fetch;
  */
 let partsRawLog: unknown[] = [];
 /**
+ * E v3 neden analizi: anlama katmanının okuduğu istekler (tür + Türkçe / özgün sorgu; sentetik veri) — kodun yön / koşul denetimi sorgudan
+ * okur ("aspect_missing" hangi sorguyla tutuldu). Mühürlü kör raporun yan dosyası bunu YAZMAZ (yalnız kimlik + sayı).
+ */
+let requestsRawLog: unknown[] = [];
+/**
  * 10-23 E: "okuyucu hata verdi" kolu — kıdemli okuyucu çağrısı (şema `senior_reader`) ve parça okuyucusu (şema `part_reader`, Soru 11) gerçek
  * ağa gitmeden 503 döner.
  */
@@ -227,6 +232,17 @@ function meteredFetch(input: Parameters<typeof fetch>[0], init?: Parameters<type
           const answers = (JSON.parse(content) as { answers?: unknown }).answers;
           // Yalnız cevap modelinin parça dizisi (`ref` taşıyan kayıtlar); başka katmanın aynı adlı alanı alınmaz.
           if (Array.isArray(answers) && answers.some((a) => a && typeof a === "object" && "ref" in a)) partsRawLog.push(answers);
+        }
+        if (typeof content === "string" && content.includes('"query_tr"')) {
+          const requests = (JSON.parse(content) as { requests?: unknown }).requests;
+          if (Array.isArray(requests)) {
+            requestsRawLog.push(
+              requests.map((r) => {
+                const o = (r ?? {}) as Record<string, unknown>;
+                return { intent: o.intent, query_tr: o.query_tr, query_original: o.query_original };
+              }),
+            );
+          }
         }
       } catch {
         /* JSON olmayan yanıt: sayılmaz */
@@ -382,6 +398,7 @@ interface Row {
   absenceLeak?: boolean;
   /** Ölçer içi neden analizi: cevap modelinin ham parça kayıtları (çağrı başına; sentetik veri). */
   partsRaw?: readonly unknown[];
+  requestsRaw?: readonly unknown[];
   ms: number;
   error?: string;
 }
@@ -496,6 +513,7 @@ async function runOnce(s: Scenario): Promise<Omit<Row, "retried">> {
   mockMail.mockClear();
   spySuggest.mockClear();
   partsRawLog = [];
+  requestsRawLog = [];
   const { conversationId } = await seed(s);
   const t0 = Date.now();
   const out = await applyChannelAutoReply(conversationId);
@@ -565,6 +583,7 @@ async function runOnce(s: Scenario): Promise<Omit<Row, "retried">> {
           parts: raw?.source === "openai" && raw.answerParts ? raw.answerParts.map((v) => ({ ref: v.ref, status: v.status, ...("issues" in v ? { issues: v.issues } : {}) })) : null,
           absenceLeak: sentText ? ABSENCE_LEAK.test(sentText) : false,
           ...(partsRawLog.length > 0 ? { partsRaw: partsRawLog } : {}),
+          ...(requestsRawLog.length > 0 ? { requestsRaw: requestsRawLog } : {}),
         }
       : {}),
     ms,

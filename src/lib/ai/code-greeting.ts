@@ -156,6 +156,18 @@ export function stripLeadingGreeting(reply: string, language?: string | null): s
 }
 
 /**
+ * Metin yalnız selamdan ibaret mi ("Merhaba", "Merhaba Ayşe,") — selamdan ibaret parça bir isteğin cevabı olamaz (Haiku 10-23 sabah). Adla
+ * selam (listede olmayan hitap) `other` sayılır; arkasında içerik yoksa o da yalnız selamdır.
+ */
+export function isGreetingOnly(text: string): boolean {
+  const g = leadingGreeting(text);
+  if (g.kind === "only") return true;
+  if (g.kind !== "other" || text.length > GREETING_SCAN) return false;
+  const m = OTHER_GREETING.exec(text.replace(/[ıİ]/g, "i"));
+  return !!m && text.slice(m[0].length).trim() === "";
+}
+
+/**
  * Anahtar açıkken modelin cevabını misafire gidecek metne çevirir: baştaki tanınan selam silinir; İLK cevapsa ve ton "short" değilse
  * kodun selam satırı eklenir. Model tanınmayan biriyle selamlaştıysa ya da cevap yalnız selamsa cevaba dokunulmaz, kodun selamı
  * eklenmez (çift selam yok). İlk cevap bilgisi yoksa (tek mesajlık önizleme) ilk cevap sayılır.

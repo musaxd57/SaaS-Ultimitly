@@ -109,6 +109,8 @@ describe("okuyucunun gördüğü metin", () => {
     expect(PART_READER_SYSTEM_PROMPT).toContain("A part is never \"partly\" or \"no\" because it does not answer the guest's OTHER");
     expect(PART_READER_SYSTEM_PROMPT).toContain("yes/no question answered with the relevant fact is \"yes\"");
     expect(PART_READER_SYSTEM_PROMPT).toContain("Being correct and being an answer are SEPARATE questions");
+    // E ölçümü v3: "kaça kadar" sorusuna bitiş saatleriyle cevap, notta açılış saati de var diye "yarım" sayılıyordu.
+    expect(PART_READER_SYSTEM_PROMPT).toContain("leaving out something the notes say");
   });
 
   it("istem örnekleri ölçüm setinin konularından farklı (havuz / sauna / otopark / kahvaltı geçmez)", () => {
