@@ -52,7 +52,11 @@ bekliyor). Teyit yalnız başka konuşmadan; kayıtlı metin yalnız HARFİYEN k
 sonunda, niteleyici değerin yerinde, saf varlık muafiyeti, diller arası olgu sayımı, ücretsizlik sınırı, kalemde olmayan ikinci konu, yan cümle
 bazlı olumluluk, uzun metin konu önbelleği; sıra kipi ilişkisiz satırı kapatmaz (F10 daraltıldı, kurucu B); etikette şifre değeri yok). 139 gerçek
 parça kıyas seti 108/139 değişmedi (+2 doğru Almanca). Anahtarlar KAPALI (`AI_ANSWER_PARTS_ENABLED`, `AI_ITEM_ORDINAL_ENABLED`,
-`AI_ANSWER_REUSE_SHADOW_ENABLED`).
+`AI_ANSWER_REUSE_SHADOW_ENABLED`). Opus uçtan uca (parça kipinin çevresi, rapor §3c): sorulan YÖN (saat / ücret — anlama katmanının istek
+başına ANAHTAR SÖZCÜK sorgularından, `answer-binding.askedAspects`) cevaplanmadan istek kapanmaz; tek istekte iki tesis → ikisi de anılmalı;
+bir istek cevapsız + tur tutuldu → ev sahibine tek e-posta; parça kipi yalnız sıra kipiyle (`AI_ITEM_ORDINAL_ENABLED=1`) açılır; bu okumada
+karşılığı olmayan eski açık satır cevaplanabilir değil; aynı metin bir kez; çelişen standart saat mülk kaynağından düşer. Açık sorular rapor §6
+(6–8: kısmi gönderimde e-posta, iki tesiste yarım cevap, parça kipinde güven eşiği). E v6: 31/38 doğru, 8/8 açık, 0 yanlış.
 
 **10-23 gece:** büyük rapor `docs/RAPOR-2026-10-23-gece-buyuk-rapor.md`. Soru 1 kodda (`topic-absence.needTerms`:
 misafirin kendi soru sözcükleri; gönderime izin veren eşleşme SIKI = yalnız çekim eki, tutma yönü GEVŞEK; anahtar `AI_TOPIC_ABSENCE_ENABLED` KAPALI) ·

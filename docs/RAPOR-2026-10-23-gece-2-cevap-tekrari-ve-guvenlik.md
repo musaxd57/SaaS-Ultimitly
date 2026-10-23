@@ -117,15 +117,41 @@ Hepsi kapalı anahtarlı parça kipi / cevap tekrarı / sıra kipinde. "Önce �
 cevabın ("Der Pool schließt täglich um 20:00 Uhr …") artık geçmesi (eskiden "schließt" okunamadığı için tutuluyordu). Opus'un "(yanlış)" etiketli
 örneklerinin hiçbiri geçmiyor; tutulan doğrular yalnız bilinçli sınırlar (kapasite sorusu, kalemde yönsüz saate yön eklenmesi).
 
-## 4. Gerçek modelle yeniden ölçüm (E v5, onaylı Luna yapılandırması, $0,11)
+## 3c. Haiku 2. tur + Opus uçtan uca inceleme (parça kipinin ÇEVRESİ — doğrulayıcı dışı)
+
+**Haiku (8f7f3b87):** 13 yanlış kabul tutulur, 9 yanlış tutma gider (doğrulayıcı, cevap tekrarı, sıra kipi, etiket) — her biri eski kodda
+kırmızı testle pinli.
+
+**Opus uçtan uca (11 bulgu; parça kipi + sıra kipi + kıdemli okuyucu birlikte):** misafire doğrulanmamış metin giden YOL BULUNAMADI (modelin
+serbest cevabı hiç gitmiyor). Bulunanlar "soruyu cevaplamadan kapatma" ve "ev sahibini habersiz bırakma" sınıfında:
+
+| # | bulgu | örnek (önce) | şimdi |
+|---|---|---|---|
+| F2 🔴 | Doğru ama SORULANI cevaplamayan parça isteği kapatıyordu | "Havuz kaçta açılıyor?" → "Havuz ısıtmalıdır." gidiyor, istek "cevaplandı"; "Otopark ücreti ne kadar?" → "Otopark binanın arkasındadır." | saat sorusu saat (ya da "7/24 açık", "kışın kapalı"), ücret sorusu tutar ya da ücret sözcüğü ("ücretsizdir", "dahildir") ister; yoksa parça GİTMEZ, istek açık kalır. Yalnız açık iki yön (saat, ücret) — "nerede / ne zaman / var mı" bugünkü kural |
+| F3 🔴 | Anlama katmanı "sauna ve havuz kaçta" diye TEK istek okuyunca yalnız havuzu söyleyen parça isteği kapatıyordu | sauna sorusu kayboluyordu | iki tesis soran istek iki tesisi de anan parçayla kapanır |
+| F1 🔴 | Bir parça doğrulanıp öteki cevapsız kaldı ve tur tutulduysa ev sahibine e-posta GİTMİYORDU (eski kipte model "ev sahibinize iletiyorum" yazar, e-posta giderdi) | "Wi-Fi şifresi nedir? Saat 11'de erken giriş yapabilir miyiz?" → misafire hiçbir şey, ev sahibine hiçbir şey | tek "Misafir cevabınızı bekliyor" e-postası. Bütün parçalar doğrulanmış ama başka sebeple tutulan tur eski kiple aynı (e-posta yok) |
+| F4 | Parça kipi sıra kipi kapalıyken açılabiliyordu → aynı türden iki soru tek işte, havuz cevabı sauna sorusunu da kapatıyordu | — | parça kipi yalnız `AI_ITEM_ORDINAL_ENABLED=1` ile birlikte açılır (açılış belgesine de yazıldı) |
+| F5 | Önceki geçişten kalan açık satır ipucusuz bir istek kimliği oluyordu; model sorusunu görmeden kapatabiliyordu | — | parça kipinde yalnız bu okumada karşılığı olan satırlar cevaplanabilir; öteki açık kalır |
+| F7 | Aynı parça iki kez gidiyordu; her parçanın selamı metnin ortasında kalıyordu | "Wi-Fi şifresi: …\nWi-Fi şifresi: …" | metin bir kez (iki istek de kapanır); 2. ve sonraki parçanın baştaki selamı atılır |
+| F9 | Bilgi tabanıyla ÇELİŞEN standart giriş saati parça kaynağıydı → çelişki bütün turu tutuyordu | — | çelişen satır kaynaktan düşer: yalnız o parça reddedilir, öteki doğrulanmış parçalar gidebilir |
+
+Kalanlar (kod değişmedi, karar sizde — §6): **F6** kısmi gönderimde cevapsız güvenli soru için e-posta yok (bugünkü kısmi cevap kuralı,
+10-16 tasarımı) · **F8** kapı, parça kipinde de modelin ATILAN serbest cevabının güven / eylem beyanını okuyor (yalnız fazladan tutma; gevşetmek
+güvenlik kapısı kararı) · **F10** kalıcı kuyrukta teslim düşerse istek "cevaplandı" kalır (bilinen sınır) · **F11** ihtiyaç başına ~60–80 ms
+doğrusal (tavan gerekmedi).
+
+## 4. Gerçek modelle yeniden ölçüm (E v5 / v6, onaylı Luna yapılandırması)
 
 | kol | doğru değerle cevaplanan | açık kalması gereken açık kaldı | 🚨 yanlış | "bilgim yok" / iç kaynak | giden mesaj |
 |---|---|---|---|---|---|
 | yeni akış · okuyucu açık · v4 (dünkü kod) | 30/38 | 8/8 | 0 | 0 | 25/32 |
-| yeni akış · okuyucu açık · **v5 (bu gecenin sertleştirmesiyle)** | **30/38** | **8/8** | **0** | **0** | 25/32 |
+| yeni akış · okuyucu açık · v5 (bu gecenin ilk sertleştirmesiyle) | 30/38 | 8/8 | 0 | 0 | 25/32 |
+| yeni akış · okuyucu açık · **v6 (Opus 2. tur R1–R15 sonrası, `3af7943d`)** | **31/38** | **8/8** | **0** | **0** | **26/32** |
 
 v5'te farklılaşan 4 senaryonun ikisi kazanç, ikisi kayıp: biri modelin kendi düşük güveni (doğrulayıcı değil), öteki "devam ediyor"
 söyleyişi — bu gece düzeltildi. Rapor: `docs/olcum/live-pipeline-2026-10-22-gpt-6-luna-needs-2026-10-23-e1023-new-on-v5.{md,json}`.
+v6 ($0,11): yön / sınır / ikinci konu sertleştirmesi doğru cevap kaybettirmedi, bir doğru cevap daha gitti; yanlış hâlâ 0. Rapor:
+`…-e1023-new-on-v6.{md,json}`. Ücretli ölçüm toplamı bu gece: v5 + v6 = $0,22 (onaylı E kapsamı).
 
 ## 5. Kalite kapıları
 
@@ -144,6 +170,17 @@ söyleyişi — bu gece düzeltildi. Rapor: `docs/olcum/live-pipeline-2026-10-22
 4. **Yönsüz bilgi tabanı satırları:** "Havuz 20:00" (açılış mı kapanış mı belli değil) yazan kalemde model "kapanır" derse artık tutuluyor.
    Bilgi tabanı ekranında "saatin açılış mı kapanış mı olduğunu yazın" ipucu gösterelim mi?
 5. (Önceki rapordan açık) parça kipinin misafire giden biçimi · B paneli · etiketin yeniden okumada ipucu olması.
+6. **Kısmi gönderimde cevapsız soru için e-posta (Opus e2e F6):** bugün "Wi-Fi şifresi nedir? Saunanız var mı?" (saunası bilgide yok) →
+   misafire "Wi-Fi şifresi: …" gider, sauna sorusu panelde açık kalır, e-posta GİTMEZ (10-16 kısmi cevap kuralı). Seçenek: ev sahibine
+   "1 soru cevapsız kaldı: Saunanız var mı?" e-postası (mesaj başına tek). Önerim: parça kipi açılırken evet — eski kipte model bu soruya
+   "ev sahibinize iletiyorum" yazar, tur tutulur ve e-posta giderdi; parça kipi cevabı gönderip soruyu sessiz bırakıyor.
+7. **İki tesisli soruda yarım cevap (F3):** "Sauna ve havuz kaçta açık?" tek istek okunduysa ve bilgide yalnız havuz varsa bugün HİÇBİR şey
+   gitmez (istek açık, ev sahibine e-posta). Seçenek: "Havuz 09:00-20:00 arası açıktır." gitsin, istek yine açık kalsın. Önerim: gitsin
+   (doğru ve sorulan bilgi), ama 6. sorudaki e-posta ile birlikte.
+8. **Parça kipinde güven eşiği (F8):** kapı parça kipinde de modelin ATILAN serbest cevabının güvenini ve eylem beyanını okuyor; bütün parçaları
+   kodla doğrulanmış bir tur, modelin "emin değilim" demesiyle tutulabiliyor (yalnız fazladan tutma, yanlış gönderme yok). Gevşetmek
+   güvenlik kapısı kararıdır. E v6'da sayıldı: bütün parçaları doğrulanıp tutulan tur **0**; "bir parça doğrulandı + biri bilgi yok" ile
+   tutulan **2** tur (n-tr-giris-erken, n-tr-anahtar-hamam) — ikisi de F1 sınıfı, artık ev sahibine e-posta gider. Önerim: şimdilik değiştirmeyelim.
 
 ## 7. Bilinen sınırlar (hepsi TUTMA yönünde — yanlış göndermez, ev sahibine bırakır)
 - Kapasite soruları ("daire kaç kişilik") her zaman ev sahibine kalır ("kişi / kapasite" nitelik sözcüğü, konu sözcüğü kalmıyor).
