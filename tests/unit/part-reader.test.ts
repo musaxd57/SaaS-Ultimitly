@@ -8,7 +8,9 @@ vi.mock("server-only", () => ({}));
 
 import {
   buildPartReaderUserContent,
+  parsePartReaderOpen,
   parsePartReaderVerdict,
+  PART_READER_JSON_SCHEMA,
   partReaderHolds,
   PART_READER_MAX_PARTS,
   PART_READER_NOTES_CAP,
@@ -111,6 +113,23 @@ describe("okuyucunun gördüğü metin", () => {
     const text = buildPartReaderUserContent({ guestMessage: "m", dateLine: "Today (property time zone): Fri 2026-10-23. Guest's booking: check-in day Thu 2026-10-22, check-out day Mon 2026-10-26.", parts: [] });
     expect(text.startsWith("DATES: Today (property time zone): Fri 2026-10-23.")).toBe(true);
     expect(PART_READER_SYSTEM_PROMPT).toContain("does not cover the guest's stay");
+  });
+
+  it("🚨 Codex 10-23 + kurucu etiketi: genel soruya yalnız bilinen özel durum → 'only_known_case' (gider, ihtiyaç açık kalır); şemada zorunlu", () => {
+    expect(PART_READER_JSON_SCHEMA.schema.properties.parts.items.required).toContain("only_known_case");
+    expect(PART_READER_SYSTEM_PROMPT).toContain("only_known_case = true when the guest asked IN GENERAL");
+    const data = {
+      parts: [
+        { ref: "R1", answers_request: "yes", supported_by_notes: true, binding_ok: true, exception_without_rule: false, only_known_case: true, quote: "" },
+        { ref: "R2", answers_request: "yes", supported_by_notes: true, binding_ok: true, exception_without_rule: false, only_known_case: false, quote: "" },
+        { ref: "R3", answers_request: "yes", supported_by_notes: true, binding_ok: true, exception_without_rule: false, quote: "" },
+        { ref: "R4", answers_request: "yes", supported_by_notes: true, binding_ok: true, exception_without_rule: false, only_known_case: "true", quote: "" },
+      ],
+    };
+    // Yalnız tam `true`; alan eksik / yanlış tipte ise kümeye girmez (tutma kararı ayrıdır).
+    expect([...parsePartReaderOpen(data, ["R1", "R2", "R3", "R4"])]).toEqual(["R1"]);
+    expect(parsePartReaderOpen({ parts: "x" }, ["R1"]).size).toBe(0);
+    expect(parsePartReaderOpen(null, ["R1"]).size).toBe(0);
   });
 
   it("Codex S3: koddan okuyucuya geçen anlam denetimleri istemde AÇIKÇA (yön, sorulan yön, ters evet / hayır, başka hizmetin değeri, düşen koşul)", () => {

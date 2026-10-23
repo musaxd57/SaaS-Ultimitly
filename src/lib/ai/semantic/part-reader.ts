@@ -94,6 +94,12 @@ export const PART_READER_SYSTEM_PROMPT = [
   "open until midnight.' → true. false when the guest asked about that case, when the part also gives the general rule, or when the notes",
   "have no general rule.",
   "",
+  "only_known_case = true when the guest asked IN GENERAL (no day, period or case named — 'when does the games room close?') and the NOTES",
+  "themselves cover only a special case (only the weekend, only one season, only one day), so the part can give only that case, with its",
+  "case named ('At weekends the games room is open until 23:00.'). Such a part is correct and is still sent, but the general question is",
+  "not fully settled — the host is told. false when the notes also cover the general case, when the guest asked about that very case, or when",
+  "the question has no days, periods or cases.",
+  "",
   "quote: when any answer above is not the good one, copy at most 15 words of the part concerned; otherwise an empty string.",
 ].join("\n");
 
@@ -110,13 +116,14 @@ export const PART_READER_JSON_SCHEMA = {
         items: {
           type: "object",
           additionalProperties: false,
-          required: ["ref", "answers_request", "supported_by_notes", "binding_ok", "exception_without_rule", "quote"],
+          required: ["ref", "answers_request", "supported_by_notes", "binding_ok", "exception_without_rule", "only_known_case", "quote"],
           properties: {
             ref: { type: "string" },
             answers_request: { type: "string", enum: ["yes", "partly", "no", "unsure"] },
             supported_by_notes: { type: "boolean" },
             binding_ok: { type: "boolean" },
             exception_without_rule: { type: "boolean" },
+            only_known_case: { type: "boolean" },
             quote: { type: "string" },
           },
         },
@@ -177,7 +184,11 @@ export interface PartReaderInput {
   fetchImpl?: typeof fetch;
 }
 
-export type PartReaderOutcome = { status: "ok"; holds: Map<string, PartReaderHold> } | { status: "failed" };
+/**
+ * `keepOpen`: gönderilecek ama ihtiyacı KAPATMAYACAK parçalar (`only_known_case`: misafir genel sordu, notlar yalnız özel durumu biliyor —
+ * Codex 10-23 + kurucu etiketi: "giden cevap doğru ama hafta içi sorulmuş olabilir"). Tutulan parça bu kümede olmaz.
+ */
+export type PartReaderOutcome = { status: "ok"; holds: Map<string, PartReaderHold>; keepOpen?: Set<string> } | { status: "failed" };
 
 const knownNames = (input: Pick<PartReaderInput, "names">) =>
   (input.names ?? []).filter((n): n is string => typeof n === "string" && n.trim().length > 0);
@@ -250,6 +261,21 @@ export function parsePartReaderVerdict(data: unknown, refs: readonly string[]): 
 }
 
 /**
+ * `only_known_case: true` diyen parçalar (saf). Alan eksik / yanlış tipteyse parça bu kümeye girmez (eski şema / test kalıbı); tutma kararı
+ * `parsePartReaderVerdict`ten bağımsızdır — çağıran tutulanları çıkarır.
+ */
+export function parsePartReaderOpen(data: unknown, refs: readonly string[]): Set<string> {
+  const out = new Set<string>();
+  const list = data && typeof data === "object" ? (data as { parts?: unknown }).parts : undefined;
+  if (!Array.isArray(list)) return out;
+  for (const ref of refs) {
+    const rows = list.filter((x) => x && typeof x === "object" && (x as { ref?: unknown }).ref === ref) as Record<string, unknown>[];
+    if (rows.length === 1 && rows[0].only_known_case === true) out.add(ref);
+  }
+  return out;
+}
+
+/**
  * Okuyucuyu koştur (anahtar ÇAĞIRANDA okunur). Asla fırlatmaz: her arıza `{status:"failed"}` → çağıran bütün parçaları tutar. Okunacak
  * parça yoksa çağrı yapılmaz (boş hüküm).
  */
@@ -280,7 +306,8 @@ export async function runPartReader(input: PartReaderInput): Promise<PartReaderO
     for (const ref of refs.slice(PART_READER_MAX_PARTS)) holds.set(ref, "unread");
     const names = knownNames(input);
     for (const p of input.parts) if (notesOverflow(p, names)) holds.set(p.ref, "unread");
-    return { status: "ok", holds };
+    const keepOpen = new Set([...parsePartReaderOpen(res.data, refs)].filter((ref) => !holds.has(ref)));
+    return { status: "ok", holds, ...(keepOpen.size > 0 ? { keepOpen } : {}) };
   } catch {
     return { status: "failed" };
   }

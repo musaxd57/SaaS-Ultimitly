@@ -20,7 +20,7 @@
 
 import "server-only";
 
-import { askedAspects, askedDirection, checkAnswerBinding, missesAskedFacility, missingAspects, type BindingIssue } from "@/lib/ai/answer-binding";
+import { askedAspects, askedConditions, askedDirection, checkAnswerBinding, missesAskedFacility, missingAspects, type BindingIssue } from "@/lib/ai/answer-binding";
 import { stripLeadingGreeting } from "@/lib/ai/code-greeting";
 import { quoteGroundedIn } from "@/lib/ai/semantic/absence-judge";
 import type { PartReaderHold } from "@/lib/ai/semantic/part-reader";
@@ -91,7 +91,14 @@ type ScopeIssue = "aspect_missing" | "subject_partial";
 type ReaderIssue = `reader_${PartReaderHold}`;
 
 export type PartVerdict =
-  | { ref: string; status: "verified"; source: string; advisory?: (BindingIssue | ScopeIssue)[] }
+  | {
+      ref: string;
+      status: "verified";
+      source: string;
+      advisory?: (BindingIssue | ScopeIssue)[];
+      /** Parça gitti ama ihtiyaç KAPANMADI (okuyucu `only_known_case`: genel soruya yalnız bilinen özel durum) — ev sahibinde açık. */
+      openAfterSend?: true;
+    }
   | { ref: string; status: "no_info" | "missing" }
   | {
       ref: string;
@@ -112,7 +119,8 @@ export interface ComposedReply {
    * Doğrulanan parçaların METNİ + alıntısı + kaynağı (doğrulanmış cevap tekrarının gölge ölçümü, migration 85). İzlere / karar kaydına
    * YAZILMAZ; yalnız gölge kayıt tablosuna (misafir metni değil — kalemden doğrulanmış cevap).
    */
-  verified: { ref: string; text: string; evidence: string; source: string; cited?: string[] }[];
+  /** `alsoCited`: alıntının dayanak kaleminden SONRA geçtiği öteki kaynaklar (#199). */
+  verified: { ref: string; text: string; evidence: string; source: string; alsoCited?: string[] }[];
 }
 
 /**
@@ -136,28 +144,53 @@ const QUOTE_TITLE = /^[^:\n\p{Nd}]{1,40}:\s+/u;
 /** Çok parçalı alıntıda her cümlenin en az bu kadar harfi olmalı (tek sözcüklük parça "dayanak" sayılmaz). */
 const MIN_SEGMENT_LETTERS = 8;
 
-function groundedSegment(sources: readonly PartSource[], segment: string): PartSource | undefined {
+const letterCount = (t: string) => (t.match(/\p{L}/gu) ?? []).length;
+/** Kıyas biçimi (alıntı kuralının sadeleştirilmiş eşi): harf büyüklüğü, noktalama / simge ve boşluk farkı yok. */
+const flat = (t: string) =>
+  t
+    .normalize("NFKC")
+    .toLocaleLowerCase("tr")
+    .replace(/[\p{P}\p{S}]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+/**
+ * Alıntının bir parçasının dayanağı. Önce birebir. Olmazsa: model kalem başlığını misafirin diline çevirip alıntıya katabiliyor (kör set
+ * incelemesi 10-23: "Интернет: Wi-Fi adı …" ↔ kalemde "İnternet: Wi-Fi adı …"). Başlık atılır ve kalan YALNIZ bir bilgi tabanı kaleminin
+ * İÇERİĞİNİN BAŞINDA aranır — ortadaki bir cümlenin önüne konan "Hafta sonu:" gibi bir niteleyici başlık sayılmaz (Haiku 10-23: koşul
+ * alıntıya sızıyordu); kalan en az `MIN_SEGMENT_LETTERS` harf.
+ */
+function groundedSegment(sources: readonly PartSource[], segment: string): { source: PartSource; quote: string } | undefined {
   const direct = sources.find((src) => quoteGroundedIn(src.text, segment));
-  if (direct) return direct;
-  // Model kalem başlığını misafirin diline çevirip alıntıya katabiliyor (kör set incelemesi 10-23: "Интернет: Wi-Fi adı …" ↔ kalemde
-  // "İnternet: Wi-Fi adı …"); başlıksız kalan alıntı birebir aranır.
+  if (direct) return { source: direct, quote: segment };
   const rest = segment.replace(QUOTE_TITLE, "");
-  return rest !== segment && rest.trim() ? sources.find((src) => quoteGroundedIn(src.text, rest)) : undefined;
+  if (rest === segment || letterCount(rest) < MIN_SEGMENT_LETTERS) return undefined;
+  // Gün / mevsim / koşul taşıyan "başlık" atılmaz ("Hafta sonu: Havuz 23:00'e kadar açıktır." — kalemin başlığı "Havuz" iken model başına koşul
+  // koymuş olabilir; o koşul kalemde yok).
+  if (askedConditions(segment.slice(0, segment.length - rest.length)).length > 0) return undefined;
+  const head = flat(rest);
+  const source = sources.find((src) => {
+    // `kbLine` biçimi: "- [KATEGORİ] Başlık: içerik".
+    const close = src.text.indexOf("] ");
+    const colon = close >= 0 ? src.text.indexOf(": ", close) : -1;
+    return colon >= 0 && flat(src.text.slice(colon + 2)).startsWith(head);
+  });
+  return source ? { source, quote: rest } : undefined;
 }
 
 /**
  * Alıntının dayanağı. Bütün alıntı tek kaynakta geçiyorsa o kaynak (bugünkü kural, aynen). Geçmiyorsa alıntı cümlelere bölünür ve HER cümle
  * istemdeki bir kaynakta birebir aranır (kör set incelemesi 10-23: genel kural ve istisnası iki ayrı kalemdeydi, model ikisini tek alıntıda
  * birleştirdi; doğru cevap "kaynak yok" diye tutuluyordu). Tek cümlesi bile bulunamayan alıntı dayanaksızdır. Bağ denetimine giden alıntı
- * dayanak kaleminde geçen ilk cümledir; öteki kalemler zaten `otherSources` olarak okunur. `cited`: alıntının geçtiği bütün kaynaklar (ilki dayanak) —
- * okuyucu hepsini not olarak görür (konu sözcüğü eşleşmeyen ikinci kalem de).
+ * dayanak kaleminde geçen ilk cümledir; öteki kalemler zaten `otherSources` olarak okunur. `cited`: alıntının geçtiği bütün kaynaklar (ilki
+ * dayanak) — okuyucu hepsini not olarak görür (konu sözcüğü eşleşmeyen ikinci kalem de).
  */
 export function groundEvidence(
   sources: readonly PartSource[],
   evidence: string,
 ): { source: PartSource; quote: string; cited: PartSource[] } | null {
   const whole = groundedSegment(sources, evidence);
-  if (whole) return { source: whole, quote: quoteGroundedIn(whole.text, evidence) ? evidence : evidence.replace(QUOTE_TITLE, ""), cited: [whole] };
+  if (whole) return { ...whole, cited: [whole.source] };
   const segments = evidence
     .split(QUOTE_SENTENCE_END)
     .map((x) => x.trim())
@@ -165,10 +198,10 @@ export function groundEvidence(
   if (segments.length < 2) return null;
   const hits: { source: PartSource; quote: string }[] = [];
   for (const seg of segments) {
-    if ((seg.match(/\p{L}/gu) ?? []).length < MIN_SEGMENT_LETTERS) return null;
-    const src = groundedSegment(sources, seg);
-    if (!src) return null;
-    hits.push({ source: src, quote: quoteGroundedIn(src.text, seg) ? seg : seg.replace(QUOTE_TITLE, "") });
+    const hit = groundedSegment(sources, seg);
+    // Harf tabanı dayanağı bulunan metinde (başlığı atılmış hâli) sayılır: "Hafta sonu: 23:00." başlıkla 9 harf, kendisi 0.
+    if (!hit || letterCount(hit.quote) < MIN_SEGMENT_LETTERS) return null;
+    hits.push(hit);
   }
   return { ...hits[0], cited: [...new Set(hits.map((h) => h.source))] };
 }
@@ -204,6 +237,8 @@ export function composeVerifiedReply(input: {
   sources: readonly PartSource[];
   holds?: ReadonlyMap<string, PartReaderHold>;
   meaningJudge?: "code" | "reader";
+  /** Gönderilecek ama isteği kapatmayacak parçalar (`PartReaderOutcome.keepOpen`). */
+  keepOpen?: ReadonlySet<string>;
 }): ComposedReply {
   const byReader = input.meaningJudge === "reader";
   const texts: string[] = [];
@@ -282,14 +317,23 @@ export function composeVerifiedReply(input: {
       // İkinci ve sonraki parçanın baştaki selamı atılır (metnin ortasında "Merhaba!" kalmasın); ilk parçanınki kodun selam kuralına kalır.
       texts.push(texts.length > 0 ? stripLeadingGreeting(part.text) : part.text);
     }
-    refs.push(need.ref);
-    verdicts.push({ ref: need.ref, status: "verified", source: source.id, ...(advisory.length > 0 ? { advisory } : {}) });
+    // Genel soruya yalnız notların bildiği özel durum (Codex 10-23: "koşullu bilgiyi söylemek ile genel soruyu tamamen cevaplanmış saymak
+    // ayrılmalı"): metin gider, istek "cevaplandı" sayılmaz — ev sahibinde açık kalır.
+    const openAfterSend = input.keepOpen?.has(need.ref) === true;
+    if (!openAfterSend) refs.push(need.ref);
+    verdicts.push({
+      ref: need.ref,
+      status: "verified",
+      source: source.id,
+      ...(advisory.length > 0 ? { advisory } : {}),
+      ...(openAfterSend ? { openAfterSend: true as const } : {}),
+    });
     verified.push({
       ref: need.ref,
       text: part.text,
       evidence: part.evidence,
       source: source.id,
-      ...(cited.length > 1 ? { cited: cited.slice(1).map((c) => c.id) } : {}),
+      ...(cited.length > 1 ? { alsoCited: cited.slice(1).map((c) => c.id) } : {}),
     });
   }
   return { reply: texts.join("\n"), refs, verdicts, verified };

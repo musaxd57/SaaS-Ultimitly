@@ -127,6 +127,12 @@ export function foldForClaims(s: string): string {
     .replace(/[–—−]/g, "-");
 }
 
+/** Rusça / Almanca / Fransızca / İspanyolca kat sözcükleri (`foldForClaims` biçiminde: küçük harf, "é" korunur). */
+const FLOOR_WORDS_INTL = "(?:этаж[а-яё]{0,3}|etage|étage|stockwerk|stock|piso|planta)";
+const FLOOR_INTL_PREFIX = new RegExp(`(?<![\\p{L}\\d.-])(-?)(\\d{1,2})(?:-?(?:м|й|ом|ем|ий|ой)|\\.|e|er|ème|º|°)?\\s?${FLOOR_WORDS_INTL}(?![\\p{L}])`, "gu");
+// Sonek biçiminde Almanca "Stock" YOK: İngilizce "in stock 5" kat sayılıyordu (önek "2. Stock" kalır).
+const FLOOR_INTL_SUFFIX = new RegExp(`(?<![\\p{L}])${FLOOR_WORDS_INTL.replace("|stock|", "|")}(?::|\\s(?:nr\\.?|no\\.?|№|n[°º]))?\\s(-?)(\\d{1,2})(?!\\d)`, "gu");
+
 const TR_UNITS: Record<string, number> = { bir: 1, iki: 2, uc: 3, dort: 4, bes: 5, alti: 6, yedi: 7, sekiz: 8, dokuz: 9 };
 const TR_TENS: Record<string, number> = { on: 10, yirmi: 20, otuz: 30, kirk: 40, elli: 50, altmis: 60, yetmis: 70, seksen: 80, doksan: 90 };
 const EN_SMALL: Record<string, number> = {
@@ -578,6 +584,18 @@ function extract(text: string, raw: string): Claim[] {
     },
   );
   take(/\b(\d{1,2})(?:\.|st|nd|rd|th)\s?(?:kat|floor)/g, (m) => ({ cls: "floor", keys: [`n${+m[1]}`], tkeys: [`floor|${+m[1]}`], raw: m[0] }));
+  // Öteki dillerde kat (kör set incelemesi 10-23): Rusça "на этаже -2" düz sayı okunuyordu, kalemdeki "-2. kat" kat numarası → sınıflar
+  // ayrıştı, doğru cevap "değer alıntıda yok" diye tutuldu. Aynı iki biçim (önek: "-2 этаже", "2-м этаже", "2. Etage", "2e étage"; sonek:
+  // "этаже -2", "Etage: 2", "planta -2") ve aynı işaret kuralı ("-2" ≠ "2"). Aralık ("3-4 этаж") ve sözcük içi eşleşmez; sabit sözcük +
+  // sınırlı rakam, iç içe niceleyici yok (doğrusal).
+  const floorClaim = (sign: string, digits: string, raw: string): Omit<Claim, "at" | "end"> => ({
+    cls: "floor",
+    keys: [`n${+digits}`],
+    tkeys: [`floor|${sign === "-" ? "-" : ""}${+digits}`],
+    raw,
+  });
+  take(FLOOR_INTL_PREFIX, (m) => floorClaim(m[1], m[2], m[0]));
+  take(FLOOR_INTL_SUFFIX, (m) => floorClaim(m[1], m[2], m[0]));
 
   // Gizli-benzeri anahtar sözcükten sonraki kod (belirteçte rakam ya da tırnak şart).
   const KW =

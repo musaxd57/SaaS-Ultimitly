@@ -23,7 +23,7 @@ export interface ShadowHookInput {
   guest?: { reservationId?: string | null; externalReservationId?: string | null };
   /** Dairenin BÜTÜN onaylı + etkin kalemleri (misafirin konaklama durumuna göre süzülmemiş) — yalnız parmak izi. Yoksa `kbVisible`. */
   kbAll?: readonly { id: string; updatedAt: Date; category: string; title: string; content: string }[];
-  verifiedParts: readonly { ref: string; text: string; evidence: string; source: string }[] | undefined;
+  verifiedParts: readonly { ref: string; text: string; evidence: string; source: string; alsoCited?: string[] }[] | undefined;
   answeredRefs: readonly string[] | null;
   replyItems: ReplyItemsInput | undefined;
   /** İstemdeki bilgi tabanı kalemleri, istem SIRASIYLA ("kb:N" → N-1). Çalışma anında `id` taşır. */
@@ -58,6 +58,8 @@ export async function observeAnswerReuseAfterSend(db: PrismaClient, input: Shado
   const parts: ObservedPart[] = [];
   for (const v of input.verifiedParts) {
     if (!refs.has(v.ref) || !input.sentText.includes(v.text)) continue;
+    // Birden çok kaleme dayanan parça (#199) tek kalemle yeniden doğrulanamaz → kayda alınmaz (ölçüm dürüst kalır).
+    if (v.alsoCited?.length) continue;
     const item = input.replyItems.answerable.find((a) => a.ref === v.ref);
     if (!item?.hint) continue;
     let sourceRef: string | null = null;

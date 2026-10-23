@@ -184,7 +184,7 @@ describe("#199 kör set incelemesi 10-23 — alıntı iki kalemi birleştirebili
     });
     expect(out.verdicts[0]).toMatchObject({ status: "verified", source: "kb:1" });
     // Okuyucu alıntının geçtiği İKİ kalemi de görür (index.ts notları `cited`dan da kurar).
-    expect(out.verified[0]).toMatchObject({ source: "kb:1", cited: ["kb:2"] });
+    expect(out.verified[0]).toMatchObject({ source: "kb:1", alsoCited: ["kb:2"] });
   });
 
   it("🚨 ikinci kalem konu sözcüğünü anmasa da (\"Cumartesi ve pazar …\") alıntılandıysa değeri aranır: sayı denetimi geçer, anlam okuyucuya", () => {
@@ -199,7 +199,7 @@ describe("#199 kör set incelemesi 10-23 — alıntı iki kalemi birleştirebili
       meaningJudge: "reader",
     });
     expect(out.verdicts[0]).toMatchObject({ status: "verified", source: "kb:1" });
-    expect(out.verified[0]).toMatchObject({ cited: ["kb:2"] });
+    expect(out.verified[0]).toMatchObject({ alsoCited: ["kb:2"] });
   });
 
   it("🚨 bir cümlesi bile kaynakta yoksa (uydurma ek) alıntı dayanaksız; tek sözcüklük parça dayanak sayılmaz", () => {
@@ -227,6 +227,25 @@ describe("#199 kör set incelemesi 10-23 — alıntı iki kalemi birleştirebili
     // Başlık atıldıktan sonra kalan metin de kaynakta yoksa dayanaksız; rakam taşıyan "başlık" atılmaz.
     expect(groundEvidence(wifi, "Интернет: şifre Lale2026.")).toBeNull();
     expect(groundEvidence(wifi, "Oda 12: Wi-Fi adı Lale-5G, şifre Lale2025.")).toBeNull();
+  });
+
+  it("🚨 Haiku 10-23: başlık atma koşul SIZDIRMAZ — koşullu 'başlık' atılmaz, kalan yalnız kalem içeriğinin BAŞINDA aranır, harf tabanı atılmış metinde", () => {
+    const pool = [{ id: "kb:1", text: kbLine({ category: "amenities", title: "Havuz", content: "Havuz 23:00'e kadar açıktır. Şezlong ücretsizdir." }) }];
+    expect(groundEvidence(pool, "Hafta sonu: Havuz 23:00'e kadar açıktır.")).toBeNull();
+    expect(groundEvidence(pool, "Weekend: Havuz 23:00'e kadar açıktır.")).toBeNull();
+    expect(groundEvidence(pool, "Cumartesi: Havuz 23:00'e kadar açıktır.")).toBeNull();
+    // Çevrilmiş başlık geçer; içeriğin ORTASINDAN alıntı başlıkla geçmez.
+    expect(groundEvidence(pool, "Бассейн: Havuz 23:00'e kadar açıktır.")).toMatchObject({ source: pool[0], quote: "Havuz 23:00'e kadar açıktır." });
+    expect(groundEvidence(pool, "Бассейн: Şezlong ücretsizdir.")).toBeNull();
+    // Çok parçalı alıntıda harf tabanı başlığı atılmış metne uygulanır ("Hafta sonu: 23:00." başlıkla 9 harf, kendisi 0).
+    expect(groundEvidence(pool, "Havuz 23:00'e kadar açıktır. Pool: 23:00.")).toBeNull();
+  });
+});
+
+describe("kurucu etiket notu 10-23: evet / hayır sorusunda cevap 'Evet,' / 'Hayır,' ile başlar, günü açık yazar", () => {
+  it("parça kipinin istem satırı bu kuralı taşır (misafirin dilinde)", () => {
+    expect(ANSWER_PARTS_REPLACEMENTS[0][1]).toContain('text "Evet," ya da "Hayır," ile başlar (misafirin dilinde)');
+    expect(ANSWER_PARTS_REPLACEMENTS[0][1]).toContain("günü / dönemi açıkça yaz");
   });
 });
 
@@ -874,6 +893,32 @@ describe("suggestReply — parça okuyucusu (AI_SENIOR_READER_ENABLED, parça ki
     expect(r2).toContain("Havuz hafta içi 09:00–20:00 arası açıktır.");
     expect(r2).toContain("Cumartesi ve pazar 09:00–23:00 arası açıktır.");
     expect(r.answeredRequests).toEqual({ ok: true, refs: ["R2"] });
+  });
+
+  it("🚨 Codex 10-23: okuyucu 'only_known_case' derse parça GİDER ama ihtiyaç kapanmaz (ev sahibinde açık); öteki parça kapanır", async () => {
+    vi.stubEnv("AI_SENIOR_READER_ENABLED", "1");
+    routedFetch(
+      { ...MODEL, answers },
+      readerSays([
+        { ref: "R1", answers_request: "yes", supported_by_notes: true, binding_ok: true, exception_without_rule: false, only_known_case: false, quote: "" },
+        { ref: "R2", answers_request: "yes", supported_by_notes: true, binding_ok: true, exception_without_rule: false, only_known_case: true, quote: "" },
+      ]),
+    );
+    const r = await suggestReply({ ...input, conversationItems: ITEMS });
+    expect(r.reply).toBe("Çıkış saati 11:00.\nHavuz her gün 20:00'de kapanıyor.");
+    expect(r.answeredRequests).toEqual({ ok: true, refs: ["R1"] });
+    expect(r.answerParts?.find((v) => v.ref === "R2")).toMatchObject({ status: "verified", openAfterSend: true });
+    // Okuyucu tutarsa "açık kalsın" işareti anlamsız: parça gitmez (tutma önce gelir).
+    routedFetch(
+      { ...MODEL, answers },
+      readerSays([
+        { ref: "R1", answers_request: "yes", supported_by_notes: true, binding_ok: true, exception_without_rule: false, only_known_case: false, quote: "" },
+        { ref: "R2", answers_request: "partly", supported_by_notes: true, binding_ok: true, exception_without_rule: false, only_known_case: true, quote: "Havuz" },
+      ]),
+    );
+    const held = await suggestReply({ ...input, conversationItems: ITEMS });
+    expect(held.reply).toBe("Çıkış saati 11:00.");
+    expect(held.answerParts?.find((v) => v.ref === "R2")).toMatchObject({ status: "rejected", issues: ["reader_partial"] });
   });
 
   it("doğrulanmış parça yoksa okuyucu çağrılmaz", async () => {

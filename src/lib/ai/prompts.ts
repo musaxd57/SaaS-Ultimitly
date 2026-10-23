@@ -1348,6 +1348,8 @@ export const ANSWER_PARTS_REPLACEMENTS: readonly Replacement[] = [
       "    (selam, kapanış, başka istek YOK), misafirin dilinde, bilginin nereden geldiği anılmadan. evidence = o bilginin geçtiği satırdan\n" +
       "    BİREBİR kopya (çevirme, özetleme yok; en fazla iki cümle). Değeri sorulan şeye bağla (havuz sorusuna havuzun saati); koşulu\n" +
       '    ("hafta sonu", "yalnız yazın", "talep üzerine") ve olumsuzluğu aynen koru; aynı konunun koşullu başka değeri varsa onu da yaz.\n' +
+      '    Misafir evet / hayır sorduysa ve bilgi açıkça evet ya da hayır diyorsa text "Evet," ya da "Hayır," ile başlar (misafirin dilinde),\n' +
+      '    ardından bilgi; günü / dönemi açıkça yaz (ör. "Evet, hafta içi 22:00\'ye, hafta sonu 23:00\'e kadar açık.").\n' +
       '  - status "no_info": bilgi yoksa ya da emin değilsen — text ve evidence BOŞ; o istek için reply\'da da "bilgim yok / ev sahibine\n' +
       '    soracağım" YAZMA (istek ev sahibinde açık kalır).\n' +
       "  - Misafire giden metni sistem bu parçalardan kurar; alıntısı tutmayan parça gitmez.",

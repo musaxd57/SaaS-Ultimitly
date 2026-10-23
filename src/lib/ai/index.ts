@@ -674,7 +674,7 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
                     const primary = partSources.find((s) => s.id === v.source)?.text ?? "";
                     // Dayandığı kalem ilk; aynı konuyu anan öteki kalemler ardından (değişke / istisna başka kalemde olabilir — Opus 10-23 sabah F10).
                     // Alıntının geçtiği öteki kalemler de (#199: genel kural + istisnası iki kalemde) — konu sözcüğü eşleşmese bile.
-                    const cited = new Set(v.cited ?? []);
+                    const cited = new Set(v.alsoCited ?? []);
                     const related = partSources
                       .filter((s) => s.id !== v.source && (cited.has(s.id) || sourceMentionsNeed(s.text, a?.need?.terms ?? [], a?.need?.topics ?? [])))
                       .map((s) => s.text);
@@ -691,7 +691,8 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
                   names: [input.reservation?.guestName, input.reservation?.guestGivenName, input.guestIdentifier],
                 });
                 const holds = partReaderHolds(reader, composed.verified.map((v) => v.ref));
-                if (holds.size > 0) composed = composeVerifiedReply({ parts: decl.parts, needs, sources: partSources, holds, meaningJudge });
+                const keepOpen = reader.status === "ok" ? reader.keepOpen : undefined;
+                if (holds.size > 0 || keepOpen) composed = composeVerifiedReply({ parts: decl.parts, needs, sources: partSources, holds, meaningJudge, keepOpen });
               }
               const sources = composed.verdicts.flatMap((v) => (v.status === "verified" ? [v.source] : []));
               return { reply: composed.reply, answered: { ok: true as const, refs: composed.refs }, verdicts: composed.verdicts, verified: composed.verified, sources };

@@ -234,6 +234,28 @@ describe("🚨 eksi işaretli kat AYRI kattır (10-10, kurucu: \"-1. kat ile 1. 
   });
 });
 
+describe("🚨 öteki dillerde kat sözcüğü (kör set incelemesi 10-23: Rusça \"на этаже -2\" düz sayı okunuyor, doğru cevap tutuluyordu)", () => {
+  it("🚨 Rusça / Almanca / Fransızca / İspanyolca kat, kalemdeki Türkçe kat numarasını destekler — işaret aynı kalır", () => {
+    const k = ctx("Otopark ücretsizdir; binanın -2. katında, 12 numaralı yer size ayrılmıştır.");
+    expect(u("Парковка бесплатная, место № 12 на этаже -2.", k)).toBe(0);
+    expect(u("Парковка бесплатная, место 12 на -2 этаже.", k)).toBe(0);
+    expect(u("Der Parkplatz Nr. 12 ist in der Etage -2.", k)).toBe(0);
+    expect(u("La place 12 est au -2e étage.", k)).toBe(0);
+    expect(u("La plaza 12 está en la planta -2.", k)).toBe(0);
+    expect(u("Die Wohnung ist im 3. Stock.", ctx("Daire 3. kattadır."))).toBe(0);
+  });
+
+  it("🚨 işaret ve sayı farkı her dilde desteklenmez; aralık ve sözcük içi kat değildir", () => {
+    const k = ctx("Otopark binanın -2. katındadır.");
+    expect(u("Парковка на этаже 2.", k)).toBe(1);
+    expect(u("Парковка на этаже -3.", k)).toBe(1);
+    expect(u("La place est à la planta 2.", k)).toBe(1);
+    expect(u("Квартиры на 3-4 этаже.", ctx("Daireler 3. ve 4. katlardadır."))).toBe(0);
+    // İngilizce "stock" kat değildir (Almanca sonek biçimi bilerek yok).
+    expect(u("We have 5 in stock 5 days a week.", ctx("Haftada 5 gün açığız."))).toBe(0);
+  });
+});
+
 describe("🚨 eksi kat okuyucusu başka iddiayı YUTMAZ, kat olmayan sözcüğü kat saymaz (Haiku incelemesi 10-10, kodda doğrulandı)", () => {
   it("'kat' ile başlayan başka sözcük ('katlı', 'katılımcı', 'katkı') eksi kat DEĞİLDİR", () => {
     expect(u("Bina -3 katlı.", ctx("Bina 3 katlı."))).toBe(0);

@@ -89,6 +89,29 @@ bilgi tabanındaki not, gidecek cevap. Üç ayrı soru: sorulanı cevaplıyor mu
 (evet / hayır / belirsiz) · eksik ya da yanıltıcı koşul var mı (yok / var / belirsiz) + not. Benim etiketim gösterilmez (yönlendirmesin).
 İşaretler sayfanın veritabanında (`labels/<örnek>`); `ArtifactData list labels` ile okunur. Yalnız geliştirme örneği; kör kabul setine karışmaz.
 
+### 3a. Kurucunun etiketleri (10-23, 30 / 35) — sonuç
+
+Net etiketli 25 örnekte (cevaplıyor + notta + koşul hepsi net): benim beklentimle uyum 23 / 25, okuyucunun son istemle iki okumasıyla uyum
+**23 / 25**, okuyucu kurucunun "evet" dediği hiçbir parçayı tutmadı (gereksiz tutma 0). Ayrışan 2:
+- `oteki-soru-yarim-degil-giris` ("Giriş saati kaçta? Erken giriş mümkün mü?" ↔ "Giriş saatimiz 15:00."): kurucu "kısmen" — erken giriş ayrı
+  istek, ev sahibinde açık kalır (doğrulanmış erken giriş akışı). Kurucu notu: erken giriş denetimlerini yeniden anlat → rapor.
+- `s9-genel-kural-yok` (kalemde yalnız hafta sonu saati; misafir genel soruyor ↔ "Hafta sonu havuz 23:00'e kadar açık."): kurucu "giden cevap
+  doğru ama hafta içi sorulmuş olabilir" → istenen akış: ev sahibinin eski cevaplarında ara, ev sahibine seçenekli onay sorusu gönder, onay
+  gelince (bağlam değişmediyse) gönder, "bilgi tabanına kaydedilsin mi?" sor. Yeni sistem → tasarım + soru (rapor).
+Belirsiz 5 (Almanca örnekler: kurucu Almanca bilmiyor → sayfaya Türkçe çeviri eklenecek). Etiketsiz 5.
+
+Notlardan çıkan istekler (karar değil; her biri rapor §soru olarak, önce/sonra örnekli):
+1. **Bilgi tabanı taraması:** ev sahibi kalem ekleyince kod/model kalemi tarar; karışık / eksik / çelişen (aynı otopark numarası iki dairede)
+   yeri günde en çok 3 küçük onay sorusuyla sorar, düzeltilmiş metni önerir, onaylanınca o daireye, istenirse ön gösterimle öteki dairelere uygular.
+2. **Eksik bilgi döngüsü:** bilgi yoksa ev sahibinin geçmiş cevaplarında ara (10-17 L1 işi), ev sahibine onay sorusu (uygulama / WhatsApp),
+   onay gelince misafire gönder, "bilgi tabanına kaydet" öner.
+3. **Cevap biçimi:** evet / hayır sorusu "Evet," / "Hayır," ile başlasın; günü açık yazsın ("Evet, havuz hafta içi 22:00'ye, hafta sonu
+   23:00'e kadar açıktır.").
+4. **Evcil hayvan:** ücret geçen soru ev sahibine; kalem "kabul edilir" diyor ve ücret yoksa cevap gidebilir.
+5. **Embedding / fine-tuning:** kurucu "fine-tuning yapalım" — maliyet / model desteği / veri gereksinimi araştırılıp öneri olarak sunulur.
+6. Sayfa: 3. soru ("eksik ya da yanıltıcı koşul") anlaşılmadı → yeniden yazılacak; yabancı dildeki örneklere Türkçe çeviri.
+7. Sorular: her misafire ayrı kimlik mi, yalnız isim mi (otopark çakışması örneği) → rapor.
+
 ## 4. Kullanılmış kör setin neden analizi
 
 Ben seti açmadım. Ayrı bir incelemeci (Opus) seti, kör koşunun commit'inde (`b47f246f`) iki kolda ayrıntılı yeniden koşar; her yanlış gönderim

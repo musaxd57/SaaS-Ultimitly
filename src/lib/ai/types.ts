@@ -289,7 +289,7 @@ export interface SuggestReplyResult {
    * Doğrulanan parçaların metni + alıntısı + kaynağı (yalnız parça kipinde). Doğrulanmış cevap tekrarının GÖLGE ölçümü okur
    * (`answer-reuse/store.ts`, migration 85); izlere / karar kaydına YAZILMAZ.
    */
-  verifiedParts?: { ref: string; text: string; evidence: string; source: string }[];
+  verifiedParts?: { ref: string; text: string; evidence: string; source: string; alsoCited?: string[] }[];
 }
 
 export interface ClassifyResult {

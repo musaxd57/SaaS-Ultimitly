@@ -115,7 +115,7 @@
       "expect": { "autoSend": "any", "needs": [ { "kind": "amenities", "want": "answered", "all": ["200"] } ] } },
     { "id": "n-tr-hayvan-sigara", "class": "two_kinds", "lang": "tr", "kb": "full", "message": "Evcil hayvan kabul ediyor musunuz? Balkonda sigara içilebilir mi?",
       "expect": { "autoSend": "any", "needs": [
-        { "kind": "pets", "want": "answered", "all": ["kabul edilm|maalesef|getiremez"] },
+        { "kind": "pets", "want": "answered", "all": ["kabul edilm|kabul etm|maalesef|getiremez"] },
         { "kind": "house_rules", "want": "answered", "all": ["yasak|içilmez|içilemez|izin veril?m"] } ] } },
     { "id": "n-tr-klima-utu", "class": "two_kinds", "lang": "tr", "kb": "full", "message": "Klima kumandası nerede? Ütü var mı?",
       "expect": { "autoSend": "any", "needs": [
