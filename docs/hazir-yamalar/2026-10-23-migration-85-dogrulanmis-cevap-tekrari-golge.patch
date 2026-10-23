@@ -1,4 +1,4 @@
-From 6698d70ca11d74b470a05470d4ce4415bfbdb308 Mon Sep 17 00:00:00 2001
+From 6e691a73d91ae7577de5c9ec7f2a557de94a9d3d Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 22 Oct 2026 22:35:42 +0000
 Subject: [PATCH] WIP migration 85 golge kip (hazir yama, push yok)
@@ -16,7 +16,7 @@ Subject: [PATCH] WIP migration 85 golge kip (hazir yama, push yok)
  src/lib/answer-reuse/shadow-hook.ts           |  92 +++++++
  src/lib/answer-reuse/store.ts                 | 251 ++++++++++++++++++
  src/lib/automation.ts                         |  49 ++++
- src/lib/conversation-items/topic-label.ts     | 102 ++++++-
+ src/lib/conversation-items/topic-label.ts     | 112 +++++++-
  src/lib/demo-tenant/apply-core.ts             |   2 +
  src/lib/scheduled-sync.ts                     |   4 +
  tests/eval/run-meta.ts                        |   1 +
@@ -25,7 +25,7 @@ Subject: [PATCH] WIP migration 85 golge kip (hazir yama, push yok)
  tests/unit/answer-reuse-core.test.ts          |   9 +
  tests/unit/data-export-coverage.test.ts       |   1 +
  tests/unit/item-topic-label.test.ts           |  58 ++++
- 21 files changed, 903 insertions(+), 15 deletions(-)
+ 21 files changed, 911 insertions(+), 17 deletions(-)
  create mode 100644 prisma/migrations/85_verified_answer/migration.sql
  create mode 100644 src/lib/answer-reuse/shadow-hook.ts
  create mode 100644 src/lib/answer-reuse/store.ts
@@ -175,7 +175,7 @@ index 27e43cb3..13b314d2 100644
    "SIGNUP_NETWORK_TRACE_ENABLED",
    "SIGNUP_TURNSTILE_ENABLED",
 diff --git a/src/lib/ai/answer-parts.ts b/src/lib/ai/answer-parts.ts
-index 7bc7807f..aa0cc45f 100644
+index 1a441642..1fb8481a 100644
 --- a/src/lib/ai/answer-parts.ts
 +++ b/src/lib/ai/answer-parts.ts
 @@ -95,6 +95,11 @@ export interface ComposedReply {
@@ -747,13 +747,13 @@ index a8b246b6..94b1daf6 100644
  }
  
 diff --git a/src/lib/conversation-items/topic-label.ts b/src/lib/conversation-items/topic-label.ts
-index 3012be63..9d2d0925 100644
+index 6483fbe4..f7afe2d5 100644
 --- a/src/lib/conversation-items/topic-label.ts
 +++ b/src/lib/conversation-items/topic-label.ts
-@@ -24,6 +24,38 @@ export const TOPIC_MAX_CHARS = 40;
- const SECRET_ROOTS = ["sifre", "parola", "password", "passwort", "kod", "code", "pin", "kart", "card", "iban", "hesap", "hesab", "account", "telefon", "phone", "numara", "number", "mail", "pasaport", "passport", "kimlik", "kombinasyon", "combination"];
- /** Tam sözcük sır adları ("wifi key / pass kelebek", WPA anahtarı) — kök değil: "keyif" sır değildir (Opus güvenlik 10-23 F11). */
- const SECRET_EXACT = new Set(["key", "keys", "pass", "passcode", "pw", "pwd", "sife", "wpa", "wpa2", "psk", "ssid", "visa", "mastercard", "amex"]);
+@@ -29,6 +29,38 @@ const SECRET_EXACT = new Set(["key", "keys", "pass", "passe", "passcode", "pw",
+ const SECRET_ROOTS_OTHER = ["парол", "код", "пин", "номер", "телефон", "паспорт", "карт", "contrase", "kennw"];
+ /** Sır sözcüğünün önünde değer aranan en uzak sözcük. */
+ const VALUE_WINDOW = 6;
 +/**
 + * Gün / mevsim koşulu (katlanmış, BÜTÜN sözcük + çekim eki) — yalnız tekrar sorgusunda kalır ("wifi şifresi cumartesi değişiyor mu"). Baş
 + * eşleşmesi değil (Opus 10-23 85 incelemesi: "salıncak", "salih", "pazarlık" koşul sayılıp şifre değeri etikete giriyordu).
@@ -789,7 +789,7 @@ index 3012be63..9d2d0925 100644
  /** Harfle yazılmış rakamlar etikete girmez ("kapı kodu dört beş bir iki" — kodun kendisi; Opus dilim sonu 10-23 R15). */
  const SPELLED_DIGITS = new Set(
    (
-@@ -111,13 +143,38 @@ export function guestNameMatcher(names: readonly (string | null | undefined)[]):
+@@ -116,13 +148,38 @@ export function guestNameMatcher(names: readonly (string | null | undefined)[]):
   * onlarla başlayan çekimli biçimler etikete giremez).
   */
  export function itemTopicLabel(query: string | null | undefined, names: readonly (string | null | undefined)[] = []): string | null {
@@ -828,8 +828,8 @@ index 3012be63..9d2d0925 100644
 +  if (distinct.size === 0 && distinctOnly) return null;
    const { nameParts, isName } = guestNameMatcher(names);
    const raws = q.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
-   const folded = raws.map(fold);
-@@ -149,20 +206,43 @@ export function itemTopicLabel(query: string | null | undefined, names: readonly
+   // Kiril / Yunan ikiz harfli sır sözcüğü ("ѕifresi" — Opus taze göz 10-23 F7) Latin okunuşuyla da tanınır.
+@@ -183,23 +240,52 @@ export function itemTopicLabel(query: string | null | undefined, names: readonly
    for (let i = 0; i < raws.length; i++) {
      const raw = raws[i];
      const f = folded[i];
@@ -841,8 +841,17 @@ index 3012be63..9d2d0925 100644
 +    }
      if (isSecretAt(i)) {
        afterSecret = true;
+       sinceSecret = 0;
 +      // Etikette sır sözcüğü düşer; tekrar sorgusunda sorunun konusudur ("wifi şifresi") — aşağıdaki süzgeçlerden geçer.
 +      if (distinctOnly) continue;
++    } else if (sinceSecret >= 0) {
++      sinceSecret = coded(i) ? -1 : sinceSecret + 1;
++    }
++    // Sır sözcüğünün hemen ardındaki üç sözcük değer olabilir (sözlük sözcüğü olsa da): etikette düşer; tekrar sorgusunda soru / koşul / yüklem
++    // sözcüğü kalır, öteki ayırt edici sözcük sorguyu kaydettirmez.
++    if (sinceSecret >= 1 && sinceSecret <= 3) {
++      if (distinctOnly) continue;
++      if (distinct.has(f) && !REUSE_QUERY_WORDS.has(f) && !CONDITION_WORD.test(f) && !TURKISH_VERB_FORM.test(f)) return null;
 +    }
 +    // Ardındaki AYIRT EDİCİ, sözlükte konusu olmayan sözcük değer olabilir → düşer; soru sözcüğü ("nedir") ve gün / mevsim koşulu
 +    // ("cumartesi") tekrar sorgusunda kalır.
@@ -852,6 +861,8 @@ index 3012be63..9d2d0925 100644
 +      if (!distinctOnly && distinct.has(f)) return null;
        continue;
      }
+-    if (sinceSecret >= 0) sinceSecret = coded(i) ? -1 : sinceSecret + 1;
+-    if (sinceSecret >= 1 && sinceSecret <= 3) continue;
 -    if (afterSecret && topicless(raw)) continue;
 +    // Tekrar sorgusunda sayı sorunun parçasıdır ("2 araç için otopark") — süzülürse "1 araçlık" cevabı iki araca verilebilirdi (Opus 10-23 85
 +    // incelemesi): sayı taşıyan sorgu HİÇ kaydedilmez.
@@ -878,8 +889,8 @@ index 3012be63..9d2d0925 100644
      if (honorific(HONORIFIC_BEFORE, f) || honorific(HONORIFIC_AFTER, f)) continue;
      // Değer sır sözcüğünden ÖNCE de yazılır ("kelebek şifresi" — kodu olan şey değilse: "kapı kodu" kalır); e-posta adresinin yerel kısmı
      // alan adından önce gelir; bilinen adın YALIN hâlinin bitişiğindeki konusuz sözcük soyadıdır ("john smith"; "mehmetin odası" değil).
-@@ -171,11 +251,15 @@ export function itemTopicLabel(query: string | null | undefined, names: readonly
-     if (topicless(raw) && ((next && (isSecretAt(i + 1) || (topicless(raws[i + 1] ?? "") && isSecretAt(i + 2))) && !CODED_THINGS.has(f)) || EMAIL_PARTS.has(next) || nameParts.includes(prev) || nameParts.includes(next))) continue;
+@@ -208,11 +294,15 @@ export function itemTopicLabel(query: string | null | undefined, names: readonly
+     if (topicless(raw) && ((next && isSecretAt(i + 1) && !CODED_THINGS.has(f)) || EMAIL_PARTS.has(next) || nameParts.includes(prev) || nameParts.includes(next))) continue;
      // Sorgu küçük harfle yazılır; sözlükte konusu olmayan Büyük Harfli sözcük özel addır ("Ahmet", "Netflix").
      if (titleCase(raw) && topicsWithSymptomsOf(raw).length === 0) continue;
 +    if (!distinctOnly && !isSecretAt(i) && topicless(raw) && !REUSE_QUERY_WORDS.has(f) && !CONDITION_WORD.test(f) && !TURKISH_VERB_FORM.test(f)) {
@@ -1213,7 +1224,7 @@ index a0f818f0..47c1cf4f 100644
    KbCopyOperation: "kopyalama tekrar güvenliği iç kaydı (kaynak kimliği + istek kimliği + içerik izi) — içerik yok; 30 gün sonra saatlik süpürgeyle silinir (Codex 10-21, migration 81)",
    SystemLock: "Sistem kilidi / işaret satırı — işletme verisi değil",
 diff --git a/tests/unit/item-topic-label.test.ts b/tests/unit/item-topic-label.test.ts
-index 66591565..83b14db4 100644
+index 6df6cd75..44ab89aa 100644
 --- a/tests/unit/item-topic-label.test.ts
 +++ b/tests/unit/item-topic-label.test.ts
 @@ -135,6 +135,45 @@ describe("Haiku 10-23 gece-2: şifre sözcüğünün yanlış / bitişik yazım
@@ -1262,8 +1273,8 @@ index 66591565..83b14db4 100644
  describe("Haiku 10-23 gece-3: etikete şifre değeri sızma yolları", () => {
    it("🚨 sır sözcüğünün ÖNÜNDEKİ çok sözcüklü değer (sözlük sözcüğü taşısa da) düşer; kodu olan şey / ağ sözcüğü kalır", () => {
      expect(itemTopicLabel("kelebek mavi kahve şifresi")).toBeNull();
-@@ -150,3 +189,22 @@ describe("Haiku 10-23 gece-3: etikete şifre değeri sızma yolları", () => {
-     expect(itemTopicLabel("kelime oyunu var mı")).not.toBeNull();
+@@ -216,3 +255,22 @@ describe("Haiku 10-23 gece-4: yanlış yazılmış sır sözcüğü ve ağ sözc
+     expect(itemTopicLabel("havuz ısıtması bozuk wifi şifresi nedir")).toBe("havuz ısıtması wifi");
    });
  });
 +

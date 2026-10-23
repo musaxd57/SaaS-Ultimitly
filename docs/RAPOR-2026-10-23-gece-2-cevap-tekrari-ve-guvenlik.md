@@ -254,7 +254,10 @@ gece: v5 + v6 + v7 + v8 = $0,45 (onaylı E kapsamı).
 | Opus taze göz (gecenin bütün farkı) | 8 bulgu: 7 kodda kapandı (kırmızı-önce 9 test), 2'si fazladan tutma → §6-10 / §7 — §3e |
 | Gerçek model (E v7) | yeni denetimler 0 haksız tutma; yanlış 0 |
 | Hazır yama (migration 85) | DB testleri 95/95, birim 116/116, `git apply --check` ✓ (push YOK) |
-| Son kapı g9 (etiket düzeltmesi + belgeler) | G9_SONUC |
+| Tam kapı g9 (`6c59ee3c`: Opus taze göz F1–F7 + mutasyon pinleri) | veritabanısız 578 · veritabanlı 4.507 test · süre 65 dosya yeşil · derleme yeşil → push (`32d73a57`, iki belge commit'iyle) → CI: §5 sonu |
+| Mutasyon — Haiku 4. tur kodu (`1a0e502a`, 43 mutant) | 40/43 → yaşayan 3 (A4, A6, A18: yeni kural eski kuralı gölgeliyordu) pinlendi, yeniden koşu 3/3 öldü → **43/43** |
+| Kırmızı-önce (gece sonu) | Opus taze göz testleri eski kodda 9 kırmızı; Haiku 4. tur testleri `6c59ee3c`'de 8 kırmızı → düzeltmeyle yeşil |
+| Son kapı g10 (`d9f369f5`: Haiku 4. tur + mutasyon pinleri) | G10_SONUC |
 
 ## 6. Sorularınız (karar sizde)
 
