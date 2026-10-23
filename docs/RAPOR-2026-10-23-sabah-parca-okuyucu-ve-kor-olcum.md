@@ -112,5 +112,5 @@ etiketledim. İnceleme sayfasına "gitsin / tutulsun" seçimiyle koyarım; sizin
 | Hedefli testler | 508 / 508 + yeni pinler |
 | Mutasyon | 21 mutant → 19 öldü, 2 yaşayan (M4 ilgili kalem, M14 bildirim kaydı) pinlendi → 2 / 2 öldü |
 | Tam kapı (`b47f246f`) | veritabanlı 4533 / 4533, veritabanısız 10933 geçti; build yeşil |
-| Push | `20ade78e..f3bcf2be` (15 commit) |
-| CI | CI BURAYA |
+| Push | `20ade78e..f3bcf2be` (15 commit) · `f3bcf2be..44cecf90` (kör ölçüm sonucu) |
+| CI | `f3bcf2be` #1639 yeşil · `44cecf90` yeşil |
