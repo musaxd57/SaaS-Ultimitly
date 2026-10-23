@@ -20,6 +20,8 @@ import { parseStayChangeDeclaration } from "./semantic/stay-change";
 import { actionClaimsEnabled, parseClaimedActions } from "./action-claims";
 import { parseAnsweredRequests } from "@/lib/conversation-items/reply-block";
 import { composeVerifiedReply, parseAnswerParts } from "./answer-parts";
+import { seniorReaderEnabled } from "./semantic/absence-judge";
+import { partReaderHolds, runPartReader } from "./semantic/part-reader";
 import type { Priority } from "@/lib/constants";
 import { DEFAULT_OPENAI_MODEL, isReasoningModel, layerReasoningEffort, replyReasoningEffort } from "./model-family";
 import { reportError } from "@/lib/report-error";
@@ -537,6 +539,22 @@ function capReply(text: string): { text: string; truncated: boolean } {
   return { text: trimmed.slice(0, REPLY_STORE_CAP), truncated: true };
 }
 
+/**
+ * Misafirin bu turdaki mesajları + konuşmadaki ÖNCEKİ misafir mesajları (son üçü; her biri 1.000 karakterle) — cevap parçalarında sorulan
+ * gün / mevsim (Soru 9: "cumartesi geliyoruz") ve parça okuyucusunun bağlamı (Soru 11).
+ */
+function guestContextOf(input: SuggestReplyInput): { turn: string[]; earlier: string[] } {
+  const history = input.history ?? [];
+  const turn = [...unansweredGuestTexts(history, input.guestMessage), input.guestMessage].map((t) => t.slice(0, 1_000));
+  const inTurn = new Set(turn);
+  const earlier = history
+    .filter((m) => m.direction === "inbound")
+    .map((m) => m.body.slice(0, 1_000))
+    .filter((b) => !inTurn.has(b))
+    .slice(-3);
+  return { turn, earlier };
+}
+
 export async function suggestReply(input: SuggestReplyInput): Promise<SuggestReplyResult> {
   // Eylem beyanı (`action-claims.ts`): bayrak TEK YERDE, burada okunur; istem ve STRICT çözüm aynı karara bağlı.
   const declareActions = actionClaimsEnabled();
@@ -608,7 +626,7 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
         // parçaların birleşimidir; "cevaplandı" yalnız doğrulanan istekler. Beyan eksik / bozuksa metin boş + beyan geçersiz (kapı tutar).
         const items = input.conversationItems;
         const partsOutcome = items?.parts
-          ? (() => {
+          ? await (async () => {
               const refs = items.answerable.map((a) => a.ref);
               const decl = parseAnswerParts(parsed.answers, refs);
               if (!decl.ok)
@@ -619,11 +637,31 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
                   verified: [] as ReturnType<typeof composeVerifiedReply>["verified"],
                   sources: [] as string[],
                 };
-              const composed = composeVerifiedReply({
-                parts: decl.parts,
-                needs: items.answerable.map((a) => ({ ref: a.ref, terms: a.need?.terms ?? [], topics: a.need?.topics ?? [], queries: a.need?.queries ?? [] })),
-                sources: prompt.partSources ?? [],
-              });
+              const needs = items.answerable.map((a) => ({ ref: a.ref, terms: a.need?.terms ?? [], topics: a.need?.topics ?? [], queries: a.need?.queries ?? [] }));
+              const partSources = prompt.partSources ?? [];
+              const guest = guestContextOf(input);
+              const askedContext = [...guest.turn, ...guest.earlier];
+              let composed = composeVerifiedReply({ parts: decl.parts, needs, sources: partSources, askedContext });
+              // PARÇA OKUYUCUSU (kurucu 10-23 sabah, Soru 11; kıdemli okuyucunun anahtarı): kodun doğruladığı parçalar + istekleri + kaynakları
+              // okunur; okuyucu yalnız TUTAR (sorulanı cevaplamıyor / yarım / yanlış bağ / tek başına istisna), düşerse bütün parçalar tutulur.
+              if (seniorReaderEnabled() && composed.verified.length > 0) {
+                const reader = await runPartReader({
+                  guestMessage: guest.turn.join("\n"),
+                  earlierGuestMessages: guest.earlier,
+                  parts: composed.verified.map((v) => {
+                    const a = items.answerable.find((x) => x.ref === v.ref);
+                    return {
+                      ref: v.ref,
+                      request: a?.hint || a?.need?.queries?.[0] || "",
+                      text: v.text,
+                      note: partSources.find((s) => s.id === v.source)?.text ?? "",
+                    };
+                  }),
+                  names: [input.reservation?.guestName, input.reservation?.guestGivenName, input.guestIdentifier],
+                });
+                const holds = partReaderHolds(reader, composed.verified.map((v) => v.ref));
+                if (holds.size > 0) composed = composeVerifiedReply({ parts: decl.parts, needs, sources: partSources, askedContext, holds });
+              }
               const sources = composed.verdicts.flatMap((v) => (v.status === "verified" ? [v.source] : []));
               return { reply: composed.reply, answered: { ok: true as const, refs: composed.refs }, verdicts: composed.verdicts, verified: composed.verified, sources };
             })()

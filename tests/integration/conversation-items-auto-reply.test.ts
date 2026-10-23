@@ -1784,6 +1784,49 @@ describe("CEVAP PARÇALARI (kurucu 10-23 A, AI_ANSWER_PARTS_ENABLED)", () => {
     expect(rows[0].query).toBe("çıkış saati kaçta");
   });
 
+  it("🚨 Soru 10 (kurucu 10-23 sabah): önceki okumadan kalmış açık ihtiyaç + sessiz tur → TEK e-posta (ihtiyacın mesajı); yeniden işlemede ikinci e-posta YOK", async () => {
+    vi.stubEnv("AI_ITEM_ORDINAL_ENABLED", "1");
+    const { conversationId } = await seed("Çıkış saat kaçta? Sauna var mı?");
+    // 1. geçiş (parça kipi kapalı): tur güvenden tutuldu, devir cümlesi yok → bugünkü kural: e-posta YOK, satırlar açık.
+    understands(twoNeeds());
+    mockSuggest.mockResolvedValueOnce(verdict({ intent: "checkout_time", confidence: 0.3, reply: "Çıkış saati 11:00.", answeredRequests: { ok: true, refs: ["R1"] } }));
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(false);
+    expect(mockMail).not.toHaveBeenCalled();
+    // 2. geçiş (parça kipi açık): misafir "Teşekkürler" yazdı; yeni okuma ilk mesajdan istek ÜRETMEDİ → iki satır bayat açık, tur sessiz.
+    vi.stubEnv("AI_ANSWER_PARTS_ENABLED", "1");
+    await guestWrites(conversationId, "Teşekkürler", 1);
+    const noRequests = () =>
+      understands(parseUnderstanding({ language: "tr", requests: [], stay_change: STAY_NONE, withdrawn: [] }, { items: true })!);
+    noRequests();
+    mockSuggest.mockResolvedValueOnce(verdict({ reply: "Rica ederim." }));
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(mockMail).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(mockMail.mock.calls[0])).toContain("Sauna var mı?");
+    expect(await prisma.systemLock.count({ where: { name: { startsWith: "open-need-mail:" } } })).toBe(2);
+    // 3. geçiş: aynı tur yeniden işlendi → kayıt var, ikinci e-posta YOK.
+    noRequests();
+    mockSuggest.mockResolvedValueOnce(verdict({ reply: "Rica ederim." }));
+    await applyChannelAutoReply(conversationId);
+    expect(mockMail).toHaveBeenCalledTimes(1);
+  });
+
+  it("🚨 Soru 10: misafir vazgeçtiyse (anlama katmanının 'withdrawn' okuması) bayat satır kapanır → e-posta YOK", async () => {
+    vi.stubEnv("AI_ITEM_ORDINAL_ENABLED", "1");
+    const { conversationId } = await seed("Sauna var mı?");
+    understands(understood([{ intent: "amenities", message: 1 }]));
+    mockSuggest.mockResolvedValueOnce(verdict({ intent: "amenities", confidence: 0.3, reply: "Evet.", answeredRequests: { ok: true, refs: ["R1"] } }));
+    await applyChannelAutoReply(conversationId);
+    expect(mockMail).not.toHaveBeenCalled();
+    vi.stubEnv("AI_ANSWER_PARTS_ENABLED", "1");
+    await guestWrites(conversationId, "Saunayı boşverin, gerek kalmadı.", 1);
+    understands(parseUnderstanding({ language: "tr", requests: [], stay_change: STAY_NONE, withdrawn: [{ intent: "amenities", message: 1 }] }, { items: true })!);
+    mockSuggest.mockResolvedValueOnce(verdict({ reply: "Tamamdır." }));
+    await applyChannelAutoReply(conversationId);
+    expect(mockMail).not.toHaveBeenCalled();
+    expect((await itemsOf(conversationId)).find((i) => i.kind === "amenities")?.status).toBe("withdrawn");
+  });
+
   it("anahtar kapalı: cevap modeline parça kipi GİTMEZ (girdi bugünküyle aynı)", async () => {
     const { conversationId } = await seed("Çıkış saat kaçta? Sauna var mı?");
     understands(twoNeeds());

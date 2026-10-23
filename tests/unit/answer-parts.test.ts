@@ -541,3 +541,126 @@ describe("Opus e2e 10-23 F9 — bilgi tabanıyla çelişen standart saat parça 
     expect(buildReplyPrompt({ ...input, conversationItems: ITEMS }).partSources?.find((s) => s.id === "property")?.text).toContain("Check-in saati: 15:00");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Kurucu 10-23 sabah — Soru 9 (genel kural + istisna) ve Soru 11 (parça okuyucusu) birleştirmede.
+// ---------------------------------------------------------------------------
+describe("Soru 9 — birleştirmede: yalnız istisna tutulur, bağımsız parça gider", () => {
+  const POOL_KB = [{ id: "kb:1", text: kbLine({ category: "rules", title: "Havuz", content: "Havuz hafta içi 22:00'ye, hafta sonu 23:00'e kadar açıktır." }) }, ...SOURCES.slice(2)];
+  const poolNeed = { ref: "R1", terms: needTerms(["havuz 22:00'ye kadar açık mı"]), topics: ["pool"], queries: ["havuz 22:00'ye kadar açık mı"] };
+  const outNeed = { ref: "R2", terms: needTerms(["çıkış saati kaçta"]), topics: ["checkout"], queries: ["çıkış saati kaçta"] };
+  const weekendOnly = p("R1", "Havuz hafta sonu 23:00'e kadar açık.", "Havuz hafta içi 22:00'ye, hafta sonu 23:00'e kadar açıktır.");
+  const checkout = p("R2", "Çıkış saati 11:00.", "Check-out saati: 11:00");
+
+  it("🚨 kurucunun örneği: istisna parçası TUTULUR (istek açık), aynı mesajdaki çıkış saati GİDER", () => {
+    const out = composeVerifiedReply({ parts: [weekendOnly, checkout], needs: [poolNeed, outNeed], sources: POOL_KB });
+    expect(out.refs).toEqual(["R2"]);
+    expect(out.reply).toBe("Çıkış saati 11:00.");
+    expect(out.verdicts[0]).toEqual({ ref: "R1", status: "rejected", issues: ["general_omitted"] });
+  });
+
+  it("uygun cevap (hafta içi + hafta sonu) gider; misafir önceki mesajda cumartesi dediyse yalnız hafta sonu da gider", () => {
+    const both = p("R1", "Havuz hafta içi 22:00'ye, hafta sonu 23:00'e kadar açık.", "Havuz hafta içi 22:00'ye, hafta sonu 23:00'e kadar açıktır.");
+    expect(composeVerifiedReply({ parts: [both], needs: [poolNeed], sources: POOL_KB }).refs).toEqual(["R1"]);
+    expect(composeVerifiedReply({ parts: [weekendOnly], needs: [poolNeed], sources: POOL_KB, askedContext: ["Cumartesi geliyoruz."] }).refs).toEqual(["R1"]);
+  });
+});
+
+describe("Soru 11 — okuyucu yalnız TUTAR", () => {
+  const twoParts = [
+    p("R1", "Çıkış saati 11:00.", "Check-out saati: 11:00"),
+    p("R2", "Havuz her gün 20:00'de kapanıyor.", "Havuz her gün 20:00'de, sauna 22:00'de kapanır."),
+  ];
+  const needs = [NEEDS[0], NEEDS[1]];
+
+  it("🚨 okuyucunun tuttuğu parça gitmez, isteği açık kalır; öteki parça gider", () => {
+    const out = composeVerifiedReply({ parts: twoParts, needs, sources: SOURCES, holds: new Map([["R2", "not_answered" as const]]) });
+    expect(out.refs).toEqual(["R1"]);
+    expect(out.reply).toBe("Çıkış saati 11:00.");
+    expect(out.verdicts[1]).toEqual({ ref: "R2", status: "rejected", issues: ["reader_not_answered"] });
+    expect(out.verified.map((v) => v.ref)).toEqual(["R1"]);
+  });
+
+  it("🚨 okuyucu kodun tuttuğu parçayı serbest BIRAKAMAZ (tutma haritası yalnız düşürür; uydurma değer yine tutulur)", () => {
+    const fake = p("R2", "Havuz 23:00'te kapanıyor.", "Havuz her gün 20:00'de, sauna 22:00'de kapanır.");
+    const out = composeVerifiedReply({ parts: [fake], needs: [NEEDS[1]], sources: SOURCES, holds: new Map() });
+    expect(out.refs).toEqual([]);
+    expect(out.verdicts[0].status).toBe("rejected");
+  });
+
+  it("okuyucunun bilmediği istek kimliği hiçbir şeyi değiştirmez", () => {
+    const out = composeVerifiedReply({ parts: twoParts, needs, sources: SOURCES, holds: new Map([["R9", "binding" as const]]) });
+    expect(out.refs).toEqual(["R1", "R2"]);
+  });
+});
+
+/** Cevap çağrısı ile parça okuyucusu çağrısını ayıran sahte ağ (okuyucu şeması `part_reader`). */
+function routedFetch(reply: Record<string, unknown>, reader: (body: string) => Response) {
+  const f = vi.fn(async (_url: unknown, init?: { body?: unknown }) => {
+    const body = String(init?.body ?? "");
+    if (body.includes('"part_reader"')) return reader(body);
+    return new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify(reply) } }] }), { status: 200 });
+  });
+  vi.stubGlobal("fetch", f);
+  return f;
+}
+const readerSays = (parts: Record<string, unknown>[]) => () =>
+  new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify({ parts }) } }] }), { status: 200 });
+
+describe("suggestReply — parça okuyucusu (AI_SENIOR_READER_ENABLED, parça kipinde)", () => {
+  const answers = [
+    { ref: "R1", status: "answered", text: "Çıkış saati 11:00.", evidence: "Check-out saati: 11:00" },
+    { ref: "R2", status: "answered", text: "Havuz her gün 20:00'de kapanıyor.", evidence: "Havuz her gün 20:00'de, sauna 22:00'de kapanır." },
+    { ref: "R3", status: "no_info", text: "", evidence: "" },
+  ];
+  beforeEach(() => vi.stubEnv("OPENAI_API_KEY", "test-key"));
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("anahtar kapalıyken okuyucu ÇAĞRILMAZ (tek ağ çağrısı, bugünkü davranış)", async () => {
+    const f = routedFetch({ ...MODEL, answers }, readerSays([]));
+    const r = await suggestReply({ ...input, conversationItems: ITEMS });
+    expect(f).toHaveBeenCalledTimes(1);
+    expect(r.answeredRequests).toEqual({ ok: true, refs: ["R1", "R2"] });
+  });
+
+  it("🚨 okuyucu açık: yalnız KODUN doğruladığı parçaları okur (no_info parça okuyucuya gitmez); 'no' dediği parça düşer", async () => {
+    vi.stubEnv("AI_SENIOR_READER_ENABLED", "1");
+    let seen = "";
+    const f = routedFetch({ ...MODEL, answers }, (body) => {
+      seen = body;
+      return readerSays([
+        { ref: "R1", answers_request: "yes", binding_ok: true, exception_without_rule: false, quote: "" },
+        { ref: "R2", answers_request: "no", binding_ok: true, exception_without_rule: false, quote: "Havuz her gün 20:00'de kapanıyor." },
+      ])();
+    });
+    const r = await suggestReply({ ...input, conversationItems: ITEMS });
+    expect(f).toHaveBeenCalledTimes(2);
+    expect(seen).toContain("R1 · REQUEST");
+    expect(seen).toContain("R2 · REQUEST");
+    expect(seen).not.toContain("R3 · REQUEST");
+    expect(r.reply).toBe("Çıkış saati 11:00.");
+    expect(r.answeredRequests).toEqual({ ok: true, refs: ["R1"] });
+    expect(r.answerParts?.[1]).toEqual({ ref: "R2", status: "rejected", issues: ["reader_not_answered"] });
+    expect(r.verifiedParts?.map((v) => v.ref)).toEqual(["R1"]);
+  });
+
+  it("🚨 okuyucu düşerse (HTTP hatası) BÜTÜN parçalar tutulur — belirsizlikte tut", async () => {
+    vi.stubEnv("AI_SENIOR_READER_ENABLED", "1");
+    routedFetch({ ...MODEL, answers }, () => new Response("boom", { status: 500 }));
+    const r = await suggestReply({ ...input, conversationItems: ITEMS });
+    expect(r.reply).toBe("");
+    expect(r.answeredRequests).toEqual({ ok: true, refs: [] });
+    expect(r.answerParts?.filter((v) => v.status === "rejected").map((v) => v.status === "rejected" && v.issues)).toEqual([["reader_unread"], ["reader_unread"]]);
+  });
+
+  it("doğrulanmış parça yoksa okuyucu çağrılmaz", async () => {
+    vi.stubEnv("AI_SENIOR_READER_ENABLED", "1");
+    const none = answers.map((a) => ({ ...a, status: "no_info", text: "", evidence: "" }));
+    const f = routedFetch({ ...MODEL, answers: none }, readerSays([]));
+    await suggestReply({ ...input, conversationItems: ITEMS });
+    expect(f).toHaveBeenCalledTimes(1);
+  });
+});

@@ -50,6 +50,8 @@ export interface ItemsTurnPlan {
   gateItems: ItemsGateInput;
   /** Bu turun öğelerinin HEPSİ hassas → cevap modeline öğe bloğu verilmez; cevap ev sahibinde kalır. */
   allHeld: boolean;
+  /** Cevap parçaları kipinde bu okumanın üretmediği, önceki okumadan kalmış açık güvenli satırlar (`plan.staleOpen`; Soru 10). */
+  staleOpen?: PersistedItem[];
 }
 
 export type ItemsTurn =
@@ -351,6 +353,71 @@ export async function notifyHeldItems(
     notice.mailed.push(messageId);
   }
   return notice;
+}
+
+/** Sessiz kalan açık ihtiyacın satır başına kalıcı bildirim kaydı öneki (kurucu 10-23 sabah, Soru 10). */
+export const OPEN_NEED_MAIL_PREFIX = "open-need-mail:";
+const OPEN_NEED_MAIL_TTL_MS = 45 * 24 * 60 * 60 * 1000;
+
+/** `mailed` / `deduped` (o mesaja e-posta zaten gitmişti — kayıt kalır) · `none` (bildirilecek açık ihtiyaç yok) · `not_sent` (kayıt geri alındı). */
+export type OpenNeedNotice = "mailed" | "deduped" | "none" | "not_sent";
+
+/**
+ * SESSİZ KALAN AÇIK İHTİYAÇ (kurucu 10-23 sabah, Soru 10: "amaç 'eski bir kayıt bulduk' diye alarm vermek değil, unutulmuş gerçek bir soruyu
+ * görünür yapmak"). Tur tutuldu, misafire hiçbir şey gitmedi ve hiçbir bildirim yolu çalışmadı; turun mesajlarında hâlâ açık bir ihtiyaç
+ * satırı var (parça kipinde bu okumanın üretmediği satır):
+ *  · Yalnız GERÇEK açık ihtiyaç: satırın GÜNCEL durumu açık (cevaplandı · vazgeçildi — anlama katmanının `withdrawn` okuması · yerine
+ *    geçildi · bitti DEĞİL), kaynak / asistan sorusu değil. Ev sahibi bu mesajlardan sonra yazdıysa mesajlar tura girmez.
+ *  · ÖNCE kalıcı kayıt: satır başına benzersiz talep satırı (`SystemLock`, `create` yarışını tek kazanan — eşzamanlı ya da yeniden işlenen
+ *    geçişte ikinci e-posta yok). Kaydı zaten olan satır e-posta tetiklemez.
+ *  · SONRA mevcut yol (`notify` = "Misafir cevabınızı bekliyor", mesaj başına tek e-posta). E-posta gitmezse kayıtlar geri alınır (sonraki
+ *    geçiş yeniden dener — e-posta gitmemişti); o mesaja e-posta zaten gittiyse (`deduped`) kayıtlar kalır.
+ * Asla fırlatmaz (talep deposu okunamazsa e-posta GİTMEZ — fail-closed, konuşma panelde görünür).
+ */
+export async function notifyOpenNeeds(
+  db: Db,
+  input: {
+    organizationId: string;
+    items: readonly PersistedItem[];
+    now: Date;
+    notify: (messageId: string) => Promise<"mailed" | "deduped" | "no_recipient" | "failed" | "unavailable">;
+  },
+): Promise<OpenNeedNotice> {
+  const claimed: string[] = [];
+  const release = () => db.systemLock.deleteMany({ where: { name: { in: claimed.map((id) => `${OPEN_NEED_MAIL_PREFIX}${id}`) } } }).catch(() => {});
+  try {
+    const candidates = input.items.filter((i) => !NO_NOTIFY_KINDS.has(i.kind));
+    if (candidates.length === 0) return "none";
+    // Güncel durum (plan ile bildirim arasında cevaplanmış / vazgeçilmiş satır bildirilmez).
+    const live = await db.conversationItem.findMany({
+      where: { organizationId: input.organizationId, id: { in: candidates.map((c) => c.id) }, status: { in: [...OPEN] } },
+      select: { id: true },
+    });
+    const liveIds = new Set(live.map((r) => r.id));
+    const open = candidates.filter((c) => liveIds.has(c.id));
+    if (open.length === 0) return "none";
+    await db.systemLock.deleteMany({ where: { name: { startsWith: OPEN_NEED_MAIL_PREFIX }, lockedUntil: { lt: input.now } } }).catch(() => {});
+    let target: string | null = null;
+    for (const it of open) {
+      try {
+        await db.systemLock.create({ data: { name: `${OPEN_NEED_MAIL_PREFIX}${it.id}`, lockedUntil: new Date(input.now.getTime() + OPEN_NEED_MAIL_TTL_MS) } });
+        claimed.push(it.id);
+        target = it.messageId;
+      } catch (err) {
+        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") continue;
+        await release();
+        return "not_sent";
+      }
+    }
+    if (!target) return "none";
+    const outcome = await input.notify(target);
+    if (outcome === "mailed" || outcome === "deduped") return outcome;
+    await release();
+    return "not_sent";
+  } catch {
+    await release();
+    return "not_sent";
+  }
 }
 
 /** Senkron uyarı geçişi (model yok): kelime ağının mesaj etiketleri → öğeler (yalnız kelime ağı), tutulur. */

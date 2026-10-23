@@ -28,6 +28,11 @@ export interface ComposedItemsPlan<T extends PlanItem> {
   gateItems: ItemsGateInput;
   /** Bu turun öğelerinin HEPSİ hassas → cevap modeline öğe bloğu verilmez. */
   allHeld: boolean;
+  /**
+   * Cevap parçaları kipinde bu okumanın ÜRETMEDİĞİ, önceki okumadan kalmış açık güvenli satırlar (Opus e2e F5: cevaplanamaz). Tur sessiz
+   * kalırsa ev sahibine tek bildirim bunlar için (kurucu 10-23 sabah, Soru 10). Kip kapalıyken alan yok.
+   */
+  staleOpen?: T[];
 }
 
 /**
@@ -115,10 +120,11 @@ export function composeItemsPlan<T extends PlanItem>(input: {
   // öğede birleşir, model yalnız ilk soruyu görür ama doğrulayıcı ikisinin sözcükleriyle okur — havuz cevabı sauna sorusunu da kapatıyordu.
   const parts = answerPartsEnabled() && itemOrdinalEnabled();
   const produced = parts ? input.producedKeys : undefined;
-  const answerable = input.turnItems
-    .filter((i) => i.sensitivity === "none" && !dependent.includes(i))
+  const independent = input.turnItems.filter((i) => i.sensitivity === "none" && !dependent.includes(i));
+  const answerable = independent
     .filter((i) => !produced || produced.has(hintKey(i.messageId, i.kind, i.ordinal)))
     .map((item, idx) => ({ ref: `R${idx + 1}`, item }));
+  const staleOpen = produced ? independent.filter((i) => !produced.has(hintKey(i.messageId, i.kind, i.ordinal))) : undefined;
   const relationGate: ItemsGateInput["relation"] = relation
     ? { requests: answerable.map(({ ref, item }) => ({ ...relation.factsOf(item), ref })), anchors: relation.anchors }
     : undefined;
@@ -178,6 +184,7 @@ export function composeItemsPlan<T extends PlanItem>(input: {
         : {}),
     },
     allHeld: answerable.length === 0,
+    ...(staleOpen ? { staleOpen } : {}),
   };
 }
 

@@ -1680,6 +1680,21 @@ const scriptOf = (text: string) => (/[Ѐ-ӿ]/u.test(text) ? "cyrillic" : /[Ͱ-Ͽ
 
 // ─── ana kural ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
+/**
+ * İhtiyacın konusu (sözcükler aksan katlanmış gelir): nitelik olmayan, genel baş ad ve fiil olmayan sözcükler ("çamaşır makinesi" →
+ * "çamaşır"; Opus 10-23 K2) ve onların sözlük konuları ("havuz temizliği" → "havuz" / pool; "temizlik" nitelik).
+ */
+function needSubject(needTerms: readonly string[], needTopics: readonly string[]): Subject {
+  const nonAttribute = needTerms.filter((t) => !isAttribute(t));
+  const specific = nonAttribute.filter((t) => !isGenericOrVerb(t));
+  const attributeTopics = new Set(topicsWithSymptomsOf(needTerms.filter(isAttribute).join(" ")));
+  const subjectTopics = needTopics.filter((t) => !attributeTopics.has(t));
+  return {
+    terms: specific.length > 0 ? specific : nonAttribute.length > 0 ? nonAttribute : needTerms,
+    topics: subjectTopics.length > 0 ? subjectTopics : needTopics,
+  };
+}
+
 export function checkAnswerBinding(raw: BindingInput): BindingResult {
   // İhtiyaç sözcükleri de aynı aksan katlamasından (iki taraf simetrik — R1).
   const input: BindingInput = { ...raw, needTerms: raw.needTerms.map(foldMarks) };
@@ -1687,16 +1702,7 @@ export function checkAnswerBinding(raw: BindingInput): BindingResult {
   const evidence = input.evidence.trim();
   if (!evidence) return { ok: false, issues: ["evidence_missing"] };
   if (!quoteGroundedIn(input.sourceText, evidence)) issues.add("evidence_not_in_source");
-  // Konu = nitelik olmayan, genel baş ad ve fiil olmayan sözcükler ("çamaşır makinesi" → "çamaşır"; Opus 10-23 K2) ve onların sözlük
-  // konuları ("havuz temizliği" → "havuz" / pool; "temizlik" nitelik).
-  const nonAttribute = input.needTerms.filter((t) => !isAttribute(t));
-  const specific = nonAttribute.filter((t) => !isGenericOrVerb(t));
-  const attributeTopics = new Set(topicsWithSymptomsOf(input.needTerms.filter(isAttribute).join(" ")));
-  const subjectTopics = input.needTopics.filter((t) => !attributeTopics.has(t));
-  const subj: Subject = {
-    terms: specific.length > 0 ? specific : nonAttribute.length > 0 ? nonAttribute : input.needTerms,
-    topics: subjectTopics.length > 0 ? subjectTopics : input.needTopics,
-  };
+  const subj = needSubject(input.needTerms, input.needTopics);
   const subjectKnown = subj.terms.length > 0 || subj.topics.length > 0;
   if (!subjectKnown) issues.add("subject_unknown");
   // Konu kimlikleri: ihtiyaç İKİ tesis taşıyorsa ("havuz + sauna", Opus 10-23 K1) parça değerinin konusu kalemdekiyle aynı olmalı.
@@ -2720,4 +2726,67 @@ export function missesAskedFacility(part: string, queries: readonly string[]): b
   if (asked.size < 2) return false;
   const inPart = facilitiesIn(part);
   return [...asked].some((f) => !inPart.has(f));
+}
+
+/**
+ * SORU 9 (kurucu 10-23 sabah): yalnız istisnayı söyleyen parça. Parçanın BÜTÜN değerleri bir değişkeye (gün / mevsim) bağlıysa ve kaynak
+ * (alıntının kalemi + istemdeki öteki kalemler) aynı konuya aynı türden BAŞKA bir değer veriyorsa (genel kural ya da öteki değişke; değersiz
+ * değişke — "hafta içi kapalı" — da sayılır) misafir "evet, 22'ye kadar açık" anlayabilir → parça tutulur, istek açık kalır.
+ *  · Misafir o değişkeyi SORDUYSA (isteğin sorguları · bu turun ve önceki misafir mesajları — `askedContext`) gider: "hafta sonu kaçta",
+ *    önceki mesajda "cumartesi geliyoruz" (cumartesi hafta sonunun özelidir).
+ *  · Kaynakta genel kural / öteki değişke YOKSA koşmaz: yalnız istisnayı söylemek tek doğru bilgidir (genel değer uydurulamaz).
+ *  · Genel kuralı da anan parça ("hafta içi 22:00, hafta sonu 23:00") gider. Yönü farklı genel değer (açılış ↔ kapanış) sayılmaz.
+ *  · Çok konulu ihtiyaçta (iki tesis) koşmaz — konu ayrımı bağ denetiminin işi.
+ * Yeni sözcük listesi YOK: gün / mevsim sınıfları bağ denetiminin aynı okuyucusundan.
+ */
+export function omitsGeneralRule(input: {
+  part: string;
+  sourceText: string;
+  otherSources?: readonly string[];
+  needTerms: readonly string[];
+  needTopics: readonly string[];
+  askedContext: readonly string[];
+}): boolean {
+  const subj = needSubject(input.needTerms.map(foldMarks), input.needTopics);
+  if (subj.terms.length === 0 && subj.topics.length === 0) return false;
+  const presentIds = new Set(subj.terms.filter((t) => hasSubject(input.sourceText, { terms: [t], topics: [] })).map(subjectIdentity));
+  if (presentIds.size > 1) return false;
+  const pdoc = documentOf(input.part, subj);
+  const claims: { c: Span; days: string[]; dirs: Set<"start" | "end"> }[] = [];
+  pdoc.sentences.forEach((sent) =>
+    sent.groups.forEach((g, gi) => {
+      const place = pdoc.placeOf(sent, gi, { extraBeforeOnly: true });
+      for (const c of g.claims) claims.push({ c, days: variantClassesOf(place.conditions), dirs: place.directions });
+    }),
+  );
+  if (claims.length === 0 || claims.some((x) => x.days.length === 0)) return false;
+  const variants = new Set(claims.flatMap((x) => x.days));
+  const asked = conditionClasses(tokenize([...input.needTerms, ...input.askedContext].join("\n")), "evidence");
+  // Sorulan değişke: aynı sınıf, onun özeli ("cumartesi" → hafta sonu) ya da onun üst ailesi ("hafta sonu" sorusuna "cumartesi" değeri).
+  const askedCovers = (v: string) =>
+    SEASON_CLASSES.has(v) ? asked.has(v) : coversDay(asked, v) || (DAY_PARENT[v] !== undefined && asked.has(DAY_PARENT[v]));
+  if ([...variants].every(askedCovers)) return false;
+  const classes = new Set(claims.map((x) => x.c.cls));
+  const partDirs = new Set(claims.flatMap((x) => [...x.dirs]));
+  // Kaynaktaki konu yeri, parçanın değişkelerinden BAŞKA bir koşulda mı (genel kural = koşulsuz; öteki değişke = parçanınkileri kapsamayan).
+  const otherCondition = (conds: readonly string[]) =>
+    conds.length === 0 || !conds.some((k) => variants.has(k) || [...variants].some((v) => DAY_PARENT[v] === k || DAY_PARENT[k] === v));
+  const docs = [input.sourceText, ...(input.otherSources ?? []).filter((t) => t !== input.sourceText && mentionsSubject(t, subj))].map((t) =>
+    cachedDocument(t, subj),
+  );
+  for (const d of docs) {
+    for (let si = 0; si < d.sentences.length; si++) {
+      const sent = d.sentences[si];
+      for (let gi = 0; gi < sent.groups.length; gi++) {
+        const g = sent.groups[gi];
+        if (!g.claims.some((e) => classes.has(e.cls)) || !d.boundAt(si, gi)) continue;
+        const place = d.placeOf(sent, gi);
+        if (!otherCondition(variantClassesOf(place.conditions))) continue;
+        if (partDirs.size > 0 && place.directions.size > 0 && ![...place.directions].some((x) => partDirs.has(x))) continue;
+        if (g.claims.some((e) => classes.has(e.cls) && !claims.some((x) => sameValue(x.c, e)))) return true;
+      }
+    }
+    if (d.valuelessVariantConds().some((k) => otherCondition([k]))) return true;
+  }
+  return false;
 }

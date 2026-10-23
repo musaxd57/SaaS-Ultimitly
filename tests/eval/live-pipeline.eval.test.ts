@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { execSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import path from "node:path";
 
 // ---------------------------------------------------------------------------
@@ -104,8 +105,26 @@ interface Dataset {
 
 /** Senaryo seti (`evals/` altında dosya adı): varsayılan cevap kıyası seti; `code-greeting.json` K17 kıyası; kör kabul seti. */
 const SET = (process.env.EVAL_LIVE_SET?.trim() || "model-reply-compare.json").replace(/[^a-z0-9._-]/gi, "");
-const DATASET = path.resolve(__dirname, "../../evals", SET);
-const data = JSON.parse(readFileSync(DATASET, "utf8")) as Dataset;
+/**
+ * Mühürlü kör set (kurucu 10-23 sabah, Soru 11: "Parça kipi, son kodla uçtan uca kör ölçüm geçene kadar kapalı kalsın"): `EVAL_SEALED_FINAL=1`
+ * + `EVAL_SEALED_NAME`. Set ayrı yazarın (geliştirici açmadı); yalnız SHA-256'sı kayıtla eşleşir ve durumu "sealed" ise koşar, kısmi koşu
+ * yasak; rapor yalnız TOPLU SAYI + senaryo kimliği basar, hiçbir misafir / cevap metni yazılmaz.
+ */
+const SEALED = process.env.EVAL_SEALED_FINAL === "1";
+const SEALED_NAMES = ["needs-blind-2026-10-23.json"] as const;
+const SEALED_NAME_RAW = process.env.EVAL_SEALED_NAME?.trim();
+if (SEALED_NAME_RAW && !(SEALED_NAMES as readonly string[]).includes(SEALED_NAME_RAW)) throw new Error(`EVAL_SEALED_NAME tanınmıyor: ${SEALED_NAME_RAW}`);
+const SEALED_NAME = SEALED_NAMES.find((n) => n === SEALED_NAME_RAW) ?? SEALED_NAMES[0];
+const DATASET = SEALED ? path.resolve(__dirname, "../../evals/sealed", SEALED_NAME) : path.resolve(__dirname, "../../evals", SET);
+const datasetBytes = readFileSync(DATASET);
+if (SEALED) {
+  const seals = JSON.parse(readFileSync(path.resolve(__dirname, "../../evals/sealed/SEALS.json"), "utf8")) as Record<string, { sha256?: string; state?: string }>;
+  const seal = seals[SEALED_NAME];
+  if (!seal || seal.state !== "sealed") throw new Error("mühürlü set 'sealed' durumunda değil (yanmış ya da kayıtsız).");
+  if (createHash("sha256").update(datasetBytes).digest("hex") !== seal.sha256) throw new Error("mühürlü setin SHA-256'sı kayıtla eşleşmiyor.");
+  if (process.env.EVAL_LIVE_LIMIT || process.env.EVAL_LIVE_ONLY) throw new Error("EVAL_LIVE_LIMIT / EVAL_LIVE_ONLY mühürlü koşuda kullanılamaz.");
+}
+const data = JSON.parse(datasetBytes.toString("utf8")) as Dataset;
 
 const key = process.env.OPENAI_API_KEY?.trim() ?? "";
 const dbUrl = process.env.DATABASE_URL ?? "";
@@ -179,10 +198,13 @@ const realFetch = globalThis.fetch;
  * bilinçli olarak metin taşımaz — doğrulayıcının neden reddettiğini görmek için yalnız ölçerde tutulur. Senaryo başında sıfırlanır.
  */
 let partsRawLog: unknown[] = [];
-/** 10-23 E: "okuyucu hata verdi" kolu — kıdemli okuyucu çağrısı (şema `senior_reader`) gerçek ağa gitmeden 503 döner. */
+/**
+ * 10-23 E: "okuyucu hata verdi" kolu — kıdemli okuyucu çağrısı (şema `senior_reader`) ve parça okuyucusu (şema `part_reader`, Soru 11) gerçek
+ * ağa gitmeden 503 döner.
+ */
 const READER_FAIL = process.env.EVAL_LIVE_READER_FAIL === "1";
 function meteredFetch(input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]): ReturnType<typeof fetch> {
-  if (READER_FAIL && typeof init?.body === "string" && init.body.includes('"name":"senior_reader"')) {
+  if (READER_FAIL && typeof init?.body === "string" && /"name":"(?:senior|part)_reader"/.test(init.body)) {
     return Promise.resolve(new Response(JSON.stringify({ error: { message: "eval: reader failure arm" } }), { status: 503 }));
   }
   return realFetch(input, init).then(async (res) => {
@@ -392,6 +414,23 @@ export function scoreNeeds(needs: readonly NeedSpec[], sentText: string | null, 
     const wrongAnswered = n.want === "open" ? forbidHit || (sameKind === 1 && ofKind.length === 1 && answeredItem) : forbidHit;
     return { kind: n.kind, want: n.want, textOk, statusOk, wrongAnswered };
   });
+}
+
+/**
+ * İhtiyaç sayıları (kurucu 10-23 sabah: "Hem yanlış gönderimleri hem gereksiz tutmaları ölçsün"): yanlış gönderim = yanlış değer ya da
+ * açık kalması gerekirken "cevaplandı"; gereksiz tutma = cevaplanması gereken ihtiyacın doğru değeri misafire gitmedi (yanlış değer yokken).
+ */
+export function needMetrics(all: readonly NeedResult[]) {
+  const answered = all.filter((n) => n.want === "answered");
+  const open = all.filter((n) => n.want === "open");
+  return {
+    answered: answered.length,
+    answeredOk: answered.filter((n) => n.textOk && !n.wrongAnswered).length,
+    needlessHold: answered.filter((n) => !n.textOk && !n.wrongAnswered).length,
+    open: open.length,
+    openOk: open.filter((n) => n.textOk && !n.wrongAnswered).length,
+    wrong: all.filter((n) => n.wrongAnswered).length,
+  };
 }
 
 let lastStart = 0;
@@ -623,7 +662,10 @@ describe.skipIf(!enabled)(`CANLI HAT — ${MODEL}`, () => {
     mkdirSync(dir, { recursive: true });
     const stamp = new Date().toISOString().slice(0, 10);
     const setTag = SET === "model-reply-compare.json" ? "" : `-${SET.replace(/\.json$/, "")}`;
-    const name = uniqueReportName(dir, `live-pipeline-${stamp}-${MODEL.replace(/[^a-z0-9.-]+/gi, "_")}${setTag}${TAG ? `-${TAG}` : ""}.md`);
+    const name = uniqueReportName(
+      dir,
+      `live-pipeline-${stamp}-${MODEL.replace(/[^a-z0-9.-]+/gi, "_")}${SEALED ? "-kor" : setTag}${TAG ? `-${TAG}` : ""}.md`,
+    );
     let commit = "?";
     try {
       commit = execSync("git rev-parse --short HEAD", { cwd: path.resolve(__dirname, "../.."), stdio: ["ignore", "pipe", "ignore"] })
@@ -639,6 +681,46 @@ describe.skipIf(!enabled)(`CANLI HAT — ${MODEL}`, () => {
       : failed > rows.length * 0.02
         ? `GEÇERSİZ — ${failed} satır düştü`
         : "GEÇERLİ";
+    if (SEALED) {
+      // Mühürlü kör koşu: yalnız toplu sayı + kimlik (metin YOK — misafir mesajı, cevap, parça, alıntı yazılmaz).
+      const all = rows.filter((r) => r.ok && r.needs).flatMap((r) => r.needs!);
+      const m = needMetrics(all);
+      const sealedLines = [
+        `# Canlı hat — MÜHÜRLÜ KÖR SET (${SEALED_NAME}) — ${MODEL} (${stamp})`,
+        "",
+        `Durum: **${status}** · commit \`${commit}\` · satır ${rows.length}/${planned} · maliyet $${usd().toFixed(4)}`,
+        `Parça kipi: \`AI_ANSWER_PARTS_ENABLED=${process.env.AI_ANSWER_PARTS_ENABLED?.trim() || "(boş)"}\` · okuyucu: \`AI_SENIOR_READER_ENABLED=${process.env.AI_SENIOR_READER_ENABLED?.trim() || "(boş)"}\``,
+        "",
+        "| ölçü | değer |",
+        "|---|---|",
+        `| cevaplanması gereken ihtiyaç: doğru değerle giden | ${pct(m.answeredOk, m.answered)} |`,
+        `| GEREKSİZ TUTMA (cevabı olan ihtiyaç misafire gitmedi / eksik gitti) | ${m.needlessHold} |`,
+        `| açık kalması gereken ihtiyaç: açık kaldı | ${pct(m.openOk, m.open)} |`,
+        `| 🚨 YANLIŞ GÖNDERİM (yanlış değer / yanlış "cevaplandı"; hedef 0) | ${m.wrong} |`,
+        `| 🚨 "bilgim yok" / iç kaynak anlatımı giden (hedef 0) | ${rows.filter((r) => r.absenceLeak).length} |`,
+        `| giden mesaj | ${rows.filter((r) => r.ok && r.sent).length}/${rows.filter((r) => r.ok).length} |`,
+        "",
+        "| senaryo | ihtiyaçlar (✔ doğru · ✖ yanlış gönderim · ○ gereksiz tutma) |",
+        "|---|---|",
+        ...rows
+          .filter((r) => r.needs)
+          .map((r) => `| ${r.id} | ${r.needs!.map((n) => `${n.kind}:${n.want}${n.wrongAnswered ? "✖" : n.textOk ? "✔" : "○"}`).join(" ")} |`),
+        "",
+        "## Düşen satırlar",
+        "",
+        ...rows.filter((r) => !r.ok).map((r) => `- \`${r.id}\``),
+        "",
+      ];
+      writeFileSync(path.join(dir, name), sealedLines.join("\n"), "utf8");
+      writeSidecar(dir, name, {
+        suite: "live-pipeline",
+        version: data.version,
+        meta: { model: MODEL, commit, status, sealed: SEALED_NAME, pad: PAD_TO, usd: usd() },
+        rows: rows.map((r) => ({ id: r.id, ok: r.ok, sent: r.sent, needs: r.needs ?? null })),
+        runtime,
+      });
+      return;
+    }
     const usageLines = [...usageByModel].map(
       ([m, u]) => `| ${m} | ${u.calls} | ${u.in} | ${u.cached} | ${u.out} | ${u.reasoning} |`,
     );
@@ -717,6 +799,7 @@ describe.skipIf(!enabled)(`CANLI HAT — ${MODEL}`, () => {
               `| cevaplanması gereken ihtiyaç: doğru değerle misafire giden | ${pct(ans.filter((n) => n.textOk).length, ans.length)} |`,
               `| açık kalması gereken ihtiyaç: açık kaldı | ${pct(open.filter((n) => n.textOk && !n.wrongAnswered).length, open.length)} |`,
               `| 🚨 yanlış "cevaplandı" / yanlış değer misafire giden (hedef 0) | ${all.filter((n) => n.wrongAnswered).length} |`,
+              `| gereksiz tutma (cevabı olan ihtiyaç gitmedi / eksik gitti) | ${needMetrics(all).needlessHold} |`,
               `| öğe durumu beklentiyle uyumlu (tek öğeli tür) | ${pct(st.filter((n) => n.statusOk).length, st.length)} |`,
               `| 🚨 "bilgim yok" / iç kaynak anlatımı misafire giden (hedef 0) | ${rows.filter((r) => r.absenceLeak).length} |`,
               `| giden mesaj | ${rows.filter((r) => r.ok && r.sent).length}/${rows.filter((r) => r.ok).length} |`,

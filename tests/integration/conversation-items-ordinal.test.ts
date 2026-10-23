@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
 import { upsertTurnItems } from "@/lib/conversation-items/store";
 import { buildItemsForMessage, requestOrdinals } from "@/lib/conversation-items/core";
-import { planItemsTurn } from "@/lib/conversation-items/flow";
+import { notifyOpenNeeds, OPEN_NEED_MAIL_PREFIX, planItemsTurn } from "@/lib/conversation-items/flow";
 import { parseUnderstanding } from "@/lib/ai/semantic/understanding-schema";
 
 vi.mock("@/lib/email", () => ({ emailService: { send: vi.fn(async () => ({ ok: true })) } }));
@@ -540,5 +540,83 @@ describe("Opus e2e 10-23 F5 — parça kipinde yalnız bu okumanın satırları 
     vi.stubEnv("AI_ANSWER_PARTS_ENABLED", "");
     const legacy = await turn(conversationId, messageId, [SAUNA], 6);
     expect(legacy.mode === "items" && legacy.answerable.length).toBe(2);
+  });
+});
+
+describe("Soru 10 (kurucu 10-23 sabah) — sessiz kalan açık ihtiyaç: kalıcı kayıt + tek bildirim", () => {
+  beforeEach(() => {
+    vi.stubEnv("AI_ITEM_ORDINAL_ENABLED", "1");
+  });
+
+  /** İlk okuma havuz + sauna; ikinci okuma (parça kipi) yalnız sauna → havuz satırı bayat açık. */
+  async function staleSetup() {
+    const { conversationId, messageId } = await seed();
+    await turn(conversationId, messageId, [HAVUZ, SAUNA], 0);
+    vi.stubEnv("AI_ANSWER_PARTS_ENABLED", "1");
+    const plan = await turn(conversationId, messageId, [SAUNA], 5);
+    if (plan.mode !== "items") throw new Error(plan.mode);
+    return { conversationId, messageId, plan };
+  }
+  const locks = () => prisma.systemLock.findMany({ where: { name: { startsWith: OPEN_NEED_MAIL_PREFIX } } });
+
+  it("plan bayat açık satırı ayrıca verir; parça kipi kapalıyken alan yok", async () => {
+    const { plan } = await staleSetup();
+    expect(plan.staleOpen?.map((i) => i.topic)).toEqual(["havuz"]);
+    vi.stubEnv("AI_ANSWER_PARTS_ENABLED", "");
+    const { conversationId, messageId } = await seed();
+    const legacy = await turn(conversationId, messageId, [HAVUZ, SAUNA], 0);
+    expect(legacy.mode === "items" && legacy.staleOpen).toBeUndefined();
+  });
+
+  it("🚨 önce kalıcı kayıt, sonra TEK bildirim (ihtiyacın mesajına); yeniden işleme yeni bildirim üretmez", async () => {
+    const { messageId, plan } = await staleSetup();
+    const notify = vi.fn(async () => "mailed" as const);
+    expect(await notifyOpenNeeds(prisma, { organizationId: orgId, items: plan.staleOpen!, now: at(6), notify })).toBe("mailed");
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(notify).toHaveBeenCalledWith(messageId);
+    expect(await locks()).toHaveLength(1);
+    // Aynı tur yeniden işlendi / tarama tekrarlandı.
+    expect(await notifyOpenNeeds(prisma, { organizationId: orgId, items: plan.staleOpen!, now: at(7), notify })).toBe("none");
+    expect(notify).toHaveBeenCalledTimes(1);
+  });
+
+  it("🚨 kayıt notify ÇAĞRILMADAN önce yazılmıştır (eşzamanlı ikinci geçiş kayıt görür, e-posta atmaz)", async () => {
+    const { plan } = await staleSetup();
+    let second: string | undefined;
+    const notify = vi.fn(async () => {
+      second = await notifyOpenNeeds(prisma, { organizationId: orgId, items: plan.staleOpen!, now: at(6), notify: vi.fn(async () => "mailed" as const) });
+      return "mailed" as const;
+    });
+    await notifyOpenNeeds(prisma, { organizationId: orgId, items: plan.staleOpen!, now: at(6), notify });
+    expect(second).toBe("none");
+  });
+
+  it("🚨 e-posta gitmezse (hata / alıcı yok) kayıt geri alınır, sonraki geçiş yeniden dener; 'zaten gitti' kaydı tutar", async () => {
+    const { plan } = await staleSetup();
+    expect(await notifyOpenNeeds(prisma, { organizationId: orgId, items: plan.staleOpen!, now: at(6), notify: async () => "failed" })).toBe("not_sent");
+    expect(await locks()).toHaveLength(0);
+    expect(await notifyOpenNeeds(prisma, { organizationId: orgId, items: plan.staleOpen!, now: at(7), notify: async () => "no_recipient" })).toBe("not_sent");
+    expect(await locks()).toHaveLength(0);
+    expect(await notifyOpenNeeds(prisma, { organizationId: orgId, items: plan.staleOpen!, now: at(8), notify: async () => "deduped" })).toBe("deduped");
+    expect(await locks()).toHaveLength(1);
+  });
+
+  it("🚨 vazgeçilen / cevaplanan satır bildirilmez (güncel durum yeniden okunur)", async () => {
+    const { conversationId, plan } = await staleSetup();
+    await prisma.conversationItem.updateMany({ where: { conversationId, topic: "havuz" }, data: { status: "withdrawn" } });
+    const notify = vi.fn(async () => "mailed" as const);
+    expect(await notifyOpenNeeds(prisma, { organizationId: orgId, items: plan.staleOpen!, now: at(6), notify })).toBe("none");
+    expect(notify).not.toHaveBeenCalled();
+    expect(await locks()).toHaveLength(0);
+  });
+
+  it("kaynak / asistan sorusu bildirim istemez; başka işletmenin satırı okunmaz", async () => {
+    const { plan } = await staleSetup();
+    const notify = vi.fn(async () => "mailed" as const);
+    const asAssistant = plan.staleOpen!.map((i) => ({ ...i, kind: "about_assistant" as const }));
+    expect(await notifyOpenNeeds(prisma, { organizationId: orgId, items: asAssistant, now: at(6), notify })).toBe("none");
+    const other = await makeOrgWithProperty();
+    expect(await notifyOpenNeeds(prisma, { organizationId: other.orgId, items: plan.staleOpen!, now: at(6), notify })).toBe("none");
+    expect(notify).not.toHaveBeenCalled();
   });
 });

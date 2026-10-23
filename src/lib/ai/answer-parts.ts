@@ -19,9 +19,10 @@
 
 import "server-only";
 
-import { askedAspects, askedDirection, checkAnswerBinding, missesAskedFacility, missingAspects, type BindingIssue } from "@/lib/ai/answer-binding";
+import { askedAspects, askedDirection, checkAnswerBinding, missesAskedFacility, missingAspects, omitsGeneralRule, type BindingIssue } from "@/lib/ai/answer-binding";
 import { stripLeadingGreeting } from "@/lib/ai/code-greeting";
 import { quoteGroundedIn } from "@/lib/ai/semantic/absence-judge";
+import type { PartReaderHold } from "@/lib/ai/semantic/part-reader";
 
 /** Anahtar yalnız tam "1" ile açılır (`STRICT_ONE_FLAGS`). */
 export function answerPartsEnabled(): boolean {
@@ -83,10 +84,15 @@ export interface PartNeed {
   queries?: readonly string[];
 }
 
+/** Kodun kapsam denetimleri: sorulan yön / tesis / genel kural (Soru 9). */
+type ScopeIssue = "aspect_missing" | "subject_partial" | "general_omitted";
+/** Parça okuyucusunun tuttuğu parça (Soru 11; `semantic/part-reader.ts`). */
+type ReaderIssue = `reader_${PartReaderHold}`;
+
 export type PartVerdict =
   | { ref: string; status: "verified"; source: string }
   | { ref: string; status: "no_info" | "missing" }
-  | { ref: string; status: "rejected"; issues: (BindingIssue | "text_missing" | "too_long" | "source_not_found" | "aspect_missing" | "subject_partial")[] };
+  | { ref: string; status: "rejected"; issues: (BindingIssue | "text_missing" | "too_long" | "source_not_found" | ScopeIssue | ReaderIssue)[] };
 
 export interface ComposedReply {
   /** Misafire gidecek metin: doğrulanan parçalar, istek sırasıyla, satır satır. Hiç yoksa boş dize (hiçbir şey gitmez). */
@@ -102,8 +108,19 @@ export interface ComposedReply {
   verified: { ref: string; text: string; evidence: string; source: string }[];
 }
 
-/** Parçaları doğrular ve birleştirir. Saf; istek sırası `needs` sırasıdır (R1, R2 …). */
-export function composeVerifiedReply(input: { parts: readonly AnswerPart[]; needs: readonly PartNeed[]; sources: readonly PartSource[] }): ComposedReply {
+/**
+ * Parçaları doğrular ve birleştirir. Saf; istek sırası `needs` sırasıdır (R1, R2 …).
+ *  · `askedContext`: misafirin bu turdaki ve önceki mesajları — Soru 9'da sorulan değişke ("cumartesi geliyoruz") buradan da okunur.
+ *  · `holds`: parça okuyucusunun TUTTUĞU parçalar (Soru 11). Yalnız kodun bütün denetimlerinden GEÇMİŞ parçaya uygulanır; okuyucu hiçbir
+ *    parçayı serbest bırakamaz.
+ */
+export function composeVerifiedReply(input: {
+  parts: readonly AnswerPart[];
+  needs: readonly PartNeed[];
+  sources: readonly PartSource[];
+  askedContext?: readonly string[];
+  holds?: ReadonlyMap<string, PartReaderHold>;
+}): ComposedReply {
   const texts: string[] = [];
   const seen = new Set<string>();
   const refs: string[] = [];
@@ -150,11 +167,32 @@ export function composeVerifiedReply(input: { parts: readonly AnswerPart[]; need
     // Doğru ama sorulanı cevaplamayan parça isteği KAPATMAZ ve gitmez (Opus e2e 10-23 F2 / F3): "Havuz kaçta açılıyor?" ↔ "Havuz
     // ısıtmalıdır."; "Sauna ve havuz kaçta?" ↔ yalnız havuz. İstek ev sahibinde açık kalır.
     const queries = need.queries ?? [];
-    const scope: ("aspect_missing" | "subject_partial")[] = [];
+    const scope: ScopeIssue[] = [];
     if (missingAspects(part.text, askedAspects(queries), askedDirection(queries), need.terms, queries).length > 0) scope.push("aspect_missing");
     if (missesAskedFacility(part.text, queries)) scope.push("subject_partial");
+    // Soru 9 (kurucu 10-23 sabah): misafirin sormadığı istisnayı genel kuralı anmadan veren parça gitmez ("Havuz 22:00'ye kadar açık mı?" ↔
+    // "Hafta sonu 23:00'e kadar açık." — kalemde hafta içi 22:00). Misafir o günü sorduysa / önceden söylediyse gider.
+    if (
+      omitsGeneralRule({
+        part: part.text,
+        sourceText: source.text,
+        otherSources,
+        needTerms: need.terms,
+        needTopics: need.topics,
+        askedContext: [...queries, ...(input.askedContext ?? [])],
+      })
+    ) {
+      scope.push("general_omitted");
+    }
     if (scope.length > 0) {
       verdicts.push({ ref: need.ref, status: "rejected", issues: scope });
+      continue;
+    }
+    // Soru 11: kodun bütün denetimlerinden geçen parçayı okuyucu TUTABİLİR (sorulanı cevaplamıyor / yarım / yanlış bağ / tek başına istisna
+    // / okunamadı). Okuyucunun "evet"i ayrıca izin değildir — bu noktaya yalnız kodun doğruladığı parça gelir.
+    const hold = input.holds?.get(need.ref);
+    if (hold) {
+      verdicts.push({ ref: need.ref, status: "rejected", issues: [`reader_${hold}`] });
       continue;
     }
     // Aynı metin iki isteği birlikte cevaplayabilir ("Havuz kaçta açılıyor, kaçta kapanıyor?" ↔ "Havuz 09:00-20:00 arası açıktır.") — iki istek

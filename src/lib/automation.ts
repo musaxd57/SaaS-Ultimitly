@@ -175,6 +175,7 @@ import { houseRulesShadowFor } from "@/lib/house-rules/shadow";
 import {
   holdTurnLevelItems,
   notifyHeldItems,
+  notifyOpenNeeds,
   planItemsTurn,
   recordLexicalAlertItems,
   recordModelItems,
@@ -3314,6 +3315,24 @@ export async function applyChannelAutoReply(
                 property: conversation.property,
                 messageId: shown.id,
                 messageBody: shown.body,
+              });
+            } else if ((itemsPlan.staleOpen?.length ?? 0) > 0) {
+              // Soru 10 (kurucu 10-23 sabah): önceki okumadan kalmış açık ihtiyaç (bu okuma üretmedi → cevaplanamadı) ve tur sessiz → satır başına
+              // kalıcı kayıt + o ihtiyacın mesajına tek "Misafir cevabınızı bekliyor" (aynı ihtiyaca / mesaja ikinci e-posta yok).
+              await notifyOpenNeeds(prisma, {
+                organizationId: conversation.property.organizationId,
+                items: itemsPlan.staleOpen ?? [],
+                now: heldAt,
+                notify: (messageId) => {
+                  const m = messages.find((x) => x.id === messageId) ?? last;
+                  return notifyHostReplyWaiting({
+                    organizationId: conversation.property.organizationId,
+                    conversation,
+                    property: conversation.property,
+                    messageId: m.id,
+                    messageBody: m.body,
+                  });
+                },
               });
             }
           }
