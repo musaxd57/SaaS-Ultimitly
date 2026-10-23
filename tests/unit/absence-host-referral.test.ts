@@ -104,6 +104,30 @@ describe("ev sahibine yönlendirme", () => {
     expect(refersGuestToHost("Havlu getirmenize gerek yok ama otopark için ev sahibinize sorabilirsiniz.")).toBe(true);
   });
 
+  it("🚨 BİRİNCİ KİŞİ ('I'll check with the host … get back to you') misafiri ev sahibine göndermez — bekleme sözüdür, çıktı vetosunun işi", () => {
+    for (const t of [
+      "Thanks! I'll check with the host whether an early check-in is possible and get back to you.",
+      "I will contact the host and update you shortly.",
+      "Let me check with your host and come back to you.",
+      "We'll ask the host and let you know.",
+      "I'd be happy to ask the host for you.",
+      "I'm going to message the host about the parking.",
+      "I am also going to check with the owner.",
+      "Ich werde bei Ihrem Gastgeber nachfragen und mich melden.",
+    ]) {
+      expect(refersGuestToHost(t), t).toBe(false);
+    }
+    // Öznesi misafir olan yönlendirme birinci kişi sözcüğü taşısa da yönlendirmedir; aynı cevaptaki ikinci cümle de sayılır.
+    for (const t of [
+      "I recommend you ask your host about the parking.",
+      "I'd suggest that you contact the host directly.",
+      "I'll check with the host. Meanwhile, you can ask your host directly.",
+      "Ich empfehle, bei Ihrem Gastgeber nachzufragen. Sie können bei Ihrem Gastgeber nachfragen.",
+    ]) {
+      expect(refersGuestToHost(t), t).toBe(true);
+    }
+  });
+
   it("çok cümlede yalnız yönlendirme cümlesi sayılır; başka cümledeki koşul onu kurtarmaz", () => {
     expect(refersGuestToHost("Çöpler bina girişindeki konteynere atılır. Sauna için ev sahibinize sorabilirsiniz.")).toBe(true);
     expect(refersGuestToHost("Anahtarı kaybederseniz resepsiyona gidin. Otopark için ev sahibinize sorabilirsiniz.")).toBe(true);

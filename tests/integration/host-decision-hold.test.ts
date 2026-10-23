@@ -190,15 +190,18 @@ describe("kanal oto-yanıtı — ev sahibi kararı tutulur (AI_HOST_DECISION_HOL
   });
 
   it("açıkken konaklama dışı 'ev sahibinin kararı' cevabı da tutulur: karar kaydı handoff_notice + tek e-posta", async () => {
+    // Konu bilerek evcil hayvan DEĞİL: kurucu 10-23 akşam 4.4 (A) evcil hayvandan söz eden cevabı anahtardan bağımsız tutar (↓ ayrı satır);
+    // bu test yalnız "ev sahibinin kararıdır" cümlesinin anahtarını sınar.
     vi.stubEnv("AI_HOST_DECISION_HOLD_ENABLED", "1");
-    mockSuggest.mockResolvedValue({
+    const reply = {
       ...BASE,
       intent: "general",
       detectedLanguage: "en",
-      reply: "Whether pets are allowed is the host's call.",
+      reply: "Whether the rooftop terrace can be used is the host's call.",
       stayChange: { asked: "none" as const, stance: "none" as const },
-    });
-    const id = await seed([{ direction: "inbound", body: "Can we bring our small dog?" }]);
+    };
+    mockSuggest.mockResolvedValue(reply);
+    const id = await seed([{ direction: "inbound", body: "Can we use the rooftop terrace?" }]);
     await applyChannelAutoReply(id);
     expect(mockSend).not.toHaveBeenCalled();
     expect((await decision(id)).reason).toBe("handoff_notice");
@@ -208,10 +211,19 @@ describe("kanal oto-yanıtı — ev sahibi kararı tutulur (AI_HOST_DECISION_HOL
     await resetDb();
     mockMail.mockClear();
     vi.stubEnv("AI_HOST_DECISION_HOLD_ENABLED", "");
-    const sent = await seed([{ direction: "inbound", body: "Can we bring our small dog?" }]);
+    const sent = await seed([{ direction: "inbound", body: "Can we use the rooftop terrace?" }]);
     await applyChannelAutoReply(sent);
     expect(mockSend).toHaveBeenCalledTimes(1);
     expect(replyWaitingMails()).toHaveLength(0);
+
+    // 🚨 4.4 (A): evcil hayvan cevabı anahtar KAPALIYKEN de gitmez (bilgi tabanı ücretsiz kabul demiyor) — eskiden buradaki kontrol
+    // "Whether pets are allowed is the host's call." cevabının gittiğini sabitliyordu.
+    await resetDb();
+    mockSend.mockClear();
+    mockSuggest.mockResolvedValue({ ...reply, reply: "Whether pets are allowed is the host's call." });
+    const pet = await seed([{ direction: "inbound", body: "Can we bring our small dog?" }]);
+    await applyChannelAutoReply(pet);
+    expect(mockSend).not.toHaveBeenCalled();
   });
 
   it("açıkken bilgi sorusunun cevabı (ev sahibi kararı yok) gider; e-posta YOK", async () => {

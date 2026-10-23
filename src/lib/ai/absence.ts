@@ -729,6 +729,20 @@ const WHETHER_IF =
 const NEGATED_REFERRAL =
   /(?:sor|dan[ıi][şs]|ula[şs]|ba[şs]vur|ge[çc]|konu[şs]|g[öo]r[üu][şs]|yaz|ara|iste|[öo][ğg]ren|teyit et)(?:ma|me)(?:n[ıi]z[ae]?|k|z)? (?:gerek|ihtiya[çc]|l[üu]zum)\p{L}{0,3} (?:yok|kalmad[ıi])|(?:sor|dan[ıi][şs]|ula[şs]|ba[şs]vur|ge[çc]|konu[şs]|g[öo]r[üu][şs]|yaz|ara|iste|[öo][ğg]ren|teyit et)(?:ma|me)(?:n[ıi]z[ae])? gerek(?:mez|miyor|memektedir)|(?<![\p{L}])(?:no need|(?:you )?(?:don'?t|do not|won'?t) need|needn'?t|not necessary|unnecessary)(?: for you)? to (?:ask|check|confirm|contact|reach|message|consult|speak|talk|get in touch|email|write|call|text)|(?<![\p{L}])pas besoin de (?:demander|contacter)|no (?:es necesario|hace falta) (?:preguntar|contactar|consultar)|не нужно (?:спрашивать|уточнять|обращаться)/u;
 
+/**
+ * BİRİNCİ KİŞİNİN kendi danışması ("I'll check with the host … and get back to you", "Let me contact your host", "Ich werde bei Ihrem
+ * Gastgeber nachfragen") misafiri ev sahibine GÖNDERMEZ — bekleme sözüdür, çıktı vetosunun ve doğrulanmış akışların işidir (tam kapı
+ * 10-23 akşam: erken giriş akışının söz pini kırmızıydı). Kalıplara bakılmadan önce bu öbek cümleden silinir; öznesi misafir olan
+ * yönlendirme ("I recommend you ask your host") ara sözcük listesinde olmadığı için silinmez. İkinci katlama "I" → "ı" yapar.
+ */
+const FIRST_PERSON_REFERRAL = new RegExp(
+  `(?<![\\p{L}])(?:(?:[iı]|we)(?:['’](?:ll|d|m|ve)| will| shall| would| can| could| may| might| must| should| am| are| have| had| need to| want to)?|let me|let us|let['’]s)` +
+    `(?: (?:also|just|quickly|personally|gladly|happily|now|first|immediately|directly|then|going to|be happy to|be glad to|try to)){0,3} ` +
+    `(?:ask|check with|confirm with|contact|reach out to|get in touch with|message|consult|speak (?:to|with)|talk to|reach|enquire with|inquire with|email|e-mail|write to|text|call|phone) ${EN_HOST}(?![\\p{L}])` +
+    `|(?<![\\p{L}])(?:[iı]ch|wir) (?:werde|werden|kann|können|möchte|möchten|will|wollen)(?: (?:gerne|gern|kurz|direkt|noch|selbst)){0,2} (?:bei|von) ${DE_HOST}(?![\\p{L}])`,
+  "gu",
+);
+
 /** Koşul bilgi İSTEĞİYSE ("daha fazla bilgi isterseniz", "if you'd like more details") yine yönlendirmedir. */
 const INFO_CONDITION =
   /(?<![\p{L}])(?:bilgi|detay|ayr[ıi]nt[ıi]|information|info|details|auskunft|informationen|renseignements|información|detalles|информаци)/u;
@@ -744,7 +758,7 @@ export function refersGuestToHost(reply: string | null | undefined): boolean {
   const ps = plain.split(SEP);
   const ts = turkish.split(SEP);
   for (let i = 0; i < ps.length; i++) {
-    const forms = [ps[i], ts[i] ?? ps[i]];
+    const forms = [ps[i], ts[i] ?? ps[i]].map((f) => f.replace(FIRST_PERSON_REFERRAL, " "));
     if (!forms.some((f) => HOST_REFERRAL_PATTERNS.some((re) => re.test(f)))) continue;
     if (forms.some((f) => containsContactValue(f))) continue;
     if (forms.some((f) => NEGATED_REFERRAL.test(f))) continue;

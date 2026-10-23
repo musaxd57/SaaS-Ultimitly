@@ -171,6 +171,8 @@ export const PIPELINE_FLAGS = [
   "AI_ANSWER_REUSE_SHADOW_ENABLED",
   // Aynı türden ikinci istek ayrı öğe (10-23 D, migration 84): cevap istemindeki istek listesini (R1, R2 …) değiştirir.
   "AI_ITEM_ORDINAL_ENABLED",
+  // Tutulan parçayı bir kez yeniden yaz (10-23 akşam 4.9): ikinci cevap çağrısı + ikinci okuma; misafire giden metni değiştirir.
+  "AI_PART_REWRITE_ENABLED",
 ] as const;
 
 /** GÖNDERİLEN çabanın etiketi: klasik modele çaba hiç gitmez; reasoning modelinde ayarsız / tanınmayan değer = gönderilmez. */

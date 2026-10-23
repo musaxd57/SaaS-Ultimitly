@@ -75,8 +75,12 @@ const ask = (token: string, message: string) =>
     { params: Promise.resolve({ token }) },
   );
 
-/** Yokluk itirafı OLMAYAN, kaynaksız-somut-iddia da içermeyen dürüst bant cevabı. */
-const BAND_REPLY = "Bu konuda ev sahibiniz size yardımcı olabilir; mesajınızı görebiliyor.";
+/**
+ * Yokluk itirafı OLMAYAN, kaynaksız-somut-iddia da içermeyen dürüst bant cevabı. 🚨 Kurucu 10-23 akşam 4.5: misafiri bilgi için ev
+ * sahibine GÖNDEREN cümle ("Bu konuda ev sahibiniz size yardımcı olabilir") artık bilgisizlik sayılır — bandın kalan meşru işi selamlaşma /
+ * sohbet (fikstür bu yüzden değişti; savuşturmanın tutulduğu ↓ ayrı satırda).
+ */
+const BAND_REPLY = "Merhaba, buradayım; konaklamanızla ilgili sorularınızı yazabilirsiniz.";
 /** Kurucunun yasakladığı sınıf — bandın İÇİNDE de olsa gitmez (↓ ayrı testler). */
 const ABSENCE_REPLY = "Bu konuda kayıtlı bir bilgim yok; ev sahibiniz yardımcı olabilir.";
 
@@ -127,15 +131,16 @@ describe("QR — eksik bilgide dürüst cevap (dar bant)", () => {
     expect(ev?.reason).toBe("informational_low_confidence");
   });
 
-  it("çöp/otopark gibi tesis sorusu da bant içindeyse cevaplanır (gereksiz devir yok)", async () => {
-    const { token } = await seed();
+  it("🚨 4.5: tesis sorusunda ev sahibine YÖNLENDİRME bant içinde de gitmez (eskiden gidiyordu) — bilgisizlik sayılır, insana kalır", async () => {
+    const { orgId, token } = await seed();
     mockSuggest.mockResolvedValue(
       model({ confidence: 0.55, reply: "Çöp konusunda ev sahibiniz size yardımcı olabilir." }),
     );
 
     const body = await (await ask(token, "çöpü nereye atabiliriz")).json();
-    expect(body.escalated).toBeFalsy();
-    expect(body.reply).toBe("Çöp konusunda ev sahibiniz size yardımcı olabilir.");
+    expect(body.escalated).toBe(true);
+    expect(body.reply ?? "").not.toMatch(/ev sahibiniz size yardımcı/);
+    expect((await lastReason(orgId))?.reason).toBe("absence_admission");
   });
 
   it("🚨 YOKLUK İTİRAFI bant İÇİNDE olsa bile GÖNDERİLMEZ (kurucu kuralı 09-11)", async () => {

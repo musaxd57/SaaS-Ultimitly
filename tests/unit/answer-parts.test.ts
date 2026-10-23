@@ -52,6 +52,27 @@ describe("beyan — STRICT", () => {
       ),
     ).toEqual({ ok: true, parts: [{ ref: "R1", status: "answered", text: "A", evidence: "B" }] });
   });
+
+  it("🚨 yanmış set 10-23 akşam (k-tr-016): istemdeki yer tutucuyu kopyalayan '<R1>' kimliği R1 sayılır; başka biçim yine atlanır", () => {
+    expect(parseAnswerParts([{ ref: "<R1>", status: "answered", text: "A", evidence: "B" }], refs)).toEqual({
+      ok: true,
+      parts: [{ ref: "R1", status: "answered", text: "A", evidence: "B" }],
+    });
+    expect(parseAnswerParts([{ ref: " [R2] ", status: "no_info" }], refs)).toEqual({ ok: true, parts: [{ ref: "R2", status: "no_info", text: "", evidence: "" }] });
+    // Tanınmayan kimlik, iç içe işaret ve sözcüklü kimlik yine atlanır; aynı kimliğin ikinci (işaretli) kaydı da.
+    for (const ref of ["<R3>", "<<R1>>", "ref R1", "R1>", "r1"]) {
+      expect(parseAnswerParts([{ ref, status: "answered", text: "A", evidence: "B" }], refs), ref).toEqual({ ok: true, parts: [] });
+    }
+    expect(
+      parseAnswerParts(
+        [
+          { ref: "R1", status: "answered", text: "A", evidence: "B" },
+          { ref: "<R1>", status: "answered", text: "C", evidence: "D" },
+        ],
+        refs,
+      ),
+    ).toEqual({ ok: true, parts: [{ ref: "R1", status: "answered", text: "A", evidence: "B" }] });
+  });
 });
 
 describe("doğrulama + birleştirme", () => {

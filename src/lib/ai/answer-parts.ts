@@ -57,12 +57,15 @@ export function parseAnswerParts(raw: unknown, refs: readonly string[]): AnswerP
   for (const x of raw) {
     if (!x || typeof x !== "object") continue;
     const r = x as Record<string, unknown>;
-    if (typeof r.ref !== "string" || !refs.includes(r.ref)) continue;
+    // İstemdeki şema yer tutucusu ("<R1>") kopyalanırsa tek kat işaret soyulur (yanmış set 10-23 akşam: yeniden yazılan iyi parça bu yüzden
+    // düşmüştü); sonuç yine BİLİNEN kimliklerle birebir eşleşmek zorunda.
+    const ref = typeof r.ref === "string" ? r.ref.trim().replace(/^[<[]([^<>[\]]+)[>\]]$/, "$1") : null;
+    if (ref === null || !refs.includes(ref)) continue;
     if (!(ANSWER_PART_STATUSES as readonly unknown[]).includes(r.status)) continue;
-    if (parts.some((p) => p.ref === r.ref)) continue;
+    if (parts.some((p) => p.ref === ref)) continue;
     const text = typeof r.text === "string" ? r.text.trim() : "";
     const evidence = typeof r.evidence === "string" ? r.evidence.trim() : "";
-    parts.push({ ref: r.ref, status: r.status as AnswerPartStatus, text, evidence });
+    parts.push({ ref, status: r.status as AnswerPartStatus, text, evidence });
   }
   return { ok: true, parts };
 }

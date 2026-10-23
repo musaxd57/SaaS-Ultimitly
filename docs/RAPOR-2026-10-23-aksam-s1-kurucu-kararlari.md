@@ -30,8 +30,62 @@ Railway KAPALI → hiçbiri canlıda değil; anahtarlı olanlar Railway açılı
 
 ## 3. 4.8 — yanmış set neden analizi ve yeniden koşu
 
-(ölçüm sonucu bu bölüme eklenecek)
+Set: öğlen yakılan kabul seti (50 senaryo, 55 cevaplanması gereken + 16 açık kalması gereken ihtiyaç; geliştirme verisi, artık kabul ölçüsü
+değil). Yapılandırma canlıyla aynı (Luna cevap, 5.1 anlama / okuyucu, gömme + sıralayıcı, bilgi tabanı 34 kaleme dolgulu). Raporlar:
+`docs/olcum/live-pipeline-2026-10-23-gpt-6-luna-yanmis-2-e1023-new-burned{,_r2}.md` (+ `.json`). Maliyet koşu başına ≈ 0,19 $.
+
+| ölçü | öğle kabul koşusu (kör) | 1. ayrıntılı koşu (`ae91a47d`) | 2. koşu (`f38da6b2`, bu akşamın kodu + yeniden yazma AÇIK) |
+|---|---|---|---|
+| doğru değerle giden ihtiyaç | 42/55 | 39/55 | **40/55** |
+| açık kalması gereken → açık kaldı | — | 16/16 | 16/16 |
+| 🚨 yanlış gönderim | 0 | 0 | **1 → ölçer hatası, gerçek yanlış 0** (↓) |
+| gereksiz tutma | 13 | 16 | 14 |
+| "bilgim yok" / iç kaynak anlatımı giden | 0 | 0 | 0 |
+
+**Ölçerin "yanlış" saydığı tek vaka ürün hatası DEĞİL:** k-fr-001 "Y a-t-il un sauna ?" → giden "La résidence ne dispose ni de sauna ni
+de hammam." · bilgi tabanı "Sitede sauna ve hamam bulunmamaktadır." Anlam birebir aynı; ölçerin (mühürlü dosyadaki) deseni Fransızcadaki
+"ne … ni … ni" olumsuzunu tanımıyor (1. koşudaki "ne dispose pas de sauna" ✔ sayılmıştı). Mühürlü dosya değiştirilemez (SHA-256 pinli).
+
+**14 gereksiz tutmanın nedenleri (koşu 2):**
+
+| neden | adet | ne yapıldı |
+|---|---|---|
+| Okuyucu çağrısı o anda DÜŞTÜ (6 senaryoda 8 parça "okunamadı"; API o koşuda yavaştı — ortanca 22,6 sn, 1. koşuda 16,6 sn) | 7 | Aynı 8 senaryo tek başına yeniden koşuldu (≈ 0,03 $): okuyucu 1–2,5 sn'de cevap verdi, **bütün parçalar doğrulandı**. Kalıcı hata değil, geçici. Okuyucu düşünce her şey tutulur (güvenli yön) — yeniden deneme yok → **soru 4.11** |
+| Model kendi cevabına düşük güven verdi (0,70 / 0,72 < 0,75) — oysa gidecek parça kodla + okuyucuyla doğrulanmıştı; düşük güven cevaplanamayan İKİNCİ soru yüzünden | 2 | → **soru 4.12** |
+| Bir kez yeniden yazma çalıştı ama model parça kimliğini "R1" yerine "<R1>" yazdı → iyi yeniden yazım çöpe gitti (k-tr-016: "Havuz her gün 21:00'de kapanır. Pazartesi günleri temizlik nedeniyle 13:00'te açılır.") | 1 | **Düzeltildi** (kimlikteki tek kat "<>" / "[]" işareti soyulur; yine bilinen kimlikle birebir eşleşmeli). Test + pin. |
+| Rusça cevapta çevrilmiş tarih ("1 октября по 30 ноября") alıntıdaki "1 Ekim – 30 Kasım" ile eşleşmiyor → sayı denetimi tutuyor; yeniden yazma aynı metni üretti | 1 | Bilinen sınır (ay adları dil bağımsız eşlenmiyor); sonraki tur |
+| Balkonda sigara sorusu (ev kuralı) → ev sahibinde | 1 | Tasarım gereği: ev kuralları politikası (#188) açılış sırasında (kart → gölge → ölçüm → onay) |
+| "Ekstra yatağın gecelik ücreti" → anlama katmanı "ödeme" saydı → ev sahibinde | 1 | → **soru 4.13** |
+| Asistan sorusu + çıkış saati turunda çıktı vetosu tuttu (k-en-002) | 1 | 1. koşuda da tutuldu; veto kalıbı inceleniyor (sonraki tur) |
+
+**Yeniden koşu sırasında bulunan iki hata daha (tam kapıda yakalandı, düzeltildi):**
+- "I'll check with the host … and get back to you" (asistanın bekleme sözü) yeni 4.5 kuralına yanlışlıkla "misafiri ev sahibine gönderiyor"
+  diye takılıyordu → doğrulanmış erken giriş akışının iki pini kırmızıydı. Birinci kişi danışması (I'll / we'll / let me … check with the host;
+  "Ich werde bei Ihrem Gastgeber nachfragen") artık yönlendirme sayılmaz; öznesi misafir olan ("I recommend you ask your host") yine sayılır.
+  Bekleme sözü zaten çıktı vetosunda tutulur — misafire giden değişmez.
+- Ölçüm raporunun bayrak listesine `AI_PART_REWRITE_ENABLED` eklenmemişti (koşu kimliği yeni anahtarı görmüyordu) → eklendi.
+
+**Kurucu kararlarının eski testlerle çakışması (bilinçli güncellendi):** QR "dar bant" testleri 09-11'deki "Bu konuda ev sahibiniz size
+yardımcı olabilir" savuşturmasının GİTTİĞİNİ sabitliyordu → 4.5 ile artık tutuluyor (test yeni davranışı sabitliyor). "Ev sahibinin kararı"
+testinin kontrol yarısında evcil hayvan cevabı gidiyordu → 4.4 (A) ile tutuluyor (test konusu teras yapıldı, evcil hayvan ayrı satırla
+sabitlendi).
 
 ## 4. Kurucuya sorular
 
-(bölüm sonuçla birlikte yazılacak)
+**4.11 — Okuyucu çağrısı düşünce bir kez yeniden denensin mi?** Bugün: okuyucu (ikinci yapay zekâ) o anda cevap veremezse (ağ / hız sınırı
+/ sunucu hatası) bütün parçalar tutulur — güvenli ama 2. koşuda 7 gereksiz tutmanın sebebi buydu. Cevap modelinde 10-21'de onayladığınız
+kural var: "geçici hatada bir kez hızlı yeniden dene, zaman aşımında deneme". Önerim aynı kuralı okuyucuya da uygulamak.
+Örnek — "Site restoranı akşam kaça kadar açık?": **bugün** okuyucu o an düştüyse hiçbir şey gitmez, size e-posta; **öneri** ile ikinci
+denemede okuyucu "doğru" derse "Site restoranı diğer aylarda 12:00–21:00 arasında açık." gider. Okuyucunun hükmü değişmez, yalnız düşen
+çağrı bir kez tekrarlanır. Yapalım mı?
+
+**4.12 — Parça kipinde modelin "genel güveni" doğrulanmış parçayı durdursun mu?** Bugün: model cevabının tamamına 0,75'in altında güven
+verirse hiçbir şey gitmez. Parça kipinde düşük güvenin sebebi çoğu zaman CEVAPLANAMAYAN öteki soru. Örnek — "Bahçedeki bisikletlerin kilit
+şifresi ne? Yakınlarda kuaför var mı?" (bilgi tabanında kuaför yok; model güveni 0,72): **bugün** hiçbir şey gitmez; **öneri**: kod +
+okuyucunun doğruladığı "Bisiklet kilit şifresi 5190." gider, kuaför sorusu açık kalır + size tek "Misafir cevabınızı bekliyor" e-postası
+(4.1 B). Almanca eşi aynı koşuda: "Das Fitnessstudio öffnet sonntags um 10:00 Uhr." (güven 0,70, süpermarket sorusu yüzünden) gitmedi. Öneri yalnız parça kipinde ve yalnız gidecek her parça doğrulanmışsa; risk / şikâyet / acil kapıları aynen önde. Yapalım mı?
+
+**4.13 — "Ekstra yatağın gecelik ücreti ne kadar?" ödeme sorusu mu?** Anlama katmanı bunu "ödeme / fatura" sayıyor → her zaman sizde.
+Bilgi tabanında "Ekstra yatak gecelik 300 TL" yazıyorsa ücret kuralı (`AI_KB_FEE_RULE_ENABLED`) açıkken cevap verilebilirdi. Fiyat sorusu
+ev sahibinde mi kalsın (bugünkü), yoksa bilgi tabanında yazan HİZMET ücreti sorusu cevaplansın mı (iade / iptal / ödeme sorunları yine
+sizde)?
