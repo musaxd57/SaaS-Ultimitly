@@ -13,6 +13,7 @@
 // bilinen sınır). Sorguda talimat-ele-geçirme izi varsa etiket HİÇ yazılmaz. Modele GİTMEZ.
 // ---------------------------------------------------------------------------
 
+import { deconfuse } from "@/lib/ai/fallback";
 import { normalizeForRetrieval } from "@/lib/ai/retrieval/text";
 import { topicsWithSymptomsOf } from "./relation";
 import { needTerms } from "./topic-absence";
@@ -23,7 +24,11 @@ export const TOPIC_MAX_CHARS = 40;
 /** Sır / kimlik sözcükleri (katlanmış kök başlangıcı) — etikete GİRMEZ; ardındaki sözcük de girmez. */
 const SECRET_ROOTS = ["sifre", "parola", "password", "passwort", "kod", "code", "pin", "kart", "card", "iban", "hesap", "hesab", "account", "telefon", "phone", "numara", "number", "mail", "pasaport", "passport", "kimlik", "kombinasyon", "combination"];
 /** Tam sözcük sır adları ("wifi key / pass kelebek", WPA anahtarı) — kök değil: "keyif" sır değildir (Opus güvenlik 10-23 F11). */
-const SECRET_EXACT = new Set(["key", "keys", "pass", "passcode", "pw", "pwd", "sife", "wpa", "wpa2", "psk", "ssid", "visa", "mastercard", "amex"]);
+const SECRET_EXACT = new Set(["key", "keys", "pass", "passe", "passcode", "pw", "pwd", "sife", "wpa", "wpa2", "psk", "ssid", "visa", "mastercard", "amex", "clave"]);
+/** Öteki dillerin sır sözcük kökleri ("кофе ПАРОЛЬ wifi", "contraseña", "mot de passe" — Opus taze göz 10-23 F7). */
+const SECRET_ROOTS_OTHER = ["парол", "код", "пин", "номер", "телефон", "паспорт", "карт", "contrase", "kennw"];
+/** Sır sözcüğünün önünde değer aranan en uzak sözcük. */
+const VALUE_WINDOW = 6;
 /** Harfle yazılmış rakamlar etikete girmez ("kapı kodu dört beş bir iki" — kodun kendisi; Opus dilim sonu 10-23 R15). */
 const SPELLED_DIGITS = new Set(
   (
@@ -120,40 +125,65 @@ export function itemTopicLabel(query: string | null | undefined, names: readonly
   if (distinct.size === 0) return null;
   const { nameParts, isName } = guestNameMatcher(names);
   const raws = q.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
-  const folded = raws.map(fold);
+  // Kiril / Yunan ikiz harfli sır sözcüğü ("ѕifresi" — Opus taze göz 10-23 F7) Latin okunuşuyla da tanınır.
+  const folded = raws.map((r) => fold(deconfuse(r)));
   const isSecretAt = (i: number) => {
     const f = folded[i] ?? "";
     if (!f) return false;
     // Yanlış yazım / bitişik yazım da sırdır ("passwd", "pasword", "pswd", "wifi sife", "wifisifresi" — Haiku 10-23 gece-2).
-    if (SECRET_ROOTS.some((r) => f.startsWith(r)) || SECRET_EXACT.has(f) || /(?:sifre|parola|passw|pasw|passphr|pswd|kennwort)/.test(f)) return true;
+    if (SECRET_ROOTS.some((r) => f.startsWith(r)) || SECRET_ROOTS_OTHER.some((r) => f.startsWith(r)) || SECRET_EXACT.has(f) || /(?:sifre|parola|passw|pasw|passphr|pswd|kennwort)/.test(f)) return true;
     // "kilit / gizli kelimesi" de sırdır (Haiku 10-23 gece-3); tek başına "kelime" değil.
     if (f.startsWith("kelime") && /^(?:kilit|gizli|anahtar|guvenlik)/.test(folded[i - 1] ?? "")) return true;
+    // Niteleyici de sır adının parçasıdır ("KİLİT kelimesi") — sözlük sözcüğü olduğu için pencerede kalmasın.
+    if (/^(?:kilit|gizli|guvenlik)/.test(f) && (folded[i + 1] ?? "").startsWith("kelime")) return true;
     return f.startsWith("anahtar") && NETWORK_WORDS.has(folded[i - 1] ?? "");
   };
   // Sır sözcüğünün ÖNÜNDEKİ değer birden çok sözcük olabilir ve sözlük sözcüğü taşıyabilir ("kelebek mavi KAHVE şifresi" — Haiku 10-23 gece-3:
   // iki sözcüklük pencere sözlük sözcüğünde kırılıyordu). Sır sözcüğünden geriye en çok 4 sözcük, kodu olan şeye / ağ sözcüğüne ("kapı kodu",
   // "wifi şifresi") kadar düşer.
+  const topicless = (raw: string) => topicsWithSymptomsOf(raw).length === 0;
+  const coded = (k: number) => CODED_THINGS.has(folded[k]) || NETWORK_WORDS.has(folded[k]);
   const beforeSecret = new Set<number>();
   for (let j = 0; j < raws.length; j++) {
     if (!isSecretAt(j)) continue;
-    for (let k = j - 1; k >= 0 && k >= j - 4; k--) {
-      if (CODED_THINGS.has(folded[k]) || NETWORK_WORDS.has(folded[k]) || isSecretAt(k)) break;
-      beforeSecret.add(k);
+    // Değer sır sözcüğüne BİTİŞİK bir dizidir ve en uzaktaki konusuz sözcüğe kadar uzanır ("kelebek mavi KAHVE şifresi" → üçü de düşer); ondan
+    // da uzaktaki sözlük sözcükleri değeri değil kodu olan şeyi adlandırır ("KLİMA kumandası kodu", "HAVUZ GİRİŞ kartı", "GİRİŞ kodu" — Opus
+    // taze göz 10-23 F6: pencere konusu olan sözcükleri de düşürüp etiketi boşaltıyordu).
+    const window: number[] = [];
+    let k = j - 1;
+    for (; k >= 0 && k >= j - VALUE_WINDOW; k--) {
+      if (coded(k) || isSecretAt(k)) break;
+      window.push(k);
+    }
+    let farthestValue = -1;
+    window.forEach((w, n) => {
+      if (topicless(raws[w])) farthestValue = n;
+    });
+    for (let n = 0; n <= farthestValue; n++) beforeSecret.add(window[n]);
+    // Kodu olan şeyin / ağ sözcüğünün ÖNÜNDEKİ konusuz sözcükler de değerdir ("MAVİ kelebek ağ şifresi", "kelebek wifi şifresi" — mutasyon
+    // turu + Opus taze göz 10-23 F7); konusu olan sözcükte durur ("havuz ısıtması bozuk, wifi şifresi" konuyu korur).
+    if (k >= 0 && k >= j - VALUE_WINDOW && coded(k)) {
+      for (let m = k - 1; m >= 0 && m >= k - 3 && topicless(raws[m]) && !coded(m) && !isSecretAt(m); m--) beforeSecret.add(m);
     }
   }
-  const topicless = (raw: string) => topicsWithSymptomsOf(raw).length === 0;
   const out: string[] = [];
   // Sır sözcüğünden SONRAKİ sözcük değerin parçası olabilir ("wifi şifresi HALA kelebek mi", "parolası mavi ejderha") → yalnız sözlükte
   // konusu olan sözcük kalır ("kelebek şifresi çalışmıyor WIFI") (R15: yalnız hemen ardındaki sözcük düşüyordu).
+  // Sır sözcüğünün HEMEN ardındaki üç sözcük de (sözlük sözcüğü olsa da) değer sayılır ("wifi şifresi kahve DENİZ mi" — Opus taze göz 10-23
+  // F7); kodu olan şey / ağ sözcüğü değer değildir ("kelebek şifresi çalışmıyor WIFI").
   let afterSecret = false;
+  let sinceSecret = -1;
   for (let i = 0; i < raws.length; i++) {
     const raw = raws[i];
     const f = folded[i];
     if (beforeSecret.has(i)) continue;
     if (isSecretAt(i)) {
       afterSecret = true;
+      sinceSecret = 0;
       continue;
     }
+    if (sinceSecret >= 0) sinceSecret = coded(i) ? -1 : sinceSecret + 1;
+    if (sinceSecret >= 1 && sinceSecret <= 3) continue;
     if (afterSecret && topicless(raw)) continue;
     if (SPELLED_DIGITS.has(f)) continue;
     // Rakam taşıyan belirteç `needTerms`te zaten yok ("5g", "lale2025" — ölçüldü) → `distinct` onu eler.
@@ -167,8 +197,8 @@ export function itemTopicLabel(query: string | null | undefined, names: readonly
     // Değer sır sözcüğünden ÖNCE de yazılır ("kelebek şifresi" — kodu olan şey değilse: "kapı kodu" kalır); e-posta adresinin yerel kısmı
     // alan adından önce gelir; bilinen adın YALIN hâlinin bitişiğindeki konusuz sözcük soyadıdır ("john smith"; "mehmetin odası" değil).
     // Sözlükte konusu olan sözcük kalır ("wifi şifresi").
-    // İki sözcüklük değer de olur ("MAVİ kelebek şifresi").
-    if (topicless(raw) && ((next && (isSecretAt(i + 1) || (topicless(raws[i + 1] ?? "") && isSecretAt(i + 2))) && !CODED_THINGS.has(f)) || EMAIL_PARTS.has(next) || nameParts.includes(prev) || nameParts.includes(next))) continue;
+    // İki sözcüklük değer ("MAVİ kelebek şifresi") ve kodu olan şeyin önündeki değer ("kelebek ağ şifresi") `beforeSecret`te.
+    if (topicless(raw) && ((next && isSecretAt(i + 1) && !CODED_THINGS.has(f)) || EMAIL_PARTS.has(next) || nameParts.includes(prev) || nameParts.includes(next))) continue;
     // Sorgu küçük harfle yazılır; sözlükte konusu olmayan Büyük Harfli sözcük özel addır ("Ahmet", "Netflix").
     if (titleCase(raw) && topicsWithSymptomsOf(raw).length === 0) continue;
     const word = raw.toLocaleLowerCase("tr");

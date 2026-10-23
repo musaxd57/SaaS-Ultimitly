@@ -138,7 +138,8 @@ describe("Haiku 10-23 gece-2: şifre sözcüğünün yanlış / bitişik yazım�
 describe("Haiku 10-23 gece-3: etikete şifre değeri sızma yolları", () => {
   it("🚨 sır sözcüğünün ÖNÜNDEKİ çok sözcüklü değer (sözlük sözcüğü taşısa da) düşer; kodu olan şey / ağ sözcüğü kalır", () => {
     expect(itemTopicLabel("kelebek mavi kahve şifresi")).toBeNull();
-    expect(itemTopicLabel("evin wifi şifresi")).toBe("evin wifi");
+    // "evin" bir değerden ("kelebek wifi şifresi") ayırt edilemez → ağ sözcüğünün önündeki konusuz sözcük düşer (Opus taze göz 10-23 F7).
+    expect(itemTopicLabel("evin wifi şifresi")).toBe("wifi");
     expect(itemTopicLabel("kapı kodu nedir")).toBe("kapı");
   });
 
@@ -148,5 +149,55 @@ describe("Haiku 10-23 gece-3: etikete şifre değeri sızma yolları", () => {
     expect(itemTopicLabel("kilit kelimesi kelebek")).toBeNull();
     // Olağan "kelime" sır değildir.
     expect(itemTopicLabel("kelime oyunu var mı")).not.toBeNull();
+  });
+});
+
+describe("Mutasyon turu 10-23 gece: unvanın çekimli biçimi ve ağ / kodu olan şeyin önündeki değer", () => {
+  it("🚨 çekimli unvan ('beyin', 'hanımın', 'beye', 'beyden') yanındaki kişi adını etikete bırakmaz", () => {
+    expect(itemTopicLabel("ahmet beyin odası temiz mi")).toBe("odası temiz");
+    expect(itemTopicLabel("ayşe hanımın havlusu nerede")).toBe("havlusu");
+    expect(itemTopicLabel("havuz ahmet beyden")).toBe("havuz");
+  });
+
+  it("🚨 'MAVİ kelebek ağ şifresi' / 'mavi kelebek wlan / modem şifresi': ağ sözcüğünün önündeki konusuz değer de düşer", () => {
+    expect(itemTopicLabel("mavi kelebek ağ şifresi çalışmıyor")).toBeNull();
+    expect(itemTopicLabel("kelebek ağ şifresi çalışmıyor")).toBeNull();
+    expect(itemTopicLabel("mavi kelebek wlan şifresi")).toBe("wlan");
+    expect(itemTopicLabel("mavi kelebek modem şifresi")).toBe("modem");
+    expect(itemTopicLabel("mavi kelebek kapı kodu")).toBe("kapı");
+    expect(itemTopicLabel("kelebek kasa şifresi")).toBe("kasa");
+  });
+
+  it("konusu olan sözcükte durur: başka konu ve kodu olan şey etikette kalır", () => {
+    expect(itemTopicLabel("havuz ısıtması bozuk wifi şifresi nedir")).toBe("havuz ısıtması wifi");
+    expect(itemTopicLabel("klima çalışmıyor ve wifi şifresi yanlış")).toBe("klima wifi");
+    expect(itemTopicLabel("otopark kapı kodu")).toBe("otopark kapı");
+    expect(itemTopicLabel("havuz kapı kodu")).toBe("havuz kapı");
+    expect(itemTopicLabel("wlan şifresi")).toBe("wlan");
+  });
+});
+
+describe("Opus taze göz 10-23 F6 / F7: değer penceresi konuyu boşaltmaz, kalan sızma yolları kapalı", () => {
+  it("🚨 F6: değerden uzaktaki sözlük sözcükleri kodu olan şeyi adlandırır, kalır", () => {
+    expect(itemTopicLabel("giriş kodu")).toBe("giriş");
+    expect(itemTopicLabel("klima kumandası kodu")).toBe("klima kumandası");
+    expect(itemTopicLabel("havuz giriş kartı")).toBe("havuz giriş");
+    expect(itemTopicLabel("çamaşır makinesi program kodu")).toBe("çamaşır");
+    // Değer bitişik dizidir: en uzaktaki konusuz sözcüğe kadar her şey düşer.
+    expect(itemTopicLabel("kelebek mavi kahve şifresi")).toBeNull();
+  });
+
+  it("🚨 F7: ağ sözcüğünün önündeki değer, ikiz harfli sır sözcüğü, uzun değer, sırdan sonraki sözlük sözcüğü, öteki diller", () => {
+    expect(itemTopicLabel("kelebek wifi şifresi doğru mu")).toBe("wifi");
+    expect(itemTopicLabel("kelebek wifi anahtarı")).toBe("wifi");
+    expect(itemTopicLabel("ѕifresi kelebek mi")).toBeNull();
+    expect(itemTopicLabel("kelebek mavi kahve deniz güneş şifresi")).toBeNull();
+    expect(itemTopicLabel("wifi şifresi kahve deniz mi")).toBe("wifi");
+    expect(itemTopicLabel("пароль kelebek")).toBeNull();
+    expect(itemTopicLabel("contraseña kelebek")).toBeNull();
+  });
+
+  it("harfle yazılmış rakamlar etikete girmez — sır sözcüğü olmasa da (R15b)", () => {
+    expect(itemTopicLabel("dört beş bir iki yazıyorum kapı açılmıyor")).toBe("yazıyorum kapı açılmıyor");
   });
 });

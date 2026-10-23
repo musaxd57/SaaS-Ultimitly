@@ -6,7 +6,7 @@ import { describe, it, expect, vi } from "vitest";
 // ---------------------------------------------------------------------------
 vi.mock("server-only", () => ({}));
 
-import { checkAnswerBinding } from "@/lib/ai/answer-binding";
+import { askedAspects, askedDirection, checkAnswerBinding, contentCovered, missingAspects, unsupportedContent } from "@/lib/ai/answer-binding";
 import { needTerms } from "@/lib/conversation-items/topic-absence";
 import { topicsWithSymptomsOf } from "@/lib/conversation-items/relation";
 
@@ -933,5 +933,182 @@ describe("Haiku 10-23 gece-2 (cafa3492 incelemesi)", () => {
     expect(run("Evcil hayvan kabul edilmez.", "Pets are not allowed in the apartment.", ["evcil hayvan kabul ediliyor mu", "are pets allowed"]).ok).toBe(true);
     expect(run("Check-out saati: 11:00", "Выезд не позднее 11:00.", ["çıkış saati kaçta", "checkout time"]).ok).toBe(true);
     expect(run("Havuz 09:00-20:00 arası, sauna 10:00-22:00 arası açık.", "Havuz 09:00-20:00 arası açık.", ["havuz kaçta kapanıyor", "when does the pool close"]).ok).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Mutasyon turu 10-23 gece (night4): yaşayan mutantların pinleri — her girdi özgün kodla mutant arasında çıktısı ayrışan, çevrimdışı
+// ölçülmüş girdidir (mutant başına özgün / mutant çıktısı yorumda).
+// ---------------------------------------------------------------------------
+describe("Mutasyon turu 10-23 gece: doğrulayıcı kuralları pinli", () => {
+  const bind = (part: string, src: string, q: string[], topics: string[] = [], other: string[] = [], evidence = src) =>
+    checkAnswerBinding({ part, evidence, sourceText: src, needTerms: needTerms(q), needTopics: topics, otherSources: other });
+  const KAPANIS = ["havuz kaçta kapanıyor"];
+
+  it("🚨 iki konulu ihtiyaçta değeri VEREN öteki kalem çok konulu: konu uyuşmazlığı (N1)", () => {
+    const r = bind("Sauna 20:00'de kapanır.", "Havuz kullanımı serbesttir.", ["havuz ve sauna kaçta kapanıyor"], [], ["Havuz 20:00'de, sauna 22:00'de kapanır."]);
+    expect(r.ok).toBe(false);
+    expect(r.issues).toContain("subject_mismatch");
+  });
+
+  it("🚨 değer öteki kalemden, alıntının kalemi konuya başka değer veriyor: çelişki (niteleyici düşmesi değil) (N2)", () => {
+    const r = bind("Havuz 22:00'de kapanır.", "Havuz 20:00'de kapanır.", KAPANIS, ["pool"], ["A Blok havuzu 22:00'de kapanır."]);
+    expect(r.issues).toContain("value_conflict");
+  });
+
+  it("aynı konunun öteki yönlü değeri rakip değildir; parçanın kendi verdiği iki değer taraf tutmaz (N4 / N5)", () => {
+    expect(bind("Havuz 20:00'de kapanır.", "Havuz 09:00'da açılır. Havuz 20:00'de kapanır.", KAPANIS, ["pool"]).ok).toBe(true);
+    expect(bind("Havuz 20:00 ya da 23:00'te kapanır.", "Havuz 20:00'de kapanır. Havuz 23:00'te kapanır.", KAPANIS, ["pool"]).ok).toBe(true);
+  });
+
+  it("kişi sayısının doğal yönü üst sınırdır: '6 kişiye kadar' geçer (N8)", () => {
+    expect(bind("Havuza 6 kişiye kadar girebilir.", "Havuza aynı anda 6 kişi girebilir.", ["havuza kaç kişi girebilir"], ["pool"]).ok).toBe(true);
+  });
+
+  it("🚨 yönsüz ortak saat ('Check-in / check-out: 15:00') parçada yön kazanamaz; 'en geç' bitiş yönüdür (N9 / N12)", () => {
+    expect(bind("Check-in is from 15:00.", "Check-in / check-out: 15:00.", ["check-in saati"], ["checkin"]).issues).toContain("direction_mismatch");
+    expect(bind("Check-in en geç 22:00.", "Check-in 22:00'den itibaren.", ["check-in saati"], ["checkin"]).issues).toContain("direction_mismatch");
+  });
+
+  it("🚨 eksiltili değer, iki yön taşıyan komşu yan cümleden yön almaz (N11)", () => {
+    const src = "Sauna 10:00'da, havuz 09:00'da açılır 20:00'de kapanır.";
+    expect(bind("Sauna 10:00'da açılır.", src, ["sauna kaçta açılıyor"]).issues).toContain("direction_mismatch");
+    expect(bind("Sauna 10:00'da kapanır.", src, ["sauna kaçta kapanıyor"]).issues).toContain("direction_mismatch");
+  });
+
+  it("🚨 okunamayan rakam yazısı (Bali rakamları) değer doğrulanamaz sayılır (N22)", () => {
+    expect(bind("Havuz \u1b52\u1b50:\u1b50\u1b50'de kapanır.", "Havuz 20:00'de kapanır.", KAPANIS, ["pool"]).issues).toContain("value_not_in_evidence");
+  });
+
+  it("🚨 rakip arama tavanını aşan kalem çelişki sayılır (güvenli yön) (N24)", () => {
+    const many = Array.from({ length: 245 }, () => "Havuz 20:00'de kapanır.").join(" ");
+    const r = bind("Havuz 20:00'de kapanır.", many, KAPANIS, ["pool"], [], "Havuz 20:00'de kapanır.");
+    expect(r.ok).toBe(false);
+    expect(r.issues).toContain("value_conflict");
+  });
+
+  it("🚨 kalem tek yön veriyor, parça yön sözcüğü taşımıyor: yalnız giriş / çıkışın doğal yönü serbest (R1b)", () => {
+    const src = "Havuz 09:00'da açılır.";
+    expect(bind("Havuz 09:00.", src, ["havuz kaçta açılıyor"], ["pool"]).issues).toContain("direction_mismatch");
+    expect(bind("The pool: 09:00.", src, ["havuz kaçta açılıyor"], ["pool"]).issues).toContain("direction_mismatch");
+    expect(bind("Check-in is at 15:00.", "Giriş 15:00'ten itibaren.", ["giriş saati"], ["checkin"]).ok).toBe(true);
+  });
+
+  it("🚨 yalın olmayan giriş yeri ('giriş kapısı', 'giriş işlemleri') doğal yön vermez (R2b)", () => {
+    expect(bind("Giriş 15:00'ten itibaren.", "Giriş işlemleri 15:00.", ["giriş saati"], ["checkin"]).issues).toContain("direction_mismatch");
+    expect(bind("Giriş kapısı 15:00'ten itibaren açıktır.", "Giriş kapısı 15:00.", ["giriş kapısı saat kaçta"]).issues).toContain("direction_mismatch");
+  });
+});
+
+describe("Mutasyon turu 10-23 gece: içerik kıyası (unsupportedContent / contentCovered) pinli", () => {
+  const POOLQ = needTerms(["havuz kaçta kapanıyor"]);
+  const KB1 = "Havuz 20:00'de kapanır.";
+
+  it("🚨 izinli olmayan sözlük konusu eklenirse tutulur: 'The pool and the gym close at 20:00' (N17)", () => {
+    expect(unsupportedContent("The pool and the gym close at 20:00.", KB1, POOLQ, { sourceText: KB1, needTopics: ["pool"] })).toBe(true);
+  });
+
+  it("🚨 kısa alıntının referansı kalem cümlesidir: aynı cümlenin çevirisi / kendisi içerik eklemiş sayılmaz (N20)", () => {
+    const en = "The pool closes at 20:00 and towels are provided.";
+    expect(unsupportedContent(en, "20:00", POOLQ, { sourceText: en, needTopics: ["pool"] })).toBe(false);
+    const tr = "Havuz 20:00'de kapanır, havlu verilir.";
+    expect(unsupportedContent(tr, "20:00", POOLQ, { sourceText: tr, needTopics: ["pool"] })).toBe(false);
+  });
+
+  it("🚨 içerik sözcüğü sayısı sınırı: ihtiyaç sözcükleri iki tarafta da sayılır (N18 / N21)", () => {
+    const thrice = "The pool closes at 20:00. The pool closes at 20:00. The pool closes at 20:00.";
+    expect(unsupportedContent(thrice, KB1, POOLQ, { sourceText: KB1, needTopics: ["pool"] })).toBe(false);
+    expect(unsupportedContent("Pool pool pool pool closes at 20:00.", KB1, needTerms(["pool closing time"]), { sourceText: KB1, needTopics: ["pool"] })).toBe(true);
+  });
+
+  it("aynı sözlük konusu kapsar: 'Çıkış' ~ 'Check-out' (N25)", () => {
+    expect(contentCovered("Çıkış 11:00", "Check-out 11:00")).toBe(true);
+    expect(contentCovered("Check-out 11:00", "Çıkış 11:00")).toBe(true);
+    expect(contentCovered("Çıkış saati 11:00", "Check-out time is 11:00")).toBe(true);
+  });
+});
+
+describe("Mutasyon turu 10-23 gece: sınır sözcükleri ve konu sözcüğü adayları pinli", () => {
+  const bind = (part: string, src: string, q: string[], topics: string[] = []) =>
+    checkAnswerBinding({ part, evidence: src, sourceText: src, needTerms: needTerms(q), needTopics: topics });
+
+  it("🚨 'more than / longer than' alt sınırdır: kalemin üst sınırını tersine çeviren parça yön hatasıyla tutulur (H4)", () => {
+    const Q = ["kaç gece kalabilirim", "how many nights can i stay"];
+    expect(bind("More than 14 nights can be booked.", "En fazla 14 gece kalınabilir.", Q).issues).toContain("direction_mismatch");
+    expect(bind("You can stay longer than 14 nights.", "Maksimum 14 gece kalınabilir.", Q).issues).toContain("direction_mismatch");
+  });
+
+  it("🚨 kalemde sınır yokken parçanın eklediği sınır koşul eklemedir (H5)", () => {
+    const r = bind("Otopark en az 200 TL.", "Otopark 200 TL.", ["otopark ücreti"]);
+    expect(r.ok).toBe(false);
+    expect(r.issues).toContain("condition_added");
+  });
+
+  it("işlev sözcüğü ('Sie', 'wir') konu sözcüğü adayı değildir — Almanca hitaplı doğru çeviri geçer (R13f)", () => {
+    const src = "Havuz her gün 20:00'ye kadar açıktır.";
+    expect(bind("Sie können den Pool bis 20:00 Uhr nutzen.", src, ["können sie den pool nutzen", "havuz kaça kadar açık"], ["pool"]).ok).toBe(true);
+    expect(bind("Wir haben einen Pool, er ist bis 20:00 Uhr geöffnet.", src, ["haben sie einen pool", "havuz var mı"], ["pool"]).ok).toBe(true);
+  });
+});
+
+describe("Opus taze göz 10-23 F1–F4: sorulan yön (saat / ücret) gerçekten cevaplandı mı", () => {
+  const miss = (q: string[], part: string) => missingAspects(part, askedAspects(q), askedDirection(q), needTerms(q));
+
+  it("🚨 F1: konu hakkında başka bir olgu saat / ücret sorusunu KAPATMAZ (sıfat 'kapalı', 'her zaman temiz', 'öğle yemeği', konu sözcüğü 'ücret / paid', 'dahilinde', başka şeyin yokluğu / yasağı)", () => {
+    expect(miss(["havuz kaçta açılıyor"], "Kapalı havuz ısıtmalıdır.")).toEqual(["time"]);
+    expect(miss(["havuz kaçta açılıyor"], "Havuz her zaman temizdir.")).toEqual(["time"]);
+    expect(miss(["havuz kaçta açılıyor"], "Havuzda cankurtaran yoktur.")).toEqual(["time"]);
+    expect(miss(["havuz kaçta kapanıyor"], "Havuz alanında cam şişe yasaktır.")).toEqual(["time"]);
+    expect(miss(["kahvaltı saatleri"], "Kahvaltı ve öğle yemeği restoranda servis edilir.")).toEqual(["time"]);
+    expect(miss(["otopark ücreti"], "Otopark ücreti check-out sırasında nakit ödenir.")).toEqual(["price"]);
+    expect(miss(["parking fee"], "Paid parking is available in the garage.")).toEqual(["price"]);
+    expect(miss(["otopark ücreti"], "Otopark site dahilindedir.")).toEqual(["price"]);
+    expect(miss(["evcil hayvan ücreti"], "Evcil hayvanla gelen misafirler için dairede sigara içmek yasaktır.")).toEqual(["price"]);
+  });
+
+  it("🚨 F1: '24 Haziran', '24 hafta', '24 saatlik' gün boyu açık sayılmaz", () => {
+    expect(miss(["havuz kaçta açılıyor"], "Havuz 24 Haziran'da sezona açılır.")).toEqual(["time"]);
+    expect(miss(["havuz kaçta kapanıyor"], "Havuz bakımı 24 hafta sürer.")).toEqual(["time"]);
+    expect(miss(["sauna saatleri"], "Sauna 24 saatlik rezervasyonla kullanılır.")).toEqual(["time"]);
+  });
+
+  it("konunun KENDİ yokluğu / yasağı, yüklem 'kapalıdır', gün boyu açık, ücretsiz / dahildir / ücret alınmaz cevaptır", () => {
+    expect(miss(["havuz kaçta açılıyor"], "Havuz yoktur.")).toEqual([]);
+    expect(miss(["havuz kaçta açılıyor"], "There is no pool at the property.")).toEqual([]);
+    expect(miss(["evcil hayvan ücreti"], "Evcil hayvan kabul edilmez.")).toEqual([]);
+    expect(miss(["are pets allowed and is there a fee"], "Pets are not allowed.")).toEqual([]);
+    expect(miss(["sigara içebilir miyim ücret"], "Sigara içmek yasaktır.")).toEqual([]);
+    expect(miss(["havuz kaçta kapanıyor"], "Havuz kışın kapalıdır.")).toEqual([]);
+    expect(miss(["havuz kaçta kapanıyor"], "Havuz her zaman açıktır.")).toEqual([]);
+    expect(miss(["havuz kaçta kapanıyor"], "Havuz 7/24 açıktır.")).toEqual([]);
+    expect(miss(["otopark ücreti"], "Otopark ücretsizdir.")).toEqual([]);
+    expect(miss(["otopark ücreti"], "Otopark konaklamaya dahildir.")).toEqual([]);
+    expect(miss(["otopark ücreti"], "Otopark için ücret alınmaz.")).toEqual([]);
+    expect(miss(["parking fee"], "Parking is free of charge.")).toEqual([]);
+  });
+
+  it("🚨 F2: iki yön soruldu → tek yön KAPATMAZ; aralık / iki yönlü iki saat cevaplar; ters yönlü fiil ('kapatılır', 'başlıyor') ve yönsüz saat tutulur", () => {
+    expect(miss(["havuz kaçta açılıyor ve kapanıyor", "what time does the pool open and close"], "The pool closes at 20:00.")).toEqual(["time"]);
+    expect(miss(["havuz kaçta açılıp kaçta kapanıyor"], "Havuz 20:00'de kapanır.")).toEqual(["time"]);
+    expect(miss(["havuz kaçta açılıyor ve kapanıyor"], "Havuz 09:00'da açılır, 20:00'de kapanır.")).toEqual([]);
+    expect(miss(["havuz kaçta açılıyor ve kapanıyor"], "Havuz 09:00-20:00 arası açıktır.")).toEqual([]);
+    expect(miss(["havuz kaçta açılıp kaçta kapanıyor"], "Havuz 09:00 ile 20:00 arasında açıktır.")).toEqual([]);
+    expect(miss(["havuz açılış saati"], "Havuz 20:00'de kapatılır.")).toEqual(["time"]);
+    expect(miss(["kahvaltı kaça kadar"], "Kahvaltı 08:00'de başlıyor.")).toEqual(["time"]);
+    expect(miss(["kahvaltı kaça kadar"], "Kahvaltı 08:00'de servis edilir.")).toEqual(["time"]);
+    // Değerin doğal yönü serbest; doğru yön gider.
+    expect(miss(["çıkış kaça kadar"], "Check-out saati 11:00.")).toEqual([]);
+    expect(miss(["kahvaltı kaçta başlıyor"], "Kahvaltı 08:00'de başlıyor.")).toEqual([]);
+    expect(miss(["havuz kaçta kapanıyor"], "Havuz gece yarısına kadar açık.")).toEqual([]);
+  });
+
+  it("🚨 F3: 'liradır / eurodur' tutarı ücret cevabıdır; F4: 'açılış saatleri / opening hours' çalışma saatidir, yön sormaz", () => {
+    expect(miss(["otopark ücreti"], "Otopark günlük 200 liradır.")).toEqual([]);
+    expect(miss(["otopark ücreti"], "Otopark 20 eurodur.")).toEqual([]);
+    expect(miss(["parking fee"], "Parking costs €15 per day.")).toEqual([]);
+    expect(miss(["pool opening hours"], "The pool is open until 20:00.")).toEqual([]);
+    expect(miss(["havuz açılış saatleri"], "Havuz 20:00'ye kadar açıktır.")).toEqual([]);
+    // Kapanışı da anan "saatleri" iki yön sorar.
+    expect(askedDirection(["havuz kapanış ve açılış saatleri"])).toBe("both");
   });
 });

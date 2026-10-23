@@ -397,7 +397,7 @@ function negative(tokens: readonly string[]): boolean {
 
 /** Yön: açılış / başlangıç ↔ kapanış / bitiş ("açılır, -den itibaren, from, after" ↔ "kapanır, -e kadar, until, before"). */
 const START_TOKENS = new Set([
-  "acilir", "acilis", "aciliyor", "acilmaktadir", "baslar", "baslangic", "itibaren", "sonra", "opens", "opening", "from", "after", "starts", "begins",
+  "acilir", "acilis", "aciliyor", "acilmaktadir", "acilip", "baslar", "basliyor", "baslamaktadir", "baslamakta", "baslangic", "itibaren", "sonra", "opens", "opening", "from", "after", "starts", "begins",
   "oeffnet", "offnet", "ab", "nach", "apres", "desde",
   // Sınır sözcükleri (Opus güvenlik 10-23 F8): en erken = başlangıç.
   "earliest", "fruhestens", "fruehestens", "dalle", "dalla", "после",
@@ -406,7 +406,7 @@ const START_TOKENS = new Set([
   "inizia", "открывается", "открываются", "начинается", "начинаются", "يفتح", "تفتح", "يبدأ", "تبدأ",
 ]);
 const END_TOKENS = new Set([
-  "kapanir", "kapanis", "kapaniyor", "kapanmaktadir", "biter", "bitis", "kadar", "once", "closes", "closing", "until", "till", "before", "ends",
+  "kapanir", "kapanis", "kapaniyor", "kapanmaktadir", "kapanip", "kapatilir", "kapatiliyor", "kapatilmaktadir", "biter", "bitiyor", "bitmektedir", "bitis", "kadar", "once", "closes", "closing", "until", "till", "before", "ends",
   "schliesst", "bis", "vor", "avant", "hasta",
   // En geç = bitiş ("Check-out en geç 11:00" → "check out after 11:00" geçiyordu, Opus güvenlik 10-23 F8).
   "latest", "spatestens", "spaetestens", "entro", "до",
@@ -2417,57 +2417,169 @@ export function askedAspects(queries: readonly string[]): AskedAspect[] {
 }
 
 /**
- * Saat sorusunun YÖNÜ ("havuz kapanış saati" → bitiş, "kahvaltı kaça kadar" → bitiş, "havuz açılış saati" → başlangıç; Haiku 10-23 gece-3: "Havuz
- * kapanış saati" isteği "Havuz 09:00'da açılır." ile kapanıyordu). Sorgular iki yönü de taşıyor ya da hiç taşımıyorsa `null` (yön aranmaz).
+ * Çalışma saatleri sorusu ("açılış saatleri", "opening hours", "Öffnungszeiten") yön sormaz — açılış sözcüğü taşısa da (Opus taze göz 10-23 F4:
+ * "pool opening hours" ↔ "The pool is open until 20:00." tutuluyordu). Tekil "açılış saati" / "opening time" yön sorar.
  */
-export function askedDirection(queries: readonly string[]): "start" | "end" | null {
+const HOURS_OF_OPERATION =
+  /(?<!\p{L})(?:opening (?:hours|times)|acilis saatleri|calisma saatleri|offnungszeit\p{L}*|horaires? d.ouverture|horarios? de apertura|orari di apertura|часы работы)(?!\p{L})/u;
+
+const CLOSING_ASKED = /(?<!\p{L})(?:kapanis\p{L}*|kapanma\p{L}*|closing|close|schliess\p{L}*|fermeture|cierre|chiusura|закрыт\p{L}*)(?!\p{L})/u;
+
+/**
+ * Saat sorusunun YÖNÜ ("havuz kapanış saati" → bitiş, "kahvaltı kaça kadar" → bitiş, "havuz açılış saati" → başlangıç; Haiku 10-23 gece-3: "Havuz
+ * kapanış saati" isteği "Havuz 09:00'da açılır." ile kapanıyordu). İki yön birden ("kaçta açılıp kaçta kapanıyor") → `both` (Opus taze göz 10-23
+ * F2: tek yönü veren parça isteğin öbür yarısını sessizce kapatıyordu); yön yoksa `null`.
+ */
+export function askedDirection(queries: readonly string[]): "start" | "end" | "both" | null {
   const d = new Set<"start" | "end">();
-  for (const q of queries) if (ASKS_CLOCK.test(foldAsk(q))) for (const x of directions(tokenize(q))) d.add(x);
-  return d.size === 1 ? [...d][0] : null;
+  for (const q of queries) {
+    const f = foldAsk(q);
+    // Kapanışı da açıkça anan sorgu ("kapanış ve açılış saatleri") iki yön sorar.
+    if (!ASKS_CLOCK.test(f) || (HOURS_OF_OPERATION.test(f) && !CLOSING_ASKED.test(f))) continue;
+    for (const x of directions(tokenize(q))) d.add(x);
+  }
+  return d.size === 2 ? "both" : d.size === 1 ? [...d][0] : null;
 }
 
-/** Saat sorusunu saatsiz cevaplayan söyleyişler: her zaman açık / gün boyu / kapalı / kullanılamaz / gece yarısı / öğlen. */
-const CLOCKLESS_TIME_ANSWER =
-  /(?<!\p{L})(?:her zaman|gun boyu|butun gun|tum gun|gece gunduz|kapali\p{L}*|acik degil\p{L}*|kullanilamaz|hizmet vermi\p{L}*|gece yarisi\p{L}*|ogle\p{L}*|always|all day|around the clock|day and night|closed|not open|not available|unavailable|midnight|noon|immer|ganztag\p{L}*|rund um die uhr|geschlossen|mitternacht|mittag\p{L}*|toujours|toute la journee|ferme\p{L}*|minuit|midi|siempre|todo el dia|cerrad\p{L}*|medianoche|mediodia|sempre|tutto il giorno|chius\p{L}*|mezzanotte|mezzogiorno|всегда|круглосуточно|закрыт\p{L}*|полноч\p{L}*|полден\p{L}*|день и ночь|مغلق|دايما)(?!\p{L})/u;
+/**
+ * Saat sorusunu saatsiz cevaplayan söyleyişler — YÜKLEM olarak: "her zaman / gün boyu AÇIK", "kapalıdır" (yan cümle sonunda), "kullanılamaz",
+ * "gece yarısı", "öğlen". Sıfat / başka anlam sayılmaz (Opus taze göz 10-23 F1: "KAPALI havuz ısıtmalıdır" (kapalı = iç mekân), "havuz her
+ * zaman TEMİZDİR", "ÖĞLE yemeği" saat cevabı sayılıp istek kapanıyordu).
+ */
+const CLAUSE_END = String.raw`(?=\s*(?:[.!?,;:]|$))`;
+const CLOCKLESS_TIME_ANSWER = new RegExp(
+  String.raw`(?<!\p{L})(?:` +
+    [
+      String.raw`(?:her zaman|gun boyu|butun gun|tum gun|gece gunduz|surekli) (?:\p{L}+ )?(?:acik\p{L}*|kullanilabilir\p{L}*|hizmet ver\p{L}*)`,
+      String.raw`acik degil\p{L}*|kullanilamaz\p{L}*|hizmet vermi\p{L}*|kapanmaz|kapanmamaktadir`,
+      String.raw`kapali(?:dir|tir)?${CLAUSE_END}|gece yarisi\p{L}*|oglen\p{L}*|ogle(?:den|ye|de)(?!\p{L})`,
+      String.raw`(?:always|all day|around the clock|day and night) (?:\p{L}+ )?(?:open|available|accessible)|open (?:\p{L}+ )?(?:all day|around the clock|day and night|at all times|always)`,
+      String.raw`(?:is|are|stays|remains|will be) (?:\p{L}+ )?closed|closed${CLAUSE_END}|not open|not available|unavailable|midnight|noon`,
+      String.raw`immer (?:\p{L}+ )?(?:geoffnet|offen)|rund um die uhr|ganztag\p{L}*|(?:ist|sind|bleibt|bleiben) (?:\p{L}+ )?geschlossen|geschlossen${CLAUSE_END}|mitternacht|mittags?`,
+      String.raw`toujours ouvert\p{L}*|toute la journee|(?:est|sont|reste) (?:\p{L}+ )?ferme\p{L}*|ferme(?:e|es|s)?${CLAUSE_END}|minuit|midi`,
+      String.raw`siempre abiert\p{L}*|todo el dia|(?:esta|estan|permanece) (?:\p{L}+ )?cerrad\p{L}*|cerrad[ao]s?${CLAUSE_END}|medianoche|mediodia`,
+      String.raw`sempre apert\p{L}*|tutto il giorno|(?:e|sono|resta) chius\p{L}*|chius[oaie]${CLAUSE_END}|mezzanotte|mezzogiorno`,
+      String.raw`всегда открыт\p{L}*|круглосуточно|закрыт[аоы]?|полноч\p{L}*|полден\p{L}*|день и ночь`,
+    ].join("|") +
+    String.raw`)(?!\p{L})`,
+  "u",
+);
 /**
  * "7/24 / 24 saat / 24 hours / 24 horas / 24 Stunden / 24 часа / 24 ساعة / 24h/24" açık — ARDINDAN "önce(den) / sonra / içinde / in advance /
- * vorher / заранее" gelmiyorsa (Haiku 10-23 gece-3: "Havuz 24 saat önceden ısıtılır." kapanış saati sorusunu cevaplıyordu).
+ * vorher / заранее" gelmiyorsa (Haiku 10-23 gece-3: "Havuz 24 saat önceden ısıtılır." kapanış saati sorusunu cevaplıyordu). Birim sözcük
+ * sınırında biter ("24 Haziran", "24 hafta", "24 saatlik" saat cevabı değildir — Opus taze göz 10-23 F1).
  */
 const ROUND_THE_CLOCK =
-  /(?<![\d/])(?:7 ?\/ ?24|24 ?\/ ?7|24 ?\/ ?24|24 ?h ?\/ ?24|24 ?(?:saat|hours?|hrs?|horas|stunden|std|heures|ore|часа|ساعة|h)(?! ?(?:once\p{L}*|sonra\p{L}*|icinde|icerisinde|before|after|in advance|advance|prior|notice|vorher|im voraus|a l.avance|avant|apres|antes|despues|de antelacion|prima|dopo|заранее|до|после|قبل|بعد)(?!\p{L})))(?![\d/])/u;
-/** Ücret sorusunu tutarsız cevaplayan söyleyişler: ücretsiz / dahil / ücret alınmaz / free / included. */
-const AMOUNTLESS_PRICE_ANSWER =
-  /(?<!\p{L})(?:ucret\p{L}*|fiyat\p{L}*|bedava|dahil\p{L}*|para (?:alinmaz|odenmez|istenmez)|free|included|includes|inclusive|complimentary|no charge|no extra|at no cost|cost\p{L}*|price\p{L}*|fees?|charge\p{L}*|paid|pay\p{L}*|kostenlos|gratis|inklusive|inbegriffen|gebuhr\p{L}*|kost(?:et|en)|preis\p{L}*|gratuit\p{L}*|inclus\p{L}*|payant\p{L}*|frais|prix|incluid\p{L}*|precio\p{L}*|gratuito|incluso|prezzo|costo|бесплатн\p{L}*|включ\p{L}*|(?:о|за)?плат(?:а|ы|у|е|но|ный|ная|ное|ить|ят)|цен(?:а|ы|у|е|ой)|стоимост\p{L}*|(?:ال)?مجان\p{L}*|مشمول\p{L}*|(?:ال)?رسوم|(?:ال)?سعر)(?!\p{L})/u;
+  /(?<![\d/])(?:7 ?\/ ?24|24 ?\/ ?7|24 ?\/ ?24|24 ?h ?\/ ?24|24 ?(?:saat|hours?|hrs?|horas|stunden|std|heures|ore|часа|ساعة|h)(?!\p{L})(?! ?(?:once\p{L}*|sonra\p{L}*|icinde|icerisinde|before|after|in advance|advance|prior|notice|vorher|im voraus|a l.avance|avant|apres|antes|despues|de antelacion|prima|dopo|заранее|до|после|قبل|بعد)(?!\p{L})))(?![\d/])/u;
+/**
+ * Ücret sorusunu tutarsız cevaplayan söyleyişler — yalnız CEVAP biçimi: ücretsiz / dahil(dir) / ücret alınmaz / free / included. Konu
+ * sözcükleri ("ücret", "fee", "paid", "price") cevap değildir (Opus taze göz 10-23 F1: "Otopark ücreti check-out'ta nakit ödenir", "Paid
+ * parking is available", "Otopark site DAHİLİNDEDİR" ücret sorusunu kapatıyordu).
+ */
+const AMOUNTLESS_PRICE_ANSWER = new RegExp(
+  String.raw`(?<!\p{L})(?:` +
+    [
+      String.raw`ucretsiz\p{L}*|bedava\p{L}*|(?:fiyata|ucrete|kiraya|konaklamaya|fiyatimiza)? ?dahil(?:dir|tir)?|para (?:alinmaz|odenmez|istenmez)|(?:ek )?ucret (?:alinmaz|alinmamaktadir|odenmez|istenmez|talep edilmez|yok(?:tur)?)`,
+      String.raw`(?<!(?:feel|smoke|gluten|sugar|lactose|nut|allergy|duty|tax)[ -]?)free(?! time)|included|inclusive|complimentary|no (?:extra )?(?:charge|cost|fee)|at no (?:extra )?cost|without charge|costs nothing`,
+      String.raw`kostenlos|gratis|inklusive|inbegriffen|keine (?:extra |zusatzliche )?gebuhr\p{L}*|ohne aufpreis|gratuit\p{L}*|inclus\p{L}*|sans frais|incluid\p{L}*|sin (?:costo|cargo)|gratuito|incluso`,
+      String.raw`бесплатн\p{L}*|включен\p{L}*|входит в стоимость|(?:ال)?مجان\p{L}*|مشمول\p{L}*`,
+    ].join("|") +
+    String.raw`)(?!\p{L})`,
+  "u",
+);
+/**
+ * Tutar — `claimSpans` okumazsa da: rakam + para birimi ("200 liradır", "20 eurodur", "10 dolardır", "500 рублей", "₺200"; Opus taze göz
+ * 10-23 F3: doğru Türkçe fiyatlar tutuluyordu).
+ */
+const LOCAL_AMOUNT =
+  /(?:[₺€$£₽]\s?\d|\d[\d.,]*\s?(?:[₺€$£₽]|(?:tl|try|lira|euro|avro|eur|dolar|dollar|usd|gbp|sterlin|pound|руб|евро|доллар|ريال|ليرة|دولار|يورو)\p{L}*(?!\p{L})))/u;
 
 /**
  * Konunun kendisini yok sayan / yasaklayan cevap saat ve ücret sorusunu da cevaplar ("Evcil hayvan için ücret var mı?" ↔ "Evcil hayvan kabul
- * edilmez."; "Havuz kaçta açılıyor?" ↔ "Havuz yoktur."). Yalnız VARLIK / İZİN olumsuzluğu — "ısıtmalı değildir" gibi başka bir niteliğin
- * olumsuzu sayılmaz.
+ * edilmez."; "Havuz kaçta açılıyor?" ↔ "Havuz yoktur."). Olumsuzluk SORULAN KONUYA bağlı olmalı (Opus taze göz 10-23 F1: "Havuzda CANKURTARAN
+ * yoktur", "Havuz alanında CAM ŞİŞE yasaktır" saat sorusunu kapatıyordu): sonraki olumsuzlukta ("X yoktur / kabul edilmez / not allowed")
+ * hemen önündeki sözcük, önceki olumsuzlukta ("there is no X / kein X / нет X") hemen ardındaki sözcük konu sözcüğü olmalı.
  */
-const SUBJECT_DENIED =
-  /(?<!\p{L})(?:yok(?:tur|tu)?|bulunma(?:maktadir|z)|mevcut degil\p{L}*|kabul edil(?:mez|memektedir)|izin veril(?:mez|memektedir)|yasak\p{L}*|not allowed|not permitted|no (?:pets|parking|pool|sauna|smoking)|there is no|there are no|we do not have|we don't have|nicht erlaubt|nicht gestattet|gibt es (?:keine?n?|nicht)|verboten|interdit\p{L}*|pas autorise\p{L}*|il n.y a pas|no se permite\p{L}*|no hay|prohibid\p{L}*|non (?:e )?(?:consentit|ammess)\p{L}*|vietat\p{L}*|non c.e|нет|запрещ\p{L}*|не допуска\p{L}*|لا يوجد|ممنوع)(?!\p{L})/u;
+const DENIAL_AFTER =
+  /(?<!\p{L})(?:yok(?:tur|tu)?|bulunma(?:maktadir|z)|bulunmuyor|mevcut degil\p{L}*|kabul edil(?:mez|memektedir|miyor)|izin veril(?:mez|memektedir|miyor)|yasak(?:tir)?|not allowed|not permitted|prohibited|forbidden|nicht erlaubt|nicht gestattet|verboten|interdit\p{L}*|pas autorise\p{L}*|no se permite\p{L}*|prohibid\p{L}*|non (?:e )?(?:consentit|ammess)\p{L}*|vietat\p{L}*|нет|запрещ\p{L}*|не допуска\p{L}*|ممنوع)(?!\p{L})/gu;
+const DENIAL_BEFORE =
+  /(?<!\p{L})(?:no|there is no|there are no|we do not have|we don.t have|gibt es (?:keine?n?|nicht)|kein\p{L}*|il n.y a pas(?: de| d)?|pas de|no hay|non c.e|нет|لا يوجد)(?!\p{L})/gu;
+/** Olumsuzluk ile konu arasında atlanabilen sözcükler (yardımcı fiil, zarf, mastar, tanımlık). */
+const DENIAL_SKIP = new Set(
+  (
+    "maalesef kesinlikle hicbir sekilde surette burada dairede evde sitede otelde icinde olarak ne yazik ki " +
+    "is are be been strictly unfortunately currently also here inside the a an any allowed " +
+    "ist sind leider hier streng der die das ein eine einen est sont malheureusement ici de d le la les un une des " +
+    "esta estan aqui el los las e sono qui il lo gli не здесь тоже"
+  ).split(" "),
+);
+function deniesSubject(text: string, subjectTerms: readonly string[]): boolean {
+  if (subjectTerms.length === 0) return false;
+  const termTopics = new Set(topicsWithSymptomsOf(subjectTerms.join(" ")));
+  const termFacilities = facilitiesIn(subjectTerms.join(" "));
+  const isSubject = (w: string) =>
+    (w.length >= 3 && needTermsInStrict(subjectTerms, w) > 0) ||
+    topicsWithSymptomsOf(w).some((t) => termTopics.has(t)) ||
+    [...facilitiesIn(w)].some((f) => termFacilities.has(f));
+  const words = (s: string) => s.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  const firstContent = (ws: readonly string[]) => ws.find((w) => !DENIAL_SKIP.has(w) && !/(?:mek|mak)$/.test(w));
+  for (const m of text.matchAll(DENIAL_AFTER)) {
+    const before = words(text.slice(0, m.index)).slice(-4).reverse();
+    const w = firstContent(before);
+    if (w && isSubject(w)) return true;
+  }
+  for (const m of text.matchAll(DENIAL_BEFORE)) {
+    const w = firstContent(words(text.slice(m.index + m[0].length)).slice(0, 4));
+    if (w && isSubject(w)) return true;
+  }
+  return false;
+}
 
-/** Parçanın cevaplamadığı sorulan yönler (boş = hepsi cevaplandı): saat sorusu saat ya da saatsiz cevap, ücret sorusu tutar ya da ücret sözcüğü ister. */
-export function missingAspects(part: string, aspects: readonly AskedAspect[], direction: "start" | "end" | null = null): AskedAspect[] {
+/** İki saat ARALIK mı ("09:00-20:00", "09:00 ile 20:00 arası", "from 9 to 20", "von 9 bis 20"). */
+function timeRange(normalized: string, times: readonly { at: number; end: number }[]): boolean {
+  const sorted = [...times].sort((a, b) => a.at - b.at);
+  for (let i = 1; i < sorted.length; i++) {
+    const gap = normalized.slice(sorted[i - 1].end, sorted[i].at);
+    if (gap.length > 24) continue;
+    // Bağlaçlı ("09:00 - 20:00", "09:00 ile 20:00", "from 9 to 20") ya da ayrılma ekli ("09:00'dan 20:00'ye kadar") ikili.
+    if (/^[\s'’\p{L}]{0,6}\s*(?:-|–|—|ile|to|until|till|bis|a|à|al|hasta|fino a|до|ve|and|und|et|y)\s*$/u.test(gap)) return true;
+    if (/^\s*['’]?[dt][ae]n(?: itibaren)?\s*$/u.test(gap)) return true;
+  }
+  return false;
+}
+
+/**
+ * Parçanın cevaplamadığı sorulan yönler (boş = hepsi cevaplandı): saat sorusu saat ya da saatsiz cevap, ücret sorusu tutar ya da tutarsız
+ * cevap ister. `subjectTerms` = isteğin konu sözcükleri (olumsuzluk ancak konuya bağlıysa cevap sayılır).
+ */
+export function missingAspects(
+  part: string,
+  aspects: readonly AskedAspect[],
+  direction: "start" | "end" | "both" | null = null,
+  subjectTerms: readonly string[] = [],
+): AskedAspect[] {
   if (aspects.length === 0) return [];
-  const { claims } = claimSpans(part);
+  const { text: normalized, claims } = claimSpans(part);
   const text = foldAsk(part);
-  if (SUBJECT_DENIED.test(text)) return [];
+  if (deniesSubject(text, subjectTerms)) return [];
   const times = claims.filter((c) => c.cls === "time");
   const answersTime = (): boolean => {
     if (ROUND_THE_CLOCK.test(text) || CLOCKLESS_TIME_ANSWER.test(text)) return true;
     if (times.length === 0) return false;
-    // Tek saat + sorulanın tersi yön ("kapanış saati" ↔ "09:00'da açılır") cevap değildir; aralık (iki saat) iki yönü de verir, yönsüz saat
-    // ("Havuz saat 9'da") bugünkü kural.
-    if (direction && times.length === 1) {
-      const dirs = directions(tokenize(part));
-      if (dirs.size > 0 && !dirs.has(direction)) return false;
-    }
-    return true;
+    if (!direction) return true;
+    const dirs = directions(tokenize(part));
+    const range = times.length >= 2 && (timeRange(normalized, times) || (dirs.has("start") && dirs.has("end")));
+    // İki yön soruldu: aralık ya da iki yönlü iki saat ("09:00'da açılır, 20:00'de kapanır") şart.
+    if (direction === "both") return range;
+    if (range) return true;
+    // Tek yön soruldu: parçanın yönü sorulanı içermeli ("kapanış saati" ↔ "09:00'da açılır" cevap değildir). Yön sözcüğü yoksa yalnız
+    // değerin doğal yönü serbest ("Check-out saati 11:00" → "çıkış kaça kadar"); "Kahvaltı 08:00'de servis edilir" "kaça kadar"ı cevaplamaz.
+    if (dirs.size > 0) return dirs.has(direction);
+    return times.length === 1 && naturalDirection(times[0], new Set([direction]), part);
   };
-  return aspects.filter((a) =>
-    a === "time" ? !answersTime() : !claims.some((c) => c.cls === "money" || c.cls === "percent") && !AMOUNTLESS_PRICE_ANSWER.test(text),
-  );
+  const answersPrice = (): boolean =>
+    claims.some((c) => c.cls === "money" || c.cls === "percent") || LOCAL_AMOUNT.test(text) || AMOUNTLESS_PRICE_ANSWER.test(text);
+  return aspects.filter((a) => (a === "time" ? !answersTime() : !answersPrice()));
 }
 
 /**

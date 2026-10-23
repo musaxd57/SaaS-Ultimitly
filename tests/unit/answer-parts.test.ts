@@ -449,11 +449,15 @@ describe("Haiku 10-23 gece-3 — sorulan saatin YÖNÜ, '24 saat önceden', çok
     expect(composeVerifiedReply({ parts: [p("R1", closes, closes)], needs: [close], sources: kb }).refs).toEqual(["R1"]);
     const range = "Havuz: 09:00 - 20:00 arası açıktır.";
     expect(composeVerifiedReply({ parts: [p("R1", range, range)], needs: [close], sources: kb }).refs).toEqual(["R1"]);
-    // Yönsüz soru ("havuz saatleri") ve iki yönlü soru ("açılış kapanış saatleri") her saati kabul eder.
+    // Yönsüz soru ("havuz saatleri") her saati kabul eder.
     expect(composeVerifiedReply({ parts: [p("R1", opens, opens)], needs: [needQ(["havuz saatleri"])], sources: kb }).refs).toEqual(["R1"]);
-    expect(composeVerifiedReply({ parts: [p("R1", opens, opens)], needs: [needQ(["havuz açılış kapanış saatleri"])], sources: kb }).refs).toEqual(["R1"]);
-    // İki yön ilk kapanışla gelse de yön aranmaz (mutasyon E24: ilk yön seçiliyordu).
-    expect(composeVerifiedReply({ parts: [p("R1", opens, opens)], needs: [needQ(["havuz kapanış ve açılış saatleri"])], sources: kb }).refs).toEqual(["R1"]);
+    // İki yönlü soru ("açılış kapanış saatleri") tek yönle KAPANMAZ — öbür yarısı sessizce kaybolurdu (Opus taze göz 10-23 F2); aralık ya da
+    // iki yönlü iki saat cevaplar.
+    const both = needQ(["havuz açılış kapanış saatleri"]);
+    expect(composeVerifiedReply({ parts: [p("R1", opens, opens)], needs: [both], sources: kb }).verdicts[0]).toEqual({ ref: "R1", status: "rejected", issues: ["aspect_missing"] });
+    expect(composeVerifiedReply({ parts: [p("R1", range, range)], needs: [both], sources: kb }).refs).toEqual(["R1"]);
+    // İki yön ilk kapanışla gelse de iki yön sayılır (mutasyon E24: ilk yön seçiliyordu → tek kapanış saati geçerdi).
+    expect(composeVerifiedReply({ parts: [p("R1", closes, closes)], needs: [needQ(["havuz kapanış ve açılış saatleri"])], sources: kb }).verdicts[0]).toEqual({ ref: "R1", status: "rejected", issues: ["aspect_missing"] });
     // İki saatli aralık "-e kadar" taşısa da açılış sorusunu cevaplar (mutasyon E21: tek saat şartı).
     const range2 = "Havuz 09:00'dan 20:00'ye kadar açıktır.";
     expect(composeVerifiedReply({ parts: [p("R1", range2, range2)], needs: [needQ(["havuz açılış saati"])], sources: src(range2) }).refs).toEqual(["R1"]);
