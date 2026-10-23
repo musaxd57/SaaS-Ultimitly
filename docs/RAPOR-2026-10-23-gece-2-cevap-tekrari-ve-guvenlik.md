@@ -7,6 +7,18 @@
 > **Canlıda hiçbir şey değişmedi:** Railway kapalı; bu gecenin bütün davranışları anahtarlı ve anahtarlar KAPALI
 > (`AI_ANSWER_PARTS_ENABLED`, `AI_ITEM_ORDINAL_ENABLED`, `AI_ANSWER_REUSE_SHADOW_ENABLED`).
 
+## 0. Sabah için 1 dakikalık özet
+
+- **Canlıda hiçbir şey değişmedi** (Railway kapalı, bütün yeni davranışlar kapalı anahtarların arkasında).
+- **Fikriniz (aynı soru 4. kez gelince kayıtlı doğru cevap):** önce "gölge kip" — kayıt tutulur, ölçülür, misafire hiçbir şey bu kayıttan gitmez.
+  Migration 85 hazır yama olarak bekliyor; bu gece iki ayrı derin incelemeden (21 bulgu) geçip sertleştirildi. **Onayınız gerekiyor** (§6-1).
+- **Parça kipi (her soruya ayrı doğrulanmış cevap)** artık soruyu gerçekten cevaplamayan doğru cümleyle soruyu kapatmıyor ("Havuz kaçta?" ↔ "Havuz
+  ısıtmalıdır" gitmez), cevapsız soru kalan tutulmuş turda ev sahibine e-posta gidiyor. Gerçek modelle ölçümde yanlış cevap 0, yeni denetimler
+  hiçbir doğru cevabı tutmadı.
+- **Kararınızı bekleyen 9 soru** §6'da, her biri örnekli. En önemlileri: 1 (migration 85), 6 (kısmi cevapta e-posta), 9 (genel soruya yalnız
+  istisna cevabı).
+- Ücretli ölçüm bu gece toplam ~$0,33 (onaylı E kapsamı).
+
 ## 1. Kısaca
 
 | ne | durum |
