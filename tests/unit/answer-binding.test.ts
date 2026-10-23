@@ -1283,3 +1283,35 @@ describe("parantez yan cümle sınırıdır (Opus 10-23 sabah F2)", () => {
     }
   });
 });
+
+// ── Yanmış kabul seti 10-23 akşam (kurucu 4.8 "evet koş"): 16 gereksiz tutmanın 5'i TERS OLUMLULUK yanlış pozitifiydi ─────────────────
+// "kapalı" SIFAT (kapalı havuz = kapalı alan) ve TALİMAT ("kapalı tutun") olumsuzluk değildir; "ücretsiz otopark yok" ücretsizliği olumsuzlar.
+// Yüklem olarak "kapalı" ve gerçek ücret çelişkisi tutulmaya devam eder.
+describe("ters olumluluk — 'kapalı' sıfat / talimat, olumsuzlanmış ücretsizlik", () => {
+  const pol = (part: string, source: string, terms: string[]) =>
+    checkAnswerBinding({ part, evidence: source.split(/(?<=\.)\s/)[0], sourceText: source, needTerms: terms, needTopics: [] }).issues;
+  const pool = "Sitenin kapalı havuzu hafta içi 08:00–22:00 arası açıktır. Cumartesi ve pazar günleri 08:00–23:00 arası açıktır.";
+
+  it("🚨 'kapalı havuz' (kapalı alan) açık cevabını TUTMAZ; 'kapalı tutun' talimatı da", () => {
+    expect(pol("Hafta içi havuz 22:00’ye, cumartesi ve pazar günleri 23:00’e kadar açık.", pool, ["havuz"])).not.toContain("polarity_mismatch");
+    expect(pol("The pool is open until 10pm on weekdays and 11pm on Saturdays and Sundays.", pool, ["havuz", "pool"])).not.toContain(
+      "polarity_mismatch",
+    );
+    const klima = "Klima kumandası yatak odasındaki komodinin çekmecesindedir. Klima çalışırken balkon kapısını kapalı tutun.";
+    expect(pol("Klima kumandası yatak odasındaki komodinin çekmecesindedir.", klima, ["klima", "kumanda"])).not.toContain("polarity_mismatch");
+  });
+
+  it("🚨 'ücretsiz otopark yok' ↔ 'otopark yok, sokakta ücretli' çelişki değildir", () => {
+    const park = "Otopark: Daireye ait otopark yoktur. Sokakta ücretli park alanı vardır, saatlik ücret 30 TL'dir.";
+    expect(pol("Daireye ait ücretsiz otopark yok. Sokakta ücretli park alanı bulunuyor; saatlik ücreti 30 TL.", park, ["otopark"])).not.toContain(
+      "polarity_mismatch",
+    );
+  });
+
+  it("🚨 KONTROL: yüklem 'kapalı' ve gerçek ücret çelişkisi TUTULMAYA devam eder", () => {
+    expect(pol("Havuz açık.", "Havuz kapalıdır.", ["havuz"])).toContain("polarity_mismatch");
+    expect(pol("Havuz açık.", "Havuz kapalı, sauna açık.", ["havuz"])).toContain("polarity_mismatch");
+    expect(pol("Spa açık.", "Spa kapalı havuz açık.", ["spa"])).toContain("polarity_mismatch");
+    expect(pol("Ücretsiz otopark var.", "Otopark ücretlidir.", ["otopark"])).toContain("polarity_mismatch");
+  });
+});

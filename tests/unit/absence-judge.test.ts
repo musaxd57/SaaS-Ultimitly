@@ -123,7 +123,10 @@ describe("çağrı sözleşmesi (asla fırlatmaz, her arıza 'failed')", () => {
 
 describe("kapılar — hakem hükmü metne bağlı", () => {
   const FACT = "For security, the safe is not available for guest use.";
-  const DEFLECT = "Your host can confirm whether there is a pool.";
+  // Kelime kuralının SUSTUĞU savuşturma (yalnız hakem tutar). Kurucu 10-23 akşam 4.5'ten beri ev sahibine yönlendirme ("Your host can
+  // confirm …") kelime kuralıyla da tutulur → örnek ev sahibinden söz etmeyen savuşturmaya çevrildi; yönlendirme ayrı satırda pinli.
+  const DEFLECT = "Whether there is a pool is best checked on arrival.";
+  const HOST_REFERRAL = "Your host can confirm whether there is a pool.";
   const ok = { intent: "amenities", riskLevel: "none", confidence: 0.92, source: "openai", riskType: null as string | null };
   const release = { status: "ok" as const, admits: false, quote: "" };
   const admits = { status: "ok" as const, admits: true, quote: DEFLECT };
@@ -138,6 +141,9 @@ describe("kapılar — hakem hükmü metne bağlı", () => {
 
   it("kanal: 'itiraf' hükmü kelime kuralının sustuğu metni tutar — yalnız o metin için", () => {
     expect(autoReplyGateVerdict({ ...ok, reply: DEFLECT }, "Is there a pool?")).toBeNull();
+    // Yönlendirme hakemsiz de tutulur; hakem "itiraf değil" dese bile (kelime kuralı + hakem "admits" değil → hakem kazanır, ama yönlendirme
+    // hakem isteminde de bilgisizliktir — burada yalnız kelime kuralının artık TUTTUĞU pinlenir).
+    expect(autoReplyGateVerdict({ ...ok, reply: HOST_REFERRAL }, "Is there a pool?")?.detail).toBe("reply_absence");
     expect(autoReplyGateVerdict({ ...ok, reply: DEFLECT }, "Is there a pool?", { absenceJudge: { reply: DEFLECT, outcome: admits } })?.detail).toBe(
       "reply_absence",
     );

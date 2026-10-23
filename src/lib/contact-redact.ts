@@ -36,6 +36,20 @@ function digitCount(s: string): number {
   return n;
 }
 
+/** Bağlantı: şema ya da "www." ile başlayan adres (çıplak alan adı "lixusai.com" sayılmaz — cümle içi nokta yanlış pozitif verir). */
+const URL = /(?:https?:\/\/|(?<![\p{L}\p{N}.])www\.)[^\s<>"')\]]{2,200}/iu;
+
+/**
+ * Metin bir iletişim DEĞERİ taşıyor mu: telefon (maskeyle aynı kural, 10–15 rakam), e-posta ya da bağlantı (kurucu 10-23 akşam 4.5: onaylı
+ * rezervasyondan önce iletişim bilgisi gitmez; "ev sahibinize 0532 … numarasından ulaşabilirsiniz" yönlendirme değil, sorulan bilgidir).
+ */
+export function containsContactValue(text: string | null | undefined): boolean {
+  if (!text) return false;
+  if (URL.test(text)) return true;
+  if (text.includes("@") && redactContactsFromText(text).includes(EMAIL_MASK)) return true;
+  return redactContactsFromText(text).includes(PHONE_MASK);
+}
+
 /** Metindeki e-posta adreslerini ve telefon numaralarını maskeler. Boş / maskesiz metin AYNEN döner. */
 export function redactContactsFromText(text: string): string {
   if (!text) return text;

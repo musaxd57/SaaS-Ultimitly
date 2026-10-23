@@ -23,9 +23,10 @@
 // göründüğü hâlde DAYANAKLIDIR. "Kaynak yoksa devret" deseydik ürünün EN SIK
 // sorusunu ("Giriş saati kaçta?") kırardık — test-pinli.
 //
-// ⚠️ SAVUŞTURMA YOKLUK İTİRAFI DEĞİLDİR: "ev sahibinizle iletişime geçebilirsiniz"
+// ⚠️ (09-11) SAVUŞTURMA YOKLUK İTİRAFI DEĞİLDİR: "ev sahibinizle iletişime geçebilirsiniz"
 // bilginin kayıtlarda olmadığını SÖYLEMEZ. Bu ayrım bilinçli — sözleşme yalnız
 // AÇIK yokluk beyanını yakalar, kapıyı gereksiz yere geniş tutmaz.
+// 🚨 10-23 akşam KURUCU KARARIYLA DEĞİŞTİ (4.5): yönlendirme de bilgisizlik sayılır → ↓`refersGuestToHost`.
 //
 // ---------------------------------------------------------------------------
 // 🚨 YENİDEN YAZILDI (09-11, inceleme ajanı + bağımsız doğrulama). İlk sürüm
@@ -53,6 +54,7 @@
 // ---------------------------------------------------------------------------
 
 import { foldTurkishLower, foldTurkishLowerTr } from "./fallback";
+import { containsContactValue } from "../contact-redact";
 
 /**
  * 🚨 CÜMLE SINIRI BOŞLUĞU KESER. Ölçüldü: boşluk cümleleri aşınca
@@ -625,6 +627,109 @@ export function noInstructionClauseResidue(text: string | null | undefined): str
   return best;
 }
 
+// ── EV SAHİBİNE YÖNLENDİRME = BİLGİM YOK (kurucu 10-23 akşam 4.5, aynen: "ev sahibinize sorabilirsiniz yazamaz yasak onlar bilgisi yok
+// sayılsın cevap tutulsun") ────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+// 09-11 kararı savuşturmayı ("ev sahibinizle iletişime geçebilirsiniz") bilerek DIŞARIDA bırakmıştı (↑dosya başı); kurucu kararıyla artık
+// yönlendirme de bilgisizliktir: misafiri bilgi için ev sahibine gönderen cümle gitmez, cevap tutulur, ev sahibi yanıtlar. Konu bazlı
+// "bilgim yok" (H9, `conversation-items/topic-absence.ts`) bu cümleyi ayıklayıp aynı mesajdaki cevaplanmış konuları göndermeye devam eder.
+// Hariç (cümle bazında):
+//   · İletişim DEĞERİ taşıyan cümle ("ev sahibinize 0532 … numarasından ulaşabilirsiniz") sorulan bilgiyi verir — onaylı rezervasyondan
+//     önce Airbnb'de ayrıca tutulur (`channels/airbnb-message-policy.ts`).
+//   · Olay KOŞULU ("anahtarı kaybederseniz ev sahibinize ulaşın", "if the Wi-Fi fails, message your host") bilgi tabanındaki talimattır —
+//     koşul bilgi isteği değilse ("daha fazla bilgi isterseniz" yine yönlendirmedir).
+//   · Gelecek zaman sözü ("ev sahibiniz size dönecek") çıktı vetosunun işidir; burada yalnız YETENEK / İSTEK kipleri.
+// Kalıplar sabit sözcükle başlar, boşluklar sınırlı ({0,4} sözcük, cümle sınırını geçmez) — karesel iş yok (süre pini testte).
+const HOST_TR = `${L}(?:ev ?sahib(?:i|in|im)\\p{L}{0,8}|host(?:'?(?:unuz|unuza|unuzdan|unuzla|umuz)))`;
+const VERB_TR =
+  "(?:sor(?:abilir|man[ıi]z|ar[ıi]m)\\p{L}{0,8}|dan[ıi][şs](?:abilir|[ıi]n(?![\\p{L}])|[ıi]n[ıi]z|man[ıi]z)\\p{L}{0,8}|" +
+  "ula[şs](?:abilir|[ıi]n(?![\\p{L}])|[ıi]n[ıi]z|man[ıi]z)\\p{L}{0,8}|ba[şs]vur(?:abilir|un(?![\\p{L}])|unuz|man[ıi]z)\\p{L}{0,8}|" +
+  "(?:ileti[şs]im|irtibat)\\p{L}{0,2} ge[çc](?:ebilir|in(?![\\p{L}])|iniz|men[ie]z)\\p{L}{0,8}|" +
+  "iste(?:yebilir|yin|meniz)\\p{L}{0,8}|teyit (?:edebilir|edin|etmeniz|ettirebilir|alabilir)\\p{L}{0,8}|" +
+  "(?:detayl[ıi] |kesin |net |daha fazla )?bilgi (?:alabilir|al[ıi]n(?![\\p{L}])|alman[ıi]z|verebilir|sa[ğg]layabilir)\\p{L}{0,8}|" +
+  "[öo][ğg]ren(?:ebilir|in(?![\\p{L}])|iniz|meniz)\\p{L}{0,8}|yard[ıi]mc[ıi] olabilir\\p{L}{0,8}|netle[şs]tirebilir\\p{L}{0,8}|" +
+  "a[çc][ıi]kl[ıi]k getirebilir\\p{L}{0,8}|(?:onaylayabilir|do[ğg]rulayabilir)\\p{L}{0,8})";
+const EN_HOST = "(?:your|the) (?:host|landlord|property manager|owner|hostess)";
+const DE_HOST = "(?:ihren|ihre|ihrem|ihrer|ihr|den|die|dem|der) (?:gastgeber(?:in)?|vermieter(?:in)?|host)";
+const FR_HOST = "(?:votre |l['’] ?|le |la )(?:hôte|hôtesse|propriétaire)";
+const ES_HOST = "(?:su|tu|el|la) (?:anfitri[oó]n|anfitriona|propietari[oa])";
+const RU_HOST = "(?:хозя\\p{L}{0,6}|владел\\p{L}{0,6}|хост\\p{L}{0,4}|арендодател\\p{L}{0,4})";
+const HOST_REFERRAL_PATTERNS: readonly RegExp[] = [
+  // Türkçe: ad öbeği önce, yüklem en çok dört sözcük sonra ("Otopark için ev sahibinizle iletişime geçebilirsiniz", "Ev sahibiniz, bu konuda
+  // size kesin bilgi verebilir").
+  new RegExp(`${HOST_TR},? ${gap(4)}${VERB_TR}`, "u"),
+  new RegExp(
+    `${L}(?:ask|check with|confirm with|contact|reach out to|get in touch with|message|consult|speak (?:to|with)|talk to|reach|enquire with|inquire with) ${EN_HOST}(?![\\p{L}])`,
+    "u",
+  ),
+  new RegExp(
+    `${L}${EN_HOST} (?:can|could|may|might|should|would be able to|will be able to|is able to|is happy to|would be happy to|will happily) ` +
+      `(?:${W} ){0,2}(?:tell|confirm|advise|answer|clarify|let you know|inform|help|assist|update)(?![\\p{L}])`,
+    "u",
+  ),
+  // "provide / give / share" yalnız BİLGİ nesnesiyle ("Your host can provide a baby cot" bir hizmet olgusudur).
+  new RegExp(
+    `${L}${EN_HOST} (?:can|could|may|will be able to|would be able to) (?:provide|give|share|send) (?:you )?(?:(?:more|further|the|exact|precise) )?(?:information|info|details|an answer)(?![\\p{L}])`,
+    "u",
+  ),
+  new RegExp(
+    `${L}(?:fragen sie|wenden sie sich (?:bitte )?an|kontaktieren sie|erkundigen sie sich (?:bitte )?bei|melden sie sich (?:bitte )?bei|klären sie (?:das|dies) (?:bitte )?mit|schreiben sie) (?:(?:bitte|gerne|direkt) )?${DE_HOST}(?![\\p{L}])`,
+    "u",
+  ),
+  new RegExp(
+    `${L}(?:ihr|ihre|der|die) (?:gastgeber(?:in)?|vermieter(?:in)?|host) (?:kann|könnte|wird ihnen) (?:${W} ){0,3}(?:sagen|bestätigen|helfen|auskunft|mitteilen|beantworten|klären|informieren)(?![\\p{L}])`,
+    "u",
+  ),
+  new RegExp(
+    `${L}(?:demandez|contactez|adressez-vous|renseignez-vous|voyez|vérifiez|rapprochez-vous)(?: (?:directement|auprès de|à|avec|de))? (?:à |auprès de )?${FR_HOST}(?![\\p{L}])`,
+    "u",
+  ),
+  new RegExp(
+    `${L}(?:votre|l['’]) ?(?:hôte|propriétaire) (?:pourra|peut|saura|pourrait) (?:vous )?(?:${W} ){0,2}(?:confirmer|renseigner|indiquer|dire|aider|répondre|préciser|informer)(?![\\p{L}])`,
+    "u",
+  ),
+  new RegExp(
+    `${L}(?:pregunte|pregúntele|pregúntale|consulte|contacte|contacta|póngase en contacto con|ponte en contacto con|comuníquese con|hable con|habla con|escriba a) (?:a |con )?${ES_HOST}(?![\\p{L}])`,
+    "u",
+  ),
+  new RegExp(
+    // Fiile yapışan zamir ("confirmarle", "indicárselo") → fiil kökünden sonra en çok 4 harf.
+    `${L}${ES_HOST} (?:podr[aá]|puede|le podr[aá]|te podr[aá]|sabr[aá]) (?:${W} ){0,2}(?:confirm[aá]r|indic[aá]r|dec[ií]r|ayud[aá]r|inform[aá]r|respond[eé]r|aclar[aá]r)\\p{L}{0,4}(?![\\p{L}])`,
+    "u",
+  ),
+  new RegExp(`${L}(?:спросите|уточните|обратитесь|свяжитесь|напишите)(?: (?:пожалуйста|у|к|с|со))?(?: (?:вашим|вашему|вашего|вашей))? ${RU_HOST}`, "u"),
+  new RegExp(`${L}${RU_HOST} (?:сможет|может|подскаж\\p{L}{0,4}|уточнит|расскажет|ответит)(?![\\p{L}])`, "u"),
+];
+/** Olay koşulu (talimat) — bilgi isteği koşulu DEĞİL. */
+const EVENT_CONDITION = new RegExp(
+  "(?<![\\p{L}])(?:if|in case|should (?:you|the|there)|unless|falls|wenn|sollte|en cas d|au cas où|en caso de|если|в случае|eğer)(?![\\p{L}])|" +
+    "(?<![\\p{L}])si (?!vous souhaitez|vous voulez|usted desea|desea)|\\p{L}(?:rsan[ıi]z|rseniz|rsa|rse)(?![\\p{L}])|" +
+    "(?:ma|me)s[ıi] (?:halinde|durumunda)|(?<![\\p{L}])(?:durumunda|halinde|takdirde)(?![\\p{L}])",
+  "u",
+);
+/** Koşul bilgi İSTEĞİYSE ("daha fazla bilgi isterseniz", "if you'd like more details") yine yönlendirmedir. */
+const INFO_CONDITION =
+  /(?<![\p{L}])(?:bilgi|detay|ayr[ıi]nt[ıi]|information|info|details|auskunft|informationen|renseignements|información|detalles|информаци)/u;
+
+/**
+ * Cevap misafiri bilgi için ev sahibine yönlendiriyor mu (kurucu 10-23 akşam 4.5)? Cümle bazında; iletişim değeri taşıyan ve olay koşullu
+ * cümle hariç (↑). `true` ise cevap "bilgim yok" sayılır (`admitsMissingKnowledge`). Saf, doğrusal.
+ */
+export function refersGuestToHost(reply: string | null | undefined): boolean {
+  const [plain, turkish] = foldedForms(reply);
+  // İki katlamanın AYNI cümlesi birlikte okunur (SEP katlamadan önce konur → cümle sayısı eşit): Türkçe katlamada "If" → "ıf" olur ve
+  // koşul görünmez; yalnız biri yetmez.
+  const ps = plain.split(SEP);
+  const ts = turkish.split(SEP);
+  for (let i = 0; i < ps.length; i++) {
+    const forms = [ps[i], ts[i] ?? ps[i]];
+    if (!forms.some((f) => HOST_REFERRAL_PATTERNS.some((re) => re.test(f)))) continue;
+    if (forms.some((f) => containsContactValue(f))) continue;
+    if (forms.some((f) => EVENT_CONDITION.test(f)) && !forms.some((f) => INFO_CONDITION.test(f))) continue;
+    return true;
+  }
+  return false;
+}
+
 /**
  * Cevap, bilginin KAYITLARDA OLMADIĞINI açıkça söylüyor mu?
  *
@@ -646,7 +751,10 @@ export function admitsMissingKnowledge(reply: string | null | undefined): boolea
   // EŞLEŞME EKLER — kısıtlayıcı kapı).
   const [plain, turkish] = foldedForms(reply);
   return (
-    ALL_ABSENCE_PATTERNS.some((re) => re.test(plain) || re.test(turkish)) || narratesInternalSource(plain) || narratesInternalSource(turkish)
+    ALL_ABSENCE_PATTERNS.some((re) => re.test(plain) || re.test(turkish)) ||
+    narratesInternalSource(plain) ||
+    narratesInternalSource(turkish) ||
+    refersGuestToHost(reply)
   );
 }
 

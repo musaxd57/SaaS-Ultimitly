@@ -39,12 +39,17 @@ describe("acknowledgesAbsence — DÜRÜST CAHİLLİK", () => {
     }
   });
 
-  it("🚨 SAVUŞTURMA yokluk beyanı DEĞİLDİR (sözleşme genişletilmedi)", () => {
-    // Gerçek koşuda `gpt-5.6-luna`nın legacy modda düşen üç cevabı bu sınıfta.
-    // Kayıtlarda olmadığını SÖYLEMİYOR, sorumluluğu devrediyor.
+  it("🚨 SAVUŞTURMA: ev sahibine YÖNLENDİRME artık bilgisizlik (kurucu 10-23 akşam 4.5); devir sözü / belirsizlik hâlâ değil", () => {
+    // 09-11'de bu sınıf bilerek dışarıdaydı ("kayıtlarda olmadığını SÖYLEMİYOR"); kurucu: "ev sahibinize sorabilirsiniz yazamaz yasak onlar
+    // bilgisi yok sayılsın cevap tutulsun" → yönlendirme yüklemi tutar.
     for (const m of [
       "Otopark bilgisi için ev sahibinizle iletişime geçebilirsiniz; mesajınız kaydedildi.",
       "Merhaba, otopark konusunda ev sahibiniz yardımcı olabilir. Mesajınız kaydedildi.",
+    ]) {
+      expect(acknowledgesAbsence(m), m).toBe(true);
+    }
+    // Yönlendirme olmayanlar: belirsizlik + devir (çıktı vetosunun işi) ve ev sahibine iletme SÖZÜ (yine veto).
+    for (const m of [
       "I'm unable to confirm whether parking is available. Your message has been recorded.",
       "Bu konuyu ev sahibinize ileteceğim.",
     ]) {

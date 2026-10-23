@@ -42,6 +42,7 @@ import {
 } from "@/lib/ai/semantic/senior-rewrite";
 import { noApologyRuleEnabled } from "@/lib/ai/no-apology-rule";
 import { offPlatformContactHoldsFor } from "@/lib/channels/airbnb-message-policy";
+import { containsContactValue } from "@/lib/contact-redact";
 import {
   earlyCheckinEvidenceOf,
   earlyCheckinHostNote,
@@ -588,6 +589,8 @@ export function autoReplyGateVerdict(
   const senior = seniorChecksOf(judged);
   if (senior?.payHost) return hold("reply_offplatform_payment");
   if (senior?.contact && context?.offPlatformContactHolds === true) return hold("reply_offplatform_contact");
+  // Kod yedeği (anahtarsız, kurucu 10-23 akşam 4.5): okuyucu okumasa da telefon / e-posta / bağlantı DEĞERİ aynı pencerede gitmez.
+  if (context?.offPlatformContactHolds === true && containsContactValue(result.reply)) return hold("reply_offplatform_contact");
   if (senior?.apology && noApologyRuleEnabled()) return hold("reply_apology");
   // ── ÇIKTI VETOSU (Codex denetimi §A, 09-12) ───────────────────────────────
   //
@@ -2559,8 +2562,9 @@ export async function applyChannelAutoReply(
     ...hazardContextFor(understood),
     // Konuşma öğeleri kipi (yalnız tur öğeye bölündüyse): sinyaller öğe kapsamında karar verir.
     ...(itemsPlan ? { items: itemsPlan.gateItems } : {}),
-    // Kıdemli okuyucu (T-b): Airbnb'de onaylı rezervasyon yokken platform dışı iletişim tutulur (anahtar kapalıyken alan yok).
-    ...(seniorReaderEnabled() ? { offPlatformContactHolds: offPlatformContactHoldsFor(conversation) } : {}),
+    // Airbnb'de onaylı rezervasyon yokken platform dışı iletişim tutulur: okuyucunun hükmü (T-b) + iletişim DEĞERİ için anahtarsız kod
+    // yedeği (kurucu 10-23 akşam 4.5: "host kendi telefon numarasını yazamaz … rezervasyondan önce"; okuyucu kapalı / düştüyse de).
+    offPlatformContactHolds: offPlatformContactHoldsFor(conversation),
   };
 
   // ── KIDEMLİ OKUYUCU: İLK TASLAĞI OKU, DÜZELTİLEBİLİR SORUNDA AYNI ANLAMDA BİR KEZ YENİDEN YAZDIR (kurucu 10-22) ─────────────────────

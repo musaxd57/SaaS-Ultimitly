@@ -1083,3 +1083,22 @@ describe("Opus 10-23 G3 — tekrar anahtarı ve son metin denetimi AYNI karşıl
     expect(partTextKey("Ücret 1.500 TL.")).not.toBe(partTextKey("Ücret 1,500 TL."));
   });
 });
+
+// ── Yanmış kabul seti 10-23 akşam: daire saat satırı eş etiketle alıntılanınca kaynak bulunmalı ──────────────────────────────────────────
+describe("daire saat satırı — eş etiket (doğrulama havuzu)", () => {
+  it("🚨 'Çıkış saati: 11:00' / 'Check-out time: 11:00' alıntısı 'Check-out saati: 11:00' satırına dayanır; değer değişmez", async () => {
+    const { withPropertyLabelAliases } = await import("@/lib/ai/prompts");
+    const lines = withPropertyLabelAliases(["Check-in saati: 15:00", "Check-out saati: 11:00", "Adres: Lale Sok. 5"]);
+    expect(lines).toEqual([
+      "Check-in saati: 15:00",
+      "Check-out saati: 11:00",
+      "Adres: Lale Sok. 5",
+      "Giriş saati: 15:00",
+      "Check-in time: 15:00",
+      "Çıkış saati: 11:00",
+      "Check-out time: 11:00",
+    ]);
+    // Süzülmüş (çakışan) satırın eşi de yok.
+    expect(withPropertyLabelAliases(["Check-in saati: 15:00"])).not.toContain("Çıkış saati: 11:00");
+  });
+});

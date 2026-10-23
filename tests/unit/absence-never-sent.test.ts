@@ -57,21 +57,17 @@ describe("'bilgim yok' misafire GİTMEZ — oto-yanıt kapısı", () => {
     }
   });
 
-  it("SAVUŞTURMA yokluk itirafı DEĞİLDİR — kapı gereksiz yere geniş değil", () => {
-    // Bu cevaplar bilginin kayıtlarda olmadığını SÖYLEMİYOR. Sözleşme yalnız AÇIK
-    // beyanı yakalar; savuşturmanın ayrı bir sorun olduğu ölçüldü (gerçek koşuda
-    // `gpt-5.6-luna` legacy modda tam bunu yapıyordu) ama bu kapının işi değil.
-    for (const reply of [
-      "Otopark konusunda ev sahibiniz yardımcı olabilir.",
-      "Bu konuyu ev sahibinizle konuşabilirsiniz.",
-    ]) {
-      expect(passesAutoReplySafetyGate({ ...BENIGN, reply }, "Otopark var mı?"), reply).toBe(true);
+  it("🚨 KURUCU 10-23 akşam 4.5: SAVUŞTURMA (ev sahibine yönlendirme) artık bilgisizlik sayılır → gitmez (09-11 pini bilinçli tersine)", () => {
+    // Kurucu, aynen: "ev sahibinize sorabilirsiniz yazamaz yasak onlar bilgisi yok sayılsın cevap tutulsun". 09-11'de bu sınıf bilerek
+    // dışarıdaydı (kayıtta olmadığını SÖYLEMİYOR); karar değişti — yönlendirme cevap değildir, ev sahibi yanıtlar.
+    for (const reply of ["Otopark konusunda ev sahibiniz yardımcı olabilir.", "Otopark için ev sahibinize sorabilirsiniz."]) {
+      expect(admitsMissingKnowledge(reply), reply).toBe(true);
+      expect(passesAutoReplySafetyGate({ ...BENIGN, reply }, "Otopark var mı?"), reply).toBe(false);
     }
-    // K10 (kurucu kararı 09-30): aynı savuşturma devir cümlesiyle ("mesajınız kaydedildi") GİTMEZ — yokluk kuralı yüzünden
-    // DEĞİL, çıktı vetosu yüzünden (yokluk yüklemi yine yanlış pozitif vermez).
-    const withHandoff = "Otopark konusunda ev sahibiniz yardımcı olabilir; mesajınız kaydedildi.";
-    expect(admitsMissingKnowledge(withHandoff)).toBe(false);
-    expect(passesAutoReplySafetyGate({ ...BENIGN, reply: withHandoff }, "Otopark var mı?")).toBe(false);
+    // Yönlendirme yüklemi olmayan ev sahibi anması (konuşma önerisi, olgu) gitmeye devam eder.
+    for (const reply of ["Bu konuyu ev sahibinizle konuşabilirsiniz.", "Ev sahibiniz sizi kapıda karşılayacak."]) {
+      expect(admitsMissingKnowledge(reply), reply).toBe(false);
+    }
   });
 
   it("`reply` VERİLMEZSE kural hiç çalışmaz (eski çağıranlar bozulmaz)", () => {
@@ -285,11 +281,12 @@ describe("🚨 KAÇAK PİNLERİ — modelin GERÇEKTE yazdığı yokluk ifadeler
     expect(admitsMissingKnowledge("BILGIM YOK")).toBe(true);
   });
 
-  it("⚠️ BİLİNÇLİ DIŞARIDA: belirsizlik ve savuşturma (ayrı sınıf)", () => {
+  it("⚠️ BİLİNÇLİ DIŞARIDA: belirsizlik (ayrı sınıf); yönlendirme 10-23 akşam kurucu kararıyla İÇERİDE", () => {
     // "emin değilim" NETLEŞTİRME SORUSUYLA aynı kalıbı paylaşıyor — bloklamak
     // ürünün MEŞRU bir davranışını keserdi. Ölçülmüş karşı örnek:
     expect(admitsMissingKnowledge("Sorunuzu tam anladığımdan emin değilim, hangi tarihten bahsediyorsunuz?")).toBe(false);
     expect(admitsMissingKnowledge("Bu konuda emin değilim.")).toBe(false);
     expect(admitsMissingKnowledge("Bu konuyu ev sahibinizle konuşabilirsiniz.")).toBe(false);
+    expect(admitsMissingKnowledge("Bu konuda ev sahibinizle iletişime geçebilirsiniz.")).toBe(true);
   });
 });

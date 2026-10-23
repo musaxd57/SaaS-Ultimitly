@@ -122,11 +122,11 @@ KURAL-2 [ZAMAN VE SAAT YASAĞI]:
 
 KURAL-3 [WI-FI / ADRES / KOD / YOL TARİFİ YASAĞI]:
   Wi-Fi ağ adı, şifre, kapı kodu, giriş kodu, adres — bu bilgiler yalnızca bilgi tabanında geçiyorsa kullan.
-  Bilgi tabanında yoksa: "Bu bilgi kayıtlarımda yok; ev sahibinizden isteyebilirsiniz." (Ne zaman
-  paylaşılacağına dair SÖZ VERME — bunu sen bilmiyorsun.)
+  Bilgi tabanında yoksa: "Bu bilgi kayıtlarımda yok." (Misafiri ev sahibine YÖNLENDİRME — "ev sahibinize
+  sorabilirsiniz / ev sahibinizden isteyebilirsiniz" yazma; ne zaman paylaşılacağına dair SÖZ VERME — bunu sen bilmiyorsun.)
   YOL TARİFİ / ULAŞIM: Belirli rota, metro/otobüs/tramvay hattı, durak adı, taksi süresi/ücreti veya
   "havalimanından X dakika" gibi ulaşım detaylarını SADECE bilgi tabanında/property'de varsa ver. Yoksa
-  rota UYDURMA — adres bilgi tabanında varsa paylaş, sonra "net yol tarifi için ev sahibinize sorabilirsiniz" de.
+  rota UYDURMA ve misafiri ev sahibine YÖNLENDİRME — adres bilgi tabanında varsa paylaş; rota kayıtlarında yoksa bunu söyle.
 
 KURAL-4 [FİYAT / İADE / PLATFORM-DIŞI ÖDEME YASAĞI]:
   Fiyat, iade tutarı, indirim, tazminat rakamı ASLA yazma.
@@ -589,9 +589,10 @@ Misafir: "Merhaba, wifi şifresi nedir?"  [Bilgi tabanı → WIFI: Ağ "LaleApt"
 
 ÖRNEK 2 — Temellendiremiyorsun: KISA tut, SOMUT şey iddia etme, confidence'ı DÜŞÜR (TR):
 Misafir: "Otopark var mı?"  [Bilgi tabanında otopark bilgisi YOK, ev sahibinin geçmiş cevabı da YOK]
-{"intent":"parking","stayChangeAsked":"none","confidence":0.3,"reply":"Otopark için ev sahibiniz size kesin bilgi verebilir.","risk":null,"priority":"standard","actionSuggestion":"Mülkte otopark olup olmadığını kontrol et ve misafire bilgi ver.","riskLevel":"none","detectedLanguage":"tr","riskType":null,"usedSources":[],"missingInfo":["otopark bilgisi"],"statedCheckoutTime":null,"replyStance":"none"}
-(Dikkat: bilgisizlik AÇIKLAMASI yazılmadı, "var/yok" hükmü VERİLMEDİ, confidence 0.4 ALTINDA —
-bu metin misafire gitmez, ürün konuyu ev sahibine devreder. missingInfo ev sahibine gider.)
+{"intent":"parking","stayChangeAsked":"none","confidence":0.3,"reply":"Merhaba.","risk":null,"priority":"standard","actionSuggestion":"Mülkte otopark olup olmadığını kontrol et ve misafire bilgi ver.","riskLevel":"none","detectedLanguage":"tr","riskType":null,"usedSources":[],"missingInfo":["otopark bilgisi"],"statedCheckoutTime":null,"replyStance":"none"}
+(Dikkat: bilgisizlik AÇIKLAMASI ve ev sahibine YÖNLENDİRME ("ev sahibinize sorabilirsiniz", "ev sahibiniz bilgi verebilir")
+yazılmadı, "var/yok" hükmü VERİLMEDİ, confidence 0.4 ALTINDA — bu metin misafire gitmez, ürün konuyu ev sahibine devreder.
+missingInfo ev sahibine gider.)
 
 ÖRNEK 3 — Şikayet, rakam verme, yöneticiye yönlendir (TR):
 Misafir: "Klima hiç çalışmıyor, içerisi çok sıcak!"
@@ -986,7 +987,7 @@ export function packKnowledgeBase(
       `- [NOT] DOLDURULMAMIŞ YER TUTUCU: ${placeholders.map((p) => `"${p.title}" (${p.tokens.join(", ")})`).join("; ")}. ` +
         "Bu köşeli/açılı parantezli alanlar ev sahibinin henüz doldurmadığı ŞABLONDUR; gerçek değer DEĞİLDİR: " +
         "misafire yazma, alıntılama, kayıtlı bilgi sayma. O bilgi için KURAL-3 geçerli: " +
-        '"Bu bilgi kayıtlarımda yok; ev sahibinizden isteyebilirsiniz."',
+        '"Bu bilgi kayıtlarımda yok."',
     );
   }
   for (const n of notes) lines.push(`- [NOT] ${n}`);
@@ -1561,6 +1562,25 @@ const CODE_GREETING_TASK_LINE =
   "\nSELAM: reply selam / hitapla BAŞLAMAZ, misafirin adını İÇERMEZ — selam satırını sistem ekler; doğrudan konuya gir." +
   ' Metindeki "[Misafir]" misafirin gizlenmiş adıdır — cevapta YAZMA.';
 
+/**
+ * Parça kipinin DOĞRULAMA havuzunda (istem DEĞİL) daire saat satırlarının eş etiketleri (yanmış kabul seti 10-23 akşam: model "Check-out saati:
+ * 11:00" satırını "Çıkış saati: 11:00" diye alıntıladı, kaynak bulunamadı, doğru çıkış saati cevabı tutuldu). Aynı değer, aynı olgu; çakışma
+ * süzgecinden geçmiş satırdan türetilir (süzülen satırın eşi de yok).
+ */
+const PROPERTY_LABEL_ALIASES: readonly (readonly [string, readonly string[]])[] = [
+  ["Check-in saati:", ["Giriş saati:", "Check-in time:"]],
+  ["Check-out saati:", ["Çıkış saati:", "Check-out time:"]],
+];
+export function withPropertyLabelAliases(lines: readonly string[]): string[] {
+  const out = [...lines];
+  for (const line of lines) {
+    for (const [label, aliases] of PROPERTY_LABEL_ALIASES) {
+      if (line.startsWith(label)) out.push(...aliases.map((a) => `${a}${line.slice(label.length)}`));
+    }
+  }
+  return out;
+}
+
 export function buildReplyPrompt(input: SuggestReplyInput): {
   text: string;
   kbOmitted: number;
@@ -2003,12 +2023,13 @@ Cevap metninde (reply) yalnızca verilen veri, zaman bağlamı ve bilgi tabanın
         // turun öteki doğrulanmış parçaları çelişki yüzünden toptan tutulmaz.
         {
           id: "property",
-          text: propertyFacts
-            .split("\n")
-            .filter((l) => !l.includes("(belirtilmemiş"))
-            .filter((l) => !(l.startsWith("Check-in saati:") && conflicts.some((c) => c.field === "checkInTime")))
-            .filter((l) => !(l.startsWith("Check-out saati:") && conflicts.some((c) => c.field === "checkOutTime")))
-            .join("\n"),
+          text: withPropertyLabelAliases(
+            propertyFacts
+              .split("\n")
+              .filter((l) => !l.includes("(belirtilmemiş"))
+              .filter((l) => !(l.startsWith("Check-in saati:") && conflicts.some((c) => c.field === "checkInTime")))
+              .filter((l) => !(l.startsWith("Check-out saati:") && conflicts.some((c) => c.field === "checkOutTime"))),
+          ).join("\n"),
         },
       ]
     : null;

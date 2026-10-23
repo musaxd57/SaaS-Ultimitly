@@ -224,6 +224,23 @@ describe("kapı hükmü (kanal)", () => {
     expect(autoReplyGateVerdict(ok, "wifi?", { absenceJudge: read({ apology: true }) })).toEqual({ reason: "blocked", detail: "reply_apology" });
   });
 
+  it("kod yedeği (kurucu 10-23 akşam 4.5): okuyucu yokken de Airbnb penceresinde telefon / e-posta / bağlantı DEĞERİ tutulur", () => {
+    const withPhone = { ...ok, reply: "Check-in is from 15:00. You can reach me on +90 532 123 45 67." };
+    const withMail = { ...ok, reply: "Check-in is from 15:00. Write to host.lale@example.com for details." };
+    const withLink = { ...ok, reply: "Check-in is from 15:00. Directions: https://maps.example.com/lale" };
+    for (const r of [withPhone, withMail, withLink]) {
+      expect(autoReplyGateVerdict(r, "check-in?", { offPlatformContactHolds: true }), r.reply).toEqual({
+        reason: "blocked",
+        detail: "reply_offplatform_contact",
+      });
+      // Pencere dışı (onaylı rezervasyon / Airbnb değil): kod yedeği karışmaz.
+      expect(autoReplyGateVerdict(r, "check-in?", { offPlatformContactHolds: false }), r.reply).toBeNull();
+      expect(autoReplyGateVerdict(r, "check-in?", {}), r.reply).toBeNull();
+    }
+    // Aşırı uygulama yok: değer taşımayan cevap pencerede de gider (saat / kat numarası telefon sayılmaz).
+    expect(autoReplyGateVerdict({ ...ok, reply: "Check-in is from 15:00, flat 4 on the 2nd floor." }, "check-in?", { offPlatformContactHolds: true })).toBeNull();
+  });
+
   it("başka metnin hükmü bu cevaba uygulanmaz (ayıklama / kod metni sonrası bayat hüküm)", () => {
     expect(autoReplyGateVerdict(ok, "wifi?", { absenceJudge: read({ payHost: true }, "eski metin") })).toBeNull();
   });

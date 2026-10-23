@@ -364,6 +364,20 @@ function feeAbsence(tokens: readonly string[], i: number): boolean {
   return FEE_NOUN.test(n1) || (/^(?:extra|additional|zusatzlich|supplementaire|adicional)/.test(n1) && FEE_NOUN.test(n2));
 }
 
+/**
+ * "Kapalı" SIFAT ("kapalı havuz / otopark / alan" = kapalı alan, açığın karşıtı) ya da TALİMAT ("kapıyı kapalı tutun") ise olumsuzluk değildir
+ * (yanmış kabul seti 10-23 akşam: "Sitenin kapalı havuzu hafta içi 08:00–22:00 arası açıktır" ↔ "Havuz 22:00'ye kadar açık" ve "Klima
+ * çalışırken balkon kapısını kapalı tutun" ↔ "Kumanda çekmecede" doğru cevapları TERS OLUMLULUK diye tutuluyordu — 16 tutmanın 5'i).
+ * Yüklem ("havuz kapalı", "kapalıdır") olumsuz kalır; ardındaki tesis adının HEMEN arkasında kendi açık / kapalı yüklemi varsa ("Spa kapalı
+ * havuz açık") "kapalı" öncekinin yüklemidir. Yan cümle virgülde biter ("Havuz kapalı, sauna açık" → "kapalı" son belirteç).
+ */
+const INDOOR_NOUN = /^(?:havuz|otopark|garaj|park|alan|spor|salon|mekan|balkon|teras|mutfak|yuzme|oyun|jakuzi|sauna|hamam|fitness|bolum|kisim|carsi|yer)/;
+function closedIsNotPredicate(tokens: readonly string[], i: number): boolean {
+  const next = tokens[i + 1] ?? "";
+  if (/^tut/.test(next)) return true;
+  return INDOOR_NOUN.test(next) && !/^(?:acik|kapali)/.test(tokens[i + 2] ?? "");
+}
+
 function negAt(tokens: readonly string[], i: number): boolean {
   const t = tokens[i];
   if (["no", "without", "kein", "keine", "keinen", "sans", "sin", "без"].includes(t) && feeAbsence(tokens, i)) return false;
@@ -372,6 +386,7 @@ function negAt(tokens: readonly string[], i: number): boolean {
   // "no more than 2 pets" / "not less than" — sınır, olumsuzluk değil (sınıfı `boundsOf`).
   if ((t === "no" || t === "not") && /^(?:more|less|fewer)$/.test(tokens[i + 1] ?? "") && tokens[i + 2] === "than") return false;
   if (t === "ferme" && valueAhead(tokens, i)) return false;
+  if (t === "kapali" && closedIsNotPredicate(tokens, i)) return false;
   // İngilizce "can't / don't / isn't": kesme boşluğa döner ("can t") → "-n"den sonraki "t" olumsuzdur.
   return NEGATION_TOKENS.has(t) || negativeVerb(t) || (t === "t" && i > 0 && tokens[i - 1].endsWith("n"));
 }
@@ -1630,7 +1645,12 @@ function feeClasses(tokens: readonly string[]): Set<"free" | "paid"> {
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i];
     if (FEE_FREE.has(t)) {
-      const negated = /^degil/.test(tokens[i + 1] ?? "") || NEGATING_PARTICLES.has(tokens[i - 1] ?? "") || (tokens[i - 1] ?? "") === "не";
+      // "ücretsiz otopark yok / bulunmuyor" (yanmış kabul seti 10-23 akşam): yokluk yüklemi en çok iki sözcük sonra da ücretsizliği olumsuzlar.
+      const negated =
+        /^degil/.test(tokens[i + 1] ?? "") ||
+        NEGATING_PARTICLES.has(tokens[i - 1] ?? "") ||
+        (tokens[i - 1] ?? "") === "не" ||
+        [tokens[i + 1], tokens[i + 2]].some((n) => /^(?:yok|yoktur|bulunmuyor|bulunmaz|bulunmamaktadir)$/.test(n ?? ""));
       out.add(negated ? "paid" : "free");
     } else if (FEE_PAID.has(t)) {
       // "free of charge" / "no (extra) charge" / "without charge" ücretsizdir (Haiku 10-23 gece #10).

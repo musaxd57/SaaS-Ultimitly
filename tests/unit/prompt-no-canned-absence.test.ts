@@ -112,6 +112,8 @@ describe("🚨 KARŞI YÖN — uydurma yasağı ve devir mantığı DURUYOR", ()
     // yüklemin hâlâ ÇALIŞTIĞINI davranışsal olarak sınar (ithal edilmiş olması
     // yetmez — 9. turda bir mutasyon tam da bunu gösterdi).
     expect(admitsMissingKnowledge("Bu konuda kayıtlı bilgim yok.")).toBe(true);
-    expect(admitsMissingKnowledge("Otopark için ev sahibiniz size kesin bilgi verebilir.")).toBe(false);
+    // Kurucu 10-23 akşam 4.5: ev sahibine yönlendirme de bilgisizlik sayılır (09-11'de dışarıdaydı — bilinçli tersine).
+    expect(admitsMissingKnowledge("Otopark için ev sahibiniz size kesin bilgi verebilir.")).toBe(true);
+    expect(admitsMissingKnowledge("Merhaba.")).toBe(false);
   });
 });
