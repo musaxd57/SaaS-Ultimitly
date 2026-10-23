@@ -193,7 +193,36 @@ export function understandingDateLine(t: StayTimeline, bookingKnown: boolean): s
   if (!bookingKnown) return today;
   if (t.arrival === null || t.departure === null) return `${today} No booking is linked to this conversation.`;
   const tag = t.cancelled ? " (CANCELLED — not a valid stay)" : t.unconfirmed ? " (not confirmed yet)" : "";
-  return `${today} Guest's booking${tag}: check-in day ${dayEn(t.arrival)}, check-out day ${dayEn(t.departure)}.`;
+  return `${today} Guest's booking${tag}: check-in day ${dayEn(t.arrival)}, check-out day ${dayEn(t.departure)}.${stageSentence(t)}`;
+}
+
+/**
+ * Konaklama EVRESİ açıkça (kurucu 10-23 akşam 4.5, aynen: "müşteri rezervasyon yaptırmış mı yaptırmamış mı konaklıyor mu gelecek mi bu çok önemli
+ * bunun bilgisi gitsin modele"): okuyucu ve anlama katmanı tarihten çıkarmak zorunda kalmasın — "daha içeri girmemiş misafirin evdeki acil
+ * durumu" gibi mantıksız durumları görebilsin. Gün düzeyinde (önbellek anahtarı gün içinde sabit). İptal / onaysız rezervasyonda evre YOK
+ * (onaylı konaklama gibi anlatılmaz).
+ */
+function stageSentence(t: StayTimeline): string {
+  if (t.cancelled) return "";
+  if (t.unconfirmed) return " The writer may be a prospective guest: there is no confirmed stay yet.";
+  switch (t.stage) {
+    case "pre_arrival":
+      return ` Stage: the guest has NOT arrived yet (arrives in ${t.daysToArrival} days) and is not in the home.`;
+    case "arrival_tomorrow":
+      return " Stage: the guest arrives tomorrow and is not in the home yet.";
+    case "arrival_today":
+      return " Stage: the guest arrives today.";
+    case "in_stay":
+      return ` Stage: the guest is staying in the home now (checks out in ${t.daysToDeparture} days).`;
+    case "departure_tomorrow":
+      return " Stage: the guest is staying in the home now and checks out tomorrow.";
+    case "departure_today":
+      return " Stage: today is the guest's check-out day.";
+    case "post_stay":
+      return " Stage: the stay is over; the guest has checked out.";
+    default:
+      return "";
+  }
 }
 
 const HHMM_RE = /^([01]\d|2[0-3]):[0-5]\d$/;

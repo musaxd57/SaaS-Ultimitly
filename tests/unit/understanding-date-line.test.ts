@@ -26,8 +26,21 @@ describe("understandingDateLine — saf", () => {
     const t = stayTimeline({ now: at("2026-09-25T09:00:00Z"), timeZone: IST, reservation: RES });
     expect(understandingDateLine(t, true)).toBe(
       "Today (property time zone): 2026-09-25 (Friday); tomorrow: 2026-09-26 (Saturday). " +
-        "Guest's booking: check-in day 2026-09-26 (Saturday), check-out day 2026-09-29 (Tuesday).",
+        "Guest's booking: check-in day 2026-09-26 (Saturday), check-out day 2026-09-29 (Tuesday). " +
+        "Stage: the guest arrives tomorrow and is not in the home yet.",
     );
+  });
+
+  it("🚨 KURUCU 10-23 akşam 4.5: konaklama EVRESİ açıkça (gelmedi / bugün geliyor / konaklıyor / çıkış günü / bitti); onaysızda olası misafir", () => {
+    const line = (iso: string, reservation = RES) => understandingDateLine(stayTimeline({ now: at(iso), timeZone: IST, reservation }), true);
+    expect(line("2026-09-20T09:00:00Z")).toContain("Stage: the guest has NOT arrived yet (arrives in 6 days) and is not in the home.");
+    expect(line("2026-09-26T09:00:00Z")).toContain("Stage: the guest arrives today.");
+    expect(line("2026-09-27T09:00:00Z")).toContain("Stage: the guest is staying in the home now (checks out in 2 days).");
+    expect(line("2026-09-28T09:00:00Z")).toContain("Stage: the guest is staying in the home now and checks out tomorrow.");
+    expect(line("2026-09-29T09:00:00Z")).toContain("Stage: today is the guest's check-out day.");
+    expect(line("2026-10-02T09:00:00Z")).toContain("Stage: the stay is over; the guest has checked out.");
+    expect(line("2026-09-20T09:00:00Z", { ...RES, status: "pending" })).toContain("The writer may be a prospective guest: there is no confirmed stay yet.");
+    expect(line("2026-09-27T09:00:00Z", { ...RES, status: "cancelled" })).not.toContain("Stage:");
   });
 
   it("bağlı rezervasyon yok (null) → açıkça söylenir", () => {
