@@ -116,11 +116,21 @@ const SET = (process.env.EVAL_LIVE_SET?.trim() || "model-reply-compare.json").re
  * yasak; rapor yalnız TOPLU SAYI + senaryo kimliği basar, hiçbir misafir / cevap metni yazılmaz.
  */
 const SEALED = process.env.EVAL_SEALED_FINAL === "1";
+/**
+ * YANMIŞ set = geliştirme verisi (kurucu 10-23 akşam 4.8: "evet koş"): `EVAL_BURNED_DEV=1` + `EVAL_SEALED_NAME`. Yalnız kaydı "burned" ve
+ * SHA-256'sı eşleşen set; rapor AYRINTILI (neden analizi için), ama dosya adı / içerik setin adını taşımaz (erişim pini). Bu koşunun
+ * ayrıntılarıyla yapılan düzeltmenin kabulü yine YENİ, görülmemiş setle ölçülür.
+ */
+const BURNED_DEV = process.env.EVAL_BURNED_DEV === "1";
+if (SEALED && BURNED_DEV) throw new Error("EVAL_SEALED_FINAL ve EVAL_BURNED_DEV birlikte kullanılamaz.");
 const SEALED_NAMES = ["needs-blind-2026-10-23.json", "needs-kabul-2026-10-23.json"] as const;
 const SEALED_NAME_RAW = process.env.EVAL_SEALED_NAME?.trim();
 if (SEALED_NAME_RAW && !(SEALED_NAMES as readonly string[]).includes(SEALED_NAME_RAW)) throw new Error(`EVAL_SEALED_NAME tanınmıyor: ${SEALED_NAME_RAW}`);
 const SEALED_NAME = SEALED_NAMES.find((n) => n === SEALED_NAME_RAW) ?? SEALED_NAMES[0];
-const DATASET = SEALED ? path.resolve(__dirname, "../../evals/sealed", SEALED_NAME) : path.resolve(__dirname, "../../evals", SET);
+/** Yanmış set raporlarda adıyla değil bu etiketle anılır (setin dosya adı yalnız izinli yerlerde geçer). */
+const BURNED_LABEL = `yanmis-${SEALED_NAMES.indexOf(SEALED_NAME) + 1}`;
+const DATASET =
+  SEALED || BURNED_DEV ? path.resolve(__dirname, "../../evals/sealed", SEALED_NAME) : path.resolve(__dirname, "../../evals", SET);
 const key = process.env.OPENAI_API_KEY?.trim() ?? "";
 const dbUrl = process.env.DATABASE_URL ?? "";
 /** Ayrı veritabanı ZORUNLU: 5433 test harness'ının (tam kapılar) veritabanıdır — orada koşmak kapıların koşusunu bozar. */
@@ -136,6 +146,14 @@ if (SEALED && enabled) {
   if (!seal || seal.state !== "sealed") throw new Error("mühürlü set 'sealed' durumunda değil (yanmış ya da kayıtsız).");
   if (createHash("sha256").update(datasetBytes).digest("hex") !== seal.sha256) throw new Error("mühürlü setin SHA-256'sı kayıtla eşleşmiyor.");
   if (process.env.EVAL_LIVE_LIMIT || process.env.EVAL_LIVE_ONLY) throw new Error("EVAL_LIVE_LIMIT / EVAL_LIVE_ONLY mühürlü koşuda kullanılamaz.");
+}
+if (BURNED_DEV) {
+  if (!enabled) throw new Error("EVAL_BURNED_DEV=1 yalnız gerçek canlı hat koşusunda.");
+  const seals = JSON.parse(readFileSync(path.resolve(__dirname, "../../evals/sealed/SEALS.json"), "utf8")) as Record<string, { sha256?: string; state?: string }>;
+  const seal = seals[SEALED_NAME];
+  // Mühürlü (henüz yakılmamış) set bu kipte ASLA okunmaz — ayrıntılı rapor mührü bozardı.
+  if (!seal || seal.state !== "burned") throw new Error("EVAL_BURNED_DEV yalnız YANMIŞ sette koşar.");
+  if (createHash("sha256").update(datasetBytes).digest("hex") !== seal.sha256) throw new Error("yanmış setin SHA-256'sı kayıtla eşleşmiyor.");
 }
 const data = JSON.parse(datasetBytes.toString("utf8")) as Dataset;
 
@@ -706,7 +724,7 @@ describe.skipIf(!enabled)(`CANLI HAT — ${MODEL}`, () => {
     const dir = path.resolve(__dirname, "../../docs/olcum");
     mkdirSync(dir, { recursive: true });
     const stamp = new Date().toISOString().slice(0, 10);
-    const setTag = SET === "model-reply-compare.json" ? "" : `-${SET.replace(/\.json$/, "")}`;
+    const setTag = BURNED_DEV ? `-${BURNED_LABEL}` : SET === "model-reply-compare.json" ? "" : `-${SET.replace(/\.json$/, "")}`;
     const name = uniqueReportName(
       dir,
       `live-pipeline-${stamp}-${MODEL.replace(/[^a-z0-9.-]+/gi, "_")}${SEALED ? "-kor" : setTag}${TAG ? `-${TAG}` : ""}.md`,
@@ -772,7 +790,7 @@ describe.skipIf(!enabled)(`CANLI HAT — ${MODEL}`, () => {
       "",
       `Durum: **${status}** · commit \`${commit}\` · satır ${rows.length}/${planned} · bilgi tabanı ${PAD_TO > 0 ? `nötr dolguyla ${PAD_TO} kaleme (seçim + gömme + sıralayıcı koşar)` : "dolgusuz"}`,
       `Bayraklar harness'ta sabit (canlı): ${Object.entries(LIVE_FLAGS).map(([k, v]) => `\`${k}=${v || "(boş)"}\``).join(" · ")}`,
-      `Set: \`evals/${SET}\` · ücret kuralı: \`AI_KB_FEE_RULE_ENABLED=${process.env.AI_KB_FEE_RULE_ENABLED?.trim() || "(boş)"}\` · kod selamı: \`AI_CODE_GREETING_ENABLED=${process.env.AI_CODE_GREETING_ENABLED?.trim() || "(boş)"}\` · erteleme bildirimsiz: \`AI_STAY_DEFERRAL_PLAIN_ENABLED=${process.env.AI_STAY_DEFERRAL_PLAIN_ENABLED?.trim() || "(boş)"}\` · giriş kodu: \`AI_ACCESS_CODE_COMPLETE_ENABLED=${process.env.AI_ACCESS_CODE_COMPLETE_ENABLED?.trim() || "(boş)"}\` · ev sahibi kararı tutulur: \`AI_HOST_DECISION_HOLD_ENABLED=${process.env.AI_HOST_DECISION_HOLD_ENABLED?.trim() || "(boş)"}\` · şikâyet takibi: \`AI_COMPLAINT_FOLLOWUP_RULE_ENABLED=${process.env.AI_COMPLAINT_FOLLOWUP_RULE_ENABLED?.trim() || "(boş)"}\` · hâl hatır: \`AI_COURTESY_RULE_ENABLED=${process.env.AI_COURTESY_RULE_ENABLED?.trim() || "(boş)"}\` · düşünme: \`OPENAI_REASONING_EFFORT=${process.env.OPENAI_REASONING_EFFORT?.trim() || "(boş)"}\``,
+      `Set: ${BURNED_DEV ? `YANMIŞ mühürlü set \`${BURNED_LABEL}\` (geliştirme verisi; kabul ölçüsü değil)` : `\`evals/${SET}\``} · ücret kuralı: \`AI_KB_FEE_RULE_ENABLED=${process.env.AI_KB_FEE_RULE_ENABLED?.trim() || "(boş)"}\` · kod selamı: \`AI_CODE_GREETING_ENABLED=${process.env.AI_CODE_GREETING_ENABLED?.trim() || "(boş)"}\` · erteleme bildirimsiz: \`AI_STAY_DEFERRAL_PLAIN_ENABLED=${process.env.AI_STAY_DEFERRAL_PLAIN_ENABLED?.trim() || "(boş)"}\` · giriş kodu: \`AI_ACCESS_CODE_COMPLETE_ENABLED=${process.env.AI_ACCESS_CODE_COMPLETE_ENABLED?.trim() || "(boş)"}\` · ev sahibi kararı tutulur: \`AI_HOST_DECISION_HOLD_ENABLED=${process.env.AI_HOST_DECISION_HOLD_ENABLED?.trim() || "(boş)"}\` · şikâyet takibi: \`AI_COMPLAINT_FOLLOWUP_RULE_ENABLED=${process.env.AI_COMPLAINT_FOLLOWUP_RULE_ENABLED?.trim() || "(boş)"}\` · hâl hatır: \`AI_COURTESY_RULE_ENABLED=${process.env.AI_COURTESY_RULE_ENABLED?.trim() || "(boş)"}\` · düşünme: \`OPENAI_REASONING_EFFORT=${process.env.OPENAI_REASONING_EFFORT?.trim() || "(boş)"}\``,
       "",
       ...summarizeLive(rows),
       "",
