@@ -38,5 +38,20 @@
     "burnedAt": "2026-10-21",
     "runSha": "069af573c69be60dc2627ff7d1f801eb98d159e5",
     "report": "docs/olcum/anlama-e2e-kor-live-2026-10-21-rtblind.md"
+  },
+  "needs-blind-2026-10-23.json": {
+    "sealedAt": "2026-10-23",
+    "author": "kör ajan (Opus): depodaki kodu, istemleri, eval setlerini ve belgeleri OKUMADI; yalnız biçim + kurucunun 10-23 sabah kuralları (Soru 9 / 11 metni, sade anlatım) verildi; geliştiriciye yalnız sayılar, boyut ve SHA-256 raporlandı. Sınır: oturum başında CLAUDE.md bağlamına otomatik yüklendi. Geliştirici dosyayı açmadı.",
+    "sha256": "83c7487d2cb468be49d20b2ad1d4f848e9023918df8cda58a44f80096e83d8dc",
+    "items": {
+      "scenarios": 45,
+      "needs": 62,
+      "answered": 40,
+      "open": 22,
+      "kbSets": 5,
+      "languages": 5,
+      "bytes": 25775
+    },
+    "state": "sealed"
   }
 }
