@@ -61,7 +61,13 @@ Gece sonu (§3e, `6c59ee3c`): Opus "taze göz" (gecenin bütün farkı) 8 bulgu 
 olumsuzluk yalnız SORULAN konuya, saatsiz cevap yalnız yüklem, ücret sorusunda konu sözcüğü cevap değil, rakam + para birimi tutar, iki yön →
 aralık şart, çalışma saatleri yön sormaz) + konu etiketi değer penceresi (bitişik dizi, ağ sözcüğü önündeki değer, ikiz harf, sırdan sonraki 3
 sözcük); 147 gerçek parçada karar değişmedi. Mutasyon night4 67/90, yaşayan 23'ün hepsi pinli (T4 gerçek sızma, kapandı). Migration 85 WIP
-`6c59ee3c` üstüne yeniden kuruldu (etiket çakışması çözüldü). Açık soru §6-10 (eski satırda sessiz tur e-postası).
+son ana dal ucuna (`73df45bd`) yeniden kuruldu (etiket çakışması çözüldü). Açık soru §6-10 (eski satırda sessiz tur e-postası).
+Sonra Haiku 4. tur (19 bulgu) + Opus R4 (16 bulgu, 3'ü kendi gerilemem) kapandı: saatsiz yüklem / olumsuzluk SORULAN konuya bağlı
+(`subjectBefore`: yer / zaman zarfı atlanır, niteleyici alt türdür), yön yalnız saat taşıyan yan cümleden, saatle birlikte kapalılık / yasak /
+olumsuzluk → yön sorusunda tutulur, sözcükle saat (öğlen / midnight) yön denetiminden geçer, temizlik / bakım / ısıtma yan cümlesi sayılmaz,
+"open until" bitiştir, olumsuz dahil tutar sorusunu cevaplamaz (evet / hayır sorusunu cevaplar). 156 gerçek parçada karar değişmedi; E v8
+31/38, yanlış 0. Mutasyon 43/43 + 15/17 (2 ölü kod silindi). Rapor §6-11: "sorulanı cevapladı mı" yargısını kıdemli okuyucuya da sormak
+(kalıp listesi her turda büyüyor — parça kipi kapalı kalmalı).
 
 **10-23 gece:** büyük rapor `docs/RAPOR-2026-10-23-gece-buyuk-rapor.md`. Soru 1 kodda (`topic-absence.needTerms`:
 misafirin kendi soru sözcükleri; gönderime izin veren eşleşme SIKI = yalnız çekim eki, tutma yönü GEVŞEK; anahtar `AI_TOPIC_ABSENCE_ENABLED` KAPALI) ·

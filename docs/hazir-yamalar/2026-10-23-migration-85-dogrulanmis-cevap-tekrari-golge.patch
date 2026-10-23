@@ -1,4 +1,4 @@
-From 6e691a73d91ae7577de5c9ec7f2a557de94a9d3d Mon Sep 17 00:00:00 2001
+From 9c6a87abc4b9e0f32ab9913b05377fa4936f4bf9 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 22 Oct 2026 22:35:42 +0000
 Subject: [PATCH] WIP migration 85 golge kip (hazir yama, push yok)
@@ -747,7 +747,7 @@ index a8b246b6..94b1daf6 100644
  }
  
 diff --git a/src/lib/conversation-items/topic-label.ts b/src/lib/conversation-items/topic-label.ts
-index 6483fbe4..f7afe2d5 100644
+index 222af50a..0b22d0ac 100644
 --- a/src/lib/conversation-items/topic-label.ts
 +++ b/src/lib/conversation-items/topic-label.ts
 @@ -29,6 +29,38 @@ const SECRET_EXACT = new Set(["key", "keys", "pass", "passe", "passcode", "pw",
@@ -1224,7 +1224,7 @@ index a0f818f0..47c1cf4f 100644
    KbCopyOperation: "kopyalama tekrar güvenliği iç kaydı (kaynak kimliği + istek kimliği + içerik izi) — içerik yok; 30 gün sonra saatlik süpürgeyle silinir (Codex 10-21, migration 81)",
    SystemLock: "Sistem kilidi / işaret satırı — işletme verisi değil",
 diff --git a/tests/unit/item-topic-label.test.ts b/tests/unit/item-topic-label.test.ts
-index 6df6cd75..44ab89aa 100644
+index a0b09001..85876c48 100644
 --- a/tests/unit/item-topic-label.test.ts
 +++ b/tests/unit/item-topic-label.test.ts
 @@ -135,6 +135,45 @@ describe("Haiku 10-23 gece-2: şifre sözcüğünün yanlış / bitişik yazım
@@ -1273,8 +1273,8 @@ index 6df6cd75..44ab89aa 100644
  describe("Haiku 10-23 gece-3: etikete şifre değeri sızma yolları", () => {
    it("🚨 sır sözcüğünün ÖNÜNDEKİ çok sözcüklü değer (sözlük sözcüğü taşısa da) düşer; kodu olan şey / ağ sözcüğü kalır", () => {
      expect(itemTopicLabel("kelebek mavi kahve şifresi")).toBeNull();
-@@ -216,3 +255,22 @@ describe("Haiku 10-23 gece-4: yanlış yazılmış sır sözcüğü ve ağ sözc
-     expect(itemTopicLabel("havuz ısıtması bozuk wifi şifresi nedir")).toBe("havuz ısıtması wifi");
+@@ -222,3 +261,22 @@ describe("Opus 10-23 R4: yanlış yazılmış sır sözcüğünün kalanları",
+     for (const q of ["wifi şifr kelebek", "wifi şfre kelebek", "wifi psw kelebek", "wifi parolo kelebek"]) expect(itemTopicLabel(q), q).toBe("wifi");
    });
  });
 +

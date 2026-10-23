@@ -15,10 +15,14 @@
 - **Parça kipi (her soruya ayrı doğrulanmış cevap)** artık soruyu gerçekten cevaplamayan doğru cümleyle soruyu kapatmıyor ("Havuz kaçta?" ↔ "Havuz
   ısıtmalıdır" gitmez), cevapsız soru kalan tutulmuş turda ev sahibine e-posta gidiyor. Gerçek modelle ölçümde yanlış cevap 0, yeni denetimler
   hiçbir doğru cevabı tutmadı.
-- **Son tur (gece sonu):** gecenin bütün farkı bağlamsız bir Opus'a okutuldu → 8 bulgu, en ağırı parça kipinde konuyla ilgisiz bir cümlenin
-  ("Havuzda cankurtaran yoktur") saat sorusunu kapatabilmesi — 7'si kapandı, 147 gerçek model cevabında hiçbir karar değişmedi. Mutasyon turu
-  23 yaşayan mutantın hepsini pinledi; biri konu etiketinde gerçek şifre sızma yolu çıktı ("mavi kelebek wlan şifresi"), kapandı (§3e).
-- **Kararınızı bekleyen 10 soru** §6'da, her biri örnekli. En önemlileri: 1 (migration 85), 6 (kısmi cevapta e-posta), 9 (genel soruya yalnız
+- **Gece sonu (§3e):** gecenin bütün farkı üç tur daha bağımsız gözden geçti (Opus taze göz 8 bulgu · Haiku 4. tur 19 bulgu · Opus R4 16 bulgu;
+  aralarında KENDİ 4 gerilemem de vardı, hepsi bulundu ve kapandı). En ağırı: parça kipinde konuyla ilgisiz bir cümlenin ("Havuzda cankurtaran
+  yoktur", "Please keep the pool GATE closed") saat sorusunu kapatabilmesi. Her turdan sonra 147–156 gerçek model cevabında karar **hiç
+  değişmedi**; gerçek modelle son ölçüm (E v8) 31/38 doğru, yanlış 0. Mutasyon: 90 + 43 + 17 mutant, yaşayanların hepsi pinlendi ya da ölü
+  kod olarak silindi; biri konu etiketinde gerçek şifre sızma yolu çıktı ("mavi kelebek wlan şifresi"), kapandı.
+- **Dürüst not:** bu sözcük / kalıp tabanlı "sorulanı cevapladı mı" denetimi her turda yeni kenar durumları çıkarıyor — ürün anahtarı
+  (`AI_ANSWER_PARTS_ENABLED`) KAPALI ve öyle kalmalı. Açmadan önce önerim: §6 soru 11.
+- **Kararınızı bekleyen 11 soru** §6'da, her biri örnekli. En önemlileri: 1 (migration 85), 6 (kısmi cevapta e-posta), 9 (genel soruya yalnız
   istisna cevabı).
 - Ücretli ölçüm bu gece toplam ~$0,45 (onaylı E kapsamı; son koşu v8: 31/38 doğru, yanlış 0).
 
@@ -271,7 +275,10 @@ gece: v5 + v6 + v7 + v8 = $0,45 (onaylı E kapsamı).
 | Tam kapı g9 (`6c59ee3c`: Opus taze göz F1–F7 + mutasyon pinleri) | veritabanısız 578 · veritabanlı 4.507 test · süre 65 dosya yeşil · derleme yeşil → push (`32d73a57`, iki belge commit'iyle) → **CI yeşil** |
 | Mutasyon — Haiku 4. tur kodu (`1a0e502a`, 43 mutant) | 40/43 → yaşayan 3 (A4, A6, A18: yeni kural eski kuralı gölgeliyordu) pinlendi, yeniden koşu 3/3 öldü → **43/43** |
 | Kırmızı-önce (gece sonu) | Opus taze göz testleri eski kodda 9 kırmızı; Haiku 4. tur testleri `6c59ee3c`'de 8 kırmızı → düzeltmeyle yeşil |
-| Son kapı g10 (`d9f369f5`: Haiku 4. tur + mutasyon pinleri) | G10_SONUC |
+| Tam kapı g10 (`d9f369f5`: Haiku 4. tur + mutasyon pinleri) | 578 · 449 · 65 dosya yeşil · derleme yeşil → push (`13e81bc7`, yama + rapor commit'iyle) |
+| Mutasyon — Opus R4 kodu (17 mutant) | 15/17; yaşayan 2'si (R14, R15) ölü kod çıktı → silindi (konu yürüyüşü bulunma hâlini zaten atlıyor; "No," ünlemi boş yan cümle) |
+| Kırmızı-önce (Opus R4) | R4 testleri `d9f369f5` kodunda 8 kırmızı → düzeltmeyle yeşil |
+| Son kapı g11 (`73df45bd`: Opus R4 düzeltmeleri) | G11_SONUC |
 
 ## 6. Sorularınız (karar sizde)
 
@@ -310,6 +317,13 @@ gece: v5 + v6 + v7 + v8 = $0,45 (onaylı E kapsamı).
     yalnız panelde taslak kalıyor. Örnek: misafir "Havuz kaçta?" yazdı (satır açıldı), sonra mesajını "teşekkürler, hallettim" diye düzeltti →
     eski satır açık, tur sessiz. Seçenek: bu durumda da tek e-posta (mesaj başına bir kez). Önerim: evet, ama e-posta akışı olduğu için
     sormadan açmadım.
+
+11. **Parça kipini açmadan önce "sorulanı cevapladı mı" denetiminin geleceği:** bu gece üç bağımsız inceleme turu sözcük / kalıp tabanlı
+    denetimde her seferinde yeni kenar durumu buldu (her biri kapandı, 156 gerçek cevapta karar değişmedi, ama kalıp listesi büyüyor). Büyük
+    şirketlerin yaptığı: kod denetimi "güvenli taban" olarak kalır (değer ↔ kaynak bağı, sayı, olumsuzluk), "soru gerçekten cevaplandı mı"
+    yargısı ise küçük bir model çağrısına (ZATEN yapılan kıdemli okuyucu çağrısına bir soru) bırakılır ve kod ile model ikisi de "evet" derse
+    gider. Örnek: misafir "Havuz kaçta açılıyor?" · parça "Havuz kapısı her zaman kapalı kalır." → kod: belirsiz → okuyucu: "cevaplamıyor" →
+    gitmez, ev sahibine kalır. Önerim: parça kipini açmadan önce bunu 3. soruyla birlikte ekleyelim (ek çağrı yok, etkisi önce E ölçümüyle). Onaylıyor musunuz?
 
 ## 7. Bilinen sınırlar (hepsi TUTMA yönünde — yanlış göndermez, ev sahibine bırakır)
 - İki tesis birleşimi yer belirtecini de tesis sayar ("havuz yanındaki bar kaçta kapanıyor" ↔ "Bar 23:00'te kapanır" tutulur; Opus taze göz F5).
