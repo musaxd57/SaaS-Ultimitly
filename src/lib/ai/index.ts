@@ -19,10 +19,11 @@ import { auditClaimsSafe } from "./claim-support";
 import { parseStayChangeDeclaration } from "./semantic/stay-change";
 import { actionClaimsEnabled, parseClaimedActions } from "./action-claims";
 import { parseAnsweredRequests } from "@/lib/conversation-items/reply-block";
+import { ITEM_KIND_LABELS_TR } from "@/lib/conversation-items/core";
 import { composeVerifiedReply, parseAnswerParts } from "./answer-parts";
 import { sourceMentionsNeed } from "./answer-binding";
 import { seniorReaderEnabled } from "./semantic/absence-judge";
-import { partReaderHolds, runPartReader } from "./semantic/part-reader";
+import { PART_READER_EARLIER_MAX, partReaderHolds, runPartReader } from "./semantic/part-reader";
 import type { Priority } from "@/lib/constants";
 import { DEFAULT_OPENAI_MODEL, isReasoningModel, layerReasoningEffort, replyReasoningEffort } from "./model-family";
 import { reportError } from "@/lib/report-error";
@@ -541,18 +542,24 @@ function capReply(text: string): { text: string; truncated: boolean } {
 }
 
 /**
- * Misafirin bu turdaki mesajları + konuşmadaki ÖNCEKİ misafir mesajları (son üçü; her biri 1.000 karakterle) — parça okuyucusunun bağlamı
- * (Soru 11; Soru 9'da misafirin daha önce söylediği gün: "cumartesi geliyoruz").
+ * Parça okuyucusunun bağlamı (Soru 11; Soru 9'da misafirin daha önce söylediği gün: "cumartesi geliyoruz"): bu turun misafir mesajları (her biri
+ * yapay zekâ sınırına kadar, 8.000) + turdan ÖNCEKİ konuşma İKİ TARAFLI (ev sahibi / asistan cevapları dahil — Codex S2: "Peki onun ücreti?"
+ * önceki cevapla anlaşılır). Kurucu 10-23 sabah: son 3 misafir mesajı "çok az" → son 16 mesaj (okuyucu tavanı `PART_READER_EARLIER_MAX`).
  */
-function guestContextOf(input: SuggestReplyInput): { turn: string[]; earlier: string[] } {
+function guestContextOf(input: SuggestReplyInput): { turn: string[]; earlier: { from: "guest" | "host"; text: string }[] } {
   const history = input.history ?? [];
-  const turn = [...unansweredGuestTexts(history, input.guestMessage), input.guestMessage].map((t) => t.slice(0, 1_000));
+  const turn = [...unansweredGuestTexts(history, input.guestMessage), input.guestMessage].map((t) => t.slice(0, 8_000));
   const inTurn = new Set(turn);
-  const earlier = history
-    .filter((m) => m.direction === "inbound")
-    .map((m) => m.body.slice(0, 1_000))
-    .filter((b) => !inTurn.has(b))
-    .slice(-3);
+  // Tur = son ev sahibi / asistan mesajından sonraki misafir mesajları; önceki konuşma o mesaja kadar (o dahil).
+  let lastOut = -1;
+  history.forEach((m, i) => {
+    if (m.direction === "outbound") lastOut = i;
+  });
+  const before = lastOut >= 0 ? history.slice(0, lastOut + 1) : history.filter((m) => !inTurn.has(m.body.slice(0, 8_000)));
+  const earlier = before
+    .map((m) => ({ from: m.direction === "inbound" ? ("guest" as const) : ("host" as const), text: m.body.slice(0, 1_000) }))
+    .filter((m) => m.text.trim())
+    .slice(-PART_READER_EARLIER_MAX);
   return { turn, earlier };
 }
 
@@ -652,7 +659,7 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
               } else if (composed.verified.length > 0) {
                 const reader = await runPartReader({
                   guestMessage: guest.turn.join("\n"),
-                  earlierGuestMessages: guest.earlier,
+                  earlierConversation: guest.earlier,
                   parts: composed.verified.map((v) => {
                     const a = items.answerable.find((x) => x.ref === v.ref);
                     const primary = partSources.find((s) => s.id === v.source)?.text ?? "";
@@ -660,9 +667,12 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
                     const related = partSources
                       .filter((s) => s.id !== v.source && sourceMentionsNeed(s.text, a?.need?.terms ?? [], a?.need?.topics ?? []))
                       .map((s) => s.text);
+                    // İstek misafirin KENDİ sözleriyle (Codex S2): sorgu listesi [Türkçe arama sorgusu, özgün dildeki sorgu] — sonuncusu özgün.
+                    const queries = a?.need?.queries ?? [];
                     return {
                       ref: v.ref,
-                      request: a?.hint || a?.need?.queries?.[0] || "",
+                      request: queries[queries.length - 1] || a?.hint || "",
+                      ...(a ? { topic: ITEM_KIND_LABELS_TR[a.kind] } : {}),
                       text: v.text,
                       notes: [primary, ...related],
                     };

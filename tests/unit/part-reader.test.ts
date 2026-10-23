@@ -79,18 +79,37 @@ describe("parsePartReaderVerdict — tutucu yön", () => {
 });
 
 describe("okuyucunun gördüğü metin", () => {
-  it("🚨 parça + istek + kaynak + misafir mesajı çitli; misafirin adı maskeli; önceki mesajlardan yalnız son üçü", () => {
+  it("🚨 parça + istek + kaynak + misafir mesajı çitli; misafirin adı maskeli; önceki konuşmadan yalnız son 16 mesaj (kurucu 10-23: 3 çok az)", () => {
     const text = buildPartReaderUserContent({
       guestMessage: "Merhaba ben Ayşe Demir, terasta 23:00'e kadar kalabilir miyiz?",
-      earlierGuestMessages: ["bir", "iki", "üç", "dört"],
-      parts: [{ ref: "R1", request: "teras kaça kadar açık", text: "Teras 22:00'ye kadar açık.", notes: ["[rules] Teras: Teras 22:00'ye kadar açık."] }],
+      earlierGuestMessages: Array.from({ length: 20 }, (_, i) => `eski-${i + 1}`),
+      parts: [{ ref: "R1", request: "terasta 23:00'e kadar kalabilir miyiz", topic: "Olanaklar", text: "Teras 22:00'ye kadar açık.", notes: ["[rules] Teras: Teras 22:00'ye kadar açık."] }],
       names: ["Ayşe Demir"],
     });
     expect(text).not.toContain("Ayşe");
-    expect(text).toContain("R1 · REQUEST: <<<teras kaça kadar açık>>>");
+    expect(text).toContain("R1 · TOPIC: Olanaklar · REQUEST (guest's words): <<<terasta 23:00'e kadar kalabilir miyiz>>>");
     expect(text).toContain("PART: <<<Teras 22:00'ye kadar açık.>>>");
-    expect(text).not.toContain("<<<bir>>>");
-    expect(text).toContain("<<<dört>>>");
+    expect(text).not.toContain("<<<eski-4>>>");
+    expect(text).toContain("GUEST: <<<eski-5>>>");
+    expect(text).toContain("GUEST: <<<eski-20>>>");
+  });
+
+  it("🚨 Codex S2: önceki konuşma İKİ TARAFLI okunur ('Peki onun ücreti?' ev sahibinin önceki cevabıyla anlaşılır)", () => {
+    const text = buildPartReaderUserContent({
+      guestMessage: "Peki onun ücreti ne kadar?",
+      earlierConversation: [
+        { from: "guest", text: "Bisiklet kiralanabiliyor mu?" },
+        { from: "host", text: "Evet, talep üzerine bisiklet kiralanabilir." },
+      ],
+      parts: [{ ref: "R1", request: "Peki onun ücreti ne kadar?", text: "Bisiklet günlük 200 TL.", notes: ["n"] }],
+    });
+    expect(text).toContain("GUEST: <<<Bisiklet kiralanabiliyor mu?>>>\nHOST: <<<Evet, talep üzerine bisiklet kiralanabilir.>>>");
+    expect(PART_READER_SYSTEM_PROMPT).toContain("the host's replies too");
+  });
+
+  it("uzun tur metni 8.000 karaktere kadar okunur (kurucu: cimrilik yok)", () => {
+    const long = `${"a".repeat(7_000)} SON-SORU`;
+    expect(buildPartReaderUserContent({ guestMessage: long, parts: [] })).toContain("a".repeat(6_900));
   });
 
   it("🚨 uzun tur metninde SON kısım okunur (en yeni mesaj — sorulan gün oradadır; Haiku 10-23 sabah)", () => {

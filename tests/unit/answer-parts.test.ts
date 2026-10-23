@@ -161,7 +161,7 @@ const MODEL = {
 };
 /** Okuyucunun "hepsi evet" hükmü (okuyucuya giden her istek kimliği için) — kodun doğrulamasını sınayan testler okuyucuya takılmaz. */
 function readerAllYes(body: string): Response {
-  const refs = [...new Set([...body.matchAll(/(R\d+) · REQUEST/g)].map((m) => m[1]))];
+  const refs = [...new Set([...body.matchAll(/(R\d+) · (?:TOPIC|REQUEST)/g)].map((m) => m[1]))];
   const parts = refs.map((ref) => ({ ref, answers_request: "yes", supported_by_notes: true, binding_ok: true, exception_without_rule: false, quote: "" }));
   return new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify({ parts }) } }] }), { status: 200 });
 }
@@ -648,11 +648,11 @@ describe("suggestReply — parça okuyucusu (AI_SENIOR_READER_ENABLED, parça ki
     });
     const r = await suggestReply({ ...input, conversationItems: ITEMS });
     expect(f).toHaveBeenCalledTimes(2);
-    expect(seen).toContain("R1 · REQUEST");
-    expect(seen).toContain("R2 · REQUEST");
-    expect(seen).not.toContain("R3 · REQUEST");
+    expect(seen).toContain("R1 · TOPIC");
+    expect(seen).toContain("R2 · TOPIC");
+    expect(seen).not.toContain("R3 · TOPIC");
     // Okuyucu parçanın dayandığı kalemi ve aynı konuyu anan öteki kalemleri görür (havuz kalemi); konuyu anmayan Wi-Fi kalemi R2'nin notlarında yok.
-    const r2 = seen.slice(seen.indexOf("R2 · REQUEST"));
+    const r2 = seen.slice(seen.indexOf("R2 · TOPIC"));
     expect(r2).toContain("Havuz her gün 20:00");
     expect(r2).not.toContain("Lale2025");
     expect(r.reply).toBe("Çıkış saati 11:00.");
@@ -680,9 +680,37 @@ describe("suggestReply — parça okuyucusu (AI_SENIOR_READER_ENABLED, parça ki
       return readerSays([])();
     });
     await suggestReply({ ...input, knowledgeBase: kb, conversationItems: ITEMS });
-    const r2 = seen.slice(seen.indexOf("R2 · REQUEST"));
+    const r2 = seen.slice(seen.indexOf("R2 · TOPIC"));
     expect(r2).toContain("Havuz her gün 20:00");
     expect(r2).toContain("Havuzda cam şişe kullanılmaz");
+  });
+
+  it("🚨 Codex S2: okuyucu isteği misafirin KENDİ sözleriyle görür (genişletilmiş arama sorgusu değil) + önceki konuşma iki taraflı", async () => {
+    vi.stubEnv("AI_SENIOR_READER_ENABLED", "1");
+    const items: ReplyItemsInput = {
+      ...ITEMS,
+      answerable: ITEMS.answerable.map((a) =>
+        a.ref === "R2" ? { ...a, need: { ...a.need!, queries: ["havuz çalışma saatleri kapanış saati", "Havuz kaçta kapanıyor?"] } } : a,
+      ),
+    };
+    let seen = "";
+    routedFetch({ ...MODEL, answers }, (body) => {
+      seen = body;
+      return readerSays([])();
+    });
+    await suggestReply({
+      ...input,
+      history: [
+        { direction: "inbound", body: "Sitede havuz var mı?" },
+        { direction: "outbound", body: "Evet, bahçe katında havuz var." },
+      ],
+      conversationItems: items,
+    });
+    const r2 = seen.slice(seen.indexOf("R2 · TOPIC"));
+    expect(r2).toContain("REQUEST (guest's words): <<<Havuz kaçta kapanıyor?>>>");
+    expect(r2).not.toContain("havuz çalışma saatleri kapanış saati");
+    expect(seen).toContain("GUEST: <<<Sitede havuz var mı?>>>");
+    expect(seen).toContain("HOST: <<<Evet, bahçe katında havuz var.>>>");
   });
 
   it("doğrulanmış parça yoksa okuyucu çağrılmaz", async () => {

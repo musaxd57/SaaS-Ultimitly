@@ -25,10 +25,16 @@ import { stripDividerRuns } from "../divider-spoof";
 // Anahtar: kıdemli okuyucununki (`AI_SENIOR_READER_ENABLED`); yalnız parça kipinde (`AI_ANSWER_PARTS_ENABLED`) çağrılır.
 // ---------------------------------------------------------------------------
 
-const GUEST_CAP = 1_200;
-const EARLIER_CAP = 600;
-const EARLIER_MAX = 3;
-const REQUEST_CAP = 200;
+/**
+ * Bağlam tavanları (kurucu 10-23 sabah: "3 çok az, 16'ya çıkar … neden cimrilik yapıyoruz"): turun misafir metni bir kanal mesajının yapay zekâ
+ * sınırı kadar (8.000, `message-length.ts`), önceki konuşmanın son 16 mesajı İKİ TARAFLI (Codex S2: "Peki onun ücreti?" ancak önceki cevapla
+ * anlaşılır). Sıkılaştırma maliyet için değil; okuyucunun modelinin bağlam penceresi bunun çok üstünde.
+ */
+const GUEST_CAP = 8_000;
+const EARLIER_CAP = 1_000;
+export const PART_READER_EARLIER_MAX = 16;
+const EARLIER_MAX = PART_READER_EARLIER_MAX;
+const REQUEST_CAP = 400;
 const PART_CAP = 600;
 /**
  * Parçanın NOTLARI (dayandığı kalem + aynı konuyu anan öteki kalemler): toplam tavan. Tavanı aşan parça okunmuş SAYILMAZ, tutulur (Opus 10-23
@@ -50,7 +56,8 @@ export const PART_READER_SYSTEM_PROMPT = [
   "",
   "Judge every part ONLY against ITS OWN request (the REQUEST line above it). The guest's message often contains other questions too — they",
   "are separate requests, answered or left open elsewhere. A part is never \"partly\" or \"no\" because it does not answer the guest's OTHER",
-  "questions. Use the guest's messages only to understand what THIS request means and whether the guest asked about a special case.",
+  "questions. Use the guest's messages and the earlier conversation (the host's replies too — 'and how much is it?' refers to what was",
+  "discussed before) only to understand what THIS request means and whether the guest asked about a special case.",
   "",
   "answers_request:",
   '- "yes" when the part gives the guest what this request asks for (the asked time, price, place, permission, instruction, yes/no). A',
@@ -135,8 +142,13 @@ export function partReaderReasoningEffort(): string | undefined {
 
 export interface PartReaderPart {
   ref: string;
-  /** İsteğin kısa anlatımı (anlama katmanının sorgusu; misafirin cümlesi değil). */
+  /**
+   * İstek MİSAFİRİN KENDİ SÖZLERİYLE (anlama katmanının özgün dildeki sorgusu; Codex S2: genişletilmiş arama sorgusu — "kahvaltı saatleri
+   * kahvaltı kaça kadar" — sorulanın yerine geçmez: "kaça kadar" bitişi, "saatleri" başlangıcı da sorar).
+   */
   request: string;
+  /** Değerlendirilen ihtiyacın türü (ev sahibinin gördüğü ad: "Olanaklar", "Çıkış saati"). */
+  topic?: string;
   /** Gönderilecek parça metni (kodun doğruladığı). */
   text: string;
   /** Parçanın NOTLARI: dayandığı kalem ilk, ardından aynı konuyu anan öteki kalemler (Opus 10-23 sabah F10: değişke başka kalemde olabilir). */
@@ -146,8 +158,10 @@ export interface PartReaderPart {
 export interface PartReaderInput {
   /** Bu turun misafir mesajı (ya da mesajları). */
   guestMessage: string;
-  /** Konuşmadaki ÖNCEKİ misafir mesajları (eskiden yeniye); yalnız son birkaçı okunur. */
+  /** Konuşmadaki ÖNCEKİ misafir mesajları (eskiden yeniye) — eski biçim; `earlierConversation` varsa o okunur. */
   earlierGuestMessages?: readonly string[];
+  /** Turdan ÖNCEKİ konuşma, iki taraflı (eskiden yeniye); son 16 mesaj okunur. */
+  earlierConversation?: readonly { from: "guest" | "host"; text: string }[];
   parts: readonly PartReaderPart[];
   /** Redaksiyon için bilinen adlar (misafir kimliği, rezervasyon adı). */
   names?: readonly (string | null | undefined)[];
@@ -172,15 +186,19 @@ const notesOverflow = (p: PartReaderPart, names: readonly string[]) => fenceText
 
 export function buildPartReaderUserContent(input: PartReaderInput): string {
   const names = knownNames(input);
-  const earlier = (input.earlierGuestMessages ?? []).filter((m) => m.trim()).slice(-EARLIER_MAX);
+  const earlier = (input.earlierConversation ?? (input.earlierGuestMessages ?? []).map((text) => ({ from: "guest" as const, text })))
+    .filter((m) => m.text.trim())
+    .slice(-EARLIER_MAX);
   return [
     "GUEST MESSAGE (this turn):",
     fenced(input.guestMessage, names, "guest", GUEST_CAP, true),
-    "EARLIER GUEST MESSAGES (oldest first):",
-    earlier.length > 0 ? earlier.map((m) => fenced(m, names, "guest", EARLIER_CAP)).join("\n") : "none",
+    "EARLIER CONVERSATION (oldest first; GUEST = the guest, HOST = the host or the assistant):",
+    earlier.length > 0
+      ? earlier.map((m) => `${m.from === "guest" ? "GUEST" : "HOST"}: ${fenced(m.text, names, m.from === "guest" ? "guest" : "ours", EARLIER_CAP)}`).join("\n")
+      : "none",
     "PARTS:",
     ...input.parts.slice(0, PART_READER_MAX_PARTS).flatMap((p) => [
-      `${p.ref} · REQUEST: ${fenced(p.request, names, "guest", REQUEST_CAP)}`,
+      `${p.ref}${p.topic ? ` · TOPIC: ${p.topic}` : ""} · REQUEST (guest's words): ${fenced(p.request, names, "guest", REQUEST_CAP)}`,
       `PART: ${fenced(p.text, names, "ours", PART_CAP)}`,
       `NOTES: ${fenced(notesOf(p), names, "ours", NOTES_CAP)}`,
     ]),
