@@ -112,6 +112,8 @@ describe("okuyucunun gördüğü metin", () => {
     expect(PART_READER_SYSTEM_PROMPT).toContain("Being correct and being an answer are SEPARATE questions");
     // E ölçümü v3: "kaça kadar" sorusuna bitiş saatleriyle cevap, notta açılış saati de var diye "yarım" sayılıyordu.
     expect(PART_READER_SYSTEM_PROMPT).toContain("leaving out something the notes say");
+    // Opus 10-23 G2 eki: parantezdeki "şu an arızalı / kapalı" kaydını düşüren parça bağ hatasıdır (kod bu sınıfı sözcük listesiyle tutmaz).
+    expect(PART_READER_SYSTEM_PROMPT).toContain("currently closed, out of order, unavailable or charged in some case");
   });
 
   it("istem örnekleri ölçüm setinin konularından farklı (havuz / sauna / otopark / kahvaltı geçmez)", () => {
