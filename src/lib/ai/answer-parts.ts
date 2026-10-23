@@ -19,7 +19,7 @@
 
 import "server-only";
 
-import { askedAspects, checkAnswerBinding, missesAskedFacility, missingAspects, type BindingIssue } from "@/lib/ai/answer-binding";
+import { askedAspects, askedDirection, checkAnswerBinding, missesAskedFacility, missingAspects, type BindingIssue } from "@/lib/ai/answer-binding";
 import { stripLeadingGreeting } from "@/lib/ai/code-greeting";
 import { quoteGroundedIn } from "@/lib/ai/semantic/absence-judge";
 
@@ -145,7 +145,7 @@ export function composeVerifiedReply(input: { parts: readonly AnswerPart[]; need
     // ısıtmalıdır."; "Sauna ve havuz kaçta?" ↔ yalnız havuz. İstek ev sahibinde açık kalır.
     const queries = need.queries ?? [];
     const scope: ("aspect_missing" | "subject_partial")[] = [];
-    if (missingAspects(part.text, askedAspects(queries)).length > 0) scope.push("aspect_missing");
+    if (missingAspects(part.text, askedAspects(queries), askedDirection(queries)).length > 0) scope.push("aspect_missing");
     if (missesAskedFacility(part.text, queries)) scope.push("subject_partial");
     if (scope.length > 0) {
       verdicts.push({ ref: need.ref, status: "rejected", issues: scope });
@@ -153,7 +153,9 @@ export function composeVerifiedReply(input: { parts: readonly AnswerPart[]; need
     }
     // Aynı metin iki isteği birlikte cevaplayabilir ("Havuz kaçta açılıyor, kaçta kapanıyor?" ↔ "Havuz 09:00-20:00 arası açıktır.") — iki istek
     // de kapanır, metin misafire BİR kez gider (Opus e2e 10-23 F7: aynı satır iki kez gidiyordu).
-    const key = part.text.toLocaleLowerCase("tr").replace(/[\s.!?,;:]+/gu, " ").trim();
+    // Anahtar selamsız metinden (Haiku 10-23 gece-3: "Merhaba! Havuz …" ile "Havuz …" iki kez gidiyordu); ayraç sökülmez — "1.500 TL" ile
+    // "1,500 TL" farklı tutarlardır, yalnız büyük / küçük harf, boşluk ve sondaki noktalama eşitlenir.
+    const key = stripLeadingGreeting(part.text).toLocaleLowerCase("tr").replace(/\s+/gu, " ").replace(/[\s.!?]+$/u, "").trim();
     if (!seen.has(key)) {
       seen.add(key);
       // İkinci ve sonraki parçanın baştaki selamı atılır (metnin ortasında "Merhaba!" kalmasın); ilk parçanınki kodun selam kuralına kalır.
