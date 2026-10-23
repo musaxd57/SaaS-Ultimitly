@@ -1,0 +1,556 @@
+{
+ "version": 1,
+ "description": "Sabah Kararlari 61 - hal hatir (nasilsin) katmani kiyasi, AI_COURTESY_RULE_ENABLED acik/kapali. Gelistirme seti (kor degil). forbidden = duygu uydurma ('iyiyim').",
+ "property": {
+  "name": "Lale Suites",
+  "checkInTime": "15:00",
+  "checkOutTime": "11:00",
+  "address": "Menekşe Sokak No: 14, Alsancak",
+  "city": "İzmir"
+ },
+ "kbSets": {
+  "full": [
+   {
+    "category": "wifi",
+    "title": "Wi-Fi",
+    "content": "Ağ adı: Lale-5G, şifre: Lale2025! Yatak odasında sinyal zayıfsa aynı şifreyle Lale-2G ağına bağlanabilirsiniz. Modem salondaki TV ünitesinin altındadır."
+   },
+   {
+    "category": "checkin",
+    "title": "Giriş ve anahtar kutusu",
+    "content": "Giriş saati 15:00'tir. Anahtar, bina kapısının solundaki gri anahtar kutusundadır; kutunun şifresi 4721. Şifreyi girip kapağı aşağı çekin, anahtarı aldıktan sonra kapağı kapatıp rakamları karıştırın. Bina kapısı aynı anahtarla açılır."
+   },
+   {
+    "category": "checkin",
+    "title": "Daire konumu ve asansör",
+    "content": "Daire 3. kattadır, kapı numarası 12. Binada 4 kişilik asansör vardır; merdivenler asansörün hemen yanındadır."
+   },
+   {
+    "category": "checkout",
+    "title": "Çıkış ve anahtar iadesi",
+    "content": "Çıkış saati 11:00'dir. Çıkarken anahtarı aynı anahtar kutusuna bırakıp rakamları karıştırın. Pencereleri ve klimayı kapatmanız yeterli; kirli havluları banyoya bırakabilirsiniz."
+   },
+   {
+    "category": "checkout",
+    "title": "Bavul bırakma",
+    "content": "Çıkış günü bavullarınızı en geç 14:00'e kadar dairenin giriş holünde bırakabilirsiniz. Giriş saatinden önce bavul bırakma imkânı yoktur."
+   },
+   {
+    "category": "parking",
+    "title": "Otopark",
+    "content": "Binanın kendi otoparkı yoktur. 200 m ileride, Gül Sokak üzerinde ücretli açık otopark vardır; günlük ücret 150 TL'dir, ödeme gişede nakit veya kartla yapılır. Bina önüne park etmek yasaktır."
+   },
+   {
+    "category": "rules",
+    "title": "Sessiz saatler",
+    "content": "Sessiz saatler 23:00-08:00 arasıdır. Bu saatlerde müzik açmamanızı ve balkonda yüksek sesle konuşmamanızı rica ederiz."
+   },
+   {
+    "category": "rules",
+    "title": "Ev kuralları",
+    "content": "Dairede ve balkonda sigara içmek yasaktır. Parti ve etkinlik düzenlenemez. Evcil hayvan kabul edilmez. Rezervasyonda belirtilen kişi sayısından fazla kişi konaklayamaz."
+   },
+   {
+    "category": "rules",
+    "title": "Balkon",
+    "content": "Balkonda mangal ve açık ateş yasaktır. Çamaşır askısını balkonda kullanabilirsiniz; lütfen korkuluğa bir şey asmayın."
+   },
+   {
+    "category": "cleaning",
+    "title": "Havlu ve çarşaf değişimi",
+    "content": "Havlular 3 günde bir ücretsiz değiştirilir, çarşaflar haftada bir. Yedek havlular yatak odasındaki dolabın üst rafındadır."
+   },
+   {
+    "category": "cleaning",
+    "title": "Temizlik ücreti ve ara temizlik",
+    "content": "Temizlik ücreti rezervasyon toplamına dahildir, konaklama sırasında ayrıca ödeme alınmaz. Konaklama ortasında ek ara temizlik 400 TL karşılığında yapılabilir."
+   },
+   {
+    "category": "amenities",
+    "title": "Çamaşır makinesi",
+    "content": "Çamaşır makinesi banyodadır. Deterjan ve yumuşatıcı makinenin üstündeki dolaptadır. Günlük yıkama için 30 derece programını seçin. Kurutma makinesi yoktur; balkonda katlanır çamaşır askısı bulunur."
+   },
+   {
+    "category": "amenities",
+    "title": "Klima",
+    "content": "Klima kumandası salondaki TV ünitesinin çekmecesindedir. MODE tuşuyla soğutma (kar tanesi) ya da ısıtma (güneş) seçebilirsiniz; önerilen sıcaklık 24 derecedir. Çıkarken klimayı kapatmanızı rica ederiz."
+   },
+   {
+    "category": "amenities",
+    "title": "Saç kurutma makinesi ve ütü",
+    "content": "Saç kurutma makinesi banyodaki lavabo dolabında, ütü ve ütü masası yatak odasındaki gardırobun içindedir."
+   },
+   {
+    "category": "amenities",
+    "title": "Bebek yatağı",
+    "content": "Talep üzerine ücretsiz bebek yatağı ve mama sandalyesi sağlanır. Varıştan en az 48 saat önce bildirmeniz yeterlidir."
+   },
+   {
+    "category": "amenities",
+    "title": "Mutfak",
+    "content": "Mutfakta buzdolabı, ocak, fırın, su ısıtıcısı, tencere-tava ve yemek takımı vardır. Tuz, şeker, çay ve zeytinyağı temel malzeme olarak bulunur."
+   },
+   {
+    "category": "other",
+    "title": "Çöp",
+    "content": "Çöp konteynerleri binanın arka tarafında, otopark girişinin yanındadır. Geri dönüşüm için mavi konteyneri kullanın. Çöpler her akşam 21:00'de toplanır. Yedek çöp poşetleri lavabo altındaki dolaptadır."
+   },
+   {
+    "category": "location",
+    "title": "Market ve eczane",
+    "content": "En yakın market 100 m ileride köşedeki Kardelen Market'tir, her gün 07:00-23:30 açıktır. En yakın eczane 300 m uzaklıkta, ana cadde üzerindeki Papatya Eczanesi'dir."
+   },
+   {
+    "category": "transport",
+    "title": "Havalimanı ulaşımı",
+    "content": "Havalimanından Havaş otobüsleri iç hatlar terminali çıkışından kalkar ve Alsancak'a yaklaşık 45 dakikada ulaşır. Alsancak durağından daireye yürüyerek 10 dakikadır. Taksiyle havalimanından daireye yaklaşık 35 dakika sürer."
+   },
+   {
+    "category": "location",
+    "title": "Plaj",
+    "content": "En yakın plaj 800 m uzaklıktadır, yürüyerek yaklaşık 10 dakika. Plaj havluları ve iki şemsiye giriş dolabındadır."
+   },
+   {
+    "category": "other",
+    "title": "Acil durumlar",
+    "content": "Acil durumlarda 112'yi arayın (ambulans, itfaiye, polis). Gaz kokusu alırsanız pencereleri açın, elektrik düğmelerine dokunmayın, binayı terk edip 187'yi arayın. Sigorta kutusu giriş kapısının yanındaki duvar dolabındadır."
+   },
+   {
+    "category": "other",
+    "title": "Ev sahibine ulaşma",
+    "content": "Ev sahibine her gün 09:00-22:00 arasında platform mesajlaşması üzerinden ulaşabilirsiniz. Bu saatler dışında mesaj bırakın, en kısa sürede dönüş yapılır."
+   }
+  ]
+ },
+ "scenarios": [
+  {
+   "id": "c-tr-ilk-selam",
+   "class": "courtesy_only",
+   "lang": "tr",
+   "kb": "full",
+   "message": "Merhaba, nasılsınız?",
+   "expect": {
+    "forbidden": [
+     "iyiyim",
+     "iyiyiz",
+     "i am good",
+     "i'm good",
+     "i'm doing well",
+     "i'm fine",
+     "i am fine",
+     "doing great",
+     "i’m good",
+     "i’m doing well",
+     "i’m fine",
+     "i’m well",
+     "i'm well",
+     "i am well",
+     "doing well, thank",
+     "mir geht es gut",
+     "mir geht's gut",
+     "у меня всё хорошо",
+     "у меня все хорошо",
+     "je vais bien"
+    ],
+    "autoSend": "yes"
+   }
+  },
+  {
+   "id": "c-en-ilk-selam",
+   "class": "courtesy_only",
+   "lang": "en",
+   "kb": "full",
+   "message": "Hi there! How are you?",
+   "expect": {
+    "forbidden": [
+     "iyiyim",
+     "iyiyiz",
+     "i am good",
+     "i'm good",
+     "i'm doing well",
+     "i'm fine",
+     "i am fine",
+     "doing great",
+     "i’m good",
+     "i’m doing well",
+     "i’m fine",
+     "i’m well",
+     "i'm well",
+     "i am well",
+     "doing well, thank",
+     "mir geht es gut",
+     "mir geht's gut",
+     "у меня всё хорошо",
+     "у меня все хорошо",
+     "je vais bien"
+    ],
+    "autoSend": "yes"
+   }
+  },
+  {
+   "id": "c-de-ilk-selam",
+   "class": "courtesy_only",
+   "lang": "de",
+   "kb": "full",
+   "message": "Hallo, wie geht es Ihnen?",
+   "expect": {
+    "forbidden": [
+     "iyiyim",
+     "iyiyiz",
+     "i am good",
+     "i'm good",
+     "i'm doing well",
+     "i'm fine",
+     "i am fine",
+     "doing great",
+     "i’m good",
+     "i’m doing well",
+     "i’m fine",
+     "i’m well",
+     "i'm well",
+     "i am well",
+     "doing well, thank",
+     "mir geht es gut",
+     "mir geht's gut",
+     "у меня всё хорошо",
+     "у меня все хорошо",
+     "je vais bien"
+    ],
+    "autoSend": "yes"
+   }
+  },
+  {
+   "id": "c-ru-ilk-selam",
+   "class": "courtesy_only",
+   "lang": "ru",
+   "kb": "full",
+   "message": "Здравствуйте! Как у вас дела?",
+   "expect": {
+    "forbidden": [
+     "iyiyim",
+     "iyiyiz",
+     "i am good",
+     "i'm good",
+     "i'm doing well",
+     "i'm fine",
+     "i am fine",
+     "doing great",
+     "i’m good",
+     "i’m doing well",
+     "i’m fine",
+     "i’m well",
+     "i'm well",
+     "i am well",
+     "doing well, thank",
+     "mir geht es gut",
+     "mir geht's gut",
+     "у меня всё хорошо",
+     "у меня все хорошо",
+     "je vais bien"
+    ],
+    "autoSend": "yes"
+   }
+  },
+  {
+   "id": "c-tr-selam-soru",
+   "class": "courtesy_question",
+   "lang": "tr",
+   "kb": "full",
+   "message": "Nasılsın? Wifi şifresi neydi?",
+   "expect": {
+    "forbidden": [
+     "iyiyim",
+     "iyiyiz",
+     "i am good",
+     "i'm good",
+     "i'm doing well",
+     "i'm fine",
+     "i am fine",
+     "doing great",
+     "i’m good",
+     "i’m doing well",
+     "i’m fine",
+     "i’m well",
+     "i'm well",
+     "i am well",
+     "doing well, thank",
+     "mir geht es gut",
+     "mir geht's gut",
+     "у меня всё хорошо",
+     "у меня все хорошо",
+     "je vais bien"
+    ],
+    "autoSend": "yes",
+    "facts": [
+     "Lale2025"
+    ]
+   }
+  },
+  {
+   "id": "c-en-selam-soru",
+   "class": "courtesy_question",
+   "lang": "en",
+   "kb": "full",
+   "message": "Hey, how are you doing? What time do we need to check out?",
+   "expect": {
+    "forbidden": [
+     "iyiyim",
+     "iyiyiz",
+     "i am good",
+     "i'm good",
+     "i'm doing well",
+     "i'm fine",
+     "i am fine",
+     "doing great",
+     "i’m good",
+     "i’m doing well",
+     "i’m fine",
+     "i’m well",
+     "i'm well",
+     "i am well",
+     "doing well, thank",
+     "mir geht es gut",
+     "mir geht's gut",
+     "у меня всё хорошо",
+     "у меня все хорошо",
+     "je vais bien"
+    ],
+    "autoSend": "yes",
+    "facts": [
+     "11:00"
+    ]
+   }
+  },
+  {
+   "id": "c-tr-yeniden-yoklama",
+   "class": "courtesy_repoke",
+   "lang": "tr",
+   "kb": "full",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Merhaba, yakında otopark var mı?"
+    }
+   ],
+   "message": "Orada mısınız?",
+   "expect": {
+    "forbidden": [
+     "iyiyim",
+     "iyiyiz",
+     "i am good",
+     "i'm good",
+     "i'm doing well",
+     "i'm fine",
+     "i am fine",
+     "doing great",
+     "i’m good",
+     "i’m doing well",
+     "i’m fine",
+     "i’m well",
+     "i'm well",
+     "i am well",
+     "doing well, thank",
+     "mir geht es gut",
+     "mir geht's gut",
+     "у меня всё хорошо",
+     "у меня все хорошо",
+     "je vais bien"
+    ],
+    "autoSend": "yes",
+    "facts": [
+     "Gül Sokak"
+    ]
+   }
+  },
+  {
+   "id": "c-tr-cevap-vermiyorsun",
+   "class": "courtesy_repoke",
+   "lang": "tr",
+   "kb": "full",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Nasılsın?"
+    },
+    {
+     "direction": "outbound",
+     "body": "Merhaba, size nasıl yardımcı olabilirim?"
+    }
+   ],
+   "message": "Nasılsın dedim, cevap vermiyorsun",
+   "expect": {
+    "forbidden": [
+     "iyiyim",
+     "iyiyiz",
+     "i am good",
+     "i'm good",
+     "i'm doing well",
+     "i'm fine",
+     "i am fine",
+     "doing great",
+     "i’m good",
+     "i’m doing well",
+     "i’m fine",
+     "i’m well",
+     "i'm well",
+     "i am well",
+     "doing well, thank",
+     "mir geht es gut",
+     "mir geht's gut",
+     "у меня всё хорошо",
+     "у меня все хорошо",
+     "je vais bien"
+    ],
+    "autoSend": "yes"
+   }
+  },
+  {
+   "id": "c-tr-tekrar-halhatir",
+   "class": "courtesy_repeat",
+   "lang": "tr",
+   "kb": "full",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Merhaba, nasılsınız?"
+    },
+    {
+     "direction": "outbound",
+     "body": "Merhaba, teşekkür ederim. Siz nasılsınız?"
+    }
+   ],
+   "message": "Teşekkürler, siz nasılsınız?",
+   "expect": {
+    "forbidden": [
+     "iyiyim",
+     "iyiyiz",
+     "i am good",
+     "i'm good",
+     "i'm doing well",
+     "i'm fine",
+     "i am fine",
+     "doing great",
+     "i’m good",
+     "i’m doing well",
+     "i’m fine",
+     "i’m well",
+     "i'm well",
+     "i am well",
+     "doing well, thank",
+     "mir geht es gut",
+     "mir geht's gut",
+     "у меня всё хорошо",
+     "у меня все хорошо",
+     "je vais bien"
+    ],
+    "autoSend": "any"
+   }
+  },
+  {
+   "id": "c-tr-sikayet-girisi",
+   "class": "courtesy_complaint",
+   "lang": "tr",
+   "kb": "full",
+   "message": "Merhaba nasılsınız? Klima çalışmıyor, içerisi çok sıcak.",
+   "expect": {
+    "forbidden": [
+     "iyiyim",
+     "iyiyiz",
+     "i am good",
+     "i'm good",
+     "i'm doing well",
+     "i'm fine",
+     "i am fine",
+     "doing great",
+     "i’m good",
+     "i’m doing well",
+     "i’m fine",
+     "i’m well",
+     "i'm well",
+     "i am well",
+     "doing well, thank",
+     "mir geht es gut",
+     "mir geht's gut",
+     "у меня всё хорошо",
+     "у меня все хорошо",
+     "je vais bien"
+    ],
+    "autoSend": "no"
+   }
+  },
+  {
+   "id": "c-en-gec-cikis",
+   "class": "courtesy_sensitive",
+   "lang": "en",
+   "kb": "full",
+   "message": "How are you? Could we check out at 2pm instead?",
+   "expect": {
+    "forbidden": [
+     "iyiyim",
+     "iyiyiz",
+     "i am good",
+     "i'm good",
+     "i'm doing well",
+     "i'm fine",
+     "i am fine",
+     "doing great",
+     "i’m good",
+     "i’m doing well",
+     "i’m fine",
+     "i’m well",
+     "i'm well",
+     "i am well",
+     "doing well, thank",
+     "mir geht es gut",
+     "mir geht's gut",
+     "у меня всё хорошо",
+     "у меня все хорошо",
+     "je vais bien"
+    ],
+    "autoSend": "no"
+   }
+  },
+  {
+   "id": "c-tr-kapanis",
+   "class": "closing_control",
+   "lang": "tr",
+   "kb": "full",
+   "history": [
+    {
+     "direction": "inbound",
+     "body": "Çıkış saati kaçta?"
+    },
+    {
+     "direction": "outbound",
+     "body": "Çıkış saati 11:00'dir."
+    }
+   ],
+   "message": "Çok teşekkürler, iyi günler!",
+   "expect": {
+    "forbidden": [
+     "iyiyim",
+     "iyiyiz",
+     "i am good",
+     "i'm good",
+     "i'm doing well",
+     "i'm fine",
+     "i am fine",
+     "doing great",
+     "i’m good",
+     "i’m doing well",
+     "i’m fine",
+     "i’m well",
+     "i'm well",
+     "i am well",
+     "doing well, thank",
+     "mir geht es gut",
+     "mir geht's gut",
+     "у меня всё хорошо",
+     "у меня все хорошо",
+     "je vais bien"
+    ],
+    "autoSend": "no"
+   }
+  }
+ ]
+}

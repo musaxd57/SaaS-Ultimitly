@@ -1,0 +1,1657 @@
+import { createHash, timingSafeEqual } from "crypto";
+import { Prisma } from "@prisma/client";
+import { prisma } from "@/lib/db";
+import { calendarDateOf, nightsBetween, todayKey } from "@/modules/availability/core";
+import { orgTimezone } from "@/lib/timezone";
+import { foldForSecretScan } from "@/lib/unicode-digits";
+import { premiumAllowed } from "@/lib/billing/subscription";
+import { loadErasureGuard } from "@/lib/erasure";
+import { ANON_NAME } from "@/lib/data-retention";
+import { isUniqueViolation } from "@/lib/db-errors";
+import { countPriorOperatorReplies } from "@/lib/operator-replies";
+import { qrPinEnabled } from "@/lib/guest-chat-pin";
+import { normalizeGuestDisplayName } from "@/lib/guest-display-name";
+import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
+import { styleProfileBody } from "@/lib/ai/style-profile";
+import { contextDiagnostics, type ContextDiagnostics } from "@/lib/ai/context-diagnostics";
+import { GUEST_NAME_FALLBACK, fillGuestPlaceholdersInItems, type GuestPlaceholderValues } from "@/lib/kb-placeholders";
+import {
+  foldTurkishLower,
+  foldTurkishAscii,
+  classifyFallback,
+  isClosingAck,
+  detectKbInstructionHijack,
+  detectPromptInjection,
+  neutralizeNonEmergency,
+} from "@/lib/ai/fallback";
+import {
+  historyAuthorOf,
+  LEGACY_AI_RESUME_SENDER,
+  LEGACY_AI_SENDER_NAMES,
+  resolveMessageAuthor,
+  SYSTEM_EVENT_GUEST_CHAT_AI_RESUMED,
+} from "@/lib/message-author";
+
+// ---------------------------------------------------------------------------
+// Guest QR concierge — token resolution (FOUNDATION, no public surface yet).
+//
+// A guest in the apartment scans a fixed QR that carries an unguessable
+// per-apartment token; this resolves that token to the apartment, its
+// (secret-free) knowledge base, and the currently-staying reservation so the
+// existing AI pipeline can answer general questions.
+//
+// SAFETY — a fixed, physically-posted QR is a BEARER credential: anyone who
+// scans or photographs it (a past guest, a cleaner, a neighbour) holds it. So
+// DOOR / KEYBOX / ENTRY codes are excluded from the chat context ENTIRELY — not
+// merely "the model is told to decline" — so even a perfect prompt-injection has
+// nothing to leak. Those stay in the Airbnb-native check-in flow, delivered to
+// the verified booked guest.
+// 🚨 Wi-Fi İSTİSNASI (kurucu kararı 10-11, "Kapı kodu yok, Wi-Fi verilsin"): yapay zekâya ulaşan her QR mesajı aktif konaklamaya
+// BAĞLI cihazdan gelir (cihaz bağlama + PIN kapısı ↓rota) ve Wi-Fi'yi soran kişi zaten dairenin içindedir. Wi-Fi bilgisi YALNIZ
+// `wifi` kategorisindeki, kapı / kutu / kilit izi taşımayan kalemden verilir (`withoutQrSecretKbItems`); kapı kodu hiçbir biçimde
+// verilmez ve model cevabı gönderilmeden kapı koduna karşı taranır (`qrReplyHasDoorCode`).
+// ---------------------------------------------------------------------------
+
+// KB categories excluded from the public QR context ENTIRELY (`checkin` = giriş talimatı: kapı / kutu kodunun doğal yeri).
+// `wifi` artık burada DEĞİL (↑istisna) — o kategori kalem bazında süzülür. (Matches the KnowledgeBaseItem category vocabulary.)
+export const QR_SECRET_CATEGORIES = ["checkin"] as const;
+
+/** Rezervasyon ÖNCESİ / onaysız kanal konuşmasında dışarıda kalan kategoriler (`kbForStayScope`): aday misafire Wi-Fi de verilmez. */
+export const PREBOOKING_SECRET_CATEGORIES = ["wifi", "checkin"] as const;
+
+// ---------------------------------------------------------------------------
+// HOST HANDOFF state. When a human host replies in a QR thread the AI hands off; it
+// stays paused until the host EXPLICITLY re-enables it from the panel — never on a
+// timer (the host may have stepped into a sensitive matter the AI would misread
+// hours later). Both the state AND the visible transitions live in the message
+// timeline, keyed off the RELIABLE `authorType` (migration 28), NEVER the message
+// text or the host-controlled senderName:
+//   • a host reply    → authorType "host"   (a real message; this IS the pause event)
+//   • a resume event  → authorType "system", systemEventType guest_chat_ai_resumed
+// The bot's own replies are authorType "ai" and are NOT handoff markers.
+// ---------------------------------------------------------------------------
+
+// The resume event's DISPLAY senderName (audit only). State is decided by authorType,
+// not this string; kept so pre-migration rows still render/read correctly.
+export const AI_RESUME_MARKER = LEGACY_AI_RESUME_SENDER;
+
+/**
+ * Misafire dönen mesaj penceresi (en yeni N) — `GET /api/chat/[token]`.
+ *
+ * 🚨 DIŞ DENETİM 09-18, BULGU 4: o uç mesajları `take` OLMADAN çekiyordu ve
+ * istemci 5 saniyede bir çağırıyor — konuşmanın TAMAMI dakikada 12 kez hem
+ * sorgulanıyor hem tel üzerinden taşınıyordu. Ölçülen asıl maliyet bant
+ * genişliği DEĞİL SUNUCU: poll başına ~6 DB turu, biri YAZMA (hız-limiti
+ * sayacı UPSERT) → açık sohbet başına dakikada ~72 sorgu / 12 yazma.
+ *
+ * Host tarafındaki kardeş sayfa (`guest-chats/[id]`) ile AYNI gerekçe ve aynı
+ * büyüklük sınıfı: *"bir QR konaklaması bunu neredeyse hiç aşmaz."* Tipik QR
+ * konaklaması 10–40 mesaj; 200 rahat bir tavan. Aşan konuşmada misafir en yeni
+ * 200'ü görür — eski kısım için sayfalama AYRI iştir (bugün hiçbir yüzey
+ * istemiyor ve misafirin ihtiyacı sohbetin SONUDUR).
+ *
+ * ⚠️ Rota dosyasında DURAMAZ: Next.js `route.ts`ten yalnız bilinen rota
+ * alanlarını export etmeye izin verir (bu dosyanın kendi yorumunun dediği gibi).
+ */
+export const GUEST_CHAT_MESSAGE_WINDOW = 200;
+
+/**
+ * Is the QR AI currently PAUSED for this thread? True when the most recent handoff
+ * event is a host reply not yet followed by a system resume event. Keys off the
+ * reliable authorType (falls back to the legacy derivation for any pre-migration /
+ * old-deployment row). Pure — rows ordered oldest→newest; only the latest transition
+ * decides, so any number of takeover/resume cycles resolves deterministically.
+ */
+export function guestChatAiPausedFromMessages(
+  messages: { direction: string; senderName: string; authorType?: string | null; systemEventType?: string | null }[],
+): boolean {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const { authorType, systemEventType } = resolveMessageAuthor(messages[i]);
+    if (authorType === "guest" || authorType === "ai") continue; // not handoff markers
+    if (authorType === "system") {
+      // Only the "AI re-enabled" event flips it back on; other system events are neutral.
+      if (systemEventType === SYSTEM_EVENT_GUEST_CHAT_AI_RESUMED) return false;
+      continue;
+    }
+    return true; // host reply → paused
+  }
+  return false; // no host activity at all → AI active
+}
+
+/** `guestChatAiPausedFromMessages`in atlamadığı yazar türleri dışında her şey (bilinmeyen tür de — tarayıcı onu "ev sahibi" sayar). */
+const PAUSE_SKIPPED_AUTHOR_TYPES = ["guest", "ai", "system", ""];
+
+/**
+ * Bu konaklamanın QR sohbetinde yapay zekâ ev sahibine devredilmiş mi — `guestChatAiPausedFromMessages(tüm konuşma)` ile AYNI
+ * hüküm, ama yalnız hükmü veren TEK satır okunur.
+ *
+ * 🚨 GECE DENETİMİ (09-28, ölçüldü): misafir rotası her mesajda bu kontrolü iki kez yapıyor — biri ev sahibi cevabının da
+ * beklediği konuşma kilidinin ALTINDA — ve eskiden konuşmanın BÜTÜN mesajlarını okuyordu. Konuşmayı büyüten cihazı bağlı
+ * misafirdir (dakikada 20 istek, yapay zekâ kotası dolduktan sonra da mesajlar kaydediliyor): istek başına okuma sınırsız
+ * büyüyordu.
+ *
+ * Hükmü veren satır = tarayıcının atlamadığı EN YENİ satır: ev sahibi (ve bilinmeyen yazar türü — tarayıcı onu da "ev sahibi"
+ * sayar) ya da "yapay zekâ yeniden açıldı" sistem olayı. Misafir, yapay zekâ ve nötr sistem olayları atlanır; yazar alanı boş
+ * (eski) satırda karar yön + görünen addan (`resolveMessageAuthor` ile aynı kural). Sıra `(createdAt, id)` (panodaki rozetle aynı).
+ * Eşdeğerlik tarayıcı kâhin alınarak rastgele dizilerle pinli (`tests/integration/guest-chat-pause-one-row.test.ts`).
+ */
+export async function guestChatAiPausedForStay(
+  propertyId: string,
+  reservationId: string,
+  db: GuestChatDb = prisma,
+): Promise<boolean> {
+  const marker = `${QR_CONVERSATION_MARKER_PREFIX}${propertyId}:${reservationId}`;
+  const convo = await db.conversation.findFirst({
+    where: { propertyId, externalReservationId: marker },
+    select: { id: true },
+  });
+  if (!convo) return false;
+  const decisive = await db.message.findFirst({
+    where: {
+      conversationId: convo.id,
+      OR: [
+        { authorType: { not: null, notIn: PAUSE_SKIPPED_AUTHOR_TYPES } },
+        { authorType: "system", systemEventType: SYSTEM_EVENT_GUEST_CHAT_AI_RESUMED },
+        {
+          OR: [{ authorType: null }, { authorType: "" }],
+          direction: { not: "inbound" },
+          senderName: { notIn: [...LEGACY_AI_SENDER_NAMES] },
+        },
+      ],
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    select: { direction: true, senderName: true, authorType: true, systemEventType: true },
+  });
+  return decisive ? guestChatAiPausedFromMessages([decisive]) : false;
+}
+
+// ---------------------------------------------------------------------------
+// Per-thread advisory lock (Codex 07-24 #4). The host-handoff contract is "the
+// AI must never talk over the host", but the guest route's send-time re-check
+// and its message insert were two separate statements — a host reply committing
+// between them still let the AI reply land BEHIND the host's message. Both
+// writers (the guest route's recheck+insert transaction and the host reply
+// route's insert transaction) now serialize on this per-conversation
+// pg_advisory_xact_lock, so whichever commits first is visible to the other:
+// host first → the in-tx recheck sees it and vetoes the AI reply; AI first →
+// the host reply simply lands after it (honest ordering, no talk-over).
+// ---------------------------------------------------------------------------
+
+/** A client the lock/record helpers can run on — the global client or a tx. */
+export type GuestChatDb = Prisma.TransactionClient | typeof prisma;
+
+// Namespace disjoint from erasure (40) and feed-reconcile (23).
+const GUEST_CHAT_LOCK_NS = 41;
+
+/**
+ * Acquire the per-conversation guest-chat advisory lock on THIS transaction
+ * (auto-released at commit/rollback). $executeRaw, not $queryRaw:
+ * pg_advisory_xact_lock returns void, which $queryRaw cannot deserialize.
+ */
+export async function acquireGuestChatThreadLock(
+  tx: Prisma.TransactionClient,
+  conversationId: string,
+): Promise<void> {
+  await tx.$executeRaw(
+    Prisma.sql`SELECT pg_advisory_xact_lock(${GUEST_CHAT_LOCK_NS}::int4, hashtext(${conversationId}))`,
+  );
+}
+
+/**
+ * TEST-ONLY seam: widens the window between the canonical read and the create
+ * in `ensureGuestChatConversation`, so the race branches can be exercised
+ * deterministically. Null in production.
+ */
+export const __guestChatHooks: { afterCanonicalRead: null | (() => Promise<void>) } = {
+  afterCanonicalRead: null,
+};
+
+/** QR marker prefix — the preflight/dedupe tooling classifies rows off this. */
+export const QR_CONVERSATION_MARKER_PREFIX = "qr-chat:";
+
+/**
+ * The single QR conversation for one stay, created on first scan.
+ *
+ * IDENTITY: `(propertyId, "qr-chat:{propertyId}:{reservationId}")`. That key is
+ * derived purely from ids we already hold, so two concurrent first-scans of the
+ * same stay compute the SAME key and the SAME deterministic primary key —
+ * a duplicate is therefore a lost race, never a second legitimate thread.
+ *
+ * WHY TWO ACCEPTED P2002 TARGETS (2026-07-26): the row is protected by the
+ * deterministic PK today, and additionally by the planned composite
+ * `@@unique([propertyId, externalReservationId])`. A racing insert violates
+ * BOTH at once, and PostgreSQL does not guarantee WHICH index it reports. So
+ * both targets are treated as "expected race"; every OTHER P2002 rethrows —
+ * a foreign unique violation must never be swallowed here.
+ *
+ * On the composite target the winner's id is NOT assumed: the row is re-read
+ * from the identity key. Missing, or carrying an id other than the
+ * deterministic one, means our identity model is wrong — fail closed and let
+ * the caller surface it rather than hand back an id that may not exist.
+ *
+ * (Historical note: an earlier comment claimed several genuine threads per
+ * reservation were legitimate. The 2026-07-26 production preflight measured
+ * the opposite — all seven conflicting groups carried the SAME provider
+ * `externalConversationId` — so the duplicates were our own race, not a
+ * provider shape. Scoped to what was measured: on the API surface this app
+ * uses, one stay maps to one thread.)
+ */
+/** QR konuşmasının kimliği, YOKSA null — hiçbir şey yazmaz (silme sınırı yalnız ilk açılışta gerekir, Y3 Haiku 10-14). */
+export async function findGuestChatConversationId(propertyId: string, reservationId: string, db: GuestChatDb = prisma): Promise<string | null> {
+  const existing = await db.conversation.findFirst({
+    where: { propertyId, externalReservationId: `${QR_CONVERSATION_MARKER_PREFIX}${propertyId}:${reservationId}` },
+    select: { id: true },
+  });
+  return existing?.id ?? null;
+}
+
+export async function ensureGuestChatConversation(
+  propertyId: string,
+  reservation: { id: string; guestName: string },
+  db: GuestChatDb = prisma,
+): Promise<string> {
+  const marker = `${QR_CONVERSATION_MARKER_PREFIX}${propertyId}:${reservation.id}`;
+  const existing = await db.conversation.findFirst({
+    where: { propertyId, externalReservationId: marker },
+    select: { id: true },
+  });
+  if (existing) return existing.id;
+  if (__guestChatHooks.afterCanonicalRead) await __guestChatHooks.afterCanonicalRead();
+
+  const qrConversationId = `qrconv_${reservation.id}`;
+  try {
+    const created = await db.conversation.create({
+      data: {
+        id: qrConversationId,
+        propertyId,
+        channel: "chat",
+        guestIdentifier: reservation.guestName,
+        status: "answered",
+        priority: "standard",
+        lastMessageAt: new Date(),
+        reservationId: reservation.id,
+        externalReservationId: marker,
+        ingestedAt: new Date(), // V0.4 provenance: misafir ingress'i açtı; iç thread → connectionId yok
+      },
+      select: { id: true },
+    });
+    return created.id;
+  } catch (err) {
+    // PK reported → a row with exactly this id exists; that IS the canonical row.
+    if (isUniqueViolation(err, ["id"])) return qrConversationId;
+    if (!isUniqueViolation(err, ["propertyId", "externalReservationId"])) throw err;
+
+    // Composite reported → re-read from the identity key, never assume the id.
+    const winner = await db.conversation.findFirst({
+      where: { propertyId, externalReservationId: marker },
+      select: { id: true },
+    });
+    if (!winner) {
+      throw new Error("QR konusma kimlik catismasi: kazanan satir bulunamadi");
+    }
+    if (winner.id !== qrConversationId) {
+      throw new Error("QR konusma kimlik catismasi: beklenmeyen satir kimligi");
+    }
+    return winner.id;
+  }
+}
+
+// CONTENT-level guard (belt to the category suspenders). The category filter
+// alone "fails open" if a host files a door/keybox code or Wi-Fi password under
+// faq/rules/general/etc. — so ANY KB item whose text looks like an access secret
+// is dropped regardless of category. Over-redaction is the SAFE direction here:
+// at worst the chat says it can't help (and escalates), never leaks a code.
+// (\b avoided around Turkish letters like ş/ı — JS word boundaries are ASCII.)
+/** Tuş paneli / kapı paneli adları (10-02; ↓SECRET_PATTERNS sonu). Yalnız KAPI GİRİŞİ anlamı taşıyanlar: "panel" tek başına DEĞİL
+ *  ("Güneş paneli 2019"), "clavier" DEĞİL (bilgisayar klavyesi). */
+const KEYPAD_NOUNS =
+  "tu[şs]\\s*panel|zil\\s*panel|kap[ıi]\\s*panel|giri[şs]\\s*panel|interkom|intercom|domofon|keypad|key\\s+pad|digicode|tastenfeld|zahlenfeld|ziffernfeld|teclado|домофон|кодов\\S{0,3}\\s+замк|لوحة\\s*(?:المفاتيح|الأزرار|الأرقام)";
+/** Tek anlamlı kilit / kutu adları (10-15, Opus F6 + son kontrol) — çıplak "kilit" / "kutu" / "kasa" YOK (yıl / adres yanlış elemesi). */
+const LOCK_NOUNS =
+  "(?:ak[ıi]ll[ıi]|dijital|digital|[şs]ifreli|kodlu|elektronik|elektronisch)[\\s-]*(?:kap[ıi][\\s-]*)?kil[ıi][td]|kil[ıi]t[\\s-]*kutu|smart[\\s-]*lock|digital[\\s-]*lock|code[\\s-]*lock|combination[\\s-]*lock|lock[\\s-]*box|key[\\s-]*box|key[\\s-]*safe|anahtar[\\s-]*kutu|anahtar[\\s-]*kasa";
+/**
+ * Kilit adı ↔ değer arası: ≤30 karakter, rakam ve nokta yok (başlık → içerik satır sonunu geçer). Sözcük yasak listesi YOK — Opus son
+ * kontrolü ölçtü: "sistem / pil / yıl" gibi alt dize yasakları "yıldız", "dikkat" gibi sıradan sözcüklerde kalıbı kapatıyordu. Yanlış
+ * eleme bunun yerine DEĞERİN bağlamıyla önlenir (↓).
+ */
+const LOCK_GAP = "[^\\d.]{0,30}?";
+/**
+ * Değer bağlamı — kod DEĞİL: solunda daire / oda / sokak / cadde / seri / servis / saat / fiyat / telefon sözcüğü ya da kapanan parantez
+ * ("Room 1204 has a smart lock", "Atatürk Caddesi 1204", "Akıllı kilit servisi 4441234", "(0212) 5554433", "Dijital kilit bedeli 1500");
+ * sağında numara / sokak / adres / kez / saat / adet / birim ("1204 numaralı", "1453 Sokak", "34710 adresindeki", "1000 kez açıldıktan").
+ * Sınırlı geriye bakış (en çok ~20 karakter) → doğrusal.
+ */
+const LOCK_VALUE_LEFT =
+  "(?<!(?:daire|room|oda|apt|apartman|nolu|numara|no|soka[kğg]|sk|cadde|cad|mahalle|mah|ada|parsel|seri|serial|sn|servis|service|saat|floor|kat|bedel|[üu]cret|fiyat|price|fee|cost|tel|telefon|phone|posta|zip)[a-zçğıöşü]{0,4}[.,]?\\s{0,3}[:#]?\\s{0,2}\\(?)(?<!\\)\\s?)";
+const LOCK_VALUE_RIGHT =
+  "(?!\\s*(?:numara|nolu|no\\b|sokak|sk\\b|cad|adres|room|oda|kez|kere|defa|times|adet|saat|hour|tane|kişi|ki[şs]i|metre|m\\b|m2|m²|km|gb|mb|mah|ada\\b))";
+/** 19xx / 20xx dört hane YIL sayılır — ardından giriş fiili / tuş işareti gelmiyorsa ("2022 Mart'ta kuruldu" yıl; "2019 girin" kod). */
+const LOCK_NOT_YEAR = "(?!(?:19|20)\\d\\d(?!\\d)(?![^\\n.]{0,15}?(?:(?<![a-zçğıöşü])(?:gir|yaz|tu[şs]la|bas)(?:[ıi]n|[ıi]n[ıi]z|[ıi]p|arak|erek)?(?![a-zçğıöşü])|enter|then|press|tap|#|\\*|✓)))";
+/** 4–8 haneli değer; telefonun ilk öbeği (ardında rakam öbeği) ve SON öbeği (önünde rakam + ayraç) dışarıda. */
+const KEY_DIGITS = "(?<!\\d)(?<!\\d[\\s\\-.])\\d{4,8}(?!\\d)(?![\\s\\-.]\\d)";
+
+/** "kapı / giriş" (+ ek) + "aç-" fiili ("açma", "açılış", "açmak") + en çok iki sözcük (sınırlı — doğrusal). ASCII katlamada "ac". */
+const DOOR_OPEN = "(?:kap[ıi]|giri[şs])[a-zçğıöşü]{0,6}\\s+a[çc][a-zçğıöşü]{0,10}(?:\\s+[a-zçğıöşü]{1,12}){0,2}?";
+/** Değerden sonra fiyat / yıl / ondalık geliyorsa sır DEĞİL ("1500 euro", "1500,00 TL", "2024 yılında", "2024 model"). */
+const NOT_PRICE_OR_YEAR = "(?!\\s*(?:tl\\b|try\\b|₺|euro?\\b|€|usd\\b|\\$|dolar|dollar|lira|y[ıi]l|year|model)|[.,]\\d)";
+
+// Kapı adı GEREKTİRMEYEN dört kalıp (↓SECRET_PATTERNS içinde aynı yerlerinde). Adlandırıldılar çünkü QR Wi-Fi istisnası
+// (`withoutQrSecretKbItems`) `wifi` kalemine yalnız KAPI kalıplarını uygular: bu dördü bir Wi-Fi şifresini tanımlamak için yazıldı.
+// a code/PIN/password word followed by a value, e.g. "PIN: 5678", "kodu 0000",
+// "şifre HUNTER2", "parola: abc12".
+// "kombinasyon" BİLEREK yok: 3 haneli değer kabul eden bu kalıpta "Kahvaltı kombinasyonu 250 TL" fiyatı elenirdi (yalnız 4–8 hane
+// bitişik ↓ ve kod sözcüklü ↑ kalıplarda).
+const CODE_WORD_VALUE =
+  /(pin|kod|code|şifre|sifre|parola|password|passcode|passwort|kennwort|mot\s+de\s+passe|contrase[ñn]a|пароль)\w{0,24}\s*(?:[:=#]\s*)?([0-9]{3,}|[^\s.\n]{0,64}\d)/i;
+// Wi-Fi / wireless / internet ... password word.
+const WIFI_PASSWORD_WORD =
+  /(wi-?fi|wlan|kablosuz|internet)\w{0,24}[^.\n]{0,40}(şifre|sifre|parola|password|passcode|key|passwort|kennwort|mot\s+de\s+passe|contrase[ñn]a|clave|пароль)/i;
+// a password/parola label with a colon/equals, e.g. "Şifre: ...", "parola = ...".
+const PASSWORD_LABEL = /(şifre|sifre|parola|password|passcode|passwort|kennwort|mot\s+de\s+passe|contrase[ñn]a|пароль)\w{0,24}\s*[:=]/i;
+// Wi-Fi / network NAME or PASSWORD stated conversationally WITHOUT a secret
+// keyword — e.g. "İnternet ağımız 'LaleEv', bağlanmak için 12345678 girin".
+// The value is quoted or digit-bearing (SSID / password), which the keyword
+// patterns above miss. Over-redaction stays the safe side (escalate, no leak).
+const WIFI_CONVERSATIONAL =
+  /(wi-?fi|wlan|kablosuz|ssid|internet\s*a[ğg])\w{0,24}[^.\n]{0,40}(["'«][^"'»\n]{2,64}["'»]|[A-Za-z0-9!@#._-]{0,64}\d[A-Za-z0-9!@#._-]{3,64})/i;
+// door / keybox / entry / lock + code word (TR suffixes ok) — ↓SECRET_PATTERNS'in ilk kalıbı (gerekçesi orada); çıktı taraması değer
+// şartlı biçimini kurar (`DOOR_CONTEXT_IN_REPLY`).
+const DOOR_CODE_WORD =
+/(kap[ıi]|giri[şs]|anahtar\s*kutu|anahtar\s*kasa|key\s*?box|keybox|key\s*safe|lock\s*box|lockbox|keypad|tu[şs]\s*tak[ıi]m|door|lock|entry|gate)\w{0,24}[\s:]{0,3}\w{0,6}[\s:]{0,3}(?<![a-z0-9])(kod|şifre|sifre|parola|code|pin|kombinasyon|combination|passwort|kennwort|mot\s+de\s+passe|contrase[ñn]a|пароль)/i;
+const NON_DOOR_PATTERNS: ReadonlySet<RegExp> = new Set([CODE_WORD_VALUE, WIFI_PASSWORD_WORD, PASSWORD_LABEL, WIFI_CONVERSATIONAL]);
+
+const SECRET_PATTERNS: RegExp[] = [
+  // door / keybox / entry / lock + code word (TR suffixes ok), e.g. "kapı kodu",
+  // "anahtar kutusu kodu", "keybox code", "giriş şifresi", "door/lock code".
+  // 10-01 (15 ajan incelemesi A07/A04): tuş takımı / anahtar kasası / kilit kutusu ve "kombinasyon" + şifre sözcüğünün diğer dillerdeki
+  // karşılıkları (Passwort, mot de passe, contraseña, пароль) — yalnız SIR anlamı taşıyan sözcükler; "kasa" / "alarm" / "kilit" gibi
+  // tek başına çok anlamlı isimler BİLEREK yok (karakterizasyon: yıl / adres yanlış elemesi, `secret-detection-golden.test.ts`).
+  // Kod sözcüğü harf sınırında başlar: ASCII katlamada "kapının" → "ka·pin·in" kod sözcüğü sanılıyordu ("Giriş kapının yanında" eleniyordu).
+  DOOR_CODE_WORD,
+  // Kapı adı gerektirmeyen dört kalıp (↑adlı sabitler; gerekçeleri orada).
+  CODE_WORD_VALUE,
+  WIFI_PASSWORD_WORD,
+  PASSWORD_LABEL,
+  WIFI_CONVERSATIONAL,
+  // ⚠️ GİRİŞ İSMİ + BİTİŞİK 4-8 RAKAM — kod kelimesi OLMADAN (denetim 08-07).
+  // Yukarıdaki iki kalıp da bir "kod/şifre/pin" KELİMESİ arıyordu; host
+  // "Kapı: 4590" ya da "Anahtar kutusu 7788" yazdığında hiçbiri eşleşmiyordu.
+  // Kategori elemesi de kurtarmıyor: elle ekleme formunun VARSAYILANI `general`
+  // ve `wifi`/`checkin` dışındaki her kategori isteme giriyor.
+  //
+  // 🚨 BİTİŞİKLİK ŞARTI (`\s*(?:[:=#.\-–—]\s*)?` — eski yazımı `\s*[:=#.\-–—]?\s*` ile AYNI dil; iki bitişik boşluk
+  // yıldızı kod sözcüğünden sonraki uzun boşluk dizisinde karesel geri izliyordu: 20.000 boşlukta 3 sn, kalem her yapay zekâ
+  // çağrısında taranır — 10-01, 15 ajan incelemesi A14) BU KALIBIN CAN DAMARI — araya
+  // "serbest metin" (`[^.\n]{0,20}` gibi) İZNİ VERME. İlk yazımı tam olarak
+  // öyleydi ve ÖLÇÜLDÜ: 12 meşru bilgi-tabanı kaleminin 6'sını birden eliyordu —
+  // ADRES ("Kapı 3, 34710 Kadıköy" → posta kodu), ACİL TELEFON ("girişindeki
+  // güvenlik 0212 555 4433"), check-in telefonu, daire numarası, yıl (2024).
+  // ⚠️ Eleme burada "güvenli yön" DEĞİLDİR: `looksLikeSecret` KALEMİN TAMAMINA
+  // (`${title}\n${content}`, ↓kb filtresi) uygulanır ve eşleşen kalem KOMPLE
+  // düşer — yani misafir "adres ne?" diye sorduğunda AI'ın elinde adres KALMAZ.
+  // Bir erişim kodu kelimenin hemen ardındadır; adres/telefon araya metin sokar.
+  //
+  // 🚨 EŞİK 4 RAKAM, ÜST SINIR 8 — ikisi de BİLİNÇLİ ve ikisi de test-pinli.
+  // Alt sınır: "Giriş saati 15:00" ve "Kapı 3. katta" QR'ın ASIL işidir.
+  // Üst sınır + `(?!\d)`: 10-11 haneli TR telefonu bitişik yazılsa bile
+  // ("Kapıcı 05321112233") 8 haneyi aşar ve eşleşemez.
+  //
+  // 🚨 `(?![\s\-.]\d)` = TELEFONUN DEVAMI KORUMASI, süs değil. Türk telefonu
+  // ÖBEKLİ yazılır ("Kapıcı 0532 111 2233") ve ilk öbek "0532" TAM 4 hanedir,
+  // yani üst sınır onu KURTARMAZ. Ayırt edici şey şu: bir erişim kodu sayısal
+  // içeriğin SONUDUR, telefon ise daha fazla rakam öbeğiyle DEVAM eder.
+  // "kapıcı" (= apartman görevlisi) Türkçe bilgi tabanlarında çok yaygın ve
+  // `kap[ıi]\w*` onu da kapsıyor → bu koruma olmadan görevlinin telefonunu
+  // taşıyan kalem KOMPLE düşerdi. Ölçüldü: bu satırsız 2/13 yanlış pozitif.
+  //
+  // ÖLÇÜLDÜ (kalıp yok / serbest-metin / bugünkü): yanlış-pozitif 0 → 6 → 0,
+  // yakalanan saldırı 0 → 11 → 13. Yani bugünkü hâl İKİ eksene göre de en iyisi.
+  // Y2 (10-14 dış inceleme): Arapça / Rusça / İspanyolca / Fransızca kapı adları da ("الباب: 4590", "Дверь: 4590") — `\w` bu harfleri
+  // kapsamadığı için ad + ek ayrı yazıldı. "portal" / Türkçe "tür" BİLEREK yok (Wi-Fi "captive portal", "her tür cihaz").
+  /(kap[ıi]|giri[şs]|anahtar\s*kutu|anahtar\s*kasa|key\s*?box|keybox|key\s*safe|lock\s*box|lockbox|keypad|tu[şs]\s*tak[ıi]m|kombinasyon|combination|door|lock|entry|gate|(?<![a-zà-ÿ])puerta|(?<![a-zà-ÿ])porte(?![a-z])|(?<![\u0621-\u064A])(?:ال)?(?:باب|بوابة|مدخل)|(?<![а-яё])двер[а-я]{0,3}|(?<![а-яё])подъезд[а-я]{0,2})\w{0,24}\s*(?:[:=#.\-–—]\s*)?\d{4,8}(?!\d)(?![\s\-.]\d)/i,
+  // 🚨 10-02 (QR kör kabul seti 1 — canlıda 5.1, bina kapısının tuş kodunu QR'da İKİ kez misafire yazdı): yukarıdaki kalıplar ya
+  // "isim + BİTİŞİK rakam" ya da "kod / şifre sözcüğü + değer" arıyordu. Kalem şuydu: "Kilitliyken kapının sağındaki tuş paneline 6142
+  // yazıp anahtar simgeli tuşa basarak içeri girebilirsiniz." Kaçan yazımlar (`secret-filter-keypad.test.ts`, 24 sızıntı + 16 ikiz):
+  //  (a) TUŞ PANELİ adı ve değer ≤20 harflik ayraçla, iki sırada da ("tuş paneline 6142", "Le digicode est 4590", "Enter 4590 on the
+  //      keypad", "Geben Sie 4590 am Tastenfeld ein");
+  //  (b) Türkçe "tuşla-" fiili ("4590 tuşlayın", "4590'ı tuşlayıp", "Tuşlayın: 4590");
+  //  (c) "panele / paneline 4590 yazın / girin" (fiilsiz "Güneş paneli 2019'da" kalır);
+  //  (d) değerden HEMEN önce giriş fiili ("Punch in 4590", "Teclee 4590", "Введите 4590");
+  //  (e) kod sözcüğü + KAPI adı + değer ("The code for the front door is 4590", "Código de la puerta: 4590", "Код от двери: 4590",
+  //      "رمز الباب: 4590"); posta kodu ("Código postal: 34710", "الرمز البريدي") hariç.
+  // Rakam yuvası (`KEY_DIGITS`) bitişik kalıbınkiyle AYNI telefon korumasını taşır ve telefonun SON öbeğini de dışlar ("0532 111
+  // 2233" → "2233" öncesi rakam + ayraç). Ayraçlar sınırlı (doğrusal; 24k kötü niyetli girdide süre pinli). Kategori elemesi
+  // (`wifi` / `checkin`) bunları kurtarmıyordu: kalem `general` idi.
+  new RegExp(`(?:${KEYPAD_NOUNS})[^\\d\\n.]{0,20}?${KEY_DIGITS}`, "i"),
+  new RegExp(`${KEY_DIGITS}[^\\d\\n.]{0,20}?(?:${KEYPAD_NOUNS})`, "i"),
+  // Boşluklar isteğe bağlı grupların İÇİNDE (`(?:\s*X)?(?:\s*Y)?\s*Z`): eski `(?:\s*X)?\s*(?:Y)?\s*Z` yazımında bitişik boşluk
+  // niceleyicileri "1234 + uzun boşluk" girdisinde karesel geri izliyordu (10-10 gece ölçüm: 23.800 boşlukta 2,5 sn). Dil AYNI.
+  new RegExp(`${KEY_DIGITS}(?:\\s*[#*])?(?:\\s*['’][a-zçğıöşü]{0,4})?\\s*tu[şs]la`, "i"),
+  new RegExp(`tu[şs]la[a-zçğıöşü]{0,8}\\s*(?:[:=]\\s*)?${KEY_DIGITS}`, "i"),
+  new RegExp(`panel[a-zçğıöşü]{0,6}\\s+${KEY_DIGITS}(?:\\s*[#*])?(?:\\s*['’][a-zçğıöşü]{0,4})?\\s+(?:yaz|gir|tu[şs]la|bas)`, "i"),
+  new RegExp(
+    `(?:(?<![a-z])enter|punch\\s+in|key\\s+in|type\\s+in|tap\\s+in|eingeben|tippen\\s+sie|composez|tapez|teclee|tecleen|marque|introduzca|введите|наберите|أدخل|اكتب)[^\\d\\n.]{0,12}${KEY_DIGITS}`,
+    "i",
+  ),
+  new RegExp(
+    `(?:(?<![a-z])code|c[oó]digo|код|رمز|كود|كلمة\\s+(?:ال)?(?:مرور|سر)|(?<![a-zçğıöşü])kod)(?![^\\d\\n.]{0,3}(?:postal|البريدي|почтов))[^\\d\\n.]{0,30}?(?:door|gate|entrance|building|t[üu]r|porte|immeuble|puerta|portal|edificio|двер|подъезд|домофон|باب|المبنى|kap[ıi])[^\\d\\n.]{0,20}?${KEY_DIGITS}`,
+    "i",
+  ),
+  // 🚨 10-10 (Haiku QR güvenlik taraması F1): KAPI + AÇ- fiili + değer — kod sözcüğü olmadan ve bitişik değil: "Kapı açma: 4590",
+  // "Kapı açılış 4590", "Girişteki kapı açma tuşu için 4590" yukarıdakilerin hepsinden kaçıyordu. "Serbest metin" izni VERİLMEZ (bitişik
+  // kalıbın ölçülmüş dersi: adres / telefon / yıl eleniyordu) — yalnız "kapı + aç-" ve ardından en çok İKİ sözcük; değer ya iki nokta /
+  // "için" ardında (A) ya da CÜMLEYİ BİTİREN / giriş fiiliyle biten çıplak değer (B). Para birimi / yıl / saat elenmez ("Kapı açma
+  // ücreti: 1500 TL", "Kapıyı açarken 2024 model kilide", "Kapı açma saatleri 08:00") — `secret-filter-door-open.test.ts` iki yönde.
+  // 🚨 10-10 gece (Haiku incelemesi): ayraç `(?:\s*AYRAÇ|\s+için)` ve ileriye bakış `(?:\s*'ek|\s+sözcük)?\s+fiil` biçiminde — eski
+  // yazımdaki bitişik iki boşluk niceleyicisi (`\s*(?::|\s+için)`, `\s*'?…{0,4}\s+`) boşluk dizisinde KARESEL geri izliyordu (23.000
+  // boşlukta kalıp başına ~1 sn; `secret-filter-door-open.test.ts` süre pini). Ayraç tire / uzun tire / parantezi de kabul eder; "giriş"
+  // adı ve İngilizce "door opens / unlocks with" eklendi; fiyat / yıl / ondalık ardılı sır sayılmaz (`NOT_PRICE_OR_YEAR`).
+  new RegExp(`${DOOR_OPEN}(?:\\s*[:\\-–—(]|\\s+i[çc]in)\\s*${KEY_DIGITS}${NOT_PRICE_OR_YEAR}`, "i"),
+  new RegExp(`${DOOR_OPEN}\\s+${KEY_DIGITS}(?=\\s*(?:[.,;!)\\n#*]|$)|(?:\\s*['’][a-zçğıöşü]{0,4}|\\s+[a-zçğıöşü]{1,4})?\\s+(?:gir|yaz|tu[şs]la|bas))`, "i"),
+  new RegExp(`(?:door|gate|entrance)[a-z]{0,2}\\s+(?:opens?|unlocks?)\\s+(?:with|using|by\\s+entering)\\s+${KEY_DIGITS}`, "i"),
+  // Haiku 10-14 son doğrulama: KAPI / GİRİŞ + "için" + değer + kullanım fiili ("Giriş için 6142 kullanın", "Kapı için 4590'ı girin") —
+  // kod sözcüğü yok, değer bitişik değil. Fiil ŞART (fiyat / yıl / saat cümleleri elenmez: "Giriş için 1500 TL ödenir").
+  // Araya en çok iki sözcük ("4590 numaralı kodu girin"); fiil yalnız EMİR / ulaç biçimiyle ("kullanım ücreti" fiil değil — Haiku 10-14).
+  new RegExp(`(?:kap[ıi]|giri[şs])[a-zçğıöşü]{0,6}\\s+i[çc]in\\s+${KEY_DIGITS}${NOT_PRICE_OR_YEAR}(?:\\s*['’][a-zçğıöşü]{0,4})?(?:\\s+[a-zçğıöşü]{1,12}){0,2}?\\s+(?:kullan|gir|yaz|tu[şs]la|bas)(?:y?[ıi]n(?:[ıi]z)?|y?abilirsiniz|ebilirsiniz|y?arak|erek|m[ae](?:n[ıi]z|l[ıi]s[ıi]n[ıi]z)|[ıi]l(?:[ıi]r|arak|erek)|n(?:[ıi]r|arak))(?![a-zçğıöşü])`, "i"),
+  // 🚨 10-15 (Opus derin denetimi F6, kurucu onayı "senin önerin mantıklıysa yap"): KİLİT / KUTU ADI + ≤20 harflik ayraç + değer, iki
+  // sırada da — "Dijital kilit: 4590", "Akıllı kilit 4590", "Şifreli kilide 4590 girin", "Use 4590 to open the lockbox", "Lockbox
+  // code is in the app, 4590"… keypad kalıbı (↑) bu adları tanımıyordu; bilgi tabanı süzgecinden de çıktı taramasından da geçiyordu.
+  // Yalnız TEK ANLAMLI bileşik adlar (dijital / akıllı / şifreli / kodlu / elektronik kilit, smart / digital / code lock, lockbox,
+  // keybox, key safe, anahtar kutusu / kasası) — çıplak "kilit" / "kasa" / "kutu" BİLEREK yok (↑ilk kalıbın ölçülmüş yıl / adres dersi).
+  // Fiyat / yıl / ondalık ardılı ve yıl eki sır sayılmaz ("Akıllı kilidin pili 2024'te değişti", "Lockbox ücreti 1500 TL").
+  // İki nokta / eşittir ile BİTİŞİK değer: yıl istisnası yok ("Akıllı kilit: 1987" koddur).
+  new RegExp(`(?:${LOCK_NOUNS})[a-zçğıöşü]{0,8}\\s*[:=]\\s*${KEY_DIGITS}${NOT_PRICE_OR_YEAR}`, "i"),
+  new RegExp(`(?:${LOCK_NOUNS})${LOCK_GAP}${LOCK_VALUE_LEFT}${LOCK_NOT_YEAR}${KEY_DIGITS}${NOT_PRICE_OR_YEAR}${LOCK_VALUE_RIGHT}`, "i"),
+  new RegExp(`${LOCK_VALUE_LEFT}${LOCK_NOT_YEAR}${KEY_DIGITS}${NOT_PRICE_OR_YEAR}${LOCK_VALUE_RIGHT}${LOCK_GAP}(?:${LOCK_NOUNS})`, "i"),
+];
+
+/**
+ * ⚠️ ÜÇ KATLAMAYA BİRDEN BAKAR (CLAUDE.md "KATLAMA KURALI", denetim 08-01).
+ *
+ * Kalıplar `/i` bayrağıyla yazılmış, ama JS'in basit case-folding'i Türkçenin iki
+ * harfini ÇEVİRMEZ: `İ`(U+0130) → `i` OLMAZ, `I`(U+0049) → `ı` OLMAZ. Sonuç somut
+ * bir delikti: cümle "İnternet ağımız 'LaleEv', bağlanmak için 12345678 girin"
+ * diye başlıyorsa hiçbir kalıp eşleşmiyordu — yani Türkçede en doğal yazımıyla
+ * bir Wi-Fi şifresi, sır sayılmadan QR bağlamına girebiliyordu.
+ *
+ * Bu detektör KISITLAYICIDIR: yalnız içerik ELER, hiçbir izin genişletmez.
+ * Kural gereği katlama tam olarak burada uygulanır (nezaket/beyaz-liste
+ * kontrollerinde ASLA). Kalıplar Türkçe sözcüklerin ASCII karşılıklarını
+ * (`sifre`, `sifre|parola`) zaten içerdiği için ASCII katlaması eşleşmeyi
+ * bozmaz, yalnız EKLER.
+ */
+/**
+ * Sır taramasının ÜST SINIRI = kabul edilen en uzun kalem. `kbSchema.content`
+ * 20.000 + `title` 300 + ayraç; pay bırakıldı. Bu sınırın ÜSTÜ normal girdiyle
+ * ULAŞILMAZ — ulaşılıyorsa içerik doğrulayıcıyı atlamıştır ve o hâlde hüküm
+ * "doğrulanamadı" = elenir (↓looksLikeSecret). `validators.ts` tavanı büyürse
+ * bu sayı da büyütülmeli; küçük kalırsa etkisi yalnız fazladan eleme (güvenli yön).
+ */
+const SECRET_SCAN_MAX_CHARS = 24_000;
+
+/** Kapı / kutu / giriş kodu kalıpları — `SECRET_PATTERNS` eksi kapı adı gerektirmeyen dördü (↑`NON_DOOR_PATTERNS`). */
+const DOOR_SECRET_PATTERNS: readonly RegExp[] = SECRET_PATTERNS.filter((re) => !NON_DOOR_PATTERNS.has(re));
+
+/**
+ * QR Wi-Fi istisnasında (↑dosya başı) `wifi` kalemini DÜŞÜREN kapı / kilit / giriş izi — DEĞER aranmaz, sözcük yeter (ASCII katlanmış
+ * metinde, sözcük başında): Wi-Fi kalemi kapıyı, kutuyu, kilidi, paneli, PIN'i hiç anmamalı. Fazla eleme GÜVENLİ yöndür (o daire QR'da
+ * Wi-Fi veremez, misafir ev sahibine yönlendirilir); kapı kodu sızması yön değildir. "Ağ / WPA / güvenlik anahtarı" Wi-Fi terimidir, iz
+ * DEĞİL. Yer adları (bina, otopark, site…) BİLEREK yok — "Lale Sitesi Wi-Fi", "Apartman Wi-Fi" kartlarını düşürüyordu (Haiku 10-11); onların
+ * şifresi ↓`secretLabels` ile yakalanır ("Bina şifresi 4590": etiket Wi-Fi değil).
+ */
+const QR_WIFI_ITEM_DOOR_TRACE =
+  /(?<![a-z0-9])(?:kapi|(?<!(?:ag|wpa2?|guvenlik)\s)anahtar|kilit|kasa(?!ba)|kutu|key\s*(?:box|safe|pad)|lock|door|gate|entrance|panel|tus|interkom|intercom|domofon|digicode|alarm|pin(?![a-z])|puerta|porte(?![a-z])|(?:haus|wohnungs|eingangs)t[uü]r|t[uü]rcode|(?<![\u0621-\u064A])(?:ال)?(?:باب|بوابة|مدخل|قفل)|(?<![а-яё])(?:двер|подъезд|замо?к))/;
+
+/** Şifre / kod sözcüğü (ASCII katlanmış, sözcük başında) + varsa DEĞERİ (isteğe bağlı ":" / "=" ve ardındaki tek sözcük; satır sonunu
+ *  GEÇMEZ — başlık satırındaki "Wifi kodu" bir sonraki satırın Wi-Fi adını değer diye yutmasın). */
+const SECRET_WORD = /(?<![a-z0-9])(sifre|parola|password|passcode|passwort|kennwort|kod|code|key)[a-z]{0,8}(?![a-z])(?:[ \t]*(?:([:=])[ \t]*)?(\S+))?/g;
+/** Wi-Fi adı (ASCII katlanmış): "Wi-Fi", "internet", "ağ adı", "network", "modem"… */
+const WIFI_NOUN = /(?<![a-z0-9])(?:wi-?fi|wlan|internet|kablosuz|ssid|network|modem|router|ag(?:\s+adi|\s+ismi|imiz|in|a)?(?![a-z]))/;
+/** ETİKET sınırı: ardında boşluk gelen nokta / ünlem / soru / noktalı virgül / virgül ya da satır sonu. İki nokta sınır DEĞİL
+ *  ("Network: LaleHome / password: …" tek etiket akışıdır); "Lale.Home" sınır değil. */
+const LABEL_BREAK = /[.!?;,](?=\s|$)|\n/g;
+
+/**
+ * Her şifre / kod sözcüğünün ETİKETİ ve Wi-Fi'ye bağı (Haiku incelemeleri 10-11). Etiket = sözcükten geriye, en yakın etiket sınırına ya da
+ * bir önceki şifre sözcüğünün DEĞERİNİN sonuna kadar olan metin:
+ *  · etikette Wi-Fi adı → Wi-Fi şifresi ("Wi-Fi şifresi …", "Network: LaleHome / password: …");
+ *  · etiket BOŞ (sözcük cümleyi / satırı başlatıyor: "Wi-Fi adı: LaleNet. Şifre: gunes1907") → karttaki İLK şifre sözcüğüyse ve metinde
+ *    daha önce bir Wi-Fi adı geçtiyse Wi-Fi şifresi (kartın devamı); sonraki etiketsiz sözcük DEĞER taşıyorsa ("Wi-Fi şifresi gunes1907.
+ *    Şifre: 4590") bağımsız koddur, değersiz anışsa ("(şifre büyük-küçük harfe duyarlıdır)") yok sayılır;
+ *  · etikette başka sözcük ("Bina şifresi 4590", "…, çamaşır odası kodu: 4590", "Kiler şifresi") → Wi-Fi'ye BAĞLI DEĞİL.
+ * Doğrusal (sınırlar tek geçişte, sözcükler tek geçişte).
+ */
+function secretLabels(folded: string): { wifi: boolean; word: string; value: string }[] {
+  const breaks = [...folded.matchAll(LABEL_BREAK)].map((m) => m.index + m[0].length);
+  const firstWifi = folded.search(WIFI_NOUN);
+  const out: { wifi: boolean; word: string; value: string }[] = [];
+  let b = 0;
+  let lastBreak = 0;
+  let prevEnd = 0;
+  for (const m of folded.matchAll(SECRET_WORD)) {
+    while (b < breaks.length && breaks[b] <= m.index) lastBreak = breaks[b++];
+    const label = folded.slice(Math.max(prevEnd, lastBreak), m.index);
+    const value = m[3] ?? "";
+    const unlabeled = label.replace(/[^a-z0-9]+/g, "") === "";
+    const valued = m[2] !== undefined || /\d/.test(value);
+    const wifi =
+      WIFI_NOUN.test(label) ||
+      (unlabeled && (out.length === 0 ? firstWifi >= 0 && firstWifi < m.index : !valued));
+    out.push({ wifi, word: m[1], value });
+    prevEnd = m.index + m[0].length;
+  }
+  return out;
+}
+
+/** `wifi` kategorisindeki kalem QR bağlamına girebilir mi: kapı kalıbı YOK, kapı / kilit izi YOK, her şifre / kod sözcüğü Wi-Fi'ye bağlı. */
+function qrWifiItemAllowed(raw: string): boolean {
+  if (raw.length > SECRET_SCAN_MAX_CHARS) return false;
+  const text = foldForSecretScan(raw); // Y2: "٦١٤٢" → "6142"
+  const variants = [text, foldTurkishLower(text), foldTurkishAscii(text)];
+  if (DOOR_SECRET_PATTERNS.some((re) => variants.some((v) => re.test(v)))) return false;
+  const ascii = foldTurkishAscii(text);
+  return !QR_WIFI_ITEM_DOOR_TRACE.test(ascii) && secretLabels(ascii).every((l) => l.wifi);
+}
+
+/**
+ * QR bağlamının KALEM süzgeci (kurucu kararı 10-11): `wifi` kategorisi yalnız kapı izi taşımıyorsa girer (Wi-Fi şifresi dahil);
+ * öteki her kategori bugünkü TAM taramadan geçer (Wi-Fi kalıpları dahil — yanlış kategoriye yazılmış Wi-Fi şifresi QR'a girmez,
+ * çünkü aynı kalemde kapı kodu olup olmadığı kategori olmadan güvenle ayrılamaz). `checkin` kategorisi SQL'de zaten dışarıda.
+ */
+export function withoutQrSecretKbItems<T extends { category: string; title: string; content: string }>(items: T[]): T[] {
+  return items.filter((k) => {
+    const text = `${k.title}\n${k.content}`;
+    return k.category === "wifi" ? qrWifiItemAllowed(text) : !looksLikeSecret(text);
+  });
+}
+
+/** Değerden sonra yıl eki ("2019'da", "2019'dan") gelirse sır DEĞİL. */
+const NOT_YEAR_SUFFIX = "(?!\\s*['’]\\s*[dt][ae]n?(?![a-zçğıöşü]))";
+
+/**
+ * ÇIKTI TARAMASI (kurucu kararı 10-11, karar listesi 18): QR cevabı misafire gitmeden KAPI / KUTU / GİRİŞ koduna karşı taranır —
+ * bilgi tabanı süzülse de ev sahibinin QR'a elle yazdığı bir kod GEÇMİŞTEN modele ulaşabilir (geçmiş ayrıca ↓`redactDoorCodes` ile
+ * gizlenir). Yalnız DEĞER taşıyan biçimler (4–8 hane; telefon / fiyat / yıl hariç); "kapı kodunuz Airbnb mesajında" gibi değersiz anış
+ * cevabı DURDURMAZ. Wi-Fi şifresi bu taramada yoktur (verilir). İki sınıf:
+ *  · KAPI BAĞLAMLI kalıplar (kapı / kutu / tuş paneli / "kapı aç-" + değer): değer bilgi tabanında geçse de SIZINTIDIR (kapı kodu Wi-Fi
+ *    şifresiyle aynı rakamlar olabilir — Haiku incelemesi 10-11).
+ *  · BAĞLAMSIZ kalıplar ("kodunuz 4590", "PIN: 4590", Wi-Fi'ye bağlanmayan "şifre 4590"): modele VERİLEN bilgi tabanı metninde zaten
+ *    geçen sayı sızıntı sayılmaz (o metin kapı süzgecinden geçmiştir).
+ */
+const DOOR_CONTEXT_IN_REPLY: readonly RegExp[] = [
+  new RegExp(`${DOOR_CODE_WORD.source}[^\\d\\n.]{0,20}?${KEY_DIGITS}`, "i"),
+  // Değer ÖNCE, kapı + kod sözcüğü SONRA: "4590 kapı kodudur", "4590'ı kapı kodu olarak girin" (Haiku 10-11).
+  new RegExp(`${KEY_DIGITS}(?:['’][a-zçğıöşü]{0,4})?\\s+(?:kap[ıi]|giri[şs]|anahtar\\s*kutu|keybox|door|gate)[a-zçğıöşü]{0,8}\\s+(?:kod|şifre|sifre|code|pin)`, "i"),
+  ...DOOR_SECRET_PATTERNS.filter((re) => re !== DOOR_CODE_WORD),
+].map((re) => new RegExp(`(?:${re.source})${NOT_PRICE_OR_YEAR}${NOT_YEAR_SUFFIX}`, "i"));
+const GENERIC_CODE_IN_REPLY = new RegExp(
+  `(?<![a-zçğıöşü0-9])(?<!(?:posta|postal|zip|qr|alan|area|indirim|promosyon|promo|discount|kupon|coupon|rezervasyon|onay|booking|confirmation|reservation|wi-?fi|wlan|internet|kablosuz)\\s{0,3})(?:kod[a-zçğıöşü]{0,8}|code|c[oó]digo|codice|pin|passcode|код)(?![a-zçğıöşü])[^\\d\\n.]{0,12}?(?<![a-zçğıöşü])${KEY_DIGITS}${NOT_PRICE_OR_YEAR}${NOT_YEAR_SUFFIX}`,
+  "i",
+);
+/** ↓Wi-Fi'ye bağlanmayan "şifre / parola / password" sözcüğünün değerindeki 4–8 hane (bağ ↑`secretLabels`). */
+const PASSWORD_WORDS = new Set(["sifre", "parola", "password", "passcode", "passwort", "kennwort"]);
+
+/** "4 5 9 0" / "4-5-9-0" → "4590" (tek hanelerin ayraçla yazımı; saat / tarih / telefon öbekleri çok hanelidir, dokunulmaz). */
+// Ayraç: boşluk (NBSP dahil), tire, nokta, eğik çizgi, orta nokta — "6.1.4.2", "6/1/4/2", "6\u00a01\u00a04\u00a02" (Haiku 10-14).
+const spacedDigits = (s: string) => s.replace(/(?<!\d)\d(?:[\s\-./·]\d){3,7}(?!\d)/g, (m) => m.replace(/\D/g, ""));
+
+/** Cevaptaki kapı kodu DEĞERLERİ (kapı bağlamlı: hepsi; bağlamsız: bilgi tabanında geçmeyenler). Boş dizi = sızıntı yok. */
+function doorCodeValues(raw: string, allowedTexts: readonly string[]): string[] {
+  // Y2 (10-14): Unicode rakamlar ASCII'ye iner — "Kapı kodu: ٦١٤٢" çıktı taramasından ve geçmiş maskesinden kaçıyordu.
+  const text = foldForSecretScan(raw);
+  const allowed = new Set(allowedTexts.flatMap((t) => foldForSecretScan(t).match(/\d{4,8}/g) ?? []));
+  const ascii = foldTurkishAscii(text);
+  const variants = [text, foldTurkishLower(text), ascii, spacedDigits(ascii)];
+  const out = new Set<string>();
+  const collect = (re: RegExp, keep: (d: string) => boolean) => {
+    const global = new RegExp(re.source, `${re.flags.replace("g", "")}g`);
+    for (const v of variants) for (const m of v.matchAll(global)) for (const d of m[0].match(/\d{4,8}/g) ?? []) if (keep(d)) out.add(d);
+  };
+  for (const re of DOOR_CONTEXT_IN_REPLY) collect(re, () => true);
+  collect(GENERIC_CODE_IN_REPLY, (d) => !allowed.has(d));
+  for (const v of [ascii, spacedDigits(ascii)]) {
+    for (const l of secretLabels(v)) {
+      if (l.wifi || !PASSWORD_WORDS.has(l.word)) continue;
+      for (const d of l.value.match(/(?<!\d)\d{4,8}(?!\d)/g) ?? []) if (!allowed.has(d)) out.add(d);
+    }
+  }
+  return [...out];
+}
+
+export function qrReplyHasDoorCode(reply: string, allowedTexts: readonly string[]): boolean {
+  if (!reply) return false;
+  if (reply.length > SECRET_SCAN_MAX_CHARS) return true; // doğrulanamayan → kod say (QR cevabı 2.000 karakterle sınırlı)
+  return doorCodeValues(reply, allowedTexts).length > 0;
+}
+
+/** Geçmişte gizlenen kodun yerine modele giden ifade (değer taşımaz). */
+export const REDACTED_DOOR_CODE = "(kod gizlendi)";
+
+/**
+ * GEÇMİŞTEKİ KAPI KODU MODELE GİTMEZ (kurucu kararı 10-11: "geçmişte kodu gizle"). Ev sahibinin / yapay zekânın QR sohbetine yazdığı
+ * kapı / kutu / giriş kodunun DEĞERİ (↑`doorCodeValues`, bilgi tabanı muafiyeti yok) "(kod gizlendi)" olur; mesajın geri kalanı aynı.
+ * Misafirin gördüğü geçmiş DEĞİŞMEZ — yalnız modele giden kopya. Ayraçlı yazım ("4 5 9 0") da gizlenir.
+ */
+export function redactDoorCodes(raw: string): string {
+  if (!raw) return raw;
+  // Y2 (10-14): modele giden kopyada Unicode rakamlar ASCII'ye iner (değer aranır ve gizlenir; misafirin gördüğü geçmiş değişmez).
+  const text = foldForSecretScan(raw);
+  // Tarama sınırının üstü (bugün hiçbir yazma yolu bu boyutta mesaj kabul etmez) → fail-closed: her 4–8 hane gizlenir.
+  if (text.length > SECRET_SCAN_MAX_CHARS) return text.replace(/(?<!\d)\d{4,8}(?!\d)/g, REDACTED_DOOR_CODE);
+  let out = text;
+  for (const value of doorCodeValues(text, [])) {
+    const spaced = value.split("").join("[\\s\\-./·]?"); // ↑spacedDigits ile aynı ayraçlar
+    out = out.replace(new RegExp(`(?<!\\d)${spaced}(?!\\d)`, "g"), REDACTED_DOOR_CODE);
+  }
+  return out;
+}
+
+function looksLikeSecret(text: string): boolean {
+  // 🚨 İÇERİĞİN TAMAMI TARANIR (Codex F02, P1 — 08-09'daki yarım düzeltmenin
+  // KAPANIŞI). Tarihçe: bu fonksiyon önce yalnız İLK 4.000 karakteri tarıyordu
+  // (08-07 (2), ReDoS kemeri); 08-09'da "sonda `Kapı kodu: 4590` geçiyor"
+  // ölçülünce İKİ UÇ (ilk 4.000 + son 4.000) taranır oldu ve gerekçesi şuydu:
+  // "ortaya gömmek için iki uçtan 4.000 dolgu gerekir, o da bütçeye çarpar".
+  // ⚠️ O GEREKÇE YANLIŞTI: `kbSchema.content` 20.000 karakter kabul ediyor, yani
+  // 18.000 karakterlik TEK bir kalemin ortası (4.000 < ofset < 14.000) sıradan
+  // uygulama girdisiyle ulaşılır ve HİÇ taranmıyordu; filtre "temiz" deyince
+  // özgün içeriğin TAMAMI modele gidiyordu. Codex 18.019 karakterlik kalemin
+  // ortasındaki sentetik kapı koduyla yeniden üretti.
+  //
+  // Yeni sözleşme: kabul edilen sınıra kadar TAMAMI taranır; sınırı aşan içerik
+  // hakkında hüküm VERİLMEZ → fail-closed elenir. "Taramadım ama geçsin" dalı
+  // artık yok. ReDoS kemeri bu üst sınırdır: ÖLÇÜLDÜ (24k adversarial girdi ×
+  // 6 kalıp × 3 katlama, tekrarlı "kapı"/"şifre"/near-miss rakam dolguları)
+  // kalem başına ≪ 50 ms — kalıpların nicelikleri sınırlı (asıl ReDoS düzeltmesi
+  // 08-07 (2)'de), yani maliyet doğrusala yakın.
+  if (text.length > SECRET_SCAN_MAX_CHARS) return true; // doğrulanamayan → sır say
+  const digits = foldForSecretScan(text); // Y2 (10-14): "Kapı: ٦١٤٢" / "Giriş ۶۱۴۲ ile açılır"
+  const variants = [digits, foldTurkishLower(digits), foldTurkishAscii(digits)];
+  return SECRET_PATTERNS.some((re) => variants.some((v) => re.test(v)));
+}
+
+/**
+ * Ev sahibinin STİL REHBERİNİ halka açık QR yüzeyi için temizle.
+ *
+ * ⚠️ BU MODÜLÜN DEĞİŞMEZİNİ KORUR (↑dosya başı): "sırlar bağlamdan TAMAMEN
+ * çıkarılır — 'modele söyleriz reddeder' DEĞİL; öyle ki kusursuz bir prompt
+ * injection'ın bile sızdıracak bir şeyi olmasın."
+ *
+ * `aiStyleProfile` bu değişmezi deliyordu (denetim, 08-01): rehber, ev sahibinin
+ * GEÇMİŞ MİSAFİR CEVAPLARINDAN (40 örneğe kadar) bir modelle damıtılıyor ve o
+ * cevaplar rutin olarak Wi-Fi şifresi, kapı kodu ve adres içeriyor. Damıtma
+ * isteminde "bunları ASLA koyma" YAZILI — ama bu bir MODEL RİCASI, deterministik
+ * bir garanti değil. Rehber QR yoluna olduğu gibi geçiyordu, yani bilgi tabanı
+ * için kurulan tüm sır-eleme çabası yan kapıdan atlanabiliyordu.
+ *
+ * Neden satır satır: rehber madde listesidir. Tamamını atmak üslup eşlemesini
+ * (özelliğin tek faydası) yok ederdi; yalnız sır-benzeri SATIRI atmak hem faydayı
+ * hem değişmezi korur. Hiçbir temiz satır kalmazsa null döner.
+ *
+ * Aşırı-eleme GÜVENLİ yöndür: en kötü ihtimalle AI biraz daha jenerik konuşur.
+ */
+/**
+ * Erişim sırrı taşıyan bilgi-tabanı kalemlerini eler.
+ *
+ * 🚨 İKİ ÇAĞIRAN, TEK KURAL (denetim 08-09). Bu eleme uzun süre YALNIZ QR
+ * concierge yolunda vardı. Kanal (Airbnb/Booking) oto-yanıtı bilgi tabanını
+ * SÜZMEDEN modele veriyordu ve rezervasyon ÖNCESİ soru soran biri (henüz
+ * rezervasyonu yok, `conversation.reservation === null`) için tek koruma
+ * prompt'taki bir paragraftı — üstelik önbellekli sistem önekindeki few-shot
+ * örneklerin BEŞİ wifi şifresini VEREREK gösteriyor. Prompt talimatı bir MODEL
+ * RİCASIDIR; bu fonksiyon deterministiktir.
+ *
+ * ⚠️ ONAYLI/TAMAMLANMIŞ konaklamada ÇAĞRILMAZ: rezervasyonu olan misafire kapı
+ * kodunu vermek ürünün ta kendisidir, kusur değil.
+ * ⚠️ ÖLÇÜLDÜ (12 kalemlik gerçekçi bilgi tabanı): düşen 2 — Wi-Fi ve Giriş
+ * Talimatı. Adres, acil telefon, otopark, çöp, ev kuralları, çevre, klima,
+ * çıkış, ulaşım, check-in saati HEPSİ kalıyor. Yani bedel tam olarak
+ * amaçlanan bedel; aday müşteri hâlâ cevap alabiliyor.
+ */
+export function withoutSecretKbItems<T extends { title: string; content: string }>(
+  items: T[],
+): T[] {
+  return items.filter((k) => !looksLikeSecret(`${k.title}\n${k.content}`));
+}
+
+/**
+ * Konaklamaya göre bilgi tabanının SIR KAPSAMI — oto-yanıt ve yönetici "AI öner" TEK kural (Codex 09-27: öneri rotası hiç
+ * elemiyordu; rezervasyonsuz / onaysız konuşmada Wi-Fi ve kapı kodu taslağa girip ev sahibi gönderirse aday misafire
+ * çıkabiliyordu). Onaylı / tamamlanmış konaklamada sır kalemi ürünün kendisidir (verilir); aksi hâlde İKİ bacak: kategori
+ * (`PREBOOKING_SECRET_CATEGORIES`) + içerik sezgiseli (`withoutSecretKbItems`). Yüklem `prompts.ts` `isConfirmedStay` ile aynı.
+ */
+export function kbForStayScope<T extends { category: string; title: string; content: string }>(
+  items: T[],
+  reservation: { status: string } | null | undefined,
+): T[] {
+  const confirmedStay = reservation != null && (reservation.status === "confirmed" || reservation.status === "completed");
+  if (confirmedStay) return items;
+  return withoutSecretKbItems(items.filter((i) => !(PREBOOKING_SECRET_CATEGORIES as readonly string[]).includes(i.category)));
+}
+
+/**
+ * SIR KAPSAMI İKİ AŞAMADA — HAM metin VE ad / daire yerleştirilmiş metin (B3, kurucu onayı 09-27: "hem ham metni hem isim
+ * yerleştirilmiş metni tara"). Kanal oto-yanıtı ile yönetici "AI öner" TEK kural; kalem iki taramanın İKİSİNDEN de geçmelidir.
+ * Ölçülen iki açık (rezervasyonsuz konuşma):
+ *  · oto-yanıt yalnız YERLEŞTİRİLMİŞ metni tarıyordu — misafirin uzun ADI (kendi kontrolünde) anahtar sözcükle değeri kalıbın
+ *    penceresinden çıkarıyordu: "Wi-Fi ağı {isim} için hazır, key: X9Q2AB" 33 harfli adla geçiyor, anahtar modele gidiyordu;
+ *  · öneri yalnız HAM metni tarıyordu — yerleştirme sır biçimi üretebilir: "Kapı: {daire}" + "Daire 4590" → "Kapı: 4590".
+ * Onaylı / tamamlanmış konaklamada iki aşama da no-op (sır ürünün kendisidir). Dönen kalemler HAM hâlindedir: seçim ham metinle
+ * koşar, değerler seçimden SONRA yerleştirilir (`retrieveKbForPrompt` `placeholders`). QR yolu zaten iki aşamalı (her zaman).
+ */
+export function kbForStayScopeRawAndFilled<T extends { id: string; category: string; title: string; content: string }>(
+  raw: T[],
+  reservation: { status: string } | null | undefined,
+  placeholders: GuestPlaceholderValues,
+): T[] {
+  const rawScoped = kbForStayScope(raw, reservation); // aşama 1: ham metin
+  const filledOk = new Set(kbForStayScope(fillGuestPlaceholdersInItems(rawScoped, placeholders), reservation).map((i) => i.id)); // aşama 2
+  return rawScoped.filter((i) => filledOk.has(i.id));
+}
+
+/**
+ * Üslup profilinde ERİŞİM BİLGİSİ anan satır (15 ajan A07, 10-01 — ölçüldü): sır süzgeci DEĞER biçimine bakar; "Wi-Fi: LaleEv /
+ * denizkenari" ve "Ağ adı LaleEv, şifre denizkenari diye paylaşır" (rakamsız, iki noktasız şifre) geçiyordu. Profil yalnız üsluptur
+ * (F13 — olgu kaynağı DEĞİL): şifre / Wi-Fi / kod / tuş takımı / anahtar kasası anan satır değer görünmese de düşer. Katlanmış metin.
+ */
+const STYLE_CREDENTIAL_LINE = new RegExp(
+  `(?<![\\p{L}\\p{N}])(?:${[
+    "sifre\\p{L}{0,8}",
+    "parola\\p{L}{0,6}",
+    "wi-?fi",
+    "wlan",
+    "ssid",
+    "ag adi\\p{L}{0,6}",
+    "kod(?:u|unu|lari|larini|unuz)?",
+    "pin",
+    "tus takim\\p{L}{0,4}",
+    "anahtar (?:kasa|kutu)\\p{L}{0,4}",
+    "kilit kutu\\p{L}{0,4}",
+    "kombinasyon\\p{L}{0,4}",
+    "pass(?:word|code|key)s?",
+    "network name",
+    "(?:door|entry|access|gate) code",
+    "keypad",
+    "lockbox",
+    "key (?:safe|box)",
+    "combination",
+    "passwort",
+    "kennwort",
+    "zugangscode",
+    "turcode",
+    "tastenfeld",
+    "schlusselsafe",
+    "mot de passe",
+    "digicode",
+    "code d'acces",
+    "contrasena",
+    "codigo de acceso",
+    "пароль",
+    "код\\p{L}{0,3}",
+    "كلمة (?:السر|المرور)",
+  ].join("|")})(?![\\p{L}\\p{N}])`,
+  "u",
+);
+
+function styleFold(s: string): string {
+  return s.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase().replace(/ı/g, "i");
+}
+
+export function scrubStyleProfileForPublic(profile: string | null | undefined): string | null {
+  const raw = profile?.trim();
+  if (!raw) return null;
+  const kept = raw
+    .split(/\r?\n/)
+    .filter((line) => line.trim() && !looksLikeSecret(line) && !STYLE_CREDENTIAL_LINE.test(styleFold(line)));
+  const out = kept.join("\n").trim();
+  return out.length > 0 ? out : null;
+}
+
+/**
+ * DÖRT AI YÜZEYİNİN TEK GİRİŞİ (kanal oto-yanıtı, gelen kutusu önerisi, Ayarlar testi, QR): kayıtlı profilden isteme
+ * girebilecek metin. Önce SÜRÜM kuralı (F13, `ai/style-profile.ts`: eski — işaretsiz — profil org genelinden damıtılmış
+ * olgular taşıyabilir → hiç girmez), sonra satır bazlı sır süzgeci. Yüzeyler kayıtlı alanı doğrudan süzgece VERMEZ
+ * (yapısal pin `style-profile-channel-scrub.test.ts`).
+ */
+export function styleProfileForPrompt(stored: string | null | undefined): string | null {
+  const scrubbed = scrubStyleProfileForPublic(styleProfileBody(stored));
+  if (!scrubbed) return null;
+  // 🚨 TALİMAT SATIRI İSTEME GİRMEZ (inceleme b4, 09-30): profil yalnız sürüm işareti + sır süzgecinden geçiyordu — bilgi
+  // tabanına uygulanan talimat-ele-geçirme süzgeci ("Ignore all previous instructions…", "Yeni rolün: …") ve sahte geçmiş
+  // etiketi ("[OPERATİF]: …") profilde hiç koşmuyordu. Profil yalnız üsluptur; talimat taşıyan satır düşer, üslup satırları kalır.
+  const kept = scrubbed.split("\n").filter((line) => !detectKbInstructionHijack(line) && !detectPromptInjection(line));
+  const out = kept.join("\n").trim();
+  return out.length > 0 ? out : null;
+}
+
+/** Geçerli QR sohbet belirteci biçimi (üretilen: 64 onaltılık); eski / elle girilmiş belirteçler için harf-rakam ve `_-` da kabul. */
+const GUEST_CHAT_TOKEN_SHAPE = /^[A-Za-z0-9_-]{16,200}$/;
+
+/** Unguessable per-apartment chat token — two UUIDs, ~256-bit (icalToken style). */
+export function generateChatToken(): string {
+  return (crypto.randomUUID() + crypto.randomUUID()).replace(/-/g, "");
+}
+
+// ---------------------------------------------------------------------------
+// Per-stay device binding (fixes the fixed-physical-QR history leak).
+//
+// The QR is a FIXED, physically-posted bearer credential, so it cannot tell one
+// person from another: a past guest / cleaner who photographed it could scan it
+// during the NEXT guest's stay and read that guest's live chat history. The fix
+// is first-scan device binding: the FIRST device to open the chat during a stay
+// mints a per-stay secret (kept in an httpOnly cookie); only that device sees
+// the history / can send. Any other device scanning the same QR that stay gets
+// "mismatch" → no history, no send. Rotates automatically — each reservation
+// starts unbound, so a secret captured in one stay is useless the next.
+// ---------------------------------------------------------------------------
+
+/** Fresh per-stay device secret — two UUIDs, ~256-bit (goes into the cookie). */
+export function generateStaySecret(): string {
+  return (crypto.randomUUID() + crypto.randomUUID()).replace(/-/g, "");
+}
+
+function hashStaySecret(secret: string): string {
+  return createHash("sha256").update(secret).digest("hex");
+}
+
+/** Constant-time compare of two equal-length hex digests (defence in depth). */
+function safeEqualHex(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  try {
+    return timingSafeEqual(Buffer.from(a, "hex"), Buffer.from(b, "hex"));
+  } catch {
+    return false;
+  }
+}
+
+export type StayBinding =
+  | { status: "bound"; secret: string } // we just claimed this stay → caller sets the cookie
+  | { status: "match" } //                 the presented secret matches the bound device
+  | { status: "mismatch" } //              a DIFFERENT device already holds this stay
+  | { status: "unclaimed" }; //            unbound AND claiming was withheld (PIN gate: allowClaim=false)
+
+/**
+ * Claim-or-verify a stay's chat for the calling device. Unbound → mint a secret
+ * and atomically claim the stay (returns it so the route can set the cookie).
+ * Already bound → "match" iff the presented cookie secret is the one that claimed
+ * it, else "mismatch". The claim is a conditional updateMany (only succeeds while
+ * still unbound), so two devices racing the first scan can't both win — mirrors
+ * the TOTP-burn / lock-acquire pattern used elsewhere.
+ */
+export async function bindOrCheckStay(
+  reservationId: string,
+  presentedSecret: string | null | undefined,
+  // REQUIRED (Codex 2): no default. Every callsite must state its intent — a
+  // forgotten opts object previously fell through to "claim", so a new caller
+  // added on the PIN-required path could have silently bound a stay without a
+  // PIN. Making this explicit turns that into a compile error.
+  opts: { allowClaim: boolean },
+): Promise<StayBinding> {
+  const row = await prisma.reservation.findUnique({
+    where: { id: reservationId },
+    select: { chatBoundHash: true },
+  });
+  if (!row) return { status: "mismatch" };
+
+  if (row.chatBoundHash) {
+    if (presentedSecret && safeEqualHex(hashStaySecret(presentedSecret), row.chatBoundHash)) {
+      return { status: "match" };
+    }
+    return { status: "mismatch" };
+  }
+
+  // Unbound. When claiming is WITHHELD (PIN gate, Faz 5): report "unclaimed" so
+  // the caller can require a PIN before anyone binds — WITHOUT this device
+  // silently winning the stay just by scanning first. Callers on the old
+  // first-scan-wins path pass { allowClaim: true } explicitly.
+  if (!opts.allowClaim) return { status: "unclaimed" };
+
+  // Unbound → mint a FRESH secret (rotation: never reuse a previous stay's cookie
+  // as this stay's binding) and claim atomically.
+  const secret = generateStaySecret();
+  const claimed = await prisma.reservation.updateMany({
+    where: { id: reservationId, chatBoundHash: null },
+    data: { chatBoundHash: hashStaySecret(secret), chatBoundAt: new Date() },
+  });
+  if (claimed.count === 1) return { status: "bound", secret };
+
+  // Lost the first-scan race: another device bound between our read and write.
+  // Re-check the now-set hash against whatever this device holds.
+  const now = await prisma.reservation.findUnique({
+    where: { id: reservationId },
+    select: { chatBoundHash: true },
+  });
+  if (now?.chatBoundHash && presentedSecret && safeEqualHex(hashStaySecret(presentedSecret), now.chatBoundHash)) {
+    return { status: "match" };
+  }
+  return { status: "mismatch" };
+}
+
+/** "HH:MM" → minutes since midnight (tolerant of a single-digit hour). */
+function hhmmToMinutes(s: string): number {
+  const m = /(\d{1,2}):(\d{2})/.exec(s ?? "");
+  return m ? Number(m[1]) * 60 + Number(m[2]) : 0;
+}
+
+/** Current wall-clock time in the ORG's timezone as minutes since midnight. */
+function nowMinutesInTz(now: Date, tz: string): number {
+  const hhmm = new Intl.DateTimeFormat("en-GB", {
+    timeZone: tz,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(now);
+  return hhmmToMinutes(hhmm);
+}
+
+export interface GuestChatContext {
+  property: {
+    id: string;
+    organizationId: string;
+    name: string;
+    checkInTime: string;
+    checkOutTime: string;
+    address: string | null;
+    city: string | null;
+    /** Misafire görünen ad (U4) — QR başlığı. İç ad (`name`) ekrana ASLA çıkmaz; boş → yalnız marka. */
+    guestDisplayName: string | null;
+  };
+  /** True only during an active stay (arrival day → checkOutTime on departure day,
+   *  Istanbul). When false the chat is closed (vacant / before check-in / after
+   *  checkout) and answers nothing. */
+  open: boolean;
+  /** The guest currently in residence, if any. */
+  activeReservation: {
+    id: string;
+    guestName: string;
+    /** Kanalın ayrı hitap adı (migration 57) — YALNIZ modele giden metinden adı silmek için; yanıta konmaz. */
+    guestGivenName?: string | null;
+    arrivalDate: Date;
+    departureDate: Date;
+    status: string;
+    /** Kanal etiketi — YALNIZ doğrulanmış uzatmanın Channel Layer kararına girdi (`guestChangeRequestPath`); yanıta konmaz. */
+    channel?: string | null;
+  } | null;
+  /**
+   * Sohbet KAPALIYKEN şu anı kapsayan İPTAL EDİLMİŞ konaklama (kurucu 10-12: "iptal edilmişse AI yanıtlamasın, hosta söylesin; gene de
+   * yazarsa AI cevap vermesin, kullanım hakkından yemesin, hosta bildirsin"). YALNIZ sunucu içi — hiçbir yanıta / sayfaya konmaz
+   * (misafire "iptal" bilgisi verilmez; QR'ı tarayan rezervasyon sahibi olmayabilir).
+   */
+  cancelledStay?: { id: string; guestName: string } | null;
+  /** Active KB items with secret-bearing categories removed. */
+  /**
+   * İsteme giden kalemler. `id`/`updatedAt` YALNIZ yetkili iç denetim kanıtı
+   * içindir (`buildKbEvidence` → `RiskEvent.kbEvidenceJson`); istem metnine
+   * girmez (`packKnowledgeBase` yalnız category/title/content okur) ve
+   * misafire dönen yanıt gövdesine KONMAZ.
+   */
+  knowledgeBase: { id: string; category: string; title: string; content: string; updatedAt: Date }[];
+  /** Adet tavanı yüzünden istemin dışında kalan kalem sayısı (istem bunu modele söyler). */
+  knowledgeBaseDropped: number;
+  /**
+   * A2 — aktif ama ONAY KAPISINDAN geçmeyen kalem sayısı. "Bilgi yok" ile
+   * "bilgi var, onay bekliyor" ayrımı için; istemde KULLANILMAZ, yalnız karar
+   * kaydına (`RiskEvent`) gider.
+   */
+  knowledgeBasePendingApproval: number;
+  /**
+   * A2 — isteme giren kalemlerin en yeni `updatedAt`'i. SÜRÜM KİMLİĞİ DEĞİL,
+   * tazelik işareti; "hangi bilgiye dayandı" sorusunu `knowledgeBase`ten
+   * üretilen kanıt yanıtlar (`buildKbEvidence`). Misafire AÇILMAZ.
+   */
+  knowledgeBaseNewestUpdatedAt: Date | null;
+  /** Yapay zekâyı ele geçirme ifadesi yüzünden istemden çıkarılan kalem sayısı (karar kaydı için). */
+  knowledgeBaseHijackScreened: number;
+  /** True when this stay must present a PIN before it can be claimed on a device
+   *  (Faz 5). Derived: QR_PIN_ENABLED env on AND (this reservation has a PIN OR the
+   *  org runs strict mode). NEVER exposes the hash — only the boolean gate. */
+  pinRequired: boolean;
+}
+
+/**
+ * Resolve a public chat token to its apartment + secret-free knowledge base +
+ * the currently-staying reservation. Returns null when the token is missing,
+ * too short, unknown, or the apartment's chat is disabled — so an invalid or
+ * switched-off token is indistinguishable from a 404.
+ *
+ * The token is globally unique, so it resolves to exactly one apartment in one
+ * organization; there is no cross-tenant path.
+ */
+/**
+ * ESKALASYON CEVABI — SÖZ, GERÇEĞE UYGUN OLMAK ZORUNDA (denetim 08-01 + Codex 09-08).
+ *
+ * Metin bir dönem KOŞULSUZ "ev sahibine ilettim" diyordu; 08-01'de bayrağa
+ * bağlandı (`QR_ESCALATION_EMAIL_ENABLED` kapalıyken doğru metin). 09-08 canlı
+ * turunda BAYRAK AÇIKKEN de yanlış beyan olduğu ölçüldü: e-posta o an
+ * gönderilmemiş olabilir ve KOD BUNU BİLMEZ — olay-kimliği dedupe, 5 dk
+ * anti-flood cooldown, alıcı yokluğu (org alertEmail + owner boş) ve sağlayıcı
+ * hatası dallarının hepsi sessizce `{sent:false}` döner. Üstelik yanıt metni
+ * kayıt transaction'ında, e-posta çağrısından ÖNCE yazılır ve
+ * `sendQrEscalationAlertBounded` `Promise<void>` döndürür — sonuç hiç okunmaz.
+ * Canlı transkriptte dört ardışık devirde dördü de "ilettim" dedi; cooldown
+ * yüzünden en fazla biri mail üretmiş olabilir.
+ *
+ * Bu yüzden metin artık YALNIZ garanti edileni söyler: mesaj kaydedildi ve ev
+ * sahibi sohbet ekranından görür (kayıt, yanıtla AYNI transaction'da yazılır).
+ * E-posta bir BONUS kanaldır; sözü verilmez.
+ *
+ * KALAN İŞ (ayrı tur): e-posta gerçekten gönderildiğinde metni zenginleştirmek —
+ * alert çağrısının kayıttan ÖNCE koşmasını ve olay kimliğinin mesaj id'sinden
+ * bağımsız üretilmesini gerektirir.
+ */
+// ---------------------------------------------------------------------------
+// QR BAĞLAM PENCERESİ (kurucu AI kalite turu, 2026-09-08).
+//
+// Sınır TUR değil MESAJ cinsindendir — eski `QR_HISTORY_CAP = 12` yaklaşık 6 tur
+// taşıyordu ve adı da bunu söylemiyordu. Modelin bağlam penceresi buna kıyasla
+// çok geniş; yine de sınırsız geçmiş doğru değil: uzun bağlamda ortadaki bilgi
+// silikleşir ve her istek pahalılaşır. Bu yüzden İKİ sınır birlikte uygulanır ve
+// hangisi önce dolarsa o keser (en YENİ mesajlar korunur).
+export const QR_HISTORY_MESSAGE_CAP = 24; // ≈ 12 tur
+export const QR_HISTORY_CHAR_CAP = 8_000;
+/** Pencere DIŞINDA açık konu aranırken taranacak en fazla mesaj (maliyet tavanı). */
+const QR_TOPIC_SCAN_CAP = 120;
+/**
+ * Konu taramasında SINIFLANDIRILACAK misafir metninin toplam karakter bütçesi (en YENİ
+ * mesajlardan geriye). 🚨 09-23 denetimi, ÖLÇÜLDÜ: tarama döngüsü sayı tavanına rağmen
+ * KARAKTER bütçesi taşımıyordu ve her POST'ta 120 mesaja kadar `classifyFallback`
+ * çalıştırıyordu. Misafir 2.000 karakterlik düşmanca mesajlar biriktirince (aşım POST'ları
+ * da kaydediliyor) tek pencere kurulumu eski sınıflandırıcıyla ~20 SN, hızlandırılmışıyla
+ * bile ~2,7 sn paylaşılan süreci donduruyordu. Pencerenin KENDİSİ zaten "sayı + karakter,
+ * hangisi önce dolarsa" kuralıyla çalışıyor; tarama bunun eksik yarısıydı.
+ * Olağan sohbeti ETKİLEMEZ: 120 kısa mesaj (~150 karakter) bütçenin altında kalır.
+ * Bütçenin gerisinde kalan eski mesaj, sayı tavanının gerisindeki gibi taranmaz —
+ * bedeli yalnız bir bağlam notudur (devir/güvenlik kararına girmez).
+ */
+export const QR_TOPIC_SCAN_CHAR_BUDGET = 24_000;
+
+/** Modelin göreceği tek bir geçmiş satırı (yön mesajın KENDİ alanından gelir). */
+export interface GuestChatHistoryItem {
+  direction: "inbound" | "outbound";
+  body: string;
+  /** Yazar (güvenilir alan, `historyAuthorOf`) ve yazıldığı an — F14; istemde yalnız Konuşma Anlama Durumu bayrağıyla. */
+  author?: "guest" | "host" | "ai" | "automation";
+  at?: Date;
+}
+
+export interface GuestChatContextWindow {
+  history: GuestChatHistoryItem[];
+  /**
+   * Pencere DIŞINA taşan, misafirin CEVAPSIZ/KAPANMAMIŞ konularının kapalı-küme
+   * kategori kodları (PII YOK — metin taşınmaz). Amaç: uzun sohbette eski bir
+   * şikâyet sessizce kaybolmasın. Bu bir DEVİR sebebi DEĞİLDİR; kapı yalnız
+   * GÜNCEL mesaja bakar, yani geçmiş şikâyet sonraki bağımsız soruyu engellemez.
+   */
+  openTopics: string[];
+  /**
+   * Bu sohbette misafire DAHA ÖNCE cevap gitti mi?
+   *
+   * 🚨 SAYIM PENCEREYE DEĞİL KONUŞMANIN TAMAMINA bakar. Pencere bir GÖSTERİM
+   * tavanıdır (`QR_HISTORY_MESSAGE_CAP`/`QR_TOPIC_SCAN_CAP`), gerçeğin kaynağı
+   * değil: uzun bir sohbette ilk cevap pencerenin dışına düşerse "hiç cevap
+   * vermedik" sanır ve asistan yeniden selamlardı — düzeltmeye çalıştığımız
+   * kusurun ta kendisi.
+   *
+   * Sistem olayı ve boş gövdeli satır CEVAP SAYILMAZ: misafir onları görmez.
+   */
+  hasPriorOperatorReply: boolean;
+  /**
+   * Bağlam kurucu tanısı (kurucu talimatı bağlam sözleşmesi madde 11; `ai/context-diagnostics.ts`) — taranan satırlar (en fazla
+   * `QR_TOPIC_SCAN_CAP`) üzerinden: dahil kimlikler, tarama içinde pencere dışı kalan, bekleyen; eski hafıza = pencere dışı açık konu notu.
+   * Metin YOK. Yalnız üretim izine yazılır.
+   */
+  diagnostics?: ContextDiagnostics;
+}
+
+/**
+ * "Bu konu kapandı" işareti — YALNIZ açık-konu hesabı için, dar ve deterministik.
+ *
+ * ⚠️ `isClosingAck` BİLEREK genişletilmedi: o, güvenlik tarafında kullanılan bir
+ * BEYAZ LİSTEDİR ve deponun kuralı gereği katlama/gevşetme uygulanmaz
+ * (CLAUDE.md). Ölçüldü: "buldum teşekkürler" ve "tamam düzeldi" orada `false`
+ * dönüyor — kurucunun canlıda gördüğü kapanış cümleleri tam da bunlar. Bu
+ * yardımcı yalnız "eski şikâyeti gündemde tutayım mı" sorusunu etkiler; hiçbir
+ * devir/oto-gönderim kararına girmez, yani yanılması güvenlik açığı üretmez.
+ */
+// SOHBET KAPANIŞI ≠ SORUN ÇÖZÜMÜ (Codex, 09-08). Nezaket kapanışı ("teşekkürler")
+// bir BİLGİ konusunu kapatır; ama klimanın onarıldığını SÖYLEMEZ. Operasyonel bir
+// şikâyeti yalnız ÇÖZÜM BİLDİREN bir cümle kapatabilir ("düzeldi", "halloldu").
+// Aksi hâlde asistan, host hiçbir şey yapmamışken sorunu çözülmüş sayardı.
+const CHAT_CLOSURE_WORDS = ["teşekkür", "tesekkur", "sağol", "sagol", "thanks", "thank you", "buldum", "tamamdır", "tamamdir"];
+const RESOLUTION_WORDS = [
+  "düzeldi", "duzeldi", "halloldu", "hallettim", "çözüldü", "cozuldu", "onarıldı", "onarildi",
+  "tamir edildi", "geldi", "getirildi", "çalışıyor", "calisiyor", "sorun kalmadı", "sorun kalmadi",
+];
+/** Yalnız BİLGİ konularını kapatan nezaket kapanışı. */
+function looksLikeChatClosure(body: string): boolean {
+  if (isClosingAck(body)) return true;
+  const text = body.trim();
+  if (text.length > 80 || text.includes("?")) return false; // soru = kapanış değil
+  const folded = foldTurkishLower(text);
+  return CHAT_CLOSURE_WORDS.some((w) => folded.includes(foldTurkishLower(w)));
+}
+/** Operasyonel konuyu da kapatabilen ÇÖZÜM bildirimi. */
+function looksLikeResolution(body: string): boolean {
+  const text = body.trim();
+  if (text.length > 120 || text.includes("?")) return false;
+  const folded = foldTurkishLower(text);
+  return RESOLUTION_WORDS.some((w) => folded.includes(foldTurkishLower(w)));
+}
+/** Kapanış cümlesi mi (hangi türde olursa olsun)? */
+function looksLikeTopicClosure(body: string): boolean {
+  return looksLikeChatClosure(body) || looksLikeResolution(body);
+}
+/** Bu konular yalnız ÇÖZÜM bildirimiyle kapanır (nezaket kapanışı yetmez). */
+const OPERATIONAL_INTENTS = new Set(["complaint", "refund", "early_departure", "human_request"]);
+
+/** Açık konu olarak taşınabilecek kapalı küme (kategori kodu, serbest metin değil). */
+const OPEN_TOPIC_INTENTS = new Set(["complaint", "refund", "early_departure", "human_request"]);
+
+/**
+ * Sohbetin modele verilecek penceresini kurar.
+ *
+ * · KRONOLOJİK; eşit `createdAt` damgalarında `id` kopma noktasıyla DETERMİNİSTİK
+ *   (QR yolu misafir+bot satırını tek transaction'da yazar → damgalar eşit olabilir).
+ * · Sistem olayları ve gövdesiz satırlar dışarıda.
+ * · Güncel mesaj burada YOKTUR: sohbet, misafirin mesajı yazılmadan ÖNCE okunur.
+ */
+export async function buildGuestChatContextWindow(conversationId: string): Promise<GuestChatContextWindow> {
+  // İkinci sorgu bilinçli: "daha önce cevap verdik mi" sorusu TARAMA TAVANINDAN
+  // bağımsız olmalı (bkz. `hasPriorOperatorReply`). Küçük, indeksli bir sayım ve
+  // hemen ardından saniyeler süren bir model çağrısı geliyor.
+  const [rows, priorOperatorReplies] = await Promise.all([
+    prisma.message.findMany({
+      where: { conversationId, systemEventType: null, NOT: { body: "" } },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      select: { id: true, direction: true, body: true, createdAt: true, authorType: true, senderName: true },
+      take: QR_TOPIC_SCAN_CAP,
+    }),
+    countPriorOperatorReplies(conversationId),
+  ]);
+  const chronological = rows.slice().reverse();
+
+  // Pencere: sondan başlayarak hem SAYI hem KARAKTER bütçesine uyan en uzun kuyruk.
+  const window: GuestChatHistoryItem[] = [];
+  let chars = 0;
+  for (let i = chronological.length - 1; i >= 0; i--) {
+    const r = chronological[i];
+    if (window.length >= QR_HISTORY_MESSAGE_CAP) break;
+    if (chars + r.body.length > QR_HISTORY_CHAR_CAP && window.length > 0) break;
+    window.unshift({
+      direction: r.direction === "inbound" ? "inbound" : "outbound",
+      body: r.body,
+      author: historyAuthorOf(r),
+      at: r.createdAt,
+    });
+    chars += r.body.length;
+  }
+
+  // ── AÇIK KONULAR: kapanış YALNIZ İLGİLİ konuyu kapatır ────────────────────
+  //
+  // 🚨 İlk sürüm hatalıydı (kurucu yakaladı): herhangi bir kapanış cümlesi TÜM
+  // açık konuları siliyordu. "Klima bozuk → havlu nerede? → teşekkürler"
+  // dizisinde teşekkür ARADAKİ soruya aittir; klima şikâyetini kapatmamalı.
+  //
+  // YAKINLIK KURALI (deterministik, sınıflandırıcısız): sohbet kronolojik
+  // taranır; misafirin açtığı her konu bir yığına eklenir, misafirin yazdığı
+  // her kapanış cümlesi yığının EN ÜSTÜNDEKİ (en son açılan) konuyu kapatır.
+  // Böylece "klima düzeldi, teşekkürler" klimayı kapatır; araya başka bir konu
+  // girmişse kapanış onu kapatır ve şikâyet açık kalır.
+  // ⚠️ Kapanışın hangi konuya ait olduğunu METİNDEN çıkarmıyoruz: "teşekkürler"
+  // konu taşımaz. Yakınlık, elde olan tek dürüst sinyaldir; yanılması hâlinde
+  // bedeli yalnız bir bağlam notudur (devir/güvenlik kararına girmez).
+  // Tarama başlangıcı: en YENİDEN geriye, sınıflandırılacak MİSAFİR metni bütçeyi
+  // aşmadan gidilebilen en eski indeks (↑`QR_TOPIC_SCAN_CHAR_BUDGET`). Yalnız inbound
+  // sayılır — maliyeti sınıflandırma üretir ve yalnız misafir satırı sınıflanır.
+  let scanFrom = chronological.length;
+  for (let i = chronological.length - 1, budget = QR_TOPIC_SCAN_CHAR_BUDGET; i >= 0; i--) {
+    const r = chronological[i];
+    if (r.direction === "inbound") {
+      if (r.body.length > budget) break;
+      budget -= r.body.length;
+    }
+    scanFrom = i;
+  }
+  const openStack: { intent: string; index: number }[] = [];
+  for (let i = scanFrom; i < chronological.length; i++) {
+    const r = chronological[i];
+    if (r.direction !== "inbound") continue;
+    if (looksLikeTopicClosure(r.body)) {
+      const top = openStack[openStack.length - 1];
+      // Operasyonel konu (şikâyet, para, insan talebi) NEZAKET kapanışıyla
+      // kapanmaz — çözüm bildirimi ister. Yığın da bozulmaz: konu gündemde kalır.
+      if (top && OPERATIONAL_INTENTS.has(top.intent) && !looksLikeResolution(r.body)) continue;
+      openStack.pop();
+      continue;
+    }
+    // ⚠️ YIĞINA MİSAFİRİN HER KONUSU GİRER, yalnız "önemli" olanlar değil.
+    // İlk denemede yığın yalnız şikâyet/insan-talebi tutuyordu ve araya giren
+    // sıradan bir soru ("havlu nerede?") yer kaplamadığı için sonraki
+    // "teşekkürler" yine şikâyeti kapatıyordu (ölçüldü, test kırmızıydı).
+    // Kapanışın neye ait olduğunu belirleyen şey, o sırada gündemde olan SON
+    // konudur — sıradan sorular da gündemi işgal eder.
+    const c = classifyFallback(r.body);
+    const intent = c.isComplaint ? "complaint" : c.intent;
+    openStack.push({ intent, index: i });
+  }
+  // Yalnız pencere DIŞINDA açılmış olanlar taşınır: pencere içindekiler zaten
+  // geçmişin kendisinde görünüyor, ikinci kez anlatmaya gerek yok.
+  const firstWindowIndex = chronological.length - window.length;
+  const open = new Set(
+    openStack
+      .filter((t) => t.index < firstWindowIndex && OPEN_TOPIC_INTENTS.has(t.intent))
+      .map((t) => t.intent),
+  );
+  // Tanı: taranan satırlar = "konuşma"; pencere = taramanın son `window.length` satırı (yukarıdaki döngüyle AYNI sınır).
+  const scanned = chronological.map((r) => ({
+    id: r.id,
+    createdAt: r.createdAt,
+    direction: r.direction === "inbound" ? ("inbound" as const) : ("outbound" as const),
+    body: r.body,
+    author: historyAuthorOf(r),
+  }));
+  const diagnostics = contextDiagnostics(scanned, scanned.slice(scanned.length - window.length), { olderMemoryUsed: open.size > 0 });
+  return { history: window, openTopics: [...open].sort(), hasPriorOperatorReply: priorOperatorReplies > 0, diagnostics };
+}
+
+/**
+ * QR'da insana devredilen mesaja misafirin gördüğü cevap.
+ *
+ * 🚨 METİN BİR GÜVENLİK YÜZEYİDİR — sözleşme (test-pinli): geçmiş eylem iddiası
+ * YOK ("ilettim/iletildi"), gelecek taahhüdü YOK ("dönüş yapacağım"), ünlem YOK,
+ * kurumsal unvan YOK. Yalnız GARANTİ EDİLEN söylenir: mesaj kaydedildi ve host
+ * onu sohbet ekranından görebilir. (E-posta bayrağı açıkken bile dedupe/cooldown/
+ * alıcı-yok/sağlayıcı hatası onu bastırabilir; metin e-postadan ÖNCE yazılır.)
+ *
+ * 🚨 ACİL DURUM ile SIRADAN İSTEK AYRILDI (kurucu, 09-11: "acil durum ile
+ * istekleri ayır o zaman"). Eskiden yangın/gaz kaçağı ile "bir yastık daha
+ * alabilir miyiz?" misafire KARAKTERİ KARAKTERİNE aynı cümleyi aldırıyordu —
+ * üstelik ürün acil durumda ne diyeceğini ZATEN biliyordu: modelin ürettiği
+ * güvenlik yönergesi (`prompts.ts` ÖRNEK 12) kapıda atılıyor, yerine jenerik
+ * cümle konuyordu.
+ *
+ * `critical` dalı yalnız ÖNE bir TALİMAT ekler; çapa cümlesi aynen korunur.
+ * Talimat bizim yaptığımız/yapacağımız bir EYLEM İDDİASI değildir — misafire
+ * verilen bir yönergedir, o yüzden yukarıdaki beş kuralın hiçbirini ihlal etmez.
+ *
+ * ⚠️ Argümansız çağrı BUGÜNKÜ METNİ BİREBİR döndürür (mevcut pinler korunur).
+ * 🚨 TETİKLEYİCİ `isPhysicalEmergency` — `detectRiskType === "safety_emergency"`
+ * DEĞİL. Gerekçe ↓ orada yazılı; ilk yazımım o geniş ölçütü kullanıyordu ve
+ * inceleme turu İKİ ölçülmüş kusur çıkardı (öz-zarar + aşırı eşleşme).
+ */
+/**
+ * 🚨 FİZİKSEL ACİL DURUM — DAR, KENDİNE AİT liste (inceleme turu, 09-11).
+ *
+ * İlk yazımım tetikleyici olarak `detectRiskType(message) === "safety_emergency"`
+ * kullanıyordu. İnceleme turu bunun İKİ ÖLÇÜLMÜŞ KUSUR ürettiğini gösterdi ve
+ * ikisi de ürünün KENDİ yazılı kurallarına aykırıydı:
+ *
+ * 🚨 (1) ÖZ-ZARAR. `SAFETY_CRITICAL_WORDS` intihar/öz-zarar ifadelerini de
+ * `safety_emergency` yapar (`fallback.ts` "intihar · kendime zarar · ölmek
+ * istiyorum · kill myself · suicide …"). Oysa `prompts.ts` KURAL METNİ bu sınıf
+ * için AÇIKÇA şunu emrediyor: *"bir kriz-danışmanlığı metni de KURGULAMAZ …
+ * Taslak yalnızca NÖTR olsun … söz/teşhis/ACİL-TALİMAT İÇERMEZ. Asıl
+ * yönlendirmeyi (yerel acil servise başvuru …) EV SAHİBİNE söyle."* Yani
+ * "acil servisleri arayın" cümlesi kriz içindeki misafire GİTMEMELİ.
+ *
+ * 🚨 (2) `SAFETY_CRITICAL_WORDS` BİLEREK GENİŞ yazılmıştır ve gerekçesi kendi
+ * yorumunda iki kez yazılı: *"Over-matching is the safe side — it only ever
+ * withholds a holding-ack and forces the silent-escalate path."* O maliyet
+ * modeli bu yeni tüketiciyle ÇÖKERDİ: aşırı eşleşme artık misafire FARKLI BİR
+ * CÜMLE gönderir. Ölçülmüş çarpışmalar: "İnternet **düştü**" · "Havuz ne zaman
+ * **açıl**ıyor?" (bilinen `açıl`→`acil` ASCII katlama bug'ı, iş #51) ·
+ * "**Polis** merkezi nerede?" · "**Kaza** ile bardağı kırdım".
+ *
+ * Bu yüzden tetikleyici AYRI ve DAR bir listedir. Listede öz-zarar ifadesi
+ * YOKTUR — bu bir veto değil, YAPISAL bir garantidir: eşleşmesi mümkün değil.
+ *
+ * ⚠️ Girdi bilinçli olarak DAR: yalnız yangın/duman/gaz/su baskını/elektrik
+ * çarpması. Ölçülüp DIŞARIDA bırakılanlar (geri ekleme, gerekçesi var):
+ *   · `yanıyor` → "ışık yanıyor" / "soba yanıyor" (olağan bildirim)
+ *   · `bayıldı` → "manzaraya **bayıldım**" (Türkçede ÖVGÜ)
+ *   · çıplak `gaz` → "gazoz" · çıplak `sel` → "**sel**am" · çıplak `fire` →
+ *     "**fire**place" (gerçek bir olanak adı)
+ *   · `polis`/`ambulans`/`kaza`/`acil` → hepsi bilgi sorusunda geçiyor
+ * Bu listenin maliyet modeli `SAFETY_CRITICAL_WORDS`inkinin TERSİDİR: burada
+ * aşırı eşleşme BEDAVA DEĞİL, o yüzden dar taraf güvenli taraftır. Kaçırılan
+ * acil durum yine DEVREDİLİR ve host'a alarm gider — yalnız misafir ek yönergeyi
+ * görmez.
+ */
+const PHYSICAL_EMERGENCY_PATTERNS: readonly RegExp[] = [
+  /yang[ıi]n/u,
+  // YANGIN İFADELERİ (kurucu kararı 09-30; acil ağıyla aynı sınıf): yalnız yanma bildiren kalıplar — çıplak "ateş" ("ateşi var"
+  // = yüksek ateş) ve çıplak "alev" ("Alev" bir addır) YOK.
+  /alev\s+ald[ıi]/u,
+  /alevler/u,
+  /ate[şs]\s+(?:ald[ıi]|[çc][ıi]kt[ıi])/u,
+  /tutu[şs]tu/u,
+  /caught\s+fire/u,
+  /flames/u,
+  /duman\s+(var|geliyor|dolu)/u,
+  /gaz\s*(kokusu|ka[çc]a[ğg][ıi]|ka[çc][ıi]yor|kok[uy]or)/u,
+  /do[ğg]algaz\s*(kokusu|ka[çc]a[ğg][ıi])/u,
+  /su\s*bas(t[ıi]|[ıi]yor)/u,
+  /elektrik\s*[çc]arp(t[ıi]|[ıi]yor)/u,
+  /gas\s+leak/u,
+  /smell\s+(of\s+)?gas/u,
+  /there(?:'s| is)\s+a\s+fire/u,
+  /the\s+(flat|apartment|kitchen|room)\s+is\s+on\s+fire/u,
+  /flood(ed|ing)/u,
+];
+
+/**
+ * Mesaj FİZİKSEL bir acil durum bildiriyor mu? Saf, LLM'siz, deterministik.
+ * ⚠️ `detectRiskType`in yerini ALMAZ — o güvenlik kapısının kendisidir ve geniş
+ * kalmalıdır. Bu yüklem YALNIZ misafire giden devir METNİNİ seçer.
+ * 🚨 K6 (09-30): acil ağıyla AYNI bağlam kuralı (`neutralizeNonEmergency`) — güvenlik eşyası / çıkış YERİ sorusu ("Yangın
+ * söndürücü nerede?", "Yangın merdiveni nerede?") fiziksel acil değildir; mesajda olay işareti varsa ("…, mutfak yanıyor!") acil kalır.
+ */
+export function isPhysicalEmergency(message: string): boolean {
+  const folded = neutralizeNonEmergency(foldTurkishLower(message));
+  const ascii = neutralizeNonEmergency(foldTurkishAscii(message));
+  return PHYSICAL_EMERGENCY_PATTERNS.some((re) => re.test(folded) || re.test(ascii));
+}
+
+// 🚨 K10 (kurucu kararı 09-30, "Hiçbir şey gitmesin"): devir durumunda misafire "Mesajınız kaydedildi; ev sahibiniz …" GİTMEZ — yalnız
+// misafirin mesajı kaydedilir, ev sahibi QR sohbetleri panelinde görür. Fiziksel acildeki "Tehlike varsa hemen 112'yi arayın." istisnası
+// da KALKTI (kurucu kararı 10-11: "112 arayın yazmasın, yönlendirme olmayacak hiçbir şekilde") → devirde misafire HİÇBİR şey gitmez.
+// Tek kaynak korunur (testler ve çağıranlar "devir metni" sözleşmesini buradan okur): her durumda `null`.
+export function escalationReply(_opts?: { critical?: boolean }): string | null {
+  return null;
+}
+
+export async function resolveGuestChat(
+  token: string,
+  now: Date = new Date(),
+  /**
+   * `knowledgeBase: false` (#211, 09-27): bilgi tabanı çekilmez ve taranmaz — çıktının geri kalanı BİREBİR aynı. Yalnız "açık mı / hangi
+   * konaklama" bilgisini kullanan halka açık sayfa ve istemcinin 5 sn'de bir çağırdığı GET ucu içindir; her çağrıda 200 kaleme kadar
+   * okuma + iki tam sır taraması boşa gidiyordu (sayfa hız sınırsız). Cevap üreten POST TAM çözümler.
+   */
+  opts: { knowledgeBase?: boolean } = {},
+): Promise<GuestChatContext | null> {
+  // Belirteç biçimi sorgudan ÖNCE (10-01, 15 ajan incelemesi A04): `generateChatToken` yalnız [0-9a-f] üretir; "/c/%00…" gibi NUL ya da
+  // başka denetim karakteri taşıyan yol PostgreSQL'de sorgu hatasına (500 + alarm e-postası) dönüşüyordu. Biçim dışı = bulunamadı (404).
+  if (!token || token.length < 16 || !GUEST_CHAT_TOKEN_SHAPE.test(token)) return null;
+
+  const property = await prisma.property.findFirst({
+    where: { chatToken: token },
+    select: {
+      id: true,
+      organizationId: true,
+      name: true,
+      checkInTime: true,
+      checkOutTime: true,
+      address: true,
+      city: true,
+      guestDisplayName: true,
+      chatEnabled: true,
+      // Org strict-mode toggle (Faz 5): when on, EVERY not-yet-claimed stay needs
+      // a PIN. Read here so the PIN gate is computed in one place. timezone: the
+      // open-window (check-in/out hour gate) runs on the HOST'S local clock.
+      organization: { select: { qrChatPinRequired: true, timezone: true } },
+    },
+  });
+  if (!property || !property.chatEnabled) return null;
+
+  // Tie the QR concierge to premium access, using the SAME gate as every other
+  // paid AI surface (inbox reply / ai-suggest / test / translate / hazirlik) so
+  // the feature can't be stricter than the rest. When billing is enforced and the
+  // org's subscription has lapsed/canceled, the QR stops working (resolves to 404,
+  // exactly like a disabled chat). Grandfathered (no subscription — existing
+  // customers / founder) and active/trialing orgs are unaffected. DORMANT-SAFE:
+  // premiumAllowed is always true while BILLING_ENFORCED is off, so flipping that
+  // kill-switch restores the QR alongside everything else (getEntitlement().active
+  // would have kept blocking a canceled org even while dormant — the outlier this
+  // fixes).
+  if (!(await premiumAllowed(property.organizationId))) return null;
+
+  const propertyPublic = {
+    id: property.id,
+    organizationId: property.organizationId,
+    name: property.name,
+    checkInTime: property.checkInTime,
+    checkOutTime: property.checkOutTime,
+    address: property.address,
+    city: property.city,
+    // Okurken de aynı kural (elle DB'ye yazılmış görünmez karakter / uzun değer başlığa taşmasın).
+    guestDisplayName: normalizeGuestDisplayName(property.guestDisplayName),
+  };
+
+  // OPEN only during an active stay: from the arrival day through the property's
+  // checkOutTime on the departure day (Istanbul). Before check-in, after checkout,
+  // or while vacant → CLOSED. So a past guest who kept the QR can't keep using it,
+  // and it resets for the next guest automatically.
+  const candidates = await prisma.reservation.findMany({
+    where: {
+      propertyId: property.id,
+      status: { in: ["confirmed", "completed"] },
+      // Wide net; the precise open/closed decision is the org-zone day/time check (`isOpenNow`). Varış ağı 36 sa (ikinci
+      // inceleme 09-25): "yalnız tarih" iCal değeri D 12:00Z'dir; UTC+13/+14'te (Auckland yazı, Kiritimati) giriş saati
+      // 12:00–13:00 iken +12 sa ağı o satırı giriş anında DIŞARIDA bırakıyor, sohbet bir saat geç açılıyordu.
+      arrivalDate: { lte: new Date(now.getTime() + 36 * 60 * 60 * 1000) },
+      departureDate: { gte: new Date(now.getTime() - 24 * 60 * 60 * 1000) },
+    },
+    // Ascending (earliest arrival first): on a back-to-back turnover day the
+    // INCUMBENT stay wins until it checks out, then the next one takes over.
+    orderBy: { arrivalDate: "asc" },
+    // chatPinHash is selected ONLY to derive the pinRequired boolean below — it is
+    // stripped from the returned activeReservation (the hash never leaves this fn).
+    // `sourceReference` KVKK tombstone eşleşmesi için (↓DÖRDÜNCÜ INGRESS).
+    select: {
+      id: true,
+      guestName: true,
+      guestGivenName: true,
+      arrivalDate: true,
+      departureDate: true,
+      status: true,
+      channel: true,
+      chatPinHash: true,
+      sourceReference: true,
+    },
+  });
+
+  // Evaluate EVERY candidate, not just one row: the 12h look-ahead pulls the NEXT
+  // guest's reservation into the set before they arrive, so a bare findFirst(desc)
+  // would return that not-yet-started row and (a) CLOSE the chat for the guest
+  // currently on-site the afternoon before turnover, and (b) on turnover morning
+  // serve the on-site guest's thread under the next guest's id (cross-guest PII).
+  const tz = orgTimezone(property.organization?.timezone);
+  // Gün farkı TEK TARİH KURALIYLA (`calendarDateOf`, ikinci inceleme 09-25): saklı tarih (00:00Z / 12:00Z = yalnız tarih)
+  // org dilimine ÇEVRİLMEZ. Eski `daysUntilDate` onu çeviriyordu → New York'ta sohbet çıkıştan bir gün önce 11:00'de
+  // kapanıyor, girişten bir gün önce 15:00'te açılıyordu (devir akşamı çıkan misafir gelecek konaklamanın sohbetini
+  // sahiplenebiliyordu); Auckland'da iki uç da bir gün geç.
+  const today = todayKey(now, tz);
+  const isOpenNow = (r: { arrivalDate: Date; departureDate: Date }): boolean => {
+    const arrDiff = nightsBetween(today, calendarDateOf(r.arrivalDate, tz).key); // 0 = today, >0 future, <0 past
+    const depDiff = nightsBetween(today, calendarDateOf(r.departureDate, tz).key);
+    // Symmetric HARD gate (org-local clock): on the arrival day the chat only opens
+    // once the property's check-in time is reached — not from the day-start. This
+    // closes the turnover window (prev guest checked out, next guest not yet checked
+    // in) so a cleaner / past guest can't scan the fixed QR and claim the INCOMING
+    // stay's chat before the real guest arrives. Trade-off (documented): a host-
+    // approved EARLY check-in can't use the QR chat until the official check-in time.
+    const afterCheckin =
+      arrDiff < 0 ||
+      (arrDiff === 0 && nowMinutesInTz(now, tz) >= hhmmToMinutes(property.checkInTime));
+    const beforeCheckout =
+      depDiff > 0 ||
+      (depDiff === 0 && nowMinutesInTz(now, tz) < hhmmToMinutes(property.checkOutTime));
+    return afterCheckin && beforeCheckout;
+  };
+  // ── KVKK AÇIK SİLME KAPISI — DÖRDÜNCÜ INGRESS YOLU (P1 #2, 08-09 (2)) ─────
+  //
+  // 🚨 `erasure.ts`'in başlık yorumu "every tombstone-scoped ingress writer"
+  // deyip ÜÇ yol sayıyordu (hospitable-sync · iCal feed · elle .ics/.csv
+  // yüklemesi). QR concierge DÖRDÜNCÜSÜYDÜ ve kapısızdı: `loadErasureGuard`
+  // bu dosyada HİÇ geçmiyordu.
+  //
+  // Senaryo: misafir m.11 silme talebi yapar → `eraseReservationData` satırı
+  // maskeler + tombstone yazar → misafir (ya da dairedeki QR'ı tarayan biri)
+  // konaklama penceresi hâlâ açıkken QR'ı okutur → `ensureGuestChatConversation`
+  // YENİ bir Conversation açar ve `recordGuestChatExchange` YENİ Message satırları
+  // yazar. Silinmiş bir konaklama kendi kanalından geri doğar (Yön. m.8
+  // "tekrar kullanılamaz" şartının ihlali).
+  //
+  // İKİ BACAK, çünkü tek başına hiçbiri yetmiyor:
+  //   (a) `blocksSourceReference` — ASIL mekanizma, kardeş üç yolla aynı. Ama
+  //       `sourceReference` OLMAYAN (elle girilmiş) bir rezervasyonda ölü kalır.
+  //   (b) `guestName === ANON_NAME` — maskeleme sentinel'i. `sourceReference`
+  //       yoksa da çalışır ve `erasure.ts` ile `data-retention.ts` AYNI sabiti
+  //       yazdığı için iki rejimi birden kapsar.
+  // ⚠️ `blocksGuestStay` BİLİNÇLİ ÇAĞRILMIYOR: kişi anahtarları e-posta/telefon/
+  // sağlayıcı-id ve maskeleme onları ZATEN null'lamış olur → burada ölü kod
+  // olurdu (elle yükleme yolunun aynı gerekçesi).
+  const erasureGuard = await loadErasureGuard(property.organizationId);
+  const notErased = (r: { guestName: string; sourceReference: string | null }) =>
+    r.guestName !== ANON_NAME && !erasureGuard.blocksSourceReference(r.sourceReference);
+
+  const activeRow = candidates.filter(notErased).find(isOpenNow) ?? null;
+  const open = activeRow !== null;
+  // PIN gate (Faz 5): env master switch AND (this stay has a PIN OR org strict mode).
+  // Computed from the hash PRESENCE only; the hash itself is never returned.
+  const pinRequired =
+    open && qrPinEnabled() && (Boolean(activeRow.chatPinHash) || property.organization?.qrChatPinRequired);
+  // Strip chatPinHash from the exposed shape.
+  const activeReservation: GuestChatContext["activeReservation"] = activeRow
+    ? {
+        id: activeRow.id,
+        guestName: activeRow.guestName,
+        guestGivenName: activeRow.guestGivenName ?? null,
+        arrivalDate: activeRow.arrivalDate,
+        departureDate: activeRow.departureDate,
+        status: activeRow.status,
+        channel: activeRow.channel ?? null,
+      }
+    : null;
+
+  // Closed → return the property (so the page can show a branded "no active stay"
+  // screen) but no reservation and an empty knowledge base (nothing to answer).
+  if (!open) {
+    // İptal edilmiş konaklama AYNI pencere kuralıyla (`isOpenNow`) ve AYNI silme kapısıyla aranır. Pencerede onaylı / tamamlanmış BİR
+    // konaklama bile varsa (devir günü: iptal A çıkış sabahı + onaylı B öğleden sonra giriş) ARANMAZ — B'nin erken gelen misafiri A'nın
+    // iptal sohbetine düşmesin, ev sahibine yanlış "iptal" uyarısı gitmesin (Haiku 10-12). Yalnız işaret döner — sohbet yine KAPALI.
+    const confirmedNearby = candidates.filter(notErased).length > 0;
+    const cancelledRows = confirmedNearby ? [] : await prisma.reservation.findMany({
+      where: {
+        propertyId: property.id,
+        status: "cancelled",
+        arrivalDate: { lte: new Date(now.getTime() + 36 * 60 * 60 * 1000) },
+        departureDate: { gte: new Date(now.getTime() - 24 * 60 * 60 * 1000) },
+      },
+      orderBy: { arrivalDate: "asc" },
+      select: { id: true, guestName: true, arrivalDate: true, departureDate: true, sourceReference: true },
+    });
+    const cancelledRow = cancelledRows.filter(notErased).find(isOpenNow) ?? null;
+    return {
+      property: propertyPublic,
+      open: false,
+      activeReservation: null,
+      cancelledStay: cancelledRow ? { id: cancelledRow.id, guestName: cancelledRow.guestName } : null,
+      knowledgeBase: [],
+      knowledgeBaseDropped: 0,
+      knowledgeBasePendingApproval: 0,
+      knowledgeBaseNewestUpdatedAt: null,
+      knowledgeBaseHijackScreened: 0,
+      pinRequired: false,
+    };
+  }
+  if (opts.knowledgeBase === false) {
+    return { property: propertyPublic, open: true, activeReservation, knowledgeBase: [], knowledgeBaseDropped: 0, knowledgeBasePendingApproval: 0, knowledgeBaseNewestUpdatedAt: null, knowledgeBaseHijackScreened: 0, pinRequired };
+  }
+
+  // QR yolunda hiç tavan YOKTU — 60 aktif kayıtlı bir dairede istem sınırsız
+  // büyüyordu. Tek yol `ai/kb-fetch.ts` (tavan + kaç kalemin düştüğü).
+  // Gizli kategoriler WHERE'de eleniyor, yani tavan yalnız GÖSTERİLEBİLİR
+  // kalemler arasından seçiyor — slot israfı yok ve düşen sayısı da doğru.
+  // 🚨 U1 (b) (kurucu 10-22, "Olur 3'ü birden"): sohbet kodu İSTENMEYEN konaklamada (QR kodu kapalı ya da bu rezervasyona kod verilmemiş)
+  // Wi-Fi kalemi modele HİÇ girmez. O durumda sohbeti giriş saatinden sonra ilk açan cihaz bağlanır — bağlantıyı saklayan eski misafir /
+  // temizlikçi de olabilir. Wi-Fi sorusu ev sahibine kalır (model bilgiyi bilmez → "bilgim yok" misafire gitmez, devir). Kodla açılan
+  // konaklamada Wi-Fi bugünkü gibi verilir (↑dosya başı istisna). Kapı kodu her durumda zaten yok.
+  const kb = await fetchKnowledgeBaseForPrompt({
+    propertyId: property.id,
+    isActive: true,
+    category: { notIn: pinRequired ? [...QR_SECRET_CATEGORIES] : [...QR_SECRET_CATEGORIES, "wifi"] },
+  });
+  const { items: kbRaw, dropped: kbDropped } = kb;
+  // Drop any item whose text looks like an access secret, even in an allowed
+  // category — the public bearer-token surface must never have a DOOR code in context
+  // (Wi-Fi istisnası: yalnız kapı izi taşımayan `wifi` kalemi girer — `withoutQrSecretKbItems`, kurucu kararı 10-11).
+  const knowledgeBase = withoutQrSecretKbItems(kbRaw);
+  // ⚠️ İKİ AYRI ELEME, TEK SAYAÇ OLAMAZ (denetim, 07-31). `fetchKnowledgeBaseForPrompt`
+  // yalnız SQL tavanında düşenleri sayar; `looksLikeSecret` KATEGORİYE değil
+  // İÇERİĞE baktığı için tavanı geçmiş bir kalemi burada ayrıca eleyebiliyor.
+  // Bir süre yalnız SQL sayısı geçiliyordu → istemdeki "N kalem yer sınırı
+  // nedeniyle alınamadı, 'bilgi yok' DEME, insana devret" notu eksik sayıyla
+  // gidiyor, hiç düşmemiş göründüğünde ise HİÇ gitmiyordu. Yani bu modülün var
+  // olma sebebi olan arıza (AI'ın host'un yazdığı konuda emin dille "bilgim yok"
+  // demesi) tam da en halka açık yüzeyde açıktı.
+  // YER TUTUCU İKAMESİ — modele girmeden önce (09-10).
+  //
+  // Ölçülen boşluk: oto-yanıt ve inbox önerisi `{isim}`/`{daire}` çözüyordu, bu
+  // halka açık yüzey ÇÖZMÜYORDU → host'un karşılama şablonu KB'deyse misafire ham
+  // "{isim}" gidebiliyordu.
+  // 🚨 GERÇEK AD KULLANILMAZ: QR bağlantısı dairede asılıdır, sohbeti açan kişi
+  // rezervasyon sahibi olmayabilir (gerekçe `kb-placeholders.ts`) → nötr hitap.
+  //
+  // 🚨 SIR KAPISI İKİ KEZ ÇALIŞIR — HAM ve İKAME SONRASI (inceleme 09-10 düzeltmesi).
+  // İlk yazımda yalnız HAM içerik taranıyordu ("sır kapısının girdisi değişmesin" gerekçesiyle)
+  // ve ÖLÇÜLDÜ: mülk adı "Daire 4590" iken "Kapı: {daire}" kalemi modele **"Kapı: 4590"** olarak
+  // gidiyordu — `SECRET_PATTERNS`in tam da yakalamak için yazıldığı biçim (giriş adı + 4-8 hane).
+  // Oto-yanıt yolu ikameyi ÖNCE yapıp sonra elediği için aynı kalemi eliyordu: iki yüzey ARASINDA
+  // parite yoktu. Modülün değişmezi "modele giden metin taranmıştır" olduğundan ikame sonrası da
+  // taranır. Sızıntı üretmiyordu (enjekte edilen tek değerler nötr hitap ve zaten misafire dönen
+  // daire numarası) ama değişmez kırıktı. Yön fail-closed: şüpheli kalem düşer, sayıya girer.
+  const knowledgeBaseFilled = withoutQrSecretKbItems(
+    fillGuestPlaceholdersInItems(knowledgeBase, {
+      guestFirstName: GUEST_NAME_FALLBACK,
+      propertyName: property.name,
+    }),
+  );
+  const droppedTotal = kbDropped + (kbRaw.length - knowledgeBaseFilled.length);
+
+  return { property: propertyPublic, open: true, activeReservation, knowledgeBase: knowledgeBaseFilled, knowledgeBaseDropped: droppedTotal, knowledgeBasePendingApproval: kb.pendingApproval, knowledgeBaseNewestUpdatedAt: kb.newestUpdatedAt, knowledgeBaseHijackScreened: kb.hijackScreened, pinRequired };
+}
+
+/**
+ * Birden çok QR sohbeti için "AI duraklatıldı mı" durumunu OTORİTER hesaplar —
+ * thread'lerin mesajlarını çekmeden.
+ *
+ * Neden gerekli: liste ekranı rozeti önce satır başına son N mesajdan türetiyordu.
+ * Devir işareti o pencerenin dışında kaldığında (üstüne yalnız misafir mesajı
+ * gelmişse) rozet SESSİZCE kaybolabiliyordu. Müşteriye gösterilen bir rozetin
+ * "bazen yanlış" olması kabul edilebilir bir taviz değil (Codex).
+ *
+ * Nasıl kesin: `guestChatAiPausedFromMessages` zaten yalnız EN YENİ "misafir de
+ * AI de olmayan" mesaja bakar — host yanıtı ise duraklatılmış, AI-yeniden-etkin
+ * işareti ise etkin, hiç yoksa etkin. O tek satır konuşma başına DISTINCT ON ile
+ * getirilir: tek sorgu, konuşma başına tek satır, gövde okunmaz.
+ *
+ * Aday küme = OUTBOUND ve AI olmayan mesajlar. Misafir mesajları inbound olduğu
+ * için doğal olarak elenir; eski (authorType NULL) satırlarda AI, senderName ile
+ * ayrılır — resolveMessageAuthor ile aynı kural.
+ */
+export async function guestChatPausedByConversation(
+  conversationIds: string[],
+): Promise<Map<string, boolean>> {
+  const out = new Map<string, boolean>();
+  if (conversationIds.length === 0) return out;
+  const rows = await prisma.$queryRaw<
+    { conversationId: string; direction: string; senderName: string; authorType: string | null; systemEventType: string | null }[]
+  >(Prisma.sql`
+    SELECT DISTINCT ON ("conversationId")
+      "conversationId", "direction", "senderName", "authorType", "systemEventType"
+    FROM "Message"
+    WHERE "conversationId" IN (${Prisma.join(conversationIds)})
+      AND "direction" = 'outbound'
+      AND ("authorType" IS NULL OR "authorType" <> 'ai')
+      AND NOT ("authorType" IS NULL AND "senderName" IN (${Prisma.join([...LEGACY_AI_SENDER_NAMES])}))
+    ORDER BY "conversationId", "createdAt" DESC, "id" DESC
+  `);
+  for (const r of rows) {
+    // Tek satırlık zaman çizelgesi: fonksiyon sondan başa yürüdüğü için bu
+    // satırın verdiği cevap, tüm geçmişin vereceği cevapla AYNIDIR.
+    out.set(r.conversationId, guestChatAiPausedFromMessages([r]));
+  }
+  return out; // satırı olmayan konuşma → devir yok → AI etkin (varsayılan false)
+}

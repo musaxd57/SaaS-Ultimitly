@@ -1,0 +1,16 @@
+{
+  "note": "Bu dosya değişip itilince .github/workflows/claude-work.yml Claude çalışma paketini koşar (anahtar Actions sırrında). budgetUsd paket tavanı (en çok 95), taskBudgetUsd iş tavanları. request her koşuda +1.",
+  "request": 3,
+  "model": "claude-sonnet-5-5",
+  "tasks": [
+    "redteam"
+  ],
+  "budgetUsd": 10,
+  "taskBudgetUsd": {
+    "ping": 1,
+    "redteam": 9
+  },
+  "concurrency": 3,
+  "scenarioBatches": 24,
+  "redteamBatches": 9
+}

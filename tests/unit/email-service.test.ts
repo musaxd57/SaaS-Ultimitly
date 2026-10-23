@@ -1,0 +1,116 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { emailService } from "@/lib/email";
+
+// Fail-open hardening: the fire-and-forget send() must never echo the recipient /
+// subject / body / verification token to the logs in PRODUCTION without a provider
+// (a verification/reset link in Railway logs is an account-takeover vector). The DEV
+// console fallback is dev/test-only. A send failure logs a SECRET-FREE provider error.
+
+describe("EmailService.send — no PII/token in the production fallback or failure log", () => {
+  let errSpy: ReturnType<typeof vi.spyOn>;
+  let logSpy: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  const link = "<a href='https://x.example/verify?token=SEKRETTOKEN1234'>Doğrula</a>";
+
+  it("PRODUCTION + no provider: NEVER logs recipient/subject/body/token (secret-free only)", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("RESEND_API_KEY", "");
+    vi.stubEnv("EMAIL_HOST", "");
+    await emailService.send("victim@example.com", "E-postanı doğrula", link);
+    expect(logSpy).not.toHaveBeenCalled(); // no DEV echo in production
+    const logged = errSpy.mock.calls.flat().join(" ");
+    expect(logged).not.toContain("victim@example.com");
+    expect(logged).not.toContain("SEKRETTOKEN1234");
+    expect(logged).not.toContain("E-postanı doğrula");
+  });
+
+  it("DEV + no provider: echoes the link so it's usable locally", async () => {
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("RESEND_API_KEY", "");
+    vi.stubEnv("EMAIL_HOST", "");
+    await emailService.send("dev@example.com", "Verify", "<p>link</p>");
+    const logged = logSpy.mock.calls.flat().join(" ");
+    expect(logged).toContain("dev@example.com");
+  });
+
+  it("configured + send FAILS: logs a SCRUBBED provider error — the recipient is not leaked", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("RESEND_API_KEY", "re_test");
+    vi.stubEnv("EMAIL_HOST", "");
+    // A provider 4xx body that echoes the recipient (Resend/SMTP errors often do).
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("to: victim@example.com is not allowed", { status: 422 })));
+    await emailService.send("victim@example.com", "Verify", "<p>x</p>");
+    const logged = errSpy.mock.calls.flat().join(" ");
+    expect(logged).toContain("send failed");
+    expect(logged).not.toContain("victim@example.com"); // scrubbed → [EMAIL]
+  });
+});
+
+describe("Resend tekrar kimliği (kurucu 10-16, S6)", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+  function capture() {
+    const calls: Headers[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init?: RequestInit) => {
+        calls.push(new Headers(init?.headers));
+        return new Response("{}", { status: 200 });
+      }),
+    );
+    return calls;
+  }
+
+  it("anahtar verilince her istekte AYNI Idempotency-Key başlığı gider; verilmezse başlık yok", async () => {
+    vi.stubEnv("RESEND_API_KEY", "re_test");
+    const calls = capture();
+    await emailService.sendReporting("a@x.com", "Konu", "<p>x</p>", { idempotencyKey: "email-outbox/7f3a91b2-6d84-4e0c-9a52-18b7d6c403ef" });
+    await emailService.sendReporting("a@x.com", "Konu", "<p>x</p>", { idempotencyKey: "email-outbox/7f3a91b2-6d84-4e0c-9a52-18b7d6c403ef" });
+    await emailService.sendReporting("a@x.com", "Konu", "<p>x</p>");
+    expect(calls.map((h) => h.get("Idempotency-Key"))).toEqual([
+      "email-outbox/7f3a91b2-6d84-4e0c-9a52-18b7d6c403ef",
+      "email-outbox/7f3a91b2-6d84-4e0c-9a52-18b7d6c403ef",
+      null,
+    ]);
+  });
+
+  it("biçim dışı anahtar GÖNDERİLMEZ ama e-posta yine gider (başlık enjeksiyonu / aşırı uzunluk)", async () => {
+    vi.stubEnv("RESEND_API_KEY", "re_test");
+    const calls = capture();
+    const out1 = await emailService.sendReporting("a@x.com", "Konu", "<p>x</p>", { idempotencyKey: "kötü anahtar\r\nX: y" });
+    const out2 = await emailService.sendReporting("a@x.com", "Konu", "<p>x</p>", { idempotencyKey: "k".repeat(257) });
+    expect(out1.ok && out2.ok).toBe(true);
+    expect(calls.map((h) => h.get("Idempotency-Key"))).toEqual([null, null]);
+  });
+
+  it("Opus F9: Resend 409 tekrar kimliği çakışmaları ayrılır — farklı içerik (belirsiz, yeniden deneme boşuna) / eşzamanlı (sonra yeniden dene)", async () => {
+    vi.stubEnv("RESEND_API_KEY", "re_test");
+    const respond = (body: string, status: number) => vi.stubGlobal("fetch", vi.fn(async () => new Response(body, { status })));
+    respond(JSON.stringify({ name: "invalid_idempotent_request", message: "same key different payload" }), 409);
+    expect(await emailService.sendReporting("a@x.com", "K", "<p>x</p>", { idempotencyKey: "email-outbox/1" })).toMatchObject({
+      ok: false,
+      idempotencyConflict: "payload_changed",
+    });
+    respond(JSON.stringify({ name: "concurrent_idempotent_requests" }), 409);
+    expect(await emailService.sendReporting("a@x.com", "K", "<p>x</p>", { idempotencyKey: "email-outbox/1" })).toMatchObject({
+      ok: false,
+      idempotencyConflict: "in_progress",
+    });
+    // Anahtarsız istekte ya da başka 409'da sınıflandırma yok (sıradan hata).
+    respond(JSON.stringify({ name: "invalid_idempotent_request" }), 409);
+    expect((await emailService.sendReporting("a@x.com", "K", "<p>x</p>")).idempotencyConflict).toBeUndefined();
+    respond("conflict", 409);
+    expect((await emailService.sendReporting("a@x.com", "K", "<p>x</p>", { idempotencyKey: "email-outbox/1" })).idempotencyConflict).toBeUndefined();
+  });
+});

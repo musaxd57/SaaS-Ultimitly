@@ -1,0 +1,627 @@
+import "server-only";
+import { RESERVATION_CHANNEL } from "@/lib/constants";
+
+/**
+ * Misafir metninden alıntı — KOD NOKTASIYLA kırpılır (15 ajan A13): `slice(0, 600)` UTF-16 birimiyle kesiyordu ve 600. birim bir emoji
+ * vekil çiftinin ortasına denk gelince e-postada yalnız `\ud83d` kalıyordu. Uzunsa "…" eklenir.
+ */
+function excerptByCodePoint(text: string, max: number): string {
+  const cps = Array.from(text);
+  return cps.length > max ? `${cps.slice(0, max).join("")}…` : text;
+}
+
+// ---------------------------------------------------------------------------
+// Lixus AI — Email Templates
+// All emails are in Turkish, use inline styles for maximum email client support.
+// ---------------------------------------------------------------------------
+
+// Escape user/guest-controlled text before interpolating into email HTML. A
+// guest's chat message or display name can contain <, >, &, or markup; without
+// this an alert email to the host could carry injected HTML. Static template
+// strings are safe — only dynamic values are wrapped with esc().
+function esc(v: unknown): string {
+  return String(v ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+const BRAND_HEADER = `
+  <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+    <tr>
+      <td style="background:#1e293b;padding:20px 32px;border-radius:8px 8px 0 0;">
+        <span style="color:#ffffff;font-size:20px;font-weight:700;letter-spacing:-0.5px;">
+          Lixus <span style="color:#6366f1;">AI</span>
+        </span>
+      </td>
+    </tr>
+  </table>
+`;
+
+const FOOTER = `
+  <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:32px;border-top:1px solid #e2e8f0;padding-top:16px;">
+    <tr>
+      <td style="color:#94a3b8;font-size:12px;text-align:center;">
+        Lixus AI — Kısa Dönem Kiralama Yönetim Platformu<br/>
+        Bu e-posta otomatik olarak oluşturulmuştur. Lütfen yanıtlamayınız.
+      </td>
+    </tr>
+  </table>
+`;
+
+/**
+ * Kabuk (görsel inceleme 10-22, telefon genişliği ölçüldü): `width="600"` niteliği + yalnız Outlook'un okuduğu `<!--[if mso]>` sabit
+ * 600 px "hayalet tablo" (Haiku: Word motoru `max-width` okumaz, `width:100%` ile kartı tam genişliğe yayabilirdi); CSS
+ * `width:100%;max-width:600px` telefonda kartı ekrana sığdırır ("akışkan melez" desen). ⚠️ `width:600px;max-width:100%` YETMEZ —
+ * tablo düzeninde sabit CSS genişliği hücrenin en küçük genişliği olur, kart yine 600 px kalır (ölçüldü). Eskiden yalnız nitelik vardı →
+ * 390 px ekranda 632 px; misafir mesajındaki uzun bağlantı / sözcük 1.387 px'e kadar itiyordu — içerik hücresi artık uzun sözcüğü böler.
+ */
+function wrapEmail(bodyContent: string): string {
+  return `<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lixus AI</title>
+</head>
+<body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:32px 16px;">
+    <tr>
+      <td align="center">
+        <!--[if mso]><table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
+        <table width="600" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;background:#ffffff;border-radius:8px;border:1px solid #e2e8f0;overflow:hidden;">
+          <tr>
+            <td style="padding:0 32px 32px;word-wrap:break-word;overflow-wrap:anywhere;word-break:break-word;">
+              ${BRAND_HEADER}
+              ${bodyContent}
+              ${FOOTER}
+            </td>
+          </tr>
+        </table>
+        <!--[if mso]></td></tr></table><![endif]-->
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+// ---------------------------------------------------------------------------
+// Template 1: Task Assigned
+// ---------------------------------------------------------------------------
+export interface TaskEmailData {
+  id: string;
+  title: string;
+  type: string;
+  priority: string;
+  status: string;
+  description?: string | null;
+  dueAt?: Date | null;
+}
+
+export interface AssigneeEmailData {
+  name: string;
+  email: string;
+}
+
+export interface PropertyEmailData {
+  name: string;
+  address?: string | null;
+  city?: string | null;
+}
+
+export function taskAssignedEmail(
+  task: TaskEmailData,
+  assignee: AssigneeEmailData,
+  property: PropertyEmailData,
+): string {
+  const priorityColor =
+    task.priority === "urgent" ? "#ef4444" : task.priority === "standard" ? "#6366f1" : "#94a3b8";
+  const priorityLabel =
+    task.priority === "urgent" ? "Acil" : task.priority === "standard" ? "Standart" : "Düşük";
+  const dueLabel = task.dueAt
+    ? new Date(task.dueAt).toLocaleDateString("tr-TR", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : null;
+
+  const body = `
+    <h2 style="margin:0 0 8px;color:#0f172a;font-size:22px;font-weight:700;">
+      Size yeni bir görev atandı
+    </h2>
+    <p style="margin:0 0 24px;color:#64748b;font-size:15px;">
+      Merhaba ${esc(assignee.name)}, aşağıdaki görev sizinle paylaşıldı.
+    </p>
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:24px;">
+      <tr>
+        <td style="padding:20px 24px;">
+          <p style="margin:0 0 4px;color:#64748b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">GÖREV</p>
+          <p style="margin:0 0 16px;color:#0f172a;font-size:18px;font-weight:700;">${esc(task.title)}</p>
+
+          ${
+            task.description
+              ? `<p style="margin:0 0 16px;color:#475569;font-size:14px;line-height:1.6;">${esc(task.description)}</p>`
+              : ""
+          }
+
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td style="width:50%;padding-right:8px;">
+                <p style="margin:0 0 4px;color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;">MÜLK</p>
+                <p style="margin:0;color:#0f172a;font-size:14px;font-weight:600;">${esc(property.name)}</p>
+                ${property.city ? `<p style="margin:0;color:#64748b;font-size:12px;">${esc(property.city)}</p>` : ""}
+              </td>
+              <td style="width:50%;">
+                <p style="margin:0 0 4px;color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;">ÖNCELİK</p>
+                <span style="display:inline-block;background:${priorityColor};color:#fff;font-size:12px;font-weight:600;padding:2px 10px;border-radius:100px;">${priorityLabel}</span>
+              </td>
+            </tr>
+            ${
+              dueLabel
+                ? `<tr><td colspan="2" style="padding-top:12px;">
+                    <p style="margin:0 0 4px;color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;">SON TARİH</p>
+                    <p style="margin:0;color:#0f172a;font-size:14px;font-weight:600;">${dueLabel}</p>
+                  </td></tr>`
+                : ""
+            }
+          </table>
+        </td>
+      </tr>
+    </table>
+
+    <p style="color:#64748b;font-size:14px;">
+      Lixus AI platformuna giriş yaparak görevin detaylarını görüntüleyebilir ve durumunu güncelleyebilirsiniz.
+    </p>
+  `;
+
+  return wrapEmail(body);
+}
+
+// ---------------------------------------------------------------------------
+// Template 2: Complaint Escalation
+// ---------------------------------------------------------------------------
+export interface ConversationEmailData {
+  id: string;
+  guestIdentifier: string;
+  channel: string;
+  priority: string;
+}
+
+export function complaintEscalationEmail(
+  conversation: ConversationEmailData,
+  message: string,
+  property: PropertyEmailData,
+  orgName: string,
+): string {
+  const body = `
+    <h2 style="margin:0 0 8px;color:#ef4444;font-size:22px;font-weight:700;">
+      Şikayet — sizin ilgilenmeniz gerekiyor
+    </h2>
+    <p style="margin:0 0 24px;color:#64748b;font-size:15px;">
+      <strong>${esc(property.name)}</strong> mülkünüzde bir misafir şikayeti tespit edildi.
+      Lütfen en kısa sürede değerlendirin.
+    </p>
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#fff5f5;border:1px solid #fecaca;border-radius:8px;margin-bottom:24px;">
+      <tr>
+        <td style="padding:16px 20px;">
+          <p style="margin:0 0 4px;color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;">MİSAFİR MESAJI</p>
+          <p style="margin:0;color:#1e293b;font-size:15px;font-style:italic;line-height:1.6;">"${esc(excerptByCodePoint(message, 600))}"</p>
+        </td>
+      </tr>
+    </table>
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:24px;">
+      <tr>
+        <td style="padding:16px 24px;">
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td style="width:50%;padding-right:8px;">
+                <p style="margin:0 0 2px;color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;">MİSAFİR</p>
+                <p style="margin:0;color:#0f172a;font-size:14px;font-weight:600;">${esc(conversation.guestIdentifier)}</p>
+              </td>
+              <td style="width:50%;">
+                <p style="margin:0 0 2px;color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;">MÜLK</p>
+                <p style="margin:0;color:#0f172a;font-size:14px;font-weight:600;">${esc(property.name)}</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding-top:12px;">
+                <p style="margin:0 0 2px;color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;">İŞLETME</p>
+                <p style="margin:0;color:#0f172a;font-size:14px;">${esc(orgName)}</p>
+              </td>
+              <td style="padding-top:12px;">
+                <p style="margin:0 0 2px;color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;">KANAL</p>
+                <p style="margin:0;color:#0f172a;font-size:14px;">${esc(conversation.channel)}</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+
+    <p style="color:#64748b;font-size:14px;">
+      Lixus AI'de konuşmayı görüntüleyerek misafire hemen yanıt verebilirsiniz.
+    </p>
+  `;
+
+  return wrapEmail(body);
+}
+
+// ---------------------------------------------------------------------------
+// Template 2b: Misafir cevap bekliyor (K10, kurucu kararı 09-30)
+// Yapay zekâ cevabı konuyu ev sahibine bırakıyordu ("mesajınız kaydedildi; ev sahibiniz görebilir") → misafire HİÇBİR ŞEY
+// gitmedi. Şikâyet / acil değil: sade bir "cevabınızı bekliyor" bildirimi. Misafir adı ve mesajı `esc` ile kaçışlı.
+// ---------------------------------------------------------------------------
+export function hostReplyWaitingEmail(
+  conversation: ConversationEmailData,
+  message: string,
+  property: PropertyEmailData,
+  orgName: string,
+): string {
+  const body = `
+    <h2 style="margin:0 0 8px;color:#0f172a;font-size:22px;font-weight:700;">
+      Misafir cevabınızı bekliyor
+    </h2>
+    <p style="margin:0 0 24px;color:#64748b;font-size:15px;">
+      <strong>${esc(property.name)}</strong> mülkünüzdeki bir misafir mesajını yapay zekâ size bıraktı.
+      Misafire otomatik bir cevap gönderilmedi. Lütfen konuşmayı açıp yanıtlayın.
+    </p>
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:24px;">
+      <tr>
+        <td style="padding:16px 20px;">
+          <p style="margin:0 0 4px;color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;">MİSAFİR MESAJI</p>
+          <p style="margin:0;color:#1e293b;font-size:15px;font-style:italic;line-height:1.6;">"${esc(excerptByCodePoint(message, 600))}"</p>
+        </td>
+      </tr>
+    </table>
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:24px;">
+      <tr>
+        <td style="padding:16px 24px;">
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td style="width:50%;padding-right:8px;">
+                <p style="margin:0 0 2px;color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;">MİSAFİR</p>
+                <p style="margin:0;color:#0f172a;font-size:14px;font-weight:600;">${esc(conversation.guestIdentifier)}</p>
+              </td>
+              <td style="width:50%;">
+                <p style="margin:0 0 2px;color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;">MÜLK</p>
+                <p style="margin:0;color:#0f172a;font-size:14px;font-weight:600;">${esc(property.name)}</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding-top:12px;">
+                <p style="margin:0 0 2px;color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;">İŞLETME</p>
+                <p style="margin:0;color:#0f172a;font-size:14px;">${esc(orgName)}</p>
+              </td>
+              <td style="padding-top:12px;">
+                <p style="margin:0 0 2px;color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;">KANAL</p>
+                <p style="margin:0;color:#0f172a;font-size:14px;">${esc(conversation.channel)}</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+
+    <p style="color:#64748b;font-size:14px;">
+      Lixus AI'de konuşmayı görüntüleyerek misafire hemen yanıt verebilirsiniz.
+    </p>
+  `;
+
+  return wrapEmail(body);
+}
+
+// ---------------------------------------------------------------------------
+// Template: KARAR BEKLİYOR (Host Karar Motoru, Faz 1 — kurucu 10-02: "Host'a bir bildirim gider; tekrar tekrar gönderilmez").
+// Mesaj başına TEK bildirim: aynı mesaj için "Misafir cevabınızı bekliyor" e-postasının YERİNE gider (ikisi birden asla). Misafir
+// metni taşımaz (talep başlığı yeter: "13:00 erken giriş"); bağlantı `appBaseUrl()`den — istek Host'undan asla.
+// ---------------------------------------------------------------------------
+export function decisionPendingEmail(input: {
+  title: string;
+  dayLabel: string | null;
+  guestIdentifier: string;
+  propertyName: string;
+  orgName: string;
+  panelUrl: string;
+  /** "decide": onay / ret kartta (erken giriş, geç çıkış); "change": kanalda rezervasyon değişikliği (uzatma, tarih). */
+  action?: "decide" | "change";
+}): string {
+  const body = `
+    <h2 style="margin:0 0 8px;color:#b45309;font-size:22px;font-weight:700;">
+      Karar bekliyor: ${esc(input.title)}
+    </h2>
+    <p style="margin:0 0 16px;color:#64748b;font-size:15px;">
+      <strong>${esc(input.propertyName)}</strong> — ${esc(input.guestIdentifier)} sizin kararınızı gerektiren bir talepte bulundu${
+        input.dayLabel ? ` (<strong>${esc(input.dayLabel)}</strong>)` : ""
+      }. Bu talebe henüz cevap verilmedi.
+    </p>
+    <p style="margin:0 0 24px;color:#334155;font-size:14px;">
+      ${
+        input.action === "change"
+          ? "Bu talep kanalda rezervasyon değişikliği gerektirir: konuşmadan misafire yanıtınızı yazın, değişikliği kanaldan yapın."
+          : "Konuşmada kontrol listesini (temizlik, önceki ve sonraki misafir) görüp onaylayabilir ya da reddedebilirsiniz; misafire gidecek mesajı göndermeden önce görür ve düzenleyebilirsiniz."
+      }
+    </p>
+    ${ctaButton(input.panelUrl, "Konuşmayı açın")}
+    <p style="color:#94a3b8;font-size:12px;">${esc(input.orgName)} · Bu talep için size yeniden e-posta gönderilmez; kart konuşma sayfasında açık kalır.</p>
+  `;
+  return wrapEmail(body);
+}
+
+// ---------------------------------------------------------------------------
+// Template 3: Reservation Created
+// ---------------------------------------------------------------------------
+export interface ReservationEmailData {
+  id: string;
+  guestName: string;
+  guestEmail?: string | null;
+  arrivalDate: Date;
+  departureDate: Date;
+  channel: string;
+  status: string;
+  totalAmount?: number | null;
+  currency?: string | null;
+  notes?: string | null;
+}
+
+export function reservationCreatedEmail(
+  reservation: ReservationEmailData,
+  property: PropertyEmailData,
+): string {
+  const arrivalLabel = new Date(reservation.arrivalDate).toLocaleDateString("tr-TR", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+  const departureLabel = new Date(reservation.departureDate).toLocaleDateString("tr-TR", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+  const nights = Math.round(
+    (new Date(reservation.departureDate).getTime() - new Date(reservation.arrivalDate).getTime()) /
+      (1000 * 60 * 60 * 24),
+  );
+
+  // 🚨 KOPYA HARİTA KALDIRILDI — TEK KAYNAK `RESERVATION_CHANNEL` (denetim 08-08).
+  // Burada ayrı bir liste vardı ve DRIFT ETTİ: `ics` kanalı `constants.ts`e
+  // eklendiğinde bu ikizi kimse güncellemedi → yeni-rezervasyon e-postası
+  // "KANAL: ics" diye HAM değer basıyordu. Aynı sınıf hata rozet tarafında da
+  // yaşandı ve orada tek kaynağa bağlanarak çözülmüştü; burası atlanmıştı.
+  const channelLabel = (v: string) => RESERVATION_CHANNEL.label(v);
+
+  const body = `
+    <h2 style="margin:0 0 8px;color:#0f172a;font-size:22px;font-weight:700;">
+      Yeni Rezervasyon Oluşturuldu
+    </h2>
+    <p style="margin:0 0 24px;color:#64748b;font-size:15px;">
+      <strong>${esc(property.name)}</strong> mülkünüz için yeni bir rezervasyon kaydedildi.
+    </p>
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;margin-bottom:24px;">
+      <tr>
+        <td style="padding:20px 24px;">
+          <p style="margin:0 0 4px;color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;">MİSAFİR</p>
+          <p style="margin:0 0 16px;color:#0f172a;font-size:20px;font-weight:700;">${esc(reservation.guestName)}</p>
+
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td style="width:50%;padding-right:8px;">
+                <p style="margin:0 0 2px;color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;">GİRİŞ</p>
+                <p style="margin:0;color:#0f172a;font-size:14px;font-weight:600;">${arrivalLabel}</p>
+              </td>
+              <td style="width:50%;">
+                <p style="margin:0 0 2px;color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;">ÇIKIŞ</p>
+                <p style="margin:0;color:#0f172a;font-size:14px;font-weight:600;">${departureLabel}</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding-top:12px;">
+                <p style="margin:0 0 2px;color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;">SÜRE</p>
+                <p style="margin:0;color:#0f172a;font-size:14px;">${nights} gece</p>
+              </td>
+              <td style="padding-top:12px;">
+                <p style="margin:0 0 2px;color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;">KANAL</p>
+                <p style="margin:0;color:#0f172a;font-size:14px;">${esc(channelLabel(reservation.channel))}</p>
+              </td>
+            </tr>
+            ${
+              reservation.totalAmount
+                ? `<tr><td colspan="2" style="padding-top:12px;">
+                    <p style="margin:0 0 2px;color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;">TUTAR</p>
+                    <p style="margin:0;color:#0f172a;font-size:14px;font-weight:600;">
+                      ${reservation.totalAmount.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ${esc(reservation.currency ?? "EUR")}
+                    </p>
+                  </td></tr>`
+                : ""
+            }
+            ${
+              reservation.notes
+                ? `<tr><td colspan="2" style="padding-top:12px;">
+                    <p style="margin:0 0 2px;color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;">NOTLAR</p>
+                    <p style="margin:0;color:#475569;font-size:13px;">${esc(reservation.notes)}</p>
+                  </td></tr>`
+                : ""
+            }
+          </table>
+        </td>
+      </tr>
+    </table>
+
+    <p style="color:#64748b;font-size:14px;">
+      Lixus AI platformunu ziyaret ederek rezervasyonu yönetebilir, görev atayabilir ve misafirle iletişime geçebilirsiniz.
+    </p>
+  `;
+
+  return wrapEmail(body);
+}
+
+// ---------------------------------------------------------------------------
+// Template 4 + 5: Reverse-trial reminders (account owner)
+// Sent only while billing is enforced, so the "access pauses" wording is true.
+// ---------------------------------------------------------------------------
+function ctaButton(href: string, label: string): string {
+  return `
+    <table cellpadding="0" cellspacing="0" style="margin:8px 0 24px;">
+      <tr>
+        <td style="background:#1e293b;border-radius:8px;">
+          <a href="${esc(href)}" style="display:inline-block;padding:12px 28px;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;">${esc(label)}</a>
+        </td>
+      </tr>
+    </table>`;
+}
+
+// 🚨 DENEME E-POSTALARI KİŞİSELLEŞTİRİLMEZ (09-23 saldırgan turu). Ad kayıtta YAZILAN serbest
+// metindir: başkasının adresiyle kayıt olan biri o kişinin kutusuna Lixus imzalı ve "Merhaba
+// <kendi metni>" satırlı e-posta düşürtebiliyordu (doğrulama e-postasında kapatılan sınıfın
+// aynısı). Selamlama sabittir; adı geri eklemek bu açığı geri açar (test-pinli).
+/**
+ * "Your Pro trial ends in N days" — a few days before expiry. Deneme süresi çağırandan gelir (`TRIAL_DAYS`, env ile değişebilir — gece-4
+ * S2-11: metin "14 günlük" sabit yazıyordu); varsayılan 14 ile çıktı birebir aynı.
+ */
+export function trialEndingSoonEmail(daysLeft: number, settingsUrl: string, trialDays: number = 14): string {
+  const gun = daysLeft <= 1 ? "yarın" : `${daysLeft} gün sonra`;
+  const body = `
+    <h2 style="margin:0 0 8px;color:#0f172a;font-size:22px;font-weight:700;">
+      Pro denemeniz ${gun} bitiyor
+    </h2>
+    <p style="margin:0 0 16px;color:#64748b;font-size:15px;line-height:1.6;">
+      Merhaba,<br/><br/>
+      ${trialDays} günlük ücretsiz Pro denemeniz <strong>${gun}</strong> sona eriyor. Süre dolduğunda
+      panelinizi kullanmaya devam edebilirsiniz; ancak <strong>otomatik misafir yanıtları</strong>
+      (oto-yanıt, karşılama, giriş/çıkış mesajları ve QR concierge) <strong>kapanır</strong>.
+    </p>
+    <p style="margin:0 0 8px;color:#64748b;font-size:15px;line-height:1.6;">
+      Otomatik mesajlaşmayı kesintisiz sürdürmek için bir plan seçin:
+    </p>
+    ${ctaButton(settingsUrl, "Planları görün")}
+    <p style="margin:0;color:#94a3b8;font-size:13px;">
+      Kartınızdan deneme boyunca hiçbir ücret alınmadı. İstediğiniz zaman seçebilirsiniz.
+    </p>
+  `;
+  return wrapEmail(body);
+}
+
+/** "Your trial ended — automatic messaging is paused." (Deneme süresi çağırandan — ↑ S2-11.) */
+export function trialEndedEmail(settingsUrl: string, trialDays: number = 14): string {
+  const body = `
+    <h2 style="margin:0 0 8px;color:#0f172a;font-size:22px;font-weight:700;">
+      Ücretsiz denemeniz sona erdi
+    </h2>
+    <p style="margin:0 0 16px;color:#64748b;font-size:15px;line-height:1.6;">
+      Merhaba,<br/><br/>
+      ${trialDays} günlük Pro denemeniz doldu. Hesabınız açık — panelleri kullanmaya, mesajları
+      görüntülemeye ve manuel yanıt vermeye devam edebilirsiniz. Ancak
+      <strong>otomatik misafir yanıtları şu anda kapalı</strong>.
+    </p>
+    <p style="margin:0 0 8px;color:#64748b;font-size:15px;line-height:1.6;">
+      AI'nın misafirlerinize sizin yerinize, 7/24 yanıt vermesini yeniden açmak için bir plan seçin:
+    </p>
+    ${ctaButton(settingsUrl, "Plan seç & devam et")}
+    <p style="margin:0;color:#94a3b8;font-size:13px;">
+      Sorularınız için bize her zaman ulaşabilirsiniz.
+    </p>
+  `;
+  return wrapEmail(body);
+}
+
+// ---------------------------------------------------------------------------
+// Template: QR guest-chat escalation (Codex #15)
+// DELIBERATELY MINIMAL: the recipient is the host, but this mail can sit in a
+// third-party inbox/provider log — so it carries NO guest message body, NO
+// guest name, NO access code and NO reservation details. Plain reason + a safe
+// panel link (built from appBaseUrl(), never the request Host).
+// ---------------------------------------------------------------------------
+export function qrEscalationEmail(
+  propertyName: string,
+  reason:
+    | "ai_escalated"
+    | "daily_cap"
+    | "daily_budget"
+    | "daily_budget_qr"
+    | "stay_message_cap"
+    | "emergency_number"
+    | "cancelled_stay"
+    | "erased_stay_hazard",
+  panelUrl: string,
+): string {
+  const reasonText =
+    reason === "erased_stay_hazard"
+      ? "Bu dairenin QR misafir sohbetinden bir TEHLİKE bildirimi geldi (yangın, gaz, duman gibi). Konaklamanın kişisel verileri silindiği için mesaj kaydedilmedi. Dairede biri olabilir — lütfen hemen kontrol edin."
+      : reason === "cancelled_stay"
+      ? "Bu dairenin İPTAL EDİLMİŞ bir rezervasyonu için QR misafir sohbetine yazıldı. Yapay zekâ cevap vermedi ve yapay zekâ kullanımınızdan düşülmedi; yazana yalnız \"sohbet kapalı\" gösterildi. Dairede biri olabilir — mesajı panelde okuyun."
+      : reason === "emergency_number"
+      ? "Misafir bir acil servisin numarasını sordu; yapay zekâ yalnız o numarayı gönderdi. Mesajı panelde okuyun — durum acil olabilir."
+      : reason === "stay_message_cap"
+      ? "Misafir son bir saatte çok fazla mesaj gönderdi. Fazla mesajlar kaydedilmedi ve yapay zekâ yanıtlamadı; sohbet bir saat içinde kendiliğinden normale döner."
+      : reason === "daily_cap"
+      ? "Günlük otomatik yanıt limiti dolduğu için mesaj yapay zekâ tarafından yanıtlanmadı ve size devredildi."
+      : reason === "daily_budget_qr"
+        ? // ⚠️ DÜRÜSTLÜK: QR artık org bütçesinin yalnız REZERVE payını tüketiyor.
+          // "Planınızın hakkı doldu" demek YANLIŞ olurdu — genel hak duruyor.
+          "QR misafir sohbeti için bugün ayrılan yapay zekâ payı doldu; mesaj size devredildi. Planınızın genel AI hakkı etkilenmedi."
+        : reason === "daily_budget"
+          ? // Daire tavanından AYRI: bu, işletmenizin GÜNLÜK AI işlem hakkının dolması.
+            "Planınızın günlük AI işlem hakkı dolduğu için mesaj yapay zekâ tarafından yanıtlanmadı ve size devredildi."
+          : "Yapay zekâ, güvenlik kuralları gereği bu mesajı yanıtlamadı ve size devretti.";
+  const body = `
+    <h2 style="margin:0 0 8px;color:#b45309;font-size:22px;font-weight:700;">
+      Misafir sohbetinde size devredilen mesaj
+    </h2>
+    <p style="margin:0 0 16px;color:#64748b;font-size:15px;">
+      <strong>${esc(propertyName)}</strong> dairesinin QR misafir sohbetinde yeni bir mesaj
+      insan ilgisi bekliyor.
+    </p>
+    <p style="margin:0 0 24px;color:#334155;font-size:14px;">${esc(reasonText)}</p>
+    <table cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+      <tr>
+        <td style="background:#1e293b;border-radius:8px;">
+          <a href="${esc(panelUrl)}" style="display:inline-block;padding:12px 24px;color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;">
+            Misafir Sohbetleri panelini aç
+          </a>
+        </td>
+      </tr>
+    </table>
+    <p style="color:#94a3b8;font-size:12px;">
+      Gizlilik gereği mesaj içeriği bu e-postada yer almaz; panelde görüntüleyebilirsiniz.
+    </p>
+  `;
+  return wrapEmail(body);
+}
+
+/**
+ * "Hesap verileriniz indirildi" (U10, kurucu 10-22: "şifre sorulsun" + indirme sonrası bilgi e-postası). Tam döküm misafir verisi ve
+ * takvim bağlantıları taşır — ele geçirilmiş bir oturumla indirilirse sahip HABER ALIR. Metin sade: ne oldu, ne zaman, siz değilseniz ne
+ * yapmalı. Kişisel veri / dosya içeriği YOK.
+ */
+export function dataExportNoticeEmail(atLabel: string, settingsUrl: string): string {
+  const body = `
+    <h2 style="margin:0 0 8px;color:#0f172a;font-size:22px;font-weight:700;">
+      Hesap verileriniz indirildi
+    </h2>
+    <p style="margin:0 0 16px;color:#64748b;font-size:15px;line-height:1.6;">
+      Merhaba,<br/><br/>
+      Lixus AI hesabınızın veri dökümü <strong>${esc(atLabel)}</strong> tarihinde indirildi.
+    </p>
+    <p style="margin:0 0 8px;color:#64748b;font-size:15px;line-height:1.6;">
+      Bu işlemi siz yapmadıysanız hemen şifrenizi değiştirin ve iki adımlı doğrulamayı açın:
+    </p>
+    ${ctaButton(settingsUrl, "Hesap güvenliği")}
+    <p style="margin:0;color:#94a3b8;font-size:13px;">
+      Bu e-posta bilgi amaçlıdır; siz yaptıysanız bir şey yapmanız gerekmez.
+    </p>
+  `;
+  return wrapEmail(body);
+}

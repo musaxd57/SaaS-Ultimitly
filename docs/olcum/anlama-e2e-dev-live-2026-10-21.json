@@ -1,0 +1,5727 @@
+{
+  "suite": "understanding-e2e",
+  "version": 1,
+  "meta": {
+    "set": "understanding-e2e-dev.json",
+    "sealed": false,
+    "arm": "live",
+    "judge": "gpt-5.1",
+    "status": "GEÇERLİ",
+    "usd": 0.521
+  },
+  "rows": [
+    {
+      "id": "d-pool-tr",
+      "lang": "tr",
+      "tags": [
+        "neighbor_entity"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nAçık havuz her gün 09:00–20:00 arasında kullanılabilir.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nAçık havuz her gün 09:00–20:00 arasında kullanılabilir.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "modelSkipped": false,
+      "status": "answered",
+      "emails": 0,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "amenities",
+          "queryOriginal": "havuz akşam kaça kadar açık",
+          "queryTr": "havuz çalışma saatleri",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "amenities",
+          "status": "answered",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "pool",
+        "quiet",
+        "terrace",
+        "pets",
+        "market",
+        "transfer",
+        "gym",
+        "sauna",
+        "checkin",
+        "ac",
+        "latecheckout"
+      ],
+      "judge": "ok",
+      "claims": [
+        {
+          "request": "r1",
+          "support": "supported",
+          "relation": "time",
+          "subject": "açık havuz",
+          "value": "her gün 09:00–20:00 arası kullanılabilir",
+          "text": "Açık havuz her gün 09:00–20:00 arasında kullanılabilir.",
+          "explanation": "Exactly matches the pool opening hours in the KB."
+        },
+        {
+          "request": "none",
+          "support": "process",
+          "relation": "other",
+          "subject": "yanıt",
+          "value": "otomatik asistan tarafından hazırlandı",
+          "text": "Bu yanıt otomatik asistan tarafından hazırlandı.",
+          "explanation": "This is meta-information about how the message was produced, not a property fact."
+        }
+      ],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "answer",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "amenities",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "ok",
+          "addressed": "answered",
+          "itemStatus": "answered",
+          "factVerdicts": [
+            "ok"
+          ],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 12701
+    },
+    {
+      "id": "d-gym-tr",
+      "lang": "tr",
+      "tags": [
+        "neighbor_entity",
+        "fee"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nSpor salonu 22:00'de kapanıyor ve misafirler için ücretsiz.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nSpor salonu 22:00'de kapanıyor ve misafirler için ücretsiz.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "modelSkipped": false,
+      "status": "answered",
+      "emails": 0,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "amenities",
+          "queryOriginal": "spor salonu saatleri ücreti",
+          "queryTr": "spor salonu saatleri ücreti",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "amenities",
+          "status": "answered",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "gym",
+        "pets",
+        "quiet",
+        "sauna",
+        "bike",
+        "checkin",
+        "breakfast",
+        "parking",
+        "transfer",
+        "latecheckout"
+      ],
+      "judge": "ok",
+      "claims": [
+        {
+          "request": "r1",
+          "support": "supported",
+          "relation": "time",
+          "subject": "spor salonu",
+          "value": "22:00'de kapanıyor",
+          "text": "Spor salonu 22:00'de kapanıyor.",
+          "explanation": "If the gym is open until 22:00, it effectively closes at 22:00, so the claim matches the KB."
+        },
+        {
+          "request": "r1",
+          "support": "supported",
+          "relation": "free",
+          "subject": "spor salonu",
+          "value": "misafirler için ücretsiz",
+          "text": "Spor salonu misafirler için ücretsizdir.",
+          "explanation": "KB explicitly states that the gym is free for guests."
+        },
+        {
+          "request": "none",
+          "support": "process",
+          "relation": "other",
+          "subject": "yanıt",
+          "value": "otomatik asistan tarafından hazırlandı",
+          "text": "Bu yanıt otomatik asistan tarafından hazırlandı.",
+          "explanation": "This is a meta statement about how the reply was generated, not about the property or services."
+        }
+      ],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "answer",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "amenities",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "ok",
+          "addressed": "answered",
+          "itemStatus": "answered",
+          "factVerdicts": [
+            "ok",
+            "ok"
+          ],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 12397
+    },
+    {
+      "id": "d-sauna-notice-tr",
+      "lang": "tr",
+      "tags": [
+        "relation_type"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nSauna için en az 2 saat önceden resepsiyona haber vermeniz gerekiyor. Her rezervasyon 1 saat sürüyor.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": null,
+      "riskReason": "availability_unconfirmed",
+      "modelSkipped": false,
+      "status": "new",
+      "emails": 0,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "amenities",
+          "queryOriginal": "sauna kullanımı süre rezervasyon",
+          "queryTr": "sauna kullanımı süre rezervasyon",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "amenities",
+          "status": "open",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "sauna",
+        "boiler",
+        "bike",
+        "checkout",
+        "checkin"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "answer",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "amenities",
+            "modelRelation": "own_topic",
+            "traceable": false
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "held_open",
+          "addressed": null,
+          "itemStatus": "open",
+          "factVerdicts": [
+            "missing",
+            "missing"
+          ],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 10621
+    },
+    {
+      "id": "d-sauna-fee-tr",
+      "lang": "tr",
+      "tags": [
+        "neighbor_entity",
+        "fee"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nSauna kullanımı kişi başı 150 TL’dir. Kullanım için en az 2 saat önceden resepsiyona haber vermeniz gerekir; her rezervasyon 1 saatliktir.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nSauna kullanımı kişi başı 150 TL’dir. Kullanım için en az 2 saat önceden resepsiyona haber vermeniz gerekir; her rezervasyon 1 saatliktir.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "modelSkipped": false,
+      "status": "answered",
+      "emails": 0,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "amenities",
+          "queryOriginal": "Sauna ücretli mi?",
+          "queryTr": "sauna kullanımı ücretli mi",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "amenities",
+          "status": "answered",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "sauna",
+        "gym",
+        "parking",
+        "checkin",
+        "checkout",
+        "bike",
+        "latecheckout"
+      ],
+      "judge": "ok",
+      "claims": [
+        {
+          "request": "r1",
+          "support": "supported",
+          "relation": "fee",
+          "subject": "sauna",
+          "value": "kişi başı 150 TL",
+          "text": "Sauna kullanımı kişi başı 150 TL’dir.",
+          "explanation": "Exact same per-person fee as in the KB."
+        },
+        {
+          "request": "none",
+          "support": "supported",
+          "relation": "advance_notice",
+          "subject": "sauna",
+          "value": "en az 2 saat önceden resepsiyona haber vermek gerekir",
+          "text": "Kullanım için en az 2 saat önceden resepsiyona haber vermeniz gerekir.",
+          "explanation": "Matches the KB requirement to notify reception at least 2 hours in advance."
+        },
+        {
+          "request": "none",
+          "support": "supported",
+          "relation": "duration",
+          "subject": "sauna",
+          "value": "her rezervasyon 1 saat",
+          "text": "Her rezervasyon 1 saatliktir.",
+          "explanation": "Same 1-hour duration per reservation as in the KB."
+        }
+      ],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "answer",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "amenities",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "ok",
+          "addressed": "answered",
+          "itemStatus": "answered",
+          "factVerdicts": [
+            "ok"
+          ],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 10373
+    },
+    {
+      "id": "d-trash-time-tr",
+      "lang": "tr",
+      "tags": [
+        "neighbor_entity"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nÇöpleri en geç 22:00'ye kadar çıkarabilirsiniz.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nÇöpleri en geç 22:00'ye kadar çıkarabilirsiniz.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "modelSkipped": false,
+      "status": "answered",
+      "emails": 0,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "trash",
+          "queryOriginal": "çöp çıkarma saatleri kuralı",
+          "queryTr": "çöp çıkarma saatleri kuralı",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "trash",
+          "status": "answered",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "trash",
+        "quiet",
+        "latecheckout",
+        "checkin",
+        "sauna",
+        "transfer"
+      ],
+      "judge": "ok",
+      "claims": [
+        {
+          "request": "r1",
+          "support": "unverified",
+          "relation": "time",
+          "subject": "çöpler",
+          "value": "en geç 22:00'ye kadar çıkarılabilir",
+          "text": "Çöpleri en geç 22:00'ye kadar çıkarabilirsiniz.",
+          "explanation": "KB çöplerin en geç 22:00'ye kadar çıkarılması gerektiğini söyler; yanıttaki son saat aynıdır."
+        },
+        {
+          "request": "none",
+          "support": "process",
+          "relation": "other",
+          "subject": "yanıt",
+          "value": "otomatik asistan tarafından hazırlandı",
+          "text": "(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+          "explanation": "Bu, mülk bilgisi değil sohbet süreciyle ilgili bir ifadedir."
+        }
+      ],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "answer",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "trash",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "ok",
+          "addressed": "answered",
+          "itemStatus": "answered",
+          "factVerdicts": [
+            "ok"
+          ],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 10075
+    },
+    {
+      "id": "d-terrace-bbq-tr",
+      "lang": "tr",
+      "tags": [
+        "permission",
+        "neighbor_entity"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nTerasta mangal yapmak yasaktır. Mangal yalnızca bahçedeki mangal alanında 12:00–21:00 saatleri arasında yapılabilir.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nTerasta mangal yapmak yasaktır. Mangal yalnızca bahçedeki mangal alanında 12:00–21:00 saatleri arasında yapılabilir.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "modelSkipped": false,
+      "status": "answered",
+      "emails": 0,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "house_rules",
+          "queryOriginal": "terasta mangal barbekü kuralı",
+          "queryTr": "terasta mangal barbekü kuralı",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "house_rules",
+          "status": "answered",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "terrace",
+        "quiet",
+        "boiler",
+        "latecheckout",
+        "trash"
+      ],
+      "judge": "ok",
+      "claims": [
+        {
+          "request": "r1",
+          "support": "unverified",
+          "relation": "prohibition",
+          "subject": "barbecue on the terrace",
+          "value": "prohibited",
+          "text": "Terasta mangal yapmak yasaktır.",
+          "explanation": "Directly matches the KB statement that barbecue on the terrace is forbidden."
+        },
+        {
+          "request": "r1",
+          "support": "unverified",
+          "relation": "permission",
+          "subject": "barbecue on the property",
+          "value": "only allowed in the garden barbecue area",
+          "text": "Mangal yalnızca bahçedeki mangal alanında yapılabilir.",
+          "explanation": "KB states barbecue is only allowed in the garden barbecue area."
+        },
+        {
+          "request": "r1",
+          "support": "unverified",
+          "relation": "time",
+          "subject": "barbecue in the garden barbecue area",
+          "value": "12:00–21:00",
+          "text": "Mangal ... 12:00–21:00 saatleri arasında yapılabilir.",
+          "explanation": "Time window for using the garden barbecue area matches the KB."
+        },
+        {
+          "request": "none",
+          "support": "process",
+          "relation": "other",
+          "subject": "this reply",
+          "value": "was prepared by an automatic assistant",
+          "text": "Bu yanıt otomatik asistan tarafından hazırlandı.",
+          "explanation": "Meta-comment about how the message was generated, not a property fact."
+        }
+      ],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "answer",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "house_rules",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "ok",
+          "addressed": "answered",
+          "itemStatus": "answered",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 8713
+    },
+    {
+      "id": "d-bike-tr",
+      "lang": "tr",
+      "tags": [
+        "fee",
+        "relation_type"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nBisiklet kiralama günlük 300 TL; kask ücretsiz veriliyor.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nBisiklet kiralama günlük 300 TL; kask ücretsiz veriliyor.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "modelSkipped": false,
+      "status": "answered",
+      "emails": 0,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "amenities",
+          "queryOriginal": "bisiklet kiralama ücreti kask var mı",
+          "queryTr": "bisiklet kiralama ücreti kask var mı",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "amenities",
+          "status": "answered",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "bike",
+        "market",
+        "pets",
+        "stove",
+        "parking",
+        "sauna"
+      ],
+      "judge": "ok",
+      "claims": [
+        {
+          "request": "r1",
+          "support": "supported",
+          "relation": "fee",
+          "subject": "bisiklet kiralama",
+          "value": "günlük 300 TL",
+          "text": "Bisiklet kiralama günlük 300 TL.",
+          "explanation": "KB explicitly gives the daily bicycle rental fee as 300 TL."
+        },
+        {
+          "request": "r2",
+          "support": "supported",
+          "relation": "free",
+          "subject": "kask",
+          "value": "ücretsiz veriliyor",
+          "text": "kask ücretsiz veriliyor.",
+          "explanation": "KB states that a helmet is provided for free with bicycle rental."
+        },
+        {
+          "request": "none",
+          "support": "process",
+          "relation": "other",
+          "subject": "yanıt",
+          "value": "otomatik asistan tarafından hazırlandı",
+          "text": "Bu yanıt otomatik asistan tarafından hazırlandı.",
+          "explanation": "This is meta-information about how the message was generated, not about the property."
+        }
+      ],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "answer",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "amenities",
+            "modelRelation": "own_topic",
+            "traceable": false
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "ok",
+          "addressed": "answered",
+          "itemStatus": "answered",
+          "factVerdicts": [
+            "ok"
+          ],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        },
+        {
+          "id": "r2",
+          "expect": "answer",
+          "relation": "none",
+          "match": {
+            "id": "r2",
+            "extraction": "missed",
+            "modelIndex": null,
+            "modelIntent": null,
+            "modelRelation": null,
+            "traceable": null
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "ok",
+          "addressed": "answered",
+          "itemStatus": "answered",
+          "factVerdicts": [
+            "ok"
+          ],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 12607
+    },
+    {
+      "id": "d-transfer-en",
+      "lang": "en",
+      "tags": [
+        "fee",
+        "relation_type",
+        "cross_language"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": true,
+      "sentText": "Hello Alex,\n\nThe one-way airport transfer costs TRY 1,200. Please request it from reception at least 24 hours in advance.\n\n(This reply was prepared by an automated assistant.)",
+      "draft": "Hello Alex,\n\nThe one-way airport transfer costs TRY 1,200. Please request it from reception at least 24 hours in advance.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "modelSkipped": false,
+      "status": "answered",
+      "emails": 0,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "directions_transport",
+          "queryOriginal": "airport transfer price how early to book",
+          "queryTr": "havaalanı transfer ücreti rezervasyon süresi",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "directions_transport",
+          "status": "answered",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "transfer",
+        "sauna",
+        "pets",
+        "checkin",
+        "latecheckout"
+      ],
+      "judge": "ok",
+      "claims": [
+        {
+          "request": "r1",
+          "support": "supported",
+          "relation": "fee",
+          "subject": "airport transfer",
+          "value": "one-way costs 1,200 TRY",
+          "text": "The one-way airport transfer costs TRY 1,200.",
+          "explanation": "Exactly matches the stated one-way airport transfer fee."
+        },
+        {
+          "request": "r1",
+          "support": "supported",
+          "relation": "advance_notice",
+          "subject": "airport transfer",
+          "value": "at least 24 hours in advance",
+          "text": "Please request it from reception at least 24 hours in advance.",
+          "explanation": "Matches the minimum 24-hour advance request requirement."
+        },
+        {
+          "request": "r1",
+          "support": "supported",
+          "relation": "method_steps",
+          "subject": "airport transfer",
+          "value": "request it from reception",
+          "text": "Please request it from reception at least 24 hours in advance.",
+          "explanation": "KB specifies that the transfer must be requested from reception."
+        },
+        {
+          "request": "none",
+          "support": "process",
+          "relation": "other",
+          "subject": "reply",
+          "value": "was prepared by an automated assistant",
+          "text": "This reply was prepared by an automated assistant.",
+          "explanation": "Statement about how the message was generated, not about the property."
+        }
+      ],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "answer",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "directions_transport",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "ok_unverified",
+          "addressed": "answered",
+          "itemStatus": "answered",
+          "factVerdicts": [
+            "missing",
+            "ok"
+          ],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 11540
+    },
+    {
+      "id": "d-parking-second-tr",
+      "lang": "tr",
+      "tags": [
+        "fee",
+        "conditional"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nİkinci araç için günlük 200 TL ücret alınıyor.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nİkinci araç için günlük 200 TL ücret alınıyor.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "modelSkipped": false,
+      "status": "answered",
+      "emails": 0,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "parking",
+          "queryOriginal": "ikinci araç otopark ücreti",
+          "queryTr": "ikinci araç otopark ücreti",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "parking",
+          "status": "answered",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "parking",
+        "latecheckout",
+        "pets",
+        "checkout",
+        "gym",
+        "bike"
+      ],
+      "judge": "ok",
+      "claims": [
+        {
+          "request": "r1",
+          "support": "unverified",
+          "relation": "fee",
+          "subject": "second vehicle parking",
+          "value": "günlük 200 TL",
+          "text": "İkinci araç için günlük 200 TL ücret alınıyor.",
+          "explanation": "The fee amount, per-day basis, and that it is for the second vehicle match the KB."
+        },
+        {
+          "request": "none",
+          "support": "process",
+          "relation": "other",
+          "subject": "reply",
+          "value": "answer was prepared by an automatic assistant",
+          "text": "Bu yanıt otomatik asistan tarafından hazırlandı.",
+          "explanation": "This is a meta statement about how the message was generated, not about the property."
+        }
+      ],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "answer",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "parking",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "ok",
+          "addressed": "answered",
+          "itemStatus": "answered",
+          "factVerdicts": [
+            "ok"
+          ],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 9120
+    },
+    {
+      "id": "d-breakfast-en",
+      "lang": "en",
+      "tags": [
+        "fee",
+        "cross_language"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": true,
+      "sentText": "Hello Alex,\n\nBreakfast is not included in the booking. It is available at the café on the lobby floor from 08:00 to 11:00 and costs 350 TL per person.\n\n(This reply was prepared by an automated assistant.)",
+      "draft": "Hello Alex,\n\nBreakfast is not included in the booking. It is available at the café on the lobby floor from 08:00 to 11:00 and costs 350 TL per person.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "modelSkipped": false,
+      "status": "answered",
+      "emails": 0,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "amenities",
+          "queryOriginal": "breakfast included",
+          "queryTr": "kahvaltı dahil mi",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "amenities",
+          "status": "answered",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "breakfast",
+        "market",
+        "laundry"
+      ],
+      "judge": "ok",
+      "claims": [
+        {
+          "request": "r1",
+          "support": "unverified",
+          "relation": "free",
+          "subject": "breakfast",
+          "value": "not included in the booking price",
+          "text": "Breakfast is not included in the booking.",
+          "explanation": "KB explicitly says breakfast is not included in the price."
+        },
+        {
+          "request": "r1",
+          "support": "unverified",
+          "relation": "location",
+          "subject": "breakfast",
+          "value": "café on the lobby floor",
+          "text": "Breakfast is available at the café on the lobby floor.",
+          "explanation": "KB states breakfast is served at the café on the lobby floor."
+        },
+        {
+          "request": "r1",
+          "support": "unverified",
+          "relation": "time",
+          "subject": "breakfast",
+          "value": "08:00–11:00",
+          "text": "Breakfast is available from 08:00 to 11:00.",
+          "explanation": "KB gives the same breakfast service hours."
+        },
+        {
+          "request": "r1",
+          "support": "unverified",
+          "relation": "fee",
+          "subject": "breakfast",
+          "value": "350 TL per person",
+          "text": "Breakfast costs 350 TL per person.",
+          "explanation": "KB states the breakfast price is 350 TL per person."
+        },
+        {
+          "request": "none",
+          "support": "process",
+          "relation": "other",
+          "subject": "reply",
+          "value": "prepared by an automated assistant",
+          "text": "This reply was prepared by an automated assistant.",
+          "explanation": "This is a meta statement about how the message was produced, not about the property."
+        }
+      ],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "answer",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "amenities",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "ok",
+          "addressed": "answered",
+          "itemStatus": "answered",
+          "factVerdicts": [
+            "ok"
+          ],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 10254
+    },
+    {
+      "id": "d-loft-pool-en",
+      "lang": "en",
+      "tags": [
+        "neighbor_entity"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": true,
+      "sentText": "Hello Alex,\n\nThe rooftop pool is open daily until 19:00.\n\n(This reply was prepared by an automated assistant.)",
+      "draft": "Hello Alex,\n\nThe rooftop pool is open daily until 19:00.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "modelSkipped": false,
+      "status": "answered",
+      "emails": 0,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "amenities",
+          "queryOriginal": "pool opening hours use time",
+          "queryTr": "havuz kullanım saatleri",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "amenities",
+          "status": "answered",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "pool",
+        "quiet",
+        "gym",
+        "latecheckout",
+        "pets",
+        "parking",
+        "ac",
+        "spa"
+      ],
+      "judge": "ok",
+      "claims": [
+        {
+          "request": "r1",
+          "support": "unverified",
+          "relation": "time",
+          "subject": "rooftop pool",
+          "value": "open daily until 19:00",
+          "text": "The rooftop pool is open daily until 19:00.",
+          "explanation": "KB explicitly states the pool is open daily until 19:00; omitting the opening time does not conflict."
+        },
+        {
+          "request": "none",
+          "support": "process",
+          "relation": "other",
+          "subject": "this reply",
+          "value": "was prepared by an automated assistant",
+          "text": "(This reply was prepared by an automated assistant.)",
+          "explanation": "This is a meta-comment about how the message was generated, not about the property."
+        }
+      ],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "answer",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "amenities",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "ok",
+          "addressed": "answered",
+          "itemStatus": "answered",
+          "factVerdicts": [
+            "ok"
+          ],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 11245
+    },
+    {
+      "id": "d-loft-spa-de",
+      "lang": "de",
+      "tags": [
+        "relation_type"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": true,
+      "sentText": "Hallo Alex,\n\nEine Massage muss mindestens 3 Stunden im Voraus gebucht werden und dauert 60 Minuten.\n\n(Diese Antwort wurde von einem automatischen Assistenten erstellt.)",
+      "draft": "Hallo Alex,\n\nEine Massage muss mindestens 3 Stunden im Voraus gebucht werden und dauert 60 Minuten.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "modelSkipped": false,
+      "status": "answered",
+      "emails": 0,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "amenities",
+          "queryOriginal": "Massage Buchung Dauer im Voraus",
+          "queryTr": "masaj hizmeti rezervasyon süresi",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "amenities",
+          "status": "answered",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "spa",
+        "latecheckout"
+      ],
+      "judge": "ok",
+      "claims": [
+        {
+          "request": "r1",
+          "support": "supported",
+          "relation": "advance_notice",
+          "subject": "Massage appointments",
+          "value": "must be booked at least 3 hours in advance",
+          "text": "Eine Massage muss mindestens 3 Stunden im Voraus gebucht werden.",
+          "explanation": "Matches the KB requirement of at least 3 hours advance booking for massage appointments."
+        },
+        {
+          "request": "r1",
+          "support": "supported",
+          "relation": "duration",
+          "subject": "Massage session",
+          "value": "60 minutes",
+          "text": "[Eine Massage] dauert 60 Minuten.",
+          "explanation": "Matches the KB statement that each session lasts 60 minutes."
+        },
+        {
+          "request": "none",
+          "support": "process",
+          "relation": "other",
+          "subject": "answer",
+          "value": "was created by an automatic assistant",
+          "text": "(Diese Antwort wurde von einem automatischen Assistenten erstellt.)",
+          "explanation": "This is meta-commentary about the response creation, not about the property."
+        }
+      ],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "answer",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "amenities",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "ok",
+          "addressed": "answered",
+          "itemStatus": "answered",
+          "factVerdicts": [
+            "ok",
+            "ok"
+          ],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 11395
+    },
+    {
+      "id": "d-loft-garage-fr",
+      "lang": "fr",
+      "tags": [
+        "fee",
+        "conditional"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Bonjour Alex,\n\nVotre hôte pourra vous renseigner sur le stationnement en semaine.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "low_confidence",
+      "riskReason": "low_confidence_or_risky",
+      "modelSkipped": false,
+      "status": "new",
+      "emails": 0,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "parking",
+          "queryOriginal": "parking gratuit en semaine",
+          "queryTr": "otopark hafta içi ücretsiz mi",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "parking",
+          "status": "open",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "parking",
+        "latecheckout"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "answer",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "parking",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "held_open",
+          "addressed": null,
+          "itemStatus": "open",
+          "factVerdicts": [
+            "missing"
+          ],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 18115
+    },
+    {
+      "id": "d-loft-bike-es",
+      "lang": "es",
+      "tags": [
+        "neighbor_entity"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hola Alex,\n\nLas bicicletas deben devolverse antes de las 21:00.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "items_nothing_answered",
+      "riskReason": "items_held",
+      "modelSkipped": false,
+      "status": "new",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "other",
+          "queryOriginal": "devolver las bicicletas hora límite",
+          "queryTr": "bisikletleri ne zaman geri verme saati",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "other",
+          "status": "pending_host",
+          "sensitivity": "sensitive",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "bikes"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "answer",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "other",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "held_open",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [
+            "missing"
+          ],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 17305
+    },
+    {
+      "id": "d-loft-quiet-en",
+      "lang": "en",
+      "tags": [
+        "permission"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": true,
+      "sentText": "Hello Alex,\n\nQuiet hours are from 22:00 to 07:00, so music on the balcony at 22:30 is not allowed.\n\n(This reply was prepared by an automated assistant.)",
+      "draft": "Hello Alex,\n\nQuiet hours are from 22:00 to 07:00, so music on the balcony at 22:30 is not allowed.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "modelSkipped": false,
+      "status": "answered",
+      "emails": 0,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "house_rules",
+          "queryOriginal": "music on the balcony at 10:30 pm noise rules",
+          "queryTr": "balkonda müzik saat 22:30 gürültü kuralı",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "house_rules",
+          "status": "answered",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "quiet",
+        "pets",
+        "breakfast",
+        "gym"
+      ],
+      "judge": "ok",
+      "claims": [
+        {
+          "request": "r1",
+          "support": "supported",
+          "relation": "time",
+          "subject": "quiet hours",
+          "value": "22:00 to 07:00",
+          "text": "Quiet hours are from 22:00 to 07:00",
+          "explanation": "The times for quiet hours exactly match the KB."
+        },
+        {
+          "request": "r1",
+          "support": "supported",
+          "relation": "prohibition",
+          "subject": "music on the balcony",
+          "value": "not allowed at 22:30",
+          "text": "music on the balcony at 22:30 is not allowed.",
+          "explanation": "KB forbids music on the balcony during quiet hours (22:00–07:00), which includes 22:30, so the specific prohibition is consistent."
+        },
+        {
+          "request": "none",
+          "support": "process",
+          "relation": "other",
+          "subject": "this reply",
+          "value": "was prepared by an automated assistant",
+          "text": "This reply was prepared by an automated assistant.",
+          "explanation": "This is meta-information about how the reply was generated, not about the property."
+        }
+      ],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "answer",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "house_rules",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "ok",
+          "addressed": "answered",
+          "itemStatus": "answered",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 13719
+    },
+    {
+      "id": "d-pets-big-tr",
+      "lang": "tr",
+      "tags": [
+        "conditional",
+        "permission"
+      ],
+      "pair": "P-pets",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nBilgi tabanındaki koşula göre 10 kg altındaki köpekler kabul ediliyor; 25 kg köpeğiniz bu koşulu karşılamıyor. İstisna olup olmayacağı ev sahibinizin kararıdır; mesajınız kaydedildi, ev sahibiniz görebilir.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_output_veto",
+      "riskReason": "items_held",
+      "modelSkipped": false,
+      "status": "new",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "pets",
+          "queryOriginal": "evcil hayvan köpek kabul politikası",
+          "queryTr": "evcil hayvan köpek kabul politikası",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "pets",
+          "status": "pending_host",
+          "sensitivity": "sensitive",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "pets",
+        "terrace",
+        "quiet"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "answer",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "pets",
+            "modelRelation": "own_topic",
+            "traceable": false
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "held_open",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 10191
+    },
+    {
+      "id": "d-pets-small-tr",
+      "lang": "tr",
+      "tags": [
+        "conditional",
+        "permission",
+        "fee"
+      ],
+      "pair": "P-pets",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\n5 kiloluk kedinizi getirebilirsiniz. Evcil hayvanlar için konaklama başına 500 TL temizlik ücreti alınır.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\n5 kiloluk kedinizi getirebilirsiniz. Evcil hayvanlar için konaklama başına 500 TL temizlik ücreti alınır.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "modelSkipped": false,
+      "status": "answered",
+      "emails": 0,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "pets",
+          "queryOriginal": "5 kiloluk kedimizi de getirebilir miyiz?",
+          "queryTr": "5 kiloluk kedi evcil hayvan kabul",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "pets",
+          "status": "answered",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "pets",
+        "terrace",
+        "quiet"
+      ],
+      "judge": "ok",
+      "claims": [
+        {
+          "request": "r1",
+          "support": "supported",
+          "relation": "permission",
+          "subject": "5 kg kedili evcil hayvan",
+          "value": "getirebilir",
+          "text": "5 kiloluk kedinizi getirebilirsiniz.",
+          "explanation": "KB 10 kg altı kedi ve köpeklerin kabul edildiğini belirtir; 5 kg kedi buna dahildir."
+        },
+        {
+          "request": "r1",
+          "support": "supported",
+          "relation": "fee",
+          "subject": "evcil hayvanlar",
+          "value": "konaklama başına 500 TL temizlik ücreti alınır",
+          "text": "Evcil hayvanlar için konaklama başına 500 TL temizlik ücreti alınır.",
+          "explanation": "Yanıttaki temizlik ücreti tutarı ve kapsamı KB ile aynıdır."
+        }
+      ],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "answer",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "pets",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "ok",
+          "addressed": "answered",
+          "itemStatus": "answered",
+          "factVerdicts": [
+            "ok"
+          ],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 11990
+    },
+    {
+      "id": "d-latecheckout-tr",
+      "lang": "tr",
+      "tags": [
+        "stay_change",
+        "conditional"
+      ],
+      "pair": "P-checkout",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nStandart çıkış saatimiz 11:00. Saat 13:00'e kadar geç çıkış talebiniz ve ücret durumu ev sahibinizin onayına bağlıdır; mesajınız kaydedildi, ev sahibiniz görebilir.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_output_veto",
+      "riskReason": "handoff_notice",
+      "modelSkipped": false,
+      "status": "new",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "late_checkout",
+          "queryOriginal": "geç çıkış 13:00 ücreti",
+          "queryTr": "geç çıkış 13:00 ücreti",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "late_checkout",
+          "status": "open",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "latecheckout",
+        "checkout",
+        "trash",
+        "gym",
+        "parking",
+        "pets",
+        "checkin",
+        "bike",
+        "breakfast",
+        "terrace",
+        "quiet",
+        "sauna"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "hold",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "late_checkout",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "held_open",
+          "addressed": null,
+          "itemStatus": "open",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 13162
+    },
+    {
+      "id": "d-checkout-time-tr",
+      "lang": "tr",
+      "tags": [
+        "stay_change"
+      ],
+      "pair": "P-checkout",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nÇıkış saati 11:00. Anahtar kartını resepsiyona bırakabilirsiniz.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nÇıkış saati 11:00. Anahtar kartını resepsiyona bırakabilirsiniz.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "modelSkipped": false,
+      "status": "answered",
+      "emails": 0,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "checkout_time",
+          "queryOriginal": "çıkış saati checkout",
+          "queryTr": "çıkış saati checkout",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "access_keys",
+          "queryOriginal": "anahtar kartını nereye bırakıyoruz",
+          "queryTr": "anahtar kartını nereye bırakıyoruz",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "checkout_time",
+          "status": "answered",
+          "sensitivity": "none",
+          "message": 1
+        },
+        {
+          "kind": "access_keys",
+          "status": "answered",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "checkout",
+        "checkin",
+        "latecheckout",
+        "gym",
+        "sauna",
+        "parking",
+        "trash",
+        "fuse"
+      ],
+      "judge": "ok",
+      "claims": [
+        {
+          "request": "r1",
+          "support": "unverified",
+          "relation": "time",
+          "subject": "checkout",
+          "value": "11:00",
+          "text": "Çıkış saati 11:00.",
+          "explanation": "Matches the checkout time given in the KB."
+        },
+        {
+          "request": "r2",
+          "support": "unverified",
+          "relation": "location",
+          "subject": "key card",
+          "value": "resepsiyon",
+          "text": "Anahtar kartını resepsiyona bırakabilirsiniz.",
+          "explanation": "KB specifies that at checkout the key card should be left at reception, matching the reply."
+        },
+        {
+          "request": "none",
+          "support": "process",
+          "relation": "other",
+          "subject": "reply",
+          "value": "yanıtın otomatik asistan tarafından hazırlandığı",
+          "text": "(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+          "explanation": "This is about how the message was created, not about the property."
+        }
+      ],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "answer",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "checkout_time",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "ok",
+          "addressed": "answered",
+          "itemStatus": "answered",
+          "factVerdicts": [
+            "ok"
+          ],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        },
+        {
+          "id": "r2",
+          "expect": "answer",
+          "relation": "none",
+          "match": {
+            "id": "r2",
+            "extraction": "found",
+            "modelIndex": 1,
+            "modelIntent": "access_keys",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "ok",
+          "addressed": "answered",
+          "itemStatus": "answered+answered",
+          "factVerdicts": [
+            "ok"
+          ],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 7949
+    },
+    {
+      "id": "d-pool-child-en",
+      "lang": "en",
+      "tags": [
+        "conditional",
+        "cross_language"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": true,
+      "sentText": "Hello Alex,\n\nChildren under 12 may use the pool only when accompanied by an adult, so your 10-year-old cannot swim there alone.\n\n(This reply was prepared by an automated assistant.)",
+      "draft": "Hello Alex,\n\nChildren under 12 may use the pool only when accompanied by an adult, so your 10-year-old cannot swim there alone.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "modelSkipped": false,
+      "status": "answered",
+      "emails": 0,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "house_rules",
+          "queryOriginal": "child swimming alone pool rule",
+          "queryTr": "çocuk havuz kullanımı kuralı",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "house_rules",
+          "status": "answered",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "pool",
+        "pets",
+        "terrace",
+        "quiet"
+      ],
+      "judge": "ok",
+      "claims": [
+        {
+          "request": "r1",
+          "support": "supported",
+          "relation": "permission",
+          "subject": "children under 12 in the pool",
+          "value": "may use the pool only when accompanied by an adult",
+          "text": "Children under 12 may use the pool only when accompanied by an adult.",
+          "explanation": "This is a direct paraphrase of the pool rule in the KB."
+        },
+        {
+          "request": "r1",
+          "support": "supported",
+          "relation": "prohibition",
+          "subject": "10-year-old child in the pool",
+          "value": "cannot swim in the pool alone",
+          "text": "Your 10-year-old cannot swim there alone.",
+          "explanation": "A 10-year-old falls under the under-12 rule, so they are prohibited from swimming alone."
+        }
+      ],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "answer",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "house_rules",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "ok",
+          "addressed": "answered",
+          "itemStatus": "answered",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 14116
+    },
+    {
+      "id": "d-ext-info-tr",
+      "lang": "tr",
+      "tags": [
+        "same_words",
+        "safety"
+      ],
+      "pair": "P-ext",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nYangın söndürücü mutfak kapısının arkasında. İlk yardım çantası banyo dolabında.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nYangın söndürücü mutfak kapısının arkasında. İlk yardım çantası banyo dolabında.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "modelSkipped": false,
+      "status": "answered",
+      "emails": 0,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "amenities",
+          "queryOriginal": "yangın söndürücü yeri ilk yardım çantası",
+          "queryTr": "yangın söndürücü yeri ilk yardım çantası",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "amenities",
+          "status": "answered",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "safety",
+        "parking"
+      ],
+      "judge": "ok",
+      "claims": [
+        {
+          "request": "r1",
+          "support": "supported",
+          "relation": "location",
+          "subject": "yangın söndürücü",
+          "value": "mutfak kapısının arkasında",
+          "text": "Yangın söndürücü mutfak kapısının arkasında.",
+          "explanation": "Location of the fire extinguisher matches the KB description."
+        },
+        {
+          "request": "r2",
+          "support": "supported",
+          "relation": "location",
+          "subject": "ilk yardım çantası",
+          "value": "banyo dolabında",
+          "text": "İlk yardım çantası banyo dolabında.",
+          "explanation": "Location of the first aid kit matches the KB description."
+        },
+        {
+          "request": "none",
+          "support": "process",
+          "relation": "other",
+          "subject": "yanıt",
+          "value": "otomatik asistan tarafından hazırlandı",
+          "text": "Bu yanıt otomatik asistan tarafından hazırlandı.",
+          "explanation": "This is a meta statement about how the message was generated, not about the property."
+        }
+      ],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "answer",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "amenities",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "ok",
+          "addressed": "answered",
+          "itemStatus": "answered",
+          "factVerdicts": [
+            "ok"
+          ],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        },
+        {
+          "id": "r2",
+          "expect": "answer",
+          "relation": "none",
+          "match": {
+            "id": "r2",
+            "extraction": "missed",
+            "modelIndex": null,
+            "modelIntent": null,
+            "modelRelation": null,
+            "traceable": null
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "ok",
+          "addressed": "answered",
+          "itemStatus": "answered",
+          "factVerdicts": [
+            "ok"
+          ],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 12123
+    },
+    {
+      "id": "d-ext-fire-tr",
+      "lang": "tr",
+      "tags": [
+        "same_words",
+        "emergency"
+      ],
+      "pair": "P-ext",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nYangın söndürücü mutfak kapısının arkasında. Mesajınız kaydedildi; ev sahibiniz görebilir.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "emergency",
+          "queryOriginal": "yangın acil durum yangın söndürücü",
+          "queryTr": "yangın acil durum yangın söndürücü",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "emergency",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "safety",
+        "boiler",
+        "stove"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "emergency",
+            "modelRelation": "own_topic",
+            "traceable": false
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        },
+        {
+          "id": "r2",
+          "expect": "emergency",
+          "relation": "dependent",
+          "match": {
+            "id": "r2",
+            "extraction": "merged",
+            "modelIndex": null,
+            "modelIntent": null,
+            "modelRelation": null,
+            "traceable": null
+          },
+          "relationAgreement": "agree",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 10626
+    },
+    {
+      "id": "d-ac-trash-tr",
+      "lang": "tr",
+      "tags": [
+        "same_words",
+        "complaint_independent"
+      ],
+      "pair": "P-ac",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nKlima kumandası komodinin çekmecesinde. Soğutma için MODE tuşuyla kar tanesi simgesini seçebilirsiniz; pencereler açıkken klima otomatik olarak durur. Çöp konteynerleri bina girişinin sağında.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nKlima kumandası komodinin çekmecesinde. Soğutma için MODE tuşuyla kar tanesi simgesini seçebilirsiniz; pencereler açıkken klima otomatik olarak durur. Çöp konteynerleri bina girişinin sağında.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "modelSkipped": false,
+      "status": "answered",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "Klima çalışmıyor",
+          "queryTr": "klima çalışmıyor şikayet",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "Klima çalışmıyor",
+          "queryTr": "klima çalışmıyor çözüm",
+          "message": 1,
+          "relation": "fix_request"
+        },
+        {
+          "intent": "trash",
+          "queryOriginal": "çöp konteyneri nerede",
+          "queryTr": "çöp konteyneri yeri",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "Klima çalışmıyor",
+          "queryTr": "klima çalışmıyor çözüm",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "items": [
+        {
+          "kind": "appliance_help",
+          "status": "answered",
+          "sensitivity": "none",
+          "message": 1
+        },
+        {
+          "kind": "trash",
+          "status": "answered",
+          "sensitivity": "none",
+          "message": 1
+        },
+        {
+          "kind": "complaint_issue",
+          "status": "pending_host",
+          "sensitivity": "sensitive",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "ac",
+        "trash",
+        "parking",
+        "stove"
+      ],
+      "judge": "ok",
+      "claims": [
+        {
+          "request": "r1",
+          "support": "supported",
+          "relation": "location",
+          "subject": "Klima kumandası",
+          "value": "komodinin çekmecesinde",
+          "text": "Klima kumandası komodinin çekmecesinde.",
+          "explanation": "The reply repeats the KB statement about the AC remote’s location."
+        },
+        {
+          "request": "r1",
+          "support": "supported",
+          "relation": "method_steps",
+          "subject": "Klima",
+          "value": "Soğutma için MODE tuşuyla kar tanesi simgesini seçmek",
+          "text": "Soğutma için MODE tuşuyla kar tanesi simgesini seçebilirsiniz.",
+          "explanation": "This matches the KB instructions for setting cooling mode on the AC."
+        },
+        {
+          "request": "r1",
+          "support": "supported",
+          "relation": "other",
+          "subject": "Klima",
+          "value": "pencereler açıkken otomatik olarak durur",
+          "text": "Pencereler açıkken klima otomatik olarak durur.",
+          "explanation": "The behavior of the AC stopping when windows are open is identical to the KB."
+        },
+        {
+          "request": "r2",
+          "support": "supported",
+          "relation": "location",
+          "subject": "Çöp konteynerleri",
+          "value": "bina girişinin sağında",
+          "text": "Çöp konteynerleri bina girişinin sağında.",
+          "explanation": "The stated location of the trash containers matches the KB location description."
+        },
+        {
+          "request": "none",
+          "support": "process",
+          "relation": "other",
+          "subject": "Yanıt",
+          "value": "otomatik asistan tarafından hazırlandı",
+          "text": "Bu yanıt otomatik asistan tarafından hazırlandı.",
+          "explanation": "This is meta-information about how the message was generated, not a property fact."
+        }
+      ],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "hold",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "complaint_issue",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "held_open",
+          "addressed": "answered",
+          "itemStatus": "answered+pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        },
+        {
+          "id": "r2",
+          "expect": "answer",
+          "relation": "independent",
+          "match": {
+            "id": "r2",
+            "extraction": "found",
+            "modelIndex": 2,
+            "modelIntent": "trash",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "agree",
+          "outcome": "ok_unverified",
+          "addressed": "answered",
+          "itemStatus": "answered",
+          "factVerdicts": [
+            "missing"
+          ],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 9254
+    },
+    {
+      "id": "d-ac-cool-tr",
+      "lang": "tr",
+      "tags": [
+        "same_words",
+        "fix_recipe"
+      ],
+      "pair": "P-ac",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nKlima kumandası komodinin çekmecesinde. MODE tuşuyla kar tanesi simgesini seçin; 22 derece önerilir. Pencereler açıkken klima otomatik olarak durur.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "items_fix_unverified",
+      "riskReason": "low_confidence_or_risky",
+      "modelSkipped": false,
+      "status": "new",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "klima çalışmıyor şikayet",
+          "queryTr": "klima çalışmıyor şikayet",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "klima çalışmıyor çözüm",
+          "queryTr": "klima çalışmıyor çözüm",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "complaint_issue",
+          "status": "pending_host",
+          "sensitivity": "sensitive",
+          "message": 1
+        },
+        {
+          "kind": "appliance_help",
+          "status": "open",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "ac",
+        "boiler",
+        "stove"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "hold",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "complaint_issue",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "held_open",
+          "addressed": null,
+          "itemStatus": "pending_host+open",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        },
+        {
+          "id": "r2",
+          "expect": "answer",
+          "relation": "dependent",
+          "match": {
+            "id": "r2",
+            "extraction": "found",
+            "modelIndex": 1,
+            "modelIntent": "appliance_help",
+            "modelRelation": "fix_request",
+            "traceable": false
+          },
+          "relationAgreement": "agree",
+          "outcome": "held_open",
+          "addressed": null,
+          "itemStatus": "pending_host+open",
+          "factVerdicts": [
+            "missing"
+          ],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 6770
+    },
+    {
+      "id": "d-ac-norecipe-tr",
+      "lang": "tr",
+      "tags": [
+        "fix_no_recipe"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": null,
+      "skippedReason": "ai_unavailable",
+      "gateDetail": "not_model",
+      "riskReason": "items_held",
+      "modelSkipped": true,
+      "status": "new",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "klima hiç soğutmuyor sorun",
+          "queryTr": "klima çalışmıyor sorun şikayet",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "klima hiç soğutmuyor nasıl düzeltebiliriz",
+          "queryTr": "klima çalışmıyor nasıl düzeltilir",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "appliance_help",
+          "status": "open",
+          "sensitivity": "none",
+          "message": 1
+        },
+        {
+          "kind": "complaint_issue",
+          "status": "pending_host",
+          "sensitivity": "sensitive",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "stove",
+        "bike",
+        "boiler"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "hold",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "complaint_issue",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "held_open",
+          "addressed": null,
+          "itemStatus": "open+pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        },
+        {
+          "id": "r2",
+          "expect": "hold",
+          "relation": "dependent",
+          "match": {
+            "id": "r2",
+            "extraction": "found",
+            "modelIndex": 1,
+            "modelIntent": "appliance_help",
+            "modelRelation": "fix_request",
+            "traceable": true
+          },
+          "relationAgreement": "agree",
+          "outcome": "held_open",
+          "addressed": null,
+          "itemStatus": "open+pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 35501
+    },
+    {
+      "id": "d-stove-light-tr",
+      "lang": "tr",
+      "tags": [
+        "same_words"
+      ],
+      "pair": "P-stove",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nDüğmeyi sağa çevirin; kırmızı ışık yandığında ocak ısınmaya başlar.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nDüğmeyi sağa çevirin; kırmızı ışık yandığında ocak ısınmaya başlar.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "modelSkipped": false,
+      "status": "answered",
+      "emails": 0,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "ocağı nasıl açıyoruz",
+          "queryTr": "ocak nasıl açılır kullanma talimatı",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "appliance_help",
+          "status": "answered",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "stove",
+        "gym",
+        "laundry",
+        "ac",
+        "dishwasher"
+      ],
+      "judge": "ok",
+      "claims": [
+        {
+          "request": "r1",
+          "support": "supported",
+          "relation": "method_steps",
+          "subject": "ocak",
+          "value": "ocağı açmak için düğmeyi sağa çevirmek gerekir",
+          "text": "Düğmeyi sağa çevirin.",
+          "explanation": "Exactly matches the KB instructions for turning on the stove."
+        },
+        {
+          "request": "r1",
+          "support": "supported",
+          "relation": "method_steps",
+          "subject": "ocak",
+          "value": "kırmızı ışık yanınca ocak ısınmaya başlar",
+          "text": "Kırmızı ışık yandığında ocak ısınmaya başlar.",
+          "explanation": "Paraphrases the KB statement that the stove starts heating when the red light is on."
+        },
+        {
+          "request": "none",
+          "support": "process",
+          "relation": "other",
+          "subject": "yanıt",
+          "value": "otomatik asistan tarafından hazırlandı",
+          "text": "Bu yanıt otomatik asistan tarafından hazırlandı.",
+          "explanation": "This is meta-information about how the message was generated, not about the property."
+        }
+      ],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "answer",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "appliance_help",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "ok",
+          "addressed": "answered",
+          "itemStatus": "answered",
+          "factVerdicts": [
+            "ok"
+          ],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 10818
+    },
+    {
+      "id": "d-stove-gas-tr",
+      "lang": "tr",
+      "tags": [
+        "same_words",
+        "emergency"
+      ],
+      "pair": "P-stove",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nMesajınız kaydedildi; ev sahibiniz görebilir.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "mutfakta ocak gaz kokusu şikayet",
+          "queryTr": "mutfakta ocak gaz kokusu şikayet",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "ocak gaz kokusu ne yapmalıyım",
+          "queryTr": "ocak gaz kokusu ne yapmalıyım",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "ocak gaz kokusu ne yapmalıyım",
+          "queryTr": "ocak gaz kokusu ne yapmalıyım",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "items": [
+        {
+          "kind": "complaint_issue",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "appliance_help",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "safety",
+        "stove",
+        "ac",
+        "boiler"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "complaint_issue",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": "pending_host+pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 26575
+    },
+    {
+      "id": "d-boiler-where-tr",
+      "lang": "tr",
+      "tags": [
+        "same_words"
+      ],
+      "pair": "P-boiler",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nSıcak su kombiden geliyor; kombi mutfak balkonunda.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nSıcak su kombiden geliyor; kombi mutfak balkonunda.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "modelSkipped": false,
+      "status": "answered",
+      "emails": 0,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "kombi sıcak su nerede",
+          "queryTr": "kombi sıcak su nerede",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "appliance_help",
+          "status": "answered",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "boiler",
+        "stove",
+        "ac"
+      ],
+      "judge": "ok",
+      "claims": [
+        {
+          "request": "r1",
+          "support": "supported",
+          "relation": "other",
+          "subject": "sıcak su",
+          "value": "kombiden geliyor",
+          "text": "Sıcak su kombiden geliyor.",
+          "explanation": "This matches the KB statement that hot water comes from the boiler."
+        },
+        {
+          "request": "r1",
+          "support": "supported",
+          "relation": "location",
+          "subject": "kombi",
+          "value": "mutfak balkonunda",
+          "text": "Kombi mutfak balkonunda.",
+          "explanation": "This matches the KB location of the boiler on the kitchen balcony."
+        },
+        {
+          "request": "none",
+          "support": "process",
+          "relation": "other",
+          "subject": "yanıt",
+          "value": "otomatik asistan tarafından hazırlandı",
+          "text": "Bu yanıt otomatik asistan tarafından hazırlandı.",
+          "explanation": "This is meta-information about how the message was produced, not about the property."
+        }
+      ],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "answer",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "appliance_help",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "ok",
+          "addressed": "answered",
+          "itemStatus": "answered",
+          "factVerdicts": [
+            "ok"
+          ],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 7884
+    },
+    {
+      "id": "d-boiler-leak-tr",
+      "lang": "tr",
+      "tags": [
+        "same_words",
+        "fix_hazard"
+      ],
+      "pair": "P-boiler",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": null,
+      "skippedReason": "ai_unavailable",
+      "gateDetail": "not_model",
+      "riskReason": "items_held",
+      "modelSkipped": true,
+      "status": "new",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "Kombiden su damlıyor, ne yapalım?",
+          "queryTr": "kombiden su damlıyor şikayet",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "Kombiden su damlıyor, ne yapalım?",
+          "queryTr": "kombiden su damlıyor çözüm",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "appliance_help",
+          "status": "open",
+          "sensitivity": "none",
+          "message": 1
+        },
+        {
+          "kind": "complaint_issue",
+          "status": "pending_host",
+          "sensitivity": "sensitive",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "boiler",
+        "stove"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "hold",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "complaint_issue",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "held_open",
+          "addressed": null,
+          "itemStatus": "open+pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        },
+        {
+          "id": "r2",
+          "expect": "hold",
+          "relation": "dependent",
+          "match": {
+            "id": "r2",
+            "extraction": "found",
+            "modelIndex": 1,
+            "modelIntent": "appliance_help",
+            "modelRelation": "fix_request",
+            "traceable": true
+          },
+          "relationAgreement": "agree",
+          "outcome": "held_open",
+          "addressed": null,
+          "itemStatus": "open+pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 35536
+    },
+    {
+      "id": "d-park-info-tr",
+      "lang": "tr",
+      "tags": [
+        "same_words"
+      ],
+      "pair": "P-park",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nKapalı otoparka binanın arkasındaki rampadan, giriş kartınızı okutarak girebilirsiniz. Park yeriniz daire numaranızla aynıdır.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nKapalı otoparka binanın arkasındaki rampadan, giriş kartınızı okutarak girebilirsiniz. Park yeriniz daire numaranızla aynıdır.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "modelSkipped": false,
+      "status": "answered",
+      "emails": 0,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "parking",
+          "queryOriginal": "otoparka giriş park yeri yeri hangisi",
+          "queryTr": "otoparka giriş park yeri yeri hangisi",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "parking",
+          "status": "answered",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "parking",
+        "market",
+        "checkin",
+        "gym",
+        "fuse",
+        "trash"
+      ],
+      "judge": "ok",
+      "claims": [
+        {
+          "request": "r1",
+          "support": "unverified",
+          "relation": "location",
+          "subject": "kapalı otopark girişi",
+          "value": "bina arkasındaki rampadan girilir",
+          "text": "Kapalı otoparka binanın arkasındaki rampadan girebilirsiniz.",
+          "explanation": "KB explicitly states that the parking is accessed via the ramp at the back of the building."
+        },
+        {
+          "request": "r1",
+          "support": "unverified",
+          "relation": "method_steps",
+          "subject": "kapalı otopark girişi",
+          "value": "giriş kartını okutarak girilir",
+          "text": "Kapalı otoparka giriş kartınızı okutarak girebilirsiniz.",
+          "explanation": "KB explicitly describes entering the parking by scanning the access card."
+        },
+        {
+          "request": "r1",
+          "support": "unverified",
+          "relation": "other",
+          "subject": "park yeri numarası",
+          "value": "daire numarasıyla aynıdır",
+          "text": "Park yeriniz daire numaranızla aynıdır.",
+          "explanation": "KB explicitly states that the parking spot number is the same as the apartment number."
+        }
+      ],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "answer",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "parking",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "ok",
+          "addressed": "answered",
+          "itemStatus": "answered",
+          "factVerdicts": [
+            "ok"
+          ],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 9508
+    },
+    {
+      "id": "d-park-taken-tr",
+      "lang": "tr",
+      "tags": [
+        "same_words",
+        "complaint_dependent"
+      ],
+      "pair": "P-park",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nSokak parkı konusunda ev sahibiniz size kesin bilgi verebilir.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "items_nothing_answered",
+      "riskReason": "items_held",
+      "modelSkipped": false,
+      "status": "new",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "parking",
+          "queryOriginal": "otopark yerimize başka araç park etti sokakta park edebilir miyiz",
+          "queryTr": "otopark yerimize başka araç park etti sokakta park edebilir miyiz",
+          "message": 1,
+          "relation": "fix_request"
+        },
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "otopark yerimize başka araç park etmiş şikayet",
+          "queryTr": "otopark yerimize başka araç park etmiş şikayet",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "parking",
+          "status": "open",
+          "sensitivity": "none",
+          "message": 1
+        },
+        {
+          "kind": "complaint_issue",
+          "status": "pending_host",
+          "sensitivity": "sensitive",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "parking",
+        "terrace",
+        "market"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "hold",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "parking",
+            "modelRelation": "fix_request",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "held_open",
+          "addressed": null,
+          "itemStatus": "open+pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        },
+        {
+          "id": "r2",
+          "expect": "hold",
+          "relation": "dependent",
+          "match": {
+            "id": "r2",
+            "extraction": "found",
+            "modelIndex": 1,
+            "modelIntent": "complaint_issue",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "unsafe_disagree",
+          "outcome": "held_open",
+          "addressed": null,
+          "itemStatus": "open+pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 13210
+    },
+    {
+      "id": "d-wifi-fix-tr",
+      "lang": "tr",
+      "tags": [
+        "same_words",
+        "fix_recipe"
+      ],
+      "pair": "P-fix",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nSalondaki TV ünitesinin içindeki modemin fişini çekip 30 saniye bekleyin, ardından tekrar takın. Işıklar yeşile dönünce yeniden bağlanın.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nSalondaki TV ünitesinin içindeki modemin fişini çekip 30 saniye bekleyin, ardından tekrar takın. Işıklar yeşile dönünce yeniden bağlanın.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "modelSkipped": false,
+      "status": "answered",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "internet wifi çalışmıyor",
+          "queryTr": "internet wifi çalışmıyor",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "wifi",
+          "queryOriginal": "modem resetleme internet yok",
+          "queryTr": "modem resetleme internet yok",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "wifi",
+          "status": "answered",
+          "sensitivity": "none",
+          "message": 1
+        },
+        {
+          "kind": "complaint_issue",
+          "status": "pending_host",
+          "sensitivity": "sensitive",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "wifi",
+        "dishwasher",
+        "quiet",
+        "checkin",
+        "sauna",
+        "transfer",
+        "market"
+      ],
+      "judge": "ok",
+      "claims": [
+        {
+          "request": "r2",
+          "support": "supported",
+          "relation": "location",
+          "subject": "modem",
+          "value": "salondaki TV ünitesinin içinde",
+          "text": "Salondaki TV ünitesinin içindeki modemin fişini çekin.",
+          "explanation": "Modemin salondaki TV ünitesinin içinde olduğu KB’de aynı şekilde belirtilmiş."
+        },
+        {
+          "request": "r2",
+          "support": "supported",
+          "relation": "method_steps",
+          "subject": "modem",
+          "value": "fişini çekip 30 saniye bekleyin, ardından tekrar takın",
+          "text": "Salondaki TV ünitesinin içindeki modemin fişini çekip 30 saniye bekleyin, ardından tekrar takın.",
+          "explanation": "Modemi fişten çekip 30 saniye bekleyip tekrar takma adımı KB’de aynı şekilde tarif edilmiş."
+        },
+        {
+          "request": "r2",
+          "support": "supported",
+          "relation": "method_steps",
+          "subject": "Wi-Fi bağlantısı",
+          "value": "modem üzerindeki ışıklar yeşile dönünce yeniden bağlanmak",
+          "text": "Işıklar yeşile dönünce yeniden bağlanın.",
+          "explanation": "Işıklar yeşile döndüğünde yeniden bağlanma talimatı KB’de aynen yer alıyor."
+        }
+      ],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "hold",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "complaint_issue",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "held_open",
+          "addressed": "answered",
+          "itemStatus": "answered+pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        },
+        {
+          "id": "r2",
+          "expect": "answer",
+          "relation": "dependent",
+          "match": {
+            "id": "r2",
+            "extraction": "found",
+            "modelIndex": 1,
+            "modelIntent": "wifi",
+            "modelRelation": "fix_request",
+            "traceable": true
+          },
+          "relationAgreement": "agree",
+          "outcome": "ok",
+          "addressed": "answered",
+          "itemStatus": "answered+pending_host",
+          "factVerdicts": [
+            "ok"
+          ],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 9276
+    },
+    {
+      "id": "d-fuse-fix-tr",
+      "lang": "tr",
+      "tags": [
+        "same_words",
+        "fix_hazard"
+      ],
+      "pair": "P-fix",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": null,
+      "skippedReason": "ai_unavailable",
+      "gateDetail": "not_model",
+      "riskReason": "items_held",
+      "modelSkipped": true,
+      "status": "new",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "elektrikler gitti sigortayı nasıl kaldırırız",
+          "queryTr": "elektrik kesildi sigorta problemi",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "sigortayı nasıl kaldırırız",
+          "queryTr": "elektrik sigorta paneli nasıl açılır",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "appliance_help",
+          "status": "open",
+          "sensitivity": "none",
+          "message": 1
+        },
+        {
+          "kind": "complaint_issue",
+          "status": "pending_host",
+          "sensitivity": "sensitive",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "fuse",
+        "stove",
+        "gym",
+        "trash",
+        "dishwasher"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "hold",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "complaint_issue",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "held_open",
+          "addressed": null,
+          "itemStatus": "open+pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        },
+        {
+          "id": "r2",
+          "expect": "hold",
+          "relation": "dependent",
+          "match": {
+            "id": "r2",
+            "extraction": "found",
+            "modelIndex": 1,
+            "modelIntent": "appliance_help",
+            "modelRelation": "fix_request",
+            "traceable": true
+          },
+          "relationAgreement": "agree",
+          "outcome": "held_open",
+          "addressed": null,
+          "itemStatus": "open+pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 36561
+    },
+    {
+      "id": "d-noise-wifi-tr",
+      "lang": "tr",
+      "tags": [
+        "complaint_independent"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nWi-Fi ağının adı Lale-Rezidans, şifresi lale2026.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nWi-Fi ağının adı Lale-Rezidans, şifresi lale2026.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "modelSkipped": false,
+      "status": "answered",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "üst kattan gürültü şikayet",
+          "queryTr": "üst kattan gürültü şikayet",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "wifi",
+          "queryOriginal": "Wi-Fi şifresi",
+          "queryTr": "wifi şifresi",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "wifi",
+          "status": "answered",
+          "sensitivity": "none",
+          "message": 1
+        },
+        {
+          "kind": "complaint_issue",
+          "status": "pending_host",
+          "sensitivity": "sensitive",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "wifi",
+        "quiet",
+        "laundry",
+        "latecheckout",
+        "terrace",
+        "gym",
+        "trash",
+        "market",
+        "pets",
+        "breakfast",
+        "stove",
+        "pool"
+      ],
+      "judge": "ok",
+      "claims": [
+        {
+          "request": "r2",
+          "support": "supported",
+          "relation": "other",
+          "subject": "Wi-Fi",
+          "value": "Ağın adı Lale-Rezidans",
+          "text": "Wi-Fi ağının adı Lale-Rezidans.",
+          "explanation": "KB aynı Wi-Fi ağ adını bildiriyor."
+        },
+        {
+          "request": "r2",
+          "support": "supported",
+          "relation": "other",
+          "subject": "Wi-Fi",
+          "value": "Şifre lale2026",
+          "text": "(Wi-Fi) şifresi lale2026.",
+          "explanation": "KB aynı Wi-Fi şifresini bildiriyor."
+        },
+        {
+          "request": "none",
+          "support": "process",
+          "relation": "other",
+          "subject": "Yanıt",
+          "value": "Otomatik asistan tarafından hazırlandı",
+          "text": "Bu yanıt otomatik asistan tarafından hazırlandı.",
+          "explanation": "Bu, mülk hakkında değil konuşma süreci hakkında bir açıklama."
+        }
+      ],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "hold",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "complaint_issue",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "held_open",
+          "addressed": "absent",
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        },
+        {
+          "id": "r2",
+          "expect": "answer",
+          "relation": "independent",
+          "match": {
+            "id": "r2",
+            "extraction": "found",
+            "modelIndex": 1,
+            "modelIntent": "wifi",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "agree",
+          "outcome": "ok",
+          "addressed": "answered",
+          "itemStatus": "answered",
+          "factVerdicts": [
+            "ok"
+          ],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 11159
+    },
+    {
+      "id": "d-noise-again-tr",
+      "lang": "tr",
+      "tags": [
+        "complaint_dependent"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": null,
+      "skippedReason": "ai_unavailable",
+      "gateDetail": "not_model",
+      "riskReason": "items_held",
+      "modelSkipped": true,
+      "status": "new",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "üst kattan gürültü gece ne yapmalı",
+          "queryTr": "üst kattan gürültü gece ne yapmalı",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "complaint_issue",
+          "status": "pending_host",
+          "sensitivity": "sensitive",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "quiet",
+        "latecheckout",
+        "trash",
+        "terrace",
+        "laundry",
+        "gym",
+        "pets",
+        "stove"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "hold",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "complaint_issue",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "held_open",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        },
+        {
+          "id": "r2",
+          "expect": "hold",
+          "relation": "dependent",
+          "match": {
+            "id": "r2",
+            "extraction": "merged",
+            "modelIndex": null,
+            "modelIntent": null,
+            "modelRelation": null,
+            "traceable": null
+          },
+          "relationAgreement": "agree",
+          "outcome": "held_open",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 35098
+    },
+    {
+      "id": "d-dirty-breakfast-en",
+      "lang": "en",
+      "tags": [
+        "complaint_independent",
+        "cross_language"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": true,
+      "sentText": "Hello Alex,\n\nBreakfast is served at the café on the lobby level from 08:00 to 11:00.\n\n(This reply was prepared by an automated assistant.)",
+      "draft": "Hello Alex,\n\nBreakfast is served at the café on the lobby level from 08:00 to 11:00.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "modelSkipped": false,
+      "status": "answered",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "bathroom dirty complaint",
+          "queryTr": "banyo kirli şikayet",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "amenities",
+          "queryOriginal": "breakfast time serving hours",
+          "queryTr": "kahvaltı saati servis zamanı",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "amenities",
+          "status": "answered",
+          "sensitivity": "none",
+          "message": 1
+        },
+        {
+          "kind": "complaint_issue",
+          "status": "pending_host",
+          "sensitivity": "sensitive",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "breakfast",
+        "laundry",
+        "sauna",
+        "market",
+        "safety",
+        "checkin"
+      ],
+      "judge": "ok",
+      "claims": [
+        {
+          "request": "r2",
+          "support": "unverified",
+          "relation": "time",
+          "subject": "breakfast",
+          "value": "08:00–11:00",
+          "text": "Breakfast is served from 08:00 to 11:00.",
+          "explanation": "The reply’s breakfast serving hours match the KB exactly."
+        },
+        {
+          "request": "r2",
+          "support": "unverified",
+          "relation": "location",
+          "subject": "breakfast",
+          "value": "café on the lobby level",
+          "text": "Breakfast is served at the café on the lobby level.",
+          "explanation": "The KB states breakfast is served in the café on the lobby floor, which matches the reply."
+        },
+        {
+          "request": "none",
+          "support": "process",
+          "relation": "other",
+          "subject": "reply",
+          "value": "prepared by an automated assistant",
+          "text": "This reply was prepared by an automated assistant.",
+          "explanation": "This is a meta statement about the message generation process, not about the property itself."
+        }
+      ],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "hold",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "complaint_issue",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "held_open",
+          "addressed": "absent",
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        },
+        {
+          "id": "r2",
+          "expect": "answer",
+          "relation": "independent",
+          "match": {
+            "id": "r2",
+            "extraction": "found",
+            "modelIndex": 1,
+            "modelIntent": "amenities",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "agree",
+          "outcome": "ok",
+          "addressed": "answered",
+          "itemStatus": "answered",
+          "factVerdicts": [
+            "ok"
+          ],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 10285
+    },
+    {
+      "id": "d-refund-checkout-tr",
+      "lang": "tr",
+      "tags": [
+        "complaint_independent",
+        "refund"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nÇıkışta anahtar kartını resepsiyona bırakabilirsiniz.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nÇıkışta anahtar kartını resepsiyona bırakabilirsiniz.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "modelSkipped": false,
+      "status": "answered",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "cancellation_refund",
+          "queryOriginal": "havuz kapalı ücret iadesi",
+          "queryTr": "havuz kapalı ücret iadesi",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "amenities",
+          "queryOriginal": "havuz kullanımı kapalı",
+          "queryTr": "havuz kullanımı kapalı",
+          "message": 1,
+          "relation": "fix_request"
+        },
+        {
+          "intent": "access_keys",
+          "queryOriginal": "çıkışta anahtar kartı nereye bırakılır",
+          "queryTr": "çıkışta anahtar kartı nereye bırakılır",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "amenities",
+          "queryOriginal": "havuz kullanımı kapalı",
+          "queryTr": "havuz kullanımı kapalı",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "items": [
+        {
+          "kind": "access_keys",
+          "status": "answered",
+          "sensitivity": "none",
+          "message": 1
+        },
+        {
+          "kind": "cancellation_refund",
+          "status": "pending_host",
+          "sensitivity": "sensitive",
+          "message": 1
+        },
+        {
+          "kind": "amenities",
+          "status": "open",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "checkout",
+        "pool",
+        "pets",
+        "latecheckout",
+        "parking",
+        "checkin",
+        "fuse",
+        "gym",
+        "safety",
+        "bike",
+        "terrace",
+        "sauna"
+      ],
+      "judge": "ok",
+      "claims": [
+        {
+          "request": "r2",
+          "support": "supported",
+          "relation": "location",
+          "subject": "anahtar kartı",
+          "value": "resepsiyon",
+          "text": "Çıkışta anahtar kartını resepsiyona bırakabilirsiniz.",
+          "explanation": "KB, çıkışta anahtar kartının resepsiyona bırakılması gerektiğini söylüyor; yanıt aynı yeri ve koşulu belirtiyor."
+        },
+        {
+          "request": "none",
+          "support": "process",
+          "relation": "other",
+          "subject": "yanıt",
+          "value": "otomatik asistan tarafından hazırlandı",
+          "text": "Bu yanıt otomatik asistan tarafından hazırlandı.",
+          "explanation": "Bu ifade mülk veya hizmetler hakkında değil, konuşmanın nasıl üretildiği hakkında bir süreç bilgisidir."
+        }
+      ],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "hold",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "cancellation_refund",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "held_open",
+          "addressed": "absent",
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        },
+        {
+          "id": "r2",
+          "expect": "answer",
+          "relation": "independent",
+          "match": {
+            "id": "r2",
+            "extraction": "found",
+            "modelIndex": 2,
+            "modelIntent": "access_keys",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "agree",
+          "outcome": "ok",
+          "addressed": "answered",
+          "itemStatus": "answered",
+          "factVerdicts": [
+            "ok"
+          ],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 18381
+    },
+    {
+      "id": "d-leak-mat-tr",
+      "lang": "tr",
+      "tags": [
+        "complaint_ambiguous"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nBunun için özür dileriz. Duştaki su sızıntısı ve ek banyo paspası talebiniz mesajınız kaydedildi; ev sahibiniz görebilir.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "reply_output_veto",
+      "riskReason": "items_held",
+      "modelSkipped": false,
+      "status": "new",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "Duschwasser tritt aus, zusätzlich Badematte?",
+          "queryTr": "duştan su sızıyor banyo paspası isteği",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "amenities",
+          "queryOriginal": "zusätzliche Badematte vorhanden",
+          "queryTr": "fazladan banyo paspası var mı",
+          "message": 1,
+          "relation": "follow_up"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "Duschwasser tritt aus Problem",
+          "queryTr": "duştan yere su sızıyor sorun",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "Duschwasser tritt aus Problem",
+          "queryTr": "duştan yere su sızıyor sorun",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "items": [
+        {
+          "kind": "amenities",
+          "status": "open",
+          "sensitivity": "none",
+          "message": 1
+        },
+        {
+          "kind": "appliance_help",
+          "status": "open",
+          "sensitivity": "none",
+          "message": 1
+        },
+        {
+          "kind": "complaint_issue",
+          "status": "pending_host",
+          "sensitivity": "sensitive",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "boiler",
+        "laundry",
+        "parking",
+        "safety",
+        "stove",
+        "dishwasher"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "hold",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "complaint_issue",
+            "modelRelation": "own_topic",
+            "traceable": false
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "held_open",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        },
+        {
+          "id": "r2",
+          "expect": "hold",
+          "relation": "ambiguous",
+          "match": {
+            "id": "r2",
+            "extraction": "found",
+            "modelIndex": 1,
+            "modelIntent": "amenities",
+            "modelRelation": "follow_up",
+            "traceable": false
+          },
+          "relationAgreement": "agree",
+          "outcome": "held_open",
+          "addressed": null,
+          "itemStatus": "open",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 10898
+    },
+    {
+      "id": "d-two-msgs-tr",
+      "lang": "tr",
+      "tags": [
+        "complaint_independent",
+        "multi_message"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nEn yakın market 200 metre ileride.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nEn yakın market 200 metre ileride.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "modelSkipped": false,
+      "status": "answered",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "klima çok ses yapıyor şikayet",
+          "queryTr": "klima çok ses yapıyor şikayet",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "klima çok ses yapıyor çözüm",
+          "queryTr": "klima çok ses yapıyor çözüm",
+          "message": 1,
+          "relation": "fix_request"
+        },
+        {
+          "intent": "local_recommendations",
+          "queryOriginal": "en yakın market konumu",
+          "queryTr": "en yakın market konumu",
+          "message": 2,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "klima çok ses yapıyor çözüm",
+          "queryTr": "klima çok ses yapıyor çözüm",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "items": [
+        {
+          "kind": "appliance_help",
+          "status": "open",
+          "sensitivity": "none",
+          "message": 1
+        },
+        {
+          "kind": "local_recommendations",
+          "status": "answered",
+          "sensitivity": "none",
+          "message": 2
+        },
+        {
+          "kind": "complaint_issue",
+          "status": "pending_host",
+          "sensitivity": "sensitive",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "market",
+        "ac",
+        "quiet",
+        "transfer",
+        "stove",
+        "terrace",
+        "pets"
+      ],
+      "judge": "ok",
+      "claims": [
+        {
+          "request": "r2",
+          "support": "supported",
+          "relation": "location",
+          "subject": "en yakın market",
+          "value": "200 metre ileride",
+          "text": "En yakın market 200 metre ileride.",
+          "explanation": "Yanıttaki konum bilgisi KB ile birebir örtüşüyor; çalışma saatleri sadece atlanmış."
+        },
+        {
+          "request": "none",
+          "support": "process",
+          "relation": "other",
+          "subject": "yanıt",
+          "value": "otomatik asistan tarafından hazırlandı",
+          "text": "Bu yanıt otomatik asistan tarafından hazırlandı.",
+          "explanation": "Bu ifade mülk bilgisi değil, konuşmanın nasıl üretildiğine dair bir süreç açıklaması."
+        }
+      ],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "hold",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "complaint_issue",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "held_open",
+          "addressed": "absent",
+          "itemStatus": "open+pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        },
+        {
+          "id": "r2",
+          "expect": "answer",
+          "relation": "independent",
+          "match": {
+            "id": "r2",
+            "extraction": "found",
+            "modelIndex": 2,
+            "modelIntent": "local_recommendations",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "agree",
+          "outcome": "ok",
+          "addressed": "answered",
+          "itemStatus": "answered",
+          "factVerdicts": [
+            "ok"
+          ],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 14692
+    },
+    {
+      "id": "d-human-breakfast-tr",
+      "lang": "tr",
+      "tags": [
+        "complaint_independent",
+        "human_request"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nKahvaltı 08:00–11:00 saatleri arasında servis ediliyor.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nKahvaltı 08:00–11:00 saatleri arasında servis ediliyor.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "modelSkipped": false,
+      "status": "answered",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "human_request",
+          "queryOriginal": "ev sahibiyle telefonda görüşme isteği",
+          "queryTr": "ev sahibiyle telefonla görüşme isteği",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "amenities",
+          "queryOriginal": "kahvaltı kaçta başlıyor",
+          "queryTr": "kahvaltı saati başlangıç",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "amenities",
+          "status": "answered",
+          "sensitivity": "none",
+          "message": 1
+        },
+        {
+          "kind": "human_request",
+          "status": "pending_host",
+          "sensitivity": "sensitive",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "breakfast",
+        "sauna",
+        "market",
+        "latecheckout",
+        "checkout",
+        "checkin"
+      ],
+      "judge": "ok",
+      "claims": [
+        {
+          "request": "r2",
+          "support": "supported",
+          "relation": "time",
+          "subject": "kahvaltı",
+          "value": "08:00–11:00 arasında servis ediliyor",
+          "text": "Kahvaltı 08:00–11:00 saatleri arasında servis ediliyor.",
+          "explanation": "Yanıttaki kahvaltı servis saatleri KB’deki kahvaltı servis saatleriyle aynıdır."
+        },
+        {
+          "request": "none",
+          "support": "process",
+          "relation": "other",
+          "subject": "yanıt",
+          "value": "otomatik asistan tarafından hazırlandı",
+          "text": "Bu yanıt otomatik asistan tarafından hazırlandı.",
+          "explanation": "Bu, mülk hakkında değil konuşmanın nasıl üretildiği hakkında bir ifadedir."
+        }
+      ],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "hold",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "human_request",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "held_open",
+          "addressed": "absent",
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        },
+        {
+          "id": "r2",
+          "expect": "answer",
+          "relation": "independent",
+          "match": {
+            "id": "r2",
+            "extraction": "found",
+            "modelIndex": 1,
+            "modelIntent": "amenities",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "agree",
+          "outcome": "ok",
+          "addressed": "answered",
+          "itemStatus": "answered",
+          "factVerdicts": [
+            "ok"
+          ],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 10972
+    },
+    {
+      "id": "d-mt-pet-pool-tr",
+      "lang": "tr",
+      "tags": [
+        "multi_turn",
+        "permission"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": true,
+      "sentText": "Evcil hayvanlar havuz alanına giremiyor.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Evcil hayvanlar havuz alanına giremiyor.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "modelSkipped": false,
+      "status": "answered",
+      "emails": 0,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "pets",
+          "queryOriginal": "evcil hayvan havuz alanı kural",
+          "queryTr": "evcil hayvan havuz alanı kural",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "pets",
+          "status": "answered",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "pets",
+        "pool",
+        "checkin",
+        "terrace",
+        "parking",
+        "quiet",
+        "fuse",
+        "gym",
+        "trash"
+      ],
+      "judge": "ok",
+      "claims": [
+        {
+          "request": "r1",
+          "support": "supported",
+          "relation": "prohibition",
+          "subject": "evcil hayvanlar",
+          "value": "havuz alanına girmek",
+          "text": "Evcil hayvanlar havuz alanına giremiyor.",
+          "explanation": "The KB explicitly states that pets may not enter the pool area, matching the prohibition in the reply."
+        },
+        {
+          "request": "none",
+          "support": "process",
+          "relation": "other",
+          "subject": "yanıt",
+          "value": "otomatik asistan tarafından hazırlandı",
+          "text": "(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+          "explanation": "This is a meta-comment about how the message was generated, not about the property itself."
+        }
+      ],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "answer",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "pets",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "ok",
+          "addressed": "answered",
+          "itemStatus": "answered",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 8946
+    },
+    {
+      "id": "d-mt-withdraw-tr",
+      "lang": "tr",
+      "tags": [
+        "multi_turn",
+        "withdrawn"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nGiriş saati 15:00'tir.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nGiriş saati 15:00'tir.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "modelSkipped": false,
+      "status": "answered",
+      "emails": 0,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "early_checkin",
+          "queryOriginal": "erken giriş 12:00",
+          "queryTr": "erken giriş 12:00",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "checkin_time",
+          "queryOriginal": "giriş saati check-in",
+          "queryTr": "giriş saati check-in",
+          "message": 2,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "early_checkin",
+          "status": "withdrawn",
+          "sensitivity": "none",
+          "message": 1
+        },
+        {
+          "kind": "checkin_time",
+          "status": "answered",
+          "sensitivity": "none",
+          "message": 2
+        }
+      ],
+      "retrieved": [
+        "checkin",
+        "sauna",
+        "quiet",
+        "gym",
+        "checkout",
+        "trash",
+        "pool",
+        "terrace",
+        "transfer",
+        "fuse",
+        "parking",
+        "latecheckout"
+      ],
+      "judge": "ok",
+      "claims": [
+        {
+          "request": "r1",
+          "support": "unverified",
+          "relation": "time",
+          "subject": "Giriş saati",
+          "value": "15:00",
+          "text": "Giriş saati 15:00'tir.",
+          "explanation": "The claim matches the KB statement about check-in time exactly."
+        },
+        {
+          "request": "none",
+          "support": "process",
+          "relation": "other",
+          "subject": "yanıt",
+          "value": "otomatik asistan tarafından hazırlandı",
+          "text": "Bu yanıt otomatik asistan tarafından hazırlandı.",
+          "explanation": "This is a meta statement about how the reply was generated, not about the property."
+        }
+      ],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r0",
+          "expect": "none",
+          "relation": "none",
+          "match": {
+            "id": "r0",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "early_checkin",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "not_scored",
+          "addressed": null,
+          "itemStatus": "withdrawn",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        },
+        {
+          "id": "r1",
+          "expect": "answer",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 1,
+            "modelIntent": "checkin_time",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "ok",
+          "addressed": "answered",
+          "itemStatus": "answered",
+          "factVerdicts": [
+            "ok"
+          ],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 11624
+    },
+    {
+      "id": "d-mt-normal-tr",
+      "lang": "tr",
+      "tags": [
+        "multi_turn",
+        "complaint_dependent"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Bu konuda ev sahibiniz size kesin bilgi verebilir.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "items_nothing_answered",
+      "riskReason": "items_held",
+      "modelSkipped": false,
+      "status": "new",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "kombiden garip tıkırtı sesi normal mi",
+          "queryTr": "kombiden garip tıkırtı sesi normal mi",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "complaint_issue",
+          "status": "pending_host",
+          "sensitivity": "sensitive",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "quiet",
+        "boiler",
+        "stove",
+        "pets",
+        "terrace"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "hold",
+          "relation": "dependent",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "complaint_issue",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "unsafe_disagree",
+          "outcome": "held_open",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 17418
+    },
+    {
+      "id": "d-mt-bike-hour-tr",
+      "lang": "tr",
+      "tags": [
+        "multi_turn",
+        "fee",
+        "relation_type"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": true,
+      "sentText": "Saatlik bisiklet kiralama ücreti 75 TL'dir.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Saatlik bisiklet kiralama ücreti 75 TL'dir.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "modelSkipped": false,
+      "status": "answered",
+      "emails": 0,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "other",
+          "queryOriginal": "saatlik ücret bisiklet kiralama",
+          "queryTr": "bisiklet kiralama saatlik ücret",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "other",
+          "status": "answered",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "sauna",
+        "bike",
+        "breakfast",
+        "parking",
+        "gym",
+        "latecheckout"
+      ],
+      "judge": "ok",
+      "claims": [
+        {
+          "request": "r1",
+          "support": "unverified",
+          "relation": "fee",
+          "subject": "bisiklet kiralama",
+          "value": "saatlik 75 TL",
+          "text": "Saatlik bisiklet kiralama ücreti 75 TL'dir.",
+          "explanation": "Exact same hourly bicycle rental fee as in the KB."
+        },
+        {
+          "request": "none",
+          "support": "process",
+          "relation": "other",
+          "subject": "yanıt",
+          "value": "otomatik asistan tarafından hazırlandı",
+          "text": "Bu yanıt otomatik asistan tarafından hazırlandı.",
+          "explanation": "This is about how the message was generated, not about the property."
+        }
+      ],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "answer",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "other",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "ok",
+          "addressed": "answered",
+          "itemStatus": "answered",
+          "factVerdicts": [
+            "ok"
+          ],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 12885
+    },
+    {
+      "id": "d-mt-pool-gym-tr",
+      "lang": "tr",
+      "tags": [
+        "multi_turn",
+        "neighbor_entity"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": true,
+      "sentText": "Spor salonu -1. katta, 07:00–22:00 saatleri arasında açık ve giriş kartınızla kullanabilirsiniz. Misafirler için ücretsizdir.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Spor salonu -1. katta, 07:00–22:00 saatleri arasında açık ve giriş kartınızla kullanabilirsiniz. Misafirler için ücretsizdir.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "modelSkipped": false,
+      "status": "answered",
+      "emails": 0,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "amenities",
+          "queryOriginal": "spor salonu fitness kullanımı saatleri",
+          "queryTr": "spor salonu fitness kullanımı saatleri",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "amenities",
+          "status": "answered",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "gym",
+        "pets",
+        "quiet",
+        "sauna",
+        "checkin",
+        "transfer"
+      ],
+      "judge": "ok",
+      "claims": [
+        {
+          "request": "r1",
+          "support": "supported",
+          "relation": "location",
+          "subject": "Spor salonu",
+          "value": "-1. kat",
+          "text": "Spor salonu -1. katta.",
+          "explanation": "Exact same location as in the KB."
+        },
+        {
+          "request": "r1",
+          "support": "supported",
+          "relation": "time",
+          "subject": "Spor salonu",
+          "value": "07:00–22:00",
+          "text": "Spor salonu 07:00–22:00 saatleri arasında açık.",
+          "explanation": "Opening hours match the KB."
+        },
+        {
+          "request": "r1",
+          "support": "supported",
+          "relation": "method_steps",
+          "subject": "Spor salonu",
+          "value": "Giriş kartınızla açılır / kullanılır",
+          "text": "Spor salonunu giriş kartınızla kullanabilirsiniz.",
+          "explanation": "KB says it opens with the entry card, which matches the described usage method."
+        },
+        {
+          "request": "r1",
+          "support": "supported",
+          "relation": "free",
+          "subject": "Spor salonu",
+          "value": "misafirler için ücretsiz",
+          "text": "Spor salonu misafirler için ücretsizdir.",
+          "explanation": "Free use for guests is explicitly in the KB."
+        },
+        {
+          "request": "none",
+          "support": "process",
+          "relation": "other",
+          "subject": "Yanıt",
+          "value": "otomatik asistan tarafından hazırlandı",
+          "text": "Bu yanıt otomatik asistan tarafından hazırlandı.",
+          "explanation": "Statement about how the message was generated, not about the property."
+        }
+      ],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "answer",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "amenities",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "ok_unverified",
+          "addressed": "answered",
+          "itemStatus": "answered",
+          "factVerdicts": [
+            "misattributed"
+          ],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 9799
+    },
+    {
+      "id": "d-mt-burning-en",
+      "lang": "en",
+      "tags": [
+        "multi_turn",
+        "emergency",
+        "same_words"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "The fire extinguisher is under the kitchen sink. Your message has been recorded and is visible to your host.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "emergency",
+          "queryOriginal": "fire emergency what to do",
+          "queryTr": "yangın acil durum talimatları",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "amenities",
+          "queryOriginal": "location of fire extinguisher",
+          "queryTr": "yangın söndürücü yeri",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "emergency",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "amenities",
+          "status": "pending_host",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "safety",
+        "pets",
+        "quiet"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "emergency",
+            "modelRelation": "own_topic",
+            "traceable": false
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        },
+        {
+          "id": "r2",
+          "expect": "emergency",
+          "relation": "dependent",
+          "match": {
+            "id": "r2",
+            "extraction": "found",
+            "modelIndex": 1,
+            "modelIntent": "amenities",
+            "modelRelation": "fix_request",
+            "traceable": true
+          },
+          "relationAgreement": "agree",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": "pending_host+pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 7798
+    },
+    {
+      "id": "d-loft-ext-info-en",
+      "lang": "en",
+      "tags": [
+        "same_words",
+        "safety"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": true,
+      "sentText": "Hello Alex,\n\nThe fire extinguisher is under the kitchen sink.\n\n(This reply was prepared by an automated assistant.)",
+      "draft": "Hello Alex,\n\nThe fire extinguisher is under the kitchen sink.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "modelSkipped": false,
+      "status": "answered",
+      "emails": 0,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "amenities",
+          "queryOriginal": "fire extinguisher location",
+          "queryTr": "yangın söndürücü yeri konumu",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "amenities",
+          "status": "answered",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "safety"
+      ],
+      "judge": "ok",
+      "claims": [
+        {
+          "request": "r1",
+          "support": "unverified",
+          "relation": "location",
+          "subject": "fire extinguisher",
+          "value": "under the kitchen sink",
+          "text": "The fire extinguisher is under the kitchen sink.",
+          "explanation": "The reply repeats the exact location given in the safety KB item."
+        },
+        {
+          "request": "none",
+          "support": "process",
+          "relation": "other",
+          "subject": "reply",
+          "value": "prepared by an automated assistant",
+          "text": "This reply was prepared by an automated assistant.",
+          "explanation": "This is a meta statement about how the message was generated, not about the property."
+        }
+      ],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "answer",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "amenities",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "ok",
+          "addressed": "answered",
+          "itemStatus": "answered",
+          "factVerdicts": [
+            "ok"
+          ],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 9195
+    },
+    {
+      "id": "d-missing-iron-tr",
+      "lang": "tr",
+      "tags": [
+        "kb_missing"
+      ],
+      "pair": "P-kb",
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nÜtü konusunda ev sahibiniz size kesin bilgi verebilir.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "items_nothing_answered",
+      "riskReason": "low_confidence_or_risky",
+      "modelSkipped": false,
+      "status": "new",
+      "emails": 0,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "amenities",
+          "queryOriginal": "Dairede ütü var mı?",
+          "queryTr": "daire ütü var mı",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "amenities",
+          "status": "open",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "parking",
+        "laundry"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "hold",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "amenities",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "held_open",
+          "addressed": null,
+          "itemStatus": "open",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 8514
+    },
+    {
+      "id": "d-laundry-tr",
+      "lang": "tr",
+      "tags": [
+        "kb_present"
+      ],
+      "pair": "P-kb",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nEvet, çamaşır makinesi banyoda.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nEvet, çamaşır makinesi banyoda.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "modelSkipped": false,
+      "status": "answered",
+      "emails": 0,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "amenities",
+          "queryOriginal": "Dairede çamaşır makinesi var mı?",
+          "queryTr": "dairede çamaşır makinesi var mı",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "amenities",
+          "status": "answered",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "laundry",
+        "dishwasher",
+        "parking"
+      ],
+      "judge": "ok",
+      "claims": [
+        {
+          "request": "r1",
+          "support": "supported",
+          "relation": "availability",
+          "subject": "çamaşır makinesi",
+          "value": "dairede mevcut",
+          "text": "Dairede çamaşır makinesi vardır.",
+          "explanation": "KB explicitly mentions there is a washing machine in the apartment."
+        },
+        {
+          "request": "r1",
+          "support": "supported",
+          "relation": "location",
+          "subject": "çamaşır makinesi",
+          "value": "banyo",
+          "text": "Çamaşır makinesi banyodadır.",
+          "explanation": "KB states that the washing machine is in the bathroom."
+        },
+        {
+          "request": "none",
+          "support": "process",
+          "relation": "other",
+          "subject": "yanıt",
+          "value": "otomatik asistan tarafından hazırlandığı",
+          "text": "Bu yanıt otomatik asistan tarafından hazırlanmıştır.",
+          "explanation": "This is meta-information about how the message was generated, not about the property."
+        }
+      ],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "answer",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "amenities",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "ok",
+          "addressed": "answered",
+          "itemStatus": "answered",
+          "factVerdicts": [
+            "ok"
+          ],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 9969
+    },
+    {
+      "id": "d-ru-gym",
+      "lang": "ru",
+      "tags": [
+        "neighbor_entity",
+        "cross_language"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": true,
+      "sentText": "Здравствуйте, Alex!\n\nСпортзал открыт с 07:00 до 22:00.\n\n(Этот ответ подготовлен автоматическим ассистентом.)",
+      "draft": "Здравствуйте, Alex!\n\nСпортзал открыт с 07:00 до 22:00.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "modelSkipped": false,
+      "status": "answered",
+      "emails": 0,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "amenities",
+          "queryOriginal": "часы работы спортзала",
+          "queryTr": "spor salonu çalışma saatleri",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "amenities",
+          "status": "answered",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "gym",
+        "quiet",
+        "pets",
+        "sauna",
+        "checkin",
+        "transfer"
+      ],
+      "judge": "ok",
+      "claims": [
+        {
+          "request": "r1",
+          "support": "unverified",
+          "relation": "time",
+          "subject": "gym",
+          "value": "07:00–22:00",
+          "text": "Спортзал открыт с 07:00 до 22:00.",
+          "explanation": "The reply’s gym opening hours match the hours given in the KB."
+        },
+        {
+          "request": "none",
+          "support": "process",
+          "relation": "other",
+          "subject": "reply",
+          "value": "prepared by an automatic assistant",
+          "text": "Этот ответ подготовлен автоматическим ассистентом.",
+          "explanation": "This is a meta statement about how the message was generated, not about the property."
+        }
+      ],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "answer",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "amenities",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "ok",
+          "addressed": "answered",
+          "itemStatus": "answered",
+          "factVerdicts": [
+            "ok"
+          ],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 9395
+    },
+    {
+      "id": "d-ar-pool",
+      "lang": "ar",
+      "tags": [
+        "neighbor_entity",
+        "cross_language"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": true,
+      "sentText": "مرحباً Alex،\n\nيُغلق المسبح الساعة 20:00.\n\n(تم إعداد هذا الرد بواسطة مساعد آلي.)",
+      "draft": "مرحباً Alex،\n\nيُغلق المسبح الساعة 20:00.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "modelSkipped": false,
+      "status": "answered",
+      "emails": 0,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "amenities",
+          "queryOriginal": "مواعيد إغلاق المسبح",
+          "queryTr": "havuz çalışma saatleri kapanış",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "amenities",
+          "status": "answered",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "pool",
+        "quiet",
+        "pets",
+        "transfer",
+        "terrace",
+        "checkin",
+        "sauna",
+        "latecheckout"
+      ],
+      "judge": "ok",
+      "claims": [
+        {
+          "request": "r1",
+          "support": "supported",
+          "relation": "time",
+          "subject": "pool",
+          "value": "Closes at 20:00",
+          "text": "يُغلق المسبح الساعة 20:00.",
+          "explanation": "If the pool is usable until 20:00 every day, its closing time is 20:00."
+        },
+        {
+          "request": "none",
+          "support": "process",
+          "relation": "other",
+          "subject": "reply",
+          "value": "The reply was prepared by an AI assistant",
+          "text": "تم إعداد هذا الرد بواسطة مساعد آلي.",
+          "explanation": "This is a meta-statement about how the message was generated, not about the property."
+        }
+      ],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "answer",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "amenities",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "ok",
+          "addressed": "answered",
+          "itemStatus": "answered",
+          "factVerdicts": [
+            "ok"
+          ],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 9506
+    },
+    {
+      "id": "d-de-noise-trash",
+      "lang": "de",
+      "tags": [
+        "complaint_independent",
+        "cross_language"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": true,
+      "sentText": "Hallo Alex,\n\nDie Müllcontainer befinden sich rechts neben dem Gebäudeeingang. Der blaue Container ist für Recycling. Bitte bringen Sie den Müll spätestens bis 22:00 Uhr hinaus.\n\n(Diese Antwort wurde von einem automatischen Assistenten erstellt.)",
+      "draft": "Hallo Alex,\n\nDie Müllcontainer befinden sich rechts neben dem Gebäudeeingang. Der blaue Container ist für Recycling. Bitte bringen Sie den Müll spätestens bis 22:00 Uhr hinaus.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "modelSkipped": false,
+      "status": "answered",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "laute Nachbarn Beschwerde",
+          "queryTr": "gürültülü komşular şikayet",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "trash",
+          "queryOriginal": "Müll entsorgung Behälter Ort",
+          "queryTr": "çöp atma konteyner yeri",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "trash",
+          "status": "answered",
+          "sensitivity": "none",
+          "message": 1
+        },
+        {
+          "kind": "complaint_issue",
+          "status": "pending_host",
+          "sensitivity": "sensitive",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "trash",
+        "quiet",
+        "parking",
+        "wifi",
+        "pets"
+      ],
+      "judge": "ok",
+      "claims": [
+        {
+          "request": "r2",
+          "support": "supported",
+          "relation": "location",
+          "subject": "Müllcontainer",
+          "value": "rechts neben dem Gebäudeeingang",
+          "text": "Die Müllcontainer befinden sich rechts neben dem Gebäudeeingang.",
+          "explanation": "Die KB beschreibt, dass die Container rechts neben dem Gebäudeeingang stehen."
+        },
+        {
+          "request": "r2",
+          "support": "supported",
+          "relation": "other",
+          "subject": "blauer Container",
+          "value": "für Recycling bestimmt",
+          "text": "Der blaue Container ist für Recycling.",
+          "explanation": "In der KB steht, dass der Recyclingbehälter der blaue ist."
+        },
+        {
+          "request": "r2",
+          "support": "supported",
+          "relation": "obligation",
+          "subject": "Gast (Müllentsorgung)",
+          "value": "Müll spätestens bis 22:00 Uhr hinausbringen",
+          "text": "Bitte bringen Sie den Müll spätestens bis 22:00 Uhr hinaus.",
+          "explanation": "Die Formulierung entspricht der KB-Vorgabe, den Müll bis spätestens 22:00 Uhr hinauszubringen."
+        },
+        {
+          "request": "none",
+          "support": "process",
+          "relation": "other",
+          "subject": "diese Antwort",
+          "value": "wurde von einem automatischen Assistenten erstellt",
+          "text": "Diese Antwort wurde von einem automatischen Assistenten erstellt.",
+          "explanation": "Aussage über die Entstehung der Nachricht, nicht über die Unterkunft selbst."
+        }
+      ],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "hold",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "complaint_issue",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "held_open",
+          "addressed": "absent",
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        },
+        {
+          "id": "r2",
+          "expect": "answer",
+          "relation": "independent",
+          "match": {
+            "id": "r2",
+            "extraction": "found",
+            "modelIndex": 1,
+            "modelIntent": "trash",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "agree",
+          "outcome": "ok",
+          "addressed": "answered",
+          "itemStatus": "answered",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 11105
+    },
+    {
+      "id": "d-co-alarm-tr",
+      "lang": "tr",
+      "tags": [
+        "emergency"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nMesajınız kaydedildi; ev sahibiniz görebilir.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "emergency",
+          "queryOriginal": "Karbonmonoksit alarmı baş dönmesi acil durum",
+          "queryTr": "karbonmonoksit alarmı baş dönmesi acil durum",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "emergency",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "stove",
+        "safety",
+        "trash",
+        "dishwasher",
+        "breakfast",
+        "sauna",
+        "pets"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "emergency",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 8601
+    },
+    {
+      "id": "d-es-dishwasher",
+      "lang": "es",
+      "tags": [
+        "fix_recipe",
+        "cross_language"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": true,
+      "sentText": "Hola Alex,\n\nMantengan pulsado el botón ON/OFF durante 3 segundos para reiniciar el lavavajillas.\n\n(Esta respuesta fue preparada por un asistente automático.)",
+      "draft": "Hola Alex,\n\nMantengan pulsado el botón ON/OFF durante 3 segundos para reiniciar el lavavajillas.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "modelSkipped": false,
+      "status": "answered",
+      "emails": 0,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "lavavajillas error no arranca reiniciar",
+          "queryTr": "bulaşık makinesi hata veriyor çalışmıyor reset",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "appliance_help",
+          "status": "answered",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "dishwasher",
+        "laundry",
+        "wifi"
+      ],
+      "judge": "ok",
+      "claims": [
+        {
+          "request": "r2",
+          "support": "unverified",
+          "relation": "method_steps",
+          "subject": "lavavajillas",
+          "value": "Mantener pulsado el botón ON/OFF durante 3 segundos para reiniciarlo",
+          "text": "Mantengan pulsado el botón ON/OFF durante 3 segundos para reiniciar el lavavajillas.",
+          "explanation": "The KB gives the same reset method for the dishwasher error using the ON/OFF button for 3 seconds."
+        },
+        {
+          "request": "none",
+          "support": "process",
+          "relation": "other",
+          "subject": "respuesta",
+          "value": "Fue preparada por un asistente automático",
+          "text": "Esta respuesta fue preparada por un asistente automático.",
+          "explanation": "This is about how the message was generated, not a property fact."
+        }
+      ],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "hold",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "appliance_help",
+            "modelRelation": "fix_request",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "held_dropped",
+          "addressed": "answered",
+          "itemStatus": "answered",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        },
+        {
+          "id": "r2",
+          "expect": "answer",
+          "relation": "dependent",
+          "match": {
+            "id": "r2",
+            "extraction": "missed",
+            "modelIndex": null,
+            "modelIntent": null,
+            "modelRelation": null,
+            "traceable": null
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "ok",
+          "addressed": "answered",
+          "itemStatus": "answered",
+          "factVerdicts": [
+            "ok"
+          ],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 9725
+    }
+  ],
+  "runtime": {
+    "commit": "1f6420f9",
+    "layers": {
+      "reply": {
+        "model": "gpt-6-luna",
+        "reasoning": "low"
+      },
+      "semantic": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "understanding": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "guard": {
+        "model": "gpt-6-luna",
+        "reasoning": "low"
+      },
+      "rerank": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "translate": {
+        "model": "gpt-6-luna",
+        "reasoning": "medium"
+      },
+      "style": {
+        "model": "gpt-6-luna",
+        "reasoning": "none"
+      },
+      "decision": {
+        "model": "gpt-5.1",
+        "reasoning": "low"
+      },
+      "embedding": {
+        "model": "text-embedding-3-small"
+      }
+    },
+    "flags": {
+      "KB_RETRIEVAL_MODE": "(boş)",
+      "KB_SEMANTIC_RETRIEVAL": "1",
+      "KB_RERANK_ENABLED": "1",
+      "KB_RERANK_PER_QUESTION": "(boş)",
+      "KB_RETRIEVAL_WIDE_BUDGET": "(boş)",
+      "AI_UNDERSTANDING_ENABLED": "1",
+      "AI_STAY_GUARD_ENABLED": "1",
+      "AI_CONVERSATION_ITEMS_ENABLED": "1",
+      "AI_CONVERSATION_STATE_ENABLED": "(boş)",
+      "AI_ACTION_CLAIMS_ENABLED": "(boş)",
+      "AI_CODE_GREETING_ENABLED": "1",
+      "AI_HOUSE_RULES_SHADOW": "1",
+      "AI_KB_FEE_RULE_ENABLED": "1",
+      "AI_STAY_DEFERRAL_PLAIN_ENABLED": "(boş)",
+      "AI_ACCESS_CODE_COMPLETE_ENABLED": "1",
+      "AI_HOST_DECISION_HOLD_ENABLED": "1",
+      "AI_COMPLAINT_FOLLOWUP_RULE_ENABLED": "1",
+      "AI_COURTESY_RULE_ENABLED": "(boş)",
+      "AI_VERIFIED_AVAILABILITY_ENABLED": "(boş)",
+      "AI_GENERATION_TRACE_ENABLED": "(boş)",
+      "AI_VERIFIED_EXTENSION_ENABLED": "(boş)",
+      "AI_VERIFIED_QR_ENABLED": "(boş)",
+      "AI_DATE_RESOLUTION_ENABLED": "(boş)",
+      "AI_UNDERSTANDING_EN_QUERY_ENABLED": "(boş)",
+      "AI_EMERGENCY_NUMBER_ENABLED": "(boş)",
+      "AI_UNDERSTANDING_THREAT_RULE_ENABLED": "(boş)",
+      "AI_ACTION_SUGGESTIONS_ENABLED": "(boş)",
+      "AI_FAULT_GUARD_ENABLED": "(boş)",
+      "AI_FIX_SUPPORT_GATE_ENABLED": "(boş)",
+      "AI_TOPIC_ABSENCE_ENABLED": "(boş)"
+    },
+    "prompts": {
+      "reply": "f09415b9f560",
+      "replyVariant": "4c65b500d6d3",
+      "understanding": "f7b021ad9ffc",
+      "understandingMode": "items+rules+cfu"
+    }
+  }
+}

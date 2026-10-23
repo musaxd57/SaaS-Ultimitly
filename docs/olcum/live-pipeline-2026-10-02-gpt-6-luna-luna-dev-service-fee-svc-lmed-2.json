@@ -1,0 +1,422 @@
+{
+  "suite": "live-pipeline",
+  "version": 1,
+  "meta": {
+    "model": "gpt-6-luna",
+    "commit": "b960f04",
+    "status": "GEÇERLİ",
+    "pad": 34,
+    "usd": 0.0170098,
+    "usage": {
+      "text-embedding-3-small": {
+        "calls": 9,
+        "in": 3936,
+        "cached": 0,
+        "out": 0,
+        "reasoning": 0
+      },
+      "gpt-6-luna": {
+        "calls": 24,
+        "in": 188752,
+        "cached": 168168,
+        "out": 8562,
+        "reasoning": 5634
+      },
+      "gpt-5.1-2025-11-13": {
+        "calls": 8,
+        "in": 5480,
+        "cached": 0,
+        "out": 206,
+        "reasoning": 0
+      }
+    }
+  },
+  "rows": [
+    {
+      "id": "svc-01",
+      "cls": "fee_service",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nPortatif bebek yatağı ve mama sandalyesi birlikte konaklama başına 250 TL. Bu hizmet için en az bir gün önceden talepte bulunulması gerekiyor.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nPortatif bebek yatağı ve mama sandalyesi birlikte konaklama başına 250 TL. Bu hizmet için en az bir gün önceden talepte bulunulması gerekiyor.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 2,
+      "heldItems": 1,
+      "emails": 1,
+      "factsSent": true,
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.86
+      },
+      "sources": {
+        "verified": [
+          "kb:general"
+        ],
+        "declared": 1
+      },
+      "ms": 20431,
+      "retried": false
+    },
+    {
+      "id": "svc-02",
+      "cls": "fee_service",
+      "lang": "en",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Hello Alex,\n\nAdditional cleaning costs 700 TL and requires at least one day’s notice.\n\n(This reply was prepared by an automated assistant.)",
+      "draft": "Hello Alex,\n\nAdditional cleaning costs 700 TL and requires at least one day’s notice.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": true,
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "cleaning",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.86
+      },
+      "sources": {
+        "verified": [
+          "kb:cleaning"
+        ],
+        "declared": 1
+      },
+      "ms": 15652,
+      "retried": false
+    },
+    {
+      "id": "svc-03",
+      "cls": "fee_service",
+      "lang": "de",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Hallo Alex,\n\nEin privater Flughafentransfer kann über den Gastgeber organisiert werden und kostet 950 TL pro Strecke für bis zu 4 Personen und 4 Gepäckstücke. Er muss mindestens einen Tag im Voraus angefragt werden; für morgen früh ist diese Vorlaufzeit nicht erfüllt.\n\n(Diese Antwort wurde von einem automatischen Assistenten erstellt.)",
+      "draft": "Hallo Alex,\n\nEin privater Flughafentransfer kann über den Gastgeber organisiert werden und kostet 950 TL pro Strecke für bis zu 4 Personen und 4 Gepäckstücke. Er muss mindestens einen Tag im Voraus angefragt werden; für morgen früh ist diese Vorlaufzeit nicht erfüllt.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": true,
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "location",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.94
+      },
+      "sources": {
+        "verified": [
+          "kb:location"
+        ],
+        "declared": 1
+      },
+      "ms": 13455,
+      "retried": false
+    },
+    {
+      "id": "svc-04",
+      "cls": "fee_service",
+      "lang": "es",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Hola Alex,\n\nLa cuna de viaje y la trona se ofrecen juntas por 250 TL por estancia; basta con solicitarlas con un día de antelación.\n\n(This reply was prepared by an automated assistant.)",
+      "draft": "Hola Alex,\n\nLa cuna de viaje y la trona se ofrecen juntas por 250 TL por estancia; basta con solicitarlas con un día de antelación.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": true,
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.92
+      },
+      "sources": {
+        "verified": [
+          "kb:general"
+        ],
+        "declared": 1
+      },
+      "ms": 12902,
+      "retried": false
+    },
+    {
+      "id": "svc-05",
+      "cls": "fee_service",
+      "lang": "ru",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Здравствуйте, Alex!\n\nДополнительную уборку на послезавтра можно запросить, сообщив об этом минимум за день. Стоимость — 700 TL; во время уборки также меняют полотенца и постельное бельё.\n\n(Этот ответ подготовлен автоматическим ассистентом.)",
+      "draft": "Здравствуйте, Alex!\n\nДополнительную уборку на послезавтра можно запросить, сообщив об этом минимум за день. Стоимость — 700 TL; во время уборки также меняют полотенца и постельное бельё.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": true,
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "cleaning",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.96
+      },
+      "sources": {
+        "verified": [
+          "kb:cleaning"
+        ],
+        "declared": 1
+      },
+      "ms": 11688,
+      "retried": false
+    },
+    {
+      "id": "svc-06",
+      "cls": "fee_service",
+      "lang": "ar",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "مرحباً Alex،\n\nيمكن طلب نقل خاص عبر المضيف، وتبلغ تكلفته 950 ليرة تركية للاتجاه الواحد، ويشمل حتى 4 أشخاص و4 حقائب. يُرجى طلبه قبل يوم واحد على الأقل.\n\n(تم إعداد هذا الرد بواسطة مساعد آلي.)",
+      "draft": "مرحباً Alex،\n\nيمكن طلب نقل خاص عبر المضيف، وتبلغ تكلفته 950 ليرة تركية للاتجاه الواحد، ويشمل حتى 4 أشخاص و4 حقائب. يُرجى طلبه قبل يوم واحد على الأقل.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": true,
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "location",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:location"
+        ],
+        "declared": 1
+      },
+      "ms": 14019,
+      "retried": false
+    },
+    {
+      "id": "svc-07",
+      "cls": "fee_service",
+      "lang": "en",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Hello Alex,\n\nThe portable baby cot and high chair are available together for 250 TL per stay. Please request them one day in advance.\n\n(This reply was prepared by an automated assistant.)",
+      "draft": "Hello Alex,\n\nThe portable baby cot and high chair are available together for 250 TL per stay. Please request them one day in advance.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": true,
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "amenity",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.95
+      },
+      "sources": {
+        "verified": [
+          "kb:general"
+        ],
+        "declared": 1
+      },
+      "ms": 8681,
+      "retried": false
+    },
+    {
+      "id": "svc-08",
+      "cls": "fee_service",
+      "lang": "tr",
+      "expectAuto": "yes",
+      "ok": true,
+      "sent": true,
+      "sentText": "Merhaba Alex,\n\nEvet, ek temizlik ücreti 700 TL'dir. Konaklamanız sırasında talep edecekseniz en az bir gün önceden yazmanız gerekir.\n\n(Bu yanıt otomatik asistan tarafından hazırlandı.)",
+      "draft": "Merhaba Alex,\n\nEvet, ek temizlik ücreti 700 TL'dir. Konaklamanız sırasında talep edecekseniz en az bir gün önceden yazmanız gerekir.",
+      "skippedReason": null,
+      "gateDetail": null,
+      "riskReason": "gate_passed",
+      "status": "answered",
+      "escalated": false,
+      "items": 1,
+      "heldItems": 0,
+      "emails": 0,
+      "factsSent": true,
+      "factsDraft": true,
+      "langOk": true,
+      "promise": false,
+      "greetingRepeat": false,
+      "stayClaim": null,
+      "claimU": 0,
+      "forbiddenSent": false,
+      "priceSent": false,
+      "model": {
+        "intent": "cleaning",
+        "riskLevel": "none",
+        "riskType": null,
+        "confidence": 0.98
+      },
+      "sources": {
+        "verified": [
+          "kb:cleaning"
+        ],
+        "declared": 1
+      },
+      "ms": 9024,
+      "retried": false
+    }
+  ],
+  "runtime": {
+    "commit": "b960f04",
+    "layers": {
+      "reply": {
+        "model": "gpt-6-luna",
+        "reasoning": "medium"
+      },
+      "semantic": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "understanding": {
+        "model": "gpt-6-luna",
+        "reasoning": "low"
+      },
+      "guard": {
+        "model": "gpt-6-luna",
+        "reasoning": "low"
+      },
+      "rerank": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "translate": {
+        "model": "gpt-6-luna"
+      },
+      "style": {
+        "model": "gpt-6-luna"
+      },
+      "embedding": {
+        "model": "text-embedding-3-small"
+      }
+    },
+    "flags": {
+      "KB_RETRIEVAL_MODE": "(boş)",
+      "KB_SEMANTIC_RETRIEVAL": "1",
+      "KB_RERANK_ENABLED": "1",
+      "KB_RERANK_PER_QUESTION": "(boş)",
+      "KB_RETRIEVAL_WIDE_BUDGET": "(boş)",
+      "AI_UNDERSTANDING_ENABLED": "1",
+      "AI_STAY_GUARD_ENABLED": "1",
+      "AI_CONVERSATION_ITEMS_ENABLED": "1",
+      "AI_CONVERSATION_STATE_ENABLED": "(boş)",
+      "AI_ACTION_CLAIMS_ENABLED": "(boş)",
+      "AI_CODE_GREETING_ENABLED": "1",
+      "AI_HOUSE_RULES_SHADOW": "1",
+      "AI_KB_FEE_RULE_ENABLED": "1",
+      "AI_STAY_DEFERRAL_PLAIN_ENABLED": "(boş)",
+      "AI_ACCESS_CODE_COMPLETE_ENABLED": "1",
+      "AI_HOST_DECISION_HOLD_ENABLED": "1",
+      "AI_COMPLAINT_FOLLOWUP_RULE_ENABLED": "1"
+    },
+    "prompts": {
+      "reply": "1a875b31d233",
+      "understanding": "f7b021ad9ffc",
+      "understandingMode": "items+rules+cfu"
+    }
+  }
+}

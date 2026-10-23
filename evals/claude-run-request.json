@@ -1,0 +1,8 @@
+{
+  "note": "Bu dosya değişip itilince .github/workflows/claude-eval.yml Claude ölçümünü koşar (anahtar GitHub Actions sırrında). N ≤ 60, tur ≤ 3. suite bir yol ÖNEKİDİR (vitest süzgeci): 'tests/eval/claude-' iki ölçeri birlikte koşar (zorlu + kurucu T1).",
+  "suite": "tests/eval/claude-side-by-side",
+  "n": 60,
+  "rounds": 1,
+  "request": 4,
+  "purpose": "T-c (kurucu 10-22 'Evet'): cevap katmanında Claude Sonnet 5.5 ↔ gpt-5.1 yan yana — aynı istem, aynı kapı, 60 senaryo."
+}

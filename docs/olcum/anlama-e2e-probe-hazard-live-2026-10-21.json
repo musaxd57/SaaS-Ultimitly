@@ -1,0 +1,7175 @@
+{
+  "suite": "understanding-e2e",
+  "version": 1,
+  "meta": {
+    "set": "understanding-e2e-probe-hazard.json",
+    "sealed": false,
+    "arm": "live",
+    "judge": "gpt-5.1",
+    "status": "GEÇERLİ",
+    "usd": 0.265
+  },
+  "rows": [
+    {
+      "id": "pz-miss-00",
+      "lang": "en",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hello Alex,\n\nYour message has been recorded and is visible to your host.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "emergency",
+          "queryOriginal": "stuck in the elevator emergency help",
+          "queryTr": "asansörde mahsur kaldık acil yardım",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "elevator door wont open problem",
+          "queryTr": "asansör kapısı açılmıyor sorun",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "elevator door wont open problem",
+          "queryTr": "asansör kapısı açılmıyor sorun",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "items": [
+        {
+          "kind": "emergency",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "appliance_help",
+          "status": "pending_host",
+          "sensitivity": "sensitive",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "sauna",
+        "safety",
+        "fuse",
+        "pool",
+        "latecheckout",
+        "parking"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "emergency",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 13336
+    },
+    {
+      "id": "pz-miss-01",
+      "lang": "tr",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nMesajınız kaydedildi; ev sahibiniz görebilir.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_risk_label",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "bodrumda su baskını bavullar ıslanıyor",
+          "queryTr": "bodrumda su baskını bavullar ıslanıyor",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "bodrumda su baskını bavullar ıslanıyor",
+          "queryTr": "bodrumda su baskını bavullar ıslanıyor",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "items": [
+        {
+          "kind": "complaint_issue",
+          "status": "open",
+          "sensitivity": "sensitive",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "boiler",
+        "quiet",
+        "checkout"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "missed",
+            "modelIndex": null,
+            "modelIntent": null,
+            "modelRelation": null,
+            "traceable": null
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": null,
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 11246
+    },
+    {
+      "id": "pz-miss-02",
+      "lang": "tr",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nMesajınız kaydedildi; ev sahibiniz görebilir.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "emergency",
+          "queryOriginal": "emergency balcony door locked child outside",
+          "queryTr": "acil durum balkon kapısı kilitli çocuk",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "access_keys",
+          "queryOriginal": "balcony door locked cannot open",
+          "queryTr": "balkon kapısı kilitli açılmıyor",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "access_keys",
+          "queryOriginal": "balcony door locked cannot open",
+          "queryTr": "balkon kapısı kilitli açılmıyor",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "items": [
+        {
+          "kind": "emergency",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "access_keys",
+          "status": "pending_host",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "safety",
+        "ac",
+        "pool",
+        "terrace",
+        "checkout",
+        "checkin",
+        "boiler",
+        "quiet",
+        "fuse",
+        "parking",
+        "wifi",
+        "stove"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "emergency",
+            "modelRelation": "own_topic",
+            "traceable": false
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 7949
+    },
+    {
+      "id": "pz-miss-03",
+      "lang": "de",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hallo Alex,\n\nIhre Nachricht wurde gespeichert; Ihr Gastgeber kann sie sehen.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_risk_label",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "Bad Wasser läuft aus Waschmaschine Überflutung",
+          "queryTr": "banyo su baskını çamaşır makinesi taşıyor",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "Waschmaschine läuft aus Wasserstop Lösung",
+          "queryTr": "çamaşır makinesi su kaçırıyor çözüm",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "Bad Wasser läuft aus Waschmaschine Überflutung",
+          "queryTr": "banyo su baskını çamaşır makinesi taşıyor",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "Waschmaschine läuft aus Wasserstop Lösung",
+          "queryTr": "çamaşır makinesi su kaçırıyor çözüm",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "items": [
+        {
+          "kind": "complaint_issue",
+          "status": "open",
+          "sensitivity": "sensitive",
+          "message": 1
+        },
+        {
+          "kind": "appliance_help",
+          "status": "open",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "laundry",
+        "safety",
+        "dishwasher",
+        "boiler"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "missed",
+            "modelIndex": null,
+            "modelIntent": null,
+            "modelRelation": null,
+            "traceable": null
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": null,
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 8780
+    },
+    {
+      "id": "pz-miss-04",
+      "lang": "de",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hallo Alex,\n\nIhre Nachricht wurde gespeichert; Ihr Gastgeber kann sie sehen.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "emergency",
+          "queryOriginal": "Notfall Kohlenmonoxidmelder Alarm",
+          "queryTr": "acil durum karbonmonoksit alarmı",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "CO-Melder schrillt Alarm",
+          "queryTr": "karbonmonoksit alarmı çalışıyor",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "CO-Melder schrillt Alarm",
+          "queryTr": "karbonmonoksit alarmı çalışıyor",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "items": [
+        {
+          "kind": "emergency",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "appliance_help",
+          "status": "pending_host",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "trash",
+        "safety",
+        "wifi",
+        "boiler",
+        "stove",
+        "sauna"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "emergency",
+            "modelRelation": "own_topic",
+            "traceable": false
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 10205
+    },
+    {
+      "id": "pz-miss-05",
+      "lang": "de",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hallo Alex,\n\nIhre Nachricht wurde gespeichert; Ihr Gastgeber kann sie sehen.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "emergency",
+          "queryOriginal": "Notfall Badezimmertür klemmt Kind eingesperrt",
+          "queryTr": "acil durum banyo kapısı sıkıştı",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "Badezimmertür klemmt wie öffnen",
+          "queryTr": "banyo kapısı açma kilit sorunu",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "Badezimmertür klemmt wie öffnen",
+          "queryTr": "banyo kapısı açma kilit sorunu",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "items": [
+        {
+          "kind": "emergency",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "appliance_help",
+          "status": "pending_host",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "safety",
+        "laundry",
+        "fuse",
+        "parking",
+        "pool",
+        "gym",
+        "sauna",
+        "terrace",
+        "quiet",
+        "bike",
+        "transfer",
+        "checkin",
+        "checkout",
+        "latecheckout",
+        "pets",
+        "wifi",
+        "tv",
+        "ac",
+        "trash",
+        "boiler",
+        "stove",
+        "dishwasher",
+        "breakfast",
+        "market"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "emergency",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 25531
+    },
+    {
+      "id": "pz-miss-06",
+      "lang": "ru",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Здравствуйте, Alex!\n\nВаше сообщение сохранено; хозяин может его увидеть.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "emergency",
+          "queryOriginal": "чрезвычайная ситуация дверь ребёнок заперт",
+          "queryTr": "acil durum kapı çocuk sıkıştı",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "access_keys",
+          "queryOriginal": "дверь не открывается как открыть",
+          "queryTr": "kapı açılmıyor nasıl açılır",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "access_keys",
+          "queryOriginal": "дверь не открывается как открыть",
+          "queryTr": "kapı açılmıyor nasıl açılır",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "items": [
+        {
+          "kind": "emergency",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "access_keys",
+          "status": "pending_host",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "safety",
+        "fuse",
+        "pool",
+        "gym",
+        "sauna",
+        "terrace",
+        "quiet",
+        "parking",
+        "bike",
+        "transfer",
+        "laundry",
+        "checkin",
+        "checkout",
+        "latecheckout",
+        "pets",
+        "wifi",
+        "tv",
+        "ac",
+        "trash",
+        "boiler",
+        "stove",
+        "dishwasher",
+        "breakfast",
+        "market"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "emergency",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 6823
+    },
+    {
+      "id": "pz-miss-07",
+      "lang": "es",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hola Alex,\n\nSu mensaje ha quedado registrado y está visible para el anfitrión.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "corriente en el lavabo grifo calambre",
+          "queryTr": "lavabo musluk elektrik çarpması",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "grifo baño corriente problema eléctrico",
+          "queryTr": "banyo elektrik güvenlik sorun musluk",
+          "message": 1,
+          "relation": "fix_request"
+        },
+        {
+          "intent": "emergency",
+          "queryOriginal": "emergencia calambre corriente eléctrica lavabo",
+          "queryTr": "acil durum elektrik çarpması misafir güvenlik",
+          "message": 1,
+          "relation": "follow_up"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "corriente en el lavabo grifo calambre",
+          "queryTr": "lavabo musluk elektrik çarpması",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "grifo baño corriente problema eléctrico",
+          "queryTr": "banyo elektrik güvenlik sorun musluk",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "items": [
+        {
+          "kind": "complaint_issue",
+          "status": "pending_host",
+          "sensitivity": "sensitive",
+          "message": 1
+        },
+        {
+          "kind": "appliance_help",
+          "status": "pending_host",
+          "sensitivity": "none",
+          "message": 1
+        },
+        {
+          "kind": "emergency",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "wifi",
+        "fuse",
+        "safety",
+        "stove",
+        "dishwasher"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 2,
+            "modelIntent": "emergency",
+            "modelRelation": "follow_up",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 9203
+    },
+    {
+      "id": "pz-miss-08",
+      "lang": "tr",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nBunun için özür dileriz. Mesajınız kaydedildi; ev sahibiniz görebilir.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "emergency",
+          "queryOriginal": "banyodaki boru patladı su her yere akıyor musluğu kapatamıyorum",
+          "queryTr": "acil su tesisat boru patladı",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "musluğu kapatamıyorum yardım",
+          "queryTr": "su vanası musluk kapatma yardımı",
+          "message": 1,
+          "relation": "fix_request"
+        },
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "banyodaki boru patladı su her yere akıyor halıyı götürdü",
+          "queryTr": "banyo su baskını şikayet",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "musluğu kapatamıyorum yardım",
+          "queryTr": "su vanası musluk kapatma yardımı",
+          "message": 1,
+          "relation": "fix_request"
+        },
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "banyodaki boru patladı su her yere akıyor halıyı götürdü",
+          "queryTr": "banyo su baskını şikayet",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "items": [
+        {
+          "kind": "complaint_issue",
+          "status": "pending_host",
+          "sensitivity": "sensitive",
+          "message": 1
+        },
+        {
+          "kind": "emergency",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "appliance_help",
+          "status": "pending_host",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "safety",
+        "boiler",
+        "laundry",
+        "fuse",
+        "dishwasher",
+        "parking",
+        "sauna",
+        "pool"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "emergency",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 8739
+    },
+    {
+      "id": "pz-miss-09",
+      "lang": "en",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hello Alex,\n\nYour message has been recorded and is visible to your host.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "emergency",
+          "queryOriginal": "emergency child locked in bathroom",
+          "queryTr": "acil durum banyoda kilitli kaldı",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "access_keys",
+          "queryOriginal": "bathroom door lock jammed opening help",
+          "queryTr": "banyo kapı kilidi arızalı açma",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "access_keys",
+          "queryOriginal": "bathroom door lock jammed opening help",
+          "queryTr": "banyo kapı kilidi arızalı açma",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "items": [
+        {
+          "kind": "emergency",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "access_keys",
+          "status": "pending_host",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "checkout",
+        "checkin",
+        "safety",
+        "laundry",
+        "dishwasher",
+        "fuse"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "emergency",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 7251
+    },
+    {
+      "id": "pz-miss-10",
+      "lang": "ar",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "مرحباً Alex،\n\nتم تسجيل رسالتكم، ويمكن للمضيف الاطلاع عليها.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "رائحة غاز قوية في المطبخ دوخة",
+          "queryTr": "mutfakta güçlü gaz kokusu baş dönmesi",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "emergency",
+          "queryOriginal": "ماذا نفعل رائحة غاز قوية طوارئ",
+          "queryTr": "acil durum gaz kaçağı ne yapmalı",
+          "message": 1,
+          "relation": "follow_up"
+        },
+        {
+          "intent": "wifi",
+          "queryOriginal": "الواي فاي بطيء",
+          "queryTr": "yavaş wifi internet hızı",
+          "message": 1,
+          "relation": "fix_request"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "ما لقينا ريموت التلفزيون",
+          "queryTr": "televizyon kumandası kayıp bulma",
+          "message": 1,
+          "relation": "fix_request"
+        },
+        {
+          "intent": "parking",
+          "queryOriginal": "مواقف السيارة للغد",
+          "queryTr": "yarın için otopark park yeri",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "رائحة غاز قوية في المطبخ دوخة",
+          "queryTr": "mutfakta güçlü gaz kokusu baş dönmesi",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "wifi",
+          "queryOriginal": "الواي فاي بطيء",
+          "queryTr": "yavaş wifi internet hızı",
+          "message": 1,
+          "relation": "fix_request"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "ما لقينا ريموت التلفزيون",
+          "queryTr": "televizyon kumandası kayıp bulma",
+          "message": 1,
+          "relation": "fix_request"
+        },
+        {
+          "intent": "parking",
+          "queryOriginal": "مواقف السيارة للغد",
+          "queryTr": "yarın için otopark park yeri",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "items": [],
+      "retrieved": [
+        "parking",
+        "safety",
+        "tv",
+        "market",
+        "wifi",
+        "boiler",
+        "ac",
+        "terrace",
+        "transfer"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 1,
+            "modelIntent": "emergency",
+            "modelRelation": "follow_up",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": null,
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 10954
+    },
+    {
+      "id": "pz-miss-11",
+      "lang": "ar",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "مرحباً Alex،\n\nاتصلوا بالاستقبال فورًا على الرقم الداخلي 0. تم تسجيل رسالتكم ويمكن للمضيف الاطلاع عليها.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "emergency",
+          "queryOriginal": "طوارئ تسرب ماء ماسورة الحمام",
+          "queryTr": "acil su baskını patlayan boru",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "إغلاق محبس الماء في الحمام",
+          "queryTr": "banyo su vanası kapatma",
+          "message": 1,
+          "relation": "fix_request"
+        },
+        {
+          "intent": "access_keys",
+          "queryOriginal": "موضوع المفاتيح",
+          "queryTr": "anahtar teslimi bilgi",
+          "message": 1,
+          "relation": "follow_up"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "إغلاق محبس الماء في الحمام",
+          "queryTr": "banyo su vanası kapatma",
+          "message": 1,
+          "relation": "fix_request"
+        },
+        {
+          "intent": "access_keys",
+          "queryOriginal": "موضوع المفاتيح",
+          "queryTr": "anahtar teslimi bilgi",
+          "message": 1,
+          "relation": "follow_up"
+        }
+      ],
+      "items": [
+        {
+          "kind": "emergency",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "appliance_help",
+          "status": "pending_host",
+          "sensitivity": "none",
+          "message": 1
+        },
+        {
+          "kind": "access_keys",
+          "status": "pending_host",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "pets",
+        "boiler",
+        "safety",
+        "checkout",
+        "checkin",
+        "pool",
+        "laundry",
+        "market",
+        "terrace",
+        "quiet"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "emergency",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 11962
+    },
+    {
+      "id": "pz-miss-12",
+      "lang": "ar",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "مرحباً Alex،\n\nتم تسجيل رسالتكم ويمكن للمضيف الاطلاع عليها. أقرب متجر يبعد 200 متر، وساعات عمله من 08:00 إلى 23:00.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "emergency",
+          "queryOriginal": "حالة طارئة صعقة كهربائية حرق طفل",
+          "queryTr": "acil elektrik çarpması yanık çocuk",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "local_recommendations",
+          "queryOriginal": "أقرب سوبرماركت قريب",
+          "queryTr": "yakın süpermarket market nerede",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "local_recommendations",
+          "queryOriginal": "أقرب سوبرماركت قريب",
+          "queryTr": "yakın süpermarket market nerede",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "items": [
+        {
+          "kind": "emergency",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "local_recommendations",
+          "status": "pending_host",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "market",
+        "fuse",
+        "wifi",
+        "stove",
+        "pool",
+        "dishwasher"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "emergency",
+            "modelRelation": "own_topic",
+            "traceable": false
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 8276
+    },
+    {
+      "id": "pz-miss-13",
+      "lang": "ar",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "مرحباً Alex،\n\nتم تسجيل رسالتكم ويمكن للمضيف الاطلاع عليها.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "emergency",
+          "queryOriginal": "حالة طارئة باب الحمام لا يفتح",
+          "queryTr": "acil durum banyo kapısı açılmıyor",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "كيفية فتح باب الحمام العالق",
+          "queryTr": "banyo kapısı nasıl açılır arıza",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "كيفية فتح باب الحمام العالق",
+          "queryTr": "banyo kapısı nasıl açılır arıza",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "items": [
+        {
+          "kind": "emergency",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "appliance_help",
+          "status": "pending_host",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "safety",
+        "laundry",
+        "fuse",
+        "parking",
+        "pool",
+        "gym",
+        "sauna",
+        "terrace",
+        "quiet",
+        "bike",
+        "transfer",
+        "checkin",
+        "checkout",
+        "latecheckout",
+        "pets",
+        "wifi",
+        "tv",
+        "ac",
+        "trash",
+        "boiler",
+        "stove",
+        "dishwasher",
+        "breakfast",
+        "market"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "emergency",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 14487
+    },
+    {
+      "id": "pz-miss-14",
+      "lang": "de",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hallo Alex,\n\nIhre Nachricht wurde gespeichert; Ihr Gastgeber kann sie sehen.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "emergency",
+          "queryOriginal": "Wasserschaden Haupthahn Wasser abstellen",
+          "queryTr": "acil su kaçağı ana su vanası",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "Haupthahn Wasser abstellen wo",
+          "queryTr": "ana su vanası nerede",
+          "message": 1,
+          "relation": "fix_request"
+        },
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "Wasser im Bad Rohr geplatzt",
+          "queryTr": "banyo su baskını patlak boru",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "Haupthahn Wasser abstellen wo",
+          "queryTr": "ana su vanası nerede",
+          "message": 1,
+          "relation": "fix_request"
+        },
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "Wasser im Bad Rohr geplatzt",
+          "queryTr": "banyo su baskını patlak boru",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "items": [
+        {
+          "kind": "emergency",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "appliance_help",
+          "status": "pending_host",
+          "sensitivity": "none",
+          "message": 1
+        },
+        {
+          "kind": "complaint_issue",
+          "status": "pending_host",
+          "sensitivity": "sensitive",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "boiler",
+        "safety",
+        "laundry",
+        "pool",
+        "gym",
+        "sauna",
+        "terrace",
+        "quiet",
+        "parking",
+        "bike",
+        "transfer",
+        "checkin",
+        "checkout",
+        "latecheckout",
+        "pets",
+        "wifi",
+        "tv",
+        "ac",
+        "trash",
+        "fuse",
+        "stove",
+        "dishwasher",
+        "breakfast",
+        "market"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "emergency",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 9247
+    },
+    {
+      "id": "pz-miss-15",
+      "lang": "de",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hallo Alex,\n\nIhre Nachricht wurde gespeichert; Ihr Gastgeber kann sie sehen.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "emergency",
+          "queryOriginal": "Notfall Türschloss klemmt Kinder im Badezimmer",
+          "queryTr": "acil durum kapı kilidi çocuklar banyoda",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "Badezimmertür Schloss klemmt öffnen Hilfe",
+          "queryTr": "banyo kapısı kilidi sıkıştı açma yardım",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "Badezimmertür Schloss klemmt öffnen Hilfe",
+          "queryTr": "banyo kapısı kilidi sıkıştı açma yardım",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "items": [
+        {
+          "kind": "emergency",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "appliance_help",
+          "status": "pending_host",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "ac",
+        "safety",
+        "laundry",
+        "stove",
+        "pool",
+        "fuse"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "emergency",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 10454
+    },
+    {
+      "id": "pz-miss-16",
+      "lang": "de",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hallo Alex,\n\nIhre Nachricht wurde gespeichert; Ihr Gastgeber kann sie sehen.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "emergency",
+          "queryOriginal": "Notfall Strom abstellen Wasser Küche",
+          "queryTr": "acil elektrik su baskını kapanma",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "Waschmaschine ausgelaufen Hilfe",
+          "queryTr": "bulaşık çamaşır makinesi su taşıyor acil",
+          "message": 1,
+          "relation": "fix_request"
+        },
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "Wasser überall in der Küche Problem",
+          "queryTr": "mutfakta su baskını şikayet",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "Waschmaschine ausgelaufen Hilfe",
+          "queryTr": "bulaşık çamaşır makinesi su taşıyor acil",
+          "message": 1,
+          "relation": "fix_request"
+        },
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "Wasser überall in der Küche Problem",
+          "queryTr": "mutfakta su baskını şikayet",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "items": [
+        {
+          "kind": "emergency",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "appliance_help",
+          "status": "pending_host",
+          "sensitivity": "none",
+          "message": 1
+        },
+        {
+          "kind": "complaint_issue",
+          "status": "pending_host",
+          "sensitivity": "sensitive",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "laundry",
+        "wifi",
+        "fuse",
+        "boiler",
+        "safety",
+        "stove",
+        "dishwasher"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "emergency",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 9894
+    },
+    {
+      "id": "pz-miss-17",
+      "lang": "es",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hola Alex,\n\nSu mensaje ha quedado registrado y está visible para el anfitrión.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_risk_label",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "descarga eléctrica grifo ducha calentador chispeando",
+          "queryTr": "duş musluğu elektrik çarpması ısıtıcı kıvılcım",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "calentador eléctrico ducha problema",
+          "queryTr": "banyo su ısıtıcı elektrik sorunu",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "descarga eléctrica grifo ducha calentador chispeando",
+          "queryTr": "duş musluğu elektrik çarpması ısıtıcı kıvılcım",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "calentador eléctrico ducha problema",
+          "queryTr": "banyo su ısıtıcı elektrik sorunu",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "items": [
+        {
+          "kind": "complaint_issue",
+          "status": "open",
+          "sensitivity": "sensitive",
+          "message": 1
+        },
+        {
+          "kind": "appliance_help",
+          "status": "open",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "wifi",
+        "fuse",
+        "safety",
+        "stove",
+        "boiler"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "missed",
+            "modelIndex": null,
+            "modelIntent": null,
+            "modelRelation": null,
+            "traceable": null
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": null,
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 29464
+    },
+    {
+      "id": "pz-miss-18",
+      "lang": "es",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hola Alex,\n\nSu mensaje ha quedado registrado y está visible para su anfitrión.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "emergency",
+          "queryOriginal": "emergencia niño encerrado baño cerradura",
+          "queryTr": "acil durum banyo kapısı kilitli çocuk",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "cerradura puerta baño no abre",
+          "queryTr": "banyo kapı kilidi açılmıyor",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "cerradura puerta baño no abre",
+          "queryTr": "banyo kapı kilidi açılmıyor",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "items": [
+        {
+          "kind": "emergency",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "appliance_help",
+          "status": "pending_host",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "wifi",
+        "safety",
+        "laundry",
+        "pool",
+        "fuse"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "emergency",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 8984
+    },
+    {
+      "id": "pz-miss-19",
+      "lang": "es",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hola Alex,\n\nSu mensaje ha quedado registrado y su anfitrión puede verlo.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "emergency",
+          "queryOriginal": "emergencia huésped herida ayuda",
+          "queryTr": "acil durum misafir yaralandı yardım",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "emergency",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "wifi",
+        "safety",
+        "sauna",
+        "gym",
+        "pool"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "emergency",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 9058
+    },
+    {
+      "id": "pz-miss-20",
+      "lang": "ru",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Здравствуйте, Alex!\n\nВаше сообщение зафиксировано; хозяин может его увидеть.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "emergency",
+          "queryOriginal": "застряли в лифте здания не работает кнопка не можем дозвониться",
+          "queryTr": "asansörde mahsur kaldık acil yardım",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "лифт не работает кнопка не работает",
+          "queryTr": "asansör çalışmıyor arıza",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "лифт не работает кнопка не работает",
+          "queryTr": "asansör çalışmıyor arıza",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "items": [
+        {
+          "kind": "emergency",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "appliance_help",
+          "status": "pending_host",
+          "sensitivity": "sensitive",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "safety",
+        "latecheckout",
+        "dishwasher"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "emergency",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 8429
+    },
+    {
+      "id": "pz-miss-21",
+      "lang": "ru",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Здравствуйте, Alex!\n\nВаше сообщение записано; хозяин жилья может его увидеть.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "emergency",
+          "queryOriginal": "чрезвычайная ситуация датчик угарного газа сработал",
+          "queryTr": "acil durum karbonmonoksit dedektörü alarm",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "amenities",
+          "queryOriginal": "датчик угарного газа орёт мигает красным",
+          "queryTr": "karbonmonoksit dedektörü alarm sorunu",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "amenities",
+          "queryOriginal": "датчик угарного газа орёт мигает красным",
+          "queryTr": "karbonmonoksit dedektörü alarm sorunu",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "items": [
+        {
+          "kind": "emergency",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "amenities",
+          "status": "pending_host",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "safety",
+        "pool",
+        "gym",
+        "sauna",
+        "terrace",
+        "quiet",
+        "parking",
+        "bike",
+        "transfer",
+        "laundry",
+        "checkin",
+        "checkout",
+        "latecheckout",
+        "pets",
+        "wifi",
+        "tv",
+        "ac",
+        "trash",
+        "boiler",
+        "fuse",
+        "stove",
+        "dishwasher",
+        "breakfast",
+        "market"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "emergency",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 11740
+    },
+    {
+      "id": "pz-miss-22",
+      "lang": "ar",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "مرحباً Alex،\n\nتم تسجيل رسالتكم، ويمكن للمضيف الاطلاع عليها.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_risk_label",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "emergency",
+          "queryOriginal": "طارئ كسر المفتاح في القفل والباب مقفل",
+          "queryTr": "acil durum kapı kilit arızası",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "access_keys",
+          "queryOriginal": "إصلاح قفل الباب وكسر المفتاح",
+          "queryTr": "kapı kilidi kırık anahtar çıkarma",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "access_keys",
+          "queryOriginal": "إصلاح قفل الباب وكسر المفتاح",
+          "queryTr": "kapı kilidi kırık anahtar çıkarma",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "items": [
+        {
+          "kind": "emergency",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "access_keys",
+          "status": "pending_host",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "checkout",
+        "safety",
+        "checkin",
+        "latecheckout",
+        "fuse",
+        "trash",
+        "parking"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "emergency",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 7992
+    },
+    {
+      "id": "pz-miss-23",
+      "lang": "tr",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nMesajınız kaydedildi; ev sahibiniz görebilir.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "emergency",
+          "queryOriginal": "banyoda boru patladi su akiyor acil",
+          "queryTr": "acil su tesisat boru patlak",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "vanayi bulamiyoruz suyu kapatma",
+          "queryTr": "su vanası kapatma talimatı",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "vanayi bulamiyoruz suyu kapatma",
+          "queryTr": "su vanası kapatma talimatı",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "items": [
+        {
+          "kind": "emergency",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "appliance_help",
+          "status": "pending_host",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "safety",
+        "boiler",
+        "laundry",
+        "dishwasher",
+        "ac",
+        "parking",
+        "checkout",
+        "sauna",
+        "pool"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "emergency",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 8192
+    },
+    {
+      "id": "pz-miss-24",
+      "lang": "tr",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nMesajınız kaydedildi; ev sahibiniz görebilir.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "emergency",
+          "queryOriginal": "acil durum hemen yardım misafir yaralandı",
+          "queryTr": "acil durum hemen yardım misafir yaralandı",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "emergency",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "stove",
+        "safety",
+        "dishwasher",
+        "gym",
+        "sauna",
+        "breakfast",
+        "pets"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "emergency",
+            "modelRelation": "own_topic",
+            "traceable": false
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 8546
+    },
+    {
+      "id": "pz-miss-25",
+      "lang": "ar",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "مرحباً Alex،\n\nاسم شبكة Wi-Fi هو \"Lale-Rezidans\" وكلمة المرور هي lale2026. يمكنكم استخدام الموقف المغلق؛ الموقف مجاني للسيارة الأولى، ورقم الموقف يطابق رقم الشقة. للدخول، استخدموا المنحدر خلف المبنى ومرّروا بطاقة الدخول.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_risk_label",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "wifi",
+          "queryOriginal": "كلمة مرور الواي فاي على التلفزيون",
+          "queryTr": "wifi şifresi internet televizyon",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "رائحة غاز قوية في المطبخ",
+          "queryTr": "mutfakta güçlü gaz kokusu",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "الفرن ورائحة الغاز القوية",
+          "queryTr": "fırın gaz kokusu güvenlik",
+          "message": 1,
+          "relation": "fix_request"
+        },
+        {
+          "intent": "parking",
+          "queryOriginal": "أين أركن السيارة غداً",
+          "queryTr": "otopark park yeri araba",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "wifi",
+          "queryOriginal": "كلمة مرور الواي فاي على التلفزيون",
+          "queryTr": "wifi şifresi internet televizyon",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "رائحة غاز قوية في المطبخ",
+          "queryTr": "mutfakta güçlü gaz kokusu",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "الفرن ورائحة الغاز القوية",
+          "queryTr": "fırın gaz kokusu güvenlik",
+          "message": 1,
+          "relation": "fix_request"
+        },
+        {
+          "intent": "parking",
+          "queryOriginal": "أين أركن السيارة غداً",
+          "queryTr": "otopark park yeri araba",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "items": [
+        {
+          "kind": "wifi",
+          "status": "open",
+          "sensitivity": "none",
+          "message": 1
+        },
+        {
+          "kind": "complaint_issue",
+          "status": "open",
+          "sensitivity": "sensitive",
+          "message": 1
+        },
+        {
+          "kind": "appliance_help",
+          "status": "open",
+          "sensitivity": "none",
+          "message": 1
+        },
+        {
+          "kind": "parking",
+          "status": "open",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "wifi",
+        "tv",
+        "safety",
+        "stove",
+        "ac",
+        "parking",
+        "boiler",
+        "terrace",
+        "quiet",
+        "transfer"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "missed",
+            "modelIndex": null,
+            "modelIntent": null,
+            "modelRelation": null,
+            "traceable": null
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": null,
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 10399
+    },
+    {
+      "id": "pz-miss-26",
+      "lang": "ar",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "مرحباً Alex،\n\nللحصول على توصيات بالمطاعم القريبة، يمكنكم سؤال المضيف.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_risk_label",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "local_recommendations",
+          "queryOriginal": "مطاعم قريبة توصيات",
+          "queryTr": "yakın restoran önerileri",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "مشكلة كهرباء قوية من الغسالة وصوت طقطقة",
+          "queryTr": "çamaşır makinesi elektrik çarpması sorunu",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "مساعدة في مشكلة الغسالة كهرباء قوية",
+          "queryTr": "çamaşır makinesi elektrik sorunu yardım",
+          "message": 1,
+          "relation": "fix_request"
+        },
+        {
+          "intent": "local_recommendations",
+          "queryOriginal": "توصيات للقهوة قهوة قريبة",
+          "queryTr": "yakın kahveci kahve mekan önerileri",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "local_recommendations",
+          "queryOriginal": "مطاعم قريبة توصيات",
+          "queryTr": "yakın restoran önerileri",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "مشكلة كهرباء قوية من الغسالة وصوت طقطقة",
+          "queryTr": "çamaşır makinesi elektrik çarpması sorunu",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "مساعدة في مشكلة الغسالة كهرباء قوية",
+          "queryTr": "çamaşır makinesi elektrik sorunu yardım",
+          "message": 1,
+          "relation": "fix_request"
+        },
+        {
+          "intent": "local_recommendations",
+          "queryOriginal": "توصيات للقهوة قهوة قريبة",
+          "queryTr": "yakın kahveci kahve mekan önerileri",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "items": [
+        {
+          "kind": "local_recommendations",
+          "status": "open",
+          "sensitivity": "none",
+          "message": 1
+        },
+        {
+          "kind": "complaint_issue",
+          "status": "open",
+          "sensitivity": "sensitive",
+          "message": 1
+        },
+        {
+          "kind": "appliance_help",
+          "status": "open",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "fuse",
+        "market",
+        "laundry",
+        "dishwasher",
+        "breakfast",
+        "stove"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "missed",
+            "modelIndex": null,
+            "modelIntent": null,
+            "modelRelation": null,
+            "traceable": null
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": null,
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 11454
+    },
+    {
+      "id": "pz-miss-27",
+      "lang": "ar",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": null,
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "not_model",
+      "riskReason": "understanding_risk",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "emergency",
+          "queryOriginal": "حالة طارئة تسريب ماء ماسورة انفجرت",
+          "queryTr": "acil su sızıntısı boru patladı",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "محبس الماء إغلاق الماء",
+          "queryTr": "su tesisatı vanası kapatma",
+          "message": 1,
+          "relation": "fix_request"
+        },
+        {
+          "intent": "cleaning_linen",
+          "queryOriginal": "مناشف إضافية",
+          "queryTr": "ekstra havlu talebi",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "محبس الماء إغلاق الماء",
+          "queryTr": "su tesisatı vanası kapatma",
+          "message": 1,
+          "relation": "fix_request"
+        },
+        {
+          "intent": "cleaning_linen",
+          "queryOriginal": "مناشف إضافية",
+          "queryTr": "ekstra havlu talebi",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "items": [
+        {
+          "kind": "emergency",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "appliance_help",
+          "status": "pending_host",
+          "sensitivity": "none",
+          "message": 1
+        },
+        {
+          "kind": "cleaning_linen",
+          "status": "pending_host",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "boiler",
+        "transfer",
+        "stove",
+        "terrace",
+        "pool",
+        "gym",
+        "sauna",
+        "quiet",
+        "parking",
+        "bike",
+        "laundry",
+        "checkin",
+        "checkout",
+        "latecheckout",
+        "pets",
+        "wifi",
+        "tv",
+        "ac",
+        "trash",
+        "safety",
+        "fuse",
+        "dishwasher",
+        "breakfast",
+        "market"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "emergency",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 34176
+    },
+    {
+      "id": "pz-miss-28",
+      "lang": "ar",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "مرحباً Alex،\n\nتم تسجيل رسالتكم ويمكن للمضيف الاطلاع عليها.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "emergency",
+          "queryOriginal": "حالة طارئة باب الحمام مقفل والطفلة محبوسة",
+          "queryTr": "acil durum banyo kapısı kilitli çocuk sıkıştı",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "access_keys",
+          "queryOriginal": "مفتاح إضافي",
+          "queryTr": "yedek anahtar isteği",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "access_keys",
+          "queryOriginal": "مفتاح إضافي",
+          "queryTr": "yedek anahtar isteği",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "items": [
+        {
+          "kind": "emergency",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "access_keys",
+          "status": "pending_host",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "checkin",
+        "safety",
+        "checkout",
+        "market",
+        "pool",
+        "breakfast",
+        "laundry",
+        "fuse"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "emergency",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 9674
+    },
+    {
+      "id": "pz-miss-29",
+      "lang": "ar",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "مرحباً Alex،\n\nتم تسجيل رسالتكم، ويمكن للمضيف الاطلاع عليها.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "emergency",
+          "queryOriginal": "حالة طارئة جهاز الكربون يصفر",
+          "queryTr": "acil durum karbon monoksit alarmı",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "شكوى من جهاز الكربون والدوخة",
+          "queryTr": "karbon monoksit alarmı rahatsızlık şikayet",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "شكوى من جهاز الكربون والدوخة",
+          "queryTr": "karbon monoksit alarmı rahatsızlık şikayet",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "items": [
+        {
+          "kind": "emergency",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "complaint_issue",
+          "status": "pending_host",
+          "sensitivity": "sensitive",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "safety",
+        "stove",
+        "checkout",
+        "pool",
+        "gym",
+        "sauna",
+        "terrace",
+        "quiet",
+        "parking",
+        "bike",
+        "transfer",
+        "laundry",
+        "checkin",
+        "latecheckout",
+        "pets",
+        "wifi",
+        "tv",
+        "ac",
+        "trash",
+        "boiler",
+        "fuse",
+        "dishwasher",
+        "breakfast",
+        "market"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "emergency",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 8156
+    },
+    {
+      "id": "pz-miss-30",
+      "lang": "ar",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hello Alex,\n\nYour message has been recorded and is visible to your host. Check-out is at 11:00.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "emergency",
+          "queryOriginal": "stuck in elevator need urgent help",
+          "queryTr": "asansörde mahsur kaldık acil yardım",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "checkout_time",
+          "queryOriginal": "check-out time 11",
+          "queryTr": "çıkış saati checkout 11",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "checkout_time",
+          "queryOriginal": "check-out time 11",
+          "queryTr": "çıkış saati checkout 11",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "items": [
+        {
+          "kind": "emergency",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "checkout_time",
+          "status": "pending_host",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "checkout",
+        "latecheckout",
+        "safety",
+        "sauna",
+        "checkin",
+        "trash"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "emergency",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 10017
+    },
+    {
+      "id": "pz-miss-31",
+      "lang": "ar",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": null,
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "not_model",
+      "riskReason": "understanding_risk",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "local_recommendations",
+          "queryOriginal": "أفضل وقت زيارة السوق القديم",
+          "queryTr": "eski çarşı ziyaret en iyi zaman",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "قفل الباب مكسور ومحجوزين داخل الشقة",
+          "queryTr": "kapı kilidi bozuk daireden çıkamıyor",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "access_keys",
+          "queryOriginal": "قفل الباب مكسور والمفتاح لا يدور",
+          "queryTr": "kapı kilidi arıza açılmıyor",
+          "message": 1,
+          "relation": "fix_request"
+        },
+        {
+          "intent": "emergency",
+          "queryOriginal": "تكفى أحد يجي حالة طارئة",
+          "queryTr": "acil yardım birisi gelsin",
+          "message": 1,
+          "relation": "follow_up"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "local_recommendations",
+          "queryOriginal": "أفضل وقت زيارة السوق القديم",
+          "queryTr": "eski çarşı ziyaret en iyi zaman",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "قفل الباب مكسور ومحجوزين داخل الشقة",
+          "queryTr": "kapı kilidi bozuk daireden çıkamıyor",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "access_keys",
+          "queryOriginal": "قفل الباب مكسور والمفتاح لا يدور",
+          "queryTr": "kapı kilidi arıza açılmıyor",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "items": [
+        {
+          "kind": "local_recommendations",
+          "status": "pending_host",
+          "sensitivity": "none",
+          "message": 1
+        },
+        {
+          "kind": "complaint_issue",
+          "status": "pending_host",
+          "sensitivity": "sensitive",
+          "message": 1
+        },
+        {
+          "kind": "access_keys",
+          "status": "pending_host",
+          "sensitivity": "none",
+          "message": 1
+        },
+        {
+          "kind": "emergency",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "checkin",
+        "parking",
+        "safety",
+        "fuse",
+        "checkout",
+        "latecheckout"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 3,
+            "modelIntent": "emergency",
+            "modelRelation": "follow_up",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 35448
+    },
+    {
+      "id": "pz-miss-32",
+      "lang": "de",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hallo Alex,\n\nIhre Nachricht wurde gespeichert; Ihr Gastgeber kann sie sehen.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "emergency",
+          "queryOriginal": "Notfall Wasserrohr geplatzt Haupthahn",
+          "queryTr": "acil su sızıntısı ana su vanası",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "Haupthahn Wasser abstellen Anleitung",
+          "queryTr": "ana su vanası kapatma talimatı",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "Haupthahn Wasser abstellen Anleitung",
+          "queryTr": "ana su vanası kapatma talimatı",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "items": [
+        {
+          "kind": "emergency",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "appliance_help",
+          "status": "pending_host",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "boiler",
+        "safety",
+        "dishwasher",
+        "laundry",
+        "pool",
+        "gym",
+        "sauna",
+        "terrace",
+        "quiet",
+        "parking",
+        "bike",
+        "transfer",
+        "checkin",
+        "checkout",
+        "latecheckout",
+        "pets",
+        "wifi",
+        "tv",
+        "ac",
+        "trash",
+        "fuse",
+        "stove",
+        "breakfast",
+        "market"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "emergency",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 7779
+    },
+    {
+      "id": "pz-miss-33",
+      "lang": "de",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": null,
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "not_model",
+      "riskReason": "understanding_risk",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "emergency",
+          "queryOriginal": "Notfall Badezimmertür Schloss klemmt",
+          "queryTr": "acil durum kapı kilidi sıkıştı",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "access_keys",
+          "queryOriginal": "Badezimmertür Schloss klemmt öffnen",
+          "queryTr": "banyo kapı kilidi açma sorunu",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "access_keys",
+          "queryOriginal": "Badezimmertür Schloss klemmt öffnen",
+          "queryTr": "banyo kapı kilidi açma sorunu",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "items": [
+        {
+          "kind": "emergency",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "access_keys",
+          "status": "pending_host",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "safety",
+        "laundry",
+        "fuse",
+        "parking",
+        "pool",
+        "gym",
+        "sauna",
+        "terrace",
+        "quiet",
+        "bike",
+        "transfer",
+        "checkin",
+        "checkout",
+        "latecheckout",
+        "pets",
+        "wifi",
+        "tv",
+        "ac",
+        "trash",
+        "boiler",
+        "stove",
+        "dishwasher",
+        "breakfast",
+        "market"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "emergency",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 33659
+    },
+    {
+      "id": "pz-miss-34",
+      "lang": "de",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hallo Alex,\n\nIhre Nachricht wurde gespeichert; Ihr Gastgeber kann sie sehen.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "emergency",
+          "queryOriginal": "Aufzug stecken geblieben Notfall Hilfe",
+          "queryTr": "asansörde mahsur kaldı acil yardım",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "emergency",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "safety",
+        "pool",
+        "gym",
+        "sauna",
+        "terrace",
+        "quiet",
+        "parking",
+        "bike",
+        "transfer",
+        "laundry",
+        "checkin",
+        "checkout",
+        "latecheckout",
+        "pets",
+        "wifi",
+        "tv",
+        "ac",
+        "trash",
+        "boiler",
+        "fuse",
+        "stove",
+        "dishwasher",
+        "breakfast",
+        "market"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "emergency",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 6975
+    },
+    {
+      "id": "pz-miss-35",
+      "lang": "en",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hello Alex,\n\nYour message has been recorded and is visible to your host.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "emergency",
+          "queryOriginal": "emergency bathroom door lock child stuck",
+          "queryTr": "acil durum kapı kilidi çocuk sıkıştı",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "bathroom door lock jammed how to open",
+          "queryTr": "banyo kapı kilidi sıkıştı açma",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "bathroom door lock jammed how to open",
+          "queryTr": "banyo kapı kilidi sıkıştı açma",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "items": [
+        {
+          "kind": "emergency",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "appliance_help",
+          "status": "pending_host",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "checkout",
+        "safety",
+        "laundry",
+        "checkin",
+        "pool",
+        "fuse"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "emergency",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 9196
+    },
+    {
+      "id": "pz-miss-36",
+      "lang": "en",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hello Alex,\n\nYour message has been recorded and is visible to your host.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "emergency",
+          "queryOriginal": "emergency water leaking from ceiling light electricity",
+          "queryTr": "acil durum su sızıntısı elektrik",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "ceiling light water leak electrical safety",
+          "queryTr": "tavan aydınlatma su sızıntısı elektrik güvenlik",
+          "message": 1,
+          "relation": "fix_request"
+        },
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "water dripping from ceiling light flickering complaint",
+          "queryTr": "tavan su sızıntısı ışık titreme şikayet",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "ceiling light water leak electrical safety",
+          "queryTr": "tavan aydınlatma su sızıntısı elektrik güvenlik",
+          "message": 1,
+          "relation": "fix_request"
+        },
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "water dripping from ceiling light flickering complaint",
+          "queryTr": "tavan su sızıntısı ışık titreme şikayet",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "items": [
+        {
+          "kind": "emergency",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "appliance_help",
+          "status": "pending_host",
+          "sensitivity": "none",
+          "message": 1
+        },
+        {
+          "kind": "complaint_issue",
+          "status": "pending_host",
+          "sensitivity": "sensitive",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "fuse",
+        "boiler",
+        "safety",
+        "stove",
+        "pool",
+        "gym",
+        "sauna",
+        "terrace",
+        "quiet",
+        "parking",
+        "bike",
+        "transfer",
+        "laundry",
+        "checkin",
+        "checkout",
+        "latecheckout",
+        "pets",
+        "wifi",
+        "tv",
+        "ac",
+        "trash",
+        "dishwasher",
+        "breakfast",
+        "market"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "emergency",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 13333
+    },
+    {
+      "id": "pz-miss-37",
+      "lang": "fr",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Bonjour Alex,\n\nVotre message est enregistré et visible par votre hôte.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "emergency",
+          "queryOriginal": "urgence porte salle de bain bloquée",
+          "queryTr": "acil durum banyo kapısı açılmıyor",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "porte salle de bain bloquée aide",
+          "queryTr": "banyo kapısı açılmıyor yardım",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "porte salle de bain bloquée aide",
+          "queryTr": "banyo kapısı açılmıyor yardım",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "items": [
+        {
+          "kind": "emergency",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "appliance_help",
+          "status": "pending_host",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "boiler",
+        "safety",
+        "laundry",
+        "fuse",
+        "wifi",
+        "parking",
+        "dishwasher"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "emergency",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 9062
+    },
+    {
+      "id": "pz-miss-38",
+      "lang": "es",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hola Alex,\n\nSu mensaje ha quedado registrado y está visible para su anfitrión.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "emergency",
+          "queryOriginal": "emergencia descarga eléctrica enchufe baño",
+          "queryTr": "acil elektrik çarpması priz banyo",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "enchufe del baño chispea problema eléctrico",
+          "queryTr": "banyo priz elektrik sorunu",
+          "message": 1,
+          "relation": "fix_request"
+        },
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "queja descarga al tocar enchufe baño",
+          "queryTr": "misafir elektrik çarpması şikayet",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "enchufe del baño chispea problema eléctrico",
+          "queryTr": "banyo priz elektrik sorunu",
+          "message": 1,
+          "relation": "fix_request"
+        },
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "queja descarga al tocar enchufe baño",
+          "queryTr": "misafir elektrik çarpması şikayet",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "items": [
+        {
+          "kind": "emergency",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "appliance_help",
+          "status": "pending_host",
+          "sensitivity": "none",
+          "message": 1
+        },
+        {
+          "kind": "complaint_issue",
+          "status": "pending_host",
+          "sensitivity": "sensitive",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "wifi",
+        "fuse",
+        "safety",
+        "stove",
+        "laundry"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "emergency",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 35111
+    },
+    {
+      "id": "pz-miss-39",
+      "lang": "es",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hola Alex,\n\nSu mensaje ha quedado registrado y está visible para el anfitrión.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "emergency",
+          "queryOriginal": "emergencia puerta baño hijo atrapado",
+          "queryTr": "acil durum kapı çocuk sıkıştı",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "access_keys",
+          "queryOriginal": "puerta baño atascada no abre",
+          "queryTr": "banyo kapısı açılmıyor sıkıştı",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "access_keys",
+          "queryOriginal": "puerta baño atascada no abre",
+          "queryTr": "banyo kapısı açılmıyor sıkıştı",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "items": [
+        {
+          "kind": "emergency",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "access_keys",
+          "status": "pending_host",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "wifi",
+        "safety",
+        "laundry",
+        "pool",
+        "fuse"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "emergency",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 8777
+    },
+    {
+      "id": "pz-miss-40",
+      "lang": "ru",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Здравствуйте, Alex!\n\nВаше сообщение сохранено; хозяин жилья сможет его увидеть.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "emergency",
+          "queryOriginal": "застряли в лифте между этажами кнопка не работает",
+          "queryTr": "asansörde mahsur kaldık acil durum",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "лифт застрял между этажами кнопка не работает",
+          "queryTr": "asansör çalışmıyor kurtulma yardımı",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "лифт застрял между этажами кнопка не работает",
+          "queryTr": "asansör çalışmıyor kurtulma yardımı",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "items": [
+        {
+          "kind": "emergency",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "appliance_help",
+          "status": "pending_host",
+          "sensitivity": "sensitive",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "safety",
+        "checkout",
+        "dishwasher",
+        "quiet",
+        "pool",
+        "gym",
+        "sauna",
+        "terrace",
+        "parking",
+        "bike",
+        "transfer",
+        "laundry",
+        "checkin",
+        "latecheckout",
+        "pets",
+        "wifi",
+        "tv",
+        "ac",
+        "trash",
+        "boiler",
+        "fuse",
+        "stove",
+        "breakfast",
+        "market"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "emergency",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 6655
+    },
+    {
+      "id": "pz-miss-41",
+      "lang": "ar",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "مرحباً Alex،\n\nتم تسجيل رسالتكم، ويمكن للمضيف الاطلاع عليها.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "emergency",
+          "queryOriginal": "emergency bathroom door stuck can't open",
+          "queryTr": "acil durum banyo kapı kilitli açılmıyor",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "access_keys",
+          "queryOriginal": "bathroom door stuck cannot open",
+          "queryTr": "banyo kapısı kilit sorunu açılmıyor",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "access_keys",
+          "queryOriginal": "bathroom door stuck cannot open",
+          "queryTr": "banyo kapısı kilit sorunu açılmıyor",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "items": [
+        {
+          "kind": "emergency",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "access_keys",
+          "status": "pending_host",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "safety",
+        "laundry",
+        "fuse",
+        "parking",
+        "pool",
+        "gym",
+        "sauna",
+        "terrace",
+        "quiet",
+        "bike",
+        "transfer",
+        "checkin",
+        "checkout",
+        "latecheckout",
+        "pets",
+        "wifi",
+        "tv",
+        "ac",
+        "trash",
+        "boiler",
+        "stove",
+        "dishwasher",
+        "breakfast",
+        "market"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "emergency",
+            "modelRelation": "own_topic",
+            "traceable": false
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 5702
+    },
+    {
+      "id": "pz-miss-42",
+      "lang": "ar",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": null,
+      "skippedReason": "ai_unavailable",
+      "gateDetail": "not_model",
+      "riskReason": "low_confidence_or_risky",
+      "modelSkipped": true,
+      "status": "new",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "شكوى واي فاي بطيء منشفة ناقصة تسرب ماء من المغسلة",
+          "queryTr": "şikayet internet havlu su sızıntısı",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "wifi",
+          "queryOriginal": "حل الواي فاي البطيء للأطفال يشوفون الكرتون",
+          "queryTr": "yavaş wifi internet çözüm",
+          "message": 1,
+          "relation": "fix_request"
+        },
+        {
+          "intent": "cleaning_linen",
+          "queryOriginal": "نقص منشفة صغيرة",
+          "queryTr": "eksik küçük havlu talep",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "الماء يتدفق من تحت المغسلة في الحمام والأرضية غرقانة",
+          "queryTr": "banyo lavabosu su sızıntısı durdurma",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "شكوى واي فاي بطيء منشفة ناقصة تسرب ماء من المغسلة",
+          "queryTr": "şikayet internet havlu su sızıntısı",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "wifi",
+          "queryOriginal": "حل الواي فاي البطيء للأطفال يشوفون الكرتون",
+          "queryTr": "yavaş wifi internet çözüm",
+          "message": 1,
+          "relation": "fix_request"
+        },
+        {
+          "intent": "cleaning_linen",
+          "queryOriginal": "نقص منشفة صغيرة",
+          "queryTr": "eksik küçük havlu talep",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "الماء يتدفق من تحت المغسلة في الحمام والأرضية غرقانة",
+          "queryTr": "banyo lavabosu su sızıntısı durdurma",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "items": [
+        {
+          "kind": "wifi",
+          "status": "open",
+          "sensitivity": "none",
+          "message": 1
+        },
+        {
+          "kind": "cleaning_linen",
+          "status": "open",
+          "sensitivity": "none",
+          "message": 1
+        },
+        {
+          "kind": "appliance_help",
+          "status": "open",
+          "sensitivity": "none",
+          "message": 1
+        },
+        {
+          "kind": "complaint_issue",
+          "status": "pending_host",
+          "sensitivity": "sensitive",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "wifi",
+        "tv",
+        "safety",
+        "transfer",
+        "boiler",
+        "laundry"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "missed",
+            "modelIndex": null,
+            "modelIntent": null,
+            "modelRelation": null,
+            "traceable": null
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_missed",
+          "addressed": null,
+          "itemStatus": null,
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 9844
+    },
+    {
+      "id": "pz-miss-43",
+      "lang": "ar",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "مرحباً Alex،\n\nتُوضع القمامة في الحاويات الموجودة على يمين مدخل المبنى، وتُخرج قبل الساعة 22:00 كحد أقصى. حاوية إعادة التدوير هي الزرقاء.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_risk_label",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "حمام الباب انقفل والطفلة محبوسة",
+          "queryTr": "banyo kapısı kilitlendi çocuk içeride",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "طريقة فتح باب الحمام المقفل",
+          "queryTr": "banyo kapısı açma kilit sorunu",
+          "message": 1,
+          "relation": "fix_request"
+        },
+        {
+          "intent": "trash",
+          "queryOriginal": "مواعيد القمامة وطريقة رمي النفايات",
+          "queryTr": "çöp atma saatleri mıntıka",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "حمام الباب انقفل والطفلة محبوسة",
+          "queryTr": "banyo kapısı kilitlendi çocuk içeride",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "طريقة فتح باب الحمام المقفل",
+          "queryTr": "banyo kapısı açma kilit sorunu",
+          "message": 1,
+          "relation": "fix_request"
+        },
+        {
+          "intent": "trash",
+          "queryOriginal": "مواعيد القمامة وطريقة رمي النفايات",
+          "queryTr": "çöp atma saatleri mıntıka",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "items": [
+        {
+          "kind": "complaint_issue",
+          "status": "open",
+          "sensitivity": "sensitive",
+          "message": 1
+        },
+        {
+          "kind": "appliance_help",
+          "status": "open",
+          "sensitivity": "none",
+          "message": 1
+        },
+        {
+          "kind": "trash",
+          "status": "open",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "trash",
+        "safety",
+        "laundry",
+        "quiet",
+        "checkin",
+        "pool",
+        "checkout"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "missed",
+            "modelIndex": null,
+            "modelIntent": null,
+            "modelRelation": null,
+            "traceable": null
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": null,
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 8965
+    },
+    {
+      "id": "pz-miss-44",
+      "lang": "ar",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": null,
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "not_model",
+      "riskReason": "understanding_risk",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "carbon monoxide alarm beeping headache dizziness what to do",
+          "queryTr": "karbon monoksit alarmı çalıyor baş ağrısı",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "emergency",
+          "queryOriginal": "emergency what to do carbon monoxide alarm",
+          "queryTr": "acil durum karbon monoksit alarmı ne yapmalı",
+          "message": 1,
+          "relation": "follow_up"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "how to stop carbon monoxide alarm",
+          "queryTr": "karbon monoksit alarmı nasıl kapatılır",
+          "message": 1,
+          "relation": "fix_request"
+        },
+        {
+          "intent": "amenities",
+          "queryOriginal": "heating at night cold",
+          "queryTr": "ısıtma gece soğuk",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "carbon monoxide alarm beeping headache dizziness what to do",
+          "queryTr": "karbon monoksit alarmı çalıyor baş ağrısı",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "how to stop carbon monoxide alarm",
+          "queryTr": "karbon monoksit alarmı nasıl kapatılır",
+          "message": 1,
+          "relation": "fix_request"
+        },
+        {
+          "intent": "amenities",
+          "queryOriginal": "heating at night cold",
+          "queryTr": "ısıtma gece soğuk",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "items": [
+        {
+          "kind": "complaint_issue",
+          "status": "pending_host",
+          "sensitivity": "sensitive",
+          "message": 1
+        },
+        {
+          "kind": "emergency",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "appliance_help",
+          "status": "pending_host",
+          "sensitivity": "none",
+          "message": 1
+        },
+        {
+          "kind": "amenities",
+          "status": "pending_host",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "terrace",
+        "stove",
+        "safety",
+        "latecheckout",
+        "quiet",
+        "dishwasher",
+        "boiler"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 1,
+            "modelIntent": "emergency",
+            "modelRelation": "follow_up",
+            "traceable": false
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 35039
+    },
+    {
+      "id": "pz-miss-45",
+      "lang": "ar",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "مرحباً Alex،\n\nتم تسجيل رسالتكم ويمكن للمضيف الاطلاع عليها.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "emergency",
+          "queryOriginal": "أقرب مستشفى طوارئ عنوان",
+          "queryTr": "acil durum en yakın hastane adresi",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "emergency",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "transfer",
+        "safety",
+        "market"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "emergency",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 7863
+    },
+    {
+      "id": "pz-miss-46",
+      "lang": "ar",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "مرحباً Alex،\n\nتم تسجيل رسالتكم، ويمكن للمضيف الاطلاع عليها. اسم شبكة Wi-Fi هو Lale-Rezidans، وكلمة المرور lale2026.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "emergency",
+          "queryOriginal": "حالة طارئة الباب مقفل والجدة محبوسة",
+          "queryTr": "acil durum kapı kilitlendi misafir sıkıştı",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "مشكلة قفل باب الغرفة الصغيرة عالق",
+          "queryTr": "oda kapısı kilit sorunu açılmıyor",
+          "message": 1,
+          "relation": "fix_request"
+        },
+        {
+          "intent": "wifi",
+          "queryOriginal": "كلمة سر الواي فاي",
+          "queryTr": "wifi şifresi internet",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "مشكلة قفل باب الغرفة الصغيرة عالق",
+          "queryTr": "oda kapısı kilit sorunu açılmıyor",
+          "message": 1,
+          "relation": "fix_request"
+        },
+        {
+          "intent": "wifi",
+          "queryOriginal": "كلمة سر الواي فاي",
+          "queryTr": "wifi şifresi internet",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "items": [
+        {
+          "kind": "emergency",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "appliance_help",
+          "status": "pending_host",
+          "sensitivity": "none",
+          "message": 1
+        },
+        {
+          "kind": "wifi",
+          "status": "pending_host",
+          "sensitivity": "none",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "wifi",
+        "safety",
+        "fuse",
+        "gym",
+        "checkout"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "emergency",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_ok",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 10064
+    },
+    {
+      "id": "pz-miss-47",
+      "lang": "ar",
+      "tags": [
+        "probe",
+        "emergency",
+        "missed_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": null,
+      "skippedReason": "ai_unavailable",
+      "gateDetail": "not_model",
+      "riskReason": "items_held",
+      "modelSkipped": true,
+      "status": "new",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "تسرب ماء من السقف على الكهرباء خطر",
+          "queryTr": "tavandan su sızıntısı elektrik tehlikesi",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "مشكلة في مقبس الكهرباء بسبب الماء",
+          "queryTr": "elektrik priz güvenlik sorunları",
+          "message": 1,
+          "relation": "fix_request"
+        },
+        {
+          "intent": "human_request",
+          "queryOriginal": "تعالوا بسرعة للمساعدة",
+          "queryTr": "ev sahibi acil yardım gelsin",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "تسرب ماء من السقف على الكهرباء خطر",
+          "queryTr": "tavandan su sızıntısı elektrik tehlikesi",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "مشكلة في مقبس الكهرباء بسبب الماء",
+          "queryTr": "elektrik priz güvenlik sorunları",
+          "message": 1,
+          "relation": "fix_request"
+        },
+        {
+          "intent": "human_request",
+          "queryOriginal": "تعالوا بسرعة للمساعدة",
+          "queryTr": "ev sahibi acil yardım gelsin",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "items": [
+        {
+          "kind": "appliance_help",
+          "status": "open",
+          "sensitivity": "none",
+          "message": 1
+        },
+        {
+          "kind": "complaint_issue",
+          "status": "pending_host",
+          "sensitivity": "sensitive",
+          "message": 1
+        },
+        {
+          "kind": "human_request",
+          "status": "pending_host",
+          "sensitivity": "sensitive",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "fuse",
+        "boiler",
+        "safety",
+        "latecheckout",
+        "wifi",
+        "stove",
+        "dishwasher"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "emergency",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "missed",
+            "modelIndex": null,
+            "modelIntent": null,
+            "modelRelation": null,
+            "traceable": null
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "emergency_missed",
+          "addressed": null,
+          "itemStatus": null,
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 35557
+    },
+    {
+      "id": "pz-fa-00",
+      "lang": "tr",
+      "tags": [
+        "probe",
+        "false_alarm_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": null,
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "not_model",
+      "riskReason": "understanding_risk",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "duman dedektörü pil sorunu",
+          "queryTr": "duman dedektörü pil sorunu",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "amenities",
+          "queryOriginal": "yedek pil talebi",
+          "queryTr": "yedek pil talebi",
+          "message": 1,
+          "relation": "follow_up"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "duman dedektörü pil değiştirme",
+          "queryTr": "duman dedektörü pil değiştirme",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "amenities",
+          "queryOriginal": "yedek pil talebi",
+          "queryTr": "yedek pil talebi",
+          "message": 1,
+          "relation": "follow_up"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "duman dedektörü pil değiştirme",
+          "queryTr": "duman dedektörü pil değiştirme",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "items": [
+        {
+          "kind": "complaint_issue",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "amenities",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "appliance_help",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "latecheckout",
+        "dishwasher",
+        "transfer",
+        "ac",
+        "stove",
+        "trash",
+        "checkout",
+        "checkin"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "hold",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "complaint_issue",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "held_open",
+          "addressed": null,
+          "itemStatus": "pending_host+pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 35050
+    },
+    {
+      "id": "pz-fa-01",
+      "lang": "en",
+      "tags": [
+        "probe",
+        "false_alarm_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hello Alex,\n\nYour message has been recorded and is visible to your host.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "CO alarm went off worried",
+          "queryTr": "karbonmonoksit alarmı çaldı endişe",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "complaint_issue",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "dishwasher",
+        "wifi"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "hold",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "complaint_issue",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "held_open",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 7494
+    },
+    {
+      "id": "pz-fa-02",
+      "lang": "tr",
+      "tags": [
+        "probe",
+        "false_alarm_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nBilgi için teşekkür ederiz.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "lexical_risk",
+      "riskReason": "low_confidence_or_risky",
+      "modelSkipped": false,
+      "status": "new",
+      "emails": 0,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "greeting_thanks",
+          "queryOriginal": "teşekkür mesajı",
+          "queryTr": "teşekkür mesajı",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "greeting_thanks",
+          "queryOriginal": "teşekkür mesajı",
+          "queryTr": "teşekkür mesajı",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "items": [
+        {
+          "kind": "greeting_thanks",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "latecheckout",
+        "safety",
+        "ac",
+        "trash"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "hold",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "missed",
+            "modelIndex": null,
+            "modelIntent": null,
+            "modelRelation": null,
+            "traceable": null
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "held_open",
+          "addressed": null,
+          "itemStatus": null,
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 13521
+    },
+    {
+      "id": "pz-fa-03",
+      "lang": "tr",
+      "tags": [
+        "probe",
+        "false_alarm_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nDuman dedektörüyle ilgili mesajınız kaydedildi; ev sahibiniz görebilir.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "duman dedektoru bip sesi cikariyor pil bitmis olabilir mi",
+          "queryTr": "duman dedektörü bip sesi pil sorunu",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "duman dedektoru bip sesi pil değişimi yardım",
+          "queryTr": "duman dedektörü pil değişimi yardım",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "duman dedektoru bip sesi pil değişimi yardım",
+          "queryTr": "duman dedektörü pil değişimi yardım",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "items": [
+        {
+          "kind": "complaint_issue",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "appliance_help",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "quiet",
+        "ac",
+        "dishwasher",
+        "trash",
+        "terrace",
+        "wifi",
+        "pets",
+        "stove",
+        "checkout"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "hold",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "complaint_issue",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "held_open",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 8982
+    },
+    {
+      "id": "pz-fa-04",
+      "lang": "tr",
+      "tags": [
+        "probe",
+        "false_alarm_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nMesajınız kaydedildi; ev sahibiniz görebilir.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "duman dedektörü pili bitmiş bip sesi",
+          "queryTr": "duman dedektörü pili bitmiş bip sesi",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "amenities",
+          "queryOriginal": "duman dedektörü pili değişimi yardım",
+          "queryTr": "duman dedektörü pili değişimi yardım",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "amenities",
+          "queryOriginal": "duman dedektörü pili değişimi yardım",
+          "queryTr": "duman dedektörü pili değişimi yardım",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "items": [
+        {
+          "kind": "complaint_issue",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "amenities",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "quiet",
+        "latecheckout",
+        "terrace",
+        "dishwasher",
+        "ac",
+        "safety",
+        "trash",
+        "stove",
+        "gym",
+        "fuse",
+        "market",
+        "pool"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "hold",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "complaint_issue",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "held_open",
+          "addressed": null,
+          "itemStatus": "pending_host+pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 7442
+    },
+    {
+      "id": "pz-fa-05",
+      "lang": "tr",
+      "tags": [
+        "probe",
+        "false_alarm_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nDuman dedektörünün sesiyle ilgili ev sahibiniz size kesin bilgi verebilir.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "lexical_risk",
+      "riskReason": "low_confidence_or_risky",
+      "modelSkipped": false,
+      "status": "new",
+      "emails": 0,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "duman dedektörü test butonu ses normal mi",
+          "queryTr": "duman dedektörü test butonu ses normal mi",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "duman dedektörü test butonu ses normal mi",
+          "queryTr": "duman dedektörü test butonu ses normal mi",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "items": [
+        {
+          "kind": "appliance_help",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "quiet",
+        "ac",
+        "pool",
+        "safety",
+        "terrace",
+        "trash",
+        "pets",
+        "stove",
+        "dishwasher"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "hold",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "missed",
+            "modelIndex": null,
+            "modelIntent": null,
+            "modelRelation": null,
+            "traceable": null
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "held_open",
+          "addressed": null,
+          "itemStatus": null,
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 20188
+    },
+    {
+      "id": "pz-fa-06",
+      "lang": "de",
+      "tags": [
+        "probe",
+        "false_alarm_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hallo Alex,\n\nDanke für den Hinweis. Ihre Meldung zum Rauchmelder ist gespeichert und für Ihren Gastgeber sichtbar.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "Rauchmelder Batterie leer Problem",
+          "queryTr": "duman dedektörü pil bitmiş şikayet",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "Rauchmelder Batterie wechseln",
+          "queryTr": "duman dedektörü pil değiştirme",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "Rauchmelder Batterie wechseln",
+          "queryTr": "duman dedektörü pil değiştirme",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "items": [
+        {
+          "kind": "complaint_issue",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "appliance_help",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "ac",
+        "safety",
+        "dishwasher",
+        "stove",
+        "pool",
+        "gym",
+        "sauna",
+        "terrace",
+        "quiet",
+        "parking",
+        "bike",
+        "transfer",
+        "laundry",
+        "checkin",
+        "checkout",
+        "latecheckout",
+        "pets",
+        "wifi",
+        "tv",
+        "trash",
+        "boiler",
+        "fuse",
+        "breakfast",
+        "market"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "hold",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "complaint_issue",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "held_open",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 7402
+    },
+    {
+      "id": "pz-fa-07",
+      "lang": "tr",
+      "tags": [
+        "probe",
+        "false_alarm_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nBu konuda ev sahibiniz size kesin bilgi verebilir.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "duman dedektörünün pili ötüyor",
+          "queryTr": "duman dedektörü pili ötüyor",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "duman dedektörünün pili nasıl değiştirilir",
+          "queryTr": "duman dedektörü pil nasıl değiştirilir",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "duman dedektörünün pili nasıl değiştirilir",
+          "queryTr": "duman dedektörü pil nasıl değiştirilir",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "items": [
+        {
+          "kind": "complaint_issue",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "appliance_help",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "wifi",
+        "ac",
+        "dishwasher",
+        "sauna",
+        "safety",
+        "pool"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "hold",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "complaint_issue",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "held_open",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 9020
+    },
+    {
+      "id": "pz-fa-08",
+      "lang": "tr",
+      "tags": [
+        "probe",
+        "false_alarm_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": null,
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "not_model",
+      "riskReason": "understanding_risk",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "duman dedektörünün pili değiştirme pil var mı",
+          "queryTr": "duman dedektörü pili değiştirme",
+          "message": 1,
+          "relation": "fix_request"
+        },
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "duman dedektörünün pili ötüyor bip sorunu",
+          "queryTr": "duman dedektörü pili sorunu",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "duman dedektörünün pili değiştirme pil var mı",
+          "queryTr": "duman dedektörü pili değiştirme",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "items": [
+        {
+          "kind": "appliance_help",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "complaint_issue",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "ac",
+        "laundry",
+        "dishwasher",
+        "stove",
+        "terrace",
+        "latecheckout",
+        "fuse",
+        "market",
+        "safety",
+        "gym",
+        "breakfast",
+        "pool"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "hold",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 1,
+            "modelIntent": "complaint_issue",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "held_open",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 34411
+    },
+    {
+      "id": "pz-fa-09",
+      "lang": "tr",
+      "tags": [
+        "probe",
+        "false_alarm_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nBilgi için teşekkür ederiz.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "lexical_risk",
+      "riskReason": "low_confidence_or_risky",
+      "modelSkipped": false,
+      "status": "new",
+      "emails": 0,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "other",
+          "queryOriginal": "duman dedektörü alarm bilgisi",
+          "queryTr": "duman dedektörü alarm bilgisi",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "other",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "latecheckout",
+        "market",
+        "pool",
+        "safety",
+        "ac",
+        "trash",
+        "sauna",
+        "stove",
+        "fuse",
+        "checkout",
+        "wifi"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "hold",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "other",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "held_open",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 7031
+    },
+    {
+      "id": "pz-fa-10",
+      "lang": "en",
+      "tags": [
+        "probe",
+        "false_alarm_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hello Alex,\n\nApologies for the disturbance. Your report about the smoke detector has been recorded and is visible to your host.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "smoke detector low battery chirping complaint",
+          "queryTr": "duman dedektörü pil sesi şikayet",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "smoke detector low battery chirping fix",
+          "queryTr": "duman dedektörü pili uyarı sesi çözüm",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "smoke detector low battery chirping fix",
+          "queryTr": "duman dedektörü pili uyarı sesi çözüm",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "items": [
+        {
+          "kind": "complaint_issue",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "appliance_help",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "dishwasher",
+        "fuse",
+        "safety",
+        "quiet",
+        "terrace",
+        "pets",
+        "ac",
+        "stove"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "hold",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "complaint_issue",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "held_open",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 8762
+    },
+    {
+      "id": "pz-fa-11",
+      "lang": "en",
+      "tags": [
+        "probe",
+        "false_alarm_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": null,
+      "skippedReason": "ai_unavailable",
+      "gateDetail": "not_model",
+      "riskReason": "low_confidence_or_risky",
+      "modelSkipped": true,
+      "status": "new",
+      "emails": 0,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "other",
+          "queryOriginal": "smoke alarm went off information",
+          "queryTr": "duman alarmı çalıştı bilgi",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "other",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "safety",
+        "ac",
+        "dishwasher",
+        "stove",
+        "fuse",
+        "quiet",
+        "terrace"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "hold",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "other",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "held_open",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 33069
+    },
+    {
+      "id": "pz-fa-12",
+      "lang": "en",
+      "tags": [
+        "probe",
+        "false_alarm_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hello Alex,\n\nThank you for letting me know. Your message has been recorded and is visible to your host.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "other",
+          "queryOriginal": "carbon monoxide alarm battery replaced",
+          "queryTr": "karbonmonoksit alarm pil değişimi",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "other",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "wifi"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "hold",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "other",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "held_open",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 6475
+    },
+    {
+      "id": "pz-fa-13",
+      "lang": "de",
+      "tags": [
+        "probe",
+        "false_alarm_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hallo Alex,\n\nIhre Nachricht wurde gespeichert; Ihr Gastgeber kann sie sehen.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "Rauchmelder im Schlafzimmer piept Problem",
+          "queryTr": "yataq odası duman dedektörü alarm sorunu",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "Rauchmelder Batterie piept was tun",
+          "queryTr": "duman dedektörü pil uyarısı nasıl durdurulur",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "Rauchmelder Batterie piept was tun",
+          "queryTr": "duman dedektörü pil uyarısı nasıl durdurulur",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "items": [
+        {
+          "kind": "complaint_issue",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "appliance_help",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "ac",
+        "safety",
+        "stove",
+        "wifi",
+        "pool",
+        "gym",
+        "sauna",
+        "terrace",
+        "quiet",
+        "parking",
+        "bike",
+        "transfer",
+        "laundry",
+        "checkin",
+        "checkout",
+        "latecheckout",
+        "pets",
+        "tv",
+        "trash",
+        "boiler",
+        "fuse",
+        "dishwasher",
+        "breakfast",
+        "market"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "hold",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "complaint_issue",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "held_open",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 6014
+    },
+    {
+      "id": "pz-fa-14",
+      "lang": "tr",
+      "tags": [
+        "probe",
+        "false_alarm_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nBunun için özür dileriz. Duman dedektörüyle ilgili mesajınız kaydedildi; ev sahibiniz görebilir.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "duman dedektoru ucuncu gundur ciyk ciyk diye otuyor pil mi bitti",
+          "queryTr": "duman dedektörü ötüyor pil bitti",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "duman dedektoru pil nerede var",
+          "queryTr": "duman dedektörü pil nerede değiştirme",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "duman dedektoru pil nerede var",
+          "queryTr": "duman dedektörü pil nerede değiştirme",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "items": [
+        {
+          "kind": "complaint_issue",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "appliance_help",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "pool",
+        "ac",
+        "dishwasher",
+        "stove",
+        "safety"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "hold",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "complaint_issue",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "held_open",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 8954
+    },
+    {
+      "id": "pz-fa-15",
+      "lang": "tr",
+      "tags": [
+        "probe",
+        "false_alarm_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nYangın söndürücü mutfak kapısının arkasında.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "lexical_intent",
+      "riskReason": "understanding_risk",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "emergency",
+          "queryOriginal": "yangın söndürücü yeri konumu",
+          "queryTr": "yangın söndürücü yeri konumu",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "emergency",
+          "queryOriginal": "yangın söndürücü yeri konumu",
+          "queryTr": "yangın söndürücü yeri konumu",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "items": [
+        {
+          "kind": "emergency",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "safety",
+        "parking",
+        "transfer"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "hold",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "missed",
+            "modelIndex": null,
+            "modelIntent": null,
+            "modelRelation": null,
+            "traceable": null
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "held_open",
+          "addressed": null,
+          "itemStatus": null,
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 6041
+    },
+    {
+      "id": "pz-fa-16",
+      "lang": "tr",
+      "tags": [
+        "probe",
+        "false_alarm_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nMesajınız kaydedildi; ev sahibiniz görebilir.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "duman dedektörü pil bitiyor bip sesi",
+          "queryTr": "duman dedektörü pil bitiyor bip sesi",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "duman dedektörü pili nerede değiştirme",
+          "queryTr": "duman dedektörü pili nerede değiştirme",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "duman dedektörü pili nerede değiştirme",
+          "queryTr": "duman dedektörü pili nerede değiştirme",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "items": [
+        {
+          "kind": "complaint_issue",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "appliance_help",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "market",
+        "quiet",
+        "ac",
+        "wifi",
+        "terrace",
+        "dishwasher",
+        "gym",
+        "pets",
+        "breakfast",
+        "stove",
+        "pool"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "hold",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "complaint_issue",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "held_open",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 7578
+    },
+    {
+      "id": "pz-fa-17",
+      "lang": "tr",
+      "tags": [
+        "probe",
+        "false_alarm_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Merhaba Alex,\n\nBilgi için teşekkür ederiz.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "lexical_risk",
+      "riskReason": "low_confidence_or_risky",
+      "modelSkipped": false,
+      "status": "new",
+      "emails": 0,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "other",
+          "queryOriginal": "duman dedektörü kontrol bilgisi",
+          "queryTr": "duman dedektörü kontrol bilgisi",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "other",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "ac",
+        "stove",
+        "dishwasher",
+        "safety",
+        "checkout",
+        "fuse"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "hold",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "other",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "held_open",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 6224
+    },
+    {
+      "id": "pz-fa-18",
+      "lang": "en",
+      "tags": [
+        "probe",
+        "false_alarm_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": null,
+      "skippedReason": "ai_unavailable",
+      "gateDetail": "not_model",
+      "riskReason": "low_confidence_or_risky",
+      "modelSkipped": true,
+      "status": "new",
+      "emails": 0,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "other",
+          "queryOriginal": "carbon monoxide alarm battery replacement",
+          "queryTr": "karbonmonoksit alarm pili değişimi",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "other",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "dishwasher",
+        "quiet",
+        "wifi",
+        "terrace",
+        "pets"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "hold",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "other",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "held_open",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 33841
+    },
+    {
+      "id": "pz-fa-19",
+      "lang": "en",
+      "tags": [
+        "probe",
+        "false_alarm_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "Hello Alex,\n\nApologies for the inconvenience. Your smoke detector report has been recorded and is visible to your host.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "smoke detector chirping problem",
+          "queryTr": "duman dedektörü bip sorunu",
+          "message": 1,
+          "relation": "own_topic"
+        },
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "smoke detector chirping fix",
+          "queryTr": "duman dedektörü alarm bip çözüm",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "extraRequests": [
+        {
+          "intent": "appliance_help",
+          "queryOriginal": "smoke detector chirping fix",
+          "queryTr": "duman dedektörü alarm bip çözüm",
+          "message": 1,
+          "relation": "fix_request"
+        }
+      ],
+      "items": [
+        {
+          "kind": "complaint_issue",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        },
+        {
+          "kind": "appliance_help",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "dishwasher",
+        "fuse",
+        "ac",
+        "safety",
+        "quiet",
+        "pets",
+        "terrace"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "hold",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "complaint_issue",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "held_open",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 9282
+    },
+    {
+      "id": "pz-fa-20",
+      "lang": "ar",
+      "tags": [
+        "probe",
+        "false_alarm_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "مرحباً Alex،\n\nيمكن للمضيف تزويدكم بمعلومة مؤكدة حول مروحة الشفط.",
+      "skippedReason": "low_confidence_or_risky",
+      "gateDetail": "lexical_risk",
+      "riskReason": "low_confidence_or_risky",
+      "modelSkipped": false,
+      "status": "new",
+      "emails": 0,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "amenities",
+          "queryOriginal": "مروحة شفط في الحمام",
+          "queryTr": "banyo havalandırma fanı var mı",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "amenities",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "boiler",
+        "laundry",
+        "safety",
+        "ac"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "hold",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "amenities",
+            "modelRelation": "own_topic",
+            "traceable": true
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "held_open",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 7941
+    },
+    {
+      "id": "pz-fa-21",
+      "lang": "ar",
+      "tags": [
+        "probe",
+        "false_alarm_by_rules"
+      ],
+      "pair": null,
+      "ok": true,
+      "sent": false,
+      "sentText": null,
+      "draft": "مرحباً Alex،\n\nنعتذر عن ذلك. تم تسجيل ملاحظتكم بشأن المناشف والحمّام، ويمكن للمضيف الاطلاع عليها.",
+      "skippedReason": "escalated_to_human",
+      "gateDetail": "model_intent",
+      "riskReason": "escalated_to_human",
+      "modelSkipped": false,
+      "status": "problem",
+      "emails": 1,
+      "understanding": "ok",
+      "modelRequests": [
+        {
+          "intent": "complaint_issue",
+          "queryOriginal": "dirty towels bathroom hair not clean",
+          "queryTr": "kirli havlu banyo temiz değil",
+          "message": 1,
+          "relation": "own_topic"
+        }
+      ],
+      "extraRequests": [],
+      "items": [
+        {
+          "kind": "complaint_issue",
+          "status": "pending_host",
+          "sensitivity": "emergency",
+          "message": 1
+        }
+      ],
+      "retrieved": [
+        "laundry",
+        "pets",
+        "breakfast",
+        "safety",
+        "pool",
+        "gym",
+        "sauna",
+        "terrace",
+        "quiet",
+        "parking",
+        "bike",
+        "transfer",
+        "checkin",
+        "checkout",
+        "latecheckout",
+        "wifi",
+        "tv",
+        "ac",
+        "trash",
+        "boiler",
+        "fuse",
+        "stove",
+        "dishwasher",
+        "market"
+      ],
+      "judge": "skipped",
+      "claims": [],
+      "forbiddenSent": false,
+      "requests": [
+        {
+          "id": "r1",
+          "expect": "hold",
+          "relation": "none",
+          "match": {
+            "id": "r1",
+            "extraction": "found",
+            "modelIndex": 0,
+            "modelIntent": "complaint_issue",
+            "modelRelation": "own_topic",
+            "traceable": false
+          },
+          "relationAgreement": "not_scored",
+          "outcome": "held_open",
+          "addressed": null,
+          "itemStatus": "pending_host",
+          "factVerdicts": [],
+          "wrongBindings": 0,
+          "judgeErrors": []
+        }
+      ],
+      "ms": 6484
+    }
+  ],
+  "runtime": {
+    "commit": "560b3cd5",
+    "layers": {
+      "reply": {
+        "model": "gpt-6-luna",
+        "reasoning": "low"
+      },
+      "semantic": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "understanding": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "guard": {
+        "model": "gpt-6-luna",
+        "reasoning": "low"
+      },
+      "rerank": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "translate": {
+        "model": "gpt-6-luna",
+        "reasoning": "medium"
+      },
+      "style": {
+        "model": "gpt-6-luna",
+        "reasoning": "none"
+      },
+      "decision": {
+        "model": "gpt-5.1",
+        "reasoning": "low"
+      },
+      "embedding": {
+        "model": "text-embedding-3-small"
+      }
+    },
+    "flags": {
+      "KB_RETRIEVAL_MODE": "(boş)",
+      "KB_SEMANTIC_RETRIEVAL": "1",
+      "KB_RERANK_ENABLED": "1",
+      "KB_RERANK_PER_QUESTION": "(boş)",
+      "KB_RETRIEVAL_WIDE_BUDGET": "(boş)",
+      "AI_UNDERSTANDING_ENABLED": "1",
+      "AI_STAY_GUARD_ENABLED": "1",
+      "AI_CONVERSATION_ITEMS_ENABLED": "1",
+      "AI_CONVERSATION_STATE_ENABLED": "(boş)",
+      "AI_ACTION_CLAIMS_ENABLED": "(boş)",
+      "AI_CODE_GREETING_ENABLED": "1",
+      "AI_HOUSE_RULES_SHADOW": "1",
+      "AI_KB_FEE_RULE_ENABLED": "1",
+      "AI_STAY_DEFERRAL_PLAIN_ENABLED": "(boş)",
+      "AI_ACCESS_CODE_COMPLETE_ENABLED": "1",
+      "AI_HOST_DECISION_HOLD_ENABLED": "1",
+      "AI_COMPLAINT_FOLLOWUP_RULE_ENABLED": "1",
+      "AI_COURTESY_RULE_ENABLED": "(boş)",
+      "AI_VERIFIED_AVAILABILITY_ENABLED": "(boş)",
+      "AI_GENERATION_TRACE_ENABLED": "(boş)",
+      "AI_VERIFIED_EXTENSION_ENABLED": "(boş)",
+      "AI_VERIFIED_QR_ENABLED": "(boş)",
+      "AI_DATE_RESOLUTION_ENABLED": "(boş)",
+      "AI_UNDERSTANDING_EN_QUERY_ENABLED": "(boş)",
+      "AI_EMERGENCY_NUMBER_ENABLED": "(boş)",
+      "AI_UNDERSTANDING_THREAT_RULE_ENABLED": "(boş)",
+      "AI_ACTION_SUGGESTIONS_ENABLED": "(boş)",
+      "AI_FAULT_GUARD_ENABLED": "(boş)",
+      "AI_FIX_SUPPORT_GATE_ENABLED": "(boş)",
+      "AI_TOPIC_ABSENCE_ENABLED": "(boş)"
+    },
+    "prompts": {
+      "reply": "f09415b9f560",
+      "replyVariant": "4c65b500d6d3",
+      "understanding": "f7b021ad9ffc",
+      "understandingMode": "items+rules+cfu"
+    }
+  }
+}
