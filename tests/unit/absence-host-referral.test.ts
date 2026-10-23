@@ -122,6 +122,10 @@ describe("ev sahibine yönlendirme", () => {
       "I recommend you ask your host about the parking.",
       "I'd suggest that you contact the host directly.",
       "I'll check with the host. Meanwhile, you can ask your host directly.",
+      // Haiku 10-23 akşam: "I'd / I would" tek başına koşullu tavsiyedir; "let's" misafiri de içine alır.
+      "If I were you, I'd contact your host about early check-in.",
+      "I would ask your host about the parking.",
+      "Let's check with your host about early check-in.",
       "Ich empfehle, bei Ihrem Gastgeber nachzufragen. Sie können bei Ihrem Gastgeber nachfragen.",
     ]) {
       expect(refersGuestToHost(t), t).toBe(true);

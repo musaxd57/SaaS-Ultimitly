@@ -72,6 +72,16 @@ describe("beyan — STRICT", () => {
         refs,
       ),
     ).toEqual({ ok: true, parts: [{ ref: "R1", status: "answered", text: "A", evidence: "B" }] });
+    // Haiku 10-23 akşam: işaretli kayıt ÖNCE gelse de birebir kimlikli kayıt kazanır.
+    expect(
+      parseAnswerParts(
+        [
+          { ref: "<R1>", status: "no_info" },
+          { ref: "R1", status: "answered", text: "A", evidence: "B" },
+        ],
+        refs,
+      ),
+    ).toEqual({ ok: true, parts: [{ ref: "R1", status: "answered", text: "A", evidence: "B" }] });
   });
 });
 

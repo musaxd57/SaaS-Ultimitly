@@ -17,12 +17,14 @@ const known = (v: number | null | undefined): v is number => typeof v === "numbe
 export function guestPartyLineTr(r: GuestPartyCounts | null | undefined): string {
   if (!r) return "";
   const people = [
-    known(r.guestAdults) ? `${r.guestAdults} yetişkin` : null,
+    known(r.guestAdults) && r.guestAdults > 0 ? `${r.guestAdults} yetişkin` : null,
     known(r.guestChildren) ? `${r.guestChildren} çocuk` : null,
     known(r.guestInfants) ? `${r.guestInfants} bebek` : null,
   ].filter(Boolean);
   const pets = known(r.guestPets) ? (r.guestPets === 0 ? "evcil hayvan: yok" : `evcil hayvan: ${r.guestPets}`) : null;
   if (people.length === 0 && !pets) return "";
+  // Yalnız evcil hayvan biliniyorsa satır "Kişi sayısı" demez (Haiku 10-23 akşam).
+  if (people.length === 0) return `Rezervasyonda kayıtlı ${pets}`;
   return `Kişi sayısı (rezervasyonda kayıtlı): ${[people.join(", "), pets].filter(Boolean).join(" · ")}`;
 }
 
@@ -31,7 +33,7 @@ export function guestPartySentenceEn(r: GuestPartyCounts | null | undefined): st
   if (!r) return "";
   const n = (v: number, one: string, many: string) => `${v} ${v === 1 ? one : many}`;
   const people = [
-    known(r.guestAdults) ? n(r.guestAdults, "adult", "adults") : null,
+    known(r.guestAdults) && r.guestAdults > 0 ? n(r.guestAdults, "adult", "adults") : null,
     known(r.guestChildren) ? n(r.guestChildren, "child", "children") : null,
     known(r.guestInfants) ? n(r.guestInfants, "infant", "infants") : null,
   ].filter(Boolean);

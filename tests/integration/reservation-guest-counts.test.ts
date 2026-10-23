@@ -51,6 +51,8 @@ describe("Hospitable eşlemesi (saf)", () => {
       infants: null,
       pets: null,
     });
+    // Haiku 10-23 akşam: rezervasyonda en az bir yetişkin vardır — 0 yetişkin "bilinmiyor".
+    expect(guestPartyOf(reservation({ adult_count: 0, child_count: 2 }))).toEqual({ adults: null, children: 2, infants: null, pets: null });
     expect(guestPartyOf(reservation({ total: 3 }))).toBeNull();
     expect(guestPartyOf(reservation())).toBeNull();
     expect(guestPartyOf(reservation([2, 1]))).toBeNull();
@@ -62,6 +64,10 @@ describe("bağlam satırları (saf)", () => {
     expect(guestPartyLineTr({ guestAdults: 2, guestChildren: 1, guestPets: 1 })).toBe("Kişi sayısı (rezervasyonda kayıtlı): 2 yetişkin, 1 çocuk · evcil hayvan: 1");
     expect(guestPartyLineTr({ guestAdults: 2, guestPets: 0 })).toBe("Kişi sayısı (rezervasyonda kayıtlı): 2 yetişkin · evcil hayvan: yok");
     expect(guestPartyLineTr({ guestAdults: null, guestPets: null })).toBe("");
+    // Haiku 10-23 akşam: yalnız evcil hayvan biliniyorsa "Kişi sayısı" denmez; 0 yetişkin yazılmaz.
+    expect(guestPartyLineTr({ guestPets: 0 })).toBe("Rezervasyonda kayıtlı evcil hayvan: yok");
+    expect(guestPartyLineTr({ guestAdults: 0, guestChildren: 2 })).toBe("Kişi sayısı (rezervasyonda kayıtlı): 2 çocuk");
+    expect(guestPartySentenceEn({ guestAdults: 0 })).toBe("");
     expect(guestPartyLineTr(null)).toBe("");
     expect(guestPartySentenceEn({ guestAdults: 1, guestInfants: 2, guestPets: 1 })).toBe(" Booking party: 1 adult, 2 infants; pets on the booking: 1.");
     expect(guestPartySentenceEn({})).toBe("");
@@ -105,8 +111,11 @@ describe("yazma servisi", () => {
     expect(first).toMatchObject({ guestAdults: 2, guestChildren: 1, guestInfants: null, guestPets: 0 });
     await upsert(propertyId, reservation({ adult_count: 3 }));
     expect(await counts(propertyId)).toMatchObject({ guestAdults: 3, guestChildren: 1, guestPets: 0 });
+    // Mutasyon 10-23 akşam (M15 yaşadı): yetişkin sayısı VERİLMEYEN senkron (yalnız çocuk) eski yetişkin sayısını silmez.
+    await upsert(propertyId, reservation({ child_count: 2 }));
+    expect(await counts(propertyId)).toMatchObject({ guestAdults: 3, guestChildren: 2, guestPets: 0 });
     await upsert(propertyId, reservation());
-    expect(await counts(propertyId)).toMatchObject({ guestAdults: 3, guestChildren: 1, guestPets: 0 });
+    expect(await counts(propertyId)).toMatchObject({ guestAdults: 3, guestChildren: 2, guestPets: 0 });
     expect(await updateEvents(first.id)).toEqual([]);
   });
 });

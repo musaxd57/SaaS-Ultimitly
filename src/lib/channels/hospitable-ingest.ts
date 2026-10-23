@@ -235,7 +235,9 @@ export function guestPartyOf(r: HospitableReservation): GuestParty | null {
   const g = (r as { guests?: unknown }).guests;
   if (!g || typeof g !== "object") return null;
   const o = g as Record<string, unknown>;
-  const party: GuestParty = { adults: count(o.adult_count), children: count(o.child_count), infants: count(o.infant_count), pets: count(o.pet_count) };
+  // Rezervasyonda en az bir yetişkin vardır: 0 yetişkin "bilinmiyor" demektir (Haiku 10-23 akşam: istem "0 yetişkin" yazıyordu).
+  const adults = count(o.adult_count);
+  const party: GuestParty = { adults: adults === 0 ? null : adults, children: count(o.child_count), infants: count(o.infant_count), pets: count(o.pet_count) };
   return Object.values(party).some((v) => v !== null) ? party : null;
 }
 

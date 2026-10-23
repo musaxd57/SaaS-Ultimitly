@@ -736,12 +736,16 @@ const NEGATED_REFERRAL =
  * yönlendirme ("I recommend you ask your host") ara sözcük listesinde olmadığı için silinmez. İkinci katlama "I" → "ı" yapar.
  */
 const FIRST_PERSON_REFERRAL = new RegExp(
-  `(?<![\\p{L}])(?:(?:[iı]|we)(?:['’](?:ll|d|m|ve)| will| shall| would| can| could| may| might| must| should| am| are| have| had| need to| want to)?|let me|let us|let['’]s)` +
+  // "I'd / I would" yalnız "be happy to / be glad to / gladly / happily" ile birinci kişi hizmetidir; tek başına koşullu TAVSİYEDİR ("If I were you,
+  // I'd contact your host" — Haiku 10-23 akşam) ve silinmez. "Let's" misafiri de içine alan öneridir, silinmez.
+  `(?<![\\p{L}])(?:(?:[iı]|we)(?:['’](?:ll|m|ve)| will| shall| can| could| may| might| must| should| am| are| have| had| need to| want to)?|let me|let us|(?:[iı]|we)(?:['’]d| would) (?:be happy to|be glad to|gladly|happily))` +
     `(?: (?:also|just|quickly|personally|gladly|happily|now|first|immediately|directly|then|going to|be happy to|be glad to|try to)){0,3} ` +
     `(?:ask|check with|confirm with|contact|reach out to|get in touch with|message|consult|speak (?:to|with)|talk to|reach|enquire with|inquire with|email|e-mail|write to|text|call|phone) ${EN_HOST}(?![\\p{L}])` +
     `|(?<![\\p{L}])(?:[iı]ch|wir) (?:werde|werden|kann|können|möchte|möchten|will|wollen)(?: (?:gerne|gern|kurz|direkt|noch|selbst)){0,2} (?:bei|von) ${DE_HOST}(?![\\p{L}])`,
   "gu",
 );
+
+const IF_I_WERE_YOU = /(?<![\p{L}])if [iı] (?:were|was) you(?![\p{L}])/gu;
 
 /** Koşul bilgi İSTEĞİYSE ("daha fazla bilgi isterseniz", "if you'd like more details") yine yönlendirmedir. */
 const INFO_CONDITION =
@@ -762,7 +766,8 @@ export function refersGuestToHost(reply: string | null | undefined): boolean {
     if (!forms.some((f) => HOST_REFERRAL_PATTERNS.some((re) => re.test(f)))) continue;
     if (forms.some((f) => containsContactValue(f))) continue;
     if (forms.some((f) => NEGATED_REFERRAL.test(f))) continue;
-    const conditionForms = forms.map((f) => f.replace(WHETHER_IF, "$1$2whether"));
+    // "If I were you, …" koşul değil tavsiye kalıbıdır (Haiku 10-23 akşam) — koşul aranmadan önce silinir.
+    const conditionForms = forms.map((f) => f.replace(WHETHER_IF, "$1$2whether").replace(IF_I_WERE_YOU, " "));
     if (conditionForms.some((f) => EVENT_CONDITION.test(f)) && !conditionForms.some((f) => INFO_CONDITION.test(f))) continue;
     return true;
   }

@@ -46,6 +46,9 @@ export type AnswerPartsDeclaration = { ok: true; parts: AnswerPart[] } | { ok: f
 export const PART_TEXT_MAX = 600;
 export const PART_EVIDENCE_MAX = 600;
 
+const isExactRef = (x: unknown, refs: readonly string[]): boolean =>
+  !!x && typeof x === "object" && typeof (x as { ref?: unknown }).ref === "string" && refs.includes((x as { ref: string }).ref);
+
 /**
  * Modelin `answers` alanını çözer: dizi değilse "missing" (kapı tutar). Bozuk kayıt, tanınmayan istek kimliği ve aynı kimliğin ikinci
  * kaydı TEK TEK atlanır (Haiku 10-23: tek bir "R0" bütün doğrulanmış parçaları düşürüyordu) — atlanan kayıt hiçbir isteği cevaplamaz,
@@ -54,7 +57,9 @@ export const PART_EVIDENCE_MAX = 600;
 export function parseAnswerParts(raw: unknown, refs: readonly string[]): AnswerPartsDeclaration {
   if (!Array.isArray(raw)) return { ok: false, reason: "missing" };
   const parts: AnswerPart[] = [];
-  for (const x of raw) {
+  // Birebir kimlikli kayıt önce okunur: aynı isteğin "<R1>" kaydı önce gelse de asıl "R1" kaydı düşmez (Haiku 10-23 akşam).
+  const exactFirst = [...raw].sort((a, b) => Number(!isExactRef(a, refs)) - Number(!isExactRef(b, refs)));
+  for (const x of exactFirst) {
     if (!x || typeof x !== "object") continue;
     const r = x as Record<string, unknown>;
     // İstemdeki şema yer tutucusu ("<R1>") kopyalanırsa tek kat işaret soyulur (yanmış set 10-23 akşam: yeniden yazılan iyi parça bu yüzden
