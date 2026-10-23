@@ -15,8 +15,10 @@
 | Ölçüm (benzerlik) | Ham misafir metni benzerliği işe yaramıyor (38'de 5 doğru, 9 YANLIŞ eşleşme). Anlama katmanının Türkçe sorgusu + kod kapısı: 38'de 27 doğru, 132 tuzakta 0 yanlış (§2.3). |
 | Güvenlik turu | Opus 11 bulgu (1 kritik, 5 yüksek) + Haiku 10 bulgu → hepsi düzeltildi ya da gerekçesiyle aşağıda (§3). |
 | Dilim sonu Opus incelemesi (2. tur) | 15 bulgu (2 kritik, 7 yüksek) — hepsi düzeltildi, her biri eski kodda kırmızı testle pinli (§3b). En ağırı: Rusça / İspanyolca / Fransızca / Almanca cevapta "açılır ↔ kapanır" değişimi ve ihtiyaçtaki ikinci konunun ("havuz ve RESEPSİYON", "BALKONDA sigara") uydurulması geçiyordu. |
-| Gerçek modelle yeniden ölçüm (E v5) | Sıkılaşmaya rağmen aynı: 38'de 30 doğru cevap, açık kalması gereken 8/8, **yanlış 0** (§4). |
-| Kapı / CI | (§5) |
+| Gerçek modelle yeniden ölçüm (E v5 · v6 · v7) | 38'de 30 · 31 · 27 doğru cevap (oynama modelin kendi güveni / anlama katmanı), açık kalması gereken 8/8, **yanlış her koşuda 0**; bu gecenin yeni denetimleri gerçek cevaplarda **0 haksız tutma** (§4). |
+| Parça kipinin çevresi (Opus uçtan uca, 11 bulgu) | Soruyu cevaplamadan kapatma (saat sorusuna "ısıtmalıdır", iki tesisli soruya tek tesis), cevapsız istekle tutulan turda ev sahibine e-posta gitmemesi, sıra kipi bağı, eski satır, tekrar — kapandı; 3 konu size soru (§3c, §6 6–8). |
+| Migration 85 yaması — Opus + Haiku incelemesi (21 bulgu) | Kayda misafir metni girmesi, anahtar kapanınca satırların kalması, tek misafirin teyit şişirmesi, ölçümün söyleyiş farkını "yanlış" sayması, sıcak yolu yavaşlatma riski — düzeltildi, yama yeniden üretildi (§3d). Ana daldaki konu etiketinde (migration 84) 4 sızma yolu kapandı. |
+| Kapı / CI | §5 |
 
 ## 2. Fikriniz: aynı soru tekrar gelince kayıtlı doğru cevap
 
@@ -150,7 +152,27 @@ Kalanlar (kod değişmedi, karar sizde — §6): **F6** kısmi gönderimde cevap
 güvenlik kapısı kararı) · **F10** kalıcı kuyrukta teslim düşerse istek "cevaplandı" kalır (bilinen sınır) · **F11** ihtiyaç başına ~60–80 ms
 doğrusal (tavan gerekmedi).
 
-## 4. Gerçek modelle yeniden ölçüm (E v5 / v6, onaylı Luna yapılandırması)
+## 3d. Migration 85 yaması (cevap tekrarı gölge kipi) — Opus derin inceleme + Haiku 3. tur
+
+Yama push EDİLMEDİ (onayınızı bekliyor); bulgular yamanın içinde düzeltildi, yama yeniden üretildi (`git apply --check` ✓, migration değişmedi →
+sıfır sapma aynen, ilgili DB testleri 95/95, birim 116/116). Bulunan ve kapanan:
+
+| # | bulgu | şimdi |
+|---|---|---|
+| 1–2 | `npm test` iki yerden kırmızı olurdu (demo sıfırlama yeni tabloyu silmiyordu; ölçüm anahtar listesi) | demo sıfırlaması tabloyu siler; anahtar listede |
+| 3 🔴 | Gün sözcüğü BAŞ eşleşmesi ("salıncak", "salih", "pazarlık" gün sanılıyordu) şifre değerini **migration 84 konu etiketine** sokuyordu — anahtar kapalıyken de | gün / mevsim BÜTÜN sözcük + çekim eki; "kişi" / "yazı" mevsim değil |
+| 4 🔴 | Kayıt sorgusu misafirin sözcüklerini süzgeçsiz saklıyordu ("ayşe ile gelecek köpeğim max …"); silme / anonimleştirme ona ulaşamıyordu | sorgu yalnız sözlük konusu + kapalı soru / yüklem listesi + fiil çekimi + gün sözcüğünden oluşur; listede olmayan ayırt edici sözcük, ad, sayı, şifre değeri varsa **hiç kaydedilmez** (28 olağan sorudan 27'si kaydediliyor) |
+| 5 | Eski satırlar yalnız anahtar açıkken siliniyordu; Wi-Fi şifresinin eski kopyası kalıyordu | anahtardan bağımsız saatlik süpürge: 90 gün dokunulmayan + kaynağı silinmiş / pasif / sonradan değişmiş kalemin kaydı silinir |
+| 6 | Ölçüm söyleyiş farkını "yanlış cevap" sayıyor, kaydı sıfırlıyordu; parmak izi misafirin konaklama durumuna göre değişiyordu; adres cevabı hiç doğrulanamıyordu | "aynı bilgi" = aynı değer + olumluluk (söyleyiş farkı isabet sayılır, kayıt korunur); parmak izi bütün kalemlerden; mülk kaynağından yalnız giriş / çıkış satırı |
+| 7 | Gönderim yolunu bekletebiliyordu (50 aday × 2 sn gömme) | en çok 10 aday (kararlı kayıt önce), gömme düşünce tur boyu tekrar denenmez, gönderim yolu en çok 2,5 sn bekler |
+| 8 | Sayı sorudan siliniyordu ("2 araç için otopark" → "araç için otopark") | sayı taşıyan soru kaydedilmez |
+| 9 | Bağımsızlık konuşma başına (aynı misafirin iki konuşması 2 teyit); eşzamanlı iki işçi teyidi kaybediyordu | bağımsızlık REZERVASYON başına; koşullu güncelleme (okunan sayı değişmediyse + iz yoksa); görünen ad ("Misafir") iz değildir |
+| H | Konu etiketinde (ana dal, migration 84): şifre sözcüğünün ÖNÜNDEKİ çok sözcüklü değer ("kelebek mavi kahve şifresi"), görünmez karakterle bölünen "şif​resi", tam genişlikli rakam, "passphrase / kilit kelimesi" | kapandı (ana dalda `4d20c0d4`, 44 olağan sorguda etiket aynı) |
+
+Bilinen sınırlar (yama): aynı misafirin AYRI rezervasyonları ayrı teyit sayılır; kalıcı kuyruk açıkken ölçüm teslimden önce yazılır; küçük harfli
+üçüncü kişi adı ETİKETE hâlâ girebilir (etiket ev sahibine görünür, misafire gitmez — migration 84 bilinen sınırı; kayıt sorgusuna girmez).
+
+## 4. Gerçek modelle yeniden ölçüm (E v5 / v6 / v7, onaylı Luna yapılandırması)
 
 | kol | doğru değerle cevaplanan | açık kalması gereken açık kaldı | 🚨 yanlış | "bilgim yok" / iç kaynak | giden mesaj |
 |---|---|---|---|---|---|
@@ -170,7 +192,15 @@ v5 + v6 + v7 = $0,33 (onaylı E kapsamı).
 
 ## 5. Kalite kapıları
 
-(sonuç bekleniyor)
+| ne | sonuç |
+|---|---|
+| Tam kapı g7 (`8f7f3b87`: Opus 2. tur + Haiku 2. tur) | veritabanısız 578 · veritabanlı 449 · süre 65 dosya yeşil · derleme yeşil → push → **CI yeşil** (6/6 iş) |
+| Tam kapı g8 (`a953544c`: Opus uçtan uca + Haiku 3. tur) | 578 · 449 · 65 yeşil · derleme yeşil → push (`851a9742`, iki belge commit'iyle) → CI: §5 sonu |
+| Kırmızı-önce | her yeni test düzeltmesiz kodda koşturuldu: uçtan uca 9 test kırmızı, Haiku 3. tur 6 test kırmızı, etiket 2 test kırmızı → düzeltmeyle yeşil |
+| Mutasyon (`scripts/mutation-run.mjs`, ayrık worktree) | MUTASYON_SONUC |
+| Gerçek model (E v7) | yeni denetimler 0 haksız tutma; yanlış 0 |
+| Hazır yama (migration 85) | DB testleri 95/95, birim 116/116, `git apply --check` ✓ (push YOK) |
+| Son kapı g9 (etiket düzeltmesi + belgeler) | G9_SONUC |
 
 ## 6. Sorularınız (karar sizde)
 
