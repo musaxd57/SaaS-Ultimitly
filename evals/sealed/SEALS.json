@@ -71,6 +71,10 @@
       "languages": 6,
       "withStay": 15
     },
-    "state": "sealed"
+    "state": "burned",
+    "burnedAt": "2026-10-23",
+    "runSha": "9413d0419af888f401aaa32e37e715e4444b31f3",
+    "report": "docs/olcum/live-pipeline-2026-10-23-gpt-6-luna-kor-e1023-new-on-kabul.md",
+    "compareReport": "docs/olcum/live-pipeline-2026-10-23-gpt-6-luna-kor-e1023-old-on-kabul.md"
   }
 }

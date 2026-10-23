@@ -49,7 +49,25 @@ pinli) · "Havuz 22:00'ye kadar açık mı?" tuzağında okuyucu cevabı "yarım
 sigara turu. "Yanlış değer" sayılan tek satır ölçerin kendi okuma hatası (misafire giden metin doğru).
 
 **Yeni kör kabul seti:** ayrı yazar yazdı, ben açmadım: 50 senaryo, 71 ihtiyaç (55 cevaplanmalı / 16 açık kalmalı), 15'i konaklama tarihli.
-_(tek kabul koşusu sonrası doldurulacak)_
+TEK koşu, iki kol, aynı kod (`9413d041`), aynı model ayarı (cevap `gpt-6-luna` low, okuyucu açık), set koşudan sonra YAKILDI (`evals/sealed/SEALS.json`):
+
+| | eski akış (parça kipi kapalı) | yeni akış (parça kipi açık) |
+|---|---|---|
+| 🚨 YANLIŞ GÖNDERİM (yanlış değer / yanlış "cevaplandı"; hedef 0) | 4 | **0** |
+| 🚨 "bilgim yok" / iç kaynak anlatımı misafire | 0 | **0** |
+| cevaplanması gereken ihtiyaç doğru değerle misafire gitti | 38 / 55 (%69) | **42 / 55 (%76)** |
+| gereksiz tutma (cevabı olan ihtiyaç gitmedi / eksik gitti) | 13 | 13 |
+| açık kalması gereken ihtiyaç açık kaldı | 16 / 16 | 16 / 16 |
+| giden mesaj | 36 / 50 | 35 / 50 |
+| maliyet | $0,18 | $0,20 |
+
+Sade okuma: eski akışın misafire yanlış gönderdiği 4 cevabın 4'ü yeni akışta doğru gitti; yeni akış hiçbir yanlış cevap göndermedi ve hiçbir
+açık soruyu "cevaplandı" diye kapatmadı. Kalan açık: 13 gereksiz tutma (iki kolda aynı sayı) — cevabı bilgi tabanında olan her 4 sorudan 1'i
+hâlâ size kalıyor. Mühürlü ölçer bilerek yalnız toplam verir; bu 13'ün hangileri olduğunu görmek için yanmış seti geliştirme verisi olarak
+bir kez daha koşmak gerekir (≈ $0,20) → §4.8.
+
+Kabul koşusundan SONRA giren iki commit misafire giden sonucu iyileştirme yönünde değiştirmez: biri yalnız değişken adı, öteki baştaki
+"Non-" önekini artık "Hayır" saymıyor (yalnız daha sıkı) + ev sahibi tarafında bildirim / kuyruk düzeltmeleri (§3c).
 
 ## 3. Notlarınızdan yaptıklarım ve açıklamalar
 
@@ -77,7 +95,14 @@ kartta onaylarsanız kodun metni gider.
 **Her misafire ayrı kimlik mi, yalnız isim mi? (otopark notunuz):** Ayrı kimlik var. Her rezervasyonun kendi kimliği (sağlayıcının
 rezervasyon numarası + bizim kaydımız) ve kendi konuşması var; misafir adı yalnız görüntü için. Bilgi tabanı DAİRE başına tutulur; "12 numaralı
 park yeri" bilgisi o dairenin kalemidir, o dairede kalan her misafir aynı bilgiyi alır. İki dairenin kaleminde aynı park numarası varsa bugün
-uyarı YOK — notunuzdaki "çakışma taraması" önerisi §4'te.
+uyarı YOK — notunuzdaki "çakışma taraması" önerisi §5 / tasarım 7-C (bulucusu bu turda yazıldı, bağlı değil).
+
+**"Bu cevap ne, yerleri mi karıştırdın?" (etiket 16, 18, 19, 20, 27, 28):** sayfadaki "gidecek cevap"ların çoğunu okuyucuyu sınamak için BEN
+bilerek yanlış yazdım (her örnekte "Benim beklentim: hold" satırı bunu söylüyor) — saunanın saatini havuza koymak, "ısıtmalı mı?" sorusuna
+yalnız saat, ek uydurma söz ("geç çıkış için yardımcı olacaktır"), yarım tarif gibi. Net etiketlediğiniz örneklerde "hatalı" dediğiniz her
+birini okuyucu da durdurdu (iki ayrışma "doğru ama eksik / ayrı istek" türünden: §4.10 erken giriş, §4.1 yalnız hafta sonu bilinen havuz), yani
+bu cevaplar misafire GİTMEZ. Sizin asıl isteğiniz ise bir adım ötesi: durdurmak yerine DOĞRUSUNU yazsın ("Havuzumuz ısıtmalıdır,
+09:00-20:00 arası açıktır.") → §4.9.
 
 ## 3b. Dilim sonu sert inceleme (Opus) — bulgular ve yapılanlar
 
@@ -98,6 +123,17 @@ değiştirmiyor (parça kipi ve kalıcı kuyruk anahtarları KAPALI), ama açıl
 | B10 | P3 | "Hafta sonu:" gibi koşullu başlığı atmama kuralı Rusça / Fransızca / İspanyolca gün, gece, sezon, "Kapalı / Ücretli / Yasak" başlıklarını tanımıyordu | Çok dilli liste eklendi (19 başlık testli; çevrilmiş konu başlığı hâlâ atılıyor) |
 | B3 | P3 | Çok dilli kat: "3º piso", "10 -15 этаже", "5 stock" yanlış okunuyordu | Düzeltildi, testli |
 | B12 | P3 | Kodun tuttuğu parçanın anlam bulguları izden düşüyordu; ölçüm kaydı "açık kalan"ı yazmıyordu | İkisi de yazılıyor; dayanak arama maliyeti (en kötü ~60 ms / parça) açık iş |
+
+## 3c. Düzeltmelerin ikinci dar incelemesi (Haiku) — üç bulgu, üçü düzeltildi
+
+| Bulgu (sade) | Ne yaptım |
+|---|---|
+| B11'in "baştaki Hayır / No ünlemini soy" kuralı "Non-refundable" (iade edilmez) sözcüğünün "Non-" kısmını da soyuyordu → olumluluk denetimi kısalmış metni okuyordu | Ünlem yalnız ayraçla biterse soyulur (virgül, nokta, ünlem, iki nokta, ya da boşluklu tire); "Non-refundable" artık bütün okunur (testli) |
+| "Karar bekliyor" e-postası: öteki e-postanın talebi tam o anda silinirse (o e-posta düştü) kart "bildirildi" sayılıyordu | Talep okunamazsa da temkinli yön "uçuşta": kart damgası geri verilir, sonraki geçiş bildirir (ayrı dosyada test — casus sonraki testlere sızmasın) |
+| Kalıcı kuyruk: kesin hata sonrası ev sahibi mesajı "yeniden dene" ile gönderirse öğe panelde AÇIK kalıyordu (cevap gitti ama ihtiyaç açık görünüyordu) | Yeniden açarken cevap bağı korunur; mesaj sonradan teslim edilince yalnız onun açtığı öğeler yeniden "cevaplandı" olur (ev sahibinin arada kapattığına dokunulmaz; testli) |
+
+Mutasyon (commit edilmiş kodda, ayrık çalışma ağacında): bu üç düzeltmenin dört mutantı **4 / 4 öldürüldü**; öğle dilimi bütününün 32 mutantı
+aynı commit'te yeniden koşuldu (sonuç §5 sonunda).
 
 ## 4. Kararınızı bekleyen sorular
 
@@ -165,3 +201,41 @@ gelirim. Ölçeyim mi?
 46, ayrıştığı yerler model bilgisizliği değil bilgi tabanının eksik / karışık olması (notlarınızdaki örneklerin çoğu). İnce ayar bunu çözmez,
 her model değişiminde yeniden yapılır ve misafir verisinin eğitime girmesi KVKK sorusu açar. Önce §5'teki bilgi tabanı taraması + geçmiş
 cevaplardan öğrenme. Siz yine de isterseniz maliyet / veri gereksinimi araştırmasını ayrıca yaparım. Uygun mu?
+
+**4.8 — Kabul setindeki 13 gereksiz tutmanın nedeni:** set yandı, artık geliştirme verisi. Bir kez ayrıntılı koşup (≈ $0,20) her tutmanın
+nedenini çıkarayım mı (okuyucu mu tuttu, kod mu, anlama katmanı mı ihtiyacı yanlış böldü)? Kural gereği: bu ayrıntılarla yapılan düzeltmenin
+kabulü yine YENİ, görülmemiş bir setle ölçülür. Önerim: evet. Koşayım mı?
+
+**4.9 — Durdurmak yerine doğrusunu yazsın (etiket 28 yarım tarif, 19 ısıtmalı, 20 yanlış saat, 16 çocuk ücretsizliği, 27 uydurma söz):**
+- Bugün (parça kipinde): misafir "Klimayı nasıl soğutmaya alırım?", bilgi tabanında "Kumanda komodinin çekmecesinde; mavi kar tanesi tuşu
+  soğutma." Model yalnız "Klima kumandası komodinin çekmecesinde." yazarsa okuyucu "yarım" der → hiçbir şey gitmez, soru size kalır.
+- Önerim: okuyucu bir parçayı "yarım / sorulanı cevaplamıyor / kaynakta olmayan söz / koşul düştü" diye tutarsa model o parçayı BİR KEZ, aynı
+  kaynaktan, okuyucunun gerekçesiyle yeniden yazar ("Kumanda komodinin çekmecesinde; mavi kar tanesi tuşuna basarak soğutmaya alabilirsiniz." ·
+  "Havuzumuz ısıtmalıdır, 09:00-20:00 arası açıktır."); yeni metin yine bütün kod denetimlerinden ve okuyucudan geçer; ikinci kez tutulursa size
+  kalır. Bugünkü akışta (parça kipi dışında) ödeme / iletişim / özür / iç kaynak bulgularında aynı "bir kez yeniden yaz" yolu zaten var
+  (`semantic/senior-rewrite.ts`); bunu parça kipine taşımak olur. Bedeli: tutulan parça başına bir model çağrısı daha. Böyle yapalım mı?
+
+**4.10 — "Giriş saati kaçta? 12'de girebilir miyiz?" turu:**
+- Bugün: erken giriş sizin kararınız olduğu için bütün mesaj tutuluyor; giriş saati de gitmiyor (geliştirme ölçümündeki 6 tutmadan biri).
+- Seçenekler: (A) böyle kalsın; (B) "Giriş saatimiz 15:00." gider, erken giriş isteği sizde açık kalır.
+- Önerim **A**: B'deki cümle misafire "12 olmaz, 15:00" diye RET gibi okunur; siz sonra 12'yi onaylarsanız çelişki doğar. "Ev sahibinizin
+  kararıdır" cümlesi de 10-01 kararınızla misafire gitmiyor. Hangisi?
+
+## 5. Bilgi tabanı: dosya, RAG / gömme, tarama — durum ve plan
+
+Tam metin: `docs/TASARIM-2026-10-23-bilgi-tabani-dosya-rag-ve-tarama.md` (envanter + öneri + sorular 7-A…7-G). Kısaca:
+- **Daire başına ayrı bilgi VAR**, getirme yalnız o dairenin onaylı kalemlerine bakar. **RAG VAR**, üç katlı: sözcüksel (Türkçe kök + yazım
+  toleransı + yabancı dil sözlüğü) varsayılan açık; anlamsal (gömme) + yeniden sıralayıcı kodda hazır, canlıda açılacaklar listesinde.
+  ≤ 30 kalemlik bilgi tabanı bilerek bütünüyle gider (seçimin ölçülmüş cevap kaybı vardı).
+- **Eksik dört parça:** dosyadan yükleme · gömmelerin KALICI deposu (bugün süreç belleği, 4.096 vektör, bütün kiracılar ortak — büyüyünce
+  anlamsal arama sessizce sözcüksele düşer) · bilgi tabanı taraması + günde en çok 3 küçük onay sorusu · eksik bilgide geçmiş ev sahibi
+  cevabından şıklı öneri.
+- **İlke: tek doğru, model bilgi yazamaz.** Dosya bir KAYNAK; içinden çıkan her konu sizin onayınızla normal kaleme dönüşür, metni kodla sizin
+  KENDİ cümlelerinizden birleştirilir (kodla birebir doğrulanır). Bu turda bunun çekirdeği + "aynı park yeri / giriş kodu iki farklı dairede"
+  taraması yazıldı ve testlendi; hiçbir ekrana / cevap yoluna bağlı değil.
+- Sorular: 7-A (yükle / şablon indir / bilgi tabanını indir — önerim önce yükle) · 7-B (plan sınırına sayılsın mı — önerim evet) · 7-C (tarama
+  kartı yalnız panelde mi — önerim evet, migration ister) · 7-D (eksik bilgi döngüsü, bildirim e-posta + panel) · 7-E (kalıcı gömme deposu —
+  önerim evet, Railway açılmadan önce hazır yama) · 7-F (sık soruya kayıttan cevap: gölge kipte ölçüm sürer) · 7-G (ince ayar: önce ~500
+  etiketle eşleştirilmiş deneme).
+
+**Mutasyon sonucu (öğle dilimi, 32 mutant):** _(koşu sürüyor — sonuç buraya)_

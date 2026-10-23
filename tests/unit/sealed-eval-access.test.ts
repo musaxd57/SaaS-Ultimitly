@@ -49,7 +49,16 @@ const ALLOWED_E = new Set([
   "docs/olcum/live-pipeline-2026-10-23-gpt-6-luna-kor-e1023-old-on-kor.md",
   "docs/olcum/live-pipeline-2026-10-23-gpt-6-luna-kor-e1023-old-on-kor.json",
 ]);
-const ALLOWED_K = new Set(["evals/sealed/SEALS.json", `evals/sealed/${NEEDLE_K}.json`, "tests/eval/live-pipeline.eval.test.ts"]);
+// Kabul koşusu (10-23 öğle, tek koşu, iki kol) yakma raporları — aynı kural.
+const ALLOWED_K = new Set([
+  "evals/sealed/SEALS.json",
+  `evals/sealed/${NEEDLE_K}.json`,
+  "tests/eval/live-pipeline.eval.test.ts",
+  "docs/olcum/live-pipeline-2026-10-23-gpt-6-luna-kor-e1023-new-on-kabul.md",
+  "docs/olcum/live-pipeline-2026-10-23-gpt-6-luna-kor-e1023-new-on-kabul.json",
+  "docs/olcum/live-pipeline-2026-10-23-gpt-6-luna-kor-e1023-old-on-kabul.md",
+  "docs/olcum/live-pipeline-2026-10-23-gpt-6-luna-kor-e1023-old-on-kabul.json",
+]);
 const SKIP_DIRS = new Set([".git", "node_modules", ".next", "dist", "build", "coverage", "playwright-report", "test-results"]);
 const BINARY_EXT = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".pdf", ".woff", ".woff2", ".ttf", ".zip", ".gz"]);
 

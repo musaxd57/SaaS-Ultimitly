@@ -4,6 +4,7 @@
 > Bu dosyadaki kurallar CLAUDE.md'deki kadar BAĞLAYICIDIR. İlgili alanda iş yapmadan önce oku.
 
 ## CLAUDE.md "Durum" özet satırları (10-23'te AYNEN taşındı; en yeni ikisi CLAUDE.md'de kalır)
+**10-23 gece-2:** kurucu fikri "4. kez gelen aynı soruya kayıtlı doğru cevap" → gölge kip (migration 85 ana dalda — kurucu onayı 10-23 sabah; anahtar KAPALI) · Opus güvenlik F1–F11 + dilim sonu R1–R15 (yön sözlüğü, ikinci konu, en az/en fazla, ücretsizlik sınırı, cevap tekrarı daralması, sıra kipi, etiket) + Haiku turları + Opus uçtan uca parça kipi (sorulan yön, iki tesis, sessiz tutuş e-postası, sıra kipi bağı) + gece sonu Opus taze göz (sorulan yön konuya bağlı, etiket değer penceresi) + mutasyon (23 yaşayan pinli) kapandı — rapor `docs/RAPOR-2026-10-23-gece-2-cevap-tekrari-ve-guvenlik.md`, `docs/claude/durum.md`.
 **10-23 gündüz:** kurucu A–E + kaynak sorusu kodda (anahtarlar KAPALI): istek başına doğrulanmış parça (değer ↔ konu ↔ koşul DEĞER BAŞINA) · kaynak sorusu açık iş · migration 84 (sıra + konu etiketi, belirsizse kapatma yok) · E ölçümü + neden analizi · next 15.5.28 güvenlik; sorular rapor §5 — `docs/RAPOR-2026-10-23-gunduz-buyuk-rapor.md`.
 **10-23 gece:** Soru 1 kodda (misafirin kendi sözcükleri, anahtar kapalı) · Opus akşam bulguları kapandı · CLAUDE.md sadeleşti · İhtiyaç Defteri tasarımı + kurucu soruları A–E açık — rapor `docs/RAPOR-2026-10-23-gece-buyuk-rapor.md`, `docs/claude/durum.md`.
 **10-22 akşam:** iç kaynak anlatımı misafire asla gitmez (istem + okuyucu 5. hüküm + bir kez yeniden yazma + anahtarsız kod yedeği) · iç daire adı modele gitmez · U4 ana dalda (migration 83) · ölçüm 4 → 0; açık soru rapor §7.1 (sauna) — `docs/claude/durum.md`.
@@ -44,7 +45,20 @@ düzeltmeleri. Next.js 15.5.27 (iki yeni SSG/ISR danışması). Onay bekleyen be
 > `docs/history/CLAUDE-2026-10-02-sadelestirme-3-oncesi-tam-metin.md` ("Durum" bölümü). Kuralları yukarıdaki bölümlerde; yalnız Durum'da
 > yazılı olan kurallar (konuşma öğeleri, ev kuralları, canlı bayraklar) 10-02'de ilgili bölümlere taşındı. Bekleyen onaylar ↓.
 
-**10-23 sabah-2 (güncel — clear sonrası BURADAN devam):** rapor `docs/RAPOR-2026-10-23-sabah-parca-okuyucu-ve-kor-olcum.md`, tasarım
+**10-23 öğle (güncel — clear sonrası BURADAN devam):** rapor `docs/RAPOR-2026-10-23-ogle-okuyucu-anlam-denetimi-ve-etiketler.md`, tasarımlar
+`docs/TASARIM-2026-10-23-okuyucu-baglami-anlam-denetimi-etiketleme.md` ve `docs/TASARIM-2026-10-23-bilgi-tabani-dosya-rag-ve-tarama.md`. Kodda
+(anahtarlar KAPALI): okuyucu bağlamı (16 mesaj iki taraflı, 8.000 karakter, misafirin kendi sözleri, bugün + giriş / çıkış günü) · Codex S3: anlam
+denetimi okuyucu varken okuyucuda, kodda kalanlar `CODE_KEPT_ISSUES` (alıntı var mı · değer konuyu anan kalemde mi · çelişki · konu biliniyor mu ·
+ters olumluluk B1) — kurucuya soru rapor §4.0 · baştaki tek "Evet, / Hayır," ünlemi olumluluk okumasına girmez (yalnız ayraçla; "Non-refundable"
+bütün okunur) · çok alıntı: değer kaynağı yalnız konuyu anan kalem (B2) · "gider ama açık kalır" beyanı `openRefs` + `sentRefs()` (B4) · kuyruk
+iptalinde / kesin hatada öğe yeniden açılır, bağ korunur, sonradan teslimde `recloseItemsDeliveredBy` yeniden kapatır · karar e-postası öteki talep
+uçuştaysa ya da okunamazsa "in_flight" (damga geri) · bilgi tabanı dosya çekirdeği `kb-import/document.ts` + tarama T6 `kb-scan/same-value.ts`
+(hiçbir yola bağlı değil). Kabul seti (`needs-kabul-2026-10-23`, ayrı yazar, 50 senaryo / 71 ihtiyaç) TEK koşuyla YANDI (`9413d041`): eski akış
+38/55 doğru · 4 yanlış gönderim; yeni akış (parça kipi) **42/55 · 0 yanlış · 16/16 açık** · iki kolda 13 gereksiz tutma. Mutasyon yeni 4/4.
+Açık: kurucu soruları rapor §4.0–4.10 + tasarım 7-A…7-G · 13 tutmanın ayrıntılı neden analizi (yanmış set, ücretli, §4.8) · B8 kayıp bildirim
+(bilinçli) · dayanak arama maliyeti ~60 ms / parça · sonraki kabul için YENİ set.
+
+**10-23 sabah-2:** rapor `docs/RAPOR-2026-10-23-sabah-parca-okuyucu-ve-kor-olcum.md`, tasarım
 `docs/TASARIM-2026-10-23-soru-9-10-11-istisna-bildirim-parca-okuyucu.md` (§5 Codex karşılığı, §6 ölçümler). Kodda (anahtarlar KAPALI): Soru 9
 yalnız parça okuyucusunda (`exception_without_rule`; sözcük tabanlı `omitsGeneralRule` kaldırıldı) · okuyucu KAPALIYKEN parça kipi bütün parçaları
 tutar (Opus G1) · parantez yalnız kendi değerini taşıyorsa yan cümle sınırı (G2) · son metin denetimi = tekrar anahtarıyla aynı biçim
