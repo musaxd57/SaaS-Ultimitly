@@ -278,7 +278,7 @@ gece: v5 + v6 + v7 + v8 = $0,45 (onaylı E kapsamı).
 | Tam kapı g10 (`d9f369f5`: Haiku 4. tur + mutasyon pinleri) | 578 · 449 · 65 dosya yeşil · derleme yeşil → push (`13e81bc7`, yama + rapor commit'iyle) |
 | Mutasyon — Opus R4 kodu (17 mutant) | 15/17; yaşayan 2'si (R14, R15) ölü kod çıktı → silindi (konu yürüyüşü bulunma hâlini zaten atlıyor; "No," ünlemi boş yan cümle) |
 | Kırmızı-önce (Opus R4) | R4 testleri `d9f369f5` kodunda 8 kırmızı → düzeltmeyle yeşil |
-| Son kapı g11 (`73df45bd`: Opus R4 düzeltmeleri) | G11_SONUC |
+| Son kapı g11 (`73df45bd`: Opus R4 düzeltmeleri) | veritabanısız 578 · veritabanlı 449 · süre 65 dosya yeşil · derleme yeşil → push (belge commit'leriyle) → CI: aşağıda |
 
 ## 6. Sorularınız (karar sizde)
 
