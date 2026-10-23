@@ -1288,6 +1288,12 @@ describe("Soru 9 — yalnız istisnayı söyleyen parça (omitsGeneralRule)", ()
     expect(omits("Havuz 23:00'e kadar açık, hafta sonu.", "Havuz hafta sonu 23:00'e kadar açık.", ["havuz kaçta kapanıyor"])).toBe(false);
   });
 
+  it("🚨 E ölçümü 10-23 sabah: genel kuralın değerlerinden BİRİNİ söyleyen parça genel kuralı anmıştır (açılış saatini tekrarlaması gerekmez)", () => {
+    const K = "Kahvaltı: Kahvaltı fiyata dahil değildir; kişi başı 250 TL. Kahvaltı 08:00-10:30 arası, hafta sonu 11:00'e kadar zemin kattaki kafede verilir.";
+    expect(omits(K, "Kahvaltı hafta içi 10:30'a, hafta sonu 11:00'e kadar servis ediliyor.", ["kahvaltı kaça kadar"])).toBe(false);
+    expect(omits(K, "Kahvaltı hafta sonu 11:00'e kadar servis ediliyor.", ["kahvaltı kaça kadar"])).toBe(true);
+  });
+
   it("değersiz öteki değişke de sayılır ('Hafta içi kapalıdır' — misafir her gün açık sanmasın)", () => {
     expect(omits("Havuz hafta sonu 23:00'e kadar açık. Hafta içi kapalıdır.", "Havuz hafta sonu 23:00'e kadar açık.", ["havuz kaçta kapanıyor"])).toBe(true);
   });

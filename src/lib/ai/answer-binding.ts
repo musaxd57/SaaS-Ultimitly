@@ -2787,7 +2787,11 @@ export function omitsGeneralRule(input: {
         const place = d.placeOf(sent, gi, { extraBeforeOnly: true });
         if (!otherCondition(variantClassesOf(place.conditions))) continue;
         if (partDirs.size > 0 && place.directions.size > 0 && ![...place.directions].some((x) => partDirs.has(x))) continue;
-        if (g.claims.some((e) => classes.has(e.cls) && !claims.some((x) => sameValue(x.c, e)))) return true;
+        // Parça bu yerin değerlerinden BİRİNİ söylüyorsa genel kural anılmıştır (E ölçümü 10-23 sabah: kalem "08:00-10:30 arası, hafta sonu
+        // 11:00'e kadar" · soru "kaça kadar" · parça "hafta içi 10:30'a, hafta sonu 11:00'e kadar" — açılış saati 08:00'i tekrarlamadığı için
+        // tutuluyordu). O değeri değişkenin gününe veren parçayı `variant_omitted` / koşul denetimi zaten tutar.
+        const valued = g.claims.filter((e) => classes.has(e.cls));
+        if (valued.length > 0 && !valued.some((e) => claims.some((x) => sameValue(x.c, e)))) return true;
       }
     }
     if (d.valuelessVariantConds().some((k) => otherCondition([k]))) return true;

@@ -83,8 +83,14 @@ describe("okuyucunun gördüğü metin", () => {
     expect(text.match(/<<</g)?.length).toBe(1);
   });
 
+  it("🚨 E ölçümü 10-23 sabah: parça YALNIZ kendi isteğine göre okunur (misafirin öteki sorusu 'yarım' sebebi değil); evet/hayır sorusuna olguyla cevap 'evet'", () => {
+    expect(PART_READER_SYSTEM_PROMPT).toContain("Judge every part ONLY against ITS OWN request");
+    expect(PART_READER_SYSTEM_PROMPT).toContain("A part is never \"partly\" or \"no\" because it does not answer the guest's OTHER");
+    expect(PART_READER_SYSTEM_PROMPT).toContain("yes/no question answered with the relevant fact is \"yes\"");
+  });
+
   it("istem örnekleri ölçüm setinin konularından farklı (havuz / sauna / otopark / kahvaltı geçmez)", () => {
-    expect(PART_READER_SYSTEM_PROMPT).not.toMatch(/pool|sauna|parking|breakfast|havuz|otopark|kahvalt/i);
+    expect(PART_READER_SYSTEM_PROMPT).not.toMatch(/pool|sauna|parking|breakfast|havuz|otopark|kahvalt|wi-?fi|bike|bisiklet|check-?in/i);
   });
 });
 
