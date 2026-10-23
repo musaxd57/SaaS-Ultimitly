@@ -454,6 +454,21 @@ export const COMPLAINT_INDEPENDENT_KINDS: ReadonlySet<ItemKind> = new Set<ItemKi
   "access_keys",
 ]);
 
+/**
+ * Kurucu 10-23 akşam 4.3: kural ihlali etiketi yalnız evcil hayvan ailesindense evcil hayvan isteğine bağlanır — ama YALNIZ mesajın öteki
+ * istekleri bağımsız bilgi soruları ise (sauna / Wi-Fi / saat / otopark …). Öteki istek "diğer", konaklama değişikliği, şikâyet vb. ise
+ * ("Köpeğimizle birlikte arkadaşlarımız da gelecek" — Haiku 10-23 akşam) bugünkü kural: bütün mesaj tutulur.
+ */
+export const PET_SPLIT_KINDS: ReadonlySet<ItemKind> = new Set<ItemKind>([
+  ...COMPLAINT_INDEPENDENT_KINDS,
+  "pets",
+  "house_rules",
+  "amenities",
+  "appliance_help",
+  "trash",
+  "greeting_thanks",
+]);
+
 /** Bu turda tutulan şikâyet varken `kind` şikâyete bağlı mı (↑COMPLAINT_INDEPENDENT_KINDS)? */
 export function complaintDependent(kind: ItemKind, held: readonly { kind: ItemKind; earlier?: boolean }[]): boolean {
   return !COMPLAINT_INDEPENDENT_KINDS.has(kind) && held.some((h) => !h.earlier && h.kind === "complaint_issue");

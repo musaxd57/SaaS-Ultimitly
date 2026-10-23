@@ -6,7 +6,7 @@ import { describe, it, expect } from "vitest";
 // ---------------------------------------------------------------------------
 
 import { kbForbidsPets, kbPetsFreeAllowed, mentionsAssistanceAnimal, mentionsPets } from "@/lib/conversation-items/pet-policy";
-import { buildItemsForMessage, replyRiskAttributable } from "@/lib/conversation-items/core";
+import { buildItemsForMessage, PET_SPLIT_KINDS, replyRiskAttributable } from "@/lib/conversation-items/core";
 import { detectRiskTypes, ruleViolationIsPetsOnly } from "@/lib/ai/fallback";
 import { autoReplyGateVerdict } from "@/lib/automation";
 import { evaluateEscalation } from "@/lib/guest-chat-gate";
@@ -65,6 +65,42 @@ describe("bilgi tabanı okuması — yalnız AÇIK ve KOŞULSUZ 'ücretsiz kabul
     }
   });
 
+  it("🚨 Haiku 10-23 akşam: koşul sonraki cümlede / eksik koşul sözcükleri / yalnız yardımcı hayvan kalemi → hayır; eksik izin biçimleri → evet", () => {
+    for (const c of [
+      "Evcil hayvan kabul edilir ve ücretsizdir. Depozito 500 TL alınır.",
+      "Evcil hayvan kabul edilir, jakuzi ücretsizdir.",
+      "Evcil hayvan ücretsiz kabul edilir, tasma zorunludur.",
+      "Evcil hayvan ücretsiz kabul edilir, en fazla bir köpek.",
+      "Dogs are welcome for free, if house-trained.",
+      "Les animaux sont acceptés gratuitement uniquement pour les chats.",
+      "Los animales son bienvenidos gratis solamente para gatos.",
+      "Yardımcı hayvanlar ücretsiz kabul edilir.",
+    ]) {
+      expect([c, kbPetsFreeAllowed(kb(c))]).toEqual([c, false]);
+    }
+    for (const c of [
+      "Evcil hayvanınızla birlikte kalabilirsiniz, ücretsizdir.",
+      "Pets are welcome at no cost.",
+      "Les animaux sont admis gratuitement.",
+      "Haustiere sind kostenfrei erlaubt.",
+    ]) {
+      expect([c, kbPetsFreeAllowed(kb(c))]).toEqual([c, true]);
+    }
+  });
+
+  it("🚨 Haiku 10-23 akşam: 'hot dog', 'pet-bottle', İspanyolca 'esa', duygusal destek (hayvansız) evcil / yardımcı hayvan değildir; eksik biçimler", () => {
+    for (const t of ["We grilled a hot dog for lunch.", "Please recycle the pet-bottle.", "Yakında hayvanat bahçesi var."]) expect([t, mentionsPets(t)]).toEqual([t, false]);
+    for (const t of ["Hunden sind erlaubt, oder?", "Les chats sont acceptés ?", "У нас кот, можно?", "Hayvanımızı getirebilir miyiz?", "Hayvanınızı getirebilirsiniz."]) {
+      expect([t, mentionsPets(t)]).toEqual([t, true]);
+    }
+    for (const t of ["¿Esa casa tiene piscina?", "I need emotional support during my stay. What is the wifi password?"]) {
+      expect([t, mentionsAssistanceAnimal(t)]).toEqual([t, false]);
+    }
+    for (const t of ["Yardımcı köpeğim var, getirebilir miyim?", "Yardım köpeğim var, kabul ediyor musunuz?", "Duygusal destek köpeğim var.", "Mein Therapiehund begleitet mich.", "Traigo un perro de servicio."]) {
+      expect([t, mentionsAssistanceAnimal(t)]).toEqual([t, true]);
+    }
+  });
+
   it("'yasak' yazan bilgi tabanı için uyarı (ev sahibine: yardımcı hayvan her durumda kabul edilmeli)", () => {
     expect(kbForbidsPets(kb("Evcil hayvan kabul edilmez."))).toBe(true);
     expect(kbForbidsPets(kb("No pets allowed."))).toBe(true);
@@ -97,7 +133,10 @@ describe("4.3 — köpek sorusu bütün mesajı tutmaz; parti / fazla kişi / si
     return buildItemsForMessage({
       requests: intents.map((intent) => ({ intent: intent as never })),
       lexicalLabels: labels,
-      ...(labels.includes("rule_violation") && ruleViolationIsPetsOnly(body) ? { petRuleOnly: true } : {}),
+      // `extract.ts` ile AYNI kural: yalnız evcil hayvan ailesi + mesajın öteki istekleri bağımsız bilgi soruları.
+      ...(labels.includes("rule_violation") && ruleViolationIsPetsOnly(body) && intents.every((i) => PET_SPLIT_KINDS.has(i as never))
+        ? { petRuleOnly: true }
+        : {}),
       ...extra,
     }).map((it) => [it.kind, it.sensitivity]);
   };
@@ -117,6 +156,17 @@ describe("4.3 — köpek sorusu bütün mesajı tutmaz; parti / fazla kişi / si
     ]);
     expect(ruleViolationIsPetsOnly("Köpeğimi getireyim, akşam da parti yapacağız.")).toBe(false);
     expect(ruleViolationIsPetsOnly("Köpeğimizi getirebilir miyiz?")).toBe(true);
+  });
+
+  it("🚨 Haiku 10-23 akşam: öteki istek bağımsız bilgi sorusu DEĞİLSE (diğer / konaklama değişikliği) bütün mesaj tutulur", () => {
+    expect(items("Köpeğimizle birlikte arkadaşlarımız da gelecek, sauna kaçta?", ["pets", "other"])).toEqual([
+      ["pets", "sensitive"],
+      ["other", "sensitive"],
+    ]);
+    expect(items("Köpeğimizle burada kalmaya devam edeceğiz, çıkmayız.", ["pets", "late_checkout"])).toEqual([
+      ["pets", "sensitive"],
+      ["late_checkout", "sensitive"],
+    ]);
   });
 
   it("🚨 4.4: evcil hayvan isteği varsayılan ev sahibinde (kelime ağı yakalamasa da: 'puppy'); 'ücretsiz kabul' doğrulanmışsa cevaplanabilir", () => {

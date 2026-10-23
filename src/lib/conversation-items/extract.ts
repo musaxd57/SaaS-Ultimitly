@@ -18,7 +18,7 @@ import {
   type MessageUnderstanding,
   type UnderstandingHistoryEntry,
 } from "@/lib/ai/semantic/understanding-schema";
-import { alignOrdinals, buildItemsForMessage, type BuiltItem, type ExistingOrdinal, type ItemKind } from "./core";
+import { alignOrdinals, buildItemsForMessage, PET_SPLIT_KINDS, type BuiltItem, type ExistingOrdinal, type ItemKind } from "./core";
 import { itemOrdinalEnabled } from "./flag";
 import { itemTopicLabel } from "./topic-label";
 
@@ -170,7 +170,9 @@ export function extractTurnItems(input: {
       lexicalLabels: labels,
       ...(ordinalMode ? { ordinals: ords } : {}),
       // 4.3: kural ihlali etiketi yalnız evcil hayvan ailesindense evcil hayvan isteğini tutar (bütün mesajı değil).
-      ...(labels.includes("rule_violation") && ruleViolationIsPetsOnly(m.body) ? { petRuleOnly: true } : {}),
+      ...(labels.includes("rule_violation") && ruleViolationIsPetsOnly(m.body) && requests.every((r) => PET_SPLIT_KINDS.has(r.intent))
+        ? { petRuleOnly: true }
+        : {}),
       ...(input.petsFreeAllowed === true && !assistance ? { petsFreeAllowed: true } : {}),
     });
     // ARIZA EV SAHİBİNE KALIR (anahtar `AI_FAULT_GUARD_ENABLED`): mesajda cihaz arızası isteği var ama şikâyet / acil öğesi yoksa kod bir
