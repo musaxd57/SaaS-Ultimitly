@@ -670,6 +670,20 @@ describe("suggestReply — parça okuyucusu (AI_SENIOR_READER_ENABLED, parça ki
     expect(r.answerParts?.filter((v) => v.status === "rejected").map((v) => v.status === "rejected" && v.issues)).toEqual([["reader_unread"], ["reader_unread"]]);
   });
 
+  it("🚨 okuyucu dayanılan kalemin yanında AYNI KONUYU anan öteki kalemi de görür (istisna / genel kural başka kalemde olabilir — Opus 10-23 F10)", async () => {
+    vi.stubEnv("AI_SENIOR_READER_ENABLED", "1");
+    const kb = [...KB, { category: "rules", title: "Havuz kuralları", content: "Hafta sonu havuz 23:00'e kadar açıktır." }];
+    let seen = "";
+    routedFetch({ ...MODEL, answers }, (body) => {
+      seen = body;
+      return readerSays([])();
+    });
+    await suggestReply({ ...input, knowledgeBase: kb, conversationItems: ITEMS });
+    const r2 = seen.slice(seen.indexOf("R2 · REQUEST"));
+    expect(r2).toContain("Havuz her gün 20:00");
+    expect(r2).toContain("Hafta sonu havuz 23:00");
+  });
+
   it("doğrulanmış parça yoksa okuyucu çağrılmaz", async () => {
     vi.stubEnv("AI_SENIOR_READER_ENABLED", "1");
     const none = answers.map((a) => ({ ...a, status: "no_info", text: "", evidence: "" }));
