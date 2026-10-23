@@ -53,7 +53,7 @@ ters olumluluk B1) — kurucuya soru rapor §4.0 · baştaki tek "Evet, / Hayır
 bütün okunur) · çok alıntı: değer kaynağı yalnız konuyu anan kalem (B2) · "gider ama açık kalır" beyanı `openRefs` + `sentRefs()` (B4) · kuyruk
 iptalinde / kesin hatada öğe yeniden açılır, bağ korunur, sonradan teslimde `recloseItemsDeliveredBy` yeniden kapatır · karar e-postası öteki talep
 uçuştaysa ya da okunamazsa "in_flight" (damga geri) · bilgi tabanı dosya çekirdeği `kb-import/document.ts` + tarama T6 `kb-scan/same-value.ts`
-(hiçbir yola bağlı değil). Kabul seti (`needs-kabul-2026-10-23`, ayrı yazar, 50 senaryo / 71 ihtiyaç) TEK koşuyla YANDI (`9413d041`): eski akış
+(hiçbir yola bağlı değil). Kabul seti (`evals/sealed/SEALS.json` kaydı, ayrı yazar, 50 senaryo / 71 ihtiyaç) TEK koşuyla YANDI (`9413d041`): eski akış
 38/55 doğru · 4 yanlış gönderim; yeni akış (parça kipi) **42/55 · 0 yanlış · 16/16 açık** · iki kolda 13 gereksiz tutma. Mutasyon 36/36 (öğle dilimi 32 + Haiku 2. tur 4).
 Açık: kurucu soruları rapor §4.0–4.10 + tasarım 7-A…7-G · 13 tutmanın ayrıntılı neden analizi (yanmış set, ücretli, §4.8) · B8 kayıp bildirim
 (bilinçli) · dayanak arama maliyeti ~60 ms / parça · sonraki kabul için YENİ set.
