@@ -203,9 +203,23 @@ export async function applyItemEvent(
  * Belirsiz teslim (`review`: gitmiş olabilir) burada DEĞİL. Dönüş: açılan öğe sayısı.
  */
 export async function reopenItemsAnsweredBy(db: Db, input: { organizationId: string; messageId: string }): Promise<number> {
+  // Cevap mesajı bağı KORUNUR: aynı mesaj sonradan teslim edilirse (yeniden kuyruğa alma) öğe yeniden kapanır (↓`recloseItemsDeliveredBy`).
   const res = await db.conversationItem.updateMany({
     where: { organizationId: input.organizationId, answeredByMessageId: input.messageId, status: "answered" },
-    data: { status: "pending_host", resolvedAt: null, answeredByMessageId: null },
+    data: { status: "pending_host", resolvedAt: null },
+  });
+  return res.count;
+}
+
+/**
+ * Teslim edilen yapay zekâ cevabı, kendisi düştüğü için ev sahibinde yeniden açılmış öğeleri yeniden kapatır (Haiku 10-23 öğle: kalıcı
+ * hatadan sonra yeniden kuyruğa alınıp teslim edilen cevapta öğe açık kalıyor, ev sahibi cevaplanmış ihtiyacı açık iş görüyordu). Yalnız
+ * bu mesajın kapattığı ve hâlâ `pending_host` olanlar — ev sahibinin arada kapattığına / başka mesajla cevaplanana dokunulmaz.
+ */
+export async function recloseItemsDeliveredBy(db: Db, input: { organizationId: string; messageId: string; now: Date }): Promise<number> {
+  const res = await db.conversationItem.updateMany({
+    where: { organizationId: input.organizationId, answeredByMessageId: input.messageId, status: "pending_host" },
+    data: { status: "answered", resolvedAt: input.now },
   });
   return res.count;
 }

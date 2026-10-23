@@ -599,7 +599,7 @@ describe("insan talebi — kalıcı kuyruk açıkken aynı devir kararı (Opus O
       settleHook.before = null;
     }
     const wifi = await prisma.conversationItem.findFirstOrThrow({ where: { conversationId, kind: "wifi" } });
-    expect(wifi).toMatchObject({ status: "pending_host", answeredByMessageId: null });
+    expect(wifi).toMatchObject({ status: "pending_host" });
     // KONTROL: silme iptali (KVKK) öğeyi açmaz.
     const second = await seed("Wi-Fi şifresi neydi?");
     understands(understood([{ intent: "wifi", message: 1 }]));

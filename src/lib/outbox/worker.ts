@@ -25,7 +25,7 @@ import { buildGuestMessageBody, hasUnfilledPlaceholders, isAutoMessageKind } fro
 import { loadAutoMessage, recordAutoMessageSkip } from "@/lib/auto-messages/store";
 import { apartmentResolvable, guestFirstNameOf, usesApartmentToken } from "@/lib/kb-placeholders";
 import { isHandoffExempt, sweepExpiredHandoffExempt } from "./handoff-exempt";
-import { reopenItemsAnsweredBy } from "@/lib/conversation-items/store";
+import { recloseItemsDeliveredBy, reopenItemsAnsweredBy } from "@/lib/conversation-items/store";
 import { outboxDeliveryPaused } from "./flag";
 import {
   BILLING_NOTE_OVERWRITABLE,
@@ -881,6 +881,7 @@ async function applyDeliveryEffect(row: OutboxRow, now: Date): Promise<void> {
     await markConversationDelivered(row, now);
     await applyHandoffHold(row, now);
   }
+  if (type === "ai" && row.messageId) await recloseDeliveredItems(row, now);
 }
 
 /**
@@ -1079,6 +1080,15 @@ async function cancelRow(row: OutboxRow, token: string, reason: string): Promise
 }
 
 /** En iyi çaba: öğe defteri hatası teslim durumunu bozmaz, iz bırakır. */
+async function recloseDeliveredItems(row: OutboxRow, now: Date): Promise<void> {
+  if (!row.messageId) return;
+  try {
+    await recloseItemsDeliveredBy(prisma, { organizationId: row.organizationId, messageId: row.messageId, now });
+  } catch (err) {
+    void reportError("outbox-reclose-items", err);
+  }
+}
+
 async function reopenAnsweredItems(row: OutboxRow): Promise<void> {
   if (!row.messageId) return;
   try {

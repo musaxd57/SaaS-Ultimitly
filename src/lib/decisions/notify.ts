@@ -75,7 +75,9 @@ export async function notifyTurnDecisions(input: {
       // Talep var: onaylıysa (e-posta gitti) ya da eskiyse "deduped". Onaysız ve yeniyse öteki yolun e-postası UÇUŞTA — düşebilir; kart
       // damgaları geri verilir ki o e-posta düşerse sonraki geçiş kartı bildirebilsin (Opus 10-23 öğle B7: kartlar "bildirildi" kalıyordu).
       const lock = await prisma.systemLock.findUnique({ where: { name: lockName }, select: { holder: true, updatedAt: true } });
-      if (!lock || replyWaitingSettled(lock, now)) return "deduped";
+      // Talep arada silindiyse (öteki e-posta düştü) de temkinli yön "uçuşta": damgalar geri verilir, sonraki geçiş bildirir (Haiku 10-23 öğle;
+      // `notifyHostReplyWaiting` ile aynı kural).
+      if (lock && replyWaitingSettled(lock, now)) return "deduped";
       for (const d of claimed) {
         await releaseDecisionNotification(prisma, { organizationId: input.organizationId, id: d.id, claimedAt: now }).catch(() => {});
       }

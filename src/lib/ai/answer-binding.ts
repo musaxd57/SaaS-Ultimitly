@@ -1715,7 +1715,9 @@ function needSubject(needTerms: readonly string[], needTopics: readonly string[]
  * olumsuzluğu değildir (Opus 10-23 öğle B11: ters olumluluk kodda tutulunca doğru "No," / "Нет," / "Non," cevapları tutuluyordu). Ünlemin
  * DOĞRULUĞU (soru "22:00'ye kadar açık mı" iken "Evet, 20:00'de kapanır") anlam sorusudur — okuyucunun. Ünlemden ibaret metin olduğu gibi kalır.
  */
-const LEADING_YES_NO = /^\s*(?:evet|hay[ıi]r|yes|no|ja|nein|да|нет|s[íì]|si|oui|non|sim|n[ãa]o|tak|nie)\s*[,.!:;—–-]\s*(?=\S)/iu;
+// Ayraç noktalama ya da BOŞLUKLU tire: "Non-refundable" / "No-show" / "Non-smoking" öneki ünlem değildir (Haiku 10-23 öğle: önek siliniyor,
+// "Non-refundable deposit" ↔ "Refundable deposit" ters olumluluğu kaçıyordu).
+const LEADING_YES_NO = /^\s*(?:evet|hay[ıi]r|yes|no|ja|nein|да|нет|s[íì]|si|oui|non|sim|n[ãa]o|tak|nie)(?:\s*[,.!:;—–]|\s+-)\s*(?=\S)/iu;
 export function withoutLeadingYesNo(text: string): string {
   return text.replace(LEADING_YES_NO, "");
 }

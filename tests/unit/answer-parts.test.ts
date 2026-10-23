@@ -298,6 +298,15 @@ describe("#199 kör set incelemesi 10-23 — alıntı iki kalemi birleştirebili
       meaningJudge: "reader",
     });
     expect(yes.verdicts[0]).toMatchObject({ status: "rejected", issues: expect.arrayContaining(["polarity_mismatch"]) });
+    // Haiku 10-23 öğle: "Non-refundable" / "Non-smoking" öneki ünlem değildir — ters olumluluk yine tutulur.
+    const dep = [{ id: "kb:1", text: kbLine({ category: "rules", title: "Depozito", content: "Refundable deposit of 500 TL." }) }];
+    const non = composeVerifiedReply({
+      parts: [p("R1", "Non-refundable deposit of 500 TL.", "Refundable deposit of 500 TL.")],
+      needs: [{ ref: "R1", terms: needTerms(["depozito iade ediliyor mu", "is the deposit refundable"]), topics: [] }],
+      sources: dep,
+      meaningJudge: "reader",
+    });
+    expect(non.verdicts[0]).toMatchObject({ status: "rejected", issues: expect.arrayContaining(["polarity_mismatch"]) });
   });
 
   it("🚨 Opus 10-23 öğle B2 ikinci tur: alıntının cümle SIRASI ters çevrilse de konuyu anmayan kalem değer vermez; kodun tuttuğu parçanın anlam bulgusu ize yazılır", () => {

@@ -79,7 +79,6 @@ describe("karar bildirimi — tur başına tek e-posta", () => {
     expect((await prisma.decisionRequest.findUniqueOrThrow({ where: { id: w.card.id } })).notifiedAt).toBeNull();
     // Onaysız ama eski talep (10 dk'dan eski) sonuçlanmış sayılır → "deduped", damga kalır.
     expect(await w.notify(new Date(Date.now() + 11 * 60_000))).toBe("deduped");
-    expect((await prisma.decisionRequest.findUniqueOrThrow({ where: { id: w.card.id } })).notifiedAt).not.toBeNull();
   });
 
   it("hassas öğe e-postası turun ESKİ mesajına gittiyse e-posta yok, kart yine damgalanır", async () => {

@@ -6,6 +6,7 @@ vi.mock("@/lib/report-error", () => ({ reportError: vi.fn(async () => {}) }));
 import { enqueueOutbound } from "@/lib/outbox/enqueue";
 import { drainOutboxOnce, type OutboxSendFn } from "@/lib/outbox/worker";
 import { OUTBOX_MAX_ATTEMPTS } from "@/lib/outbox/state";
+import { requeueFailedOutbox } from "@/lib/outbox/ops";
 import { settleItemsTurn } from "@/lib/conversation-items/flow";
 import { ANON_BODY } from "@/lib/data-retention";
 
@@ -80,7 +81,24 @@ describe("kalıcı kuyruk: gitmeyen cevapla ihtiyaç kapanmış görünmez", () 
       clock += 60 * 60_000;
     }
     expect((await outbox(s.outboxId)).status).toBe("failed");
-    expect(await item(s.itemId)).toMatchObject({ status: "pending_host", answeredByMessageId: null, resolvedAt: null });
+    // Cevap mesajı bağı korunur: aynı mesaj yeniden kuyruğa alınıp teslim edilirse öğe yeniden kapanır (↓).
+    expect(await item(s.itemId)).toMatchObject({ status: "pending_host", answeredByMessageId: s.messageId, resolvedAt: null });
+  });
+
+  it("🚨 Haiku 10-23 öğle: kesin hatadan sonra YENİDEN KUYRUĞA alınıp teslim edilen cevap, yeniden açılan öğeyi yeniden kapatır; arada ev sahibinin kapattığına dokunmaz", async () => {
+    const s = await seed();
+    const fail: OutboxSendFn = async () => ({ ok: false, error: "Hospitable API hatası (HTTP 400)" });
+    let clock = Date.now();
+    const now = () => new Date(clock);
+    for (let i = 0; i < OUTBOX_MAX_ATTEMPTS + 2; i++) {
+      await drainOutboxOnce({ send: fail, tokenFor: async () => "t", now });
+      clock += 60 * 60_000;
+    }
+    expect((await item(s.itemId)).status).toBe("pending_host");
+    expect(await requeueFailedOutbox(s.orgId, s.outboxId)).toEqual({ outcome: "requeued" });
+    await drainOutboxOnce({ send: async () => ({ ok: true, providerMessageId: "p2" }), tokenFor: async () => "t", now });
+    expect((await outbox(s.outboxId)).status).toBe("sent");
+    expect((await item(s.itemId)).status).toBe("answered");
   });
 
   it("🚨 gönderim anı vetosuyla iptal (ev sahibi araya girdi) → öğe yeniden açık", async () => {
