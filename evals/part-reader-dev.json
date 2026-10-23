@@ -371,6 +371,28 @@
    ],
    "expect": "keep",
    "why": "genel + parantez istisna"
+  },
+  {
+   "id": "opus-g2-parantez-arizali",
+   "guest": "Jakuzi kaça kadar kullanılabiliyor?",
+   "request": "jakuzi kaça kadar kullanılabilir",
+   "part": "Jakuzi 22:00'ye kadar kullanılabilir.",
+   "notes": [
+    "[amenities] Jakuzi: Jakuzi 22:00'ye kadar kullanılabilir (şu an arızalı)."
+   ],
+   "expect": "hold",
+   "why": "Opus 10-23 G2: parantezdeki 'şu an arızalı' kaydı düşmüş; kod bu cümleyi geçiriyor, okuyucu tutmalı"
+  },
+  {
+   "id": "opus-g2-parantez-bayram-ucretli",
+   "guest": "Otopark ücretsiz mi?",
+   "request": "otopark ücretsiz mi",
+   "part": "Evet, otopark ücretsizdir.",
+   "notes": [
+    "[parking] Otopark: Otopark ücretsizdir (bayramlarda ücretli)."
+   ],
+   "expect": "hold",
+   "why": "Opus 10-23 G2: parantezdeki istisna (bayramlarda ücretli) düşmüş; kod geçiriyor, okuyucu tutmalı"
   }
  ]
 }

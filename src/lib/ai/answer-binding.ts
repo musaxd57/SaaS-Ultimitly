@@ -850,9 +850,21 @@ function structure(text: string, claims: readonly Span[], tr = false): Sentence[
     for (const g of groups) for (let i = g.at; i < g.end && i < text.length; i++) inGroup[i] = 1;
 
     const cuts: number[] = [];
-    // Parantez de yan cümle sınırıdır (Opus 10-23 sabah F2: "Havuz 22:00'ye kadar açık (hafta sonu 23:00'e kadar)." — parantezdeki gün 22:00'ın
-    // kendi yan cümlesine düşüyordu → "Hafta sonu havuz 22:00'ye kadar açık" doğrulanıyordu).
-    for (let i = s; i < e; i++) if ((text[i] === "," || text[i] === ":" || text[i] === "(" || text[i] === ")") && !inGroup[i] && !inClaim[i]) cuts.push(i);
+    for (let i = s; i < e; i++) if ((text[i] === "," || text[i] === ":") && !inGroup[i] && !inClaim[i]) cuts.push(i);
+    // Parantez YALNIZ kendi değerini taşıyorsa yan cümle sınırıdır (Opus 10-23 sabah F2: "Havuz 22:00'ye kadar açık (hafta sonu 23:00'e kadar)."
+    // — parantezdeki gün 22:00'ın yan cümlesine düşüyordu). Değersiz parantez ("(şu anda bakım nedeniyle kapalı)", "(Kasım-Nisan arası kapalı)",
+    // "(hafta sonu ücretsiz)") öndeki değerin kaydıdır, ondan AYRILMAZ (Opus 10-23 G2: her paranteze sınır denince bu kayıtlar düşüyor, "Havuz
+    // 09:00-22:00 arası açıktır." gidiyordu). Kapanış yoksa parantez cümle sonuna kadar sürer; atlama doğrusal.
+    for (let i = s; i < e; i++) {
+      if (text[i] !== "(" || inGroup[i] || inClaim[i]) continue;
+      let close = text.indexOf(")", i + 1);
+      if (close === -1 || close >= e) close = e;
+      if (groups.some((g) => g.at > i && g.at < close)) {
+        cuts.push(i);
+        if (close < e) cuts.push(close);
+      }
+      i = close;
+    }
     for (const { w, at } of words(text, s, e)) if (CLAUSE_WORDS.has(w) && !inGroup[at]) cuts.push(at);
     cuts.sort((a, b) => a - b);
     const clauses: [number, number][] = [];

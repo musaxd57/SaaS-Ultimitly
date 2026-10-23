@@ -7,7 +7,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 // ---------------------------------------------------------------------------
 vi.mock("server-only", () => ({}));
 
-import { answerPartsEnabled, composeVerifiedReply, parseAnswerParts, type AnswerPart } from "@/lib/ai/answer-parts";
+import { answerPartsEnabled, composeVerifiedReply, foldPartText, parseAnswerParts, partTextKey, type AnswerPart } from "@/lib/ai/answer-parts";
 import { ANSWER_PARTS_REPLACEMENTS, buildReplyPrompt, replySystemPromptFor, REPLY_SYSTEM_PROMPT_DERIVATION_MISSING } from "@/lib/ai/prompts";
 import { suggestReply } from "@/lib/ai";
 import { kbLine } from "@/lib/ai/retrieval/kb-line";
@@ -159,10 +159,23 @@ const MODEL = {
   replyStance: "none",
   answeredRequests: ["R1", "R2", "R3"],
 };
+/** Okuyucunun "hepsi evet" hükmü (okuyucuya giden her istek kimliği için) — kodun doğrulamasını sınayan testler okuyucuya takılmaz. */
+function readerAllYes(body: string): Response {
+  const refs = [...new Set([...body.matchAll(/(R\d+) · REQUEST/g)].map((m) => m[1]))];
+  const parts = refs.map((ref) => ({ ref, answers_request: "yes", supported_by_notes: true, binding_ok: true, exception_without_rule: false, quote: "" }));
+  return new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify({ parts }) } }] }), { status: 200 });
+}
+/**
+ * Cevap çağrısı + parça okuyucusu (Opus 10-23 G1: parça kipi okuyucusuz bütün parçaları TUTAR — kodun doğrulamasını sınayan testler okuyucuyu
+ * açık ve "hepsi evet" çalıştırır; okuyucunun kendi davranışı aşağıdaki ayrı blokta).
+ */
 function openAiReturns(content: Record<string, unknown>) {
-  const f = vi.fn(async () =>
-    new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify(content) } }] }), { status: 200 }),
-  );
+  vi.stubEnv("AI_SENIOR_READER_ENABLED", "1");
+  const f = vi.fn(async (_url: unknown, init?: { body?: unknown }) => {
+    const body = String(init?.body ?? "");
+    if (body.includes('"part_reader"')) return readerAllYes(body);
+    return new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify(content) } }] }), { status: 200 });
+  });
   vi.stubGlobal("fetch", f);
   return f;
 }
@@ -614,11 +627,13 @@ describe("suggestReply — parça okuyucusu (AI_SENIOR_READER_ENABLED, parça ki
     vi.unstubAllGlobals();
   });
 
-  it("anahtar kapalıyken okuyucu ÇAĞRILMAZ (tek ağ çağrısı, bugünkü davranış)", async () => {
+  it("🚨 Opus 10-23 G1: okuyucu KAPALIYKEN çağrılmaz ve parça kipi BÜTÜN parçaları tutar (Soru 9 ve 'sorulanı cevaplıyor mu' yalnız okuyucuda)", async () => {
     const f = routedFetch({ ...MODEL, answers }, readerSays([]));
     const r = await suggestReply({ ...input, conversationItems: ITEMS });
     expect(f).toHaveBeenCalledTimes(1);
-    expect(r.answeredRequests).toEqual({ ok: true, refs: ["R1", "R2"] });
+    expect(r.reply).toBe("");
+    expect(r.answeredRequests).toEqual({ ok: true, refs: [] });
+    expect(r.answerParts?.filter((v) => v.status === "rejected").map((v) => v.status === "rejected" && v.issues)).toEqual([["reader_unread"], ["reader_unread"]]);
   });
 
   it("🚨 okuyucu açık: yalnız KODUN doğruladığı parçaları okur (no_info parça okuyucuya gitmez); 'no' dediği parça düşer", async () => {
@@ -661,5 +676,23 @@ describe("suggestReply — parça okuyucusu (AI_SENIOR_READER_ENABLED, parça ki
     const f = routedFetch({ ...MODEL, answers: none }, readerSays([]));
     await suggestReply({ ...input, conversationItems: ITEMS });
     expect(f).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("Opus 10-23 G3 — tekrar anahtarı ve son metin denetimi AYNI karşılaştırma biçimi", () => {
+  it("🚨 Türkçe noktalı / noktasız i ve dilsiz büyütme farkı parçayı son metinde 'kayıp' göstermez", () => {
+    const key = partTextKey("Merhaba, internet 100 Mbps.");
+    for (const finalText of ["Merhaba, internet 100 Mbps.", "Merhaba Alex,\n\nİnternet 100 Mbps.", "Hi!\nInternet 100 Mbps."]) {
+      expect(foldPartText(finalText).includes(key), finalText).toBe(true);
+    }
+  });
+
+  it("sondaki noktalama farkı tek metin sayılır (tekrar eden parça bir kez gider ve son metinde bulunur)", () => {
+    expect(partTextKey("Havuz 22:00'de kapanır!")).toBe(partTextKey("Havuz 22:00'de kapanır."));
+    expect(foldPartText("Havuz 22:00'de kapanır.").includes(partTextKey("Havuz 22:00'de kapanır!"))).toBe(true);
+  });
+
+  it("ayraç sökülmez: '1.500 TL' ile '1,500 TL' farklı kalır", () => {
+    expect(partTextKey("Ücret 1.500 TL.")).not.toBe(partTextKey("Ücret 1,500 TL."));
   });
 });

@@ -431,10 +431,15 @@ export function scoreNeeds(needs: readonly NeedSpec[], sentText: string | null, 
     const textOk = n.want === "answered" ? allOk && !forbidHit : !forbidHit;
     // Opus 10-23 sabah F9: cevaplanması gereken ihtiyacın öğesi "cevaplandı" kapandı ama giden metinde beklenen değer yok → yanlış "cevaplandı"
     // (eksik / yanıltıcı cevap gitti ve iş kapandı); eskiden "gereksiz tutma" sayılıyordu.
+    // Opus 10-23 G6: aynı türden iki ihtiyaçta (Soru 9'un tam yeri — "havuz kaçta kapanıyor? sauna kaçta?") öğe ihtiyaca bağlanamaz; giden metin
+    // ihtiyacın değerlerinin BİR KISMINI taşıyorsa (yalnız istisna gitti) yanlış gönderim sayılır — sıkı yön (başka ihtiyacın cevabındaki aynı
+    // değer de yanlış sayılabilir; ölçüm yanlış gönderimi eksik değil fazla sayar).
+    const pats = n.all ?? [];
+    const partialSent = text.length > 0 && pats.length >= 2 && pats.some((p) => rx(p).test(text)) && !allOk;
     const wrongAnswered =
       n.want === "open"
         ? forbidHit || (sameKind === 1 && ofKind.length === 1 && answeredItem)
-        : forbidHit || (sameKind === 1 && ofKind.length === 1 && answeredItem && !allOk);
+        : forbidHit || (sameKind === 1 && ofKind.length === 1 && answeredItem && !allOk) || (sameKind > 1 && partialSent);
     return { kind: n.kind, want: n.want, textOk, statusOk, wrongAnswered };
   });
 }
@@ -737,8 +742,9 @@ describe.skipIf(!enabled)(`CANLI HAT — ${MODEL}`, () => {
       writeSidecar(dir, name, {
         suite: "live-pipeline",
         version: data.version,
-        meta: { model: MODEL, commit, status, sealed: SEALED_NAME, pad: PAD_TO, usd: usd() },
-        rows: rows.map((r) => ({ id: r.id, ok: r.ok, sent: r.sent, needs: r.needs ?? null })),
+        // Opus 10-23 G6: yan dosyada da senaryo başına sonuç YOK (setin yapısını sızdırır) — yalnız toplu sayı + kimlik.
+        meta: { model: MODEL, commit, status, sealed: SEALED_NAME, pad: PAD_TO, usd: usd(), totals: m },
+        rows: rows.map((r) => ({ id: r.id, ok: r.ok })),
         runtime,
       });
       return;
@@ -910,6 +916,16 @@ describe("canlı hat ölçeri — çevrimdışı pinler", () => {
     expect(needMetrics(sentPartial)).toMatchObject({ wrong: 1, needlessHold: 0 });
     // Hiçbir şey gitmedi, öğe açık → gereksiz tutma.
     expect(needMetrics(scoreNeeds(partial, null, [{ kind: "amenities", status: "open" }]))).toMatchObject({ wrong: 0, needlessHold: 1 });
+    // Opus 10-23 G6: aynı türden iki ihtiyaçta (öğe bağlanamaz) yalnız istisnayı taşıyan giden metin de yanlış gönderim.
+    const pair: NeedSpec[] = [
+      { kind: "amenities", want: "answered", all: ["22[:.]00", "23[:.]00"] },
+      { kind: "amenities", want: "answered", all: ["21[:.]00"] },
+    ];
+    const pairOut = scoreNeeds(pair, "Hafta sonu havuz 23:00'e kadar açık. Sauna 21:00'de kapanır.", [{ kind: "amenities", status: "answered" }]);
+    expect(pairOut[0]).toMatchObject({ textOk: false, wrongAnswered: true });
+    expect(pairOut[1]).toMatchObject({ textOk: true, wrongAnswered: false });
+    // Hiç değeri gitmeyen ihtiyaç yanlış değil, gereksiz tutma.
+    expect(scoreNeeds(pair, "Sauna 21:00'de kapanır.", [])[0]).toMatchObject({ textOk: false, wrongAnswered: false });
   });
 
   it("canlı bayrak listesi anlam katmanlarını 5.1'e sabitler ve ölçülen kolları (cevap modeli, çaba, ücret kuralı) YAZMAZ", () => {

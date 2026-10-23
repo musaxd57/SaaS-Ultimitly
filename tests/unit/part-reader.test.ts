@@ -11,6 +11,7 @@ import {
   parsePartReaderVerdict,
   partReaderHolds,
   PART_READER_MAX_PARTS,
+  PART_READER_NOTES_CAP,
   PART_READER_SYSTEM_PROMPT,
   partReaderModel,
   partReaderReasoningEffort,
@@ -167,6 +168,25 @@ describe("runPartReader", () => {
     );
     const out = await runPartReader({ guestMessage: "m", parts: many, fetchImpl: f as unknown as typeof fetch });
     expect(out.status === "ok" && Object.fromEntries(out.holds)).toEqual({ [`R${PART_READER_MAX_PARTS + 1}`]: "unread" });
+    vi.unstubAllEnvs();
+  });
+
+  it("🚨 Opus 10-23 G4: notu tavana sığmayan parça (kesilen yerde genel kural kalabilir) okuyucu 'evet' dese de TUTULUR; sığan parça okunur", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    const long = `[amenities] Olanaklar: Hafta sonu havuz 23:00'e kadar açıktır. ${"Bahçe ve teras misafirlere açıktır. ".repeat(200)}`;
+    const both = [
+      { ref: "R1", request: "havuz kaçta kapanıyor", text: "Hafta sonu havuz 23:00'e kadar açıktır.", notes: [long, "[amenities] Havuz: Havuz her gün 22:00'de kapanır."] },
+      { ref: "R2", request: "q", text: "t", notes: ["n"] },
+    ];
+    expect(long.length).toBeGreaterThan(PART_READER_NOTES_CAP);
+    let sent = "";
+    const f = vi.fn(async (_u: unknown, init?: { body?: unknown }) => {
+      sent = String(init?.body ?? "");
+      return new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify({ parts: both.map((m) => row(m.ref)) }) } }] }), { status: 200 });
+    });
+    const out = await runPartReader({ guestMessage: "Havuz kaçta kapanıyor?", parts: both, fetchImpl: f as unknown as typeof fetch });
+    expect(out.status === "ok" && Object.fromEntries(out.holds)).toEqual({ R1: "unread" });
+    expect(sent).toContain("R2 · REQUEST");
     vi.unstubAllEnvs();
   });
 

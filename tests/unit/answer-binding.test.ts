@@ -1259,4 +1259,27 @@ describe("parantez yan cümle sınırıdır (Opus 10-23 sabah F2)", () => {
     expect(c("Havuz 22:00'ye kadar, hafta sonu 23:00'e kadar açık.").ok).toBe(true);
     expect(c("Hafta sonu havuz 23:00'e kadar açık.").ok).toBe(true);
   });
+
+  it("🚨 Opus 10-23 G2: DEĞERSİZ parantez öndeki değerin kaydıdır — kaydı düşüren genel parça TUTULUR (TR / EN / DE, önce / sonra, tutar)", () => {
+    const held: [string, string, string[]][] = [
+      ["Havuz 09:00-22:00 arası açıktır (şu anda bakım nedeniyle kapalı).", "Havuz 09:00-22:00 arası açıktır.", ["havuz kaçta kapanıyor"]],
+      ["Havuz 22:00'ye kadar açık (Kasım-Nisan arası kapalı).", "Havuz 22:00'ye kadar açık.", ["havuz kaçta kapanıyor"]],
+      ["Havuz 22:00'ye kadar açık (Ekim'den itibaren kapalı).", "Havuz 22:00'ye kadar açık.", ["havuz kaçta kapanıyor"]],
+      ["Havuz (Ekim'den itibaren kapalı) 22:00'ye kadar açık.", "Havuz 22:00'ye kadar açık.", ["havuz kaçta kapanıyor"]],
+      ["The pool is open until 22:00 (currently closed for maintenance).", "The pool is open until 22:00.", ["when does the pool close"]],
+      ["The pool (closed until May) is open until 22:00.", "The pool is open until 22:00.", ["when does the pool close"]],
+      ["Der Pool ist bis 22:00 geöffnet (derzeit geschlossen).", "Der Pool ist bis 22:00 geöffnet.", ["wann schließt der Pool"]],
+      ["Otopark gecelik 100 TL (hafta sonu ücretsiz).", "Otopark gecelik 100 TL.", ["otopark ücreti ne kadar"]],
+    ];
+    for (const [source, part, q] of held) {
+      expect(checkAnswerBinding({ part, evidence: source, sourceText: source, ...need(q) }).ok, `${source} → ${part}`).toBe(false);
+    }
+  });
+
+  it("Opus 10-23 G2 eki: parçanın kendi değersiz parantezi kaynaktaki kaydı taşıyorsa gider (gereksiz tutma yok)", () => {
+    const source = "Havuz hafta sonu hariç 22:00'ye kadar açık.";
+    for (const part of ["Havuz 22:00'ye kadar açık (hafta sonu hariç).", "Havuz (hafta sonu hariç) 22:00'ye kadar açık."]) {
+      expect(checkAnswerBinding({ part, evidence: source, sourceText: source, ...need(["havuz kaçta kapanıyor"]) }).ok, part).toBe(true);
+    }
+  });
 });

@@ -20,7 +20,8 @@ import { stripDividerRuns } from "../divider-spoof";
 //    ve bütün kapı kodda kalır).
 //  · Okuyucunun cevabında bulunmayan / bozuk / tekrarlanan parça TUTULUR; okuyucu düşerse BÜTÜN parçalar tutulur.
 //  · Tek okuma (misafir mesajıyla): serbest bırakma yetkisi olmadığından misafir metnine yazılmış "kontrolcüye not" en kötü ihtimalle
-//    okuyucuyu susturur = okuyucusuz davranış (kodun doğruladığı parça gider) — yanlış bir şeyi göndertemez.
+//    okuyucuyu "evet"e çeker = yalnız kodun denetimi kalır — kodun tutacağı bir şeyi göndertemez. (Okuyucu KAPALIYKEN parça kipi bütün
+//    parçaları tutar — Opus 10-23 G1, `ai/index.ts`.)
 // Anahtar: kıdemli okuyucununki (`AI_SENIOR_READER_ENABLED`); yalnız parça kipinde (`AI_ANSWER_PARTS_ENABLED`) çağrılır.
 // ---------------------------------------------------------------------------
 
@@ -29,8 +30,13 @@ const EARLIER_CAP = 600;
 const EARLIER_MAX = 3;
 const REQUEST_CAP = 200;
 const PART_CAP = 600;
-/** Parçanın NOTLARI (dayandığı kalem + aynı konuyu anan öteki kalemler): toplam tavan. */
-const NOTES_CAP = 2_500;
+/**
+ * Parçanın NOTLARI (dayandığı kalem + aynı konuyu anan öteki kalemler): toplam tavan. Tavanı aşan parça okunmuş SAYILMAZ, tutulur (Opus 10-23
+ * G4: notlar sessizce 2.500 karakterde kesiliyordu; kesilen yerde kalan genel kural okuyucuya "genel kural yok" gibi görünüyor, yalnız istisnayı
+ * söyleyen parça geçiyordu). Tavan, gerçek kalem uzunluklarında tutmanın nadir kalacağı kadar geniş.
+ */
+export const PART_READER_NOTES_CAP = 6_000;
+const NOTES_CAP = PART_READER_NOTES_CAP;
 /** Okunan en fazla parça; fazlası okunmaz → tutulur (bir mesajda bu kadar ayrı istek gerçek hayatta yok). */
 export const PART_READER_MAX_PARTS = 8;
 
@@ -152,10 +158,15 @@ const knownNames = (input: Pick<PartReaderInput, "names">) =>
   (input.names ?? []).filter((n): n is string => typeof n === "string" && n.trim().length > 0);
 
 /** `tail`: uzun metnin SONU okunur (turun en yeni mesajı — sorulan gün / ihtiyaç çoğunlukla oradadır; Haiku 10-23 sabah). */
+const fenceText = (text: string, names: readonly string[], author: "guest" | "ours") =>
+  fenceSafe(redactForSemanticModel(author === "guest" ? stripDividerRuns(text) : text, names, author));
 const fenced = (text: string, names: readonly string[], author: "guest" | "ours", cap: number, tail = false) => {
-  const safe = fenceSafe(redactForSemanticModel(author === "guest" ? stripDividerRuns(text) : text, names, author));
+  const safe = fenceText(text, names, author);
   return `<<<${tail ? safe.slice(-cap) : safe.slice(0, cap)}>>>`;
 };
+const notesOf = (p: PartReaderPart) => p.notes.join("\n---\n");
+/** Notları tavana sığmayan parça (okuyucu notun tamamını göremez → tutulur). */
+const notesOverflow = (p: PartReaderPart, names: readonly string[]) => fenceText(notesOf(p), names, "ours").length > NOTES_CAP;
 
 export function buildPartReaderUserContent(input: PartReaderInput): string {
   const names = knownNames(input);
@@ -169,7 +180,7 @@ export function buildPartReaderUserContent(input: PartReaderInput): string {
     ...input.parts.slice(0, PART_READER_MAX_PARTS).flatMap((p) => [
       `${p.ref} · REQUEST: ${fenced(p.request, names, "guest", REQUEST_CAP)}`,
       `PART: ${fenced(p.text, names, "ours", PART_CAP)}`,
-      `NOTES: ${fenced(p.notes.join("\n---\n"), names, "ours", NOTES_CAP)}`,
+      `NOTES: ${fenced(notesOf(p), names, "ours", NOTES_CAP)}`,
     ]),
   ].join("\n");
 }
@@ -235,8 +246,10 @@ export async function runPartReader(input: PartReaderInput): Promise<PartReaderO
     if (!res.ok) return { status: "failed" };
     const holds = parsePartReaderVerdict(res.data, refs);
     if (!holds) return { status: "failed" };
-    // Tavanın ötesindeki parçalar okunmadı → tutulur.
+    // Tavanın ötesindeki parçalar ve notu kesilen parçalar okunmadı → tutulur.
     for (const ref of refs.slice(PART_READER_MAX_PARTS)) holds.set(ref, "unread");
+    const names = knownNames(input);
+    for (const p of input.parts) if (notesOverflow(p, names)) holds.set(p.ref, "unread");
     return { status: "ok", holds };
   } catch {
     return { status: "failed" };

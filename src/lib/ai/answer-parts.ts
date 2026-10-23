@@ -109,6 +109,20 @@ export interface ComposedReply {
 }
 
 /**
+ * Metin karşılaştırma biçimi: harf büyüklüğü (Türkçe noktalı / noktasız i dahil — dil kestirimi olmadan "İ / I / ı" → "i"), boşluk ve sondaki
+ * noktalama eşitlenir; ayraç sökülmez ("1.500 TL" ≠ "1,500 TL"). Tekrar anahtarı ve son metin denetimi (automation) AYNI biçimi kullanır
+ * (Opus 10-23 G3: biri Türkçe, öteki dilsiz büyütme yapınca "internet" parçası son metinde bulunamıyor, tur sessizce tutuluyordu).
+ */
+export function foldPartText(text: string): string {
+  return text.replace(/[İIı]/gu, "i").toLowerCase().replace(/\s+/gu, " ").replace(/[\s.!?]+$/u, "").trim();
+}
+
+/** Parçanın tekrar / varlık anahtarı: selamsız metin, `foldPartText` biçiminde. */
+export function partTextKey(text: string): string {
+  return foldPartText(stripLeadingGreeting(text));
+}
+
+/**
  * Parçaları doğrular ve birleştirir. Saf; istek sırası `needs` sırasıdır (R1, R2 …).
  *  · `holds`: parça okuyucusunun TUTTUĞU parçalar (Soru 11; Soru 9 "genel kural + istisna" da okuyucunun sorusudur). Yalnız kodun bütün
  *    denetimlerinden GEÇMİŞ parçaya uygulanır; okuyucu hiçbir parçayı serbest bırakamaz.
@@ -183,7 +197,7 @@ export function composeVerifiedReply(input: {
     // de kapanır, metin misafire BİR kez gider (Opus e2e 10-23 F7: aynı satır iki kez gidiyordu).
     // Anahtar selamsız metinden (Haiku 10-23 gece-3: "Merhaba! Havuz …" ile "Havuz …" iki kez gidiyordu); ayraç sökülmez — "1.500 TL" ile
     // "1,500 TL" farklı tutarlardır, yalnız büyük / küçük harf, boşluk ve sondaki noktalama eşitlenir.
-    const key = stripLeadingGreeting(part.text).toLocaleLowerCase("tr").replace(/\s+/gu, " ").replace(/[\s.!?]+$/u, "").trim();
+    const key = partTextKey(part.text);
     if (!seen.has(key)) {
       seen.add(key);
       // İkinci ve sonraki parçanın baştaki selamı atılır (metnin ortasında "Merhaba!" kalmasın); ilk parçanınki kodun selam kuralına kalır.

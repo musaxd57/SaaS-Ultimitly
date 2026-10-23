@@ -644,7 +644,12 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
               let composed = composeVerifiedReply({ parts: decl.parts, needs, sources: partSources });
               // PARÇA OKUYUCUSU (kurucu 10-23 sabah, Soru 11; kıdemli okuyucunun anahtarı): kodun doğruladığı parçalar + istekleri + kaynakları
               // okunur; okuyucu yalnız TUTAR (sorulanı cevaplamıyor / yarım / yanlış bağ / tek başına istisna), düşerse bütün parçalar tutulur.
-              if (seniorReaderEnabled() && composed.verified.length > 0) {
+              // Okuyucu KAPALIYSA (anahtar yok / anlam katmanı anahtarı eksik) da bütün parçalar tutulur (Opus 10-23 G1): "genel kural + istisna"
+              // (Soru 9) ve "sorulanı cevaplıyor mu" denetimi yalnız okuyucuda — okuyucusuz parça kipi bunları hiç sınamadan gönderiyordu.
+              if (composed.verified.length > 0 && !seniorReaderEnabled()) {
+                const holds = partReaderHolds({ status: "failed" }, composed.verified.map((v) => v.ref));
+                composed = composeVerifiedReply({ parts: decl.parts, needs, sources: partSources, holds });
+              } else if (composed.verified.length > 0) {
                 const reader = await runPartReader({
                   guestMessage: guest.turn.join("\n"),
                   earlierGuestMessages: guest.earlier,

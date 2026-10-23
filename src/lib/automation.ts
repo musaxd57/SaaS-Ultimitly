@@ -122,7 +122,8 @@ import { sanitizePromptValue, selectHistoryForPrompt } from "@/lib/ai/prompts";
 import { apartmentResolvable, guestFirstNameOf, usesApartmentToken } from "@/lib/kb-placeholders";
 import { buildGuestMessageBody, hasUnfilledPlaceholders } from "@/lib/auto-messages/render";
 import { autoMessageStillAt, loadAutoMessage, recordAutoMessageSkip } from "@/lib/auto-messages/store";
-import { isGreetingOnly, modelGuestFirstName, stripLeadingGreeting } from "@/lib/ai/code-greeting";
+import { isGreetingOnly, modelGuestFirstName } from "@/lib/ai/code-greeting";
+import { foldPartText, partTextKey } from "@/lib/ai/answer-parts";
 import { applyPromptKbAudit, buildKbEvidence } from "@/lib/ai/grounding";
 import { closableAfter, closingMayHide, lexicalClosingOnly, semanticClosingOnly } from "@/lib/ai/closing-turn";
 import {
@@ -2677,11 +2678,11 @@ export async function applyChannelAutoReply(
   // dize her metnin içindedir).
   if (replyItems?.parts && result.source === "openai" && result.answeredRequests?.ok === true && (result.verifiedParts?.length ?? 0) > 0) {
     const answeredRefs = result.answeredRequests.refs;
-    const fold = (s: string) => s.toLocaleLowerCase("tr").replace(/\s+/gu, " ").trim();
-    const finalText = fold(result.reply ?? "");
+    // Karşılaştırma biçimi tekrar anahtarıyla AYNI (`partTextKey`: Türkçe i, boşluk, sondaki noktalama — Opus 10-23 G3).
+    const finalText = foldPartText(result.reply ?? "");
     const altered = (result.verifiedParts ?? []).some((v) => {
       if (!answeredRefs.includes(v.ref)) return false;
-      const body = fold(stripLeadingGreeting(v.text));
+      const body = partTextKey(v.text);
       return body === "" || isGreetingOnly(v.text) || !finalText.includes(body);
     });
     if (altered) result = { ...result, answeredRequests: { ok: false, reason: "missing" } };
