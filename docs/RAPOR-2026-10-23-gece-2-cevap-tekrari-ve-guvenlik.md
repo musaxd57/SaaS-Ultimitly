@@ -20,7 +20,7 @@
   23 yaşayan mutantın hepsini pinledi; biri konu etiketinde gerçek şifre sızma yolu çıktı ("mavi kelebek wlan şifresi"), kapandı (§3e).
 - **Kararınızı bekleyen 10 soru** §6'da, her biri örnekli. En önemlileri: 1 (migration 85), 6 (kısmi cevapta e-posta), 9 (genel soruya yalnız
   istisna cevabı).
-- Ücretli ölçüm bu gece toplam ~$0,33 (onaylı E kapsamı).
+- Ücretli ölçüm bu gece toplam ~$0,45 (onaylı E kapsamı; son koşu v8: 31/38 doğru, yanlış 0).
 
 ## 1. Kısaca
 
@@ -220,7 +220,8 @@ etikete bırakıyordu → genel kural yazıldı, eski kural ölü kod olarak sil
 | yeni akış · okuyucu açık · v4 (dünkü kod) | 30/38 | 8/8 | 0 | 0 | 25/32 |
 | yeni akış · okuyucu açık · v5 (bu gecenin ilk sertleştirmesiyle) | 30/38 | 8/8 | 0 | 0 | 25/32 |
 | yeni akış · okuyucu açık · v6 (Opus 2. tur R1–R15 sonrası, `3af7943d`) | 31/38 | 8/8 | 0 | 0 | 26/32 |
-| yeni akış · okuyucu açık · **v7 (uçtan uca + Haiku 3. tur sonrası, `a953544c`)** | **27/38** | **8/8** | **0** | **0** | **24/32** |
+| yeni akış · okuyucu açık · v7 (uçtan uca + Haiku 3. tur sonrası, `a953544c`) | 27/38 | 8/8 | 0 | 0 | 24/32 |
+| yeni akış · okuyucu açık · **v8 (gece sonu Opus taze göz düzeltmeleri, `6c59ee3c`)** | **31/38** | **8/8** | **0** | **0** | **25/32** |
 
 v5'te farklılaşan 4 senaryonun ikisi kazanç, ikisi kayıp: biri modelin kendi düşük güveni (doğrulayıcı değil), öteki "devam ediyor"
 söyleyişi — bu gece düzeltildi. Rapor: `docs/olcum/live-pipeline-2026-10-22-gpt-6-luna-needs-2026-10-23-e1023-new-on-v5.{md,json}`.
@@ -228,8 +229,10 @@ v6 ($0,11): yön / sınır / ikinci konu sertleştirmesi doğru cevap kaybettirm
 `…-e1023-new-on-v6.{md,json}`. **v7 ($0,107):** 4 senaryo düştü, HİÇBİRİ bu gecenin denetimlerinden değil — ikisi modelin kendi düşük güveni
 (bir parça doğrulandı, öteki "bilgi yok" → tur tutuldu; artık ev sahibine e-posta gider — F1), biri anlama katmanının iki soruyu tek isteğe
 katması + Almanca zamirli cevap (bilinen sınır), biri genel soruya yalnız hafta sonu saatinin verilmesi (§6 soru 9). Bir senaryo kazanıldı.
-Model çeşitliliği tek koşuda ±3 oynuyor (v5 → v6 → v7: 30 → 31 → 27); yanlış ve "bilgim yok" her koşuda 0. Ücretli ölçüm toplamı bu gece:
-v5 + v6 + v7 = $0,33 (onaylı E kapsamı).
+**v8 ($0,119, `6c59ee3c`):** 31/38, 8/8, yanlış 0; yeni "sorulan yön / tesis" denetimleri gerçek cevaplarda **hiçbir parçayı reddetmedi**
+(41 parça kararından 32 doğrulandı, 6 bilgi yok, 3 ret — hiçbiri yeni denetimden). v7'ye göre 3 senaryo kazanıldı (model çeşitliliği).
+Model çeşitliliği tek koşuda ±3 oynuyor (v5 → v6 → v7 → v8: 30 → 31 → 27 → 31); yanlış ve "bilgim yok" her koşuda 0. Ücretli ölçüm toplamı bu
+gece: v5 + v6 + v7 + v8 = $0,45 (onaylı E kapsamı).
 
 ## 5. Kalite kapıları
 
