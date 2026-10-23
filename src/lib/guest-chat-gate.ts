@@ -1,7 +1,7 @@
 import "server-only";
 
 import { admitsMissingKnowledge, namesInternalSource } from "@/lib/ai/absence";
-import { mentionsAssistanceAnimal, mentionsPets } from "@/lib/conversation-items/pet-policy";
+import { mentionsAssistanceAnimal, mentionsPets, petReplyStraysFromFreeKb } from "@/lib/conversation-items/pet-policy";
 import { absenceHolds, seniorChecksOf, type AbsenceJudgeOutcome } from "@/lib/ai/semantic/absence-judge";
 import { noApologyRuleEnabled } from "@/lib/ai/no-apology-rule";
 import { vetoOutgoingReply } from "@/lib/ai/output-veto";
@@ -385,7 +385,16 @@ export function evaluateEscalation(
   // rota bir kez yeniden yazdırır.
   if (senior?.internalSource || namesInternalSource(result.reply ?? "")) return yes("reply_internal_source");
   // Evcil / yardımcı hayvan (kurucu 10-23 akşam 4.4) — kanal kapısıyla AYNI kural ("model sallamasın").
-  if (mentionsPets(result.reply) && (stayCtx?.petsFreeAllowed !== true || mentionsAssistanceAnimal(result.reply))) return yes("reply_pet_policy");
+  // QR'da öğe kipi yok → misafirin mesajı da okunur (Opus 10-23 akşam B3): belirsiz "evet" ve yalnız misafirin andığı yardımcı hayvan.
+  if (
+    (mentionsPets(result.reply) || mentionsPets(message)) &&
+    (stayCtx?.petsFreeAllowed !== true ||
+      mentionsAssistanceAnimal(result.reply) ||
+      mentionsAssistanceAnimal(message) ||
+      petReplyStraysFromFreeKb(result.reply, mentionsPets(message)))
+  ) {
+    return yes("reply_pet_policy");
+  }
   // ── KANITSIZ ARIZA ADIMI (kurucu 10-15; anahtar `AI_FIX_SUPPORT_GATE_ENABLED`) — kanal kapısıyla AYNI yüklem. Bilgi tabanında tarifi /
   // konusu olmayan cihaz için adım misafire gitmez, ev sahibine devredilir. ──
   // Koddan kurulan doğrulanmış müsaitlik / uzatma metni muaf (kanal kapısındaki `codeBuiltGrant` paritesi — Haiku 10-15 gece).

@@ -46,6 +46,8 @@ export const GATE_BLOCK_DETAILS = [
   // Kıdemli okuyucu (T-b, kurucu 10-22; anahtar `AI_SENIOR_READER_ENABLED`): okuyucu bu metni okudu ve —
   "reply_offplatform_payment", // misafiri ev sahibine / daireye platform dışı ödemeye yönlendiriyor (T-d; üçüncü tarafa ödeme bilgisi değil)
   "reply_offplatform_contact", // Airbnb'de onaysız / çıkıştan sonra platform dışı iletişim (Airbnb engeller)
+  // Opus 10-23 akşam C1 (ANAHTARSIZ): aynı konuşmada misafire giden gövdeye eklenecek İMZA telefon / e-posta / bağlantı taşıyor.
+  "signature_offplatform_contact",
   "reply_apology", // özür / üzüntü / kusur kabulü / telafi sözü (T-a; özür kuralı açıkken)
   // Kurucu 10-22 ("bilgi tabanıyla ilgili … hiçbir şey müşteriye gitmemeli"): cevap bilgiyi NEREDEN bildiğini anlatıyor (okuyucu ya da kodun
   // açık sözcük yedeği `absence.namesInternalSource`) — ANAHTARSIZ yedek; okuyucu açıksa bir kez yeniden yazdırılır.

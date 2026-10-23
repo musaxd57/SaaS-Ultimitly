@@ -378,6 +378,8 @@ const INDOOR_POSSESSED = /^(?:havuz|otopark|garaj|alan|salon|balkon|teras|mutfak
  * Yalnız TALİMAT / gereklilik biçimi ("kapalı tutun / tutmanız / tutulmalı"); durum bildiren edilgen ("kapalı tutuluyor / tutulmaktadır /
  * tutulur") yüklemdir, olumsuz kalır (Haiku 10-23 akşam: "Havuz şu an kapalı tutulmaktadır" ↔ "Havuz açık" çelişkisi kaçıyordu).
  */
+/** Tesis tamlayanı ("sitenin / binanın / otelin / sitemizin / evimizin"). */
+const SITE_GENITIVE = /^(?:site|bina|otel|kompleks|rezidans|apartman|tesis|daire|ev|villa|proje)(?:[iu]?m[iu]z)?n?[iu]n$/;
 const KEEP_CLOSED_INSTRUCTION = /^tut(?:un|unuz|mayi|maniz|mali|malisiniz|malidir|ulmali|ulmalidir|ulmasi|ulmasini)$/;
 function closedIsNotPredicate(tokens: readonly string[], i: number): boolean {
   const next = tokens[i + 1] ?? "";
@@ -386,7 +388,12 @@ function closedIsNotPredicate(tokens: readonly string[], i: number): boolean {
   // Metnin başındaki "Kapalı otopark …" ya da iyelikli ad öbeği önceki bir öznenin yüklemi olamaz (Haiku 10-23 akşam: "Kapalı otopark
   // açıktır" ters olumluluk sayılıyordu).
   if (i === 0 || INDOOR_POSSESSED.test(next)) return true;
-  return !/^(?:acik|kapali)/.test(tokens[i + 2] ?? "");
+  const predicate = (w: string | undefined) => /^(?:acik|kapali)/.test(w ?? "");
+  if (predicate(tokens[i + 2])) return false;
+  // İki sözcüklü tesis adının ardında yüklem ("Havuz şu an kapalı spor salonu açık") → "kapalı" öncekinin yüklemi; önde tesis tamlayanı varsa
+  // ("Sitenin kapalı yüzme havuzu açıktır") ad öbeğinin sıfatı (Opus 10-23 akşam E1). Belirsizde yüklem (olumsuz) — tutar yönü.
+  if (INDOOR_POSSESSED.test(tokens[i + 2] ?? "") && predicate(tokens[i + 3])) return SITE_GENITIVE.test(tokens[i - 1] ?? "");
+  return true;
 }
 
 function negAt(tokens: readonly string[], i: number): boolean {
@@ -1002,9 +1009,18 @@ function caseAfter(text: string, at: number): string | null {
 }
 
 function readPlace(text: string): PlaceReading {
-  const t = tokenize(text);
+  return readTokens(tokenize(text));
+}
+function readTokens(t: readonly string[]): PlaceReading {
   return { conditions: conditionClasses(t, "evidence"), negative: negative(t), directions: directions(t), bounds: boundsOf(t) };
 }
+/**
+ * Birden çok yer TEK belirteç dizisinde okunur ama aralarına hiçbir sözlükte olmayan bir AYRAÇ girer (Opus 10-23 akşam E1): `tokenize`
+ * noktayı atıyordu, "Havuz şu an kapalı. Havuz havluları dolaptadır." birleşince "kapalı havuz" ad öbeği sanılıp olumsuzluk kayboluyordu.
+ * İleri / geri bakan her okuma (sıfat "kapalı", "değil" iptali, ücret yokluğu, sınır öbeği) ayraçta durur.
+ */
+const PLACE_SEP = "|";
+const placesTokens = (places: readonly string[]): string[] => places.flatMap((p, k) => (k > 0 ? [PLACE_SEP, ...tokenize(p)] : tokenize(p)));
 
 /** Bir metnin (alıntı ya da kalem) yapısı + konu ve yer okumaları; her tablo bir kez kurulur → toplam doğrusal. */
 function documentOf(raw: string, subj: Subject) {
@@ -2103,7 +2119,7 @@ export function checkAnswerBinding(raw: BindingInput): BindingResult {
     // Değersiz parçada alıntı tek dayanaktır: konuyu anmayan alıntı (havuz cümlesiyle "evcil hayvan kabul edilmiyor") dayanak olmaz.
     if (places.length === 0 || !hasSubject(evidence, subj)) issues.add("subject_missing");
     else {
-      const r = readPlace(places.join(" . "));
+      const r = readTokens(placesTokens(places));
       for (const cls of r.conditions) if (!partConditions.has(cls) && !(DAY_CLASSES.has(cls) && coversDay(partConditions, cls))) issues.add("condition_dropped");
       // Kalem cümlesi KARIŞIK olumluysa ("Dairede sigara içmek yasaktır, balkonda içilebilir.") parça da iki yönü taşımalı — tek yönü veren
       // ("Balkonda sigara içmek yasaktır") istisnayı düşürür ya da çevirir (Haiku 10-23 gece-2). Konusuz yan cümle yalnız yer bildiriyorsa
@@ -2139,7 +2155,7 @@ export function checkAnswerBinding(raw: BindingInput): BindingResult {
       // hayvan kabul edilir" → "Evcil hayvan kabul edilir", "…, gecelik 300 TL" ücreti, "Küçük evcil hayvanlar…" niteliği. Kısıt = konu
       // cümlesinde (çok konulu ihtiyaçta başka tesisin yan cümlesi hariç) saat / tutar / sayı / süre / kişi değeri ya da üst sınır / küçüklük
       // sözcüğü; kimlik bildiren değer (kod, telefon, kat, "12 numaralı yer") kısıt değildir.
-      const restrict = restrictionClasses(tokenize(places.join(" . ")));
+      const restrict = restrictionClasses(placesTokens(places));
       const partRestrict = restrictionClasses(partTokens);
       if ([...restrict].some((x) => !partRestrict.has(x))) issues.add("condition_dropped");
       // Ücret sorusunda ("otopark ücretli mi") ve VARLIK cevabında ("Evet, havuz var." ← "Havuz 09:00-20:00 arası açıktır.") yalnız tutar

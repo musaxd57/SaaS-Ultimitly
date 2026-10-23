@@ -1331,4 +1331,16 @@ describe("ters olumluluk — 'kapalı' sıfat / talimat, olumsuzlanmış ücrets
     // KONTROL: yüklem "kapalı" + ardından başka tesisin kendi yüklemi → öncekinin yüklemi (olumsuz) kalır.
     expect(pol("Spa açık.", "Spa kapalı havuz açık.", ["spa"])).toContain("polarity_mismatch");
   });
+  it("🚨 Opus 10-23 akşam E1: birleştirilen yerlerde 'kapalı' cümle sınırını aşıp sonraki cümlenin tesis adına sıfat olmaz", () => {
+    const whole = (part: string, source: string) =>
+      checkAnswerBinding({ part, evidence: source, sourceText: source, needTerms: ["havuz"], needTopics: [] }).issues;
+    expect(whole("Havuz açık.", "Havuz şu an kapalı. Havuz havluları dolaptadır.")).toContain("polarity_mismatch");
+    expect(whole("Havuz açıktır.", "Sitenin havuzu şu an kapalı spor salonu açık.")).toContain("polarity_mismatch");
+    expect(whole("Havuz açıktır.", "Havuz kapalı yüzme havuzu açık.")).toContain("polarity_mismatch");
+    // KONTROL (aşırı uygulama yok): tesis tamlayanlı / baştaki / iyelikli ad öbeği sıfat kalır; iki cümleli kalemde ayrı cümle bozmaz.
+    expect(whole("Havuz açıktır.", "Sitenin kapalı yüzme havuzu açıktır.")).not.toContain("polarity_mismatch");
+    expect(whole("Havuz 08:00-22:00 arası açık.", "Kapalı yüzme havuzu 08:00-22:00 arası açıktır.")).not.toContain("polarity_mismatch");
+    expect(whole("Havuz açık.", "Havuz açıktır. Havuz havluları dolaptadır.")).not.toContain("polarity_mismatch");
+    expect(whole("Havuz kapalı.", "Havuz şu an kapalı. Havuz havluları dolaptadır.")).not.toContain("polarity_mismatch");
+  });
 });

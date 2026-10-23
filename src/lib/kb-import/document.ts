@@ -61,6 +61,11 @@ export interface DocBlock {
   kind: "heading" | "body";
   /** Başlık bloğunda başlığın kendisi; gövde bloğunda altında durduğu son başlık (yoksa null). */
   heading: string | null;
+  /**
+   * Uzun paragraf parçalara bölündüyse paragrafın İLK parçasının numarası (bütün parçalarda aynı); bölünmeyen blokta yok. Erişim kararı
+   * paragraf düzeyindedir (Opus 10-23 akşam D1): bir parçası erişim izi taşıyan paragrafın bütün parçaları "Giriş Talimatı"na gider.
+   */
+  paragraph?: number;
 }
 
 export interface SplitDocument {
@@ -123,12 +128,13 @@ export function splitDocument(pages: readonly DocPage[]): SplitDocument {
         headings.set(raw.length, h);
         raw.push({ page: page.page, text, kind: "heading" });
       } else if (text.length > CHUNK_MAX_CHARS) {
+        const paragraph = raw.length;
         for (const s of chunkSpans(text)) {
           if (raw.length >= KB_IMPORT_MAX_BLOCKS) {
             truncated = true;
             break outer;
           }
-          raw.push({ page: page.page, text: text.slice(s.start, s.end), kind: "body" });
+          raw.push({ page: page.page, text: text.slice(s.start, s.end), kind: "body", paragraph });
         }
       } else {
         raw.push({ page: page.page, text, kind: "body" });
@@ -158,7 +164,13 @@ export function splitDocument(pages: readonly DocPage[]): SplitDocument {
  * gösterir ama içeriği değiştirmez; eşleşmeyen "Genel" olur. Şablon kategorileri burada YOK.
  */
 const CATEGORY_WORDS: readonly { category: KbCategory; words: readonly string[] }[] = [
-  { category: "wifi", words: ["wi-fi", "wifi", "wlan", "kablosuz", "internet", "ssid", "ağ adı", "modem"] },
+  // "network / password / şifre" (Opus 10-23 akşam D1): "Network: LaleNet / Password: …" Genel'e düşüyordu — Genel aday misafire açık, Wi-Fi
+  // değil (`PREBOOKING_SECRET_CATEGORIES`). Kapı / kutu şifresi taslak kapısının izinden "Giriş Talimatı"na gider; kalan şifre Wi-Fi'de daha
+  // kapalıdır (yanlış kategori içeriği değiştirmez, ev sahibi önizlemede görür).
+  {
+    category: "wifi",
+    words: ["wi-fi", "wifi", "wlan", "kablosuz", "internet", "ssid", "ağ adı", "modem", "network", "wireless", "router", "password", "şifre", "parola", "passwort", "contraseña", "mot de passe"],
+  },
   { category: "parking", words: ["otopark", "park yeri", "park alanı", "garaj", "parking", "garage", "parkplatz", "stellplatz"] },
   { category: "trash", words: ["çöp", "geri dönüşüm", "atık", "garbage", "trash", "rubbish", "recycling", "müll"] },
   {
@@ -311,7 +323,7 @@ export interface ImportPlan {
  */
 /** Kapı sonucu ya da metin erişim / ele geçirme izi taşıyor mu (paragraf paragraf ayırma gerekir). */
 function hasAccessTrace(gate: ReturnType<typeof gateDraft>, text: string): boolean {
-  return !gate.ok || gate.flags.includes("door_mention") || ACCESS_WORDS.test(foldTurkishAscii(text));
+  return !gate.ok || gate.flags.includes("door_mention") || ACCESS_WORDS.test(foldTurkishAscii(text).normalize("NFD").replace(/\p{M}+/gu, ""));
 }
 
 function hasPlaceholder(text: string): boolean {
@@ -324,7 +336,9 @@ function hasPlaceholder(text: string): boolean {
  * sınırlı ek (doğrusal).
  */
 const ACCESS_WORDS =
-  /(?<![\p{L}\p{N}])(?:anahtar\p{L}{0,10}|kilit(?:li|ler|leri)?|kilid[iı]n?|(?:keybox|key box|key safe|lockbox|lock box|keypad|tus takimi|smart lock|akilli kilit|schlussel|boite a cles?)\p{L}{0,10})(?![\p{L}\p{N}])/u;
+  // Opus 10-23 akşam D1: çıplak İngilizce "key / keys / lock", Fransızca "clé", İspanyolca "llave", Rusça "ключ" ("The key is under the flower
+  // pot", "La clé est sous le paillasson") Genel'e düşüyordu. Kısa sözcükler TAM biçim ("clean" / "keyboard" eşleşmez); işaretler sökülmüş metin.
+  /(?<![\p{L}\p{N}])(?:anahtar\p{L}{0,10}|kilit(?:li|ler|leri)?|kilid[iı]n?|keys?|lock(?:s|ed)?|cles?|llaves?|serrure|cerradura|ключ\p{L}{0,3}|(?:keybox|key box|key safe|lockbox|lock box|keypad|tus takimi|smart lock|akilli kilit|schlussel|boite a cles?)\p{L}{0,10})(?![\p{L}\p{N}])/u;
 
 /** Paragrafta yalnız giriş / çıkış saati mi var (kalan sözcükler 12 harften az), hangi alan önerileri çıkıyor. */
 function propertyFieldsOf(text: string): { fields: KbFieldSuggestion[]; fieldOnly: boolean } {
@@ -350,6 +364,7 @@ export function assembleDrafts(doc: SplitDocument, sections: readonly DraftSecti
   const hash = doc.docHash.slice(0, 16);
   const accessBlocks: number[] = [];
   const accessFlags = new Set<ImportDraftFlag>();
+  const pending: { category: KbCategory; baseTitle: string; parts: number[]; withField: Set<number>; flags: ImportDraftFlag[] }[] = [];
   // Aynı metnin kapı sonucu bir kez hesaplanır (tekrarlanan paragraf / başlık).
   const gateCache = new Map<string, ReturnType<typeof gateDraft>>();
   const gateOf = (title: string, text: string) => {
@@ -425,8 +440,17 @@ export function assembleDrafts(doc: SplitDocument, sections: readonly DraftSecti
     const hb = section.headingBlock !== undefined ? doc.blocks[section.headingBlock] : undefined;
     const heading = hb?.kind === "heading" && hb.heading && hb.heading.length >= 2 ? hb.heading : null;
     const baseTitle = heading ?? DEFAULT_TITLES[category] ?? "Genel";
-    pushDrafts(category, baseTitle, parts, parts.some((i) => withField.has(i)), [...flags]);
+    pending.push({ category, baseTitle, parts, withField, flags: [...flags] });
   });
+  // Erişim kararı PARAGRAF düzeyinde (Opus 10-23 akşam D1): uzun paragrafın bir parçası erişim izi taşıyorsa ("… anahtar kutusunu kullanın.")
+  // öteki parçaları da ("The combination is 4590.") Giriş Talimatı'na gider — kod bağlamından kopup Genel'e düşmez.
+  const paragraphOf = (i: number) => doc.blocks[i].paragraph ?? i;
+  const accessParagraphs = new Set(accessBlocks.map(paragraphOf));
+  for (const p of pending) {
+    const stay = p.parts.filter((i) => !accessParagraphs.has(paragraphOf(i)));
+    for (const i of p.parts) if (accessParagraphs.has(paragraphOf(i))) accessBlocks.push(i);
+    if (stay.length > 0) pushDrafts(p.category, p.baseTitle, stay, stay.some((i) => p.withField.has(i)), p.flags);
+  }
   // Erişim blokları (bütün bölümlerden) TEK "Giriş Talimatı" taslağında, belge sırasıyla; tavanı aşarsa parçalara bölünür.
   if (accessBlocks.length > 0) {
     const ordered = [...accessBlocks].sort((a, b) => a - b);

@@ -43,7 +43,7 @@ import {
 import { noApologyRuleEnabled } from "@/lib/ai/no-apology-rule";
 import { offPlatformContactHoldsFor } from "@/lib/channels/airbnb-message-policy";
 import { containsContactValue } from "@/lib/contact-redact";
-import { kbPetsFreeAllowed, mentionsAssistanceAnimal, mentionsPets } from "@/lib/conversation-items/pet-policy";
+import { kbPetsFreeAllowed, mentionsAssistanceAnimal, mentionsPets, petReplyStraysFromFreeKb } from "@/lib/conversation-items/pet-policy";
 import {
   earlyCheckinEvidenceOf,
   earlyCheckinHostNote,
@@ -275,6 +275,12 @@ export interface AutoReplyGateContext {
    * engeller. Anahtar kapalıyken alan yazılmaz.
    */
   offPlatformContactHolds?: boolean;
+  /**
+   * Ev sahibinin imzası (`Organization.aiSignature`) — misafire giden gövdenin SONUNA eklenir (Opus 10-23 akşam C1). Ayarlar ekranı imzaya
+   * telefon yazmayı öneriyor; `offPlatformContactHolds` iken imzada iletişim değeri varsa cevap gitmez (Airbnb rezervasyon onayından önce
+   * engeller — kurucu 4.5). Verilmezse karar birebir eski.
+   */
+  outboundSignature?: string | null;
   /**
    * Kurucu 10-23 akşam 4.4: modele giden bilgi tabanı evcil hayvanı kodla okunduğunda açıkça ÜCRETSİZ ve KOŞULSUZ kabul ediyor
    * (`conversation-items/pet-policy.kbPetsFreeAllowed`). Değilse evcil hayvandan söz eden cevap gitmez.
@@ -594,12 +600,24 @@ export function autoReplyGateVerdict(
   // iletişim (Airbnb engeller), özür / kusur kabulü (T-a, özür kuralı açıkken). Okumadıysa hiçbiri koşmaz (bugünkü davranış).
   const senior = seniorChecksOf(judged);
   if (senior?.payHost) return hold("reply_offplatform_payment");
+  // İmzadaki iletişim değeri (Opus 10-23 akşam C1): cevabın yeniden yazılması bunu düzeltemez → ayrı ayrıntı kodu, yeniden yazma kümesinde değil.
+  if (context?.offPlatformContactHolds === true && containsContactValue(context.outboundSignature ?? "")) return hold("signature_offplatform_contact");
   if (senior?.contact && context?.offPlatformContactHolds === true) return hold("reply_offplatform_contact");
   // Kod yedeği (anahtarsız, kurucu 10-23 akşam 4.5): okuyucu okumasa da telefon / e-posta / bağlantı DEĞERİ aynı pencerede gitmez.
   if (context?.offPlatformContactHolds === true && containsContactValue(result.reply)) return hold("reply_offplatform_contact");
   // Evcil / yardımcı hayvan (kurucu 10-23 akşam 4.4, seçenek A; anahtarsız): "model sallamasın" — evcil hayvandan söz eden cevap yalnız bilgi
   // tabanı kodla "ücretsiz kabul" diyorsa gider; yardımcı hayvan sorusu her zaman ev sahibine (Airbnb kuralı yere / hayvan türüne göre değişir).
-  if (mentionsPets(result.reply) && (context?.petsFreeAllowed !== true || mentionsAssistanceAnimal(result.reply))) return hold("reply_pet_policy");
+  // Öğe kipi koşmuyorsa misafirin mesajı da okunur (Opus 10-23 akşam B3): "Evet, getirebilirsiniz." hayvanı anmaz; yardımcı hayvan çoğu zaman
+  // yalnız misafirin cümlesindedir. Öğe kipinde evcil hayvan / yardımcı hayvan isteği zaten ayrı öğe olarak tutulur (4.3: öteki sorular gider).
+  const petTurn = !items && mentionsPets(guestMessage);
+  const assistanceAnimal = mentionsAssistanceAnimal(result.reply) || (!items && mentionsAssistanceAnimal(guestMessage));
+  // "Ücretsiz kabul" iken cevabın kendisi de aynı yönde olmalı (Opus 10-23 akşam B4): "Maalesef kabul edilmiyor" / "gecelik 200 TL" gitmez.
+  if (
+    (mentionsPets(result.reply) || petTurn) &&
+    (context?.petsFreeAllowed !== true || assistanceAnimal || petReplyStraysFromFreeKb(result.reply, petTurn))
+  ) {
+    return hold("reply_pet_policy");
+  }
   if (senior?.apology && noApologyRuleEnabled()) return hold("reply_apology");
   // ── ÇIKTI VETOSU (Codex denetimi §A, 09-12) ───────────────────────────────
   //
@@ -1015,6 +1033,8 @@ async function maybeSendClosingCourtesy(opts: {
   lastInbound: { id: string; body: string };
   /** "ack" = bare thanks/ok; "praise" = pure compliment (isPositiveFeedback). */
   kind: CourtesyKind;
+  /** Airbnb'de onaylı rezervasyon yokken platform dışı iletişim tutulur (`offPlatformContactHoldsFor`) — imza da gövdeye girer (Opus C1). */
+  contactHolds?: boolean;
   org: {
     autoClosingReplyEnabled: boolean;
     closingReplyText: string | null;
@@ -1024,6 +1044,8 @@ async function maybeSendClosingCourtesy(opts: {
 }): Promise<boolean> {
   if (process.env.AUTO_REPLY_ENABLED !== "1") return false;
   if (!opts.org.autoClosingReplyEnabled) return false;
+  // İmzada telefon / e-posta / bağlantı varken Airbnb onaysız konuşmada nezaket cevabı gitmez (Opus 10-23 akşam C1; kurucu 4.5).
+  if (opts.contactHolds && containsContactValue(opts.org.aiSignature ?? "")) return false;
   // LOOP GUARD: our latest outbound was itself the courtesy → the guest is
   // thanking the thank-you. Stay silent, or the two sides ping-pong forever.
   // Otomatik şablon mesajı (K7) cevap değildir: araya giren karşılama / çıkış mesajı döngü korumasını delmesin.
@@ -2123,6 +2145,7 @@ export async function applyChannelAutoReply(
         messages,
         lastInbound: { id: last.id, body: last.body },
         kind: closingKind,
+        contactHolds: offPlatformContactHoldsFor(conversation),
         org,
       });
       if (courtesySent) {
@@ -2583,6 +2606,7 @@ export async function applyChannelAutoReply(
     // Airbnb'de onaylı rezervasyon yokken platform dışı iletişim tutulur: okuyucunun hükmü (T-b) + iletişim DEĞERİ için anahtarsız kod
     // yedeği (kurucu 10-23 akşam 4.5: "host kendi telefon numarasını yazamaz … rezervasyondan önce"; okuyucu kapalı / düştüyse de).
     offPlatformContactHolds: offPlatformContactHoldsFor(conversation),
+    outboundSignature: org.aiSignature?.trim() || null,
     petsFreeAllowed: kbPetsFreeAllowed(kbForModel),
   };
 

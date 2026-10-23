@@ -5,7 +5,7 @@ import { describe, it, expect } from "vitest";
 // olalım model sallamasın" · "yardımcı hayvanı sorusu ile normal evcil hayvan sorusu ayrışsın" · 4.3: köpek sorusu bütün mesajı tutmasın.
 // ---------------------------------------------------------------------------
 
-import { kbForbidsPets, kbPetsFreeAllowed, mentionsAssistanceAnimal, mentionsPets } from "@/lib/conversation-items/pet-policy";
+import { kbForbidsPets, kbPetsFreeAllowed, mentionsAssistanceAnimal, mentionsPets, petReplyStraysFromFreeKb } from "@/lib/conversation-items/pet-policy";
 import { buildItemsForMessage, PET_SPLIT_KINDS, replyRiskAttributable } from "@/lib/conversation-items/core";
 import { detectRiskTypes, ruleViolationIsPetsOnly } from "@/lib/ai/fallback";
 import { autoReplyGateVerdict } from "@/lib/automation";
@@ -53,6 +53,38 @@ describe("bilgi tabanı okuması — yalnız AÇIK ve KOŞULSUZ 'ücretsiz kabul
     expect(kbPetsFreeAllowed([])).toBe(false);
     // İki kalemden biri ücret yazıyorsa hayır (her evcil hayvan cümlesi uymalı).
     expect(kbPetsFreeAllowed([...kb("Evcil hayvanlar ücretsiz kabul edilir."), ...kb("Temizlik için evcil hayvan başına 300 TL alınır.", "Temizlik")])).toBe(false);
+  });
+
+  it("🚨 Opus 10-23 akşam B1: yasak biçimleri ('-emez', forbidden / prohibited) ve TÜRE GÖRE ayrışan politika 'ücretsiz kabul' değildir; yasak uyarısı da çıkar", () => {
+    for (const c of [
+      "Kediler ücretsiz kabul edilir; köpekler kabul edilemez.",
+      "Kediler ücretsiz kabul edilir, köpekler getirilemez.",
+      "Cats are welcome free of charge. Dogs are forbidden.",
+      "Cats are welcome free of charge; dogs are prohibited.",
+      "Kediler ve köpekler ücretsiz kabul edilir.",
+    ]) {
+      expect([c, kbPetsFreeAllowed(kb(c))]).toEqual([c, false]);
+    }
+    for (const c of ["Evcil hayvan kabul edilemez.", "Pets are forbidden.", "Pets are prohibited in the apartment.", "Evcil hayvan getiremezsiniz."]) {
+      expect([c, kbForbidsPets(kb(c))]).toEqual([c, true]);
+    }
+  });
+
+  it("🚨 Opus 10-23 akşam B2: çıplak 'free' ücretsizlik değil ('Feel free', 'smoke-free'); önceden haber / tasma / 'ancak' / 'please' koşuldur", () => {
+    for (const c of [
+      "Pets are welcome! Feel free to use the garden.",
+      "Pets are welcome in our smoke-free home.",
+      "Pets are welcome free of charge. Please let us know in advance.",
+      "Hunde sind willkommen und kostenlos, bitte vorab anmelden.",
+      "Pets welcome, free of charge, on a leash in common areas.",
+      "Evcil hayvanlar ücretsiz kabul edilir, ancak koltuklara çıkarılmamalıdır.",
+    ]) {
+      expect([c, kbPetsFreeAllowed(kb(c))]).toEqual([c, false]);
+    }
+    // KONTROL: açık ücret bağlamı hâlâ "ücretsiz".
+    for (const c of ["Pets are welcome, no pet fee.", "Pets are allowed for free.", "Pets are welcome free of charge."]) {
+      expect([c, kbPetsFreeAllowed(kb(c))]).toEqual([c, true]);
+    }
   });
 
   it("aşırı uygulama yok: 'pet şişe', İngilizce 'chat', 'кошмар' evcil hayvan değildir", () => {
@@ -210,6 +242,48 @@ describe("kapı kod yedeği — 'model sallamasın'", () => {
     expect(autoReplyGateVerdict(service, "I have a service dog.", { petsFreeAllowed: true })).toEqual({ reason: "blocked", detail: "reply_pet_policy" });
   });
 
+  it("🚨 Opus 10-23 akşam B3: öğe kipi koşmazken cevap hayvanı anmasa da misafirin evcil hayvan sorusuna cevap tutulur; yardımcı hayvan misafir mesajından da okunur", () => {
+    const vague = { ...ok, reply: "Evet, getirebilirsiniz." };
+    expect(autoReplyGateVerdict(vague, "Can we bring our puppy?", {})).toEqual({ reason: "blocked", detail: "reply_pet_policy" });
+    expect(autoReplyGateVerdict({ ...ok, reply: "Yes, you can bring him along." }, "Can I bring my guide dog?", { petsFreeAllowed: true })).toEqual({
+      reason: "blocked",
+      detail: "reply_pet_policy",
+    });
+    // Bilgi tabanı ücretsiz kabul diyorsa sıradan evcil hayvan sorusuna belirsiz "evet" gider (kurucu 4.4 A).
+    expect(autoReplyGateVerdict(vague, "Can we bring our puppy?", { petsFreeAllowed: true })).toBeNull();
+  });
+
+  it("🚨 Opus 10-23 akşam B4: bilgi tabanı 'ücretsiz kabul' derken cevabın kendisi ters yönde / koşullu / ücretliyse tutulur", () => {
+    const free = { petsFreeAllowed: true };
+    for (const reply of [
+      "Maalesef evcil hayvan kabul edilmiyor.",
+      "Evet, köpeğinizi gecelik 200 TL ücretle getirebilirsiniz.",
+      "Evet, getirebilirsiniz. Gecelik ücret 200 TL'dir.",
+      "Maalesef kabul edemiyoruz.",
+      "Yes, pets are welcome but a cleaning fee applies.",
+      "Your dog is welcome if it is under 10 kg.",
+      "Evet, küçük köpekler kabul edilir.",
+    ]) {
+      // Kelime ağının yakalamadığı soru ("puppy") — "köpeğimi / dog" konuşma düzeyinde zaten önce tutulur.
+      expect([reply, autoReplyGateVerdict({ ...ok, reply }, "Can we bring our puppy?", free)]).toEqual([
+        reply,
+        { reason: "blocked", detail: "reply_pet_policy" },
+      ]);
+      expect([reply, evaluateEscalation({ ...ok, reply }, "Can we bring our puppy?", null, [], free).reason]).toEqual([reply, "reply_pet_policy"]);
+    }
+  });
+
+  it("B4 KONTROL (aşırı uygulama yok): olumlu, koşulsuz cevap ve başka konunun cümlesi geçer", () => {
+    expect(petReplyStraysFromFreeKb("Evet, evcil hayvanınızı ücretsiz getirebilirsiniz.", true)).toBe(false);
+    expect(petReplyStraysFromFreeKb("No problem — pets are welcome at no extra fee.", true)).toBe(false);
+    expect(petReplyStraysFromFreeKb("Evet, köpeğinizi getirebilirsiniz. Wi-Fi şifresi: Lale2024.", true)).toBe(false);
+    expect(petReplyStraysFromFreeKb("Evet, getirebilirsiniz. Giriş saati 15:00'tir.", true)).toBe(false);
+    // Hayvan sorulmayan turda hayvanı anmayan cümle okunmaz (öğe kipi: evcil hayvan isteği ayrı öğe).
+    expect(petReplyStraysFromFreeKb("Otopark ücreti gecelik 100 TL.", false)).toBe(false);
+    expect(autoReplyGateVerdict({ ...ok, reply: "Evet, evcil hayvanınızı ücretsiz getirebilirsiniz." }, "Can we bring our puppy?", { petsFreeAllowed: true })).toBeNull();
+    expect(evaluateEscalation({ ...ok, reply: "Yes, your puppy is welcome." }, "Can we bring our puppy?", null, [], { petsFreeAllowed: true }).reason).toBeNull();
+  });
+
   it("aşırı uygulama yok: evcil hayvan anmayan cevap etkilenmez", () => {
     expect(autoReplyGateVerdict({ ...ok, reply: "Check-in is from 15:00. Plastic (PET) bottles go in the blue bin." }, "check-in?", {})).toBeNull();
     expect(autoReplyGateVerdict({ ...ok, reply: "Pet şişeler mavi kutuya." }, "Çöpler?", {})).toBeNull();
@@ -223,6 +297,9 @@ describe("QR kapısı — kanal kapısıyla AYNI kural", () => {
     expect(evaluateEscalation(draft("Yes, your puppy is welcome."), "Can we bring our puppy?", null, [], { petsFreeAllowed: true }).reason).toBeNull();
     expect(evaluateEscalation(draft("Your service dog is welcome."), "I have a service dog.", null, [], { petsFreeAllowed: true }).reason).toBe("reply_pet_policy");
     expect(evaluateEscalation(draft("Check-in is from 15:00."), "When is check-in?").reason).toBeNull();
+    // Opus 10-23 akşam B3: QR'da öğe kipi yok → misafirin evcil / yardımcı hayvan sorusu cevap metninden bağımsız okunur.
+    expect(evaluateEscalation(draft("Yes, you can bring him along."), "Can we bring our puppy?").reason).toBe("reply_pet_policy");
+    expect(evaluateEscalation(draft("Yes, you can bring him along."), "Can I bring my guide dog?", null, [], { petsFreeAllowed: true }).reason).toBe("reply_pet_policy");
   });
 });
 

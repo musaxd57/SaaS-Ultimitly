@@ -2,8 +2,10 @@
 // ---------------------------------------------------------------------------
 // SALT-OKUMA TEŞHİS — Hospitable rezervasyonunda kişi / evcil hayvan SAYI alanlarının ADLARI (migration 86).
 //
-// HİÇBİR ŞEY YAZMAZ. Veritabanından yalnız işletmenin bağlı mülk kimliklerini okur, Hospitable'dan son rezervasyonları ister ve
-// YALNIZ ALAN ADLARINI + tiplerini + kaç rezervasyonda geçtiklerini basar. Değer, ad, e-posta, telefon, kimlik BASILMAZ.
+// Rezervasyon / misafir verisi YAZMAZ. Veritabanından yalnız işletmenin bağlı mülk kimliklerini okur, Hospitable'dan son rezervasyonları ister
+// ve YALNIZ ALAN ADLARINI + tiplerini + kaç rezervasyonda geçtiklerini basar. Değer, ad, e-posta, telefon, kimlik BASILMAZ.
+// ⚠️ Tek yan etki (Opus 10-23 akşam G1): token OAuth ise ve süresi dolmuşsa `getOrgHospitableToken` onu YENİLER ve yeni token'ı (şifreli)
+// veritabanına yazar — uygulamanın her senkronunda yaptığı aynı işlem; teşhis bu yüzden "salt okuma" değil, "veri değiştirmez"dir.
 //
 // Amaç: `HOSPITABLE_GUEST_COUNTS_ENABLED` açılmadan önce, `channels/hospitable-ingest.ts guestPartyOf`ın okuduğu
 // `guests.adult_count / child_count / infant_count / pet_count` adlarının gerçek yanıtta bulunduğunu görmek (kurucu: "doğrulayamazsam boş

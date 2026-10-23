@@ -295,3 +295,25 @@ müşteriye giden cevabı GENİŞLETMEZ, uygulandı; (b) birleştirmede yalnız 
 (c) "eksik temel bilgi" soruları (Wi-Fi yok, çıkış yok): kurucunun 09-11'de kaldırdığı A3 yüzeyi — EKLENMEDİ, tarama yalnız çelişki / tekrar /
 yer tutucu / evcil hayvan uyarısı sorar; (d) tarama kararları KVKK dışa aktarmasına: metin taşımaz, sonuç bilgi tabanının dışa aktarmasında —
 gerekçeli dışarıda (ayrı soru gerekmez).
+
+## 10. S3 — kalıcı gömme deposu (kurucu onayı: "Bilgi tabanı iki yeni tablo ana dala"; anahtar KAPALI doğar)
+
+Bugün: parça vektörleri süreç belleğinde (LRU 4.096, anahtar = model + metin özeti), her yeniden başlatmada sıfırlanır; yeni / değişen bilgi
+tabanının ilk kararı sözcükseldir ("cold"). 100 ev sahibi × 10 daire × ~30 parça = 30.000 parça olunca bellek deposu sürekli boşalır.
+
+- **Tablo `KbChunkVector`** (migration 87, yalnız yeni tablo — açılış güvenli): `organizationId · propertyId · kbItemId · model · dims · textHash
+  · variant (raw | qr) · vector (Float32, dims × 4 bayt) · createdAt`; tekil (`kbItemId, model, textHash`), dizin (`propertyId, model, textHash`).
+  Metin SAKLANMAZ; anahtar bellek deposuyla aynı özet (`embeddingTextFor` metninin SHA-256'sı).
+- **Yazma yalnız ısıtmadan** (`kb-warm.ts` → `warmKbVectors(items, { organizationId, propertyId, variant })`): sağlayıcıdan dönen vektör hem belleğe hem
+  tabloya (`createMany skipDuplicates`); metin → kalem eşlemesi parçalayıcının kendi çıktısından. Sorgu vektörü ASLA saklanmaz.
+- **Okuma** (`prepareSemanticScores`): bellekte eksik parça varsa ve anahtar açıksa yalnız O DAİRENİN satırları (`propertyId` + eksik özetler)
+  ≤ 250 ms zaman sınırıyla okunur; her satır doğrulanır (boyut 1.536, bayt = boyut × 4, sonlu sayılar); bozuk satır silinir ve eksik sayılır.
+  Hâlâ eksik varsa bugünkü gibi "cold" + arka plan ısıtması — YARIM HARİTA YOK. Okuma arızası = "cold" (misafir beklemez).
+- **Silme / KVKK:** `kbItemId` silinince satırlar aynı komutla gider (cascade); S1 yazma kancası değişen kalemin artık geçmeyen özetlerini siler;
+  saatlik süpürücü eski modelin satırlarını siler. Satırlar ev sahibinin bilgi tabanı metninden türetilir (misafir verisi yok) → dışa aktarmada
+  gerekçeli dışarıda ("türetilmiş, metni bilgi tabanı dışa aktarmasında"); işletme / daire silinince cascade.
+- **Kiracı yalıtımı:** okuma `propertyId` süzgeçli; bellek deposu ortak kalır (vektör metnin saf fonksiyonu, isteyen metne zaten sahip).
+- **Testler (önce kırmızı):** anahtar kapalıyken veritabanı okuma / yazma YOK · yazılan vektör bit bit aynı okunur, sıralama aynı · kalem / daire /
+  işletme silinince satır kalmaz · başka dairenin satırı okunmaz · bozuk satır → cold + satır silinir · zaman aşımı → cold, yarım harita yok ·
+  sorgu vektörü tabloya girmez · envanterler (dışa aktarma, demo sıfırlama, kiracılar arası, Railway bayrak listesi, "1" bayrakları).
+- **Sıra:** S1 (tek yazma kancası, pinli) → S3 → S5 ölçüm (içe aktarma boyutunda bilgi tabanı: tamamı / seçim, sıcak / soğuk) → S6 ekran.

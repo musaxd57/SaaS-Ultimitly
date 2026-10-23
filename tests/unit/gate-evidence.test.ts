@@ -155,6 +155,13 @@ describe("kapı hükmü — her `blocked` kontrolü kendi ayrıntı koduyla", ()
       "reply_offplatform_contact",
     ],
     [
+      "Opus 10-23 akşam C1: Airbnb'de onaysız konuşmada İMZA telefon taşıyor (anahtarsız)",
+      { ...ok, reply: "The Wi-Fi password is Lale2025." },
+      WIFI_Q,
+      { offPlatformContactHolds: true, outboundSignature: "Best,\nAli\n+90 532 123 45 67" },
+      "signature_offplatform_contact",
+    ],
+    [
       "kıdemli okuyucu: özür / kusur kabulü (T-a, özür kuralı açık)",
       { ...ok, reply: "We are sorry for the inconvenience. The Wi-Fi password is Lale2025." },
       WIFI_Q,

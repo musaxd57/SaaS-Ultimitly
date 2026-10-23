@@ -39,12 +39,26 @@ const ALLOWED =
 
 /** Olumsuzluk / yasak (katlanmış) — bir tanesi bile "ücretsiz kabul" okumasını bozar. */
 const NEGATIVE =
-  /(?:edilmez|edilmiyor|edilmemektedir|verilmez|verilmiyor|yasak|degil|kabul etmiyoruz|(?<![\p{L}])(?:not|no|never|cannot|can t|don t|isn t|aren t|won t)(?![\p{L}])|kein|nicht|verboten|interdit|pas (?:accept|autoris)|(?<![\p{L}])(?:no se|prohibid)|не (?:допуска|разреш)|запрещ|нельзя)/u;
+  // Opus 10-23 akşam B1: "-emez / -amaz" yeterlilik olumsuzu ("kabul edilemez", "getirilemez", "getiremezsiniz"), "olmaz", "izin yok",
+  // İngilizce "forbidden / prohibited / banned / disallowed" — biri yoksa "Kediler ücretsiz; köpekler kabul edilemez." ücretsiz kabul sayılıyordu.
+  /(?:edilmez|edilmiyor|edilmemekte\p{L}*|edilemez|edilemiyor|getirilemez|getiremez\p{L}*|kabul edemiyoruz|verilmez|verilmiyor|verilmemekte\p{L}*|yasak|degil|kabul etmiyoruz|(?<![\p{L}])olmaz(?![\p{L}])|izin yok|(?<![\p{L}])(?:not|no|never|cannot|can t|don t|isn t|aren t|won t|forbidden|prohibited|banned|disallowed)(?![\p{L}])|kein|nicht|verboten|untersagt|interdit|refuse|non admis|pas (?:accept|autoris)|(?<![\p{L}])(?:no se|prohibid)|не (?:допуска|разреш)|запрещ|нельзя)/u;
+
+/**
+ * Türe göre ayrışan politika (Opus 10-23 akşam B1): kalem İKİ ayrı tür anıyorsa ("kediler … köpekler …") "ücretsiz kabul" hangi türe ait
+ * belli değildir → evet denmez (ev sahibine).
+ */
+const SPECIES: readonly RegExp[] = [
+  /(?<![\p{L}])(?:kedi\p{L}{0,6}|cats?|kitten|katzen?|(?:les|le|mon|nos|des|un|votre|vos) chats?|gatos?|кош\p{L}{0,3}|кот\p{L}{0,3})(?![\p{L}])/u,
+  /(?<![\p{L}])(?:kopek\p{L}{0,6}|kopeg\p{L}{0,6}|(?<!hot )dogs?|puppy|puppies|hunde?n?|hundes|chiens?|perros?|собак\p{L}{0,3})(?![\p{L}])/u,
+  /(?<![\p{L}])(?:kus\p{L}{0,4}|birds?|vogel|oiseaux?|pajaros?|птиц\p{L}{0,3}|tavsan\p{L}{0,4}|rabbits?|hamsters?|baliklar?|fish)(?![\p{L}])/u,
+];
 
 /** Açık ücretsizlik (katlanmış). */
 const FREE_SRC =
   "(?:ucretsiz|ucret alinmaz|ucret alinmamaktadir|ucret talep edilmez|ek ucret (?:yok|alinmaz|alinmamaktadir)|ekstra ucret (?:yok|alinmaz)|bedava|" +
-  "(?<![\\p{L}])free(?: of charge)?(?![\\p{L}])|(?:at )?no (?:extra |additional )?(?:pet )?(?:fee|charge|cost)|kostenlos|kostenfrei|gebuhrenfrei|" +
+  // Çıplak "free" ücretsizlik DEĞİL ("Feel free to …", "smoke-free" — Opus 10-23 akşam B2): yalnız ücret bağlamı.
+  "(?<![\\p{L}-])free of charge|(?<![\\p{L}-])for free(?![\\p{L}])|(?:pets?|dogs?|cats?) (?:stay|are|is) free(?![\\p{L}])|free for (?:pets?|dogs?|cats?)|" +
+  "(?:at )?no (?:extra |additional )?(?:pet )?(?:fee|charge|cost)|kostenlos|kostenfrei|gebuhrenfrei|" +
   "gratuit\\p{L}*|sans frais|gratis|sin (?:cargo|coste|costo)|бесплатно)";
 const FREE = new RegExp(FREE_SRC, "u");
 const FREE_G = new RegExp(FREE_SRC, "gu");
@@ -53,7 +67,7 @@ const FREE_G = new RegExp(FREE_SRC, "gu");
  * Koşul / ücret / tutar işaretleri — biri bile varsa "koşullu" (ev sahibine). Rakam her zaman koşul sayılır (kg, adet, tutar, saat).
  */
 const CONDITION =
-  /(?:\p{Nd}|(?<![\p{L}])kg(?![\p{L}])|kilo|kucuk|buyuk|sadece|yalniz|onceden|haber ver|onay|izin al|depozito|teminat|temizlik ucreti|gecelik|ucretli|ucret (?:alinir|alinmaktadir|uygulan)|zorunlu|mecburi|gerek|sart|en fazla|en cok|tasma|kafes|bir adet|tek (?:bir )?(?:kedi|kope)|(?<![\p{L}])(?:only|small|large|max|maximum|up to|prior|approval|request|deposit|fee applies|per night|per stay|charge applies|if|provided|as long as|must|required|unless|one (?:dog|cat|pet))(?![\p{L}])|(?<![\p{L}])nur(?![\p{L}])|klein|vorher|genehmigung|kaution|gebuhr|hochstens|bis zu|wenn|seulement|uniquement|petit|caution|frais|(?<![\p{L}])si(?![\p{L}])|solo|solamente|unicamente|pequen|fianza|tarifa|(?<![\p{L}])si (?:es|son)|только|маленьк|залог|доплат|если|не более)/u;
+  /(?:\p{Nd}|(?<![\p{L}])kg(?![\p{L}])|kilo|kucuk|buyuk|sadece|yalniz|onceden|haber ver|onay|izin al|depozito|teminat|temizlik ucreti|gecelik|ucretli|ucret (?:alinir|alinmaktadir|uygulan)|zorunlu|mecburi|gerek|sart|en fazla|en cok|tasma|kafes|bir adet|tek (?:bir )?(?:kedi|kope)|(?<![\p{L}])(?:only|small|large|max|maximum|up to|prior|approval|request|deposit|fee applies|per night|per stay|charge applies|if|provided|as long as|must|required|unless|one (?:dog|cat|pet))(?![\p{L}])|(?<![\p{L}])nur(?![\p{L}])|klein|vorher|genehmigung|kaution|gebuhr|hochstens|bis zu|wenn|seulement|uniquement|petit|caution|frais|(?<![\p{L}])si(?![\p{L}])|solo|solamente|unicamente|pequen|fianza|tarifa|(?<![\p{L}])si (?:es|son)|только|маленьк|залог|доплат|если|не более|in advance|let us know|notify|beforehand|leash|advance notice|inform us|vorab|anmelden|leine|avisar|antelacion|correa|laisse|prevenir|заранее|поводк|(?<![\p{L}])(?:ancak|ama|fakat|but|except|however|aber|mais|pero|lutfen|please|bitte|por favor)(?![\p{L}])|s il vous plait|пожалуйста|\p{L}(?:malidir|melidir|mamali|memeli)(?![\p{L}]))/u;
 
 /** Karşılaştırma biçimi: görünmez karakter yok, Türkçe harfler ASCII, kesme işareti boşluk ("can't" → "can t"), işaretler sökülür. */
 const fold = (t: string) => normalizeForRetrieval(t).toLowerCase().normalize("NFD").replace(/\p{M}+/gu, "");
@@ -91,6 +105,7 @@ export function kbPetsFreeAllowed(kb: readonly { title: string; content: string 
       continue;
     }
     seen += 1;
+    if (SPECIES.filter((re) => re.test(f)).length >= 2) return false;
     if (!ALLOWED.test(f) || !FREE.test(f) || NEGATIVE.test(f.replace(FREE_G, " ")) || CONDITION.test(f) || OTHER_SUBJECT.test(f)) return false;
   }
   return seen > 0;
@@ -105,6 +120,32 @@ export function kbForbidsPets(kb: readonly { title: string; content: string }[])
     for (const raw of sentences(`${item.title}: ${item.content}`)) {
       const f = fold(raw);
       if (PET_WORD.test(f) && NEGATIVE.test(f.replace(FREE_G, " "))) return true;
+    }
+  }
+  return false;
+}
+
+/** Kibar olumsuz kalıp ("No problem", "Sorun değil") olumsuzluk değildir. */
+const POLITE_NEGATION =
+  /(?<![\p{L}])(?:no problem|no worries|not a problem|sorun (?:degil|yok)|problem (?:degil|yok)|kein problem|pas de probleme|no hay problema|без проблем)(?![\p{L}])/gu;
+/** Ücret / depozito sözcüğü (hayvanı anmayan cümlede de koşul taşır: "Evet, getirebilirsiniz. Gecelik ücret 200 TL."). */
+const FEE_WORD =
+  /(?<![\p{L}])(?:ucret\p{L}{0,6}|depozito|teminat|fee|fees|charge\p{L}{0,2}|deposit|surcharge|gebuhr\p{L}{0,2}|kaution|frais|caution|cargo|tarifa|fianza|доплат\p{L}{0,2}|залог\p{L}{0,2})(?![\p{L}])/u;
+
+/**
+ * Bilgi tabanı "ücretsiz kabul" derken CEVAP aynı yönde mi (Opus 10-23 akşam B4; kurucu "model sallamasın"): evcil hayvanı anan cümlede
+ * olumsuzluk / yasak, rakam / koşul ya da ücret → `true` (ev sahibine). Misafirin mesajı evcil hayvan soruyorsa (`petTurn`) hayvanı anmayan
+ * cümle de okunur ("Maalesef kabul edemiyoruz." · "Gecelik ücret 200 TL.") — başka bir hizmetin adını taşıyan cümle hariç ("Wi-Fi şifresi
+ * …"). Açık ücretsizlik ifadesi ("ücretsiz", "no extra fee") ve kibar olumsuz kalıp ("No problem") okumadan önce silinir. Saf, doğrusal.
+ */
+export function petReplyStraysFromFreeKb(reply: string | null | undefined, petTurn: boolean): boolean {
+  for (const raw of sentences(reply ?? "")) {
+    const f = fold(raw);
+    const plain = f.replace(FREE_G, " ").replace(POLITE_NEGATION, " ");
+    if (PET_WORD.test(f) || ASSISTANCE_ANIMAL.test(f)) {
+      if (NEGATIVE.test(plain) || CONDITION.test(plain) || FEE_WORD.test(plain)) return true;
+    } else if (petTurn && !OTHER_SUBJECT.test(f) && (NEGATIVE.test(plain) || FEE_WORD.test(plain))) {
+      return true;
     }
   }
   return false;

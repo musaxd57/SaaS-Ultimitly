@@ -505,9 +505,11 @@ describe("eşleştirilmiş eval — çevrimdışı pinler (gerçek çağrı YAPM
     // 🚨 TESLİMAT KONTROLÜNÜN KENDİSİ PİNLİ: yalnız "dürüst cevap geçer" demek
     // YETMEZ — kontrol tamamen silinse o satır yine yeşil kalırdı. Buradaki cevap
     // kapıdan GEÇER (yüksek güven, risksiz) ve gold istemde OLMADIĞI için düşmeli.
+    // Kurucu 10-23 akşam 4.5: "ev sahibiniz netleştirebilir, kendisine yazabilirsiniz" yönlendirmesi artık bilgisizlik sayılır ve TUTULUR —
+    // fikstür, kapıdan gerçekten geçen somut iddiasız bir cevaba çevrildi (kontrolün kendisini sınamak için cevabın GİTMESİ gerekir).
     const deliverableNoGold = pairedRow(s, leg, {
       ...OPENAI_BASE, usedSources: [], confidence: 0.95,
-      reply: "Otoparkla ilgili durumu ev sahibiniz netleştirebilir, kendisine yazabilirsiniz.",
+      reply: "Merhaba, buradayım; konaklamanızla ilgili sorularınızı yazabilirsiniz.",
     });
     expect(deliverableNoGold.outcome).toBe("failed_checks");
     expect(deliverableNoGold.failures.join(" ")).toMatch(/misafire GİDERDİ/);
