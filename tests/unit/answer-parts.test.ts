@@ -672,7 +672,8 @@ describe("suggestReply — parça okuyucusu (AI_SENIOR_READER_ENABLED, parça ki
 
   it("🚨 okuyucu dayanılan kalemin yanında AYNI KONUYU anan öteki kalemi de görür (istisna / genel kural başka kalemde olabilir — Opus 10-23 F10)", async () => {
     vi.stubEnv("AI_SENIOR_READER_ENABLED", "1");
-    const kb = [...KB, { category: "rules", title: "Havuz kuralları", content: "Hafta sonu havuz 23:00'e kadar açıktır." }];
+    // Değersiz kural kalemi (saat taşısa kod parçayı "değişke düştü" diye tutar, okuyucuya hiç gitmez).
+    const kb = [...KB, { category: "rules", title: "Havuz kuralları", content: "Havuzda cam şişe kullanılmaz." }];
     let seen = "";
     routedFetch({ ...MODEL, answers }, (body) => {
       seen = body;
@@ -681,7 +682,7 @@ describe("suggestReply — parça okuyucusu (AI_SENIOR_READER_ENABLED, parça ki
     await suggestReply({ ...input, knowledgeBase: kb, conversationItems: ITEMS });
     const r2 = seen.slice(seen.indexOf("R2 · REQUEST"));
     expect(r2).toContain("Havuz her gün 20:00");
-    expect(r2).toContain("Hafta sonu havuz 23:00");
+    expect(r2).toContain("Havuzda cam şişe kullanılmaz");
   });
 
   it("doğrulanmış parça yoksa okuyucu çağrılmaz", async () => {

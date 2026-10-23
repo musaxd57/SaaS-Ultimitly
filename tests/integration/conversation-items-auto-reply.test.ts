@@ -1870,7 +1870,7 @@ describe("CEVAP PARÇALARI (kurucu 10-23 A, AI_ANSWER_PARTS_ENABLED)", () => {
     );
     expect((await applyChannelAutoReply(conversationId)).sent).toBe(false);
     expect(mockMail).toHaveBeenCalledTimes(1);
-    const sauna = (await itemsOf(conversationId)).find((i) => i.kind === "amenities")!;
+    const sauna = await prisma.conversationItem.findFirstOrThrow({ where: { conversationId, kind: "amenities" }, select: { id: true } });
     expect(await prisma.systemLock.count({ where: { name: `open-need-mail:${sauna.id}` } })).toBe(1);
     // 3. geçiş: aynı tur sessiz tutuldu (bütün parçalar doğrulandı, güven düşük) → sauna satırı için ikinci e-posta YOK.
     reread();
