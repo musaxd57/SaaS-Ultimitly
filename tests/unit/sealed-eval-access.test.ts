@@ -23,6 +23,8 @@ const NEEDLE = ["stay", "change", "final"].join("-");
 const NEEDLE_UX = ["understanding", "e2e", "blind"].join("-");
 /** İhtiyaç bazlı uçtan uca kör set (kurucu 10-23 sabah, Soru 11; `docs/TASARIM-2026-10-23-soru-9-10-11-istisna-bildirim-parca-okuyucu.md` §4). */
 const NEEDLE_E = ["needs", "blind", "2026", "10", "23"].join("-");
+/** Yanan setin yerine yeni kabul seti (10-23 sabah-3, Codex: "ayrıntılar geliştirmede kullanılırsa sonraki kabul yeni, görülmemiş setle"). */
+const NEEDLE_K = ["needs", "kabul", "2026", "10", "23"].join("-");
 
 /** Dosya adının geçmesine izin verilen yerler (yeni okuyucu = bilinçli liste değişikliği). */
 const ALLOWED = new Set([
@@ -47,6 +49,7 @@ const ALLOWED_E = new Set([
   "docs/olcum/live-pipeline-2026-10-23-gpt-6-luna-kor-e1023-old-on-kor.md",
   "docs/olcum/live-pipeline-2026-10-23-gpt-6-luna-kor-e1023-old-on-kor.json",
 ]);
+const ALLOWED_K = new Set(["evals/sealed/SEALS.json", `evals/sealed/${NEEDLE_K}.json`, "tests/eval/live-pipeline.eval.test.ts"]);
 const SKIP_DIRS = new Set([".git", "node_modules", ".next", "dist", "build", "coverage", "playwright-report", "test-results"]);
 const BINARY_EXT = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".pdf", ".woff", ".woff2", ".ttf", ".zip", ".gz"]);
 
@@ -98,6 +101,7 @@ describe("mühürlü final eval seti", () => {
       if (text.includes(NEEDLE) && !ALLOWED.has(rel)) offenders.push(rel);
       if (text.includes(NEEDLE_UX) && !ALLOWED_UX.has(rel)) offenders.push(rel);
       if (text.includes(NEEDLE_E) && !ALLOWED_E.has(rel)) offenders.push(rel);
+      if (text.includes(NEEDLE_K) && !ALLOWED_K.has(rel)) offenders.push(rel);
     }
     expect(offenders).toEqual([]);
   });

@@ -113,6 +113,14 @@ describe("okuyucunun gördüğü metin", () => {
     expect(PART_READER_SYSTEM_PROMPT).toContain("does not cover the guest's stay");
   });
 
+  it("Codex S3: koddan okuyucuya geçen anlam denetimleri istemde AÇIKÇA (yön, sorulan yön, ters evet / hayır, başka hizmetin değeri, düşen koşul)", () => {
+    expect(PART_READER_SYSTEM_PROMPT).toContain("something CLOSES → part gives only when it opens");
+    expect(PART_READER_SYSTEM_PROMPT).toContain("asked the PRICE → part gives only where it is");
+    expect(PART_READER_SYSTEM_PROMPT).toContain("allowed ↔ not allowed, free ↔ charged, open ↔ closed");
+    expect(PART_READER_SYSTEM_PROMPT).toContain("moves a value to another thing");
+    expect(PART_READER_SYSTEM_PROMPT).toContain("drops or changes its condition");
+  });
+
   it("uzun tur metni 8.000 karaktere kadar okunur (kurucu: cimrilik yok)", () => {
     const long = `${"a".repeat(7_000)} SON-SORU`;
     expect(buildPartReaderUserContent({ guestMessage: long, parts: [] })).toContain("a".repeat(6_900));

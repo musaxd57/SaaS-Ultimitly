@@ -116,7 +116,7 @@ const SET = (process.env.EVAL_LIVE_SET?.trim() || "model-reply-compare.json").re
  * yasak; rapor yalnız TOPLU SAYI + senaryo kimliği basar, hiçbir misafir / cevap metni yazılmaz.
  */
 const SEALED = process.env.EVAL_SEALED_FINAL === "1";
-const SEALED_NAMES = ["needs-blind-2026-10-23.json"] as const;
+const SEALED_NAMES = ["needs-blind-2026-10-23.json", "needs-kabul-2026-10-23.json"] as const;
 const SEALED_NAME_RAW = process.env.EVAL_SEALED_NAME?.trim();
 if (SEALED_NAME_RAW && !(SEALED_NAMES as readonly string[]).includes(SEALED_NAME_RAW)) throw new Error(`EVAL_SEALED_NAME tanınmıyor: ${SEALED_NAME_RAW}`);
 const SEALED_NAME = SEALED_NAMES.find((n) => n === SEALED_NAME_RAW) ?? SEALED_NAMES[0];
@@ -600,7 +600,7 @@ async function runOnce(s: Scenario): Promise<Omit<Row, "retried">> {
       ? {
           needs: scoreNeeds(s.expect.needs, sentText, items),
           itemStates: items.map((i) => ({ kind: i.kind, status: i.status })),
-          parts: raw?.source === "openai" && raw.answerParts ? raw.answerParts.map((v) => ({ ref: v.ref, status: v.status, ...("issues" in v ? { issues: v.issues } : {}) })) : null,
+          parts: raw?.source === "openai" && raw.answerParts ? raw.answerParts.map((v) => ({ ref: v.ref, status: v.status, ...("issues" in v ? { issues: v.issues } : {}), ...("advisory" in v && v.advisory ? { advisory: v.advisory } : {}) })) : null,
           absenceLeak: sentText ? ABSENCE_LEAK.test(sentText) : false,
           ...(partsRawLog.length > 0 ? { partsRaw: partsRawLog } : {}),
           ...(requestsRawLog.length > 0 ? { requestsRaw: requestsRawLog } : {}),

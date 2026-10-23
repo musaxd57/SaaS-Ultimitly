@@ -650,14 +650,16 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
               const needs = items.answerable.map((a) => ({ ref: a.ref, terms: a.need?.terms ?? [], topics: a.need?.topics ?? [], queries: a.need?.queries ?? [] }));
               const partSources = prompt.partSources ?? [];
               const guest = guestContextOf(input);
-              let composed = composeVerifiedReply({ parts: decl.parts, needs, sources: partSources });
+              // Okuyucu koşacaksa anlam denetimleri onun (Codex S3, `CODE_KEPT_ISSUES`); okuyucu kapalıyken bütün parçalar zaten tutulur.
+              const meaningJudge = seniorReaderEnabled() ? ("reader" as const) : ("code" as const);
+              let composed = composeVerifiedReply({ parts: decl.parts, needs, sources: partSources, meaningJudge });
               // PARÇA OKUYUCUSU (kurucu 10-23 sabah, Soru 11; kıdemli okuyucunun anahtarı): kodun doğruladığı parçalar + istekleri + kaynakları
               // okunur; okuyucu yalnız TUTAR (sorulanı cevaplamıyor / yarım / yanlış bağ / tek başına istisna), düşerse bütün parçalar tutulur.
               // Okuyucu KAPALIYSA (anahtar yok / anlam katmanı anahtarı eksik) da bütün parçalar tutulur (Opus 10-23 G1): "genel kural + istisna"
               // (Soru 9) ve "sorulanı cevaplıyor mu" denetimi yalnız okuyucuda — okuyucusuz parça kipi bunları hiç sınamadan gönderiyordu.
               if (composed.verified.length > 0 && !seniorReaderEnabled()) {
                 const holds = partReaderHolds({ status: "failed" }, composed.verified.map((v) => v.ref));
-                composed = composeVerifiedReply({ parts: decl.parts, needs, sources: partSources, holds });
+                composed = composeVerifiedReply({ parts: decl.parts, needs, sources: partSources, holds, meaningJudge });
               } else if (composed.verified.length > 0) {
                 const reader = await runPartReader({
                   // Bugün + konaklama günleri (kör set incelemesi 10-23: Temmuz'da geleceğini söyleyen misafire sezon dışı saat).
@@ -671,8 +673,10 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
                     const a = items.answerable.find((x) => x.ref === v.ref);
                     const primary = partSources.find((s) => s.id === v.source)?.text ?? "";
                     // Dayandığı kalem ilk; aynı konuyu anan öteki kalemler ardından (değişke / istisna başka kalemde olabilir — Opus 10-23 sabah F10).
+                    // Alıntının geçtiği öteki kalemler de (#199: genel kural + istisnası iki kalemde) — konu sözcüğü eşleşmese bile.
+                    const cited = new Set(v.cited ?? []);
                     const related = partSources
-                      .filter((s) => s.id !== v.source && sourceMentionsNeed(s.text, a?.need?.terms ?? [], a?.need?.topics ?? []))
+                      .filter((s) => s.id !== v.source && (cited.has(s.id) || sourceMentionsNeed(s.text, a?.need?.terms ?? [], a?.need?.topics ?? [])))
                       .map((s) => s.text);
                     // İstek misafirin KENDİ sözleriyle (Codex S2): sorgu listesi [Türkçe arama sorgusu, özgün dildeki sorgu] — sonuncusu özgün.
                     const queries = a?.need?.queries ?? [];
@@ -687,7 +691,7 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
                   names: [input.reservation?.guestName, input.reservation?.guestGivenName, input.guestIdentifier],
                 });
                 const holds = partReaderHolds(reader, composed.verified.map((v) => v.ref));
-                if (holds.size > 0) composed = composeVerifiedReply({ parts: decl.parts, needs, sources: partSources, holds });
+                if (holds.size > 0) composed = composeVerifiedReply({ parts: decl.parts, needs, sources: partSources, holds, meaningJudge });
               }
               const sources = composed.verdicts.flatMap((v) => (v.status === "verified" ? [v.source] : []));
               return { reply: composed.reply, answered: { ok: true as const, refs: composed.refs }, verdicts: composed.verdicts, verified: composed.verified, sources };

@@ -7,7 +7,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 // ---------------------------------------------------------------------------
 vi.mock("server-only", () => ({}));
 
-import { answerPartsEnabled, composeVerifiedReply, foldPartText, parseAnswerParts, partTextKey, type AnswerPart } from "@/lib/ai/answer-parts";
+import { answerPartsEnabled, CODE_KEPT_ISSUES, composeVerifiedReply, foldPartText, groundEvidence, parseAnswerParts, partTextKey, type AnswerPart } from "@/lib/ai/answer-parts";
 import { ANSWER_PARTS_REPLACEMENTS, buildReplyPrompt, replySystemPromptFor, REPLY_SYSTEM_PROMPT_DERIVATION_MISSING } from "@/lib/ai/prompts";
 import { suggestReply } from "@/lib/ai";
 import { kbLine } from "@/lib/ai/retrieval/kb-line";
@@ -104,6 +104,129 @@ describe("doğrulama + birleştirme", () => {
       { ref: "R3", status: "rejected", issues: ["too_long"] },
     ]);
     expect(out.reply).toBe("");
+  });
+});
+
+describe("Codex S3 (10-23 sabah-3) — okuyucu koşarken anlam denetimi okuyucunun, kaynak geçerliliği kodun", () => {
+  const sauna = p("R2", "Havuz 22:00'de kapanıyor.", "Havuz her gün 20:00'de, sauna 22:00'de kapanır.");
+
+  it("🚨 anlam bulgusu (değer başka hizmete bağlı) okuyucu koşarken TUTMAZ: parça okuyucuya gider, bulgu ize yazılır; kod kipinde tutar", () => {
+    const byReader = composeVerifiedReply({ parts: [sauna], needs: [NEEDS[1]], sources: SOURCES, meaningJudge: "reader" });
+    expect(byReader.verdicts).toEqual([{ ref: "R2", status: "verified", source: "kb:1", advisory: ["value_bound_elsewhere"] }]);
+    expect(byReader.verified.map((v) => v.ref)).toEqual(["R2"]);
+    // Varsayılan (ve okuyucusuz) kip bugünkü kural.
+    expect(composeVerifiedReply({ parts: [sauna], needs: [NEEDS[1]], sources: SOURCES }).verdicts[0]).toEqual({
+      ref: "R2",
+      status: "rejected",
+      issues: ["value_bound_elsewhere"],
+    });
+  });
+
+  it("🚨 okuyucu tutarsa parça gitmez; kodun gördüğü bulgu tutma kaydında kalır (ölçüm: ikisi aynı şeyi mi gördü)", () => {
+    const out = composeVerifiedReply({ parts: [sauna], needs: [NEEDS[1]], sources: SOURCES, meaningJudge: "reader", holds: new Map([["R2", "binding" as const]]) });
+    expect(out.reply).toBe("");
+    expect(out.refs).toEqual([]);
+    expect(out.verdicts).toEqual([{ ref: "R2", status: "rejected", issues: ["reader_binding"], advisory: ["value_bound_elsewhere"] }]);
+  });
+
+  it("🚨 kaynak geçerliliği okuyucu koşarken de KODDA: uydurma saat · alıntı kalemde yok · alıntı başka kaynakta hiç yok · konusu bilinmeyen ihtiyaç", () => {
+    const judge = (part: AnswerPart, n = NEEDS[1]) => composeVerifiedReply({ parts: [part], needs: [n], sources: SOURCES, meaningJudge: "reader" }).verdicts[0];
+    expect(judge(p("R2", "Havuz 21:00'de kapanıyor.", "Havuz her gün 20:00'de, sauna 22:00'de kapanır."))).toMatchObject({
+      status: "rejected",
+      issues: expect.arrayContaining(["value_not_in_evidence"]),
+    });
+    expect(judge(p("R2", "Havuz 20:00'de kapanıyor.", "Havuz 20:00'de kapanır ve ısıtmalıdır."))).toEqual({ ref: "R2", status: "rejected", issues: ["source_not_found"] });
+    const unknown = { ref: "R2", terms: [] as string[], topics: [] as string[] };
+    expect(judge(p("R2", "20:00.", "Havuz her gün 20:00'de, sauna 22:00'de kapanır."), unknown)).toMatchObject({
+      status: "rejected",
+      issues: expect.arrayContaining(["subject_unknown"]),
+    });
+    // Okuyucu kipinde tutan bulgu listesi YALNIZ koddaki denetimlerden (anlam bulgusu karışmaz).
+    const v = judge(p("R2", "Havuz 21:00'de kapanıyor.", "Havuz her gün 20:00'de, sauna 22:00'de kapanır."));
+    expect(v.status === "rejected" && v.issues.every((i) => CODE_KEPT_ISSUES.has(i as never))).toBe(true);
+  });
+
+  it("sorulan yön / tesis (kapsam) de okuyucunun sorusu: okuyucu kipinde ize yazılır, kod kipinde tutar", () => {
+    const n = { ref: "R1", terms: needTerms(["havuz kaçta açılıyor"]), topics: [], queries: ["havuz kaçta açılıyor"] };
+    const src = [{ id: "kb:1", text: kbLine({ category: "amenities", title: "Havuz", content: "Havuz ısıtmalıdır." }) }];
+    const part = p("R1", "Havuz ısıtmalıdır.", "Havuz ısıtmalıdır.");
+    expect(composeVerifiedReply({ parts: [part], needs: [n], sources: src }).verdicts[0]).toEqual({ ref: "R1", status: "rejected", issues: ["aspect_missing"] });
+    expect(composeVerifiedReply({ parts: [part], needs: [n], sources: src, meaningJudge: "reader" }).verdicts[0]).toEqual({
+      ref: "R1",
+      status: "verified",
+      source: "kb:1",
+      advisory: ["aspect_missing"],
+    });
+  });
+
+  it("kodda kalan küme bilinçli: yapı + kaynak geçerliliği + sayı (Codex S3 listesi; büyürse / küçülürse bu test bilerek güncellenir)", () => {
+    expect([...CODE_KEPT_ISSUES].sort()).toEqual(["evidence_missing", "evidence_not_in_source", "subject_unknown", "value_conflict", "value_not_in_evidence"]);
+  });
+});
+
+describe("#199 kör set incelemesi 10-23 — alıntı iki kalemi birleştirebilir; çevrilmiş kalem başlığı alıntıyı düşürmez", () => {
+  const TWO = [
+    { id: "kb:1", text: kbLine({ category: "amenities", title: "Havuz", content: "Havuz hafta içi 09:00–20:00 arası açıktır." }) },
+    { id: "kb:2", text: kbLine({ category: "amenities", title: "Havuz hafta sonu", content: "Hafta sonu havuz 09:00–23:00 arası açıktır." }) },
+  ];
+
+  it("🚨 her cümlesi bir kalemde birebir geçen alıntı dayanaklıdır: dayanak ilk cümlenin kalemi, bağ denetimine o cümle gider", () => {
+    expect(groundEvidence(TWO, "Havuz hafta içi 09:00–20:00 arası açıktır. Hafta sonu havuz 09:00–23:00 arası açıktır.")).toEqual({
+      source: TWO[0],
+      quote: "Havuz hafta içi 09:00–20:00 arası açıktır.",
+      cited: [TWO[0], TWO[1]],
+    });
+    const out = composeVerifiedReply({
+      parts: [p("R1", "Havuz hafta içi 20:00'de, hafta sonu 23:00'te kapanıyor.", "Havuz hafta içi 09:00–20:00 arası açıktır. Hafta sonu havuz 09:00–23:00 arası açıktır.")],
+      needs: [{ ref: "R1", terms: needTerms(["havuz kaçta kapanıyor"]), topics: [] }],
+      sources: TWO,
+      meaningJudge: "reader",
+    });
+    expect(out.verdicts[0]).toMatchObject({ status: "verified", source: "kb:1" });
+    // Okuyucu alıntının geçtiği İKİ kalemi de görür (index.ts notları `cited`dan da kurar).
+    expect(out.verified[0]).toMatchObject({ source: "kb:1", cited: ["kb:2"] });
+  });
+
+  it("🚨 ikinci kalem konu sözcüğünü anmasa da (\"Cumartesi ve pazar …\") alıntılandıysa değeri aranır: sayı denetimi geçer, anlam okuyucuya", () => {
+    const split = [
+      TWO[0],
+      { id: "kb:2", text: kbLine({ category: "amenities", title: "Hafta sonu", content: "Cumartesi ve pazar 09:00–23:00 arası açıktır." }) },
+    ];
+    const out = composeVerifiedReply({
+      parts: [p("R1", "Havuz hafta içi 20:00'de, cumartesi ve pazar 23:00'te kapanıyor.", "Havuz hafta içi 09:00–20:00 arası açıktır. Cumartesi ve pazar 09:00–23:00 arası açıktır.")],
+      needs: [{ ref: "R1", terms: needTerms(["havuz kaçta kapanıyor"]), topics: [] }],
+      sources: split,
+      meaningJudge: "reader",
+    });
+    expect(out.verdicts[0]).toMatchObject({ status: "verified", source: "kb:1" });
+    expect(out.verified[0]).toMatchObject({ cited: ["kb:2"] });
+  });
+
+  it("🚨 bir cümlesi bile kaynakta yoksa (uydurma ek) alıntı dayanaksız; tek sözcüklük parça dayanak sayılmaz", () => {
+    expect(groundEvidence(TWO, "Havuz hafta içi 09:00–20:00 arası açıktır. Havuz gece 24:00'e kadar ısıtılır.")).toBeNull();
+    expect(groundEvidence(TWO, "Evet. Havuz hafta içi 09:00–20:00 arası açıktır.")).toBeNull();
+    expect(groundEvidence(TWO, "")).toBeNull();
+    // Uydurma değer yine kodda düşer (çok parçalı alıntı değer denetimini gevşetmez).
+    const out = composeVerifiedReply({
+      parts: [p("R1", "Havuz hafta sonu 23:30'da kapanıyor.", "Havuz hafta içi 09:00–20:00 arası açıktır. Hafta sonu havuz 09:00–23:00 arası açıktır.")],
+      needs: [{ ref: "R1", terms: needTerms(["havuz kaçta kapanıyor"]), topics: [] }],
+      sources: TWO,
+      meaningJudge: "reader",
+    });
+    expect(out.verdicts[0]).toMatchObject({ status: "rejected", issues: expect.arrayContaining(["value_not_in_evidence"]) });
+  });
+
+  it("🚨 misafirin diline çevrilmiş kalem başlığı ('Интернет: …') atılıp kalan alıntı birebir aranır; başlıksız biçim aynen", () => {
+    const wifi = [{ id: "kb:1", text: kbLine({ category: "wifi", title: "İnternet", content: "Wi-Fi adı Lale-5G, şifre Lale2025." }) }];
+    expect(groundEvidence(wifi, "Интернет: Wi-Fi adı Lale-5G, şifre Lale2025.")).toEqual({ source: wifi[0], quote: "Wi-Fi adı Lale-5G, şifre Lale2025.", cited: [wifi[0]] });
+    expect(groundEvidence(wifi, "İnternet: Wi-Fi adı Lale-5G, şifre Lale2025.")).toEqual({
+      source: wifi[0],
+      quote: "İnternet: Wi-Fi adı Lale-5G, şifre Lale2025.",
+      cited: [wifi[0]],
+    });
+    // Başlık atıldıktan sonra kalan metin de kaynakta yoksa dayanaksız; rakam taşıyan "başlık" atılmaz.
+    expect(groundEvidence(wifi, "Интернет: şifre Lale2026.")).toBeNull();
+    expect(groundEvidence(wifi, "Oda 12: Wi-Fi adı Lale-5G, şifre Lale2025.")).toBeNull();
   });
 });
 
@@ -274,19 +397,31 @@ describe("suggestReply — parça kipi, Haiku 10-23 düzeltmeleri", () => {
     expect(r.confidence).toBeLessThanOrEqual(0.5);
   });
 
-  it("🚨 istek sorguları doğrulayıcıya ulaşır: saat sorusuna saatsiz parça suggestReply'da da gitmez (Opus e2e 10-23 F2 bağlantısı)", async () => {
+  it("🚨 istek sorguları doğrulayıcıya ulaşır: saat sorusuna saatsiz parçanın kod bulgusu ize yazılır, kararı okuyucu verir (Codex S3)", async () => {
     const withQueries: ReplyItemsInput = {
       ...ITEMS,
       answerable: ITEMS.answerable.map((a) => (a.ref === "R2" ? { ...a, need: { ...a.need!, queries: ["havuz kapanış saati"] } } : a)),
     };
     const kb = [{ category: "rules", title: "Havuz", content: "Havuz ısıtmalıdır." }];
-    openAiReturns({ ...MODEL, answers: [{ ref: "R2", status: "answered", text: "Havuz ısıtmalıdır.", evidence: "Havuz ısıtmalıdır." }] });
+    const heated = [{ ref: "R2", status: "answered", text: "Havuz ısıtmalıdır.", evidence: "Havuz ısıtmalıdır." }];
+    // Okuyucu "sorulanı cevaplamıyor" der → gitmez; kodun gördüğü bulgu tutma kaydında.
+    vi.stubEnv("AI_SENIOR_READER_ENABLED", "1");
+    routedFetch(
+      { ...MODEL, answers: heated },
+      readerSays([{ ref: "R2", answers_request: "no", supported_by_notes: true, binding_ok: true, exception_without_rule: false, quote: "Havuz ısıtmalıdır." }]),
+    );
+    const held = await suggestReply({ ...input, knowledgeBase: kb, conversationItems: withQueries });
+    expect(held.reply).toBe("");
+    expect(held.answerParts?.find((v) => v.ref === "R2")).toEqual({ ref: "R2", status: "rejected", issues: ["reader_not_answered"], advisory: ["aspect_missing"] });
+    // Okuyucu "evet" derse kod bulgusu tutmaz, yalnız izde kalır (ölçüm: okuyucu ile kodun ayrıştığı vaka görünür).
+    openAiReturns({ ...MODEL, answers: heated });
     const r = await suggestReply({ ...input, knowledgeBase: kb, conversationItems: withQueries });
-    expect(r.reply).toBe("");
-    expect(r.answerParts?.find((v) => v.ref === "R2")).toEqual({ ref: "R2", status: "rejected", issues: ["aspect_missing"] });
-    // Kontrol: sorgu yokken (bugünkü kural) aynı parça doğrulanır.
-    openAiReturns({ ...MODEL, answers: [{ ref: "R2", status: "answered", text: "Havuz ısıtmalıdır.", evidence: "Havuz ısıtmalıdır." }] });
-    expect((await suggestReply({ ...input, knowledgeBase: kb, conversationItems: ITEMS })).reply).toBe("Havuz ısıtmalıdır.");
+    expect(r.answerParts?.find((v) => v.ref === "R2")).toMatchObject({ status: "verified", advisory: ["aspect_missing"] });
+    // Kontrol: sorgu yokken bulgu da yok.
+    openAiReturns({ ...MODEL, answers: heated });
+    const plain = await suggestReply({ ...input, knowledgeBase: kb, conversationItems: ITEMS });
+    expect(plain.reply).toBe("Havuz ısıtmalıdır.");
+    expect(plain.answerParts?.find((v) => v.ref === "R2")).not.toHaveProperty("advisory");
   });
 
   it("mülk bilgisindeki kodun '(belirtilmemiş …)' işareti alıntılanabilir kaynak değildir", () => {
@@ -713,6 +848,32 @@ describe("suggestReply — parça okuyucusu (AI_SENIOR_READER_ENABLED, parça ki
     // Bugün satırı her zaman (rezervasyonsuz konuşmada konaklama günü yazılmaz).
     expect(seen).toContain("DATES: Today (property time zone)");
     expect(seen).toContain("HOST: <<<Evet, bahçe katında havuz var.>>>");
+  });
+
+  it("🚨 #199: alıntı iki kalemden geliyorsa okuyucu İKİSİNİ de not olarak görür (ikincisi konu sözcüğünü anmasa da)", async () => {
+    vi.stubEnv("AI_SENIOR_READER_ENABLED", "1");
+    const kb = [
+      { category: "amenities", title: "Havuz", content: "Havuz hafta içi 09:00–20:00 arası açıktır." },
+      { category: "amenities", title: "Hafta sonu", content: "Cumartesi ve pazar 09:00–23:00 arası açıktır." },
+    ];
+    const two = [
+      {
+        ref: "R2",
+        status: "answered",
+        text: "Havuz hafta içi 20:00'de, cumartesi ve pazar 23:00'te kapanıyor.",
+        evidence: "Havuz hafta içi 09:00–20:00 arası açıktır. Cumartesi ve pazar 09:00–23:00 arası açıktır.",
+      },
+    ];
+    let seen = "";
+    routedFetch({ ...MODEL, answers: two }, (body) => {
+      seen = body;
+      return readerAllYes(body);
+    });
+    const r = await suggestReply({ ...input, knowledgeBase: kb, conversationItems: { ...ITEMS, answerable: ITEMS.answerable.filter((a) => a.ref === "R2") } });
+    const r2 = seen.slice(seen.indexOf("R2 · TOPIC"));
+    expect(r2).toContain("Havuz hafta içi 09:00–20:00 arası açıktır.");
+    expect(r2).toContain("Cumartesi ve pazar 09:00–23:00 arası açıktır.");
+    expect(r.answeredRequests).toEqual({ ok: true, refs: ["R2"] });
   });
 
   it("doğrulanmış parça yoksa okuyucu çağrılmaz", async () => {

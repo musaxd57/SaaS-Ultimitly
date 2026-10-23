@@ -47,6 +47,41 @@ bir aday okuyucuya taşınınca yalnız o satır değil, arkasındaki denetimler
 Taşınan denetim kodda **çalışmaya devam eder** ve kararı ölçüm izine yazılır (tutmaz) — böylece okuyucunun aynı vakada ne dediği ölçülür,
 geri dönüş tek satırlık.
 
+### 2a. Ölçüm ve karar (10-23 sabah-3) — YAPILDI
+
+Kanıtlanmış-kötü vakalarla okuyucu sınaması: `evals/part-reader-vs-code.json` (39 vaka: 23 yanlış taslak — kodun yakalamak için yazıldığı her
+sınıf, TR / EN / DE / ES / RU; 16 doğru taslak — kör set incelemesinde kodun gereksiz tuttuğu sınıfların YENİ yazılmış benzerleri) · ölçer
+`tests/eval/part-reader-vs-code.eval.test.ts` · sonuç `docs/olcum/part-reader-vs-code-2026-10-23-luna-low.json` (Luna, düşük çaba, her vaka 2
+okuma).
+
+| | yanlış geçiş (kötü taslak gitti) | gereksiz tutma (doğru cevap tutuldu) |
+|---|---|---|
+| kod denetimleri | 0 / 23 | **12 / 16** |
+| okuyucu | **0 / 46 okuma** | 2 / 32 okuma (aynı vaka: "ek yatak alabilir miyiz, ne kadar?" ↔ yalnız ücret — "kısmen") |
+
+Kodun doğru tuttuğu 23 kötü taslağın **23'ünü** okuyucu iki okumada da tuttu. Kör setin incelemesinde de kodun 19 tutmasının 19'u gereksizdi.
+→ **Karar:** okuyucu koşarken kod YALNIZ `CODE_KEPT_ISSUES`'u tutar — alıntı yok / kalemde yok · parçadaki sayı-saat-tutar alıntıda yok ·
+iki kaynak çelişiyor · ihtiyacın konusu hiç bilinmiyor (+ yapı: metin yok, çok uzun, kaynak yok). Konu, koşul, değişke, olumluluk, yön, değer
+bağı, içerik, sorulan yön / tesis ANLAM denetimidir: tutmaz, `advisory` olarak ize yazılır (okuyucu tutarsa tutma kaydında da). Okuyucu
+kapalı / düşmüşse bütün parçalar zaten tutulur (Opus G1), yani kodun anlam denetimi yalnız okuyucu GERÇEKTEN okuyacakken susar.
+Sır, yetki, işlem onayı, tazelik, çıktı vetosu, son metin denetimi ve bütün kapı yerinde (parça doğrulaması onların önüne eklenir).
+
+### 2b. Alıntı iki kalemi birleştirebilir; çevrilmiş başlık (#199) — YAPILDI
+
+Kör set: 5 doğru cevap "kaynak yok" diye tutuldu — genel kural ve istisnası iki ayrı kalemdeydi, model ikisini tek alıntıda birleştirdi; bir
+Rusça cevapta model kalem başlığını çevirip alıntıya kattı ("Интернет: …"). Şimdi (`groundEvidence`): bütün alıntı bir kaynakta geçmiyorsa
+cümlelerine bölünür, HER cümle (en az 8 harf) bir kaynakta birebir aranır; başındaki rakamsız ≤ 40 karakterlik "Başlık:" atılıp kalan da
+aranır. Tek cümlesi bile bulunamayan alıntı dayanaksız. Sayı / değer denetimi gevşemez (uydurma saat yine düşer, pinli).
+
+### 2c. Açık — kurucuya soru (müşteriye gideni değiştirir)
+
+- Sözcük etiketi "kural ihlali" (köpek / parti / fazla kişi / sigara) bugün yalnız "ev kuralları" isteğine bağlanır; anlama katmanı isteği
+  "evcil hayvan" sayınca etiket bağlanamaz ve BÜTÜN mesaj hassas olur (aynı mesajdaki sauna saati de tutulur). Önerim: etiketin hangi
+  aileden geldiğine bakıp (köpek → evcil hayvan isteği) yalnız o isteği tutmak; parti / fazla kişi / sigara bugünkü gibi. Soru 9'daki
+  ilkenizle aynı ("bu soru tutulursa aynı mesajdaki bağımsız cevaplar da tutulmasın").
+- Bugünkü akış (Railway açılınca çalışan): "… için ev sahibinize sorabilirsiniz / danışabilirsiniz" misafire gidebiliyor (kör sette 2 kez,
+  istek de "cevaplandı" kapandı). 100 ölçüm dosyasında bu cümleli 49 taslağın 48'i zaten tutulmuş; kaçan biçim istemin öğrettiği değil.
+
 ## 3. İnsan etiketi (Codex S4) — sayfa YAYINDA
 
 https://claude.ai/artifact/9tGjT8eYyvvdggdkiVEfwQ — 35 örnek; her örnekte misafirin mesajı (+ önceki mesajlar), değerlendirilen soru,

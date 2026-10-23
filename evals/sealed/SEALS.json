@@ -57,5 +57,20 @@
     "runSha": "b47f246f260a6696acaca4f8b0aacf9360b568f1",
     "report": "docs/olcum/live-pipeline-2026-10-23-gpt-6-luna-kor-e1023-new-on-kor.md",
     "compareReport": "docs/olcum/live-pipeline-2026-10-23-gpt-6-luna-kor-e1023-old-on-kor.md"
+  },
+  "needs-kabul-2026-10-23.json": {
+    "sealedAt": "2026-10-23",
+    "author": "kör ajan (Opus): depodaki kodu, istemleri, eval setlerini ve belgeleri OKUMADI; yalnız biçim + kurucunun kuralları (Soru 9 / 11, bilgi-yok misafire gitmez, konaklama tarihine göre sezon) verildi; geliştiriciye yalnız sayılar, boyut ve SHA-256 raporlandı. Sınır: oturum başında CLAUDE.md bağlamına otomatik yüklendi. Geliştirici dosyayı açmadı. Yanan 10-23 setinin yerine kabul seti (Codex: ayrıntılar geliştirmede kullanıldı → yeni, görülmemiş set).",
+    "sha256": "f30f4766cdb3e5fdf2a5b636ccadf17d497bd24a24f6271ebe97003c88c921b1",
+    "items": {
+      "scenarios": 50,
+      "needs": 71,
+      "answered": 55,
+      "open": 16,
+      "kbSets": 5,
+      "languages": 6,
+      "withStay": 15
+    },
+    "state": "sealed"
   }
 }

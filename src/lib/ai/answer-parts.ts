@@ -10,7 +10,8 @@
 //   1. alıntıyı istemde gösterilen bir kaynakta bulur (bilgi tabanı satırı ya da mülk bilgisi; okuyucunun kanıt kuralı — NFKC + görünmez
 //      karakter + benzer harf). İstem satırına kimlik EKLENMEDİ (`[K1]`): kalem satırının biçimi seçicinin bütçe ölçüsüyle pinli; alıntı
 //      kaynağı zaten tek başına belirler.
-//   2. `answer-binding` ile değer ↔ konu ↔ koşul ↔ olumsuzluk ↔ yön bağını doğrular.
+//   2. `answer-binding` ile değer ↔ konu ↔ koşul ↔ olumsuzluk ↔ yön bağını doğrular. Parça okuyucusu koşarken (Codex S3, 10-23 sabah-3)
+//      kod yalnız yapıyı ve kaynak geçerliliğini TUTAR (`CODE_KEPT_ISSUES`); anlam denetimleri iz için yazılır, kararı okuyucu verir.
 //   3. Doğrulanan parçaları istek sırasıyla birleştirir; misafire giden metin YALNIZ bunlardır. "no_info" ve doğrulanamayan parça HİÇBİR
 //      cümle üretmez (iç kayıt) — istek ev sahibinin panelinde açık kalır, cevaplandı sayılmaz.
 // Birleşik metin bugünkü bütün kapılardan (çıktı vetosu, sır, iç kaynak, kıdemli okuyucu …) yine geçer; parça doğrulaması onların YERİNE
@@ -90,9 +91,15 @@ type ScopeIssue = "aspect_missing" | "subject_partial";
 type ReaderIssue = `reader_${PartReaderHold}`;
 
 export type PartVerdict =
-  | { ref: string; status: "verified"; source: string }
+  | { ref: string; status: "verified"; source: string; advisory?: (BindingIssue | ScopeIssue)[] }
   | { ref: string; status: "no_info" | "missing" }
-  | { ref: string; status: "rejected"; issues: (BindingIssue | "text_missing" | "too_long" | "source_not_found" | ScopeIssue | ReaderIssue)[] };
+  | {
+      ref: string;
+      status: "rejected";
+      issues: (BindingIssue | "text_missing" | "too_long" | "source_not_found" | ScopeIssue | ReaderIssue)[];
+      /** Okuyucu tuttuğunda kodun aynı parçada gördüğü anlam bulguları (ölçüm: okuyucu ile kod aynı şeyi mi gördü). */
+      advisory?: (BindingIssue | ScopeIssue)[];
+    };
 
 export interface ComposedReply {
   /** Misafire gidecek metin: doğrulanan parçalar, istek sırasıyla, satır satır. Hiç yoksa boş dize (hiçbir şey gitmez). */
@@ -105,7 +112,7 @@ export interface ComposedReply {
    * Doğrulanan parçaların METNİ + alıntısı + kaynağı (doğrulanmış cevap tekrarının gölge ölçümü, migration 85). İzlere / karar kaydına
    * YAZILMAZ; yalnız gölge kayıt tablosuna (misafir metni değil — kalemden doğrulanmış cevap).
    */
-  verified: { ref: string; text: string; evidence: string; source: string }[];
+  verified: { ref: string; text: string; evidence: string; source: string; cited?: string[] }[];
 }
 
 /**
@@ -122,8 +129,72 @@ export function partTextKey(text: string): string {
   return foldPartText(stripLeadingGreeting(text));
 }
 
+/** Alıntı cümlesi: nokta / ünlem / soru / üç nokta + boşluk ya da satır sonu ("15.00" bölünmez). */
+const QUOTE_SENTENCE_END = /(?<=[.!?…])\s+|\n+/u;
+/** Alıntının başındaki kalem başlığı ("Интернет: …", "Pool: …") — en fazla 40 karakter, rakamsız, iki noktayla biter. */
+const QUOTE_TITLE = /^[^:\n\p{Nd}]{1,40}:\s+/u;
+/** Çok parçalı alıntıda her cümlenin en az bu kadar harfi olmalı (tek sözcüklük parça "dayanak" sayılmaz). */
+const MIN_SEGMENT_LETTERS = 8;
+
+function groundedSegment(sources: readonly PartSource[], segment: string): PartSource | undefined {
+  const direct = sources.find((src) => quoteGroundedIn(src.text, segment));
+  if (direct) return direct;
+  // Model kalem başlığını misafirin diline çevirip alıntıya katabiliyor (kör set incelemesi 10-23: "Интернет: Wi-Fi adı …" ↔ kalemde
+  // "İnternet: Wi-Fi adı …"); başlıksız kalan alıntı birebir aranır.
+  const rest = segment.replace(QUOTE_TITLE, "");
+  return rest !== segment && rest.trim() ? sources.find((src) => quoteGroundedIn(src.text, rest)) : undefined;
+}
+
+/**
+ * Alıntının dayanağı. Bütün alıntı tek kaynakta geçiyorsa o kaynak (bugünkü kural, aynen). Geçmiyorsa alıntı cümlelere bölünür ve HER cümle
+ * istemdeki bir kaynakta birebir aranır (kör set incelemesi 10-23: genel kural ve istisnası iki ayrı kalemdeydi, model ikisini tek alıntıda
+ * birleştirdi; doğru cevap "kaynak yok" diye tutuluyordu). Tek cümlesi bile bulunamayan alıntı dayanaksızdır. Bağ denetimine giden alıntı
+ * dayanak kaleminde geçen ilk cümledir; öteki kalemler zaten `otherSources` olarak okunur. `cited`: alıntının geçtiği bütün kaynaklar (ilki dayanak) —
+ * okuyucu hepsini not olarak görür (konu sözcüğü eşleşmeyen ikinci kalem de).
+ */
+export function groundEvidence(
+  sources: readonly PartSource[],
+  evidence: string,
+): { source: PartSource; quote: string; cited: PartSource[] } | null {
+  const whole = groundedSegment(sources, evidence);
+  if (whole) return { source: whole, quote: quoteGroundedIn(whole.text, evidence) ? evidence : evidence.replace(QUOTE_TITLE, ""), cited: [whole] };
+  const segments = evidence
+    .split(QUOTE_SENTENCE_END)
+    .map((x) => x.trim())
+    .filter(Boolean);
+  if (segments.length < 2) return null;
+  const hits: { source: PartSource; quote: string }[] = [];
+  for (const seg of segments) {
+    if ((seg.match(/\p{L}/gu) ?? []).length < MIN_SEGMENT_LETTERS) return null;
+    const src = groundedSegment(sources, seg);
+    if (!src) return null;
+    hits.push({ source: src, quote: quoteGroundedIn(src.text, seg) ? seg : seg.replace(QUOTE_TITLE, "") });
+  }
+  return { ...hits[0], cited: [...new Set(hits.map((h) => h.source))] };
+}
+
+/**
+ * Parça okuyucusu koşarken de KODDA kalan denetimler (Codex S3: "kod sayı / birimi, okuyucu tutarın hangi hizmete ve koşula ait olduğunu
+ * doğrular"; yetki, sır, kaynak geçerliliği kodda). Alıntı kalemde yok · parçadaki sayı / saat / tutar alıntıda yok · iki kaynak çelişiyor ·
+ * ihtiyacın konusu hiç bilinmiyor (okuyucu da neyi cevapladığını sınayamaz). Ötekiler (konu, koşul, değişke, olumluluk, yön, değer bağı,
+ * içerik, sorulan yön / tesis) ANLAM denetimidir: okuyucu koşarken tutmaz, `advisory` olarak ize yazılır.
+ * Ölçüm (`docs/olcum/part-reader-vs-code-2026-10-23-luna-low.json`, 39 vaka × 2): kodun doğru tuttuğu 23 kötü taslağın 23'ünü okuyucu iki
+ * okumada da tuttu; kod 16 doğru cevabın 12'sini gereksiz tuttu, okuyucu 1'ini (iki okumada). Kör setin incelemesi: kodun 19 tutmasının 19'u
+ * gereksizdi.
+ */
+export const CODE_KEPT_ISSUES: ReadonlySet<BindingIssue> = new Set<BindingIssue>([
+  "evidence_missing",
+  "evidence_not_in_source",
+  "value_not_in_evidence",
+  "value_conflict",
+  "subject_unknown",
+]);
+
 /**
  * Parçaları doğrular ve birleştirir. Saf; istek sırası `needs` sırasıdır (R1, R2 …).
+ *  · `meaningJudge`: "reader" = parça okuyucusu bu parçaları okuyacak → anlam denetimleri tutmaz, `advisory` olur (yalnız
+ *    `CODE_KEPT_ISSUES` tutar). Varsayılan "code" (bugünkü kural: her denetim tutar). Okuyucu düşerse / kapalıysa çağıran bütün parçaları
+ *    tutar (`partReaderHolds`), yani "reader" yalnız okuyucu gerçekten okuyacakken anlamlıdır.
  *  · `holds`: parça okuyucusunun TUTTUĞU parçalar (Soru 11; Soru 9 "genel kural + istisna" da okuyucunun sorusudur). Yalnız kodun bütün
  *    denetimlerinden GEÇMİŞ parçaya uygulanır; okuyucu hiçbir parçayı serbest bırakamaz.
  */
@@ -132,7 +203,9 @@ export function composeVerifiedReply(input: {
   needs: readonly PartNeed[];
   sources: readonly PartSource[];
   holds?: ReadonlyMap<string, PartReaderHold>;
+  meaningJudge?: "code" | "reader";
 }): ComposedReply {
+  const byReader = input.meaningJudge === "reader";
   const texts: string[] = [];
   const seen = new Set<string>();
   const refs: string[] = [];
@@ -156,41 +229,47 @@ export function composeVerifiedReply(input: {
       verdicts.push({ ref: need.ref, status: "rejected", issues: ["too_long"] });
       continue;
     }
-    const source = input.sources.find((s) => quoteGroundedIn(s.text, part.evidence));
-    if (!source) {
+    const grounded = groundEvidence(input.sources, part.evidence);
+    if (!grounded) {
       verdicts.push({ ref: need.ref, status: "rejected", issues: ["source_not_found"] });
       continue;
     }
+    const { source, quote, cited } = grounded;
     // İstemdeki öteki kaynaklar da okunur (Opus 10-23 O6): aynı konunun koşullu değişkesi başka kalemde olabilir ("Havuz 20:00" ↔ ayrı
     // kalemde "Hafta sonu havuz 23:00") — genel değer o değişkeyi anmadan gitmez; uydurma koşul kıyası da bütün kaynaklarla.
-    const otherSources = input.sources.filter((s) => s !== source).map((s) => s.text);
+    // Alıntı birden çok kalemden geliyorsa (#199) dayanak metni o kalemlerin TAMAMI: ikinci kalemin değeri konu sözcüğünü anmasa da
+    // aranır (öteki kaynaklar yalnız konuyu anıyorsa okunur); alıntının ilk cümlesi dayanak kaleminde geçer.
+    const otherSources = input.sources.filter((s) => !cited.includes(s)).map((s) => s.text);
     const binding = checkAnswerBinding({
       part: part.text,
-      evidence: part.evidence,
-      sourceText: source.text,
+      evidence: quote,
+      sourceText: cited.map((c) => c.text).join("\n"),
       otherSources,
       needTerms: need.terms,
       needTopics: need.topics,
     });
-    if (!binding.ok) {
-      verdicts.push({ ref: need.ref, status: "rejected", issues: binding.issues });
+    const blocking = byReader ? binding.issues.filter((i) => CODE_KEPT_ISSUES.has(i)) : binding.issues;
+    if (blocking.length > 0) {
+      verdicts.push({ ref: need.ref, status: "rejected", issues: blocking });
       continue;
     }
     // Doğru ama sorulanı cevaplamayan parça isteği KAPATMAZ ve gitmez (Opus e2e 10-23 F2 / F3): "Havuz kaçta açılıyor?" ↔ "Havuz
-    // ısıtmalıdır."; "Sauna ve havuz kaçta?" ↔ yalnız havuz. İstek ev sahibinde açık kalır.
+    // ısıtmalıdır."; "Sauna ve havuz kaçta?" ↔ yalnız havuz. İstek ev sahibinde açık kalır. Okuyucu koşarken bu da onun sorusudur
+    // (answers_request "partly" / "no") — iz için yazılır.
     const queries = need.queries ?? [];
     const scope: ScopeIssue[] = [];
     if (missingAspects(part.text, askedAspects(queries), askedDirection(queries), need.terms, queries).length > 0) scope.push("aspect_missing");
     if (missesAskedFacility(part.text, queries)) scope.push("subject_partial");
-    if (scope.length > 0) {
+    if (scope.length > 0 && !byReader) {
       verdicts.push({ ref: need.ref, status: "rejected", issues: scope });
       continue;
     }
+    const advisory: (BindingIssue | ScopeIssue)[] = byReader ? [...binding.issues, ...scope] : [];
     // Soru 11: kodun bütün denetimlerinden geçen parçayı okuyucu TUTABİLİR (sorulanı cevaplamıyor / yarım / yanlış bağ / tek başına istisna
     // / okunamadı). Okuyucunun "evet"i ayrıca izin değildir — bu noktaya yalnız kodun doğruladığı parça gelir.
     const hold = input.holds?.get(need.ref);
     if (hold) {
-      verdicts.push({ ref: need.ref, status: "rejected", issues: [`reader_${hold}`] });
+      verdicts.push({ ref: need.ref, status: "rejected", issues: [`reader_${hold}`], ...(advisory.length > 0 ? { advisory } : {}) });
       continue;
     }
     // Aynı metin iki isteği birlikte cevaplayabilir ("Havuz kaçta açılıyor, kaçta kapanıyor?" ↔ "Havuz 09:00-20:00 arası açıktır.") — iki istek
@@ -204,8 +283,14 @@ export function composeVerifiedReply(input: {
       texts.push(texts.length > 0 ? stripLeadingGreeting(part.text) : part.text);
     }
     refs.push(need.ref);
-    verdicts.push({ ref: need.ref, status: "verified", source: source.id });
-    verified.push({ ref: need.ref, text: part.text, evidence: part.evidence, source: source.id });
+    verdicts.push({ ref: need.ref, status: "verified", source: source.id, ...(advisory.length > 0 ? { advisory } : {}) });
+    verified.push({
+      ref: need.ref,
+      text: part.text,
+      evidence: part.evidence,
+      source: source.id,
+      ...(cited.length > 1 ? { cited: cited.slice(1).map((c) => c.id) } : {}),
+    });
   }
   return { reply: texts.join("\n"), refs, verdicts, verified };
 }
