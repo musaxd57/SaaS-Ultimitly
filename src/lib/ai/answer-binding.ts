@@ -2586,7 +2586,8 @@ const plainWords = (s: string) => s.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
 function subjectBefore(text: string, at: number, m: ReturnType<typeof subjectMatcher>): boolean {
   const clause = text.slice(0, at).split(/[.!?;,:]/u).pop() ?? "";
   const before = plainWords(clause);
-  const w = [...before].reverse().find((x) => !m.skippable(x));
+  // Yer / zaman zarfı ("kış AYLARINDA", "sitemizDE") atlanır — bulunma hâlindeki sözcük konunun kendisi olamaz.
+  const w = [...before].reverse().find((x) => !m.skippable(x) && !m.locative(x));
   if (!w || !m.isSubject(w)) return false;
   const i = before.lastIndexOf(w);
   return before.slice(0, i).every((x) => m.skippable(x) || m.locative(x) || m.isSubject(x));
