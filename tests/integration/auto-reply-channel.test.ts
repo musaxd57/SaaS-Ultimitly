@@ -1278,6 +1278,13 @@ describe("closing courtesy — opt-in 'Rica ederiz' reply to a bare thanks", () 
     return { orgId, conversationId };
   }
 
+  it("🚨 Opus 10-28 R21: onaysız Airbnb konuşmasında ev sahibinin KENDİ nezaket metninde telefon varsa da nezaket cevabı GİTMEZ", async () => {
+    const { orgId, conversationId } = await seedClosing();
+    await prisma.organization.update({ where: { id: orgId }, data: { closingReplyText: "Rica ederiz! Bize 0532 123 45 67 numarasından da ulaşabilirsiniz." } });
+    await applyChannelAutoReply(conversationId);
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
   it("🚨 Opus 10-23 akşam C1: onaysız Airbnb konuşmasında imzada telefon varsa nezaket cevabı GİTMEZ", async () => {
     const { orgId, conversationId } = await seedClosing();
     await prisma.organization.update({ where: { id: orgId }, data: { aiSignature: "Sevgiler,\nMusa\n+90 532 123 45 67" } });

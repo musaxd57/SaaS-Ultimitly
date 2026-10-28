@@ -66,8 +66,10 @@ const FREE_G = new RegExp(FREE_SRC, "gu");
 /**
  * Koşul / ücret / tutar işaretleri — biri bile varsa "koşullu" (ev sahibine). Rakam her zaman koşul sayılır (kg, adet, tutar, saat).
  */
+// İstisna sözcüğü ("hariç / dışında / except / außer / sauf / excepto") de koşuldur (Opus 10-28 R16: "Evcil hayvanlar ücretsiz kabul edilir,
+// köpekler hariç." genel ücretsiz kabul sayılıyordu).
 const CONDITION =
-  /(?:\p{Nd}|(?<![\p{L}])kg(?![\p{L}])|kilo|kucuk|buyuk|sadece|yalniz|onceden|haber ver|onay|izin al|depozito|teminat|temizlik ucreti|gecelik|ucretli|ucret (?:alinir|alinmaktadir|uygulan)|zorunlu|mecburi|gerek|sart|en fazla|en cok|tasma|kafes|bir adet|tek (?:bir )?(?:kedi|kope)|(?<![\p{L}])(?:only|small|large|max|maximum|up to|prior|approval|request|deposit|fee applies|per night|per stay|charge applies|if|provided|as long as|must|required|unless|one (?:dog|cat|pet))(?![\p{L}])|(?<![\p{L}])nur(?![\p{L}])|klein|vorher|genehmigung|kaution|gebuhr|hochstens|bis zu|wenn|seulement|uniquement|petit|caution|frais|(?<![\p{L}])si(?![\p{L}])|solo|solamente|unicamente|pequen|fianza|tarifa|(?<![\p{L}])si (?:es|son)|только|маленьк|залог|доплат|если|не более|in advance|let us know|notify|beforehand|leash|advance notice|inform us|vorab|anmelden|leine|avisar|antelacion|correa|laisse|prevenir|заранее|поводк|(?<![\p{L}])(?:ancak|ama|fakat|but|except|however|aber|mais|pero|lutfen|please|bitte|por favor)(?![\p{L}])|s il vous plait|пожалуйста|\p{L}(?:malidir|melidir|mamali|memeli)(?![\p{L}]))/u;
+  /(?:\p{Nd}|(?<![\p{L}])kg(?![\p{L}])|kilo|kucuk|buyuk|sadece|yalniz|onceden|haber ver|onay|izin al|depozito|teminat|temizlik ucreti|gecelik|ucretli|ucret (?:alinir|alinmaktadir|uygulan)|zorunlu|mecburi|gerek|sart|en fazla|en cok|tasma|kafes|bir adet|tek (?:bir )?(?:kedi|kope)|(?<![\p{L}])(?:only|small|large|max|maximum|up to|prior|approval|request|deposit|fee applies|per night|per stay|charge applies|if|provided|as long as|must|required|unless|one (?:dog|cat|pet))(?![\p{L}])|(?<![\p{L}])nur(?![\p{L}])|klein|vorher|genehmigung|kaution|gebuhr|hochstens|bis zu|wenn|seulement|uniquement|petit|caution|frais|(?<![\p{L}])si(?![\p{L}])|solo|solamente|unicamente|pequen|fianza|tarifa|(?<![\p{L}])si (?:es|son)|только|маленьк|залог|доплат|если|не более|in advance|let us know|notify|beforehand|leash|advance notice|inform us|vorab|anmelden|leine|avisar|antelacion|correa|laisse|prevenir|заранее|поводк|(?<![\p{L}])(?:ancak|ama|fakat|but|except|however|aber|mais|pero|lutfen|please|bitte|por favor)(?![\p{L}])|s il vous plait|пожалуйста|\p{L}(?:malidir|melidir|mamali|memeli)(?![\p{L}])|(?<![\p{L}])(?:haric|disinda|except|excluding|ausser|außer|sauf|excepto|salvo|кроме)(?![\p{L}]))/u;
 
 /** Karşılaştırma biçimi: görünmez karakter yok, Türkçe harfler ASCII, kesme işareti boşluk ("can't" → "can t"), işaretler sökülür. */
 const fold = (t: string) => normalizeForRetrieval(t).toLowerCase().normalize("NFD").replace(/\p{M}+/gu, "");
@@ -105,7 +107,9 @@ export function kbPetsFreeAllowed(kb: readonly { title: string; content: string 
       continue;
     }
     seen += 1;
-    if (SPECIES.filter((re) => re.test(f)).length >= 2) return false;
+    // TÜR adı geçen kural genel "ücretsiz kabul" değildir (Opus 10-28 R16: "Kediler ücretsiz kabul edilir." köpek sorusuna "evet" dedirtiyordu;
+    // "kediler … köpekler …" de belirsiz) → ev sahibine. Yalnız genel "evcil hayvan / pets" kuralı evet dedirtir.
+    if (SPECIES.some((re) => re.test(f))) return false;
     if (!ALLOWED.test(f) || !FREE.test(f) || NEGATIVE.test(f.replace(FREE_G, " ")) || CONDITION.test(f) || OTHER_SUBJECT.test(f)) return false;
   }
   return seen > 0;

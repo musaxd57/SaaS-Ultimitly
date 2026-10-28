@@ -609,7 +609,11 @@ export function autoReplyGateVerdict(
   // tabanı kodla "ücretsiz kabul" diyorsa gider; yardımcı hayvan sorusu her zaman ev sahibine (Airbnb kuralı yere / hayvan türüne göre değişir).
   // Öğe kipi koşmuyorsa misafirin mesajı da okunur (Opus 10-23 akşam B3): "Evet, getirebilirsiniz." hayvanı anmaz; yardımcı hayvan çoğu zaman
   // yalnız misafirin cümlesindedir. Öğe kipinde evcil hayvan / yardımcı hayvan isteği zaten ayrı öğe olarak tutulur (4.3: öteki sorular gider).
-  const petTurn = !items && mentionsPets(guestMessage);
+  // Öğe kipinde (canlıda açık) hayvan turu ÖĞE türünden okunur (Opus 10-28 R18): cevaplanan ya da tutulan bir evcil hayvan isteği varsa cevabın
+  // hayvanı anmayan cümlesi de okunur ("Evet, getirebilirsiniz. Gecelik ücret 200 TL'dir." öğe kipinde kemeri geçiyordu).
+  const petTurn = items
+    ? items.answerableKinds.includes("pets") || items.held.some((h) => h.kind === "pets")
+    : mentionsPets(guestMessage);
   const assistanceAnimal = mentionsAssistanceAnimal(result.reply) || (!items && mentionsAssistanceAnimal(guestMessage));
   // "Ücretsiz kabul" iken cevabın kendisi de aynı yönde olmalı (Opus 10-23 akşam B4): "Maalesef kabul edilmiyor" / "gecelik 200 TL" gitmez.
   if (
@@ -1044,8 +1048,8 @@ async function maybeSendClosingCourtesy(opts: {
 }): Promise<boolean> {
   if (process.env.AUTO_REPLY_ENABLED !== "1") return false;
   if (!opts.org.autoClosingReplyEnabled) return false;
-  // İmzada telefon / e-posta / bağlantı varken Airbnb onaysız konuşmada nezaket cevabı gitmez (Opus 10-23 akşam C1; kurucu 4.5).
-  if (opts.contactHolds && containsContactValue(opts.org.aiSignature ?? "")) return false;
+  // İmzada ya da ev sahibinin kendi nezaket metninde telefon / e-posta / bağlantı varken Airbnb onaysız konuşmada nezaket cevabı gitmez (Opus
+  // 10-23 akşam C1 + 10-28 R21: yalnız imza denetleniyordu; kurucu 4.5). Gövdenin TAMAMI denetlenir (aşağıda, gövde kurulunca).
   // LOOP GUARD: our latest outbound was itself the courtesy → the guest is
   // thanking the thank-you. Stay silent, or the two sides ping-pong forever.
   // Otomatik şablon mesajı (K7) cevap değildir: araya giren karşılama / çıkış mesajı döngü korumasını delmesin.
@@ -1062,6 +1066,7 @@ async function maybeSendClosingCourtesy(opts: {
     customText: opts.org.closingReplyText,
     signature: opts.org.aiSignature,
   });
+  if (opts.contactHolds && containsContactValue(body)) return false;
 
   // Cross-replica idempotency claim (same as the main auto-send): only the run
   // that flips new/waiting→answered may deliver; failure releases the claim.
