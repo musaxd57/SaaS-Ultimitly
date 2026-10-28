@@ -881,3 +881,29 @@ değer + ürünün içerik kapıları) → iki bağımsız Luna kontrolü (v1 ba
 bile durursa düzenleyici. 93/93'ün kanıtı: kuralları görmemiş ÜÇÜNCÜ bir kör set (yazar: farklı model), tek koşu, kabul ölçütü 0 yanlış
 gönderim. İnce ayar (fine-tuning) bu sağlayıcıda kapalı (OpenAI API `training_not_available`, 10-28) — "modelin nasıl düşünmesi gerektiği"
 örnekli istem + kod kuralları + çift onayla veriliyor.
+
+### 11.1 ÜÇÜNCÜ kör set — tek kabul koşusu (10-28 akşam)
+
+`7d-kor-set-3.json`: kuralları / sistemi görmemiş ayrı yazar (Opus), 70 senaryo (42 gitmemeli, 28 gitmeli), alışılmadık tuzaklar (resmî tatil,
+yaz / kış saati, grup, tekrar gelen misafir, ekip arkadaşı, kibar ifade, yasal…). Kurallar ve istemler bu set görülmeden donduruldu; tek koşu.
+
+| Kol (düşük çaba) | Yanlış gönderim / 42 | Gereksiz tutma / 28 |
+|---|---|---|
+| Luna v1 + bugünkü kod | 10 | 7 |
+| Luna v1 + v2 kuralları + ürün kapıları | 6 | 9 |
+| Luna istem v2 + kurallar | 8 | 12 |
+| **ÇİFT ONAY (C‴)** | **5** | 12 |
+| gpt-5.1 + kurallar | 11 | 7 |
+
+**Kabul ölçütü (0 yanlış gönderim) KARŞILANMADI.** Kalan 5'in ortak noktası: ev sahibinin onayladığı METNİN KENDİSİ gerçeğe aykırı —
+29 Ekim resmî tatilinde PTT "açık" (Z01), Almanya kış saatine geçti, "13:00 Alman saati = 14:00 İstanbul" yanlış (Z29), ev kuralına aykırı
+15 kişilik kutlamaya izin (Z47), gruptan tek kişi ayrılırken bütün gruba çıkış talimatı (Z48), tekrar gelen misafirin ÖNCEKİ konaklamasındaki
+sorusu (Z69). Bunlar zamanlama değil doğruluk hataları; gönderim anı denetimi ancak ek bilgiyle yakalar:
+- Z69 kodla: sorunun ait olduğu rezervasyon ≠ bugünkü rezervasyon → düzenleyici (ürün mesajın rezervasyonunu bilir).
+- Z47 ev kuralı / bilgi tabanı karşılaştırması (onay metni ev kuralıyla çelişiyor mu) — ürünün bilgi tabanı + kural kartı modele verilir.
+- Z01 / Z29 tarih bilgisi (resmî tatil takvimi, yaz / kış saati) — modele "metindeki tarih / saat iddialarını takvime karşı denetle" + takvim.
+- Z48 grup / kişi bağlamı — model.
+
+Gidişat: ilk kör set 4 → ikinci setin ilk okuması 12 → üçüncü setin ilk okuması (bütün iyileştirmelerle) 5. Her taze set yeni sınıf
+getiriyor; "sıfır"ın kanıtı bir sonraki taze settir. Dürüst sonuç: ev sahibinin kendi yazdığı metin gerçeğe aykırıysa bunu %100 yakalayan
+bir gönderim denetimi yok; ürün tarafında güvenli varsayılan, şüphede düzenleyicidir (tek tık yerine bir bakış).
