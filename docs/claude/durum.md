@@ -4,6 +4,8 @@
 > Bu dosyadaki kurallar CLAUDE.md'deki kadar BAĞLAYICIDIR. İlgili alanda iş yapmadan önce oku.
 
 ## CLAUDE.md "Durum" özet satırları (10-23'te AYNEN taşındı; en yeni ikisi CLAUDE.md'de kalır)
+**10-28:** kurucu §7: bilgi tabanı **şablon indir + dışa aktar** (ücretli paket) · Opus 2. dilim + Haiku düzeltmeleri ("daha çok tutar") · **7-D sert kör test** (93 vaka, gerçek model ≈0,30 $: önceki öneri 10 yanlış gönderim, en iyi kol 4 → yeni öneri "kod yalnız durdurur, gönderimi model onaylar") · **kalıcı gömme deposu kodda** (migration 87, `KB_VECTOR_STORE_ENABLED` KAPALI) · dosya RAG cümle + anlam tasarımı · **karar sayfası** https://claude.ai/artifact/2tiEwpwVc4r4S5z1aGuV1V · SIRADAKİ İŞ LİSTESİ: `docs/claude/durum.md` "10-28 devir".
+**10-23 akşam:** kurucu S1 kararları kodda (4.5 yönlendirme = bilgim yok · 4.4 A evcil / yardımcı hayvan · 4.3 · 4.2 · 4.9 bir kez yeniden yaz · 4.1 B) + migration 86 (kişi / evcil hayvan sayısı, anahtar KAPALI) + bilgi tabanı dosya çekirdeği S0/S2 (bağlı değil) + Opus derin kontrol A1–A6 / E1 / B4 / C1 / D1 (hepsi "daha çok tutar") · yanmış set yeniden koşu: gerçek yanlış gönderim 0 · sorular 4.11–4.14 — rapor `docs/RAPOR-2026-10-23-aksam-s1-kurucu-kararlari.md`, `docs/claude/durum.md`.
 **10-23 öğle:** okuyucu bağlamı + Codex S3 (anlam denetimi okuyucuda, kodda kalanlar listesi; kurucuya soru §4.0) + Opus B1–B12 + Haiku 2. tur kodda (anahtarlar KAPALI) · bilgi tabanı dosya / RAG tasarımı + çekirdek (bağlı değil) · **kabul seti tek koşu (yandı): yeni akış 42/55 doğru · 0 yanlış gönderim (eski akış 38/55 · 4 yanlış)**, 13 gereksiz tutma — rapor `docs/RAPOR-2026-10-23-ogle-okuyucu-anlam-denetimi-ve-etiketler.md` (sorular §4.0–4.10), `docs/claude/durum.md`.
 **10-23 sabah-2:** kurucu Soru 9 / 10 / 11 + Codex "anlam ilişkisi" kodda (anahtarlar KAPALI): Soru 9 okuyucuda, okuyucusuz parça kipi hepsini tutar · tek bildirim e-postası (kalıcı kayıt) · okuyucu dört ayrı soru + son metin denetimi · Opus son kontrol G1–G6 + mutasyon 21/21 · **kör ölçüm (yandı): yanlış 9 → 1, doğru 27 → 14 / 40** → parça kipi KAPALI kalsın önerisi, sorular S1–S4 — rapor `docs/RAPOR-2026-10-23-sabah-parca-okuyucu-ve-kor-olcum.md`, `docs/claude/durum.md`.
 **10-23 gece-2:** kurucu fikri "4. kez gelen aynı soruya kayıtlı doğru cevap" → gölge kip (migration 85 ana dalda — kurucu onayı 10-23 sabah; anahtar KAPALI) · Opus güvenlik F1–F11 + dilim sonu R1–R15 (yön sözlüğü, ikinci konu, en az/en fazla, ücretsizlik sınırı, cevap tekrarı daralması, sıra kipi, etiket) + Haiku turları + Opus uçtan uca parça kipi (sorulan yön, iki tesis, sessiz tutuş e-postası, sıra kipi bağı) + gece sonu Opus taze göz (sorulan yön konuya bağlı, etiket değer penceresi) + mutasyon (23 yaşayan pinli) kapandı — rapor `docs/RAPOR-2026-10-23-gece-2-cevap-tekrari-ve-guvenlik.md`, `docs/claude/durum.md`.
@@ -47,6 +49,18 @@ düzeltmeleri. Next.js 15.5.27 (iki yeni SSG/ISR danışması). Onay bekleyen be
 **Dal durumu:** bütün iş `claude/great-edison-3zqpZ`'de commit'li; tam kapı + build yeşil olunca push edildi (CI sonucu bir sonraki
 oturumda `actions_list` ile tekrar bakılır). Railway KAPALI (canlı yok). 10-28 akşam ücretli koşular kurucu onayıyla yapıldı ("test yapıp
 para harcamayı tercih ederim"): uzun belge RAG + Luna kıyası, toplam birkaç dolar.
+
+**10-28 gece (kurucu karar masası 19 karar + "4 saat dur durmadan çalış, en sonda ajansız satır satır incele"):** kararlar AYNEN
+`docs/KURUCU-KARARLARI-2026-10-28-karar-masasi.md`; açıklamalar / tasarım `docs/TASARIM-2026-10-28-aksam-kurucu-aciklamalari.md`; öz-inceleme
+`docs/INCELEME-2026-10-28-gece-oz-inceleme.md`. Kodda: 4.11 okuyucu geçici hatada bir kez yeniden dener (toplam süre tek çağrı tavanını aşmaz) ·
+4.12 parça kipinde doğrulanmış parça genel güvene takılmaz (`verifiedPartsOnly`) · 4.13 `AI_KB_FEE_RULE_ENABLED` artık anlama ekini ("hizmet
+ücreti ödeme değil") ve okuyucu satırını da açar · 4.14 onaysız Airbnb'de imzanın telefon / e-posta / bağlantı / @kullanıcı / alan adı satırı
+çıkar, cevap gider · ölçümde bulunan: kısa Almanca / Fransızca soruya Türkçe gövde gidiyordu → kod emin değilken modelin bildirdiği dil
+(misafirin metninde izi varsa) dil kapısında ölçüt. Mutasyon 31/31. ⚠️ **OpenAI kredisi BİTTİ (~14:25 UTC)** — bekleyen ücretli ölçümler: tablo
+ağırlıklı kör set (`evals/rag-long/tablo.json`, `EVAL_RAG_LONG_SET=tablo RUN_REAL_EVAL=1 EVAL_RAG_LONG_DETAILS=0`, kapalı / açık × 2), okuyucu
+ücret satırı (`EVAL_SENIOR_SET=airbnb-fee-statements.json` + `airbnb-message-policy.json`, `AI_KB_FEE_RULE_ENABLED` açık / kapalı), ücret seti
+parça kipi (`EVAL_LIVE_SET=service-fee-4-13-dev.json`, ayrı PG gerekir). Karar sayfasına 4 yeni soru (4.14-b, 4.13-b, G-1, 8-4c-1). Sıradaki:
+4.15 zod 4 (açılıştan önce) · 8-1 C2 ürün dilimi ("eksik bilgi kartı" + gönderim anı denetimi; tasarım `docs/arastirma-2026-10-28/7d-gonderim-zamani.md`).
 
 **10-28 akşam (RAG ölçüm turu, kurucu: "rag için ölçümlerimizi yapalım, orayı en iyi şekilde istiyorum" + Codex eleştirisi):** sonuçlar
 `docs/TASARIM-2026-10-28-dosya-rag-cumle-ve-anlam.md` §8 (Codex madde madde) + §9 (ölçüm). Özet: uzun belge ölçeri (`tests/eval/rag-long.eval.test.ts`,

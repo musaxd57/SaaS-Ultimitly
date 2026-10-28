@@ -564,8 +564,14 @@ parça / içe aktarma devam parçası aynı tablonun başlık satırını taşı
 | çok alıntılı soruda hepsi aynı parçada | 32/92 | **44/92** |
 | cevapsız soruda seçilen parça / blok boyu | 11,7 / ~4.080 kr | 11,7 / ~4.080 kr (maliyet değişmedi) |
 | kör set | 90/95 | 90/95 (gerileme yok; kör setin tabloları kısa) |
+| kör set, 3 tekrar (kurucu R-T1 notu: "tek test üzerinden mutlak karar verme") | 90 · 88 · 90 (ort. 89,3) · tablo 12 · 10 · 12 / 12 | **90 · 91 · 91 (ort. 90,7)** · tablo 12 · 11 · 12 / 12 |
 
-Mutasyon 12/12 (yaşayan iki mutant pinlendi). Açmak = kurucu kararı (müşteriye giden cevabı DOLAYLI değiştirir: modele giden parça başlık
+**Tekrar ve yeni testler (10-28 akşam, kurucu R-T1 notu):** kör sette üçer tekrar: kapalı ort. 89,3, açık ort. 90,7 (+1,4; tekrar
+gürültüsü ±1–2 — yön aynı, büyüklük küçük, çünkü kör setin tabloları kısa). Tablo ağırlıklı yeni kör set (`evals/rag-long/tablo.json`, ayrı
+yazar: 5 belge, 20 tablo, 80 soru — 24 "tablo + tanım", 18 tablo, 11 iki tablo, 11 başka dil, 10 cevapsız) yazıldı; ölçümü OpenAI kredisi
+bittiği için YAPILAMADI (kredi gelince: kapalı / açık × 2 tekrar, `EVAL_RAG_LONG_SET=tablo RUN_REAL_EVAL=1 EVAL_RAG_LONG_DETAILS=0`).
+Birim testleri: CRLF, satır ortasından başlayan parça, tablo içi sahte ayıraç, iki tablo, başlık satırında başlayan parça, Wi-Fi gizlilik
+kategorisi — 17 test. Mutasyon 12/12 (yaşayan iki mutant pinlendi). Açmak = kurucu kararı (müşteriye giden cevabı DOLAYLI değiştirir: modele giden parça başlık
 satırını da taşır). Önce / sonra örneği: misafir "Ağustos'ta 14:00'e kadar kalabilir miyiz?" → bugün modele "| Geç çıkış | Ücretsiz |
 500 TL | Yapılmıyor |" satırı başlıksız gidebiliyor (hangi sütun Ağustos belli değil, model "500 TL" diyebilir); açıkken satırın üstünde
 "| Hizmet | Düşük sezon | Orta sezon | Yüksek sezon |" var → "yüksek sezonda geç çıkış yapılmıyor".

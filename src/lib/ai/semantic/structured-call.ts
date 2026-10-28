@@ -36,8 +36,10 @@ export type StructuredCallError =
   | "parse";
 
 /**
- * `transient`: GEÇİCİ arıza (408 · 429 hız sınırı · 5xx · zaman aşımı OLMAYAN ağ hatası; kalıcı sınıflandırma — kota / anahtar / model /
- * istek — ÖNCE yapılır). Yalnız tek yeniden denemenin kararı içindir (`callStructuredJsonRetryingOnce`); `retryAfter` sağlayıcının başlığı.
+ * `transient`: GEÇİCİ arıza (408 · 429 hız sınırı · 5xx · istek GÖNDERİLİRKEN düşen, zaman aşımı OLMAYAN ağ hatası; kalıcı sınıflandırma —
+ * kota / anahtar / model / istek — ÖNCE yapılır). Cevap gövdesi okunurken kopan bağlantı bilinçli olarak geçici SAYILMAZ: sağlayıcı cevabı
+ * üretmiş (ve ücretlendirmiş) olabilir. Yalnız tek yeniden denemenin kararı içindir (`callStructuredJsonRetryingOnce`); `retryAfter`
+ * sağlayıcının başlığı.
  */
 export type StructuredCallResult =
   | { ok: true; data: unknown; ms: number }

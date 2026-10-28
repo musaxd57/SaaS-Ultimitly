@@ -38,7 +38,10 @@ Kurucu 10-15: "Railway'i açınca ekleyeceğimiz bayrakları unutma." Bu dosya T
 `HOUSE_RULES_CARD_ENABLED` · `AI_HOUSE_RULES_SHADOW` · `KB_SEMANTIC_RETRIEVAL` · `KB_RERANK_ENABLED` · `EMAIL_OUTBOX_ENABLED` ·
 `CALENDAR_URL_CONTRACT_ENABLED` · `STORAGE_ENABLED` · `AI_CODE_GREETING_ENABLED` · `AI_HOST_DECISION_HOLD_ENABLED` ·
 `AI_ACCESS_CODE_COMPLETE_ENABLED` · `AI_COMPLAINT_FOLLOWUP_RULE_ENABLED` · `AI_KB_FEE_RULE_ENABLED`
-(son beşi 10-02 kurucu beyanı, Railway'de teyit edilmedi — açılışta gözle bakın). Ayrıca `DATA_RETENTION_MONTHS=24`, `TRUSTED_PROXY_HOPS=2`,
+(son beşi 10-02 kurucu beyanı, Railway'de teyit edilmedi — açılışta gözle bakın). ⚠️ 10-28: `AI_KB_FEE_RULE_ENABLED` artık ÜÇ yeri birlikte açar
+(kurucu kararı 4.13): cevap isteminin ücret kuralı + anlama katmanında "hizmet ücreti sorusu ödeme değildir" eki + kıdemli okuyucuda "yalnız fiyat
+söylemek platform dışı ödeme değildir" satırı. Okuyucu satırı gerçek modelle ÖLÇÜLMEDİ (kredi bitti) — açmadan önce
+`EVAL_SENIOR_SET=airbnb-fee-statements.json` ve `airbnb-message-policy.json` ölçülsün. Ayrıca `DATA_RETENTION_MONTHS=24`, `TRUSTED_PROXY_HOPS=2`,
 `SENTRY_DSN`, `ERROR_ALERT_EMAIL`. `TRUST_CF_HEADER` EKLEMEYİN.
 
 ## 2. Model ayarları (kurucu kararı 10-10; kod varsayılanı 5.1, değişiklik yalnız env)
