@@ -45,7 +45,17 @@ düzeltmeleri. Next.js 15.5.27 (iki yeni SSG/ISR danışması). Onay bekleyen be
 ## 10-28 devir (kurucu: "sonra sana clear atmak istiyorum") — /clear sonrası BURADAN başla
 
 **Dal durumu:** bütün iş `claude/great-edison-3zqpZ`'de commit'li; tam kapı + build yeşil olunca push edildi (CI sonucu bir sonraki
-oturumda `actions_list` ile tekrar bakılır). Railway KAPALI (canlı yok). Ücretli model koşusu YAPILMADI.
+oturumda `actions_list` ile tekrar bakılır). Railway KAPALI (canlı yok). 10-28 akşam ücretli koşular kurucu onayıyla yapıldı ("test yapıp
+para harcamayı tercih ederim"): uzun belge RAG + Luna kıyası, toplam birkaç dolar.
+
+**10-28 akşam (RAG ölçüm turu, kurucu: "rag için ölçümlerimizi yapalım, orayı en iyi şekilde istiyorum" + Codex eleştirisi):** sonuçlar
+`docs/TASARIM-2026-10-28-dosya-rag-cumle-ve-anlam.md` §8 (Codex madde madde) + §9 (ölçüm). Özet: uzun belge ölçeri (`tests/eval/rag-long.eval.test.ts`,
+`EVAL_RAG_LONG=1`), geliştirme seti `evals/rag-long/dev.json` (Opus, 125 soru) + kör set `blind.json` (Sonnet, 105 soru, yalnız özet). Üretim
+yapılandırması: bağlam tam geliştirme ort. 103/113 (±3 oynuyor), kör 90/95. ⚠️ Ölçer ilk koşularda anlama katmanını AÇMIYORDU — düzeltildi,
+anti-vakum pinli. `KB_TABLE_HEADER` (kodda, KAPALI): uzun tablo bölününce parça sütun başlığını taşır → 103 → 108,5, tablo 15/15, kör gerileme yok,
+mutasyon 12/12, Haiku gizlilik bulgusu (başlık kategoriyi değiştiriyordu) düzeltildi. Luna anlama / sıralayıcı: eşit DEĞİL (116 vs 111–113) → 5.1'de
+kalır. OpenAI ince ayarı KAPANIYOR (API `training_not_available`). Kurucu soruları karar sayfasında R-T1 (tablo başlığını aç), R-T2 ("Giriş
+Talimatı"na süpürülen paragraf: kör sette 35 soru QR'da cevapsız kalır), R-T3 (Luna).
 
 **Bu oturumda (10-28) yapılan:**
 - Opus 2. dilim incelemesi (`docs/INCELEME-2026-10-28-opus-ikinci-dilim.md`, R1–R30): R1–R5 + R9 (`ai/absence.ts` ev sahibine yönlendirme yüklemi,
@@ -64,8 +74,9 @@ oturumda `actions_list` ile tekrar bakılır). Railway KAPALI (canlı yok). Ücr
    Karar sonrası: üç kural + İKİNCİ kör set (kuralları görmemiş yazar) — ilk setin hatalarına göre yazılan kuralın kanıtı ikinci settir.
 2. **S3 kalıcı gömme deposu — KODDA (10-28 öğle, commit 2c1a1f7b):** migration 87 `KbChunkVector` (K1–K7 alanlarıyla), `vector-store.ts`,
    anahtar `KB_VECTOR_STORE_ENABLED` KAPALI; 12 davranış testi, mutasyon 10/10. Açılış: Railway açılmadan önce taze yedek (migration 59–87).
-   Sıradaki RAG adımı tasarım `docs/TASARIM-2026-10-28-dosya-rag-cumle-ve-anlam.md` §4.3: D1 uzun belge ölçüm seti (bugün yok!) → D2 önek v2 →
-   D3 cümle birimleri → D4 soru üretimi (ayrı migration); kurucu soruları R-S1/S2/S4/S5 karar sayfasında.
+   Sıradaki RAG adımı (§9.7): D1 ölçüm seti ✅ (10-28 akşam) · D1b tablo başlığı ✅ (anahtar kapalı) → kalan kayıp uzak istisna / genel kural
+   (5 soru) ve gönderme → içe aktarmada "genel kural ↔ istisna" bağı (C1) → D2 önek v2 → D3 cümle → D4 soru; sıralayıcı tekrarlanabilirliği
+   (±3) ayrıca; cevap düzeyi `rag-answer` ile. Kurucu soruları R-S1/S2/S4/S5 + R-T1/T2/T3 karar sayfasında.
 3. **KB tarama soruları** (`KbScanQuestion`, migration 88, onaylı; `KB_SCAN_QUESTIONS_ENABLED` KAPALI): bulucular T1–T7 (tasarım §5) +
    günde en çok 3 + panel kartı **[Onayla] [Düzenle] [Vazgeç]** (kurucu: "Böyle kalsın" DEĞİL "Vazgeç") + onaydan sonra öteki dairelere uygula.
 4. **Dosyadan içe aktarma bağlanmadan ÖNCE** Opus R24/R25/R26 (P1*/P2*: ayrı paragraftaki kod "Genel"e düşüyor, PIN / keyless biçimleri,

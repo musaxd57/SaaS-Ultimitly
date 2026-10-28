@@ -15,12 +15,14 @@
    "config": "lex",
    "spans": 2,
    "imported": 2,
+   "accessOnly": 0,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 2,
    "complete": true,
    "any": true,
    "selected": 20,
+   "und": "off",
    "blockChars": 9051
   },
   {
@@ -32,12 +34,14 @@
    "config": "lex",
    "spans": 2,
    "imported": 2,
+   "accessOnly": 0,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 2,
    "complete": true,
    "any": true,
    "selected": 20,
+   "und": "off",
    "blockChars": 9051
   },
   {
@@ -49,12 +53,14 @@
    "config": "lex",
    "spans": 3,
    "imported": 3,
+   "accessOnly": 0,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 3,
    "complete": true,
    "any": true,
    "selected": 20,
+   "und": "off",
    "blockChars": 9051
   },
   {
@@ -66,12 +72,14 @@
    "config": "lex",
    "spans": 4,
    "imported": 4,
+   "accessOnly": 0,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 4,
    "complete": true,
    "any": true,
    "selected": 20,
+   "und": "off",
    "blockChars": 9051
   },
   {
@@ -83,12 +91,14 @@
    "config": "lex",
    "spans": 2,
    "imported": 2,
+   "accessOnly": 0,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 2,
    "complete": true,
    "any": true,
    "selected": 20,
+   "und": "off",
    "blockChars": 9051
   },
   {
@@ -100,12 +110,14 @@
    "config": "lex",
    "spans": 2,
    "imported": 2,
+   "accessOnly": 0,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 2,
    "complete": true,
    "any": true,
    "selected": 20,
+   "und": "off",
    "blockChars": 9051
   },
   {
@@ -117,12 +129,14 @@
    "config": "lex",
    "spans": 2,
    "imported": 2,
+   "accessOnly": 0,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 2,
    "complete": true,
    "any": true,
    "selected": 20,
+   "und": "off",
    "blockChars": 9051
   },
   {
@@ -134,12 +148,14 @@
    "config": "lex",
    "spans": 2,
    "imported": 2,
+   "accessOnly": 0,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 2,
    "complete": true,
    "any": true,
    "selected": 20,
+   "und": "off",
    "blockChars": 9051
   },
   {
@@ -151,12 +167,14 @@
    "config": "lex",
    "spans": 2,
    "imported": 2,
+   "accessOnly": 2,
    "sameItem": true,
    "sameChunk": false,
    "inBlock": 2,
    "complete": true,
    "any": true,
    "selected": 20,
+   "und": "off",
    "blockChars": 9051
   },
   {
@@ -168,12 +186,14 @@
    "config": "lex",
    "spans": 3,
    "imported": 3,
+   "accessOnly": 0,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 3,
    "complete": true,
    "any": true,
    "selected": 20,
+   "und": "off",
    "blockChars": 9051
   },
   {
@@ -185,12 +205,14 @@
    "config": "lex",
    "spans": 2,
    "imported": 2,
+   "accessOnly": 0,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 2,
    "complete": true,
    "any": true,
    "selected": 20,
+   "und": "off",
    "blockChars": 9051
   },
   {
@@ -202,12 +224,14 @@
    "config": "lex",
    "spans": 2,
    "imported": 2,
+   "accessOnly": 0,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 2,
    "complete": true,
    "any": true,
    "selected": 20,
+   "und": "off",
    "blockChars": 9051
   },
   {
@@ -219,12 +243,14 @@
    "config": "lex",
    "spans": 3,
    "imported": 3,
+   "accessOnly": 0,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 3,
    "complete": true,
    "any": true,
    "selected": 20,
+   "und": "off",
    "blockChars": 9051
   },
   {
@@ -236,12 +262,14 @@
    "config": "lex",
    "spans": 2,
    "imported": 2,
+   "accessOnly": 0,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 2,
    "complete": true,
    "any": true,
    "selected": 20,
+   "und": "off",
    "blockChars": 9051
   },
   {
@@ -253,12 +281,14 @@
    "config": "lex",
    "spans": 1,
    "imported": 1,
+   "accessOnly": 0,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 1,
    "complete": true,
    "any": true,
    "selected": 20,
+   "und": "off",
    "blockChars": 9051
   },
   {
@@ -270,12 +300,14 @@
    "config": "lex",
    "spans": 1,
    "imported": 1,
+   "accessOnly": 0,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 1,
    "complete": true,
    "any": true,
    "selected": 20,
+   "und": "off",
    "blockChars": 9051
   },
   {
@@ -287,12 +319,14 @@
    "config": "lex",
    "spans": 5,
    "imported": 5,
+   "accessOnly": 2,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 5,
    "complete": true,
    "any": true,
    "selected": 20,
+   "und": "off",
    "blockChars": 9051
   },
   {
@@ -304,12 +338,14 @@
    "config": "lex",
    "spans": 6,
    "imported": 6,
+   "accessOnly": 0,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 6,
    "complete": true,
    "any": true,
    "selected": 20,
+   "und": "off",
    "blockChars": 9051
   },
   {
@@ -321,12 +357,14 @@
    "config": "lex",
    "spans": 0,
    "imported": 0,
+   "accessOnly": 0,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 0,
    "complete": false,
    "any": false,
    "selected": 20,
+   "und": "off",
    "blockChars": 9051
   },
   {
@@ -338,12 +376,14 @@
    "config": "lex",
    "spans": 0,
    "imported": 0,
+   "accessOnly": 0,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 0,
    "complete": false,
    "any": false,
    "selected": 20,
+   "und": "off",
    "blockChars": 9051
   },
   {
@@ -355,12 +395,14 @@
    "config": "lex",
    "spans": 2,
    "imported": 2,
+   "accessOnly": 1,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 2,
    "complete": true,
    "any": true,
    "selected": 20,
+   "und": "off",
    "blockChars": 9051
   },
   {
@@ -372,12 +414,14 @@
    "config": "lex",
    "spans": 3,
    "imported": 3,
+   "accessOnly": 0,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 3,
    "complete": true,
    "any": true,
    "selected": 24,
+   "und": "off",
    "blockChars": 9190
   },
   {
@@ -389,12 +433,14 @@
    "config": "lex",
    "spans": 1,
    "imported": 1,
+   "accessOnly": 0,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 1,
    "complete": true,
    "any": true,
    "selected": 24,
+   "und": "off",
    "blockChars": 9190
   },
   {
@@ -406,12 +452,14 @@
    "config": "lex",
    "spans": 1,
    "imported": 1,
+   "accessOnly": 1,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 1,
    "complete": true,
    "any": true,
    "selected": 24,
+   "und": "off",
    "blockChars": 9190
   },
   {
@@ -423,12 +471,14 @@
    "config": "lex",
    "spans": 2,
    "imported": 2,
+   "accessOnly": 1,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 2,
    "complete": true,
    "any": true,
    "selected": 24,
+   "und": "off",
    "blockChars": 9190
   },
   {
@@ -440,12 +490,14 @@
    "config": "lex",
    "spans": 1,
    "imported": 1,
+   "accessOnly": 1,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 1,
    "complete": true,
    "any": true,
    "selected": 24,
+   "und": "off",
    "blockChars": 9190
   },
   {
@@ -457,12 +509,14 @@
    "config": "lex",
    "spans": 1,
    "imported": 1,
+   "accessOnly": 0,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 1,
    "complete": true,
    "any": true,
    "selected": 24,
+   "und": "off",
    "blockChars": 9190
   },
   {
@@ -474,12 +528,14 @@
    "config": "lex",
    "spans": 1,
    "imported": 1,
+   "accessOnly": 0,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 1,
    "complete": true,
    "any": true,
    "selected": 24,
+   "und": "off",
    "blockChars": 9190
   },
   {
@@ -491,12 +547,14 @@
    "config": "lex",
    "spans": 1,
    "imported": 1,
+   "accessOnly": 1,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 1,
    "complete": true,
    "any": true,
    "selected": 24,
+   "und": "off",
    "blockChars": 9190
   },
   {
@@ -508,12 +566,14 @@
    "config": "lex",
    "spans": 1,
    "imported": 1,
+   "accessOnly": 0,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 1,
    "complete": true,
    "any": true,
    "selected": 24,
+   "und": "off",
    "blockChars": 9190
   },
   {
@@ -525,12 +585,14 @@
    "config": "lex",
    "spans": 4,
    "imported": 4,
+   "accessOnly": 3,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 4,
    "complete": true,
    "any": true,
    "selected": 24,
+   "und": "off",
    "blockChars": 9190
   },
   {
@@ -542,12 +604,14 @@
    "config": "lex",
    "spans": 2,
    "imported": 2,
+   "accessOnly": 1,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 2,
    "complete": true,
    "any": true,
    "selected": 24,
+   "und": "off",
    "blockChars": 9190
   },
   {
@@ -559,12 +623,14 @@
    "config": "lex",
    "spans": 1,
    "imported": 1,
+   "accessOnly": 0,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 1,
    "complete": true,
    "any": true,
    "selected": 24,
+   "und": "off",
    "blockChars": 9190
   },
   {
@@ -576,12 +642,14 @@
    "config": "lex",
    "spans": 1,
    "imported": 1,
+   "accessOnly": 0,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 1,
    "complete": true,
    "any": true,
    "selected": 24,
+   "und": "off",
    "blockChars": 9190
   },
   {
@@ -593,12 +661,14 @@
    "config": "lex",
    "spans": 3,
    "imported": 3,
+   "accessOnly": 2,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 3,
    "complete": true,
    "any": true,
    "selected": 24,
+   "und": "off",
    "blockChars": 9190
   },
   {
@@ -610,12 +680,14 @@
    "config": "lex",
    "spans": 2,
    "imported": 2,
+   "accessOnly": 1,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 2,
    "complete": true,
    "any": true,
    "selected": 24,
+   "und": "off",
    "blockChars": 9190
   },
   {
@@ -627,12 +699,14 @@
    "config": "lex",
    "spans": 1,
    "imported": 1,
+   "accessOnly": 0,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 1,
    "complete": true,
    "any": true,
    "selected": 24,
+   "und": "off",
    "blockChars": 9190
   },
   {
@@ -644,12 +718,14 @@
    "config": "lex",
    "spans": 1,
    "imported": 1,
+   "accessOnly": 0,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 1,
    "complete": true,
    "any": true,
    "selected": 24,
+   "und": "off",
    "blockChars": 9190
   },
   {
@@ -661,12 +737,14 @@
    "config": "lex",
    "spans": 3,
    "imported": 3,
+   "accessOnly": 1,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 3,
    "complete": true,
    "any": true,
    "selected": 24,
+   "und": "off",
    "blockChars": 9190
   },
   {
@@ -678,12 +756,14 @@
    "config": "lex",
    "spans": 3,
    "imported": 3,
+   "accessOnly": 0,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 3,
    "complete": true,
    "any": true,
    "selected": 24,
+   "und": "off",
    "blockChars": 9190
   },
   {
@@ -695,12 +775,14 @@
    "config": "lex",
    "spans": 0,
    "imported": 0,
+   "accessOnly": 0,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 0,
    "complete": false,
    "any": false,
    "selected": 24,
+   "und": "off",
    "blockChars": 9190
   },
   {
@@ -712,12 +794,14 @@
    "config": "lex",
    "spans": 0,
    "imported": 0,
+   "accessOnly": 0,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 0,
    "complete": false,
    "any": false,
    "selected": 24,
+   "und": "off",
    "blockChars": 9190
   },
   {
@@ -729,12 +813,14 @@
    "config": "lex",
    "spans": 1,
    "imported": 1,
+   "accessOnly": 1,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 1,
    "complete": true,
    "any": true,
    "selected": 7,
+   "und": "off",
    "blockChars": 9459
   },
   {
@@ -746,12 +832,14 @@
    "config": "lex",
    "spans": 1,
    "imported": 1,
+   "accessOnly": 1,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 1,
    "complete": true,
    "any": true,
    "selected": 7,
+   "und": "off",
    "blockChars": 9459
   },
   {
@@ -763,12 +851,14 @@
    "config": "lex",
    "spans": 1,
    "imported": 1,
+   "accessOnly": 1,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 1,
    "complete": true,
    "any": true,
    "selected": 7,
+   "und": "off",
    "blockChars": 9459
   },
   {
@@ -780,12 +870,14 @@
    "config": "lex",
    "spans": 1,
    "imported": 1,
+   "accessOnly": 1,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 1,
    "complete": true,
    "any": true,
    "selected": 7,
+   "und": "off",
    "blockChars": 9459
   },
   {
@@ -797,12 +889,14 @@
    "config": "lex",
    "spans": 1,
    "imported": 1,
+   "accessOnly": 1,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 1,
    "complete": true,
    "any": true,
    "selected": 7,
+   "und": "off",
    "blockChars": 9459
   },
   {
@@ -814,12 +908,14 @@
    "config": "lex",
    "spans": 1,
    "imported": 1,
+   "accessOnly": 1,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 1,
    "complete": true,
    "any": true,
    "selected": 7,
+   "und": "off",
    "blockChars": 9459
   },
   {
@@ -831,12 +927,14 @@
    "config": "lex",
    "spans": 2,
    "imported": 2,
+   "accessOnly": 2,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 2,
    "complete": true,
    "any": true,
    "selected": 7,
+   "und": "off",
    "blockChars": 9459
   },
   {
@@ -848,12 +946,14 @@
    "config": "lex",
    "spans": 1,
    "imported": 1,
+   "accessOnly": 0,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 1,
    "complete": true,
    "any": true,
    "selected": 7,
+   "und": "off",
    "blockChars": 9459
   },
   {
@@ -865,12 +965,14 @@
    "config": "lex",
    "spans": 2,
    "imported": 2,
+   "accessOnly": 2,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 2,
    "complete": true,
    "any": true,
    "selected": 7,
+   "und": "off",
    "blockChars": 9459
   },
   {
@@ -882,12 +984,14 @@
    "config": "lex",
    "spans": 2,
    "imported": 2,
+   "accessOnly": 2,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 2,
    "complete": true,
    "any": true,
    "selected": 7,
+   "und": "off",
    "blockChars": 9459
   },
   {
@@ -899,12 +1003,14 @@
    "config": "lex",
    "spans": 2,
    "imported": 2,
+   "accessOnly": 2,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 2,
    "complete": true,
    "any": true,
    "selected": 7,
+   "und": "off",
    "blockChars": 9459
   },
   {
@@ -916,12 +1022,14 @@
    "config": "lex",
    "spans": 2,
    "imported": 2,
+   "accessOnly": 1,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 2,
    "complete": true,
    "any": true,
    "selected": 7,
+   "und": "off",
    "blockChars": 9459
   },
   {
@@ -933,12 +1041,14 @@
    "config": "lex",
    "spans": 2,
    "imported": 2,
+   "accessOnly": 1,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 2,
    "complete": true,
    "any": true,
    "selected": 7,
+   "und": "off",
    "blockChars": 9459
   },
   {
@@ -950,12 +1060,14 @@
    "config": "lex",
    "spans": 2,
    "imported": 2,
+   "accessOnly": 2,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 2,
    "complete": true,
    "any": true,
    "selected": 7,
+   "und": "off",
    "blockChars": 9459
   },
   {
@@ -967,12 +1079,14 @@
    "config": "lex",
    "spans": 1,
    "imported": 1,
+   "accessOnly": 0,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 1,
    "complete": true,
    "any": true,
    "selected": 7,
+   "und": "off",
    "blockChars": 9459
   },
   {
@@ -984,12 +1098,14 @@
    "config": "lex",
    "spans": 1,
    "imported": 1,
+   "accessOnly": 1,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 1,
    "complete": true,
    "any": true,
    "selected": 7,
+   "und": "off",
    "blockChars": 9459
   },
   {
@@ -1001,12 +1117,14 @@
    "config": "lex",
    "spans": 0,
    "imported": 0,
+   "accessOnly": 0,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 0,
    "complete": false,
    "any": false,
    "selected": 7,
+   "und": "off",
    "blockChars": 9459
   },
   {
@@ -1018,12 +1136,14 @@
    "config": "lex",
    "spans": 0,
    "imported": 0,
+   "accessOnly": 0,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 0,
    "complete": false,
    "any": false,
    "selected": 7,
+   "und": "off",
    "blockChars": 9459
   },
   {
@@ -1035,12 +1155,14 @@
    "config": "lex",
    "spans": 1,
    "imported": 1,
+   "accessOnly": 1,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 1,
    "complete": true,
    "any": true,
    "selected": 7,
+   "und": "off",
    "blockChars": 9459
   },
   {
@@ -1052,12 +1174,14 @@
    "config": "lex",
    "spans": 2,
    "imported": 2,
+   "accessOnly": 2,
    "sameItem": true,
    "sameChunk": false,
    "inBlock": 2,
    "complete": true,
    "any": true,
    "selected": 7,
+   "und": "off",
    "blockChars": 9459
   },
   {
@@ -1069,12 +1193,14 @@
    "config": "lex",
    "spans": 2,
    "imported": 2,
+   "accessOnly": 0,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 2,
    "complete": true,
    "any": true,
    "selected": 5,
+   "und": "off",
    "blockChars": 2284
   },
   {
@@ -1086,12 +1212,14 @@
    "config": "lex",
    "spans": 3,
    "imported": 3,
+   "accessOnly": 0,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 3,
    "complete": true,
    "any": true,
    "selected": 4,
+   "und": "off",
    "blockChars": 1050
   },
   {
@@ -1103,12 +1231,14 @@
    "config": "lex",
    "spans": 2,
    "imported": 2,
+   "accessOnly": 0,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 2,
    "complete": true,
    "any": true,
    "selected": 12,
+   "und": "off",
    "blockChars": 3374
   },
   {
@@ -1120,12 +1250,14 @@
    "config": "lex",
    "spans": 3,
    "imported": 3,
+   "accessOnly": 0,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 3,
    "complete": true,
    "any": true,
    "selected": 3,
+   "und": "off",
    "blockChars": 727
   },
   {
@@ -1137,12 +1269,14 @@
    "config": "lex",
    "spans": 3,
    "imported": 3,
+   "accessOnly": 0,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 3,
    "complete": true,
    "any": true,
    "selected": 3,
+   "und": "off",
    "blockChars": 819
   },
   {
@@ -1154,12 +1288,14 @@
    "config": "lex",
    "spans": 4,
    "imported": 4,
+   "accessOnly": 0,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 4,
    "complete": true,
    "any": true,
    "selected": 9,
+   "und": "off",
    "blockChars": 3660
   },
   {
@@ -1171,12 +1307,14 @@
    "config": "lex",
    "spans": 4,
    "imported": 4,
+   "accessOnly": 1,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 2,
    "complete": false,
    "any": true,
    "selected": 8,
+   "und": "off",
    "blockChars": 3163
   },
   {
@@ -1188,12 +1326,14 @@
    "config": "lex",
    "spans": 7,
    "imported": 7,
+   "accessOnly": 0,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 7,
    "complete": true,
    "any": true,
    "selected": 12,
+   "und": "off",
    "blockChars": 3423
   },
   {
@@ -1205,12 +1345,14 @@
    "config": "lex",
    "spans": 2,
    "imported": 2,
+   "accessOnly": 0,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 2,
    "complete": true,
    "any": true,
    "selected": 6,
+   "und": "off",
    "blockChars": 2087
   },
   {
@@ -1222,12 +1364,14 @@
    "config": "lex",
    "spans": 5,
    "imported": 4,
+   "accessOnly": 0,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 4,
    "complete": false,
    "any": true,
    "selected": 12,
+   "und": "off",
    "blockChars": 4830
   },
   {
@@ -1239,12 +1383,14 @@
    "config": "lex",
    "spans": 2,
    "imported": 2,
+   "accessOnly": 1,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 2,
    "complete": true,
    "any": true,
    "selected": 5,
+   "und": "off",
    "blockChars": 2441
   },
   {
@@ -1256,12 +1402,14 @@
    "config": "lex",
    "spans": 2,
    "imported": 2,
+   "accessOnly": 0,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 2,
    "complete": true,
    "any": true,
    "selected": 8,
+   "und": "off",
    "blockChars": 2778
   },
   {
@@ -1273,12 +1421,14 @@
    "config": "lex",
    "spans": 2,
    "imported": 2,
+   "accessOnly": 0,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 2,
    "complete": true,
    "any": true,
    "selected": 12,
+   "und": "off",
    "blockChars": 3751
   },
   {
@@ -1290,12 +1440,14 @@
    "config": "lex",
    "spans": 2,
    "imported": 2,
+   "accessOnly": 0,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 2,
    "complete": true,
    "any": true,
    "selected": 12,
+   "und": "off",
    "blockChars": 4734
   },
   {
@@ -1307,12 +1459,14 @@
    "config": "lex",
    "spans": 2,
    "imported": 1,
+   "accessOnly": 0,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 1,
    "complete": false,
    "any": true,
    "selected": 12,
+   "und": "off",
    "blockChars": 4307
   },
   {
@@ -1324,12 +1478,14 @@
    "config": "lex",
    "spans": 2,
    "imported": 2,
+   "accessOnly": 0,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 2,
    "complete": true,
    "any": true,
    "selected": 4,
+   "und": "off",
    "blockChars": 1050
   },
   {
@@ -1341,12 +1497,14 @@
    "config": "lex",
    "spans": 2,
    "imported": 2,
+   "accessOnly": 0,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 2,
    "complete": true,
    "any": true,
    "selected": 10,
+   "und": "off",
    "blockChars": 3291
   },
   {
@@ -1358,12 +1516,14 @@
    "config": "lex",
    "spans": 2,
    "imported": 2,
+   "accessOnly": 2,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 2,
    "complete": true,
    "any": true,
    "selected": 2,
+   "und": "off",
    "blockChars": 981
   },
   {
@@ -1375,12 +1535,14 @@
    "config": "lex",
    "spans": 2,
    "imported": 2,
+   "accessOnly": 0,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 2,
    "complete": true,
    "any": true,
    "selected": 9,
+   "und": "off",
    "blockChars": 4002
   },
   {
@@ -1392,12 +1554,14 @@
    "config": "lex",
    "spans": 0,
    "imported": 0,
+   "accessOnly": 0,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 0,
    "complete": false,
    "any": false,
    "selected": 6,
+   "und": "off",
    "blockChars": 2876
   },
   {
@@ -1409,12 +1573,14 @@
    "config": "lex",
    "spans": 0,
    "imported": 0,
+   "accessOnly": 0,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 0,
    "complete": false,
    "any": false,
    "selected": 1,
+   "und": "off",
    "blockChars": 946
   },
   {
@@ -1426,12 +1592,14 @@
    "config": "lex",
    "spans": 2,
    "imported": 2,
+   "accessOnly": 1,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 2,
    "complete": true,
    "any": true,
    "selected": 24,
+   "und": "off",
    "blockChars": 8751
   },
   {
@@ -1443,12 +1611,14 @@
    "config": "lex",
    "spans": 2,
    "imported": 2,
+   "accessOnly": 0,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 2,
    "complete": true,
    "any": true,
    "selected": 24,
+   "und": "off",
    "blockChars": 8751
   },
   {
@@ -1460,12 +1630,14 @@
    "config": "lex",
    "spans": 3,
    "imported": 3,
+   "accessOnly": 0,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 3,
    "complete": true,
    "any": true,
    "selected": 24,
+   "und": "off",
    "blockChars": 8751
   },
   {
@@ -1477,12 +1649,14 @@
    "config": "lex",
    "spans": 2,
    "imported": 2,
+   "accessOnly": 0,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 2,
    "complete": true,
    "any": true,
    "selected": 24,
+   "und": "off",
    "blockChars": 8751
   },
   {
@@ -1494,12 +1668,14 @@
    "config": "lex",
    "spans": 2,
    "imported": 2,
+   "accessOnly": 0,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 2,
    "complete": true,
    "any": true,
    "selected": 24,
+   "und": "off",
    "blockChars": 8751
   },
   {
@@ -1511,12 +1687,14 @@
    "config": "lex",
    "spans": 2,
    "imported": 2,
+   "accessOnly": 0,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 2,
    "complete": true,
    "any": true,
    "selected": 24,
+   "und": "off",
    "blockChars": 8751
   },
   {
@@ -1528,12 +1706,14 @@
    "config": "lex",
    "spans": 2,
    "imported": 2,
+   "accessOnly": 0,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 2,
    "complete": true,
    "any": true,
    "selected": 24,
+   "und": "off",
    "blockChars": 8751
   },
   {
@@ -1545,12 +1725,14 @@
    "config": "lex",
    "spans": 2,
    "imported": 2,
+   "accessOnly": 0,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 2,
    "complete": true,
    "any": true,
    "selected": 24,
+   "und": "off",
    "blockChars": 8751
   },
   {
@@ -1562,12 +1744,14 @@
    "config": "lex",
    "spans": 1,
    "imported": 1,
+   "accessOnly": 0,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 1,
    "complete": true,
    "any": true,
    "selected": 24,
+   "und": "off",
    "blockChars": 8751
   },
   {
@@ -1579,12 +1763,14 @@
    "config": "lex",
    "spans": 2,
    "imported": 2,
+   "accessOnly": 0,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 2,
    "complete": true,
    "any": true,
    "selected": 24,
+   "und": "off",
    "blockChars": 8751
   },
   {
@@ -1596,12 +1782,14 @@
    "config": "lex",
    "spans": 1,
    "imported": 1,
+   "accessOnly": 0,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 1,
    "complete": true,
    "any": true,
    "selected": 24,
+   "und": "off",
    "blockChars": 8751
   },
   {
@@ -1613,12 +1801,14 @@
    "config": "lex",
    "spans": 1,
    "imported": 1,
+   "accessOnly": 0,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 1,
    "complete": true,
    "any": true,
    "selected": 24,
+   "und": "off",
    "blockChars": 8751
   },
   {
@@ -1630,12 +1820,14 @@
    "config": "lex",
    "spans": 1,
    "imported": 1,
+   "accessOnly": 1,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 1,
    "complete": true,
    "any": true,
    "selected": 24,
+   "und": "off",
    "blockChars": 8751
   },
   {
@@ -1647,12 +1839,14 @@
    "config": "lex",
    "spans": 1,
    "imported": 1,
+   "accessOnly": 0,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 1,
    "complete": true,
    "any": true,
    "selected": 24,
+   "und": "off",
    "blockChars": 8751
   },
   {
@@ -1664,12 +1858,14 @@
    "config": "lex",
    "spans": 3,
    "imported": 3,
+   "accessOnly": 1,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 3,
    "complete": true,
    "any": true,
    "selected": 24,
+   "und": "off",
    "blockChars": 8751
   },
   {
@@ -1681,12 +1877,14 @@
    "config": "lex",
    "spans": 2,
    "imported": 2,
+   "accessOnly": 0,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 2,
    "complete": true,
    "any": true,
    "selected": 24,
+   "und": "off",
    "blockChars": 8751
   },
   {
@@ -1698,12 +1896,14 @@
    "config": "lex",
    "spans": 1,
    "imported": 1,
+   "accessOnly": 1,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 1,
    "complete": true,
    "any": true,
    "selected": 24,
+   "und": "off",
    "blockChars": 8751
   },
   {
@@ -1715,12 +1915,14 @@
    "config": "lex",
    "spans": 1,
    "imported": 1,
+   "accessOnly": 0,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 1,
    "complete": true,
    "any": true,
    "selected": 24,
+   "und": "off",
    "blockChars": 8751
   },
   {
@@ -1732,12 +1934,14 @@
    "config": "lex",
    "spans": 1,
    "imported": 1,
+   "accessOnly": 0,
    "sameItem": true,
    "sameChunk": true,
    "inBlock": 1,
    "complete": true,
    "any": true,
    "selected": 24,
+   "und": "off",
    "blockChars": 8751
   },
   {
@@ -1749,12 +1953,14 @@
    "config": "lex",
    "spans": 2,
    "imported": 2,
+   "accessOnly": 0,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 2,
    "complete": true,
    "any": true,
    "selected": 24,
+   "und": "off",
    "blockChars": 8751
   },
   {
@@ -1766,12 +1972,14 @@
    "config": "lex",
    "spans": 0,
    "imported": 0,
+   "accessOnly": 0,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 0,
    "complete": false,
    "any": false,
    "selected": 24,
+   "und": "off",
    "blockChars": 8751
   },
   {
@@ -1783,12 +1991,14 @@
    "config": "lex",
    "spans": 0,
    "imported": 0,
+   "accessOnly": 0,
    "sameItem": false,
    "sameChunk": false,
    "inBlock": 0,
    "complete": false,
    "any": false,
    "selected": 24,
+   "und": "off",
    "blockChars": 8751
   }
  ]

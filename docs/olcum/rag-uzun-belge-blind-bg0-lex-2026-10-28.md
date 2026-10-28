@@ -8,6 +8,8 @@ Arka plan bilgi tabanı: 0 kalem (tek belge — ürün bu boyutta seçim yapmaz,
 
 | ölçü | sonuç |
 |---|---|
+| anlama katmanı (koştu · boş döndü · gerek yok · kapalı) | 0 · 0 · 0 · 105 |
+| yalnız "Giriş Talimatı"nda kalan alıntı (QR ve rezervasyon öncesi görmez) | 47 alıntı · 35 soru |
 | içe aktarmada kaybolmayan alıntı | 192/194 (%99) |
 | çok alıntılı soruda hepsi aynı kalemde | 25/64 (%39) |
 | çok alıntılı soruda hepsi aynı parçada | 23/64 (%36) |

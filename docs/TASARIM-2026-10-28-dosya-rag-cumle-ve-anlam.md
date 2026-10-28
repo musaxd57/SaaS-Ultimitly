@@ -524,3 +524,94 @@ doğrulandı; katıldıklarım tasarıma girdi, katılmadığım yer gerekçeli.
 | C9 | Sıralayıcı penceresi geometrik ortalanırsa koşulu kesebilir; tablo satırı sütun başlığından kopmamalı | **Katılıyorum** | Opus R26 (tablo başlık satırı satırlardan kopuyor) aynı sınıf. | Pencere "bağlı cümleyi kapsayan" biçimde tasarlanacak; tablo başlığı satıra bağlanacak (içe aktarma). |
 | C10 | Depo hesabı: 85 parça + 550 cümle + 510 soru ≈ 2,7 MB / daire, 10.000 dairede ≈ 27 GB | **Doğru hesap** | 85×1.536×4 + 1.060×512×4 ≈ 2,7 MB. | Maliyet tablosuna işletme maliyeti (depo + okuma süresi) eklenecek; cümle / soru yalnız ölçülen kazançla açılır. |
 | C11 | Önerilen sıra: kaynak yapısı ve bağlam bağları → belirlenimci önek + kalıcı sürümlü indeks → cümle araması → üretilmiş sorular, her biri ayrı ölçülerek | **Katılıyorum** | Hepsi birden açılırsa hangisinin fayda / zarar verdiği bilinmez. Kalıcı sürümlü indeks bugün kodda (migration 87 + sürüm alanı). | §4.3 dilim sırası buna göre güncellendi: D1 ölçüm → D1b bağlam bağları → D2 önek → D3 cümle → D4 soru. |
+
+## 9. Ölçüm sonuçları (10-28 akşam) — uzun belge seti, gerçek model, tekrarlı
+
+Ölçer `tests/eval/rag-long.eval.test.ts` (ürünün içe aktarması + aynı getirme hattı). Geliştirme seti `evals/rag-long/dev.json` (6 belge,
+8,5–13,7 bin karakter, 125 soru; ayrı yazar, görülebilir) · kör set `evals/rag-long/blind.json` (5 belge, 105 soru; ayrı yazar, yalnız
+özet — ayar için okunmadı). "Bağlam tam" = sorunun cevabı için gereken BÜTÜN alıntılar modele giden blokta. Arka plan: 250 başka kalem
+(ürünün seçim yaptığı boyut; tek belgede bilgi tabanının tamamı gider, seçim yok).
+
+### 9.1 Ölçer hatası (dürüstlük notu)
+
+İlk ücretli koşular anlama katmanı KAPALI çalıştı: ölçer `AI_UNDERSTANDING_ENABLED` vermiyordu, katman sessizce "kapalı" dönüyordu
+(üretimde açık). Düzeltildi; artık her soruda katmanın koşup koşmadığı sayılır, sonuç vermeyen oran %10'u aşarsa koşu düşer. Anlamasız
+koşular `*-anlamasiz-*` adıyla tarihçe olarak kaldı (kör 90/95 · geliştirme 102/113 — anlama katmanının katkısı ayrıca görülsün).
+
+### 9.2 Bugünkü üretim yapılandırması (anlama 5.1 + yeniden sıralayıcı 5.1 + small gömme)
+
+| set | sözcükle (lex) | üretim (`live`) | not |
+|---|---|---|---|
+| geliştirme, tek belge (seçim yok) | 113/113 | — | bilgi tabanının tamamı gider |
+| geliştirme, 250 arka plan | 83/113 | **106 · 103 · 100** (3 tekrar, ort. 103) | koşudan koşuya ±3 |
+| kör, 250 arka plan | 66/95 | **90/95** | en az bir alıntı 94/95 |
+
+Kaçanların sınıfı (geliştirme, 3 tekrarın birleşimi): tablo başlığı satırdan kopuk (5 soru) · uzak istisna / genel kural başka bölümde
+(5) · açık gönderme "bkz. Bölüm 9" (1) · çok sorulu mesajda bir soru (1) · başka dil (1).
+
+### 9.3 Tablo başlığı bağlamı (`KB_TABLE_HEADER`, kodda, KAPALI) — Codex C9
+
+Kök neden (kodla doğrulandı): 900 karakteri aşan tablo **içe aktarmada** bölünüyor ve parçalar ayrı konu kalemlerine düşüyor; başlık
+satırı ("| Hizmet | Düşük sezon | Orta sezon | Yüksek sezon |") bir kalemde, "| Geç çıkış | Ücretsiz | 500 TL | Yapılmıyor |" başka
+kalemde kalıyor. Parçalayıcı da aynı kalem içindeki uzun tabloyu bölüyordu. Düzeltme iki yerde aynı kural: tablonun ortasından başlayan
+parça / içe aktarma devam parçası aynı tablonun başlık satırını taşır. Kategori / erişim kararı yalnız parçanın kendi metnine bakar
+(Haiku 10-28 gizlilik bulgusu: başlık "Wi-Fi | 4590" satırını aday misafire açık otopark kalemine taşıyordu — düzeltildi, pinli).
+
+| | kapalı (3 tekrar) | açık (2 tekrar) |
+|---|---|---|
+| bağlam tam (geliştirme) | 106 · 103 · 100 (ort. 103) | **110 · 107 (ort. 108,5)** |
+| tablo soruları | 13 · 12 · 12 / 15 | **15 · 15 / 15** |
+| çok alıntılı soruda hepsi aynı parçada | 32/92 | **44/92** |
+| cevapsız soruda seçilen parça / blok boyu | 11,7 / ~4.080 kr | 11,7 / ~4.080 kr (maliyet değişmedi) |
+| kör set | 90/95 | 90/95 (gerileme yok; kör setin tabloları kısa) |
+
+Mutasyon 12/12 (yaşayan iki mutant pinlendi). Açmak = kurucu kararı (müşteriye giden cevabı DOLAYLI değiştirir: modele giden parça başlık
+satırını da taşır). Önce / sonra örneği: misafir "Ağustos'ta 14:00'e kadar kalabilir miyiz?" → bugün modele "| Geç çıkış | Ücretsiz |
+500 TL | Yapılmıyor |" satırı başlıksız gidebiliyor (hangi sütun Ağustos belli değil, model "500 TL" diyebilir); açıkken satırın üstünde
+"| Hizmet | Düşük sezon | Orta sezon | Yüksek sezon |" var → "yüksek sezonda geç çıkış yapılmıyor".
+
+### 9.4 Ölçülen ama kodlanmayan: "Giriş Talimatı"na süpürülen bilgi (kurucuya soru)
+
+İçe aktarma kapı / anahtar / kilit sözcüğü geçen PARAGRAFI bütünüyle "Giriş Talimatı" kalemine taşıyor (erişim kararı paragraf düzeyinde,
+Opus 10-23 D1 — kod taşıyan devam cümlesi sızmasın diye). O kategori QR sohbetinde ve rezervasyon öncesinde misafire GİTMEZ. Ölçüm:
+geliştirmede 13 alıntı / 10 soru, kör sette 47 alıntı / 35 soru yalnız o kalemde. Geliştirme örnekleri (meşru erişim soruları hariç):
+"Elektrik gitti! Sigorta kutusu nerede?" (cümle "giriş kapısının arkasında" dediği için), yol tarifi, otopark, çöp, çıkış saati.
+Seçenekler: (a) bugünkü gibi (güvenli, bilgi kaybı) · (b) cümle düzeyi ayırma: yalnız kapı / anahtar / kod cümlesi Giriş Talimatı'na, kalan
+cümleler konusuna — risk: "Anahtar kutusu kapının solunda. Şifresi 4821." gibi kodu ikinci cümlede taşıyan metin; taslak kapısı cümle
+bazında kodu yakalamazsa aday misafire sızar → ancak sızıntı testleriyle · (c) içe aktarma ekranında ev sahibine "bu paragraf Giriş
+Talimatı'na taşındı, ayırmak ister misiniz?" düğmesi. Önerim (c) + (b)'nin yalnız kod taşımayan, erişim sözcüğü yan anlamda geçen cümleler
+için ölçülmüş hâli — karar kurucunun.
+
+### 9.5 Luna ile 5.1: anlama + yeniden sıralayıcı (kurucu: "eşitse Luna")
+
+`rag-lab` perq geliştirme seti, iki sorulu 120 mesaj (cevapların İKİSİ de blokta), İngilizce köprü sorgusu açık, Luna sıralayıcı süre
+tavanı 2,5 → 5 sn (10-10'daki kaybın sebebi gecikmeydi), iki tekrar (taze model önbelleği):
+
+| anlama | sıralayıcı | koşu 1 | koşu 2 | ort. | sıralayıcı p95 |
+|---|---|---|---|---|---|
+| 5.1 | 5.1 | 118 | 114 | **116** | 1,6–1,7 sn |
+| 5.1 | Luna `none` (5 sn) | 115 | 111 | 113 | 1,9–3,5 sn |
+| Luna `low` | 5.1 | 108 | 114 | 111 | 1,6–1,7 sn |
+| Luna `low` | Luna `none` (5 sn) | 113 | 112 | 112,5 | 2,3–2,9 sn |
+
+Eşitlik YOK: tavan yükseltilince Luna'nın zaman aşımı kaybı kalktı ama sıralama kalitesi iki koşuda da 3 mesaj geride (kayıp "bütçe" sütununda:
+Luna'nın sıraladığı aday cevabı bütçenin dışına itiyor); Luna anlama ortalama 5 geride (eşik altı kaçak 1 → 4–9). Bu iki katmanın mesaj
+başı maliyeti küçük (anlama ~1–2 bin, sıralayıcı ~3 bin giriş belirteci). Öneri: anlama + sıralayıcı 5.1'de kalır; cevap modeli Luna
+(10-10 kararı) değişmez. Raporlar: `docs/olcum/rag-lab-2026-10-28{,-2,-3,-4}.md`.
+
+### 9.6 İnce ayar (fine-tuning) yolu kapalı (OpenAI API'si, 10-28)
+
+`POST /v1/fine_tuning/jobs` (gpt-6-luna, gpt-5.1 ve gpt-4.1 için ayrı ayrı denendi, iş açılmadı) → `training_not_available`: "OpenAI is
+winding down the fine-tuning platform and your organization is no longer able to create new fine-tuning training jobs." Yani "modelin nasıl
+düşünmesi gerektiğini ince ayarla öğretmek" bu sağlayıcıda mümkün değil. Aynı amaca giden yol: (1) doğrulanmış örnek bankası — kurucunun
+onayladığı soru → doğru davranış çiftleri, benzer olanı isteme ÖRNEK olarak girer (kör set asla girmez), (2) kod kuralı yalnız durdurur,
+gönderimi model + okuyucu onaylar (7-D), (3) her değişiklik kör setle ölçülür.
+
+### 9.7 Sıradaki (ölçülen kayba göre)
+
+1. Kurucu kararları: `KB_TABLE_HEADER` aç / açma · 9.4 Giriş Talimatı seçeneği.
+2. Uzak istisna / genel kural (5 soru): aynı belgedeki "genel kural ↔ istisna" bağını içe aktarmada kurmak (C1; başlık yolu + istisna
+   cümlesinin konusuna bağlanması) — ölçerle.
+3. Koşudan koşuya ±3 oynama: yeniden sıralayıcı çıktısı tekrarlanabilir değil; aynı soruya iki kez aynı bloğu vermek için sıralayıcıya
+   sabit tohum / düşük sıcaklık seçeneği ya da iki çağrının birleşimi ölçülecek.
+4. Cevap düzeyi (son gönderim doğru mu) uzun belgede `rag-answer` ile.
