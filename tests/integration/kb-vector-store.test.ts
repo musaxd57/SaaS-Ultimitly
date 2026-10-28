@@ -287,11 +287,10 @@ describe("kalıcı gömme deposu — temizlik", () => {
     // Isıtma A'yı eski sürümüyle görmüştü; yazmadan önce A düzenlendi.
     await prisma.knowledgeBaseItem.update({ where: { id: a.id }, data: { content: "Yeni Wi-Fi şifresi başka." } });
     await prisma.knowledgeBaseItem.delete({ where: { id: b.id } });
-    const written = await persistChunkVectors(embeddingModel(), [
-      { owners: [{ kbItemId: a.id, updatedAt: a.updatedAt }], text: "eski metin", vector: v },
-      { owners: [{ kbItemId: b.id, updatedAt: b.updatedAt }], text: "silinen kalem", vector: v },
-    ]);
-    expect(written.size).toBe(0);
+    // Ayrı yazımlar: silinmiş kalem toplu yazımı tek başına düşürebileceği için sürüm kuralı ayrı sınanır.
+    expect((await persistChunkVectors(embeddingModel(), [{ owners: [{ kbItemId: a.id, updatedAt: a.updatedAt }], text: "eski metin", vector: v }])).size).toBe(0);
+    expect(await prisma.kbChunkVector.count()).toBe(0);
+    expect((await persistChunkVectors(embeddingModel(), [{ owners: [{ kbItemId: b.id, updatedAt: b.updatedAt }], text: "silinen kalem", vector: v }])).size).toBe(0);
     expect(await prisma.kbChunkVector.count()).toBe(0);
     // KONTROL: bugünkü sürümle yazılır.
     const fresh = await prisma.knowledgeBaseItem.findUniqueOrThrow({ where: { id: a.id } });
