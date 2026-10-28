@@ -316,6 +316,10 @@ describe("ev sahibine yönlendirme", () => {
       "If you'd like more details, call your host and let them know.",
       "If you want to know the parking rules, message your host with the details.",
       "If the Wi-Fi stops working, message your host for more information.",
+      // Olay koşulu VAR ama koşul aynı zamanda bilgi isteği: haber verme ifadesinin silinmesi onu kurtarmaz.
+      "If the Wi-Fi stops working and you want to know why, message your host with the details.",
+      "If you lose the key and would like more details, call your host and let them know.",
+      "Anahtarı kaybederseniz ve ayrıntı isterseniz ev sahibinizi arayın ve bilgi verin.",
       "Ev sahibiniz bu konuda size bilgi verebilir.",
       "Ev sahibinizden bilgi alabilirsiniz.",
       "Otopark için ev sahibinize sorabilirsiniz, ona haber de verebilirsiniz.",
