@@ -1,6 +1,7 @@
 import "server-only";
 
 import { callStructuredJson } from "./structured-call";
+import { kbFeeRuleEnabled } from "../kb-fee-rule";
 import { semanticApiKey, semanticModel, semanticReasoningEffort, semanticTimeoutMs } from "./config";
 import { redactForSemanticModel } from "./redact";
 import { fenceSafe } from "./fence";
@@ -134,6 +135,22 @@ export const SENIOR_READER_ADDENDUM = [
 ].join("\n");
 
 export const SENIOR_READER_SYSTEM_PROMPT = `${ABSENCE_JUDGE_SYSTEM_PROMPT}\n${SENIOR_READER_ADDENDUM}`;
+
+/**
+ * Ücret kuralı açıkken ödeme tanımına eklenen açıklama (kurucu kararı 4.13, 10-28: "Bilgi tabanında yazan hizmet ücreti cevaplansın"). Canlı
+ * ölçümde (fee413-parts) "…getirebiliyoruz; ikisi birlikte 250 TL'dir." gibi 7 taslak "ev sahibine platform dışı ödeme" sayılıp tutuldu —
+ * taslaklar ödemenin nasıl / nereye yapılacağını söylemiyordu. Elden / havale / bağlantı / kapıda ödeme isteyen taslak yine ödemedir.
+ */
+export const SENIOR_READER_FEE_LINE =
+  "A draft that only states the price of a service or item (also one the host provides), without saying how or where to pay, is NOT pays_host_off_platform; it is still true when the draft also asks the guest to pay that price in cash, by transfer, through a link or at the door.";
+const SENIOR_FEE_ANCHOR = "parking operator, museum, bike or car rental) or when the draft says payment is made through the platform.\n";
+
+/** Kıdemli okuyucunun istemi: ücret kuralı kapalıyken `SENIOR_READER_SYSTEM_PROMPT` bayt bayt; açıkken ödeme tanımının ardına açıklama. */
+export function seniorReaderSystemPrompt(opts: { feeRule: boolean }): string {
+  return opts.feeRule
+    ? SENIOR_READER_SYSTEM_PROMPT.replace(SENIOR_FEE_ANCHOR, `${SENIOR_FEE_ANCHOR}${SENIOR_READER_FEE_LINE}\n`)
+    : SENIOR_READER_SYSTEM_PROMPT;
+}
 
 export const ABSENCE_JUDGE_JSON_SCHEMA = {
   name: "absence_judge",
@@ -403,7 +420,7 @@ export async function runAbsenceJudge(input: AbsenceJudgeInput): Promise<Absence
       const res = await callStructuredJson({
         apiKey,
         model,
-        system: senior ? SENIOR_READER_SYSTEM_PROMPT : ABSENCE_JUDGE_SYSTEM_PROMPT,
+        system: senior ? seniorReaderSystemPrompt({ feeRule: kbFeeRuleEnabled() }) : ABSENCE_JUDGE_SYSTEM_PROMPT,
         user,
         schema: senior ? SENIOR_READER_JSON_SCHEMA : ABSENCE_JUDGE_JSON_SCHEMA,
         timeoutMs: semanticTimeoutMs(model),

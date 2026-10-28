@@ -11,13 +11,15 @@ import { runAbsenceJudge } from "@/lib/ai/semantic/absence-judge";
 
 type Expect = { payHost: boolean | null; contact: boolean | null; apology: boolean | null };
 const OUT = process.env.EVAL_SENIOR_OUT;
+/** Set adı (`evals/` içinde; varsayılan Airbnb mesaj kuralları seti). 10-28: hizmet ücreti cümleleri seti `airbnb-fee-statements.json`. */
+const SET_FILE = (process.env.EVAL_SENIOR_SET?.trim() || "airbnb-message-policy.json").replace(/[^a-z0-9._-]/gi, "");
 const run = process.env.RUN_REAL_EVAL === "1" && Boolean(process.env.OPENAI_API_KEY) && Boolean(OUT);
 
 describe.skipIf(!run)("KIDEMLİ OKUYUCU — Airbnb / ödeme / özür seti (gerçek model)", () => {
   it(
     "her vakada okuyucu koşar; soru başına sapma sayılır",
     async () => {
-      const set = JSON.parse(readFileSync(path.resolve(__dirname, "../../evals/airbnb-message-policy.json"), "utf8")) as {
+      const set = JSON.parse(readFileSync(path.resolve(__dirname, "../../evals", SET_FILE), "utf8")) as {
         cases: { id: string; guest: string; draft: string; attack?: boolean; expect: Expect }[];
       };
       const rows: unknown[] = [];
