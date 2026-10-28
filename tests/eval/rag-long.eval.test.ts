@@ -18,8 +18,9 @@ import { parseConfig } from "./rag-lab/config";
 //   · bağlam tamlığı: alıntıların HEPSİ modele giden blokta mı (asıl ölçü) · en az biri blokta mı
 // Cevapsız sorularda (belgede yok) blok şişmesi raporlanır; cevap düzeyi (son gönderim doğru mu) `rag-answer` ölçeriyle ayrıca.
 // Veri: `evals/rag-long/dev.json` (geliştirme, görülebilir) · `evals/rag-long/blind.json` (ayrı yazar, sistemi görmedi; YALNIZ son doğrulama).
-// Kapılar: `lex` yapılandırması ücretsizdir (model / gömme çağrısı yok); ücretli yapılandırmalar RUN_REAL_EVAL=1 + anahtar ister.
-// Kullanım: EVAL_RAG_LONG_SET=dev EVAL_RAG_LONG_CONFIGS=lex,live npx vitest run -c vitest.eval.config.ts tests/eval/rag-long.eval.test.ts
+// Kapılar: ölçer YALNIZ açıkça istenince koşar (`EVAL_RAG_LONG=1` ya da `RUN_REAL_EVAL=1`) — `npm test` bu dosyayı da toplar, kendiliğinden
+// koşsa her kapıda rapor dosyası yazardı. `lex` ücretsizdir (model / gömme çağrısı yok); ücretli yapılandırmalar RUN_REAL_EVAL=1 + anahtar ister.
+// Kullanım: EVAL_RAG_LONG=1 EVAL_RAG_LONG_SET=dev EVAL_RAG_LONG_CONFIGS=lex npx vitest run -c vitest.eval.config.ts tests/eval/rag-long.eval.test.ts
 // ---------------------------------------------------------------------------
 
 interface LongDoc {
@@ -54,6 +55,31 @@ const key = process.env.OPENAI_API_KEY?.trim() ?? "";
 const paidOk = process.env.RUN_REAL_EVAL === "1" && key.length > 20 && !key.startsWith("test-");
 const NOW = Date.UTC(2026, 9, 28, 12);
 const WORKERS = Math.max(1, Math.min(8, Math.trunc(Number(process.env.EVAL_RAG_WORKERS) || 4)));
+/**
+ * Arka plan bilgi tabanı (kalem sayısı; 0 = yok). Ürün 30 kalem / 24 bin karakterin altındaki bilgi tabanında SEÇİM YAPMAZ (hepsi gider) —
+ * tek başına ~9 bin karakterlik belge aramayı hiç sınamaz. Gerçekçi zor durum: ev sahibinin elle yazdığı çok sayıda kısa kalem + bir uzun
+ * belge. Arka plan, kısa kalem setinin GELİŞTİRME kümesinden (`evals/rag-scale/dev.json`) sabit sırayla alınır (başka daire adları taşır;
+ * yakın konu dikkat dağıtıcısı olarak işe yarar).
+ */
+const BACKGROUND = Math.max(0, Math.trunc(Number(process.env.EVAL_RAG_LONG_BACKGROUND) || 0));
+/** Kör küme ayar için okunmaz: rapora soru ayrıntısı yazılmaz (yalnız oranlar). */
+const DETAILS = process.env.EVAL_RAG_LONG_DETAILS !== "0" && SET !== "blind";
+
+function backgroundItems(n: number): LabItem[] {
+  if (n === 0) return [];
+  const file = JSON.parse(readFileSync(path.resolve(__dirname, "../../evals/rag-scale/dev.json"), "utf8")) as {
+    items: { id: string; category: string; title: string; content: string }[];
+  };
+  return file.items.slice(0, n).map((it) => ({
+    id: `bg-${it.id}`,
+    category: it.category,
+    title: it.title,
+    content: it.content,
+    updatedAt: new Date(NOW - 30 * 86_400_000),
+    supersededById: null,
+    reviewState: "approved",
+  }));
+}
 
 /** Boşluk farkı (satır sonu, çift boşluk) içe aktarmanın düzenidir, içerik farkı değil. */
 export const norm = (s: string): string => s.replace(/\s+/g, " ").trim();
@@ -124,10 +150,11 @@ function pct(n: number, d: number): string {
   return d === 0 ? "—" : `${n}/${d} (%${Math.round((100 * n) / d)})`;
 }
 
-export function report(rows: readonly LongRow[], set: LongSet, docs: Map<string, { items: number; chars: number }>): string {
+export function report(rows: readonly LongRow[], set: LongSet, docs: Map<string, { items: number; chars: number }>, details = true, background = 0): string {
   const lines: string[] = [];
   lines.push(`# Uzun belge RAG ölçümü — ${set.split} (${set.author})`, "");
   lines.push(`Belgeler: ${[...docs].map(([id, d]) => `${id} ${d.chars} kr → ${d.items} kalem`).join(" · ")}`, "");
+  lines.push(`Arka plan bilgi tabanı: ${background} kalem${background === 0 ? " (tek belge — ürün bu boyutta seçim yapmaz, bilgi tabanının tamamı gider)" : ""}`, "");
   const configs = [...new Set(rows.map((r) => r.config))];
   for (const cfg of configs) {
     const rs = rows.filter((r) => r.config === cfg);
@@ -148,7 +175,8 @@ export function report(rows: readonly LongRow[], set: LongSet, docs: Map<string,
       lines.push(`| ${cat} | ${c.length} | ${pct(c.filter((r) => r.complete).length, c.length)} | ${pct(c.filter((r) => r.any).length, c.length)} | ${pct(c.filter((r) => r.sameChunk).length, c.length)} |`);
     }
     const fails = ans.filter((r) => !r.complete).slice(0, 25);
-    if (fails.length > 0) {
+    if (fails.length > 0 && !details) lines.push("", `(Kör küme: ${ans.filter((r) => !r.complete).length} eksik bağlamlı sorunun ayrıntısı yazılmaz — ayar için okunmaz.)`);
+    if (fails.length > 0 && details) {
       lines.push("", `Eksik bağlamlı ilk ${fails.length} soru (eksik alıntı):`, "");
       for (const f of fails) lines.push(`- ${f.qid} [${f.category}] ${f.inBlock}/${f.spans} — eksik: ${f.missing.map((m) => `«${m.slice(0, 90)}»`).join(" · ")}`);
     }
@@ -158,9 +186,10 @@ export function report(rows: readonly LongRow[], set: LongSet, docs: Map<string,
 }
 
 const hasFile = existsSync(FILE);
+const requested = process.env.EVAL_RAG_LONG === "1" || process.env.RUN_REAL_EVAL === "1";
 
 describe(`uzun belge RAG — ${SET}`, () => {
-  it.runIf(hasFile)("içe aktarma + getirme: bağlam tamlığı ölçülür, rapor yazılır", { timeout: 3_600_000 }, async () => {
+  it.runIf(hasFile && requested)("içe aktarma + getirme: bağlam tamlığı ölçülür, rapor yazılır", { timeout: 3_600_000 }, async () => {
     const set = JSON.parse(readFileSync(FILE, "utf8")) as LongSet;
     const configs = CONFIG_NAMES.map(parseConfig);
     for (const c of configs) {
@@ -174,8 +203,9 @@ describe(`uzun belge RAG — ${SET}`, () => {
       expect(doc, q.id).toBeDefined();
       for (const s of q.requiredSpans) expect(norm(doc!.text).includes(norm(s)), `${q.id}: «${s}»`).toBe(true);
     }
-    const itemsByDoc = new Map(set.documents.map((d) => [d.id, itemsFromDocument(d)]));
-    const docs = new Map(set.documents.map((d) => [d.id, { items: itemsByDoc.get(d.id)!.length, chars: d.text.length }]));
+    const bg = backgroundItems(BACKGROUND);
+    const itemsByDoc = new Map(set.documents.map((d) => [d.id, [...itemsFromDocument(d), ...bg]]));
+    const docs = new Map(set.documents.map((d) => [d.id, { items: itemsByDoc.get(d.id)!.length - bg.length, chars: d.text.length }]));
 
     const rows: LongRow[] = [];
     for (const cfg of configs) {
@@ -200,9 +230,10 @@ describe(`uzun belge RAG — ${SET}`, () => {
     rows.sort((a, b) => a.config.localeCompare(b.config) || a.qid.localeCompare(b.qid));
     const outDir = path.resolve(__dirname, "../../docs/olcum");
     mkdirSync(outDir, { recursive: true });
-    const stamp = `rag-uzun-belge-${set.split}-${CONFIG_NAMES.join("_").replace(/[^a-z0-9_.-]/gi, "")}-2026-10-28`;
-    writeFileSync(path.join(outDir, `${stamp}.json`), JSON.stringify({ set: set.split, author: set.author, configs: CONFIG_NAMES, rows }, null, 1));
-    writeFileSync(path.join(outDir, `${stamp}.md`), report(rows, set, docs));
+    const stamp = `rag-uzun-belge-${set.split}-bg${BACKGROUND}-${CONFIG_NAMES.join("_").replace(/[^a-z0-9_.-]/gi, "")}-2026-10-28`;
+    const outRows = DETAILS ? rows : rows.map(({ missing: _missing, ...r }) => r);
+    writeFileSync(path.join(outDir, `${stamp}.json`), JSON.stringify({ set: set.split, author: set.author, configs: CONFIG_NAMES, background: BACKGROUND, rows: outRows }, null, 1));
+    writeFileSync(path.join(outDir, `${stamp}.md`), report(rows, set, docs, DETAILS, BACKGROUND));
     expect(rows.length).toBe(set.questions.length * configs.length);
   });
 });
