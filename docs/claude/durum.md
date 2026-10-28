@@ -104,7 +104,7 @@ Talimatı"na süpürülen paragraf: kör sette 35 soru QR'da cevapsız kalır), 
 4. **Dosyadan içe aktarma:** Opus R24/R25/R26/R27/R28 ✅ kapandı (10-28 gece); sıradaki S4 sunucu API + yükleme ekranı + 7-B plan sınırı (taslak onayı sınıra sayılır, tasarım §4.4).
    Not: dışa aktarılan dosyada "# Daire adı" üst başlığı var; içe aktarma ekranı bağlanırken bu başlık daire seçimine eşlenmeli (bugün
    birden çok daireli dosya tek daireye yüklenirse bütün kalemler o daireye taslak olur — Haiku 10-28 bulgu 1 ile birlikte düşünülecek).
-5. **Opus açıkları:** R10–R15, R17, R19, R22, R27–R30 (`docs/INCELEME-2026-10-28-opus-ikinci-dilim.md` özet tablosu, "AÇIK" olanlar).
+5. **Opus açıkları:** R15 ÖNCE (tasarım notu belgenin sonunda — doğrulanmış parça "Havuz açık" iken bilgi tabanı "kapalı - …" diyor), sonra R10–R14, R17, R19, R22 (yazıyla numara), R29–R30; R13 GEVŞETMEDİR → kurucuya önce/sonra örnekli soru (`docs/INCELEME-2026-10-28-opus-ikinci-dilim.md` özet tablosu, "AÇIK" olanlar).
    Müşteriye giden cevabı GEVŞETEN her düzeltme önce/sonra örneğiyle kurucuya sorulur.
 6. Açık kurucu soruları: 4.11–4.15 (rapor §4, §6) — cevap gelmeden uygulanmaz.
 

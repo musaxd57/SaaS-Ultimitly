@@ -50,5 +50,10 @@ olan" kuralına göre ADAY ama henüz eşit değil — tek koşu, tekrar ve kör
    eşik varyantları (yalnız geliştirme setinde ayar). Eşitse kurucu kararıyla `KB_RERANK_MODEL` yerine ayrı bir anahtarla.
 3. Ürüne bağlanmadı (sormadan sistem kurulmaz). Yalnız ölçer ve araştırma betikleri.
 
-Kaynaklar (ikincil; OpenAI belgesi bu ortamdan açılamadı): letsdatascience.com "OpenAI Opens Decisions API Public Beta", propakistani.pk
-2026-10-07, docs.litellm.ai/docs/decisions/openai_format, truefoundry.com/docs/ai-gateway/decisions, vercel.com AI Gateway Decisions.
+Kaynaklar (ikincil; OpenAI'ın kendi API başvuru sayfası bu ortamdan açılamadı — istek şeması bizim anahtarımızla yapılan denemeyle doğrulandı):
+- [OpenAI Opens Decisions API Public Beta — letsdatascience.com](https://letsdatascience.com/news/openai-opens-decisions-api-public-beta-b69a1e40)
+- [OpenAI launches Decisions API with up to 10x faster responses — propakistani.pk, 2026-10-07](https://propakistani.pk/2026/10/07/openai-launches-decisions-api-with-up-to-10x-faster-responses/)
+- [OpenAI launches Decisions API public beta on GPT-6 Luna — aiweekly.co](https://aiweekly.co/alerts/openai-launches-decisions-api-public-beta-on-gpt-6-luna)
+- [What Is the OpenAI Decisions API? — apidog.com](https://apidog.com/blog/openai-decisions-api/)
+- [Decisions API use, pricing, public beta (October 2026) — smartscope.blog](https://smartscope.blog/en/blog/openai-decisions-api-use-pricing-public-beta-october-2026/) (fiyatın "doğrulanmamış" olduğunu ve resmî kılavuzun "bütün geliştiriciler" demediğini not eder)
+- [LiteLLM — Decisions, OpenAI format](https://docs.litellm.ai/docs/decisions/openai_format) · [TrueFoundry AI Gateway — Decisions](https://www.truefoundry.com/docs/ai-gateway/decisions)
