@@ -172,3 +172,98 @@
 - **Not (aynen):**
 
   > tam bilmiyorum önerin mantıklı gibi açılmadan önce herşeyi halledelim o ayrı güncellemler anlamında
+
+
+---
+## Gece eklenen kararlar (2026-10-28 ~20:00 UTC, sayfanın veritabanından AYNEN)
+
+## 4-13-b — Misafir 'IBAN gönderin, transferi önceden ödeyeyim' derse transfer fiyatı ayrıca gitsin mi?
+
+- **Seçim:** Tamamı bende kalsın (`tamami-bende`) · önerim · kaydedildi 2026-10-28T19:53:11.203Z
+- **Not (aynen):**
+
+  > evet ama şunu merak ediyorum host burda mesajı görmüş gibi saylıyormu AI cevap yazmasa bile sonuçta mesajı okudu ama görüldü okundu olarak işaretletiyor mu uygulamalarda?
+
+## 4-14-b — Airbnb'de ONAYLI konaklamada da imzanın telefon satırı çıkarılsın mı?
+
+- **Seçim:** Airbnb'de her zaman çıkarılsın (`airbnb-hep-cikar`) · önerim · kaydedildi 2026-10-28T19:51:48.623Z
+- **Not (aynen):**
+
+  > tam olarak oku neler lazımsa ve hostun numarasını her mesaj için özellikle sorulmadıkça veya platformca engellenme sorunu yoksa 1 kez yazılsın ki imza yerine telefon numarası bırakılması önerilmesin, uyarı bile çıkarttırabiliriz istersen, bence 
+  > zaten airbnbde gözüküyorsa numara eminsen gitmesine gerek yok ama emin olman gerek yarım iş istemem airbnbde kesin varsa hostun teli airbnbde her zaman çıkarılabilir
+
+## 8-4c-1 — 8-4c: istek defteri + 'son geçerlilik' + soruya çapalı geç cevap kurulsun mu?
+
+- **Seçim:** Evet, tasarım + gölge ölçümle kuralım (`kuralim`) · önerim · kaydedildi 2026-10-28T19:56:09.330Z
+- **Not (aynen):**
+
+  > 1. “Çıkış sabahı geçtiyse gönderme” fazla kaba.
+  > Normal çıkış 11.00, misafir hâlâ dairede ve host 11.10’da 13.00’e kadar kalmasını onaylıyor olabilir. Bu onay hâlâ işe yarayabilir. Buna karşılık misafir 10.30’da ayrılmışsa aynı cevap anlamsızlaşır. Geçerlilik; gerçek tarih, konaklama durumu, talebin amacı ve host’un verdiği karar üzerinden belirlenmeli. 
+  >
+  > 2. Konu değişmesi, isteğin iptali değildir.
+  > Misafir geç çıkış sorusundan sonra Wi-Fi hakkında konuşabilir; geç çıkış isteği hâlâ açık olabilir. “15 mesaj geçti” veya “başka konu konuşuldu” tek başına isteği kapatmamalı. Vazgeçme, yanıtlanma, yeni taleple değiştirilme ve sürenin dolması ayrı durumlar olmalı. 
+  >
+  > Soruyla bağlantılı geç cevap da güzel: “Geç çıkış talebinizle ilgili…” ifadesi, alakasız bir “Bu arada…” başlangıcından daha anlaşılır. Yalnız her cevapta mekanik biçimde kullanılmasına gerek yok.
+
+## G-1 — 'Güven' sayısı yerine ihtiyaç başına kanıt kararı — önce gölge kayıtla başlayalım mı?
+
+- **Seçim:** Evet, önce gölge kayıt (`golge-basla`) · önerim · kaydedildi 2026-10-28T20:06:21.517Z
+- **Not (aynen):**
+
+  > Kanıt kaydı özellikle şunları ayırsın: Doğru misafir ve daire mi? Kaynak bu cevabı destekliyor mu? Cevap gerçekten sorulan ihtiyacı karşılıyor mu? Tarih ve koşullar hâlâ geçerli mi? Çelişki veya eksik bilgi var mı? Böylece “okuyucu evet dedi” de yeni bir açıklamasız güven sayısına dönüşmez.
+  >
+  > Önce gölge kayıtla başlamayı uygun buluyorum; mevcut gönderim davranışı değişmesin. Geçmişte düzeltilmeden gönderilen cevaplar doğrulanmış doğru cevap sayılmasın .  Evet, burada önceki önerim eksikti: bilgi doğru ve güncel olsa bile, cevap artık zamanında veya konuşmaya uygun olmayabilir. Üç gün sonra durduk yere “Havuz 20.00’de kapanıyor” yazmak teknik olarak doğru, müşteri deneyimi açısından kötü olabilir.
+  >
+  > Küçük bir ayrım da var: görseldeki “3 gün önce onaylı”, kaynağın onay tarihi. Senin söylediğin ise sorunun ne kadar beklediği. Sağlam sistem ikisini ayrı değerlendirmeli.
+  >
+  > Benim Ana Kararım
+  > Üç gün beklemiş sıradan bir bilgi cevabı, yalnız hâlâ doğru olduğu için kendiliğinden gönderilmemeli. Ancak üç gündür açık bir arıza veya iade işi de “artık geç” denerek kapatılmamalı.
+  >
+  > Bunun için şu üç şeyi birbirinden ayırırdım:
+  > - Bilginin geçerliliği: Söyleyeceğimiz şey bugün doğru mu?
+  > - İhtiyacın durumu: Misafir bunu hâlâ bekliyor mu; vazgeçti mi, başka taleple değiştirdi mi?
+  > - Bu mesajın gönderilebilirliği: Bu cevabı şimdi göndermek hâlâ yararlı ve uygun mu?
+  > Bir mesajın gönderim hakkı sona erebilir; misafire karşı açık işimiz devam edebilir. Bence tasarımın merkezinde bu ayrım olmalı.
+  >
+  > Somut Senaryolar
+  > Senaryo	Önerdiğim davranış
+  > “Havuz kaçta kapanıyor?” cevabı üç gün gecikmiş; konuya tekrar dönülmemiş	Eski cevabı otomatik gönderme. Gecikmiş ihtiyaç olarak host’a göster; cevaplanmış sayma.
+  > Aynı misafir bugün “Havuz saatini öğrenebildiniz mi?” diyor	Yeni mesaj ihtiyacı yeniden doğrular. Güncel bilgiyle cevap hazırlanabilir; eski taslak körlemesine kullanılmaz.
+  > Misafir havuzu sormuş, sonra otopark konuşmuş	Otoparka geçmesi havuz sorusundan vazgeçtiğini kanıtlamaz. Ama havuz cevabının süresiz otomatik gönderilebilmesini de sağlamaz.
+  > “Bu akşam havuz açık mı?” sorusuna ertesi gün yanıt bulunmuş	Eski soru için “Evet, açık” gönderilmez. İlgili akşam geçmiştir.
+  > “İki hafta sonraki girişte otopark kullanabilir miyiz?”; host araştırıp döneceğini söylemiş	Üç gün sonraki yanıt hâlâ beklenen ve yararlı olabilir. Konaklama ve izin güncelse soruya bağlanarak gönderilebilir.
+  > “Bugün 13.00’e kadar kalabilir miyiz?”; onay 11.10’da gelmiş, misafir hâlâ konaklıyor	Sırf normal çıkış saati geçti diye engellenmez. İstenen süre ve güncel host kararı değerlendirilir.
+  > Aynı onay 14.00’te gelmiş veya misafir ayrılmış	“13.00’e kadar kalabilirsiniz” gönderilmez. Geçmişte kalan izin yeni bir gelecek izni gibi sunulmaz.
+  > Klima arızası üç gündür açık	İşi kapatma. Güncel, doğrulanmış bir gelişme varsa yeni durum bildirimi hazırlanabilir; eski “teknisyen gelecek” taslağı gönderilmez.
+  > Teknik görev “tamamlandı” olmuş, misafir hâlâ “çalışmıyor” diyor	Son misafir bildirimi göz ardı edilmez. Görev tamamlanması otomatik olarak sorunun giderildiğini kanıtlamaz.
+  > İade talebi konaklama bittikten üç gün sonra sonuçlanmış	Çıkış yapılması bu talebi geçersiz kılmaz. Gerçek sonuç bildirilir; ödeme yapılmadıysa yapılmış gibi söylenmez.
+  > Host zaten başka mesajında soruyu cevaplamış	Eski bekleyen cevap tekrar gönderilmez. Gerçekten aynı ihtiyacın cevaplandığı doğrulanır.
+  > Sistem kesintiden sonra üç günlük kuyruğu açmış	Bütün eski mesajlar birden gönderilmez. Her mesaj güncel durum ve son geçerlilik açısından yeniden değerlendirilir.
+  >  sürüm, koşullar ve çelişkiler değerlendirilsin. Kesin güvenlik ve yetki engelleri başka olumlu sinyallerle aşılamasın. Kanıtlar ihtiyaç bazında, eksik ve belirsiz durumları da açıkça gösterecek şekilde tutulsun
+  >
+  > İki Ayrı Süre
+  > Ben ihtiyaç başına iki ayrı zaman sınırı tasarlardım:
+  >
+  > 1. Otomatik gönderim penceresi: Cevabın, yeni bir host değerlendirmesi gerektirmeden gönderilebileceği dönem. Bu pencere ihtiyacın türüne ve kanala göre belirlenir. Canlı QR sohbetindeki basit bilgi sorusuyla haftalar sonraki konaklama için araştırılan bir istek aynı değildir.
+  >
+  > 2. İhtiyacın anlamlı kalma sınırı: “Bu akşam”, “yarın girişten önce”, “13.00’e kadar” gibi gerçek olaylara bağlı sınır. Bu geçince eski cevabı yeniden onaylamak, geçmiş olayı yeniden gelecek yapmaz.
+  >
+  > Üç gün bekleyen rutin bir cevapta benim başlangıç tercihim otomatik gönderim penceresinin açık kalmaması olurdu. Kesin dakika ve saatleri ise ölçmeden evrensel doğru gibi yazmam. Gölge ölçümde hangi sürelerin yararlı cevapları gereksiz tuttuğunu da görmek gerekir.
+  >
+  > Önemli teknik ayrıntı: Host’un geç onay vermesi veya işçinin yeniden denemesi, sorunun yaşını sıfırlamamalı. Yoksa üç günlük cevap “şimdi onaylandı, yepyeni” diye gönderilir.
+  >
+  > Model ve Kod
+  > Model; yeni mesajın vazgeçme, düzeltme, tekrar sorma veya bağımsız başka konu olup olmadığını anlamalı. Fakat yalnız “bence hâlâ uygun” demesi yeterli olmamalı; hangi ihtiyaç ve hangi mesajlara dayandığı belli olmalı.
+  >
+  > Kod; alıcıyı, konaklamayı, açık tarihleri, gerekli kaynak sürümlerini, gönderim sınırını ve tekrar güvenliğini korumalı. Geçmişteki 40 doğru gönderim, bugünkü süresi geçmiş cevaba izin vermemeli.
+  >
+  > Süresi geçen mesajları engellemek için kuyruklarda mesaj ömrü kavramı zaten bulunuyor. Ancak kuyruk süresi tek başına işin anlamını çözmez; uygulamanın kendi son geçerlilik denetimi gerekir. Mevcut veritabanı kuyruğunda da bu ilke uygulanabilir; sırf bunun için başka kuyruk ürününe geçmek gerekmiyor. Microsoft’un açıklaması.
+  >
+  > Host Nasıl Görmeli?
+  > Host’a yalnız “bayat” veya “güven düşük” yazmazdım. Kısa ve somut neden gösterirdim: “Soru üç gün önce soruldu; otomatik gönderim penceresi doldu.” veya “Onaydan sonra çıkış tarihi değişti.”
+  >
+  > Host hâlâ yararlı buluyorsa güncel önizlemeyi inceleyip gönderebilir. Fakat iptal edilmiş temizlik için eski “ekip gelecek” metni, tek bir düğmeyle doğrulanmış gerçek hâline gelmemeli. Gerekirse bu artık eski cevabı göndermek değil, yeni bir durum mesajı hazırlamak olur.
+  >
+  > Ayrıca gönderim penceresi dolan ihtiyaç sessizce kaybolmamalı. hosta söylensin  Misafire de otomatik olarak “Sorunuz hâlâ geçerli mi?” gönderilmesini varsayılan yapmazdım; bu da gereksiz yeni mesajlar yaratabilir.  AIımız müşteriye gerekmedikçe soru sormamasını daha çok isterim.
+  >
+  > Host onayından sonra rezervasyonun değişmesi, işçinin yeniden başlaması ve aynı mesajın tekrar işlenmesi de sınanmalı. Sistem kesintiden dönünce eski cevapları topluca göndermediğinin kanıtı önemli.

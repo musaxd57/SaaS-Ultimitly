@@ -382,3 +382,26 @@ ekliyor (büyük olasılıkla bilgi tabanındaki "herhangi bir sorunda ev sahibi
    - Değişmez: "Anahtarı kaybedersem?" → "Anahtarı kaybederseniz ev sahibinizi arayın."
 2. İSTEM (OpenAI kredisi gelince ölçerek): "misafir sormadıysa 'bir sorun olursa ev sahibinize yazın' kapanışı ekleme" satırı.
 **Böyle yapalım mı?**
+
+### KURUCU CEVABI R13-b / R13-c (10-28 gece, aynen)
+> bu Rler için; "İnternet yok, bağlanamıyorum" "Bir sorun olursa ev sahibinize yazın." gider tutulur, ev sahibi yanıtlar / "Elektrik yok" /
+> "Su yok" / "Isıtma yok" aynı gider tutulur / "İnternet kesildi" / "TV açılmıyor" aynı gider tutulur / "Wi-Fi'ye bağlanamıyorum" "Ağ adı Lale,
+> şifre 12345678." gider gider (şifre gerçek cevap — değişmez) / "Wi-Fi bozulursa ne yapmalıyım?" "Bozulursa ev sahibinize yazın." gider gider
+> hatalı en sondaki aq zaten hostla yazışıyorlar bizim AIımız o kadar iyi olmalı ki ve içten güzel yazmalıki host gibi olmalı AIımız bildiğin
+> bir host adeta ilk 3ünde evet kesinlikle tutmalı önerini çabuk yap ve "Bir sorun olursa ev sahibinize yazın." bu bence gitmesin gerek yok
+> zaten hostla konuşuyorlar yazıştıkları yer burası hatalı burası kesinlike bu gidemesin
+>
+> R13-C olabildiğince en az aramadan bahsetsin çünkü host telefon konuşmak için airbnbde host değil host Örnek Önerim "Otopark var mı?" →
+> otopark bilgisi + "Bir sorun olursa ev sahibinizi arayın." Genel kapanış silinebilir. İlgisiz genel kapanışın kaldırılmasını onaylıyorum.
+> Evet, genel "bir sorun olursa ev sahibinizi arayın/yazın" kapanışı hiç eklenmesin. Yalnız gerçekten sorulan durumun gerekli talimatıysa ve
+> dayanağı varsa kullanması genel kullanımda daha mantıklı gibi Genel "bir sorun olursa ev sahibinizi arayın/yazın" kapanışlarını istemiyorum.
+> Otopark, havuz, Wi-Fi gibi normal bilgi cevaplarına eklenmesin. Yalnız "Anahtarı kaybedersem ne yapmalıyım?" gibi sorularda, geçerli talimat
+> gerçekten ev sahibine ulaşmaksa kullanılabilsin. Bunu sabit birkaç kelimeyle değil, sorunun amacı ve talimatın gerekliliğiyle ayıralım.
+> Gerekli güvenlik uyarıları korunsun. Misafir zaten sorunu bizim sohbetimize bildiriyorsa tekrar "ev sahibine yazın" diye başından
+> savrulmasın; mevcut bildirim ve açık iş akışı devam etsin.
+
+**Okuma (uygulanacak):** (1) "ev sahibinize YAZIN / mesaj atın / write / message your host" hiçbir koşulda gitmez — sohbet zaten ev sahibiyle;
+yalnız o cümleyse cevap tutulur, başka içerik varsa cümle çıkarılır. (2) "Bir sorun olursa ev sahibinizi arayın" türü genel kapanış bilgi
+cevaplarından çıkarılır. (3) Koşullu "arayın" yalnız misafir TAM O durumu sorduysa ("Anahtarı kaybedersem ne yapmalıyım?") ve talimatın dayanağı
+bilgi tabanındaysa kalır. (4) Misafir sorunu BİLDİRİYORSA koşullu talimat çıkarılır; geriye gerçek içerik kalmazsa cevap tutulur, ev sahibi
+yanıtlar (ilk üç satır). (5) Güvenlik uyarıları (acil durum / yangın / gaz / 112) çıkarılmaz.
