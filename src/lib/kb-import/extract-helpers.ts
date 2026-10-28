@@ -126,7 +126,18 @@ const DOUBLE_UTF8: readonly [string, string][] = [
   ["Ã»", "û"],
   ["Ã©", "é"],
   ["Ã¨", "è"],
-  ["Ã ", "à"],
+  // R28 (Opus 10-28): "à" = C3 A0 → ikinci karakter BÖLÜNMEZ BOŞLUK (U+00A0); düz boşlukla yazılınca gerçek bozulmayı hiç yakalamıyor, meşru
+  // "MAÇÃ É" metnini bozuyordu.
+  ["Ã\u00a0", "à"],
+  // R28: aynı UTF-8 baytları Latin-1 (ISO-8859-1) diye okunmuş biçim — ş ğ Ş Ğ Ç Ü Ö'nün ikinci baytı 0x80–0x9F aralığında, Latin-1'de
+  // C1 denetim karakterine düşer (1252 tablosu "ÅŸ" gibi yazdığı için yalnız o biçimi biliyordu).
+  ["Å\u009f", "ş"],
+  ["Å\u009e", "Ş"],
+  ["Ä\u009f", "ğ"],
+  ["Ä\u009e", "Ğ"],
+  ["Ã\u0087", "Ç"],
+  ["Ã\u009c", "Ü"],
+  ["Ã\u0096", "Ö"],
 ];
 /** Windows-1254 baytları 1252 diye okunmuş Türkçe harfler (ı ş ğ İ Ş Ğ → ý þ ð Ý Þ Ð). */
 const WIN1252_TURKISH: Readonly<Record<string, string>> = { "ý": "ı", "þ": "ş", "ð": "ğ", "Ý": "İ", "Þ": "Ş", "Ð": "Ğ" };
@@ -191,17 +202,45 @@ export function sniffDocumentKind(bytes: Uint8Array): SniffedKind | null {
   if (bytes.length >= 5 && bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46 && bytes[4] === 0x2d) return "pdf";
   if (bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04) return "docx";
   if (bytes.length === 0) return null;
+  // R28 (Opus 10-28): RTF ("{\rtf") düz metin değildir — denetim sözcükleri ("\par", "\b0", yazı tipi tablosu) taslak içeriğine girerdi.
+  if (bytes.length >= 5 && bytes[0] === 0x7b && bytes[1] === 0x5c && bytes[2] === 0x72 && bytes[3] === 0x74 && bytes[4] === 0x66) return null;
   const end = Math.min(bytes.length, 4096);
   for (let i = 0; i < end; i++) if (bytes[i] === 0) return null;
   return "txt";
 }
 
-/** Metin dosyası çözümü: UTF-8 (BOM silinir) geçerliyse o; değilse Türkçe Windows kod sayfası 1254 (1252 DEĞİL). */
+/**
+ * Sondaki YARIM UTF-8 dizisinin başladığı yer (yoksa uzunluk): son 3 bayt içinde bir öncü bayt, beklediği devam baytlarından AZI varsa.
+ * Dosya bir yerden kesilmiş / yarıda kaydedilmiş olabilir; tek yarım karakter yüzünden bütün dosyanın kod sayfası değişmesin.
+ */
+function incompleteUtf8Tail(bytes: Uint8Array): number {
+  for (let back = 1; back <= Math.min(3, bytes.length); back++) {
+    const b = bytes[bytes.length - back];
+    if ((b & 0xc0) === 0x80) continue; // devam baytı — öncüyü aramaya devam
+    const need = b >= 0xf0 && b <= 0xf4 ? 4 : b >= 0xe0 ? 3 : b >= 0xc2 && b <= 0xdf ? 2 : 1;
+    return need > back ? bytes.length - back : bytes.length;
+  }
+  return bytes.length;
+}
+
+/**
+ * Metin dosyası çözümü: UTF-8 (BOM silinir) geçerliyse o; değilse Türkçe Windows kod sayfası 1254 (1252 DEĞİL). R28 (Opus 10-28): geçerli
+ * UTF-8 dosyanın yalnız SONUNDA yarım bir dizi varsa o yarım karakter atılır, dosya UTF-8 kalır ("Merhaba Şişli" + 0xC5 bütünüyle 1254
+ * okunup "ÅiÅŸli" oluyordu). Ortada bozuk bayt varsa eskisi gibi 1254.
+ */
 export function decodeTextFile(bytes: Uint8Array): { text: string; encoding: "utf-8" | "windows-1254" } {
+  const utf8 = (b: Uint8Array) => new TextDecoder("utf-8", { fatal: true }).decode(b).replace(/^﻿/, "");
   try {
-    const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-    return { text: text.replace(/^﻿/, ""), encoding: "utf-8" };
+    return { text: utf8(bytes), encoding: "utf-8" };
   } catch {
+    const cut = incompleteUtf8Tail(bytes);
+    if (cut < bytes.length) {
+      try {
+        return { text: utf8(bytes.subarray(0, cut)), encoding: "utf-8" };
+      } catch {
+        // ortada da bozuk bayt var → aşağıda 1254
+      }
+    }
     return { text: new TextDecoder("windows-1254").decode(bytes), encoding: "windows-1254" };
   }
 }

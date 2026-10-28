@@ -307,13 +307,13 @@ yan cümle yalnız KENDİNİ muaf tutsun.
 | R19 | P2 | pet: hayvansız cümlede tutar / "edemeyiz" | a | AÇIK |
 | R20 | P3 | QR: misafir hayvan andı → hayvansız cevap tutulur | b | bilgi |
 | R21 | P2 | kapanış nezaketi özel metni denetlenmiyor | a | düzeltildi 10-28 (ac4bfa66) |
-| R22 | P3 | imza: alan adı / @hesap / yazıyla numara | a | AÇIK |
+| R22 | P3 | imza: alan adı / @hesap / yazıyla numara | a | KISMEN: alan adı + @hesap 10-28 gece (Ö1, imza satırı); yazıyla numara AÇIK |
 | R23 | P3 | partRewriteBilled dryRun / okuyucu çağrıları | d | bilgi |
-| R24 | P1* | KB içe aktarma: kod ayrı paragrafta → Genel | a (bağlanınca) | AÇIK |
-| R25 | P1* | KB içe aktarma: PIN / keyless / Türcode / IT → Genel | a (bağlanınca) | AÇIK |
-| R26 | P2* | tablo başlık satırı satırlardan kopuyor | a (bağlanınca) | AÇIK |
-| R27 | P3 | "Key points" erişim | b | AÇIK |
-| R28 | P3 | extract-helpers küçükler ("Ã " düz boşluk, Latin-1, yarım bayt, RTF) | — | AÇIK |
+| R24 | P1* | KB içe aktarma: kod ayrı paragrafta → Genel | a (bağlanınca) | düzeltildi 10-28 gece (bölüm düzeyi kod benzeri değer + giriş fiiliyle sayı; `checkin` kategori sözcüğü EKLENMEDİ — kategori yalnız erişim kapısıyla açılır) |
+| R25 | P1* | KB içe aktarma: PIN / keyless / Türcode / IT → Genel | a (bağlanınca) | düzeltildi 10-28 gece — kök neden ORTAK sır okuyucusundaydı (QR çıktı taraması + bilgi tabanı süzgeci de kaçırıyordu); "Kapı … Şifre 4590" Wi-Fi'ye gidiyordu çünkü kapıya kodun tahmin ettiği "Wi-Fi" başlığı veriliyordu |
+| R26 | P2* | tablo başlık satırı satırlardan kopuyor | a (bağlanınca) | erişim yönü düzeltildi 10-28 gece (R24 bölüm kuralı: başlık satırı erişim bloğu, satırlar onunla Giriş Talimatı'nda, belge sırasıyla); metin biçimi BİLİNÇLİ değişmedi — 2 sütunlu etiket / değer tablosunda "ilk satır başlık" sezgisi "Adres \| Lale Sokak" satırını yanlış eşlerdi |
+| R27 | P3 | "Key points" erişim | b | düzeltildi 10-28 gece |
+| R28 | P3 | extract-helpers küçükler ("Ã " düz boşluk, Latin-1, yarım bayt, RTF) | — | düzeltildi 10-28 gece (bölünmez boşluk; Latin-1 C1 biçimi ş ğ Ş Ğ Ç Ü Ö; yalnız sondaki yarım dizi atılır; RTF reddedilir; normalizasyon C1 siler) |
 | R29 | P2 | olumsuzluk muafiyeti cümle düzeyi | a | AÇIK |
 | R30 | P3 | RU iyelik, "site yönetimi", DE "bitte direkt an", konusuz değer muafiyeti | a | AÇIK |
 (* modül henüz bağlı değil — bağlamadan önce kapanmalı.) Sorun bulunmayan: `kb/after-change.ts` + çağıranlar (kiracı yalıtımı, işlem dışı,

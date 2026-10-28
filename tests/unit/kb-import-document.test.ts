@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { KB_CHARS_PER_ITEM } from "@/lib/billing/kb-item-cap";
+import { tableRowsToText as tableRowsToTextForTest } from "@/lib/kb-import/extract-helpers";
 import {
   assembleDrafts,
   draftIsVerbatim,
@@ -308,5 +309,113 @@ describe("süre (misafir değil ev sahibi metni ama 200.000 karakter)", () => {
     // Tavan aşılınca okunmayan kısım söylenir; okunan her blok yine hesap verir.
     for (const p of [a, c]) expect(p.truncated).toBe(true);
     expect(splitDocument([{ page: 1, text: contiguous }]).blocks).toHaveLength(KB_IMPORT_MAX_BLOCKS);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// R24 / R25 / R26 / R27 (Opus 10-28 ikinci dilim; içe aktarma ekranı bağlanmadan ÖNCE kapanmalıydı). Kapı kodu "Genel"e düşerse aday misafire
+// ve QR'a açık kategoride kalır (`PREBOOKING_SECRET_CATEGORIES` / `QR_SECRET_CATEGORIES`) — "Giriş Talimatı" yalnız erişim kapısıyla açılır.
+// ---------------------------------------------------------------------------
+const categoriesOf = (text: string) =>
+  planDocumentImport([{ page: 1, text }]).drafts.map((d) => ({ category: d.category, content: d.content }));
+const accessContent = (text: string) =>
+  planDocumentImport([{ page: 1, text }])
+    .drafts.filter((d) => d.category === "checkin")
+    .map((d) => d.content)
+    .join("\n\n");
+
+describe("R24 — kod, erişim sözcüğünden AYRI paragrafta", () => {
+  it("🚨 erişim bloğuyla aynı bölümdeki kod benzeri değer 'Giriş Talimatı'na gider (Genel'e düşmez)", () => {
+    expect(accessContent("Anahtar kutusu kapının sağında.\n\n4590")).toBe("Anahtar kutusu kapının sağında.\n\n4590");
+    expect(accessContent("The lockbox is by the door.\n\nThe number is 4590.")).toContain("The number is 4590.");
+    expect(accessContent("# Arrival\n\nUse the keypad at the main entrance.\n\nType 4590 then press the bell icon.")).toContain("Type 4590");
+    for (const t of ["Anahtar kutusu kapının sağında.\n\n4590", "The lockbox is by the door.\n\nThe number is 4590."]) {
+      expect(categoriesOf(t).some((d) => d.category === "general" && /4590/.test(d.content)), t).toBe(false);
+    }
+  });
+
+  it("🚨 giriş fiiliyle sayı erişim izidir (kapı / kod sözcüğü olmasa da)", () => {
+    expect(accessContent("Giriş:\n\nBina kapısını açın.\n\n4590 yazıp # basın.")).toBe("4590 yazıp # basın.");
+    expect(accessContent("Bahçe kapısı her zaman açıktır.\n\nDaireye girmek için 4590 yazın.")).toBe("Daireye girmek için 4590 yazın.");
+    expect(accessContent("Tapez 4590 puis appuyez sur la cloche.")).toContain("4590");
+  });
+
+  it("aşırı-uygulama: erişim bölümündeki 3 haneli acil numara, fiyat, telefon ve kendi konusu olan paragraf yerinde kalır", () => {
+    const t = (rest: string) => categoriesOf(`Anahtar kutusu kapının sağında.\n\n${rest}`);
+    expect(t("Acil durumda 112'yi arayın.")).toContainEqual({ category: "general", content: "Acil durumda 112'yi arayın." });
+    expect(t("Otopark günlük 1500 TL.")).toContainEqual({ category: "parking", content: "Otopark günlük 1500 TL." });
+    expect(t("Kapıcı: 0532 111 22 33")).toContainEqual({ category: "general", content: "Kapıcı: 0532 111 22 33" });
+    // kendi konusu olmayan fiyat paragrafı da yerinde kalır (fiyat kod değildir)
+    expect(t("Erken bırakma ücreti 1500 TL.")).toContainEqual({ category: "general", content: "Erken bırakma ücreti 1500 TL." });
+    // aynı başlık altında KENDİ konusu olan paragraf (çöp) kod benzeri sayı taşısa da konusunda kalır
+    expect(categoriesOf("# Giriş\n\nAnahtar kutusu kapının sağında.\n\nÇöp konteyneri 1453 numaralı binanın önünde.")).toContainEqual({
+      category: "trash",
+      content: "Çöp konteyneri 1453 numaralı binanın önünde.",
+    });
+    // erişim izi olmayan bölüm: kod benzeri sayı tek başına erişim DEĞİL
+    expect(categoriesOf("Daire 12, 4. kat.\n\nBina 1987 yapımı.").every((d) => d.category !== "checkin")).toBe(true);
+  });
+
+  it("aşırı-uygulama: giriş fiili kuralı Wi-Fi şifresini ve adres tarifini erişime ÇEKMEZ", () => {
+    expect(categoriesOf("Wi-Fi ağına bağlanmak için 12345678 girin.")).toEqual([
+      { category: "wifi", content: "Wi-Fi ağına bağlanmak için 12345678 girin." },
+    ]);
+    expect(categoriesOf("Otoparka 1453 sokaktan girin.")[0].category).toBe("parking");
+    expect(categoriesOf("Acil durumda 112'yi arayın.")[0].category).toBe("general");
+  });
+});
+
+describe("R25 — erişim izi kaçan tek paragraf biçimleri", () => {
+  it("🚨 PIN / keyless / Türcode / codice → 'Giriş Talimatı'", () => {
+    for (const t of [
+      "The PIN for the front door is 2468.",
+      "Keyless entry: use the code sent on the day of arrival, 4590.",
+      "Der Türcode lautet 4590.",
+      "Il codice della porta è 4590.",
+    ]) {
+      expect(categoriesOf(t), t).toEqual([{ category: "checkin", content: t }]);
+    }
+  });
+
+  it("🚨 'Kapı … Şifre 4590' Wi-Fi'ye gitmez: kapı kararı kodun tahmin ettiği 'Wi-Fi' başlığıyla değil, belgenin metniyle verilir", () => {
+    expect(categoriesOf("Kapı 3. katta, sağdaki daire. Şifre 4590.")).toEqual([
+      { category: "checkin", content: "Kapı 3. katta, sağdaki daire. Şifre 4590." },
+    ]);
+  });
+
+  it("değer taşımayan PIN / Türcode anışı da erişim izidir (kod sonra verilir)", () => {
+    expect(categoriesOf("The PIN is sent on the morning of arrival.")[0].category).toBe("checkin");
+    expect(categoriesOf("Den Türcode erhalten Sie am Anreisetag.")[0].category).toBe("checkin");
+  });
+
+  it("aşırı-uygulama: Wi-Fi bölümünde erişim izi olsa da kapı adı geçmeyen şifre paragrafı Wi-Fi'de kalır (nötr başlık yalnız kapı adıyla)", () => {
+    expect(categoriesOf("Ağ adı: LaleNet\n\nŞifre: 12345678\n\nWi-Fi modemi anahtarlı dolapta.")).toContainEqual({
+      category: "wifi",
+      content: "Ağ adı: LaleNet\n\nŞifre: 12345678",
+    });
+  });
+
+  it("aşırı-uygulama: kapı adı geçmeyen Wi-Fi şifresi paragrafı Wi-Fi'de kalır (başlıklı da başlıksız da)", () => {
+    expect(categoriesOf("Ağ adı: LaleNet\n\nŞifre: 12345678")).toEqual([{ category: "wifi", content: "Ağ adı: LaleNet\n\nŞifre: 12345678" }]);
+    expect(categoriesOf("# Wi-Fi\n\nAğ adı: LaleNet\n\nŞifre: 12345678").map((d) => d.category)).toEqual(["wifi"]);
+  });
+});
+
+describe("R26 — başlık satırlı tablo", () => {
+  it("🚨 'Daire | Kapı kodu' tablosunun satırları sütun adından kopup Genel'e düşmez", () => {
+    const text = tableRowsToTextForTest([
+      ["Daire", "Kapı kodu"],
+      ["Daire 1", "4590"],
+      ["Daire 2", "7781"],
+    ]);
+    expect(categoriesOf(text)).toEqual([{ category: "checkin", content: "Daire: Kapı kodu\n\nDaire 1: 4590\n\nDaire 2: 7781" }]);
+  });
+});
+
+describe("R27 — 'Key points' erişim değil", () => {
+  it("başlık deyimi 'key points / key information' Giriş Talimatı açmaz; çıplak 'key' açmaya devam eder", () => {
+    expect(categoriesOf("Key points\n\nQuiet hours after 22:00.").every((d) => d.category !== "checkin")).toBe(true);
+    expect(categoriesOf("Key information: the building has an elevator.").every((d) => d.category !== "checkin")).toBe(true);
+    expect(categoriesOf("The key is under the flower pot.")[0].category).toBe("checkin");
   });
 });

@@ -82,8 +82,8 @@ export interface SplitDocument {
   docHash: string;
 }
 
-/** Görünmez biçim karakterleri + kontrol karakterleri (sekme ve satır sonu hariç). */
-const INVISIBLE = /[\p{Default_Ignorable_Code_Point}\p{Cf}⠀]|[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/gu;
+/** Görünmez biçim karakterleri + kontrol karakterleri (sekme ve satır sonu hariç; R28 10-28: C1 denetim karakterleri 0x80–0x9F de). */
+const INVISIBLE = /[\p{Default_Ignorable_Code_Point}\p{Cf}⠀]|[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/gu;
 
 /** Satır sonları tek biçime iner, görünmez / kontrol karakterleri silinir, satırların iki ucu kırpılır. Metin başka DEĞİŞMEZ. */
 export function normalizeDocText(raw: string): string {
@@ -342,15 +342,39 @@ export interface ImportPlan {
   problems: { section: number; reason: "invalid_category" | "invalid_block" }[];
 }
 
+/** Erişim kararlarının baktığı katlanmış metin (Türkçe ASCII + işaretler sökülmüş). */
+const accessFold = (text: string) => foldTurkishAscii(text).normalize("NFD").replace(/\p{M}+/gu, "");
+
+/** Kapı sonucu ya da metin erişim / ele geçirme izi taşıyor mu (paragraf paragraf ayırma gerekir). */
+function hasAccessTrace(gate: ReturnType<typeof gateDraft>, text: string): boolean {
+  if (!gate.ok || gate.flags.includes("door_mention")) return true;
+  const folded = accessFold(text);
+  // R24-3 (Opus 10-28 ikinci dilim): kod sözcüğü / kapı adı olmadan "4590 yazıp # basın", "Daireye girmek için 4590 yazın", "Type 4590
+  // then press …" — giriş fiiliyle sayı. Wi-Fi paragrafı HARİÇ ("bağlanmak için 12345678 girin" Wi-Fi şifresidir; QR'da verilir).
+  return ACCESS_WORDS.test(folded) || (ENTRY_NUMBER.test(folded) && importCategoryOf(text) !== "wifi");
+}
+
+/**
+ * Giriş fiiliyle sayı (katlanmış metinde): Türkçede sayı + emir / ulaç ("4590 yazın", "4590'ı tuşlayıp", "4590 # basın"), öteki dillerde
+ * fiil + sayı ("type 4590", "enter 4590", "tapez 4590", "digita 4590", "4590 eingeben"). Sayı 3–8 hane; aramak / dial BİLEREK yok ("112'yi
+ * arayın" acil bilgisidir). Fiil biçimleri dar ("yazılır", "girilir" eşleşmez). Sınırlı ayraçlar → doğrusal.
+ */
+const ENTRY_NUMBER =
+  /(?<![\d])\d{3,8}(?![\d])(?:['’][a-z]{0,4})?(?:\s{0,3}[#*])?\s{1,3}(?:yaz|gir|tusla|bas)(?:in|iniz|ip|arak|erek|abilirsiniz|ebilirsiniz)?(?![a-z])|(?<![a-z])(?:type|enter|punch in|key in|tap in|tapez|composez|saisissez|tecle[ae]|marque|introduzca|digita|inserisci|eingeben|tippen sie)(?:\s{1,3}(?:the|le|el|il|den|code|codice|codigo))?\s{0,3}[:=]?\s{0,3}\d{3,8}(?![\d])|(?<![\d])\d{3,8}\s{1,3}(?:eingeben|eintippen)(?![a-z])/;
+
+/** Nötr kapı başlığı: kodun tahmin ettiği kategori adı kapının kararına bağlam eklemesin (↓`assembleDrafts` R25). */
+const NEUTRAL_GATE_TITLE = "Genel";
+
+/** Kod benzeri değer: 4–8 hane; telefon öbeği (önünde / ardında rakam öbeği) ve fiyat değil. Katlanmış küçük harfli metinde. */
+const CODE_LIKE_NUMBER = /(?<!\d)(?<!\d[\s\-.])\d{4,8}(?!\d)(?![\s\-.]\d)(?!\s{0,2}(?:tl|try|₺|eur|euro|€|usd|\$|lira|dolar|dollar)(?![a-z]))(?![.,]\d)/;
+
+/** Kapı / giriş adı (katlanmış metinde, sözcük başı) — Wi-Fi bölümündeki blok için nötr başlıkla ikinci kapı denemesinin şartı. */
+const DOOR_WORD = /(?<![a-z])(?:kapi|giris|door|gate|entrance|porte|puerta|porta|portone|ingresso|haustur|turcode|eingang)/;
+
 /**
  * Yer tutucu TEK KAYNAKTAN (`kb-placeholders.ts`; Bilgi Tabanı ekranının "Doldurulmamış alan" rozeti, istem notu ve gönderim kapısı da aynı
  * yüklemi okur): doldurulmamış alan ya da misafire giden şablon belirteci ("{isim}", "{daire}" — o metin otomatik mesajdır, bilgi değil).
  */
-/** Kapı sonucu ya da metin erişim / ele geçirme izi taşıyor mu (paragraf paragraf ayırma gerekir). */
-function hasAccessTrace(gate: ReturnType<typeof gateDraft>, text: string): boolean {
-  return !gate.ok || gate.flags.includes("door_mention") || ACCESS_WORDS.test(foldTurkishAscii(text).normalize("NFD").replace(/\p{M}+/gu, ""));
-}
-
 function hasPlaceholder(text: string): boolean {
   return kbPlaceholderTokens(text).length > 0 || unfilledTemplateTokens(text).length > 0 || leftoverGuestTokens(text).length > 0;
 }
@@ -363,7 +387,9 @@ function hasPlaceholder(text: string): boolean {
 const ACCESS_WORDS =
   // Opus 10-23 akşam D1: çıplak İngilizce "key / keys / lock", Fransızca "clé", İspanyolca "llave", Rusça "ключ" ("The key is under the flower
   // pot", "La clé est sous le paillasson") Genel'e düşüyordu. Kısa sözcükler TAM biçim ("clean" / "keyboard" eşleşmez); işaretler sökülmüş metin.
-  /(?<![\p{L}\p{N}])(?:anahtar\p{L}{0,10}|kilit(?:li|ler|leri)?|kilid[iı]n?|keys?|lock(?:s|ed)?(?! (?:the|your|it|up|all|them|doors?|windows?)(?![\p{L}]))|cles?|llaves?|serrure|cerradura|ключ\p{L}{0,3}|(?:keybox|key box|key safe|lockbox|lock box|keypad|tus takimi|smart lock|akilli kilit|schlussel|boite a cles?)\p{L}{0,10})(?![\p{L}\p{N}])/u;
+  // 10-28 gece (Opus ikinci dilim R25 / R27): "PIN", "keyless", Almanca bileşik "Türcode / Zugangscode", "door / access / entry / gate
+  // code", "kapı kodu / şifresi" eklendi; "Key points / key information / key features" erişim DEĞİL (başlık deyimi).
+  /(?<![\p{L}\p{N}])(?:anahtar\p{L}{0,10}|kilit(?:li|ler|leri)?|kilid[iı]n?|keys?(?! (?:points?|info(?:rmation)?|features?|facts?|details?|takeaways?|dates?|terms?|highlights?|amenities)(?![\p{L}]))|lock(?:s|ed)?(?! (?:the|your|it|up|all|them|doors?|windows?)(?![\p{L}]))|cles?|llaves?|serrure|cerradura|ключ\p{L}{0,3}|pin|keyless|(?:haus|wohnungs|eingangs)?turcode|zugangscode|(?:door|access|entry|gate|entrance) code|kapi (?:kodu|sifresi)|(?:keybox|key box|key safe|lockbox|lock box|keypad|tus takimi|smart lock|akilli kilit|schlussel|boite a cles?)\p{L}{0,10})(?![\p{L}\p{N}])/u;
 
 /** Paragrafta yalnız giriş / çıkış saati mi var (kalan sözcükler 12 harften az), hangi alan önerileri çıkıyor. */
 function propertyFieldsOf(text: string): { fields: KbFieldSuggestion[]; fieldOnly: boolean } {
@@ -437,12 +463,23 @@ export function assembleDrafts(doc: SplitDocument, sections: readonly DraftSecti
     const title = DEFAULT_TITLES[section.category] ?? "Genel";
     const whole = candidates.map((i) => doc.blocks[i].text).join("\n\n");
     const sectionGate = candidates.length > 0 ? gateOf(title, whole) : null;
+    // R25 (Opus 10-28 ikinci dilim, ölçüldü): kapının başlığı kodun TAHMİN ettiği kategorinin adı — "Wi-Fi" başlığı "Kapı 3. katta, sağdaki
+    // daire. Şifre 4590." cümlesindeki şifreyi Wi-Fi şifresi sandırıyordu (kapı kodu Wi-Fi kalemine giriyordu). Erişim kararı belgenin
+    // metnine bakar: Wi-Fi bölümünde kapı / giriş adı geçen metin bir de NÖTR başlıkla kapıdan geçer. Yalnız kapı adı varsa — kapı adı
+    // olmayan "Şifre: 12345678" paragrafı Wi-Fi şifresi kalır (QR'da verilir).
+    const neutralDoorCode = (text: string) => {
+      if (section.category !== "wifi" || !DOOR_WORD.test(accessFold(text))) return false;
+      const g = gateOf(NEUTRAL_GATE_TITLE, text);
+      return !g.ok && g.reason === "door_code";
+    };
     const parts: number[] = [];
     const flags = new Set<ImportDraftFlag>();
-    if (sectionGate && sectionGate.ok && !hasAccessTrace(sectionGate, whole)) {
+    if (sectionGate && sectionGate.ok && !hasAccessTrace(sectionGate, whole) && !neutralDoorCode(whole)) {
       parts.push(...candidates);
       for (const f of sectionGate.flags) flags.add(f);
     } else {
+      const sectionAccess: number[] = [];
+      const rest: { i: number; flags: DraftFlag[] }[] = [];
       for (const i of candidates) {
         const text = doc.blocks[i].text;
         const gate = gateOf(title, text);
@@ -451,13 +488,27 @@ export function assembleDrafts(doc: SplitDocument, sections: readonly DraftSecti
           continue;
         }
         // Kapı kodu / kilit bağlamında kod / kapı-kutu + şifre / anahtar-kilit sözcüğü → "Giriş Talimatı" taslağına (↑dosya başı R1).
-        if (hasAccessTrace(gate, text)) {
+        if (hasAccessTrace(gate, text) || neutralDoorCode(text)) {
           accessBlocks.push(i);
+          sectionAccess.push(i);
           for (const f of gate.ok ? gate.flags : []) accessFlags.add(f);
           continue;
         }
-        for (const f of gate.ok ? gate.flags : []) flags.add(f);
-        parts.push(i);
+        rest.push({ i, flags: gate.ok ? gate.flags : [] });
+      }
+      for (const r of rest) {
+        // R24-2 / R26 (Opus 10-28 ikinci dilim): adım adım giriş talimatı paragraf başına bir adımdır — "Anahtar kutusu kapının sağında." ·
+        // "4590" ya da tablo "Daire: Kapı kodu" · "Daire 1: 4590". Erişim bloğuyla AYNI bölümdeki (aynı başlık altı / bitişik genel koşu),
+        // KENDİ konusu olmayan ve kod benzeri değer (4–8 hane; telefon öbeği / fiyat değil) taşıyan blok da "Giriş Talimatı"na gider — kod
+        // bağlamından kopup "Genel"e (aday misafire ve QR'a açık) düşmez. 3 haneli acil numara (112) bilinçli dışarıda.
+        const text = doc.blocks[r.i].text;
+        if (sectionAccess.length > 0 && CODE_LIKE_NUMBER.test(accessFold(text).toLowerCase()) && importCategoryOf(text) === null) {
+          accessBlocks.push(r.i);
+          for (const f of r.flags) accessFlags.add(f);
+          continue;
+        }
+        for (const f of r.flags) flags.add(f);
+        parts.push(r.i);
       }
     }
     if (parts.length === 0) return;

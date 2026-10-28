@@ -60,6 +60,9 @@ para harcamayı tercih ederim"): uzun belge RAG + Luna kıyası, toplam birkaç 
 ağırlıklı kör set (`evals/rag-long/tablo.json`, `EVAL_RAG_LONG_SET=tablo RUN_REAL_EVAL=1 EVAL_RAG_LONG_DETAILS=0`, kapalı / açık × 2), okuyucu
 ücret satırı (`EVAL_SENIOR_SET=airbnb-fee-statements.json` + `airbnb-message-policy.json`, `AI_KB_FEE_RULE_ENABLED` açık / kapalı), ücret seti
 parça kipi (`EVAL_LIVE_SET=service-fee-4-13-dev.json`, ayrı PG gerekir). Karar sayfasına 4 yeni soru (4.14-b, 4.13-b, G-1, 8-4c-1). Sıradaki:
+R24–R28 ✅ (10-28 gece, içe aktarma bağlanmadan önceki şart): kapı kodu "Genel"e düşmüyor — bölüm düzeyi kod benzeri değer, giriş
+fiiliyle sayı, nötr kapı başlığı; ORTAK sır okuyucusu (QR çıktı taraması + bilgi tabanı süzgeci) "PIN … door", "Türcode", "codice della porta",
+"keyless" biçimlerini de yakalıyor (K7 kapsamı; Wi-Fi şifresi QR'da verilmeye devam); çıkarma yardımcıları (Latin-1 onarımı, yarım bayt, RTF) ·
 4.15 zod 4 ✅ (10-28 gece; tip denetiminin yakalamadığı 3 gerileme — kısmi güncellemede varsayılan ezme ×2, sarf profili —
 kırmızı-önce bulundu ve düzeltildi; 114.882 girdilik zod 3 ↔ 4 fark testinde veri farkı 0) · 8-1 C2 ürün dilimi ("eksik bilgi kartı" + gönderim anı denetimi; tasarım `docs/arastirma-2026-10-28/7d-gonderim-zamani.md`).
 
@@ -98,8 +101,7 @@ Talimatı"na süpürülen paragraf: kör sette 35 soru QR'da cevapsız kalır), 
    (±3) ayrıca; cevap düzeyi `rag-answer` ile. Kurucu soruları R-S1/S2/S4/S5 + R-T1/T2/T3 karar sayfasında.
 3. **KB tarama soruları** (`KbScanQuestion`, migration 88, onaylı; `KB_SCAN_QUESTIONS_ENABLED` KAPALI): bulucular T1–T7 (tasarım §5) +
    günde en çok 3 + panel kartı **[Onayla] [Düzenle] [Vazgeç]** (kurucu: "Böyle kalsın" DEĞİL "Vazgeç") + onaydan sonra öteki dairelere uygula.
-4. **Dosyadan içe aktarma bağlanmadan ÖNCE** Opus R24/R25/R26 (P1*/P2*: ayrı paragraftaki kod "Genel"e düşüyor, PIN / keyless biçimleri,
-   tablo başlık satırı) kapanmalı; sonra S4 sunucu API + yükleme ekranı + 7-B plan sınırı (taslak onayı sınıra sayılır, tasarım §4.4).
+4. **Dosyadan içe aktarma:** Opus R24/R25/R26/R27/R28 ✅ kapandı (10-28 gece); sıradaki S4 sunucu API + yükleme ekranı + 7-B plan sınırı (taslak onayı sınıra sayılır, tasarım §4.4).
    Not: dışa aktarılan dosyada "# Daire adı" üst başlığı var; içe aktarma ekranı bağlanırken bu başlık daire seçimine eşlenmeli (bugün
    birden çok daireli dosya tek daireye yüklenirse bütün kalemler o daireye taslak olur — Haiku 10-28 bulgu 1 ile birlikte düşünülecek).
 5. **Opus açıkları:** R10–R15, R17, R19, R22, R27–R30 (`docs/INCELEME-2026-10-28-opus-ikinci-dilim.md` özet tablosu, "AÇIK" olanlar).

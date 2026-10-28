@@ -308,7 +308,7 @@ const KEYPAD_NOUNS =
   "tu[şs]\\s*panel|zil\\s*panel|kap[ıi]\\s*panel|giri[şs]\\s*panel|interkom|intercom|domofon|keypad|key\\s+pad|digicode|tastenfeld|zahlenfeld|ziffernfeld|teclado|домофон|кодов\\S{0,3}\\s+замк|لوحة\\s*(?:المفاتيح|الأزرار|الأرقام)";
 /** Tek anlamlı kilit / kutu adları (10-15, Opus F6 + son kontrol) — çıplak "kilit" / "kutu" / "kasa" YOK (yıl / adres yanlış elemesi). */
 const LOCK_NOUNS =
-  "(?:ak[ıi]ll[ıi]|dijital|digital|[şs]ifreli|kodlu|elektronik|elektronisch)[\\s-]*(?:kap[ıi][\\s-]*)?kil[ıi][td]|kil[ıi]t[\\s-]*kutu|smart[\\s-]*lock|digital[\\s-]*lock|code[\\s-]*lock|combination[\\s-]*lock|lock[\\s-]*box|key[\\s-]*box|key[\\s-]*safe|anahtar[\\s-]*kutu|anahtar[\\s-]*kasa";
+  "(?:ak[ıi]ll[ıi]|dijital|digital|[şs]ifreli|kodlu|elektronik|elektronisch)[\\s-]*(?:kap[ıi][\\s-]*)?kil[ıi][td]|kil[ıi]t[\\s-]*kutu|smart[\\s-]*lock|digital[\\s-]*lock|code[\\s-]*lock|combination[\\s-]*lock|lock[\\s-]*box|key[\\s-]*box|key[\\s-]*safe|anahtar[\\s-]*kutu|anahtar[\\s-]*kasa|keyless(?:[\\s-]{0,3}(?:entry|access|lock))?";
 /**
  * Kilit adı ↔ değer arası: ≤30 karakter, rakam ve nokta yok (başlık → içerik satır sonunu geçer). Sözcük yasak listesi YOK — Opus son
  * kontrolü ölçtü: "sistem / pil / yıl" gibi alt dize yasakları "yıldız", "dikkat" gibi sıradan sözcüklerde kalıbı kapatıyordu. Yanlış
@@ -434,9 +434,13 @@ const SECRET_PATTERNS: RegExp[] = [
     "i",
   ),
   new RegExp(
-    `(?:(?<![a-z])code|c[oó]digo|код|رمز|كود|كلمة\\s+(?:ال)?(?:مرور|سر)|(?<![a-zçğıöşü])kod)(?![^\\d\\n.]{0,3}(?:postal|البريدي|почтов))[^\\d\\n.]{0,30}?(?:door|gate|entrance|building|t[üu]r|porte|immeuble|puerta|portal|edificio|двер|подъезд|домофон|باب|المبنى|kap[ıi])[^\\d\\n.]{0,20}?${KEY_DIGITS}`,
+    `(?:(?<![a-z])code|c[oó]digo|codice|(?<![a-z])pin(?![a-z])|код|رمز|كود|كلمة\\s+(?:ال)?(?:مرور|سر)|(?<![a-zçğıöşü])kod)(?![^\\d\\n.]{0,3}(?:postal|fiscale|البريدي|почтов))[^\\d\\n.]{0,30}?(?:door|gate|entrance|building|t[üu]r|porte|immeuble|puerta|portal|edificio|porta|portone|ingresso|cancello|двер|подъезд|домофон|باب|المبنى|kap[ıi])[^\\d\\n.]{0,20}?${KEY_DIGITS}`,
     "i",
   ),
+  // 🚨 10-28 gece (Opus ikinci dilim R25, ölçüldü): Almanca BİTİŞİK bileşikler — "Der Türcode lautet 4590", "Haustürcode: 4590",
+  // "Zugangscode 4590" — hiçbir kalıbın sözcük sınırına uymuyordu ("code" önünde harf var); bilgi tabanı süzgecinden de çıktı taramasından
+  // da geçiyordu. Yalnız kapı / giriş / kapı-anahtar bileşikleri; değer ≤20 harflik ayraçla.
+  new RegExp(`(?<![a-zäöüß])(?:(?:haus|wohnungs|eingangs|vorder)?t[üu]r|zugangs|tor|schl[üu]ssel(?:box|kasten|safe|tresor)?)[\\s-]?code[^\\d\\n.]{0,20}?${KEY_DIGITS}`, "i"),
   // 🚨 10-10 (Haiku QR güvenlik taraması F1): KAPI + AÇ- fiili + değer — kod sözcüğü olmadan ve bitişik değil: "Kapı açma: 4590",
   // "Kapı açılış 4590", "Girişteki kapı açma tuşu için 4590" yukarıdakilerin hepsinden kaçıyordu. "Serbest metin" izni VERİLMEZ (bitişik
   // kalıbın ölçülmüş dersi: adres / telefon / yıl eleniyordu) — yalnız "kapı + aç-" ve ardından en çok İKİ sözcük; değer ya iki nokta /

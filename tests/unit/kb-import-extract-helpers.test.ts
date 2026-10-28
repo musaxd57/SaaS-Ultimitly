@@ -8,7 +8,7 @@ import {
   tableRowsToText,
   type PdfTextItem,
 } from "@/lib/kb-import/extract-helpers";
-import { planDocumentImport, splitDocument } from "@/lib/kb-import/document";
+import { normalizeDocText, planDocumentImport, splitDocument } from "@/lib/kb-import/document";
 
 // ---------------------------------------------------------------------------
 // DOSYADAN BİLGİ TABANI — ÇIKARMA YARDIMCILARI (S2; Opus 10-23 akşam R3). Sentetik pdf.js parçaları / tablo satırları; kurgusal "Lale".
@@ -104,5 +104,47 @@ describe("dosya türü ve metin dosyası", () => {
     expect(decodeTextFile(enc("﻿Çıkış 11:00"))).toEqual({ text: "Çıkış 11:00", encoding: "utf-8" });
     // "ğış" Windows-1254 baytlarıyla: ğ=0xF0, ı=0xFD, ş=0xFE.
     expect(decodeTextFile(new Uint8Array([0xf0, 0xfd, 0xfe]))).toEqual({ text: "ğış", encoding: "windows-1254" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// R28 (Opus 10-28 ikinci dilim, ölçüldü): çift UTF-8 "à" girdisi düz boşlukla yazılmıştı (meşru metni bozuyordu) · Latin-1 okunmuş ş ğ Ş Ğ
+// Ç Ü Ö (C1 denetim karakterli ikinci bayt) onarılmıyordu · sonundaki tek yarım bayt bütün UTF-8 dosyayı 1254'e çeviriyordu · RTF düz metin
+// sanılıyordu · normalizasyon C1 denetim karakterlerini silmiyordu.
+// ---------------------------------------------------------------------------
+describe("R28 — çıkarma yardımcıları", () => {
+  const enc = (s: string) => new TextEncoder().encode(s);
+  /** UTF-8 baytlarını Latin-1 (ISO-8859-1) diye okuyan bozulma. */
+  const latin1 = (s: string) => String.fromCharCode(...enc(s));
+
+  it("🚨 meşru 'Ã' + düz boşluk bozulma DEĞİL (Portekizce 'MAÇÃ É'); gerçek çift UTF-8 'à' (Ã + bölünmez boşluk) onarılır", () => {
+    expect(repairTurkishMojibake("MAÇÃ É BOM")).toBe("MAÇÃ É BOM");
+    expect(detectMojibake("MAÇÃ É BOM")).toMatchObject({ suspicious: false, kinds: [] });
+    expect(repairTurkishMojibake(latin1("à la carte"))).toBe("à la carte");
+  });
+
+  it("🚨 Latin-1 okunmuş Türkçe (ikinci bayt C1 denetim karakteri) bulunur ve onarılır", () => {
+    const bozuk = latin1("Şişli ağır ığdır ĞÇÜÖ çüö");
+    expect(detectMojibake(bozuk).kinds).toContain("double_utf8");
+    expect(repairTurkishMojibake(bozuk)).toBe("Şişli ağır ığdır ĞÇÜÖ çüö");
+  });
+
+  it("🚨 geçerli UTF-8 dosyanın SONUNDAKİ yarım karakter atılır, dosya UTF-8 kalır (iki ve üç baytlık yarım dizi)", () => {
+    expect(decodeTextFile(new Uint8Array([...enc("Merhaba Şişli "), 0xc5]))).toEqual({ text: "Merhaba Şişli ", encoding: "utf-8" });
+    expect(decodeTextFile(new Uint8Array([...enc("Kahve "), 0xe2, 0x82]))).toEqual({ text: "Kahve ", encoding: "utf-8" });
+  });
+
+  it("aşırı-uygulama: ORTADA bozuk bayt varsa eskisi gibi 1254; tam son karakter kesilmez", () => {
+    expect(decodeTextFile(new Uint8Array([...enc("Şiş"), 0xfd, ...enc("li"), 0xc5])).encoding).toBe("windows-1254");
+    expect(decodeTextFile(enc("Çıkış ş"))).toEqual({ text: "Çıkış ş", encoding: "utf-8" });
+  });
+
+  it("🚨 RTF reddedilir (denetim sözcükleri taslağa girmesin); süslü parantezle başlayan düz metin metindir", () => {
+    expect(sniffDocumentKind(enc("{\\rtf1\\ansi Lale}"))).toBeNull();
+    expect(sniffDocumentKind(enc("{ Lale notları }"))).toBe("txt");
+  });
+
+  it("normalizasyon C1 denetim karakterlerini siler", () => {
+    expect(normalizeDocText("a\u0085b\u009fc")).toBe("abc");
   });
 });
