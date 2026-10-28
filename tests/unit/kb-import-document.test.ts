@@ -361,6 +361,9 @@ describe("R24 — kod, erişim sözcüğünden AYRI paragrafta", () => {
       { category: "wifi", content: "Wi-Fi ağına bağlanmak için 12345678 girin." },
     ]);
     expect(categoriesOf("Otoparka 1453 sokaktan girin.")[0].category).toBe("parking");
+    // Wi-Fi BAŞLIĞI altındaki kendi konusu olmayan şifre paragrafı ("Ağa bağlanmak için …") Wi-Fi şifresidir — bölümün konusu sayılır.
+    expect(categoriesOf("# Wi-Fi\n\nAğa bağlanmak için 12345678 girin.").map((d) => d.category)).toEqual(["wifi"]);
+    expect(categoriesOf("# WLAN\n\nZum Verbinden 12345678 eingeben.").map((d) => d.category)).toEqual(["wifi"]);
     // Almanca "Zugangscode" Wi-Fi için de kullanılır — erişim sözcüğü değil.
     expect(categoriesOf("WLAN: LaleNet, Zugangscode: 12345678")[0].category).toBe("wifi");
     expect(categoriesOf("Acil durumda 112'yi arayın.")[0].category).toBe("general");
@@ -395,6 +398,12 @@ describe("R25 — erişim izi kaçan tek paragraf biçimleri", () => {
       category: "wifi",
       content: "Ağ adı: LaleNet\n\nŞifre: 12345678",
     });
+  });
+
+  it("aşırı-uygulama: Wi-Fi başlığı altında erişim izi olsa da kendi konusu olmayan şifre değeri Wi-Fi'de kalır (bölüm kuralı Wi-Fi bölümünde uygulanmaz)", () => {
+    const plan = categoriesOf("# Wi-Fi\n\n12345678\n\nModem anahtarlı dolapta.");
+    expect(plan).toContainEqual({ category: "wifi", content: "12345678" });
+    expect(plan).toContainEqual({ category: "checkin", content: "Modem anahtarlı dolapta." });
   });
 
   it("aşırı-uygulama: kapı adı geçmeyen Wi-Fi şifresi paragrafı Wi-Fi'de kalır (başlıklı da başlıksız da)", () => {

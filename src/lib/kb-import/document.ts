@@ -346,12 +346,13 @@ export interface ImportPlan {
 const accessFold = (text: string) => foldTurkishAscii(text).normalize("NFD").replace(/\p{M}+/gu, "");
 
 /** Kapı sonucu ya da metin erişim / ele geçirme izi taşıyor mu (paragraf paragraf ayırma gerekir). */
-function hasAccessTrace(gate: ReturnType<typeof gateDraft>, text: string): boolean {
+function hasAccessTrace(gate: ReturnType<typeof gateDraft>, text: string, sectionCategory: string): boolean {
   if (!gate.ok || gate.flags.includes("door_mention")) return true;
   const folded = accessFold(text);
   // R24-3 (Opus 10-28 ikinci dilim): kod sözcüğü / kapı adı olmadan "4590 yazıp # basın", "Daireye girmek için 4590 yazın", "Type 4590
-  // then press …" — giriş fiiliyle sayı. Wi-Fi paragrafı HARİÇ ("bağlanmak için 12345678 girin" Wi-Fi şifresidir; QR'da verilir).
-  return ACCESS_WORDS.test(folded) || (ENTRY_NUMBER.test(folded) && importCategoryOf(text) !== "wifi");
+  // then press …" — giriş fiiliyle sayı. Wi-Fi HARİÇ — paragrafın kendisi ya da bölümü ("# Wi-Fi" altında "Ağa bağlanmak için 12345678
+  // girin" Wi-Fi şifresidir; QR'da verilir).
+  return ACCESS_WORDS.test(folded) || (ENTRY_NUMBER.test(folded) && sectionCategory !== "wifi" && importCategoryOf(text) !== "wifi");
 }
 
 /**
@@ -474,7 +475,7 @@ export function assembleDrafts(doc: SplitDocument, sections: readonly DraftSecti
     };
     const parts: number[] = [];
     const flags = new Set<ImportDraftFlag>();
-    if (sectionGate && sectionGate.ok && !hasAccessTrace(sectionGate, whole) && !neutralDoorCode(whole)) {
+    if (sectionGate && sectionGate.ok && !hasAccessTrace(sectionGate, whole, section.category) && !neutralDoorCode(whole)) {
       parts.push(...candidates);
       for (const f of sectionGate.flags) flags.add(f);
     } else {
@@ -488,7 +489,7 @@ export function assembleDrafts(doc: SplitDocument, sections: readonly DraftSecti
           continue;
         }
         // Kapı kodu / kilit bağlamında kod / kapı-kutu + şifre / anahtar-kilit sözcüğü → "Giriş Talimatı" taslağına (↑dosya başı R1).
-        if (hasAccessTrace(gate, text) || neutralDoorCode(text)) {
+        if (hasAccessTrace(gate, text, section.category) || neutralDoorCode(text)) {
           accessBlocks.push(i);
           sectionAccess.push(i);
           for (const f of gate.ok ? gate.flags : []) accessFlags.add(f);
@@ -500,9 +501,10 @@ export function assembleDrafts(doc: SplitDocument, sections: readonly DraftSecti
         // R24-2 / R26 (Opus 10-28 ikinci dilim): adım adım giriş talimatı paragraf başına bir adımdır — "Anahtar kutusu kapının sağında." ·
         // "4590" ya da tablo "Daire: Kapı kodu" · "Daire 1: 4590". Erişim bloğuyla AYNI bölümdeki (aynı başlık altı / bitişik genel koşu),
         // KENDİ konusu olmayan ve kod benzeri değer (4–8 hane; telefon öbeği / fiyat değil) taşıyan blok da "Giriş Talimatı"na gider — kod
-        // bağlamından kopup "Genel"e (aday misafire ve QR'a açık) düşmez. 3 haneli acil numara (112) bilinçli dışarıda.
+        // bağlamından kopup "Genel"e (aday misafire ve QR'a açık) düşmez. 3 haneli acil numara (112) bilinçli dışarıda. Wi-Fi bölümünde
+        // UYGULANMAZ: başlığın altındaki konusuz sayı Wi-Fi şifresidir (kapı adı geçen metni ↑nötr başlık yakalar).
         const text = doc.blocks[r.i].text;
-        if (sectionAccess.length > 0 && CODE_LIKE_NUMBER.test(accessFold(text).toLowerCase()) && importCategoryOf(text) === null) {
+        if (section.category !== "wifi" && sectionAccess.length > 0 && CODE_LIKE_NUMBER.test(accessFold(text).toLowerCase()) && importCategoryOf(text) === null) {
           accessBlocks.push(r.i);
           for (const f of r.flags) accessFlags.add(f);
           continue;
