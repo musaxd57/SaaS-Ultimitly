@@ -414,7 +414,7 @@ function subjectBeforeClosed(tokens: readonly string[], i: number): boolean {
  */
 const EXISTENCE_AHEAD = /^(?:var|vardir|mevcut|mevcuttur|bulunur|bulunmaktadir|bulunuyor|yer)$/;
 const CLOSED_NOUN_INFLECTED =
-  /^(?:havuz|otopark|garaj|alan|salon|bolum|kisim|mekan|park|balkon|teras|mutfak|sauna|jakuzi|hamam|yer|spor)(?:[dt][iu]r|[dt][ae]n?|[yn]?[ae]|s[ie]|[iu]n[ae]|[iu]nd[ae])$/;
+  /^(?:havuz|otopark|garaj|alan|salon|bolum|kisim|mekan|park|balkon|teras|mutfak|sauna|jakuzi|hamam|yer|spor)(?!$)(?:[dt][ae]n?|[yn]?[ae]|s[ie]n[ae]|[iu]n[ae]|s[iu]nd[ae]|[iu]nd[ae])?(?:[dt][iu]r)?$/;
 function closedNounPhraseAhead(tokens: readonly string[], i: number): boolean {
   if (CLOSED_NOUN_INFLECTED.test(tokens[i + 1] ?? "")) return true;
   for (let k = i + 2; k <= i + 3 && k < tokens.length && tokens[k] !== PLACE_SEP; k++) if (EXISTENCE_AHEAD.test(tokens[k])) return true;

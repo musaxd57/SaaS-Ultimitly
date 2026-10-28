@@ -1359,16 +1359,24 @@ describe("ters olumluluk — 'kapalı' sıfat / talimat, olumsuzlanmış ücrets
       // Doğru cevap ("kapalı") doğrulanır.
       expect(whole("Havuz şu an kapalı.", src), src).not.toContain("polarity_mismatch");
     }
-    // KONTROL — sıfat okuması korunur (aşırı uygulama yok): ad öbeği ek-fiilli / var-mevcut / bağlaçla / tamlayanla / hâl ekiyle.
-    for (const [part, src] of [
-      ["Otopark var.", "Otoparkımız kapalı otoparktır."],
-      ["Havuz açıktır.", "Havuz yanında kapalı otopark vardır, havuz açıktır."],
-      ["Havuz açıktır.", "Havuz ve kapalı otopark misafirlere açıktır."],
-      ["Havuz açıktır.", "Sitenin kapalı yüzme havuzu açıktır."],
-      ["Havuz açıktır.", "Havuz kapalı alanda yer alır ve açıktır."],
-      ["Havuz açıktır.", "Havuz yanında kapalı otopark mevcuttur, havuz açıktır."],
+    // KONTROL — sıfat okuması korunur (aşırı uygulama yok): doğru cevap HİÇBİR sorun almaz. Ad öbeği ek-fiilli / hâl ekli / var-mevcut ile,
+    // bağlaçla ya da tamlayanla geliyorsa; önceki yer ayracı (ayrı cümle) özne sayılmaz.
+    const clean = (part: string, src: string, terms: string[]) =>
+      checkAnswerBinding({ part, evidence: src, sourceText: src, needTerms: terms, needTopics: [] }).issues;
+    for (const [part, src, terms] of [
+      ["Havuz açıktır.", "Havuz yanında kapalı otopark vardır, havuz açıktır.", ["havuz"]],
+      ["Havuz açık.", "Havuz yanında kapalı otopark vardır.", ["havuz"]],
+      ["Havuz açıktır.", "Havuz yanında kapalı otopark mevcuttur, havuz açıktır.", ["havuz"]],
+      ["Havuz açıktır.", "Havuz ve kapalı otopark misafirlere açıktır.", ["havuz"]],
+      ["Havuz açıktır.", "Sitenin kapalı yüzme havuzu açıktır.", ["havuz"]],
+      ["Havuz açıktır.", "Havuz otelin kapalı havuz bölümündedir ve açıktır.", ["havuz"]],
+      ["Havuz açıktır.", "Havuz kapalı alandadır ve açıktır.", ["havuz"]],
+      ["Havuz açıktır.", "Havuz kapalı alanda yer alır ve açıktır.", ["havuz"]],
+      ["Havuz açıktır.", "Havuz açıktır. Kapalı havuz alanı da açıktır.", ["havuz"]],
     ] as const) {
-      expect(whole(part, src), src).not.toContain("polarity_mismatch");
+      expect(clean(part, src, [...terms]), src).toEqual([]);
     }
+    // "Otoparkımız kapalı otoparktır" = kapalı (iç mekân) otopark; "Otopark kapalıdır" cevabı onu ters okur → tutulur.
+    expect(clean("Otopark kapalıdır.", "Otoparkımız kapalı otoparktır.", ["otopark"])).toContain("polarity_mismatch");
   });
 });
