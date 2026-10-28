@@ -300,6 +300,31 @@ describe("ev sahibine yönlendirme", () => {
     expect(refersGuestToHost("Taksi için 0532 123 45 67 numarasını arayın ve otopark için ev sahibinize sorabilirsiniz.")).toBe(true);
   });
 
+  it("🚨 R13 (kurucu onayı 10-28): ev sahibine HABER VERMEK bilgi koşulu değildir — 'let them know / so they know / with the details / bilgi verin' olay talimatını tutmaz", () => {
+    for (const t of [
+      "If you lose the key, call your host and let them know.",
+      "If anything breaks, please contact your host so they know.",
+      "If the Wi-Fi stops working, message your host with the details.",
+      "Bir sorun olursa ev sahibinizi arayıp bilgi verebilirsiniz.",
+      "Anahtarı kaybederseniz ev sahibinizi arayın ve bilgi verin.",
+      "Ev sahibinize bilgi verebilirsiniz.",
+    ]) {
+      expect(refersGuestToHost(t), t).toBe(false);
+    }
+    // Aşırı uygulama: bilgi İSTEĞİ koşulu ve ev sahibinin bilgi vermesi yine yönlendirmedir.
+    for (const t of [
+      "If you'd like more details, call your host and let them know.",
+      "If you want to know the parking rules, message your host with the details.",
+      "If the Wi-Fi stops working, message your host for more information.",
+      "Ev sahibiniz bu konuda size bilgi verebilir.",
+      "Ev sahibinizden bilgi alabilirsiniz.",
+      "Otopark için ev sahibinize sorabilirsiniz, ona haber de verebilirsiniz.",
+      "Daha fazla bilgi isterseniz ev sahibinizi arayıp bilgi verebilirsiniz ve sorabilirsiniz.",
+    ]) {
+      expect(refersGuestToHost(t), t).toBe(true);
+    }
+  });
+
   it("R5: satır sonu dizisi doğrusal (eski düzenli ifade 50.000 satır sonunda 10,5 sn)", () => {
     const t0 = performance.now();
     refersGuestToHost(`${"\n".repeat(50_000)}a`);

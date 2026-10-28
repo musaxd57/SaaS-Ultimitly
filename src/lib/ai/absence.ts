@@ -653,7 +653,8 @@ const VERB_TR =
   "iste(?:yebilir|yin|meniz)\\p{L}{0,8}|teyit (?:edebilir|edin|etmeniz|ettirebilir|alabilir)\\p{L}{0,8}|" +
   // Opus 10-23 akşam A2: "Bu sorunuzu ev sahibinize iletebilirsiniz."
   "ilet(?:ebilirsiniz|in(?![\\p{L}])|iniz|meniz)\\p{L}{0,8}|" +
-  "(?:detayl[ıi] |kesin |net |daha fazla )?bilgi (?:alabilir|al[ıi]n(?![\\p{L}])|alman[ıi]z|verebilir|sa[ğg]layabilir)\\p{L}{0,8}|" +
+  // "bilgi verebilir" yalnız ev sahibi öznesiyle (R13, kurucu onayı 10-28): "ev sahibinizi arayıp bilgi verebilirsiniz" misafirin HABER vermesidir.
+  "(?:detayl[ıi] |kesin |net |daha fazla )?bilgi (?:alabilir|al[ıi]n(?![\\p{L}])|alman[ıi]z|verebilir(?!siniz)|sa[ğg]layabilir)\\p{L}{0,8}|" +
   "[öo][ğg]ren(?:ebilir|in(?![\\p{L}])|iniz|meniz)\\p{L}{0,8}|yard[ıi]mc[ıi] olabilir\\p{L}{0,8}|netle[şs]tirebilir\\p{L}{0,8}|" +
   "a[çc][ıi]kl[ıi]k getirebilir\\p{L}{0,8}|(?:onaylayabilir|do[ğg]rulayabilir)\\p{L}{0,8})";
 const EN_HOST = "(?:your|the) (?:airbnb )?(?:hosts?|landlord|property manager|owner|hostess)";
@@ -849,6 +850,17 @@ const INFO_CONDITION =
   /(?<![\p{L}])(?:bilgi|detay|ayr[ıi]nt[ıi]|information|info|details|auskunft|informationen|renseignements|información|detalles|информаци|questions?|soru(?:nuz|lar\p{L}{0,6}|su|yu|ya)?(?![\p{L}])|merak\p{L}{0,8}|wonder\p{L}{0,3}|curious|fragen?|pregunta\p{L}{0,1}|вопрос\p{L}{0,3}|[öo][ğg]ren\p{L}{0,10}|emin ol\p{L}{0,8}|know|find out|saber|wissen|savoir|узна\p{L}{0,4})/u;
 
 /**
+ * Ev sahibine HABER VERMEK bilgi isteği değildir (R13, kurucu onayı 10-28): "If you lose the key, call your host and let them know", "… so they
+ * know", "message your host with the details", "arayıp bilgi verin / verebilirsiniz" olay talimatının parçasıdır; bilgi koşulu aranmadan önce
+ * silinir. "for (more) details / information" (bilgi ALMAK) silinmez. Sabit sözcükle başlar, boşluklar tek — doğrusal.
+ */
+const HOST_NOTICE = new RegExp(
+  "(?<![\\p{L}])(?:let (?:them|him|her|us|your host|the host) know|so (?:that )?(?:they|he|she|your host|the host)(?:['’]ll| will| can)? know|" +
+    "with (?:the |all the |any |some )?(?:details|information|info)|bilgi ver(?:in|iniz|ebilirsiniz|meniz|menizi))(?![\\p{L}])",
+  "gu",
+);
+
+/**
  * Satırları cümleye çevirir (Opus 10-23 akşam R4 / R5): YENİ madde / cümle başlatan satır (madde işareti, "1." / "1)" numarası, büyük harf) sınırdır;
  * cümle ortasında kırılan satır ("Please contact\nyour host …") ve telefonla başlayan satır ("…ulaşabilirsiniz:\n0532 …") öncekinin devamıdır.
  * Satır satır kurulur — düzenli ifadeyle satır sonu dizisi karesel geri izliyordu (50.000 "\n" → 10,5 sn ölçüldü).
@@ -889,7 +901,7 @@ export function refersGuestToHost(reply: string | null | undefined): boolean {
     const eventInstruction = conditionForms.some(
       (f) => (EVENT_CONDITION.test(f) && EVENT_WORDS.test(f)) || (ARRIVAL_INSTRUCTION.test(f) && !INFO_VERB.test(f) && !TOPIC_MARKER.test(f)),
     );
-    if (eventInstruction && !conditionForms.some((f) => INFO_CONDITION.test(f))) continue;
+    if (eventInstruction && !conditionForms.some((f) => INFO_CONDITION.test(f.replace(HOST_NOTICE, " ")))) continue;
     return true;
   }
   return false;
