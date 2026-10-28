@@ -144,6 +144,8 @@ describe("Decisions motoru — arıza bugünkü sıraya düşer, asla fırlatmaz
     const bad: (() => Response | Promise<Response>)[] = [
       () => json({ answers: [] }),
       () => json({ answers: [{ name: "C1", probability: -0.1 }] }),
+      // Yalnız istenmeyen adlar: sağlayıcı başka bir isteğin cevabını döndürdü — "hiçbiri cevaplamıyor" sayılmaz, arızadır.
+      () => json({ answers: [{ name: "C9", probability: 0.9 }, { name: "X", probability: 0.8 }] }),
       () => json({ choices: [] }),
       () => new Response("not json", { status: 200 }),
       () => json({ error: { message: "boom" } }, 500),
