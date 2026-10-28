@@ -63,3 +63,19 @@ export function semanticTimeoutMs(model: string): number {
   if (Number.isFinite(n) && n >= 500) return Math.min(Math.trunc(n), SEMANTIC_TIMEOUT_MAX_MS);
   return isReasoningModel(model) ? 12_000 : 6_000;
 }
+
+/**
+ * YENİDEN SIRALAYICI MOTORU (kurucu 10-28: Decisions API "mantıklı olan yere koyabiliriz … süreyi kısaltmak işimize yarar"). Varsayılan
+ * `chat` = bugünkü sohbet sıralayıcısı (`KB_RERANK_MODEL`) BİREBİR. `KB_RERANK_ENGINE=decisions` → OpenAI Decisions API (aday başına evet /
+ * hayır olasılığı; ölçüm `docs/arastirma-2026-10-28/decisions-api.md`: p50 0,41 sn / p95 0,86 sn, sohbetin 1,09 / 1,63'üne karşı; kalite tek
+ * koşuda sohbetin oynama aralığının alt ucunda — açmak tekrar + kör ölçüm sonrası kurucu kararı). Tanınmayan değer = `chat`.
+ */
+export type RerankEngine = "chat" | "decisions";
+export function rerankEngine(): RerankEngine {
+  return process.env.KB_RERANK_ENGINE?.trim().toLowerCase() === "decisions" ? "decisions" : "chat";
+}
+/** Decisions motorunun modeli (`KB_RERANK_DECISIONS_MODEL`); API bugün yalnız bu modelde. */
+export const DEFAULT_DECISIONS_MODEL = "gpt-6-luna";
+export function rerankDecisionsModel(): string {
+  return process.env.KB_RERANK_DECISIONS_MODEL?.trim() || DEFAULT_DECISIONS_MODEL;
+}

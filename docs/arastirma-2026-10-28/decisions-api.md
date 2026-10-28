@@ -48,7 +48,14 @@ olan" kuralına göre ADAY ama henüz eşit değil — tek koşu, tekrar ve kör
    zaman kayıyor mu") koda EK durdurma sinyali olarak denenebilir — her biri ayrı ölçülerek.
 2. Sıralayıcıda gerçek aday: hız + maliyet avantajı büyük. Sıradaki ölçüm: aynı setlerde 3 tekrar + uzun belge kör seti + soru ifadesi /
    eşik varyantları (yalnız geliştirme setinde ayar). Eşitse kurucu kararıyla `KB_RERANK_MODEL` yerine ayrı bir anahtarla.
-3. Ürüne bağlanmadı (sormadan sistem kurulmaz). Yalnız ölçer ve araştırma betikleri.
+3. ~~Ürüne bağlanmadı~~ → **10-28 gece kurucu: "6.'yı deneyelim, mantıklı olan yere koyabiliriz … süreyi kısaltmak işimize yarar".**
+   Yeniden sıralayıcıya AYRI motor olarak bağlandı, VARSAYILAN KAPALI: `KB_RERANK_ENGINE=decisions` (model `KB_RERANK_DECISIONS_MODEL`, boşken
+   `gpt-6-luna`). Girdi metni, aday penceresi, soru başına ayrı çağrı, sıcak yol tavanı (2,5 sn), ad redaksiyonu sohbet sıralayıcısıyla AYNI;
+   ağ çağrısı anlam katmanının ağ kapısında (`structured-call.ts callDecisions`: 64 KB tavan, kalıcı arıza alarmı, asla fırlatmaz, katı okuma —
+   yalnız istenen adlar ve [0, 1] olasılık). Arıza = bugünkü sıra. Soru metni ve eşikler (0,5 / 0,2) ölçer ile AYNI kaynaktan
+   (`decisionsRerankQuestion`, `parseDecisionsRerank`) — ölçülen ile çalışan ayrışamaz. Testler `tests/unit/rerank-decisions-engine.test.ts`.
+   Gönderim kontrolüne (7-D) BAĞLANMADI (ölçüm: aşırı temkinli). Açmak: OpenAI kredisi gelince 3 tekrar + uzun belge kör seti, eşitse kurucu
+   kararıyla Railway'de tek satır.
 
 Kaynaklar (ikincil; OpenAI'ın kendi API başvuru sayfası bu ortamdan açılamadı — istek şeması bizim anahtarımızla yapılan denemeyle doğrulandı):
 - [OpenAI Opens Decisions API Public Beta — letsdatascience.com](https://letsdatascience.com/news/openai-opens-decisions-api-public-beta-b69a1e40)

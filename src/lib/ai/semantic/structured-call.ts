@@ -156,6 +156,85 @@ export async function callStructuredJson(input: StructuredCallInput): Promise<St
   }
 }
 
+export interface DecisionsCallInput {
+  apiKey: string;
+  model: string;
+  /** Soruların okunacağı metin (sıralayıcıda sohbet sıralayıcısının kullanıcı metniyle BİREBİR aynı). */
+  input: string;
+  /** Evet / hayır soruları (`predicate`); `name` cevapta geri döner. */
+  questions: readonly { name: string; instructions: string }[];
+  timeoutMs: number;
+  fetchImpl?: typeof fetch;
+}
+
+export type DecisionsCallResult =
+  | { ok: true; probabilities: Map<string, number>; ms: number }
+  | { ok: false; error: StructuredCallError; ms: number };
+
+/**
+ * OPENAI DECISIONS API (`POST /v1/decisions`, kurucu 10-28: "mantıklı olan yere koyabiliriz … süreyi kısaltmak işimize yarar"): serbest metin
+ * ÜRETMEZ, her evet / hayır sorusuna OLASILIK döner. Bugün tek çağıranı yeniden sıralayıcı (`KB_RERANK_ENGINE=decisions`, varsayılan KAPALI).
+ * Sözleşme `callStructuredJson` ile AYNI: asla fırlatmaz, gövde 64 KB tavanlı, kalıcı sağlayıcı arızası `semantic` kanalının geçiş alarmına,
+ * istek yalnız OpenAI'ye. Cevap KATI okunur: yalnız istenen adlar, yalnız [0, 1] aralığında sonlu sayı (sağlayıcının biçimi güvenlik kanıtı
+ * değil); hiç geçerli cevap yoksa `parse`.
+ */
+export async function callDecisions(input: DecisionsCallInput): Promise<DecisionsCallResult> {
+  const started = Date.now();
+  const ms = () => Date.now() - started;
+  const wanted = new Set(input.questions.map((q) => q.name));
+  let res: Response;
+  try {
+    res = await (input.fetchImpl ?? fetch)(`${OPENAI_BASE_URL}/decisions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${input.apiKey}` },
+      body: JSON.stringify({
+        model: input.model,
+        input: input.input,
+        questions: input.questions.map((q) => ({ type: "predicate", name: q.name, instructions: q.instructions })),
+      }),
+      signal: AbortSignal.timeout(input.timeoutMs),
+    });
+  } catch (err) {
+    const name = err instanceof Error ? err.name : "";
+    return { ok: false, error: name === "TimeoutError" || name === "AbortError" ? "timeout" : "network", ms: ms() };
+  }
+  let body: string;
+  try {
+    body = await readBodyCapped(res);
+  } catch (err) {
+    const code = (err as { code?: string })?.code;
+    const name = err instanceof Error ? err.name : "";
+    return {
+      ok: false,
+      error: code === "too_large" ? "too_large" : name === "TimeoutError" || name === "AbortError" ? "timeout" : "network",
+      ms: ms(),
+    };
+  }
+  if (!res.ok) {
+    const persistent =
+      classifyModelProviderFailure(res.status, body) ?? (isUnsupportedRequestFailure(res.status, body) ? "request" : null);
+    if (persistent) void noteModelProviderPersistentFailure(persistent, res.status, body, "semantic");
+    return { ok: false, error: "http", ms: ms() };
+  }
+  noteModelProviderSuccess("semantic");
+  let data: { answers?: unknown };
+  try {
+    data = JSON.parse(body);
+  } catch {
+    return { ok: false, error: "parse", ms: ms() };
+  }
+  if (!Array.isArray(data?.answers)) return { ok: false, error: "parse", ms: ms() };
+  const probabilities = new Map<string, number>();
+  for (const a of data.answers as unknown[]) {
+    const name = (a as { name?: unknown })?.name;
+    const p = (a as { probability?: unknown })?.probability;
+    if (typeof name !== "string" || !wanted.has(name) || probabilities.has(name)) continue;
+    if (typeof p !== "number" || !Number.isFinite(p) || p < 0 || p > 1) continue;
+    probabilities.set(name, p);
+  }
+  return probabilities.size > 0 ? { ok: true, probabilities, ms: ms() } : { ok: false, error: "parse", ms: ms() };
+}
+
 /**
  * Tek yeniden denemenin süre bütçesi (kurucu 4.11 notu: "süreye falan baksın"). İkinci deneme ilk denemeden KALAN süreyle koşar
  * (tavan − geçen − bekleme) → toplam bekleme tek çağrının tavanını AŞMAZ (QR süre bütçesi `SEMANTIC_TIMEOUT_MAX_MS` hesabı değişmez).

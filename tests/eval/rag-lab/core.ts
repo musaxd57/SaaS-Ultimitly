@@ -31,6 +31,8 @@ import {
   rerankQuestionText,
   type RerankWindowOptions,
   unionTopCandidates,
+  decisionsRerankQuestion,
+  parseDecisionsRerank,
 } from "@/lib/ai/semantic/rerank";
 import { redactForSemanticModel } from "@/lib/ai/semantic/redact";
 import { callStructuredJson } from "@/lib/ai/semantic/structured-call";
@@ -429,7 +431,8 @@ export async function labRerank(
  * DENEY (kurucu 10-28 gece: "Decisions API işimize yarar mı, 10 kat hızlıymış"): yeniden sıralayıcıyı OpenAI Decisions API ile (`POST
  * /v1/decisions`, gpt-6-luna) — aday başına bir evet/hayır sorusu ("bu aday misafirin sorusunu cevaplıyor mu?"), dönen OLASILIK üretimin
  * ölçeğine çevrilir (≥ 0,5 → 3 "cevaplıyor", ≥ 0,2 → 2 "ilgili"). Girdi metni sohbet sıralayıcısınınkiyle BİREBİR aynı (aynı adaylar, aynı
- * kırpma) — fark yalnız çağrı türü. Yapılandırma belirteci `rrm:decisions`. Ürün kodu DEĞİL.
+ * kırpma) — fark yalnız çağrı türü. Yapılandırma belirteci `rrm:decisions`. Üretim karşılığı `KB_RERANK_ENGINE=decisions` (varsayılan kapalı);
+ * burada yalnız ölçüm için tekrar + önbellek var.
  */
 async function labRerankDecisions(
   user: string,
@@ -438,7 +441,8 @@ async function labRerankDecisions(
   const questions = [...ids.keys()].map((id) => ({
     type: "predicate",
     name: id,
-    instructions: `Does candidate ${id} contain information that directly answers at least part of the guest message (not just the same topic)?`,
+    // Soru metni ve eşikler ÜRETİM motoruyla aynı kaynaktan (`KB_RERANK_ENGINE=decisions`) — ölçülen ile çalışan ayrışmasın.
+    instructions: decisionsRerankQuestion(id),
   }));
   const timed = await llmCachedTimed<Record<string, number>>("rerank-dec", rerankCacheKey({ model: "decisions:gpt-6-luna", system: "v1", user, effort: "" }), async () => {
     const apiKey = semanticApiKey();
@@ -462,12 +466,7 @@ async function labRerankDecisions(
     return { value: null, ms: Date.now() - started };
   });
   if (!timed.value) return null;
-  const scores = new Map<string, number>();
-  for (const [id, key] of ids) {
-    const p = timed.value[id] ?? 0;
-    if (p >= 0.5) scores.set(key, 3);
-    else if (p >= 0.2) scores.set(key, 2);
-  }
+  const scores = parseDecisionsRerank(new Map(Object.entries(timed.value)), ids);
   return { scores, ms: timed.ms, chars: user.length };
 }
 

@@ -1,7 +1,14 @@
 import "server-only";
 
-import { callStructuredJson } from "@/lib/ai/semantic/structured-call";
-import { semanticApiKey, semanticModel, semanticReasoningEffort, semanticTimeoutMs } from "@/lib/ai/semantic/config";
+import { callDecisions, callStructuredJson } from "@/lib/ai/semantic/structured-call";
+import {
+  rerankDecisionsModel,
+  rerankEngine,
+  semanticApiKey,
+  semanticModel,
+  semanticReasoningEffort,
+  semanticTimeoutMs,
+} from "@/lib/ai/semantic/config";
 import { redactForSemanticModel } from "@/lib/ai/semantic/redact";
 import { fenceSafe } from "@/lib/ai/semantic/fence";
 import { stripDividerRuns } from "../divider-spoof";
@@ -143,6 +150,29 @@ export function parseRerank(data: unknown, ids: ReadonlyMap<string, string>): Ma
   return out;
 }
 
+/**
+ * DECISIONS MOTORU (`KB_RERANK_ENGINE=decisions`, varsayılan KAPALI): aday başına tek evet / hayır sorusu; girdi metni sohbet sıralayıcısınınkiyle
+ * BİREBİR aynı (`buildRerankRequest`). Olasılık sohbet sıralayıcısının ölçeğine çevrilir: ≥ `DECISIONS_ANSWERS_AT` → 3 "cevaplıyor",
+ * ≥ `DECISIONS_RELATED_AT` → 2 "ilgili", altı puansız (bugünkü sırası). Soru metni ve eşikler ölçümdeki (`rrm:decisions`) ile aynı kaynaktan.
+ */
+export const DECISIONS_ANSWERS_AT = 0.5;
+export const DECISIONS_RELATED_AT = 0.2;
+export function decisionsRerankQuestion(id: string): string {
+  return `Does candidate ${id} contain information that directly answers at least part of the guest message (not just the same topic)?`;
+}
+
+/** Olasılıkları seçici ölçeğine çevirir; yalnız isteme giden kimlikler. Saf. */
+export function parseDecisionsRerank(probabilities: ReadonlyMap<string, number>, ids: ReadonlyMap<string, string>): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const [id, key] of ids) {
+    const p = probabilities.get(id);
+    if (p === undefined) continue;
+    if (p >= DECISIONS_ANSWERS_AT) out.set(key, 3);
+    else if (p >= DECISIONS_RELATED_AT) out.set(key, 2);
+  }
+  return out;
+}
+
 export interface RerankDeps {
   fetchImpl?: typeof fetch;
   /** Ölçüm için model ezme; üretimde anlam katmanının modeli. */
@@ -160,8 +190,21 @@ export async function llmRerank(
 ): Promise<RerankOutcome> {
   const apiKey = semanticApiKey();
   if (!apiKey || candidates.length === 0 || !guestMessage.trim()) return { status: "skipped", ms: 0 };
-  const model = deps.model ?? semanticModel("rerank");
   const { user, ids } = buildRerankRequest(guestMessage, candidates, names);
+  if (rerankEngine() === "decisions") {
+    const model = rerankDecisionsModel();
+    const layerTimeout = semanticTimeoutMs(model);
+    const res = await callDecisions({
+      apiKey,
+      model,
+      input: user,
+      questions: [...ids.keys()].map((id) => ({ name: id, instructions: decisionsRerankQuestion(id) })),
+      timeoutMs: deps.deadlineMs !== undefined ? Math.min(layerTimeout, deps.deadlineMs) : layerTimeout,
+      fetchImpl: deps.fetchImpl,
+    });
+    return res.ok ? { status: "ok", scores: parseDecisionsRerank(res.probabilities, ids), ms: res.ms } : { status: "failed", ms: res.ms };
+  }
+  const model = deps.model ?? semanticModel("rerank");
   const layerTimeout = semanticTimeoutMs(model);
   const res = await callStructuredJson({
     apiKey,
