@@ -95,6 +95,7 @@ export function mergeSeniorRewrite<
     answeredRequests?: unknown;
     answerParts?: unknown;
     verifiedParts?: unknown;
+    verifiedPartsOnly?: true;
     claimedActions?: unknown;
     timeConflicts?: unknown;
     llmUsage?: unknown;
@@ -107,8 +108,11 @@ export function mergeSeniorRewrite<
     first.stayChange || retried.stayChange
       ? { asked: first.stayChange?.asked ?? retried.stayChange?.asked ?? "unknown", stance: retried.stayChange?.stance ?? "unknown" }
       : first.stayChange;
+  // 4.12 doğrulanmış parça işareti yeni çağrının parçalarına aittir: ilk taslağın işareti yeniden yazılmış metne TAŞINMAZ.
+  const { verifiedPartsOnly: _firstWaiver, ...firstRest } = first;
   return {
-    ...first,
+    ...(firstRest as T),
+    ...(retried.verifiedPartsOnly === true ? { verifiedPartsOnly: true as const } : {}),
     stayChange: stayChange as T["stayChange"],
     reply: retried.reply,
     confidence: Math.min(first.confidence, retried.confidence),

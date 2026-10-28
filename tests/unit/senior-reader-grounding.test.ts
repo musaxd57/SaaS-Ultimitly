@@ -171,6 +171,12 @@ describe("yeniden yazma birleştirmesi (Opus 10-22 F1)", () => {
     expect(mergeSeniorRewrite<WithUsage>(first, { ...retried, llmUsage: { pt: 1 } }).llmUsage).toEqual({ pt: 1 });
   });
 
+  it("🚨 4.12: doğrulanmış parça işareti YENİ çağrıdan (ilk taslağın işareti yeniden yazılmış metne taşınmaz)", () => {
+    type W = typeof first & { verifiedPartsOnly?: true };
+    expect("verifiedPartsOnly" in mergeSeniorRewrite<W>({ ...first, verifiedPartsOnly: true }, retried)).toBe(false);
+    expect(mergeSeniorRewrite<W>(first, { ...retried, verifiedPartsOnly: true }).verifiedPartsOnly).toBe(true);
+  });
+
   it("cevap parçaları kipinde (10-23 A) parça kararları yeni çağrıdan; kip dışında alan hiç yok", () => {
     const m = mergeSeniorRewrite(
       { ...first, answerParts: [{ ref: "R1", status: "verified", source: "kb:1" }] },

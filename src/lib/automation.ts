@@ -398,6 +398,11 @@ export function autoReplyGateVerdict(
     /** Modelin konaklama değişikliği ŞEMA BEYANI (yalnız sıkılaştırır; `ai/semantic/stay-change.ts`). */
     stayChange?: StayChangeDeclaration | null;
     /**
+     * Kurucu kararı 4.12: parça kipinde giden metin yalnız doğrulanmış parçalar (`verifiedPartsWaiver`). Yalnız GÜVEN EŞİĞİNİ atlar; öteki
+     * bütün kontroller aynen. Verilmezse karar birebir eski.
+     */
+    verifiedPartsOnly?: true;
+    /**
      * Modelin bildirdiği misafir dili (`suggestReply` → `normalizeLang`). Yalnız dil kapısında, kod dilden EMİN DEĞİLKEN ve misafirin
      * metninde o dilin izi varken okunur (`gateGuestLanguage`, 10-28) — yalnız sıkılaştırır; verilmezse karar birebir eski.
      */
@@ -758,7 +763,9 @@ export function autoReplyGateVerdict(
   // zaten yalnız sonlu number geçiriyor, ama kapı başka çağıranlardan da ham
   // nesne alır (QR yolu, testler) — `Infinity >= 0.75` true olurdu.
   if (!Number.isFinite(result.confidence)) return hold("confidence_invalid");
-  if (result.confidence < AUTO_REPLY_MIN_CONFIDENCE) return hold("low_confidence");
+  // Kurucu kararı 4.12 (10-28): parça kipinde giden metin yalnız kodun + okuyucunun doğruladığı parçalarsa modelin GENEL güveni (çoğu zaman
+  // cevaplanamayan öteki sorudan düşer) tek başına tutmaz. Güven sayı değilse ↑ yine tutar; öteki bütün kontroller aynen.
+  if (result.confidence < AUTO_REPLY_MIN_CONFIDENCE && result.verifiedPartsOnly !== true) return hold("low_confidence");
   // ── ANLAMA KATMANININ RİSK NİYETLERİ (09-24, `semantic/intent-risk.ts`) ────────
   // Acil / şikâyet / iptal-iade / insan talebi: kelime ağının tanımadığı dolaylı dili (ölçüldü) ayrı bir model
   // okur. Güvenlik kontrollerinin SONUNCUSU: gerekçe `understanding_risk` yalnız başka HİÇBİR güvenlik kontrolü

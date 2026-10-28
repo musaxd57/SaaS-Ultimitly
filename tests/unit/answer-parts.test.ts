@@ -9,7 +9,7 @@ vi.mock("server-only", () => ({}));
 
 import { answerPartsEnabled, CODE_KEPT_ISSUES, composeVerifiedReply, foldPartText, groundEvidence, parseAnswerParts, partTextKey, type AnswerPart } from "@/lib/ai/answer-parts";
 import { ANSWER_PARTS_REPLACEMENTS, buildReplyPrompt, replySystemPromptFor, REPLY_SYSTEM_PROMPT_DERIVATION_MISSING } from "@/lib/ai/prompts";
-import { suggestReply } from "@/lib/ai";
+import { suggestReply, verifiedPartsWaiver } from "@/lib/ai";
 import { kbLine } from "@/lib/ai/retrieval/kb-line";
 import { needTerms } from "@/lib/conversation-items/topic-absence";
 import type { ReplyItemsInput } from "@/lib/conversation-items/reply-block";
@@ -1131,5 +1131,58 @@ describe("daire saat satırı — eş etiket (doğrulama havuzu)", () => {
     ]);
     // Süzülmüş (çakışan) satırın eşi de yok.
     expect(withPropertyLabelAliases(["Check-in saati: 15:00"])).not.toContain("Çıkış saati: 11:00");
+  });
+});
+
+// ─── 4.12 (kurucu kararı 10-28: "Evet, doğrulanmış parça gitsin"): parça kipinde modelin GENEL güveni doğrulanmış parçayı durdurmaz ─────
+// Düşük güvenin sebebi çoğu zaman cevaplanamayan öteki soru (ölçüm 10-23 akşam: "Bisiklet kilit şifresi? Yakınlarda kuaför var mı?" güven
+// 0,72 → hiçbir şey gitmiyordu). İşaret yalnız: giden metin doğrulanmış parçalardan + cevap kesilmemiş + model güvenlik alanları sağlam.
+// Risk / şikâyet / acil ve öteki bütün kapılar aynen önde (kapı testi `parts-confidence-waiver.test.ts`).
+describe("suggestReply — 4.12 doğrulanmış parça işareti", () => {
+  beforeEach(() => vi.stubEnv("OPENAI_API_KEY", "test-key"));
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+  const ANSWERS = [
+    { ref: "R1", status: "answered", text: "Çıkış saati 11:00.", evidence: "Check-out saati: 11:00" },
+    { ref: "R2", status: "answered", text: "Havuz her gün 20:00'de kapanıyor.", evidence: "Havuz her gün 20:00'de, sauna 22:00'de kapanır." },
+    { ref: "R3", status: "no_info", text: "", evidence: "" },
+  ];
+
+  it("🚨 düşük güven + doğrulanmış parçalar → işaret var; güven değeri DEĞİŞMEZ (kayıt dürüst)", async () => {
+    openAiReturns({ ...MODEL, confidence: 0.72, answers: ANSWERS });
+    const r = await suggestReply({ ...input, conversationItems: ITEMS });
+    expect(r.reply).toBe("Çıkış saati 11:00.\nHavuz her gün 20:00'de kapanıyor.");
+    expect(r.confidence).toBe(0.72);
+    expect(r.verifiedPartsOnly).toBe(true);
+  });
+
+  it("🚨 hiçbir parça doğrulanmadıysa (boş metin) işaret YOK", async () => {
+    openAiReturns({ ...MODEL, confidence: 0.72, answers: [{ ref: "R3", status: "no_info", text: "", evidence: "" }] });
+    const r = await suggestReply({ ...input, conversationItems: ITEMS });
+    expect(r.reply).toBe("");
+    expect("verifiedPartsOnly" in r).toBe(false);
+  });
+
+  it("🚨 model güvenlik alanı bozuksa (riskLevel eksik / güven sayı değil) işaret YOK", async () => {
+    const { riskLevel: _r, ...noRisk } = MODEL;
+    openAiReturns({ ...noRisk, confidence: 0.72, answers: ANSWERS });
+    expect("verifiedPartsOnly" in (await suggestReply({ ...input, conversationItems: ITEMS }))).toBe(false);
+    openAiReturns({ ...MODEL, confidence: "0.9", answers: ANSWERS });
+    expect("verifiedPartsOnly" in (await suggestReply({ ...input, conversationItems: ITEMS }))).toBe(false);
+  });
+
+  it("🚨 işaret kuralı (saf): doğrulanmış parça VAR + kesilmedi + şema sağlam; biri eksikse YOK", () => {
+    expect(verifiedPartsWaiver({ verifiedCount: 2, truncated: false, schemaViolation: false })).toBe(true);
+    expect(verifiedPartsWaiver({ verifiedCount: 0, truncated: false, schemaViolation: false })).toBe(false);
+    expect(verifiedPartsWaiver({ verifiedCount: 2, truncated: true, schemaViolation: false })).toBe(false);
+    expect(verifiedPartsWaiver({ verifiedCount: 2, truncated: false, schemaViolation: true })).toBe(false);
+  });
+
+  it("parça kipi kapalıyken işaret hiç yok (bugünkü sonuç birebir)", async () => {
+    openAiReturns({ ...MODEL, confidence: 0.72, answers: ANSWERS });
+    const { parts: _p, ...noParts } = ITEMS;
+    expect("verifiedPartsOnly" in (await suggestReply({ ...input, conversationItems: noParts }))).toBe(false);
   });
 });

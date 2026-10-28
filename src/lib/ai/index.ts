@@ -544,6 +544,16 @@ async function callOpenAI(system: string, user: string, breakerKey?: string | nu
 const REPLY_AUTOSEND_CAP = 2000;
 const REPLY_STORE_CAP = 4000;
 
+/**
+ * Kurucu kararı 4.12 (10-28, "Evet, doğrulanmış parça gitsin"): parça kipinde modelin genel güveni, doğrulanmış parçayı tek başına durdurmaz
+ * — düşük güvenin sebebi çoğu zaman cevaplanamayan ÖTEKİ soru (ölçüm 10-23 akşam: kuaför sorusu yüzünden 0,72 → bisiklet kilidi cevabı da
+ * gitmiyordu). Yalnız: en az bir parça doğrulandı, birleşik metin tavanla KESİLMEDİ (kesilen cevap asla gitmez) ve modelin güvenlik alanları
+ * sağlam (şema ihlali = 0 güven, muafiyet yok). Saf.
+ */
+export function verifiedPartsWaiver(o: { verifiedCount: number; truncated: boolean; schemaViolation: boolean }): boolean {
+  return o.verifiedCount > 0 && !o.truncated && !o.schemaViolation;
+}
+
 function capReply(text: string): { text: string; truncated: boolean } {
   const trimmed = text.trim();
   if (trimmed.length <= REPLY_AUTOSEND_CAP) return { text: trimmed, truncated: false };
@@ -891,6 +901,12 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
               }
             : {}),
           ...(partsOutcome ? { answerParts: partsOutcome.verdicts, verifiedParts: partsOutcome.verified } : {}),
+          // 4.12: doğrulanmış parçalar kesilmeden ve sağlam şemayla gidiyorsa kapı genel güvene takılmaz (`verifiedPartsWaiver`).
+          ...(partsOutcome &&
+          replyText.trim() &&
+          verifiedPartsWaiver({ verifiedCount: partsOutcome.verified.length, truncated: shown.truncated, schemaViolation })
+            ? { verifiedPartsOnly: true as const }
+            : {}),
         };
       }
     } catch {

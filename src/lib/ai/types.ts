@@ -301,6 +301,12 @@ export interface SuggestReplyResult {
    */
   answerParts?: PartVerdict[];
   /**
+   * Kurucu kararı 4.12 (10-28): parça kipinde giden metin YALNIZ kodun + okuyucunun doğruladığı parçalardan oluşuyor, cevap kesilmedi ve
+   * modelin güvenlik alanları sağlam (`verifiedPartsWaiver`). Kapı bu işaret varken modelin GENEL güvenini (< 0,75) tek başına tutma sebebi
+   * saymaz; öteki bütün kapılar aynen. `confidence` değişmez (kayıt dürüst). Yokluğu = muafiyet yok.
+   */
+  verifiedPartsOnly?: true;
+  /**
    * Doğrulanan parçaların metni + alıntısı + kaynağı (yalnız parça kipinde). Doğrulanmış cevap tekrarının GÖLGE ölçümü okur
    * (`answer-reuse/store.ts`, migration 85); izlere / karar kaydına YAZILMAZ.
    */
