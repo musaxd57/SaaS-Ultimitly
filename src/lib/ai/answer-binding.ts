@@ -393,7 +393,32 @@ function closedIsNotPredicate(tokens: readonly string[], i: number): boolean {
   // İki sözcüklü tesis adının ardında yüklem ("Havuz şu an kapalı spor salonu açık") → "kapalı" öncekinin yüklemi; önde tesis tamlayanı varsa
   // ("Sitenin kapalı yüzme havuzu açıktır") ad öbeğinin sıfatı (Opus 10-23 akşam E1). Belirsizde yüklem (olumsuz) — tutar yönü.
   if (INDOOR_POSSESSED.test(tokens[i + 2] ?? "") && predicate(tokens[i + 3])) return SITE_GENITIVE.test(tokens[i - 1] ?? "");
+  // R15 (Opus 10-28): ÖZNE "kapalı"dan önce aynı yerde söylendiyse ("Havuz şu an kapalı - havuz havluları …", "(…)", "/", "•", noktalamasız)
+  // "kapalı" o öznenin yüklemidir; belirteçlere ayırma tireyi / parantezi siler, sonraki ad öbeği sıfat sanılıyordu ("Havuz açık" doğrulanıyordu).
+  if (subjectBeforeClosed(tokens, i) && !closedNounPhraseAhead(tokens, i)) return false;
   return true;
+}
+
+/** Özne olabilecek yalın tesis adı "kapalı"dan önce, yer ayracına kadar en çok 5 belirteç geride; hemen önceki bağlaç / tamlayan sıfat okumasıdır. */
+const CLOSED_COORD = /^(?:ve|ile|veya|ya|yahut|and|or|und|oder|et|ou|y|o)$/;
+const SUBJECT_FACILITY = /^(?:havuz|otopark|garaj|sauna|jakuzi|hamam|spor|fitness|spa|teras|balkon|mutfak|salon)(?:umuz|imiz|u|i|lar|ler)?$/;
+function subjectBeforeClosed(tokens: readonly string[], i: number): boolean {
+  const prev = tokens[i - 1] ?? "";
+  if (CLOSED_COORD.test(prev) || SITE_GENITIVE.test(prev) || /n[iu]n$/.test(prev)) return false;
+  for (let j = i - 1; j >= Math.max(0, i - 5) && tokens[j] !== PLACE_SEP; j--) if (SUBJECT_FACILITY.test(tokens[j])) return true;
+  return false;
+}
+/**
+ * "kapalı"nın ardındaki ad öbeği kendisi yüklem / varlık taşıyorsa sıfat okuması doğrudur: ek-fiilli ("kapalı otoparktır"), hâl ekli ("kapalı
+ * alanda / alana"), ardından var / mevcut / bulunur / yer alır ("kapalı otopark vardır").
+ */
+const EXISTENCE_AHEAD = /^(?:var|vardir|mevcut|mevcuttur|bulunur|bulunmaktadir|bulunuyor|yer)$/;
+const CLOSED_NOUN_INFLECTED =
+  /^(?:havuz|otopark|garaj|alan|salon|bolum|kisim|mekan|park|balkon|teras|mutfak|sauna|jakuzi|hamam|yer|spor)(?:[dt][iu]r|[dt][ae]n?|[yn]?[ae]|s[ie]|[iu]n[ae]|[iu]nd[ae])$/;
+function closedNounPhraseAhead(tokens: readonly string[], i: number): boolean {
+  if (CLOSED_NOUN_INFLECTED.test(tokens[i + 1] ?? "")) return true;
+  for (let k = i + 2; k <= i + 3 && k < tokens.length && tokens[k] !== PLACE_SEP; k++) if (EXISTENCE_AHEAD.test(tokens[k])) return true;
+  return false;
 }
 
 function negAt(tokens: readonly string[], i: number): boolean {

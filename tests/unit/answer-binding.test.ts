@@ -1343,4 +1343,32 @@ describe("ters olumluluk — 'kapalı' sıfat / talimat, olumsuzlanmış ücrets
     expect(whole("Havuz açık.", "Havuz açıktır. Havuz havluları dolaptadır.")).not.toContain("polarity_mismatch");
     expect(whole("Havuz kapalı.", "Havuz şu an kapalı. Havuz havluları dolaptadır.")).not.toContain("polarity_mismatch");
   });
+
+  it("🚨 R15 (Opus 10-28): aynı cümlede tire / parantez / eğik çizgi / madde işareti / noktalamasız — özne önce söylendiyse 'kapalı' yüklemdir", () => {
+    const whole = (part: string, source: string) =>
+      checkAnswerBinding({ part, evidence: source, sourceText: source, needTerms: ["havuz"], needTopics: [] }).issues;
+    for (const src of [
+      "Havuz şu an kapalı - havuz havluları dolaptadır.",
+      "Havuz şu an kapalı (havuz havluları dolapta).",
+      "Havuz şu an kapalı / havuz havluları dolaptadır.",
+      "Havuz Ekim'de kapalı • Havuz havluları dolaptadır.",
+      "Havuz şu an kapalı havuz havluları dolaptadır.",
+      "Havuz kapalı – havuz havlusu resepsiyonda.",
+    ]) {
+      expect(whole("Havuz açık.", src), src).toContain("polarity_mismatch");
+      // Doğru cevap ("kapalı") doğrulanır.
+      expect(whole("Havuz şu an kapalı.", src), src).not.toContain("polarity_mismatch");
+    }
+    // KONTROL — sıfat okuması korunur (aşırı uygulama yok): ad öbeği ek-fiilli / var-mevcut / bağlaçla / tamlayanla / hâl ekiyle.
+    for (const [part, src] of [
+      ["Otopark var.", "Otoparkımız kapalı otoparktır."],
+      ["Havuz açıktır.", "Havuz yanında kapalı otopark vardır, havuz açıktır."],
+      ["Havuz açıktır.", "Havuz ve kapalı otopark misafirlere açıktır."],
+      ["Havuz açıktır.", "Sitenin kapalı yüzme havuzu açıktır."],
+      ["Havuz açıktır.", "Havuz kapalı alanda yer alır ve açıktır."],
+      ["Havuz açıktır.", "Havuz yanında kapalı otopark mevcuttur, havuz açıktır."],
+    ] as const) {
+      expect(whole(part, src), src).not.toContain("polarity_mismatch");
+    }
+  });
 });
