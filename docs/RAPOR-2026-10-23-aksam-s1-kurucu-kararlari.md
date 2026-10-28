@@ -241,3 +241,16 @@ başka işletmenin vektörü okunamaz. **Bir sonraki dilimde yazılacak** (bu di
 | dışa aktar → yeniden yükle | içeriğin ilk satırı başlık gibiyse ("Wi-Fi bilgileri:", "ÖNEMLİ") dosya geri yüklenince "## Wi-Fi" yazısı içeriğe giriyor, kalem ikiye bölünüyordu; 58–60 karakterlik / virgülle biten / saatli başlıkta da aynı | dosya geri yüklenince içerik birebir aynı, "##" içeriğe girmez (başlık uygun değilse kategori adı yazılır — içe aktarıcının kendi kuralıyla sınanır) |
 | onay bekleyen taslak | dışa aktarma yalnız "etkin" bakıyordu; onay bekleyen taslak (bugün üreten yol yok) dosyaya girecekti | yalnız yapay zekânın okuduğu (eski + onaylı) kalemler |
 
+
+### 7.7 Kurucu 10-28 öğle cevapları → yapılanlar
+
+- **"Sert test et, iyimser olma" (7-D):** kuralları görmemiş ayrı yazarla 93 zor vaka + gerçek model (≈ 0,30 $). Önceki öneri (kod önce karar
+  verir) kör sette **10 yanlış gönderim**; en iyi kol "kod yalnız durdurur, her gönderimi gpt-6-luna onaylar" **4**; gpt-5.1 bu işte daha kötü
+  (11). Kalan dört hatanın üç sınıfı ve yalnız durduran kod kuralları: `docs/arastirma-2026-10-28/7d-gonderim-zamani.md` §10. Karar: sayfada 8-1.
+- **"Kalıcı gömme deposu — tamam, en uzun vadeli şekilde yaz":** kodda (migration 87, anahtar KAPALI). Tabloya, ileride cümle ve soru düzeyi
+  anlam araması için tür / tarif / sıra alanları şimdiden eklendi (sonradan dolu tabloda değiştirmek gerekmesin; müşteriye etkisi yok).
+- **"Dosyada cümle ve anlam düzeyinde RAG":** tasarım `docs/TASARIM-2026-10-28-dosya-rag-cumle-ve-anlam.md` — öz: "küçük birimle (cümle,
+  önceden üretilmiş misafir soruları) anlamı yakala, paragrafı gönder". En önemli bulgu: bugüne kadarki bütün arama ölçümleri kısa kayıtlarla
+  (en uzunu 818 karakter) yapıldı; uzun belge için ölçü yok — ilk iş o set.
+- **"Karar bekleyen belge nerede?":** tek sayfa https://claude.ai/artifact/2tiEwpwVc4r4S5z1aGuV1V — her soru önce/sonra örnekli, seçim + not
+  kaydedilir; yeni oturum seçimleri oradan okur.

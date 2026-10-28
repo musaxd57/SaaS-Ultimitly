@@ -57,13 +57,15 @@ oturumda `actions_list` ile tekrar bakılır). Railway KAPALI (canlı yok). Ücr
 - Tedarik zinciri: nodemailer 10.1.7; zod GHSA-mrhx gerekçeli triaj (2026-12-31'de dolar → soru 4.15 zod 4 geçişi).
 
 **SIRADAKİ İŞLER (bu sırayla; her biri K2: kırmızı-önce + mutasyon + Haiku dar inceleme + tam kapı):**
-1. **7-D gönderim zamanı:** araştırma + 40 senaryoluk kodsuz simülasyon BİTTİ (`docs/arastirma-2026-10-28/7d-gonderim-zamani.md`; set
-   `7d-senaryolar.json`, betik `7d-simule.mjs` — `node docs/arastirma-2026-10-28/7d-simule.mjs docs/arastirma-2026-10-28/7d-senaryolar.json`).
-   Sonuç: sabit kural 5 yanlış gönderim / 8 gereksiz tutma; katmanlı C 30/30 (iyimser — kurallar seti görerek yazıldı). SIRADAKİ: kuralları
-   GÖRMEMİŞ ayrı yazarla kör set + model kolu ölçümü (kurucu "sen direk test et" dedi → ≈ 0,05 $ luna / ≈ 0,80 $ gpt-5.1, onaylı sayılır;
-   tutarı aşma) → sonuçlar önce/sonra tablosuyla kurucuya; kurucu soruları belge §8 (8-1…8-5) cevaplanmadan kod YAZILMAZ.
-2. **S3 kalıcı gömme deposu** (migration 87, onaylı, `KB_VECTOR_STORE_ENABLED` KAPALI): tasarım `docs/TASARIM-2026-10-23-bilgi-tabani-dosya-rag-ve-tarama.md`
-   §10.1 (son hâl). Maliyet cevabı kurucuya verildi (rapor §7.3). Migration içeren push = taze `pg_dump` + açık onay kuralı geçerli.
+1. **7-D gönderim zamanı — SERT KÖR TEST YAPILDI (10-28 öğle):** 93 senaryoluk kör set (ayrı yazar, `docs/arastirma-2026-10-28/7d-kor-set.json`)
+   + gerçek model kolu (`7d-model-kolu.mjs`, ≈ 0,30 $). Sonuç belge §10: önceki C önerisi kör sette 10 yanlış gönderim; en iyi kol "kod yalnız
+   durdurur, her gönderimi gpt-6-luna onaylar" 4 (gpt-5.1 bu sette daha kötü, 11). Kalan üç sınıf için YALNIZ DURDURAN kod kuralları önerildi
+   (gece yarısını geçen göreli gün · sorudan sonra değişen rezervasyon · başka daire / misafir adı). Kurucu kararı bekliyor (karar sayfası 8-1).
+   Karar sonrası: üç kural + İKİNCİ kör set (kuralları görmemiş yazar) — ilk setin hatalarına göre yazılan kuralın kanıtı ikinci settir.
+2. **S3 kalıcı gömme deposu — KODDA (10-28 öğle, commit 2c1a1f7b):** migration 87 `KbChunkVector` (K1–K7 alanlarıyla), `vector-store.ts`,
+   anahtar `KB_VECTOR_STORE_ENABLED` KAPALI; 12 davranış testi, mutasyon 10/10. Açılış: Railway açılmadan önce taze yedek (migration 59–87).
+   Sıradaki RAG adımı tasarım `docs/TASARIM-2026-10-28-dosya-rag-cumle-ve-anlam.md` §4.3: D1 uzun belge ölçüm seti (bugün yok!) → D2 önek v2 →
+   D3 cümle birimleri → D4 soru üretimi (ayrı migration); kurucu soruları R-S1/S2/S4/S5 karar sayfasında.
 3. **KB tarama soruları** (`KbScanQuestion`, migration 88, onaylı; `KB_SCAN_QUESTIONS_ENABLED` KAPALI): bulucular T1–T7 (tasarım §5) +
    günde en çok 3 + panel kartı **[Onayla] [Düzenle] [Vazgeç]** (kurucu: "Böyle kalsın" DEĞİL "Vazgeç") + onaydan sonra öteki dairelere uygula.
 4. **Dosyadan içe aktarma bağlanmadan ÖNCE** Opus R24/R25/R26 (P1*/P2*: ayrı paragraftaki kod "Genel"e düşüyor, PIN / keyless biçimleri,
@@ -73,6 +75,9 @@ oturumda `actions_list` ile tekrar bakılır). Railway KAPALI (canlı yok). Ücr
 5. **Opus açıkları:** R10–R15, R17, R19, R22, R27–R30 (`docs/INCELEME-2026-10-28-opus-ikinci-dilim.md` özet tablosu, "AÇIK" olanlar).
    Müşteriye giden cevabı GEVŞETEN her düzeltme önce/sonra örneğiyle kurucuya sorulur.
 6. Açık kurucu soruları: 4.11–4.15 (rapor §4, §6) — cevap gelmeden uygulanmaz.
+
+**Karar sayfası (kurucu seçimleri burada, sayfanın veritabanında):** https://claude.ai/artifact/2tiEwpwVc4r4S5z1aGuV1V — yeni oturum
+`ArtifactData list kararlar` ile okur (belge kimliği `q-<soru>`: `q-8-1`, `q-R-S1`, `q-4-11` …; alanlar `secim · not · kaydedildi`).
 
 **Dikkat (bu oturumun dersi):** tam kapı koşarken HİÇBİR vitest (hedefli test, mutasyon) koşulmaz — 10-28'de bir kapı bu yüzden geçersiz
 sayıldı ("Can't reach database server at localhost:5433").
