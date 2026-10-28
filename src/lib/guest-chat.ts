@@ -434,7 +434,7 @@ const SECRET_PATTERNS: RegExp[] = [
     "i",
   ),
   new RegExp(
-    `(?:(?<![a-z])code|c[oó]digo|codice|(?<![a-z])pin(?![a-z])|код|رمز|كود|كلمة\\s+(?:ال)?(?:مرور|سر)|(?<![a-zçğıöşü])kod)(?![^\\d\\n.]{0,3}(?:postal|fiscale|البريدي|почтов))[^\\d\\n.]{0,30}?(?:door|gate|entrance|building|t[üu]r|porte|immeuble|puerta|portal|edificio|porta|portone|ingresso|cancello|двер|подъезд|домофон|باب|المبنى|kap[ıi])[^\\d\\n.]{0,20}?${KEY_DIGITS}`,
+    `(?:(?<![a-z])code|c[oó]digo|codice|(?<![a-z])pin(?![a-z])|код|رمز|كود|كلمة\\s+(?:ال)?(?:مرور|سر)|(?<![a-zçğıöşü])kod)(?![^\\d\\n.]{0,3}(?:postal|البريدي|почтов))[^\\d\\n.]{0,30}?(?:door|gate|entrance|building|t[üu]r|porte|immeuble|puerta|portal|edificio|porta|portone|ingresso|cancello|двер|подъезд|домофон|باب|المبنى|kap[ıi])[^\\d\\n.]{0,20}?${KEY_DIGITS}`,
     "i",
   ),
   // 🚨 10-28 gece (Opus ikinci dilim R25, ölçüldü): Almanca BİTİŞİK bileşikler — "Der Türcode lautet 4590", "Haustürcode: 4590",

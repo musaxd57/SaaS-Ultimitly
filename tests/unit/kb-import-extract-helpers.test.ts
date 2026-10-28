@@ -137,6 +137,8 @@ describe("R28 — çıkarma yardımcıları", () => {
   it("aşırı-uygulama: ORTADA bozuk bayt varsa eskisi gibi 1254; tam son karakter kesilmez", () => {
     expect(decodeTextFile(new Uint8Array([...enc("Şiş"), 0xfd, ...enc("li"), 0xc5])).encoding).toBe("windows-1254");
     expect(decodeTextFile(enc("Çıkış ş"))).toEqual({ text: "Çıkış ş", encoding: "utf-8" });
+    // Sonda TAMAMLANMIŞ ama geçersiz dizi (UTF-8'de yasak vekil kod noktası ED A0 80) yarım değildir — atılmaz, dosya 1254 okunur.
+    expect(decodeTextFile(new Uint8Array([...enc("Merhaba "), 0xed, 0xa0, 0x80])).encoding).toBe("windows-1254");
   });
 
   it("🚨 RTF reddedilir (denetim sözcükleri taslağa girmesin); süslü parantezle başlayan düz metin metindir", () => {
