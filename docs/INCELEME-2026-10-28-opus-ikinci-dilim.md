@@ -300,7 +300,7 @@ yan cümle yalnız KENDİNİ muaf tutsun.
 | R12 | P2 | olay muafiyeti cümle düzeyi | a | AÇIK |
 | R13 | P2 | INFO_CONDITION "let them know / details" | b | ✅ 10-28 gece (kurucu "r13 tamam"; haber verme ifadesi bilgi koşulundan önce silinir, "bilgi verebilirsiniz" yönlendirme değil; mutasyon 8/8) |
 | R14 | P3 | "break" / "issues" geniş | a | AÇIK |
-| R15 | P2 | binding: tire / parantez / "•" / noktalamasız "kapalı" sıfat | a | AÇIK — 10-28 gece tasarım notu ↓ (aceleyle kapatılmadı: yan cümle bölme bu dosyada üç ayrı yerde) |
+| R15 | P2 | binding: tire / parantez / "•" / noktalamasız "kapalı" sıfat | a | ✅ 10-28 gece-2 (özne "kapalı"dan önce söylendiyse yüklem; sıfat okumaları — ek-fiil / hâl eki / var-mevcut / bağlaç / tamlayan / önceki cümle — korunur; mutasyon 8/8, kendi gerilemem "alandadır" mutasyonda yakalandı) |
 | R16 | P1 | pet: "hariç / except" + tür uyuşmazlığı → evet gider | a | düzeltildi 10-28 (ac4bfa66 + pin) |
 | R17 | P2 | pet: kısıt biçimleri koşul sayılmıyor | a | AÇIK |
 | R18 | P1 | pet: öğe kipinde (canlı) B4 devre dışı; test yalnız öğesiz | a, e | düzeltildi 10-28 (ac4bfa66 + pin) |
@@ -321,7 +321,7 @@ yan cümle yalnız KENDİNİ muaf tutsun.
 
 
 ---
-## 10-28 gece — R15 tasarım notu (uygulanmadı; sıradaki dilim)
+## 10-28 gece — R15 tasarım notu (✅ uygulandı 10-28 gece-2: yalnız 2. adım yeterli oldu — belirteçlere ayırma noktalamayı zaten siliyor, ayraç kümesi gerekmedi)
 
 Kök: `closedIsNotPredicate` "kapalı"nın ARDINDAKİ tesis adına bakıp sıfat okuması yapıyor; tire / parantez / eğik çizgi / "•" belirteçlere
 ayırmada siliniyor, sonraki "havuz" sözcüğü "kapalı havuz" sıfat öbeği sanılıyor. Önerilen iki adım (ikisi de yalnız TUTMA yönünde):
