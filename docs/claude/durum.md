@@ -72,6 +72,10 @@ Talimatı"na süpürülen paragraf: kör sette 35 soru QR'da cevapsız kalır), 
    durdurur, her gönderimi gpt-6-luna onaylar" 4 (gpt-5.1 bu sette daha kötü, 11). Kalan üç sınıf için YALNIZ DURDURAN kod kuralları önerildi
    (gece yarısını geçen göreli gün · sorudan sonra değişen rezervasyon · başka daire / misafir adı). Kurucu kararı bekliyor (karar sayfası 8-1).
    Karar sonrası: üç kural + İKİNCİ kör set (kuralları görmemiş yazar) — ilk setin hatalarına göre yazılan kuralın kanıtı ikinci settir.
+   **10-28 akşam (kurucu "93/93", "Luna'ya geçir"):** ikinci kör set (Sonnet, 80) İLK okumada Luna 12 / 54 yanlış gönderim (yeni üç kuralla 8;
+   5.1: 21 / 15) → genel kurallar (göreli zaman çözümü, kukla değer, başka kişiye hitap) + ürünün içerik kapıları + istem v2 (metnin içeriği)
+   + ÇİFT ONAY (iki bağımsız Luna kontrolü) → üç sette 1 / 213 yanlış gönderim, 33 / 213 düzenleyici. Belge `7d-gonderim-zamani.md` §11, puanlayıcı
+   `7d-puan.mjs`. ÜÇÜNCÜ kör set (Opus, 70, kabul; ölçüt 0 yanlış gönderim) yazıldı mı / sonucu: §11 sonu. Karar sayfası 8-1 güncel.
 2. **S3 kalıcı gömme deposu — KODDA (10-28 öğle, commit 2c1a1f7b):** migration 87 `KbChunkVector` (K1–K7 alanlarıyla), `vector-store.ts`,
    anahtar `KB_VECTOR_STORE_ENABLED` KAPALI; 12 davranış testi, mutasyon 10/10. Açılış: Railway açılmadan önce taze yedek (migration 59–87).
    Sıradaki RAG adımı (§9.7): D1 ölçüm seti ✅ (10-28 akşam) · D1b tablo başlığı ✅ (anahtar kapalı) → kalan kayıp uzak istisna / genel kural
