@@ -610,11 +610,13 @@ export function autoReplyGateVerdict(
   // Öğe kipi koşmuyorsa misafirin mesajı da okunur (Opus 10-23 akşam B3): "Evet, getirebilirsiniz." hayvanı anmaz; yardımcı hayvan çoğu zaman
   // yalnız misafirin cümlesindedir. Öğe kipinde evcil hayvan / yardımcı hayvan isteği zaten ayrı öğe olarak tutulur (4.3: öteki sorular gider).
   // Öğe kipinde (canlıda açık) hayvan turu ÖĞE türünden okunur (Opus 10-28 R18): cevaplanan ya da tutulan bir evcil hayvan isteği varsa cevabın
-  // hayvanı anmayan cümlesi de okunur ("Evet, getirebilirsiniz. Gecelik ücret 200 TL'dir." öğe kipinde kemeri geçiyordu).
-  const petTurn = items
-    ? items.answerableKinds.includes("pets") || items.held.some((h) => h.kind === "pets")
-    : mentionsPets(guestMessage);
-  const assistanceAnimal = mentionsAssistanceAnimal(result.reply) || (!items && mentionsAssistanceAnimal(guestMessage));
+  // hayvanı anmayan cümlesi de okunur ("Evet, getirebilirsiniz. Gecelik ücret 200 TL'dir." öğe kipinde kemeri geçiyordu). Anlama katmanı
+  // evcil hayvan isteğini HİÇ çıkarmadıysa (Haiku 10-28: "Köpeğimizle gelebilir miyiz? Giriş kaçta?" → yalnız giriş saati) misafirin mesajı
+  // yine okunur — kemer yalnız öğe olduğunda devreye girerse kaçırılan istekte hiç devreye girmez. Yardımcı hayvan da aynı: evcil hayvan
+  // öğesi yoksa misafirin cümlesine bakılır (öğe varsa o öğe zaten tutulur, öteki sorular gider — 4.3).
+  const petsItem = !!items && (items.answerableKinds.includes("pets") || items.held.some((h) => h.kind === "pets"));
+  const petTurn = petsItem || mentionsPets(guestMessage);
+  const assistanceAnimal = mentionsAssistanceAnimal(result.reply) || (!petsItem && mentionsAssistanceAnimal(guestMessage));
   // "Ücretsiz kabul" iken cevabın kendisi de aynı yönde olmalı (Opus 10-23 akşam B4): "Maalesef kabul edilmiyor" / "gecelik 200 TL" gitmez.
   if (
     (mentionsPets(result.reply) || petTurn) &&

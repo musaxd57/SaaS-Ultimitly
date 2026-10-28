@@ -144,8 +144,15 @@ export function splitDocument(pages: readonly DocPage[]): SplitDocument {
   // Altında gövde olmayan başlık (art arda iki başlık ya da belge sonu) içeriği taşıyabilir → gövde sayılır, düşmez. İSTİSNA (kurucu 10-28
   // §7-A, dışa aktarılan dosya yeniden yüklenebilsin): daha DERİN düzeyli bir Markdown başlığından önceki Markdown başlığı üst başlıktır
   // ("# Lale 1" → "## Wi-Fi"), gövde değil.
+  // İKİNCİ İSTİSNA (Haiku 10-28): Markdown başlığından hemen sonra gelen DÜZ başlık-benzeri satır ("## Wi-Fi" → "Wi-Fi bilgileri:") içeriğin
+  // ilk satırıdır — açık Markdown başlığı kalır, düz satır gövde olur. Eskiden Markdown başlığı gövdeye düşüyor ("## Wi-Fi" metni içeriğe
+  // giriyordu), içeriğin ilk satırı başlık sanılıp içerikten çıkıyordu.
   const mdLevel = (t: string) => /^(#{1,6})\s/.exec(t)?.[1].length ?? 0;
   for (let i = 0; i < raw.length; i++) {
+    if (raw[i].kind === "heading" && mdLevel(raw[i].text) > 0 && raw[i + 1]?.kind === "heading" && mdLevel(raw[i + 1].text) === 0) {
+      raw[i + 1] = { ...raw[i + 1], kind: "body" };
+      headings.delete(i + 1);
+    }
     const next = raw[i + 1];
     const parent = next?.kind === "heading" && mdLevel(raw[i].text) > 0 && mdLevel(next.text) > mdLevel(raw[i].text);
     if (raw[i].kind === "heading" && next?.kind !== "body" && !parent) {

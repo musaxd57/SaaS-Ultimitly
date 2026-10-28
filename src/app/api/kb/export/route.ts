@@ -7,6 +7,7 @@ import { rateLimit } from "@/lib/rate-limit";
 import { auditActor, writeAudit } from "@/lib/audit";
 import { prisma } from "@/lib/db";
 import { kbExportFilename, renderKbExport } from "@/lib/kb-export";
+import { KB_APPROVAL_GATE_WHERE } from "@/lib/kb-review";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,8 @@ export const dynamic = "force-dynamic";
 //  · Yönetici / sahip (`withManage`) — personel bilgi tabanını düzenleyemez, dışa da aktaramaz.
 //  · Destek görünümünde (bürünme) KAPALI: kalemler kapı / Wi-Fi şifresi taşıyabilir (K8: destek görünümü müşteri verisi indirmez).
 //  · Ücretli paket kapısı (deneme sürümü kapalı), saatte 10 dışa aktarma (işletme başına), denetim kaydı (sayılar; metin yok).
-//  · Yalnız etkin kalemler (pasif kalem dosyaya girerse yeniden yüklemede etkin olurdu).
+//  · Yalnız etkin kalemler (pasif kalem dosyaya girerse yeniden yüklemede etkin olurdu) ve ONAY KAPISINDAN geçmiş olanlar (`KB_APPROVAL_GATE_WHERE`:
+//    eski + onaylı; Haiku 10-28 — onay bekleyen taslak dosyaya girip yeniden yüklemede ev sahibinin yazdığı metin gibi dönmesin).
 // ---------------------------------------------------------------------------
 export const GET = withManage(async (session, req) => {
   if (isImpersonating(session)) return forbidden("Destek görünümünde müşteri verisi dışa aktarılamaz.");
@@ -32,7 +34,7 @@ export const GET = withManage(async (session, req) => {
     select: {
       name: true,
       knowledgeBase: {
-        where: { isActive: true },
+        where: { isActive: true, ...KB_APPROVAL_GATE_WHERE },
         orderBy: [{ category: "asc" }, { title: "asc" }, { id: "asc" }],
         select: { category: true, title: true, content: true },
       },

@@ -102,6 +102,10 @@ describe("bilgi tabanı okuması — yalnız AÇIK ve KOŞULSUZ 'ücretsiz kabul
       "Evcil hayvanlar ücretsiz kabul edilir, bayram dönemleri dışında.",
       "Pets are welcome free of charge, excluding the summer season.",
       "Haustiere sind kostenlos erlaubt, außer im Sommer.",
+      // Türkçe ekli biçimler (Haiku 10-28): sözcük sınırı "haricinde / dışındaki"yi kaçırıyordu.
+      "Evcil hayvanlar ücretsiz kabul edilir; tehlikeli ırklar haricinde.",
+      "Evcil hayvanlar ücretsiz kabul edilir, yaz ayları harici.",
+      "Evcil hayvanlar ücretsiz kabul edilir; bayram dışındaki dönemlerde.",
     ]) {
       expect([c, kbPetsFreeAllowed(kb(c))]).toEqual([c, false]);
     }
@@ -328,6 +332,34 @@ describe("kapı kod yedeği — 'model sallamasın'", () => {
         petsFreeAllowed: true,
         items: { held: [], paymentHeld: false, answerableKinds: ["parking"] },
       })?.detail,
+    ).not.toBe("reply_pet_policy");
+  });
+
+  it("🚨 Haiku 10-28: öğe kipinde anlama katmanı evcil / yardımcı hayvan isteğini HİÇ çıkarmadıysa misafirin mesajı yine okunur", () => {
+    // Anlama yalnız giriş saatini çıkardı; köpek sorusu öğe olmadı. Cevap hayvanı anmadan ücret söylüyor → gitmez.
+    const missed = { held: [], paymentHeld: false, answerableKinds: ["checkin_time"] } as const;
+    const guest = "Köpeğimizle gelebilir miyiz? Giriş saat kaçta?";
+    expect(autoReplyGateVerdict({ ...ok, reply: "Giriş 15:00. Evet, getirebilirsiniz; gecelik ücret 200 TL." }, guest, { petsFreeAllowed: true, items: missed })).toEqual({
+      reason: "blocked",
+      detail: "reply_pet_policy",
+    });
+    // Bilgi tabanı "ücretsiz kabul" demiyorsa hayvan sorusu kaçırılmış turda cevap ev sahibine kalır.
+    expect(autoReplyGateVerdict({ ...ok, reply: "Giriş 15:00. Evet, getirebilirsiniz." }, guest, { items: missed })).toEqual({
+      reason: "blocked",
+      detail: "reply_pet_policy",
+    });
+    // Yardımcı hayvan yalnız misafirin cümlesinde; öğe çıkmadı → her zaman ev sahibine (bilgi tabanı ücretsiz dese de).
+    expect(
+      autoReplyGateVerdict({ ...ok, reply: "Check-in is at 15:00. Yes, you can bring it." }, "We travel with a service dog, is that ok? What time is check-in?", {
+        petsFreeAllowed: true,
+        items: missed,
+      }),
+    ).toEqual({ reason: "blocked", detail: "reply_pet_policy" });
+    // KONTROL (4.3): evcil hayvan öğesi TUTULDUYSA misafirin yardımcı hayvan sözcüğü öteki cevabı tutmaz (öğe zaten ev sahibinde).
+    const heldPets = { held: [{ kind: "pets", sensitivity: "sensitive" }], paymentHeld: false, answerableKinds: ["checkin_time"] } as never;
+    expect(
+      autoReplyGateVerdict({ ...ok, reply: "Check-in is at 15:00." }, "We travel with a service dog, is that ok? What time is check-in?", { petsFreeAllowed: true, items: heldPets })
+        ?.detail,
     ).not.toBe("reply_pet_policy");
   });
 

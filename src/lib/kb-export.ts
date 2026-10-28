@@ -7,6 +7,7 @@
 // Yalnız ETKİN kalemler (pasif kalem dosyaya girmez — yeniden yüklenince etkin olurdu). Metin değişmez; hiçbir sır süzülmez — ev sahibinin
 // kendi verisidir, uç yalnız yönetici / sahip ve destek görünümü dışında açılır. Saf.
 // ---------------------------------------------------------------------------
+import { headingText } from "@/lib/kb-import/document";
 import { KB_CATEGORY } from "@/lib/constants";
 
 export interface KbExportItem {
@@ -20,12 +21,14 @@ export interface KbExportProperty {
 }
 
 const LABELS: Readonly<Record<string, string>> = Object.fromEntries(KB_CATEGORY.options.map((o) => [o.value, o.label]));
-const TERMINAL_PUNCT = /[.!?…;]$/u;
-
-/** Başlık satırı: içe aktarıcının başlık sayacağı biçimde (≤ 5 sözcük, ≤ 60 karakter, cümle sonu işareti yok); değilse kategori adı. */
+/**
+ * Başlık satırı: kalem başlığı, ANCAK içe aktarıcı "## başlık" satırını aynen başlık sayıyorsa (tek kaynak `headingText`: ≤ 60 karakter "##"
+ * dahil, ≤ 5 sözcük, saat yok, cümle sonu / virgül yok); değilse kategori adı. Haiku 10-28: ayrı bir kural kopyası 58–60 karakterlik, virgülle
+ * biten ya da saat taşıyan başlıkta içe aktarıcıyla ayrışıyor, "## …" satırı içeriğe giriyordu.
+ */
 function headingFor(item: KbExportItem): string {
   const title = item.title.replace(/\s+/g, " ").trim();
-  const ok = title.length > 0 && title.length <= 60 && title.split(" ").length <= 5 && !TERMINAL_PUNCT.test(title) && !title.includes(":");
+  const ok = title.length > 0 && !title.includes(":") && headingText(`## ${title}`) === title;
   return ok ? title : (LABELS[item.category] ?? "Genel");
 }
 

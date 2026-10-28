@@ -66,6 +66,44 @@ describe("dışa aktarma", () => {
     expect(splitDocument([{ page: 1, text: renderKbExport([{ name: "Lale 1", items }]) }]).blocks[0]).toMatchObject({ kind: "heading" });
   });
 
+  it("🚨 Haiku 10-28: içeriğin ilk satırı başlık gibi okunsa da ('Wi-Fi bilgileri:') gidiş-dönüşte içerik AYNEN, konu aynı", () => {
+    const tricky = [
+      { category: "wifi", title: "Wi-Fi", content: "Wi-Fi bilgileri:\n\nAğ: LaleNet, şifre abc12345." },
+      { category: "parking", title: "Otopark", content: "ÖNEMLİ\n\nOtopark ücretsizdir." },
+    ];
+    const p = plan(renderKbExport([{ name: "Lale 1", items: tricky }]));
+    expect(p.drafts.map((d) => [d.category, d.content])).toEqual([
+      ["wifi", "Wi-Fi bilgileri:\n\nAğ: LaleNet, şifre abc12345."],
+      ["parking", "ÖNEMLİ\n\nOtopark ücretsizdir."],
+    ]);
+    expect(p.drafts.some((d) => d.content.includes("##"))).toBe(false);
+  });
+
+  it("🚨 Haiku 10-28: içe aktarıcının başlık saymayacağı başlık (58–60 karakter, virgülle biten, saatli) kategori adına döner — '##' içeriğe girmez", () => {
+    const long = "Ç".repeat(29) + " " + "D".repeat(29); // 59 karakter, 2 sözcük: tek başına ≤ 60, "## " ile 62
+    const odd = [
+      { category: "wifi", title: long, content: "Şifre abc12345." },
+      { category: "parking", title: "Otopark,", content: "Otopark ücretsizdir." },
+      { category: "trash", title: "Çöp 20.00", content: "Çöp kutusu bina girişinde." },
+    ];
+    const text = renderKbExport([{ name: "Lale 1", items: odd }]);
+    expect(text).toContain("## Wi-Fi\n");
+    expect(text).not.toContain(long);
+    expect(text).not.toContain("## Otopark,");
+    expect(text).not.toContain("## Çöp 20.00");
+    const p = plan(text);
+    expect(p.drafts.map((d) => [d.category, d.content])).toEqual([
+      ["wifi", "Şifre abc12345."],
+      ["parking", "Otopark ücretsizdir."],
+      ["trash", "Çöp kutusu bina girişinde."],
+    ]);
+  });
+
+  it("Haiku 10-28: elle yazılmış Markdown belgede '## Wi-Fi' + 'Ağ bilgileri:' — başlık Wi-Fi kalır, '##' içeriğe girmez, düz satır içerikte kalır", () => {
+    const p = plan("## Wi-Fi\n\nAğ bilgileri:\n\nAğ: LaleNet, şifre abc12345.");
+    expect(p.drafts.map((d) => [d.category, d.content])).toEqual([["wifi", "Ağ bilgileri:\n\nAğ: LaleNet, şifre abc12345."]]);
+  });
+
   it("KONTROL: düz (Markdown olmayan) art arda iki başlıkta eski kural aynen — ilki gövde sayılır", () => {
     const d = splitDocument([{ page: 1, text: "Otopark:\n\nÇöp:\n\nÇöpler kapının önüne." }]);
     expect(d.blocks[0]).toMatchObject({ kind: "body", text: "Otopark:" });

@@ -49,15 +49,20 @@ describe("şablon / dışa aktarma uçları", () => {
     expect(await (await call(TEMPLATE, "/api/kb/template?lang=en")).text()).toContain("Wi-Fi password: ____");
   });
 
-  it("🚨 dışa aktarma: yalnız kendi işletmesi + yalnız etkin kalem; başka işletmenin dairesi 404; denetim kaydı", async () => {
+  it("🚨 dışa aktarma: yalnız kendi işletmesi + yalnız etkin ve onaylı kalem; başka işletmenin dairesi 404; denetim kaydı", async () => {
     await prisma.knowledgeBaseItem.create({ data: { propertyId, category: "wifi", title: "Wi-Fi", content: "Şifre: abc12345", isActive: true } });
     await prisma.knowledgeBaseItem.create({ data: { propertyId, category: "parking", title: "Otopark", content: "ESKİ BİLGİ", isActive: false } });
+    // Onay bekleyen taslak (Haiku 10-28): yapay zekânın okumadığı kalem dosyaya da girmez — yeniden yüklemede ev sahibinin metni gibi dönmesin.
+    await prisma.knowledgeBaseItem.create({ data: { propertyId, category: "rules", title: "Kurallar", content: "ONAYSIZ TASLAK", isActive: true, reviewState: "draft" } });
+    await prisma.knowledgeBaseItem.create({ data: { propertyId, category: "trash", title: "Çöp", content: "ONAYLI KALEM", isActive: true, reviewState: "approved" } });
     const other = await makeOrgWithProperty();
     await prisma.knowledgeBaseItem.create({ data: { propertyId: other.propertyId, category: "wifi", title: "Wi-Fi", content: "BAŞKA İŞLETME", isActive: true } });
 
     const text = await (await call(EXPORT, "/api/kb/export")).text();
     expect(text).toContain("Şifre: abc12345");
     expect(text).not.toContain("ESKİ BİLGİ");
+    expect(text).not.toContain("ONAYSIZ TASLAK");
+    expect(text).toContain("ONAYLI KALEM");
     expect(text).not.toContain("BAŞKA İŞLETME");
     expect((await call(EXPORT, `/api/kb/export?propertyId=${other.propertyId}`)).status).toBe(404);
     expect(await prisma.auditLog.count({ where: { organizationId: orgId, action: "kb.export" } })).toBe(1);
