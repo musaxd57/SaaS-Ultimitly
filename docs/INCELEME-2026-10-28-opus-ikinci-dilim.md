@@ -332,3 +332,53 @@ ayırmada siliniyor, sonraki "havuz" sözcüğü "kapalı havuz" sıfat öbeği 
    gereken sıfat okumaları (pin): "Otoparkımız kapalı otoparktır" (ad ek-fiilli), "Havuz yanında kapalı otopark vardır" (var / mevcut),
    "Sitenin kapalı yüzme havuzu açıktır" (tesis tamlayanı), "Spa kapalı havuz açık" (mevcut kural).
 Ölçüt: yanmış kabul setindeki 5 "kapalı" doğru-tutma vakası geri gelmemeli (10-23 akşam ölçümü) + Opus'un 5 biçimi + yukarıdaki 4 sıfat pini.
+
+---
+## 10-28 gece-2 — kurucunun R13 sınırı + iki SORU (R13-b, R13-c)
+
+Kurucu (aynen): "Yaşanan olayla varsayımsal olay ayrılmalı. 'Wi-Fi bozulursa ne yapmalıyız?' sorusuna bu talimat uygun olabilir. Ama misafir
+'Wi-Fi şu anda çalışmıyor' diyorsa yalnız 'Bozulursa ev sahibine yazın' demek, bildirimi anlamamış gibi olur. Mevcut sorun kaydı ve host'a
+bildirim akışı korunmalı. Bu cümlenin gönderilmesi sorunu çözülmüş saydırmamalı. 'Ev sahibine haber verin' yazıldı diye açık şikâyet
+kapanmamalı; sistem gerçekten bildirim göndermediyse 'ev sahibinize bildirdim' de denmemeli. … bu tür mesajlar çok sık gitmesin … 'Bir sorun
+olursa ev sahibinizi arayıp bilgi verebilirsiniz.' yazmasın mesela bunu ne sorulursa yazıyor."
+
+**Ölçüldü (kodda, bugün) — korunuyor:** pin `tests/unit/r13-actual-vs-hypothetical.test.ts` (kanal kapısı + QR kapısı).
+- Gerçek bildirim ("Wi-Fi şu anda çalışmıyor", "Klima soğutmuyor", "Sıcak su gelmiyor", "The wifi is not working right now", "The power is
+  out") → cevap metni NE olursa olsun **tutulur**: sözcük ağı şikâyet der (model "genel" dese de), model "şikâyet" derse de tutulur. Cevap
+  gitmediği için açık şikâyet "cevaplandı" sayılamaz; ev sahibi bildirimi (Sorunlu / e-posta) bugünkü yolundan gider. R13 bunlara dokunmadı.
+- "Ev sahibinize bildirdim / ilettim / I've notified your host" → çıktı vetosu **tutar** (sistem bildirim göndermeden söz verilemez).
+- "Wi-Fi bozulursa ne yapmalıyım?" (varsayımsal) → "Wi-Fi bozulursa ev sahibinizi arayıp bilgi verebilirsiniz." **gider** (R13'ün amacı).
+
+### R13-b — SORU: sözcük ağının şikâyet saymadığı gerçek bildirimler (açık R13'ten ÖNCE de vardı)
+Bugün tek koruma model niyeti. Model "genel" derse koşullu talimat GİDER:
+
+| Misafir | Model cevabı | Bugün | Önerim (A) |
+|---|---|---|---|
+| "İnternet yok, bağlanamıyorum" | "Bir sorun olursa ev sahibinize yazın." | gider | **tutulur**, ev sahibi yanıtlar |
+| "Elektrik yok" / "Su yok" / "Isıtma yok" | aynı | gider | **tutulur** |
+| "İnternet kesildi" / "TV açılmıyor" | aynı | gider | **tutulur** |
+| "Wi-Fi'ye bağlanamıyorum" | "Ağ adı Lale, şifre 12345678." | gider | **gider** (şifre gerçek cevap — değişmez) |
+| "Wi-Fi bozulursa ne yapmalıyım?" | "Bozulursa ev sahibinize yazın." | gider | gider |
+
+Öneri (A): misafirin mesajı ŞİMDİKİ bir arıza / yokluk bildiriyorsa (koşul eki yok: "-sa / -se / if" değil) ve cevabın ev sahibine yönlendiren
+cümlesi YALNIZ koşullu talimatsa ("olursa / bozulursa / if … breaks"), cevap bildirimi anlamamıştır → tutulur. Yalnız TUTMA yönünde; şifre /
+adım veren cevap etkilenmez. (B) sözcük ağına "elektrik / su / ısıtma / internet yok · kesildi · açılmıyor" eklemek — daha geniş etki (o
+mesajlarda HİÇBİR cevap gitmez, şifre bile), önermiyorum. Büyük şirketler: Hospitable / Guesty otomatik cevabı "issue reported" etiketinde
+durdurup ev sahibine düşürüyor; biz de aynısını yapıyoruz, yalnız etiket sözcük ağına bağlı kalmasın.
+**Böyle yapalım mı? (A / B / ikisi de değil)**
+
+### R13-c — SORU: soruyla ilgisiz "Bir sorun olursa ev sahibinizi arayın" kuyruğu
+Bugün: "Otopark var mı?" → "Evet, binanın arkasında ücretsiz otopark var. Bir sorun olursa ev sahibinizi arayıp bilgi verebilirsiniz." **gider**.
+(R13'ten önce "…arayın." biçimi de gidiyordu; R13 yalnız "bilgi verebilirsiniz" biçimini ekledi.) İstem bunu istemiyor — model kendiliğinden
+ekliyor (büyük olasılıkla bilgi tabanındaki "herhangi bir sorunda ev sahibini arayın" satırından).
+
+Öneri: iki katman.
+1. KOD (hemen, ücretsiz): misafir bir sorun / arıza / "ne yapmalıyım" sormadıysa, koşullu "bir sorun olursa ev sahibinize yazın / arayın"
+   cümlesi cevaptan SİLİNİR (yeni söz eklenmez; "talimat yok" cümlesinin silinmesiyle aynı yöntem, `no-instruction-filler.ts`). Kalan metin
+   bütün kapılardan yine geçer; geriye cevap kalmazsa tutulur.
+   - Önce: "Evet, binanın arkasında ücretsiz otopark var. Bir sorun olursa ev sahibinizi arayıp bilgi verebilirsiniz."
+   - Sonra: "Evet, binanın arkasında ücretsiz otopark var."
+   - Değişmez: "Wi-Fi bozulursa ne yapmalıyım?" → "Wi-Fi bozulursa ev sahibinizi arayıp bilgi verebilirsiniz." (soru tam bu)
+   - Değişmez: "Anahtarı kaybedersem?" → "Anahtarı kaybederseniz ev sahibinizi arayın."
+2. İSTEM (OpenAI kredisi gelince ölçerek): "misafir sormadıysa 'bir sorun olursa ev sahibinize yazın' kapanışı ekleme" satırı.
+**Böyle yapalım mı?**
