@@ -364,6 +364,8 @@ describe("R24 — kod, erişim sözcüğünden AYRI paragrafta", () => {
     // Wi-Fi BAŞLIĞI altındaki kendi konusu olmayan şifre paragrafı ("Ağa bağlanmak için …") Wi-Fi şifresidir — bölümün konusu sayılır.
     expect(categoriesOf("# Wi-Fi\n\nAğa bağlanmak için 12345678 girin.").map((d) => d.category)).toEqual(["wifi"]);
     expect(categoriesOf("# WLAN\n\nZum Verbinden 12345678 eingeben.").map((d) => d.category)).toEqual(["wifi"]);
+    // İngilizce "access code" Wi-Fi için de kullanılır ("Wi-Fi access code") — erişim sözcüğü değil (ortak kapı kalıbı da "access" almaz).
+    expect(categoriesOf("The Wi-Fi access code is printed on the router.").map((d) => d.category)).toEqual(["wifi"]);
     // Almanca "Zugangscode" Wi-Fi için de kullanılır — erişim sözcüğü değil.
     expect(categoriesOf("WLAN: LaleNet, Zugangscode: 12345678")[0].category).toBe("wifi");
     expect(categoriesOf("Acil durumda 112'yi arayın.")[0].category).toBe("general");
