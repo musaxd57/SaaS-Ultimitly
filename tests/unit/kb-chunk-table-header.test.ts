@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { chunkItem, chunkSpans, tableHeadersAt } from "@/lib/ai/retrieval/chunker";
 import { tableHeaderInfo } from "@/lib/ai/retrieval/flag";
-import { buildRerankRequest, RERANK_TEXT_CHARS } from "@/lib/ai/semantic/rerank";
+import { buildRerankRequest, prepareRerankScores, RERANK_TEXT_CHARS } from "@/lib/ai/semantic/rerank";
+import { chunkKey } from "@/lib/ai/retrieval/chunker";
 import { __resetKbIndexCache, getOrBuildKbIndex } from "@/lib/ai/retrieval/index-cache";
 import { blockContent, draftIsVerbatim, planDocumentImport, splitDocument } from "@/lib/kb-import/document";
 
@@ -128,6 +129,10 @@ describe("tablo başlığı — belge içe aktarma (uzun tablo paragrafı bölü
     expect(table.filter((b) => b.text.startsWith(HEADER))).toHaveLength(1);
     const norm = doc()[0].text;
     for (const b of table) expect(norm.includes(b.text)).toBe(true);
+    // Bağlam alanı yok; taslak içeriğinde başlık bir kez geçer (belgedeki gibi).
+    for (const b of table) expect(b.context).toBeUndefined();
+    const all = planDocumentImport(doc()).drafts.map((x) => x.content).join("\n");
+    expect(all.split(HEADER).length - 1).toBe(1);
   });
 
   it("anahtar AÇIK: her devam parçası başlık + ayıraç satırıyla başlar; taslaklar aynen-birleşim kuralını geçer", () => {
@@ -187,5 +192,26 @@ describe("tablo başlığı — tablo tespiti uç durumları (Haiku 10-28)", () 
     const content = "| A | B |\r\n|---|---|\r\n| 1 | 2 |\r\n| 3 | 4 |";
     expect(tableHeadersAt(content, [content.indexOf("| 3")])).toEqual(["| A | B |"]);
   });
-});
 
+  it("üretim yeniden sıralayıcı yolu (prepareRerankScores) başlık uzunluğunu adaya taşır: istekte başlık + 600 karakter gövde", async () => {
+    vi.stubEnv("KB_TABLE_HEADER", "1");
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    // Satır ~800 karakter: parça (başlık + tek satır) 600 + başlık uzunluğunu aşar — kırpma farkı istekte görünür.
+    const longRow = (i: number) => `| Satır ${i} ${"uzun açıklama ".repeat(55)}| ${i} TL | ${i * 2} TL | ${i * 3} TL |`;
+    const item = src([HEADER, SEP, ...Array.from({ length: 4 }, (_, i) => longRow(i))].join("\n"));
+    const chunks = chunkItem(item);
+    const c = chunks.find((x) => x.prefixChars !== undefined)!;
+    const other = chunks.find((x) => x !== c)!;
+    const bodies: string[] = [];
+    const fetchImpl = (async (_url: string, init: { body: string }) => {
+      const payload = JSON.parse(init.body) as { messages: { role: string; content: string }[] };
+      bodies.push(payload.messages.find((m) => m.role === "user")?.content ?? "");
+      return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ answers: [], related: [] }) } }] }), { status: 200 });
+    }) as unknown as typeof fetch;
+    await prepareRerankScores({ items: [item], guestMessage: "ücret ne kadar?", candidates: [[{ key: chunkKey(c) }, { key: chunkKey(other) }]], fetchImpl });
+    expect(bodies).toHaveLength(1);
+    const full = `${c.title} — ${c.text}`;
+    expect(full.length).toBeGreaterThan(RERANK_TEXT_CHARS + c.prefixChars!);
+    expect(bodies[0]).toContain(`<<<${full.slice(0, RERANK_TEXT_CHARS + c.prefixChars!)}>>>`);
+  });
+});
