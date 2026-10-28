@@ -1,0 +1,2004 @@
+{
+ "surum": "7d-kor-set-2-2026-10-28",
+ "yazar": "ayrı yazar (Sonnet), sistemin kurallarını görmedi",
+ "ortak": {
+  "daire": "Lale 1 (kurgusal)",
+  "saatDilimi": "Europe/Istanbul",
+  "standartGiris": "15:00",
+  "standartCikis": "11:00",
+  "varsayilanRezervasyon": {
+   "giris": "2026-11-02",
+   "cikis": "2026-11-06",
+   "durum": "confirmed"
+  },
+  "bilgiTabani": "Dairenin genel bilgi tabanı var (giriş/çıkış saatleri, ev kuralları, temel cihazlar) ama her senaryodaki ASIL soruyu cevaplayan kalem YOK. 'bilgiTabaniDegisti' verilmişse o anda bir kalem eklendi ya da değişti.",
+  "aday": "Yapay zekâ soruyu bilgi yokluğundan cevaplayamadı; misafire hiçbir şey gitmedi ('bilgim yok' ve devir cümlesi gitmez); ev sahibine bildirim düştü. Ev sahibi 'onay.an' anında 'onay.metin'i onaylar; sistem o anda 4 davranıştan birini ve zamanlamayı seçer. Zamanlama: 'simdi' ya da 'sabah' (misafir uyuyorsa ertesi sabah 07:30). 'duzenleyici' ve 'gonderme' satırlarındaki zamanlama, ev sahibi yine de gönderirse önerilecek zamandır. 'kabulEdilir' = birincil cevap dışında HATA SAYILMAYACAK davranışlar; listede olmayan her davranış hatadır. Hafta günleri: 1 Kasım 2026 Pazar, 3 Kasım Salı, 5 Kasım Perşembe, 6 Kasım Cuma, 8 Kasım Pazar.",
+  "davranislar": {
+   "gonder": "Onaylanan metin değiştirilmeden misafire gider (zamanlama alanına göre şimdi ya da sabah 07:30).",
+   "bu_arada_gonder": "Metnin başına misafirin dilinde köprü eklenip gider ('Bu arada,' / 'By the way,' / 'Übrigens,' / 'بالمناسبة،'); araya başka konu girdiği için bağlam kurulur.",
+   "duzenleyici": "Tek tık gönderim kapanır; metin düzenleyicide uyarıyla açılır, ev sahibi uyarlayıp kendisi gönderir.",
+   "gonderme": "Sistem göndermemeyi önerir (gereksiz / bayat / zararlı); ev sahibi yine de gönderebilir."
+  },
+  "digerDaireler": [
+   "Lale 2",
+   "Lale 3",
+   "Lale 4"
+  ]
+ },
+ "senaryolar": [
+  {
+   "id": "Y01",
+   "baslik": "[rezervasyon] Misafir sayısı 3'ten 4'e çıktı, metin üç kişiye göre",
+   "soru": {
+    "an": "2026-11-03T12:00",
+    "metin": "Ek yatak ya da battaniye var mı? Bir arkadaşımız daha gelecek."
+   },
+   "araMesajlar": [
+    {
+     "kimden": "misafir",
+     "an": "2026-11-03T12:30",
+     "metin": "Aslında iki arkadaşımız gelecek, toplam 4 kişi olacağız."
+    }
+   ],
+   "onay": {
+    "an": "2026-11-03T13:10",
+    "metin": "Evet, dolapta bir ek yatak ve iki yedek battaniye var; üç kişi için rahat edersiniz.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "duzenleyici",
+    "kabulEdilir": [],
+    "zamanlama": "simdi",
+    "gerekce": "Misafir arkadaş sayısını bire değil ikiye çıkarıp toplam 4 kişi olduklarını söyledi. Metin üç kişiye göre; eksik ve yanıltıcı. Ev sahibi dört kişi için uyarlamalı."
+   }
+  },
+  {
+   "id": "Y02",
+   "baslik": "[yer tutucu] Wi-Fi şifresi yerine [WIFI ŞİFRESİ] kalmış",
+   "soru": {
+    "an": "2026-11-03T09:30",
+    "metin": "Wi-Fi şifresi nedir?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-11-03T09:50",
+    "metin": "Wi-Fi ağı: Lale1, şifre: [WIFI ŞİFRESİ]",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "duzenleyici",
+    "kabulEdilir": [],
+    "zamanlama": "simdi",
+    "gerekce": "Doldurulmamış yer tutucu. Gitseydi misafire şablon metni ulaşırdı; ev sahibi şifreyi yazmalı."
+   }
+  },
+  {
+   "id": "Y03",
+   "baslik": "[yanlış alıcı] Metinde başka dairenin (Lale 3) kumanda yeri anlatılıyor",
+   "soru": {
+    "an": "2026-11-03T15:20",
+    "metin": "Klima kumandasını salonda bulamadık, nerede olabilir?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-11-03T15:45",
+    "metin": "Lale 3'te klima kumandası yatak odası komodininin çekmecesinde duruyor, pili için mutfak çekmecesine bakabilirsiniz.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "duzenleyici",
+    "kabulEdilir": [
+     "gonderme"
+    ],
+    "zamanlama": "simdi",
+    "gerekce": "Misafir Lale 1'de; metin Lale 3'ü anlatıyor. Başka dairenin bilgisi yanlış yönlendirir."
+   }
+  },
+  {
+   "id": "Y04",
+   "baslik": "[dil] İngilizce soran misafir sonra Türkçe yazabildiğini söyledi",
+   "soru": {
+    "an": "2026-11-03T11:00",
+    "metin": "Hello, where can I find the iron?"
+   },
+   "araMesajlar": [
+    {
+     "kimden": "misafir",
+     "an": "2026-11-03T11:12",
+     "metin": "Pardon, Türkçe yazabiliyorum aslında, İstanbul'da büyüdüm :)"
+    }
+   ],
+   "onay": {
+    "an": "2026-11-03T11:30",
+    "metin": "Ütü ve ütü masası yatak odasındaki dolabın alt rafında.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "gonder",
+    "kabulEdilir": [
+     "bu_arada_gonder"
+    ],
+    "zamanlama": "simdi",
+    "gerekce": "Misafir ikinci mesajında Türkçe yazdı ve İstanbul'da büyüdüğünü söyledi; Türkçe cevap doğru dil. Soru İngilizce diye tutmak gereksiz."
+   }
+  },
+  {
+   "id": "Y05",
+   "baslik": "[zaman] 'Yarın' kelimesi gece yarısını geçti, sabah 07:30'da yanlış güne kayar",
+   "soru": {
+    "an": "2026-11-04T23:20",
+    "metin": "Yarın çöp toplanıyor mu? Ne zaman çıkarmamız gerekiyor?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-11-05T00:35",
+    "metin": "Yarın sabah çöp toplama günü; en geç 08:00'e kadar çöpü bina girişindeki konteynere bırakmanız yeterli.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "duzenleyici",
+    "kabulEdilir": [],
+    "zamanlama": "sabah",
+    "gerekce": "Misafirin 'yarın'ı Perşembe (5 Kasım) idi. Metin gece yarısından sonra onaylandı; sabah 07:30'da 'yarın' Cuma okunur ve misafir toplamayı kaçırır. Ev sahibi 'bugün sabah' diye düzeltmeli."
+   }
+  },
+  {
+   "id": "Y06",
+   "baslik": "[yanlış alıcı] 'Ayse' ile 'Ayşe Hanım' aynı kişi, yazım farkı",
+   "soru": {
+    "an": "2026-11-03T09:40",
+    "metin": "Merhaba ben Ayse, tavan fanının kumandası var mı acaba?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-11-03T10:05",
+    "metin": "Merhaba Ayşe Hanım, tavan vantilatörü duvardaki düğmeden açılıp kapanıyor, kumandası yok.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "gonder",
+    "kabulEdilir": [],
+    "zamanlama": "simdi",
+    "gerekce": "Ad aynı kişi (Ayse/Ayşe yazım farkı). Doğru alıcı, doğru daire; ad uyuşmazlığı diye tutmak gereksiz."
+   }
+  },
+  {
+   "id": "Y07",
+   "baslik": "[zaman] Temizlikçinin saati onay anında geçmiş",
+   "soru": {
+    "an": "2026-11-04T11:00",
+    "metin": "Ara temizlik yaptırabilir miyiz? Ne zaman gelir?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-11-04T14:40",
+    "metin": "Bugün 14:00'te temizlikçi hanım gelecek, evde olmanız yeterli.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "duzenleyici",
+    "kabulEdilir": [
+     "gonderme"
+    ],
+    "zamanlama": "simdi",
+    "gerekce": "Metindeki 14:00 onay anında 40 dakika önce geçmiş. Gelmiş mi gelmemiş mi bilinmiyor; ev sahibi durumu kontrol edip yeni saat yazmalı."
+   }
+  },
+  {
+   "id": "Y08",
+   "baslik": "[araya giren] Gaz kokusu bildirimi sonrası fırını yakma talimatı",
+   "soru": {
+    "an": "2026-11-03T19:00",
+    "metin": "Fırını nasıl çalıştırırız?"
+   },
+   "araMesajlar": [
+    {
+     "kimden": "misafir",
+     "an": "2026-11-03T19:20",
+     "metin": "Mutfakta gaz kokusu var!! Ne yapmalıyız?"
+    },
+    {
+     "kimden": "ev_sahibi",
+     "an": "2026-11-03T19:22",
+     "metin": "Hemen pencereleri açın, ocağa ve ışık düğmelerine dokunmayın, binadan çıkın, 187'yi arıyorum."
+    }
+   ],
+   "onay": {
+    "an": "2026-11-03T19:50",
+    "metin": "Fırın için önce ocak düğmesine basıp çevirin ve 5 saniye basılı tutun, sonra kadranı 180'e alın.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "gonderme",
+    "kabulEdilir": [
+     "duzenleyici"
+    ],
+    "zamanlama": "simdi",
+    "gerekce": "Misafir mutfakta gaz kokusu bildirdi. Bu durumda fırını yakma talimatı tehlikelidir ve kesinlikle gitmemeli."
+   }
+  },
+  {
+   "id": "Y09",
+   "baslik": "[bilgi tabanı] Bina kapı kodu değişti, onay metni eski kodu veriyor",
+   "soru": {
+    "an": "2026-11-02T17:30",
+    "metin": "Bina giriş kodu çalışmadı, doğru kod nedir?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-11-02T18:20",
+    "metin": "Bina kapısı kodu 7416#.",
+    "dil": "tr"
+   },
+   "bilgiTabaniDegisti": {
+    "an": "2026-11-02T18:00",
+    "metin": "Bina giriş kodu 2 Kasım itibarıyla 8842 olarak değiştirildi.",
+    "celisiyor": true
+   },
+   "dogru": {
+    "davranis": "duzenleyici",
+    "kabulEdilir": [
+     "gonderme"
+    ],
+    "zamanlama": "simdi",
+    "gerekce": "Bilgi tabanı kodun 8842 olarak değiştiğini söylüyor; metin zaten çalışmayan eski kodu tekrar yazıyor. Misafir kapıda kalır; ev sahibi güncel kodu yazmalı."
+   }
+  },
+  {
+   "id": "Y10",
+   "baslik": "[rezervasyon] Araya uzatma yazışması girdi, park cevabı tarihten bağımsız",
+   "soru": {
+    "an": "2026-11-04T13:00",
+    "metin": "Araçla geldik, civarda park yeri bulmak kolay mı?"
+   },
+   "araMesajlar": [
+    {
+     "kimden": "misafir",
+     "an": "2026-11-04T13:12",
+     "metin": "Bir de iki gece daha kalmak istiyoruz, uygun mu?"
+    },
+    {
+     "kimden": "ev_sahibi",
+     "an": "2026-11-04T13:20",
+     "metin": "Uygun, 9 Kasım Pazartesi 11:00 çıkış olarak güncelledim."
+    },
+    {
+     "kimden": "misafir",
+     "an": "2026-11-04T13:22",
+     "metin": "Harika, teşekkürler!"
+    }
+   ],
+   "onay": {
+    "an": "2026-11-04T13:45",
+    "metin": "Sokakta park yeri 18:00'den sonra zorlaşıyor; binanın yanındaki belediye otoparkı 24 saat açık.",
+    "dil": "tr"
+   },
+   "rezervasyon": {
+    "giris": "2026-11-02",
+    "cikis": "2026-11-09",
+    "durum": "confirmed"
+   },
+   "dogru": {
+    "davranis": "bu_arada_gonder",
+    "kabulEdilir": [
+     "gonder"
+    ],
+    "zamanlama": "simdi",
+    "gerekce": "Araya uzatma konusu girdi ve çözüldü; park cevabı tarihten bağımsız ve geçerli. 'Bu arada,' ile bağlam kurulmalı."
+   }
+  },
+  {
+   "id": "Y11",
+   "baslik": "[yanlış alıcı] Metin başka dairedeki bir misafirin telefon numarasını veriyor",
+   "soru": {
+    "an": "2026-11-03T21:15",
+    "metin": "Bir battaniye daha lazım olursa kimden isteyebiliriz?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-11-03T21:40",
+    "metin": "Alt dairede Lale 2'de kalan Hans Bey'in telefonu 0555 000 00 00, ondan fazla battaniye isteyebilirsiniz.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "gonderme",
+    "kabulEdilir": [
+     "duzenleyici"
+    ],
+    "zamanlama": "simdi",
+    "gerekce": "Başka bir misafirin kişisel telefonu ifşa ediliyor (gizlilik/KVKK) ve başka misafirden eşya istemek uygun değil."
+   }
+  },
+  {
+   "id": "Y12",
+   "baslik": "[yer tutucu] Rastgele karakterli gerçek Wi-Fi şifresi (Xk9#...)",
+   "soru": {
+    "an": "2026-11-03T09:30",
+    "metin": "Wi-Fi şifresini alabilir miyim?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-11-03T09:50",
+    "metin": "Wi-Fi ağı: Lale1_5G, şifre: Xk9#mW2!pQ (büyük/küçük harfe dikkat edin).",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "gonder",
+    "kabulEdilir": [],
+    "zamanlama": "simdi",
+    "gerekce": "Şifre rastgele karakterli ve X ile başlıyor ama yer tutucu değil, tam bir değer. Yer tutucu sanıp tutmak gereksiz."
+   }
+  },
+  {
+   "id": "Y13",
+   "baslik": "[dil] Rusça soru, Türkçe onay metni",
+   "soru": {
+    "an": "2026-11-03T10:30",
+    "metin": "Здравствуйте! Подскажите, есть ли в квартире утюг?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-11-03T11:00",
+    "metin": "Evet, ütü ve ütü masası yatak odası dolabında.",
+    "dil": "tr"
+   },
+   "misafirDili": "ru",
+   "dogru": {
+    "davranis": "duzenleyici",
+    "kabulEdilir": [],
+    "zamanlama": "simdi",
+    "gerekce": "Misafir Rusça yazıyor, metin Türkçe. Sistem Rusça köprü bilmeden gönderirse anlamsız bir mesaj gider; ev sahibi çevirmeli."
+   }
+  },
+  {
+   "id": "Y14",
+   "baslik": "[zaman] 'Yarın' ifadesi gece yarısından 8 dakika önce onaylandı, hâlâ doğru",
+   "soru": {
+    "an": "2026-11-03T23:10",
+    "metin": "Yarın sabah erken kahvaltı için yakında fırın var mı?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-11-03T23:52",
+    "metin": "Köşedeki Sabah Fırını yarın sabah 07:00'de açılıyor, taze simit ve poğaça çıkıyor.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "gonder",
+    "kabulEdilir": [],
+    "zamanlama": "simdi",
+    "gerekce": "Soru 42 dakika önce, misafir uyanık. Gece yarısı henüz geçmedi; 'yarın' hâlâ 4 Kasım. Göreli ifade görünce tutmak gereksiz olur."
+   }
+  },
+  {
+   "id": "Y15",
+   "baslik": "[rezervasyon] Rezervasyon iki gün kaymış, metin eski giriş tarihini ve kodu yazıyor",
+   "soru": {
+    "an": "2026-10-30T12:00",
+    "metin": "Bina kapısından içeri nasıl gireceğiz, bir kod var mı?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-10-31T09:00",
+    "metin": "2 Kasım günü 15:00'ten sonra gelebilirsiniz; bina kapısı kodu 7416, daire anahtarı kapının yanındaki kutuda.",
+    "dil": "tr"
+   },
+   "rezervasyon": {
+    "giris": "2026-11-04",
+    "cikis": "2026-11-08",
+    "durum": "confirmed"
+   },
+   "dogru": {
+    "davranis": "duzenleyici",
+    "kabulEdilir": [],
+    "zamanlama": "simdi",
+    "gerekce": "Rezervasyon 4 Kasım'a kaymış, metin hâlâ 2 Kasım diyor ve kodu iki gün erken veriyor. Ev sahibi tarihi düzeltmeli ve kodun ne zaman verileceğine karar vermeli."
+   }
+  },
+  {
+   "id": "Y16",
+   "baslik": "[rezervasyon] Misafir iptal ettiğini yazdı, rezervasyon kaydı da iptal",
+   "soru": {
+    "an": "2026-10-30T09:30",
+    "metin": "Havalimanından daireye metroyla nasıl gelebilirim?"
+   },
+   "araMesajlar": [
+    {
+     "kimden": "misafir",
+     "an": "2026-10-30T11:20",
+     "metin": "Not: uçuşum iptal oldu, rezervasyonu da iptal ettim. Teşekkürler."
+    }
+   ],
+   "onay": {
+    "an": "2026-10-30T15:00",
+    "metin": "Havalimanından M11 ile Gayrettepe'ye, oradan M2 ile Şişhane'ye geçip 10 dakika yürüyebilirsiniz.",
+    "dil": "tr"
+   },
+   "rezervasyon": {
+    "giris": "2026-11-02",
+    "cikis": "2026-11-06",
+    "durum": "cancelled"
+   },
+   "dogru": {
+    "davranis": "gonderme",
+    "kabulEdilir": [],
+    "zamanlama": "simdi",
+    "gerekce": "Misafir uçuşunun ve rezervasyonunun iptal olduğunu yazdı, kayıt da iptal. Yol tarifi artık gereksiz."
+   }
+  },
+  {
+   "id": "Y17",
+   "baslik": "[araya giren] İki açık soru varken kısa 'Evet, uygun.' hangi soruya ait?",
+   "soru": {
+    "an": "2026-11-03T12:00",
+    "metin": "Evde çamaşır makinesi var mı?"
+   },
+   "araMesajlar": [
+    {
+     "kimden": "misafir",
+     "an": "2026-11-03T12:10",
+     "metin": "Bir de bir gece daha kalmak istiyoruz, 6 Kasım yerine 7 Kasım olabilir mi?"
+    }
+   ],
+   "onay": {
+    "an": "2026-11-03T13:30",
+    "metin": "Evet, uygun.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "duzenleyici",
+    "kabulEdilir": [],
+    "zamanlama": "simdi",
+    "gerekce": "Misafirin aynı anda iki açık sorusu var (çamaşır makinesi, bir gece uzatma). Kısa 'Evet, uygun.' uzatma talebinin onayı gibi okunur; ev sahibi neye cevap verdiğini açıkça yazmalı."
+   }
+  },
+  {
+   "id": "Y18",
+   "baslik": "[rezervasyon] Ev sahibi rezervasyonu iptal etti, onay metni 'sizi bekliyoruz' diyor",
+   "soru": {
+    "an": "2026-10-29T10:00",
+    "metin": "2 Kasım'da araçla geleceğiz, bina otoparkına girebilir mi?"
+   },
+   "araMesajlar": [
+    {
+     "kimden": "ev_sahibi",
+     "an": "2026-10-30T09:00",
+     "metin": "Sayın misafir, tesisat hasarı nedeniyle rezervasyonunuzu iptal etmek zorunda kaldım, çok üzgünüm. İade platform üzerinden yapılacak."
+    }
+   ],
+   "onay": {
+    "an": "2026-10-30T14:00",
+    "metin": "Evet, bina otoparkı var, aracınız rahatça sığar; sizi 2 Kasım'da bekliyoruz!",
+    "dil": "tr"
+   },
+   "rezervasyon": {
+    "giris": "2026-11-02",
+    "cikis": "2026-11-06",
+    "durum": "cancelled"
+   },
+   "dogru": {
+    "davranis": "gonderme",
+    "kabulEdilir": [],
+    "zamanlama": "simdi",
+    "gerekce": "Ev sahibi aynı gün tesisat hasarı nedeniyle rezervasyonu iptal etmiş. 'Sizi bekliyoruz' misafiri yanıltır ve çelişki yaratır."
+   }
+  },
+  {
+   "id": "Y19",
+   "baslik": "[belirsiz kısa mesaj] Ev sahibi anahtarı zaten bildirdi, misafir 👍 dedi",
+   "soru": {
+    "an": "2026-11-03T13:00",
+    "metin": "Anahtarı nereden alacağız?"
+   },
+   "araMesajlar": [
+    {
+     "kimden": "ev_sahibi",
+     "an": "2026-11-03T13:30",
+     "metin": "Az önce aradım, açmadınız. Anahtarı 3. kattaki 7 numaralı komşuya bıraktım."
+    },
+    {
+     "kimden": "misafir",
+     "an": "2026-11-03T13:32",
+     "metin": "👍"
+    }
+   ],
+   "onay": {
+    "an": "2026-11-03T14:10",
+    "metin": "Anahtar 3. kattaki 7 numaralı komşuda.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "gonderme",
+    "kabulEdilir": [],
+    "zamanlama": "simdi",
+    "gerekce": "Ev sahibi aynı bilgiyi 13:30'da vermiş, misafir 👍 ile onaylamış. Tekrar gereksiz."
+   }
+  },
+  {
+   "id": "Y20",
+   "baslik": "[uzun gecikme] Dürüst ara cevap: 'tam bilmiyorum, sorup yazacağım'",
+   "soru": {
+    "an": "2026-11-03T12:00",
+    "metin": "Bu mevsimde akşamları Boğaz turu yapan tekne var mı, saatleri biliyor musunuz?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-11-03T12:25",
+    "metin": "Kış tarifesini tam bilmiyorum, rıhtımdaki bilet gişesine sorup akşama kadar size yazacağım.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "gonder",
+    "kabulEdilir": [],
+    "zamanlama": "simdi",
+    "gerekce": "Ev sahibinin kendi sesiyle, söz veren dürüst bir ara cevap. Yapay zekânın 'bilgim yok'undan farklı; ev sahibi ne yapacağını söylüyor."
+   }
+  },
+  {
+   "id": "Y21",
+   "baslik": "[yer tutucu] Cümle yarım kalmış: 'bebek koltuğu mutfakta, ancak'",
+   "soru": {
+    "an": "2026-11-03T12:00",
+    "metin": "Bebek koltuğu var mı?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-11-03T12:10",
+    "metin": "Evet, bebek koltuğu mutfakta, ancak",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "duzenleyici",
+    "kabulEdilir": [],
+    "zamanlama": "simdi",
+    "gerekce": "Cümle 'ancak' ile yarıda kesilmiş; bir koşul ya da uyarı eksik. Ev sahibi tamamlamalı."
+   }
+  },
+  {
+   "id": "Y22",
+   "baslik": "[zaten gitmiş] Mesaj iki soruyu cevaplıyordu, ilk yarısı gitmiş, onay kalan yarıyı tamamlıyor",
+   "soru": {
+    "an": "2026-11-03T18:00",
+    "metin": "Çamaşır makinesi nasıl çalışıyor ve deterjan nerede duruyor?"
+   },
+   "araMesajlar": [
+    {
+     "kimden": "ev_sahibi",
+     "an": "2026-11-03T18:40",
+     "metin": "Kadranı 4'e getirip Başlat'a basın."
+    }
+   ],
+   "onay": {
+    "an": "2026-11-03T19:05",
+    "metin": "Deterjan banyo dolabının alt rafında, sıvı deterjanın kapağı aynı zamanda ölçek.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "gonder",
+    "kabulEdilir": [
+     "bu_arada_gonder"
+    ],
+    "zamanlama": "simdi",
+    "gerekce": "Önceki mesaj yalnız programı anlatmış; onay metni deterjan kısmını tamamlıyor, tekrar değil. Aynı konudan olduğu için köprü gerekmez."
+   }
+  },
+  {
+   "id": "Y23",
+   "baslik": "[araya giren] Gürültü şikâyeti sürerken gece 02:20'de bar önerisi",
+   "soru": {
+    "an": "2026-11-03T17:00",
+    "metin": "Akşam eğlenmek için civarda canlı müzikli bir bar var mı?"
+   },
+   "araMesajlar": [
+    {
+     "kimden": "misafir",
+     "an": "2026-11-03T23:40",
+     "metin": "Üst katta müthiş bir gürültü var, kimse uyuyamıyor, lütfen bir şey yapın"
+    }
+   ],
+   "onay": {
+    "an": "2026-11-04T02:20",
+    "metin": "Meydan'daki Mavi Bar canlı müzik yapıyor, gece 03:00'e kadar açık.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "gonderme",
+    "kabulEdilir": [
+     "duzenleyici"
+    ],
+    "zamanlama": "sabah",
+    "gerekce": "Misafir üst kat gürültüsünden uyuyamadığını yazdı; gece 02:20'de bar önerisi hem bayat hem de duyarsız. Gitseydi sabah olmalı."
+   }
+  },
+  {
+   "id": "Y24",
+   "baslik": "[zaman] 'Bu hafta sonu' pazar öğlesi onaylandı, soru üç gün öncesinden",
+   "soru": {
+    "an": "2026-11-05T19:00",
+    "metin": "Bu hafta sonu çatı terasını kullanabilir miyiz?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-11-08T12:00",
+    "metin": "Çatı terası bu hafta sonu açık; pazar günü akşam 18:00'de kapanıyor. Battaniyeler terasın kapalı dolabında.",
+    "dil": "tr"
+   },
+   "rezervasyon": {
+    "giris": "2026-11-05",
+    "cikis": "2026-11-10",
+    "durum": "confirmed"
+   },
+   "dogru": {
+    "davranis": "duzenleyici",
+    "kabulEdilir": [
+     "gonderme"
+    ],
+    "zamanlama": "simdi",
+    "gerekce": "Soru Perşembe soruldu; metin hafta sonunun son günü öğlesinde onaylandı. Üç gün gecikmiş, 'bu hafta sonu' artık bugün demek. Ev sahibi 'bugün 18:00'e kadar açık' diye uyarlamalı."
+   }
+  },
+  {
+   "id": "Y25",
+   "baslik": "[araya giren] Kilitte kalma olayı çözüldü, saç kurutma makinesi cevabı sonradan geldi",
+   "soru": {
+    "an": "2026-11-03T10:30",
+    "metin": "Banyoda saç kurutma makinesi var mı?"
+   },
+   "araMesajlar": [
+    {
+     "kimden": "misafir",
+     "an": "2026-11-03T11:15",
+     "metin": "Kendimizi dışarıda kilitledik, anahtar içeride!"
+    },
+    {
+     "kimden": "ev_sahibi",
+     "an": "2026-11-03T11:20",
+     "metin": "5 dakikada oradayım, yedek anahtarım var."
+    },
+    {
+     "kimden": "misafir",
+     "an": "2026-11-03T11:32",
+     "metin": "Girdik, çok sağ olun!"
+    }
+   ],
+   "onay": {
+    "an": "2026-11-03T11:40",
+    "metin": "Saç kurutma makinesi banyodaki dolabın üst rafında.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "bu_arada_gonder",
+    "kabulEdilir": [
+     "gonder"
+    ],
+    "zamanlama": "simdi",
+    "gerekce": "Araya kapıda kalma acili girdi ve çözüldü ('Girdik, çok sağ olun'). Soru hâlâ açık ve bilgi geçerli; 'Bu arada,' ile bağlam kurulmalı."
+   }
+  },
+  {
+   "id": "Y26",
+   "baslik": "[vazgeçme] Misafir komşudan öğrendi: 'boşverin'",
+   "soru": {
+    "an": "2026-11-04T09:10",
+    "metin": "Çöpü kim alıyor, sabah mı akşam mı?"
+   },
+   "araMesajlar": [
+    {
+     "kimden": "misafir",
+     "an": "2026-11-04T09:50",
+     "metin": "Boşverin, komşu söyledi, akşam alıyormuş."
+    }
+   ],
+   "onay": {
+    "an": "2026-11-04T11:30",
+    "metin": "Çöp her akşam 18:00-19:00 arası kapıdan alınıyor; poşeti kapının önüne bırakmanız yeterli.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "gonderme",
+    "kabulEdilir": [],
+    "zamanlama": "simdi",
+    "gerekce": "Misafir komşudan öğrendiğini ve konuyu kapattığını yazdı. Aynı bilgiyi 2 saat sonra yollamak gereksiz."
+   }
+  },
+  {
+   "id": "Y27",
+   "baslik": "[vazgeçme] Almanca 'Danke, gefunden' diyen misafire Almanca cevap",
+   "soru": {
+    "an": "2026-11-04T10:20",
+    "metin": "Guten Morgen, gibt es hier einen Föhn?"
+   },
+   "araMesajlar": [
+    {
+     "kimden": "misafir",
+     "an": "2026-11-04T10:41",
+     "metin": "Danke, wir haben ihn im Schrank gefunden!"
+    }
+   ],
+   "onay": {
+    "an": "2026-11-04T11:30",
+    "metin": "Ja, der Föhn liegt im Badezimmerschrank.",
+    "dil": "de"
+   },
+   "misafirDili": "de",
+   "dogru": {
+    "davranis": "gonderme",
+    "kabulEdilir": [],
+    "zamanlama": "simdi",
+    "gerekce": "Misafir 'Danke, wir haben ihn im Schrank gefunden' yazdı; şükran bu soruya ait. Dil doğru olsa da cevap gereksiz."
+   }
+  },
+  {
+   "id": "Y28",
+   "baslik": "[hassas içerik] Aktif konaklamada doğru misafire doğru kapı kodları",
+   "soru": {
+    "an": "2026-11-03T22:00",
+    "metin": "Bina kapısının kodunu unuttum, tekrar yazar mısınız?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-11-03T22:12",
+    "metin": "Bina kapısı kodu 7416#, daire kapısı anahtar kutusu şifresi 2580.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "gonder",
+    "kabulEdilir": [],
+    "zamanlama": "simdi",
+    "gerekce": "Konaklama sürüyor, rezervasyon onaylı, misafir kendi kodunu soruyor ve az önce yazdı. Kod içeriği tutmak için sebep değil."
+   }
+  },
+  {
+   "id": "Y29",
+   "baslik": "[belirsiz kısa mesaj] Sabırsız '?' mesajı, vazgeçme değil",
+   "soru": {
+    "an": "2026-11-03T21:00",
+    "metin": "Evde ekstra yastık var mı?"
+   },
+   "araMesajlar": [
+    {
+     "kimden": "misafir",
+     "an": "2026-11-03T21:50",
+     "metin": "?"
+    }
+   ],
+   "onay": {
+    "an": "2026-11-03T22:05",
+    "metin": "Evet, yatak odasındaki dolabın üst rafında 2 ekstra yastık var.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "gonder",
+    "kabulEdilir": [],
+    "zamanlama": "simdi",
+    "gerekce": "'?' misafirin cevap beklediğinin işareti; vazgeçme değil. Misafir 15 dakika önce yazdı, uyanık."
+   }
+  },
+  {
+   "id": "Y30",
+   "baslik": "[araya giren] Çocuğun sağlık acili sürerken spor salonu önerisi",
+   "soru": {
+    "an": "2026-11-03T15:00",
+    "metin": "Yakında bir spor salonu var mı?"
+   },
+   "araMesajlar": [
+    {
+     "kimden": "misafir",
+     "an": "2026-11-03T15:40",
+     "metin": "Oğlum çok ateşli, nöbet geçiriyor gibi!! Hastane nerede?"
+    },
+    {
+     "kimden": "ev_sahibi",
+     "an": "2026-11-03T15:42",
+     "metin": "112'yi arayın hemen! Adresi söyleyin: Lale Sokak No:12, ben de geliyorum."
+    }
+   ],
+   "onay": {
+    "an": "2026-11-03T17:10",
+    "metin": "Bina çıkışından sağa 300 metre ilerideki Fit Life spor salonu 06:00-23:00 açık.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "gonderme",
+    "kabulEdilir": [
+     "duzenleyici"
+    ],
+    "zamanlama": "simdi",
+    "gerekce": "Misafirin çocuğu ateşli ve nöbet geçiriyor gibi, ev sahibi 112'yi aramasını söylemiş. Acil çözülmeden spor salonu önerisi göndermek duyarsız ve zararlı."
+   }
+  },
+  {
+   "id": "Y31",
+   "baslik": "[rezervasyon] Misafir başka daireye taşınıyor, cevap Lale 1'in mutfağını anlatıyor",
+   "soru": {
+    "an": "2026-11-03T10:00",
+    "metin": "Mutfakta fırın tepsisi var mı?"
+   },
+   "araMesajlar": [
+    {
+     "kimden": "ev_sahibi",
+     "an": "2026-11-03T11:30",
+     "metin": "Boiler arızası yüzünden sizi bugün öğleden sonra Lale 2'ye taşıyoruz, valizleri hazırlayın."
+    }
+   ],
+   "onay": {
+    "an": "2026-11-03T12:20",
+    "metin": "Evet, fırının altındaki çekmecede iki tepsi var.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "duzenleyici",
+    "kabulEdilir": [
+     "gonderme"
+    ],
+    "zamanlama": "simdi",
+    "gerekce": "Ev sahibi misafiri öğleden sonra Lale 2'ye taşıdığını yazmış. Metin Lale 1'in mutfağı için doğru, Lale 2 için geçerli olmayabilir. Ev sahibi hangi daireyi kastettiğini netleştirmeli."
+   }
+  },
+  {
+   "id": "Y32",
+   "baslik": "[yanlış alıcı] Misafir Ayşe, metin 'Merhaba Mehmet Bey' diye başlıyor",
+   "soru": {
+    "an": "2026-11-03T12:10",
+    "metin": "Merhaba, ben Ayşe. Bebek sandalyesi var mı mutfakta?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-11-03T12:30",
+    "metin": "Merhaba Mehmet Bey, bebek sandalyesi mutfaktaki dolabın içinde, rahatça kullanabilirsiniz.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "duzenleyici",
+    "kabulEdilir": [
+     "gonderme"
+    ],
+    "zamanlama": "simdi",
+    "gerekce": "Metin başka bir misafire hitap ediyor; muhtemelen başka konuşmaya yazılan metin yanlış yere onaylanmış. Ad düzeltilmeden gönderilmemeli."
+   }
+  },
+  {
+   "id": "Y33",
+   "baslik": "[bilgi tabanı] Çöp günleri bilgi tabanına eklendi, onay metni onunla uyumlu",
+   "soru": {
+    "an": "2026-11-03T10:00",
+    "metin": "Çöp hangi günler toplanıyor?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-11-03T13:00",
+    "metin": "Çöp Pazartesi, Çarşamba ve Cuma sabahları toplanıyor; poşeti 08:00'den önce kapının önüne bırakabilirsiniz.",
+    "dil": "tr"
+   },
+   "bilgiTabaniDegisti": {
+    "an": "2026-11-03T12:00",
+    "metin": "Çöp toplama: Pazartesi, Çarşamba ve Cuma sabahları, 08:00'den önce kapıya bırakılır.",
+    "celisiyor": false
+   },
+   "dogru": {
+    "davranis": "gonder",
+    "kabulEdilir": [],
+    "zamanlama": "simdi",
+    "gerekce": "Bilgi tabanına sonradan eklenen kalem onay metnini destekliyor, çelişki yok. Ek kalem tutmak için sebep değil."
+   }
+  },
+  {
+   "id": "Y34",
+   "baslik": "[vazgeçme] Misafir kombiyi kendi buldu ve teşekkür etti",
+   "soru": {
+    "an": "2026-11-03T14:00",
+    "metin": "Kombinin ısı ayarı nerede? Bulamadık."
+   },
+   "araMesajlar": [
+    {
+     "kimden": "misafir",
+     "an": "2026-11-03T14:35",
+     "metin": "Buldum, mutfaktaki dolabın içindeymiş, teşekkürler 🙂"
+    }
+   ],
+   "onay": {
+    "an": "2026-11-03T15:20",
+    "metin": "Kombi mutfaktaki dolabın içinde; sıcaklığı panelden ayarlayabilirsiniz.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "gonderme",
+    "kabulEdilir": [],
+    "zamanlama": "simdi",
+    "gerekce": "Misafir 'buldum, teşekkürler' yazdı. Cevap artık gereksiz ve konuşmayı yeniden açar."
+   }
+  },
+  {
+   "id": "Y35",
+   "baslik": "[zaman] Gece yarısını 8 dakika aşan onay, 'yarın' bir gün kayar",
+   "soru": {
+    "an": "2026-11-03T23:58",
+    "metin": "Yarın sabah 7'de şehir turuna çıkacağız, bina önünde taksi bulabilir miyiz?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-11-04T00:06",
+    "metin": "Yarın sabah 07:00'de taksi bulmak zor değil, bina önündeki durak 24 saat açık.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "duzenleyici",
+    "kabulEdilir": [],
+    "zamanlama": "simdi",
+    "gerekce": "Misafir 4 Kasım sabahını soruyor; onay gece yarısını 6 dakika geçti. Metindeki 'yarın' şimdi 5 Kasım olarak okunur ve misafiri yanıltır. Misafir uyanık olduğundan ev sahibi 'bugün' diye düzeltip hemen göndermeli."
+   }
+  },
+  {
+   "id": "Y36",
+   "baslik": "[araya giren] Çözülmemiş sıcak su şikâyeti varken priz bilgisi",
+   "soru": {
+    "an": "2026-11-03T12:00",
+    "metin": "Yatak odasında şarj için priz var mı?"
+   },
+   "araMesajlar": [
+    {
+     "kimden": "misafir",
+     "an": "2026-11-03T13:10",
+     "metin": "Banyoda sıcak su yok! Üşüyoruz, ne zamandır böyle"
+    }
+   ],
+   "onay": {
+    "an": "2026-11-03T14:30",
+    "metin": "Prizler yatak başı komodinin iki yanında, uzatma kablosu da çekmecede.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "duzenleyici",
+    "kabulEdilir": [
+     "gonderme"
+    ],
+    "zamanlama": "simdi",
+    "gerekce": "Misafir sıcak su şikâyeti yazdı ve ev sahibi henüz cevap vermemiş. Şikâyetin üstüne kuru bir priz bilgisi gitmesi tonsuz olur; ev sahibi önce şikâyeti ele almalı."
+   }
+  },
+  {
+   "id": "Y37",
+   "baslik": "[rezervasyon] Konaklama 9 Kasım'a uzatılmış, metin eski çıkış gününü söylüyor",
+   "soru": {
+    "an": "2026-11-04T13:00",
+    "metin": "Çıkış günü çöpü ve anahtarı ne yapmalıyız?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-11-04T13:45",
+    "metin": "Çıkış günü yani 6 Kasım Cuma 11:00'e kadar çöpü bina girişindeki konteynere atıp anahtarı kutuya bırakmanız yeterli.",
+    "dil": "tr"
+   },
+   "rezervasyon": {
+    "giris": "2026-11-02",
+    "cikis": "2026-11-09",
+    "durum": "confirmed"
+   },
+   "dogru": {
+    "davranis": "duzenleyici",
+    "kabulEdilir": [],
+    "zamanlama": "simdi",
+    "gerekce": "Konaklama 9 Kasım'a uzatılmış. Metindeki 6 Kasım çıkış tarihi yanlış ve misafiri erken çıkmaya yönlendirir."
+   }
+  },
+  {
+   "id": "Y38",
+   "baslik": "[zaman] Gece yarısını geçen onay ama metinde göreli ifade yok",
+   "soru": {
+    "an": "2026-11-03T23:58",
+    "metin": "Yarın akşam yemeğinde yürüyerek gidebileceğimiz bir balık restoranı var mı?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-11-04T00:09",
+    "metin": "Sahildeki Mavi Balık Evi bina çıkışından yürüyerek 7 dakika, akşamları 23:00'e kadar açık, rezervasyon önerilir.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "gonder",
+    "kabulEdilir": [],
+    "zamanlama": "simdi",
+    "gerekce": "Gece yarısı geçmiş ama metinde 'yarın/bugün' yok; bilgi zamandan bağımsız. Misafir 11 dakika önce yazdı, uyanık."
+   }
+  },
+  {
+   "id": "Y39",
+   "baslik": "[yanlış alıcı] Metin başka (Aralık) rezervasyon için erken giriş onayı gibi",
+   "soru": {
+    "an": "2026-10-30T10:00",
+    "metin": "Merhaba, ben Ayşe. 2 Kasım için erken giriş yapabilir miyiz, saat 12 gibi?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-10-30T16:00",
+    "metin": "Aralık ayı rezervasyonunuz için 12:00'den itibaren erken giriş yapabilirsiniz.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "duzenleyici",
+    "kabulEdilir": [
+     "gonderme"
+    ],
+    "zamanlama": "simdi",
+    "gerekce": "Metin başka bir rezervasyondan (Aralık) söz ediyor. Misafir bunu 2 Kasım için onay sanabilir ya da kafası karışır. Ev sahibi hangisini kastettiğini netleştirmeli."
+   }
+  },
+  {
+   "id": "Y40",
+   "baslik": "[vazgeçme] Misafir soruyu düzeltti: çocuk yatağı değil mama sandalyesi",
+   "soru": {
+    "an": "2026-11-03T13:00",
+    "metin": "Çocuk yatağı var mı?"
+   },
+   "araMesajlar": [
+    {
+     "kimden": "misafir",
+     "an": "2026-11-03T13:20",
+     "metin": "Pardon, çocuk yatağı değil, mama sandalyesi demek istedim, yanlış yazmışım."
+    }
+   ],
+   "onay": {
+    "an": "2026-11-03T14:00",
+    "metin": "Evet, ebeveyn odasında katlanır bebek yatağı var.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "duzenleyici",
+    "kabulEdilir": [
+     "gonderme"
+    ],
+    "zamanlama": "simdi",
+    "gerekce": "Misafir asıl sorusunun mama sandalyesi olduğunu söyledi. Metin eski soruya cevap veriyor; gitseydi yanlış soruya cevap olurdu. Ev sahibi güncel soruyu yanıtlamalı."
+   }
+  },
+  {
+   "id": "Y41",
+   "baslik": "[zaten gitmiş] Çamaşır programı bilgisi ev sahibi tarafından başka sözcüklerle verilmiş",
+   "soru": {
+    "an": "2026-11-03T18:00",
+    "metin": "Çamaşır makinesinde hangi programı seçmeliyiz, düğmeler karışık?"
+   },
+   "araMesajlar": [
+    {
+     "kimden": "ev_sahibi",
+     "an": "2026-11-03T18:40",
+     "metin": "4 numaralı programı (Pamuk 40°) seçip Başlat'a basın, deterjan sol gözde."
+    }
+   ],
+   "onay": {
+    "an": "2026-11-03T19:05",
+    "metin": "Pamuk 40° için kadranı 4'e getirip Başlat'a basarsanız yeterli.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "gonderme",
+    "kabulEdilir": [],
+    "zamanlama": "simdi",
+    "gerekce": "Ev sahibi aynı programı 25 dakika önce zaten tarif etti; onay metni aynı bilginin yeniden yazımı."
+   }
+  },
+  {
+   "id": "Y42",
+   "baslik": "[zaman] 'Gelecek hafta' ifadesi bir hafta sonra, varış gününde onaylandı",
+   "soru": {
+    "an": "2026-10-27T11:00",
+    "metin": "Gelecek hafta için havalimanından transfer ayarlayabilir misiniz?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-11-02T09:00",
+    "metin": "Gelecek hafta için transfer ayarlayabiliriz, ücret 40 € ve kalkış saatinizi bildirmeniz yeterli.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "duzenleyici",
+    "kabulEdilir": [
+     "gonderme"
+    ],
+    "zamanlama": "simdi",
+    "gerekce": "Soru 6 gün önce; misafir bugün (2 Kasım) geliyor. 'Gelecek hafta' artık 9 Kasım haftasını gösterir; transfer teklifi de büyük ölçüde geçmiş. Ev sahibi güncel durumu yazmalı."
+   }
+  },
+  {
+   "id": "Y43",
+   "baslik": "[hassas içerik] Onaylı rezervasyona varıştan 3 gün önce adres",
+   "soru": {
+    "an": "2026-10-30T10:00",
+    "metin": "Tam adresi ve daireye nasıl geleceğimizi yazar mısınız?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-10-30T11:30",
+    "metin": "Adres: Lale Sokak No:12, Kat 3, Beyoğlu/İstanbul. Şişhane metro çıkışından 8 dakika yürüyüş, bina girişi kırmızı kapı.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "gonder",
+    "kabulEdilir": [],
+    "zamanlama": "simdi",
+    "gerekce": "Rezervasyon onaylı ve misafir adresi açıkça istiyor. Adres vermek normal; kod içermiyor."
+   }
+  },
+  {
+   "id": "Y44",
+   "baslik": "[dil] Arapça soru, araya Arapça Wi-Fi sorusu ve AI cevabı girdi",
+   "soru": {
+    "an": "2026-11-04T12:00",
+    "metin": "مرحبا، هل يوجد مكواة في الشقة؟"
+   },
+   "araMesajlar": [
+    {
+     "kimden": "misafir",
+     "an": "2026-11-04T12:30",
+     "metin": "ما هو اسم شبكة الواي فاي؟"
+    },
+    {
+     "kimden": "ai",
+     "an": "2026-11-04T12:32",
+     "metin": "اسم الشبكة Lale1 وكلمة المرور مكتوبة على الراوتر."
+    }
+   ],
+   "onay": {
+    "an": "2026-11-04T14:10",
+    "metin": "نعم، المكواة وطاولة الكي موجودتان في خزانة غرفة النوم.",
+    "dil": "ar"
+   },
+   "misafirDili": "ar",
+   "dogru": {
+    "davranis": "bu_arada_gonder",
+    "kabulEdilir": [
+     "gonder"
+    ],
+    "zamanlama": "simdi",
+    "gerekce": "Araya Wi-Fi konusu girdi ve cevaplandı; ütü cevabı iki saat sonra geliyor. Arapça köprü 'بالمناسبة،' ile bağlam kurulmalı."
+   }
+  },
+  {
+   "id": "Y45",
+   "baslik": "[vazgeçme] Bilgi tabanı güncellenince QR sohbetinde aynı bilgi zaten verildi",
+   "soru": {
+    "an": "2026-11-03T19:30",
+    "metin": "Yakında 24 saat açık market var mı?"
+   },
+   "araMesajlar": [
+    {
+     "kimden": "misafir",
+     "an": "2026-11-03T20:03",
+     "metin": "Yakında gece açık market var mı?"
+    },
+    {
+     "kimden": "qr_ai",
+     "an": "2026-11-03T20:03",
+     "metin": "Evet, sokağın başındaki Hızlı Market 24 saat açık."
+    }
+   ],
+   "onay": {
+    "an": "2026-11-03T20:40",
+    "metin": "Sokağın başındaki Hızlı Market 24 saat açık.",
+    "dil": "tr"
+   },
+   "bilgiTabaniDegisti": {
+    "an": "2026-11-03T19:50",
+    "metin": "Yakın çevre: Sokağın başındaki Hızlı Market 24 saat açıktır.",
+    "celisiyor": false
+   },
+   "dogru": {
+    "davranis": "gonderme",
+    "kabulEdilir": [],
+    "zamanlama": "simdi",
+    "gerekce": "Bilgi tabanına kalem eklenince misafirin QR sohbetinde yeniden sorduğu soru yapay zekâ tarafından cevaplandı. Aynı bilgi tekrar gitmemeli."
+   }
+  },
+  {
+   "id": "Y46",
+   "baslik": "[zaman] 'Bu cumartesi' etkinliği, onay pazar günü geldi (etkinlik geçti)",
+   "soru": {
+    "an": "2026-11-06T10:00",
+    "metin": "Bu cumartesi akşamı yakında canlı müzik olan bir yer var mı?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-11-08T10:30",
+    "metin": "Bu cumartesi akşamı Çınar Cafe'de 21:00'den itibaren canlı müzik var, giriş ücretsiz.",
+    "dil": "tr"
+   },
+   "rezervasyon": {
+    "giris": "2026-11-05",
+    "cikis": "2026-11-09",
+    "durum": "confirmed"
+   },
+   "dogru": {
+    "davranis": "gonderme",
+    "kabulEdilir": [
+     "duzenleyici"
+    ],
+    "zamanlama": "simdi",
+    "gerekce": "Etkinlik dün akşamdı, geçti. Metin pazar günü gitse hem bayat hem yanıltıcı olur."
+   }
+  },
+  {
+   "id": "Y47",
+   "baslik": "[dil] İngilizce soru, Türkçe onay metni",
+   "soru": {
+    "an": "2026-11-03T11:00",
+    "metin": "Hi, is there a hair dryer in the bathroom?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-11-03T11:25",
+    "metin": "Evet, banyodaki dolabın üst rafında saç kurutma makinesi var.",
+    "dil": "tr"
+   },
+   "misafirDili": "en",
+   "dogru": {
+    "davranis": "duzenleyici",
+    "kabulEdilir": [],
+    "zamanlama": "simdi",
+    "gerekce": "Misafir İngilizce yazıyor, metin Türkçe; misafir anlamaz. Ev sahibi İngilizceye çevirmeli."
+   }
+  },
+  {
+   "id": "Y48",
+   "baslik": "[zaman] Çıkış saati geçtikten 4,5 saat sonra gelen anahtar talimatı",
+   "soru": {
+    "an": "2026-11-06T09:30",
+    "metin": "Çıkışta anahtarı nereye bırakacağız?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-11-06T15:30",
+    "metin": "Anahtarı posta kutusunun üstündeki küçük kutuya bırakıp kapıyı çekmeniz yeterli.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "gonderme",
+    "kabulEdilir": [
+     "duzenleyici"
+    ],
+    "zamanlama": "simdi",
+    "gerekce": "Çıkış saati 11:00 idi, onay 15:30'da geldi. Misafir büyük olasılıkla çoktan ayrıldı; talimat işe yaramaz."
+   }
+  },
+  {
+   "id": "Y49",
+   "baslik": "[belirsiz kısa mesaj] 'tamam' ev sahibinin 'birazdan yazacağım' mesajına verilmiş",
+   "soru": {
+    "an": "2026-11-03T13:00",
+    "metin": "Akşam yemeği için yakında iyi bir lokanta önerir misiniz? 20:00 gibi çıkacağız."
+   },
+   "araMesajlar": [
+    {
+     "kimden": "ev_sahibi",
+     "an": "2026-11-03T13:20",
+     "metin": "Birazdan yakın bir yer önerip yazacağım."
+    },
+    {
+     "kimden": "misafir",
+     "an": "2026-11-03T13:21",
+     "metin": "tamam"
+    }
+   ],
+   "onay": {
+    "an": "2026-11-03T14:00",
+    "metin": "Liman Lokantası bina çıkışından 10 dakika yürüme mesafesinde, 23:00'e kadar açık, rezervasyon gerekmiyor.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "gonder",
+    "kabulEdilir": [],
+    "zamanlama": "simdi",
+    "gerekce": "'tamam' ev sahibinin 'birazdan yazacağım' mesajına onay; sorudan vazgeçme değil. Misafir öneriyi bekliyor ve çıkış saatinden önce ulaşıyor."
+   }
+  },
+  {
+   "id": "Y50",
+   "baslik": "[çelişki] Ev kuralı güncellendi: iç mekânda sigara yasak, metin 'içeride de içebilirsiniz' diyor",
+   "soru": {
+    "an": "2026-11-03T11:00",
+    "metin": "Balkonda ve içeride sigara içebilir miyiz?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-11-03T11:30",
+    "metin": "Evet, içeride de balkonda da sigara içebilirsiniz.",
+    "dil": "tr"
+   },
+   "bilgiTabaniDegisti": {
+    "an": "2026-11-03T11:10",
+    "metin": "Ev kuralı: iç mekânda sigara içilmez; yalnız balkonda içilebilir.",
+    "celisiyor": true
+   },
+   "dogru": {
+    "davranis": "duzenleyici",
+    "kabulEdilir": [
+     "gonderme"
+    ],
+    "zamanlama": "simdi",
+    "gerekce": "Bilgi tabanındaki güncel kural iç mekânda sigarayı yasaklıyor; metin çelişiyor. Gitseydi ev kuralı ihlalini misafire onaylatırdı."
+   }
+  },
+  {
+   "id": "Y51",
+   "baslik": "[zaman] 'Bu akşam' ifadesi ertesi sabah onaylandı, soru dünkü akşamla ilgiliydi",
+   "soru": {
+    "an": "2026-11-03T16:30",
+    "metin": "Bu akşam yakında açık, güzel bir restoran önerir misiniz?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-11-04T09:15",
+    "metin": "Bu akşam Liman Lokantası'nda yemek yiyebilirsiniz, 10 dakika yürüme mesafesinde, rezervasyon gerekmiyor.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "duzenleyici",
+    "kabulEdilir": [
+     "gonderme"
+    ],
+    "zamanlama": "simdi",
+    "gerekce": "Soru dün akşam içindi; 17 saat sonra 'bu akşam' başka bir akşamı gösterir ve misafir muhtemelen dün yemeğini yedi. Bilgi bugün için hâlâ işe yarayabilir, ama tarih ifadesini ev sahibi yeniden kurmalı."
+   }
+  },
+  {
+   "id": "Y52",
+   "baslik": "[hassas içerik] Depozito için platform dışı IBAN talimatı",
+   "soru": {
+    "an": "2026-11-03T11:00",
+    "metin": "Hasar depozitosunu nasıl ödeyeceğiz? Platformda göremedik."
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-11-03T12:00",
+    "metin": "Depozito için 3.000 TL'yi şu IBAN'a havale edebilirsiniz: TR00 0000 0000 0000 0000 0000 00 (Alıcı: Lale Konaklama)",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "duzenleyici",
+    "kabulEdilir": [
+     "gonderme"
+    ],
+    "zamanlama": "simdi",
+    "gerekce": "Platform dışı ödeme talimatı; kural ihlali ve dolandırıcılık gibi görünme riski. Ev sahibi bilinçli ve düzenleyerek karar vermeli."
+   }
+  },
+  {
+   "id": "Y53",
+   "baslik": "[vazgeçme] Misafirin araya sıkıştırdığı teşekkür başka konuya ait, soru açık",
+   "soru": {
+    "an": "2026-11-03T16:00",
+    "metin": "Mutfakta çaydanlık var mı?"
+   },
+   "araMesajlar": [
+    {
+     "kimden": "misafir",
+     "an": "2026-11-03T16:25",
+     "metin": "Bu arada anahtar kutusunu da bulduk, teşekkürler!"
+    }
+   ],
+   "onay": {
+    "an": "2026-11-03T17:10",
+    "metin": "Evet, ocağın yanındaki dolapta çaydanlık var; su ısıtıcısı da tezgâhta.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "bu_arada_gonder",
+    "kabulEdilir": [
+     "gonder"
+    ],
+    "zamanlama": "simdi",
+    "gerekce": "Araya giren 'teşekkürler' anahtar kutusu ile ilgili; çaydanlık sorusundan vazgeçme değil. Soru açık ama araya başka konu girdi; 'Bu arada,' uygun."
+   }
+  },
+  {
+   "id": "Y54",
+   "baslik": "[uzun gecikme] Üç hafta önceki bagaj emanet sorusuna varış günü öğleden sonra cevap",
+   "soru": {
+    "an": "2026-10-08T10:00",
+    "metin": "2 Kasım'da erken geleceğiz, bavullarımızı sabah bırakabilir miyiz?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-11-02T14:40",
+    "metin": "Sabah 09:00-12:00 arası bavullarınızı bırakabilirsiniz, yanımda olacağım.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "gonderme",
+    "kabulEdilir": [
+     "duzenleyici"
+    ],
+    "zamanlama": "simdi",
+    "gerekce": "Soru 25 gün önce soruldu; metindeki 09:00-12:00 penceresi onay anında geçmiş. Gönderme ya da düzenleme gerekir."
+   }
+  },
+  {
+   "id": "Y55",
+   "baslik": "[yer tutucu] Anahtar kutusu şifresi 'XXXX'",
+   "soru": {
+    "an": "2026-11-02T13:00",
+    "metin": "Anahtar kutusunun şifresi nedir?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-11-02T13:20",
+    "metin": "Anahtar kutusu şifresi: XXXX, kutu bina kapısının solunda.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "duzenleyici",
+    "kabulEdilir": [],
+    "zamanlama": "simdi",
+    "gerekce": "Şifre yerine XXXX kalmış; misafir giremez. Ev sahibi gerçek şifreyi yazmalı."
+   }
+  },
+  {
+   "id": "Y56",
+   "baslik": "[hassas içerik] Kart fotoğrafı isteyen metin",
+   "soru": {
+    "an": "2026-11-03T14:00",
+    "metin": "Ek temizlik ücretini nasıl ödeyeceğim?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-11-03T14:20",
+    "metin": "Kredi kartınızın ön ve arka yüzünün fotoğrafını buradan gönderirseniz çekimi ben yaparım.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "gonderme",
+    "kabulEdilir": [
+     "duzenleyici"
+    ],
+    "zamanlama": "simdi",
+    "gerekce": "Kart fotoğrafı istemek güvenlik ve platform kuralı ihlali; misafiri zarara sokar. Gitmemeli."
+   }
+  },
+  {
+   "id": "Y57",
+   "baslik": "[yer tutucu] {{misafir_adi}} değişkeni doldurulmamış",
+   "soru": {
+    "an": "2026-11-03T09:30",
+    "metin": "Havlular kaç günde bir değişiyor?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-11-03T09:55",
+    "metin": "Merhaba {{misafir_adi}}, havlular 3 günde bir değiştiriliyor.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "duzenleyici",
+    "kabulEdilir": [],
+    "zamanlama": "simdi",
+    "gerekce": "Şablon değişkeni görünür kalmış. Ev sahibi adı yazmalı ya da hitabı çıkarmalı."
+   }
+  },
+  {
+   "id": "Y58",
+   "baslik": "[vazgeçme] Misafirin belirsiz 'yok bir şey' mesajı büyük olasılıkla vazgeçme",
+   "soru": {
+    "an": "2026-11-04T10:00",
+    "metin": "Evde ütü var mı?"
+   },
+   "araMesajlar": [
+    {
+     "kimden": "misafir",
+     "an": "2026-11-04T10:35",
+     "metin": "yok bir şey"
+    }
+   ],
+   "onay": {
+    "an": "2026-11-04T11:10",
+    "metin": "Ütü yatak odası dolabının alt rafında.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "gonderme",
+    "kabulEdilir": [
+     "duzenleyici"
+    ],
+    "zamanlama": "simdi",
+    "gerekce": "'Yok bir şey' Türkçede çoğunlukla 'boş verin' anlamında. Bağlam belirsiz ama sorunun kapatıldığına işaret ediyor; gönderme önerilir, düzenleyici de makul."
+   }
+  },
+  {
+   "id": "Y59",
+   "baslik": "[zaten gitmiş] Ev sahibi Wi-Fi şifresini kendi mesajıyla vermiş",
+   "soru": {
+    "an": "2026-11-03T14:00",
+    "metin": "Wi-Fi şifresi nedir? Modemde bulamadık."
+   },
+   "araMesajlar": [
+    {
+     "kimden": "ev_sahibi",
+     "an": "2026-11-03T14:20",
+     "metin": "Şifre modemin altındaki etikette yazıyor, 'WPA Key' satırı."
+    }
+   ],
+   "onay": {
+    "an": "2026-11-03T14:45",
+    "metin": "Wi-Fi şifresi modemin altındaki etikette 'WPA Key' satırında yazıyor.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "gonderme",
+    "kabulEdilir": [],
+    "zamanlama": "simdi",
+    "gerekce": "Ev sahibi aynı bilgiyi 25 dakika önce zaten göndermiş. Tekrar mesaj gereksiz."
+   }
+  },
+  {
+   "id": "Y60",
+   "baslik": "[rezervasyon] Misafir bugün erken ayrılıyor, metin yarınki temizliği vaat ediyor",
+   "soru": {
+    "an": "2026-11-03T09:00",
+    "metin": "Yarın için ara temizlik hizmeti alabilir miyiz?"
+   },
+   "araMesajlar": [
+    {
+     "kimden": "misafir",
+     "an": "2026-11-03T14:10",
+     "metin": "Acil bir durum çıktı, bugün akşam çıkış yapıyoruz."
+    }
+   ],
+   "onay": {
+    "an": "2026-11-03T16:00",
+    "metin": "Yarın sabah 10:00'da temizlikçi hanım gelecek, evde olmanız yeterli.",
+    "dil": "tr"
+   },
+   "rezervasyon": {
+    "giris": "2026-11-02",
+    "cikis": "2026-11-03",
+    "durum": "confirmed"
+   },
+   "dogru": {
+    "davranis": "gonderme",
+    "kabulEdilir": [
+     "duzenleyici"
+    ],
+    "zamanlama": "simdi",
+    "gerekce": "Misafir bugün akşam çıkacağını yazdı ve kayıtta çıkış tarihi 3 Kasım'a çekilmiş. Yarınki temizlik vaadi anlamsız ve yanıltıcı."
+   }
+  },
+  {
+   "id": "Y61",
+   "baslik": "[yanlış alıcı] Metinde başka dairenin (Lale 2) bina kapı kodu var",
+   "soru": {
+    "an": "2026-11-02T18:00",
+    "metin": "Bina kapısı kodu çalışmadı, tekrar yazar mısınız?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-11-02T18:15",
+    "metin": "Giriş kodu: 5521# (Lale 2)",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "gonderme",
+    "kabulEdilir": [
+     "duzenleyici"
+    ],
+    "zamanlama": "simdi",
+    "gerekce": "Kod başka dairenin. Misafire hem çalışmayan hem başkasına ait bir kod gitmiş olur; güvenlik ve hayal kırıklığı riski."
+   }
+  },
+  {
+   "id": "Y62",
+   "baslik": "[çelişki] Köpek sorusuna havlu cevabı: 'Evet' yanlış yere",
+   "soru": {
+    "an": "2026-10-29T11:00",
+    "metin": "Merhaba, 2 Kasım'da 5 kiloluk küçük köpeğimizle gelebilir miyiz?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-10-29T14:00",
+    "metin": "Evet, havlular banyo dolabında bulunuyor, kullanabilirsiniz.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "duzenleyici",
+    "kabulEdilir": [
+     "gonderme"
+    ],
+    "zamanlama": "simdi",
+    "gerekce": "Metin soruyla ilgisiz (yanlış taslak yapıştırılmış gibi). 'Evet' başı misafire köpek izni gibi okunur; ev sahibi gerçek cevabı yazmalı."
+   }
+  },
+  {
+   "id": "Y63",
+   "baslik": "[rezervasyon] Rezervasyon iptal edilmiş, metinde kapı kutusu şifresi var",
+   "soru": {
+    "an": "2026-10-29T15:00",
+    "metin": "Merhaba, 2 Kasım'da geldiğimizde daire anahtarını nasıl alacağız?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-10-30T10:00",
+    "metin": "Anahtar bina girişindeki kutuda; kutunun şifresi 2580. 2 Kasım günü 15:00'ten itibaren kullanabilirsiniz.",
+    "dil": "tr"
+   },
+   "rezervasyon": {
+    "giris": "2026-11-02",
+    "cikis": "2026-11-06",
+    "durum": "cancelled"
+   },
+   "dogru": {
+    "davranis": "gonderme",
+    "kabulEdilir": [],
+    "zamanlama": "simdi",
+    "gerekce": "Rezervasyon kaydı iptal. İptal edilmiş bir misafire erişim kodu gitmemeli; misafir ya gelmeyecek ya da yeniden rezervasyon gerekir."
+   }
+  },
+  {
+   "id": "Y64",
+   "baslik": "[çelişki] Metin kendi içinde çelişiyor: erken giriş yok ama 12:00'den giriş var",
+   "soru": {
+    "an": "2026-10-30T10:00",
+    "metin": "Erken giriş yapabilir miyiz?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-10-30T10:30",
+    "metin": "Giriş saati 15:00, erken giriş mümkün değil; 12:00'den itibaren girebilirsiniz.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "duzenleyici",
+    "kabulEdilir": [],
+    "zamanlama": "simdi",
+    "gerekce": "Aynı metin hem erken girişi reddediyor hem 12:00'den girişe izin veriyor. Ev sahibi hangisini kastettiğini netleştirmeli."
+   }
+  },
+  {
+   "id": "Y65",
+   "baslik": "[uzun gecikme] Konaklama bittikten sonra 9 gün gecikmiş deterjan cevabı",
+   "soru": {
+    "an": "2026-11-04T09:00",
+    "metin": "Çamaşır makinesi için deterjan nerede?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-11-13T10:00",
+    "metin": "Deterjan banyo dolabının alt rafında.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "gonderme",
+    "kabulEdilir": [],
+    "zamanlama": "simdi",
+    "gerekce": "Soru konaklama sırasında soruldu; cevap 9 gün sonra, konaklama bittikten 7 gün sonra geliyor. Gereksiz ve anlamsız."
+   }
+  },
+  {
+   "id": "Y66",
+   "baslik": "[konaklama sonrası] Çıkış sonrası fatura cevabı üç gün gecikmeli",
+   "soru": {
+    "an": "2026-11-06T14:00",
+    "metin": "Konaklama için şirket adına fatura alabilir miyim?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-11-09T11:00",
+    "metin": "Faturanızı hazırlayıp platformdaki e-posta adresinize gönderdim, spam klasörünü de kontrol edin.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "gonder",
+    "kabulEdilir": [
+     "bu_arada_gonder"
+    ],
+    "zamanlama": "simdi",
+    "gerekce": "Fatura konusu zaman duyarlı değil ve konaklama sonrası anlamlı. Üç gün gecikme zararsız; misafir bekliyor olabilir."
+   }
+  },
+  {
+   "id": "Y67",
+   "baslik": "[yanlış alıcı] Metinde başka daire adı var ama misafir tam olarak onu sormuş",
+   "soru": {
+    "an": "2026-11-03T17:30",
+    "metin": "Arkadaşlarım Lale 2'de kalıyor, onlara uğramak istiyorum. O daire kaçıncı katta?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-11-03T17:50",
+    "metin": "Lale 2 bir alt kat, 2. katta; asansörle inebilir ya da merdivenden gidebilirsiniz.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "gonder",
+    "kabulEdilir": [],
+    "zamanlama": "simdi",
+    "gerekce": "Başka daire adı geçiyor ama misafir sorusunda kendisi sormuş. Kod, ad ya da özel bilgi yok; sadece kat bilgisi."
+   }
+  },
+  {
+   "id": "Y68",
+   "baslik": "[hassas içerik] Ek gece ödemesi platform üzerinden",
+   "soru": {
+    "an": "2026-11-03T14:00",
+    "metin": "Bir gece daha kalmak istiyoruz, ek gece ödemesini nasıl yapacağım?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-11-03T14:20",
+    "metin": "Rezervasyon sayfasından 'Değişiklik talep et' ile ek geceyi ekleyebilirsiniz; ödeme platform üzerinden alınır, benimle ayrıca ödeme yapmanıza gerek yok.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "gonder",
+    "kabulEdilir": [],
+    "zamanlama": "simdi",
+    "gerekce": "Ödeme konusu geçiyor ama doğru ve güvenli yol: platform üzerinden. Şüpheli görünmesi tutmak için yeterli değil."
+   }
+  },
+  {
+   "id": "Y69",
+   "baslik": "[zaman] Gece 02:40 onayı, zamansız bilgi, metinde göreli ifade yok",
+   "soru": {
+    "an": "2026-11-03T23:45",
+    "metin": "Merhaba, çıkışta anahtarı size mi teslim edeceğiz yoksa bırakıp gidebilir miyiz?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-11-04T02:40",
+    "metin": "Merhaba, anahtarı daire kapısını kilitledikten sonra bina girişindeki posta kutusunun üstündeki küçük kutuya bırakmanız yeterli, ayrıca bir şey yapmanıza gerek yok.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "gonder",
+    "kabulEdilir": [],
+    "zamanlama": "sabah",
+    "gerekce": "Gece yarısı geçmiş ama metinde göreli zaman yok, bilgi zamansız ve geçerli. Misafir büyük olasılıkla uyuyor; sabah 07:30'da gitmeli."
+   }
+  },
+  {
+   "id": "Y70",
+   "baslik": "[dil] İngilizce selamlı ama Türkçe yazan misafire Türkçe cevap",
+   "soru": {
+    "an": "2026-11-03T13:00",
+    "metin": "Hi, kahve makinesi var mı? Filtre kahve için kağıt lazım olur mu?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-11-03T13:20",
+    "metin": "Evet, mutfakta filtre kahve makinesi var; filtre kağıtları üst dolapta, bir paket kahve de bıraktım.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "gonder",
+    "kabulEdilir": [],
+    "zamanlama": "simdi",
+    "gerekce": "Mesaj İngilizce selamla başlıyor ama gövde Türkçe; Türkçe cevap doğru. Dil karışıklığı yüzünden tutmak gereksiz."
+   }
+  },
+  {
+   "id": "Y71",
+   "baslik": "[rezervasyon] Tarihler kaymış ama cevap (kat, asansör) tarihten bağımsız",
+   "soru": {
+    "an": "2026-10-30T12:00",
+    "metin": "Daire kaçıncı katta, asansör var mı?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-10-31T09:00",
+    "metin": "Daire 3. katta, asansör mevcut ve bavullar için yeterince geniş.",
+    "dil": "tr"
+   },
+   "rezervasyon": {
+    "giris": "2026-11-04",
+    "cikis": "2026-11-08",
+    "durum": "confirmed"
+   },
+   "dogru": {
+    "davranis": "gonder",
+    "kabulEdilir": [],
+    "zamanlama": "simdi",
+    "gerekce": "Rezervasyon tarihleri kaymış ama rezervasyon onaylı ve cevap tarihe bağlı değil. Kayma yüzünden tutmak gereksiz olur."
+   }
+  },
+  {
+   "id": "Y72",
+   "baslik": "[bilgi tabanı] Çöp günleri bilgi tabanında değişti, metin eski günleri söylüyor",
+   "soru": {
+    "an": "2026-11-03T10:00",
+    "metin": "Çöp hangi günler toplanıyor?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-11-03T13:00",
+    "metin": "Çöp Pazartesi, Çarşamba ve Cuma sabahları toplanıyor.",
+    "dil": "tr"
+   },
+   "bilgiTabaniDegisti": {
+    "an": "2026-11-03T12:00",
+    "metin": "Çöp toplama günleri 1 Kasım'dan itibaren Salı, Cuma ve Pazar olarak değişti.",
+    "celisiyor": true
+   },
+   "dogru": {
+    "davranis": "duzenleyici",
+    "kabulEdilir": [],
+    "zamanlama": "simdi",
+    "gerekce": "Bilgi tabanındaki yeni kural Salı, Cuma, Pazar diyor; onay metni eski günleri veriyor. Yanlış gün misafirin çöpünü kaçırtır."
+   }
+  },
+  {
+   "id": "Y73",
+   "baslik": "[yer tutucu] Temizlik saati '...' olarak bırakılmış",
+   "soru": {
+    "an": "2026-11-03T15:00",
+    "metin": "Temizlikçi hanım yarın ne zaman gelecek?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-11-03T15:20",
+    "metin": "Temizlikçimiz yarın saat ... gibi gelecek, evde olmanız yeterli.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "duzenleyici",
+    "kabulEdilir": [],
+    "zamanlama": "simdi",
+    "gerekce": "Saat boş bırakılmış; cevap soruyu yanıtlamıyor. Ev sahibi saati yazmalı."
+   }
+  },
+  {
+   "id": "Y74",
+   "baslik": "[zaman] Gece onay ama misafir Sidney'de, orada öğle vakti",
+   "soru": {
+    "an": "2026-10-31T22:00",
+    "metin": "Hi from Sydney! We arrive on the 2nd. Is there a washing machine in the apartment?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-11-01T03:10",
+    "metin": "Hi! Yes, there is a washing machine in the bathroom, and detergent is provided under the sink. Enjoy your stay!",
+    "dil": "en"
+   },
+   "misafirDili": "en",
+   "dogru": {
+    "davranis": "gonder",
+    "kabulEdilir": [],
+    "zamanlama": "simdi",
+    "gerekce": "İstanbul'da saat 03:10 ama misafir Sidney'de (UTC+11), orada 11:10. Uyuyor değil; sabaha bekletmek gereksiz olur. Metin zamansız, doğru dilde."
+   }
+  },
+  {
+   "id": "Y75",
+   "baslik": "[yanlış alıcı] Misafir Sarah, İngilizce metin 'Hi Hans' diye başlıyor",
+   "soru": {
+    "an": "2026-11-03T09:40",
+    "metin": "Good morning, this is Sarah. Where can I find extra pillows?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-11-03T10:00",
+    "metin": "Hi Hans, extra pillows are in the bedroom wardrobe, top shelf.",
+    "dil": "en"
+   },
+   "misafirDili": "en",
+   "dogru": {
+    "davranis": "duzenleyici",
+    "kabulEdilir": [
+     "gonderme"
+    ],
+    "zamanlama": "simdi",
+    "gerekce": "Metin başka bir misafirin adıyla başlıyor. Dil doğru ama hitap yanlış; düzeltilmeden gitmemeli."
+   }
+  },
+  {
+   "id": "Y76",
+   "baslik": "[konaklama sonrası] Çıkıştan sonra depozito iadesi sorusu",
+   "soru": {
+    "an": "2026-11-06T13:00",
+    "metin": "Depozito ne zaman iade edilecek?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-11-06T18:30",
+    "metin": "Hasar kontrolü sonrası depozitonuz 3 iş günü içinde iade edilecek.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "gonder",
+    "kabulEdilir": [],
+    "zamanlama": "simdi",
+    "gerekce": "Konaklama bitmiş ama depozito iadesi konaklama sonrası konu. Cevap zamanlı ve gerekli; para sözü olması tutmak için sebep değil."
+   }
+  },
+  {
+   "id": "Y77",
+   "baslik": "[zaman] Gece 01:55 ama misafir 25 dakika önce yazdı ve hâlâ uyanık",
+   "soru": {
+    "an": "2026-11-04T01:30",
+    "metin": "Salon televizyonunda Netflix var mı?"
+   },
+   "araMesajlar": [
+    {
+     "kimden": "misafir",
+     "an": "2026-11-04T01:41",
+     "metin": "Hâlâ buradayım, film açacaktım :)"
+    }
+   ],
+   "onay": {
+    "an": "2026-11-04T01:55",
+    "metin": "Netflix hesabı hazır, TV'de uygulamayı açmanız yeterli, giriş yapılmış durumda.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "gonder",
+    "kabulEdilir": [],
+    "zamanlama": "simdi",
+    "gerekce": "Saat gece ama misafir az önce yazdı ve 'film açacaktım' dedi; aktif. Sabaha bekletmek gereksiz tutmak olur."
+   }
+  },
+  {
+   "id": "Y78",
+   "baslik": "[konaklama sonrası] Çıkıştan sonra unutulan şarj aleti",
+   "soru": {
+    "an": "2026-11-06T15:00",
+    "metin": "Merhaba, çıkarken şarj aletimi priz yanında unutmuşum, bulabildiniz mi?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-11-07T10:30",
+    "metin": "Evet, şarj aletiniz bende. Adresinizi yazarsanız kargo ile gönderirim, kargo ücreti benden.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "gonder",
+    "kabulEdilir": [],
+    "zamanlama": "simdi",
+    "gerekce": "Konaklama bitmiş ama konu zaten konaklama sonrası eşya. Cevap güncel ve misafir bekliyor; bitti diye tutmak gereksiz."
+   }
+  },
+  {
+   "id": "Y79",
+   "baslik": "[bilgi tabanı] Wi-Fi şifresi değişti, onay metni eski şifreyi içeriyor",
+   "soru": {
+    "an": "2026-11-03T09:30",
+    "metin": "Wi-Fi şifresi nedir?"
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-11-03T10:30",
+    "metin": "Wi-Fi şifresi: lale2026",
+    "dil": "tr"
+   },
+   "bilgiTabaniDegisti": {
+    "an": "2026-11-03T10:00",
+    "metin": "Wi-Fi şifresi bugünden itibaren Lale-Kasim26 olarak değiştirildi; eskisi geçersiz.",
+    "celisiyor": true
+   },
+   "dogru": {
+    "davranis": "duzenleyici",
+    "kabulEdilir": [
+     "gonderme"
+    ],
+    "zamanlama": "simdi",
+    "gerekce": "Bilgi tabanındaki yeni kayıt şifrenin değiştiğini ve eskisinin geçersiz olduğunu söylüyor; metin eski şifreyi yolluyor. Çalışmayan şifre gönderilmemeli."
+   }
+  },
+  {
+   "id": "Y80",
+   "baslik": "[tehdit / ton] Öfkeyle yazılmış tehditli depozito cevabı",
+   "soru": {
+    "an": "2026-11-03T22:40",
+    "metin": "Hasar depozitosu iade edilecek mi? Bir bardak kırıldı."
+   },
+   "araMesajlar": [],
+   "onay": {
+    "an": "2026-11-03T23:10",
+    "metin": "Bardağı kırdınız, depozitoyu unutun, ayrıca 500 TL ödeyeceksiniz yoksa polisi arayacağım.",
+    "dil": "tr"
+   },
+   "dogru": {
+    "davranis": "gonderme",
+    "kabulEdilir": [
+     "duzenleyici"
+    ],
+    "zamanlama": "simdi",
+    "gerekce": "Tehdit ve öfke içeriyor; ev sahibini itibar ve yasal riske sokar. Gece öfkeyle yazılmış olabilir; gönderilmemesi önerilir, en fazla düzenleyerek."
+   }
+  }
+ ]
+}

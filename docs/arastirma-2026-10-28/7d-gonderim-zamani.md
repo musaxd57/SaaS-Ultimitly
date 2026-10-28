@@ -841,3 +841,43 @@ düşük çaba; iki set × iki model = 266 çağrı, **toplam ≈ 0,30 $**; sonu
 **Güncel önerim (C″):** kod yalnız durdurur (bugünkü kesin kurallar + yukarıdaki üç kural) → kalan her gönderim için model onayı (gpt-6-luna,
 düşük çaba; §6.3 süzgeci) → şüphede / arızada düzenleyici. Model hiçbir zaman tek başına "gönder" kararını veremez; kod da veremez — ikisi
 birlikte "durdurmak için sebep yok" demeli. Maliyet onay başına ≈ 0,0002 $.
+
+## 11. İkinci kör set + yalnız-durduran kurallar + çift onay (10-28 akşam; kurucu: "93/93 yapmadan müşteri çekmem", "Luna'ya geçir")
+
+**Yöntem (dürüst sıra):** §10'daki 4 yanlış gönderimden (+ geliştirme setindeki 1) yalnız DURDURAN kurallar yazıldı → ilk set artık
+"yandı". Kanıt için kuralları ve sistemi GÖRMEMİŞ ayrı bir yazar (Sonnet) **80 senaryoluk ikinci kör set** yazdı (`7d-kor-set-2.json`;
+54'ünde metin gitmemeli, 26'sında gitmeli). Model kolu gerçek modelle koşuldu (`7d-model-kolu.mjs`, düşük çaba; iki set + geliştirme seti
+× istem v1 / v2 × Luna / 5.1 ≈ 0,4 $). Puanlama `7d-puan.mjs` (saf; ürünün gerçek içerik kapıları `7d-urun-kapilari-*.json`, `npx tsx` ile
+ürün fonksiyonlarından: yer tutucu / şablon / misafir belirteci / platform dışı ödeme).
+
+**İkinci kör setin İLK okuması (kurallar ona göre yazılmadan):** Luna + bugünkü kod kuralları **12 / 54** yanlış gönderim; üç yeni kuralla
+**8 / 54** (yeni kurallar kısmen genelledi: başka daire, gece yarısı "yarın" vakalarını yakaladı). gpt-5.1: 21 → 15. Yani §10'daki "4 →
+0" iyimserdi; taze sette hata sınıfları değişiyor.
+
+**Kalan sınıflar ve genel çözümleri (ikinci set de artık yandı):**
+- Göreli zaman: "yarın" yerine genel kural — onay metnindeki göreli ifade (yarın, bugün, bu akşam, hafta sonu, gelecek hafta, bu cumartesi…)
+  SORU anında ve ONAY anında farklı güne çözülüyorsa düzenleyici (yalnız onay metni; soruya da uygulanınca 7 doğru gönderim tutuluyordu).
+- Kukla değer (XXXX / ___ / ???) · hitap edilen ad misafirin adı değil ("Hi Hans" ↔ Sarah) — kod, yalnız durdurur.
+- Ürünün mevcut kapıları (yer tutucu, şablon, IBAN) bu sette 3 vakayı ek yanlış tutmasız yakalıyor.
+- İçerik (istem v2): onaylanan metnin kendisi — kendi içinde çelişki, tehdit / hakaret, başka kişi, platform dışı ödeme → asla gönder değil.
+
+| Kol (Luna, düşük çaba) | Kör 1 (93) yanlış / gereksiz | **Kör 2 (80)** yanlış / gereksiz | Geliştirme (40) yanlış / gereksiz |
+|---|---|---|---|
+| bugünkü kod + model v1 | 4 / 10 | **12** / 7 | 1 / 6 |
+| + üç yeni kural | 0* / 10 | **8** / 8 | 0* / 6 |
+| + v2 kuralları + ürün kapıları | 0* / 10 | 3* / 8 | 0* / 6 |
+| + istem v2 (içerik denetimi) | 1* / 12 | 2* / 9 | 0* / 7 |
+| **ÇİFT ONAY** (v1 ve v2 bağımsız kontrolün İKİSİ de "gönder") | **0* / 13** | **1* / 11** | **0* / 9** |
+
+\* kural / istem o seti görerek yazıldı — kanıt değil. Kalan tek hata (Y24): "Bu hafta sonu terasa çıkabilir miyiz?" (perşembe) → pazar 12:00
+onay "Teras bu hafta sonu açık; pazar 18:00'de kapanıyor" — an büyük ölçüde geçmiş; yazar düzenleyici bekliyor, model "doğrudan cevap" diyor
+(sınırda vaka). Koşudan koşuya model kararı ±2 oynuyor; çift onay bu oynamayı temkinli yöne çeviriyor.
+
+**Bedel:** çift onayda gereksiz tutma 13 + 11 + 9 = 33 / 213 (%15) — bunlar ev sahibinin önüne "düzenleyici" olarak düşer (tek tık yerine
+bir bakış); misafire yanlış bir şey gitmez. Maliyet onay başına ≈ 0,0004 $.
+
+**Öneri (C‴):** kod yalnız durdurur (bugünkü kesin kurallar + göreli zaman çözümü + rezervasyon dışı tarih + başka daire / kişi + kukla
+değer + ürünün içerik kapıları) → iki bağımsız Luna kontrolü (v1 bağlam istemi + v2 içerik istemi) İKİSİ de "gönder" derse gider; biri
+bile durursa düzenleyici. 93/93'ün kanıtı: kuralları görmemiş ÜÇÜNCÜ bir kör set (yazar: farklı model), tek koşu, kabul ölçütü 0 yanlış
+gönderim. İnce ayar (fine-tuning) bu sağlayıcıda kapalı (OpenAI API `training_not_available`, 10-28) — "modelin nasıl düşünmesi gerektiği"
+örnekli istem + kod kuralları + çift onayla veriliyor.

@@ -39,14 +39,27 @@ Decide:
 When unsure, choose "open_editor". Never choose "send" or "send_with_anchor" when open_issue is "complaint" or
 "emergency", when contradiction is true, or when still_needed is not "yes".`;
 
+// İstem v2 (10-28 akşam, ikinci kör setin hata sınıfları): onaylanan METNİN KENDİSİ de denetlenir — kendi içinde çelişki, tehdit / hakaret,
+// doldurulmamış yer tutucu, başka bir kişiye hitap, platform dışı ödeme / kart / kimlik fotoğrafı. Yalnız durdurur (düzenleyici / tutma).
+const CONTENT_V2 = `
+Also check the APPROVED REPLY ITSELF (content_problem). Set content_problem to the first that applies, else "none":
+- "self_contradiction": the reply says two incompatible things (e.g. "early check-in is not possible; you can enter from 12:00").
+- "hostile": threats, insults, blame or pressure toward the guest (e.g. "pay or I call the police").
+- "placeholder": an unfilled placeholder or dummy value (XXXX, ___, [WIFI PASSWORD], {name}, "...") where real data belongs.
+- "wrong_person": it addresses the guest by a name different from the name the guest used, or mentions another guest.
+- "off_platform": asks for payment outside the booking platform, bank transfer / IBAN, card or ID photos.
+Any content_problem other than "none" means: never "send" or "send_with_anchor"; "hold" for "hostile", otherwise "open_editor".`;
+const V2 = process.env.ISTEM_V2 === "1";
+
 const SCHEMA = {
   name: "approved_reply_send_check",
   strict: true,
   schema: {
     type: "object",
     additionalProperties: false,
-    required: ["still_needed", "open_issue", "contradiction", "self_contained", "action", "reason", "evidence"],
+    required: ["still_needed", "open_issue", "contradiction", "self_contained", ...(V2 ? ["content_problem"] : []), "action", "reason", "evidence"],
     properties: {
+      ...(V2 ? { content_problem: { type: "string", enum: ["none", "self_contradiction", "hostile", "placeholder", "wrong_person", "off_platform"] } } : {}),
       still_needed: { type: "string", enum: ["yes", "no", "unclear"] },
       open_issue: { type: "string", enum: ["none", "unanswered_request", "complaint", "emergency"] },
       contradiction: { type: "boolean" },
@@ -104,6 +117,7 @@ function userPrompt(s) {
 function filtered(r, nAfter) {
   if (!r) return { action: "open_editor", filter: "no_result" };
   const sendish = r.action === "send" || r.action === "send_with_anchor";
+  if (r.content_problem && r.content_problem !== "none") return { action: r.content_problem === "hostile" ? "hold" : "open_editor", filter: `content:${r.content_problem}` };
   if (sendish && r.open_issue === "emergency") return { action: "hold", filter: "emergency" };
   if (sendish && (r.open_issue !== "none" || r.contradiction || r.still_needed !== "yes")) return { action: "open_editor", filter: "inconsistent" };
   if (r.action === "send_with_anchor" && !r.self_contained) return { action: "open_editor", filter: "anchor_not_self_contained" };
@@ -116,7 +130,7 @@ async function call(s) {
   const payload = {
     model,
     response_format: { type: "json_schema", json_schema: SCHEMA },
-    messages: [{ role: "system", content: SYSTEM }, { role: "user", content: userPrompt(s) }],
+    messages: [{ role: "system", content: V2 ? SYSTEM + CONTENT_V2 : SYSTEM }, { role: "user", content: userPrompt(s) }],
     max_completion_tokens: 2000,
   };
   if (effort) payload.reasoning_effort = effort;
@@ -156,5 +170,5 @@ async function worker() {
 }
 await Promise.all([worker(), worker(), worker(), worker()]);
 out.sort((a, b) => a.id.localeCompare(b.id));
-writeFileSync(outPath, JSON.stringify({ set: data.surum, model, effort, inputTokens: inTok, outputTokens: outTok, results: out }, null, 1));
+writeFileSync(outPath, JSON.stringify({ set: data.surum, model, effort, prompt: V2 ? "v2-icerik" : "v1", inputTokens: inTok, outputTokens: outTok, results: out }, null, 1));
 console.log(`\n${out.length} senaryo · girdi ${inTok} · çıktı ${outTok} belirteç · hata ${out.filter((o) => o.error).length}`);
