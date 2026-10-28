@@ -11,6 +11,8 @@
 // Saf; veritabanı yok.
 // ---------------------------------------------------------------------------
 
+import { containsContactValue } from "@/lib/contact-redact";
+
 /** Çıkıştan sonra Airbnb'nin iletişim bilgisine izin verdiği pencere (ikinci el kaynak "genelde bir gün" — dar tutulur). */
 export const AIRBNB_POST_CHECKOUT_CONTACT_GRACE_MS = 24 * 60 * 60 * 1000;
 
@@ -30,4 +32,38 @@ export function offPlatformContactHoldsFor(conversation: ContactPolicyConversati
   const departure = conversation.reservation?.departureDate;
   if (!departure) return false;
   return now.getTime() > departure.getTime() + AIRBNB_POST_CHECKOUT_CONTACT_GRACE_MS;
+}
+
+/** Yalnız iletişim ETİKETİ olan satır ("Tel:", "📞 WhatsApp", "E-posta:") — değeri çıkarılınca tek başına kalırsa kırık satırdır. */
+const CONTACT_LABELS = new Set([
+  "tel", "telefon", "phone", "telephone", "téléphone", "tél", "mobile", "mobil", "cep", "gsm", "handy", "whatsapp", "eposta", "email",
+  "mail", "web", "website", "instagram", "facebook", "telegram", "iletişim", "contact", "kontakt", "телефон",
+]);
+const lettersOf = (line: string) => line.replace(/[^\p{L}]/gu, "");
+const isLabelOnly = (line: string) => {
+  const l = lettersOf(line);
+  return l.length > 0 && (CONTACT_LABELS.has(l.toLocaleLowerCase("tr")) || CONTACT_LABELS.has(l.toLowerCase()));
+};
+
+/**
+ * İmza, platform dışı iletişim penceresinde (kurucu kararı 4.14, 10-28: "Telefon satırı çıkarılıp cevap gitsin"). Pencere AÇIKSA
+ * (`offPlatformContactHoldsFor`) iletişim değeri (telefon / e-posta / bağlantı, `containsContactValue`) taşıyan SATIRLAR çıkarılır, kalan
+ * satırlar sırasıyla aynen; o durumda değeri giden etiket / emoji satırı ("📞", "Tel:") da çıkar. Satırın yalnız numarası silinmez:
+ * "Bize 0532 … 'den ulaşın" yarım cümle bırakırdı (kurucu: kırık cümle asla) — ad ile numara aynı satırdaysa satırın tamamı gider.
+ * Hiç satır kalmazsa `null` (imzasız). Pencere kapalıyken imza AYNEN (onaylı konaklamada iletişim serbest). Satırlara bölünmüş numara
+ * satır satır görünmez → çıktı yine iletişim değeri taşıyabilir; gönderim kapısı (`signature_offplatform_contact`) onu TUTAR. Saf.
+ */
+export function signatureForContactWindow(signature: string | null | undefined, contactHolds: boolean): string | null {
+  const sig = signature?.trim();
+  if (!sig) return null;
+  if (!contactHolds || !containsContactValue(sig)) return sig;
+  const lines = sig.split(/\r?\n/);
+  const kept = lines.filter((line) => !containsContactValue(line));
+  if (kept.length === lines.length) return sig;
+  const out = kept
+    .filter((line) => line.trim() === "" || (/[\p{L}\p{N}]/u.test(line) && !isLabelOnly(line)))
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  return out || null;
 }

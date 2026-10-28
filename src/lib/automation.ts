@@ -41,7 +41,7 @@ import {
   type SeniorRewriteReason,
 } from "@/lib/ai/semantic/senior-rewrite";
 import { noApologyRuleEnabled } from "@/lib/ai/no-apology-rule";
-import { offPlatformContactHoldsFor } from "@/lib/channels/airbnb-message-policy";
+import { offPlatformContactHoldsFor, signatureForContactWindow } from "@/lib/channels/airbnb-message-policy";
 import { containsContactValue } from "@/lib/contact-redact";
 import { kbPetsFreeAllowed, mentionsAssistanceAnimal, mentionsPets, petReplyStraysFromFreeKb } from "@/lib/conversation-items/pet-policy";
 import {
@@ -276,9 +276,9 @@ export interface AutoReplyGateContext {
    */
   offPlatformContactHolds?: boolean;
   /**
-   * Ev sahibinin imzası (`Organization.aiSignature`) — misafire giden gövdenin SONUNA eklenir (Opus 10-23 akşam C1). Ayarlar ekranı imzaya
-   * telefon yazmayı öneriyor; `offPlatformContactHolds` iken imzada iletişim değeri varsa cevap gitmez (Airbnb rezervasyon onayından önce
-   * engeller — kurucu 4.5). Verilmezse karar birebir eski.
+   * Misafire GİDECEK imza — gövdenin SONUNA eklenir (Opus 10-23 akşam C1). Ayarlar ekranı imzaya telefon yazmayı öneriyor; `offPlatformContactHolds`
+   * iken çağıran iletişim satırını çıkarılmış imzayı verir (`signatureForContactWindow`, kurucu kararı 4.14); çıkarılamayan değer (satırlara
+   * bölünmüş numara) kaldıysa cevap gitmez (Airbnb rezervasyon onayından önce engeller — kurucu 4.5). Verilmezse karar birebir eski.
    */
   outboundSignature?: string | null;
   /**
@@ -601,6 +601,7 @@ export function autoReplyGateVerdict(
   const senior = seniorChecksOf(judged);
   if (senior?.payHost) return hold("reply_offplatform_payment");
   // İmzadaki iletişim değeri (Opus 10-23 akşam C1): cevabın yeniden yazılması bunu düzeltemez → ayrı ayrıntı kodu, yeniden yazma kümesinde değil.
+  // 4.14'ten beri çağıran iletişim satırını çıkarılmış imzayı verir; bu dal yalnız çıkarılamayan değerde (kemer) tutar.
   if (context?.offPlatformContactHolds === true && containsContactValue(context.outboundSignature ?? "")) return hold("signature_offplatform_contact");
   if (senior?.contact && context?.offPlatformContactHolds === true) return hold("reply_offplatform_contact");
   // Kod yedeği (anahtarsız, kurucu 10-23 akşam 4.5): okuyucu okumasa da telefon / e-posta / bağlantı DEĞERİ aynı pencerede gitmez.
@@ -1062,11 +1063,13 @@ async function maybeSendClosingCourtesy(opts: {
   if (!token) return false;
 
   const lang = closingCourtesyLanguage(opts.lastInbound.body, opts.org.language);
+  // İmzanın iletişim satırı onaysız Airbnb konuşmasında çıkarılır (kurucu kararı 4.14); ev sahibinin KENDİ nezaket metnindeki iletişim değeri
+  // çıkarılmaz (cümlenin içinde — yarım cümle kalırdı) → gövdenin tamamı aşağıda denetlenir, değer kaldıysa gitmez (R21).
   const body = composeClosingCourtesy({
     kind: opts.kind,
     lang,
     customText: opts.org.closingReplyText,
-    signature: opts.org.aiSignature,
+    signature: signatureForContactWindow(opts.org.aiSignature, opts.contactHolds === true),
   });
   if (opts.contactHolds && containsContactValue(body)) return false;
 
@@ -2575,6 +2578,9 @@ export async function applyChannelAutoReply(
   // Anlama katmanı (katman kapalıysa `null`): retrieval'a gerekmediyse cevap üretimiyle paralel koştu; kapı
   // onu burada bekler — konaklama sinyali ve risk niyeti AYNI sonuçtan.
   const understood = await kbSel.understanding;
+  // Airbnb platform dışı iletişim penceresi + gidecek imza TEK kez hesaplanır: kapı, taslak ve gönderilen gövde AYNI imzayı görür.
+  const contactWindow = offPlatformContactHoldsFor(conversation);
+  const outboundSignature = signatureForContactWindow(org.aiSignature, contactWindow) ?? undefined;
   const gateContext: AutoReplyGateContext = {
     // 🚨 AYNA AYNI SEÇİCİDEN BESLENİR (inceleme turu, 09-11 — ÖLÇÜLMÜŞ AÇIK).
     // Burası `messages.slice(-6)` idi ve istem de 6 tutuyordu: iki pencere
@@ -2612,8 +2618,9 @@ export async function applyChannelAutoReply(
     ...(itemsPlan ? { items: itemsPlan.gateItems } : {}),
     // Airbnb'de onaylı rezervasyon yokken platform dışı iletişim tutulur: okuyucunun hükmü (T-b) + iletişim DEĞERİ için anahtarsız kod
     // yedeği (kurucu 10-23 akşam 4.5: "host kendi telefon numarasını yazamaz … rezervasyondan önce"; okuyucu kapalı / düştüyse de).
-    offPlatformContactHolds: offPlatformContactHoldsFor(conversation),
-    outboundSignature: org.aiSignature?.trim() || null,
+    offPlatformContactHolds: contactWindow,
+    // Kapı GİDECEK imzayı okur: onaysız Airbnb konuşmasında iletişim satırı çıkarılmış hâli (kurucu kararı 4.14); çıkarılamayan değer kaldıysa TUTAR.
+    outboundSignature: outboundSignature ?? null,
     petsFreeAllowed: kbPetsFreeAllowed(kbForModel),
   };
 
@@ -2631,7 +2638,7 @@ export async function applyChannelAutoReply(
     const outcome = await runAbsenceJudge({ guestMessage: absenceGuestText, reply: result.reply, names: absenceNames });
     seniorPrecheck = { reply: result.reply, outcome };
     const reasons = seniorRewriteReasons(seniorChecksOf(outcome), {
-      contactHolds: offPlatformContactHoldsFor(conversation),
+      contactHolds: contactWindow,
       apologyRule: noApologyRuleEnabled(),
       internalSourceLexical: namesInternalSource(result.reply),
     });
@@ -3234,7 +3241,8 @@ export async function applyChannelAutoReply(
   }
   const modelBilled = result.source !== "openai" && Boolean(result.llmUsage);
 
-  const signature = org.aiSignature?.trim();
+  // Onaysız Airbnb konuşmasında imzanın iletişim satırı çıkmış hâli (kurucu kararı 4.14; ↑`outboundSignature`, kapıyla aynı metin).
+  const signature = outboundSignature;
   // Draft / manual "AI suggest" stays clean: the host's words + their signature.
   const replyText =
     signature && result.reply ? `${result.reply.trimEnd()}\n\n${signature}` : result.reply;

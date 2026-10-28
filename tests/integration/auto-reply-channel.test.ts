@@ -542,16 +542,23 @@ describe("applyChannelAutoReply", () => {
     expect(await used(rewritten.orgId)).toBe(2);
   });
 
-  // Opus 10-23 akşam C1 (kurucu 4.5: "host kendi telefon numarasını yazamaz … rezervasyondan önce"): Ayarlar ekranı imzaya telefon yazmayı
-  // öneriyor; imza gövdenin sonuna eklendiği için onaysız Airbnb konuşmasında cevap TUTULUR (imzadan satır silmek kurucu sorusu).
-  it("🚨 C1: Airbnb'de onaylı rezervasyon yokken imzada telefon → cevap gitmez (signature_offplatform_contact); onaylı konaklamada gider", async () => {
+  // Opus 10-23 akşam C1 + kurucu kararı 4.14 (10-28, "Telefon satırı çıkarılıp cevap gitsin"): Ayarlar ekranı imzaya telefon yazmayı
+  // öneriyor; Airbnb onaysız konuşmada iletişim değeri taşıyan mesajı engeller. Onaysız konuşmada imzanın telefon SATIRI çıkarılır, cevap
+  // kalan imzayla gider (taslak da aynı imzayla — ev sahibi elle gönderirse de engellenmesin); onaylı konaklamada imza bugünkü gibi tam.
+  it("🚨 4.14: Airbnb'de onaylı rezervasyon yokken imzanın telefon satırı çıkar, cevap gider; onaylı konaklamada imza tam gider", async () => {
     const signature = "Sevgiler,\nAli\n📞 +90 532 123 45 67";
     const { conversationId } = await seed({ aiSignature: signature, guestMessage: "Merhaba, check-in saat kaçta?" });
+    const preview = await applyChannelAutoReply(conversationId, { dryRun: true });
+    expect(preview.draft?.reply).toBe(`${SAFE_REPLY.reply}\n\nSevgiler,\nAli`);
     const out = await applyChannelAutoReply(conversationId);
-    expect(out.sent).toBe(false);
-    expect(mockSend).not.toHaveBeenCalled();
-    const ev = await prisma.riskEvent.findFirstOrThrow({ where: { conversationId, surface: "auto_reply" } });
-    expect(JSON.parse(ev.kbEvidenceJson ?? "{}").g?.d).toBe("signature_offplatform_contact");
+    expect(out.sent).toBe(true);
+    expect(mockSend).toHaveBeenCalledWith(
+      expect.objectContaining({ externalReservationId: "res-1" }),
+      `${SAFE_REPLY.reply}\n\n${AUTO_NOTE_TR}\n\nSevgiler,\nAli`,
+      "test-token",
+    );
+    const persisted = await prisma.message.findFirstOrThrow({ where: { conversationId, direction: "outbound" }, select: { body: true } });
+    expect(persisted.body).not.toContain("532");
 
     await resetDb();
     vi.clearAllMocks();
@@ -573,6 +580,16 @@ describe("applyChannelAutoReply", () => {
     const sent = await applyChannelAutoReply(stay.conversationId);
     expect(sent.sent).toBe(true);
     expect(mockSend.mock.calls[0][1]).toContain("+90 532 123 45 67");
+  });
+
+  // Kemer: satırlara bölünmüş numara satır satır görünmez → temizlenmiş imza hâlâ iletişim değeri taşır → cevap TUTULUR (bugünkü C1 kodu).
+  it("🚨 4.14 kemeri: imzadaki numara satırlara bölünmüşse temizlik göremez → cevap gitmez (signature_offplatform_contact)", async () => {
+    const { conversationId } = await seed({ aiSignature: "Ali\n+90 532\n123 45 67", guestMessage: "Merhaba, check-in saat kaçta?" });
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+    const ev = await prisma.riskEvent.findFirstOrThrow({ where: { conversationId, surface: "auto_reply" } });
+    expect(JSON.parse(ev.kbEvidenceJson ?? "{}").g?.d).toBe("signature_offplatform_contact");
   });
 
   it("sends via the channel transport and persists when enabled and in-window", async () => {
@@ -1285,12 +1302,16 @@ describe("closing courtesy — opt-in 'Rica ederiz' reply to a bare thanks", () 
     expect(mockSend).not.toHaveBeenCalled();
   });
 
-  it("🚨 Opus 10-23 akşam C1: onaysız Airbnb konuşmasında imzada telefon varsa nezaket cevabı GİTMEZ", async () => {
+  it("🚨 4.14: onaysız Airbnb konuşmasında imzada telefon varsa nezaket cevabı imzanın telefon satırı ÇIKARILARAK gider", async () => {
     const { orgId, conversationId } = await seedClosing();
     await prisma.organization.update({ where: { id: orgId }, data: { aiSignature: "Sevgiler,\nMusa\n+90 532 123 45 67" } });
     await applyChannelAutoReply(conversationId);
-    expect(mockSend).not.toHaveBeenCalled();
-    expect(await prisma.message.count({ where: { conversationId, direction: "outbound", aiIntent: "closing_courtesy" } })).toBe(0);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    const body = mockSend.mock.calls[0][1] as string;
+    expect(body.startsWith("Rica ederiz")).toBe(true);
+    expect(body.endsWith("Sevgiler,\nMusa")).toBe(true);
+    expect(body).not.toContain("532");
+    expect(await prisma.message.count({ where: { conversationId, direction: "outbound", aiIntent: "closing_courtesy" } })).toBe(1);
   });
 
   it("toggle ON: sends ONE deterministic courtesy (guest language + note + signature), NO model call", async () => {
