@@ -34,3 +34,16 @@ Mutasyon toplamı: 31/31 öldürüldü (4.11 · 4.12 · 4.13 · 4.14 · dil kap�
 - `automation.ts` imza: pencere bir kez hesaplanıyor; kapı, taslak ve gönderilen gövde aynı imzayı görüyor; nezaket cevabı ev sahibinin
   kendi metnindeki değeri çıkarmıyor (yarım cümle olmasın) → gövde denetimi tutuyor.
 - `language-signal.ts gateGuestLanguage`: kod eminse kodun hükmü; model yalnız misafirin metninde izi olan dili bildirebilir.
+
+## Ek — 10-28 gece ikinci tur (zod 4 + R24–R28), ajansız satır satır
+
+| # | Yer | Bulgu (kendi yazdığım kodda) | Düzeltme |
+|---|---|---|---|
+| Ö5 | `validators.ts` (zod 4) | Tip denetimi yeşilken üç DAVRANIŞ gerilemesi: `.partial()` varsayılanları uyguluyor (mülk saatleri / temizlik payı ezilirdi; kapatılmış bilgi kalemi yeniden açılırdı), enum anahtarlı `z.record` alt kümeyi reddediyor (sarf profili). | `patchSchemaOf`, `z.partialRecord`; kırmızı-önce entegrasyon testi + kaynak pini; 114.882 girdilik zod 3 ↔ 4 fark testi (veri farkı 0). |
+| Ö6 | `zod-tr.test.ts` | "İngilizce kalmadı" testi yalnız zod 3 kalıplarını arıyordu → zod 4'te harita kurulmasa da geçerdi. | zod 4 kalıpları + her sorun kodu için birebir metin; mutasyon "harita kurulmaz" öldü. |
+| Ö7 | `guest-chat.ts` (R25) | Almanca bileşik kalıbına `zugangs` eklemiştim — "WLAN-Zugangscode" Wi-Fi'dir; kapı kalıpları QR Wi-Fi istisnasında da uygulandığı için Almanca Wi-Fi kalemi QR'dan düşer, Wi-Fi cevabı durdurulurdu (K7'ye aykırı). | Çıkarıldı; kırmızı-önce ikiz testi. |
+| Ö8 | `kb-import/document.ts` (R24) | Giriş fiili kuralının ve bölüm kuralının Wi-Fi istisnası yalnız paragrafın KENDİ kategorisine bakıyordu → "# Wi-Fi" altındaki "Ağa bağlanmak için 12345678 girin" ve başlığın hemen altındaki çıplak şifre "Giriş Talimatı"na taşınıyordu. | Bölümün kategorisi de bakılıyor; kırmızı-önce iki test. |
+| Ö9 | `kb-import/document.ts` (R25) | Erişim sözcüklerine `access code` eklemiştim — "Wi-Fi access code" da denir (ortak kapı kalıbı bu yüzden "access" almıyor). | Çıkarıldı; kırmızı (eski kod) → yeşil. |
+| Ö10 | mutasyon (R24–R28) | 23/25: `fiscale` dışlaması ölü koddu (vergi numarası 4–8 bitişik rakam değil); yarım-dizi eşiği yalnız sonda GEÇERSİZ tam dizide ayrışıyordu. | Ölü kod silindi; ED A0 80 testi → 24/24. |
+
+Bilinçli bırakılanlar: R15 (doğrulayıcıda "kapalı" sıfat / yüklem — yan cümle bölme üç yerde, saat aralığı "10:00 - 22:00" ile çakışır; tasarım notu Opus belgesinin sonunda) · içe aktarmada çıplak "pin" erişim izi (mevcut QR Wi-Fi kuralıyla tutarlı: Wi-Fi kalemi PIN'i anmamalı) · "Wi-Fi access code: 12345678" içe aktarmada erişime gidiyor — sebep ortak okuyucunun ÖNCEDEN var olan genel "code + değer" kalıbı (bu dilimin değişikliği değil).
