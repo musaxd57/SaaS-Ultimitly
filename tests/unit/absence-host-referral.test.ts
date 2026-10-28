@@ -329,6 +329,92 @@ describe("ev sahibine yönlendirme", () => {
     }
   });
 
+  it("🚨 R10 (Opus 10-28): konu NESNE olunca ('Otoparkı / Havuz saatlerini … sorabilirsiniz') başka yan cümledeki numara yönlendirmeyi kurtarmaz", () => {
+    for (const t of [
+      "Otoparkı ev sahibinize sorabilirsiniz, resepsiyonun numarası 0212 555 66 77.",
+      "Havuz saatlerini ev sahibinize sorabilirsiniz; resepsiyon: 0212 555 66 77",
+      "Please ask your host the pool hours; the front desk number is +90 212 555 66 77.",
+      "Kahvaltı saatlerini ev sahibinize iletebilirsiniz, ulaşamazsanız 0532 123 45 67.",
+    ]) {
+      expect(refersGuestToHost(t), t).toBe(true);
+    }
+    // İstenen numarayı veren ulaşma / arama cümlesi gider (R4 korunur).
+    for (const t of ["Ev sahibinize ulaşabilirsiniz, telefon: 0532 123 45 67.", "You can call your host, the number is +90 532 123 45 67."]) {
+      expect(refersGuestToHost(t), t).toBe(false);
+    }
+  });
+
+  it("🚨 R11 (Opus 10-28): varışta ev sahibiyle KONUŞMAK / GÖRÜŞMEK konu görüşmesidir — varış muafiyeti yalnız ara / yaz / mesaj", () => {
+    for (const t of [
+      "Otopark yerini gelmeden önce ev sahibinizle görüşün.",
+      "Havuzun açılış saatini varınca ev sahibinizle konuşabilirsiniz.",
+      "Please speak to your host when you arrive.",
+    ]) {
+      expect(refersGuestToHost(t), t).toBe(true);
+    }
+    for (const t of ["Please text your host when you arrive.", "Varınca ev sahibinizi arayın.", "Varış saatinizi ev sahibinize yazın."]) {
+      expect(refersGuestToHost(t), t).toBe(false);
+    }
+  });
+
+  it("🚨 R12 (Opus 10-28): olay muafiyeti YAN CÜMLE düzeyinde — koşulsuz bir bilgi yönlendirmesi yanındaki olay talimatıyla kurtulmaz", () => {
+    for (const t of [
+      "Havuz saatlerini ev sahibinize sorabilirsiniz, herhangi bir sorun olursa da kendisine ulaşabilirsiniz.",
+      "Otopark için ev sahibinize sorabilirsiniz; anahtarı kaybederseniz de ev sahibinizi arayın.",
+      "For the pool hours please ask your host, and if anything breaks, call them.",
+      "Anahtarı kaybederseniz ev sahibinizi arayın, otopark için de ev sahibinize sorabilirsiniz.",
+    ]) {
+      expect(refersGuestToHost(t), t).toBe(true);
+    }
+    // Koşul yan cümlesi yönlendirmeden önce ya da cümle sonunda ("especially if …") — talimat gider.
+    for (const t of [
+      "If you lose the key, call your host and let them know.",
+      "Herhangi bir sorun olursa ev sahibinizi arayın.",
+      "Contact your host, especially if the Wi-Fi fails.",
+      "Anahtarı kaybederseniz, ev sahibinize ulaşın.",
+    ]) {
+      expect(refersGuestToHost(t), t).toBe(false);
+    }
+  });
+
+  it("🚨 R14 (Opus 10-28): 'a break' adı ve 'issues with the check-in time' olay değildir", () => {
+    for (const t of ["If you need a break from the city, ask your host for tips.", "If you have any issues with the check-in time, please ask your host."]) {
+      expect(refersGuestToHost(t), t).toBe(true);
+    }
+    for (const t of [
+      "If anything should break, call your host.",
+      "If something breaks, call your host.",
+      "If you have any issues, please contact your host.",
+      "If you have any issues with the heating, please contact your host.",
+    ]) {
+      expect(refersGuestToHost(t), t).toBe(false);
+    }
+  });
+
+  it("🚨 R29 (Opus 10-28): olumsuzluk YAN CÜMLE düzeyinde — yalnız kendi yan cümlesini muaf tutar", () => {
+    for (const t of [
+      "You don't need to contact your host for the Wi-Fi password; for parking, please ask your host.",
+      "Wi-Fi şifresi için ev sahibinize sormanıza gerek yok; otopark için ev sahibinize sorabilirsiniz.",
+      "Site yöneticisine sormanıza gerek yok, ev sahibinize sorabilirsiniz.",
+    ]) {
+      expect(refersGuestToHost(t), t).toBe(true);
+    }
+    expect(refersGuestToHost("Ev sahibinize sormanıza gerek yok, şifre kartın arkasında.")).toBe(false);
+    expect(refersGuestToHost("No need to contact your host, the code is on the card.")).toBe(false);
+  });
+
+  it("🚨 R30 (Opus 10-28): RU iyelik zamiri, 'site yönetimi', DE 'bitte direkt an'", () => {
+    for (const t of [
+      "Рекомендую связаться с вашим хозяином.",
+      "Вы можете уточнить у вашего хозяина.",
+      "Konuyu site yönetimiyle görüşebilirsiniz.",
+      "Wenden Sie sich bitte direkt an Ihren Gastgeber.",
+    ]) {
+      expect(refersGuestToHost(t), t).toBe(true);
+    }
+    expect(refersGuestToHost("Site yönetimi her gün 09:00'da çöpleri toplar.")).toBe(false);
+  });
+
   it("R5: satır sonu dizisi doğrusal (eski düzenli ifade 50.000 satır sonunda 10,5 sn)", () => {
     const t0 = performance.now();
     refersGuestToHost(`${"\n".repeat(50_000)}a`);
@@ -362,6 +448,9 @@ describe("ev sahibine yönlendirme", () => {
     refersGuestToHost(`${"ev sahibinize ".repeat(3_000)}sormanıza gerek yok`);
     refersGuestToHost(`ask your host${"\n ".repeat(25_000)}`);
     refersGuestToHost(`if you ${"e".repeat(50_000)} ask your host`);
+    // R12: yan cümle düzeyi — çok yan cümleli tek cümle (yönlendirmeli / yönlendirmesiz karışık) doğrusal.
+    refersGuestToHost("anahtarı kaybederseniz, ".repeat(3_000) + "ev sahibinize sorabilirsiniz");
+    refersGuestToHost("otopark var, ev sahibinize sorabilirsiniz, ".repeat(2_000));
     expect(performance.now() - t0).toBeLessThan(2_000);
   });
 });

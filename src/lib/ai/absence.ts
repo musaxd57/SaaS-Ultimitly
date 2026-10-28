@@ -640,7 +640,7 @@ export function noInstructionClauseResidue(text: string | null | undefined): str
 //   · Gelecek zaman sözü ("ev sahibiniz size dönecek") çıktı vetosunun işidir; burada yalnız YETENEK / İSTEK kipleri.
 // Kalıplar sabit sözcükle başlar, boşluklar sınırlı ({0,4} sözcük, cümle sınırını geçmez) — karesel iş yok (süre pini testte).
 // Opus 10-23 akşam A2: "hosta / host'a", "mülk / daire sahibi", "(site / bina) yöneticisi" de bilgi için başka birine göndermektir.
-const HOST_TR = `${L}(?:ev ?sahib(?:i|in|im)\\p{L}{0,8}|host(?:'?(?:unuz|unuza|unuzdan|unuzla|umuz))|host'?a(?![\\p{L}])|m[üu]lk sahib\\p{L}{0,8}|daire sahib\\p{L}{0,8}|(?:site |bina )?y[öo]netici\\p{L}{0,6})`;
+const HOST_TR = `${L}(?:ev ?sahib(?:i|in|im)\\p{L}{0,8}|host(?:'?(?:unuz|unuza|unuzdan|unuzla|umuz))|host'?a(?![\\p{L}])|m[üu]lk sahib\\p{L}{0,8}|daire sahib\\p{L}{0,8}|(?:site |bina )?y[öo]netici\\p{L}{0,6}|(?:site|bina|apartman) y[öo]netim\\p{L}{0,6})`;
 const VERB_TR =
   // "sor-" yalnız misafir öznesiyle ("ev sahibiniz giriş saatinizi sorabilir" ev sahibinin sorusudur — Haiku 10-23 akşam).
   "(?:sor(?:abilirsiniz|man[ıi]z|ar[ıi]m)\\p{L}{0,8}|" +
@@ -687,7 +687,7 @@ const HOST_REFERRAL_PATTERNS: readonly RegExp[] = [
     "u",
   ),
   new RegExp(
-    `${L}(?:fragen sie|wenden sie sich (?:bitte )?an|kontaktieren sie|erkundigen sie sich (?:bitte )?bei|melden sie sich (?:bitte )?bei|klären sie (?:das|dies) (?:bitte )?mit|schreiben sie) (?:(?:bitte|gerne|direkt) )?${DE_HOST}(?![\\p{L}])`,
+    `${L}(?:fragen sie|wenden sie sich (?:(?:bitte|gerne|direkt) ){0,2}an|kontaktieren sie|erkundigen sie sich (?:bitte )?bei|melden sie sich (?:bitte )?bei|klären sie (?:das|dies) (?:bitte )?mit|schreiben sie) (?:(?:bitte|gerne|direkt) )?${DE_HOST}(?![\\p{L}])`,
     "u",
   ),
   new RegExp(`${L}(?:bei|von) ${DE_HOST} (?:${W} ){0,2}(?:erfragen|erfahren|nachfragen)(?![\\p{L}])`, "u"),
@@ -728,7 +728,8 @@ const HOST_REFERRAL_PATTERNS: readonly RegExp[] = [
       `(?:contactar(?: con)?|consultar(?: con| a)?|preguntar(?:le)? a|comunicarse con|escribir a|hablar con) ${ES_HOST}(?![\\p{L}])`,
     "u",
   ),
-  new RegExp(`${L}(?:связаться|обратиться|уточнить|спросить|написать)(?: (?:с|со|к|у))? ${RU_HOST}`, "u"),
+  // R30 (Opus 10-28): iyelik zamiri ("связаться с вашим хозяином") emir kalıbındaki gibi.
+  new RegExp(`${L}(?:связаться|обратиться|уточнить|спросить|написать)(?: (?:с|со|к|у))?(?: (?:вашим|вашему|вашего|вашей))? ${RU_HOST}`, "u"),
   new RegExp(`${L}${RU_HOST} (?:сможет|может|подскаж\\p{L}{0,4}|уточнит|расскажет|ответит)(?![\\p{L}])`, "u"),
 ];
 /** Olay koşulu (talimat) — bilgi isteği koşulu DEĞİL. */
@@ -751,9 +752,12 @@ const EVENT_WORDS = new RegExp(
   "(?<![\\p{L}])(?:" +
     // Olay ADI değil olay YÜKLEMİ (Opus 10-23 akşam R2): "alarm şifresi / fire pit / acil çıkış / çalışma saatleri" konu adıdır, olay değildir.
     "lose|loses|lost(?! and found| & found)|locked out|stops? working|stopped working|not working|doesn'?t work|isn'?t working|fails?|failed|broken|" +
-    "breaks?|broke|breaks? down|emergency(?! (?:exit|exits|lighting|lights?))|leak\\p{L}{0,4}|power cut|outage|flood\\p{L}{0,4}|" +
+    // R14 (Opus 10-28): "break" adı ("a break from the city") olay değil — yalnız fiil biçimleri.
+    "breaks|broke|breaks down|break down|(?:should|might|ever|does|to) break|emergency(?! (?:exit|exits|lighting|lights?))|leak\\p{L}{0,4}|power cut|outage|flood\\p{L}{0,4}|" +
     "(?:power|electricity|lights?|heating|wi-?fi|internet|water) (?:goes|went|go|is) (?:out|off)|(?:smoke |fire )?alarm (?:goes|went|is going) off|" +
-    "(?:in case of|there is a|there's a) fire|fire breaks out|problems?|issues?|(?:goes|go|went) wrong|" +
+    "(?:in case of|there is a|there's a) fire|fire breaks out|" +
+    // R14: "issues with the check-in time" bilgi konusudur, olay değil.
+    "(?:problems?|issues?)(?! with (?:the |your )?(?:check-?in|check-?out|arrival|departure|times?|hours|booking|reservation|payment|prices?|parking|directions|address)(?![\\p{L}]))|(?:goes|go|went) wrong|" +
     "can'?t (?:open|get in|access|enter)|cannot (?:open|get in|access|enter)|forget|forgot|" +
     "kaybed\\p{L}{0,12}|kaybol\\p{L}{0,12}|kaybet\\p{L}{0,12}|[çc]al[ıi][şs]m(?:[ıi]yor|az|ad[ıi])\\p{L}{0,8}|bozul\\p{L}{0,12}|ar[ıi]za\\p{L}{0,12}|" +
     "acil (?:bir )?durum\\p{L}{0,6}|kesil\\p{L}{0,12}|s[ıi]z[ıi]nt[ıi]\\p{L}{0,8}|yang[ıi]n (?:olursa|[çc][ıi]karsa|durumunda|halinde|an[ıi]nda)|" +
@@ -789,12 +793,16 @@ const TOPIC_MARKER = new RegExp(
     "über|bezüglich|wegen|по поводу|насч[её]т)(?![\\p{L}])|(?<![\\p{L}])for (?!(?:your )?(?:arrival|check-?in|eta)(?![\\p{L}]))\\p{L}",
   "u",
 );
+/** "Bu sorunuzu ev sahibinize iletebilirsiniz" — bilgi isteğini İLETME de bilgi yönlendirmesidir (R10). */
+const FORWARD_VERB = /(?<![\p{L}])ilet(?:ebilir|in|iniz|meniz)\p{L}{0,8}/u;
 /** Yan cümle ayracı (iletişim değeri muafiyeti yalnız yönlendirmenin KENDİ yan cümlesinde — Opus A3; "ve / and" Haiku 10-23 akşam). URL'deki ":" bölünmez. */
 const CLAUSE_SPLIT = /[,;]|\s(?:ya da|veya|yahut|ve|or|and|oder|und|ou|et|o|y|и|или)\s/u;
 function contactValueInReferralClause(form: string): boolean {
   // Konusuz cümle ("Ev sahibinize ulaşabilirsiniz, telefon: 0532 …", "You can call your host, the number is …") istenen iletişim değerini
   // veriyor — yan cümle bölmesi onu tutmasın (Opus 10-23 akşam R4). Konulu cümlede değer yönlendirmenin KENDİ yan cümlesinde olmalı (A3).
-  if (!TOPIC_MARKER.test(form) && containsContactValue(form)) return true;
+  // R10 (Opus 10-28): konu Türkçede çoğu zaman NESNEDİR ("Otoparkı / Havuz saatlerini ev sahibinize sorabilirsiniz, resepsiyon: 0212 …") — bilgi
+  // İSTEME / iletme fiili varsa cümle konusuz sayılmaz, değer yönlendirmenin kendi yan cümlesinde olmalı.
+  if (!TOPIC_MARKER.test(form) && !INFO_VERB.test(form) && !FORWARD_VERB.test(form) && containsContactValue(form)) return true;
   const referral = form.split(CLAUSE_SPLIT).filter((c) => HOST_REFERRAL_PATTERNS.some((re) => re.test(c)));
   // Kalıp yan cümle ayracını aşıyorsa ("Ev sahibiniz, bu konuda …") cümlenin tamamına bakılır (eski davranış).
   return referral.length > 0 ? referral.every((c) => containsContactValue(c)) : containsContactValue(form);
@@ -876,6 +884,62 @@ function joinLines(text: string): string {
   return out;
 }
 
+/** Olay / varış koşulu muafiyeti (tek okuma birimi: cümle ya da yönlendirme yan cümlesinin koşul bağlamı). */
+function eventOrArrivalExempt(texts: readonly string[]): boolean {
+  const eventInstruction = texts.some(
+    (f) =>
+      (EVENT_CONDITION.test(f) && EVENT_WORDS.test(f)) ||
+      (ARRIVAL_INSTRUCTION.test(f) && !INFO_VERB.test(f) && !TOPIC_MARKER.test(f) && !DISCUSS_VERB.test(f)),
+  );
+  return eventInstruction && !texts.some((f) => INFO_CONDITION.test(f.replace(HOST_NOTICE, " ")));
+}
+/**
+ * R11 (Opus 10-28): varışta ev sahibiyle KONUŞMAK / GÖRÜŞMEK bir konunun görüşülmesidir ("Otopark yerini gelmeden önce ev sahibinizle görüşün",
+ * "Havuzun açılış saatini varınca ev sahibinizle konuşabilirsiniz") — varış talimatı yalnız ara / yaz / mesaj / haber ver türündedir.
+ */
+const DISCUSS_VERB = /(?<![\p{L}])(?:konu[şs]\p{L}{0,14}|g[öo]r[üu][şs]\p{L}{0,14}|speak\p{L}{0,3}|talk\p{L}{0,3}|discuss\p{L}{0,3}|sprechen|besprechen|parlez|parler|hable|hablar|поговор\p{L}{0,4}|обсуд\p{L}{0,4})(?![\p{L}])/u;
+/** Cümle sonundaki koşul yan cümlesi ("Contact your host, especially if the Wi-Fi fails") yönlendirmeye aittir. */
+const TRAILING_CONDITION = /^\s*(?:especially |only |just |even )?(?:if|in case|when|unless|wenn|falls|si|en caso|если)(?![\p{L}])/u;
+
+/**
+ * R12 / R29 (Opus 10-28): muafiyetler YAN CÜMLE düzeyinde. Cümledeki HER yönlendirme yan cümlesi kendi koşul bağlamında (önündeki yönlendirmesiz
+ * yan cümleler + kendisi + cümle sonundaki "if …" yan cümlesi) olay / varış koşulu taşımalı ya da KENDİ yan cümlesinde olumsuz olmalı; biri bile
+ * koşulsuz bilgi yönlendirmesiyse cevap tutulur ("Havuz saatlerini ev sahibinize sorabilirsiniz, herhangi bir sorun olursa da kendisine
+ * ulaşabilirsiniz" · "Wi-Fi şifresi için ev sahibinize sormanıza gerek yok; otopark için ev sahibinize sorabilirsiniz"). Kalıp yan cümle
+ * ayracını aşıyorsa ("Ev sahibiniz, bu konuda …") ya da iki katlamanın bölmesi denk değilse cümle bütün okunur (eski davranış). Doğrusal.
+ */
+const CLAUSE_SPLIT_G = new RegExp(CLAUSE_SPLIT.source, "gu");
+/** Yan cümle sınırları (başlangıç, bitiş) — bağlam penceresi ÖZGÜN metinden kesilir ("lost and found" bölünüp "lost" olay sanılmasın). */
+function clauseSpans(form: string): [number, number][] {
+  const out: [number, number][] = [];
+  let from = 0;
+  for (const m of form.matchAll(CLAUSE_SPLIT_G)) {
+    out.push([from, m.index]);
+    from = m.index + m[0].length;
+  }
+  out.push([from, form.length]);
+  return out;
+}
+function referralUnexempted(forms: readonly string[]): boolean {
+  const spans = forms.map(clauseSpans);
+  const split = forms.map((f, j) => spans[j].map(([x, y]) => f.slice(x, y)));
+  const n = split[0].length;
+  const isRef = (k: number) => split.some((cs) => HOST_REFERRAL_PATTERNS.some((re) => re.test(cs[k])));
+  const refs = split.every((cs) => cs.length === n) ? [...Array(n).keys()].filter(isRef) : [];
+  if (refs.length === 0) return !forms.some((f) => NEGATED_REFERRAL.test(f)) && !eventOrArrivalExempt(forms);
+  const refSet = new Set(refs);
+  let prev = -1;
+  for (const k of refs) {
+    // Koşul bağlamı önceki yönlendirme yan cümlesinden SONRA başlar (toplam pencere uzunluğu yan cümle sayısı kadar — doğrusal).
+    const a = prev + 1;
+    prev = k;
+    if (split.some((cs) => NEGATED_REFERRAL.test(cs[k]))) continue;
+    const b = k + 1 === n - 1 && !refSet.has(k + 1) && split.some((cs) => TRAILING_CONDITION.test(cs[k + 1])) ? k + 1 : k;
+    if (!eventOrArrivalExempt(forms.map((f, j) => f.slice(spans[j][a][0], spans[j][b][1])))) return true;
+  }
+  return false;
+}
+
 /**
  * Cevap misafiri bilgi için ev sahibine yönlendiriyor mu (kurucu 10-23 akşam 4.5)? Cümle bazında; iletişim değeri taşıyan ve olay koşullu
  * cümle hariç (↑). `true` ise cevap "bilgim yok" sayılır (`admitsMissingKnowledge`). Saf, doğrusal.
@@ -895,14 +959,9 @@ export function refersGuestToHost(reply: string | null | undefined): boolean {
     const forms = [ps[i], ts[i] ?? ps[i]].map((f) => f.replace(FIRST_PERSON_REFERRAL, " "));
     if (!forms.some((f) => HOST_REFERRAL_PATTERNS.some((re) => re.test(f)))) continue;
     if (forms.some((f) => contactValueInReferralClause(f))) continue;
-    if (forms.some((f) => NEGATED_REFERRAL.test(f))) continue;
     // "If I were you, …" koşul değil tavsiye kalıbıdır (Haiku 10-23 akşam) — koşul aranmadan önce silinir.
     const conditionForms = forms.map((f) => f.replace(WHETHER_IF, "$1$2whether").replace(IF_I_WERE_YOU, " "));
-    const eventInstruction = conditionForms.some(
-      (f) => (EVENT_CONDITION.test(f) && EVENT_WORDS.test(f)) || (ARRIVAL_INSTRUCTION.test(f) && !INFO_VERB.test(f) && !TOPIC_MARKER.test(f)),
-    );
-    if (eventInstruction && !conditionForms.some((f) => INFO_CONDITION.test(f.replace(HOST_NOTICE, " ")))) continue;
-    return true;
+    if (referralUnexempted(conditionForms)) return true;
   }
   return false;
 }
