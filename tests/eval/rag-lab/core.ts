@@ -294,7 +294,7 @@ export async function labUnderstand(q: LabQuery, history = labHistory(q, false))
 // ─── yeniden sıralayıcı (üretim isteğinin parametreli ikizi; varsayılanda BİREBİR aynı istek — pin testi) ─────
 export function labRerankRequest(
   guestMessage: string,
-  candidates: readonly { key: string; title: string; text: string }[],
+  candidates: readonly { key: string; title: string; text: string; prefixChars?: number }[],
   opts: { k: number; crop: number },
   names: readonly string[] = [],
 ): { user: string; ids: Map<string, string> } {
@@ -303,7 +303,7 @@ export function labRerankRequest(
   const lines = candidates.slice(0, opts.k).map((c, i) => {
     const id = `C${i + 1}`;
     ids.set(id, c.key);
-    return `[${id}] <<<${fence(`${c.title} — ${c.text}`.slice(0, opts.crop))}>>>`;
+    return `[${id}] <<<${fence(`${c.title} — ${c.text}`.slice(0, opts.crop + (c.prefixChars ?? 0)))}>>>`;
   });
   const question = fence(redactForSemanticModel(guestMessage.slice(0, RERANK_QUESTION_CHARS), names));
   return { user: [`Guest message: <<<${question}>>>`, "", "Candidates:", ...lines].join("\n"), ids };
@@ -343,7 +343,7 @@ const PERQ_SCHEMA = {
 export async function labRerankPerQuestion(
   guestMessage: string,
   questions: readonly string[],
-  candidates: readonly { key: string; title: string; text: string }[],
+  candidates: readonly { key: string; title: string; text: string; prefixChars?: number }[],
   opts: { k: number; crop: number; model?: string; effort?: string },
 ): Promise<{ scores: Map<number, Map<string, number>>; ms: number | null; chars: number } | null> {
   const base = labRerankRequest(guestMessage, candidates, opts);
@@ -398,7 +398,7 @@ async function callWithRetry(input: Parameters<typeof callStructuredJson>[0]): R
 
 export async function labRerank(
   question: string,
-  candidates: readonly { key: string; title: string; text: string }[],
+  candidates: readonly { key: string; title: string; text: string; prefixChars?: number }[],
   opts: { k: number; crop: number; model?: string; effort?: string },
 ): Promise<{ scores: Map<string, number>; ms: number | null; chars: number } | null> {
   const { user, ids } = labRerankRequest(question, candidates, opts);
@@ -440,6 +440,11 @@ export interface LabRun {
   rrErrors: number;
   window: string[];
   semStatus: "off" | "not_needed" | "ok" | "unavailable";
+  /**
+   * Anlama katmanı bu soruda koştu mu (10-28: uzun belge ölçeri `AI_UNDERSTANDING_ENABLED` vermediği için katman sessizce "kapalı"
+   * dönüyordu, ölçüm anlamasız alınmıştı) — "null" = çağrı yapıldı ama sonuç yok (kapalı anahtar / arıza / biçim).
+   */
+  undStatus: "off" | "not_needed" | "ok" | "null";
   cosByKey: Map<string, number> | null;
   pool: LabItem[];
   text: string;
@@ -454,8 +459,10 @@ export async function runPipeline(kbItems: readonly LabItem[], q: LabQuery, cfg:
   let extraQueries: ExtraQuery[] = [];
   /** Ek sorgunun (normalize alt sorgu) hangi anlama isteğinden geldiği — "req" penceresi için. */
   const extraReq = new Map<string, number>();
+  let undStatus: LabRun["undStatus"] = cfg.understanding ? "not_needed" : "off";
   if (cfg.understanding && retrievalNeeded(pool, base.fullSetMaxItems)) {
     const u = await labUnderstand(q, history);
+    undStatus = u ? "ok" : "null";
     extraQueries = understandingQueries(u ?? undefined);
     for (const [text, req] of understandingQueryRequests(u)) extraReq.set(normalizeForRetrieval(text).trim(), req);
   }
@@ -553,7 +560,7 @@ export async function runPipeline(kbItems: readonly LabItem[], q: LabQuery, cfg:
     const byKey = new Map(chunkItems(pool.filter((it) => wanted.has(it.id))).map((c) => [chunkKey(c), c] as const));
     const cands = window.flatMap((k) => {
       const c = byKey.get(k);
-      return c ? [{ key: k, title: c.title, text: c.text }] : [];
+      return c ? [{ key: k, title: c.title, text: c.text, ...(c.prefixChars ? { prefixChars: c.prefixChars } : {}) }] : [];
     });
     if (cands.length < 2) rrStatus = "skipped";
     else if (cfg.rerank.dry) rrStatus = "dry";
@@ -585,7 +592,7 @@ export async function runPipeline(kbItems: readonly LabItem[], q: LabQuery, cfg:
         const allWins = rerankCandidateWindows(lists, listMeta, cfg.rerank.windowOpts).map((keys) =>
           keys.flatMap((k) => {
             const c = byKey.get(k);
-            return c ? [{ key: k, title: c.title, text: c.text }] : [];
+            return c ? [{ key: k, title: c.title, text: c.text, ...(c.prefixChars ? { prefixChars: c.prefixChars } : {}) }] : [];
           }),
         );
         // Pencere i ↔ isteklerin kovası (üretimin `rerankCandidateWindows` kova kuralının ikizi: sıralı istekler, sırayla).
@@ -644,7 +651,7 @@ export async function runPipeline(kbItems: readonly LabItem[], q: LabQuery, cfg:
     }
   }
   const text = packKnowledgeBase(result.items, result.droppedItems, result.selection, result.notes).text;
-  return { result, lists, listMeta, rrScores, rrStatus, rrErrors, window, semStatus, cosByKey, pool, text, rrMs, rrChars };
+  return { result, lists, listMeta, rrScores, rrStatus, rrErrors, window, semStatus, undStatus, cosByKey, pool, text, rrMs, rrChars };
 }
 
 /** Listeler arası RRF (K=60) ile ilk `k` benzersiz anahtar — pencere kuruluşu deneyi. */
@@ -855,7 +862,7 @@ export function traceAnswer(run: LabRun, a: LabAnswer, cfg: LabConfig, allItems:
   const cropCut =
     inWindow &&
     !!cfg.rerank &&
-    !chunks.some((c) => keys.has(chunkKey(c)) && run.window.includes(chunkKey(c)) && a.needles.some((n) => `${c.title} — ${c.text}`.slice(0, cfg.rerank!.crop).includes(n)));
+    !chunks.some((c) => keys.has(chunkKey(c)) && run.window.includes(chunkKey(c)) && a.needles.some((n) => `${c.title} — ${c.text}`.slice(0, cfg.rerank!.crop + (c.prefixChars ?? 0)).includes(n)));
   const t: Omit<AnswerTrace, "stage"> = { bestRank, maxCos, rrLabel, cropCut };
   if (inBlock) return { stage: "ok", ...t };
   if (fetched.length === 0) return { stage: "fetch", ...t };

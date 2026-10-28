@@ -1,8 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { planDocumentImport } from "@/lib/kb-import/document";
 import { chunkItems } from "@/lib/ai/retrieval/chunker";
+import { __resetKbIndexCache } from "@/lib/ai/retrieval/index-cache";
+import { __resetUnderstandingCache } from "@/lib/ai/semantic/understand";
 import { runPipeline, type LabItem, type LabQuery } from "./rag-lab/core";
 import { parseConfig } from "./rag-lab/config";
 
@@ -64,6 +66,8 @@ const WORKERS = Math.max(1, Math.min(8, Math.trunc(Number(process.env.EVAL_RAG_W
 const BACKGROUND = Math.max(0, Math.trunc(Number(process.env.EVAL_RAG_LONG_BACKGROUND) || 0));
 /** Kör küme ayar için okunmaz: rapora soru ayrıntısı yazılmaz (yalnız oranlar). */
 const DETAILS = process.env.EVAL_RAG_LONG_DETAILS !== "0" && SET !== "blind";
+/** Rapor adına ek (aynı gün aynı yapılandırmanın farklı koşuları üst üste yazılmasın). */
+const TAG = (process.env.EVAL_RAG_LONG_TAG ?? "").replace(/[^a-z0-9_.-]/gi, "");
 
 function backgroundItems(n: number): LabItem[] {
   if (n === 0) return [];
@@ -108,6 +112,13 @@ export interface LongRow {
   spans: number;
   /** Alıntıların kaçı içe aktarılan kalemlerde var. */
   imported: number;
+  /**
+   * Yalnız "Giriş Talimatı" (checkin) kaleminde bulunan alıntı sayısı — o kategori QR sohbetinde ve rezervasyon öncesinde misafire
+   * GİTMEZ (`QR_SECRET_CATEGORIES` / `PREBOOKING_SECRET_CATEGORIES`). İçe aktarma kapı / anahtar sözcüğü taşıyan paragrafı bütünüyle oraya
+   * taşır (dev seti yazarı 10-28: yol tarifi, otopark, sigorta kutusu bu yüzden gizleniyor). Bu ölçer bütün kategorileri getirir; sayı
+   * QR / rezervasyon öncesi yüzeyde kaybolacak bağlamın büyüklüğüdür.
+   */
+  accessOnly: number;
   sameItem: boolean;
   sameChunk: boolean;
   /** Bloğa giren alıntı sayısı. */
@@ -115,16 +126,22 @@ export interface LongRow {
   complete: boolean;
   any: boolean;
   selected: number;
+  /** Anlama katmanı bu soruda koştu mu (`LabRun.undStatus`). */
+  und: string;
   blockChars: number;
   missing: string[];
 }
 
-function evaluate(q: LongQuestion, items: LabItem[], blockText: string, config: string, selected: number): LongRow {
+function evaluate(q: LongQuestion, items: LabItem[], blockText: string, config: string, selected: number, und: string): LongRow {
   const spans = q.requiredSpans.map(norm);
   const itemTexts = items.map((it) => norm(it.content));
   const chunkTexts = chunkItems(items).map((c) => norm(c.text));
   const block = norm(blockText);
   const inItems = spans.filter((s) => itemTexts.some((t) => t.includes(s)));
+  const accessOnly = spans.filter((s) => {
+    const holders = items.filter((it) => norm(it.content).includes(s));
+    return holders.length > 0 && holders.every((it) => it.category === "checkin");
+  }).length;
   const inBlock = spans.filter((s) => block.includes(s));
   return {
     qid: q.id,
@@ -135,12 +152,14 @@ function evaluate(q: LongQuestion, items: LabItem[], blockText: string, config: 
     config,
     spans: spans.length,
     imported: inItems.length,
+    accessOnly,
     sameItem: spans.length > 0 && itemTexts.some((t) => spans.every((s) => t.includes(s))),
     sameChunk: spans.length > 0 && chunkTexts.some((t) => spans.every((s) => t.includes(s))),
     inBlock: inBlock.length,
     complete: spans.length > 0 && inBlock.length === spans.length,
     any: inBlock.length > 0,
     selected,
+    und,
     blockChars: blockText.length,
     missing: q.requiredSpans.filter((s) => !block.includes(norm(s))),
   };
@@ -162,6 +181,9 @@ export function report(rows: readonly LongRow[], set: LongSet, docs: Map<string,
     const multi = ans.filter((r) => r.spans >= 2);
     lines.push(`## Yapılandırma \`${cfg}\``, "");
     lines.push(`| ölçü | sonuç |`, `|---|---|`);
+    const und = (k: string) => rs.filter((r) => r.und === k).length;
+    lines.push(`| anlama katmanı (koştu · boş döndü · gerek yok · kapalı) | ${und("ok")} · ${und("null")} · ${und("not_needed")} · ${und("off")} |`);
+    lines.push(`| yalnız "Giriş Talimatı"nda kalan alıntı (QR ve rezervasyon öncesi görmez) | ${ans.reduce((a, r) => a + r.accessOnly, 0)} alıntı · ${ans.filter((r) => r.accessOnly > 0).length} soru |`);
     lines.push(`| içe aktarmada kaybolmayan alıntı | ${pct(ans.reduce((a, r) => a + r.imported, 0), ans.reduce((a, r) => a + r.spans, 0))} |`);
     lines.push(`| çok alıntılı soruda hepsi aynı kalemde | ${pct(multi.filter((r) => r.sameItem).length, multi.length)} |`);
     lines.push(`| çok alıntılı soruda hepsi aynı parçada | ${pct(multi.filter((r) => r.sameChunk).length, multi.length)} |`);
@@ -189,6 +211,18 @@ const hasFile = existsSync(FILE);
 const requested = process.env.EVAL_RAG_LONG === "1" || process.env.RUN_REAL_EVAL === "1";
 
 describe(`uzun belge RAG — ${SET}`, () => {
+  // Anlama katmanı üretimde AÇIK (`AI_UNDERSTANDING_ENABLED=1`, canlı); ölçer de açar — 10-28 ilk koşular bunu vermediği için katman
+  // sessizce kapalı koşmuştu (aşağıdaki anti-vakum artık bunu koşuyu düşürerek yakalar). `rag-lab.eval.test.ts` ile aynı kurulum.
+  const saved = process.env.AI_UNDERSTANDING_ENABLED;
+  beforeAll(() => {
+    process.env.AI_UNDERSTANDING_ENABLED = "1";
+    __resetKbIndexCache();
+    __resetUnderstandingCache();
+  });
+  afterAll(() => {
+    if (saved === undefined) delete process.env.AI_UNDERSTANDING_ENABLED;
+    else process.env.AI_UNDERSTANDING_ENABLED = saved;
+  });
   it.runIf(hasFile && requested)("içe aktarma + getirme: bağlam tamlığı ölçülür, rapor yazılır", { timeout: 3_600_000 }, async () => {
     const set = JSON.parse(readFileSync(FILE, "utf8")) as LongSet;
     const configs = CONFIG_NAMES.map(parseConfig);
@@ -222,7 +256,7 @@ describe(`uzun belge RAG — ${SET}`, () => {
             answers: q.requiredSpans.map((s) => ({ needles: [s], goldIds: [] })),
           };
           const run = await runPipeline(items, lq, cfg, NOW);
-          rows.push(evaluate(q, items, run.text, cfg.name, run.result.items.length));
+          rows.push(evaluate(q, items, run.text, cfg.name, run.result.items.length, run.undStatus));
         }
       };
       await Promise.all(Array.from({ length: WORKERS }, work));
@@ -230,10 +264,15 @@ describe(`uzun belge RAG — ${SET}`, () => {
     rows.sort((a, b) => a.config.localeCompare(b.config) || a.qid.localeCompare(b.qid));
     const outDir = path.resolve(__dirname, "../../docs/olcum");
     mkdirSync(outDir, { recursive: true });
-    const stamp = `rag-uzun-belge-${set.split}-bg${BACKGROUND}-${CONFIG_NAMES.join("_").replace(/[^a-z0-9_.-]/gi, "")}-2026-10-28`;
+    const stamp = `rag-uzun-belge-${set.split}-bg${BACKGROUND}-${CONFIG_NAMES.join("_").replace(/[^a-z0-9_.-]/gi, "")}${TAG ? `-${TAG}` : ""}-2026-10-28`;
     const outRows = DETAILS ? rows : rows.map(({ missing: _missing, ...r }) => r);
     writeFileSync(path.join(outDir, `${stamp}.json`), JSON.stringify({ set: set.split, author: set.author, configs: CONFIG_NAMES, background: BACKGROUND, rows: outRows }, null, 1));
     writeFileSync(path.join(outDir, `${stamp}.md`), report(rows, set, docs, DETAILS, BACKGROUND));
     expect(rows.length).toBe(set.questions.length * configs.length);
+    // Anti-vakum: anlamalı yapılandırma seçim yapılan boyutta (arka planlı) koştuysa katmanın gerçekten sonuç vermiş olması gerekir.
+    for (const c of configs.filter((x) => x.understanding)) {
+      const cr = rows.filter((r) => r.config === c.name && r.und !== "not_needed");
+      if (cr.length > 0) expect(cr.filter((r) => r.und === "ok").length, `${c.name}: anlama katmanı sonuç vermedi`).toBeGreaterThanOrEqual(Math.ceil(cr.length * 0.9));
+    }
   });
 });
