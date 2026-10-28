@@ -12,6 +12,7 @@ CREATE TABLE "KbChunkVector" (
     "ord" INTEGER NOT NULL DEFAULT 0,
     "dims" INTEGER NOT NULL,
     "vector" BYTEA NOT NULL,
+    "itemUpdatedAt" TIMESTAMP(3) NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "KbChunkVector_pkey" PRIMARY KEY ("id")

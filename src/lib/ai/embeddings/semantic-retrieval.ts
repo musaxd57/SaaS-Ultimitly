@@ -17,7 +17,8 @@
  *    iki konunun karışımıdır. Her alt sorgu 1–2 metinle sorulur (ait olduğu ham cümle + virgülle
  *    bölündüyse kendisi) ve parçanın puanı EN YÜKSEK kosinüstür (çoklu sorgu).
  *  · SICAK YOL KISA: YALNIZ sorgu metinleri, `SEMANTIC_HOT_PATH_DEADLINE_MS` bütçesiyle; geçici
- *    arızada çağrı başına alarm YOK (`quiet`). Aşılırsa bu karar SÖZCÜKSEL devam eder.
+ *    arızada çağrı başına alarm YOK (`quiet`). Aşılırsa bu karar SÖZCÜKSEL devam eder. Kalıcı depo açıkken bellekte eksik parça
+ *    varsa önce depodan AYRI bir bütçeyle (`VECTOR_STORE_READ_TIMEOUT_MS`, 250 ms) okunur — toplam bekleme en çok ikisinin toplamı.
  *  · PARÇA VEKTÖRLERİ YALNIZ ARKA PLANDA (saatlik metin tavanı): eksik parça varsa ısıtma başlar ve
  *    bu karar sözcüksel (`cold`). YARIM HARİTA YOK: bazı parçaların puanı olup bazılarının
  *    olmaması sıralamayı sessizce çarpıtırdı.
@@ -43,9 +44,12 @@ import { semanticThresholdFor, thresholdTransform } from "@/lib/ai/retrieval/sem
 import { embeddingTextFor } from "@/lib/ai/embeddings/context-text";
 import { embedTexts, embeddingModel, EMBEDDING_BATCH_MAX } from "@/lib/ai/embeddings/provider";
 import {
+  inputHashOf,
   loadChunkVectors,
+  pairKey,
   persistChunkVectors,
   vectorStoreEnabled,
+  type ChunkOwner,
   VECTOR_STORE_READ_TIMEOUT_MS,
   VECTOR_STORE_WARM_READ_TIMEOUT_MS,
 } from "@/lib/ai/embeddings/vector-store";
@@ -128,39 +132,85 @@ function takeWarmBudget(n: number, now: number): boolean {
   return true;
 }
 
-/** Isıtma girdisi: gömülecek metin + o metni taşıyan kalem (kalıcı depo satırı kaleme bağlanır). */
+/** Isıtma girdisi: gömülecek metin + o metni taşıyan kalem ve ısıtmanın gördüğü kalem sürümü (kalıcı depo satırı kaleme bağlanır). */
 interface WarmEntry {
   text: string;
   itemId: string;
+  updatedAt: Date;
+}
+
+/**
+ * Kalıcı depoda KENDİ satırı olduğu bilinen (kalem, girdi özeti) çiftleri — yalnız anahtar açıkken dolar, süreç başına ve sınırlı. Aynı
+ * metin iki kalemde (ör. kopyalanmış bilgi tabanı) geçerken bellekteki vektör ikinci kalemin satırını da yazdırır (Haiku 10-28): yoksa
+ * yeniden başlatmadan sonra o kalemin dairesi yeniden ödemeye ve "cold"a düşerdi.
+ */
+const persisted = new Set<string>();
+const PERSISTED_MAX = 50_000;
+function markPersisted(keys: Iterable<string>): void {
+  for (const k of keys) {
+    if (persisted.size >= PERSISTED_MAX) persisted.clear();
+    persisted.add(k);
+  }
+}
+
+function pushOwner(map: Map<string, ChunkOwner[]>, text: string, owner: ChunkOwner): void {
+  const list = map.get(text) ?? [];
+  if (!list.some((o) => o.kbItemId === owner.kbItemId)) list.push(owner);
+  map.set(text, list);
 }
 
 /**
  * Eksik parça metinlerini arka planda gömer (bekletmez, fırlatmaz, tekrarlamaz). Kuyruğa GERÇEKTEN alınan metin sayısını döner.
- * Kalıcı depo açıkken önce depodan okur (bulunanlar gömülmez, saatlik bütçeye sayılmaz), yalnız kalanları gömer ve depoya yazar.
+ * Kalıcı depo açıkken: önce depodan okur (bulunanlar gömülmez), saatlik bütçe YALNIZ gerçekten gömülecek metne sayılır (depodan okuma
+ * bütçe doluyken de yapılır), üretilen vektör ve bellekte olup kalemin kendi satırı olmayan vektör depoya yazılır.
  */
 function scheduleWarm(model: string, entries: readonly WarmEntry[]): number {
-  const owners = new Map<string, Set<string>>();
+  const storeOn = vectorStoreEnabled();
+  const owners = new Map<string, ChunkOwner[]>();
+  const persistOnly = new Map<string, ChunkOwner[]>();
   for (const e of entries) {
     const k = storeKey(model, e.text);
-    if (store.has(k) || warming.has(k)) continue;
-    const set = owners.get(e.text) ?? new Set<string>();
-    set.add(e.itemId);
-    owners.set(e.text, set);
+    if (warming.has(k)) continue;
+    const owner = { kbItemId: e.itemId, updatedAt: e.updatedAt };
+    if (store.has(k)) {
+      if (storeOn && !persisted.has(pairKey(e.itemId, inputHashOf(e.text)))) pushOwner(persistOnly, e.text, owner);
+      continue;
+    }
+    pushOwner(owners, e.text, owner);
   }
   const todo = [...owners.keys()];
-  if (todo.length === 0 || !takeWarmBudget(todo.length, Date.now())) return 0;
+  if (storeOn) {
+    if (todo.length === 0 && persistOnly.size === 0) return 0;
+  } else if (todo.length === 0 || !takeWarmBudget(todo.length, Date.now())) {
+    return 0;
+  }
   const keys = todo.map((t) => storeKey(model, t));
   for (const k of keys) warming.add(k);
   const job = (async () => {
     try {
       let remaining = todo;
-      if (vectorStoreEnabled()) {
-        const refs = todo.flatMap((text) => [...(owners.get(text) ?? [])].map((kbItemId) => ({ kbItemId, text })));
-        const { vectors } = await loadChunkVectors(model, refs, VECTOR_STORE_WARM_READ_TIMEOUT_MS);
-        for (const [text, vec] of vectors) store.set(storeKey(model, text), vec);
-        trimStore();
-        if (vectors.size > 0) warmUsed = Math.max(0, warmUsed - vectors.size); // depodan gelen gömülmedi → bütçeye sayılmaz
-        remaining = todo.filter((t) => !vectors.has(t));
+      if (storeOn) {
+        const fromMemory = [...persistOnly].flatMap(([text, list]) => {
+          const vector = store.get(storeKey(model, text));
+          return vector ? [{ owners: list, text, vector }] : [];
+        });
+        if (fromMemory.length > 0) markPersisted(await persistChunkVectors(model, fromMemory));
+        if (todo.length > 0) {
+          const refs = todo.flatMap((text) => (owners.get(text) ?? []).map((o) => ({ kbItemId: o.kbItemId, text })));
+          const { vectors, found } = await loadChunkVectors(model, refs, VECTOR_STORE_WARM_READ_TIMEOUT_MS);
+          markPersisted(found);
+          for (const [text, vec] of vectors) store.set(storeKey(model, text), vec);
+          trimStore();
+          // Metin başka bir kalemin satırından bulunduysa bu kalemin KENDİ satırı yazılır.
+          const ownless = [...vectors].flatMap(([text, vector]) => {
+            const hash = inputHashOf(text);
+            const list = (owners.get(text) ?? []).filter((o) => !found.has(pairKey(o.kbItemId, hash)));
+            return list.length > 0 ? [{ owners: list, text, vector }] : [];
+          });
+          if (ownless.length > 0) markPersisted(await persistChunkVectors(model, ownless));
+          remaining = todo.filter((t) => !vectors.has(t));
+          if (remaining.length > 0 && !takeWarmBudget(remaining.length, Date.now())) remaining = [];
+        }
       }
       for (let i = 0; i < remaining.length; i += EMBEDDING_BATCH_MAX) {
         const batch = remaining.slice(i, i + EMBEDDING_BATCH_MAX);
@@ -169,10 +219,9 @@ function scheduleWarm(model: string, entries: readonly WarmEntry[]): number {
         // bir alarm YOK (kalıcı kota arızasında her misafir mesajı bir e-posta demek olurdu).
         if (!out) break;
         batch.forEach((t, j) => storeSet(storeKey(model, t), out[j]));
-        await persistChunkVectors(
-          model,
-          batch.map((t, j) => ({ kbItemIds: [...(owners.get(t) ?? [])], text: t, vector: out[j] })),
-        );
+        if (storeOn) {
+          markPersisted(await persistChunkVectors(model, batch.map((t, j) => ({ owners: owners.get(t) ?? [], text: t, vector: out[j] }))));
+        }
       }
     } catch (err) {
       void reportError("kb-semantic-warm", err);
@@ -223,25 +272,31 @@ export async function prepareSemanticScores<T extends KbChunkSource>(input: Sema
     // dizin YAZMA zamanında kurulur, sorgu zamanında yalnız sorgu gömülür. Bedel: yeni/değişen KB'nin
     // İLK kararı sözcüksel (`cold`). Aynı anda gelen çağrılar aynı parçaları iki kez ödemez (`warming`).
     let missingIdx = chunkTexts.flatMap((t, i) => (store.has(storeKey(model, t)) ? [] : [i]));
-    // Kalıcı depo (anahtar açıkken): bellekte eksik parçalar YALNIZ bu kümenin kalem kimlikleriyle, zaman sınırıyla okunur. Hâlâ eksik
-    // varsa aşağıda bugünkü gibi "cold" + arka plan ısıtması (YARIM HARİTA YOK).
+    // Kalıcı depo (anahtar açıkken): bellekte eksik parçalar YALNIZ bu kümenin kalem kimlikleriyle, zaman sınırıyla okunur. Okunan
+    // vektörler bu kararda doğrudan kullanılır (bellek deposu dolu olup tahliye etse de — Haiku 10-28). Hâlâ eksik varsa aşağıda bugünkü
+    // gibi "cold" + arka plan ısıtması (YARIM HARİTA YOK).
+    const loaded = new Map<string, Float32Array>();
     if (missingIdx.length > 0 && vectorStoreEnabled()) {
       const refs = missingIdx.map((i) => ({ kbItemId: index.chunks[i].id, text: chunkTexts[i] }));
-      const { vectors } = await loadChunkVectors(model, refs, VECTOR_STORE_READ_TIMEOUT_MS);
-      for (const [text, vec] of vectors) store.set(storeKey(model, text), vec);
+      const { vectors, found } = await loadChunkVectors(model, refs, VECTOR_STORE_READ_TIMEOUT_MS);
+      markPersisted(found);
+      for (const [text, vec] of vectors) {
+        loaded.set(text, vec);
+        store.set(storeKey(model, text), vec);
+      }
       trimStore();
       missingIdx = missingIdx.filter((i) => !vectors.has(chunkTexts[i]));
     }
     const chunkVecs: Float32Array[] = [];
     for (const t of chunkTexts) {
-      const v = storeGet(storeKey(model, t)); // okuma tazeliği yeniler: kullanılan KB tahliyeye direnir
+      const v = storeGet(storeKey(model, t)) ?? loaded.get(t); // okuma tazeliği yeniler: kullanılan KB tahliyeye direnir
       if (v) chunkVecs.push(v);
     }
     if (missingIdx.length > 0 || chunkVecs.length !== chunkTexts.length) {
       // Depoda olanları `scheduleWarm` kendisi atlar → yalnız eksikler kuyruğa girer (bugünkü küme).
       scheduleWarm(
         model,
-        chunkTexts.map((text, i) => ({ text, itemId: index.chunks[i].id })),
+        chunkTexts.map((text, i) => ({ text, itemId: index.chunks[i].id, updatedAt: index.chunks[i].updatedAt })),
       );
       return done("cold"); // YARIM HARİTA YOK
     }
@@ -294,7 +349,7 @@ export function warmKbVectors<T extends KbChunkSource>(items: readonly T[]): num
     // Depoda olmayan ve hâlihazırda ısıtılmayan metinler (sayı kuyruğa GERÇEKTEN alınanlar; bütçe reddederse 0).
     return scheduleWarm(
       model,
-      chunks.map((c) => ({ text: embeddingTextFor(c), itemId: c.id })),
+      chunks.map((c) => ({ text: embeddingTextFor(c), itemId: c.id, updatedAt: c.updatedAt })),
     );
   } catch (err) {
     void reportError("kb-semantic-warm-items", err);
@@ -306,6 +361,7 @@ export function warmKbVectors<T extends KbChunkSource>(items: readonly T[]): num
 
 export function __resetSemanticRetrieval(): void {
   store.clear();
+  persisted.clear();
   storeMax = CHUNK_VECTOR_CACHE_MAX;
   warming.clear();
   warmWindowStart = 0;
@@ -314,6 +370,12 @@ export function __resetSemanticRetrieval(): void {
 
 export function __semanticStoreSize(): number {
   return store.size;
+}
+
+/** Test: saatlik ısıtma bütçesini doldur (bütçe doluyken kalıcı depodan okumanın sürdüğünü sınamak için). */
+export function __exhaustWarmBudgetForTests(): void {
+  warmWindowStart = Date.now();
+  warmUsed = WARM_TEXTS_PER_HOUR;
 }
 
 /** Test: depo tavanını küçült (tahliye yarışını sınamak için). `__resetSemanticRetrieval` geri alır. */

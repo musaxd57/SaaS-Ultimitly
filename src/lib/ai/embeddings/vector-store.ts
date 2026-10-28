@@ -14,9 +14,12 @@
  *    süzgeçli bilgi tabanı okumasından gelir. Başka işletmenin satırı istenemez.
  *  · Okuma zaman sınırlı (`VECTOR_STORE_READ_TIMEOUT_MS`); her satır doğrulanır (türün izinli boyutu · bayt = boyut × 4 · sonlu sayılar);
  *    bozuk satır silinir ve EKSİK sayılır. Çağıran eksik kalırsa bugünkü gibi "cold" der (YARIM HARİTA YOK).
- *  · Yazma yalnız ısıtmadan (`semantic-retrieval.ts scheduleWarm`): sorgu vektörü ASLA yazılmaz.
- *  · Temizlik tek kancada (`kb/after-change.ts`): değişen dairelerin kalemlerinde `createdAt < kalem.updatedAt` olan belirlenimci tür
- *    satırları silinir; açılışta başka model / tarif satırları silinir. Kalem / daire / işletme silinince satırlar cascade ile gider.
+ *  · Yazma yalnız ısıtmadan (`semantic-retrieval.ts scheduleWarm`): sorgu vektörü ASLA yazılmaz. Her satır üretildiği andaki kalem
+ *    sürümünü (`itemUpdatedAt`) taşır ve YALNIZ kalem hâlâ o sürümdeyse yazılır (kalem satırı `FOR SHARE` ile kilitlenerek) → düzenlemeden
+ *    önce başlamış bir ısıtma eski metnin satırını bırakamaz (Haiku 10-28).
+ *  · Temizlik sürüm uyuşmazlığıyla (saat karşılaştırması yok): yazma kancası (`kb/after-change.ts`) değişen dairelerde, açılış bütün
+ *    depoda `itemUpdatedAt ≠ kalem.updatedAt` satırlarını ve başka model / tarif satırlarını siler. Kalem / daire / işletme silinince
+ *    satırlar cascade ile gider.
  *  · ASLA FIRLATMAZ: her arıza "depoda yok" demektir (bellek deposu + ısıtma bugünkü gibi çalışır).
  * ------------------------------------------------------------------------- */
 
@@ -97,13 +100,20 @@ export interface StoredChunkRef {
   text: string;
 }
 
-type ReadResult = { vectors: Map<string, Float32Array>; timedOut: boolean };
+/** `vectors`: metin → vektör. `found`: depoda KENDİ satırı bulunan (kalem, girdi özeti) çiftleri (`pairKey`). */
+type ReadResult = { vectors: Map<string, Float32Array>; found: Set<string>; timedOut: boolean };
+
+/** (kalem, girdi özeti) çifti anahtarı. */
+export function pairKey(kbItemId: string, inputHash: string): string {
+  return `${kbItemId}|${inputHash}`;
+}
 
 /** Test kancası: okuma gecikmesi / arızası benzetimi için sorgunun yerine geçer. */
 let readOverride: ((args: { kbItemIds: string[]; model: string; hashes: string[] }) => Promise<ReadRow[]>) | null = null;
 
 interface ReadRow {
   id: string;
+  kbItemId: string;
   inputHash: string;
   kind: string;
   recipe: string;
@@ -118,7 +128,7 @@ async function readRows(kbItemIds: string[], model: string, hashes: string[]): P
     rows.push(
       ...(await prisma.kbChunkVector.findMany({
         where: { kbItemId: { in: kbItemIds }, model, recipe: KB_VECTOR_RECIPE, kind: "chunk", ord: 0, inputHash: { in: hashes.slice(i, i + READ_BATCH) } },
-        select: { id: true, inputHash: true, kind: true, recipe: true, dims: true, vector: true },
+        select: { id: true, kbItemId: true, inputHash: true, kind: true, recipe: true, dims: true, vector: true },
       })),
     );
   }
@@ -130,7 +140,7 @@ async function readRows(kbItemIds: string[], model: string, hashes: string[]): P
  * arka planda silinir ve sonuçta yoktur. Anahtar kapalıyken, boş istekte ya da arızada boş harita. Fırlatmaz.
  */
 export async function loadChunkVectors(model: string, refs: readonly StoredChunkRef[], timeoutMs: number): Promise<ReadResult> {
-  const empty: ReadResult = { vectors: new Map(), timedOut: false };
+  const empty: ReadResult = { vectors: new Map(), found: new Set(), timedOut: false };
   if (!vectorStoreEnabled() || refs.length === 0) return empty;
   const byHash = new Map<string, string>();
   for (const r of refs) byHash.set(inputHashOf(r.text), r.text);
@@ -141,8 +151,9 @@ export async function loadChunkVectors(model: string, refs: readonly StoredChunk
   });
   try {
     const rows = await Promise.race([readRows(kbItemIds, model, [...byHash.keys()]), timeout]);
-    if (rows === "timeout") return { vectors: new Map(), timedOut: true };
+    if (rows === "timeout") return { vectors: new Map(), found: new Set(), timedOut: true };
     const vectors = new Map<string, Float32Array>();
+    const found = new Set<string>();
     const corrupt: string[] = [];
     for (const row of rows) {
       const text = byHash.get(row.inputHash);
@@ -153,11 +164,12 @@ export async function loadChunkVectors(model: string, refs: readonly StoredChunk
         continue;
       }
       vectors.set(text, vec);
+      found.add(pairKey(row.kbItemId, row.inputHash));
     }
     if (corrupt.length > 0) {
       void prisma.kbChunkVector.deleteMany({ where: { id: { in: corrupt } } }).catch((err) => void reportError("kb-vector-store-delete-corrupt", err));
     }
-    return { vectors, timedOut: false };
+    return { vectors, found, timedOut: false };
   } catch (err) {
     void reportError("kb-vector-store-read", err);
     return empty;
@@ -166,44 +178,54 @@ export async function loadChunkVectors(model: string, refs: readonly StoredChunk
   }
 }
 
+/** Bir metni taşıyan kalem + ısıtmanın gördüğü kalem sürümü. */
+export interface ChunkOwner {
+  kbItemId: string;
+  updatedAt: Date;
+}
+
 /**
- * Isıtmanın ürettiği parça vektörlerini saklar (`createMany skipDuplicates`). Aynı metin birden çok kalemde geçiyorsa her kaleme bir satır
- * (kalem silinince yalnız kendi satırı gider). Kalem bu arada silindiyse (yabancı anahtar ihlali) sessizce atlanır. Fırlatmaz.
+ * Isıtmanın ürettiği parça vektörlerini saklar. Aynı metin birden çok kalemde geçiyorsa her kaleme bir satır (kalem silinince yalnız kendi
+ * satırı gider). Yazma YALNIZ kalem hâlâ ısıtmanın gördüğü sürümdeyse yapılır: kalem satırları `FOR SHARE` ile kilitlenir (eşzamanlı
+ * düzenleme bu işlem bitene kadar bekler, sonra yazma kancasının temizliği bu satırı sürüm uyuşmazlığından siler), silinmiş ya da
+ * değişmiş kalemin satırı hiç yazılmaz. Yazılan (kalem, girdi özeti) çiftlerini döner. Fırlatmaz.
  */
-export async function persistChunkVectors(model: string, entries: readonly { kbItemIds: readonly string[]; text: string; vector: readonly number[] }[]): Promise<void> {
-  if (!vectorStoreEnabled() || entries.length === 0) return;
-  const data = entries.flatMap((e) => {
-    const vector = encodeVector(e.vector);
-    const inputHash = inputHashOf(e.text);
-    return [...new Set(e.kbItemIds)].map((kbItemId) => ({
-      kbItemId,
-      model,
-      recipe: KB_VECTOR_RECIPE,
-      kind: "chunk",
-      inputHash,
-      ord: 0,
-      dims: e.vector.length,
-      vector,
-    }));
-  });
+export async function persistChunkVectors(
+  model: string,
+  entries: readonly { owners: readonly ChunkOwner[]; text: string; vector: ArrayLike<number> }[],
+): Promise<Set<string>> {
+  const written = new Set<string>();
+  if (!vectorStoreEnabled() || entries.length === 0) return written;
   try {
-    await prisma.kbChunkVector.createMany({ data, skipDuplicates: true });
+    const ids = [...new Set(entries.flatMap((e) => e.owners.map((o) => o.kbItemId)))];
+    await prisma.$transaction(async (tx) => {
+      const current = await tx.$queryRaw<{ id: string; updatedAt: Date }[]>`
+        SELECT "id", "updatedAt" FROM "KnowledgeBaseItem" WHERE "id" = ANY(${ids}::text[]) FOR SHARE`;
+      const version = new Map(current.map((r) => [r.id, r.updatedAt.getTime()]));
+      const data = entries.flatMap((e) => {
+        const vector = encodeVector(Array.from(e.vector));
+        const inputHash = inputHashOf(e.text);
+        const seen = new Set<string>();
+        return e.owners.flatMap((o) => {
+          if (seen.has(o.kbItemId) || version.get(o.kbItemId) !== o.updatedAt.getTime()) return [];
+          seen.add(o.kbItemId);
+          written.add(pairKey(o.kbItemId, inputHash));
+          return [{ kbItemId: o.kbItemId, model, recipe: KB_VECTOR_RECIPE, kind: "chunk", inputHash, ord: 0, dims: e.vector.length, vector, itemUpdatedAt: o.updatedAt }];
+        });
+      });
+      if (data.length > 0) await tx.kbChunkVector.createMany({ data, skipDuplicates: true });
+    });
+    return written;
   } catch (err) {
-    // Toplu yazımda tek bir silinmiş kalem bütün yazımı düşürür (yabancı anahtar): satır satır yeniden dene, silinenleri atla.
-    if ((err as { code?: string })?.code === "P2003") {
-      for (const row of data) {
-        await prisma.kbChunkVector.createMany({ data: [row], skipDuplicates: true }).catch(() => undefined);
-      }
-      return;
-    }
     void reportError("kb-vector-store-write", err);
+    return new Set();
   }
 }
 
 /**
- * Değişen dairelerin kalemlerinde ARTIK GEÇMEYEN belirlenimci satırları siler (K7): kalem satırdan sonra güncellendiyse (`createdAt <
- * kalem.updatedAt`) satır eski metnindir. Metni değişmeyen kalem (ör. aç-kapa) bir kez yeniden ısıtılır — ucuz. Model üretimli türler
- * (`question`) burada silinmez; onların temizliği girdi özetine göre (ileriki dilim). Fırlatmaz.
+ * Değişen dairelerin kalemlerinde ARTIK GEÇMEYEN belirlenimci satırları siler (K7): satırın kalem sürümü kalemin bugünkü sürümü değilse
+ * satır eski metnindir. Saat karşılaştırması yok (uygulama ile veritabanı saati farklı olabilir). Metni değişmeyen kalem (ör. aç-kapa) bir
+ * kez yeniden ısıtılır — ucuz. Model üretimli türler (`question`) burada silinmez; onların temizliği ileriki dilimde. Fırlatmaz.
  */
 export async function purgeStaleVectors(propertyIds: readonly string[]): Promise<number> {
   if (!vectorStoreEnabled() || propertyIds.length === 0) return 0;
@@ -214,19 +236,28 @@ export async function purgeStaleVectors(propertyIds: readonly string[]): Promise
       WHERE v."kbItemId" = k."id"
         AND k."propertyId" = ANY(${[...propertyIds]}::text[])
         AND v."kind" IN ('chunk', 'sentence', 'item')
-        AND v."createdAt" < k."updatedAt"`;
+        AND v."itemUpdatedAt" <> k."updatedAt"`;
   } catch (err) {
     void reportError("kb-vector-store-purge-stale", err);
     return 0;
   }
 }
 
-/** Açılışta: bugünkü model + tarif dışındaki satırları siler (model ya da tarif değişince eski vektörler kalmasın). Fırlatmaz. */
+/**
+ * Açılışta: bugünkü model + tarif dışındaki satırları ve kalem sürümü tutmayan belirlenimci satırları (bütün depoda) siler — model ya da
+ * tarif değişince eski vektörler kalmasın, kancanın göremediği bir eski satır en geç bir sonraki açılışta gitsin. Fırlatmaz.
+ */
 export async function purgeOtherModelVectors(model: string): Promise<number> {
   if (!vectorStoreEnabled()) return 0;
   try {
     const res = await prisma.kbChunkVector.deleteMany({ where: { OR: [{ model: { not: model } }, { recipe: { not: KB_VECTOR_RECIPE } }] } });
-    return res.count;
+    const stale = await prisma.$executeRaw`
+      DELETE FROM "KbChunkVector" v
+      USING "KnowledgeBaseItem" k
+      WHERE v."kbItemId" = k."id"
+        AND v."kind" IN ('chunk', 'sentence', 'item')
+        AND v."itemUpdatedAt" <> k."updatedAt"`;
+    return res.count + stale;
   } catch (err) {
     void reportError("kb-vector-store-purge-models", err);
     return 0;

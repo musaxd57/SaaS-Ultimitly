@@ -7,11 +7,18 @@ vi.mock("@/lib/report-error", async (orig) => {
 });
 
 import { warmPropertyKbVectors, warmAllKbVectorsOnce, __resetBootWarm } from "@/lib/ai/embeddings/kb-warm";
-import { __awaitSemanticWarm, __resetSemanticRetrieval, prepareSemanticScores } from "@/lib/ai/embeddings/semantic-retrieval";
+import {
+  __awaitSemanticWarm,
+  __exhaustWarmBudgetForTests,
+  __resetSemanticRetrieval,
+  __semanticStoreSize,
+  __setChunkVectorCacheMaxForTests,
+  prepareSemanticScores,
+} from "@/lib/ai/embeddings/semantic-retrieval";
 import { clearEmbeddingCache, EMBEDDING_DIMENSIONS, embeddingModel } from "@/lib/ai/embeddings/provider";
 import { __resetKbIndexCache } from "@/lib/ai/retrieval/index-cache";
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
-import { __setVectorStoreReadForTests, decodeVector, encodeVector, inputHashOf } from "@/lib/ai/embeddings/vector-store";
+import { __setVectorStoreReadForTests, decodeVector, encodeVector, inputHashOf, persistChunkVectors } from "@/lib/ai/embeddings/vector-store";
 import { afterKbItemsChanged } from "@/lib/kb/after-change";
 
 // ---------------------------------------------------------------------------
@@ -234,7 +241,6 @@ describe("kalıcı gömme deposu — temizlik", () => {
     const item = await prisma.knowledgeBaseItem.findFirst({ where: { propertyId, title: "Bilgi 3" }, select: { id: true } });
     const oldRows = await prisma.kbChunkVector.findMany({ where: { kbItemId: item!.id }, select: { inputHash: true } });
     expect(oldRows.length).toBe(1);
-    await new Promise((r) => setTimeout(r, 5)); // updatedAt satırın createdAt'inden kesin sonra
     await prisma.knowledgeBaseItem.update({ where: { id: item!.id }, data: { content: "Dairedeki 3. bilgi notu artık farklı." } });
     await afterKbItemsChanged({ organizationId: orgId, propertyIds: [propertyId] });
     // Kancanın ısıtması beklenmeden başlar (önce bilgi tabanını okur); testte aynı ısıtmayı bekleyerek çağır.
@@ -253,12 +259,87 @@ describe("kalıcı gömme deposu — temizlik", () => {
     const { propertyId } = await makeOrgWithProperty();
     await seedKb(propertyId, 35);
     const item = await prisma.knowledgeBaseItem.findFirst({ where: { propertyId }, select: { id: true } });
-    await prisma.kbChunkVector.create({
-      data: { kbItemId: item!.id, model: "eski-model", inputHash: "x", dims: 1536, vector: encodeVector(Array.from({ length: 1536 }, () => 0)) },
+    const full = await prisma.knowledgeBaseItem.findUniqueOrThrow({ where: { id: item!.id }, select: { updatedAt: true } });
+    const zero = encodeVector(Array.from({ length: 1536 }, () => 0));
+    await prisma.kbChunkVector.createMany({
+      data: [
+        { kbItemId: item!.id, model: "eski-model", inputHash: "x", dims: 1536, vector: zero, itemUpdatedAt: full.updatedAt },
+        { kbItemId: item!.id, model: embeddingModel(), recipe: "c0", inputHash: "y", dims: 1536, vector: zero, itemUpdatedAt: full.updatedAt },
+        // Kancanın göremediği eski sürüm satırı (ör. süreç düzenleme sırasında öldü): açılışta gider.
+        { kbItemId: item!.id, model: embeddingModel(), inputHash: "z", dims: 1536, vector: zero, itemUpdatedAt: new Date(full.updatedAt.getTime() - 60_000) },
+        // Bugünkü sürümün satırı: KALIR.
+        { kbItemId: item!.id, model: embeddingModel(), inputHash: "w", dims: 1536, vector: zero, itemUpdatedAt: full.updatedAt },
+      ],
     });
     warmAllKbVectorsOnce();
-    for (let i = 0; i < 100 && (await prisma.kbChunkVector.count({ where: { model: "eski-model" } })) > 0; i++) await new Promise((r) => setTimeout(r, 20));
-    expect(await prisma.kbChunkVector.count({ where: { model: "eski-model" } })).toBe(0);
+    const gone = async () => prisma.kbChunkVector.count({ where: { inputHash: { in: ["x", "y", "z"] } } });
+    for (let i = 0; i < 100 && (await gone()) > 0; i++) await new Promise((r) => setTimeout(r, 20));
+    expect(await gone()).toBe(0);
+    expect(await prisma.kbChunkVector.count({ where: { inputHash: "w" } })).toBe(1);
     await __awaitSemanticWarm();
+  });
+
+  it("🚨 düzenlemeden ÖNCE başlamış ısıtma eski metnin satırını YAZAMAZ (kalem sürümü tutmazsa yazma yok); silinmiş kalem sessizce atlanır", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    await seedKb(propertyId, 2);
+    const [a, b] = await prisma.knowledgeBaseItem.findMany({ where: { propertyId }, orderBy: { title: "asc" } });
+    const v = Array.from({ length: EMBEDDING_DIMENSIONS }, () => 0.01);
+    // Isıtma A'yı eski sürümüyle görmüştü; yazmadan önce A düzenlendi.
+    await prisma.knowledgeBaseItem.update({ where: { id: a.id }, data: { content: "Yeni Wi-Fi şifresi başka." } });
+    await prisma.knowledgeBaseItem.delete({ where: { id: b.id } });
+    const written = await persistChunkVectors(embeddingModel(), [
+      { owners: [{ kbItemId: a.id, updatedAt: a.updatedAt }], text: "eski metin", vector: v },
+      { owners: [{ kbItemId: b.id, updatedAt: b.updatedAt }], text: "silinen kalem", vector: v },
+    ]);
+    expect(written.size).toBe(0);
+    expect(await prisma.kbChunkVector.count()).toBe(0);
+    // KONTROL: bugünkü sürümle yazılır.
+    const fresh = await prisma.knowledgeBaseItem.findUniqueOrThrow({ where: { id: a.id } });
+    expect((await persistChunkVectors(embeddingModel(), [{ owners: [{ kbItemId: a.id, updatedAt: fresh.updatedAt }], text: "yeni metin", vector: v }])).size).toBe(1);
+    expect(await prisma.kbChunkVector.count()).toBe(1);
+  });
+});
+
+describe("kalıcı gömme deposu — Haiku 10-28 bulguları", () => {
+  it("🚨 aynı metin iki dairede (kopyalanmış bilgi tabanı): bellekteki vektör ikinci dairenin kalemlerine de satır yazdırır → yeniden başlatmada ikinci daire de 'ok', yeniden ödeme yok", async () => {
+    const p1 = await makeOrgWithProperty();
+    const p2 = await makeOrgWithProperty();
+    await seedKb(p1.propertyId, 35);
+    await seedKb(p2.propertyId, 35); // birebir aynı metinler
+    await warmPropertyKbVectors(p1.propertyId);
+    await __awaitSemanticWarm();
+    embedded.length = 0;
+    await warmPropertyKbVectors(p2.propertyId); // metinler bellekte → gömme YOK, ama p2'nin kendi satırları yazılmalı
+    await __awaitSemanticWarm();
+    expect(chunkTextsEmbedded()).toEqual([]);
+    const p2Items = await prisma.knowledgeBaseItem.findMany({ where: { propertyId: p2.propertyId }, select: { id: true } });
+    expect(await prisma.kbChunkVector.count({ where: { kbItemId: { in: p2Items.map((i) => i.id) } } })).toBe(35);
+    restart();
+    expect((await prepare(p2.propertyId)).status).toBe("ok");
+    expect(chunkTextsEmbedded()).toEqual([]);
+  });
+
+  it("🚨 saatlik ısıtma bütçesi doluyken de depodan okuma yapılır (bedava): yeniden başlatma sonrası ısıtma belleği depodan doldurur", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    await seedKb(propertyId, 35);
+    await warmPropertyKbVectors(propertyId);
+    await __awaitSemanticWarm();
+    restart();
+    __exhaustWarmBudgetForTests();
+    await warmPropertyKbVectors(propertyId);
+    await __awaitSemanticWarm();
+    expect(__semanticStoreSize()).toBe(35);
+    expect(chunkTextsEmbedded()).toEqual([]);
+  });
+
+  it("🚨 bellek deposu küçük / doluyken (tahliye) depodan okunan vektörler o kararda kullanılır → 'ok' (sürekli cold + her mesajda okuma yok)", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    await seedKb(propertyId, 35);
+    await warmPropertyKbVectors(propertyId);
+    await __awaitSemanticWarm();
+    restart();
+    __setChunkVectorCacheMaxForTests(10);
+    expect((await prepare(propertyId)).status).toBe("ok");
+    expect(chunkTextsEmbedded()).toEqual([]);
   });
 });

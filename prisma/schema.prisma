@@ -903,23 +903,26 @@ model KnowledgeBaseItem {
 /// silme zinciri cascade); okuma çağıranın kiracı süzgeçli kalem kimlikleriyle yapılır. Anahtar `KB_VECTOR_STORE_ENABLED` (yalnız "1")
 /// kapalıyken tabloya okuma / yazma / silme YOK.
 model KbChunkVector {
-  id        String   @id @default(cuid())
-  kbItemId  String
+  id            String   @id @default(cuid())
+  kbItemId      String
   /// Gömme modeli (`embeddingModel()`); model değişince eski satırlar açılış temizliğinde silinir.
-  model     String
+  model         String
   /// Gömme metninin tarif sürümü (`c1` = bugünkü `embeddingTextFor`). Tarif değişince eski satırlar kalem değişmese de süpürülür.
-  recipe    String   @default("c1")
+  recipe        String   @default("c1")
   /// Eşleşme birimi türü (kodda kapalı küme): chunk · sentence · question · item. Bugün yalnız `chunk` yazılır.
-  kind      String   @default("chunk")
+  kind          String   @default("chunk")
   /// Tarif GİRDİSİNİN SHA-256 özeti (base64url). Belirlenimci tarifte girdi = gömülen metin (bellek deposunun anahtarıyla aynı).
-  inputHash String
+  inputHash     String
   /// Aynı girdiden birden çok vektör (ileride üretilen sorular) için sıra; bugün hep 0.
-  ord       Int      @default(0)
+  ord           Int      @default(0)
   /// Vektör boyutu; okumada türün izinli boyutlarıyla ve bayt uzunluğuyla (boyut × 4) doğrulanır.
-  dims      Int
+  dims          Int
   /// Float32 küçük-sonlu (little-endian) ham baytlar.
-  vector    Bytes
-  createdAt DateTime @default(now())
+  vector        Bytes
+  /// Satırın üretildiği andaki kalem sürümü (`KnowledgeBaseItem.updatedAt`). Yazma yalnız kalem hâlâ bu sürümdeyse yapılır; temizlik
+  /// sürüm uyuşmazlığına bakar (saat karşılaştırması yok) → düzenlemeden önce başlamış ısıtma eski metnin satırını bırakamaz.
+  itemUpdatedAt DateTime
+  createdAt     DateTime @default(now())
 
   kbItem KnowledgeBaseItem @relation(fields: [kbItemId], references: [id], onDelete: Cascade)
 
