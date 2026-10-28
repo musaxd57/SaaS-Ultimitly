@@ -18,9 +18,7 @@ import { prisma } from "@/lib/db";
 import { reportError } from "@/lib/report-error";
 import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
 import { kbRetrievalMode, semanticRetrievalInfo } from "@/lib/ai/retrieval/flag";
-import { warmKbVectors } from "@/lib/ai/embeddings/semantic-retrieval";
-import { purgeOtherModelVectors } from "@/lib/ai/embeddings/vector-store";
-import { embeddingModel } from "@/lib/ai/embeddings/provider";
+import { purgeVectorStoreForCurrentModel, warmKbVectors } from "@/lib/ai/embeddings/semantic-retrieval";
 import { GUEST_NAME_FALLBACK, fillGuestPlaceholdersInItems } from "@/lib/kb-placeholders";
 import { QR_SECRET_CATEGORIES } from "@/lib/guest-chat";
 
@@ -68,7 +66,7 @@ export function warmAllKbVectorsOnce(): void {
   void (async () => {
     try {
       // Kalıcı depo (anahtar açıkken): başka model / tarifin satırları silinir — model değişince eski vektörler kalmasın.
-      await purgeOtherModelVectors(embeddingModel());
+      await purgeVectorStoreForCurrentModel();
       const rows = await prisma.knowledgeBaseItem.groupBy({ by: ["propertyId"], where: { isActive: true }, _count: { _all: true } });
       for (const r of rows) {
         if (r.propertyId) await warmPropertyKbVectors(r.propertyId);

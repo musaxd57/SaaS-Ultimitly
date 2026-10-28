@@ -48,6 +48,7 @@ import {
   loadChunkVectors,
   pairKey,
   persistChunkVectors,
+  purgeOtherModelVectors,
   vectorStoreEnabled,
   type ChunkOwner,
   VECTOR_STORE_READ_TIMEOUT_MS,
@@ -355,6 +356,14 @@ export function warmKbVectors<T extends KbChunkSource>(items: readonly T[]): num
     void reportError("kb-semantic-warm-items", err);
     return 0;
   }
+}
+
+/**
+ * Açılış temizliği (kalıcı depo, anahtar açıkken): bugünkü gömme modeli / tarif dışındaki ve kalem sürümü tutmayan satırları siler. Gömme
+ * sağlayıcısını (`provider.ts`) yalnız bu modül import eder (mimari pin) — model adı buradan verilir. Fırlatmaz.
+ */
+export async function purgeVectorStoreForCurrentModel(): Promise<number> {
+  return purgeOtherModelVectors(embeddingModel());
 }
 
 // ─── test/teşhis kancaları ──────────────────────────────────────────────────
