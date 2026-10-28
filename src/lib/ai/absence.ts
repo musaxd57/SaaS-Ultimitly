@@ -734,7 +734,10 @@ const HOST_REFERRAL_PATTERNS: readonly RegExp[] = [
 const EVENT_CONDITION = new RegExp(
   "(?<![\\p{L}])(?:if|in case|should (?:you|the|there)|unless|falls|wenn|sollte|en cas d|au cas où|en caso de|если|в случае|eğer|" +
     "in an emergency|im notfall|en urgence|en una emergencia|в экстренн\\p{L}*|acil (?:bir )?durumda)(?![\\p{L}])|" +
-    "(?<![\\p{L}])si (?!vous souhaitez|vous voulez|usted desea|desea)|\\p{L}(?:rsan[ıi]z|rseniz|rsa|rse)(?![\\p{L}])|" +
+    "(?<![\\p{L}])si (?!vous souhaitez|vous voulez|usted desea|desea)|" +
+    // Türkçe koşul eki SES UYUMUYLA (Opus 10-23 akşam R9: "Of course" -rse sanılıyordu): kalın ünlü + rsa, ince ünlü + rse; olumsuz (-mazsa /
+    // -mezse) ve şimdiki zaman (-yorsa) koşulu da koşuldur (R3: "Wi-Fi çalışmazsa" koşul görünmüyordu).
+    "\\p{L}(?:[aıou]rsa|[aıou]rsan[ıi]z|[eiöü]rse|[eiöü]rseniz|[aıou]zsa|[aıou]zsan[ıi]z|[eiöü]zse|[eiöü]zseniz|yorsa|yorsan[ıi]z)(?![\\p{L}])|" +
     "(?:ma|me)s[ıi] (?:halinde|durumunda)|(?<![\\p{L}])(?:durumunda|halinde|takdirde)(?![\\p{L}])",
   "u",
 );
@@ -744,12 +747,21 @@ const EVENT_CONDITION = new RegExp(
  * durumda ev sahibinizi arayın" bilgi tabanındaki talimattır. Sözcük başında, sınırlı ek (doğrusal).
  */
 const EVENT_WORDS = new RegExp(
-  "(?<![\\p{L}])(?:lose|loses|lost|locked out|stops? working|not working|doesn'?t work|isn'?t working|fails?|failed|broken|breaks? down|" +
-    "emergency|leak\\p{L}{0,4}|power cut|outage|alarm|fire|flood\\p{L}{0,4}|" +
-    "kaybed\\p{L}{0,12}|kaybol\\p{L}{0,12}|kaybet\\p{L}{0,12}|[çc]al[ıi][şs]ma\\p{L}{0,12}|bozul\\p{L}{0,12}|ar[ıi]za\\p{L}{0,12}|acil|kesil\\p{L}{0,12}|" +
-    "s[ıi]z[ıi]nt[ıi]\\p{L}{0,8}|yang[ıi]n\\p{L}{0,8}|kilitli kal\\p{L}{0,12}|d[ıi][şs]ar[ıi]da kal\\p{L}{0,12}|" +
-    "verlier\\p{L}{0,6}|verloren|funktioniert nicht|notfall|perd\\p{L}{0,6}|ne fonctionne pas|panne|urgence|pierd\\p{L}{0,6}|no funciona|emergencia|" +
-    "потеря\\p{L}{0,3}|потеря|не работает|авари\\p{L}{0,4}|экстренн\\p{L}{0,4})(?![\\p{L}])",
+  "(?<![\\p{L}])(?:" +
+    // Olay ADI değil olay YÜKLEMİ (Opus 10-23 akşam R2): "alarm şifresi / fire pit / acil çıkış / çalışma saatleri" konu adıdır, olay değildir.
+    "lose|loses|lost(?! and found| & found)|locked out|stops? working|stopped working|not working|doesn'?t work|isn'?t working|fails?|failed|broken|" +
+    "breaks?|broke|breaks? down|emergency(?! (?:exit|exits|lighting|lights?))|leak\\p{L}{0,4}|power cut|outage|flood\\p{L}{0,4}|" +
+    "(?:power|electricity|lights?|heating|wi-?fi|internet|water) (?:goes|went|go|is) (?:out|off)|(?:smoke |fire )?alarm (?:goes|went|is going) off|" +
+    "(?:in case of|there is a|there's a) fire|fire breaks out|problems?|issues?|(?:goes|go|went) wrong|" +
+    "can'?t (?:open|get in|access|enter)|cannot (?:open|get in|access|enter)|forget|forgot|" +
+    "kaybed\\p{L}{0,12}|kaybol\\p{L}{0,12}|kaybet\\p{L}{0,12}|[çc]al[ıi][şs]m(?:[ıi]yor|az|ad[ıi])\\p{L}{0,8}|bozul\\p{L}{0,12}|ar[ıi]za\\p{L}{0,12}|" +
+    "acil (?:bir )?durum\\p{L}{0,6}|kesil\\p{L}{0,12}|s[ıi]z[ıi]nt[ıi]\\p{L}{0,8}|yang[ıi]n (?:olursa|[çc][ıi]karsa|durumunda|halinde|an[ıi]nda)|" +
+    "alarm (?:[çc]alarsa|[öo]terse|[çc]al[ıi]yorsa)|kilitli kal\\p{L}{0,12}|d[ıi][şs]ar[ıi]da kal\\p{L}{0,12}|" +
+    // R3: gerçek olay talimatlarının yaygın biçimleri ("Herhangi bir sorun olursa ev sahibinizi arayın") — "sorunuz" (soru) hariç.
+    "sorun(?!uz(?![\\p{L}]))\\p{L}{0,6}|problem\\p{L}{0,6}|a[çc]am(?:[ıi]yor|az)\\p{L}{0,8}|a[çc][ıi]lm(?:[ıi]yor|az)\\p{L}{0,8}|" +
+    "gelm(?:iyor|ez)\\p{L}{0,8}|yanm(?:[ıi]yor|az)\\p{L}{0,8}|unut\\p{L}{0,10}|ak[ıi]t\\p{L}{0,8}|" +
+    "verlier\\p{L}{0,6}|verloren|funktioniert nicht|notfall|perd(?:ez|u|ue|ues|ido|ida)|ne fonctionne pas|panne|urgence|pierd\\p{L}{0,6}|no funciona|" +
+    "emergencia|потеря\\p{L}{0,3}|не работает|авари\\p{L}{0,4}|экстренн\\p{L}{0,4})(?![\\p{L}])",
   "u",
 );
 /** Varış / giriş TALİMATI (bilgi isteği değil): "Please text your host when you arrive", "varış saatinizi ev sahibinize yazın" (Opus A4). */
@@ -765,9 +777,22 @@ const ARRIVAL_INSTRUCTION = new RegExp(
  */
 const INFO_VERB =
   /(?<![\p{L}])(?:ask\p{L}{0,3}|enquir\p{L}{0,4}|inquir\p{L}{0,4}|check(?:ing)? with|clarif\p{L}{0,4}|sor(?:abilir|man[ıi]z|mak)\p{L}{0,8}|dan[ıi][şs]\p{L}{0,10}|[öo][ğg]ren\p{L}{0,10}|teyit\p{L}{0,6}|fragen|nachfragen|erfragen|demander|preguntar\p{L}{0,3}|consultar|спрос\p{L}{0,4}|уточн\p{L}{0,4})(?![\p{L}])/u;
+/**
+ * KONU işareti (Opus 10-23 akşam R1 / R4): "otopark İÇİN / havuz HAKKINDA / about the parking / for the pool hours / whether …" — cümle bir BİLGİ
+ * konusu için ev sahibine gönderiyor. Konulu cümle varış talimatı muafiyetini alamaz ("For parking, please contact your host before arrival");
+ * konusuz cümlede iletişim değeri yan cümle bölmesinden etkilenmez ("Ev sahibinize ulaşabilirsiniz, telefon: 0532 …").
+ */
+const TOPIC_MARKER = new RegExp(
+  "(?<![\\p{L}])(?:i[çc]in|hakk[ıi]nda|konusunda|ile ilgili|about|regarding|concerning|whether|to confirm|to ask|à propos|au sujet|concernant|sobre|acerca|" +
+    "über|bezüglich|wegen|по поводу|насч[её]т)(?![\\p{L}])|(?<![\\p{L}])for (?!(?:your )?(?:arrival|check-?in|eta)(?![\\p{L}]))\\p{L}",
+  "u",
+);
 /** Yan cümle ayracı (iletişim değeri muafiyeti yalnız yönlendirmenin KENDİ yan cümlesinde — Opus A3; "ve / and" Haiku 10-23 akşam). URL'deki ":" bölünmez. */
 const CLAUSE_SPLIT = /[,;]|\s(?:ya da|veya|yahut|ve|or|and|oder|und|ou|et|o|y|и|или)\s/u;
 function contactValueInReferralClause(form: string): boolean {
+  // Konusuz cümle ("Ev sahibinize ulaşabilirsiniz, telefon: 0532 …", "You can call your host, the number is …") istenen iletişim değerini
+  // veriyor — yan cümle bölmesi onu tutmasın (Opus 10-23 akşam R4). Konulu cümlede değer yönlendirmenin KENDİ yan cümlesinde olmalı (A3).
+  if (!TOPIC_MARKER.test(form) && containsContactValue(form)) return true;
   const referral = form.split(CLAUSE_SPLIT).filter((c) => HOST_REFERRAL_PATTERNS.some((re) => re.test(c)));
   // Kalıp yan cümle ayracını aşıyorsa ("Ev sahibiniz, bu konuda …") cümlenin tamamına bakılır (eski davranış).
   return referral.length > 0 ? referral.every((c) => containsContactValue(c)) : containsContactValue(form);
@@ -818,8 +843,25 @@ const IF_I_WERE_YOU = /(?<![\p{L}])if [iı] (?:were|was) you(?![\p{L}])/gu;
 /** Koşul bilgi İSTEĞİYSE ("daha fazla bilgi isterseniz", "if you'd like more details") yine yönlendirmedir. */
 const INFO_CONDITION =
   // Soru / merak koşulu da bilgi koşuludur (Haiku 10-23 akşam: "If you have any questions about the alarm, please ask your host" — "alarm"
-  // olay sözcüğü sayılıp muaf geçiyordu).
-  /(?<![\p{L}])(?:bilgi|detay|ayr[ıi]nt[ıi]|information|info|details|auskunft|informationen|renseignements|información|detalles|информаци|questions?|soru(?:nuz|lar\p{L}{0,6}|su|yu|ya)?(?![\p{L}])|merak\p{L}{0,8}|wonder\p{L}{0,3}|curious|fragen?|pregunta\p{L}{0,1}|вопрос\p{L}{0,3})/u;
+  // olay sözcüğü sayılıp muaf geçiyordu). Bilmek / öğrenmek isteği de (Opus 10-23 akşam R2: "Alarm şifresini öğrenmek isterseniz …",
+  // "If you'd like to know …").
+  /(?<![\p{L}])(?:bilgi|detay|ayr[ıi]nt[ıi]|information|info|details|auskunft|informationen|renseignements|información|detalles|информаци|questions?|soru(?:nuz|lar\p{L}{0,6}|su|yu|ya)?(?![\p{L}])|merak\p{L}{0,8}|wonder\p{L}{0,3}|curious|fragen?|pregunta\p{L}{0,1}|вопрос\p{L}{0,3}|[öo][ğg]ren\p{L}{0,10}|emin ol\p{L}{0,8}|know|find out|saber|wissen|savoir|узна\p{L}{0,4})/u;
+
+/**
+ * Satırları cümleye çevirir (Opus 10-23 akşam R4 / R5): YENİ madde / cümle başlatan satır (madde işareti, "1." / "1)" numarası, büyük harf) sınırdır;
+ * cümle ortasında kırılan satır ("Please contact\nyour host …") ve telefonla başlayan satır ("…ulaşabilirsiniz:\n0532 …") öncekinin devamıdır.
+ * Satır satır kurulur — düzenli ifadeyle satır sonu dizisi karesel geri izliyordu (50.000 "\n" → 10,5 sn ölçüldü).
+ */
+function joinLines(text: string): string {
+  let out = "";
+  for (const raw of text.split("\n")) {
+    const line = raw.trim();
+    if (!line) continue;
+    if (!out) out = line;
+    else out += /^(?:[-•*–]|\p{N}{1,2}[.)](?!\p{N})|\p{Lu})/u.test(line) ? `. ${line}` : ` ${line}`;
+  }
+  return out;
+}
 
 /**
  * Cevap misafiri bilgi için ev sahibine yönlendiriyor mu (kurucu 10-23 akşam 4.5)? Cümle bazında; iletişim değeri taşıyan ve olay koşullu
@@ -831,8 +873,7 @@ export function refersGuestToHost(reply: string | null | undefined): boolean {
   // Yalnız YENİ madde / cümle başlatan satır sonu sınırdır (madde işareti, rakam, büyük harf) — cümle ortasında kırılan satır ("Please contact\n
   // your host …") boşluk olur (Haiku 10-23 akşam). `\s*\n` boşluk dizisinde karesel (50.000 boşluk 3,3 sn ölçüldü) → ileri bakış satır
   // sonunu GEÇMEZ (`[^\S\n]*`), toplam doğrusal.
-  const lines = (reply ?? "").replace(/\r/g, "").replace(/\n+(?=[^\S\n]*[-•*–\p{N}\p{Lu}])/gu, ". ").replace(/\n+/g, " ");
-  const [plain, turkish] = foldedForms(lines);
+  const [plain, turkish] = foldedForms(joinLines(reply ?? ""));
   // İki katlamanın AYNI cümlesi birlikte okunur (SEP katlamadan önce konur → cümle sayısı eşit): Türkçe katlamada "If" → "ıf" olur ve
   // koşul görünmez; yalnız biri yetmez.
   const ps = plain.split(SEP);
@@ -845,7 +886,7 @@ export function refersGuestToHost(reply: string | null | undefined): boolean {
     // "If I were you, …" koşul değil tavsiye kalıbıdır (Haiku 10-23 akşam) — koşul aranmadan önce silinir.
     const conditionForms = forms.map((f) => f.replace(WHETHER_IF, "$1$2whether").replace(IF_I_WERE_YOU, " "));
     const eventInstruction = conditionForms.some(
-      (f) => (EVENT_CONDITION.test(f) && EVENT_WORDS.test(f)) || (ARRIVAL_INSTRUCTION.test(f) && !INFO_VERB.test(f)),
+      (f) => (EVENT_CONDITION.test(f) && EVENT_WORDS.test(f)) || (ARRIVAL_INSTRUCTION.test(f) && !INFO_VERB.test(f) && !TOPIC_MARKER.test(f)),
     );
     if (eventInstruction && !conditionForms.some((f) => INFO_CONDITION.test(f))) continue;
     return true;

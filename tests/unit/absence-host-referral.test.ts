@@ -227,6 +227,82 @@ describe("ev sahibine yönlendirme", () => {
     expect(refersGuestToHost("Wi-Fi şifresi: Lale2024\nAnahtarı kaybederseniz ev sahibinizi arayın")).toBe(false);
   });
 
+  // ── Opus 10-23 akşam ikinci dilim kontrolü (R1–R5, R9) ─────────────────────────────────────────────────────────────────────────────
+  it("🚨 R1: konulu bilgi yönlendirmesi varış sözcüğüyle muaf GEÇMEZ; konusuz varış talimatı muaf kalır", () => {
+    for (const t of [
+      "For parking, please contact your host before arrival.",
+      "Regarding the parking, please message your host upon arrival.",
+      "Please contact your host before arrival to confirm whether parking is available.",
+      "Otopark konusunda varınca ev sahibinizle görüşebilirsiniz.",
+      "Otopark için gelmeden önce ev sahibinize yazabilirsiniz.",
+      "Bebek yatağı için varış saatinizle birlikte ev sahibinize yazabilirsiniz.",
+    ]) {
+      expect(refersGuestToHost(t), t).toBe(true);
+    }
+    for (const t of ["Please text your host when you arrive.", "Please message your host with your arrival time.", "Lütfen girişten önce ev sahibinize tahmini varış saatinizi yazın."]) {
+      expect(refersGuestToHost(t), t).toBe(false);
+    }
+  });
+
+  it("🚨 R2 / R9: olay ADI değil olay YÜKLEMİ — 'alarm şifresi / çalışma saatleri / acil çıkış / fire pit / Of course' muaf DEĞİL", () => {
+    for (const t of [
+      "Spor salonunun çalışma saatlerini öğrenmek isterseniz ev sahibinize sorabilirsiniz.",
+      "Alarm şifresini öğrenmek isterseniz ev sahibinize sorabilirsiniz.",
+      "If you need the alarm code, please ask your host.",
+      "If you'd like to know whether there is a fire alarm, please ask your host.",
+      "If you'd like to use the fire pit, check with your host.",
+      "Acil çıkış kapısının yerini öğrenmek isterseniz ev sahibinize sorabilirsiniz.",
+      "Of course, for the alarm code please ask your host.",
+      "Perdone, si quiere saber el horario de la piscina, pregunte a su anfitrión.",
+      "If you want to know about the lost and found, ask your host.",
+    ]) {
+      expect(refersGuestToHost(t), t).toBe(true);
+    }
+    for (const t of ["If the alarm goes off, call your host.", "Yangın çıkarsa ev sahibinizi arayın.", "Acil bir durumda ev sahibinizi arayın."]) {
+      expect(refersGuestToHost(t), t).toBe(false);
+    }
+  });
+
+  it("🚨 R3: gerçek olay / arıza talimatı GİDER (sorun / problem / goes wrong / kesilirse / -mazsa / -mıyorsa); 'sorunuz' (soru) tutulur", () => {
+    for (const t of [
+      "If you have a problem with the heating, call your host.",
+      "Herhangi bir sorun olursa ev sahibinizi arayın.",
+      "Bir sorun yaşarsanız ev sahibinizi arayabilirsiniz.",
+      "If anything goes wrong during your stay, please contact your host.",
+      "If there is any issue with the apartment, call your host.",
+      "If the power goes out, contact your host.",
+      "If the boiler breaks, call your host.",
+      "Elektrikler kesilirse ev sahibinizi arayın.",
+      "Kombi su akıtırsa ev sahibinizi arayın.",
+      "Klima çalışmıyorsa ev sahibinize yazın.",
+      "Wi-Fi çalışmazsa ev sahibinizi arayın.",
+      "If you can't open the door, call your host.",
+    ]) {
+      expect(refersGuestToHost(t), t).toBe(false);
+    }
+    expect(refersGuestToHost("Sorunuz olursa ev sahibinize sorabilirsiniz.")).toBe(true);
+  });
+
+  it("🚨 R4: istenen telefonu veren konusuz cümle yan cümle / satır bölmesinden etkilenmez; konulu cümlede değer kendi yan cümlesinde olmalı", () => {
+    for (const t of [
+      "Ev sahibinize şu numaradan ulaşabilirsiniz:\n0532 123 45 67",
+      "Ev sahibinize ulaşabilirsiniz, telefon: 0532 123 45 67",
+      "You can call your host, the number is +90 532 123 4567.",
+      "You can reach your host on WhatsApp, +90 532 123 45 67.",
+      "Your host's number is +90 532 123 45 67 and you can call your host anytime.",
+    ]) {
+      expect(refersGuestToHost(t), t).toBe(false);
+    }
+    expect(refersGuestToHost("Taksi için 0532 123 45 67 numarasını arayın ve otopark için ev sahibinize sorabilirsiniz.")).toBe(true);
+  });
+
+  it("R5: satır sonu dizisi doğrusal (eski düzenli ifade 50.000 satır sonunda 10,5 sn)", () => {
+    const t0 = performance.now();
+    refersGuestToHost(`${"\n".repeat(50_000)}a`);
+    refersGuestToHost(`ask your host ${"\n".repeat(50_000)}x`);
+    expect(performance.now() - t0).toBeLessThan(1_000);
+  });
+
   it("çok cümlede yalnız yönlendirme cümlesi sayılır; başka cümledeki koşul onu kurtarmaz", () => {
     expect(refersGuestToHost("Çöpler bina girişindeki konteynere atılır. Sauna için ev sahibinize sorabilirsiniz.")).toBe(true);
     expect(refersGuestToHost("Anahtarı kaybederseniz resepsiyona gidin. Otopark için ev sahibinize sorabilirsiniz.")).toBe(true);
