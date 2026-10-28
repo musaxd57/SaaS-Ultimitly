@@ -148,3 +148,70 @@ mi, yoksa tutmaya devam mı?
 birlikte düşünülmeli; iş sanıldığından küçük. Önerim: Railway açılışından ÖNCE ayrı, testli bir dilim olarak
 yapmak (müşteriye giden metin değişmez; yalnız hata mesajı biçimleri — onlar da `zod-tr.ts` tek kaynaktan, pinli). Yapalım mı, yoksa
 açılıştan sonraya mı?
+
+## 7. Kurucu kararları §7 (10-28) — yapılanlar, cevaplar, açık kalanlar
+
+Kararların aynen metni: `docs/KURUCU-KARARLARI-2026-10-28-bilgi-tabani-7.md`.
+
+### 7.1 Kodda (bu dilim; Railway kapalı → canlıya etkisi yok)
+
+| karar | ne yapıldı | nasıl sınandı |
+|---|---|---|
+| 7-A (2) şablon | Bilgi tabanı sayfasından değil, `/api/kb/template` ucundan boş doldurulabilir şablon (Türkçe / İngilizce): "Giriş:", "Wi-Fi:", "Otopark:", "Çöp:", "Ev Kuralları:", "Temizlik:", "Konum:", "Yerel Tavsiye:", "Genel:" başlıkları + "____" boşlukları | boş şablon yüklenirse HİÇ taslak çıkmaz (yer tutucu atlanır); doldurulmuş şablon doğru kategorilere düşer (Wi-Fi → wifi, Giriş → giriş talimatı, Otopark, Ev Kuralları) |
+| 7-A (3) dışa aktar | `/api/kb/export` + bilgi tabanı sayfasında **"Dışa aktar"** düğmesi: daire başına "# Daire adı", altında "## Başlık" + kendi cümleleriniz, kelimesi kelimesine | yalnız kendi işletmeniz (başka işletmenin dairesi 404), yalnız etkin kalemler, saatte 10, her indirme denetim kaydına yazılır; **dışa aktarılan dosya geri yüklenince aynı taslaklar çıkar** (gidiş-dönüş testi) |
+| 7-A "deneme sürümünde olmasın" | iki özellik tek kapıdan: **deneme sürümünde ve etkin paketi olmayan hesapta kapalı**, destek görünümünde (bürünme) dışa aktarma kapalı; düğme kullanılamıyorken hiç görünmez | deneme hesabı 403 + "Bu özellik deneme sürümünde kullanılamaz; bir paket seçtiğinizde açılır.", ücretli hesap 200, personel 403 |
+| 7-C | tasarımda düğme adı **"Böyle kalsın" → "Vazgeç"** | tasarım belgesi §5 / §7-C ve Opus inceleme belgesi güncellendi (kart henüz kodda değil — aşağıda) |
+
+**Müşteriye giden yeni metinler (iki cümle, ikisi de yalnız ev sahibine):** "Bu özellik deneme sürümünde kullanılamaz; bir paket seçtiğinizde
+açılır." · "Bu özellik için etkin bir paket gerekir." — ikisi de sizin "deneme sürümünde olmasın" kararınızın doğrudan karşılığı; farklı bir
+cümle isterseniz tek yerden (`billing/subscription.ts`) değişir.
+
+### 7.2 "Dosya yükleyince metni kategoriye mi bölüyoruz, tek metin mi koyuyoruz?" (7-A sorunuz)
+
+**Bölüyoruz, ama sizin cümlelerinize dokunmadan.** Adım adım:
+1. Dosyanın metni çıkarılır (PDF / Word / metin), **paragraflara** ayrılır.
+2. Başlıklar okunur ("Wi-Fi:", "Giriş", "# Lale 1" gibi). Başlık yoksa paragrafın kendi sözcüklerine bakılır (şifre / ağ → Wi-Fi; anahtar /
+   kapı kodu / kutu → Giriş Talimatı; otopark; çöp; kurallar…).
+3. Aynı konudaki paragraflar **tek taslak kalem** olur (ör. bütün Wi-Fi paragrafları bir "Wi-Fi" kalemi).
+4. Kalemin içeriği **sizin yazdığınız cümlelerin aynısıdır** — yapay zekâ da kod da yeniden yazmaz, kısaltmaz, "düzeltmez". "____" gibi boş
+   bırakılmış yerler atlanır.
+5. Taslaklar **önce size gösterilir**; onaylamadığınız hiçbir şey bilgi tabanına girmez, misafire gitmez.
+
+Neden tek parça değil: misafir "Wi-Fi şifresi ne?" diye sorduğunda arama motoru 20 sayfalık tek metin yerine yalnız Wi-Fi kalemini bulur —
+cevap hem daha doğru hem daha ucuz. Neden yeniden yazmıyoruz: misafire gidecek bilginin TEK doğrusu sizin cümleniz (kurucu kuralı "model bilgi
+yazamaz").
+
+### 7.3 7-e — kalıcı gömme deposu "bizim için iyi mi, çok ücret gelir mi?"
+
+**İyi, ve ücreti çok küçük.** Bugün bilgi tabanı parçalarının anlam vektörleri yalnız sunucu belleğinde duruyor; sunucu her yeniden
+başladığında (her yayın) sıfırlanıyor ve yeniden başlattıktan sonraki ilk cevaplar yalnız sözcük aramasıyla veriliyor ("soğuk" — anlamla eşleşme
+yok). Depo bunu kapatır: vektör bir kez üretilir, veritabanında kalır.
+
+| | hesap | tutar |
+|---|---|---|
+| Vektör üretimi (text-embedding-3-small, 1 milyon belirteç ≈ 0,02 $) | 100 ev sahibi × 10 daire × 30 parça = 30.000 parça × ~200 belirteç ≈ 6 milyon belirteç | **≈ 0,12 $ — bir kez**; sonra yalnız değişen kalem |
+| Depo olmadan | her yayında / yeniden başlatmada aynı 6 milyon belirteç yeniden | ≈ 0,12 $ her seferinde + ilk cevaplar anlamsız aramayla |
+| Veritabanı yeri | 30.000 × 1.536 sayı × 4 bayt ≈ 184 MB | Railway depolama fiyatıyla ayda birkaç sent |
+| Bugünkü sizin hesabınız (~10 daire) | ~300 parça | kuruşun altında |
+
+Yani belirleyici olan para değil **kalite**: yayından sonraki ilk misafir sorularında anlamsal eşleşme kaybolmasın. Plan (onaylı, migration 87,
+anahtar `KB_VECTOR_STORE_ENABLED` KAPALI doğar): tasarım belgesi §10.1 — yalnız yeni tablo, metin saklanmaz, kalem silinince vektör de gider,
+başka işletmenin vektörü okunamaz. **Bir sonraki dilimde yazılacak** (bu dilim şablon / dışa aktarma ve Opus bulgularına gitti).
+
+### 7.4 7-B, 7-D, 7-f, 7-g
+
+- **7-B "evet sayılsın":** dosyadan gelen taslak onaylanınca normal kalem gibi plan sınırına sayılır; sınırı aşan taslak "paket sınırı" diye
+  işaretlenir, onaylanamaz (tasarım §4.4). Yükleme ekranı bağlanırken uygulanacak; bugün yükleme ekranı yok.
+- **7-D gönderim zamanı:** "24 saat kuralı yerine bağlama bir kez daha bak" önerinizi iki yolla karşılaştırıyorum (sabit kurallar ↔ gönderim
+  anında kısa bağlam kontrolü), 30+ senaryoda; sonuçlar ayrı tabloda size gelecek, karar sizin. "Bilgi tabanına kaydedeyim mi?" → **hangi daire
+  için** sorusu + **"Bütün daireler için kaydet"** + daire seçme kutuları — tasarıma eklendi, kart kodlanırken uygulanacak. Eksik bilgi döngüsü ve
+  ileride WhatsApp: not edildi (projenin sonuna doğru, ayrı karar).
+- **7-f, 7-g:** onaylandı, not edildi.
+
+### 7.5 Opus ikinci dilim kalanlarından düzeltilenler (müşteriye giden cevabı DAHA ÇOK tutar; gevşetme yok)
+
+| bulgu | önce | şimdi |
+|---|---|---|
+| R16 | bilgi tabanında "Kediler ücretsiz kabul edilir." ya da "Evcil hayvanlar ücretsiz, köpekler hariç." yazıyorsa **köpekli misafire** "Evet, getirebilirsiniz" gidebiliyordu (kural "herkese ücretsiz" sanılıyordu) | tür adı ya da istisna (hariç / dışında / except / außer / sauf / excepto…) geçen kural genel "ücretsiz kabul" sayılmaz → cevap size kalır |
+| R18 | "Can we bring our **puppy**?" — sözlükte olmayan hayvan sözcüğünde evcil hayvan kemeri hiç devreye girmiyordu; "Gecelik ücret 200 TL" gibi bilgi tabanında olmayan ücret gidebiliyordu | canlıda açık öğe kipinde kemer misafirin sözcüğüne değil **öğenin türüne** (evcil hayvan) bakar → tutulur |
+| R21 | onaysız Airbnb konuşmasında **sizin kendi nezaket metninizde** telefon varsa ("Bize 0532 … numarasından ulaşabilirsiniz") nezaket cevabı gidiyordu (yalnız imza taranıyordu) | metnin tamamı taranır → gitmez (Airbnb platform dışı iletişim kuralı) |

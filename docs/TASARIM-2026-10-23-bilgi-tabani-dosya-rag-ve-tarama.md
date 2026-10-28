@@ -155,7 +155,7 @@ tutar kaynak kalem(ler)de birebir var, yeni değer yok, olumsuzluk (dahil değil
 (`answer-binding.ts`) bunu zaten yapıyor. Geçmeyen öneri soru olmaz.
 
 **Soru kuyruğu:** önem sırası (çelişki > tek kalemde iki tesis > ayrı kalemde istisna > belirsiz gün > aynı değer > yer tutucu); günde en
-çok 3; cevaplar: **Onayla** · **Düzenle** · **Böyle kalsın** (aynı soru bir daha sorulmaz). Kalıcı kayıt ister (`KbQuestion` tablosu →
+çok 3; cevaplar: **Onayla** · **Düzenle** · **Vazgeç** (aynı soru bir daha sorulmaz; kurucu 10-28: "böyle kalsın belirsiz oluyor" → düğme adı **Vazgeç**). Kalıcı kayıt ister (`KbQuestion` tablosu →
 migration). Onaylanınca yalnız o daire değişir; ardından aynı bulucu öteki dairelerde aynı durumu bulursa ön gösterim: "Lale 2, Lale 3:
 'Bahçe 21:00'e kadar' → 'Bahçe cumartesi hariç 21:00'e, cumartesi 23:00'e kadar'. Uygulayayım mı?" (tek tık, daire başına tik kutusu).
 
@@ -221,7 +221,7 @@ Bahçe ile ilgili iki ayrı kayıt var:
   "Bahçe 21:00'e kadar açık."  ·  "Cumartesi bahçe 23:00'e kadar açık."
 Tek kayıtta yan yana koyalım mı? (sizin cümleleriniz, kelimesi kelimesine)
   "Bahçe 21:00'e kadar açık. Cumartesi bahçe 23:00'e kadar açık."
-[Birleştir] [Düzenle] [Böyle kalsın]
+[Birleştir] [Düzenle] [Vazgeç]      ← kurucu 10-28: "Böyle kalsın" yerine "Vazgeç"
 → Onaylanınca: "Lale 2 ve Lale 3'te de aynı iki kayıt var. Onlara da uygulayayım mı?"  [Lale 2 ☑] [Lale 3 ☑]  [Uygula]
 ```
 

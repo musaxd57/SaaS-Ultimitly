@@ -125,7 +125,7 @@ persistence it is spent once, not on every restart.
 | S4 | **Import API, server only**: `POST /api/kb/import/plan` (pages → plan, deterministic, with gate labels + overlap labels across categories) and `POST /api/kb/import/apply` (pages + chosen sections + resolutions; property lock; deterministic requestIds; provenance) | no | `KB_FILE_IMPORT_ENABLED` (off) | Integration: parallel apply never exceeds the plan limit; replay returns the same items; an edited item gives 409; a foreign property gets 404 (cross-tenant test); a section index the server did not plan is rejected; 1 MB cap; drafts are recomputed on the server from pages + indices (the client sends no draft text except an explicit host edit) |
 | S5 | **Measurement**: KBs the size of an imported document (whole vs selection; semantic warm, cold or off) | no | — | `docs/olcum/` report; paid run only with founder approval |
 | S6 | **UI** (only after the 7-A / 7-B answers): extraction worker, review screen, scoped CSP | no | same flag | Update the CSP pin; `npm audit` gate + `security/audit-baseline.json`; UI test: one-click approval never includes a flagged block |
-| S7 | **`KbScanQuestion`** + deterministic finders + daily slots + panel card (after the 7-C answer) | **87** | `KB_SCAN_QUESTIONS_ENABLED` (off) | At most 3 per day per organization under two concurrent renders (DB unique); "Böyle kalsın" never asked again; a new third flat with the same value is asked; scoped by organization; sweeper |
+| S7 | **`KbScanQuestion`** + deterministic finders + daily slots + panel card (after the 7-C answer) | **87** | `KB_SCAN_QUESTIONS_ENABLED` (off) | At most 3 per day per organization under two concurrent renders (DB unique); "Vazgeç" (founder 10-28; formerly "Böyle kalsın") never asked again; a new third flat with the same value is asked; scoped by organization; sweeper |
 | S8 | Cross-property apply (preview, then tick boxes) · S9 optional model sectioning (indices only) + measurement | no | — | `propertyInOrg` for each id; plan limit when a split raises the count |
 
 Each new `*_ENABLED` goes into `docs/RAILWAY-ACILIS-2026-10-15.md` (pin `railway-doc-flags.test.ts`); "1"-only flags go into
@@ -227,12 +227,12 @@ indexes; boot-safe). Do not reuse `KbScanQuestion` for 7-D: that loop stores gue
 - "Lale 1 ve Lale 2 için aynı otopark yeri yazıyor: 12. İkisi de aynı yeri mi kullanıyor?" [Evet] [Düzelteyim]
 - Pet: the founder's text A, unchanged (`PET_FORBIDDEN_WARNING`) + [Baktım] [Kaydı aç]. Note: "her durumda" is an absolute claim,
   it is Airbnb policy, and the KB serves every channel; flag this to the founder, do not change it.
-- "Bu kayıtta iki ayrı yer var: havuz ve havuz barı. İki kayda ayıralım mı?" + the two sentences as they are. [Ayır] [Böyle kalsın]
-- "Bahçe saatleri iki ayrı kayıtta. Tek kayıtta yan yana koyalım mı?" + both sentences. [Birleştir] [Böyle kalsın]
+- "Bu kayıtta iki ayrı yer var: havuz ve havuz barı. İki kayda ayıralım mı?" + the two sentences as they are. [Ayır] [Vazgeç]
+- "Bahçe saatleri iki ayrı kayıtta. Tek kayıtta yan yana koyalım mı?" + both sentences. [Birleştir] [Vazgeç]
 - "Kayıtlarınızda havuzun yalnız hafta sonu kapanış saati var (23:00). Hafta içi kaçta kapanıyor?" [text box] [Bilmiyorum]
 - "Wi-Fi kaydında şifre boş kalmış. Doldurun ya da kaydı kapatın." [Kaydı aç]
 
-**Memory and dedupe.** The dedupe key is about meaning (§3), not content, so "Böyle kalsın" (`kept`) survives unrelated edits. A
+**Memory and dedupe.** The dedupe key is about meaning (§3), not content, so "Vazgeç" (`kept`; founder 10-28 renamed the button) survives unrelated edits. A
 NEW situation produces a new key and is asked again: a third flat with the same code, or a changed value. A daily slot is used the
 first time a card is *shown*, not when it is created. Snooze = 7 days and frees no slot. `stale` = the items changed and the
 finding is gone (the card disappears). Scan triggers: the write hook (best effort) plus the daily pass in `scheduled-sync`. The
