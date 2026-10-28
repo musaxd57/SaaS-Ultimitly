@@ -137,3 +137,15 @@ export function wideBudgetInfo(): { enabled: boolean; raw: string; recognized: b
   const raw = (process.env.KB_RETRIEVAL_WIDE_BUDGET ?? "").trim().toLowerCase();
   return { enabled: SEMANTIC_ON.has(raw), raw, recognized: raw === "" || SEMANTIC_ON.has(raw) || SEMANTIC_OFF.has(raw) };
 }
+
+/**
+ * TABLO BAŞLIĞI BAĞLAMI — `KB_TABLE_HEADER` (10-28, uzun belge ölçümü; Codex C9 "tablo satırı sütun başlığından kopmamalı"). VARSAYILAN
+ * KAPALI (aynı yazımlar, tanınmayan değer KAPALI + açılışta gürültülü). Açıkken bir Markdown tablosunun ORTASINDAN başlayan parçanın başına
+ * o tablonun başlık satırı eklenir (`chunker.ts chunkItem`): "| Geç çıkış | Ücretsiz | 500 TL | Yapılmıyor |" satırı hangi sütunun hangi
+ * sezon olduğunu artık kendi parçasında taşır. Başlık AYNI kalemden gelir (yeni bilgi / görünürlük yok). Arama, gömme, yeniden sıralayıcı,
+ * istem ve doğrulayıcı aynı parça metnini görür. Ölçüm: `docs/olcum/rag-uzun-belge-*`.
+ */
+export function tableHeaderInfo(): { enabled: boolean; raw: string; recognized: boolean } {
+  const raw = (process.env.KB_TABLE_HEADER ?? "").trim().toLowerCase();
+  return { enabled: SEMANTIC_ON.has(raw), raw, recognized: raw === "" || SEMANTIC_ON.has(raw) || SEMANTIC_OFF.has(raw) };
+}

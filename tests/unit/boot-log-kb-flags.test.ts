@@ -21,6 +21,7 @@ beforeEach(() => {
   vi.stubEnv("KB_RERANK_PER_QUESTION", "");
   vi.stubEnv("OPENAI_EMBEDDING_MODEL", "");
   vi.stubEnv("KB_RETRIEVAL_WIDE_BUDGET", "");
+  vi.stubEnv("KB_TABLE_HEADER", "");
 });
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -78,5 +79,18 @@ describe("açılış logu — retrieval bayrakları", () => {
     vi.stubEnv("KB_RETRIEVAL_MODE", "");
     await register();
     expect(wideLines()).toEqual(["[kb-retrieval] geniş blok bütçesi AÇIK (23000 karakter / 80 parça)"]);
+  });
+
+  it("tablo başlığı bağlamı (10-28): kapalıyken satır YOK; tanınmayan GÜRÜLTÜLÜ; açıkken AÇIK", async () => {
+    const lines = () => logs.filter((l) => l.includes("tablo başlığı") || l.includes("KB_TABLE_HEADER"));
+    await register();
+    expect(lines()).toEqual([]);
+    vi.stubEnv("KB_TABLE_HEADER", "evet");
+    await register();
+    expect(lines().some((l) => l.startsWith("WARN") && l.includes('KB_TABLE_HEADER="evet" TANINMADI'))).toBe(true);
+    logs.length = 0;
+    vi.stubEnv("KB_TABLE_HEADER", "1");
+    await register();
+    expect(lines()).toEqual(["[kb-retrieval] tablo başlığı bağlamı AÇIK"]);
   });
 });

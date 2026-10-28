@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { Bm25Index } from "./bm25";
 import { chunkItems, chunkKey, type KbChunk, type KbChunkSource } from "./chunker";
+import { tableHeaderInfo } from "./flag";
 import { NgramIndex } from "./sources";
 import { extractFieldTimes, type FieldTimes } from "./rerank";
 
@@ -74,7 +75,8 @@ export function buildKbIndex(items: readonly KbChunkSource[]): KbIndex {
 }
 
 export function getOrBuildKbIndex(items: readonly KbChunkSource[], now = Date.now()): KbIndex {
-  const fp = fingerprintItems(items);
+  // Parça tarifi (tablo başlığı anahtarı) önbellek anahtarına girer: anahtar çalışırken değişirse eski parçalı dizin kullanılmaz.
+  const fp = `${fingerprintItems(items)}${tableHeaderInfo().enabled ? "|th" : ""}`;
   const hit = _cache.get(fp);
   if (hit && hit.expires > now) {
     _cache.delete(fp);

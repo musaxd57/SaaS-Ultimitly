@@ -1,5 +1,6 @@
 import { createHash } from "crypto";
-import { CHUNK_MAX_CHARS, chunkSpans } from "@/lib/ai/retrieval/chunker";
+import { CHUNK_MAX_CHARS, chunkSpans, tableHeadsAt } from "@/lib/ai/retrieval/chunker";
+import { tableHeaderInfo } from "@/lib/ai/retrieval/flag";
 import { KB_CATEGORY, type KbCategory } from "@/lib/constants";
 import { extractKbSuggestions, type KbFieldSuggestion } from "@/lib/kb-extract";
 import { KB_CHARS_PER_ITEM } from "@/lib/billing/kb-item-cap";
@@ -56,8 +57,14 @@ export interface DocPage {
 export interface DocBlock {
   index: number;
   page: number;
-  /** Paragrafın normalize edilmiş metni — belgenin BİTİŞİK bir dilimi. */
+  /** Paragrafın normalize edilmiş metni — belgenin BİTİŞİK bir dilimi. Kategori / erişim / yer tutucu kararları YALNIZ buna bakar. */
   text: string;
+  /**
+   * `KB_TABLE_HEADER` (10-28) açıkken bölünmüş uzun tablonun DEVAM parçasında aynı tablonun başlık + ayıraç satırı. Yalnız taslak İÇERİĞİNE
+   * girer (`blockContent`); kategori kararına GİRMEZ (Haiku 10-28: "| Otopark | Garaj |" başlığı "| Wi-Fi | 4590 |" satırını Wi-Fi'den
+   * otoparka — aday misafire açık kategoriye — taşıyordu).
+   */
+  context?: string;
   kind: "heading" | "body";
   /** Başlık bloğunda başlığın kendisi; gövde bloğunda altında durduğu son başlık (yoksa null). */
   heading: string | null;
@@ -129,12 +136,18 @@ export function splitDocument(pages: readonly DocPage[]): SplitDocument {
         raw.push({ page: page.page, text, kind: "heading" });
       } else if (text.length > CHUNK_MAX_CHARS) {
         const paragraph = raw.length;
-        for (const s of chunkSpans(text)) {
+        const spans = chunkSpans(text);
+        // `KB_TABLE_HEADER` (10-28, uzun belge ölçümü): uzun tablo bölününce devam parçası başlık + ayıraç satırıyla başlar — parçalar
+        // ayrı konu kalemlerine düşebildiği için başlık satırı aksi hâlde satırlarından kopuyordu ("500 TL" hangi sezon?). Başlık AYNI
+        // belgeden; kapalıyken parça belgenin aynen dilimidir.
+        const heads = tableHeaderInfo().enabled ? tableHeadsAt(text, spans.map((s) => s.start)) : null;
+        for (const [i, s] of spans.entries()) {
           if (raw.length >= KB_IMPORT_MAX_BLOCKS) {
             truncated = true;
             break outer;
           }
-          raw.push({ page: page.page, text: text.slice(s.start, s.end), kind: "body", paragraph });
+          const h = heads?.[i];
+          raw.push({ page: page.page, text: text.slice(s.start, s.end), kind: "body", paragraph, ...(h ? { context: `${h.header}\n${h.separator}` } : {}) });
         }
       } else {
         raw.push({ page: page.page, text, kind: "body" });
@@ -478,7 +491,7 @@ export function assembleDrafts(doc: SplitDocument, sections: readonly DraftSecti
     const groups: number[][] = [[]];
     let size = 0;
     for (const i of parts) {
-      const len = doc.blocks[i].text.length + 2;
+      const len = blockContent(doc.blocks[i]).length + 2;
       if (size + len > KB_IMPORT_ITEM_MAX_CHARS && groups[groups.length - 1].length > 0) {
         groups.push([]);
         size = 0;
@@ -493,7 +506,7 @@ export function assembleDrafts(doc: SplitDocument, sections: readonly DraftSecti
       drafts.push({
         category,
         title: groups.length > 1 ? `${baseTitle} (${gi + 1}/${groups.length})` : baseTitle,
-        content: g.map((i) => doc.blocks[i].text).join("\n\n"),
+        content: g.map((i) => blockContent(doc.blocks[i])).join("\n\n"),
         blocks: g,
         pages: { first, last },
         sourceRef: `doc:${hash}:p${first}-${last}`,
@@ -504,10 +517,15 @@ export function assembleDrafts(doc: SplitDocument, sections: readonly DraftSecti
   }
 }
 
+/** Bloğun taslak içeriğine giren metni: varsa tablo başlığı bağlamı + dilim (bağlam aynı belgeden; kararlar yalnız dilime bakar). */
+export function blockContent(b: Pick<DocBlock, "text" | "context">): string {
+  return b.context ? `${b.context}\n${b.text}` : b.text;
+}
+
 /** Taslağın içeriği belgenin bloklarının AYNEN birleşimi mi (model bilgi yazamaz değişmezi; sunucu kaydetmeden önce yeniden sınar). */
 export function draftIsVerbatim(doc: SplitDocument, draft: Pick<ImportDraft, "content" | "blocks">): boolean {
   if (draft.blocks.length === 0) return false;
-  const texts = draft.blocks.map((i) => (doc.blocks[i]?.kind === "body" ? doc.blocks[i].text : null));
+  const texts = draft.blocks.map((i) => (doc.blocks[i]?.kind === "body" ? blockContent(doc.blocks[i]) : null));
   return texts.every((t) => t !== null) && texts.join("\n\n") === draft.content;
 }
 

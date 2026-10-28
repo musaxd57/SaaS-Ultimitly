@@ -64,6 +64,8 @@ export interface RerankCandidate {
   key: string;
   title: string;
   text: string;
+  /** Parçanın başına eklenen tablo başlığı uzunluğu (`KbChunk.prefixChars`); kırpma bu kadar uzar. */
+  prefixChars?: number;
 }
 
 export type RerankOutcome =
@@ -108,7 +110,7 @@ export function buildRerankRequest(
   const lines = candidates.slice(0, RERANK_MAX_CANDIDATES).map((c, i) => {
     const id = `C${i + 1}`;
     ids.set(id, c.key);
-    const body = fenceSafe(`${c.title} — ${c.text}`.slice(0, RERANK_TEXT_CHARS));
+    const body = fenceSafe(`${c.title} — ${c.text}`.slice(0, RERANK_TEXT_CHARS + (c.prefixChars ?? 0)));
     return `[${id}] <<<${body}>>>`;
   });
   // G8 (kurucu kararı 10-13): misafir sorusundaki istem bölüm çizgisi dizileri tek boşluğa iner (dizisiz metin bayt bayt aynı).
@@ -328,7 +330,7 @@ export async function prepareRerankScores(input: PrepareRerankInput): Promise<Re
       .map((keys) =>
         keys.flatMap((k): RerankCandidate[] => {
           const c = byKey.get(k);
-          return c ? [{ key: k, title: c.title, text: c.text }] : [];
+          return c ? [{ key: k, title: c.title, text: c.text, ...(c.prefixChars ? { prefixChars: c.prefixChars } : {}) }] : [];
         }),
       )
       .filter((cands) => cands.length >= 2);

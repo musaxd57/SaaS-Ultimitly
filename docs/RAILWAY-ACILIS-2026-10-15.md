@@ -132,7 +132,7 @@ etmeli; sunucuda açılan işlemin `custom_data.consentId`'si `subscription.crea
 kalıcı "işlem yok" sayılıyor (niyet kapanır, yeni işlem açılır) — yeni açılmış işlemde geçici 404 görülürse bu varsayım gözden geçirilmeli) ·
 
 `PADDLE_RESUME_ENABLED` (kurucu SG3 10-17: üründe "duraklatma" yok; iptal edilen yenilemede dönem sonu kutusu yeter) ·
-`KB_RETRIEVAL_WIDE_BUDGET` (kurucu: "şimdilik kapalı") · `KB_RERANK_PER_QUESTION` · `APP_TRUST_BROWSER_TIMEZONE` · `BILLING_ALLOW_CANCELED_PLAN_CHANGE`
+`KB_RETRIEVAL_WIDE_BUDGET` (kurucu: "şimdilik kapalı") · `KB_RERANK_PER_QUESTION` · `KB_TABLE_HEADER` (10-28: uzun tablonun ortasından başlayan parçaya başlık satırı; uzun belge ölçümü `docs/olcum/rag-uzun-belge-*`, açmak kurucu kararı) · `APP_TRUST_BROWSER_TIMEZONE` · `BILLING_ALLOW_CANCELED_PLAN_CHANGE`
 (geri alma kaçışı) · `ALLOW_LEGACY_LOCAL_UPLOADS` · `TRUST_X_REAL_IP` · `QR_INFORMATIONAL_BAND_ENABLED` · `AI_UNDERSTANDING_THREAT_RULE_ENABLED` ·
 `AI_STAY_DEFERRAL_PLAIN_ENABLED` · `AI_COURTESY_RULE_ENABLED` · `QR_ESCALATION_EMAIL_ENABLED` · `CHANNEL_LISTING_READ` / `CHANNEL_CONNECTION_READ`
 (okuma geçişi, ayrı tur) · `DEMO_TENANT_*` (yalnız CLI).

@@ -9,10 +9,14 @@
 //
 // METİN DEĞİŞTİRİLMEZ: her parça kalem metninin `content.slice(start, end)`
 // ile alınmış BİTİŞİK bir dilimidir (satır sonları dahil; kırpma, yeniden
-// yazma, özet yok) — test bunu `content.includes(chunk)` ile pinler. Kısa kalem
+// yazma, özet yok) — test bunu `content.includes(chunk)` ile pinler. TEK
+// İSTİSNA `KB_TABLE_HEADER` açıkken: tablonun ortasından başlayan parçanın
+// başına aynı kalemin tablo başlık satırı eklenir (`chunkItem`, `prefixChars`). Kısa kalem
 // (≤ tavan) TEK parçadır ve metni birebir aynıdır; bu sayede küçük bilgi
 // tabanlarında istem satırı legacy ile karakteri karakterine aynı kalır.
 // ---------------------------------------------------------------------------
+
+import { tableHeaderInfo } from "./flag";
 
 export const CHUNK_TARGET_CHARS = 600;
 export const CHUNK_MAX_CHARS = 900;
@@ -32,6 +36,11 @@ export interface KbChunk extends KbChunkSource {
   text: string;
   chunkIndex: number;
   chunkCount: number;
+  /**
+   * `KB_TABLE_HEADER` açıkken parçanın başına eklenen tablo başlığının uzunluğu (satır sonu dahil); eklenmediyse YOK. Yeniden sıralayıcı
+   * kırpması bu kadar uzar — başlık satırı tablo satırlarını kırpmanın dışına itmesin.
+   */
+  prefixChars?: number;
 }
 
 interface Span {
@@ -161,9 +170,72 @@ export function chunkText(content: string): string[] {
   return chunkSpans(content).map((s) => content.slice(s.start, s.end));
 }
 
+/** Markdown tablo satırı: kırpılmış satır "|" ile başlar. */
+function isTableRow(line: string): boolean {
+  return line.trimStart().startsWith("|");
+}
+
+/** Markdown tablo ayıracı ("| --- | :---: |"): yalnız | - : ve boşluk, en az bir "-". Düzenli ifadesiz, doğrusal. */
+function isTableSeparator(line: string): boolean {
+  const t = line.trim();
+  if (!t.startsWith("|") || !t.includes("-")) return false;
+  for (const ch of t) if (ch !== "|" && ch !== "-" && ch !== ":" && ch !== " " && ch !== "\t") return false;
+  return true;
+}
+
+/**
+ * Her parça başlangıcı için, parça bir Markdown tablosunun ORTASINDAN başlıyorsa o tablonun başlık satırı (başlık satırı parçanın
+ * İÇİNDEYSE ya da tablo dışındaysa null). Tek geçiş: satırlar sırayla okunur, "başlık satırı + hemen ardından ayıraç" yeni tabloyu açar,
+ * tablo satırı olmayan satır kapatır. Başlangıçlar artan sırada (parçalayıcının çıktısı) — doğrusal.
+ */
+export function tableHeadersAt(content: string, starts: readonly number[]): (string | null)[] {
+  return tableHeadsAt(content, starts).map((h) => h?.header ?? null);
+}
+
+/** `tableHeadersAt` + tablonun ayıraç satırı (içe aktarma devam parçasını geçerli Markdown tablosu olarak başlatır). */
+export function tableHeadsAt(content: string, starts: readonly number[]): ({ header: string; separator: string } | null)[] {
+  const lines: { start: number; text: string }[] = [];
+  let pos = 0;
+  for (const text of content.split("\n")) {
+    lines.push({ start: pos, text });
+    pos += text.length + 1;
+  }
+  const active: ({ header: string; separator: string; start: number } | null)[] = [];
+  let cur: { header: string; separator: string; start: number } | null = null;
+  for (let i = 0; i < lines.length; i++) {
+    const t = lines[i].text;
+    if (!isTableRow(t)) cur = null;
+    // Yeni tablo yalnız tablo DIŞINDAYKEN açılır (Haiku 10-28: tablonun içindeki "| - | - |" satırı ayıraç sayılıp bir önceki veri satırını
+    // başlık yapıyordu).
+    else if (cur === null && !isTableSeparator(t) && i + 1 < lines.length && isTableSeparator(lines[i + 1].text)) {
+      cur = { header: t.trim(), separator: lines[i + 1].text.trim(), start: lines[i].start };
+    }
+    active.push(cur);
+  }
+  const out: ({ header: string; separator: string } | null)[] = [];
+  let li = 0;
+  for (const s of starts) {
+    while (li + 1 < lines.length && lines[li + 1].start <= s) li++;
+    const a = active[li];
+    // Başlangıç başlık satırının KENDİSİNDE (ya da içinde) ise başlık zaten parçadadır (Haiku 10-28: satır ortasından başlayan parça başlığı
+    // ikinci kez alıyordu); ayıraç satırından ya da sonraki bir satırdan başlıyorsa eklenir.
+    out.push(a && lines[li].start > a.start && isTableRow(lines[li].text) ? { header: a.header, separator: a.separator } : null);
+  }
+  return out;
+}
+
 export function chunkItem(item: KbChunkSource): KbChunk[] {
-  const texts = chunkText(item.content);
+  const spans = chunkSpans(item.content);
+  // Anahtar kapalıyken parça metni kalem metninin AYNEN dilimidir (yukarıdaki değişmez). Açıkken yalnız tablonun ortasından başlayan
+  // parçanın başına başlık satırı + satır sonu eklenir; dilimin kendisi değişmez (`text.endsWith(dilim)`).
+  const headers = tableHeaderInfo().enabled ? tableHeadersAt(item.content, spans.map((s) => s.start)) : null;
+  const texts = spans.map((s, i) => {
+    const slice = item.content.slice(s.start, s.end);
+    const h = headers?.[i];
+    return h ? `${h}\n${slice}` : slice;
+  });
   return texts.map((text, i) => ({
+    ...(headers?.[i] ? { prefixChars: headers[i]!.length + 1 } : {}),
     id: item.id,
     category: item.category,
     title: item.title,

@@ -15,7 +15,7 @@
 // server-only modülleri bundle'a sokma" kuralını ihlal etmez. Env'i doğrudan
 // okumak da SEÇENEK DEĞİL: `KB_RETRIEVAL_MODE`un tek okuyucusunun flag.ts
 // olduğu mekanik olarak pinli (kb-retrieval-evidence-prompt.test.ts).
-import { kbRetrievalModeInfo, rerankPerQuestionInfo, rerankRetrievalInfo, semanticRetrievalInfo, wideBudgetInfo } from "@/lib/ai/retrieval/flag";
+import { kbRetrievalModeInfo, rerankPerQuestionInfo, rerankRetrievalInfo, semanticRetrievalInfo, tableHeaderInfo, wideBudgetInfo } from "@/lib/ai/retrieval/flag";
 // Yaprak modül (hiçbir şey import etmez): geniş blok bütçesinin değerleri açılış logunda görünsün.
 import { KB_RETRIEVAL_WIDE_CHAR_BUDGET, KB_RETRIEVAL_WIDE_MAX_CHUNKS } from "@/lib/ai/limits";
 // Yaprak modüller (#189): gömme modeli adı ve modele göre eşik — açılışta hangi modelin kullanıldığı görünsün.
@@ -88,6 +88,14 @@ export async function register() {
     console.warn("[kb-retrieval] geniş blok bütçesi AÇIK ama etkisiz: legacy modda");
   } else if (wbi.enabled) {
     console.log(`[kb-retrieval] geniş blok bütçesi AÇIK (${KB_RETRIEVAL_WIDE_CHAR_BUDGET} karakter / ${KB_RETRIEVAL_WIDE_MAX_CHUNKS} parça)`);
+  }
+  // Tablo başlığı bağlamı (10-28, varsayılan KAPALI): tanınmayan değer gürültülü. İki yerde etkili: getirme parçaları ve belge içe aktarma
+  // (içe aktarma `KB_RETRIEVAL_MODE`'a bakmaz — legacy modda yalnız içe aktarmada etkili).
+  const thi = tableHeaderInfo();
+  if (!thi.recognized) {
+    console.warn(`[kb-retrieval] KB_TABLE_HEADER="${thi.raw}" TANINMADI — KAPALI. Açmak için: 1 | on | true`);
+  } else if (thi.enabled) {
+    console.log(`[kb-retrieval] tablo başlığı bağlamı AÇIK${kb.mode === "legacy" ? " (legacy modda yalnız belge içe aktarmada)" : ""}`);
   }
   // Gömme modeli (#189): yalnız anlamsal kaynak açıkken anlamlı; açılışta hangi modelin (ve eşiğin) kullanıldığı görünür.
   if (sem.enabled) {
