@@ -46,8 +46,19 @@ const isLabelOnly = (line: string) => {
 };
 
 /**
+ * İmza SATIRINDA Airbnb'nin engellediği ama `containsContactValue`in (metin içi yanlış pozitiften kaçınmak için) saymadığı iki biçim (öz-inceleme
+ * 10-28): sosyal medya kullanıcı adı ("Instagram: @lalekonaklama" — e-posta değil) ve çıplak alan adı ("lalekonaklama.com", yaygın uzantılar).
+ * Yalnız imza satırında okunur: imza satırı cümle değildir, "Lale Apt. 2" / "Kat 2." uzantı listesine girmez.
+ */
+const SIGNATURE_HANDLE = /(?<![\p{L}\p{N}._%+-])@[\p{L}\p{N}._]{2,30}/u;
+const SIGNATURE_BARE_DOMAIN =
+  /(?<![\p{L}\p{N}@.\-])[\p{L}\p{N}-]{2,63}(?:\.[\p{L}\p{N}-]{1,63}){0,3}\.(?:com|net|org|info|biz|io|co|me|app|site|online|store|travel|rentals|house|homes|holiday|apartments|villas|tr|de|uk|fr|es|it|nl|ru|eu)(?![\p{L}\p{N}-])/iu;
+const isContactLine = (line: string) => containsContactValue(line) || SIGNATURE_HANDLE.test(line) || SIGNATURE_BARE_DOMAIN.test(line);
+
+/**
  * İmza, platform dışı iletişim penceresinde (kurucu kararı 4.14, 10-28: "Telefon satırı çıkarılıp cevap gitsin"). Pencere AÇIKSA
- * (`offPlatformContactHoldsFor`) iletişim değeri (telefon / e-posta / bağlantı, `containsContactValue`) taşıyan SATIRLAR çıkarılır, kalan
+ * (`offPlatformContactHoldsFor`) iletişim değeri (telefon / e-posta / bağlantı, `containsContactValue`; imza satırında ayrıca sosyal medya
+ * kullanıcı adı ve çıplak alan adı) taşıyan SATIRLAR çıkarılır, kalan
  * satırlar sırasıyla aynen; o durumda değeri giden etiket / emoji satırı ("📞", "Tel:") da çıkar. Satırın yalnız numarası silinmez:
  * "Bize 0532 … 'den ulaşın" yarım cümle bırakırdı (kurucu: kırık cümle asla) — ad ile numara aynı satırdaysa satırın tamamı gider.
  * Hiç satır kalmazsa `null` (imzasız). Pencere kapalıyken imza AYNEN (onaylı konaklamada iletişim serbest). Satırlara bölünmüş numara
@@ -56,9 +67,9 @@ const isLabelOnly = (line: string) => {
 export function signatureForContactWindow(signature: string | null | undefined, contactHolds: boolean): string | null {
   const sig = signature?.trim();
   if (!sig) return null;
-  if (!contactHolds || !containsContactValue(sig)) return sig;
+  if (!contactHolds) return sig;
   const lines = sig.split(/\r?\n/);
-  const kept = lines.filter((line) => !containsContactValue(line));
+  const kept = lines.filter((line) => !isContactLine(line));
   if (kept.length === lines.length) return sig;
   const out = kept
     .filter((line) => line.trim() === "" || (/[\p{L}\p{N}]/u.test(line) && !isLabelOnly(line)))

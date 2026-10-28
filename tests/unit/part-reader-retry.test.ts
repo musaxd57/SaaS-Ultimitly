@@ -155,6 +155,25 @@ describe("4.11 — süre (kurucu: 'süreye falan baksın')", () => {
     expect(elapsed).toBeLessThan(1_600);
   });
 
+  it("🚨 ilk hata GECİKMELİ geldiyse (tavanın yarısından az) ikinci deneme yalnız KALAN süreyi alır — tam tavanı değil (mutasyon R5)", async () => {
+    vi.stubEnv("AI_SEMANTIC_TIMEOUT_MS", "2000");
+    const f = vi
+      .fn()
+      .mockImplementationOnce(async () => {
+        await new Promise((r) => setTimeout(r, 800));
+        return new Response("x", { status: 503 });
+      })
+      .mockImplementationOnce(async (_u: unknown, init?: { signal?: AbortSignal }) => {
+        return new Promise<Response>((_, reject) => init?.signal?.addEventListener("abort", () => reject(init.signal!.reason)));
+      });
+    const started = Date.now();
+    expect(await run(f)).toEqual({ status: "failed" });
+    const elapsed = Date.now() - started;
+    expect(f).toHaveBeenCalledTimes(2);
+    // Kalan süre 2000 − 800 = 1200 ms → toplam ≈ 2000 ms. Tam tavan verilseydi ≈ 2800 ms.
+    expect(elapsed).toBeLessThan(2_400);
+  });
+
   it("bütçe hesabı: kalan = tavan − geçen − bekleme; kalan tavanın yarısından azsa deneme yok", () => {
     expect(structuredRetryBudgetMs(12_000, 300, 1_000)).toBe(10_700);
     expect(structuredRetryBudgetMs(12_000, 5_000, 1_000)).toBe(6_000);

@@ -53,3 +53,20 @@ describe("signatureForContactWindow — onaysız Airbnb: iletişim satırı çı
     expect(signatureForContactWindow("Sevgiler,\r\nAli\r\n+90 532 123 45 67", true)).toBe("Sevgiler,\nAli");
   });
 });
+
+describe("signatureForContactWindow — imza satırına özgü biçimler (öz-inceleme 10-28)", () => {
+  it("🚨 sosyal medya kullanıcı adı ve çıplak alan adı satırı da çıkar (Airbnb ikisini de engeller)", () => {
+    expect(signatureForContactWindow("Sevgiler,\nAli\nInstagram: @lalekonaklama", true)).toBe("Sevgiler,\nAli");
+    expect(signatureForContactWindow("Sevgiler,\nAli\nlalekonaklama.com", true)).toBe("Sevgiler,\nAli");
+    expect(signatureForContactWindow("Best,\nAli\nlale-konaklama.com.tr", true)).toBe("Best,\nAli");
+    expect(signatureForContactWindow("Sevgiler,\nAli\nIG @lale.ev_istanbul", true)).toBe("Sevgiler,\nAli");
+  });
+  it("KONTROL: kısaltma / kat / daire numarası / nokta içeren ad imzada kalır; pencere kapalıyken hepsi aynen", () => {
+    expect(signatureForContactWindow("Sevgiler,\nAli\nLale Apt. 2, Kat 3.", true)).toBe("Sevgiler,\nAli\nLale Apt. 2, Kat 3.");
+    expect(signatureForContactWindow("Saygılarımla,\nDr. A. Yılmaz", true)).toBe("Saygılarımla,\nDr. A. Yılmaz");
+    expect(signatureForContactWindow("Sevgiler,\nAli\nlalekonaklama.com", false)).toBe("Sevgiler,\nAli\nlalekonaklama.com");
+  });
+  it("e-posta adresi yine e-posta kuralıyla çıkar (kullanıcı adı kuralı e-postayı ikinci kez saymaz)", () => {
+    expect(signatureForContactWindow("Ali\nali@ornek.com", true)).toBe("Ali");
+  });
+});

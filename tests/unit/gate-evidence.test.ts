@@ -230,8 +230,9 @@ describe("kapı hükmü — her `blocked` kontrolü kendi ayrıntı koduyla", ()
     const de = { ...ok, intent: "general", reply: "Hallo Alex,\n\ndie Zusatzreinigung kostet 700 TL, bitte sagen Sie uns einen Tag vorher Bescheid." };
     expect(autoReplyGateVerdict({ ...de, detectedLanguage: "de" }, q)).toBeNull();
     expect(autoReplyGateVerdict(tr, q)).toBeNull();
-    // Cevapsız önceki mesaj Almancaysa iz oradan da okunur (son mesaj belirsiz).
-    expect(autoReplyGateVerdict({ ...tr, detectedLanguage: "de" }, "Danke!", { pendingGuestMessages: [q] })).toEqual({ reason: "reply_language_mismatch" });
+    // Cevapsız önceki mesaj Almancaysa iz oradan da okunur: son mesaj HİÇ iz taşımıyor ("OK?") ve birleşik metinde de kod emin değil —
+    // iz yalnız önceki mesajda (mutasyon L4: yalnız son mesaj okunursa yanlış dilli cevap geçiyordu).
+    expect(autoReplyGateVerdict({ ...tr, detectedLanguage: "de" }, "OK?", { pendingGuestMessages: [q] })).toEqual({ reason: "reply_language_mismatch" });
   });
 
   it("kapının yüksek risk kümesi kanıt modülündeki TEK kaynaktan kurulur", () => {
