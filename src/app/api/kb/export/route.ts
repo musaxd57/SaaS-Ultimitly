@@ -49,7 +49,7 @@ export const GET = withManage(async (session, req) => {
     action: "kb.export",
     metadata: { properties: properties.length, items: properties.reduce((n, p) => n + p.knowledgeBase.length, 0), scoped: Boolean(propertyId) },
   });
-  return new NextResponse(`﻿${text}`, {
+  return new NextResponse(`\uFEFF${text}`, {
     headers: {
       "content-type": "text/plain; charset=utf-8",
       "content-disposition": `attachment; filename="${kbExportFilename(at)}"`,

@@ -15,7 +15,7 @@ export const GET = withManage(async (session, req) => {
   if (!gate.ok) return forbidden(gate.reason === "trial" ? PAID_FEATURE_TRIAL_MESSAGE : PAID_FEATURE_INACTIVE_MESSAGE);
   const lang: KbTemplateLang = new URL(req.url).searchParams.get("lang") === "en" ? "en" : "tr";
   // UTF-8 BOM: Windows Not Defteri / Word Türkçe harfleri doğru açsın (içe aktarıcı BOM'u siler).
-  return new NextResponse(`﻿${kbTemplateText(lang)}`, {
+  return new NextResponse(`\uFEFF${kbTemplateText(lang)}`, {
     headers: {
       "content-type": "text/plain; charset=utf-8",
       "content-disposition": `attachment; filename="${kbTemplateFilename(lang)}"`,
