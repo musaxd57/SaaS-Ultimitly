@@ -300,7 +300,7 @@ yan cümle yalnız KENDİNİ muaf tutsun.
 | R12 | P2 | olay muafiyeti cümle düzeyi | a | AÇIK |
 | R13 | P2 | INFO_CONDITION "let them know / details" | b | AÇIK |
 | R14 | P3 | "break" / "issues" geniş | a | AÇIK |
-| R15 | P2 | binding: tire / parantez / "•" / noktalamasız "kapalı" sıfat | a | AÇIK |
+| R15 | P2 | binding: tire / parantez / "•" / noktalamasız "kapalı" sıfat | a | AÇIK — 10-28 gece tasarım notu ↓ (aceleyle kapatılmadı: yan cümle bölme bu dosyada üç ayrı yerde) |
 | R16 | P1 | pet: "hariç / except" + tür uyuşmazlığı → evet gider | a | düzeltildi 10-28 (ac4bfa66 + pin) |
 | R17 | P2 | pet: kısıt biçimleri koşul sayılmıyor | a | AÇIK |
 | R18 | P1 | pet: öğe kipinde (canlı) B4 devre dışı; test yalnız öğesiz | a, e | düzeltildi 10-28 (ac4bfa66 + pin) |
@@ -318,3 +318,17 @@ yan cümle yalnız KENDİNİ muaf tutsun.
 | R30 | P3 | RU iyelik, "site yönetimi", DE "bitte direkt an", konusuz değer muafiyeti | a | AÇIK |
 (* modül henüz bağlı değil — bağlamadan önce kapanmalı.) Sorun bulunmayan: `kb/after-change.ts` + çağıranlar (kiracı yalıtımı, işlem dışı,
 çift sayım yok).
+
+
+---
+## 10-28 gece — R15 tasarım notu (uygulanmadı; sıradaki dilim)
+
+Kök: `closedIsNotPredicate` "kapalı"nın ARDINDAKİ tesis adına bakıp sıfat okuması yapıyor; tire / parantez / eğik çizgi / "•" belirteçlere
+ayırmada siliniyor, sonraki "havuz" sözcüğü "kapalı havuz" sıfat öbeği sanılıyor. Önerilen iki adım (ikisi de yalnız TUTMA yönünde):
+1. `" - " · "–" · "(" · ")" · "/" · "•"` yan cümle ayracı (belirteçlere ayırmadan ÖNCE) — dört biçimi kapatır. Yan cümle bölme bu dosyada üç
+   yerde farklı (satır ~1489 cümle, ~1554 yer, ~2730 olumluluk) → hepsinde aynı ayraç kümesi; tek kaynak yardımcı.
+2. Noktalamasız biçim ("Havuz şu an kapalı havuz havluları dolaptadır"): özne (tesis adı) "kapalı"dan ÖNCE aynı yan cümlede söylendiyse VE
+   ardındaki tesis adı yeni bir ad öbeği başlatıyorsa (ardından yüklem / var / mevcut / ek-fiil gelmiyorsa) "kapalı" yüklemdir. Korunması
+   gereken sıfat okumaları (pin): "Otoparkımız kapalı otoparktır" (ad ek-fiilli), "Havuz yanında kapalı otopark vardır" (var / mevcut),
+   "Sitenin kapalı yüzme havuzu açıktır" (tesis tamlayanı), "Spa kapalı havuz açık" (mevcut kural).
+Ölçüt: yanmış kabul setindeki 5 "kapalı" doğru-tutma vakası geri gelmemeli (10-23 akşam ölçümü) + Opus'un 5 biçimi + yukarıdaki 4 sıfat pini.
