@@ -757,8 +757,9 @@ const EVENT_WORDS = new RegExp(
     "kaybed\\p{L}{0,12}|kaybol\\p{L}{0,12}|kaybet\\p{L}{0,12}|[çc]al[ıi][şs]m(?:[ıi]yor|az|ad[ıi])\\p{L}{0,8}|bozul\\p{L}{0,12}|ar[ıi]za\\p{L}{0,12}|" +
     "acil (?:bir )?durum\\p{L}{0,6}|kesil\\p{L}{0,12}|s[ıi]z[ıi]nt[ıi]\\p{L}{0,8}|yang[ıi]n (?:olursa|[çc][ıi]karsa|durumunda|halinde|an[ıi]nda)|" +
     "alarm (?:[çc]alarsa|[öo]terse|[çc]al[ıi]yorsa)|kilitli kal\\p{L}{0,12}|d[ıi][şs]ar[ıi]da kal\\p{L}{0,12}|" +
-    // R3: gerçek olay talimatlarının yaygın biçimleri ("Herhangi bir sorun olursa ev sahibinizi arayın") — "sorunuz" (soru) hariç.
-    "sorun(?!uz(?![\\p{L}]))\\p{L}{0,6}|problem\\p{L}{0,6}|a[çc]am(?:[ıi]yor|az)\\p{L}{0,8}|a[çc][ıi]lm(?:[ıi]yor|az)\\p{L}{0,8}|" +
+    // R3: gerçek olay talimatlarının yaygın biçimleri ("Herhangi bir sorun olursa ev sahibinizi arayın"). "Sorunuz olursa" (soru) burada da
+    // eşleşir ama bilgi koşulu (`INFO_CONDITION`) onu yönlendirme olarak tutar.
+    "sorun\\p{L}{0,6}|problem\\p{L}{0,6}|a[çc]am(?:[ıi]yor|az)\\p{L}{0,8}|a[çc][ıi]lm(?:[ıi]yor|az)\\p{L}{0,8}|" +
     "gelm(?:iyor|ez)\\p{L}{0,8}|yanm(?:[ıi]yor|az)\\p{L}{0,8}|unut\\p{L}{0,10}|ak[ıi]t\\p{L}{0,8}|" +
     "verlier\\p{L}{0,6}|verloren|funktioniert nicht|notfall|perd(?:ez|u|ue|ues|ido|ida)|ne fonctionne pas|panne|urgence|pierd\\p{L}{0,6}|no funciona|" +
     "emergencia|потеря\\p{L}{0,3}|не работает|авари\\p{L}{0,4}|экстренн\\p{L}{0,4})(?![\\p{L}])",

@@ -255,6 +255,10 @@ describe("ev sahibine yönlendirme", () => {
       "Of course, for the alarm code please ask your host.",
       "Perdone, si quiere saber el horario de la piscina, pregunte a su anfitrión.",
       "If you want to know about the lost and found, ask your host.",
+      // Bilmek / öğrenmek sözcüğü OLMADAN da (mutasyon: "acil" adı, "lost and found", "Of course" koşul eki ayrı ayrı sınanır).
+      "Acil çıkışı kullanmak isterseniz ev sahibinize sorabilirsiniz.",
+      "If it's about the lost and found, please ask your host.",
+      "Of course, please ask your host if the boiler is broken.",
     ]) {
       expect(refersGuestToHost(t), t).toBe(true);
     }
