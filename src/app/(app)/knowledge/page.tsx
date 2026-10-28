@@ -9,6 +9,9 @@ import { aiReadableForConflicts, kbTimeConflicts, type KbTimeConflictRow } from 
 import { AUTO_MESSAGE_LABEL, type AutoMessageKind } from "@/lib/auto-messages/render";
 import { detectKbInstructionHijack } from "@/lib/ai/fallback";
 import { parseKbPrefill } from "@/lib/kb-prefill";
+import { paidPlanFeatureAllowed } from "@/lib/billing/subscription";
+import { isImpersonating } from "@/lib/auth/impersonation";
+import { buttonVariants } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
 
@@ -63,13 +66,23 @@ export default async function KnowledgePage({
   // B1 (kurucu 10-11): gelen kutusundaki "Eksik bilgi" → form ön dolu (mülk / kategori / başlık). Yalnız oturumun kendi mülkü;
   // ev sahibi içeriği yazıp kendisi kaydeder.
   const prefill = parseKbPrefill(await searchParams, properties.map((p) => p.id));
+  // Kurucu 10-28 §7-A (3): "Dışa aktar" ücretli paket özelliği — deneme sürümünde ve destek görünümünde düğme HİÇ görünmez (uç da aynı
+  // kapıyla 403 der; düğme yalnız kullanılabilirken çıkar). Kalem yoksa indirilecek bir şey de yok.
+  const canExport = items.some((i) => i.isActive) && !isImpersonating(session) && (await paidPlanFeatureAllowed(session.organizationId)).ok;
 
   return (
     <>
       <PageHeader
         title="Bilgi Tabanı"
         description="Buraya girdiğiniz mülke özel bilgiler (Wi-Fi, giriş yöntemi, ev kuralları, çevre önerileri…) yapay zekânın misafir sorularına verdiği cevapları besler. Karşılama, giriş ve çıkış mesajlarını her dairenin sayfasındaki “Otomatik mesajlar” bölümünden düzenleyin; elle kullandığınız hazır metinler için Şablonlar bölümünü kullanın."
-      />
+      >
+        {canExport ? (
+          // Dosya indirmesi: düz bağlantı (istemci yönlendirmesi değil). Sunucu ek dosyası döner.
+          <a href="/api/kb/export" download className={buttonVariants({ variant: "outline", size: "sm" })}>
+            Dışa aktar
+          </a>
+        ) : null}
+      </PageHeader>
 
       {properties.length === 0 ? (
         <EmptyState

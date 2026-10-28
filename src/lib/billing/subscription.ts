@@ -180,6 +180,23 @@ export async function premiumAllowed(organizationId: string): Promise<boolean> {
   return (await getEntitlement(organizationId)).active;
 }
 
+/**
+ * ÜCRETLİ PAKET ÖZELLİĞİ — deneme sürümünde KAPALI (kurucu 10-28, bilgi tabanı §7-A: şablon indirme ve bilgi tabanını dışa aktarma "deneme
+ * sürümünde olmasın"). `premiumAllowed`dan farkı: süren deneme de kapalıdır. Kurucunun kendi işletmesi ve faturalandırma zorunlu değilken
+ * (bütün kapıların aynı kill-switch'i) açık; aboneliği olmayan eski hesap (`grandfathered`) tam erişimlidir.
+ */
+export async function paidPlanFeatureAllowed(organizationId: string): Promise<{ ok: true } | { ok: false; reason: "trial" | "inactive" }> {
+  if (isFounderOrg(organizationId) || !billingEnforced()) return { ok: true };
+  const ent = await getEntitlement(organizationId);
+  if (!ent.active) return { ok: false, reason: "inactive" };
+  if (ent.trialing) return { ok: false, reason: "trial" };
+  return { ok: true };
+}
+
+/** Müşteriye görünen metin (sade, "-in"): ücretli paket özelliği deneme sürümünde / pasif abonelikte açılmaz. */
+export const PAID_FEATURE_TRIAL_MESSAGE = "Bu özellik deneme sürümünde kullanılamaz; bir paket seçtiğinizde açılır.";
+export const PAID_FEATURE_INACTIVE_MESSAGE = "Bu özellik için etkin bir paket gerekir.";
+
 export type AddPropertyCheck = {
   allowed: boolean;
   reason?: "subscription_inactive" | "property_limit";

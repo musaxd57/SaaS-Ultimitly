@@ -141,9 +141,14 @@ export function splitDocument(pages: readonly DocPage[]): SplitDocument {
       }
     }
   }
-  // Altında gövde olmayan başlık (art arda iki başlık ya da belge sonu) içeriği taşıyabilir → gövde sayılır, düşmez.
+  // Altında gövde olmayan başlık (art arda iki başlık ya da belge sonu) içeriği taşıyabilir → gövde sayılır, düşmez. İSTİSNA (kurucu 10-28
+  // §7-A, dışa aktarılan dosya yeniden yüklenebilsin): daha DERİN düzeyli bir Markdown başlığından önceki Markdown başlığı üst başlıktır
+  // ("# Lale 1" → "## Wi-Fi"), gövde değil.
+  const mdLevel = (t: string) => /^(#{1,6})\s/.exec(t)?.[1].length ?? 0;
   for (let i = 0; i < raw.length; i++) {
-    if (raw[i].kind === "heading" && raw[i + 1]?.kind !== "body") {
+    const next = raw[i + 1];
+    const parent = next?.kind === "heading" && mdLevel(raw[i].text) > 0 && mdLevel(next.text) > mdLevel(raw[i].text);
+    if (raw[i].kind === "heading" && next?.kind !== "body" && !parent) {
       raw[i] = { ...raw[i], kind: "body" };
       headings.delete(i);
     }
