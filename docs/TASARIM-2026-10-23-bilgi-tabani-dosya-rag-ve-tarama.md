@@ -337,3 +337,15 @@ Kod incelemesi sonrası tasarım sadeleşti (aynı güvenceler, daha az kolon / 
 - **Anahtar:** `KB_VECTOR_STORE_ENABLED` (yalnız "1"), varsayılan KAPALI → kapalıyken tabloya okuma / yazma / silme YOK (bayt bayt bugünkü).
 - **Envanterler:** KVKK dışa aktarma "türetilmiş — metni bilgi tabanı dökümünde" gerekçesiyle dışarıda; Railway açılış listesi; "1" bayrakları;
   migration manifesti; kiracılar arası davranış testi (başka işletmenin kalem kimliğiyle okuma sıfır satır).
+
+### 10.2 Uygulandı (10-28, kurucu "tamamdır … en uzun vadeli en iyi olacak şekilde")
+
+Migration 87 `KbChunkVector` + `src/lib/ai/embeddings/vector-store.ts` + `semantic-retrieval.ts` bağlantısı; anahtar `KB_VECTOR_STORE_ENABLED`
+(yalnız "1") KAPALI. §10.1'e ek olarak dosya RAG tasarımının (`docs/TASARIM-2026-10-28-dosya-rag-cumle-ve-anlam.md` §4.2) K1–K7'si şemada:
+`kind` (bugün yalnız `chunk`) · `recipe` (`c1`) · `inputHash` (tarif girdisinin özeti = bugünkü gömülen metnin özeti) · `ord` · tekil anahtar
+`(kbItemId, model, recipe, kind, inputHash, ord)` · tür başına izinli boyut doğrulaması (cümle / soru satırları için 512 izinli) · tür başına
+temizlik (yazma kancasında yalnız belirlenimci türler). K8 (bellek deposunda sayı yerine bayt tavanı) şema değil, cümle dilimiyle (D3) gelir.
+Isıtma önce depoya bakar (bulunan gömülmez, saatlik bütçeye sayılmaz); sıcak yol bellekte eksik görürse 250 ms içinde depodan okur, hâlâ
+eksik varsa bugünkü gibi `cold` (YARIM HARİTA YOK). Testler `tests/integration/kb-vector-store.test.ts` (12): anahtar kapalıyken veritabanına
+dokunmama · yeniden başlatma sonrası `ok` + yeniden ödeme yok + seçiciye giden puanlar bellektekiyle birebir · sorgu vektörü yazılmaz ·
+başka işletmenin satırı okunmaz · bozuk satır silinir + `cold` · zaman aşımı `cold` · cascade · değişen kalem temizliği · açılışta eski model.

@@ -880,7 +880,8 @@ model KnowledgeBaseItem {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  property Property        @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  vectors  KbChunkVector[]
 
   // Migration 68 (kurucu D2, 10-15 "Eski kopyayı güncelle"): kopyanın KAYNAĞI ve kopyalandığı (ya da son güncellendiği) andaki içerik izi
   // (SHA-256: kategori + başlık + içerik + dil). Yeniden kopyalamada yalnız bu kaynaktan geldiği doğrulanmış VE iz hâlâ tutan (yerelde
@@ -893,6 +894,37 @@ model KnowledgeBaseItem {
   @@unique([propertyId, copiedFromId])
   @@index([propertyId])
   @@index([category])
+}
+
+/// Migration 87 — KALICI GÖMME DEPOSU (kurucu 10-23 "Bilgi tabanı iki yeni tablo ana dala", 10-28 "tamamdır … en uzun vadeli en iyi olacak
+/// şekilde"; tasarım `docs/TASARIM-2026-10-23-bilgi-tabani-dosya-rag-ve-tarama.md` §10.1 + `docs/TASARIM-2026-10-28-dosya-rag-cumle-ve-anlam.md`
+/// §4.2 K1–K7). Bilgi tabanı parçalarının anlam vektörleri yeniden başlatmada kaybolmasın (yayından sonraki ilk misafir sorusu sözcüksele
+/// düşmesin). METİN SAKLANMAZ: tablo her zaman yeniden kurulabilir bir önbellektir. Satır yalnız KALEME bağlıdır (kalem → daire → işletme
+/// silme zinciri cascade); okuma çağıranın kiracı süzgeçli kalem kimlikleriyle yapılır. Anahtar `KB_VECTOR_STORE_ENABLED` (yalnız "1")
+/// kapalıyken tabloya okuma / yazma / silme YOK.
+model KbChunkVector {
+  id        String   @id @default(cuid())
+  kbItemId  String
+  /// Gömme modeli (`embeddingModel()`); model değişince eski satırlar açılış temizliğinde silinir.
+  model     String
+  /// Gömme metninin tarif sürümü (`c1` = bugünkü `embeddingTextFor`). Tarif değişince eski satırlar kalem değişmese de süpürülür.
+  recipe    String   @default("c1")
+  /// Eşleşme birimi türü (kodda kapalı küme): chunk · sentence · question · item. Bugün yalnız `chunk` yazılır.
+  kind      String   @default("chunk")
+  /// Tarif GİRDİSİNİN SHA-256 özeti (base64url). Belirlenimci tarifte girdi = gömülen metin (bellek deposunun anahtarıyla aynı).
+  inputHash String
+  /// Aynı girdiden birden çok vektör (ileride üretilen sorular) için sıra; bugün hep 0.
+  ord       Int      @default(0)
+  /// Vektör boyutu; okumada türün izinli boyutlarıyla ve bayt uzunluğuyla (boyut × 4) doğrulanır.
+  dims      Int
+  /// Float32 küçük-sonlu (little-endian) ham baytlar.
+  vector    Bytes
+  createdAt DateTime @default(now())
+
+  kbItem KnowledgeBaseItem @relation(fields: [kbItemId], references: [id], onDelete: Cascade)
+
+  // Sütun sırası okuma sorgusunun ön ekidir (kbItemId IN … AND model = … AND recipe = … AND kind = …): ayrı dizin gerekmez.
+  @@unique([kbItemId, model, recipe, kind, inputHash, ord])
 }
 
 model AutomationRule {

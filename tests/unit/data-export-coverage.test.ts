@@ -41,6 +41,7 @@ const EXPORTED: Record<string, string> = {
 const EXCLUDED: Record<string, string> = {
   VerifiedAnswer: "doğrulanmış cevap tekrarının GÖLGE kaydı (migration 85) — misafir metni / kimliği yok: bilgi tabanından doğrulanmış cevap + süzülmüş Türkçe arama sorgusu; 30 günde geçersiz, 90 gün dokunulmazsa silinir",
   CheckoutIntent: "ödeme ekranı durumu — iç işletim; delil CheckoutConsent ve sonuç Invoice dökümde; takma adlı Paddle işlem kimliği, kapanıştan 90 gün sonra silinir (Codex 10-21, migration 82)",
+  KbChunkVector: "bilgi tabanı parçalarının anlam vektörleri (migration 87) — türetilmiş önbellek, METİN YOK; kaynağı (bilgi tabanı kalemi) dökümde; kalem silinince cascade ile gider",
   KbCopyOperation: "kopyalama tekrar güvenliği iç kaydı (kaynak kimliği + istek kimliği + içerik izi) — içerik yok; 30 gün sonra saatlik süpürgeyle silinir (Codex 10-21, migration 81)",
   SystemLock: "Sistem kilidi / işaret satırı — işletme verisi değil",
   RateLimitCounter: "Geçici hız sınırı sayacı",

@@ -24,8 +24,9 @@
  *  · BİLİNEN SINIRLAR: depo ve ısıtma tavanı TÜM kiracılarda ORTAK (vektör metnin saf fonksiyonu,
  *    kiracı taşımaz; ama büyük bir kiracı saatlik ısıtma tavanını tüketebilir) · toplam parça depo
  *    tavanını aşarsa KB'ler birbirini tahliye eder (tavanla sınırlı yeniden ısıtma). Kalıcı çözüm E2.
- *  · Vektörler SÜREÇ BELLEĞİNDE (Float32Array, LRU). Kalıcı tablo E2 (migration onayı); o gelene
- *    kadar bedel her yeniden başlatmada KB başına tek seferlik ~0,1 sent.
+ *  · Vektörler SÜREÇ BELLEĞİNDE (Float32Array, LRU). Kalıcı depo (migration 87, `vector-store.ts`, anahtar
+ *    `KB_VECTOR_STORE_ENABLED`) açıkken ısıtma önce depoya bakar, yalnız eksikleri gömer ve üreteni depoya yazar; sıcak yol bellekte
+ *    eksik parça görürse depodan zaman sınırlı okur. Kapalıyken bedel her yeniden başlatmada KB başına tek seferlik ~0,1 sent.
  *  · ASLA FIRLATMAZ; her arıza "anlamsal kaynak yok" demektir (seçici sözcüksel çalışır).
  *  · Veri akışı YENİ DEĞİL: KB metni ve misafir mesajı zaten aynı sağlayıcıya gidiyor
  *    (`provider.ts` başlığı). PII kanıta/loga YAZILMAZ; anahtarlar metin ÖZETİDİR.
@@ -41,6 +42,13 @@ import { retrievalNeeded, retrievalQueries, type ExtraQuery } from "@/lib/ai/ret
 import { semanticThresholdFor, thresholdTransform } from "@/lib/ai/retrieval/semantic";
 import { embeddingTextFor } from "@/lib/ai/embeddings/context-text";
 import { embedTexts, embeddingModel, EMBEDDING_BATCH_MAX } from "@/lib/ai/embeddings/provider";
+import {
+  loadChunkVectors,
+  persistChunkVectors,
+  vectorStoreEnabled,
+  VECTOR_STORE_READ_TIMEOUT_MS,
+  VECTOR_STORE_WARM_READ_TIMEOUT_MS,
+} from "@/lib/ai/embeddings/vector-store";
 
 /** Misafir beklerken gömme için toplam bütçe (tekrar denemeler dâhil). */
 export const SEMANTIC_HOT_PATH_DEADLINE_MS = 1_500;
@@ -97,13 +105,17 @@ function storeGet(key: string): Float32Array | undefined {
   return v;
 }
 
-function storeSet(key: string, vec: readonly number[]): void {
-  store.set(key, Float32Array.from(vec));
+function trimStore(): void {
   while (store.size > storeMax) {
     const oldest = store.keys().next();
     if (oldest.done) break;
     store.delete(oldest.value);
   }
+}
+
+function storeSet(key: string, vec: readonly number[]): void {
+  store.set(key, Float32Array.from(vec));
+  trimStore();
 }
 
 function takeWarmBudget(n: number, now: number): boolean {
@@ -116,24 +128,51 @@ function takeWarmBudget(n: number, now: number): boolean {
   return true;
 }
 
-/** Eksik parça metinlerini arka planda gömer (bekletmez, fırlatmaz, tekrarlamaz). Kuyruğa GERÇEKTEN alınan metin sayısını döner. */
-function scheduleWarm(model: string, texts: readonly string[]): number {
-  const todo = [...new Set(texts)].filter((t) => {
-    const k = storeKey(model, t);
-    return !store.has(k) && !warming.has(k);
-  });
+/** Isıtma girdisi: gömülecek metin + o metni taşıyan kalem (kalıcı depo satırı kaleme bağlanır). */
+interface WarmEntry {
+  text: string;
+  itemId: string;
+}
+
+/**
+ * Eksik parça metinlerini arka planda gömer (bekletmez, fırlatmaz, tekrarlamaz). Kuyruğa GERÇEKTEN alınan metin sayısını döner.
+ * Kalıcı depo açıkken önce depodan okur (bulunanlar gömülmez, saatlik bütçeye sayılmaz), yalnız kalanları gömer ve depoya yazar.
+ */
+function scheduleWarm(model: string, entries: readonly WarmEntry[]): number {
+  const owners = new Map<string, Set<string>>();
+  for (const e of entries) {
+    const k = storeKey(model, e.text);
+    if (store.has(k) || warming.has(k)) continue;
+    const set = owners.get(e.text) ?? new Set<string>();
+    set.add(e.itemId);
+    owners.set(e.text, set);
+  }
+  const todo = [...owners.keys()];
   if (todo.length === 0 || !takeWarmBudget(todo.length, Date.now())) return 0;
   const keys = todo.map((t) => storeKey(model, t));
   for (const k of keys) warming.add(k);
   const job = (async () => {
     try {
-      for (let i = 0; i < todo.length; i += EMBEDDING_BATCH_MAX) {
-        const batch = todo.slice(i, i + EMBEDDING_BATCH_MAX);
+      let remaining = todo;
+      if (vectorStoreEnabled()) {
+        const refs = todo.flatMap((text) => [...(owners.get(text) ?? [])].map((kbItemId) => ({ kbItemId, text })));
+        const { vectors } = await loadChunkVectors(model, refs, VECTOR_STORE_WARM_READ_TIMEOUT_MS);
+        for (const [text, vec] of vectors) store.set(storeKey(model, text), vec);
+        trimStore();
+        if (vectors.size > 0) warmUsed = Math.max(0, warmUsed - vectors.size); // depodan gelen gömülmedi → bütçeye sayılmaz
+        remaining = todo.filter((t) => !vectors.has(t));
+      }
+      for (let i = 0; i < remaining.length; i += EMBEDDING_BATCH_MAX) {
+        const batch = remaining.slice(i, i + EMBEDDING_BATCH_MAX);
         const out = await embedTexts(batch, { quiet: true });
         // Sağlayıcı arızası: dur. Alarm sağlayıcının kendi (geçiş tabanlı) yolunda; burada ikinci
         // bir alarm YOK (kalıcı kota arızasında her misafir mesajı bir e-posta demek olurdu).
         if (!out) break;
         batch.forEach((t, j) => storeSet(storeKey(model, t), out[j]));
+        await persistChunkVectors(
+          model,
+          batch.map((t, j) => ({ kbItemIds: [...(owners.get(t) ?? [])], text: t, vector: out[j] })),
+        );
       }
     } catch (err) {
       void reportError("kb-semantic-warm", err);
@@ -183,15 +222,27 @@ export async function prepareSemanticScores<T extends KbChunkSource>(input: Sema
     // (ölçüldü: 2 sn gecikmeli sağlayıcıda üç ardışık karar, depo büyümedi). Sektör düzeni de budur:
     // dizin YAZMA zamanında kurulur, sorgu zamanında yalnız sorgu gömülür. Bedel: yeni/değişen KB'nin
     // İLK kararı sözcüksel (`cold`). Aynı anda gelen çağrılar aynı parçaları iki kez ödemez (`warming`).
+    let missingIdx = chunkTexts.flatMap((t, i) => (store.has(storeKey(model, t)) ? [] : [i]));
+    // Kalıcı depo (anahtar açıkken): bellekte eksik parçalar YALNIZ bu kümenin kalem kimlikleriyle, zaman sınırıyla okunur. Hâlâ eksik
+    // varsa aşağıda bugünkü gibi "cold" + arka plan ısıtması (YARIM HARİTA YOK).
+    if (missingIdx.length > 0 && vectorStoreEnabled()) {
+      const refs = missingIdx.map((i) => ({ kbItemId: index.chunks[i].id, text: chunkTexts[i] }));
+      const { vectors } = await loadChunkVectors(model, refs, VECTOR_STORE_READ_TIMEOUT_MS);
+      for (const [text, vec] of vectors) store.set(storeKey(model, text), vec);
+      trimStore();
+      missingIdx = missingIdx.filter((i) => !vectors.has(chunkTexts[i]));
+    }
     const chunkVecs: Float32Array[] = [];
-    const missing: string[] = [];
     for (const t of chunkTexts) {
       const v = storeGet(storeKey(model, t)); // okuma tazeliği yeniler: kullanılan KB tahliyeye direnir
       if (v) chunkVecs.push(v);
-      else missing.push(t);
     }
-    if (missing.length > 0) {
-      scheduleWarm(model, missing);
+    if (missingIdx.length > 0 || chunkVecs.length !== chunkTexts.length) {
+      // Depoda olanları `scheduleWarm` kendisi atlar → yalnız eksikler kuyruğa girer (bugünkü küme).
+      scheduleWarm(
+        model,
+        chunkTexts.map((text, i) => ({ text, itemId: index.chunks[i].id })),
+      );
       return done("cold"); // YARIM HARİTA YOK
     }
 
@@ -243,7 +294,7 @@ export function warmKbVectors<T extends KbChunkSource>(items: readonly T[]): num
     // Depoda olmayan ve hâlihazırda ısıtılmayan metinler (sayı kuyruğa GERÇEKTEN alınanlar; bütçe reddederse 0).
     return scheduleWarm(
       model,
-      chunks.map((c) => embeddingTextFor(c)),
+      chunks.map((c) => ({ text: embeddingTextFor(c), itemId: c.id })),
     );
   } catch (err) {
     void reportError("kb-semantic-warm-items", err);

@@ -14,7 +14,7 @@ Kurucu 10-15: "Railway'i açınca ekleyeceğimiz bayrakları unutma." Bu dosya T
    aynı sonucu verir: 59…78'deki bütün yabancı anahtarlar YENİ tablolarda, yeni kolonların hepsi boş bırakılabilir ya da varsayılanlı, benzersiz
    dizinler yeni tablo / yeni (boş) kolonlarda, veri güncelleyen ifade yok. Canlı veriyle prova değildir (gerçek veri yerelde yok — KVKK); yine de
    1. adımdaki yedek ŞART.
-1. **Taze yedek:** son itilen dal migration 59–86 içeriyor (tek güncel liste: `docs/MIGRATION-MANIFEST.md`) (açılışta `prisma migrate deploy` hepsini uygular). Açmadan önce 09-19
+1. **Taze yedek:** son itilen dal migration 59–87 içeriyor (tek güncel liste: `docs/MIGRATION-MANIFEST.md`) (açılışta `prisma migrate deploy` hepsini uygular). Açmadan önce 09-19
    yedeği ESKİ — Railway açılınca ilk iş `pg_dump` (web servisi deploy olmadan, ↑0) ve geri yükleme provası
    (`docs/OPS-2026-09-19-DURAKLATMA-VE-LOCAL-GELISTIRME.md`).
    Migration 80 (kurucu T4, otomatik mesajlar ayrı bölüm): açılıştan sonra her dairenin "Otomatik mesajlar" kartına bakın — metinler bilgi
@@ -247,6 +247,10 @@ kalıcı "işlem yok" sayılıyor (niyet kapanır, yeni işlem açılır) — ye
   tekrarının GÖLGE ölçümü: gönderilen oto-yanıttaki doğrulanmış parçalar daire başına kaydedilir, aynı ihtiyaca kayıttan cevap verilebilir
   miydi ve kayıt taze cevapla aynı bilgiyi veriyor muydu sayılır (`shadowHits` / `shadowMismatches`). Misafire giden metne DOKUNMAZ.
   Tasarım + ölçüm `docs/TASARIM-2026-10-23-dogrulanmis-cevap-tekrari.md`. `AI_ANSWER_PARTS_ENABLED` olmadan etkisiz.
+- `KB_VECTOR_STORE_ENABLED` (kurucu 10-23 "Bilgi tabanı iki yeni tablo ana dala", 10-28 "tamamdır"; migration 87 `KbChunkVector` — Railway
+  açılmadan önce TAZE YEDEK, migration bununla gider) — bilgi tabanı parçalarının anlam vektörleri kalıcı depoda: yayından / yeniden
+  başlatmadan sonra ilk misafir sorusu sözcüksele düşmez, vektörler yeniden ödenmez. Metin saklanmaz; kalem silinince satırlar gider.
+  Yalnız `KB_SEMANTIC_RETRIEVAL` açıkken anlamlı. Müşteriye giden metne dokunmaz (yalnız anlamsal aramanın "soğuk" kalma süresi kısalır).
 - Cevap modeli bekleme tavanı 30 sn + devre kesici (art arda 3 zaman aşımı → 60 sn çağrı yok) + tek hızlı yeniden deneme — env YOK
   (`src/lib/ai/model-breaker.ts`). Ev sahibi yazma hız sınırı kişi başına dakikada 300 — env YOK (`src/lib/host-write-limit.ts`).
 - Dış izleyici + WAF + oturum anahtarı adımları: `docs/OPS-2026-10-21-dis-izleyici-waf-anahtar.md` (panel işleri, açılıştan sonra).
