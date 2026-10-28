@@ -1,6 +1,6 @@
 import "server-only";
 
-import { callStructuredJson } from "./structured-call";
+import { callStructuredJsonRetryingOnce } from "./structured-call";
 import { semanticApiKey, semanticModel, semanticReasoningEffort, semanticTimeoutMs } from "./config";
 import { redactForSemanticModel } from "./redact";
 import { fenceSafe } from "./fence";
@@ -280,7 +280,8 @@ export function parsePartReaderOpen(data: unknown, refs: readonly string[]): Set
 
 /**
  * Okuyucuyu koştur (anahtar ÇAĞIRANDA okunur). Asla fırlatmaz: her arıza `{status:"failed"}` → çağıran bütün parçaları tutar. Okunacak
- * parça yoksa çağrı yapılmaz (boş hüküm).
+ * parça yoksa çağrı yapılmaz (boş hüküm). Geçici arıza (ağ / hız sınırı / sunucu hatası) bir kez yeniden denenir, zaman aşımı denenmez;
+ * toplam süre tek çağrının tavanını aşmaz (kurucu kararı 4.11, 10-28 — `callStructuredJsonRetryingOnce`). Okuyucunun hükmü değişmez.
  */
 export async function runPartReader(input: PartReaderInput): Promise<PartReaderOutcome> {
   try {
@@ -289,7 +290,7 @@ export async function runPartReader(input: PartReaderInput): Promise<PartReaderO
     const apiKey = semanticApiKey();
     if (!apiKey) return { status: "failed" };
     const model = partReaderModel();
-    const res = await callStructuredJson({
+    const res = await callStructuredJsonRetryingOnce({
       apiKey,
       model,
       system: PART_READER_SYSTEM_PROMPT,

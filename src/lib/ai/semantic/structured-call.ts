@@ -2,6 +2,7 @@ import "server-only";
 
 import { applyCompatModelParams, OPENAI_BASE_URL } from "@/lib/ai/openai-compat";
 import { isReasoningModel } from "@/lib/ai/model-family";
+import { isRetryableReplyStatus, replyRetryDelayMs } from "@/lib/ai/model-breaker";
 import {
   classifyModelProviderFailure,
   isUnsupportedRequestFailure,
@@ -34,9 +35,13 @@ export type StructuredCallError =
   | "refusal"
   | "parse";
 
+/**
+ * `transient`: GEÇİCİ arıza (408 · 429 hız sınırı · 5xx · zaman aşımı OLMAYAN ağ hatası; kalıcı sınıflandırma — kota / anahtar / model /
+ * istek — ÖNCE yapılır). Yalnız tek yeniden denemenin kararı içindir (`callStructuredJsonRetryingOnce`); `retryAfter` sağlayıcının başlığı.
+ */
 export type StructuredCallResult =
   | { ok: true; data: unknown; ms: number }
-  | { ok: false; error: StructuredCallError; ms: number };
+  | { ok: false; error: StructuredCallError; ms: number; transient?: true; retryAfter?: string | null };
 
 export interface StructuredCallInput {
   apiKey: string;
@@ -104,7 +109,9 @@ export async function callStructuredJson(input: StructuredCallInput): Promise<St
     });
   } catch (err) {
     const name = err instanceof Error ? err.name : "";
-    return { ok: false, error: name === "TimeoutError" || name === "AbortError" ? "timeout" : "network", ms: ms() };
+    return name === "TimeoutError" || name === "AbortError"
+      ? { ok: false, error: "timeout", ms: ms() }
+      : { ok: false, error: "network", ms: ms(), transient: true };
   }
   let body: string;
   try {
@@ -122,7 +129,9 @@ export async function callStructuredJson(input: StructuredCallInput): Promise<St
     const persistent =
       classifyModelProviderFailure(res.status, body) ?? (isUnsupportedRequestFailure(res.status, body) ? "request" : null);
     if (persistent) void noteModelProviderPersistentFailure(persistent, res.status, body, "semantic");
-    return { ok: false, error: "http", ms: ms() };
+    return !persistent && isRetryableReplyStatus(res.status)
+      ? { ok: false, error: "http", ms: ms(), transient: true, retryAfter: res.headers.get("retry-after") }
+      : { ok: false, error: "http", ms: ms() };
   }
   noteModelProviderSuccess("semantic");
   let data: { choices?: { message?: { content?: unknown; refusal?: unknown }; finish_reason?: unknown }[] };
@@ -143,6 +152,34 @@ export async function callStructuredJson(input: StructuredCallInput): Promise<St
   } catch {
     return { ok: false, error: "parse", ms: ms() };
   }
+}
+
+/**
+ * Tek yeniden denemenin süre bütçesi (kurucu 4.11 notu: "süreye falan baksın"). İkinci deneme ilk denemeden KALAN süreyle koşar
+ * (tavan − geçen − bekleme) → toplam bekleme tek çağrının tavanını AŞMAZ (QR süre bütçesi `SEMANTIC_TIMEOUT_MAX_MS` hesabı değişmez).
+ * Kalan süre tavanın yarısından azsa denenmez: hata yavaş geldiyse (sağlayıcı zorlanıyor) kısa ikinci deneme de büyük olasılıkla
+ * yetişmez — "hızlı yeniden deneme" yalnız hızlı dönen hataya. `null` = deneme yok. Saf.
+ */
+export function structuredRetryBudgetMs(timeoutMs: number, elapsedMs: number, delayMs: number): number | null {
+  const remaining = timeoutMs - elapsedMs - delayMs;
+  return remaining >= timeoutMs / 2 ? remaining : null;
+}
+
+/**
+ * TEK HIZLI YENİDEN DENEME (kurucu kararı 4.11, 10-28 — cevap modelinin 10-21 kuralı, `model-breaker.ts`): GEÇİCİ arıza bir kez, kısa
+ * beklemeyle (`Retry-After` tavanlı) yeniden denenir. Zaman aşımı (bekleme ikiye katlanırdı), kalıcı arıza (kota / anahtar / model /
+ * istek), kesik / bozuk / reddedilen cevap DENENMEZ. Süre `structuredRetryBudgetMs` ile sınırlı. Bugün yalnız parça okuyucusu kullanır
+ * (öteki anlam katmanlarına bağlamak ayrı karar). `ms` iki denemenin toplamıdır. Asla fırlatmaz.
+ */
+export async function callStructuredJsonRetryingOnce(input: StructuredCallInput): Promise<StructuredCallResult> {
+  const first = await callStructuredJson(input);
+  if (first.ok || first.transient !== true) return first;
+  const delayMs = replyRetryDelayMs(first.retryAfter ?? null);
+  const budget = structuredRetryBudgetMs(input.timeoutMs, first.ms, delayMs);
+  if (budget === null) return first;
+  if (delayMs > 0) await new Promise((r) => setTimeout(r, delayMs));
+  const second = await callStructuredJson({ ...input, timeoutMs: budget });
+  return { ...second, ms: first.ms + delayMs + second.ms };
 }
 
 /** Reasoning modeli mi — çağıranlar zaman aşımını buna göre seçer. */
