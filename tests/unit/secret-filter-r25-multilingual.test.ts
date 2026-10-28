@@ -19,7 +19,6 @@ const LEAKS = [
   "Der Türcode lautet 4590.",
   "Haustürcode: 4590",
   "Wohnungstür-Code 4590",
-  "Zugangscode 4590",
   "Der Torcode ist 4590.",
   "Il codice della porta è 4590.",
   "Codice del portone: 4590",
@@ -66,5 +65,11 @@ describe("R25 — ikizler (aşırı-uygulama kontrolü: sır olmayan kullanım e
   it("Wi-Fi kalemi QR'a girmeye devam eder (Wi-Fi şifresi QR'da verilir — kurucu K7)", () => {
     expect(droppedQr("Wi-Fi: LaleNet / şifre 12345678", "wifi")).toBe(false);
     expect(droppedQr("Wi-Fi ağına bağlanmak için 12345678 girin.", "wifi")).toBe(false);
+  });
+
+  it("🚨 Almanca 'Zugangscode' Wi-Fi için de kullanılır — kapı kodu SAYILMAZ (Wi-Fi kalemi QR'da kalır, QR cevabı durmaz)", () => {
+    const wlan = "WLAN: LaleNet, Zugangscode: 12345678";
+    expect(droppedQr(wlan, "wifi")).toBe(false);
+    expect(qrReplyHasDoorCode("Das WLAN heißt LaleNet, der Zugangscode ist 12345678.", [])).toBe(false);
   });
 });

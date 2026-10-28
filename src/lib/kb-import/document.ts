@@ -387,9 +387,9 @@ function hasPlaceholder(text: string): boolean {
 const ACCESS_WORDS =
   // Opus 10-23 akşam D1: çıplak İngilizce "key / keys / lock", Fransızca "clé", İspanyolca "llave", Rusça "ключ" ("The key is under the flower
   // pot", "La clé est sous le paillasson") Genel'e düşüyordu. Kısa sözcükler TAM biçim ("clean" / "keyboard" eşleşmez); işaretler sökülmüş metin.
-  // 10-28 gece (Opus ikinci dilim R25 / R27): "PIN", "keyless", Almanca bileşik "Türcode / Zugangscode", "door / access / entry / gate
-  // code", "kapı kodu / şifresi" eklendi; "Key points / key information / key features" erişim DEĞİL (başlık deyimi).
-  /(?<![\p{L}\p{N}])(?:anahtar\p{L}{0,10}|kilit(?:li|ler|leri)?|kilid[iı]n?|keys?(?! (?:points?|info(?:rmation)?|features?|facts?|details?|takeaways?|dates?|terms?|highlights?|amenities)(?![\p{L}]))|lock(?:s|ed)?(?! (?:the|your|it|up|all|them|doors?|windows?)(?![\p{L}]))|cles?|llaves?|serrure|cerradura|ключ\p{L}{0,3}|pin|keyless|(?:haus|wohnungs|eingangs)?turcode|zugangscode|(?:door|access|entry|gate|entrance) code|kapi (?:kodu|sifresi)|(?:keybox|key box|key safe|lockbox|lock box|keypad|tus takimi|smart lock|akilli kilit|schlussel|boite a cles?)\p{L}{0,10})(?![\p{L}\p{N}])/u;
+  // 10-28 gece (Opus ikinci dilim R25 / R27): "PIN", "keyless", Almanca bileşik "Türcode", "door / access / entry / gate code", "kapı kodu /
+  // şifresi" eklendi ("Zugangscode" BİLEREK yok — Almancada Wi-Fi için de kullanılır); "Key points / key information" erişim DEĞİL.
+  /(?<![\p{L}\p{N}])(?:anahtar\p{L}{0,10}|kilit(?:li|ler|leri)?|kilid[iı]n?|keys?(?! (?:points?|info(?:rmation)?|features?|facts?|details?|takeaways?|dates?|terms?|highlights?|amenities)(?![\p{L}]))|lock(?:s|ed)?(?! (?:the|your|it|up|all|them|doors?|windows?)(?![\p{L}]))|cles?|llaves?|serrure|cerradura|ключ\p{L}{0,3}|pin|keyless|(?:haus|wohnungs|eingangs)?turcode|(?:door|access|entry|gate|entrance) code|kapi (?:kodu|sifresi)|(?:keybox|key box|key safe|lockbox|lock box|keypad|tus takimi|smart lock|akilli kilit|schlussel|boite a cles?)\p{L}{0,10})(?![\p{L}\p{N}])/u;
 
 /** Paragrafta yalnız giriş / çıkış saati mi var (kalan sözcükler 12 harften az), hangi alan önerileri çıkıyor. */
 function propertyFieldsOf(text: string): { fields: KbFieldSuggestion[]; fieldOnly: boolean } {

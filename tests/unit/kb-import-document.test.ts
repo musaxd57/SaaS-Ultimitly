@@ -361,6 +361,8 @@ describe("R24 — kod, erişim sözcüğünden AYRI paragrafta", () => {
       { category: "wifi", content: "Wi-Fi ağına bağlanmak için 12345678 girin." },
     ]);
     expect(categoriesOf("Otoparka 1453 sokaktan girin.")[0].category).toBe("parking");
+    // Almanca "Zugangscode" Wi-Fi için de kullanılır — erişim sözcüğü değil.
+    expect(categoriesOf("WLAN: LaleNet, Zugangscode: 12345678")[0].category).toBe("wifi");
     expect(categoriesOf("Acil durumda 112'yi arayın.")[0].category).toBe("general");
   });
 });
