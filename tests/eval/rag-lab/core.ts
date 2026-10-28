@@ -402,6 +402,7 @@ export async function labRerank(
   opts: { k: number; crop: number; model?: string; effort?: string },
 ): Promise<{ scores: Map<string, number>; ms: number | null; chars: number } | null> {
   const { user, ids } = labRerankRequest(question, candidates, opts);
+  if (opts.model === "decisions") return labRerankDecisions(user, ids);
   const model = opts.model ?? semanticModel("rerank");
   const effort = opts.effort ?? semanticReasoningEffort("rerank");
   const timed = await llmCachedTimed<Record<string, string[]>>("rerank", rerankCacheKey({ model, system: RERANK_SYSTEM_PROMPT, user, effort }), async () => {
@@ -422,6 +423,52 @@ export async function labRerank(
   });
   const scores = timed.value ? parseRerank(timed.value, ids) : null;
   return scores ? { scores, ms: timed.ms, chars: user.length } : null;
+}
+
+/**
+ * DENEY (kurucu 10-28 gece: "Decisions API işimize yarar mı, 10 kat hızlıymış"): yeniden sıralayıcıyı OpenAI Decisions API ile (`POST
+ * /v1/decisions`, gpt-6-luna) — aday başına bir evet/hayır sorusu ("bu aday misafirin sorusunu cevaplıyor mu?"), dönen OLASILIK üretimin
+ * ölçeğine çevrilir (≥ 0,5 → 3 "cevaplıyor", ≥ 0,2 → 2 "ilgili"). Girdi metni sohbet sıralayıcısınınkiyle BİREBİR aynı (aynı adaylar, aynı
+ * kırpma) — fark yalnız çağrı türü. Yapılandırma belirteci `rrm:decisions`. Ürün kodu DEĞİL.
+ */
+async function labRerankDecisions(
+  user: string,
+  ids: ReadonlyMap<string, string>,
+): Promise<{ scores: Map<string, number>; ms: number | null; chars: number } | null> {
+  const questions = [...ids.keys()].map((id) => ({
+    type: "predicate",
+    name: id,
+    instructions: `Does candidate ${id} contain information that directly answers at least part of the guest message (not just the same topic)?`,
+  }));
+  const timed = await llmCachedTimed<Record<string, number>>("rerank-dec", rerankCacheKey({ model: "decisions:gpt-6-luna", system: "v1", user, effort: "" }), async () => {
+    const apiKey = semanticApiKey();
+    if (!apiKey) return { value: null, ms: 0 };
+    const started = Date.now();
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try {
+        const res = await fetch("https://api.openai.com/v1/decisions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+          body: JSON.stringify({ model: "gpt-6-luna", input: user, questions }),
+          signal: AbortSignal.timeout(30_000),
+        });
+        const json = (await res.json()) as { answers?: { name: string; probability: number }[] };
+        if (!res.ok || !Array.isArray(json.answers)) throw new Error(String(res.status));
+        return { value: Object.fromEntries(json.answers.map((a) => [a.name, a.probability])), ms: Date.now() - started };
+      } catch {
+        await new Promise((r) => setTimeout(r, 1_000 * 2 ** attempt));
+      }
+    }
+    return { value: null, ms: Date.now() - started };
+  });
+  if (!timed.value) return null;
+  const scores = new Map<string, number>();
+  for (const [id, key] of ids) {
+    const p = timed.value[id] ?? 0;
+    if (p >= 0.5) scores.set(key, 3);
+    else if (p >= 0.2) scores.set(key, 2);
+  }
+  return { scores, ms: timed.ms, chars: user.length };
 }
 
 // ─── boru hattı ──────────────────────────────────────────────────────────────
