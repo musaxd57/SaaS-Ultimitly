@@ -120,3 +120,31 @@ e-posta / bağlantı varsa onaysız konuşmada cevap hiç gitmez, size kalır. �
 imza "Sevgiler, Ali / 📞 +90 532 …"): **şimdi** hiçbir şey gitmez. **Öneri:** onaysız konuşmada imzanın telefon satırı çıkarılıp cevap
 gitsin: "Evet, ücretsiz otopark var.\n\nSevgiler, Ali". Onaylı konaklamada imza bugünkü gibi tam gider. Telefon satırını çıkarıp göndereyim
 mi, yoksa tutmaya devam mı?
+
+## 6. Opus ikinci dilim kontrolü (10-28) + tedarik zinciri kapısı
+
+**Opus R1–R5 + R9 (ev sahibine yönlendirme yüklemi, `ai/absence.ts`)** — ilk düzeltme turunun açtığı gerilemeler, hepsi kodda + testli
+(her biri düzeltmesiz kırmızı, mutasyon 15/15 + 3/3; 52 cümlelik ölçüm 52/52):
+
+| bulgu | önce | şimdi |
+|---|---|---|
+| R1 (P1) | "For parking, please contact your host before arrival." / "Otopark için gelmeden önce ev sahibinize yazabilirsiniz." **gidiyordu** (varış sözcüğü muafiyet sanılıyordu) | konulu (için / hakkında / about / for the X / whether) cümle varış muafiyeti alamaz → tutulur; konusuz varış talimatı ("Please text your host when you arrive") gider |
+| R2 (P1) | "Alarm şifresini öğrenmek isterseniz ev sahibinize sorabilirsiniz." / "If you need the alarm code, please ask your host." / "çalışma saatleri" **gidiyordu** (konu adı olay sanılıyordu) | olay ADI değil olay YÜKLEMİ: "alarm çalarsa / goes off", "yangın çıkarsa", "acil durum", "çalışmıyorsa"; öğrenmek / know koşulu bilgi koşulu → tutulur |
+| R3 (P2, gereksiz tutma) | "Herhangi bir sorun olursa ev sahibinizi arayın." / "If the power goes out, contact your host." / "Wi-Fi çalışmazsa ev sahibinizi arayın." **tutuluyordu** | gerçek olay talimatı gider (kurucu 4.5'in "anahtarı kaybederseniz" sınıfı) |
+| R4 (P2, gereksiz tutma) | "Ev sahibinize şu numaradan ulaşabilirsiniz:\n0532 …" / "You can call your host, the number is +90 …" **tutuluyordu** | istenen telefonu veren konusuz cümle gider; konulu cümlede değer yine kendi yan cümlesinde olmalı |
+| R5 | satır sonu işlemesi 50.000 satır sonunda 10,5 sn (karesel) | satır satır, 3 ms; süre pini eklendi |
+| R9 | "Of course" Türkçe koşul eki (-rse) sanılıyordu | koşul eki ses uyumuyla (olursa / verirse evet, course hayır) |
+
+**Tedarik zinciri kapısı (10-28, tam kapıda kırmızı çıktı — bizim kodumuz değil, yeni yayımlanan danışmalar):**
+- nodemailer: üç orta düzey adres ayrıştırıcı açığı (GHSA-8c8m / GHSA-m943 / GHSA-85x2) → **10.0.13 → 10.1.7** (ana sürüm aynı; e-posta yolunun
+  113 test dosyası yeşil). Railway kapalı olduğu için canlı e-posta denemesi açılışta sizinle.
+- zod: GHSA-mrhx-c7xc-m3w5 (high, "kısıtlı büyük koleksiyonu doğrularken bellek tükenmesi"). Düzeltme yalnız zod 4.6.6+'da, 3.x için yama yok.
+  **Ölçüldü: bizde ulaşılamaz** — dışarıdan gelen bütün istek gövdeleri zod'a girmeden 64 KB'ta kesiliyor; rota dışında zod yalnız kendi
+  modelimizin sınırlı çıktısında ve tek e-posta dizesinde. Gerekçeli triaj kaydı açıldı, **2026-12-31'de dolar** (kapı o gün yeniden kırmızı
+  olur, bakılmaya zorlar).
+
+**4.15 — zod 3 → 4 geçişi ne zaman?** Bugün: güvenli (ulaşılamaz), kayıt 31 Aralık'ta doluyor. zod 4 ana sürüm: zod 10 dosyada kullanılıyor
+(6 rota + ortak `validators.ts`, `zod-tr.ts` hata metinleri, kalite denetçisi, e-posta kimliği — ölçüldü) ve Anthropic SDK'nın zod 3 bağımlılığı
+birlikte düşünülmeli; iş sanıldığından küçük. Önerim: Railway açılışından ÖNCE ayrı, testli bir dilim olarak
+yapmak (müşteriye giden metin değişmez; yalnız hata mesajı biçimleri — onlar da `zod-tr.ts` tek kaynaktan, pinli). Yapalım mı, yoksa
+açılıştan sonraya mı?
