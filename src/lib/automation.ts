@@ -69,7 +69,7 @@ import type {
   UnderstandingStaySignal,
 } from "@/lib/ai/semantic/stay-change";
 import { timeConflictHolds } from "@/lib/ai/time-conflict-gate";
-import { guestTurnLanguage, replyLanguageMismatch } from "@/lib/ai/language-signal";
+import { gateGuestLanguage, guestTurnLanguage, replyLanguageMismatch } from "@/lib/ai/language-signal";
 import {
   conversationRecordsInPrompt,
   conversationStateWindowSufficient,
@@ -397,6 +397,11 @@ export function autoReplyGateVerdict(
     reply?: string | null;
     /** Modelin konaklama değişikliği ŞEMA BEYANI (yalnız sıkılaştırır; `ai/semantic/stay-change.ts`). */
     stayChange?: StayChangeDeclaration | null;
+    /**
+     * Modelin bildirdiği misafir dili (`suggestReply` → `normalizeLang`). Yalnız dil kapısında, kod dilden EMİN DEĞİLKEN ve misafirin
+     * metninde o dilin izi varken okunur (`gateGuestLanguage`, 10-28) — yalnız sıkılaştırır; verilmezse karar birebir eski.
+     */
+    detectedLanguage?: string | null;
     /** İstemin gördüğü bilgi tabanındaki giriş/çıkış saati çelişkileri (`suggestReply` taşır; P4-b kodda). */
     timeConflicts?: readonly TimeConflict[] | null;
     /** Modelin eylem beyanı (`ai/action-claims.ts`); yokluğu = beyan istenmedi → kural koşmaz. */
@@ -774,8 +779,12 @@ export function autoReplyGateVerdict(
   // Koddan kurulan doğrulanmış metin (erken giriş onayı / politika) muaf: dilini KOD seçer (`guestTurnLanguage` önce,
   // desteklenmeyen dilde İngilizce yedek) ve ev sahibinin kendi notu metne AYNEN eklenir — Türkçe not, İngilizce onayı
   // tutmasın (inceleme 09-25). Muafiyet birebir aynı metne (müsaitlik muafiyetiyle aynı koşul).
+  // Kod misafirin dilinden emin değilken (kısa Almanca / Fransızca soru) modelin bildirdiği dil — misafirin metninde izi varsa — ölçüt olur
+  // (`gateGuestLanguage`, 10-28 ölçümü: "Hallo Alex," + Türkçe gövde gidiyordu). Yalnız sıkılaştırır.
   const codeBuilt = context?.verifiedGrant != null && result.reply === context.verifiedGrant.text;
-  if (!codeBuilt && replyLanguageMismatch(guestTurnLanguage(guestMessage, context?.pendingGuestMessages ?? []), result.reply)) {
+  const pendingTexts = context?.pendingGuestMessages ?? [];
+  const turnLanguage = gateGuestLanguage(guestTurnLanguage(guestMessage, pendingTexts), result.detectedLanguage, [...pendingTexts, guestMessage]);
+  if (!codeBuilt && replyLanguageMismatch(turnLanguage, result.reply)) {
     return { reason: "reply_language_mismatch" };
   }
   return null;

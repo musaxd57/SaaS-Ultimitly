@@ -221,6 +221,19 @@ describe("kapı hükmü — her `blocked` kontrolü kendi ayrıntı koduyla", ()
     expect(autoReplyGateVerdict({ ...ok, reply: "Das WLAN-Passwort ist Lale2025." }, WIFI_Q)).toEqual({ reason: "reply_language_mismatch" });
   });
 
+  // 10-28 ölçümü (fee413): kısa Almanca soruda kod dilden emin değildi → dil kapısı koşmadı, model "de" bildirip gövdeyi Türkçe yazdı ve
+  // cevap gitti. Kod emin değilken modelin bildirdiği dil — misafirin metninde izi varsa — ölçüt olur (`gateGuestLanguage`).
+  it("🚨 kod emin değil + model 'de' bildirdi + Türkçe gövde → reply_language_mismatch; KONTROL: Almanca gövde geçer, beyan yoksa bugünkü gibi", () => {
+    const q = "Was kostet die Zusatzreinigung während des Aufenthalts?";
+    const tr = { ...ok, intent: "general", reply: "Hallo Alex,\n\nKonaklamanız sırasında ek temizlik ücreti 700 TL’dir ve temizlik ekibi gün içinde gelir." };
+    expect(autoReplyGateVerdict({ ...tr, detectedLanguage: "de" }, q)).toEqual({ reason: "reply_language_mismatch" });
+    const de = { ...ok, intent: "general", reply: "Hallo Alex,\n\ndie Zusatzreinigung kostet 700 TL, bitte sagen Sie uns einen Tag vorher Bescheid." };
+    expect(autoReplyGateVerdict({ ...de, detectedLanguage: "de" }, q)).toBeNull();
+    expect(autoReplyGateVerdict(tr, q)).toBeNull();
+    // Cevapsız önceki mesaj Almancaysa iz oradan da okunur (son mesaj belirsiz).
+    expect(autoReplyGateVerdict({ ...tr, detectedLanguage: "de" }, "Danke!", { pendingGuestMessages: [q] })).toEqual({ reason: "reply_language_mismatch" });
+  });
+
   it("kapının yüksek risk kümesi kanıt modülündeki TEK kaynaktan kurulur", () => {
     expect([...HIGH_STAKES_RISK_TYPES].sort()).toEqual([...HIGH_STAKES_RISK_TYPE_LIST].sort());
   });

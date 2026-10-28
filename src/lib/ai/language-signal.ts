@@ -296,6 +296,26 @@ export function guestTurnLanguage(latest: string, pending: readonly string[] = [
   return confidentLanguage([...pending, latest].join("\n"));
 }
 
+const CONFIDENT_LANGUAGES: ReadonlySet<string> = new Set<ConfidentLanguage>(["tr", "en", "de", "fr", "es", "ru", "ar"]);
+
+/**
+ * Dil kapısının misafir dili (10-28 ölçümü, `docs/olcum/live-pipeline-2026-10-28-*-fee413-*`): kod EMİNSE kodun hükmü
+ * (`guestTurnLanguage`). Kod emin değilken (kısa soru: "Was kostet die Zusatzreinigung während des Aufenthalts?" sözlükte 1,5 puan) dil
+ * kapısı hiç koşmuyordu; model dili doğru bildirip (selamı "Hallo Alex,") gövdeyi Türkçe yazdı ve cevap gitti. O durumda modelin BİLDİRDİĞİ
+ * dil ölçüt olur — YALNIZ misafirin kendi cevapsız metinleri o dilin izini taşıyorsa (`languageEvidence`; model uydurmasın: Felemenkçe
+ * mesaja "de" demesi hüküm üretmez). Yalnız SIKILAŞTIRIR: sonuç `replyLanguageMismatch`e gider, o da yalnız cevabın dili eminken tutar. Saf.
+ */
+export function gateGuestLanguage(
+  codeLanguage: ConfidentLanguage | null,
+  declared: string | null | undefined,
+  guestTexts: readonly string[],
+): ConfidentLanguage | null {
+  if (codeLanguage) return codeLanguage;
+  const d = typeof declared === "string" ? declared.trim().toLowerCase() : "";
+  if (!CONFIDENT_LANGUAGES.has(d)) return null;
+  return languageEvidence(guestTexts.join("\n")).has(d as ConfidentLanguage) ? (d as ConfidentLanguage) : null;
+}
+
 /**
  * Açık dil isteği — "In English please", "Could you answer in Turkish?", "auf Deutsch", "Türkçe yazar mısınız?".
  * ⚠️ Dil ADININ geçmesi yetmez: "Turkish breakfast / Turkish bath / a Turkish SIM card" Türkiye'deki misafir mesajlarında

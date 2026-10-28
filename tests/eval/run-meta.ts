@@ -16,6 +16,7 @@ import {
 import { conversationItemsEnabled } from "@/lib/conversation-items/flag";
 import { houseRulesShadowEnabled } from "@/lib/house-rules/flag";
 import { complaintFollowupRuleEnabled } from "@/lib/ai/complaint-followup";
+import { kbFeeRuleEnabled } from "@/lib/ai/kb-fee-rule";
 import type { SuggestReplyInput } from "@/lib/ai/types";
 
 // ---------------------------------------------------------------------------
@@ -79,6 +80,8 @@ export interface UnderstandingMode {
   english?: boolean;
   threat?: boolean;
   privacy?: boolean;
+  /** Hizmet ücreti eki (kurucu 4.13) — ücret kuralı anahtarıyla aynı (`AI_KB_FEE_RULE_ENABLED`). */
+  serviceFee?: boolean;
 }
 
 /**
@@ -108,6 +111,7 @@ export function understandingModeLabel(m: UnderstandingMode): string {
       m.english === true ? "en" : "",
       m.threat === true ? "thr" : "",
       m.privacy === true ? "prv" : "",
+      m.serviceFee === true ? "fee" : "",
     ]
       .filter(Boolean)
       .join("+") || "temel"
@@ -220,6 +224,7 @@ export function evalRuntime(opts: { understanding?: UnderstandingMode } = {}): E
         english: given.english === true,
         threat: given.threat === true,
         privacy: given.privacy === true,
+        serviceFee: given.serviceFee === true,
       }
     : {
         items: conversationItemsEnabled(),
@@ -228,6 +233,7 @@ export function evalRuntime(opts: { understanding?: UnderstandingMode } = {}): E
         english: understandingEnglishQueryEnabled(),
         threat: understandingThreatRuleEnabled(),
         privacy: understandingPrivacyRuleEnabled(),
+        serviceFee: kbFeeRuleEnabled(),
       };
   const understandingSystem = understandingSystemPromptFor(mode);
   const variant = replyRequestIdentity(REPLY_VARIANT_INPUT);

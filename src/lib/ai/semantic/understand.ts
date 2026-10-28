@@ -2,6 +2,7 @@ import "server-only";
 
 import { createHash } from "crypto";
 import { callStructuredJson } from "./structured-call";
+import { kbFeeRuleEnabled } from "../kb-fee-rule";
 import { semanticApiKey, semanticModel, semanticReasoningEffort, semanticTimeoutMs } from "./config";
 import { redactForSemanticModel } from "./redact";
 import { nameMaskHidesEmergency } from "../prompt-name-redaction";
@@ -183,6 +184,20 @@ export const UNDERSTANDING_ASSISTANT_QUESTION_ADDENDUM = [
   'Examples: "Otopark ücretli mi? Bu bilgiyi nereden buluyorsun?" -> [parking, about_assistant]. "Are you a real person or a program?" -> [about_assistant]. "Is breakfast included, and how do you know that?" -> [amenities, about_assistant].',
 ].join("\n");
 
+/**
+ * HİZMET ÜCRETİ eki (kurucu kararı 4.13, 10-28: "Bilgi tabanında yazan hizmet ücreti cevaplansın"; anahtar ücret kuralının kendisi —
+ * `AI_KB_FEE_RULE_ENABLED`, VARSAYILAN KAPALI; kapalıyken istem ve önbellek anahtarı bayt bayt eski). Bugün "Ekstra yatağın gecelik ücreti ne
+ * kadar?" `payment_invoice` sayılıyor → öğe hassas → bilgi tabanında ücret yazsa da her zaman ev sahibinde. Ücret kuralı açıkken cevap modeli
+ * bilgi tabanındaki sabit hizmet ücretini koşuluyla söyler; bu ek anlama katmanında aynı soruyu hizmetin KENDİ niyetine bağlar. Para kararı
+ * olanlar (iade / iptal, konaklama fiyatı, indirim, depozito, erken giriş / geç çıkış ücreti, evcil hayvan) bugünkü niyetinde kalır. Örnekler
+ * ölçüm setlerinden FARKLI.
+ */
+export const UNDERSTANDING_SERVICE_FEE_ADDENDUM = [
+  "",
+  "SERVICE FEES: a question about the price or fee of an extra service or item offered at the property (an extra bed, a baby cot, parking, extra cleaning or fresh linen, an airport transfer, luggage storage, bicycle or beach equipment) is NOT payment_invoice: use the intent of the service itself (amenities, parking, cleaning_linen, directions_transport, luggage). payment_invoice is only for how or where to pay (payment method, bank transfer, IBAN, cash, card), invoices or receipts, deposits and payment problems. These keep their usual intents and stay with the host: a refund or money back (cancellation_refund), the price of the stay or a discount (payment_invoice), the fee for checking in early or leaving late (early_checkin / late_checkout) and anything about bringing an animal (pets).",
+  'Examples: "Şezlong ve şemsiye kiralamak ücretli mi?" -> [amenities]. "Kapalı garajın gecelik bedeli nedir?" -> [parking]. "Can I pay the cot fee in cash?" -> [payment_invoice]. "Gece başı fiyatınız ne kadar, indirim olur mu?" -> [payment_invoice]. "Saat 9\'da girmek için ne ödememiz gerekiyor?" -> [early_checkin].',
+].join("\n");
+
 /** Anlama katmanının sistem istemi — kiplere göre TEK kurucu (çağrı ve ölçer istem kimliği aynı fonksiyondan). */
 export function understandingSystemPromptFor(opts: {
   items?: boolean;
@@ -192,6 +207,7 @@ export function understandingSystemPromptFor(opts: {
   threat?: boolean;
   privacy?: boolean;
   assistant?: boolean;
+  serviceFee?: boolean;
 }): string {
   const relation = opts.items === true && opts.complaintFollowup === true;
   return [
@@ -203,6 +219,7 @@ export function understandingSystemPromptFor(opts: {
     ...(opts.threat ? [UNDERSTANDING_THREAT_RULE_ADDENDUM] : []),
     ...(opts.privacy ? [UNDERSTANDING_PRIVACY_RULE_ADDENDUM] : []),
     ...(opts.items && opts.assistant ? [UNDERSTANDING_ASSISTANT_QUESTION_ADDENDUM] : []),
+    ...(opts.serviceFee ? [UNDERSTANDING_SERVICE_FEE_ADDENDUM] : []),
   ].join("\n");
 }
 
@@ -359,9 +376,11 @@ export async function understandGuestMessages(input: UnderstandingInput): Promis
     const privacy = understandingPrivacyRuleEnabled();
     // Kaynak / asistan sorusu (10-23): yalnız öğe kipinde; kapalıyken istem + şema + anahtar bayt bayt eski.
     const assistant = items && input.assistantQuestion !== false && understandingAssistantQuestionEnabled();
+    // Hizmet ücreti (4.13): cevap isteminin ücret kuralıyla AYNI anahtar — biri açık öteki kapalı olamaz; kapalıyken istem + anahtar eski.
+    const serviceFee = kbFeeRuleEnabled();
     // Öğe / kural kipi ayrı önbellek girdisi (farklı şema); ikisi de kapalıyken — ve yalnız öğe kipinde — anahtar bayt bayt eskisi.
     // Şikâyet takibi eki ve İngilizce köprü de ayrı girdi (farklı istem / şema); kapalıyken anahtar değişmez.
-    const mode = `${items ? "\u0000items" : ""}${rules ? "\u0000rules" : ""}${complaintFollowup ? "\u0000cfu" : ""}${english ? "\u0000en" : ""}${threat ? "\u0000thr" : ""}${privacy ? "\u0000prv" : ""}${assistant ? "\u0000ast" : ""}`;
+    const mode = `${items ? "\u0000items" : ""}${rules ? "\u0000rules" : ""}${complaintFollowup ? "\u0000cfu" : ""}${english ? "\u0000en" : ""}${threat ? "\u0000thr" : ""}${privacy ? "\u0000prv" : ""}${assistant ? "\u0000ast" : ""}${serviceFee ? "\u0000fee" : ""}`;
     const key = mode ? cacheKey(`${model}${mode}`, user) : cacheKey(model, user);
     const hit = cache.get(key);
     if (hit && Date.now() - hit.at < CACHE_TTL_MS) {
@@ -372,7 +391,7 @@ export async function understandGuestMessages(input: UnderstandingInput): Promis
     const res = await callStructuredJson({
       apiKey,
       model,
-      system: understandingSystemPromptFor({ items, rules, complaintFollowup, english, threat, privacy, assistant }),
+      system: understandingSystemPromptFor({ items, rules, complaintFollowup, english, threat, privacy, assistant, serviceFee }),
       user,
       schema: understandingSchemaFor({ items, rules, followup: complaintFollowup, english, assistant }),
       timeoutMs: semanticTimeoutMs(model),

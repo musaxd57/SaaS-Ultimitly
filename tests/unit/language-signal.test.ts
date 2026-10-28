@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { confidentLanguage, guestTurnLanguage, languageLabel, replyLanguageMismatch, unansweredGuestTexts } from "@/lib/ai/language-signal";
+import { confidentLanguage, gateGuestLanguage, guestTurnLanguage, languageLabel, replyLanguageMismatch, unansweredGuestTexts } from "@/lib/ai/language-signal";
 
 // ---------------------------------------------------------------------------
 // DİL SİNYALİ (09-25, kurucu: "5.1'in zayıf noktasını düzelt"). Ölçüldü: gpt-5.1 İngilizce yazan misafirlerin
@@ -354,5 +354,56 @@ describe("veri pini — yanlış kesin hüküm SIFIR", () => {
     expect(flagged("docs/olcum/model-reply-compare-2026-09-25-gpt-5.1-dil.json")).toEqual(["e-de-stromschlag"]);
     // İkinci tur (kapsama + Türkçe kalıp çevirisi) sonrası koşu: TR dışı 59/59, uyuşmazlık YOK.
     expect(flagged("docs/olcum/model-reply-compare-2026-09-25-gpt-5.1-dil2.json")).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// KOD EMİN DEĞİLKEN MODELİN BİLDİRDİĞİ DİL (10-28 ölçümü, `docs/olcum/live-pipeline-2026-10-28-*-fee413-*`): kısa Almanca / Fransızca
+// soruda ("Was kostet die Zusatzreinigung während des Aufenthalts?") kod dilden emin olamıyordu (sözlük kanıtı 1,5 / 0,5) → dil kapısı hiç
+// koşmadı; model dili doğru bildirdi (selamı "Hallo Alex," / "Bonjour Alex,") ama gövdeyi Türkçe yazdı ve cevap gitti. Kural: kod emin
+// değilse modelin bildirdiği dil ölçüt olur — YALNIZ misafirin kendi metni o dilin izini taşıyorsa (model uydurmasın). Yalnız sıkılaştırır.
+// ---------------------------------------------------------------------------
+describe("gateGuestLanguage — kod emin değilken modelin bildirdiği dil (izi varsa)", () => {
+  it("🚨 ölçülen vakalar: kısa Almanca / Fransızca soru + Türkçe gövde → uyuşmaz", () => {
+    const de = "Was kostet die Zusatzreinigung während des Aufenthalts?";
+    const fr = "Combien coûte le transfert privé depuis l'aéroport ?";
+    expect(guestTurnLanguage(de)).toBeNull();
+    expect(guestTurnLanguage(fr)).toBeNull();
+    expect(gateGuestLanguage(guestTurnLanguage(de), "de", [de])).toBe("de");
+    expect(gateGuestLanguage(guestTurnLanguage(fr), "fr", [fr])).toBe("fr");
+    expect(replyLanguageMismatch(gateGuestLanguage(null, "de", [de]), "Hallo Alex,\n\nKonaklamanız sırasında ek temizlik ücreti 700 TL’dir ve temizlik ekibi gün içinde gelir.")).toBe(true);
+    expect(replyLanguageMismatch(gateGuestLanguage(null, "fr", [fr]), "Bonjour Alex,\n\nHavalimanından özel transfer tek yön 950 TL’dir; araç 4 kişiye kadar uygundur.")).toBe(true);
+  });
+
+  it("KONTROL: aynı dilde cevap uyuşur", () => {
+    const de = "Was kostet die Zusatzreinigung während des Aufenthalts?";
+    expect(replyLanguageMismatch(gateGuestLanguage(null, "de", [de]), "Hallo Alex,\n\ndie Zusatzreinigung kostet 700 TL, bitte sagen Sie uns einen Tag vorher Bescheid.")).toBe(false);
+  });
+
+  it("🚨 kod EMİNSE kodun hükmü kazanır (model başka dil bildirse de)", () => {
+    expect(gateGuestLanguage("en", "tr", ["Where is the parking please?"])).toBe("en");
+  });
+
+  it("🚨 model uydurmaz: misafirin metninde o dilin izi YOKSA bildirilen dil sayılmaz", () => {
+    // Desteklenmeyen dil (Felemenkçe) — model "de" dese de metinde Almanca izi yok → hüküm yok. ("Hallo" iki dilde ortak: o sözcüğü taşıyan
+    // Felemenkçe mesajda "de" izi VARDIR; o durumda bile tutuş yalnız cevap EMİNCE başka dildeyse olur — Felemenkçe cevap hükümsüz kalır.)
+    const nl = "Goedemorgen, waar vinden we de sleutel van het appartement?";
+    expect(gateGuestLanguage(null, "de", [nl])).toBeNull();
+    const nlHallo = "Hallo, we komen rond 15:00 aan. Is de sleutel in de kluis?";
+    expect(replyLanguageMismatch(gateGuestLanguage(null, "de", [nlHallo]), "Hallo! Ja, de sleutel die je nodig hebt zit in de kluis naast de deur.")).toBe(false);
+    expect(gateGuestLanguage(null, "fr", ["Bebek yatağı var mı?"])).toBeNull();
+  });
+
+  it("bildirilen dil yok / tanınmayan / desteklenmeyen → hüküm yok", () => {
+    const de = "Was kostet die Zusatzreinigung während des Aufenthalts?";
+    expect(gateGuestLanguage(null, undefined, [de])).toBeNull();
+    expect(gateGuestLanguage(null, "und", [de])).toBeNull();
+    expect(gateGuestLanguage(null, "nl", [de])).toBeNull();
+    expect(gateGuestLanguage(null, "German", [de])).toBeNull();
+    expect(gateGuestLanguage(null, "DE", [de])).toBe("de");
+  });
+
+  it("iz cevapsız mesajların TAMAMINDAN okunur (son mesaj belirsiz, önceki Almanca)", () => {
+    expect(gateGuestLanguage(null, "de", ["Danke!", "Was kostet die Zusatzreinigung während des Aufenthalts?"])).toBe("de");
   });
 });
