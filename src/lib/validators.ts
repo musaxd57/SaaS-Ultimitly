@@ -87,6 +87,9 @@ export type LoginInput = z.infer<typeof loginSchema>;
  * saatleri sıfırlanır, bilgi tabanı metnini düzelten ev sahibinin KAPATTIĞI kalem yeniden AÇILIR. Burada önce her alanın varsayılanı
  * sökülür (kural ve mesaj aynen kalır), sonra hepsi isteğe bağlı olur → gönderilmeyen alan çıktıda YOK. Tip denetimi bunu yakalamaz
  * (çıktı tipi aynı); davranış `tests/integration/zod4-partial-patch.test.ts`, doğrudan `.partial()` yasağı `tests/unit/zod-tr.test.ts`.
+ * ⚠️ SINIR: yalnız alanın EN DIŞ katmanındaki `.default()` sökülür. `.default().optional()` / `.default().transform()` gibi sarılı
+ * varsayılan ya da `.catch()` eklenirse bu yardımcı genişletilmeli (fark testi 10-28: bugünkü mülk / bilgi tabanı şemalarında yok). Nesne
+ * düzeyi `.refine` eklenmiş şemada zod 4 `.extend` hata fırlatır → modül yüklenirken patlar (sessiz değil).
  */
 export function patchSchemaOf<S extends z.ZodRawShape>(schema: z.ZodObject<S>) {
   const shape: Record<string, z.core.$ZodType> = {};

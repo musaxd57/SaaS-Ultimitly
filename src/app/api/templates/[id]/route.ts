@@ -21,7 +21,7 @@ const templateUpdateSchema = z.object({
   //
   // 🚨 Create şemasındaki `.nullish().transform(v => v || null)` BURAYA
   // YAZILAMAZ: zod, dönüşüm `undefined`'ı `null`'a çevirdiğinde anahtarı
-  // çıktıya KOYAR (ParseStatus yalnız `undefined` kalan anahtarları eler) —
+  // çıktıya KOYAR (zod yalnız `undefined` kalan anahtarı eler; zod 4'te aynı, 10-28 ölçüldü) —
   // yani `propertyId` HİÇ GÖNDERİLMEYEN bir istek (ör. yalnız `isActive`
   // güncelleyen bir düğme) şablonu sessizce "Tüm mülkler"e taşırdı. Alan ham
   // bırakılır, normalizasyon aşağıda AÇIKÇA yapılır.
