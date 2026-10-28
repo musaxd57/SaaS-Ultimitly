@@ -4,6 +4,7 @@
 > Bu dosyadaki kurallar CLAUDE.md'deki kadar BAĞLAYICIDIR. İlgili alanda iş yapmadan önce oku.
 
 ## CLAUDE.md "Durum" özet satırları (10-23'te AYNEN taşındı; en yeni ikisi CLAUDE.md'de kalır)
+**10-23 öğle:** okuyucu bağlamı + Codex S3 (anlam denetimi okuyucuda, kodda kalanlar listesi; kurucuya soru §4.0) + Opus B1–B12 + Haiku 2. tur kodda (anahtarlar KAPALI) · bilgi tabanı dosya / RAG tasarımı + çekirdek (bağlı değil) · **kabul seti tek koşu (yandı): yeni akış 42/55 doğru · 0 yanlış gönderim (eski akış 38/55 · 4 yanlış)**, 13 gereksiz tutma — rapor `docs/RAPOR-2026-10-23-ogle-okuyucu-anlam-denetimi-ve-etiketler.md` (sorular §4.0–4.10), `docs/claude/durum.md`.
 **10-23 sabah-2:** kurucu Soru 9 / 10 / 11 + Codex "anlam ilişkisi" kodda (anahtarlar KAPALI): Soru 9 okuyucuda, okuyucusuz parça kipi hepsini tutar · tek bildirim e-postası (kalıcı kayıt) · okuyucu dört ayrı soru + son metin denetimi · Opus son kontrol G1–G6 + mutasyon 21/21 · **kör ölçüm (yandı): yanlış 9 → 1, doğru 27 → 14 / 40** → parça kipi KAPALI kalsın önerisi, sorular S1–S4 — rapor `docs/RAPOR-2026-10-23-sabah-parca-okuyucu-ve-kor-olcum.md`, `docs/claude/durum.md`.
 **10-23 gece-2:** kurucu fikri "4. kez gelen aynı soruya kayıtlı doğru cevap" → gölge kip (migration 85 ana dalda — kurucu onayı 10-23 sabah; anahtar KAPALI) · Opus güvenlik F1–F11 + dilim sonu R1–R15 (yön sözlüğü, ikinci konu, en az/en fazla, ücretsizlik sınırı, cevap tekrarı daralması, sıra kipi, etiket) + Haiku turları + Opus uçtan uca parça kipi (sorulan yön, iki tesis, sessiz tutuş e-postası, sıra kipi bağı) + gece sonu Opus taze göz (sorulan yön konuya bağlı, etiket değer penceresi) + mutasyon (23 yaşayan pinli) kapandı — rapor `docs/RAPOR-2026-10-23-gece-2-cevap-tekrari-ve-guvenlik.md`, `docs/claude/durum.md`.
 **10-23 gündüz:** kurucu A–E + kaynak sorusu kodda (anahtarlar KAPALI): istek başına doğrulanmış parça (değer ↔ konu ↔ koşul DEĞER BAŞINA) · kaynak sorusu açık iş · migration 84 (sıra + konu etiketi, belirsizse kapatma yok) · E ölçümü + neden analizi · next 15.5.28 güvenlik; sorular rapor §5 — `docs/RAPOR-2026-10-23-gunduz-buyuk-rapor.md`.
@@ -41,12 +42,44 @@ düzeltmeleri. Next.js 15.5.27 (iki yeni SSG/ISR danışması). Onay bekleyen be
 + Sabah Kararları 63–68. Railway hâlâ kapalı.
 - Bekleyen onaylar, 10-07 ve öncesi durum paragrafları, Host Copilot, K1–K18: tam metinde.
 
+## 10-28 devir (kurucu: "sonra sana clear atmak istiyorum") — /clear sonrası BURADAN başla
+
+**Dal durumu:** bütün iş `claude/great-edison-3zqpZ`'de commit'li; tam kapı + build yeşil olunca push edildi (CI sonucu bir sonraki
+oturumda `actions_list` ile tekrar bakılır). Railway KAPALI (canlı yok). Ücretli model koşusu YAPILMADI.
+
+**Bu oturumda (10-28) yapılan:**
+- Opus 2. dilim incelemesi (`docs/INCELEME-2026-10-28-opus-ikinci-dilim.md`, R1–R30): R1–R5 + R9 (`ai/absence.ts` ev sahibine yönlendirme yüklemi,
+  satır birleştirme doğrusal) · R16 (tür adı / istisna geçen evcil hayvan kuralı "ücretsiz" sayılmaz) · R18 (öğe kipinde evcil hayvan kemeri
+  öğe türüne bakar) · R21 (kapanış nezaketi metnin tamamında iletişim değeri arar) — hepsi "daha çok tutar", mutasyon pinli.
+- Kurucu §7 kararları (aynen: `docs/KURUCU-KARARLARI-2026-10-28-bilgi-tabani-7.md`): `/api/kb/template` (boş şablon tr/en) + `/api/kb/export`
+  (yalnız kendi işletme, etkin kalem, saatte 10, denetim kaydı, bürünmede kapalı) + bilgi tabanı sayfasında "Dışa aktar" düğmesi; tek kapı
+  `paidPlanFeatureAllowed` (deneme / etkin paketsiz → 403). Dışa aktarılan dosya geri yüklenince aynı taslaklar (üst markdown başlığı kuralı).
+- Tedarik zinciri: nodemailer 10.1.7; zod GHSA-mrhx gerekçeli triaj (2026-12-31'de dolar → soru 4.15 zod 4 geçişi).
+
+**SIRADAKİ İŞLER (bu sırayla; her biri K2: kırmızı-önce + mutasyon + Haiku dar inceleme + tam kapı):**
+1. **7-D gönderim zamanı karşılaştırması:** Opus araştırması `docs/arastirma-2026-10-28/7d-gonderim-zamani.md` (yoksa oturum notunda
+   kalmıştır → yeniden başlat: sabit kural kolu ↔ gönderim anında kısa bağlam kontrolü, 30+ senaryo). Kurucu "sen direk test et, sonuçları
+   göster, karar veririz" dedi → ücretli koşu bu iş için ONAYLI ama tutarı küçük tutulur; sonuç önce/sonra tablosuyla kurucuya. "Bilgi
+   tabanına kaydedeyim mi?" → hangi daire + "Bütün daireler için kaydet" + daire seçme kutuları (kart kodlanırken).
+2. **S3 kalıcı gömme deposu** (migration 87, onaylı, `KB_VECTOR_STORE_ENABLED` KAPALI): tasarım `docs/TASARIM-2026-10-23-bilgi-tabani-dosya-rag-ve-tarama.md`
+   §10.1 (son hâl). Maliyet cevabı kurucuya verildi (rapor §7.3). Migration içeren push = taze `pg_dump` + açık onay kuralı geçerli.
+3. **KB tarama soruları** (`KbScanQuestion`, migration 88, onaylı; `KB_SCAN_QUESTIONS_ENABLED` KAPALI): bulucular T1–T7 (tasarım §5) +
+   günde en çok 3 + panel kartı **[Onayla] [Düzenle] [Vazgeç]** (kurucu: "Böyle kalsın" DEĞİL "Vazgeç") + onaydan sonra öteki dairelere uygula.
+4. **Dosyadan içe aktarma bağlanmadan ÖNCE** Opus R24/R25/R26 (P1*/P2*: ayrı paragraftaki kod "Genel"e düşüyor, PIN / keyless biçimleri,
+   tablo başlık satırı) kapanmalı; sonra S4 sunucu API + yükleme ekranı + 7-B plan sınırı (taslak onayı sınıra sayılır, tasarım §4.4).
+5. **Opus açıkları:** R10–R15, R17, R19, R22, R27–R30 (`docs/INCELEME-2026-10-28-opus-ikinci-dilim.md` özet tablosu, "AÇIK" olanlar).
+   Müşteriye giden cevabı GEVŞETEN her düzeltme önce/sonra örneğiyle kurucuya sorulur.
+6. Açık kurucu soruları: 4.11–4.15 (rapor §4, §6) — cevap gelmeden uygulanmaz.
+
+**Dikkat (bu oturumun dersi):** tam kapı koşarken HİÇBİR vitest (hedefli test, mutasyon) koşulmaz — 10-28'de bir kapı bu yüzden geçersiz
+sayıldı ("Can't reach database server at localhost:5433").
+
 ## Durum
 > Tur anlatıları (09-23 → 10-01 gece 2) 10-02'de AYNEN arşive taşındı (kurucu: ".md çok uzamış … gerekli yerlere taşırsın"):
 > `docs/history/CLAUDE-2026-10-02-sadelestirme-3-oncesi-tam-metin.md` ("Durum" bölümü). Kuralları yukarıdaki bölümlerde; yalnız Durum'da
 > yazılı olan kurallar (konuşma öğeleri, ev kuralları, canlı bayraklar) 10-02'de ilgili bölümlere taşındı. Bekleyen onaylar ↓.
 
-**10-23 öğle (güncel — clear sonrası BURADAN devam):** rapor `docs/RAPOR-2026-10-23-ogle-okuyucu-anlam-denetimi-ve-etiketler.md`, tasarımlar
+**10-23 öğle (ESKİ devir — güncel olan yukarıdaki "10-28 devir"):** rapor `docs/RAPOR-2026-10-23-ogle-okuyucu-anlam-denetimi-ve-etiketler.md`, tasarımlar
 `docs/TASARIM-2026-10-23-okuyucu-baglami-anlam-denetimi-etiketleme.md` ve `docs/TASARIM-2026-10-23-bilgi-tabani-dosya-rag-ve-tarama.md`. Kodda
 (anahtarlar KAPALI): okuyucu bağlamı (16 mesaj iki taraflı, 8.000 karakter, misafirin kendi sözleri, bugün + giriş / çıkış günü) · Codex S3: anlam
 denetimi okuyucu varken okuyucuda, kodda kalanlar `CODE_KEPT_ISSUES` (alıntı var mı · değer konuyu anan kalemde mi · çelişki · konu biliniyor mu ·
