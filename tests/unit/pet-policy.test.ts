@@ -97,6 +97,11 @@ describe("bilgi tabanı okuması — yalnız AÇIK ve KOŞULSUZ 'ücretsiz kabul
       "Haustiere sind kostenlos erlaubt, außer Hunde.",
       "Les animaux sont acceptés gratuitement, sauf les chiens.",
       "Las mascotas son bienvenidas sin cargo, excepto perros.",
+      // Tür adı GEÇMEYEN istisnalar (mutasyon R16-except: tür kuralı bunları yakalamaz, yalnız istisna sözcüğü yakalar).
+      "Evcil hayvanlar ücretsiz kabul edilir, yaz ayları hariç.",
+      "Evcil hayvanlar ücretsiz kabul edilir, bayram dönemleri dışında.",
+      "Pets are welcome free of charge, excluding the summer season.",
+      "Haustiere sind kostenlos erlaubt, außer im Sommer.",
     ]) {
       expect([c, kbPetsFreeAllowed(kb(c))]).toEqual([c, false]);
     }
@@ -305,11 +310,15 @@ describe("kapı kod yedeği — 'model sallamasın'", () => {
   it("🚨 Opus 10-28 R18: ÖĞE KİPİNDE (canlıda açık) evcil hayvan öğesi varken cevabın hayvanı anmayan ücret / ret cümlesi de tutulur", () => {
     const items = { held: [], paymentHeld: false, answerableKinds: ["pets"] } as const;
     const free = { petsFreeAllowed: true, items };
-    for (const reply of ["Evet, getirebilirsiniz. Gecelik ücret 200 TL'dir.", "Maalesef kabul edemiyoruz."]) {
-      expect([reply, autoReplyGateVerdict({ ...ok, reply }, "Can we bring our puppy?", free)]).toEqual([
-        reply,
-        { reason: "blocked", detail: "reply_pet_policy" },
-      ]);
+    // İkinci misafir mesajında hayvan sözcüğü HİÇ yok (adıyla anılıyor) — sözcük okuması kaçırır, öğe türü yakalar (mutasyon R18-items).
+    for (const guest of ["Can we bring our puppy?", "Can Bella come with us? She is house-trained."]) {
+      for (const reply of ["Evet, getirebilirsiniz. Gecelik ücret 200 TL'dir.", "Maalesef kabul edemiyoruz."]) {
+        expect([guest, reply, autoReplyGateVerdict({ ...ok, reply }, guest, free)]).toEqual([
+          guest,
+          reply,
+          { reason: "blocked", detail: "reply_pet_policy" },
+        ]);
+      }
     }
     // KONTROL: olumlu, koşulsuz cevap evcil hayvan kemerine takılmaz; evcil hayvan öğesi olmayan turda hayvanı anmayan cümle okunmaz.
     // (Sahte sonuçta öğe beyanı olmadığı için öğe kapısı ayrıca `items_undeclared` der — burada yalnız evcil hayvan kemeri sınanır.)
