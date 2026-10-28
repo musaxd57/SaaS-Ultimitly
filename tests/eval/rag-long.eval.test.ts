@@ -6,7 +6,9 @@ import { chunkItems } from "@/lib/ai/retrieval/chunker";
 import { __resetKbIndexCache } from "@/lib/ai/retrieval/index-cache";
 import { __resetUnderstandingCache } from "@/lib/ai/semantic/understand";
 import { runPipeline, type LabItem, type LabQuery } from "./rag-lab/core";
-import { parseConfig } from "./rag-lab/config";
+import { describeConfig, parseConfig } from "./rag-lab/config";
+import { evalRuntime, evalRuntimeMarkdown } from "./run-meta";
+import { writeSidecar } from "./sidecar";
 
 // ---------------------------------------------------------------------------
 // UZUN BELGE RAG ÖLÇERİ (kurucu 10-28: "rag için ölçümlerimizi yapalım, orayı en iyi şekilde istiyorum"; Codex 10-28: "cümleyi bulmak
@@ -266,8 +268,20 @@ describe(`uzun belge RAG — ${SET}`, () => {
     mkdirSync(outDir, { recursive: true });
     const stamp = `rag-uzun-belge-${set.split}-bg${BACKGROUND}-${CONFIG_NAMES.join("_").replace(/[^a-z0-9_.-]/gi, "")}${TAG ? `-${TAG}` : ""}-2026-10-28`;
     const outRows = DETAILS ? rows : rows.map(({ missing: _missing, ...r }) => r);
-    writeFileSync(path.join(outDir, `${stamp}.json`), JSON.stringify({ set: set.split, author: set.author, configs: CONFIG_NAMES, background: BACKGROUND, rows: outRows }, null, 1));
-    writeFileSync(path.join(outDir, `${stamp}.md`), report(rows, set, docs, DETAILS, BACKGROUND));
+    // Koşu kimliği (katman bazında model + çaba + commit + bayraklar) hem yan dosyada hem raporda — sonuç hangi kurulumla alındı belli olsun.
+    const runtime = evalRuntime();
+    const resolved = Object.fromEntries(configs.map((c) => [c.name, describeConfig(c)]));
+    writeFileSync(
+      path.join(outDir, `${stamp}.md`),
+      `${report(rows, set, docs, DETAILS, BACKGROUND)}\n${Object.entries(resolved).map(([n, d]) => `- yapılandırma \`${n}\` (çözülmüş): ${d}`).join("\n")}\n\n${evalRuntimeMarkdown(runtime)}\n`,
+    );
+    writeSidecar(outDir, `${stamp}.md`, {
+      suite: "rag-long",
+      version: 1,
+      meta: { set: set.split, author: set.author, configs: CONFIG_NAMES, resolved, background: BACKGROUND, details: DETAILS },
+      rows: outRows,
+      runtime,
+    });
     expect(rows.length).toBe(set.questions.length * configs.length);
     // Anti-vakum: anlamalı yapılandırma seçim yapılan boyutta (arka planlı) koştuysa katmanın gerçekten sonuç vermiş olması gerekir.
     for (const c of configs.filter((x) => x.understanding)) {
