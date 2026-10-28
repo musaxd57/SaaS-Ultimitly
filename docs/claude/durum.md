@@ -60,7 +60,8 @@ para harcamayı tercih ederim"): uzun belge RAG + Luna kıyası, toplam birkaç 
 ağırlıklı kör set (`evals/rag-long/tablo.json`, `EVAL_RAG_LONG_SET=tablo RUN_REAL_EVAL=1 EVAL_RAG_LONG_DETAILS=0`, kapalı / açık × 2), okuyucu
 ücret satırı (`EVAL_SENIOR_SET=airbnb-fee-statements.json` + `airbnb-message-policy.json`, `AI_KB_FEE_RULE_ENABLED` açık / kapalı), ücret seti
 parça kipi (`EVAL_LIVE_SET=service-fee-4-13-dev.json`, ayrı PG gerekir). Karar sayfasına 4 yeni soru (4.14-b, 4.13-b, G-1, 8-4c-1). Sıradaki:
-4.15 zod 4 (açılıştan önce) · 8-1 C2 ürün dilimi ("eksik bilgi kartı" + gönderim anı denetimi; tasarım `docs/arastirma-2026-10-28/7d-gonderim-zamani.md`).
+4.15 zod 4 ✅ (10-28 gece; tip denetiminin yakalamadığı 3 gerileme — kısmi güncellemede varsayılan ezme ×2, sarf profili —
+kırmızı-önce bulundu ve düzeltildi; 114.882 girdilik zod 3 ↔ 4 fark testinde veri farkı 0) · 8-1 C2 ürün dilimi ("eksik bilgi kartı" + gönderim anı denetimi; tasarım `docs/arastirma-2026-10-28/7d-gonderim-zamani.md`).
 
 **10-28 akşam (RAG ölçüm turu, kurucu: "rag için ölçümlerimizi yapalım, orayı en iyi şekilde istiyorum" + Codex eleştirisi):** sonuçlar
 `docs/TASARIM-2026-10-28-dosya-rag-cumle-ve-anlam.md` §8 (Codex madde madde) + §9 (ölçüm). Özet: uzun belge ölçeri (`tests/eval/rag-long.eval.test.ts`,
@@ -78,7 +79,7 @@ Talimatı"na süpürülen paragraf: kör sette 35 soru QR'da cevapsız kalır), 
 - Kurucu §7 kararları (aynen: `docs/KURUCU-KARARLARI-2026-10-28-bilgi-tabani-7.md`): `/api/kb/template` (boş şablon tr/en) + `/api/kb/export`
   (yalnız kendi işletme, etkin kalem, saatte 10, denetim kaydı, bürünmede kapalı) + bilgi tabanı sayfasında "Dışa aktar" düğmesi; tek kapı
   `paidPlanFeatureAllowed` (deneme / etkin paketsiz → 403). Dışa aktarılan dosya geri yüklenince aynı taslaklar (üst markdown başlığı kuralı).
-- Tedarik zinciri: nodemailer 10.1.7; zod GHSA-mrhx gerekçeli triaj (2026-12-31'de dolar → soru 4.15 zod 4 geçişi).
+- Tedarik zinciri: nodemailer 10.1.7; zod 4.6.7 (4.15 geçişi 10-28 gece, GHSA-mrhx kapandı — `docs/INCELEME-2026-10-28-zod4-gecisi.md`).
 
 **SIRADAKİ İŞLER (bu sırayla; her biri K2: kırmızı-önce + mutasyon + Haiku dar inceleme + tam kapı):**
 1. **7-D gönderim zamanı — SERT KÖR TEST YAPILDI (10-28 öğle):** 93 senaryoluk kör set (ayrı yazar, `docs/arastirma-2026-10-28/7d-kor-set.json`)

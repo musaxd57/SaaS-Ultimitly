@@ -37,9 +37,7 @@ export const leadSchema = z.object({
   phone: z.string().max(40).optional().or(z.literal("")),
   message: z.string().max(1000).optional().or(z.literal("")),
   // KVKK: explicit, affirmative consent is required to collect contact data.
-  consent: z.literal(true, {
-    errorMap: () => ({ message: "Devam etmek için onay kutusunu işaretleyin." }),
-  }),
+  consent: z.literal(true, { error: "Devam etmek için onay kutusunu işaretleyin." }),
 });
 export type LeadInput = z.infer<typeof leadSchema>;
 
@@ -82,6 +80,21 @@ export const loginSchema = z.object({
 });
 export type LoginInput = z.infer<typeof loginSchema>;
 
+/**
+ * 🚨 KISMİ GÜNCELLEME ŞEMASI — YALNIZ BUNUNLA türetilir (zod 4 geçişi, kurucu kararı 4.15, 10-28). zod 4'te `.partial()` ile isteğe
+ * bağlı yapılan alanın `.default()`u UYGULANIR (zod 3'te uygulanmıyordu; ölçüldü: `propertySchema.partial().parse({ name })` giriş 15:00,
+ * çıkış 11:00, temizlik 120 ekliyordu). PATCH'te bu, GÖNDERİLMEYEN alanı varsayılana ezmek demek: mülk adını değiştiren ev sahibinin
+ * saatleri sıfırlanır, bilgi tabanı metnini düzelten ev sahibinin KAPATTIĞI kalem yeniden AÇILIR. Burada önce her alanın varsayılanı
+ * sökülür (kural ve mesaj aynen kalır), sonra hepsi isteğe bağlı olur → gönderilmeyen alan çıktıda YOK. Tip denetimi bunu yakalamaz
+ * (çıktı tipi aynı); davranış `tests/integration/zod4-partial-patch.test.ts`, doğrudan `.partial()` yasağı `tests/unit/zod-tr.test.ts`.
+ */
+export function patchSchemaOf<S extends z.ZodRawShape>(schema: z.ZodObject<S>) {
+  const shape: Record<string, z.core.$ZodType> = {};
+  for (const [key, field] of Object.entries(schema.shape)) shape[key] = field instanceof z.ZodDefault ? field.unwrap() : field;
+  return schema.extend(shape as unknown as WithoutDefaults<S>).partial();
+}
+type WithoutDefaults<S extends z.ZodRawShape> = { [K in keyof S]: S[K] extends z.ZodDefault<infer Inner> ? Inner : S[K] };
+
 // --- Property ---------------------------------------------------------------
 export const propertySchema = z.object({
   // Gece-4 S6-06: yalnız boşluktan oluşan ad ("  ") kabul edilip "" olarak kaydediliyordu — doğrulamadan ÖNCE kırpılır.
@@ -109,10 +122,16 @@ export const propertySchema = z.object({
   // Supply/linen prep profile: qty-per-arrival for known items only. Partial (any
   // subset of keys), each 0–999. Unknown keys are rejected so a bad client can't
   // stuff arbitrary data into the JSON column.
+  // 🚨 zod 4: enum anahtarlı `z.record` BÜTÜN anahtarları zorunlu kılar (zod 3 alt kümeye izin veriyordu) → alt küme için
+  // `z.partialRecord`. Form yalnız 0'dan büyük kalemleri gönderir; `z.record` ile tek mülkün profili neredeyse hiç kaydedilemezdi.
   supplyProfile: z
-    .record(z.enum(SUPPLY_ITEM_KEYS), z.coerce.number().int().min(0).max(999))
+    .partialRecord(z.enum(SUPPLY_ITEM_KEYS), z.coerce.number().int().min(0).max(999))
     .optional(),
 });
+
+/** Mülk düzenleme (PATCH) — gönderilmeyen alan dokunulmaz (`patchSchemaOf`). */
+export const propertyPatchSchema = patchSchemaOf(propertySchema);
+
 export type PropertyInput = z.infer<typeof propertySchema>;
 
 // --- Reservation ------------------------------------------------------------
@@ -278,7 +297,7 @@ export const kbSchema = z.object({
 });
 export type KbInput = z.infer<typeof kbSchema>;
 
-export const kbUpdateSchema = kbSchema.partial().omit({ propertyId: true, requestId: true });
+export const kbUpdateSchema = patchSchemaOf(kbSchema).omit({ propertyId: true, requestId: true });
 
 /** Helper to format a ZodError into a flat { field: message } map for the API. */
 export function zodFieldErrors(error: z.ZodError): Record<string, string> {

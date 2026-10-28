@@ -67,15 +67,6 @@
       "expires": "2027-02-01",
       "reason": "BUILD-TIME ONLY + saldirgan kontrollu CSS gerekiyor. Bu uygulamada kullanici tarafindan yazilan CSS YOK.",
       "closedBy": "next@16 (major)"
-    },
-    {
-      "id": "GHSA-mrhx-c7xc-m3w5",
-      "package": "zod",
-      "severity": "high",
-      "title": "Zod can exhaust memory while validating oversized constrained collections",
-      "expires": "2026-12-31",
-      "reason": "ULASILAMAZ (olculdu 2026-10-28). Saldiri, sinirlanmis bir koleksiyona (ornek z.array().max(N)) DEV boyutlu girdi verip dogrulamada bellek tuketmek. Bu uygulamada (1) dis kaynakli butun istek govdeleri zod'a girmeden ONCE readJsonCapped ile 64 KB'ta kesilir (src/lib/api.ts MAX_JSON_BODY_BYTES; src/app altinda sinirsiz req.json() yok) — 64 KB'lik bir dizi bellek tukettiremez; (2) rota disinda zod yalniz kendi kalite denetcimizin cikti tavanli model yanitinda (quality-audit.ts) ve tek bir e-posta dizesinde (email-identity.ts) kosar. Duzeltme yalniz zod 4.6.6+'da (3.x icin yama yok); zod 3 -> 4 gecisi ana surum ve @anthropic-ai/sdk de zod 3'e bagli — ayri, testli bir is olarak planlandi. Kisa sure: 2026-12-31'de yeniden bakilir.",
-      "closedBy": "zod@4 gecisi (major) — 3.x icin yama yok"
     }
   ]
 }

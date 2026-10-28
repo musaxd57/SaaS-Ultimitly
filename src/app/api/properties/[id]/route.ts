@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { propertySchema, zodFieldErrors } from "@/lib/validators";
+import { propertyPatchSchema, zodFieldErrors } from "@/lib/validators";
 import { badRequest, jsonOk, notFound, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { writeAudit, auditActor } from "@/lib/audit";
@@ -46,7 +46,7 @@ export const PATCH = withManage<{ id: string }>(async (session, req, { params })
   if (!existing) return notFound();
 
   const data = await readJsonCappedOrNull(req);
-  const parsed = propertySchema.partial().safeParse(data);
+  const parsed = propertyPatchSchema.safeParse(data);
   if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));
   const d = parsed.data;
 
