@@ -50,6 +50,11 @@ düzeltmeleri. Next.js 15.5.27 (iki yeni SSG/ISR danışması). Onay bekleyen be
 oturumda `actions_list` ile tekrar bakılır). Railway KAPALI (canlı yok). 10-28 akşam ücretli koşular kurucu onayıyla yapıldı ("test yapıp
 para harcamayı tercih ederim"): uzun belge RAG + Luna kıyası, toplam birkaç dolar.
 
+**10-28 gece-2 (kurucu: "6.'yı deneyelim … süreyi kısaltmak işimize yarar / r13 tamam"):** R13 ✅ (`ai/absence.ts`: "let them know / so they
+know / with the details / bilgi verin" bilgi koşulu sayılmaz; "bilgi verebilirsiniz" yönlendirme değil; mutasyon 8/8) · Decisions API yeniden
+sıralayıcıya AYRI motor, VARSAYILAN KAPALI (`KB_RERANK_ENGINE=decisions`, `structured-call.ts callDecisions`; mutasyon 14/14; ölçer aynı soru
+metni + eşiği üretimden alır) — açmak kredi gelince tekrar + kör ölçüm sonrası kurucu kararı (`docs/arastirma-2026-10-28/decisions-api.md` §3).
+
 **10-28 gece (kurucu karar masası 19 karar + "4 saat dur durmadan çalış, en sonda ajansız satır satır incele"):** kararlar AYNEN
 `docs/KURUCU-KARARLARI-2026-10-28-karar-masasi.md`; açıklamalar / tasarım `docs/TASARIM-2026-10-28-aksam-kurucu-aciklamalari.md`; öz-inceleme
 `docs/INCELEME-2026-10-28-gece-oz-inceleme.md`. Kodda: 4.11 okuyucu geçici hatada bir kez yeniden dener (toplam süre tek çağrı tavanını aşmaz) ·

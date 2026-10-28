@@ -298,7 +298,7 @@ yan cümle yalnız KENDİNİ muaf tutsun.
 | R10 | P2 | TOPIC_MARKER belirtme hâli nesnesini görmüyor → numara kurtarıyor | a, R4 düzeltmesinin gerilemesi | AÇIK |
 | R11 | P2 | varış muafiyeti nesne biçimli konu | a | AÇIK |
 | R12 | P2 | olay muafiyeti cümle düzeyi | a | AÇIK |
-| R13 | P2 | INFO_CONDITION "let them know / details" | b | AÇIK |
+| R13 | P2 | INFO_CONDITION "let them know / details" | b | ✅ 10-28 gece (kurucu "r13 tamam"; haber verme ifadesi bilgi koşulundan önce silinir, "bilgi verebilirsiniz" yönlendirme değil; mutasyon 8/8) |
 | R14 | P3 | "break" / "issues" geniş | a | AÇIK |
 | R15 | P2 | binding: tire / parantez / "•" / noktalamasız "kapalı" sıfat | a | AÇIK — 10-28 gece tasarım notu ↓ (aceleyle kapatılmadı: yan cümle bölme bu dosyada üç ayrı yerde) |
 | R16 | P1 | pet: "hariç / except" + tür uyuşmazlığı → evet gider | a | düzeltildi 10-28 (ac4bfa66 + pin) |
