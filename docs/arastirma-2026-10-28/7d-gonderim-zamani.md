@@ -805,3 +805,39 @@ edilebilir alternatifler, zamanlama şimdi / sabah, gerekçe). Rezervasyon belir
   ]
 }
 ```
+
+## 10. SERT KÖR TEST (10-28, kurucu: "sen direk testleri iyimser olmadan sert olarak bir test oluştur")
+
+**Set:** `7d-kor-set.json` — 93 senaryo, kuralları ve geliştirme setini GÖRMEMİŞ ayrı bir yazar (Opus) yazdı; amaç kuralları kırmak (gece
+yarısı geçişi, dolaylı zaman, yanlış öğrenilen bilgi, iptal + yeni rezervasyon, dil karışması, yanlış daireye / başka misafire yazılmış onay,
+doldurulmamış yer tutucu, platform dışı ödeme…). Doğru cevapları da o yazar belirledi; belirsiz vakalarda alternatif "kabul edilebilir" listesinde.
+**Model kolu gerçek modelle koşuldu** (`7d-model-kolu.mjs`, §6.1 istemi + §6.2 şeması + §6.3 tutarlılık süzgeci; gpt-6-luna ve gpt-5.1,
+düşük çaba; iki set × iki model = 266 çağrı, **toplam ≈ 0,30 $**; sonuçlar `sonuc-*.json`).
+
+| Kol | Geliştirme seti (40) yanlış gönderim | **Kör set (93) yanlış gönderim** | Kör sette gereksiz tutma |
+|---|---|---|---|
+| A — sabit kural (24 saat + araya mesaj) | 5 | **14** | 12 |
+| C — kod önce karar verir, kalanı model (§4'teki öneri) | 1 (luna) · 1 (5.1) | **10 (luna) · 12 (5.1)** | 8 · 7 |
+| B — her şeyi model | 2 (luna) · 3 (5.1) | **7 (luna) · 14 (5.1)** | 8 · 4 |
+| **C′ — kod yalnız DURDURUR; her gönderimi model ONAYLAR** | 1 (luna) · 1 (5.1) | **4 (luna)** · 11 (5.1) | 10 · 7 |
+
+**Dürüst okuma:**
+- §4'teki C önerisi kör sette TUTMADI: kodun 10 yanlış gönderiminin HEPSİ tek kuraldan ("soru hâlâ konuşmanın son mesajı → gönder").
+  Kod bir şeyi "güvenle gönderilir" diye onaylayamıyor; yalnız "kesin durmalı" diyebiliyor (iptal, konaklama bitti, acil, çelişki, dil…).
+- Bu sette **gpt-6-luna gpt-5.1'den daha temkinli ve daha doğru** (5.1 "doğrudan cevap" deyip 11–14 vakada gönderiyor). Model seçimi ölçümle.
+- En iyi kol C′ bile **sıfır değil: 4 yanlış gönderim**, üç sınıf:
+  1. **Gece yarısını geçen "yarın / bugün"** (K07, K24): soru 23:30'da "yarın temizlik kaçta?", onay 00:20'de "Yarın saat 12:00'de…" — misafir
+     sabah okuyunca bir gün kayar. Model "doğrudan cevap" diyor.
+  2. **Soru ile onay arasında rezervasyon değişti** (K54): tarih kaymış, onay eski tarihe izin veriyor. Model rezervasyon geçmişini görmüyor.
+  3. **Onay başka daireye ait** (K85: "Lale 3'ün otopark yeri…" Lale 1 misafirine). Model daire adını bilmiyor.
+- Üçü de KOD ile yakalanabilecek, yalnız DURDURAN (müşteriye giden metni gevşetmeyen) kurallar: (1) onay metninde ya da soruda göreli gün
+  sözcüğü (yarın / bugün / bu akşam / tomorrow / today / tonight / morgen / heute …) varken soru ve onay farklı takvim günündeyse → düzenleyici;
+  (2) sorudan sonra rezervasyonun tarihi / durumu değiştiyse → düzenleyici; (3) onay metninde işletmenin BAŞKA bir dairesinin adı ya da
+  başka bir misafirin adı geçiyorsa → düzenleyici (yer tutucu ve platform dışı ödeme için ürünün mevcut kapıları zaten var).
+  **Uyarı:** bu üç kural kör setin hatalarını GÖREREK yazılıyor; eklendikten sonra bu sette 0 çıkması kanıt değildir. Kanıt, kuralları görmemiş
+  İKİNCİ bir kör setle gelir (sıradaki iş).
+- Gereksiz tutma (gitmesi gerekirken düzenleyici): C′ luna'da 10 / 93. Çoğu "an geçti ama bilgi hâlâ işe yarar" ayrımı — güvenli yön.
+
+**Güncel önerim (C″):** kod yalnız durdurur (bugünkü kesin kurallar + yukarıdaki üç kural) → kalan her gönderim için model onayı (gpt-6-luna,
+düşük çaba; §6.3 süzgeci) → şüphede / arızada düzenleyici. Model hiçbir zaman tek başına "gönder" kararını veremez; kod da veremez — ikisi
+birlikte "durdurmak için sebep yok" demeli. Maliyet onay başına ≈ 0,0002 $.
