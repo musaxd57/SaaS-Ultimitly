@@ -57,16 +57,19 @@ oturumda `actions_list` ile tekrar bakılır). Railway KAPALI (canlı yok). Ücr
 - Tedarik zinciri: nodemailer 10.1.7; zod GHSA-mrhx gerekçeli triaj (2026-12-31'de dolar → soru 4.15 zod 4 geçişi).
 
 **SIRADAKİ İŞLER (bu sırayla; her biri K2: kırmızı-önce + mutasyon + Haiku dar inceleme + tam kapı):**
-1. **7-D gönderim zamanı karşılaştırması:** Opus araştırması `docs/arastirma-2026-10-28/7d-gonderim-zamani.md` (yoksa oturum notunda
-   kalmıştır → yeniden başlat: sabit kural kolu ↔ gönderim anında kısa bağlam kontrolü, 30+ senaryo). Kurucu "sen direk test et, sonuçları
-   göster, karar veririz" dedi → ücretli koşu bu iş için ONAYLI ama tutarı küçük tutulur; sonuç önce/sonra tablosuyla kurucuya. "Bilgi
-   tabanına kaydedeyim mi?" → hangi daire + "Bütün daireler için kaydet" + daire seçme kutuları (kart kodlanırken).
+1. **7-D gönderim zamanı:** araştırma + 40 senaryoluk kodsuz simülasyon BİTTİ (`docs/arastirma-2026-10-28/7d-gonderim-zamani.md`; set
+   `7d-senaryolar.json`, betik `7d-simule.mjs` — `node docs/arastirma-2026-10-28/7d-simule.mjs docs/arastirma-2026-10-28/7d-senaryolar.json`).
+   Sonuç: sabit kural 5 yanlış gönderim / 8 gereksiz tutma; katmanlı C 30/30 (iyimser — kurallar seti görerek yazıldı). SIRADAKİ: kuralları
+   GÖRMEMİŞ ayrı yazarla kör set + model kolu ölçümü (kurucu "sen direk test et" dedi → ≈ 0,05 $ luna / ≈ 0,80 $ gpt-5.1, onaylı sayılır;
+   tutarı aşma) → sonuçlar önce/sonra tablosuyla kurucuya; kurucu soruları belge §8 (8-1…8-5) cevaplanmadan kod YAZILMAZ.
 2. **S3 kalıcı gömme deposu** (migration 87, onaylı, `KB_VECTOR_STORE_ENABLED` KAPALI): tasarım `docs/TASARIM-2026-10-23-bilgi-tabani-dosya-rag-ve-tarama.md`
    §10.1 (son hâl). Maliyet cevabı kurucuya verildi (rapor §7.3). Migration içeren push = taze `pg_dump` + açık onay kuralı geçerli.
 3. **KB tarama soruları** (`KbScanQuestion`, migration 88, onaylı; `KB_SCAN_QUESTIONS_ENABLED` KAPALI): bulucular T1–T7 (tasarım §5) +
    günde en çok 3 + panel kartı **[Onayla] [Düzenle] [Vazgeç]** (kurucu: "Böyle kalsın" DEĞİL "Vazgeç") + onaydan sonra öteki dairelere uygula.
 4. **Dosyadan içe aktarma bağlanmadan ÖNCE** Opus R24/R25/R26 (P1*/P2*: ayrı paragraftaki kod "Genel"e düşüyor, PIN / keyless biçimleri,
    tablo başlık satırı) kapanmalı; sonra S4 sunucu API + yükleme ekranı + 7-B plan sınırı (taslak onayı sınıra sayılır, tasarım §4.4).
+   Not: dışa aktarılan dosyada "# Daire adı" üst başlığı var; içe aktarma ekranı bağlanırken bu başlık daire seçimine eşlenmeli (bugün
+   birden çok daireli dosya tek daireye yüklenirse bütün kalemler o daireye taslak olur — Haiku 10-28 bulgu 1 ile birlikte düşünülecek).
 5. **Opus açıkları:** R10–R15, R17, R19, R22, R27–R30 (`docs/INCELEME-2026-10-28-opus-ikinci-dilim.md` özet tablosu, "AÇIK" olanlar).
    Müşteriye giden cevabı GEVŞETEN her düzeltme önce/sonra örneğiyle kurucuya sorulur.
 6. Açık kurucu soruları: 4.11–4.15 (rapor §4, §6) — cevap gelmeden uygulanmaz.

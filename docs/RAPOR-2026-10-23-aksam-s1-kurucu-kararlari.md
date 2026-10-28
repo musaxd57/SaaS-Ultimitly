@@ -202,10 +202,26 @@ başka işletmenin vektörü okunamaz. **Bir sonraki dilimde yazılacak** (bu di
 
 - **7-B "evet sayılsın":** dosyadan gelen taslak onaylanınca normal kalem gibi plan sınırına sayılır; sınırı aşan taslak "paket sınırı" diye
   işaretlenir, onaylanamaz (tasarım §4.4). Yükleme ekranı bağlanırken uygulanacak; bugün yükleme ekranı yok.
-- **7-D gönderim zamanı:** "24 saat kuralı yerine bağlama bir kez daha bak" önerinizi iki yolla karşılaştırıyorum (sabit kurallar ↔ gönderim
-  anında kısa bağlam kontrolü), 30+ senaryoda; sonuçlar ayrı tabloda size gelecek, karar sizin. "Bilgi tabanına kaydedeyim mi?" → **hangi daire
-  için** sorusu + **"Bütün daireler için kaydet"** + daire seçme kutuları — tasarıma eklendi, kart kodlanırken uygulanacak. Eksik bilgi döngüsü ve
-  ileride WhatsApp: not edildi (projenin sonuna doğru, ayrı karar).
+- **7-D gönderim zamanı — test ettim, sonuç (araştırma + simülasyon: `docs/arastirma-2026-10-28/7d-gonderim-zamani.md`, 40 senaryo, makine
+  okunur set + betik aynı klasörde; model koşusu YOK):**
+
+  | | doğru | yanlış gönderim (kritik) | gereksiz tutma | modele kalan |
+  |---|---|---|---|---|
+  | A — sabit kural (24 saat + araya mesaj + konaklama) | 15 (+7 kabul edilebilir) | **5** | **8** | — |
+  | C — katmanlı: önce kod, sonra anlama kayıtları, kalan belirsize küçük model | **30 / 30** (kodun karar verdiği) | **0** | 0 | 10 (%25) |
+
+  A'nın yanlış gönderimleri: gece 23:40'ta "bu akşam havuz kaçta kapanıyor?" sorusuna cevap · çıkış saatinden sonra "anahtarı kutuya bırakın"
+  · bilgi tabanı arada değişmişken eski saat · İngilizce misafire Türkçe metin · konusuz "Bu arada, 22:00'ye kadar açık.". A'nın gereksiz
+  tuttukları: ertesi gün hâlâ geçerli soru, aynı soruyu yeniden soran misafir. **Önerim C** — süre bir eşik değil, üç soru: misafirin sorduğu
+  AN geçti mi · konaklama hâlâ geçerli mi · misafir şu an uyuyor olabilir mi (gece + sessizse "07:30'da gönderilsin mi?"). Model metin YAZMAZ,
+  yalnız dört davranıştan birini seçer (gönder / "Bu arada," ile gönder / düzenleyiciyi aç / gönderme); şüphede ve arızada düzenleyici açılır.
+  **Dürüstlük notu:** C'nin kuralları bu seti görerek yazıldı → 30/30 iyimser; görmemiş biriyle yazılmış kör set + modelli ölçüm gerekiyor
+  (≈ 0,05 $ luna / ≈ 0,80 $ gpt-5.1 — "sen direk test et" dediniz, bir sonraki oturumda kör setle birlikte koşacağım).
+  **Sorular (belge §8, önce / sonra örnekli):** 8-1 C kabul mü · 8-2 bağlaç "Bu arada," mı · 8-3 gece kuralı 23:00–08:00 → 07:30 uygun mu ·
+  8-4 üç sınır durumu (araya giren konu cevaplandıysa / sitemli tekrar / araya cevapsız başka istek) · 8-5 e-postadaki "Bunu gönder" düğmesi
+  doğrudan göndermesin, paneli açsın mı (e-posta güvenlik tarayıcıları bağlantılara kendiliğinden tıklayabiliyor).
+  "Bilgi tabanına kaydedeyim mi?" → hangi daire + **"Bütün daireler için kaydet"** + daire seçme kutuları — tasarıma eklendi; mesaj gönderilmese
+  de sorulur. Eksik bilgi döngüsü ve ileride WhatsApp: not edildi (projenin sonuna doğru, ayrı karar).
 - **7-f, 7-g:** onaylandı, not edildi.
 
 ### 7.5 Opus ikinci dilim kalanlarından düzeltilenler (müşteriye giden cevabı DAHA ÇOK tutar; gevşetme yok)
@@ -215,3 +231,13 @@ başka işletmenin vektörü okunamaz. **Bir sonraki dilimde yazılacak** (bu di
 | R16 | bilgi tabanında "Kediler ücretsiz kabul edilir." ya da "Evcil hayvanlar ücretsiz, köpekler hariç." yazıyorsa **köpekli misafire** "Evet, getirebilirsiniz" gidebiliyordu (kural "herkese ücretsiz" sanılıyordu) | tür adı ya da istisna (hariç / dışında / except / außer / sauf / excepto…) geçen kural genel "ücretsiz kabul" sayılmaz → cevap size kalır |
 | R18 | "Can we bring our **puppy**?" — sözlükte olmayan hayvan sözcüğünde evcil hayvan kemeri hiç devreye girmiyordu; "Gecelik ücret 200 TL" gibi bilgi tabanında olmayan ücret gidebiliyordu | canlıda açık öğe kipinde kemer misafirin sözcüğüne değil **öğenin türüne** (evcil hayvan) bakar → tutulur |
 | R21 | onaysız Airbnb konuşmasında **sizin kendi nezaket metninizde** telefon varsa ("Bize 0532 … numarasından ulaşabilirsiniz") nezaket cevabı gidiyordu (yalnız imza taranıyordu) | metnin tamamı taranır → gitmez (Airbnb platform dışı iletişim kuralı) |
+
+### 7.6 Haiku dar incelemesi (10-28) → düzeltilenler (hepsi "daha çok tutar" ya da yalnız dosya biçimi)
+
+| bulgu | önce | şimdi |
+|---|---|---|
+| "haricinde / harici / dışındaki" | "Evcil hayvanlar ücretsiz kabul edilir; tehlikeli ırklar **haricinde**." genel "ücretsiz" sayılıyordu (R16 yalnız "hariç / dışında"yı görüyordu) | ekli biçimler de koşul → cevap size kalır |
+| anlama katmanı evcil hayvanı kaçırırsa | "Köpeğimizle gelebilir miyiz? Giriş kaçta?" → anlama yalnız giriş saatini çıkarırsa evcil hayvan kemeri HİÇ devreye girmiyordu; "Giriş 15:00. Evet, getirebilirsiniz; gecelik ücret 200 TL." gidebilirdi. Yardımcı hayvan ("service dog") da aynı | evcil hayvan öğesi yoksa misafirin mesajı yine okunur (QR'daki kuralla aynı) → tutulur. Öğe tutulduysa öteki sorular yine gider (4.3) |
+| dışa aktar → yeniden yükle | içeriğin ilk satırı başlık gibiyse ("Wi-Fi bilgileri:", "ÖNEMLİ") dosya geri yüklenince "## Wi-Fi" yazısı içeriğe giriyor, kalem ikiye bölünüyordu; 58–60 karakterlik / virgülle biten / saatli başlıkta da aynı | dosya geri yüklenince içerik birebir aynı, "##" içeriğe girmez (başlık uygun değilse kategori adı yazılır — içe aktarıcının kendi kuralıyla sınanır) |
+| onay bekleyen taslak | dışa aktarma yalnız "etkin" bakıyordu; onay bekleyen taslak (bugün üreten yol yok) dosyaya girecekti | yalnız yapay zekânın okuduğu (eski + onaylı) kalemler |
+
