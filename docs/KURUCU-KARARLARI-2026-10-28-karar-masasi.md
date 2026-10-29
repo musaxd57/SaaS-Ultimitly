@@ -267,3 +267,28 @@
   > Ayrıca gönderim penceresi dolan ihtiyaç sessizce kaybolmamalı. hosta söylensin  Misafire de otomatik olarak “Sorunuz hâlâ geçerli mi?” gönderilmesini varsayılan yapmazdım; bu da gereksiz yeni mesajlar yaratabilir.  AIımız müşteriye gerekmedikçe soru sormamasını daha çok isterim.
   >
   > Host onayından sonra rezervasyonun değişmesi, işçinin yeniden başlaması ve aynı mesajın tekrar işlenmesi de sınanmalı. Sistem kesintiden dönünce eski cevapları topluca göndermediğinin kanıtı önemli.
+
+---
+## Uygulama / cevaplar (10-29 gece)
+
+**4-14-b ✅ (kodda, mutasyon 5/5):** Airbnb'de imzanın telefon / e-posta / bağlantı satırı HER ZAMAN çıkar — AI cevabı, kapanış nezaketi, otomatik
+karşılama / giriş / çıkış gönderimi ve önizlemeleri, kuyruğun gönderim anı yeniden kurulumu (tek kaynak `channels/airbnb-message-policy.ts`
+`signatureStripsContactFor` / `signatureForChannel`). Airbnb dışı kanalda imza aynen. "Emin olman gerek" şartı: Airbnb'nin kendi yardım
+sayfaları onaylı rezervasyonda ev sahibinin numarasının rezervasyon ayrıntılarında ve onay e-postasında misafire gösterildiğini söylüyor
+([4116](https://www.airbnb.com/help/article/4116), [147](https://www.airbnb.com/help/article/147)); onaydan önce ve konaklama sonrası göstermiyor
+— o pencerelerde zaten çıkarıyorduk ([4155](https://www.airbnb.com/help/article/4155)). Ayarlar'daki imza ipucu artık telefon yazmayı ÖNERMİYOR
+("Airbnb mesajlarında imzadaki telefon ve e-posta satırları gönderilmez — Airbnb numaranızı onaylı rezervasyonda misafire kendisi gösterir.").
+"Numara bir kez yazılsın" fikri: imzada değil, misafir numarayı sorarsa bilgi tabanındaki iletişim kalemiyle cevap verilir (bugünkü davranış;
+Airbnb onaysız konuşmada yine tutulur).
+
+**4-13-b sorusu ("AI cevap yazmasa da mesaj görüldü / okundu işaretleniyor mu?") — kodda ölçüldü:** Lixus sağlayıcıya yalnız iki şey yapıyor:
+konuşmayı OKUR (GET `/reservations/{id}/messages`) ve mesaj GÖNDERİR (POST). "Okundu olarak işaretle" çağrısı YOK (`src/lib/hospitable.ts`).
+Hospitable'ın API ile okumanın Airbnb'de misafire "okundu" gösterip göstermediğini Hospitable'ın belgelerinde bulamadım; benzer ürünlerden
+Hostaway dışarıdaki okundu durumunun eşitlenmediğini yazıyor ([Hostaway](https://support.hostaway.com/hc/en-us/articles/53947756946587-Inbox-Workflow-Management-Efficiency-Tools)),
+Guesty Airbnb'de toplu "okundu" işaretinin desteklenmediğini yazıyor ([Guesty](https://help.guesty.com/hc/en-gb/articles/9361442740893-Why-are-Airbnb-messages-archived-or-marked-as-read)).
+Airbnb'de okundu bilgisi misafir ve ev sahibi arasında varsayılan açık ve kapatılabiliyor. Kesin cevap için: Railway açılınca bir test
+rezervasyonunda misafir hesabından mesaj atılır, Lixus senkronu okur, misafir tarafında "okundu" çıkıp çıkmadığına bakılır — ya da Hospitable
+desteğine sorulur. Sonuç ne olursa olsun Lixus tarafında "okundu" işareti göndermiyoruz.
+
+**8-4c-1 + G-1:** tasarım belgesi `docs/TASARIM-2026-10-29-ihtiyac-gecerliligi-ve-kanit-kaydi.md` (bugünkü envanter, eksikler, model, gölge
+ölçüm, fazlar; sorular S1 migration · S2 "unuttum" ifadesi ↔ özür yasağı · S3 başlangıç pencere adayları).

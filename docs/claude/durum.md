@@ -50,6 +50,10 @@ düzeltmeleri. Next.js 15.5.27 (iki yeni SSG/ISR danışması). Onay bekleyen be
 oturumda `actions_list` ile tekrar bakılır). Railway KAPALI (canlı yok). 10-28 akşam ücretli koşular kurucu onayıyla yapıldı ("test yapıp
 para harcamayı tercih ederim"): uzun belge RAG + Luna kıyası, toplam birkaç dolar.
 
+**10-29 gece-2:** 4-14-b ✅ (Airbnb'de imzanın telefon / e-posta satırı her zaman çıkar — bütün gönderim yolları + önizleme + kuyruk; Ayarlar
+ipucu telefon önermiyor; mutasyon 5/5) · 4-13-b cevabı (okundu işareti göndermiyoruz; Hospitable okumasının Airbnb'de "okundu" bırakıp bırakmadığı
+belgede yok → canlı deneme) · 8-4c-1 + G-1 tasarım belgesi (sorular S1–S3) — karar belgesinin sonu.
+
 **10-29 gece (kurucu R13-b/c kararı + "gece modu"):** R15 ✅ · R10/R11/R12/R14/R29/R30 ✅ (ev sahibine yönlendirme muafiyetleri yan cümle
 düzeyinde, mutasyon 13/13) · R13-b/c ✅ (`ai/host-contact-filler.ts`: "ev sahibinize yazın" asla, genel "bir sorun olursa arayın" kapanışı
 çıkar, yaşanan bildirimde tutulur — `reply_host_contact_only`; mutasyon 16/16) · karar masasının gece eklenen 4 kararı aynen belgede ·
