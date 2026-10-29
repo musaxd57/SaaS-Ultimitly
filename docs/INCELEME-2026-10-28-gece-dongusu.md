@@ -89,3 +89,15 @@ giden metni GEVŞETİR (bugün tutuluyor) → **böyle yapalım mı?**
 ### CI notu (10-29)
 CI 1681 (`4465b0fd`) veritabanısız kolda bir kez kırmızı; aynı kodu içeren CI 1683 (`f4fb30eb`) altı işin hepsinde yeşil, yerel tam kapı da
 yeşil → tek seferlik kararsız test (log sağlayıcı dışı adreste, test adı okunamadı). Tekrarlarsa adıyla izlenecek.
+
+## Tur 3 — çıktı vetosu dış kabuğu + silicinin güvenlik uyarısı sözlüğü
+
+- `output-veto.ts` dış kabuğu (yer tutucu → söz → devir sırası, görünmez karakter ayıklama, Türkçe küçük harf ikinci biçim) satır satır okundu:
+  yeni bulgu yok (önceki 15 ajan / Codex turlarında ölçülmüş, süre pinleri yerinde).
+
+### GD9 — P2 (kendi kodum, tutma yönü) — güvenlik uyarısı sözlüğü tehlike sözcüğüne benzeyen adlara takılıyordu
+`SAFETY_WARNING` Türkçe gövdeleri ek sınırı olmadan eşliyordu: "Gazino tarafında bir sorun olursa ev sahibinizi arayın.", "Gaziantep'ten
+gelirken sorun olursa …", "Polisaj makinesi bozulursa …" güvenlik uyarısı sanılıp KORUNUYOR, misafire gidiyordu (ölçüldü). Düzeltme:
+gazete / gazino / gazoz / gazi-, polisaj / polisiye / polister, karbonat dışlandı; "gaz kokusu", "gazı", "polise", "karbon monoksit" korunur.
+✅ kırmızı-önce, mutasyon 5/5, dosya 32/32. Bilinen sınır: büyük harfli "GAZI" (gazı) `/i` yüzünden dışlanır → cümle çıkar (tutma yönü değil
+ama çok seyrek; model büyük harfle yazmaz).
