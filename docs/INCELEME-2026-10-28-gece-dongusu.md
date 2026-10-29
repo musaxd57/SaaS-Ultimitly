@@ -85,3 +85,7 @@ davranış, güvenli yön). Kurucunun "genel kapanış çıkar" kararı bu iki k
 
 Öneri: bu iki kalıp da "koşullu kapanış" sayılsın → kapanış çıkar, "Otopark arkada." gider (R13-c'nin öteki kalıplarıyla aynı). Bu müşteriye
 giden metni GEVŞETİR (bugün tutuluyor) → **böyle yapalım mı?**
+
+### CI notu (10-29)
+CI 1681 (`4465b0fd`) veritabanısız kolda bir kez kırmızı; aynı kodu içeren CI 1683 (`f4fb30eb`) altı işin hepsinde yeşil, yerel tam kapı da
+yeşil → tek seferlik kararsız test (log sağlayıcı dışı adreste, test adı okunamadı). Tekrarlarsa adıyla izlenecek.
