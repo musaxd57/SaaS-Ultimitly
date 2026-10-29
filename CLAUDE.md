@@ -13,7 +13,7 @@
 > 🗂️ **Konu dosyaları (10-08, kurucu: ".md'ye yığma, taşı, silme"):** büyük bölümler AYNEN `docs/claude/`e taşındı; burada yalnız
 > madde başlıkları + yol. O alanda iş yapmadan ÖNCE ilgili dosya okunur, kural orada da BAĞLAYICIDIR: `yol-plani.md` · `retrieval.md` ·
 > `ai-guvenlik.md` · `kalici-kararlar.md` · `acik-isler.md` · `kalici-urun-kararlari.md` · `durum.md` · (10-23) `canli-durum.md` ·
-> `fiyat-ve-ozellikler.md` · `hospitable.md` · `calisma-ortami.md`. YENİ ayrıntı / tur anlatısı buraya DEĞİL ilgili konu dosyasına yazılır;
+> `fiyat-ve-ozellikler.md` · `hospitable.md` · `calisma-ortami.md` · (10-29) `sozcuk-aglari.md` (sözcük ağları envanteri + e-posta / panel tablosu). YENİ ayrıntı / tur anlatısı buraya DEĞİL ilgili konu dosyasına yazılır;
 > buraya yalnız tek satırlık başlık + yol girer (kurucu 10-22 gece: "her turda okumak yerine gerektiğinde oku").
 
 ## Ürün
