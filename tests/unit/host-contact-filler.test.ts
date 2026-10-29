@@ -96,9 +96,26 @@ describe("korunanlar (aşırı uygulama yok)", () => {
     });
   });
 
-  it("güvenlik uyarısı (gaz / yangın / acil servis) korunur", () => {
-    const r = "Evet, otopark var. Gaz kokusu alırsanız 112'yi arayın ve ev sahibinize ulaşın.";
+  it("güvenlik uyarısı (yangın / gaz / acil servis) korunur — koşullu 'arayın' sınıfında olsa da", () => {
+    const r = "Otopark arkada. Yangın olursa 112'yi ve ev sahibinizi arayın.";
+    expect(conditionalHostContactKind("Yangın olursa 112'yi ve ev sahibinizi arayın.")).toBe("call");
     expect(run("Otopark var mı?", r)).toEqual({ text: r, hostContactOnly: false });
+    // Gaz cümlesi bugün zaten bilgi yönlendirmesi sayılıyor (koşullu sınıfa girmez) — silinmez, kapı karar verir.
+    const g = "Evet, otopark var. Gaz kokusu alırsanız 112'yi arayın ve ev sahibinize ulaşın.";
+    expect(run("Otopark var mı?", g)).toEqual({ text: g, hostContactOnly: false });
+    // Güvenlik sözcüğü olmayan genel "acil durumda arayın" kapanışı genel kapanıştır → çıkar.
+    expect(run("Otopark var mı?", "Otopark arkada. Acil bir durumda ev sahibinizi arayın.")).toEqual({ text: "Otopark arkada.", hostContactOnly: false });
+  });
+
+  it("'yazın' talimatı misafir TAM O durumu sorsa ve bilgi tabanı aynısını söylese de çıkar (kurucu: zaten ev sahibiyle yazışıyorlar)", () => {
+    const kb = ["Wi-Fi bozulursa ev sahibinize yazın."];
+    expect(run("Wi-Fi bozulursa ne yapmalıyım?", "Wi-Fi bozulursa ev sahibinize yazın.", kb).hostContactOnly).toBe(true);
+    // Aynı durumda "arayın" + dayanak → kalır (arama yazışmadan farklı bir kanal).
+    const call = ["Wi-Fi bozulursa ev sahibinizi arayın."];
+    expect(run("Wi-Fi bozulursa ne yapmalıyım?", "Wi-Fi bozulursa ev sahibinizi arayın.", call)).toEqual({
+      text: "Wi-Fi bozulursa ev sahibinizi arayın.",
+      hostContactOnly: false,
+    });
   });
 
   it("bilgi yönlendirmesi ('… için ev sahibinize sorabilirsiniz') SİLİNMEZ — 'bilgim yok' kuralı tutar (soru sessizce kaybolmasın)", () => {
