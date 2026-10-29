@@ -170,3 +170,26 @@ bitişini yazdı; uzun görevler (ana iş parçacığı meşgul mü) ayrıca izl
 - **1/18 (Şablonlar):** iskelet görünmeden veri geldi → bekleme yok, içerik 89 ms. Yani kural evrensel değil: iskelet bir kez çizilmişse işler.
 - **2/18 (Görevler):** veri 150–270 ms; bekleme sayfanın kendi çizimi (80 ms uzun görev) ve büyük HTML — zamanlayıcı değil.
 Sonuç: hızlı sayfalarda 250–300 ms'lik bekleme gerçek ve önlenebilir; Görevler gibi ağır sayfada asıl iş çizim süresi.
+
+### 404 — gerçek HTTP durum kodları (10-29 gece, ölçüldü; üretim derlemesi)
+| adres | oturumsuz | oturum açık |
+|---|---|---|
+| bilinmeyen adres (`/olmayan-bir-sayfa`) | 307 → /login | **404** ✓ |
+| silinmiş konuşma / mülk / QR sohbeti (`/inbox/x`, `/properties/x`, `/guest-chats/x`) | 307 → /login | **200** ✗ (ekranda 404 kartı, durum kodu 200 — panelin yükleniyor sınırı akışı başlatmış) |
+| geçersiz QR (`/c/x`) | 200 (kendi sayfası: "Bu sohbet şu an kullanılamıyor") | 200 — kendi akışı, değişmeyecek |
+| `/admin` (süper yönetici olmayan) | 307 | 200 → panele yönlendiriliyor, içerik sızmıyor |
+Kurucunun şüphesi doğrulandı: panel içi 404 ekranı 200 ile dönüyor. Düzeltme tasarımı iş akışında (sayfa ağacından özel adres listesi + durum kodu).
+
+### Takvim "önce" ölçümü (10-29 gece, `scratchpad/cal-measure.mjs`, `perf-out/cal-once.json`)
+| | normal ağ | yavaş 3G + 4× işlemci |
+|---|---|---|
+| doğrudan: sunucu bekleme | 25 ms | 41 ms |
+| doğrudan: aktarım (74 KB sıkıştırılmış / 527 KB açık HTML) | 173 ms | 3.291 ms |
+| doğrudan: ilk görüntü / ana içerik | 100 / 400 ms | 1.060 / 3.724 ms |
+| doğrudan: etkileşime hazır (uzun görev) | 217 ms (0) | 3.645 ms (261 ms) |
+| menüden: sayfa verisi 54 KB (açık 251 KB) sunucu / aktarım | 10 / 52 ms | 14 / 1.704 ms |
+| menüden: içerik görünür | 378 ms (React bekletmesi) | 2.101 ms |
+| DOM: toplam / mobil ajanda / masaüstü ızgara | 2.508 / 1.063 (88 KB) / 1.069 (94 KB) düğüm | — |
+Sonuç: sunucu süresi önemsiz; yavaş ağda süreyi AKTARIM belirliyor. Mobil ajanda ile masaüstü ızgara aynı HTML'de, ana içeriğin yarısı her
+ekranda gizli duran ikinci kopya (kurucunun adayı doğrulandı). Not: önceki turda yavaş 3G'de kullanılabilir 5,5 sn ölçülmüştü; bu tur 3,5 sn
+(makine yükü farkı — iki ölçüm de yazıldı, yeni tasarım aynı betikle aynı koşulda karşılaştırılacak).
