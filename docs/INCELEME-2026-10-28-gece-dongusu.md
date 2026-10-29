@@ -101,3 +101,10 @@ gelirken sorun olursa …", "Polisaj makinesi bozulursa …" güvenlik uyarısı
 gazete / gazino / gazoz / gazi-, polisaj / polisiye / polister, karbonat dışlandı; "gaz kokusu", "gazı", "polise", "karbon monoksit" korunur.
 ✅ kırmızı-önce, mutasyon 5/5, dosya 32/32. Bilinen sınır: büyük harfli "GAZI" (gazı) `/i` yüzünden dışlanır → cümle çıkar (tutma yönü değil
 ama çok seyrek; model büyük harfle yazmaz).
+
+## Tur 4 — QR kapısı (`guest-chat-gate.ts` `evaluateEscalation`)
+Sıra satır satır okundu: ad enjeksiyonu → model kaynağı → riskli niyet → model risk etiketi → kelime ağı (şikâyet / iade / erken ayrılış /
+insan) → enjeksiyon (mesaj + geçmiş) → kelime risk etiketi (51 bağlam kaldırma dahil) → doğrulanmamış tehlike → model risk düzeyi → "bilgim
+yok" (hakem hükmü yalnız aynı metne) → `hostContactOnly` → kıdemli okuyucu (ödeme / özür) → çıktı vetosu → eylem beyanı → güvence → acil
+yönerge → iç kaynak → evcil hayvan → kanıtsız arıza. Kanal kapısıyla aynı sıra ve yüklemler; GD7 sonrası kod metni (`codeBuiltResult`) ve
+yeniden yazma birleşimi işareti doğru taşıyor. Yeni bulgu yok.
