@@ -190,6 +190,11 @@ describe("koddan kurulan doğrulanmış metin (erken giriş onayı / politika)",
     const v = verifiedEarlyCheckinResult(passing, "Onay metni");
     expect("claimedActions" in v).toBe(false);
   });
+  it("🚨 GD7 (gece döngüsü 10-29): taslağın 'yalnız ev sahibine başvurma' işareti kodla kurulan metne TAŞINMAZ (onaylı metin gereksiz tutulmaz)", () => {
+    const v = verifiedEarlyCheckinResult({ ...passing, hostContactOnly: true as const }, "Onay metni");
+    expect("hostContactOnly" in v).toBe(false);
+    expect(autoReplyGateVerdict(v, "Erken girebilir miyim?")?.detail).not.toBe("reply_host_contact_only");
+  });
 });
 
 describe("karar kaydı kanıtı (g.ma) — yalnız kapalı-küme kodlar", () => {

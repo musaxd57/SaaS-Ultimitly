@@ -177,6 +177,14 @@ describe("yeniden yazma birleştirmesi (Opus 10-22 F1)", () => {
     expect(mergeSeniorRewrite<W>(first, { ...retried, verifiedPartsOnly: true }).verifiedPartsOnly).toBe(true);
   });
 
+  it("🚨 GD7 (gece döngüsü 10-29): 'yalnız ev sahibine başvurma talimatı' işareti METNE aittir — yeni çağrıdan alınır", () => {
+    type W = typeof first & { hostContactOnly?: true };
+    // Yeni metin yalnız "ev sahibinize yazın"dan ibaret → işaret taşınmazsa kapı tutmaz, cümle misafire gider.
+    expect(mergeSeniorRewrite<W>(first, { ...retried, hostContactOnly: true }).hostContactOnly).toBe(true);
+    // İlk taslağın işareti yeniden yazılmış (içerikli) metne taşınmaz.
+    expect("hostContactOnly" in mergeSeniorRewrite<W>({ ...first, hostContactOnly: true }, retried)).toBe(false);
+  });
+
   it("cevap parçaları kipinde (10-23 A) parça kararları yeni çağrıdan; kip dışında alan hiç yok", () => {
     const m = mergeSeniorRewrite(
       { ...first, answerParts: [{ ref: "R1", status: "verified", source: "kb:1" }] },

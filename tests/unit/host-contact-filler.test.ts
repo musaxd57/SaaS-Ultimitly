@@ -100,6 +100,26 @@ describe("korunanlar (aşırı uygulama yok)", () => {
     expect(run("Otopark var mı?", "Otopark arkada. Wi-Fi bozulursa ev sahibinize yazın.")).toEqual({ text: "Otopark arkada.", hostContactOnly: false });
   });
 
+  it("🚨 GD5 (gece döngüsü 10-29): talimat BİLGİYLE aynı cümledeyse cümle silinmez — bütün cevap tutulur (bilgi sessizce kaybolmasın)", () => {
+    // Önce: "Havlular … dolapta" de silinirdi; misafire yalnız otopark giderdi, öğe kipinde havlu isteği "cevaplandı" kapanırdı.
+    for (const [g, r] of [
+      ["Havlu nerede? Otopark var mı?", "Havlular yatak odasındaki dolapta, bir sorun olursa ev sahibinize yazın. Otopark binanın arkasında."],
+      ["Klima nasıl açılır? Otopark?", "Kumanda komodinin üstünde, çalışmazsa ev sahibinizi arayın. Otopark arkada."],
+      ["Havlu nerede? Otopark?", "Havlular dolapta ve bir sorun olursa ev sahibinize yazın. Otopark arkada."],
+      ["Where are the towels? Parking?", "Towels are in the wardrobe; if anything breaks, contact your host. Parking is behind the building."],
+    ] as const) {
+      expect(run(g, r)).toEqual({ text: r, hostContactOnly: true });
+    }
+    // Kontrol (aşırı uygulama yok): koşul yan cümlesi + talimattan ibaret cümle yine çıkar, cevap gider.
+    for (const [g, r, want] of [
+      ["Otopark var mı?", "Otopark arkada. Bir sorun olursa, ev sahibinize yazın.", "Otopark arkada."],
+      ["Is there parking?", "Parking is behind the building. If anything breaks, please contact your host.", "Parking is behind the building."],
+      ["Otopark var mı?", "Otopark arkada. Konaklamanız boyunca bir sorun yaşarsanız, ev sahibinize yazın.", "Otopark arkada."],
+    ] as const) {
+      expect(run(g, r)).toEqual({ text: want, hostContactOnly: false });
+    }
+  });
+
   it("başka bir durumu sordu → konu tutmaz → çıkar", () => {
     expect(run("Wi-Fi bozulursa ne yapmalıyım?", "Wi-Fi şifresi 12345678. Anahtarı kaybederseniz ev sahibinizi arayın.")).toEqual({
       text: "Wi-Fi şifresi 12345678.",
@@ -172,6 +192,20 @@ describe("yardımcılar", () => {
     for (const t of ["Anahtarı kaybettim", "Wi-Fi çalışmıyor", "The power is out", "Otopark var mı?"]) {
       expect(asksHypotheticalSituation(t), t).toBe(false);
     }
+  });
+
+  it("🚨 GD6 (gece döngüsü 10-29): İngilizce '-rse' sözcükleri ve 'Bursa' koşul eki DEĞİL — yaşanan olay varsayımsal sayılmaz", () => {
+    for (const t of ["Of course, the router is not working", "The noise is worse today", "I'm a nurse and the heater is broken", "Bursa'dan geliyoruz, kombi çalışmıyor"]) {
+      expect(asksHypotheticalSituation(t), t).toBe(false);
+    }
+    // Kontrol: gerçek koşul aynı metinde yine görülür.
+    expect(asksHypotheticalSituation("Of course — what if the router stops working?")).toBe(true);
+    expect(asksHypotheticalSituation("Bursa'dan geliyoruz; geç kalırsak ne olur?")).toBe(true);
+    // Bağlantı: sorunu BİLDİREN misafire koşullu "arayın" cümlesi (dayanaklı + konu örtüşür) gitmez.
+    const kb = ["If the router stops working, call your host."];
+    const r = "If the router stops working, call your host.";
+    expect(stripHostContactFiller(r, ["Of course the router is not working"], kb).hostContactOnly).toBe(true);
+    expect(stripHostContactFiller(r, ["What if the router stops working?"], kb)).toEqual({ text: r, hostContactOnly: false });
   });
 
   it("süre: uzun girdi doğrusal", () => {

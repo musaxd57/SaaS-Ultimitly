@@ -96,6 +96,7 @@ export function mergeSeniorRewrite<
     answerParts?: unknown;
     verifiedParts?: unknown;
     verifiedPartsOnly?: true;
+    hostContactOnly?: true;
     claimedActions?: unknown;
     timeConflicts?: unknown;
     llmUsage?: unknown;
@@ -109,10 +110,13 @@ export function mergeSeniorRewrite<
       ? { asked: first.stayChange?.asked ?? retried.stayChange?.asked ?? "unknown", stance: retried.stayChange?.stance ?? "unknown" }
       : first.stayChange;
   // 4.12 doğrulanmış parça işareti yeni çağrının parçalarına aittir: ilk taslağın işareti yeniden yazılmış metne TAŞINMAZ.
-  const { verifiedPartsOnly: _firstWaiver, ...firstRest } = first;
+  // GD7 (gece döngüsü 10-29): "yalnız ev sahibine başvurma talimatı" işareti de metne aittir (`host-contact-filler.ts`) — yeni metin yalnız
+  // o talimattan ibaretse işaret taşınmazsa kapı tutmaz ve cümle misafire gider; ilk taslağın işareti yeni metni gereksiz tutar.
+  const { verifiedPartsOnly: _firstWaiver, hostContactOnly: _firstHostContact, ...firstRest } = first;
   return {
     ...(firstRest as T),
     ...(retried.verifiedPartsOnly === true ? { verifiedPartsOnly: true as const } : {}),
+    ...(retried.hostContactOnly === true ? { hostContactOnly: true as const } : {}),
     stayChange: stayChange as T["stayChange"],
     reply: retried.reply,
     confidence: Math.min(first.confidence, retried.confidence),

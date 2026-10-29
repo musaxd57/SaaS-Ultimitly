@@ -378,6 +378,8 @@ export function isSubstantiveSentence(sentence: string): boolean {
 }
 /** Satırın cümleleri (ayraçlarıyla) — `host-contact-filler.ts` aynı bölmeyi kullanır. */
 export const replySentencesOf = sentencesOf;
+/** Dayanak ölçütünün içerik kökleri (katlanmış, ilk 5 harf) — `host-contact-filler.ts` aynı ölçütü kullanır. */
+export const contentStemsOf = groundTokens;
 
 /** Cümle bilgi tabanının tek bir kaleminde dayanak taşıyor mu (↑ ölçüt + kutup). */
 export function sentenceGroundedInKb(sentence: string, kbTexts: readonly string[]): boolean {

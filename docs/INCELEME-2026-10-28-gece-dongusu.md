@@ -62,3 +62,12 @@ beyan ettiği için istek ev sahibine hiç görünmeden kapanır (GD1 ile aynı 
 eşleşiyor. Ölçüldü: "Of course, the wifi is not working" (YAŞANAN olay) → varsayımsal sayılıyor. Etkisi: konu örtüşür ve bilgi tabanı dayanağı
 varsa koşullu "ev sahibinizi arayın" cümlesi sorunu bildiren misafire GİDER (kurucu: "savrulmasın"). Düzeltme: bilinen İngilizce "-rse"
 sözcükleri ve "Bursa" (GD2) koşul aranmadan önce silinir → bu durumda cümle çıkar / cevap tutulur.
+
+### GD7 — P1 (kendi kodum, iç hata) — `hostContactOnly` işareti yeniden yazma ve kod metni birleşiminde yanlış metne yapışıyor
+- `mergeSeniorRewrite` (kıdemli okuyucu "bir kez yeniden yaz", kanal + QR): sonuç İLK taslağın alanlarını yayıp metni yeni çağrıdan alıyor;
+  `hostContactOnly` ilk taslaktan kalıyor, yeni çağrınınki DÜŞÜYOR. Yeni metin yalnız "Bir sorun olursa ev sahibinize yazın."dan ibaretse
+  (silici içerik bulamadı → metin aynen + işaret) kapı işareti görmez → cümle misafire GİDER (kurucu: "kesinlikle bu gidemesin"). Ters yönde
+  ilk taslağın işareti yeni, düzgün metni gereksiz tutar.
+- `codeBuiltResult` (doğrulanmış erken giriş / müsaitlik / uzatma / politika KOD metni): model taslağının işaretini koda taşıyor → kodla kurulan
+  onaylı metin `reply_host_contact_only` ile gereksiz tutuluyor.
+- Düzeltme: işaret METNE aittir — birleşimde yeni çağrıdan alınır (`verifiedPartsOnly` ile aynı kural), kod metninde düşer.

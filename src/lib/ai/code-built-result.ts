@@ -10,8 +10,11 @@ export function codeBuiltResult<T extends { reply: string; intent: string; usedS
   text: string,
   intent: string,
 ): T {
+  // GD7 (gece döngüsü 10-29): "yalnız ev sahibine başvurma talimatı" işareti (`host-contact-filler.ts`) modelin atılan taslağına aitti —
+  // kodla kurulan onaylı metne taşınırsa kapı onu gereksiz tutar.
+  const { hostContactOnly: _draftHostContact, ...rest } = result as T & { hostContactOnly?: true };
   return {
-    ...result,
+    ...(rest as T),
     reply: text,
     intent,
     usedSources: [],

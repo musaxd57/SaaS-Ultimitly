@@ -20,8 +20,8 @@
 // Misafire yeni söz EKLENMEZ; yalnız cümle ÇIKARILIR. Kalan metin bütün kapılardan yine geçer. Doğrusal.
 // ---------------------------------------------------------------------------
 
-import { asksHypotheticalSituation, conditionalHostContactKind } from "./absence";
-import { isSubstantiveSentence, replySentencesOf, sentenceGroundedInKb } from "./no-instruction-filler";
+import { asksHypotheticalSituation, conditionalHostContactKind, refersGuestToHost } from "./absence";
+import { contentStemsOf, isSubstantiveSentence, replySentencesOf, sentenceGroundedInKb } from "./no-instruction-filler";
 
 /** Güvenlik uyarısı: gerçek tehlike / acil servis sözcüğü taşıyan cümle (genel "acil durumda ev sahibinizi arayın" kapanışı DEĞİL). */
 const SAFETY_WARNING =
@@ -57,6 +57,25 @@ function guestAskedThisSituation(sentence: string, guestTexts: readonly string[]
   });
 }
 
+/**
+ * GD5 (gece döngüsü 10-29): silinecek cümlenin BAŞKA bir yan cümlesi bilgi taşıyor mu ("Havlular dolapta, bir sorun olursa ev sahibinize
+ * yazın.")? Cümle bütün olarak silinirse bilgi de gider; öğe kipinde istek "cevaplandı" kapanır. Yan cümleler virgül / noktalı virgül / iki
+ * nokta (ardından boşluk) ve "ve / and / ama / but / fakat / ancak" bağlacından ayrılır. Bilgi yan cümlesi: ev sahibine başvurmuyor, koşul
+ * yan cümlesi değil ve içerik kökü genel sorun / yardım sözcüklerinden ibaret değil (ya da sayı taşıyor). Doğrusal.
+ */
+const OTHER_CLAUSE_SPLIT = /(?<=[,;:])\s+|\s+(?=(?:ve|and|ama|but|fakat|ancak)\s)/iu;
+const GENERIC_TROUBLE_STEMS = new Set([
+  "sorun", "probl", "issue", "herha", "anyth", "somet", "wrong", "durum", "ihtiy", "konak", "stay", "shoul", "troub", "quest", "conce",
+  "yardi", "help", "helpi", "assis", "memnu", "happy", "glad", "sevin", "olsun", "durin", "need", "neede", "olurs", "yasar", "yasad",
+]);
+function carriesOtherInformation(sentence: string): boolean {
+  return sentence.split(OTHER_CLAUSE_SPLIT).some((clause) => {
+    if (conditionalHostContactKind(clause) !== null || refersGuestToHost(clause) || asksHypotheticalSituation(clause)) return false;
+    if (!isSubstantiveSentence(clause)) return false;
+    return /\d/.test(clause) || contentStemsOf(clause).some((stem) => !GENERIC_TROUBLE_STEMS.has(stem));
+  });
+}
+
 export interface HostContactFillerResult {
   /** Gönderilecek metin (bir şey çıkarılmadıysa ya da yalnız bu cümleler varsa birebir aynı). */
   text: string;
@@ -73,7 +92,7 @@ export function stripHostContactFiller(
   let removed = false;
   // GD1 (gece döngüsü 10-29): çıkarılan cümle misafirin TAM sorduğu durumun cevabıysa ("Wi-Fi bozulursa ne yapmalıyım?" → "… ev sahibinize
   // yazın") cümle silinmez, BÜTÜN cevap tutulur: öğe kipinde model o isteği "cevaplandı" beyan eder, cümle sessizce silinseydi istek ev sahibine
-  // hiç görünmeden kapanırdı. Soruyla ilgisiz genel kapanış silinmeye devam eder.
+  // hiç görünmeden kapanırdı. Soruyla ilgisiz genel kapanış silinmeye devam eder. GD5: cümle talimatın yanında bilgi de taşıyorsa aynı (↑).
   let answerRemoved = false;
   const lines = reply.split("\n").map((line) => {
     const kept = replySentencesOf(line).filter((s) => {
@@ -84,7 +103,7 @@ export function stripHostContactFiller(
       if (kind === "call" && asked && !!kbTexts && kbTexts.length > 0 && sentenceGroundedInKb(s, kbTexts)) {
         return true;
       }
-      if (asked) answerRemoved = true;
+      if (asked || carriesOtherInformation(s)) answerRemoved = true;
       removed = true;
       return false;
     });

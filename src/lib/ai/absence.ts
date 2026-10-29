@@ -1007,8 +1007,15 @@ const GUEST_CONDITION = new RegExp(
     "\\p{L}(?:[aıoueiöü]r|[aıoueiöü]z|yor)s[ae](?:m|k|n|n[ıi]z)?(?![\\p{L}])",
   "u",
 );
+/**
+ * GD6 (gece döngüsü 10-29): koşul eki sezgisi (`-rsa / -rse`) İngilizce "-rse" sözcüklerine ve "Bursa"ya takılıyordu ("Of course, the router
+ * is not working" yaşanan olay varsayımsal sayılıyordu → dayanaklı koşullu "arayın" cümlesi sorunu bildiren misafire gidebiliyordu). Bu
+ * sözcükler koşul aranmadan önce silinir (yalnız TUTMA yönü: varsayımsal sayılan metin azalır). Sabit sözcük listesi, doğrusal.
+ */
+const NOT_CONDITION_WORDS =
+  /(?<![\p{L}])(?:course|courses|worse|nurse|horse|purse|verse|universe|reverse|converse|diverse|inverse|adverse|traverse|coarse|hoarse|sparse|terse|curse|rehearse|disperse|immerse|endorse|bursa)(?![\p{L}])/giu;
 export function asksHypotheticalSituation(text: string | null | undefined): boolean {
-  return foldedForms(text).some((f) => GUEST_CONDITION.test(f.split(SEP).join(" ")));
+  return foldedForms(text).some((f) => GUEST_CONDITION.test(f.split(SEP).join(" ").replace(NOT_CONDITION_WORDS, " ")));
 }
 
 /**
