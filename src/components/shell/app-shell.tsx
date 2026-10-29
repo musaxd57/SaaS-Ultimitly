@@ -11,6 +11,7 @@ import { USER_ROLE, type UserRole } from "@/lib/constants";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { PanelTheme } from "@/components/shell/panel-theme";
+import { NAV_PENDING_MAX_MS, ROUTE_SKELETON_ATTR, isPlainNavigationClick, navigationSettled } from "@/components/shell/nav-pending";
 import { cn } from "@/lib/utils";
 
 interface AppShellProps {
@@ -148,7 +149,33 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
     }
   }
 
+  // HZ2 (kurucu 10-29 gece): menü tıklamasında ANINDA geri bildirim — tıklanan bağlantı hemen seçili görünür, üst çubukta ince bir
+  // bekleme şeridi çıkar (mobilde menü kapandıktan sonra da görünür). Bitiş ölçütü "veri hazır": adres değişti VE rota iskeleti yok
+  // (`nav-pending.ts`); hata / 404 ekranı iskeleti kaldırır → biter; en geç 15 sn. Bağlantılar ASLA kilitlenmez.
+  const [pendingNav, setPendingNav] = useState<{ href: string; from: string } | null>(null);
+  useEffect(() => {
+    if (!pendingNav) return;
+    const check = () => {
+      const skeleton = document.querySelector(`[${ROUTE_SKELETON_ATTR}]`) !== null;
+      if (navigationSettled(pendingNav.from, window.location.href, skeleton)) setPendingNav(null);
+    };
+    check();
+    const observer = new MutationObserver(check);
+    observer.observe(document.body, { childList: true, subtree: true });
+    window.addEventListener("popstate", check);
+    // Adres DOM değişmeden de değişebilir (yalnız sorgu farklı yönlendirme) → bekleme sürerken ucuz yoklama.
+    const poll = window.setInterval(check, 250);
+    const timer = window.setTimeout(() => setPendingNav(null), NAV_PENDING_MAX_MS);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("popstate", check);
+      window.clearInterval(poll);
+      window.clearTimeout(timer);
+    };
+  }, [pendingNav, pathname]);
+
   function isActive(href: string) {
+    if (pendingNav) return pendingNav.href === href;
     return pathname === href || pathname.startsWith(href + "/");
   }
 
@@ -168,7 +195,11 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
         <Link
           key={href}
           href={href}
-          onClick={() => setMobileOpen(false)}
+          onClick={(e) => {
+            setMobileOpen(false);
+            // Açık olan sayfanın kendisine tıklama bekleme göstermez (adres değişmez); Cmd / Ctrl / orta tık yeni sekme açar.
+            if (pathname !== href && isPlainNavigationClick(e)) setPendingNav({ href, from: window.location.href });
+          }}
           className={cn(
             // Satır yüksekliği: 20 (text-sm satır kutusu) + 10 + 10 = 40px, zoom
             // sonrası 38. Panelin `Button size=default`ı da 40 — sidebar artık
@@ -420,6 +451,20 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
               <span className="hidden sm:inline">Çıkış</span>
             </Button>
           </div>
+          {/* HZ2: menü geçişi bekleme şeridi — üst çubuğun alt kenarında; tıklamayı engellemez. Ekran okuyucuya kısa durum. */}
+          {pendingNav ? (
+            <div
+              role="progressbar"
+              aria-label="Sayfa yükleniyor"
+              data-testid="nav-pending"
+              className="pointer-events-none absolute inset-x-0 bottom-0 h-0.5 overflow-hidden bg-primary/15"
+            >
+              <div className="lxs-nav-progress h-full w-1/3 bg-primary" />
+            </div>
+          ) : null}
+          <span className="sr-only" aria-live="polite">
+            {pendingNav ? "Sayfa yükleniyor" : ""}
+          </span>
         </header>
         {/* Kabuk hatası (çıkış / operatör çıkışı). role="alert" + aria-live:
             ekran okuyucu da duyar. Kapatılabilir — hata bir DURUM'dur, zaman

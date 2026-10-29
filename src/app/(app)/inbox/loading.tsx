@@ -25,7 +25,7 @@ function Bar({ className }: { className: string }) {
 
 export default function Loading() {
   return (
-    <div className="space-y-6" aria-busy="true" aria-live="polite">
+    <div className="space-y-6" data-route-skeleton="" aria-busy="true" aria-live="polite">
       <span className="sr-only">Konuşmalar yükleniyor…</span>
 
       {/* Başlık bandı — gerçek PageHeader ile aynı yükseklikte. */}

@@ -88,7 +88,7 @@ export function SkeletonScreen({
   children: React.ReactNode;
 }) {
   return (
-    <div className="lxs-in space-y-6" aria-busy="true" aria-live="polite">
+    <div className="lxs-in space-y-6" data-route-skeleton="" aria-busy="true" aria-live="polite">
       <span className="sr-only">{label}</span>
       {children}
       {/* 10 sn'den uzun sürerse çıkış yolu (kullanıcı canlıda asılı kaldı, F5
