@@ -108,3 +108,20 @@ insan) → enjeksiyon (mesaj + geçmiş) → kelime risk etiketi (51 bağlam kal
 yok" (hakem hükmü yalnız aynı metne) → `hostContactOnly` → kıdemli okuyucu (ödeme / özür) → çıktı vetosu → eylem beyanı → güvence → acil
 yönerge → iç kaynak → evcil hayvan → kanıtsız arıza. Kanal kapısıyla aynı sıra ve yüklemler; GD7 sonrası kod metni (`codeBuiltResult`) ve
 yeniden yazma birleşimi işareti doğru taşıyor. Yeni bulgu yok.
+
+## Hız turu (kurucu 10-29: "AI mesaj hızı, panellerin açılma hızları, her tuşun / panel geçişinin hızı; 404 ve yavaşlıkta nasıl ilerlediği görselle")
+Görsel rapor: https://claude.ai/artifact/3GRNGfjqfiPHB8ZhbjBN5k (tablolar + yavaş ağ film şeritleri + 404 görüntüleri). Ölçüm: yerel üretim derlemesi,
+gerçek hacme yakın KURGUSAL veri (10 daire · 1.504 rezervasyon · 1.336 konuşma · 16.659 mesaj), Chromium, 3–5 tekrar ortanca; canlı (Railway) kapalı.
+- Sayfa açılışı (normal ağ): ana içerik 0,14–0,69 sn; en yavaş Görevler (0,69) ve Takvim (0,52). Düğmeler: 98 düğme, ortanca 80 ms, %90'ı 145 ms altı.
+- Yapay zekâ cevabı (docs/olcum, 4.780 gerçek ölçüm): tam akış ortanca 7,0 sn / %90 11,2 sn / %99 22 sn; QR ortanca 5,8 sn ("Lixus AI yazıyor…" görünür).
+- **HZ1 — SORU:** her menü geçişi ~0,4 sn; veri + kod 0,1 sn'de hazır, ~0,3 sn React 19'un yükleniyor iskeletinden sonraki zorunlu bekletmesi
+  (`globalMostRecentFallbackTime + 300`, react-dom 19.2.7, ölçüldü). Öneri: hızlı sayfalarda `loading.tsx` kaldırılıp tıklanan menü öğesinde
+  gösterge (`useLinkStatus`) → beklenen ~0,1–0,2 sn; yavaş ağda eski sayfa kalır + gösterge. Yalnız panel; misafire dokunmaz. **Böyle yapalım mı?**
+- **HZ2 — SORU:** yavaş 3G'de menü tıklamasından sonra ~1 sn ekranda hiçbir değişiklik yok (0,1 / 0,3 / 0,7 sn kareleri aynı). HZ1 ile aynı düzeltme.
+- **HZ3 — SORU:** Takvim 539 KB HTML (75 KB sıkıştırılmış); yavaş 3G'de kullanılabilir 5,5 sn (ötekiler ~2,1). Öneri: ilk ekranda iki hafta / hücre
+  sadeleştirme, önce/sonra ölçümüyle.
+- HZ4 — bilgi: Görevler bütün açık görevleri tek seferde yüklüyor (bilinçli). Kurgusal veride 474 açık görev → 1 MB HTML; gerçek hesapta düşükse sorun yok.
+- HZ5 — bilgi: sayfa başı 315–375 KB; yavaş 3G'de içerik 2–2,5 sn, tam yüklenme 7–8 sn.
+- **HZ6 — SORU:** oturumsuz ziyaretçi var olmayan adrese girince 404 yerine giriş sayfası görüyor (oturum açıkken düzgün 404). Öneri: oturumsuza da
+  genel 404; panel adresleri girişe yönlendirmeye devam.
+- HZ7 — bilgi: model yanıt veremezse "AI cevap öner" sabit bir taslak gösteriyor ("AI emin değil" etiketiyle, otomatik gitmez).
