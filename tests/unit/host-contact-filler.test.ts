@@ -144,6 +144,22 @@ describe("korunanlar (aşırı uygulama yok)", () => {
     expect(run("Otopark var mı?", "Otopark arkada. Acil bir durumda ev sahibinizi arayın.")).toEqual({ text: "Otopark arkada.", hostContactOnly: false });
   });
 
+  it("🚨 GD9 (gece döngüsü 10-29): tehlike sözcüğüne BENZEYEN ad güvenlik uyarısı sayılmaz (gazete / gazino / Gaziantep / polisaj / karbonat)", () => {
+    for (const s of [
+      "Gazino tarafında bir sorun olursa ev sahibinizi arayın.",
+      "Gaziantep'ten gelirken sorun olursa ev sahibinizi arayın.",
+      "Polisaj makinesi bozulursa ev sahibinizi arayın.",
+      "Karbonat bitince bir sorun olursa ev sahibinizi arayın.",
+      "Polisiye kitaplarla ilgili bir sorun olursa ev sahibinizi arayın.",
+    ]) {
+      expect(run("Otopark var mı?", `Otopark arkada. ${s}`), s).toEqual({ text: "Otopark arkada.", hostContactOnly: false });
+    }
+    // Kontrol: gerçek tehlike sözcüğü çekimleriyle korunur.
+    for (const s of ["Gaz kokusu olursa ev sahibinizi arayın.", "Gazı fark ederseniz ev sahibinizi arayın.", "Polise haber vermeniz gerekirse ev sahibinizi arayın.", "Karbon monoksit alarmı öterse ev sahibinizi arayın."]) {
+      expect(run("Otopark var mı?", `Otopark arkada. ${s}`).text, s).toBe(`Otopark arkada. ${s}`);
+    }
+  });
+
   it("'yazın' talimatı misafir TAM O durumu sorsa ve bilgi tabanı aynısını söylese de çıkar (kurucu: zaten ev sahibiyle yazışıyorlar)", () => {
     const kb = ["Wi-Fi bozulursa ev sahibinize yazın."];
     expect(run("Wi-Fi bozulursa ne yapmalıyım?", "Wi-Fi bozulursa ev sahibinize yazın.", kb).hostContactOnly).toBe(true);

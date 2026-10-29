@@ -23,9 +23,13 @@
 import { asksHypotheticalSituation, conditionalHostContactKind, refersGuestToHost } from "./absence";
 import { contentStemsOf, isSubstantiveSentence, replySentencesOf, sentenceGroundedInKb } from "./no-instruction-filler";
 
-/** Güvenlik uyarısı: gerçek tehlike / acil servis sözcüğü taşıyan cümle (genel "acil durumda ev sahibinizi arayın" kapanışı DEĞİL). */
+/**
+ * Güvenlik uyarısı: gerçek tehlike / acil servis sözcüğü taşıyan cümle (genel "acil durumda ev sahibinizi arayın" kapanışı DEĞİL).
+ * GD9 (gece döngüsü 10-29): Türkçe gövdeler tehlike sözcüğüne benzeyen adları dışlar — gazete / gazino / gazoz / gazi (Gaziantep), polisaj /
+ * polisiye / polister, karbonat — yoksa genel "sorun olursa ev sahibinizi arayın" kapanışı güvenlik uyarısı sanılıp misafire giderdi.
+ */
 const SAFETY_WARNING =
-  /(?<![\p{L}\p{N}])(?:gaz\p{L}{0,8}|gas|yang[ıi]n\p{L}{0,8}|fire|duman\p{L}{0,8}|smoke|karbon\p{L}{0,8}|carbon monoxide|itfaiye\p{L}{0,8}|ambulans\p{L}{0,8}|ambulance|polis\p{L}{0,8}|police|112|911|110|155|feuer|rauch|incendie|fumée|incendio|humo|пожар\p{L}{0,4}|газ\p{L}{0,4}|дым\p{L}{0,4})(?![\p{L}\p{N}])/iu;
+  /(?<![\p{L}\p{N}])(?:gaz(?!ete|ino|oz|i)\p{L}{0,8}|gas|yang[ıi]n\p{L}{0,8}|fire|duman\p{L}{0,8}|smoke|karbon(?!at)\p{L}{0,8}|carbon monoxide|itfaiye\p{L}{0,8}|ambulans\p{L}{0,8}|ambulance|polis(?!aj|iye|ter)\p{L}{0,8}|police|112|911|110|155|feuer|rauch|incendie|fumée|incendio|humo|пожар\p{L}{0,4}|газ\p{L}{0,4}|дым\p{L}{0,4})(?![\p{L}\p{N}])/iu;
 
 /** Konu karşılaştırmasında sayılmayan sözcük kökleri (ev sahibi, başvurma fiilleri, koşul / nezaket dolgusu). */
 const NON_TOPIC = new Set([
