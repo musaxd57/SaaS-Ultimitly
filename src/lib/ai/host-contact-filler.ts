@@ -71,20 +71,27 @@ export function stripHostContactFiller(
 ): HostContactFillerResult {
   if (!reply.trim()) return { text: reply, hostContactOnly: false };
   let removed = false;
+  // GD1 (gece döngüsü 10-29): çıkarılan cümle misafirin TAM sorduğu durumun cevabıysa ("Wi-Fi bozulursa ne yapmalıyım?" → "… ev sahibinize
+  // yazın") cümle silinmez, BÜTÜN cevap tutulur: öğe kipinde model o isteği "cevaplandı" beyan eder, cümle sessizce silinseydi istek ev sahibine
+  // hiç görünmeden kapanırdı. Soruyla ilgisiz genel kapanış silinmeye devam eder.
+  let answerRemoved = false;
   const lines = reply.split("\n").map((line) => {
     const kept = replySentencesOf(line).filter((s) => {
       const kind = conditionalHostContactKind(s);
       if (!kind) return true;
       if (kind === "call" && SAFETY_WARNING.test(s)) return true;
-      if (kind === "call" && guestAskedThisSituation(s, guestTexts) && !!kbTexts && kbTexts.length > 0 && sentenceGroundedInKb(s, kbTexts)) {
+      const asked = guestAskedThisSituation(s, guestTexts);
+      if (kind === "call" && asked && !!kbTexts && kbTexts.length > 0 && sentenceGroundedInKb(s, kbTexts)) {
         return true;
       }
+      if (asked) answerRemoved = true;
       removed = true;
       return false;
     });
     return { text: kept.join("").trim(), dropped: kept.length === 0 && line.trim() !== "" };
   });
   if (!removed) return { text: reply, hostContactOnly: false };
+  if (answerRemoved) return { text: reply, hostContactOnly: true };
   // Tamamen çıkarılan satır düşer; özgün boş satır (paragraf arası) kalır.
   const text = lines
     .filter((l) => !l.dropped)

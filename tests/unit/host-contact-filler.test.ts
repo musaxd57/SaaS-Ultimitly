@@ -89,6 +89,17 @@ describe("korunanlar (aşırı uygulama yok)", () => {
     expect(run("Anahtarı kaybettim", "Anahtarı kaybederseniz ev sahibinizi arayın.").hostContactOnly).toBe(true);
   });
 
+  it("🚨 GD1 (gece döngüsü 10-29): çıkarılacak cümle misafirin TAM sorduğu durumun cevabıysa silinmez — bütün cevap tutulur (istek sessizce 'cevaplandı' kapanmasın)", () => {
+    // Öğe kipinde model iki isteği de "cevaplandı" beyan eder; Wi-Fi cümlesi silinseydi Wi-Fi isteği ev sahibine hiç görünmeden kapanırdı.
+    const r = "Otopark arkada. Wi-Fi bozulursa ev sahibinize yazın.";
+    expect(run("Otopark var mı? Wi-Fi bozulursa ne yapmalıyım?", r)).toEqual({ text: r, hostContactOnly: true });
+    // Dayanaksız "arayın" da aynı: sorulan durumun cevabı → tut.
+    const c = "Otopark arkada. Anahtarı kaybederseniz ev sahibinizi arayın.";
+    expect(run("Otopark var mı? Anahtarı kaybedersem ne yapmalıyım?", c, ["Otopark ücretsizdir."])).toEqual({ text: c, hostContactOnly: true });
+    // Kontrol: sorulmayan durumun genel kapanışı yine çıkar, cevap gider.
+    expect(run("Otopark var mı?", "Otopark arkada. Wi-Fi bozulursa ev sahibinize yazın.")).toEqual({ text: "Otopark arkada.", hostContactOnly: false });
+  });
+
   it("başka bir durumu sordu → konu tutmaz → çıkar", () => {
     expect(run("Wi-Fi bozulursa ne yapmalıyım?", "Wi-Fi şifresi 12345678. Anahtarı kaybederseniz ev sahibinizi arayın.")).toEqual({
       text: "Wi-Fi şifresi 12345678.",
