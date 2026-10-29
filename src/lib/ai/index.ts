@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 import { buildReplyPrompt, replySystemPromptFor } from "./prompts";
 import { applyCodeGreeting, codeGreetingEnabled, salutationNameOf } from "./code-greeting";
 import { stripNoInstructionFillerGrounded } from "./no-instruction-filler";
+import { stripHostContactFiller } from "./host-contact-filler";
 import { kbFeeRuleEnabled } from "./kb-fee-rule";
 import { stayDeferralPlainEnabled } from "./stay-deferral-plain";
 import { accessCodeCompleteEnabled } from "./access-code-complete";
@@ -799,7 +800,14 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
           : null;
         // Birleşik metin de aynı tavana tabi (Haiku 10-23: beş uzun parça tavanı aşıyordu); kesilirse güven ≤ 0.5 → gitmez.
         const shown = partsOutcome ? capReply(partsOutcome.reply) : cappedReply;
-        const replyText = shown.text;
+        // R13-b / R13-c (kurucu kararı 10-28 gece): soruyla ilgisiz / yaşanan olaya verilmiş "bir sorun olursa ev sahibinize yazın / arayın"
+        // cümlesi çıkar (`host-contact-filler.ts`); geriye içerik kalmazsa metin aynen kalır, kapı tutar (`hostContactOnly`).
+        const hostContact = stripHostContactFiller(
+          shown.text,
+          [...unansweredGuestTexts(input.history ?? [], input.guestMessage), input.guestMessage],
+          kbTextsOf(input),
+        );
+        const replyText = hostContact.text;
         // Kaynak beyanı parça kipinde YALNIZ doğrulanan parçaların kaynaklarından (atılan serbest metnin beyanı değil).
         const partsKbCategories = partsOutcome
           ? new Set(partsOutcome.sources.flatMap((id) => (id.startsWith("kb:") ? [input.knowledgeBase[Number(id.slice(3)) - 1]?.category ?? ""] : [])))
@@ -901,6 +909,7 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
               }
             : {}),
           ...(partsOutcome ? { answerParts: partsOutcome.verdicts, verifiedParts: partsOutcome.verified } : {}),
+          ...(hostContact.hostContactOnly ? { hostContactOnly: true as const } : {}),
           // 4.12: doğrulanmış parçalar kesilmeden ve sağlam şemayla gidiyorsa kapı genel güvene takılmaz (`verifiedPartsWaiver`).
           ...(partsOutcome &&
           replyText.trim() &&

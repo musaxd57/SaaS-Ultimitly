@@ -95,6 +95,8 @@ const REASONS = new Set([
   "reply_internal_source",
   // Kurucu 10-23 akşam 4.4: evcil / yardımcı hayvan cevabı (QR devir sebebi; kanal kapısı ayrıntı kodu `reply_pet_policy`).
   "reply_pet_policy",
+  // R13-b / R13-c (kurucu kararı 10-28 gece): cevap yalnız ev sahibine başvurma talimatı (QR devir sebebi; kanal kapısıyla aynı ad).
+  "reply_host_contact_only",
 ]);
 /**
  * 🚨 PARİTE: QR kapısının her `EscalationReason` değeri BURADA da olmalı.

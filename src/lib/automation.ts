@@ -402,6 +402,8 @@ export function autoReplyGateVerdict(
      * bütün kontroller aynen. Verilmezse karar birebir eski.
      */
     verifiedPartsOnly?: true;
+    /** R13-b / R13-c (kurucu kararı 10-28 gece): cevap yalnız çıkarılması gereken ev sahibine başvurma talimatı → tutulur. */
+    hostContactOnly?: true;
     /**
      * Modelin bildirdiği misafir dili (`suggestReply` → `normalizeLang`). Yalnız dil kapısında, kod dilden EMİN DEĞİLKEN ve misafirin
      * metninde o dilin izi varken okunur (`gateGuestLanguage`, 10-28) — yalnız sıkılaştırır; verilmezse karar birebir eski.
@@ -605,6 +607,9 @@ export function autoReplyGateVerdict(
   // BAĞLAM HAKEMİ (kurucu 10-21, `semantic/absence-judge.ts`, anahtar KAPALI): hakem okuduysa karar onun; yoksa kelime kuralı.
   const judged = context?.absenceJudge && context.absenceJudge.reply === result.reply ? context.absenceJudge.outcome : undefined;
   if (absenceHolds(admitsMissingKnowledge(result.reply), judged)) return hold("reply_absence");
+  // R13-b / R13-c (kurucu kararı 10-28 gece, ANAHTARSIZ): cevap yalnız "bir sorun olursa ev sahibinize yazın / arayın" — misafir zaten ev sahibiyle
+  // yazışıyor ya da sorunu zaten bildirdi; ev sahibi yanıtlar (`ai/host-contact-filler.ts`).
+  if (result.hostContactOnly === true) return hold("reply_host_contact_only");
   // ── KIDEMLİ OKUYUCU (T-b, kurucu 10-22; anahtar `AI_SENIOR_READER_ENABLED` KAPALI) ─────────────────────────────────────────────
   // Okuyucu BU metni okuduysa üç ek hüküm — yalnız TUTAR: ev sahibine platform dışı ödeme (T-d), Airbnb'de onaysız konuşmada platform dışı
   // iletişim (Airbnb engeller), özür / kusur kabulü (T-a, özür kuralı açıkken). Okumadıysa hiçbiri koşmaz (bugünkü davranış).

@@ -216,6 +216,8 @@ export const POST = withManage(async (session, req) => {
     actionSuggestion: result.actionSuggestion ?? null,
     // Eylem beyanı (MÇ §4, bayrak kapalıyken alan yok) — gerçek kapıyla PARİTE ("gönderilirdi" dürüst kalsın).
     claimedActions: result.claimedActions ?? null,
+    // R13-b / R13-c (kurucu kararı 10-28 gece) — gerçek kapıyla PARİTE: yalnız ev sahibine başvurma talimatı gitmez.
+    ...(result.hostContactOnly ? { hostContactOnly: true as const } : {}),
   };
   const gateCtx = {
     stayTimes: { checkIn: property.checkInTime, checkOut: property.checkOutTime },

@@ -371,6 +371,14 @@ function isNegative(text: string): boolean {
     .some((w) => w.length <= 48 && (NEGATION_WORD.test(w) || NEGATIVE_SUFFIX.test(w)));
 }
 
+/** Cümle selam / nezaket dışında içerik taşıyor mu (kalan cevabın "boş" sayılması — `host-contact-filler.ts` de kullanır). */
+export function isSubstantiveSentence(sentence: string): boolean {
+  const core = withoutCourtesy(sentence.replace(/^[\s\-•*]+/u, "")).trim();
+  return groundTokens(core).length > 0 || /\d/.test(core);
+}
+/** Satırın cümleleri (ayraçlarıyla) — `host-contact-filler.ts` aynı bölmeyi kullanır. */
+export const replySentencesOf = sentencesOf;
+
 /** Cümle bilgi tabanının tek bir kaleminde dayanak taşıyor mu (↑ ölçüt + kutup). */
 export function sentenceGroundedInKb(sentence: string, kbTexts: readonly string[]): boolean {
   const tokens = groundTokens(sentence);

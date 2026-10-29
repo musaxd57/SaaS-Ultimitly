@@ -5,6 +5,7 @@ vi.mock("@/lib/alert-state", () => ({ alertOnTransition: vi.fn(async () => "aler
 
 import { autoReplyGateVerdict } from "@/lib/automation";
 import { evaluateEscalation } from "@/lib/guest-chat-gate";
+import { stripHostContactFiller } from "@/lib/ai/host-contact-filler";
 
 // ---------------------------------------------------------------------------
 // R13 SINIRI (kurucu 10-28 gece, aynen): "Yaşanan olayla varsayımsal olay ayrılmalı. 'Wi-Fi bozulursa ne yapmalıyız?' sorusuna bu talimat
@@ -60,16 +61,18 @@ describe("yapılmamış bildirim iddia edilemez", () => {
   }
 });
 
-// BİLİNEN AÇIK (10-28 gece, kurucu sorusu R13-b — `docs/INCELEME-2026-10-28-opus-ikinci-dilim.md` sonu): sözcük ağı bu bildirimleri şikâyet
-// SAYMIYOR (Wi-Fi'ye bağlanamama bilerek "wifi" sorusu — çoğu zaman doğru cevap şifredir; elektrik / su / ısıtma "yok" kalıbı ağda yok). Model
-// niyeti de "genel" derse koşullu "bozulursa ev sahibine yazın" cevabı GİDER. R13'ten ÖNCE de gidiyordu ("bozulursa … yazın" biçimi zaten
-// muaftı). Karar kurucuda; bu pin bugünkü davranışı gösterir, karar uygulanınca TERSİNE çevrilir.
-describe("BİLİNEN AÇIK R13-b: sözcük ağının şikâyet saymadığı gerçek bildirim + model 'genel' → koşullu talimat gider", () => {
+// R13-b KAPANDI (kurucu kararı 10-28 gece: "ilk 3ünde evet kesinlikle tutmalı"): sözcük ağı bu bildirimleri şikâyet saymasa da (Wi-Fi'ye
+// bağlanamama bilerek "wifi" sorusu — çoğu zaman doğru cevap şifredir) ve model niyeti "genel" dese de, cevap YALNIZ koşullu "bir sorun olursa
+// ev sahibinize yazın" talimatıysa üretim yolunun silicisi (`ai/host-contact-filler.ts`) işaret koyar, kapı (kanal + QR) tutar.
+describe("R13-b: sözcük ağının şikâyet saymadığı gerçek bildirim + model 'genel' → koşullu talimat GİTMEZ (silici + kapı zinciri)", () => {
   for (const g of ["İnternet yok, bağlanamıyorum", "İnternet kesildi", "Elektrik yok", "Su yok", "Isıtma yok", "TV açılmıyor"]) {
     it(g, () => {
-      expect(autoReplyGateVerdict(model("general", "Bir sorun olursa ev sahibinize yazın."), g)).toBeNull();
-      // Model şikâyeti görürse tutulur (bugünkü tek koruma).
-      expect(autoReplyGateVerdict(model("complaint", "Bir sorun olursa ev sahibinize yazın."), g)).not.toBeNull();
+      const reply = "Bir sorun olursa ev sahibinize yazın.";
+      const filtered = stripHostContactFiller(reply, [g], []);
+      expect(filtered.hostContactOnly).toBe(true);
+      const result = { ...model("general", filtered.text), hostContactOnly: true as const };
+      expect(autoReplyGateVerdict(result, g)?.detail).toBe("reply_host_contact_only");
+      expect(evaluateEscalation({ ...result, usedSources: [] }, g).escalate).toBe(true);
     });
   }
 });

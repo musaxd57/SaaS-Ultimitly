@@ -311,6 +311,11 @@ export interface SuggestReplyResult {
    * (`answer-reuse/store.ts`, migration 85); izlere / karar kaydına YAZILMAZ.
    */
   verifiedParts?: { ref: string; text: string; evidence: string; quote?: string; source: string; alsoCited?: string[] }[];
+  /**
+   * R13-b / R13-c (kurucu kararı 10-28 gece, `ai/host-contact-filler.ts`): cevap YALNIZ çıkarılması gereken bir ev sahibine başvurma talimatından
+   * oluşuyor ("Bir sorun olursa ev sahibinize yazın" — misafir zaten ev sahibiyle yazışıyor). Kapı (kanal + QR) tutar, ev sahibi yanıtlar.
+   */
+  hostContactOnly?: true;
 }
 
 export interface ClassifyResult {

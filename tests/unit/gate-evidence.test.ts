@@ -169,6 +169,13 @@ describe("kapı hükmü — her `blocked` kontrolü kendi ayrıntı koduyla", ()
       "reply_apology",
     ],
     [
+      "R13-b / R13-c: cevap yalnız ev sahibine başvurma talimatı (silici işaretledi; kurucu 10-28 gece)",
+      { ...ok, reply: "Bir sorun olursa ev sahibinize yazın.", hostContactOnly: true as const },
+      WIFI_Q,
+      undefined,
+      "reply_host_contact_only",
+    ],
+    [
       "iç kaynak anlatımı — kodun açık sözcük yedeği (okuyucu yok; kurucu 10-22)",
       { ...ok, reply: "According to my notes, the Wi-Fi password is Lale2025." },
       WIFI_Q,

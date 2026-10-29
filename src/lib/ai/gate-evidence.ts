@@ -55,6 +55,9 @@ export const GATE_BLOCK_DETAILS = [
   // Kurucu 10-23 akşam 4.4 (seçenek A, ANAHTARSIZ kod yedeği): cevap evcil hayvandan söz ediyor ama bilgi tabanı kodla okunduğunda açıkça
   // "ücretsiz kabul" demiyor (ücretli / koşullu / yasak / belirsiz) ya da yardımcı hayvandan söz ediyor — ev sahibine kalır.
   "reply_pet_policy",
+  // R13-b / R13-c (kurucu kararı 10-28 gece, ANAHTARSIZ): cevap yalnız ev sahibine başvurma talimatı ("bir sorun olursa ev sahibinize yazın /
+  // arayın") — sohbet zaten ev sahibiyle ya da misafir sorunu zaten bildirdi (`ai/host-contact-filler.ts`).
+  "reply_host_contact_only",
 ] as const;
 export type GateBlockDetail = (typeof GATE_BLOCK_DETAILS)[number];
 

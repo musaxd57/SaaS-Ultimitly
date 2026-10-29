@@ -155,6 +155,8 @@ export async function POST(req: NextRequest) {
         timeConflicts: result.timeConflicts ?? null,
         // Eylem beyanı (MÇ §4, bayrak kapalıyken alan yok) — gerçek kapıyla PARİTE.
         claimedActions: result.claimedActions ?? null,
+        // R13-b / R13-c (kurucu kararı 10-28 gece) — gerçek kapıyla PARİTE.
+        ...(result.hostContactOnly ? { hostContactOnly: true as const } : {}),
       },
       message,
       // Bilgi tabanı (24 EK, yazılı sabit otopark yeri tahsisi) — gerçek kapıyla PARİTE.

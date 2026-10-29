@@ -967,6 +967,51 @@ export function refersGuestToHost(reply: string | null | undefined): boolean {
 }
 
 /**
+ * R13-b / R13-c (kurucu kararı 10-28 gece, aynen `docs/INCELEME-2026-10-28-opus-ikinci-dilim.md` sonu): "zaten hostla yazışıyorlar … 'Bir sorun
+ * olursa ev sahibinize yazın' … kesinlikle bu gidemesin" · "genel 'bir sorun olursa ev sahibinizi arayın/yazın' kapanışı hiç eklenmesin".
+ * Tek cümle, `refersGuestToHost`un OLAY / VARIŞ koşulu yüzünden MUAF tuttuğu bir ev sahibine başvurma talimatı mı? `"write"` = yaz / mesaj at /
+ * write / message (sohbet zaten ev sahibiyle — hiçbir koşulda gitmez), `"call"` = ara / ulaş / contact (yalnız misafir tam o durumu sorduysa
+ * ve dayanağı varsa kalır, `host-contact-filler.ts`). Bilgi yönlendirmesi (kapı zaten tutar), iletişim değeri veren ve olumsuz cümle `null`.
+ * Saf, doğrusal.
+ */
+const WRITE_HOST_VERB =
+  /(?<![\p{L}])(?:yaz\p{L}{0,12}|mesaj\p{L}{0,8}|messag\p{L}{0,4}|text\p{L}{0,3}|write|writing|e-?mail\p{L}{0,3}|schreib\p{L}{0,4}|[ée]cri\p{L}{0,6}|escrib\p{L}{0,6}|напиш\p{L}{0,4}|сообщ\p{L}{0,6})(?![\p{L}])/u;
+/**
+ * Ev sahibine HABER VERME / ulaç biçimi ("ev sahibinizi arayıp bilgi verebilirsiniz", "ev sahibinize haber verin", "ev sahibinizi bilgilendirin")
+ * — bilgi yönlendirmesi değil (R13) ama misafiri ev sahibine başvurmaya gönderir. Haber / bildirme yazma türüdür.
+ */
+const HOST_INFORM = new RegExp(
+  `${HOST_TR},? ${gap(4)}(?:(?:haber|bilgi) ver\\p{L}{0,12}|bildir\\p{L}{0,12}|bilgilendir\\p{L}{0,12}|yaz[ıi]p|mesaj at[ıi]p|aray[ıi]p|ula[şs][ıi]p)(?![\\p{L}])`,
+  "u",
+);
+const CALL_INFORM = /(?<![\p{L}])(?:aray[ıi]p|ula[şs][ıi]p)(?![\p{L}])/u;
+export function conditionalHostContactKind(sentence: string | null | undefined): "write" | "call" | null {
+  const forms = foldedForms(joinLines(sentence ?? "")).map((f) => f.split(SEP).join(" ").replace(FIRST_PERSON_REFERRAL, " "));
+  const referral = forms.some((f) => HOST_REFERRAL_PATTERNS.some((re) => re.test(f)));
+  const inform = !referral && forms.some((f) => HOST_INFORM.test(f));
+  if (!referral && !inform) return null;
+  if (forms.some((f) => contactValueInReferralClause(f) || NEGATED_REFERRAL.test(f))) return null;
+  if (refersGuestToHost(sentence)) return null;
+  // Haber verme biçiminde yalnız "arayıp / ulaşıp" arama türüdür ("arayıp bilgi verin" — misafir yine arar); öteki haber biçimleri yazmadır.
+  if (inform) return forms.some((f) => CALL_INFORM.test(f)) && !forms.some((f) => WRITE_HOST_VERB.test(f)) ? "call" : "write";
+  return forms.some((f) => WRITE_HOST_VERB.test(f)) ? "write" : "call";
+}
+
+/**
+ * Misafirin metni VARSAYIMSAL bir durum mu soruyor ("Anahtarı kaybedersem ne yapmalıyım?", "What if the Wi-Fi stops working?") — yaşanan olayı
+ * bildirmekten ("Wi-Fi çalışmıyor") ayrımı koşul ekiyle: 1. / 2. / 3. kişi koşul eki (-sa / -se, -sam / -sem, -sak / -sek, -sanız / -seniz)
+ * ya da koşul bağlacı. Saf, doğrusal.
+ */
+const GUEST_CONDITION = new RegExp(
+  "(?<![\\p{L}])(?:if|what if|in case|should (?:i|we|the|there)|wenn|falls|si|если|eğer|egerk?)(?![\\p{L}])|" +
+    "\\p{L}(?:[aıoueiöü]r|[aıoueiöü]z|yor)s[ae](?:m|k|n|n[ıi]z)?(?![\\p{L}])",
+  "u",
+);
+export function asksHypotheticalSituation(text: string | null | undefined): boolean {
+  return foldedForms(text).some((f) => GUEST_CONDITION.test(f.split(SEP).join(" ")));
+}
+
+/**
  * Cevap, bilginin KAYITLARDA OLMADIĞINI açıkça söylüyor mu?
  *
  * `true` ise bu metin MİSAFİRE GÖNDERİLMEZ — çağıran devreder.

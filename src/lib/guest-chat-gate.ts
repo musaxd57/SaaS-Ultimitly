@@ -164,6 +164,8 @@ export const ESCALATION_REASONS = [
   // Kurucu 10-23 akşam 4.4 (seçenek A) — kanal kapısıyla AYNI kural: evcil hayvandan söz eden cevap yalnız bilgi tabanı kodla "ücretsiz kabul"
   // diyorsa gider; yardımcı hayvan hiç.
   "reply_pet_policy",
+  // R13-b / R13-c (kurucu kararı 10-28 gece) — kanal kapısıyla AYNI işaret (`ai/host-contact-filler.ts`): cevap yalnız ev sahibine başvurma talimatı.
+  "reply_host_contact_only",
 ] as const;
 
 export type EscalationReason = (typeof ESCALATION_REASONS)[number];
@@ -225,6 +227,8 @@ export function evaluateEscalation(
     timeConflicts?: readonly TimeConflict[] | null;
     /** Modelin eylem beyanı (`ai/action-claims.ts`); yokluğu = beyan istenmedi → kural koşmaz. */
     claimedActions?: ClaimedActionsDeclaration | null;
+    /** R13-b / R13-c: cevap yalnız çıkarılması gereken ev sahibine başvurma talimatı (`suggestReply` taşır). */
+    hostContactOnly?: true;
   },
   message: string,
   /** Reservation guest name (Airbnb-controlled) — the model sees it in the prompt,
@@ -354,6 +358,8 @@ export function evaluateEscalation(
   // BAĞLAM HAKEMİ (kurucu 10-21, anahtar KAPALI): hakem bu metni okuduysa karar onun; yoksa kelime kuralı (kanal kapısıyla aynı yüklem).
   const judged = stayCtx?.absenceJudge && stayCtx.absenceJudge.reply === result.reply ? stayCtx.absenceJudge.outcome : undefined;
   if (absenceHolds(admitsMissingKnowledge(result.reply ?? ""), judged)) return yes("absence_admission");
+  // R13-b / R13-c (kurucu kararı 10-28 gece) — kanal kapısıyla AYNI işaret: QR misafiri zaten ev sahibiyle yazışıyor.
+  if (result.hostContactOnly === true) return yes("reply_host_contact_only");
   // ── KIDEMLİ OKUYUCU (T-b, kurucu 10-22; anahtar `AI_SENIOR_READER_ENABLED` KAPALI) — kanal kapısıyla AYNI hükümler, yalnız TUTAR. QR bir
   // OTA kanalı değil: platform dışı iletişim kuralı (Airbnb) burada koşmaz.
   const senior = seniorChecksOf(judged);
