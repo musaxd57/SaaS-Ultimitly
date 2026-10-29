@@ -37,3 +37,28 @@ Kayıp anahtar bir ERİŞİM / GÜVENLİK olayıdır (kilit değişimi, yedek an
 kayboldu / bulamıyorum / lost (my) key / locked out" yaşanan olay kalıbı sözcük ağında erişim sorunu sayılsın → cevap ne olursa olsun ev sahibine
 kalır (yedek anahtar bilgisi bilgi tabanında olsa bile ilk cevap ev sahibinden). Önce: model "genel" derse bilgi tabanındaki "yedek anahtar
 resepsiyonda" cevabı gidebilir. Sonra: her kayıp anahtar bildirimi ev sahibinde. **Böyle yapalım mı?**
+
+## Tur 2 — aynı silici, cümle içi karışım + koşul sezgisi
+
+### GD5 — P1 (kendi kodum, tutma yönünde düzeltme) — bilgiyle AYNI cümledeki talimat silinirken bilgi de gidiyor
+Ölçüldü (tsx deneme betiği, sonra silindi):
+
+| misafir | model cevabı | bugün misafire giden |
+|---|---|---|
+| "Havlu nerede? Otopark var mı?" | "Havlular yatak odasındaki dolapta, bir sorun olursa ev sahibinize yazın. Otopark binanın arkasında." | "Otopark binanın arkasında." — havlu cevabı KAYBOLUR |
+| "Klima nasıl açılır? Otopark?" | "Kumanda komodinin üstünde, çalışmazsa ev sahibinizi arayın. Otopark arkada." | "Otopark arkada." — klima cevabı KAYBOLUR |
+
+Silici cümle bazında çalışıyor; virgülle bağlanmış bilgi yan cümlesi talimatla birlikte siliniyor. Öğe kipinde model havlu isteğini "cevaplandı"
+beyan ettiği için istek ev sahibine hiç görünmeden kapanır (GD1 ile aynı sınıf).
+- Düzeltme (TUTMA yönü): silinecek cümlenin başka bir yan cümlesi bilgi taşıyorsa (anlamlı, koşul yan cümlesi değil, yalnız genel "sorun /
+  herhangi / any issue" sözcüklerinden ibaret değil) cümle silinmez, BÜTÜN cevap tutulur — ev sahibi yanıtlar. Koşul yan cümlesi + talimattan
+  ibaret genel kapanış ("Bir sorun olursa, ev sahibinize yazın.") silinmeye devam eder.
+- **SORU (sabah, müşteriye giden metin):** tutmak yerine yalnız talimat yan cümlesini silip bilgiyi göndermek mümkün:
+  önce (bu düzeltmeyle) → cevap tutulur, ev sahibi yanıtlar · sonra (öneri) → misafire "Havlular yatak odasındaki dolapta. Otopark binanın
+  arkasında." gider. "Talimat yok" silicisi (`no-instruction-filler.ts`) bunu yan cümle düzeyinde zaten yapıyor; aynı yöntem. **Böyle yapalım mı?**
+
+### GD6 — P2 (iç hata, tutma yönü) — koşul eki sezgisi İngilizce sözcüklere takılıyor
+`asksHypotheticalSituation` Türkçe koşul ekini (`-rsa / -rse`) sözcük sonunda arıyor; İngilizce "of course", "worse", "nurse", "horse" de
+eşleşiyor. Ölçüldü: "Of course, the wifi is not working" (YAŞANAN olay) → varsayımsal sayılıyor. Etkisi: konu örtüşür ve bilgi tabanı dayanağı
+varsa koşullu "ev sahibinizi arayın" cümlesi sorunu bildiren misafire GİDER (kurucu: "savrulmasın"). Düzeltme: bilinen İngilizce "-rse"
+sözcükleri ve "Bursa" (GD2) koşul aranmadan önce silinir → bu durumda cümle çıkar / cevap tutulur.
