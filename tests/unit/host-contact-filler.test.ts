@@ -107,6 +107,8 @@ describe("korunanlar (aşırı uygulama yok)", () => {
       ["Klima nasıl açılır? Otopark?", "Kumanda komodinin üstünde, çalışmazsa ev sahibinizi arayın. Otopark arkada."],
       ["Havlu nerede? Otopark?", "Havlular dolapta ve bir sorun olursa ev sahibinize yazın. Otopark arkada."],
       ["Where are the towels? Parking?", "Towels are in the wardrobe; if anything breaks, contact your host. Parking is behind the building."],
+      // Yalnız sayı taşıyan bilgi yan cümlesi de bilgidir (mutasyon G5b).
+      ["Kapı kodu ne? Otopark?", "Otopark arkada. Kod 4821, bir sorun olursa ev sahibinize yazın."],
     ] as const) {
       expect(run(g, r)).toEqual({ text: r, hostContactOnly: true });
     }
@@ -115,6 +117,10 @@ describe("korunanlar (aşırı uygulama yok)", () => {
       ["Otopark var mı?", "Otopark arkada. Bir sorun olursa, ev sahibinize yazın.", "Otopark arkada."],
       ["Is there parking?", "Parking is behind the building. If anything breaks, please contact your host.", "Parking is behind the building."],
       ["Otopark var mı?", "Otopark arkada. Konaklamanız boyunca bir sorun yaşarsanız, ev sahibinize yazın.", "Otopark arkada."],
+      // Genel "konaklamanız boyunca / during your stay" yan cümlesi bilgi değildir (mutasyon G5c).
+      ["Is there parking?", "Parking is behind the building. During your stay, if anything breaks, contact your host.", "Parking is behind the building."],
+      // Selam / teşekkür yan cümlesi bilgi değildir (mutasyon G5g).
+      ["Otopark var mı?", "Otopark arkada. Teşekkürler, bir sorun olursa ev sahibinize yazın.", "Otopark arkada."],
     ] as const) {
       expect(run(g, r)).toEqual({ text: want, hostContactOnly: false });
     }
