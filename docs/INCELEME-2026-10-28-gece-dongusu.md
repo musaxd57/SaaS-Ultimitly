@@ -158,3 +158,15 @@ gerçek hacme yakın KURGUSAL veri (10 daire · 1.504 rezervasyon · 1.336 konu�
   ile gösterebiliyor). Özel adres listesi yalnız sol menüden çıkarılmamalı; asıl yetki kontrolü veri okunurken / işlemde.
 - **9 saat (19:52 → ~04:52 UTC):** bütün istekler; süre dolmadan durmak yasak; derinlik azalmayacak; iş bölünebilir; kapılar koşarken paralel iş; CI
   kontrolleri; soru sorma (gece modu).
+
+### HZ1 KANITI (10-29 gece, kurulu sürümde ölçüldü — `scratchpad/hz1-proof.mjs`, ham çıktı `perf-out/hz1-proof.json`)
+Yöntem: sayfa yüklenmeden `setTimeout` sarmalandı; menü tıklamasından sonra kurulan her zamanlayıcının gecikmesi, kurulma ve ateşlenme anı
+kaydedildi; DOM gözlemcisi iskeletin gelişini ve yeni başlığın görünmesini, kaynak zamanlaması hedef sayfanın verisi (RSC) ile sayfa kodunun
+bitişini yazdı; uzun görevler (ana iş parçacığı meşgul mü) ayrıca izlendi. 6 sayfa × 3 tıklama = 18 geçiş:
+- **15/18:** veri + kod 80–210 ms'de hazır; hemen ardından TEK bir zamanlayıcı kuruluyor (gecikme 167–285 ms), hedefi = iskeletin göründüğü an
+  + ~300 ms (fark ±15 ms) ve içerik tam o zamanlayıcı ateşlenince ekrana geliyor. Arada uzun görev YOK (ana iş parçacığı boşta bekliyor).
+  → Bekleme iş değil, React 19'un Suspense gösterim bekletmesi (`globalMostRecentFallbackTime + 300`). Kurucunun şartı karşılandı: kurulu
+  sürümde, bu geçişlerde neden bu.
+- **1/18 (Şablonlar):** iskelet görünmeden veri geldi → bekleme yok, içerik 89 ms. Yani kural evrensel değil: iskelet bir kez çizilmişse işler.
+- **2/18 (Görevler):** veri 150–270 ms; bekleme sayfanın kendi çizimi (80 ms uzun görev) ve büyük HTML — zamanlayıcı değil.
+Sonuç: hızlı sayfalarda 250–300 ms'lik bekleme gerçek ve önlenebilir; Görevler gibi ağır sayfada asıl iş çizim süresi.
