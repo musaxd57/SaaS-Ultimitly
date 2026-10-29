@@ -99,10 +99,11 @@ export function AiVoiceForm({
               rows={4}
               value={aiSignature}
               onChange={(e) => { setSignature(e.target.value); setSaved(false); }}
-              placeholder={`Örn:\nSevgiler,\n${name?.trim() || "Ali Yılmaz"}\n📞 +90 5XX XXX XX XX`}
+              placeholder={`Örn:\nSevgiler,\n${name?.trim() || "Ali Yılmaz"}`}
             />
             <p className="mt-1 text-xs text-muted-foreground">
-              Boş bırakırsanız imza eklenmez. İletişim numaranızı buraya yazabilirsiniz; her dairede aynı kalır.
+              Boş bırakırsanız imza eklenmez; her dairede aynı kalır. Airbnb mesajlarında imzadaki telefon ve e-posta satırları gönderilmez —
+              Airbnb numaranızı onaylı rezervasyonda misafire kendisi gösterir.
             </p>
           </Field>
 

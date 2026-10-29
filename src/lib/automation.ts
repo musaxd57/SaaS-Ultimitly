@@ -41,7 +41,7 @@ import {
   type SeniorRewriteReason,
 } from "@/lib/ai/semantic/senior-rewrite";
 import { noApologyRuleEnabled } from "@/lib/ai/no-apology-rule";
-import { offPlatformContactHoldsFor, signatureForContactWindow } from "@/lib/channels/airbnb-message-policy";
+import { offPlatformContactHoldsFor, signatureForChannel, signatureForContactWindow, signatureStripsContactFor } from "@/lib/channels/airbnb-message-policy";
 import { containsContactValue } from "@/lib/contact-redact";
 import { kbPetsFreeAllowed, mentionsAssistanceAnimal, mentionsPets, petReplyStraysFromFreeKb } from "@/lib/conversation-items/pet-policy";
 import {
@@ -1090,7 +1090,8 @@ async function maybeSendClosingCourtesy(opts: {
     kind: opts.kind,
     lang,
     customText: opts.org.closingReplyText,
-    signature: signatureForContactWindow(opts.org.aiSignature, opts.contactHolds === true),
+    // 4-14-b (kurucu kararı 10-28 gece): Airbnb'de imzanın iletişim satırı her zaman çıkar (onaylı konaklamada numara Airbnb'de zaten görünür).
+    signature: signatureForContactWindow(opts.org.aiSignature, opts.contactHolds === true || signatureStripsContactFor(opts.conversation)),
   });
   if (opts.contactHolds && containsContactValue(body)) return false;
 
@@ -2601,7 +2602,8 @@ export async function applyChannelAutoReply(
   const understood = await kbSel.understanding;
   // Airbnb platform dışı iletişim penceresi + gidecek imza TEK kez hesaplanır: kapı, taslak ve gönderilen gövde AYNI imzayı görür.
   const contactWindow = offPlatformContactHoldsFor(conversation);
-  const outboundSignature = signatureForContactWindow(org.aiSignature, contactWindow) ?? undefined;
+  // 4-14-b (kurucu kararı 10-28 gece): Airbnb'de imzanın iletişim satırı HER ZAMAN çıkar; tutma kuralı yine yalnız engelleme penceresinde.
+  const outboundSignature = signatureForContactWindow(org.aiSignature, contactWindow || signatureStripsContactFor(conversation)) ?? undefined;
   const gateContext: AutoReplyGateContext = {
     // 🚨 AYNA AYNI SEÇİCİDEN BESLENİR (inceleme turu, 09-11 — ÖLÇÜLMÜŞ AÇIK).
     // Burası `messages.slice(-6)` idi ve istem de 6 tutuyordu: iki pencere
@@ -5195,7 +5197,7 @@ export async function sendDueWelcomes(
     if (!welcome) continue; // this apartment has no welcome text → skip
 
     const firstName = guestFirstNameOf(r.guestName);
-    const body = buildGuestMessageBody(welcome.content, firstName, signature, r.property.name);
+    const body = buildGuestMessageBody(welcome.content, firstName, signatureForChannel(signature, r.channel), r.property.name);
     // 🚨 FAIL-CLOSED: doldurulmamış yer tutucu taşıyan metin misafire GİTMEZ
     // (gerekçe `hasUnfilledPlaceholders`). `*SentAt` damgalanmaz → host kalemi
     // düzeltince bir sonraki geçişte NORMAL gönderilir; kaybolmaz, bekler.
@@ -5411,7 +5413,7 @@ export async function sendDueCheckins(
     if (!tpl) continue; // no check-in info entry for this apartment → skip
 
     const firstName = guestFirstNameOf(r.guestName);
-    const body = buildGuestMessageBody(tpl.content, firstName, signature, r.property.name);
+    const body = buildGuestMessageBody(tpl.content, firstName, signatureForChannel(signature, r.channel), r.property.name);
     // 🚨 FAIL-CLOSED: doldurulmamış yer tutucu taşıyan metin misafire GİTMEZ
     // (gerekçe `hasUnfilledPlaceholders`). `*SentAt` damgalanmaz → host kalemi
     // düzeltince bir sonraki geçişte NORMAL gönderilir; kaybolmaz, bekler.
@@ -5598,6 +5600,7 @@ export async function previewWelcomes(
       AND: [onOrAfterTodayWhere("arrivalDate", now, tz)], // gönderici ile AYNI gün kuralı
     },
     select: {
+      channel: true, // 4-14-b: imza kanala göre (önizleme == gerçek gönderim)
       guestName: true,
       propertyId: true,
       welcomeSentAt: true,
@@ -5619,8 +5622,8 @@ export async function previewWelcomes(
       property: r.property.name,
       hasEntry: Boolean(welcome),
       alreadySent: Boolean(r.welcomeSentAt),
-      body: welcome ? buildGuestMessageBody(welcome.content, firstName, signature, r.property.name) : null,
-      blocked: previewBlocked(welcome?.content ?? null, firstName, signature, r.property.name),
+      body: welcome ? buildGuestMessageBody(welcome.content, firstName, signatureForChannel(signature, r.channel), r.property.name) : null,
+      blocked: previewBlocked(welcome?.content ?? null, firstName, signatureForChannel(signature, r.channel), r.property.name),
     });
   }
   return previews;
@@ -5657,6 +5660,7 @@ export async function previewCheckins(
       AND: [onOrAfterTodayWhere("arrivalDate", now, tz)], // gönderici ile AYNI gün kuralı
     },
     select: {
+      channel: true, // 4-14-b: imza kanala göre (önizleme == gerçek gönderim)
       guestName: true,
       propertyId: true,
       checkinSentAt: true,
@@ -5678,8 +5682,8 @@ export async function previewCheckins(
       property: r.property.name,
       hasEntry: Boolean(tpl),
       alreadySent: Boolean(r.checkinSentAt),
-      body: tpl ? buildGuestMessageBody(tpl.content, firstName, signature, r.property.name) : null,
-      blocked: previewBlocked(tpl?.content ?? null, firstName, signature, r.property.name),
+      body: tpl ? buildGuestMessageBody(tpl.content, firstName, signatureForChannel(signature, r.channel), r.property.name) : null,
+      blocked: previewBlocked(tpl?.content ?? null, firstName, signatureForChannel(signature, r.channel), r.property.name),
     });
   }
   return previews;
@@ -5786,7 +5790,7 @@ export async function sendDueCheckouts(
     if (!tpl) continue;
 
     const firstName = guestFirstNameOf(r.guestName);
-    const body = buildGuestMessageBody(tpl.content, firstName, signature, r.property.name);
+    const body = buildGuestMessageBody(tpl.content, firstName, signatureForChannel(signature, r.channel), r.property.name);
     // 🚨 FAIL-CLOSED: doldurulmamış yer tutucu taşıyan metin misafire GİTMEZ
     // (gerekçe `hasUnfilledPlaceholders`). `*SentAt` damgalanmaz → host kalemi
     // düzeltince bir sonraki geçişte NORMAL gönderilir; kaybolmaz, bekler.
@@ -6316,6 +6320,7 @@ export async function previewCheckouts(
       AND: [onOrAfterTodayWhere("departureDate", now, tz)], // gönderici ile AYNI gün kuralı
     },
     select: {
+      channel: true, // 4-14-b: imza kanala göre (önizleme == gerçek gönderim)
       guestName: true,
       propertyId: true,
       checkoutSentAt: true,
@@ -6337,8 +6342,8 @@ export async function previewCheckouts(
       property: r.property.name,
       hasEntry: Boolean(tpl),
       alreadySent: Boolean(r.checkoutSentAt),
-      body: tpl ? buildGuestMessageBody(tpl.content, firstName, signature, r.property.name) : null,
-      blocked: previewBlocked(tpl?.content ?? null, firstName, signature, r.property.name),
+      body: tpl ? buildGuestMessageBody(tpl.content, firstName, signatureForChannel(signature, r.channel), r.property.name) : null,
+      blocked: previewBlocked(tpl?.content ?? null, firstName, signatureForChannel(signature, r.channel), r.property.name),
     });
   }
   return previews;

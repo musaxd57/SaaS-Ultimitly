@@ -34,6 +34,25 @@ export function offPlatformContactHoldsFor(conversation: ContactPolicyConversati
   return now.getTime() > departure.getTime() + AIRBNB_POST_CHECKOUT_CONTACT_GRACE_MS;
 }
 
+/**
+ * İmzanın iletişim satırı bu konuşmada çıkarılır mı (kurucu kararı 4-14-b, 10-28 gece: "Airbnb'de her zaman çıkarılsın … airbnbde kesin varsa
+ * hostun teli airbnbde her zaman çıkarılabilir")? Airbnb kanalında HER ZAMAN: Airbnb onaylı rezervasyonda ev sahibinin numarasını rezervasyon
+ * ayrıntılarında ve onay e-postasında misafire kendisi gösterir (Yardım Merkezi 4116 + 147); onaydan önce ve konaklamadan sonra zaten engeller
+ * (`offPlatformContactHoldsFor`). Airbnb dışı kanalda imza aynen (bugünkü davranış). Kapının TUTMA kuralı (`signature_offplatform_contact`)
+ * yine yalnız engelleme penceresinde — bu fonksiyon yalnız temizliği genişletir. Saf.
+ */
+export function signatureStripsContactFor(conversation: ContactPolicyConversation): boolean {
+  return conversation.channel === "airbnb";
+}
+
+/**
+ * Rezervasyon kanalına göre giden imza (otomatik karşılama / giriş / çıkış ve önizlemeleri; kuyruk işçisi): 4-14-b — Airbnb'de iletişim satırı
+ * çıkar, öteki kanalda aynen. Boş → `undefined` (imzasız; `buildGuestMessageBody` sözleşmesi).
+ */
+export function signatureForChannel(signature: string | null | undefined, channel: string | null | undefined): string | undefined {
+  return signatureForContactWindow(signature, signatureStripsContactFor({ channel })) ?? undefined;
+}
+
 /** Yalnız iletişim ETİKETİ olan satır ("Tel:", "📞 WhatsApp", "E-posta:") — değeri çıkarılınca tek başına kalırsa kırık satırdır. */
 const CONTACT_LABELS = new Set([
   "tel", "telefon", "phone", "telephone", "téléphone", "tél", "mobile", "mobil", "cep", "gsm", "handy", "whatsapp", "eposta", "email",

@@ -103,6 +103,28 @@ describe("kurucu T4 — kuyruktaki otomatik mesaj gönderimden önce güncel met
     expect(bodies[0]).toContain("4821");
   });
 
+  it("🚨 4-14-b: Airbnb'de karşılama mesajının imzasındaki telefon satırı çıkar (kuyruk gövdesi + gönderim); Booking'de imza aynen", async () => {
+    // İmza yalnız şablonda {isim} yokken eklenir (ev sahibinin kendi selam / kapanışı yoksa — `buildGuestMessageBody`).
+    const { orgId } = await seedQueued("Kapı kodu 4821.");
+    await prisma.organization.update({ where: { id: orgId }, data: { aiSignature: "İsa\n📞 +90 532 123 45 67" } });
+    await sendDueWelcomes(orgId);
+    const { send, bodies } = capture();
+    await drain(send);
+    expect(bodies).toHaveLength(1);
+    expect(bodies[0]).not.toContain("532");
+    expect(bodies[0].trimEnd().endsWith("İsa")).toBe(true);
+
+    await resetDb();
+    const b = await seedQueued("Kapı kodu 4821.");
+    await prisma.organization.update({ where: { id: b.orgId }, data: { aiSignature: "İsa\n📞 +90 532 123 45 67" } });
+    await prisma.reservation.update({ where: { id: b.reservationId }, data: { channel: "booking" } });
+    await sendDueWelcomes(b.orgId);
+    const second = capture();
+    await drain(second.send);
+    expect(second.bodies).toHaveLength(1);
+    expect(second.bodies[0]).toContain("+90 532 123 45 67");
+  });
+
   it("🚨 kuyruğa girdikten sonra metin DEĞİŞTİ → eski metin GİTMEZ; aynı satır güncel metinle yeniden kurulur (ikinci satır yok)", async () => {
     const { orgId, propertyId } = await seedQueued();
     await sendDueWelcomes(orgId);

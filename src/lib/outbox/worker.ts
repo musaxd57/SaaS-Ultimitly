@@ -2,6 +2,7 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
+import { signatureForChannel } from "@/lib/channels/airbnb-message-policy";
 import { prisma } from "@/lib/db";
 import { isAutomatedSendKind, recordAutomatedSend, settleAutomatedSend } from "@/lib/automated-sends";
 import { orgTimezone } from "@/lib/timezone";
@@ -690,6 +691,7 @@ const LIFECYCLE_RESERVATION_SELECT = {
   status: true,
   propertyId: true,
   guestName: true,
+  channel: true, // 4-14-b: imzanın iletişim satırı Airbnb'de çıkar (`signatureForChannel`)
   property: { select: { name: true, organizationId: true, organization: { select: { aiSignature: true } } } },
 } as const;
 
@@ -728,7 +730,7 @@ async function refreshLifecycleBody(row: OutboxRow, token: string, rowRevision: 
   const body = buildGuestMessageBody(
     tpl.content,
     guestFirstNameOf(reservation.guestName),
-    reservation.property.organization.aiSignature?.trim() || undefined,
+    signatureForChannel(reservation.property.organization.aiSignature, reservation.channel),
     propertyName,
   );
   if (hasUnfilledPlaceholders(body)) {

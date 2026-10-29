@@ -545,7 +545,7 @@ describe("applyChannelAutoReply", () => {
   // Opus 10-23 akşam C1 + kurucu kararı 4.14 (10-28, "Telefon satırı çıkarılıp cevap gitsin"): Ayarlar ekranı imzaya telefon yazmayı
   // öneriyor; Airbnb onaysız konuşmada iletişim değeri taşıyan mesajı engeller. Onaysız konuşmada imzanın telefon SATIRI çıkarılır, cevap
   // kalan imzayla gider (taslak da aynı imzayla — ev sahibi elle gönderirse de engellenmesin); onaylı konaklamada imza bugünkü gibi tam.
-  it("🚨 4.14: Airbnb'de onaylı rezervasyon yokken imzanın telefon satırı çıkar, cevap gider; onaylı konaklamada imza tam gider", async () => {
+  it("🚨 4.14 + 4-14-b: Airbnb'de imzanın telefon satırı HER ZAMAN çıkar (onaysız ve onaylı); Airbnb dışı kanalda imza tam gider", async () => {
     const signature = "Sevgiler,\nAli\n📞 +90 532 123 45 67";
     const { conversationId } = await seed({ aiSignature: signature, guestMessage: "Merhaba, check-in saat kaçta?" });
     const preview = await applyChannelAutoReply(conversationId, { dryRun: true });
@@ -579,6 +579,19 @@ describe("applyChannelAutoReply", () => {
     await prisma.conversation.update({ where: { id: stay.conversationId }, data: { reservationId: reservation.id } });
     const sent = await applyChannelAutoReply(stay.conversationId);
     expect(sent.sent).toBe(true);
+    // 4-14-b (kurucu kararı 10-28 gece, "Airbnb'de her zaman çıkarılsın"): onaylı konaklamada da imzanın telefon satırı çıkar — Airbnb
+    // ev sahibinin numarasını onaylı rezervasyonda rezervasyon ayrıntılarında ve onay e-postasında misafire kendisi gösteriyor.
+    expect(mockSend.mock.calls[0][1]).not.toContain("532");
+    expect((mockSend.mock.calls[0][1] as string).endsWith("Sevgiler,\nAli")).toBe(true);
+
+    // Airbnb DIŞI kanalda (Booking / doğrudan) imza AYNEN gider — kural yalnız Airbnb'nin.
+    await resetDb();
+    vi.clearAllMocks();
+    mockSend.mockResolvedValue({ ok: true });
+    const booking = await seed({ aiSignature: signature, guestMessage: "Merhaba, check-in saat kaçta?" });
+    await prisma.conversation.update({ where: { id: booking.conversationId }, data: { channel: "booking" } });
+    const out2 = await applyChannelAutoReply(booking.conversationId);
+    expect(out2.sent).toBe(true);
     expect(mockSend.mock.calls[0][1]).toContain("+90 532 123 45 67");
   });
 
@@ -1312,6 +1325,29 @@ describe("closing courtesy — opt-in 'Rica ederiz' reply to a bare thanks", () 
     expect(body.endsWith("Sevgiler,\nMusa")).toBe(true);
     expect(body).not.toContain("532");
     expect(await prisma.message.count({ where: { conversationId, direction: "outbound", aiIntent: "closing_courtesy" } })).toBe(1);
+  });
+
+  it("🚨 4-14-b: ONAYLI Airbnb konaklamasında da nezaket cevabı imzanın telefon satırı çıkarılarak gider", async () => {
+    const { orgId, conversationId } = await seedClosing();
+    await prisma.organization.update({ where: { id: orgId }, data: { aiSignature: "Sevgiler,\nMusa\n+90 532 123 45 67" } });
+    const conv = await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId }, select: { propertyId: true } });
+    const reservation = await prisma.reservation.create({
+      data: {
+        propertyId: conv.propertyId,
+        guestName: "Alex",
+        arrivalDate: addDays(new Date(), -1),
+        departureDate: addDays(new Date(), 2),
+        status: "confirmed",
+        channel: "airbnb",
+      },
+      select: { id: true },
+    });
+    await prisma.conversation.update({ where: { id: conversationId }, data: { reservationId: reservation.id } });
+    await applyChannelAutoReply(conversationId);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    const body = mockSend.mock.calls[0][1] as string;
+    expect(body.endsWith("Sevgiler,\nMusa")).toBe(true);
+    expect(body).not.toContain("532");
   });
 
   it("toggle ON: sends ONE deterministic courtesy (guest language + note + signature), NO model call", async () => {
