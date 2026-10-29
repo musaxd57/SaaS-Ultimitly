@@ -125,3 +125,36 @@ gerçek hacme yakın KURGUSAL veri (10 daire · 1.504 rezervasyon · 1.336 konu�
 - **HZ6 — SORU:** oturumsuz ziyaretçi var olmayan adrese girince 404 yerine giriş sayfası görüyor (oturum açıkken düzgün 404). Öneri: oturumsuza da
   genel 404; panel adresleri girişe yönlendirmeye devam.
 - HZ7 — bilgi: model yanıt veremezse "AI cevap öner" sabit bir taslak gösteriyor ("AI emin değil" etiketiyle, otomatik gitmez).
+
+## KURUCU TALİMATLARI — 10-29 gece (özet; aynen konuşma kaydında)
+**Mesaj 1 (GD cevapları):**
+- GD1 beğenilmedi: "ev sahibinize yazın" kod bazında YASAK (model yazamasın); doğru cevap TUTULMASIN, gitsin; ama diğer soru görmezden gelinmesin —
+  cevaplanmamış soru varken asla "cevaplandı" yazılamaz.
+- Ek / koşul eki ("-rsa") kod bazında KARAR vermesin; yalnız modele yardımcı unsur. "Milyar dolarlık AI şirketleri / açık kaynak en iyi modeller nasıl
+  yapıyorsa öyle"; ajanlarla derin araştırma; sorulacakları sabah sor.
+- "Anahtarı kaybettim" check-in sorusu DEĞİL → sözcük ağlarını ve kelime yakalamalarını örnekle yaz, neler eklenebileceğini uzun uzun düşün. GD4 = EVET:
+  kayıp / bulamıyorum gibi şeyler ev sahibine kalsın, ÖNCELİKLİ gösterilsin. Soru: e-posta ne zaman gidiyor, panelde ne zaman gösteriliyor? İleride
+  WhatsApp'tan en önemlileri bağlanacak (not alındı: `docs/claude/acik-isler.md`).
+- EV SAHİBİNİZE YAZIN YASAK, her dilde, her biçimde ("Herhangi bir sorunda ev sahibinize yazın" dahil).
+- Soru: model, bilerek bozuk virgül / yanlış işaret / eksik yazım / yazım hatasında anlam farkını her dilde anlıyor mu?
+- GD5 önerisi geçici olarak uygulansın (yan cümle silinir, bilgi gider); kurucu sonra el atacak.
+- GD7 anlaşılmadı: Haiku 5.5 ile hızlı karşılıklı düşünerek yeniden ele al, kararı tekrar taratarak; uygula; nasıl düzeltildiğini uzun yaz. Son karar Claude'da.
+- Ajanlar derin araştırmaya.
+
+**Mesaj 2 (hız raporu cevapları + 9 saat):**
+- HZ1: 300 ms dayanağı var ama evrensel değil → kurulu sürümde performans kaydıyla doğrulanmalı. Hedef: tıklama anında karşılık; hızlı geçişte içerik
+  hazır olur olmaz; yavaş geçişte menü + üst bölüm kullanılabilir, içerik alanı kendi iskeletini gösterir; mobil menü kapanınca gösterge sabit üst
+  bölümde küçük belirsiz ilerleme olarak sürer; hata / iptal / başka sayfaya geçişte gösterge doğru biter, sonsuza dönmez, menüyü kilitlemez.
+  "Gezinme başladı" ≠ "veri hazır" (`useLinkStatus` adres güncellenince kapanabilir). Bütün iskeletleri kaldırmak önceden hazırlamayı değiştirir →
+  önce 1–2 sayfada karşılaştırmalı deneme. Atlassian: iskelet yerleşimi korur, çok kısa yüklemede gereksiz hareket yok, içerik hazır olunca kalkar.
+- HZ2: öneri beğenildi (uygula).
+- HZ3 Takvim: sunucu bekleme / aktarım / çizim / etkileşime hazır ayrı ölçülmeli; doğrudan açılış ile menüden geçiş ayrı. Aday: mobil ajanda ve masaüstü
+  takvim aynı HTML'de üretilip biri CSS ile gizleniyor olabilir. Öncelik: tekrarları azalt, ilk görünümde gerekli özet, ayrıntı uygun yerde, kazancı ölç.
+  Hiçbir sadeleştirme rezervasyonu, giriş/çıkış hareketini, "diğer kayıtlar" sayısını saklamamalı; yüklenmemiş tarih boş / müsait görünmemeli.
+  **"TAKVİM TASARIMINA KOMPLE EL ATICAZ — 1 AYLIK KALMIYACAK, BÜTÜN DAİRELER TAM AIRBNB TAKVİM GÖRÜNÜMÜ GİBİ: DAİRELER YATAY, ÜSTTE TARİH, GİREN
+  MÜŞTERİLERİN KALDIĞI GÜN ADEDİ BELLİ OLACAK."**
+- 404: panelde silinmiş / erişilemeyen kayıt → yetki politikasına uygun, bilgi sızdırmayan sonuç; QR, şifre sıfırlama, doğrulama bağlantıları kendi
+  güvenlik akışlarında. Yalnız "404" yazan ekran yetmez: bilinmeyen adreste HTTP durum kodu kontrol edilmeli (Next streaming yanıtta 404 ekranını 200
+  ile gösterebiliyor). Özel adres listesi yalnız sol menüden çıkarılmamalı; asıl yetki kontrolü veri okunurken / işlemde.
+- **9 saat (19:52 → ~04:52 UTC):** bütün istekler; süre dolmadan durmak yasak; derinlik azalmayacak; iş bölünebilir; kapılar koşarken paralel iş; CI
+  kontrolleri; soru sorma (gece modu).
