@@ -295,11 +295,11 @@ yan cümle yalnız KENDİNİ muaf tutsun.
 | R3 | P2 | absence olay talimatı tutuluyor | b, gerileme | düzeltildi |
 | R4 | P2 | absence telefon yan cümle / satır bölmesi | b, gerileme | düzeltildi |
 | R5 | P2 | absence satır sonu karesel (50k → 10,5 sn), pin ölçmüyor | c, e | düzeltildi (34,8 ms) |
-| R10 | P2 | TOPIC_MARKER belirtme hâli nesnesini görmüyor → numara kurtarıyor | a, R4 düzeltmesinin gerilemesi | AÇIK |
-| R11 | P2 | varış muafiyeti nesne biçimli konu | a | AÇIK |
-| R12 | P2 | olay muafiyeti cümle düzeyi | a | AÇIK |
+| R10 | P2 | TOPIC_MARKER belirtme hâli nesnesini görmüyor → numara kurtarıyor | a, R4 düzeltmesinin gerilemesi | ✅ 10-29 (bilgi isteme / iletme fiili varken başka yan cümledeki numara kurtarmaz) |
+| R11 | P2 | varış muafiyeti nesne biçimli konu | a | ✅ 10-29 (varışta konuşmak / görüşmek muaf değil) |
+| R12 | P2 | olay muafiyeti cümle düzeyi | a | ✅ 10-29 (muafiyet yan cümle düzeyinde, bağlam özgün metinden) |
 | R13 | P2 | INFO_CONDITION "let them know / details" | b | ✅ 10-28 gece (kurucu "r13 tamam"; haber verme ifadesi bilgi koşulundan önce silinir, "bilgi verebilirsiniz" yönlendirme değil; mutasyon 8/8) |
-| R14 | P3 | "break" / "issues" geniş | a | AÇIK |
+| R14 | P3 | "break" / "issues" geniş | a | ✅ 10-29 ("a break" adı, "issues with the check-in time") |
 | R15 | P2 | binding: tire / parantez / "•" / noktalamasız "kapalı" sıfat | a | ✅ 10-28 gece-2 (özne "kapalı"dan önce söylendiyse yüklem; sıfat okumaları — ek-fiil / hâl eki / var-mevcut / bağlaç / tamlayan / önceki cümle — korunur; mutasyon 8/8, kendi gerilemem "alandadır" mutasyonda yakalandı) |
 | R16 | P1 | pet: "hariç / except" + tür uyuşmazlığı → evet gider | a | düzeltildi 10-28 (ac4bfa66 + pin) |
 | R17 | P2 | pet: kısıt biçimleri koşul sayılmıyor | a | AÇIK |
@@ -314,8 +314,8 @@ yan cümle yalnız KENDİNİ muaf tutsun.
 | R26 | P2* | tablo başlık satırı satırlardan kopuyor | a (bağlanınca) | erişim yönü düzeltildi 10-28 gece (R24 bölüm kuralı: başlık satırı erişim bloğu, satırlar onunla Giriş Talimatı'nda, belge sırasıyla); metin biçimi BİLİNÇLİ değişmedi — 2 sütunlu etiket / değer tablosunda "ilk satır başlık" sezgisi "Adres \| Lale Sokak" satırını yanlış eşlerdi |
 | R27 | P3 | "Key points" erişim | b | düzeltildi 10-28 gece |
 | R28 | P3 | extract-helpers küçükler ("Ã " düz boşluk, Latin-1, yarım bayt, RTF) | — | düzeltildi 10-28 gece (bölünmez boşluk; Latin-1 C1 biçimi ş ğ Ş Ğ Ç Ü Ö; yalnız sondaki yarım dizi atılır; RTF reddedilir; normalizasyon C1 siler) |
-| R29 | P2 | olumsuzluk muafiyeti cümle düzeyi | a | AÇIK |
-| R30 | P3 | RU iyelik, "site yönetimi", DE "bitte direkt an", konusuz değer muafiyeti | a | AÇIK |
+| R29 | P2 | olumsuzluk muafiyeti cümle düzeyi | a | ✅ 10-29 (olumsuzluk yalnız kendi yan cümlesini muaf tutar) |
+| R30 | P3 | RU iyelik, "site yönetimi", DE "bitte direkt an", konusuz değer muafiyeti | a | ✅ 10-29 (RU iyelik, site yönetimi, DE bitte direkt an; son madde — konusuz değer — soru olarak duruyor) |
 (* modül henüz bağlı değil — bağlamadan önce kapanmalı.) Sorun bulunmayan: `kb/after-change.ts` + çağıranlar (kiracı yalıtımı, işlem dışı,
 çift sayım yok).
 
@@ -405,3 +405,11 @@ yalnız o cümleyse cevap tutulur, başka içerik varsa cümle çıkarılır. (2
 cevaplarından çıkarılır. (3) Koşullu "arayın" yalnız misafir TAM O durumu sorduysa ("Anahtarı kaybedersem ne yapmalıyım?") ve talimatın dayanağı
 bilgi tabanındaysa kalır. (4) Misafir sorunu BİLDİRİYORSA koşullu talimat çıkarılır; geriye gerçek içerik kalmazsa cevap tutulur, ev sahibi
 yanıtlar (ilk üç satır). (5) Güvenlik uyarıları (acil durum / yangın / gaz / 112) çıkarılmaz.
+
+**R13-b / R13-c ✅ 10-29** (`ai/host-contact-filler.ts`, cevabın son adımı; kanal + QR + önizleme + demo): koşullu ev sahibine başvurma
+cümlesi çıkar — "yazın / mesaj / haber verin" her zaman; "arayın / ulaşın" misafir tam o durumu varsayımsal sormadıysa ya da bilgi tabanında
+dayanağı yoksa. Yangın / gaz / acil servis uyarısı korunur; bilgi yönlendirmesine dokunulmaz ("bilgim yok" kuralı tutar). Geriye içerik
+kalmazsa `hostContactOnly` → kapı `reply_host_contact_only` ile tutar, ev sahibi yanıtlar. Kurucunun tablosunun her satırı testte; mutasyon
+16/16 (iki boş test mutasyonda yakalanıp düzeltildi). Bilinen sınırlar: gaz kokusu talimatı bugün bilgi yönlendirmesi sayılıp bütün cevabı
+tutuyor (güvenli yön); "acil bir durumda ev sahibinizi arayın" genel kapanış sayılıp çıkar (güvenlik sözcüğü yok). İstem tarafı ("bu kapanışı
+hiç yazma") OpenAI kredisi gelince ölçülerek eklenecek.

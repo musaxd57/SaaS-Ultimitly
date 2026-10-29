@@ -476,6 +476,7 @@ Bu dosyaya token/anahtar/parola yazma.
 
 ## Durum
 > 📄 **Tam metin (bağlayıcı): `docs/claude/durum.md`** — bu alanda kod / karar değiştirmeden önce oku. Aşağıda yalnız madde başlıkları.
-**10-28 gece-2 (güncel):** R13 ✅ · Decisions API sıralayıcı motoru kodda, KAPALI (`KB_RERANK_ENGINE=decisions`; açmak ölçüm + kurucu) — `docs/claude/durum.md`.
+**10-29 (güncel):** R10–R15, R29, R30 ✅ · R13-b/c ✅ ("ev sahibinize yazın" asla; genel kapanış çıkar; `ai/host-contact-filler.ts`) — `docs/claude/durum.md`.
+**10-28 gece-2:** R13 ✅ · Decisions API sıralayıcı motoru kodda, KAPALI (`KB_RERANK_ENGINE=decisions`; açmak ölçüm + kurucu) — `docs/claude/durum.md`.
 **10-28 gece:** kurucu karar masası (19 karar, aynen `docs/KURUCU-KARARLARI-2026-10-28-karar-masasi.md`) → 4.11 / 4.12 / 4.13 / 4.14 kodda + dil kapısı düzeltmesi, mutasyon 31/31 · 4.15 zod 4 ✅ (tip denetiminin yakalamadığı 3 gerileme kırmızı-önce; `docs/INCELEME-2026-10-28-zod4-gecisi.md`) · Opus R24–R28 ✅ (ORTAK sır okuyucusu PIN / Türcode / codice / keyless; R15 tasarım notu), öz-inceleme `docs/INCELEME-2026-10-28-gece-oz-inceleme.md` · ⚠️ OpenAI kredisi bitti (ölçümler bekliyor) · yeni sorular karar sayfasında — `docs/claude/durum.md`.
 **10-28 akşam:** uzun belge RAG ölçümü (geliştirme ort. 103/113, kör 90/95; ölçer anlama katmanı hatası düzeltildi) · `KB_TABLE_HEADER` kodda KAPALI (103 → 108,5) · Luna anlama/sıralayıcı eşit değil → 5.1 kalır · OpenAI ince ayarı kapanıyor · sorular R-T1/T2/T3 — `docs/TASARIM-2026-10-28-dosya-rag-cumle-ve-anlam.md` §9.

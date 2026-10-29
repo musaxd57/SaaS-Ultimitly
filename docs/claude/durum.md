@@ -50,6 +50,11 @@ düzeltmeleri. Next.js 15.5.27 (iki yeni SSG/ISR danışması). Onay bekleyen be
 oturumda `actions_list` ile tekrar bakılır). Railway KAPALI (canlı yok). 10-28 akşam ücretli koşular kurucu onayıyla yapıldı ("test yapıp
 para harcamayı tercih ederim"): uzun belge RAG + Luna kıyası, toplam birkaç dolar.
 
+**10-29 gece (kurucu R13-b/c kararı + "gece modu"):** R15 ✅ · R10/R11/R12/R14/R29/R30 ✅ (ev sahibine yönlendirme muafiyetleri yan cümle
+düzeyinde, mutasyon 13/13) · R13-b/c ✅ (`ai/host-contact-filler.ts`: "ev sahibinize yazın" asla, genel "bir sorun olursa arayın" kapanışı
+çıkar, yaşanan bildirimde tutulur — `reply_host_contact_only`; mutasyon 16/16) · karar masasının gece eklenen 4 kararı aynen belgede ·
+gece döngüsü 30 dk'da bir (oturuma bağlı; konteyner yeniden başlarsa yeniden kurulur).
+
 **10-28 gece-2 (kurucu: "6.'yı deneyelim … süreyi kısaltmak işimize yarar / r13 tamam"):** R13 ✅ (`ai/absence.ts`: "let them know / so they
 know / with the details / bilgi verin" bilgi koşulu sayılmaz; "bilgi verebilirsiniz" yönlendirme değil; mutasyon 8/8) · Decisions API yeniden
 sıralayıcıya AYRI motor, VARSAYILAN KAPALI (`KB_RERANK_ENGINE=decisions`, `structured-call.ts callDecisions`; mutasyon 14/14; ölçer aynı soru
