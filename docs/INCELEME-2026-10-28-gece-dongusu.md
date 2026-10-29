@@ -13,7 +13,7 @@
   "cevaplandı" kapanır → ev sahibi o soruyu GÖRMEZ.
 - Düzeltme: çıkarılan cümle misafirin TAM sorduğu duruma cevapsa (`guestAskedThisSituation`) cümle silinmez, bütün cevap tutulur
   (`hostContactOnly`) — ev sahibi yanıtlar. Genel kapanış (soruyla ilgisiz) silinmeye devam eder.
-- Durum: kapı bitince uygulanacak (kırmızı-önce test + mutasyon + tam kapı).
+- Durum: ✅ 10-29 — kırmızı-önce test (`host-contact-filler.test.ts` GD1), mutasyon 3/3, ilgili 107 test yeşil.
 
 ### GD2 — P3 (bilinen sınır, düzeltilmedi) — koşul eki sezgisi yer adlarına takılabilir
 - `asksHypotheticalSituation`: "Bursa'dan geliyoruz" → "Bursa" "-rsa" koşul eki gibi okunur. Etkisi dar: koşullu "arayın" cümlesinin KALMASI için
