@@ -168,3 +168,15 @@ test("JSON gövdeli POST `application/json` İSTİYOR (tarayıcı-botnet kapıs�
     expect((await post(ct)).status(), ct).toBe(415);
   }
 });
+
+test("404 = GERÇEK durum kodu; özel yol oturumsuz girişe gider; paylaşım görseli herkese açık (kurucu 10-29 gece)", async ({ request }) => {
+  // Ekran değil DURUM KODU: önce oturumsuz her bilinmeyen adres 307 → /login idi (gerçek 404 hiç dönmüyordu) ve paylaşım görseli
+  // (/opengraph-image) da girişe yönleniyordu — bağlantı önizlemesi kırık. Liste `src/lib/private-routes.ts` (sayfa ağacına pinli).
+  expect((await request.get("/olmayan-bir-sayfa", { maxRedirects: 0 })).status()).toBe(404);
+  const priv = await request.get("/inbox/silinmis-kayit", { maxRedirects: 0 });
+  expect(priv.status()).toBe(307);
+  expect(new URL(priv.headers()["location"] ?? "", "http://x").pathname).toBe("/login");
+  const og = await request.get("/opengraph-image", { maxRedirects: 0 });
+  expect(og.status()).toBe(200);
+  expect(og.headers()["content-type"]).toMatch(/^image\/png/);
+});

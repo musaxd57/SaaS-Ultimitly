@@ -8,6 +8,7 @@ import {
   verifySession,
 } from "@/lib/auth/session";
 import { impersonationExpired } from "@/lib/auth/impersonation";
+import { isPrivateAppPath } from "@/lib/private-routes";
 
 /** Oturum GEREKTİRMEYEN kimlik sayfaları — çıkış yapmış ziyaretçi görebilir. */
 // `/uyari-adresi-dogrula` (09-30): uyarı adresi onay bağlantısı — alıcı ekip dışı olabilir (oturumsuz); oturum AÇIKKEN de
@@ -66,8 +67,11 @@ export async function middleware(req: NextRequest) {
   const isPublic =
     pathname === "/" || isAuthPage || PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"));
 
-  // Not signed in → only public pages are allowed.
-  if (!session && !isPublic) {
+  // Not signed in → panelin oturum gerektiren yolları (`(app)` klasörleri, sayfa ağacına pinli liste) girişe gider. Bilinmeyen adres
+  // GEÇER → Next gerçek 404 verir (kurucu 10-29 gece: "HTTP durum kodu kontrol edilsin"; önce her bilinmeyen adres 307 → /login idi,
+  // paylaşım görseli /opengraph-image de girişe yönleniyordu). Kayıt varlığı oturumsuz SORGULANMAZ: özel önek kayıttan bağımsız girişe
+  // gider. Bu katman yetki DEĞİL — asıl kapı `(app)/layout` requireAuth + sayfa / API kapıları.
+  if (!session && !isPublic && isPrivateAppPath(pathname)) {
     const url = req.nextUrl.clone();
     url.pathname = "/login";
     url.search = pathname && pathname !== "/" ? `?next=${encodeURIComponent(pathname)}` : "";
