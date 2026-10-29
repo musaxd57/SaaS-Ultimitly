@@ -71,3 +71,17 @@ sözcükleri ve "Bursa" (GD2) koşul aranmadan önce silinir → bu durumda cüm
 - `codeBuiltResult` (doğrulanmış erken giriş / müsaitlik / uzatma / politika KOD metni): model taslağının işaretini koda taşıyor → kodla kurulan
   onaylı metin `reply_host_contact_only` ile gereksiz tutuluyor.
 - Düzeltme: işaret METNE aittir — birleşimde yeni çağrıdan alınır (`verifiedPartsOnly` ile aynı kural), kod metninde düşer.
+
+**Tur 2 durumu:** GD5 / GD6 / GD7 ✅ 10-29 — kırmızı-önce (4 test), mutasyon 12/12 (ilk koşuda 3 yaşayan → sayı taşıyan, genel ve nezaket
+yan cümlesi pinleri eklendi), ilgili 343 test yeşil. Not: "Herhangi bir sorunda, ev sahibinize yazın." / "Should anything go wrong, message
+your host." koşullu talimat SAYILMIYOR — "bilgim yok" yönlendirmesi olarak `refersGuestToHost` yakalıyor ve kapı bütün cevabı tutuyor (bugünkü
+davranış, güvenli yön). Kurucunun "genel kapanış çıkar" kararı bu iki kalıpta silme değil tutma üretiyor — sabah sorusu GD8.
+
+### GD8 — SORU (sabah) — "Herhangi bir sorunda / Should anything go wrong" kapanışı çıkarılmıyor, bütün cevap tutuluyor
+| misafir | model cevabı | bugün |
+|---|---|---|
+| "Otopark var mı?" | "Otopark arkada. Herhangi bir sorunda ev sahibinize yazın." | cevap TUTULUR (ev sahibi yanıtlar) |
+| "Is there parking?" | "Parking is behind the building. Should anything go wrong, message your host." | cevap TUTULUR |
+
+Öneri: bu iki kalıp da "koşullu kapanış" sayılsın → kapanış çıkar, "Otopark arkada." gider (R13-c'nin öteki kalıplarıyla aynı). Bu müşteriye
+giden metni GEVŞETİR (bugün tutuluyor) → **böyle yapalım mı?**
