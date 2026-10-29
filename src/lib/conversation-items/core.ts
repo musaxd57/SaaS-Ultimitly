@@ -129,6 +129,13 @@ const MODEL_LABEL_EXTRA_KINDS: Readonly<Record<string, readonly UnderstandingInt
 const EMERGENCY_LABELS: ReadonlySet<string> = new Set(["safety_emergency"]);
 
 /**
+ * Ev sahibine ÖNCELİKLİ gösterilen etiketler (kurucu 10-29 gece, GD4: "anahtarı kaybettim, bulamıyorum gibi şeyler hosta kalsın, öncelikli
+ * olarak hosta gösterilsin"): konuşma "Acil" işaretlenir, "Dikkat Gerektirenler"de acil satırla aynı üst sırada durur. Erişim kaybı ACİL
+ * DEĞİLDİR (öğe hassaslığı `sensitive`, tur düzeyi değil — aynı mesajdaki Wi-Fi sorusu cevaplanır); yalnız sırası öndedir.
+ */
+export const URGENT_RISK_TYPES: ReadonlySet<string> = new Set(["safety_emergency", "access_security"]);
+
+/**
  * TUR düzeyinde kalan etiketler: öğeye BÖLÜNMEZ. Enjeksiyon yapay zekânın kendisine saldırıdır — metni isteme giren
  * turda hiçbir cevap gitmez; acil durum bugünkü acil yoldan gider.
  */

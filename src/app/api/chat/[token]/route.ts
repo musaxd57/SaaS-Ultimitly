@@ -7,7 +7,7 @@ import { aiGenerationTraceEnabled, recordAiGeneration } from "@/lib/ai/generatio
 import { acquireErasureLock, loadErasureGuard } from "@/lib/erasure";
 import { ANON_NAME } from "@/lib/data-retention";
 import { ESCALATION_REASON_CODES } from "@/lib/risk-events";
-import { detectRiskType, isSafetyEmergencyText } from "@/lib/ai/fallback";
+import { detectRiskType, isAccessLossText, isSafetyEmergencyText } from "@/lib/ai/fallback";
 import { namesInternalSource } from "@/lib/ai/absence";
 import { ESCALATE_INTENTS, evaluateEscalation, qrAvailabilityPolicy } from "@/lib/guest-chat-gate";
 import { evaluateAvailability, kbFactsOf, stayEvidenceOf } from "@/lib/ai/availability-claims";
@@ -864,7 +864,9 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // Deterministic criticality of THIS message (code verdict, model-free):
   // a safety/emergency bypasses the alert's anti-flood cooldown — a fire two
   // minutes after a complaint must still e-mail the host.
-  const criticalEvent = detectRiskType(message) === "safety_emergency";
+  // Kurucu 10-29 gece (GD4): kayıp anahtar / kilitli kalma da kritik — kapıdaki misafir beklemesin (bekleme süresi atlanır).
+  const accessLoss = isAccessLossText(message);
+  const criticalEvent = detectRiskType(message) === "safety_emergency" || accessLoss;
   // 🚨 ALARM ÖLÇÜTÜ ≠ MİSAFİR METNİ ÖLÇÜTÜ (inceleme turu, 09-11).
   // `criticalEvent` ALARM dedupe'ı içindir ve bilinçli GENİŞTİR (aşırı eşleşme
   // orada bedavadır: yalnız cooldown atlanır). Misafire GİDEN metin için aynı
@@ -1494,7 +1496,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     // Alarm önceliği: kelime ağının acil durumu YA DA anlama katmanının acil niyeti (kelime ağının kaçırdığı dolaylı
     // dil — inceleme 09-24, P2-11) bekleme süresini aşar. Misafire giden metin bağlam kararında kalır (↑ hazardDecision).
     // 51: bağlamla kalkan fiziksel tehlike etiketi (olası / anılış + model "acil değil") kritik uyarı değildir.
-    const alertCritical = (criticalEvent && !hazardDecision.lexicalCleared) || understandingRiskOf(understood) === "emergency";
+    const alertCritical = (criticalEvent && !hazardDecision.lexicalCleared) || accessLoss || understandingRiskOf(understood) === "emergency";
     await sendQrEscalationAlertBounded({
       organizationId: ctx.property.organizationId,
       propertyName: ctx.property.name,

@@ -66,6 +66,7 @@ export const LEXICAL_ALERTS = [
   "prompt_injection",
   "context_injection",
   "safety_emergency",
+  "access_security",
   "review_threat",
   "platform_policy",
   "money_refund",

@@ -2706,6 +2706,112 @@ export function isSafetyEmergencyText(message: string): boolean {
   return false;
 }
 
+// ── ERİŞİM KAYBI AĞI (kurucu 10-29 gece, GD4: "anahtarı kaybettim, bulamıyorum gibi şeyler hosta kalsın, öncelikli olarak hosta
+// gösterilsin") ────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+// ÖLÇÜLEN AÇIK: "anahtar" / "key" yalnız giriş KONU listesindeydi (`KEYWORDS.checkin`) — konu ağı NE hakkında olduğunu söyler, NE OLDUĞUNU
+// söylemez. "Anahtarı kaybettim" `checkin` + standart öncelik oluyordu: tutulmuyor, e-posta yok; Almanca / Fransızca / İspanyolca / Rusça /
+// Arapça kayıp cümlelerinde hiç etiket yoktu. Bu ağ bir OLAY ağıdır: NESNE (anahtar, kapı / oda kartı, kumanda, anahtar kutusu) ile KAYIP
+// fiili AYNI cümlede. Etiket `access_security` (kapının yüksek riskli kümesinde, öğe eşlemesi `access_keys`, arayüz adı hazırdı).
+// 🚨 YÖN: yalnız SIKILAŞTIRIR (bir oto-gönderimi engelleyebilir, asla sebep olmaz) — kurucunun "sezgi yalnız ipucu ya da sıkılaştıran yedek"
+// ilkesi (K-1029-C). Ek / koşul eki OKUNMAZ: kayıp fiilinin TAM biçimleri aranır ("kaybett", "lost my"); varsayım biçimi ("kaybedersem",
+// "if I lose") listede olmadığı için eşleşmez. Bilinen fazla tutuş (bilerek, güvenli yön): "Kayıp anahtar ücreti ne?" gibi SSS de ev
+// sahibine kalır — sabah sorusu GD4-b.
+// Yalnız NESNEYLE anlamlı fiiller ("unuttum", "sıkıştık", "got lost", "forgot to ask") cümle düzeyinde ARANMAZ — aynı cümlede trafik /
+// yol / soru anlamı yaygın (ölçüldü: "Trafikte sıkıştık, anahtarı nereden alacağız?"); onlar yalnız bitişik kalıp olarak (↓LOCKOUT).
+/** Önek eşleşen nesneler (Türkçe / Almanca / Rusça ek alır: anahtarı, anahtarlarımızı, Schlüsselkarte, ключи). */
+const ACCESS_PREFIX_OBJECTS = [
+  "anahtar", "kapı kart", "oda kart", "giriş kart", "otopark kumanda", "garaj kumanda", "bariyer kumanda", "kapı kumanda",
+  "schlüssel", "zimmerkarte", "türkarte", "ключ",
+];
+/** Tam sözcük eşleşen nesneler ("Turkey" içindeki "key", "keyboard" sayılmaz). Çıplak "kart / card / kumanda" YOK: kredi kartı, TV kumandası. */
+const ACCESS_WHOLE_OBJECTS = [
+  "key", "keys", "keycard", "keycards", "key card", "key cards", "key-card", "room card", "door card", "access card", "fob", "fobs",
+  "lockbox", "lock box", "key box", "keybox", "key safe", "keysafe", "garage remote", "gate remote",
+  "clé", "clés", "clef", "clefs", "badge", "carte de la chambre", "llave", "llaves", "tarjeta de la habitación", "tarjeta de acceso",
+  "mando del garaje",
+];
+/** Arapça nesne (ön ek bitişik yazılır: ال / و) — alt dize. */
+const ACCESS_SUBSTRING_OBJECTS = ["مفتاح", "مفاتيح"];
+/**
+ * Kayıp / bulamama / çalınma / kırılma / içeride kalma — NESNEYLE aynı cümlede. Dizi = hepsi aynı cümlede (Almanca ayrık olumsuzluk:
+ * "Wir finden den Schlüssel nicht").
+ */
+const ACCESS_LOSS_VERBS: ReadonlyArray<string | readonly string[]> = [
+  // TR
+  "kaybett", "kayboldu", "kaybolmuş", "kayıp", "bulamıyo", "bulamad", "çaldırd", "çalındı", "çalınmış", "içeride unuttu", "içerde unuttu",
+  "içeride kaldı", "içerde kaldı", "almayı unuttu", "kilitte kırıldı", "kilitte kaldı", "kilitte sıkıştı", "kilitte takıl", "kırıldı",
+  "kırılmış", "kutusu boş", "kutuda anahtar yok", "kutusunda anahtar yok", "kutuda yok", "kutusunda yok", "yerinde yok", "bırakılmamış",
+  // EN ("lost" çıplak değil: "we got lost" yol kaybıdır)
+  "lost my", "lost our", "lost the", "lost his", "lost her", "lost a ", "lost an ", "lost both", "lost one", "lost all", "lost them",
+  "lost it", "i lost", "we lost", "i've lost", "we've lost", "ive lost", "weve lost", "have lost", "has lost", "had lost", "been lost",
+  "can't find", "can’t find", "cant find", "cannot find", "can not find", "couldn't find", "couldn’t find", "couldnt find",
+  "unable to find", "misplaced", "stolen", "stole", "broke in the lock", "broke off", "key broke", "keys broke", "is broken", "snapped",
+  "stuck in the lock", "stuck in the door", "missing", "is empty", "was empty", "’s empty", "'s empty",
+  // DE
+  "verloren", "verlegt", ["finde", "nicht"], "gestohlen", "geklaut", "abgebrochen", "drinnen vergessen", "in der wohnung vergessen",
+  "steckt fest", "ist leer",
+  // FR
+  "perdu", "égaré", "trouve pas", "trouve plus", "trouvons pas", "trouvons plus", "volé", "cassé", "est vide", "coincé dans", "coincée dans",
+  // ES
+  "perdí", "perdido", "perdida", "perdimos", "no encuentro", "no encontramos", "no puedo encontrar", "no podemos encontrar", "robaron",
+  "robado", "robada", "se rompió", "está rota", "está vacía", "atascada",
+  // RU
+  "потерял", "не могу найти", "не можем найти", "не нахожу", "не находим", "украли", "украден", "сломал", "забыл внутри", "забыли внутри",
+  "застрял в замке", "пустой", "пустая", "пусто",
+  // AR
+  "فقدت", "فقدنا", "أضعت", "اضعت", "أضعنا", "اضعنا", "ضاع", "لا أجد", "لا اجد", "لم أجد", "لم اجد", "لا نجد", "لم نجد", "سرق", "انكسر",
+  "فارغ",
+];
+/** Nesnesiz (ya da nesneye BİTİŞİK) kilitli kalma / içeride unutma kalıpları. */
+const ACCESS_LOCKOUT_PHRASES = [
+  "kapıda kaldık", "kapıda kaldım", "kendimi dışarıda kilitledim", "kendimizi dışarıda kilitledik", "kapı üstüme kapandı",
+  "kapı üzerime kapandı", "anahtarı unuttu", "anahtarımı unuttu", "anahtarları unuttu", "anahtarlarımı unuttu", "anahtarımızı unuttu",
+  "anahtarlarımızı unuttu",
+  "locked myself out", "locked ourselves out", "locked us out", "locked me out", "forgot my key", "forgot our key", "forgot the key",
+  "locked the key", "locked my key", "locked our key",
+  "schlüssel vergessen", "oublié la clé", "oublié les clés", "oublié mes clés", "olvidé la llave", "olvidé las llaves", "olvidé mis llaves",
+  "забыл ключ", "забыла ключ", "забыли ключ", "نسيت المفتاح", "نسيت المفاتيح", "نسيت مفتاح",
+];
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const bothFolds = (words: readonly string[]) => [...new Set(words.flatMap((w) => [w, foldTurkishAscii(w)]))];
+// Sabit genişlikli geriye bakış + düz alternatif listesi — doğrusal (ReDoS kuralı, `access-loss-cost.test.ts`).
+const ACCESS_OBJECT_RE = new RegExp(
+  `(?<![\\p{L}\\p{N}])(?:${bothFolds(ACCESS_PREFIX_OBJECTS).map(escapeRe).join("|")})` +
+    `|(?<![\\p{L}\\p{N}])(?:${bothFolds(ACCESS_WHOLE_OBJECTS).map(escapeRe).join("|")})(?![\\p{L}\\p{N}])` +
+    `|${ACCESS_SUBSTRING_OBJECTS.map(escapeRe).join("|")}`,
+  "u",
+);
+const ACCESS_LOSS_VERB_FORMS: readonly (readonly string[])[] = (() => {
+  const out = new Map<string, readonly string[]>();
+  for (const v of ACCESS_LOSS_VERBS) {
+    const toks = typeof v === "string" ? [v] : v;
+    for (const form of [toks, toks.map(foldTurkishAscii)]) out.set(form.join("\u0000"), form);
+  }
+  return [...out.values()];
+})();
+const ACCESS_LOCKOUT_FORMS = bothFolds(ACCESS_LOCKOUT_PHRASES);
+/** Cümle sınırı: noktalama + karşıtlık bağlacı ("anahtarı aldım ama cüzdanımı kaybettim"). Virgül cümleyi BÖLMEZ ("Anahtarı, sanırım
+ * restoranda, kaybettim"); "ve / and" de bölmez ("I lost my wallet and keys"). */
+const ACCESS_CLAUSE_SPLIT = /[.!?;\n\r…¿¡]+|\s(?:ama|fakat|ancak|lakin|but|however|aber|mais|pero|но|لكن)\s/u;
+
+/**
+ * Misafir anahtarını / kapı kartını kaybettiğini, bulamadığını, çaldırdığını, kilitte kırıldığını ya da içeride unutup dışarıda kaldığını
+ * mı yazıyor (yedi dil). `detectRiskType`in "access_security" dalı + uyarı geçişi + QR kritik uyarısı TEK kaynak. Aday biçimler × üç
+ * katlama (`restrictiveMatchForms`) — yalnız eşleşme ekler.
+ */
+export function isAccessLossText(message: string): boolean {
+  for (const raw of restrictiveMatchForms(message)) {
+    const form = raw.replace(/\s+/g, " ");
+    if (ACCESS_LOCKOUT_FORMS.some((p) => form.includes(p))) return true;
+    if (!ACCESS_OBJECT_RE.test(form)) continue;
+    for (const clause of form.split(ACCESS_CLAUSE_SPLIT)) {
+      if (!clause || !ACCESS_OBJECT_RE.test(clause)) continue;
+      if (ACCESS_LOSS_VERB_FORMS.some((toks) => toks.every((t) => clause.includes(t)))) return true;
+    }
+  }
+  return false;
+}
+
 /**
  * Deterministic risk nets (Faz-B), in SEVERITY PRECEDENCE order — the single source for both `detectRiskType`
  * (first hit) and `detectRiskTypes` (every hit; konuşma öğeleri 09-26: bir mesajdaki İKİNCİ riskli istek, öncelikteki
@@ -2714,6 +2820,8 @@ export function isSafetyEmergencyText(message: string): boolean {
 const RISK_NETS: ReadonlyArray<readonly [label: string, hit: (message: string) => boolean]> = [
   ["prompt_injection", (m) => detectPromptInjection(m)],
   ["safety_emergency", (m) => isSafetyEmergencyText(m)],
+  // Kurucu 10-29 gece (GD4): kayıp anahtar / kilitli kalma ev sahibine kalır (öğe kipinde yalnız giriş / anahtar isteği; tur düzeyi DEĞİL).
+  ["access_security", (m) => isAccessLossText(m)],
   ["review_threat", (m) => includesAnyFold(m, REVIEW_THREAT_PHRASES, true)],
   ["platform_policy", (m) => includesAnyFold(m, OFFPLATFORM_PAYMENT_PHRASES, true)],
   ["money_refund", (m) => matchesIntentKeywords(m, "refund")],

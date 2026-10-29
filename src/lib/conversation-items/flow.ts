@@ -7,7 +7,7 @@ import { complaintEscalationEmail } from "@/lib/email-templates";
 import { detectRiskTypes } from "@/lib/ai/fallback";
 import { contextLabels } from "@/lib/ai/hazard-evidence";
 import type { MessageUnderstanding, UnderstandingHistoryEntry } from "@/lib/ai/semantic/understanding-schema";
-import { NO_NOTIFY_KINDS, buildLexicalItems, hasEmergency, isOpenForHost, labelsHoldWholeTurn, type BuiltItem, type ItemKind, type ItemsGateInput } from "./core";
+import { NO_NOTIFY_KINDS, URGENT_RISK_TYPES, buildLexicalItems, hasEmergency, isOpenForHost, labelsHoldWholeTurn, type BuiltItem, type ItemKind, type ItemsGateInput } from "./core";
 import { extractTurnItems, type ItemsDegradedReason } from "./extract";
 import { itemOrdinalEnabled } from "./flag";
 import type { ReplyItemsInput } from "./reply-block";
@@ -296,8 +296,16 @@ export async function notifyHeldItems(
   if (input.messageIds.length === 0) return notice;
   const rows = await db.conversationItem.findMany({
     where: { organizationId: input.organizationId, conversationId: input.conversation.id, messageId: { in: [...input.messageIds] } },
-    select: { id: true, messageId: true, status: true, sensitivity: true, notifiedAt: true, kind: true },
+    select: { id: true, messageId: true, status: true, sensitivity: true, notifiedAt: true, kind: true, riskType: true },
   });
+  // Kurucu 10-29 gece (GD4): ev sahibinde tutulan acil / erişim kaybı (kayıp anahtar, kilitli kalma) isteği konuşmayı "Acil" işaretler —
+  // e-posta alıcısından BAĞIMSIZ (panel önceliği). Yalnız YÜKSELTİR; yalnız BU turun mesajlarına bakar (eski bir kayıp anahtar isteği, ev
+  // sahibinin elle düşürdüğü önceliği sonraki ilgisiz mesajda geri yükseltmez).
+  if (rows.some((r) => r.status === "pending_host" && r.riskType !== null && URGENT_RISK_TYPES.has(r.riskType))) {
+    await db.conversation
+      .updateMany({ where: { id: input.conversation.id, priority: { not: "urgent" } }, data: { priority: "urgent" } })
+      .catch(() => {});
+  }
   const alreadyNotified = new Set(rows.filter((r) => r.notifiedAt !== null).map((r) => r.messageId));
   const byMessage = new Map<string, string[]>();
   // Sessiz türden OLMAYAN açık işi olan mesajlar (Opus 10-23): "Wi-Fi şifresi? Bunu nereden biliyorsun?" — Wi-Fi cevaplanamadıysa

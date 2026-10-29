@@ -626,8 +626,9 @@ export async function findAttentionItems(
       certainty: "inferred",
       propertyId: h.propertyId,
       propertyName: nameById.get(h.propertyId) ?? "",
-      // Acil istek her şeyin üstünde (konuşma zaten "Sorunlu"); öteki bırakılan istek cevapsız mesajdan önce gelir.
-      severity: h.emergency ? 99 : 88,
+      // Acil istek her şeyin üstünde (konuşma zaten "Sorunlu"); erişim kaybı (kayıp anahtar / kilitli kalma — kurucu 10-29 gece GD4 "öncelikli
+      // olarak hosta gösterilsin") aynı üst sırada; öteki bırakılan istek cevapsız mesajdan önce gelir.
+      severity: h.emergency || h.urgent ? 99 : 88,
       occurredAt: h.oldestAt,
       href: conversationHref(h.conversationId, h.channel),
       requestKinds: h.kinds,

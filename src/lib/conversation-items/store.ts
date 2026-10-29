@@ -4,6 +4,7 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 import { LEGACY_AI_RESUME_SENDER, LEGACY_AI_SENDER_NAMES, historyAuthorOf } from "@/lib/message-author";
 import {
   ITEM_SOURCES,
+  URGENT_RISK_TYPES,
   effectiveStatus,
   isItemKind,
   isItemSensitivity,
@@ -493,6 +494,8 @@ export interface HeldRequestSummary {
   kinds: ItemKind[];
   count: number;
   emergency: boolean;
+  /** Ev sahibine ÖNCELİKLİ gösterilen istek var mı (acil ya da erişim kaybı — `URGENT_RISK_TYPES`, kurucu 10-29 gece GD4). */
+  urgent: boolean;
   /** En eski bekleyen isteğin mesajının yazıldığı an. */
   oldestAt: Date;
 }
@@ -531,10 +534,13 @@ export async function heldRequestsByConversation(
       createdAt: true,
       kind: true,
       sensitivity: true,
+      riskType: true,
       conversation: { select: { propertyId: true, channel: true } },
     },
   });
   const byConversation = new Map<string, HeldRequestSummary>();
+  const urgentRow = (r: { sensitivity: string; riskType: string | null }) =>
+    r.sensitivity === "emergency" || (r.riskType !== null && URGENT_RISK_TYPES.has(r.riskType));
   for (const r of await stillOpenForHost(db, input.organizationId, rows)) {
     const kind: ItemKind = isItemKind(r.kind) ? r.kind : "other";
     const cur = byConversation.get(r.conversationId);
@@ -546,6 +552,7 @@ export async function heldRequestsByConversation(
         kinds: [kind],
         count: 1,
         emergency: r.sensitivity === "emergency",
+        urgent: urgentRow(r),
         oldestAt: r.messageAt,
       });
       continue;
@@ -553,6 +560,7 @@ export async function heldRequestsByConversation(
     cur.count++;
     if (!cur.kinds.includes(kind)) cur.kinds.push(kind);
     if (r.sensitivity === "emergency") cur.emergency = true;
+    if (urgentRow(r)) cur.urgent = true;
     if (r.messageAt < cur.oldestAt) cur.oldestAt = r.messageAt;
   }
   return [...byConversation.values()];

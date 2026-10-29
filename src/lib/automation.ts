@@ -145,6 +145,7 @@ import {
   detectGuestLanguage,
   detectRiskType,
   detectRiskTypes,
+  isAccessLossText,
   isSafetyEmergencyText,
 } from "@/lib/ai/fallback";
 import type { ClassifyResult } from "@/lib/ai/types";
@@ -155,6 +156,7 @@ import {
 } from "@/lib/ai/message-length";
 import {
   STAY_CHANGE_ITEM_KINDS,
+  URGENT_RISK_TYPES,
   complaintDependentHold,
   labelsHoldWholeTurn,
   replyRiskAttributable,
@@ -487,7 +489,8 @@ export function autoReplyGateVerdict(
     !items &&
     surfaces.some((t) => {
       const d = lexicalRiskTypeOf(t, context);
-      return d === "safety_emergency" || d === "rule_violation" || d === "discrimination";
+      // Kurucu 10-29 gece (GD4): kayıp anahtar / kilitli kalma da önceki cevapsız mesajda kalsa tutar (sonraki "Wi-Fi?" onu gömmez).
+      return d === "safety_emergency" || d === "rule_violation" || d === "discrimination" || d === "access_security";
     })
   ) {
     return hold("lexical_risk");
@@ -6050,8 +6053,11 @@ export async function sendDueAlerts(
       const level = hazardEvidenceOf(m.body).level;
       return level === "clear" || level === "possible";
     };
+    // Kurucu 10-29 gece (GD4): kayıp anahtar / kilitli kalma da uyarır — oto-yanıt kapalıyken (ya da mesai dışında) ev sahibine tek yol bu.
     const alertHit = (m: { body: string }) =>
-      exceedsGuestMessageLimit(m.body) ? isSafetyEmergencyText(m.body) : isAlertClass(classifyFallback(m.body)) || emergencyHit(m);
+      exceedsGuestMessageLimit(m.body)
+        ? isSafetyEmergencyText(m.body)
+        : isAlertClass(classifyFallback(m.body)) || emergencyHit(m) || isAccessLossText(m.body);
     // İşaretli konuşmada yalnız TEHLİKE yeniden bildirilir (şikâyet / iade değil — konuşma zaten ev sahibinde).
     if (upgrade && !pending.some((m) => exceedsGuestMessageLimit(m.body) ? isSafetyEmergencyText(m.body) : emergencyHit(m))) continue;
     if (itemsFlag && !upgrade) {
@@ -6098,6 +6104,9 @@ export async function sendDueAlerts(
           status: "problem",
           skippedReason: "complaint",
           lastRiskType: riskType,
+          // Kurucu 10-29 gece (GD4 "öncelikli olarak hosta gösterilsin"): acil ve erişim kaybı listede "Acil" işaretiyle görünür (model yolu
+          // A2 / olası tehlike yolu zaten böyle yazıyordu; kelime yolu yazmıyordu). Şikâyet / iade önceliği DEĞİŞMEDİ.
+          ...(URGENT_RISK_TYPES.has(riskType ?? "") ? { priority: "urgent" } : {}),
           // m48 — YOL 2/3: KELİME yolu. Model HİÇ koşmadı, o yüzden analiz
           // alanları NULL yazılır — uydurma değer ÜRETİLMEZ. `aiTriageSource`
           // yine de yazılır: "modele sorulmadı" ile "model sorulup sonuç
