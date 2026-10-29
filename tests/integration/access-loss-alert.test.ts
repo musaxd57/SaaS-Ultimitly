@@ -60,13 +60,21 @@ describe("öğe kipi KAPALI — uyarı geçişi (oto-yanıt kapalıyken ev sahib
   });
   afterEach(() => vi.unstubAllEnvs());
 
-  it.each(["Anahtarı kaybettim", "I lost my keys", "Ich habe meinen Schlüssel verloren", "I locked myself out"])(
-    "🚨 %j → 'Sorunlu' + tek acil e-posta + öncelik Acil",
-    async (body) => {
+  it.each([
+    ["Anahtarı kaybettim", "access_security"],
+    ["I lost my keys", "access_security"],
+    ["Ich habe meinen Schlüssel verloren", "access_security"],
+    ["I locked myself out", "access_security"],
+    // Acil ağı turu tutuyordu ama e-posta yoktu (tehlike okuyucusu kilitli kalmayı kapsamaz) — artık uyarır; etiket acil kalır.
+    ["I'm locked out", "safety_emergency"],
+    ["Kapıda kilitli kaldım, çocuklar yanımda", "safety_emergency"],
+  ])(
+    "🚨 %j → 'Sorunlu' + tek acil e-posta + öncelik Acil (%s)",
+    async (body, label) => {
       const { orgId, conversationId } = await seed(body);
       expect((await sendDueAlerts(orgId)).alerted).toBe(1);
       expect(mockMail).toHaveBeenCalledTimes(1);
-      expect(await conv(conversationId)).toEqual({ status: "problem", priority: "urgent", lastRiskType: "access_security" });
+      expect(await conv(conversationId)).toEqual({ status: "problem", priority: "urgent", lastRiskType: label });
       // İkinci geçiş yeni e-posta atmaz (claim tekilliği).
       expect((await sendDueAlerts(orgId)).alerted).toBe(0);
       expect(mockMail).toHaveBeenCalledTimes(1);

@@ -2762,8 +2762,17 @@ const ACCESS_LOSS_VERBS: ReadonlyArray<string | readonly string[]> = [
   "فقدت", "فقدنا", "أضعت", "اضعت", "أضعنا", "اضعنا", "ضاع", "لا أجد", "لا اجد", "لم أجد", "لم اجد", "لا نجد", "لم نجد", "سرق", "انكسر",
   "فارغ",
 ];
-/** Nesnesiz (ya da nesneye BİTİŞİK) kilitli kalma / içeride unutma kalıpları. */
+/**
+ * Nesnesiz (ya da nesneye BİTİŞİK) kilitli kalma / içeride unutma kalıpları. Acil ağının kilitli kalma kalıpları ("locked out",
+ * "kilitli kaldı", "ausgesperrt" …) da BURADA: acil ağı turu tutuyordu ama uyarı geçişi yalnız tehlike okuyucusu "açık / olası" derse
+ * e-posta atıyordu (okuyucu yalnız yangın / duman / gaz / su / elektrik) → oto-yanıt kapalıyken "I'm locked out" ev sahibine HİÇ
+ * gitmiyordu (ölçüldü). Bilerek ALINMAYANLAR: "içeri giremiyor" / "can't get in" — erken giriş sorusu ("İçeri giremiyor muyuz erken?")
+ * ve "can't get in touch" aynı alt dizeyi taşır.
+ */
 const ACCESS_LOCKOUT_PHRASES = [
+  "locked out", "kilitli kaldık", "kilitli kaldım", "dışarıda kilitli", "ausgesperrt", "enfermé dehors", "enfermés dehors",
+  "porte claquée", "me quedé fuera", "nos quedamos fuera", "encerrado fuera", "encerrada fuera", "захлопнул дверь", "захлопнулась дверь",
+  "محبوس في الخارج",
   "kapıda kaldık", "kapıda kaldım", "kendimi dışarıda kilitledim", "kendimizi dışarıda kilitledik", "kapı üstüme kapandı",
   "kapı üzerime kapandı", "anahtarı unuttu", "anahtarımı unuttu", "anahtarları unuttu", "anahtarlarımı unuttu", "anahtarımızı unuttu",
   "anahtarlarımızı unuttu",

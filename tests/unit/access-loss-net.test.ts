@@ -42,6 +42,10 @@ describe("erişim kaybı — tutulması gereken mesajlar (her dilde)", () => {
     "I lost my fob",
     "I lost the key card",
     "I locked myself out",
+    "I'm locked out",
+    "Kapıda kilitli kaldım",
+    "Wir sind ausgesperrt",
+    "Me quedé fuera del apartamento",
     "The lockbox is empty",
     "The key broke in the lock",
     "I forgot my keys inside",
@@ -88,6 +92,9 @@ describe("erişim kaybı — KONTROL: dokunulmayan mesajlar", () => {
     "Anahtarı aldım. Cüzdanımı kaybettim.",
     // "Turkey" içindeki "key" (W2 tam sözcük kuralı); "keyboard" anahtar değil (tam sözcük)
     "We love Turkey! Lost in the beauty of it.",
+    // Acil ağının "can't get in" / "içeri giremiyor" kalıpları BİLEREK alınmadı (erken giriş sorusu, "get in touch")
+    "I can't get in touch with the cleaner",
+    "İçeri giremiyor muyuz erken?",
     "I lost my keyboard charger",
     // Ayrık olumsuzluk iki parçası birlikte aranır: yalnız "nicht" kayıp değildir
     "Den Schlüssel brauchen wir nicht mehr.",
