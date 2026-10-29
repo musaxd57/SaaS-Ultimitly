@@ -168,6 +168,10 @@ Güvenlik tasarım kararları bekleyen: kurtarma kilitleme (email+IP) · `paused
 mesajlarda risk ÖĞE BAZINDA (D1–D6, `docs/BEKLEYEN-RISK-OGE-BAZINDA-2026-09-26.md`) · middleware noktalı yol · halka açık sayfada çerez yenileme · `PADDLE_WEBHOOK_SECRET`
 boot kapısı · 09-23 §9.4'teki dokuz öneri (`docs/DENETIM-2026-09-23-alarm-seli-ve-guvenlik-turu.md`).
 
+**🔔 Kurucu 10-29 gece (unutma):** "ilerde WhatsApp'tan en önemlilerini bağlamak istiyorum" — ev sahibine giden EN ÖNEMLİ bildirimler (acil / kilitli
+kaldım / kayıp anahtar / Sorunlu konuşma) ileride WhatsApp'tan da gitsin. Bugün yalnız e-posta + panel. Kapsam ve hangi bildirimlerin "en önemli" olduğu
+kurucuyla belirlenecek; bildirim tablosu `docs/INCELEME-2026-10-28-gece-dongusu.md` (10-29 gece bölümü). Yeni sistem → önce soru, sonra tasarım.
+
 **🔔 Kurucu 10-10 — SONRADAN BAKILACAK (unutma):** ödeme idempotency'si İYİ (webhook olay kimliği eşsiz, fatura işlem başına tek, plan
 değişikliği tek kullanımlık jeton) — üç küçük boşluk: ikinci aktif abonelik sessizce ilkinin yerine geçer (alarm yok) · webhook gelmeden çift
 ödeme ekranı penceresi · eşzamanlı teslim testleri eksik. Deneme kötüye kullanımı: deneme başına IP engeli YOK (yalnız kayıt hız limiti),
