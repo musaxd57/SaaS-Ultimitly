@@ -28,6 +28,7 @@ vi.mock("@/lib/ai/semantic/understand", async (orig) => {
 import { emailService } from "@/lib/email";
 import { sendDueAlerts } from "@/lib/automation";
 import { findAttentionItems } from "@/modules/intelligence/incidents/attention";
+import { notifyHeldItems } from "@/lib/conversation-items/flow";
 
 const mockMail = vi.mocked(emailService.sendReporting);
 
@@ -144,5 +145,35 @@ describe("öğe kipi AÇIK — istek ev sahibinde tutulur, konuşma Acil", () =>
     const [dirtyRow] = await findAttentionItems(dirty.orgId);
     expect(lostRow).toMatchObject({ kind: "held_request", severity: 99, requestKinds: ["access_keys"] });
     expect(dirtyRow).toMatchObject({ kind: "held_request", severity: 88, requestKinds: ["complaint_issue"] });
+  });
+
+  it("KONTROL: ev sahibinin KAPATTIĞI kayıp anahtar isteği aynı mesaj yeniden işlenince önceliği geri yükseltmez", async () => {
+    const { orgId, conversationId } = await seed("Anahtarımı kaybettim");
+    const msg = await prisma.message.findFirstOrThrow({ where: { conversationId } });
+    await prisma.conversationItem.create({
+      data: {
+        organizationId: orgId,
+        conversationId,
+        messageId: msg.id,
+        kind: "access_keys",
+        sensitivity: "sensitive",
+        riskType: "access_security",
+        sources: "lexical",
+        status: "done",
+        notifiedAt: new Date(),
+        createdAt: new Date(),
+      },
+    });
+    await notifyHeldItems(prisma, {
+      organizationId: orgId,
+      to: "host@example.com",
+      orgName: "Org",
+      conversation: { id: conversationId, guestIdentifier: "Ayşe", channel: "airbnb" },
+      property: { name: "Lale 7", address: null, city: null },
+      messageIds: [msg.id],
+      now: new Date(),
+    });
+    expect(await conv(conversationId)).toMatchObject({ priority: "standard" });
+    expect(mockMail).not.toHaveBeenCalled();
   });
 });
