@@ -57,6 +57,11 @@ describe("erişim kaybı — tutulması gereken mesajlar (her dilde)", () => {
     // Aksansız yazım (sağlamlık ölçümü 10-29 gece buldu): "clé" → "cle", "perdí" → "perdi"
     "J'ai perdu la cle de l'appartement",
     "Perdi la llave",
+    // Yazım hatası / öznesiz İngilizce / duyulan geçmiş zaman (10-29 gece hakem ölçümü: üçü de kaçıyordu)
+    "anahtarı kaybetim",
+    "Anahtarı kaybetmişim, ne yapacağız?",
+    "lost key",
+    "the keys are lost",
     "Je ne trouve pas mes clés",
     "He perdido la llave",
     "No encuentro las llaves",
@@ -79,6 +84,8 @@ describe("erişim kaybı — KONTROL: dokunulmayan mesajlar", () => {
     "Should we leave the keys inside at checkout?",
     // Varsayım biçimi listede YOK (ek okunmuyor — kayıp fiilinin bu biçimi aranmıyor).
     "Anahtarı kaybedersem ne olur?",
+    "Anahtar kaybolursa ne olur?",
+    "We got lost looking for the key box, where is it?",
     "What if I lose the key?",
     // Anahtar olmayan nesne
     "Pasaportumu kaybettim",

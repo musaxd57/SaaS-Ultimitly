@@ -2738,12 +2738,13 @@ const ACCESS_SUBSTRING_OBJECTS = ["مفتاح", "مفاتيح"];
  */
 const ACCESS_LOSS_VERBS: ReadonlyArray<string | readonly string[]> = [
   // TR
-  "kaybett", "kayboldu", "kaybolmuş", "kayıp", "bulamıyo", "bulamad", "çaldırd", "çalındı", "çalınmış", "içeride unuttu", "içerde unuttu",
+  // Yazım hatası / duyulan geçmiş zaman (kapalı liste, yalnız TUTMA yönü — 10-29 gece hakem ölçümü): "kaybetim", "kaybetmişim".
+  "kaybett", "kaybetim", "kaybetik", "kaybetmiş", "kayboldu", "kaybolmuş", "kayıp", "bulamıyo", "bulamad", "çaldırd", "çalındı", "çalınmış", "içeride unuttu", "içerde unuttu",
   "içeride kaldı", "içerde kaldı", "almayı unuttu", "kilitte kırıldı", "kilitte kaldı", "kilitte sıkıştı", "kilitte takıl", "kırıldı",
   "kırılmış", "kutusu boş", "kutuda anahtar yok", "kutusunda anahtar yok", "kutuda yok", "kutusunda yok", "yerinde yok", "bırakılmamış",
   // EN ("lost" çıplak değil: "we got lost" yol kaybıdır)
   "lost my", "lost our", "lost the", "lost his", "lost her", "lost a ", "lost an ", "lost both", "lost one", "lost all", "lost them",
-  "lost it", "i lost", "we lost", "i've lost", "we've lost", "ive lost", "weve lost", "have lost", "has lost", "had lost", "been lost",
+  "lost it", "i lost", "we lost", "lost key", "lost card", "key is lost", "keys are lost", "key was lost", "keys were lost", "i've lost", "we've lost", "ive lost", "weve lost", "have lost", "has lost", "had lost", "been lost",
   "can't find", "can’t find", "cant find", "cannot find", "can not find", "couldn't find", "couldn’t find", "couldnt find",
   "unable to find", "misplaced", "stolen", "stole", "broke in the lock", "broke off", "key broke", "keys broke", "is broken", "snapped",
   "stuck in the lock", "stuck in the door", "missing", "is empty", "was empty", "’s empty", "'s empty",
