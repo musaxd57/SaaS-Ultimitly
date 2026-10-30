@@ -8,12 +8,10 @@ import {
   verifySession,
 } from "@/lib/auth/session";
 import { impersonationExpired } from "@/lib/auth/impersonation";
-import { isPrivateAppPath } from "@/lib/private-routes";
+import { classifyPath } from "@/lib/private-routes";
 
-/** Oturum GEREKTİRMEYEN kimlik sayfaları — çıkış yapmış ziyaretçi görebilir. */
-// `/uyari-adresi-dogrula` (09-30): uyarı adresi onay bağlantısı — alıcı ekip dışı olabilir (oturumsuz); oturum AÇIKKEN de
-// yönlendirilmez (↓SIGNED_IN_REDIRECT_PATHS'te değil).
-const AUTH_PATHS = ["/login", "/register", "/sifremi-unuttum", "/e-posta-dogrula", "/uyari-adresi-dogrula"];
+// Oturum GEREKTİRMEYEN kimlik sayfaları (`AUTH_PATHS`) ve öteki açık yollar (`PUBLIC_PREFIXES`) yol sınıflarının yaprak modülünde
+// (`@/lib/private-routes`) — sayfa ağacına pinli (404 tasarım incelemesi 10-29 gece G1: sınıflanmamış yeni sayfa artık kırmızı).
 
 /**
  * Oturum AÇIKKEN panele geri yollanan kimlik sayfaları.
@@ -55,23 +53,16 @@ export async function middleware(req: NextRequest) {
   // (↓`isPublic`) ile "oturum açıkken panele mi yollanmalı" (↓) farklı şeyler.
   // Tek `isAuthPage` bayrağı ikisini birden yönetiyordu; `/sifremi-unuttum`'u
   // ondan çıkarmak sayfayı sessizce oturum-gerektiren hâle getirirdi.
-  const isAuthPage = matches(AUTH_PATHS);
-  // Public pages a logged-out visitor may see: the marketing landing ("/"), the
-  // legal pages, and the auth pages. Everything else requires a session.
-  // "/c" = the public guest QR concierge chat (its own token auth; no session).
-  // ⚠️ `/guvenlik` (VDP) BURADA OLMAK ZORUNDA: politikayı okuyacak kişi tanım
-  // gereği oturumsuz bir dış araştırmacıdır. Listeden düşerse `/login`'e
-  // yönlendirilir ve politika tam da hedef kitlesine kapanır — `security.txt`'in
-  // `Policy` alanı da ölü bağlantıya döner. Test-pinli.
-  const PUBLIC_PREFIXES = ["/gizlilik", "/kosullar", "/mesafeli-satis", "/on-bilgilendirme", "/entegrasyonlar", "/guvenlik", "/c"];
-  const isPublic =
-    pathname === "/" || isAuthPage || PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"));
+  // Yolun sınıfı TEK kaynaktan: açık (tanıtım, yasal, kimlik sayfaları, QR — `/guvenlik` VDP dahil, test-pinli), özel (`(app)` klasörleri)
+  // ya da bilinmeyen (Next gerçek 404 verir).
+  const routeClass = classifyPath(pathname);
+  const isPublic = routeClass === "public";
 
   // Not signed in → panelin oturum gerektiren yolları (`(app)` klasörleri, sayfa ağacına pinli liste) girişe gider. Bilinmeyen adres
   // GEÇER → Next gerçek 404 verir (kurucu 10-29 gece: "HTTP durum kodu kontrol edilsin"; önce her bilinmeyen adres 307 → /login idi,
   // paylaşım görseli /opengraph-image de girişe yönleniyordu). Kayıt varlığı oturumsuz SORGULANMAZ: özel önek kayıttan bağımsız girişe
   // gider. Bu katman yetki DEĞİL — asıl kapı `(app)/layout` requireAuth + sayfa / API kapıları.
-  if (!session && !isPublic && isPrivateAppPath(pathname)) {
+  if (!session && routeClass === "private") {
     const url = req.nextUrl.clone();
     url.pathname = "/login";
     url.search = pathname && pathname !== "/" ? `?next=${encodeURIComponent(pathname)}` : "";

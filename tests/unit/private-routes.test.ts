@@ -4,7 +4,7 @@ import { join, relative, sep } from "node:path";
 import { NextRequest } from "next/server";
 import { middleware } from "@/middleware";
 import { SESSION_COOKIE, signSession, type SessionPayload } from "@/lib/auth/session";
-import { PRIVATE_APP_PREFIXES, isPrivateAppPath } from "@/lib/private-routes";
+import { AUTH_PATHS, PRIVATE_APP_PREFIXES, PUBLIC_PREFIXES, classifyPath, isPrivateAppPath } from "@/lib/private-routes";
 import robots from "@/app/robots";
 
 // ---------------------------------------------------------------------------
@@ -112,5 +112,66 @@ describe("ara katman — oturum açık (değişmedi)", () => {
   });
   it("sahip bilinmeyen yolda geçer (Next 404)", async () => {
     expect(redirectTo(await reqAs("/olmayan-bir-sayfa", "owner"))).toBeNull();
+  });
+});
+
+// ── 404 tasarım incelemesi (10-29 gece, G1–G4) ─────────────────────────────────────────────────────────────────────────────
+// G1: "(app) dışındaki her sayfa oturumsuz açılır" iddiası 313d5edf'ten sonra BOŞ kaldı — bilinmeyen her yol da artık geçiyor, yani
+// sınıflanmadan eklenen yeni bir sayfa da yeşil kalıyordu. Şimdi her sayfa AÇIK bir sınıfa düşmek zorunda (`unknown` = kırmızı).
+// G2: rota grupları her derinlikte düşer; `(app)` altında dinamik ilk kesim, paralel yuva (`@…`) ve araya girme (`(.)`) klasörü yok.
+// G3: `(app)` altında yalnız sayfa / düzen / iskelet / hata / bulunamadı dosyaları: `route.ts` ya da meta rota düzenin oturum kapısını
+// atlar (onları yalnız ara katman korurdu).
+// G4: açık ve özel listeler kesişmez; her açık girdi en az bir sayfaya karşılık gelir (bayat girdi kalmaz).
+describe("yol sınıfları — her sayfa açıkça sınıflı (G1–G4)", () => {
+  const pages = pageFiles(APP_DIR);
+
+  it("G1: (app) içindeki her sayfa `private`, DIŞINDAKİ her sayfa `public` — `unknown` sayfa yok", () => {
+    for (const file of pages) {
+      const url = urlOf(file).replace(/\[[^\]]+\]/g, "x");
+      const inApp = relative(APP_DIR, file).startsWith(`(app)${sep}`);
+      expect(classifyPath(url), `${url} (${relative(APP_DIR, file)})`).toBe(inApp ? "private" : "public");
+    }
+    // Anti-vakumluk: sınıflanmamış bir yol gerçekten `unknown` döner.
+    expect(classifyPath("/yeni-sinifsiz-sayfa")).toBe("unknown");
+  });
+
+  it("G2: (app) altında dinamik ilk kesim, paralel yuva ya da araya girme klasörü yok (önek listesi bunları ifade edemez)", () => {
+    const walkDirs = (d: string): string[] =>
+      readdirSync(d, { withFileTypes: true })
+        .filter((e) => e.isDirectory())
+        .flatMap((e) => [join(d, e.name), ...walkDirs(join(d, e.name))]);
+    const appRoot = join(APP_DIR, "(app)");
+    const firstSegs = new Set(
+      pages
+        .filter((f) => relative(APP_DIR, f).startsWith(`(app)${sep}`))
+        .map((f) => urlOf(f).split("/")[1])
+        .filter(Boolean),
+    );
+    for (const s of firstSegs) expect(s, `dinamik ilk kesim: ${s}`).not.toMatch(/^\[/);
+    for (const d of walkDirs(appRoot)) {
+      const name = d.split(sep).pop()!;
+      expect(name, d).not.toMatch(/^@|^\(\.{1,3}\)/);
+    }
+    // Her (app) sayfasının ilk URL kesimi listede (iç içe grup olsa da).
+    for (const s of firstSegs) expect(PRIVATE_APP_PREFIXES as readonly string[]).toContain(`/${s}`);
+  });
+
+  it("G3: (app) altında yalnız sayfa / düzen / iskelet / hata / bulunamadı dosyaları (rota ve meta rota düzen kapısını atlar)", () => {
+    const files = (d: string): string[] =>
+      readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? files(join(d, e.name)) : [e.name]));
+    const allowed = new Set(["page.tsx", "layout.tsx", "loading.tsx", "error.tsx", "not-found.tsx"]);
+    for (const f of files(join(APP_DIR, "(app)"))) expect(allowed.has(f), f).toBe(true);
+  });
+
+  it("G4: açık ve özel listeler kesişmez; her açık girdi en az bir sayfaya karşılık gelir", () => {
+    for (const p of PRIVATE_APP_PREFIXES) expect(classifyPath(p), p).toBe("private");
+    for (const p of [...AUTH_PATHS, ...PUBLIC_PREFIXES]) {
+      expect(isPrivateAppPath(p), p).toBe(false);
+      const hit = pages.some((f) => {
+        const u = urlOf(f);
+        return u === p || u.startsWith(p + "/");
+      });
+      expect(hit, `${p} hiçbir sayfaya karşılık gelmiyor (bayat girdi)`).toBe(true);
+    }
   });
 });
