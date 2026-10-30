@@ -299,9 +299,24 @@ export async function notifyHeldItems(
     select: { id: true, messageId: true, status: true, sensitivity: true, notifiedAt: true, kind: true, riskType: true },
   });
   // Kurucu 10-29 gece (GD4): ev sahibinde tutulan acil / erişim kaybı (kayıp anahtar, kilitli kalma) isteği konuşmayı "Acil" işaretler —
-  // e-posta alıcısından BAĞIMSIZ (panel önceliği). Yalnız YÜKSELTİR; yalnız BU turun mesajlarına bakar (eski bir kayıp anahtar isteği, ev
-  // sahibinin elle düşürdüğü önceliği sonraki ilgisiz mesajda geri yükseltmez).
-  if (rows.some((r) => r.status === "pending_host" && r.riskType !== null && URGENT_RISK_TYPES.has(r.riskType))) {
+  // e-posta alıcısından BAĞIMSIZ (panel önceliği). Yalnız YÜKSELTİR ve yalnız iki durumda: isteğin İLK bildirimi (henüz bildirilmemiş öğe)
+  // ya da turun EN YENİ misafir mesajı acil isteği taşıyor (aynı sorunu yineleyen yeni mesaj, eski öğenin bildirim damgasını devralır —
+  // "Hâlâ anahtar yok, kapıdayız"; Haiku 10-30). Tur penceresi son cevaptan beri gelen BÜTÜN mesajları taşıdığı için eski istek tek başına
+  // yükseltmez (10-30 sert inceleme C13: ev sahibi önceliği düşürdü, misafir sonra "Wi-Fi şifresi?" yazdı → eskiden yeniden "Acil" oluyordu).
+  // Alıcı yoksa öğe hiç bildirilmez; o durumda bugünkü gibi her turda yükseltir (bilinen sınır).
+  const urgentHeld = rows.filter((r) => r.status === "pending_host" && r.riskType !== null && URGENT_RISK_TYPES.has(r.riskType));
+  let bumpUrgent = urgentHeld.some((r) => r.notifiedAt === null);
+  if (!bumpUrgent && urgentHeld.length > 0) {
+    const newest = await db.message
+      .findFirst({
+        where: { id: { in: [...input.messageIds] }, conversationId: input.conversation.id },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        select: { id: true },
+      })
+      .catch(() => null);
+    bumpUrgent = newest !== null && urgentHeld.some((r) => r.messageId === newest.id);
+  }
+  if (bumpUrgent) {
     await db.conversation
       .updateMany({ where: { id: input.conversation.id, priority: { not: "urgent" } }, data: { priority: "urgent" } })
       .catch(() => {});

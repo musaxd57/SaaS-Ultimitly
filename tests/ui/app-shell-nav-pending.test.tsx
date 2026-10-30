@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, fireEvent, act, cleanup } from "@testing-library/react";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { isPlainNavigationClick, navigationSettled, NAV_PENDING_MAX_MS, ROUTE_SKELETON_ATTR } from "@/components/shell/nav-pending";
+import { isPlainNavigationClick, navigationSettled, remainingPendingMs, NAV_PENDING_MAX_MS, ROUTE_SKELETON_ATTR } from "@/components/shell/nav-pending";
 
 // ---------------------------------------------------------------------------
 // HZ2 — MENÜ TIKLAMASINDA ANINDA GERİ BİLDİRİM (kurucu 10-29 gece: "hz2 için önerini beğendim").
@@ -65,6 +65,14 @@ describe("nav-pending saf kuralları", () => {
     expect(navigationSettled("http://x/a", "http://x/b", false)).toBe(true);
     // Yalnız sorgu değişse de biter (/billing → /settings?tab=…).
     expect(navigationSettled("http://x/settings", "http://x/settings?tab=faturalandirma", false)).toBe(true);
+    // C14 (10-30): bekleme sırasında bir kez ayrılmış adres başlangıca dönünce de biter (geri tuşu); iskelet varken bitmez.
+    expect(navigationSettled("http://x/a", "http://x/a", false, true)).toBe(true);
+    expect(navigationSettled("http://x/a", "http://x/a", true, true)).toBe(false);
+  });
+  it("güvenlik süresi TIKLAMADAN ölçülür (C15)", () => {
+    expect(remainingPendingMs(1_000, 1_000)).toBe(NAV_PENDING_MAX_MS);
+    expect(remainingPendingMs(1_000, 4_000)).toBe(NAV_PENDING_MAX_MS - 3_000);
+    expect(remainingPendingMs(1_000, 1_000 + NAV_PENDING_MAX_MS + 5)).toBe(0);
   });
   it("her rota iskeleti (loading.tsx kökü) işareti taşır — taşımayan iskelette şerit erken biterdi", () => {
     const appDir = join(process.cwd(), "src", "app");
@@ -97,7 +105,10 @@ describe("AppShell — menü geçişi bekleme şeridi", () => {
     expect(indicator()).toBeNull();
     fireEvent.click(navLink("Mesajlar"));
     expect(indicator()).not.toBeNull();
-    expect(screen.getByText("Sayfa yükleniyor")).toBeTruthy();
+    // C16 (10-30): ekran okuyucu durumu TEK kez duyar — şerit görsel (aria-hidden), metin yalnız canlı bölgede.
+    expect(screen.getAllByText("Sayfa yükleniyor")).toHaveLength(1);
+    expect(screen.queryByRole("progressbar")).toBeNull();
+    expect(indicator()!.getAttribute("aria-hidden")).toBe("true");
     expect(isHighlighted(navLink("Mesajlar"))).toBe(true);
     expect(isHighlighted(navLink("Panel"))).toBe(false);
   });
@@ -148,6 +159,83 @@ describe("AppShell — menü geçişi bekleme şeridi", () => {
     expect(indicator()).not.toBeNull();
     await act(async () => {
       vi.advanceTimersByTime(2);
+    });
+    expect(indicator()).toBeNull();
+  });
+
+  it("C14 (10-30): sayfa geldikten sonra geri tuşuyla başlangıç sayfasına dönüş → şerit biter, doğru menü seçili", async () => {
+    const { rerender } = render(shell());
+    fireEvent.click(navLink("Mesajlar"));
+    await act(async () => commitNavigation("/inbox", true, rerender));
+    expect(indicator()).not.toBeNull();
+    await act(async () => {
+      document.getElementById("sk")!.remove();
+      window.history.replaceState({}, "", "/dashboard");
+      pathname = "/dashboard";
+      rerender(shell());
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    expect(indicator()).toBeNull();
+    expect(isHighlighted(navLink("Panel"))).toBe(true);
+    expect(isHighlighted(navLink("Mesajlar"))).toBe(false);
+  });
+
+  it("C14: sayfa gelmeden açık sayfanın menü bağlantısına (ya da logoya) tık bekleyen gezinmeyi iptal eder", () => {
+    render(shell());
+    fireEvent.click(navLink("Mesajlar"));
+    expect(indicator()).not.toBeNull();
+    fireEvent.click(navLink("Panel"));
+    expect(indicator()).toBeNull();
+    expect(isHighlighted(navLink("Panel"))).toBe(true);
+    fireEvent.click(navLink("Mesajlar"));
+    expect(indicator()).not.toBeNull();
+    const logo = screen.getAllByRole("link").find((a) => a.getAttribute("href") === "/dashboard" && !a.textContent?.includes("Panel"))!;
+    fireEvent.click(logo);
+    expect(indicator()).toBeNull();
+  });
+
+  it("Haiku 10-30: sayfa içi atlama bağlantısı (#icerik) beklemeyi iptal etmez", () => {
+    render(shell());
+    fireEvent.click(navLink("Mesajlar"));
+    const skip = screen.getAllByRole("link").find((a) => (a.getAttribute("href") ?? "").startsWith("#"));
+    expect(skip).toBeTruthy();
+    fireEvent.click(skip!);
+    expect(indicator()).not.toBeNull();
+  });
+
+  it("Haiku 10-30: aynı menüye ikinci tık 15 sn'yi yeniden başlatmaz", async () => {
+    vi.useFakeTimers();
+    render(shell());
+    fireEvent.click(navLink("Raporlar"));
+    await act(async () => {
+      vi.advanceTimersByTime(10_000);
+    });
+    fireEvent.click(navLink("Raporlar"));
+    await act(async () => {
+      vi.advanceTimersByTime(NAV_PENDING_MAX_MS - 10_000 + 1);
+    });
+    expect(indicator()).toBeNull();
+  });
+
+  it("C14 KONTROL: aynı menü bağlantısına ikinci tık beklemeyi iptal etmez", () => {
+    render(shell());
+    fireEvent.click(navLink("Mesajlar"));
+    fireEvent.click(navLink("Mesajlar"));
+    expect(indicator()).not.toBeNull();
+    expect(isHighlighted(navLink("Mesajlar"))).toBe(true);
+  });
+
+  it("C15 (10-30): güvenlik süresi yol değişiminde baştan başlamaz — tıklamadan 15 sn sonra kalkar", async () => {
+    vi.useFakeTimers();
+    const { rerender } = render(shell());
+    fireEvent.click(navLink("Raporlar"));
+    await act(async () => {
+      vi.advanceTimersByTime(3_000);
+    });
+    await act(async () => commitNavigation("/reports", true, rerender));
+    expect(indicator()).not.toBeNull();
+    await act(async () => {
+      vi.advanceTimersByTime(NAV_PENDING_MAX_MS - 3_000 + 1);
     });
     expect(indicator()).toBeNull();
   });

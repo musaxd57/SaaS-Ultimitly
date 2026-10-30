@@ -22,6 +22,9 @@
 
 import { hostContactKindOf, isConditionLikeClause, namesWriteContact, type HostContactKind } from "./absence";
 import { contentStemsOf, isSubstantiveSentence, replySentencesOf } from "./no-instruction-filler";
+import { carriesHandoffNotice } from "./output-veto";
+import { defersDecisionToHost } from "./availability-claims";
+import { isGreetingOnly } from "./code-greeting";
 import { distinctiveTokens } from "@/lib/conversation-items/topic-absence";
 import { topicsWithSymptomsOf } from "@/lib/conversation-items/relation";
 
@@ -155,6 +158,32 @@ function isConditionLike(clause: string): boolean {
   return isConditionLikeClause(clause);
 }
 
+/**
+ * Yalnız selam ("Здравствуйте, Alex!", "Merhaba Ayşe,", "Hi Alex") — silmeden sonra geriye bu kalırsa içerik kalmamıştır (10-30 tekrar
+ * oynatma: Rusça selam tek başına misafire gidiyordu). Selam + en çok üç ad sözcüğü; sınırlı tekrar, doğrusal.
+ */
+const BARE_GREETING =
+  /^\s*(?:merhaba|selam(?:lar)?|iyi (?:günler|akşamlar|geceler)|günaydın|hello|hi|hey|dear|good (?:morning|afternoon|evening)|hallo|guten (?:tag|morgen|abend)|liebe[rs]?|bonjour|bonsoir|salut|hola|buenos días|buenas (?:tardes|noches)|здравствуйте|привет|добрый (?:день|вечер)|доброе утро|مرحبا|أهلا|السلام عليكم)(?:[\s,،!.]+[\p{L}'’-]+){0,3}[\s,،!.]*$/iu;
+/**
+ * Kayıt / görünürlük BİLDİRİMİ (K10 sınıfı) — çıktı vetosunun kalıbında olmayan biçimler (10-30 tekrar oynatma ölçtü, hepsi Rusça modelden):
+ * "ваш запрос зафиксирован, хозяин может его увидеть", "Ваше сообщение … записано; хозяин сможет его увидеть", "your host will be able to
+ * see it". Bu cümle de SİLİNMEZ → eski kurallar ("yönlendirme = bilgim yok", çıktı vetosu) cevabın tamamını eskisi gibi tutar.
+ */
+const VISIBILITY_NOTICE = new RegExp(
+  [
+    "(?:хозя|владел)\\p{L}{0,4}\\s+(?:\\p{L}+\\s+){0,2}?(?:может|сможет|увидит)(?:\\s+\\p{L}+){0,2}?\\s+увидеть",
+    "(?:хозя|владел)\\p{L}{0,4}\\s+(?:\\p{L}+\\s+){0,1}?увидит",
+    "(?:сообщени|запрос|просьб|заявк)\\p{L}{0,4}\\s+(?:[\\p{L}-]+\\s+){0,6}?(?:зафиксирован|записан|сохранен|зарегистрирован|передан)",
+    "(?:host|owner)\\s+(?:can|will|may)\\s+(?:also\\s+)?(?:be\\s+able\\s+to\\s+)?(?:see|view|read)\\s+(?:it|this|your)",
+    "gastgeber\\p{L}{0,2}\\s+(?:kann|wird)\\s+(?:sie|es|ihre?)\\s+(?:\\p{L}+\\s+)?(?:sehen|lesen)",
+  ].join("|"),
+  "iu",
+);
+
+function isBareGreeting(sentence: string): boolean {
+  return isGreetingOnly(sentence.trim()) || BARE_GREETING.test(sentence);
+}
+
 export function analyzeHostContact(reply: string): HostContactAnalysis {
   if (!reply.trim()) return { text: reply, removals: [], nothingLeft: false };
   const removals: HostContactRemoval[] = [];
@@ -164,6 +193,13 @@ export function analyzeHostContact(reply: string): HostContactAnalysis {
     for (const s of replySentencesOf(line)) {
       const kind = hostContactKindOf(s);
       if (!kind) {
+        out.push(s);
+        continue;
+      }
+      // 🚨 K10 DEVİR / BİLDİRİM cümlesi ("mesajınız kaydedildi; ev sahibiniz görebilir", "ваше сообщение сохранено, хозяин сможет его
+      // увидеть") SİLİNMEZ: kurucu kuralı "Hiçbir şey gitmesin" — çıktı vetosu cevabın TAMAMINI tutar. Silseydik yanındaki cümle ("Ранний
+      // заезд около 10:00 — это решение хозяина") vetodan kaçıp misafire giderdi (10-30 tekrar oynatma ölçtü).
+      if (carriesHandoffNotice(s) || VISIBILITY_NOTICE.test(s)) {
         out.push(s);
         continue;
       }
@@ -197,8 +233,12 @@ export function analyzeHostContact(reply: string): HostContactAnalysis {
     .join("\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
-  const substantive = text.split("\n").some((l) => replySentencesOf(l).some((s) => isSubstantiveSentence(s)));
-  return substantive ? { text, removals, nothingLeft: false } : { text: reply, removals, nothingLeft: true };
+  const substantive = text.split("\n").some((l) => replySentencesOf(l).some((s) => isSubstantiveSentence(s) && !isBareGreeting(s)));
+  // Silmeden sonra kalan metin kararı ev sahibine bırakıyorsa ("Erken giriş ev sahibinin kararıdır", "это решение принимает хозяин") yönlendirme
+  // bir cevabın parçası değil, CEVAPSIZLIĞIN parçasıdır → eskisi gibi tamamı tutulur (10-30 tekrar oynatma: eskiden "yönlendirme = bilgim
+  // yok" kuralıyla tutulan bu cevaplar silmeden sonra gidiyordu; kurucu kararı 10-01 "ev sahibinizin kararıdır misafire gitmez").
+  if (!substantive || defersDecisionToHost(text)) return { text: reply, removals, nothingLeft: true };
+  return { text, removals, nothingLeft: false };
 }
 
 export interface HostContactFillerResult {

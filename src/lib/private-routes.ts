@@ -62,11 +62,31 @@ export function isAuthPath(pathname: string): boolean {
   return AUTH_PATHS.some((p) => under(p, pathname));
 }
 
-/** Yolun sınıfı. Açık liste özel listeden ÖNCE okunur; iki liste kesişmez (testli). */
-export function classifyPath(pathname: string): RouteClass {
+function classifyDecoded(pathname: string): RouteClass {
   if (pathname === "/" || isAuthPath(pathname) || PUBLIC_PREFIXES.some((p) => under(p, pathname))) return "public";
   if (PRIVATE_APP_PREFIXES.some((p) => under(p, pathname))) return "private";
   return "unknown";
+}
+
+/** Çözülmüş yolda nokta kesimi / ters bölü — çözüm sonrası "/c/../inbox" açık önekle başlasa da başka bir yolu gösterebilir. */
+const DOT_SEGMENT = /(?:^|\/)\.{1,2}(?:\/|$)|\\/;
+
+/**
+ * Yolun sınıfı. Açık liste özel listeden ÖNCE okunur; iki liste kesişmez (testli).
+ * Yüzde kodlu yol ÇÖZÜLEREK sınıflanır (10-30 sert inceleme C17: ara katman ham yolu görür — "/%69nbox" — ama Next dosya yönlendiricisi
+ * onu "/inbox" diye çözüp sayfayı açar; oturumsuz istek girişe gitmiyordu, yalnız sayfa kapısı durduruyordu). Bozuk kodlama ya da
+ * çözümde nokta kesimi → `private` (girişe yollamak zararsız; kapalı-güvenli).
+ */
+export function classifyPath(pathname: string): RouteClass {
+  if (!pathname.includes("%")) return classifyDecoded(pathname);
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(pathname);
+  } catch {
+    return "private";
+  }
+  if (DOT_SEGMENT.test(decoded)) return "private";
+  return classifyDecoded(decoded);
 }
 
 /** Yol, panelin oturum gerektiren bir yolu mu. */

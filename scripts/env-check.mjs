@@ -656,6 +656,8 @@ export const STRICT_ONE_FLAGS = Object.freeze([
   "AI_NO_APOLOGY_RULE_ENABLED",
   // K-1029-A istem yasağı ACİL DURDURMA (varsayılan açık; yalnız "1" kapatır).
   "AI_HOST_CONTACT_PROMPT_BAN_DISABLED",
+  // K-1029-A kısmi gönderim ACİL DURDURMA (tasarım A12; varsayılan kapalı, yalnız "1" açar).
+  "AI_HOST_CONTACT_PARTIAL_DISABLED",
   "AI_UNDERSTANDING_PRIVACY_RULE_ENABLED",
   "AI_SENIOR_READER_ENABLED",
   "AI_ASSISTANT_QUESTION_ITEM_ENABLED",

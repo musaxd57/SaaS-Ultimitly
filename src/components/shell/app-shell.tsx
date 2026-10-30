@@ -11,7 +11,7 @@ import { USER_ROLE, type UserRole } from "@/lib/constants";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { PanelTheme } from "@/components/shell/panel-theme";
-import { NAV_PENDING_MAX_MS, ROUTE_SKELETON_ATTR, isPlainNavigationClick, navigationSettled } from "@/components/shell/nav-pending";
+import { ROUTE_SKELETON_ATTR, isPlainNavigationClick, navigationSettled, remainingPendingMs } from "@/components/shell/nav-pending";
 import { cn } from "@/lib/utils";
 
 interface AppShellProps {
@@ -152,12 +152,16 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
   // HZ2 (kurucu 10-29 gece): menü tıklamasında ANINDA geri bildirim — tıklanan bağlantı hemen seçili görünür, üst çubukta ince bir
   // bekleme şeridi çıkar (mobilde menü kapandıktan sonra da görünür). Bitiş ölçütü "veri hazır": adres değişti VE rota iskeleti yok
   // (`nav-pending.ts`); hata / 404 ekranı iskeleti kaldırır → biter; en geç 15 sn. Bağlantılar ASLA kilitlenmez.
-  const [pendingNav, setPendingNav] = useState<{ href: string; from: string } | null>(null);
+  const [pendingNav, setPendingNav] = useState<{ href: string; from: string; startedAt: number } | null>(null);
+  // Başlangıç adresinden bir kez ayrılmış bekleme (geri tuşuyla dönüşte de biter — C14). Kimlik bekleme nesnesinin kendisi.
+  const leftFromRef = useRef<object | null>(null);
   useEffect(() => {
     if (!pendingNav) return;
     const check = () => {
+      const here = window.location.href;
+      if (here !== pendingNav.from) leftFromRef.current = pendingNav;
       const skeleton = document.querySelector(`[${ROUTE_SKELETON_ATTR}]`) !== null;
-      if (navigationSettled(pendingNav.from, window.location.href, skeleton)) setPendingNav(null);
+      if (navigationSettled(pendingNav.from, here, skeleton, leftFromRef.current === pendingNav)) setPendingNav(null);
     };
     check();
     const observer = new MutationObserver(check);
@@ -165,7 +169,7 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
     window.addEventListener("popstate", check);
     // Adres DOM değişmeden de değişebilir (yalnız sorgu farklı yönlendirme) → bekleme sürerken ucuz yoklama.
     const poll = window.setInterval(check, 250);
-    const timer = window.setTimeout(() => setPendingNav(null), NAV_PENDING_MAX_MS);
+    const timer = window.setTimeout(() => setPendingNav(null), remainingPendingMs(pendingNav.startedAt, Date.now()));
     return () => {
       observer.disconnect();
       window.removeEventListener("popstate", check);
@@ -173,6 +177,30 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
       window.clearTimeout(timer);
     };
   }, [pendingNav, pathname]);
+  // Bekleme sürerken BAŞKA bir bağlantıya düz tık (logo, açık sayfanın menü bağlantısı, sayfa içi bağlantı) öncekini iptal eder — Next
+  // eski gezinmeyi bırakır, adres hiç değişmeyebilir (C14). Menü bağlantısı kendi tıklamasında yeni beklemeyi yeniden kurar.
+  useEffect(() => {
+    if (!pendingNav) return;
+    const onClick = (e: MouseEvent) => {
+      const a = e.target instanceof Element ? e.target.closest("a[href]") : null;
+      // Sayfa içi bağlantı ("#icerik" atlama bağlantısı) gezinme başlatmaz → beklemeyi iptal etmez (Haiku 10-30).
+      if (!a || (a.getAttribute("href") ?? "").startsWith("#")) return;
+      const plain = isPlainNavigationClick({
+        button: e.button,
+        metaKey: e.metaKey,
+        ctrlKey: e.ctrlKey,
+        shiftKey: e.shiftKey,
+        altKey: e.altKey,
+        defaultPrevented: e.defaultPrevented,
+        currentTarget: a,
+      });
+      if (!plain) return;
+      const to = new URL(a.getAttribute("href") ?? "", window.location.href);
+      if (to.pathname !== pendingNav.href) setPendingNav(null);
+    };
+    document.addEventListener("click", onClick, true);
+    return () => document.removeEventListener("click", onClick, true);
+  }, [pendingNav]);
 
   function isActive(href: string) {
     if (pendingNav) return pendingNav.href === href;
@@ -198,7 +226,11 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
           onClick={(e) => {
             setMobileOpen(false);
             // Açık olan sayfanın kendisine tıklama bekleme göstermez (adres değişmez); Cmd / Ctrl / orta tık yeni sekme açar.
-            if (pathname !== href && isPlainNavigationClick(e)) setPendingNav({ href, from: window.location.href });
+            // Aynı hedefe ikinci tık bekleme süresini yeniden BAŞLATMAZ (15 sn tıklamadan ölçülür — Haiku 10-30).
+            if (pathname !== href && isPlainNavigationClick(e)) {
+              const from = window.location.href;
+              setPendingNav((cur) => (cur && cur.href === href ? cur : { href, from, startedAt: Date.now() }));
+            }
           }}
           className={cn(
             // Satır yüksekliği: 20 (text-sm satır kutusu) + 10 + 10 = 40px, zoom
@@ -451,11 +483,11 @@ export function AppShell({ user, superAdmin, guestChatEnabled, impersonating, pl
               <span className="hidden sm:inline">Çıkış</span>
             </Button>
           </div>
-          {/* HZ2: menü geçişi bekleme şeridi — üst çubuğun alt kenarında; tıklamayı engellemez. Ekran okuyucuya kısa durum. */}
+          {/* HZ2: menü geçişi bekleme şeridi — üst çubuğun alt kenarında; tıklamayı engellemez. Şerit görsel (aria-hidden); ekran okuyucuya
+              durum yalnız ↓canlı bölgeden bir kez (10-30 C16: ilerleme çubuğu adı + canlı metin aynı cümleyi iki kez okutuyordu). */}
           {pendingNav ? (
             <div
-              role="progressbar"
-              aria-label="Sayfa yükleniyor"
+              aria-hidden="true"
               data-testid="nav-pending"
               className="pointer-events-none absolute inset-x-0 bottom-0 h-0.5 overflow-hidden bg-primary/15"
             >

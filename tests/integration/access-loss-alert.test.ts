@@ -94,6 +94,26 @@ describe("öğe kipi KAPALI — uyarı geçişi (oto-yanıt kapalıyken ev sahib
     expect(await conv(conversationId)).toMatchObject({ status: "problem", priority: "standard" });
   });
 
+  it("🚨 C10/C11 (10-30): eski kayıp anahtar + YENİ şikâyet → öncelik Acil, etiket access_security, e-posta kayıp satırını alıntılar", async () => {
+    const { orgId, conversationId } = await seed("Anahtarımı kaybettim, kapıdayız", 20);
+    await prisma.message.create({
+      data: { conversationId, direction: "inbound", senderName: "Ayşe", authorType: "guest", body: "Ayrıca daire çok kirli", createdAt: new Date(Date.now() - 10 * 60_000) },
+    });
+    expect((await sendDueAlerts(orgId)).alerted).toBe(1);
+    expect(mockMail).toHaveBeenCalledTimes(1);
+    expect(await conv(conversationId)).toEqual({ status: "problem", priority: "urgent", lastRiskType: "access_security" });
+    expect(JSON.stringify(mockMail.mock.calls[0])).toContain("Anahtarımı kaybettim");
+  });
+
+  it("KONTROL: yalnız şikâyet + daha yeni zararsız soru → öncelik değişmez (sıra değişikliği yalnız kayıp anahtarı öne alır)", async () => {
+    const { orgId, conversationId } = await seed("Daire çok kirli", 20);
+    await prisma.message.create({
+      data: { conversationId, direction: "inbound", senderName: "Ayşe", authorType: "guest", body: "Wi-Fi şifresi ne?", createdAt: new Date(Date.now() - 10 * 60_000) },
+    });
+    expect((await sendDueAlerts(orgId)).alerted).toBe(1);
+    expect(await conv(conversationId)).toMatchObject({ status: "problem", priority: "standard" });
+  });
+
   it.each(["Anahtarı nereden alacağız?", "Anahtarı kaybedersem ne olur?", "Where do I pick up the keys?"])(
     "KONTROL: %j (giriş sorusu / varsayım) → uyarı YOK",
     async (body) => {
@@ -145,6 +165,66 @@ describe("öğe kipi AÇIK — istek ev sahibinde tutulur, konuşma Acil", () =>
     const [dirtyRow] = await findAttentionItems(dirty.orgId);
     expect(lostRow).toMatchObject({ kind: "held_request", severity: 99, requestKinds: ["access_keys"] });
     expect(dirtyRow).toMatchObject({ kind: "held_request", severity: 88, requestKinds: ["complaint_issue"] });
+  });
+
+  it("C13 (10-30): BİLDİRİLMİŞ ama hâlâ açık kayıp anahtar isteği, ev sahibi önceliği düşürdükten sonraki turda geri yükseltmez", async () => {
+    // Ev sahibi kayıp anahtarı telefonda çözdü, öğeyi kapatmadan önceliği "standart"a çekti; misafir sonra Wi-Fi sordu. Tur penceresi
+    // (son cevaptan beri) eski mesajı da taşır.
+    const { orgId, conversationId } = await seed("Anahtarımı kaybettim", 30);
+    const m1 = await prisma.message.findFirstOrThrow({ where: { conversationId } });
+    const m2 = await prisma.message.create({
+      data: { conversationId, direction: "inbound", senderName: "Ayşe", authorType: "guest", body: "Wi-Fi şifresi ne?", createdAt: new Date() },
+    });
+    await prisma.conversationItem.create({
+      data: {
+        organizationId: orgId,
+        conversationId,
+        messageId: m1.id,
+        kind: "access_keys",
+        sensitivity: "sensitive",
+        riskType: "access_security",
+        sources: "lexical",
+        status: "pending_host",
+        notifiedAt: new Date(Date.now() - 20 * 60_000),
+        createdAt: new Date(Date.now() - 25 * 60_000),
+      },
+    });
+    await prisma.conversation.update({ where: { id: conversationId }, data: { priority: "standard" } });
+    await notifyHeldItems(prisma, {
+      organizationId: orgId,
+      to: "host@example.com",
+      orgName: "Org",
+      conversation: { id: conversationId, guestIdentifier: "Ayşe", channel: "airbnb" },
+      property: { name: "Lale 7", address: null, city: null },
+      messageIds: [m2.id, m1.id],
+      now: new Date(),
+    });
+    expect(await conv(conversationId)).toMatchObject({ priority: "standard" });
+    expect(mockMail).not.toHaveBeenCalled();
+  });
+
+  it("🚨 Haiku 10-30: AYNI sorunu yineleyen YENİ mesaj (eski öğenin bildirim damgasını devralmış) önceliği yeniden Acil yapar", async () => {
+    const { orgId, conversationId } = await seed("Anahtarımı kaybettim", 30);
+    const m1 = await prisma.message.findFirstOrThrow({ where: { conversationId } });
+    const m2 = await prisma.message.create({
+      data: { conversationId, direction: "inbound", senderName: "Ayşe", authorType: "guest", body: "Hâlâ anahtar yok, kapıdayız", createdAt: new Date() },
+    });
+    const notifiedAt = new Date(Date.now() - 20 * 60_000);
+    const base = { organizationId: orgId, conversationId, kind: "access_keys", sensitivity: "sensitive", riskType: "access_security", sources: "lexical" };
+    await prisma.conversationItem.create({ data: { ...base, messageId: m1.id, status: "superseded", notifiedAt, createdAt: new Date(Date.now() - 25 * 60_000) } });
+    await prisma.conversationItem.create({ data: { ...base, messageId: m2.id, status: "pending_host", notifiedAt, createdAt: new Date() } });
+    await prisma.conversation.update({ where: { id: conversationId }, data: { priority: "standard" } });
+    await notifyHeldItems(prisma, {
+      organizationId: orgId,
+      to: "host@example.com",
+      orgName: "Org",
+      conversation: { id: conversationId, guestIdentifier: "Ayşe", channel: "airbnb" },
+      property: { name: "Lale 7", address: null, city: null },
+      messageIds: [m1.id, m2.id],
+      now: new Date(),
+    });
+    expect(await conv(conversationId)).toMatchObject({ priority: "urgent" });
+    expect(mockMail).not.toHaveBeenCalled(); // damga devralındı → ikinci e-posta yok (bugünkü kural)
   });
 
   it("KONTROL: ev sahibinin KAPATTIĞI kayıp anahtar isteği aynı mesaj yeniden işlenince önceliği geri yükseltmez", async () => {

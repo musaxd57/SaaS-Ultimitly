@@ -6,13 +6,14 @@ import { buildReplyPrompt, replySystemPromptFor } from "./prompts";
 import { applyCodeGreeting, codeGreetingEnabled, salutationNameOf } from "./code-greeting";
 import { stripNoInstructionFillerGrounded } from "./no-instruction-filler";
 import { stripHostContactFiller } from "./host-contact-filler";
+import { asksHypotheticalSituation } from "./absence";
 import { kbFeeRuleEnabled } from "./kb-fee-rule";
 import { stayDeferralPlainEnabled } from "./stay-deferral-plain";
 import { accessCodeCompleteEnabled } from "./access-code-complete";
 import { complaintFollowupRuleEnabled } from "@/lib/ai/complaint-followup";
 import { courtesyRuleEnabled } from "@/lib/ai/courtesy-rule";
 import { noApologyRuleEnabled } from "@/lib/ai/no-apology-rule";
-import { hostContactPromptBanEnabled } from "@/lib/ai/host-contact-ban-rule";
+import { hostContactPartialDisabled, hostContactPromptBanEnabled } from "@/lib/ai/host-contact-ban-rule";
 import { guestTurnLanguage, unansweredGuestTexts } from "./language-signal";
 import { suggestReplyFallback, classifyFallback } from "./fallback";
 import { timeCorrectedInMessage, timeStatedInMessage } from "./stated-time";
@@ -804,11 +805,15 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
         const shown = partsOutcome ? capReply(partsOutcome.reply) : cappedReply;
         // R13-b / R13-c + K-1029-A (kurucu 10-28 / 10-29 gece): misafiri ev sahibine yazmaya / ulaşmaya / aramaya gönderen HER cümle (yedi dil,
         // her biçim) çıkar (`host-contact-filler.ts`); geriye içerik kalmazsa metin aynen kalır, kapı tutar (`hostContactOnly`).
-        const hostContact = stripHostContactFiller(
-          shown.text,
-          [...unansweredGuestTexts(input.history ?? [], input.guestMessage), input.guestMessage],
-          kbTextsOf(input),
-        );
+        const hostContactGuestTexts = [...unansweredGuestTexts(input.history ?? [], input.guestMessage), input.guestMessage];
+        const hostContact = stripHostContactFiller(shown.text, hostContactGuestTexts, kbTextsOf(input));
+        // Kısmi gönderim acil durdurma (tasarım A12, `AI_HOST_CONTACT_PARTIAL_DISABLED=1`; varsayılan KAPALI): konulu bir silme ya da misafirin
+        // olasılık sorusuna bağlı her silme cevabın TAMAMINI tutar. Taslak yine silinmiş metin.
+        const hostContactHoldAll =
+          hostContact.hostContactOnly ||
+          (hostContactPartialDisabled() &&
+            hostContact.removals.length > 0 &&
+            (hostContact.removals.some((r) => !r.generic) || hostContactGuestTexts.some((t) => asksHypotheticalSituation(t))));
         const replyText = hostContact.text;
         // Kaynak beyanı parça kipinde YALNIZ doğrulanan parçaların kaynaklarından (atılan serbest metnin beyanı değil).
         const partsKbCategories = partsOutcome
@@ -911,7 +916,7 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
               }
             : {}),
           ...(partsOutcome ? { answerParts: partsOutcome.verdicts, verifiedParts: partsOutcome.verified } : {}),
-          ...(hostContact.hostContactOnly ? { hostContactOnly: true as const } : {}),
+          ...(hostContactHoldAll ? { hostContactOnly: true as const } : {}),
           // K-1029-A: çıkarılan parçaların kaydı (metin yok) — "cevaplandı" kuralı ve açık soru kararı okur.
           ...(hostContact.removals.length > 0 ? { hostContactRemovals: hostContact.removals } : {}),
           // 4.12: doğrulanmış parçalar kesilmeden ve sağlam şemayla gidiyorsa kapı genel güvene takılmaz (`verifiedPartsWaiver`).

@@ -426,3 +426,96 @@ Bu tablo **iki kat** kontrolle korunuyor:
 ### HZ1 deneme — bekliyor
 - İskeletsiz deneme dosyaları (`/templates` + `/properties`) hazır ama ölçülmedi; tasarım: deneme ayrı dalda, kurucu kararı olmadan ana dala
   girmez. Kayıt kodda doğrulandı: 300 ms kuralı Next'in paketlediği React'te (`19.2.0-canary`), kurulu 19.2.7'de değil — kural aynı.
+
+## 10-30 sabahı (devam) — K-1029-A artık KODDA (taslak değil)
+
+Yukarıdaki "KOD yarım" kaydından sonra: taslak ağaca alındı, kırmızı-önce koşuldu, kanal / QR / e-posta bağlantısı ve istem yasağı yazıldı.
+Davranış (sorular F1–F7 cevaplanana kadar tasarımın güvenli yönü):
+- **Silinir:** misafiri ev sahibine yazmaya / ulaşmaya yönlendiren cümle, yedi dilde, koşullu ya da koşulsuz ("Herhangi bir sorunda ev
+  sahibinize yazın", "Feel free to message your host", "En cas de problème, écrivez à votre hôte", "Bir sıkıntı olursa bize yazabilirsiniz").
+  Yan cümle ise yalnız o kısım ("Havlular dolapta, sorun olursa ev sahibinize yazın" → "Havlular dolapta."). Gaz / yangın / duman / acil
+  numara uyarısı silinmez (ama "Gaz kokusu alırsanız ev sahibinize yazın" yazma yönlendirmesidir → silinir).
+- **Doğru cevap yine gider; cevapsız soru AÇIK kalır, asla "cevaplandı" olmaz:** silinen cümle bir soruyu cevaplıyorduysa (konu /
+  sözcük örtüşmesi) o soru açık kalır; sahipsiz ve genel olmayan silmede hepsi açılır; olasılık sorusu ("Wi-Fi giderse?") hep açık.
+  Öğe kipinde: güvenli istek cevaplanır, açık kalan size; öğe kipi kapalıyken: tur tutulur + tek "Misafir cevabınızı bekliyor" e-postası;
+  QR'da: kalan doğru cevap gider + size devir.
+- **İstem katmanı VARSAYILAN AÇIK** (kurucu "istem + kod"): modele "ev sahibine yönlendirme cümlesi yazma" kuralı; acil kapatma
+  `AI_HOST_CONTACT_PROMPT_BAN_DISABLED=1` (istem tabana döner; kod süzgeci yine koşar). Açılış belgesinde yazılı.
+- **"Arayın" (F1 sorusu):** cevap gelene kadar güvenli yön — "Anahtarı kaybedersem ne yapmalıyım?" → "…ev sahibinizi arayın." tek başına
+  gitmez, soru size açık iş. Sizin cevabınızla değişir.
+- Testler: 40+ kırmızı-önce vaka (yedi dil, GD5 yan cümle, güvenlik uyarısı, "cevaplandı" kuralı), kanal entegrasyonu (öğe kipi açık /
+  kapalı), istem pini (varsayılan açık, yalnız "1" kapatır, fark yalnız üç çapada), süre pini (144 bin karaktere kadar doğrusal).
+
+## 10-30 sabahı (devam) — gecenin kodunun sert incelemesi (Ultracode iş akışı + çekişmeli doğrulama)
+
+18 bulgu doğrulandı (biri reddedildi: edilgen varsayım). Kayıp anahtar ağı, uyarı önceliği, menü geçiş göstergesi ve 404 sınıflandırması —
+hepsi BU GECE yazdığım kod. Ayrım kuralı: başka sözcüğün İÇİNDE eşleşme (hata) ve kaçırılan kayıp cümlesi (yalnız sıkılaştırır) düzeltildi;
+anlam belirsizliğinden doğan fazla tutuşu azaltmak misafire giden cevabı GEVŞETİR → aşağıda soru.
+
+### Düzeltilenler (kırmızı-önce testli, `night/review-fixes`)
+- **C1 — kalıp başka sözcüğün içinde:** "I just clocked out from work … wifi password?" ve "blackout curtains blocked out the light" kilitli
+  kalma ("locked out") sayılıyor, "I forgot my keyboard" anahtar unutma sayılıyordu; çıkış notu "…and locked the key box." da. Kalıplar artık
+  sözcük başında; "key" sözcük olarak; "locked the key" yalnız "in / inside" ile. "I forgot my keys", "I locked the keys in the apartment",
+  "LOCKED OUT" yine tutuluyor.
+- **C6 — Almanca:** "finde … nicht" alt dizesi "Findet die Schlüsselübergabe nicht persönlich statt?" ve "befindet" içinde eşleşiyordu → tam sözcük.
+- **C7 — kaçan kapı önü bildirimi (yedi dilde):** "There's no key in the lockbox", "We opened the lockbox but it was empty", "Kodu girdim,
+  kutu açıldı ama anahtar yok", "Anahtar kutusunu açtık ama boş", "Kein Schlüssel im Schlüsselkasten", "Il n'y a pas de clé dans la boîte",
+  "No hay llave en la caja", "В ключнице нет ключа", "لا يوجد مفتاح في الصندوق" → artık ev sahibine + Acil. Kutu ile "boş" arasında en çok üç
+  sözcük, araya virgül girmez ("…keys in the lockbox, the fridge is empty" kutu değil).
+- **C8 — kaçan kayıp:** "The keys are gone", "Der Schlüssel ist weg / verschwunden", "Les clés ont disparu", "Je n'arrive pas à trouver les
+  clés", "Ключи пропали", "Дверь захлопнулась, ключи внутри", "I left my keys inside and the door closed", "Las llaves se quedaron dentro",
+  klavyesiz Almanca "Schluessel", "المفتاح ضائع".
+- **C9:** "We lost the key and we are not leaving at 11" — reddedilen çıkış saati rezervasyona yazılıyordu (kontrol yalnız ilk etikete
+  bakıyordu; kayıp anahtar etiketi öne geçince "çıkmıyoruz" etiketi görünmüyordu). Artık bütün etiketler okunur.
+- **C10/C11:** öğe kipi kapalıyken "Anahtarımı kaybettim, kapıdayız" + ardından "Ayrıca daire çok kirli" → e-posta yalnız kirli satırı
+  alıntılıyor, konuşma Acil olmuyordu. Artık sıra: acil → kayıp anahtar → diğer.
+- **C13:** ev sahibi kayıp anahtarı telefonda çözüp önceliği düşürdükten sonra misafir "Wi-Fi şifresi?" yazınca öncelik yeniden Acil
+  oluyordu. Artık yalnız isteğin İLK bildiriminde yükseltir.
+- **C14–C16 (menü geçişi):** geri tuşuyla başlangıç sayfasına dönünce şerit 15 sn dönüyor ve yanlış menü seçili kalıyordu; açık sayfanın
+  bağlantısına / logoya tık beklemeyi iptal etmiyordu; 15 sn güvenlik süresi her adres değişiminde baştan başlıyordu; ekran okuyucu "Sayfa
+  yükleniyor"u iki kez okuyordu. Dördü de düzeldi.
+- **C17 (güvenlik, veri sızıntısı yoktu):** `/%69nbox` gibi yüzde kodlu özel adres ara katmanın giriş yönlendirmesini atlıyor, yalnız sayfa
+  kapısı durduruyordu. Yol artık çözülerek sınıflanıyor; bozuk kodlama ya da çözümde `..` → girişe.
+
+### Soru (gevşetme yönü — önce/sonra) — Kayıp anahtar ağının anlam belirsizliği fazla tutuşları
+Ağ yalnız SIKILAŞTIRIR; fazla tutuş = misafire cevap gitmez + size "Acil" e-posta. İnceleme şunları buldu (hepsi bu gece başladı):
+
+| Misafir mesajı | Bugün (dün geceden beri) | Önerim |
+|---|---|---|
+| "Bisikletleri dışarıda kilitli bırakabilir miyiz?" | tutulur + Acil e-posta | cevap gider ("dışarıda kilitli" kalıbı → "dışarıda kilitli kaldık / kilitliyiz") |
+| "Ayer nos quedamos fuera hasta tarde, ¿a qué hora cierra la piscina?" | tutulur + Acil | cevap gider ("nos quedamos fuera" → yalnız "fuera del / de la …" ile) |
+| "On s'est perdu, où est la boîte à clés ?" / "Мы потерялись, где ключи?" | tutulur + Acil | cevap gider (İngilizce eşi "We got lost, where is the key box?" zaten gidiyor — pinli) |
+| "We can't find parking, where is the key box?" / "Park yeri bulamadık, anahtarı nereden alıyoruz?" | tutulur + Acil | cevap gider (fiil başka nesneye bağlı; virgülden sonra soru) |
+| "Anahtarları masaya bıraktık, bir bardak kırıldı kusura bakmayın" / "Keys are on the table, nothing is missing" | tutulur + Acil | **tutulur ama Acil DEĞİL** (kırılma bildirimi size zaten gider; anahtar kaybı değil) |
+| "Wir haben unsere Anreise auf Freitag verlegt, wo bekommen wir den Schlüssel?" | tutulur + Acil | cevap gider ("verlegt" burada "ertelendi") |
+
+Önerilen yöntem: genel durum sözcükleri ("kırıldı", "missing", "is empty", "kayıp") anahtar sözcüğüne BİTİŞİK olmalı (en çok iki sözcük
+arayla); "bulamadık / can't find / lost our" virgülle ayrılmış ve ardından soru gelen yan cümlede başka nesneye bağlıysa anahtarla
+eşleşmez. Kaybetme fiili + anahtar aynı yan cümlede olduğu sürece ("Anahtarı, sanırım restoranda, kaybettim" dahil) tutuş aynen kalır.
+**Böyle yapalım mı, yoksa "anahtar + kayıp sözcüğü aynı cümlede → hep size" mi kalsın?** (Bilinerek tutulan: "Kayıp anahtar ücreti ne?"
+ve "anahtarı unuttuğumuzda ne yapmalıyız?" — ek okunmaz, K-1029-C.)
+
+### K-1029-A ücretsiz tekrar oynatma (tasarım S13) — ölçüldü, iki kaçak kapatıldı
+`tests/eval/host-contact-replay.ts` → `docs/olcum/host-contact-replay-2026-10-30.md`. Geçmiş ölçümlerin 3.274 model cevabı (kurgusal fikstür,
+model çağrısı yok) eski (0e0e1a1e) ve yeni süzgeçten + kapının metne bakan iki kuralından ("bilgim yok" itirafı, çıktı vetosu) geçirildi.
+- **İlk koşu bir sorun buldu (düzeltildi):** silme, eskiden TAMAMI tutulan 74 cevabı kapıdan geçiriyordu. En kötüleri: K10 devir bildirimi
+  ("ваше сообщение сохранено, хозяин может его увидеть") silinince yanındaki "это решение хозяина" (ev sahibinin kararı) cümlesi misafire
+  gidiyordu; geriye yalnız "Здравствуйте, Alex!" selamı kalıp o gidiyordu. Düzeltme: devir / kayıt / görünürlük bildirimi SİLİNMEZ (K10
+  "hiçbir şey gitmesin" — veto ve "bilgim yok" kuralı cevabı eskisi gibi tutar), kalan metin kararı ev sahibine bırakıyorsa ya da yalnız
+  selam kaldıysa cevabın tamamı tutulur. Kırmızı-önce: 5 test eski süzgeçte kırmızı.
+- **Son durum:** sistem düzeyinde YENİ tutuş 0; eskiden tutulup şimdi giden 15 cevap — hepsi "gerçek bilgi + yönlendirme" ("Size ayrılan
+  otopark yeri P2." + "kuaför için ev sahibiniz bilgi verebilir" → yalnız ilk cümle gider, kuaför sorusu size açık kalır). Bu K-1029-A'nın
+  istediği davranış; 15 örneğin tamamı raporda önce/sonra yazılı.
+- **Açık bulgu (soru, kodlanmadı):** bu 15'ten biri "Telefon numarası paylaşılmamış." — bir "bilgim yok" cümlesi, ama "bilgim yok"
+  dedektörü "paylaşılmamış"ı tanımıyor (eskiden yanındaki yönlendirme yüzünden tutuluyordu). Önerim: dedektöre "<bilgi adı> paylaşılmamış /
+  paylaşılmadı / hasn't been shared" eklemek (yalnız tutar; "Wi-Fi şifresi henüz paylaşılmamış" da size kalır). Ekleyeyim mi?
+- **A13 (kapı yedeği) bilerek YAPILMADI:** bugün süzgeçten SONRA metni değiştiren yollar yalnız silen konu süzgeci ve kurucunun onayladığı
+  sabit kod metinleri (erken giriş, müsaitlik); yedek bu kod metinlerini tutabilirdi. Yeni bir "metni değiştiren" yol eklenirse yeniden ele alınır.
+- **A12 (kısmi gönderim acil durdurma) eklendi:** `AI_HOST_CONTACT_PARTIAL_DISABLED=1` → konulu silmede cevabın tamamı tutulur (varsayılan
+  kapalı; açılış belgesinde).
+
+### Haiku 5.5 inceleme döngüsü (inceleme düzeltmeleri üstüne) — 7 bulgu, hepsi düzeltildi + testli
+Almanca bileşik sözcük ("Hausschlüssel vergessen") sözcük başı sınırıyla kaçıyordu · "I locked my keys" (iyelikli, "inside"sız) düşmüştü ·
+"There is no key deposit, right?", "Нет ключа от Wi-Fi" (Wi-Fi şifresi) ve "The lockbox is not empty" yanlışlıkla Acil oluyordu · aynı
+kayıp anahtar sorununu yineleyen YENİ mesaj ("Hâlâ anahtar yok, kapıdayız") önceliği yükseltmiyordu (artık: ilk bildirim ya da turun en
+yeni mesajı acil isteği taşıyorsa) · "#icerik" atlama bağlantısı ve aynı menüye ikinci tık gezinme göstergesini bozuyordu.

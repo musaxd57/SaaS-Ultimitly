@@ -22,6 +22,13 @@ describe("erişim kaybı ağı — uzun girdide sınırlı süre", () => {
     ["'kaybett' × 7.000 (fiil var, nesne yok)", "kaybett ".repeat(7_000), false],
     ["'anahtar kaybet. ' × 3.000 (çok cümle, varsayım biçimi)", "anahtar kaybet. ".repeat(3_000), false],
     ["'locked ' × 8.000", "locked ".repeat(8_000), false],
+    // 10-30 C7: kutu + boşluk penceresi (sınırlı tekrar) — kutu adı tekrarı, kutu + 3 sözcük tekrarı, boşluk sözcüğü tekrarı
+    ["'lockbox ' × 8.000", "lockbox ".repeat(8_000), false],
+    ["'lockbox x x x ' × 4.000", "lockbox x x x ".repeat(4_000), false],
+    ["'empty ' × 9.000", "empty ".repeat(9_000), false],
+    ["kutu + 50.000 boşluk + boş (aradaki yalnız boşluk: 'lockbox empty')", "lockbox" + " ".repeat(50_000) + "empty", true],
+    ["kutu + 50.000 boşluk + başka sözcük", "lockbox" + " ".repeat(50_000) + "x", false],
+    ["'forgot my ' × 5.000", "forgot my ".repeat(5_000), false],
     ["uzun metnin SONUNDA kayıp", "Merhaba, ".repeat(5_000) + "anahtarı kaybettim", true],
   ])("%s → 400 ms altında, hüküm doğru", (_ad, girdi, beklenen) => {
     isAccessLossText("ısınma: anahtarı kaybettim");

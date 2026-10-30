@@ -69,6 +69,63 @@ describe("erişim kaybı — tutulması gereken mesajlar (her dilde)", () => {
     "Не могу найти ключи",
     "فقدت المفتاح",
     "لا أجد المفاتيح",
+    // 10-30 sert inceleme C7: kapı önünde boş kutu / kutuda anahtar yok (yedi dilde kaçıyordu)
+    "There's no key in the lockbox",
+    "No keys in the lockbox!",
+    "The key isn't in the lockbox",
+    "We opened the lockbox but it was empty",
+    "Kodu girdim, kutu açıldı ama anahtar yok",
+    "Anahtar kutusunu açtık ama boş",
+    "Der Schlüsselkasten ist leer",
+    "Kein Schlüssel im Schlüsselkasten",
+    "Il n'y a pas de clé dans la boîte",
+    "La boîte à clés est vide",
+    "No hay llave en la caja",
+    "В ключнице нет ключа",
+    "Ключница пустая",
+    "لا يوجد مفتاح في الصندوق",
+    "Empty lockbox, help!",
+    // C8: kaybolma / içeride kalma / klavyesiz Almanca yazım
+    "The keys are gone",
+    "Der Schlüssel ist weg",
+    "Der Schlüssel ist verschwunden",
+    "Les clés ont disparu",
+    "Je n'arrive pas à trouver les clés",
+    "Ключи пропали",
+    "Ключ потерян",
+    "Дверь захлопнулась, ключи внутри",
+    "I left my keys inside and the door closed behind me",
+    "Las llaves se quedaron dentro",
+    "Ich habe meinen Schluessel verloren",
+    "المفتاح ضائع",
+    // C1 sınır düzeltmesinden SONRA da tutulanlar (sözcük sınırı gerçek kalıbı kesmez)
+    "I forgot my keys",
+    "I forgot my key card",
+    "I locked my keys inside",
+    "I locked the keys in the apartment",
+    "LOCKED OUT",
+    // Tasarım S11 (10-30): yere bağlı kapıda kalma (yedi dil) + kapalı yazım hatası listesi
+    "Eve giremiyoruz",
+    "Daireye giremiyorum, kapı açılmıyor",
+    "Binaya giremedik",
+    "We can't get into the apartment",
+    "We cannot get into the flat",
+    "Wir kommen nicht in die Wohnung",
+    "No podemos entrar al piso",
+    "On ne peut pas entrer dans l'appartement",
+    "Мы не можем попасть в квартиру",
+    "لا نستطيع دخول الشقة",
+    "anahtarı kaybetdim",
+    "Anathar kayboldu",
+    "anahtra bulamıyorum",
+    "aanhtarı kaybettim",
+    // Haiku 10-30 (inceleme döngüsü): Almanca bileşik baş sözcük; iyelikli çıplak kilitleme; yerli Rusça yokluk
+    "Ich habe meinen Hausschlüssel vergessen",
+    "Ich habe meinen Hausschlüssel verloren",
+    "Wir haben den Haustürschlüssel vergessen",
+    "I think I locked my keys, can you come?",
+    "I locked my key",
+    "Нет ключа в ключнице",
   ])("%j → access_security", (m) => {
     expect(isAccessLossText(m)).toBe(true);
     expect(detectRiskTypes(m)).toContain("access_security");
@@ -108,6 +165,26 @@ describe("erişim kaybı — KONTROL: dokunulmayan mesajlar", () => {
     "I lost my keyboard charger",
     // Ayrık olumsuzluk iki parçası birlikte aranır: yalnız "nicht" kayıp değildir
     "Den Schlüssel brauchen wir nicht mehr.",
+    // 10-30 sert inceleme C1: kalıp BAŞKA SÖZCÜĞÜN İÇİNDE ("clocked out", "blocked out", "keyboard"); çıkışta kutuyu kilitlemek
+    "I just clocked out from work, heading over now. What's the wifi password?",
+    "The blackout curtains blocked out the light perfectly, thank you!",
+    "I forgot my keyboard at home, is there one in the apartment?",
+    "We checked out, put the keys back and locked the key box.",
+    // C6: "finde" alt dizesi "findet / befindet" içinde
+    "Findet die Schlüsselübergabe nicht persönlich statt?",
+    "Wo befindet sich der Schlüssel? Nicht im Kasten?",
+    // S11: soru biçimi ve izin sorusu yer bağlı kalıba girmez (çıplak "giremiyor" bilerek yok)
+    "Daireye erken giremiyor muyuz?",
+    "Can we get into the apartment early?",
+    // Haiku 10-30: yersiz "no key" (depozito / modem), Wi-Fi "ключ" (şifre), olumsuz kutu cümlesi, çıkışta masaya bırakılan anahtar
+    "There is no key deposit, right?",
+    "There's no key needed for the router",
+    "Нет ключа от Wi-Fi, подскажите пароль",
+    "The lockbox is not empty, the code works",
+    "The key box isn't empty, the key is inside",
+    "Anahtar kutusu boş değil, kod çalışıyor",
+    "Der Schlüsselkasten ist nicht leer",
+    "I left my keys on the table at checkout",
   ])("%j → access_security DEĞİL", (m) => {
     expect(isAccessLossText(m)).toBe(false);
     expect(detectRiskTypes(m)).not.toContain("access_security");

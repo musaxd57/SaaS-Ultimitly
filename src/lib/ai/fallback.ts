@@ -2720,9 +2720,14 @@ export function isSafetyEmergencyText(message: string): boolean {
 // yol / soru anlamı yaygın (ölçüldü: "Trafikte sıkıştık, anahtarı nereden alacağız?"); onlar yalnız bitişik kalıp olarak (↓LOCKOUT).
 /** Önek eşleşen nesneler (Türkçe / Almanca / Rusça ek alır: anahtarı, anahtarlarımızı, Schlüsselkarte, ключи). */
 const ACCESS_PREFIX_OBJECTS = [
-  "anahtar", "kapı kart", "oda kart", "giriş kart", "otopark kumanda", "garaj kumanda", "bariyer kumanda", "kapı kumanda",
-  "schlüssel", "zimmerkarte", "türkarte", "ключ",
+  "anahtar",
+  // Yazım hatası (10-29 gece sağlamlık ölçümü kaçırdı; kapalı liste, yalnız TUTMA yönü).
+  "anathar", "anahtra", "aanhtar", "anhtar",
+  "kapı kart", "oda kart", "giriş kart", "otopark kumanda", "garaj kumanda", "bariyer kumanda", "kapı kumanda",
+  "zimmerkarte", "türkarte", "ключ",
 ];
+/** Almanca bileşik baş sözcük — SÖZCÜK İÇİNDE de (Haus·schlüssel, Zimmer·schlüssel, Haustür·schlüssel; Haiku 10-30: sözcük başı sınırı bileşiği düşürüyordu). */
+const ACCESS_COMPOUND_OBJECTS = ["schlüssel"];
 /** Tam sözcük eşleşen nesneler ("Turkey" içindeki "key", "keyboard" sayılmaz). Çıplak "kart / card / kumanda" YOK: kredi kartı, TV kumandası. */
 const ACCESS_WHOLE_OBJECTS = [
   "key", "keys", "keycard", "keycards", "key card", "key cards", "key-card", "room card", "door card", "access card", "fob", "fobs",
@@ -2739,29 +2744,55 @@ const ACCESS_SUBSTRING_OBJECTS = ["مفتاح", "مفاتيح"];
 const ACCESS_LOSS_VERBS: ReadonlyArray<string | readonly string[]> = [
   // TR
   // Yazım hatası / duyulan geçmiş zaman (kapalı liste, yalnız TUTMA yönü — 10-29 gece hakem ölçümü): "kaybetim", "kaybetmişim".
-  "kaybett", "kaybetim", "kaybetik", "kaybetmiş", "kayboldu", "kaybolmuş", "kayıp", "bulamıyo", "bulamad", "çaldırd", "çalındı", "çalınmış", "içeride unuttu", "içerde unuttu",
+  "kaybett", "kaybetim", "kaybetik", "kaybetdim", "kaybetdik", "kaybetmiş", "kayboldu", "kaybolmuş", "kayıp", "bulamıyo", "bulamad", "çaldırd", "çalındı", "çalınmış", "içeride unuttu", "içerde unuttu",
   "içeride kaldı", "içerde kaldı", "almayı unuttu", "kilitte kırıldı", "kilitte kaldı", "kilitte sıkıştı", "kilitte takıl", "kırıldı",
-  "kırılmış", "kutusu boş", "kutuda anahtar yok", "kutusunda anahtar yok", "kutuda yok", "kutusunda yok", "yerinde yok", "bırakılmamış",
+  "kırılmış", "kutuda anahtar yok", "kutusunda anahtar yok", "kutuda yok", "kutusunda yok", "yerinde yok", "bırakılmamış",
+  // 10-30 sert inceleme C7 (kaçırılan kapı önü bildirimi; "ama anahtar yok" ↓kilitli kalma kalıplarında — "ama" cümleyi böler).
+  "içinde anahtar yok", "anahtar yoktu", "anahtarlar yoktu",
   // EN ("lost" çıplak değil: "we got lost" yol kaybıdır)
   "lost my", "lost our", "lost the", "lost his", "lost her", "lost a ", "lost an ", "lost both", "lost one", "lost all", "lost them",
   "lost it", "i lost", "we lost", "lost key", "lost card", "key is lost", "keys are lost", "key was lost", "keys were lost", "i've lost", "we've lost", "ive lost", "weve lost", "have lost", "has lost", "had lost", "been lost",
   "can't find", "can’t find", "cant find", "cannot find", "can not find", "couldn't find", "couldn’t find", "couldnt find",
   "unable to find", "misplaced", "stolen", "stole", "broke in the lock", "broke off", "key broke", "keys broke", "is broken", "snapped",
   "stuck in the lock", "stuck in the door", "missing", "is empty", "was empty", "’s empty", "'s empty",
+  // C7 / C8 (10-30): nesneyle bitişik yokluk / kaybolma ("There's no key in the lockbox", "The keys are gone").
+  "no key in", "no keys in", "no key inside", "no keys inside", "key isn't in", "key isn’t in", "key is not in", "keys aren't in",
+  "keys aren’t in", "keys are not in", "key wasn't in", "key wasn’t in", "key was not in", "keys weren't in", "keys weren’t in",
+  "keys were not in",
+  "key is gone", "keys are gone", "key was gone", "keys were gone", "key's gone", "key’s gone", "keys gone", "key disappeared",
+  "keys disappeared", "key has disappeared", "keys have disappeared", "keys vanished",
   // DE
-  "verloren", "verlegt", ["finde", "nicht"], "gestohlen", "geklaut", "abgebrochen", "drinnen vergessen", "in der wohnung vergessen",
+  // ["finde", "nicht"] TAM SÖZCÜK olarak ↓ACCESS_LOSS_VERB_RES'de (10-30 C6: alt dize "findet / befindet / stattfinden" içinde eşleşiyordu).
+  "verloren", "verlegt", "gestohlen", "geklaut", "abgebrochen", "drinnen vergessen", "in der wohnung vergessen",
   "steckt fest", "ist leer",
+  "kein schlüssel im", "kein schlüssel in", "keine schlüssel im", "keine schlüssel in", "schlüssel ist nicht im", "schlüssel war nicht im",
+  "schlüssel sind nicht im", "schlüssel waren nicht im", "schlüssel ist weg", "schlüssel sind weg", "schlüssel war weg", "schlüssel waren weg",
+  "schlüssel ist verschwunden", "schlüssel sind verschwunden",
   // FR
   "perdu", "égaré", "trouve pas", "trouve plus", "trouvons pas", "trouvons plus", "volé", "cassé", "est vide", "coincé dans", "coincée dans",
+  "pas à trouver", "plus à trouver", "pas de clé dans", "pas de clés dans", "pas de clef dans", "clé n'est pas dans", "clé n’est pas dans",
+  "clés ne sont pas dans", "clé n'était pas dans", "clé n’était pas dans", "clés n'étaient pas dans", "clés n’étaient pas dans",
+  "clé a disparu", "clés ont disparu", "clé est introuvable", "clés sont introuvables", "clé introuvable", "clés introuvables",
   // ES
   "perdí", "perdido", "perdida", "perdimos", "no encuentro", "no encontramos", "no puedo encontrar", "no podemos encontrar", "robaron",
   "robado", "robada", "se rompió", "está rota", "está vacía", "atascada",
+  "no hay llave en", "no hay llaves en", "no había llave", "no había llaves", "llave no está en", "llaves no están en", "no estaba la llave",
+  "no estaban las llaves", "llave desapareció", "llaves desaparecieron", "se quedaron dentro", "se quedó dentro", "se quedaron adentro",
+  "se quedó adentro",
   // RU
   "потерял", "не могу найти", "не можем найти", "не нахожу", "не находим", "украли", "украден", "сломал", "забыл внутри", "забыли внутри",
   "застрял в замке", "пустой", "пустая", "пусто",
+  // Çıplak "нет ключа" YOK ("Нет ключа от Wi-Fi" = Wi-Fi şifresi; Haiku 10-30): yalnız yerle ("в ключнице нет", "нет ключа в").
+  "ключнице нет", "нет ключа в", "нет ключей в", "не было ключа в", "не было ключей в", "ключ пропал", "ключи пропали", "пропал ключ", "пропали ключи",
+  "ключ потерян", "ключи потеряны", "потерян ключ", "потеряны ключи", "ключ исчез", "ключи исчезли", "исчез ключ", "исчезли ключи",
   // AR
   "فقدت", "فقدنا", "أضعت", "اضعت", "أضعنا", "اضعنا", "ضاع", "لا أجد", "لا اجد", "لم أجد", "لم اجد", "لا نجد", "لم نجد", "سرق", "انكسر",
-  "فارغ",
+  "فارغ", "لا يوجد مفتاح", "لا توجد مفاتيح", "لا يوجد المفتاح", "لا توجد المفاتيح", "المفتاح ضائع", "المفاتيح ضائعة", "مفتاح ضائع",
+  "مفاتيح ضائعة", "اختفى المفتاح", "اختفت المفاتيح",
+];
+/** Tam sözcük gerektiren ayrık parçalar (hepsi aynı cümlede; 10-30 C6: Almanca "finde … nicht", "findet / befindet" DEĞİL). */
+const ACCESS_LOSS_VERB_RES: readonly (readonly RegExp[])[] = [
+  [/(?<![\p{L}\p{N}])finden?(?![\p{L}\p{N}])/u, /(?<![\p{L}\p{N}])nicht(?![\p{L}\p{N}])/u],
 ];
 /**
  * Nesnesiz (ya da nesneye BİTİŞİK) kilitli kalma / içeride unutma kalıpları. Acil ağının kilitli kalma kalıpları ("locked out",
@@ -2773,37 +2804,87 @@ const ACCESS_LOSS_VERBS: ReadonlyArray<string | readonly string[]> = [
 const ACCESS_LOCKOUT_PHRASES = [
   "locked out", "kilitli kaldık", "kilitli kaldım", "dışarıda kilitli", "ausgesperrt", "enfermé dehors", "enfermés dehors",
   "porte claquée", "me quedé fuera", "nos quedamos fuera", "encerrado fuera", "encerrada fuera", "захлопнул дверь", "захлопнулась дверь",
-  "محبوس في الخارج",
   "kapıda kaldık", "kapıda kaldım", "kendimi dışarıda kilitledim", "kendimizi dışarıda kilitledik", "kapı üstüme kapandı",
   "kapı üzerime kapandı", "anahtarı unuttu", "anahtarımı unuttu", "anahtarları unuttu", "anahtarlarımı unuttu", "anahtarımızı unuttu",
   "anahtarlarımızı unuttu",
-  "locked myself out", "locked ourselves out", "locked us out", "locked me out", "forgot my key", "forgot our key", "forgot the key",
-  "locked the key", "locked my key", "locked our key",
-  "schlüssel vergessen", "oublié la clé", "oublié les clés", "oublié mes clés", "olvidé la llave", "olvidé las llaves", "olvidé mis llaves",
-  "забыл ключ", "забыла ключ", "забыли ключ", "نسيت المفتاح", "نسيت المفاتيح", "نسيت مفتاح",
+  "locked myself out", "locked ourselves out", "locked us out", "locked me out",
+  // "forgot my key" / "locked the key" → ↓ACCESS_KEY_LOCKOUT_RE (10-30 C1: "keyboard", çıkışta "locked the key box").
+  "oublié la clé", "oublié les clés", "oublié mes clés", "olvidé la llave", "olvidé las llaves", "olvidé mis llaves",
+  "забыл ключ", "забыла ключ", "забыли ключ", "дверь захлопнулась",
+  // C7 (10-30): "Kodu girdim, kutu açıldı ama anahtar yok" — karşıtlık bağlacı cümleyi böldüğü için tam cümlede aranır.
+  "ama anahtar yok", "fakat anahtar yok", "ancak anahtar yok",
+  // Tasarım S11 (10-30): YERE BAĞLI ve BİLDİRİM biçimi ("giremiyoruz"; soru "giremiyor muyuz" ayrı sözcük taşır, eşleşmez). Çıplak
+  // "giremiyor" ALINMAZ (↑erken giriş sorusu). Bilinen fazla tutuş (güvenli yön): "Saat 14'ten önce daireye giremiyoruz değil mi?".
+  "eve giremiyoruz", "eve giremiyorum", "eve giremedik", "eve giremedim", "daireye giremiyoruz", "daireye giremiyorum", "daireye giremedik",
+  "daireye giremedim", "binaya giremiyoruz", "binaya giremiyorum", "binaya giremedik", "binaya giremedim", "içeri giremiyoruz",
+  "içeri giremiyorum", "içeri giremedik", "içeri giremedim", "içeriye giremiyoruz", "içeriye giremiyorum",
+  "can't get into the apartment", "can’t get into the apartment", "cannot get into the apartment", "can't get into the flat",
+  "can’t get into the flat", "cannot get into the flat", "can't get into the house", "can’t get into the house", "cannot get into the house",
+  "can't get into the building", "can’t get into the building", "cannot get into the building", "couldn't get into the apartment",
+  "couldn’t get into the apartment",
+  "kommen nicht in die wohnung", "kommen nicht rein", "komme nicht in die wohnung", "komme nicht rein",
+  "no podemos entrar al piso", "no podemos entrar al apartamento", "no podemos entrar a la casa", "no puedo entrar al piso",
+  "no puedo entrar al apartamento",
+  "on ne peut pas entrer dans l'appartement", "on ne peut pas entrer dans l’appartement", "nous ne pouvons pas entrer dans l'appartement",
+  "je ne peux pas entrer dans l'appartement",
+  "не можем попасть в квартиру", "не могу попасть в квартиру", "не можем войти в квартиру", "не могу войти в квартиру",
 ];
+/** Alt dize: Arapça (ön ek bitişik — و / ف) ve Almanca bileşik ("Hausschlüssel vergessen"). */
+const ACCESS_LOCKOUT_SUBSTRINGS = [
+  "schlüssel vergessen","محبوس في الخارج", "نسيت المفتاح", "نسيت المفاتيح", "نسيت مفتاح", "لا نستطيع دخول الشقة", "لا أستطيع دخول الشقة"];
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 // Aksan sökülmüş biçim de (ölçüldü 10-29 gece, sağlamlık kolu: "J'ai perdu la cle" — aksansız "clé" — eşleşmiyordu; Türkçe katlama
 // yalnız Türkçe harfleri iner, é / í / á kalır).
 const stripMarks = (w: string) => w.normalize("NFD").replace(/\p{M}/gu, "").normalize("NFC");
-const allFolds = (w: string) => [w, foldTurkishAscii(w), stripMarks(foldTurkishAscii(w))];
+// Almanca klavyesiz yazım ("Schluessel", 10-30 C8): ü/ö/ä → ue/oe/ae, ß → ss — yalnız eşleşme EKLER.
+const umlautDigraphs = (w: string) => w.replace(/ü/g, "ue").replace(/ö/g, "oe").replace(/ä/g, "ae").replace(/ß/g, "ss");
+const allFolds = (w: string) => [w, foldTurkishAscii(w), stripMarks(foldTurkishAscii(w)), umlautDigraphs(w)];
 const bothFolds = (words: readonly string[]) => [...new Set(words.flatMap(allFolds))];
 // Sabit genişlikli geriye bakış + düz alternatif listesi — doğrusal (ReDoS kuralı, `access-loss-cost.test.ts`).
 const ACCESS_OBJECT_RE = new RegExp(
   `(?<![\\p{L}\\p{N}])(?:${bothFolds(ACCESS_PREFIX_OBJECTS).map(escapeRe).join("|")})` +
     `|(?<![\\p{L}\\p{N}])(?:${bothFolds(ACCESS_WHOLE_OBJECTS).map(escapeRe).join("|")})(?![\\p{L}\\p{N}])` +
-    `|${ACCESS_SUBSTRING_OBJECTS.map(escapeRe).join("|")}`,
+    `|${[...ACCESS_SUBSTRING_OBJECTS, ...bothFolds(ACCESS_COMPOUND_OBJECTS)].map(escapeRe).join("|")}`,
   "u",
 );
 const ACCESS_LOSS_VERB_FORMS: readonly (readonly string[])[] = (() => {
   const out = new Map<string, readonly string[]>();
   for (const v of ACCESS_LOSS_VERBS) {
     const toks = typeof v === "string" ? [v] : v;
-    for (const form of [toks, toks.map(foldTurkishAscii), toks.map((t) => stripMarks(foldTurkishAscii(t)))]) out.set(form.join("\u0000"), form);
+    for (const form of [toks, toks.map(foldTurkishAscii), toks.map((t) => stripMarks(foldTurkishAscii(t))), toks.map(umlautDigraphs)]) {
+      out.set(form.join("\u0000"), form);
+    }
   }
   return [...out.values()];
 })();
-const ACCESS_LOCKOUT_FORMS = bothFolds(ACCESS_LOCKOUT_PHRASES);
+// Sözcük BAŞINDA (10-30 C1: "clocked out" / "blocked out" içindeki "locked out" kilitli kalma değildi). Arapça ayrı (ön ek bitişik).
+const ACCESS_LOCKOUT_RE = new RegExp(
+  `(?<![\\p{L}\\p{N}])(?:${bothFolds(ACCESS_LOCKOUT_PHRASES).map(escapeRe).join("|")})` +
+    `|${bothFolds(ACCESS_LOCKOUT_SUBSTRINGS).map(escapeRe).join("|")}`,
+  "u",
+);
+/** İngilizce "anahtarı unuttum / içeride kilitledim": "key" SÖZCÜK olarak ("keyboard" değil); "locked the key" yalnız "in / inside" ile
+ * ("locked the key box" çıkışta kutuyu kilitlemektir — 10-30 C1). */
+const ACCESS_KEY_LOCKOUT_RE =
+  /(?<![\p{L}\p{N}])(?:(?:forgot|forgotten) (?:my|our|the) key(?:s|cards?)?(?![\p{L}\p{N}])|locked (?:my|our) key(?:s|cards?)?(?![\p{L}\p{N}])|(?:locked the|left (?:my|our|the)) key(?:s|cards?)? (?:in|inside)(?![\p{L}\p{N}]))/u;
+// C7 (10-30): kutu açıldı ama boş — "We opened the lockbox but it was empty" ("but" cümleyi böler). Kutu adı ile boşluk sözcüğü arasında
+// en çok 3 sözcük, araya virgül girmez ("…keys in the lockbox, the fridge is empty" kutu değil buzdolabı); sınırlı tekrar, ayrık karakter
+// sınıfları — doğrusal. Ters sıra ("empty lockbox") bitişik.
+const ACCESS_CONTAINERS = bothFolds([
+  "lockbox", "lock box", "key box", "keybox", "key safe", "keysafe", "anahtar kutu", "schlüsselkasten", "schlüsselbox", "schlüsseltresor",
+  "boîte à clé", "boîte à clés", "boîte à clef", "caja de llaves", "caja de la llave", "caja de seguridad", "ключниц",
+]).map(escapeRe).join("|");
+// Rusça "пуст" önek (пустой / пустая / пусто); diğerleri tam sözcük.
+const ACCESS_EMPTY = `(?:${bothFolds(["empty", "boş", "boştu", "boşmuş", "leer", "vide", "vacía", "vacío"]).map(escapeRe).join("|")})(?![\\p{L}\\p{N}])|пуст`;
+const ACCESS_CONTAINER_EMPTY_RE = new RegExp(
+  `(?<![\\p{L}\\p{N}])(?:${ACCESS_CONTAINERS})[\\p{L}]{0,6}(?:[^\\p{L}\\p{N},،]+[\\p{L}\\p{N}]+){0,3}?[^\\p{L}\\p{N},،]+(?:${ACCESS_EMPTY})` +
+    `|(?<![\\p{L}\\p{N}])(?:empty)[^\\p{L}\\p{N}]+(?:${ACCESS_CONTAINERS})`,
+  "u",
+);
+const ACCESS_SENTENCE_SPLIT = /[.!?;\n\r…¿¡]+/u;
+/** Kutu–boş penceresinde olumsuzluk ("The lockbox is not empty", "isn't empty", "boş değil", "nicht leer") → boş DEĞİL (Haiku 10-30). */
+// "isn't" eşleme biçiminde "isn t" de olur (kesme işareti boşluğa iner).
+const ACCESS_EMPTY_NEGATION = /(?<![\p{L}\p{N}])(?:not|isnt|wasnt|değil|degil|nicht|kein|pas|no|не)(?![\p{L}\p{N}])|n[ '’]t(?![\p{L}\p{N}])/u;
 /** Cümle sınırı: noktalama + karşıtlık bağlacı ("anahtarı aldım ama cüzdanımı kaybettim"). Virgül cümleyi BÖLMEZ ("Anahtarı, sanırım
  * restoranda, kaybettim"); "ve / and" de bölmez ("I lost my wallet and keys"). */
 const ACCESS_CLAUSE_SPLIT = /[.!?;\n\r…¿¡]+|\s(?:ama|fakat|ancak|lakin|but|however|aber|mais|pero|но|لكن)\s/u;
@@ -2816,11 +2897,16 @@ const ACCESS_CLAUSE_SPLIT = /[.!?;\n\r…¿¡]+|\s(?:ama|fakat|ancak|lakin|but|h
 export function isAccessLossText(message: string): boolean {
   for (const raw of restrictiveMatchForms(message)) {
     const form = raw.replace(/\s+/g, " ");
-    if (ACCESS_LOCKOUT_FORMS.some((p) => form.includes(p))) return true;
+    if (ACCESS_LOCKOUT_RE.test(form) || ACCESS_KEY_LOCKOUT_RE.test(form)) return true;
+    for (const sentence of form.split(ACCESS_SENTENCE_SPLIT)) {
+      const m = ACCESS_CONTAINER_EMPTY_RE.exec(sentence);
+      if (m && !ACCESS_EMPTY_NEGATION.test(m[0]) && !ACCESS_EMPTY_NEGATION.test(sentence.slice(m.index + m[0].length, m.index + m[0].length + 12))) return true;
+    }
     if (!ACCESS_OBJECT_RE.test(form)) continue;
     for (const clause of form.split(ACCESS_CLAUSE_SPLIT)) {
       if (!clause || !ACCESS_OBJECT_RE.test(clause)) continue;
       if (ACCESS_LOSS_VERB_FORMS.some((toks) => toks.every((t) => clause.includes(t)))) return true;
+      if (ACCESS_LOSS_VERB_RES.some((res) => res.every((re) => re.test(clause)))) return true;
     }
   }
   return false;

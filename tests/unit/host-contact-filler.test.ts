@@ -310,4 +310,31 @@ describe("bağlantı — suggestReply", () => {
     expect(r.hostContactOnly).toBe(true);
     expect(autoReplyGateVerdict(r, "Elektrik yok")?.detail).toBe("reply_host_contact_only");
   });
+
+  // Tasarım A12 (10-30): kısmi gönderim ACİL DURDURMA — varsayılan kapalı, yalnız "1".
+  const TOPICAL = "Otopark binanın arkasında, ücretsizdir. Otopark için ev sahibinize yazın.";
+  it("A12 kapalı (varsayılan / 'true'): konulu silmede kalan doğru cevap gider", async () => {
+    for (const v of ["", "true", "0"]) {
+      vi.stubEnv("AI_HOST_CONTACT_PARTIAL_DISABLED", v);
+      openAiReturns(TOPICAL);
+      const r = await suggestReply(input("Otopark var mı?"));
+      expect(r.reply, v).toBe("Otopark binanın arkasında, ücretsizdir.");
+      expect(r.hostContactOnly, v).toBeUndefined();
+    }
+  });
+  it("🚨 A12 açık ('1'): konulu silme cevabın TAMAMINI tutar; taslak yine silinmiş metin", async () => {
+    vi.stubEnv("AI_HOST_CONTACT_PARTIAL_DISABLED", "1");
+    openAiReturns(TOPICAL);
+    const r = await suggestReply(input("Otopark var mı?"));
+    expect(r.reply).toBe("Otopark binanın arkasında, ücretsizdir.");
+    expect(r.hostContactOnly).toBe(true);
+    expect(autoReplyGateVerdict(r, "Otopark var mı?")?.detail).toBe("reply_host_contact_only");
+  });
+  it("A12 açık: GENEL kapanış silmesi tutmaz; misafir olasılık sorduysa genel silme de tutar", async () => {
+    vi.stubEnv("AI_HOST_CONTACT_PARTIAL_DISABLED", "1");
+    openAiReturns("Otopark binanın arkasında, ücretsizdir. Bir sorun olursa ev sahibinize yazın.");
+    expect((await suggestReply(input("Otopark var mı?"))).hostContactOnly).toBeUndefined();
+    openAiReturns("Otopark binanın arkasında, ücretsizdir. Bir sorun olursa ev sahibinize yazın.");
+    expect((await suggestReply(input("Otopark dolarsa ne yapmalıyım?"))).hostContactOnly).toBe(true);
+  });
 });

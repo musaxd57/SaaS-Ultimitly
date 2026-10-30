@@ -3258,10 +3258,11 @@ export async function applyChannelAutoReply(
   //     prompt'a GERİ BESLENİR ("misafirin belirttiği çıkış saati: X"),
   //   · rule_violation (overstay/çıkışı reddetme) → misafirin REDDETTİĞİ saat
   //     kalıcılaşırdı ("11:00'de çıkmıyoruz" → rezervasyona 11:00).
-  // Deterministik dedektör, modelden bağımsız karar verir.
-  const statedRisk = result.statedCheckoutTime ? detectRiskType(last.body) : null;
+  // Deterministik dedektör, modelden bağımsız karar verir. BÜTÜN etiketler okunur (10-30 sert inceleme C9: yalnız ilk etiket okunuyordu;
+  // öncelikte önde gelen bir etiket — "We lost the key and we are not leaving at 11" → access_security — reddedilen saati gizliyordu).
+  const statedRisks = result.statedCheckoutTime ? detectRiskTypes(last.body) : [];
   const statedTimeTrusted =
-    statedRisk !== "prompt_injection" && statedRisk !== "rule_violation";
+    !statedRisks.includes("prompt_injection") && !statedRisks.includes("rule_violation");
   if (
     !options.dryRun &&
     result.statedCheckoutTime &&
@@ -6119,8 +6120,13 @@ export async function sendDueAlerts(
       }
       // Acil / enjeksiyon: bugünkü yol (Sorunlu + acil e-posta).
     }
-    // Karışık turda ACİL mesaj önce (Haiku 10-14: "yangın çıktı" + "iade istiyorum" → e-posta iade satırını alıntılıyordu).
-    const hit = pending.find((m) => !exceedsGuestMessageLimit(m.body) && emergencyHit(m)) ?? pending.find(alertHit);
+    // Karışık turda ACİL mesaj önce (Haiku 10-14: "yangın çıktı" + "iade istiyorum" → e-posta iade satırını alıntılıyordu); sonra KAYIP ANAHTAR
+    // (10-30 sert inceleme C10/C11: "Anahtarımı kaybettim, kapıdayız" + ardından "Ayrıca daire çok kirli" → en yeni şikâyet seçiliyordu,
+    // öncelik "Acil" yazılmıyor, e-posta yalnız kirli satırı alıntılıyordu — GD4 "öncelikli göster" tam kızgın misafirde bozuluyordu).
+    const hit =
+      pending.find((m) => !exceedsGuestMessageLimit(m.body) && emergencyHit(m)) ??
+      pending.find((m) => !exceedsGuestMessageLimit(m.body) && isAccessLossText(m.body)) ??
+      pending.find(alertHit);
     if (!hit) continue;
     // Uzun acil mesajda tam sınıflandırma yok: acil ağının bugünkü karşılığı ŞİKAYET + acil etiketidir.
     const hitTooLong = exceedsGuestMessageLimit(hit.body);

@@ -106,6 +106,31 @@ describe("ara katman — oturumsuz ziyaretçi", () => {
   );
 });
 
+describe("C17 (10-30): yüzde kodlu yol çözülerek sınıflanır", () => {
+  it.each([
+    ["/%69nbox", "private"],
+    ["/inbo%78", "private"],
+    ["/%69nbox/abc", "private"],
+    ["/%74asks/new", "private"],
+    ["/%67izlilik", "public"],
+    ["/c/%61bc", "public"],
+    ["/olmayan%20sayfa", "unknown"],
+    // Bozuk kodlama / çözümde nokta kesimi → kapalı-güvenli (girişe gider)
+    ["/%zz", "private"],
+    ["/c/..%2Finbox", "private"],
+    ["/c%2F..%2Finbox", "private"],
+  ] as const)("%s → %s", (path, cls) => {
+    expect(classifyPath(path)).toBe(cls);
+  });
+  it.each(["/%69nbox", "/inbo%78", "/%69nbox/abc", "/%74asks/new"])("oturumsuz %s → /login (sayfa kapısına kalmaz)", async (path) => {
+    expect(redirectTo(await reqAs(path, null))?.pathname).toBe("/login");
+  });
+  it("KONTROL: kodsuz açık yol ve bilinmeyen yol bugünkü gibi", async () => {
+    expect(redirectTo(await reqAs("/gizlilik", null))).toBeNull();
+    expect(redirectTo(await reqAs("/olmayan-bir-sayfa", null))).toBeNull();
+  });
+});
+
 describe("ara katman — oturum açık (değişmedi)", () => {
   it("personel bilinmeyen yolda da /tasks'e yönlenir (bugünkü kural)", async () => {
     expect(redirectTo(await reqAs("/olmayan-bir-sayfa", "staff"))?.pathname).toBe("/tasks");

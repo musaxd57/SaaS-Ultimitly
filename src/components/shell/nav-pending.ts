@@ -24,13 +24,21 @@ export function isPlainNavigationClick(e: {
   return !target || target === "_self";
 }
 
-/** Bekleyen gezinme bitti mi: adres başlangıçtakinden farklı ve rota iskeleti yok. */
-export function navigationSettled(fromHref: string, currentHref: string, skeletonOnScreen: boolean): boolean {
-  return currentHref !== fromHref && !skeletonOnScreen;
+/**
+ * Bekleyen gezinme bitti mi: adres başlangıçtakinden farklı (ya da bekleme sırasında bir kez ayrıldı — geri tuşu / logo ile başlangıç
+ * adresine dönüş, 10-30 sert inceleme C14: şerit 15 sn dönüyor, yanlış menü seçili kalıyordu) ve rota iskeleti yok.
+ */
+export function navigationSettled(fromHref: string, currentHref: string, skeletonOnScreen: boolean, leftFrom = false): boolean {
+  return (currentHref !== fromHref || leftFrom) && !skeletonOnScreen;
 }
 
 /** Güvenlik süresi: bu süreden sonra işaret her durumda kalkar (10 sn'lik "yavaş yükleme" uyarısı ayrıca çıkış yolu sunar). */
 export const NAV_PENDING_MAX_MS = 15_000;
+
+/** Güvenlik süresinin KALANI — TIKLAMADAN ölçülür (10-30 C15: her yol değişiminde süre baştan başlıyordu, şerit 15 sn'yi aşıyordu). */
+export function remainingPendingMs(startedAt: number, now: number): number {
+  return Math.max(0, NAV_PENDING_MAX_MS - (now - startedAt));
+}
 
 /** Rota iskeletlerinin ortak işareti (her `loading.tsx` kökünde). */
 export const ROUTE_SKELETON_ATTR = "data-route-skeleton";

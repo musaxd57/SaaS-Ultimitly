@@ -166,6 +166,10 @@ export const ESCALATION_REASONS = [
   "reply_pet_policy",
   // R13-b / R13-c (kurucu kararı 10-28 gece) — kanal kapısıyla AYNI işaret (`ai/host-contact-filler.ts`): cevap yalnız ev sahibine başvurma talimatı.
   "reply_host_contact_only",
+  // K-1029-A (kurucu 10-29 gece; tasarım S8): yönlendirme cümlesi silindi, kalan doğru cevap gitti AMA bir soru cevapsız kalmış olabilir
+  // (`host-contact-settle.ts hostContactOpenWithoutLedger`) → ev sahibine devir. Kapının kendisi bu dalı döndürmez; rota koyar
+  // (`chat/[token]/route.ts`, `door_code_in_reply` gibi).
+  "host_contact_open",
 ] as const;
 
 export type EscalationReason = (typeof ESCALATION_REASONS)[number];

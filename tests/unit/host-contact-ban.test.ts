@@ -220,3 +220,45 @@ describe("C4 — 'cevaplandı' kuralı (settle)", () => {
     ).toBe(true);
   });
 });
+
+// ── C5 — 10-30 TEKRAR OYNATMA (docs/olcum/host-contact-replay-2026-10-30.md) ─────────────────────────────────────────────────────────────
+// Silme, eskiden "yönlendirme = bilgim yok" kuralı ve çıktı vetosuyla TAMAMI tutulan cevapları kapıdan geçirebiliyordu (ölçüldü: 74 cevap).
+// Üç sınıf eski davranışa döner: K10 devir / kayıt bildirimi silinmez (veto tutar), kalan metin kararı ev sahibine bırakıyorsa ya da
+// geriye yalnız selam kalıyorsa cevabın tamamı tutulur.
+describe("C5 — silme eskiden tutulan cevabı kapıdan geçirmez", () => {
+  it.each([
+    // K10 bildirimi çıktı vetosunun kalıbıyla
+    "Erken giriş ev sahibinin kararıdır; mesajınız kaydedildi, ev sahibiniz görebilir.",
+    "Ранний заезд около 10:00 — это решение хозяина; ваше сообщение сохранено, и хозяин сможет его увидеть.",
+    // Vetonun kalıbında olmayan Rusça kayıt / görünürlük bildirimi
+    "Стандартное время заезда — 15:00. Возможность заселиться около 10:00 зависит от решения хозяина; ваш запрос зафиксирован, владелец сможет его увидеть.",
+    "Приносим извинения за неудобство. Ваше сообщение об отсутствии горячей воды записано; хозяин сможет его увидеть.",
+  ])("bildirim cümlesi SİLİNMEZ (cevap aynen kalır, tutan kural eskisi gibi tutar): %j", (reply) => {
+    const r = stripHostContactFiller(reply);
+    expect(r.text).toBe(reply);
+    expect(r.removals).toEqual([]);
+  });
+
+  it("kalan metin kararı ev sahibine bırakıyor → tamamı tutulur (hostContactOnly)", () => {
+    const reply =
+      "Hi Alex, I’m glad you’re enjoying your stay. Extending your stay to Thursday depends on the host’s decision and the calendar; this is something only your host can confirm through the platform.";
+    const r = stripHostContactFiller(reply);
+    expect(r.hostContactOnly).toBe(true);
+    expect(r.text).toBe(reply);
+  });
+
+  it.each([
+    "Здравствуйте, Alex! По поводу аренды автомобиля поблизости лучше уточнить у хозяина жилья.",
+    "Merhaba Ayşe, kuaför için ev sahibiniz size kesin bilgi verebilir.",
+    "Hello Alex, for directions from the airport, please ask your host.",
+  ])("geriye yalnız selam kalır → tamamı tutulur: %j", (reply) => {
+    const r = stripHostContactFiller(reply);
+    expect(r.hostContactOnly).toBe(true);
+  });
+
+  it("KONTROL: gerçek bilgi + yönlendirme → bilgi gider, yönlendirme çıkar (K-1029-A aynen)", () => {
+    const r = stripHostContactFiller("Merhaba Alex, Size ayrılan otopark yeri P2. Yakınlardaki kuaför için ev sahibiniz size kesin bilgi verebilir.");
+    expect(r.hostContactOnly).toBe(false);
+    expect(r.text).toBe("Merhaba Alex, Size ayrılan otopark yeri P2.");
+  });
+});

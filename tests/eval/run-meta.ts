@@ -165,6 +165,8 @@ export const PIPELINE_FLAGS = [
   // Tarafsızlık / özür yasağı istem katmanı (10-21): cevap istemini değiştirir (misafire giden metni değiştirir).
   "AI_NO_APOLOGY_RULE_ENABLED",
   "AI_HOST_CONTACT_PROMPT_BAN_DISABLED",
+  // K-1029-A kısmi gönderim durdurma (tasarım A12): açıkken konulu silmede cevabın tamamı tutulur (misafire gideni değiştirir).
+  "AI_HOST_CONTACT_PARTIAL_DISABLED",
   // Başka kişinin bilgisi kuralı (10-22 U9): anlama istemini değiştirir.
   "AI_UNDERSTANDING_PRIVACY_RULE_ENABLED",
   // Kıdemli okuyucu (10-22 T-b): ikinci okuma şeması + istemi ve kapıyı değiştirir (misafire gideni yalnız TUTARAK / ödeme öğesinde bırakarak).

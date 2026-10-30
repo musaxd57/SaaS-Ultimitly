@@ -509,6 +509,20 @@ describe("applyChannelAutoReply", () => {
     expect(res?.guestCheckoutTime).toBe("11:30");
   });
 
+  it("C9 (10-30): reddedilen çıkış saati, öncelikte önde gelen BAŞKA bir etiketin arkasında kalsa da yazılmaz", async () => {
+    // detectRiskTypes = [access_security, rule_violation]; eski kapı yalnız ilk etiketi (access_security) okuyup 11:00'ı yazıyordu.
+    mockSuggest.mockResolvedValue({ ...SAFE_REPLY, statedCheckoutTime: "11:00" });
+    const { conversationId } = await seed({ guestMessage: "We lost the key and we are not leaving at 11" });
+    await linkReservation(conversationId, {
+      status: "confirmed",
+      arrivalDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+      departureDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
+    });
+    await applyChannelAutoReply(conversationId);
+    const res = await prisma.reservation.findFirst({ where: { sourceReference: "res-1" }, select: { guestCheckoutTime: true } });
+    expect(res?.guestCheckoutTime).toBeNull();
+  });
+
   it("appends the host signature to the reply when one is configured", async () => {
     // Türkçe cevap + Türkçe dipnot → misafir de Türkçe yazar (dipnot dili misafirin mesajından; İngilizce misafire İngilizce
     // dipnot ayrıca pinli: `claim-evidence-auto-reply.test.ts`).
