@@ -195,6 +195,17 @@ mesajları ve görselleri henüz okuyamıyorum, lütfen yazın."
 - Kanıt: 20 yeni test düzeltme ÖNCESİ kodda kırmızı, sonrasında yeşil (`5192ce73` → `82be72fb`); ilgili 67 dosya / 1.122 test yeşil.
   Bir birim testi CI'da kırmızı olacaktı (anahtar taklidi eksik) — düzeltildi.
 
+**İkinci sert inceleme (düzeltmelerin kendisi; 3 mercek + çürütücü): 12 bulgu doğrulandı, hepsi düzeltildi:**
+- "Sorudan sonra yazıldı mı" artık mesajın ALINMA anına bakar: misafirin soru kurulmadan hemen önce yazıp sonraki senkronda gelen
+  "vazgeçtim"i, ev sahibinin Airbnb uygulamasından yazdığı cevap da yakalanır (önceden sağlayıcı saatine bakıldığı için kaçıyordu).
+- Ev sahibinin her WhatsApp mesajı en çok bir soruya bağlanır (mesaj başına kalıcı kayıt): yarıda düşmüş eski bir mesajın geç tekrarı
+  yeni cevabı bozmaz, başka misafirin sorusuna bağlanmaz.
+- Süpürge, okuduktan sonra yeniden alınmış (taze) satıra dokunmaz; kanal anahtarı kapalıyken WhatsApp'a bildirim göndermez.
+- WhatsApp onaylı cevap karar kartlarını da "ev sahibi yazdı" ile kapatmaz (öğe ve kart aynı listeyi kullanır).
+- Misafir silmesi WhatsApp'a çıkmakta olan soruyu da kapatır.
+- Kanıt: 12 yeni testin 9'u düzeltme öncesi kodda kırmızı (kalan 3'ü inceleme bulgusu test boşluğu: doğru davranışın pini); mutasyon 81
+  mutant → 75 + (pin ve sadeleştirme sonrası) yeniden koşuda 7/7, yaşayan 0.
+
 ## 5. Railway açılış günü eklenecekler (unutmayın)
 
 - **Decisions API sıralayıcısı:** `KB_RERANK_ENGINE=decisions`, `KB_RERANK_DECISIONS_MODEL` (ölçümle açılır).

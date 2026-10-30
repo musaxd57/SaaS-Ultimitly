@@ -4,6 +4,7 @@
 > Bu dosyadaki kurallar CLAUDE.md'deki kadar BAĞLAYICIDIR. İlgili alanda iş yapmadan önce oku.
 
 ## CLAUDE.md "Durum" özet satırları (10-23'te AYNEN taşındı; en yeni ikisi CLAUDE.md'de kalır)
+**10-30 akşam:** K-1029-A v4 (v3 yeniden incelemesinin 33 bulgusu: yedi dilde kaçan biçimler · silinen cümlede belirsizlik / söz / ön koşul / "gerekirse" → tamamı tutulur · fazla silme ve güvenlik kesimi düzeltildi; 3.274 cevapta v3 → v4 fark 0) · çıktı vetosunda eski karesel iş (V8 yorumlayıcı kipi, 8.000 karakterde 4,3 sn → 9 ms, karar farkı 0) + en kötü kip süre pini — `docs/claude/durum.md`.
 **10-30:** K-1029-A kodda ("ev sahibinize yazın" yedi dilde silinir, doğru cevap gider, cevapsız soru açık; istem yasağı varsayılan AÇIK) · GD7 alan sahipliği tablosu · 404 yol sınıfları · sert inceleme C1–C17 + Haiku döngüsü · ücretsiz tekrar oynatma ölçümü (3.274 cevap, sistem düzeyinde yeni tutuş 0) — `docs/claude/durum.md`.
 **10-30 sabah:** K-1029-A v2 (Opus F1–F12: kalan metin belirsizlik / ret / yalnız nezaket → tamamı tutulur; konu etiketi tek başına gitmez; konusuz yönlendirme isteği açık bırakır; taslak silinmiş metin) — `docs/claude/durum.md`.
 **10-29:** R10–R15, R29, R30 ✅ · R13-b/c ✅ ("ev sahibinize yazın" asla; genel kapanış çıkar; `ai/host-contact-filler.ts`) — `docs/claude/durum.md`.
