@@ -149,10 +149,15 @@ sahibinin kendi WhatsApp'ından göndermesi sahipliği kanıtlıyor; bağlanan n
 Akış: misafir sorusu ev sahibine WhatsApp'tan gider → ev sahibi o mesaja cevap yazar ("var, dolapta") → cevap şifreli saklanır, tasarımdaki
 cevap kurucu misafirin dilinde, ev sahibinin ağzından taslak yazar, kod denetimi geçer → ev sahibine ÖNİZLEME:
 
+> Lale · 12–15 Kas
+> "Is there a baby cot?"
+>
 > Misafire şu cevap gidecek:
 > "Yes, there is a baby cot in the closet."
 > Türkçesi: "Evet, dolapta bebek yatağı var."
 > **[Gönder] [Gönderme]**
+
+(Önizleme SORU mesajına yanıt olarak gelir; ilk satırlar hangi daire / hangi konaklama / hangi soru olduğunu söyler — iki benzer soru karışmasın.)
 
 [Gönder]'e basınca gönderimden HEMEN ÖNCE yeniden bakılır (bağlantı + rol + şifre değişimi, önizleme sürümü, taslak değişmedi mi, misafir arada
 yazdı mı, panelden cevap verildi mi, rezervasyon iptal mi, kod denetimi yeniden) → bugünkü gönderim çekirdeği (çift gönderim kalkanı, kuyruk,
@@ -170,11 +175,25 @@ Ev sahibine giden YENİ cümleler (onayınızı bekliyor): "Misafire şu cevap g
 "Tamam, gönderilmedi. Soru panelde açık." · "Tamam, size bıraktım." · "Tamam, misafire bir şey gönderilmedi. Soru panelde açık." ·
 "Cevabınızdan misafire gidecek bir mesaj çıkaramadım. Panelden yazabilirsiniz: <bağlantı>" · "Cevabınız sorunun tamamını karşılamıyor. Eksik
 kısmı da yazın ya da panelden cevaplayın: <bağlantı>" · "Şu an taslak hazırlanamadı…" · "Bu soru için daha fazla taslak hazırlanamıyor…" ·
-"Şu an bekleyen bir misafir sorusu yok." · "Birden çok bekleyen soru var…" · "Bu soruyu panelden cevapladınız; misafire yeni bir şey
-gönderilmedi." · "Bu sorunun süresi geçti." · "Bu önizleme artık geçerli değil." · "Misafir yeni bir mesaj yazdı; misafire bir şey
+"Şu an bekleyen bir misafir sorusu yok." · "Birden çok bekleyen soru var…" · "Soru gönderildikten sonra bu konuşmaya panelden yazıldı; çift
+mesaj olmasın diye misafire bir şey gönderilmedi." · "Önceki cevabınız hâlâ işleniyor; bu mesaj dikkate alınmadı. Önizleme gelince gerekirse
+yeniden yazın." · "Sıraya alındı; birazdan misafire gidecek ✓" · "Bu sorunun süresi geçti." · "Bu önizleme artık geçerli değil." · "Misafir yeni bir mesaj yazdı; misafire bir şey
 gönderilmedi. Panelden kontrol edin: <bağlantı>" · "Rezervasyon iptal edilmiş; misafire bir şey gönderilmedi." · "Gönderim doğrulanamadı,
 konuşmayı kontrol edin: <bağlantı>" · "Gönderilemedi. Panelden deneyin: <bağlantı>" · "Kanal bağlantısı yok, panelden deneyin." · "Sesli
 mesajları ve görselleri henüz okuyamıyorum, lütfen yazın."
+
+**Sert inceleme (4 mercek, her bulguya ayrı çürütücü; 23 bulgudan 22'si doğrulandı, hepsi düzeltildi — kod `82be72fb`, `f7dab912`):**
+- Yarıda düşme: taslak kurulurken çöken / sürecin öldüğü turda Meta'nın yeniden teslimi kaldığı yerden işler (önceden "işleniyor"da kalıyor,
+  ev sahibinin cevabı sessizce kayboluyordu). [Gönder] gönderimden ÖNCE düşerse kilit bırakılır, aynı düğme yeniden teslimde gönderir;
+  gönderimden SONRAKİ kayıt hatası ev sahibine "gitmedi" gibi görünmez. Takılan soruyu saatlik süpürge kurtarır ve ev sahibine SÖYLER.
+- Doğruluk: "eksik kısmı da yazın" sonrası yazılan parça öncekine eklenir (önceden ilk kısım kayboluyor, döngü tavana dayanıyordu). Soru
+  sorulduktan sonra misafir yeniden yazdıysa ("vazgeçtim", "yanlış yazdım") taslak kurulmaz / gönderilmez. "Panelden cevaplandı" sayımı
+  kanalın otomatik mesajını ve karar kartı mesajını saymaz. Misafirin adı modele ve Meta'ya gitmez. Kuyruğa alınan gönderim "Gönderildi"
+  demez. Model çağrısından sonra bağlantı yeniden denetlenir ("DUR" yazan numaraya önizleme gitmez).
+- Kapsam: WhatsApp onayıyla giden cevap YALNIZ o turun sorusunu "cevaplandı" yapar; konuşmanın başka açık isteği (ev sahibinin WhatsApp'ta
+  görmediği) açık kalır. Misafir silmesi (KVKK) bekleyen taslağı kapatır, cevap / taslak / özeti siler (parite pini).
+- Kanıt: 20 yeni test düzeltme ÖNCESİ kodda kırmızı, sonrasında yeşil (`5192ce73` → `82be72fb`); ilgili 67 dosya / 1.122 test yeşil.
+  Bir birim testi CI'da kırmızı olacaktı (anahtar taklidi eksik) — düzeltildi.
 
 ## 5. Railway açılış günü eklenecekler (unutmayın)
 
