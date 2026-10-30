@@ -34,14 +34,16 @@
 import {
   hostContactKindOf,
   isConditionLikeClause,
+  mentionsBusiness,
   mentionsHostOnly,
   namesCallContact,
   namesWriteContact,
   pronounHostContactKind,
+  withBusinessOwnerContext,
   type HostContactKind,
 } from "./absence";
 import { contentStemsOf, isSubstantiveSentence, replySentencesOf } from "./no-instruction-filler";
-import { carriesHandoffNotice } from "./output-veto";
+import { carriesHandoffNotice, vetoOutgoingReply } from "./output-veto";
 import { defersDecisionToHost } from "./availability-claims";
 import { isGreetingOnly } from "./code-greeting";
 import { distinctiveTokens, overlapLoose } from "@/lib/conversation-items/topic-absence";
@@ -56,18 +58,21 @@ import { topicsWithSymptomsOf } from "@/lib/conversation-items/relation";
  * basması / elektrik çarpması / kıvılcım / kısa devre de güvenlik adımıdır ("ana vanayı kapatın", "sigortayı indirin" sessizce düşmesin).
  */
 const SAFETY_HAZARD =
-  /(?<![\p{L}\p{N}])(?:gaz(?!ete|ino|oz|i|l[ıi])(?!\s+(?:oca[kğ]|soba|f[ıi]r[ıi]n|fatura|sayac))\p{L}{0,8}|gas(?!\s*(?:station|stove|cooker|hob|oven|burner|grill|bbq|barbecue|bill|meter|price))|yang[ıi]n(?!\s+(?:t[üu]p|s[öo]nd[üu]r))\p{L}{0,8}|fire(?!\s*(?:tv|stick|place|pit|wood|extinguisher|blanket))|duman\p{L}{0,8}(?!\s+(?:dedekt[öo]r\p{L}*\s+)?pil)|smoke(?![-\s]?free)(?!\s+(?:alarm|detector)\s+batter)|karbon(?!at)\p{L}{0,8}|carbon monoxide|co (?:alarm|detector)|monoxyde de carbone|mon[óo]xido de carbono|угарн\p{L}{0,4}|gas(?:geruch|leck\p{L}{0,2}|austritt|alarm)|kohlenmonoxid\p{L}{0,2}|(?:rauch|brand|feuer|co-?)melder\p{L}{0,2}|itfaiye\p{L}{0,8}|ambulans\p{L}{0,8}|ambulance|polis(?!aj|iye|ter)\p{L}{0,8}|police|feuer(?!zeug|stelle|l[öo]scher)|rauch(?!er|en)|incendie|fumée|incendio|humo|пожар\p{L}{0,4}|газ(?!ет)\p{L}{0,4}|дым\p{L}{0,4}|su ka[çc]\p{L}{0,8}|su bas\p{L}{0,8}|sel(?:\s+bask[ıi]n\p{L}*)|elektrik [çc]arp\p{L}{0,8}|[çc]arp[ıi]l\p{L}{0,8}|k[ıi]v[ıi]lc[ıi]m\p{L}{0,4}|k[ıi]sa devre|water leak\p{L}{0,3}|leak\p{L}{0,3}|flood\p{L}{0,3}|electric(?:al)? shock|shock|spark\p{L}{0,3}|short circuit|wasserschaden|rohrbruch|wasser (?:tritt aus|austritt|l[äa]uft aus)|wenn wasser austritt|überschwemm\p{L}{0,4}|stromschlag|funken|kurzschluss|fuite|inondation|d[ée]charge [ée]lectrique|[ée]tincelle\p{L}{0,2}|court-circuit|fuga\p{L}{0,2}|inundaci[óo]n|descarga el[ée]ctrica|chispa\p{L}{0,2}|cortocircuito|протечк\p{L}{0,2}|затоп\p{L}{0,4}|удар\p{L}{0,2} током|искр\p{L}{0,3}|замыкани\p{L}{0,2})(?![\p{L}\p{N}])/iu;
+  /(?<![\p{L}\p{N}])(?:gaz(?!ete|ino|oz|i|l[ıi])(?!\s+(?:oca[kğ]|soba|f[ıi]r[ıi]n|fatura|sayac))\p{L}{0,8}|gas(?!\s*(?:station|stove|cooker|hob|oven|burner|grill|bbq|barbecue|bill|meter|price))|yang[ıi]n(?!\s+(?:t[üu]p|s[öo]nd[üu]r))\p{L}{0,8}|fire(?!\s*(?:tv|stick|place|pit|wood|extinguisher|blanket))|duman\p{L}{0,8}(?!\s+(?:dedekt[öo]r\p{L}*\s+)?pil)|smoke(?![-\s]?free)(?!\s+(?:alarm|detector)\s+batter)|karbon(?!at)\p{L}{0,8}|carbon monoxide|co (?:alarm|detector)|monoxyde de carbone|mon[óo]xido de carbono|угарн\p{L}{0,4}|gas(?:geruch|leck\p{L}{0,2}|austritt|alarm)|kohlenmonoxid\p{L}{0,2}|(?:rauch|brand|feuer|co-?)melder\p{L}{0,2}|itfaiye\p{L}{0,8}|ambulans\p{L}{0,8}|ambulance|polis(?!aj|iye|ter)\p{L}{0,8}|police|feuer(?!zeug|stelle|l[öo]scher)|rauch(?!er|en)|incendie|fumée|incendio|humo|пожар\p{L}{0,4}|газ(?!ет)\p{L}{0,4}|дым\p{L}{0,4}|su ka[çc]\p{L}{0,8}|su bas\p{L}{0,8}|sel(?:\s+bask[ıi]n\p{L}*)|elektrik [çc]arp\p{L}{0,8}|[çc]arp[ıi]l\p{L}{0,8}|k[ıi]v[ıi]lc[ıi]m\p{L}{0,4}|k[ıi]sa devre|water leak\p{L}{0,3}|leak\p{L}{0,3}|flood\p{L}{0,3}|electric(?:al)? shock|shock|spark\p{L}{0,3}|short circuit|wasserschaden|rohrbruch|wasser (?:tritt aus|austritt|l[äa]uft aus)|wenn wasser austritt|überschwemm\p{L}{0,4}|stromschlag|funken|kurzschluss|fuite|inondation|d[ée]charge [ée]lectrique|[ée]tincelle\p{L}{0,2}|court-circuit|fuga\p{L}{0,2}|inundaci[óo]n|descarga el[ée]ctrica|chispa\p{L}{0,2}|cortocircuito|протечк\p{L}{0,2}|затоп\p{L}{0,4}|удар\p{L}{0,2} током|искр\p{L}{0,3}|замыкани\p{L}{0,2}|burning (?:smell|odou?r)|smell of burning|smells? (?:like )?burning|exposed wir\p{L}{0,3}|bare wir\p{L}{0,3}|overheat\p{L}{0,3}|scorch\p{L}{0,3}|yan[ıi]k koku\p{L}{0,3}|a[çc][ıi]kta (?:kalan )?kablo\p{L}{0,3}|a[şs][ıi]r[ıi] [ıi]s[ıi]n\p{L}{0,6}|verbrannt riech\p{L}{0,2}|riecht verbrannt|brandgeruch|(?:freiliegende|blanke) kabel|[üu]berhitz\p{L}{0,4}|odeur de br[ûu]l[ée]|fils? d[ée]nud[ée]s?|surchauff\p{L}{0,4}|olor a quemado|cables? (?:pelados?|expuestos?)|sobrecalent\p{L}{0,4}|запах гари|горел\p{L}{0,3}|оголённ\p{L}{0,3}|оголенн\p{L}{0,3}|перегрев\p{L}{0,3})(?![\p{L}\p{N}])/iu;
+/** Arapça tehlike sözcükleri (belirlilik öneki "ال" sözcüğe bitişik — Latin sözcük sınırı burada işlemez; v3 yeniden incelemesi SAFE-4). */
+const SAFETY_HAZARD_AR = /رائحة\s+(?:ال)?غاز|تسرب\s+(?:ال)?غاز|(?:ال)?دخان|(?:ال)?حريق|إنذار|انذار|تسرب|ماس كهربائي|صعق|شرار|أول أكسيد الكربون|رائحة حريق|ارتفاع حرارة/u;
 const EMERGENCY_NUMBER = new RegExp(
   "(?:(?<![\\p{L}])(?:call|dial|ring|phone|ara(?:y[ıi]n(?:[ıi]z)?|yabilirsiniz|man[ıi]z)?|r[uü]fen sie|w[äa]hlen sie|appelez|composez|llame|marque|звоните|позвоните|наберите)" +
     "(?:\\s+(?:the|die|le|el|номер|number|numaras[ıi]))?\\s+" +
     "|(?<![\\p{L}])(?:acil(?:\\s+durum\\p{L}{0,4})?|emergency|emergencies|notfall|notruf|urgence|urgences|emergencia|экстренн\\p{L}{0,4})[\\p{P}\\s]+(?:\\p{L}+\\s+){0,2}?)" +
     "(?:112|911|110|155|187|999)(?![\\p{N}])" +
-    "|(?<![\\p{N}])(?:112|911|110|155|187|999)\\s*['’]?\\s*(?:y[ıi]|ye|ya|[ıi])?\\s+(?:ara\\p{L}{0,8}|ula[şs]\\p{L}{0,8}|call|dial)",
+    // Sayıdan sonra TEK boşluk niceleyicisi (v3 yeniden incelemesi COST-2: `\s*['’]?\s*X?\s+` boşluk dizisinde kübikti).
+    "|(?<![\\p{N}])(?:112|911|110|155|187|999)(?:['’]?(?:y[ıi]|ye|ya|[ıi]))?\\s+(?:ara\\p{L}{0,8}|ula[şs]\\p{L}{0,8}|call|dial)",
   "iu",
 );
 
 export function isSafetyWarningSentence(sentence: string): boolean {
-  return SAFETY_HAZARD.test(sentence) || EMERGENCY_NUMBER.test(sentence);
+  return SAFETY_HAZARD.test(sentence) || SAFETY_HAZARD_AR.test(sentence) || EMERGENCY_NUMBER.test(sentence);
 }
 
 /**
@@ -97,7 +102,12 @@ const HOST_CONTACT_NOISE = (
   // Yer / konum zamiri ("yerleri için ev sahibiniz bilgi verebilir", "for their location") önceki cümlenin konusuna gönderir.
   "yer place locat where nerede " +
   // Zamirle gönderme ("message him", "ona yazın", "schreiben Sie ihm", "écrivez-lui", "напишите ему") — zamir konu değildir.
-  "him her them ona kendisi onlar ihm lui leur ему ей им нему ней just einfach понадоб"
+  "him her them ona kendisi onlar ihm lui leur ему ей им нему ней just einfach понадоб " +
+  // v4: yeni iletişim fiilleri / seslenilenler (konu değildir).
+  "coordin arrang report rais mention flag discuss sort settl confirm verif check double request keep updat posted loop team staff ekib " +
+  "cohost co-host klar klaer sprech rucksp stimm halten aktar haberd rica talep renseign verifi parl pose joign comuniq pregunt avis dej " +
+  "уточн спрос предупред напрям استفسر راجع أخطر اخطر أخبر اعلم أعلم equipe equipo " +
+  "stop stopp surg aparec ocurr passiert happen arise"
 ).split(" ");
 /** Aksan / Kiril harfi katlanmış küçük biçim (tek geçiş). */
 function foldToken(t: string): string {
@@ -124,11 +134,32 @@ const DETAIL_MARKER =
  * "about your stay" gibi konaklama geneli göndergesel sayılmaz.
  */
 const ANAPHORIC_MARKER =
-  /(?<![\p{L}])(?:it|them|this|that|these|those|about (?:the|your)(?! (?:stay|visit|trip))|regarding (?:the|your)(?! (?:stay|visit|trip))|bu|bunu|bunun|bunlar\p{L}{0,4}|bununla|şu|onu|onlar\p{L}{0,4}|ilgili|hakk[ıi]nda|konu\p{L}{0,8}|dazu|dar[üu]ber|davon|damit|diesbez[üu]glich|[àa] ce sujet|[àa] ce propos|en avez|esto|eso|ello|al respecto|это\p{L}{0,2}|этом|их|него|ней|них|ذلك|هذا|هذه)(?![\p{L}])/iu;
+  /(?<![\p{L}])(?:it|them|this(?! (?:stay|visit|trip|time|apartment|flat|property|week))|that|these|those|about (?:the|your)(?! (?:stay|visit|trip))|if you need (?:it|them|this|that|one)|should you (?:need|want|wish) (?:it|them|this|that|one)|regarding (?:the|your)(?! (?:stay|visit|trip))|bu|bunu|bunun|bunlar\p{L}{0,4}|bununla|şu|onu|onlar\p{L}{0,4}|ilgili|hakk[ıi]nda|konu\p{L}{0,8}|dazu|dar[üu]ber|davon|damit|diesbez[üu]glich|[àa] ce sujet|[àa] ce propos|en avez|esto|eso|ello|al respecto|это\p{L}{0,2}|этом|их|него|ней|них|ذلك|هذا|هذه)(?![\p{L}])/iu;
+
+/**
+ * İHTİYAÇ GÖNDERMESİ ("if needed / isterseniz / gerekirse / si besoin / bei Bedarf / при необходимости / عند الحاجة"): kapanış önceki
+ * cevaba bağlanır ama kendi başına GENEL kapanıştır ("Wi-Fi şifresi … Si besoin, envoyez-nous un message." → şifre gider). Kalan metin
+ * belirsizlik ("temizlik programına bağlı", "depends on") ya da izin ("Erken giriş mümkün") söylüyorsa silme onu kesin / koşulsuz bir cevaba
+ * çevirirdi → cevabın tamamı tutulur (v3 yeniden incelemesi SETTLE-01; sonda `needReferenceRemoved`).
+ */
+const NEED_REFERENCE =
+  /(?<![\p{L}])(?:if (?:needed|necessary|required|so|desired)|if you(?:['’]d like| (?:want|wish|prefer|would like))(?! (?:anything|something|more|other|further|help))|gerekirse|gerekiyorsa|gerekli g[öo]r[üu]rseniz|isterseniz|dilerseniz|arzu ederseniz|uygun g[öo]r[üu]rseniz|falls n[öo]tig|bei bedarf|wenn n[öo]tig|falls gew[üu]nscht|wenn gew[üu]nscht|wenn sie m[öo]chten|falls sie m[öo]chten|si besoin|si n[ée]cessaire|au besoin|si vous le souhaitez|si vous souhaitez|si vous le d[ée]sirez|si vous voulez|si lo necesita|si lo necesitas|si es necesario|de ser necesario|si lo desea|si lo deseas|si desea|si quiere|si gusta|при необходимости|если нужно|если необходимо|если хотите|по желанию|если потребуется|عند الحاجة|إذا رغبت|اذا رغبت|إذا أردت|اذا اردت|إن أردت)(?![\p{L}])/iu;
 
 /** "Diğer / başka sorularınız için …" — yönlendirme belli bir isteği değil GERİ KALANI anar (genel kapanış). */
 const OTHER_MARKER = /(?<![\p{L}])(?:diğer|diger|başka|baska|other|else|weitere\p{L}{0,2}|andere\p{L}{0,2}|autres?|otras?|otros?|друг\p{L}{0,4}|أخرى|اخرى)(?![\p{L}])/iu;
 
+/** Güvenlik talimatının devam cümlesi ("Then …", "Ardından …", "Danach …"). */
+const SAFETY_CONTINUATION =
+  /^\s*(?:then|after that|afterwards|next|also|ardından|sonra|daha sonra|ayrıca|danach|dann|anschließend|ensuite|puis|après|luego|después|затем|потом|после этого|ثم|بعد ذلك)(?![\p{L}])/iu;
+/** Silinen bilgi yönlendirmesi kendi konusuyla / karşıtlıkla başlıyor ("…, but for the sauna hours …", "…, sauna saatleri için ise …"). */
+const OWN_TOPIC_TAIL =
+  /^[\s,;]*(?:but|however|though|ama|fakat|ancak|aber|jedoch|mais|cependant|pero|sin embargo|но|однако|لكن)(?![\p{L}])|(?<![\p{L}])(?:i[çc]in ise|ise)(?![\p{L}])/iu;
+/** Genel sorun / ihtiyaç kapanışı ("Bir şeye ihtiyacınız olursa haber vermeniz yeterli") ön koşul değildir. */
+const HC_TROUBLE_CONTINGENCY =
+  /(?<![\p{L}])(?:sorun\p{L}{0,6}|s[ıi]k[ıi]nt[ıi]\p{L}{0,6}|problem\p{L}{0,6}|ihtiya[çc]\p{L}{0,8}|bir [şs]ey\p{L}{0,4}|herhangi bir|anything|something|any (?:questions?|issues?|problems?)|problems?|issues?|questions?|fragen|probleme?n?|besoin|probl[èe]mes?|algo|problemas?|preguntas?|вопрос\p{L}{0,3}|что-(?:то|нибудь)|проблем\p{L}{0,3})(?![\p{L}])/iu;
+/** Arıza / bozulma olasılığı ("if it doesn't work", "if anything breaks", "çalışmazsa", "funktioniert … nicht") — kapanış izi. */
+const FAILURE_CONTINGENCY =
+  /(?<![\p{L}])(?:(?:does ?n['’]?t|does not|do ?n['’]?t|do not|won['’]?t|will not|is ?n['’]?t|is not) work(?:ing)?|stops? working|fails?|breaks?(?: down)?|goes wrong|çal[ıi][şs]mazsa|olmazsa|a[çc][ıi]lmazsa|bozulursa|funktioniert (?:\p{L}+ )?nicht|ne fonctionne pas|no funciona|не работает|لا يعمل)(?![\p{L}])/iu;
 /** Varış koşulu ("Varınca / Upon arrival / Bei Ankunft") genel kapanış izidir (konu değil). */
 const ARRIVAL_MARKER =
   /(?<![\p{L}])(?:var[ıi]nca|vard[ıi][ğg][ıi]n[ıi]zda|geldi[ğg]inizde|gelince|upon arrival|on arrival|when you arrive|bei ankunft|nach (?:ihrer )?ankunft|[àa] votre arriv[ée]e|al llegar|по приезд\p{L}*|عند الوصول)(?![\p{L}])/iu;
@@ -177,25 +208,36 @@ function removalOf(
   forceClosing = false,
   /** Madde satırının başlığı ("If the Wi-Fi stops working:" / "**Parking**") — maddenin koşulu / konusu odur. */
   lead: string | null = null,
+  /** Aynı önceki cümle birçok silmede yeniden okunmasın (v3 yeniden incelemesi COST-3: karesel). */
+  cache: Map<string, { stems: string[]; topics: string[] }> | null = null,
 ): { removal: HostContactRemoval; scope: RemovalScope } {
   const form = kind === "referral" ? "referral" : "conditional";
   const read = (text: string) => {
+    const hit = cache?.get(text);
+    if (hit) return { stems: [...hit.stems], topics: [...hit.topics] };
     const body = withoutLeadingSalutation(text);
     const stems = distinctiveTokens(body).filter((t) => !isNoiseStem(t));
     const topics = topicsWithSymptomsOf(body.replace(REFERRAL_MARKER_WORDS, " "));
-    return { stems, topics };
+    cache?.set(text, { stems, topics });
+    return { stems: [...stems], topics: [...topics] };
   };
   const scoped = lead ? `${lead.replace(/\*+/gu, "").replace(/:\s*$/u, ",")} ${removed}` : removed;
+  // İşaretler hem özgün hem Türkçe küçük harfli biçimde aranır ("İsterseniz" büyük İ ile /i bayrağında "isterseniz" olmaz).
+  const scopedForms = [scoped, scoped.toLocaleLowerCase("tr")];
+  const has = (re: RegExp) => scopedForms.some((f) => re.test(f));
   let { stems, topics } = read(scoped);
   const topicless = stems.length === 0 && topics.length === 0;
-  const contingent = OTHER_MARKER.test(scoped) || ARRIVAL_MARKER.test(scoped) || isConditionLikeClause(scoped);
+  const contingent = has(OTHER_MARKER) || has(ARRIVAL_MARKER) || isConditionLikeClause(scoped);
   // "Diğer konular / sorularınız için" GERİ KALANI anar: göndergesel sözcük ("konular") taşısa da genel kapanıştır.
+  // Az önce cevaplanan şeyin ARIZA olasılığı ("If it doesn't work, just message your host", "If anything breaks during this stay") kapanıştır —
+  // zamir göndergesel değildir (v3 yeniden incelemesi wf3-fp-03).
+  const failureContingency = has(FAILURE_CONTINGENCY);
   const closing =
-    forceClosing || (!DETAIL_MARKER.test(scoped) && (OTHER_MARKER.test(scoped) || (!ANAPHORIC_MARKER.test(scoped) && contingent)));
+    forceClosing || (!has(DETAIL_MARKER) && (has(OTHER_MARKER) || failureContingency || (!has(ANAPHORIC_MARKER) && contingent)));
   const scope: RemovalScope = forceClosing
     ? "closing"
     : !topicless
-      ? contingent && !DETAIL_MARKER.test(scoped)
+      ? contingent && !has(DETAIL_MARKER)
         ? "contingent"
         : "topical"
       : closing
@@ -227,7 +269,9 @@ function trimTrailingSeparators(s: string): string {
 const CLAUSE_BOUNDARY = /[,;،](?=\s)|\s(?=(?:ve|ama|fakat|ancak|and|but|und|aber|et|mais|y|pero|и|но|و)\s)/gu;
 /** Yalnız güçlü ayraç (noktalı virgül / Arapça virgül) — bilgi yönlendirmesinde virgülden önceki kısım çoğu zaman yönlendirmenin KONUSUDUR. */
 const STRONG_BOUNDARY = /[;،](?=\s)/gu;
-const LEADING_CONJ = /^(?:ve|ama|fakat|ancak|and|but|und|aber|et|mais|y|pero|и|но|و)\s+/iu;
+const LEADING_CONJ = /^(?:ve|ama|fakat|ancak|and|but|und|aber|et|mais|y|pero|и|но|و|or|ya da|veya|yahut|oder|ou|o|или|أو)\s+|^و(?=\p{L}{2})/iu;
+/** Güvenlik çözümlemesinde "veya / or" da yan cümle sınırıdır ("call 112 or message your host"); Arapça bitişik "و" ("وغادر … وراسل"). */
+const SAFETY_BOUNDARY = /[,;،](?=\s)|\s(?=(?:ve|ama|fakat|ancak|and|but|und|aber|et|mais|y|pero|и|но|و|or|ya da|veya|yahut|oder|ou|o|или|أو)\s)|\s(?=و\p{L}{2})/gu;
 
 /**
  * Koşulla AYNI yan cümledeki emir (adım): Türkçe yüklem sonda ("Duman dedektörü öterse balkon kapısını açın"; koşul eki "-sanız" değil),
@@ -351,12 +395,12 @@ type SafetyOutcome = { keep: true } | { kept: string; removed: string } | { remo
  *   – öbür hâlde başvurma + yalnız ona ait koşul yan cümleleri çıkar: başvurmadan SONRA yan cümle varsa (adım düşerdi) ya da temiz
  *     ayrılamıyorsa cevabın TAMAMI tutulur; geriye adım kalmıyorsa ("If you smell gas, message your host") bütün cümle çıkar.
  */
-function safetyOutcome(sentence: string): SafetyOutcome {
+function safetyOutcome(sentence: string, hazardContext = false): SafetyOutcome {
   const body = sentence.trimEnd();
   const endPunct = trailingSentencePunct(body);
   const core = body.slice(0, body.length - endPunct.length);
   const bounds = [0];
-  for (const m of core.matchAll(CLAUSE_BOUNDARY)) bounds.push(m.index ?? 0);
+  for (const m of core.matchAll(SAFETY_BOUNDARY)) bounds.push(m.index ?? 0);
   bounds.push(core.length);
   const clauses: { start: number; text: string }[] = [];
   for (let i = 0; i + 1 < bounds.length; i++) {
@@ -378,7 +422,17 @@ function safetyOutcome(sentence: string): SafetyOutcome {
     }
   }
   const chain = clauses.slice(condIdx < 0 ? 0 : condIdx, ci + 1);
-  if (callOnly(clauses[ci].text) && chain.some((c) => isSafetyWarningSentence(c.text))) return { keep: true };
+  if (callOnly(clauses[ci].text) && (hazardContext || chain.some((c) => isSafetyWarningSentence(c.text)))) {
+    // Arama kalır; ardından gelen YAZMA / kapanış yan cümlesi ("; for anything else, feel free to message them", "и напишите ему", "and then text
+    // them a photo") çıkar — "yazın" hiçbir koşulda kalmaz (v3 yeniden incelemesi SAFE-1). Ardında adım varsa temiz kesilemez → tutulur.
+    const wi = clauses.findIndex((c, k) => k > ci && (namesWriteContact(c.text) || hostContactKindOf(c.text) !== null));
+    if (wi < 0) return { keep: true };
+    if (clauses.slice(wi + 1).some((c) => hasStep(c.text) && !namesWriteContact(c.text))) return { hold: true };
+    let w = wi;
+    while (w > ci + 1 && !hasImperativeStep(clauses[w - 1].text) && clauses[w - 1].text.split(/\s+/u).length <= 4) w--;
+    const keptHead = trimTrailingSeparators(core.slice(0, clauses[w].start));
+    return keptHead ? { kept: `${keptHead}${endPunct || "."}`, removed: core.slice(clauses[w].start) } : { hold: true };
+  }
   if (clauses.slice(ci + 1).length > 0) return { hold: true };
   // Başvurma yan cümlesi tek başına bir koşul + başvurma ise ("Gaz kokusu alırsanız pencereleri açıp ev sahibinize yazın") ulaç zinciri adım taşır.
   if (CONVERB_CHAIN.test(clauses[ci].text)) return { hold: true };
@@ -386,6 +440,8 @@ function safetyOutcome(sentence: string): SafetyOutcome {
   while (g > 0 && isPureCondition(clauses[g - 1].text)) g--;
   const head = clauses.slice(0, g);
   if (head.length === 0 || !head.some((c) => hasStep(c.text))) return { removeWhole: true };
+  // Nesnesi silinen çıplak fiil ("If you smell gas, call or message your host" → "…, call.") temiz değil → tutulur (SAFE-3 / SAFE-5).
+  if (head[head.length - 1].text.split(/\s+/u).length <= 1) return { hold: true };
   const headText = trimTrailingSeparators(core.slice(0, clauses[g].start));
   if (!headText || hostContactKindOf(headText) !== null) return { hold: true };
   return { kept: `${headText}${endPunct || "."}`, removed: core.slice(clauses[g].start) };
@@ -482,11 +538,12 @@ const REMAINDER_HOLD = new RegExp(
       "emin de[ğg]il(?:im|iz)?", "kesin de[ğg]il(?:im|iz|dir)?", "net de[ğg]il(?:dir)?", "belli de[ğg]il(?:dir)?", "bilmiyorum", "bilemiyorum",
       "s[öo]yleyeme(?:m|yiz|iyorum|iyoruz)", "diyeme(?:m|yiz)", "teyit edeme\\p{L}*", "teyit edemi\\p{L}*", "do[ğg]rulayam\\p{L}*",
       "payla[şs][ıi]lmam[ıi][şs]", "belirtilmemi[şs]", "belirtmemi[şs]", "bilgi verilmemi[şs]", "ayarlayam\\p{L}*", "garanti edem\\p{L}*",
-      "m[üu]saitli[ğg]e ba[ğg]l[ıi]", "duruma ba[ğg]l[ıi]", "[üu]zg[üu]n[üu](?:m|z)", "kusura bakma\\p{L}*", "[öo]z[üu]r dile\\p{L}*",
+      "m[üu]saitli[ğg]e ba[ğg]l[ıi]", "duruma ba[ğg]l[ıi]", "\\p{L}+(?:[ae]|y[ae]|n[ae]) ba[ğg]l[ıi](?:d[ıi]r)?(?=\\s*[.!,;]|$)", "tam emin de[ğg]il\\p{L}*", "pek emin de[ğg]il\\p{L}*", "[üu]zg[üu]n[üu](?:m|z)", "kusura bakma\\p{L}*", "[öo]z[üu]r dile\\p{L}*",
       "payla[şs]ama\\p{L}*", "yard[ıi]mc[ıi] olam\\p{L}*", "bulamad[ıi]\\p{L}*", "g[öo]remiyorum", "kontrol edemi\\p{L}*", "eri[şs]im(?:im)? yok",
       "elimde (?:bir [şs]ey|bilgi|kay[ıi]t) yok", "sanırım", "san[ıi]r[ıi]m", "muhtemelen", "galiba", "herhalde",
       // EN
-      "(?<![iı]f you(?:'re| are) )not sure", "unsure", "not certain", "uncertain", "can'?t confirm", "cannot confirm", "not able to confirm",
+      "(?<![iı]f you(?:'re| are) )not sure", "not (?:100 ?%|a hundred percent|completely|entirely|totally|fully|quite|really|absolutely) (?:sure|certain)", "unsure",
+      "depends on", "depending on", "dependent on", "not certain", "uncertain", "can'?t confirm", "cannot confirm", "not able to confirm",
       "unable to confirm", "can'?t say", "cannot say", "can'?t tell", "cannot tell", "(?<![iı]f you )(?:don'?t|do not) know", "not been shared",
       "hasn'?t been shared", "wasn'?t shared", "not specified", "not been specified", "not mentioned", "hasn'?t mentioned", "has not mentioned",
       "can'?t arrange", "cannot arrange", "unable to arrange", "not able to arrange", "can'?t guarantee", "cannot guarantee",
@@ -496,25 +553,43 @@ const REMAINDER_HOLD = new RegExp(
       "need your host to", "(?<![iı]f you )(?:couldn'?t|could not|can'?t|cannot) find", "no information", "probably", "i believe", "i think",
       "might be", "may be", "likely", "presumably",
       // DE
-      "nicht sicher", "wei(?:ß|ss) (?:ich )?nicht", "nicht sagen", "nicht best[äa]tigen", "keine angaben", "nicht angegeben", "nach verf[üu]gbarkeit",
+      "nicht (?:ganz |v[öo]llig |hundertprozentig |so )?sicher", "h[äa]ngt (?:\\p{L}+ ){0,3}?ab", "wei(?:ß|ss) (?:ich )?nicht", "nicht sagen", "nicht best[äa]tigen", "keine angaben", "nicht angegeben", "nach verf[üu]gbarkeit",
       "von der verf[üu]gbarkeit", "entschuldig\\p{L}*", "tut (?:mir|uns) leid", "nicht teilen", "nicht weitergeben", "nicht helfen", "keinen zugriff",
       "nicht pr[üu]fen", "wahrscheinlich", "vermutlich", "ich glaube", "ich denke", "m[öo]glicherweise", "eventuell",
       // FR
-      "pas s[ûu]r(?:e|s|es)?(?=\\s*(?:[.!?,;]|$|de |que ))", "pas certain\\p{L}*", "ne sais pas", "ne peux pas (?:confirmer|partager|communiquer|donner|vous aider|aider)",
+      "pas s[ûu]r(?:e|s|es)?(?=\\s*(?:[.!?,;]|$|de |que ))", "pas (?:tout [àa] fait|enti[èe]rement|compl[èe]tement) s[ûu]r\\p{L}*", "d[ée]pend (?:de|du|des)", "pas certain\\p{L}*", "ne sais pas", "ne peux pas (?:confirmer|partager|communiquer|donner|vous aider|aider)",
       "pas en mesure", "pas pr[ée]cis[ée]\\p{L}*", "pas indiqu[ée]\\p{L}*", "selon disponibilit\\p{L}*", "sous r[ée]serve de disponibilit\\p{L}*",
       "d[ée]sol[ée]\\p{L}*", "excus\\p{L}*", "pas d'acc[èe]s", "probablement", "je crois", "je pense", "peut-[êe]tre", "sans doute",
       // ES
-      "no estoy segur\\p{L}*", "no sé(?=(?: si| d[oó]nde| cu[aá]ndo| qu[ée])(?![\\p{L}])|\\s*[.!?,]|$)", "no puedo (?:confirmar|garantizar|compartir|facilitar|dar|ayudar)",
+      "no estoy (?:del todo |completamente |totalmente )?segur\\p{L}*", "depende de\\p{L}*", "no sé(?=(?: si| d[oó]nde| cu[aá]ndo| qu[ée])(?![\\p{L}])|\\s*[.!?,]|$)", "no puedo (?:confirmar|garantizar|compartir|facilitar|dar|ayudar)",
       "no se ha indicado", "no est[aá] especificad\\p{L}*", "seg[uú]n disponibilidad", "sujeto a disponibilidad", "lo siento", "disculp\\p{L}*",
       "perd[oó]n", "no tengo acceso", "no encuentro", "probablemente", "creo que", "quiz[aá]s?", "tal vez", "posiblemente",
       // RU
-      "не уверен\\p{L}*", "не знаю", "не могу (?:подтвердить|сказать|поделиться|сообщить|дать|помочь)", "не указан\\p{L}*", "зависит от наличия",
+      "не уверен\\p{L}*", "не совсем уверен\\p{L}*", "зависит от", "не знаю", "не могу (?:подтвердить|сказать|поделиться|сообщить|дать|помочь)", "не указан\\p{L}*", "зависит от наличия",
       "извин\\p{L}*", "к сожалению, я", "нет доступа", "не наш[её]л\\p{L}*", "скорее всего", "наверное", "возможно", "вероятно", "думаю",
       // AR
       "لست متأكد\\p{L}*", "لا أعرف", "لا اعرف", "لا يمكنني (?:تأكيد|مشاركة|المساعدة)", "لا أستطيع المساعدة", "آسف\\p{L}*", "اسف", "نعتذر",
       "حسب التوفر", "ربما", "على الأرجح", "أعتقد",
     ].join("|") +
     ")(?![\\p{L}])",
+  "iu",
+);
+/**
+ * Silinen parça bir ÖN KOŞUL söylüyor mu ("arrange it with your host beforehand", "önceden haber vermeniz gerekiyor", "ayarlamanız yeterli",
+ * "the day before") — kalan metin bir İZİN / olanak söylüyorsa ("Early check-in is possible", "evcil hayvan kabul ediliyor") silme onu koşulsuz
+ * bir "evet"e çevirirdi → cevabın tamamı tutulur (v3 yeniden incelemesi LAUNDER-03). Genel sorun / ihtiyaç kapanışı ön koşul değildir.
+ */
+const PRECONDITION = new RegExp(
+  "(?<![\\p{L}])(?:beforehand|in advance|ahead of time|the day before|before (?:you arrive|your arrival|arrival|check-?in|check-?out)|" +
+    "(?<!if )you(?:['’]ll| will)? (?:just |only )?(?:need|have) to|you must|be sure to|make sure (?:to|you)|" +
+    "[öo]nceden|bir g[üu]n [öo]nce|gelmeden [öo]nce|\\p{L}+(?:man[ıi]z|men[ie]z)[ıi]? (?:yeterli|gerek(?:iyor|ir|li|mektedir)|[şs]art)|gerekmektedir|" +
+    "vorher|im voraus|vorab|rechtzeitig|m[üu]ssen sie|sie m[üu]ssen|[àa] l['’]avance|au pr[ée]alable|la veille|vous devez|il faut|" +
+    "con antelaci[óo]n|de antemano|previamente|el d[íi]a anterior|debe|tiene que|заранее|накануне|нужно|необходимо|должны)(?![\\p{L}])|مسبقا|مسبقاً|قبل الوصول|يجب",
+  "iu",
+);
+const PERMISSION = new RegExp(
+  "(?<![\\p{L}])(?:possible|allowed|permitted|approved|accepted|welcome|fine|okay|ok|available|can(?! ?not)|m[üu]mk[üu]n|olur|uygun|kabul|izin|serbest|" +
+    "m[öo]glich|erlaubt|gestattet|willkommen|autoris\\p{L}*|permis|accept\\p{L}*|posible|permitid\\p{L}*|aceptad\\p{L}*|можно|возможно|разрешен\\p{L}*)(?![\\p{L}])|ممكن|مسموح",
   "iu",
 );
 function remainderNeedsHost(text: string): boolean {
@@ -538,9 +613,15 @@ function logicalLines(reply: string): string[][] {
   return groups;
 }
 
-/** Silmeden sonra tek başına kalan artık: boş liste numarası ("2."), "P.S.", "Note:", yalnız emoji / noktalama (v2 incelemesi launder-10). */
-const RESIDUE =
-  /^\s*(?:[-•*#>]+\s*)?(?:\d{1,3}[.)]|p\.?\s?s\.?|n\.?\s?b\.?|note|not|hinweis|remarque|nota|примечание|ملاحظة|[\p{Extended_Pictographic}‍️]|[\s\p{P}\p{S}])*\s*$/iu;
+/**
+ * Silmeden sonra tek başına kalan artık: boş liste numarası ("2."), "P.S.", "Note:", yalnız emoji / noktalama (v2 incelemesi launder-10). İç içe
+ * yıldızlı tek düzenli ifade boşluk dizisinde KÜBİKTİ (v3 yeniden incelemesi COST-1: 4 bin karakterde 10–17 sn) → işaretler silinir, geriye harf /
+ * rakam kalmıyorsa artıktır. Doğrusal.
+ */
+const RESIDUE_TOKENS = /\d{1,3}[.)]|p\.?\s?s\.?|n\.?\s?b\.?|note|not|hinweis|remarque|nota|примечание|ملاحظة/giu;
+function isResidue(x: string): boolean {
+  return x.replace(RESIDUE_TOKENS, "").replace(/[\s\p{P}\p{S}\p{Extended_Pictographic}\u200d\ufe0f]/gu, "") === "";
+}
 /** Başlık satırı: iki noktayla biten ya da en çok dört sözcüklük, cümle noktalaması olmayan satır ("**Parking**", "If the Wi-Fi stops working:"). */
 function isHeaderLine(line: string): boolean {
   const t = line.trim().replace(/^[-•*#>]+\s*/u, "").replace(/\*+/gu, "").trim();
@@ -555,7 +636,37 @@ export function analyzeHostContact(reply: string): HostContactAnalysis {
   const scopes: RemovalScope[] = [];
   let forceHold = false;
   let safetyHold = false;
+  let preconditionRemoved = false;
+  let needReferenceRemoved = false;
   let previous: string | null = null;
+  const readCache = new Map<string, { stems: string[]; topics: string[] }>();
+  // Önceki cümleye bağlı okumalar (işletme mi, yalnız ev sahibi mi, güvenlik talimatı mı) önceki cümle DEĞİŞİNCE bir kez hesaplanır — uzun
+  // bir cümlenin ardından gelen binlerce kısa başvurma cümlesi onu her seferinde yeniden taramasın (10-30 ölçümü: 100.000 karakterde 4,3 sn,
+  // karesel).
+  let prevFacts: { of: string; business?: boolean; hostOnly?: boolean; safety?: boolean } = { of: "" };
+  const factsOf = (p: string) => (prevFacts.of === p ? prevFacts : (prevFacts = { of: p }));
+  const prevBusiness = (p: string) => {
+    const f = factsOf(p);
+    if (f.business === undefined) f.business = mentionsBusiness(p);
+    return f.business;
+  };
+  const prevHostOnly = (p: string) => {
+    const f = factsOf(p);
+    if (f.hostOnly === undefined) f.hostOnly = mentionsHostOnly(p);
+    return f.hostOnly;
+  };
+  // Cümle başına çıktı vetosu yalnız cevabın TAMAMI vetoya takılıyorsa gerekir: bir cümlede yakalanan söz / iletme iddiası bütün cevapta da
+  // yakalanır (10-30 ölçümü: 109.098 metinde karşı örnek 0). Temiz cevapta veto bir kez koşar (uzun cevapta cümle sayısı kadar değil).
+  let replyVetoed: boolean | undefined;
+  const replyCarriesVeto = () => {
+    if (replyVetoed === undefined) replyVetoed = vetoOutgoingReply(reply) !== null;
+    return replyVetoed;
+  };
+  const prevSafety = (p: string) => {
+    const f = factsOf(p);
+    if (f.safety === undefined) f.safety = isSafetyWarningSentence(p);
+    return f.safety;
+  };
   const record = (r: { removal: HostContactRemoval; scope: RemovalScope }) => {
     removals.push(r.removal);
     scopes.push(r.scope);
@@ -570,21 +681,29 @@ export function analyzeHostContact(reply: string): HostContactAnalysis {
     let changed = false;
     for (const s of replySentencesOf(joined)) {
       // Ev sahibi bir ÖNCEKİ cümlede anıldıysa zamirle gönderme ("Your host Mehmet lives nearby. If anything comes up, just message him.").
-      const kind = hostContactKindOf(s) ?? (previous !== null && mentionsHostOnly(previous) ? pronounHostContactKind(s) : null);
+      // Önceki cümle bir işletme andıysa "the owner" o işletmenindir (v3 yeniden incelemesi wf3-fp-06).
+      const kind =
+        hostContactKindOf(withBusinessOwnerContext(s, previous !== null && prevBusiness(previous))) ??
+        (previous !== null && prevHostOnly(previous) ? pronounHostContactKind(s) : null);
       if (!kind) {
         out.push(s);
         if (s.trim()) previous = s;
         continue;
       }
       changed = true;
-      // 🚨 K10 DEVİR / BİLDİRİM taşıyan başvurma cümlesi: kurucu kuralı "Hiçbir şey gitmesin" → cevabın TAMAMI tutulur (Opus F7).
-      if (carriesHandoffNotice(s) || VISIBILITY_NOTICE.test(s)) {
+      // 🚨 K10 DEVİR / BİLDİRİM taşıyan başvurma cümlesi: kurucu kuralı "Hiçbir şey gitmesin" → cevabın TAMAMI tutulur (Opus F7). Çıktı
+      // vetosunun işaretleyeceği söz / iletme iddiası ("I've passed this on to your host", "ilettim", "and I will arrange a replacement") da:
+      // süzgeç onu silseydi veto kalan metinde göremez, cevabın geri kalanı giderdi (v3 yeniden incelemesi LAUNDER-02 / VETO-1).
+      if (carriesHandoffNotice(s) || VISIBILITY_NOTICE.test(s) || (replyCarriesVeto() && vetoOutgoingReply(s) !== null)) {
         forceHold = true;
-        record(removalOf(kind, s, false, previous));
+        record(removalOf(kind, s, false, previous, false, null, readCache));
         continue;
       }
-      if (isSafetyWarningSentence(s)) {
-        const o = safetyOutcome(s);
+      // Önceki cümle bir güvenlik talimatıysa devam cümlesi ("Then leave the apartment and call your host from outside.") aynı zincirdir —
+      // tahliye adımı sıradan yönlendirme gibi silinmesin (v3 yeniden incelemesi SAFE-2).
+      const safetyContinuation = previous !== null && SAFETY_CONTINUATION.test(s) && prevSafety(previous);
+      if (isSafetyWarningSentence(s) || safetyContinuation) {
+        const o = safetyOutcome(s, safetyContinuation);
         if ("keep" in o) {
           out.push(s);
           previous = s;
@@ -593,33 +712,43 @@ export function analyzeHostContact(reply: string): HostContactAnalysis {
         if ("hold" in o) {
           forceHold = true;
           safetyHold = true;
-          record(removalOf(kind, s, false, previous));
+          record(removalOf(kind, s, false, previous, false, null, readCache));
           continue;
         }
         if ("removeWhole" in o) {
-          record(removalOf(kind, s, false, previous));
+          record(removalOf(kind, s, false, previous, false, null, readCache));
           continue;
         }
         out.push(o.kept + (/\s$/u.test(s) ? " " : ""));
-        record(removalOf(kind, o.removed, true, o.kept, true));
+        record(removalOf(kind, o.removed, true, o.kept, true, null, readCache));
         previous = o.kept;
         continue;
       }
       // Bilgi yönlendirmesi ("Sauna için, lütfen ev sahibinize yazın") virgülden kesilmez: baş kısmı yönlendirmenin KONUSUDUR, bilgi değil.
+      // Ancak silinen yan cümle karşıtlıkla ya da KENDİ konusuyla başlıyorsa ("…, but for the sauna hours please message your host", "…, sauna
+      // saatleri için ise …") baş kısım ayrı bir cevaptır — GD5: yalnız talimat yan cümlesi çıkar (v3 yeniden incelemesi wf3-fp-01).
       const cut =
         kind === "referral"
-          ? (splitInstructionClausesWithTail(s, true) ?? splitInstructionClausesWithTail(s, false, true))
+          ? (splitInstructionClausesWithTail(s, true) ??
+            splitInstructionClausesWithTail(s, false, true) ??
+            ((c) => (c && OWN_TOPIC_TAIL.test(c.removed) ? c : null))(splitInstructionClausesWithTail(s)))
           : splitInstructionClausesWithTail(s);
+      const removedPart = cut !== null ? cut.removed : s;
+      // Silinen parça kendi belirsizliğini / tahminini taşıyorsa ("I'm not 100% sure about this, so it's best to confirm with your host") kalan
+      // iddia kesin gibi gitmez (v3 yeniden incelemesi LAUNDER-01). Ön koşul + kalan izin → tutulur (LAUNDER-03, sonda).
+      if (remainderNeedsHost(removedPart)) forceHold = true;
+      if (PRECONDITION.test(removedPart) && !HC_TROUBLE_CONTINGENCY.test(removedPart)) preconditionRemoved = true;
+      if (NEED_REFERENCE.test(removedPart) || NEED_REFERENCE.test(removedPart.toLocaleLowerCase("tr"))) needReferenceRemoved = true;
       if (cut !== null) {
         out.push(cut.kept + (/\s$/u.test(s) ? " " : ""));
-        record(removalOf(kind, cut.removed, true, cut.kept));
+        record(removalOf(kind, cut.removed, true, cut.kept, false, null, readCache));
         previous = cut.kept;
       } else {
-        record(removalOf(kind, s, false, previous, false, lead));
+        record(removalOf(kind, s, false, previous, false, lead, readCache));
       }
     }
     // Değişen satırda tek başına kalan artık ("2.", "P.S.", "🙏") düşer.
-    const kept = changed ? out.filter((x) => !RESIDUE.test(x)) : out;
+    const kept = changed ? out.filter((x) => !isResidue(x)) : out;
     const text = kept.join("").trim();
     return { text: changed ? text : group.join("\n"), changed, dropped: changed && text === "" && joined.trim() !== "" };
   });
@@ -660,7 +789,12 @@ export function analyzeHostContact(reply: string): HostContactAnalysis {
   // Kalan metin kararı ev sahibine bırakıyorsa, belirsizlik / tahmin / yetersizlik / ret / özür söylüyorsa ya da bildirim taşıyorsa
   // yönlendirme bir cevabın parçası değil, CEVAPSIZLIĞIN parçasıdır → eskisi gibi tamamı tutulur (kurucu kararları 10-01, 09-11, K10).
   const notice = carriesHandoffNotice(text) || VISIBILITY_NOTICE.test(text);
-  if (forceHold || partial || notice || !informative || defersDecisionToHost(text) || remainderNeedsHost(text)) {
+  // Yalnız genel kapanış silindiyse kalan metin, kapanışsız aynı cevapla AYNI muameleyi görür — kapanış eklemek cevabı sıkılaştırmaz (R13-b/c;
+  // v3 yeniden incelemesi wf3-fp-04: "Luggage may be left …", "erişim yok", "creo que le encantará" tutuluyordu).
+  // "Gerekirse / isterseniz" kapanışı genel kapanıştır; yalnız kalan metin belirsizlik ya da izin söylüyorsa silme onu kesinleştirirdi.
+  const remainderHedge = (removals.some((r) => !r.generic) || needReferenceRemoved) && remainderNeedsHost(text);
+  const conditionalYes = (preconditionRemoved || needReferenceRemoved) && PERMISSION.test(text);
+  if (forceHold || partial || notice || !informative || defersDecisionToHost(text) || remainderHedge || conditionalYes) {
     return { text: reply, removals, nothingLeft: true, draft };
   }
   return { text, removals, nothingLeft: false, draft: text };

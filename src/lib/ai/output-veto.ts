@@ -72,6 +72,43 @@ export const HANDOFF_NOTICE_REASON = "handoff_notice" satisfies OutputVetoReason
 const NL = "(?<!\\p{L})";
 const NR = "(?!\\p{L})";
 /**
+ * 🚨 ORTAK SOL SINIR TEK KEZ (10-30, ölçüldü): alternatiflerinin her biri `(?<!\p{L})` ile başlayan büyük söz kalıplarında V8, konum atlatan
+ * hızlı denetimi kullanamadığı durumda (yorumlayıcı / iyileştirmesiz kip: ilk çalıştırma, bellek temizliğinde kodu atıldıktan sonra) sınırı
+ * HER konumda alternatif sayısı kadar sınıyordu — süzgeç cümle başına veto çağırınca 48.000 karakterlik cümlede Almanca söz kalıbı 0,55 sn,
+ * Türkçe 0,14 sn (sınır dışarı alınınca 3–9 kat hızlı). Bu yardımcı sınırla başlayan alternatifleri tek `(?<!\p{L})(?:…|…)` öbeğine toplar,
+ * kalanları ardına ekler. Kalıplar yalnız `.test()` ile kullanılır → alternatif sırası sonucu değiştirmez; kabul edilen dil birebir aynı.
+ */
+export function factorLeadingBoundary(source: string): string {
+  const alternatives: string[] = [];
+  let depth = 0;
+  let inClass = false;
+  let current = "";
+  for (let i = 0; i < source.length; i++) {
+    const c = source[i];
+    if (c === "\\") {
+      current += c + (source[i + 1] ?? "");
+      i++;
+      continue;
+    }
+    if (inClass) {
+      if (c === "]") inClass = false;
+    } else if (c === "[") inClass = true;
+    else if (c === "(") depth++;
+    else if (c === ")") depth--;
+    else if (c === "|" && depth === 0) {
+      alternatives.push(current);
+      current = "";
+      continue;
+    }
+    current += c;
+  }
+  alternatives.push(current);
+  const bounded = alternatives.filter((a) => a.startsWith(NL)).map((a) => a.slice(NL.length));
+  const rest = alternatives.filter((a) => !a.startsWith(NL));
+  return [...(bounded.length > 0 ? [`${NL}(?:${bounded.join("|")})`] : []), ...rest].join("|");
+}
+
+/**
  * DUYURU / NETLEŞTİRME İKİ NOKTASI — saatin iki noktası DEĞİL (10-01, 15 ajan incelemesi A05, ölçüldü). "…:" istisnaları (duyuru:
  * "Sizi bilgilendiriyoruz: …", misafire sorulan netleştirme: "Let me double-check: two adults?") cümledeki HER iki noktayı sayıyordu →
  * "I'll check whether an early check-in at 13:00 is possible", "Ich frage beim Gastgeber nach, ob ein Check-in um 13:00 möglich ist",
@@ -84,6 +121,9 @@ const ANNOUNCE_COLON = "(?:(?<!\\p{N}):|:(?!\\p{N}))";
  */
 const TR_CLAUSE_GAP = "(?:[^.!?;:\\n]|(?<=\\p{N})[.:](?=\\p{N})){0,80}?";
 
+/** 1. tekil şimdiki zaman BEKLEME SÖZÜ gövdeleri ("kontrol ediyorum", "bakıyorum") — alternatifte iki kez geçer (ileriye bakış + gövde). */
+const PRESENT_PROGRESSIVE_WAIT = "(?:danışı|kontrol edi|bakı|dönü|araştırı|arı|çağırı|takip edi|ilgileni)yorum";
+
 /**
  * ETKEN GEÇMİŞ EYLEM İDDİASI — "ilettim", "oluşturduk", "kontrol ettim".
  *
@@ -91,6 +131,7 @@ const TR_CLAUSE_GAP = "(?:[^.!?;:\\n]|(?<=\\p{N})[.:](?=\\p{N})){0,80}?";
  * İkinci alternatif (edilgen: "iletildi", "bildirilmiştir") BİLEREK YOK ↑.
  */
 const ACTIVE_PAST_CLAIM = new RegExp(
+  factorLeadingBoundary(
   // Üçüncü inceleme (kör batarya 09-25): alıcısı MİSAFİR olan "size (dün) ilettim" önceki mesaja atıftır; amaç cümleciği
   // ("size dönmesi için ilettim", "size dönsün diye ilettim") ise ev sahibine iletme İDDİASIDIR — istisna ona uygulanmaz.
   // K10 (kurucu kararı 09-30): aynı istisna "size … haber verdim / bildirdim / bilgi verdim" için de — "Dün size haber verdim:
@@ -134,7 +175,11 @@ const ACTIVE_PAST_CLAIM = new RegExp(
     // İkinci inceleme: "arıyorum / çağırıyorum / takip ediyorum / ilgileniyorum" da iddiadır; "her sabah / her misafirden
     // önce" gibi ALIŞKANLIK anlatımı değildir (yapay zekâ ev sahibinin sesiyle yazar: "Her misafirden önce daireyi
     // kontrol ediyorum").
-    `|${NL}(?<!(?<!\\p{L})her\\s+(?:\\p{L}+\\s+){1,5})(?:danışı|kontrol edi|bakı|dönü|araştırı|arı|çağırı|takip edi|ilgileni)yorum${NR}` +
+    // 🚨 GÖVDE ÖNCE (10-30, yorumlayıcı kipinde ölçüldü): "her …" geriye bakışı gövdeden ÖNCE yazılıydı → her konumda koşuyordu. V8 bir
+    // düzenli ifadeyi ilk çalıştırmada (ve bellek temizliğinde kodu atıldıktan sonra) YORUMLAYICIDA koşturur; orada bu alternatif 8.000
+    // karakterlik sekme dizisinde 4,3 sn (2.000'de 0,28 sn — karesel) sürdü, derlenmiş kipte görünmüyordu (09-28 ölçümü bu yüzden kaçırdı).
+    // Gövde ileriye bakışla önce sınanır; kabul edilen dil birebir aynı.
+    `|${NL}(?=${PRESENT_PROGRESSIVE_WAIT}${NR})(?<!(?<!\\p{L})her\\s+(?:\\p{L}+\\s+){1,5})${PRESENT_PROGRESSIVE_WAIT}${NR}` +
     // "soruyorum" yalnız EV SAHİBİNE soruluyorsa söz: "Emin olmak için soruyorum: …" misafire sorulan netleştirmedir.
     `|${NL}sahib\\p{L}*\\s+(?:\\p{L}+\\s+){0,3}?(?:soru|danışı)yor(?:um|uz)${NR}` +
     // K10 (kurucu kararı 09-30): "Mesajınızı şimdi ev sahibine gönderiyorum" — alıcısı ev sahibi / ekip olan GÖNDERME (şimdiki
@@ -142,7 +187,8 @@ const ACTIVE_PAST_CLAIM = new RegExp(
     `|${NL}(?:sahib|ekib|ekip|görevli|yönetici|temizlikçi)\\p{L}*[ea]\\s+(?:\\p{L}+\\s+){0,3}?gönderiyor(?:um|uz)${NR}` +
     // … ve ev sahibine yönelik TEKLİF, soru ekiyle de ("İsterseniz ev sahibinize sorayım mı?", "Ev sahibine ileteyim mi?"):
     // yapay zekâ ev sahibine soramaz / iletemez — yapılamayacak eylemin teklifi (soru eki burada netleştirme değildir).
-    `|${NL}(?:sahib|ekib|görevli|yönetici)\\p{L}*\\s+(?:\\p{L}+\\s+){0,3}?(?:sora|danışa|ilete|söyleye|yaza|haber vere|bildire)y[iı]m(?:\\s+m[iı])?${NR}`,
+    `|${NL}(?:sahib|ekib|görevli|yönetici)\\p{L}*\\s+(?:\\p{L}+\\s+){0,3}?(?:sora|danışa|ilete|söyleye|yaza|haber vere|bildire)y[iı]m(?:\\s+m[iı])?${NR}`
+  ),
   "iu",
 );
 
@@ -205,8 +251,11 @@ const HABITUAL_BEFORE =
  * BAKIŞLA sınanır: geriye bakışlar yalnız gövdenin başladığı konumda koşar. Kabul edilen dil birebir aynı. Diğer `HABITUAL_BEFORE`
  * alternatifi ölçüldü, yavaş değil (dokunulmadı).
  */
+/** Ev sahibinin geniş zaman SÖZ gövdeleri ("iletirim", "döneriz") — alternatifte iki kez geçer (ileriye bakış + gövde). */
+const HABITUAL_AORIST = "(?:ileti|döne|hallede|haber veri|dönüş yapa|bilgilendiri|paylaşı|gönderi|bildiri|aktarı)r(?:[iı]m|[iı]z)";
 const FIRST_PERSON_AORIST = "(?:sora|danışı|yaza|baka|söyle|öğreni|dönüş sağla|kontrol ede|teyit ede|bilgi veri)r[iı]m";
 const ACTIVE_FUTURE_CLAIM = new RegExp(
+  factorLeadingBoundary(
   // İkinci inceleme: sıfat-fiil ("göndereceğimiz mesajda", "yazacağı mesajda") ve kalıp ("Sorunuza dönecek olursak")
   // söz değildir.
   `${NL}(?:${OLD_FUTURE_STEMS})[ğgk]${SECOND_PERSON}${QUESTION_PARTICLE}(?!(?:[iı]|[iı]m[iı]z)\\s+\\p{L})(?!\\s+olur(?:sak|sanız))\\p{L}*` +
@@ -223,7 +272,10 @@ const ACTIVE_FUTURE_CLAIM = new RegExp(
     `|${NL}(?:${HOST_SUBJECT_TR}|${STAFF_SUBJECT_TR})${NR}${TR_CLAUSE_GAP}\\s(?:bilgi verir|haber verir|size döner|dönüş yapar|dönüş sağlar|size yazar|size ulaşır|sizi arar|sizinle iletişime geçer)${NR}` +
     // İkinci inceleme: ev sahibinin KARARINI bildiren geçmiş ("Ev sahibiniz erken girişinizi onayladı") — makbuzsuz izin iddiası.
     `|${NL}(?:${HOST_SUBJECT_TR}|${STAFF_SUBJECT_TR})${NR}${TR_CLAUSE_GAP}\\s(?:onayladı|kabul etti|izin verdi|teyit etti|ayarladı|iptal etti)${NR}` +
-    `|${NL}${HABITUAL_BEFORE}(?:ileti|döne|hallede|haber veri|dönüş yapa|bilgilendiri|paylaşı|gönderi|bildiri|aktarı)r(?:[iı]m|[iı]z)${NR}` +
+    // 🚨 GÖVDE ÖNCE (10-30): 09-28'de "yavaş değil" ölçülen bu alternatif, derlenmiş kodun bir durumunda (uzun iki baytlık metinden sonra tek
+    // baytlık uzun metin — süzgeç cümle cümle veto çağırınca) 16.000 karakterlik boşluk dizisinde 8 sn sürdü; tek başına her alternatif
+    // < 20 ms. Geriye bakış (`\s+` sınırsız) her konumda koşuyordu. Gövde ileriye bakışla önce sınanır; kabul edilen dil birebir aynı.
+    `|${NL}(?=${HABITUAL_AORIST}${NR})${HABITUAL_BEFORE}${HABITUAL_AORIST}${NR}` +
     // 1. TEKİL geniş zaman (09-25): "Bunu ev sahibinize sorarım", "Öğrenip size yazarım", "dönüş sağlarım". 1. çoğul YOK:
     // "Girişte kimliğinizi sorarız" ev sahibinin alışkanlık/süreç anlatımıdır.
     // "Ben olsam … bakarım" bir TAVSİYEDİR (ikinci inceleme 09-25).
@@ -234,7 +286,8 @@ const ACTIVE_FUTURE_CLAIM = new RegExp(
     // VERİYORSA duyurudur (kör batarya "optative_explain"); saatin iki noktası artık duyuru sayılmadığı için ayrı istisna. "Öğrenip size
     // bilgi vereyim" (cümle başı değil) ve "Ev sahibinize bilgi vereyim" (alıcı ev sahibi) söz kalır.
     `|${NL}(?!(?=(?:haber\\s+ver|bilgi\\s+ver|bildir)eyim\\s*,\\s*\\p{L})(?<=(?:^|[.!?]\\s+)(?:\\p{L}+\\s+)?size\\s+(?:\\p{L}+\\s+)?))` +
-    `(?:sor|danış|kontrol\\s+ed|bak|öğren|araştır|ilet|haber\\s+ver|bilgi\\s+ver|bildir|ara|teyit\\s+ed|onayla|gönder|ayarla|halled|takip\\s+ed|not\\s+al|ilgilen)(?:[ey]?eyim|[ay]?ayım)${NR}(?![^.!?\\n]*(?:${ANNOUNCE_COLON}|\\?))`,
+    `(?:sor|danış|kontrol\\s+ed|bak|öğren|araştır|ilet|haber\\s+ver|bilgi\\s+ver|bildir|ara|teyit\\s+ed|onayla|gönder|ayarla|halled|takip\\s+ed|not\\s+al|ilgilen)(?:[ey]?eyim|[ay]?ayım)${NR}(?![^.!?\\n]*(?:${ANNOUNCE_COLON}|\\?))`
+  ),
   "iu",
 );
 
@@ -260,6 +313,7 @@ const ACTIVE_FUTURE_CLAIM = new RegExp(
 /** Geçmiş iddiadaki zarf yuvası: "I have also already informed the host", "I've now let the host know", "I've gone ahead and notified". */
 const EN_PAST_ADVERB = "(?:(?:just|already|also|now|personally|(?:gone|went)\\s+ahead\\s+and)\\s+){0,2}";
 const EN_PAST_CLAIM = new RegExp(
+  factorLeadingBoundary(
   // "As I noted / mentioned earlier" önceki mesaja ATIFTIR (ikinci inceleme 09-25).
   `${NL}(?<!(?<!\\p{L})as\\s)i(?:'ve| have)?\\s+${EN_PAST_ADVERB}(?:forwarded|passed\\s+(?:this|it|that|your\\s+\\p{L}+)\\s+on|passed\\s+on|created|checked|noted|(?:informed|contacted)(?!\\s+you(?!\\p{L}))|alerted|flagged|arranged|logged|asked\\s+our\\s+team|raised)${NR}` +
     // İkinci inceleme: "I've asked / told the host", "I've confirmed with the owner", "I've updated your booking".
@@ -304,7 +358,8 @@ const EN_PAST_CLAIM = new RegExp(
     `|${NL}let\\s+me\\s+(?:just\\s+|quickly\\s+)?(?:forward|pass\\s+(?:this|it|that)\\s+(?:on|along)|ask\\s+(?:the|your|our)\\s+(?:host|owner|team|cleaner|manager)|reach\\s+out\\s+to\\s+(?:the|your|our)|check\\s+with\\s+(?:the|your|our)\\s+(?:host|owner|team|cleaner|manager)|contact\\s+(?:the|your|our)\\s+(?:host|owner|team|cleaner|manager))${NR}` +
     `|${NL}let\\s+me(?![^.!?\\n]*(?:${ANNOUNCE_COLON}|\\?))\\s+(?:just\\s+|quickly\\s+)?(?:forward|pass\\s+(?:this|it|that)\\s+on|ask\\s+(?:the|your|our)|ask\\s+them|find\\s+out|look\\s+into|reach\\s+out` +
     `|see\\s+what\\s+i\\s+can\\s+(?:do|find)|see\\s+if|confirm|get\\s+back|take\\s+a\\s+look` +
-    `|(?:double[-\\s]?)?check(?:\\s+(?:with|on\\s+(?:this|that|it)|and|for\\s+you|this|it|that(?!\\s+i\\s)|(?:the|your|our)\\s+\\p{L}+|availability)|(?=\\s*(?:[.!]|$))))${NR}`,
+    `|(?:double[-\\s]?)?check(?:\\s+(?:with|on\\s+(?:this|that|it)|and|for\\s+you|this|it|that(?!\\s+i\\s)|(?:the|your|our)\\s+\\p{L}+|availability)|(?=\\s*(?:[.!]|$))))${NR}`
+  ),
   "iu",
 );
 /**
@@ -366,6 +421,7 @@ const EN_ADVERB =
   "(?:(?:just|quickly|also|now|personally|shortly|soon|gladly|happily|certainly|definitely|immediately|promptly|surely|absolutely" +
   "|of\\s+course|right\\s+away|most\\s+likely|likely|probably|be\\s+sure\\s+to|make\\s+sure\\s+to|go\\s+ahead\\s+and)\\s+){0,2}";
 const EN_FUTURE_CLAIM = new RegExp(
+  factorLeadingBoundary(
   // Ardından iki nokta gelen 1. şahıs biçim bir DUYURUDUR ("I'll respond to each of your questions below: …").
   `${NL}${EN_I}(?![^.!?\\n]*${ANNOUNCE_COLON})\\s+${EN_ADVERB}(?:${EN_COMMON_PROMISE}|${EN_FIRST_ONLY_PROMISE})${NR}` +
     // K10 ikinci tur (Codex 10-01): duyuru istisnası ev sahibine / ekibe İLETME sözüne uygulanmaz — "I'll forward your message to
@@ -381,7 +437,8 @@ const EN_FUTURE_CLAIM = new RegExp(
     `|${NL}you(?:'ll|\\s+will)\\s+hear\\s+(?:back|(?:back\\s+)?from\\s+(?:us|me|the\\s+host|your\\s+host|the\\s+team|our\\s+team)|soon|shortly)${NR}` +
     `|${NL}you(?:'ll|\\s+will)\\s+(?:receive|get)\\s+(?:a\\s+)?(?:reply|response|answer|message)\\s+from\\s+(?:the|your)\\s+(?:host|owner|team)${NR}` +
     // 10-01 (A05): "I'll send you the details once I hear from the host" — ev sahibinden cevap beklemek sözün kendisidir.
-    `|${NL}(?:once|as\\s+soon\\s+as|when)\\s+(?:i|we)\\s+(?:hear\\s+(?:back\\s+)?from|get\\s+(?:a\\s+|an\\s+)?(?:reply|response|answer|update)\\s+from)\\s+(?:the|your|our)\\s+(?:host|owner|team|manager)${NR}`,
+    `|${NL}(?:once|as\\s+soon\\s+as|when)\\s+(?:i|we)\\s+(?:hear\\s+(?:back\\s+)?from|get\\s+(?:a\\s+|an\\s+)?(?:reply|response|answer|update)\\s+from)\\s+(?:the|your|our)\\s+(?:host|owner|team|manager)${NR}`
+  ),
   "iu",
 );
 
@@ -390,6 +447,7 @@ const EN_FUTURE_CLAIM = new RegExp(
  * yoktu). Yalnız 1. şahıs geçmiş + İLETİŞİM/REZERVASYON fiili (etken, ajan çapalı; edilgen ve gelecek YOK).
  */
 const OTHER_PAST_CLAIM = new RegExp(
+  factorLeadingBoundary(
   // Tekil 1. şahıs: iletişim + rezervasyon fiilleri; ÇOĞUL yalnız iletişim fiilleri ("wir haben für jede Wohnung einen
   // Parkplatz reserviert" ev sahibi olgusudur — İngilizce "we reserved" ile aynı gerekçe).
   `${NL}ich\\s+habe\\s+(?:\\p{L}+\\s+){0,6}(?:weitergeleitet|informiert|benachrichtigt|kontaktiert|gebucht|reserviert|angerufen|bestellt|geschickt|nachgefragt|geprüft|gefragt)${NR}` +
@@ -417,7 +475,8 @@ const OTHER_PAST_CLAIM = new RegExp(
     `|${NL}(?:el|su)\\s+anfitri[óo]na?\\s+(?:ya\\s+)?ha\\s+(?:aprobado|aceptado|confirmado|autorizado)${NR}` +
     `|${NL}(?:хозя\\p{L}*|владел\\p{L}*)\\s+(?:уже\\s+)?(?:одобрил|одобрила|подтвердил|подтвердила|разрешил|разрешила|согласил\\p{L}*)${NR}` +
     // Arapça kelime sınırı: "متأكد" (eminim) içindeki "أكد" onay değildir (korpus ölçümü yakaladı); "و/ف" bağlaç öneki serbest.
-    `|(?<![\\u0621-\\u064A])[وف]?(?:وافق|أكد|سمح)\\s+(?:\\S+\\s+){0,1}?(?:المضيف|مضيفك|مضيفكم)|(?:المضيف|مضيفك|مضيفكم)\\s+[وف]?(?:وافق|أكد|سمح)(?![\\u0621-\\u064A])`,
+    `|(?<![\\u0621-\\u064A])[وف]?(?:وافق|أكد|سمح)\\s+(?:\\S+\\s+){0,1}?(?:المضيف|مضيفك|مضيفكم)|(?:المضيف|مضيفك|مضيفكم)\\s+[وف]?(?:وافق|أكد|سمح)(?![\\u0621-\\u064A])`
+  ),
   "iu",
 );
 
@@ -426,6 +485,7 @@ const OTHER_PAST_CLAIM = new RegExp(
  * ("Je vous confirme que l'arrivée est à 15h", "Le confirmo que…") BİLEREK yok; yalnız gelecek kip / "werde/vais/voy a".
  */
 const OTHER_FUTURE_CLAIM = new RegExp(
+  factorLeadingBoundary(
   // DE: 1. şahıs (düz ve DEVRİK dizim: "Dann melde ich mich", "Gerne frage ich beim Gastgeber nach"), "Bescheid geben",
   // "weiterleiten", "wir melden uns", ev sahibi öznesiyle "wird sich melden". Netleştirme ("Ich frage nur nach: …?") DEĞİL.
   `${NL}ich\\s+(?:melde\\s+mich|frage\\s+(?:\\p{L}+\\s+){0,3}nach(?![^.!?\\n]*(?:${ANNOUNCE_COLON}|\\?))|kläre\\s+das|prüfe\\s+(?:das|es|dies)` +
@@ -505,7 +565,8 @@ const OTHER_FUTURE_CLAIM = new RegExp(
     `|${NL}je\\s+peux\\s+(?:(?!(?:pas|plus|jamais)(?!\\p{L}))\\p{L}+\\s+){0,2}?(?:demander|vérifier|contacter|transmettre|voir\\s+avec|me\\s+renseigner)${NR}` +
     `|${NL}(?<!(?<!\\p{L})(?:no|tampoco|nunca)\\s(?:(?:le|les|lo|la|se|me|te)\\s)?)puedo\\s+(?:\\p{L}+\\s+){0,1}?(?:preguntar|consultar|verificar|comprobar|contactar|avisar)\\p{L}*` +
     `|${NL}(?<!(?<!\\p{L})не\\s)могу\\s+(?:\\p{L}+\\s+){0,1}?(?:уточнить|спросить|узнать|передать|связаться|проверить)${NR}` +
-    `|(?<!(?<![\\u0621-\\u064A])لا\\s)يمكنني\\s+(?:أن\\s+)?(?:أسأل|أتواصل|أتحقق|أستفسر|أبلغ)`,
+    `|(?<!(?<![\\u0621-\\u064A])لا\\s)يمكنني\\s+(?:أن\\s+)?(?:أسأل|أتواصل|أتحقق|أستفسر|أبلغ)`
+  ),
   "iu",
 );
 

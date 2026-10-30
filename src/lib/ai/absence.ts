@@ -662,11 +662,13 @@ const VERB_TR =
   // Ev sahibi öznesiyle "size bildirebilir / söyleyebilir / açıklayabilir / haber verebilir" de bilgi yönlendirmesidir (v3 kapsam turu:
   // "Havluların yerini ev sahibiniz size bildirebilir" eskiden yalnız haber-verme kalıbının geniş ekiyle yakalanıyordu).
   "(?:(?:bildir|bilgilendir)ebilir|s[öo]yleyebilir|(?:a[çc][ıi]kla|cevapla|yan[ıi]tla)yabilir|(?:haber|cevap|yan[ıi]t) verebilir)(?!siniz)\\p{L}{0,8})";
-const EN_HOST = "(?:your|the) (?:airbnb )?(?:hosts?|landlord|property manager|owner|hostess)";
+const EN_HOST = "(?:your|the) (?:airbnb )?(?:hosts?|co-?hosts?|landlord|property manager|owner|hostess)(?!['’]s(?![\\p{L}]))";
 const DE_HOST = "(?:ihren|ihre|ihrem|ihrer|ihr|den|die|dem|der) (?:gastgeber(?:in)?|vermieter(?:in)?|host)";
 const FR_HOST = "(?:votre |l['’] ?|le |la )(?:hôte|hôtesse|propriétaire)";
 const ES_HOST = "(?:su|tu|el|la) (?:anfitri[oó]n|anfitriona|propietari[oa])";
-const RU_HOST = "(?:хозя\\p{L}{0,6}|владел\\p{L}{0,6}|хост\\p{L}{0,4}|арендодател\\p{L}{0,4})";
+// "хозяйственный" (hırdavat) ev sahibi değildir (v3 yeniden incelemesi wf3-fp-11): yalnız ad çekimleri.
+const RU_HOST_NOUN = "(?:хозя(?:ин\\p{L}{0,2}|ев\\p{L}{0,3}|йк\\p{L}{0,2})(?![\\p{L}])|владел\\p{L}{0,6}|хост\\p{L}{0,4}|арендодател\\p{L}{0,4})";
+const RU_HOST = RU_HOST_NOUN;
 const HOST_REFERRAL_PATTERNS: readonly RegExp[] = [
   // Türkçe: ad öbeği önce, yüklem en çok dört sözcük sonra ("Otopark için ev sahibinizle iletişime geçebilirsiniz", "Ev sahibiniz, bu konuda
   // size kesin bilgi verebilir").
@@ -829,17 +831,22 @@ const WHETHER_IF =
  * Yönlendirme fiilinin OLUMSUZU ("ev sahibinize sormanıza gerek yok", "no need to contact your host") yönlendirme değildir (Haiku 10-23 akşam).
  * Gerek sözcüğü fiile bitişik aranır — aynı cümlenin başka bir yerindeki "gerek yok" yönlendirmeyi sessizce kaldırmasın.
  */
-const NEG_VERB_TR = "(?:sor|dan[ıi][şs]|ula[şs]|ba[şs]vur|ge[çc]|kur|konu[şs]|g[öo]r[üu][şs]|yaz|ara|iste|[öo][ğg]ren|teyit et|ilet)";
+const NEG_VERB_TR = "(?:sor|dan[ıi][şs]|ula[şs]|ba[şs]vur|ge[çc]|kur|konu[şs]|g[öo]r[üu][şs]|yaz|ara|iste|[öo][ğg]ren|teyit et|ilet|haber ver|bilgi ver|bildir|mesaj at)";
 // Olumsuzluk EV SAHİBİNE BAĞLI aranır (Opus 10-23 akşam A5): "… ev sahibinize sorabilirsiniz, taksi aramanıza gerek yok" / "no need to call a
 // taxi" yönlendirmeyi KALDIRMAZ; "ev sahibinize sormanıza gerek yok" / "no need to contact your host" kaldırır.
 const NEGATED_REFERRAL = new RegExp(
   `${HOST_TR},? ${gap(3)}${NEG_VERB_TR}(?:ma|me)(?:n[ıi]z[ae]?|k|z)? (?:gerek|ihtiya[çc]|l[üu]zum)\\p{L}{0,3} (?:yok|kalmad[ıi])` +
-    `|${HOST_TR},? ${gap(3)}${NEG_VERB_TR}(?:ma|me)(?:n[ıi]z[ae])? gerek(?:mez|miyor|memektedir)` +
+    `|${HOST_TR},? ${gap(3)}${NEG_VERB_TR}(?:ma|me)(?:n[ıi]z[ae]?)? gerek(?:mez|miyor|memektedir)` +
     `|(?<![\\p{L}])(?:no need|(?:you )?(?:don'?t|do not|won'?t) need|needn'?t|not necessary|unnecessary)(?: for you)? to ` +
     `(?:ask|check with|confirm with|contact|reach out to|reach|message|consult|speak (?:to|with)|talk to|get in touch with|email|write to|call|text|tell|alert|notify|inform|ping) ${EN_HOST}` +
     // Opus v2 incelemesi overhold-5: "don't have to / there's no need to let your host know", Almanca / İspanyolca / Türkçe "bizi aramanıza gerek yok".
     `|(?<![\\p{L}])(?:no need|(?:you )?(?:don'?t|do not) (?:need|have) to|needn'?t)(?: for you)? to let ${EN_HOST} know` +
-    `|(?<![\\p{L}])(?:don'?t|do not) have to (?:ask|contact|message|call|text|tell|alert|notify|inform|email|write to) ${EN_HOST}` +
+    `|(?<![\\p{L}])(?:don'?t|do not) have to (?:ask|contact|message|call|text|tell|alert|notify|inform|email|write to|get in touch with|reach out to) ${EN_HOST}` +
+    // v3 yeniden incelemesi wf3-fp-09: "You don't need to arrange anything with your host", "Rather than messaging your host, …", ES / DE olumsuz.
+    `|(?<![\\p{L}])(?:no need|(?:you )?(?:don'?t|do not) (?:need|have)|needn'?t)(?: for you)? to (?:arrange|coordinate|sort out|check|confirm)(?: \\S+){0,3}? with ${EN_HOST}` +
+    `|(?<![\\p{L}])(?:rather than|instead of) (?:messaging|contacting|calling|texting|writing to|asking|e-?mailing) ${EN_HOST}` +
+    `|(?<![\\p{L}])no (?:es necesario|hace falta) que (?:le )?(?:escriba|escribas|contacte|contactes|avise|avises|llame|llames)(?: a| al)? (?:${ES_HOST}|anfitri\\p{L}+)` +
+    `|(?<![\\p{L}])(?:schreiben|kontaktieren|rufen) sie (?:${DE_HOST})(?: \\p{L}+){0,2}? nicht(?![\\p{L}])` +
     `|(?<![\\p{L}])(?:müssen|brauchen) (?:sie )?(?:\\p{L}+ ){0,3}?(?:dem|den|ihrem|ihren) (?:gastgeber|vermieter)\\p{L}{0,2} (?:\\p{L}+ ){0,2}?nicht(?![\\p{L}])` +
     `|(?<![\\p{L}])no (?:es necesario|hace falta|tiene que|necesita) (?:avisar|escribir|llamar|contactar)(?:le)?(?: a| al| con)? (?:${ES_HOST}|anfitri\\p{L}+)` +
     `|(?<![\\p{L}])(?:bizi|bize|bana|beni),? ${gap(2)}${NEG_VERB_TR}(?:ma|me)n[ıi]za gerek (?:yok|kalmad[ıi])` +
@@ -972,7 +979,8 @@ export function refersGuestToHost(reply: string | null | undefined): boolean {
   const ps = plain.split(SEP);
   const ts = turkish.split(SEP);
   for (let i = 0; i < ps.length; i++) {
-    const forms = [ps[i], ts[i] ?? ps[i]].map((f) => f.replace(FIRST_PERSON_REFERRAL, " "));
+    const bizBefore = i > 0 && HC_BUSINESS.test(ps[i - 1]);
+    const forms = [ps[i], ts[i] ?? ps[i]].map((f) => neutralizeBusinessOwner(f.replace(FIRST_PERSON_REFERRAL, " "), bizBefore));
     if (!forms.some((f) => HOST_REFERRAL_PATTERNS.some((re) => re.test(f)))) continue;
     if (forms.some((f) => contactValueInReferralClause(f))) continue;
     // "If I were you, …" koşul değil tavsiye kalıbıdır (Haiku 10-23 akşam) — koşul aranmadan önce silinir.
@@ -1007,7 +1015,7 @@ const HOST_INFORM = new RegExp(
 );
 const CALL_INFORM = /(?<![\p{L}])(?:aray[ıi]p|ula[şs][ıi]p)(?![\p{L}])/u;
 export function conditionalHostContactKind(sentence: string | null | undefined): "write" | "call" | null {
-  const forms = foldedForms(joinLines(sentence ?? "")).map((f) => f.split(SEP).join(" ").replace(FIRST_PERSON_REFERRAL, " "));
+  const forms = foldedForms(joinLines(sentence ?? "")).map((f) => neutralizeBusinessOwner(f.split(SEP).join(" ").replace(FIRST_PERSON_REFERRAL, " ")));
   const referral = forms.some((f) => HOST_REFERRAL_PATTERNS.some((re) => re.test(f)));
   const inform = !referral && forms.some((f) => HOST_INFORM.test(f));
   if (!referral && !inform) return null;
@@ -1054,16 +1062,20 @@ export function asksHypotheticalSituation(text: string | null | undefined): bool
 // Sabit sözcükle başlar, aralık sınırlı ({0,4} sözcük) — doğrusal (süre pini `host-contact-detect-cost.test.ts`).
 // Tamlayan eki ("ev sahibinizin bahsettiği sorun", "ev sahibinin") yönelme / belirtme değildir (Opus v2 incelemesi overhold-11).
 const HC_GEN = `(?!(?:in|inin|inizin|imizin)(?![\\p{L}]))`;
+/** Türkçe açık ekli fiil kökünden sonra MİSAFİRE dönük kip (emir / yeterlik / "-meniz") — sıfat-fiil / edilgen / geçmiş / gelecek / şimdiki
+ *  zaman değil ("iletişime geçtiğiniz için", "haber verilen arıza", "mesaj attım", "size haber verecek" — v3 yeniden incelemesi wf3-fp-02/07). */
+const TR_GUEST_TAIL = "(?![ıiuü]l|[dt][ıiuü]|m[ıiuü][şs]|[ae]?y?[ae]c[ae]k|[ıiuü]yor)";
 const HC_ADDR_TR = `${L}(?:ev ?sahib(?!i(?![\\p{L}])|iniz(?![\\p{L}])|imiz(?![\\p{L}]))${HC_GEN}\\p{L}{1,8}|host'?(?:a|unuza|unuzu|unuzla|umuza|umuzla)(?![\\p{L}])|m[üu]lk sahib(?!i(?![\\p{L}]))\\p{L}{1,8}|daire sahib(?!i(?![\\p{L}]))\\p{L}{1,8})`;
-const HC_SELF_TR = `${L}(?:bize|bana|bizimle|benimle|bizi|beni)(?![\\p{L}])`;
+const HC_SELF_TR = `${L}(?:bize|bana|bizimle|benimle|bizi|beni|ekibimiz(?:e|le|i)?)(?![\\p{L}])`;
 const HC_WRITE_TR =
-  "(?:yaz(?:abilirsiniz|abilirsin|[ıi]n|[ıi]n[ıi]z|man[ıi]z|man[ıi]z[ıi]|maktan)\\p{L}{0,6}|yazar m[ıi]s[ıi]n[ıi]z|mesaj (?:at|g[öo]nder|yaz|b[ıi]rak)\\p{L}{0,14}|not b[ıi]rak\\p{L}{0,12}|" +
-  "haber ver\\p{L}{0,12}|bildir(?:in|iniz|ebilirsiniz|meniz)\\p{L}{0,6}|bilgi ver(?:in|iniz|ebilirsiniz|meniz)\\p{L}{0,6}|" +
-  "(?:ileti[şs]im|irtibat)\\p{L}{0,2} ge[çc]\\p{L}{0,12}|dan[ıi][şs](?:abilirsiniz|[ıi]n|[ıi]n[ıi]z|man[ıi]z)\\p{L}{0,6}|" +
+  `(?:yaz(?:abilirsiniz|abilirsin|[ıi]n|[ıi]n[ıi]z|man[ıi]z|man[ıi]z[ıi]|maktan)\\p{L}{0,6}|yazar m[ıi]s[ıi]n[ıi]z|mesaj (?:at|g[öo]nder|yaz|b[ıi]rak)${TR_GUEST_TAIL}\\p{L}{0,14}|not b[ıi]rak${TR_GUEST_TAIL}\\p{L}{0,12}|` +
+  `haber ver${TR_GUEST_TAIL}\\p{L}{0,12}|haberdar (?:ed(?:in|iniz|ebilirsiniz)|etmeniz)\\p{L}{0,6}|(?:rica|talep) ed(?:in|iniz|ebilirsiniz)\\p{L}{0,6}|aktar(?:[ıi]n|[ıi]n[ıi]z|abilirsiniz|man[ıi]z)\\p{L}{0,6}|ilet(?:in|iniz|ebilirsiniz|meniz)\\p{L}{0,6}|` +
+  "bildir(?:in|iniz|ebilirsiniz|meniz)\\p{L}{0,6}|bilgi ver(?:in|iniz|ebilirsiniz|meniz)\\p{L}{0,6}|" +
+  `(?:ileti[şs]im|irtibat)\\p{L}{0,2} ge[çc]${TR_GUEST_TAIL}\\p{L}{0,12}|dan[ıi][şs](?:abilirsiniz|[ıi]n|[ıi]n[ıi]z|man[ıi]z)\\p{L}{0,6}|` +
   // v3 kapsam incelemesi cost-coverage-01: "iletişim / irtibat kurabilirsiniz", "temasa geçin", "e-posta gönderin", "yazışabilirsiniz",
   // "bilgilendirin". Birliktelikli ("ev sahibinizle") "ayarlayın / koordine edin / anlaşın" ayrı kalıpta (`HC_WITH_TR`).
-  "(?:ileti[şs]im|irtibat|temas)\\p{L}{0,2} kur(?:abilirsiniz|un|unuz|man[ıi]z|maktan)\\p{L}{0,6}|temas(?:a|ta)? ge[çc]\\p{L}{0,12}|" +
-  "e-?(?:posta|mail) (?:g[öo]nder|at|yaz)\\p{L}{0,12}|yaz[ıi][şs](?:abilirsiniz|[ıi]n|[ıi]n[ıi]z|man[ıi]z)\\p{L}{0,6}|" +
+  `(?:ileti[şs]im|irtibat|temas)\\p{L}{0,2} kur(?:abilirsiniz|un|unuz|man[ıi]z|maktan)\\p{L}{0,6}|temas(?:a|ta)? ge[çc]${TR_GUEST_TAIL}\\p{L}{0,12}|` +
+  `e-?(?:posta|mail) (?:g[öo]nder|at|yaz)${TR_GUEST_TAIL}\\p{L}{0,12}|` + "yaz[ıi][şs](?:abilirsiniz|[ıi]n|[ıi]n[ıi]z|man[ıi]z)\\p{L}{0,6}|" +
   "bilgilendir(?:in|iniz|ebilirsiniz|meniz)\\p{L}{0,6}|" +
   // "sorun" yalnız yüklem olarak (cümle / yan cümle sonu ya da "ve / lütfen" öncesi) — ad "sorun" (problem) değil ("Bize bildirdiğiniz sorun
   // çözüldü" — Opus v2 incelemesi overhold-11).
@@ -1076,7 +1088,7 @@ const HC_CALL_TR =
 const HC_WITH_VERB_TR =
   "(?:ayarla(?:yabilirsiniz|y[ıi]n|y[ıi]n[ıi]z|man[ıi]z)|koordine (?:edebilirsiniz|edin|ediniz|etmeniz|olabilirsiniz|olun)|anla[şs](?:abilirsiniz|[ıi]n|[ıi]n[ıi]z|man[ıi]z)|g[öo]r[üu][şs](?:ebilirsiniz|[üu]n|[üu]n[üu]z|men[ie]z)|konu[şs](?:abilirsiniz|un|unuz|man[ıi]z))\\p{L}{0,6}(?![\\p{L}])";
 const HC_ADDR_EN =
-  "(?:your|the|our) (?:airbnb )?(?:hosts?|landlord|landlady|hostess|owner|home ?owner|house owner|property (?:owner|manager)|apartment owner)";
+  "(?:your|the|our) (?:airbnb )?(?:hosts?|co-?hosts?|landlord|landlady|hostess|owner|home ?owner|house owner|property (?:owner|manager)|apartment owner)(?!['’]s(?![\\p{L}]))";
 const HC_WRITE_EN =
   "(?:message|messaging|text|texting|write to|writing to|e-?mail|e-?mailing|reach out to|reaching out to|get in touch with|getting in touch with|" +
   "contact|contacting|inform|let|drop|send|ask|asking|check with|notify|alert|ping|get hold of|reach)";
@@ -1086,21 +1098,25 @@ const HC_ADDR_FR = "(?:(?:votre |l['’] ?|le |la )(?:h[ôo]te|h[ôo]tesse|propr
 const HC_ADDR_ES = "(?:(?:su |tu |el |la |al |a su |a tu )?(?:anfitri[oó]n|anfitriona|propietari[oa]|due[ñn][oa])|(?:sus |los |las |a sus |a los |con los |con sus )(?:anfitrion(?:es|as)|propietari[oa]s|due[ñn][oa]s))";
 // "нам / мне" (ev sahibinin kendi sesi) YALNIZ koşul / kapanış izinde sayılır (`HC_SELF_PATTERNS`, tasarım A4) — "Сообщите нам ваше время
 // прибытия" bilgi isteğidir (v3 kapsam incelemesi).
-const HC_ADDR_RU = "(?:(?:вашим|вашему|вашего|вашей|с|со|к|у) )*(?:хозя\\p{L}{0,6}|владел\\p{L}{0,6}|собственник\\p{L}{0,4}|хост\\p{L}{0,4}|арендодател\\p{L}{0,4})";
+const HC_ADDR_RU = `(?:(?:вашим|вашему|вашего|вашей|с|со|к|у) )*(?:${RU_HOST_NOUN}|собственник\\p{L}{0,4})`;
+/** Rusça belirtme / ilgi hâli ("Спросите хозяина", "Уточните у хозяина", "Предупредите хозяина"). */
+const HC_ACC_RU = "(?:у )?(?:вашего |вашу )?(?:хозяина|хозяйку|хозяйки|хозяев|владельца|владелицу|собственника|арендодателя|хоста)(?![\\p{L}])";
 /** Rusça yönelme hâli (yalnız "сообщите / напишите … X'e" nesne aralığında — "Напишите номер квартиры хозяина" ilgi hâlidir). */
 const HC_DAT_RU = "(?:вашему |вашей )?(?:хозяину|хозяйке|хозяевам|владельцу|владелице|владельцам|собственнику|собственнице|арендодателю|хосту)(?![\\p{L}])";
 /** Koşul / kapanış izi — ev sahibinin kendi sesi ("bize / us / uns …") YALNIZ bununla sayılır ("Çıkışta anahtarı bırakıp bize mesaj atın"
  *  bir adım talimatıdır, kurucuya soru F3). */
 const HC_CONTINGENCY = new RegExp(
   "(?<![\\p{L}])en cas d['’]|(?<![\\p{L}])(?:sorun\\p{L}{0,6}|s[ıi]k[ıi]nt[ıi]\\p{L}{0,6}|problem\\p{L}{0,6}|aksilik\\p{L}{0,6}|herhangi bir|bir [şs]ey\\p{L}{0,4}|ihtiya[çc]\\p{L}{0,8}|" +
-    "soru(?:nuz|lar\\p{L}{0,6}|su)?|iste[ğk]\\p{L}{0,6}|talep\\p{L}{0,6}|\\p{L}{2,}m[ae]zs[ae](?:n[ıi]z)?|devam ederse|if|should|in case|whenever|feel free|don'?t hesitate|do not hesitate|anything|any (?:questions?|issues?|problems?)|" +
+    "soru(?:nuz|lar\\p{L}{0,6}|su)?|iste[ğk]\\p{L}{0,6}|tale[pb]\\p{L}{0,6}|\\p{L}{2,}m[ae]zs[ae](?:n[ıi]z)?|devam ederse|if|should|in case|whenever|feel free|don'?t hesitate|do not hesitate|anything|any (?:questions?|issues?|problems?)|" +
     "bei (?:\\p{L}+ )?(?:fragen|problemen|anliegen|schwierigkeiten)|falls|wenn|sollten sie|sollte (?:es|etwas)|z[öo]gern sie nicht|en cas de?|n'h[ée]sitez|pour toute|si|en caso de|no dude|no dudes|cualquier|" +
     "если|в случае|по любым|любые)(?![\\p{L}])|(?:إذا|اذا|في حال|لا تتردد)",
   "u",
 );
 const HC_SELF_PATTERNS: readonly RegExp[] = [
   new RegExp(`${HC_SELF_TR},? ${gap(3)}(?:${HC_WRITE_TR}|${HC_CALL_TR})`, "u"),
-  new RegExp(`${L}(?:${HC_WRITE_EN}|${HC_CALL_EN}|tell) (?:us|me)(?: (?:know|a (?:line|message|note)|directly|anytime|any time|at any time))?(?![\\p{L}])`, "u"),
+  new RegExp(`${L}(?!let (?:us|me) (?!know(?![\\p{L}])))(?:${HC_WRITE_EN}|${HC_CALL_EN}|tell) (?:us|me)(?: (?:know|a (?:line|message|note)|directly|anytime|any time|at any time))?(?![\\p{L}])`, "u"),
+  // v3 yeniden incelemesi LEAK-04: ev sahibinin kendi ekibi ("contact our team", "notre équipe", "nuestro equipo", "unser Team").
+  new RegExp(`${L}(?:contact|message|text|write to|reach out to|get in touch with|call|e-?mail|ask) our (?:team|staff|support team|guest (?:services|relations)(?: team)?)(?![\\p{L}])|${L}(?:contacter|[ée]crire [àa]|joindre|contactez|[ée]crivez [àa]) notre [ée]quipe|${L}(?:contactar|escribir|escriba|contacte)(?: a| con)? nuestro equipo`, "u"),
   new RegExp(`${L}(?:schreiben sie|schreib|kontaktieren sie|rufen sie|melden sie sich|wenden sie sich)(?: (?:bitte|gerne|einfach|direkt|kurz))* (?:(?:an|bei) )?(?:uns|mir)(?![\\p{L}])`, "u"),
   new RegExp(`${L}(?:[ée]crivez|contactez|appelez|joignez)-nous|${L}(?:n'h[ée]sitez pas [àa]|vous pouvez) nous (?:contacter|[ée]crire|appeler|joindre)`, "u"),
   new RegExp(`${L}(?:escr[ií]banos|escr[ií]benos|ll[aá]menos|ll[aá]manos|cont[aá]ctenos|cont[aá]ctanos)|${L}(?:no dude en|no dudes en|puede) (?:escribirnos|llamarnos|contactarnos)`, "u"),
@@ -1111,9 +1127,9 @@ const HC_SELF_PATTERNS: readonly RegExp[] = [
   //    yazmaktan çekinmeyin", "Herhangi bir sorunda mesaj atabilirsiniz") — "Kodu tekrar yazın" gibi nesneli kullanım eşleşmez;
   new RegExp(
     // v3 kapsam incelemesi cost-coverage-03: "Sorunuz varsa yazın", "… olursa (çekinmeden) sorabilirsiniz / sormanız yeterli / ulaşabilirsiniz".
-    `(?<![\\p{L}])(?:olursa|varsa|sorunda|durumda|halinde|takdirde),? (?:(?:[çc]ekinmeden|l[üu]tfen|her zaman|istedi[ğg]iniz zaman|diledi[ğg]iniz zaman|yine) )?` +
+    `(?<![\\p{L}])(?:olursa|varsa|sorunda|durumda|halinde|takdirde),? (?:(?:[çc]ekinmeden|l[üu]tfen|her zaman|istedi[ğg]iniz zaman|diledi[ğg]iniz zaman|yine|buradan|bu sohbetten|bu sohbet [üu]zerinden|bu kanaldan|bu yaz[ıi][şs]madan|bana|bize) ){0,2}` +
       `(?:yaz(?:abilirsiniz|[ıi]n|[ıi]n[ıi]z|man[ıi]z|maktan)|mesaj (?:at|g[öo]nder|b[ıi]rak)\\p{L}{0,14}|sor(?:abilirsiniz|man[ıi]z yeterli(?:dir)?|maktan)|` +
-      `ula[şs](?:abilirsiniz|[ıi]n|[ıi]n[ıi]z)|ileti[şs]ime ge[çc](?:ebilirsiniz|in|iniz))(?![\\p{L}])`,
+      `ula[şs](?:abilirsiniz|[ıi]n|[ıi]n[ıi]z)|ileti[şs]ime ge[çc](?:ebilirsiniz|in|iniz)|haber ver(?:in|iniz|ebilirsiniz|meniz yeterli(?:dir)?)|bildir(?:in|iniz|ebilirsiniz)|ilet(?:in|iniz|ebilirsiniz))(?![\\p{L}])`,
     "u",
   ),
   //  · "sormaktan / yazmaktan / ulaşmaktan çekinmeyin" (nesnesiz kapanış; koşul / kapanış izinde);
@@ -1122,7 +1138,7 @@ const HC_SELF_PATTERNS: readonly RegExp[] = [
   //    concierge", "ask for extra blankets" eşleşmez);
   /(?<![\p{L}])(?:feel free to|don'?t hesitate to|do not hesitate to|just|simply) (?:ask|get in touch|reach out|send (?:us |me )?a (?:quick |short )?(?:message|text|note|line)|drop (?:us |me )?a (?:line|message|note))(?=\s*(?:[.!,;)—–]|$)|\s+(?:if|whenever|anytime|any time|at any time)(?![\p{L}]))|(?<![\p{L}])get in touch(?=\s*(?:[.!]|$))|(?<![\p{L}])send (?:us |me )?a (?:quick |short )?(?:message|text|note|line)(?=\s*(?:[.!]|$))/u,
   //  · Almanca "können Sie sich jederzeit an uns wenden", "Wenden Sie sich bei Fragen gerne an uns";
-  /(?<![\p{L}])sich(?: \p{L}+){0,3}? an (?:uns|mich)(?![\p{L}])/u,
+  /(?<![\p{L}])sich(?: \p{L}+){0,3}? an (?:uns|mich|unser team)(?![\p{L}])|(?<![\p{L}])sich(?: (?:bitte|gerne|gern|einfach|jederzeit|kurz|bei uns|bei mir))* melden(?![\p{L}])/u,
   //  · Fransızca "n'hésitez pas à me contacter / à demander / à me les poser";
   /(?<![\p{L}])n'h[ée]sitez pas [àa] (?:(?:me|nous) (?:contacter|[ée]crire|appeler|joindre|solliciter|les poser|la poser|le demander|demander|poser vos questions)|demander(?=\s*(?:[.!,;]|$))|poser (?:vos|toutes vos) questions)/u,
   //  · İspanyolca "no dude en preguntar / consultarnos / preguntarme";
@@ -1134,46 +1150,52 @@ const HC_SELF_PATTERNS: readonly RegExp[] = [
   //  · İngilizce nesnesiz "reach out" (ev sahibinin söz verdiği "the host will reach out" eşleşmez), "give us a call / shout", "a message away";
   /(?<!(?:will|'ll|would|shall|may|might|going to|to you) )(?<!(?:host|owner|he|she|they|someone|staff) (?:can|could|may|might) )(?<![\p{L}])reach out(?: (?:to us|to me|anytime|any time|at any time))?(?=\s*(?:[.!,;:]|$)|\s+(?:if|whenever|anytime|any time|should)(?![\p{L}]))|(?<![\p{L}])give (?:us|me) a (?:call|ring|shout|message|text|buzz)(?![\p{L}])|(?<![\p{L}])(?:just )?a (?:message|text|call) away(?![\p{L}])/u,
   //  · Almanca: "geben / sagen Sie uns Bescheid", "können Sie uns … kontaktieren", "melden Sie sich (einfach)." (alıcısız);
-  /(?<![\p{L}])(?:geben|sagen) sie (?:uns|mir) (?:\p{L}+ )?bescheid|(?<![\p{L}])(?:uns|mir)(?: \p{L}+){0,2}? (?:kontaktieren|schreiben|anrufen|bescheid (?:geben|sagen)|eine nachricht (?:schicken|senden|schreiben))(?![\p{L}])|(?<![\p{L}])melden sie sich(?: (?:bitte|gerne|gern|einfach|jederzeit|kurz))*(?: bei (?:uns|mir))?(?=\s*[.!]|$)/u,
+  /(?<![\p{L}])(?:geben|sagen) sie (?:(?:uns|mir) )?(?:\p{L}+ ){0,2}?bescheid|(?<![\p{L}])(?:uns|mir)(?: \p{L}+){0,2}? (?:kontaktieren|schreiben|anrufen|bescheid (?:geben|sagen)|eine nachricht (?:schicken|senden|schreiben))(?![\p{L}])|(?<![\p{L}])melden sie sich(?: (?:bitte|gerne|gern|einfach|jederzeit|kurz))*(?: bei (?:uns|mir))?(?=\s*(?:[.!]|$|,\s*(?:wenn|falls|sobald)(?![\p{L}])))/u,
   //  · Fransızca / İspanyolca / Rusça / Arapça: "contactez-moi", "envoyez-nous un message", çıplak "n'hésitez pas." / "don't hesitate.",
   //    "no dude en escribirme", "hágamelo saber", çıplak "обращайтесь / пишите / звоните", bitişik zamir "راسلنا".
-  /(?<![\p{L}])(?:contactez|[ée]crivez|appelez)-moi|(?<![\p{L}])envoyez-(?:nous|moi) un (?:message|mot|sms|e-?mail)/u,
+  /(?<![\p{L}])(?:contactez|[ée]crivez|appelez)-moi|(?<![\p{L}])envoyez-(?:nous|moi) un (?:message|mot|sms|e-?mail)|(?<![\p{L}])faites-(?:moi|nous) (?:signe|savoir)|(?<![\p{L}])(?:me|nous) faire (?:signe|savoir)(?![\p{L}])/u,
+  // İspanyolca "Avísenos", "me avisa / me escribe", "déjeme saber", "solo tiene que escribirnos" (v3 yeniden incelemesi LEAK-07).
+  /(?<![\p{L}])(?:av[ií]s(?:enos|eme|ame|anos)|d[ée]j(?:eme|enos|ame|anos) saber)(?![\p{L}])|(?<![\p{L}])(?:me|nos) (?:avisa|avisas|escribe|escribes)(?![\p{L}])|(?<![\p{L}])s[óo]lo tiene que (?:escribir|avisar|llamar)(?:nos|me)(?![\p{L}])/u,
   // Çıplak "don't hesitate." / "n'hésitez pas." yalnız ihtiyaç / soru / sorun bağlamında ("If you'd like to use the bikes, don't hesitate!" bir
   // davettir — overhold-8).
   /^(?=[\s\S]*(?:questions?|problems?|issues?|need|anything|besoin|probl[èe]mes?|soucis?|quoi que ce soit))[\s\S]*?(?<![\p{L}])(?:n'h[ée]sitez pas|don'?t hesitate|do not hesitate)(?=\s*[.!]|$)/u,
   /(?<![\p{L}])(?:(?:no dude|no dudes|puede) en )?(?:escribirme|llamarme|contactarme|escr[ií]bame|ll[aá]meme|cont[aá]cteme)(?![\p{L}])|(?<![\p{L}])h[aá]g(?:amelo|anoslo|ame) saber(?![\p{L}])/u,
   /(?<![\p{L}])(?:обращайтесь|пишите|звоните|связывайтесь)(?: (?:нам|мне|к нам|с нами))?(?=\s*[.!]|$)|(?<![\p{L}])(?:пишите|звоните|обращайтесь) (?:нам|мне|к нам)(?![\p{L}])/u,
-  /(?:راسلنا|راسلني|كلمنا|كلمني|اكتب لنا|ابعث لنا|أخبرنا|اخبرنا)/u,
+  /(?:راسلنا|راسلني|كلمنا|كلمني|اكتب لنا|ابعث لنا|أخبرنا|اخبرنا|أخبرني|اخبرني|أعلمني|اعلمني|أعلمنا|اعلمنا)/u,
   // Ev sahibinin sesiyle "yeniden yazın / write again" (koşullu dolgu: "Düzelmezse yeniden yazın").
   // Nesneli "kodu / şifreyi tekrar yazın" kodu yeniden girmektir, ev sahibine yazmak değil (overhold-11).
   /(?<!\p{L}(?:[ıiuü]|y[ıiuü]) )(?<![\p{L}])(?:yeniden|tekrar) (?:yaz(?:abilirsiniz|[ıi]n|[ıi]n[ıi]z)|mesaj at(?:abilirsiniz|[ıi]n))(?![\p{L}])|(?<![\p{L}])(?:message|write to|text) us again(?![\p{L}])/u,
 ];
-const HC_NOT_MODAL = "(?<!(?:will|'ll|would|shall|might|automatically|also|then) )";
+const HC_FIRST_PERSON_LB =
+  "(?<!(?<![\\p{L}])(?:[iı]|we|let me|let us)(?:['’](?:ll|d|m|ve|re)| will| would| can| could| shall| may| might| am| are| have)?(?: be| (?:be )?(?:happy|glad|able) to| going to| also| gladly| happily| personally| just| quickly| then)? )";
+// "will also / will then" ev sahibinin sözüdür; "please also / and then notify your host" misafire talimattır (v3 yeniden incelemesi LEAK-02).
+// "an alarm used to alert the host" cihazın işidir (wf3-fp-11).
+const HC_NOT_MODAL = "(?<!(?:will|'ll|would|shall|might|automatically|used to|designed to|meant to)(?: also| then| automatically)? )";
 const HC_HOST_PATTERNS: readonly RegExp[] = [
   new RegExp(`${HC_ADDR_TR},? ${gap(4)}(?:${HC_WRITE_TR}|${HC_CALL_TR})`, "u"),
   // "tell" yalnız ev sahibine ("tell your host"); "tell me / us your arrival time" bir bilgi isteğidir.
   // Öznesi üçüncü kişi / cihaz olan bildirim ("The door sensor will alert the host", "The cleaner will let the host know") talimat değildir
   // (Opus v2 incelemesi overhold-9).
-  new RegExp(`${HC_NOT_MODAL}${L}(?:${HC_WRITE_EN}|${HC_CALL_EN}|tell)(?: (?:directly|right away|immediately|anytime|any time))? (?:to |with )?${HC_ADDR_EN}(?![\\p{L}])`, "u"),
-  new RegExp(`${HC_NOT_MODAL}${L}let ${HC_ADDR_EN} know(?![\\p{L}])`, "u"),
+  new RegExp(`${HC_FIRST_PERSON_LB}${HC_NOT_MODAL}${L}(?:${HC_WRITE_EN}|${HC_CALL_EN}|tell)(?: (?:directly|right away|immediately|anytime|any time))? (?:to |with )?${HC_ADDR_EN}(?![\\p{L}])`, "u"),
+  new RegExp(`${HC_FIRST_PERSON_LB}${HC_NOT_MODAL}${L}let ${HC_ADDR_EN} know(?![\\p{L}])`, "u"),
   // Edilgen ulaşılabilirlik ("Your host can be reached via the app", "Ev sahibinize uygulamadan ulaşılabilir") — Opus v2 incelemesi launder-08.
   new RegExp(`${HC_ADDR_EN} (?:can|may|could) (?:also )?be (?:reached|contacted)(?![\\p{L}])`, "u"),
   // Emirle seslenilen arasında en çok üç sözcük ("Kontaktieren Sie bei Problemen Ihren Gastgeber", "Fragen Sie am besten Ihren Gastgeber" —
   // v3 kapsam incelemesi cost-coverage-04); "nicht" araya giremez.
   new RegExp(
-    `${L}(?:schreiben sie|schreib|kontaktieren sie|rufen sie|melden sie sich|wenden sie sich|informieren sie|benachrichtigen sie|fragen sie|erkundigen sie sich)(?: (?!nicht(?![\\p{L}]))[\\p{L}-]+){0,3}? (?:(?:an|bei|mit) )?${HC_ADDR_DE}(?![\\p{L}])`,
+    `${L}(?:schreiben sie|schreib|kontaktieren sie|rufen sie|melden sie sich|wenden sie sich|informieren sie|benachrichtigen sie|fragen sie|erkundigen sie sich|kl[äa]ren sie|sprechen sie)(?: (?!nicht(?![\\p{L}]))[\\p{L}-]+){0,4}? (?:(?:an|bei|mit) )?${HC_ADDR_DE}(?![\\p{L}])`,
     "u",
   ),
   new RegExp(
-    `${L}(?:[ée]crivez|contactez|appelez|joignez|pr[ée]venez|informez|envoyez un message|adressez-vous|prenez contact avec|n'h[ée]sitez pas [àa] (?:contacter|[ée]crire|appeler|joindre|pr[ée]venir))(?: (?:directement|rapidement|imm[ée]diatement))?(?: (?:[àa]|aupr[èe]s de))? ${HC_ADDR_FR}(?![\\p{L}])`,
+    `${L}(?:[ée]crivez|contactez|appelez|joignez|pr[ée]venez|informez|envoyez un message|adressez-vous|prenez contact avec|posez la question|posez-lui la question|parlez-en|parlez|renseignez-vous|n'h[ée]sitez pas [àa] (?:contacter|[ée]crire|appeler|joindre|pr[ée]venir))(?: (?:directement|rapidement|imm[ée]diatement))?(?: (?:[àa]|aupr[èe]s de|avec))? ${HC_ADDR_FR}(?![\\p{L}])`,
     "u",
   ),
   new RegExp(
     `${L}(?:escriba|escribe|escr[ií]bale|ll[aá]me|llame|llama|ll[aá]mele|contacte|contacta|comun[ií]quese|p[oó]ngase en contacto|env[ií]e un mensaje|av[ií]se|avisa|informe|inf[oó]rmele|informa|inf[oó]rmale|no dude en (?:escribir|llamar|contactar))(?: (?:directamente|con))? (?:a |al |con )?${HC_ADDR_ES}(?![\\p{L}])`,
     "u",
   ),
-  new RegExp(`${L}(?:напишите|напишете|напиши|позвоните|позвони|свяжитесь|свяжетесь|свяжись|сообщите|обратитесь)(?: пожалуйста)?,? ${HC_ADDR_RU}`, "u"),
-  /(?:راسل|راسلوا|راسلي|مراسلة|تواصل|تواصلوا|تواصلي|التواصل|اتصل|اتصلوا|اتصلي|الاتصال|اكتب|اكتبوا|أخبر|اخبر|أبلغ|ابلغ|إبلاغ|ابلاغ|إخبار|اخبار|اسأل|اسال)\p{L}{0,2}(?:\s+\S+){0,3}?\s+\S*(?:المضيف|المالك|مضيفك|مالك العقار|صاحب الشقة|مالك الشقة|صاحب العقار|صاحب المنزل|مالك المنزل)/u,
+  new RegExp(`${L}(?:напишите|напишете|напиши|позвоните|позвони|свяжитесь|свяжетесь|свяжись|сообщите|обратитесь)(?: пожалуйста)?,?(?: (?:напрямую|сразу|заранее))? ${HC_ADDR_RU}`, "u"),
+  /(?:راسل|راسلوا|راسلي|مراسلة|تواصل|تواصلوا|تواصلي|التواصل|اتصل|اتصلوا|اتصلي|الاتصال|اكتب|اكتبوا|أخبر|اخبر|أبلغ|ابلغ|إبلاغ|ابلاغ|إخبار|اخبار|اسأل|اسال|الاستفسار|استفسر|استفسري|راجع|راجعي|أخطر|اخطر|أخطري)\p{L}{0,2}(?:\s+\S+){0,3}?\s+\S*(?:المضيف|المالك|مضيفك|مضيفتك|مالك العقار|صاحب الشقة|مالك الشقة|صاحب العقار|صاحب المنزل|مالك المنزل|صاحب البيت)/u,
   // "سؤال" (sormak / soru) yalnız kip / rica sözcüğünden sonra ("أجب على سؤال المضيف" ev sahibinin sorusudur).
   /(?:يمكنك|يمكنكم|يرجى|بإمكانك|بامكانك|عليك|الرجاء)\s+سؤال\s+\S*(?:المضيف|المالك|مضيفك|صاحب الشقة|مالك الشقة|صاحب المنزل)/u,
   // ── v3 kapsam incelemesi (cost-coverage-01…07): yaygın yönlendirme biçimleri ──
@@ -1188,7 +1210,8 @@ const HC_HOST_PATTERNS: readonly RegExp[] = [
   // Almanca "nehmen Sie (bitte) Kontakt mit Ihrem Gastgeber auf", "treten Sie mit Ihrem Gastgeber in Kontakt", "teilen Sie das Ihrem Gastgeber
   // mit", "melden Sie dies Ihrem Gastgeber", "Sie erreichen Ihren Gastgeber …", "Ihr Gastgeber ist … erreichbar".
   new RegExp(
-    `${L}(?:nehmen sie|treten sie)(?: [\\p{L}-]+){0,2}? (?:kontakt mit ${HC_ADDR_DE}(?: [\\p{L}-]+){0,2}? auf|mit ${HC_ADDR_DE} (?:in kontakt|in verbindung))(?![\\p{L}])` +
+    `${L}(?:nehmen sie|treten sie)(?: [\\p{L}-]+){0,2}? (?:kontakt (?:mit|zu) ${HC_ADDR_DE}(?: [\\p{L}-]+){0,2}? auf|mit ${HC_ADDR_DE} (?:in kontakt|in verbindung))(?![\\p{L}])` +
+      `|${L}halten sie(?: [\\p{L}-]+){0,2}? r[üu]cksprache mit ${HC_ADDR_DE}(?![\\p{L}])|${L}stimmen sie(?: [\\p{L}-]+){0,5}? mit ${HC_ADDR_DE} ab(?![\\p{L}])` +
       `|${L}teilen sie(?: [\\p{L}-]+){0,3}? ${HC_ADDR_DE} mit(?![\\p{L}])|${L}melden sie(?: (?!sich(?![\\p{L}]))[\\p{L}-]+){1,3}? ${HC_ADDR_DE}(?![\\p{L}])` +
       `|${L}sie erreichen ${HC_ADDR_DE}(?![\\p{L}])|${L}(?:ihr|ihre|der|die) (?:gastgeber(?:in)?|vermieter(?:in)?|host) ist (?!nicht )(?:[\\p{L}\\p{N}-]+ ){0,4}?erreichbar(?![\\p{L}])`,
     "u",
@@ -1196,22 +1219,25 @@ const HC_HOST_PATTERNS: readonly RegExp[] = [
   // Fransızca mastar ("Je vous conseille de contacter votre hôte", "Le mieux est de …", "Mieux vaut écrire à …", "Il faudra voir avec …",
   // "Merci de prévenir …", "Vous pouvez envoyer un message à …").
   new RegExp(
-    `${L}(?:je vous (?:conseille|recommande|sugg[èe]re|propose)|nous vous (?:conseillons|recommandons|sugg[ée]rons|proposons)|le mieux (?:est|serait)|mieux vaut|il (?:vaut mieux|faudra|faut|faudrait)|merci|vous pouvez|vous pourrez|veuillez|je vous invite [àa]|nous vous invitons [àa])` +
-      `(?: d['’]| de |\\s)(?:contacter|[ée]crire [àa]|envoyer un (?:message|mot|sms|e-?mail) [àa]|pr[ée]venir|informer|appeler|joindre|demander [àa]|voir avec|vous adresser [àa]|prendre contact avec|vous rapprocher d(?:e |['’]))\\s?${HC_ADDR_FR}(?![\\p{L}])`,
+    `${L}(?:je vous (?:conseille|recommande|sugg[èe]re|propose)|nous vous (?:conseillons|recommandons|sugg[ée]rons|proposons)|le mieux (?:est|serait)|mieux vaut|il (?:vaut mieux|faudra|faut|faudrait|est pr[ée]f[ée]rable|serait pr[ée]f[ée]rable)|merci|vous pouvez|vous pourrez|veuillez|je vous invite [àa]|nous vous invitons [àa])` +
+      `(?: d['’]| de |\\s)(?:contacter|[ée]crire|envoyer un (?:message|mot|sms|e-?mail)|pr[ée]venir|informer|appeler|joindre|demander|voir|vous adresser|prendre contact|vous rapprocher|vous renseigner|v[ée]rifier|en parler|parler|poser la question)` +
+      `(?: directement| rapidement)?(?: [àa]| avec| aupr[èe]s d(?:e|['’]))?\\s?${HC_ADDR_FR}(?![\\p{L}])` +
+      `|${L}(?:votre|l['’]) ?h[ôo]te (?:reste|est|sera) (?:\\p{L}+ )?joignable(?![\\p{L}])`,
     "u",
   ),
   // İspanyolca mastar / dilek kipi ("Le recomiendo ponerse en contacto con su anfitrión", "Lo mejor es consultar con su anfitrión", "Puede
   // enviarle un mensaje a su anfitrión", "Le sugiero que se ponga en contacto con su anfitrión", "Te recomiendo que le escribas a tu anfitrión").
   new RegExp(
-    `${L}(?:(?:le|te|les) (?:recomiendo|recomendamos|sugiero|sugerimos|aconsejo|aconsejamos)|lo mejor (?:es|ser[íi]a)|puede|puedes|pueden|podr[íi]as?|deber[íi]as?|tendr[aá] que|tiene que|no dudes? en) ` +
-      `(?:ponerse en contacto con|ponerte en contacto con|contactar(?:le)?(?: con)?|consultar(?:lo|le)?(?: con| a)?|escribir(?:le)? a|enviar(?:le)? un (?:mensaje|correo|e-?mail|whatsapp) a|informar(?:le)? a|avisar(?:le)? a|comunicarse con|hablar con|llamar(?:le)? a|preguntar(?:le)? a)` +
+    `${L}(?:(?:le|te|les) (?:recomiendo|recomendamos|sugiero|sugerimos|aconsejo|aconsejamos)|lo mejor (?:es|ser[íi]a)|ser[íi]a mejor|es mejor|puede|puedes|pueden|podr[íi]as?|deber[íi]as?|tendr[aá] que|tiene que|no dudes? en) ` +
+      `(?:ponerse en contacto con|ponerte en contacto con|contactar(?:le)?(?: con)?|consultar(?:lo|le)?(?: con| a)?|escribir(?:le)? a|enviar(?:le)? un (?:mensaje|correo|e-?mail|whatsapp) a|informar(?:le)? a|avisar(?:le)? a|comunicarse(?: directamente)? con|hablar con|llamar(?:le)? a|preguntar(?:le)? a)` +
       `(?: directamente)? ${HC_ADDR_ES}(?![\\p{L}])` +
-      `|${L}(?:le|te) (?:recomiendo|sugiero|aconsejo|pido) que (?:se ponga en contacto con|te pongas en contacto con|contacte|contactes|le escriba|le escribas|escriba|escribas|consulte|consultes|le llame|le llames|llame|llames|le avise|le avises|avise|avises|hable|hables|informe|informes)(?: (?:directamente|con|a|al))? ${HC_ADDR_ES}(?![\\p{L}])`,
+      `|${L}(?:(?:le|te) (?:recomiendo|sugiero|aconsejo|pido)|lo mejor (?:es|ser[íi]a)|ser[íi]a mejor|es mejor) que (?:se ponga en contacto con|te pongas en contacto con|se comunique con|te comuniques con|le pregunte a|le preguntes a|pregunte a|preguntes a|contacte|contactes|le escriba|le escribas|escriba|escribas|consulte|consultes|le llame|le llames|llame|llames|le avise|le avises|avise|avises|hable|hables|informe|informes)(?: (?:directamente|con|a|al))? ${HC_ADDR_ES}(?![\\p{L}])`,
     "u",
   ),
   // Rusça nesne aralığı ("Сообщите об этом хозяину", "Задайте этот вопрос хозяину") — yalnız yönelme hâli; mastar ("лучше сообщить хозяину").
   new RegExp(
-    `${L}(?:сообщите|напишите|расскажите|задайте|передайте|сообщайте)(?:,? пожалуйста,?)?(?: (?!(?:ему|ей|им|нам|мне)(?![\\p{L}]))\\p{L}+){0,3}? ${HC_DAT_RU}` +
+    `${L}(?:сообщите|напишите|расскажите|задайте|передайте|сообщайте)(?:[ ,]+(?!(?:ему|ей|им|нам|мне)(?![\\p{L}]))\\p{L}+){0,4}?[ ,]+${HC_DAT_RU}` +
+      `|${L}(?:уточните|спросите|предупредите)(?:[ ,]+(?!(?:ему|ей|им|нам|мне|у)(?![\\p{L}]))\\p{L}+){0,3}?[ ,]+${HC_ACC_RU}` +
       `|${L}(?:лучше|можете|можно|стоит|нужно|надо|следует|рекомендую|советую|рекомендуем|советуем|просим|прошу)(?: \\p{L}+){0,2}? (?:сообщить|написать|позвонить|связаться|обратиться|рассказать)(?: (?!(?:ему|ей|им|нам|мне)(?![\\p{L}]))\\p{L}+){0,2}? ${HC_ADDR_RU}`,
     "u",
   ),
@@ -1224,9 +1250,9 @@ const HC_HOST_PATTERNS: readonly RegExp[] = [
   // wird Sie kontaktieren" eşleşmez).
   new RegExp(
     // Yalnız misafire seslenen cümlede ("Sie"): "Die Reinigungskraft wird den Gastgeber informieren" bir bildirimdir (overhold-9).
-    `^(?=[\\s\\S]*${L}sie(?![\\p{L}]))[\\s\\S]*?${L}(?:an |bei |mit )?(?:ihrem|ihren|ihrer|dem|den) (?:gastgeber(?:in)?|vermieter(?:in)?|host|eigentümer(?:in)?)(?: \\p{L}+){0,2}? ` +
-      `(?:kontaktieren|wenden|schreiben|anrufen|benachrichtigen|informieren|bescheid (?:geben|sagen)|eine nachricht (?:schicken|senden|schreiben)|kontakt aufnehmen|in kontakt treten|in verbindung treten|mitteilen|melden|fragen|erreichen)(?![\\p{L}])` +
-      `|${L}(?:geben|sagen) sie (?:ihrem|ihrer|dem) (?:gastgeber(?:in)?|vermieter(?:in)?|host) bescheid` +
+    `^(?=[\\s\\S]*${L}sie(?![\\p{L}]))[\\s\\S]*?${L}(?:an |bei |mit |zu )?(?:ihrem|ihren|ihrer|dem|den) (?:gastgeber(?:in)?|vermieter(?:in)?|host|eigentümer(?:in)?)(?: \\p{L}+){0,2}? ` +
+      `(?:kontaktieren|wenden|schreiben|anrufen|benachrichtigen|informieren|bescheid (?:geben|sagen)|eine nachricht (?:schicken|senden|schreiben)|kontakt aufnehmen|aufnehmen|in kontakt treten|in verbindung treten|mitteilen|melden|fragen|erreichen)(?![\\p{L}])` +
+      `|${L}(?:geben|sagen) sie (?:ihrem|ihrer|dem) (?:gastgeber(?:in)?|vermieter(?:in)?|host) (?:\\p{L}+ )?bescheid` +
       `|${L}(?:schicken|senden) sie (?:ihrem|ihrer|dem) (?:gastgeber(?:in)?|vermieter(?:in)?|host) (?:eine |kurz eine )?(?:nachricht|e-?mail|sms)`,
     "u",
   ),
@@ -1247,12 +1273,15 @@ const HC_HOST_PATTERNS: readonly RegExp[] = [
  * ("I'll mention it to your host", "We're happy to arrange this with your host") ya da üçüncü kişi ("The cleaner will report it to the host")
  * olan cümle eşleşmez; "the host's office" sahiplik ekidir.
  */
-const HC_FIRST_PERSON_LB =
-  "(?<!(?<![\\p{L}])(?:[iı]|we|let me|let us)(?:['’](?:ll|d|m|ve|re)| will| would| can| could| shall| may| might| am| are| have)?(?: (?:be )?(?:happy|glad|able) to| going to| also| gladly| happily| personally| just| quickly| then)? )";
 const HC_HOST_GAP_PATTERNS: readonly RegExp[] = [
   new RegExp(
-    `${HC_FIRST_PERSON_LB}${HC_NOT_MODAL}${L}(?:arrange|coordinate|report|raise|bring|mention|flag|direct|discuss|sort|settle|follow up|clarify|liaise|agree)` +
-      `(?: (?!(?:not|never)(?![\\p{L}]))[\\p{L}\\p{N}'’-]+){0,4}? (?:up |out |on )?(?:with|to) ${HC_ADDR_EN}(?![\\p{L}'’])`,
+    // v3 yeniden incelemesi LEAK-01: "check / confirm / verify X with your host", ulaç ("I'd suggest arranging this with your host"), uzun nesne,
+    // "request … from your host", "keep your host updated". "bring" yalnız "bring … up" ("bring your ID to the host" bir adımdır).
+    `${HC_FIRST_PERSON_LB}${HC_NOT_MODAL}${L}(?:arrang(?:e|ing)|coordinat(?:e|ing)|report(?:ing)?|rais(?:e|ing)|mention(?:ing)?|flag(?:ging)?|direct|discuss(?:ing)?|sort(?:ing)?|settl(?:e|ing)|follow(?:ing)? up|clarif(?:y|ying)|liais(?:e|ing)|agree|check(?:ing)?|double-check(?:ing)?|confirm(?:ing)?|verify(?:ing)?|work(?:ing)? out)` +
+      `(?: (?!(?:not|never)(?![\\p{L}]))[\\p{L}\\p{N}'’-]+){0,8}? (?:out |on )?(?:with|to) ${HC_ADDR_EN}(?![\\p{L}'’])` +
+      `|${HC_FIRST_PERSON_LB}${HC_NOT_MODAL}${L}bring(?:ing)?(?: [\\p{L}\\p{N}'’-]+){0,4}? up (?:with|to) ${HC_ADDR_EN}(?![\\p{L}'’])` +
+      `|${HC_FIRST_PERSON_LB}${HC_NOT_MODAL}${L}request(?:ing)?(?: [\\p{L}\\p{N}'’-]+){0,6}? from ${HC_ADDR_EN}(?![\\p{L}'’])` +
+      `|${HC_FIRST_PERSON_LB}${HC_NOT_MODAL}${L}keep(?:ing)? ${HC_ADDR_EN} (?:updated|posted|informed|in the loop)(?![\\p{L}])`,
     "u",
   ),
 ];
@@ -1262,7 +1291,8 @@ const HC_HOST_GAP_PATTERNS: readonly RegExp[] = [
  * écrivez-lui", "Хозяин всегда на связи, … напишите ему"). Yalnız cümlede ev sahibi ANILIYORSA sayılır (zamir başkası olabilir).
  */
 const HC_HOST_MENTION = new RegExp(
-  `${L}(?:ev ?sahib\\p{L}{0,10}|host\\p{L}{0,6}|landlord|landlady|owner|gastgeber\\p{L}{0,3}|vermieter\\p{L}{0,3}|h[ôo]te\\p{L}{0,4}|propri[ée]taire|anfitri\\p{L}{0,4}|propietari\\p{L}{0,2}|хозя\\p{L}{0,6}|владел\\p{L}{0,6})|المضيف|المالك`,
+  // "hostel / hotel / hosting" ev sahibi değildir (v3 yeniden incelemesi wf3-fp-05).
+  `${L}(?:ev ?sahib\\p{L}{0,10}|host(?!el|il|ing|ed)\\p{L}{0,6}|landlord|landlady|owner|gastgeber\\p{L}{0,3}|vermieter\\p{L}{0,3}|h[ôo]te(?:s|sse|sses)?(?![\\p{L}])|propri[ée]taire|anfitri\\p{L}{0,4}|propietari\\p{L}{0,2}|${RU_HOST_NOUN})|المضيف|المالك`,
   "u",
 );
 /**
@@ -1270,7 +1300,35 @@ const HC_HOST_MENTION = new RegExp(
  * ihn an") ev sahibine başvurma DEĞİLDİR (Opus v2 incelemesi overhold-10). Cümlede böyle bir kişi anılıyorsa zamir kuralı uygulanmaz.
  */
 const HC_THIRD_PARTY =
-  /(?<![\p{L}])(?:driver|cleaner|cleaning (?:lady|staff)|housekeep\p{L}*|parents|mother|father|janitor|caretaker|neighbou?rs?|reception\p{L}*|concierge|staff|security|doorman|plumber|technician|şoför|temizlikçi|temizlik görevlisi|anne(?:si|niz)|baba(?:sı|nız)|kapıcı\p{L}*|komşu\p{L}*|görevli\p{L}*|resepsiyon\p{L}*|tesisatçı|teknisyen|hausmeister|fahrer|reinigungskraft|putzfrau|nachbar\p{L}*|eltern|rezeption|techniker|chauffeur|femme de ménage|voisin\p{L}*|gardien\p{L}*|plombier|conductor|ch[óo]fer|limpiadora|vecin\p{L}*|portero|padres|t[ée]cnico|водител\p{L}*|уборщиц\p{L}*|сосед\p{L}*|консьерж\p{L}*|родител\p{L}*|сантехник\p{L}*|سائق|عامل|الجار|الفني)(?![\p{L}])/iu;
+  /(?<![\p{L}])(?:drivers?|cleaners?|cleaning (?:lady|staff|team)|housekeep\p{L}*|parents|mother|father|janitors?|caretakers?|neighbou?rs?|reception\p{L}*|concierge|staff|security|doorman|plumbers?|technicians?|şoför|temizlikçi|temizlik görevlisi|anne(?:si|niz)|baba(?:sı|nız)|kapıcı\p{L}*|komşu\p{L}*|görevli\p{L}*|resepsiyon\p{L}*|tesisatçı|teknisyen|hausmeister|fahrer|reinigungskraft|putzfrau|nachbar\p{L}*|eltern|rezeption|techniker|chauffeur|femme de ménage|voisin\p{L}*|gardien\p{L}*|plombier|conductor|ch[óo]fer|limpiadora|vecin\p{L}*|portero|padres|t[ée]cnico|водител\p{L}*|уборщиц\p{L}*|сосед\p{L}*|консьерж\p{L}*|родител\p{L}*|сантехник\p{L}*|سائق|عامل|الجار|الفني)(?![\p{L}])/iu;
+/**
+ * İşletme / akraba / hizmet adı (v3 yeniden incelemesi wf3-fp-05 / 06): "Your host recommends Lale Taxi … call them", "The hostel next door …
+ * ask them", "Captain Ali … message him", "Your host's sister … call her", "Ask the owner (of the bakery)". Zamir kuralı ve iş fiili aralık kalıbı
+ * susar; "the owner" bu bağlamda işletmenin sahibidir (`neutralizeBusinessOwner`).
+ */
+const HC_BUSINESS =
+  /(?<![\p{L}])(?:taxis?|cabs?|hotels?|hostels?|restaurants?|caf[ée]s?|bakery|bakeries|shops?|stores?|markets?|pharmacy|agency|company|marina|captain|tour (?:operator|guide)s?|guides?|sister|brother|son|daughter|friends?|cousin|wife|husband|colleagues?|taksi\p{L}{0,4}|otel\p{L}{0,4}|restoran\p{L}{0,4}|kafe\p{L}{0,4}|f[ıi]r[ıi]n\p{L}{0,4}|d[üu]kkan\p{L}{0,4}|eczane\p{L}{0,4}|acente\p{L}{0,4}|kaptan\p{L}{0,4}|rehber\p{L}{0,4}|karde[şs]\p{L}{0,6}|arkada[şs]\p{L}{0,6}|b[äa]ckerei|laden|gesch[äa]ft|schwester|bruder|tochter|boulangerie|magasin|s[œo]eur|fr[èe]re|panader[íi]a|tienda|hermana|hermano|такси|отел\p{L}{0,3}|ресторан\p{L}{0,3}|кафе|магазин\p{L}{0,3}|пекарн\p{L}{0,3}|сестр\p{L}{0,3}|брат\p{L}{0,3}|مخبز|مطعم|متجر|فندق)(?![\p{L}])/iu;
+const BUSINESS_OWNER =
+  /(?<![\p{L}])(?:the|an?|der|den|dem|des|die|le|la|l['’]|el) ?(?:owner|eigent[üu]mer(?:in)?|propri[ée]taire|propietari[oa]|due[ñn][oa])(?![\p{L}])/giu;
+/** İşletme anılan cümlede "the owner / den Eigentümer / le propriétaire" işletmenin sahibidir — ev sahibi kalıplarına girmesin. */
+function neutralizeBusinessOwner(f: string, businessContext = false): string {
+  return businessContext || HC_BUSINESS.test(f) ? f.replace(BUSINESS_OWNER, " shopkeeper ") : f;
+}
+/** Metin bir işletme / akraba / hizmet adı anıyor mu (`HC_BUSINESS`) — çağıran sonucu önceki cümle başına bir kez hesaplar. */
+export function mentionsBusiness(text: string): boolean {
+  return HC_BUSINESS.test(text);
+}
+/**
+ * Önceki cümle bir işletme anıyorsa ("There's a great bakery on the corner.") bu cümledeki "the owner" o işletmenin sahibidir — çağıran
+ * (`host-contact-filler.ts`) cümleyi bu biçimiyle okur (`businessBefore` = `mentionsBusiness(önceki cümle)`). İşletme yoksa cümle aynen döner.
+ */
+export function withBusinessOwnerContext(sentence: string, businessBefore: boolean): string {
+  return businessBefore ? sentence.replace(BUSINESS_OWNER, " shopkeeper ") : sentence;
+}
+/** "Thanks for contacting us" geçmiş bir mesaja teşekkürdür, "bize yazın" değildir (v3 yeniden incelemesi wf3-fp-02). */
+const THANKS_FOR_CONTACT =
+  /(?<![\p{L}])(?:thanks|thank you)(?: (?:so|very) much| again)? for (?:contacting|messaging|reaching out to|writing to|getting in touch with|texting|e-?mailing) (?:us|me)(?![\p{L}])/giu;
+
 /**
  * Misafirden BİLGİ isteyen ev sahibi sesi ("let me know your arrival time", "send us a photo of your ID", "schreiben Sie uns Ihre Ankunftszeit",
  * "bize varış saatinizi yazın") başvurma talimatı değildir — misafir zaten cevap yazacak (Opus v2 incelemesi overhold-12).
@@ -1283,16 +1341,24 @@ const HC_INFO_REQUEST =
  * when") bilgi isteği değil KAPANIŞTIR — muafiyet yalnız kendi-bilgi nesnesinde kalır (v3 kapsam incelemesi cost-coverage-08).
  */
 const HC_INFO_OWN =
-  /(?<![\p{L}])(?:let (?:me|us) know|send (?:me|us)|tell (?:me|us)|inform (?:me|us)) (?:your|how many)(?![\p{L}])|(?:schreiben|sagen|senden|schicken|geben|nennen) sie (?:uns|mir) (?:bitte )?ihre?n?(?![\p{L}])|(?:envoyez|indiquez|dites|communiquez)-(?:nous|moi) (?:votre|vos)(?![\p{L}])|(?:env[ií]enos|d[ií]ganos|ind[ií]quenos|h[aá]ganos saber|com[ée]ntenos) (?:su|sus)(?![\p{L}])|(?:сообщите|напишите) (?:нам|мне) ваш\p{L}*|(?:bize|bana) (?:\p{L}+ ){0,3}?\p{L}+(?:[ıiuü]n[ıiuü]z[ıiuü]|n[ıi]z[ıi]) (?:yaz|gönder|ilet|bildir|payla[şs])\p{L}*/iu;
+  /(?<![\p{L}])(?:let (?:me|us) know|send (?:me|us)|tell (?:me|us)|inform (?:me|us)) (?:your|how many|what time|which time|the (?:date|time|exact time|number|flight))(?![\p{L}])|(?:schreiben|sagen|senden|schicken|geben|nennen) sie (?:uns|mir) (?:bitte )?ihre?n?(?![\p{L}])|(?:envoyez|indiquez|dites|communiquez)-(?:nous|moi) (?:votre|vos)(?![\p{L}])|(?:env[ií]enos|d[ií]ganos|ind[ií]quenos|h[aá]ganos saber|com[ée]ntenos) (?:su|sus)(?![\p{L}])|(?:сообщите|напишите) (?:нам|мне) ваш\p{L}*|(?:bize|bana) (?:\p{L}+ ){0,3}?\p{L}+(?:[ıiuü]n[ıiuü]z[ıiuü]|n[ıi]z[ıi]) (?:yaz|gönder|ilet|bildir|payla[şs])\p{L}*/iu;
+/**
+ * Ev sahibinin HİZMET için bilgi istemesi ("let us know what time and we'll book it", "so we can leave the hallway light on", "dann stellen wir es
+ * vorher auf") kapanış değildir (v3 yeniden incelemesi wf3-fp-10) — genel sorun / ihtiyaç kapanışında ("If anything breaks, let us know and we'll fix
+ * it") sayılmaz.
+ */
+const HC_SERVICE_PURPOSE =
+  /(?<![\p{L}])(?:and|so|so that|then)(?: (?:we|i)(?:['’]ll| will| can| could| would)?) (?!help(?![\p{L}]))\p{L}+|(?<![\p{L}])dann (?:\p{L}+ )?wir(?![\p{L}])|(?<![\p{L}])damit wir(?![\p{L}])|(?<![\p{L}])pour que nous(?![\p{L}])|(?<![\p{L}])para que (?:podamos|le)(?![\p{L}])|(?<![\p{L}])чтобы мы(?![\p{L}])|حتى نتمكن/iu;
 const HC_GENERIC_NEED =
-  /(?<![\p{L}])(?:anything|something|any (?:questions?|issues?|problems?|trouble)|need|problems?|issues?|questions?|goes wrong|go wrong|comes up|come up|sorun\p{L}{0,6}|s[ıi]k[ıi]nt[ıi]\p{L}{0,6}|soru(?:nuz|lar\p{L}{0,6})|ihtiya[çc]\p{L}{0,8}|bir [şs]ey\p{L}{0,4}|aksilik\p{L}{0,6}|fragen|probleme?n?|etwas|besoin|probl[èe]mes?|questions?|algo|problemas?|preguntas?|вопрос\p{L}{0,3}|что-(?:то|нибудь)|проблем\p{L}{0,3})(?![\p{L}])/iu;
+  /(?<![\p{L}])(?:anything|something|any (?:questions?|issues?|problems?|trouble)|problems?|issues?|questions?|goes wrong|go wrong|comes up|come up|sorun\p{L}{0,6}|s[ıi]k[ıi]nt[ıi]\p{L}{0,6}|soru(?:nuz|lar\p{L}{0,6})|ihtiya[çc]\p{L}{0,8}|bir [şs]ey\p{L}{0,4}|aksilik\p{L}{0,6}|fragen|probleme?n?|etwas|besoin|probl[èe]mes?|questions?|algo|problemas?|preguntas?|вопрос\p{L}{0,3}|что-(?:то|нибудь)|проблем\p{L}{0,3})(?![\p{L}])/iu;
 const HC_PRONOUN_PATTERNS: readonly RegExp[] = [
   new RegExp(`${L}(?:ona|kendisine|onlara) (?:${HC_WRITE_TR}|${HC_CALL_TR})|${L}(?:onu|kendisini|onlar[ıi]) (?:${HC_CALL_TR})`, "u"),
   new RegExp(`${L}(?:message|text|write to|e-?mail|contact|call|ring|phone|tell|ask|reach out to|get in touch with) (?:him|her|them)(?![\\p{L}])|${L}send (?:him|her|them) a (?:message|text|note)`, "u"),
-  /(?<![\p{L}])(?:schreiben sie (?:ihm|ihr)|rufen sie (?:ihn|sie) an|kontaktieren sie (?:ihn|sie)|wenden sie sich an (?:ihn|sie)|(?:ihm|ihr) (?:einfach |kurz )?(?:schreiben|bescheid geben))(?![\p{L}])/u,
-  /(?<![\p{L}])(?:[ée]crivez-lui|contactez-(?:le|la)|appelez-(?:le|la)|pr[ée]venez-(?:le|la)|envoyez-lui un message)(?![\p{L}])/u,
-  /(?<![\p{L}])(?:escr[ií]bale|ll[aá]mele|cont[aá]ctele|av[ií]sele|cont[aá]ctelo|cont[aá]ctela)(?![\p{L}])/u,
-  /(?<![\p{L}])(?:напишите|позвоните|пишите|звоните|сообщите|обратитесь|обращайтесь) (?:ему|ей|им|к нему|к ней)(?![\p{L}])/u,
+  /(?<![\p{L}])(?:schreiben sie (?:ihm|ihr)|rufen sie (?:ihn|sie) an|kontaktieren sie (?:ihn|sie)|wenden sie sich an (?:ihn|sie)|(?:ihm|ihr) (?:einfach |kurz )?(?:schreiben|bescheid geben)|sich(?: \p{L}+){0,3}? an ihn(?: wenden)?)(?![\p{L}])/u,
+  /(?<![\p{L}])(?:[ée]crivez-lui|contactez-(?:le|la)|appelez-(?:le|la)|pr[ée]venez-(?:le|la)|envoyez-lui un message|(?:le|la) (?:contacter|joindre|appeler)|lui (?:[ée]crire|envoyer un message|t[ée]l[ée]phoner))(?![\p{L}])/u,
+  /(?<![\p{L}])(?:escr[ií]bale|ll[aá]mele|cont[aá]ctele|av[ií]sele|cont[aá]ctelo|cont[aá]ctela|contactarl[oa]|llamarl[oa]|escribirle|avisarle)(?![\p{L}])/u,
+  /(?<![\p{L}])(?:(?:напишите|позвоните|пишите|звоните|сообщите|обратитесь|обращайтесь)|(?:можете |можно )?(?:написать|позвонить|сообщить|обратиться)) (?:ему|ей|им|к нему|к ней)(?![\p{L}])/u,
+  /(?:التواصل|تواصل|اتصل|راسل|الاتصال)\p{L}{0,2}\s+(?:معه|معها|به|بها)(?![\p{L}])/u,
 ];
 const HC_CALL_KIND = new RegExp(
   `(?:${HC_CALL_TR}|(?<![\\p{L}])${HC_CALL_EN}(?![\\p{L}])|(?<![\\p{L}])(?:rufen sie|anruf\\p{L}{0,4}|appelez|appeler|ll[aá]m\\p{L}{0,4}|позвон\\p{L}{0,4})|اتصل|الاتصال)`,
@@ -1305,11 +1371,15 @@ const HC_CALL_KIND = new RegExp(
  * kaçırdığını yakalar. Saf, doğrusal.
  */
 export function mentionsHostContact(sentence: string | null | undefined): "write" | "call" | null {
-  const forms = foldedForms(joinLines(sentence ?? "")).map((f) => f.split(SEP).join(" ").replace(FIRST_PERSON_REFERRAL, " "));
+  const forms = foldedForms(joinLines(sentence ?? "")).map((f) =>
+    neutralizeBusinessOwner(f.split(SEP).join(" ").replace(FIRST_PERSON_REFERRAL, " ").replace(THANKS_FOR_CONTACT, " ")),
+  );
   // Dışlamalar HER iki katlamada aranır: Türkçe katlama "Ihre" → "ıhre", "Driver" → "drıver" yapar.
-  const thirdParty = forms.some((f) => HC_THIRD_PARTY.test(f));
+  const thirdParty = forms.some((f) => HC_THIRD_PARTY.test(f) || HC_BUSINESS.test(f));
+  const genericTrouble = forms.some((f) => HC_GENERIC_NEED.test(f));
   const infoRequest =
-    forms.some((f) => HC_INFO_OWN.test(f)) || (forms.some((f) => HC_INFO_REQUEST.test(f)) && !forms.some((f) => HC_GENERIC_NEED.test(f)));
+    forms.some((f) => HC_INFO_OWN.test(f)) ||
+    (!genericTrouble && forms.some((f) => HC_INFO_REQUEST.test(f) || HC_SERVICE_PURPOSE.test(f)));
   const host =
     forms.some((f) => HC_HOST_PATTERNS.some((re) => re.test(f))) ||
     (!thirdParty && forms.some((f) => HC_HOST_GAP_PATTERNS.some((re) => re.test(f)))) ||
@@ -1327,7 +1397,7 @@ export function mentionsHostContact(sentence: string | null | undefined): "write
  */
 export function pronounHostContactKind(sentence: string | null | undefined): "write" | "call" | null {
   const forms = foldedForms(joinLines(sentence ?? "")).map((f) => f.split(SEP).join(" ").replace(FIRST_PERSON_REFERRAL, " "));
-  if (forms.some((f) => HC_THIRD_PARTY.test(f)) || !forms.some((f) => HC_PRONOUN_PATTERNS.some((re) => re.test(f)))) return null;
+  if (forms.some((f) => HC_THIRD_PARTY.test(f) || HC_BUSINESS.test(f)) || !forms.some((f) => HC_PRONOUN_PATTERNS.some((re) => re.test(f)))) return null;
   if (forms.some((f) => NEGATED_REFERRAL.test(f))) return null;
   return forms.some((f) => HC_CALL_KIND.test(f)) && !forms.some((f) => WRITE_HOST_VERB.test(f)) ? "call" : "write";
 }
@@ -1335,7 +1405,7 @@ export function pronounHostContactKind(sentence: string | null | undefined): "wr
 /** Metin ev sahibini anıyor mu (ev sahibi / host / Gastgeber / hôte / anfitrión / хозяин / المضيف) ve üçüncü kişi anmıyor mu. */
 export function mentionsHostOnly(text: string | null | undefined): boolean {
   const forms = foldedForms(text);
-  return !forms.some((f) => HC_THIRD_PARTY.test(f)) && forms.some((f) => HC_HOST_MENTION.test(f));
+  return !forms.some((f) => HC_THIRD_PARTY.test(f) || HC_BUSINESS.test(f)) && forms.some((f) => HC_HOST_MENTION.test(f));
 }
 
 /** Cümle bir ARAMA fiili taşıyor mu ("arayın", "call", "rufen Sie … an", "appelez", "llame", "позвоните", "اتصل") — güvenlik uyarısında

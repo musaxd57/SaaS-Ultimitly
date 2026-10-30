@@ -6,13 +6,13 @@ Kaynak: `docs/olcum/*.json` içindeki 3274 benzersiz model cevabı (geçmiş öl
 
 | Ölçü | Sayı |
 |---|---|
-| Yönlendirme parçası silinen cevap | 245 (%7.5) |
-| Silinen parça (toplam) | 245 |
-| — tür: yaz / ara / başvur | 22 / 0 / 223 |
-| — biçim: koşullu / başvurma | 22 / 223 |
-| — genel kapanış / konulu | 4 / 241 |
+| Yönlendirme parçası silinen cevap | 250 (%7.6) |
+| Silinen parça (toplam) | 250 |
+| — tür: yaz / ara / başvur | 27 / 0 / 223 |
+| — biçim: koşullu / başvurma | 27 / 223 |
+| — genel kapanış / konulu | 4 / 246 |
 | — yalnız yan cümle silindi (cümlenin başı kaldı) | 18 |
-| Cevabın TAMAMI tutulur (geriye içerik kalmadı) | 221 |
+| Cevabın TAMAMI tutulur (geriye içerik kalmadı) | 226 |
 | Kalan doğru cevap gider | 24 |
 | — defter olmayan yolda (QR / öğe kipi kapalı) ev sahibine açık kalır — ÜST SINIR (anlama koşmamış sayıldı) | 24 |
 | — misafir olasılık sordu (soru her zaman açık) | 1 |
@@ -22,7 +22,7 @@ Kaynak: `docs/olcum/*.json` içindeki 3274 benzersiz model cevabı (geçmiş öl
 | Dil | Cevap | Silme olan |
 |---|---|---|
 | tr | 1741 | 141 |
-| en | 764 | 28 |
+| en | 764 | 33 |
 | de | 271 | 5 |
 | ru | 194 | 66 |
 | es | 128 | 1 |
@@ -36,7 +36,7 @@ Kaynak: `docs/olcum/*.json` içindeki 3274 benzersiz model cevabı (geçmiş öl
 |---|---|
 | Eski süzgeç metni değiştirdi | 0 |
 | Eski süzgeç tamamını tuttu | 2 |
-| Tutuş KAZANILDI (yeni tutar, eski göndermişti) | 219 |
+| Tutuş KAZANILDI (yeni tutar, eski göndermişti) | 224 |
 | Tutuş KAYBEDİLDİ (eski tutuyordu, yeni kalan doğru cevabı gönderir) | 0 |
 | Süzgeç çıktısı farklı | 24 |
 | **SİSTEM: yeni tutuş** (süzgeç + "bilgim yok" + çıktı vetosu; eski yol gönderiyordu) | 6 |
@@ -129,7 +129,7 @@ Kaynak: `docs/olcum/*.json` içindeki 3274 benzersiz model cevabı (geçmiş öl
 
 ## Koşu kimliği (katman bazında model + düşünme ayarı)
 
-Commit: `cee4a57d`
+Commit: `7407aa10`
 
 | Katman | Model | Düşünme çabası |
 |---|---|---|

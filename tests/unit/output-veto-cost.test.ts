@@ -26,6 +26,17 @@ describe("çıktı vetosu — düşmanca girdide sınırlı süre", () => {
     expect(ms(() => vetoOutgoingReply(girdi))).toBeLessThan(100);
   });
 
+  it("10-30 gövde-önce: 'her …' / alışkanlık geriye bakışı hükmü değiştirmedi", () => {
+    // Şimdiki zaman bekleme sözü: alışkanlık anlatımı söz değil, çıplak biçim söz.
+    expect(vetoOutgoingReply("Her misafirden önce daireyi kontrol ediyorum.")).toBeNull();
+    expect(vetoOutgoingReply("Takvimi kontrol ediyorum.")).toBe("unverified_commitment");
+    expect(vetoOutgoingReply("Her sabah" + " ".repeat(3_000) + "bakıyorum.")).toBeNull();
+    // Geniş zaman söz gövdeleri: alışkanlık söz değil, çıplak biçim söz; karşıtlık bağlacı istisnayı keser.
+    expect(vetoOutgoingReply("Genelde kapı kodunu bir gün önce iletirim.")).toBeNull();
+    expect(vetoOutgoingReply("Kapı kodunu size iletirim.")).toBe("unverified_commitment");
+    expect(vetoOutgoingReply("Normalde ev sahibi bakar ama bu sefer ben size dönerim.")).toBe("unverified_commitment");
+  });
+
   it("hüküm aynı: gövde uzak bir 'olsam'dan sonra da söz; yakın 'olsam' tavsiyedir", () => {
     expect(vetoOutgoingReply("Ben olsam" + " ".repeat(3980) + "sorarım")).toBe("unverified_commitment");
     expect(vetoOutgoingReply("Ben olsam ev sahibinize sorarım.")).toBeNull();

@@ -164,6 +164,17 @@ const NON_TV_SCREEN = new RegExp(
 /** Cevap / arıza sinyali tarafının cihaz kavramları: genel konu çıkarımı + TV belirti adları (`TV_SYMPTOM`). Konu bazlı "bilgim yok"
  *  (`topic-absence.ts`) aynı okumayı kullanır — bırakılan cihaz kemeriyle tek sözlük. */
 export function topicsWithSymptomsOf(text: string): string[] {
+  // Tek girdilik önbellek (10-30): yönlendirme süzgeci kalan metnin konusunu okur, "cevaplandı" kuralı (`host-contact-settle.ts`) AYNI
+  // metni hemen ardından yeniden okur — uzun metinde iki doğrusal geçiş (50 bin karakterde ~0,25 sn). Saf okuma; çağırana kopya döner.
+  if (text === lastTopicsInput) return [...lastTopicsOutput];
+  const out = topicsWithSymptomsUncached(text);
+  lastTopicsInput = text;
+  lastTopicsOutput = out;
+  return [...out];
+}
+let lastTopicsInput: string | null = null;
+let lastTopicsOutput: string[] = [];
+function topicsWithSymptomsUncached(text: string): string[] {
   const topics = topicsOf(text);
   if (topics.includes("tv")) return topics;
   const f = fold(text);

@@ -1,21 +1,21 @@
 {
   "counts": {
     "replies": 3274,
-    "withRemoval": 245,
-    "removals": 245,
+    "withRemoval": 250,
+    "removals": 250,
     "byKind": {
-      "write": 22,
+      "write": 27,
       "call": 0,
       "referral": 223
     },
     "byForm": {
-      "conditional": 22,
+      "conditional": 27,
       "referral": 223
     },
     "generic": 4,
-    "topical": 241,
+    "topical": 246,
     "appendix": 18,
-    "heldWhole": 221,
+    "heldWhole": 226,
     "partialSent": 24,
     "openWithoutLedger": 24,
     "guestContingency": 1,
@@ -34,7 +34,7 @@
       },
       "en": {
         "replies": 764,
-        "withRemoval": 28
+        "withRemoval": 33
       },
       "es": {
         "replies": 128,
@@ -58,7 +58,7 @@
     "label": "0e0e1a1e (K-1029-A öncesi)",
     "changed": 0,
     "held": 2,
-    "heldGained": 219,
+    "heldGained": 224,
     "heldLost": 0,
     "textDiffers": 24,
     "systemHeldGained": 6,
