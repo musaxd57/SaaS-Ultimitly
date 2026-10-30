@@ -1522,9 +1522,9 @@ const HOST_CONTACT_BAN_REPLACEMENTS: readonly Replacement[] = [
     etme ("ev sahibiniz …", "your host …", "the host's approval", "Ihr Gastgeber …", "votre hôte …"): ev sahibinin onayı,
     kararı ya da kullanımı söz konusuysa birinci çoğul kişiyle yaz ("onayımıza tabidir", "requires our approval", "for our
     private use"). Ev sahibini övme; nerede oturduğunu, ne iş yaptığını, şu an nerede olduğunu, kimlik bilgisini yazma (adı ve
-    misafirin işine yarayan bilgi serbest). "Mesajınız kaydedildi", "ev sahibiniz görebilir", "… ev sahibinizin kararıdır"
-    gibi devir / bildirim cümleleri bu istemin başka yerlerinde örnek olarak geçse de YAZMA — o isteğe hiç değinme, ev sahibi
-    kendisi cevaplar. Arka planı anlatma ("… paylaşılmamış", "… belirtilmemiş", "not provided"). Misafiri taksi, otel, restoran,
+    misafirin işine yarayan bilgi serbest). "Mesajınız kaydedildi", "ev sahibiniz görebilir" gibi bildirim cümlelerini cevapladığın
+    isteğe kendiliğinden EKLEME; ama ev sahibine kalması gereken bir isteği (karar onun ya da bilgisi yok) SESSİZCE ATLAMA — o istek
+    için bu istemin devir kuralını uygula (o cevap misafire gitmez, ev sahibine kalır). Arka planı anlatma ("… paylaşılmamış", "… belirtilmemiş", "not provided"). Misafiri taksi, otel, restoran,
     komşu işletme gibi ÜÇÜNCÜ TARAFI aramaya ya da ona başvurmaya yönlendirme; bilgi tabanında ev sahibinin kendi hizmeti
     (transfer, taksi ayarlama, kiralama) yazıyorsa onu öner.
       YANLIŞ: "Ziyaretçiler ev sahibinin onayına tabidir."   DOĞRU: "Rezervasyonda olmayan ziyaretçiler onayımıza tabidir."

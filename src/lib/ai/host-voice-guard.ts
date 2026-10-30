@@ -1,3 +1,5 @@
+import { hasEmergencyCallDirective } from "@/lib/ai/hazard-evidence";
+
 // ---------------------------------------------------------------------------
 // MESAJI EV SAHİBİ YAZIYOR (kurucu 10-30, aynen: "HOSTUN ORDAN YAZIYORUZ HOSTA YAZIN GİBİ BİR MESAJ GİTMESİ NASIL MÜMKÜN OLABİLİR";
 // "ev sahibini … başka birisiymiş gibi yazmamalı … ev sahibi yazıyor gibi olmalı"; "telefon numarası paylaşılmamış … gidemez kesinlikle arkada
@@ -88,8 +90,6 @@ const LISTING_MARKER =
 const LISTING_NEGATION =
   /(?<![\p{L}])(?:yazm[ıi]yor|yaz[ıi]lmam[ıi][şs]|yok|belirtilmemi[şs]|belirtilmiyor|ge[çc]miyor|bulunmuyor|yer alm[ıi]yor|not|n['’]t|no|nicht|kein\p{L}{0,3}|pas|aucune?|ninguna?|не|нет|لا|ليس|لم)(?![\p{L}])/iu;
 
-/** Acil servis: kendi kuralı var (`hasEmergencyCallDirective`); bu süzgeç onu üçüncü taraf saymaz. */
-const EMERGENCY_PARTY = /(?<![\p{L}\d])(?:112|155|110|911|999|100|101|102|103|ambulans\p{L}*|ambulance|police|polis\p{L}*|itfaiye\p{L}*|fire (?:brigade|department)|emergency|acil|notruf|polizei|feuerwehr|pompiers|urgences|emergencias|polic[íi]a|bomberos|скор\p{L}*|полици\p{L}*|пожарн\p{L}*|الإسعاف|الشرطة|الطوارئ)(?![\p{L}\d])/iu;
 
 /** Üçüncü taraf işletmeye gönderme: işletme sözcüğü + iletişim fiili aynı cümlede, sınırlı aralıkla (iki yön) ya da "call / ask them". */
 const BUSINESS_TR =
@@ -147,7 +147,10 @@ export function hostVoiceViolation(reply: string | null | undefined): HostVoiceV
     if (INTERNAL_SYSTEM.test(s) || INTERNAL_SYSTEM.test(lower)) return "internal_system";
     // Hem özgün hem Türkçe küçük harf: "Inserat" Türkçe küçültmede "ınserat" olur.
     if ((LISTING_MARKER.test(s) || LISTING_MARKER.test(lower)) && (LISTING_NEGATION.test(s) || LISTING_NEGATION.test(lower))) return "internal_system";
-    if (!third && !EMERGENCY_PARTY.test(s) && (THIRD_PARTY_REFERRAL.test(s) || THIRD_PARTY_REFERRAL.test(lower))) third = "third_party_referral";
+    // Acil servis talimatı kendi kuralıyla tutulur (`hasEmergencyCallDirective`); bu süzgeç onu üçüncü taraf saymaz. Muafiyet yalnız gerçek ACİL
+    // ÇAĞRI TALİMATI taşıyan cümlede (inceleme 10-30 gece H: eskiden cümlede 100 / 110 / 155 ya da "acil" sözcüğü geçmesi — "durak 100 m
+    // ileride", "kişi başı 110 TL", "acil bir taksi" — yönlendirmeyi muaf tutuyordu).
+    if (!third && (THIRD_PARTY_REFERRAL.test(s) || THIRD_PARTY_REFERRAL.test(lower)) && !hasEmergencyCallDirective(s)) third = "third_party_referral";
   }
   return third;
 }

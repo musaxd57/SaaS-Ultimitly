@@ -33,6 +33,13 @@ describe("promptCacheFields", () => {
   it("acil kapatma iki alanı da kaldırır; saklama ayrı kapatılabilir", () => {
     expect(promptCacheFields("reply", CHAT, { OPENAI_PROMPT_CACHE_DISABLED: "1" })).toEqual({});
     expect(promptCacheFields("reply", CHAT, { OPENAI_PROMPT_CACHE_RETENTION: "in_memory" })).toEqual({ prompt_cache_key: "lixus:reply" });
+    // İnceleme 10-30 gece E: Railway'de "boş = varsayılan" alışkanlığı — boş / yalnız boşluk / büyük harf 24 saati sessizce kapatmaz.
+    for (const v of ["", "   ", "24H"]) {
+      expect(promptCacheFields("reply", CHAT, { OPENAI_PROMPT_CACHE_RETENTION: v }), JSON.stringify(v)).toEqual({
+        prompt_cache_key: "lixus:reply",
+        prompt_cache_retention: "24h",
+      });
+    }
   });
 
   it("anahtar 64 karakterle sınırlı, misafir / org verisi taşımaz", () => {

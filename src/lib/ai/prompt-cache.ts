@@ -36,6 +36,7 @@ export function promptCacheFields(
   }
   if (host !== OPENAI_HOST) return {};
   const key = `lixus:${purpose}`.slice(0, 64);
-  const retention = (env.OPENAI_PROMPT_CACHE_RETENTION ?? "24h").trim();
-  return retention === "24h" ? { prompt_cache_key: key, prompt_cache_retention: "24h" } : { prompt_cache_key: key };
+  // Yalnız açıkça "in_memory" yazılırsa kısa saklama; boş / büyük-küçük harf farkı varsayılandır (inceleme 10-30 gece E).
+  const retention = (env.OPENAI_PROMPT_CACHE_RETENTION ?? "").trim().toLowerCase();
+  return retention === "in_memory" ? { prompt_cache_key: key } : { prompt_cache_key: key, prompt_cache_retention: "24h" };
 }

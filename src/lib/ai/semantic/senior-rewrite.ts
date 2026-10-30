@@ -63,8 +63,9 @@ export const SENIOR_REWRITE_NOTES: Record<SeniorRewriteReason, string> = {
     "Önceki taslak ev sahibinden ÜÇÜNCÜ KİŞİ olarak söz ediyordu (\"ev sahibiniz …\", \"your host …\", \"the host's approval\"), arka planı " +
     "anlatıyordu (\"… paylaşılmamış\", \"not provided\", \"ilanda yazmıyor\") ya da misafiri üçüncü taraf bir işletmeyi aramaya / ona " +
     "başvurmaya yönlendiriyordu. Mesajı ev sahibi yazıyor: aynı cevabı ev sahibinin KENDİ AĞZINDAN, birinci çoğul kişiyle yaz (\"onayımıza " +
-    "tabidir\", \"requires our approval\"). Devir / bildirim cümlesi (\"mesajınız kaydedildi\", \"ev sahibiniz görebilir\") ve " +
-    "bilgisi olmayan konu hakkında hiçbir cümle yazma — o konuya hiç değinme; üçüncü taraf yönlendirmesi yerine yalnız olguyu yaz.",
+    "tabidir\", \"requires our approval\"). Üçüncü taraf yönlendirmesi yerine yalnız olguyu yaz. Ev sahibine kalması gereken bir isteği " +
+    // İnceleme 10-30 gece F: "o konuya hiç değinme" QR'da (istek defteri yok) isteği sessizce kaybettiriyordu.
+    "(karar onun ya da bilgisi yok) SESSİZCE ATLAMA — o istek için istemin devir kuralını aynen uygula (o cevap misafire gitmez, ev sahibine kalır).",
 };
 
 export function seniorRewriteNotes(reasons: readonly SeniorRewriteReason[]): string[] {

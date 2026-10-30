@@ -82,6 +82,20 @@ describe("sistem istemi", () => {
     expect(REPLY_SYSTEM_PROMPT).not.toContain(BAN_RULE);
   });
 
+  it("🚨 inceleme 10-30 gece F (iki hakem 10-29 ilkesi): ana istem ev sahibine kalan isteği ATLATMAZ — 'o isteğe hiç değinme' yalnız istek defterli öğe bloğunda; QR / defterli olmayan kanalda istek sessizce kaybolmasın", () => {
+    for (const k of OTHER_LAYERS) vi.stubEnv(k, "");
+    const sys = replyRequestIdentity(input).system;
+    expect(sys).not.toContain("o isteğe hiç değinme");
+    expect(sys).not.toContain("ev sahibi\n    kendisi cevaplar");
+    expect(sys).toContain("SESSİZCE ATLAMA");
+  });
+  it("🚨 F (yeniden yazma yolu): ses ihlali notu da konuyu atlatmaz", async () => {
+    const { SENIOR_REWRITE_NOTES } = await import("@/lib/ai/semantic/senior-rewrite");
+    expect(SENIOR_REWRITE_NOTES.hostVoice).not.toMatch(/hiç değinme/);
+    expect(SENIOR_REWRITE_NOTES.hostVoice).toContain("SESSİZCE ATLAMA");
+    expect(SENIOR_REWRITE_NOTES.hostVoice).toContain("birinci çoğul kişiyle");
+  });
+
   it("kapatma anahtarı ('1') → modele giden istem BAYT BAYT taban", () => {
     for (const k of OTHER_LAYERS) vi.stubEnv(k, "");
     vi.stubEnv(KILL, "1");

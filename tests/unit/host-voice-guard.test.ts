@@ -59,6 +59,11 @@ describe("üçüncü taraf işletmeye gönderme → third_party_referral", () =>
     "Taksi için resepsiyonu arayın.",
     "You can call a taxi from the stand on the corner.",
     "Rufen Sie die Taxizentrale an.",
+    // İnceleme 10-30 gece H: mesafe / fiyat olarak geçen 100 / 110 / 155 ya da "acil" sözcüğü cümlenin tamamını acil talimatı saymaz.
+    "Lale Taksi durağı 100 m ileride, onları arayabilirsiniz.",
+    "Restoranı arayıp rezervasyon yaptırabilirsiniz; kişi başı 110 TL.",
+    "Lale Taksi'yi arayabilirsiniz, havalimanına ücret 155 TL.",
+    "Acil bir taksi ihtiyacınız olursa Lale Taksi'yi arayabilirsiniz.",
   ])("%j", (s) => {
     expect(hostVoiceViolation(s)).toBe("third_party_referral");
   });

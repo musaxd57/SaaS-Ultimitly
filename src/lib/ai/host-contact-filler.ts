@@ -183,6 +183,11 @@ export interface HostContactRemoval {
   topics: string[];
   /** Hiçbir isteğe ait olmayan genel kapanış ("Herhangi bir sorunda ev sahibinize yazın.", "Diğer sorularınız için ev sahibinize yazın."). */
   generic: boolean;
+  /**
+   * Konusuz / göndergesel yönlendirme ("Detaylar için ev sahibinize yazın"): konusu ÖNCEKİ cümleden tahmin edildi (kök / konu oradan). Birden çok
+   * istek varken hangisine ait olduğu bilinmez → "cevaplandı" kuralı hiçbirini kapatmaz (inceleme 10-30 gece C, `host-contact-settle.ts`).
+   */
+  anaphoric?: true;
 }
 
 export interface HostContactAnalysis {
@@ -257,7 +262,7 @@ function removalOf(
   // Teyit işareti yalnız konulu / göndergesel silmede okunur (↓kısmi karar): uzun kapanış / koşul gövdesinde boşuna taranmaz (süre pini).
   let confirms: boolean | undefined;
   return {
-    removal: { kind, form, appendix, stems, topics, generic: scope === "closing" && topicless },
+    removal: { kind, form, appendix, stems, topics, generic: scope === "closing" && topicless, ...(scope === "anaphoric" ? { anaphoric: true as const } : {}) },
     scope,
     confirms: () => (confirms ??= has(CONFIRM_MARKER)),
   };
@@ -597,12 +602,17 @@ const PRECONDITION = new RegExp(
     "(?<!if )you(?:['’]ll| will)? (?:just |only )?(?:need|have) to|you must|be sure to|make sure (?:to|you)|" +
     "[öo]nceden|bir g[üu]n [öo]nce|gelmeden [öo]nce|\\p{L}+(?:man[ıi]z|men[ie]z)[ıi]? (?:yeterli|gerek(?:iyor|ir|li|mektedir)|[şs]art)|gerekmektedir|" +
     "vorher|im voraus|vorab|rechtzeitig|m[üu]ssen sie|sie m[üu]ssen|[àa] l['’]avance|au pr[ée]alable|la veille|vous devez|il faut|" +
-    "con antelaci[óo]n|de antemano|previamente|el d[íi]a anterior|debe|tiene que|заранее|накануне|нужно|необходимо|должны)(?![\\p{L}])|مسبقا|مسبقاً|قبل الوصول|يجب",
+    "con antelaci[óo]n|de antemano|previamente|el d[íi]a anterior|debe|tiene que|заранее|накануне|за (?:день|сутки|\\d{1,2} (?:дн\\p{L}{0,2}|час\\p{L}{0,2}))|нужно|необходимо|должны)(?![\\p{L}])|مسبقا|مسبقاً|قبل الوصول|قبل يوم|قبل \\d{1,2} (?:ساعة|ساعات|أيام|يوم)|يجب",
   "iu",
 );
 const PERMISSION = new RegExp(
   "(?<![\\p{L}])(?:possible|allowed|permitted|approved|accepted|welcome|fine|okay|ok|available|can(?! ?not)|m[üu]mk[üu]n|olur|uygun|kabul|izin|serbest|" +
-    "m[öo]glich|erlaubt|gestattet|willkommen|autoris\\p{L}*|permis|accept\\p{L}*|posible|permitid\\p{L}*|aceptad\\p{L}*|можно|возможно|разрешен\\p{L}*)(?![\\p{L}])|ممكن|مسموح",
+    "m[öo]glich|erlaubt|gestattet|willkommen|autoris\\p{L}*|permis|accept\\p{L}*|posible|permitid\\p{L}*|aceptad\\p{L}*|можно|возможно|разрешен\\p{L}*|" +
+    // İzin KİPİ de izindir (inceleme 10-30 gece B): "yapabilirsiniz", "puedes", "vous pouvez", "Sie können", "вы можете" — ön koşulu silinen
+    // "Erken giriş yapabilirsiniz." koşulsuz izne dönmesin. Olumsuz kip ("yapamazsınız", "no puede", "ne pouvez pas") izin sayılmaz.
+    "puede[ns]?|puedes|pod[ée]is|pouvez(?! pas)|peux(?! pas)|peut(?! pas)|k[öo]nnen|kannst|kann|d[üu]rfen|darfst|darf|можете|может|можешь)(?![\\p{L}])|" +
+    // Türkçe yeterlik eki sözcük İÇİNDE (gövde + "-(y)abil/-(y)ebil"): yalnız ekin kendisi aranır, başı sabit — doğrusal.
+    "[ae]bilir(?:siniz|sin|iz|ler)?(?![\\p{L}])|ممكن|مسموح|يمكنك|يمكنكم|يمكن",
   "iu",
 );
 function remainderNeedsHost(text: string): boolean {

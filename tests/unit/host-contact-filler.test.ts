@@ -78,6 +78,29 @@ describe("kurucunun tablosu (R13-c) — bilgi cevabına eklenen genel kapanış 
   });
 });
 
+describe("🚨 ön koşulu silinen İZİN koşulsuz izne dönmez — izin KİPİ de izin sayılır (inceleme 10-30 gece B; Türkçe ayağı bu turun gerilemesiydi)", () => {
+  it.each([
+    "Erken giriş yapabilirsiniz. Erken giriş için bir gün önceden ev sahibinize haber vermeniz gerekiyor.",
+    "Evcil hayvan getirebilirsiniz. Evcil hayvan için önceden ev sahibinize haber vermeniz gerekiyor.",
+    "Geç çıkış yapabilirsiniz. Geç çıkış için bir gün önceden ev sahibinize bildirmeniz gerekiyor.",
+    "Bisiklet kiralayabilirsiniz. Bisiklet talebinizi bir gün önceden ev sahibinize bildirmeniz gerekiyor.",
+    "Puedes traer a tu mascota. Avisa a tu anfitrión con antelación.",
+    "Vous pouvez arriver plus tôt. Prévenez votre hôte un jour à l'avance.",
+    "Sie können früher einchecken. Bitte informieren Sie Ihren Gastgeber einen Tag vorher.",
+    "Вы можете заехать раньше. Сообщите хозяину за день.",
+    "يمكنكم تسجيل الدخول مبكرًا. يرجى إبلاغ المضيف قبل يوم.",
+  ])("%j → cevabın tamamı tutulur (koşulsuz 'yapabilirsiniz' gitmez)", (t) => {
+    const r = stripHostContactFiller(t);
+    expect(r.hostContactOnly, t).toBe(true);
+  });
+  it("kontrol: kalan metinde izin yoksa ya da silinen parça ön koşul değilse bilgi yine gider", () => {
+    expect(stripHostContactFiller("Havuz 09:00–20:00 arası açık. Havuzla ilgili bir sorun olursa ev sahibinize yazabilirsiniz.").text).toBe(
+      "Havuz 09:00–20:00 arası açık.",
+    );
+    expect(stripHostContactFiller("Binada sauna var. Detaylar için ev sahibinize yazabilirsiniz.").text).toBe("Binada sauna var.");
+  });
+});
+
 describe("korunanlar (aşırı uygulama yok)", () => {
   it("kurucu 10-30: sorun KOŞULUNA bağlı 'danışın / confirm' kapanışı teyit isteği sayılmaz — yalnız konulu / göndergesel silme kısmidir, bilgi gider (mutasyon V5-28)", () => {
     for (const [t, kept] of [

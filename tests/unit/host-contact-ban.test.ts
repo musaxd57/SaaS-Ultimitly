@@ -155,6 +155,37 @@ describe("C4 — 'cevaplandı' kuralı (settle)", () => {
     expect(answered.refs).toEqual(["R1"]);
   });
 
+  it("🚨 inceleme 10-30 gece C: konusuz 'Detaylar için ev sahibinize yazın' + İKİ soru → sahibi belirsiz, HİÇBİRİ cevaplandı sayılmaz (cevaplanmayan sauna saati kapanmaz)", () => {
+    for (const [reply, sauna, wifi] of [
+      ["Binada sauna var. Wi-Fi şifresi Lale1234. Detaylar için ev sahibinize yazabilirsiniz.", "Sauna kaçta açık?", "Wi-Fi şifresi nedir?"],
+      ["We do have a sauna in the building. The Wi-Fi password is Lale1234. Please message your host for more details.", "When is the sauna open?", "What is the wifi password?"],
+    ]) {
+      const a = analyzeHostContact(reply);
+      expect(a.nothingLeft, reply).toBe(false); // bilgi yine gider (kurucu 10-30 "Binada sauna var." gitsin)
+      const out = settleHostContactRemovals({
+        removals: a.removals,
+        keptText: a.text,
+        needs: [need("R1", [sauna]), need("R2", [wifi])],
+        declared: { refs: ["R1", "R2"] },
+      });
+      expect(out.refs, reply).toEqual([]);
+    }
+  });
+
+  it("C kontrolü (aşırı açma yok): tek soru + konusuz 'detaylar için' → o soru açık; konulu silme yalnız kendi sorusunu açar", () => {
+    const a = analyzeHostContact("Binada sauna var. Detaylar için ev sahibinize yazabilirsiniz.");
+    expect(settleHostContactRemovals({ removals: a.removals, keptText: a.text, needs: [need("R1", ["Sauna kaçta açık?"])], declared: { refs: ["R1"] } }).refs).toEqual([]);
+    const b = analyzeHostContact("Havlular dolapta. Otopark için ev sahibinize sorabilirsiniz.");
+    expect(
+      settleHostContactRemovals({
+        removals: b.removals,
+        keptText: b.text,
+        needs: [need("R1", ["Havlu nerede?"]), need("R2", ["Otopark var mı?"])],
+        declared: { refs: ["R1", "R2"] },
+      }).refs,
+    ).toEqual(["R1"]);
+  });
+
   it("I2: varınca arayın tek cevapsa giriş sorusu açık, saat cevaplanır", () => {
     const a = analyzeHostContact("Giriş 15:00'te. Varınca ev sahibinizi arayın.");
     const out = settleHostContactRemovals({

@@ -13,6 +13,7 @@ import { asksHypotheticalSituation } from "@/lib/ai/absence";
 //   1. Silme yoksa → değişiklik yok (bugünkü akış birebir).
 //   2. Her silmenin SAHİPLERİ: konusu örtüşen istekler + kök örtüşmesi en yüksek istek(ler) (eşitlikte hepsi; yan cümle silmeleri de).
 //   3. Sahipsiz GENEL OLMAYAN silme → beyan edilen her istek açılır (neyi cevapladığı bilinmiyor).
+//      Konusuz / göndergesel silme ("Detaylar için …") birden çok istek varken de sahipsiz sayılır (konusu yalnız tahmin, 10-30 gece C).
 //   4. Kapsama HER ZAMAN koşar: beyan edilen ve açılmamış istek, olasılık / arıza sorusuysa ("internet giderse?") ya da giden metin onu
 //      AYIRT EDİCİ biçimde (başka istekle paylaşılmayan konu / sözcükle) karşılamıyorsa açılır.
 //   5. Geriye içerik kalmadıysa hepsi açılır.
@@ -74,6 +75,10 @@ export function settleHostContactRemovals(input: {
     const owners = ownersOf(removal, needs);
     for (const o of owners) opened.add(o);
     if (owners.length === 0 && !removal.generic) unattributed++;
+    // Göndergesel silme ("Detaylar için ev sahibinize yazın") konusunu önceki cümleden tahmin eder; birden çok beyanlı istek varken sahibi
+    // belirsizdir → hiçbiri kapanmaz (inceleme 10-30 gece C: "Binada sauna var. Wi-Fi şifresi … Detaylar için …" sauna SAATİNİ kapatıp cevaplanan
+    // Wi-Fi'yi açıyordu). Bilgi yine gider; yalnız "cevaplandı" kaydı yazılmaz.
+    if (removal.anaphoric && declaredNeeds.length > 1) unattributed++;
   }
   if (unattributed > 0 || !substantiveLeft(input.keptText)) for (const r of declared.refs) opened.add(r);
   const keptTopics = topicsWithSymptomsOf(input.keptText);
