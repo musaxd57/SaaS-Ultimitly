@@ -211,6 +211,26 @@ export async function revokeHostBinding(input: {
  * İşletmenin soru alabilecek bağlantısı (ilk dilim: tek alıcı — en son doğrulanan). Kullanıcı hâlâ işletmede sahip / yönetici olmalı ve oturum
  * kuşağı doğrulama anındakiyle aynı olmalı (`bindingUsable`); değilse `null` → bugünkü e-posta.
  */
+/**
+ * Etkin bağlantının numarası (yalnız sistem mesajı göndermek için: süpürgenin "doğrulanamadı" bildirimi). Numara anahtarı değiştiyse ya da çözülemezse
+ * `null` — o numaraya hiçbir şey gitmez (soru gönderimiyle aynı kural, `ask.ts`).
+ */
+export async function activeBindingAddress(bindingId: string, organizationId: string): Promise<string | null> {
+  const secret = hostChannelSecret();
+  if (!secret) return null;
+  const row = await prisma.hostChannelBinding.findFirst({
+    where: { id: bindingId, organizationId, status: "active" },
+    select: { addressEnc: true, addressHash: true, provider: true },
+  });
+  if (!row) return null;
+  try {
+    const to = decryptSecretBound(row.addressEnc, addressAad(bindingId, organizationId));
+    return addressHash(row.provider, to, secret) === row.addressHash ? to : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function usableHostBindingForOrg(organizationId: string): Promise<{ id: string; userId: string } | null> {
   const rows = await prisma.hostChannelBinding.findMany({
     where: { organizationId, status: "active" },

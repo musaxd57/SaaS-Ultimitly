@@ -27,7 +27,7 @@ const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
  * ("Ayşe'nin", "AYŞE", "ayşe") (Haiku 10-30 P2-1: yalnız birebir tam ad siliniyordu; "Merhaba ben Ayşe" WhatsApp'a gidiyordu). Doğrusal: parça
  * başına tek çapalı kalıp.
  */
-function withoutGuestNames(text: string, guestNames: readonly string[]): string {
+export function withoutGuestNames(text: string, guestNames: readonly string[]): string {
   const parts = new Set<string>();
   for (const name of guestNames) {
     for (const p of name.normalize("NFKC").split(/[\s,.;:()"“”'’-]+/u)) {

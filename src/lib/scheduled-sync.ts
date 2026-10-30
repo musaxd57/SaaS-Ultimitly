@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { sweepCheckoutIntents } from "@/lib/billing/checkout-intent";
 import { sweepKbCopyOperations } from "@/lib/kb/copy-operation";
 import { sweepHostQuestions } from "@/lib/host-channel/answer";
+import { hostChannelTransport } from "@/lib/host-channel-runtime";
 import { prisma } from "@/lib/db";
 import { syncHospitable } from "@/lib/hospitable-sync";
 import { isPrimaryOrg } from "@/lib/hospitable-credentials";
@@ -913,7 +914,8 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
         await hourly("kb-copy-operation-sweep", "scheduled-sync kb-copy-operation-sweep", () => sweepKbCopyOperations());
         // Ev sahibi WhatsApp soruları (migration 88): süresi dolanlar kapanır, yarıda kalan taslak / gönderim kurtarılır, kapanmış sorunun
         // cevap / taslak metni 7 gün sonra silinir. Kanal kapalıyken tabloda satır yoktur — süpürge boş geçer.
-        await hourly("host-question-sweep", "scheduled-sync host-question-sweep", () => sweepHostQuestions());
+        // Takılan soru kurtarılınca ev sahibine söylenir (WhatsApp aktarımı yapılandırılmışsa; değilse yalnız durum düzelir).
+        await hourly("host-question-sweep", "scheduled-sync host-question-sweep", () => sweepHostQuestions(new Date(), hostChannelTransport()));
         // Doğrulanmış cevap tekrarının gölge kaydı (migration 85): anahtardan BAĞIMSIZ — 90 gün dokunulmayan + kaynağı silinmiş / sonradan
         // değişmiş kalemin eski kopyası (Wi-Fi şifresi gibi değer kalmasın; Opus 10-23 85 incelemesi).
         await hourly("answer-reuse-sweep", "scheduled-sync answer-reuse-sweep", () => sweepVerifiedAnswers(prisma));

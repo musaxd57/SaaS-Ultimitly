@@ -611,6 +611,17 @@ async function maskReservationRows(
     // Konuşma öğesinin kısa konu etiketi (migration 84, kurucu 10-23 C) misafirin sorusundan türer → misafir silmesinde boşaltılır (öğenin
     // kendisi — tür / durum — ev sahibinin iş kaydı olarak kalır, metin taşımaz).
     await db.conversationItem.updateMany({ where: { organizationId, conversationId: { in: convIds }, topic: { not: null } }, data: { topic: null } });
+    // Ev sahibine WhatsApp'tan sorulan sorular (migration 88, sert inceleme 10-30 A2): açık / işlenen soru KAPANIR (onay bekleyen taslak silinen
+    // konaklamaya gönderilemesin — sürüm artar, eski düğme işlemez) ve ev sahibinin cevabı + misafir mesajından kurulan taslak + taslak özeti
+    // silinir. Durum listesi `host-channel/answer.ts` OPEN + BUSY ile aynı (pin: host-channel-answer testi).
+    await db.hostQuestion.updateMany({
+      where: { organizationId, conversationId: { in: convIds }, status: { in: ["sent", "awaiting_confirm", "answered", "sending"] } },
+      data: { status: "superseded", version: { increment: 1 } },
+    });
+    await db.hostQuestion.updateMany({
+      where: { organizationId, conversationId: { in: convIds }, OR: [{ answerEnc: { not: null } }, { draftEnc: { not: null } }, { draftHash: { not: null } }] },
+      data: { answerEnc: null, draftEnc: null, draftHash: null },
+    });
     // Geçmişten öğren (migration 65, Opus 10-15 KVKK): onaylanmamış taslak maskeye rağmen misafir kırıntısı taşıyabilir ve kanıtı JSON'da
     // durur → silinen konaklamanın mülkündeki ONAYLANMAMIŞ taslaklar silinir (yeniden üretilebilir; onaylanan = ev sahibinin bilgi tabanı
     // kalemi, kalır). Bu konaklamanın sorularına ait cevap karşılaştırmaları (yapay zekâ cevabı + not) silinir.

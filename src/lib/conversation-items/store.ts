@@ -26,6 +26,7 @@ import {
 import type { TurnWithdrawal } from "./extract";
 import { itemOrdinalEnabled } from "./flag";
 import { hostDecisionsEnabled } from "@/lib/decisions/flag";
+import { hostChannelFlagsFromEnv } from "@/lib/host-channel/routing";
 
 // ---------------------------------------------------------------------------
 // KONUŞMA ÖĞELERİ — KALICI KAYIT (09-26; migration 56). Karar kuralları `core.ts`te (saf); burası yalnız yazar/okur.
@@ -379,6 +380,29 @@ async function decisionResultMessageIds(db: Db, organizationId: string, conversa
   return rows.map((r) => r.resultMessageId).filter((v): v is string => v !== null);
 }
 
+/**
+ * WhatsApp'tan onaylanıp giden cevaplar (ev sahibi soru kanalı, anahtar açıkken): ev sahibi YALNIZ kendisine sorulan turun sorusunu gördü →
+ * bu mesaj konuşmanın öteki açık öğelerini "ev sahibi yazdı" ile kapatmaz (karar kartı kuralının aynısı; sert inceleme 10-30 A2). Turun kendi
+ * öğeleri gönderimde açıkça "cevaplandı" yapılır (`host-channel/answer.ts`). Anahtar kapalıyken sorgu YOK (davranış birebir eski).
+ */
+async function hostQuestionResultMessageIds(db: Db, organizationId: string, conversationIds: readonly string[]): Promise<string[]> {
+  if (!hostChannelFlagsFromEnv().questions || conversationIds.length === 0) return [];
+  const rows = await db.hostQuestion.findMany({
+    where: { organizationId, conversationId: { in: [...conversationIds] }, resultMessageId: { not: null } },
+    select: { resultMessageId: true },
+  });
+  return rows.map((r) => r.resultMessageId).filter((v): v is string => v !== null);
+}
+
+/** "Ev sahibi yazdı" türetmesinde sayılmayan, yalnız kendi talebini yanıtlayan giden mesajlar (karar kartı + WhatsApp onayı). */
+async function scopedReplyMessageIds(db: Db, organizationId: string, conversationIds: readonly string[]): Promise<string[]> {
+  const [decisions, questions] = await Promise.all([
+    decisionResultMessageIds(db, organizationId, conversationIds),
+    hostQuestionResultMessageIds(db, organizationId, conversationIds),
+  ]);
+  return [...decisions, ...questions];
+}
+
 export type ItemView = PersistedItem & {
   effective: EffectiveItemStatus;
   /** Öğenin mesajının yazıldığı an (mesaj bulunamazsa öğenin kendi zamanı). */
@@ -396,7 +420,7 @@ export async function listConversationItems(db: Db, input: { organizationId: str
   });
   if (rows.length === 0) return [];
   const items = rows.map(toPersisted);
-  const decisionMessages = await decisionResultMessageIds(db, input.organizationId, [input.conversationId]);
+  const decisionMessages = await scopedReplyMessageIds(db, input.organizationId, [input.conversationId]);
   const [lastHost, messages] = await Promise.all([
     db.message.findFirst({
       where: {
@@ -430,7 +454,7 @@ type OpenRow = { conversationId: string; messageId: string; status: string; crea
 async function stillOpenForHost<R extends OpenRow>(db: Db, organizationId: string, rows: readonly R[]): Promise<(R & { messageAt: Date })[]> {
   if (rows.length === 0) return [];
   const convIds = [...new Set(rows.map((r) => r.conversationId))];
-  const decisionMessages = await decisionResultMessageIds(db, organizationId, convIds);
+  const decisionMessages = await scopedReplyMessageIds(db, organizationId, convIds);
   const [hosts, messages] = await Promise.all([
     db.message.groupBy({
       by: ["conversationId"],

@@ -39,6 +39,7 @@ describe("cevap kurucu", () => {
   });
 
   it("kapsama listesi bozuksa (dizi değil) 'eksik yok' sayılmaz — kısmi cevap tam cevap gibi önizlemeye gitmez", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
     const m = modelReturns({ kind: "answer", reply: "Yes, there is a baby cot.", reply_tr: "Evet.", covered: [], uncovered: "high chair" });
     expect(await composeGuestReplyFromHostAnswer({ ...base, fetchImpl: m.fetchImpl })).toMatchObject({ ok: false, reason: "model_failed" });
   });
