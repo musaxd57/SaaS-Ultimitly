@@ -117,8 +117,23 @@ Gece modunda sormadan seçtiklerim (hepsi geri alınabilir, misafire giden hiçb
 | W7 | Bilinmeyen numaradan gelen mesaj: hiçbir kayıt, hiçbir cevap | Numara yoklanamaz; dünyanın her yerinden gelen mesaj seli veritabanına yazı açmaz |
 | W8 | Doğrulama anında kullanıcının rolü yeniden okunur (personele düştüyse bağlanmaz); eşzamanlı yanlış kodlar sayacı 5'i aşamaz | Tasarım §5.3; yarış testiyle |
 
-Sizin kararınız gerekenler (sabah): **(1)** W5 "bağlandı" mesajı istiyor musunuz? **(2)** Meta kurulum listesi (tasarım §9) — hesap, ayrı numara,
-şablon onayı sizde.
+**Ayarlar kartı (aynı gece):** Ayarlar › Bildirimler'in altında "WhatsApp bildirimleri" — yalnız anahtar açık + işletme listede + numaramız
+(`WHATSAPP_BUSINESS_NUMBER`) tanımlıyken görünür. Ev sahibi numarasını yazar, rıza kutusunu işaretler, "Kodu al" → `LIXUS-7F3K2Q` + "WhatsApp'ta
+aç" düğmesi (kod hazır yazılı açılır) → gönderir → kart "Bağlı numara: +•• ••• ••• •• 67" der. Başka hesapta bağlı numara için tek genel cümle
+(numara yoklanamaz), kullanıcı başına 15 dakikada 5 deneme, her kullanıcı yalnız KENDİ numarasını görür / kaldırır, personel ve destek görünümü
+yazamaz.
+
+Ekranda / WhatsApp'ta ev sahibine görünen yeni cümleler (hepsi TASLAK, onayınızı bekliyor; misafire giden hiçbir şey yok):
+- Rıza kutusu: "Misafir sorularının bu WhatsApp numarasına gönderilmesini kabul ediyorum. Mesajlar Meta (WhatsApp) üzerinden iletilir; istediğim
+  zaman buradan ya da WhatsApp'tan DUR yazarak kapatabilirim." (avukat onayı da gerekli — tasarım §9 madde 11)
+- Kart: "Cevabını bilmediğimiz bir misafir sorusu geldiğinde size WhatsApp'tan kısa bir soru gönderelim; cevabınızı oradan yazın."
+- Hatalar: "Numarayı ülke koduyla yazın (ör. +90 532 123 45 67)." · "Bu numara şu anda bağlanamıyor. Başka bir numara deneyin ya da daha sonra
+  tekrar deneyin." · "Devam etmek için onay kutusunu işaretleyin."
+- Askı: "Şifreniz değiştiği için +•• … 67 numarasına soru gönderilmiyor. Numaranızı yeniden doğrulayın."
+
+Sizin kararınız gerekenler (sabah): **(1)** W5 "bağlandı" mesajı istiyor musunuz? **(2)** Yukarıdaki cümleler + rıza metni. **(3)** Meta kurulum
+listesi (tasarım §9) — hesap, ayrı numara, şablon onayı sizde. **(4)** Tasarım §5.4'teki "bu siz misiniz?" ekran onayı ilk dilimde YOK (kodu ev
+sahibinin kendi WhatsApp'ından göndermesi sahipliği kanıtlıyor; bağlanan numara maskeli gösteriliyor) — ister misiniz?
 
 ## 5. Railway açılış günü eklenecekler (unutmayın)
 

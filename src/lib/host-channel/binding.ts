@@ -2,7 +2,7 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/db";
-import { encryptSecretBound } from "@/lib/crypto";
+import { decryptSecretBound, encryptSecretBound } from "@/lib/crypto";
 import {
   BINDING_CODE_MAX_ATTEMPTS,
   BINDING_CODE_TTL_MS,
@@ -223,4 +223,44 @@ export async function usableHostBindingForOrg(organizationId: string): Promise<{
     return { id: r.id, userId: r.userId };
   }
   return null;
+}
+
+export type HostBindingView = {
+  /** `suspended`: etkin ama oturum kuşağı değişti (şifre değişimi / sıfırlama) — soru almaz, yeniden doğrulama ister. */
+  status: "pending" | "active" | "suspended";
+  /** Maskeli numara (yalnız son iki hane). */
+  masked: string;
+  /** Bekleyen kodun bitişi; etkin bağlantıda `null`. */
+  expiresAt: Date | null;
+};
+
+/**
+ * Ayarlar ekranı için kullanıcının KENDİ bağlantısı (işletme + kullanıcı ile kapsanır; başka kullanıcının / işletmenin bağlantısı görünmez).
+ * Süresi dolmuş bekleyen kod → `null` (yeniden başlatılır). Numara yalnız maskeli döner.
+ */
+export async function hostBindingForUser(organizationId: string, userId: string, now: Date = new Date()): Promise<HostBindingView | null> {
+  const row = await prisma.hostChannelBinding.findFirst({
+    where: { organizationId, userId, status: { in: ["pending", "active"] } },
+    orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+    select: { id: true, status: true, addressEnc: true, verifyExpiresAt: true, userSessionEpoch: true, user: { select: { sessionEpoch: true } } },
+  });
+  if (!row) return null;
+  if (row.status === "pending" && (!row.verifyExpiresAt || row.verifyExpiresAt.getTime() <= now.getTime())) return null;
+  let masked = "••••";
+  try {
+    masked = maskE164(decryptSecretBound(row.addressEnc, addressAad(row.id, organizationId)));
+  } catch {
+    // Çözülemeyen adres gösterilmez; durum yine doğru döner.
+  }
+  if (row.status === "pending") return { status: "pending", masked, expiresAt: row.verifyExpiresAt };
+  return { status: bindingUsable(row, row.user.sessionEpoch) ? "active" : "suspended", masked, expiresAt: null };
+}
+
+/** Ayarlar'dan "Bağlantıyı kaldır": kullanıcının bu işletmedeki bekleyen / etkin bağlantıları kapanır. Kapatılan satır sayısı döner. */
+export async function revokeHostBindingsForUser(organizationId: string, userId: string, now: Date = new Date()): Promise<number> {
+  const r = await prisma.hostChannelBinding.updateMany({
+    where: { organizationId, userId, status: { in: ["pending", "active"] } },
+    data: { status: "revoked", revokedAt: now, revokedReason: "user", verifyCodeHash: null, verifyExpiresAt: null },
+  });
+  return r.count;
 }

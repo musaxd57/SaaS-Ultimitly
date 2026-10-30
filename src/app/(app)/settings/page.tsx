@@ -15,6 +15,7 @@ import { billingTabAvailable } from "@/lib/billing/billing-tab";
 import { AiTestCard } from "@/components/settings/ai-test-card";
 import { TestEmailButton } from "@/components/settings/test-email-button";
 import { AlertEmailForm } from "@/components/settings/alert-email-form";
+import { WhatsAppBindingCard } from "@/components/settings/whatsapp-binding-card";
 import { TimezoneForm } from "@/components/settings/timezone-form";
 import { AutomationPrefsForm } from "@/components/settings/automation-prefs-form";
 import { IcalPrivacyForm } from "@/components/settings/ical-privacy-form";
@@ -478,6 +479,7 @@ export default async function SettingsPage({
         </p>
         <AlertEmailForm initial={org?.alertEmail ?? ""} />
         <TestEmailButton />
+        <WhatsAppBindingCard />
       </CardContent>
     </Card>
   );

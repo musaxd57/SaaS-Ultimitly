@@ -15,7 +15,8 @@ import { WHATSAPP_CLOUD_PROVIDER } from "@/lib/host-channel/providers";
 import { OPT_OUT_REPLY } from "@/lib/host-channel/inbound";
 import { __setHostChannelTransportForTest } from "@/lib/host-channel-runtime";
 import { clearBadSignatureThrottle, skipBadSignatureAlert } from "@/lib/billing/bad-signature-throttle";
-import { inboundDedupeName, INBOUND_LEASE_MS } from "@/lib/host-channel/inbound";
+import { handleHostInbound, inboundDedupeName, INBOUND_LEASE_MS } from "@/lib/host-channel/inbound";
+import { hostChannelFlagsFromEnv } from "@/lib/host-channel/routing";
 import type { HostChannelTransport } from "@/lib/host-channel/types";
 
 // ---------------------------------------------------------------------------
@@ -347,6 +348,24 @@ describe("WhatsApp web kancası rotası", () => {
       expect(row.status).toBe("active");
       expect(row.lastInboundAt).not.toBeNull();
       expect(tr.texts).toHaveLength(0);
+    });
+  });
+
+  describe("çekirdek işleyicinin kendi sözleşmesi (rota dışındaki çağıranlar için)", () => {
+    it("kanal anahtarı kapalı bayrakla çağrılırsa hiçbir şey işlenmez / yazılmaz (rota kapısına güvenmez)", async () => {
+      flagsOn();
+      const o = await seedOrg();
+      const r = await pending(o, NUM_A);
+      const flags = { ...hostChannelFlagsFromEnv(), channel: false };
+      const out = await handleHostInbound({
+        provider: WHATSAPP_CLOUD_PROVIDER,
+        flags,
+        transport: tr.t,
+        events: [{ kind: "text", from: DIG_A, providerMessageId: "wamid.core", contextId: null, text: r.code, at: new Date() }],
+      });
+      expect(out).toEqual({ processed: 0, duplicates: 0, ignored: 1, busy: 0, organizationIds: [] });
+      expect((await binding(r.bindingId)).status).toBe("pending");
+      expect(await dedupeLocks()).toBe(0);
     });
   });
 
