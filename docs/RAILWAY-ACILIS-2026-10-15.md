@@ -30,6 +30,14 @@ Kurucu 10-15: "Railway'i açınca ekleyeceğimiz bayrakları unutma." Bu dosya T
    (kod tarafı: operatör uyarı e-postası). İzinler (en az yetki, koddaki çağrılardan): Subscriptions Read + Write · Customer portal sessions Write
    · Prices Read · Products Read · Customers Read · Addresses Read. Diğerleri işaretsiz.
 5. **Railway "Wait for CI" AÇIK** kalsın (kırmızı CI deploy'u atlar).
+6. 🔔 **KURUCU 10-30: "Decisions API bayraklarını unutturma, Railway'i açacağımız gün eklemeliyim":**
+   - **Decisions API ile yeniden sıralayıcı:** `KB_RERANK_ENGINE=decisions` (boş = bugünkü sohbet sıralayıcısı) · model
+     `KB_RERANK_DECISIONS_MODEL` (boşken `gpt-6-luna`). Ölçüm: p50 0,41 sn / p95 0,86 sn (sohbet 1,09 / 1,63); kalite sohbetin oynama
+     aralığının alt ucunda. Açmadan önce 3 tekrar + uzun belge kör seti (`docs/arastirma-2026-10-28/decisions-api.md`). Ayrıntı ↓§3.
+   - **OpenAI istem önbelleği (10-30, `ai/prompt-cache.ts`) VARSAYILAN AÇIK — env gerekmez.** Cevap / çeviri / üslup / anlam katmanı
+     isteklerine amaç anahtarı (`prompt_cache_key`) + 24 saat saklama (`prompt_cache_retention`) eklenir; çıktı değişmez. Acil kapatma
+     `OPENAI_PROMPT_CACHE_DISABLED=1`; yalnız saklamayı kısaltmak için `OPENAI_PROMPT_CACHE_RETENTION=in_memory`. Açılıştan sonra kontrol:
+     karar kaydındaki kullanımda önbellekten okunan token (`cached_tokens`) sıfırdan büyük mü.
 
 ## 1. Canlı durumda AÇIK olması gerekenler (eksikse ekleyin; "1")
 

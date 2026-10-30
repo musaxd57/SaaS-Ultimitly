@@ -3,6 +3,7 @@ import { normalizeGuestDisplayName } from "@/lib/guest-display-name";
 import "server-only";
 import { createHash } from "node:crypto";
 import { buildReplyPrompt, replySystemPromptFor } from "./prompts";
+import { promptCacheFields } from "./prompt-cache";
 import { applyCodeGreeting, codeGreetingEnabled, salutationNameOf } from "./code-greeting";
 import { stripNoInstructionFillerGrounded } from "./no-instruction-filler";
 import { stripHostContactFiller } from "./host-contact-filler";
@@ -425,6 +426,8 @@ async function callOpenAI(system: string, user: string, breakerKey?: string | nu
   else payload.max_tokens = 900;
   // Düşünme çabası yalnız AYARLIYSA ve reasoning modelinde (09-25 model kıyası; ayarsız = modelin varsayılanı).
   if (effort) payload.reasoning_effort = effort;
+  // İstem önbelleği (kurucu 10-30, `prompt-cache.ts`): sistem istemi sabit önektir; çıktıyı değiştirmez.
+  Object.assign(payload, promptCacheFields("reply", "https://api.openai.com/v1/chat/completions"));
   // Devre kesici (`model-breaker.ts`, kurucu 10-21 "bekleme uzamasın"): sağlayıcı art arda takıldıysa bekleme süresince çağrı
   // yapılmaz → bugünkü model-yok yolu (kanal yeniden dener, QR ev sahibine bırakır). Her çağrı ayrıca raporlanmaz; açılış raporlanır.
   if (!replyModelCallAllowed(breakerKey)) return null;
@@ -993,6 +996,7 @@ export async function summarizeHostStyle(sampleReplies: string[]): Promise<strin
   // Katman bazında düşünme çabası (10-01): yalnız reasoning modelinde, kapalı kümeden; tanımsızsa gönderilmez (bugünkü davranış).
   const styleEffort = layerReasoningEffort(process.env.OPENAI_STYLE_REASONING_EFFORT);
   if (isReasoningModel(model) && styleEffort) payload.reasoning_effort = styleEffort;
+  Object.assign(payload, promptCacheFields("style", "https://api.openai.com/v1/chat/completions"));
 
   try {
     const res = await fetch("https://api.openai.com/v1/chat/completions", {

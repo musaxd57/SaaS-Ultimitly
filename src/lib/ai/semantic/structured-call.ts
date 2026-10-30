@@ -2,6 +2,7 @@ import "server-only";
 
 import { applyCompatModelParams, OPENAI_BASE_URL } from "@/lib/ai/openai-compat";
 import { isReasoningModel } from "@/lib/ai/model-family";
+import { promptCacheFields } from "@/lib/ai/prompt-cache";
 import { isRetryableReplyStatus, replyRetryDelayMs } from "@/lib/ai/model-breaker";
 import {
   classifyModelProviderFailure,
@@ -101,6 +102,7 @@ export async function callStructuredJson(input: StructuredCallInput): Promise<St
     maxCompletionTokens: input.maxCompletionTokens,
   });
   if (input.reasoningEffort && isReasoningModel(input.model)) payload.reasoning_effort = input.reasoningEffort;
+  Object.assign(payload, promptCacheFields(`semantic:${input.schema.name}`, `${OPENAI_BASE_URL}/chat/completions`));
   let res: Response;
   try {
     res = await (input.fetchImpl ?? fetch)(`${OPENAI_BASE_URL}/chat/completions`, {

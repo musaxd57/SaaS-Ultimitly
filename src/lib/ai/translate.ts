@@ -1,6 +1,7 @@
 import "server-only";
 
 import { DEFAULT_OPENAI_MODEL, isReasoningModel, layerReasoningEffort } from "./model-family";
+import { promptCacheFields } from "./prompt-cache";
 
 // ---------------------------------------------------------------------------
 // translate — hospitality-aware translation via OpenAI (model from
@@ -152,6 +153,7 @@ export async function translate(
   // GÖNDERİLMEZ (bugünkü davranış birebir — model varsayılanı).
   const effort = layerReasoningEffort(process.env.OPENAI_TRANSLATE_REASONING_EFFORT);
   if (reasoning && effort) payload.reasoning_effort = effort;
+  Object.assign(payload, promptCacheFields("translate", "https://api.openai.com/v1/chat/completions"));
   // Output token cap — a runaway generation must not run up spend.
   if (reasoning) payload.max_completion_tokens = 4000;
   else payload.max_tokens = 3000;
