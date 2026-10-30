@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/db";
 import { encryptSecretBound } from "@/lib/crypto";
 import {
+  BINDING_CODE_MAX_ATTEMPTS,
   BINDING_CODE_TTL_MS,
   addressHash,
   bindingCodeHash,
@@ -123,12 +124,13 @@ export async function startHostBinding(input: {
 
 export type ConfirmBindingResult =
   | { ok: true; bindingId: string; organizationId: string; userId: string }
-  | { ok: false; reason: "disabled" | "unknown_address" | Exclude<BindingCodeVerdict, "ok"> };
+  | { ok: false; reason: "disabled" | "unknown_address" | "not_allowed" | Exclude<BindingCodeVerdict, "ok"> };
 
 /**
  * Gelen mesajdaki kodla doğrula. `fromDigits` sağlayıcının bildirdiği gönderen (yalnız rakam). Yanlış kodda deneme sayacı artar; doğru kodda
  * bağlantı etkinleşir, kod silinir, oturum kuşağı yazılır, aynı kullanıcının öteki etkin bağlantıları kapanır. Tek işlem; durum değişikliği
- * okunan sürüme koşullu (iki eşzamanlı doğrulamadan biri kazanır).
+ * okunan sürüme koşullu (iki eşzamanlı doğrulamadan biri kazanır). Kodu üreten kullanıcı bu arada işletmeden çıktıysa ya da rolü personele
+ * düştüyse bağlantı ETKİNLEŞMEZ (`not_allowed`; tasarım §5.3 "gelen yolda da her işlemde rol yeniden okunur").
  */
 export async function confirmHostBindingFromInbound(input: {
   provider: string;
@@ -147,15 +149,28 @@ export async function confirmHostBindingFromInbound(input: {
     });
     if (!b) return { ok: false as const, reason: "unknown_address" as const };
     const verdict = judgeBindingCode(b, input.code, secret, now);
-    if (verdict === "mismatch") {
-      await tx.hostChannelBinding.updateMany({ where: { id: b.id, status: "pending" }, data: { verifyAttempts: { increment: 1 } } });
-      return { ok: false as const, reason: verdict };
+    if (verdict !== "ok" && verdict !== "mismatch") return { ok: false as const, reason: verdict };
+    if (verdict === "ok") {
+      const user = await tx.user.findUnique({ where: { id: b.userId }, select: { organizationId: true, role: true } });
+      if (!user || user.organizationId !== b.organizationId || (user.role !== "owner" && user.role !== "manager")) {
+        return { ok: false as const, reason: "not_allowed" as const };
+      }
     }
-    if (verdict !== "ok") return { ok: false as const, reason: verdict };
+    // Deneme hakkı, karşılaştırmanın sonucu KULLANILMADAN önce ayrılır (Haiku 10-30 P3): okunan sayaç eşzamanlı isteklerde bayattır; ayırma
+    // satırı kilitler, eşzamanlı doğrulamaları sıraya sokar ve 5'ten fazla denemenin — doğru kod dahil — sonuç doğurmasını engeller.
+    const reserved = await tx.hostChannelBinding.updateMany({
+      where: { id: b.id, status: "pending", verifyCodeHash: b.verifyCodeHash, verifyAttempts: { lt: BINDING_CODE_MAX_ATTEMPTS } },
+      data: { verifyAttempts: { increment: 1 } },
+    });
+    if (reserved.count !== 1) {
+      const after = await tx.hostChannelBinding.findUnique({ where: { id: b.id }, select: { status: true } });
+      return { ok: false as const, reason: after?.status === "pending" ? ("too_many_attempts" as const) : ("not_pending" as const) };
+    }
+    if (verdict === "mismatch") return { ok: false as const, reason: verdict };
     const user = await tx.user.findUnique({ where: { id: b.userId }, select: { sessionEpoch: true } });
-    if (!user) return { ok: false as const, reason: "unknown_address" as const };
+    if (!user) return { ok: false as const, reason: "not_allowed" as const };
     const won = await tx.hostChannelBinding.updateMany({
-      where: { id: b.id, status: "pending", verifyCodeHash: b.verifyCodeHash, verifyAttempts: b.verifyAttempts },
+      where: { id: b.id, status: "pending", verifyCodeHash: b.verifyCodeHash },
       data: {
         status: "active",
         verifiedAt: now,

@@ -1,4 +1,5 @@
 import type { HostChannelTransport, HostQuestionMessage, HostSendResult } from "../types";
+import { WHATSAPP_CLOUD_PROVIDER } from "../providers";
 
 // ---------------------------------------------------------------------------
 // WhatsApp Cloud API bağdaştırıcısı (tasarım §2, §4). Çekirdek yalnız `HostChannelTransport`ı bilir; bu dosya Meta'nın Graph API biçimini
@@ -71,7 +72,7 @@ async function post(cfg: WhatsAppConfig, body: Record<string, unknown>, fetchImp
 
 export function createWhatsAppTransport(cfg: WhatsAppConfig, fetchImpl: typeof fetch = fetch): HostChannelTransport {
   return {
-    provider: "whatsapp",
+    provider: WHATSAPP_CLOUD_PROVIDER,
     async sendQuestion(to: string, message: HostQuestionMessage): Promise<HostSendResult> {
       const num = normalizeWaNumber(to);
       if (!num) return { ok: false, providerMessageId: null, definitive: true, error: "bad_number" };

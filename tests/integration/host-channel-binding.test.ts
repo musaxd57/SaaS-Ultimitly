@@ -104,6 +104,39 @@ describe("WhatsApp numara bağlama", () => {
     expect(await confirmHostBindingFromInbound({ provider: P, fromDigits: DIGITS, code: r2.code, now: late })).toEqual({ ok: false, reason: "expired" });
   });
 
+  it("eşzamanlı yanlış kodlar deneme sayacını tavanın üstüne taşıyamaz", async () => {
+    const o = await seedUser();
+    const r = await start(o);
+    if (!r.ok) throw new Error(r.reason);
+    await Promise.all(
+      Array.from({ length: BINDING_CODE_MAX_ATTEMPTS * 4 }, () =>
+        confirmHostBindingFromInbound({ provider: P, fromDigits: DIGITS, code: "LIXUS-000000" }).catch(() => null),
+      ),
+    );
+    const row = await prisma.hostChannelBinding.findUniqueOrThrow({ where: { id: r.bindingId } });
+    expect(row.verifyAttempts).toBeLessThanOrEqual(BINDING_CODE_MAX_ATTEMPTS);
+    expect(row.status).toBe("pending");
+  });
+
+  it("kodu üreten kullanıcının rolü personele düştüyse / işletmeden çıktıysa doğru kod da etkinleştirmez (rol yeniden okunur)", async () => {
+    const o = await seedUser();
+    const r = await start(o);
+    if (!r.ok) throw new Error(r.reason);
+    await prisma.user.update({ where: { id: o.userId }, data: { role: "staff" } });
+    expect(await confirmHostBindingFromInbound({ provider: P, fromDigits: DIGITS, code: r.code })).toEqual({ ok: false, reason: "not_allowed" });
+    expect((await prisma.hostChannelBinding.findUniqueOrThrow({ where: { id: r.bindingId } })).status).toBe("pending");
+    // Rol geri gelince aynı kod geçer (deneme hakkı yanmadı).
+    await prisma.user.update({ where: { id: o.userId }, data: { role: "manager" } });
+    expect((await confirmHostBindingFromInbound({ provider: P, fromDigits: DIGITS, code: r.code })).ok).toBe(true);
+
+    const o2 = await seedUser();
+    const r2 = await start(o2, "+49 151 12345678");
+    if (!r2.ok) throw new Error(r2.reason);
+    const other = await prisma.organization.create({ data: { name: "Baska Org" } });
+    await prisma.user.update({ where: { id: o2.userId }, data: { organizationId: other.id } });
+    expect(await confirmHostBindingFromInbound({ provider: P, fromDigits: "4915112345678", code: r2.code })).toEqual({ ok: false, reason: "not_allowed" });
+  });
+
   it("başka hesabın ETKİN bağlantısı ve süresi dolmamış bekleyen kodu devralınamaz; süresi dolmuşu devralınır", async () => {
     const a = await seedUser();
     const b = await seedUser();

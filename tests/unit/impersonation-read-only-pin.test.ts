@@ -32,6 +32,7 @@ const ALLOWED_WITHOUT_CHECK: Record<string, string> = {
   "demo/ai POST": "halka açık demo",
   "leads POST": "halka açık iletişim formu",
   "webhooks/paddle POST": "ödeme sağlayıcısı (imza)",
+  "webhooks/host-channel/whatsapp POST": "mesajlaşma sağlayıcısı web kancası (imza; oturum yok)",
   "admin/exit POST": "bürünmeden çıkış",
   // Operatör paneli yazmaları (müşteri açma, bürünme değiştirme, lead, kalite denetimi, 2FA sıfırlama, deneme istisnası) artık
   // KENDİ kontrolünü taşır — destek görünümünde kapalı, önce çıkış (kurucu kararı 10-11). Listeden bu yüzden çıktılar.

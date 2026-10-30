@@ -7,7 +7,9 @@
 
 export type CodeAnswerKind = "opt_out" | "host_takes_over" | "unsupported" | null;
 
-const OPT_OUT = /^(?:dur|stop|durdur|iptal|unsubscribe)[.!]?$/iu;
+// Yalnız iki sözcük, mesajın TAMAMI (tasarım §3.5 / §8). "iptal" / "durdur" kapsam DIŞI: "iptal edilsin mi?" sorusuna "İptal" diye cevap
+// veren ev sahibinin bağlantısı sessizce kopardı.
+const OPT_OUT = /^(?:dur|stop)[.!]?$/iu;
 const TAKES_OVER =
   /^(?:tamam[, ]+)?(?:ben|bunu ben|onu ben)\s+(?:yazaca[ğg][ıi]m|yazar[ıi]m|arar[ıi]m|arayaca[ğg][ıi]m|hallederim|halledece[ğg]im|ilgilenirim|ilgilenece[ğg]im|cevaplar[ıi]m|cevaplayaca[ğg][ıi]m|d[öo]nerim)[.!]?$|^i(?:['’]ll| will)\s+(?:handle|reply|answer|call|take care of)\s*(?:it|this|them)?[.!]?$/iu;
 

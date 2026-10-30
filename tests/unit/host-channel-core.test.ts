@@ -151,6 +151,12 @@ describe("cevap türü — modelden önce kodla", () => {
   it.each([
     [{ kind: "text" as const, text: "DUR" }, "opt_out"],
     [{ kind: "text" as const, text: "stop" }, "opt_out"],
+    [{ kind: "text" as const, text: "Dur." }, "opt_out"],
+    // Yalnız DUR / STOP (tasarım §3.5): "iptal edilsin mi?" sorusuna "İptal" diyen ev sahibinin bağlantısı kopmaz.
+    [{ kind: "text" as const, text: "İptal" }, null],
+    [{ kind: "text" as const, text: "iptal" }, null],
+    [{ kind: "text" as const, text: "durdur" }, null],
+    [{ kind: "text" as const, text: "unsubscribe" }, null],
     [{ kind: "text" as const, text: "Tamam, ben yazarım" }, "host_takes_over"],
     [{ kind: "text" as const, text: "I'll handle it" }, "host_takes_over"],
     [{ kind: "button" as const, buttonId: "hq.q1.1.self" }, "host_takes_over"],

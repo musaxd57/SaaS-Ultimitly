@@ -96,7 +96,29 @@ Kamu kurumu sorusu (S-1'in ikinci yarısı) hâlâ açık: **A** (önerim) gider
 | **H** "Lale Taksi durağı 100 m ileride, onları arayabilirsiniz." gidiyordu (cümlede 100 / 110 / 155 / "acil" geçince acil muafiyeti) | **Düzeltildi**: muafiyet yalnız gerçek acil çağrı talimatında. |
 | **E** Railway'de `OPENAI_PROMPT_CACHE_RETENTION=` boş bırakılırsa 24 saat önbellek sessizce kapanıyordu | **Düzeltildi**: yalnız `in_memory` kısaltır. |
 | **A** Kodla kurulan erken giriş POLİTİKA metni "…kararı ev sahibiniz verir / your host decides" (ses kapısı kodla kurulan metni muaf tutuyor) | **Eski durum, sizin kararınızı bekliyor** (SABAH-KARARLARI 10-01 §2). `AI_HOST_DECISION_HOLD_ENABLED=1` açıkken zaten tutuluyor; anahtarsız kurulumda gider. Metnin ev sahibinin ağzından yazılması önerilir ("Erken giriş o günkü temizliğe bağlı; size biz döneceğiz." değil — bekleme sözü yasak; önerim: "Erken giriş o günkü temizliğe bağlıdır; uygun olursa onaylarız." — misafire gideni değiştirdiği için onayınızla). |
-| **D** WhatsApp cevap kurucusunun kod denetimi Arapça / Farsça rakamları görmüyor | WhatsApp dilimi bağlanmadan önce düzeltilecek (bugün bağlı değil). |
+| **D** WhatsApp cevap kurucusunun kod denetimi Arapça / Farsça rakamları görmüyor | **Düzeltildi** (WhatsApp inceleme düzeltmeleri: rakamlar denetimden önce ASCII'ye çevrilir). |
+
+## 4d. WhatsApp — gelen uç (web kancası) kodda (10-30 gece-3, anahtarlar KAPALI)
+
+Ne yapıyor: Meta'nın gönderdiği mesajı alır → imzayı doğrular → yalnız GÖNDEREN NUMARADAN işletmeyi bulur → iki şeyi işler: **numara bağlama
+kodu** (`LIXUS-7F3K2Q`, ev sahibinin kendi WhatsApp'ından) ve **"DUR" / "STOP"** (bağlantıyı kapatır, "WhatsApp bildirimleri kapatıldı."
+der — tasarım §3.5'teki cümle). Ev sahibinin soruya CEVABININ bağlanması sonraki dilim; o gelene kadar `HOST_QUESTIONS_ENABLED` kapalı kalmalı.
+
+Gece modunda sormadan seçtiklerim (hepsi geri alınabilir, misafire giden hiçbir şeye dokunmuyor):
+
+| # | Seçim | Neden |
+|---|---|---|
+| W1 | Adres tasarımdaki gibi `/api/webhooks/host-channel/whatsapp`; sabit rota (sağlayıcı başına ayrı dosya) | `[provider]` değişkenli rota yerine; aynı adres, daha az kapı |
+| W2 | Anahtar kapalıyken el sıkışma da 403 (uç tamamen uyur) | Tasarım §5.1; kurulum sırası Railway belgesine yazıldı: önce anahtar, sonra Meta'da abonelik |
+| W3 | Anahtar açık ama sır eksik → 200 + alarm (bir kez + günde bir hatırlatma) | Ödeme web kancasıyla aynı desen; sessiz kayıp yok |
+| W4 | "DUR" yalnız DUR / STOP (mesajın tamamı); "iptal" / "durdur" artık kapatmaz | Tasarım §3.5 / §8; "iptal edilsin mi?" sorusuna "İptal" diyen ev sahibinin bağlantısı sessizce kopuyordu |
+| W5 | Bağlama kodu doğrulanınca WhatsApp'tan "bağlandı" mesajı GİTMEZ (ekran gösterir) | Tasarım §5.4; yeni cümle sizin onayınız olmadan eklenmedi. İsterseniz: "Lixus bildirimleri bu numaraya bağlandı." |
+| W6 | Teslimatta bizim numaramızdan başka numara kimliği varsa hepsi yok sayılır | Karışık teslimatta mesaj başına ayrım yerine en güvenlisi |
+| W7 | Bilinmeyen numaradan gelen mesaj: hiçbir kayıt, hiçbir cevap | Numara yoklanamaz; dünyanın her yerinden gelen mesaj seli veritabanına yazı açmaz |
+| W8 | Doğrulama anında kullanıcının rolü yeniden okunur (personele düştüyse bağlanmaz); eşzamanlı yanlış kodlar sayacı 5'i aşamaz | Tasarım §5.3; yarış testiyle |
+
+Sizin kararınız gerekenler (sabah): **(1)** W5 "bağlandı" mesajı istiyor musunuz? **(2)** Meta kurulum listesi (tasarım §9) — hesap, ayrı numara,
+şablon onayı sizde.
 
 ## 5. Railway açılış günü eklenecekler (unutmayın)
 
@@ -104,6 +126,8 @@ Kamu kurumu sorusu (S-1'in ikinci yarısı) hâlâ açık: **A** (önerim) gider
 - **Kıdemli okuyucu:** `AI_SENIOR_READER_ENABLED=1` (iç sistem anlatımı 56/56) + **S-1 denetimi** `AI_REFERRAL_JUDGE_ENABLED=1` (özel işletme
   yönlendirmesi kör sette 41/42, temizde 0 yanlış).
 - Prompt caching kendiliğinden açık; kapatma `OPENAI_PROMPT_CACHE_DISABLED=1`.
-- WhatsApp: `HOST_CHANNEL_ENABLED`, `HOST_QUESTIONS_ENABLED`, `HOST_CHANNEL_ORG_IDS=<kurucu org>` + sırlar — kurulum adımları
+- WhatsApp: `HOST_CHANNEL_ENABLED`, `HOST_CHANNEL_ORG_IDS=<kurucu org>` + sırlar (`WHATSAPP_APP_SECRET`, `WHATSAPP_PHONE_NUMBER_ID`,
+  `WHATSAPP_WEBHOOK_VERIFY_TOKEN`, `WHATSAPP_ACCESS_TOKEN`, `HOST_CHANNEL_HMAC_SECRET`); `HOST_QUESTIONS_ENABLED` cevap dilimi gelene kadar
+  KAPALI (§4d) — kurulum adımları
   `docs/TASARIM-2026-10-30-whatsapp-ev-sahibi-dongusu.md` §9 (Meta hesabı, ayrı numara, şablon onayı, kalıcı belirteç).
 - Tam liste: `docs/RAILWAY-ACILIS-2026-10-15.md` §0.

@@ -46,8 +46,14 @@ Kurucu 10-15: "Railway'i açınca ekleyeceğimiz bayrakları unutma." Bu dosya T
      `WHATSAPP_QUESTION_TEMPLATE` (boş = `lixus_misafir_sorusu`) · `WHATSAPP_TEMPLATE_LANG` (boş = `tr`) · cevap kurucu modeli
      `AI_HOST_ANSWER_MODEL` / `AI_HOST_ANSWER_REASONING_EFFORT` (boş = cevap modelinin ayarı). Anahtarlar (hepsi yalnız "1", varsayılan
      KAPALI): `HOST_CHANNEL_ENABLED` (kanal) · `HOST_QUESTIONS_ENABLED` (bilgi soruları) · `HOST_QUESTION_DECISIONS_ENABLED` (karar düğmeleri) ·
-     `HOST_QUESTION_ALERTS_ENABLED` (acil bildirim) + liste `HOST_CHANNEL_ORG_IDS` (`*` = hepsi, boş = hiçbiri; ilk açılış kurucu org). Kod bugün
-     saf parçalar + gönderici + yönlendirici (hiçbir yola bağlı değil); bağlantı (migration 88, iki yeni tablo) kurucu onayıyla.
+     `HOST_QUESTION_ALERTS_ENABLED` (acil bildirim) + liste `HOST_CHANNEL_ORG_IDS` (`*` = hepsi, boş = hiçbiri; ilk açılış kurucu org).
+     **Kodda (10-30 gece):** migration 88 (iki yeni tablo) · numara bağlama · Tür A soru gönderimi ("Misafir cevabınızı bekliyor" bildirimine
+     bağlı) · web kancası `POST/GET /api/webhooks/host-channel/whatsapp` (imza, bağlama kodu, "DUR"). **Ev sahibinin WhatsApp CEVABININ soruya
+     bağlanması HENÜZ YOK** → `HOST_QUESTIONS_ENABLED` o dilim gelene kadar KAPALI kalır (açılırsa soru WhatsApp'a gider, o mesaj için e-posta
+     gitmez, cevap panelden verilmek zorunda kalır). **Kurulum sırası:** ① env'ler + `HOST_CHANNEL_ENABLED=1` + `HOST_CHANNEL_ORG_IDS` ② yayın
+     ③ SONRA Meta'da Callback URL + Verify token (anahtar kapalıyken el sıkışma 403 döner — uç uyur) ④ Ayarlar'dan numara bağlama (ekran
+     dilimi). Anahtar açık ama `WHATSAPP_APP_SECRET` / `WHATSAPP_PHONE_NUMBER_ID` yoksa uç gelen mesajı 200 ile yutar + "host-channel-webhook-
+     dormant" alarmı verir.
 
 ## 1. Canlı durumda AÇIK olması gerekenler (eksikse ekleyin; "1")
 

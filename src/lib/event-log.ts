@@ -40,6 +40,11 @@ export const OPERATIONAL_EVENTS = {
   // Operatör yazması (güvenlik 2. tur 10-22): müşteri adayı kaydı işletmesiz olduğu için denetim kaydına (AuditLog, işletme ister) yazılamaz;
   // iz burada — yalnız aday + operatör kimliği, değişen alanların ADI ve yeni durum (not / tarih değeri yazılmaz).
   "operator.lead.updated": "info",
+  // Ev sahibi soru kanalı (WhatsApp, tasarım §5.9): yalnız sayılar ve işletme — numara, metin, sağlayıcı mesaj kimliği YAZILMAZ. Bilinmeyen
+  // gönderenden gelen teslimat hiç satır yazmaz (sel tabloyu şişirmesin).
+  "host_channel.webhook.received": "info",
+  "host_channel.binding.verified": "info",
+  "host_channel.binding.opt_out": "info",
 } as const;
 export type OperationalEventName = keyof typeof OPERATIONAL_EVENTS;
 
@@ -76,6 +81,9 @@ const DATA_KEYS: Record<string, RegExp | "number" | "boolean"> = {
   leadId: /^c[a-z0-9]{7,40}$/,
   actorUserId: /^c[a-z0-9]{7,40}$/,
   errored: "boolean",
+  processed: "number",
+  duplicates: "number",
+  ignored: "number",
   // Sentry olay kimliği (takip numarası dilim G): tam 32 KÜÇÜK onaltılık — kişisel veri biçimi taşıyamaz. Uzun rakam kuralından VE
   // telefon / kimlik biçimli değer süzgecinden (`redactSensitive`) muaf: ölçüldü (Opus 10-15 B12, 20.000 rastgele kimlik) — %37,7'sinde
   // 7+ rakam dizisi var, %9,4'ünü süzgeç "[PHONE]" yapıyor; ikisi de kimliği düşürürdü. Bu anahtarı YALNIZ `report-error.ts` yazar.

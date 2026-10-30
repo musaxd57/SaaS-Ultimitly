@@ -177,6 +177,8 @@ const SELF_GATED: Record<string, { gate: RegExp[] | null; reason: string; where?
   "hospitable/oauth/callback GET": { gate: [OWNER_INLINE[1]], reason: "sahip ya da operatör (yönlendirmeli ret)" },
   "leads POST": { gate: null, reason: "kimliksiz: landing formu (yalnız POST + IP sınırı)" },
   "webhooks/paddle POST": { gate: [/verifyPaddleSignature\(/], reason: "imzalı ödeme web kancası" },
+  "webhooks/host-channel/whatsapp GET": { gate: [/verifyWhatsAppHandshake\(/], reason: "kimliksiz: Meta abonelik el sıkışması (doğrulama belirteci, sabit süreli)" },
+  "webhooks/host-channel/whatsapp POST": { gate: [/verifyMetaSignature\(/], reason: "imzalı WhatsApp web kancası (ev sahibi soru kanalı)" },
 };
 
 describe("API rol kapısı — kapalı listeler", () => {
