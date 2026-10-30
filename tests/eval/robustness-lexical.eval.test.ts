@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { classifyFallback, isAccessLossText, isSafetyEmergencyText } from "@/lib/ai/fallback";
 import { PERTURBATIONS, perturb, typos, type Perturbation } from "./robustness-perturb";
+import { evalRuntime, evalRuntimeMarkdown } from "./run-meta";
 
 // ---------------------------------------------------------------------------
 // SAĞLAMLIK — KOL 1: MODELSİZ (ücretsiz; kurucu 10-29 gece K-1029-F). Sözcük ağlarının hükmü aynı mesajın bozuk eşinde DEĞİŞİYOR mu?
@@ -79,7 +80,9 @@ describe.skipIf(!process.env.RUN_ROBUSTNESS)("sözcük ağları — temiz / bozu
         if (r.variants[p].v !== r.base) lines.push(`| ${r.id} | ${r.truth} | ${r.base} | ${p} | ${r.variants[p].text.replace(/\|/g, "/")} | ${r.variants[p].v} |`);
       }
     }
-    const report = lines.join("\n") + "\n";
+    // Koşu kimliği (katman bazında model + ayar + commit) — bu ölçer model çağırmaz ama raporu hangi kodun ürettiği izlenebilir kalsın
+    // (`eval-run-meta.test.ts`: docs/olcum'a yazan her ölçer kimliği taşır).
+    const report = lines.join("\n") + "\n" + evalRuntimeMarkdown(evalRuntime()) + "\n";
     console.log(report);
     if (process.env.EVAL_WRITE_REPORT === "1") {
       const day = new Date().toISOString().slice(0, 10);

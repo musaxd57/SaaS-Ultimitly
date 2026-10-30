@@ -1,0 +1,300 @@
+import { describe, it, expect } from "vitest";
+import { addNights } from "@/modules/availability/core";
+import {
+  FROM_CLAMP_DAYS,
+  LEAD_DAYS,
+  WINDOW_DAYS,
+  layoutTimeline,
+  resolveWindow,
+  type TimelineCell,
+  type TimelineInput,
+  type TimelineStay,
+} from "@/lib/calendar/timeline";
+
+// ---------------------------------------------------------------------------
+// ÇOKLU TAKVİM SAF YERLEŞİMİ (kurucu 10-29 gece; tasarım `docs/TASARIM-2026-10-29-takvim-coklu.md` §13.1). Değişmezler:
+// hiçbir kayıt düşmez · "boş" yalnız yüklenen gecede · başka şeritteki konaklamanın gecesi asla "boş" değil · gece etiketi kırpılmaz ·
+// her şerit tam 2·D yarım, hiçbir boşluk hücresi gün sınırını aşmaz · eski aylık hesapla aynı giriş / çıkış / dolu sayıları.
+// ---------------------------------------------------------------------------
+
+const FROM = "2026-11-10";
+const D = WINDOW_DAYS;
+const TO = addNights(FROM, D);
+const win = { from: FROM, to: TO, days: D };
+const P1 = { id: "p1", name: "Daire 1" };
+const P2 = { id: "p2", name: "Daire 2" };
+
+let seq = 0;
+function stay(a: string, d: string, over: Partial<TimelineStay> = {}): TimelineStay {
+  seq++;
+  return {
+    id: `s${String(seq).padStart(4, "0")}`,
+    propertyId: "p1",
+    guestName: `Misafir ${seq}`,
+    arrival: a,
+    departure: d,
+    status: "confirmed",
+    channel: "airbnb",
+    fromCalendarFeed: false,
+    ...over,
+  };
+}
+const day = (i: number) => addNights(FROM, i);
+function input(stays: TimelineStay[], over: Partial<TimelineInput> = {}): TimelineInput {
+  return {
+    window: win,
+    loaded: { from: addNights(FROM, -1), to: TO },
+    truncated: false,
+    properties: [P1, P2],
+    stays,
+    today: day(3),
+    ...over,
+  };
+}
+const bars = (cells: TimelineCell[]) => cells.filter((c) => c.k === "stay" || c.k === "anomaly");
+const allBars = (m: ReturnType<typeof layoutTimeline>) => m.rows.flatMap((r) => r.lanes.flatMap(bars));
+
+describe("resolveWindow", () => {
+  const today = "2026-10-29";
+  it("varsayılan: bugün − 3, 35 gün", () => {
+    expect(resolveWindow({ today })).toEqual({ from: addNights(today, -LEAD_DAYS), to: addNights(today, -LEAD_DAYS + D), days: D });
+  });
+  it("geçerli ?from kullanılır; geçersiz (2026-02-30) varsayılana düşer; dizi parametrede ilk değer", () => {
+    expect(resolveWindow({ from: "2026-12-01", today }).from).toBe("2026-12-01");
+    expect(resolveWindow({ from: "2026-02-30", today }).from).toBe(addNights(today, -LEAD_DAYS));
+    expect(resolveWindow({ from: ["2026-12-05", "2027-01-01"], today }).from).toBe("2026-12-05");
+  });
+  it("?month=YYYY-MM ayın 1'inden başlar (Dikkat gerektirenler bağlantıları); ?from önce gelir", () => {
+    expect(resolveWindow({ month: "2026-10", today }).from).toBe("2026-10-01");
+    expect(resolveWindow({ month: "2026-13", today }).from).toBe(addNights(today, -LEAD_DAYS));
+    expect(resolveWindow({ from: "2026-12-01", month: "2026-10", today }).from).toBe("2026-12-01");
+  });
+  it("çok uzak tarih sınırlanır", () => {
+    expect(resolveWindow({ from: "2100-01-01", today }).from).toBe(addNights(today, FROM_CLAMP_DAYS));
+    expect(resolveWindow({ from: "1900-01-01", today }).from).toBe(addNights(today, -FROM_CLAMP_DAYS));
+  });
+});
+
+describe("layoutTimeline — geometri", () => {
+  it("1. çubuk aralığı: 12 → 15 Kasım = h0 5, 6 yarım, 3 gece, kırpma yok", () => {
+    const s = stay("2026-11-12", "2026-11-15");
+    const [b] = allBars(layoutTimeline(input([s])));
+    expect(b).toMatchObject({ k: "stay", s: 5, n: 6, nights: 3, clipL: false, clipR: false });
+  });
+
+  it("2. aynı gün devir aynı şeritte, çakışma yok", () => {
+    const a = stay(day(0), day(2));
+    const b = stay(day(2), day(4));
+    const m = layoutTimeline(input([a, b]));
+    expect(m.rows[0].lanes).toHaveLength(1);
+    const [x, y] = bars(m.rows[0].lanes[0]);
+    expect([x.s, x.n, y.s, y.n]).toEqual([1, 4, 5, 4]);
+    expect(m.rows[0].conflictNights).toBe(0);
+    expect((x as { conflict: boolean }).conflict || (y as { conflict: boolean }).conflict).toBe(false);
+  });
+
+  it("3. çakışma: iki şerit, çakışan gece 1, ikisi de işaretli", () => {
+    const a = stay(day(0), day(3));
+    const b = stay(day(2), day(5));
+    const m = layoutTimeline(input([a, b]));
+    expect(m.rows[0].lanes).toHaveLength(2);
+    expect(m.rows[0].conflictNights).toBe(1);
+    expect(allBars(m).every((c) => c.k === "stay" && c.conflict)).toBe(true);
+  });
+
+  it("4. birebir aynı tarihli iki kayıt: ikisi de çizilir, olası tekrar ipucu", () => {
+    const m = layoutTimeline(input([stay(day(1), day(4)), stay(day(1), day(4))]));
+    expect(allBars(m)).toHaveLength(2);
+    expect(m.rows[0].possibleDuplicate).toBe(true);
+  });
+
+  it("5–6. sol / sağ kırpma: gece etiketi gerçek toplamı yazar", () => {
+    const left = stay(day(-5), day(2));
+    const right = stay(day(D - 1), day(D + 3));
+    const [l, r] = allBars(layoutTimeline(input([left, right])));
+    expect(l).toMatchObject({ s: 0, n: 5, clipL: true, clipR: false, nights: 7 });
+    expect(r).toMatchObject({ s: 2 * D - 1, n: 1, clipL: false, clipR: true, nights: 4 });
+  });
+
+  it("7. çıkış = pencerenin ilk günü: yalnız ilk sabah yarısı; çıkış sayılır, doluluk 0", () => {
+    const m = layoutTimeline(input([stay(day(-3), day(0))]));
+    expect(allBars(m)[0]).toMatchObject({ s: 0, n: 1 });
+    expect(m.days[0]).toMatchObject({ departures: 1, occupied: 0, arrivals: 0 });
+  });
+
+  it("8. giriş = pencerenin bitişi: hiçbir hücreye ve sayıya girmez", () => {
+    const m = layoutTimeline(input([stay(day(D), day(D + 2))]));
+    expect(allBars(m)).toHaveLength(0);
+    expect(m.days.reduce((t, d) => t + (d.arrivals ?? 0), 0)).toBe(0);
+    expect(m.empty).toBe(true);
+  });
+
+  it("9. sıfır gece: tek yarımlık işaret, giriş + çıkış sayılır, doluluk değişmez, o gece 'bilgi yok'; ASLA düşmez", () => {
+    const m = layoutTimeline(input([stay(day(4), day(4))]));
+    const [b] = allBars(m);
+    expect(b).toMatchObject({ k: "anomaly", kind: "zero", s: 9, n: 1 });
+    expect(m.days[4]).toMatchObject({ arrivals: 1, departures: 1, occupied: 0 });
+    const lane = m.rows[0].lanes[0];
+    expect(lane.find((c) => c.s === 8)).toMatchObject({ k: "f" }); // sabah = önceki gece, boş
+  });
+
+  it("10. ters kayıt: taranmış işaret; girişi ve çıkışı kendi günlerinde sayılır", () => {
+    const m = layoutTimeline(input([stay(day(6), day(3))]));
+    const [b] = allBars(m);
+    expect(b).toMatchObject({ k: "anomaly", kind: "reversed" });
+    expect(m.days[6].arrivals).toBe(1);
+    expect(m.days[3].departures).toBe(1);
+  });
+});
+
+describe("layoutTimeline — 'boş' yalnız kanıtla", () => {
+  const gaps = (m: ReturnType<typeof layoutTimeline>) => m.rows.flatMap((r) => r.lanes.flat()).filter((c) => c.k === "f" || c.k === "u" || c.k === "x");
+  const nightOf = (h: number) => (h % 2 === 1 ? (h - 1) / 2 : h / 2 - 1);
+
+  it("11. kapsama: yüklenen aralığın dışında hiç 'boş' yok, özet null (asla 0)", () => {
+    const m = layoutTimeline(input([], { loaded: { from: addNights(FROM, -1), to: day(20) } }));
+    for (const c of gaps(m)) {
+      for (let h = c.s; h < c.s + c.n; h++) if (nightOf(h) >= 20) expect(c.k, `yarım ${h}`).toBe("u");
+    }
+    for (let i = 20; i < D; i++) expect(m.days[i]).toMatchObject({ arrivals: null, departures: null, occupied: null });
+    for (let i = 0; i < 20; i++) expect(m.days[i].occupied).toBe(0);
+    // Sınırın bir içi boş, bir dışı bilgi yok.
+    const lane = m.rows[0].lanes[0];
+    expect(lane.find((c) => c.s <= 39 && 39 < c.s + c.n)?.k).toBe("f");
+    expect(lane.find((c) => c.s <= 41 && 41 < c.s + c.n)?.k).toBe("u");
+  });
+
+  it("11b. hiç veri yoksa her yer bilgi yok", () => {
+    const m = layoutTimeline(input([], { loaded: null }));
+    expect(gaps(m).every((c) => c.k === "u")).toBe(true);
+  });
+
+  it("12. kırpılmış veri: hiç 'boş' yok, bütün özetler null", () => {
+    const m = layoutTimeline(input([stay(day(1), day(3))], { truncated: true }));
+    expect(gaps(m).some((c) => c.k === "f")).toBe(false);
+    expect(m.days.every((d) => d.arrivals === null && d.occupied === null)).toBe(true);
+    expect(allBars(m)).toHaveLength(1); // çubuk yine çizilir
+  });
+
+  it("13. şerit boşluğu asla 'boş' değil: başka şeritteki konaklamanın gecesi dolgu", () => {
+    const a = stay(day(0), day(2));
+    const b = stay(day(1), day(10));
+    const m = layoutTimeline(input([a, b]));
+    const lanes = m.rows[0].lanes;
+    expect(lanes).toHaveLength(2);
+    for (const lane of lanes) {
+      for (const c of lane) {
+        if (c.k !== "f") continue;
+        for (let h = c.s; h < c.s + c.n; h++) {
+          const g = nightOf(h);
+          expect(g < 1 || g >= 10, `şerit boşluğu gece ${g} boş sayıldı`).toBe(true);
+        }
+      }
+    }
+  });
+
+  it("ilk günün sabahı (önceki gece) yüklenmemişse bilgi yok", () => {
+    const m = layoutTimeline(input([], { loaded: { from: FROM, to: TO } }));
+    expect(m.rows[0].lanes[0][0]).toMatchObject({ k: "u", s: 0, n: 1 });
+  });
+});
+
+describe("layoutTimeline — örtü, sayım, belirlenimcilik (tohumlu rastgele)", () => {
+  function rng(seed: number) {
+    let x = seed >>> 0;
+    return () => ((x = (x * 1664525 + 1013904223) >>> 0) / 2 ** 32);
+  }
+  function randomStays(r: () => number, n: number): TimelineStay[] {
+    const out: TimelineStay[] = [];
+    for (let i = 0; i < n; i++) {
+      const a = Math.floor(r() * (D + 20)) - 10;
+      const len = Math.floor(r() * 12) - (r() < 0.05 ? 3 : 0); // ara sıra sıfır / ters
+      out.push(stay(day(a), day(a + len), { propertyId: r() < 0.5 ? "p1" : "p2" }));
+    }
+    return out;
+  }
+  /** Bugünkü aylık sayfanın kova algoritması (kâhin): gün başına giriş / çıkış / dolu ayrı daire. */
+  function oracle(stays: TimelineStay[]) {
+    return Array.from({ length: D }, (_, i) => {
+      const k = day(i);
+      const arr = stays.filter((s) => s.arrival === k).length;
+      const dep = stays.filter((s) => s.departure === k).length;
+      const occ = new Set(stays.filter((s) => k >= s.arrival && k < s.departure).map((s) => s.propertyId)).size;
+      return { arr, dep, occ };
+    });
+  }
+
+  it("14–16. 2.000 vaka: her şerit tam 2·D yarım, hücre gün sınırını aşmaz, hiçbir kayıt düşmez, sayılar kâhinle aynı", () => {
+    const r = rng(20261029);
+    for (let t = 0; t < 2000; t++) {
+      const stays = randomStays(r, Math.floor(r() * 12));
+      const m = layoutTimeline(input(stays));
+      for (const row of m.rows) {
+        for (const lane of row.lanes) {
+          let h = 0;
+          for (const c of lane) {
+            expect(c.s).toBe(h);
+            expect(c.n).toBeGreaterThan(0);
+            if (c.k === "f" || c.k === "u" || c.k === "x") expect(Math.floor(c.s / 2)).toBe(Math.floor((c.s + c.n - 1) / 2));
+            h += c.n;
+          }
+          expect(h).toBe(2 * D);
+        }
+      }
+      // Pencereye değen her kayıt tam bir kez.
+      const drawn = allBars(m).map((c) => (c as { stay: TimelineStay }).stay.id).sort();
+      const touching = stays
+        .filter((s) => {
+          const lo = s.arrival <= s.departure ? s.arrival : s.departure;
+          const hi = s.arrival <= s.departure ? s.departure : s.arrival;
+          // yarım aralığı [2·i(lo)+1, 2·i(hi)+1) (sıfır: tek yarım; ters: +1)
+          const ilo = (Date.parse(lo) - Date.parse(FROM)) / 864e5;
+          const ihi = (Date.parse(hi) - Date.parse(FROM)) / 864e5;
+          const h0 = 2 * ilo + 1;
+          const h1 = s.arrival < s.departure ? 2 * ihi + 1 : 2 * ihi + 2;
+          return Math.min(h1, 2 * D) > Math.max(h0, 0);
+        })
+        .map((s) => s.id)
+        .sort();
+      expect(drawn).toEqual(touching);
+      const o = oracle(stays);
+      m.days.forEach((d, i) => {
+        expect(d.arrivals).toBe(o[i].arr);
+        expect(d.departures).toBe(o[i].dep);
+        expect(d.occupied).toBe(o[i].occ);
+        expect(d.occupied!).toBeLessThanOrEqual(2);
+      });
+    }
+  });
+
+  it("17. belirlenimcilik: girdinin sırası modeli değiştirmez", () => {
+    const r = rng(7);
+    const stays = randomStays(r, 15);
+    const a = layoutTimeline(input(stays));
+    const b = layoutTimeline(input([...stays].reverse()));
+    expect(JSON.stringify(b)).toBe(JSON.stringify(a));
+  });
+});
+
+describe("layoutTimeline — süzgeç, bugün, boş durum", () => {
+  it("süzgeç: gösterilmeyen dairenin hareketleri sayılır, çizilmez", () => {
+    const m = layoutTimeline(input([stay(day(1), day(3), { propertyId: "p2" }), stay(day(2), day(4))], { properties: [P1] }));
+    expect(m.rows).toHaveLength(1);
+    expect(allBars(m)).toHaveLength(1);
+    expect(m.otherMovements).toBe(2);
+    expect(m.propertyCount).toBe(1);
+  });
+  it("bugün indeksi; pencere dışındaysa null", () => {
+    expect(layoutTimeline(input([])).todayIndex).toBe(3);
+    expect(layoutTimeline(input([], { today: day(-1) })).todayIndex).toBeNull();
+    expect(layoutTimeline(input([])).days.filter((d) => d.isToday)).toHaveLength(1);
+  });
+  it("hafta günü: 2026-11-10 Salı (0 = Pazartesi)", () => {
+    expect(layoutTimeline(input([])).days[0].weekday).toBe(1);
+  });
+  it("hiç kayıt yoksa boş işareti; daireler yine satır olarak gelir", () => {
+    const m = layoutTimeline(input([]));
+    expect(m.empty).toBe(true);
+    expect(m.rows.map((r) => r.property.id)).toEqual(["p1", "p2"]);
+  });
+});

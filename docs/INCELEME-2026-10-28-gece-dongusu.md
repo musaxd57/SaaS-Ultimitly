@@ -256,3 +256,173 @@ ekranda gizli duran ikinci kopya (kurucunun adayı doğrulandı). Not: önceki t
   yerde · Türkçe karakter yok · sözcük düşük · %15 sözcükte tek harf hatası · karışık dil), 7 dil; ölçüt "değişmezlik" (bozuk eşin niyet / istek
   sayısı / dil / acil / durum etiketleri temizinkiyle aynı mı). Hata çıkarsa neden analizi kendiliğinden koşar. Seti bu gece yazıyorum (kredi gerekmez).
 
+
+## 10-30 sabahı — gecenin son durumu (dürüst kayıt)
+
+**Kesinti:** 10-29 21:20 UTC'de oturum kullanım sınırına çarptı, 03:35 UTC'de geri döndü — yaklaşık 6 saat iş YAPILAMADI. Ölçülen tam
+kapı o arada bitmişti: tek kırmızı benim HZ2 CSS sıram (aşağıda), veritabanlı 459 dosya + süre ölçen 74 dosya yeşil.
+
+### Push'a giden 15 commit (10-29 akşamdan beri biriken; tam kapı + build yeşil olunca — sonuç CI satırında)
+- K-1029-D kayıp anahtar / kilitli kaldım (yedi dil, öncelik, Dikkat 99, QR kritik uyarı) + aksansız yazım ("J'ai perdu la cle", "Perdi
+  la llave") + yazım hatası / öznesiz İngilizce ("anahtarı kaybetim", "Anahtarı kaybetmişim", "lost key", "the keys are lost").
+  Varsayım ("kaybedersem", "kaybolursa") ve "We got lost … key box" değişmedi (pinli). Mutasyon 16/16.
+- 404 (oturumsuz kısım): bilinmeyen adres gerçek 404; özel adres listesi sayfa ağacından; paylaşım görseli artık girişe yönlenmiyor.
+- HZ2 menü tıklamasında anında gösterge (+ bu gece bulunan CSS sırası hatası düzeltildi: hareket azaltma bloğunda yeni kural
+  `lxs-pulse` pininin önüne girmişti; davranış aynıydı, pin gevşetilmedi, şerit için ayrı pin eklendi).
+- K-1029-F modelsiz sağlamlık ölçümü (`docs/olcum/robustness-kelime-agi-2026-10-29.md`; ikinci kapıda bulunan: ölçer rapora koşu
+  kimliği yazmıyordu — `eval-run-meta` pini, düzeltildi) + K-1029-A tasarım belgesi
+  (`docs/TASARIM-2026-10-29-ev-sahibine-yonlendirme-yasagi.md`) + sözcük ağları belgesi.
+
+### Kodda hazır, ayrı dalda (`night/gd7-404`), tip denetimi yeşil — sabah tam kapıyla ana dala
+- **K-1029-E / GD7** — uzun açıklama aşağıda.
+- **404 tasarım incelemesinin bulduğu açık (G1–G4):** akşamki 404 commit'imden sonra `(app)` dışına sınıflanmadan eklenen yeni bir sayfa
+  test kırmızısı vermiyordu (bilinmeyen her adres artık oturumsuz geçtiği için "oturumsuz açılır" iddiası boşa düştü). Şimdi her yol
+  `public / private / unknown` diye TEK yaprak modülde sınıflanıyor (`classifyPath`), ara katman onu okuyor; test: `(app)` içindeki her
+  sayfa `private`, dışındaki her sayfa `public` (sınıfsız = kırmızı), iç içe rota grubu / dinamik ilk kesim / paralel yuva yok, `(app)`
+  altında `route.ts` ya da meta rota yok (düzenin oturum kapısını atlardı), açık ve özel listeler kesişmez, açık listede bayat girdi yok.
+
+### K-1029-E — GD7 yeniden (uzun açıklama)
+(`scratchpad/gd7/aciklama.md`'den aynen)
+#### (açıklama): "metin değişince, metin hakkındaki işaretler de değişmeli" (uzun açıklama)
+
+**Kurucunun sözü (10-29 gece):** "GD7'yi anlamadım. Haiku 5.5 ile karşılıklı düşünerek yeniden ele al, her kararı Haiku'ya yeniden
+tarat, uygula ve uzun uzun açıkla. Son karar senin."
+
+#### 1. Sorun neydi? (gündelik dille)
+
+Yapay zekânın her cevabı tek bir metin değil, bir **paket**. Metnin yanında cevap hakkında küçük notlar da var. İki örnek:
+
+- "Bu cevap yalnız 'ev sahibinize yazın' cümlesinden oluşuyor" (`hostContactOnly`). Bu not varsa kapı cevabı **tutar**, misafire
+  göndermez; ev sahibi kendisi yazar.
+- "Bu cevap yalnız kodun doğruladığı parçalardan oluşuyor" (`verifiedPartsOnly`, karar 4.12). Bu not varsa kapı modelin genel güven
+  puanı 0,75'in altında olsa bile cevabı yalnız bu sebeple tutmaz.
+
+Bazı durumlarda modelin yazdığı metin atılır ve yerine **kodun kendi yazdığı onaylı metin** konur. Örnekler: doğrulanmış erken giriş
+onayı ("Erken girişiniz onaylandı, saat 12:00'den itibaren…") ve doğrulanmış müsaitlik / uzatma cevabı. Kıdemli okuyucu bir cevabı
+yeniden yazdırdığında da metin değişir.
+
+**Hata şuydu:** metin değiştiği hâlde eski metnin notları yeni metne yapışık kalıyordu.
+
+- **Önce (GD7 ilk hâli, 10-29 akşam düzeltildi):** model "Bir sorun olursa ev sahibinize yazın." yazmıştı ve not "yalnız ev sahibine
+  başvurma" diyordu. Kod bu metni atıp onaylı erken giriş metnini koyuyordu, ama not yeni metne geçiyordu. Sonuç: tamamen doğru onay
+  metni gereksiz yere tutuluyordu.
+- **Bu gece bulunan ikinci örnek:** taslak doğrulanmış parçalardan kurulmuştu (not: "yalnız doğrulanmış parçalar"), modelin güveni ise
+  0,6'ydı. Kod onay metnini kurunca bu not da onay metnine geçiyordu. Kapı güven tabanını atlıyordu ve onay metni 0,6 güvenle
+  gidiyordu.
+  - Bu, 24 Eylül'de **bilerek** konulmuş bir kuralı deliyordu: "kod metninde güven aynen kalır, ≥ 0,75 tabanı müsaitlik kontrolünden
+    sonra da geçerli" (inceleme 09-24 P2).
+  - Bugün etkisi yok: parça kipi (`AI_ANSWER_PARTS_ENABLED`) kapalı. Açıldığında olacaktı.
+
+#### 2. Kökten çözüm: her alanın kime ait olduğu TEK tabloda
+
+Önceki düzeltme yalnız tek bir notu (`hostContactOnly`) iki fonksiyonda elle siliyordu. Haiku'yla üç tur karşılıklı düşündük; vardığımız
+sonuç şu: hata tek bir notun değil, bir **sınıfın** hatası. "Metin hakkındaki bir bilgi, metin değişince taşınıyor." Yarın eklenecek her
+yeni not aynı hataya açık.
+
+Çözüm: `src/lib/ai/reply-field-rules.ts`. Cevap paketindeki **27 alanın her biri** için iki kural yazılı:
+
+| Alan türü | Örnek alanlar | Yeniden yazmada | Kod metni geçince |
+|---|---|---|---|
+| Mesaja ait hüküm | niyet, risk düzeyi / türü, öncelik, dil, misafirin yazdığı çıkış saati | ilk çağrıdan | aynen (niyet hariç: kod metni kendi niyetini taşır) |
+| Metne ait | metin, kaynaklar, kaynak / iddia denetimi, eylem beyanı, parça metinleri | yeni çağrıdan | yeniden yazılır ya da düşer |
+| Metin işaretleri | `hostContactOnly`, `verifiedPartsOnly` | yeni çağrıdan | **düşer** |
+| Güven | `confidence` | ikisinin küçüğü | **aynen** (09-24 P2) |
+| Muhasebe | kullanım, parça yeniden yazma kotası | toplam / ikisinden biri | aynen |
+
+Bu tablo **iki kat** kontrolle korunuyor:
+
+1. **Tamlık derleyicide.** Cevap paketine yeni bir alan eklenip tabloda sınıflanmazsa TypeScript derlemesi kırılır. CI `tsc --noEmit`
+   koşuyor, yani bu "unutuldu" hatası birleşmeden yakalanır.
+2. **Doğruluk testte.** `tests/unit/reply-field-rules.test.ts`, 27 alanın her biri için iki fonksiyonu (kıdemli yeniden yazma
+   birleştirmesi ve kod metni) tabloya karşı sınar.
+   - Her alan iki yönden bakılır: doğru taraftan mı geldi, ve beklenen tarafta yokken sonuçta da yok mu (yanlış taraftan sızma).
+   - Toplam 54 küçük test vakası.
+
+#### 3. Bu gece değişen davranışlar (üçü de yalnız sıkılaştırır; misafire giden metin gevşemez)
+
+1. **Kod metni artık "yalnız doğrulanmış parçalar" notunu taşımaz.**
+   - Örnek: parça kipi açık, taslak güveni 0,6, erken giriş doğrulandı.
+   - Önce: onay metni gidiyordu.
+   - Sonra: kapı güven tabanında tutar, ev sahibi panelde görür.
+   - Güveni ≥ 0,75 olan taslakta onay metni yine gider. Bunu da test pinliyor (aşırı uygulama yok).
+   - Bugün parça kipi kapalı olduğu için canlı davranış değişmiyor.
+2. **Kod metni artık taslağın "doğrulanmış parça metinleri"ni taşımaz.**
+   - Bu bilgiyi yalnız gölge ölçüm (doğrulanmış cevap tekrarı, migration 85) okuyordu. Kod metni gittiğinde gönderilmeyen parçaları
+     "gitti" diye kaydediyordu.
+   - Misafire etkisi yok.
+   - Haiku, "bu alanı silersek parça kontrolü kör olur" diye uyardı. Kodda baktım: o kontrol (`automation.ts`, "onaylı parça son metinde
+     aynen") kod metni yerleşmeden **önce** koşuyor. Bu yüzden etkilenmiyor; tablonun yorumuna da yazdım.
+3. **Parça yeniden yazmasının kotası artık kaybolmuyor.**
+   - Kıdemli okuyucu cevabı yeniden yazdırınca ikinci çağrı da parça yeniden yazması yapabilir. Önceki birleştirme yalnız ilk çağrınınkini
+     okuyordu, bu yüzden günlük AI kotasından bir birim eksik düşüyordu.
+   - Şimdi iki çağrıdan herhangi biri yaptıysa birim düşer.
+   - Parça kipi kapalı; canlı etkisi yok.
+
+#### 4. Haiku'yla karşılıklı düşünmede nelere itiraz ettim, nelerde haklı çıktı
+
+**Haiku'nun haklı çıktığı noktalar:**
+- Tablo yalnız tamlığı kanıtlar, doğruluğu kanıtlamaz; yanlış sınıflanmış bir alan derlenir. Bu yüzden tablo testi yazıldı.
+- İki fonksiyonun "metne ait" alanları farklı ele aldığını gösterdi; tabloda iki ayrı kolon oldu.
+- Kod metni geçince alan silmenin, okuyan yer o işten sonra koşuyorsa davranışı değiştirebileceği uyarısı. Her alan için okuyucuları tek
+  tek aradım.
+
+**Gerekçeyle reddettiklerim:**
+- "Kapıda işaretleri yeniden hesapla" önerisi. Kapı metni yeniden okuyup işaret üretirse, işaretin kaynağı (dolgu silici, parça
+  doğrulayıcısı) iki yerde yaşar ve ikisi ayrışabilir. İşaret, metni üreten adımda üretilir; metin değişince düşer.
+- "Bütün metne ait alanları kod metninde sıfırla." Bu, cevaplanan istek beyanını ve parça kararlarını da silerdi. Kod metni yalnız tek
+  konulu turda kurulduğu için o beyan aynı isteği anlatıyor. Silmek açık istekleri kapatabilirdi, yani gevşetirdi. Bu alanlar bilinçli
+  istisna olarak kaldı ve gerekçeleri tablonun satırında.
+
+**Bilinçli dışarıda bırakılanlar:**
+- Kapının iç tip tanımlarında bu iki işaret ayrıca elle yazılı. Onları tablodan türetmek kapının belgelenmiş girdilerini dolaylı yapardı.
+  Tablo testi iki fonksiyonu zaten tutuyor.
+- Yalnız SİLME yapan düzenlemeler (selam silme, konu ayıklama, ev sahibine başvurma cümlesi silme) bu kuralın dışında. Aynı metnin bir
+  parçasını siliyorlar ve işaretler o adımda yeniden hesaplanıyor.
+
+#### 5. Kanıt durumu (dürüstçe)
+
+- Kod ve tablo testi `night/gd7-404` dalında; tip denetimi (tablonun tamlığı dahil) yeşil.
+- Tablo testi, kırmızı-önce koşusu, mutasyon (`scripts/mutation-run.mjs`) ve tam kapı: gecenin 6 saatlik kesintisi yüzünden sabaha kaldı.
+
+### K-1029-A / B / C — durum: TASARIM bitti, KOD yarım (dürüstçe)
+- 13 ajanlık iş akışı bitti (5 harita, 2 araştırma, 3 bağımsız tasarım, 2 hakem, sentez) → `docs/TASARIM-2026-10-29-ev-sahibine-yonlendirme-yasagi.md`.
+  Hakemler, tasarımlardan birinin açık soruyu yine sessizce "cevaplandı" diye kapattığını (B2 hatasının ta kendisi) ve ikisinin "…yazın,
+  kendisi teknisyen gönderir" cümlesini kesince koşulsuz SÖZE çevirdiğini kodda ölçerek buldu; sentez ikisini de kapatıyor.
+- **Bugün misafire sızanlar (ölçüldü):** "En cas de problème, écrivez à votre hôte.", "Llame a su anfitrión si pierde la llave.", "Позвоните
+  хозяину…", "إذا حدثت أي مشكلة، راسل المضيف.", "Feel free to reach out to the property owner.", "Bir sıkıntı olursa bize yazabilirsiniz." —
+  hiçbir dedektör görmüyor. **Bugün gereksiz tutulanlar:** kurucunun kendi örneği "Herhangi bir sorunda ev sahibinize yazın." bütün
+  cevabı tutuyor (doğru cevap da gitmiyor).
+- **Kod taslağı hazır ama ağaçta DEĞİL** (kesinti yüzünden test edilemedi; `docs/claude-work/2026-10-29/k1029a-taslak/`): yedi dilli
+  dedektör (`mentionsHostContact` — seslenilen + iletişim fiili, ev sahibi özneyse eşleşmez), süzgeç yeniden yazımı (koşul eki sezgisi
+  kaldırıldı; GD5 yan cümle kesimi "yalnız silme"), "cevaplandı" kuralı (`settleHostContactRemovals`), defter olmayan yol kararı ve 40'a
+  yakın kırmızı-önce vaka (C1–C4 tabloları). Sabah sırası: ağaca al → kırmızı-önce koş → kanal / QR / e-posta bağlantısı → istem yasağı →
+  mutasyon → tam kapı.
+- **Sabah soruları (sentez §F, önce/sonra örnekli):**
+  1. **"Arayın" ölçüm gelene kadar (geçici).** Önce: "Anahtarı kaybedersem ne yapmalıyım?" → "Anahtarı kaybederseniz ev sahibinizi arayın."
+     gider. Sonra (model sinyali ölçülene kadar): misafire bir şey gitmez, soru size açık iş + "Misafir cevabınızı bekliyor" e-postası.
+     Bu geçici gerileme uygun mu?
+  2. **QR kapı kodu satırı** (QR'da misafir sizin sohbetinizde değil). Önce: "Kapı kodu ne?" → "Kapı kodu için ev sahibinize Airbnb
+     üzerinden yazın." (a) silinsin, soru size acil devredilsin; (b) QR'a özel istisna kalsın.
+  3. **"Bize mesaj atın" adım talimatı.** "Çıkışta anahtarı kutuya bırakıp bize mesaj atın." (a) kalsın; (b) "Çıkışta anahtarı kutuya
+     bırakın." (mesaj kısmı silinir).
+  4. **Ev sahibinin göreceği metin (AI öner):** "Bu taslaktan misafiri size yönlendiren bir cümle çıkarıldı; misafirin bir sorusu cevapsız
+     kalmış olabilir." Uygun mu? Ayrıca taslağı gönderdiğinizde atlanan soru da "Yanıtladınız" görünüyor — "Siz yazdınız" mı olsun?
+  5. **İkinci model okuması** (her aday cevabı cümle cümle okuyan yeni çağrı, anahtar kapalı) kurulsun mu?
+  6. **Kayıp anahtarın paneldeki etiketi:** bugün "Giriş"; ayrı "Erişim / kayıp anahtar" etiketi ister misiniz?
+  7. **Ücretli ölçüm onayı** (kredi gelince ~10 $: istem kolu + anlama kolu + sağlamlık). Açılıştan önce şart.
+
+### Takvim — tasarım bitti, saf yerleşim kütüphanesi taslağı hazır
+- Tasarım (iş akışı, 54 KB, Türkçe): tek tablo, her daire bir satır, her gün iki yarım sütun; konaklama giriş günü öğleden sonra başlayıp
+  çıkış günü sabahı biten TEK çubuk, üstünde ad + "N gece" (kırpılan çubuk da gerçek toplamı yazar); varsayılan 35 gün (bugün − 3), oklar
+  14 gün; mobil / masaüstü tekrarı kalkar (bugün her hareket iki kez çiziliyor — DOM 2.508 düğümün yarısı gizli ikinci kopya); hiçbir kayıt
+  gizlenmez (üst üste binen ayrı şeritte, "+N diğer" yok, gün özeti kesin sayı); yüklenmemiş / kırpılmış veri "bilgi yok" taralı — asla
+  boş ya da 0; yeni ekran `CALENDAR_TIMELINE_ENABLED` arkasında.
+- Saf kütüphane (`timeline.ts`) + 2.000 rastgele vakalık kâhin testi + yükleyici taslağı `docs/claude-work/2026-10-29/takvim-taslak/`.
+- **Takvim soruları (tasarım §15):** S1 35 gün / 2 hafta adım uygun mu · S2 telefonda varsayılan zaman çizelgesi mi liste mi · S3 onay
+  bekleyen talepler kesik çizgiyle gösterilsin mi · S4 bağlantısı bozuk takvimde boş günler boş mu kalsın, taralı mı · S5 "Reserved"
+  kayıtları "Takvim kaydı" diye mi görünsün · S6 daire sırası doğal (Daire 2, Daire 10) mı · S7 önce anahtar arkasında, onaydan sonra eski
+  takvim silinsin mi · S8 "Bu tarihlerde 3 iptal" çipi eklensin mi.
+
+### HZ1 deneme — bekliyor
+- İskeletsiz deneme dosyaları (`/templates` + `/properties`) hazır ama ölçülmedi; tasarım: deneme ayrı dalda, kurucu kararı olmadan ana dala
+  girmez. Kayıt kodda doğrulandı: 300 ms kuralı Next'in paketlediği React'te (`19.2.0-canary`), kurulu 19.2.7'de değil — kural aynı.
