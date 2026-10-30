@@ -70,6 +70,8 @@ export const REPLY_FIELD_RULES = {
   hostContactOnly: { rewrite: "retried", codeBuilt: "clear" },
   // K-1029-A: çıkarılan ev sahibine başvurma parçalarının kaydı — metnin parçasıydı; yeniden yazmada yeni metinden, kod metninde düşer.
   hostContactRemovals: { rewrite: "retried", codeBuilt: "clear" },
+  // Atılan taslağın silinmiş hâli: kod metni kendi metnidir, eski taslak taşınmaz.
+  hostContactDraft: { rewrite: "retried", codeBuilt: "clear" },
   // ── Muhasebe ──────────────────────────────────────────────────────────────────────────────────────────────────────
   llmUsage: { rewrite: "sum", codeBuilt: "keep" },
   // Parça yeniden yazması bu turda ikinci bir cevap modeli çağrısı yaptı → kotadan bir birim. İki çağrıdan HERHANGİ biri yaptıysa

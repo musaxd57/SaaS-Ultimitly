@@ -41,6 +41,7 @@ const A: Full = {
   verifiedParts: [{ ref: "r1", text: "ilk parça", evidence: "e", source: "kb:a" }],
   hostContactOnly: true,
   hostContactRemovals: [{ kind: "write", form: "conditional", appendix: false, stems: [], topics: [], generic: true }],
+  hostContactDraft: "ilk taslak",
 };
 const B: Full = {
   intent: "question",
@@ -70,6 +71,7 @@ const B: Full = {
   verifiedParts: [{ ref: "r2", text: "yeni parça", evidence: "e", source: "kb:b" }],
   hostContactOnly: true,
   hostContactRemovals: [{ kind: "referral", form: "referral", appendix: false, stems: ["sauna"], topics: [], generic: false }],
+  hostContactDraft: "ikinci taslak",
 };
 const without = (r: Full, k: keyof Full) => {
   const c = { ...r } as Record<string, unknown>;
@@ -85,7 +87,7 @@ describe("GD7 alan kuralları tablosu", () => {
   });
 
   it("kod metninde düşen alanlar tablodan türetilir; metin işaretleri listede", () => {
-    expect([...CODE_BUILT_CLEARED_FIELDS].sort()).toEqual(["claimAudit", "hostContactOnly", "hostContactRemovals", "sourceAudit", "verifiedParts", "verifiedPartsOnly"]);
+    expect([...CODE_BUILT_CLEARED_FIELDS].sort()).toEqual(["claimAudit", "hostContactDraft", "hostContactOnly", "hostContactRemovals", "sourceAudit", "verifiedParts", "verifiedPartsOnly"]);
     const copy = { ...A };
     withoutCodeBuiltClearedFields(copy);
     expect(copy).toEqual(A); // girdi değişmez

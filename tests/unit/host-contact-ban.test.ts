@@ -96,7 +96,7 @@ describe("C3 — söz koruması ve aşırı uygulama", () => {
     ["N8", "Your host will message you tomorrow morning."],
     ["N9", "Ev sahibiniz size yarın yazacak."],
   ])("%s dokunulmaz: %s", (_id, reply) => {
-    expect(analyzeHostContact(reply)).toEqual({ text: reply, removals: [], nothingLeft: false });
+    expect(analyzeHostContact(reply)).toEqual({ text: reply, removals: [], nothingLeft: false, draft: reply });
   });
 
   it("SW1: 'Fire TV' güvenlik uyarısı değil — arama cümlesi çıkar; SW2: gerçek gaz uyarısı kalır; SW3: 'yazın' hiç kalmaz", () => {
@@ -237,27 +237,28 @@ describe("C4 — 'cevaplandı' kuralı (settle)", () => {
 // Üç sınıf eski davranışa döner: K10 devir / kayıt bildirimi silinmez (veto tutar), kalan metin kararı ev sahibine bırakıyorsa ya da
 // geriye yalnız selam kalıyorsa cevabın tamamı tutulur.
 describe("C5 — silme eskiden tutulan cevabı kapıdan geçirmez", () => {
-  it.each([
-    // K10 bildirimi çıktı vetosunun kalıbıyla
-    "Erken giriş ev sahibinin kararıdır; mesajınız kaydedildi, ev sahibiniz görebilir.",
-    "Ранний заезд около 10:00 — это решение хозяина; ваше сообщение сохранено, и хозяин сможет его увидеть.",
-    // Vetonun kalıbında olmayan Rusça kayıt / görünürlük bildirimi
-    "Стандартное время заезда — 15:00. Возможность заселиться около 10:00 зависит от решения хозяина; ваш запрос зафиксирован, владелец сможет его увидеть.",
-    "Приносим извинения за неудобство. Ваше сообщение об отсутствии горячей воды записано; хозяин сможет его увидеть.",
-  ])("bildirim cümlesi SİLİNMEZ (cevap aynen kalır, tutan kural eskisi gibi tutar): %j", (reply) => {
+  it("başvurma OLMAYAN K10 bildirimi filtreye hiç girmez (çıktı vetosu tutar)", () => {
+    const reply = "Erken giriş ev sahibinin kararıdır; mesajınız kaydedildi, ev sahibiniz görebilir.";
     const r = stripHostContactFiller(reply);
     expect(r.text).toBe(reply);
     expect(r.removals).toEqual([]);
   });
 
+  // Opus F7 (10-30): bildirim taşıyan başvurma cümlesi yalnız "silinmemek"le kalmaz, filtre cevabın TAMAMINI kendisi tutar (hostContactOnly) —
+  // olay koşullu biçimde ("If anything breaks, message your host; your host can also see it") aşağıdaki hiçbir kural tutmuyordu.
   it.each([
+    "Ранний заезд около 10:00 — это решение хозяина; ваше сообщение сохранено, и хозяин сможет его увидеть.",
+    // Vetonun kalıbında olmayan Rusça kayıt / görünürlük bildirimi
+    "Стандартное время заезда — 15:00. Возможность заселиться около 10:00 зависит от решения хозяина; ваш запрос зафиксирован, владелец сможет его увидеть.",
+    "Приносим извинения за неудобство. Ваше сообщение об отсутствии горячей воды записано; хозяин сможет его увидеть.",
     // Mutasyon KA6 (10-30): yalnız ÇIKTI VETOSUNUN kalıbının tanıdığı bildirim (görünürlük kalıbında yok) — yönlendirme olarak da algılanır.
     "Talebiniz ev sahibinize iletildi, dilerseniz ev sahibinize de yazabilirsiniz.",
     "Your message has been recorded; feel free to message your host as well.",
-  ])("veto kalıbındaki bildirim + yönlendirme cümlesi SİLİNMEZ (veto tamamını tutar): %j", (reply) => {
+  ])("bildirim taşıyan başvurma cümlesi SİLİNMEZ, cevabın TAMAMI tutulur: %j", (reply) => {
     const r = stripHostContactFiller(reply);
     expect(r.text).toBe(reply);
-    expect(r.removals).toEqual([]);
+    expect(r.hostContactOnly).toBe(true);
+    expect(r.removals.length).toBeGreaterThan(0);
   });
 
   it("kalan metin kararı ev sahibine bırakıyor → tamamı tutulur (hostContactOnly)", () => {

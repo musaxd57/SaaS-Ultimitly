@@ -912,6 +912,32 @@ describe("HAZIR TASLAK (kurucu: 'Otomatik hazır dursun')", () => {
     expect(row).toMatchObject({ aiSuggestedReply: expected, aiIntent: "human_request", aiConfidence: 0.91 });
   });
 
+  it("🚨 Opus F10 (K-1029-A v2): cevap ev sahibine başvurma yüzünden TAMAMEN tutulduysa hazır taslak o cümleler ÇIKARILMIŞ metindir", async () => {
+    // Önce: `result.reply` (özgün metin) kaydediliyordu — ev sahibi tek tıkla misafire "ev sahibinize yazın" gönderebilirdi.
+    const { conversationId } = await seed(IBAN);
+    understands(understood([{ intent: "payment_invoice", message: 1 }]));
+    mockSuggest.mockResolvedValueOnce(
+      verdict({
+        reply: "Ödemeler yalnızca platform üzerinden yapılır. Bir sorun olursa ev sahibinize yazın; ev sahibiniz mesajınızı görebilir.",
+        hostContactOnly: true,
+        hostContactRemovals: [{ kind: "write", form: "conditional", appendix: false, stems: [], topics: [], generic: true }],
+        hostContactDraft: "Ödemeler yalnızca platform üzerinden yapılır.",
+      }),
+    );
+    await applyChannelAutoReply(conversationId);
+    expect(await draftOf(conversationId)).toEqual(["Ödemeler yalnızca platform üzerinden yapılır."]);
+  });
+
+  it("Opus F10: silinmiş taslak BOŞ kaldıysa (yalnız selam + başvurma) taslak KAYDEDİLMEZ", async () => {
+    const { conversationId } = await seed(IBAN);
+    understands(understood([{ intent: "payment_invoice", message: 1 }]));
+    mockSuggest.mockResolvedValueOnce(
+      verdict({ reply: "Merhaba, herhangi bir sorunda ev sahibinize yazın.", hostContactOnly: true, hostContactDraft: "" }),
+    );
+    await applyChannelAutoReply(conversationId);
+    expect(await draftOf(conversationId)).toEqual([null]);
+  });
+
   it("IBAN tek başına: cevap taslağı kaydedilir", async () => {
     const { conversationId } = await seed(IBAN);
     understands(understood([{ intent: "payment_invoice", message: 1 }]));

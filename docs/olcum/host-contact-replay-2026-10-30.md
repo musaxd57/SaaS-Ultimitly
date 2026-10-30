@@ -6,25 +6,25 @@ Kaynak: `docs/olcum/*.json` içindeki 3274 benzersiz model cevabı (geçmiş öl
 
 | Ölçü | Sayı |
 |---|---|
-| Yönlendirme parçası silinen cevap | 179 (%5.5) |
-| Silinen parça (toplam) | 179 |
-| — tür: yaz / ara / başvur | 21 / 0 / 158 |
-| — biçim: koşullu / başvurma | 21 / 158 |
-| — genel kapanış / konulu | 3 / 176 |
+| Yönlendirme parçası silinen cevap | 243 (%7.4) |
+| Silinen parça (toplam) | 243 |
+| — tür: yaz / ara / başvur | 23 / 0 / 220 |
+| — biçim: koşullu / başvurma | 23 / 220 |
+| — genel kapanış / konulu | 1 / 242 |
 | — yalnız yan cümle silindi (cümlenin başı kaldı) | 18 |
-| Cevabın TAMAMI tutulur (geriye içerik kalmadı) | 140 |
-| Kalan doğru cevap gider | 39 |
-| — defter olmayan yolda (QR / öğe kipi kapalı) ev sahibine açık kalır — ÜST SINIR (anlama koşmamış sayıldı) | 39 |
+| Cevabın TAMAMI tutulur (geriye içerik kalmadı) | 214 |
+| Kalan doğru cevap gider | 29 |
+| — defter olmayan yolda (QR / öğe kipi kapalı) ev sahibine açık kalır — ÜST SINIR (anlama koşmamış sayıldı) | 29 |
 | — misafir olasılık sordu (soru her zaman açık) | 1 |
 
 ### Dile göre
 
 | Dil | Cevap | Silme olan |
 |---|---|---|
-| tr | 1741 | 137 |
-| en | 764 | 27 |
+| tr | 1741 | 139 |
+| en | 764 | 28 |
 | de | 271 | 5 |
-| ru | 194 | 5 |
+| ru | 194 | 66 |
 | es | 128 | 1 |
 | ar | 75 | 0 |
 | fr | 62 | 0 |
@@ -36,12 +36,12 @@ Kaynak: `docs/olcum/*.json` içindeki 3274 benzersiz model cevabı (geçmiş öl
 |---|---|
 | Eski süzgeç metni değiştirdi | 0 |
 | Eski süzgeç tamamını tuttu | 2 |
-| Tutuş KAZANILDI (yeni tutar, eski göndermişti) | 138 |
+| Tutuş KAZANILDI (yeni tutar, eski göndermişti) | 212 |
 | Tutuş KAYBEDİLDİ (eski tutuyordu, yeni kalan doğru cevabı gönderir) | 0 |
-| Süzgeç çıktısı farklı | 39 |
-| **SİSTEM: yeni tutuş** (süzgeç + "bilgim yok" + çıktı vetosu; eski yol gönderiyordu) | 0 |
-| **SİSTEM: kalkan tutuş** (eski yol tutuyordu, yeni gönderir) | 15 |
-| **SİSTEM: iki yol da gönderir ama metin farklı** (yönlendirme cümlesi çıktı) | 17 |
+| Süzgeç çıktısı farklı | 29 |
+| **SİSTEM: yeni tutuş** (süzgeç + "bilgim yok" + çıktı vetosu; eski yol gönderiyordu) | 3 |
+| **SİSTEM: kalkan tutuş** (eski yol tutuyordu, yeni gönderir) | 8 |
+| **SİSTEM: iki yol da gönderir ama metin farklı** (yönlendirme cümlesi çıktı) | 16 |
 
 ### Kalkan tutuş örnekleri (eski yol cevabın TAMAMINI tutuyordu; yeni yol yönlendirme / devir cümlesini silip kalanı gönderir)
 
@@ -54,17 +54,8 @@ Kaynak: `docs/olcum/*.json` içindeki 3274 benzersiz model cevabı (geçmiş öl
   önce: Merhaba Alex, Size ayrılan otopark yeri P2. Yakınlarda kuaför bilgisi elimde olmadığı için bu konuda ev sahibiniz size kesin bilgi verebilir.  
   gider: Merhaba Alex, Size ayrılan otopark yeri P2.
 - `BAGLAM-HAKEMI-2026-10-21.json` (defter yoksa açık)  
-  önce: Hello Alex, For security, I can’t share the master key box code. Please contact the host through the platform.  
-  gider: Hello Alex, For security, I can’t share the master key box code.
-- `BAGLAM-HAKEMI-2026-10-21.json` (defter yoksa açık)  
   önce: Merhaba Alex, Size ayrılan otopark yeri P2. Yakınlardaki kuaför için ev sahibiniz size kesin bilgi verebilir.  
   gider: Merhaba Alex, Size ayrılan otopark yeri P2.
-- `BAGLAM-HAKEMI-2026-10-21.json` (defter yoksa açık)  
-  önce: Güvenlik nedeniyle başka bir dairenin giriş kodunu paylaşamam. Arkadaşınız kendi giriş bilgileri için ev sahibine danışabilir.  
-  gider: Güvenlik nedeniyle başka bir dairenin giriş kodunu paylaşamam.
-- `BAGLAM-HAKEMI-2026-10-21.json` (defter yoksa açık)  
-  önce: Başka bir daireye ait kapı kodunu paylaşamam. Erişim için ev sahibinizle platform üzerinden iletişime geçebilirsiniz.  
-  gider: Başka bir daireye ait kapı kodunu paylaşamam.
 - `founder-initial-8-eval-2026-10-09-gpt-6-luna-7.json` (defter yoksa açık)  
   önce: Havlular dairede hazır; yerleri için ev sahibiniz size kesin bilgi verebilir.  
   gider: Havlular dairede hazır.
@@ -74,24 +65,18 @@ Kaynak: `docs/olcum/*.json` içindeki 3274 benzersiz model cevabı (geçmiş öl
 - `model-reply-compare-2026-09-25-gpt-5.1-dil2.json` (defter yoksa açık)  
   önce: I can help with the apartment address so you can choose the best route. The address is Menekşe Sokak No: 14, Alsancak / İzmir; for detailed directions from the airport, your host can advise you based on your preferred…  
   gider: I can help with the apartment address so you can choose the best route. The address is Menekşe Sokak No: 14, Alsancak / İzmir.
-- `model-reply-compare-2026-09-25-gpt-6-luna.json` (defter yoksa açık)  
-  önce: Başka bir dairenin kapı kodunu paylaşamam. Bu konuda ev sahibiniz size bilgi verebilir.  
-  gider: Başka bir dairenin kapı kodunu paylaşamam.
 - `model-reply-compare-2026-09-30-gpt-6-luna-B2-low.json` (defter yoksa açık)  
   önce: The apartment is at Menekşe Sokak No: 14, Alsancak, İzmir. For directions from the airport, please ask your host.  
   gider: The apartment is at Menekşe Sokak No: 14, Alsancak, İzmir.
-- `model-reply-compare-2026-09-30-gpt-6-luna-B3-none.json` (defter yoksa açık)  
-  önce: Başka bir dairenin giriş kodunu paylaşamam. Kendi dairenizin giriş bilgileri için ev sahibinize platform üzerinden yazabilirsiniz.  
-  gider: Başka bir dairenin giriş kodunu paylaşamam.
-- `model-reply-compare-2026-09-30-gpt-6-luna-F-none-ucret-acik.json` (defter yoksa açık)  
-  önce: Telefon numarası paylaşılmamış. Ev sahibinize platform mesajlaşması üzerinden ulaşabilirsiniz.  
-  gider: Telefon numarası paylaşılmamış.
 - `model-reply-compare-2026-10-09-gpt-6-luna-w4-canli-none.json` (defter yoksa açık)  
   önce: Hello, The apartment is at Menekşe Sokak No: 14, Alsancak / İzmir. For directions from the airport, please ask your host.  
   gider: Hello, The apartment is at Menekşe Sokak No: 14, Alsancak / İzmir.
-- `model-reply-compare-2026-10-09-gpt-6-luna-w4-canli-none.json` (defter yoksa açık)  
-  önce: Merhaba, Güvenlik nedeniyle başka bir dairenin giriş kodunu paylaşamam. Kendi dairenizin giriş bilgileri için ev sahibinize platform üzerinden yazabilirsiniz.  
-  gider: Merhaba, Güvenlik nedeniyle başka bir dairenin giriş kodunu paylaşamam.
+
+### Sistem düzeyinde yeni tutuş örnekleri (eski yol misafire gönderiyordu)
+
+- `BAGLAM-HAKEMI-2026-10-21.json`: Thank you for letting me know, Alex. If anything comes up during your stay, you can always reach me here.
+- `model-reply-compare-2026-09-25-gpt-5.1.json`: Thank you for letting me know, Alex. If you need anything during your stay, you can always write to me here.
+- `model-reply-compare-2026-10-09-gpt-5.1-w4-canli-varsayilan.json`: Merhaba, Rica ederim, ne zaman ihtiyaç olursa yazabilirsiniz.
 
 ## Örnekler (yeni süzgeç)
 
@@ -109,7 +94,7 @@ Kaynak: `docs/olcum/*.json` içindeki 3274 benzersiz model cevabı (geçmiş öl
   sonra: Merhaba Alex, En yakın eczane Yaprakdere Eczanesi; Hastane Caddesi üzerinde, yürüyerek yaklaşık 5 dakika uzaklıkta.
 - `BAGLAM-HAKEMI-2026-10-21.json`  
   önce: Merhaba, Sokak kapısı giriş bilgisini bu kanaldan paylaşamam; lütfen ev sahibinize doğrudan mesaj gönderin.  
-  sonra: Merhaba, Sokak kapısı giriş bilgisini bu kanaldan paylaşamam.
+  sonra: (tamamı tutulur)
 - `BAGLAM-HAKEMI-2026-10-21.json`  
   önce: Anahtar kutusu kodunun değişip değişmediği bilgisi kayıtlarımda yok; bu konuda ev sahibinizden bilgi alabilirsiniz.  
   sonra: Anahtar kutusu kodunun değişip değişmediği bilgisi kayıtlarımda yok.
@@ -124,9 +109,15 @@ Kaynak: `docs/olcum/*.json` içindeki 3274 benzersiz model cevabı (geçmiş öl
   sonra: (tamamı tutulur)
 - `BAGLAM-HAKEMI-2026-10-21.json`  
   önce: Hello Alex, For security, I can’t share the master key box code. Please contact the host through the platform.  
-  sonra: Hello Alex, For security, I can’t share the master key box code.
+  sonra: (tamamı tutulur)
+- `BAGLAM-HAKEMI-2026-10-21.json`  
+  önce: Thank you for letting me know, Alex. If anything comes up during your stay, you can always reach me here.  
+  sonra: (tamamı tutulur)
 - `BAGLAM-HAKEMI-2026-10-21.json`  
   önce: Merhaba Alex, anahtar teslimi için ev sahibiniz size kesin bilgi verebilir.  
+  sonra: (tamamı tutulur)
+- `BAGLAM-HAKEMI-2026-10-21.json`  
+  önce: Продление проживания ещё на одну ночь — решение хозяина; ваше сообщение сохранено, и хозяин может его увидеть. Запрос на изменение бронирования можно отправить через платформу.  
   sonra: (tamamı tutulur)
 - `BAGLAM-HAKEMI-2026-10-21.json`  
   önce: Ihr Gastgeber kann Ihnen dazu verlässliche Auskunft geben.  
@@ -134,17 +125,11 @@ Kaynak: `docs/olcum/*.json` içindeki 3274 benzersiz model cevabı (geçmiş öl
 - `BAGLAM-HAKEMI-2026-10-21.json`  
   önce: Alex, yakınlardaki restoran önerileri için ev sahibiniz size yardımcı olabilir.  
   sonra: (tamamı tutulur)
-- `BAGLAM-HAKEMI-2026-10-21.json`  
-  önce: You can ask your host for directions from the airport.  
-  sonra: (tamamı tutulur)
-- `BAGLAM-HAKEMI-2026-10-21.json`  
-  önce: Hi Alex, I’m really glad you’re enjoying your time here. Extending your stay and changing your checkout to Thursday depends on the host’s decision and the calendar; this is something only your host can confirm through…  
-  sonra: (tamamı tutulur)
 
 
 ## Koşu kimliği (katman bazında model + düşünme ayarı)
 
-Commit: `e92f1c66`
+Commit: `a0195818`
 
 | Katman | Model | Düşünme çabası |
 |---|---|---|

@@ -606,9 +606,18 @@
 - Misafiri ev sahibine yazmaya / ulaşmaya / sormaya yönlendiren cümle (koşullu ya da koşulsuz, yedi dil, ev sahibinin kendi sesiyle "bize
   yazın" dahil) SİLİNİR; yan cümleyse yalnız o kısım. Kalan doğru cevap gider. Geriye içerik kalmazsa (yalnız selam / nezaket dahil) cevap
   aynen kalır, kapı tutar (`reply_host_contact_only`).
-- SİLİNMEYENLER: güvenlik uyarısı (gaz / yangın / duman / acil numara — ama "yazın" fiiliyle değil) · K10 devir / kayıt / görünürlük
-  bildirimi ("mesajınız kaydedildi, ev sahibiniz görebilir" — veto cevabın TAMAMINI tutar; silmek yanındaki cümleyi vetodan kaçırırdı) ·
-  silmeden sonra kalan metin kararı ev sahibine bırakıyorsa cevabın tamamı tutulur (kurucu 10-01).
+- SİLİNMEYENLER: güvenlik uyarısında "arayın" (gaz / yangın / duman / acil numara YÖNERGESİ — çıplak "110 / 112" sayısı ve "gaz ocağı" uyarı
+  değil). Güvenlik talimatında "yazın / haber verin" kuyruğu yalnız kuyruk olarak silinir, adımlar kalır; temiz ayrılamazsa cevabın TAMAMI
+  tutulur (adım sessizce düşmez).
+- CEVABIN TAMAMI TUTULUR (v2, Opus incelemesi 10-30 — eski "yönlendirme = bilgim yok" ağının yerini tutar): başvurma cümlesi K10 devir /
+  görünürlük bildirimi taşıyorsa · silmeden sonra kalan metin kararı ev sahibine bırakıyorsa (kurucu 10-01) · kalan metin belirsizlik /
+  yetersizlik / paylaşılmamış bilgi / müsaitliğe bağlılık / özür / RET söylüyorsa ("emin değilim", "net değil", "ayarlayamıyorum", "sorry",
+  "paylaşamam" — ret kurucuya soru) · geriye yalnız selam / nezaket / temenni kalıyorsa. O zaman da TASLAK (`hostContactDraft`) silinmiş
+  metindir — yasaklı cümle "AI öner"e / hazır taslağa yazılmaz.
+- Kesim: iki nokta yan cümle sınırı değildir; baş kısım yalnız konu etiketi ("For the sauna", "Sauna için", "Otopark konusunda") ya da
+  nezaketse ("Of course") bütün cümle çıkar. Satır sonuyla bölünmüş cümle önce birleştirilir.
+- Kayıt kökleri: konusuz bilgi yönlendirmesi ("Detaylar için / Bu konuda / for details") önceki cümlenin konusunu taşır; bilgi yönlendirmesi
+  yalnız koşul / "diğer sorularınız" izinde GENEL sayılır; "bu konuda" adres konusu değildir; selamdaki misafir adı kök sayılmaz.
 - "Cevaplandı" TEK kural (`conversation-items/host-contact-settle.ts`): beyan + silinen metin o isteğe ait değil + giden metin o isteği
   AYIRT EDİCİ karşılıyor; olasılık sorusu hep açık. Defter yoksa (QR, öğe kipi kapalı) `hostContactOpenWithoutLedger` → kanal tutar + tek
   "Misafir cevabınızı bekliyor" e-postası, QR kalanı gönderip devreder (`host_contact_open`).

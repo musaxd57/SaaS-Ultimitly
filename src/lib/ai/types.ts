@@ -323,6 +323,11 @@ export interface SuggestReplyResult {
    * defter olmayan yolda (QR, öğe kipi kapalı kanal) açık soru kararı bunu okur. Yokluğu = hiçbir şey çıkarılmadı.
    */
   hostContactRemovals?: HostContactRemoval[];
+  /**
+   * K-1029-A (Opus F10, 10-30): `hostContactOnly` iken ev sahibinin TASLAĞI — başvurma cümleleri çıkarılmış metin (boş olabilir). `reply`
+   * kapı için özgün metin olarak kalır; "AI öner" ve hazır taslak bunu yazar (yasaklı cümle taslağa / tek tıkla gönderime girmez).
+   */
+  hostContactDraft?: string;
 }
 
 export interface ClassifyResult {

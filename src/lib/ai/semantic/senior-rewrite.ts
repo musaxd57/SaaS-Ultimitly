@@ -98,6 +98,7 @@ export function mergeSeniorRewrite<
     verifiedPartsOnly?: true;
     hostContactOnly?: true;
     hostContactRemovals?: unknown;
+    hostContactDraft?: string;
     partRewriteBilled?: true;
     claimedActions?: unknown;
     timeConflicts?: unknown;
@@ -118,6 +119,7 @@ export function mergeSeniorRewrite<
     verifiedPartsOnly: _firstWaiver,
     hostContactOnly: _firstHostContact,
     hostContactRemovals: _firstRemovals,
+    hostContactDraft: _firstDraft,
     partRewriteBilled: _firstBilled,
     ...firstRest
   } = first;
@@ -127,6 +129,8 @@ export function mergeSeniorRewrite<
     ...(retried.hostContactOnly === true ? { hostContactOnly: true as const } : {}),
     // K-1029-A: çıkarılan başvurma parçaları yeni metnin parçasıydı — ilk taslağınki taşınmaz (yanlış istek açılmasın / kapanmasın).
     ...(retried.hostContactRemovals !== undefined ? { hostContactRemovals: retried.hostContactRemovals } : {}),
+    // Opus F10: tutulan cevabın taslağı da yeni metnindir — ilk taslağınki (yasaklı cümlesiyle ya da başka metinle) taşınmaz.
+    ...(retried.hostContactDraft !== undefined ? { hostContactDraft: retried.hostContactDraft } : {}),
     // GD7 tablosu (`reply-field-rules.ts`): parça yeniden yazması İKİ çağrıdan herhangi birinde olduysa kotadan birim düşer (önceden yalnız ilk
     // çağrınınki okunuyordu — yeniden yazılan çağrının parça yeniden yazması günlük kotaya sayılmıyordu).
     ...(first.partRewriteBilled === true || retried.partRewriteBilled === true ? { partRewriteBilled: true as const } : {}),

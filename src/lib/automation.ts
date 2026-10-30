@@ -3515,16 +3515,18 @@ export async function applyChannelAutoReply(
       // açılınca öneri panelinde hazır durur (ek model çağrısı YOK; "AI öner"in yazdığı alanın aynısı). Kısmen tutulan
       // turda KAYDEDİLMEZ: o cevap bırakılan istekleri bilerek atlar, ev sahibi eksik bir cevabı tek tıkla göndermesin.
       // Müsaitlik vetosuna takılan taslak da KAYDEDİLMEZ — o uyarıyı ve erken giriş kontrolünü "AI öner" hesaplar.
+      // K-1029-A (Opus F10): ev sahibine başvurma yüzünden tutulan cevabın taslağı o cümleler ÇIKARILMIŞ metindir.
+      const preparedDraft = result.hostContactDraft ?? result.reply;
       if (
         itemsPlan.allHeld &&
         result.source === "openai" &&
-        result.reply.trim() &&
-        vetoAvailability(result.reply, [last.body, ...pendingGuestMessages], availabilityPolicyFor(result, gateContext)) === null
+        preparedDraft.trim() &&
+        vetoAvailability(preparedDraft, [last.body, ...pendingGuestMessages], availabilityPolicyFor(result, gateContext)) === null
       ) {
         await prisma.message
           .update({
             where: { id: last.id },
-            data: { aiSuggestedReply: hostVoiceDraft(result.reply), aiConfidence: result.confidence, aiIntent: result.intent },
+            data: { aiSuggestedReply: hostVoiceDraft(preparedDraft), aiConfidence: result.confidence, aiIntent: result.intent },
           })
           .catch((err) => void reportError(`conversation-items draft org=${conversation.property.organizationId}`, err));
       }

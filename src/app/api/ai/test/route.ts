@@ -282,8 +282,12 @@ export const POST = withManage(async (session, req) => {
         })
       : null;
 
+  // K-1029-A (Opus F10 yan not): silme kaydı (kökler — selamdaki misafir adı dahil) ve tutulan cevabın taslağı istemciye dönmez.
+  const publicResult = { ...result };
+  delete publicResult.hostContactRemovals;
+  delete publicResult.hostContactDraft;
   return jsonOk({
-    ...result,
+    ...publicResult,
     reply,
     property: property.name,
     wouldAutoSend,

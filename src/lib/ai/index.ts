@@ -917,6 +917,8 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
             : {}),
           ...(partsOutcome ? { answerParts: partsOutcome.verdicts, verifiedParts: partsOutcome.verified } : {}),
           ...(hostContactHoldAll ? { hostContactOnly: true as const } : {}),
+          // Opus F10: cevabın tamamı tutulduğunda TASLAK silinmiş metindir (yasaklı cümle "AI öner"e / hazır taslağa girmez).
+          ...(hostContact.hostContactOnly ? { hostContactDraft: hostContact.draft } : {}),
           // K-1029-A: çıkarılan parçaların kaydı (metin yok) — "cevaplandı" kuralı ve açık soru kararı okur.
           ...(hostContact.removals.length > 0 ? { hostContactRemovals: hostContact.removals } : {}),
           // 4.12: doğrulanmış parçalar kesilmeden ve sağlam şemayla gidiyorsa kapı genel güvene takılmaz (`verifiedPartsWaiver`).

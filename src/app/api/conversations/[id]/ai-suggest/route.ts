@@ -222,7 +222,8 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   // TASLAK = EV SAHİBİNİN SESİ (09-25, `ai/host-voice.ts`): bu cevap misafire otomatik GİTMEZ, ev sahibi kendi adıyla
   // gönderir → istemin devir kalıbı ("ev sahibiniz görebilir") onun ağzına çevrilir. Aşağıdaki müsaitlik / erken giriş
   // kontrolleri ORİJİNAL metne bakar (erteleme tanıma o kalıba dayanır).
-  const hostDraft = hostVoiceDraft(result.reply);
+  // K-1029-A (Opus F10): cevabın tamamı ev sahibine başvurma yüzünden tutulduysa taslak o cümleler ÇIKARILMIŞ metindir.
+  const hostDraft = hostVoiceDraft(result.hostContactDraft ?? result.reply);
   await prisma.message.update({
     where: { id: lastInbound.id },
     data: {
@@ -302,6 +303,7 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   // K-1029-A (kurucu 10-29 gece): taslaktan "ev sahibinize yazın" cümlesi çıkarıldıysa ev sahibi bilir — kayıt (kök / konu) yanıta GİTMEZ,
   // yalnız sayı ve "bir soru cevapsız kalmış olabilir" işareti (ekrandaki metin kurucu sorusu F4'ü bekliyor).
   const { hostContactRemovals, ...publicResult } = result;
+  delete publicResult.hostContactDraft;
   const hostContactNotice =
     hostContactRemovals && hostContactRemovals.length > 0
       ? { removed: hostContactRemovals.length, maybeUnanswered: hostContactRemovals.some((r) => !r.generic) }

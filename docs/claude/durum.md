@@ -52,6 +52,12 @@ düzeltmeleri. Next.js 15.5.27 (iki yeni SSG/ISR danışması). Onay bekleyen be
 oturumda `actions_list` ile tekrar bakılır). Railway KAPALI (canlı yok). 10-28 akşam ücretli koşular kurucu onayıyla yapıldı ("test yapıp
 para harcamayı tercih ederim"): uzun belge RAG + Luna kıyası, toplam birkaç dolar.
 
+**10-30 sabah — K-1029-A v2 (Opus sert incelemesi F1–F12 P1/P2):** v1 7/58 vakada doğruydu (silme "bilgim yok" ağının yerini almıştı:
+"emin değilim" gidiyordu, "Otopark." tek başına gidiyordu, "Detaylar için / bu konuda" isteği sessizce kapatıyordu, bildirimli başvurma ve
+gaz talimatı yanlış işleniyordu) → v2 58/58; dedektör 52 kaçaktan 49'u (DE kip + mastar, RU "пишите / обращайтесь", TR "yazmaktan
+çekinmeyin / … olursa yazabilirsiniz", zamirli biçim, FR/ES çoğul, AR); taslak alanı `hostContactDraft` (GD7 tablosunda). Tekrar oynatma: v1
+→ v2 yalnız sıkılaştırır (4 yeni tutuş, 0 gevşeme). Ayrıntı + sorular `docs/INCELEME-2026-10-28-gece-dongusu.md` 10-30 v2 bölümü.
+
 **10-30 (gece devamı, kesintiden sonra):** K-1029-A kodda (`ai/host-contact-filler.ts` yeniden yazım, `ai/absence.ts mentionsHostContact`
 yedi dil, `conversation-items/host-contact-settle.ts` tek "cevaplandı" kuralı, kanal öğe kipi / öğe kipi kapalı / QR / AI öner bağlantıları,
 istem katmanı varsayılan AÇIK — acil durdurma `AI_HOST_CONTACT_PROMPT_BAN_DISABLED=1`, kısmi gönderim durdurma `AI_HOST_CONTACT_PARTIAL_DISABLED=1`)
