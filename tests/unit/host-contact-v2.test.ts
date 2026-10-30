@@ -123,6 +123,8 @@ describe("F6 / F11 — konusuz yönlendirme önceki cümlenin konusuna gider; 'b
 
   it("KONTROL: 'diğer sorularınız için' ve koşullu kapanış GENEL kalır — cevaplanan istek kapanır (aşırı açma yok)", () => {
     expect(opened("Havlular dolapta; diğer sorularınız için ev sahibinize yazabilirsiniz.", [["R1", ["havlu nerede"]]], ["R1"])).toEqual([]);
+    // Koşul izi olmadan da: "diğer konular için" GERİ KALANI anar.
+    expect(opened("Havlular dolapta; diğer konular için ev sahibinize yazın.", [["R1", ["havlu nerede"]]], ["R1"])).toEqual([]);
     expect(opened(`${W} Herhangi bir sorunda ev sahibinize yazın.`, [["R1", ["wifi şifresi"]]], ["R1"])).toEqual([]);
     expect(opened("Giriş 15:00'te. Varınca ev sahibinizi arayın.", [["R1", ["Giriş saati kaç?"]], ["R2", ["Kapıyı nasıl açacağız?"]]], ["R1", "R2"])).toEqual(["R2"]);
   });
@@ -337,6 +339,9 @@ describe("F2 — yedi dilde kaçan kalıp aileleri yakalanır", () => {
     "If anything breaks, the repair kit is under the sink.",
     "Feel free to use the washing machine.",
     "Bei Fragen finden Sie alles im Gästebuch.",
+    // Zamir yalnız ev sahibi aynı cümlede anılıyorsa sayılır (temizlikçi / komşu başkasıdır).
+    "If the cleaners are late, message them.",
+    "Komşunuz yardımcı olur, ona yazabilirsiniz.",
   ])("aşırı uygulama yok: %j", (s) => {
     expect(hostContactKindOf(s)).toBeNull();
   });
