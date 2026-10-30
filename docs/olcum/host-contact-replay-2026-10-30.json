@@ -1,28 +1,28 @@
 {
   "counts": {
     "replies": 3274,
-    "withRemoval": 243,
-    "removals": 243,
+    "withRemoval": 245,
+    "removals": 245,
     "byKind": {
-      "write": 23,
+      "write": 22,
       "call": 0,
-      "referral": 220
+      "referral": 223
     },
     "byForm": {
-      "conditional": 23,
-      "referral": 220
+      "conditional": 22,
+      "referral": 223
     },
-    "generic": 1,
-    "topical": 242,
+    "generic": 4,
+    "topical": 241,
     "appendix": 18,
-    "heldWhole": 214,
-    "partialSent": 29,
-    "openWithoutLedger": 29,
+    "heldWhole": 221,
+    "partialSent": 24,
+    "openWithoutLedger": 24,
     "guestContingency": 1,
     "byLang": {
       "tr": {
         "replies": 1741,
-        "withRemoval": 139
+        "withRemoval": 141
       },
       "de": {
         "replies": 271,
@@ -58,11 +58,11 @@
     "label": "0e0e1a1e (K-1029-A öncesi)",
     "changed": 0,
     "held": 2,
-    "heldGained": 212,
+    "heldGained": 219,
     "heldLost": 0,
-    "textDiffers": 29,
-    "systemHeldGained": 3,
-    "systemHeldLost": 8,
-    "sentTextDiffers": 16
+    "textDiffers": 24,
+    "systemHeldGained": 6,
+    "systemHeldLost": 7,
+    "sentTextDiffers": 14
   }
 }

@@ -312,12 +312,14 @@ describe("bağlantı — suggestReply", () => {
   });
 
   // Tasarım A12 (10-30): kısmi gönderim ACİL DURDURMA — varsayılan kapalı, yalnız "1".
-  const TOPICAL = "Otopark binanın arkasında, ücretsizdir. Otopark için ev sahibinize yazın.";
+  // Silinen yönlendirmenin konusu (kuaför) kalan cevapta geçmez; aynı konuya değinseydi ("Otopark için ev sahibinize yazın") v3'ten beri
+  // cevabın tamamı tutulurdu (yarım cevap — aşağıdaki kontrol).
+  const TOPICAL = "Otopark binanın arkasında, ücretsizdir. Kuaför için ev sahibinize yazın.";
   it("A12 kapalı (varsayılan / 'true'): konulu silmede kalan doğru cevap gider", async () => {
     for (const v of ["", "true", "0"]) {
       vi.stubEnv("AI_HOST_CONTACT_PARTIAL_DISABLED", v);
       openAiReturns(TOPICAL);
-      const r = await suggestReply(input("Otopark var mı?"));
+      const r = await suggestReply(input("Otopark var mı? Yakında kuaför var mı?"));
       expect(r.reply, v).toBe("Otopark binanın arkasında, ücretsizdir.");
       expect(r.hostContactOnly, v).toBeUndefined();
     }
@@ -325,10 +327,16 @@ describe("bağlantı — suggestReply", () => {
   it("🚨 A12 açık ('1'): konulu silme cevabın TAMAMINI tutar; taslak yine silinmiş metin", async () => {
     vi.stubEnv("AI_HOST_CONTACT_PARTIAL_DISABLED", "1");
     openAiReturns(TOPICAL);
-    const r = await suggestReply(input("Otopark var mı?"));
+    const r = await suggestReply(input("Otopark var mı? Yakında kuaför var mı?"));
     expect(r.reply).toBe("Otopark binanın arkasında, ücretsizdir.");
     expect(r.hostContactOnly).toBe(true);
     expect(autoReplyGateVerdict(r, "Otopark var mı?")?.detail).toBe("reply_host_contact_only");
+  });
+  it("v3: yönlendirme kalan cevabın KONUSUNA değiniyorsa (yarım cevap) A12 kapalıyken de cevabın tamamı tutulur", async () => {
+    openAiReturns("Otopark binanın arkasında, ücretsizdir. Otopark için ev sahibinize yazın.");
+    const r = await suggestReply(input("Otopark var mı?"));
+    expect(r.hostContactOnly).toBe(true);
+    expect(r.hostContactDraft).toBe("Otopark binanın arkasında, ücretsizdir.");
   });
   it("A12 açık: GENEL kapanış silmesi tutmaz; misafir olasılık sorduysa genel silme de tutar", async () => {
     vi.stubEnv("AI_HOST_CONTACT_PARTIAL_DISABLED", "1");

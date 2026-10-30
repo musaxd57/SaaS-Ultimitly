@@ -2576,7 +2576,9 @@ export async function applyChannelAutoReply(
   let replyLatencyMs = Date.now() - replyStartedAt;
   // Modelin ÖZGÜN taslağı — `result` aşağıda kod metniyle (doğrulanmış erken giriş / müsaitlik) değişebilir; iz ikisini ayrı tutar
   // (taslak = model, gönderilen = misafire giden). Kıdemli okuyucu yeniden yazdırdıysa (↓) taslak = yeniden yazılan.
-  let modelDraft = result.reply;
+  // K-1029-A (v2 incelemesi safety-wiring-09): ev sahibine başvurma yüzünden tutulan cevabın izi silinmiş taslağı saklar (yasaklı cümle
+  // saklanmaz — tasarım A3).
+  let modelDraft = result.hostContactDraft ?? result.reply;
 
   // Safety gate: only auto-send safe, confident replies (cross-checked against
   // the guest's own words, so a mislabelled complaint/refund never slips through).
@@ -2708,7 +2710,7 @@ export async function applyChannelAutoReply(
             // `rw` yalnız metin GERÇEKTEN değiştiyse (Opus 10-22 F6).
             if (merged.reply !== result.reply) seniorRewrite = reasons;
             result = merged;
-            modelDraft = result.reply;
+            modelDraft = result.hostContactDraft ?? result.reply;
             seniorPrecheck = { reply: result.reply, outcome: reread };
           }
         }

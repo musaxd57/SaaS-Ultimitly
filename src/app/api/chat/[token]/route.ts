@@ -1331,7 +1331,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
         kbEvidenceJson: input.kbEvidenceJson ?? null,
         latencyMs: replyLatencyMs,
         llm: result.llmUsage ?? null,
-        draftText: result.reply,
+        draftText: result.hostContactDraft ?? result.reply,
         sentText: input.sentText,
         contextDiagnostics: contextWindow.diagnostics ?? null,
       }, {

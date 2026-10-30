@@ -175,7 +175,9 @@ export async function POST(req: NextRequest) {
     // kötü kişilere karşı ne olur ne olmaz"): güven puanı ve risk düzeyi de DÖNMEZ — demo yalnız iki durum gösterir (gönderilirdi / ev
     // sahibinin onayına bırakılır). Puan + sebep, kapıyı deneye deneye "otomatik gider" ifadesini bulmanın haritasıydı.
     return jsonOk({
-      reply: result.reply,
+      // K-1029-A (v2 incelemesi safety-wiring-08): tutulan cevapta tanıtım sayfası da yasaklı cümleyi göstermez — silinmiş taslak; taslak boş
+      // kaldıysa metin boş döner ve yalnız "ev sahibinin onayına bırakılır" rozeti görünür.
+      reply: result.hostContactDraft || (result.hostContactOnly ? "" : result.reply),
       wouldAutoSend,
     });
   } catch (err) {

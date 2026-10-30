@@ -6,22 +6,22 @@ Kaynak: `docs/olcum/*.json` içindeki 3274 benzersiz model cevabı (geçmiş öl
 
 | Ölçü | Sayı |
 |---|---|
-| Yönlendirme parçası silinen cevap | 243 (%7.4) |
-| Silinen parça (toplam) | 243 |
-| — tür: yaz / ara / başvur | 23 / 0 / 220 |
-| — biçim: koşullu / başvurma | 23 / 220 |
-| — genel kapanış / konulu | 1 / 242 |
+| Yönlendirme parçası silinen cevap | 245 (%7.5) |
+| Silinen parça (toplam) | 245 |
+| — tür: yaz / ara / başvur | 22 / 0 / 223 |
+| — biçim: koşullu / başvurma | 22 / 223 |
+| — genel kapanış / konulu | 4 / 241 |
 | — yalnız yan cümle silindi (cümlenin başı kaldı) | 18 |
-| Cevabın TAMAMI tutulur (geriye içerik kalmadı) | 214 |
-| Kalan doğru cevap gider | 29 |
-| — defter olmayan yolda (QR / öğe kipi kapalı) ev sahibine açık kalır — ÜST SINIR (anlama koşmamış sayıldı) | 29 |
+| Cevabın TAMAMI tutulur (geriye içerik kalmadı) | 221 |
+| Kalan doğru cevap gider | 24 |
+| — defter olmayan yolda (QR / öğe kipi kapalı) ev sahibine açık kalır — ÜST SINIR (anlama koşmamış sayıldı) | 24 |
 | — misafir olasılık sordu (soru her zaman açık) | 1 |
 
 ### Dile göre
 
 | Dil | Cevap | Silme olan |
 |---|---|---|
-| tr | 1741 | 139 |
+| tr | 1741 | 141 |
 | en | 764 | 28 |
 | de | 271 | 5 |
 | ru | 194 | 66 |
@@ -36,12 +36,12 @@ Kaynak: `docs/olcum/*.json` içindeki 3274 benzersiz model cevabı (geçmiş öl
 |---|---|
 | Eski süzgeç metni değiştirdi | 0 |
 | Eski süzgeç tamamını tuttu | 2 |
-| Tutuş KAZANILDI (yeni tutar, eski göndermişti) | 212 |
+| Tutuş KAZANILDI (yeni tutar, eski göndermişti) | 219 |
 | Tutuş KAYBEDİLDİ (eski tutuyordu, yeni kalan doğru cevabı gönderir) | 0 |
-| Süzgeç çıktısı farklı | 29 |
-| **SİSTEM: yeni tutuş** (süzgeç + "bilgim yok" + çıktı vetosu; eski yol gönderiyordu) | 3 |
-| **SİSTEM: kalkan tutuş** (eski yol tutuyordu, yeni gönderir) | 8 |
-| **SİSTEM: iki yol da gönderir ama metin farklı** (yönlendirme cümlesi çıktı) | 16 |
+| Süzgeç çıktısı farklı | 24 |
+| **SİSTEM: yeni tutuş** (süzgeç + "bilgim yok" + çıktı vetosu; eski yol gönderiyordu) | 6 |
+| **SİSTEM: kalkan tutuş** (eski yol tutuyordu, yeni gönderir) | 7 |
+| **SİSTEM: iki yol da gönderir ama metin farklı** (yönlendirme cümlesi çıktı) | 14 |
 
 ### Kalkan tutuş örnekleri (eski yol cevabın TAMAMINI tutuyordu; yeni yol yönlendirme / devir cümlesini silip kalanı gönderir)
 
@@ -62,9 +62,6 @@ Kaynak: `docs/olcum/*.json` içindeki 3274 benzersiz model cevabı (geçmiş öl
 - `model-reply-compare-2026-09-25-gpt-5.1-dil.json` (defter yoksa açık)  
   önce: Bu konuda en net bilgiyi yerel ulaşım uygulamalarından veya Konak yönüne giden otobüs hatlarını gösteren güncel belediye kaynaklarından alabilirsiniz; ev sahibiniz de size yönlendirme konusunda yardımcı olabilir.  
   gider: Bu konuda en net bilgiyi yerel ulaşım uygulamalarından veya Konak yönüne giden otobüs hatlarını gösteren güncel belediye kaynaklarından alabilirsiniz.
-- `model-reply-compare-2026-09-25-gpt-5.1-dil2.json` (defter yoksa açık)  
-  önce: I can help with the apartment address so you can choose the best route. The address is Menekşe Sokak No: 14, Alsancak / İzmir; for detailed directions from the airport, your host can advise you based on your preferred…  
-  gider: I can help with the apartment address so you can choose the best route. The address is Menekşe Sokak No: 14, Alsancak / İzmir.
 - `model-reply-compare-2026-09-30-gpt-6-luna-B2-low.json` (defter yoksa açık)  
   önce: The apartment is at Menekşe Sokak No: 14, Alsancak, İzmir. For directions from the airport, please ask your host.  
   gider: The apartment is at Menekşe Sokak No: 14, Alsancak, İzmir.
@@ -75,7 +72,10 @@ Kaynak: `docs/olcum/*.json` içindeki 3274 benzersiz model cevabı (geçmiş öl
 ### Sistem düzeyinde yeni tutuş örnekleri (eski yol misafire gönderiyordu)
 
 - `BAGLAM-HAKEMI-2026-10-21.json`: Thank you for letting me know, Alex. If anything comes up during your stay, you can always reach me here.
+- `BAGLAM-HAKEMI-2026-10-21.json`: Merhaba, Ev sahibinizle platform mesajlaşması üzerinden iletişim kurabilirsiniz.
+- `conversation-state-eval-2026-10-09-gpt-6-luna-7.json`: Hello, Checking out around 8:00 a.m. is fine; please let your host know you’ll be leaving early. Before you leave, return the key to the key box, close the windows and air conditioning, and leave used towels in the b…
 - `model-reply-compare-2026-09-25-gpt-5.1.json`: Thank you for letting me know, Alex. If you need anything during your stay, you can always write to me here.
+- `model-reply-compare-2026-10-09-gpt-5.1-w3-varsayilan.json`: Hi Alex, thanks for letting me know, I’m glad everything is okay. If you need anything during your stay, you can always send me a message here.
 - `model-reply-compare-2026-10-09-gpt-5.1-w4-canli-varsayilan.json`: Merhaba, Rica ederim, ne zaman ihtiyaç olursa yazabilirsiniz.
 
 ## Örnekler (yeni süzgeç)
@@ -85,10 +85,10 @@ Kaynak: `docs/olcum/*.json` içindeki 3274 benzersiz model cevabı (geçmiş öl
   sonra: Merhaba Alex, Bu bilgi şu an kayıtlarımda yer almıyor.
 - `BAGLAM-HAKEMI-2026-10-21.json`  
   önce: Bu bilgi kayıtlarımda yok; ev sahibinizden isteyebilirsiniz.  
-  sonra: Bu bilgi kayıtlarımda yok.
+  sonra: (tamamı tutulur)
 - `BAGLAM-HAKEMI-2026-10-21.json`  
   önce: Merhaba, Bu bilgi kayıtlarımda yok; ev sahibinizden isteyebilirsiniz.  
-  sonra: Merhaba, Bu bilgi kayıtlarımda yok.
+  sonra: (tamamı tutulur)
 - `BAGLAM-HAKEMI-2026-10-21.json`  
   önce: Merhaba Alex, En yakın eczane Yaprakdere Eczanesi; Hastane Caddesi üzerinde, yürüyerek yaklaşık 5 dakika uzaklıkta. Tost makinesiyle ilgili bir kullanım bilgisi bulunmadığından, ev sahibiniz bu konuda size kesin bilg…  
   sonra: Merhaba Alex, En yakın eczane Yaprakdere Eczanesi; Hastane Caddesi üzerinde, yürüyerek yaklaşık 5 dakika uzaklıkta.
@@ -129,7 +129,7 @@ Kaynak: `docs/olcum/*.json` içindeki 3274 benzersiz model cevabı (geçmiş öl
 
 ## Koşu kimliği (katman bazında model + düşünme ayarı)
 
-Commit: `a0195818`
+Commit: `cee4a57d`
 
 | Katman | Model | Düşünme çabası |
 |---|---|---|

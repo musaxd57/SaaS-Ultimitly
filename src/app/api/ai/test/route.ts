@@ -250,7 +250,8 @@ export const POST = withManage(async (session, req) => {
     : null;
   // Gönderilmeyecek (taslak) cevap ev sahibinin sesiyle gösterilir — gelen kutusu önerisiyle aynı (`ai/host-voice.ts`);
   // otomatik gidecek cevap istemin dürüst devir kalıbıyla aynen. Kapı yukarıda ORİJİNAL metne baktı.
-  const shown = wouldAutoSend ? result.reply : hostVoiceDraft(result.reply ?? "");
+  // K-1029-A (v2 incelemesi safety-wiring-08): ev sahibine başvurma yüzünden tutulan cevabın önizlemesi de silinmiş taslaktır.
+  const shown = wouldAutoSend ? result.reply : hostVoiceDraft(result.hostContactDraft ?? result.reply ?? "");
   const parts = [shown?.trimEnd() ?? ""];
   if (note) parts.push(note);
   if (signature) parts.push(signature);
