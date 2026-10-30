@@ -121,18 +121,22 @@ describe("WhatsApp numara bağlama", () => {
     expect(await confirmHostBindingFromInbound({ provider: P, fromDigits: DIGITS, code: r.code })).toEqual({ ok: false, reason: "too_many_attempts" });
   });
 
-  it("aynı kullanıcının iki bekleyen numarası eşzamanlı doğrulanırsa yalnız biri etkin kalır (kullanıcı başına tek numara)", async () => {
-    const o = await seedUser();
-    const r1 = await start(o);
-    const r2 = await start(o, "+49 151 12345678");
-    if (!r1.ok || !r2.ok) throw new Error("start");
-    const [c1, c2] = await Promise.all([
-      confirmHostBindingFromInbound({ provider: P, fromDigits: DIGITS, code: r1.code }),
-      confirmHostBindingFromInbound({ provider: P, fromDigits: "4915112345678", code: r2.code }),
-    ]);
-    expect(c1.ok && c2.ok).toBe(true);
-    const rows = await prisma.hostChannelBinding.findMany({ where: { userId: o.userId } });
-    expect(rows.filter((x) => x.status === "active")).toHaveLength(1);
+  it("aynı kullanıcının bekleyen numaraları eşzamanlı doğrulanırsa yalnız biri etkin kalır (kullanıcı başına tek numara)", async () => {
+    // Yarış zamanlamaya bağlı: birkaç tur, turda altı numara (kilitsiz kodda ikiden fazlası etkin kalır).
+    for (let round = 0; round < 3; round++) {
+      const o = await seedUser();
+      const numbers = Array.from({ length: 6 }, (_, i) => `+90 532 12${round}${i} 45 67`);
+      const started = [];
+      for (const n of numbers) {
+        const r = await start(o, n);
+        if (!r.ok) throw new Error(r.reason);
+        started.push({ code: r.code, digits: n.replace(/\D/g, "") });
+      }
+      const results = await Promise.all(started.map((x) => confirmHostBindingFromInbound({ provider: P, fromDigits: x.digits, code: x.code })));
+      expect(results.every((x) => x.ok)).toBe(true);
+      const rows = await prisma.hostChannelBinding.findMany({ where: { userId: o.userId } });
+      expect(rows.filter((x) => x.status === "active"), `tur ${round}`).toHaveLength(1);
+    }
   });
 
   it("kodu üreten kullanıcının rolü personele düştüyse / işletmeden çıktıysa doğru kod da etkinleştirmez (rol yeniden okunur)", async () => {

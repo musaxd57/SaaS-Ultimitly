@@ -375,6 +375,24 @@ describe("WhatsApp web kancası rotası", () => {
       expect((await binding(id)).status).toBe("revoked");
     });
 
+    it("eskilik etkin bağlantıda DOĞRULAMA anına göre ölçülür: kod beklerken yazılmış DUR, sonradan doğrulanan bağlantıyı kapatmaz", async () => {
+      flagsOn();
+      const o = await seedOrg();
+      const id = await active(o, NUM_A, DIG_A);
+      // Bağlama 2 saat önce başlatıldı, az önce doğrulandı; DUR 1 saat önce yazılmış (bekleme sırasında).
+      await prisma.hostChannelBinding.update({ where: { id }, data: { optInAt: new Date(Date.now() - 2 * 3600_000) } });
+      await post(body([{ from: DIG_A, id: "wamid.mid", text: "DUR", ts: Math.floor(Date.now() / 1000) - 3600 }]));
+      expect((await binding(id)).status).toBe("active");
+    });
+
+    it("zamanı bilinmeyen DUR (sağlayıcı zaman damgası yok) eski SAYILMAZ — numaranın sahibi her zaman durdurabilir", async () => {
+      flagsOn();
+      const o = await seedOrg();
+      const id = await active(o, NUM_A, DIG_A);
+      await post(body([{ from: DIG_A, id: "wamid.nots", text: "DUR", ts: 0 }]));
+      expect((await binding(id)).status).toBe("revoked");
+    });
+
     it("WhatsApp 'numara değişti' olayı bağlantıyı kapatır; öteki sistem olayları etkinlik sayılmaz", async () => {
       flagsOn();
       const o = await seedOrg();
@@ -382,6 +400,9 @@ describe("WhatsApp web kancası rotası", () => {
       await prisma.hostChannelBinding.update({ where: { id }, data: { lastInboundAt: null } });
       await post(body([{ from: DIG_A, id: "wamid.s1", system: "customer_identity_changed" }]));
       expect(await binding(id)).toMatchObject({ status: "active", lastInboundAt: null });
+      // Bağlantıdan çok önce yazılmış (geç gelen) "numara değişti" olayı yeni bağlantıyı kapatmaz.
+      await post(body([{ from: DIG_A, id: "wamid.s0", system: "user_changed_number", ts: Math.floor(Date.now() / 1000) - 24 * 3600 }]));
+      expect((await binding(id)).status).toBe("active");
       await post(body([{ from: DIG_A, id: "wamid.s2", system: "user_changed_number" }]));
       expect(await binding(id)).toMatchObject({ status: "revoked", revokedReason: "number_changed" });
       expect(tr.texts).toHaveLength(0);
