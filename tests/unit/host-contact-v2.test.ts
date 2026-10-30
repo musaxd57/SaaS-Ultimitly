@@ -101,15 +101,15 @@ describe("F5 — AKLAMA yok: yönlendirme silinince kalan belirsizlik / yetersiz
 describe("F6 / F11 — konusuz yönlendirme önceki cümlenin konusuna gider; 'bu konuda' adres değildir", () => {
   // v3 (v2 incelemesi launder-02 / 07): konusuz / göndergesel yönlendirmede neyin cevapsız kaldığı belli değil → cevabın TAMAMI tutulur (eski
   // "yönlendirme = bilgim yok" davranışı); istek yine açık.
-  it("'for details' / 'Detaylar için': cevabın tamamı tutulur, istek AÇIK kalır", () => {
-    expect(sent("We do have a sauna in the building. Please message your host for details.")).toBeNull();
+  it("'for details' / 'Detaylar için': kalan bilgi gider, istek AÇIK kalır (kurucu 10-30: \"'Binada sauna var.' gitsin\")", () => {
+    expect(sent("We do have a sauna in the building. Please message your host for details.")).toBe("We do have a sauna in the building.");
     expect(opened("We do have a sauna in the building. Please message your host for details.", [["R1", ["Is there a sauna and when is it open?"]]], ["R1"])).toEqual(["R1"]);
     expect(opened("Binada sauna var. Detaylar için ev sahibinize yazabilirsiniz.", [["R1", ["sauna var mı ne zaman açık"]]], ["R1"])).toEqual(["R1"]);
   });
 
   it("mutasyon V8 (10-30): koşul izi taşısa da AYRINTI isteyen yönlendirme genel değildir — sauna açık kalır", () => {
     const reply = "We do have a sauna in the building. If you need more details, please message your host.";
-    expect(sent(reply)).toBeNull();
+    expect(sent(reply)).toBe("We do have a sauna in the building.");
     expect(opened(reply, [["R1", ["Is there a sauna and when is it open?"]]], ["R1"])).toEqual(["R1"]);
     expect(opened("Binada sauna var. Daha fazla bilgi isterseniz ev sahibinize yazabilirsiniz.", [["R1", ["sauna var mı ne zaman açık"]]], ["R1"])).toEqual(["R1"]);
   });

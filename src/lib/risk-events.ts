@@ -100,6 +100,8 @@ const REASONS = new Set([
   "reply_pet_policy",
   // R13-b / R13-c (kurucu kararı 10-28 gece): cevap yalnız ev sahibine başvurma talimatı (QR devir sebebi; kanal kapısıyla aynı ad).
   "reply_host_contact_only",
+  // Kurucu 10-30 ("mesajı ev sahibi yazıyor"): QR devir sebebi; kanal kapısıyla aynı ad (`ai/host-voice-guard.ts`).
+  "reply_host_voice",
 ]);
 /**
  * 🚨 PARİTE: QR kapısının her `EscalationReason` değeri BURADA da olmalı.

@@ -58,6 +58,9 @@ export const GATE_BLOCK_DETAILS = [
   // R13-b / R13-c (kurucu kararı 10-28 gece, ANAHTARSIZ): cevap yalnız ev sahibine başvurma talimatı ("bir sorun olursa ev sahibinize yazın /
   // arayın") — sohbet zaten ev sahibiyle ya da misafir sorunu zaten bildirdi (`ai/host-contact-filler.ts`).
   "reply_host_contact_only",
+  // Kurucu 10-30 ("mesajı ev sahibi yazıyor", `ai/host-voice-guard.ts`, VARSAYILAN AÇIK): gönderilecek metinde ev sahibinden üçüncü kişi
+  // olarak söz, arka plan anlatımı ya da üçüncü taraf işletmeye gönderme kaldı.
+  "reply_host_voice",
 ] as const;
 export type GateBlockDetail = (typeof GATE_BLOCK_DETAILS)[number];
 

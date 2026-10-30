@@ -256,8 +256,12 @@ describe("v4 — göndergesel işaret büyük Türkçe İ ile de okunur (V4-F16)
   it.each([
     "Binada sauna var. İlgili bir sorunuz olursa ev sahibinize yazabilirsiniz.",
     "Binada sauna var. İLGİLİ BİR SORUNUZ OLURSA EV SAHİBİNİZE YAZIN.",
-  ])("%j → tamamı tutulur", (reply) => {
-    expect(analyzeHostContact(reply).nothingLeft).toBe(true);
+  ])("%j → göndergesel (genel kapanış değil): kalan bilgi gider, kayıt isteğe bağlı kalır", (reply) => {
+    // Kurucu 10-30: göndergesel silme artık cevabı tutmaz; büyük İ okuması kaydın türünde görünür (genel kapanış isteği kapatmazdı).
+    const a = analyzeHostContact(reply);
+    expect(a.nothingLeft).toBe(false);
+    expect(a.text).toBe("Binada sauna var.");
+    expect(a.removals.map((r) => r.generic)).toEqual([false]);
   });
 });
 

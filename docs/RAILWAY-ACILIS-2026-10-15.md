@@ -215,6 +215,10 @@ kalıcı "işlem yok" sayılıyor (niyet kapanır, yeni işlem açılır) — ye
 - `AI_HOST_CONTACT_PROMPT_BAN_DISABLED` (K-1029-A, kurucu 10-29 gece: "ev sahibinize yazın her dilde yasak — istem + kod") — istem yasağı
   VARSAYILAN AÇIK; bu anahtar yalnız ACİL DURDURMA (`=1` → sistem istemi önceki hâliyle bayt bayt aynı). Kod tarafı (cümleyi silme, cevapsız
   soruyu açık tutma) anahtarsız ve her zaman açık. Açılıştan ÖNCE ücretli ölçüm şart (tasarım `docs/TASARIM-2026-10-29-ev-sahibine-yonlendirme-yasagi.md` §E).
+- `AI_HOST_VOICE_GUARD_DISABLED` (kurucu 10-30 "mesajı ev sahibi yazıyor", `ai/host-voice-guard.ts`) — kapı VARSAYILAN AÇIK; bu anahtar yalnız
+  ACİL DURDURMA. Gönderilecek metinde ev sahibinden üçüncü kişi olarak söz / arka plan anlatımı / üçüncü taraf işletmeye gönderme kalırsa
+  cevap tutulur (`reply_host_voice`). Eski ölçüm cevaplarında (eski istemle) gidecek cevapların ~%16'sını tutuyordu; istemin "MESAJI EV
+  SAHİBİ YAZIYOR" kuralıyla düşmesi beklenir — açılıştan ÖNCE ücretli ölçüm.
 - `AI_HOST_CONTACT_PARTIAL_DISABLED` (K-1029-A tasarım A12, 10-30) — VARSAYILAN KAPALI, yalnız ACİL DURDURMA: yönlendirme cümlesi silinince
   kalan doğru cevabın gitmesi (kısmi gönderim) yanlış davranırsa `=1` → konulu bir silme ya da misafirin olasılık sorusuna bağlı silme cevabın
   TAMAMINI tutar (kanal, QR, AI öner). Yasak sürer: taslak silinmiş metindir, ev sahibine "Misafir cevabınızı bekliyor" e-postası gider.

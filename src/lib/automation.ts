@@ -7,6 +7,7 @@ import { STORAGE_PHOTO_URL_PREFIX } from "@/lib/storage/keys";
 import { enqueueUnreferencedPhotoDeletions } from "@/lib/storage/deletion-queue";
 import { HISTORY_MESSAGE_CAP } from "@/lib/ai/limits";
 import { admitsMissingKnowledge, asksHypotheticalSituation, namesInternalSource } from "@/lib/ai/absence";
+import { hostVoiceGuardEnabled, hostVoiceViolation } from "@/lib/ai/host-voice-guard";
 import { carriesHandoffNotice, HANDOFF_NOTICE_REASON, vetoOutgoingReply } from "@/lib/ai/output-veto";
 import { notifyHostReplyWaiting } from "@/lib/host-reply-waiting";
 import { actionClaimHold, type ActionClaimReason, type ClaimedActionsDeclaration } from "@/lib/ai/action-claims";
@@ -620,6 +621,10 @@ export function autoReplyGateVerdict(
   // yazışıyor ya da sorunu zaten bildirdi; ev sahibi yanıtlar (`ai/host-contact-filler.ts`).
   if (result.hostContactOnly === true) return hold("reply_host_contact_only");
   if (context?.hostContactOpen === true) return hold("reply_host_contact_only");
+  // MESAJI EV SAHİBİ YAZIYOR (kurucu 10-30, `ai/host-voice-guard.ts`; VARSAYILAN AÇIK, acil durdurma `AI_HOST_VOICE_GUARD_DISABLED=1`): gönderilecek
+  // metinde ev sahibinden üçüncü kişi olarak söz ("ev sahibiniz …", "your host …"), arka plan anlatımı ("telefon numarası paylaşılmamış") ya da
+  // üçüncü taraf işletmeye gönderme ("Lale Taksi'yi arayın") kalırsa cevabın tamamı ev sahibine kalır. Kod yedeğidir; anlamla karar okuyucunun.
+  if (hostVoiceGuardEnabled() && hostVoiceViolation(result.reply) !== null) return hold("reply_host_voice");
   // ── KIDEMLİ OKUYUCU (T-b, kurucu 10-22; anahtar `AI_SENIOR_READER_ENABLED` KAPALI) ─────────────────────────────────────────────
   // Okuyucu BU metni okuduysa üç ek hüküm — yalnız TUTAR: ev sahibine platform dışı ödeme (T-d), Airbnb'de onaysız konuşmada platform dışı
   // iletişim (Airbnb engeller), özür / kusur kabulü (T-a, özür kuralı açıkken). Okumadıysa hiçbiri koşmaz (bugünkü davranış).

@@ -332,11 +332,15 @@ describe("bağlantı — suggestReply", () => {
     expect(r.hostContactOnly).toBe(true);
     expect(autoReplyGateVerdict(r, "Otopark var mı?")?.detail).toBe("reply_host_contact_only");
   });
-  it("v3: yönlendirme kalan cevabın KONUSUNA değiniyorsa (yarım cevap) A12 kapalıyken de cevabın tamamı tutulur", async () => {
+  it("kurucu 10-30: konulu yönlendirme TEYİT istemiyorsa kalan bilgi gider (soru açık kalır); teyit istiyorsa tamamı tutulur", async () => {
     openAiReturns("Otopark binanın arkasında, ücretsizdir. Otopark için ev sahibinize yazın.");
     const r = await suggestReply(input("Otopark var mı?"));
-    expect(r.hostContactOnly).toBe(true);
-    expect(r.hostContactDraft).toBe("Otopark binanın arkasında, ücretsizdir.");
+    expect(r.hostContactOnly).toBeUndefined();
+    expect(r.reply).toBe("Otopark binanın arkasında, ücretsizdir.");
+    openAiReturns("Otopark binanın arkasında, ücretsizdir. Otopark için ev sahibinize teyit edin.");
+    const held = await suggestReply(input("Otopark var mı?"));
+    expect(held.hostContactOnly).toBe(true);
+    expect(held.hostContactDraft).toBe("Otopark binanın arkasında, ücretsizdir.");
   });
   it("A12 açık: GENEL kapanış silmesi tutmaz; misafir olasılık sorduysa genel silme de tutar", async () => {
     vi.stubEnv("AI_HOST_CONTACT_PARTIAL_DISABLED", "1");

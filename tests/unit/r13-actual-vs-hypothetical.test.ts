@@ -47,9 +47,12 @@ describe("gerçek arıza bildirimi: QR kapısı da devreder", () => {
   }
 });
 
-describe("varsayımsal soru: talimat cevabı gider (R13'ün amacı)", () => {
-  it("'Wi-Fi bozulursa ne yapmalıyım?' → 'Wi-Fi bozulursa ev sahibinizi arayıp bilgi verebilirsiniz.'", () => {
-    expect(autoReplyGateVerdict(model("general", "Wi-Fi bozulursa ev sahibinizi arayıp bilgi verebilirsiniz."), "Wi-Fi bozulursa ne yapmalıyım?")).toBeNull();
+describe("varsayımsal soru: 'ev sahibinizi arayın' yine gitmez (K-1029-A + kurucu 10-30 'mesajı ev sahibi yazıyor')", () => {
+  it("'Wi-Fi bozulursa ne yapmalıyım?' → 'Wi-Fi bozulursa ev sahibinizi arayıp bilgi verebilirsiniz.' kapıda tutulur (süzgeç atlanmış olsa da)", () => {
+    // Eskiden (R13, 10-28) bu talimat cevabı giderdi; K-1029-A ile süzgeç cümleyi siler, kapı da metinde ev sahibi üçüncü kişi kaldıysa tutar.
+    expect(autoReplyGateVerdict(model("general", "Wi-Fi bozulursa ev sahibinizi arayıp bilgi verebilirsiniz."), "Wi-Fi bozulursa ne yapmalıyım?")?.detail).toBe(
+      "reply_host_voice",
+    );
   });
 });
 

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { admitsMissingKnowledge, namesInternalSource } from "@/lib/ai/absence";
+import { hostVoiceGuardEnabled, hostVoiceViolation } from "@/lib/ai/host-voice-guard";
 import { mentionsAssistanceAnimal, mentionsPets, petReplyStraysFromFreeKb } from "@/lib/conversation-items/pet-policy";
 import { absenceHolds, seniorChecksOf, type AbsenceJudgeOutcome } from "@/lib/ai/semantic/absence-judge";
 import { noApologyRuleEnabled } from "@/lib/ai/no-apology-rule";
@@ -166,6 +167,9 @@ export const ESCALATION_REASONS = [
   "reply_pet_policy",
   // R13-b / R13-c (kurucu kararı 10-28 gece) — kanal kapısıyla AYNI işaret (`ai/host-contact-filler.ts`): cevap yalnız ev sahibine başvurma talimatı.
   "reply_host_contact_only",
+  // Kurucu 10-30 ("mesajı ev sahibi yazıyor") — kanal kapısıyla AYNI yüklem (`ai/host-voice-guard.ts`): ev sahibinden üçüncü kişi olarak söz,
+  // arka plan anlatımı ya da üçüncü taraf işletmeye gönderme.
+  "reply_host_voice",
   // K-1029-A (kurucu 10-29 gece; tasarım S8): yönlendirme cümlesi silindi, kalan doğru cevap gitti AMA bir soru cevapsız kalmış olabilir
   // (`host-contact-settle.ts hostContactOpenWithoutLedger`) → ev sahibine devir. Kapının kendisi bu dalı döndürmez; rota koyar
   // (`chat/[token]/route.ts`, `door_code_in_reply` gibi).
@@ -364,6 +368,8 @@ export function evaluateEscalation(
   if (absenceHolds(admitsMissingKnowledge(result.reply ?? ""), judged)) return yes("absence_admission");
   // R13-b / R13-c (kurucu kararı 10-28 gece) — kanal kapısıyla AYNI işaret: QR misafiri zaten ev sahibiyle yazışıyor.
   if (result.hostContactOnly === true) return yes("reply_host_contact_only");
+  // Kurucu 10-30 ("mesajı ev sahibi yazıyor") — kanal kapısıyla AYNI yüklem ve AYNI yer.
+  if (hostVoiceGuardEnabled() && hostVoiceViolation(result.reply) !== null) return yes("reply_host_voice");
   // ── KIDEMLİ OKUYUCU (T-b, kurucu 10-22; anahtar `AI_SENIOR_READER_ENABLED` KAPALI) — kanal kapısıyla AYNI hükümler, yalnız TUTAR. QR bir
   // OTA kanalı değil: platform dışı iletişim kuralı (Airbnb) burada koşmaz.
   const senior = seniorChecksOf(judged);

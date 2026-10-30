@@ -154,6 +154,13 @@ const SAFETY_CONTINUATION =
 /** Silinen bilgi yönlendirmesi kendi konusuyla / karşıtlıkla başlıyor ("…, but for the sauna hours …", "…, sauna saatleri için ise …"). */
 const OWN_TOPIC_TAIL =
   /^[\s,;]*(?:but|however|though|ama|fakat|ancak|aber|jedoch|mais|cependant|pero|sin embargo|но|однако|لكن)(?![\p{L}])|(?<![\p{L}])(?:i[çc]in ise|ise)(?![\p{L}])/iu;
+/**
+ * TEYİT / DOĞRULAMA isteyen yönlendirme ("teyit edin", "confirm with your host", "уточните", "klären Sie") kalan bilgiyi belirsiz kılar: silinirse
+ * tahmin kesin gibi giderdi → konulu / göndergesel silmede cevabın tamamı tutulur. "Detaylar için / for more information" ise belirsizlik
+ * değil, eksik kalan ayrıntıdır: kalan bilgi gider, soru ev sahibine açık kalır (kurucu 10-30: "'Binada sauna var.' gitsin").
+ */
+const CONFIRM_MARKER =
+  /(?<![\p{L}])(?:teyit\p{L}{0,14}|do[ğg]rula\p{L}{0,14}|onayla\p{L}{0,14}|kesinle[şs]tir\p{L}{0,14}|netle[şs]tir\p{L}{0,14}|emin ol\p{L}{0,14}|kontrol (?:et|edin|edebilirsiniz|ettirin)\p{L}{0,14}|dan[ıi][şs]\p{L}{0,14}|confirm\p{L}{0,14}|verif\p{L}{0,14}|double-?check\p{L}{0,14}|check with|make sure|clarif\p{L}{0,14}|best[äa]tig\p{L}{0,14}|abkl[äa]r\p{L}{0,14}|kl[äa]ren|vergewisser\p{L}{0,14}|nachfrag\p{L}{0,14}|v[ée]rifi\p{L}{0,14}|pr[ée]cis\p{L}{0,14}|aclar\p{L}{0,14}|aseg[úu]r\p{L}{0,14}|consult\p{L}{0,14}|уточн\p{L}{0,14}|подтверд\p{L}{0,14}|подтвержд\p{L}{0,14}|провер\p{L}{0,14}|تأكد|تأكيد|التحقق|استفسر)(?![\p{L}])/iu;
 /** Genel sorun / ihtiyaç kapanışı ("Bir şeye ihtiyacınız olursa haber vermeniz yeterli") ön koşul değildir. */
 const HC_TROUBLE_CONTINGENCY =
   /(?<![\p{L}])(?:sorun\p{L}{0,6}|s[ıi]k[ıi]nt[ıi]\p{L}{0,6}|problem\p{L}{0,6}|ihtiya[çc]\p{L}{0,8}|bir [şs]ey\p{L}{0,4}|herhangi bir|anything|something|any (?:questions?|issues?|problems?)|problems?|issues?|questions?|fragen|probleme?n?|besoin|probl[èe]mes?|algo|problemas?|preguntas?|вопрос\p{L}{0,3}|что-(?:то|нибудь)|проблем\p{L}{0,3})(?![\p{L}])/iu;
@@ -210,7 +217,7 @@ function removalOf(
   lead: string | null = null,
   /** Aynı önceki cümle birçok silmede yeniden okunmasın (v3 yeniden incelemesi COST-3: karesel). */
   cache: Map<string, { stems: string[]; topics: string[] }> | null = null,
-): { removal: HostContactRemoval; scope: RemovalScope } {
+): { removal: HostContactRemoval; scope: RemovalScope; confirms: boolean } {
   const form = kind === "referral" ? "referral" : "conditional";
   const read = (text: string) => {
     const hit = cache?.get(text);
@@ -247,7 +254,7 @@ function removalOf(
   if (scope === "anaphoric" && previous) ({ stems, topics } = read(previous));
   stems = [...new Set(stems)].sort();
   topics = [...new Set(topics)].sort();
-  return { removal: { kind, form, appendix, stems, topics, generic: scope === "closing" && topicless }, scope };
+  return { removal: { kind, form, appendix, stems, topics, generic: scope === "closing" && topicless }, scope, confirms: has(CONFIRM_MARKER) };
 }
 
 /**
@@ -634,6 +641,7 @@ export function analyzeHostContact(reply: string): HostContactAnalysis {
   if (!reply.trim()) return { text: reply, removals: [], nothingLeft: false, draft: reply };
   const removals: HostContactRemoval[] = [];
   const scopes: RemovalScope[] = [];
+  const confirms: boolean[] = [];
   let forceHold = false;
   let safetyHold = false;
   let preconditionRemoved = false;
@@ -667,9 +675,10 @@ export function analyzeHostContact(reply: string): HostContactAnalysis {
     if (f.safety === undefined) f.safety = isSafetyWarningSentence(p);
     return f.safety;
   };
-  const record = (r: { removal: HostContactRemoval; scope: RemovalScope }) => {
+  const record = (r: { removal: HostContactRemoval; scope: RemovalScope; confirms: boolean }) => {
     removals.push(r.removal);
     scopes.push(r.scope);
+    confirms.push(r.confirms);
   };
   const groups = logicalLines(reply);
   const lines = groups.map((group, gi) => {
@@ -777,15 +786,20 @@ export function analyzeHostContact(reply: string): HostContactAnalysis {
   const sentences = text.split("\n").flatMap((l) => replySentencesOf(l));
   const informative = sentences.some((s) => isSubstantiveSentence(s) && !isBareGreeting(s) && carriesInformation(s));
   const draft = safetyHold ? "" : sentences.some((s) => s.trim() && !isBareGreeting(s)) ? text : "";
-  // KONULU silme: kalan metin aynı konuya değiniyorsa ("Sanırım sauna 22'ye kadar açık. Sauna saatleri için ev sahibinize teyit edin.")
-  // yarım / tahmini cevaptır → tutulur. KONUSUZ / göndergesel silme: neyin cevapsız kaldığı belli değil → tutulur.
-  const keptStems = distinctiveTokens(text);
-  const keptTopics = topicsWithSymptomsOf(text);
-  const partial = removals.some(
-    (r, i) =>
-      scopes[i] === "anaphoric" ||
-      (scopes[i] === "topical" && (overlapLoose(r.stems, keptStems) > 0 || r.topics.some((t) => keptTopics.includes(t)))),
-  );
+  // KONULU / göndergesel silme: silinen parça kalan bilgiyi TEYİDE açıyorsa ("Sanırım sauna 22'ye kadar açık. Sauna saatleri için ev sahibinize
+  // teyit edin.") ya da kalan metin bir izin söylüyorsa yarım / tahmini / koşullu cevaptır → tutulur. "Detaylar için ev sahibinize yazabilirsiniz"
+  // ise eksik ayrıntıdır: kalan bilgi gider, soru ev sahibine açık kalır ("cevaplandı" kuralı silmeyi görür; kurucu 10-30).
+  const permissionLeft = PERMISSION.test(text);
+  let keptStems: string[] | null = null;
+  let keptTopics: string[] | null = null;
+  const partial = removals.some((r, i) => {
+    if (!confirms[i] && !permissionLeft) return false;
+    if (scopes[i] === "anaphoric") return true;
+    if (scopes[i] !== "topical") return false;
+    keptStems ??= distinctiveTokens(text);
+    keptTopics ??= topicsWithSymptomsOf(text);
+    return overlapLoose(r.stems, keptStems) > 0 || r.topics.some((t) => keptTopics!.includes(t));
+  });
   // Kalan metin kararı ev sahibine bırakıyorsa, belirsizlik / tahmin / yetersizlik / ret / özür söylüyorsa ya da bildirim taşıyorsa
   // yönlendirme bir cevabın parçası değil, CEVAPSIZLIĞIN parçasıdır → eskisi gibi tamamı tutulur (kurucu kararları 10-01, 09-11, K10).
   const notice = carriesHandoffNotice(text) || VISIBILITY_NOTICE.test(text);

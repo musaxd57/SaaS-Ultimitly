@@ -67,7 +67,11 @@ describe("sistem istemi", () => {
     expect(sys).toBe(replySystemPromptFor({ ...off, hostContactBan: true }));
     expect(sys).toContain(BAN_RULE);
     expect(sys).toContain('"Should anything go wrong, message your host"');
-    expect(sys).toContain("Gaz, yangın, duman, acil numara gibi güvenlik uyarıları aynen kalır.");
+    // Kurucu 10-30: güvenlik talimatı yalnız misafir NET sorduysa; mesajı ev sahibi yazıyor (üçüncü kişi, arka plan, üçüncü taraf yok).
+    expect(sys).toContain("Misafir güvenlikle ilgili NET bir soru");
+    expect(sys).toContain("MESAJI EV SAHİBİ YAZIYOR (kurucu 10-30)");
+    expect(sys).toContain('DOĞRU: "Rezervasyonda olmayan ziyaretçiler onayımıza tabidir."');
+    expect(sys).not.toContain("Gaz, yangın, duman, acil numara gibi güvenlik uyarıları aynen kalır.");
     expect(sys).not.toContain(OLD_REFER);
     expect(sys).not.toContain(OLD_RETRY);
     // Taban istemde üç çapa da var (katman sessizce boşa düşmesin).
@@ -85,7 +89,8 @@ describe("sistem istemi", () => {
   it("fark YALNIZ üç çapada: yasak metinleri geri çevrilince taban elde edilir", () => {
     const on = replySystemPromptFor({ ...off, hostContactBan: true });
     const start = on.indexOf("  - EV SAHİBİNE YÖNLENDİRME CÜMLESİ YAZMA");
-    const end = on.indexOf('DOĞRU: "Havlular dolapta."', start) + 'DOĞRU: "Havlular dolapta."\n'.length;
+    const last = 'DOĞRU (bilgi tabanında transfer varsa): "Havalimanı transferini biz ayarlayabiliriz; ücreti 900 TL."\n';
+    const end = on.indexOf(last, start) + last.length;
     expect(start).toBeGreaterThan(0);
     const back = (on.slice(0, start) + on.slice(end))
       .replace("bilgi yoksa nazikçe alternatif öner; misafiri ev sahibine yönlendiren cümle yazma.", OLD_REFER)

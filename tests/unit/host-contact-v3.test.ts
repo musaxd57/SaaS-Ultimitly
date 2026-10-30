@@ -23,10 +23,12 @@ const CASES: Case[] = [
   ["L01d", "Плита газовая. Если почувствуете запах газа, напишите хозяину и сразу покиньте квартиру.", null],
   ["SW01", "The stove is in the kitchen. If you smell gas leave the flat and message your host.", "The stove is in the kitchen. If you smell gas leave the flat."],
   // launder-02: göndergesel koşullu
-  ["L02a", "We do have a sauna in the building. If you have any questions about it, please message your host.", null],
-  ["L02b", "We do have a sauna in the building. Feel free to message your host about the opening times.", null],
-  ["L02c", "Binada sauna var. Bu konuda bir sorunuz olursa ev sahibinize yazabilirsiniz.", null],
-  ["L02d", "Binada sauna var. Saatleriyle ilgili bir sorunuz olursa ev sahibinize yazabilirsiniz.", null],
+  // Kurucu 10-30 ("'Binada sauna var.' gitsin, soru açık kalsın"): göndergesel / ayrıntı yönlendirmesi silinir, kalan bilgi gider; yalnız silinen
+  // parça TEYİT istiyorsa ya da kalan izin söylüyorsa tamamı tutulur (eskiden bu satırlar tamamı tutulur bekliyordu).
+  ["L02a", "We do have a sauna in the building. If you have any questions about it, please message your host.", "We do have a sauna in the building."],
+  ["L02b", "We do have a sauna in the building. Feel free to message your host about the opening times.", "We do have a sauna in the building."],
+  ["L02c", "Binada sauna var. Bu konuda bir sorunuz olursa ev sahibinize yazabilirsiniz.", "Binada sauna var."],
+  ["L02d", "Binada sauna var. Saatleriyle ilgili bir sorunuz olursa ev sahibinize yazabilirsiniz.", "Binada sauna var."],
   ["L02e", "Extra towels are available. If you need them, just message your host.", null],
   // launder-03: etiketler / başlıklar
   ["L03a", `${WE} Speaking of the sauna, if you need anything, message your host.`, WE],
@@ -57,7 +59,7 @@ const CASES: Case[] = [
   ["L06b", "Sie können die Sauna kostenlos nutzen, aber nur wenn Sie Ihrem Gastgeber vorher schreiben.", null],
   ["L06c", "Saunayı ücretsiz kullanabilirsiniz, ancak ev sahibinize bir gün önceden yazarsanız.", null],
   // launder-07: belirsiz gönderge
-  ["L07", "We do have a sauna in the building. The Wi-Fi password is Lale1234. Please message your host for more details.", null],
+  ["L07", "We do have a sauna in the building. The Wi-Fi password is Lale1234. Please message your host for more details.", "We do have a sauna in the building. The Wi-Fi password is Lale1234."],
   // launder-08: dedektör
   ["L08a", `${WE} Your host Mehmet lives nearby. If anything comes up, just message him.`, `${WE} Your host Mehmet lives nearby.`],
   ["L08b", `${W} Ev sahibinize yazarsanız hemen ilgilenir.`, W],
