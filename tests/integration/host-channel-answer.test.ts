@@ -743,6 +743,43 @@ describe("WhatsApp cevap dilimi", () => {
       expect(tr.out.find((o) => o.kind === "choices")!.text).not.toMatch(/ayşe/iu);
     });
 
+    it("aynı WhatsApp mesajı İKİNCİ bir soruya bağlanamaz (cevap mesajı kimliği tekil) — sessizce yok sayılır", async () => {
+      const h = await seedHost(DIG_A, "+90 532 111 22 33");
+      const q1 = await seedQuestion(h, "wamid.Q1");
+      const q2 = await seedQuestion(h, "wamid.Q2");
+      composeMock.mockResolvedValueOnce(OK_DRAFT);
+      await deliver([text(DIG_A, "wamid.same", "var, dolapta", "wamid.Q1")]);
+      expect((await question(q1.questionId)).status).toBe("awaiting_confirm");
+      const before = await question(q2.questionId);
+      await prisma.systemLock.deleteMany({ where: { name: { startsWith: "host-in:" } } });
+      await deliver([text(DIG_A, "wamid.same", "var, dolapta", "wamid.Q2")]);
+      expect(await question(q2.questionId)).toEqual(before);
+      expect(composeMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("kod denetimi gönderim anında YENİDEN: taslakta ev sahibinin söylemediği sayı varsa misafire gitmez, soru açık", async () => {
+      const h = await seedHost(DIG_A, "+90 532 111 22 33");
+      const q = await seedQuestion(h, "wamid.Q1");
+      composeMock.mockResolvedValueOnce({ ...OK_DRAFT, reply: "Yes, the baby cot costs 50 TL per night.", replyTr: "Evet." });
+      await deliver([text(DIG_A, "wamid.a1", "var, dolapta", "wamid.Q1")]);
+      const v = (await question(q.questionId)).version;
+      await deliver([button(DIG_A, "wamid.b1", hostQuestionButtonId(q.questionId, v, "send"))]);
+      expect(sendMock).not.toHaveBeenCalled();
+      expect((await question(q.questionId)).status).toBe("sent");
+      expect(lastText()).toContain(HOST_TEXTS.sendFailed);
+    });
+
+    it("süpürge kurtardığı soruyu, kullanıcının rolü düştüyse (ya da bağlantı kapandıysa) o numaraya BİLDİRMEZ", async () => {
+      const h = await seedHost(DIG_A, "+90 532 111 22 33");
+      const stuck = await seedQuestion(h, "wamid.SS", { status: "sending" });
+      await prisma.$executeRawUnsafe(`UPDATE "HostQuestion" SET "updatedAt" = $1 WHERE id = $2`, new Date(Date.now() - STUCK_MS - 1_000), stuck.questionId);
+      await prisma.user.update({ where: { id: h.userId }, data: { role: "staff" } });
+      const r = await sweepHostQuestions(new Date(), tr.t);
+      expect(r.recovered).toBe(1);
+      expect((await question(stuck.questionId)).status).toBe("send_unverified");
+      expect(tr.out).toHaveLength(0);
+    });
+
     it("🚨 misafir silmesi: onay bekleyen taslak kapanır, cevap / taslak / özet silinir — eski [Gönder] misafire bir şey göndermez", async () => {
       const h = await seedHost(DIG_A, "+90 532 111 22 33");
       const q = await previewed(h);

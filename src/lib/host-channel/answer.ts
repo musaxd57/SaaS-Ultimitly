@@ -759,8 +759,9 @@ export async function sweepHostQuestions(
   let recovered = 0;
   for (const s of stuck) {
     const next = s.status === "answered" ? "sent" : "send_unverified";
+    // Sürüm CAS: okuma ile yazma arasında satır ilerlediyse (her geçiş sürümü artırır) dokunulmaz.
     const won = await prisma.hostQuestion.updateMany({
-      where: { id: s.id, status: s.status, version: s.version, updatedAt: { lt: stuckBefore } },
+      where: { id: s.id, status: s.status, version: s.version },
       data: { status: next, version: { increment: 1 } },
     });
     if (won.count !== 1) continue;
