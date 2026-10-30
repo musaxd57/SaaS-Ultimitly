@@ -164,6 +164,7 @@ export const PIPELINE_FLAGS = [
   "AI_ABSENCE_JUDGE_STRICT",
   // Tarafsızlık / özür yasağı istem katmanı (10-21): cevap istemini değiştirir (misafire giden metni değiştirir).
   "AI_NO_APOLOGY_RULE_ENABLED",
+  "AI_HOST_CONTACT_PROMPT_BAN_DISABLED",
   // Başka kişinin bilgisi kuralı (10-22 U9): anlama istemini değiştirir.
   "AI_UNDERSTANDING_PRIVACY_RULE_ENABLED",
   // Kıdemli okuyucu (10-22 T-b): ikinci okuma şeması + istemi ve kapıyı değiştirir (misafire gideni yalnız TUTARAK / ödeme öğesinde bırakarak).

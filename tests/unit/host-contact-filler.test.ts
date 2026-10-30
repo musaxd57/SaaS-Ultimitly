@@ -23,7 +23,11 @@ const KB = [
   "Otopark binanın arkasında, ücretsizdir.",
   "Wi-Fi ağı Lale, şifre 12345678.",
 ];
-const run = (guest: string, reply: string, kb: readonly string[] = KB) => stripHostContactFiller(reply, [guest], kb);
+// Eski imza karşılaştırmaları (metin + işaret); çıkarılan parçaların kaydı `host-contact-ban.test.ts`te sınanır.
+const run = (guest: string, reply: string, kb: readonly string[] = KB) => {
+  const { text, hostContactOnly } = stripHostContactFiller(reply, [guest], kb);
+  return { text, hostContactOnly };
+};
 
 describe("kurucunun tablosu (R13-b) — yaşanan sorun bildirimine koşullu talimat: tutulur", () => {
   for (const [g, r] of [
@@ -75,9 +79,10 @@ describe("kurucunun tablosu (R13-c) — bilgi cevabına eklenen genel kapanış 
 });
 
 describe("korunanlar (aşırı uygulama yok)", () => {
-  it("misafir TAM O durumu varsayımsal sordu + talimat bilgi tabanında → 'arayın' kalır", () => {
+  it("🚨 K-1029-C (kurucu 10-29 gece: 'ek / koşul eki sezgileri karar vermesin'): varsayımsal soru + dayanaklı 'arayın' artık KALMAZ — soru ev sahibine açık kalır (model sinyali ölçülene kadar; kurucu sorusu F1)", () => {
+    // Önce: koşul eki ("-rsem") misafirin varsayımsal sorduğunu söylüyor, cümle misafire gidiyordu.
     const r = "Anahtarı kaybederseniz ev sahibinizi arayın.";
-    expect(run("Anahtarı kaybedersem ne yapmalıyım?", r)).toEqual({ text: r, hostContactOnly: false });
+    expect(run("Anahtarı kaybedersem ne yapmalıyım?", r)).toEqual({ text: r, hostContactOnly: true });
   });
 
   it("aynı soru ama bilgi tabanında dayanak YOK → çıkar (kurucu: 'dayanağı varsa')", () => {
@@ -89,28 +94,30 @@ describe("korunanlar (aşırı uygulama yok)", () => {
     expect(run("Anahtarı kaybettim", "Anahtarı kaybederseniz ev sahibinizi arayın.").hostContactOnly).toBe(true);
   });
 
-  it("🚨 GD1 (gece döngüsü 10-29): çıkarılacak cümle misafirin TAM sorduğu durumun cevabıysa silinmez — bütün cevap tutulur (istek sessizce 'cevaplandı' kapanmasın)", () => {
-    // Öğe kipinde model iki isteği de "cevaplandı" beyan eder; Wi-Fi cümlesi silinseydi Wi-Fi isteği ev sahibine hiç görünmeden kapanırdı.
+  it("🚨 K-1029-A (GD1 yeniden, kurucu 10-29 gece): sorulan durumun 'ev sahibinize yazın' cevabı SİLİNİR, doğru cevap gider — o soru 'cevaplandı' değil AÇIK kalır (çıkarılan parçanın kaydı + `host-contact-settle`)", () => {
+    // Önce (GD1): bütün cevap tutuluyordu, otopark cevabı da gitmiyordu.
     const r = "Otopark arkada. Wi-Fi bozulursa ev sahibinize yazın.";
-    expect(run("Otopark var mı? Wi-Fi bozulursa ne yapmalıyım?", r)).toEqual({ text: r, hostContactOnly: true });
-    // Dayanaksız "arayın" da aynı: sorulan durumun cevabı → tut.
+    expect(run("Otopark var mı? Wi-Fi bozulursa ne yapmalıyım?", r)).toEqual({ text: "Otopark arkada.", hostContactOnly: false });
+    const removed = stripHostContactFiller(r, ["Otopark var mı? Wi-Fi bozulursa ne yapmalıyım?"], KB).removals;
+    expect(removed).toHaveLength(1);
+    expect(removed[0].generic).toBe(false); // konulu: Wi-Fi isteğinin sahibi bulunur
     const c = "Otopark arkada. Anahtarı kaybederseniz ev sahibinizi arayın.";
-    expect(run("Otopark var mı? Anahtarı kaybedersem ne yapmalıyım?", c, ["Otopark ücretsizdir."])).toEqual({ text: c, hostContactOnly: true });
+    expect(run("Otopark var mı? Anahtarı kaybedersem ne yapmalıyım?", c, ["Otopark ücretsizdir."])).toEqual({ text: "Otopark arkada.", hostContactOnly: false });
     // Kontrol: sorulmayan durumun genel kapanışı yine çıkar, cevap gider.
     expect(run("Otopark var mı?", "Otopark arkada. Wi-Fi bozulursa ev sahibinize yazın.")).toEqual({ text: "Otopark arkada.", hostContactOnly: false });
   });
 
-  it("🚨 GD5 (gece döngüsü 10-29): talimat BİLGİYLE aynı cümledeyse cümle silinmez — bütün cevap tutulur (bilgi sessizce kaybolmasın)", () => {
-    // Önce: "Havlular … dolapta" de silinirdi; misafire yalnız otopark giderdi, öğe kipinde havlu isteği "cevaplandı" kapanırdı.
-    for (const [g, r] of [
-      ["Havlu nerede? Otopark var mı?", "Havlular yatak odasındaki dolapta, bir sorun olursa ev sahibinize yazın. Otopark binanın arkasında."],
-      ["Klima nasıl açılır? Otopark?", "Kumanda komodinin üstünde, çalışmazsa ev sahibinizi arayın. Otopark arkada."],
-      ["Havlu nerede? Otopark?", "Havlular dolapta ve bir sorun olursa ev sahibinize yazın. Otopark arkada."],
-      ["Where are the towels? Parking?", "Towels are in the wardrobe; if anything breaks, contact your host. Parking is behind the building."],
+  it("🚨 K-1029-B (GD5, kurucu 10-29 gece: 'yalnız talimat yan cümlesi silinir, bilgi gider' — geçici): bilgi yan cümlesi kalır, ilk koşul / talimat yan cümlesinden sonrası çıkar", () => {
+    // Önce (GD5): bütün cevap tutuluyordu.
+    for (const [g, r, want] of [
+      ["Havlu nerede? Otopark var mı?", "Havlular yatak odasındaki dolapta, bir sorun olursa ev sahibinize yazın. Otopark binanın arkasında.", "Havlular yatak odasındaki dolapta. Otopark binanın arkasında."],
+      ["Klima nasıl açılır? Otopark?", "Kumanda komodinin üstünde, çalışmazsa ev sahibinizi arayın. Otopark arkada.", "Kumanda komodinin üstünde. Otopark arkada."],
+      ["Havlu nerede? Otopark?", "Havlular dolapta ve bir sorun olursa ev sahibinize yazın. Otopark arkada.", "Havlular dolapta. Otopark arkada."],
+      ["Where are the towels? Parking?", "Towels are in the wardrobe; if anything breaks, contact your host. Parking is behind the building.", "Towels are in the wardrobe. Parking is behind the building."],
       // Yalnız sayı taşıyan bilgi yan cümlesi de bilgidir (mutasyon G5b).
-      ["Kapı kodu ne? Otopark?", "Otopark arkada. Kod 4821, bir sorun olursa ev sahibinize yazın."],
+      ["Kapı kodu ne? Otopark?", "Otopark arkada. Kod 4821, bir sorun olursa ev sahibinize yazın.", "Otopark arkada. Kod 4821."],
     ] as const) {
-      expect(run(g, r)).toEqual({ text: r, hostContactOnly: true });
+      expect(run(g, r)).toEqual({ text: want, hostContactOnly: false });
     }
     // Kontrol (aşırı uygulama yok): koşul yan cümlesi + talimattan ibaret cümle yine çıkar, cevap gider.
     for (const [g, r, want] of [
@@ -163,17 +170,17 @@ describe("korunanlar (aşırı uygulama yok)", () => {
   it("'yazın' talimatı misafir TAM O durumu sorsa ve bilgi tabanı aynısını söylese de çıkar (kurucu: zaten ev sahibiyle yazışıyorlar)", () => {
     const kb = ["Wi-Fi bozulursa ev sahibinize yazın."];
     expect(run("Wi-Fi bozulursa ne yapmalıyım?", "Wi-Fi bozulursa ev sahibinize yazın.", kb).hostContactOnly).toBe(true);
-    // Aynı durumda "arayın" + dayanak → kalır (arama yazışmadan farklı bir kanal).
+    // K-1029-C: "arayın" + dayanak da artık kalmaz (ek sezgisi karar vermez; kurucu sorusu F1) → soru ev sahibine açık.
     const call = ["Wi-Fi bozulursa ev sahibinizi arayın."];
-    expect(run("Wi-Fi bozulursa ne yapmalıyım?", "Wi-Fi bozulursa ev sahibinizi arayın.", call)).toEqual({
-      text: "Wi-Fi bozulursa ev sahibinizi arayın.",
-      hostContactOnly: false,
-    });
+    expect(run("Wi-Fi bozulursa ne yapmalıyım?", "Wi-Fi bozulursa ev sahibinizi arayın.", call).hostContactOnly).toBe(true);
   });
 
-  it("bilgi yönlendirmesi ('… için ev sahibinize sorabilirsiniz') SİLİNMEZ — 'bilgim yok' kuralı tutar (soru sessizce kaybolmasın)", () => {
-    for (const r of ["Sauna için ev sahibinize sorabilirsiniz.", "Otopark var. Sauna için ev sahibinize sorabilirsiniz.", "Ev sahibinizi arayıp otoparkı sorabilirsiniz."]) {
-      expect(run("Sauna var mı?", r), r).toEqual({ text: r, hostContactOnly: false });
+  it("🚨 K-1029-A: bilgi yönlendirmesi ('… için ev sahibinize sorabilirsiniz') de ÇIKAR — doğru cevap gider, sauna sorusu açık kalır (soru kaybolmaz: kayıt konulu)", () => {
+    // Önce: cümle kalıyor, "bilgim yok" kuralı BÜTÜN cevabı tutuyordu (otopark cevabı da gitmiyordu).
+    expect(run("Otopark? Sauna var mı?", "Otopark var. Sauna için ev sahibinize sorabilirsiniz.")).toEqual({ text: "Otopark var.", hostContactOnly: false });
+    expect(stripHostContactFiller("Otopark var. Sauna için ev sahibinize sorabilirsiniz.").removals[0]).toMatchObject({ form: "referral", generic: false });
+    for (const r of ["Sauna için ev sahibinize sorabilirsiniz.", "Ev sahibinizi arayıp otoparkı sorabilirsiniz."]) {
+      expect(run("Sauna var mı?", r), r).toEqual({ text: r, hostContactOnly: true });
     }
   });
 
@@ -227,7 +234,8 @@ describe("yardımcılar", () => {
     const kb = ["If the router stops working, call your host."];
     const r = "If the router stops working, call your host.";
     expect(stripHostContactFiller(r, ["Of course the router is not working"], kb).hostContactOnly).toBe(true);
-    expect(stripHostContactFiller(r, ["What if the router stops working?"], kb)).toEqual({ text: r, hostContactOnly: false });
+    // K-1029-C: varsayımsal soruda da artık kalmaz (ek sezgisi karar vermez).
+    expect(stripHostContactFiller(r, ["What if the router stops working?"], kb).hostContactOnly).toBe(true);
   });
 
   it("süre: uzun girdi doğrusal", () => {

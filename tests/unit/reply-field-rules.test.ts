@@ -3,7 +3,7 @@ import type { SuggestReplyResult } from "@/lib/ai/types";
 import { REPLY_FIELD_RULES, CODE_BUILT_CLEARED_FIELDS, withoutCodeBuiltClearedFields } from "@/lib/ai/reply-field-rules";
 import { codeBuiltResult } from "@/lib/ai/code-built-result";
 import { mergeSeniorRewrite } from "@/lib/ai/semantic/senior-rewrite";
-import { autoReplyGateFailure, verifiedEarlyCheckinResult } from "@/lib/automation";
+import { autoReplyGateVerdict, verifiedEarlyCheckinResult } from "@/lib/automation";
 
 // ---------------------------------------------------------------------------
 // GD7 (kurucu 10-29 gece K-1029-E): cevap sonucunun HER alanı için iki fonksiyon tabloya karşı sınanır. Tamlık derleyicide
@@ -40,6 +40,7 @@ const A: Full = {
   verifiedPartsOnly: true,
   verifiedParts: [{ ref: "r1", text: "ilk parça", evidence: "e", source: "kb:a" }],
   hostContactOnly: true,
+  hostContactRemovals: [{ kind: "write", form: "conditional", appendix: false, stems: [], topics: [], generic: true }],
 };
 const B: Full = {
   intent: "question",
@@ -68,6 +69,7 @@ const B: Full = {
   verifiedPartsOnly: true,
   verifiedParts: [{ ref: "r2", text: "yeni parça", evidence: "e", source: "kb:b" }],
   hostContactOnly: true,
+  hostContactRemovals: [{ kind: "referral", form: "referral", appendix: false, stems: ["sauna"], topics: [], generic: false }],
 };
 const without = (r: Full, k: keyof Full) => {
   const c = { ...r } as Record<string, unknown>;
@@ -83,7 +85,7 @@ describe("GD7 alan kuralları tablosu", () => {
   });
 
   it("kod metninde düşen alanlar tablodan türetilir; metin işaretleri listede", () => {
-    expect([...CODE_BUILT_CLEARED_FIELDS].sort()).toEqual(["claimAudit", "hostContactOnly", "sourceAudit", "verifiedParts", "verifiedPartsOnly"]);
+    expect([...CODE_BUILT_CLEARED_FIELDS].sort()).toEqual(["claimAudit", "hostContactOnly", "hostContactRemovals", "sourceAudit", "verifiedParts", "verifiedPartsOnly"]);
     const copy = { ...A };
     withoutCodeBuiltClearedFields(copy);
     expect(copy).toEqual(A); // girdi değişmez
@@ -163,14 +165,20 @@ describe("GD7 alan kuralları tablosu", () => {
     it("🚨 4.12 muafiyeti kod metnine taşınmaz: güveni < 0,75 taslağın yerine geçen onay metni GÜVEN TABANINDA tutulur (09-24 P2 kararı)", () => {
       // Önce: taslak parça kipinde doğrulanmış parçalardan oluşuyordu (muafiyet), güveni 0,6. Kod onay metnini kurunca muafiyet onay
       // metnine geçiyor, 09-24'te bilinçli korunan ≥ 0,75 tabanı atlanıyordu. Sonra: taban geri gelir.
+      const grant = "Erken girişiniz onaylandı, saat 12:00'den itibaren girebilirsiniz.";
+      // Gerçek akıştaki gibi: kapı kod metnini kendi doğrulanmış izniyle okur (`automation.ts` verifiedGrant).
+      const ctx = { verifiedGrant: { text: grant } };
       const draft = { ...passing, confidence: 0.6, verifiedPartsOnly: true as const };
-      expect(autoReplyGateFailure(draft, "Erken girebilir miyiz?")).not.toBe("low_confidence");
-      const verified = verifiedEarlyCheckinResult(draft, "Erken girişiniz onaylandı, saat 12:00'den itibaren girebilirsiniz.");
+      const detail = (r: Parameters<typeof autoReplyGateVerdict>[0], c?: Parameters<typeof autoReplyGateVerdict>[2]) =>
+        autoReplyGateVerdict(r, "Erken girebilir miyiz?", c)?.detail ?? null;
+      // Taslağın kendisi muafiyetle güven tabanına takılmıyordu (öncül — anti-vakum).
+      expect(detail(draft)).not.toBe("low_confidence");
+      const verified = verifiedEarlyCheckinResult(draft, grant);
       expect("verifiedPartsOnly" in verified).toBe(false);
-      expect(autoReplyGateFailure(verified, "Erken girebilir miyiz?")).toBe("low_confidence");
+      expect(detail(verified, ctx)).toBe("low_confidence");
       // Güveni yeterli taslakta onay metni aynen geçer (aşırı uygulama yok).
-      const ok = verifiedEarlyCheckinResult({ ...draft, confidence: 0.9 }, "Erken girişiniz onaylandı, saat 12:00'den itibaren girebilirsiniz.");
-      expect(autoReplyGateFailure(ok, "Erken girebilir miyiz?")).not.toBe("low_confidence");
+      const ok = verifiedEarlyCheckinResult({ ...draft, confidence: 0.9 }, grant);
+      expect(detail(ok, ctx)).toBeNull();
     });
   });
 });

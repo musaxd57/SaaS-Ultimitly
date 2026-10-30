@@ -17,6 +17,11 @@ const ITEMS: ReplyItemsInput = {
 };
 
 describe("blok", () => {
+  // K-1029-A (10-29 gece): ev sahibine yönlendirme yasağı VARSAYILAN AÇIK bir istem katmanıdır (kapatma anahtarı
+  // `AI_HOST_CONTACT_PROMPT_BAN_DISABLED=1`). Bu dosya KENDİ katmanını tabana karşı ölçer ve diğer katmanları kapatır — yasak katmanı da
+  // aynı biçimde kapatılır; kendisi `host-contact-ban-prompt.test.ts`te pinli.
+  beforeEach(() => vi.stubEnv("AI_HOST_CONTACT_PROMPT_BAN_DISABLED", "1"));
+  afterEach(() => vi.unstubAllEnvs());
   it("cevaplanacaklar kimlik + tür + ipucu; bırakılanlar TEKİL tür adı; kural satırı ve beyan tanımı", () => {
     const b = buildItemsPromptBlock(ITEMS);
     expect(b).toContain('  - R1 · Wi-Fi · "wifi şifresi"');

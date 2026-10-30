@@ -6,7 +6,7 @@ import { acquireErasureLock, loadErasureGuard } from "@/lib/erasure";
 import { STORAGE_PHOTO_URL_PREFIX } from "@/lib/storage/keys";
 import { enqueueUnreferencedPhotoDeletions } from "@/lib/storage/deletion-queue";
 import { HISTORY_MESSAGE_CAP } from "@/lib/ai/limits";
-import { admitsMissingKnowledge, namesInternalSource } from "@/lib/ai/absence";
+import { admitsMissingKnowledge, asksHypotheticalSituation, namesInternalSource } from "@/lib/ai/absence";
 import { carriesHandoffNotice, HANDOFF_NOTICE_REASON, vetoOutgoingReply } from "@/lib/ai/output-veto";
 import { notifyHostReplyWaiting } from "@/lib/host-reply-waiting";
 import { actionClaimHold, type ActionClaimReason, type ClaimedActionsDeclaration } from "@/lib/ai/action-claims";
@@ -212,6 +212,7 @@ import { verifiedAvailabilityLang, verifiedAvailabilityText, verifiedAvailabilit
 import { verifiedExtensionText } from "@/lib/ai/verified-extension";
 import { contextDiagnostics } from "@/lib/ai/context-diagnostics";
 import { codeBuiltResult } from "@/lib/ai/code-built-result";
+import { hostContactOpenWithoutLedger, needsFromUnderstanding, settleHostContactRemovals } from "@/lib/conversation-items/host-contact-settle";
 import { loadVerifiedExtension } from "@/lib/ai/verified-extension-load";
 import { createOperationalTaskFromMessage } from "@/lib/tasks/create";
 import { escalateUnverifiedHazard, HAZARD_UNVERIFIED_REASON } from "@/lib/hazard-unverified-alert";
@@ -256,6 +257,11 @@ export const HIGH_STAKES_RISK_TYPES: ReadonlySet<string> = new Set(HIGH_STAKES_R
 
 /** `passesAutoReplySafetyGate` bağlamı: modelin mesaj dışında gördükleri + anlam katmanı sinyalleri. */
 export interface AutoReplyGateContext {
+  /**
+   * K-1029-A (kurucu 10-29 gece): öğe defteri OLMAYAN yolda "ev sahibinize yazın" cümlesi silindi ve bir soruyu cevapsız bırakmış olabilir
+   * (`host-contact-settle.hostContactOpenWithoutLedger`) — defter yokken gönderilen tur "Cevaplandı" görünürdü; tur tutulur, ev sahibi yanıtlar.
+   */
+  hostContactOpen?: boolean;
   history?: string[];
   guestName?: string | null;
   /** Son giden yanıttan SONRA gelen, henüz cevaplanmamış misafir mesajları
@@ -613,6 +619,7 @@ export function autoReplyGateVerdict(
   // R13-b / R13-c (kurucu kararı 10-28 gece, ANAHTARSIZ): cevap yalnız "bir sorun olursa ev sahibinize yazın / arayın" — misafir zaten ev sahibiyle
   // yazışıyor ya da sorunu zaten bildirdi; ev sahibi yanıtlar (`ai/host-contact-filler.ts`).
   if (result.hostContactOnly === true) return hold("reply_host_contact_only");
+  if (context?.hostContactOpen === true) return hold("reply_host_contact_only");
   // ── KIDEMLİ OKUYUCU (T-b, kurucu 10-22; anahtar `AI_SENIOR_READER_ENABLED` KAPALI) ─────────────────────────────────────────────
   // Okuyucu BU metni okuduysa üç ek hüküm — yalnız TUTAR: ev sahibine platform dışı ödeme (T-d), Airbnb'de onaysız konuşmada platform dışı
   // iletişim (Airbnb engeller), özür / kusur kabulü (T-a, özür kuralı açıkken). Okumadıysa hiçbiri koşmaz (bugünkü davranış).
@@ -2764,6 +2771,32 @@ export async function applyChannelAutoReply(
     }
   }
   if (absenceJudge) gateContext.absenceJudge = absenceJudge;
+  // ── K-1029-A (kurucu 10-29 gece): "ev sahibinize yazın" silindiyse cevapsız soru AÇIK kalır, ASLA "cevaplandı" değil ─────────────────
+  // Öğe kipinde (parça kipi hariç — orada parça kararı ve "onaylı parça son metinde aynen" kontrolü var) silinen her parçanın SAHİBİ istek(ler)
+  // ve giden metinde AYIRT EDİCİ karşılığı olmayan istekler kapatma listesinden çıkar; doğru cevaplar yine gider (göndermek ile kapatmak ayrı
+  // kararlar — `host-contact-settle.ts`). Defter olmayan yolda (öğe kipi kapalı) silinen parça bir soruyu cevapsız bırakmış olabilirse tur
+  // tutulur ve ev sahibine tek "Misafir cevabınızı bekliyor" e-postası gider (↓ `hostContactNotify`).
+  let hostContactOpenedRefs = 0;
+  const hcRemovals = result.hostContactRemovals ?? [];
+  if (hcRemovals.length > 0 && result.source === "openai") {
+    if (itemsPlan && !replyItems?.parts && result.answeredRequests?.ok === true) {
+      const settled = settleHostContactRemovals({
+        removals: hcRemovals,
+        keptText: result.reply ?? "",
+        needs: itemsPlan.gateItems.hostContactNeeds ?? [],
+        declared: result.answeredRequests,
+      });
+      result = { ...result, answeredRequests: { ok: true, refs: settled.refs, ...(settled.openRefs.length > 0 ? { openRefs: settled.openRefs } : {}) } };
+      hostContactOpenedRefs = settled.trace.o;
+    } else if (!itemsPlan) {
+      gateContext.hostContactOpen = hostContactOpenWithoutLedger({
+        removals: hcRemovals,
+        keptText: result.reply ?? "",
+        guestAskedContingency: [last.body, ...pendingGuestMessages].some((t) => asksHypotheticalSituation(t)),
+        needs: understood ? needsFromUnderstanding(understood.requests) : null,
+      });
+    }
+  }
   // ── ANLAM KATMANI: bağımsız bekçi (09-24) ───────────────────────────────────
   // Bayrak açıkken (`AI_STAY_GUARD_ENABLED`) önce bekçisiz kapı; ikinci model taslağı YALNIZ iki durumda okur:
   // otomatik gönderim ADAYI (bekçi sıkılaştırabilir) ya da tek engeli müsaitlik onayı eksikliği olan taslak
@@ -3362,6 +3395,11 @@ export async function applyChannelAutoReply(
   // şey gitmedi — eski kipte model o istek için "ev sahibinize iletiyorum" yazar, tutuş devir tutuşu olur ve e-posta giderdi; parça kipi o
   // cümleyi üretmediği için ev sahibi habersiz kalıyordu. Cevapsız istek = parça kipinin devir işareti. Bütün parçaları doğrulanmış ama
   // başka sebeple tutulan tur eski kiple aynı (e-posta yok, panelde).
+  // K-1029-A: "ev sahibinize yazın" cümlesi silinip hiçbir şey gitmediyse (yalnız o cümleydi / defter olmayan yolda açık soru / öğe kipinde
+  // bütün istekler açıldı) ev sahibi habersiz kalmaz — mesaj başına bir "Misafir cevabınızı bekliyor". Tutuş gerekçesi DEĞİŞMEZ.
+  const hostContactNotify =
+    result.source === "openai" &&
+    (result.hostContactOnly === true || gateContext.hostContactOpen === true || (finalGateVerdict?.detail === "items_nothing_answered" && hostContactOpenedRefs > 0));
   const partsUnanswered =
     replyItems?.parts === true &&
     result.source === "openai" &&
@@ -3429,7 +3467,7 @@ export async function applyChannelAutoReply(
           // e-posta gider ve açık işi taşıyan mesajı gösterir (kaynak sorusunu değil).
           const quietOnly = notice.quiet.length > 0 && notice.loud.length === 0;
           if (notice.held.length === 0 && !quietOnly && !turnCardsOpen) {
-            if (handoffHeld || partsUnanswered) {
+            if (handoffHeld || partsUnanswered || hostContactNotify) {
               const loudLast = notice.loud.length > 0 ? messages.find((m) => m.id === notice.loud[notice.loud.length - 1]) : undefined;
               const shown = loudLast ?? last;
               const waiting = await notifyHostReplyWaiting({
@@ -3789,7 +3827,7 @@ export async function applyChannelAutoReply(
       // bekliyor" e-postası. Yükseltme dalı (↑) kendi e-postasını atar ve buraya gelmez. Karar kartı açıldıysa yerine "Karar
       // bekliyor" (aynı talep satırı — ikisi birden asla).
       if (turnDecisions.length > 0) await notifyDecisions();
-      if (!turnCardsOpen && handoffHeld) {
+      if (!turnCardsOpen && (handoffHeld || hostContactNotify)) {
         await notifyHostReplyWaiting({
           organizationId: conversation.property.organizationId,
           conversation,

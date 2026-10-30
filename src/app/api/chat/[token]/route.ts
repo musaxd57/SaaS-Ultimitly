@@ -8,7 +8,7 @@ import { acquireErasureLock, loadErasureGuard } from "@/lib/erasure";
 import { ANON_NAME } from "@/lib/data-retention";
 import { ESCALATION_REASON_CODES } from "@/lib/risk-events";
 import { detectRiskType, isAccessLossText, isSafetyEmergencyText } from "@/lib/ai/fallback";
-import { namesInternalSource } from "@/lib/ai/absence";
+import { asksHypotheticalSituation, namesInternalSource } from "@/lib/ai/absence";
 import { ESCALATE_INTENTS, evaluateEscalation, qrAvailabilityPolicy } from "@/lib/guest-chat-gate";
 import { evaluateAvailability, kbFactsOf, stayEvidenceOf } from "@/lib/ai/availability-claims";
 import { fixSupportContextOf } from "@/lib/conversation-items/relation";
@@ -87,6 +87,7 @@ import { verifiedQrEnabled } from "@/lib/ai/verified-qr";
 import { reportError } from "@/lib/report-error";
 import { loadQrVerifiedStay } from "@/lib/ai/verified-qr-load";
 import { codeBuiltResult } from "@/lib/ai/code-built-result";
+import { hostContactOpenWithoutLedger, needsFromUnderstanding } from "@/lib/conversation-items/host-contact-settle";
 import { loadPromptInstructions } from "@/lib/history-learn/prompt-instructions";
 
 export const dynamic = "force-dynamic";
@@ -1460,7 +1461,20 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     understandingIntents: understood ? understood.requests.map((q) => q.intent) : null,
     earlierGuestTexts: qrUnanswered.slice(0, -1),
   });
-  const sendEscalate = emergencyNumber !== null || escalate;
+  // K-1029-A (kurucu 10-29 gece): "ev sahibinize yazın" cümlesi cevaptan silindi ve bir soruyu cevapsız bırakmış olabilir — QR'da istek defteri
+  // yok, gönderilen tur "cevaplandı" görünürdü. Kalan DOĞRU cevap misafire gider, konu ev sahibine devredilir (acil numara akışıyla aynı
+  // "gönder + devret" yolu). Geriye hiçbir şey kalmadıysa kapı zaten tutar (`reply_host_contact_only`, bugünkü gibi).
+  const hostContactOpen =
+    !escalate &&
+    emergencyNumber === null &&
+    (finalResult.hostContactRemovals?.length ?? 0) > 0 &&
+    hostContactOpenWithoutLedger({
+      removals: finalResult.hostContactRemovals ?? [],
+      keptText: finalResult.reply,
+      guestAskedContingency: qrUnanswered.some((t) => asksHypotheticalSituation(t)),
+      needs: understood ? needsFromUnderstanding(understood.requests) : null,
+    });
+  const sendEscalate = emergencyNumber !== null || escalate || hostContactOpen;
   const reply = emergencyNumber ? emergencyNumber.text : escalate ? null : finalResult.reply;
   const { inboundMessageId, handedOff, conversationId } = await record(reply, sendEscalate);
   if (handedOff) return finalize({ handoff: true });
@@ -1470,7 +1484,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
   // await edilmesi teslimi riske atmaz ve kaydı deterministik kılar (fire-and-forget
   // olsaydı yanıt döndükten sonra yazılır, kurucu konsolunda yarış görünürdü).
   const finalAudit = await auditFields();
-  const finalReason = emergencyNumber ? "emergency_number" : (verdict.reason ?? "gate_passed");
+  const finalReason = emergencyNumber ? "emergency_number" : hostContactOpen ? "host_contact_open" : (verdict.reason ?? "gate_passed");
   await recordRiskEvent({
     organizationId: ctx.property.organizationId,
     propertyId: ctx.property.id,
@@ -1490,7 +1504,8 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
     triggerMessageId: inboundMessageId,
     gateReason: finalReason,
     kbEvidenceJson: finalAudit.kbEvidenceJson,
-    sentText: sendEscalate ? null : reply,
+    // K-1029-A'da devredilen turda da kalan doğru cevap GİTTİ — iz onu taşır.
+    sentText: hostContactOpen ? reply : sendEscalate ? null : reply,
   });
   if (sendEscalate) {
     // Alarm önceliği: kelime ağının acil durumu YA DA anlama katmanının acil niyeti (kelime ağının kaçırdığı dolaylı

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import {
   REPLY_SYSTEM_PROMPT,
   REPLY_SYSTEM_PROMPT_CODE_GREETING,
@@ -40,12 +40,16 @@ const flags = (codeGreeting: boolean, kbFeeRule: boolean, stayDeferralPlain: boo
   accessCodeComplete,
 });
 
+// K-1029-A (10-29 gece): ev sahibine yönlendirme yasağı VARSAYILAN AÇIK bir istem katmanıdır (kapatma anahtarı
+// `AI_HOST_CONTACT_PROMPT_BAN_DISABLED=1`). Bu dosya KENDİ katmanını tabana karşı ölçer ve diğer katmanları kapatır — yasak katmanı da
+// aynı biçimde kapatılır; kendisi `host-contact-ban-prompt.test.ts`te pinli.
+beforeEach(() => vi.stubEnv("AI_HOST_CONTACT_PROMPT_BAN_DISABLED", "1"));
 afterEach(() => vi.unstubAllEnvs());
 
 describe("giriş tarifinde kod — istem türevi", () => {
   it("anahtarların TÜM birleşimlerinin HİÇBİRİNDE kayıp çapa yok (yedi katman → 128; şikâyet takibi 10-01, öğe kipi alanı + bırakılan istek önceliği 10-02)", () => {
     const missing = REPLY_SYSTEM_PROMPT_DERIVATION_MISSING();
-    expect(Object.keys(missing)).toHaveLength(1024); // + tarafsızlık katmanı (10-21) → dokuz; + cevap parçaları (10-23 A) → on katman
+    expect(Object.keys(missing)).toHaveLength(2048); // + tarafsızlık katmanı (10-21) → dokuz; + cevap parçaları (10-23 A) → on; + ev sahibine yönlendirme yasağı (10-29 K-1029-A) → on bir katman
     for (const [combo, list] of Object.entries(missing)) expect(list, combo).toEqual([]);
   });
 

@@ -133,7 +133,7 @@ function isGenericToken(t: string): boolean {
 }
 
 /** Metnin ayırt edici sözcükleri: katlanmış belirteç, en az 3 harf, durak / genel / yokluk sözcüğü ve rakam DEĞİL. */
-function distinctiveTokens(text: string): string[] {
+export function distinctiveTokens(text: string): string[] {
   return tokenize(text).filter((t) => t.length >= 3 && !/\d/.test(t) && !isStopword(t) && !isGenericToken(t));
 }
 
@@ -204,8 +204,8 @@ const overlapWith =
   (same: (x: string, y: string) => boolean) =>
   (a: readonly string[], b: readonly string[]): number =>
     a.filter((t) => b.some((u) => same(t, u))).length;
-const overlapLoose = overlapWith(sameWordLoose);
-const overlapStrict = overlapWith(sameWordStrict);
+export const overlapLoose = overlapWith(sameWordLoose);
+export const overlapStrict = overlapWith(sameWordStrict);
 
 /**
  * İsteğin sözcüklerinden kaçı metinde SIKI eşleşmeyle geçiyor (yalnız çekim eki — "havuz" ~ "havuzumuz", "kapı" ≁ "kapıcı"). Cevap parçası

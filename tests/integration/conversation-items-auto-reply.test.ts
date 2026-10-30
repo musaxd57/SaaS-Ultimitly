@@ -876,7 +876,11 @@ describe("planItemsTurn — kapıya giden öğe girdisi", () => {
       now: new Date(),
     });
     expect(plan.mode).toBe("items");
-    expect(plan.mode === "items" && plan.gateItems).toEqual({ held: [], paymentHeld: false, answerableKinds: ["early_checkin"] });
+    if (plan.mode !== "items") throw new Error("öğe kipi bekleniyordu");
+    // K-1029-A (10-29 gece): "cevaplandı" kuralının girdisi her zaman kurulur (yalnız kapı okur; istem baytları değişmez).
+    const { hostContactNeeds, ...gateItems } = plan.gateItems;
+    expect(gateItems).toEqual({ held: [], paymentHeld: false, answerableKinds: ["early_checkin"] });
+    expect(hostContactNeeds?.map((n) => [n.ref, n.contingency])).toEqual([["R1", false]]);
   });
 });
 
@@ -2106,5 +2110,80 @@ describe("KISMİ CEVAP + AÇIK GÜVENLİ İHTİYAÇ (kurucu 10-23 akşam 4.1 B: 
     mockSuggest.mockResolvedValueOnce(verdict({ intent: "wifi", reply: WIFI_ANSWER, answeredRequests: { ok: true, refs: ["R1"] } }));
     expect((await applyChannelAutoReply(conversationId)).sent).toBe(true);
     expect(mockMail).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ── K-1029-A (kurucu 10-29 gece): "ev sahibinize yazın" silinince cevapsız soru AÇIK kalır, ASLA "cevaplandı" değil ──────────────────
+// `suggestReply` cümleyi çıkarıp kaydını (`hostContactRemovals`, metin yok) taşır; burada kanal akışının o kayıtla ne yaptığı sınanır.
+describe("K-1029-A — ev sahibine yönlendirme silindi: doğru cevap gider, cevapsız soru açık", () => {
+  beforeEachTurn();
+  const parkingReferral = { kind: "referral" as const, form: "referral" as const, appendix: false, stems: ["otopark"], topics: ["parking"], generic: false };
+  const genericClosing = { kind: "write" as const, form: "conditional" as const, appendix: false, stems: [], topics: [], generic: true };
+
+  it("🚨 öğe kipi: model iki isteği de 'cevaplandı' beyan etti ama otopark cevabı silinen yönlendirmeydi → Wi-Fi gider + cevaplandı, otopark AÇIK", async () => {
+    // Önce (B2 hatası): beyan aynen kullanılıyordu — otopark öğesi ev sahibine hiç görünmeden "cevaplandı" kapanıyordu.
+    const msg = "Wi-Fi şifresi neydi? Otopark var mı?";
+    const { conversationId } = await seed(msg);
+    understands(
+      understood([
+        { intent: "wifi", message: 1 },
+        { intent: "parking", message: 1 },
+      ]),
+    );
+    mockSuggest.mockResolvedValueOnce(wifiAnswer({ answeredRequests: { ok: true, refs: ["R1", "R2"] }, hostContactRemovals: [parkingReferral] }));
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(true);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(await itemsOf(conversationId)).toEqual([
+      { body: msg, kind: "wifi", sensitivity: "none", status: "answered", notified: false },
+      { body: msg, kind: "parking", sensitivity: "none", status: "open", notified: false },
+    ]);
+  });
+
+  it("KONTROL (aşırı açma yok): yalnız genel kapanış silindi, iki istek de giden metinde ayırt edici karşılık buluyor → ikisi de cevaplandı", async () => {
+    const msg = "Wi-Fi şifresi neydi? Otopark var mı?";
+    const { conversationId } = await seed(msg);
+    understands(
+      understood([
+        { intent: "wifi", message: 1 },
+        { intent: "parking", message: 1 },
+      ]),
+    );
+    mockSuggest.mockResolvedValueOnce(
+      wifiAnswer({
+        reply: "Wi-Fi ağı Lale-5G, şifre modemin altında yazıyor. Otopark binanın arkasında.",
+        answeredRequests: { ok: true, refs: ["R1", "R2"] },
+        hostContactRemovals: [genericClosing],
+      }),
+    );
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(true);
+    expect((await itemsOf(conversationId)).map((i) => i.status)).toEqual(["answered", "answered"]);
+  });
+
+  it("🚨 öğe kipi kapalı (defter yok): konulu yönlendirme silindiyse tur TUTULUR + ev sahibine tek 'Misafir cevabınızı bekliyor' e-postası", async () => {
+    // Defter olmadan gönderilen tur "Cevaplandı" görünürdü; otopark sorusu ev sahibine hiç görünmezdi.
+    vi.stubEnv("AI_CONVERSATION_ITEMS_ENABLED", "");
+    const { conversationId } = await seed("Wi-Fi şifresi neydi? Otopark var mı?");
+    understands(
+      understood([
+        { intent: "wifi", message: 1 },
+        { intent: "parking", message: 1 },
+      ]),
+    );
+    mockSuggest.mockResolvedValueOnce(wifiAnswer({ answeredRequests: undefined, hostContactRemovals: [parkingReferral] }));
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(mockMail).toHaveBeenCalledTimes(1);
+    expect(await reasons(conversationId)).toEqual(["auto_reply:human_review:low_confidence_or_risky"]);
+    const ev = await prisma.riskEvent.findFirst({ where: { conversationId }, orderBy: { occurredAt: "desc" } });
+    expect(JSON.parse(ev?.kbEvidenceJson ?? "{}").g?.d).toBe("reply_host_contact_only");
+  });
+
+  it("KONTROL (öğe kipi kapalı): kayıt yoksa (hiçbir şey silinmedi) bugünkü gibi gider, e-posta yok", async () => {
+    vi.stubEnv("AI_CONVERSATION_ITEMS_ENABLED", "");
+    const { conversationId } = await seed("Wi-Fi şifresi neydi?");
+    understands(understood([{ intent: "wifi", message: 1 }]));
+    mockSuggest.mockResolvedValueOnce(wifiAnswer({ answeredRequests: undefined }));
+    expect((await applyChannelAutoReply(conversationId)).sent).toBe(true);
+    expect(mockMail).not.toHaveBeenCalled();
   });
 });

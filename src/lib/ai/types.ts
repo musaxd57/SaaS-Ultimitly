@@ -1,3 +1,4 @@
+import type { HostContactRemoval } from "./host-contact-filler";
 import type { AnsweredRequestsDeclaration, ReplyItemsInput } from "@/lib/conversation-items/reply-block";
 import type { PartVerdict } from "@/lib/ai/answer-parts";
 import type { ClaimedActionsDeclaration } from "./action-claims";
@@ -316,6 +317,12 @@ export interface SuggestReplyResult {
    * oluşuyor ("Bir sorun olursa ev sahibinize yazın" — misafir zaten ev sahibiyle yazışıyor). Kapı (kanal + QR) tutar, ev sahibi yanıtlar.
    */
   hostContactOnly?: true;
+  /**
+   * K-1029-A (kurucu 10-29 gece): misafire gidecek metinden ÇIKARILAN ev sahibine başvurma parçalarının kaydı (`host-contact-filler.ts`) —
+   * METİN YOK (tür, biçim, yan cümle mi, ayırt edici kökler, konu, genel mi). Kanal öğe kipinde "cevaplandı" kuralı (`host-contact-settle.ts`),
+   * defter olmayan yolda (QR, öğe kipi kapalı kanal) açık soru kararı bunu okur. Yokluğu = hiçbir şey çıkarılmadı.
+   */
+  hostContactRemovals?: HostContactRemoval[];
 }
 
 export interface ClassifyResult {

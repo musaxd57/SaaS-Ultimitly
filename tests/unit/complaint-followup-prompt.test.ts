@@ -41,7 +41,13 @@ const input: SuggestReplyInput = {
 };
 const RULE = "ŞİKÂYET EDENE KURAL HATIRLATMASI YAZMA";
 
-beforeEach(() => __resetUnderstandingCache());
+// K-1029-A (10-29 gece): ev sahibine yönlendirme yasağı VARSAYILAN AÇIK bir istem katmanıdır (kapatma anahtarı
+// `AI_HOST_CONTACT_PROMPT_BAN_DISABLED=1`). Bu dosya KENDİ katmanını tabana karşı ölçer ve diğer katmanları kapatır — yasak katmanı da
+// aynı biçimde kapatılır; kendisi `host-contact-ban-prompt.test.ts`te pinli.
+beforeEach(() => {
+  __resetUnderstandingCache();
+  vi.stubEnv("AI_HOST_CONTACT_PROMPT_BAN_DISABLED", "1");
+});
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
@@ -91,7 +97,7 @@ describe("şikâyet takibi — cevap istemi katmanı", () => {
 
   it("tüm katman birleşimlerinde kayıp çapa YOK (256 birleşim — öğe kipi alanı + bırakılan istek önceliği 10-02, hâl hatır 10-02 akşam)", () => {
     const missing = REPLY_SYSTEM_PROMPT_DERIVATION_MISSING();
-    expect(Object.keys(missing)).toHaveLength(1024); // + tarafsızlık katmanı (10-21) → dokuz; + cevap parçaları (10-23 A) → on katman
+    expect(Object.keys(missing)).toHaveLength(2048); // + tarafsızlık katmanı (10-21) → dokuz; + cevap parçaları (10-23 A) → on; + ev sahibine yönlendirme yasağı (10-29 K-1029-A) → on bir katman
     for (const [name, m] of Object.entries(missing)) expect(m, name).toEqual([]);
   });
 });

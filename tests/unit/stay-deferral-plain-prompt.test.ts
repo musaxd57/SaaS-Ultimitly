@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import {
   REPLY_SYSTEM_PROMPT,
   REPLY_SYSTEM_PROMPT_CODE_GREETING,
@@ -45,6 +45,10 @@ const section75 = (sys: string) => {
 };
 const count = (s: string, needle: string) => s.split(needle).length - 1;
 
+// K-1029-A (10-29 gece): ev sahibine yönlendirme yasağı VARSAYILAN AÇIK bir istem katmanıdır (kapatma anahtarı
+// `AI_HOST_CONTACT_PROMPT_BAN_DISABLED=1`). Bu dosya KENDİ katmanını tabana karşı ölçer ve diğer katmanları kapatır — yasak katmanı da
+// aynı biçimde kapatılır; kendisi `host-contact-ban-prompt.test.ts`te pinli.
+beforeEach(() => vi.stubEnv("AI_HOST_CONTACT_PROMPT_BAN_DISABLED", "1"));
 afterEach(() => vi.unstubAllEnvs());
 
 describe("konaklama ertelemesi bildirimsiz — istem türevi", () => {

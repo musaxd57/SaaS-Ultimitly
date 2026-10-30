@@ -1,120 +1,195 @@
 // ---------------------------------------------------------------------------
-// "BİR SORUN OLURSA EV SAHİBİNİZİ ARAYIN / YAZIN" MİSAFİRE YAZILMAZ (kurucu kararı R13-b / R13-c, 10-28 gece; aynen
-// `docs/INCELEME-2026-10-28-opus-ikinci-dilim.md` sonu):
-//   "zaten hostla yazışıyorlar … AIımız … host gibi olmalı … 'Bir sorun olursa ev sahibinize yazın.' bu bence gitmesin … kesinlikle bu
-//    gidemesin" · "olabildiğince en az aramadan bahsetsin" · "genel 'bir sorun olursa ev sahibinizi arayın/yazın' kapanışı hiç eklenmesin …
-//    Yalnız 'Anahtarı kaybedersem ne yapmalıyım?' gibi sorularda, geçerli talimat gerçekten ev sahibine ulaşmaksa kullanılabilsin. Bunu sabit
-//    birkaç kelimeyle değil, sorunun amacı ve talimatın gerekliliğiyle ayıralım. Gerekli güvenlik uyarıları korunsun. Misafir zaten sorunu
-//    bizim sohbetimize bildiriyorsa tekrar 'ev sahibine yazın' diye başından savrulmasın; mevcut bildirim ve açık iş akışı devam etsin."
+// "EV SAHİBİNİZE YAZIN / ARAYIN" MİSAFİRE YAZILMAZ — HER DİLDE, HER BİÇİMDE (kurucu kararları R13-b / R13-c 10-28 gece ve K-1029-A/B/C
+// 10-29 gece; aynen `docs/INCELEME-2026-10-28-gece-dongusu.md` 10-29 bölümü, tasarım `docs/TASARIM-2026-10-29-ev-sahibine-yonlendirme-yasagi.md`):
+//   "zaten hostla yazışıyorlar" · "cümle silinir, doğru cevap gider, cevapsız soru AÇIK kalır, asla 'cevaplandı' değil" · GD5: "yalnız
+//   talimat yan cümlesi silinir, bilgi gider" (geçici) · "ek / koşul eki sezgileri karar vermesin, anlamı model okusun".
 //
-// Kural (saf; `suggestReply` cevabın SON adımında "talimat yok" silicisinin yanında çağırır → kanal, QR, "AI öner", Ayarlar testi, demo aynı):
-//   · Yalnız KOŞULLU ev sahibine başvurma cümlesine dokunulur (`conditionalHostContactKind`: "…olursa ev sahibinizi arayın / yazın", "if
-//     anything breaks, contact your host", "varınca ev sahibinizi arayın"). Bilgi yönlendirmesi ("Sauna için ev sahibinize sorabilirsiniz")
-//     SİLİNMEZ — "bilgim yok" kuralı onu tutar; silinseydi soru sessizce kaybolurdu (gece-4 S4-09 dersi).
-//   · "Yazın / mesaj atın / write / message" → her zaman çıkar (sohbet zaten ev sahibiyle).
-//   · "Arayın / ulaşın / contact" → yalnız misafir TAM O DURUMU varsayımsal olarak sorduysa (AMAÇ: koşul eki / "what if" — yaşanan olayı
-//     bildirmek değil; GEREKLİLİK: cümlenin konusu misafirin sorusunda geçiyor) VE cümlenin bilgi tabanında dayanağı varsa kalır; yoksa çıkar.
-//   · Güvenlik uyarısı (gaz / yangın / duman / acil servis numarası) çıkarılmaz.
-//   · Çıkarmadan sonra selam / nezaket dışında içerik kalmazsa metne DOKUNULMAZ, `hostContactOnly` döner → kapı (kanal + QR) cevabı TUTAR,
-//     ev sahibi yanıtlar (kurucu: "ilk 3ünde evet kesinlikle tutmalı").
-// Misafire yeni söz EKLENMEZ; yalnız cümle ÇIKARILIR. Kalan metin bütün kapılardan yine geçer. Doğrusal.
+// Kural (saf; `suggestReply` cevabın SON adımında çağırır → kanal, QR, "AI öner", Ayarlar testi, demo aynı):
+//   · Misafiri ev sahibine yazmaya / ulaşmaya / aramaya / sormaya gönderen HER cümle çıkar (`hostContactKindOf`: bilgi yönlendirmesi,
+//     koşullu başvurma, yedi dilli başvurma + ev sahibinin sesiyle "bize yazın"). "Yazın" hiçbir koşulda kalmaz.
+//   · "Arayın" model sinyali olmadan TUTULMAZ (koşul ekiyle "misafir varsayımsal sordu" sezgisi KALDIRILDI — K-1029-C: ek sezgisi karar
+//     vermez). Model sinyali (`AI_UNDERSTANDING_SITUATION_ENABLED`, kapalı) ölçülene kadar sorusu ev sahibine açık kalır (kurucuya soru F1).
+//   · Güvenlik uyarısı (gaz / yangın / duman / acil numara) "arayın" cümlesinde KALIR; tehlike sözcüğü dar okunur ("Fire TV", "gas station",
+//     "smoke-free" uyarı değil).
+//   · GD5 yan cümle: cümlenin KOŞULSUZ baş yan cümle(ler)i bilgi taşıyorsa onlar kalır, ilk koşul / talimat yan cümlesinden SONUNA kadar her
+//     şey çıkar ("…yazın, kendisi teknisyen gönderir" koşulsuz söze dönmesin). Kalan metin özgün sözcüklerin özgün sırasıdır (yalnız SİLME);
+//     dedektör kalan metne yeniden koşar; şüphede bütün cümle çıkar.
+//   · Çıkan her parçanın kaydı (`removals`): tür, biçim, yan cümle mi, ayırt edici kökler, konu, genel mi — METİN YOK (saklanmaz, izlere
+//     yazılmaz). Hangi isteğin açık kalacağına çağıran karar verir (`conversation-items/host-contact-settle.ts`).
+//   · Geriye selam / nezaket dışında içerik kalmazsa metne DOKUNULMAZ, `nothingLeft` → kapı tutar, ev sahibi yanıtlar.
+// Misafire yeni söz EKLENMEZ; yalnız ÇIKARILIR. Kalan metin bütün kapılardan yine geçer. Doğrusal.
 // ---------------------------------------------------------------------------
 
-import { asksHypotheticalSituation, conditionalHostContactKind, refersGuestToHost } from "./absence";
-import { contentStemsOf, isSubstantiveSentence, replySentencesOf, sentenceGroundedInKb } from "./no-instruction-filler";
+import { hostContactKindOf, isConditionLikeClause, namesWriteContact, type HostContactKind } from "./absence";
+import { contentStemsOf, isSubstantiveSentence, replySentencesOf } from "./no-instruction-filler";
+import { distinctiveTokens } from "@/lib/conversation-items/topic-absence";
+import { topicsWithSymptomsOf } from "@/lib/conversation-items/relation";
 
 /**
  * Güvenlik uyarısı: gerçek tehlike / acil servis sözcüğü taşıyan cümle (genel "acil durumda ev sahibinizi arayın" kapanışı DEĞİL).
  * GD9 (gece döngüsü 10-29): Türkçe gövdeler tehlike sözcüğüne benzeyen adları dışlar — gazete / gazino / gazoz / gazi (Gaziantep), polisaj /
- * polisiye / polister, karbonat — yoksa genel "sorun olursa ev sahibinizi arayın" kapanışı güvenlik uyarısı sanılıp misafire giderdi.
+ * polisiye / polister, karbonat. K-1029-A: "Fire TV / Fire Stick", "gas station", "smoke-free" de uyarı değildir.
  */
 const SAFETY_WARNING =
-  /(?<![\p{L}\p{N}])(?:gaz(?!ete|ino|oz|i)\p{L}{0,8}|gas|yang[ıi]n\p{L}{0,8}|fire|duman\p{L}{0,8}|smoke|karbon(?!at)\p{L}{0,8}|carbon monoxide|itfaiye\p{L}{0,8}|ambulans\p{L}{0,8}|ambulance|polis(?!aj|iye|ter)\p{L}{0,8}|police|112|911|110|155|feuer|rauch|incendie|fumée|incendio|humo|пожар\p{L}{0,4}|газ\p{L}{0,4}|дым\p{L}{0,4})(?![\p{L}\p{N}])/iu;
+  /(?<![\p{L}\p{N}])(?:gaz(?!ete|ino|oz|i|l[ıi])\p{L}{0,8}|gas(?!\s*station)|yang[ıi]n\p{L}{0,8}|fire(?!\s*(?:tv|stick))|duman\p{L}{0,8}|smoke(?![-\s]?free)|karbon(?!at)\p{L}{0,8}|carbon monoxide|itfaiye\p{L}{0,8}|ambulans\p{L}{0,8}|ambulance|polis(?!aj|iye|ter)\p{L}{0,8}|police|112|911|110|155|187|feuer|rauch|incendie|fumée|incendio|humo|пожар\p{L}{0,4}|газ\p{L}{0,4}|дым\p{L}{0,4})(?![\p{L}\p{N}])/iu;
 
-/** Konu karşılaştırmasında sayılmayan sözcük kökleri (ev sahibi, başvurma fiilleri, koşul / nezaket dolgusu). */
-const NON_TOPIC = new Set([
-  "sahib", "evsah", "host", "hosts", "owner", "landl", "hosta", "araya", "arayi", "arayın", "arayı", "ulası", "ulaşı", "ulaşa", "ulasa",
-  "call", "conta", "reach", "phone", "lütfe", "lutfe", "pleas", "olurs", "olurz", "durum", "bir", "the", "your", "you", "and", "ile", "için",
-  "icin", "ise", "veya", "any", "anyth", "somet", "herha", "kendi", "them", "they", "this", "that", "with", "have", "will", "can", "may",
-  "please", "kindl", "dilerseniz", "diler", "isters", "rica", "ederi", "wenn", "bitte", "ihren", "votre", "your", "veuil",
-]);
-
-function topicStems(text: string): Set<string> {
-  const out = new Set<string>();
-  for (const w of text.toLocaleLowerCase("tr").normalize("NFC").match(/\p{L}{3,}/gu) ?? []) {
-    const stem = w.slice(0, 5);
-    if (!NON_TOPIC.has(stem) && !NON_TOPIC.has(w)) out.add(stem);
-  }
-  return out;
-}
-
-/** Misafir bu durumu VARSAYIMSAL olarak sordu mu ve cümlenin konusu sorusunda geçiyor mu (amaç + gereklilik). */
-function guestAskedThisSituation(sentence: string, guestTexts: readonly string[]): boolean {
-  const asked = guestTexts.filter((g) => asksHypotheticalSituation(g));
-  if (asked.length === 0) return false;
-  const mine = topicStems(sentence);
-  if (mine.size === 0) return false;
-  return asked.some((g) => {
-    const theirs = topicStems(g);
-    for (const s of mine) if (theirs.has(s)) return true;
-    return false;
-  });
+export function isSafetyWarningSentence(sentence: string): boolean {
+  return SAFETY_WARNING.test(sentence);
 }
 
 /**
- * GD5 (gece döngüsü 10-29): silinecek cümlenin BAŞKA bir yan cümlesi bilgi taşıyor mu ("Havlular dolapta, bir sorun olursa ev sahibinize
- * yazın.")? Cümle bütün olarak silinirse bilgi de gider; öğe kipinde istek "cevaplandı" kapanır. Yan cümleler virgül / noktalı virgül / iki
- * nokta (ardından boşluk) ve "ve / and / ama / but / fakat / ancak" bağlacından ayrılır. Bilgi yan cümlesi: ev sahibine başvurmuyor, koşul
- * yan cümlesi değil ve içerik kökü genel sorun / yardım sözcüklerinden ibaret değil (ya da sayı taşıyor). Doğrusal.
+ * Çıkarılan parçada sayılmayan köklerin başlangıçları (katlanmış ASCII): ev sahibi adları, iletişim fiilleri, genel sorun / koşul / nezaket
+ * sözcükleri — yedi dil. Kalan kök yoksa çıkarılan parça GENEL kapanıştır (hiçbir isteğe ait değildir).
  */
-const OTHER_CLAUSE_SPLIT = /(?<=[,;:])\s+|\s+(?=(?:ve|and|ama|but|fakat|ancak)\s)/iu;
+const HOST_CONTACT_NOISE = (
+  "sahib evsah host owner landl hostes gastgeb vermiet eigent hote propri anfitr duen хозя владел арендод мне нам مضيف مالك " +
+  "yaz mesaj ara ulas haber bild iletis irtib danis sor yeniden tekrar call phon ring messag text writ mail email contact reach touch let know " +
+  "inform drop line note send ask check notif schreib kontakt ruf meld wend benach inform ecriv contac appel joign preven envoy adress " +
+  "escrib llam contact comuniq pong envi avis напиш позвон свяж сообщ обрат راسل تواصل اتصل اكتب ارسل " +
+  "sorun sikint problem aksil herhangi bir sey seyi ihtiyac olur olursa durum durumd husus konu feel free hesit anyth somet wrong issue " +
+  "need question happen come comes went break come any fragen falls wenn zogern bitte gern direkt einfach besoin cas hesitez toute quest " +
+  "dude cualq caso algo si если случа любы вопрос что-то اذا حال تتردد " +
+  "lutfen please kindly rica dilerseniz isterseniz memnun happy glad help yardim keyif enjoy stay konakl hosca iyi gunler days " +
+  // Varış koşulu ("Varınca ev sahibinizi arayın", "Upon arrival, call your host") konu değildir.
+  "varin varis vardi gelin gelince geldig arriv upon ankunf ankomm llegad llegue llegar arrivee приезд приед وصول " +
+  // Genel olasılık / süre / arıza fiilleri ("Konaklamanız boyunca bir sorun yaşarsanız", "Acil bir durumda", "çalışmazsa") konu değildir.
+  "boyunca yasar yasan during throughout while acil emerg urgent calis work funktion fonction funcion работ gerek"
+).split(" ");
+function isNoiseStem(t: string): boolean {
+  return HOST_CONTACT_NOISE.some((n) => t === n || (n.length >= 3 && t.startsWith(n)));
+}
+
+export interface HostContactRemoval {
+  kind: HostContactKind;
+  /** Bilgi yönlendirmesi ("… için ev sahibinize sorabilirsiniz") ya da koşullu / kapanış başvurması. */
+  form: "referral" | "conditional";
+  /** Cümlenin bir yan cümlesi çıkarıldı (bilgi taşıyan baş kısım kaldı). */
+  appendix: boolean;
+  /** Çıkan parçanın ayırt edici kökleri (ev sahibi / iletişim / genel sorun sözcükleri hariç). */
+  stems: string[];
+  /** Çıkan parçanın sözlük konuları. */
+  topics: string[];
+  /** Kök ve konu yok: genel kapanış ("Herhangi bir sorunda ev sahibinize yazın."). */
+  generic: boolean;
+}
+
+export interface HostContactAnalysis {
+  /** Gönderilecek metin (hiçbir şey çıkmadıysa ya da geriye içerik kalmadıysa birebir aynı). */
+  text: string;
+  removals: HostContactRemoval[];
+  /** Çıkarmadan sonra selam / nezaket dışında içerik kalmadı → kapı tutar (metin aynen döner). */
+  nothingLeft: boolean;
+}
+
+function removalOf(kind: HostContactKind, removed: string, appendix: boolean): HostContactRemoval {
+  const stems = [...new Set(distinctiveTokens(removed).filter((t) => !isNoiseStem(t)))].sort();
+  const topics = [...new Set(topicsWithSymptomsOf(removed))].sort();
+  return { kind, form: kind === "referral" ? "referral" : "conditional", appendix, stems, topics, generic: stems.length === 0 && topics.length === 0 };
+}
+
+/** Yan cümle ayracı: virgül / noktalı virgül / iki nokta / Arapça virgül (ardından boşluk) ve sınırlı bağlaçlar. URL / saat ("12:00") bölünmez. */
+const CLAUSE_BOUNDARY = /[,;:،](?=\s)|\s(?=(?:ve|ama|fakat|ancak|and|but|und|aber|et|mais|y|pero|и|но|و)\s)/gu;
+/** Yalnız güçlü ayraç (noktalı virgül / iki nokta / Arapça virgül) — bilgi yönlendirmesinde virgülden önceki kısım çoğu zaman yönlendirmenin
+ *  KONUSUDUR ("For the sauna, please message your host"), noktalı virgülden önceki kısım ise ayrı bir bilgi cümlesidir. */
+const STRONG_BOUNDARY = /[;:،](?=\s)/gu;
+const LEADING_CONJ = /^(?:ve|ama|fakat|ancak|and|but|und|aber|et|mais|y|pero|и|но|و)\s+/iu;
+
+/**
+ * GD5 (K-1029-B): cümlenin koşulsuz baş yan cümlelerini döner — ilk koşul / talimat yan cümlesinden SONUNA kadar her şey çıkar. Kalan
+ * metin cümlenin BAŞ KISMIDIR (yalnız silme), en az bir yan cümlesi bilgi taşır ve dedektör ona yeniden koşar. Olmazsa `null` (cümle bütün
+ * olarak çıkar). Doğrusal.
+ */
+export function splitInstructionClauses(sentence: string): string | null {
+  return splitInstructionClausesWithTail(sentence)?.kept ?? null;
+}
+
+function splitInstructionClausesWithTail(
+  sentence: string,
+  strongOnly = false,
+  /** Kesim yalnız ilk silinen yan cümle bir KOŞULSA geçerli ("Havlular dolapta, internet giderse … sorun") — bilgi yönlendirmesinde
+   *  koşulsuz virgül kesimi yönlendirmenin konusunu bırakırdı ("For the sauna, please message your host"). */
+  requireConditionBreak = false,
+): { kept: string; removed: string } | null {
+  const body = sentence.trimEnd();
+  const endPunct = /[.!?。]+$/u.exec(body)?.[0] ?? "";
+  const core = body.slice(0, body.length - endPunct.length);
+  const cuts: number[] = [];
+  for (const m of core.matchAll(strongOnly ? STRONG_BOUNDARY : CLAUSE_BOUNDARY)) cuts.push(m.index ?? 0);
+  if (cuts.length === 0) return null;
+  let keepUntil = -1;
+  let start = 0;
+  for (const cut of [...cuts, core.length]) {
+    const clause = core.slice(start, cut).replace(/^[\s,;:،]+/u, "").replace(LEADING_CONJ, "");
+    if (!clause.trim()) {
+      start = cut;
+      continue;
+    }
+    if (hostContactKindOf(clause) !== null || isConditionLike(clause)) {
+      if (requireConditionBreak && !isConditionLike(clause)) return null;
+      break;
+    }
+    keepUntil = cut;
+    start = cut;
+  }
+  if (keepUntil <= 0 || keepUntil >= core.length) return null;
+  const head = core.slice(0, keepUntil).replace(/[\s,;:،]+$/u, "").trimEnd();
+  if (!head || !isSubstantiveSentence(head) || !carriesInformation(head)) return null;
+  const kept = `${head}${endPunct || "."}`;
+  // Kalan baş kısım da başvurma ya da koşul taşıyorsa (kesim temiz değil) bütün cümle çıkar.
+  if (hostContactKindOf(kept) !== null || isConditionLike(head)) return null;
+  return { kept, removed: core.slice(keepUntil) };
+}
+
+/** Kalan baş kısım BİLGİ taşıyor mu: sayı ya da genel sorun / nezaket / konaklama sözcüğü olmayan içerik kökü ("During your stay",
+ *  "Teşekkürler" bilgi değildir — GD5 mutasyonları G5c / G5g). */
 const GENERIC_TROUBLE_STEMS = new Set([
   "sorun", "probl", "issue", "herha", "anyth", "somet", "wrong", "durum", "ihtiy", "konak", "stay", "shoul", "troub", "quest", "conce",
   "yardi", "help", "helpi", "assis", "memnu", "happy", "glad", "sevin", "olsun", "durin", "need", "neede", "olurs", "yasar", "yasad",
+  "tesek", "thank", "merci", "danke", "graci", "спаси",
 ]);
-function carriesOtherInformation(sentence: string): boolean {
-  return sentence.split(OTHER_CLAUSE_SPLIT).some((clause) => {
-    if (conditionalHostContactKind(clause) !== null || refersGuestToHost(clause) || asksHypotheticalSituation(clause)) return false;
-    if (!isSubstantiveSentence(clause)) return false;
-    return /\d/.test(clause) || contentStemsOf(clause).some((stem) => !GENERIC_TROUBLE_STEMS.has(stem));
-  });
+function carriesInformation(clause: string): boolean {
+  return /\d/.test(clause) || contentStemsOf(clause).some((stem) => !GENERIC_TROUBLE_STEMS.has(stem));
 }
 
-export interface HostContactFillerResult {
-  /** Gönderilecek metin (bir şey çıkarılmadıysa ya da yalnız bu cümleler varsa birebir aynı). */
-  text: string;
-  /** Cevap yalnız çıkarılması gereken ev sahibine başvurma talimatından oluşuyor → kapı tutar (ev sahibi yanıtlar). */
-  hostContactOnly: boolean;
+function isConditionLike(clause: string): boolean {
+  return isConditionLikeClause(clause);
 }
 
-export function stripHostContactFiller(
-  reply: string,
-  guestTexts: readonly string[],
-  kbTexts: readonly string[] | undefined,
-): HostContactFillerResult {
-  if (!reply.trim()) return { text: reply, hostContactOnly: false };
-  let removed = false;
-  // GD1 (gece döngüsü 10-29): çıkarılan cümle misafirin TAM sorduğu durumun cevabıysa ("Wi-Fi bozulursa ne yapmalıyım?" → "… ev sahibinize
-  // yazın") cümle silinmez, BÜTÜN cevap tutulur: öğe kipinde model o isteği "cevaplandı" beyan eder, cümle sessizce silinseydi istek ev sahibine
-  // hiç görünmeden kapanırdı. Soruyla ilgisiz genel kapanış silinmeye devam eder. GD5: cümle talimatın yanında bilgi de taşıyorsa aynı (↑).
-  let answerRemoved = false;
+export function analyzeHostContact(reply: string): HostContactAnalysis {
+  if (!reply.trim()) return { text: reply, removals: [], nothingLeft: false };
+  const removals: HostContactRemoval[] = [];
   const lines = reply.split("\n").map((line) => {
-    const kept = replySentencesOf(line).filter((s) => {
-      const kind = conditionalHostContactKind(s);
-      if (!kind) return true;
-      if (kind === "call" && SAFETY_WARNING.test(s)) return true;
-      const asked = guestAskedThisSituation(s, guestTexts);
-      if (kind === "call" && asked && !!kbTexts && kbTexts.length > 0 && sentenceGroundedInKb(s, kbTexts)) {
-        return true;
+    const out: string[] = [];
+    let changed = false;
+    for (const s of replySentencesOf(line)) {
+      const kind = hostContactKindOf(s);
+      if (!kind) {
+        out.push(s);
+        continue;
       }
-      if (asked || carriesOtherInformation(s)) answerRemoved = true;
-      removed = true;
-      return false;
-    });
-    return { text: kept.join("").trim(), dropped: kept.length === 0 && line.trim() !== "" };
+      // Güvenlik uyarısı ("Gaz kokusu alırsanız 112'yi arayın ve ev sahibinize ulaşın") kalır — "yazın" hiçbir koşulda kalmaz (sınıfı bilgi
+      // yönlendirmesi olsa da: "Gaz kokusu alırsanız ev sahibinize yazın").
+      if (kind !== "write" && !namesWriteContact(s) && isSafetyWarningSentence(s)) {
+        out.push(s);
+        continue;
+      }
+      changed = true;
+      // Bilgi yönlendirmesi ("Sauna için, lütfen ev sahibinize yazın") virgülden kesilmez: baş kısmı yönlendirmenin KONUSUDUR, bilgi değil.
+      const cut =
+        kind === "referral"
+          ? (splitInstructionClausesWithTail(s, true) ?? splitInstructionClausesWithTail(s, false, true))
+          : splitInstructionClausesWithTail(s);
+      if (cut !== null) {
+        out.push(cut.kept + (/\s$/u.test(s) ? " " : ""));
+        removals.push(removalOf(kind, cut.removed, true));
+      } else {
+        removals.push(removalOf(kind, s, false));
+      }
+    }
+    const text = out.join("").trim();
+    return { text: changed ? text : line, dropped: changed && text === "" && line.trim() !== "" };
   });
-  if (!removed) return { text: reply, hostContactOnly: false };
-  if (answerRemoved) return { text: reply, hostContactOnly: true };
+  if (removals.length === 0) return { text: reply, removals, nothingLeft: false };
   // Tamamen çıkarılan satır düşer; özgün boş satır (paragraf arası) kalır.
   const text = lines
     .filter((l) => !l.dropped)
@@ -123,5 +198,19 @@ export function stripHostContactFiller(
     .replace(/\n{3,}/g, "\n\n")
     .trim();
   const substantive = text.split("\n").some((l) => replySentencesOf(l).some((s) => isSubstantiveSentence(s)));
-  return substantive ? { text, hostContactOnly: false } : { text: reply, hostContactOnly: true };
+  return substantive ? { text, removals, nothingLeft: false } : { text: reply, removals, nothingLeft: true };
+}
+
+export interface HostContactFillerResult {
+  /** Gönderilecek metin (bir şey çıkarılmadıysa ya da yalnız bu cümleler varsa birebir aynı). */
+  text: string;
+  /** Cevap yalnız çıkarılması gereken ev sahibine başvurma talimatından oluşuyor → kapı tutar (ev sahibi yanıtlar). */
+  hostContactOnly: boolean;
+  removals: HostContactRemoval[];
+}
+
+/** Uyumluluk sarmalayıcısı (eski imza): misafir metni ve bilgi tabanı artık karar vermez (K-1029-C) — yalnız imza korunur. */
+export function stripHostContactFiller(reply: string, _guestTexts?: readonly string[], _kbTexts?: readonly string[]): HostContactFillerResult {
+  const a = analyzeHostContact(reply);
+  return { text: a.text, hostContactOnly: a.nothingLeft, removals: a.removals };
 }

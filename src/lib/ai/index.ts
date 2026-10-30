@@ -12,6 +12,7 @@ import { accessCodeCompleteEnabled } from "./access-code-complete";
 import { complaintFollowupRuleEnabled } from "@/lib/ai/complaint-followup";
 import { courtesyRuleEnabled } from "@/lib/ai/courtesy-rule";
 import { noApologyRuleEnabled } from "@/lib/ai/no-apology-rule";
+import { hostContactPromptBanEnabled } from "@/lib/ai/host-contact-ban-rule";
 import { guestTurnLanguage, unansweredGuestTexts } from "./language-signal";
 import { suggestReplyFallback, classifyFallback } from "./fallback";
 import { timeCorrectedInMessage, timeStatedInMessage } from "./stated-time";
@@ -282,6 +283,7 @@ function replySystemPromptForItems(items: ReplyPromptItems): string {
     complaintFollowup: complaintFollowupRuleEnabled(),
     courtesy: courtesyRuleEnabled(),
     noApology: noApologyRuleEnabled(),
+    hostContactBan: hostContactPromptBanEnabled(),
     itemsMode: items.mode,
     itemsHeld: items.held,
     itemsParts: items.parts === true,
@@ -800,8 +802,8 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
           : null;
         // Birleşik metin de aynı tavana tabi (Haiku 10-23: beş uzun parça tavanı aşıyordu); kesilirse güven ≤ 0.5 → gitmez.
         const shown = partsOutcome ? capReply(partsOutcome.reply) : cappedReply;
-        // R13-b / R13-c (kurucu kararı 10-28 gece): soruyla ilgisiz / yaşanan olaya verilmiş "bir sorun olursa ev sahibinize yazın / arayın"
-        // cümlesi çıkar (`host-contact-filler.ts`); geriye içerik kalmazsa metin aynen kalır, kapı tutar (`hostContactOnly`).
+        // R13-b / R13-c + K-1029-A (kurucu 10-28 / 10-29 gece): misafiri ev sahibine yazmaya / ulaşmaya / aramaya gönderen HER cümle (yedi dil,
+        // her biçim) çıkar (`host-contact-filler.ts`); geriye içerik kalmazsa metin aynen kalır, kapı tutar (`hostContactOnly`).
         const hostContact = stripHostContactFiller(
           shown.text,
           [...unansweredGuestTexts(input.history ?? [], input.guestMessage), input.guestMessage],
@@ -910,6 +912,8 @@ export async function suggestReply(input: SuggestReplyInput): Promise<SuggestRep
             : {}),
           ...(partsOutcome ? { answerParts: partsOutcome.verdicts, verifiedParts: partsOutcome.verified } : {}),
           ...(hostContact.hostContactOnly ? { hostContactOnly: true as const } : {}),
+          // K-1029-A: çıkarılan parçaların kaydı (metin yok) — "cevaplandı" kuralı ve açık soru kararı okur.
+          ...(hostContact.removals.length > 0 ? { hostContactRemovals: hostContact.removals } : {}),
           // 4.12: doğrulanmış parçalar kesilmeden ve sağlam şemayla gidiyorsa kapı genel güvene takılmaz (`verifiedPartsWaiver`).
           ...(partsOutcome &&
           replyText.trim() &&

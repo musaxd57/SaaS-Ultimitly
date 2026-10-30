@@ -299,5 +299,12 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
   // Kurucu 10-22 ("bilgi tabanıyla ilgili … hiçbir şey müşteriye gitmemeli"; Opus 10-22): taslak bilginin kaynağını anlatıyorsa ev sahibi
   // tek tıkla göndermeden önce uyarıyı görür (otomatik gönderim kapısıyla aynı yüklem).
   const internalSourceCheck = namesInternalSource(hostDraft);
-  return jsonOk({ ...result, reply: hostDraft, availabilityCheck, earlyCheckin, internalSourceCheck });
+  // K-1029-A (kurucu 10-29 gece): taslaktan "ev sahibinize yazın" cümlesi çıkarıldıysa ev sahibi bilir — kayıt (kök / konu) yanıta GİTMEZ,
+  // yalnız sayı ve "bir soru cevapsız kalmış olabilir" işareti (ekrandaki metin kurucu sorusu F4'ü bekliyor).
+  const { hostContactRemovals, ...publicResult } = result;
+  const hostContactNotice =
+    hostContactRemovals && hostContactRemovals.length > 0
+      ? { removed: hostContactRemovals.length, maybeUnanswered: hostContactRemovals.some((r) => !r.generic) }
+      : undefined;
+  return jsonOk({ ...publicResult, reply: hostDraft, availabilityCheck, earlyCheckin, internalSourceCheck, ...(hostContactNotice ? { hostContactNotice } : {}) });
 });

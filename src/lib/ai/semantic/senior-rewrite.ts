@@ -97,6 +97,7 @@ export function mergeSeniorRewrite<
     verifiedParts?: unknown;
     verifiedPartsOnly?: true;
     hostContactOnly?: true;
+    hostContactRemovals?: unknown;
     partRewriteBilled?: true;
     claimedActions?: unknown;
     timeConflicts?: unknown;
@@ -113,11 +114,19 @@ export function mergeSeniorRewrite<
   // 4.12 doğrulanmış parça işareti yeni çağrının parçalarına aittir: ilk taslağın işareti yeniden yazılmış metne TAŞINMAZ.
   // GD7 (gece döngüsü 10-29): "yalnız ev sahibine başvurma talimatı" işareti de metne aittir (`host-contact-filler.ts`) — yeni metin yalnız
   // o talimattan ibaretse işaret taşınmazsa kapı tutmaz ve cümle misafire gider; ilk taslağın işareti yeni metni gereksiz tutar.
-  const { verifiedPartsOnly: _firstWaiver, hostContactOnly: _firstHostContact, partRewriteBilled: _firstBilled, ...firstRest } = first;
+  const {
+    verifiedPartsOnly: _firstWaiver,
+    hostContactOnly: _firstHostContact,
+    hostContactRemovals: _firstRemovals,
+    partRewriteBilled: _firstBilled,
+    ...firstRest
+  } = first;
   return {
     ...(firstRest as T),
     ...(retried.verifiedPartsOnly === true ? { verifiedPartsOnly: true as const } : {}),
     ...(retried.hostContactOnly === true ? { hostContactOnly: true as const } : {}),
+    // K-1029-A: çıkarılan başvurma parçaları yeni metnin parçasıydı — ilk taslağınki taşınmaz (yanlış istek açılmasın / kapanmasın).
+    ...(retried.hostContactRemovals !== undefined ? { hostContactRemovals: retried.hostContactRemovals } : {}),
     // GD7 tablosu (`reply-field-rules.ts`): parça yeniden yazması İKİ çağrıdan herhangi birinde olduysa kotadan birim düşer (önceden yalnız ilk
     // çağrınınki okunuyordu — yeniden yazılan çağrının parça yeniden yazması günlük kotaya sayılmıyordu).
     ...(first.partRewriteBilled === true || retried.partRewriteBilled === true ? { partRewriteBilled: true as const } : {}),

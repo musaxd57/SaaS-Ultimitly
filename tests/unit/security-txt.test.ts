@@ -1,3 +1,4 @@
+import { classifyPath } from "@/lib/private-routes";
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -81,8 +82,8 @@ describe("public/.well-known/security.txt (RFC 9116)", () => {
     // `/guvenlik` middleware'in PUBLIC_PREFIXES listesinde değilse, politikayı
     // okumak isteyen (tanım gereği oturumsuz) araştırmacı /login'e düşer ve
     // `security.txt`'in `Policy` alanı ölü bağlantıya döner.
-    const mw = readFileSync(join(process.cwd(), "src/middleware.ts"), "utf8");
-    expect(mw).toContain('"/guvenlik"');
+    // 10-29 gece (404): yol sınıfları ara katmandan TEK yaprak modüle taşındı — kaynak taraması yerine DAVRANIŞ: yol açık sınıfta.
+    expect(classifyPath("/guvenlik")).toBe("public");
     for (const p of field("Policy")) {
       expect(p).toBe("https://www.lixusai.com/guvenlik");
     }

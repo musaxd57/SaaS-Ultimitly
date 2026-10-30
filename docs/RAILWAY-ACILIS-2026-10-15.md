@@ -204,6 +204,9 @@ kalıcı "işlem yok" sayılıyor (niyet kapanır, yeni işlem açılır) — ye
   takılırsa cevap ev sahibine taslak kalır — bu tutuş için e-posta GİTMEZ, döngü YOK. Kanıt kaydında `rw` (sebep kodları). QR'da da aynı.
   Maliyet: her otomatik cevap adayına iki küçük paralel çağrı (~1,6 sn, 1.000 mesajda ~$2). Misafire gideni değiştirir → açmadan önce
   gerçek model ölçümü (bilgim-yok seti + `evals/airbnb-message-policy.json` + kırmızı takım) + kurucu + ilk denemeler birlikte.
+- `AI_HOST_CONTACT_PROMPT_BAN_DISABLED` (K-1029-A, kurucu 10-29 gece: "ev sahibinize yazın her dilde yasak — istem + kod") — istem yasağı
+  VARSAYILAN AÇIK; bu anahtar yalnız ACİL DURDURMA (`=1` → sistem istemi önceki hâliyle bayt bayt aynı). Kod tarafı (cümleyi silme, cevapsız
+  soruyu açık tutma) anahtarsız ve her zaman açık. Açılıştan ÖNCE ücretli ölçüm şart (tasarım `docs/TASARIM-2026-10-29-ev-sahibine-yonlendirme-yasagi.md` §E).
 - `AI_NO_APOLOGY_RULE_ENABLED` (kurucu 10-21: "sofra kirli derse özür dilemesin, haklısınız üzgünüm demesin") — cevap istemi şikâyette özür /
   "haklısınız" / kusur kabulü / tazminat iması öğretmez (bugünkü istem "Bunun için özür dileriz" kalıbını ÖĞRETİYOR; ölçüm: gönderilen 3.329
   gerçek cevapta 1 açık kusur özrü, taslakların ~%9'unda özür). Misafire gideni değiştirir → açmadan önce gerçek model ölçümü + kurucu.

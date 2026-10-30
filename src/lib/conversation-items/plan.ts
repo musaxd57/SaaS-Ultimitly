@@ -17,6 +17,7 @@ import {
 } from "./relation";
 import type { ReplyItemsInput } from "./reply-block";
 import { needTerms, topicAbsenceEnabled } from "./topic-absence";
+import { asksHypotheticalSituation } from "@/lib/ai/absence";
 import { answerPartsEnabled } from "@/lib/ai/answer-parts";
 import { itemOrdinalEnabled } from "./flag";
 
@@ -173,6 +174,16 @@ export function composeItemsPlan<T extends PlanItem>(input: {
       ...(heldDeviceTopics.length > 0 && deviceTopicsOf([...answeredTopics]).length === 0 ? { heldDeviceGenericRef: true } : {}),
       // Konu bazlı "bilgim yok" (H9, kurucu 10-16; anahtar kapalıyken alan yok).
       // Kurucu 10-22 Soru 1: konu ayrıca misafirin kendi soru sözcükleriyle (`terms`) — sabit konu sözlüğünde olmayan "sauna" da eşlenir.
+      // K-1029-A: "cevaplandı" kuralının girdisi HER ZAMAN (istem değişmez; yalnız kapı okur).
+      ...(answerable.length > 0
+        ? {
+            hostContactNeeds: answerable.map(({ ref, item }) => {
+              const key = hintKey(item.messageId, item.kind, item.ordinal);
+              const queries = input.needQueries?.get(key) ?? [input.hints.get(key) ?? ""];
+              return { ref, topics: topicsOfItem(item), terms: needTerms(queries), contingency: queries.some((q) => asksHypotheticalSituation(q)) };
+            }),
+          }
+        : {}),
       ...(topicAbsenceEnabled()
         ? {
             answerableTopics: answerable.map(({ ref, item }) => {

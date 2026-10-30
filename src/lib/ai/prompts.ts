@@ -1496,6 +1496,40 @@ export const NO_APOLOGY_REPLACEMENTS: readonly Replacement[] = [
  * kodu). Sıra, önceki sabitlerle (`REPLY_SYSTEM_PROMPT_CODE_GREETING`, `…_KB_FEE_RULE`, `…_CODE_GREETING_KB_FEE_RULE`) aynıdır; çapalar
  * birbirine değmez (her birleşimde eksik çapa yok — pinli).
  */
+/**
+ * K-1029-A (kurucu 10-29 gece): misafiri ev sahibine yönlendiren cümle yasağı — `AI_HOST_CONTACT_PROMPT_BAN_DISABLED` yalnız acil durdurma
+ * (varsayılan AÇIK; `host-contact-ban-rule.ts`). Ana istem yalnız CÜMLEYİ yasaklar ve "bilgi yok" kuralına gönderir; "o soruyu cevaplama"
+ * yalnız öğe kipi bloğunda (istek orada açık kalır — QR / defterli olmayan kanalda soru sessizce kaybolmasın; iki hakem 10-29).
+ */
+const HOST_CONTACT_BAN_REPLACEMENTS: readonly Replacement[] = [
+  [
+    `    "Başka bir isteğiniz var mı?" gibi BOŞ/DOLGU kapanış cümlelerini ASLA yazma — sorulanı
+    yanıtla ve dur.
+`,
+    `    "Başka bir isteğiniz var mı?" gibi BOŞ/DOLGU kapanış cümlelerini ASLA yazma — sorulanı
+    yanıtla ve dur.
+  - EV SAHİBİNE YÖNLENDİRME CÜMLESİ YAZMA: misafir bu sohbette zaten ev sahibiyle yazışıyor ve sen ev sahibi adına
+    yazıyorsun. Misafire ev sahibine yazmasını, mesaj atmasını, ulaşmasını, haber vermesini, iletişime geçmesini ya da
+    ona sormasını söyleyen cümleyi HİÇBİR dilde, HİÇBİR biçimde yazma — koşullu ("Herhangi bir sorunda ev sahibinize
+    yazın", "Should anything go wrong, message your host"), koşulsuz ("Feel free to message your host", "… için ev
+    sahibinize yazabilirsiniz"), kapanış ya da yan cümle olarak da; "bir sıkıntı olursa bize yazın" da aynı. Ev sahibini
+    ARAMASINI da yazma; tek istisna: misafir TAM o durumu sordu ("Anahtarı kaybedersem ne yapmalıyım?") ve bilgi tabanı
+    o durumda aramayı söylüyor. Gaz, yangın, duman, acil numara gibi güvenlik uyarıları aynen kalır. Bir sorunun bilgisi
+    yoksa yukarıdaki "bilgi yok" kuralı geçerli; boşluğu yönlendirme cümlesiyle doldurma.
+      YANLIŞ: "Havlular dolapta. Bir sorun olursa ev sahibinize yazın."   DOĞRU: "Havlular dolapta."
+`,
+  ],
+  ["bilgi yoksa nazikçe alternatif öner ve ev sahibine yönlendir.", "bilgi yoksa nazikçe alternatif öner; misafiri ev sahibine yönlendiren cümle yazma."],
+  ['DOĞRU (b): "Şunu dener misiniz: ... Düzelmezse yeniden yazın; o mesaj da kaydedilir."', 'DOĞRU (b): "Şunu dener misiniz: ..."'],
+];
+/** Parça kipinin `no_info` satırı da (yalnız parça katmanı uygulandıysa çapa var). */
+const HOST_CONTACT_BAN_PARTS_REPLACEMENTS: readonly Replacement[] = [
+  [
+    `  - status "no_info": bilgi yoksa ya da emin değilsen — text ve evidence BOŞ;`,
+    `  - status "no_info": bilgi yoksa, emin değilsen ya da bilginin o istek için tek söylediği "ev sahibine yazın / ulaşın / arayın" ise — text ve evidence BOŞ;`,
+  ],
+];
+
 export interface ReplyPromptFlags {
   codeGreeting: boolean;
   kbFeeRule: boolean;
@@ -1512,6 +1546,8 @@ export interface ReplyPromptFlags {
   courtesy?: boolean;
   /** Tarafsızlık / özür yasağı (`AI_NO_APOLOGY_RULE_ENABLED`). */
   noApology?: boolean;
+  /** K-1029-A ev sahibine yönlendirme cümlesi yasağı (varsayılan AÇIK; `AI_HOST_CONTACT_PROMPT_BAN_DISABLED` acil durdurma). */
+  hostContactBan?: boolean;
 }
 /** Katmanın çapaları; birleşime bağlıysa (önceki bir katman çapayı değiştirdiyse) işlev. */
 type LayerReplacements = readonly Replacement[] | ((f: ReplyPromptFlags) => readonly Replacement[]);
@@ -1529,6 +1565,8 @@ const PROMPT_LAYERS: readonly (readonly [keyof ReplyPromptFlags, LayerReplacemen
   // ÖRNEK 24'ün açılışı kod selamı katmanında değişir → hâl hatır katmanı o birleşimde kendi çapasını kullanır.
   ["courtesy", (f) => (f.codeGreeting ? COURTESY_CODE_GREETING_REPLACEMENTS : COURTESY_REPLACEMENTS)],
   ["noApology", NO_APOLOGY_REPLACEMENTS],
+  // Parça kipinin `no_info` satırı parça katmanının metninde — yalnız o katman uygulandıysa.
+  ["hostContactBan", (f) => (f.itemsMode && f.itemsParts ? [...HOST_CONTACT_BAN_REPLACEMENTS, ...HOST_CONTACT_BAN_PARTS_REPLACEMENTS] : HOST_CONTACT_BAN_REPLACEMENTS)],
 ];
 const derivedPromptCache = new Map<string, { text: string; missing: string[] }>();
 

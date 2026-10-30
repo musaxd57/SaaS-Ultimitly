@@ -517,6 +517,12 @@ export interface ItemsGateInput {
    * cihaz olabilir (`relation.touchesHeldDevice` `genericRef`, 15 ajan A06). Yalnız `heldDeviceTopics` doluyken.
    */
   heldDeviceGenericRef?: true;
+  /**
+   * K-1029-A (kurucu 10-29 gece): cevaplanabilir her isteğin konuları + kendi sözcükleri + olasılık / arıza sorusu mu — "ev sahibinize
+   * yazın" cümlesi silinince hangi isteğin AÇIK kalacağını `host-contact-settle.ts` buna bakarak karar verir. HER ZAMAN kurulur (yalnız kapı
+   * girdisi; istem baytları değişmez). Boş tur → alan yok.
+   */
+  hostContactNeeds?: readonly { ref: string; topics: readonly string[]; terms: readonly string[]; contingency: boolean }[];
 }
 
 /**

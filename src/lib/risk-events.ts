@@ -87,6 +87,9 @@ const REASONS = new Set([
   "emergency_directive",
   // Acil numara sorusuna koddan yalnız numara gitti (kurucu kararları 10-11; anahtar `AI_EMERGENCY_NUMBER_ENABLED`).
   "emergency_number",
+  // K-1029-A (kurucu 10-29 gece): QR'da "ev sahibinize yazın" cümlesi silindi, kalan doğru cevap gitti, cevapsız kalmış olabilecek soru ev
+  // sahibine devredildi (`host-contact-settle.hostContactOpenWithoutLedger`).
+  "host_contact_open",
   // QR cevabında bilgi tabanında tarifi / konusu olmayan cihaz için adım (kurucu 10-15; anahtar `AI_FIX_SUPPORT_GATE_ENABLED`; QR kapısı ile BİREBİR).
   "fix_unsupported",
   // Kıdemli okuyucu (T-b, kurucu 10-22; anahtar `AI_SENIOR_READER_ENABLED`; QR kapısı ile BİREBİR): ev sahibine platform dışı ödeme · özür.
