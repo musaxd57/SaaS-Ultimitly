@@ -65,6 +65,12 @@ describe("Ayarlar › WhatsApp bildirimleri", () => {
     expect(await (await get()).json()).toEqual({ available: false });
     expect((await post({ number: "+90 532 123 45 67", consent: true })).status).toBe(400);
 
+    // Yalnız kanal anahtarı kapalı (liste, anahtar, numaramız tam) → yine kapalı.
+    flagsOn();
+    vi.stubEnv("HOST_CHANNEL_ENABLED", "");
+    expect(await (await get()).json()).toEqual({ available: false });
+    expect((await post({ number: "+90 532 123 45 67", consent: true })).status).toBe(400);
+
     flagsOn("baska-isletme");
     expect(await (await get()).json()).toEqual({ available: false });
     flagsOn();
