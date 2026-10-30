@@ -54,6 +54,9 @@ describe("erişim kaybı — tutulması gereken mesajlar (her dilde)", () => {
     "Ich habe meinen Schlüssel verloren",
     "Wir finden den Schlüssel nicht",
     "J'ai perdu la clé",
+    // Aksansız yazım (sağlamlık ölçümü 10-29 gece buldu): "clé" → "cle", "perdí" → "perdi"
+    "J'ai perdu la cle de l'appartement",
+    "Perdi la llave",
     "Je ne trouve pas mes clés",
     "He perdido la llave",
     "No encuentro las llaves",

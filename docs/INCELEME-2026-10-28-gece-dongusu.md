@@ -115,7 +115,7 @@ gerçek hacme yakın KURGUSAL veri (10 daire · 1.504 rezervasyon · 1.336 konu�
 - Sayfa açılışı (normal ağ): ana içerik 0,14–0,69 sn; en yavaş Görevler (0,69) ve Takvim (0,52). Düğmeler: 98 düğme, ortanca 80 ms, %90'ı 145 ms altı.
 - Yapay zekâ cevabı (docs/olcum, 4.780 gerçek ölçüm): tam akış ortanca 7,0 sn / %90 11,2 sn / %99 22 sn; QR ortanca 5,8 sn ("Lixus AI yazıyor…" görünür).
 - **HZ1 — SORU:** her menü geçişi ~0,4 sn; veri + kod 0,1 sn'de hazır, ~0,3 sn React 19'un yükleniyor iskeletinden sonraki zorunlu bekletmesi
-  (`globalMostRecentFallbackTime + 300`, react-dom 19.2.7, ölçüldü). Öneri: hızlı sayfalarda `loading.tsx` kaldırılıp tıklanan menü öğesinde
+  (`globalMostRecentFallbackTime + 300`, ölçüldü; ⚠️ düzeltme 10-29 gece: çalışan kopya kurulu react-dom 19.2.7 DEĞİL, Next'in paketlediği React `19.2.0-canary-0bdb9206-20250818` — kural ikisinde de aynı). Öneri: hızlı sayfalarda `loading.tsx` kaldırılıp tıklanan menü öğesinde
   gösterge (`useLinkStatus`) → beklenen ~0,1–0,2 sn; yavaş ağda eski sayfa kalır + gösterge. Yalnız panel; misafire dokunmaz. **Böyle yapalım mı?**
 - **HZ2 — SORU:** yavaş 3G'de menü tıklamasından sonra ~1 sn ekranda hiçbir değişiklik yok (0,1 / 0,3 / 0,7 sn kareleri aynı). HZ1 ile aynı düzeltme.
 - **HZ3 — SORU:** Takvim 539 KB HTML (75 KB sıkıştırılmış); yavaş 3G'de kullanılabilir 5,5 sn (ötekiler ~2,1). Öneri: ilk ekranda iki hafta / hücre
@@ -193,3 +193,66 @@ Kurucunun şüphesi doğrulandı: panel içi 404 ekranı 200 ile dönüyor. Düz
 Sonuç: sunucu süresi önemsiz; yavaş ağda süreyi AKTARIM belirliyor. Mobil ajanda ile masaüstü ızgara aynı HTML'de, ana içeriğin yarısı her
 ekranda gizli duran ikinci kopya (kurucunun adayı doğrulandı). Not: önceki turda yavaş 3G'de kullanılabilir 5,5 sn ölçülmüştü; bu tur 3,5 sn
 (makine yükü farkı — iki ölçüm de yazıldı, yeni tasarım aynı betikle aynı koşulda karşılaştırılacak).
+
+## 10-29 gece — yapılanlar (ikinci yarı) + sabah soruları
+
+### K-1029-D ✅ Kayıp anahtar / kilitli kalma → ev sahibine kalır, ÖNCELİKLİ gösterilir (kurucu GD4 "evet")
+- Yeni olay ağı `isAccessLossText` (`fallback.ts`): aynı cümlede NESNE (anahtar, kapı / oda kartı, otopark / garaj kumandası, anahtar kutusu,
+  key, fob, lockbox, Schlüssel, clé, llave, ключ, مفتاح) + KAYIP fiili (kaybettim / bulamıyorum / çaldırdım / kilitte kırıldı / içeride
+  unuttum / kutusu boş; lost my / can't find / stolen …; yedi dil) + bitişik kilitli kalma kalıpları. Etiket `access_security`. Ek OKUNMAZ;
+  yalnız sıkılaştırır. Ayrıntı + örnek tablosu + "neden checkin sayılıyordu": `docs/claude/sozcuk-aglari.md`.
+- Bağlantılar: kanal kapısı (önceki cevapsız mesaj dahil) · uyarı geçişi (oto-yanıt KAPALIYKEN de e-posta) · kelime yolu "Sorunlu" kaydında
+  öncelik **Acil** (acil + erişim kaybı; şikâyet önceliği değişmedi) · öğe kipinde tutulan istek konuşmayı Acil işaretler (Wi-Fi gibi öteki
+  sorular cevaplanır) · Dikkat Gerektirenler'de acil satırla aynı üst sıra · QR kritik uyarı.
+- Bulunan ek açık: "I'm locked out" / "Kapıda kilitli kaldım" acil ağında tutuluyordu ama oto-yanıt kapalıyken **e-posta gitmiyordu** (tehlike
+  okuyucusu kilitli kalmayı kapsamaz) → artık uyarı + Acil.
+- Kanıt: ağ 78 vaka (yedi dil + kontroller), entegrasyon 15 (eski kodda 7 kırmızı), süre pini 9, mutasyon **16/16** (yaşayan D15 → pin eklendi).
+- **GD4-b — SORU:** kaybı bildiren SSS'ler de artık ev sahibine kalıyor. Örnek:
+  | misafir | önce | şimdi |
+  |---|---|---|
+  | "Dairenin iki anahtarını da kaybettik, ne kadar ödememiz gerekiyor?" | bilgi tabanındaki ücret gidebilirdi ("Kayıp anahtar 1.200 TL") | tutulur, ev sahibine Acil e-posta |
+  | "Kayıp anahtar ücreti ne kadar?" | ücret gidebilirdi | tutulur |
+  | "Anahtarı kaybedersem ne olur?" | ücret gidebilir | **değişmedi** (varsayım biçimi listede yok) |
+  Öneri: böyle kalsın (kayıp varsa ev sahibi bilmeli); ileride anlama katmanı "olay mı soru mu" sinyaliyle SSS'yi ayırır (K-1029-C).
+  **Böyle kalsın mı?**
+- **GD4-c — SORU:** "Anahtar kutusunu bulamıyoruz" da tutuluyor (sözünüz "bulamıyorum gibi şeyler hosta"). Seçenek: bilgi tabanında kutunun
+  yeri yazılıysa cevap gitsin + ev sahibine yine bildirim. **Hangisi?**
+- **GD4-d — SORU (eklenebilecekler, hepsi yalnız sıkılaştırır):** çoğul kilitli kalma ("Eve giremiyoruz", "We cannot get in" — çıplak
+  "giremiyor" ALINMAZ: "Erken giremiyor muyuz?"), içeride mahsur ("Asansörde kaldık" → acil), yanlış kapı kodu ("Kapı şifresi yanlış" bugün
+  Wi-Fi sayılıyor!), kapı kilitlenmiyor, akıllı kilit pili bitti. Tablo: `docs/claude/sozcuk-aglari.md` §5. **Hangileri eklensin?**
+- **GD4-e — SORU:** gelen kutusu bugün önceliğe göre değil son mesaj zamanına göre sıralı; "Acil" konuşmalar en üstte mi dursun?
+
+### 404 ✅ (oturumsuz kısmı) — gerçek durum kodu; özel adres listesi sayfa ağacından
+- Oturumsuz bilinmeyen adres artık **404** (önce 307 → giriş). Panel yolları (`(app)` klasörleri, `src/lib/private-routes.ts`) girişe gider —
+  kayıt varlığı oturumsuz sorgulanmaz. Liste kenar çubuğundan değil sayfa ağacından; test iki yönlü pinliyor, `(app)` dışındaki her sayfanın açık
+  olduğunu da sınıyor. Paylaşım görseli `/opengraph-image` artık herkese açık (önce girişe yönleniyordu → bağlantı önizlemesi kırıktı).
+  QR / şifre sıfırlama / doğrulama / yasal sayfalar değişmedi. E2E pin (CI üretim sunucusu): 404 / 307 / 200. Mutasyon 4/4.
+- **Kalan — SORU 404-b:** panel içi silinmiş / başka işletmenin kaydı (`/inbox/x`) ekranda 404 kartı ama HTTP **200** (akışlı yanıt: iskelet
+  önce gidiyor). Sayfa giriş arkasında + noindex; arama motoru görmez. Seçenekler: (a) kayıt sayfalarında iskeleti kaldırıp varlık kontrolünü
+  akıştan önce yapmak (gerçek 404; o sayfalarda iskelet yerine üst çubuk şeridi), (b) 200 + 404 ekranı kabul (bugünkü). Öneri (a), HZ1
+  iskelet denemesiyle birlikte. **Hangisi?**
+- Personel (temizlikçi) bilinmeyen adreste bugünkü gibi Görevler'e yönleniyor (404 görmüyor) — değiştirilmedi.
+
+### HZ2 ✅ Menü tıklamasında anında geri bildirim
+- Tıklanan menü öğesi hemen seçili; üst çubuğun alt kenarında ince bekleme şeridi (mobilde menü kapandıktan sonra da görünür). Biter: adres
+  değişti VE rota iskeleti ekrandan kalktı (= veri hazır; Next'in `useLinkStatus`u iskelet görünür görünmez bittiği için kullanılmadı) · hata /
+  404 ekranı · yeni tıklama · en geç 15 sn. Bağlantılar hiç kilitlenmez; Cmd/Ctrl tık ve açık sayfaya tıklama şerit göstermez; hareket azaltma
+  açıksa şerit sabit. 11 test (eski kabukta 5 kırmızı), mutasyon 8/8. Yavaş yükleme uyarısında yazım düzeltildi: "Sayfa'nın" → "Sayfanın".
+- HZ1'in kalan kısmı (1–2 sayfada iskeletsiz karşılaştırma + performans kaydı) sıradaki iş.
+
+### K-1029-F — Model anlaması bozuk yazıya dayanıklı mı? (kurucu sorusu: "virgülle kötü ayırma, yazım hatası, eksik sözcük — bütün dillerde?")
+**Kısa ve dürüst cevap: kısmen ölçüldü, ÇİFTLİ (aynı mesajın temiz + bozuk hâli) hiç ölçülmedi.** Bildiklerimiz:
+- Anlama katmanı geliştirme seti (54 senaryo, 7 dil): istek bulma %93; dil başına tr 53/56, en 10/10, de 3/3, es 1/3, fr 0/1 (küçük örnek).
+- Mühürlü kırmızı takım (ayrı yazar, 116 istek): argo 1/2, gürültü 3/5, başka dil 1/2 — küçük örnek ama zayıf nokta işareti; dil başına en 10/18,
+  ar 10/15, fr 8/12 (Türkçe 32/39).
+- Tehlike sondası (70 mesaj; 41'inde hiç cümle noktalaması yok, 24'ü küçük harfle başlıyor, 5 Türkçe mesajda hiç Türkçe harf yok): 70/70 doğru,
+  acil yol 48/48 — ama yalnız acil alanında.
+- Bilgi tabanı getirme (sözcüksel): Türkçe yazım hatalı sorular ("otopakr varmı", "giris saati kacta") %100.
+- Gerçek geçmişte 104 mesaj (%2,9) hiç noktalama taşımıyor (tr 56, ar 24, en 10 …) — yani konu gerçek.
+- **Ölçülmeyen:** model düzeyinde Türkçe yazım hatası, bozuk virgül / eksik sözcük çiftleri, karışık dilde cevap dili.
+- İstem: anlama istemi bozuk yazı hakkında hiçbir şey söylemiyor ("Any language is possible." yalnız). Öneri (ücretsiz, ölçümle birlikte açılır):
+  "yazım hatası, noktalama yokluğu, eksik sözcük, Türkçe karakter yokluğu, argo, sesle yazdırma, karışık dil olabilir — anlama göre karar ver" satırı.
+- **Plan (kredi gelince, ücretli — onayınızla):** `evals/robustness-dev.json` — her temel mesajın 6 bozulmuş eşi (noktalama yok · virgül yanlış
+  yerde · Türkçe karakter yok · sözcük düşük · %15 sözcükte tek harf hatası · karışık dil), 7 dil; ölçüt "değişmezlik" (bozuk eşin niyet / istek
+  sayısı / dil / acil / durum etiketleri temizinkiyle aynı mı). Hata çıkarsa neden analizi kendiliğinden koşar. Seti bu gece yazıyorum (kredi gerekmez).
+

@@ -2782,7 +2782,11 @@ const ACCESS_LOCKOUT_PHRASES = [
   "забыл ключ", "забыла ключ", "забыли ключ", "نسيت المفتاح", "نسيت المفاتيح", "نسيت مفتاح",
 ];
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-const bothFolds = (words: readonly string[]) => [...new Set(words.flatMap((w) => [w, foldTurkishAscii(w)]))];
+// Aksan sökülmüş biçim de (ölçüldü 10-29 gece, sağlamlık kolu: "J'ai perdu la cle" — aksansız "clé" — eşleşmiyordu; Türkçe katlama
+// yalnız Türkçe harfleri iner, é / í / á kalır).
+const stripMarks = (w: string) => w.normalize("NFD").replace(/\p{M}/gu, "").normalize("NFC");
+const allFolds = (w: string) => [w, foldTurkishAscii(w), stripMarks(foldTurkishAscii(w))];
+const bothFolds = (words: readonly string[]) => [...new Set(words.flatMap(allFolds))];
 // Sabit genişlikli geriye bakış + düz alternatif listesi — doğrusal (ReDoS kuralı, `access-loss-cost.test.ts`).
 const ACCESS_OBJECT_RE = new RegExp(
   `(?<![\\p{L}\\p{N}])(?:${bothFolds(ACCESS_PREFIX_OBJECTS).map(escapeRe).join("|")})` +
@@ -2794,7 +2798,7 @@ const ACCESS_LOSS_VERB_FORMS: readonly (readonly string[])[] = (() => {
   const out = new Map<string, readonly string[]>();
   for (const v of ACCESS_LOSS_VERBS) {
     const toks = typeof v === "string" ? [v] : v;
-    for (const form of [toks, toks.map(foldTurkishAscii)]) out.set(form.join("\u0000"), form);
+    for (const form of [toks, toks.map(foldTurkishAscii), toks.map((t) => stripMarks(foldTurkishAscii(t)))]) out.set(form.join("\u0000"), form);
   }
   return [...out.values()];
 })();

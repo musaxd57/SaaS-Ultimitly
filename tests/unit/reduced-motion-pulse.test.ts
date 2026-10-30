@@ -47,4 +47,10 @@ describe("hareket azaltma — kaçışsız Tailwind nabzı geri gelmez", () => {
     const css = files.find(({ p }) => p.endsWith("globals.css"))!.text;
     expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*\.lxs-pulse \{ animation: none;/);
   });
+
+  it("HZ2 menü geçişi şeridi (`lxs-nav-progress`, sonsuz döngü) hareket azaltmada durur", () => {
+    const css = files.find(({ p }) => p.endsWith("globals.css"))!.text;
+    expect(css).toMatch(/\.lxs-nav-progress \{ animation: lxs-nav-progress [^}]*infinite; \}/);
+    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*(?:\/\*[^*]*\*\/\s*)?\.lxs-nav-progress \{ animation: none;/);
+  });
 });
