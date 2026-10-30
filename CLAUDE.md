@@ -442,6 +442,9 @@ Bu dosyaya token/anahtar/parola yazma.
   boşluk dizisi YENİDEN üretir → `matchCandidates` adayında dizi teke iner (`collapseSpaceRuns`); bu yüzden yalnız aday yolundan erişilen
   kalıp yeniden yazımları mutasyonda gerekçeli EŞDEĞER, ham metin yolları (acil ağı, müsaitlik standart çıkış ayıklaması) süre pinli.
   Yazım toleransı (BM25) sınırlı OSA (`osaDistanceWithin` = min(osa, max+1)) + dizin başına önbellek; seçim birebir (30.000 çift kâhin).
+  🚨 (10-30) Derlenmiş kipte ölçmek YETMEZ: V8 kalıbı ilk çalıştırmada / bellek temizliğinden sonra YORUMLAYICIDA koşturur, hızlı konum
+  atlatma her zaman devrede değildir → gövdeden önce gelen geriye bakış orada karesel (çıktı vetosu 8.000 karakterde 4,3 sn; 09-28 ölçümü
+  kaçırmıştı). Yeni kalıp `regex-worst-mode-cost.test.ts` yoluyla `--no-regexp-optimization` + `--regexp-interpret-all` kiplerinde de ölçülür.
 - **Dönüş tipini / hata sözleşmesini değiştiren düzeltmede BÜTÜN çağıranlar ve onların testleri taranır** (10-07): `deleteAccountData`ın
   `{ deleted }` dönüşü ve parola onayının 401'i hedefli testlerde yeşildi, tam kapıda üç eski pin kırmızı çıktı (çift tıklamanın kaybedeni 400
   sözleşmesi dahil). Hedefli test yetmez; `grep` ile çağıran + test listesi çıkarılır.
@@ -477,5 +480,5 @@ Bu dosyaya token/anahtar/parola yazma.
 
 ## Durum
 > 📄 **Tam metin (bağlayıcı): `docs/claude/durum.md`** — bu alanda kod / karar değiştirmeden önce oku. Aşağıda yalnız madde başlıkları.
+**10-30 akşam:** K-1029-A v4 (v3 yeniden incelemesinin 33 bulgusu: yedi dilde kaçan biçimler · silinen cümlede belirsizlik / söz / ön koşul / "gerekirse" → tamamı tutulur · fazla silme ve güvenlik kesimi düzeltildi; 3.274 cevapta v3 → v4 fark 0) · çıktı vetosunda eski karesel iş (V8 yorumlayıcı kipi, 8.000 karakterde 4,3 sn → 9 ms, karar farkı 0) + en kötü kip süre pini — `docs/claude/durum.md`.
 **10-30 öğle:** K-1029-A v2 + v3 (iki sert inceleme: Opus F1–F12 + dört mercekli çekişmeli iş akışı, 44 bulgu; silme kapsamı kapanış / konulu / göndergesel, güvenlik yan cümle çözümlemesi, yedi dilde 138/140 biçim, doğrusal süre; tekrar oynatmada kaybedilen tutuş 0) · K-1029-C: 23 sözcük yamasının 23'ü reddedildi (model okusun) · sabah soruları 1–7 `docs/INCELEME-2026-10-28-gece-dongusu.md` — `docs/claude/durum.md`.
-**10-30:** K-1029-A kodda ("ev sahibinize yazın" yedi dilde silinir, doğru cevap gider, cevapsız soru açık; istem yasağı varsayılan AÇIK) · GD7 alan sahipliği tablosu · 404 yol sınıfları · sert inceleme C1–C17 + Haiku döngüsü · ücretsiz tekrar oynatma ölçümü (3.274 cevap, sistem düzeyinde yeni tutuş 0) — `docs/claude/durum.md`.

@@ -616,6 +616,13 @@
   neyin cevapsız kaldığı belli değil) · KONULU silmede kalan metin aynı konuya değiniyorsa (yarım cevap) · güvenlik cümlesinde başvurmadan
   SONRA adım varsa ya da temiz ayrılamıyorsa (taslak BOŞ — adımsız metin tek tıkla gitmesin). Tutulan cevapta TASLAK (`hostContactDraft`)
   silinmiş metindir — yasaklı cümle "AI öner"e / hazır taslağa / demoya / Ayarlar testine yazılmaz.
+- v4 (10-30 akşam, v3'ün çekişmeli yeniden incelemesi) — SİLİNEN parça da okunur (aklama yok): silinen cümle kendi belirsizliğini ("I'm
+  not 100% sure, so confirm with your host"), çıktı vetosunun göreceği bir söz / iletme iddiasını ("I've passed this on to your host") ya
+  da ön koşulu ("önceden haber vermeniz gerekiyor") taşıyorsa ve kalan bir izin söylüyorsa cevabın TAMAMI tutulur. "Gerekirse / isterseniz /
+  if needed" kapanışı önceki cevaba bağlıdır → tamamı tutulur. Cümle başına veto yalnız cevabın tamamı vetoya takılıyorsa koşar (bir
+  cümlede yakalanan iddia bütünde de yakalanır — 109.098 metinde karşı örnek 0). İşletme / akraba / hizmet ("the hostel next door … ask
+  them", "Captain Ali … message him", "the owner" bir işletme bağlamında) ev sahibi değildir. Teşekkür ("Thanks for contacting us") ve
+  misafirin kendi hizmeti için bilgi isteme ("let us know so we can leave the light on") başvurma değildir.
 - Silme kapsamı (`removalOf`): KAPANIŞ (koşul / "diğer sorularınız" / varış / güvenlik kuyruğu — kalan gider) · KONULU · KOŞULLU KONULU (kalan
   gider, istek açık kalır) · GÖNDERGESEL (tamamı tutulur). Kısıtlayan kuyrukta ("but only if you message your host") bütün cümle çıkar.
 - Kesim: iki nokta yan cümle sınırı değildir; baş kısım yalnız konu etiketi ("For the sauna", "Regarding …", "Was … betrifft", "Что
@@ -634,4 +641,5 @@
   katmanlarını ölçer, kendisi `tests/unit/host-contact-ban-prompt.test.ts`. Kısmi gönderim acil durdurma `AI_HOST_CONTACT_PARTIAL_DISABLED=1`.
 - Ölçüm: `tests/eval/host-contact-replay.ts` (ücretsiz, geçmiş model cevapları; eski / yeni süzgeç + kapının metin kuralları). Süre: misafir
   metnine bağlı her kalıp doğrusal (`host-contact-cost.test.ts`, 50 bin karakter şekilleri; sondaki ayraç / nokta dizisi düzenli ifadeyle
-  değil geriye taramayla kırpılır).
+  değil geriye taramayla kırpılır). 10-30: V8'in iki kötü kipinde de ölçülür (`regex-worst-mode-cost.test.ts`, ayrı süreç) — çıktı vetosunda
+  gövdeden önce yazılmış geriye bakış yorumlayıcıda karesel çıktı, gövde-önce + ortak sınır tek öbek (`factorLeadingBoundary`) ile kapandı.

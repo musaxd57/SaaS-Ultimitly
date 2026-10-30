@@ -643,3 +643,91 @@ Her biri yeni yanlış alarm üretiyordu; 10'u bir yerde gevşetiyordu. Örnekle
 **Sonuç:** bu sınıfın sözcük kalıbıyla kapatılamayacağı ölçüldü. Kurucunun K-1029-C yönü doğrulanmış oldu: ek / koşul eki karar vermesin,
 anlamı model okusun. Bugünkü kod güvenli yönde (fazla tutar) kaldı. Ayrıntı ve tüm karşı örnekler iş akışı kaydında
 (`wexl11rzw`, `scratchpad/k1029c/`).
+
+## 10-30 akşam — K-1029-A v4: v3'ün çekişmeli yeniden incelemesinin 33 bulgusu + düzenli ifade motorunun en kötü kipi
+
+v3 push edildikten sonra aynı dört mercekle (aklama, aşırı uygulama, güvenlik + bağlantı, maliyet) bir tur daha koşuldu. Bulucuların her
+bulgusu ayrı bir doğrulayıcıda yeniden üretildi; 33 bulgu kaldı. Hepsi kodda; vakalar `tests/unit/host-contact-v4.test.ts`te
+(203 vaka: 103 yakalanmalı, 32 dokunulmamalı, 68 bütün cevap; v4-cases ilk 199 vakası kırmızı-önce ölçüldü). **Kırmızı-önce:** v3 (98b5d838) bu dosyada 192 vakayı kaçırıyordu.
+
+### Bulgu sınıfları — önce / sonra
+
+| Sınıf | Örnek | v3 | v4 |
+|---|---|---|---|
+| LEAK-01 nesneli İngilizce başvurma | "Please confirm the time with your host." | gider | silinir |
+| LEAK-02 "also / then" | "Please also inform your host." | gider | silinir |
+| LEAK-03 Türkçe biçimler | "Herhangi bir sorunuz olursa buradan yazabilirsiniz." · "Bu durumu ev sahibinize aktarabilirsiniz." | gider | silinir |
+| LEAK-04 ekip / ortak ev sahibi | "Feel free to contact our team." · "Please message your co-host." | gider | silinir |
+| LEAK-05…08 DE / FR / ES / RU / AR | "Klären Sie das am besten direkt mit Ihrem Gastgeber." · "Posez la question à votre hôte." · "Avísenos si necesita algo más." · "Уточните этот вопрос у хозяина." · "راجع المضيف بخصوص ذلك." | gider | silinir |
+| LAUNDER-01 silinen cümlede belirsizlik | "Street parking is free. I'm not 100% sure about this, so it's best to confirm with your host." | "Street parking is free." gider (kesin gibi) | cevabın tamamı tutulur |
+| LAUNDER-02 / VETO-1 silinen cümlede söz / iletme iddiası | "Your late checkout until 14:00 is approved. I've passed this on to your host — just message them if anything changes." | iddia cümlesi silinir, onay gider, veto göremez | tamamı tutulur |
+| LAUNDER-03 ön koşul + izin | "Early check-in is possible. Please arrange it with your host beforehand." | "Early check-in is possible." gider (koşulsuz evet) | tamamı tutulur |
+| SETTLE-01 "gerekirse / isterseniz" | "Erken giriş temizlik programına bağlı. Gerekirse ev sahibinize yazabilirsiniz." | ilk cümle gider, istek kapanır | tamamı tutulur |
+| SETTLE-01 sınırı (mutasyonun M0 kontrol koşusu yakaladı) | "Wi-Fi şifresi Lale1234. Si besoin, envoyez-nous un message." · "Wi-Fi şifresi … Gerekirse ev sahibinize yazabilirsiniz." | şifre gider | şifre gider (genel kapanış; v2 pini korunur) — yalnız kalan belirsizlik ya da izin söylüyorsa ("Late checkout is possible. If you'd like, message your host.") tamamı tutulur |
+| fp-01 kendi konusuyla yan cümle (GD5) | "The pool is open until 22:00, but for the sauna hours please message your host." | cümlenin tamamı silinir | havuz bilgisi gider, sauna yan cümlesi silinir |
+| fp-02 teşekkür | "Thanks for contacting us, and if you need extra towels, they're in the hallway closet." | silinir | dokunulmaz |
+| fp-03 / fp-04 arıza kapanışı | "The lockbox code is 4821. If that doesn't work, message your host." | tamamı tutulur | kod gider, kapanış silinir (R13-b/c) |
+| fp-05 / fp-06 işletme / akraba | "The hostel next door rents bikes. Just ask them at the front desk." · "There's a bakery … Ask the owner for the pistachio simit." | silinir | dokunulmaz (ev sahibi değil) |
+| fp-07 geçmiş olgu | "Ev sahibinize daha önce haber verilen kombi arızası yarın 10:00'da giderilecek." | silinir | dokunulmaz |
+| fp-09 olumsuz | "You don't need to arrange anything with your host; the lockbox code is 4821." | silinir | dokunulmaz |
+| fp-10 hizmet amacı | "If you're arriving after 22:00, please let us know so we can leave the hallway light on." | silinir | dokunulmaz |
+| SAFE-1 güvenlik + yazma | "If the smoke alarm goes off, call your host immediately; for anything else, feel free to message them." | tamamı | arama kalır, yazma yan cümlesi silinir |
+| SAFE-2 devam cümlesi | "If you smell gas … open all the windows. Then leave the apartment and call your host from outside." | tahliye adımı silinir | dokunulmaz |
+| SAFE-3 / 5 "veya" | "If you ever smell gas, call 112 or message your host right away." | 112 adımı da silinir ya da yarım kalır | "call 112." kalır; nesnesiz çıplak fiil ("call or message your host") → tamamı tutulur |
+| SAFE-4 Arapça tehlike | "إذا شممت رائحة غاز، افتح النوافذ وغادر الشقة فوراً وراسل المضيف." | tehlike tanınmaz | adımlar kalır, yazma silinir |
+| SAFE-6 yanık kokusu / açık kablo | "If you notice a burning smell from the heater, unplug it immediately and message your host." | tehlike tanınmaz | adım kalır, yazma silinir |
+
+fp ve SAFE düzeltmeleri kurucunun mevcut kararlarının (GD5: yalnız talimat yan cümlesi silinir; R13-b/c: genel kapanış çıkar, cevap gider;
+K-1029-A kapsamı ev sahibi) uygulanmasıdır; misafire giden yeni bir metin türü açmaz. LAUNDER / SETTLE yalnız tutma yönündedir.
+
+### Gerçek cevaplarda tekrar oynatma (ücretsiz, model yok)
+3.274 benzersiz model cevabı (`docs/olcum/*.json`): **v3 → v4 davranış farkı 0** (gönderilen metin ve tutuş aynı). K-1029-A öncesine
+(0e0e1a1e) göre: kaybedilen tutuş 0 · sistem düzeyinde yeni tutuş 6 · kalkan tutuş 7 (v3 ile aynı). Rapor
+`docs/olcum/host-contact-replay-2026-10-30.md`.
+
+### Bulunan ikinci şey: düzenli ifade motorunun en kötü kipi (eskiden kalan, ölçüldü, düzeltildi)
+v4'ün maliyet probunda "silmeden sonra uzun boşluk" biçimi sırayla değişen sürelerde koştu: yalnız 16.000 karakterde 0,6 sn, uzun bir
+Türkçe metinden SONRA 9,4 sn. Kök neden süzgeçte değil, **çıktı vetosunda** (v4 öncesinden kalma):
+- V8 bir düzenli ifadeyi ilk çalıştırmada ve bellek temizliğinde kodu atıldıktan sonra **yorumlayıcıda** koşturur. Derlenmiş kipte de
+  konum atlatan hızlı denetim her durumda devrede değildir.
+- Vetonun iki alternatifinde geriye bakış fiil gövdesinden ÖNCE yazılıydı: "her … -yorum" ve alışkanlık + geniş zaman. Bu yüzden bakış
+  her konumda koşuyordu. Yorumlayıcıda 8.000 karakterlik sekme dizisi 4,3 sn sürdü; 2.000 karakterde 0,28 sn, yani karesel. Derlenmiş
+  kodun bozuk durumunda 16.000 karakter 8 sn sürdü. 09-28 ReDoS ölçümü yalnız derlenmiş kipte yapıldığı için "yavaş değil" demişti.
+- Düzeltme 09-28'deki gibidir: önce gövde ileriye bakışla sınanır, kabul edilen dil aynı kalır. Sonuç: 8.000 karakter 4,3 sn → 9 ms.
+- Ek olarak altı söz kalıbında alternatiflerin ortak `(?<!\p{L})` sınırı tek öbeğe toplandı (`factorLeadingBoundary`). İyileştirmesiz
+  kipte 3–9 kat hızlandı.
+- Eşdeğerlik: eski ve yeni veto 69.710 metinde (ölçüm cevapları, test dizgeleri, türetilmiş alışkanlık / "olsam" / satır sonu
+  biçimleri) **0 fark**.
+
+**Yeni pin:** `tests/unit/regex-worst-mode-cost.test.ts` vetoyu, dedektörü ve süzgeci ayrı bir süreçte V8'in iki kötü kipinde
+(`--no-regexp-optimization`, `--regexp-interpret-all`) 4.000 karakterlik boşluk dizilerinde süreler; eşik 1,5 sn.
+- v3 + eski veto ölçümü: veto 1,0–25,7 sn, süzgeç 22–189 sn.
+- v4 ölçümü: en çok 0,44 sn.
+- Süzgeç zincirinin 256 kalıbı iki kipte tek tek tarandı (boşluk, sekme, NBSP, satır sonu, uzun sözcük, virgül zinciri, Arapça bitişik
+  "و", Rusça). Karesel şüpheli **0**.
+
+**Süzgecin kendi maliyeti:**
+- Önceki cümleye bağlı okumalar (işletme mi, yalnız ev sahibi mi, güvenlik talimatı mı) önceki cümle değişince bir kez hesaplanıyor.
+  Uzun cümle + 1.666 kısa başvurma biçiminde 100.000 karakter 4,3 sn → 1,1 sn.
+- Cümle başına veto yalnız cevabın tamamı vetoya takılıyorsa koşuyor. 109.098 metinde "cümle takılır, bütün takılmaz" karşı örneği 0.
+- Konu okumasına tek girdilik önbellek: süzgeç ve "cevaplandı" kuralı aynı kalan metni art arda okuyordu. 50 bin karakterde ~0,25 sn
+  kazanç; üretimde de aynı metin okunuyor.
+- v4 her cümlede daha çok iş yapıyor (yeni biçimler, Arapça bitişik "و" ile binlerce yan cümle). Önbellekten sonra tsx'te v3 ile aynı
+  düzeyde (dört koşu toplamı 4,9 sn / 4,8 sn). Süre pinleri bu makinede v3'te en çok 1,1–1,3 sn, v4'te ~1,2 sn ölçtü (eşik 1,5; üç
+  ardışık koşu yeşil).
+- CI bu makineden yaklaşık %30 hızlı: v3'ün süre dosyası CI 1693'te 5,9 sn, burada 8,3 sn sürdü.
+- Üretimde süzgecin girdisi `capReply` ile en çok 4.000 karakter.
+- Yeni Arapça pin 35.000 karakterde. Gerekçesi yorumunda ölçümüyle yazılı: 12,6 / 25 / 50 / 100 bin karakterde 0,2 / 0,33 / 0,68 / 1,2 sn,
+  yani doğrusal.
+
+### Mutasyon (`scripts/mutation-run.mjs`, ayrık worktree)
+35 mutant (9c8e7dee). İlk koşu: 26 öldü. Yaşayan yedisi gerçek eksik pindi ve pinlendi (`host-contact-v4.test.ts`): genel ihtiyaç kapanışı ön koşul sayılmaz (F4), yaz-sonra-adım (F10), "İlgili bir sorunuz olursa" (F16), işletme + "Ask the owner" (F17), acil numara güvenlik cümlesi (F18), akıllı kilit / sensör ev sahibine haber verir (A2), ev sahibinin önerdiği taksi (A5). Konu önbelleğinden dönen dizinin kopya olması da pinlendi (R1). Yeniden koşu (6d8090cc): **8/8 öldü**. Kalan tek mutant C1 (işletme okumasının önbelleği her seferinde yeniden hesaplanır): aynı değer üretir, yalnız süreyi etkiler — gerekçeli EŞDEĞER. Gövde-önce veto mutantları (V2: ileriye bakış kaldırıldı) en kötü kip süre pininde zaman aşımıyla öldü.
+
+### Bilinen davranışlar (güvenli yön, kayda)
+- **Ev sahibi önceki cümlede anılmışsa zamirli kapanış:** "Ihr Gastgeber wohnt nebenan. Bei Fragen können Sie sich gerne an ihn
+  wenden." Bu durumda ilk cümle gider, kapanış silinir (sabah sorusu 4 ile aynı sınıf).
+- **"İsterseniz / If needed" kapanışı:** kendi başına genel kapanıştır (silinir, cevap gider). Kalan metin belirsizlik ("bağlı / depends") ya da
+  izin ("mümkün / possible") söylüyorsa cevabın tamamı tutulur (SETTLE-01). İlk v4 taslağı bunu her durumda tutuyordu; v2'nin "Si besoin" pinini
+  mutasyonun kontrol koşusu kırdı, kural inceltildi.
+- **Ön koşul kuralı:** silinen parça bir ön koşul söylüyor ("önceden haber vermeniz gerekiyor"), kalan da bir izin söylüyorsa ("evcil
+  hayvan kabul ediliyor") tamamı tutulur. Genel sorun kapanışı ön koşul sayılmaz.

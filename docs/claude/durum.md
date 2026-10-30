@@ -4,6 +4,7 @@
 > Bu dosyadaki kurallar CLAUDE.md'deki kadar BAĞLAYICIDIR. İlgili alanda iş yapmadan önce oku.
 
 ## CLAUDE.md "Durum" özet satırları (10-23'te AYNEN taşındı; en yeni ikisi CLAUDE.md'de kalır)
+**10-30:** K-1029-A kodda ("ev sahibinize yazın" yedi dilde silinir, doğru cevap gider, cevapsız soru açık; istem yasağı varsayılan AÇIK) · GD7 alan sahipliği tablosu · 404 yol sınıfları · sert inceleme C1–C17 + Haiku döngüsü · ücretsiz tekrar oynatma ölçümü (3.274 cevap, sistem düzeyinde yeni tutuş 0) — `docs/claude/durum.md`.
 **10-30 sabah:** K-1029-A v2 (Opus F1–F12: kalan metin belirsizlik / ret / yalnız nezaket → tamamı tutulur; konu etiketi tek başına gitmez; konusuz yönlendirme isteği açık bırakır; taslak silinmiş metin) — `docs/claude/durum.md`.
 **10-29:** R10–R15, R29, R30 ✅ · R13-b/c ✅ ("ev sahibinize yazın" asla; genel kapanış çıkar; `ai/host-contact-filler.ts`) — `docs/claude/durum.md`.
 **10-28 gece-2:** R13 ✅ · Decisions API sıralayıcı motoru kodda, KAPALI (`KB_RERANK_ENGINE=decisions`; açmak ölçüm + kurucu) — `docs/claude/durum.md`.
@@ -54,6 +55,16 @@ düzeltmeleri. Next.js 15.5.27 (iki yeni SSG/ISR danışması). Onay bekleyen be
 **Dal durumu:** bütün iş `claude/great-edison-3zqpZ`'de commit'li; tam kapı + build yeşil olunca push edildi (CI sonucu bir sonraki
 oturumda `actions_list` ile tekrar bakılır). Railway KAPALI (canlı yok). 10-28 akşam ücretli koşular kurucu onayıyla yapıldı ("test yapıp
 para harcamayı tercih ederim"): uzun belge RAG + Luna kıyası, toplam birkaç dolar.
+
+**10-30 akşam — K-1029-A v4 (v3'ün çekişmeli yeniden incelemesi, 33 bulgu):** yedi dilde kaçan biçimler (nesneli İngilizce başvurma,
+"also / then", Türkçe "haberdar edin / aktarabilirsiniz", ekip / ortak ev sahibi, DE / FR / ES / RU / AR emir ve mastar biçimleri) silinir ·
+silinen cümle belirsizlik ("emin değilim"), söz / iletme iddiası ("ilettim"), ön koşul ("önceden haber vermeniz gerekiyor") ya da
+"gerekirse / isterseniz" taşıyorsa cevabın TAMAMI tutulur · fazla silme düzeltildi (kendi konusuyla yan cümle, teşekkür, arıza kapanışı,
+işletme / akraba, geçmiş olgu, olumsuz, hizmet amacı) · güvenlik: "veya" sınırında arama kalır, devam cümlesindeki tahliye adımı korunur,
+Arapça tehlike + yanık kokusu tanınır · 199 vakalık test, v3 192'sini kaçırıyordu · tekrar oynatma 3.274 cevapta v3 → v4 fark 0 ·
+çıktı vetosunda v4 öncesinden kalan karesel iş bulundu (V8 yorumlayıcı / iyileştirmesiz kip; "her … -yorum" ve alışkanlık geriye bakışı
+gövdeden önce) → gövde önce + ortak sınır tek öbek; 8.000 karakter 4,3 sn → 9 ms, eski / yeni 69.710 metinde 0 fark · yeni pin
+`regex-worst-mode-cost.test.ts` (ayrı süreç, iki kötü kip). Ayrıntı `docs/INCELEME-2026-10-28-gece-dongusu.md` 10-30 akşam.
 
 **10-30 öğle — K-1029-A v3 (dört mercekli çekişmeli inceleme, 44 bulgu / 43 doğrulandı):** silme kapsamı kapanış / konulu / koşullu
 konulu / göndergesel (göndergeselde ve kalan metin aynı konuya değiniyorsa cevabın tamamı tutulur) · güvenlik cümlesi yan cümle çözümlemesi
