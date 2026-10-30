@@ -38,4 +38,14 @@ export interface HostChannelTransport {
   sendQuestion(to: string, message: HostQuestionMessage): Promise<HostSendResult>;
   /** Pencere içi serbest metin (önizleme, "Gönderildi", "Hangi soru?") — `replyTo` verilirse o mesaja yanıt olarak. */
   sendText(to: string, text: string, replyTo?: string | null): Promise<HostSendResult>;
+  /**
+   * Pencere içi düğmeli mesaj (önizleme + [Gönder] [Gönderme]). En çok 3 düğme; başlık ≤ 20 karakter; kimlik sır değildir (yetki her zaman
+   * gönderen numaranın bağlantısından ve sorunun kiracısından denetlenir).
+   */
+  sendChoices(to: string, text: string, choices: readonly HostChoice[], replyTo?: string | null): Promise<HostSendResult>;
+}
+
+export interface HostChoice {
+  id: string;
+  title: string;
 }

@@ -144,6 +144,38 @@ Sizin kararınız gerekenler (sabah): **(1)** W5 "bağlandı" mesajı istiyor mu
 listesi (tasarım §9) — hesap, ayrı numara, şablon onayı sizde. **(4)** Tasarım §5.4'teki "bu siz misiniz?" ekran onayı ilk dilimde YOK (kodu ev
 sahibinin kendi WhatsApp'ından göndermesi sahipliği kanıtlıyor; bağlanan numara maskeli gösteriliyor) — ister misiniz?
 
+## 4e. WhatsApp — ev sahibinin cevabı misafire (10-30 gece-4, `HOST_QUESTIONS_ENABLED` arkasında)
+
+Akış: misafir sorusu ev sahibine WhatsApp'tan gider → ev sahibi o mesaja cevap yazar ("var, dolapta") → cevap şifreli saklanır, tasarımdaki
+cevap kurucu misafirin dilinde, ev sahibinin ağzından taslak yazar, kod denetimi geçer → ev sahibine ÖNİZLEME:
+
+> Misafire şu cevap gidecek:
+> "Yes, there is a baby cot in the closet."
+> Türkçesi: "Evet, dolapta bebek yatağı var."
+> **[Gönder] [Gönderme]**
+
+[Gönder]'e basınca gönderimden HEMEN ÖNCE yeniden bakılır (bağlantı + rol + şifre değişimi, önizleme sürümü, taslak değişmedi mi, misafir arada
+yazdı mı, panelden cevap verildi mi, rezervasyon iptal mi, kod denetimi yeniden) → bugünkü gönderim çekirdeği (çift gönderim kalkanı, kuyruk,
+kanal kapıları) → "Gönderildi ✓". Belirsiz sonuçta "Gönderim doğrulanamadı, konuşmayı kontrol edin" (kör tekrar yok).
+
+Seçtiklerim (gece modu; tasarım önerisi neyse o, misafire giden her şey ev sahibinin onayıyla):
+- **S1 → onaylı** (otomatik gönderim yok). Otomatik isterseniz ayrı dilim.
+- Cevap sorunun TAMAMINI karşılamıyorsa misafire hiçbir şey gitmez, soru açık kalır ("Cevabınız sorunun tamamını karşılamıyor…"). Tasarımdaki
+  [Bunu atla] düğmesi bu dilimde YOK.
+- Birden çok bekleyen soru varken bağlamsız cevap → düğmeli seçim yerine "Cevabınızı ilgili soru mesajına 'Yanıtla' diyerek yazın."
+- Taslağa bu dilimde bilgi tabanı kalemi verilmiyor (yalnız ev sahibinin sözü) — yeni olgu uydurma riski en düşük hâli.
+- Soru başına en çok 3 taslak; günlük yapay zekâ bütçesinden sayılır. Kapanmış sorunun cevap / taslak metni 7 gün sonra silinir.
+
+Ev sahibine giden YENİ cümleler (onayınızı bekliyor): "Misafire şu cevap gidecek:" · "Türkçesi:" · [Gönder] [Gönderme] · "Gönderildi ✓" ·
+"Tamam, gönderilmedi. Soru panelde açık." · "Tamam, size bıraktım." · "Tamam, misafire bir şey gönderilmedi. Soru panelde açık." ·
+"Cevabınızdan misafire gidecek bir mesaj çıkaramadım. Panelden yazabilirsiniz: <bağlantı>" · "Cevabınız sorunun tamamını karşılamıyor. Eksik
+kısmı da yazın ya da panelden cevaplayın: <bağlantı>" · "Şu an taslak hazırlanamadı…" · "Bu soru için daha fazla taslak hazırlanamıyor…" ·
+"Şu an bekleyen bir misafir sorusu yok." · "Birden çok bekleyen soru var…" · "Bu soruyu panelden cevapladınız; misafire yeni bir şey
+gönderilmedi." · "Bu sorunun süresi geçti." · "Bu önizleme artık geçerli değil." · "Misafir yeni bir mesaj yazdı; misafire bir şey
+gönderilmedi. Panelden kontrol edin: <bağlantı>" · "Rezervasyon iptal edilmiş; misafire bir şey gönderilmedi." · "Gönderim doğrulanamadı,
+konuşmayı kontrol edin: <bağlantı>" · "Gönderilemedi. Panelden deneyin: <bağlantı>" · "Kanal bağlantısı yok, panelden deneyin." · "Sesli
+mesajları ve görselleri henüz okuyamıyorum, lütfen yazın."
+
 ## 5. Railway açılış günü eklenecekler (unutmayın)
 
 - **Decisions API sıralayıcısı:** `KB_RERANK_ENGINE=decisions`, `KB_RERANK_DECISIONS_MODEL` (ölçümle açılır).

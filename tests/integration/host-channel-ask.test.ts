@@ -31,6 +31,9 @@ function fakeTransport(result: { ok: boolean } = { ok: true }) {
     async sendText() {
       return { ok: true, providerMessageId: "wamid.t" };
     },
+    async sendChoices() {
+      return { ok: true, providerMessageId: "wamid.c" };
+    },
   };
   return { t, sent };
 }

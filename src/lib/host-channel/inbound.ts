@@ -5,6 +5,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { logEvent } from "@/lib/event-log";
 import { codeAnswerKind } from "./answer-kind";
+import { handleHostAnswer } from "./answer";
 import { confirmHostBindingFromInbound, hostChannelSecret, revokeHostBinding } from "./binding";
 import { addressHash, extractBindingCode, normalizeE164Digits } from "./binding-code";
 import type { HostChannelFlags } from "./routing";
@@ -165,11 +166,15 @@ export async function handleHostInbound(input: {
         // Öteki sistem olayları (güvenlik kodu değişti vb.) ev sahibinin etkinliği değildir.
         handled = false;
       } else if (row.status === "active") {
-        // Ev sahibinin son yazdığı an — serbest metin penceresinin (24 saat) başlangıcı. Cevabın soruya bağlanması sonraki dilimde.
+        // Ev sahibinin son yazdığı an — serbest metin penceresinin (24 saat) başlangıcı.
         await prisma.hostChannelBinding.updateMany({
           where: { id: row.id, organizationId: row.organizationId, status: "active" },
           data: { lastInboundAt: now },
         });
+        // Cevap → soru → taslak → önizleme / [Gönder] (`answer.ts`); soru anahtarı kapalıyken yalnız alınır.
+        if (input.flags.questions) {
+          await handleHostAnswer({ binding: { id: row.id, organizationId: row.organizationId }, to: digits, event: ev, transport: input.transport, now });
+        }
       } else {
         handled = false;
       }

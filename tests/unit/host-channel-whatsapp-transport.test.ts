@@ -62,6 +62,36 @@ describe("gönderim gövdesi", () => {
     expect(JSON.parse(String(g.calls[1].init.body))).toMatchObject({ type: "text", text: { body: "Gönderildi ✓", preview_url: false }, context: { message_id: "wamid.Q1" } });
   });
 
+  it("düğmeli mesaj: Meta etkileşimli düğme biçimi, en çok 3 düğme, başlık ≤ 20, gövde ≤ 1024, yanıt bağlamıyla", async () => {
+    const g = graph(200, { messages: [{ id: "wamid.P1" }] });
+    const t = createWhatsAppTransport(cfg, g.fetchImpl);
+    const r = await t.sendChoices(
+      "905321112233",
+      "x".repeat(2_000),
+      [
+        { id: "hq.q1.2.send", title: "Gönder" },
+        { id: "hq.q1.2.cancel", title: "Gönderme ve panelde düzenle" },
+        { id: "a", title: "A" },
+        { id: "b", title: "B" },
+      ],
+      "wamid.H1",
+    );
+    expect(r).toEqual({ ok: true, providerMessageId: "wamid.P1" });
+    const body = JSON.parse(String(g.calls[0].init.body));
+    expect(body).toMatchObject({ to: "905321112233", type: "interactive", context: { message_id: "wamid.H1" } });
+    expect(body.interactive.type).toBe("button");
+    expect(body.interactive.body.text).toHaveLength(1_024);
+    expect(body.interactive.action.buttons).toEqual([
+      { type: "reply", reply: { id: "hq.q1.2.send", title: "Gönder" } },
+      { type: "reply", reply: { id: "hq.q1.2.cancel", title: "Gönderme ve panelde " } },
+      { type: "reply", reply: { id: "a", title: "A" } },
+    ]);
+    expect(await t.sendChoices("905321112233", "  ", [{ id: "a", title: "A" }])).toMatchObject({ ok: false, definitive: true, error: "empty" });
+    expect(await t.sendChoices("905321112233", "metin", [])).toMatchObject({ ok: false, definitive: true, error: "empty" });
+    expect(await t.sendChoices("12", "metin", [{ id: "a", title: "A" }])).toMatchObject({ ok: false, definitive: true, error: "bad_number" });
+    expect(g.calls).toHaveLength(1);
+  });
+
   it("geçersiz numara / boş metin ağa çıkmaz (kesin ret)", async () => {
     const g = graph(200, {});
     const t = createWhatsAppTransport(cfg, g.fetchImpl);

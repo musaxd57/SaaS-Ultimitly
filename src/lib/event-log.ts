@@ -45,6 +45,10 @@ export const OPERATIONAL_EVENTS = {
   "host_channel.webhook.received": "info",
   "host_channel.binding.verified": "info",
   "host_channel.binding.opt_out": "info",
+  "host_channel.answer.received": "info",
+  "host_channel.answer.sent_to_guest": "info",
+  // Başka işletmenin sorusuna (bağlam / düğme kimliğiyle) yapılan deneme — reddedildi; yalnız gönderenin işletmesi yazılır.
+  "host_channel.answer.foreign": "warn",
 } as const;
 export type OperationalEventName = keyof typeof OPERATIONAL_EVENTS;
 
@@ -82,6 +86,8 @@ const DATA_KEYS: Record<string, RegExp | "number" | "boolean"> = {
   actorUserId: /^c[a-z0-9]{7,40}$/,
   errored: "boolean",
   processed: "number",
+  // Ev sahibi sorusu kimliği (`HostQuestion.id`, rastgele UUID — kişisel veri biçimi taşıyamaz).
+  questionId: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
   duplicates: "number",
   ignored: "number",
   // Sentry olay kimliği (takip numarası dilim G): tam 32 KÜÇÜK onaltılık — kişisel veri biçimi taşıyamaz. Uzun rakam kuralından VE
@@ -90,7 +96,7 @@ const DATA_KEYS: Record<string, RegExp | "number" | "boolean"> = {
   sentryEventId: /^[0-9a-f]{32}$/,
 };
 /** Biçimi tam ve sabit uzunluklu rastgele kimlikler — uzun rakam dizisi kuralı bunlarda kişisel veri sinyali değildir. */
-const LONG_DIGITS_EXEMPT = new Set(["sentryEventId"]);
+const LONG_DIGITS_EXEMPT = new Set(["sentryEventId", "questionId"]);
 /**
  * Veritabanı kimliği (Prisma `cuid()`, tam 25 karakter) taşıyan anahtarlar: zaman damgası + sıfırla doldurulmuş sayaç ara sıra 7+ rakamlık
  * dizi üretir ("cmval2070000nt9…" — CI #1505'te `job.outbox.row` satırı kimliksiz kaldı, test kırmızı; aynı sınıf `sentryEventId` için Opus

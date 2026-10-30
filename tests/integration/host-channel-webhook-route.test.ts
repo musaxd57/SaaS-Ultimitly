@@ -49,6 +49,10 @@ function fakeTransport() {
       texts.push({ to, text });
       return { ok: true, providerMessageId: "wamid.t" };
     },
+    async sendChoices(to, text) {
+      texts.push({ to, text });
+      return { ok: true, providerMessageId: "wamid.c" };
+    },
   };
   return { t, texts };
 }

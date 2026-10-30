@@ -1,4 +1,4 @@
-import type { HostChannelTransport, HostQuestionMessage, HostSendResult } from "../types";
+import type { HostChannelTransport, HostChoice, HostQuestionMessage, HostSendResult } from "../types";
 import { WHATSAPP_CLOUD_PROVIDER } from "../providers";
 
 // ---------------------------------------------------------------------------
@@ -98,6 +98,23 @@ export function createWhatsAppTransport(cfg: WhatsAppConfig, fetchImpl: typeof f
       const body = text.trim().slice(0, 4_096);
       if (!body) return { ok: false, providerMessageId: null, definitive: true, error: "empty" };
       return post(cfg, { to: num, type: "text", text: { body, preview_url: false }, ...(replyTo ? { context: { message_id: replyTo } } : {}) }, fetchImpl);
+    },
+    async sendChoices(to: string, text: string, choices: readonly HostChoice[], replyTo?: string | null): Promise<HostSendResult> {
+      const num = normalizeWaNumber(to);
+      if (!num) return { ok: false, providerMessageId: null, definitive: true, error: "bad_number" };
+      const body = text.trim().slice(0, 1_024);
+      const buttons = choices.slice(0, 3).map((c) => ({ type: "reply", reply: { id: c.id.slice(0, 256), title: c.title.slice(0, 20) } }));
+      if (!body || buttons.length === 0) return { ok: false, providerMessageId: null, definitive: true, error: "empty" };
+      return post(
+        cfg,
+        {
+          to: num,
+          type: "interactive",
+          interactive: { type: "button", body: { text: body }, action: { buttons } },
+          ...(replyTo ? { context: { message_id: replyTo } } : {}),
+        },
+        fetchImpl,
+      );
     },
   };
 }

@@ -221,6 +221,10 @@ describe("sahte gönderici — sağlayıcıdan bağımsız arayüz", () => {
         sent.push({ to, text, replyTo });
         return { ok: true, providerMessageId: `fake.${sent.length}` };
       },
+      async sendChoices(to, text, choices, replyTo) {
+        sent.push({ to, text, choices, replyTo });
+        return { ok: true, providerMessageId: `fake.${sent.length}` };
+      },
     };
     const r = await fake.sendQuestion("905321112233", { property: "Lale", dates: "12–15 Kas", quote: "Bebek yatağı var mı?" });
     expect(r.providerMessageId).toBe("fake.1");

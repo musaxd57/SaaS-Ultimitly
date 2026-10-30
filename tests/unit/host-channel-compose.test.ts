@@ -38,6 +38,11 @@ describe("cevap kurucu", () => {
     expect((m.calls[0].messages as { content: string }[])[0].content).toBe(HOST_ANSWER_SYSTEM_PROMPT);
   });
 
+  it("kapsama listesi bozuksa (dizi değil) 'eksik yok' sayılmaz — kısmi cevap tam cevap gibi önizlemeye gitmez", async () => {
+    const m = modelReturns({ kind: "answer", reply: "Yes, there is a baby cot.", reply_tr: "Evet.", covered: [], uncovered: "high chair" });
+    expect(await composeGuestReplyFromHostAnswer({ ...base, fetchImpl: m.fetchImpl })).toMatchObject({ ok: false, reason: "model_failed" });
+  });
+
   it("model yeni sayı uydurursa / ev sahibinden üçüncü kişi olarak söz ederse / iletişim değeri yazarsa GİTMEZ", async () => {
     vi.stubEnv("OPENAI_API_KEY", "test-key");
     const invented = modelReturns({ kind: "answer", reply: "Parking is 50 TL per day.", reply_tr: "", covered: [], uncovered: [] });

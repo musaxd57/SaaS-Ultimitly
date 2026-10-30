@@ -51,8 +51,9 @@ Kurucu 10-15: "Railway'i açınca ekleyeceğimiz bayrakları unutma." Bu dosya T
      **Kodda (10-30 gece):** migration 88 (iki yeni tablo) · numara bağlama · Tür A soru gönderimi ("Misafir cevabınızı bekliyor" bildirimine
      bağlı) · web kancası `POST/GET /api/webhooks/host-channel/whatsapp` (imza, bağlama kodu, "DUR") · Ayarlar › Bildirimler › "WhatsApp
      bildirimleri" kartı (numara + rıza → kod + "WhatsApp'ta aç"; rıza metni TASLAK, onay bekliyor). **Ev sahibinin WhatsApp CEVABININ soruya
-     bağlanması HENÜZ YOK** → `HOST_QUESTIONS_ENABLED` o dilim gelene kadar KAPALI kalır (açılırsa soru WhatsApp'a gider, o mesaj için e-posta
-     gitmez, cevap panelden verilmek zorunda kalır). **Kurulum sırası:** ① env'ler + `HOST_CHANNEL_ENABLED=1` + `HOST_CHANNEL_ORG_IDS` ② yayın
+     bağlanması (10-30 gece-4, cevap dilimi):** ev sahibi soruya WhatsApp'tan yazar → taslak → önizleme [Gönder] [Gönderme] → onayda misafire
+     bugünkü gönderim çekirdeğiyle gider. `HOST_QUESTIONS_ENABLED` bu akışın TAMAMINI açar; ev sahibine giden metinler ve S1 (otomatik mi
+     onaylı mı — ilk dilim yalnız onaylı) kurucu onayından SONRA açılır (rapor §4e). **Kurulum sırası:** ① env'ler + `HOST_CHANNEL_ENABLED=1` + `HOST_CHANNEL_ORG_IDS` ② yayın
      ③ SONRA Meta'da Callback URL + Verify token (anahtar kapalıyken el sıkışma 403 döner — uç uyur) ④ Ayarlar'dan numara bağlama (ekran
      dilimi). Anahtar açık ama `WHATSAPP_APP_SECRET` / `WHATSAPP_PHONE_NUMBER_ID` yoksa uç gelen mesajı 200 ile yutar + "host-channel-webhook-
      dormant" alarmı verir.

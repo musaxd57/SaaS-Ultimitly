@@ -103,6 +103,8 @@ export async function composeGuestReplyFromHostAnswer(input: ComposeInput): Prom
     const kind = typeof d.kind === "string" ? (d.kind as ComposeKind) : null;
     const reply = typeof d.reply === "string" ? d.reply.trim() : "";
     const replyTr = typeof d.reply_tr === "string" ? d.reply_tr.trim() : "";
+    // Kapsama listesi bozuksa "eksik yok" SAYILMAZ (Haiku 10-30 P3): kısmi cevap tam cevap gibi önizlemeye gitmesin.
+    if (!Array.isArray(d.uncovered)) return { ok: false, kind, reason: "model_failed" };
     const uncovered = strs(d.uncovered);
     if (kind !== "answer") return { ok: false, kind, reason: "not_an_answer" };
     const failure = checkComposedGuestReply({ reply, hostAnswer: input.hostAnswer, kbTexts: input.kbTexts });
