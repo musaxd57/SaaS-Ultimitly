@@ -38,6 +38,13 @@ Kurucu 10-15: "Railway'i açınca ekleyeceğimiz bayrakları unutma." Bu dosya T
      isteklerine amaç anahtarı (`prompt_cache_key`) + 24 saat saklama (`prompt_cache_retention`) eklenir; çıktı değişmez. Acil kapatma
      `OPENAI_PROMPT_CACHE_DISABLED=1`; yalnız saklamayı kısaltmak için `OPENAI_PROMPT_CACHE_RETENTION=in_memory`. Açılıştan sonra kontrol:
      karar kaydındaki kullanımda önbellekten okunan token (`cached_tokens`) sıfırdan büyük mü.
+   - **WhatsApp ev sahibi soru kanalı (10-30, kurucu: "WP'yi hemen bağlamak istiyorum"; tasarım
+     `docs/TASARIM-2026-10-30-whatsapp-ev-sahibi-dongusu.md` §9 kurulum listesi):** Meta kurulumu bitince kasadan →
+     `WHATSAPP_ACCESS_TOKEN` (sistem kullanıcısı kalıcı belirteci) · `WHATSAPP_PHONE_NUMBER_ID` · `WHATSAPP_APP_SECRET` (web kancası imzası) ·
+     `WHATSAPP_WEBHOOK_VERIFY_TOKEN` · isteğe bağlı `WHATSAPP_GRAPH_VERSION` (boş = `v23.0`, kurulumda güncel sürüm teyit) ·
+     `WHATSAPP_QUESTION_TEMPLATE` (boş = `lixus_misafir_sorusu`) · `WHATSAPP_TEMPLATE_LANG` (boş = `tr`) · cevap kurucu modeli
+     `AI_HOST_ANSWER_MODEL` / `AI_HOST_ANSWER_REASONING_EFFORT` (boş = cevap modelinin ayarı). Kod bugün dilim 1a–1c (saf parçalar + gönderici;
+     hiçbir yola bağlı değil); bağlantı (migration 88, iki yeni tablo) kurucu onayıyla.
 
 ## 1. Canlı durumda AÇIK olması gerekenler (eksikse ekleyin; "1")
 
