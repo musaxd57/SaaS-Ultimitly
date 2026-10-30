@@ -658,6 +658,11 @@ export const STRICT_ONE_FLAGS = Object.freeze([
   "AI_HOST_CONTACT_PROMPT_BAN_DISABLED",
   "AI_HOST_VOICE_GUARD_DISABLED",
   "OPENAI_PROMPT_CACHE_DISABLED",
+  // WhatsApp ev sahibi soru kanalı (10-30, `host-channel/routing.ts`; hepsi varsayılan KAPALI, yalnız "1").
+  "HOST_CHANNEL_ENABLED",
+  "HOST_QUESTIONS_ENABLED",
+  "HOST_QUESTION_DECISIONS_ENABLED",
+  "HOST_QUESTION_ALERTS_ENABLED",
   // K-1029-A kısmi gönderim ACİL DURDURMA (tasarım A12; varsayılan kapalı, yalnız "1" açar).
   "AI_HOST_CONTACT_PARTIAL_DISABLED",
   "AI_UNDERSTANDING_PRIVACY_RULE_ENABLED",

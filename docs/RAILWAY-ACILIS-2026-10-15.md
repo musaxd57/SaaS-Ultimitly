@@ -43,8 +43,10 @@ Kurucu 10-15: "Railway'i açınca ekleyeceğimiz bayrakları unutma." Bu dosya T
      `WHATSAPP_ACCESS_TOKEN` (sistem kullanıcısı kalıcı belirteci) · `WHATSAPP_PHONE_NUMBER_ID` · `WHATSAPP_APP_SECRET` (web kancası imzası) ·
      `WHATSAPP_WEBHOOK_VERIFY_TOKEN` · isteğe bağlı `WHATSAPP_GRAPH_VERSION` (boş = `v23.0`, kurulumda güncel sürüm teyit) ·
      `WHATSAPP_QUESTION_TEMPLATE` (boş = `lixus_misafir_sorusu`) · `WHATSAPP_TEMPLATE_LANG` (boş = `tr`) · cevap kurucu modeli
-     `AI_HOST_ANSWER_MODEL` / `AI_HOST_ANSWER_REASONING_EFFORT` (boş = cevap modelinin ayarı). Kod bugün dilim 1a–1c (saf parçalar + gönderici;
-     hiçbir yola bağlı değil); bağlantı (migration 88, iki yeni tablo) kurucu onayıyla.
+     `AI_HOST_ANSWER_MODEL` / `AI_HOST_ANSWER_REASONING_EFFORT` (boş = cevap modelinin ayarı). Anahtarlar (hepsi yalnız "1", varsayılan
+     KAPALI): `HOST_CHANNEL_ENABLED` (kanal) · `HOST_QUESTIONS_ENABLED` (bilgi soruları) · `HOST_QUESTION_DECISIONS_ENABLED` (karar düğmeleri) ·
+     `HOST_QUESTION_ALERTS_ENABLED` (acil bildirim) + liste `HOST_CHANNEL_ORG_IDS` (`*` = hepsi, boş = hiçbiri; ilk açılış kurucu org). Kod bugün
+     saf parçalar + gönderici + yönlendirici (hiçbir yola bağlı değil); bağlantı (migration 88, iki yeni tablo) kurucu onayıyla.
 
 ## 1. Canlı durumda AÇIK olması gerekenler (eksikse ekleyin; "1")
 
