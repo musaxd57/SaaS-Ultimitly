@@ -86,6 +86,18 @@ gitme daveti" saydı (istemdeki yer bilgisi istisnası); sınırda bir örnek.
 
 Kamu kurumu sorusu (S-1'in ikinci yarısı) hâlâ açık: **A** (önerim) gider · **B** tutulur, ev sahibine sorulur.
 
+## 4c. Yayın öncesi çekişmeli inceleme (10-30 gece, 74 ajanlı iş akışı; doğrulayıcıların çoğu limit yüzünden yarıda kaldı, aşağıdakiler elle doğrulandı)
+
+| Bulgu | Sonuç |
+|---|---|
+| **B** "Erken giriş yapabilirsiniz. Erken giriş için bir gün önceden ev sahibinize haber verin." → koşul silinip yalnız "Erken giriş yapabilirsiniz." gidiyordu (Türkçe "-ebilirsiniz" izin sayılmıyordu; Türkçe ayağı bu turun gerilemesi, ispanyolca / fransızca / almanca / rusça / arapça ayağı öncesinde de vardı) | **Düzeltildi**: koşulu silinen izin cümlesi varsa cevabın tamamı tutulur (7 dil). 3.274 gerçek cevapta değişen sonuç 0. |
+| **C** "Binada sauna var. Wi-Fi şifresi … Detaylar için ev sahibinize yazın." (iki soru) → cevaplanmayan "sauna kaçta açık?" "cevaplandı" sayılıyor, cevaplanan Wi-Fi açık kalıyordu | **Düzeltildi**: konusuz "detaylar için" silmesi birden çok soru varken hiçbir soruyu kapatmaz; bilgi yine gider. |
+| **F** QR'da (istek defteri yok) yeni istem kuralı "o isteğe hiç değinme" ev sahibine kalan isteği sessizce düşürüyordu | **Düzeltildi**: 10-29 iki hakem ilkesine dönüldü — "atlama" talimatı yalnız defterli öğe kipinde; başka yerde devir kuralı (cevap misafire gitmez, ev sahibine kalır). |
+| **H** "Lale Taksi durağı 100 m ileride, onları arayabilirsiniz." gidiyordu (cümlede 100 / 110 / 155 / "acil" geçince acil muafiyeti) | **Düzeltildi**: muafiyet yalnız gerçek acil çağrı talimatında. |
+| **E** Railway'de `OPENAI_PROMPT_CACHE_RETENTION=` boş bırakılırsa 24 saat önbellek sessizce kapanıyordu | **Düzeltildi**: yalnız `in_memory` kısaltır. |
+| **A** Kodla kurulan erken giriş POLİTİKA metni "…kararı ev sahibiniz verir / your host decides" (ses kapısı kodla kurulan metni muaf tutuyor) | **Eski durum, sizin kararınızı bekliyor** (SABAH-KARARLARI 10-01 §2). `AI_HOST_DECISION_HOLD_ENABLED=1` açıkken zaten tutuluyor; anahtarsız kurulumda gider. Metnin ev sahibinin ağzından yazılması önerilir ("Erken giriş o günkü temizliğe bağlı; size biz döneceğiz." değil — bekleme sözü yasak; önerim: "Erken giriş o günkü temizliğe bağlıdır; uygun olursa onaylarız." — misafire gideni değiştirdiği için onayınızla). |
+| **D** WhatsApp cevap kurucusunun kod denetimi Arapça / Farsça rakamları görmüyor | WhatsApp dilimi bağlanmadan önce düzeltilecek (bugün bağlı değil). |
+
 ## 5. Railway açılış günü eklenecekler (unutmayın)
 
 - **Decisions API sıralayıcısı:** `KB_RERANK_ENGINE=decisions`, `KB_RERANK_DECISIONS_MODEL` (ölçümle açılır).

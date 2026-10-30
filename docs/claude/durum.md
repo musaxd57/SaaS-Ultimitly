@@ -700,3 +700,8 @@ Tur belgeleri (anlatılar arşivde): `docs/MESAJLASMA-CEKIRDEGI-V2-2026-09-25.md
   (`hostVoiceJudged`). Kamu kurumu yalnız ölçülür. Gerçek model: ayrı yazarın (Haiku) 140 örneklik kör setinde özel işletme 41/42 (kod 4/42),
   kamu 21/21 ayrıldı, 77 temizde 0 yanlış; geliştirme setinde üçüncü kişi ev sahibi 56/56 (kod 53). Ölçüm ≈0,4 $. Migration 88 (kurucu onayı)
   aynı turda ana dala: taze PG'de 00..88, iki yoldan sıfır sapma.
+- **Yayın öncesi çekişmeli inceleme (10-30 gece, 74 ajan; doğrulayıcıların çoğu limitte düştü → elle doğrulandı):** B ön koşulu silinen izin
+  (Türkçe "-ebilirsiniz" + 5 dil kipi izin sayılır; 3.274 gerçek cevapta değişen 0) · C konusuz "detaylar için" silmesi çok soruda hiçbirini
+  kapatmaz · F "o isteğe hiç değinme" ana istemden ve ses ihlali notundan çıktı (10-29 iki hakem ilkesi; QR'da istek kayboluyordu) · H acil
+  muafiyeti yalnız gerçek acil çağrı talimatında · E boş önbellek saklama ayarı 24 saati kapatmaz. A (kodla kurulan erken giriş politika metni
+  üçüncü kişi) eski durum, kurucu kararı bekliyor (rapor §4c). D WhatsApp cevap kurucusu Arapça rakam → WhatsApp diliminde.
