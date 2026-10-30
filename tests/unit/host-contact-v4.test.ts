@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { analyzeHostContact } from "@/lib/ai/host-contact-filler";
+import { analyzeHostContact, isSafetyWarningSentence } from "@/lib/ai/host-contact-filler";
 import { hostContactKindOf } from "@/lib/ai/absence";
 import { topicsWithSymptomsOf } from "@/lib/conversation-items/relation";
 
@@ -222,7 +222,83 @@ describe("v4 — konu okumasının tek girdilik önbelleği", () => {
     const first = topicsWithSymptomsOf(text);
     first.push("bozuk");
     expect(topicsWithSymptomsOf(text)).not.toContain("bozuk");
+    // Önbellekten dönen dizi de kopyadır (mutasyon V4-R1: önbellekteki diziyi doğrudan döndürmek sonraki okumayı bozardı).
+    const hit = topicsWithSymptomsOf(text);
+    hit.push("bozuk");
+    expect(topicsWithSymptomsOf(text)).not.toContain("bozuk");
     expect(topicsWithSymptomsOf(text)).toEqual(topicsWithSymptomsOf(`${text} `.trimEnd()));
     expect(topicsWithSymptomsOf("Klima çalışmıyor.")).not.toEqual(topicsWithSymptomsOf(text));
+  });
+});
+
+describe("v4 — mutasyon pinleri (ilk koşuda yaşayan mutantlar)", () => {
+  // V4-F4: genel ihtiyaç kapanışı ("bir şeye ihtiyacınız olursa … haber vermeniz yeterli") ön koşul DEĞİLDİR — izin cümlesi gider.
+  it.each([
+    ["Evcil hayvan kabul ediliyor. Bir şeye ihtiyacınız olursa ev sahibinize haber vermeniz yeterli.", "Evcil hayvan kabul ediliyor."],
+    ["Pets are welcome. If you need anything, just let your host know beforehand.", "Pets are welcome."],
+  ])("genel ihtiyaç kapanışı ön koşul değil: %j", (reply, sent) => {
+    const a = analyzeHostContact(reply);
+    expect(a.nothingLeft).toBe(false);
+    expect(a.text).toBe(sent);
+  });
+
+  // V4-F10: güvenlik cümlesinde yazma yan cümlesinden SONRA adım varsa temiz kesilemez — tahliye adımı sessizce düşmesin, tamamı tutulur.
+  it.each([
+    "If you smell gas, call 112, message your host and leave the apartment.",
+    "If the smoke alarm goes off, call your host, text them a photo and then open the windows.",
+    "Gaz kokusu alırsanız 112'yi arayın, ev sahibinize yazın ve daireden çıkın.",
+  ])("yazmadan sonra güvenlik adımı → tamamı tutulur: %j", (reply) => {
+    expect(analyzeHostContact(reply).nothingLeft).toBe(true);
+  });
+});
+
+describe("v4 — göndergesel işaret büyük Türkçe İ ile de okunur (V4-F16)", () => {
+  it.each([
+    "Binada sauna var. İlgili bir sorunuz olursa ev sahibinize yazabilirsiniz.",
+    "Binada sauna var. İLGİLİ BİR SORUNUZ OLURSA EV SAHİBİNİZE YAZIN.",
+  ])("%j → tamamı tutulur", (reply) => {
+    expect(analyzeHostContact(reply).nothingLeft).toBe(true);
+  });
+});
+
+describe("v4 — önceki cümlenin işletmesi 'the owner'ı işletme sahibi yapar (V4-F17)", () => {
+  it("fırın cümlesinden sonra 'Ask the owner' ev sahibine yönlendirme değildir", () => {
+    const reply = "There's a great bakery on the corner. Ask the owner for the pistachio simit, it's fresh every morning.";
+    const a = analyzeHostContact(reply);
+    expect(a.removals).toHaveLength(0);
+    expect(a.text).toBe(reply);
+  });
+});
+
+describe("v4 — Türkçe ekli acil numara güvenlik talimatıdır (V4-F18)", () => {
+  it.each(["112'yi arayın.", "Böyle bir şey olursa 112'ye ulaşın.", "155'i arayın."])("%j güvenlik talimatı", (s) => {
+    expect(isSafetyWarningSentence(s)).toBe(true);
+  });
+  it("ekli acil numara + yazma: arama kalır, yazma silinir", () => {
+    const a = analyzeHostContact("Wi-Fi şifresi Lale1234. Bir şey olursa 112'yi arayın ya da ev sahibinize yazın.");
+    expect(a.nothingLeft).toBe(false);
+    expect(a.text).toContain("112'yi arayın");
+    expect(a.text).not.toContain("ev sahibinize");
+  });
+});
+
+describe("v4 — kip + 'also / then' cihaz anlatımıdır, misafire talimat değil (V4-A2)", () => {
+  it.each([
+    "The smart lock will also notify your host when you check in.",
+    "The door sensor will then alert your host automatically.",
+    "This will also inform your host.",
+  ])("dokunulmaz: %j", (s) => {
+    expect(hostContactKindOf(s)).toBeNull();
+  });
+});
+
+describe("v4 — işletme / akraba anılan cümlede zamir işletmeye gönderir (V4-A5)", () => {
+  it.each([
+    "Your host recommends Lale Taxi, just call them to book.",
+    "Your host suggests the bakery downstairs; ask them for fresh simit.",
+    "Your host's friend runs the cafe, just message him for a table.",
+    "Ev sahibiniz Lale Taksi'yi öneriyor, onları arayabilirsiniz.",
+  ])("ev sahibine yönlendirme değil: %j", (s) => {
+    expect(hostContactKindOf(s)).toBeNull();
   });
 });
