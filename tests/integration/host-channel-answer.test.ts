@@ -24,6 +24,13 @@ vi.spyOn(prisma.hostChannelBinding, "findFirst").mockImplementation(((args: Para
   if (throwBindingReadAt > 0 && bindingReads === throwBindingReadAt) return Promise.reject(new Error("baglanti koptu"));
   return realBindingFindFirst(args);
 }) as never);
+// Soru okumaları kaydedilir (geçiş, geri alınmaz): başka işletmenin sorusunun İÇERİĞİ hiç okunmuyor mu (sorgu düzeyinde pin).
+const questionReads: { where?: Record<string, unknown>; select?: Record<string, unknown> }[] = [];
+const realQuestionFindFirst = prisma.hostQuestion.findFirst.bind(prisma.hostQuestion);
+vi.spyOn(prisma.hostQuestion, "findFirst").mockImplementation(((args: Parameters<typeof realQuestionFindFirst>[0]) => {
+  questionReads.push({ where: args?.where as Record<string, unknown>, select: args?.select as Record<string, unknown> });
+  return realQuestionFindFirst(args);
+}) as never);
 import { startHostBinding, confirmHostBindingFromInbound } from "@/lib/host-channel/binding";
 import { WHATSAPP_CLOUD_PROVIDER } from "@/lib/host-channel/providers";
 import { handleHostInbound } from "@/lib/host-channel/inbound";
@@ -356,6 +363,22 @@ describe("WhatsApp cevap dilimi", () => {
       expect(composeMock).toHaveBeenCalledTimes(1); // yalnız B'nin kendi önizlemesi
       expect(await question(qb.questionId)).toEqual(beforeB);
       expect(await prisma.operationalEvent.count({ where: { event: "host_channel.answer.foreign", organizationId: a.orgId } })).toBe(3);
+    });
+
+    it("🚨 'yanıtla' bağlamı başka işletmenin sorusuysa o sorunun İÇERİĞİ okunmaz — yalnız işletme kimliğine bakılır (Haiku 10-30 P3)", async () => {
+      const a = await seedHost(DIG_A, "+90 532 111 22 33");
+      const b = await seedHost(DIG_B, "+49 151 12345678");
+      await previewed(b, "wamid.QB");
+      questionReads.length = 0;
+      await deliver([text(DIG_A, "wamid.x9", "var, dolapta", "wamid.QB")]);
+      expect(questionReads.length).toBeGreaterThan(0);
+      for (const r of questionReads) {
+        const org = r.where?.organizationId;
+        if (org === a.orgId) continue;
+        // Başka işletme yalnız "var mı" sorusuyla, yalnız işletme kimliği seçilerek sorulabilir.
+        expect(org).toEqual({ not: a.orgId });
+        expect(r.select).toEqual({ organizationId: true });
+      }
     });
   });
 
