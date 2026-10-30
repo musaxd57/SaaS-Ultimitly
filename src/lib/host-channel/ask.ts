@@ -4,7 +4,8 @@ import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/db";
 import { decryptSecretBound } from "@/lib/crypto";
 import { calendarDateOf } from "@/modules/availability/core";
-import { usableHostBindingForOrg, hostChannelSecret } from "./binding";
+import { usableHostBindingForOrg, hostChannelSecret, revokeHostBinding } from "./binding";
+import { addressHash } from "./binding-code";
 import { buildHostQuestion } from "./question-text";
 import { chooseHostChannel, hostAskKindOf, hostChannelFlagsFromEnv, type HostAskTrigger } from "./routing";
 import type { HostChannelTransport } from "./types";
@@ -49,7 +50,8 @@ export async function askHostOnChannel(input: {
   // Ucuz ön eleme — kapalı anahtar / liste dışı işletme / tür kapalı / e-posta-yalnız tür: veritabanına dokunmadan bugünkü yol.
   const pre = chooseHostChannel({ kind, orgId: input.organizationId, flags, binding: "verified", orgSentLastHour: 0 });
   if (pre !== "whatsapp") return pre;
-  if (!input.transport || !hostChannelSecret()) return "email";
+  const secret = hostChannelSecret();
+  if (!input.transport || !secret) return "email";
   const now = input.now ?? new Date();
   let questionId: string | null = null;
   try {
@@ -75,9 +77,16 @@ export async function askHostOnChannel(input: {
     if (!conv || !res) return "email";
     const row = await prisma.hostChannelBinding.findFirst({
       where: { id: binding.id, organizationId: input.organizationId, status: "active" },
-      select: { addressEnc: true },
+      select: { addressEnc: true, addressHash: true, provider: true },
     });
     if (!row) return "email";
+    // 🚨 Numara anahtarı (`HOST_CHANNEL_HMAC_SECRET`) değiştiyse bu satır artık bulunamaz: gelen "DUR" eşleşmez, ama soru gitmeye devam
+    // ederdi (inceleme 10-30 gece). Özet şimdiki anahtarla tutmuyorsa bağlantı kapanır, e-postaya dönülür; ev sahibi yeniden bağlar.
+    const to = decryptSecretBound(row.addressEnc, addressAad(binding.id, input.organizationId));
+    if (addressHash(row.provider, to, secret) !== row.addressHash) {
+      await revokeHostBinding({ bindingId: binding.id, organizationId: input.organizationId, reason: "key_rotated", now });
+      return "email";
+    }
 
     // Tur başına tek soru: tekil anahtar yarışı tek kazanır.
     const idempotencyKey = `turn:${input.messageId}`;
@@ -119,7 +128,6 @@ export async function askHostOnChannel(input: {
       guestText: input.messageBody,
       guestNames: [res.guestName, res.guestGivenName, conv.guestIdentifier].filter((n): n is string => typeof n === "string"),
     });
-    const to = decryptSecretBound(row.addressEnc, addressAad(binding.id, input.organizationId));
     const sent = await input.transport.sendQuestion(to, message);
     if (!sent.ok || !sent.providerMessageId) {
       await prisma.hostQuestion.updateMany({ where: { id: questionId, status: "queued" }, data: { status: "failed", fallbackEmailAt: now } });

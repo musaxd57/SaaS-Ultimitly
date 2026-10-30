@@ -53,7 +53,17 @@ function fakeTransport() {
   return { t, texts };
 }
 
-type Msg = { from: string; id: string; text?: string; button?: string; context?: string; extra?: Record<string, unknown> };
+type Msg = {
+  from: string;
+  id: string;
+  text?: string;
+  button?: string;
+  context?: string;
+  extra?: Record<string, unknown>;
+  /** Meta mesaj zamanı (saniye); verilmezse ŞİMDİ. */
+  ts?: number;
+  system?: string;
+};
 function body(msgs: Msg[], pnid: string | string[] = PNID): string {
   const ids = Array.isArray(pnid) ? pnid : [pnid];
   return JSON.stringify({
@@ -70,11 +80,13 @@ function body(msgs: Msg[], pnid: string | string[] = PNID): string {
             messages: (i === 0 ? msgs : []).map((m) => ({
               from: m.from,
               id: m.id,
-              timestamp: "1761850000",
+              timestamp: String(m.ts ?? Math.floor(Date.now() / 1000)),
               ...(m.context ? { context: { from: "905550000000", id: m.context } } : {}),
-              ...(m.button
-                ? { type: "interactive", interactive: { type: "button_reply", button_reply: { id: m.button, title: "Ben yazarım" } } }
-                : { type: "text", text: { body: m.text ?? "" } }),
+              ...(m.system
+                ? { type: "system", system: { body: "x", type: m.system } }
+                : m.button
+                  ? { type: "interactive", interactive: { type: "button_reply", button_reply: { id: m.button, title: "Ben yazarım" } } }
+                  : { type: "text", text: { body: m.text ?? "" } }),
               ...(m.extra ?? {}),
             })),
           },
@@ -181,20 +193,22 @@ describe("WhatsApp web kancası rotası", () => {
       expect(reportErrorMock).not.toHaveBeenCalled();
     });
 
-    it("anahtar açık ama uygulama gizli anahtarı yok → 200 {disabled:true} + alarm (sessiz kayıp yok)", async () => {
+    it("anahtar açık ama uygulama gizli anahtarı yok → 503 (Meta yeniden dener, kod / DUR kaybolmaz) + alarm", async () => {
       flagsOn();
       vi.stubEnv("WHATSAPP_APP_SECRET", "");
       const res = await post(body([{ from: DIG_A, id: "wamid.1", text: "merhaba" }]));
+      expect(res.status).toBe(503);
       expect(await res.json()).toEqual({ disabled: true });
       expect(reportErrorMock).toHaveBeenCalledTimes(1);
       expect(String(reportErrorMock.mock.calls[0]![0])).toBe("host-channel-webhook-dormant");
     });
 
-    it("anahtar açık ama numara arama anahtarı (HOST_CHANNEL_HMAC_SECRET) yok → aynı: 200 {disabled:true} + alarm; kimliksiz sel freni devrede", async () => {
+    it("anahtar açık ama numara arama anahtarı (HOST_CHANNEL_HMAC_SECRET) yok → aynı: 503 + alarm; kimliksiz sel freni devrede", async () => {
       flagsOn();
       vi.stubEnv("HOST_CHANNEL_HMAC_SECRET", "kisa");
       for (let i = 0; i < 3; i++) {
         const res = await post(body([{ from: DIG_A, id: `wamid.${i}`, text: "DUR" }]));
+        expect(res.status).toBe(503);
         expect(await res.json()).toEqual({ disabled: true });
       }
       expect(reportErrorMock).toHaveBeenCalledTimes(1);
@@ -218,6 +232,22 @@ describe("WhatsApp web kancası rotası", () => {
       expect((await binding(r.bindingId)).status).toBe("pending");
       expect(await dedupeLocks()).toBe(0);
       expect(await prisma.operationalEvent.count()).toBe(0);
+      // Kimliksiz sel freni: bastırılan alarm aynı süreçte yeniden yazılmaz.
+      expect(skipBadSignatureAlert("host-channel-webhook:signature-mismatch")).toBe(true);
+    });
+
+    it("doğrulanmış teslimat imza alarmını ve frenini sıfırlar: sonraki gerçek bozulma yeniden HEMEN bildirilir", async () => {
+      flagsOn();
+      const bad = body([{ from: STRANGER, id: "wamid.x", text: "x" }]);
+      await post(bad, { "x-hub-signature-256": sign(bad, "baska-anahtar") });
+      await post(bad, { "x-hub-signature-256": sign(bad, "baska-anahtar") });
+      expect(reportErrorMock).toHaveBeenCalledTimes(1);
+      expect(await prisma.systemLock.count({ where: { name: { contains: "signature-mismatch" } } })).toBe(1);
+      expect((await post(body([{ from: STRANGER, id: "wamid.ok", text: "x" }]))).status).toBe(200);
+      expect(await prisma.systemLock.count({ where: { name: { contains: "signature-mismatch" } } })).toBe(0);
+      expect(skipBadSignatureAlert("host-channel-webhook:signature-mismatch")).toBe(false);
+      await post(bad, { "x-hub-signature-256": sign(bad, "baska-anahtar") });
+      expect(reportErrorMock).toHaveBeenCalledTimes(2);
     });
 
     it("256 KB üstü gövde → 413", async () => {
@@ -236,12 +266,32 @@ describe("WhatsApp web kancası rotası", () => {
       expect((await binding(r.bindingId)).status).toBe("active");
     });
 
-    it("teslimat bizim numaramıza ait değil (ya da karışık) → hepsi yok sayılır", async () => {
+    it("yabancı numara kimliği: o mesaj işlenmez + yapılandırma alarmı; karışık teslimatta BİZİM numaramızın mesajı yine işlenir", async () => {
       flagsOn();
       const o = await seedOrg();
       const r = await pending(o, NUM_A);
       expect((await post(body([{ from: DIG_A, id: "wamid.1", text: r.code }], "111111111111"))).status).toBe(200);
+      expect((await binding(r.bindingId)).status).toBe("pending");
+      expect(await dedupeLocks()).toBe(0);
+      expect(reportErrorMock).toHaveBeenCalledTimes(1);
+      expect(String(reportErrorMock.mock.calls[0]![0])).toBe("host-channel-webhook-foreign-number");
+      // Karışık: mesaj bizim numaramızın altında → işlenir.
       expect((await post(body([{ from: DIG_A, id: "wamid.2", text: r.code }], [PNID, "111111111111"]))).status).toBe(200);
+      expect((await binding(r.bindingId)).status).toBe("active");
+      // Yalnız bizim numaramızın teslimatı yabancı numara alarmını temizler.
+      await post(body([{ from: DIG_A, id: "wamid.3", text: "x" }]));
+      expect(await prisma.systemLock.count({ where: { name: { contains: "foreign-number" } } })).toBe(0);
+    });
+
+    it("numara kimliği hiç olmayan imzalı teslimat işlenmez", async () => {
+      flagsOn();
+      const o = await seedOrg();
+      const r = await pending(o, NUM_A);
+      const raw = JSON.stringify({
+        object: "whatsapp_business_account",
+        entry: [{ changes: [{ field: "messages", value: { messages: [{ from: DIG_A, id: "wamid.np", timestamp: String(Math.floor(Date.now() / 1000)), type: "text", text: { body: r.code } }] } }] }],
+      });
+      expect((await post(raw)).status).toBe(200);
       expect((await binding(r.bindingId)).status).toBe("pending");
       expect(await dedupeLocks()).toBe(0);
     });
@@ -311,6 +361,30 @@ describe("WhatsApp web kancası rotası", () => {
       await prisma.user.update({ where: { id: o.userId }, data: { role: "staff" } });
       await post(body([{ from: DIG_A, id: "wamid.1", text: r.code }]));
       expect((await binding(r.bindingId)).status).toBe("pending");
+    });
+
+    it("🚨 geç gelen eski DUR (bağlantı yeniden kurulduktan çok önce yazılmış) yeni bağlantıyı KAPATMAZ; güncel DUR kapatır", async () => {
+      flagsOn();
+      const o = await seedOrg();
+      const id = await active(o, NUM_A, DIG_A);
+      const dayAgo = Math.floor(Date.now() / 1000) - 24 * 3600;
+      await post(body([{ from: DIG_A, id: "wamid.old", text: "DUR", ts: dayAgo }]));
+      expect((await binding(id)).status).toBe("active");
+      expect(tr.texts).toHaveLength(0);
+      await post(body([{ from: DIG_A, id: "wamid.new", text: "DUR" }]));
+      expect((await binding(id)).status).toBe("revoked");
+    });
+
+    it("WhatsApp 'numara değişti' olayı bağlantıyı kapatır; öteki sistem olayları etkinlik sayılmaz", async () => {
+      flagsOn();
+      const o = await seedOrg();
+      const id = await active(o, NUM_A, DIG_A);
+      await prisma.hostChannelBinding.update({ where: { id }, data: { lastInboundAt: null } });
+      await post(body([{ from: DIG_A, id: "wamid.s1", system: "customer_identity_changed" }]));
+      expect(await binding(id)).toMatchObject({ status: "active", lastInboundAt: null });
+      await post(body([{ from: DIG_A, id: "wamid.s2", system: "user_changed_number" }]));
+      expect(await binding(id)).toMatchObject({ status: "revoked", revokedReason: "number_changed" });
+      expect(tr.texts).toHaveLength(0);
     });
 
     it("etkin numaradan DUR → bağlantı kapanır (opt_out), tek onay mesajı o numaraya; tekrar DUR bir şey yapmaz", async () => {
@@ -401,6 +475,8 @@ describe("WhatsApp web kancası rotası", () => {
   });
 
   describe("🚨 çapraz kiracı — işletme YALNIZ gönderen numaradan", () => {
+    // Not: bu dilimde gövdedeki kimlikler (`context.id`, düğme kimliği) HİÇ okunmuyor — cevap eşleme dilimi geldiğinde bu test aynı kalır ve
+    // reddin sebebini (gönderenin işletmesi ≠ sorunun işletmesi) sınar; bugün yalnız "gövde kimliği bir şey değiştirmez"i pinler.
     it("A'nın numarasından gelen, gövdesine B'nin kimlikleri yazılmış teslimat B'nin hiçbir satırına dokunmaz", async () => {
       flagsOn();
       const a = await seedOrg();
@@ -419,6 +495,23 @@ describe("WhatsApp web kancası rotası", () => {
       expect((await binding(aId)).lastInboundAt).not.toBeNull();
       const rec = await prisma.operationalEvent.findFirstOrThrow({ where: { event: "host_channel.webhook.received" } });
       expect(rec.organizationId).toBe(a.orgId);
+    });
+
+    it("iki işletmenin numarasından gelen tek teslimat: ikisi de işlenir, günlük satırı tek işletmeye yazılmaz", async () => {
+      flagsOn();
+      const a = await seedOrg();
+      const b = await seedOrg();
+      const aId = await active(a, NUM_A, DIG_A);
+      const bId = await active(b, NUM_B, DIG_B);
+      await prisma.hostChannelBinding.updateMany({ data: { lastInboundAt: null } });
+      await post(body([
+        { from: DIG_A, id: "wamid.m1", text: "x" },
+        { from: DIG_B, id: "wamid.m2", text: "y" },
+      ]));
+      expect((await binding(aId)).lastInboundAt).not.toBeNull();
+      expect((await binding(bId)).lastInboundAt).not.toBeNull();
+      const rec = await prisma.operationalEvent.findFirstOrThrow({ where: { event: "host_channel.webhook.received" } });
+      expect(rec.organizationId).toBeNull();
     });
 
     it("A'nın numarasından DUR — gövdede B'nin kimlikleri olsa da yalnız A kapanır", async () => {

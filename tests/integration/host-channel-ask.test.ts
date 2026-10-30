@@ -190,6 +190,20 @@ describe("WhatsApp ev sahibi sorusu — bildirim bağlantısı", () => {
     expect(sendReporting).toHaveBeenCalledTimes(1);
   });
 
+  it("🚨 numara anahtarı değiştiyse (özet tutmuyor) soru GİTMEZ: bağlantı kapanır, e-posta gider (gelen DUR artık eşleşmezdi)", async () => {
+    const s = await seed();
+    await bind(s);
+    flagsOn(s.orgId);
+    vi.stubEnv("HOST_CHANNEL_HMAC_SECRET", "baska-host-channel-secret-0123456789abcdef");
+    const { t, sent } = fakeTransport();
+    __setHostChannelTransportForTest(t);
+    expect(await notify(s)).toBe("mailed");
+    expect(sent).toHaveLength(0);
+    expect(sendReporting).toHaveBeenCalledTimes(1);
+    expect(await prisma.hostChannelBinding.findFirstOrThrow()).toMatchObject({ status: "revoked", revokedReason: "key_rotated" });
+    expect(await prisma.hostQuestion.count()).toBe(0);
+  });
+
   it("aktarım yapılandırılmamış (WhatsApp kimlik bilgisi yok) → e-posta", async () => {
     const s = await seed();
     await bind(s);

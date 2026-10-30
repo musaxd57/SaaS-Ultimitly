@@ -108,14 +108,31 @@ describe("WhatsApp numara bağlama", () => {
     const o = await seedUser();
     const r = await start(o);
     if (!r.ok) throw new Error(r.reason);
-    await Promise.all(
-      Array.from({ length: BINDING_CODE_MAX_ATTEMPTS * 4 }, () =>
-        confirmHostBindingFromInbound({ provider: P, fromDigits: DIGITS, code: "LIXUS-000000" }).catch(() => null),
-      ),
+    const results = await Promise.all(
+      Array.from({ length: BINDING_CODE_MAX_ATTEMPTS * 4 }, () => confirmHostBindingFromInbound({ provider: P, fromDigits: DIGITS, code: "LIXUS-000000" })),
     );
     const row = await prisma.hostChannelBinding.findUniqueOrThrow({ where: { id: r.bindingId } });
-    expect(row.verifyAttempts).toBeLessThanOrEqual(BINDING_CODE_MAX_ATTEMPTS);
+    // Tam olarak tavan kadar deneme sonuç doğurur: ne fazlası (kaba kuvvet) ne eksiği (hak erken biter).
+    expect(row.verifyAttempts).toBe(BINDING_CODE_MAX_ATTEMPTS);
+    expect(results.filter((x) => !x.ok && x.reason === "mismatch")).toHaveLength(BINDING_CODE_MAX_ATTEMPTS);
+    expect(results.every((x) => !x.ok && (x.reason === "mismatch" || x.reason === "too_many_attempts"))).toBe(true);
     expect(row.status).toBe("pending");
+    // Hak bitince doğru kod da geçmez.
+    expect(await confirmHostBindingFromInbound({ provider: P, fromDigits: DIGITS, code: r.code })).toEqual({ ok: false, reason: "too_many_attempts" });
+  });
+
+  it("aynı kullanıcının iki bekleyen numarası eşzamanlı doğrulanırsa yalnız biri etkin kalır (kullanıcı başına tek numara)", async () => {
+    const o = await seedUser();
+    const r1 = await start(o);
+    const r2 = await start(o, "+49 151 12345678");
+    if (!r1.ok || !r2.ok) throw new Error("start");
+    const [c1, c2] = await Promise.all([
+      confirmHostBindingFromInbound({ provider: P, fromDigits: DIGITS, code: r1.code }),
+      confirmHostBindingFromInbound({ provider: P, fromDigits: "4915112345678", code: r2.code }),
+    ]);
+    expect(c1.ok && c2.ok).toBe(true);
+    const rows = await prisma.hostChannelBinding.findMany({ where: { userId: o.userId } });
+    expect(rows.filter((x) => x.status === "active")).toHaveLength(1);
   });
 
   it("kodu üreten kullanıcının rolü personele düştüyse / işletmeden çıktıysa doğru kod da etkinleştirmez (rol yeniden okunur)", async () => {

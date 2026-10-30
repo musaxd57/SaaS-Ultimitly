@@ -5,6 +5,9 @@ import type { HostInboundEvent } from "../types";
 // Gövde GÜVENİLMEZ VERİDİR: imza doğrulanmadan buraya gelinmez (`signature.ts`); yine de her alan tip denetimiyle okunur, beklenmeyen
 // biçim sessizce atlanır (bir tuhaf öğe bütün partiyi düşürmez). Durum olayları (`statuses`: sent / delivered / read / failed) ayrı döner.
 // Metin 4.000 karakterde kesilir (ev sahibinin cevabı kısa; sınırsız metin aşağı akışta maliyet ve karesel iş riski).
+// `onlyPhoneNumberId` verilirse YALNIZ o numaraya gelen mesajlar döner (karışık teslimatta kendi numaramızın "DUR"u kaybolmasın); bütün
+// numara kimlikleri yine `phoneNumberIds`te (yabancı kimlik = yapılandırma hatası alarmı). Sistem olayları (`type: "system"`) türüyle döner:
+// `system:user_changed_number` (ev sahibi WhatsApp numarasını değiştirdi) çekirdekte bağlantıyı kapatır.
 // ---------------------------------------------------------------------------
 
 export const INBOUND_TEXT_CAP = 4_000;
@@ -25,7 +28,10 @@ const when = (ts: unknown): Date => {
   return Number.isFinite(n) && n > 0 ? new Date(n * 1000) : new Date(0);
 };
 
-export function parseMetaWebhook(body: unknown): { messages: HostInboundEvent[]; statuses: MetaStatusEvent[]; phoneNumberIds: string[] } {
+export function parseMetaWebhook(
+  body: unknown,
+  opts: { onlyPhoneNumberId?: string } = {},
+): { messages: HostInboundEvent[]; statuses: MetaStatusEvent[]; phoneNumberIds: string[] } {
   const messages: HostInboundEvent[] = [];
   const statuses: MetaStatusEvent[] = [];
   const phoneNumberIds = new Set<string>();
@@ -39,7 +45,8 @@ export function parseMetaWebhook(body: unknown): { messages: HostInboundEvent[];
       if (!value) continue;
       const pid = str(rec(value.metadata)?.phone_number_id);
       if (pid) phoneNumberIds.add(pid);
-      for (const m of arr(value.messages)) {
+      const ours = opts.onlyPhoneNumberId === undefined || pid === opts.onlyPhoneNumberId;
+      for (const m of ours ? arr(value.messages) : []) {
         const msg = rec(m);
         const from = str(msg?.from);
         const id = str(msg?.id);
@@ -59,11 +66,14 @@ export function parseMetaWebhook(body: unknown): { messages: HostInboundEvent[];
           const b = rec(msg.button);
           const buttonId = str(b?.payload);
           if (buttonId) messages.push({ kind: "button", from, providerMessageId: id, contextId, buttonId, title: str(b?.text) ?? "", at });
+        } else if (type === "system") {
+          const systemType = str(rec(msg.system)?.type);
+          messages.push({ kind: "unsupported", from, providerMessageId: id, contextId, media: `system:${systemType ?? "unknown"}`, at });
         } else {
           messages.push({ kind: "unsupported", from, providerMessageId: id, contextId, media: type ?? "unknown", at });
         }
       }
-      for (const s of arr(value.statuses)) {
+      for (const s of ours ? arr(value.statuses) : []) {
         const st = rec(s);
         const id = str(st?.id);
         const status = str(st?.status);

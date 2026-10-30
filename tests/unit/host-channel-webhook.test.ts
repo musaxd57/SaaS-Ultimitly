@@ -1,9 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { looksLikeMetaSignature, verifyWhatsAppHandshake, whatsAppWebhookConfigFromEnv } from "@/lib/host-channel/whatsapp/webhook";
 import { inboundDedupeName, INBOUND_DEDUPE_PREFIX } from "@/lib/host-channel/inbound";
 import { sanitizeEventData } from "@/lib/event-log";
 import { WHATSAPP_CLOUD_PROVIDER } from "@/lib/host-channel/providers";
 import { createWhatsAppTransport } from "@/lib/host-channel/whatsapp/transport";
+import { hostChannelTransport } from "@/lib/host-channel-runtime";
 
 // ---------------------------------------------------------------------------
 // WhatsApp web kancası — saf parçalar (tasarım §5.1, §5.6, §5.9). Rotanın davranışı gerçek veritabanıyla
@@ -86,5 +87,19 @@ describe("tekrar anahtarı + sağlayıcı kimliği + olay günlüğü", () => {
     expect(sanitizeEventData({ processed: "905321234567" })).toEqual({ _dropped: 1 });
     expect(sanitizeEventData({ reason: "905321234567" })).toEqual({ _dropped: 1 });
     expect(sanitizeEventData({ reason: "Bebek yatağı var mı?" })).toEqual({ _dropped: 1 });
+  });
+});
+
+describe("gönderim seçicisi", () => {
+  afterEach(() => vi.unstubAllEnvs());
+  it("🚨 gelen uç (imza anahtarı + numara kimliği) hazır değilse WhatsApp'a soru GİTMEZ — cevap / DUR kaybolmasın", () => {
+    vi.stubEnv("WHATSAPP_ACCESS_TOKEN", "tok");
+    vi.stubEnv("WHATSAPP_PHONE_NUMBER_ID", "123456789");
+    vi.stubEnv("WHATSAPP_APP_SECRET", "");
+    expect(hostChannelTransport()).toBeNull();
+    vi.stubEnv("WHATSAPP_APP_SECRET", "app-secret");
+    expect(hostChannelTransport()?.provider).toBe(WHATSAPP_CLOUD_PROVIDER);
+    vi.stubEnv("WHATSAPP_ACCESS_TOKEN", "");
+    expect(hostChannelTransport()).toBeNull();
   });
 });

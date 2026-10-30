@@ -119,6 +119,46 @@ describe("Meta web kancası ayrıştırma — güvenilmez gövde", () => {
     ]);
     expect(r.statuses).toEqual([{ providerMessageId: "wamid.Q1", status: "failed", recipient: "905321112233", at: expect.any(Date), errorCode: 131047 }]);
   });
+  it("karışık teslimat: yalnız kendi numaramıza gelen mesaj / durum döner, bütün numara kimlikleri yine raporlanır", () => {
+    const body = {
+      object: "whatsapp_business_account",
+      entry: [
+        { changes: [{ field: "messages", value: { metadata: { phone_number_id: "OURS" }, messages: [{ from: "905321112233", id: "a", type: "text", text: { body: "DUR" } }] } }] },
+        {
+          changes: [
+            {
+              field: "messages",
+              value: {
+                metadata: { phone_number_id: "OTHER" },
+                messages: [{ from: "905321112299", id: "b", type: "text", text: { body: "x" } }],
+                statuses: [{ id: "wamid.O", status: "sent", recipient_id: "1" }],
+              },
+            },
+          ],
+        },
+      ],
+    };
+    const r = parseMetaWebhook(body, { onlyPhoneNumberId: "OURS" });
+    expect(r.messages.map((m) => m.providerMessageId)).toEqual(["a"]);
+    expect(r.statuses).toEqual([]);
+    expect(r.phoneNumberIds.sort()).toEqual(["OTHER", "OURS"]);
+    // Süzgeçsiz çağrı bugünkü gibi hepsini döner.
+    expect(parseMetaWebhook(body).messages).toHaveLength(2);
+  });
+  it("sistem olayı türüyle döner (numara değişimi ayırt edilir)", () => {
+    const r = parseMetaWebhook(
+      payload([
+        { from: "905321112233", id: "s1", type: "system", system: { body: "x", new_wa_id: "905339998877", type: "user_changed_number" } },
+        { from: "905321112233", id: "s2", type: "system", system: { type: "customer_identity_changed" } },
+        { from: "905321112233", id: "s3", type: "system" },
+      ]),
+    );
+    expect(r.messages.map((m) => (m.kind === "unsupported" ? m.media : m.kind))).toEqual([
+      "system:user_changed_number",
+      "system:customer_identity_changed",
+      "system:unknown",
+    ]);
+  });
   it("başka nesne türü / boş gövde → hiçbir şey; uzun metin kesilir", () => {
     expect(parseMetaWebhook({ object: "page", entry: [] }).messages).toEqual([]);
     expect(parseMetaWebhook(null).messages).toEqual([]);

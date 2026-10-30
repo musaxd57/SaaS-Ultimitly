@@ -27,3 +27,8 @@ export function noteBadSignatureSuppressed(key: string, now: number = Date.now()
 export function clearBadSignatureThrottle(): void {
   suppressedAt.clear();
 }
+
+/** Tek anahtarın freni — başka bir web kancasının (ör. WhatsApp ↔ ödeme) frenine dokunmadan. */
+export function clearBadSignatureThrottleFor(key: string): void {
+  suppressedAt.delete(key);
+}

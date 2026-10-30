@@ -167,6 +167,9 @@ export async function confirmHostBindingFromInbound(input: {
       return { ok: false as const, reason: after?.status === "pending" ? ("too_many_attempts" as const) : ("not_pending" as const) };
     }
     if (verdict === "mismatch") return { ok: false as const, reason: verdict };
+    // Kullanıcı satırı kilitlenir: aynı kullanıcının İKİ bekleyen numarası eşzamanlı doğrulanırsa ikisi de etkin kalmasın (her işlem ötekinin
+    // henüz yazılmamış etkinleşmesini göremezdi — inceleme 10-30 gece P3). İkinci işlem birincinin sonucunu görür, "kullanıcı başına tek numara".
+    await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${b.userId} FOR UPDATE`;
     const user = await tx.user.findUnique({ where: { id: b.userId }, select: { sessionEpoch: true } });
     if (!user) return { ok: false as const, reason: "not_allowed" as const };
     const won = await tx.hostChannelBinding.updateMany({
@@ -194,7 +197,7 @@ export async function confirmHostBindingFromInbound(input: {
 export async function revokeHostBinding(input: {
   bindingId: string;
   organizationId: string;
-  reason: "user" | "opt_out" | "epoch" | "operator" | "provider_blocked";
+  reason: "user" | "opt_out" | "epoch" | "operator" | "provider_blocked" | "number_changed" | "key_rotated";
   now?: Date;
 }): Promise<boolean> {
   const r = await prisma.hostChannelBinding.updateMany({

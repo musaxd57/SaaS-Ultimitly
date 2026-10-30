@@ -13,6 +13,7 @@ import { prisma, resetDb } from "../helpers/db";
 import { startHostBinding, confirmHostBindingFromInbound } from "@/lib/host-channel/binding";
 import { WHATSAPP_CLOUD_PROVIDER } from "@/lib/host-channel/providers";
 import { __setHostChannelTransportForTest } from "@/lib/host-channel-runtime";
+import { INBOUND_LEASE_MS } from "@/lib/host-channel/inbound";
 
 // ---------------------------------------------------------------------------
 // WhatsApp web kancası — işleme yarıda düşerse (AYRI dosya: Prisma temsilcisine `vi.spyOn` sonraki testlere sızar). Pinlenen: 500 döner (Meta
@@ -133,7 +134,11 @@ describe("WhatsApp web kancası — yarıda düşme", () => {
     expect((await post(raw("wamid.f2"))).status).toBe(500);
     failLockDeletes = false;
     const lock = await prisma.systemLock.findFirstOrThrow({ where: { name: { startsWith: "host-in:" } } });
-    expect(lock.holder).toBe("processing");
+    expect(lock.holder).toMatch(/^processing:[0-9a-f-]{36}$/);
+    // İşleniyor kirası kısa (2 dk): yarıda kalan iş günlerce "meşgul" kalmaz.
+    const leaseLeft = lock.lockedUntil.getTime() - Date.now();
+    expect(leaseLeft).toBeGreaterThan(60_000);
+    expect(leaseLeft).toBeLessThanOrEqual(INBOUND_LEASE_MS);
 
     // Meta hemen yeniden denerse: "tekrar" sayılıp yutulmaz, 503 → sonra yine dener.
     expect((await post(raw("wamid.f2"))).status).toBe(503);

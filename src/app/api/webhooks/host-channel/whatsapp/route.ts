@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { readTextCapped, MAX_WEBHOOK_BODY_BYTES, BodyTooLargeError, payloadTooLarge, jsonOk, unauthorized } from "@/lib/api";
 import { alertOnTransition, clearAlertState } from "@/lib/alert-state";
-import { noteBadSignatureSuppressed, skipBadSignatureAlert } from "@/lib/billing/bad-signature-throttle";
+import { clearBadSignatureThrottleFor, noteBadSignatureSuppressed, skipBadSignatureAlert } from "@/lib/billing/bad-signature-throttle";
 import { currentCorrelation, newCorrelationId, runWithCorrelation } from "@/lib/correlation";
 import { logEvent } from "@/lib/event-log";
 import { reportError } from "@/lib/report-error";
@@ -21,13 +21,16 @@ import { looksLikeMetaSignature, verifyWhatsAppHandshake, whatsAppWebhookConfigF
 //
 //  · Anahtar (`HOST_CHANNEL_ENABLED`) kapalıyken uç UYUR: GET 403, POST 200 `{disabled:true}` (gövde okunmaz, veritabanına dokunulmaz).
 //    Kurulum sırası (RAILWAY belgesi): önce anahtar + kimlik bilgileri, SONRA Meta'da abonelik.
-//  · Anahtar açık ama uygulama gizli anahtarı / numara kimliği / numara arama anahtarı (`HOST_CHANNEL_HMAC_SECRET`) yok → 200
-//    `{disabled:true}` + geçiş tabanlı alarm (sessiz kayıp yok; kimliksiz istek seli alarm yazımını süreç içi frenle sınırlı tetikler).
+//  · Anahtar açık ama uygulama gizli anahtarı / numara kimliği / numara arama anahtarı (`HOST_CHANNEL_HMAC_SECRET`) yok → 503 + geçiş tabanlı
+//    alarm: Meta yeniden dener, yapılandırma düzelince ev sahibinin kodu / "DUR"u işlenir (200 dönseydi kaybolurdu — inceleme 10-30 gece P2).
+//    Bu durumda gönderim de kapalıdır (`hostChannelTransport` gelen uç hazır değilse `null`), soru gitmez. Kimliksiz istek seli alarm
+//    yazımını süreç içi frenle sınırlı tetikler.
 //  · İmza HAM gövde üzerinde, ayrıştırmadan ve veritabanından ÖNCE; imzasız / bozuk → 401, hiçbir şey yazılmaz. Alarm yalnız başlık Meta'nın
 //    biçimindeyse (gerçek teslimat, yanlış anahtar) ve süreç içi frenle. `Content-Type` imzadan önce kapı DEĞİLDİR (repo kuralı,
 //    `api.ts` `readJsonCapped` yorumu): imzalı gövde başlıktan bağımsız işlenir.
-//  · Teslimattaki `phone_number_id` bizim numaramız olmalı (karışık / yabancı → hepsi yok sayılır, 200). Bu kimlik yalnız DENETİMDİR,
-//    işletme SEÇMEZ: işletme yalnız gönderen numaradan bulunur (`handleHostInbound`).
+//  · Yalnız bizim numaramıza (`phone_number_id`) gelen mesajlar işlenir; karışık teslimatta bizimkiler kaybolmaz. İmzalı teslimatta YABANCI
+//    numara kimliği = yapılandırma hatası (yanlış `WHATSAPP_PHONE_NUMBER_ID` her mesajı sessizce yutardı) → geçiş tabanlı alarm. Bu kimlik
+//    yalnız DENETİMDİR, işletme SEÇMEZ: işletme yalnız gönderen numaradan bulunur (`handleHostInbound`).
 //  · Durum olayları (gönderildi / iletildi / okundu / hata) bu dilimde işlenmez.
 //  · İşleme yarıda düşerse 500 → Meta yeniden dener; aynı mesaj başka teslimatta hâlâ işleniyorsa 503 (Meta sonra yeniden dener).
 //  · Günlüğe numara, metin, sağlayıcı mesaj kimliği, gövde YAZILMAZ — yalnız sayılar ve işletme.
@@ -63,7 +66,7 @@ export async function POST(req: NextRequest): Promise<Response> {
       );
       if (outcome === "suppressed") noteBadSignatureSuppressed(dormantKey);
     }
-    return NextResponse.json({ disabled: true }, { status: 200 });
+    return NextResponse.json({ disabled: true }, { status: 503 });
   }
 
   let rawBody: string;
@@ -88,6 +91,8 @@ export async function POST(req: NextRequest): Promise<Response> {
   }
   await clearAlertState("host-channel-webhook:signature-mismatch");
   await clearAlertState("host-channel-webhook:dormant");
+  clearBadSignatureThrottleFor("host-channel-webhook:signature-mismatch");
+  clearBadSignatureThrottleFor("host-channel-webhook:dormant");
 
   let body: unknown = null;
   try {
@@ -95,10 +100,22 @@ export async function POST(req: NextRequest): Promise<Response> {
   } catch {
     return jsonOk({ ok: true });
   }
-  const parsed = parseMetaWebhook(body);
+  const parsed = parseMetaWebhook(body, { onlyPhoneNumberId: cfg.phoneNumberId });
+  const foreignKey = "host-channel-webhook:foreign-number";
+  if (parsed.phoneNumberIds.some((id) => id !== cfg.phoneNumberId)) {
+    if (!skipBadSignatureAlert(foreignKey)) {
+      const outcome = await alertOnTransition(
+        foreignKey,
+        "host-channel-webhook-foreign-number",
+        new Error("İmzalı WhatsApp teslimatında başka bir numara kimliği var — WHATSAPP_PHONE_NUMBER_ID yanlış olabilir (o numaranın mesajları işlenmedi)"),
+      );
+      if (outcome === "suppressed") noteBadSignatureSuppressed(foreignKey);
+    }
+  } else if (parsed.phoneNumberIds.length > 0) {
+    await clearAlertState(foreignKey);
+    clearBadSignatureThrottleFor(foreignKey);
+  }
   if (parsed.messages.length === 0) return jsonOk({ ok: true });
-  // Karışık ya da yabancı numara kimliği: teslimatın tamamı yok sayılır (mesaj başına ayrım yapılmaz).
-  if (parsed.phoneNumberIds.length === 0 || parsed.phoneNumberIds.some((id) => id !== cfg.phoneNumberId)) return jsonOk({ ok: true });
 
   try {
     const r = await handleHostInbound({ provider: WHATSAPP_CLOUD_PROVIDER, events: parsed.messages, flags, transport: hostChannelTransport() });
