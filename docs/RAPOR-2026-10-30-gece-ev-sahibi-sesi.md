@@ -117,6 +117,15 @@ Gece modunda sormadan seçtiklerim (hepsi geri alınabilir, misafire giden hiçb
 | W7 | Bilinmeyen numaradan gelen mesaj: hiçbir kayıt, hiçbir cevap | Numara yoklanamaz; dünyanın her yerinden gelen mesaj seli veritabanına yazı açmaz |
 | W8 | Doğrulama anında kullanıcının rolü yeniden okunur (personele düştüyse bağlanmaz); eşzamanlı yanlış kodlar sayacı 5'i aşamaz | Tasarım §5.3; yarış testiyle |
 
+**Kanıt (K2):** kırmızı-önce (eski kodda 5 + 3 dosya, inceleme düzeltmelerinde 12 test kırmızı) · mutasyon web kancası 36/38 (W-08 sonra
+pinlendi; W-36b gerekçeli EŞDEĞER: alarm freni yalnız sorgu sayısını azaltır, veritabanı durumu aynı) · Ayarlar 16/16 · Haiku 5 bulgu ✅ ·
+sert inceleme iş akışı (4 mercek + bulgu başına çürütücü, 25 ajan) 21 bulgu → 20 doğrulandı, 16'sı düzeltildi. Önemlisi (P2): anahtar açık
+ama gelen uç yarım yapılandırılmışken WhatsApp'a soru gitmeye devam ediyor, ev sahibinin cevabı ve "DUR"u yutuluyordu → artık iki yön
+birlikte hazır değilse soru gitmez (e-posta), yanlış yapılandırmada 503 (Meta yeniden dener). Kabul edilen 4 küçük kalan: anahtar KAPALIYKEN
+gelen "DUR" işlenmez (uç uyur; yeniden açılınca ev sahibi tekrar yazmalı) · yan etki ile "bitti" işareti ayrı yazılır (tekrarda etki
+idempotent) · gerçek bir teslimattan sonra sahte imzalı istek bir alarm daha üretebilir (en çok gerçek teslimat sayısı kadar) · rota kapsam
+tarayıcısını dolaylı geçer (davranış testleri asıl koruma).
+
 **Ayarlar kartı (aynı gece):** Ayarlar › Bildirimler'in altında "WhatsApp bildirimleri" — yalnız anahtar açık + işletme listede + numaramız
 (`WHATSAPP_BUSINESS_NUMBER`) tanımlıyken görünür. Ev sahibi numarasını yazar, rıza kutusunu işaretler, "Kodu al" → `LIXUS-7F3K2Q` + "WhatsApp'ta
 aç" düğmesi (kod hazır yazılı açılır) → gönderir → kart "Bağlı numara: +•• ••• ••• •• 67" der. Başka hesapta bağlı numara için tek genel cümle
