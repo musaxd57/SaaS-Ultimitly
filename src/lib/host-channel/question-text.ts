@@ -1,6 +1,7 @@
 import { redactContactsFromText } from "@/lib/contact-redact";
 import { redactSensitive } from "@/lib/redact";
 import type { HostQuestionMessage } from "./types";
+import { asciiDigits } from "./digits";
 
 // ---------------------------------------------------------------------------
 // Ev sahibine giden sorunun değerleri (tasarım §3.3). SAF.
@@ -19,17 +20,39 @@ export function templateSafe(text: string): string {
     .trim();
 }
 
-/** Misafirin sözünden kısa, maskeli alıntı: iletişim değerleri + gizli değerler maskelenir, ad yazılmaz (alıntı yalnız mesaj gövdesi). */
-export function maskedGuestQuote(guestText: string, guestNames: readonly string[] = []): string {
-  let t = redactSensitive(redactContactsFromText(guestText));
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * Misafirin adı alıntıdan silinir — tam ad değil, AD PARÇALARI tek tek, büyük / küçük harf ve Türkçe harf farkı gözetmeden, iyelik / hâl ekiyle
+ * ("Ayşe'nin", "AYŞE", "ayşe") (Haiku 10-30 P2-1: yalnız birebir tam ad siliniyordu; "Merhaba ben Ayşe" WhatsApp'a gidiyordu). Doğrusal: parça
+ * başına tek çapalı kalıp.
+ */
+function withoutGuestNames(text: string, guestNames: readonly string[]): string {
+  const parts = new Set<string>();
   for (const name of guestNames) {
-    const n = name.trim();
-    if (n.length < 2) continue;
-    t = t.split(n).join("…");
+    for (const p of name.normalize("NFKC").split(/[\s,.;:()"“”'’-]+/u)) {
+      if ([...p].length >= 2 && /\p{L}/u.test(p)) {
+        parts.add(p);
+        parts.add(p.toLocaleLowerCase("tr"));
+        parts.add(p.toLocaleUpperCase("tr"));
+      }
+    }
   }
-  t = templateSafe(t);
-  if (t.length <= QUOTE_MAX) return t;
-  const cut = t.slice(0, QUOTE_MAX - 1);
+  let t = text.normalize("NFKC");
+  for (const p of parts) t = t.replace(new RegExp(`(?<![\\p{L}\\p{N}])${escapeRe(p)}(?:['’]\\p{L}{0,8})?(?![\\p{L}\\p{N}])`, "giu"), "…");
+  return t;
+}
+
+/**
+ * Misafirin sözünden kısa, maskeli alıntı: iletişim değerleri (her rakam yazısında — Arapça / tam genişlik rakamlı telefon da) + gizli değerler
+ * maskelenir, ad parçaları silinir. Kısaltma kod noktası sınırında (vekil çift ortadan bölünmez — Haiku P3-2).
+ */
+export function maskedGuestQuote(guestText: string, guestNames: readonly string[] = []): string {
+  let t = redactSensitive(redactContactsFromText(asciiDigits(guestText)));
+  t = templateSafe(withoutGuestNames(t, guestNames));
+  const chars = [...t];
+  if (chars.length <= QUOTE_MAX) return t;
+  const cut = chars.slice(0, QUOTE_MAX - 1).join("");
   const lastSpace = cut.lastIndexOf(" ");
   return `${(lastSpace > QUOTE_MAX / 2 ? cut.slice(0, lastSpace) : cut).trimEnd()}…`;
 }

@@ -123,6 +123,21 @@ describe("WhatsApp numara bağlama", () => {
     expect(await start(a, NUM, new Date(late.getTime() + BINDING_CODE_TTL_MS * 3))).toEqual({ ok: false, reason: "number_in_use" });
   });
 
+  it("çalışan bağlantı yeniden başlatılınca beklemeye DÜŞMEZ (already_active); kuşak eskiyse yeniden doğrulama açılır (Haiku P3-4)", async () => {
+    const o = await seedUser();
+    const r = await start(o);
+    if (!r.ok) throw new Error(r.reason);
+    await confirmHostBindingFromInbound({ provider: P, fromDigits: DIGITS, code: r.code });
+    expect(await start(o)).toEqual({ ok: false, reason: "already_active" });
+    expect(await usableHostBindingForOrg(o.orgId)).toEqual({ id: r.bindingId, userId: o.userId });
+    await prisma.user.update({ where: { id: o.userId }, data: { sessionEpoch: { increment: 1 } } });
+    const again = await start(o);
+    expect(again.ok).toBe(true);
+    if (!again.ok) return;
+    await confirmHostBindingFromInbound({ provider: P, fromDigits: DIGITS, code: again.code });
+    expect(await usableHostBindingForOrg(o.orgId)).toEqual({ id: r.bindingId, userId: o.userId });
+  });
+
   it("kullanıcı başına tek etkin numara: yeni numara doğrulanınca eskisi kapanır", async () => {
     const o = await seedUser();
     const r1 = await start(o);

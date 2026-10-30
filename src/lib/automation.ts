@@ -3502,7 +3502,8 @@ export async function applyChannelAutoReply(
                 messageId: shown.id,
                 messageBody: shown.body,
                 trigger: handoffHeld ? "handoff_held" : partsUnanswered ? "parts_unanswered" : "host_contact_notify",
-                itemKinds: itemsPlan.turnItems.map((i) => i.kind),
+                // Konaklama değişikliği ertelemesi (`deferralHeld`) öğe türünden bağımsız → bilgi sorusu olmaz, e-posta (Haiku 10-30 P2-3).
+                itemKinds: stayEval.deferralHeld === true ? undefined : itemsPlan.turnItems.map((i) => i.kind),
               });
               // Parça kipinde (Soru 10, Opus 10-23 sabah F8): bu e-posta turun açık ihtiyaçlarını da bildirmiş sayılır — sonraki turda bayat kalan aynı
               // satır için ikinci e-posta gitmez. Kip kapalıyken alan yok → yazma yok.

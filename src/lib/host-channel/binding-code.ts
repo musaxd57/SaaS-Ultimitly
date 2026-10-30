@@ -73,12 +73,14 @@ export function normalizeE164Digits(raw: string): string | null {
   return /^[1-9]\d{7,14}$/.test(t) ? t : null;
 }
 
-/** Ekranda maskeli gösterim: ülke kodu + son iki hane ("+90 ••• ••• •• 67"). Ev sahibi kendi numarasını tanır, başkası öğrenemez. */
+/**
+ * Ekranda maskeli gösterim: yalnız son iki hane ("+•• ••• ••• •• 67"). Ev sahibi kendi numarasını tanır, başkası öğrenemez. Ülke kodu
+ * gösterilmez: uzunluktan tahmin yanlıştı (Haiku 10-30 P3-1: Almanya "+491", Brezilya "+551").
+ */
 export function maskE164(e164Digits: string): string {
   const d = e164Digits.replace(/\D/g, "");
   if (d.length < 8) return "••••";
-  const cc = d.length > 10 ? d.slice(0, d.length - 10) : d.slice(0, 2);
-  return `+${cc} ••• ••• •• ${d.slice(-2)}`;
+  return `+•• ••• ••• •• ${d.slice(-2)}`;
 }
 
 export interface BindingState {

@@ -182,3 +182,29 @@ describe("sahte gönderici — sağlayıcıdan bağımsız arayüz", () => {
     expect(sent).toHaveLength(2);
   });
 });
+
+describe("misafir alıntısı — ad parçaları ve rakam yazısı (Haiku 10-30 P2-1 / P2-2 / P3-2)", () => {
+  it.each([
+    "Merhaba ben Ayşe, bebek yatağı var mı?",
+    "AYŞE YILMAZ burada, bebek yatağı var mı?",
+    "ayşe yılmaz: bebek yatağı var mı?",
+    "Ayşe'nin bebeği için yatak var mı?",
+  ])("ad parçası büyük / küçük harf ve ekle de silinir: %j", (t) => {
+    const q = maskedGuestQuote(t, ["Ayşe Yılmaz"]);
+    expect(q).not.toMatch(/ay[şs]e|y[ıi]lmaz/iu);
+    expect(q).toMatch(/yata[kğ]/u);
+  });
+  it("ad parçası başka sözcüğün içinde silinmez (Ayşegül ≠ Ayşe)", () => {
+    expect(maskedGuestQuote("Ayşegül Hanım da gelecek.", ["Ayşe Yılmaz"])).toContain("Ayşegül");
+  });
+  it.each(["Numaram ٠٥٣٢١١١٢٢٣٣, bebek yatağı?", "Numaram ０５３２１１１２２３３, bebek yatağı?"])("başka rakam yazısıyla telefon da maskelenir: %j", (t) => {
+    const q = maskedGuestQuote(t);
+    expect(q).not.toMatch(/5321112233|٥٣٢|５３２/u);
+  });
+  it("kısaltma vekil çifti ortadan bölmez", () => {
+    const q = maskedGuestQuote(`${"a".repeat(158)}😀 sonra`);
+    expect(q).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/u);
+    expect([...q].length).toBeLessThanOrEqual(QUOTE_MAX);
+  });
+});
+

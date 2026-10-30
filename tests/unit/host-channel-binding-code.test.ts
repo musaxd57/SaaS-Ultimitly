@@ -68,9 +68,10 @@ describe("saklama ve karşılaştırma", () => {
     expect(a).not.toBe(addressHash("fake", "905321234567", SECRET));
     expect(a).not.toBe(addressHash("whatsapp_cloud", "905321234568", SECRET));
   });
-  it("maskeli gösterim yalnız ülke kodu + son iki hane", () => {
-    expect(maskE164("905321234567")).toBe("+90 ••• ••• •• 67");
-    expect(maskE164("4915112345678")).toBe("+491 ••• ••• •• 78");
+  it("maskeli gösterim yalnız son iki hane (ülke kodu uzunluktan tahmin edilmez — Haiku P3-1)", () => {
+    expect(maskE164("905321234567")).toBe("+•• ••• ••• •• 67");
+    expect(maskE164("4915112345678")).toBe("+•• ••• ••• •• 78");
+    expect(maskE164("4915112345678")).not.toContain("491");
     expect(maskE164("123")).toBe("••••");
     expect(maskE164("905321234567")).not.toContain("532");
   });

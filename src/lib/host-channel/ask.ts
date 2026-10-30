@@ -43,7 +43,9 @@ export async function askHostOnChannel(input: {
   now?: Date;
 }): Promise<AskHostOutcome> {
   const flags = hostChannelFlagsFromEnv();
-  const kind = input.itemKinds === undefined ? "email_only" : hostAskKindOf(input.trigger, input.itemKinds);
+  // Bu yol yalnız BİLGİ sorusu kurar (Tür A); karar / acil türleri kendi diliminde (Haiku 10-30 P3-5) → e-posta.
+  const classified = input.itemKinds === undefined ? "email_only" : hostAskKindOf(input.trigger, input.itemKinds);
+  const kind = classified === "info" || classified === "silent" ? classified : "email_only";
   // Ucuz ön eleme — kapalı anahtar / liste dışı işletme / tür kapalı / e-posta-yalnız tür: veritabanına dokunmadan bugünkü yol.
   const pre = chooseHostChannel({ kind, orgId: input.organizationId, flags, binding: "verified", orgSentLastHour: 0 });
   if (pre !== "whatsapp") return pre;
@@ -56,8 +58,10 @@ export async function askHostOnChannel(input: {
     const sentLastHour = await prisma.hostQuestion.count({
       where: { organizationId: input.organizationId, sentAt: { gte: new Date(now.getTime() - HOUR_MS) } },
     });
-    const channel = chooseHostChannel({ kind, orgId: input.organizationId, flags, binding: "verified", orgSentLastHour: sentLastHour });
-    if (channel !== "whatsapp") return channel;
+    // Ad `route`: ev sahibine bildirim yolu — misafir kanalı değil (değişmez 20 kalıbı "channel" + etiket karşılaştırmasını yalnız Channel
+    // Layer'da kabul eder).
+    const route = chooseHostChannel({ kind, orgId: input.organizationId, flags, binding: "verified", orgSentLastHour: sentLastHour });
+    if (route !== "whatsapp") return route;
 
     const conv = await prisma.conversation.findFirst({
       where: { id: input.conversationId, property: { organizationId: input.organizationId } },

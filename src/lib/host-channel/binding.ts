@@ -26,6 +26,9 @@ import {
 //    değil hesaba bağlıdır (ekranı gören hesap üretti).
 //  · Etkinleşince aynı kullanıcının öteki etkin bağlantıları kapanır (ilk dilim: kullanıcı başına tek numara).
 //  · Oturum kuşağı doğrulama anında saklanır; kullanıcının kuşağı artınca bağlantı soru almaz (`bindingUsable`).
+//  · 🚨 Ayrıntılı ret sebepleri (`number_in_use`, `number_pending_elsewhere`) YALNIZ günlük / test içindir: Ayarlar rotası ev sahibine TEK genel
+//    cümle gösterir, rolü (sahip / yönetici) ve oturumun işletmesini kendisi doğrular, işletme + numara başına hız sınırı uygular — aksi hâlde
+//    bir hesap başka numaraların Lixus'ta bağlı olup olmadığını yoklayabilir ya da kod yenileyerek numarayı kilitleyebilir (Haiku 10-30 P2-4).
 // ---------------------------------------------------------------------------
 
 /** Anahtar (en az 32 karakter) yoksa bağlama kapalıdır — eksik anahtarla zayıf özet üretilmez. */
@@ -38,7 +41,7 @@ const addressAad = (bindingId: string, organizationId: string) => `host-channel-
 
 export type StartBindingResult =
   | { ok: true; bindingId: string; code: string; masked: string; expiresAt: Date }
-  | { ok: false; reason: "disabled" | "bad_number" | "number_in_use" | "number_pending_elsewhere" };
+  | { ok: false; reason: "disabled" | "bad_number" | "number_in_use" | "number_pending_elsewhere" | "already_active" };
 
 export async function startHostBinding(input: {
   organizationId: string;
@@ -71,9 +74,18 @@ export async function startHostBinding(input: {
   };
   const existing = await prisma.hostChannelBinding.findUnique({
     where: { provider_addressHash: { provider: input.provider, addressHash: hash } },
-    select: { id: true, organizationId: true, userId: true, status: true, verifyExpiresAt: true },
+    select: { id: true, organizationId: true, userId: true, status: true, verifyExpiresAt: true, userSessionEpoch: true },
   });
   const sameOwner = existing && existing.organizationId === input.organizationId && existing.userId === input.userId;
+  // Aynı sahibin ÇALIŞAN bağlantısı yeniden başlatılınca beklemeye düşmez (Haiku 10-30 P3-4: sorular doğrulamaya kadar dururdu); oturum kuşağı
+  // eskiyse (şifre değişimi) yeniden doğrulama yolu açık kalır.
+  if (existing && sameOwner && existing.status === "active") {
+    const fresh = await prisma.hostChannelBinding.findFirst({
+      where: { id: existing.id, user: { sessionEpoch: { equals: existing.userSessionEpoch } } },
+      select: { id: true },
+    });
+    if (fresh) return { ok: false, reason: "already_active" };
+  }
   if (existing && !sameOwner) {
     if (existing.status === "active") return { ok: false, reason: "number_in_use" };
     if (existing.status === "pending" && existing.verifyExpiresAt && existing.verifyExpiresAt.getTime() > now.getTime()) {
@@ -185,7 +197,8 @@ export async function usableHostBindingForOrg(organizationId: string): Promise<{
   const rows = await prisma.hostChannelBinding.findMany({
     where: { organizationId, status: "active" },
     orderBy: [{ verifiedAt: "desc" }, { id: "asc" }],
-    take: 5,
+    // Bayat (rolü düşmüş / kuşağı eskimiş) satırlar süzülmeden önce geçerli olanı dışarıda bırakmasın (Haiku 10-30 P3-3).
+    take: 50,
     select: { id: true, userId: true, status: true, userSessionEpoch: true, user: { select: { sessionEpoch: true, organizationId: true, role: true } } },
   });
   for (const r of rows) {

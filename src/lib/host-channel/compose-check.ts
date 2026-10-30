@@ -3,6 +3,7 @@ import { vetoOutgoingReply } from "@/lib/ai/output-veto";
 import { admitsMissingKnowledge, namesInternalSource } from "@/lib/ai/absence";
 import { analyzeHostContact } from "@/lib/ai/host-contact-filler";
 import { containsContactValue } from "@/lib/contact-redact";
+import { asciiDigits } from "./digits";
 
 // ---------------------------------------------------------------------------
 // Ev sahibinin cevabından kurulan MİSAFİR cevabının KOD denetimi (tasarım §3.6). SAF. Model ev sahibinin sözünü misafirin dilinde, ev
@@ -20,22 +21,8 @@ export type ComposeCheckFailure =
   | "internal_source"
   | "contact_value";
 
-const ND = /\p{Nd}/u;
-
-/**
- * Her yazıdaki ondalık rakam ASCII'ye (inceleme 10-30 gece D: Arapça "٥٠٠", Farsça "۵۰۰", Devanagari "५००" `\d` ile görülmüyordu — model
- * uydurduğu sayıyı ya da telefonu misafirin rakam yazısıyla yazınca denetim boştu). Tam genişlik / matematik rakamlar NFKC ile; ötekiler
- * Unicode kuralıyla (her yazının 0–9'u ardışık on kod noktası): rakamın değeri, bitişik rakam dizisinin başından uzaklığının onluk kalanı.
- */
-export function asciiDigits(text: string): string {
-  return text.normalize("NFKC").replace(/\p{Nd}/gu, (ch) => {
-    const c = ch.codePointAt(0)!;
-    if (c <= 0x39) return ch;
-    let base = c;
-    for (let i = 0; i < 60 && ND.test(String.fromCodePoint(base - 1)); i++) base--;
-    return String((c - base) % 10);
-  });
-}
+// Arapça "٥٠٠", Farsça "۵۰۰", Devanagari "५००" `\d` ile görülmüyordu (inceleme 10-30 gece D) — tek kural `digits.ts`.
+export { asciiDigits } from "./digits";
 
 /** Metindeki sayı dizileri (saat, tutar, kod, telefon parçası) — "20" ile "200" ayrı. Binlik ayracı / ondalık normalize edilmez: kaynakta
  *  harfiyen geçmeyen biçim reddedilir (şüphede reddet). Rakam yazısı fark etmez (`asciiDigits`). */
