@@ -139,3 +139,31 @@ yalnız panel). Giden misafir mesajı teslim edilemezse ev sahibine e-posta GİT
 uyarısında acil ve erişim kaybı (A1), öğe kipinde tutulan acil / erişim kaybı isteği. Şikâyet / iade önceliği bilerek DEĞİŞMEDİ.
 Gelen kutusu bugün önceliğe göre DEĞİL, son mesaj zamanına göre sıralı (önceliğe göre sıralama kurucu kararı — sabah sorusu).
 "Dikkat Gerektirenler"de erişim kaybı acil satırla aynı üst sırada (99).
+
+
+## K-1029-C envanteri — bugün bir tutuşu GEVŞETEN ek / koşul / olumsuzluk okuyucuları (10-30, tasarım S14; her örnek denemeyle doğrulandı)
+
+Kurucu ilkesi (K-1029-C): sözcük kuralı yalnız SIKILAŞTIRIR; "bu acil / şikâyet DEĞİL" kararını anlamı okuyan model vermeli. Aşağıdaki 15
+kural bugün tek başına gevşetiyor. "Doğru" sütunu kuralın amacı, "Yanlış" sütunu gerçek bir acil / şikâyetin aynı kuralla düştüğü örnek.
+
+| # | Kural (dosya) | Neyi gevşetiyor | Doğru gevşetme | Yanlış gevşetme (bugün) |
+|---|---|---|---|---|
+| 1 | Varsayım listesi (`hazard-evidence.ts` HYPOTHETICAL) | açık yangın / gaz / su → "anıldı" | "Yangın çıkarsa ne yapmalıyım?" | "Yangın çıktı ne olursa olsun yardım edin!" ("olursa" deyimde) |
+| 2 | Geçmiş listesi (aynı dosya, PAST) | süren olay → geçmiş | "Dün gece yangın çıkmıştı, şimdi her şey yolunda." | "Dün gece yangın çıktı ve mutfak hâlâ yanıyor" |
+| 3 | "anıldı → temizlendi" (model koşmadan) | acil etiketi silinir | "Mutfakta duman yok, merak etmeyin." | "No way the fire is under control, it keeps spreading" |
+| 4 | Olumsuzluk penceresi (NEG_BEFORE / NEG_AFTER) | canlı yangın anılması düşer | (3 ile aynı) | (3 ile aynı — "No way" olumsuzluk sayılıyor) |
+| 5 | Dedektör "if" okuyucusu (`gas-detector-alarm.ts`) | öten CO alarmı → varsayım | "If the CO alarm goes off, what should I do?" | "If you ask me, the CO alarm is beeping" |
+| 6 | Dedektör olumsuzluğu | (son hükümde gevşetme bulunamadı) | "The CO alarm is not beeping, I just want to know where it is." | — |
+| 7 | "when" yöntem sorusu | öten alarm → nasıl yapılır sorusu | "When the CO alarm goes off, what do I do?" | "When the CO alarm goes off, my son is lying on the floor" |
+| 8 | "acil değil" (`fallback.ts` NOT_URGENT) | "acil" sözcüğü silinir | "Acil değil, havlu lazım." | "Acil değil, adam yerde yatıyor, bilinci yok" |
+| 9 | "acil çıkış" / "polis merkezi" yer adı | güvenlik sözcüğü silinir | "Polis merkezi nerede?" | "Polis merkezi nerede? Biri kapımızı kırmaya çalışıyor" |
+| 10 | Olay dışı çerçeve (NON_INCIDENT_FRAMES) | 8'in silmesi kalıcı olur | "Doktor olan arkadaşım yangın söndürücünün yerini merak ediyor." | "Hastanedeki rutin kontrol randevumuz için acil değil ama annem yerde yatıyor, konuşmuyor" |
+| 11 | "sorun yok / olmaz" (PROBLEM_NEGATIONS) | şikâyet → genel | "Sorun yok, teşekkür ederiz." | "Sorun olmaz demiştiniz ama oldu." |
+| 12 | Koşullu "sorun olursa?" (soru işaretiyle) | şikâyet → genel | "Bir sorun olursa sizi arayabilir miyiz?" | "Sorun yaşarsak ne yapmalıyız? Su bu sabah hiç gelmedi?" |
+| 13 | "şikâyetim yok" (COMPLAINT_NOUN_NEGATIONS) | şikâyet → genel | "Şikayetim yok, çok memnunuz." | "Şikayet etmiyorum ama bu gece çok gürültü oldu." |
+| 14 | Koşul eki (CONDITIONAL_TAIL "-sa/-se") | arıza şikâyeti → genel | "Su gelmiyorsa ne yapmalıyız?" | "Kombi yanmıyorsa, bu sabahtan beri böyle." |
+| 15 | Belirsiz acil maskesi (övgü / "internet düştü") | yalnız model "hayır" derse | "Daireye bayıldık, harika bir yer!" | bulunamadı ("annem bayıldı" maskelenmiyor) |
+
+Kalıcı çözüm tasarımın A10'u: anlama katmanına `situation` alanı (süren / varsayım / geçmiş / eylem isteği / bilgi), anahtar kapalı, ücretli
+ölçümle açılır. Ara dönem: yukarıdaki yanlış gevşetmelerin YALNIZ SIKILAŞTIRAN düzeltmeleri (deyim istisnası, "hâlâ" süreklilik işareti,
+"if you ask me" kalıbı, bilinç kaybı / zorla giriş acil ağına) çok ajanlı çekişmeli doğrulamadan geçen ölçüde kodlanır; diğerleri modele kalır.

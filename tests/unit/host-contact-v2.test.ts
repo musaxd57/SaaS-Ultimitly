@@ -50,6 +50,8 @@ describe("F1 — konu etiketi tek başına gitmez (iki nokta ve konu edatı kesi
     ["F1h", `${W} Otopark konusunda, bir sorun olursa ev sahibinize yazın.`, W],
     ["F1i", `${WE} Regarding late checkout, should you have questions, please contact your host.`, WE],
     ["F1j", `${WE} Zur Sauna: Bei Fragen schreiben Sie bitte Ihrem Gastgeber.`, WE],
+    // Mutasyon V5 (10-30): koşullu başvurmada da iki nokta yan cümle sınırı değildir ("Otopark." tek başına gitmez).
+    ["F1k", `${W} Otopark: bir sorun olursa ev sahibinize yazın.`, W],
     ["F8d", "Of course, if anything breaks, message your host.", null],
   ])("%s", (_id, reply, expected) => {
     expect(sent(reply)).toBe(expected);
@@ -101,6 +103,13 @@ describe("F6 / F11 — konusuz yönlendirme önceki cümlenin konusuna gider; 'b
     expect(sent("We do have a sauna in the building. Please message your host for details.")).toBe("We do have a sauna in the building.");
     expect(opened("We do have a sauna in the building. Please message your host for details.", [["R1", ["Is there a sauna and when is it open?"]]], ["R1"])).toEqual(["R1"]);
     expect(opened("Binada sauna var. Detaylar için ev sahibinize yazabilirsiniz.", [["R1", ["sauna var mı ne zaman açık"]]], ["R1"])).toEqual(["R1"]);
+  });
+
+  it("mutasyon V8 (10-30): koşul izi taşısa da AYRINTI isteyen yönlendirme genel değildir — sauna açık kalır", () => {
+    const reply = "We do have a sauna in the building. If you need more details, please message your host.";
+    expect(sent(reply)).toBe("We do have a sauna in the building.");
+    expect(opened(reply, [["R1", ["Is there a sauna and when is it open?"]]], ["R1"])).toEqual(["R1"]);
+    expect(opened("Binada sauna var. Daha fazla bilgi isterseniz ev sahibinize yazabilirsiniz.", [["R1", ["sauna var mı ne zaman açık"]]], ["R1"])).toEqual(["R1"]);
   });
 
   it("'Bu konuda ev sahibinize danışabilirsiniz': sauna AÇIK, cevaplanan adres kapanır", () => {

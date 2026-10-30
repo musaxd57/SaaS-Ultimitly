@@ -519,3 +519,11 @@ Almanca bileşik sözcük ("Hausschlüssel vergessen") sözcük başı sınırı
 "There is no key deposit, right?", "Нет ключа от Wi-Fi" (Wi-Fi şifresi) ve "The lockbox is not empty" yanlışlıkla Acil oluyordu · aynı
 kayıp anahtar sorununu yineleyen YENİ mesaj ("Hâlâ anahtar yok, kapıdayız") önceliği yükseltmiyordu (artık: ilk bildirim ya da turun en
 yeni mesajı acil isteği taşıyorsa) · "#icerik" atlama bağlantısı ve aynı menüye ikinci tık gezinme göstergesini bozuyordu.
+
+
+### Mutasyon (10-30, `scripts/mutation-run.mjs`, ayrık worktree, M0 yeşil) — 35/35
+K-1029-A 13 mutant (dedektör birleşimi, sahipsiz silme, olasılık sorusu, defter yok kararı, kapı dalı, K10 / görünürlük bildirimi koruması,
+karar kalıntısı, yalnız selam, güvenlik uyarısının yazma istisnası, istem anahtarı "true" yazımı, kısmi gönderim durdurma), GD7 3, yüzde
+kodlu yol 2, inceleme düzeltmeleri 17 (sözcük sınırları, kutu–boş olumsuzluğu, Almanca bileşik, çıkış saati etiketleri, uyarı sırası, öncelik
+ölçütü, gezinme göstergesinin dört düzeltmesi, Rusça çıplak "нет ключа"). İlk koşuda 2 yaşayan (KA3 olasılık sorusu, KA6 veto kalıbındaki
+bildirim) → iki pin eklendi, yeniden koşu 2/2.

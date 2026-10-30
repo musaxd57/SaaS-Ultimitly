@@ -82,7 +82,7 @@ const HOST_CONTACT_NOISE = (
   // "iletişime geçebilirsiniz", "contact your host directly", "via the Airbnb app") konu değildir.
   "bei ihre ihrem ihren ihrer sie uns mir jederzeit gerne votre vos nous moi tout tiene tienes algun usted nos вам вашему ваш " +
   "gecebil atabil ulasabil yazabil arayabil sorabil danisabil bildireb direct right away immediat anytime via app airbnb booking platform " +
-  "out more further detai detay bilgi info ayrint diger baska other else weitere andere autre otra otro друг " +
+  "out more further fazla daha detai detay bilgi info ayrint diger baska other else weitere andere autre otra otro друг " +
   // Zamirle gönderme ("message him", "ona yazın", "schreiben Sie ihm", "écrivez-lui", "напишите ему") — zamir konu değildir.
   "him her them ona kendisi onlar ihm lui leur ему ей им нему ней just einfach понадоб"
 ).split(" ");
