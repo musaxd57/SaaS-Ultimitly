@@ -127,7 +127,9 @@ async function vacantNight(now: Date) {
 
 // ─── sahte OpenAI ───────────────────────────────────────────────────────────
 
-const DEFER = "Thanks! Early check-in is the host's call.";
+// Ev sahibinin kendi sesi (kurucu 10-30, "mesajı ev sahibi yazıyor"): üçüncü kişi "the host's call" kapının sonunda reply_host_voice ile
+// tutulur (16b'de pinli).
+const DEFER = "Thanks! Early check-in requires our approval.";
 const reply = (over: Record<string, unknown> = {}) => ({
   intent: "early_checkin",
   confidence: 0.9,
@@ -288,7 +290,7 @@ describe("erken giriş — kurucunun senaryo matrisi (gerçek ayrıştırıcı +
     openAi({ understanding: nlu("09:00"), guard: guard("09:00", { reply_defers_to_host: true }) });
     const id2 = await conversationFor(u.propertyId, u.own.id, "Hi! Could we check in at 09:00 today?", new Date(now.getTime() - 60_000));
     expect((await applyChannelAutoReply(id2)).sent).toBe(true);
-    expect(sentBody()).toContain("is the host's call");
+    expect(sentBody()).toContain("requires our approval");
     expect(sentBody()).not.toMatch(APPROVAL);
     expect((await decision(id2)).ec).toEqual({ s: "pending", f: ["previous_still_in", "not_ready"], a: "0" });
   });
@@ -910,8 +912,19 @@ describe("erken giriş — kurucunun senaryo matrisi (gerçek ayrıştırıcı +
     openAi({ reply: reply(), understanding: nlu("12:00"), guard: guard("12:00", { reply_defers_to_host: true }) });
     const c = await conversationFor(w.propertyId, w.own.id, "Hi! Could we check in at 12:00 today?", new Date(now.getTime() - 60_000));
     expect((await applyChannelAutoReply(c)).sent).toBe(true);
-    expect(sentBody()).toContain("is the host's call");
+    expect(sentBody()).toContain("requires our approval");
     expect(sentBody()).not.toMatch(/€|%|charge/);
+    // 🚨 Kurucu 10-30: aynı parasız erteleme ev sahibinden üçüncü kişi olarak söz ederse GİTMEZ (reply_host_voice); karar yine onaylanabilir.
+    await fresh();
+    const h = await vacantNight(now);
+    await saveEarlyCheckinRule(h.orgId, h.propertyId, { ...RULE, mode: "draft" });
+    openAi({ reply: reply({ reply: "Thanks! Early check-in is the host's call." }), understanding: nlu("12:00"), guard: guard("12:00", { reply_defers_to_host: true }) });
+    const hv = await conversationFor(h.propertyId, h.own.id, "Hi! Could we check in at 12:00 today?", new Date(now.getTime() - 60_000));
+    expect((await applyChannelAutoReply(hv)).sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(await decision(hv)).toMatchObject({ finalDecision: "human_review", ec: { s: "approvable", a: "0" } });
+    const hvEv = await prisma.riskEvent.findFirstOrThrow({ where: { conversationId: hv, surface: "auto_reply" } });
+    expect((JSON.parse(String(hvEv.kbEvidenceJson)) as { g?: { d?: string } }).g?.d).toBe("reply_host_voice");
   });
 
   it("18 · temizlikçi para/fiyat/rapor/faturalandırma uçlarına ERİŞEMEZ (403) ve hiçbir şey yazılmaz", async () => {

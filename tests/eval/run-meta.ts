@@ -167,6 +167,9 @@ export const PIPELINE_FLAGS = [
   "AI_HOST_CONTACT_PROMPT_BAN_DISABLED",
   // K-1029-A kısmi gönderim durdurma (tasarım A12): açıkken konulu silmede cevabın tamamı tutulur (misafire gideni değiştirir).
   "AI_HOST_CONTACT_PARTIAL_DISABLED",
+  // Ev sahibi sesi kapısı ACİL DURDURMA (kurucu 10-30, ai/host-voice-guard.ts; varsayılan açık, yalnız "1" kapatır): kapalıyken
+  // reply_host_voice tutuşu düşer (misafire gideni değiştirir).
+  "AI_HOST_VOICE_GUARD_DISABLED",
   // Başka kişinin bilgisi kuralı (10-22 U9): anlama istemini değiştirir.
   "AI_UNDERSTANDING_PRIVACY_RULE_ENABLED",
   // Kıdemli okuyucu (10-22 T-b): ikinci okuma şeması + istemi ve kapıyı değiştirir (misafire gideni yalnız TUTARAK / ödeme öğesinde bırakarak).

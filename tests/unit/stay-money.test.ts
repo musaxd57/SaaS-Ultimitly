@@ -3,7 +3,7 @@ import { hasMoneyStatement, hasUnallowedMoney, moneyAmountsOf } from "@/lib/ai/s
 import { evaluateAvailability, stayEvidenceOf, AVAILABILITY_VETO_REASONS } from "@/lib/ai/availability-claims";
 import { parseStayGuardVerdict, type StayGuardVerdict } from "@/lib/ai/semantic/stay-change";
 import { guardSeesWholeReply, runStayChangeGuard } from "@/lib/ai/semantic/guard";
-import { autoReplyGateFailure, availabilityPolicyFor } from "@/lib/automation";
+import { autoReplyGateFailure, autoReplyGateVerdict, availabilityPolicyFor } from "@/lib/automation";
 import { evaluateEscalation, ESCALATION_REASONS } from "@/lib/guest-chat-gate";
 import { buildKbEvidence } from "@/lib/ai/grounding";
 import { sameMoney } from "@/lib/ai/money-lexicon";
@@ -450,16 +450,18 @@ describe("iki kapı — bağlantı DAVRANIŞSAL (kanal + QR aynı yüklem)", () 
     source: "openai",
     // Erteleme OLGU cümlesiyle, devir cümlesi OLMADAN (bekleme sözü "I'll check with the host and get back to you" 09-25'ten,
     // "your request has been recorded" K10 09-30'dan beri çıktı vetosuna takılır — o hâlde kapının İLK düşen kontrolü veto
-    // olurdu ve bu test para kontrolünü hiç sınamazdı).
-    reply: "Thanks! Early check-in is the host's call. I can offer you a 20% discount.",
+    // olurdu ve bu test para kontrolünü hiç sınamazdı); kurucu 10-30'dan beri üçüncü kişi "the host's call" kapının SONUNDA
+    // reply_host_voice ile tutulur → erteleme ev sahibinin kendi sesiyle.
+    reply: "Thanks! Early check-in requires our approval. I can offer you a 20% discount.",
     stayChange: { asked: "early_checkin", stance: "defers" } as const,
   };
-  const DEFERRAL_ONLY = "Thanks! Early check-in is the host's call.";
+  const DEFERRAL_ONLY = "Thanks! Early check-in requires our approval.";
 
   it("kanal: gerekçe `price_claim`; parasız aynı cevap geçer", () => {
     const ctx = { stayTimes: { checkIn: "15:00", checkOut: "11:00" }, stayGuard: guard };
     expect(autoReplyGateFailure(result, ASK, ctx)).toBe("price_claim");
     expect(autoReplyGateFailure({ ...result, reply: DEFERRAL_ONLY }, ASK, ctx)).toBeNull();
+    expect(autoReplyGateVerdict({ ...result, reply: "Thanks! Early check-in is the host's call." }, ASK, ctx)).toEqual({ reason: "blocked", detail: "reply_host_voice" });
     // Politika girdisi kapıyla aynı kurucudan (karar kaydı ile hüküm ayrışamaz).
     expect(evaluateAvailability(result.reply, [ASK], availabilityPolicyFor(result, ctx)).reason).toBe("price_claim");
   });

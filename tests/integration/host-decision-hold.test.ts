@@ -5,8 +5,10 @@ import { prisma, resetDb } from "../helpers/db";
 // "EV SAHİBİNİZİN KARARIDIR" MİSAFİRE GİTMEZ — KANAL OTO-YANITI UÇTAN UCA (kurucu kararı 10-01: "hiç bir şekilde gitmemeli,
 // sussa bile daha iyi … ertelemeyi gönderme"; gece notu: "host'a bir bildirim gider; tekrar tekrar gönderilmez").
 // Anahtar `AI_HOST_DECISION_HOLD_ENABLED` VARSAYILAN KAPALI. Cevap modeli MOCK, DB gerçek, bekçi sahte fetch.
-// Pinlenen: anahtar kapalıyken bugünkü davranış (kanıtlı erteleme gider); açıkken kanıtlı erteleme ve ev sahibi kararı cümlesi
-// TUTULUR, ev sahibine mesaj başına TEK "Misafir cevabınızı bekliyor" e-postası, bilgi sorusu cevabı yine gider.
+// Pinlenen: anahtar kapalıyken bugünkü davranış (ev sahibinin KENDİ sesiyle kanıtlı erteleme gider; ev sahibinden üçüncü kişi olarak söz
+// eden erteleme kurucu 10-30 "mesajı ev sahibi yazıyor" kuralıyla anahtardan bağımsız tutulur — reply_host_voice); açıkken kanıtlı
+// erteleme ve ev sahibi kararı cümlesi TUTULUR, ev sahibine mesaj başına TEK "Misafir cevabınızı bekliyor" e-postası, bilgi sorusu
+// cevabı yine gider.
 // ---------------------------------------------------------------------------
 
 vi.mock("@/lib/ai", () => ({ suggestReply: vi.fn(), classifyMessage: vi.fn() }));
@@ -124,6 +126,8 @@ const GERMAN_DEFERRAL = {
   reply: "Das muss Ihr Gastgeber entscheiden.",
   stayChange: { asked: "extend" as const, stance: "defers" as const },
 };
+// Ev sahibinin kendi sesiyle aynı erteleme (kurucu 10-30): ses kapısı tutmaz, yalnız anahtar ayırır.
+const GERMAN_DEFERRAL_OWN_VOICE = { ...GERMAN_DEFERRAL, reply: "Das muss ich noch entscheiden." };
 
 describe("kanal oto-yanıtı — ev sahibi kararı tutulur (AI_HOST_DECISION_HOLD_ENABLED)", () => {
   beforeEach(async () => {
@@ -144,12 +148,24 @@ describe("kanal oto-yanıtı — ev sahibi kararı tutulur (AI_HOST_DECISION_HOL
     await prisma.$disconnect();
   });
 
-  it("KONTROL: anahtar kapalıyken iki modelin doğruladığı erteleme gider, ev sahibine 'cevap bekliyor' e-postası YOK (bugünkü davranış)", async () => {
+  it("KONTROL: anahtar kapalıyken iki modelin doğruladığı erteleme (ev sahibinin kendi sesi) gider, 'cevap bekliyor' e-postası YOK (bugünkü davranış)", async () => {
+    vi.stubGlobal("fetch", semanticFetch({ stay_change_guard: guardDefers("extend", null, null) }));
+    mockSuggest.mockResolvedValue(GERMAN_DEFERRAL_OWN_VOICE);
+    const id = await seed(GERMAN_ASK);
+    await applyChannelAutoReply(id);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(replyWaitingMails()).toHaveLength(0);
+  });
+
+  it("🚨 kurucu 10-30: anahtar kapalıyken de ev sahibinden üçüncü kişi olarak söz eden erteleme GİTMEZ (reply_host_voice); 'cevap bekliyor' e-postası yok", async () => {
     vi.stubGlobal("fetch", semanticFetch({ stay_change_guard: guardDefers("extend", null, null) }));
     mockSuggest.mockResolvedValue(GERMAN_DEFERRAL);
     const id = await seed(GERMAN_ASK);
     await applyChannelAutoReply(id);
-    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(mockSend).not.toHaveBeenCalled();
+    const ev = await decision(id);
+    expect(JSON.parse(ev.kbEvidenceJson ?? "{}").g?.d).toBe("reply_host_voice");
+    expect(ev.reason).toBe("low_confidence_or_risky");
     expect(replyWaitingMails()).toHaveLength(0);
   });
 
@@ -207,12 +223,24 @@ describe("kanal oto-yanıtı — ev sahibi kararı tutulur (AI_HOST_DECISION_HOL
     expect((await decision(id)).reason).toBe("handoff_notice");
     expect(replyWaitingMails()).toHaveLength(1);
 
-    // KONTROL: anahtar kapalıyken aynı cevap gider (bugünkü davranış).
+    // KONTROL: anahtar kapalıyken de aynı cevap GİTMEZ — kurucu 10-30 ("mesajı ev sahibi yazıyor"): "the host's call" ev sahibinden
+    // üçüncü kişi olarak söz eder → ses kapısı anahtardan bağımsız tutar (g.d reply_host_voice). Ev sahibi kararı yolu (handoff_notice +
+    // tek e-posta) yalnız anahtarla.
     await resetDb();
     mockMail.mockClear();
     vi.stubEnv("AI_HOST_DECISION_HOLD_ENABLED", "");
-    const sent = await seed([{ direction: "inbound", body: "Can we use the rooftop terrace?" }]);
-    await applyChannelAutoReply(sent);
+    const off = await seed([{ direction: "inbound", body: "Can we use the rooftop terrace?" }]);
+    await applyChannelAutoReply(off);
+    expect(mockSend).not.toHaveBeenCalled();
+    const offEv = await decision(off);
+    expect(JSON.parse(offEv.kbEvidenceJson ?? "{}").g?.d).toBe("reply_host_voice");
+    expect(offEv.reason).toBe("low_confidence_or_risky");
+    expect(replyWaitingMails()).toHaveLength(0);
+    // Ev sahibinin kendi sesiyle aynı cevap anahtar kapalıyken gider (anahtarın kendi etkisi).
+    await resetDb();
+    mockSuggest.mockResolvedValue({ ...reply, reply: "Whether the rooftop terrace can be used is our call." });
+    const own = await seed([{ direction: "inbound", body: "Can we use the rooftop terrace?" }]);
+    await applyChannelAutoReply(own);
     expect(mockSend).toHaveBeenCalledTimes(1);
     expect(replyWaitingMails()).toHaveLength(0);
 

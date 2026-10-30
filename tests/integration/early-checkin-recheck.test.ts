@@ -54,7 +54,8 @@ const RULE: EarlyCheckinRule = { mode: "auto", earliest: "12:00", fee: null, not
 const MODEL = {
   intent: "early_checkin",
   confidence: 0.9,
-  reply: "Thanks! Early check-in is the host's call.",
+  // Ev sahibinin kendi sesi (kurucu 10-30): üçüncü kişi "the host's call" kapının sonunda reply_host_voice ile tutulur.
+  reply: "Thanks! Early check-in requires our approval.",
   risk: null,
   priority: "standard" as const,
   source: "openai" as const,
@@ -269,7 +270,7 @@ describe("temizlik bitti → bekleyen erken giriş yeniden değerlendirilir", ()
     vi.stubGlobal("fetch", semanticFetch({ ...GUARD, reply_defers_to_host: true }));
     await runDueChannelAutoReplies(s.orgId);
     expect(mockSend).toHaveBeenCalledTimes(1);
-    expect(String(mockSend.mock.calls[0][1])).toContain("is the host's call");
+    expect(String(mockSend.mock.calls[0][1])).toContain("requires our approval");
   });
 
   it("aynı milisaniyedeki iki mesajda kilit, taramanın baktığı mesaja bakar — (createdAt, id) sırası (inceleme 09-24)", async () => {
@@ -305,7 +306,7 @@ describe("temizlik bitti → bekleyen erken giriş yeniden değerlendirilir", ()
     vi.stubGlobal("fetch", semanticFetch({ ...GUARD, reply_defers_to_host: true }));
     await runDueChannelAutoReplies(s.orgId);
     expect(mockSend).toHaveBeenCalledTimes(1);
-    expect(String(mockSend.mock.calls[0][1])).toContain("is the host's call");
+    expect(String(mockSend.mock.calls[0][1])).toContain("requires our approval");
   });
 
   it("KONTROL: aynı mesaj daha önce BAŞKA sebeple tutulduysa (ör. model yanıt vermedi) yeniden koşu sayılmaz — normal akış", async () => {

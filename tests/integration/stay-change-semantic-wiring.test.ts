@@ -382,9 +382,15 @@ describe("kanal oto-yanıtı — anlam katmanı bağlantısı", () => {
 
   it("🚨 bekçi müsaitlik onayı eksik diye TUTULAN taslakta da koşar: iki model ertelemeyi tanırsa (kelime ağı tanımasa da) gider", async () => {
     vi.stubEnv("AI_STAY_GUARD_ENABLED", "1");
-    // Almanca yazan misafire Almanca erteleme (kelime ağı tanımıyor; dil kapısı 09-25 ayrı ölçülür).
+    // Almanca yazan misafire ev sahibinin ağzından (birinci kişi, kurucu 10-30) Almanca erteleme (kelime ağı tanımıyor; dil kapısı 09-25
+    // ayrı ölçülür).
     const ask = [{ direction: "inbound" as const, body: "Können wir noch eine Nacht bleiben?" }];
-    const reply = { ...BASE, intent: "extend_stay", reply: "Das muss Ihr Gastgeber entscheiden.", stayChange: { asked: "extend" as const, stance: "defers" as const } };
+    const reply = {
+      ...BASE,
+      intent: "extend_stay",
+      reply: "Das kann ich noch nicht zusagen, ich muss es zuerst prüfen.",
+      stayChange: { asked: "extend" as const, stance: "defers" as const },
+    };
     const verdict = (defers: boolean) => ({
       guest_requests_change: true,
       kind: "extend",
@@ -414,6 +420,18 @@ describe("kanal oto-yanıtı — anlam katmanı bağlantısı", () => {
     await applyChannelAutoReply(held);
     expect(mockSend).not.toHaveBeenCalled();
     expect((await riskEvent(held)).ev.reason).toBe("availability_unconfirmed");
+
+    // 🚨 Kurucu 10-30 ("mesajı ev sahibi yazıyor"): iki model ertelese de ev sahibinden üçüncü kişi olarak söz eden cevap gitmez.
+    await resetDb();
+    mockSend.mockClear();
+    vi.stubGlobal("fetch", semanticFetch({ stay_change_guard: verdict(true) }));
+    mockSuggest.mockResolvedValue({ ...reply, reply: "Das muss Ihr Gastgeber entscheiden." });
+    const voice = await seed({ messages: ask });
+    await applyChannelAutoReply(voice);
+    expect(mockSend).not.toHaveBeenCalled();
+    const vEv = (await riskEvent(voice)).ev;
+    expect(vEv.reason).toBe("low_confidence_or_risky");
+    expect((JSON.parse(String(vEv.kbEvidenceJson)) as { g?: { d?: string } }).g?.d).toBe("reply_host_voice");
   });
 
   it("🚨 anlama katmanı PARALEL koştuğunda (küçük KB, hibrit) özeti yine karar kaydına girer; sorgu eklenmez", async () => {
@@ -457,8 +475,9 @@ describe("kanal oto-yanıtı — anlam katmanı bağlantısı", () => {
 
   it("🚨 ev sahibinin teklif metni kanal kapısına ULAŞIR: aynen aktarıp erteleyen cevap (iki model) gider; teklif tanımlı değilse aynı cevap iddiadır", async () => {
     const offer = "Müsaitlik varsa çıkışınızı 13:00'e kadar uzatabiliriz.";
-    // Devir cümlesi YOK (K10, 09-30: "mesajınız kaydedildi" her kipte önce çıktı vetosunda tutulur).
-    const relay = `${offer} Uygunluğu ev sahibinizin kararıdır.`;
+    // Devir cümlesi YOK (K10, 09-30: "mesajınız kaydedildi" her kipte önce çıktı vetosunda tutulur) ve ev sahibinden üçüncü kişi olarak
+    // söz YOK (kurucu 10-30, reply_host_voice): erteleme ev sahibinin ağzından.
+    const relay = `${offer} Uygunluk onayımıza bağlıdır.`;
     const late = { ...BASE, intent: "late_checkout", reply: relay, stayChange: { asked: "late_checkout" as const, stance: "defers" as const } };
     const ask = [{ direction: "inbound" as const, body: "Geç çıkış mümkün mü?" }];
     vi.stubEnv("AI_STAY_GUARD_ENABLED", "1");
@@ -488,8 +507,8 @@ describe("kanal oto-yanıtı — anlam katmanı bağlantısı", () => {
     vi.stubGlobal("fetch", f);
     mockSuggest.mockResolvedValue({
       ...BASE,
-      // Devir cümlesi YOK (K10, 09-30).
-      reply: "Early check-in is up to your host.",
+      // Devir cümlesi YOK (K10, 09-30); ev sahibinin ağzından, üçüncü kişi yok ve "I'll confirm" sözü yok (kurucu 10-30, reply_host_voice).
+      reply: "Early check-in is subject to availability and our confirmation.",
       stayChange: { asked: "early_checkin", stance: "defers" },
     });
     const id = await seed({

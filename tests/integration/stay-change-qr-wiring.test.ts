@@ -279,7 +279,8 @@ describe("QR rotası — anlam katmanı bağlantısı", () => {
       reply_grants_change: false,
       reply_defers_to_host: defers,
     });
-    const reply = { ...DRAFT, intent: "extend_stay", reply: "Das muss Ihr Gastgeber entscheiden.", stayChange: { asked: "extend", stance: "defers" } };
+    // Ev sahibinin kendi sesi (kurucu 10-30): üçüncü kişi "Ihr Gastgeber" reply_host_voice ile devreder (↓ son ayak).
+    const reply = { ...DRAFT, intent: "extend_stay", reply: "Das muss ich als Gastgeber erst entscheiden.", stayChange: { asked: "extend", stance: "defers" } };
     vi.stubGlobal("fetch", semanticFetch({ stay_change_guard: verdict(true) }));
     mockSuggest.mockResolvedValue(reply);
     const { token } = await seed();
@@ -294,6 +295,16 @@ describe("QR rotası — anlam katmanı bağlantısı", () => {
     const held = await ask(t2, "Können wir noch eine Nacht bleiben?");
     expect(held.escalated).toBe(true);
     expect((await lastEvent()).ev.reason).toBe("availability_unconfirmed");
+
+    // 🚨 Kurucu 10-30 ("mesajı ev sahibi yazıyor"): iki model ertelese de ev sahibinden üçüncü kişi olarak söz eden cevap gitmez.
+    await resetDb();
+    vi.stubGlobal("fetch", semanticFetch({ stay_change_guard: verdict(true) }));
+    mockSuggest.mockResolvedValue({ ...reply, reply: "Das muss Ihr Gastgeber entscheiden." });
+    const { token: t3 } = await seed();
+    const voice = await ask(t3, "Können wir noch eine Nacht bleiben?");
+    expect(voice.escalated).toBe(true);
+    expect(voice.reply ?? null).toBeNull();
+    expect((await lastEvent()).ev.reason).toBe("reply_host_voice");
   });
 
   it("bekçi yalnız ADAY için: kapı zaten devrettiyse ikinci model çağrılmaz", async () => {

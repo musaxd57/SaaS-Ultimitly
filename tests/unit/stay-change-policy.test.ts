@@ -844,8 +844,8 @@ describe("düşmanca inceleme 09-24 — bekçi AÇIKKEN değişmez", () => {
     // Türkçe cevap Türkçe yazan misafire (dil kapısı 09-25 ayrı ölçülür: `reply-language-gate.test.ts`).
     const msg = "Pazar günü 13:00'te çıksak olur mu? Ev sahibiyle konuşmak istiyorum.";
     // Devir cümlesi YOK: K10 (kurucu kararı 09-30) "Mesajınız kaydedildi; ev sahibiniz görebilir" cümlesini her durumda
-    // bu kontrolden ÖNCE tutar (↓sonda pinli).
-    const reply = "Bu ev sahibinizin kararıdır.";
+    // bu kontrolden ÖNCE tutar (↓sonda pinli). Ev sahibinin kendi sesi (kurucu 10-30: üçüncü kişi ev sahibi gitmez, ↓pinli).
+    const reply = "Bu konuda kararı ben vereceğim.";
     const guardReq = { status: "ok" as const, verdict: verdict({ guestRequestsChange: true, kind: "late_checkout", requestedCheckoutTime: "13:00" }) };
     expect(
       autoReplyGateFailure({ ...handoff, reply, stayChange: { asked: "late_checkout", stance: "none" } }, msg, { stayTimes: STAY, stayGuard: guardReq }),
@@ -859,6 +859,17 @@ describe("düşmanca inceleme 09-24 — bekçi AÇIKKEN değişmez", () => {
     expect(
       autoReplyGateFailure({ ...handoff, reply, stayChange: { asked: "none", stance: "none" } }, "Ev sahibiyle konuşmak istiyorum.", { stayTimes: STAY }),
     ).toBeNull();
+    // 🚨 Kurucu 10-30 (mesajı ev sahibi yazıyor): üçüncü kişi erteleme iki model ertelese de, konaklama konusu olmasa da GİTMEZ
+    // (kapının en sonundaki ses kapısı).
+    const thirdPerson = "Bu ev sahibinizin kararıdır.";
+    expect(
+      autoReplyGateVerdict({ ...handoff, reply: thirdPerson, stayChange: { asked: "late_checkout", stance: "defers" } }, msg, { stayTimes: STAY, stayGuard: guardDefers })
+        ?.detail,
+    ).toBe("reply_host_voice");
+    expect(
+      autoReplyGateVerdict({ ...handoff, reply: thirdPerson, stayChange: { asked: "none", stance: "none" } }, "Ev sahibiyle konuşmak istiyorum.", { stayTimes: STAY })
+        ?.detail,
+    ).toBe("reply_host_voice");
     // 🚨 K10: devir cümlesi iki model ertelese de, konaklama konusu olmasa da GİTMEZ (çıktı vetosu).
     const devir = "Tabii. Mesajınız kaydedildi; ev sahibiniz görebilir.";
     expect(

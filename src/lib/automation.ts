@@ -2850,9 +2850,11 @@ export async function applyChannelAutoReply(
   // "YALNIZ veto tuttu" = veto olmasa kapı geçerdi ya da akışın zaten kabul ettiği bir gerekçeyle (müsaitlik/para/saat/dil)
   // tutardı. Kapı güvenden / riskten kapanıyorsa akış yine KOŞMAZ (güven tabanı kalkmaz — P2, 09-24).
   // Eylem beyanı (`action_claim*`) aynı sınıftır: modelin metnindeki söz/iddia — akış o metni koddan kurulanla değiştirir.
+  // Ev sahibi sesi (`reply_host_voice`, kurucu 10-30) de aynı sınıftır: "Erken giriş ev sahibinizin kararıdır" metni tutulsa da
+  // doğrulanmış onay o metnin yerine geçebilir (ses kapısı tanı kipinde atlanır).
   const withoutOutputVeto = () =>
     (gateFailure === "blocked" &&
-      ["reply_output_veto", "reply_internal_source"].includes(autoReplyGateVerdict(result, last.body, gateContext)?.detail ?? "")) ||
+      ["reply_output_veto", "reply_internal_source", "reply_host_voice"].includes(autoReplyGateVerdict(result, last.body, gateContext)?.detail ?? "")) ||
     gateFailure === "action_claim" ||
     gateFailure === "action_claim_undeclared"
       ? autoReplyGateFailure(result, last.body, { ...gateContext, skipOutputVetoForDiagnosis: true })

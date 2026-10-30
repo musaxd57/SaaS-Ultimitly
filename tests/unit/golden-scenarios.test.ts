@@ -609,8 +609,18 @@ describe("GOLDEN SET — müsaitlik vetosu (mesaj + cevap)", () => {
     {
       name: "TUZAK: erken giriş + erteleme, beyan 'defers' + bekçi 'erteliyor' (iki model) GİDER (TR)",
       guest: "Erken giriş yapabilir miyiz?",
-      reply: "Bu ev sahibinizin kararıdır.",
+      // Ev sahibinin kendi sesi (kurucu 10-30, "mesajı ev sahibi yazıyor").
+      reply: "Erken giriş onayımıza tabidir.",
       veto: false,
+      stayChange: { asked: "early_checkin", stance: "defers" },
+      guard: GUARD_DEFERS,
+    },
+    // 🚨 Kurucu 10-30 ("mesajı ev sahibi yazıyor"): aynı iki model ertelemesi ev sahibinden üçüncü kişi olarak söz ederse GİTMEZ.
+    {
+      name: "K-1030 ses: aynı iki model ertelemesi ama ev sahibinden üçüncü kişi ('ev sahibinizin kararıdır') → GİTMEZ (TR)",
+      guest: "Erken giriş yapabilir miyiz?",
+      reply: "Bu ev sahibinizin kararıdır.",
+      veto: true,
       stayChange: { asked: "early_checkin", stance: "defers" },
       guard: GUARD_DEFERS,
     },
@@ -642,8 +652,16 @@ describe("GOLDEN SET — müsaitlik vetosu (mesaj + cevap)", () => {
     {
       name: "TUZAK: erteleme, beyan + bekçi hemfikir (iki model) GİDER (EN)",
       guest: "Could we get into the flat at 11?",
-      reply: "Whether an earlier arrival is possible is the host's call.",
+      reply: "Whether an earlier arrival is possible is our call.",
       veto: false,
+      stayChange: { asked: "early_checkin", stance: "defers" },
+      guard: GUARD_DEFERS,
+    },
+    {
+      name: "K-1030 ses: aynı iki model ertelemesi ama ev sahibinden üçüncü kişi ('the host's call') → GİTMEZ (EN)",
+      guest: "Could we get into the flat at 11?",
+      reply: "Whether an earlier arrival is possible is the host's call.",
+      veto: true,
       stayChange: { asked: "early_checkin", stance: "defers" },
       guard: GUARD_DEFERS,
     },

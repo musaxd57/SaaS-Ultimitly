@@ -181,8 +181,12 @@ describe("QR kapısı — kanalla AYNI yüklem", () => {
     usedSources: ["kb:wifi"],
     stayChange: { asked: "none" as const, stance: "none" as const },
   };
-  it("KONTROL: anahtar kapalıyken ev sahibi kararı cümlesi QR'da devretmez (bugünkü davranış)", () => {
-    expect(evaluateEscalation(pets, "What is the wifi?")).toMatchObject({ escalate: false });
+  it("KONTROL: anahtar kapalıyken ev sahibi kararı cümlesi QR'da handoff_notice ile devretmez (ses kapısı acil durdurmada — anahtarın kendi etkisi)", () => {
+    vi.stubEnv("AI_HOST_VOICE_GUARD_DISABLED", "1");
+    expect(evaluateEscalation(pets, "What is the wifi?")).toEqual({ escalate: false, reason: null });
+  });
+  it("🚨 kurucu 10-30: anahtar kapalı olsa da üçüncü kişi ev sahibi ('the host's call') misafire gitmez — reply_host_voice", () => {
+    expect(evaluateEscalation(pets, "What is the wifi?")).toEqual({ escalate: true, reason: "reply_host_voice" });
   });
   it("🚨 açıkken QR'da devreder (handoff_notice) — misafire metin gitmez (K10 devri)", () => {
     vi.stubEnv("AI_HOST_DECISION_HOLD_ENABLED", "1");

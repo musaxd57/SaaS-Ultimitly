@@ -525,6 +525,9 @@ const MODEL = {
   statedCheckoutTime: null,
   stayChange: { asked: "early_checkin" as const, stance: "defers" as const },
 };
+// Kurucu 10-30 ("mesajı ev sahibi yazıyor"): MODEL'in üçüncü kişi ertelemesi ("the host's call") artık kapının SONUNDA ses kapısıyla
+// tutulur (reply_host_voice) — doğrulanmış onay yine onun yerine geçer. "Erteleme gider" diyen testler ev sahibinin kendi sesini kullanır.
+const MODEL_OWN_VOICE = { ...MODEL, reply: "Thanks! Early check-in requires our approval." };
 
 const nlu = (time: string | null, extraIntents: string[] = [], kind = "early_checkin") => ({
   language: "en",
@@ -766,14 +769,14 @@ describe("kanal oto-yanıtı — doğrulanmış erken giriş", () => {
     await resetDb();
     vi.clearAllMocks();
     __resetUnderstandingCache();
-    mockSuggest.mockResolvedValue(MODEL);
+    mockSuggest.mockResolvedValue(MODEL_OWN_VOICE);
     const u = await turnover({ cleaned: CLEANED_AT });
     await saveEarlyCheckinRule(u.orgId, u.propertyId, RULE);
     vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: nlu("13:00"), stay_change_guard: guard("13:00", true) }));
     const id2 = await conversationFor(u);
     expect(await applyChannelAutoReply(id2)).toMatchObject({ sent: true, queued: true });
     const row = await prisma.messageOutbox.findFirstOrThrow();
-    expect(row.body).toContain("is the host's call");
+    expect(row.body).toContain("requires our approval");
     expect(row.body).not.toContain("The apartment is ready");
     expect(await decision(id2)).toEqual({ finalDecision: "auto_sent", reason: "gate_passed", ec: { s: "approvable", f: ["queued_delivery"], a: "0" } });
     expect(await prisma.taskUpdate.count({ where: { taskId: u.prepTaskId } })).toBe(0);
@@ -801,17 +804,32 @@ describe("kanal oto-yanıtı — doğrulanmış erken giriş", () => {
     const id = await conversationFor(t);
     expect((await applyChannelAutoReply(id)).sent).toBe(true);
     expect(String(mockSend.mock.calls[0][1])).toContain("you can check in today (14 October) from 13:00");
+    expect(String(mockSend.mock.calls[0][1])).not.toContain("the host's call");
     expect((await decision(id)).reason).toBe("early_checkin_verified");
   });
 
   it("kural 'taslak' → doğrulanmış cevap GİTMEZ; kapıyı geçen erteleme bugünkü gibi gider (kanıtta onaylanabilir, a=0)", async () => {
+    mockSuggest.mockResolvedValue(MODEL_OWN_VOICE);
     const t = await turnover({ cleaned: CLEANED_AT });
     await saveEarlyCheckinRule(t.orgId, t.propertyId, { ...RULE, mode: "draft" });
     vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: nlu("13:00"), stay_change_guard: guard("13:00", true) }));
     const id = await conversationFor(t);
     expect((await applyChannelAutoReply(id)).sent).toBe(true);
-    expect(String(mockSend.mock.calls[0][1])).toContain("is the host's call");
+    expect(String(mockSend.mock.calls[0][1])).toContain("requires our approval");
     expect(await decision(id)).toEqual({ finalDecision: "auto_sent", reason: "gate_passed", ec: { s: "approvable", f: [], a: "0" } });
+    expect(await prisma.taskUpdate.count({ where: { taskId: t.prepTaskId } })).toBe(0);
+  });
+
+  it("🚨 kurucu 10-30: kural 'taslak' + üçüncü kişi erteleme ('the host's call') → GİTMEZ (reply_host_voice); erken giriş akışı yine koşar (onaylanabilir, a=0)", async () => {
+    const t = await turnover({ cleaned: CLEANED_AT });
+    await saveEarlyCheckinRule(t.orgId, t.propertyId, { ...RULE, mode: "draft" });
+    vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: nlu("13:00"), stay_change_guard: guard("13:00", true) }));
+    const id = await conversationFor(t);
+    expect((await applyChannelAutoReply(id)).sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+    const ev = await prisma.riskEvent.findFirstOrThrow({ where: { conversationId: id, surface: "auto_reply" } });
+    expect((JSON.parse(String(ev.kbEvidenceJson)) as { g?: { d?: string } }).g?.d).toBe("reply_host_voice");
+    expect((await decision(id)).ec).toEqual({ s: "approvable", f: [], a: "0" });
     expect(await prisma.taskUpdate.count({ where: { taskId: t.prepTaskId } })).toBe(0);
   });
 

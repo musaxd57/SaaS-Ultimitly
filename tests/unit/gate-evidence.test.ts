@@ -189,11 +189,19 @@ describe("kapı hükmü — her `blocked` kontrolü kendi ayrıntı koduyla", ()
       undefined,
       "reply_pet_policy",
     ],
+    [
+      "mesajı ev sahibi yazıyor — cevapta ev sahibinden üçüncü kişi olarak söz (kurucu 10-30, varsayılan açık)",
+      { ...ok, reply: "The Wi-Fi network is Lale-5G and the password is Lale2025. Your host lives next door if you need anything." },
+      WIFI_Q,
+      undefined,
+      "reply_host_voice",
+    ],
   ];
   for (const [name, result, msg, ctx, detail] of cases) {
     it(`${name} → blocked/${detail}`, () => {
       vi.stubEnv("AI_FIX_SUPPORT_GATE_ENABLED", detail === "reply_fix_unsupported" ? "1" : "");
       vi.stubEnv("AI_NO_APOLOGY_RULE_ENABLED", detail === "reply_apology" ? "1" : "");
+      vi.stubEnv("AI_HOST_VOICE_GUARD_DISABLED", "");
       try {
         const v = autoReplyGateVerdict(result, msg, ctx);
         expect(v).toEqual({ reason: "blocked", detail });

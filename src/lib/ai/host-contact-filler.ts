@@ -217,7 +217,7 @@ function removalOf(
   lead: string | null = null,
   /** Aynı önceki cümle birçok silmede yeniden okunmasın (v3 yeniden incelemesi COST-3: karesel). */
   cache: Map<string, { stems: string[]; topics: string[] }> | null = null,
-): { removal: HostContactRemoval; scope: RemovalScope; confirms: boolean } {
+): { removal: HostContactRemoval; scope: RemovalScope; confirms: () => boolean } {
   const form = kind === "referral" ? "referral" : "conditional";
   const read = (text: string) => {
     const hit = cache?.get(text);
@@ -254,7 +254,13 @@ function removalOf(
   if (scope === "anaphoric" && previous) ({ stems, topics } = read(previous));
   stems = [...new Set(stems)].sort();
   topics = [...new Set(topics)].sort();
-  return { removal: { kind, form, appendix, stems, topics, generic: scope === "closing" && topicless }, scope, confirms: has(CONFIRM_MARKER) };
+  // Teyit işareti yalnız konulu / göndergesel silmede okunur (↓kısmi karar): uzun kapanış / koşul gövdesinde boşuna taranmaz (süre pini).
+  let confirms: boolean | undefined;
+  return {
+    removal: { kind, form, appendix, stems, topics, generic: scope === "closing" && topicless },
+    scope,
+    confirms: () => (confirms ??= has(CONFIRM_MARKER)),
+  };
 }
 
 /**
@@ -641,7 +647,7 @@ export function analyzeHostContact(reply: string): HostContactAnalysis {
   if (!reply.trim()) return { text: reply, removals: [], nothingLeft: false, draft: reply };
   const removals: HostContactRemoval[] = [];
   const scopes: RemovalScope[] = [];
-  const confirms: boolean[] = [];
+  const confirms: (() => boolean)[] = [];
   let forceHold = false;
   let safetyHold = false;
   let preconditionRemoved = false;
@@ -675,7 +681,7 @@ export function analyzeHostContact(reply: string): HostContactAnalysis {
     if (f.safety === undefined) f.safety = isSafetyWarningSentence(p);
     return f.safety;
   };
-  const record = (r: { removal: HostContactRemoval; scope: RemovalScope; confirms: boolean }) => {
+  const record = (r: { removal: HostContactRemoval; scope: RemovalScope; confirms: () => boolean }) => {
     removals.push(r.removal);
     scopes.push(r.scope);
     confirms.push(r.confirms);
@@ -789,26 +795,30 @@ export function analyzeHostContact(reply: string): HostContactAnalysis {
   // KONULU / göndergesel silme: silinen parça kalan bilgiyi TEYİDE açıyorsa ("Sanırım sauna 22'ye kadar açık. Sauna saatleri için ev sahibinize
   // teyit edin.") ya da kalan metin bir izin söylüyorsa yarım / tahmini / koşullu cevaptır → tutulur. "Detaylar için ev sahibinize yazabilirsiniz"
   // ise eksik ayrıntıdır: kalan bilgi gider, soru ev sahibine açık kalır ("cevaplandı" kuralı silmeyi görür; kurucu 10-30).
-  const permissionLeft = PERMISSION.test(text);
+  // Yalnız konulu / göndergesel silme kısmi sayılabilir; teyit işareti, izin ve kalan metnin kökleri yalnız o zaman okunur (kapanış / koşul
+  // silmesinde uzun metin boşuna taranmaz — süre pini `host-contact-cost.test.ts`).
+  let permissionLeft: boolean | null = null;
   let keptStems: string[] | null = null;
   let keptTopics: string[] | null = null;
-  const partial = removals.some((r, i) => {
-    if (!confirms[i] && !permissionLeft) return false;
-    if (scopes[i] === "anaphoric") return true;
-    if (scopes[i] !== "topical") return false;
-    keptStems ??= distinctiveTokens(text);
-    keptTopics ??= topicsWithSymptomsOf(text);
-    return overlapLoose(r.stems, keptStems) > 0 || r.topics.some((t) => keptTopics!.includes(t));
-  });
+  const partial = () =>
+    removals.some((r, i) => {
+      if (scopes[i] !== "anaphoric" && scopes[i] !== "topical") return false;
+      if (!confirms[i]() && !(permissionLeft ??= PERMISSION.test(text))) return false;
+      if (scopes[i] === "anaphoric") return true;
+      keptStems ??= distinctiveTokens(text);
+      keptTopics ??= topicsWithSymptomsOf(text);
+      return overlapLoose(r.stems, keptStems) > 0 || r.topics.some((t) => keptTopics!.includes(t));
+    });
   // Kalan metin kararı ev sahibine bırakıyorsa, belirsizlik / tahmin / yetersizlik / ret / özür söylüyorsa ya da bildirim taşıyorsa
   // yönlendirme bir cevabın parçası değil, CEVAPSIZLIĞIN parçasıdır → eskisi gibi tamamı tutulur (kurucu kararları 10-01, 09-11, K10).
-  const notice = carriesHandoffNotice(text) || VISIBILITY_NOTICE.test(text);
+  const notice = () => carriesHandoffNotice(text) || VISIBILITY_NOTICE.test(text);
   // Yalnız genel kapanış silindiyse kalan metin, kapanışsız aynı cevapla AYNI muameleyi görür — kapanış eklemek cevabı sıkılaştırmaz (R13-b/c;
   // v3 yeniden incelemesi wf3-fp-04: "Luggage may be left …", "erişim yok", "creo que le encantará" tutuluyordu).
   // "Gerekirse / isterseniz" kapanışı genel kapanıştır; yalnız kalan metin belirsizlik ya da izin söylüyorsa silme onu kesinleştirirdi.
-  const remainderHedge = (removals.some((r) => !r.generic) || needReferenceRemoved) && remainderNeedsHost(text);
-  const conditionalYes = (preconditionRemoved || needReferenceRemoved) && PERMISSION.test(text);
-  if (forceHold || partial || notice || !informative || defersDecisionToHost(text) || remainderHedge || conditionalYes) {
+  const remainderHedge = () => (removals.some((r) => !r.generic) || needReferenceRemoved) && remainderNeedsHost(text);
+  const conditionalYes = () => (preconditionRemoved || needReferenceRemoved) && PERMISSION.test(text);
+  // Hepsi saf yüklem; ucuzdan pahalıya kısa devre (tamamı zaten tutulan uzun cevapta kalan metin boşuna taranmaz — süre pini).
+  if (forceHold || !informative || partial() || notice() || defersDecisionToHost(text) || remainderHedge() || conditionalYes()) {
     return { text: reply, removals, nothingLeft: true, draft };
   }
   return { text, removals, nothingLeft: false, draft: text };

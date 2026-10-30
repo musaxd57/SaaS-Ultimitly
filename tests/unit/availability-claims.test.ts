@@ -6,7 +6,7 @@ import {
   vetoAvailability,
   AVAILABILITY_VETO_REASONS,
 } from "@/lib/ai/availability-claims";
-import { passesAutoReplySafetyGate } from "@/lib/automation";
+import { autoReplyGateVerdict, passesAutoReplySafetyGate } from "@/lib/automation";
 import { REPLY_SYSTEM_PROMPT } from "@/lib/ai/prompts";
 import {
   REQUESTS_POS,
@@ -160,12 +160,17 @@ describe("gönderim kapısı (kanal) — bağlantı DAVRANIŞSAL", () => {
   it("KONTROL: kararı erteleyen cevap (iki model hemfikir) ve sıradan soru-cevap GİDER (aşırı engelleme yok)", () => {
     const deferring = {
       ...OK,
-      // Devir cümlesi YOK (K10, 09-30: "mesajınız kaydedildi" her durumda önce çıktı vetosunda tutulur).
-      reply: "Bu ev sahibinizin kararıdır.",
+      // Devir cümlesi YOK (K10, 09-30: "mesajınız kaydedildi" her durumda önce çıktı vetosunda tutulur). Ev sahibinin sesi (kurucu
+      // 10-30): üçüncü kişi "ev sahibinizin kararıdır" reply_host_voice ile tutulur (↓).
+      reply: "Bu bizim kararımızdır.",
       stayChange: { asked: "extend", stance: "defers" } as const,
     };
     const guardDefers = { status: "ok" as const, verdict: { ...CLEAN_VERDICT, guestRequestsChange: true, kind: "extend" as const, replyDefersToHost: true } };
     expect(passesAutoReplySafetyGate(deferring, "Bir gece daha kalabilir miyiz?", { stayGuard: guardDefers })).toBe(true);
+    expect(autoReplyGateVerdict({ ...deferring, reply: "Bu ev sahibinizin kararıdır." }, "Bir gece daha kalabilir miyiz?", { stayGuard: guardDefers })).toEqual({
+      reason: "blocked",
+      detail: "reply_host_voice",
+    });
     // 🚨 Bekçi yokken aynı cevap GİTMEZ (kurucu değişmezi 09-24: hassas istek + doğrulayıcı yok = insan).
     expect(passesAutoReplySafetyGate(deferring, "Bir gece daha kalabilir miyiz?")).toBe(false);
     expect(passesAutoReplySafetyGate({ ...OK, reply: "Giriş saatimiz 15:00'tir." }, "Saat kaçta giriş yapabiliriz?")).toBe(true);
@@ -184,11 +189,15 @@ describe("gönderim kapısı (kanal) — bağlantı DAVRANIŞSAL", () => {
     const defers = { stayGuard: { status: "ok" as const, verdict: { ...CLEAN_VERDICT, guestRequestsChange: true, kind: "extend" as const, replyDefersToHost: true } } };
     const none = { asked: "extend", stance: "none" } as const;
     const def = { asked: "extend", stance: "defers" } as const;
-    const DEFER = "Bu ev sahibinizin kararıdır.";
+    const DEFER = "Bu bizim kararımızdır."; // ev sahibinin sesi (kurucu 10-30)
     const DEVIR = "Mesajınız kaydedildi; ev sahibiniz görebilir.";
     expect(passesAutoReplySafetyGate({ ...handoff, stayChange: none, reply: DEFER }, msg, req)).toBe(false);
     expect(passesAutoReplySafetyGate({ ...handoff, stayChange: def, reply: DEFER }, msg, defers)).toBe(true);
-    expect(passesAutoReplySafetyGate({ ...handoff, stayChange: def, reply: "Bu ev sahibinizin kararıdır; o gece boş." }, msg, defers)).toBe(false);
+    expect(passesAutoReplySafetyGate({ ...handoff, stayChange: def, reply: "Bu bizim kararımızdır; o gece boş." }, msg, defers)).toBe(false);
+    expect(autoReplyGateVerdict({ ...handoff, stayChange: def, reply: "Bu ev sahibinizin kararıdır." }, msg, defers)).toEqual({
+      reason: "blocked",
+      detail: "reply_host_voice",
+    });
     // Bekçi yokken de gitmez (tutulan cevap kanal yolunda acil e-postayla bildirilir).
     expect(passesAutoReplySafetyGate({ ...handoff, stayChange: def, reply: DEFER }, msg)).toBe(false);
     // KONTROL: konaklama konusu olmayan erteleme gider.
