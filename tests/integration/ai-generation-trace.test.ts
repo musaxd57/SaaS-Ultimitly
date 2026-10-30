@@ -157,6 +157,24 @@ describe("üretim izi — kanal oto-yanıtı", () => {
     expect(gens[0]).toMatchObject({ decision: "human_review", gateReason: evs[0].reason, sentText: null, draftText: "Talebinizi ev sahibine iletiyorum." });
   });
 
+  it("K-1029-A: ev sahibine başvurma yüzünden tutulan cevabın izi SİLİNMİŞ taslağı saklar — yasaklı cümle saklanmaz (mutasyon W1)", async () => {
+    const s = await seed();
+    const banned = `${BENIGN} Herhangi bir sorunda ev sahibinize yazın.`;
+    mockSuggest.mockResolvedValue(
+      verdict({
+        reply: banned,
+        hostContactOnly: true,
+        hostContactDraft: BENIGN,
+        hostContactRemovals: [{ kind: "write", form: "conditional", appendix: false, stems: [], topics: [], generic: true }],
+      }) as never,
+    );
+    const r = await applyChannelAutoReply(s.conversationId);
+    expect(r.sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+    const [g] = await prisma.aiGeneration.findMany({ where: { conversationId: s.conversationId } });
+    expect(g).toMatchObject({ decision: "human_review", sentText: null, draftText: BENIGN });
+  });
+
   it("🚨 anahtar KAPALI → iz yok; karar ve gönderilen metin BİREBİR aynı", async () => {
     const on = await seed();
     await applyChannelAutoReply(on.conversationId);

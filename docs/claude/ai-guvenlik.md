@@ -609,18 +609,29 @@
 - SİLİNMEYENLER: güvenlik uyarısında "arayın" (gaz / yangın / duman / acil numara YÖNERGESİ — çıplak "110 / 112" sayısı ve "gaz ocağı" uyarı
   değil). Güvenlik talimatında "yazın / haber verin" kuyruğu yalnız kuyruk olarak silinir, adımlar kalır; temiz ayrılamazsa cevabın TAMAMI
   tutulur (adım sessizce düşmez).
-- CEVABIN TAMAMI TUTULUR (v2, Opus incelemesi 10-30 — eski "yönlendirme = bilgim yok" ağının yerini tutar): başvurma cümlesi K10 devir /
-  görünürlük bildirimi taşıyorsa · silmeden sonra kalan metin kararı ev sahibine bırakıyorsa (kurucu 10-01) · kalan metin belirsizlik /
-  yetersizlik / paylaşılmamış bilgi / müsaitliğe bağlılık / özür / RET söylüyorsa ("emin değilim", "net değil", "ayarlayamıyorum", "sorry",
-  "paylaşamam" — ret kurucuya soru) · geriye yalnız selam / nezaket / temenni kalıyorsa. O zaman da TASLAK (`hostContactDraft`) silinmiş
-  metindir — yasaklı cümle "AI öner"e / hazır taslağa yazılmaz.
-- Kesim: iki nokta yan cümle sınırı değildir; baş kısım yalnız konu etiketi ("For the sauna", "Sauna için", "Otopark konusunda") ya da
-  nezaketse ("Of course") bütün cümle çıkar. Satır sonuyla bölünmüş cümle önce birleştirilir.
-- Kayıt kökleri: konusuz bilgi yönlendirmesi ("Detaylar için / Bu konuda / for details") önceki cümlenin konusunu taşır; bilgi yönlendirmesi
-  yalnız koşul / "diğer sorularınız" izinde GENEL sayılır; "bu konuda" adres konusu değildir; selamdaki misafir adı kök sayılmaz.
+- CEVABIN TAMAMI TUTULUR (v2 + v3, iki sert inceleme 10-30 — eski "yönlendirme = bilgim yok" ağının yerini tutar): başvurma cümlesi K10
+  devir / görünürlük bildirimi taşıyorsa · kalan metin kararı ev sahibine bırakıyorsa (kurucu 10-01) · kalan metin belirsizlik / tahmin /
+  yetersizlik / paylaşılmamış ya da listelenmemiş bilgi / müsaitliğe bağlılık / özür / RET söylüyorsa (yedi dil, tek kalıp `REMAINDER_HOLD`;
+  ret kurucuya soru) · geriye yalnız selam / nezaket / temenni kalıyorsa · silme GÖNDERGESELSE ("bu konuda / about it / for details" —
+  neyin cevapsız kaldığı belli değil) · KONULU silmede kalan metin aynı konuya değiniyorsa (yarım cevap) · güvenlik cümlesinde başvurmadan
+  SONRA adım varsa ya da temiz ayrılamıyorsa (taslak BOŞ — adımsız metin tek tıkla gitmesin). Tutulan cevapta TASLAK (`hostContactDraft`)
+  silinmiş metindir — yasaklı cümle "AI öner"e / hazır taslağa / demoya / Ayarlar testine yazılmaz.
+- Silme kapsamı (`removalOf`): KAPANIŞ (koşul / "diğer sorularınız" / varış / güvenlik kuyruğu — kalan gider) · KONULU · KOŞULLU KONULU (kalan
+  gider, istek açık kalır) · GÖNDERGESEL (tamamı tutulur). Kısıtlayan kuyrukta ("but only if you message your host") bütün cümle çıkar.
+- Kesim: iki nokta yan cümle sınırı değildir; baş kısım yalnız konu etiketi ("For the sauna", "Regarding …", "Was … betrifft", "Что
+  касается …", "Otoparka gelince") ya da nezaketse bütün cümle çıkar; gövdesi tamamen silinen başlık satırı da düşer. Satır sonuyla bölünmüş
+  cümle önce birleştirilir. Önceki cümle ev sahibini andıysa zamirli talimat ("just message him") da silinir (üçüncü kişi anılıyorsa değil).
+- Dedektör sınırları (aşırı uygulama yok, pinli): olumsuz ("no need to tell your host"), cihaz / üçüncü kişi öznesi ("The door sensor will
+  alert the host"), birinci kişi ("I'll mention it to your host"), misafirden KENDİ bilgisini isteme ("let me know your arrival time" —
+  genel ihtiyaç koşullu "let us know the details" kapanıştır), nesneli "kodu tekrar yazın", ad "sorun", ilgi hâli ("ev sahibinizin",
+  "хозяина"). Ev sahibi ÖZNE + söz ("Ev sahibiniz size haber verecek") süzgecin işi DEĞİL — silinseydi çıktı vetosu sözü göremezdi; haber
+  verme kalıbı yalnız misafirin kipiyle, ulaç yalnız yönelme / belirtme ekli ev sahibiyle. Ev sahibinin kendi sesi ("bize / us / uns / нам")
+  yalnız koşul / kapanış izinde.
 - "Cevaplandı" TEK kural (`conversation-items/host-contact-settle.ts`): beyan + silinen metin o isteğe ait değil + giden metin o isteği
   AYIRT EDİCİ karşılıyor; olasılık sorusu hep açık. Defter yoksa (QR, öğe kipi kapalı) `hostContactOpenWithoutLedger` → kanal tutar + tek
   "Misafir cevabınızı bekliyor" e-postası, QR kalanı gönderip devreder (`host_contact_open`).
 - İstem katmanı VARSAYILAN AÇIK (`AI_HOST_CONTACT_PROMPT_BAN_DISABLED=1` acil durdurma); diğer istem pin dosyaları bu katmanı kapatıp kendi
   katmanlarını ölçer, kendisi `tests/unit/host-contact-ban-prompt.test.ts`. Kısmi gönderim acil durdurma `AI_HOST_CONTACT_PARTIAL_DISABLED=1`.
-- Ölçüm: `tests/eval/host-contact-replay.ts` (ücretsiz, geçmiş model cevapları; eski / yeni süzgeç + kapının metin kuralları).
+- Ölçüm: `tests/eval/host-contact-replay.ts` (ücretsiz, geçmiş model cevapları; eski / yeni süzgeç + kapının metin kuralları). Süre: misafir
+  metnine bağlı her kalıp doğrusal (`host-contact-cost.test.ts`, 50 bin karakter şekilleri; sondaki ayraç / nokta dizisi düzenli ifadeyle
+  değil geriye taramayla kırpılır).

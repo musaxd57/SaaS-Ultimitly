@@ -135,6 +135,18 @@ describe("POST /api/demo/ai — public landing demo", () => {
       expect(data.wouldAutoSend).toBe(false);
     });
 
+    it("K-1029-A: ev sahibine başvurma yüzünden tutulan cevapta tanıtım sayfası SİLİNMİŞ taslağı gösterir; taslak boşsa metin boş (mutasyon W6)", async () => {
+      const banned = "Wi-Fi şifresi Lale1234. Herhangi bir sorunda ev sahibinize yazın.";
+      vi.mocked(suggestReply).mockResolvedValueOnce(
+        modelResult({ reply: banned, hostContactOnly: true, hostContactDraft: "Wi-Fi şifresi Lale1234." }) as never,
+      );
+      const data = await (await POST(req("wifi şifresi nedir?", "10.0.0.11"))).json();
+      expect(data).toEqual({ reply: "Wi-Fi şifresi Lale1234.", wouldAutoSend: false });
+      vi.mocked(suggestReply).mockResolvedValueOnce(modelResult({ reply: banned, hostContactOnly: true, hostContactDraft: "" }) as never);
+      const empty = await (await POST(req("wifi şifresi nedir?", "10.0.0.12"))).json();
+      expect(empty).toEqual({ reply: "", wouldAutoSend: false });
+    });
+
     it("🚨 ABSENCE ADMISSION → false (the badge must not claim an auto-send the product blocks)", async () => {
       // Measured defect: this route called the gate WITHOUT `reply`, so the new
       // founder rule ("bilgim yok" never reaches a guest) could not fire here and

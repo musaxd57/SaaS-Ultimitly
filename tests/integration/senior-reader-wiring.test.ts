@@ -9,7 +9,14 @@ import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
 // iletişim bilgisi gider; okuyucu düşerse bugünkü kurallar (gider). Kanal ve QR.
 // ---------------------------------------------------------------------------
 
-vi.mock("@/lib/ai", () => ({ suggestReply: vi.fn(), classifyMessage: vi.fn() }));
+vi.mock("@/lib/ai", () => ({
+  suggestReply: vi.fn(),
+  classifyMessage: vi.fn(),
+  // Üretim izi (yalnız iz anahtarı açık testte okunur): model adı + istem sürümü.
+  replyCallParams: vi.fn(() => ({ model: "configured-model", effort: null })),
+  replyPromptVersion: vi.fn(() => "promptv-test"),
+  replyPromptItemsOf: (items: { held: readonly unknown[] } | undefined) => ({ mode: items !== undefined, held: (items?.held.length ?? 0) > 0 }),
+}));
 vi.mock("@/lib/messaging", async (orig) => ({
   ...(await orig<typeof import("@/lib/messaging")>()),
   sendOnChannel: vi.fn(),
@@ -241,6 +248,31 @@ describe("kıdemli okuyucu — kanal oto-yanıtı", () => {
     // Kanıt kaydı: yeniden yazma sebebi (kapalı küme kod, metin yok).
     const ev = await prisma.riskEvent.findFirstOrThrow({ where: { conversationId: id, surface: "auto_reply" } });
     expect(JSON.parse(ev.kbEvidenceJson ?? "{}").rw).toEqual(["contact"]);
+  });
+
+  it("K-1029-A: yeniden yazılan taslak ev sahibine başvurma yüzünden tutulursa izin taslağı yeniden yazılanın SİLİNMİŞ metnidir (mutasyon W2)", async () => {
+    vi.stubEnv("AI_SENIOR_READER_ENABLED", "1");
+    vi.stubEnv("AI_GENERATION_TRACE_ENABLED", "1");
+    const f = vi.fn(async (_url: string, init?: RequestInit) => {
+      const user = JSON.parse(String(init?.body)).messages[1].content as string;
+      const contact = /whatsapp/i.test(user.split("DRAFT REPLY:")[1] ?? "");
+      const v = { ...NOTHING, off_platform_contact: contact, contact_quote: contact ? lastDraftSentence(init) : "" };
+      return new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify(v) } }] }), { status: 200 });
+    });
+    vi.stubGlobal("fetch", f);
+    const KEPT = "Check-in is from 15:00.";
+    mockSuggest.mockResolvedValueOnce(DRAFT(CONTACT)).mockResolvedValueOnce({
+      ...DRAFT(`${KEPT} If anything comes up, message your host.`),
+      hostContactOnly: true,
+      hostContactDraft: KEPT,
+      hostContactRemovals: [{ kind: "write", form: "conditional", appendix: false, stems: [], topics: [], generic: true }],
+    } as never);
+    const id = await seedChannel();
+    await applyChannelAutoReply(id);
+    expect(mockSuggest).toHaveBeenCalledTimes(2);
+    expect(mockSend).not.toHaveBeenCalled();
+    const [g] = await prisma.aiGeneration.findMany({ where: { conversationId: id } });
+    expect(g.draftText).toBe(KEPT);
   });
 
   it("🚨 kurucu 10-22: taslak bilgiyi NEREDEN bildiğini anlatıyor → bir kez yeniden yazılır, olgu doğrudan söylenen taslak GİDER", async () => {

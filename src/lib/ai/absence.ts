@@ -1248,7 +1248,7 @@ const HC_HOST_PATTERNS: readonly RegExp[] = [
  * olan cümle eşleşmez; "the host's office" sahiplik ekidir.
  */
 const HC_FIRST_PERSON_LB =
-  "(?<!(?:[iı]|we|let me|let us)(?:['’](?:ll|d|m|ve|re)| will| would| can| could| shall| may| might| am| are| have)?(?: (?:be )?(?:happy|glad|able) to| going to| also| gladly| happily| personally| just| quickly| then)? )";
+  "(?<!(?<![\\p{L}])(?:[iı]|we|let me|let us)(?:['’](?:ll|d|m|ve|re)| will| would| can| could| shall| may| might| am| are| have)?(?: (?:be )?(?:happy|glad|able) to| going to| also| gladly| happily| personally| just| quickly| then)? )";
 const HC_HOST_GAP_PATTERNS: readonly RegExp[] = [
   new RegExp(
     `${HC_FIRST_PERSON_LB}${HC_NOT_MODAL}${L}(?:arrange|coordinate|report|raise|bring|mention|flag|direct|discuss|sort|settle|follow up|clarify|liaise|agree)` +

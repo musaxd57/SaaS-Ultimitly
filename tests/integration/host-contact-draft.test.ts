@@ -138,5 +138,8 @@ describe("Opus F10 — tutulan cevabın taslağı yasaklı cümleyi taşımaz", 
     expect(body).not.toHaveProperty("hostContactDraft");
     expect(body.hostContactOnly).toBe(true);
     expect(body.wouldAutoSend).toBe(false);
+    // Önizleme de silinmiş taslağı gösterir (mutasyon W5): ev sahibi "ev sahibinize yazın"ı önizlemede görüp aynen göndermesin.
+    expect(String(body.reply)).toContain(hostVoiceDraft(DRAFT));
+    expect(String(body.reply)).not.toMatch(/ev sahibinize yazın/);
   });
 });

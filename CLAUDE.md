@@ -477,7 +477,5 @@ Bu dosyaya token/anahtar/parola yazma.
 
 ## Durum
 > 📄 **Tam metin (bağlayıcı): `docs/claude/durum.md`** — bu alanda kod / karar değiştirmeden önce oku. Aşağıda yalnız madde başlıkları.
-**10-30 sabah:** K-1029-A v2 (Opus F1–F12: kalan metin belirsizlik / ret / yalnız nezaket → tamamı tutulur; konu etiketi tek başına gitmez; konusuz yönlendirme isteği açık bırakır; taslak silinmiş metin) — `docs/claude/durum.md`.
+**10-30 öğle:** K-1029-A v2 + v3 (iki sert inceleme: Opus F1–F12 + dört mercekli çekişmeli iş akışı, 44 bulgu; silme kapsamı kapanış / konulu / göndergesel, güvenlik yan cümle çözümlemesi, yedi dilde 138/140 biçim, doğrusal süre; tekrar oynatmada kaybedilen tutuş 0) · K-1029-C: 23 sözcük yamasının 23'ü reddedildi (model okusun) · sabah soruları 1–7 `docs/INCELEME-2026-10-28-gece-dongusu.md` — `docs/claude/durum.md`.
 **10-30:** K-1029-A kodda ("ev sahibinize yazın" yedi dilde silinir, doğru cevap gider, cevapsız soru açık; istem yasağı varsayılan AÇIK) · GD7 alan sahipliği tablosu · 404 yol sınıfları · sert inceleme C1–C17 + Haiku döngüsü · ücretsiz tekrar oynatma ölçümü (3.274 cevap, sistem düzeyinde yeni tutuş 0) — `docs/claude/durum.md`.
-**10-29:** R10–R15, R29, R30 ✅ · R13-b/c ✅ ("ev sahibinize yazın" asla; genel kapanış çıkar; `ai/host-contact-filler.ts`) — `docs/claude/durum.md`.
-**10-28 gece-2:** R13 ✅ · Decisions API sıralayıcı motoru kodda, KAPALI (`KB_RERANK_ENGINE=decisions`; açmak ölçüm + kurucu) — `docs/claude/durum.md`.

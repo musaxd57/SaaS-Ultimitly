@@ -4,6 +4,9 @@
 > Bu dosyadaki kurallar CLAUDE.md'deki kadar BAĞLAYICIDIR. İlgili alanda iş yapmadan önce oku.
 
 ## CLAUDE.md "Durum" özet satırları (10-23'te AYNEN taşındı; en yeni ikisi CLAUDE.md'de kalır)
+**10-30 sabah:** K-1029-A v2 (Opus F1–F12: kalan metin belirsizlik / ret / yalnız nezaket → tamamı tutulur; konu etiketi tek başına gitmez; konusuz yönlendirme isteği açık bırakır; taslak silinmiş metin) — `docs/claude/durum.md`.
+**10-29:** R10–R15, R29, R30 ✅ · R13-b/c ✅ ("ev sahibinize yazın" asla; genel kapanış çıkar; `ai/host-contact-filler.ts`) — `docs/claude/durum.md`.
+**10-28 gece-2:** R13 ✅ · Decisions API sıralayıcı motoru kodda, KAPALI (`KB_RERANK_ENGINE=decisions`; açmak ölçüm + kurucu) — `docs/claude/durum.md`.
 **10-28 gece:** kurucu karar masası (19 karar, aynen `docs/KURUCU-KARARLARI-2026-10-28-karar-masasi.md`) → 4.11 / 4.12 / 4.13 / 4.14 kodda + dil kapısı düzeltmesi, mutasyon 31/31 · 4.15 zod 4 ✅ (tip denetiminin yakalamadığı 3 gerileme kırmızı-önce; `docs/INCELEME-2026-10-28-zod4-gecisi.md`) · Opus R24–R28 ✅ (ORTAK sır okuyucusu PIN / Türcode / codice / keyless; R15 tasarım notu), öz-inceleme `docs/INCELEME-2026-10-28-gece-oz-inceleme.md` · ⚠️ OpenAI kredisi bitti (ölçümler bekliyor) · yeni sorular karar sayfasında — `docs/claude/durum.md`.
 **10-28 akşam:** uzun belge RAG ölçümü (geliştirme ort. 103/113, kör 90/95; ölçer anlama katmanı hatası düzeltildi) · `KB_TABLE_HEADER` kodda KAPALI (103 → 108,5) · Luna anlama/sıralayıcı eşit değil → 5.1 kalır · OpenAI ince ayarı kapanıyor · sorular R-T1/T2/T3 — `docs/TASARIM-2026-10-28-dosya-rag-cumle-ve-anlam.md` §9.
 **10-28:** kurucu §7: bilgi tabanı **şablon indir + dışa aktar** (ücretli paket) · Opus 2. dilim + Haiku düzeltmeleri ("daha çok tutar") · **7-D sert kör test** (93 vaka, gerçek model ≈0,30 $: önceki öneri 10 yanlış gönderim, en iyi kol 4 → yeni öneri "kod yalnız durdurur, gönderimi model onaylar") · **kalıcı gömme deposu kodda** (migration 87, `KB_VECTOR_STORE_ENABLED` KAPALI) · dosya RAG cümle + anlam tasarımı · **karar sayfası** https://claude.ai/artifact/2tiEwpwVc4r4S5z1aGuV1V · SIRADAKİ İŞ LİSTESİ: `docs/claude/durum.md` "10-28 devir".
@@ -51,6 +54,14 @@ düzeltmeleri. Next.js 15.5.27 (iki yeni SSG/ISR danışması). Onay bekleyen be
 **Dal durumu:** bütün iş `claude/great-edison-3zqpZ`'de commit'li; tam kapı + build yeşil olunca push edildi (CI sonucu bir sonraki
 oturumda `actions_list` ile tekrar bakılır). Railway KAPALI (canlı yok). 10-28 akşam ücretli koşular kurucu onayıyla yapıldı ("test yapıp
 para harcamayı tercih ederim"): uzun belge RAG + Luna kıyası, toplam birkaç dolar.
+
+**10-30 öğle — K-1029-A v3 (dört mercekli çekişmeli inceleme, 44 bulgu / 43 doğrulandı):** silme kapsamı kapanış / konulu / koşullu
+konulu / göndergesel (göndergeselde ve kalan metin aynı konuya değiniyorsa cevabın tamamı tutulur) · güvenlik cümlesi yan cümle çözümlemesi
+(başvurmadan sonra adım → tamamı tutulur, taslak boş) · kalan metin sınavı yedi dilde tek kalıp · kapsam turu 140 gündelik biçimden 138'i
+(iki "buradayız" biçimi bilerek dışarıda) · bilgi isteği ayrımı (kendi bilgisi muaf, genel ihtiyaç koşullu kapanış değil) · ev sahibi ÖZNE +
+söz süzgecin işi değil (veto kör olmasın) · süre doğrusal (50 binde 128 sn → 0,4 sn; 14 süre pini) · tekrar oynatma: K-1029-A öncesine
+göre kaybedilen tutuş 0, v2 → v3 gevşeme 0 · @@MUTLINE@@ · K-1029-C: 23 "yalnız sıkılaştıran" sözcük yamasının 23'ü çekişmeli doğrulamada
+reddedildi (model okusun yönü ölçüldü, kod değişmedi). Ayrıntı + sabah soruları 1–7 `docs/INCELEME-2026-10-28-gece-dongusu.md` 10-30 öğle.
 
 **10-30 sabah — K-1029-A v2 (Opus sert incelemesi F1–F12 P1/P2):** v1 7/58 vakada doğruydu (silme "bilgim yok" ağının yerini almıştı:
 "emin değilim" gidiyordu, "Otopark." tek başına gidiyordu, "Detaylar için / bu konuda" isteği sessizce kapatıyordu, bildirimli başvurma ve

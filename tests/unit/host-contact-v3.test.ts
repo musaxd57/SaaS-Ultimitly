@@ -4,7 +4,7 @@ import { hostContactKindOf } from "@/lib/ai/absence";
 import { settleHostContactRemovals } from "@/lib/conversation-items/host-contact-settle";
 import { needTerms } from "@/lib/conversation-items/topic-absence";
 import { topicsWithSymptomsOf } from "@/lib/conversation-items/relation";
-import { asksHypotheticalSituation } from "@/lib/ai/absence";
+import { asksHypotheticalSituation, mentionsHostContact, refersGuestToHost } from "@/lib/ai/absence";
 
 // ---------------------------------------------------------------------------
 // K-1029-A v3 (10-30) — v2'nin çekişmeli incelemesi (4 mercek: aklama, aşırı uygulama, güvenlik + bağlantı, maliyet): bulucu ajanların
@@ -276,6 +276,25 @@ describe("v3 kapsam turu — yedi dilde yeni biçimler", () => {
   });
   it.each(NEG)("dokunulmaz: %j", (s) => {
     expect(hostContactKindOf(s)).toBeNull();
+  });
+  // Mutasyon A1 (yaşadı): nesne aralıklı iş fiili kalıbı üçüncü kişi öznesinde susar — kip "can" süzgecin kip listesinde yok, yalnız üçüncü
+  // kişi denetimi durdurur.
+  it.each(["Our cleaner can report any damage to the host directly.", "The driver can arrange a stop with the host on the way."])(
+    "üçüncü kişi öznesi: %j",
+    (s) => {
+      expect(hostContactKindOf(s)).toBeNull();
+    },
+  );
+
+  // Mutasyon A19 / A20 (yaşadı — iki dedektör birbirini örtüyordu): her biri yalnız kendisinin yakaladığı biçimle pinli.
+  it("ev sahibinin kendi sesi 'bizimle iletişim kurun / temasa geçin' yalnız başvurma dedektöründe (A19)", () => {
+    expect(mentionsHostContact("Herhangi bir sorunda bizimle iletişim kurabilirsiniz.")).toBe("write");
+    expect(mentionsHostContact("Bir sıkıntı olursa bizimle temasa geçin.")).toBe("write");
+  });
+  it("'iletişim kurabilirsiniz' bilgi yönlendirmesidir — 'bilgim yok' ağı da görür; site yöneticisi yalnız orada (A20)", () => {
+    expect(refersGuestToHost("Ev sahibinizle iletişim kurabilirsiniz.")).toBe(true);
+    expect(refersGuestToHost("Ev sahibinizle temasa geçebilirsiniz.")).toBe(true);
+    expect(hostContactKindOf("Otopark için site yöneticisiyle iletişim kurabilirsiniz.")).toBe("referral");
   });
 
   const need = (ref: string, q: string[]) => ({ ref, topics: topicsWithSymptomsOf(q.join(" ")), terms: needTerms(q), contingency: q.some((x) => asksHypotheticalSituation(x)) });

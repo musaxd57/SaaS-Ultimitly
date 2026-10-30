@@ -186,6 +186,22 @@ describe("QR üretim izi — rota", () => {
     expect(gens[1].contextDiagnosticsJson).not.toContain(ANSWER);
   });
 
+  it("K-1029-A: ev sahibine başvurma yüzünden tutulan QR cevabının izi SİLİNMİŞ taslağı saklar (mutasyon W4)", async () => {
+    const s = await seedQr();
+    mockSuggest.mockResolvedValue(
+      draft({
+        reply: `${ANSWER} Herhangi bir sorunda ev sahibinize yazın.`,
+        hostContactOnly: true,
+        hostContactDraft: ANSWER,
+        hostContactRemovals: [{ kind: "write", form: "conditional", appendix: false, stems: [], topics: [], generic: true }],
+      }) as never,
+    );
+    const { body } = await ask(s.token, "Giriş saati kaçta?");
+    expect(body.reply ?? "").not.toMatch(/ev sahibinize yazın/);
+    const [g] = await prisma.aiGeneration.findMany();
+    expect(g.draftText).toBe(ANSWER);
+  });
+
   it("🚨 devir: karar human_review, gönderilen YOK, taslak var, gerekçe RiskEvent ile aynı", async () => {
     const s = await seedQr();
     mockSuggest.mockResolvedValue(draft({ confidence: 0.4, intent: "general", reply: "Bilmiyorum, sorayım." }) as never);
