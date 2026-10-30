@@ -55,7 +55,7 @@ describe("WhatsApp numara bağlama", () => {
     const r = await start(o);
     if (!r.ok) throw new Error(r.reason);
     expect(r.code).toMatch(/^LIXUS-[0-9A-HJKMNP-TV-Z]{6}$/);
-    expect(r.masked).toBe("+90 ••• ••• •• 67");
+    expect(r.masked).toBe("+•• ••• ••• •• 67");
     const row = await prisma.hostChannelBinding.findUniqueOrThrow({ where: { id: r.bindingId } });
     expect(row.status).toBe("pending");
     expect(JSON.stringify(row)).not.toContain("5321234567");
