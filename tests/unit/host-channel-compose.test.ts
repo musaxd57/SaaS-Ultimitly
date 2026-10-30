@@ -3,6 +3,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 vi.mock("@/lib/report-error", () => ({ reportError: vi.fn(async () => {}) }));
 
 import { buildComposeUserContent, composeGuestReplyFromHostAnswer, HOST_ANSWER_SYSTEM_PROMPT } from "@/lib/host-channel/compose";
+import { checkComposedGuestReply } from "@/lib/host-channel/compose-check";
 
 // ---------------------------------------------------------------------------
 // CEVAP KURUCU (WhatsApp dilim 1b, tasarım §3.6): ev sahibinin kısa cevabı → misafirin dilinde, ev sahibinin ağzından cevap. Model
@@ -83,3 +84,23 @@ describe("cevap kurucu", () => {
     expect(u).toContain("Guest language: en");
   });
 });
+
+describe("kod denetimi — ASCII dışı rakamlar (inceleme 10-30 gece D)", () => {
+  it.each([
+    ["نعم، الموقف متاح مقابل ٥٠٠ ليرة يوميًا.", "otopark var"],
+    ["پارکینگ ۵۰۰ لیر در روز است.", "otopark var"],
+    ["Parking costs ५०० TL.", "otopark var"],
+    ["نعم، يمكنكم الدخول الساعة ١٥:٣٠.", "evet"],
+  ])("uydurulmuş sayı başka yazıyla da yakalanır: %j", (reply, hostAnswer) => {
+    expect(checkComposedGuestReply({ reply, hostAnswer })).toBe("number_not_in_source");
+  });
+  it("ev sahibinin sayısı başka yazıyla yazılırsa geçer (iki taraf aynı normalleştirme)", () => {
+    expect(checkComposedGuestReply({ reply: "الموقف متاح مقابل ٥٠٠ ليرة.", hostAnswer: "otopark 500 tl" })).toBeNull();
+    expect(checkComposedGuestReply({ reply: "Parking costs 500 TL.", hostAnswer: "otopark ٥٠٠ tl" })).toBeNull();
+  });
+  it("iletişim değeri başka rakam yazısıyla da gitmez (Airbnb kuralı)", () => {
+    expect(checkComposedGuestReply({ reply: "اتصلوا على ٠٥٣٢١١١٢٢٣٣.", hostAnswer: "beni arasınlar 05321112233" })).toBe("contact_value");
+    expect(checkComposedGuestReply({ reply: "Call ０５３２１１１２２３３.", hostAnswer: "beni arasınlar 05321112233" })).toBe("contact_value");
+  });
+});
+

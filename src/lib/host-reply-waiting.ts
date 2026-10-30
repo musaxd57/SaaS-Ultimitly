@@ -3,6 +3,9 @@ import { prisma } from "@/lib/db";
 import { emailService } from "@/lib/email";
 import { hostReplyWaitingEmail } from "@/lib/email-templates";
 import { reportError } from "@/lib/report-error";
+import { askHostOnChannel } from "@/lib/host-channel/ask";
+import type { HostAskTrigger } from "@/lib/host-channel/routing";
+import { hostChannelTransport } from "@/lib/host-channel-runtime";
 
 // ---------------------------------------------------------------------------
 // MİSAFİR CEVAP BEKLİYOR (K10, kurucu kararı 09-30: "host görebilir gibi bir şey yazmasın, gerekirse hiç cevap üretilmesin,
@@ -19,6 +22,10 @@ import { reportError } from "@/lib/report-error";
 //   • Talep deposu okunamazsa e-posta GİTMEZ (fail-closed yönü: yinelenen e-posta yerine panel; konuşma gelen kutusunda
 //     görünür kalır) — bu bildirim bir kolaylıktır, güvenlik kapısı değil.
 //   • Asla fırlatmaz: oto-yanıt geçişini düşüremez.
+//   • WhatsApp (kurucu 10-30 "WP'yi hemen bağlamak istiyorum"; tasarım `docs/TASARIM-2026-10-30-whatsapp-ev-sahibi-dongusu.md`, S3 önerisi A):
+//     anahtarlar + işletme listesi + doğrulanmış numara + bilgi sorusu türü varsa AYNI talep altında önce WhatsApp sorusu denenir; giderse
+//     e-posta GİTMEZ (sonuç "mailed" = ev sahibine ulaşıldı), gitmezse hemen bugünkü e-posta. Anahtarlar kapalıyken veritabanına dokunulmaz,
+//     davranış birebir bugünkü. Öğe türü bilinmeyen çağıran (öğesiz yol) ve para / iade / konaklama değişikliği türleri hep e-posta.
 // ---------------------------------------------------------------------------
 
 /** Mesaj başına talep adı öneki — "Karar bekliyor" e-postası (Host Karar Motoru) AYNI talebi kullanır: aynı mesaja ikisi birden gitmez. */
@@ -61,6 +68,10 @@ export async function notifyHostReplyWaiting(input: {
   property: { name: string; address: string | null; city: string | null };
   messageId: string;
   messageBody: string;
+  /** WhatsApp yönlendiricisi için bildirimin nedeni (verilmezse tutulan tur). */
+  trigger?: HostAskTrigger;
+  /** Turun öğe türleri; verilmezse soru WhatsApp'a gitmez (yalnız e-posta). */
+  itemKinds?: readonly string[];
   now?: Date;
 }): Promise<HostReplyWaitingOutcome> {
   const now = input.now ?? new Date();
@@ -92,6 +103,22 @@ export async function notifyHostReplyWaiting(input: {
         return held && replyWaitingSettled(held, now) ? "deduped" : "in_flight";
       }
       return "unavailable";
+    }
+
+    // Önce WhatsApp (yalnız anahtarlar açık + doğrulanmış numara + bilgi sorusu); giderse ya da bu tura zaten gittiyse e-posta yok.
+    const asked = await askHostOnChannel({
+      organizationId: input.organizationId,
+      conversationId: input.conversation.id,
+      messageId: input.messageId,
+      messageBody: input.messageBody,
+      trigger: input.trigger ?? "handoff_held",
+      itemKinds: input.itemKinds,
+      transport: hostChannelTransport(),
+      now,
+    });
+    if (asked === "whatsapp" || asked === "duplicate") {
+      await confirmReplyWaitingSent(name);
+      return "mailed";
     }
 
     const html = hostReplyWaitingEmail(

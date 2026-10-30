@@ -3501,6 +3501,8 @@ export async function applyChannelAutoReply(
                 property: conversation.property,
                 messageId: shown.id,
                 messageBody: shown.body,
+                trigger: handoffHeld ? "handoff_held" : partsUnanswered ? "parts_unanswered" : "host_contact_notify",
+                itemKinds: itemsPlan.turnItems.map((i) => i.kind),
               });
               // Parça kipinde (Soru 10, Opus 10-23 sabah F8): bu e-posta turun açık ihtiyaçlarını da bildirmiş sayılır — sonraki turda bayat kalan aynı
               // satır için ikinci e-posta gitmez. Kip kapalıyken alan yok → yazma yok.
@@ -3525,6 +3527,8 @@ export async function applyChannelAutoReply(
                     property: conversation.property,
                     messageId: m.id,
                     messageBody: m.body,
+                    trigger: "stale_open",
+                    itemKinds: (itemsPlan.staleOpen ?? []).filter((i) => i.messageId === m.id).map((i) => i.kind),
                   });
                 },
               });
@@ -4489,6 +4493,8 @@ async function settleSentTurnItems(input: {
             property: input.conversation.property,
             messageId,
             messageBody: m?.body ?? "",
+            trigger: "parts_unanswered",
+            itemKinds: openSafe.filter((i) => i.messageId === messageId).map((i) => i.kind),
           });
         },
       });

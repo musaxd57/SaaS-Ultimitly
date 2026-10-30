@@ -20,10 +20,27 @@ export type ComposeCheckFailure =
   | "internal_source"
   | "contact_value";
 
+const ND = /\p{Nd}/u;
+
+/**
+ * Her yazıdaki ondalık rakam ASCII'ye (inceleme 10-30 gece D: Arapça "٥٠٠", Farsça "۵۰۰", Devanagari "५००" `\d` ile görülmüyordu — model
+ * uydurduğu sayıyı ya da telefonu misafirin rakam yazısıyla yazınca denetim boştu). Tam genişlik / matematik rakamlar NFKC ile; ötekiler
+ * Unicode kuralıyla (her yazının 0–9'u ardışık on kod noktası): rakamın değeri, bitişik rakam dizisinin başından uzaklığının onluk kalanı.
+ */
+export function asciiDigits(text: string): string {
+  return text.normalize("NFKC").replace(/\p{Nd}/gu, (ch) => {
+    const c = ch.codePointAt(0)!;
+    if (c <= 0x39) return ch;
+    let base = c;
+    for (let i = 0; i < 60 && ND.test(String.fromCodePoint(base - 1)); i++) base--;
+    return String((c - base) % 10);
+  });
+}
+
 /** Metindeki sayı dizileri (saat, tutar, kod, telefon parçası) — "20" ile "200" ayrı. Binlik ayracı / ondalık normalize edilmez: kaynakta
- *  harfiyen geçmeyen biçim reddedilir (şüphede reddet). */
+ *  harfiyen geçmeyen biçim reddedilir (şüphede reddet). Rakam yazısı fark etmez (`asciiDigits`). */
 export function numberTokens(text: string): string[] {
-  return [...text.normalize("NFKC").matchAll(/\d+(?:[.,:]\d+)*/gu)].map((m) => m[0]);
+  return [...asciiDigits(text).matchAll(/\d+(?:[.,:]\d+)*/gu)].map((m) => m[0]);
 }
 
 /** Tam saat biçimleri ("13", "13:00", "13.00") aynı saat sayılır; dakikalı saat ("13:30") yalnız kendisidir. */
@@ -49,6 +66,6 @@ export function checkComposedGuestReply(input: { reply: string; hostAnswer: stri
   if (admitsMissingKnowledge(reply)) return "absence";
   if (namesInternalSource(reply)) return "internal_source";
   // Airbnb kuralı: telefon / e-posta / bağlantı misafire bu yoldan gitmez (ev sahibi yazmış olsa bile).
-  if (containsContactValue(reply)) return "contact_value";
+  if (containsContactValue(reply) || containsContactValue(asciiDigits(reply))) return "contact_value";
   return null;
 }

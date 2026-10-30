@@ -41,7 +41,8 @@ Kurucu 10-15: "Railway'i açınca ekleyeceğimiz bayrakları unutma." Bu dosya T
    - **WhatsApp ev sahibi soru kanalı (10-30, kurucu: "WP'yi hemen bağlamak istiyorum"; tasarım
      `docs/TASARIM-2026-10-30-whatsapp-ev-sahibi-dongusu.md` §9 kurulum listesi):** Meta kurulumu bitince kasadan →
      `WHATSAPP_ACCESS_TOKEN` (sistem kullanıcısı kalıcı belirteci) · `WHATSAPP_PHONE_NUMBER_ID` · `WHATSAPP_APP_SECRET` (web kancası imzası) ·
-     `WHATSAPP_WEBHOOK_VERIFY_TOKEN` · isteğe bağlı `WHATSAPP_GRAPH_VERSION` (boş = `v23.0`, kurulumda güncel sürüm teyit) ·
+     `WHATSAPP_WEBHOOK_VERIFY_TOKEN` · `HOST_CHANNEL_HMAC_SECRET` (en az 32 karakter rastgele; numara arama anahtarı + bağlama kodu özeti —
+     yoksa numara bağlama KAPALI; ENCRYPTION_KEY gibi döndürülmez: döndürülürse bağlı numaralar yeniden bağlanır) · isteğe bağlı `WHATSAPP_GRAPH_VERSION` (boş = `v23.0`, kurulumda güncel sürüm teyit) ·
      `WHATSAPP_QUESTION_TEMPLATE` (boş = `lixus_misafir_sorusu`) · `WHATSAPP_TEMPLATE_LANG` (boş = `tr`) · cevap kurucu modeli
      `AI_HOST_ANSWER_MODEL` / `AI_HOST_ANSWER_REASONING_EFFORT` (boş = cevap modelinin ayarı). Anahtarlar (hepsi yalnız "1", varsayılan
      KAPALI): `HOST_CHANNEL_ENABLED` (kanal) · `HOST_QUESTIONS_ENABLED` (bilgi soruları) · `HOST_QUESTION_DECISIONS_ENABLED` (karar düğmeleri) ·

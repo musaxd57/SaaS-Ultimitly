@@ -766,6 +766,15 @@ yönetici, ilk dilimde tek alıcı · bilgi tabanı kaydı taslak olarak, paneld
 > `compose-check.ts` · `routing.ts` (tetik → soru türü, kanal seçimi, işletme saatlik tavanı, tur başına tek mesaj birleşik alıntı) ·
 > `whatsapp/signature.ts` · `whatsapp/parse.ts` · `whatsapp/transport.ts`. Kalan: migration 88 (onay) → kayıt defteri + kanca ucu + Tür A
 > noktalarına bağlantı.
+>
+> **Kodda (10-30 gece-2, migration 88 ana dalda; anahtarlar KAPALI):** numara bağlama `host-channel/binding-code.ts` (saf: `LIXUS-XXXXXX` kodu,
+> anahtarlı HMAC, 15 dk / 5 deneme, oturum kuşağı) + `host-channel/binding.ts` (başlat / kodla doğrula — kod ev sahibinin KENDİ numarasından
+> gelir / kaldır / soru alabilecek bağlantı: sahip-yönetici + kuşak aynı; başka hesabın etkin ya da süresi dolmamış numarası devralınamaz) ·
+> Tür A soru gönderimi `host-channel/ask.ts` (anahtar / liste / tür kapalıysa veritabanına dokunmaz; tur başına tek soru; öğe türü
+> bilinmiyorsa ya da para / iade / konaklama değişikliğiyse e-posta; gönderim düşerse hemen e-posta) → `host-reply-waiting.ts` içinde aynı
+> talep altında (WhatsApp giderse e-posta yok — S3 önerisi A; S1–S3 cevaplarınız gelene kadar anahtarlar kapalı kalır) · sağlayıcı seçici
+> `host-channel-runtime.ts` (çekirdek dışında) · cevap kurucu denetimi ASCII dışı rakamları da okur. Kalan: kanca ucu
+> (`api/webhooks/host-channel/[provider]`: imza + bağlama kodu + cevap eşleme), Ayarlar ekranı (numara + rıza + kod), önizleme / onay akışı.
 
 **Dilim 2 — WhatsApp Cloud adaptörü + kanca ucu + numara bağlama ekranı.**
 - `adapters/whatsapp-cloud.ts` (gönderim, imza, el sıkışma, ayrıştırma, hata eşlemesi; fikstürlerle test), `api/webhooks/host-channel/[provider]`,

@@ -1,0 +1,198 @@
+import "server-only";
+
+import { randomUUID } from "node:crypto";
+import { prisma } from "@/lib/db";
+import { encryptSecretBound } from "@/lib/crypto";
+import {
+  BINDING_CODE_TTL_MS,
+  addressHash,
+  bindingCodeHash,
+  bindingUsable,
+  judgeBindingCode,
+  maskE164,
+  newBindingCode,
+  normalizeE164Digits,
+  type BindingCodeVerdict,
+} from "./binding-code";
+
+// ---------------------------------------------------------------------------
+// NUMARA BAĞLAMA — veritabanı katmanı (tasarım §5.3–5.5, migration 88 `HostChannelBinding`). Çağıranlar: Ayarlar rotası (başlat / kaldır) ve
+// gelen mesaj işleyicisi (kodla doğrula). Sağlayıcı bilmez (V0): sağlayıcı kimliği yalnız bir dize (`whatsapp_cloud` | `fake`).
+//
+//  · Numara düz saklanmaz: arama anahtarı HMAC (`addressHash`), gösterim için şifreli (AAD = bağlantı kimliği).
+//  · Bir numara tek satır (`@@unique([provider, addressHash])`): başka hesabın ETKİN bağlantısı devralınamaz (`number_in_use`); başka hesabın
+//    süresi dolmamış bekleyen kodu da devralınamaz (`number_pending_elsewhere`, ele geçirme yarışı); süresi dolmuş / kaldırılmış satır devralınır.
+//  · Doğrulama kodu ev sahibinin KENDİ WhatsApp'ından gelir: gönderen numaranın anahtarıyla bulunan bekleyen satır + kod hükmü. Kod numaraya
+//    değil hesaba bağlıdır (ekranı gören hesap üretti).
+//  · Etkinleşince aynı kullanıcının öteki etkin bağlantıları kapanır (ilk dilim: kullanıcı başına tek numara).
+//  · Oturum kuşağı doğrulama anında saklanır; kullanıcının kuşağı artınca bağlantı soru almaz (`bindingUsable`).
+// ---------------------------------------------------------------------------
+
+/** Anahtar (en az 32 karakter) yoksa bağlama kapalıdır — eksik anahtarla zayıf özet üretilmez. */
+export function hostChannelSecret(env: Record<string, string | undefined> = process.env): string | null {
+  const s = env.HOST_CHANNEL_HMAC_SECRET?.trim();
+  return s && s.length >= 32 ? s : null;
+}
+
+const addressAad = (bindingId: string, organizationId: string) => `host-channel-address:v1:${bindingId}:${organizationId}`;
+
+export type StartBindingResult =
+  | { ok: true; bindingId: string; code: string; masked: string; expiresAt: Date }
+  | { ok: false; reason: "disabled" | "bad_number" | "number_in_use" | "number_pending_elsewhere" };
+
+export async function startHostBinding(input: {
+  organizationId: string;
+  userId: string;
+  provider: string;
+  rawNumber: string;
+  optInTextVersion: string;
+  now?: Date;
+}): Promise<StartBindingResult> {
+  const secret = hostChannelSecret();
+  if (!secret) return { ok: false, reason: "disabled" };
+  const digits = normalizeE164Digits(input.rawNumber);
+  if (!digits) return { ok: false, reason: "bad_number" };
+  const now = input.now ?? new Date();
+  const hash = addressHash(input.provider, digits, secret);
+  const code = newBindingCode();
+  const expiresAt = new Date(now.getTime() + BINDING_CODE_TTL_MS);
+  const pending = {
+    organizationId: input.organizationId,
+    userId: input.userId,
+    status: "pending",
+    verifyCodeHash: bindingCodeHash(code, secret),
+    verifyExpiresAt: expiresAt,
+    verifyAttempts: 0,
+    verifiedAt: null,
+    optInAt: now,
+    optInTextVersion: input.optInTextVersion,
+    revokedAt: null,
+    revokedReason: null,
+  };
+  const existing = await prisma.hostChannelBinding.findUnique({
+    where: { provider_addressHash: { provider: input.provider, addressHash: hash } },
+    select: { id: true, organizationId: true, userId: true, status: true, verifyExpiresAt: true },
+  });
+  const sameOwner = existing && existing.organizationId === input.organizationId && existing.userId === input.userId;
+  if (existing && !sameOwner) {
+    if (existing.status === "active") return { ok: false, reason: "number_in_use" };
+    if (existing.status === "pending" && existing.verifyExpiresAt && existing.verifyExpiresAt.getTime() > now.getTime()) {
+      return { ok: false, reason: "number_pending_elsewhere" };
+    }
+  }
+  if (existing) {
+    // Devralma / yeniden bağlama: satır kimliği aynı kalır, adres şifresi YENİ sahibin işletmesine bağlanır. Yalnız okunan durum hâlâ
+    // geçerliyse yazılır (yarış: başka biri arada etkinleştirdiyse sayım 0 → kullanımda).
+    const updated = await prisma.hostChannelBinding.updateMany({
+      where: { id: existing.id, status: existing.status, organizationId: existing.organizationId, userId: existing.userId },
+      data: { ...pending, addressEnc: encryptSecretBound(digits, addressAad(existing.id, input.organizationId)) },
+    });
+    if (updated.count !== 1) return { ok: false, reason: "number_in_use" };
+    return { ok: true, bindingId: existing.id, code, masked: maskE164(digits), expiresAt };
+  }
+  const id = randomUUID();
+  try {
+    await prisma.hostChannelBinding.create({
+      data: {
+        id,
+        provider: input.provider,
+        addressHash: hash,
+        addressEnc: encryptSecretBound(digits, addressAad(id, input.organizationId)),
+        ...pending,
+      },
+    });
+  } catch (err) {
+    // Aynı numaranın eşzamanlı ilk kaydı: tekil kısıt yarışı kaybeden "kullanımda" alır (yeniden denerse satırı görür).
+    if ((err as { code?: string })?.code === "P2002") return { ok: false, reason: "number_pending_elsewhere" };
+    throw err;
+  }
+  return { ok: true, bindingId: id, code, masked: maskE164(digits), expiresAt };
+}
+
+export type ConfirmBindingResult =
+  | { ok: true; bindingId: string; organizationId: string; userId: string }
+  | { ok: false; reason: "disabled" | "unknown_address" | Exclude<BindingCodeVerdict, "ok"> };
+
+/**
+ * Gelen mesajdaki kodla doğrula. `fromDigits` sağlayıcının bildirdiği gönderen (yalnız rakam). Yanlış kodda deneme sayacı artar; doğru kodda
+ * bağlantı etkinleşir, kod silinir, oturum kuşağı yazılır, aynı kullanıcının öteki etkin bağlantıları kapanır. Tek işlem; durum değişikliği
+ * okunan sürüme koşullu (iki eşzamanlı doğrulamadan biri kazanır).
+ */
+export async function confirmHostBindingFromInbound(input: {
+  provider: string;
+  fromDigits: string;
+  code: string;
+  now?: Date;
+}): Promise<ConfirmBindingResult> {
+  const secret = hostChannelSecret();
+  if (!secret) return { ok: false, reason: "disabled" };
+  const now = input.now ?? new Date();
+  const hash = addressHash(input.provider, input.fromDigits, secret);
+  return prisma.$transaction(async (tx) => {
+    const b = await tx.hostChannelBinding.findUnique({
+      where: { provider_addressHash: { provider: input.provider, addressHash: hash } },
+      select: { id: true, organizationId: true, userId: true, status: true, verifyCodeHash: true, verifyExpiresAt: true, verifyAttempts: true },
+    });
+    if (!b) return { ok: false as const, reason: "unknown_address" as const };
+    const verdict = judgeBindingCode(b, input.code, secret, now);
+    if (verdict === "mismatch") {
+      await tx.hostChannelBinding.updateMany({ where: { id: b.id, status: "pending" }, data: { verifyAttempts: { increment: 1 } } });
+      return { ok: false as const, reason: verdict };
+    }
+    if (verdict !== "ok") return { ok: false as const, reason: verdict };
+    const user = await tx.user.findUnique({ where: { id: b.userId }, select: { sessionEpoch: true } });
+    if (!user) return { ok: false as const, reason: "unknown_address" as const };
+    const won = await tx.hostChannelBinding.updateMany({
+      where: { id: b.id, status: "pending", verifyCodeHash: b.verifyCodeHash, verifyAttempts: b.verifyAttempts },
+      data: {
+        status: "active",
+        verifiedAt: now,
+        verifyCodeHash: null,
+        verifyExpiresAt: null,
+        verifyAttempts: 0,
+        userSessionEpoch: user.sessionEpoch,
+        lastInboundAt: now,
+      },
+    });
+    if (won.count !== 1) return { ok: false as const, reason: "not_pending" as const };
+    await tx.hostChannelBinding.updateMany({
+      where: { userId: b.userId, status: "active", id: { not: b.id } },
+      data: { status: "revoked", revokedAt: now, revokedReason: "user" },
+    });
+    return { ok: true as const, bindingId: b.id, organizationId: b.organizationId, userId: b.userId };
+  });
+}
+
+/** Ev sahibinin kaldırması / "DUR" yazması / sağlayıcının engel bildirimi. Kaldırılmış satır dokunulmaz (idempotent). */
+export async function revokeHostBinding(input: {
+  bindingId: string;
+  organizationId: string;
+  reason: "user" | "opt_out" | "epoch" | "operator" | "provider_blocked";
+  now?: Date;
+}): Promise<boolean> {
+  const r = await prisma.hostChannelBinding.updateMany({
+    where: { id: input.bindingId, organizationId: input.organizationId, status: { not: "revoked" } },
+    data: { status: "revoked", revokedAt: input.now ?? new Date(), revokedReason: input.reason, verifyCodeHash: null, verifyExpiresAt: null },
+  });
+  return r.count === 1;
+}
+
+/**
+ * İşletmenin soru alabilecek bağlantısı (ilk dilim: tek alıcı — en son doğrulanan). Kullanıcı hâlâ işletmede sahip / yönetici olmalı ve oturum
+ * kuşağı doğrulama anındakiyle aynı olmalı (`bindingUsable`); değilse `null` → bugünkü e-posta.
+ */
+export async function usableHostBindingForOrg(organizationId: string): Promise<{ id: string; userId: string } | null> {
+  const rows = await prisma.hostChannelBinding.findMany({
+    where: { organizationId, status: "active" },
+    orderBy: [{ verifiedAt: "desc" }, { id: "asc" }],
+    take: 5,
+    select: { id: true, userId: true, status: true, userSessionEpoch: true, user: { select: { sessionEpoch: true, organizationId: true, role: true } } },
+  });
+  for (const r of rows) {
+    if (r.user.organizationId !== organizationId) continue;
+    if (r.user.role !== "owner" && r.user.role !== "manager") continue;
+    if (!bindingUsable(r, r.user.sessionEpoch)) continue;
+    return { id: r.id, userId: r.userId };
+  }
+  return null;
+}
