@@ -36,9 +36,13 @@ async function asOwner(orgId: string) {
 
 async function conversationWith(propertyId: string, hostBodies: string[]) {
   const c = await prisma.conversation.create({ data: { propertyId, guestIdentifier: "Misafir", channel: "airbnb", status: "new" } });
+  // Mesajlar MİLİSANİYE aralıklı (sıra korunur): dakikalarca geri tarihli mesaj, gece yarısından (İstanbul) hemen sonra koşulunca dünün
+  // tarihine düşüyor, mesajdaki "yarın" o mesajın gününe göre çözülüp testin "yarın"ından bir gün kayıyordu (tam kapı 10-30 21:08Z, 00:08
+  // İstanbul — zaman bombası dersi). "Elle söz mesajdan ÖNCE" kurguları ayrıca −60 dk kullanır.
+  const base = Date.now();
   for (const [i, body] of hostBodies.entries()) {
     await prisma.message.create({
-      data: { conversationId: c.id, direction: "outbound", authorType: "host", senderName: "Ev Sahibi", body, createdAt: new Date(Date.now() - (10 - i) * 60_000) },
+      data: { conversationId: c.id, direction: "outbound", authorType: "host", senderName: "Ev Sahibi", body, createdAt: new Date(base - (10 - i)) },
     });
   }
   return c.id;
