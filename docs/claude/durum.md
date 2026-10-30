@@ -657,3 +657,20 @@ Tur belgeleri (anlatılar arşivde): `docs/MESAJLASMA-CEKIRDEGI-V2-2026-09-25.md
 - #189: ayrı çağrı temiz ölçümü + holdout kabulü + cevap düzeyi ölçüm (± geniş blok); `KB_RERANK_PER_QUESTION` /
   `KB_RETRIEVAL_WIDE_BUDGET` açmak kurucu kararı (↑Retrieval).
 - Demo hesabı: kod hazır, canlıya KOŞULMADI (`docs/DEMO-HESABI.md`; canlı koşu = kurucu onayı + taze `pg_dump`).
+
+**10-30 öğle:** K-1029-A v2 + v3 (iki sert inceleme: Opus F1–F12 + dört mercekli çekişmeli iş akışı, 44 bulgu; silme kapsamı kapanış / konulu / göndergesel, güvenlik yan cümle çözümlemesi, yedi dilde 138/140 biçim, doğrusal süre; tekrar oynatmada kaybedilen tutuş 0) · K-1029-C: 23 sözcük yamasının 23'ü reddedildi (model okusun) · sabah soruları 1–7 `docs/INCELEME-2026-10-28-gece-dongusu.md` — `docs/claude/durum.md`.
+
+**10-30 akşam-2 (kurucu: "mesajı ev sahibi yazıyor"):**
+- **Ses kapısı:** `ai/host-voice-guard.ts`, kapı detayı `reply_host_voice`, kanal + QR'da gate'in EN SONUNDA, teşhis kipi ve koddan kurulan metin muaf.
+  Varsayılan AÇIK; acil durdurma `AI_HOST_VOICE_GUARD_DISABLED=1`.
+- **İstem kuralı (K-1029-A katmanı):** birinci çoğul kişi; devir / bildirim cümlesi yok; üçüncü taraf yönlendirmesi yok; ev sahibinin kendi hizmeti önerilir; güvenlik talimatı yalnız net soruda.
+- **Süzgeç:** göndergesel / "Detaylar için" silmesinde kalan bilgi gider. Tamamı yalnız TEYİT isteyen silmede ya da kalan izin söylüyorsa tutulur.
+- **Prompt caching:** `ai/prompt-cache.ts`, amaç anahtarı + 24 sa; acil `OPENAI_PROMPT_CACHE_DISABLED=1`.
+- **Embedding ölçümü:** konuyu ölçer, kim-ne-yapacak ayrımını ölçmez; anlam kararı okuyucunun.
+- **135 senaryo gerçek model (gpt-5.1):** sızıntı 0/52 (iki kolda da); doğru bilgi 51→55/55; üçüncü kişi ev sahibi içeren cevap 54→41/135; otomatik GİDEN ihlal 1→0.
+- **WhatsApp ev sahibi döngüsü:** tasarım `docs/TASARIM-2026-10-30-whatsapp-ev-sahibi-dongusu.md` → ayrıntı `docs/claude/durum.md`.
+- **Gate yeri (ilk tam kapı 63 kırmızı → 25):** ses kapısı başta iken fiyat iddiası / devir / söz / müsaitlik gibi daha özel sebepleri gölgeliyor ve
+  erken giriş teşhis kipini durduruyordu → gate'in EN SONUNA, teşhis kipi + kodla kurulan doğrulanmış metin muaf. Kalan 25 kırmızı bulucu +
+  şüpheci doğrulayıcı iş akışıyla tek tek sınıflandı (eski "GİDER" beklentisi mi, gerçek hata mı).
+- **WhatsApp cevap kurucusu gerçek model denemesi (gpt-5.1, 5 örnek):** bavul / eczane / bebek yatağı doğru; "ben ararım" devralma; "en geç 13" →
+  "13:00" kod denetiminde yanlış ret → tam saat denkliği; bir tekrarda "ilanda belirtilmemiş" eklendi → ilan anlatımı kuralı.

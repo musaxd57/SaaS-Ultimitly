@@ -643,3 +643,15 @@
   metnine bağlı her kalıp doğrusal (`host-contact-cost.test.ts`, 50 bin karakter şekilleri; sondaki ayraç / nokta dizisi düzenli ifadeyle
   değil geriye taramayla kırpılır). 10-30: V8'in iki kötü kipinde de ölçülür (`regex-worst-mode-cost.test.ts`, ayrı süreç) — çıktı vetosunda
   gövdeden önce yazılmış geriye bakış yorumlayıcıda karesel çıktı, gövde-önce + ortak sınır tek öbek (`factorLeadingBoundary`) ile kapandı.
+
+- 🚨 **MESAJI EV SAHİBİ YAZIYOR (kurucu 10-30, aynen: "HOSTUN ORDAN YAZIYORUZ HOSTA YAZIN GİBİ BİR MESAJ GİTMESİ NASIL MÜMKÜN OLABİLİR"):**
+  misafire giden metinde ev sahibinden ÜÇÜNCÜ KİŞİ olarak söz ("ev sahibiniz …", "your host …", "the host's approval", "mesajınız kaydedildi; ev
+  sahibiniz görebilir", "ev sahibinize yazmanıza gerek yok"), arka plan anlatımı ("… paylaşılmamış", "not provided", "ilanda yazmıyor") ve üçüncü
+  taraf işletmeye gönderme ("Lale Taksi'yi arayın") GİTMEZ. Kod yedeği `ai/host-voice-guard.ts` → kapı `reply_host_voice` (kanal + QR aynı
+  yüklem, gate'in EN SONUNDA, teşhis kipi ve kodla kurulan doğrulanmış metin muaf; VARSAYILAN AÇIK, acil durdurma
+  `AI_HOST_VOICE_GUARD_DISABLED=1`). İstem (K-1029-A katmanı): birinci çoğul kişi ("onayımıza tabidir"), ev sahibinin kendi hizmeti bilgi
+  tabanında varsa o önerilir, güvenlik talimatı yalnız misafir NET sorduysa. Okuyucu açıkken ilk taslak bir kez ev sahibinin ağzından yeniden
+  yazılır (`SENIOR_REWRITE_GATE_DETAILS`). Ev sahibinin özel bilgisi (oturduğu yer, işi, şu an nerede olduğu, kimlik no) yazılmaz; adı serbest.
+  Embedding bu ayrımı yapamaz (ölçüldü 10-30) — anlam kararı okuyucu modelin, kalıplar yedek.
+- **Konusuz / "Detaylar için" yönlendirme (kurucu 10-30: "'Binada sauna var.' gitsin"):** silinir, kalan bilgi gider, soru ev sahibine açık
+  kalır. Cevabın tamamı yalnız silinen parça TEYİT / doğrulama istiyorsa ya da kalan metin bir izin söylüyorsa tutulur (`CONFIRM_MARKER`).
