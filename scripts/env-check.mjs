@@ -667,6 +667,8 @@ export const STRICT_ONE_FLAGS = Object.freeze([
   "AI_HOST_CONTACT_PARTIAL_DISABLED",
   "AI_UNDERSTANDING_PRIVACY_RULE_ENABLED",
   "AI_SENIOR_READER_ENABLED",
+  // S-1 ayrı üçüncü taraf yönlendirme denetimi (kurucu 10-30, ai/semantic/referral-judge.ts) — yalnız kıdemli okuyucuyla birlikte koşar.
+  "AI_REFERRAL_JUDGE_ENABLED",
   "AI_ASSISTANT_QUESTION_ITEM_ENABLED",
   "AI_ANSWER_PARTS_ENABLED",
   "AI_PART_REWRITE_ENABLED",

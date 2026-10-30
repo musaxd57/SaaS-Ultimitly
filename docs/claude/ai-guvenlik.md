@@ -653,5 +653,9 @@
   tabanında varsa o önerilir, güvenlik talimatı yalnız misafir NET sorduysa. Okuyucu açıkken ilk taslak bir kez ev sahibinin ağzından yeniden
   yazılır (`SENIOR_REWRITE_GATE_DETAILS`). Ev sahibinin özel bilgisi (oturduğu yer, işi, şu an nerede olduğu, kimlik no) yazılmaz; adı serbest.
   Embedding bu ayrımı yapamaz (ölçüldü 10-30) — anlam kararı okuyucu modelin, kalıplar yedek.
+  🚨 **S-1 (kurucu 10-30, `ai/semantic/referral-judge.ts`, anahtar `AI_REFERRAL_JUDGE_ENABLED` — yalnız kıdemli okuyucuyla):** üçüncü taraf
+  yönlendirme kıdemli okuyucuya EK SORU olarak sorulmaz (ölçüldü: ev sahibinin kendi transferini ve "karşıda eczane var"ı da tutuyordu) — AYRI,
+  yalnız taslağı okuyan kısa denetim. Tutan iki hüküm: ÖZEL işletmeye devretmek + üçüncü kişi ev sahibi; kod yedeğiyle VEYA (`referralHolds`),
+  kodun tuttuğunu serbest bırakmaz. Ev sahibinin kendisi yapıyorsa / yalnız yer bilgisi / acil durum → tutmaz. Kamu kurumu yalnız ölçülür.
 - **Konusuz / "Detaylar için" yönlendirme (kurucu 10-30: "'Binada sauna var.' gitsin"):** silinir, kalan bilgi gider, soru ev sahibine açık
   kalır. Cevabın tamamı yalnız silinen parça TEYİT / doğrulama istiyorsa ya da kalan metin bir izin söylüyorsa tutulur (`CONFIRM_MARKER`).

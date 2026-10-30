@@ -67,10 +67,30 @@ bugün konuşma listeden düşebilir (sözcük dedektörü yalnız üçüncü ki
 - Okuyucuya üçüncü taraf işletme sorusu (S-1 cevabınıza göre kamu kurumu dahil / hariç).
 - WhatsApp: migration 88 onayından sonra kanca ucu + kayıt defteri + Tür A bağlantısı.
 
+## 4b. S-1 sonucu (kurucu onayı 10-30: "S-1 yeni model çağrıları yapabilirsin sormana gerek bile yok")
+
+Kuruldu: `ai/semantic/referral-judge.ts`, anahtar `AI_REFERRAL_JUDGE_ENABLED` (yalnız `AI_SENIOR_READER_ENABLED=1` ile). Kıdemli okuyucunun iki
+okumasıyla paralel tek çağrı; özel işletmeye yönlendirme ya da üçüncü kişi ev sahibi → `reply_host_voice` + bir kez ev sahibinin ağzından yeniden
+yazma. Kamu kurumu sizin cevabınıza kadar GİDER (yalnız ölçülür).
+
+| Gerçek model (10-30) | Denetim tutuyor | Bugünkü kod |
+|---|---|---|
+| Kör set (ayrı yazar, 7 dil): özel işletmeye yönlendirme | **41/42** | 4/42 |
+| Kör set: kamu kurumu (tutulmamalı, ayrılmalı) | 21/21 ayrıldı, 0 tutuş | 0 |
+| Kör set: ev sahibi kendisi ayarlıyor / yer bilgisi / acil / düz bilgi (77) | **0 yanlış tutuş** | 0 |
+| Geliştirme seti: üçüncü kişi ev sahibi | 56/56 | 53/56 |
+| Geliştirme seti: 112 temiz cevap | 1 (kodun da tuttuğu "хозяева животных" = evcil hayvan sahipleri) | 1 |
+
+Kaçan tek örnek: "Marta's Laundry … same-day service, so you may want to drop your clothes off before noon." — denetim bunu "müşteri olarak
+gitme daveti" saydı (istemdeki yer bilgisi istisnası); sınırda bir örnek.
+
+Kamu kurumu sorusu (S-1'in ikinci yarısı) hâlâ açık: **A** (önerim) gider · **B** tutulur, ev sahibine sorulur.
+
 ## 5. Railway açılış günü eklenecekler (unutmayın)
 
 - **Decisions API sıralayıcısı:** `KB_RERANK_ENGINE=decisions`, `KB_RERANK_DECISIONS_MODEL` (ölçümle açılır).
-- **Kıdemli okuyucu:** `AI_SENIOR_READER_ENABLED=1` (iç sistem anlatımı 56/56).
+- **Kıdemli okuyucu:** `AI_SENIOR_READER_ENABLED=1` (iç sistem anlatımı 56/56) + **S-1 denetimi** `AI_REFERRAL_JUDGE_ENABLED=1` (özel işletme
+  yönlendirmesi kör sette 41/42, temizde 0 yanlış).
 - Prompt caching kendiliğinden açık; kapatma `OPENAI_PROMPT_CACHE_DISABLED=1`.
 - WhatsApp: `HOST_CHANNEL_ENABLED`, `HOST_QUESTIONS_ENABLED`, `HOST_CHANNEL_ORG_IDS=<kurucu org>` + sırlar — kurulum adımları
   `docs/TASARIM-2026-10-30-whatsapp-ev-sahibi-dongusu.md` §9 (Meta hesabı, ayrı numara, şablon onayı, kalıcı belirteç).

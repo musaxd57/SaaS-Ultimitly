@@ -31,6 +31,8 @@ import {
   paymentHeldHolds,
   runAbsenceJudge,
   seniorChecksOf,
+  referralHolds,
+  rereadComplete,
   seniorReaderEnabled,
   type AbsenceJudgeOutcome,
 } from "@/lib/ai/semantic/absence-judge";
@@ -814,8 +816,15 @@ export function autoReplyGateVerdict(
   // metinde ev sahibinden üçüncü kişi olarak söz ("ev sahibiniz …", "your host …"), arka plan anlatımı ("telefon numarası paylaşılmamış") ya da
   // üçüncü taraf işletmeye gönderme ("Lale Taksi'yi arayın") kalırsa cevabın tamamı ev sahibine kalır. EN SONDA: yalnız aksi hâlde GİDECEK cevabı
   // tutar, hiçbir güvenlik / kalite gerekçesini gölgelemez (kayıt o sebebi taşır). Teşhis kipinde (erken giriş akışının tetiği) çıktı vetosu gibi
-  // atlanır — akış modelin metnini koddan kurulanla değiştirir; koddan kurulan doğrulanmış metin muaf. Kod yedeğidir; anlamla karar okuyucunun.
-  if (hostVoiceGuardEnabled() && !codeBuilt && !context?.skipOutputVetoForDiagnosis && hostVoiceViolation(result.reply) !== null) {
+  // atlanır — akış modelin metnini koddan kurulanla değiştirir; koddan kurulan doğrulanmış metin muaf. Kod yedeğidir; anlamla karar okuyucunun:
+  // S-1 (kurucu 10-30) ayrı denetim bu metni okuduysa onun "özel işletmeye yönlendirme / üçüncü kişi ev sahibi" hükmü de AYNI tutuşa girer
+  // (`referralHolds`, yalnız tutar; kod yedeğinin tuttuğunu serbest bırakmaz).
+  if (
+    hostVoiceGuardEnabled() &&
+    !codeBuilt &&
+    !context?.skipOutputVetoForDiagnosis &&
+    (hostVoiceViolation(result.reply) !== null || referralHolds(judged))
+  ) {
     return hold("reply_host_voice");
   }
   return null;
@@ -2686,6 +2695,7 @@ export async function applyChannelAutoReply(
       apologyRule: noApologyRuleEnabled(),
       internalSourceLexical: namesInternalSource(result.reply),
       hostVoiceLexical: hostVoiceGuardEnabled() && hostVoiceViolation(result.reply) !== null,
+      hostVoiceJudged: hostVoiceGuardEnabled() && referralHolds(outcome),
     });
     const firstDetail =
       reasons.length > 0 ? autoReplyGateVerdict(result, last.body, { ...gateContext, absenceJudge: seniorPrecheck })?.detail : undefined;
@@ -2715,8 +2725,8 @@ export async function applyChannelAutoReply(
               ? seniorPrecheck.outcome
               : await runAbsenceJudge({ guestMessage: absenceGuestText, reply: merged.reply, names: absenceNames });
           // Yeni metin OKUNAMADIYSA (okuma düştü) ilk taslak kalır — okuyucunun hükmü onu zaten tutar; okunmamış metin kelime kurallarıyla
-          // tek başına gitmez (Haiku 10-22).
-          if (reread.status === "ok") {
+          // tek başına gitmez (Haiku 10-22). S-1 denetimi istenip okuyamadıysa da (Haiku 10-30) — `rereadComplete`.
+          if (rereadComplete(reread)) {
             // `rw` yalnız metin GERÇEKTEN değiştiyse (Opus 10-22 F6).
             if (merged.reply !== result.reply) seniorRewrite = reasons;
             result = merged;

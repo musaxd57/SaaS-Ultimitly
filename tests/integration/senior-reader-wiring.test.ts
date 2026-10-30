@@ -109,6 +109,39 @@ function readerFetch(c: Checks | null) {
   });
 }
 
+/**
+ * S-1 (kurucu 10-30): kıdemli okuyucu her şeye "hayır" der; ayrı denetim (`referral_judge`) taslakta `pattern` geçiyorsa "özel işletmeye
+ * yönlendirme" der (ya da `down` → 503). Gerçek denetim gibi alıntı taslaktaki son cümledir.
+ */
+function referralFetch(pattern: RegExp | "down") {
+  return vi.fn(async (_url: string, init?: RequestInit) => {
+    const body = JSON.parse(String(init?.body));
+    const name = body.response_format?.json_schema?.name as string;
+    const ok = (v: unknown) =>
+      new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify(v) } }] }), { status: 200 });
+    if (name === "senior_reader") return ok(NOTHING);
+    if (name !== "referral_judge") throw new Error(`beklenmeyen şema: ${name}`);
+    if (pattern === "down") return new Response("upstream down", { status: 503 });
+    const draft = String(body.messages?.[1]?.content ?? "");
+    const hit = pattern.test(draft);
+    const last = draft.replace(/^Draft:\n<<<\n/, "").replace(/\n>>>$/, "").split(/(?<=[.!?])\s+/).at(-1) ?? "";
+    return ok({
+      third_party_business: hit,
+      third_party_public: false,
+      host_third_person: false,
+      business_quote: hit ? last : "",
+      public_quote: "",
+      host_quote: "",
+    });
+  });
+}
+const schemaNames = (f: ReturnType<typeof referralFetch>) =>
+  f.mock.calls.map((c) => JSON.parse(String((c as unknown as [string, RequestInit])[1].body)).response_format.json_schema.name as string);
+// Kod yedeğinin KAÇIRDIĞI özel işletme yönlendirmesi (10-30 kör setinden; gerçek denetim tuttu, kod tutmadı) ve ev sahibinin kendi hizmetini
+// öneren temiz cevap.
+const BISTRO_REFERRAL = "Check-in is from 15:00. For dinner tonight, Copper Hearth Bistro takes reservations by phone, so book early because they fill up fast.";
+const BISTRO_OWN = "Check-in is from 15:00. We can book a table at Copper Hearth Bistro for you tonight if you tell us the time.";
+
 async function seedChannel(opts: { reservation?: "confirmed_in_stay" | "pending" } = {}) {
   const org = await prisma.organization.create({
     data: { name: "Test Org", autoReplyHospitable: true, autoReplyStartHour: 0, autoReplyEndHour: 0, timezone: "Europe/Istanbul" },
@@ -319,6 +352,80 @@ describe("kıdemli okuyucu — kanal oto-yanıtı", () => {
     expect(JSON.parse(ev.kbEvidenceJson ?? "{}").rw).toEqual(["hostVoice"]);
   });
 
+  it("🚨 S-1 (kurucu 10-30): ayrı denetim özel işletmeye yönlendirmeyi görür (kod yedeği görmez) → bir kez ev sahibinin ağzından yeniden yazılır, temiz taslak GİDER", async () => {
+    vi.stubEnv("AI_SENIOR_READER_ENABLED", "1");
+    vi.stubEnv("AI_REFERRAL_JUDGE_ENABLED", "1");
+    const f = referralFetch(/takes reservations by phone/);
+    vi.stubGlobal("fetch", f);
+    mockSuggest.mockResolvedValueOnce(DRAFT(BISTRO_REFERRAL)).mockResolvedValueOnce(DRAFT(BISTRO_OWN));
+    const id = await seedChannel();
+    await applyChannelAutoReply(id);
+    expect(mockSuggest).toHaveBeenCalledTimes(2);
+    const notes = (mockSuggest.mock.calls[1][0] as { knowledgeBaseNotes?: string[] }).knowledgeBaseNotes ?? [];
+    expect(notes).toContain(SENIOR_REWRITE_NOTES.hostVoice);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(mockSend.mock.calls[0])).toContain("We can book a table");
+    expect(JSON.stringify(mockSend.mock.calls[0])).not.toContain("takes reservations by phone");
+    const ev = await prisma.riskEvent.findFirstOrThrow({ where: { conversationId: id, surface: "auto_reply" } });
+    expect(JSON.parse(ev.kbEvidenceJson ?? "{}").rw).toEqual(["hostVoice"]);
+    // Her taslak bir kez denetlendi: iki taslak × (iki okuma + bir denetim).
+    expect(schemaNames(f).filter((n) => n === "referral_judge")).toHaveLength(2);
+    expect(schemaNames(f).filter((n) => n === "senior_reader")).toHaveLength(4);
+  });
+
+  it("S-1: yeniden yazma da yönlendirirse cevap ev sahibine kalır (reply_host_voice), döngü yok", async () => {
+    vi.stubEnv("AI_SENIOR_READER_ENABLED", "1");
+    vi.stubEnv("AI_REFERRAL_JUDGE_ENABLED", "1");
+    vi.stubGlobal("fetch", referralFetch(/takes reservations by phone/));
+    mockSuggest.mockResolvedValueOnce(DRAFT(BISTRO_REFERRAL)).mockResolvedValueOnce(DRAFT(BISTRO_REFERRAL.replace("Copper Hearth", "Lale")));
+    const id = await seedChannel();
+    await applyChannelAutoReply(id);
+    expect(mockSuggest).toHaveBeenCalledTimes(2);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(await reasonOf(id)).toBe("reply_host_voice");
+  });
+
+  it("🚨 Haiku 10-30 P2: yeniden yazılan taslak okunurken YALNIZ denetim düşerse yeni metin denetimsiz GİTMEZ — ilk taslak tutulur", async () => {
+    vi.stubEnv("AI_SENIOR_READER_ENABLED", "1");
+    vi.stubEnv("AI_REFERRAL_JUDGE_ENABLED", "1");
+    let referralCalls = 0;
+    const first = referralFetch(/takes reservations by phone/);
+    const f = vi.fn(async (url: string, init?: RequestInit) => {
+      const name = JSON.parse(String(init?.body)).response_format?.json_schema?.name as string;
+      if (name === "referral_judge" && ++referralCalls > 1) return new Response("upstream down", { status: 503 });
+      return first(url, init);
+    });
+    vi.stubGlobal("fetch", f);
+    mockSuggest.mockResolvedValueOnce(DRAFT(BISTRO_REFERRAL)).mockResolvedValueOnce(DRAFT(BISTRO_OWN));
+    const id = await seedChannel();
+    await applyChannelAutoReply(id);
+    expect(mockSuggest).toHaveBeenCalledTimes(2);
+    expect(referralCalls).toBe(2);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(await reasonOf(id)).toBe("reply_host_voice");
+  });
+
+  it("S-1 anahtarı KAPALI ya da denetim DÜŞTÜ: bugünkü davranış — kod yedeğinin görmediği yönlendirme gider, çağrı sayısı değişmez", async () => {
+    vi.stubEnv("AI_SENIOR_READER_ENABLED", "1");
+    const off = referralFetch(/takes reservations by phone/);
+    vi.stubGlobal("fetch", off);
+    mockSuggest.mockResolvedValue(DRAFT(BISTRO_REFERRAL));
+    await applyChannelAutoReply(await seedChannel());
+    expect(schemaNames(off)).toEqual(["senior_reader", "senior_reader"]);
+    expect(mockSuggest).toHaveBeenCalledTimes(1);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+
+    await resetDb();
+    vi.clearAllMocks();
+    mockSend.mockResolvedValue({ ok: true, externalId: "ext-2" } as never);
+    vi.stubEnv("AI_REFERRAL_JUDGE_ENABLED", "1");
+    vi.stubGlobal("fetch", referralFetch("down"));
+    mockSuggest.mockResolvedValue(DRAFT(BISTRO_REFERRAL));
+    await applyChannelAutoReply(await seedChannel());
+    expect(mockSuggest).toHaveBeenCalledTimes(1);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+  });
+
   it("kurucu 10-22: okuyucu KAPALIYKEN de kodun yedeği iç kaynak anlatımını tutar (anahtarsız)", async () => {
     const f = readerFetch({});
     vi.stubGlobal("fetch", f);
@@ -492,6 +599,31 @@ describe("kıdemli okuyucu — QR misafir sohbeti", () => {
     expect(notes).toContain(SENIOR_REWRITE_NOTES.hostVoice);
     expect(out.escalated).toBeFalsy();
     expect(out.reply).toBe(OWN);
+  });
+
+  it("🚨 S-1 (kurucu 10-30): QR'da da denetimin gördüğü özel işletme yönlendirmesi bir kez yeniden yazılır, temiz taslak gider", async () => {
+    vi.stubEnv("AI_SENIOR_READER_ENABLED", "1");
+    vi.stubEnv("AI_REFERRAL_JUDGE_ENABLED", "1");
+    vi.stubGlobal("fetch", referralFetch(/takes reservations by phone/));
+    mockSuggest.mockResolvedValueOnce(DRAFT(BISTRO_REFERRAL)).mockResolvedValueOnce(DRAFT(BISTRO_OWN));
+    const out = await ask(await seedQr(), "Where can we have dinner tonight?");
+    expect(mockSuggest).toHaveBeenCalledTimes(2);
+    const notes = (mockSuggest.mock.calls[1][0] as { knowledgeBaseNotes?: string[] }).knowledgeBaseNotes ?? [];
+    expect(notes).toContain(SENIOR_REWRITE_NOTES.hostVoice);
+    expect(out.escalated).toBeFalsy();
+    expect(out.reply).toBe(BISTRO_OWN);
+  });
+
+  it("S-1: QR'da yeniden yazma da yönlendirirse devir (reply_host_voice)", async () => {
+    vi.stubEnv("AI_SENIOR_READER_ENABLED", "1");
+    vi.stubEnv("AI_REFERRAL_JUDGE_ENABLED", "1");
+    vi.stubGlobal("fetch", referralFetch(/takes reservations by phone/));
+    mockSuggest.mockResolvedValue(DRAFT(BISTRO_REFERRAL));
+    const out = await ask(await seedQr(), "Where can we have dinner tonight?");
+    expect(mockSuggest).toHaveBeenCalledTimes(2);
+    expect(out.escalated).toBe(true);
+    const ev = await prisma.riskEvent.findFirstOrThrow({ where: { surface: "guest_chat" }, orderBy: { occurredAt: "desc" } });
+    expect(ev.reason).toBe("reply_host_voice");
   });
 
   it("açık: ev sahibine platform dışı ödeme → devir; platform dışı iletişim QR'da kural DEĞİL (OTA yok) → gider", async () => {

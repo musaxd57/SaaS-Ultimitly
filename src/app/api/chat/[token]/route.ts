@@ -23,6 +23,8 @@ import {
   absenceReaderStrict,
   runAbsenceJudge,
   seniorChecksOf,
+  referralHolds,
+  rereadComplete,
   seniorReaderEnabled,
   type AbsenceJudgeOutcome,
 } from "@/lib/ai/semantic/absence-judge";
@@ -1185,6 +1187,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
       apologyRule: noApologyRuleEnabled(),
       internalSourceLexical: namesInternalSource(result.reply ?? ""),
       hostVoiceLexical: hostVoiceGuardEnabled() && hostVoiceViolation(result.reply) !== null,
+      hostVoiceJudged: hostVoiceGuardEnabled() && referralHolds(outcome),
     });
     const first =
       reasons.length > 0
@@ -1208,8 +1211,8 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
             merged.reply === qrSeniorPrecheck.reply
               ? qrSeniorPrecheck.outcome
               : await runAbsenceJudge({ guestMessage: message, reply: merged.reply, names: [res.guestName, res.guestGivenName] });
-          // Yeni metin okunamadıysa ilk taslak kalır (okuyucunun hükmü onu tutar) — kanal yoluyla aynı (Haiku 10-22).
-          if (reread.status === "ok") {
+          // Yeni metin okunamadıysa ilk taslak kalır (okuyucunun hükmü onu tutar) — kanal yoluyla aynı (Haiku 10-22; S-1 denetimi dahil, 10-30).
+          if (rereadComplete(reread)) {
             if (merged.reply !== result.reply) qrSeniorRewrite = reasons; // `rw` yalnız metin değiştiyse (Opus 10-22 F6)
             result = merged;
             doorCodeHeld = qrReplyHasDoorCode(result.reply, modelKbTexts);

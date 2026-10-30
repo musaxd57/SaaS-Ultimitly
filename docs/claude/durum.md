@@ -694,3 +694,9 @@ Tur belgeleri (anlatılar arşivde): `docs/MESAJLASMA-CEKIRDEGI-V2-2026-09-25.md
 - **Okuyucuya ek soru denemesi (geri alındı):** "üçüncü kişi ev sahibi / özel işletme / kamu kurumu" kıdemli okuyucunun uzun istemine eklenince
   (iki okuma, VEYA) temiz tuzak cevaplarda 7–18/56 yanlış işaret (ev sahibinin kendi transferi, "karşıda eczane var") → koda girmedi. Ayrı odaklı
   çağrı 56/56 + temizde 2/112 → kurucu sorusu S-1 (yeni model çağrısı). Mutasyon: v5 35/35 + ikinci tur 18/18 (yeni pinlerle) öldürüldü.
+- **S-1 kuruldu (kurucu 10-30 gece: "S-1 yeni model çağrıları yapabilirsin sormana gerek bile yok"):** `ai/semantic/referral-judge.ts`, anahtar
+  `AI_REFERRAL_JUDGE_ENABLED` (yalnız kıdemli okuyucuyla; `runAbsenceJudge` içinden iki okumayla PARALEL tek çağrı, misafir mesajı girmez).
+  Özel işletmeye yönlendirme / üçüncü kişi ev sahibi → `reply_host_voice` (kod yedeğiyle VEYA, `referralHolds`) + `hostVoice` yeniden yazma
+  (`hostVoiceJudged`). Kamu kurumu yalnız ölçülür. Gerçek model: ayrı yazarın (Haiku) 140 örneklik kör setinde özel işletme 41/42 (kod 4/42),
+  kamu 21/21 ayrıldı, 77 temizde 0 yanlış; geliştirme setinde üçüncü kişi ev sahibi 56/56 (kod 53). Ölçüm ≈0,4 $. Migration 88 (kurucu onayı)
+  aynı turda ana dala: taze PG'de 00..88, iki yoldan sıfır sapma.

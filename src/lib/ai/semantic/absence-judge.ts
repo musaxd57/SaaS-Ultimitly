@@ -7,6 +7,7 @@ import { redactForSemanticModel } from "./redact";
 import { fenceSafe } from "./fence";
 import { stripDividerRuns } from "../divider-spoof";
 import { deconfuse } from "../fallback";
+import { referralJudgeFlag, runReferralJudge, type ReferralVerdict } from "./referral-judge";
 
 // ---------------------------------------------------------------------------
 // BAĞLAM HAKEMİ — "bilgim yok" (kurucu 10-21: "kelime bazlı tutmasın, bağlam / anlam / amaç bazlı tutsun").
@@ -222,6 +223,11 @@ export interface AbsenceJudgeInput {
   fetchImpl?: typeof fetch;
   /** Kıdemli okuyucu soruları da sorulsun mu? Verilmezse anahtar (`AI_SENIOR_READER_ENABLED`). */
   senior?: boolean;
+  /**
+   * Üçüncü taraf yönlendirme denetimi (S-1, `referral-judge.ts`) de koşsun mu? Verilmezse: kıdemli okuyucu soruları soruluyorsa ve
+   * `AI_REFERRAL_JUDGE_ENABLED` açıksa.
+   */
+  referral?: boolean;
 }
 
 /**
@@ -238,6 +244,10 @@ export type AbsenceJudgeOutcome =
       ungrounded?: true;
       /** Ek hükümlerden YALNIZ bir okumanın dayanaksız "evet" dediği (o hüküm için karar bugünkü kurala kalır, Opus 10-22 F1). */
       ungroundedChecks?: Partial<Record<keyof SeniorChecks, true>>;
+      /** Ayrı üçüncü taraf yönlendirme denetiminin hükmü (S-1); denetim koşmadıysa / düştüyse yok (kod yedeği karar verir). */
+      referral?: ReferralVerdict;
+      /** Denetim istendi ama okuyamadı (S-1): bu metin "tam okunmuş" sayılmaz — yeniden yazılan metin bununla gönderilmez (`rereadComplete`). */
+      referralUnread?: true;
     }
   | { status: "failed" };
 
@@ -432,13 +442,43 @@ export async function runAbsenceJudge(input: AbsenceJudgeInput): Promise<Absence
       if (!res.ok) return null;
       return senior ? parseSeniorReaderVerdict(res.data) : parseAbsenceJudgeVerdict(res.data);
     };
-    const [withGuest, draftOnly] = await Promise.all([read(buildAbsenceJudgeUserContent(input)), read(buildAbsenceJudgeDraftOnlyContent(input))]);
+    // S-1 denetimi iki okumayla PARALEL ve aynı zaman aşımıyla (normalde ek gecikme yok; en kötü durumda okuyucunun zaman aşımı kadar bekler).
+    // Düşerse `null` — okuyucunun hükmü yine geçerli, yönlendirmede kod yedeği; metin "tam okunmuş" sayılmaz (`referralUnread`).
+    const referralRequested = input.referral ?? (senior && referralJudgeFlag());
+    const referralRun = referralRequested
+      ? runReferralJudge({ reply: input.reply, names: input.names, fetchImpl: input.fetchImpl })
+      : Promise.resolve(null);
+    const [withGuest, draftOnly, referral] = await Promise.all([
+      read(buildAbsenceJudgeUserContent(input)),
+      read(buildAbsenceJudgeDraftOnlyContent(input)),
+      referralRun,
+    ]);
     // Alıntı, okuyucuya giden (ad maskeli) taslakla kıyaslanır — modelin gördüğü metin.
     const seen = fenceSafe(redactForSemanticModel(input.reply, knownNames(input), "ours"));
-    return combineAbsenceReadings(groundReading(withGuest, seen), groundReading(draftOnly, seen));
+    const outcome = combineAbsenceReadings(groundReading(withGuest, seen), groundReading(draftOnly, seen));
+    if (outcome.status !== "ok" || !referralRequested) return outcome;
+    return referral ? { ...outcome, referral } : { ...outcome, referralUnread: true };
   } catch {
     return { status: "failed" };
   }
+}
+
+/**
+ * S-1 (kurucu 10-30): ayrı denetim bu metinde misafiri ÖZEL bir üçüncü taraf işletmeye yönlendirme ya da ev sahibinden üçüncü kişi olarak söz
+ * gördü mü? Kapının `reply_host_voice` tutuşuna kod yedeğiyle birlikte (VEYA) girer; yalnız TUTAR. Kamu kurumu hükmü tutmaz (kurucu cevabına
+ * kadar). Denetim koşmadıysa / düştüyse `false` → kod yedeği karar verir. Saf.
+ */
+export function referralHolds(outcome: AbsenceJudgeOutcome | undefined): boolean {
+  if (outcome?.status !== "ok" || !outcome.referral) return false;
+  return outcome.referral.business || outcome.referral.hostThirdPerson;
+}
+
+/**
+ * Yeniden yazılan metin bu okumayla kabul edilebilir mi (Haiku 10-30 S-1 P2): okuyucu okudu VE istenen S-1 denetimi de okudu. Yalnız denetim
+ * düştüyse yeni metin denetimsiz gönderilmez — ilk taslak kalır (okuyucunun / denetimin hükmü onu zaten tutuyordu). Saf.
+ */
+export function rereadComplete(outcome: AbsenceJudgeOutcome): boolean {
+  return outcome.status === "ok" && outcome.referralUnread !== true;
 }
 
 /** Hakem okudu ve itiraf YOK dedi (kelime kuralının adayı serbest). */

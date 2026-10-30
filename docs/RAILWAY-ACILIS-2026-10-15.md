@@ -224,6 +224,15 @@ kalıcı "işlem yok" sayılıyor (niyet kapanır, yeni işlem açılır) — ye
   takılırsa cevap ev sahibine taslak kalır — bu tutuş için e-posta GİTMEZ, döngü YOK. Kanıt kaydında `rw` (sebep kodları). QR'da da aynı.
   Maliyet: her otomatik cevap adayına iki küçük paralel çağrı (~1,6 sn, 1.000 mesajda ~$2). Misafire gideni değiştirir → açmadan önce
   gerçek model ölçümü (bilgim-yok seti + `evals/airbnb-message-policy.json` + kırmızı takım) + kurucu + ilk denemeler birlikte.
+- `AI_REFERRAL_JUDGE_ENABLED` (S-1, kurucu 10-30: "S-1 yeni model çağrıları yapabilirsin sormana gerek bile yok"; `ai/semantic/referral-judge.ts`)
+  — YALNIZ `AI_SENIOR_READER_ENABLED=1` ile birlikte koşar. Kıdemli okuyucunun okuduğu her taslakta AYRI, kısa bir denetim çağrısı (iki okumayla
+  paralel, gecikme eklemez; aday başına ≈0,001 $): misafiri ÖZEL bir işletmeye yönlendirme ("taksi firmasını arayın", "restoranı arayıp masa
+  ayırtın") ya da ev sahibinden üçüncü kişi olarak söz → `reply_host_voice` tutuşu + bir kez ev sahibinin ağzından yeniden yazma (kod yedeğiyle
+  aynı yol; yalnız TUTAR). Kamu kurumu (konsolosluk, belediye, kayıp eşya bürosu) yalnız ölçülür, GİDER (kurucunun S-1 "kamu kurumu" cevabına
+  kadar). Denetim düşerse kod yedeği (bugünkü davranış). Ölçüm 10-30 (gerçek model): ayrı yazarın kör setinde özel işletme yönlendirmesi
+  41/42 (kod 4/42), kamu 21/21 ayrıldı (tutulmadı), ev sahibinin kendi hizmeti / yer bilgisi / acil / düz bilgi 77 temiz cevapta 0 yanlış tutuş;
+  geliştirme setinde üçüncü kişi ev sahibi 56/56 (kod 53/56), yönlendirme 41/41 özel + 15/15 kamu ayrı, 112 temizde 1 (kodun da tuttuğu Rusça
+  "хозяева животных"). Rapor `docs/RAPOR-2026-10-30-gece-ev-sahibi-sesi.md`.
 - `AI_HOST_CONTACT_PROMPT_BAN_DISABLED` (K-1029-A, kurucu 10-29 gece: "ev sahibinize yazın her dilde yasak — istem + kod") — istem yasağı
   VARSAYILAN AÇIK; bu anahtar yalnız ACİL DURDURMA (`=1` → sistem istemi önceki hâliyle bayt bayt aynı). Kod tarafı (cümleyi silme, cevapsız
   soruyu açık tutma) anahtarsız ve her zaman açık. Açılıştan ÖNCE ücretli ölçüm şart (tasarım `docs/TASARIM-2026-10-29-ev-sahibine-yonlendirme-yasagi.md` §E).

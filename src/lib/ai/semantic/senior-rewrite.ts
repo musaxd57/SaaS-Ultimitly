@@ -22,7 +22,7 @@ export const SENIOR_REWRITE_REASONS: readonly SeniorRewriteReason[] = ["payHost"
 /** İlk taslağın yeniden yazılmasını gerektiren sebepler (kapının tutacağı sebeplerle BİREBİR aynı koşullar). */
 export function seniorRewriteReasons(
   checks: SeniorChecks | undefined,
-  ctx: { contactHolds: boolean; apologyRule: boolean; internalSourceLexical?: boolean; hostVoiceLexical?: boolean },
+  ctx: { contactHolds: boolean; apologyRule: boolean; internalSourceLexical?: boolean; hostVoiceLexical?: boolean; hostVoiceJudged?: boolean },
 ): SeniorRewriteReason[] {
   if (!checks) return [];
   const out: SeniorRewriteReason[] = [];
@@ -34,7 +34,8 @@ export function seniorRewriteReasons(
   if (checks.internalSource || ctx.internalSourceLexical) out.push("internalSource");
   // Kurucu 10-30 ("mesajı ev sahibi yazıyor"): kapının `reply_host_voice` kod yedeği (`ai/host-voice-guard.ts`) bu taslağı tutacaksa aynı
   // cevap bir kez ev sahibinin ağzından yeniden yazılır (okuyucu açıkken; tur başına bir kez, ikinci taslak da takılırsa ev sahibine kalır).
-  if (ctx.hostVoiceLexical) out.push("hostVoice");
+  // S-1 ayrı denetimin (`referral-judge.ts`) aynı kapı tutuşu da aynı sebeptir.
+  if (ctx.hostVoiceLexical || ctx.hostVoiceJudged) out.push("hostVoice");
   return out;
 }
 
