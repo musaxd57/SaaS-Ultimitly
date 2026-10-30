@@ -1,0 +1,1282 @@
+[
+ {
+  "id": "tr-info-wifi",
+  "lang": "tr",
+  "truth": "none",
+  "base": "none",
+  "variants": {
+   "P1": {
+    "text": "Merhaba Wi-Fi şifresi nedir",
+    "v": "none"
+   },
+   "P3u": {
+    "text": "MERHABA, Wİ-Fİ ŞİFRESİ NEDİR?",
+    "v": "none"
+   },
+   "P3l": {
+    "text": "merhaba, wi-fi şifresi nedir?",
+    "v": "none"
+   },
+   "P4": {
+    "text": "Merhaba, Wi-Fi sifresi nedir?",
+    "v": "none"
+   },
+   "P5": {
+    "text": "Merhaba, Wi-Fi şifresi ndir?",
+    "v": "none"
+   },
+   "P11": {
+    "text": "mrhaba wi-fi sifresi nedir",
+    "v": "none"
+   }
+  }
+ },
+ {
+  "id": "tr-info-two",
+  "lang": "tr",
+  "truth": "none",
+  "base": "none",
+  "variants": {
+   "P1": {
+    "text": "Otopark var mı Bir de havlular nerede",
+    "v": "none"
+   },
+   "P3u": {
+    "text": "OTOPARK VAR MI? BİR DE HAVLULAR NEREDE?",
+    "v": "none"
+   },
+   "P3l": {
+    "text": "otopark var mı? bir de havlular nerede?",
+    "v": "none"
+   },
+   "P4": {
+    "text": "Otopark var mi? Bir de havlular nerede?",
+    "v": "none"
+   },
+   "P5": {
+    "text": "Otopark var mı? Bir de havlulra nerede?",
+    "v": "none"
+   },
+   "P11": {
+    "text": "otopark var mi bir de havllar nerede",
+    "v": "none"
+   }
+  }
+ },
+ {
+  "id": "tr-complaint-dirty",
+  "lang": "tr",
+  "truth": "complaint",
+  "base": "complaint",
+  "variants": {
+   "P1": {
+    "text": "Daire çok kirli banyoda saç var",
+    "v": "complaint"
+   },
+   "P3u": {
+    "text": "DAİRE ÇOK KİRLİ, BANYODA SAÇ VAR.",
+    "v": "complaint"
+   },
+   "P3l": {
+    "text": "daire çok kirli, banyoda saç var.",
+    "v": "complaint"
+   },
+   "P4": {
+    "text": "Daire cok kirli, banyoda sac var.",
+    "v": "complaint"
+   },
+   "P5": {
+    "text": "Daire çok kiri, banyoda saç var.",
+    "v": "none"
+   },
+   "P11": {
+    "text": "daier cok kirli banyoda sac var",
+    "v": "complaint"
+   }
+  }
+ },
+ {
+  "id": "tr-lost-key",
+  "lang": "tr",
+  "truth": "access",
+  "base": "access",
+  "variants": {
+   "P1": {
+    "text": "Anahtarı kaybettim ne yapmalıyız",
+    "v": "access"
+   },
+   "P3u": {
+    "text": "ANAHTARI KAYBETTİM, NE YAPMALIYIZ?",
+    "v": "access"
+   },
+   "P3l": {
+    "text": "anahtarı kaybettim, ne yapmalıyız?",
+    "v": "access"
+   },
+   "P4": {
+    "text": "Anahtari kaybettim, ne yapmaliyiz?",
+    "v": "access"
+   },
+   "P5": {
+    "text": "Anahtarı kaybettim, ne yapmalıyzı?",
+    "v": "access"
+   },
+   "P11": {
+    "text": "anathari kaybettim ne yapmaliyiz",
+    "v": "none"
+   }
+  }
+ },
+ {
+  "id": "tr-lost-key-hypo",
+  "lang": "tr",
+  "truth": "none",
+  "base": "none",
+  "variants": {
+   "P1": {
+    "text": "Anahtarı kaybedersek ne yapmalıyız",
+    "v": "none"
+   },
+   "P3u": {
+    "text": "ANAHTARI KAYBEDERSEK NE YAPMALIYIZ?",
+    "v": "none"
+   },
+   "P3l": {
+    "text": "anahtarı kaybedersek ne yapmalıyız?",
+    "v": "none"
+   },
+   "P4": {
+    "text": "Anahtari kaybedersek ne yapmaliyiz?",
+    "v": "none"
+   },
+   "P5": {
+    "text": "Anahtarı kaybedersek ne yapmalıyz?",
+    "v": "none"
+   },
+   "P11": {
+    "text": "aanhtari kaybedersek ne yapmaliyiz",
+    "v": "none"
+   }
+  }
+ },
+ {
+  "id": "tr-gas",
+  "lang": "tr",
+  "truth": "emergency",
+  "base": "emergency",
+  "variants": {
+   "P1": {
+    "text": "Mutfakta gaz kokusu var ne yapalım",
+    "v": "emergency"
+   },
+   "P3u": {
+    "text": "MUTFAKTA GAZ KOKUSU VAR, NE YAPALIM?",
+    "v": "emergency"
+   },
+   "P3l": {
+    "text": "mutfakta gaz kokusu var, ne yapalım?",
+    "v": "emergency"
+   },
+   "P4": {
+    "text": "Mutfakta gaz kokusu var, ne yapalim?",
+    "v": "emergency"
+   },
+   "P5": {
+    "text": "Mutfakta gaz kokusu var, ne yaplaım?",
+    "v": "emergency"
+   },
+   "P11": {
+    "text": "mutfakta gaz koksuu var ne yapalim",
+    "v": "emergency"
+   }
+  }
+ },
+ {
+  "id": "tr-gas-lookalike",
+  "lang": "tr",
+  "truth": "none",
+  "base": "emergency",
+  "variants": {
+   "P1": {
+    "text": "Gaz dedektörü nerede duruyor",
+    "v": "emergency"
+   },
+   "P3u": {
+    "text": "GAZ DEDEKTÖRÜ NEREDE DURUYOR?",
+    "v": "emergency"
+   },
+   "P3l": {
+    "text": "gaz dedektörü nerede duruyor?",
+    "v": "emergency"
+   },
+   "P4": {
+    "text": "Gaz dedektoru nerede duruyor?",
+    "v": "emergency"
+   },
+   "P5": {
+    "text": "Gaz dedektörü neerde duruyor?",
+    "v": "emergency"
+   },
+   "P11": {
+    "text": "gaz dedektoru neerde duruyor",
+    "v": "emergency"
+   }
+  }
+ },
+ {
+  "id": "tr-ac-broken",
+  "lang": "tr",
+  "truth": "complaint",
+  "base": "complaint",
+  "variants": {
+   "P1": {
+    "text": "Klima çalışmıyor içerisi çok sıcak",
+    "v": "complaint"
+   },
+   "P3u": {
+    "text": "KLİMA ÇALIŞMIYOR, İÇERİSİ ÇOK SICAK.",
+    "v": "complaint"
+   },
+   "P3l": {
+    "text": "klima çalışmıyor, içerisi çok sıcak.",
+    "v": "complaint"
+   },
+   "P4": {
+    "text": "Klima calismiyor, icerisi cok sicak.",
+    "v": "complaint"
+   },
+   "P5": {
+    "text": "Klima çalışmıyor, içerisi çok sıck.",
+    "v": "complaint"
+   },
+   "P11": {
+    "text": "klima clismiyor icerisi cok sicak",
+    "v": "none"
+   }
+  }
+ },
+ {
+  "id": "tr-boiler-hypo",
+  "lang": "tr",
+  "truth": "none",
+  "base": "none",
+  "variants": {
+   "P1": {
+    "text": "Kombi bozulursa ne yapmalıyım",
+    "v": "none"
+   },
+   "P3u": {
+    "text": "KOMBİ BOZULURSA NE YAPMALIYIM?",
+    "v": "none"
+   },
+   "P3l": {
+    "text": "kombi bozulursa ne yapmalıyım?",
+    "v": "none"
+   },
+   "P4": {
+    "text": "Kombi bozulursa ne yapmaliyim?",
+    "v": "none"
+   },
+   "P5": {
+    "text": "Kombi bozulursa ne yampalıyım?",
+    "v": "none"
+   },
+   "P11": {
+    "text": "kombi bozulursa ne yapmailyim",
+    "v": "none"
+   }
+  }
+ },
+ {
+  "id": "tr-burning-smell",
+  "lang": "tr",
+  "truth": "emergency",
+  "base": "emergency",
+  "variants": {
+   "P1": {
+    "text": "Duman yok ama yanık kokusu var",
+    "v": "emergency"
+   },
+   "P3u": {
+    "text": "DUMAN YOK AMA YANIK KOKUSU VAR.",
+    "v": "emergency"
+   },
+   "P3l": {
+    "text": "duman yok ama yanık kokusu var.",
+    "v": "emergency"
+   },
+   "P4": {
+    "text": "Duman yok ama yanik kokusu var.",
+    "v": "emergency"
+   },
+   "P5": {
+    "text": "Duman yok ama yaınk kokusu var.",
+    "v": "emergency"
+   },
+   "P11": {
+    "text": "duman yok ama yanik kousu var",
+    "v": "emergency"
+   }
+  }
+ },
+ {
+  "id": "tr-flood",
+  "lang": "tr",
+  "truth": "emergency",
+  "base": "emergency",
+  "variants": {
+   "P1": {
+    "text": "Banyoyu su bastı prize doğru geliyor",
+    "v": "emergency"
+   },
+   "P3u": {
+    "text": "BANYOYU SU BASTI, PRİZE DOĞRU GELİYOR!",
+    "v": "emergency"
+   },
+   "P3l": {
+    "text": "banyoyu su bastı, prize doğru geliyor!",
+    "v": "emergency"
+   },
+   "P4": {
+    "text": "Banyoyu su basti, prize dogru geliyor!",
+    "v": "emergency"
+   },
+   "P5": {
+    "text": "Banyoyu su bastı, prze doğru geliyor!",
+    "v": "emergency"
+   },
+   "P11": {
+    "text": "banyoyu su batsi prize dogru geliyor",
+    "v": "none"
+   }
+  }
+ },
+ {
+  "id": "tr-early-checkin",
+  "lang": "tr",
+  "truth": "none",
+  "base": "none",
+  "variants": {
+   "P1": {
+    "text": "Erken giriş yapabilir miyiz 11 gibi",
+    "v": "none"
+   },
+   "P3u": {
+    "text": "ERKEN GİRİŞ YAPABİLİR MİYİZ, 11 GİBİ?",
+    "v": "none"
+   },
+   "P3l": {
+    "text": "erken giriş yapabilir miyiz, 11 gibi?",
+    "v": "none"
+   },
+   "P4": {
+    "text": "Erken giris yapabilir miyiz, 11 gibi?",
+    "v": "none"
+   },
+   "P5": {
+    "text": "Erekn giriş yapabilir miyiz, 11 gibi?",
+    "v": "none"
+   },
+   "P11": {
+    "text": "erken girs yapabilir miyiz 11 gibi",
+    "v": "none"
+   }
+  }
+ },
+ {
+  "id": "tr-lockbox-empty",
+  "lang": "tr",
+  "truth": "access",
+  "base": "access",
+  "variants": {
+   "P1": {
+    "text": "Anahtar kutusu boş kapıdayız",
+    "v": "access"
+   },
+   "P3u": {
+    "text": "ANAHTAR KUTUSU BOŞ, KAPIDAYIZ.",
+    "v": "access"
+   },
+   "P3l": {
+    "text": "anahtar kutusu boş, kapıdayız.",
+    "v": "access"
+   },
+   "P4": {
+    "text": "Anahtar kutusu bos, kapidayiz.",
+    "v": "access"
+   },
+   "P5": {
+    "text": "Anahtra kutusu boş, kapıdayız.",
+    "v": "none"
+   },
+   "P11": {
+    "text": "aanhtar kutusu bos kapidayiz",
+    "v": "none"
+   }
+  }
+ },
+ {
+  "id": "tr-locked-out-kids",
+  "lang": "tr",
+  "truth": "emergency",
+  "base": "emergency",
+  "variants": {
+   "P1": {
+    "text": "Kapıda kilitli kaldık çocuklar yanımda",
+    "v": "emergency"
+   },
+   "P3u": {
+    "text": "KAPIDA KİLİTLİ KALDIK, ÇOCUKLAR YANIMDA.",
+    "v": "emergency"
+   },
+   "P3l": {
+    "text": "kapıda kilitli kaldık, çocuklar yanımda.",
+    "v": "emergency"
+   },
+   "P4": {
+    "text": "Kapida kilitli kaldik, cocuklar yanimda.",
+    "v": "emergency"
+   },
+   "P5": {
+    "text": "Kapıda kilili kaldık, çocuklar yanımda.",
+    "v": "none"
+   },
+   "P11": {
+    "text": "kapida kilitli kaldik cocukar yanimda",
+    "v": "emergency"
+   }
+  }
+ },
+ {
+  "id": "en-info-wifi",
+  "lang": "en",
+  "truth": "none",
+  "base": "none",
+  "variants": {
+   "P1": {
+    "text": "What's the wifi password",
+    "v": "none"
+   },
+   "P3u": {
+    "text": "WHAT'S THE WIFI PASSWORD?",
+    "v": "none"
+   },
+   "P3l": {
+    "text": "what's the wifi password?",
+    "v": "none"
+   },
+   "P4": {
+    "text": "What's the wifi password?",
+    "v": "none"
+   },
+   "P5": {
+    "text": "Whta's the wifi password?",
+    "v": "none"
+   },
+   "P11": {
+    "text": "whta's the wifi password",
+    "v": "none"
+   }
+  }
+ },
+ {
+  "id": "en-lost-key",
+  "lang": "en",
+  "truth": "access",
+  "base": "access",
+  "variants": {
+   "P1": {
+    "text": "I lost my keys and we are outside",
+    "v": "access"
+   },
+   "P3u": {
+    "text": "I LOST MY KEYS AND WE ARE OUTSIDE.",
+    "v": "access"
+   },
+   "P3l": {
+    "text": "i lost my keys and we are outside.",
+    "v": "access"
+   },
+   "P4": {
+    "text": "I lost my keys and we are outside.",
+    "v": "access"
+   },
+   "P5": {
+    "text": "I lost my keys and we are otside.",
+    "v": "access"
+   },
+   "P11": {
+    "text": "i lost my kys and we are outside",
+    "v": "none"
+   }
+  }
+ },
+ {
+  "id": "en-lost-key-hypo",
+  "lang": "en",
+  "truth": "none",
+  "base": "none",
+  "variants": {
+   "P1": {
+    "text": "What happens if I lose the key",
+    "v": "none"
+   },
+   "P3u": {
+    "text": "WHAT HAPPENS IF I LOSE THE KEY?",
+    "v": "none"
+   },
+   "P3l": {
+    "text": "what happens if i lose the key?",
+    "v": "none"
+   },
+   "P4": {
+    "text": "What happens if I lose the key?",
+    "v": "none"
+   },
+   "P5": {
+    "text": "What happns if I lose the key?",
+    "v": "none"
+   },
+   "P11": {
+    "text": "what happns if i lose the key",
+    "v": "none"
+   }
+  }
+ },
+ {
+  "id": "en-gas",
+  "lang": "en",
+  "truth": "emergency",
+  "base": "emergency",
+  "variants": {
+   "P1": {
+    "text": "There's a strong gas smell in the kitchen",
+    "v": "emergency"
+   },
+   "P3u": {
+    "text": "THERE'S A STRONG GAS SMELL IN THE KITCHEN.",
+    "v": "emergency"
+   },
+   "P3l": {
+    "text": "there's a strong gas smell in the kitchen.",
+    "v": "emergency"
+   },
+   "P4": {
+    "text": "There's a strong gas smell in the kitchen.",
+    "v": "emergency"
+   },
+   "P5": {
+    "text": "There's a stong gas smell in the kitchen.",
+    "v": "emergency"
+   },
+   "P11": {
+    "text": "there's a strong gas smell in the kitchen",
+    "v": "emergency"
+   }
+  }
+ },
+ {
+  "id": "en-extinguisher",
+  "lang": "en",
+  "truth": "none",
+  "base": "none",
+  "variants": {
+   "P1": {
+    "text": "Where is the fire extinguisher",
+    "v": "none"
+   },
+   "P3u": {
+    "text": "WHERE IS THE FIRE EXTINGUISHER?",
+    "v": "none"
+   },
+   "P3l": {
+    "text": "where is the fire extinguisher?",
+    "v": "none"
+   },
+   "P4": {
+    "text": "Where is the fire extinguisher?",
+    "v": "none"
+   },
+   "P5": {
+    "text": "Where is the fier extinguisher?",
+    "v": "none"
+   },
+   "P11": {
+    "text": "whree is the fire extinguisher",
+    "v": "none"
+   }
+  }
+ },
+ {
+  "id": "en-ac-broken",
+  "lang": "en",
+  "truth": "complaint",
+  "base": "complaint",
+  "variants": {
+   "P1": {
+    "text": "The AC is not working and it's really hot",
+    "v": "complaint"
+   },
+   "P3u": {
+    "text": "THE AC IS NOT WORKING AND IT'S REALLY HOT.",
+    "v": "complaint"
+   },
+   "P3l": {
+    "text": "the ac is not working and it's really hot.",
+    "v": "complaint"
+   },
+   "P4": {
+    "text": "The AC is not working and it's really hot.",
+    "v": "complaint"
+   },
+   "P5": {
+    "text": "The AC is not wokring and it's really hot.",
+    "v": "none"
+   },
+   "P11": {
+    "text": "the ac is not working and it's realyl hot",
+    "v": "complaint"
+   }
+  }
+ },
+ {
+  "id": "en-dirty",
+  "lang": "en",
+  "truth": "complaint",
+  "base": "complaint",
+  "variants": {
+   "P1": {
+    "text": "The room is dirty and the sheets are stained",
+    "v": "complaint"
+   },
+   "P3u": {
+    "text": "THE ROOM IS DIRTY AND THE SHEETS ARE STAINED.",
+    "v": "complaint"
+   },
+   "P3l": {
+    "text": "the room is dirty and the sheets are stained.",
+    "v": "complaint"
+   },
+   "P4": {
+    "text": "The room is dirty and the sheets are stained.",
+    "v": "complaint"
+   },
+   "P5": {
+    "text": "The romo is dirty and the sheets are stained.",
+    "v": "complaint"
+   },
+   "P11": {
+    "text": "the room is dirty and the sheets are stined",
+    "v": "complaint"
+   }
+  }
+ },
+ {
+  "id": "en-locked-myself-out",
+  "lang": "en",
+  "truth": "access",
+  "base": "access",
+  "variants": {
+   "P1": {
+    "text": "I locked myself out",
+    "v": "access"
+   },
+   "P3u": {
+    "text": "I LOCKED MYSELF OUT.",
+    "v": "access"
+   },
+   "P3l": {
+    "text": "i locked myself out.",
+    "v": "access"
+   },
+   "P4": {
+    "text": "I locked myself out.",
+    "v": "access"
+   },
+   "P5": {
+    "text": "I lockd myself out.",
+    "v": "none"
+   },
+   "P11": {
+    "text": "i lockde myself out",
+    "v": "none"
+   }
+  }
+ },
+ {
+  "id": "de-info-wifi",
+  "lang": "de",
+  "truth": "none",
+  "base": "none",
+  "variants": {
+   "P1": {
+    "text": "Wie lautet das WLAN-Passwort",
+    "v": "none"
+   },
+   "P3u": {
+    "text": "WIE LAUTET DAS WLAN-PASSWORT?",
+    "v": "none"
+   },
+   "P3l": {
+    "text": "wie lautet das wlan-passwort?",
+    "v": "none"
+   },
+   "P4": {
+    "text": "Wie lautet das WLAN-Passwort?",
+    "v": "none"
+   },
+   "P5": {
+    "text": "Wie lautet das WLN-Passwort?",
+    "v": "none"
+   },
+   "P11": {
+    "text": "wie lautet das waln-passwort",
+    "v": "none"
+   }
+  }
+ },
+ {
+  "id": "de-lost-key",
+  "lang": "de",
+  "truth": "access",
+  "base": "access",
+  "variants": {
+   "P1": {
+    "text": "Ich habe meinen Schlüssel verloren",
+    "v": "access"
+   },
+   "P3u": {
+    "text": "ICH HABE MEINEN SCHLÜSSEL VERLOREN.",
+    "v": "access"
+   },
+   "P3l": {
+    "text": "ich habe meinen schlüssel verloren.",
+    "v": "access"
+   },
+   "P4": {
+    "text": "Ich habe meinen Schlussel verloren.",
+    "v": "access"
+   },
+   "P5": {
+    "text": "Ich habe meinen Schlüssel verolren.",
+    "v": "none"
+   },
+   "P11": {
+    "text": "ich habe meinen schlussel verlroen",
+    "v": "none"
+   }
+  }
+ },
+ {
+  "id": "de-gas",
+  "lang": "de",
+  "truth": "emergency",
+  "base": "emergency",
+  "variants": {
+   "P1": {
+    "text": "Es riecht nach Gas in der Küche",
+    "v": "emergency"
+   },
+   "P3u": {
+    "text": "ES RIECHT NACH GAS IN DER KÜCHE.",
+    "v": "emergency"
+   },
+   "P3l": {
+    "text": "es riecht nach gas in der küche.",
+    "v": "emergency"
+   },
+   "P4": {
+    "text": "Es riecht nach Gas in der Kuche.",
+    "v": "emergency"
+   },
+   "P5": {
+    "text": "Es rieht nach Gas in der Küche.",
+    "v": "emergency"
+   },
+   "P11": {
+    "text": "es riehct nach gas in der kuche",
+    "v": "emergency"
+   }
+  }
+ },
+ {
+  "id": "de-heating",
+  "lang": "de",
+  "truth": "complaint",
+  "base": "complaint",
+  "variants": {
+   "P1": {
+    "text": "Die Heizung funktioniert nicht",
+    "v": "complaint"
+   },
+   "P3u": {
+    "text": "DIE HEIZUNG FUNKTIONIERT NICHT.",
+    "v": "complaint"
+   },
+   "P3l": {
+    "text": "die heizung funktioniert nicht.",
+    "v": "complaint"
+   },
+   "P4": {
+    "text": "Die Heizung funktioniert nicht.",
+    "v": "complaint"
+   },
+   "P5": {
+    "text": "Die Heizung funktionirt nicht.",
+    "v": "none"
+   },
+   "P11": {
+    "text": "die heizung funktionietr nicht",
+    "v": "none"
+   }
+  }
+ },
+ {
+  "id": "fr-info-wifi",
+  "lang": "fr",
+  "truth": "none",
+  "base": "none",
+  "variants": {
+   "P1": {
+    "text": "Quel est le mot de passe du wifi",
+    "v": "none"
+   },
+   "P3u": {
+    "text": "QUEL EST LE MOT DE PASSE DU WIFI ?",
+    "v": "none"
+   },
+   "P3l": {
+    "text": "quel est le mot de passe du wifi ?",
+    "v": "none"
+   },
+   "P4": {
+    "text": "Quel est le mot de passe du wifi ?",
+    "v": "none"
+   },
+   "P5": {
+    "text": "Qeul est le mot de passe du wifi ?",
+    "v": "none"
+   },
+   "P11": {
+    "text": "qule est le mot de passe du wifi",
+    "v": "none"
+   }
+  }
+ },
+ {
+  "id": "fr-lost-key",
+  "lang": "fr",
+  "truth": "access",
+  "base": "access",
+  "variants": {
+   "P1": {
+    "text": "J'ai perdu la clé de l'appartement",
+    "v": "access"
+   },
+   "P3u": {
+    "text": "J'AI PERDU LA CLÉ DE L'APPARTEMENT.",
+    "v": "access"
+   },
+   "P3l": {
+    "text": "j'ai perdu la clé de l'appartement.",
+    "v": "access"
+   },
+   "P4": {
+    "text": "J'ai perdu la cle de l'appartement.",
+    "v": "access"
+   },
+   "P5": {
+    "text": "J'ai predu la clé de l'appartement.",
+    "v": "none"
+   },
+   "P11": {
+    "text": "j'ai predu la cle de l'appartement",
+    "v": "none"
+   }
+  }
+ },
+ {
+  "id": "fr-smoke",
+  "lang": "fr",
+  "truth": "emergency",
+  "base": "emergency",
+  "variants": {
+   "P1": {
+    "text": "Il y a de la fumée dans la cuisine",
+    "v": "emergency"
+   },
+   "P3u": {
+    "text": "IL Y A DE LA FUMÉE DANS LA CUISINE !",
+    "v": "emergency"
+   },
+   "P3l": {
+    "text": "il y a de la fumée dans la cuisine !",
+    "v": "emergency"
+   },
+   "P4": {
+    "text": "Il y a de la fumee dans la cuisine !",
+    "v": "emergency"
+   },
+   "P5": {
+    "text": "Il y a de la fumée dans la cuiisne !",
+    "v": "emergency"
+   },
+   "P11": {
+    "text": "il y a de la fumee dans la cuiine",
+    "v": "emergency"
+   }
+  }
+ },
+ {
+  "id": "fr-heating",
+  "lang": "fr",
+  "truth": "complaint",
+  "base": "complaint",
+  "variants": {
+   "P1": {
+    "text": "Le chauffage ne fonctionne pas",
+    "v": "complaint"
+   },
+   "P3u": {
+    "text": "LE CHAUFFAGE NE FONCTIONNE PAS.",
+    "v": "complaint"
+   },
+   "P3l": {
+    "text": "le chauffage ne fonctionne pas.",
+    "v": "complaint"
+   },
+   "P4": {
+    "text": "Le chauffage ne fonctionne pas.",
+    "v": "complaint"
+   },
+   "P5": {
+    "text": "Le chauffage ne focntionne pas.",
+    "v": "none"
+   },
+   "P11": {
+    "text": "le chauffage ne foctionne pas",
+    "v": "none"
+   }
+  }
+ },
+ {
+  "id": "es-info-wifi",
+  "lang": "es",
+  "truth": "none",
+  "base": "none",
+  "variants": {
+   "P1": {
+    "text": "Cuál es la contraseña del wifi",
+    "v": "none"
+   },
+   "P3u": {
+    "text": "¿CUÁL ES LA CONTRASEÑA DEL WIFI?",
+    "v": "none"
+   },
+   "P3l": {
+    "text": "¿cuál es la contraseña del wifi?",
+    "v": "none"
+   },
+   "P4": {
+    "text": "¿Cual es la contrasena del wifi?",
+    "v": "none"
+   },
+   "P5": {
+    "text": "¿Cuál es la contraseña del wiif?",
+    "v": "none"
+   },
+   "P11": {
+    "text": "cual es la contrasena del wfi",
+    "v": "none"
+   }
+  }
+ },
+ {
+  "id": "es-lost-key",
+  "lang": "es",
+  "truth": "access",
+  "base": "access",
+  "variants": {
+   "P1": {
+    "text": "He perdido la llave del apartamento",
+    "v": "access"
+   },
+   "P3u": {
+    "text": "HE PERDIDO LA LLAVE DEL APARTAMENTO.",
+    "v": "access"
+   },
+   "P3l": {
+    "text": "he perdido la llave del apartamento.",
+    "v": "access"
+   },
+   "P4": {
+    "text": "He perdido la llave del apartamento.",
+    "v": "access"
+   },
+   "P5": {
+    "text": "He perdio la llave del apartamento.",
+    "v": "access"
+   },
+   "P11": {
+    "text": "he perdido la llaev del apartamento",
+    "v": "none"
+   }
+  }
+ },
+ {
+  "id": "es-fire",
+  "lang": "es",
+  "truth": "emergency",
+  "base": "emergency",
+  "variants": {
+   "P1": {
+    "text": "Hay fuego en la cocina ayuda",
+    "v": "emergency"
+   },
+   "P3u": {
+    "text": "HAY FUEGO EN LA COCINA, AYUDA.",
+    "v": "emergency"
+   },
+   "P3l": {
+    "text": "hay fuego en la cocina, ayuda.",
+    "v": "emergency"
+   },
+   "P4": {
+    "text": "Hay fuego en la cocina, ayuda.",
+    "v": "emergency"
+   },
+   "P5": {
+    "text": "Hay fego en la cocina, ayuda.",
+    "v": "none"
+   },
+   "P11": {
+    "text": "hay fuego en la cocnia ayuda",
+    "v": "emergency"
+   }
+  }
+ },
+ {
+  "id": "es-ac",
+  "lang": "es",
+  "truth": "complaint",
+  "base": "complaint",
+  "variants": {
+   "P1": {
+    "text": "El aire acondicionado no funciona",
+    "v": "complaint"
+   },
+   "P3u": {
+    "text": "EL AIRE ACONDICIONADO NO FUNCIONA.",
+    "v": "complaint"
+   },
+   "P3l": {
+    "text": "el aire acondicionado no funciona.",
+    "v": "complaint"
+   },
+   "P4": {
+    "text": "El aire acondicionado no funciona.",
+    "v": "complaint"
+   },
+   "P5": {
+    "text": "El aire acondicionado no funcioan.",
+    "v": "none"
+   },
+   "P11": {
+    "text": "el aire acondicionado no fnciona",
+    "v": "none"
+   }
+  }
+ },
+ {
+  "id": "ru-info-wifi",
+  "lang": "ru",
+  "truth": "none",
+  "base": "none",
+  "variants": {
+   "P1": {
+    "text": "Какой пароль от вайфая",
+    "v": "none"
+   },
+   "P3u": {
+    "text": "КАКОЙ ПАРОЛЬ ОТ ВАЙФАЯ?",
+    "v": "none"
+   },
+   "P3l": {
+    "text": "какой пароль от вайфая?",
+    "v": "none"
+   },
+   "P4": {
+    "text": "Какои пароль от ваифая?",
+    "v": "none"
+   },
+   "P5": {
+    "text": "Какой паоль от вайфая?",
+    "v": "none"
+   },
+   "P11": {
+    "text": "какои пароль от вафая",
+    "v": "none"
+   }
+  }
+ },
+ {
+  "id": "ru-lost-key",
+  "lang": "ru",
+  "truth": "access",
+  "base": "access",
+  "variants": {
+   "P1": {
+    "text": "Я потерял ключ от квартиры",
+    "v": "access"
+   },
+   "P3u": {
+    "text": "Я ПОТЕРЯЛ КЛЮЧ ОТ КВАРТИРЫ.",
+    "v": "access"
+   },
+   "P3l": {
+    "text": "я потерял ключ от квартиры.",
+    "v": "access"
+   },
+   "P4": {
+    "text": "Я потерял ключ от квартиры.",
+    "v": "access"
+   },
+   "P5": {
+    "text": "Я потерля ключ от квартиры.",
+    "v": "none"
+   },
+   "P11": {
+    "text": "я потерял ключ от квартиыр",
+    "v": "access"
+   }
+  }
+ },
+ {
+  "id": "ru-fire",
+  "lang": "ru",
+  "truth": "emergency",
+  "base": "emergency",
+  "variants": {
+   "P1": {
+    "text": "В квартире пожар",
+    "v": "emergency"
+   },
+   "P3u": {
+    "text": "В КВАРТИРЕ ПОЖАР!",
+    "v": "emergency"
+   },
+   "P3l": {
+    "text": "в квартире пожар!",
+    "v": "emergency"
+   },
+   "P4": {
+    "text": "В квартире пожар!",
+    "v": "emergency"
+   },
+   "P5": {
+    "text": "В квртире пожар!",
+    "v": "emergency"
+   },
+   "P11": {
+    "text": "в квартире поар",
+    "v": "none"
+   }
+  }
+ },
+ {
+  "id": "ar-info-wifi",
+  "lang": "ar",
+  "truth": "none",
+  "base": "none",
+  "variants": {
+   "P1": {
+    "text": "ما هي كلمة مرور الواي فاي",
+    "v": "none"
+   },
+   "P3u": {
+    "text": "ما هي كلمة مرور الواي فاي؟",
+    "v": "none"
+   },
+   "P3l": {
+    "text": "ما هي كلمة مرور الواي فاي؟",
+    "v": "none"
+   },
+   "P4": {
+    "text": "ما هي كلمة مرور الواي فاي؟",
+    "v": "none"
+   },
+   "P5": {
+    "text": "ما هي كلمة مرور الويا فاي؟",
+    "v": "none"
+   },
+   "P11": {
+    "text": "ما هي كلمة مرور اواي فاي",
+    "v": "none"
+   }
+  }
+ },
+ {
+  "id": "ar-lost-key",
+  "lang": "ar",
+  "truth": "access",
+  "base": "access",
+  "variants": {
+   "P1": {
+    "text": "فقدت مفتاح الشقة",
+    "v": "access"
+   },
+   "P3u": {
+    "text": "فقدت مفتاح الشقة.",
+    "v": "access"
+   },
+   "P3l": {
+    "text": "فقدت مفتاح الشقة.",
+    "v": "access"
+   },
+   "P4": {
+    "text": "فقدت مفتاح الشقة.",
+    "v": "access"
+   },
+   "P5": {
+    "text": "فقدت مفتاح الشةق.",
+    "v": "access"
+   },
+   "P11": {
+    "text": "فقدت مفتح الشقة",
+    "v": "none"
+   }
+  }
+ },
+ {
+  "id": "ar-fire",
+  "lang": "ar",
+  "truth": "emergency",
+  "base": "emergency",
+  "variants": {
+   "P1": {
+    "text": "يوجد حريق في المطبخ",
+    "v": "emergency"
+   },
+   "P3u": {
+    "text": "يوجد حريق في المطبخ!",
+    "v": "emergency"
+   },
+   "P3l": {
+    "text": "يوجد حريق في المطبخ!",
+    "v": "emergency"
+   },
+   "P4": {
+    "text": "يوجد حريق في المطبخ!",
+    "v": "emergency"
+   },
+   "P5": {
+    "text": "يوجد حيرق في المطبخ!",
+    "v": "none"
+   },
+   "P11": {
+    "text": "يوجد حريق في الطبخ",
+    "v": "emergency"
+   }
+  }
+ }
+]
