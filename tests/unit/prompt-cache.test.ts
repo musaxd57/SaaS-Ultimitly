@@ -4,6 +4,8 @@ vi.mock("@/lib/report-error", () => ({ reportError: vi.fn(async () => {}) }));
 
 import { promptCacheFields } from "@/lib/ai/prompt-cache";
 import { suggestReply } from "@/lib/ai";
+import { translate, __resetTranslateCache } from "@/lib/ai/translate";
+import { callStructuredJson } from "@/lib/ai/semantic/structured-call";
 import type { SuggestReplyInput } from "@/lib/ai/types";
 
 // ---------------------------------------------------------------------------
@@ -98,5 +100,48 @@ describe("cevap isteği gövdesi — önbellek alanları", () => {
     await suggestReply(base);
     expect(c.bodies[0]).not.toHaveProperty("prompt_cache_key");
     expect(c.bodies[0]).not.toHaveProperty("prompt_cache_retention");
+  });
+});
+
+describe("çeviri ve yapısal (anlam katmanı) çağrıları — önbellek alanları", () => {
+  it("çeviri isteği 'lixus:translate' anahtarıyla gider; acil kapatmada alan yok", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    __resetTranslateCache();
+    const bodies: Record<string, unknown>[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init?: RequestInit) => {
+        bodies.push(JSON.parse(String(init?.body)));
+        return new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content: "Hello" } }] }));
+      }),
+    );
+    await translate("Merhaba", "en", "tr");
+    expect(bodies[0].prompt_cache_key).toBe("lixus:translate");
+    expect(bodies[0].prompt_cache_retention).toBe("24h");
+    vi.stubEnv("OPENAI_PROMPT_CACHE_DISABLED", "1");
+    __resetTranslateCache();
+    await translate("Günaydın", "en", "tr");
+    expect(bodies[1]).not.toHaveProperty("prompt_cache_key");
+  });
+
+  it("yapısal çağrı şema adıyla anahtarlanır ('lixus:semantic:<şema>')", async () => {
+    const bodies: Record<string, unknown>[] = [];
+    const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
+      bodies.push(JSON.parse(String(init?.body)));
+      return new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify({ ok: true }) } }] }));
+    }) as unknown as typeof fetch;
+    await callStructuredJson({
+      apiKey: "test-key",
+      model: "gpt-5.1",
+      system: "s",
+      user: "u",
+      schema: { name: "senior_reader", strict: true, schema: { type: "object", properties: { ok: { type: "boolean" } }, required: ["ok"], additionalProperties: false } },
+      timeoutMs: 5_000,
+      maxTokens: 50,
+      maxCompletionTokens: 50,
+      fetchImpl,
+    });
+    expect(bodies[0].prompt_cache_key).toBe("lixus:semantic:senior_reader");
+    expect(bodies[0].prompt_cache_retention).toBe("24h");
   });
 });

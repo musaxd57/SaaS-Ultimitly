@@ -300,6 +300,25 @@ describe("kıdemli okuyucu — kanal oto-yanıtı", () => {
     expect(JSON.parse(ev.kbEvidenceJson ?? "{}").rw).toEqual(["internalSource"]);
   });
 
+  it("🚨 kurucu 10-30: taslak ev sahibinden üçüncü kişi olarak söz ediyor → okuyucu açıkken bir kez ev sahibinin ağzından yeniden yazılır, temiz taslak GİDER", async () => {
+    vi.stubEnv("AI_SENIOR_READER_ENABLED", "1");
+    // Okuyucu hiçbir şey işaretlemez: yeniden yazmanın nedeni KODUN ses kapısıdır (hostVoiceLexical).
+    vi.stubGlobal("fetch", readerFetch({}));
+    const THIRD = "Check-in is from 15:00. Your host lives next door if you need anything.";
+    const OWN = "Check-in is from 15:00. We live next door if you need anything.";
+    mockSuggest.mockResolvedValueOnce(DRAFT(THIRD)).mockResolvedValueOnce(DRAFT(OWN));
+    const id = await seedChannel();
+    await applyChannelAutoReply(id);
+    expect(mockSuggest).toHaveBeenCalledTimes(2);
+    const notes = (mockSuggest.mock.calls[1][0] as { knowledgeBaseNotes?: string[] }).knowledgeBaseNotes ?? [];
+    expect(notes).toContain(SENIOR_REWRITE_NOTES.hostVoice);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(mockSend.mock.calls[0])).toContain("We live next door");
+    expect(JSON.stringify(mockSend.mock.calls[0])).not.toMatch(/your host/i);
+    const ev = await prisma.riskEvent.findFirstOrThrow({ where: { conversationId: id, surface: "auto_reply" } });
+    expect(JSON.parse(ev.kbEvidenceJson ?? "{}").rw).toEqual(["hostVoice"]);
+  });
+
   it("kurucu 10-22: okuyucu KAPALIYKEN de kodun yedeği iç kaynak anlatımını tutar (anahtarsız)", async () => {
     const f = readerFetch({});
     vi.stubGlobal("fetch", f);
@@ -459,6 +478,20 @@ describe("kıdemli okuyucu — QR misafir sohbeti", () => {
     expect(out.escalated).toBe(true);
     const ev = await prisma.riskEvent.findFirstOrThrow({ where: { surface: "guest_chat" }, orderBy: { occurredAt: "desc" } });
     expect(JSON.parse(ev.kbEvidenceJson ?? "{}").rw).toBeUndefined();
+  });
+
+  it("🚨 kurucu 10-30: QR'da da ev sahibinden üçüncü kişi olarak söz eden taslak bir kez ev sahibinin ağzından yeniden yazılır, temiz taslak gider", async () => {
+    vi.stubEnv("AI_SENIOR_READER_ENABLED", "1");
+    vi.stubGlobal("fetch", readerFetch({}));
+    const THIRD = "Check-in is from 15:00. Your host lives next door if you need anything.";
+    const OWN = "Check-in is from 15:00. We live next door if you need anything.";
+    mockSuggest.mockResolvedValueOnce(DRAFT(THIRD)).mockResolvedValueOnce(DRAFT(OWN));
+    const out = await ask(await seedQr(), "What time is check-in?");
+    expect(mockSuggest).toHaveBeenCalledTimes(2);
+    const notes = (mockSuggest.mock.calls[1][0] as { knowledgeBaseNotes?: string[] }).knowledgeBaseNotes ?? [];
+    expect(notes).toContain(SENIOR_REWRITE_NOTES.hostVoice);
+    expect(out.escalated).toBeFalsy();
+    expect(out.reply).toBe(OWN);
   });
 
   it("açık: ev sahibine platform dışı ödeme → devir; platform dışı iletişim QR'da kural DEĞİL (OTA yok) → gider", async () => {

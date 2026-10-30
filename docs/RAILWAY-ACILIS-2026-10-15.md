@@ -204,6 +204,9 @@ kalıcı "işlem yok" sayılıyor (niyet kapanır, yeni işlem açılır) — ye
   (`tests/eval/absence-judge.eval.test.ts`) — 16/17 · 0/51 sonucu tek okumayla alınmıştı.
 - `AI_ABSENCE_JUDGE_STRICT` — yalnız yukarıdakiyle birlikte: kelime kuralının KAÇIRDIĞI itirafı da tutar (500 gerçek cevapta 8 açık itiraf
   + 15 "ev sahibiniz söyleyebilir" geçiştirmesi). Her otomatik cevap adayına bir küçük çağrı ekler (~1,6 sn). Kurucu kararı (soru: belge §5).
+- 🚨 (10-30 gece ölçümü) yedi dilde 56 iç sistem anlatımı ("kayıtlarımda yok", "ilanda belirtilmemiş", "not provided in our system"): kod kapısı
+  27/56, okuyucu 56/56, 112 temiz cevapta 0 yanlış tutuş — "mesajı ev sahibi yazıyor" kuralının iç sistem bacağı fiilen bu anahtarla
+  kapanır (`docs/RAPOR-2026-10-30-gece-ev-sahibi-sesi.md` §2). Açıldığında ses ihlali (`reply_host_voice`) de bir kez yeniden yazılır.
 - `AI_SENIOR_READER_ENABLED` (T-b, kurucu 10-22: "bütün kontrolleri tek çağrıda toplayabiliriz en iyi şekilde kontrol sağlansın") — KIDEMLİ
   OKUYUCU: bilgim-yok hakeminin AYNI çağrısı (iki okuma) taslağa üç soru daha sorar ve kelime adayını beklemeden kapıdan geçen HER otomatik
   cevap adayını okur: ① ev sahibine / daireye platform dışı ödeme → tutulur (T-d: "otopark gişede nakit" gibi üçüncü tarafa ödeme bilgisi

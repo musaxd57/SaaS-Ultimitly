@@ -6,6 +6,7 @@ import { EARLY_CHECKIN_CHECKS } from "@/lib/early-checkin/core";
 import type { LlmUsage } from "./types";
 import { REASONING_EFFORTS } from "./model-family";
 import { cleanGateEvidence, type GateEvidence } from "./gate-evidence";
+import { SENIOR_REWRITE_REASONS } from "./semantic/senior-rewrite";
 import { HOUSE_RULE_OUTCOME_KINDS, HOUSE_RULE_POLICIES, HOUSE_RULE_TOPICS, RULE_STANCES } from "@/lib/house-rules/core";
 // ---------------------------------------------------------------------------
 // TEMELLENDİRME SINIFLANDIRMASI (A2, 09-08) — OKUMA ZAMANINDA, HÜKÜM DEĞİL.
@@ -497,9 +498,8 @@ export function buildKbEvidence(input: KbEvidenceInput): string | null {
     input.topicAbsence && Number.isInteger(input.topicAbsence.s) && input.topicAbsence.s > 0 && Number.isInteger(input.topicAbsence.r) && input.topicAbsence.r >= 0
       ? { s: Math.min(input.topicAbsence.s, 99), r: Math.min(input.topicAbsence.r, 99) }
       : undefined;
-  const rwCodes = (input.seniorRewrite ?? []).filter(
-    (c): c is string => c === "payHost" || c === "contact" || c === "apology" || c === "internalSource",
-  );
+  // Kapalı küme TEK kaynaktan (`SENIOR_REWRITE_REASONS`): yeni bir yeniden yazma nedeni (10-30 `hostVoice`) izden sessizce düşmesin.
+  const rwCodes = (input.seniorRewrite ?? []).filter((c): c is string => (SENIOR_REWRITE_REASONS as readonly string[]).includes(c));
   const rw = rwCodes.length > 0 ? [...new Set(rwCodes)] : undefined;
   const extra = {
     ...(claims ? { claims } : {}),

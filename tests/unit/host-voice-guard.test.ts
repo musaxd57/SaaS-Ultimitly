@@ -2,6 +2,8 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { hostVoiceViolation, hostVoiceGuardEnabled } from "@/lib/ai/host-voice-guard";
 import { autoReplyGateVerdict } from "@/lib/automation";
 import { evaluateEscalation } from "@/lib/guest-chat-gate";
+import { buildKbEvidence } from "@/lib/ai/grounding";
+import { SENIOR_REWRITE_REASONS } from "@/lib/ai/semantic/senior-rewrite";
 
 // ---------------------------------------------------------------------------
 // MESAJI EV SAHİBİ YAZIYOR (kurucu 10-30, `ai/host-voice-guard.ts`). Gönderilecek metinde ev sahibinden üçüncü kişi olarak söz, arka plan
@@ -43,6 +45,8 @@ describe("arka plan anlatımı → internal_system (yedi dil)", () => {
     "Fiyat ilanda yazmıyor.",
     "The price is not mentioned in the listing.",
     "Der Preis steht nicht im Inserat.",
+    // Büyük noktalı İ (/iu bayrağında "i" olmaz): yalnız Türkçe küçük harf biçiminde yakalanır (mutasyon V5-06 bu satırla öldü).
+    "Kahvaltı İLANDA yer almıyor.",
   ])("%j", (s) => {
     expect(hostVoiceViolation(s)).toBe("internal_system");
   });
@@ -68,6 +72,8 @@ describe("ev sahibinin kendi sesi ve mülk olgusu → ihlal yok", () => {
     "Aksi belirtilmemişse giriş 15:00'tedir.",
     "Kahvaltı fiyata dahil değil.",
     "Acil durumda 112'yi arayın.",
+    // Acil talimatı üçüncü taraf yönlendirmesi sayılmaz — işletme adı geçse de (↓kontrol: acil sözcüğü olmadan aynı yönlendirme ihlaldir).
+    "If there is a fire, call 112 and the hotel reception next door.",
     "Kodu tekrar yazın ve # tuşuna basın.",
     "Wi-Fi şifresi Lale1234.",
     "Binada sauna var.",
@@ -104,6 +110,16 @@ describe("kapı bağlantısı — kanal ve QR aynı sebeple tutar", () => {
     const qr = evaluateEscalation({ ...model(reply), reply, usedSources: ["kb:wifi"] }, guest);
     expect(qr.escalate).toBe(true);
     expect(qr.reason).toBe("reply_host_voice");
+  });
+
+  it("QR bilgi bandında (güven 0,45–0,75) da tutar; anti-vakum: aynı bantta temiz cevap geçer", () => {
+    vi.stubEnv("QR_INFORMATIONAL_BAND_ENABLED", "1");
+    const band = (reply: string) => ({ ...model(reply), reply, confidence: 0.6, usedSources: ["kb:genel"] });
+    expect(evaluateEscalation(band("Ev sahibiniz yan dairede oturuyor."), "Ev sahibi nerede?")).toEqual({
+      escalate: true,
+      reason: "reply_host_voice",
+    });
+    expect(evaluateEscalation(band("Binada sauna var."), "Sauna var mı?")).toEqual({ escalate: false, reason: "informational_low_confidence" });
   });
 
   it("temiz cevap bu kapıya takılmaz; acil durdurmada eski davranış", () => {
@@ -150,5 +166,15 @@ describe("okuyucu açıkken ses ihlali bir kez yeniden yazılır (kurucu 10-22 '
     expect(note).toContain("onayımıza");
     // Not misafir metni / değer taşımaz.
     expect(note).not.toMatch(/Lale|\d{4}/u);
+  });
+});
+
+describe("karar kaydı — yeniden yazma izi", () => {
+  it("her yeniden yazma nedeni (10-30 hostVoice dahil) `rw` izine geçer; bilinmeyen kod düşer", () => {
+    for (const r of SENIOR_REWRITE_REASONS) {
+      const ev = JSON.parse(String(buildKbEvidence({ retrieved: [], usedLabels: [], seniorRewrite: [r] })));
+      expect(ev.rw, r).toEqual([r]);
+    }
+    expect(buildKbEvidence({ retrieved: [], usedLabels: [], seniorRewrite: ["uydurma"] }) ?? "{}").not.toContain("uydurma");
   });
 });

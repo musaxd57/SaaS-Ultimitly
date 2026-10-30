@@ -44,6 +44,12 @@ describe("cevap kurucu", () => {
       ok: false,
       reason: "number_not_in_source",
     });
+    // Tam saat denkliği yalnız 0–24 arası: "30 dakika" kaynaktan "30:00" saati türetilmez (mutasyon V5-30).
+    const minutes = modelReturns({ kind: "answer", reply: "The walk takes 30:00.", reply_tr: "", covered: [], uncovered: [] });
+    expect(await composeGuestReplyFromHostAnswer({ ...base, hostAnswer: "yürüyerek 30 dakika", fetchImpl: minutes.fetchImpl })).toMatchObject({
+      ok: false,
+      reason: "number_not_in_source",
+    });
     const third = modelReturns({ kind: "answer", reply: "Your host says there is a cot.", reply_tr: "", covered: [], uncovered: [] });
     expect(await composeGuestReplyFromHostAnswer({ ...base, fetchImpl: third.fetchImpl })).toMatchObject({ ok: false, reason: "host_voice" });
     const contact = modelReturns({ kind: "answer", reply: "Call me at +90 532 111 22 33.", reply_tr: "", covered: [], uncovered: [] });

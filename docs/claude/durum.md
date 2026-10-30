@@ -674,3 +674,20 @@ Tur belgeleri (anlatılar arşivde): `docs/MESAJLASMA-CEKIRDEGI-V2-2026-09-25.md
   şüpheci doğrulayıcı iş akışıyla tek tek sınıflandı (eski "GİDER" beklentisi mi, gerçek hata mı).
 - **WhatsApp cevap kurucusu gerçek model denemesi (gpt-5.1, 5 örnek):** bavul / eczane / bebek yatağı doğru; "ben ararım" devralma; "en geç 13" →
   "13:00" kod denetiminde yanlış ret → tam saat denkliği; bir tekrarda "ilanda belirtilmemiş" eklendi → ilan anlatımı kuralı.
+- **Kalan 25 kırmızının kapanışı (10-30 gece, 39 ajanlı sınıflandırma + şüpheci doğrulama):**
+  - Tek gerçek gerileme: erken giriş teşhis kipi `reply_host_voice` tutuşunu çıktı vetosu gibi okumuyordu → üçüncü kişi ertelemenin
+    yerine doğrulanmış onay geçmiyordu (`automation.ts` `withoutOutputVeto` listesi). Düzeltildi + pin (taslak kuralda tutulur, akış yine koşar).
+  - Kalan 24: test sabitleri üçüncü kişi ev sahibi yazıyordu ("the host's call", "ev sahibinizin kararıdır", "Ihr Gastgeber") ve "GİDER"
+    bekliyordu. "Erteleme gider" diyen sabitler ev sahibinin kendi sesine çevrildi ("requires our approval", "onayımıza tabidir",
+    "Das muss ich … entscheiden"); eski metnin artık TUTULDUĞU her dosyada ayrıca pinli (kanal, QR, altın set, anahtar kapalı kontrol).
+  - Süre pini (`host-contact-cost`, Rusça 50.000 virgül): v3 785 ms → v4 ~1.250 → v5 ~1.550 ms (1.500 sınırı). Sebep ölçüldü: v5'te kısmi karar
+    yanlış dönünce tamamı zaten tutulan cevapta bildirim / erteleme / belirsizlik taramaları 48 bin karakterde boşuna koşuyordu. Tutuş kararı
+    ucuzdan pahalıya kısa devre + teyit işareti yalnız konulu / göndergesel silmede → 680–950 ms. Sınır GEVŞETİLMEDİ.
+- **Açık soru (kurucuya):** istem artık birinci kişi erteleme yazdırıyor ("Teras kullanımı bizim kararımızdır"). Konaklama değişikliğinde karar
+  kaydı (iki model) korur; konaklama DIŞI bir ertelemeden sonra misafir "teşekkürler" derse sözcük dedektörü (`hasAvailabilityDeferral`, yalnız
+  üçüncü kişi) ertelemeyi tanımaz → konuşma listeden düşebilir. `AI_HOST_DECISION_HOLD_ENABLED` açıldığında da birinci kişi erteleme tutulmaz.
+- **Yedi dilde 280 zor örnek (gpt-5.1 üretti, ≈0,70 $ toplam; rapor `docs/RAPOR-2026-10-30-gece-ev-sahibi-sesi.md` §2):** kod kapısı üçüncü kişi ev
+  sahibi 53/56 · iç sistem anlatımı 27/56 · üçüncü taraf yönlendirme 5/56. Bugünkü kıdemli okuyucu iç sistem anlatımında 56/56, temiz 112'de
+  0 yanlış → `AI_SENIOR_READER_ENABLED` bu bacağı kapatır (sözcük listesi BÜYÜTÜLMEDİ, kurucu "anlamı model okusun"). Okuyucuya eklenecek
+  "üçüncü taraf işletme / kamu kurumu / üçüncü kişi ev sahibi" sorusu deneme isteminde 56/56 + 56/56, temizde 2/112 yanlış — kamu kurumu
+  kurucu sorusu (S-1). WhatsApp kanal yönlendiricisi saf çekirdeği (`host-channel/routing.ts`) yazıldı.

@@ -79,6 +79,18 @@ describe("kurucunun tablosu (R13-c) — bilgi cevabına eklenen genel kapanış 
 });
 
 describe("korunanlar (aşırı uygulama yok)", () => {
+  it("kurucu 10-30: sorun KOŞULUNA bağlı 'danışın / confirm' kapanışı teyit isteği sayılmaz — yalnız konulu / göndergesel silme kısmidir, bilgi gider (mutasyon V5-28)", () => {
+    for (const [t, kept] of [
+      ["Wi-Fi şifresi Lale1234. Wi-Fi ile ilgili bir sorun olursa ev sahibinize danışın.", "Wi-Fi şifresi Lale1234."],
+      ["The Wi-Fi password is Lale1234. If the Wi-Fi drops, please confirm with your host.", "The Wi-Fi password is Lale1234."],
+      ["Otopark ücretsiz. Otopark konusunda bir sorun olursa ev sahibinize danışabilirsiniz.", "Otopark ücretsiz."],
+    ]) {
+      const r = stripHostContactFiller(t);
+      expect(r.hostContactOnly, t).toBe(false);
+      expect(r.text, t).toBe(kept);
+    }
+  });
+
   it("🚨 K-1029-C (kurucu 10-29 gece: 'ek / koşul eki sezgileri karar vermesin'): varsayımsal soru + dayanaklı 'arayın' artık KALMAZ — soru ev sahibine açık kalır (model sinyali ölçülene kadar; kurucu sorusu F1)", () => {
     // Önce: koşul eki ("-rsem") misafirin varsayımsal sorduğunu söylüyor, cümle misafire gidiyordu.
     const r = "Anahtarı kaybederseniz ev sahibinizi arayın.";

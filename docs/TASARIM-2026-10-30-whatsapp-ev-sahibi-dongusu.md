@@ -762,6 +762,11 @@ yönetici, ilk dilimde tek alıcı · bilgi tabanı kaydı taslak olarak, paneld
 - Kanıt: §8 saf + entegrasyon + parite + mutasyon. Ücretli ölçüm yalnız kurucu onayıyla (cevap kurucu bataryası).
 - Çıktı: "WhatsApp kablosu takılınca çalışacak" bütün iş mantığı yeşil.
 
+> **Kodda (10-30 gece, bağlı değil):** saf parçalar `host-channel/question-text.ts` · `correlate.ts` · `answer-kind.ts` · `compose.ts` +
+> `compose-check.ts` · `routing.ts` (tetik → soru türü, kanal seçimi, işletme saatlik tavanı, tur başına tek mesaj birleşik alıntı) ·
+> `whatsapp/signature.ts` · `whatsapp/parse.ts` · `whatsapp/transport.ts`. Kalan: migration 88 (onay) → kayıt defteri + kanca ucu + Tür A
+> noktalarına bağlantı.
+
 **Dilim 2 — WhatsApp Cloud adaptörü + kanca ucu + numara bağlama ekranı.**
 - `adapters/whatsapp-cloud.ts` (gönderim, imza, el sıkışma, ayrıştırma, hata eşlemesi; fikstürlerle test), `api/webhooks/host-channel/[provider]`,
   Ayarlar → "WhatsApp'ı bağla" (rıza + kod + maskeli numara + kaldır), verify-env sırları, RAILWAY belgesi, gizlilik metni (avukat).
