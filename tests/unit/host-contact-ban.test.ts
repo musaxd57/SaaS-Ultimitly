@@ -144,6 +144,17 @@ describe("C4 — 'cevaplandı' kuralı (settle)", () => {
     expect(out.refs).toEqual(["R1"]);
   });
 
+  it("I1-b (mutasyon KA3, 10-30): olasılık sorusu metinde AYIRT EDİCİ karşılık bulsa da açık kalır (silinen kapanış onun cevabı olabilirdi)", () => {
+    const a = analyzeHostContact("Wi-Fi giderse modemi yeniden başlatın. Bir sorun olursa ev sahibinize yazın.");
+    expect(a.text).toBe("Wi-Fi giderse modemi yeniden başlatın.");
+    const needs = (contingency: boolean) => [need("R1", ["Wi-Fi giderse ne yapmalıyım?"], contingency)];
+    const open = settleHostContactRemovals({ removals: a.removals, keptText: a.text, needs: needs(true), declared: { refs: ["R1"] } });
+    expect(open.refs).toEqual([]);
+    // KONTROL: aynı istek olasılık sorusu değilse (yalnız bilgi) metin onu ayırt edici karşıladığı için cevaplandı.
+    const answered = settleHostContactRemovals({ removals: a.removals, keptText: a.text, needs: needs(false), declared: { refs: ["R1"] } });
+    expect(answered.refs).toEqual(["R1"]);
+  });
+
   it("I2: varınca arayın tek cevapsa giriş sorusu açık, saat cevaplanır", () => {
     const a = analyzeHostContact("Giriş 15:00'te. Varınca ev sahibinizi arayın.");
     const out = settleHostContactRemovals({
@@ -234,6 +245,16 @@ describe("C5 — silme eskiden tutulan cevabı kapıdan geçirmez", () => {
     "Стандартное время заезда — 15:00. Возможность заселиться около 10:00 зависит от решения хозяина; ваш запрос зафиксирован, владелец сможет его увидеть.",
     "Приносим извинения за неудобство. Ваше сообщение об отсутствии горячей воды записано; хозяин сможет его увидеть.",
   ])("bildirim cümlesi SİLİNMEZ (cevap aynen kalır, tutan kural eskisi gibi tutar): %j", (reply) => {
+    const r = stripHostContactFiller(reply);
+    expect(r.text).toBe(reply);
+    expect(r.removals).toEqual([]);
+  });
+
+  it.each([
+    // Mutasyon KA6 (10-30): yalnız ÇIKTI VETOSUNUN kalıbının tanıdığı bildirim (görünürlük kalıbında yok) — yönlendirme olarak da algılanır.
+    "Talebiniz ev sahibinize iletildi, dilerseniz ev sahibinize de yazabilirsiniz.",
+    "Your message has been recorded; feel free to message your host as well.",
+  ])("veto kalıbındaki bildirim + yönlendirme cümlesi SİLİNMEZ (veto tamamını tutar): %j", (reply) => {
     const r = stripHostContactFiller(reply);
     expect(r.text).toBe(reply);
     expect(r.removals).toEqual([]);
