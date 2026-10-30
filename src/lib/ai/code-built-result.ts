@@ -1,4 +1,5 @@
 import type { ClaimedActionsDeclaration } from "@/lib/ai/action-claims";
+import { withoutCodeBuiltClearedFields } from "@/lib/ai/reply-field-rules";
 
 /**
  * Modelin taslağını KODDAN kurulan doğrulanmış metinle değiştirir (erken giriş onayı / politika, doğrulanmış müsaitlik / uzatma; kanal + QR
@@ -10,16 +11,14 @@ export function codeBuiltResult<T extends { reply: string; intent: string; usedS
   text: string,
   intent: string,
 ): T {
-  // GD7 (gece döngüsü 10-29): "yalnız ev sahibine başvurma talimatı" işareti (`host-contact-filler.ts`) modelin atılan taslağına aitti —
-  // kodla kurulan onaylı metne taşınırsa kapı onu gereksiz tutar.
-  const { hostContactOnly: _draftHostContact, ...rest } = result as T & { hostContactOnly?: true };
+  // GD7 (K-1029-E, kurucu 10-29 gece): hangi alanın kod metninde düşeceği TEK tabloda (`reply-field-rules.ts`) — atılan taslağın METNİ
+  // hakkındaki her şey (kaynak / iddia denetimi, doğrulanmış parça metinleri ve "yalnız doğrulanmış parçalar" işareti, "yalnız ev sahibine
+  // başvurma" işareti) düşer; mesaja ait hüküm ve güven kalır. Tablo testi (`reply-field-rules.test.ts`) bu fonksiyonu her alanda sınar.
   return {
-    ...(rest as T),
+    ...withoutCodeBuiltClearedFields(result),
     reply: text,
     intent,
     usedSources: [],
-    claimAudit: undefined,
-    sourceAudit: undefined,
     ...(result.claimedActions !== undefined ? { claimedActions: { status: "declared" as const, actions: [] } } : {}),
   };
 }

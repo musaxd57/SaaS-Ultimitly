@@ -97,6 +97,7 @@ export function mergeSeniorRewrite<
     verifiedParts?: unknown;
     verifiedPartsOnly?: true;
     hostContactOnly?: true;
+    partRewriteBilled?: true;
     claimedActions?: unknown;
     timeConflicts?: unknown;
     llmUsage?: unknown;
@@ -112,11 +113,14 @@ export function mergeSeniorRewrite<
   // 4.12 doğrulanmış parça işareti yeni çağrının parçalarına aittir: ilk taslağın işareti yeniden yazılmış metne TAŞINMAZ.
   // GD7 (gece döngüsü 10-29): "yalnız ev sahibine başvurma talimatı" işareti de metne aittir (`host-contact-filler.ts`) — yeni metin yalnız
   // o talimattan ibaretse işaret taşınmazsa kapı tutmaz ve cümle misafire gider; ilk taslağın işareti yeni metni gereksiz tutar.
-  const { verifiedPartsOnly: _firstWaiver, hostContactOnly: _firstHostContact, ...firstRest } = first;
+  const { verifiedPartsOnly: _firstWaiver, hostContactOnly: _firstHostContact, partRewriteBilled: _firstBilled, ...firstRest } = first;
   return {
     ...(firstRest as T),
     ...(retried.verifiedPartsOnly === true ? { verifiedPartsOnly: true as const } : {}),
     ...(retried.hostContactOnly === true ? { hostContactOnly: true as const } : {}),
+    // GD7 tablosu (`reply-field-rules.ts`): parça yeniden yazması İKİ çağrıdan herhangi birinde olduysa kotadan birim düşer (önceden yalnız ilk
+    // çağrınınki okunuyordu — yeniden yazılan çağrının parça yeniden yazması günlük kotaya sayılmıyordu).
+    ...(first.partRewriteBilled === true || retried.partRewriteBilled === true ? { partRewriteBilled: true as const } : {}),
     stayChange: stayChange as T["stayChange"],
     reply: retried.reply,
     confidence: Math.min(first.confidence, retried.confidence),
