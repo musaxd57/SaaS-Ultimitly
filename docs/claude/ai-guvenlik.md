@@ -601,3 +601,17 @@
   yapıştırmaz; tek başına satır boş satır bırakmaz). Misafire cümle EKLENMEZ (K10). Ayıklanmış metin bütün kapılardan yeniden geçer
   (`items_held_touched` entegrasyon pinli). Kanıt izi `ta: {s, r}` (ayıklanan cümle / düşen istek SAYISI). Satır sonu temizliği satır satır
   (`[ \t]+\n` 50.000 boşlukta 2,7 sn ölçüldü → süre pini `topic-absence-cost.test.ts`).
+
+## 🚨 EV SAHİBİNE YÖNLENDİRME CÜMLESİ MİSAFİRE GİTMEZ (K-1029-A, kurucu 10-29 gece: "her dilde, her biçimde — istem + kod"; `ai/host-contact-filler.ts`)
+- Misafiri ev sahibine yazmaya / ulaşmaya / sormaya yönlendiren cümle (koşullu ya da koşulsuz, yedi dil, ev sahibinin kendi sesiyle "bize
+  yazın" dahil) SİLİNİR; yan cümleyse yalnız o kısım. Kalan doğru cevap gider. Geriye içerik kalmazsa (yalnız selam / nezaket dahil) cevap
+  aynen kalır, kapı tutar (`reply_host_contact_only`).
+- SİLİNMEYENLER: güvenlik uyarısı (gaz / yangın / duman / acil numara — ama "yazın" fiiliyle değil) · K10 devir / kayıt / görünürlük
+  bildirimi ("mesajınız kaydedildi, ev sahibiniz görebilir" — veto cevabın TAMAMINI tutar; silmek yanındaki cümleyi vetodan kaçırırdı) ·
+  silmeden sonra kalan metin kararı ev sahibine bırakıyorsa cevabın tamamı tutulur (kurucu 10-01).
+- "Cevaplandı" TEK kural (`conversation-items/host-contact-settle.ts`): beyan + silinen metin o isteğe ait değil + giden metin o isteği
+  AYIRT EDİCİ karşılıyor; olasılık sorusu hep açık. Defter yoksa (QR, öğe kipi kapalı) `hostContactOpenWithoutLedger` → kanal tutar + tek
+  "Misafir cevabınızı bekliyor" e-postası, QR kalanı gönderip devreder (`host_contact_open`).
+- İstem katmanı VARSAYILAN AÇIK (`AI_HOST_CONTACT_PROMPT_BAN_DISABLED=1` acil durdurma); diğer istem pin dosyaları bu katmanı kapatıp kendi
+  katmanlarını ölçer, kendisi `tests/unit/host-contact-ban-prompt.test.ts`. Kısmi gönderim acil durdurma `AI_HOST_CONTACT_PARTIAL_DISABLED=1`.
+- Ölçüm: `tests/eval/host-contact-replay.ts` (ücretsiz, geçmiş model cevapları; eski / yeni süzgeç + kapının metin kuralları).

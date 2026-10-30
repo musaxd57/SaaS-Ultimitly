@@ -4,6 +4,8 @@
 > Bu dosyadaki kurallar CLAUDE.md'deki kadar BAĞLAYICIDIR. İlgili alanda iş yapmadan önce oku.
 
 ## CLAUDE.md "Durum" özet satırları (10-23'te AYNEN taşındı; en yeni ikisi CLAUDE.md'de kalır)
+**10-28 gece:** kurucu karar masası (19 karar, aynen `docs/KURUCU-KARARLARI-2026-10-28-karar-masasi.md`) → 4.11 / 4.12 / 4.13 / 4.14 kodda + dil kapısı düzeltmesi, mutasyon 31/31 · 4.15 zod 4 ✅ (tip denetiminin yakalamadığı 3 gerileme kırmızı-önce; `docs/INCELEME-2026-10-28-zod4-gecisi.md`) · Opus R24–R28 ✅ (ORTAK sır okuyucusu PIN / Türcode / codice / keyless; R15 tasarım notu), öz-inceleme `docs/INCELEME-2026-10-28-gece-oz-inceleme.md` · ⚠️ OpenAI kredisi bitti (ölçümler bekliyor) · yeni sorular karar sayfasında — `docs/claude/durum.md`.
+**10-28 akşam:** uzun belge RAG ölçümü (geliştirme ort. 103/113, kör 90/95; ölçer anlama katmanı hatası düzeltildi) · `KB_TABLE_HEADER` kodda KAPALI (103 → 108,5) · Luna anlama/sıralayıcı eşit değil → 5.1 kalır · OpenAI ince ayarı kapanıyor · sorular R-T1/T2/T3 — `docs/TASARIM-2026-10-28-dosya-rag-cumle-ve-anlam.md` §9.
 **10-28:** kurucu §7: bilgi tabanı **şablon indir + dışa aktar** (ücretli paket) · Opus 2. dilim + Haiku düzeltmeleri ("daha çok tutar") · **7-D sert kör test** (93 vaka, gerçek model ≈0,30 $: önceki öneri 10 yanlış gönderim, en iyi kol 4 → yeni öneri "kod yalnız durdurur, gönderimi model onaylar") · **kalıcı gömme deposu kodda** (migration 87, `KB_VECTOR_STORE_ENABLED` KAPALI) · dosya RAG cümle + anlam tasarımı · **karar sayfası** https://claude.ai/artifact/2tiEwpwVc4r4S5z1aGuV1V · SIRADAKİ İŞ LİSTESİ: `docs/claude/durum.md` "10-28 devir".
 **10-23 akşam:** kurucu S1 kararları kodda (4.5 yönlendirme = bilgim yok · 4.4 A evcil / yardımcı hayvan · 4.3 · 4.2 · 4.9 bir kez yeniden yaz · 4.1 B) + migration 86 (kişi / evcil hayvan sayısı, anahtar KAPALI) + bilgi tabanı dosya çekirdeği S0/S2 (bağlı değil) + Opus derin kontrol A1–A6 / E1 / B4 / C1 / D1 (hepsi "daha çok tutar") · yanmış set yeniden koşu: gerçek yanlış gönderim 0 · sorular 4.11–4.14 — rapor `docs/RAPOR-2026-10-23-aksam-s1-kurucu-kararlari.md`, `docs/claude/durum.md`.
 **10-23 öğle:** okuyucu bağlamı + Codex S3 (anlam denetimi okuyucuda, kodda kalanlar listesi; kurucuya soru §4.0) + Opus B1–B12 + Haiku 2. tur kodda (anahtarlar KAPALI) · bilgi tabanı dosya / RAG tasarımı + çekirdek (bağlı değil) · **kabul seti tek koşu (yandı): yeni akış 42/55 doğru · 0 yanlış gönderim (eski akış 38/55 · 4 yanlış)**, 13 gereksiz tutma — rapor `docs/RAPOR-2026-10-23-ogle-okuyucu-anlam-denetimi-ve-etiketler.md` (sorular §4.0–4.10), `docs/claude/durum.md`.
@@ -49,6 +51,13 @@ düzeltmeleri. Next.js 15.5.27 (iki yeni SSG/ISR danışması). Onay bekleyen be
 **Dal durumu:** bütün iş `claude/great-edison-3zqpZ`'de commit'li; tam kapı + build yeşil olunca push edildi (CI sonucu bir sonraki
 oturumda `actions_list` ile tekrar bakılır). Railway KAPALI (canlı yok). 10-28 akşam ücretli koşular kurucu onayıyla yapıldı ("test yapıp
 para harcamayı tercih ederim"): uzun belge RAG + Luna kıyası, toplam birkaç dolar.
+
+**10-30 (gece devamı, kesintiden sonra):** K-1029-A kodda (`ai/host-contact-filler.ts` yeniden yazım, `ai/absence.ts mentionsHostContact`
+yedi dil, `conversation-items/host-contact-settle.ts` tek "cevaplandı" kuralı, kanal öğe kipi / öğe kipi kapalı / QR / AI öner bağlantıları,
+istem katmanı varsayılan AÇIK — acil durdurma `AI_HOST_CONTACT_PROMPT_BAN_DISABLED=1`, kısmi gönderim durdurma `AI_HOST_CONTACT_PARTIAL_DISABLED=1`)
+· GD7 (`ai/reply-field-rules.ts`) · 404 G1–G4 + yüzde kodlu yol (`lib/private-routes.ts`) · sert inceleme C1–C17 + Haiku 7 bulgu (kayıp
+anahtar ağı kesinliği / kapsamı, öncelik, gezinme göstergesi) · tekrar oynatma ölçümü (`tests/eval/host-contact-replay.ts`): K10 bildirimi
+silinmez, "karar ev sahibinin" kalıntısı ve yalnız selam tutulur · sorular `docs/INCELEME-2026-10-28-gece-dongusu.md` 10-30 bölümleri.
 
 **10-29 gece-2:** 4-14-b ✅ (Airbnb'de imzanın telefon / e-posta satırı her zaman çıkar — bütün gönderim yolları + önizleme + kuyruk; Ayarlar
 ipucu telefon önermiyor; mutasyon 5/5) · 4-13-b cevabı (okundu işareti göndermiyoruz; Hospitable okumasının Airbnb'de "okundu" bırakıp bırakmadığı
