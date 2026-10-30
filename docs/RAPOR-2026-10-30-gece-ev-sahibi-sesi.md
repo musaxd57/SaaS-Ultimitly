@@ -30,13 +30,20 @@ otomatik GİDEN ihlal 1 → 0.
 | Temiz cevap yanlış tutuluyor | 1/112 (ses kapısı) | 0/112 (bugünkü okuyucu) · 2/112 (deneme istemi) |
 
 Sonuç: anlamı **model** okuyor (kurucunun 10-30 tercihi); kod kapısı yedek. İç sistem anlatımı için bugünkü okuyucu yeterli —
-**`AI_SENIOR_READER_ENABLED=1` Railway açılış listesinde olmalı.** Üçüncü taraf yönlendirme ve üçüncü kişi ev sahibi için okuyucuya bir soru
-eklemek gerekiyor (aşağıda soru S-1).
+**`AI_SENIOR_READER_ENABLED=1` Railway açılış listesinde olmalı.**
+
+**Üçüncü taraf yönlendirme — iki deneme (ikisi de gerçek model, aynı 280 örnek):**
+- Bugünkü kıdemli okuyucuya EK SORU olarak: yönlendirmelerin hepsi yakalandı ama temiz "tuzak" cevapların 7–18'i / 56 yanlış işaretlendi —
+  özellikle ev sahibinin KENDİ transferi ("Havalimanı transferini ben ayarlayabilirim") ve "karşıda eczane var" gibi cevaplar. Bu sizin
+  gitmesini istediğiniz cevaplar → bu yol GERİ ALINDI, koda girmedi.
+- AYRI, kısa, odaklı bir denetim çağrısı olarak (yalnız taslağı okur): yönlendirmelerin 56/56'sı (41 özel işletme + 15 kamu kurumu ayrı
+  ayrı), temiz 112 cevapta yalnız 2 yanlış. Bedeli: otomatik cevap adayı başına bir küçük çağrı daha (≈0,001 $, ~1 sn).
 
 ## 3. Sorular (yalnız gerçekten karar gerektirenler)
 
-**S-1 — Kamu kurumuna yönlendirme de tutulsun mu?** Okuyucuya "misafiri üçüncü bir işletmeye gönderiyor mu" sorusu ekleniyor (taksi, otel
-resepsiyonu, restoran, araç kiralama — bunlar sizin kararınızla zaten gitmeyecek). Açık kalan: kamu kurumları.
+**S-1 — Üçüncü taraf yönlendirmesi için ayrı denetim çağrısı kurulsun mu, kamu kurumu dahil mi?** Özel işletmeye yönlendirme (taksi, otel
+resepsiyonu, restoran, araç kiralama) sizin kararınızla zaten gitmeyecek; kod kapısı bugün bunun yalnız 5/56'sını yakalıyor. Önerim: yukarıdaki
+ayrı odaklı denetim (56/56, temizde 2/112). Yeni bir model çağrısı olduğu için onayınızla kurarım. Açık kalan: kamu kurumları.
 - Örnek: misafir "Pasaportumu kaybettim" → cevap "Konsolosluğunuzla iletişime geçmeniz gerekiyor." · misafir "Doktora ihtiyacım var" → "En yakın
   hastaneye gidebilirsiniz." · "Şehir turu için meydandaki turizm ofisine danışabilirsiniz."
 - **A (önerim):** kamu kurumu yönlendirmesi GİDER (acil / resmi işler için doğru bilgi; ev sahibinin kazancıyla çakışmaz), yalnız özel işletme tutulur.
@@ -45,6 +52,9 @@ resepsiyonu, restoran, araç kiralama — bunlar sizin kararınızla zaten gitme
 **S-2 — Birinci kişi erteleme ("Teras kullanımı bizim kararımızdır") konaklama DIŞI konuda gönderildikten sonra misafir "teşekkürler" derse:**
 bugün konuşma listeden düşebilir (sözcük dedektörü yalnız üçüncü kişiyi tanıyor; konaklama değişikliğinde karar kaydı zaten koruyor).
 - **Önerim:** kapanış dedektörü birinci kişi ertelemeyi de tanısın → konuşma listede kalır (misafire giden metin değişmez). Onay verirseniz yapıyorum.
+- Not: canlı durum belgesine göre `AI_HOST_DECISION_HOLD_ENABLED=1` (sizin beyanınız). Bu anahtar açıkken de bugün yalnız ÜÇÜNCÜ kişi "ev sahibinin
+  kararı" cümlesi tutuluyor; istem artık birinci kişi yazdırdığı için "Bu bizim kararımızdır" ertelemesi konaklama dışı konuda gidebilir
+  (konaklama değişikliğinde iki model zaten tutuyor). Aynı öneri kapsamında.
 
 **S-3 — Migration 88 (WhatsApp için iki YENİ tablo; dolu tabloya dokunmaz):** onay + taze `pg_dump` ile ana dala alınır. Hazır yama:
 `docs/hazir-yamalar/2026-10-30-migration-88-host-channel.patch`.

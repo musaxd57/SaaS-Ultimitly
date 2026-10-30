@@ -691,3 +691,6 @@ Tur belgeleri (anlatılar arşivde): `docs/MESAJLASMA-CEKIRDEGI-V2-2026-09-25.md
   0 yanlış → `AI_SENIOR_READER_ENABLED` bu bacağı kapatır (sözcük listesi BÜYÜTÜLMEDİ, kurucu "anlamı model okusun"). Okuyucuya eklenecek
   "üçüncü taraf işletme / kamu kurumu / üçüncü kişi ev sahibi" sorusu deneme isteminde 56/56 + 56/56, temizde 2/112 yanlış — kamu kurumu
   kurucu sorusu (S-1). WhatsApp kanal yönlendiricisi saf çekirdeği (`host-channel/routing.ts`) yazıldı.
+- **Okuyucuya ek soru denemesi (geri alındı):** "üçüncü kişi ev sahibi / özel işletme / kamu kurumu" kıdemli okuyucunun uzun istemine eklenince
+  (iki okuma, VEYA) temiz tuzak cevaplarda 7–18/56 yanlış işaret (ev sahibinin kendi transferi, "karşıda eczane var") → koda girmedi. Ayrı odaklı
+  çağrı 56/56 + temizde 2/112 → kurucu sorusu S-1 (yeni model çağrısı). Mutasyon: v5 35/35 + ikinci tur 18/18 (yeni pinlerle) öldürüldü.

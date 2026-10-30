@@ -98,6 +98,13 @@ describe("tur başına tek mesaj — birleşik alıntı", () => {
       }
     }
   });
+  it("'+N soru daha' için yer önceden ayrılır: iki soru tam sığıp üçüncüsü sığmasa da sınır aşılmaz (mutasyon V5b-R8)", () => {
+    const q = "q".repeat(75);
+    const out = combinedQuote([q, q, q]);
+    expect(out.length).toBeLessThanOrEqual(QUOTE_MAX);
+    expect(out).toBe(`1) ${q} +2 soru daha`);
+  });
+
   it("satır sonu / sekme / görünmez karakter şablona gitmez", () => {
     expect(combinedQuote(["Bebek\nyatağı​ var mı?", "Otopark\t?"])).toBe("1) Bebek yatağı var mı? 2) Otopark ?");
   });
