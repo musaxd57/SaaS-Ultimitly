@@ -18,6 +18,7 @@ import { composeGuestReplyFromHostAnswer } from "./compose";
 import { checkComposedGuestReply } from "./compose-check";
 import { correlateHostReply, type HostQuestionStatus, type PendingHostQuestion } from "./correlate";
 import { buildHostQuestion, withoutGuestNames } from "./question-text";
+import { hostChannelFlagsFromEnv } from "./routing";
 import type { HostChannelTransport, HostInboundEvent } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -91,6 +92,15 @@ const answerAad = (questionId: string, organizationId: string) => `host-question
 const draftAad = (questionId: string, organizationId: string) => `host-question-draft:v1:${questionId}:${organizationId}`;
 const sha256 = (text: string) => createHash("sha256").update(text, "utf8").digest("hex");
 const panelLink = (conversationId: string) => `${appBaseUrl()}/inbox/${encodeURIComponent(conversationId)}`;
+
+/**
+ * Ev sahibinin her WhatsApp mesajı EN ÇOK BİR soruya bağlanır; bağ, mesaj başına kalıcı kayıtla tutulur (sert inceleme 10-30 A2 SM-2: tek
+ * `answerMessageId` alanı sonraki mesajla eziliyordu → yarıda düşmüş ESKİ bir mesajın geç yeniden teslimi yeni cevap sayılıp metne ikinci kez
+ * ekleniyor ya da başka bir soruya bağlanabiliyordu). Kayıtta yalnız soru kimliği durur (içerik yok); süresi geçeni süpürge siler.
+ */
+const ANSWER_RECORD_PREFIX = "host-ans:";
+export const ANSWER_RECORD_TTL_MS = 8 * 24 * 60 * 60 * 1000;
+const answerRecordName = (providerMessageId: string) => `${ANSWER_RECORD_PREFIX}${sha256(providerMessageId)}`;
 
 /** Düğme kimliği: `hq.<soru>.<sürüm>.<eylem>` (tasarım §3.3). Sır değildir — yetki gönderen numaranın bağlantısından. */
 export function hostQuestionButtonId(questionId: string, version: number, action: "send" | "cancel"): string {
@@ -255,10 +265,13 @@ export async function handleHostAnswer(input: {
     },
   });
   if (!q) return "busy";
-  // Meta YENİDEN TESLİMİ (sert inceleme 10-30 A2): bu mesaj bu soruya zaten bağlandı. Önceki deneme yarıda düştüyse (soru yeniden açıldı ya da
-  // "işleniyor"da kaldı ya da önizleme hiç gitmedi) kaldığı yerden sürdürülür; önizleme ev sahibine gittiyse / gönderim başladıysa tekrar
-  // işlenmez.
-  const redelivery = q.answerMessageId === event.providerMessageId;
+  // Meta YENİDEN TESLİMİ (sert inceleme 10-30 A2): bu mesaj bir soruya zaten bağlandı. Başka soruya bağlandıysa yok sayılır. Bu soruya bağlandıysa
+  // ve önceki deneme yarıda düştüyse (soru yeniden açıldı ya da "işleniyor"da kaldı ya da önizleme hiç gitmedi) kaldığı yerden sürdürülür;
+  // önizleme ev sahibine gittiyse / gönderim başladıysa / sonra yeni bir cevap işlendiyse tekrar işlenmez.
+  const record = await prisma.systemLock.findUnique({ where: { name: answerRecordName(event.providerMessageId) }, select: { holder: true } });
+  if (record && record.holder !== q.id) return "duplicate";
+  const redelivery = record !== null && q.answerMessageId === event.providerMessageId;
+  if (record && !redelivery) return "duplicate";
   if (redelivery) {
     const resumable = q.status === "sent" || q.status === "answered" || (q.status === "awaiting_confirm" && q.previewMessageId === null);
     if (!resumable) return "duplicate";
@@ -305,6 +318,17 @@ export async function handleHostAnswer(input: {
   // ilk kısım kaybolmasın — sert inceleme 10-30 A2). Aynı WhatsApp mesajı BAŞKA soruya bağlanamaz (`answerMessageId` tekil).
   const previous = decryptOrNull(q.answerEnc, answerAad(q.id, org));
   const hostAnswer = redelivery && previous ? previous : accumulateAnswer(previous, text);
+  if (!redelivery) {
+    try {
+      await prisma.systemLock.create({
+        data: { name: answerRecordName(event.providerMessageId), holder: q.id, lockedUntil: new Date(now.getTime() + ANSWER_RECORD_TTL_MS) },
+      });
+    } catch (err) {
+      // Aynı mesaj aynı anda başka bir yoldan bağlandı (gelen kira bunu önler; yine de ikinci kez işlenmez).
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") return "duplicate";
+      throw err;
+    }
+  }
   let claimed: number;
   try {
     claimed = (
@@ -506,6 +530,15 @@ function previewHeader(
  * konuşmanın sorularına WhatsApp'tan onaylanıp gönderilen cevaplar (Haiku 10-30 P2: misafirin ikinci sorusu, birincisinin WhatsApp cevabı
  * yüzünden kapanıyordu).
  */
+/**
+ * "Sorudan sonra" = sorudan SONRA ALINAN mesaj. Senkronun yazdığı mesajın `createdAt`i SAĞLAYICI zamanıdır: soru kurulmadan önce yazılıp sonraki
+ * senkronda gelen mesaj (misafirin "vazgeçtim"i, ev sahibinin kanal uygulamasından cevabı) `createdAt`e bakınca kaçıyordu (sert inceleme 10-30
+ * A2 SM-1). Alınma anı yoksa (uygulamanın kendi yazdığı satır) `createdAt` zaten sunucu saatidir.
+ */
+function arrivedAfter(since: Date): Prisma.MessageWhereInput {
+  return { OR: [{ ingestedAt: { gt: since } }, { ingestedAt: null, createdAt: { gt: since } }] };
+}
+
 async function hostRepliedSince(organizationId: string, conversationId: string, since: Date): Promise<boolean> {
   const [ours, decisions] = await Promise.all([
     prisma.hostQuestion.findMany({ where: { organizationId, conversationId, resultMessageId: { not: null } }, select: { resultMessageId: true }, take: 200 }),
@@ -517,17 +550,16 @@ async function hostRepliedSince(organizationId: string, conversationId: string, 
       conversationId,
       direction: "outbound",
       authorType: "host",
-      createdAt: { gt: since },
-      AND: [notChannelAutomationWhere()],
+      AND: [notChannelAutomationWhere(), arrivedAfter(since)],
       ...(exclude.length > 0 ? { id: { notIn: exclude } } : {}),
     },
   });
   return n > 0;
 }
 
-/** Soru gönderildikten sonra misafirden yeni mesaj geldi mi (turun kendi mesajları sorudan önce yazılmıştır). */
+/** Soru gönderildikten sonra misafirden yeni mesaj geldi mi (turun kendi mesajları sorudan önce alınmıştır). */
 async function guestWroteSince(conversationId: string, since: Date): Promise<boolean> {
-  return (await prisma.message.count({ where: { conversationId, direction: "inbound", createdAt: { gt: since } } })) > 0;
+  return (await prisma.message.count({ where: { conversationId, direction: "inbound", AND: [arrivedAfter(since)] } })) > 0;
 }
 
 /** "Bekleyen soru yok" cevabının gün kilidi (bağlantı başına günde bir); süresi geçenleri saatlik süpürge siler. */
@@ -646,6 +678,11 @@ async function handleButton(input: {
   // Gönderimden SONRAKİ kayıtlar en iyi çaba: misafire gitmiş bir cevap, kayıt hatası yüzünden ev sahibine "gitmedi" gibi görünmesin.
   if (result.status === "sent" || result.status === "queued") {
     const resultMessageId = result.message?.id ?? null;
+    // Cevap mesajının kimliği durum geçişinden AYRI ve ÖNCE yazılır: geçiş kaybedilse / düşse bile bu mesaj konuşmanın öteki açık işlerini
+    // "ev sahibi yazdı" ile kapatmaz (sert inceleme 10-30 A2 SM-4).
+    if (resultMessageId) {
+      await prisma.hostQuestion.updateMany({ where: { id: q.id, organizationId: org }, data: { resultMessageId } }).catch(() => null);
+    }
     await settle("done", { resultMessageId }).catch(() => null);
     await answerTurnItems({ organizationId: org, conversationId: q.conversationId, turnMessageId: q.turnMessageId, resultMessageId, now: input.now }).catch(
       () => null,
@@ -743,7 +780,7 @@ async function answerTurnItems(input: { organizationId: string; conversationId: 
 /**
  * Saklama + süre (saatlik): cevap beklerken süresi dolan sorular "süresi geçti" olur; kapanmış sorunun cevap / taslak metni + özeti 7 gün sonra
  * silinir (tasarım §5.8); süresi geçmiş "bekleyen soru yok" gün kilitleri silinir. Yarıda kalan ara durumlar kurtarılır ve ev sahibine
- * SÖYLENİR (aktarım verilirse): taslak kurma → soru yeniden açık ("taslak hazırlanamadı"); gönderim → sonucu bilinmiyor ("doğrulanamadı",
+ * SÖYLENİR (aktarım verilirse ve kanal anahtarları açıksa): taslak kurma → soru yeniden açık ("taslak hazırlanamadı"); gönderim → sonucu bilinmiyor ("doğrulanamadı",
  * kör tekrar YOK — misafire gitmiş olabilir). Yeni işlenen (taze) satıra dokunulmaz.
  */
 export async function sweepHostQuestions(
@@ -751,22 +788,28 @@ export async function sweepHostQuestions(
   transport: HostChannelTransport | null = null,
 ): Promise<{ expired: number; purged: number; recovered: number }> {
   const stuckBefore = new Date(now.getTime() - STUCK_MS);
-  const stuck = await prisma.hostQuestion.findMany({
-    where: { status: { in: [...BUSY_STATUSES] }, updatedAt: { lt: stuckBefore } },
-    select: { id: true, organizationId: true, bindingId: true, conversationId: true, status: true, version: true },
+  // Kapatma anahtarı / işletme listesi bildirime de uyar: kanal kapalıyken durum yine kurtarılır ama WhatsApp'a mesaj GİTMEZ (sert inceleme
+  // 10-30 A2 F5).
+  const flags = hostChannelFlagsFromEnv();
+  const mayNotify = (orgId: string) => flags.channel && flags.questions && (flags.orgIds === "*" || flags.orgIds.has(orgId));
+  const busy = await prisma.hostQuestion.findMany({
+    where: { status: { in: [...BUSY_STATUSES] } },
+    orderBy: { updatedAt: "asc" },
+    select: { id: true, organizationId: true, bindingId: true, conversationId: true, status: true },
     take: 200,
   });
   let recovered = 0;
-  for (const s of stuck) {
+  for (const s of busy) {
     const next = s.status === "answered" ? "sent" : "send_unverified";
-    // Sürüm CAS: okuma ile yazma arasında satır ilerlediyse (her geçiş sürümü artırır) dokunulmaz.
+    // Takılma koşulu YAZMADA (CAS): yalnız 10 dakikadır hiç yazılmamış satır. Okumadan sonra satır yeniden alındıysa (yeniden teslim, kilidin
+    // bırakılıp yeniden alınması — sürüm geri dönebilir, ABA) `updatedAt` tazelenmiştir → dokunulmaz (sert inceleme 10-30 A2 SM-3).
     const won = await prisma.hostQuestion.updateMany({
-      where: { id: s.id, status: s.status, version: s.version },
+      where: { id: s.id, status: s.status, updatedAt: { lt: stuckBefore } },
       data: { status: next, version: { increment: 1 } },
     });
     if (won.count !== 1) continue;
     recovered++;
-    if (!transport || !s.bindingId) continue;
+    if (!transport || !s.bindingId || !mayNotify(s.organizationId)) continue;
     try {
       if (!(await usableBinding({ id: s.bindingId, organizationId: s.organizationId }))) continue;
       const to = await activeBindingAddress(s.bindingId, s.organizationId);
@@ -789,7 +832,8 @@ export async function sweepHostQuestions(
     },
     data: { answerEnc: null, draftEnc: null, draftHash: null },
   });
-  // Günlük "bekleyen soru yok" kilitleri birikmesin (bağlantı başına günde en çok bir satır).
+  // Günlük "bekleyen soru yok" kilitleri ve süresi geçmiş mesaj→soru bağ kayıtları birikmesin.
   await prisma.systemLock.deleteMany({ where: { name: { startsWith: NONE_LOCK_PREFIX }, lockedUntil: { lt: now } } });
+  await prisma.systemLock.deleteMany({ where: { name: { startsWith: ANSWER_RECORD_PREFIX }, lockedUntil: { lt: now } } });
   return { expired: expired.count, purged: purged.count, recovered };
 }

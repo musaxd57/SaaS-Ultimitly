@@ -613,9 +613,10 @@ async function maskReservationRows(
     await db.conversationItem.updateMany({ where: { organizationId, conversationId: { in: convIds }, topic: { not: null } }, data: { topic: null } });
     // Ev sahibine WhatsApp'tan sorulan sorular (migration 88, sert inceleme 10-30 A2): açık / işlenen soru KAPANIR (onay bekleyen taslak silinen
     // konaklamaya gönderilemesin — sürüm artar, eski düğme işlemez) ve ev sahibinin cevabı + misafir mesajından kurulan taslak + taslak özeti
-    // silinir. Durum listesi `host-channel/answer.ts` OPEN + BUSY ile aynı (pin: host-channel-answer testi).
+    // silinir. Durum listesi = gönderilmekte olan ("queued": soru henüz WhatsApp'a çıkıyor — sonra "sent"e dönmesin, sert inceleme 10-30 A2 F3)
+    // + `host-channel/answer.ts` canlı durumları (pin: host-channel-answer testi).
     await db.hostQuestion.updateMany({
-      where: { organizationId, conversationId: { in: convIds }, status: { in: ["sent", "awaiting_confirm", "answered", "sending"] } },
+      where: { organizationId, conversationId: { in: convIds }, status: { in: ["queued", "sent", "awaiting_confirm", "answered", "sending"] } },
       data: { status: "superseded", version: { increment: 1 } },
     });
     await db.hostQuestion.updateMany({

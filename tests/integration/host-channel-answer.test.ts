@@ -24,6 +24,27 @@ vi.spyOn(prisma.hostChannelBinding, "findFirst").mockImplementation(((args: Para
   if (throwBindingReadAt > 0 && bindingReads === throwBindingReadAt) return Promise.reject(new Error("baglanti koptu"));
   return realBindingFindFirst(args);
 }) as never);
+// Soru listesi okunduktan HEMEN sonra (süpürge yarışı) bir kez çalışacak kanca + tek seferlik güncelleme arızası (gönderim sonrası kayıt hatası).
+let afterQuestionFindMany: (() => Promise<void>) | null = null;
+const realQuestionFindMany = prisma.hostQuestion.findMany.bind(prisma.hostQuestion);
+vi.spyOn(prisma.hostQuestion, "findMany").mockImplementation((async (args: Parameters<typeof realQuestionFindMany>[0]) => {
+  const rows = await realQuestionFindMany(args);
+  if (afterQuestionFindMany) {
+    const hook = afterQuestionFindMany;
+    afterQuestionFindMany = null;
+    await hook();
+  }
+  return rows;
+}) as never);
+let failQuestionUpdate: ((args: { data?: Record<string, unknown> }) => boolean) | null = null;
+const realQuestionUpdateMany = prisma.hostQuestion.updateMany.bind(prisma.hostQuestion);
+vi.spyOn(prisma.hostQuestion, "updateMany").mockImplementation(((args: Parameters<typeof realQuestionUpdateMany>[0]) => {
+  if (failQuestionUpdate && failQuestionUpdate(args as { data?: Record<string, unknown> })) {
+    failQuestionUpdate = null;
+    return Promise.reject(new Error("veritabani kesintisi"));
+  }
+  return realQuestionUpdateMany(args);
+}) as never);
 // Soru okumaları kaydedilir (geçiş, geri alınmaz): başka işletmenin sorusunun İÇERİĞİ hiç okunmuyor mu (sorgu düzeyinde pin).
 const questionReads: { where?: Record<string, unknown>; select?: Record<string, unknown> }[] = [];
 const realQuestionFindFirst = prisma.hostQuestion.findFirst.bind(prisma.hostQuestion);
@@ -44,7 +65,8 @@ import {
   hostQuestionButtonId,
   sweepHostQuestions,
 } from "@/lib/host-channel/answer";
-import { listConversationItems } from "@/lib/conversation-items/store";
+import { listConversationItems, openItemCounts } from "@/lib/conversation-items/store";
+import { listConversationDecisions } from "@/lib/decisions/store";
 import { eraseReservationData } from "@/lib/erasure";
 import { readFileSync } from "node:fs";
 import { hostChannelFlagsFromEnv } from "@/lib/host-channel/routing";
@@ -193,6 +215,8 @@ describe("WhatsApp cevap dilimi", () => {
     failBindingReadAt = 0;
     throwBindingReadAt = 0;
     bindingReads = 0;
+    afterQuestionFindMany = null;
+    failQuestionUpdate = null;
     vi.stubEnv("HOST_CHANNEL_ENABLED", "1");
     vi.stubEnv("HOST_QUESTIONS_ENABLED", "1");
     vi.stubEnv("HOST_CHANNEL_ORG_IDS", "*");
@@ -691,10 +715,13 @@ describe("WhatsApp cevap dilimi", () => {
       // Cevap mesajına bağlı (kalıcı kuyruk kesin hatada `reopenItemsAnsweredBy` ile geri açabilsin).
       expect((await prisma.conversationItem.findUniqueOrThrow({ where: { id: turnItem.id } })).answeredByMessageId).toBe(done.resultMessageId);
       expect(otherItem.effective).toBe("pending_host");
+      // Gelen kutusu rozeti / "Dikkat Gerektirenler" de aynı kuralla sayar (`stillOpenForHost`): öteki açık iş düşmez.
+      expect((await openItemCounts(prisma, { organizationId: h.orgId, conversationIds: [q.conversationId] })).get(q.conversationId)).toBe(1);
       // Karşı yön: anahtar kapalıyken (eski davranış) aynı mesaj öteki öğeyi "ev sahibi yazdı" ile kapatır — dışlamayı yapan anahtarlı sorgu.
       vi.stubEnv("HOST_QUESTIONS_ENABLED", "");
       const legacy = await listConversationItems(prisma, { organizationId: h.orgId, conversationId: q.conversationId });
       expect(legacy.find((i) => i.messageId === earlier.id)!.effective).toBe("host_replied");
+      expect((await openItemCounts(prisma, { organizationId: h.orgId, conversationIds: [q.conversationId] })).get(q.conversationId) ?? 0).toBe(0);
     });
 
     it("🚨 [Gönder] gönderimden ÖNCE veritabanı hatasıyla düşerse kilit bırakılır — yeniden teslimde aynı düğme gönderir (misafire tek mesaj)", async () => {
@@ -792,6 +819,33 @@ describe("WhatsApp cevap dilimi", () => {
       expect(lastText()).toContain(HOST_TEXTS.sendFailed);
     });
 
+    it("süpürge: kanal anahtarı kapatıldıysa durumu kurtarır ama WhatsApp'a mesaj GÖNDERMEZ; zamanlanmış işte aktarımla çağrılır", async () => {
+      const h = await seedHost(DIG_A, "+90 532 111 22 33");
+      const stuck = await seedQuestion(h, "wamid.SS", { status: "sending" });
+      await prisma.$executeRawUnsafe(`UPDATE "HostQuestion" SET "updatedAt" = $1 WHERE id = $2`, new Date(Date.now() - STUCK_MS - 1_000), stuck.questionId);
+      vi.stubEnv("HOST_CHANNEL_ENABLED", "");
+      const r = await sweepHostQuestions(new Date(), tr.t);
+      expect(r.recovered).toBe(1);
+      expect(tr.out).toHaveLength(0);
+      // Üretimde süpürge aktarımla çağrılır (aksi hâlde bildirim sessizce kaybolurdu).
+      expect(readFileSync("src/lib/scheduled-sync.ts", "utf8")).toMatch(/sweepHostQuestions\(new Date\(\), hostChannelTransport\(\)\)/);
+    });
+
+    it("🚨 süpürge yarışı: takılmış görünen soru okunduktan sonra yeniden alındıysa (kilit bırakılıp yeniden alındı — sürüm geri döner) dokunulmaz", async () => {
+      const h = await seedHost(DIG_A, "+90 532 111 22 33");
+      const stuck = await seedQuestion(h, "wamid.SS", { status: "sending" });
+      await prisma.$executeRawUnsafe(`UPDATE "HostQuestion" SET "updatedAt" = $1 WHERE id = $2`, new Date(Date.now() - STUCK_MS - 1_000), stuck.questionId);
+      const before = await question(stuck.questionId);
+      // Okumadan hemen sonra: [Gönder] kilidi bırakılıp yeniden alındı — durum ve sürüm aynı (ABA), satır taze.
+      afterQuestionFindMany = async () => {
+        await prisma.hostQuestion.update({ where: { id: stuck.questionId }, data: { status: "sending", version: before.version } });
+      };
+      const r = await sweepHostQuestions(new Date(), tr.t);
+      expect(r.recovered).toBe(0);
+      expect((await question(stuck.questionId)).status).toBe("sending");
+      expect(tr.out).toHaveLength(0);
+    });
+
     it("süpürge kurtardığı soruyu, kullanıcının rolü düştüyse (ya da bağlantı kapandıysa) o numaraya BİLDİRMEZ", async () => {
       const h = await seedHost(DIG_A, "+90 532 111 22 33");
       const stuck = await seedQuestion(h, "wamid.SS", { status: "sending" });
@@ -801,6 +855,160 @@ describe("WhatsApp cevap dilimi", () => {
       expect(r.recovered).toBe(1);
       expect((await question(stuck.questionId)).status).toBe("send_unverified");
       expect(tr.out).toHaveLength(0);
+    });
+
+    it("🚨 'sorudan sonra' = sorudan sonra ALINAN: senkronla geç gelen (sağlayıcı zamanı eski) misafir mesajı taslağı da gönderimi de durdurur", async () => {
+      const h = await seedHost(DIG_A, "+90 532 111 22 33");
+      const q = await seedQuestion(h, "wamid.Q1");
+      const row = await question(q.questionId);
+      // Misafir soru kurulmadan 5 sn önce "vazgeçtim" yazdı, mesaj bir sonraki senkronda (sorudan sonra) alındı.
+      await prisma.message.create({
+        data: {
+          conversationId: q.conversationId,
+          direction: "inbound",
+          senderName: "Misafir",
+          body: "never mind",
+          createdAt: new Date(row.createdAt.getTime() - 5_000),
+          ingestedAt: new Date(),
+        },
+      });
+      await deliver([text(DIG_A, "wamid.a1", "var, dolapta", "wamid.Q1")]);
+      expect(composeMock).not.toHaveBeenCalled();
+      expect((await question(q.questionId)).status).toBe("superseded");
+
+      // Gönderim anında da: önizlemeden sonra geç alınan misafir mesajı.
+      const q2 = await previewed(h, "wamid.Q2");
+      const r2 = await question(q2.questionId);
+      await prisma.message.create({
+        data: {
+          conversationId: q2.conversationId,
+          direction: "inbound",
+          senderName: "Misafir",
+          body: "sorry, I meant an iron",
+          createdAt: new Date(r2.createdAt.getTime() - 5_000),
+          ingestedAt: new Date(),
+        },
+      });
+      await deliver([button(DIG_A, "wamid.b2", hostQuestionButtonId(q2.questionId, q2.version, "send"))]);
+      expect(sendMock).not.toHaveBeenCalled();
+      expect((await question(q2.questionId)).status).toBe("superseded");
+    });
+
+    it("ev sahibinin kanal uygulamasından yazdığı (geç alınan) cevap da 'panelden yazıldı' sayılır — misafire ikinci mesaj gitmez", async () => {
+      const h = await seedHost(DIG_A, "+90 532 111 22 33");
+      const q = await seedQuestion(h, "wamid.Q1");
+      const row = await question(q.questionId);
+      await prisma.message.create({
+        data: {
+          conversationId: q.conversationId,
+          direction: "outbound",
+          authorType: "host",
+          senderName: "Ayla",
+          body: "Yes, in the closet.",
+          createdAt: new Date(row.createdAt.getTime() - 5_000),
+          ingestedAt: new Date(),
+        },
+      });
+      await deliver([text(DIG_A, "wamid.a1", "var, dolapta", "wamid.Q1")]);
+      expect(composeMock).not.toHaveBeenCalled();
+      expect((await question(q.questionId)).status).toBe("answered_elsewhere");
+    });
+
+    it("🚨 yarıda düşmüş ESKİ mesajın geç yeniden teslimi, sonra işlenen yeni cevabı bozmaz (metne ikinci kez eklenmez, önizleme geçerli kalır)", async () => {
+      const h = await seedHost(DIG_A, "+90 532 111 22 33");
+      const q = await seedQuestion(h, "wamid.Q1");
+      composeMock.mockRejectedValueOnce(new Error("model katmani dustu"));
+      await expect(deliver([text(DIG_A, "wamid.m1", "13'te gelin", "wamid.Q1")])).rejects.toThrow();
+      composeMock.mockResolvedValueOnce(OK_DRAFT);
+      await deliver([text(DIG_A, "wamid.m2", "pardon, 14'te", "wamid.Q1")]);
+      expect(composeMock).toHaveBeenLastCalledWith({ hostAnswer: "13'te gelin\npardon, 14'te", guestMessages: ["Is there a baby cot?"] });
+      const p2 = await question(q.questionId);
+      expect(p2.status).toBe("awaiting_confirm");
+      const calls = composeMock.mock.calls.length;
+      const out = tr.out.length;
+      // Meta eski m1'i şimdi yeniden teslim ediyor.
+      await deliver([text(DIG_A, "wamid.m1", "13'te gelin", "wamid.Q1")]);
+      expect(composeMock.mock.calls.length).toBe(calls);
+      expect(tr.out).toHaveLength(out);
+      expect(await question(q.questionId)).toMatchObject({ status: "awaiting_confirm", version: p2.version, previewMessageId: p2.previewMessageId });
+    });
+
+    it("bitmiş sorunun mesajı bağlamsız yeniden teslim edilirse BAŞKA bekleyen soruya bağlanmaz", async () => {
+      const h = await seedHost(DIG_A, "+90 532 111 22 33");
+      const q1 = await seedQuestion(h, "wamid.Q1");
+      composeMock.mockResolvedValueOnce(OK_DRAFT);
+      await deliver([text(DIG_A, "wamid.m1", "var, dolapta")]);
+      const v = (await question(q1.questionId)).version;
+      sendMock.mockResolvedValueOnce({ status: "sent", message: { id: "msg-1" } });
+      await deliver([button(DIG_A, "wamid.b1", hostQuestionButtonId(q1.questionId, v, "send"))]);
+      expect((await question(q1.questionId)).status).toBe("done");
+      const q2 = await seedQuestion(h, "wamid.Q2");
+      const before = await question(q2.questionId);
+      await prisma.systemLock.deleteMany({ where: { name: { startsWith: "host-in:" } } });
+      await deliver([text(DIG_A, "wamid.m1", "var, dolapta")]);
+      expect(await question(q2.questionId)).toEqual(before);
+    });
+
+    it("önizleme kaydı yazılamadan düşen tur (onay bekliyor, önizleme kimliği yok): yeniden teslim yeni önizleme gönderir, eski düğme geçersiz", async () => {
+      const h = await seedHost(DIG_A, "+90 532 111 22 33");
+      const q = await previewed(h);
+      await prisma.hostQuestion.update({ where: { id: q.questionId }, data: { previewMessageId: null } });
+      await prisma.systemLock.deleteMany({ where: { name: { startsWith: "host-in:" } } });
+      composeMock.mockResolvedValueOnce(OK_DRAFT);
+      await deliver([text(DIG_A, `wamid.a-${q.questionId}`, "var, dolapta", "wamid.Q1")]);
+      const row = await question(q.questionId);
+      expect(row.status).toBe("awaiting_confirm");
+      expect(row.version).toBeGreaterThan(q.version);
+      expect(tr.out.filter((o) => o.kind === "choices")).toHaveLength(2);
+      await deliver([button(DIG_A, "wamid.b1", hostQuestionButtonId(q.questionId, q.version, "send"))]);
+      expect(sendMock).not.toHaveBeenCalled();
+      expect(lastText()).toBe(HOST_TEXTS.stalePreview);
+    });
+
+    it("🚨 gönderimden SONRA kayıt düşerse: misafire giden cevap ev sahibine 'Gönderildi' der, cevap mesajı kimliği yine yazılır (öteki işler kapanmaz)", async () => {
+      const h = await seedHost(DIG_A, "+90 532 111 22 33");
+      const q = await previewed(h);
+      sendMock.mockResolvedValueOnce({ status: "sent", message: { id: "msg-77" } });
+      failQuestionUpdate = (args) => args.data?.status === "done";
+      await deliver([button(DIG_A, "wamid.b1", hostQuestionButtonId(q.questionId, q.version, "send"))]);
+      expect(sendMock).toHaveBeenCalledTimes(1);
+      expect(lastText()).toBe(HOST_TEXTS.sent);
+      expect(await question(q.questionId)).toMatchObject({ status: "sending", resultMessageId: "msg-77" });
+    });
+
+    it("🚨 karar kartı: WhatsApp'tan giden başka bir sorunun cevabı bekleyen kartı 'ev sahibi yazdı' ile kapatmaz (anahtar kapalıyken eski davranış)", async () => {
+      vi.stubEnv("HOST_DECISIONS_ENABLED", "1");
+      const h = await seedHost(DIG_A, "+90 532 111 22 33");
+      const q = await seedQuestion(h, "wamid.Q1");
+      const row = await question(q.questionId);
+      const asked = await prisma.message.create({
+        data: { conversationId: q.conversationId, direction: "inbound", senderName: "Misafir", body: "Can we check in at 13:00?", createdAt: new Date(row.createdAt.getTime() - 120_000) },
+      });
+      await prisma.decisionRequest.create({
+        data: { organizationId: h.orgId, conversationId: q.conversationId, messageId: asked.id, kind: "early_checkin", lang: "en", requestedTime: "13:00" },
+      });
+      sendMock.mockImplementation(async (input: { conversation: { id: string }; body: string; senderName: string }) => {
+        const m = await prisma.message.create({
+          data: { conversationId: input.conversation.id, direction: "outbound", authorType: "host", senderName: input.senderName, body: input.body },
+        });
+        return { status: "sent", message: m };
+      });
+      composeMock.mockResolvedValueOnce(OK_DRAFT);
+      await deliver([text(DIG_A, "wamid.a1", "var, dolapta", "wamid.Q1")]);
+      const v = (await question(q.questionId)).version;
+      await deliver([button(DIG_A, "wamid.b1", hostQuestionButtonId(q.questionId, v, "send"))]);
+      expect((await question(q.questionId)).status).toBe("done");
+      const ctx = { organizationId: h.orgId, conversationId: q.conversationId, timeZone: "Europe/Istanbul", now: new Date() };
+      expect((await listConversationDecisions(prisma, ctx))[0]!.effective).toBe("pending");
+      vi.stubEnv("HOST_QUESTIONS_ENABLED", "");
+      expect((await listConversationDecisions(prisma, ctx))[0]!.effective).toBe("host_replied");
+    });
+
+    it("misafir silmesi WhatsApp'a çıkmakta olan ('queued') soruyu da kapatır — sonra 'gönderildi'ye dönmez", async () => {
+      const h = await seedHost(DIG_A, "+90 532 111 22 33");
+      const q = await seedQuestion(h, "wamid.Q1", { status: "queued" });
+      await eraseReservationData(h.orgId, q.reservationId);
+      expect((await question(q.questionId)).status).toBe("superseded");
     });
 
     it("🚨 misafir silmesi: onay bekleyen taslak kapanır, cevap / taslak / özet silinir — eski [Gönder] misafire bir şey göndermez", async () => {
@@ -814,7 +1022,7 @@ describe("WhatsApp cevap dilimi", () => {
       // Silmenin kapattığı durum listesi = canlı soru durumları (biri değişirse öteki unutulmasın).
       const src = readFileSync("src/lib/erasure.ts", "utf8");
       const m = /status: \{ in: (\[[^\]]*\])/.exec(src.slice(src.indexOf("db.hostQuestion.updateMany(")));
-      expect(m && JSON.parse(m[1]!)).toEqual([...HOST_QUESTION_LIVE_STATUSES]);
+      expect(m && JSON.parse(m[1]!)).toEqual(["queued", ...HOST_QUESTION_LIVE_STATUSES]);
     });
   });
 

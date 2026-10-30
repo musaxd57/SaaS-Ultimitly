@@ -2,6 +2,7 @@ import "server-only";
 
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { LEGACY_AI_RESUME_SENDER, LEGACY_AI_SENDER_NAMES } from "@/lib/message-author";
+import { hostQuestionResultMessageIds } from "@/lib/host-channel/scoped-replies";
 import { calendarDateOf, todayKey } from "@/modules/availability/core";
 import {
   DECISION_SENDING_STALE_MS,
@@ -389,11 +390,15 @@ async function hostRepliedAfter(db: Db, organizationId: string, conversationId: 
     select: { createdAt: true },
   });
   if (!asked) return true;
-  const results = await db.decisionRequest.findMany({
-    where: { organizationId, conversationId, resultMessageId: { not: null } },
-    select: { resultMessageId: true },
-  });
-  const resultIds = results.map((r) => r.resultMessageId).filter((v): v is string => v !== null);
+  const [results, whatsAppReplies] = await Promise.all([
+    db.decisionRequest.findMany({
+      where: { organizationId, conversationId, resultMessageId: { not: null } },
+      select: { resultMessageId: true },
+    }),
+    // WhatsApp'tan onaylanıp giden cevap yalnız kendi sorusunu yanıtlar (öğe deposuyla aynı liste).
+    hostQuestionResultMessageIds(db, organizationId, [conversationId]),
+  ]);
+  const resultIds = [...results.map((r) => r.resultMessageId).filter((v): v is string => v !== null), ...whatsAppReplies];
   const reply = await db.message.findFirst({
     where: {
       conversationId,
@@ -430,7 +435,7 @@ async function withEffective(
 ): Promise<DecisionView[]> {
   if (rows.length === 0) return [];
   const conversationIds = [...new Set(rows.map((r) => r.conversationId))];
-  const [messages, conversations, resultIds] = await Promise.all([
+  const [messages, conversations, resultIds, whatsAppReplies] = await Promise.all([
     db.message.findMany({
       where: { id: { in: [...new Set(rows.map((r) => r.messageId))] }, conversationId: { in: conversationIds } },
       select: { id: true, createdAt: true },
@@ -448,10 +453,12 @@ async function withEffective(
       where: { organizationId, conversationId: { in: conversationIds }, resultMessageId: { not: null } },
       select: { resultMessageId: true },
     }),
+    // WhatsApp'tan onaylanıp giden cevap kartı "ev sahibi yazdı" ile kapatmaz (sert inceleme 10-30 A2; öğe deposuyla aynı liste).
+    hostQuestionResultMessageIds(db, organizationId, conversationIds),
   ]);
   const messageAt = new Map(messages.map((m) => [m.id, m.createdAt]));
   const convById = new Map(conversations.map((c) => [c.id, c]));
-  const decisionMessages = resultIds.map((r) => r.resultMessageId).filter((v): v is string => v !== null);
+  const decisionMessages = [...resultIds.map((r) => r.resultMessageId).filter((v): v is string => v !== null), ...whatsAppReplies];
   const pendingConvs = [...new Set(rows.filter((r) => r.status === "pending").map((r) => r.conversationId))].filter((id) => convById.has(id));
   const hosts =
     pendingConvs.length > 0

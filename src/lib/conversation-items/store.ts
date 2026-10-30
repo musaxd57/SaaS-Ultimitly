@@ -26,7 +26,7 @@ import {
 import type { TurnWithdrawal } from "./extract";
 import { itemOrdinalEnabled } from "./flag";
 import { hostDecisionsEnabled } from "@/lib/decisions/flag";
-import { hostChannelFlagsFromEnv } from "@/lib/host-channel/routing";
+import { hostQuestionResultMessageIds } from "@/lib/host-channel/scoped-replies";
 
 // ---------------------------------------------------------------------------
 // KONUŞMA ÖĞELERİ — KALICI KAYIT (09-26; migration 56). Karar kuralları `core.ts`te (saf); burası yalnız yazar/okur.
@@ -374,20 +374,6 @@ const HOST_OUTBOUND_WHERE: Prisma.MessageWhereInput = {
 async function decisionResultMessageIds(db: Db, organizationId: string, conversationIds: readonly string[]): Promise<string[]> {
   if (!hostDecisionsEnabled() || conversationIds.length === 0) return [];
   const rows = await db.decisionRequest.findMany({
-    where: { organizationId, conversationId: { in: [...conversationIds] }, resultMessageId: { not: null } },
-    select: { resultMessageId: true },
-  });
-  return rows.map((r) => r.resultMessageId).filter((v): v is string => v !== null);
-}
-
-/**
- * WhatsApp'tan onaylanıp giden cevaplar (ev sahibi soru kanalı, anahtar açıkken): ev sahibi YALNIZ kendisine sorulan turun sorusunu gördü →
- * bu mesaj konuşmanın öteki açık öğelerini "ev sahibi yazdı" ile kapatmaz (karar kartı kuralının aynısı; sert inceleme 10-30 A2). Turun kendi
- * öğeleri gönderimde açıkça "cevaplandı" yapılır (`host-channel/answer.ts`). Anahtar kapalıyken sorgu YOK (davranış birebir eski).
- */
-async function hostQuestionResultMessageIds(db: Db, organizationId: string, conversationIds: readonly string[]): Promise<string[]> {
-  if (!hostChannelFlagsFromEnv().questions || conversationIds.length === 0) return [];
-  const rows = await db.hostQuestion.findMany({
     where: { organizationId, conversationId: { in: [...conversationIds] }, resultMessageId: { not: null } },
     select: { resultMessageId: true },
   });
