@@ -527,3 +527,119 @@ karar kalıntısı, yalnız selam, güvenlik uyarısının yazma istisnası, ist
 kodlu yol 2, inceleme düzeltmeleri 17 (sözcük sınırları, kutu–boş olumsuzluğu, Almanca bileşik, çıkış saati etiketleri, uyarı sırası, öncelik
 ölçütü, gezinme göstergesinin dört düzeltmesi, Rusça çıplak "нет ключа"). İlk koşuda 2 yaşayan (KA3 olasılık sorusu, KA6 veto kalıbındaki
 bildirim) → iki pin eklendi, yeniden koşu 2/2.
+
+## 10-30 öğle — K-1029-A v2 + v3: iki sert inceleme turu (dün geceki kod push EDİLMEDİ, önce düzeltildi)
+
+### v2 — Opus 5.5 derin incelemesinin P1'leri
+Opus incelemesi (`scratchpad/opus-k1029a-review.md`, 12 bulgu + P3'ler) dün geceki K-1029-A kodunun **eski kurala göre gerilediği** yerleri
+buldu. Kök neden: eskiden "ev sahibine yönlendirme" cümlesi `bilgim yok` kuralıyla cevabın TAMAMINI tutuyordu ve bu, yanındaki zayıf
+cümleleri de örtüyordu. Silme bu ağı kaldırınca bazı şeyler misafire gitmeye, bazı sorular sessizce "cevaplandı" kapanmaya başladı.
+Opus'un somut örneklerinden 58 vakalık bir tablo kuruldu: **v1 7/58 → v2 58/58**.
+
+| # | v1'de misafire giden / olan | v2 |
+|---|---|---|
+| F5 | "I'm not sure about the sauna hours; please message your host." → "I'm not sure about the sauna hours." gider, sauna sorusu "cevaplandı" | Silmeden sonra kalan metin şunlardan birini söylüyorsa cevabın TAMAMI tutulur (eski davranış): belirsizlik, yetersizlik, paylaşılmamış bilgi, müsaitliğe bağlılık, özür, ret. |
+| F1 | "Otopark: ev sahibinize sorabilirsiniz." → "Otopark." gider | Baş kısım yalnız konu etiketi ya da nezaketse bütün cümle çıkar, o konu açık kalır. |
+| F6 / F11 | "Binada sauna var. Detaylar için ev sahibinize yazabilirsiniz." → sauna "cevaplandı" | Konusuz yönlendirme önceki cümlenin konusunu taşır. |
+| F7 | "…message your host; your host can also see it." AYNEN gidiyordu | Bildirim taşıyan başvurma cümlesi cevabın tamamını tutar. |
+| F9 | Gaz talimatlı cümle bütün olarak silinip ocak cevabı talimatsız gidiyordu | Yalnız "and message your host" kuyruğu çıkar; temiz ayrılamıyorsa cevabın tamamı tutulur. |
+| F3 / F4 / F8 / F10 / F12 / F2 | Bunlar gidiyordu: "110" numarası güvenlik uyarısı sanılıyordu; satır sonuyla bölünmüş cümle; yalnız teşekkür; taslakta yasaklı cümle; DE / FR / ES / RU kapanış; yedi dilde 52 kalıp | Hepsi düzeltildi. |
+
+### v3 — dört mercekli çekişmeli inceleme (Ultracode iş akışı; 4 bulucu + 4 doğrulayıcı ajan, her bulgu ayrıca problandı)
+Dört mercek: aklama (yasaklı cümle silinince geriye kalanın misafire yanlış gitmesi), aşırı uygulama, güvenlik + bağlantı, kapsam + maliyet.
+Çıkan 44 bulgunun 43'ü doğrulandı. Doğrulanmayan tek bulgu: tutulan cevabın `reply` alanında yasaklı cümle duruyor, ama hiçbir yol onu
+göndermiyor. v2 yapısal olarak yeniden kuruldu:
+
+| Bulgu sınıfı | v2'de misafire giden / olan (örnek) | v3 |
+|---|---|---|
+| Güvenlik adımı başvurmadan SONRA (launder-01) | "If you smell gas, message your host and leave the apartment immediately." → cümle bütün silinip "leave" adımı kayboluyordu (EN / FR / ES / RU, CO alarmı) | Başvurmadan sonra adım varsa ya da temiz ayrılamıyorsa cevabın TAMAMI tutulur ve taslak BOŞ kalır. Adımsız ise bütün cümle çıkar. Tehlike zincirinde yalnız "arayın" kalır. |
+| Göndergesel / konulu koşullu yönlendirme (launder-02, -07) | "We do have a sauna. If you have any questions about it, please message your host." → "We do have a sauna." gider, açılış saati "cevaplandı" | Silme dört kapsamdan biri sayılır. Kapanış: kalan gider. Konulu: kalan metin aynı konuya değiniyorsa tutulur. Koşullu konulu: istek açık kalır. Göndergesel ("bu konuda / about it / for details"): neyin cevapsız kaldığı belli olmadığı için cevabın TAMAMI tutulur. |
+| Etiket baş kısmı / başlık satırı (launder-03) | "Speaking of the sauna." / "**Parking**" tek başına gidiyordu | Etiket sözcükleri yedi dile genişledi ("Regarding / Was … betrifft / Что касается / -e gelince"). Gövdesi tamamen silinen başlık da düşer. |
+| Kalan metin "bilmiyorum / yardımcı olamam / listelenmemiş" (launder-04, -05) | "Unfortunately, I can't help with the airport transfer. Please contact your host." → ilk cümle gidiyordu | Kalan metin sınavı yedi dilde tek kalıpla yapılır (yetersizlik, tahmin, "not listed", "host hasn't mentioned"). |
+| "only if" kuyruğu (launder-06) | "A baby cot can be provided, but only if you message your host in advance." → koşulsuz izin gidiyordu | Kısıtlayan kuyrukta bütün cümle çıkar. |
+| Zamir önceki cümlede (launder-08) | "Your host Mehmet lives nearby. If anything comes up, just message him." AYNEN gidiyordu | Önceki cümle ev sahibini andıysa zamirli talimat da silinir; üçüncü kişi (şoför, temizlikçi, komşu) anılıyorsa silinmez. |
+| Aşırı uygulama (overhold-3 … -12) | "No need to tell your host" / "The door sensor will alert the host" / "Kodu tekrar yazın" / "let me know your arrival time" / "Bize bildirdiğiniz sorun çözüldü" tutuluyordu | Hepsi artık dokunulmaz: olumsuz yapı, cihaz ya da üçüncü kişi öznesi, nesneli "yazın", misafirden kendi bilgisini isteme, "sorun" adı. |
+| Bağlantı (safety-wiring) | Tutulan cevapta yasaklı cümle "AI öner" taslağına, Ayarlar testine ve demoya yazılıyordu | Tutulan cevapta bütün yüzeyler silinmiş taslağı (`hostContactDraft`) kullanır. Ayarlar test rotası silme kaydını döndürmez. |
+| **Kapsam (cost-coverage-01…08)** | 140 gündelik biçimin 102'si misafire gidiyordu: TR "ev sahibinizle iletişim kurabilirsiniz / temasa geçin / e-posta gönderin / yazışabilirsiniz / koordine edin", "Sorunuz varsa yazın", "sormaktan çekinmeyin"; EN "coordinate / arrange … with your host", "report it to your host", "feel free to ask!"; DE "Kontakt aufnehmen", "sich an uns wenden"; FR "je vous conseille de contacter"; ES "ponerse en contacto con"; RU "Сообщите об этом хозяину"; AR "يرجى إبلاغ المضيف". Konulu olanlarda erken giriş / geç çıkış sessizce "cevaplandı" kapanıyordu | 140'ın 138'i yakalanıyor. İkisi bilerek dışarıda: "zur Verfügung stehen" ve "a su disposición" (talimat değil "buradayız" — soru 5). 67 cümlelik "dokunulmaz" listesi temiz: birinci kişi "I'll mention it to your host", cihaz / üçüncü kişi öznesi, ilgi hâli "хозяина", nesneli "ayarlayabilirsiniz", "nicht kontaktieren". Konulu biçimlerde istek açık kalır (altı dilde pinli). |
+| Bilgi isteği (cost-coverage-08) | v2'nin istisnası "If anything comes up, let us know the details." cümlesini de muaf tutuyordu (gidiyordu) | İstisna yalnız misafirin KENDİ bilgisini isteyen cümlede ("let me know your arrival time") geçerli. Genel ihtiyaç koşulluysa cümle kapanıştır. |
+| Süre (cost-coverage-09…11) | Başvurma cümle başındayken uzun virgül zinciri 50 binde 128 sn sürüyordu. Çapasız `\p{L}{2,}` 25–31 sn, sondaki ayraç / nokta dizisi 3–5 sn | Hepsi doğrusal (50 binde en ağırı yaklaşık 0,4 sn). 14 yeni süre pini var; 7'si eski kodda kırmızı. |
+
+**Kendi bulduğum (inceleme dışı):** "Ev sahibiniz size haber verecek" gibi ev sahibi öznesiyle verilen sözü süzgeç "haber verme" sanıp
+siliyordu. Bu çıktı vetosunu kör ediyordu: veto sözü göremiyor ve cevabın geri kalanı gidiyordu (R13'ten beri var). Düzeltme: haber verme kalıbı yalnız
+misafirin kipiyle ("haber verin / verebilirsiniz") çalışıyor. Ulaç biçimi ("arayıp / yazıp") yalnız yönelme / belirtme ekli ev sahibiyle
+çalışıyor. Tekrar oynatma bu daraltmanın bir yan etkisini yakaladı ("Havluların yerini ev sahibiniz size bildirebilir" gidiyordu). "size
+bildirebilir / söyleyebilir / açıklayabilir" bilgi yönlendirmesine eklendi, pinli.
+
+**Tekrar oynatma (3.274 gerçek model cevabı, model çağrısı yok):**
+- K-1029-A öncesine (0e0e1a1e) göre kaybedilen tutuş 0.
+- Sistem düzeyinde yeni tutuş 6.
+- Kalkan tutuş 7: hepsi "gerçek bilgi + başka konu için yönlendirme"; o konu size açık kalır, biri aşağıda soru 2.
+- v2 → v3: 3 yeni tutuş, 0 gevşeme.
+
+**Kırmızı-önce:** yeni testlerin 232'si v2'de (cee4a57d) kırmızı. İlgili birim testleri 141 dosya / 6.899, entegrasyon 13 dosya / 226 yeşil.
+
+**Mutasyon (`scripts/mutation-run.mjs`, ayrık worktree, M0 yeşil) — 42/42.** 42 mutant: süzgeç 16, dedektör 20, taslak bağlantısı 6.
+- Süzgeç mutantları: kapsamlar, konulu dokunuş, güvenlik keep / hold / adım, saf koşul sınırı, kısıtlayan kuyruk, başlık düşürme, artık,
+  kalan metin sınavı, güvenlik kuyruğu kapanışı, boş taslak, zamir, "diğer konular", üç süre düzeltmesi.
+- Dedektör mutantları: üçüncü kişi, birinci kişi, iki bilgi isteği ayrımı, söz öznesi, ulaç ekli, Rusça yönelme, "nicht", birliktelik,
+  Arapça "سؤال", "varsa", iyelik ekli "host's", "not reachable", "bildirebilir", "kurmanıza gerek yok", "нам / мне", "bei weiteren
+  Fragen", "sich … an uns", "iletişim kur" iki dedektör.
+- İlk koşu 34/42. Yaşayan 8 mutant pinlendi ve yeniden koşuda 8/8 öldü. A1: üçüncü kişi öznesinde nesne aralıklı iş fiili. A19 / A20: iki
+  dedektör birbirini örtüyordu, her biri yalnız kendi yakaladığı biçimle pinlendi. W1 / W2 / W4 / W5 / W6: tutulan cevabın silinmiş taslağı
+  hiçbir testle sınanmıyordu (kanal izi, kıdemli okuyucunun yeniden yazdığı taslağın izi, QR izi, Ayarlar önizlemesi, tanıtım demosu); beş
+  entegrasyon pini eklendi.
+
+**Bilinen fazla tutuş / fazla açma (güvenli yön, kodlanmadı):**
+- "…If anything comes up, let us know the details." cevabın tamamını tutar ("details" göndergesel sayılıyor).
+- İspanyolcada silinen cümlenin "con" sözcüğü gevşek eşleşmeyle cevaplanmış Wi-Fi isteğine de bağlanıp onu açık bırakabiliyor. Misafire cevap
+  yine gider; size gereksiz bir "açık iş" düşer.
+- "Checking out at 8 is fine; please let your host know…" uzun biçimi ve adres + "for directions from the airport" konulu dokunuşla tutulur.
+- Konulu dokunuş ("Otopark P2'de. Otopark için ev sahibinize yazın.") tutulur.
+
+### Sabah soruları (K-1029-A v3 — önce / sonra)
+1. **Ret cümlesi.** Örnek: "Merhaba, güvenlik nedeniyle başka bir dairenin giriş kodunu paylaşamam. Kendi dairenizin giriş bilgileri için ev
+   sahibinize platform üzerinden yazabilirsiniz."
+   - **Önce ve bugün:** cevabın tamamı tutulur.
+   - **Seçenek:** yönlendirme silinir, "…paylaşamam." misafire gider, soru size açık kalır.
+   - Hangisi?
+2. **Başka kaynağa havale.** Örnek: "Bu konuda en net bilgiyi yerel ulaşım uygulamalarından … alabilirsiniz; ev sahibiniz de size yönlendirme
+   konusunda yardımcı olabilir."
+   - **Önce:** tamamı tutulurdu.
+   - **Bugün:** ilk cümle gider, soru size açık kalır.
+   - "Uygulamalara bakın" türü cevap gitsin mi, yoksa bu tür havale de tutulsun mu?
+3. **Teşekküre "rica ederim".** Örnek: "Rica ederim, ne zaman ihtiyaç olursa yazabilirsiniz."
+   - **v1:** aynen giderdi.
+   - **Bugün:** geriye yalnız "Rica ederim." kalır, bu yüzden tamamı tutulur (kapanışa sessizlik kuralıyla uyumlu).
+   - **Seçenek:** "Rica ederim." gitsin.
+4. **Ev sahibini anlatan baş kısım.** Örnek: "Ev sahibiniz Ayşe Hanım çok yardımseverdir, bir sorun olursa ona yazın."
+   - **Bugün:** "Ev sahibiniz Ayşe Hanım çok yardımseverdir." gider.
+   - Tek başına gitsin mi, yoksa bu baş kısım da silinsin mi?
+5. **Bilerek yakalanmayan biçimler** (birinci savunma istem yasağı): ev sahibi anılmadan "send them a message"; adıyla "Please message Ayşe
+   if anything breaks"; "Bei Fragen stehen wir Ihnen gerne zur Verfügung" / "estamos a su disposición" (talimat değil, "buradayız").
+   - Eklensin mi?
+6. **"Telefon numarası paylaşılmamış." tek başına** (yönlendirmesiz).
+   - **Bugün:** "bilgim yok" dedektörü tanımıyor, gider.
+   - Dedektöre "<bilgi> paylaşılmamış / hasn't been shared" eklensin mi? Yalnız tutma yönünde çalışır.
+7. **Kısmi cevap + konusuz yönlendirme.** Örnek: "Binada sauna var. Detaylar için ev sahibinize yazabilirsiniz."
+   - **Dün gece (v1):** "Binada sauna var." giderdi, sauna "cevaplandı" kapanırdı.
+   - **Bugün (v3):** neyin cevapsız kaldığı belli olmadığı için cevabın TAMAMI tutulur, size gelir.
+   - **Seçenek:** "Binada sauna var." gitsin, sauna sorusu size AÇIK kalsın.
+   - Hangisi? (K-1029-A "doğru cevap gider" diyor; ama "detaylar" neyin cevaplanmadığını söylemiyor.)
+
+### K-1029-C — ek / koşul sezgileri: "yalnız sıkılaştıran" yamaların hepsi reddedildi (ölçüldü, kod DEĞİŞMEDİ)
+Envanterdeki gevşetebilen beş sözcük ağı grubu için bir iş akışı koştu: G1 varsayımsal / geçmiş zaman eki, G2 olumsuzluk, G3 CO dedektörü,
+G4 acil ağı nötrleyicileri, G5 şikâyet koşulu. Tasarımcı ajanlar 23 "yalnız sıkılaştırır" yama önerdi. Her öneriyi ayrı bir doğrulayıcı
+sınadı: değişikliği yeniden kurdu, testlerdeki 40.697 dizgeyi eski ve yeni koddan geçirdi, karşı örnek aradı. **23'ünün 23'ü reddedildi.**
+Her biri yeni yanlış alarm üretiyordu; 10'u bir yerde gevşetiyordu. Örnekler (yama → doğrulayıcının bulduğu karşı örnek):
+- G1 ("ne olursa olsun" deyimi koşul değil): "Yangın çıktı ne olursa olsun yardım edin!" doğru yakalanıyor. Ama "Yangın çıkarsa çıkalım
+  mı?" varsayımsal sorusu da gerçek olay sanılıyor.
+- G2 (olumsuzluk kapsamı): "No way the fire is under control" düzeliyor. Ama "I do not smell the smoke anymore, thank you" / "No hay fuego,
+  sigue saliendo agua" yangın alarmına dönüyor.
+- G3 (CO dedektörü "Sorry if …" kalıbı): "Sorry if the CO alarm goes off tonight, we will be cooking a lot." acil sayılıyor.
+- G4 ("bilinci yok", "break-in"): "Komşuların hiç bilinci yok, gece 3'te müzik açıyorlar" / "There was a break in the water supply" /
+  "Das Bett ist eingebrochen" acil sayılıyor.
+- G5 ("sorun olmaz demiştiniz ama…"): "Geç çıkış için sorun olmaz demiştiniz ama yine de teyit edeyim…" şikâyet sayılıyor.
+
+**Sonuç:** bu sınıfın sözcük kalıbıyla kapatılamayacağı ölçüldü. Kurucunun K-1029-C yönü doğrulanmış oldu: ek / koşul eki karar vermesin,
+anlamı model okusun. Bugünkü kod güvenli yönde (fazla tutar) kaldı. Ayrıntı ve tüm karşı örnekler iş akışı kaydında
+(`wexl11rzw`, `scratchpad/k1029c/`).

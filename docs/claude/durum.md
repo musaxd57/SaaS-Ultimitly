@@ -60,7 +60,7 @@ konulu / göndergesel (göndergeselde ve kalan metin aynı konuya değiniyorsa c
 (başvurmadan sonra adım → tamamı tutulur, taslak boş) · kalan metin sınavı yedi dilde tek kalıp · kapsam turu 140 gündelik biçimden 138'i
 (iki "buradayız" biçimi bilerek dışarıda) · bilgi isteği ayrımı (kendi bilgisi muaf, genel ihtiyaç koşullu kapanış değil) · ev sahibi ÖZNE +
 söz süzgecin işi değil (veto kör olmasın) · süre doğrusal (50 binde 128 sn → 0,4 sn; 14 süre pini) · tekrar oynatma: K-1029-A öncesine
-göre kaybedilen tutuş 0, v2 → v3 gevşeme 0 · @@MUTLINE@@ · K-1029-C: 23 "yalnız sıkılaştıran" sözcük yamasının 23'ü çekişmeli doğrulamada
+göre kaybedilen tutuş 0, v2 → v3 gevşeme 0 · mutasyon 42/42 (ilk koşu 34; yaşayan 8 — üçüncü kişi, iki dedektör örtüşmesi, beş taslak bağlantısı — pinlendi, 8/8) · K-1029-C: 23 "yalnız sıkılaştıran" sözcük yamasının 23'ü çekişmeli doğrulamada
 reddedildi (model okusun yönü ölçüldü, kod değişmedi). Ayrıntı + sabah soruları 1–7 `docs/INCELEME-2026-10-28-gece-dongusu.md` 10-30 öğle.
 
 **10-30 sabah — K-1029-A v2 (Opus sert incelemesi F1–F12 P1/P2):** v1 7/58 vakada doğruydu (silme "bilgim yok" ağının yerini almıştı:
