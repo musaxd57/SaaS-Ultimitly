@@ -206,6 +206,8 @@ model Organization {
   operationalEvents     OperationalEvent[]
   historyLearnRuns      HistoryLearnRun[]
   propertyInstructions  PropertyInstruction[]
+  hostChannelBindings   HostChannelBinding[]
+  hostQuestions         HostQuestion[]
 }
 
 model User {
@@ -278,6 +280,8 @@ model User {
   recoveryCodes    TwoFactorRecoveryCode[]
   emailOutbox      EmailOutbox[]
   resetChallenges  PasswordResetChallenge[]
+
+  hostChannelBindings HostChannelBinding[]
 
   @@index([organizationId])
   // verify-email looks a user up BY token hash on every emailed-link click —
@@ -691,6 +695,8 @@ model Conversation {
   // In practice this binds exactly two writers: the channel sync (provider
   // reservation UUID) and QR guest chat ("qr-chat:{propertyId}:{reservationId}").
   // Their value spaces cannot collide. Both handle the resulting P2002.
+  hostQuestions HostQuestion[]
+
   @@unique([propertyId, externalReservationId])
   @@index([propertyId])
   // Migration 77 (gece-4 S8-01): rezervasyon silinince FK eylemi (SET NULL) her satırda tabloyu taramasın (mülk / hesap silme 15 sn → 0,1 sn).
@@ -2099,4 +2105,76 @@ model VerifiedAnswer {
 
   @@index([propertyId, kind, language])
   @@index([organizationId])
+}
+
+/// EV SAHİBİ KANAL BAĞLANTISI (migration 88, kurucu 10-30 "WhatsApp'ı hemen bağla"; tasarım `docs/TASARIM-2026-10-30-whatsapp-ev-sahibi-dongusu.md` §6).
+/// Ev sahibinin bildirim aldığı adres (ilk sağlayıcı WhatsApp). Numara şifreli + HMAC arama anahtarı; düz numara saklanmaz.
+model HostChannelBinding {
+  id               String    @id @default(cuid())
+  organizationId   String
+  userId           String
+  provider         String // whatsapp_cloud | fake (uygulama kapalı küme)
+  addressHash      String // HMAC-SHA256(HOST_CHANNEL_HMAC_SECRET, provider + E.164) — gelen mesajı bulma anahtarı
+  addressEnc       String // şifreli E.164 (aad = id) — maskeli gösterim
+  status           String    @default("pending") // pending | active | revoked
+  verifyCodeHash   String?
+  verifyExpiresAt  DateTime?
+  verifyAttempts   Int       @default(0)
+  verifiedAt       DateTime?
+  optInAt          DateTime?
+  optInTextVersion String?
+  userSessionEpoch Int       @default(0) // doğrulama anındaki User.sessionEpoch; farklıysa askıda
+  lastInboundAt    DateTime? // ev sahibinden son gelen mesaj (serbest metin penceresi)
+  revokedAt        DateTime?
+  revokedReason    String? // user | opt_out | epoch | operator | provider_blocked
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, addressHash])
+  @@index([organizationId, status])
+  @@index([userId])
+}
+
+/// EV SAHİBİNE SORU (migration 88): bir misafir turu için ev sahibine giden soru ve cevabının yaşam döngüsü. Misafir metni / adı SAKLANMAZ;
+/// ev sahibinin cevabı ve taslak şifreli, soru bitince 7 gün sonra boşaltılır; satır 90 günde silinir.
+model HostQuestion {
+  id                String    @id @default(cuid())
+  organizationId    String
+  conversationId    String
+  bindingId         String? // düz kimlik (bağlantı silinse de iz kalır)
+  kind              String // info | decision | alert
+  turnMessageId     String // turun son misafir mesajı (düz kimlik)
+  itemIdsJson       String? // opak öğe kimlikleri (JSON string[])
+  decisionId        String?
+  status            String    @default("queued")
+  version           Int       @default(0) // CAS
+  idempotencyKey    String // "turn:<turnMessageId>" | "decision:<decisionId>:v<n>"
+  providerMessageId String?   @unique
+  previewMessageId  String?   @unique
+  answerMessageId   String?   @unique
+  answerEnc         String?
+  draftEnc          String?
+  draftHash         String?
+  draftLang         String?
+  composeCount      Int       @default(0)
+  resultMessageId   String?
+  fallbackEmailAt   DateTime?
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  readAt            DateTime?
+  answeredAt        DateTime?
+  expiresAt         DateTime
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, status])
+  @@index([conversationId, status])
+  @@index([bindingId, status])
 }

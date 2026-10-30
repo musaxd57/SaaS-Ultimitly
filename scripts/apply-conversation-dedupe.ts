@@ -84,6 +84,7 @@ export interface ApplyOutcome {
     decisionRequest: number;
     aiGeneration: number;
     guestCommitment: number;
+    hostQuestion: number;
   };
   conversationsBefore: number;
   conversationsAfter: number;
@@ -119,7 +120,10 @@ const HANDLED_REFERENCES = {
   // SESSİZCE silinirdi; silmeden ÖNCE keeper'a taşınır.
   // `GuestCommitment` (10-10, migration 62): FK Cascade — kaybeden silinince misafire verilmiş AÇIK söz (ev sahibinin işareti) SESSİZCE
   // silinirdi; silmeden ÖNCE keeper'a taşınır.
-  repoint: ["MessageOutbox", "RiskEvent", "ShadowVerdict", "Signal", "ConversationItem", "DecisionRequest", "AiGeneration", "GuestCommitment"],
+  // `HostQuestion` (10-30, migration 88): FK Cascade — kaybeden silinince ev sahibine WhatsApp'tan sorulmuş, cevap bekleyen soru SESSİZCE
+  // silinirdi (ev sahibinin cevabı bağlanacak soru bulamazdı); silmeden ÖNCE keeper'a taşınır. Tekillik `(organizationId, idempotencyKey)`
+  // mesaj kimliğini içerir (kimlikler küresel), taşıma çakışmaz.
+  repoint: ["MessageOutbox", "RiskEvent", "ShadowVerdict", "Signal", "ConversationItem", "DecisionRequest", "AiGeneration", "GuestCommitment", "HostQuestion"],
 } as const;
 
 export function inventoryConversationReferences(): string[] {
@@ -292,7 +296,7 @@ export async function applyConversationDedupe(
           messagesDropped: 0,
           messagesMovedUnique: 0,
           messagesMovedNull: 0,
-          refsRepointed: { messageOutbox: 0, riskEvent: 0, shadowVerdict: 0, signal: 0, conversationItem: 0, decisionRequest: 0, aiGeneration: 0, guestCommitment: 0 },
+          refsRepointed: { messageOutbox: 0, riskEvent: 0, shadowVerdict: 0, signal: 0, conversationItem: 0, decisionRequest: 0, aiGeneration: 0, guestCommitment: 0, hostQuestion: 0 },
           conversationsBefore,
           conversationsAfter: conversationsBefore,
           messagesBefore,
@@ -329,7 +333,7 @@ export async function applyConversationDedupe(
       let dropped = 0;
       let movedUnique = 0;
       let movedNull = 0;
-      const refs = { messageOutbox: 0, riskEvent: 0, shadowVerdict: 0, signal: 0, conversationItem: 0, decisionRequest: 0, aiGeneration: 0, guestCommitment: 0 };
+      const refs = { messageOutbox: 0, riskEvent: 0, shadowVerdict: 0, signal: 0, conversationItem: 0, decisionRequest: 0, aiGeneration: 0, guestCommitment: 0, hostQuestion: 0 };
 
       for (const key of keys) {
         // ── 0) DETERMİNİSTİK FOR UPDATE — id ASC sırayla, TEK TEK ─────────────
@@ -482,6 +486,13 @@ export async function applyConversationDedupe(
         // Misafire verilen sözler (cascade FK, migration 62): aynı gerekçe — silmeden ÖNCE keeper'a.
         refs.guestCommitment += (
           await tx.guestCommitment.updateMany({
+            where: { conversationId: { in: loserIds } },
+            data: { conversationId: plan.keeper.id },
+          })
+        ).count;
+        // Ev sahibine giden sorular (cascade FK, migration 88): aynı gerekçe — silmeden ÖNCE keeper'a.
+        refs.hostQuestion += (
+          await tx.hostQuestion.updateMany({
             where: { conversationId: { in: loserIds } },
             data: { conversationId: plan.keeper.id },
           })

@@ -53,6 +53,8 @@ const KNOWN_GLOBAL_OR_PROPERTY_IDS: Record<string, string> = {
   "Reservation:propertyId,sourceReference": "iCal UID mülk kapsamlı — elle .ics satırı kaynaksız (calendarSourceId NULL); kaynak kapsamı ayrı karar",
   "Conversation:propertyId,externalReservationId": "konuşma kimliği mülk + rezervasyon — bağlantı kapsamı V0.7 kolon sözleşmesinden sonra",
   "Message:conversationId,externalId": "mesaj kimliği konuşma kapsamlı (konuşma mülk kapsamlı) — yukarıdakiyle birlikte taşınır",
+  "HostQuestion:providerMessageId":
+    "KAPSAM DIŞI: ev sahibine giden WhatsApp mesajının sağlayıcı kimliği (Meta wamid, sağlayıcıda küresel eşsiz) — misafir kanal kimliği değil (migration 88)",
 };
 
 describe("değişmez 3 — dış kimlik bağlantı kapsamsız eşsiz sayılmaz (büyüyemez liste)", () => {

@@ -270,6 +270,7 @@ describe("apply — referans envanteri", () => {
       "ConversationItem", // 09-26 (migration 56): FK Cascade — repoint listesinde (silinirse açık istek kaybolurdu)
       "DecisionRequest", // 10-02 (migration 59): FK Cascade — repoint listesinde (silinirse "karar bekliyor" kartı kaybolurdu)
       "GuestCommitment", // 10-10 (migration 62): FK Cascade — repoint listesinde (silinirse misafire verilmiş açık söz kaybolurdu)
+      "HostQuestion", // 10-30 (migration 88): FK Cascade — repoint listesinde (silinirse ev sahibine sorulmuş, cevap bekleyen soru kaybolurdu)
       "Message",
       "MessageOutbox",
       "RiskEvent",
@@ -465,6 +466,7 @@ describe("apply — başarı yolu", () => {
       decisionRequest: 1,
       aiGeneration: 1,
       guestCommitment: 1,
+      hostQuestion: 0,
     });
     expect(await prisma.aiGeneration.count({ where: { conversationId: a.id } })).toBe(1);
     expect(await prisma.guestCommitment.count({ where: { conversationId: a.id, status: "open" } })).toBe(1);

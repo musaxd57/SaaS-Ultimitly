@@ -28,6 +28,8 @@ const KEPT: Record<string, string> = {
   CheckoutIntent: "ödeme niyeti — onaya bağlı (onay korunur); demo hesabında ödeme ekranı açılmaz (migration 82)",
   ChannelConnection: "bağlantı VARSA sıfırlama baştan reddedilir (canlı bağlantı kemeri) — demo hesabında yok",
   CalendarSource: "takvim bağlantısı VARSA sıfırlama baştan reddedilir (canlı bağlantı kemeri; inceleyici eklerse operatör elle bakar)",
+  HostChannelBinding:
+    "ev sahibinin WhatsApp bağlantısı (migration 88) — kullanıcıya bağlı (User korunur); demo hesabında bağlanmaz, bağlandıysa kendi akışıyla kapatılır",
   ChannelListing: "bağlantıya bağlı ilan eşlemesi — bağlantıyla birlikte (demo hesabında yok)",
   ErasureTombstone: "silme koruma kaydı — yeniden içe aktarmayı engeller, kendi kuralıyla",
   StorageDeletion: "depo silme kuyruğu — sıfırlama YAZAR (dosyalar silinsin), silmez",

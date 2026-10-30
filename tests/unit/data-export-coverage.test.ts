@@ -73,6 +73,10 @@ const EXCLUDED: Record<string, string> = {
     "Modelin önerdiği taslak — türetilmiş; kaynağı (mesajlar) dökümde, onaylanan taslak bilgi tabanı kalemi olarak dökümde",
   OperationalEvent:
     "⚠️ KARAR (avukat paketi, tasarım §5): takip numarası olay günlüğü — iç teşhis; DOĞRUDAN kişisel veri taşımaz (kapalı olay adı + anahtar başına kalıplı kimlik / kod / sayı); Paddle abonelik / işlem kimliği yalnız işletmeye bağlı satırda (işletme silinince satırla gider), 90 gün",
+  HostChannelBinding:
+    "Ev sahibinin bildirim adresi (migration 88) — numara yalnız şifreli + HMAC anahtarı, doğrulama özetleri; kimlik bilgisi niteliğinde (bağlantı ayarlardan görülür / kapatılır), dökümde düz numara olmaz",
+  HostQuestion:
+    "Ev sahibine giden soru kuyruğu (migration 88) — geçici iş satırı (metinler şifreli, 7 günde boşalır, 90 günde silinir); misafir yazışmasının kendisi (mesajlar) dökümde",
 };
 
 const EXPORT_SRC = readFileSync("src/lib/data-export.ts", "utf8");

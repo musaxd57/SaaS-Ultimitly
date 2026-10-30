@@ -173,6 +173,7 @@ export const CLEANUP_REPOINTED_MODELS = [
   "ConversationItem",
   "DecisionRequest",
   "GuestCommitment",
+  "HostQuestion",
   "MessageOutbox",
   "RiskEvent",
   "ShadowVerdict",
@@ -185,6 +186,8 @@ async function repointConversationChildren(tx: Prisma.TransactionClient, fromId:
   await tx.conversationItem.updateMany(move);
   await tx.decisionRequest.updateMany(move);
   await tx.guestCommitment.updateMany(move);
+  // Ev sahibine giden soru (migration 88, FK Cascade): silinirse ev sahibinin WhatsApp cevabı bağlanacak soru bulamazdı.
+  await tx.hostQuestion.updateMany(move);
   await tx.messageOutbox.updateMany(move);
   await tx.riskEvent.updateMany(move);
   await tx.shadowVerdict.updateMany(move);
