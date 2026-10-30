@@ -269,8 +269,8 @@ export async function handleHostAnswer(input: {
   // ve önceki deneme yarıda düştüyse (soru yeniden açıldı ya da "işleniyor"da kaldı ya da önizleme hiç gitmedi) kaldığı yerden sürdürülür;
   // önizleme ev sahibine gittiyse / gönderim başladıysa / sonra yeni bir cevap işlendiyse tekrar işlenmez.
   const record = await prisma.systemLock.findUnique({ where: { name: answerRecordName(event.providerMessageId) }, select: { holder: true } });
-  if (record && record.holder !== q.id) return "duplicate";
-  const redelivery = record !== null && q.answerMessageId === event.providerMessageId;
+  const redelivery = q.answerMessageId === event.providerMessageId;
+  // Bu mesaj daha önce bağlandı ama bu sorunun SON cevabı değil (başka soruya bağlandı ya da sonra yeni bir cevap işlendi) → tekrar işlenmez.
   if (record && !redelivery) return "duplicate";
   if (redelivery) {
     const resumable = q.status === "sent" || q.status === "answered" || (q.status === "awaiting_confirm" && q.previewMessageId === null);

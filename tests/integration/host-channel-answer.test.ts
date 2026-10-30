@@ -66,7 +66,7 @@ import {
   sweepHostQuestions,
 } from "@/lib/host-channel/answer";
 import { listConversationItems, openItemCounts } from "@/lib/conversation-items/store";
-import { listConversationDecisions } from "@/lib/decisions/store";
+import { listConversationDecisions, openTurnDecisions } from "@/lib/decisions/store";
 import { eraseReservationData } from "@/lib/erasure";
 import { readFileSync } from "node:fs";
 import { hostChannelFlagsFromEnv } from "@/lib/host-channel/routing";
@@ -943,10 +943,66 @@ describe("WhatsApp cevap dilimi", () => {
       await deliver([button(DIG_A, "wamid.b1", hostQuestionButtonId(q1.questionId, v, "send"))]);
       expect((await question(q1.questionId)).status).toBe("done");
       const q2 = await seedQuestion(h, "wamid.Q2");
+      // q2'nin misafiri soru kurulduktan sonra yeniden yazdı: m1 yanlışlıkla q2'ye bağlansaydı q2 "yerini bıraktı" olurdu (yan etki).
+      await prisma.message.create({ data: { conversationId: q2.conversationId, direction: "inbound", senderName: "Misafir", body: "hello?" } });
       const before = await question(q2.questionId);
+      const out = tr.out.length;
       await prisma.systemLock.deleteMany({ where: { name: { startsWith: "host-in:" } } });
       await deliver([text(DIG_A, "wamid.m1", "var, dolapta")]);
       expect(await question(q2.questionId)).toEqual(before);
+      expect(tr.out).toHaveLength(out);
+    });
+
+    it("aynı sorunun ESKİ mesajı, soru (sonraki kısmi cevapla) yeniden açıkken gelirse de tekrar işlenmez — model yeniden çağrılmaz", async () => {
+      const h = await seedHost(DIG_A, "+90 532 111 22 33");
+      const q = await seedQuestion(h, "wamid.Q1");
+      composeMock.mockRejectedValueOnce(new Error("model katmani dustu"));
+      await expect(deliver([text(DIG_A, "wamid.m1", "yatak var", "wamid.Q1")])).rejects.toThrow();
+      composeMock.mockResolvedValueOnce({ ...OK_DRAFT, uncovered: ["high chair"] });
+      await deliver([text(DIG_A, "wamid.m2", "yatak dolapta", "wamid.Q1")]);
+      expect((await question(q.questionId)).status).toBe("sent");
+      const calls = composeMock.mock.calls.length;
+      await deliver([text(DIG_A, "wamid.m1", "yatak var", "wamid.Q1")]);
+      expect(composeMock.mock.calls.length).toBe(calls);
+    });
+
+    it("bağ kaydının süresi geçmiş olsa bile aynı mesaj İKİNCİ soruya bağlanamaz (cevap mesajı kimliği tekil) — hata fırlatmadan yok sayılır", async () => {
+      const h = await seedHost(DIG_A, "+90 532 111 22 33");
+      const q1 = await seedQuestion(h, "wamid.Q1");
+      composeMock.mockResolvedValueOnce(OK_DRAFT);
+      await deliver([text(DIG_A, "wamid.same", "var, dolapta", "wamid.Q1")]);
+      const q2 = await seedQuestion(h, "wamid.Q2");
+      const before = await question(q2.questionId);
+      await prisma.systemLock.deleteMany({ where: { name: { startsWith: "host-" } } });
+      await deliver([text(DIG_A, "wamid.same", "var, dolapta", "wamid.Q2")]);
+      expect(await question(q2.questionId)).toEqual(before);
+      expect((await question(q1.questionId)).answerMessageId).toBe("wamid.same");
+    });
+
+    it("🚨 karar kartı bildirim mirası: WhatsApp'tan giden başka sorunun cevabı 'ev sahibi kartı elle cevapladı' sayılmaz (yeni kart ikinci e-posta doğurmaz)", async () => {
+      const h = await seedHost(DIG_A, "+90 532 111 22 33");
+      const q = await seedQuestion(h, "wamid.Q1");
+      const m1 = await prisma.message.create({
+        data: { conversationId: q.conversationId, direction: "inbound", senderName: "Misafir", body: "Can we check in at 13:00?", createdAt: new Date(Date.now() - 300_000) },
+      });
+      const notifiedAt = new Date(Date.now() - 200_000);
+      await prisma.decisionRequest.create({
+        data: { organizationId: h.orgId, conversationId: q.conversationId, messageId: m1.id, kind: "early_checkin", lang: "en", requestedTime: "13:00", notifiedAt },
+      });
+      const sent = await prisma.message.create({
+        data: { conversationId: q.conversationId, direction: "outbound", authorType: "host", senderName: "Ayla", body: "Yes, a baby cot is in the closet." },
+      });
+      await prisma.hostQuestion.update({ where: { id: q.questionId }, data: { status: "done", resultMessageId: sent.id } });
+      const m3 = await prisma.message.create({ data: { conversationId: q.conversationId, direction: "inbound", senderName: "Misafir", body: "Actually 12:00?" } });
+      const [card] = await openTurnDecisions(prisma, {
+        organizationId: h.orgId,
+        conversationId: q.conversationId,
+        reservationId: q.reservationId,
+        lang: "en",
+        decisions: [{ kind: "early_checkin", messageId: m3.id, itemId: null, requestedTime: "12:00", dayKey: null }],
+        now: new Date(),
+      });
+      expect(card!.notifiedAt?.getTime()).toBe(notifiedAt.getTime());
     });
 
     it("önizleme kaydı yazılamadan düşen tur (onay bekliyor, önizleme kimliği yok): yeniden teslim yeni önizleme gönderir, eski düğme geçersiz", async () => {
@@ -1059,13 +1115,19 @@ describe("WhatsApp cevap dilimi", () => {
         { name: "host-none:b1:2026-10-01", lockedUntil: new Date(now.getTime() - 1_000) },
         { name: "host-none:b1:2026-10-30", lockedUntil: new Date(now.getTime() + 3600_000) },
         { name: "baska-kilit", lockedUntil: new Date(now.getTime() - 1_000) },
+        { name: "host-ans:eski", holder: "q-eski", lockedUntil: new Date(now.getTime() - 1_000) },
+        { name: "host-ans:canli", holder: "q-canli", lockedUntil: new Date(now.getTime() + 3600_000) },
       ],
     });
     const r = await sweepHostQuestions(now, tr.t);
-    expect((await prisma.systemLock.findMany({ where: { name: { in: ["host-none:b1:2026-10-01", "host-none:b1:2026-10-30", "baska-kilit"] } }, orderBy: { name: "asc" } })).map((l) => l.name)).toEqual([
-      "baska-kilit",
-      "host-none:b1:2026-10-30",
-    ]);
+    expect(
+      (
+        await prisma.systemLock.findMany({
+          where: { name: { in: ["host-none:b1:2026-10-01", "host-none:b1:2026-10-30", "baska-kilit", "host-ans:eski", "host-ans:canli"] } },
+          orderBy: { name: "asc" },
+        })
+      ).map((l) => l.name),
+    ).toEqual(["baska-kilit", "host-ans:canli", "host-none:b1:2026-10-30"]);
     expect((await question(exp.questionId)).status).toBe("expired");
     expect((await question(stuckA.questionId)).status).toBe("sent");
     expect((await question(stuckS.questionId)).status).toBe("send_unverified");
