@@ -71,6 +71,8 @@ describe("sistem istemi", () => {
     expect(sys).toContain("Misafir güvenlikle ilgili NET bir soru");
     expect(sys).toContain("MESAJI EV SAHİBİ YAZIYOR (kurucu 10-30)");
     expect(sys).toContain('DOĞRU: "Rezervasyonda olmayan ziyaretçiler onayımıza tabidir."');
+    // Kurucu 10-30: başka dairenin bilgisi verilmez, ret yumuşak (sert "paylaşamam" ve ev sahibine yönlendirme yok).
+    expect(sys).toContain("BAŞKA DAİRE / BAŞKA MİSAFİR (kurucu 10-30)");
     expect(sys).not.toContain("Gaz, yangın, duman, acil numara gibi güvenlik uyarıları aynen kalır.");
     expect(sys).not.toContain(OLD_REFER);
     expect(sys).not.toContain(OLD_RETRY);
@@ -89,7 +91,7 @@ describe("sistem istemi", () => {
   it("fark YALNIZ üç çapada: yasak metinleri geri çevrilince taban elde edilir", () => {
     const on = replySystemPromptFor({ ...off, hostContactBan: true });
     const start = on.indexOf("  - EV SAHİBİNE YÖNLENDİRME CÜMLESİ YAZMA");
-    const last = 'DOĞRU (bilgi tabanında transfer varsa): "Havalimanı transferini biz ayarlayabiliriz; ücreti 900 TL."\n';
+    const last = 'tanıdığınızsa kendisine doğrudan sorabilirsiniz."\n';
     const end = on.indexOf(last, start) + last.length;
     expect(start).toBeGreaterThan(0);
     const back = (on.slice(0, start) + on.slice(end))

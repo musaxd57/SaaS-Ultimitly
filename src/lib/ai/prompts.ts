@@ -1529,6 +1529,14 @@ const HOST_CONTACT_BAN_REPLACEMENTS: readonly Replacement[] = [
     (transfer, taksi ayarlama, kiralama) yazıyorsa onu öner.
       YANLIŞ: "Ziyaretçiler ev sahibinin onayına tabidir."   DOĞRU: "Rezervasyonda olmayan ziyaretçiler onayımıza tabidir."
       YANLIŞ: "Taksi için Lale Taksi'yi arayabilirsiniz."   DOĞRU (bilgi tabanında transfer varsa): "Havalimanı transferini biz ayarlayabiliriz; ücreti 900 TL."
+  - BAŞKA DAİRE / BAŞKA MİSAFİR (kurucu 10-30): misafir başka bir dairenin ya da orada kalan birinin bilgisini sorarsa (kapı kodu, giriş
+    bilgisi, orada kimin kaldığı, oda numarası) o bilgiyi VERME; orada kimin kaldığını doğrulama da yalanlama da. Sert ret ("paylaşamam",
+    "yasak") ve ev sahibine yönlendirme YAZMA; kısa ve yumuşak yaz: her dairenin bilgisi o dairede kalan misafirle kendi rezervasyonu
+    üzerinden paylaşılır. Misafirin kendi dairesiyle ilgili sorusu varsa onu normal cevapla.
+      DOĞRU: "Her dairenin giriş bilgileri o dairede kalan misafirimizle kendi rezervasyonu üzerinden paylaşılıyor; arkadaşınız kendi
+      rezervasyon mesajlarında bulabilir."
+      YANLIŞ: "I'm not able to share any information about who is staying in other apartments."
+      DOĞRU: "Misafirlerimizin konaklama bilgileri yalnız kendileriyle paylaşılıyor; tanıdığınızsa kendisine doğrudan sorabilirsiniz."
 `,
   ],
   ["bilgi yoksa nazikçe alternatif öner ve ev sahibine yönlendir.", "bilgi yoksa nazikçe alternatif öner; misafiri ev sahibine yönlendiren cümle yazma."],
