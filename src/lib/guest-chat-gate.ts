@@ -368,8 +368,6 @@ export function evaluateEscalation(
   if (absenceHolds(admitsMissingKnowledge(result.reply ?? ""), judged)) return yes("absence_admission");
   // R13-b / R13-c (kurucu kararı 10-28 gece) — kanal kapısıyla AYNI işaret: QR misafiri zaten ev sahibiyle yazışıyor.
   if (result.hostContactOnly === true) return yes("reply_host_contact_only");
-  // Kurucu 10-30 ("mesajı ev sahibi yazıyor") — kanal kapısıyla AYNI yüklem ve AYNI yer.
-  if (hostVoiceGuardEnabled() && hostVoiceViolation(result.reply) !== null) return yes("reply_host_voice");
   // ── KIDEMLİ OKUYUCU (T-b, kurucu 10-22; anahtar `AI_SENIOR_READER_ENABLED` KAPALI) — kanal kapısıyla AYNI hükümler, yalnız TUTAR. QR bir
   // OTA kanalı değil: platform dışı iletişim kuralı (Airbnb) burada koşmaz.
   const senior = seniorChecksOf(judged);
@@ -461,6 +459,7 @@ export function evaluateEscalation(
     }
     if (intentRisk) return yes(intentRisk);
     if (qrLanguageMismatch(message, result.reply, stayCtx?.guestLanguageHint)) return yes("reply_language_mismatch");
+    if (hostVoiceGuardEnabled() && hostVoiceViolation(result.reply) !== null) return yes("reply_host_voice");
     return { escalate: false, reason: "informational_low_confidence" };
   }
   // Sonlu olmayan güven (NaN / Infinity / eksik) "yüksek güven" değildir — kanal kapısının `confidence_invalid` paritesi (F01; 10-01, 15 ajan
@@ -468,6 +467,8 @@ export function evaluateEscalation(
   if (!Number.isFinite(result.confidence) || result.confidence < 0.75) return yes("low_confidence");
   if (intentRisk) return yes(intentRisk);
   if (qrLanguageMismatch(message, result.reply, stayCtx?.guestLanguageHint)) return yes("reply_language_mismatch");
+  // Kurucu 10-30 ("mesajı ev sahibi yazıyor") — kanal kapısıyla AYNI yüklem; EN SONDA (yalnız aksi hâlde GİDECEK cevabı tutar).
+  if (hostVoiceGuardEnabled() && hostVoiceViolation(result.reply) !== null) return yes("reply_host_voice");
   return { escalate: false, reason: null };
 }
 

@@ -134,3 +134,21 @@ describe("uzun girdide doğrusal süre (ReDoS kuralı)", () => {
     expect(ms(() => hostVoiceViolation(girdi))).toBeLessThan(1_500);
   });
 });
+
+describe("okuyucu açıkken ses ihlali bir kez yeniden yazılır (kurucu 10-22 'bir kez yeniden yaz' + 10-30 'mesajı ev sahibi yazıyor')", () => {
+  it("kod yedeği tutacaksa sebep 'hostVoice'; kanal ve QR kapı ayrıntısı yeniden yazma kümesinde; not birinci çoğul kişiyi ister", async () => {
+    const { seniorRewriteReasons, SENIOR_REWRITE_GATE_DETAILS, SENIOR_REWRITE_QR_REASONS, seniorRewriteNotes } = await import(
+      "@/lib/ai/semantic/senior-rewrite"
+    );
+    const checks = { payHost: false, contact: false, apology: false, internalSource: false };
+    expect(seniorRewriteReasons(checks, { contactHolds: false, apologyRule: false, hostVoiceLexical: true })).toEqual(["hostVoice"]);
+    expect(seniorRewriteReasons(checks, { contactHolds: false, apologyRule: false, hostVoiceLexical: false })).toEqual([]);
+    expect(SENIOR_REWRITE_GATE_DETAILS.has("reply_host_voice")).toBe(true);
+    expect(SENIOR_REWRITE_QR_REASONS.has("reply_host_voice")).toBe(true);
+    const [note] = seniorRewriteNotes(["hostVoice"]);
+    expect(note).toContain("birinci çoğul kişiyle");
+    expect(note).toContain("onayımıza");
+    // Not misafir metni / değer taşımaz.
+    expect(note).not.toMatch(/Lale|\d{4}/u);
+  });
+});

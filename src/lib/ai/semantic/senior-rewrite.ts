@@ -15,14 +15,14 @@ import type { LlmUsage } from "../types";
 // yazmakla gelmez. Saf; not metinleri misafir metni / değer taşımaz.
 // ---------------------------------------------------------------------------
 
-export type SeniorRewriteReason = "payHost" | "contact" | "apology" | "internalSource";
+export type SeniorRewriteReason = "payHost" | "contact" | "apology" | "internalSource" | "hostVoice";
 
-export const SENIOR_REWRITE_REASONS: readonly SeniorRewriteReason[] = ["payHost", "contact", "apology", "internalSource"];
+export const SENIOR_REWRITE_REASONS: readonly SeniorRewriteReason[] = ["payHost", "contact", "apology", "internalSource", "hostVoice"];
 
 /** İlk taslağın yeniden yazılmasını gerektiren sebepler (kapının tutacağı sebeplerle BİREBİR aynı koşullar). */
 export function seniorRewriteReasons(
   checks: SeniorChecks | undefined,
-  ctx: { contactHolds: boolean; apologyRule: boolean; internalSourceLexical?: boolean },
+  ctx: { contactHolds: boolean; apologyRule: boolean; internalSourceLexical?: boolean; hostVoiceLexical?: boolean },
 ): SeniorRewriteReason[] {
   if (!checks) return [];
   const out: SeniorRewriteReason[] = [];
@@ -32,6 +32,9 @@ export function seniorRewriteReasons(
   // Kapı iç kaynak anlatımını okuyucunun hükmüyle YA DA kodun açık sözcük yedeğiyle tutar (`absence.namesInternalSource`) — iki yol da
   // aynı yeniden yazmaya gider.
   if (checks.internalSource || ctx.internalSourceLexical) out.push("internalSource");
+  // Kurucu 10-30 ("mesajı ev sahibi yazıyor"): kapının `reply_host_voice` kod yedeği (`ai/host-voice-guard.ts`) bu taslağı tutacaksa aynı
+  // cevap bir kez ev sahibinin ağzından yeniden yazılır (okuyucu açıkken; tur başına bir kez, ikinci taslak da takılırsa ev sahibine kalır).
+  if (ctx.hostVoiceLexical) out.push("hostVoice");
   return out;
 }
 
@@ -56,6 +59,12 @@ export const SENIOR_REWRITE_NOTES: Record<SeniorRewriteReason, string> = {
     "Kaynağa, bilginin nasıl paylaşıldığına ya da neyi paylaşabildiğine dair HİÇBİR cümle yazma; şunlar da yasak: \"Bu saati size daireyle " +
     "ilgili hazırlanmış bilgilere göre paylaşıyorum\", \"I only use the information your host has provided\", \"Yalnız bilgileri " +
     "iletebilirim\". Cevap yalnız sorulan olgu cümlelerinden oluşsun.",
+  hostVoice:
+    "Önceki taslak ev sahibinden ÜÇÜNCÜ KİŞİ olarak söz ediyordu (\"ev sahibiniz …\", \"your host …\", \"the host's approval\"), arka planı " +
+    "anlatıyordu (\"… paylaşılmamış\", \"not provided\", \"ilanda yazmıyor\") ya da misafiri üçüncü taraf bir işletmeyi aramaya / ona " +
+    "başvurmaya yönlendiriyordu. Mesajı ev sahibi yazıyor: aynı cevabı ev sahibinin KENDİ AĞZINDAN, birinci çoğul kişiyle yaz (\"onayımıza " +
+    "tabidir\", \"requires our approval\"). Devir / bildirim cümlesi (\"mesajınız kaydedildi\", \"ev sahibiniz görebilir\") ve " +
+    "bilgisi olmayan konu hakkında hiçbir cümle yazma — o konuya hiç değinme; üçüncü taraf yönlendirmesi yerine yalnız olguyu yaz.",
 };
 
 export function seniorRewriteNotes(reasons: readonly SeniorRewriteReason[]): string[] {
@@ -72,10 +81,11 @@ export const SENIOR_REWRITE_GATE_DETAILS: ReadonlySet<string> = new Set([
   "reply_offplatform_contact",
   "reply_apology",
   "reply_internal_source",
+  "reply_host_voice",
 ]);
 // Not: öğe kipindeki `items_payment_held` bu kümede DEĞİL — okuyucu açıkken o tutuş yalnız "ev sahibine ödeme" hükmüyle olur ve kapı
 // aynı hükümle daha önce `reply_offplatform_payment` döner (Haiku 10-22: kümedeki kayıt ölüydü).
-export const SENIOR_REWRITE_QR_REASONS: ReadonlySet<string> = new Set(["offplatform_payment", "reply_apology", "reply_internal_source"]);
+export const SENIOR_REWRITE_QR_REASONS: ReadonlySet<string> = new Set(["offplatform_payment", "reply_apology", "reply_internal_source", "reply_host_voice"]);
 
 /**
  * Yeniden yazılan cevabı ilk cevabın üstüne koyar: METİNLE ilgili alanlar (metin, kaynak / iddia denetimi, cevaplanan istekler, eylem

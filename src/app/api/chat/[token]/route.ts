@@ -1,3 +1,4 @@
+import { hostVoiceGuardEnabled, hostVoiceViolation } from "@/lib/ai/host-voice-guard";
 import { randomUUID } from "node:crypto";
 import { type NextRequest, NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
@@ -1183,6 +1184,7 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
       contactHolds: false,
       apologyRule: noApologyRuleEnabled(),
       internalSourceLexical: namesInternalSource(result.reply ?? ""),
+      hostVoiceLexical: hostVoiceGuardEnabled() && hostVoiceViolation(result.reply) !== null,
     });
     const first =
       reasons.length > 0

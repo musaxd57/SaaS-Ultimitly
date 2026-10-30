@@ -621,10 +621,6 @@ export function autoReplyGateVerdict(
   // yazışıyor ya da sorunu zaten bildirdi; ev sahibi yanıtlar (`ai/host-contact-filler.ts`).
   if (result.hostContactOnly === true) return hold("reply_host_contact_only");
   if (context?.hostContactOpen === true) return hold("reply_host_contact_only");
-  // MESAJI EV SAHİBİ YAZIYOR (kurucu 10-30, `ai/host-voice-guard.ts`; VARSAYILAN AÇIK, acil durdurma `AI_HOST_VOICE_GUARD_DISABLED=1`): gönderilecek
-  // metinde ev sahibinden üçüncü kişi olarak söz ("ev sahibiniz …", "your host …"), arka plan anlatımı ("telefon numarası paylaşılmamış") ya da
-  // üçüncü taraf işletmeye gönderme ("Lale Taksi'yi arayın") kalırsa cevabın tamamı ev sahibine kalır. Kod yedeğidir; anlamla karar okuyucunun.
-  if (hostVoiceGuardEnabled() && hostVoiceViolation(result.reply) !== null) return hold("reply_host_voice");
   // ── KIDEMLİ OKUYUCU (T-b, kurucu 10-22; anahtar `AI_SENIOR_READER_ENABLED` KAPALI) ─────────────────────────────────────────────
   // Okuyucu BU metni okuduysa üç ek hüküm — yalnız TUTAR: ev sahibine platform dışı ödeme (T-d), Airbnb'de onaysız konuşmada platform dışı
   // iletişim (Airbnb engeller), özür / kusur kabulü (T-a, özür kuralı açıkken). Okumadıysa hiçbiri koşmaz (bugünkü davranış).
@@ -813,6 +809,14 @@ export function autoReplyGateVerdict(
   const turnLanguage = gateGuestLanguage(guestTurnLanguage(guestMessage, pendingTexts), result.detectedLanguage, [...pendingTexts, guestMessage]);
   if (!codeBuilt && replyLanguageMismatch(turnLanguage, result.reply)) {
     return { reason: "reply_language_mismatch" };
+  }
+  // MESAJI EV SAHİBİ YAZIYOR (kurucu 10-30, `ai/host-voice-guard.ts`; VARSAYILAN AÇIK, acil durdurma `AI_HOST_VOICE_GUARD_DISABLED=1`): gönderilecek
+  // metinde ev sahibinden üçüncü kişi olarak söz ("ev sahibiniz …", "your host …"), arka plan anlatımı ("telefon numarası paylaşılmamış") ya da
+  // üçüncü taraf işletmeye gönderme ("Lale Taksi'yi arayın") kalırsa cevabın tamamı ev sahibine kalır. EN SONDA: yalnız aksi hâlde GİDECEK cevabı
+  // tutar, hiçbir güvenlik / kalite gerekçesini gölgelemez (kayıt o sebebi taşır). Teşhis kipinde (erken giriş akışının tetiği) çıktı vetosu gibi
+  // atlanır — akış modelin metnini koddan kurulanla değiştirir; koddan kurulan doğrulanmış metin muaf. Kod yedeğidir; anlamla karar okuyucunun.
+  if (hostVoiceGuardEnabled() && !codeBuilt && !context?.skipOutputVetoForDiagnosis && hostVoiceViolation(result.reply) !== null) {
+    return hold("reply_host_voice");
   }
   return null;
 }
@@ -2681,6 +2685,7 @@ export async function applyChannelAutoReply(
       contactHolds: contactWindow,
       apologyRule: noApologyRuleEnabled(),
       internalSourceLexical: namesInternalSource(result.reply),
+      hostVoiceLexical: hostVoiceGuardEnabled() && hostVoiceViolation(result.reply) !== null,
     });
     const firstDetail =
       reasons.length > 0 ? autoReplyGateVerdict(result, last.body, { ...gateContext, absenceJudge: seniorPrecheck })?.detail : undefined;

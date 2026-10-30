@@ -195,13 +195,15 @@ describe("yeniden yazma birleştirmesi (Opus 10-22 F1)", () => {
   });
 
   it("yalnız okuyucunun düzeltilebilir sebepleri yeniden yazdırır", () => {
+    // Kurucu 10-30 ("mesajı ev sahibi yazıyor"): ses ihlali (`reply_host_voice`) de düzeltilebilir — ev sahibinin ağzından bir kez yeniden yazılır.
     expect([...SENIOR_REWRITE_GATE_DETAILS].sort()).toEqual([
       "reply_apology",
+      "reply_host_voice",
       "reply_internal_source",
       "reply_offplatform_contact",
       "reply_offplatform_payment",
     ]);
-    expect([...SENIOR_REWRITE_QR_REASONS].sort()).toEqual(["offplatform_payment", "reply_apology", "reply_internal_source"]);
+    expect([...SENIOR_REWRITE_QR_REASONS].sort()).toEqual(["offplatform_payment", "reply_apology", "reply_host_voice", "reply_internal_source"]);
     expect(SENIOR_REWRITE_GATE_DETAILS.has("reply_absence")).toBe(false);
   });
 });
