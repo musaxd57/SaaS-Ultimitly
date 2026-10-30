@@ -139,6 +139,11 @@ describe("ev sahibinin cevabından kurulan misafir cevabı — kod denetimi", ()
     expect(checkComposedGuestReply({ reply: "Call me on +90 532 111 22 33.", hostAnswer: "beni ara +90 532 111 22 33" })).toBe("contact_value");
     expect(checkComposedGuestReply({ reply: "  ", hostAnswer: "var" })).toBe("empty");
     expect(numberTokens("14:00 ve 1.250,50 TL")).toEqual(["14:00", "1.250,50"]);
+    // Tam saat denkliği (gerçek model denemesi 10-30): "en geç 13" → "13:00" geçer; dakika uydurulamaz; "13" "130" değildir.
+    expect(checkComposedGuestReply({ reply: "Check-out is possible until 13:00 at the latest.", hostAnswer: "14 olmaz, en geç 13" })).toBeNull();
+    expect(checkComposedGuestReply({ reply: "Check-out is possible until 13:30.", hostAnswer: "en geç 13" })).toBe("number_not_in_source");
+    expect(checkComposedGuestReply({ reply: "The fee is 130 TL.", hostAnswer: "ücret 13" })).toBe("number_not_in_source");
+    expect(checkComposedGuestReply({ reply: "Check-in from 09:00.", hostAnswer: "9da gelebilir" })).not.toBe("number_not_in_source");
   });
 });
 

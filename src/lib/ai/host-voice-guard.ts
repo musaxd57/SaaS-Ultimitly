@@ -78,6 +78,16 @@ const INTERNAL_SYSTEM = new RegExp(
   "iu",
 );
 
+/**
+ * İlan / sayfa anlatımı + olumsuzluk ("Fiyat ilanda yazmıyor", "It's not mentioned in the listing") — ev sahibi kendi ilanını misafire böyle
+ * anlatmaz; bilgi yoksa cevap verilmez (gerçek model denemesi 10-30: WhatsApp cevap kurucusu "ilanda belirtilmemiş" ekledi). İki parça
+ * aynı cümlede; olumsuzluk dil başına.
+ */
+const LISTING_MARKER =
+  /(?<![\p{L}])(?:ilan(?:ımız|ınız)?(?:da|daki)|ilan (?:açıklamas|sayfas)\p{L}{0,6}|in the (?:listing|ad|advert|description)|on the listing(?: page)?|im inserat|in der (?:anzeige|beschreibung)|dans l['’]annonce|en el anuncio|в объявлении|في الإعلان)(?![\p{L}])/iu;
+const LISTING_NEGATION =
+  /(?<![\p{L}])(?:yazm[ıi]yor|yaz[ıi]lmam[ıi][şs]|yok|belirtilmemi[şs]|belirtilmiyor|ge[çc]miyor|bulunmuyor|yer alm[ıi]yor|not|n['’]t|no|nicht|kein\p{L}{0,3}|pas|aucune?|ninguna?|не|нет|لا|ليس|لم)(?![\p{L}])/iu;
+
 /** Acil servis: kendi kuralı var (`hasEmergencyCallDirective`); bu süzgeç onu üçüncü taraf saymaz. */
 const EMERGENCY_PARTY = /(?<![\p{L}\d])(?:112|155|110|911|999|100|101|102|103|ambulans\p{L}*|ambulance|police|polis\p{L}*|itfaiye\p{L}*|fire (?:brigade|department)|emergency|acil|notruf|polizei|feuerwehr|pompiers|urgences|emergencias|polic[íi]a|bomberos|скор\p{L}*|полици\p{L}*|пожарн\p{L}*|الإسعاف|الشرطة|الطوارئ)(?![\p{L}\d])/iu;
 
@@ -135,6 +145,8 @@ export function hostVoiceViolation(reply: string | null | undefined): HostVoiceV
     const lower = s.toLocaleLowerCase("tr");
     if (mentionsHostThirdPerson(s)) return "host_third_person";
     if (INTERNAL_SYSTEM.test(s) || INTERNAL_SYSTEM.test(lower)) return "internal_system";
+    // Hem özgün hem Türkçe küçük harf: "Inserat" Türkçe küçültmede "ınserat" olur.
+    if ((LISTING_MARKER.test(s) || LISTING_MARKER.test(lower)) && (LISTING_NEGATION.test(s) || LISTING_NEGATION.test(lower))) return "internal_system";
     if (!third && !EMERGENCY_PARTY.test(s) && (THIRD_PARTY_REFERRAL.test(s) || THIRD_PARTY_REFERRAL.test(lower))) third = "third_party_referral";
   }
   return third;

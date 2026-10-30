@@ -39,6 +39,10 @@ describe("arka plan anlatımı → internal_system (yedi dil)", () => {
     "No se ha proporcionado el número.",
     "Номер телефона не указан.",
     "لم يتم تزويد رقم الهاتف.",
+    // İlan anlatımı + olumsuzluk (WhatsApp cevap kurucusu gerçek model denemesi 10-30).
+    "Fiyat ilanda yazmıyor.",
+    "The price is not mentioned in the listing.",
+    "Der Preis steht nicht im Inserat.",
   ])("%j", (s) => {
     expect(hostVoiceViolation(s)).toBe("internal_system");
   });
@@ -70,6 +74,7 @@ describe("ev sahibinin kendi sesi ve mülk olgusu → ihlal yok", () => {
     "The nearest pharmacy is 200 m away on Atatürk Street.",
     "Havaalanı transferini biz ayarlayabiliriz, ücreti 900 TL.",
     "Havalimanına taksiyle 45–60 dakikada ulaşabilirsiniz.",
+    "İlanda da gördüğünüz gibi dairede havuz var.",
     "",
   ])("%j", (s) => {
     expect(hostVoiceViolation(s)).toBeNull();
@@ -96,7 +101,7 @@ describe("kapı bağlantısı — kanal ve QR aynı sebeple tutar", () => {
     ["Lale Taksi'yi arayabilirsiniz, durak köşede.", "Taksi nasıl bulurum?"],
   ])("%j → reply_host_voice", (reply, guest) => {
     expect(autoReplyGateVerdict(model(reply), guest)?.detail).toBe("reply_host_voice");
-    const qr = evaluateEscalation({ ...model(reply), usedSources: ["kb:wifi"] }, guest);
+    const qr = evaluateEscalation({ ...model(reply), reply, usedSources: ["kb:wifi"] }, guest);
     expect(qr.escalate).toBe(true);
     expect(qr.reason).toBe("reply_host_voice");
   });
