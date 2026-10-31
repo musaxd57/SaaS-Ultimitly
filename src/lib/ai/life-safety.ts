@@ -66,15 +66,13 @@ function textVerdict(text: string): LifeSafetyBasis {
   if (EXTRA_LIFE_SAFETY.test(folded)) return "extra";
   // Kapıda kalma / anahtar kaybı → standart (acil sözcüğü olsa bile — "ACİL kapıda kaldık").
   if (isAccessLossText(text)) return "none";
+  // `replace` (g bayraklı) her çağrıda baştan tarar — `test` + `lastIndex` durumu yok; değişen metin = genel acil sözcüğü vardı.
   const stripped = folded.replace(GENERIC_URGENT, " ");
   if (isSafetyEmergencyText(stripped)) return "safety_net";
-  GENERIC_URGENT.lastIndex = 0;
-  if (GENERIC_URGENT.test(folded)) {
-    GENERIC_URGENT.lastIndex = 0;
+  if (stripped !== folded) {
     const categories = detectRiskTypes(stripped).filter((c) => c !== "prompt_injection" && c !== "safety_emergency");
     if (categories.length === 0) return "generic_urgent";
   }
-  GENERIC_URGENT.lastIndex = 0;
   return "none";
 }
 
