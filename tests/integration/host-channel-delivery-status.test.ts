@@ -9,7 +9,7 @@ vi.mock("@/lib/report-error", async (orig) => {
 });
 
 import { POST } from "@/app/api/webhooks/host-channel/whatsapp/route";
-import { recordHostDeliveryStatuses, statusInstant } from "@/lib/host-channel/delivery-status";
+import { markHostQuestionRead, recordHostDeliveryStatuses, statusInstant } from "@/lib/host-channel/delivery-status";
 import { alertMailLockName } from "@/lib/host-channel/alert-email";
 import type { HostDeliveryStatus } from "@/lib/host-channel/types";
 
@@ -111,6 +111,16 @@ describe("teslim / okundu durumu", () => {
     );
     expect(out).toEqual({ recorded: 0, unmatched: 1, ignored: 1, failedIds: ["wamid.A1"] });
     expect(await row(r.id)).toMatchObject({ readAt: null, deliveredAt: null, status: "alerted" });
+  });
+
+  it("'failed' işaretli bildirim ev sahibi cevabıyla da 'okundu' olmaz (ulaşmadığı biliniyor)", async () => {
+    const r = await seedRow("wamid.F9");
+    await prisma.$executeRaw`UPDATE "HostQuestion" SET "status" = 'failed' WHERE id = ${r.id}`;
+    await markHostQuestionRead(r.id, at(5));
+    expect((await row(r.id)).readAt).toBeNull();
+    const ok = await seedRow("wamid.F10");
+    await markHostQuestionRead(ok.id, at(5));
+    expect((await row(ok.id)).readAt).toEqual(at(5));
   });
 
   it("🚨 rotada 'failed' durumu ertelenmiş acil e-postayı öne çeker (gönderildi sanılan bildirim ulaşmadı)", async () => {

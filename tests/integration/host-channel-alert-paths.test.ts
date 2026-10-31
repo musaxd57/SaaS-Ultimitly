@@ -149,6 +149,14 @@ describe("kelime ağı acil (sendDueAlerts) — yangın / gaz", () => {
     expect(await prisma.systemLock.count({ where: { name: { startsWith: "host-alert-mail:" } } })).toBe(0);
   });
 
+  it("🚨 8.000 karakteri aşan acil mesaj (tehlike sözü sonda) → ikisi birden hemen (şüphede can güvenliği)", async () => {
+    flags(true);
+    const s = await seed(`${"Merhaba ".repeat(1_100)}Dairede yangın çıktı!`);
+    expect((await sendDueAlerts(s.orgId)).alerted).toBe(1);
+    expect(mockMail).toHaveBeenCalledTimes(1);
+    expect(await prisma.systemLock.count({ where: { name: { startsWith: "host-alert-mail:" } } })).toBe(0);
+  });
+
   it("e-posta düşer → claim geri alınır → sonraki geçiş e-postayı yeniden dener; WhatsApp İKİNCİ kez gitmez", async () => {
     flags(true);
     const s = await seed("There is a fire in the apartment!");

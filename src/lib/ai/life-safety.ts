@@ -31,7 +31,7 @@ const GENERIC_URGENT = new RegExp(
 const EXTRA_WORDS = [
   // Mahsur kalma (asansör / içeride sıkışma). "İçeride kaldı / kilitli" BİLEREK YOK — anahtar için de söylenir (kapıda kalma = standart);
   // içeride kilitli kalmayı ("çocuk banyoda kilitli kaldı") acil ağı zaten tanıyor ve kapıda kalma değilse can güvenliği sayılır.
-  "mahsur*", "asansorde kald*", "asansorde sikis*", "trapped", "eingesperrt", "eingeschlossen", "atrapad*", "застрял(?:а|и|о)? в лифте",
+  "mahsur*", "asansorde kald*", "asansorde sikis*", "trapped", "eingesperrt", "eingeschlossen", "atrapad*",
   // Hırsız / zorla giriş / tehdit
   "hirsiz*", "soyuldu*", "soydular", "kapiyi zorlu*", "zorla gir*", "tehdit*", "birisi iceri girdi", "biri iceri girdi",
   "thief", "thieves", "burglar*", "broke in", "break-in", "break in", "breaking in", "intruder*", "robbed", "threaten*", "stalker*",

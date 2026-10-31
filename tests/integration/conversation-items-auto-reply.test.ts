@@ -329,6 +329,18 @@ describe("acil bildirim WhatsApp'a da (Tür C, `HOST_QUESTION_ALERTS_ENABLED`; t
     expect(await prisma.systemLock.count({ where: { name: { startsWith: "host-alert-mail:" } } })).toBe(0);
   });
 
+  it("🚨 uyarı geçişinin öğe yolunda can güvenliği turun ÖNCEKİ mesajında (tetik şikâyet) → ikisi birden", async () => {
+    const { orgId, conversationId } = await seed("Daire çok kirli");
+    await prisma.message.create({
+      data: { conversationId, direction: "inbound", senderName: "Alex", authorType: "guest", body: "Hırsız girdi!", createdAt: new Date(Date.now() - 10 * 60_000) },
+    });
+    alertFlags(true);
+    await bindHost(orgId, conversationId);
+    expect((await sendDueAlerts(orgId)).alerted).toBe(1);
+    expect(mockMail).toHaveBeenCalledTimes(1);
+    expect(await prisma.systemLock.count({ where: { name: { startsWith: "host-alert-mail:" } } })).toBe(0);
+  });
+
   it("acil bildirim anahtarı KAPALI: bugünkü davranış — yalnız e-posta, veritabanına bildirim satırı yazılmaz", async () => {
     const { orgId, conversationId } = await seed(IBAN);
     alertFlags(false);

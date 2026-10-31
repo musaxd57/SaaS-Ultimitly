@@ -324,6 +324,46 @@ düzeltme öncesi kodda kırmızı · mutasyon tur 2 (düzeltmeler + boşluklar)
 - **Talimat biçimli ev sahibi cevabı:** "host mesela mesajı böyle böyle gitsin gibi prompt hazırlayarak gönderse dahi bizimki ordaki
   soruların cevaplarını alıp güzelce cümle yapıp cevap olarak gönderebilir" → yapılıyor; gerçek modelle önce/sonra ölçüm onaylı.
 
+## 4i. Hibrit acil bildirim — yapıldı (10-31 sabah, `HOST_QUESTION_ALERTS_ENABLED` arkasında)
+
+**Nasıl çalışıyor (örneklerle):**
+
+| Misafir yazdı | Ne olur |
+|---|---|
+| "Anahtarı kaybettik, kapıda kaldık" | WhatsApp'a hemen bildirim. Ev sahibi 10 dk içinde okursa (mavi tik) ya da bildirime cevap yazarsa e-posta **gitmez**; okumazsa 10–12 dk sonra aynı acil e-posta gider |
+| "Daire çok kirli" (şikâyet) / IBAN sorusu | aynı: önce WhatsApp, okunmazsa e-posta |
+| "Mutfakta gaz kokusu var" · "Annem bayıldı" · "Banyoyu su bastı" · "Asansörde mahsur kaldık" · "Hırsız girdi" · "ACİL yardım edin!" | can güvenliği → WhatsApp **ve** e-posta ikisi birden, hemen (bugünkü gibi) |
+| "Anahtarı kaybettik, ambulans lazım" | kapıda kalma tehlikeyi gizlemez → ikisi birden |
+| Numara bağlı değil / WhatsApp gönderilemedi / Meta "ulaşmadı" dedi | e-posta hemen (ya da bir sonraki dakikalarda) |
+| Anahtar kapalı | bugünkü davranış birebir (e-posta + bildirim aynı anda) |
+
+- ⚠️ Mavi tiki kapalı ev sahibine e-posta 10–12 dk sonra gelir (okundu bilgisi gelmez); bildirime cevap yazmak da "okudum" sayılır.
+- Ertelenen e-posta kalıcı kayıttadır (süreç düşse de kaybolmaz), senkron kilidinden bağımsız her 2 dk'da bakılır, iki kopya aynı anda
+  çalışsa da tek e-posta gider. Gönderilemezse 2 dk'da bir yeniden dener ve **alarm** verir; 72 saat (bildirimden itibaren) sonra bırakır.
+- Kanıt: mutasyon 1. tur 35/52 → yaşayan 17'nin hepsi test ya da gerekçe (1 ölü kod silindi); 2. tur 31/38 → yaşayanlar için yeni
+  ayırt edici testler; sert inceleme 26 bulgu → 22 doğrulandı, hepsi düzeltildi (yukarıdaki tablo bunların sonucu: ör. eskiden 4 günlük mesajın
+  e-postası atılıyordu, uzun senkron 10 dk'yı 25'e uzatıyordu, "failed" bildirim sonradan okundu sayılabiliyordu).
+- Can güvenliği sınıfı yalnız ZAMANLAMAYI belirler; hangi mesajın acil uyarı olduğu değişmedi. **Not (karar sizde değil, bilgi):** acil
+  uyarı ağı "asansörde mahsur", "hırsız", "tehdit", "alerjik reaksiyon"u bugün hâlâ TANIMIYOR (bu mesajlar acil uyarı üretmez, yalnız başka
+  bir sebeple uyarı oluşursa ikisi birden gider). Uyarı ağına eklemek ayrı bir karar — isterseniz söyleyin.
+
+## 4j. Talimat biçimli ev sahibi cevabı — yapıldı (10-31 sabah, `HOST_QUESTIONS_ENABLED` arkasında)
+
+**Örnek:** misafir "Is parking free?" yazdı; ev sahibi WhatsApp'a "ona otoparkın ücretsiz olduğunu güzelce yaz, binanın önüne park
+edebilir" yazdı → önizleme: "Yes, parking is free — you can park right in front of the building." → [Gönder]. Ev sahibi "mesaj şöyle
+gitsin: …" diye hazır metin de yazabilir; anlamı korunur, dili misafirinkine çevrilir.
+
+- **Kurallar talimatla değişmez:** "numaramı da ver, WhatsApp'tan yazsın" → numara / WhatsApp misafire gitmez; önizlemenin altında
+  "Kurallar gereği eklemedim: telefon numarası, WhatsApp'tan yazma isteği" yazar. Nakit / havale, Instagram, e-posta adresi aynı.
+- **Özür:** ev sahibi "özür dileyerek yaz" derse ya da kendisi "kusura bakmasınlar" yazarsa gider; yapay zekâ kendiliğinden özür eklerse
+  misafire gitmez, ev sahibine "Cevaba sizin istemediğiniz bir özür girdi, gönderilmedi. Özür dilenmesini istiyorsanız cevabınızda belirtin."
+- **Ev sahibinin sözü:** "yarın havlu göndereceğim" → "Havluları yarın göndereceğiz." artık gider (eskiden Türkçede tutuluyordu, İngilizcede
+  gidiyordu). Ev sahibi söz vermediyse yapay zekânın uydurduğu söz yine tutulur.
+- **Saat:** "akşam 8" → "20 Uhr" / "20:00" artık geçer (eskiden "uydurulmuş sayı" diye tutuluyordu); "sabah 8" 20 olmaz.
+- **Tutma nedeni ev sahibine kendi cümlesiyle:** sayı/saat, telefon-e-posta-bağlantı, ödeme yöntemi, başka uygulama, özür — her biri ayrı
+  cümle (eskiden hepsi "çıkaramadım").
+- Gerçek model ölçümü (eski / yeni istem, 42 vaka × 7 dil): ↓ §4k.
+
 ## 4h. Soru — WhatsApp cevabı bilgi tabanına kaydedilsin mi? (tasarım §3.9; KODLANMADI, karar sizde)
 
 Bugün ev sahibinin WhatsApp cevabı misafire gider, bilgi tabanına GİRMEZ: aynı soru başka misafirden gelince yine ev sahibine sorulur.

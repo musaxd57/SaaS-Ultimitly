@@ -20,7 +20,7 @@ describe("can güvenliği sınıfı", () => {
     "Мы застряли в лифте", "застряла в лифте", "We are stuck in an elevator", "The lift is stuck and we are inside", "Wir stecken im Aufzug fest",
     "Nous sommes bloqués dans l'ascenseur", "Estamos atrapados en el ascensor", "Il s'est évanoui", "Mi madre está herida", "Está sangrando mucho",
     "URGENT my wife fell in the shower and broke her leg, I need to talk to the host", "اللص دخل الشقة", "تعرضنا للتهديد", "لدي الحساسية",
-    "My son is bleeding", "She broke her arm",
+    "My son is bleeding", "She broke her arm", "ACİL, ev sahibiyle hemen görüşmem lazım",
     // Kapıda kalma öteki tehlike sözünü gizlemez (yan cümle ayrımı).
     "Anahtarı kaybettik, ambulans lazım", "We are locked out, call an ambulance", "locked out, my child is alone inside and not breathing",
   ])("İKİSİ BİRDEN: %s", (s) => {
