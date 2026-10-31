@@ -58,6 +58,7 @@ import { handleHostInbound } from "@/lib/host-channel/inbound";
 import {
   HOST_TEXTS,
   HOST_ANSWER_MAX,
+  PREVIEW_MAX,
   HOST_QUESTION_LIVE_STATUSES,
   MAX_COMPOSE_PER_QUESTION,
   STUCK_MS,
@@ -199,7 +200,7 @@ const deliver = (events: HostInboundEvent[]) =>
   handleHostInbound({ provider: WHATSAPP_CLOUD_PROVIDER, events, flags: hostChannelFlagsFromEnv(), transport: tr.t });
 const question = (id: string) => prisma.hostQuestion.findUniqueOrThrow({ where: { id } });
 const lastText = () => tr.out[tr.out.length - 1]?.text ?? "";
-const OK_DRAFT = { ok: true, kind: "answer", reply: "Yes, there is a baby cot in the closet.", replyTr: "Evet, dolapta bebek yatağı var.", uncovered: [] };
+const OK_DRAFT = { ok: true, kind: "answer", reply: "Yes, there is a baby cot in the closet.", replyTr: "Evet, dolapta bebek yatağı var.", uncovered: [], dropped: [] };
 
 async function previewed(h: Awaited<ReturnType<typeof seedHost>>, wamid = "wamid.Q1") {
   const q = await seedQuestion(h, wamid);
@@ -339,8 +340,51 @@ describe("WhatsApp cevap dilimi", () => {
     composeMock.mockResolvedValueOnce({ ok: false, kind: "answer", reason: "number_not_in_source" });
     await deliver([text(DIG_A, "wamid.a3", "olur", "wamid.Q3")]);
     expect(await question(q3.questionId)).toMatchObject({ status: "sent", composeCount: 1 });
-    expect(lastText()).toContain(HOST_TEXTS.unclear);
+    // Kod kapısı tuttu → nedeni ev sahibine kendi cümlesiyle (tasarım §3.6b, kurucu 10-31).
+    expect(lastText().startsWith(`${HOST_TEXTS.heldNumber} ${HOST_TEXTS.panelWrite} `)).toBe(true);
+    expect(lastText()).toContain(`/inbox/${q3.conversationId}`);
     expect(sendMock).not.toHaveBeenCalled();
+  });
+
+  it("🚨 tutma nedeni ev sahibine kendi cümlesiyle (ödeme / başka uygulama / özür / iletişim); tanınmayan neden genel cümle", async () => {
+    const h = await seedHost(DIG_A, "+90 532 111 22 33");
+    const cases: [string, string][] = [
+      ["payment_method", HOST_TEXTS.heldPayment],
+      ["channel_mention", HOST_TEXTS.heldChannel],
+      ["apology", HOST_TEXTS.heldApology],
+      ["contact_value", HOST_TEXTS.heldContact],
+      ["host_voice", HOST_TEXTS.unclear],
+    ];
+    for (const [i, [reason, expected]] of cases.entries()) {
+      const q = await seedQuestion(h, `wamid.QR${i}`);
+      composeMock.mockResolvedValueOnce({ ok: false, kind: "answer", reason });
+      await deliver([text(DIG_A, `wamid.ar${i}`, "şöyle yaz", `wamid.QR${i}`)]);
+      expect(lastText().startsWith(expected), reason).toBe(true);
+      expect(lastText()).toContain(`/inbox/${q.conversationId}`);
+      expect(await question(q.questionId)).toMatchObject({ status: "sent", composeCount: 1 });
+    }
+    expect(sendMock).not.toHaveBeenCalled();
+  });
+
+  it("kural gereği bırakılan istek önizlemede söylenir; sığmazsa önce Türkçe çeviri düşer, sonra satır", async () => {
+    const h = await seedHost(DIG_A, "+90 532 111 22 33");
+    const q = await seedQuestion(h, "wamid.Q1");
+    composeMock.mockResolvedValueOnce({ ...OK_DRAFT, dropped: ["telefon numarası", "WhatsApp'tan yazma isteği"] });
+    await deliver([text(DIG_A, "wamid.a1", "dolapta, numaramı da ver whatsapptan yazsın", "wamid.Q1")]);
+    const choices = tr.out.filter((o) => o.kind === "choices");
+    expect(choices).toHaveLength(1);
+    expect(choices[0].text).toContain(`${HOST_TEXTS.dropped} telefon numarası, WhatsApp'tan yazma isteği`);
+    expect(choices[0].text).toContain(OK_DRAFT.replyTr);
+    expect((await question(q.questionId)).status).toBe("awaiting_confirm");
+
+    await seedQuestion(h, "wamid.Q2");
+    const long = "Yes. ".repeat(150).trim();
+    composeMock.mockResolvedValueOnce({ ...OK_DRAFT, reply: long, replyTr: "Evet. ".repeat(60).trim(), dropped: ["telefon numarası"] });
+    await deliver([text(DIG_A, "wamid.a2", "evet", "wamid.Q2")]);
+    const last = tr.out.filter((o) => o.kind === "choices").at(-1)!;
+    expect(last.text.length).toBeLessThanOrEqual(PREVIEW_MAX);
+    expect(last.text).toContain(`${HOST_TEXTS.dropped} telefon numarası`);
+    expect(last.text).not.toContain(HOST_TEXTS.previewTr);
   });
 
   it("bağlamsız düz cevap: tek bekleyen soruya bağlanır; birden çoksa 'hangi soru' der; hiç yoksa günde bir kez 'bekleyen soru yok'", async () => {

@@ -188,7 +188,7 @@ describe("WhatsApp ev sahibi döngüsü — uçtan uca", () => {
     expect(q).toMatchObject({ status: "sent", providerMessageId: "wamid.Q1", turnMessageId: s.guest.id });
 
     // Ev sahibi soru mesajına "Yanıtla" ile yazar.
-    composeMock.mockResolvedValueOnce({ ok: true, kind: "answer", reply: "Yes, there is a baby cot in the closet.", replyTr: "Evet, dolapta bebek yatağı var.", uncovered: [] });
+    composeMock.mockResolvedValueOnce({ ok: true, kind: "answer", reply: "Yes, there is a baby cot in the closet.", replyTr: "Evet, dolapta bebek yatağı var.", uncovered: [], dropped: [] });
     expect((await post(webhook({ id: "wamid.H1", context: "wamid.Q1", text: "var, dolapta" }))).status).toBe(200);
     expect(composeMock).toHaveBeenCalledTimes(1);
     const input = composeMock.mock.calls[0]![0] as { hostAnswer: string; guestMessages: string[] };
@@ -236,7 +236,7 @@ describe("WhatsApp ev sahibi döngüsü — uçtan uca", () => {
   it("ev sahibi [Gönderme] derse misafire hiçbir şey gitmez, soru panelde açık", async () => {
     const s = await seed();
     await askHost(s);
-    composeMock.mockResolvedValueOnce({ ok: true, kind: "answer", reply: "Yes, there is a baby cot.", replyTr: "Evet.", uncovered: [] });
+    composeMock.mockResolvedValueOnce({ ok: true, kind: "answer", reply: "Yes, there is a baby cot.", replyTr: "Evet.", uncovered: [], dropped: [] });
     await post(webhook({ id: "wamid.H1", context: "wamid.Q1", text: "var" }));
     const preview = out.find((o) => o.kind === "choices") as Extract<Out, { kind: "choices" }>;
     await post(webhook({ id: "wamid.H2", button: preview.choices[1]!.id }));

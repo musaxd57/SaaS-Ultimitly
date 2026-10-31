@@ -34,7 +34,14 @@ describe("cevap kurucu", () => {
       uncovered: ["parking"],
     });
     const r = await composeGuestReplyFromHostAnswer({ ...base, fetchImpl: m.fetchImpl });
-    expect(r).toEqual({ ok: true, kind: "answer", reply: "Yes, there is a baby cot in the bedroom wardrobe.", replyTr: expect.any(String), uncovered: ["parking"] });
+    expect(r).toEqual({
+      ok: true,
+      kind: "answer",
+      reply: "Yes, there is a baby cot in the bedroom wardrobe.",
+      replyTr: expect.any(String),
+      uncovered: ["parking"],
+      dropped: [],
+    });
     expect((m.calls[0].messages as { content: string }[])[0].content).toBe(HOST_ANSWER_SYSTEM_PROMPT);
   });
 

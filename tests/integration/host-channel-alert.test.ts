@@ -385,7 +385,7 @@ describe("acil bildirim — düz cevap", () => {
       now: new Date(Date.now() - 20 * MIN),
     });
     const q = await infoQuestion(s, new Date(Date.now() + 1_000));
-    composeMock.mockResolvedValueOnce({ ok: true, kind: "answer", reply: "Yes, there is a baby cot.", replyTr: "Evet.", uncovered: [] });
+    composeMock.mockResolvedValueOnce({ ok: true, kind: "answer", reply: "Yes, there is a baby cot.", replyTr: "Evet.", uncovered: [], dropped: [] });
     sent = [];
     await plain("wamid.p1", "var, dolapta");
     expect(composeMock).toHaveBeenCalledTimes(1);
@@ -471,7 +471,7 @@ describe("acil bildirim — düz cevap, kenar durumlar (sert inceleme 2)", () =>
     const s = await seed();
     const q = await olderQuestion(s, 30);
     await alertAt(s, 5);
-    composeMock.mockResolvedValueOnce({ ok: true, kind: "answer", reply: "Yes, there is a baby cot.", replyTr: "Evet.", uncovered: [] });
+    composeMock.mockResolvedValueOnce({ ok: true, kind: "answer", reply: "Yes, there is a baby cot.", replyTr: "Evet.", uncovered: [], dropped: [] });
     sent = [];
     await deliver({ kind: "text", providerMessageId: "wamid.c1", contextId: q.providerMessageId, text: "var, dolapta" });
     expect(composeMock).toHaveBeenCalledTimes(1);
@@ -484,7 +484,7 @@ describe("acil bildirim — düz cevap, kenar durumlar (sert inceleme 2)", () =>
     await alertAt(s, 5);
     composeMock.mockResolvedValueOnce({ ok: true, kind: "partial", reply: null, replyTr: null, uncovered: ["otopark"] });
     await deliver({ kind: "text", providerMessageId: "wamid.c1", contextId: q.providerMessageId, text: "havuz 9'da" });
-    composeMock.mockResolvedValueOnce({ ok: true, kind: "answer", reply: "Pool opens at 9; parking is free.", replyTr: "Evet.", uncovered: [] });
+    composeMock.mockResolvedValueOnce({ ok: true, kind: "answer", reply: "Pool opens at 9; parking is free.", replyTr: "Evet.", uncovered: [], dropped: [] });
     sent = [];
     await deliver({ kind: "text", providerMessageId: "wamid.c2", text: "otopark var, ücretsiz" });
     expect(composeMock).toHaveBeenCalledTimes(2);
@@ -506,7 +506,7 @@ describe("acil bildirim — düz cevap, kenar durumlar (sert inceleme 2)", () =>
     const s = await seed();
     await olderQuestion(s, 30);
     await alertAt(s, 5);
-    composeMock.mockResolvedValueOnce({ ok: true, kind: "answer", reply: "Yes.", replyTr: "Evet.", uncovered: [] });
+    composeMock.mockResolvedValueOnce({ ok: true, kind: "answer", reply: "Yes.", replyTr: "Evet.", uncovered: [], dropped: [] });
     sent = [];
     await deliver({ kind: "text", providerMessageId: "wamid.old", text: "var, dolapta", at: new Date(Date.now() - 10 * MIN) });
     expect(composeMock).toHaveBeenCalledTimes(1);

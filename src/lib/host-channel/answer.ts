@@ -81,6 +81,15 @@ export const HOST_TEXTS = {
   partial: "Cevabınız sorunun tamamını karşılamıyor. Eksik kısmı da yazın ya da panelden cevaplayın:",
   composeFailed: "Şu an taslak hazırlanamadı. Panelden yazabilirsiniz:",
   composeLimit: "Bu soru için daha fazla taslak hazırlanamıyor. Panelden yazabilirsiniz:",
+  /** Kural gereği bırakılan istekler (talimat biçimli cevap, tasarım §3.6b) — önizlemenin altında. */
+  dropped: "Kurallar gereği eklemedim:",
+  /** Kod kapısı tuttu — nedeni ev sahibine kendi cümlesiyle (tasarım §3.6b); ardından "Panelden yazabilirsiniz: <bağlantı>". */
+  heldNumber: "Cevapta sizin yazmadığınız bir sayı ya da saat çıktı, misafire gönderilmedi.",
+  heldContact: "Telefon, e-posta ya da bağlantı misafire bu yoldan gönderilemez (platform kuralı).",
+  heldPayment: "Platform dışı ödeme yöntemi misafire yazılamaz (platform kuralı).",
+  heldChannel: "Misafiri WhatsApp gibi başka bir uygulamaya yönlendiren mesaj gönderilemez (platform kuralı).",
+  heldApology: "Cevaba sizin istemediğiniz bir özür girdi, gönderilmedi. Özür dilenmesini istiyorsanız cevabınızda belirtin.",
+  panelWrite: "Panelden yazabilirsiniz:",
   busy: "Önceki cevabınız hâlâ işleniyor; bu mesaj dikkate alınmadı. Önizleme gelince gerekirse yeniden yazın.",
   none: "Şu an bekleyen bir misafir sorusu yok.",
   ambiguous: "Birden çok bekleyen soru var. Cevabınızı ilgili soru mesajına \"Yanıtla\" diyerek yazın.",
@@ -101,6 +110,24 @@ export const HOST_TEXTS = {
   /** Karar mesajına (Tür B) yazıyla cevap ("13:30 olur") — karşı teklif / serbest talimat bu dilimde panelde (tasarım §3.10). */
   decisionReply: "Karar için mesajdaki [Onayla] / [Reddet] düğmelerini kullanın; farklı bir saat ya da not için panelden yazın:",
 } as const;
+
+/** Kod kapısının ev sahibine kendi cümlesiyle söylenen tutma nedenleri (tasarım §3.6b); ötekiler genel "çıkaramadım" cümlesi. */
+function heldReasonText(reason: string): string | null {
+  switch (reason) {
+    case "number_not_in_source":
+      return HOST_TEXTS.heldNumber;
+    case "contact_value":
+      return HOST_TEXTS.heldContact;
+    case "payment_method":
+      return HOST_TEXTS.heldPayment;
+    case "channel_mention":
+      return HOST_TEXTS.heldChannel;
+    case "apology":
+      return HOST_TEXTS.heldApology;
+    default:
+      return null;
+  }
+}
 
 const answerAad = (questionId: string, organizationId: string) => `host-question-answer:v1:${questionId}:${organizationId}`;
 const draftAad = (questionId: string, organizationId: string) => `host-question-draft:v1:${questionId}:${organizationId}`;
@@ -500,7 +527,8 @@ async function composeAndPreview(ctx: {
     }
     await reopen({ composeCount: { increment: 1 } });
     const failed = composed.reason === "no_key" || composed.reason === "model_failed";
-    await reply(`${failed ? HOST_TEXTS.composeFailed : HOST_TEXTS.unclear} ${link}`, event.providerMessageId);
+    const held = heldReasonText(composed.reason);
+    await reply(`${failed ? HOST_TEXTS.composeFailed : held ? `${held} ${HOST_TEXTS.panelWrite}` : HOST_TEXTS.unclear} ${link}`, event.providerMessageId);
     return failed ? "compose_failed" : "unclear";
   }
   // Kapsama kuralı (K-1029-A ile aynı ruh): cevap bir soruyu karşılamıyorsa misafire HENÜZ hiçbir şey gitmez, soru açık kalır.
@@ -515,7 +543,10 @@ async function composeAndPreview(ctx: {
   const header = previewHeader(conv, turn?.body ?? "", guestNames);
   const body = `${HOST_TEXTS.previewHeader}\n\n“${composed.reply}”`;
   const withTr = composed.replyTr && composed.replyTr !== composed.reply ? `${body}\n\n${HOST_TEXTS.previewTr} “${composed.replyTr}”` : body;
-  const preview = [`${header}${withTr}`, `${header}${body}`].find((p) => p.length <= PREVIEW_MAX) ?? null;
+  // Kural gereği bırakılan istek önizlemede söylenir (ev sahibi neyin gitmediğini bilsin); sığmazsa önce Türkçe çeviri düşer.
+  const droppedLine = composed.dropped.length > 0 ? `\n\n${HOST_TEXTS.dropped} ${composed.dropped.join(", ")}` : "";
+  const preview =
+    [`${header}${withTr}${droppedLine}`, `${header}${body}${droppedLine}`, `${header}${withTr}`, `${header}${body}`].find((p) => p.length <= PREVIEW_MAX) ?? null;
   if (!preview) {
     await reopen({ composeCount: { increment: 1 } });
     await reply(`${HOST_TEXTS.unclear} ${link}`, event.providerMessageId);
