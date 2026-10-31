@@ -63,6 +63,10 @@ import { hostVoiceDraft } from "@/lib/ai/host-voice";
 import { drainOutboxOnce } from "@/lib/outbox/worker";
 import { OUTBOX_MAX_ATTEMPTS } from "@/lib/outbox/state";
 import { handoffExemptName } from "@/lib/outbox/handoff-exempt";
+import { startHostBinding, confirmHostBindingFromInbound } from "@/lib/host-channel/binding";
+import { WHATSAPP_CLOUD_PROVIDER } from "@/lib/host-channel/providers";
+import { __setHostChannelTransportForTest } from "@/lib/host-channel-runtime";
+import type { HostChannelTransport, HostQuestionMessage } from "@/lib/host-channel/types";
 
 const mockSuggest = vi.mocked(suggestReply);
 const mockMail = vi.mocked(emailService.sendReporting);
@@ -189,6 +193,80 @@ function beforeEachTurn() {
   });
   afterEach(() => vi.unstubAllEnvs());
 }
+
+describe("acil bildirim WhatsApp'a da (Tür C, `HOST_QUESTION_ALERTS_ENABLED`; tasarım §3.1 dilim 4)", () => {
+  beforeEachTurn();
+  const alerts: { to: string; message: HostQuestionMessage }[] = [];
+  const transport: HostChannelTransport = {
+    provider: WHATSAPP_CLOUD_PROVIDER,
+    sendQuestion: async () => ({ ok: true, providerMessageId: "wamid.q" }),
+    sendAlert: async (to, message) => {
+      alerts.push({ to, message });
+      return { ok: true, providerMessageId: `wamid.alert${alerts.length}` };
+    },
+    sendText: async () => ({ ok: true, providerMessageId: "wamid.t" }),
+    sendChoices: async () => ({ ok: true, providerMessageId: "wamid.c" }),
+  };
+  beforeEach(() => {
+    alerts.length = 0;
+    __setHostChannelTransportForTest(transport);
+  });
+  afterEach(() => __setHostChannelTransportForTest(undefined));
+
+  async function bindHost(orgId: string, conversationId: string) {
+    const user = await prisma.user.create({
+      data: { organizationId: orgId, name: "Ayla", email: `u${Math.random().toString(36).slice(2)}@example.test`, passwordHash: "x", role: "owner" },
+    });
+    const property = await prisma.property.findFirstOrThrow({ where: { organizationId: orgId } });
+    const reservation = await prisma.reservation.create({
+      data: { propertyId: property.id, guestName: "Alex Doe", arrivalDate: new Date("2026-11-12T00:00:00Z"), departureDate: new Date("2026-11-15T00:00:00Z"), status: "confirmed", channel: "airbnb" },
+    });
+    await prisma.conversation.update({ where: { id: conversationId }, data: { reservationId: reservation.id } });
+    const b = await startHostBinding({ organizationId: orgId, userId: user.id, provider: WHATSAPP_CLOUD_PROVIDER, rawNumber: "+90 532 111 22 33", optInTextVersion: "v1" });
+    if (!b.ok) throw new Error(b.reason);
+    const c = await confirmHostBindingFromInbound({ provider: WHATSAPP_CLOUD_PROVIDER, fromDigits: "905321112233", code: b.code });
+    if (!c.ok) throw new Error(c.reason);
+  }
+  function alertFlags(on: boolean) {
+    vi.stubEnv("HOST_CHANNEL_ENABLED", "1");
+    vi.stubEnv("HOST_CHANNEL_ORG_IDS", "*");
+    vi.stubEnv("HOST_CHANNEL_HMAC_SECRET", "test-host-channel-secret-0123456789abcdef");
+    vi.stubEnv("HOST_QUESTION_ALERTS_ENABLED", on ? "1" : "");
+  }
+
+  it("🚨 IBAN tek başına: acil e-posta AYNEN gider + WhatsApp acil bildirimi (bir kez, maskeli alıntı, panel bağlantısı); yeniden işleme ikincisini üretmez", async () => {
+    const { orgId, conversationId } = await seed(IBAN);
+    alertFlags(true);
+    await bindHost(orgId, conversationId);
+    understands(understood([{ intent: "payment_invoice", message: 1 }]));
+    mockSuggest.mockResolvedValueOnce(verdict({ intent: "general", reply: "Ödemeler yalnızca platform üzerinden yapılır." }));
+    await applyChannelAutoReply(conversationId);
+    expect(mockMail).toHaveBeenCalledTimes(1);
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]).toMatchObject({ to: "905321112233", message: { property: "Lale 7", dates: "12–15 Kas", link: conversationId } });
+    expect(alerts[0]!.message.quote).toContain("IBAN");
+    expect(alerts[0]!.message.quote).not.toMatch(/alex/iu);
+    expect(await prisma.hostQuestion.findFirstOrThrow({ where: { conversationId } })).toMatchObject({ kind: "alert", status: "alerted" });
+
+    understands(understood([{ intent: "payment_invoice", message: 1 }]));
+    mockSuggest.mockResolvedValueOnce(verdict({ intent: "general", reply: "Ödemeler yalnızca platform üzerinden yapılır." }));
+    await applyChannelAutoReply(conversationId);
+    expect(alerts).toHaveLength(1);
+    expect(mockMail).toHaveBeenCalledTimes(1);
+  });
+
+  it("acil bildirim anahtarı KAPALI: bugünkü davranış — yalnız e-posta, veritabanına bildirim satırı yazılmaz", async () => {
+    const { orgId, conversationId } = await seed(IBAN);
+    alertFlags(false);
+    await bindHost(orgId, conversationId);
+    understands(understood([{ intent: "payment_invoice", message: 1 }]));
+    mockSuggest.mockResolvedValueOnce(verdict({ intent: "general", reply: "Ödemeler yalnızca platform üzerinden yapılır." }));
+    await applyChannelAutoReply(conversationId);
+    expect(mockMail).toHaveBeenCalledTimes(1);
+    expect(alerts).toHaveLength(0);
+    expect(await prisma.hostQuestion.count()).toBe(0);
+  });
+});
 
 describe("KURUCU SENARYOSU — IBAN → sonra Wi-Fi (ayrı mesajlar)", () => {
   beforeEachTurn();

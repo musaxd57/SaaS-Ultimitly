@@ -36,7 +36,7 @@ const ENDPOINT = "https://www.lixusai.com/api/webhooks/host-channel/whatsapp";
 const HOST_DIGITS = "905321112233";
 
 type Out =
-  | { kind: "question"; to: string; message: HostQuestionMessage }
+  | { kind: "question" | "alert"; to: string; message: HostQuestionMessage }
   | { kind: "text"; to: string; text: string; replyTo?: string | null }
   | { kind: "choices"; to: string; text: string; choices: readonly HostChoice[]; replyTo?: string | null };
 let out: Out[] = [];
@@ -46,6 +46,10 @@ const transport: HostChannelTransport = {
   async sendQuestion(to, message) {
     out.push({ kind: "question", to, message });
     return { ok: true, providerMessageId: `wamid.Q${++n}` };
+  },
+  async sendAlert(to, message) {
+    out.push({ kind: "alert", to, message });
+    return { ok: true, providerMessageId: `wamid.A${++n}` };
   },
   async sendText(to, text, replyTo) {
     out.push({ kind: "text", to, text, replyTo });
@@ -173,7 +177,7 @@ describe("WhatsApp ev sahibi döngüsü — uçtan uca", () => {
     const s = await seed();
     expect(await askHost(s)).toBe("mailed");
     expect(mailMock).not.toHaveBeenCalled();
-    const question = out.find((o) => o.kind === "question") as Extract<Out, { kind: "question" }>;
+    const question = out.find((o) => o.kind === "question") as Extract<Out, { kind: "question" | "alert" }>;
     expect(question.to).toBe(HOST_DIGITS);
     expect(question.message.property).toBe("Lale");
     expect(question.message.dates).toBe("12–15 Kas");

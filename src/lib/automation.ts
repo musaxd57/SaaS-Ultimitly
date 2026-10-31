@@ -10,6 +10,8 @@ import { admitsMissingKnowledge, asksHypotheticalSituation, namesInternalSource 
 import { hostVoiceGuardEnabled, hostVoiceViolation } from "@/lib/ai/host-voice-guard";
 import { carriesHandoffNotice, HANDOFF_NOTICE_REASON, vetoOutgoingReply } from "@/lib/ai/output-veto";
 import { notifyHostReplyWaiting } from "@/lib/host-reply-waiting";
+import { alertHostOnChannel } from "@/lib/host-channel/alert";
+import { hostChannelTransport } from "@/lib/host-channel-runtime";
 import { actionClaimHold, type ActionClaimReason, type ClaimedActionsDeclaration } from "@/lib/ai/action-claims";
 import { contextLabels, hasEmergencyCallDirective, hasSafetyReassurance, hazardDecisionFor, hazardEvidenceOf, kbSupportsReassurance } from "@/lib/ai/hazard-evidence";
 import {
@@ -4405,6 +4407,9 @@ async function notifyItemsForHost(input: {
     property: input.conversation.property,
     messageIds: input.messageIds,
     now: input.now,
+    // Acil bildirim WhatsApp'a da (anahtar arkasında, e-postanın yanında; kapalıyken veritabanına dokunmaz).
+    onUrgentMessage: (messageId, body) =>
+      alertHostOnChannel({ organizationId: input.organizationId, conversationId: input.conversation.id, messageId, messageBody: body, transport: hostChannelTransport(), now: input.now }),
   });
   if (notice.failed.length > 0) {
     void reportError(
@@ -6340,6 +6345,8 @@ async function alertItemsForHost(input: {
     property: input.conversation.property,
     messageIds: todo.map((h) => h.id),
     now,
+    onUrgentMessage: (messageId, body) =>
+      alertHostOnChannel({ organizationId: input.organizationId, conversationId: input.conversation.id, messageId, messageBody: body, transport: hostChannelTransport(), now }),
   });
   // Karar kaydı mesaj başına BİR kez: e-postası düşen mesaj sonraki geçişte yeniden işlenir, tekillik ihlali (yutulur ama
   // Prisma hata satırı basar) önceden okunarak atlanır.

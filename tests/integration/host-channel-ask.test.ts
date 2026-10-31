@@ -28,6 +28,9 @@ function fakeTransport(result: { ok: boolean } = { ok: true }) {
       sent.push({ to, message });
       return result.ok ? { ok: true, providerMessageId: `wamid.${sent.length}` } : { ok: false, providerMessageId: null, definitive: true, error: "x" };
     },
+    async sendAlert() {
+      return { ok: false, providerMessageId: null, definitive: true, error: "not_used" };
+    },
     async sendText() {
       return { ok: true, providerMessageId: "wamid.t" };
     },

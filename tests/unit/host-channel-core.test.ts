@@ -217,6 +217,10 @@ describe("sahte gönderici — sağlayıcıdan bağımsız arayüz", () => {
         sent.push({ to, message });
         return { ok: true, providerMessageId: `fake.${sent.length}` };
       },
+      async sendAlert(to, message) {
+        sent.push({ to, message });
+        return { ok: true, providerMessageId: `fake.${sent.length}` };
+      },
       async sendText(to, text, replyTo) {
         sent.push({ to, text, replyTo });
         return { ok: true, providerMessageId: `fake.${sent.length}` };

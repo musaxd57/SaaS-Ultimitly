@@ -15,6 +15,8 @@ export interface HostQuestionMessage {
   dates: string;
   /** Misafirin sözünden kısa, maskeli alıntı (en çok 160 karakter; ad / telefon / e-posta YOK). */
   quote: string;
+  /** Panel bağlantısının değişken kısmı (konuşma kimliği) — şablonun değişkenli bağlantı düğmesi varsa (`/inbox/{{1}}`). */
+  link?: string;
 }
 
 /** Sağlayıcıdan gelen ve çekirdeğin anladığı tek biçim. */
@@ -36,6 +38,8 @@ export interface HostSendResult {
 export interface HostChannelTransport {
   readonly provider: string;
   sendQuestion(to: string, message: HostQuestionMessage): Promise<HostSendResult>;
+  /** Acil bildirim (Tür C, onaylı şablon, pencere dışında da gider): cevap kurulmaz — ev sahibi konuşmayı panelde açar. */
+  sendAlert(to: string, message: HostQuestionMessage): Promise<HostSendResult>;
   /** Pencere içi serbest metin (önizleme, "Gönderildi", "Hangi soru?") — `replyTo` verilirse o mesaja yanıt olarak. */
   sendText(to: string, text: string, replyTo?: string | null): Promise<HostSendResult>;
   /**

@@ -49,6 +49,8 @@ export const OPERATIONAL_EVENTS = {
   "host_channel.answer.sent_to_guest": "info",
   // Başka işletmenin sorusuna (bağlam / düğme kimliğiyle) yapılan deneme — reddedildi; yalnız gönderenin işletmesi yazılır.
   "host_channel.answer.foreign": "warn",
+  // Acil bildirim (Tür C) WhatsApp'a da gitti — yalnız işletme.
+  "host_channel.alert.sent": "info",
 } as const;
 export type OperationalEventName = keyof typeof OPERATIONAL_EVENTS;
 

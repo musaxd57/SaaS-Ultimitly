@@ -10,7 +10,9 @@ const cfg: WhatsAppConfig = {
   phoneNumberId: "123456789012345",
   graphVersion: "v23.0",
   questionTemplate: "lixus_misafir_sorusu",
+  alertTemplate: "lixus_acil_bildirim",
   templateLang: "tr",
+  urlButtonIndex: null,
 };
 
 function graph(status: number, body: unknown) {
@@ -27,7 +29,14 @@ describe("ortam ayarı", () => {
     expect(whatsAppConfigFromEnv({})).toBeNull();
     expect(whatsAppConfigFromEnv({ WHATSAPP_ACCESS_TOKEN: "x", WHATSAPP_PHONE_NUMBER_ID: "abc" })).toBeNull();
     expect(whatsAppConfigFromEnv({ WHATSAPP_ACCESS_TOKEN: "x", WHATSAPP_PHONE_NUMBER_ID: "123456", WHATSAPP_GRAPH_VERSION: "latest" })).toBeNull();
-    expect(whatsAppConfigFromEnv({ WHATSAPP_ACCESS_TOKEN: "x", WHATSAPP_PHONE_NUMBER_ID: "123456" })).toMatchObject({ graphVersion: "v23.0", templateLang: "tr" });
+    expect(whatsAppConfigFromEnv({ WHATSAPP_ACCESS_TOKEN: "x", WHATSAPP_PHONE_NUMBER_ID: "123456" })).toMatchObject({
+      graphVersion: "v23.0",
+      templateLang: "tr",
+      alertTemplate: "lixus_acil_bildirim",
+      urlButtonIndex: null,
+    });
+    expect(whatsAppConfigFromEnv({ WHATSAPP_ACCESS_TOKEN: "x", WHATSAPP_PHONE_NUMBER_ID: "123456", WHATSAPP_TEMPLATE_URL_BUTTON_INDEX: "1" })?.urlButtonIndex).toBe(1);
+    expect(whatsAppConfigFromEnv({ WHATSAPP_ACCESS_TOKEN: "x", WHATSAPP_PHONE_NUMBER_ID: "123456", WHATSAPP_TEMPLATE_URL_BUTTON_INDEX: "bir" })).toBeNull();
   });
   it("numara: +, boşluk, parantez, tire temizlenir; 8–15 rakam", () => {
     expect(normalizeWaNumber("+90 (532) 111-22-33")).toBe("905321112233");
@@ -60,6 +69,25 @@ describe("gönderim gövdesi", () => {
 
     await t.sendText("905321112233", "Gönderildi ✓", "wamid.Q1");
     expect(JSON.parse(String(g.calls[1].init.body))).toMatchObject({ type: "text", text: { body: "Gönderildi ✓", preview_url: false }, context: { message_id: "wamid.Q1" } });
+  });
+
+  it("acil bildirim kendi şablonuyla; değişkenli bağlantı düğmesi YALNIZ yapılandırıldıysa (konuşma kimliği parametre)", async () => {
+    const g = graph(200, { messages: [{ id: "wamid.A1" }] });
+    const msg = { property: "Lale", dates: "12–15 Kas", quote: "We are locked out", link: "conv123" };
+    expect(await createWhatsAppTransport(cfg, g.fetchImpl).sendAlert("905321112233", msg)).toEqual({ ok: true, providerMessageId: "wamid.A1" });
+    const plain = JSON.parse(String(g.calls[0].init.body));
+    expect(plain.template.name).toBe("lixus_acil_bildirim");
+    expect(plain.template.components).toEqual([
+      { type: "body", parameters: [{ type: "text", text: "Lale" }, { type: "text", text: "12–15 Kas" }, { type: "text", text: "We are locked out" }] },
+    ]);
+
+    await createWhatsAppTransport({ ...cfg, urlButtonIndex: 1 }, g.fetchImpl).sendQuestion("905321112233", msg);
+    const withButton = JSON.parse(String(g.calls[1].init.body));
+    expect(withButton.template.name).toBe("lixus_misafir_sorusu");
+    expect(withButton.template.components[1]).toEqual({ type: "button", sub_type: "url", index: "1", parameters: [{ type: "text", text: "conv123" }] });
+    // Bağlantı değeri yoksa düğme parametresi gönderilmez.
+    await createWhatsAppTransport({ ...cfg, urlButtonIndex: 1 }, g.fetchImpl).sendQuestion("905321112233", { ...msg, link: undefined });
+    expect(JSON.parse(String(g.calls[2].init.body)).template.components).toHaveLength(1);
   });
 
   it("düğmeli mesaj: Meta etkileşimli düğme biçimi, en çok 3 düğme, başlık ≤ 20, gövde ≤ 1024, yanıt bağlamıyla", async () => {

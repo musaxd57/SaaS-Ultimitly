@@ -158,3 +158,62 @@ describe("K9 — mesaj başına TEK e-posta, eşzamanlı çağrıda da", () => {
     expect(mockMail).toHaveBeenCalledTimes(2);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Acil bildirim kancası (WhatsApp, tasarım §3.1 dilim 4): e-postanın YANINDA, yerine değil. Kanca mesaj başına talebi kazanan TEK çağrıda
+// koşar, e-postayla AYNI ANDA başlar (yavaş sağlayıcı acil e-postayı geciktirmez) ve hatası e-postayı etkilemez.
+// ---------------------------------------------------------------------------
+describe("acil bildirim kancası (onUrgentMessage)", () => {
+  it("🚨 kanca fırlatsa da e-posta gider", async () => {
+    const { conversation, message } = await seedTwoSensitiveItems();
+    const hook = vi.fn(async () => {
+      throw new Error("meta down");
+    });
+    const out = await notifyHeldItems(prisma, { ...input(conversation.id, message.id, new Date()), onUrgentMessage: hook });
+    expect(hook).toHaveBeenCalledTimes(1);
+    expect(hook).toHaveBeenCalledWith(message.id, expect.stringContaining("IBAN"));
+    expect(out.mailed).toEqual([message.id]);
+    expect(mockMail).toHaveBeenCalledTimes(1);
+  });
+
+  it("🚨 e-posta kancanın bitmesini BEKLEMEZ (ikisi aynı anda başlar)", async () => {
+    const { conversation, message } = await seedTwoSensitiveItems();
+    const order: string[] = [];
+    let mailed!: () => void;
+    const mailSeen = new Promise<void>((r) => (mailed = r));
+    mockMail.mockImplementation((async () => {
+      order.push("mail");
+      mailed();
+      return { ok: true };
+    }) as never);
+    const hook = vi.fn(async () => {
+      // E-posta kancadan önce çağrılmazsa 1,5 sn sonra kendi kendine biter (kilitlenme yok, sıra yanlış kalır).
+      await Promise.race([mailSeen, new Promise((r) => setTimeout(r, 1_500))]);
+      order.push("hook-done");
+    });
+    await notifyHeldItems(prisma, { ...input(conversation.id, message.id, new Date()), onUrgentMessage: hook });
+    expect(order).toEqual(["mail", "hook-done"]);
+  });
+
+  it("eşzamanlı iki çağrıda kanca TEK kez; e-posta düşüp sonraki geçiş yeniden denerse kanca yeniden çağrılır (tekilliği kendinde)", async () => {
+    const { conversation, message } = await seedTwoSensitiveItems();
+    const hook = vi.fn(async () => null);
+    const db = barrierDb(2);
+    const now = new Date();
+    await Promise.all([
+      notifyHeldItems(db, { ...input(conversation.id, message.id, now), onUrgentMessage: hook }),
+      notifyHeldItems(db, { ...input(conversation.id, message.id, now), onUrgentMessage: hook }),
+    ]);
+    expect(hook).toHaveBeenCalledTimes(1);
+    // Bildirilmiş mesaj yeniden işlenince kanca yok.
+    await notifyHeldItems(prisma, { ...input(conversation.id, message.id, new Date()), onUrgentMessage: hook });
+    expect(hook).toHaveBeenCalledTimes(1);
+  });
+
+  it("e-posta alıcısı yoksa kanca da çağrılmaz (bilinen sınır: bildirim e-postanın yanındadır)", async () => {
+    const { conversation, message } = await seedTwoSensitiveItems();
+    const hook = vi.fn(async () => null);
+    await notifyHeldItems(prisma, { ...input(conversation.id, message.id, new Date()), to: null, onUrgentMessage: hook });
+    expect(hook).not.toHaveBeenCalled();
+  });
+});

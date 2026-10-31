@@ -128,7 +128,7 @@ export async function askHostOnChannel(input: {
       guestText: input.messageBody,
       guestNames: [res.guestName, res.guestGivenName, conv.guestIdentifier].filter((n): n is string => typeof n === "string"),
     });
-    const sent = await input.transport.sendQuestion(to, message);
+    const sent = await input.transport.sendQuestion(to, { ...message, link: input.conversationId });
     if (!sent.ok || !sent.providerMessageId) {
       await prisma.hostQuestion.updateMany({ where: { id: questionId, status: "queued" }, data: { status: "failed", fallbackEmailAt: now } });
       return "email";

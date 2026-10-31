@@ -45,6 +45,9 @@ function fakeTransport() {
     async sendQuestion() {
       return { ok: true, providerMessageId: "wamid.q" };
     },
+    async sendAlert() {
+      return { ok: true, providerMessageId: "wamid.a" };
+    },
     async sendText(to, text) {
       texts.push({ to, text });
       return { ok: true, providerMessageId: "wamid.t" };

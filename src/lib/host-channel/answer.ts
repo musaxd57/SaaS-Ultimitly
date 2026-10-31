@@ -86,6 +86,7 @@ export const HOST_TEXTS = {
   sendFailed: "Gönderilemedi. Panelden deneyin:",
   notConnected: "Kanal bağlantısı yok, panelden deneyin.",
   unsupported: "Sesli mesajları ve görselleri henüz okuyamıyorum, lütfen yazın.",
+  alertReply: "Bu bir acil bildirimdi; buraya yazdığınız misafire gitmez. Misafire panelden yazın:",
 } as const;
 
 const answerAad = (questionId: string, organizationId: string) => `host-question-answer:v1:${questionId}:${organizationId}`;
@@ -210,7 +211,14 @@ export async function handleHostAnswer(input: {
   // Bağlamın sorusu YALNIZ gönderenin işletmesinde okunur; başka işletmede olup olmadığına yalnız işletme kimliğiyle bakılır (içerik okunmaz)
   // — o durumda eşleyiciye yalnız "yabancı" işareti gider (Haiku 10-30 P3).
   const byContext = event.contextId ? { OR: [{ providerMessageId: event.contextId }, { previewMessageId: event.contextId }] } : null;
-  const contextual = byContext ? await prisma.hostQuestion.findFirst({ where: { ...byContext, organizationId: org }, select }) : null;
+  const contextual = byContext
+    ? await prisma.hostQuestion.findFirst({ where: { ...byContext, organizationId: org }, select: { ...select, kind: true, conversationId: true } })
+    : null;
+  // Acil bildirime (Tür C) yazılan cevap misafire GİTMEZ — bildirim cevap beklemez; ev sahibi panele yönlendirilir.
+  if (contextual?.kind === "alert") {
+    await reply(`${HOST_TEXTS.alertReply} ${panelLink(contextual.conversationId)}`, event.providerMessageId);
+    return "closed";
+  }
   const foreignContext =
     byContext && !contextual
       ? await prisma.hostQuestion.findFirst({ where: { ...byContext, organizationId: { not: org } }, select: { organizationId: true } })

@@ -4,8 +4,10 @@ import { WHATSAPP_CLOUD_PROVIDER } from "../providers";
 // ---------------------------------------------------------------------------
 // WhatsApp Cloud API bağdaştırıcısı (tasarım §2, §4). Çekirdek yalnız `HostChannelTransport`ı bilir; bu dosya Meta'nın Graph API biçimini
 // konuşur. Kimlik bilgileri ortamdan (kasada): `WHATSAPP_ACCESS_TOKEN` (sistem kullanıcısı kalıcı belirteci), `WHATSAPP_PHONE_NUMBER_ID`;
-// Graph sürümü `WHATSAPP_GRAPH_VERSION` (⚠️ kurulumda güncel sürüm teyit edilir). Şablon adı / dili `WHATSAPP_QUESTION_TEMPLATE` /
-// `WHATSAPP_TEMPLATE_LANG` (varsayılan `lixus_misafir_sorusu` / `tr`).
+// Graph sürümü `WHATSAPP_GRAPH_VERSION` (⚠️ kurulumda güncel sürüm teyit edilir). Şablon adları / dili `WHATSAPP_QUESTION_TEMPLATE` /
+// `WHATSAPP_ALERT_TEMPLATE` / `WHATSAPP_TEMPLATE_LANG` (varsayılan `lixus_misafir_sorusu` / `lixus_acil_bildirim` / `tr`). Şablonda DEĞİŞKENLİ
+// bağlantı düğmesi varsa (`https://www.lixusai.com/inbox/{{1}}`) `WHATSAPP_TEMPLATE_URL_BUTTON_INDEX` o düğmenin sırası (0'dan); boşsa düğme
+// parametresi gönderilmez (statik bağlantılı ya da bağlantısız şablon). Meta, şablondaki değişken sayısıyla gönderilen eşleşmezse reddeder (132000).
 // Belirteç ASLA günlüğe yazılmaz; hata gövdesinden yalnız kod + kısa mesaj okunur. Kesin ret (4xx, 429 hariç; pencere dışı serbest metin
 // 131047) yeniden denenmez → çağıran e-posta yedeğine düşer.
 // ---------------------------------------------------------------------------
@@ -15,7 +17,10 @@ export interface WhatsAppConfig {
   phoneNumberId: string;
   graphVersion: string;
   questionTemplate: string;
+  alertTemplate: string;
   templateLang: string;
+  /** Değişkenli bağlantı düğmesinin şablondaki sırası; `null` → düğme parametresi yok. */
+  urlButtonIndex: number | null;
 }
 
 export function whatsAppConfigFromEnv(env: Record<string, string | undefined> = process.env): WhatsAppConfig | null {
@@ -24,12 +29,16 @@ export function whatsAppConfigFromEnv(env: Record<string, string | undefined> = 
   if (!accessToken || !phoneNumberId || !/^\d{5,20}$/.test(phoneNumberId)) return null;
   const graphVersion = env.WHATSAPP_GRAPH_VERSION?.trim() || "v23.0";
   if (!/^v\d{1,3}\.\d$/.test(graphVersion)) return null;
+  const rawIndex = env.WHATSAPP_TEMPLATE_URL_BUTTON_INDEX?.trim();
+  if (rawIndex && !/^\d$/.test(rawIndex)) return null;
   return {
     accessToken,
     phoneNumberId,
     graphVersion,
     questionTemplate: env.WHATSAPP_QUESTION_TEMPLATE?.trim() || "lixus_misafir_sorusu",
+    alertTemplate: env.WHATSAPP_ALERT_TEMPLATE?.trim() || "lixus_acil_bildirim",
     templateLang: env.WHATSAPP_TEMPLATE_LANG?.trim() || "tr",
+    urlButtonIndex: rawIndex ? Number(rawIndex) : null,
   };
 }
 
@@ -71,27 +80,22 @@ async function post(cfg: WhatsAppConfig, body: Record<string, unknown>, fetchImp
 }
 
 export function createWhatsAppTransport(cfg: WhatsAppConfig, fetchImpl: typeof fetch = fetch): HostChannelTransport {
+  /** Onaylı şablon: üç gövde değişkeni (daire · tarih · maskeli alıntı) + (yapılandırılmışsa) değişkenli bağlantı düğmesine panel yolu. */
+  const sendTemplate = (name: string, to: string, message: HostQuestionMessage): Promise<HostSendResult> => {
+    const num = normalizeWaNumber(to);
+    if (!num) return Promise.resolve({ ok: false, providerMessageId: null, definitive: true, error: "bad_number" });
+    const components: Record<string, unknown>[] = [
+      { type: "body", parameters: [message.property, message.dates, message.quote].map((text) => ({ type: "text", text })) },
+    ];
+    if (cfg.urlButtonIndex !== null && message.link) {
+      components.push({ type: "button", sub_type: "url", index: String(cfg.urlButtonIndex), parameters: [{ type: "text", text: message.link }] });
+    }
+    return post(cfg, { to: num, type: "template", template: { name, language: { code: cfg.templateLang }, components } }, fetchImpl);
+  };
   return {
     provider: WHATSAPP_CLOUD_PROVIDER,
-    async sendQuestion(to: string, message: HostQuestionMessage): Promise<HostSendResult> {
-      const num = normalizeWaNumber(to);
-      if (!num) return { ok: false, providerMessageId: null, definitive: true, error: "bad_number" };
-      return post(
-        cfg,
-        {
-          to: num,
-          type: "template",
-          template: {
-            name: cfg.questionTemplate,
-            language: { code: cfg.templateLang },
-            components: [
-              { type: "body", parameters: [message.property, message.dates, message.quote].map((text) => ({ type: "text", text })) },
-            ],
-          },
-        },
-        fetchImpl,
-      );
-    },
+    sendQuestion: (to: string, message: HostQuestionMessage) => sendTemplate(cfg.questionTemplate, to, message),
+    sendAlert: (to: string, message: HostQuestionMessage) => sendTemplate(cfg.alertTemplate, to, message),
     async sendText(to: string, text: string, replyTo?: string | null): Promise<HostSendResult> {
       const num = normalizeWaNumber(to);
       if (!num) return { ok: false, providerMessageId: null, definitive: true, error: "bad_number" };
