@@ -6,15 +6,20 @@
 // Herhangi bir kol kırmızıysa çıkış kodu 1 (kalan kollar yine koşar — bütün kırmızılar tek seferde görünür).
 // Geri dönüş: `npm run test:serial` (eski seri düzen, ana `vitest.config.ts`, değişmedi).
 // İşçi sayısı: `TEST_NODB_WORKERS` (varsayılan `vitest.nodb.config.ts` içinde).
+// `TEST_REPORT_DIR` verilirse her kol ayrıca vitest JSON raporu yazar (`<dizin>/db.json`, `nodb.json`, `timing.json`) — CI'da eski düzen ile
+// gruplu düzenin aynı commit'te karşılaştırılması için (`scripts/ci-compare-layouts.mjs`); verilmezse davranış AYNEN eskisi.
 import { spawn, spawnSync } from "node:child_process";
 import { createInterface } from "node:readline";
 
 const VITEST = "node_modules/.bin/vitest";
 
+const REPORT_DIR = process.env.TEST_REPORT_DIR?.trim();
+
 function run(label, args) {
   return new Promise((resolve) => {
     const t0 = Date.now();
-    const child = spawn(VITEST, ["run", ...args], { env: process.env, stdio: ["ignore", "pipe", "pipe"] });
+    const reporters = REPORT_DIR ? ["--reporter=default", "--reporter=json", `--outputFile.json=${REPORT_DIR}/${label}.json`] : [];
+    const child = spawn(VITEST, ["run", ...args, ...reporters], { env: process.env, stdio: ["ignore", "pipe", "pipe"] });
     const prefix = (stream, out) =>
       createInterface({ input: stream }).on("line", (line) => out.write(`[${label}] ${line}\n`));
     prefix(child.stdout, process.stdout);

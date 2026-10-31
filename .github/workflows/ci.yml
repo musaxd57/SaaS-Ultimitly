@@ -36,6 +36,13 @@ on:
   # `head.repo.full_name == github.repository` DOGRU olur ve CI kosar.
   pull_request:
   workflow_dispatch:
+    inputs:
+      # GERİ DÖNÜŞ (kurucu 10-31): `serial` = eski tek işli düzen (`npm test`, aynı veritabanında tek sıra). Push'ta giriş boştur → `sharded`.
+      layout:
+        description: "Test düzeni"
+        type: choice
+        options: ["sharded", "serial"]
+        default: "sharded"
 
 # ASGARI TOKEN IZNI (08-05). Hicbir job repoya YAZMIYOR — hepsi checkout + npm +
 # test. Blok yokken kapsam DEPO AYARINDAN gelir (panelden okunur, repodan
@@ -45,8 +52,10 @@ permissions:
 
 # cancel-in-progress drops superseded runs when commits land in quick succession
 # (the older run shows as "cancelled" — expected, not a failure).
+# El ile tetiklenen koşu (`workflow_dispatch`: düzen karşılaştırması / tekrar) KENDİ grubunda: aynı daldaki push koşusunu (Railway'in beklediği)
+# ya da birbirini iptal etmez.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}${{ github.event_name == 'workflow_dispatch' && format('-dispatch-{0}', github.run_id) || '' }}
   cancel-in-progress: true
 
 # Note: whether Railway waits for this CI is a RAILWAY PANEL setting ("Wait for
@@ -54,51 +63,198 @@ concurrency:
 # deploy (regressions surface but ship); if on, red blocks. Keep this comment
 # claim-free so it can't drift from the panel state.
 jobs:
-  verify:
+  # ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  # PARALEL TEST GRUPLARI (kurucu 10-31, `docs/TASARIM-2026-10-31-ci-paralel-test.md`). Veritabanlı testler 3 gruba bölünür; her grup
+  # AYRI çalıştırıcıda, AYRI konteynerde, KENDİ PostgreSQL'iyle (`tests/global-setup.ts`, değişmeden) tek sırada koşar — bir grubun
+  # `resetDb`'si ötekine ulaşamaz. Veritabanısız + süre ölçen testler + typecheck + lint ayrı işte. `verify` SON KAPIDIR: test koşmaz,
+  # bütün işlerin başarısını ve raporların EKSİKSİZLİĞİNİ denetler (kayıp / fazla / çift dosya, başarısız ya da boş dosya, dosya başına atlanan
+  # test tavanı, başka commit'in raporu) — `scripts/ci-verify.mjs`. Test atlama, yeniden deneme, `continue-on-error`, gevşetilmiş sınır YOK.
+  # Railway "Wait for CI" bütün işlerin sonucuna bakar; son kapı adı bilerek `verify` kaldı.
+  # ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  test-db:
     runs-on: ubuntu-latest
-    # Deploy dalinin uzun omurlu PR'ini ATLA — o commit'ler zaten `push`
-    # tetikleyicisiyle kosuyor; filtresiz `pull_request` her push'u IKINCI kez
-    # (merge ref'ine karsi) kosturuyordu. `head_ref` yalniz pull_request
-    # olaylarinda dolar, push'ta bostur → bu kosul push'ta DAIMA dogru.
+    # Deploy dalinin uzun omurlu PR'ini ATLA + fork PR'lari kosmaz (asagidaki gerekce bloklari).
     if: >-
       github.head_ref != 'claude/great-edison-3zqpZ' &&
       (github.event_name != 'pull_request' ||
-       github.event.pull_request.head.repo.full_name == github.repository)
-    # Debian container runs as root, which the integration test global-setup
-    # needs (it provisions its own PostgreSQL on :5433 via `su postgres`).
+       github.event.pull_request.head.repo.full_name == github.repository) &&
+      (inputs.layout || 'sharded') == 'sharded'
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    # Debian container runs as root, which the integration test global-setup needs (it provisions its own PostgreSQL on :5433).
     container:
       image: node:22-bookworm
     steps:
-      # TAM GEÇMİŞ — yalnız bu job'da. Dedupe apply'ının güvenlik kapısı
-      # `git merge-base --is-ancestor <Faz A> <deploy SHA>` ile çalışır; sığ
-      # (varsayılan depth=1) bir checkout'ta Faz A commit'i NESNE OLARAK
-      # bulunmaz ve kapı doğru şekilde reddeder — ama o zaman testler
-      # gerçek ancestry'yi hiç sınayamaz. build/e2e/migration-chain job'ları
-      # git geçmişine bakmadığı için BİLİNÇLİ olarak sığ bırakıldı.
+      # TAM GEÇMİŞ: dedupe apply kapısı `git merge-base --is-ancestor` ile çalışır (sığ checkout'ta testler gerçek ancestry'yi sınayamaz).
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - name: Install PostgreSQL (for the integration test harness)
         run: |
           apt-get update
           apt-get install -y --no-install-recommends postgresql postgresql-contrib sudo
           rm -rf /var/lib/apt/lists/*
-
       - name: Install dependencies
         run: npm ci
-
       - name: Generate Prisma client
         run: npx prisma generate
+      - name: Tests (veritabanlı grup ${{ matrix.shard }}/3)
+        env:
+          TEST_DB_SHARD: "${{ matrix.shard }}/3"
+        run: |
+          mkdir -p ci-reports
+          node_modules/.bin/vitest run -c vitest.db-shard.config.ts --reporter=default --reporter=json --outputFile.json=ci-reports/db-${{ matrix.shard }}.json
+      - name: Rapor kimliği
+        if: always()
+        run: node scripts/ci-verify.mjs meta db-${{ matrix.shard }} ci-reports/db-${{ matrix.shard }}.meta.json
+      - name: Grup raporu denetimi
+        run: node scripts/ci-verify.mjs shard ${{ matrix.shard }}/3 ci-reports
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ci-report-db-${{ matrix.shard }}
+          path: ci-reports/
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 7
 
+  test-nodb:
+    runs-on: ubuntu-latest
+    if: >-
+      github.head_ref != 'claude/great-edison-3zqpZ' &&
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.full_name == github.repository) &&
+      (inputs.layout || 'sharded') == 'sharded'
+    timeout-minutes: 40
+    container:
+      image: node:22-bookworm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install dependencies
+        run: npm ci
+      - name: Generate Prisma client
+        run: npx prisma generate
       - name: Type-check
         run: npm run typecheck
-
       - name: Lint
         run: npm run lint
+      - name: Tests (veritabanısız)
+        run: |
+          mkdir -p ci-reports
+          node_modules/.bin/vitest run -c vitest.nodb.config.ts --reporter=default --reporter=json --outputFile.json=ci-reports/nodb.json
+      - name: Tests (süre ölçen — makine boşken, tek sıra)
+        if: always()
+        run: node_modules/.bin/vitest run -c vitest.timing.config.ts --reporter=default --reporter=json --outputFile.json=ci-reports/timing.json
+      - name: Rapor kimliği
+        if: always()
+        run: |
+          node scripts/ci-verify.mjs meta nodb ci-reports/nodb.meta.json
+          node scripts/ci-verify.mjs meta timing ci-reports/timing.meta.json
+      - name: Rapor denetimi
+        run: node scripts/ci-verify.mjs nodb ci-reports
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ci-report-nodb
+          path: ci-reports/
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 7
 
+  # SON KAPI. `!cancelled()`: gruplar kırmızı olsa da KOŞAR ve onları kırmızı sayar (`NEEDS_JSON`); elle iptalde koşmaz. Fork / deploy-PR
+  # koruması burada da (yoksa atlanan işleri görüp yanlışlıkla kırmızı olurdu).
+  verify:
+    runs-on: ubuntu-latest
+    needs: [test-db, test-nodb]
+    if: >-
+      !cancelled() &&
+      github.head_ref != 'claude/great-edison-3zqpZ' &&
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.full_name == github.repository) &&
+      (inputs.layout || 'sharded') == 'sharded'
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # Raporlar AÇIK adlarla indirilir (joker yok: eşleşmeyen joker hata vermezdi). Eksik rapor → indirme adımı kırmızı → iş kırmızı; öteki
+      # indirmeler ve kapı yine koşar (hangi raporun eksik olduğu yazılsın).
+      - uses: actions/download-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: ci-report-db-1
+          path: ci-reports
+      - uses: actions/download-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: ci-report-db-2
+          path: ci-reports
+      - uses: actions/download-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: ci-report-db-3
+          path: ci-reports
+      - uses: actions/download-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: ci-report-nodb
+          path: ci-reports
+      # İndirme adımı düşse de (eksik rapor) kapı KOŞAR: kırmızılığın sebebini (`NEEDS_JSON`, kayıp dosya) yazar.
+      - name: Son kapı — bütün grupların eksiksiz ve başarılı olduğu
+        if: ${{ !cancelled() }}
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: node scripts/ci-verify.mjs gate ci-reports
+
+  # GERİ DÖNÜŞ — eski tek işli düzen (yalnız `workflow_dispatch` + `layout: serial`). Aynı commit'te iki düzeni karşılaştırmak için JSON raporu
+  # da yazar (`scripts/ci-compare-layouts.mjs`).
+  verify-serial:
+    runs-on: ubuntu-latest
+    if: >-
+      github.head_ref != 'claude/great-edison-3zqpZ' &&
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.full_name == github.repository) &&
+      inputs.layout == 'serial'
+    timeout-minutes: 75
+    container:
+      image: node:22-bookworm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install PostgreSQL (for the integration test harness)
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends postgresql postgresql-contrib sudo
+          rm -rf /var/lib/apt/lists/*
+      - name: Install dependencies
+        run: npm ci
+      - name: Generate Prisma client
+        run: npx prisma generate
+      - name: Type-check
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
       - name: Tests
-        run: npm test
+        env:
+          TEST_REPORT_DIR: ci-reports
+        run: |
+          mkdir -p ci-reports
+          npm test
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ci-report-serial
+          path: ci-reports/
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 7
 
   # The gap the test harness can't catch: it uses `prisma db push`, so a broken
   # or drifting MIGRATION chain only surfaces at deploy (`migrate deploy` at
