@@ -90,6 +90,7 @@ describe("acil bildirim (Tür C)", () => {
       turnMessageId: s.message.id,
       answerEnc: null,
       draftEnc: null,
+      sentAt: expect.any(Date),
     });
     expect(await prisma.operationalEvent.count({ where: { event: "host_channel.alert.sent", organizationId: s.orgId } })).toBe(1);
   });

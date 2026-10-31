@@ -195,7 +195,7 @@ describe("acil bildirim kancası (onUrgentMessage)", () => {
     expect(order).toEqual(["mail", "hook-done"]);
   });
 
-  it("eşzamanlı iki çağrıda kanca TEK kez; e-posta düşüp sonraki geçiş yeniden denerse kanca yeniden çağrılır (tekilliği kendinde)", async () => {
+  it("eşzamanlı iki çağrıda kanca TEK kez; bildirilmiş mesaj yeniden işlenince kanca yok", async () => {
     const { conversation, message } = await seedTwoSensitiveItems();
     const hook = vi.fn(async () => null);
     const db = barrierDb(2);
@@ -208,6 +208,16 @@ describe("acil bildirim kancası (onUrgentMessage)", () => {
     // Bildirilmiş mesaj yeniden işlenince kanca yok.
     await notifyHeldItems(prisma, { ...input(conversation.id, message.id, new Date()), onUrgentMessage: hook });
     expect(hook).toHaveBeenCalledTimes(1);
+  });
+
+  it("e-posta düşerse sonraki geçiş kancayı YENİDEN çağırır — ikinci WhatsApp'ı kancanın kendi tekilliği önler (alert:<mesaj>)", async () => {
+    const { conversation, message } = await seedTwoSensitiveItems();
+    const hook = vi.fn(async () => null);
+    mockMail.mockResolvedValueOnce({ ok: false } as never);
+    await notifyHeldItems(prisma, { ...input(conversation.id, message.id, new Date()), onUrgentMessage: hook });
+    await notifyHeldItems(prisma, { ...input(conversation.id, message.id, new Date()), onUrgentMessage: hook });
+    expect(hook).toHaveBeenCalledTimes(2);
+    expect(mockMail).toHaveBeenCalledTimes(2);
   });
 
   it("e-posta alıcısı yoksa kanca da çağrılmaz (bilinen sınır: bildirim e-postanın yanındadır)", async () => {
