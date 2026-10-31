@@ -176,10 +176,13 @@ export async function decideHostDecision(args: {
   const conversation = await prisma.conversation.findFirst({ where: { id, property: { organizationId } }, select: CONVERSATION_SELECT });
   if (!conversation) return { kind: "not_found" };
   const now = args.now ?? new Date();
+  // Denetimin faili ÇAĞIRANDAN gelir (çağıran sorumlu): panel rotası `auditActor(session)` (bürünmede operatör — pin
+  // `audit-actor-scoping.test.ts`), WhatsApp düğmesi bağlantının kendi kullanıcısı.
+  const actorUserId = actor.auditActorId;
   const audit = (action: string, extra: Record<string, unknown> = {}) =>
     writeAudit({
       organizationId,
-      actorUserId: actor.auditActorId,
+      actorUserId,
       action,
       metadata: { decisionId: decision.id, kind: decision.kind, ...extra, ...(actor.auditExtra ?? {}) },
     });

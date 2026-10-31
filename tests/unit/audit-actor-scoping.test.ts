@@ -96,6 +96,17 @@ describe("denetim kaydı — impersonation'da fail OPERATÖRDÜR", () => {
   });
 });
 
+describe("karar çekirdeği (failini çağırandan alır) — çağıran sorumlu", () => {
+  it("panel karar rotası çekirdeğe faili auditActor(session) ve izi auditImpersonation(session) olarak verir", () => {
+    // `decisions/decide.ts` denetimi `actorUserId` parametresiyle yazar (yukarıdaki tarama "parametre olarak geçirilen" kalıbını
+    // kabul eder); güvence ÇAĞIRANDA olduğu için çağıran burada sabitlenir.
+    const route = readFileSync("src/app/api/conversations/[id]/decisions/[decisionId]/route.ts", "utf8");
+    expect(route).toContain("auditActorId: auditActor(session)");
+    expect(route).toContain("auditExtra: auditImpersonation(session)");
+    expect(route).not.toMatch(/auditActorId:\s*session\.userId/);
+  });
+});
+
 describe("auditActor / auditImpersonation davranışı", () => {
   const customerOwner = { userId: "u-customer", actorUserId: undefined, actorEmail: undefined };
   const operatorInside = {
