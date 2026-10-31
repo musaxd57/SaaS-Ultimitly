@@ -23,6 +23,7 @@ describe("istem + şema", () => {
     expect(HOST_ANSWER_SYSTEM_PROMPT).toMatch(/Apologise ONLY if the host's answer apologises or asks you to apologise/);
     expect(HOST_ANSWER_SYSTEM_PROMPT).toMatch(/list it in dropped/);
     expect(HOST_ANSWER_SYSTEM_PROMPT).toMatch(/never name a payment method/);
+    expect(HOST_ANSWER_SYSTEM_PROMPT).toMatch(/No filler or sign-off lines/);
   });
 
   it("şema 'dropped' ister; modelin bıraktığı istekler sonuçta döner", async () => {
@@ -83,6 +84,9 @@ describe("özür yalnız ev sahibi isterse (kurucu 10-31)", () => {
     "Lo sentimos, mañana viene un técnico.",
     "Извините, техник придёт завтра.",
     "نعتذر، سيأتي الفني غدا.",
+    "Мне очень жаль, техник придёт завтра.",
+    "We regret the inconvenience, a technician is coming tomorrow.",
+    "Lamentamos las molestias, mañana viene un técnico.",
   ];
   it("ev sahibinin yazısında özür yoksa kendiliğinden özür TUTULUR (12 biçim, 7 dil)", () => {
     for (const r of apologies) expect(check(r, "teknisyen yarın gelecek"), r).toBe("apology");
@@ -93,7 +97,7 @@ describe("özür yalnız ev sahibi isterse (kurucu 10-31)", () => {
     expect(check(apologies[1], "kusura bakmasınlar, teknisyen yarın gelecek")).toBeNull();
   });
   it("aşırı uygulama yok: özür sözcüğü taşımayan nezaket cümlesi geçer", () => {
-    for (const r of ["Teknisyen yarın geliyor.", "Excursions start at the port.", "Это просто: техник придёт завтра.", "Gerne, morgen kommt ein Techniker."]) {
+    for (const r of ["Teknisyen yarın geliyor.", "Excursions start at the port.", "Это просто: техник придёт завтра.", "Gerne, morgen kommt ein Techniker.", "Maalesef erken giriş olmuyor, bavulunuzu 12'den sonra bırakabilirsiniz.", "Leider ist ein früher Check-in nicht möglich."]) {
       expect(apologizes(r), r).toBe(false);
     }
   });
@@ -137,8 +141,9 @@ describe("akşam saati: 12 saatlik yazım ↔ 24 saat", () => {
     // Virgülden ÖNCEKİ işaret sonraki sayıya geçmez ("akşam 7, sabah 8").
     expect(check("Breakfast at 20:00.", "akşam 7, sabah 8")).toBe("number_not_in_source");
   });
-  it("yalnız 1–11 kayar: 'gece 12' 24 olmaz", () => {
-    expect(check("Quiet hours start at 24:00.", "gece 12den sonra sessiz olsunlar")).toBe("number_not_in_source");
+  it("'gece 12' gece yarısıdır (00:00 / 24:00), öğlen 13 değil", () => {
+    expect(check("Quiet hours start at 24:00.", "gece 12den sonra sessiz olsunlar")).toBeNull();
+    expect(check("Quiet hours start at 13:00.", "gece 12den sonra sessiz olsunlar")).toBe("number_not_in_source");
   });
   it("ters yön: kaynakta 20 → cevapta yanında akşam işaretiyle '8 pm' geçer, 'am' ya da işaretsiz 8 geçmez", () => {
     expect(check("You can check in after 8 pm.", "20den sonra girebilir")).toBeNull();

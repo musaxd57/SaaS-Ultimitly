@@ -174,7 +174,8 @@ function score(arm: "old" | "new", c: Case, r: ComposeResult & { rawReply?: stri
     c.expect === "send"
       ? r.ok
       : c.expect === "send_or_drop"
-        ? (r.ok && forbiddenLeak.length === 0) || (!r.ok && r.kind === "answer" && r.reason !== "model_failed")
+        ? (r.ok && forbiddenLeak.length === 0) ||
+          (!r.ok && r.kind === "answer" && ["payment_method", "channel_mention", "contact_value", "host_contact"].includes(r.reason))
         : c.expect === "takes_over"
           ? r.kind === "host_takes_over"
           : r.kind === "host_unknown";

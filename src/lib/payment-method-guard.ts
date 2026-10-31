@@ -40,8 +40,9 @@ const METHOD_WORDS = new RegExp(
     `apple pay|google pay|cash ?app|kripto|crypto|bitcoin|banka hesab|hesap numara|bank account|account number|` +
     `${W}(?:iban|eft(?![a-z])|cash(?![a-z])|sepa(?![a-z])|usd[tc](?![a-z])|wise(?![a-z]))|` +
     // DE/FR/ES/IT/RU/AR: yalnız çok anlamlı olmayanlar (tek başına ES "efectivo" = "etkili" de, DE "bar" = "bar" da).
-    `barzahlung|bargeld|${W}bar (?:be)?zahlen|zahlen sie bar|${W}in bar(?![a-z])|uberweisung|especes|en liquide|virement|` +
-    `en efectivo|contanti|bonifico|наличн|نقد`,
+    `barzahlung|bargeld|${W}bar (?:be)?zahlen|zahlen sie bar|${W}in bar(?![a-z])|uberweis|especes|en liquide|virement|` +
+    `en efectivo|contanti|bonifico|наличн|نقد|bizum|transferencia bancaria|por transferencia|` +
+    `(?:перевод(?:ом)?|переведите|переведи|оплат[а-я]{0,6}) на карту|تحويل بنكي|حوالة`,
 );
 
 /** IBAN biçimi: ülke kodu + 2 kontrol hanesi + devamı (boşluklu yazım dahil), en az 12 rakam. */
@@ -92,4 +93,44 @@ export function namesPaymentMethod(text: string, opts: { paymentContext?: boolea
   // Anahtar/erişim istisnası YALNIZ "kapıda" çekimlerine ve metinde para sözcüğü YOKKEN.
   const scanned = !ownMoney && ACCESS.test(folded) ? folded.replace(new RegExp(KAPI.source, "g"), " ") : folded;
   return PLACE_OR_MANNER.test(scanned);
+}
+
+// ---------------------------------------------------------------------------
+// MİSAFİRE YAZILMIŞ DÜZ METİN KİPİ (WhatsApp ev sahibi cevabından kurulan misafir cevabı, `host-channel/compose-check.ts`; inceleme 10-31).
+// Yukarıdaki kural ev sahibinin KISA kayıt notu için yazıldı ("şüphede reddet"); model misafirin dilinde uzun düz metin yazınca iki yönde
+// yanılıyordu: "Parking is free of charge … in person" → yanlış ret; "La fianza se paga al llegar", "Depozitoyu kartıma gönderin" → kaçak.
+// Bu kip yalnız o çağıran için: yöntem adı aynı (yukarıdaki liste), yer / biçim sözcüğü para sözcüğüyle AYNI ya da ÖNCEKİ cümlede,
+// "doğrudan" para sözcüğüyle aynı yan cümlede, hesap / kart + ödeme fiili aynı yan cümlede. Ödeme olmayan öbekler (ücretsiz, ATM) önce silinir.
+// ---------------------------------------------------------------------------
+const NOT_PAYMENT = /free of charge|ucretsiz|kostenlos|gratuit|gratis|бесплатн|مجان|cash ?machines?|cash ?points?|(?<![a-z])atm(?![a-z])|bankamatik|geldautomat|distributeur|cajero/g;
+const PROSE_MONEY = new RegExp(`${MONEY.source}|${W}(?:fianza|cobr[ao]|caution|kaution|depozit|deposit)|залог|оплат|تأمين|دفع|رسوم`);
+const PROSE_PLACE = new RegExp(
+  `${W}(?:al llegar|a la llegada|sur place|a l'?arrivee|a votre arrivee|bei ankunft|vor ort|when you arrive|upon check-?in|geldiginizde|girerken)` +
+    `|при заезде|при заселении|на месте|عند الوصول`,
+);
+const DIRECT_WORD = new RegExp(`${W}(?:directly|dogrudan|direkt(?![a-z])|directement|directamente)|напрямую`);
+const ACCOUNT_WORD = new RegExp(
+  `${W}(?:hesab(?:im|imiz)|kart(?:im|imiz)|(?:my|our) (?:bank )?(?:account|card)|unser(?:em)? konto|notre compte|(?:mi|nuestra) cuenta)` +
+    `|на (?:мой|наш) сч[её]т`,
+);
+const SENTENCE = /[.!?\n]+/;
+const CLAUSE_SPLIT = /[,;]+/;
+
+export function namesPaymentMethodInProse(text: string): boolean {
+  const folded = foldPaymentText(text).replace(NOT_PAYMENT, " ");
+  if (METHOD_WORDS.test(folded) || hasIbanNumber(folded)) return true;
+  const sentences = folded.split(SENTENCE);
+  for (let i = 0; i < sentences.length; i++) {
+    const s = sentences[i] ?? "";
+    for (const c of s.split(CLAUSE_SPLIT)) {
+      if (ACCOUNT_WORD.test(c) && PAY_VERB.test(c)) return true;
+      if (DIRECT_WORD.test(c) && PAY_VERB.test(c) && PROSE_MONEY.test(c)) return true;
+    }
+    const money = PROSE_MONEY.test(s) || PROSE_MONEY.test(sentences[i - 1] ?? "");
+    if (!money) continue;
+    // Anahtar / erişim cümlesindeki "kapıda" konumdur — para sözcüğü o cümlenin kendisinde yoksa.
+    const scanned = !PROSE_MONEY.test(s) && ACCESS.test(s) ? s.replace(new RegExp(KAPI.source, "g"), " ") : s;
+    if (PLACE_OR_MANNER.test(scanned) || PROSE_PLACE.test(scanned)) return true;
+  }
+  return false;
 }
