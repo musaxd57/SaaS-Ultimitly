@@ -628,6 +628,11 @@ async function maskReservationRows(
       // Bilgi tabanı önerisi (migration 89) ev sahibinin cevabından türer — misafir silmesinde onunla gider (kaydedilmiş kalem ev sahibinin).
       data: { answerEnc: null, draftEnc: null, draftHash: null, kbProposalEnc: null },
     });
+    // Süren öneri kapanır: hazırlanmakta olan öneri silmeden SONRA yazılamaz (kayıt `preparing` CAS'ına bağlı — Sonnet 10-31 P3).
+    await db.hostQuestion.updateMany({
+      where: { organizationId, conversationId: { in: convIds }, kbProposalState: { in: ["offered", "preparing", "previewed"] } },
+      data: { kbProposalState: "cancelled" },
+    });
     // Geçmişten öğren (migration 65, Opus 10-15 KVKK): onaylanmamış taslak maskeye rağmen misafir kırıntısı taşıyabilir ve kanıtı JSON'da
     // durur → silinen konaklamanın mülkündeki ONAYLANMAMIŞ taslaklar silinir (yeniden üretilebilir; onaylanan = ev sahibinin bilgi tabanı
     // kalemi, kalır). Bu konaklamanın sorularına ait cevap karşılaştırmaları (yapay zekâ cevabı + not) silinir.

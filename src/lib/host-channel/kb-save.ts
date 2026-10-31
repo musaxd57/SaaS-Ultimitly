@@ -12,6 +12,7 @@ import { foldTurkishAscii } from "@/lib/ai/fallback";
 import { extractDraftsFromPairs, gateDraft, type DraftFlag, type LearnDraft } from "@/lib/history-learn/extract";
 import { kbOverlaps, prepareKbItems } from "@/lib/history-learn/kb-overlap";
 import { maskForLearning } from "@/lib/history-learn/mask";
+import { extractWifiValues } from "@/lib/ai-suggestions/core";
 import type { HostChoice } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -59,6 +60,10 @@ export const KB_TEXTS = {
   failed: "Bilgi tabanına kaydedilemedi; panelden ekleyebilirsiniz.",
   changed: "Bilgi tabanındaki kayıt bu arada değişti; panelden kontrol edin.",
   planFull: "Bu dairenin bilgi tabanı sınırı dolu; panelden yer açabilirsiniz.",
+  tooLong: "Bu bilgi bilgi tabanı için çok uzun; panelden kısaltarak ekleyebilirsiniz.",
+  retry: "Bilgi şu an hazırlanamadı; birazdan yeniden dokunun.",
+  secret: "Şifre / kod içeren bilgiler bilgi tabanına panelden eklenir.",
+  multiple: "Bu konuda birden çok kayıt var; panelden düzenleyin.",
 } as const;
 
 /** Genel bilgi SAYILMAYAN işaretler (gateDraft): tek seferlik, zamana bağlı, deneme, bilgi yok, ödeme, kişisel bilgi, kapı, misafir adı, tek sefer eylem. */
@@ -73,6 +78,7 @@ const NOT_GENERAL_FLAGS: ReadonlySet<DraftFlag> = new Set([
   "guest_name",
   "single_source",
   "needs_edit",
+  "ungrounded",
 ]);
 /** Panelden eklenen kategoriler (sır / şablon rozeti). */
 const PANEL_ONLY_CATEGORIES: ReadonlySet<string> = new Set(["wifi", "checkin"]);
@@ -95,11 +101,20 @@ const NOT_GENERAL_MARKERS = new RegExp(
   "iu",
 );
 
+/**
+ * Erişim sırrı (Sonnet incelemesi 10-31, P1): Wi-Fi şifresi kategoriden BAĞIMSIZ yakalanır — model "faq / general" etiketlese de. Şifre /
+ * parola sözcüğü (7 dil) ya da Wi-Fi değer okuyucusunun bulduğu şifre → teklif / kayıt YOK (panelden; orada sır kapıları kategoriyle çalışır).
+ */
+const SECRET_WORDS = /(?<![\p{L}])(?:sifre|parola|password|passwort|kennwort|mot de passe|contrasena|contraseña|clave|пароль|كلمة المرور|كلمة السر|pin)(?![\p{L}])/iu;
+export function mentionsSecret(text: string): boolean {
+  return SECRET_WORDS.test(foldTurkishAscii(text)) || extractWifiValues(text).password !== null;
+}
+
 /** Ucuz ön süzgeç (model YOK): gönderilen ev sahibi cevabı kalıcı bilgi adayı mı? Şüphede hayır. */
 export function kbOfferCandidate(answer: string): boolean {
   const a = answer.trim();
   if (a.length < 8 || a.length > 600) return false;
-  if (NOT_GENERAL_MARKERS.test(foldTurkishAscii(a))) return false;
+  if (NOT_GENERAL_MARKERS.test(foldTurkishAscii(a)) || mentionsSecret(a)) return false;
   const g = gateDraft("Ev sahibi cevabı", a, { supportConversations: 1 });
   return g.ok && !g.flags.some((f) => NOT_GENERAL_FLAGS.has(f));
 }
@@ -117,6 +132,10 @@ interface KbProposal {
   replace: { id: string; updatedAt: string; preview: string; conflict: boolean } | null;
 }
 
+/** Hazırlık / kayıt kilidi bu süreden eskiyse süreç düşmüştür (çıkarıcı tavanı 120 sn) — aynı düğme yeniden işler (Sonnet 10-31 P2-3). */
+export const KB_LOCK_STALE_MS = 5 * 60_000;
+/** Önizlemede gösterilecek en uzun bilgi: sağlayıcı mesaj gövdesini ~1.024 karakterde keser, çelişki satırı kesilmesin (Sonnet 10-31 P2-5). */
+const PREVIEW_CONTENT_MAX = 600;
 const proposalAad = (questionId: string, organizationId: string) => `host-question-kb:v1:${questionId}:${organizationId}`;
 const answerAad = (questionId: string, organizationId: string) => `host-question-answer:v1:${questionId}:${organizationId}`;
 const panelKbLink = (propertyId: string) => `${appBaseUrl()}/properties/${encodeURIComponent(propertyId)}`;
@@ -147,7 +166,12 @@ export async function offerKbSaveAfterSend(input: {
       data: { kbProposalState: "offered" },
     });
     if (won.count !== 1) return false;
-    await input.choices(KB_TEXTS.offer, [{ id: kbButtonId(input.questionId, "offer"), title: KB_TEXTS.offerButton }]);
+    const sent = (await input.choices(KB_TEXTS.offer, [{ id: kbButtonId(input.questionId, "offer"), title: KB_TEXTS.offerButton }])) as { ok?: boolean } | null;
+    if (!sent?.ok) {
+      // Teklif mesajı gitmediyse teklif kaydı geri alınır (görünmeyen bir teklif "offered" kalmasın).
+      await prisma.hostQuestion.updateMany({ where: { id: input.questionId, organizationId: input.organizationId, kbProposalState: "offered" }, data: { kbProposalState: null } });
+      return false;
+    }
     await logEvent("host_channel.kb.offered", { questionId: input.questionId }, { organizationId: input.organizationId }).catch(() => null);
     return true;
   } catch {
@@ -183,6 +207,7 @@ export async function handleKbButton(input: {
       answerEnc: true,
       kbProposalEnc: true,
       kbProposalState: true,
+      updatedAt: true,
       turnMessageId: true,
       conversationId: true,
       conversation: {
@@ -212,6 +237,7 @@ type LoadedQuestion = {
   answerEnc: string | null;
   kbProposalEnc: string | null;
   kbProposalState: string | null;
+  updatedAt: Date;
   turnMessageId: string;
   conversationId: string;
   conversation: { propertyId: string; guestIdentifier: string; property: { name: string }; reservation: { guestName: string | null } | null };
@@ -226,12 +252,19 @@ async function prepareProposal(ctx: {
 }): Promise<"closed"> {
   const { organizationId: org, q, reply } = ctx;
   // Çift dokunuş tek model çağrısı: teklif → hazırlanıyor (CAS).
+  const staleBefore = new Date(ctx.now.getTime() - KB_LOCK_STALE_MS);
   const won = await prisma.hostQuestion.updateMany({
-    where: { id: q.id, organizationId: org, status: "done", kbProposalState: "offered" },
+    where: {
+      id: q.id,
+      organizationId: org,
+      status: "done",
+      OR: [{ kbProposalState: "offered" }, { kbProposalState: "preparing", updatedAt: { lt: staleBefore } }],
+    },
     data: { kbProposalState: "preparing" },
   });
   if (won.count !== 1) {
-    if (q.kbProposalState !== "preparing") await reply(KB_TEXTS.stale);
+    // Çift dokunuşun kaybedeni sessiz kalır (kazanan önizlemeyi gönderiyor); yalnız gerçekten kapanmış teklifte "geçerli değil".
+    if (q.kbProposalState !== "preparing" && q.kbProposalState !== "offered") await reply(KB_TEXTS.stale);
     return "closed";
   }
   const decline = async (text: string) => {
@@ -249,12 +282,24 @@ async function prepareProposal(ctx: {
       [{ n: 1, conversationId: q.conversationId, month, question: maskForLearning(turn?.body ?? "", guestNames), answer: maskForLearning(answer, guestNames) }],
       { guestNames },
     );
-    const draft: LearnDraft | undefined = result.drafts[0];
-    if (!draft) return await decline(KB_TEXTS.nothing);
-    if (PANEL_ONLY_CATEGORIES.has(draft.category)) return await decline(KB_TEXTS.panelOnly);
-    if (draft.flags.some((f) => NOT_GENERAL_FLAGS.has(f)) || NOT_GENERAL_MARKERS.test(foldTurkishAscii(`${draft.title}\n${draft.content}`))) {
-      return await decline(KB_TEXTS.notGeneral);
+    // Model arızası (zaman aşımı / 5xx / anahtar yok) "bilgi yok" DEĞİLDİR: teklif yeniden açılır (Sonnet 10-31 P2-2).
+    if (result.failedCalls > 0 && result.drafts.length === 0) {
+      await prisma.hostQuestion.updateMany({ where: { id: q.id, organizationId: org, kbProposalState: "preparing" }, data: { kbProposalState: "offered" } });
+      await reply(KB_TEXTS.retry);
+      return "closed";
     }
+    if (result.drafts.length === 0) return await decline(KB_TEXTS.nothing);
+    // Her çıkarım ayrı denetlenir; ilk GEÇEN önerilir (sıra kategori adına göre — ilk taslağa bakmak geçerli bir genel bilgiyi kaybediyordu).
+    const reasonOf = (d: LearnDraft): string | null => {
+      const text = `${d.title}\n${d.content}`;
+      if (mentionsSecret(text) || mentionsSecret(answer)) return KB_TEXTS.secret;
+      if (PANEL_ONLY_CATEGORIES.has(d.category)) return KB_TEXTS.panelOnly;
+      if (d.flags.some((f) => NOT_GENERAL_FLAGS.has(f)) || NOT_GENERAL_MARKERS.test(foldTurkishAscii(text))) return KB_TEXTS.notGeneral;
+      if (d.content.length + d.title.length > PREVIEW_CONTENT_MAX) return KB_TEXTS.tooLong;
+      return null;
+    };
+    const draft = result.drafts.find((d) => reasonOf(d) === null);
+    if (!draft) return await decline(reasonOf(result.drafts[0]!)!);
     const items = await prisma.knowledgeBaseItem.findMany({
       where: { propertyId: q.conversation.propertyId, ...GUEST_DELIVERABLE_KB_WHERE, supersededById: null },
       select: { id: true, category: true, title: true, content: true, updatedAt: true },
@@ -263,7 +308,9 @@ async function prepareProposal(ctx: {
     });
     const overlaps = kbOverlaps(draft, prepareKbItems(items));
     if (overlaps.some((o) => o.kind === "same")) return await decline(KB_TEXTS.alreadySaved);
-    const existing = overlaps.find((o) => o.kind === "differs") ?? overlaps.find((o) => o.kind === "topic") ?? null;
+    // Aynı konuda birden çok kalem: hangisinin yerine yazılacağı WhatsApp'ta seçtirilemez; biri pasife inerken öteki sessizce çelişik kalırdı.
+    if (overlaps.length > 1) return await decline(`${KB_TEXTS.multiple} ${panelKbLink(q.conversation.propertyId)}`);
+    const existing = overlaps[0] ?? null;
     const proposal: KbProposal = {
       propertyId: q.conversation.propertyId,
       propertyName: q.conversation.property.name,
@@ -296,7 +343,14 @@ async function prepareProposal(ctx: {
           { id: kbButtonId(q.id, "save"), title: "Kaydet" },
           { id: kbButtonId(q.id, "cancel"), title: "Vazgeç" },
         ];
-    await ctx.choices(lines.join("\n"), buttons);
+    const sent = (await ctx.choices(lines.join("\n"), buttons)) as { ok?: boolean } | null;
+    if (!sent?.ok) {
+      // Önizleme gitmediyse öneri görünmez kalmasın: teklif yeniden açılır (aynı düğme yeniden dener).
+      await prisma.hostQuestion.updateMany({
+        where: { id: q.id, organizationId: org, kbProposalState: "previewed" },
+        data: { kbProposalState: "offered", kbProposalEnc: null },
+      });
+    }
     return "closed";
   } catch (err) {
     // Hazırlık yarıda kaldı → teklif yeniden açılır (aynı düğme yeniden denenebilir).
@@ -317,6 +371,19 @@ async function saveProposal(ctx: {
   now: Date;
 }): Promise<"closed"> {
   const { organizationId: org, q, reply, mode } = ctx;
+  // Yarıda kalmış kayıt (süreç kayıt işleminden sonra düştü): kalem varsa tamamlanmış sayılır, yoksa önizleme yeniden açılır (Sonnet 10-31 P2-3).
+  if (q.kbProposalState === "saving" && q.updatedAt.getTime() < ctx.now.getTime() - KB_LOCK_STALE_MS) {
+    const done = await prisma.knowledgeBaseItem.findFirst({ where: { clientRequestId: `hq:${q.id}` }, select: { id: true } });
+    await prisma.hostQuestion.updateMany({
+      where: { id: q.id, organizationId: org, kbProposalState: "saving", updatedAt: q.updatedAt },
+      data: done ? { kbProposalState: "saved", kbProposalEnc: null } : { kbProposalState: "previewed" },
+    });
+    if (done) {
+      await reply(KB_TEXTS.saved);
+      return "closed";
+    }
+    q.kbProposalState = "previewed";
+  }
   const proposal = (() => {
     const raw = decryptOrNull(q.kbProposalEnc, proposalAad(q.id, org));
     try {
@@ -341,10 +408,10 @@ async function saveProposal(ctx: {
       .updateMany({ where: { id: q.id, organizationId: org, kbProposalState: "saving" }, data: { kbProposalState: "previewed" } })
       .catch(() => null);
   const replaceId = mode === "replace" ? proposal.replace!.id : null;
-  let outcome: "saved" | "plan_items" | "changed";
+  let outcome: "saved" | "plan_items" | "plan_chars" | "changed";
   try {
     const limits = await limitsForOrg(org);
-    if (proposal.content.length > limits.kbCharsPerItem) outcome = "plan_items";
+    if (proposal.content.length > limits.kbCharsPerItem) outcome = "plan_chars";
     else {
       outcome = await prisma.$transaction(async (tx) => {
         const active = await tx.knowledgeBaseItem.count({ where: { propertyId: proposal.propertyId, isActive: true } });
@@ -387,7 +454,8 @@ async function saveProposal(ctx: {
     await prisma.hostQuestion
       .updateMany({ where: { id: q.id, organizationId: org, kbProposalState: "saving" }, data: { kbProposalState: "cancelled", kbProposalEnc: null } })
       .catch(() => null);
-    await reply(`${outcome === "changed" ? KB_TEXTS.changed : KB_TEXTS.planFull} ${panelKbLink(proposal.propertyId)}`);
+    const text = outcome === "changed" ? KB_TEXTS.changed : outcome === "plan_chars" ? KB_TEXTS.tooLong : KB_TEXTS.planFull;
+    await reply(`${text} ${panelKbLink(proposal.propertyId)}`);
     return "closed";
   }
   await prisma.hostQuestion
