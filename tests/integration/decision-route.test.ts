@@ -210,6 +210,24 @@ describe("POST /api/conversations/[id]/decisions/[decisionId]", () => {
     expect(mockSend).toHaveBeenCalledTimes(1);
   });
 
+  it("🚨 çapa TALEBİN mesajıdır (kart sonra açılmış olsa da): arada iki kez yazdıysa yalnız EN SON mesajla 'okudum' geçer", async () => {
+    const s = await seed();
+    // İkisi de talepten SONRA, kartın açıldığı andan ÖNCE (aynı turda gelen "Teşekkürler" gibi).
+    const m2 = await prisma.message.create({
+      data: { conversationId: s.conversationId, direction: "inbound", senderName: "Ada", body: "Bir de otopark var mı?", createdAt: new Date(Date.now() - 5 * 60_000) },
+    });
+    const m3 = await prisma.message.create({
+      data: { conversationId: s.conversationId, direction: "inbound", senderName: "Ada", body: "Teşekkürler", createdAt: new Date(Date.now() - 2 * 60_000) },
+    });
+    const first = await post(s, { action: "approve", version: 0, time: "13:00", body: APPROVE_TR });
+    expect(first.status).toBe(409);
+    expect(await first.json()).toMatchObject({ code: "guest_wrote_again", latestMessageId: m3.id });
+    expect((await post(s, { action: "approve", version: 0, time: "13:00", body: APPROVE_TR, seenMessageId: m2.id })).status).toBe(409);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect((await post(s, { action: "approve", version: 0, time: "13:00", body: APPROVE_TR, seenMessageId: m3.id })).status).toBe(200);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+  });
+
   it("rezervasyon iptal → 409, gönderim yok, kart bekliyor kalır", async () => {
     const s = await seed({ status: "cancelled" });
     const res = await post(s, { action: "approve", version: 0, time: "13:00", body: APPROVE_TR });
