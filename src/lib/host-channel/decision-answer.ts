@@ -122,11 +122,7 @@ export async function handleDecisionButton(input: {
     return "previewed";
   }
 
-  // GÖNDER — önizlemedeki kartın olgu izi zorunlu (kontrol listesi değiştiyse eski önizleme gitmez).
-  if (card.factsHash !== parsed.factsHash) {
-    await reply(`${DECISION_TEXTS.factsChanged} ${link}`, input.replyTo);
-    return "stale";
-  }
+  // GÖNDER — önizlemedeki kartın olgu izi çekirdeğe verilir (kontrol listesi değiştiyse `facts_changed`, eski önizleme gitmez).
   const out = await decideHostDecision({
     organizationId,
     conversationId: decision.conversationId,

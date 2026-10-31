@@ -106,6 +106,23 @@ describe("gönderim gövdesi", () => {
     expect(JSON.parse(String(g.calls[3].init.body)).template.components).toHaveLength(1);
   });
 
+  it("karar şablonu: dört gövde değişkeni + [Onayla] (0) / [Reddet] (1) hızlı yanıt yükleri; bağlantı düğmesi yalnız yapılandırıldıysa", async () => {
+    const g = graph(200, { messages: [{ id: "wamid.D1" }] });
+    const m = { property: "Lale", dates: "12–15 Kas", title: "13:00 erken giriş", checks: "ek bilgi yok", link: "conv1", approveId: "hd.abc12345.0.a", declineId: "hd.abc12345.0.d" };
+    expect(await createWhatsAppTransport(cfg, g.fetchImpl).sendDecision!("905321112233", m)).toEqual({ ok: true, providerMessageId: "wamid.D1" });
+    const body = JSON.parse(String(g.calls[0].init.body));
+    expect(body.template.name).toBe("lixus_karar_bekliyor");
+    expect(body.template.components).toEqual([
+      { type: "body", parameters: ["Lale", "12–15 Kas", "13:00 erken giriş", "ek bilgi yok"].map((text) => ({ type: "text", text })) },
+      { type: "button", sub_type: "quick_reply", index: "0", parameters: [{ type: "payload", payload: "hd.abc12345.0.a" }] },
+      { type: "button", sub_type: "quick_reply", index: "1", parameters: [{ type: "payload", payload: "hd.abc12345.0.d" }] },
+    ]);
+    await createWhatsAppTransport({ ...cfg, decisionUrlButtonIndex: 2 }, g.fetchImpl).sendDecision!("905321112233", m);
+    expect(JSON.parse(String(g.calls[1].init.body)).template.components[3]).toEqual({ type: "button", sub_type: "url", index: "2", parameters: [{ type: "text", text: "conv1" }] });
+    expect(whatsAppConfigFromEnv({ WHATSAPP_ACCESS_TOKEN: "x", WHATSAPP_PHONE_NUMBER_ID: "123456", WHATSAPP_DECISION_URL_BUTTON_INDEX: "2" })?.decisionUrlButtonIndex).toBe(2);
+    expect(whatsAppConfigFromEnv({ WHATSAPP_ACCESS_TOKEN: "x", WHATSAPP_PHONE_NUMBER_ID: "123456", WHATSAPP_DECISION_URL_BUTTON_INDEX: "x" })).toBeNull();
+  });
+
   it("düğmeli mesaj: Meta etkileşimli düğme biçimi, en çok 3 düğme, başlık ≤ 20, gövde ≤ 1024, yanıt bağlamıyla", async () => {
     const g = graph(200, { messages: [{ id: "wamid.P1" }] });
     const t = createWhatsAppTransport(cfg, g.fetchImpl);

@@ -32,6 +32,7 @@ import { hostChannelFlagsFromEnv } from "@/lib/host-channel/routing";
 import { HOST_TEXTS } from "@/lib/host-channel/answer";
 import { notifyTurnDecisions } from "@/lib/decisions/notify";
 import { listConversationDecisions } from "@/lib/decisions/store";
+import { saveEarlyCheckinRule } from "@/lib/early-checkin/rules";
 import type { HostChannelTransport, HostDecisionMessage } from "@/lib/host-channel/types";
 
 const mockSend = vi.mocked(sendOnChannel);
@@ -102,7 +103,7 @@ async function seed(opts: { lang?: string; requestedTime?: string | null; kind?:
   if (!b.ok) throw new Error(b.reason);
   const c = await confirmHostBindingFromInbound({ provider: WHATSAPP_CLOUD_PROVIDER, fromDigits: phone.replace(/\D/g, ""), code: b.code });
   if (!c.ok) throw new Error(c.reason);
-  return { orgId: org.id, ownerId: owner.id, conversationId: conversation.id, decisionId: decision.id, messageId: message.id };
+  return { orgId: org.id, ownerId: owner.id, propertyId: property.id, conversationId: conversation.id, decisionId: decision.id, messageId: message.id };
 }
 type Seeded = Awaited<ReturnType<typeof seed>>;
 
@@ -162,6 +163,44 @@ describe("WhatsApp karar kartı (dilim 3)", () => {
     vi.stubEnv("HOST_QUESTION_DECISIONS_ENABLED", "");
     expect(await ask(t)).toBe(false);
     expect(await prisma.hostQuestion.count()).toBe(0);
+  });
+
+  it("ÜCRETLİ erken giriş kartı WhatsApp'a gitmez (e-posta); WhatsApp'ta onay da verilemez — panele yönlendirilir, ret verilebilir", async () => {
+    const s = await seed();
+    await saveEarlyCheckinRule(s.orgId, s.propertyId, { mode: "draft", earliest: "12:00", fee: { amount: 20, currency: "EUR" }, note: null });
+    expect(await ask(s)).toBe(false);
+    await tap(decisionButtonId({ step: "choose", decisionId: s.decisionId, version: 0, action: "approve" }));
+    expect(lastText().startsWith(DECISION_TEXTS.panelOnly)).toBe(true);
+    out = [];
+    await tap(decisionButtonId({ step: "choose", decisionId: s.decisionId, version: 0, action: "decline" }));
+    expect(lastChoices().text).toMatch(/erken giriş mümkün olmayacak|early check-in won't be possible/u);
+  });
+
+  it("bildirimdeki kart sürümü güncel değilse WhatsApp'a gitmez (e-posta)", async () => {
+    const s = await seed();
+    expect(await ask(s, 4)).toBe(false);
+    expect(out).toHaveLength(0);
+  });
+
+  it("notifyTurnDecisions: iki karttan biri WhatsApp'a gidemezse bugünkü e-posta (bütün kartlarla)", async () => {
+    const s = await seed();
+    await prisma.decisionRequest.create({
+      data: { organizationId: s.orgId, conversationId: s.conversationId, messageId: s.messageId, kind: "late_checkout", requestedTime: "13:00", dayKey: keyOf(utcDay(5)), lang: "en" },
+    });
+    const views = await listConversationDecisions(prisma, { organizationId: s.orgId, conversationId: s.conversationId, timeZone: "Europe/Istanbul", now: new Date() });
+    expect(views).toHaveLength(2);
+    let n = 0;
+    const res = await notifyTurnDecisions({
+      organizationId: s.orgId,
+      conversation: { id: s.conversationId, guestIdentifier: "Ada" },
+      property: { name: "Lale" },
+      decisions: views,
+      messageIds: [s.messageId],
+      lockMessageId: s.messageId,
+      channelAsk: async () => n++ === 0,
+    });
+    expect(res).toBe("mailed");
+    expect(mockMail).toHaveBeenCalledTimes(1);
   });
 
   it("notifyTurnDecisions: kanal gittiyse 'Karar bekliyor' e-postası GİTMEZ; gitmezse bugünkü e-posta", async () => {
