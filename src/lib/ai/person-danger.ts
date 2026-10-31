@@ -224,7 +224,7 @@ const HYPO_TR_SUFFIX = new RegExp(
 );
 /** Ad / zarf-fiil koşulu eşleşmenin ardındaki iki sözcükte: "kalma durumunda", "kalınca", "kaldığımızda". */
 const HYPO_TR_NOMINAL = new RegExp(
-  `${L}(?:durumunda|halinde|takdirde)${R}|${L}\\p{L}{2,16}(?:inca|ince|unca|unce|diginde|duginde|tiginde|digimizda|dugumuzda|tigimizda|digimde|dugumde)${R}`,
+  `${L}(?:durumunda|halinde|takdirde)${R}|${L}\\p{L}{2,16}(?:inca|ince|unca|unce|diginde|duginde|tiginde|tuginde|diginda|duginda|tiginda|tuginda|digimizda|dugumuzda|tigimizda|digimde|dugumde|digimda|dugumda)${R}`,
   "u",
 );
 /** Koşul / genel soru sözcüğü eşleşmenin HEMEN ÖNÜNDE (son altı sözcük): "if someone breaks in", "eğer biri…", "what if", "has anyone ever". */
@@ -332,7 +332,6 @@ function guarded(text: string, kind: PersonDangerKind, index: number, length: nu
   if (kind === "threat" && (NON_PERSON_ATTACKER.test(text) || NON_PERSON_THREAT.test(text))) return false;
   // Zorlayan özne iş gereği / doğa (eşleşmenin kendisinde ya da hemen önündeki üç sözcükte) — "…gelmezseniz polisi ararım" değil.
   if (kind === "intrusion" && NON_INTRUDER.test(`${before.trim().split(" ").slice(-3).join(" ")} ${text.slice(index, index + length)}`)) return false;
-  if (kind === "intrusion" && OWN_ACCESS.test(text)) return false;
   return true;
 }
 

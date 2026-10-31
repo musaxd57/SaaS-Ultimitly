@@ -66,6 +66,9 @@ describe("uyarı DEĞİL", () => {
     "What if someone breaks in?",
     "Eğer biri içeri girerse ne yapmalıyız?",
     "Asansörde mahsur kaldıysak kimi arayalım?",
+    // koşul eki / zarf-fiil yakınlık ipucunun fiilinde (mutasyon 10-31: ipucu yolunda sınanmıyordu)
+    "Gece biri kapıyı zorluyorsa haberiniz olsun diye yazıyorum",
+    "Biri kapıyı zorladığında ne yapmamız gerektiğini yazar mısınız",
     // birinci kişi (kapıda kalan misafirin kendisi)
     "Kapıyı zorluyorum ama açılmıyor",
     "Kapıyı zorladık, anahtar kırıldı",
