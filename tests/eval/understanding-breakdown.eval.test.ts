@@ -4,6 +4,7 @@ import path from "node:path";
 import { understandGuestMessages, understandingSystemPromptFor, __resetUnderstandingCache } from "@/lib/ai/semantic/understand";
 import { writeSidecar, uniqueReportName } from "./sidecar";
 import { codeProvenance } from "./code-provenance";
+import { claudeArmFromEnv, installAnthropicReplyShim, shimSummaryLine } from "./anthropic-reply-shim";
 
 // ---------------------------------------------------------------------------
 // ARIZA ↔ KULLANIM SORUSU (10-15): konuşma öğeleri ölçümünde "Tost makinesi hiç ısınmıyor, Wi-Fi şifresi neydi?" anlama katmanında
@@ -20,6 +21,8 @@ interface Case {
   exclude?: string[];
 }
 const DATA = JSON.parse(readFileSync(path.resolve(__dirname, "../../evals/understanding-breakdown.json"), "utf8")) as { cases: Case[] };
+// Claude kolu (kurucu 10-31: 5.1 kullanılan katmanlarda Haiku 5.5): anlama çağrısı aynı istem + şemayla Claude'a gider.
+const CLAUDE = claudeArmFromEnv();
 const key = process.env.OPENAI_API_KEY ?? "";
 const enabled = process.env.RUN_REAL_EVAL === "1" && key.length > 20 && !key.startsWith("test-");
 const ROUNDS = Math.min(3, Math.max(1, Math.trunc(Number(process.env.BREAKDOWN_EVAL_ROUNDS) || 2)));
@@ -44,6 +47,7 @@ describe.skipIf(!enabled)("arıza ↔ kullanım sorusu — anlama katmanı (ücr
   it("kip × vaka × tur → rapor", async () => {
     process.env.AI_UNDERSTANDING_ENABLED = "1";
     const arm = promptArm();
+    const undo = CLAUDE ? installAnthropicReplyShim(CLAUDE.opts, CLAUDE.key) : null;
     const rows: { mode: string; id: string; round: number; ok: boolean; intents: string[]; fails: string[] }[] = [];
     for (const mode of MODES) {
       for (let round = 0; round < ROUNDS; round++) {
@@ -60,15 +64,19 @@ describe.skipIf(!enabled)("arıza ↔ kullanım sorusu — anlama katmanı (ücr
         }
       }
     }
+    undo?.();
     const dir = path.resolve(__dirname, "../../docs/olcum");
     mkdirSync(dir, { recursive: true });
     const date = new Date().toISOString().slice(0, 10);
-    const name = uniqueReportName(dir, `ariza-kullanim-${date}-${arm}.md`);
+    const name = uniqueReportName(dir, `ariza-kullanim-${date}-${arm}${CLAUDE ? `-${CLAUDE.label}` : ""}.md`);
     const prov = codeProvenance(path.resolve(__dirname, "../.."));
     const lines = [
       `# Arıza ↔ kullanım sorusu — anlama katmanı (${date}) · istem kolu: ${arm}`,
       "",
       `Kod: HEAD \`${prov.head}\` · ${prov.dirty ? `yerel src değişikliği VAR (özet \`${prov.srcDiff}\`)` : "yerel src değişikliği yok"}`,
+      "",
+      `Anlama modeli: ${CLAUDE ? `${CLAUDE.label} (Claude köprüsü)` : process.env.AI_UNDERSTANDING_MODEL || process.env.AI_SEMANTIC_MODEL || "kod varsayılanı"}`,
+      ...(CLAUDE ? ["", shimSummaryLine()] : []),
       "",
       ...MODES.map((m) => {
         const r = rows.filter((x) => x.mode === m.id);

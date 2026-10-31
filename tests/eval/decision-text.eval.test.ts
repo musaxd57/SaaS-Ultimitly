@@ -10,6 +10,7 @@ import { confidentLanguage } from "@/lib/ai/language-signal";
 import { evalRuntime, evalRuntimeMarkdown } from "./run-meta";
 import { priceFor } from "./reply-scoring";
 import { writeSidecar, uniqueReportName } from "./sidecar";
+import { claudeArmFromEnv, installAnthropicReplyShim, shimSummaryLine } from "./anthropic-reply-shim";
 
 // ---------------------------------------------------------------------------
 // KARAR MESAJI — YAPAY ZEKÂ YAZAR, KOD + BEKÇİ DOĞRULAR (Sabah Kararları 62 h, kurucu 10-07). Ürünün `draftDecisionMessage`
@@ -38,10 +39,12 @@ interface Scenario {
 
 const SET = (process.env.EVAL_DECISION_SET?.trim() || "decision-text-dev.json").replace(/[^a-z0-9._-]/gi, "");
 const data = JSON.parse(readFileSync(path.resolve(__dirname, "../../evals", SET), "utf8")) as { scenarios: Scenario[] };
+// Claude kolu (kurucu 10-31): yazıcı VE bekçi çağrısı aynı istemle Claude'a gider (köprü sohbet ucunun hepsini çevirir).
+const CLAUDE = claudeArmFromEnv();
 const key = process.env.OPENAI_API_KEY?.trim() ?? "";
 const enabled = process.env.RUN_REAL_EVAL === "1" && key.length > 20 && !key.startsWith("test-");
 // Rapor adı ve başlığı yazıcının GERÇEK modeli (ürünün çözücüsü; 10-09: katman değişkeni gelince `OPENAI_MODEL` yanlış olurdu).
-const MODEL = decisionWriterCallParams().model;
+const MODEL = CLAUDE ? CLAUDE.label : decisionWriterCallParams().model;
 const TAG = (process.env.EVAL_DECISION_TAG ?? "").trim().replace(/[^a-z0-9.-]+/gi, "_");
 const RPM = Number(process.env.EVAL_DECISION_RPM) > 0 ? Number(process.env.EVAL_DECISION_RPM) : 20;
 const LIMIT = Number(process.env.EVAL_DECISION_LIMIT) > 0 ? Math.trunc(Number(process.env.EVAL_DECISION_LIMIT)) : Infinity;
@@ -78,8 +81,10 @@ interface Row {
 // ── Maliyet ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 const usage = new Map<string, { calls: number; in: number; cached: number; out: number; reasoning: number }>();
 const realFetch = globalThis.fetch;
+let baseFetch: typeof fetch = realFetch;
+let undoShim: (() => void) | null = null;
 function metered(input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]): ReturnType<typeof fetch> {
-  return realFetch(input, init).then(async (res) => {
+  return baseFetch(input, init).then(async (res) => {
     try {
       const j = (await res.clone().json()) as { model?: unknown; usage?: Record<string, unknown> };
       const m = typeof j.model === "string" ? j.model : "unknown";
@@ -123,10 +128,16 @@ describe.skipIf(!enabled)(`KARAR MESAJI — ${MODEL}`, () => {
   beforeAll(() => {
     process.env.HOST_DECISION_AI_TEXT_ENABLED = "1";
     process.env.AI_STAY_GUARD_ENABLED = "1";
+    if (CLAUDE) {
+      undoShim = installAnthropicReplyShim(CLAUDE.opts, CLAUDE.key);
+      baseFetch = globalThis.fetch;
+    }
     globalThis.fetch = metered as typeof fetch;
   });
   afterAll(() => {
     globalThis.fetch = realFetch;
+    undoShim?.();
+    baseFetch = realFetch;
     const runtime = evalRuntime();
     process.env = { ...saved };
     if (rows.length === 0) return;
@@ -145,6 +156,7 @@ describe.skipIf(!enabled)(`KARAR MESAJI — ${MODEL}`, () => {
       "",
       `Durum: **${status}** · set \`evals/${SET}\` · satır ${rows.length}/${planned} · yazıcı istem kimliği \`${promptId}\``,
       "",
+      ...(CLAUDE ? [`Claude kolu: yazıcı VE bekçi ${CLAUDE.opts.model} (düşünme ${CLAUDE.opts.thinking}, çaba ${CLAUDE.opts.effort}).`, "", shimSummaryLine(), ""] : []),
       "| ölçü | değer |",
       "|---|---|",
       `| yapay zekâ metni kullanıldı | ${pct(ai.length, rows.length)} |`,

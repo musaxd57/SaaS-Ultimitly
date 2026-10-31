@@ -16,12 +16,14 @@ export interface ShimStats {
   fenced: number;
   nonReplyCalls: number;
   refusals: number;
+  /** Structured Outputs şeması Claude'da 400 aldı → aynı çağrı şemasız (yalnız istemdeki JSON tarifiyle) yeniden denendi. */
+  schemaRejected: number;
   inputTokens: number;
   cacheRead: number;
   cacheWrite: number;
   outputTokens: number;
 }
-export const shimStats: ShimStats = { calls: 0, fenced: 0, nonReplyCalls: 0, refusals: 0, inputTokens: 0, cacheRead: 0, cacheWrite: 0, outputTokens: 0 };
+export const shimStats: ShimStats = { calls: 0, fenced: 0, nonReplyCalls: 0, refusals: 0, schemaRejected: 0, inputTokens: 0, cacheRead: 0, cacheWrite: 0, outputTokens: 0 };
 
 const OPENAI_CHAT = "https://api.openai.com/v1/chat/completions";
 const ANTHROPIC_MESSAGES = "https://api.anthropic.com/v1/messages";
@@ -43,7 +45,10 @@ export function stripFence(text: string): { text: string; fenced: boolean } {
 }
 
 /** OpenAI sohbet yükü → Anthropic Messages gövdesi. Sistem mesajları birleşir; kullanıcı / asistan sırası korunur. */
-export function toAnthropicBody(payload: { messages?: { role: string; content: unknown }[] }, opts: ShimOptions): Record<string, unknown> {
+export function toAnthropicBody(
+  payload: { messages?: { role: string; content: unknown }[]; response_format?: { type?: string; json_schema?: { schema?: unknown } } },
+  opts: ShimOptions,
+): Record<string, unknown> {
   const system: string[] = [];
   const messages: { role: "user" | "assistant"; content: string }[] = [];
   for (const m of payload.messages ?? []) {
@@ -58,7 +63,11 @@ export function toAnthropicBody(payload: { messages?: { role: string; content: u
     system: [{ type: "text", text: system.join("\n\n"), cache_control: { type: "ephemeral" } }],
     messages,
     thinking: { type: opts.thinking },
-    output_config: { effort: opts.effort },
+    // OpenAI Structured Outputs (`json_schema`) → Claude `output_config.format` (anlama katmanı); `json_object` kipinin karşılığı yok.
+    output_config:
+      payload.response_format?.type === "json_schema" && payload.response_format.json_schema?.schema
+        ? { effort: opts.effort, format: { type: "json_schema", schema: payload.response_format.json_schema.schema } }
+        : { effort: opts.effort },
   };
 }
 
@@ -73,7 +82,9 @@ export function installAnthropicReplyShim(opts: ShimOptions, apiKey: string): ()
       return new Response(JSON.stringify({ error: { message: "shim: yalnız cevap çağrısı ölçülür" } }), { status: 400 });
     }
     const payload = JSON.parse(String(init?.body ?? "{}"));
-    const body = JSON.stringify(toAnthropicBody(payload, opts));
+    const built = toAnthropicBody(payload, opts);
+    let body = JSON.stringify(built);
+    let schemaRetried = false;
     for (let attempt = 0; ; attempt++) {
       const res = await original(ANTHROPIC_MESSAGES, {
         method: "POST",
@@ -92,6 +103,14 @@ export function installAnthropicReplyShim(opts: ShimOptions, apiKey: string): ()
         usage?: { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number };
         error?: { type?: string; message?: string };
       };
+      const fmt = (built.output_config as { format?: unknown }).format;
+      if (res.status === 400 && fmt && !schemaRetried) {
+        // Şema Claude'un desteklediği alt kümenin dışında: aynı istem şemasız (sayılır, raporda görünür).
+        schemaRetried = true;
+        shimStats.schemaRejected++;
+        body = JSON.stringify({ ...built, output_config: { effort: opts.effort } });
+        continue;
+      }
       if (!res.ok) return new Response(JSON.stringify({ error: { message: `anthropic ${res.status} ${data.error?.type ?? ""}` } }), { status: res.status });
       shimStats.calls++;
       const u = data.usage ?? {};
@@ -125,6 +144,32 @@ export function installAnthropicReplyShim(opts: ShimOptions, apiKey: string): ()
   return () => {
     globalThis.fetch = original;
   };
+}
+
+/**
+ * Ortamdan Claude kolu (ölçerler için ortak): `EVAL_REPLY_PROVIDER=anthropic` + `RUN_REAL_EVAL=1` + `ANTHROPIC_API_KEY`. Model
+ * `EVAL_CLAUDE_REPLY_MODEL` (varsayılan Haiku 5.5), düşünme `EVAL_CLAUDE_THINKING`, çaba `EVAL_CLAUDE_EFFORT`, tavan `EVAL_CLAUDE_MAX_TOKENS`.
+ * Kol açıksa OpenAI anahtarı yoksa yer tutucu konur (ürün kodu çağrıyı ancak anahtar varken yapar; değer hiçbir yere GİTMEZ — çağrı
+ * köprüde Claude'a döner). `label` rapor adı içindir.
+ */
+export function claudeArmFromEnv(env: Record<string, string | undefined> = process.env): { opts: ShimOptions; key: string; label: string } | null {
+  if (env.EVAL_REPLY_PROVIDER?.trim() !== "anthropic" || env.RUN_REAL_EVAL !== "1") return null;
+  const key = env.ANTHROPIC_API_KEY?.trim() ?? "";
+  if (key.length <= 20) return null;
+  const opts: ShimOptions = {
+    model: env.EVAL_CLAUDE_REPLY_MODEL?.trim() || "claude-haiku-5-5",
+    thinking: env.EVAL_CLAUDE_THINKING?.trim() === "disabled" ? "disabled" : "adaptive",
+    effort: (["low", "medium", "high", "xhigh", "max"] as const).find((e) => e === env.EVAL_CLAUDE_EFFORT?.trim()) ?? "medium",
+    maxTokens: Number(env.EVAL_CLAUDE_MAX_TOKENS) > 0 ? Math.trunc(Number(env.EVAL_CLAUDE_MAX_TOKENS)) : 8000,
+  };
+  if (!env.OPENAI_API_KEY?.trim()) env.OPENAI_API_KEY = "shim-anthropic-no-openai-key-0000000000";
+  return { opts, key, label: `${opts.model}-${opts.thinking === "disabled" ? "nothink" : "adaptive"}-${opts.effort}` };
+}
+
+/** Rapor satırı: köprü sayaçları + kesin maliyet. */
+export function shimSummaryLine(): string {
+  const s = shimStats;
+  return `Claude köprüsü: ${s.calls} çağrı · çitli JSON ${s.fenced} · şema reddi ${s.schemaRejected} · ret ${s.refusals} · cevap dışı OpenAI ${s.nonReplyCalls} · token girdi ${s.inputTokens} / önbellek ${s.cacheRead}+${s.cacheWrite} / çıktı ${s.outputTokens} · ${haikuCostUsd(s).toFixed(4)} $`;
 }
 
 /** Haiku 5.5 fiyatı (≤100K istem): girdi 0,10 · önbellek okuma 0,01 · önbellek yazma 0,125 · çıktı 0,50 $/M token. */

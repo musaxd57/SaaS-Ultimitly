@@ -1,13 +1,52 @@
 {
   "note": "Bu dosya değişip itilince .github/workflows/claude-eval.yml Claude ölçümünü koşar (anahtar GitHub Actions sırrında). suite bir yol ÖNEKİDİR (vitest süzgeci). env bütün kollara ortak; arms (en çok 8) sırayla koşar (scripts/claude-eval-arms.mjs).",
-  "suite": "tests/eval/model-reply-compare.eval.test.ts",
-  "request": 5,
-  "purpose": "Kurucu 10-31: cevap katmanında gpt-5.1 yerine Haiku 5.5 — aynı 135 senaryo, aynı istem, aynı kapı; düşünme kapalı / adaptive low / medium / high. 5.1 tabanı yerelde aynı commit ailesinde (docs/olcum/model-reply-compare-2026-10-31-gpt-5.1-haiku-taban.md).",
-  "env": { "EVAL_REPLY_PROVIDER": "anthropic", "EVAL_CLAUDE_REPLY_MODEL": "claude-haiku-5-5" },
+  "suite": "tests/eval/understanding-breakdown.eval.test.ts",
+  "request": 6,
+  "purpose": "Kurucu 10-31 akşam: 5.1'in açılış planında kaldığı katmanlarda Haiku 5.5 — anlama (arıza/kullanım seti, Structured Outputs şeması output_config.format'a) ve karar metni yazıcısı (dev seti; köprü bekçiyi de Claude'a çevirir). 5.1 tabanı yerelde aynı commit. Sıralayıcı gömme (OpenAI) istediği için bu koşuda yok.",
+  "env": {
+    "EVAL_REPLY_PROVIDER": "anthropic",
+    "EVAL_CLAUDE_REPLY_MODEL": "claude-haiku-5-5"
+  },
   "arms": [
-    { "EVAL_CLAUDE_THINKING": "disabled", "EVAL_CLAUDE_EFFORT": "low" },
-    { "EVAL_CLAUDE_THINKING": "adaptive", "EVAL_CLAUDE_EFFORT": "low" },
-    { "EVAL_CLAUDE_THINKING": "adaptive", "EVAL_CLAUDE_EFFORT": "medium" },
-    { "EVAL_CLAUDE_THINKING": "adaptive", "EVAL_CLAUDE_EFFORT": "high" }
+    {
+      "suite": "tests/eval/understanding-breakdown.eval.test.ts",
+      "EVAL_CLAUDE_THINKING": "disabled",
+      "EVAL_CLAUDE_EFFORT": "low"
+    },
+    {
+      "suite": "tests/eval/understanding-breakdown.eval.test.ts",
+      "EVAL_CLAUDE_THINKING": "adaptive",
+      "EVAL_CLAUDE_EFFORT": "low"
+    },
+    {
+      "suite": "tests/eval/understanding-breakdown.eval.test.ts",
+      "EVAL_CLAUDE_THINKING": "adaptive",
+      "EVAL_CLAUDE_EFFORT": "medium"
+    },
+    {
+      "suite": "tests/eval/understanding-breakdown.eval.test.ts",
+      "EVAL_CLAUDE_THINKING": "adaptive",
+      "EVAL_CLAUDE_EFFORT": "high"
+    },
+    {
+      "suite": "tests/eval/decision-text.eval.test.ts",
+      "EVAL_CLAUDE_THINKING": "disabled",
+      "EVAL_CLAUDE_EFFORT": "low"
+    },
+    {
+      "suite": "tests/eval/decision-text.eval.test.ts",
+      "EVAL_CLAUDE_THINKING": "adaptive",
+      "EVAL_CLAUDE_EFFORT": "low"
+    },
+    {
+      "suite": "tests/eval/decision-text.eval.test.ts",
+      "EVAL_CLAUDE_THINKING": "adaptive",
+      "EVAL_CLAUDE_EFFORT": "medium"
+    },
+    {
+      "suite": "tests/eval/decision-text.eval.test.ts",
+      "EVAL_CLAUDE_THINKING": "adaptive",
+      "EVAL_CLAUDE_EFFORT": "high"
+    }
   ]
 }

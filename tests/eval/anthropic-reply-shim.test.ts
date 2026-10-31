@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { installAnthropicReplyShim, shimStats, stripFence, toAnthropicBody, haikuCostUsd } from "./anthropic-reply-shim";
+import { installAnthropicReplyShim, shimStats, stripFence, toAnthropicBody, haikuCostUsd, claudeArmFromEnv } from "./anthropic-reply-shim";
 
 // Claude kolu köprüsünün çevrimdışı pinleri (ağ YOK): çeviri Haiku 5.5'in 400 kurallarına uyar, cevap OpenAI biçimine döner,
 // cevap dışı OpenAI çağrısı sessizce gerçek uca GİTMEZ.
@@ -60,7 +60,7 @@ describe("anthropic-reply-shim", () => {
     expect(shimStats.nonReplyCalls).toBeGreaterThanOrEqual(1);
     expect(seen).toHaveLength(1);
     undo();
-    expect(haikuCostUsd({ calls: 1, fenced: 0, nonReplyCalls: 0, refusals: 0, inputTokens: 1e6, cacheRead: 1e6, cacheWrite: 0, outputTokens: 1e6 })).toBeCloseTo(0.61, 6);
+    expect(haikuCostUsd({ calls: 1, fenced: 0, nonReplyCalls: 0, refusals: 0, schemaRejected: 0, inputTokens: 1e6, cacheRead: 1e6, cacheWrite: 0, outputTokens: 1e6 })).toBeCloseTo(0.61, 6);
   });
 
   it("kesilen cevap (max_tokens) 'length' olur → üretim kodu yedeğe düşer, kesik cevap gitmez", async () => {
@@ -69,5 +69,37 @@ describe("anthropic-reply-shim", () => {
     const data = await (await fetch("https://api.openai.com/v1/chat/completions", { method: "POST", body: JSON.stringify({ messages: [{ role: "user", content: "U" }] }) })).json();
     expect(data.choices[0].finish_reason).toBe("length");
     undo();
+  });
+
+  it("json_schema → output_config.format; Claude şemayı 400 ile reddederse aynı çağrı şemasız bir kez yeniden denenir (sayılır)", async () => {
+    const schema = { type: "object", properties: { a: { type: "string" } }, required: ["a"], additionalProperties: false };
+    const body = toAnthropicBody({ messages: [{ role: "user", content: "U" }], response_format: { type: "json_schema", json_schema: { schema } } }, OPTS);
+    expect(body.output_config).toEqual({ effort: "low", format: { type: "json_schema", schema } });
+    expect(toAnthropicBody({ messages: [{ role: "user", content: "U" }], response_format: { type: "json_object" } }, OPTS).output_config).toEqual({ effort: "low" });
+    const sent: unknown[] = [];
+    globalThis.fetch = vi.fn(async (_u: string, init: RequestInit) => {
+      const b = JSON.parse(String(init.body));
+      sent.push(b.output_config);
+      if (b.output_config.format) return new Response(JSON.stringify({ error: { type: "invalid_request_error" } }), { status: 400 });
+      return new Response(JSON.stringify({ stop_reason: "end_turn", content: [{ type: "text", text: '{"a":"x"}' }], usage: {} }), { status: 200 });
+    }) as never;
+    const before = shimStats.schemaRejected;
+    const undo = installAnthropicReplyShim(OPTS, "k".repeat(30));
+    const data = await (
+      await fetch("https://api.openai.com/v1/chat/completions", { method: "POST", body: JSON.stringify({ messages: [{ role: "user", content: "U" }], response_format: { type: "json_schema", json_schema: { schema } } }) })
+    ).json();
+    undo();
+    expect(data.choices[0].message.content).toBe('{"a":"x"}');
+    expect(sent).toEqual([{ effort: "low", format: { type: "json_schema", schema } }, { effort: "low" }]);
+    expect(shimStats.schemaRejected).toBe(before + 1);
+  });
+
+  it("ortamdan kol: yalnız sağlayıcı + gerçek koşu + anahtar varken; OpenAI anahtarı yoksa yer tutucu", () => {
+    expect(claudeArmFromEnv({ RUN_REAL_EVAL: "1", ANTHROPIC_API_KEY: "k".repeat(30) })).toBeNull();
+    expect(claudeArmFromEnv({ EVAL_REPLY_PROVIDER: "anthropic", ANTHROPIC_API_KEY: "k".repeat(30) })).toBeNull();
+    const env: Record<string, string | undefined> = { EVAL_REPLY_PROVIDER: "anthropic", RUN_REAL_EVAL: "1", ANTHROPIC_API_KEY: "k".repeat(30), EVAL_CLAUDE_THINKING: "disabled", EVAL_CLAUDE_EFFORT: "low" };
+    const arm = claudeArmFromEnv(env);
+    expect(arm?.label).toBe("claude-haiku-5-5-nothink-low");
+    expect(env.OPENAI_API_KEY?.startsWith("shim-")).toBe(true);
   });
 });
