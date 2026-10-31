@@ -165,7 +165,8 @@ describe("K9 — mesaj başına TEK e-posta, eşzamanlı çağrıda da", () => {
 // bildirimin eşzamanlılığı ve hibrit zamanlama `host-channel-alert-email.test.ts`te.)
 // ---------------------------------------------------------------------------
 describe("acil teslim kancası (deliverUrgent)", () => {
-  const passThrough = () => vi.fn(async ({ sendEmail }: { messageId: string; body: string; sendEmail: () => Promise<{ ok: boolean }> }) => sendEmail());
+  const passThrough = () =>
+    vi.fn(async ({ sendEmail }: { messageId: string; body: string; emergency: boolean; sendEmail: () => Promise<{ ok: boolean }> }) => sendEmail());
 
   it("🚨 kanca fırlatsa da e-posta gider ve mesaj bildirilmiş sayılır", async () => {
     const { conversation, message } = await seedTwoSensitiveItems();
@@ -220,6 +221,31 @@ describe("acil teslim kancası (deliverUrgent)", () => {
       [messages[0]!.id, bodies[0]],
       [messages[1]!.id, bodies[1]],
     ]);
+  });
+
+  it("kanca öğenin 'acil' duyarlılığını taşır (can güvenliği sınıfı için): hassas öğe → false, acil öğe → true", async () => {
+    const sensitive = await seedTwoSensitiveItems();
+    const hook = passThrough();
+    await notifyHeldItems(prisma, { ...input(sensitive.conversation.id, sensitive.message.id, new Date()), deliverUrgent: hook });
+    expect(hook.mock.calls[0]![0]).toMatchObject({ messageId: sensitive.message.id, emergency: false });
+
+    const conversation = await prisma.conversation.create({
+      data: { propertyId, channel: "airbnb", guestIdentifier: "Alex", externalReservationId: `res-${Math.random()}`, status: "new" },
+    });
+    const message = await prisma.message.create({
+      data: { conversationId: conversation.id, direction: "inbound", body: "Lütfen hemen gelin", senderName: "Alex", authorType: "guest" },
+    });
+    const rows = await upsertTurnItems(prisma, {
+      organizationId: orgId,
+      conversationId: conversation.id,
+      now: new Date(),
+      messages: [{ messageId: message.id, items: buildItemsForMessage({ requests: [{ intent: "emergency" }], lexicalLabels: [] }) }],
+    });
+    expect(rows.some((r) => r.sensitivity === "emergency")).toBe(true);
+    await applyItemEvent(prisma, { organizationId: orgId, ids: rows.map((r) => r.id), event: "held", now: new Date() });
+    const hook2 = passThrough();
+    await notifyHeldItems(prisma, { ...input(conversation.id, message.id, new Date()), deliverUrgent: hook2 });
+    expect(hook2.mock.calls[0]![0]).toMatchObject({ messageId: message.id, emergency: true });
   });
 
   it("eşzamanlı iki çağrıda kanca TEK kez; bildirilmiş mesaj yeniden işlenince kanca yok", async () => {

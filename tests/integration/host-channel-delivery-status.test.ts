@@ -10,6 +10,7 @@ vi.mock("@/lib/report-error", async (orig) => {
 
 import { POST } from "@/app/api/webhooks/host-channel/whatsapp/route";
 import { recordHostDeliveryStatuses, statusInstant } from "@/lib/host-channel/delivery-status";
+import { alertMailLockName } from "@/lib/host-channel/alert-email";
 import type { HostDeliveryStatus } from "@/lib/host-channel/types";
 
 // ---------------------------------------------------------------------------
@@ -112,16 +113,37 @@ describe("teslim / okundu durumu", () => {
     expect(await row(r.id)).toMatchObject({ readAt: null, deliveredAt: null, status: "alerted" });
   });
 
+  it("🚨 rotada 'failed' durumu ertelenmiş acil e-postayı öne çeker (gönderildi sanılan bildirim ulaşmadı)", async () => {
+    const r = await seedRow("wamid.F1");
+    const lockName = alertMailLockName("m1");
+    await prisma.systemLock.create({ data: { name: lockName, lockedUntil: new Date(Date.now() + 9 * 60_000), holder: null } });
+    const res = await postStatuses([{ id: "wamid.F1", status: "failed", timestamp: String(Math.floor(Date.now() / 1000)), recipient_id: "905321112233" }]);
+    expect(res.status).toBe(200);
+    expect((await prisma.systemLock.findUniqueOrThrow({ where: { name: lockName } })).lockedUntil.getTime()).toBeLessThanOrEqual(Date.now());
+    expect((await row(r.id)).readAt).toBeNull();
+  });
+
   it("🚨 yalnız DURUM taşıyan imzalı teslimat rotada işlenir (eskiden 'mesaj yok' erken dönüşünde atılıyordu)", async () => {
-    const APP_SECRET = "test-whatsapp-app-secret-0123456789";
-    const PNID = "109876543210987";
-    vi.stubEnv("HOST_CHANNEL_ENABLED", "1");
-    vi.stubEnv("HOST_CHANNEL_ORG_IDS", "*");
-    vi.stubEnv("HOST_CHANNEL_HMAC_SECRET", "test-host-channel-secret-0123456789abcdef");
-    vi.stubEnv("WHATSAPP_APP_SECRET", APP_SECRET);
-    vi.stubEnv("WHATSAPP_PHONE_NUMBER_ID", PNID);
     const r = await seedRow("wamid.R1");
     const ts = Math.floor(Date.now() / 1000) - 60;
+    const res = await postStatuses([{ id: "wamid.R1", status: "read", timestamp: String(ts), recipient_id: "905321112233" }]);
+    expect(res.status).toBe(200);
+    const after = await row(r.id);
+    expect(after.readAt?.getTime()).toBe(Math.max(ts * 1000, at(0).getTime()));
+    expect(after.updatedAt).toEqual(r.old);
+  });
+});
+
+/** İmzalı, yalnız durum taşıyan Meta teslimatı (anahtarlar açık). */
+async function postStatuses(statuses: Record<string, string>[]) {
+  const APP_SECRET = "test-whatsapp-app-secret-0123456789";
+  const PNID = "109876543210987";
+  vi.stubEnv("HOST_CHANNEL_ENABLED", "1");
+  vi.stubEnv("HOST_CHANNEL_ORG_IDS", "*");
+  vi.stubEnv("HOST_CHANNEL_HMAC_SECRET", "test-host-channel-secret-0123456789abcdef");
+  vi.stubEnv("WHATSAPP_APP_SECRET", APP_SECRET);
+  vi.stubEnv("WHATSAPP_PHONE_NUMBER_ID", PNID);
+  {
     const raw = JSON.stringify({
       object: "whatsapp_business_account",
       entry: [
@@ -133,7 +155,7 @@ describe("teslim / okundu durumu", () => {
               value: {
                 messaging_product: "whatsapp",
                 metadata: { display_phone_number: "905550000000", phone_number_id: PNID },
-                statuses: [{ id: "wamid.R1", status: "read", timestamp: String(ts), recipient_id: "905321112233" }],
+                statuses,
               },
             },
           ],
@@ -141,16 +163,12 @@ describe("teslim / okundu durumu", () => {
       ],
     });
     const sig = `sha256=${createHmac("sha256", APP_SECRET).update(raw).digest("hex")}`;
-    const res = await POST(
+    return POST(
       new NextRequest("https://www.lixusai.com/api/webhooks/host-channel/whatsapp", {
         method: "POST",
         body: raw,
         headers: { "content-type": "application/json", "x-hub-signature-256": sig },
       }),
     );
-    expect(res.status).toBe(200);
-    const after = await row(r.id);
-    expect(after.readAt?.getTime()).toBe(Math.max(ts * 1000, at(0).getTime()));
-    expect(after.updatedAt).toEqual(r.old);
-  });
-});
+  }
+}

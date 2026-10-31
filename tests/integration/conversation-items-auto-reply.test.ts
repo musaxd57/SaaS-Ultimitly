@@ -283,6 +283,40 @@ describe("acil bildirim WhatsApp'a da (Tür C, `HOST_QUESTION_ALERTS_ENABLED`; t
     expect(await prisma.systemLock.count({ where: { name: { startsWith: "host-alert-mail:" } } })).toBe(0);
   });
 
+  it("🚨 CAN GÜVENLİĞİ tutulan öğe yolunda da ikisi birden (oto-yanıt: 'asansörde mahsur kaldık' — tehlike ağı tanımaz, sınıf tanır)", async () => {
+    const { orgId, conversationId } = await seed("Asansörde mahsur kaldık, yardım edin");
+    alertFlags(true);
+    await bindHost(orgId, conversationId);
+    understands(understood([{ intent: "emergency", message: 1 }]));
+    mockSuggest.mockResolvedValueOnce(verdict({ intent: "general", reply: "Hemen bakıyoruz." }));
+    await applyChannelAutoReply(conversationId);
+    expect(mockMail).toHaveBeenCalledTimes(1);
+    expect(alerts).toHaveLength(1);
+    expect(await prisma.systemLock.count({ where: { name: { startsWith: "host-alert-mail:" } } })).toBe(0);
+  });
+
+  it("🚨 tutulan öğe yolunda anlama katmanı 'acil' dedi (metinde can güvenliği sözcüğü yok) → ikisi birden hemen", async () => {
+    const { orgId, conversationId } = await seed("Lütfen hemen gelin, çok kötü durumdayız");
+    alertFlags(true);
+    await bindHost(orgId, conversationId);
+    understands(understood([{ intent: "emergency", message: 1 }]));
+    mockSuggest.mockResolvedValueOnce(verdict({ intent: "general", reply: "Hemen bakıyoruz." }));
+    await applyChannelAutoReply(conversationId);
+    expect(alerts).toHaveLength(1);
+    expect(mockMail).toHaveBeenCalledTimes(1);
+    expect(await prisma.systemLock.count({ where: { name: { startsWith: "host-alert-mail:" } } })).toBe(0);
+  });
+
+  it("🚨 CAN GÜVENLİĞİ uyarı geçişinin öğe yolunda da ikisi birden (şikâyet + 'biri kapıyı zorluyor' — tehlike ağı tanımaz, sınıf tanır)", async () => {
+    const { orgId, conversationId } = await seed("Daire çok kirli, üstelik biri kapıyı zorluyor!");
+    alertFlags(true);
+    await bindHost(orgId, conversationId);
+    expect((await sendDueAlerts(orgId)).alerted).toBe(1);
+    expect(mockMail).toHaveBeenCalledTimes(1);
+    expect(alerts).toHaveLength(1);
+    expect(await prisma.systemLock.count({ where: { name: { startsWith: "host-alert-mail:" } } })).toBe(0);
+  });
+
   it("acil bildirim anahtarı KAPALI: bugünkü davranış — yalnız e-posta, veritabanına bildirim satırı yazılmaz", async () => {
     const { orgId, conversationId } = await seed(IBAN);
     alertFlags(false);

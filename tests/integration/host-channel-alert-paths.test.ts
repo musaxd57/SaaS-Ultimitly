@@ -19,6 +19,17 @@ vi.mock("@/lib/messaging", async (orig) => ({
   sendOnChannel: vi.fn(),
 }));
 vi.mock("@/lib/hospitable-credentials", () => ({ getOrgHospitableToken: vi.fn(async () => "tok") }));
+// Anlama katmanı yalnız açıkça istenen testte sahte (varsayılan: gerçek modül — öteki testlerin davranışı değişmez).
+const understandStub = vi.hoisted(() => ({ value: null as unknown }));
+vi.mock("@/lib/ai/semantic/understand", async (orig) => {
+  const actual = await orig<typeof import("@/lib/ai/semantic/understand")>();
+  return {
+    ...actual,
+    understandingEnabled: (...a: Parameters<typeof actual.understandingEnabled>) => (understandStub.value ? true : actual.understandingEnabled(...a)),
+    understandGuestMessages: (...a: Parameters<typeof actual.understandGuestMessages>) =>
+      understandStub.value ? Promise.resolve({ status: "ok", value: understandStub.value, ms: 1, cached: false }) : actual.understandGuestMessages(...a),
+  };
+});
 vi.mock("@/lib/report-error", async (orig) => {
   const actual = await orig<typeof import("@/lib/report-error")>();
   return { ...actual, reportError: vi.fn(async () => {}) };
@@ -37,6 +48,7 @@ import { WHATSAPP_CLOUD_PROVIDER } from "@/lib/host-channel/providers";
 import type { HostChannelTransport, HostQuestionMessage } from "@/lib/host-channel/types";
 import { deliverDueAlertEmails } from "@/lib/host-channel/alert-email";
 import { recordHostDeliveryStatuses } from "@/lib/host-channel/delivery-status";
+import { parseUnderstanding } from "@/lib/ai/semantic/understanding-schema";
 
 const mockMail = vi.mocked(emailService.sendReporting);
 const mockSuggest = vi.mocked(suggestReply);
@@ -104,6 +116,7 @@ beforeEach(async () => {
   mockMail.mockResolvedValue({ ok: true } as never);
   mockSend.mockResolvedValue({ ok: true, externalId: "ext-1" } as never);
   __setHostChannelTransportForTest(transport);
+  understandStub.value = null;
 });
 afterEach(() => {
   __setHostChannelTransportForTest(undefined);
@@ -201,6 +214,41 @@ describe("model yükseltmesi (applyChannelAutoReply → escalated_to_human)", ()
     expect(mockMail.mock.calls[0]![3]).toEqual({ idempotencyKey: `host-alert-mail:${s.messageId}` });
     expect((await deliverDueAlertEmails(new Date(Date.now() + 30 * 60_000))).sent).toBe(0);
     expect(mockMail).toHaveBeenCalledTimes(1);
+  });
+
+  it("🚨 can güvenliği turun ÖNCEKİ cevapsız mesajında ('asansörde mahsur kaldık'), son mesaj sıradan → ikisi birden hemen", async () => {
+    flags(true);
+    const s = await seed("Bu konuda değerlendirmemi paylaşmadan önce sizinle görüşmek istiyorum.", {
+      autoReplyEnabledAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+    });
+    await prisma.message.create({
+      data: { conversationId: s.conversationId, direction: "inbound", senderName: "Alex", body: "Asansörde mahsur kaldık!", createdAt: new Date(Date.now() - 5 * 60_000) },
+    });
+    await applyChannelAutoReply(s.conversationId);
+    expect(alerts).toHaveLength(1);
+    expect(mockMail).toHaveBeenCalledTimes(1);
+    expect(await prisma.systemLock.count({ where: { name: { startsWith: "host-alert-mail:" } } })).toBe(0);
+  });
+
+  it("🚨 anlama katmanı 'acil' dedi (metin can güvenliği sözcüğü taşımıyor) → ikisi birden hemen", async () => {
+    flags(true);
+    const s = await seed("Bu konuda değerlendirmemi paylaşmadan önce sizinle görüşmek istiyorum.", {
+      autoReplyEnabledAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+    });
+    understandStub.value = parseUnderstanding(
+      {
+        language: "tr",
+        requests: [{ intent: "emergency", message: 1, query_tr: "acil durum", query_original: "q" }],
+        stay_change: { requested: false, kind: "none", checkin_time: null, checkout_time: null },
+        withdrawn: [],
+      },
+      { items: false },
+    );
+    expect(understandStub.value).not.toBeNull();
+    await applyChannelAutoReply(s.conversationId);
+    expect(alerts).toHaveLength(1);
+    expect(mockMail).toHaveBeenCalledTimes(1);
+    expect(await prisma.systemLock.count({ where: { name: { startsWith: "host-alert-mail:" } } })).toBe(0);
   });
 
   it("🚨 WhatsApp bildirimi OKUNDU → ertelenen acil e-posta HİÇ gitmez (kurucu 10-31: yığılmasın); claim tutulur (T-1)", async () => {

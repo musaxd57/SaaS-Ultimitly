@@ -295,7 +295,7 @@ export async function notifyHeldItems(
      * (`sendEmail`) ve WhatsApp bildirimini birlikte yönetir; sonucu e-postanın sonucu gibi okunur (`ok: false` → talepler geri verilir).
      * Yoksa yalnız e-posta (bugünkü). Kanca fırlatırsa e-posta yine gider.
      */
-    deliverUrgent?: (args: { messageId: string; body: string; sendEmail: () => Promise<{ ok: boolean }> }) => Promise<{ ok: boolean }>;
+    deliverUrgent?: (args: { messageId: string; body: string; emergency: boolean; sendEmail: () => Promise<{ ok: boolean }> }) => Promise<{ ok: boolean }>;
   },
 ): Promise<HeldItemsNotice> {
   const notice: HeldItemsNotice = { mailed: [], failed: [], held: [], quiet: [], loud: [] };
@@ -379,7 +379,15 @@ export async function notifyHeldItems(
     // Acil teslim kancası (WhatsApp + e-posta birlikte, hibrit §3.12) — yoksa / fırlatırsa yalnız e-posta.
     const mail =
       input.deliverUrgent && message?.body
-        ? await input.deliverUrgent({ messageId, body: message.body, sendEmail }).catch(() => sendEmail())
+        ? await input
+            .deliverUrgent({
+              messageId,
+              body: message.body,
+              // Tutulan öğe "acil" duyarlılıkta (anlama katmanının "acil" hükmü ya da acil sözcük ağı) → can güvenliği sınıfına girdi (§3.12).
+              emergency: rows.some((r) => r.messageId === messageId && r.status === "pending_host" && r.sensitivity === "emergency"),
+              sendEmail,
+            })
+            .catch(() => sendEmail())
         : await sendEmail();
     if (!mail.ok) {
       for (const id of claimed) await releaseItemNotification(db, { organizationId: input.organizationId, id, claimedAt: input.now });

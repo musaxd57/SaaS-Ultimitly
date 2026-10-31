@@ -4441,11 +4441,11 @@ async function notifyItemsForHost(input: {
     messageIds: input.messageIds,
     now: input.now,
     // Acil bildirim WhatsApp'a da (anahtar arkasında, e-postanın yanında; kapalıyken veritabanına dokunmaz).
-    deliverUrgent: ({ messageId, body, sendEmail }) =>
+    deliverUrgent: ({ messageId, body, emergency, sendEmail }) =>
       deliverUrgentAlert({
         organizationId: input.organizationId,
         messageId,
-        lifeSafety: lifeSafetyOf({ texts: [body] }).lifeSafety,
+        lifeSafety: lifeSafetyOf({ texts: [body], understandingEmergency: emergency }).lifeSafety,
         transport: hostChannelTransport(),
         sendEmail,
         whatsapp: () => urgentChannelAlert(input.organizationId, input.conversation.id, messageId, body, input.now),
@@ -6392,11 +6392,11 @@ async function alertItemsForHost(input: {
     property: input.conversation.property,
     messageIds: todo.map((h) => h.id),
     now,
-    deliverUrgent: ({ messageId, body, sendEmail }) =>
+    deliverUrgent: ({ messageId, body, emergency, sendEmail }) =>
       deliverUrgentAlert({
         organizationId: input.organizationId,
         messageId,
-        lifeSafety: lifeSafetyOf({ texts: [body] }).lifeSafety,
+        lifeSafety: lifeSafetyOf({ texts: [body], understandingEmergency: emergency }).lifeSafety,
         transport: hostChannelTransport(),
         sendEmail,
         whatsapp: () => urgentChannelAlert(input.organizationId, input.conversation.id, messageId, body, now),

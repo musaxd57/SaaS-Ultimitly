@@ -107,6 +107,17 @@ describe("hibrit acil e-postası", () => {
     expect(await lock(s.messageId)).toBeNull();
   });
 
+  it("yol anahtarları açık ama imza sırrı YOK → yol kapalı sayılır: bugünkü eşzamanlı kod, kayıt YOK", async () => {
+    routeOpen(true);
+    vi.stubEnv("HOST_CHANNEL_HMAC_SECRET", "");
+    const s = await seed();
+    const wa = vi.fn(async () => "skipped" as const);
+    const { r, sendEmail } = await deliver(s, wa);
+    expect(r).toEqual({ ok: true, deferred: false });
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+    expect(await lock(s.messageId)).toBeNull();
+  });
+
   it("🚨 CAN GÜVENLİĞİ, yol AÇIK → yine eşzamanlı (ikisi birden), kayıt YOK", async () => {
     routeOpen();
     const s = await seed({ body: "Mutfakta yangın var!" });
@@ -253,6 +264,65 @@ describe("hibrit acil e-postası", () => {
       const [a, b] = await Promise.all([deliverDueAlertEmails(NOW), deliverDueAlertEmails(NOW)]);
       expect(a.sent + b.sent).toBe(1);
       expect(mockMail).toHaveBeenCalledTimes(1);
+    });
+
+    it("alıcı: uyarı adresi sahibin e-postasından ÖNCE gelir; sahip yoksa personel adresine GİTMEZ", async () => {
+      const both = await seed({ alertEmail: "alerts@example.com", owner: true });
+      await due(both.messageId);
+      await deliverDueAlertEmails(NOW);
+      expect(mockMail.mock.calls[0]![0]).toBe("alerts@example.com");
+      mockMail.mockClear();
+      // Önce eklenmiş bir yönetici + sonra sahip: e-posta yine SAHİBE (rol süzgeci; yalnız sıra değil).
+      const s = await seed({ alertEmail: null });
+      const org = (await prisma.conversation.findUniqueOrThrow({ where: { id: s.conversationId }, select: { property: { select: { organizationId: true } } } })).property.organizationId;
+      await prisma.user.create({ data: { organizationId: org, name: "Yönetici", email: "manager@example.com", passwordHash: "x", role: "manager", createdAt: later(-60) } });
+      await prisma.user.create({ data: { organizationId: org, name: "Sahip", email: "owner2@example.com", passwordHash: "x", role: "owner", createdAt: later(-30) } });
+      await due(s.messageId);
+      await deliverDueAlertEmails(NOW);
+      expect(mockMail.mock.calls[0]![0]).toBe("owner2@example.com");
+    });
+
+    it("e-posta gönderimi FIRLATIRSA kayıt silinmez — 2 dk sonra yeniden (bırakılmaz)", async () => {
+      const s = await seed();
+      await due(s.messageId);
+      mockMail.mockRejectedValueOnce(new Error("smtp down"));
+      expect(await deliverDueAlertEmails(NOW)).toMatchObject({ retry: 1, dropped: 0 });
+      expect(await lock(s.messageId)).toMatchObject({ holder: null, lockedUntil: later(2) });
+    });
+
+    it("30 sn süre bütçesi aşılınca kalan kayıtlar sonraki geçişe kalır", async () => {
+      const a = await seed();
+      const b = await seed();
+      await due(a.messageId, later(-2));
+      await due(b.messageId, later(-1));
+      let t = 0;
+      const clock = () => {
+        t += 20_000; // her okumada 20 sn: başlangıç 20 sn, ilk kayıt 40 sn (geçer: 20 sn), ikinci kayıt 60 sn (aşar: 40 sn)
+        return t;
+      };
+      expect((await deliverDueAlertEmails(NOW, clock)).sent).toBe(1);
+      expect(mockMail).toHaveBeenCalledTimes(1);
+      expect(await lock(b.messageId)).not.toBeNull();
+    });
+
+    it("'failed' yalnız ACİL bildirimin kimliğinde öne çeker (aynı mesajın soru satırı değil)", async () => {
+      const s = await seed();
+      await prisma.hostQuestion.create({
+        data: {
+          organizationId: s.orgId,
+          conversationId: s.conversationId,
+          kind: "question",
+          turnMessageId: s.messageId,
+          status: "sent",
+          idempotencyKey: `question:${s.messageId}`,
+          providerMessageId: "wamid.q1",
+          sentAt: NOW,
+          expiresAt: later(24 * 60),
+        },
+      });
+      await due(s.messageId, later(9));
+      await expediteForFailedProviderIds(["wamid.q1"], NOW);
+      expect(await lock(s.messageId)).toMatchObject({ lockedUntil: later(9) });
     });
 
     it("sağlayıcı 'failed' bildirdi → ertelenmiş e-posta öne çekilir (vadeyi beklemez)", async () => {

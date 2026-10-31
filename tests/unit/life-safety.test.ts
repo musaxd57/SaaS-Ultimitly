@@ -34,6 +34,15 @@ describe("can güvenliği sınıfı", () => {
     expect(lifeSafetyOf({ texts: ["Klima çalışmıyor"], understandingEmergency: true })).toEqual({ lifeSafety: true, basis: "understanding" });
     expect(lifeSafetyOf({ texts: ["Klima çalışmıyor"], understandingEmergency: false })).toEqual({ lifeSafety: false, basis: "none" });
     expect(lifeSafetyOf({ texts: [] })).toEqual({ lifeSafety: false, basis: "none" });
+    // Tehlike SONRAKİ metinde (ilk metin sıradan): yine can güvenliği.
+    expect(lifeSafetyOf({ texts: ["Bir de wifi şifresi?", "Mutfakta duman var"] })).toMatchObject({ lifeSafety: true, basis: "hazard" });
+  });
+
+  it("uzun mesajda tehlike baştaki 8.000 karakterin içindeyse bulunur (yalnız ilk satır değil); sonrası okunmaz (süre sınırı)", () => {
+    const pad = "Merhaba, konaklamamız çok güzel geçiyor. ".repeat(20);
+    expect(pad.length).toBeGreaterThan(500);
+    expect(lifeSafetyOf({ texts: [`${pad}Mutfakta gaz kokusu var!`] }).lifeSafety).toBe(true);
+    expect(lifeSafetyOf({ texts: [`${"a ".repeat(4_100)}Mutfakta gaz kokusu var!`] }).lifeSafety).toBe(false);
   });
 
   it("aynı sınıflayıcı art arda çağrılınca aynı hükmü verir (genel kalıbın durum taşıması yok)", () => {

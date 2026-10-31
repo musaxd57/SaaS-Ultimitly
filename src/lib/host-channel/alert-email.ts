@@ -106,9 +106,10 @@ export async function expediteForFailedProviderIds(providerMessageIds: readonly 
 
 type DueOutcome = "sent" | "cancelled_read" | "dropped" | "retry";
 
-export async function deliverDueAlertEmails(now: Date = new Date()): Promise<Record<DueOutcome, number>> {
+/** `clock`: süre bütçesinin saati (test edilebilir); vade kararları `now` ile. */
+export async function deliverDueAlertEmails(now: Date = new Date(), clock: () => number = Date.now): Promise<Record<DueOutcome, number>> {
   const counts: Record<DueOutcome, number> = { sent: 0, cancelled_read: 0, dropped: 0, retry: 0 };
-  const started = Date.now();
+  const started = clock();
   const due = await prisma.systemLock.findMany({
     where: { name: { startsWith: ALERT_MAIL_PREFIX }, lockedUntil: { lte: now } },
     orderBy: [{ lockedUntil: "asc" }, { name: "asc" }],
@@ -116,7 +117,7 @@ export async function deliverDueAlertEmails(now: Date = new Date()): Promise<Rec
     select: { name: true, lockedUntil: true, holder: true },
   });
   for (const row of due) {
-    if (Date.now() - started > BUDGET_MS) break;
+    if (clock() - started > BUDGET_MS) break;
     const token = randomUUID();
     // Kiralama (CAS): yalnız bir geçiş gönderir; kiralayan düşerse kira süresi dolunca kayıt yeniden vadeli olur.
     const won = await prisma.systemLock.updateMany({

@@ -70,7 +70,8 @@ function textVerdict(text: string): LifeSafetyBasis {
   const stripped = folded.replace(GENERIC_URGENT, " ");
   if (isSafetyEmergencyText(stripped)) return "safety_net";
   if (stripped !== folded) {
-    const categories = detectRiskTypes(stripped).filter((c) => c !== "prompt_injection" && c !== "safety_emergency");
+    // `safety_emergency` burada çıkamaz (aynı ağ bir satır yukarıda aynı metinle bakıldı); enjeksiyon kategori sayılmaz.
+    const categories = detectRiskTypes(stripped).filter((c) => c !== "prompt_injection");
     if (categories.length === 0) return "generic_urgent";
   }
   return "none";
