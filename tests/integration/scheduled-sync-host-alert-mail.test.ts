@@ -50,4 +50,19 @@ describe("scheduled-sync — ertelenmiş acil e-postası", () => {
     expect(await prisma.systemLock.findUnique({ where: { name: alertMailLockName(due.id) } })).toBeNull();
     expect(await prisma.systemLock.findUnique({ where: { name: alertMailLockName(notYet.id) } })).not.toBeNull();
   });
+
+  it("🚨 senkron kilidi BAŞKASINDAYKEN de vadesi gelen acil e-posta gider (uzun geçiş '10 dk'yı uzatmasın — inceleme 10-31)", async () => {
+    const org = await prisma.organization.create({ data: { name: "Org", alertEmail: "host@example.com" } });
+    const property = await prisma.property.create({ data: { organizationId: org.id, name: "Lale 1" } });
+    const conversation = await prisma.conversation.create({
+      data: { propertyId: property.id, guestIdentifier: "Ada", channel: "airbnb", externalReservationId: `r-${property.id}`, status: "problem" },
+    });
+    const m = await prisma.message.create({ data: { conversationId: conversation.id, direction: "inbound", senderName: "Ada", body: "Anahtarı kaybettik" } });
+    await prisma.systemLock.create({ data: { name: alertMailLockName(m.id), lockedUntil: new Date(Date.now() - 60_000), holder: null } });
+    await prisma.systemLock.create({ data: { name: "scheduled-sync", lockedUntil: new Date(Date.now() + 10 * 60_000), holder: "baska-surec" } });
+    const res = await runScheduledSync();
+    expect(res).toMatchObject({ ok: false, error: "locked" });
+    expect(vi.mocked(emailService.sendReporting)).toHaveBeenCalledTimes(1);
+    expect(await prisma.systemLock.findUnique({ where: { name: alertMailLockName(m.id) } })).toBeNull();
+  });
 });

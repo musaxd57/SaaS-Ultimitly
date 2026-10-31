@@ -9,7 +9,7 @@ import { redactSensitive } from "@/lib/redact";
 import { hostChannelTransport } from "@/lib/host-channel-runtime";
 import { hostChannelSecret } from "@/lib/host-channel/binding";
 import { handleHostInbound } from "@/lib/host-channel/inbound";
-import { recordHostDeliveryStatuses } from "@/lib/host-channel/delivery-status";
+import { MAX_STATUSES_PER_DELIVERY, recordHostDeliveryStatuses } from "@/lib/host-channel/delivery-status";
 import { expediteForFailedProviderIds } from "@/lib/host-channel/alert-email";
 import { WHATSAPP_CLOUD_PROVIDER } from "@/lib/host-channel/providers";
 import { hostChannelFlagsFromEnv } from "@/lib/host-channel/routing";
@@ -120,10 +120,16 @@ export async function POST(req: NextRequest): Promise<Response> {
   // Teslim / okundu durumları (yalnız durum taşıyan teslimat da buraya gelir — eskiden aşağıdaki erken dönüşte atılıyordu). Kayıt hatası
   // teslimatı düşürmez: kayıp "okundu" yalnız gereksiz bir acil e-postası doğurur (güvenli yön; tasarım §3.12).
   if (parsed.statuses.length > 0) {
+    // Gönderildi sanılan acil bildirim ulaşmadı → ertelenmiş e-postası öne çekilir (§3.12). Okundu kaydından BAĞIMSIZ (inceleme 10-31: kayıt
+    // döngüsündeki tek bir veritabanı hatası teslimattaki bütün "failed" öne çekmelerini düşürüyordu).
+    const failedIds = parsed.statuses.slice(0, MAX_STATUSES_PER_DELIVERY).filter((st) => st.status === "failed").map((st) => st.providerMessageId);
     try {
-      const recorded = await recordHostDeliveryStatuses(parsed.statuses);
-      // Gönderildi sanılan acil bildirim ulaşmadı → ertelenmiş e-postası bir sonraki geçişte gider (§3.12).
-      await expediteForFailedProviderIds(recorded.failedIds);
+      await expediteForFailedProviderIds(failedIds);
+    } catch (err) {
+      await reportError("host-channel-webhook-status", new Error(redactSensitive(String(err)).slice(0, 500)));
+    }
+    try {
+      await recordHostDeliveryStatuses(parsed.statuses);
     } catch (err) {
       await reportError("host-channel-webhook-status", new Error(redactSensitive(String(err)).slice(0, 500)));
     }

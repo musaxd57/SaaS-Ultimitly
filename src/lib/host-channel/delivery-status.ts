@@ -75,5 +75,5 @@ export async function markHostQuestionRead(id: string, now: Date = new Date()): 
     UPDATE "HostQuestion" SET
       "readAt" = LEAST("readAt", GREATEST((${iso}::timestamptz AT TIME ZONE 'UTC'), "sentAt")),
       "deliveredAt" = LEAST("deliveredAt", GREATEST((${iso}::timestamptz AT TIME ZONE 'UTC'), "sentAt"))
-    WHERE "id" = ${id} AND ("readAt" IS NULL OR "deliveredAt" IS NULL)`;
+    WHERE "id" = ${id} AND "status" <> 'failed' AND ("readAt" IS NULL OR "deliveredAt" IS NULL)`;
 }

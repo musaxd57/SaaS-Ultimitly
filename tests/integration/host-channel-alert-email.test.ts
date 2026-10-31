@@ -111,10 +111,19 @@ describe("hibrit acil e-postası", () => {
     routeOpen(true);
     vi.stubEnv("HOST_CHANNEL_HMAC_SECRET", "");
     const s = await seed();
-    const wa = vi.fn(async () => "skipped" as const);
-    const { r, sendEmail } = await deliver(s, wa);
+    const order: string[] = [];
+    const sendEmail = vi.fn(async () => {
+      order.push("mail");
+      return { ok: true };
+    });
+    const wa = vi.fn(async () => {
+      order.push("wa");
+      return "skipped" as const;
+    });
+    const { r } = await deliver(s, wa, false, sendEmail);
     expect(r).toEqual({ ok: true, deferred: false });
-    expect(sendEmail).toHaveBeenCalledTimes(1);
+    // Eşzamanlı yol: e-posta bildirimi BEKLEMEDEN başlar (ertelenen yolda önce bildirim beklenirdi).
+    expect(order[0]).toBe("mail");
     expect(await lock(s.messageId)).toBeNull();
   });
 
@@ -151,6 +160,19 @@ describe("hibrit acil e-postası", () => {
     expect(r).toEqual({ ok: true, deferred: false });
     expect(sendEmail).toHaveBeenCalledTimes(1);
     expect(await lock(s.messageId)).toBeNull();
+  });
+
+  it("WhatsApp gitmedi → ertelenmiş kayıt e-postadan ÖNCE silinir (başarılı e-postanın ardından ikinci e-posta doğmasın)", async () => {
+    routeOpen(true);
+    const s = await seed();
+    let lockAtSend: unknown = "unset";
+    const sendEmail = vi.fn(async () => {
+      lockAtSend = await lock(s.messageId);
+      return { ok: true };
+    });
+    await deliver(s, async () => "skipped", false, sendEmail);
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+    expect(lockAtSend).toBeNull();
   });
 
   it("WhatsApp çağrısı FIRLATIRSA e-posta hemen; e-posta da düşerse ok:false (çağıran talebi geri verir), kayıt kalmaz", async () => {
@@ -232,19 +254,44 @@ describe("hibrit acil e-postası", () => {
       expect(mockMail.mock.calls[0]![0]).toBe("owner@example.com");
       const b = await seed({ alertEmail: null });
       await due(b.messageId);
-      expect((await deliverDueAlertEmails(NOW)).dropped).toBe(1);
+      // Alıcısız ayrı sayılır (senkron geçişi alarm verir — inceleme 10-31).
+      expect(await deliverDueAlertEmails(NOW)).toMatchObject({ no_recipient: 1, dropped: 0 });
       expect(await lock(b.messageId)).toBeNull();
     });
 
-    it("🚨 silinmiş / anonimleşmiş mesaj ve 72 saati aşan mesaj gönderilmez (metin geri yazılmaz)", async () => {
+    it("🚨 silinmiş / anonimleşmiş mesaj ve bildirimi 72 saatten eski kayıt gönderilmez (metin geri yazılmaz)", async () => {
       const erased = await seed({ body: ANON_BODY });
       await due(erased.messageId);
-      const old = await seed({ createdAt: later(-73 * 60) });
+      const old = await seed();
+      await alertRow(old, { status: "alerted", providerMessageId: "wamid.old" });
+      await prisma.hostQuestion.updateMany({ where: { turnMessageId: old.messageId }, data: { sentAt: later(-73 * 60) } });
       await due(old.messageId);
       await due("silinmis-mesaj-kimligi");
       expect(await deliverDueAlertEmails(NOW)).toMatchObject({ sent: 0, dropped: 3 });
       expect(mockMail).not.toHaveBeenCalled();
       expect(await prisma.systemLock.count({ where: { name: { startsWith: "host-alert-mail:" } } })).toBe(0);
+    });
+
+    it("🚨 72 saat ERTELEMEDEN sayılır: kesintiden sonra işlenen 4 günlük mesajın bildirimi az önce gittiyse e-posta GİDER (inceleme 10-31)", async () => {
+      const s = await seed({ createdAt: later(-4 * 24 * 60) });
+      await alertRow(s, { status: "alerted", providerMessageId: "wamid.late" });
+      await due(s.messageId);
+      expect((await deliverDueAlertEmails(NOW)).sent).toBe(1);
+      // Bildirim satırı yoksa da yaşa göre bırakılmaz.
+      const t = await seed({ createdAt: later(-5 * 24 * 60) });
+      await due(t.messageId);
+      expect((await deliverDueAlertEmails(NOW)).sent).toBe(1);
+    });
+
+    it("🚨 sağlayıcı 'failed' dediyse bildirim 'okundu' sayılmaz: sonradan gelen okundu damgası e-postayı iptal etmez", async () => {
+      const s = await seed();
+      await alertRow(s, { status: "alerted", providerMessageId: "wamid.f2" });
+      await due(s.messageId, later(9));
+      await expediteForFailedProviderIds(["wamid.f2"], NOW);
+      expect((await prisma.hostQuestion.findFirstOrThrow({ where: { turnMessageId: s.messageId } })).status).toBe("failed");
+      // Okundu damgası bir yoldan yazılmış olsa bile (eski veri / yarış): e-posta yine gider.
+      await prisma.hostQuestion.updateMany({ where: { turnMessageId: s.messageId }, data: { readAt: NOW } });
+      expect((await deliverDueAlertEmails(NOW)).sent).toBe(1);
     });
 
     it("e-posta düşerse kayıt KALIR (2 dk sonra yeniden), sonraki geçiş gönderir", async () => {

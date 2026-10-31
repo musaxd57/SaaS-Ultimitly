@@ -16,6 +16,13 @@ describe("can güvenliği sınıfı", () => {
     "Çocuk banyoda kilitli kaldı", "Asansörde mahsur kaldık", "We are stuck in the elevator", "Biri kapıyı zorluyor", "Hırsız girdi",
     "Someone broke in", "There is an intruder", "Komşu bizi tehdit ediyor", "Police!", "ACİL!!! lütfen hemen ulaşın", "Help!", "Emergency, call me",
     "Annem bayıldı", "Es brennt in der Wohnung", "Il y a le feu", "Hay fuego en la cocina", "У нас пожар", "حريق في الشقة",
+    // İnceleme 10-31: asansör (sıra serbest, 7 dil), Rusça çoğul, aksanlı yazım, Arapça tanım edatı, yaralanma, "acil + ev sahibi".
+    "Мы застряли в лифте", "застряла в лифте", "We are stuck in an elevator", "The lift is stuck and we are inside", "Wir stecken im Aufzug fest",
+    "Nous sommes bloqués dans l'ascenseur", "Estamos atrapados en el ascensor", "Il s'est évanoui", "Mi madre está herida", "Está sangrando mucho",
+    "URGENT my wife fell in the shower and broke her leg, I need to talk to the host", "اللص دخل الشقة", "تعرضنا للتهديد", "لدي الحساسية",
+    "My son is bleeding", "She broke her arm",
+    // Kapıda kalma öteki tehlike sözünü gizlemez (yan cümle ayrımı).
+    "Anahtarı kaybettik, ambulans lazım", "We are locked out, call an ambulance", "locked out, my child is alone inside and not breathing",
   ])("İKİSİ BİRDEN: %s", (s) => {
     expect(life(s)).toBe(true);
   });
@@ -25,6 +32,10 @@ describe("can güvenliği sınıfı", () => {
     "Kapı kodu çalışmıyor acil", "ACİL kapıda kaldık", "Anahtar içeride kaldı, kapıda kaldık", "Keys are locked inside, we are locked out",
     "Wifi çalışmıyor", "İade istiyorum", "Ödemeyi havaleyle yapabilir miyim?", "Ev sahibiyle görüşmek istiyorum", "Klima çalışmıyor",
     "Robot süpürge çalışmıyor", "Is there a robot vacuum?", "Ворота не открываются", "Je suis coincé dehors",
+    "Anahtarı kaybettik, içeri giremiyoruz", "Lost the key, can't get in", "Lost the key. Help, we can't get inside!", "Ich habe mich ausgesperrt",
+    "Perdimos la llave, no podemos entrar", "Мы потеряли ключ, не можем войти", "Wir haben den Schlüssel verloren und kommen nicht rein",
+    "Kilitli kaldık dışarıda, lütfen yardım edin", "URGENT: I want to talk to the host about a refund", "Is there an elevator?", "ملص",
+    "Asansör var mı, kaçıncı kat?",
   ])("ÖNCE WHATSAPP: %s", (s) => {
     expect(life(s)).toBe(false);
   });

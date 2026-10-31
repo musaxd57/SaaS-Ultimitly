@@ -274,6 +274,33 @@ async function releaseLock(holder: string): Promise<void> {
     .catch(() => {});
 }
 
+let sweepingAlertMail = false;
+async function sweepDueAlertEmails(opsAlarm: Awaited<ReturnType<typeof alertTracker>>): Promise<void> {
+  if (sweepingAlertMail) return;
+  sweepingAlertMail = true;
+  try {
+    const due = await deliverDueAlertEmails();
+    if (due.sent + due.cancelled_read + due.dropped + due.retry + due.no_recipient > 0) {
+      console.log(`[scheduled-sync] host-alert-mail: ${JSON.stringify(due)}`);
+    }
+    await opsAlarm.ok("host-alert-mail");
+    // Gönderilemeyen / alıcısız ertelenmiş acil e-posta görünür olsun (geçiş tabanlı tek alarm; inceleme 10-31: 72 saat sessiz deneniyordu).
+    if (due.retry > 0 || due.no_recipient > 0) {
+      await opsAlarm.fail(
+        "host-alert-mail-delivery",
+        "scheduled-sync host-alert-mail",
+        new Error(`ertelenmiş acil e-posta gönderilemedi: yeniden=${due.retry} alıcısız=${due.no_recipient}`),
+      );
+    } else if (due.sent > 0) {
+      await opsAlarm.ok("host-alert-mail-delivery");
+    }
+  } catch (err) {
+    await opsAlarm.fail("host-alert-mail", "scheduled-sync host-alert-mail", err);
+  } finally {
+    sweepingAlertMail = false;
+  }
+}
+
 /**
  * Run `fn` while holding the cross-instance sync lock, so it can never overlap
  * the scheduled cron (which uses the same lock). Returns `{ locked: true }`
@@ -336,6 +363,10 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
   // Multi-tenant: no global token gate here. Each org self-gates on ITS OWN
   // Hospitable connection (syncHospitable + the automation senders return early
   // when the org has no token), so orgs that aren't connected are simply skipped.
+  // HİBRİT ACİL E-POSTASI (tasarım §3.12, kurucu 10-31): vadesi gelen ertelenmiş acil e-postalar — WhatsApp bildirimi 10 dk içinde okunmadıysa
+  // gider, okunduysa düşer. Senkron KİLİDİNİN DIŞINDA ve her tikte (inceleme 10-31: uzun bir geçiş "10 dk"yı ~25 dk'ya uzatıyordu); satır
+  // başına kiralama (CAS) eşzamanlı çalışmayı güvenli kılar. Süreç içinde üst üste binmesin diye ayrı bayrak; kendi 30 sn bütçesi.
+  await sweepDueAlertEmails(opsAlarm);
   if (running) {
     return { ...zero(), ok: false, error: "already_running" };
   }
@@ -367,16 +398,6 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
         await opsAlarm.ok("amount-heal");
       } catch (err) {
         await opsAlarm.fail("amount-heal", "scheduled-sync amount-heal", err);
-      }
-
-      // HİBRİT ACİL E-POSTASI (tasarım §3.12, kurucu 10-31): vadesi gelen ertelenmiş acil e-postalar — WhatsApp bildirimi 10 dk içinde
-      // okunmadıysa gider, okunduysa düşer. İşletme döngüsünden ÖNCE (uzun bir org senkronu vadeyi geciktirmesin); kendi 30 sn bütçesi.
-      try {
-        const due = await deliverDueAlertEmails();
-        if (due.sent + due.cancelled_read + due.dropped + due.retry > 0) console.log(`[scheduled-sync] host-alert-mail: ${JSON.stringify(due)}`);
-        await opsAlarm.ok("host-alert-mail");
-      } catch (err) {
-        await opsAlarm.fail("host-alert-mail", "scheduled-sync host-alert-mail", err);
       }
 
       // BOŞTA ORG'U ATLA. Döngünün yaptığı her iş (konuşma, rezervasyon, uyarı,

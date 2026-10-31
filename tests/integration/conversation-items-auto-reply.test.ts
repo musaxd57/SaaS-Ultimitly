@@ -295,12 +295,24 @@ describe("acil bildirim WhatsApp'a da (Tür C, `HOST_QUESTION_ALERTS_ENABLED`; t
     expect(await prisma.systemLock.count({ where: { name: { startsWith: "host-alert-mail:" } } })).toBe(0);
   });
 
-  it("🚨 tutulan öğe yolunda anlama katmanı 'acil' dedi (metinde can güvenliği sözcüğü yok) → ikisi birden hemen", async () => {
+  it("🚨 anlama katmanı 'acil' dedi (metinde can güvenliği sözcüğü yok) → ikisi birden hemen (tur düzeyinde tutulur)", async () => {
     const { orgId, conversationId } = await seed("Lütfen hemen gelin, çok kötü durumdayız");
     alertFlags(true);
     await bindHost(orgId, conversationId);
     understands(understood([{ intent: "emergency", message: 1 }]));
     mockSuggest.mockResolvedValueOnce(verdict({ intent: "general", reply: "Hemen bakıyoruz." }));
+    await applyChannelAutoReply(conversationId);
+    expect(alerts).toHaveLength(1);
+    expect(mockMail).toHaveBeenCalledTimes(1);
+    expect(await prisma.systemLock.count({ where: { name: { startsWith: "host-alert-mail:" } } })).toBe(0);
+  });
+
+  it("🚨 hassas tutulan öğe (fatura) + aynı mesajda 'hırsız girdi' → tutulan öğe e-postası da ikisi birden (acil ağı hırsızı tanımaz)", async () => {
+    const { orgId, conversationId } = await seed("Hırsız girdi! Bir de faturayı alabilir miyim?");
+    alertFlags(true);
+    await bindHost(orgId, conversationId);
+    understands(understood([{ intent: "payment_invoice", message: 1 }]));
+    mockSuggest.mockResolvedValueOnce(verdict({ intent: "general", reply: "Faturanız platformdan iletilir." }));
     await applyChannelAutoReply(conversationId);
     expect(alerts).toHaveLength(1);
     expect(mockMail).toHaveBeenCalledTimes(1);

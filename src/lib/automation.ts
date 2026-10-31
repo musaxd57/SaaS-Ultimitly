@@ -4441,11 +4441,12 @@ async function notifyItemsForHost(input: {
     messageIds: input.messageIds,
     now: input.now,
     // Acil bildirim WhatsApp'a da (anahtar arkasında, e-postanın yanında; kapalıyken veritabanına dokunmaz).
-    deliverUrgent: ({ messageId, body, emergency, sendEmail }) =>
+    deliverUrgent: ({ messageId, body, sendEmail }) =>
       deliverUrgentAlert({
         organizationId: input.organizationId,
         messageId,
-        lifeSafety: lifeSafetyOf({ texts: [body], understandingEmergency: emergency }).lifeSafety,
+        // Acil duyarlı öğe (anlama "acil" / acil sözcük ağı) tur düzeyinde tutulur ve model / uyarı yolundan gider — buraya yalnız hassas öğe gelir.
+        lifeSafety: lifeSafetyOf({ texts: [body] }).lifeSafety,
         transport: hostChannelTransport(),
         sendEmail,
         whatsapp: () => urgentChannelAlert(input.organizationId, input.conversation.id, messageId, body, input.now),
@@ -6186,6 +6187,7 @@ export async function sendDueAlerts(
           organizationId,
           conversation: { ...c, reservation: c.reservationId ? { id: c.reservationId } : null },
           hits,
+          turnTexts: pending.map((m) => m.body),
           to,
           orgName: org?.name ?? "GuestOps",
           autoTask: org?.autoTaskFromMessageEnabled === true,
@@ -6282,7 +6284,9 @@ export async function sendDueAlerts(
     const mail = await deliverUrgentAlert({
       organizationId,
       messageId: hit.id,
-      lifeSafety: lifeSafetyOf({ texts: [hit.body] }).lifeSafety,
+      // Turun BÜTÜN cevapsız mesajları (inceleme 10-31: tetik seçimi en yeni kayıp anahtarı / şikâyeti alabiliyor, önceki tıbbi mesaj
+      // kaçıyordu). Uzun mesaj buraya yalnız acil ağı tuttuğu için gelir → şüphede can güvenliği.
+      lifeSafety: hitTooLong || lifeSafetyOf({ texts: pending.map((m) => m.body) }).lifeSafety,
       transport: hostChannelTransport(),
       sendEmail: () => emailService.sendReporting(to, `⚠️ Acil misafir mesajı — ${c.guestIdentifier} (${c.property.name})`, html),
       whatsapp: () => urgentChannelAlert(organizationId, c.id, hit.id, hit.body),
@@ -6358,6 +6362,8 @@ async function alertItemsForHost(input: {
   organizationId: string;
   conversation: ItemsConversationRef;
   hits: readonly { id: string; body: string }[];
+  /** Turun bütün cevapsız misafir metinleri — can güvenliği sınıfı yalnız tetik mesajına bakmasın (§3.12). */
+  turnTexts: readonly string[];
   to: string;
   orgName: string;
   autoTask: boolean;
@@ -6392,11 +6398,11 @@ async function alertItemsForHost(input: {
     property: input.conversation.property,
     messageIds: todo.map((h) => h.id),
     now,
-    deliverUrgent: ({ messageId, body, emergency, sendEmail }) =>
+    deliverUrgent: ({ messageId, body, sendEmail }) =>
       deliverUrgentAlert({
         organizationId: input.organizationId,
         messageId,
-        lifeSafety: lifeSafetyOf({ texts: [body], understandingEmergency: emergency }).lifeSafety,
+        lifeSafety: lifeSafetyOf({ texts: [body, ...input.turnTexts] }).lifeSafety,
         transport: hostChannelTransport(),
         sendEmail,
         whatsapp: () => urgentChannelAlert(input.organizationId, input.conversation.id, messageId, body, now),

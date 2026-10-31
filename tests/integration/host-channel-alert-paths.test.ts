@@ -137,6 +137,18 @@ describe("kelime ağı acil (sendDueAlerts) — yangın / gaz", () => {
     expect(await alertRows(s.conversationId)).toMatchObject([{ status: "alerted", turnMessageId: s.messageId }]);
   });
 
+  it("🚨 can güvenliği turun ÖNCEKİ mesajında, tetik en yeni 'ACİL' mesajı → yine ikisi birden hemen (inceleme 10-31)", async () => {
+    flags(true);
+    const s = await seed("ACİL klima çalışmıyor");
+    await prisma.message.create({
+      data: { conversationId: s.conversationId, direction: "inbound", senderName: "Alex", body: "Annem bayıldı, nefes almıyor", createdAt: new Date(Date.now() - 5 * 60_000) },
+    });
+    expect((await sendDueAlerts(s.orgId)).alerted).toBe(1);
+    expect(mockMail).toHaveBeenCalledTimes(1);
+    expect(alerts).toHaveLength(1);
+    expect(await prisma.systemLock.count({ where: { name: { startsWith: "host-alert-mail:" } } })).toBe(0);
+  });
+
   it("e-posta düşer → claim geri alınır → sonraki geçiş e-postayı yeniden dener; WhatsApp İKİNCİ kez gitmez", async () => {
     flags(true);
     const s = await seed("There is a fire in the apartment!");

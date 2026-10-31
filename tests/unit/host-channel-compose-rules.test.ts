@@ -106,6 +106,10 @@ describe("ev sahibinin kendi sözü makbuzsuz söz sayılmaz", () => {
     expect(check("Havluları yarın göndereceğiz.", "I'll send towels tomorrow")).toBeNull();
     expect(check("Havluları yarın göndereceğiz.", "havlu dolapta")).toBe("output_veto");
   });
+  it("ev sahibinin geçmiş zamanlı eylem beyanı ('haber verdim') da kendi sözüdür (çıktı vetosunun kendi hükmüyle)", () => {
+    expect(check("Temizlik ekibine haber verdik, yarın gelecekler.", "temizlik ekibine haber verdim")).toBeNull();
+    expect(check("Temizlik ekibine haber verdik, yarın gelecekler.", "temizlik yarın")).toBe("output_veto");
+  });
   it("teşekkür / üçüncü kişi gelecek zaman ev sahibinin sözü sayılmaz", () => {
     expect(hostMakesOwnPromise("teşekkür ederim")).toBe(false);
     expect(hostMakesOwnPromise("teknisyen yarın gelecek")).toBe(false);
@@ -130,6 +134,8 @@ describe("akşam saati: 12 saatlik yazım ↔ 24 saat", () => {
     // Virgülden SONRA gelen işaret önceki sayıya geçmez ("kahvaltı 8, akşam yemeği 7").
     expect(check("Breakfast at 20:00.", "kahvaltı 8, akşam yemeği 7")).toBe("number_not_in_source");
     expect(check("Dinner at 19:00.", "kahvaltı 8, akşam yemeği 7")).toBeNull();
+    // Virgülden ÖNCEKİ işaret sonraki sayıya geçmez ("akşam 7, sabah 8").
+    expect(check("Breakfast at 20:00.", "akşam 7, sabah 8")).toBe("number_not_in_source");
   });
   it("yalnız 1–11 kayar: 'gece 12' 24 olmaz", () => {
     expect(check("Quiet hours start at 24:00.", "gece 12den sonra sessiz olsunlar")).toBe("number_not_in_source");

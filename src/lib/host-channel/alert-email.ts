@@ -76,9 +76,10 @@ export async function deliverUrgentAlert(input: {
     await logEvent("host_channel.alert.email_deferred", {}, { organizationId: input.organizationId }).catch(() => null);
     return { ok: true, deferred: true };
   }
-  // WhatsApp gitmedi (numara yok, tavan, hata) → e-posta HEMEN; kayıt silinir (e-posta düşerse çağıranın yeniden denemesi yeni kayıt açar).
-  const mail = await input.sendEmail();
+  // WhatsApp gitmedi (numara yok, tavan, hata) → e-posta HEMEN. Kayıt e-postadan ÖNCE silinir: başarılı e-postanın ardından kalan kayıt
+  // 10 dk sonra ikinci e-posta doğururdu (inceleme 10-31). E-posta düşerse çağıranın yeniden denemesi yeni kayıt açar.
   await prisma.systemLock.deleteMany({ where: { name, holder: null } }).catch(() => null);
+  const mail = await input.sendEmail();
   return { ok: mail.ok, deferred: false };
 }
 
@@ -97,18 +98,22 @@ export async function expediteDeferredAlertEmail(messageId: string, now: Date = 
 /** Durum bildirimindeki "failed" kimlikleri → o acil bildirimlerin ertelenmiş e-postaları öne çekilir. */
 export async function expediteForFailedProviderIds(providerMessageIds: readonly string[], now: Date = new Date()): Promise<void> {
   if (providerMessageIds.length === 0) return;
+  const ids = [...new Set(providerMessageIds)].slice(0, 200);
   const rows = await prisma.hostQuestion.findMany({
-    where: { providerMessageId: { in: [...providerMessageIds] }, kind: "alert" },
+    where: { providerMessageId: { in: ids }, kind: "alert" },
     select: { turnMessageId: true },
   });
+  // Bildirim "ulaşmadı" olarak işaretlenir (ham SQL — `updatedAt` / sürüm değişmez): sonradan gelen düz ev sahibi mesajı onu "okundu"
+  // yapamaz, düz mesaj yönlendirmesi de onu seçmez (yalnız "alerted"). İnceleme 10-31.
+  await prisma.$executeRaw`UPDATE "HostQuestion" SET "status" = 'failed' WHERE "providerMessageId" = ANY(${ids}) AND "kind" = 'alert' AND "status" = 'alerted'`;
   for (const r of rows) await expediteDeferredAlertEmail(r.turnMessageId, now);
 }
 
-type DueOutcome = "sent" | "cancelled_read" | "dropped" | "retry";
+type DueOutcome = "sent" | "cancelled_read" | "dropped" | "retry" | "no_recipient";
 
 /** `clock`: süre bütçesinin saati (test edilebilir); vade kararları `now` ile. */
 export async function deliverDueAlertEmails(now: Date = new Date(), clock: () => number = Date.now): Promise<Record<DueOutcome, number>> {
-  const counts: Record<DueOutcome, number> = { sent: 0, cancelled_read: 0, dropped: 0, retry: 0 };
+  const counts: Record<DueOutcome, number> = { sent: 0, cancelled_read: 0, dropped: 0, retry: 0, no_recipient: 0 };
   const started = clock();
   const due = await prisma.systemLock.findMany({
     where: { name: { startsWith: ALERT_MAIL_PREFIX }, lockedUntil: { lte: now } },
@@ -178,20 +183,24 @@ async function deliverOne(messageId: string, now: Date): Promise<DueOutcome> {
   const property = message.conversation.property;
   const alert = await prisma.hostQuestion.findFirst({
     where: { organizationId: property.organizationId, idempotencyKey: `alert:${messageId}` },
-    select: { id: true, readAt: true },
+    select: { id: true, readAt: true, status: true, sentAt: true, createdAt: true },
   });
-  if (alert?.readAt) {
+  // Okundu → e-posta yok. Sağlayıcı "ulaşmadı" dediyse (status "failed") okundu sayılmaz (inceleme 10-31).
+  if (alert?.readAt && alert.status !== "failed") {
     await logEvent("host_channel.alert.email_cancelled_read", {}, { organizationId: property.organizationId }).catch(() => null);
     return "cancelled_read";
   }
-  if (now.getTime() - message.createdAt.getTime() > GIVE_UP_MS) {
+  // Vazgeçme süresi ERTELEMEDEN sayılır (bildirimin gönderim anı), mesajın sağlayıcı zamanından DEĞİL: kesintiden sonra işlenen 4 günlük
+  // mesajın e-postası ilk denemede atılıyordu (inceleme 10-31). Bildirim satırı yoksa yaşa göre hiç bırakılmaz.
+  const anchor = alert ? (alert.sentAt ?? alert.createdAt) : null;
+  if (anchor && now.getTime() - anchor.getTime() > GIVE_UP_MS) {
     await reportError("host-channel-alert-email", new Error("Ertelenmiş acil e-postası 72 saati aştı — gönderilmedi")).catch(() => null);
     return "dropped";
   }
   // Alıcı: bugünkü kuralla aynı (işletmenin uyarı adresi, yoksa ilk sahibin e-postası; asla personel / ortam adresi).
   const org = property.organization;
   const to = org.alertEmail?.trim() || org.users[0]?.email?.trim();
-  if (!to) return "dropped";
+  if (!to) return "no_recipient";
   const conv = message.conversation;
   const html = complaintEscalationEmail(
     { id: conv.id, guestIdentifier: conv.guestIdentifier, channel: conv.channel, priority: "urgent" },

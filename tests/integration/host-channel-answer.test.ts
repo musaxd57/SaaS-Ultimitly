@@ -385,6 +385,28 @@ describe("WhatsApp cevap dilimi", () => {
     expect(last.text.length).toBeLessThanOrEqual(PREVIEW_MAX);
     expect(last.text).toContain(`${HOST_TEXTS.dropped} telefon numarası`);
     expect(last.text).not.toContain(HOST_TEXTS.previewTr);
+
+    // Çeviri SIĞIYOR ama çeviri + bırakılan satır sığmıyorsa: bırakılan satır kalır, çeviri düşer (ev sahibi neyin gitmediğini bilsin).
+    await seedQuestion(h, "wamid.Q3");
+    composeMock.mockResolvedValueOnce({ ...OK_DRAFT, reply: "Yes.", replyTr: "Evet.", dropped: [] });
+    await deliver([text(DIG_A, "wamid.a3", "evet", "wamid.Q3")]);
+    const small = tr.out.filter((o) => o.kind === "choices").at(-1)!.text;
+    const headerLen = small.length - `${HOST_TEXTS.previewHeader}\n\n“Yes.”\n\n${HOST_TEXTS.previewTr} “Evet.”`.length;
+    const labels = ["telefon numarası", "WhatsApp'tan yazma isteği", "e-posta adresi"];
+    const droppedLen = `\n\n${HOST_TEXTS.dropped} ${labels.join(", ")}`.length;
+    const fixed = headerLen + `${HOST_TEXTS.previewHeader}\n\n“”\n\n${HOST_TEXTS.previewTr} “”`.length;
+    const room = PREVIEW_MAX - fixed - Math.floor(droppedLen / 2); // çeviri sığar, çeviri + satır sığmaz
+    const reply = "a".repeat(Math.floor(room / 2));
+    const replyTr = "b".repeat(room - reply.length);
+    expect(fixed + reply.length + replyTr.length).toBeLessThanOrEqual(PREVIEW_MAX);
+    expect(fixed + reply.length + replyTr.length + droppedLen).toBeGreaterThan(PREVIEW_MAX);
+    await seedQuestion(h, "wamid.Q4");
+    composeMock.mockResolvedValueOnce({ ...OK_DRAFT, reply, replyTr, dropped: labels });
+    await deliver([text(DIG_A, "wamid.a4", "evet", "wamid.Q4")]);
+    const fitted = tr.out.filter((o) => o.kind === "choices").at(-1)!.text;
+    expect(fitted).toContain(reply);
+    expect(fitted).toContain(`${HOST_TEXTS.dropped} ${labels.join(", ")}`);
+    expect(fitted).not.toContain(replyTr);
   });
 
   it("bağlamsız düz cevap: tek bekleyen soruya bağlanır; birden çoksa 'hangi soru' der; hiç yoksa günde bir kez 'bekleyen soru yok'", async () => {
