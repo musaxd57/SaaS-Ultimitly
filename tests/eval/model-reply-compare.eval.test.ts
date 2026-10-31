@@ -1,4 +1,4 @@
-import { describe, it, expect, afterAll } from "vitest";
+import { describe, it, expect, afterAll, beforeAll } from "vitest";
 import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 import path from "node:path";
@@ -11,6 +11,7 @@ import { writeSidecar, uniqueReportName } from "./sidecar";
 import { storedRunRuntime, type EvalRuntime } from "./run-meta";
 import { GREETING, promiseInReply } from "./reply-metrics";
 import { PRICES, MUST_HOLD, languageMatches, factsHit, factsStrict, factValue, type FactSpec } from "./reply-scoring";
+import { haikuCostUsd, installAnthropicReplyShim, shimStats, type ShimOptions } from "./anthropic-reply-shim";
 
 // ---------------------------------------------------------------------------
 // CEVAP MODELİ KIYASI (09-25, kurucu: "Luna 6'yı dene, 5.1'den iyiyse misafire o cevap versin; son karar senin").
@@ -67,19 +68,39 @@ interface Dataset {
 const DATASET = path.resolve(__dirname, "../../evals/model-reply-compare.json");
 const data = JSON.parse(readFileSync(DATASET, "utf8")) as Dataset;
 
+/**
+ * CLAUDE KOLU (kurucu 10-31, `anthropic-reply-shim.ts`): `EVAL_REPLY_PROVIDER=anthropic` → cevap çağrısı AYNI istemle Claude'a gider
+ * (model `EVAL_CLAUDE_REPLY_MODEL`, varsayılan Haiku 5.5; düşünme `EVAL_CLAUDE_THINKING` adaptive|disabled; çaba `EVAL_CLAUDE_EFFORT`).
+ * Anahtar `ANTHROPIC_API_KEY`; OpenAI anahtarı gerekmez (cevap dışındaki OpenAI çağrısı sayılır ve hata döner).
+ */
+const CLAUDE_ARM = process.env.EVAL_REPLY_PROVIDER?.trim() === "anthropic";
+const claudeKey = process.env.ANTHROPIC_API_KEY?.trim() ?? "";
+const CLAUDE_OPTS: ShimOptions = {
+  model: process.env.EVAL_CLAUDE_REPLY_MODEL?.trim() || "claude-haiku-5-5",
+  thinking: process.env.EVAL_CLAUDE_THINKING?.trim() === "disabled" ? "disabled" : "adaptive",
+  effort: (["low", "medium", "high", "xhigh", "max"] as const).find((e) => e === process.env.EVAL_CLAUDE_EFFORT?.trim()) ?? "medium",
+  maxTokens: Number(process.env.EVAL_CLAUDE_MAX_TOKENS) > 0 ? Math.trunc(Number(process.env.EVAL_CLAUDE_MAX_TOKENS)) : 8000,
+};
+if (CLAUDE_ARM && process.env.RUN_REAL_EVAL === "1" && claudeKey.length > 20) {
+  // Ürün kodu cevap çağrısını OpenAI anahtarı varsa yapar; çağrı shim'de Claude'a gider, bu değer hiçbir yere gönderilmez.
+  if (!process.env.OPENAI_API_KEY?.trim()) process.env.OPENAI_API_KEY = "shim-anthropic-no-openai-key-0000000000";
+  process.env.OPENAI_MODEL = CLAUDE_OPTS.model;
+}
 const key = process.env.OPENAI_API_KEY?.trim() ?? "";
-const enabled = process.env.RUN_REAL_EVAL === "1" && key.length > 20 && !key.startsWith("test-");
-const MODEL = process.env.OPENAI_MODEL?.trim() || "gpt-5.1";
+const enabled = CLAUDE_ARM
+  ? process.env.RUN_REAL_EVAL === "1" && claudeKey.length > 20
+  : process.env.RUN_REAL_EVAL === "1" && key.length > 20 && !key.startsWith("test-");
+const MODEL = CLAUDE_ARM ? CLAUDE_OPTS.model : process.env.OPENAI_MODEL?.trim() || "gpt-5.1";
 const LIMIT = Number(process.env.EVAL_COMPARE_LIMIT) > 0 ? Math.trunc(Number(process.env.EVAL_COMPARE_LIMIT)) : Infinity;
 /** Rapor adına ek (aynı gün aynı modelin ikinci koşusu ilk raporu EZMESİN — örn. düzeltme sonrası ölçüm). */
-const TAG = (process.env.EVAL_COMPARE_TAG ?? "").trim().replace(/[^a-z0-9.-]+/gi, "_");
+const TAG = ((process.env.EVAL_COMPARE_TAG ?? "").trim() || (CLAUDE_ARM ? `${CLAUDE_OPTS.thinking}-${CLAUDE_OPTS.effort}` : "")).replace(/[^a-z0-9.-]+/gi, "_");
 const CONCURRENCY = 3;
 /**
  * Dakikadaki istek tavanı (09-25 ölçüldü): hesabın token/dk sınırı gpt-6-luna'da 200k, gpt-5.1'de 500k; bir cevap
  * ~17,5k istem token'ı → Luna ≈ 11, 5.1 ≈ 28 istek/dk. Sınır aşılırsa `suggestReply` yedeğe düşer ve satır modelin
  * suçu olmadan "düştü" görünür → koşu tavanın altında kalır. `EVAL_COMPARE_RPM` ile ezilebilir.
  */
-const RPM = Number(process.env.EVAL_COMPARE_RPM) > 0 ? Number(process.env.EVAL_COMPARE_RPM) : MODEL.includes("luna") ? 9 : 24;
+const RPM = Number(process.env.EVAL_COMPARE_RPM) > 0 ? Number(process.env.EVAL_COMPARE_RPM) : MODEL.includes("luna") ? 9 : CLAUDE_ARM ? 40 : 24;
 
 // Fiyat tablosu, gitmemesi gereken sınıflar, dil uyumu ve olgu isabeti ortak modülde (`reply-scoring.ts`): canlı hat ölçeri
 // (`live-pipeline.eval.test.ts`) AYNI kurallarla puanlar.
@@ -392,6 +413,10 @@ function writeReport(dir: string, name: string, model: string, commit: string, r
 
 describe.skipIf(!enabled)(`CEVAP MODELİ KIYASI — ${MODEL}`, () => {
   const rows: Row[] = [];
+  let uninstall: (() => void) | null = null;
+  beforeAll(() => {
+    if (CLAUDE_ARM) uninstall = installAnthropicReplyShim(CLAUDE_OPTS, claudeKey);
+  });
 
   afterAll(() => {
     // Gerçek koşu yoksa rapor YAZILMAZ (konaklama eval'inin dersi: ana suite `tests/**` topluyor — anahtarsız bir
@@ -407,7 +432,14 @@ describe.skipIf(!enabled)(`CEVAP MODELİ KIYASI — ${MODEL}`, () => {
     } catch {
       /* git yoksa kanıtta "?" */
     }
-    writeReport(dir, name, MODEL, commit, rows.map((r) => rescore(r, SCENARIO_BY_ID.get(r.id))));
+    const note = CLAUDE_ARM
+      ? `Claude kolu: ${CLAUDE_OPTS.model} · düşünme ${CLAUDE_OPTS.thinking} · çaba ${CLAUDE_OPTS.effort} · max_tokens ${CLAUDE_OPTS.maxTokens} · ` +
+        `çağrı ${shimStats.calls} · çit sökülen ${shimStats.fenced} · ret (refusal) ${shimStats.refusals} · cevap dışı OpenAI çağrısı ${shimStats.nonReplyCalls} · ` +
+        `token girdi ${shimStats.inputTokens} / önbellek okuma ${shimStats.cacheRead} / önbellek yazma ${shimStats.cacheWrite} / çıktı ${shimStats.outputTokens} · ` +
+        `kesin maliyet $${haikuCostUsd(shimStats).toFixed(4)}`
+      : undefined;
+    writeReport(dir, name, MODEL, commit, rows.map((r) => rescore(r, SCENARIO_BY_ID.get(r.id))), note);
+    uninstall?.();
   });
 
   it(

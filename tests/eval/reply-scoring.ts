@@ -9,6 +9,8 @@ export const PRICES: Record<string, { in: number; cached: number; out: number }>
   "gpt-5.1": { in: 1.25, cached: 0.125, out: 10 },
   "gpt-6-luna": { in: 0.1, cached: 0.01, out: 0.5 },
   "gpt-5.6-luna": { in: 0.2, cached: 0.02, out: 1.2 },
+  // Claude Haiku 5.5 (≤100K istem kartı; önbellek YAZMA 1,25× burada girdi fiyatıyla sayılır — kesin maliyet ölçer notunda).
+  "claude-haiku-5-5": { in: 0.1, cached: 0.01, out: 0.5 },
   "text-embedding-3-small": { in: 0.02, cached: 0.02, out: 0 },
   "text-embedding-3-large": { in: 0.13, cached: 0.13, out: 0 },
 };

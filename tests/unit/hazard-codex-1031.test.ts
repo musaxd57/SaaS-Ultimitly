@@ -41,6 +41,9 @@ describe("#3 ışık / ekran sözcüğü YALNIZ kendi fiilini nötrler", () => {
     "Die Lampe ist aus und der Vorhang brennt",
     "TV ekranı açık ve koridorda alevler var",
     "The screen is on and there are flames in the hallway",
+    // Bağlaç sınırı: ışık / ekran sözcüğü 3 sözcük içinde ama bağlacın ÖTEKİ yanında.
+    "Ekran açık ve alevler var!",
+    "Screen on and flames everywhere!",
   ])("%s → en az olası (eskiden 'yok')", (m) => {
     expect(["possible", "clear"]).toContain(level(m));
   });
