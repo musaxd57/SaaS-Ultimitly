@@ -1,0 +1,215 @@
+{
+ "description": "Mizah / mübalağa / alay seti (kurucu 10-22: 'model espri anlayışı olarak iyi mi test edebilirsin … mübalağayı falan anlayabilsin sen nasıl anlayabiliyorsan'). Her vaka: misafir mesajı + beklenen anlam: emergency (gerçek acil mi), complaint (gerçek şikâyet mi — ALAYLI şikâyet de şikâyettir), ask (asıl soru konusu, serbest metin). Ölçer: kelime kuralları (detectRiskTypes, hazardEvidenceOf) ve anlama modeli yan yana; ödenekli koşu tests/eval/humor-understanding.eval.test.ts. null = iki cevap da kabul (gerçek acilde ek 'şikâyet' etiketi zararsız; gece 2'de çocuklarla kapıda kalmak acil sayılabilir).",
+ "cases": [
+  {
+   "id": "h01",
+   "text": "This wifi is killing me 😂 what's the password?",
+   "emergency": false,
+   "complaint": false,
+   "ask": "wifi"
+  },
+  {
+   "id": "h02",
+   "text": "I'm dying of heat lol, how do I turn on the AC?",
+   "emergency": false,
+   "complaint": false,
+   "ask": "ac"
+  },
+  {
+   "id": "h03",
+   "text": "Gülmekten öldüm, kahvaltı yeri önerir misiniz?",
+   "emergency": false,
+   "complaint": false,
+   "ask": "breakfast"
+  },
+  {
+   "id": "h04",
+   "text": "Bu manzara beni bitirdi, harika! Çıkış saati kaçta?",
+   "emergency": false,
+   "complaint": false,
+   "ask": "checkout"
+  },
+  {
+   "id": "h05",
+   "text": "Sıcaktan eriyoruz haha, klimayı nasıl açıyoruz?",
+   "emergency": false,
+   "complaint": false,
+   "ask": "ac"
+  },
+  {
+   "id": "h06",
+   "text": "The view is to die for! Where can we park?",
+   "emergency": false,
+   "complaint": false,
+   "ask": "parking"
+  },
+  {
+   "id": "h07",
+   "text": "My kids are going to kill me if there's no wifi 😅 what's the password?",
+   "emergency": false,
+   "complaint": false,
+   "ask": "wifi"
+  },
+  {
+   "id": "h08",
+   "text": "Açlıktan ölüyoruz 😂 yakında restoran var mı?",
+   "emergency": false,
+   "complaint": false,
+   "ask": "restaurant"
+  },
+  {
+   "id": "h09",
+   "text": "Yangın gibi bir manzara! Havlular nerede?",
+   "emergency": false,
+   "complaint": false,
+   "ask": "towels"
+  },
+  {
+   "id": "h10",
+   "text": "This place is fire 🔥 thanks! Check-out time?",
+   "emergency": false,
+   "complaint": false,
+   "ask": "checkout"
+  },
+  {
+   "id": "h11",
+   "text": "Elektrik çarptı sanki o kadar güzel ki 😍 çıkış kaçta?",
+   "emergency": false,
+   "complaint": false,
+   "ask": "checkout"
+  },
+  {
+   "id": "h12",
+   "text": "Mutfak yanıyor sanki, o kadar sıcak 😅 klima nasıl açılır?",
+   "emergency": false,
+   "complaint": false,
+   "ask": "ac"
+  },
+  {
+   "id": "h13",
+   "text": "I'd literally kill for a coffee, is there a machine?",
+   "emergency": false,
+   "complaint": false,
+   "ask": "coffee"
+  },
+  {
+   "id": "h14",
+   "text": "Komşunun köpeği bizi yedi bitirdi 😂 şaka şaka, çöp nereye atılıyor?",
+   "emergency": false,
+   "complaint": false,
+   "ask": "trash"
+  },
+  {
+   "id": "h15",
+   "text": "We're drowning in towels haha, no need for more. Where is the iron?",
+   "emergency": false,
+   "complaint": false,
+   "ask": "iron"
+  },
+  {
+   "id": "h16",
+   "text": "Kafamız patladı bu Wi-Fi ile 😂 şifre neydi?",
+   "emergency": false,
+   "complaint": false,
+   "ask": "wifi"
+  },
+  {
+   "id": "h17",
+   "text": "Bu yatak bulut gibi, hiç kalkmayacağız 😄 geç çıkış mümkün mü?",
+   "emergency": false,
+   "complaint": false,
+   "ask": "late_checkout"
+  },
+  {
+   "id": "h18",
+   "text": "My husband says he'll murder me if I lose the key again 😂 is there a spare?",
+   "emergency": false,
+   "complaint": false,
+   "ask": "spare_key"
+  },
+  {
+   "id": "h19",
+   "text": "Great, the shower is ice cold AGAIN, just what I wanted on holiday 🙃",
+   "emergency": false,
+   "complaint": true,
+   "ask": "hot_water"
+  },
+  {
+   "id": "h20",
+   "text": "Harika, yine sıcak su yok, tam tatil keyfi 🙃",
+   "emergency": false,
+   "complaint": true,
+   "ask": "hot_water"
+  },
+  {
+   "id": "h21",
+   "text": "Love the free sauna in the bedroom, the AC must be on vacation too 😒",
+   "emergency": false,
+   "complaint": true,
+   "ask": "ac"
+  },
+  {
+   "id": "h22",
+   "text": "Wow, the neighbours' party is so loud we joined it from our bed. Any quiet hours here?",
+   "emergency": false,
+   "complaint": true,
+   "ask": "quiet_hours"
+  },
+  {
+   "id": "h23",
+   "text": "Our toddler flooded the bathroom with bubbles lol, where is the mop?",
+   "emergency": false,
+   "complaint": false,
+   "ask": "mop"
+  },
+  {
+   "id": "h24",
+   "text": "Haha the smoke alarm went off because I burned the toast, it's fine now. How do I reset it?",
+   "emergency": false,
+   "complaint": false,
+   "ask": "smoke_alarm"
+  },
+  {
+   "id": "h25",
+   "text": "Ev buz gibi, donduk resmen 🥶 kombiyi nasıl açarız?",
+   "emergency": false,
+   "complaint": false,
+   "ask": "heating"
+  },
+  {
+   "id": "h26",
+   "text": "lol there's actually smoke coming out of the socket now, is that bad??",
+   "emergency": true,
+   "complaint": null,
+   "ask": "socket"
+  },
+  {
+   "id": "h27",
+   "text": "Şaka değil, gerçekten gaz kokusu var, ne yapalım?",
+   "emergency": true,
+   "complaint": null,
+   "ask": "gas"
+  },
+  {
+   "id": "h28",
+   "text": "Not joking: water is pouring from the ceiling onto the lamp",
+   "emergency": true,
+   "complaint": null,
+   "ask": "leak"
+  },
+  {
+   "id": "h29",
+   "text": "Haha very funny, the door code doesn't work and we're stuck outside at 2am with kids",
+   "emergency": null,
+   "complaint": true,
+   "ask": "door_code"
+  },
+  {
+   "id": "h30",
+   "text": "Mükemmel bir deneyim, sadece hamamböceklerle kahvaltı ettik 🙂 temizlikçi ne zaman geliyor?",
+   "emergency": false,
+   "complaint": true,
+   "ask": "cleaning"
+  }
+ ]
+}

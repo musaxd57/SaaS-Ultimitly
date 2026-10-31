@@ -1,0 +1,1489 @@
+{
+ "version": 1,
+ "split": "blind",
+ "author": "sonnet (kör yazar, sistemi görmedi)",
+ "note": "Kör set: yazar sistemin kodunu, kurallarını ya da başka ölçüm setlerini görmeden yazdı. 5 kurgusal ev rehberi (Lale N daireleri, gerçek kişi/işletme adı yok): B1 tablo ağırlıklı, B2 Türkçe+İngilizce+Almanca karışık, B3 az başlıklı çok uzun paragraflar, B4 'bkz.' göndermeli numaralı maddeler + ekler, B5 genel kural ile istisnanın ayrı bölümlerde olduğu ve yakın konuların (havuz/çocuk havuzu/havuz duşu/jakuzi; otopark/motosiklet/misafir otoparkı) karıştığı rehber. requiredSpans belge metninin birebir alt dizesidir; cevabı doğru vermek için modele birlikte ulaşması gereken parçalardır (tablo için başlık satırı ayrı span). answerable=false sorularda requiredSpans boştur (belgede yok, yakın konu var). Kategoriler: uzak_istisna, komsu_parca, tablo, gonderme, yakin_konu, olumsuzluk, baska_dil, coklu_soru, cevapsiz, uzun_paragraf_tek_cumle. forbiddenAnswer: span'lerden biri eksik gelirse verilebilecek muhtemel yanlış cevap. Rakamlar/saatler kurgusaldır.",
+ "documents": [
+  {
+   "id": "B1",
+   "property": "Lale 7 (kurgusal)",
+   "title": "Lale 7 Misafir El Kitabı (tablo ağırlıklı)",
+   "format": "markdown",
+   "text": "# Lale 7 — Misafir El Kitabı\n\nLale 7'ye hoş geldiniz. Bu rehber dairedeki bilgileri toplu halde, çoğunlukla tablolar halinde verir. Lütfen ilgili tabloyu satır ve sütun başlıklarıyla birlikte okuyun; aynı konuda dönem, kişi sayısı, konaklama süresi ya da araç tipine göre farklı değerler vardır.\n\n## 1. Daire Bilgileri\n\nLale 7, binanın 3. katında (asansörlü) yer alan 2 yatak odalı bir dairedir. En fazla 5 kişi kalabilir. Daire 82 m² büyüklüğündedir ve bir salon, bir mutfak, bir banyo, ayrı bir tuvalet ve güney cepheli bir balkondan oluşur.\n\n| Alan | Yatak düzeni | Kapasite |\n|---|---|---|\n| 1. yatak odası | 1 çift kişilik yatak (160x200) | 2 kişi |\n| 2. yatak odası | 2 tek kişilik yatak (90x200) | 2 kişi |\n| Salon | 1 açılır kanepe | 1 kişi |\n\nSalondaki açılır kanepe yalnızca 5. kişi için kullanılır; çarşafı ve yastığı salondaki dolapta hazırdır.\n\n## 2. Giriş, Çıkış ve Anahtar Kutusu\n\nGiriş ve çıkış saatleri sezona göre değişir. Rezervasyon onayınızdaki tarihe bakarak ilgili satırı seçin.\n\n| Dönem | Giriş (check-in) | Çıkış (check-out) | Geç çıkış ücreti |\n|---|---|---|---|\n| 1 Haziran - 15 Eylül (yüksek sezon) | 16:00 | 10:00 | Saat başı 300 TL; 13:00'ten sonra tam gün ücreti |\n| 16 Eylül - 31 Mayıs (düşük sezon) | 14:00 | 11:00 | Saat başı 200 TL; 14:00'ten sonra yarım gün ücreti |\n| 24 Aralık - 2 Ocak (yılbaşı haftası) | 15:00 | 10:00 | Geç çıkış yapılamaz |\n\nYılbaşı haftası satırı, üstteki sezon satırlarından önceliklidir. Yani 28 Aralık'ta girişiniz 14:00 değil 15:00'tir.\n\nGeç çıkış ve erken giriş yalnızca daire o gün boş ise yapılabilir; kesin yanıtı ev sahibi verir. Erken giriş ücreti Bölüm 6'daki tablodadır.\n\n### Anahtar kutusu\n\nAnahtar kutusu bina girişinin sağındaki duvarda, siyah renkli ve numaralıdır. Kutunun şifresi girişten bir gün önce mesajla gönderilir. Kutunun içinde dört anahtar ve bir küçük anahtar vardır.\n\n| Anahtar | Açtığı kapı | Adet |\n|---|---|---|\n| Kısa (gri başlıklı) | Bina dış kapısı | 2 |\n| Uzun (kırmızı başlıklı) | Daire kapısı (3. kat) | 2 |\n| Küçük anahtar | Balkondaki depo dolabı | 1 |\n\nÇıkışta anahtarları kutuya geri koyup kutunun şifre çarklarını karıştırın. Anahtar kaybı ücreti Bölüm 6'daki tablodadır.\n\n## 3. İnternet (Wi-Fi)\n\n| Ağ adı | Şifre | Hız | Kullanım alanı |\n|---|---|---|---|\n| Lale7_Ana | misafir2026 | 100 Mbps | Salon ve mutfak |\n| Lale7_Yatak | misafir2026 | 50 Mbps | Yatak odaları |\n| Lale7_Ofis | calisma-lale7 | 300 Mbps | 2. yatak odasındaki çalışma masası (kablolu bağlantı) |\n\nModem salondaki TV ünitesinin içindedir. Işıkları kırmızı yanıyorsa fişini 10 saniye çekip tekrar takın.\n\nLale7_Ofis ağı yalnızca 4 haftadan uzun konaklamalarda etkinleştirilir; kısa konaklamalarda bu şifre çalışmaz.\n\n## 4. Çöp ve Geri Dönüşüm\n\n| Gün | Atılacak atık | Konteyner |\n|---|---|---|\n| Pazartesi, Perşembe | Evsel atık (siyah poşet) | Gri konteyner |\n| Salı | Kâğıt ve karton | Mavi konteyner |\n| Çarşamba, Cumartesi | Plastik, cam ve metal | Sarı konteyner |\n| Cuma | Organik atık (yalnızca kahverengi poşet) | Yeşil konteyner |\n| Pazar | Toplama yapılmaz | - |\n\nKonteynerler bina girişinin solundadır. Çöp poşetini en geç 21:00'e kadar çıkarın. Cam şişeleri poşete koymayın, doğrudan sarı konteynerin cam bölümüne atın. Pil ve elektronik atıklar konteynerlere atılmaz; mutfaktaki kutuya koyun.\n\n## 5. Otopark\n\n| Araç tipi | Yer | Ücret | Not |\n|---|---|---|---|\n| Otomobil (1. araç) | Bodrum kat, 7 numaralı yer | Ücretsiz | Kumandayla girilir, kumanda mutfak çekmecesindedir |\n| Otomobil (2. araç) | Bina otoparkında yer yok; sokak parkı | Ücretsiz, ancak 08:00-19:00 arası belediye park ücreti vardır | Cadde üzerinde park edilir |\n| Motosiklet | Bodrum kat, 7 numaralı yerin yanı | Ücretsiz | Kaskı daireye getirmeniz önerilir |\n| Minibüs / karavan | Bina otoparkına giremez | - | Yaklaşık 400 m ilerideki açık otoparkı kullanın |\n\nBodrum kat otoparkının tavan yüksekliği 2,0 m'dir.\n\n## 6. Ek Ücretler\n\n| Hizmet | Ücret | Koşul |\n|---|---|---|\n| Ekstra yatak (katlanır) | 400 TL / gece | En az 2 gün önceden bildirilmelidir |\n| Bebek yatağı | Ücretsiz | Tek adet vardır, ilk gelen alır |\n| Erken giriş (12:00'den itibaren) | 500 TL | Yalnızca önceki gece daire boşsa |\n| Ek temizlik | 750 TL | Çıkışta daire aşırı kirli bırakılırsa |\n| Kayıp anahtar | 1.200 TL | Her anahtar için |\n| Hasar | Gerçek maliyet | Fotoğrafla belgelenir |\n| Evcil hayvan | Kabul edilmez | - |\n\nÖdemeler çıkıştan sonra platform üzerinden talep edilir; nakit ödeme alınmaz.\n\n## 7. Konaklama Süresine Göre Hizmetler\n\n| Konaklama süresi | Ara temizlik | Havlu değişimi | Çarşaf değişimi |\n|---|---|---|---|\n| 1-6 gece | Yok | Talep üzerine | Yok |\n| 7-13 gece | Haftada 1 | Haftada 2 | Haftada 1 |\n| 14 gece ve üzeri | Haftada 2 | 2 günde bir | Haftada 1 |\n\nAra temizlik ücretsizdir. Ancak 28 geceyi aşan konaklamalarda ara temizlik haftada 1 ile sınırlıdır.\n\n## 8. Cihazlar\n\n### Çamaşır makinesi\n\n| Program | Süre | Sıcaklık | Ne için |\n|---|---|---|---|\n| Pamuklu | 2 saat 10 dk | 40°C | Günlük kıyafet |\n| Hızlı 30 | 30 dk | 30°C | Az kirli, az miktar |\n| Yün | 1 saat | 20°C | Hassas kumaşlar |\n| Havlu | 1 saat 40 dk | 60°C | Havlu ve nevresim |\n\nÇamaşır makinesi 22:00'den sonra çalıştırılmaz (alt kat komşusu). Kurutma makinesi yoktur; balkondaki çamaşır ipini kullanın.\n\n### Bulaşık makinesi\n\n| Program | Süre |\n|---|---|\n| Eko | 3 saat |\n| Hızlı | 1 saat |\n| Yoğun | 2 saat 20 dk |\n\nTablet bulaşık makinesinin altındaki dolaptadır. Tahta ve ahşap kaşıkları bulaşık makinesine koymayın.\n\n### Isıtma ve klima\n\nYatak odalarında ve salonda split klima vardır. Isıtma için kumandada \"Isıtma\" modunu seçin ve sıcaklığı 18-24 derece arasında tutun. Pencere açıkken klimayı çalıştırmayın. Klima kumandası TV ünitesinin üstündeki kutudadır.\n\n### Mutfak envanteri\n\n| Eşya | Adet | Not |\n|---|---|---|\n| Yemek tabağı | 6 | Çukur tabak da aynı sayıdadır |\n| Çatal, kaşık, bıçak | 6 takım | Üst çekmecededir |\n| Tencere seti | 3 parça | Ocağın altındaki dolaptadır |\n| Filtre kahve makinesi | 1 | Filtre kâğıtları üst dolaptadır |\n| Su ısıtıcısı | 1 | Boşken çalıştırmayın |\n| Tost makinesi | 1 | Kullanımdan sonra fişini çekin |\n\nÇay, şeker ve ilk gün için kahve ücretsizdir. Tuz, karabiber ve zeytinyağı da dolaptadır; bunlar bitince yenisini siz almalısınız.\n\n### Teknik noktalar\n\n| Ne | Nerede | Not |\n|---|---|---|\n| Sigorta panosu | Giriş kapısının yanındaki dolap | Atan sigortayı yukarı kaldırın; tekrar atarsa ev sahibini arayın |\n| Ana su vanası | Mutfak evyesinin altındaki dolap | Sızıntı varsa saat yönünde kapatın |\n| Doğalgaz vanası | Ocağın solundaki dolap, sarı kollu vana | Kapatmak için kolu boruya dik çevirin |\n| Duman dedektörü | Salon tavanı | Pil zayıflayınca kısa aralıklı bip sesi verir; ev sahibine haber verin |\n| İlk yardım çantası | Banyo dolabı, üst raf | Kullandığınız malzemeyi bildirin |\n\n## 9. Ev Kuralları\n\n- Dairede sigara içilmez. Sigara yalnızca salon balkonunda içilebilir.\n- Sessizlik saatleri 23:00-08:00 arasıdır.\n- Parti ve etkinlik yapılamaz.\n- Rezervasyonda belirtilen kişi sayısı aşılamaz.\n\nZiyaretçiler en geç 22:00'ye kadar kalabilir ve aynı anda en fazla 2 ziyaretçi olabilir.\n\nAncak 5 kişilik tam doluluk durumunda ziyaretçi kabul edilmez.\n\n## 10. Çevre\n\n| Yer | Ne | Mesafe | Saat |\n|---|---|---|---|\n| Güneş Market | Süpermarket | 250 m | 08:00-23:00 |\n| Çınar Eczanesi | Eczane | 400 m | 09:00-19:00 (nöbetçi eczane kapısında yazılıdır) |\n| Şehir Hastanesi | Hastane | 3,5 km | 7/24 |\n| 24 numaralı hat durağı | Otobüs | 150 m | 06:30-23:30, sahile gider |\n\n## 11. Acil Durumlar\n\n| Durum | Aranacak numara |\n|---|---|\n| Ambulans | 112 |\n| İtfaiye | 110 |\n| Polis | 155 |\n| Ev sahibi (arıza ve genel destek) | +90 500 000 0007 |\n| Asansör arızası | +90 500 000 0099 |\n| Gaz kokusu | 187 |\n\nGaz kokusu alırsanız elektrik düğmelerine dokunmayın, pencereleri açın, daireyi terk edin ve 187'yi arayın.\n\n## 12. Çıkış Kontrol Listesi\n\n1. Pencereleri ve balkon kapısını kapatın, klimayı kapatın.\n2. Çöpleri Bölüm 4'teki tabloya göre çıkarın. Pazar günü çıkış yapıyorsanız toplama olmayacağı için poşetleri bina girişine değil, balkondaki kapaklı çöp kovasına koyup kapağı kapatın.\n3. Anahtarları kutuya bırakın ve şifre çarklarını karıştırın.\n4. Çıkış temizliği konaklama ücretine dahildir; çarşaf ve havluları yere bırakmanız yeterlidir.\n\n## 13. Sık Karşılaşılan Sorunlar\n\n| Sorun | Önce şunu deneyin | Olmazsa |\n|---|---|---|\n| Wi-Fi çalışmıyor | Modemin fişini 10 saniye çekip takın | Ev sahibine ağ adıyla birlikte yazın |\n| Elektrik gitti | Sigorta panosuna bakın | Ev sahibini arayın |\n| Sıcak su ılık geliyor | Musluğu 2 dakika akıtın | Ev sahibine yazın |\n| Asansör durdu | Kabindeki alarm düğmesine basın | Bölüm 11'deki asansör arıza numarasını arayın |\n| Anahtar kutusu açılmıyor | Şifreyi çarkları tek tek çevirerek yeniden girin | Ev sahibini arayın |\n\nGönderdiğiniz her arıza mesajına en geç bir saat içinde yanıt vermeye çalışırız; gece 23:00'ten sonra gelen mesajlar ertesi sabah yanıtlanır.\n\nİyi yolculuklar dileriz."
+  },
+  {
+   "id": "B2",
+   "property": "Lale 12 (kurgusal)",
+   "title": "Lale 12 Misafir Rehberi / Guest Handbook / Gästemappe (TR+EN+DE karışık)",
+   "format": "markdown",
+   "text": "# Lale 12 – Misafir Rehberi / Guest Handbook / Gästemappe\n\nBu rehber üç dilde hazırlanmıştır: bölümlerin çoğu Türkçe, teknik bölümler İngilizce, ev düzeni bölümü Almanca yazılmıştır. This guide is written in three languages. Dieses Handbuch ist dreisprachig.\n\n## 1. Hoş Geldiniz\n\nLale 12, sitenin B Blok'unun 2. katında bulunan 1+1 bir dairedir. En fazla 3 kişi konaklayabilir: yatak odasında çift kişilik yatak, salonda tek kişilik açılır koltuk vardır. Daire 55 m² büyüklüğündedir, kuzey cepheli küçük bir balkonu vardır. Site kapalı bir komplekstir; ana girişte 24 saat güvenlik görevlisi bulunur. Binada asansör vardır.\n\nDairenin hemen karşısındaki küçük market sabah 08:00'de açılır. Plaja minibüsle 12 dakikadır; minibüs durağı sitenin kapısının önündedir.\n\n## 2. Giriş ve Anahtar Teslimi\n\nGiriş saati 15:00, çıkış saati 11:00'dir. Anahtar teslimi yüz yüze değil, kendi kendine giriş (self check-in) şeklinde yapılır. Anahtar kutusu B Blok giriş kapısının solundaki gri metal kutudur. Kutunun 4 haneli kodu giriş gününün sabahı mesajla gönderilir. Kutunun içinde daire kapısı anahtarı, site havuz kartı ve otopark kumandası bulunur.\n\nGeç giriş: 23:00'ten sonra varacaksanız lütfen önceden haber verin; haber verilmeyen geç girişlerde site güvenliği sizi içeri almayabilir ve kutuya erişim için ev sahibine ulaşmak gerekebilir.\n\nErken giriş ve geç çıkış, daire o gün boş olduğunda yapılabilir. Erken giriş en erken 11:00'de, geç çıkış en geç 14:00'te mümkündür. Her ikisinin ücreti Bölüm 11'de belirtilmiştir.\n\n## 3. Wi-Fi and TV (English)\n\nThe Wi-Fi network is called Lale12-Guest and the password is sunny-balcony-12. The router is in the cabinet in the hallway; if the internet stops working, unplug the router for 10 seconds and plug it in again. The signal is weaker on the balcony.\n\nThe living room has a smart TV with Netflix and YouTube installed. You have to log in with your own account, and please log out before you leave. There are two remote controls: the black one is for the TV, the white one is for the air conditioner. Satellite TV channels are not available.\n\n## 3b. Kitchen and Bathroom (English)\n\nThe kitchen has a fridge-freezer, an electric stove with an oven, a toaster, a kettle, a capsule coffee machine and basic cookware for three people. There is no dishwasher. Salt, pepper, cooking oil, tea and sugar are provided; please buy replacements if you use them up.\n\nIn the bathroom you will find one bath towel per guest, shower gel and shampoo. Hot water is available around the clock from the central system of the building; at peak times in the morning the water can take up to a minute to become hot. Please do not flush wet wipes or sanitary products, as the building pipes block easily.\n\n## 4. Parking (English)\n\nLale 12 comes with one free parking space in the site courtyard, space number 12 (marked with a yellow number on the ground). The courtyard gate opens with the remote control that you find in the key box. The maximum vehicle height is 2.0 m, so vans and tall SUVs do not fit.\n\nA second car cannot enter the courtyard. It can be parked on the street behind the building; street parking is free after 19:00 and all day on Sundays, and is paid to the municipality at other times. Motorcycles may use the bicycle area next to the courtyard gate, free of charge.\n\nElectric vehicle charging is not available at the site.\n\n## 5. Havuz ve Site Olanakları\n\nSite havuzu 1 Haziran - 30 Eylül tarihleri arasında her gün 09:00-20:00 saatleri arasında açıktır. Havuza yalnızca daire anahtarıyla birlikte verilen havuz kartıyla girilir. Karta 200 TL depozito yazılıdır.\n\nHavuz her Pazartesi sabahı 09:00-12:00 arasında bakım nedeniyle kapalıdır. Yağmurlu ya da fırtınalı havalarda güvenlik görevlisi havuzu kapatabilir.\n\n12 yaşından küçük çocuklar yalnızca yetişkin eşliğinde havuza girebilir. Havuzda cam şişe, yemek ve müzik çalar yasaktır. Havuz alanında ayakkabıyla dolaşılmaz.\n\nSite spor salonu 07:00-22:00 arası açıktır ve havuz kartıyla girilir; 16 yaşından küçükler spor salonuna giremez. Sitede sauna, hamam ya da jakuzi bulunmamaktadır.\n\n## 6. Hausordnung (Deutsch)\n\nRuhezeiten: In der Wohnung und im gesamten Haus gelten täglich Ruhezeiten von 22:00 bis 07:00 Uhr. Im Hof und am Pool darf nach 20:00 Uhr nicht mehr laut gesprochen werden.\n\nRauchen: In der Wohnung ist das Rauchen nicht erlaubt. Sie dürfen nur auf dem Balkon rauchen. Bitte entsorgen Sie Zigarettenreste nicht über den Balkon, sondern im Aschenbecher.\n\nBesucher: Besucher sind bis 21:00 Uhr erlaubt, maximal zwei Personen. Übernachtungsgäste sind nicht gestattet.\n\nMüll: Der Restmüll wird montags und donnerstags abgeholt, Papier dienstags und Verpackungen (gelber Sack) mittwochs. Die Mülltonnen stehen hinter dem Gebäude. Glas gehört nicht in die Tonnen, sondern in den Glascontainer an der Straßenecke.\n\nAufzug: Der Aufzug darf nicht für Umzüge oder große Gepäckstücke blockiert werden. Bei einer Störung rufen Sie bitte den Hausmeister an (siehe Notfallnummern).\n\nHaustiere: Bitte lesen Sie den Abschnitt \"Evcil Hayvanlar\". Ohne vorherige schriftliche Genehmigung dürfen keine Tiere mitgebracht werden.\n\nBalkon: Wäsche darf nicht über das Balkongeländer gehängt werden. Bitte stellen Sie keine Blumentöpfe oder Gegenstände auf das Geländer. Der Balkon ist kein Lagerraum.\n\nGepäck: Am Abreisetag kann das Gepäck nicht in der Wohnung bleiben, wenn nach 11:00 Uhr noch Gäste anreisen; ein Gepäckraum steht nicht zur Verfügung.\n\nHaftung: Für beschädigte oder verlorene Gegenstände haften die Gäste. Bitte melden Sie Schäden sofort, damit wir sie schnell beheben können.\n\n## 7. Cihaz Kullanımı\n\nÇamaşır makinesi mutfaktadır, deterjan makinenin üstündeki dolaptadır. Komşu şikâyetleri nedeniyle çamaşır makinesi 21:00'den sonra çalıştırılmaz.\n\nBulaşık makinesi yoktur. Fırın ve ocak elektriklidir; ocağı kapatmayı unutmayın. Su ısıtıcısı ve kapsüllü kahve makinesi mutfak dolabındadır; 6 kapsül ücretsiz bırakılır, fazlası sizin sorumluluğunuzdadır.\n\nKlima salonda ve yatak odasındadır. Beyaz kumandayla çalışır. Isıtma için kumandada güneş simgeli modu seçin; pencere açıkken klimayı çalıştırmayın.\n\nÜtü ve ütü masası yatak odasındaki gardıropta bulunur.\n\n## 8. Evcil Hayvanlar\n\nSitenin kuralları gereği evcil hayvanlar yalnızca önceden yazılı onay alınarak kabul edilir. Yalnızca 6 kg'a kadar köpekler ve kediler kabul edilir. Onay verilen her hayvan için konaklama başına 300 TL temizlik ücreti alınır. Hayvanlar havuz alanına ve spor salonuna giremez, balkonda yalnız bırakılamaz.\n\n## 9. Temizlik ve Çıkış\n\nÇıkışta pencereleri ve balkon kapısını kapatın, klimayı kapatın, çöpü çıkarın ve daire anahtarını, havuz kartını ve otopark kumandasını anahtar kutusuna bırakın. Havuz kartı kutuya bırakılmazsa 200 TL depozito iade edilmez. Çıkış temizliği konaklama ücretine dahildir; çarşaf ve havluları yere bırakmanız yeterlidir.\n\nHaftalık konaklamalarda ara temizlik yapılmaz; isterseniz ek temizlik talep edebilirsiniz.\n\n## 10. Emergency / Acil Durum\n\nAmbulance 112, fire brigade 110, police 155. Host support: +90 500 000 0012, daily from 09:00 to 22:00. For urgent problems outside these hours, send a WhatsApp message and call 112 if there is any danger. The site security desk is at the main gate and is staffed 24/7. The nearest pharmacy is 300 m from the site gate and is open from 09:00 to 19:00.\n\n## 11. Ek Ücretler\n\nErken giriş 300 TL, geç çıkış 300 TL, evcil hayvan 300 TL, kayıp havuz kartı 200 TL, kayıp anahtar 500 TL, aşırı kirli bırakılan daire için ek temizlik 600 TL, ek temizlik talebi (isteğe bağlı, kirli bırakılmamış daire için) 400 TL. Bebek yatağı ve mama sandalyesi ücretsizdir ancak önceden istenmelidir.\n\n## 11b. Site Güvenliği ve Ziyaretçiler\n\nSite girişinde güvenlik görevlisi, siteye gelen her ziyaretçiden kimlik ister ve ziyaret edilen daireyi arar. Ziyaretçi kuralları için Bölüm 6'ya (Hausordnung) bakınız. Kurye ve yemek servisleri ana kapıda kalır; güvenlik görevlisi paketi size telefonla bildirir. Siteye taksiyle gelecekseniz sürücüye \"B Blok\" demeniz yeterlidir. Ana kapıdan çıkışta yaya geçidini kullanın, site girişi ana yoldan yaklaşık 40 metre içeridedir.\n\nBinadaki asansör 4 kişiliktir. Valizlerle birlikte asansörü kullanırken kapının kapanmasını beklemeyin ve kabini uzun süre bloke etmeyin.\n\n## 12. Yakın Çevre Önerileri\n\nGün batımı için plajın doğu ucundaki kayalıklar önerilir. Akşam yemeği için sitenin iki sokak aşağısındaki balık lokantası ve dört sokak ötedeki köfteci tavsiye edilir. Pazar yeri her Cuma sabahı sitenin arkasındaki meydanda kurulur. Şehir merkezine minibüsle 25 dakika sürer; son minibüs 23:30'da kalkar.\n\nSite kapısının önünden kalkan minibüsler sabah 06:30'dan itibaren her 15 dakikada bir sefer yapar. Taksi çağırmak isterseniz güvenlik görevlisi sizin için çağırabilir; gece 00:00'dan sonra taksi için önceden haber vermeniz iyi olur. Yakındaki tarihî kale yürüyerek 20 dakikadır ve giriş ücretsizdir; kış aylarında 17:00'de kapanır."
+  },
+  {
+   "id": "B3",
+   "property": "Lale 3 (kurgusal)",
+   "title": "Lale 3 Ev Sahibinden Misafirlere Notlar (az başlık, çok uzun paragraflar)",
+   "format": "plain",
+   "text": "LALE 3 - EV SAHİBİNDEN MİSAFİRLERE NOTLAR\n\nMerhaba, Lale 3'e hoş geldiniz. Bu notları bir rehberden çok bir sohbet gibi yazdım; çünkü yıllardır dairede ağırladığım misafirlerin hemen hepsi aynı şeyleri soruyor ve ben de hepsini tek tek, sırasıyla ve olabildiğince açık biçimde buraya yazmak istedim. Lütfen baştan sona okuyun, çünkü bazı bilgiler yalnızca paragrafların ortasında geçiyor.\n\nGELMEDEN ÖNCE VE GELİRKEN\n\nLale 3, Çınarlı Sokak'ta, zemin katında fırın bulunan yeşil kapılı eski bir binanın 4. katındadır ve binanın asansörü yoktur; yani valizlerinizle birlikte 72 basamak çıkmanız gerekecek, bu yüzden küçük çocuklu aileler ve ağır valizli misafirler bunu önceden bilmelidir. Giriş saati 14:00, çıkış saati ise 11:00'dir ve bu saatler konusunda genellikle esnek davranmaya çalışsam da arada gelen başka misafirlerim olduğu için lütfen önceden yazışmadan saati kendiniz değiştirmeyin. Daireye girişte anahtar kullanmıyoruz; kapıda akıllı kilit var ve rezervasyonunuz onaylandıktan sonra size mesajla 6 haneli bir kod gönderiyorum. Kod giriş günü saat 14:00'te aktif olur, ondan önce kapı açılmaz, kod çıkış günü saat 11:00'de ise kendiliğinden pasifleşir, bu nedenle kodu çıkıştan sonra denemenizin bir anlamı yoktur. Erken gelirseniz bavullarınızı alt kattaki ofise bırakabilirsiniz; ofis 3. katta Lale 2 yazan kapıdadır ve 09:00-18:00 arası açıktır, ama bu saatler dışında orada kimse olmaz. Yedek anahtar da orada duruyor; telefonunuz bozulur ya da kod mesajı size ulaşmazsa yedek anahtarı yine oradan alabilirsiniz, yalnız bunun için ofisin açık olduğu saatlerde gelmeniz gerekir. Akıllı kilidin ekranı hiç yanmazsa pil bitmiş demektir ve bu durumda kapının altındaki mikro USB girişine herhangi bir powerbank bağlayarak kilidi uyandırıp kodu girebilirsiniz. Kilit tuşlarına hızlı basmaya çalışmayın, her tuşa bastıktan sonra kısa bir bip sesi duymanız gerekir. Binanın dış kapısı oldukça ağırdır ve sertçe kapandığında tüm bina titrer, bu yüzden dış kapıyı elinizle tutarak yavaşça bırakmanızı rica ediyorum, özellikle gece geç saatlerde. Sokakta park genellikle ücretsizdir ve çoğu zaman yer bulunur; sokağın ucundaki küçük meydanda da akşamları birkaç yer boş kalır. Binanın kendi otoparkı yoktur. Bina eski olduğu için merdiven boşluğundaki ışıklar zamanlayıcılıdır ve yaklaşık bir buçuk dakika sonra kendiliğinden söner, bu yüzden merdivende karanlıkta kalırsanız her kat başındaki yuvarlak düğmeye basarak ışıkları yeniden yakabilirsiniz. Posta kutuları girişin sağındadır ancak bu daireye kargo getirenlerin kapıyı çalması yerine kargoyu fırına bırakmasını rica ediyorum, çünkü fırıncı çok yardımsever biridir ve paketleri benim gelmemi bekleyerek saklıyor; kargo geldiğinde size mesajla haber veririm. Toplu taşıma için sokağın başından 24 numaralı otobüs geçer, bu otobüs sahile ve şehir merkezine gider, son sefer 23:30'dadır, ancak hafta sonları son sefer 01:00'e uzar.\n\nDAİRENİN İÇİNDE\n\nDaire 2 yatak odalıdır ve en fazla 4 kişi kalabilir; yatak odalarından biri çift kişilik, diğeri iki tek kişilik yataklıdır. Wi-Fi ağının adı Lale3-Wifi ve şifresi limon-agaci-3'tür; şifre büyük küçük harfe duyarlıdır ve ağ yalnızca 2,4 GHz çalışır. Modem televizyonun arkasındadır, ışıkları kırmızı yanıyorsa fişini çekip 10 saniye bekleyin. Isıtma doğalgazlı kombiyle yapılır; kombi kış aylarında 22 dereceye ayarlıdır ve ayarı değiştirmekte serbestsiniz. Ancak termostatı 25 dereceden yüksek bir değere getirmeyin, çünkü kombi bu değerin üzerinde kendini korumaya alıp kilitleniyor. Kombinin ekranında basınç göstergesi 1 barın altına düşerse kombinin altındaki mavi vanayı yarım tur açıp göstergeyi 1,5 bara getirin ve vanayı tekrar kapatın. Sıcak su kombiden gelmez; sıcak su için banyodaki termosifonun anahtarını duş almadan en az 30 dakika önce açın ve duştan sonra kapatın, sürekli açık bırakmayın. Mutfakta ocak ve fırın doğalgazlıdır, ocağın yanındaki çakmağı kullanarak yakın ve gaz kokusu alırsanız hiçbir elektrik düğmesine dokunmadan pencereleri açıp daireyi terk edin. Klima yoktur, yaz aylarında salonda ve yatak odalarında tavan vantilatörleri bulunur. Çamaşır makinesi balkondadır; hızlı yıkama programı 30 dakika sürer ve deterjan makinenin yanındaki kovadadır. Çamaşır makinesini 22:00'den sonra çalıştırmayın, çünkü alt komşu hemen duyuyor. Kurutma makinesi yoktur, balkondaki çamaşır ipini kullanabilirsiniz. Balkon kapısını rüzgârlı havalarda açık bırakmayın, çünkü kapı kendiliğinden çarpıp camı kırabiliyor ve camın değiştirilmesi pahalıya geliyor. Havlular ve çarşaflar dolapta hazırdır; her misafir için kişi başına bir banyo havlusu ve bir el havlusu bırakılmıştır. Mutfakta filtre kahve makinesi, çaydanlık, çay ve şeker vardır; bunlar misafirler için ücretsizdir. Bulaşık makinesi vardır ve ilk gün için tableti çekmecede bulabilirsiniz. Televizyon akıllıdır; uzaktan kumandanın pili zayıflarsa yedek piller çekmecededir. Yatak odalarında karartma perdeleri bulunur ve yazın pencerelerde sivrisinek telleri takılıdır, bu telleri sökmeyin ve pencereleri akşamları açık bırakmak istiyorsanız tellerin yerinde olduğundan emin olun. Yastıklar ve yorganlar dolapların üst raflarında ikişer takım olarak durur, kışın ek battaniye de aynı rafta bulunur. Salondaki kanepe açılmaz, o yüzden dört kişiden fazla kişiyle gelmeyin. Banyodaki duş başlığı el tipidir ve zeminde gider tıkanıklığını önlemek için saçlarınızı toplayıp atmanızı rica ediyorum; tıkanma olursa mutfak dolabındaki pompayı kullanabilirsiniz. Mutfakta buzdolabı ve ayrı bir derin dondurucu vardır, derin dondurucunun buzu uzun konaklamalarda kalınlaştığından çıkış gününde kimse buzu kırmaya çalışmasın, bana haber vermeniz yeter.\n\nKURALLAR, KOMŞULAR VE ÇEVRE\n\nBinada sakin bir komşuluk düzeni var ve bu yüzden birkaç kuralım var; sizden bunlara uymanızı rica ediyorum. Dairede sigara içilmez, balkon da buna dahildir; binanın giriş kapısının önünde sigara içebilirsiniz ancak izmaritleri yere atmayın. Sessizlik saatleri 23:00-08:00 arasıdır ve bu saatlerde müzik, yüksek sesli konuşma ve bağırmak yasaktır. Daireye ziyaretçi alınması yasaktır, çünkü komşu şikâyetlerinin neredeyse tamamı gece gelen ziyaretçilerden kaynaklanıyor ve bu konuda katı davranmak zorundayım. Parti ve toplantı yapılamaz. Evcil hayvan kabul etmiyorum, çünkü ev sahibi olarak bina yönetimine bu konuda söz verdim. Dairede en fazla 4 kişi kalabilir; rezervasyonda belirttiğinizden fazla kişi getirmeyin. Çöpünüzü sokağın başındaki yeşil konteynere bırakabilirsiniz. Gece 22:00'den sonra konteynere gitmeyin, çünkü kapağın sesi komşuları uyandırıyor. Çöp toplama her gün sabah 06:00'da yapılır, pazar günleri de dahil. Camı kırıp ya da duvara zarar verirseniz hasar bedelini gerçek maliyet üzerinden talep ederim ve bunu fotoğrafla belgelerim. Çevrede çok şey var: 250 metre ilerideki mahalle pazarı salı günleri kurulur, sabah 07:00'den 18:00'e kadar açıktır ve taze meyve sebze için en iyi yerdir; yürüyerek 7 dakika uzaktaki belediye plajı ücretsizdir, şezlong ve şemsiye kiralaması plajda ayrıca ücretlidir. Eczane sokağın çıkışındadır, hafta içi 09:00-19:00 arası açıktır, nöbetçi eczane de kapısında yazılıdır. Mahallede iki fırın, bir kasap, bir manav ve gece 01:00'e kadar açık duran bir büfe bulunur; akşam yemeği için sokağın sonundaki balık lokantasını ve plaja giden yoldaki esnaf lokantasını öneririm. Bisiklet kiralamak isterseniz plajın girişinde saatlik kiralama yapılır, kask ayrıca verilir. Yürüyüş yapmak isteyenler için belediye plajının batı ucunda sahil boyunca uzanan iki kilometrelik bir yürüyüş yolu vardır ve gün batımında oldukça güzeldir. En yakın hastane 4 km uzaktaki devlet hastanesidir ve acil servisi 24 saat açıktır.\n\nÇIKIŞ VE DİĞER NOTLAR\n\nÇıkış saati 11:00'dir; çıkışta bir şey yapmanız gerekmiyor, çarşafları yatakta bırakabilirsiniz ve çıkış temizliği konaklama ücretine dahildir. Çıkışta anahtar teslim etmeniz gerekmez; kapıyı sadece arkanızdan çekin, kilit otomatik olarak kilitlenir ve kapı kapandığında kilit uzun bir bip sesi verir. Eğer bip sesini duymazsanız kapıyı bir kez daha çekin. Cuma, cumartesi ve pazar çıkışlarında ben genellikle dairede olmuyorum, bu yüzden bir sorun çıkarsa mesaj yazın. Park konusunda bir not: yukarıda sokaktaki parkın ücretsiz olduğunu yazdım, ama her salı mahalle pazarı kurulduğu için sokakta 07:00-18:00 arası park etmek yasaktır ve belediye bu saatlerde araçları çektiriyor; salı günleri aracınızı sokağın ucundaki küçük meydana ya da başka bir sokağa bırakın. Ziyaretçi kuralıyla ilgili tek istisnayı da burada belirteyim: ev sahibine önceden mesajla haber vermeniz halinde aile üyelerinizin gün içinde en geç 20:00'ye kadar 2 saatlik ziyareti kabul edilir. Evcil hayvanla ilgili de tek istisna, görme engelli misafirlerin rehber köpekleridir; bu durumda önceden haber vermeniz yeterlidir ve köpek için ek ücret alınmaz. Çıkış saati konusunda da bir istisna var: pazar günü çıkış yapıyorsanız ve aynı gün dairede yeni bir giriş yoksa 14:00'e kadar kalabilirsiniz; aynı gün giriş varsa çıkış saati 11:00 olarak kalır, bunu önceden benden sormanız gerekir. 2 yaşından küçük bebekler kişi sayısına dahil edilmez ve onlar için ek ücret alınmaz; isterseniz portatif beşik ücretsiz olarak verilir, önceden haber verin. Dairenin sorumlusu olarak her zaman bir mesaj uzağınızdayım; acil bir durumda 112'yi arayın, sonra bana yazın. İyi tatiller dilerim, umarım çok güzel vakit geçirirsiniz."
+  },
+  {
+   "id": "B4",
+   "property": "Lale 21 (kurgusal)",
+   "title": "Lale 21 Konaklama Rehberi (bölümler arası göndermeli)",
+   "format": "markdown",
+   "text": "# Lale 21 — Konaklama Rehberi\n\nBu rehberdeki maddeler numaralıdır ve birbirine atıf yapar. \"bkz.\" ile başlayan bir yönlendirme gördüğünüzde ilgili maddeyi de okuyun; çünkü çoğu zaman atıf yapan madde konuyu açar, asıl bilgi ise atıf yapılan maddededir. Ekler (Ek A, Ek B, Ek C) rehberin sonundadır.\n\n## Bölüm 1. Genel Bilgiler\n\n1.1 Lale 21, Yeşil Vadi sitesinin C Blok'unda, 3. katta bulunan, asansörlü ve 2 yatak odalı bir dairedir. Daire 90 m² büyüklüğündedir; salon, mutfak, iki yatak odası, iki banyo ve bir balkondan oluşur.\n\n1.2 Daire en fazla 4 yetişkin ve 1 bebek (2 yaşından küçük) için uygundur. Portatif bebek yatağı ücretsizdir ve önceden bildirilmelidir. Rezervasyonda belirtilenden fazla kişi için bkz. Madde 7.3.\n\n1.3 Bu rehberdeki tüm ücretler Bölüm 9'da toplanmıştır. Başka maddelerde bir hizmetin ücretli olduğu söylenirse tutar için Bölüm 9'a bakınız.\n\n1.4 Site adresi: Yeşil Vadi Sitesi, C Blok, Zeytin Caddesi. Sitenin ana kapısı 24 saat güvenlik görevlisi tarafından kontrol edilir. Taksiyle gelirseniz sürücüye \"C Blok\" demeniz yeterlidir.\n\n## Bölüm 2. Giriş ve Çıkış\n\n2.1 Giriş saati 15:00, çıkış saati 11:00'dir.\n\n2.2 Anahtar teslimi anahtar kutusuyla yapılır; yüz yüze teslim yoktur. Kutunun yeri için bkz. Ek A.\n\n2.3 Erken giriş ve geç çıkış mümkün olabilir; koşulları ve ücreti için bkz. Madde 9.2.\n\n2.4 Saat 22:00'den sonra varacaksanız nasıl haber vereceğiniz için bkz. Madde 8.1.\n\n## Bölüm 3. Wi-Fi, TV ve Cihazlar\n\n3.1 Wi-Fi bağlantı bilgileri bu rehberin sonunda, Ek B'dedir.\n\n3.2 Salondaki televizyon akıllıdır. Kendi hesabınızla giriş yapabilirsiniz; çıkışta hesabınızdan çıkış yapmayı unutmayın.\n\n3.3 Çamaşır makinesi mutfaktadır. Makinenin kullanım saatleri sessizlik saatlerine bağlıdır; bkz. Madde 7.2.\n\n3.4 Klima kumandasının kullanımı için bkz. Madde 3.5.\n\n3.5 Klima kumandasında \"Cool\" soğutma, \"Heat\" ısıtma, \"Dry\" nem alma, \"Auto\" otomatik moddur. Isıtmada 24 dereceyi geçmeyin, soğutmada 22 derecenin altına inmeyin.\nPencere ve balkon kapısı açıkken klimayı çalıştırmayın.\n\n3.6 Ocak indüksiyonludur ve yalnızca manyetik tabanlı kaplarla çalışır; alüminyum kaplar ısınmaz.\n\n## Bölüm 4. Otopark\n\n4.1 Daireye tahsisli 1 adet kapalı otopark yeri (C-21) vardır ve ücretsizdir.\nYükseklik sınırı 2,1 m'dir; bu sınırı aşan araçlar (minibüs, yüksek SUV) otoparka giremez.\n\n4.2 İkinci araç için bkz. Madde 9.4.\n\n4.3 Motosikletler otoparkın girişindeki ayrı bölüme park edilir ve bu ücretsizdir.\n\n## Bölüm 5. Çöp ve Geri Dönüşüm\n\n5.1 Çöp günleri için bkz. Ek C.\n\n5.2 Cam, plastik ve kâğıt ayrı atılır. Cam konteyneri sitenin çıkış kapısının yanındadır, bina içi konteynerlere cam atılmaz.\n\n5.3 Kutu, mobilya ve benzeri hacimli atıkları konteynerin yanına bırakmayın; ev sahibine haber verin.\n\n## Bölüm 6. Havuz ve Sauna\n\n6.1 Site havuzu ve sauna C Blok'un zemin katındadır. Sauna kullanımı için güvenlik şartları Madde 6.4'te yer alır.\n\n6.2 Havuz 1 Mayıs - 31 Ekim tarihleri arasında her gün 08:00-22:00 arası açıktır.\n\n6.3 Sauna her gün 17:00-21:00 arası açıktır.\n\n6.4 Sauna güvenlik şartları: 16 yaşından küçükler saunaya giremez. Hamile olanlar ve kalp rahatsızlığı olanlar saunayı kullanmamalıdır. Sauna içinde en fazla 20 dakika üst üste kalınır ve sauna yalnız girilmez.\n\n6.5 Havuz alanında cam eşya, yemek ve ayakkabıyla dolaşmak yasaktır.\n\n## Bölüm 7. Ev Kuralları\n\n7.1 Dairede sigara içilmez. Sigara yalnızca balkonda içilebilir.\n\n7.2 Sessizlik saatleri 23:00-08:00 arasıdır. Bu saatlerde çamaşır makinesi, bulaşık makinesi ve benzeri gürültülü cihazlar çalıştırılmaz.\n\n7.3 Ziyaretçiler en geç 21:00'e kadar kalabilir ve aynı anda en fazla 2 ziyaretçi kabul edilir.\n\nGece konaklayacak ek bir misafir için ev sahibinden önceden yazılı izin alınmalıdır. İzin verilen her ek misafir için gecelik ücret Madde 9.3'te belirtilmiştir.\n\n7.4 Evcil hayvan kabul edilmez; istisnalar için bkz. Madde 10.2.\n\n## Bölüm 8. İletişim ve Acil Durumlar\n\n8.1 Ev sahibi desteği +90 500 000 0021 numarasından 08:00-23:00 arası verilir. 22:00'den sonra varacaksanız en az 2 saat önceden ev sahibine mesaj yazın. Saat 02:00'den sonra varış mümkün değildir.\n\n8.2 Acil durumlarda ambulans için 112, itfaiye için 110, polis için 155'i arayın.\n\n8.3 Su ve elektrik arızalarında site yönetimine başvurulur; site yönetimi 09:00-18:00 arası bina girişindeki ofistedir.\n\n## Bölüm 9. Ücretler\n\n9.1 Aşağıdaki ücretler çıkıştan sonra platform üzerinden talep edilir; nakit ödeme alınmaz.\n\n9.2 Erken giriş (12:00'den itibaren) 400 TL, geç çıkış (en geç 14:00) 400 TL'dir. Her ikisi de yalnızca o gün daire boşsa yapılabilir ve ev sahibinden yazılı teyit alınmalıdır.\n\n9.3 Onaylanmış ek misafir için gecelik, kişi başı 250 TL alınır.\n\n9.4 Site dışı garaj: sitenin 300 m ilerisindeki kapalı garajda gecelik 150 TL'ye yer ayrılabilir; talep en az 24 saat önce ev sahibine iletilmelidir.\n\n9.5 Ek temizlik 800 TL, kayıp anahtar 600 TL, kayıp kumanda 300 TL'dir.\n\n9.6 Hasar depozitosu 2.000 TL'dir ve hasar yoksa çıkıştan sonra 3 iş günü içinde iade edilir.\n\n## Bölüm 10. Özel Durumlar ve Sezon Notları\n\n10.1 Temmuz ve Ağustos aylarında havuz 23:00'e kadar açıktır.\n\n10.2 Yardımcı hayvanlar (rehber köpek vb.) evcil hayvan sayılmaz; önceden bildirilmesi şartıyla kabul edilir ve ek ücret alınmaz.\n\n10.3 Sauna her Pazartesi günü temizlik nedeniyle kapalıdır.\n\n10.4 Cuma ve Cumartesi geceleri sessizlik saati 00:00'da başlar.\n\n10.5 Yılbaşı haftasında (24 Aralık - 2 Ocak) çıkış saati 10:00'dur ve geç çıkış yapılamaz.\n\n## Bölüm 11. Çıkış Kontrol Listesi\n\n11.1 Pencereleri, balkon kapısını ve klimayı kapatın.\n\n11.2 Çöpü Ek C'deki takvime göre çıkarın.\n\n11.3 Anahtarı kutuya bırakın. Çıkış temizliği konaklama ücretine dahildir.\n\n## Bölüm 12. Yakın Çevre\n\n12.1 Siteden 200 m ilerideki mahalle pazarı Perşembe günleri kurulur. Süpermarket 150 m, eczane 300 m, yürüyerek 10 dakikadaki durak ise sahile giden minibüsün kalkış noktasıdır.\n\n12.2 Akşam yemeği için sitenin karşısındaki ocakbaşı ve iki sokak ötedeki balık lokantası önerilir.\n\n12.3 Sahile giden minibüs sabah 06:30'dan itibaren her 20 dakikada bir kalkar ve yaklaşık 15 dakika sürer. Şehir merkezine giden otobüs durağı sitenin ana kapısının önündedir; son otobüs 23:00'te kalkar.\n\n12.4 Bisiklet kiralama ve tekne turu için sahildeki turizm bürosuna başvurabilirsiniz; büro 10:00-18:00 arası açıktır.\n\n## Bölüm 13. Güvenlik ve Sağlık\n\n13.1 Salonda ve koridorda duman dedektörü vardır. Dedektör kısa aralıklarla bip sesi verirse pili zayıflamıştır; ev sahibine haber verin, pilini kendiniz çıkarmayın.\n\n13.2 Yangın söndürücü mutfaktaki dolabın içindedir. Yangın durumunda önce 110'u arayın, sonra daireyi terk edin.\n\n13.3 İlk yardım çantası banyo dolabının üst rafındadır. Kullandığınız malzemeyi ev sahibine bildirin.\n\n13.4 Balkon korkulukları yüksektir ancak küçük çocukları balkonda yalnız bırakmayın. Balkondaki mobilyalar korkuluğa yaslanmamalıdır.\n\n13.5 En yakın hastane 3 km uzaktadır ve acil servisi 24 saat açıktır; ambulans için Madde 8.2'ye bakınız.\n\n## Bölüm 14. Temizlik, Çarşaf ve Havlu\n\n14.1 Çıkış temizliği konaklama ücretine dahildir. Konaklama 10 geceyi aşarsa haftada bir ücretsiz ara temizlik yapılır.\n\n14.2 Çarşaflar ve havlular dairede hazırdır; her misafir için bir banyo havlusu bırakılır. Ek havlu için ev sahibine yazabilirsiniz.\n\n14.3 Çıkışta çarşafları yatakta bırakın, havluları banyo zeminine koyun.\n\n14.4 Daireyi aşırı kirli bırakmanın sonuçları için bkz. Madde 9.5.\n\n## Bölüm 15. Sorun Giderme\n\n15.1 İnternet çalışmazsa modemin fişini 10 saniye çekip yeniden takın. Modem salondaki TV ünitesinin içindedir.\n\n15.2 Anahtar kutusu açılmazsa kodu çarkları tek tek çevirerek yeniden girin. Yine açılmazsa ev sahibine ulaşmak için Madde 8.1'e bakınız.\n\n15.3 Elektrik giderse önce giriş kapısının yanındaki sigorta panosuna bakın ve atan sigortayı yukarı kaldırın. Sigorta tekrar atıyorsa aynı anda çalışan elektrikli cihazları azaltın.\n\n15.4 Sıcak su ılık geliyorsa musluğu iki dakika akıtın. Sorun sürerse ev sahibine yazın; kombi arızalarında kombi ekranındaki hata kodunun fotoğrafını gönderin.\n\n15.5 Asansör durursa kabindeki alarm düğmesine basın; site yönetimi için Madde 8.3'e bakınız.\n\n## Ek A. Anahtar Kutusu\n\nC Blok girişinin sol tarafında, posta kutularının üzerinde, siyah renkli bir kutu vardır. Kutunun kodu rezervasyon onayından sonra mesajla iletilir; kutuda daire kapısı anahtarı ve otopark kumandası bulunur.\n\n## Ek B. Bağlantı Bilgileri\n\nAğ adı: Lale21-Net\nŞifre: yesil-vadi-21\nAğ hem 2,4 hem 5 GHz çalışır.\n\n## Ek C. Haftalık Takvim\n\n| Gün | Atık türü |\n|---|---|\n| Pazartesi | Organik atık |\n| Salı | Karışık atık (siyah torba) |\n| Çarşamba | Kâğıt |\n| Perşembe | Plastik ve metal |\n| Cuma | Karışık atık (siyah torba) |\n| Cumartesi | Toplama yapılmaz; cam site çıkışındaki konteynere atılır |\n| Pazar | Toplama yapılmaz |"
+  },
+  {
+   "id": "B5",
+   "property": "Lale 15 (kurgusal)",
+   "title": "Lale 15 Misafir Rehberi (genel kural/istisna ayrı bölümlerde; yakın konular)",
+   "format": "markdown",
+   "text": "# Lale 15 — Misafir Rehberi\n\nLale 15, Zeytinlik Sitesi'nde bulunan, 3 yatak odalı ve üst katında özel terası olan bir dubleks dairedir. Bu rehber konulara göre bölümlere ayrılmıştır; ancak bazı konular birden fazla bölümde geçer ve bir kuralın istisnası çoğu zaman başka bir bölümdedir. Bir konu hakkında karar vermeden önce rehberin tamamına göz atmanızı öneririz.\n\n## 1. Genel Bilgiler\n\nLale 15 iki katlıdır. Alt katta salon, açık mutfak, bir yatak odası ve bir banyo; üst katta iki yatak odası, bir banyo ve özel teras bulunur. Teras güneye bakar ve üzerinde dairenin kendi jakuzisi vardır. Daire 145 m² büyüklüğündedir ve ısıtma yerden ısıtma sistemiyle yapılır; termostatlar her katın koridorundadır.\n\nAlt kattaki yatak odasında çift kişilik yatak, üst kattaki yatak odalarından birinde çift kişilik yatak, diğerinde iki tek kişilik yatak vardır. Salondaki kanepe açılmaz.\n\n## 2. Giriş ve Çıkış\n\nGiriş saati 15:00, çıkış saati 11:00'dir. Daire uygunsa geç çıkış 13:00'e kadar yapılabilir ve ücreti 300 TL'dir. Erken giriş yapılamaz, çünkü temizlik 15:00'e kadar sürer; bavullarınızı site güvenliğine bırakabilirsiniz.\n\nDaire kapısı tuş takımlı akıllı kilitle açılır. Kapı kodu giriş günü sabahı 09:00'da mesajla gönderilir ve çıkış günü 11:00'de iptal olur. Site ana kapısından geçişte güvenlik görevlisi kimlik sormaz, ancak plakanızı kaydeder.\n\n## 3. Site Havuzu\n\nSite havuzu 1 Mayıs - 30 Eylül tarihleri arasında günlük 09:00-21:00 saatleri arasında açıktır. Havuzun derinliği 1,40 metredir ve havuz alanında cankurtaran yoktur; çocuklarınızın güvenliğinden yetişkinler sorumludur.\n\nHavuza girişte mayo ya da deniz şortu zorunludur; pamuklu şort, kot pantolon ve iç çamaşırıyla havuza girilmez. Havuzda cam şişe ve cam bardak yasaktır. Havuz kenarında ayakkabıyla dolaşılmaz.\n\nHavuz kartı yalnızca dairede konaklayan misafirlere verilir; ziyaretçiler havuza giremez. Kart anahtar kutusundadır, kaybedilen kart için 150 TL alınır.\n\n## 4. Çocuk Havuzu\n\nÇocuk havuzu ana havuzun yanındadır ve derinliği 40 cm'dir. 6 yaşından küçük çocuklar için ayrılmıştır. Çocuk havuzu her gün 09:00-19:00 arası açıktır. Çocuk havuzunda çocuklar her zaman bir yetişkinin gözetimi altında olmalıdır.\n\n## 5. Havuz Duşu\n\nHavuz duşu, havuz alanının girişindeki açık duşlardır. Havuza girmeden önce havuz duşunda en az 30 saniye duş almanız zorunludur. Havuz duşunda sabun, şampuan ve duş jeli kullanılamaz; yalnızca durulanılır.\n\nHavuz duşları yalnızca soğuk su verir, sıcak su yoktur. Havuzdan çıktıktan sonra sabunla yıkanmak istiyorsanız dairenizdeki banyoyu kullanın.\n\n## 6. Teras Jakuzisi\n\nJakuzi dairenin terasındadır ve yalnızca bu dairede konaklayan misafirlere aittir; site havuzundan ve havuz duşundan bağımsızdır.\n\nJakuzi her gün 10:00-22:00 arası kullanılabilir. 08:00-10:00 arası suyun yenilenmesi ve temizlik için jakuzi kapalıdır. Jakuzinin sıcaklığı 38°C'ye sabitlenmiştir ve değiştirilemez.\n\nJakuziyi en fazla 4 kişi aynı anda kullanabilir. 12 yaşından küçük çocuklar jakuziyi kullanamaz.\n\nJakuziye girmeden önce daire içindeki banyoda sabunla duş alın; havuz duşu bunun yerine geçmez. Jakuziye banyo köpüğü, yağ, tuz ve benzeri katkı maddeleri eklemek yasaktır. Jakuzide cam ve alkol yasaktır.\n\nJakuzi çevresinde 2 metre içinde sigara içilmez ve suya izmarit atılmaz. Jakuziyi kullanmadığınız zamanlarda kapağını kapatın.\n\n## 7. Dairenin Otoparkı\n\nDaireye tahsisli, kapalı otoparkta 2 araçlık yer (P-15) vardır ve ücretsizdir. Kapalı otoparkın yüksekliği 2,0 m'dir. Otopark kumandası anahtar kutusundadır; kaybedilen kumanda için 300 TL alınır.\n\n## 8. Motosiklet Park Alanı\n\nMotosikletler kapalı otoparka alınmaz. Motosikletler, otopark rampasının yanındaki motosiklet park alanına bırakılır; bu alan ücretsizdir, kamerayla izlenir ve üstü açıktır. Kask ve zincir kilit kullanmanız önerilir.\n\n## 9. Misafir Otoparkı ve Ziyaretçi Araçları\n\nSite girişinin sağındaki misafir otoparkı ziyaretçi araçları içindir. Ziyaretçi araçları için ilk 4 saat ücretsizdir, sonrasında saat başı 50 TL alınır. Plaka bilgisi girişte güvenlik görevlisine bildirilir.\n\nDairede konaklayan misafirlerin üçüncü aracı da bu otoparka park edebilir; üçüncü araç için gecelik 200 TL alınır.\n\n## 10. Ev Kuralları\n\n- Sessizlik saatleri 23:00-08:00 arasıdır.\n- Dairede en fazla 6 kişi konaklayabilir.\n- Evcil hayvan kabul edilmez.\n- Sigara dairenin içinde yasaktır; terasta ve bahçede serbesttir.\n- Ziyaretçiler en geç 21:00'e kadar kalabilir; aynı anda en fazla 4 ziyaretçi kabul edilir.\n- Parti ve etkinlik yapılamaz.\n\n## 11. Wi-Fi, Çöp ve Çamaşır\n\nWi-Fi ağının adı Lale15-Villa, şifresi zeytinlik15'tir. Teras ve jakuzi alanında Wi-Fi sinyali zayıftır; teras için ağ adı Lale15-Teras'tır ve şifresi aynıdır.\n\nÇöp poşetlerini site girişindeki konteynerlere bırakın; çöp her gün sabah 07:00'de toplanır. Cam atıkları ayrı konteynere atın.\n\nÇamaşır makinesi alt kattaki mutfağın yanındaki dolaptadır. Kurutma makinesi yoktur; terasta çamaşır askısı bulunur.\n\n### Mutfak ve Cihazlar\n\nMutfakta ankastre fırın, indüksiyonlu ocak, bulaşık makinesi, buzdolabı, filtre kahve makinesi ve su ısıtıcısı bulunur. Bulaşık makinesi tabletleri makinenin yanındaki çekmecededir; ilk gün için 3 tablet bırakılır, fazlasını siz almalısınız. İndüksiyonlu ocak yalnızca manyetik tabanlı kaplarla çalışır. Fırının kendi kendini temizleme programını kullanmayın; fırın sonrasında yanık koku yapar.\n\n### Isıtma ve Soğutma\n\nYerden ısıtma Ekim ayından Nisan ayına kadar çalışır. Her katın koridorundaki termostatı 18-24 derece arasında tutun; daha yüksek değerler zeminin ısınmasını hızlandırmaz. Yazın salonda ve yatak odalarında klima bulunur; pencere ya da teras kapısı açıkken klimayı çalıştırmayın.\n\n### Bahçe ve Barbekü\n\nDairenin önündeki bahçede sabit bir barbekü vardır. Barbekü yalnızca bu sabit barbekünün içinde yakılır; terasta ve balkonda barbekü yakmak yasaktır. Kömür ve çakmak sıvısını misafirler getirir. Barbekü 22:00'de söndürülmüş olmalıdır ve rüzgârlı havalarda yakılmamalıdır. Küller soğuduktan sonra yanındaki metal kovaya boşaltılır.\n\n### Çocuklu Aileler\n\nPortatif bebek yatağı ve yüksek mama sandalyesi ücretsizdir; önceden istenmelidir. Üst kattaki merdiven başında çocuk kapısı vardır, lütfen kapatılı tutun. Teras kapısı yüksek bir kilitle kapanır; küçük çocukları terasta yalnız bırakmayın. Jakuzinin kapağı kilitlenebilir niteliktedir ve kullanılmadığı sürece kilitli tutulmalıdır.\n\n## 12. Özel Günler, İstisnalar ve Sezon Notları\n\n12.1 Cuma ve cumartesi geceleri ile resmî bayram arifelerinde sessizlik saatleri 00:00'da başlar.\n\n12.2 Pazar günü çıkış yapıyorsanız ve aynı gün dairede yeni bir giriş yoksa çıkış saati 14:00'tür; aynı gün giriş varsa çıkış saati 11:00 olarak kalır.\n\n12.3 Temmuz ve Ağustos aylarında site havuzu 22:00'ye kadar açıktır; çocuk havuzunun saatleri değişmez.\n\n12.4 Yılbaşı haftasında (24 Aralık - 2 Ocak) geç çıkış yapılamaz ve çıkış saati 10:00'dur.\n\n12.5 Hizmet köpekleri (rehber köpek vb.) evcil hayvan sayılmaz; önceden bildirilmesi şartıyla kabul edilirler.\n\n12.6 2 yaşından küçük bebekler kişi sayısına dahil edilmez.\n\n12.7 Jakuzi yaş sınırının tek istisnası: 6-11 yaş arasındaki çocuklar jakuziyi yalnızca yanlarında bir yetişkinle ve en fazla 10 dakika süreyle kullanabilir; 6 yaşından küçük çocuklar hiçbir koşulda jakuziye giremez.\n\n## 13. Acil Durumlar ve Çevre\n\nAcil durumlarda 112'yi arayın. Ev sahibi desteği +90 500 000 0015 numarasından 09:00-22:00 arası verilir. Site güvenliği 24 saat ana kapıdadır.\n\nEn yakın eczane 400 m uzaktadır ve 09:00-19:00 arası açıktır. En yakın market sitenin içindedir ve 08:00-22:00 arası açıktır. Plaja yürüyerek 12 dakikada ulaşılır.\n\nAkşam yemeği için sitenin hemen karşısındaki balık lokantası ve iki sokak ötedeki ocakbaşı önerilir; her ikisi de 23:00'te kapanır. Perşembe günleri sitenin arkasındaki meydanda pazar kurulur. Sahile giden minibüs durağı sitenin kapısının önündedir ve son sefer 23:30'dadır. Gün batımı için terasınız en iyi noktadır; terasa çıkarken terlik giyin, çünkü zemin gün boyunca ısınır.\n\n### Teras\n\nTerasta altı kişilik yemek masası, iki şezlong ve katlanır bir şemsiye vardır. Şemsiyeyi rüzgârlı havada kapatın ve çıkıştan önce katlayıp kenara koyun. Teras zemini ahşaptır; ıslak ayakla çıkıldığında kayabilir, bu yüzden jakuziden çıkarken dikkatli olun.\n\n## 14. Çıkış\n\nÇıkışta pencereleri ve teras kapısını kapatın, jakuzi kapağını kapatın, çöpü çıkarın ve havuz kartı ile otopark kumandasını anahtar kutusuna bırakın. Çıkış temizliği konaklama ücretine dahildir. Daire aşırı kirli bırakılırsa 700 TL ek temizlik ücreti alınır."
+  }
+ ],
+ "questions": [
+  {
+   "id": "B1-Q01",
+   "docId": "B1",
+   "lang": "tr",
+   "text": "Merhaba, 20 Temmuz'da geliyoruz. Saat kaçtan itibaren daireye girebiliriz?",
+   "category": "tablo",
+   "answerable": true,
+   "requiredSpans": [
+    "| Dönem | Giriş (check-in) | Çıkış (check-out) | Geç çıkış ücreti |",
+    "| 1 Haziran - 15 Eylül (yüksek sezon) | 16:00 | 10:00 | Saat başı 300 TL; 13:00'ten sonra tam gün ücreti |"
+   ],
+   "forbiddenAnswer": "Giriş saati 14:00'tür.",
+   "goldAnswer": "16:00 (1 Haziran - 15 Eylül yüksek sezon satırı)."
+  },
+  {
+   "id": "B1-Q02",
+   "docId": "B1",
+   "lang": "tr",
+   "text": "Ekim'de kalıyoruz, çıkış saati kaç?",
+   "category": "tablo",
+   "answerable": true,
+   "requiredSpans": [
+    "| Dönem | Giriş (check-in) | Çıkış (check-out) | Geç çıkış ücreti |",
+    "| 16 Eylül - 31 Mayıs (düşük sezon) | 14:00 | 11:00 | Saat başı 200 TL; 14:00'ten sonra yarım gün ücreti |"
+   ],
+   "forbiddenAnswer": "Çıkış saati 10:00'dur.",
+   "goldAnswer": "11:00 (düşük sezon: 16 Eylül - 31 Mayıs)."
+  },
+  {
+   "id": "B1-Q03",
+   "docId": "B1",
+   "lang": "tr",
+   "text": "30 Aralık'ta giriş yapacağız. Kışın giriş 14:00 diye biliyorum, doğru mu?",
+   "category": "tablo",
+   "answerable": true,
+   "requiredSpans": [
+    "| Dönem | Giriş (check-in) | Çıkış (check-out) | Geç çıkış ücreti |",
+    "| 24 Aralık - 2 Ocak (yılbaşı haftası) | 15:00 | 10:00 | Geç çıkış yapılamaz |",
+    "Yılbaşı haftası satırı, üstteki sezon satırlarından önceliklidir."
+   ],
+   "forbiddenAnswer": "Evet, düşük sezon olduğu için giriş 14:00.",
+   "goldAnswer": "Hayır; 24 Aralık - 2 Ocak yılbaşı haftasında giriş 15:00'tir (yılbaşı satırı önceliklidir)."
+  },
+  {
+   "id": "B1-Q04",
+   "docId": "B1",
+   "lang": "tr",
+   "text": "Salı günü kâğıtlarımızı ve cam şişelerimizi atmak istiyoruz, hangi konteynere?",
+   "category": "tablo",
+   "answerable": true,
+   "requiredSpans": [
+    "| Gün | Atılacak atık | Konteyner |",
+    "| Salı | Kâğıt ve karton | Mavi konteyner |",
+    "| Çarşamba, Cumartesi | Plastik, cam ve metal | Sarı konteyner |",
+    "Cam şişeleri poşete koymayın, doğrudan sarı konteynerin cam bölümüne atın."
+   ],
+   "forbiddenAnswer": "Salı günü kâğıdı da camı da mavi konteynere atabilirsiniz.",
+   "goldAnswer": "Salı yalnızca kâğıt-karton (mavi konteyner); cam Çarşamba veya Cumartesi, sarı konteynerin cam bölümüne."
+  },
+  {
+   "id": "B1-Q05",
+   "docId": "B1",
+   "lang": "tr",
+   "text": "Cuma günü mutfak atıklarını nasıl ve nereye atmalıyız?",
+   "category": "tablo",
+   "answerable": true,
+   "requiredSpans": [
+    "| Gün | Atılacak atık | Konteyner |",
+    "| Cuma | Organik atık (yalnızca kahverengi poşet) | Yeşil konteyner |"
+   ],
+   "forbiddenAnswer": "Siyah poşetle gri konteynere atın.",
+   "goldAnswer": "Cuma organik atık: yalnızca kahverengi poşetle, yeşil konteynere."
+  },
+  {
+   "id": "B1-Q06",
+   "docId": "B1",
+   "lang": "tr",
+   "text": "İkinci arabamız var, onu nereye park ederiz? Ücretli mi?",
+   "category": "tablo",
+   "answerable": true,
+   "requiredSpans": [
+    "| Araç tipi | Yer | Ücret | Not |",
+    "| Otomobil (2. araç) | Bina otoparkında yer yok; sokak parkı | Ücretsiz, ancak 08:00-19:00 arası belediye park ücreti vardır | Cadde üzerinde park edilir |"
+   ],
+   "forbiddenAnswer": "Bodrum otoparkta ikinci araç için de yer var ve tamamen ücretsiz.",
+   "goldAnswer": "Binanın otoparkında yer yok; sokakta park edilir. Ücretsiz ama 08:00-19:00 arası belediye park ücreti vardır."
+  },
+  {
+   "id": "B1-Q07",
+   "docId": "B1",
+   "lang": "tr",
+   "text": "Karavanla geliyoruz, bina otoparkına sığar mı?",
+   "category": "tablo",
+   "answerable": true,
+   "requiredSpans": [
+    "| Araç tipi | Yer | Ücret | Not |",
+    "| Minibüs / karavan | Bina otoparkına giremez | - | Yaklaşık 400 m ilerideki açık otoparkı kullanın |"
+   ],
+   "forbiddenAnswer": "Evet, bodrum kattaki 7 numaralı yere sığar.",
+   "goldAnswer": "Hayır, giremez; yaklaşık 400 m ilerideki açık otoparkı kullanın."
+  },
+  {
+   "id": "B1-Q08",
+   "docId": "B1",
+   "lang": "tr",
+   "text": "Yatak odasında internet çok zayıf çekiyor. Oradaki ağın adı ve şifresi ne?",
+   "category": "tablo",
+   "answerable": true,
+   "requiredSpans": [
+    "| Ağ adı | Şifre | Hız | Kullanım alanı |",
+    "| Lale7_Yatak | misafir2026 | 50 Mbps | Yatak odaları |"
+   ],
+   "forbiddenAnswer": "Şifre calisma-lale7.",
+   "goldAnswer": "Lale7_Yatak ağı, şifre misafir2026 (50 Mbps)."
+  },
+  {
+   "id": "B1-Q09",
+   "docId": "B1",
+   "lang": "tr",
+   "text": "Dairenin iki anahtarını da kaybettik. Ne kadar ödememiz gerekiyor?",
+   "category": "tablo",
+   "answerable": true,
+   "requiredSpans": [
+    "| Hizmet | Ücret | Koşul |",
+    "| Kayıp anahtar | 1.200 TL | Her anahtar için |"
+   ],
+   "forbiddenAnswer": "Toplam 1.200 TL ödersiniz.",
+   "goldAnswer": "Her anahtar için 1.200 TL; iki anahtar için 2.400 TL."
+  },
+  {
+   "id": "B1-Q10",
+   "docId": "B1",
+   "lang": "tr",
+   "text": "40 gece kalacağız. Haftada 2 kez ara temizlik yapılıyor mu?",
+   "category": "tablo",
+   "answerable": true,
+   "requiredSpans": [
+    "| Konaklama süresi | Ara temizlik | Havlu değişimi | Çarşaf değişimi |",
+    "| 14 gece ve üzeri | Haftada 2 | 2 günde bir | Haftada 1 |",
+    "Ancak 28 geceyi aşan konaklamalarda ara temizlik haftada 1 ile sınırlıdır."
+   ],
+   "forbiddenAnswer": "Evet, 14 gece ve üzeri konaklamalarda haftada 2 ara temizlik yapılır.",
+   "goldAnswer": "Hayır; 28 geceyi aşan konaklamalarda ara temizlik haftada 1 ile sınırlıdır."
+  },
+  {
+   "id": "B1-Q11",
+   "docId": "B1",
+   "lang": "tr",
+   "text": "Havluları çamaşır makinesinde yıkayacağız. Hangi programı seçelim, kaç derece ve ne kadar sürer?",
+   "category": "tablo",
+   "answerable": true,
+   "requiredSpans": [
+    "| Program | Süre | Sıcaklık | Ne için |",
+    "| Havlu | 1 saat 40 dk | 60°C | Havlu ve nevresim |"
+   ],
+   "forbiddenAnswer": "Pamuklu programı, 40°C, 2 saat 10 dakika.",
+   "goldAnswer": "Havlu programı: 60°C, 1 saat 40 dakika."
+  },
+  {
+   "id": "B1-Q12",
+   "docId": "B1",
+   "lang": "tr",
+   "text": "Eczane nerede? Akşam 8'de açık mı?",
+   "category": "tablo",
+   "answerable": true,
+   "requiredSpans": [
+    "| Yer | Ne | Mesafe | Saat |",
+    "| Çınar Eczanesi | Eczane | 400 m | 09:00-19:00 (nöbetçi eczane kapısında yazılıdır) |"
+   ],
+   "forbiddenAnswer": "Eczane 400 m uzakta ve akşam 8'de açık.",
+   "goldAnswer": "Çınar Eczanesi 400 m uzakta, 09:00-19:00 arası açık; akşam 8'de kapalı, nöbetçi eczane kapısında yazılı."
+  },
+  {
+   "id": "B1-Q13",
+   "docId": "B1",
+   "lang": "tr",
+   "text": "3 gece kalıyoruz. İş görüşmesi için çalışma masasından kablolu 300 Mbps'e bağlanabilir miyiz? Şifresi nedir?",
+   "category": "komsu_parca",
+   "answerable": true,
+   "requiredSpans": [
+    "| Ağ adı | Şifre | Hız | Kullanım alanı |",
+    "| Lale7_Ofis | calisma-lale7 | 300 Mbps | 2. yatak odasındaki çalışma masası (kablolu bağlantı) |",
+    "Lale7_Ofis ağı yalnızca 4 haftadan uzun konaklamalarda etkinleştirilir; kısa konaklamalarda bu şifre çalışmaz."
+   ],
+   "forbiddenAnswer": "Evet, Lale7_Ofis ağının şifresi calisma-lale7.",
+   "goldAnswer": "Hayır; Lale7_Ofis yalnızca 4 haftadan uzun konaklamalarda etkinleştirilir, 3 gecelik konaklamada şifre çalışmaz."
+  },
+  {
+   "id": "B1-Q14",
+   "docId": "B1",
+   "lang": "tr",
+   "text": "5 kişi kalıyoruz. Akşam iki arkadaşımız uğrayıp çay içse sorun olur mu?",
+   "category": "komsu_parca",
+   "answerable": true,
+   "requiredSpans": [
+    "Ziyaretçiler en geç 22:00'ye kadar kalabilir ve aynı anda en fazla 2 ziyaretçi olabilir.",
+    "Ancak 5 kişilik tam doluluk durumunda ziyaretçi kabul edilmez."
+   ],
+   "forbiddenAnswer": "Evet, 22:00'ye kadar en fazla 2 ziyaretçi alabilirsiniz.",
+   "goldAnswer": "Hayır; 5 kişilik tam doluluk durumunda ziyaretçi kabul edilmez."
+  },
+  {
+   "id": "B1-Q15",
+   "docId": "B1",
+   "lang": "tr",
+   "text": "Yarın çok erken yola çıkacağız. Gece yarısı bir makine çamaşır yıkayabilir miyiz?",
+   "category": "olumsuzluk",
+   "answerable": true,
+   "requiredSpans": [
+    "Çamaşır makinesi 22:00'den sonra çalıştırılmaz (alt kat komşusu)."
+   ],
+   "forbiddenAnswer": "Evet, Hızlı 30 programı sadece 30 dakika sürüyor, gece de çalıştırabilirsiniz.",
+   "goldAnswer": "Hayır; çamaşır makinesi 22:00'den sonra çalıştırılmaz."
+  },
+  {
+   "id": "B1-Q16",
+   "docId": "B1",
+   "lang": "tr",
+   "text": "Yatak odasında camı açıp sigara içsem olur mu?",
+   "category": "olumsuzluk",
+   "answerable": true,
+   "requiredSpans": [
+    "Dairede sigara içilmez. Sigara yalnızca salon balkonunda içilebilir."
+   ],
+   "forbiddenAnswer": "Pencere açıksa yatak odasında içebilirsiniz.",
+   "goldAnswer": "Hayır; sigara yalnızca salon balkonunda içilebilir."
+  },
+  {
+   "id": "B1-Q17",
+   "docId": "B1",
+   "lang": "tr",
+   "text": "Ekim'de kalacağız ve çıkışta 13:00'e kadar kalmak istiyoruz; geç çıkış ne kadar tutar? Bir de bebek yatağı var mı, ücretli mi?",
+   "category": "coklu_soru",
+   "answerable": true,
+   "requiredSpans": [
+    "| Dönem | Giriş (check-in) | Çıkış (check-out) | Geç çıkış ücreti |",
+    "| 16 Eylül - 31 Mayıs (düşük sezon) | 14:00 | 11:00 | Saat başı 200 TL; 14:00'ten sonra yarım gün ücreti |",
+    "Geç çıkış ve erken giriş yalnızca daire o gün boş ise yapılabilir; kesin yanıtı ev sahibi verir.",
+    "| Hizmet | Ücret | Koşul |",
+    "| Bebek yatağı | Ücretsiz | Tek adet vardır, ilk gelen alır |"
+   ],
+   "forbiddenAnswer": "Geç çıkış saat başı 300 TL, bebek yatağı da ücretli.",
+   "goldAnswer": "Düşük sezonda çıkış 11:00; 13:00'e kadar 2 saat x 200 TL = 400 TL, yalnızca daire boşsa ve ev sahibi onaylarsa. Bebek yatağı ücretsiz, tek adet (ilk gelen alır)."
+  },
+  {
+   "id": "B1-Q18",
+   "docId": "B1",
+   "lang": "tr",
+   "text": "Salondaki Wi-Fi'nin adı ve şifresi ne? Pazartesi hangi çöpü atarım? Bir arıza olursa ev sahibini hangi numaradan ararım?",
+   "category": "coklu_soru",
+   "answerable": true,
+   "requiredSpans": [
+    "| Ağ adı | Şifre | Hız | Kullanım alanı |",
+    "| Lale7_Ana | misafir2026 | 100 Mbps | Salon ve mutfak |",
+    "| Gün | Atılacak atık | Konteyner |",
+    "| Pazartesi, Perşembe | Evsel atık (siyah poşet) | Gri konteyner |",
+    "| Durum | Aranacak numara |",
+    "| Ev sahibi (arıza ve genel destek) | +90 500 000 0007 |"
+   ],
+   "forbiddenAnswer": "Wi-Fi Lale7_Ofis; Pazartesi kâğıt; ev sahibi için 112.",
+   "goldAnswer": "Lale7_Ana / misafir2026; Pazartesi evsel atık (siyah poşet, gri konteyner); ev sahibi +90 500 000 0007."
+  },
+  {
+   "id": "B1-Q19",
+   "docId": "B1",
+   "lang": "tr",
+   "text": "Dairede ütü ve ütü masası var mı?",
+   "category": "cevapsiz",
+   "answerable": false,
+   "requiredSpans": [],
+   "forbiddenAnswer": "Evet, yatak odası gardırobunda ütü ve ütü masası var.",
+   "goldAnswer": "bilgi yok — ev sahibine"
+  },
+  {
+   "id": "B1-Q20",
+   "docId": "B1",
+   "lang": "tr",
+   "text": "Bebeğimiz için mama sandalyesi var mı?",
+   "category": "cevapsiz",
+   "answerable": false,
+   "requiredSpans": [],
+   "forbiddenAnswer": "Evet, mutfakta bir mama sandalyesi var.",
+   "goldAnswer": "bilgi yok — ev sahibine"
+  },
+  {
+   "id": "B1-Q21",
+   "docId": "B1",
+   "lang": "tr",
+   "text": "Pazar günü çıkış yapıyoruz. Pazar çöp toplanmıyor sanırım, çöp poşetlerini ne yapalım?",
+   "category": "uzak_istisna",
+   "answerable": true,
+   "requiredSpans": [
+    "| Pazar | Toplama yapılmaz | - |",
+    "Pazar günü çıkış yapıyorsanız toplama olmayacağı için poşetleri bina girişine değil, balkondaki kapaklı çöp kovasına koyup kapağı kapatın."
+   ],
+   "forbiddenAnswer": "Poşetleri bina girişindeki konteynere bırakın.",
+   "goldAnswer": "Poşetleri bina girişine değil, balkondaki kapaklı çöp kovasına koyup kapağı kapatın."
+  },
+  {
+   "id": "B2-Q01",
+   "docId": "B2",
+   "lang": "en",
+   "text": "Hi! We have a small dog, about 5 kg. Can we bring him with us?",
+   "category": "baska_dil",
+   "answerable": true,
+   "requiredSpans": [
+    "Sitenin kuralları gereği evcil hayvanlar yalnızca önceden yazılı onay alınarak kabul edilir.",
+    "Yalnızca 6 kg'a kadar köpekler ve kediler kabul edilir.",
+    "Onay verilen her hayvan için konaklama başına 300 TL temizlik ücreti alınır."
+   ],
+   "forbiddenAnswer": "No, pets are not allowed in the apartment.",
+   "goldAnswer": "Evet, 6 kg'a kadar köpek kabul edilir; önceden yazılı onay gerekir ve konaklama başına 300 TL temizlik ücreti alınır."
+  },
+  {
+   "id": "B2-Q02",
+   "docId": "B2",
+   "lang": "de",
+   "text": "Wir würden heute Abend gern um 21:30 Uhr noch eine Maschine Wäsche waschen. Ist das in Ordnung?",
+   "category": "baska_dil",
+   "answerable": true,
+   "requiredSpans": [
+    "Komşu şikâyetleri nedeniyle çamaşır makinesi 21:00'den sonra çalıştırılmaz."
+   ],
+   "forbiddenAnswer": "Ja, die Ruhezeiten beginnen erst um 22:00 Uhr, bis dahin können Sie waschen.",
+   "goldAnswer": "Hayır; çamaşır makinesi 21:00'den sonra çalıştırılmaz."
+  },
+  {
+   "id": "B2-Q03",
+   "docId": "B2",
+   "lang": "ru",
+   "text": "Мы приедем в октябре. Можно ли будет пользоваться бассейном?",
+   "category": "baska_dil",
+   "answerable": true,
+   "requiredSpans": [
+    "Site havuzu 1 Haziran - 30 Eylül tarihleri arasında her gün 09:00-20:00 saatleri arasında açıktır."
+   ],
+   "forbiddenAnswer": "Да, бассейн открыт каждый день с 09:00 до 20:00.",
+   "goldAnswer": "Hayır; site havuzu yalnızca 1 Haziran - 30 Eylül arasında açıktır, Ekim'de kapalıdır."
+  },
+  {
+   "id": "B2-Q04",
+   "docId": "B2",
+   "lang": "ar",
+   "text": "هل يمكننا دخول الشقة قبل الساعة 15:00؟ وكم تبلغ التكلفة؟",
+   "category": "baska_dil",
+   "answerable": true,
+   "requiredSpans": [
+    "Erken giriş ve geç çıkış, daire o gün boş olduğunda yapılabilir. Erken giriş en erken 11:00'de, geç çıkış en geç 14:00'te mümkündür.",
+    "Erken giriş 300 TL, geç çıkış 300 TL"
+   ],
+   "forbiddenAnswer": "لا، الدخول ممكن فقط بعد الساعة 15:00 ولا يوجد دخول مبكر.",
+   "goldAnswer": "Daire o gün boşsa en erken 11:00'de erken giriş yapılabilir; ücreti 300 TL."
+  },
+  {
+   "id": "B2-Q05",
+   "docId": "B2",
+   "lang": "fr",
+   "text": "Combien coûte le nettoyage supplémentaire si nous laissons l'appartement très sale au départ ?",
+   "category": "baska_dil",
+   "answerable": true,
+   "requiredSpans": [
+    "aşırı kirli bırakılan daire için ek temizlik 600 TL"
+   ],
+   "forbiddenAnswer": "Le nettoyage supplémentaire coûte 400 TL.",
+   "goldAnswer": "Aşırı kirli bırakılan daire için ek temizlik 600 TL."
+  },
+  {
+   "id": "B2-Q06",
+   "docId": "B2",
+   "lang": "es",
+   "text": "¿Se puede fumar dentro del apartamento o solo fuera?",
+   "category": "baska_dil",
+   "answerable": true,
+   "requiredSpans": [
+    "Rauchen: In der Wohnung ist das Rauchen nicht erlaubt. Sie dürfen nur auf dem Balkon rauchen."
+   ],
+   "forbiddenAnswer": "Sí, se puede fumar en cualquier habitación si se abre la ventana.",
+   "goldAnswer": "Dairenin içinde sigara içilmez; yalnızca balkonda içilebilir."
+  },
+  {
+   "id": "B2-Q07",
+   "docId": "B2",
+   "lang": "it",
+   "text": "Dove possiamo parcheggiare la seconda auto? Si paga?",
+   "category": "baska_dil",
+   "answerable": true,
+   "requiredSpans": [
+    "A second car cannot enter the courtyard. It can be parked on the street behind the building; street parking is free after 19:00 and all day on Sundays, and is paid to the municipality at other times."
+   ],
+   "forbiddenAnswer": "La seconda auto può entrare nel cortile e il parcheggio è gratuito.",
+   "goldAnswer": "İkinci araç avluya giremez; binanın arkasındaki sokağa park edilir. Sokak parkı 19:00'dan sonra ve Pazar günleri ücretsiz, diğer zamanlarda belediyeye ücretlidir."
+  },
+  {
+   "id": "B2-Q08",
+   "docId": "B2",
+   "lang": "nl",
+   "text": "Wij komen met een camper van 2,8 meter hoog. Past die op de parkeerplaats?",
+   "category": "baska_dil",
+   "answerable": true,
+   "requiredSpans": [
+    "The maximum vehicle height is 2.0 m, so vans and tall SUVs do not fit."
+   ],
+   "forbiddenAnswer": "Ja, er is een gratis parkeerplaats in de binnenplaats waar de camper op past.",
+   "goldAnswer": "Hayır; azami araç yüksekliği 2,0 m, minibüs ve yüksek SUV'lar sığmaz."
+  },
+  {
+   "id": "B2-Q09",
+   "docId": "B2",
+   "lang": "pl",
+   "text": "Czy mój kolega może u nas przenocować jedną noc?",
+   "category": "baska_dil",
+   "answerable": true,
+   "requiredSpans": [
+    "Besucher: Besucher sind bis 21:00 Uhr erlaubt, maximal zwei Personen. Übernachtungsgäste sind nicht gestattet."
+   ],
+   "forbiddenAnswer": "Tak, jeśli zgłosicie to w recepcji.",
+   "goldAnswer": "Hayır; ziyaretçiler 21:00'e kadar ve en fazla 2 kişi olabilir, geceleyin kalan misafir kabul edilmez."
+  },
+  {
+   "id": "B2-Q10",
+   "docId": "B2",
+   "lang": "en",
+   "text": "We land at midnight on Friday. What time is check-in and how do we get the keys?",
+   "category": "baska_dil",
+   "answerable": true,
+   "requiredSpans": [
+    "Giriş saati 15:00, çıkış saati 11:00'dir.",
+    "Anahtar teslimi yüz yüze değil, kendi kendine giriş (self check-in) şeklinde yapılır.",
+    "Kutunun 4 haneli kodu giriş gününün sabahı mesajla gönderilir.",
+    "Geç giriş: 23:00'ten sonra varacaksanız lütfen önceden haber verin; haber verilmeyen geç girişlerde site güvenliği sizi içeri almayabilir ve kutuya erişim için ev sahibine ulaşmak gerekebilir."
+   ],
+   "forbiddenAnswer": "Check-in is possible any time after 15:00 without notice; the host meets you at the door.",
+   "goldAnswer": "Giriş 15:00; self check-in anahtar kutusuyla, kod giriş sabahı mesajla gelir. 23:00'ten sonra varacaksanız önceden haber verin."
+  },
+  {
+   "id": "B2-Q11",
+   "docId": "B2",
+   "lang": "tr",
+   "text": "Ağustos'ta geliyoruz. Pazartesi sabahı saat 10'da havuza girebilir miyiz?",
+   "category": "komsu_parca",
+   "answerable": true,
+   "requiredSpans": [
+    "Site havuzu 1 Haziran - 30 Eylül tarihleri arasında her gün 09:00-20:00 saatleri arasında açıktır.",
+    "Havuz her Pazartesi sabahı 09:00-12:00 arasında bakım nedeniyle kapalıdır."
+   ],
+   "forbiddenAnswer": "Evet, havuz her gün 09:00-20:00 arası açıktır.",
+   "goldAnswer": "Hayır; havuz her Pazartesi 09:00-12:00 arası bakım nedeniyle kapalıdır."
+  },
+  {
+   "id": "B2-Q12",
+   "docId": "B2",
+   "lang": "tr",
+   "text": "Televizyonda uydu kanalları var mı? Klima kumandası hangisi?",
+   "category": "komsu_parca",
+   "answerable": true,
+   "requiredSpans": [
+    "There are two remote controls: the black one is for the TV, the white one is for the air conditioner. Satellite TV channels are not available."
+   ],
+   "forbiddenAnswer": "Uydu kanalları var; siyah kumanda klima içindir.",
+   "goldAnswer": "Uydu kanalları yok; siyah kumanda TV, beyaz kumanda klima içindir."
+  },
+  {
+   "id": "B2-Q13",
+   "docId": "B2",
+   "lang": "tr",
+   "text": "Havuz başında yemek yiyebilir miyiz? Ayakkabıyla gezebilir miyiz?",
+   "category": "komsu_parca",
+   "answerable": true,
+   "requiredSpans": [
+    "Havuzda cam şişe, yemek ve müzik çalar yasaktır. Havuz alanında ayakkabıyla dolaşılmaz."
+   ],
+   "forbiddenAnswer": "Evet, yemek yiyebilirsiniz; ayakkabı serbest.",
+   "goldAnswer": "Hayır; havuzda yemek yasaktır ve havuz alanında ayakkabıyla dolaşılmaz."
+  },
+  {
+   "id": "B2-Q14",
+   "docId": "B2",
+   "lang": "tr",
+   "text": "Çıkış saatiniz 11:00 ama uçağımız akşam. 14:00'e kadar kalabilir miyiz, ücreti var mı?",
+   "category": "uzak_istisna",
+   "answerable": true,
+   "requiredSpans": [
+    "Giriş saati 15:00, çıkış saati 11:00'dir.",
+    "Erken giriş ve geç çıkış, daire o gün boş olduğunda yapılabilir. Erken giriş en erken 11:00'de, geç çıkış en geç 14:00'te mümkündür.",
+    "Erken giriş 300 TL, geç çıkış 300 TL"
+   ],
+   "forbiddenAnswer": "Hayır, çıkış saati kesinlikle 11:00'dir; geç çıkış yoktur.",
+   "goldAnswer": "Daire o gün boşsa en geç 14:00'e kadar geç çıkış yapılabilir; ücreti 300 TL."
+  },
+  {
+   "id": "B2-Q15",
+   "docId": "B2",
+   "lang": "tr",
+   "text": "Bir hafta kalacağız. Ara temizlik yapılıyor mu? İstersek yaptırırsak ne kadar tutar?",
+   "category": "uzak_istisna",
+   "answerable": true,
+   "requiredSpans": [
+    "Haftalık konaklamalarda ara temizlik yapılmaz; isterseniz ek temizlik talep edebilirsiniz.",
+    "ek temizlik talebi (isteğe bağlı, kirli bırakılmamış daire için) 400 TL"
+   ],
+   "forbiddenAnswer": "Haftalık konaklamalarda ücretsiz ara temizlik yapılır.",
+   "goldAnswer": "Ara temizlik yapılmaz; isteğe bağlı ek temizlik talebi 400 TL."
+  },
+  {
+   "id": "B2-Q16",
+   "docId": "B2",
+   "lang": "tr",
+   "text": "Sitede jakuzi veya sauna var mı?",
+   "category": "olumsuzluk",
+   "answerable": true,
+   "requiredSpans": [
+    "Sitede sauna, hamam ya da jakuzi bulunmamaktadır."
+   ],
+   "forbiddenAnswer": "Evet, havuzun yanında bir jakuzi var.",
+   "goldAnswer": "Hayır; sitede sauna, hamam ya da jakuzi yoktur."
+  },
+  {
+   "id": "B2-Q17",
+   "docId": "B2",
+   "lang": "en",
+   "text": "Can we charge our electric car somewhere at the site?",
+   "category": "olumsuzluk",
+   "answerable": true,
+   "requiredSpans": [
+    "Electric vehicle charging is not available at the site."
+   ],
+   "forbiddenAnswer": "Yes, there is a charger next to space number 12.",
+   "goldAnswer": "Hayır; sitede elektrikli araç şarjı yoktur."
+  },
+  {
+   "id": "B2-Q18",
+   "docId": "B2",
+   "lang": "tr",
+   "text": "Wi-Fi şifresi nedir? Çöpü hangi günler alıyorlar? Anahtar kutusu nerede?",
+   "category": "coklu_soru",
+   "answerable": true,
+   "requiredSpans": [
+    "The Wi-Fi network is called Lale12-Guest and the password is sunny-balcony-12.",
+    "Müll: Der Restmüll wird montags und donnerstags abgeholt, Papier dienstags und Verpackungen (gelber Sack) mittwochs.",
+    "Anahtar kutusu B Blok giriş kapısının solundaki gri metal kutudur."
+   ],
+   "forbiddenAnswer": "Wi-Fi şifresi rehberde yok; çöp her gün alınır; anahtar kutusu resepsiyondadır.",
+   "goldAnswer": "Lale12-Guest / sunny-balcony-12; evsel atık Pazartesi ve Perşembe, kâğıt Salı, ambalaj Çarşamba; kutu B Blok girişinin solunda, gri metal."
+  },
+  {
+   "id": "B2-Q19",
+   "docId": "B2",
+   "lang": "tr",
+   "text": "Plaja nasıl gideriz? En yakın eczane nerede ve ne zamana kadar açık? Acil durumda ev sahibini nasıl ararız?",
+   "category": "coklu_soru",
+   "answerable": true,
+   "requiredSpans": [
+    "Plaja minibüsle 12 dakikadır; minibüs durağı sitenin kapısının önündedir.",
+    "The nearest pharmacy is 300 m from the site gate and is open from 09:00 to 19:00.",
+    "Host support: +90 500 000 0012, daily from 09:00 to 22:00."
+   ],
+   "forbiddenAnswer": "Plaja yürüyerek 5 dakika; eczane 24 saat açık; ev sahibi 7/24 ulaşılabilir.",
+   "goldAnswer": "Plaja minibüsle 12 dk (durak site kapısında); eczane site kapısından 300 m, 09:00-19:00; ev sahibi +90 500 000 0012, 09:00-22:00."
+  },
+  {
+   "id": "B2-Q20",
+   "docId": "B2",
+   "lang": "tr",
+   "text": "Dairede kurutma makinesi var mı?",
+   "category": "cevapsiz",
+   "answerable": false,
+   "requiredSpans": [],
+   "forbiddenAnswer": "Evet, çamaşır makinesinin üstünde bir kurutma makinesi var.",
+   "goldAnswer": "bilgi yok — ev sahibine"
+  },
+  {
+   "id": "B2-Q21",
+   "docId": "B2",
+   "lang": "en",
+   "text": "Do you provide beach towels and sun loungers for the pool?",
+   "category": "cevapsiz",
+   "answerable": false,
+   "requiredSpans": [],
+   "forbiddenAnswer": "Yes, pool towels and sun loungers are available at the pool for free.",
+   "goldAnswer": "bilgi yok — ev sahibine"
+  },
+  {
+   "id": "B3-Q01",
+   "docId": "B3",
+   "lang": "tr",
+   "text": "Merdivenin ışıkları söndü, karanlıkta kaldık. Ne yapmalıyız?",
+   "category": "uzun_paragraf_tek_cumle",
+   "answerable": true,
+   "requiredSpans": [
+    "Bina eski olduğu için merdiven boşluğundaki ışıklar zamanlayıcılıdır ve yaklaşık bir buçuk dakika sonra kendiliğinden söner, bu yüzden merdivende karanlıkta kalırsanız her kat başındaki yuvarlak düğmeye basarak ışıkları yeniden yakabilirsiniz."
+   ],
+   "forbiddenAnswer": "Işıklar bozuktur, ev sahibini arayıp bir elektrikçi çağırmanız gerekir.",
+   "goldAnswer": "Işıklar zamanlayıcılıdır; her kat başındaki yuvarlak düğmeye basarak yeniden yakın."
+  },
+  {
+   "id": "B3-Q02",
+   "docId": "B3",
+   "lang": "tr",
+   "text": "Kapıdaki akıllı kilidin ekranı hiç yanmıyor, tuşlara basıyorum ama tepki yok!",
+   "category": "uzun_paragraf_tek_cumle",
+   "answerable": true,
+   "requiredSpans": [
+    "Akıllı kilidin ekranı hiç yanmazsa pil bitmiş demektir ve bu durumda kapının altındaki mikro USB girişine herhangi bir powerbank bağlayarak kilidi uyandırıp kodu girebilirsiniz."
+   ],
+   "forbiddenAnswer": "Kodu yanlış girmişsiniz, 10 dakika bekleyip tekrar deneyin.",
+   "goldAnswer": "Pil bitmiştir; kapının altındaki mikro USB girişine powerbank bağlayıp kilidi uyandırın, sonra kodu girin."
+  },
+  {
+   "id": "B3-Q03",
+   "docId": "B3",
+   "lang": "tr",
+   "text": "Kombinin ekranında basınç 0,6 bar gösteriyor ve daire ısınmıyor. Ne yapalım?",
+   "category": "uzun_paragraf_tek_cumle",
+   "answerable": true,
+   "requiredSpans": [
+    "Kombinin ekranında basınç göstergesi 1 barın altına düşerse kombinin altındaki mavi vanayı yarım tur açıp göstergeyi 1,5 bara getirin ve vanayı tekrar kapatın."
+   ],
+   "forbiddenAnswer": "Termostatı 25 dereceye ayarlayıp bekleyin.",
+   "goldAnswer": "Kombinin altındaki mavi vanayı yarım tur açıp basıncı 1,5 bara getirin, sonra vanayı kapatın."
+  },
+  {
+   "id": "B3-Q04",
+   "docId": "B3",
+   "lang": "tr",
+   "text": "Bu akşam rüzgâr var ama hava almak için balkon kapısını açık bırakıp yatabilir miyiz?",
+   "category": "uzun_paragraf_tek_cumle",
+   "answerable": true,
+   "requiredSpans": [
+    "Balkon kapısını rüzgârlı havalarda açık bırakmayın, çünkü kapı kendiliğinden çarpıp camı kırabiliyor ve camın değiştirilmesi pahalıya geliyor."
+   ],
+   "forbiddenAnswer": "Evet, balkon kapısını açık bırakabilirsiniz.",
+   "goldAnswer": "Hayır; rüzgârlı havada açık bırakmayın, kapı çarpıp camı kırabilir."
+  },
+  {
+   "id": "B3-Q05",
+   "docId": "B3",
+   "lang": "tr",
+   "text": "Çıkışta anahtarı nereye bırakacağız? Kapıyı nasıl kilitleriz?",
+   "category": "uzun_paragraf_tek_cumle",
+   "answerable": true,
+   "requiredSpans": [
+    "Çıkışta anahtar teslim etmeniz gerekmez; kapıyı sadece arkanızdan çekin, kilit otomatik olarak kilitlenir ve kapı kapandığında kilit uzun bir bip sesi verir."
+   ],
+   "forbiddenAnswer": "Anahtarı alt kattaki ofise teslim edin.",
+   "goldAnswer": "Anahtar teslimi yok; kapıyı arkanızdan çekin, kilit otomatik kilitlenir ve uzun bir bip sesi verir."
+  },
+  {
+   "id": "B3-Q06",
+   "docId": "B3",
+   "lang": "tr",
+   "text": "Mutfakta gaz kokusu geliyor gibi. Ne yapmamız gerekiyor?",
+   "category": "uzun_paragraf_tek_cumle",
+   "answerable": true,
+   "requiredSpans": [
+    "gaz kokusu alırsanız hiçbir elektrik düğmesine dokunmadan pencereleri açıp daireyi terk edin"
+   ],
+   "forbiddenAnswer": "Işığı açıp kokunun nereden geldiğini kontrol edin.",
+   "goldAnswer": "Hiçbir elektrik düğmesine dokunmadan pencereleri açıp daireyi terk edin."
+  },
+  {
+   "id": "B3-Q07",
+   "docId": "B3",
+   "lang": "tr",
+   "text": "Çok üşüyoruz. Termostatı 27 dereceye ayarlasak olur mu?",
+   "category": "komsu_parca",
+   "answerable": true,
+   "requiredSpans": [
+    "Isıtma doğalgazlı kombiyle yapılır; kombi kış aylarında 22 dereceye ayarlıdır ve ayarı değiştirmekte serbestsiniz.",
+    "Ancak termostatı 25 dereceden yüksek bir değere getirmeyin, çünkü kombi bu değerin üzerinde kendini korumaya alıp kilitleniyor."
+   ],
+   "forbiddenAnswer": "Evet, ayarı istediğiniz değere yükseltebilirsiniz.",
+   "goldAnswer": "Hayır; ayarı değiştirebilirsiniz ama 25 dereceden yükseğe çıkmayın, kombi kendini koruma moduna alıp kilitleniyor."
+  },
+  {
+   "id": "B3-Q08",
+   "docId": "B3",
+   "lang": "tr",
+   "text": "Gece 22:30'da çöpü çıkarmak istiyoruz. Sokak başındaki konteynere bırakabilir miyiz?",
+   "category": "komsu_parca",
+   "answerable": true,
+   "requiredSpans": [
+    "Çöpünüzü sokağın başındaki yeşil konteynere bırakabilirsiniz. Gece 22:00'den sonra konteynere gitmeyin, çünkü kapağın sesi komşuları uyandırıyor."
+   ],
+   "forbiddenAnswer": "Evet, yeşil konteynere her saat bırakabilirsiniz.",
+   "goldAnswer": "Hayır; gece 22:00'den sonra konteynere gitmeyin, kapağın sesi komşuları uyandırıyor."
+  },
+  {
+   "id": "B3-Q09",
+   "docId": "B3",
+   "lang": "tr",
+   "text": "Giriş günü saat 11:00'de şehre ineceğiz. Kod o saatte çalışır mı? Bavulları nereye bırakabiliriz?",
+   "category": "komsu_parca",
+   "answerable": true,
+   "requiredSpans": [
+    "Kod giriş günü saat 14:00'te aktif olur, ondan önce kapı açılmaz",
+    "Erken gelirseniz bavullarınızı alt kattaki ofise bırakabilirsiniz; ofis 3. katta Lale 2 yazan kapıdadır ve 09:00-18:00 arası açıktır, ama bu saatler dışında orada kimse olmaz."
+   ],
+   "forbiddenAnswer": "Kod rezervasyon onayından itibaren çalışır, doğrudan girebilirsiniz.",
+   "goldAnswer": "Kod 14:00'te aktif olur, öncesinde kapı açılmaz. Bavullar 3. kattaki Lale 2 yazan kapıdaki ofise bırakılabilir (09:00-18:00)."
+  },
+  {
+   "id": "B3-Q10",
+   "docId": "B3",
+   "lang": "tr",
+   "text": "Wi-Fi şifresi nedir? İnternet de gitti, modem nerede?",
+   "category": "komsu_parca",
+   "answerable": true,
+   "requiredSpans": [
+    "Wi-Fi ağının adı Lale3-Wifi ve şifresi limon-agaci-3'tür; şifre büyük küçük harfe duyarlıdır ve ağ yalnızca 2,4 GHz çalışır.",
+    "Modem televizyonun arkasındadır, ışıkları kırmızı yanıyorsa fişini çekip 10 saniye bekleyin."
+   ],
+   "forbiddenAnswer": "Şifre dolaptaki kartta yazıyor; modem yatak odasındadır.",
+   "goldAnswer": "Lale3-Wifi / limon-agaci-3 (büyük-küçük harfe duyarlı, yalnız 2,4 GHz). Modem televizyonun arkasında; ışıklar kırmızıysa fişi çekip 10 saniye bekleyin."
+  },
+  {
+   "id": "B3-Q11",
+   "docId": "B3",
+   "lang": "tr",
+   "text": "Salı günü aracımızı sokağa bırakabilir miyiz? Sokak parkı ücretsiz değil mi?",
+   "category": "uzak_istisna",
+   "answerable": true,
+   "requiredSpans": [
+    "Sokakta park genellikle ücretsizdir ve çoğu zaman yer bulunur; sokağın ucundaki küçük meydanda da akşamları birkaç yer boş kalır.",
+    "her salı mahalle pazarı kurulduğu için sokakta 07:00-18:00 arası park etmek yasaktır ve belediye bu saatlerde araçları çektiriyor"
+   ],
+   "forbiddenAnswer": "Evet, sokak parkı ücretsizdir, her gün bırakabilirsiniz.",
+   "goldAnswer": "Salı günleri 07:00-18:00 arası sokakta park etmek yasaktır (pazar kurulur, araç çekilir); aracı küçük meydana ya da başka sokağa bırakın."
+  },
+  {
+   "id": "B3-Q12",
+   "docId": "B3",
+   "lang": "tr",
+   "text": "Annemler gündüz bir saatliğine uğrayıp çay içmek istiyor. Olur mu?",
+   "category": "uzak_istisna",
+   "answerable": true,
+   "requiredSpans": [
+    "Daireye ziyaretçi alınması yasaktır, çünkü komşu şikâyetlerinin neredeyse tamamı gece gelen ziyaretçilerden kaynaklanıyor ve bu konuda katı davranmak zorundayım.",
+    "ev sahibine önceden mesajla haber vermeniz halinde aile üyelerinizin gün içinde en geç 20:00'ye kadar 2 saatlik ziyareti kabul edilir."
+   ],
+   "forbiddenAnswer": "Hayır, daireye hiçbir şekilde ziyaretçi alınamaz.",
+   "goldAnswer": "Ev sahibine önceden mesajla haber verirseniz aile üyelerinizin gün içinde en geç 20:00'ye kadar 2 saatlik ziyareti kabul edilir."
+  },
+  {
+   "id": "B3-Q13",
+   "docId": "B3",
+   "lang": "tr",
+   "text": "Görme engelli bir misafirimiz rehber köpeğiyle gelecek. Kabul eder misiniz?",
+   "category": "uzak_istisna",
+   "answerable": true,
+   "requiredSpans": [
+    "Evcil hayvan kabul etmiyorum, çünkü ev sahibi olarak bina yönetimine bu konuda söz verdim.",
+    "Evcil hayvanla ilgili de tek istisna, görme engelli misafirlerin rehber köpekleridir; bu durumda önceden haber vermeniz yeterlidir ve köpek için ek ücret alınmaz."
+   ],
+   "forbiddenAnswer": "Hayır, hiçbir hayvan kabul edilmez.",
+   "goldAnswer": "Evet; rehber köpekler istisnadır, önceden haber vermeniz yeterli ve ek ücret alınmaz."
+  },
+  {
+   "id": "B3-Q14",
+   "docId": "B3",
+   "lang": "tr",
+   "text": "Pazar günü çıkış yapıyoruz ama uçağımız öğleden sonra. 14:00'e kadar kalabilir miyiz?",
+   "category": "uzak_istisna",
+   "answerable": true,
+   "requiredSpans": [
+    "Giriş saati 14:00, çıkış saati ise 11:00'dir",
+    "pazar günü çıkış yapıyorsanız ve aynı gün dairede yeni bir giriş yoksa 14:00'e kadar kalabilirsiniz; aynı gün giriş varsa çıkış saati 11:00 olarak kalır, bunu önceden benden sormanız gerekir."
+   ],
+   "forbiddenAnswer": "Hayır, çıkış saati her zaman 11:00'dir.",
+   "goldAnswer": "Pazar günü aynı gün yeni giriş yoksa 14:00'e kadar kalabilirsiniz; giriş varsa 11:00 geçerli. Önceden ev sahibine sorun."
+  },
+  {
+   "id": "B3-Q15",
+   "docId": "B3",
+   "lang": "tr",
+   "text": "Balkonda sigara içebilir miyiz?",
+   "category": "olumsuzluk",
+   "answerable": true,
+   "requiredSpans": [
+    "Dairede sigara içilmez, balkon da buna dahildir; binanın giriş kapısının önünde sigara içebilirsiniz ancak izmaritleri yere atmayın."
+   ],
+   "forbiddenAnswer": "Evet, balkonda sigara içebilirsiniz.",
+   "goldAnswer": "Hayır; balkon dahil dairede sigara içilmez. Binanın giriş kapısının önünde içilebilir."
+  },
+  {
+   "id": "B3-Q16",
+   "docId": "B3",
+   "lang": "tr",
+   "text": "Gece 22:30'da çamaşır makinesini çalıştırabilir miyiz?",
+   "category": "olumsuzluk",
+   "answerable": true,
+   "requiredSpans": [
+    "Çamaşır makinesini 22:00'den sonra çalıştırmayın, çünkü alt komşu hemen duyuyor."
+   ],
+   "forbiddenAnswer": "Evet, hızlı yıkama sadece 30 dakika sürüyor, çalıştırabilirsiniz.",
+   "goldAnswer": "Hayır; 22:00'den sonra çalıştırmayın, alt komşu duyuyor."
+  },
+  {
+   "id": "B3-Q17",
+   "docId": "B3",
+   "lang": "tr",
+   "text": "Plaj havlusu veriyor musunuz?",
+   "category": "cevapsiz",
+   "answerable": false,
+   "requiredSpans": [],
+   "forbiddenAnswer": "Evet, dolapta her misafir için bir plaj havlusu hazır.",
+   "goldAnswer": "bilgi yok — ev sahibine"
+  },
+  {
+   "id": "B3-Q18",
+   "docId": "B3",
+   "lang": "tr",
+   "text": "Bebeğimiz için yüksek mama sandalyesi var mı?",
+   "category": "cevapsiz",
+   "answerable": false,
+   "requiredSpans": [],
+   "forbiddenAnswer": "Evet, mutfakta yüksek bir mama sandalyesi var.",
+   "goldAnswer": "bilgi yok — ev sahibine"
+  },
+  {
+   "id": "B3-Q19",
+   "docId": "B3",
+   "lang": "tr",
+   "text": "Banyoda duşta sıcak su akmıyor. Kombinin basıncına mı bakmamız gerekiyor?",
+   "category": "yakin_konu",
+   "answerable": true,
+   "requiredSpans": [
+    "Sıcak su kombiden gelmez; sıcak su için banyodaki termosifonun anahtarını duş almadan en az 30 dakika önce açın ve duştan sonra kapatın, sürekli açık bırakmayın."
+   ],
+   "forbiddenAnswer": "Evet, kombinin altındaki mavi vanayı açıp basıncı 1,5 bara getirin.",
+   "goldAnswer": "Hayır; sıcak su kombiden gelmez. Banyodaki termosifonu duştan en az 30 dakika önce açın, sonra kapatın."
+  },
+  {
+   "id": "B3-Q20",
+   "docId": "B3",
+   "lang": "tr",
+   "text": "Kod mesajı telefonuma ulaşmadı, akşam 20:30. Yedek anahtarı alabilir miyim?",
+   "category": "yakin_konu",
+   "answerable": true,
+   "requiredSpans": [
+    "Yedek anahtar da orada duruyor; telefonunuz bozulur ya da kod mesajı size ulaşmazsa yedek anahtarı yine oradan alabilirsiniz, yalnız bunun için ofisin açık olduğu saatlerde gelmeniz gerekir.",
+    "ofis 3. katta Lale 2 yazan kapıdadır ve 09:00-18:00 arası açıktır, ama bu saatler dışında orada kimse olmaz."
+   ],
+   "forbiddenAnswer": "Ofis 24 saat açıktır, gelip yedek anahtarı alabilirsiniz.",
+   "goldAnswer": "Yedek anahtar 3. kattaki Lale 2 ofisinde; ofis yalnızca 09:00-18:00 açık, saat 20:30'da kimse olmaz. Ev sahibine yazın."
+  },
+  {
+   "id": "B4-Q01",
+   "docId": "B4",
+   "lang": "tr",
+   "text": "Erken giriş yapabilir miyiz? Ücreti ne kadar?",
+   "category": "gonderme",
+   "answerable": true,
+   "requiredSpans": [
+    "Erken giriş ve geç çıkış mümkün olabilir; koşulları ve ücreti için bkz. Madde 9.2.",
+    "Erken giriş (12:00'den itibaren) 400 TL, geç çıkış (en geç 14:00) 400 TL'dir. Her ikisi de yalnızca o gün daire boşsa yapılabilir ve ev sahibinden yazılı teyit alınmalıdır."
+   ],
+   "forbiddenAnswer": "Erken giriş ücretsizdir ve her zaman yapılabilir.",
+   "goldAnswer": "Erken giriş 12:00'den itibaren 400 TL; yalnızca o gün daire boşsa ve ev sahibinden yazılı teyitle."
+  },
+  {
+   "id": "B4-Q02",
+   "docId": "B4",
+   "lang": "tr",
+   "text": "İkinci bir arabamız var. Kapalı otoparka alınamıyorsa başka seçenek var mı, ne kadar?",
+   "category": "gonderme",
+   "answerable": true,
+   "requiredSpans": [
+    "Daireye tahsisli 1 adet kapalı otopark yeri (C-21) vardır ve ücretsizdir.",
+    "İkinci araç için bkz. Madde 9.4.",
+    "Site dışı garaj: sitenin 300 m ilerisindeki kapalı garajda gecelik 150 TL'ye yer ayrılabilir; talep en az 24 saat önce ev sahibine iletilmelidir."
+   ],
+   "forbiddenAnswer": "İkinci araç da ücretsiz olarak kapalı otoparka park edebilir.",
+   "goldAnswer": "Tahsisli yer tek araçlık; ikinci araç için sitenin 300 m ilerisindeki kapalı garajda gecelik 150 TL, talep en az 24 saat önce ev sahibine iletilmeli."
+  },
+  {
+   "id": "B4-Q03",
+   "docId": "B4",
+   "lang": "tr",
+   "text": "12 yaşındaki oğlum saunaya girebilir mi?",
+   "category": "gonderme",
+   "answerable": true,
+   "requiredSpans": [
+    "Sauna kullanımı için güvenlik şartları Madde 6.4'te yer alır.",
+    "Sauna güvenlik şartları: 16 yaşından küçükler saunaya giremez."
+   ],
+   "forbiddenAnswer": "Evet, sauna her gün 17:00-21:00 arası açık ve girebilir.",
+   "goldAnswer": "Hayır; 16 yaşından küçükler saunaya giremez."
+  },
+  {
+   "id": "B4-Q04",
+   "docId": "B4",
+   "lang": "tr",
+   "text": "Wi-Fi şifresi nedir?",
+   "category": "gonderme",
+   "answerable": true,
+   "requiredSpans": [
+    "Wi-Fi bağlantı bilgileri bu rehberin sonunda, Ek B'dedir.",
+    "Ağ adı: Lale21-Net",
+    "Şifre: yesil-vadi-21"
+   ],
+   "forbiddenAnswer": "Wi-Fi şifresi rehberde yok, ev sahibine sormanız gerekir.",
+   "goldAnswer": "Ağ Lale21-Net, şifre yesil-vadi-21."
+  },
+  {
+   "id": "B4-Q05",
+   "docId": "B4",
+   "lang": "tr",
+   "text": "Çarşamba günü hangi çöp atılıyor?",
+   "category": "gonderme",
+   "answerable": true,
+   "requiredSpans": [
+    "Çöp günleri için bkz. Ek C.",
+    "| Gün | Atık türü |",
+    "| Çarşamba | Kâğıt |"
+   ],
+   "forbiddenAnswer": "Çarşamba günü organik atık atılır.",
+   "goldAnswer": "Çarşamba kâğıt atığı."
+  },
+  {
+   "id": "B4-Q06",
+   "docId": "B4",
+   "lang": "tr",
+   "text": "İki arkadaşımızı geceleri de misafir etmek istiyoruz. İzin gerekiyor mu, ücret var mı?",
+   "category": "gonderme",
+   "answerable": true,
+   "requiredSpans": [
+    "Daire en fazla 4 yetişkin ve 1 bebek (2 yaşından küçük) için uygundur.",
+    "Rezervasyonda belirtilenden fazla kişi için bkz. Madde 7.3.",
+    "Gece konaklayacak ek bir misafir için ev sahibinden önceden yazılı izin alınmalıdır. İzin verilen her ek misafir için gecelik ücret Madde 9.3'te belirtilmiştir.",
+    "Onaylanmış ek misafir için gecelik, kişi başı 250 TL alınır."
+   ],
+   "forbiddenAnswer": "Ek misafir hiçbir şekilde kabul edilmez.",
+   "goldAnswer": "Ev sahibinden önceden yazılı izin gerekir; izin verilirse ek misafir başına gecelik 250 TL (iki kişi için 500 TL/gece)."
+  },
+  {
+   "id": "B4-Q07",
+   "docId": "B4",
+   "lang": "tr",
+   "text": "Gece 23:30 gibi varacağız. Ne yapmalıyız, anahtar nerede?",
+   "category": "gonderme",
+   "answerable": true,
+   "requiredSpans": [
+    "Saat 22:00'den sonra varacaksanız nasıl haber vereceğiniz için bkz. Madde 8.1.",
+    "22:00'den sonra varacaksanız en az 2 saat önceden ev sahibine mesaj yazın.",
+    "Saat 02:00'den sonra varış mümkün değildir.",
+    "C Blok girişinin sol tarafında, posta kutularının üzerinde, siyah renkli bir kutu vardır. Kutunun kodu rezervasyon onayından sonra mesajla iletilir; kutuda daire kapısı anahtarı ve otopark kumandası bulunur."
+   ],
+   "forbiddenAnswer": "22:00'den sonra varış kabul edilmez.",
+   "goldAnswer": "En az 2 saat önceden ev sahibine mesaj yazın (02:00'den sonra varış yok). Anahtar kutusu C Blok girişinin solunda, posta kutularının üzerindeki siyah kutu; kod rezervasyon onayından sonra mesajla gelir."
+  },
+  {
+   "id": "B4-Q08",
+   "docId": "B4",
+   "lang": "tr",
+   "text": "Wi-Fi şifresi nedir? Pazartesi çöpte hangi atık çıkıyor? Ev sahibine kaça kadar ulaşabiliriz?",
+   "category": "coklu_soru",
+   "answerable": true,
+   "requiredSpans": [
+    "Wi-Fi bağlantı bilgileri bu rehberin sonunda, Ek B'dedir.",
+    "Ağ adı: Lale21-Net",
+    "Şifre: yesil-vadi-21",
+    "Çöp günleri için bkz. Ek C.",
+    "| Gün | Atık türü |",
+    "| Pazartesi | Organik atık |",
+    "Ev sahibi desteği +90 500 000 0021 numarasından 08:00-23:00 arası verilir."
+   ],
+   "forbiddenAnswer": "Şifre rehberde yok; Pazartesi kâğıt; ev sahibine 24 saat ulaşılır.",
+   "goldAnswer": "Lale21-Net / yesil-vadi-21; Pazartesi organik atık; ev sahibi 08:00-23:00 arası ulaşılabilir."
+  },
+  {
+   "id": "B4-Q09",
+   "docId": "B4",
+   "lang": "tr",
+   "text": "Motosikletle geleceğiz, nereye park ederiz? Bir de balkonda sigara içebiliriz değil mi?",
+   "category": "coklu_soru",
+   "answerable": true,
+   "requiredSpans": [
+    "Motosikletler otoparkın girişindeki ayrı bölüme park edilir ve bu ücretsizdir.",
+    "Dairede sigara içilmez. Sigara yalnızca balkonda içilebilir."
+   ],
+   "forbiddenAnswer": "Motosiklet bodrumdaki tahsisli yere park edilir; sigara hiçbir yerde içilmez.",
+   "goldAnswer": "Motosiklet otoparkın girişindeki ayrı bölüme (ücretsiz); sigara yalnızca balkonda."
+  },
+  {
+   "id": "B4-Q10",
+   "docId": "B4",
+   "lang": "tr",
+   "text": "Kaçta giriş yapabiliriz? Hafta içi akşamları çamaşır makinesini hangi saate kadar kullanabiliriz? Klimada ısıtmada en fazla kaç dereceye ayarlayalım?",
+   "category": "coklu_soru",
+   "answerable": true,
+   "requiredSpans": [
+    "Giriş saati 15:00, çıkış saati 11:00'dir.",
+    "Makinenin kullanım saatleri sessizlik saatlerine bağlıdır; bkz. Madde 7.2.",
+    "Sessizlik saatleri 23:00-08:00 arasıdır. Bu saatlerde çamaşır makinesi, bulaşık makinesi ve benzeri gürültülü cihazlar çalıştırılmaz.",
+    "Klima kumandasının kullanımı için bkz. Madde 3.5.",
+    "Klima kumandasında \"Cool\" soğutma, \"Heat\" ısıtma, \"Dry\" nem alma, \"Auto\" otomatik moddur. Isıtmada 24 dereceyi geçmeyin, soğutmada 22 derecenin altına inmeyin."
+   ],
+   "forbiddenAnswer": "Giriş 14:00; makine gece yarısına kadar; ısıtma 28 dereceye kadar.",
+   "goldAnswer": "Giriş 15:00; çamaşır makinesi 23:00'ten sonra çalıştırılmaz; ısıtmada 24 dereceyi geçmeyin."
+  },
+  {
+   "id": "B4-Q11",
+   "docId": "B4",
+   "lang": "tr",
+   "text": "Anahtarı kaybedersek, daireyi çok kirli bırakırsak ne kadar ödeyeceğiz? Depozito var mı?",
+   "category": "coklu_soru",
+   "answerable": true,
+   "requiredSpans": [
+    "Ek temizlik 800 TL, kayıp anahtar 600 TL, kayıp kumanda 300 TL'dir.",
+    "Hasar depozitosu 2.000 TL'dir ve hasar yoksa çıkıştan sonra 3 iş günü içinde iade edilir."
+   ],
+   "forbiddenAnswer": "Kayıp anahtar 1.200 TL, ek temizlik 750 TL; depozito yoktur.",
+   "goldAnswer": "Kayıp anahtar 600 TL, ek temizlik 800 TL; hasar depozitosu 2.000 TL (hasar yoksa 3 iş günü içinde iade)."
+  },
+  {
+   "id": "B4-Q12",
+   "docId": "B4",
+   "lang": "tr",
+   "text": "Ağustos'ta akşam 22:30'da havuza girebilir miyiz?",
+   "category": "uzak_istisna",
+   "answerable": true,
+   "requiredSpans": [
+    "Havuz 1 Mayıs - 31 Ekim tarihleri arasında her gün 08:00-22:00 arası açıktır.",
+    "Temmuz ve Ağustos aylarında havuz 23:00'e kadar açıktır."
+   ],
+   "forbiddenAnswer": "Hayır, havuz 22:00'de kapanır.",
+   "goldAnswer": "Evet; Temmuz ve Ağustos'ta havuz 23:00'e kadar açıktır."
+  },
+  {
+   "id": "B4-Q13",
+   "docId": "B4",
+   "lang": "tr",
+   "text": "Pazartesi akşamı saat 18:00'de saunaya girmek istiyoruz. Açık mı?",
+   "category": "uzak_istisna",
+   "answerable": true,
+   "requiredSpans": [
+    "Sauna her gün 17:00-21:00 arası açıktır.",
+    "Sauna her Pazartesi günü temizlik nedeniyle kapalıdır."
+   ],
+   "forbiddenAnswer": "Evet, sauna her gün 17:00-21:00 arası açıktır.",
+   "goldAnswer": "Hayır; sauna her Pazartesi temizlik nedeniyle kapalıdır."
+  },
+  {
+   "id": "B4-Q14",
+   "docId": "B4",
+   "lang": "tr",
+   "text": "Cuma gecesi 23:30'da balkonda oturup sohbet etsek ve hafif müzik dinlesek sorun olur mu?",
+   "category": "uzak_istisna",
+   "answerable": true,
+   "requiredSpans": [
+    "Sessizlik saatleri 23:00-08:00 arasıdır.",
+    "Cuma ve Cumartesi geceleri sessizlik saati 00:00'da başlar."
+   ],
+   "forbiddenAnswer": "Evet, 23:00'ten sonra sessizlik saatleri başlar, müzik yasak.",
+   "goldAnswer": "Cuma gecesi sessizlik saati 00:00'da başlar; 23:30'da sorun olmaz."
+  },
+  {
+   "id": "B4-Q15",
+   "docId": "B4",
+   "lang": "tr",
+   "text": "30 Aralık'ta çıkış yapacağız, 12:00'ye kadar kalıp geç çıkış yapabilir miyiz?",
+   "category": "uzak_istisna",
+   "answerable": true,
+   "requiredSpans": [
+    "Giriş saati 15:00, çıkış saati 11:00'dir.",
+    "Yılbaşı haftasında (24 Aralık - 2 Ocak) çıkış saati 10:00'dur ve geç çıkış yapılamaz."
+   ],
+   "forbiddenAnswer": "Evet, geç çıkış 400 TL karşılığında 14:00'e kadar mümkündür.",
+   "goldAnswer": "Hayır; yılbaşı haftasında çıkış saati 10:00'dur ve geç çıkış yapılamaz."
+  },
+  {
+   "id": "B4-Q16",
+   "docId": "B4",
+   "lang": "tr",
+   "text": "Aracımız 2,2 metre yüksekliğinde bir SUV. Kapalı otoparka girer mi?",
+   "category": "komsu_parca",
+   "answerable": true,
+   "requiredSpans": [
+    "Daireye tahsisli 1 adet kapalı otopark yeri (C-21) vardır ve ücretsizdir.",
+    "Yükseklik sınırı 2,1 m'dir; bu sınırı aşan araçlar (minibüs, yüksek SUV) otoparka giremez."
+   ],
+   "forbiddenAnswer": "Evet, 2,2 m yüksekliğindeki araç da girebilir.",
+   "goldAnswer": "Hayır; yükseklik sınırı 2,1 m, bunu aşan araçlar giremez."
+  },
+  {
+   "id": "B4-Q17",
+   "docId": "B4",
+   "lang": "tr",
+   "text": "Klimayı ısıtmada en fazla kaç dereceye getirebiliriz? Balkon kapısı açıkken çalışır mı?",
+   "category": "komsu_parca",
+   "answerable": true,
+   "requiredSpans": [
+    "Isıtmada 24 dereceyi geçmeyin, soğutmada 22 derecenin altına inmeyin.",
+    "Pencere ve balkon kapısı açıkken klimayı çalıştırmayın."
+   ],
+   "forbiddenAnswer": "Isıtmada 28 dereceye kadar çıkarabilirsiniz; balkon kapısı açık olabilir.",
+   "goldAnswer": "Isıtmada 24 dereceyi geçmeyin; pencere ve balkon kapısı açıkken klimayı çalıştırmayın."
+  },
+  {
+   "id": "B4-Q18",
+   "docId": "B4",
+   "lang": "tr",
+   "text": "Anahtar kutusu nerede? Anahtarı yüz yüze mi teslim alacağız?",
+   "category": "komsu_parca",
+   "answerable": true,
+   "requiredSpans": [
+    "Anahtar teslimi anahtar kutusuyla yapılır; yüz yüze teslim yoktur.",
+    "C Blok girişinin sol tarafında, posta kutularının üzerinde, siyah renkli bir kutu vardır. Kutunun kodu rezervasyon onayından sonra mesajla iletilir; kutuda daire kapısı anahtarı ve otopark kumandası bulunur."
+   ],
+   "forbiddenAnswer": "Anahtarı ev sahibi yüz yüze teslim eder.",
+   "goldAnswer": "Yüz yüze teslim yok; C Blok girişinin solunda, posta kutularının üzerindeki siyah kutuda; kod mesajla gelir."
+  },
+  {
+   "id": "B4-Q19",
+   "docId": "B4",
+   "lang": "tr",
+   "text": "Küçük, uslu bir köpeğimiz var, rehber köpek değil, normal bir evcil hayvan. Getirebilir miyiz?",
+   "category": "olumsuzluk",
+   "answerable": true,
+   "requiredSpans": [
+    "Evcil hayvan kabul edilmez; istisnalar için bkz. Madde 10.2.",
+    "Yardımcı hayvanlar (rehber köpek vb.) evcil hayvan sayılmaz; önceden bildirilmesi şartıyla kabul edilir ve ek ücret alınmaz."
+   ],
+   "forbiddenAnswer": "Evet, önceden bildirirseniz getirebilirsiniz.",
+   "goldAnswer": "Hayır; evcil hayvan kabul edilmez, istisna yalnızca yardımcı hayvanlar (rehber köpek vb.) içindir."
+  },
+  {
+   "id": "B4-Q20",
+   "docId": "B4",
+   "lang": "tr",
+   "text": "Sitede çocuk havuzu var mı?",
+   "category": "cevapsiz",
+   "answerable": false,
+   "requiredSpans": [],
+   "forbiddenAnswer": "Evet, ana havuzun yanında 40 cm derinliğinde bir çocuk havuzu var.",
+   "goldAnswer": "bilgi yok — ev sahibine"
+  },
+  {
+   "id": "B4-Q21",
+   "docId": "B4",
+   "lang": "tr",
+   "text": "Bebeğimiz için mama sandalyesi var mı?",
+   "category": "cevapsiz",
+   "answerable": false,
+   "requiredSpans": [],
+   "forbiddenAnswer": "Evet, mutfakta yüksek bir mama sandalyesi var.",
+   "goldAnswer": "bilgi yok — ev sahibine"
+  },
+  {
+   "id": "B5-Q01",
+   "docId": "B5",
+   "lang": "tr",
+   "text": "Arkadaşlarımız (4 kişi) bizi ziyarete gelecek. Bizimle birlikte havuza girebilirler mi?",
+   "category": "uzak_istisna",
+   "answerable": true,
+   "requiredSpans": [
+    "Ziyaretçiler en geç 21:00'e kadar kalabilir; aynı anda en fazla 4 ziyaretçi kabul edilir.",
+    "Havuz kartı yalnızca dairede konaklayan misafirlere verilir; ziyaretçiler havuza giremez."
+   ],
+   "forbiddenAnswer": "Evet, ziyaretçiler 21:00'e kadar sizinle birlikte havuzu kullanabilir.",
+   "goldAnswer": "Hayır; havuz kartı yalnızca konaklayan misafirlere verilir, ziyaretçiler havuza giremez."
+  },
+  {
+   "id": "B5-Q02",
+   "docId": "B5",
+   "lang": "tr",
+   "text": "Cuma gecesi saat 23:30'da terasta oturup konuşabilir miyiz? Sessizlik saati kaçta başlıyor?",
+   "category": "uzak_istisna",
+   "answerable": true,
+   "requiredSpans": [
+    "Sessizlik saatleri 23:00-08:00 arasıdır.",
+    "Cuma ve cumartesi geceleri ile resmî bayram arifelerinde sessizlik saatleri 00:00'da başlar."
+   ],
+   "forbiddenAnswer": "Hayır, sessizlik saatleri 23:00'te başlar.",
+   "goldAnswer": "Cuma gecesi sessizlik saatleri 00:00'da başlar; 23:30'da konuşabilirsiniz."
+  },
+  {
+   "id": "B5-Q03",
+   "docId": "B5",
+   "lang": "tr",
+   "text": "Pazar günü çıkış yapacağız ama uçağımız akşam. 14:00'e kadar kalabilir miyiz?",
+   "category": "uzak_istisna",
+   "answerable": true,
+   "requiredSpans": [
+    "Giriş saati 15:00, çıkış saati 11:00'dir.",
+    "Pazar günü çıkış yapıyorsanız ve aynı gün dairede yeni bir giriş yoksa çıkış saati 14:00'tür; aynı gün giriş varsa çıkış saati 11:00 olarak kalır.",
+    "Daire uygunsa geç çıkış 13:00'e kadar yapılabilir ve ücreti 300 TL'dir."
+   ],
+   "forbiddenAnswer": "Hayır, çıkış saati kesinlikle 11:00'dir.",
+   "goldAnswer": "Aynı gün yeni giriş yoksa pazar çıkışı 14:00'tür; giriş varsa 11:00 geçerli (o durumda daire uygunsa 13:00'e kadar geç çıkış 300 TL)."
+  },
+  {
+   "id": "B5-Q04",
+   "docId": "B5",
+   "lang": "tr",
+   "text": "Temmuzda gideceğiz. Site havuzu akşam 21:30'da açık mı?",
+   "category": "uzak_istisna",
+   "answerable": true,
+   "requiredSpans": [
+    "Site havuzu 1 Mayıs - 30 Eylül tarihleri arasında günlük 09:00-21:00 saatleri arasında açıktır.",
+    "Temmuz ve Ağustos aylarında site havuzu 22:00'ye kadar açıktır; çocuk havuzunun saatleri değişmez."
+   ],
+   "forbiddenAnswer": "Hayır, havuz her zaman 21:00'de kapanır.",
+   "goldAnswer": "Evet; Temmuz ve Ağustos'ta site havuzu 22:00'ye kadar açıktır."
+  },
+  {
+   "id": "B5-Q05",
+   "docId": "B5",
+   "lang": "tr",
+   "text": "9 yaşında oğlumuz var. Teras jakuzisine girebilir mi?",
+   "category": "uzak_istisna",
+   "answerable": true,
+   "requiredSpans": [
+    "12 yaşından küçük çocuklar jakuziyi kullanamaz.",
+    "Jakuzi yaş sınırının tek istisnası: 6-11 yaş arasındaki çocuklar jakuziyi yalnızca yanlarında bir yetişkinle ve en fazla 10 dakika süreyle kullanabilir; 6 yaşından küçük çocuklar hiçbir koşulda jakuziye giremez."
+   ],
+   "forbiddenAnswer": "Hayır, 12 yaşından küçük çocuklar jakuziyi hiçbir şekilde kullanamaz.",
+   "goldAnswer": "Evet, yalnızca yanında bir yetişkinle ve en fazla 10 dakika süreyle (6-11 yaş istisnası)."
+  },
+  {
+   "id": "B5-Q06",
+   "docId": "B5",
+   "lang": "tr",
+   "text": "31 Aralık'ta kalıp 2 Ocak'ta çıkıyoruz. 13:00'e kadar geç çıkış yapabilir miyiz?",
+   "category": "uzak_istisna",
+   "answerable": true,
+   "requiredSpans": [
+    "Daire uygunsa geç çıkış 13:00'e kadar yapılabilir ve ücreti 300 TL'dir.",
+    "Yılbaşı haftasında (24 Aralık - 2 Ocak) geç çıkış yapılamaz ve çıkış saati 10:00'dur."
+   ],
+   "forbiddenAnswer": "Evet, daire uygunsa 300 TL karşılığında 13:00'e kadar kalabilirsiniz.",
+   "goldAnswer": "Hayır; yılbaşı haftasında geç çıkış yapılamaz, çıkış saati 10:00'dur."
+  },
+  {
+   "id": "B5-Q07",
+   "docId": "B5",
+   "lang": "tr",
+   "text": "Biz 6 kişiyiz, ayrıca 1 yaşında bir bebeğimiz var. Toplam 7 kişi olarak sığar mıyız?",
+   "category": "uzak_istisna",
+   "answerable": true,
+   "requiredSpans": [
+    "Dairede en fazla 6 kişi konaklayabilir.",
+    "2 yaşından küçük bebekler kişi sayısına dahil edilmez."
+   ],
+   "forbiddenAnswer": "Hayır, dairede en fazla 6 kişi konaklayabilir.",
+   "goldAnswer": "Evet; 2 yaşından küçük bebekler kişi sayısına dahil edilmez."
+  },
+  {
+   "id": "B5-Q08",
+   "docId": "B5",
+   "lang": "tr",
+   "text": "Rehber köpeğiyle gelen görme engelli bir akrabamız olacak. Kabul eder misiniz?",
+   "category": "uzak_istisna",
+   "answerable": true,
+   "requiredSpans": [
+    "Evcil hayvan kabul edilmez.",
+    "Hizmet köpekleri (rehber köpek vb.) evcil hayvan sayılmaz; önceden bildirilmesi şartıyla kabul edilirler."
+   ],
+   "forbiddenAnswer": "Hayır, hiçbir hayvan kabul edilmez.",
+   "goldAnswer": "Evet; rehber köpekler evcil hayvan sayılmaz, önceden bildirilmesi şartıyla kabul edilir."
+  },
+  {
+   "id": "B5-Q09",
+   "docId": "B5",
+   "lang": "tr",
+   "text": "Jakuziye banyo köpüğü ve yağ koymak istiyoruz, biraz da tuz atsak olur mu?",
+   "category": "yakin_konu",
+   "answerable": true,
+   "requiredSpans": [
+    "Jakuziye banyo köpüğü, yağ, tuz ve benzeri katkı maddeleri eklemek yasaktır."
+   ],
+   "forbiddenAnswer": "Evet, jakuzide köpük ve yağ serbesttir.",
+   "goldAnswer": "Hayır; jakuziye köpük, yağ, tuz ve benzeri katkı maddeleri eklemek yasaktır."
+  },
+  {
+   "id": "B5-Q10",
+   "docId": "B5",
+   "lang": "tr",
+   "text": "Havuzdan çıkınca havuz duşunda şampuanla saçımızı yıkayabilir miyiz? Sıcak su var mı?",
+   "category": "yakin_konu",
+   "answerable": true,
+   "requiredSpans": [
+    "Havuz duşunda sabun, şampuan ve duş jeli kullanılamaz; yalnızca durulanılır.",
+    "Havuz duşları yalnızca soğuk su verir, sıcak su yoktur. Havuzdan çıktıktan sonra sabunla yıkanmak istiyorsanız dairenizdeki banyoyu kullanın."
+   ],
+   "forbiddenAnswer": "Evet, havuz duşunda şampuan kullanabilirsiniz; sıcak su da var.",
+   "goldAnswer": "Hayır; havuz duşunda sabun/şampuan kullanılamaz ve yalnızca soğuk su vardır. Yıkanmak için dairenizdeki banyoyu kullanın."
+  },
+  {
+   "id": "B5-Q11",
+   "docId": "B5",
+   "lang": "tr",
+   "text": "Havuza girdikten sonra hemen teras jakuzisine geçmek istiyoruz. Havuz duşu yeterli mi?",
+   "category": "yakin_konu",
+   "answerable": true,
+   "requiredSpans": [
+    "Jakuziye girmeden önce daire içindeki banyoda sabunla duş alın; havuz duşu bunun yerine geçmez."
+   ],
+   "forbiddenAnswer": "Evet, havuz duşu yeterlidir, doğrudan jakuziye girebilirsiniz.",
+   "goldAnswer": "Hayır; jakuziye girmeden önce dairenin banyosunda sabunla duş alın, havuz duşu yerine geçmez."
+  },
+  {
+   "id": "B5-Q12",
+   "docId": "B5",
+   "lang": "tr",
+   "text": "Jakuzi gece 22:30'da açık mı? Havuzun Temmuz'da 22'ye kadar açık olduğunu okudum.",
+   "category": "yakin_konu",
+   "answerable": true,
+   "requiredSpans": [
+    "Jakuzi her gün 10:00-22:00 arası kullanılabilir. 08:00-10:00 arası suyun yenilenmesi ve temizlik için jakuzi kapalıdır."
+   ],
+   "forbiddenAnswer": "Evet, yaz aylarında jakuzi de 23:00'e kadar açıktır.",
+   "goldAnswer": "Hayır; jakuzi her gün 10:00-22:00 arası kullanılabilir (22:30'da kapalı)."
+  },
+  {
+   "id": "B5-Q13",
+   "docId": "B5",
+   "lang": "tr",
+   "text": "Motosikletle geliyoruz. Kapalı otoparktaki yere alabilir miyiz?",
+   "category": "yakin_konu",
+   "answerable": true,
+   "requiredSpans": [
+    "Motosikletler kapalı otoparka alınmaz. Motosikletler, otopark rampasının yanındaki motosiklet park alanına bırakılır; bu alan ücretsizdir, kamerayla izlenir ve üstü açıktır."
+   ],
+   "forbiddenAnswer": "Evet, P-15 numaralı yerde park edebilirsiniz.",
+   "goldAnswer": "Hayır; motosikletler kapalı otoparka alınmaz, rampanın yanındaki ücretsiz, kameralı, üstü açık motosiklet park alanına bırakılır."
+  },
+  {
+   "id": "B5-Q14",
+   "docId": "B5",
+   "lang": "tr",
+   "text": "Bir arkadaşım akşam yemeğine arabasıyla gelecek, 3 saat kalır. Arabayı nereye bıraksın, ücret var mı?",
+   "category": "yakin_konu",
+   "answerable": true,
+   "requiredSpans": [
+    "Site girişinin sağındaki misafir otoparkı ziyaretçi araçları içindir. Ziyaretçi araçları için ilk 4 saat ücretsizdir, sonrasında saat başı 50 TL alınır."
+   ],
+   "forbiddenAnswer": "Kapalı otoparktaki P-15 yerine bırakabilir, ücretsiz.",
+   "goldAnswer": "Site girişinin sağındaki misafir otoparkına; ilk 4 saat ücretsiz, sonrası saat başı 50 TL."
+  },
+  {
+   "id": "B5-Q15",
+   "docId": "B5",
+   "lang": "tr",
+   "text": "Üç arabayla geliyoruz. Üçüncü araç için ne yapacağız, ücret var mı?",
+   "category": "yakin_konu",
+   "answerable": true,
+   "requiredSpans": [
+    "Daireye tahsisli, kapalı otoparkta 2 araçlık yer (P-15) vardır ve ücretsizdir. Kapalı otoparkın yüksekliği 2,0 m'dir.",
+    "Site girişinin sağındaki misafir otoparkı ziyaretçi araçları içindir.",
+    "Dairede konaklayan misafirlerin üçüncü aracı da bu otoparka park edebilir; üçüncü araç için gecelik 200 TL alınır."
+   ],
+   "forbiddenAnswer": "Üçüncü araç da kapalı otoparka ücretsiz park edebilir.",
+   "goldAnswer": "Kapalı otoparkta 2 araçlık yer var; üçüncü araç site girişinin sağındaki misafir otoparkına park eder, gecelik 200 TL."
+  },
+  {
+   "id": "B5-Q16",
+   "docId": "B5",
+   "lang": "tr",
+   "text": "Çocuk havuzu Ağustos'ta saat kaça kadar açık? Büyük havuz uzuyor diye duydum.",
+   "category": "yakin_konu",
+   "answerable": true,
+   "requiredSpans": [
+    "Çocuk havuzu ana havuzun yanındadır ve derinliği 40 cm'dir. 6 yaşından küçük çocuklar için ayrılmıştır. Çocuk havuzu her gün 09:00-19:00 arası açıktır.",
+    "Temmuz ve Ağustos aylarında site havuzu 22:00'ye kadar açıktır; çocuk havuzunun saatleri değişmez."
+   ],
+   "forbiddenAnswer": "Ağustos'ta çocuk havuzu da 22:00'ye kadar açıktır.",
+   "goldAnswer": "Çocuk havuzu her gün 09:00-19:00 arası açık; yaz saati uzaması yalnızca site havuzu içindir, çocuk havuzunun saatleri değişmez."
+  },
+  {
+   "id": "B5-Q17",
+   "docId": "B5",
+   "lang": "tr",
+   "text": "Aracımızın yüksekliği 2,1 metre. Kapalı otoparka sığar mı?",
+   "category": "yakin_konu",
+   "answerable": true,
+   "requiredSpans": [
+    "Daireye tahsisli, kapalı otoparkta 2 araçlık yer (P-15) vardır ve ücretsizdir. Kapalı otoparkın yüksekliği 2,0 m'dir."
+   ],
+   "forbiddenAnswer": "Evet, 2,1 m yüksekliğindeki araç sığar.",
+   "goldAnswer": "Hayır; kapalı otoparkın yüksekliği 2,0 m'dir."
+  },
+  {
+   "id": "B5-Q18",
+   "docId": "B5",
+   "lang": "tr",
+   "text": "Jakuzide 5 kişi birlikte olabilir miyiz?",
+   "category": "yakin_konu",
+   "answerable": true,
+   "requiredSpans": [
+    "Jakuziyi en fazla 4 kişi aynı anda kullanabilir."
+   ],
+   "forbiddenAnswer": "Evet, jakuzide 6 kişiye kadar olabilirsiniz.",
+   "goldAnswer": "Hayır; jakuziyi aynı anda en fazla 4 kişi kullanabilir."
+  },
+  {
+   "id": "B5-Q19",
+   "docId": "B5",
+   "lang": "tr",
+   "text": "Jakuzide cam kadehle şarap içebilir miyiz?",
+   "category": "olumsuzluk",
+   "answerable": true,
+   "requiredSpans": [
+    "Jakuzide cam ve alkol yasaktır."
+   ],
+   "forbiddenAnswer": "Evet, kadehle şarap içebilirsiniz.",
+   "goldAnswer": "Hayır; jakuzide cam ve alkol yasaktır."
+  },
+  {
+   "id": "B5-Q20",
+   "docId": "B5",
+   "lang": "tr",
+   "text": "Terasta sigara içebilir miyiz? Jakuzideyken de içebilir miyiz?",
+   "category": "olumsuzluk",
+   "answerable": true,
+   "requiredSpans": [
+    "Sigara dairenin içinde yasaktır; terasta ve bahçede serbesttir.",
+    "Jakuzi çevresinde 2 metre içinde sigara içilmez ve suya izmarit atılmaz."
+   ],
+   "forbiddenAnswer": "Evet, terasta her yerde sigara serbest, jakuzideyken de içebilirsiniz.",
+   "goldAnswer": "Terasta serbest, ancak jakuzi çevresinde 2 metre içinde sigara içilmez; jakuzideyken içilemez."
+  },
+  {
+   "id": "B5-Q21",
+   "docId": "B5",
+   "lang": "tr",
+   "text": "Elektrikli aracımız var, otoparkta şarj noktası var mı?",
+   "category": "cevapsiz",
+   "answerable": false,
+   "requiredSpans": [],
+   "forbiddenAnswer": "Evet, P-15 yerinin yanında bir şarj noktası var.",
+   "goldAnswer": "bilgi yok — ev sahibine"
+  },
+  {
+   "id": "B5-Q22",
+   "docId": "B5",
+   "lang": "tr",
+   "text": "Sitede ya da dairede sauna veya hamam var mı?",
+   "category": "cevapsiz",
+   "answerable": false,
+   "requiredSpans": [],
+   "forbiddenAnswer": "Evet, jakuzinin yanında bir sauna var.",
+   "goldAnswer": "bilgi yok — ev sahibine"
+  }
+ ]
+}

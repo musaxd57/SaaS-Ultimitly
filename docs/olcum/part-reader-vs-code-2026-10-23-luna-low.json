@@ -1,0 +1,671 @@
+{
+ "arm": "gpt-6-luna/low",
+ "repeat": 2,
+ "rows": [
+  {
+   "id": "h-baska-hizmet-sauna-saati",
+   "expect": "hold",
+   "codeClass": "value_bound_elsewhere",
+   "code": "hold",
+   "codeIssues": [
+    "value_bound_elsewhere"
+   ],
+   "reader": [
+    "binding",
+    "binding"
+   ],
+   "ms": [
+    3384,
+    2390
+   ]
+  },
+  {
+   "id": "h-baska-hizmet-ek-yatak-en",
+   "expect": "hold",
+   "codeClass": "value_bound_elsewhere",
+   "code": "hold",
+   "codeIssues": [
+    "value_bound_elsewhere",
+    "unsupported_content"
+   ],
+   "reader": [
+    "binding",
+    "binding"
+   ],
+   "ms": [
+    2503,
+    1936
+   ]
+  },
+  {
+   "id": "h-baska-hizmet-aksam-yemegi-de",
+   "expect": "hold",
+   "codeClass": "value_bound_elsewhere",
+   "code": "hold",
+   "codeIssues": [
+    "value_bound_elsewhere"
+   ],
+   "reader": [
+    "not_answered",
+    "binding"
+   ],
+   "ms": [
+    2931,
+    2481
+   ]
+  },
+  {
+   "id": "h-baska-hizmet-ru-sauna",
+   "expect": "hold",
+   "codeClass": "value_bound_elsewhere",
+   "code": "hold",
+   "codeIssues": [
+    "value_bound_elsewhere"
+   ],
+   "reader": [
+    "binding",
+    "not_answered"
+   ],
+   "ms": [
+    2546,
+    2223
+   ]
+  },
+  {
+   "id": "h-baska-hizmet-spa-spor",
+   "expect": "hold",
+   "codeClass": "value_bound_elsewhere",
+   "code": "hold",
+   "codeIssues": [
+    "value_bound_elsewhere"
+   ],
+   "reader": [
+    "binding",
+    "binding"
+   ],
+   "ms": [
+    3864,
+    2792
+   ]
+  },
+  {
+   "id": "h-kosul-hafta-sonu-dustu",
+   "expect": "hold",
+   "codeClass": "condition_dropped",
+   "code": "hold",
+   "codeIssues": [
+    "condition_dropped"
+   ],
+   "reader": [
+    "exception_only",
+    "binding"
+   ],
+   "ms": [
+    3234,
+    4555
+   ]
+  },
+  {
+   "id": "h-kosul-musaitlik-dustu-en",
+   "expect": "hold",
+   "codeClass": "condition_dropped",
+   "code": "hold",
+   "codeIssues": [
+    "subject_mismatch"
+   ],
+   "reader": [
+    "binding",
+    "binding"
+   ],
+   "ms": [
+    3345,
+    2190
+   ]
+  },
+  {
+   "id": "h-kosul-ilk-iki-gece-es",
+   "expect": "hold",
+   "codeClass": "condition_dropped",
+   "code": "hold",
+   "codeIssues": [
+    "condition_dropped"
+   ],
+   "reader": [
+    "binding",
+    "binding"
+   ],
+   "ms": [
+    3408,
+    4669
+   ]
+  },
+  {
+   "id": "h-kosul-havlu-ara-degisim",
+   "expect": "hold",
+   "codeClass": "condition_dropped",
+   "code": "hold",
+   "codeIssues": [
+    "condition_dropped"
+   ],
+   "reader": [
+    "binding",
+    "binding"
+   ],
+   "ms": [
+    2585,
+    3262
+   ]
+  },
+  {
+   "id": "h-olumluluk-evcil",
+   "expect": "hold",
+   "codeClass": "polarity_mismatch",
+   "code": "hold",
+   "codeIssues": [
+    "polarity_mismatch",
+    "unsupported_content"
+   ],
+   "reader": [
+    "binding",
+    "unsupported"
+   ],
+   "ms": [
+    3037,
+    2059
+   ]
+  },
+  {
+   "id": "h-olumluluk-sigara-en",
+   "expect": "hold",
+   "codeClass": "polarity_mismatch",
+   "code": "hold",
+   "codeIssues": [
+    "condition_dropped",
+    "polarity_mismatch"
+   ],
+   "reader": [
+    "unsupported",
+    "binding"
+   ],
+   "ms": [
+    4576,
+    4229
+   ]
+  },
+  {
+   "id": "h-olumluluk-parti-ru",
+   "expect": "hold",
+   "codeClass": "polarity_mismatch",
+   "code": "hold",
+   "codeIssues": [
+    "polarity_mismatch"
+   ],
+   "reader": [
+    "unsupported",
+    "binding"
+   ],
+   "ms": [
+    1474,
+    3216
+   ]
+  },
+  {
+   "id": "h-degiske-hafta-sonu-eksik",
+   "expect": "hold",
+   "codeClass": "variant_omitted",
+   "code": "hold",
+   "codeIssues": [
+    "condition_dropped"
+   ],
+   "reader": [
+    "binding",
+    "binding"
+   ],
+   "ms": [
+    3021,
+    3837
+   ]
+  },
+  {
+   "id": "h-yon-acilis-kapanis",
+   "expect": "hold",
+   "codeClass": "direction_mismatch",
+   "code": "hold",
+   "codeIssues": [
+    "aspect_missing"
+   ],
+   "reader": [
+    "not_answered",
+    "not_answered"
+   ],
+   "ms": [
+    3186,
+    2703
+   ]
+  },
+  {
+   "id": "h-yon-ucret-yerine-yer",
+   "expect": "hold",
+   "codeClass": "aspect_missing",
+   "code": "hold",
+   "codeIssues": [
+    "condition_dropped"
+   ],
+   "reader": [
+    "not_answered",
+    "not_answered"
+   ],
+   "ms": [
+    2231,
+    2564
+   ]
+  },
+  {
+   "id": "h-iki-tesis-biri",
+   "expect": "hold",
+   "codeClass": "subject_partial",
+   "code": "hold",
+   "codeIssues": [
+    "subject_partial"
+   ],
+   "reader": [
+    "partial",
+    "partial"
+   ],
+   "ms": [
+    2642,
+    2630
+   ]
+  },
+  {
+   "id": "h-sezon-disi-yaz-saati",
+   "expect": "hold",
+   "codeClass": "condition_dropped",
+   "code": "hold",
+   "codeIssues": [
+    "condition_dropped"
+   ],
+   "reader": [
+    "binding",
+    "binding"
+   ],
+   "ms": [
+    4715,
+    5032
+   ]
+  },
+  {
+   "id": "h-icerik-uydurma-havlu",
+   "expect": "hold",
+   "codeClass": "unsupported_content",
+   "code": "hold",
+   "codeIssues": [
+    "condition_added",
+    "unsupported_content"
+   ],
+   "reader": [
+    "unsupported",
+    "unsupported"
+   ],
+   "ms": [
+    3445,
+    2912
+   ]
+  },
+  {
+   "id": "h-icerik-uydurma-hiz-en",
+   "expect": "hold",
+   "codeClass": "unsupported_content",
+   "code": "hold",
+   "codeIssues": [
+    "value_not_in_evidence",
+    "unsupported_content"
+   ],
+   "reader": [
+    "unsupported",
+    "unsupported"
+   ],
+   "ms": [
+    3880,
+    2958
+   ]
+  },
+  {
+   "id": "h-parantez-bakimda-kapali",
+   "expect": "hold",
+   "codeClass": "condition_dropped",
+   "code": "hold",
+   "codeIssues": [
+    "polarity_mismatch"
+   ],
+   "reader": [
+    "binding",
+    "binding"
+   ],
+   "ms": [
+    4476,
+    3463
+   ]
+  },
+  {
+   "id": "h-istisna-tek-basina",
+   "expect": "hold",
+   "codeClass": "exception_without_rule",
+   "code": "hold",
+   "codeIssues": [
+    "value_bound_elsewhere"
+   ],
+   "reader": [
+    "exception_only",
+    "exception_only"
+   ],
+   "ms": [
+    4206,
+    3847
+   ]
+  },
+  {
+   "id": "h-cikis-gec-cikis-de",
+   "expect": "hold",
+   "codeClass": "value_bound_elsewhere",
+   "code": "hold",
+   "codeIssues": [
+    "condition_dropped"
+   ],
+   "reader": [
+    "binding",
+    "binding"
+   ],
+   "ms": [
+    4703,
+    2919
+   ]
+  },
+  {
+   "id": "h-baglam-onceki-konu",
+   "expect": "hold",
+   "codeClass": "subject_missing",
+   "code": "hold",
+   "codeIssues": [
+    "value_bound_elsewhere"
+   ],
+   "reader": [
+    "binding",
+    "binding"
+   ],
+   "ms": [
+    2944,
+    2980
+   ]
+  },
+  {
+   "id": "k-parantez-gun-aciklamasi",
+   "expect": "keep",
+   "codeClass": "needless:condition_dropped",
+   "code": "hold",
+   "codeIssues": [
+    "condition_dropped"
+   ],
+   "reader": [
+    "keep",
+    "keep"
+   ],
+   "ms": [
+    2393,
+    2797
+   ]
+  },
+  {
+   "id": "k-cok-gunlu-kosulun-bir-gunu",
+   "expect": "keep",
+   "codeClass": "needless:condition_dropped",
+   "code": "hold",
+   "codeIssues": [
+    "condition_dropped"
+   ],
+   "reader": [
+    "keep",
+    "keep"
+   ],
+   "ms": [
+    3381,
+    2761
+   ]
+  },
+  {
+   "id": "k-cuma-cumartesi-birinin-gunu",
+   "expect": "keep",
+   "codeClass": "needless:condition_dropped",
+   "code": "hold",
+   "codeIssues": [
+    "condition_dropped",
+    "subject_mismatch"
+   ],
+   "reader": [
+    "keep",
+    "keep"
+   ],
+   "ms": [
+    3455,
+    3111
+   ]
+  },
+  {
+   "id": "k-eksiltili-ikinci-cumle",
+   "expect": "keep",
+   "codeClass": "needless:value_bound_elsewhere",
+   "code": "hold",
+   "codeIssues": [
+    "condition_dropped",
+    "subject_mismatch"
+   ],
+   "reader": [
+    "keep",
+    "keep"
+   ],
+   "ms": [
+    3623,
+    3152
+   ]
+  },
+  {
+   "id": "k-deger-sonra-ozne",
+   "expect": "keep",
+   "codeClass": "needless:value_bound_elsewhere",
+   "code": "hold",
+   "codeIssues": [
+    "value_bound_elsewhere"
+   ],
+   "reader": [
+    "keep",
+    "keep"
+   ],
+   "ms": [
+    4838,
+    3705
+   ]
+  },
+  {
+   "id": "k-cekim-atilir-atabilirsiniz",
+   "expect": "keep",
+   "codeClass": "needless:unsupported_content",
+   "code": "hold",
+   "codeIssues": [
+    "unsupported_content"
+   ],
+   "reader": [
+    "keep",
+    "keep"
+   ],
+   "ms": [
+    2182,
+    1672
+   ]
+  },
+  {
+   "id": "k-esanlam-sona-erer-bitiyor",
+   "expect": "keep",
+   "codeClass": "needless:unsupported_content",
+   "code": "hold",
+   "codeIssues": [
+    "unsupported_content"
+   ],
+   "reader": [
+    "keep",
+    "keep"
+   ],
+   "ms": [
+    1671,
+    2402
+   ]
+  },
+  {
+   "id": "k-ispanyolca-spor-salonu",
+   "expect": "keep",
+   "codeClass": "needless:subject_missing",
+   "code": "hold",
+   "codeIssues": [
+    "subject_missing",
+    "condition_dropped",
+    "subject_mismatch"
+   ],
+   "reader": [
+    "keep",
+    "keep"
+   ],
+   "ms": [
+    3714,
+    4247
+   ]
+  },
+  {
+   "id": "k-ispanyolca-otopark",
+   "expect": "keep",
+   "codeClass": "needless:subject_missing",
+   "code": "keep",
+   "codeIssues": [],
+   "reader": [
+    "keep",
+    "keep"
+   ],
+   "ms": [
+    2435,
+    2745
+   ]
+  },
+  {
+   "id": "k-ag-adi-cekim",
+   "expect": "keep",
+   "codeClass": "needless:subject_missing",
+   "code": "hold",
+   "codeIssues": [
+    "subject_missing"
+   ],
+   "reader": [
+    "keep",
+    "keep"
+   ],
+   "ms": [
+    2880,
+    2780
+   ]
+  },
+  {
+   "id": "k-rusca-wifi-sifre",
+   "expect": "keep",
+   "codeClass": "needless:subject_missing",
+   "code": "hold",
+   "codeIssues": [
+    "subject_missing",
+    "value_bound_elsewhere"
+   ],
+   "reader": [
+    "keep",
+    "keep"
+   ],
+   "ms": [
+    2688,
+    2838
+   ]
+  },
+  {
+   "id": "k-her-gun-kurali-sorulan-gun",
+   "expect": "keep",
+   "codeClass": "needless:condition_added",
+   "code": "keep",
+   "codeIssues": [],
+   "reader": [
+    "keep",
+    "keep"
+   ],
+   "ms": [
+    2812,
+    2780
+   ]
+  },
+  {
+   "id": "k-sezon-disi-dogru",
+   "expect": "keep",
+   "codeClass": "needless:value_bound_elsewhere",
+   "code": "hold",
+   "codeIssues": [
+    "value_bound_elsewhere"
+   ],
+   "reader": [
+    "keep",
+    "keep"
+   ],
+   "ms": [
+    3977,
+    3804
+   ]
+  },
+  {
+   "id": "k-zamir-ucret-en",
+   "expect": "keep",
+   "codeClass": "needless:subject_missing",
+   "code": "keep",
+   "codeIssues": [],
+   "reader": [
+    "partial",
+    "partial"
+   ],
+   "ms": [
+    2458,
+    2596
+   ]
+  },
+  {
+   "id": "k-almanca-evcil-olumsuz",
+   "expect": "keep",
+   "codeClass": "needless:polarity_mismatch",
+   "code": "keep",
+   "codeIssues": [],
+   "reader": [
+    "keep",
+    "keep"
+   ],
+   "ms": [
+    2002,
+    1718
+   ]
+  },
+  {
+   "id": "k-kural-ve-istisna-birlikte",
+   "expect": "keep",
+   "codeClass": "needless:none",
+   "code": "hold",
+   "codeIssues": [
+    "value_bound_elsewhere"
+   ],
+   "reader": [
+    "keep",
+    "keep"
+   ],
+   "ms": [
+    2428,
+    3024
+   ]
+  }
+ ]
+}

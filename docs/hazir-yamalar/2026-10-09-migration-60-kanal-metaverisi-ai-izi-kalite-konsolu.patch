@@ -1,0 +1,3282 @@
+diff --git a/docs/TASARIM-2026-10-09-migration-paketi-60.md b/docs/TASARIM-2026-10-09-migration-paketi-60.md
+index e191f83..51f59ec 100644
+--- a/docs/TASARIM-2026-10-09-migration-paketi-60.md
++++ b/docs/TASARIM-2026-10-09-migration-paketi-60.md
+@@ -1,6 +1,8 @@
+ # Migration paketi 60 — tasarım ve onay önerisi (2026-10-09)
+ 
+-> **DURUM: ÖNERİ. Şemaya / `prisma/migrations/`e HİÇBİR şey eklenmedi.** Kural (CLAUDE.md): migration içeren push = taze `pg_dump`
++> **DURUM (10-09 akşam): kurucu "tamamını hazırla" dedi → kod YEREL dalda hazır (`wip/migration-60`), PUSH EDİLMEDİ.** Ayrıntı ↓"Uygulama
++> durumu". Aşağıdaki ilk metin önerinin aynen kaydıdır.
++> ~~DURUM: ÖNERİ. Şemaya / `prisma/migrations/`e HİÇBİR şey eklenmedi.~~ Kural (CLAUDE.md): migration içeren push = taze `pg_dump`
+ > + kurucunun AÇIK onayı. Railway kapalı; dal açılınca son yeşil commit canlıya gider ve 59 (karar motoru) da henüz canlıda değil.
+ > İnceleme 10-09 (Haiku): adsız indeks, eksik `sourcePlatform` SQL'i, iz metninin silme paritesi, okuma geçişinde geri düşüş düzeltildi.
+ > Kaynak: kurucu talimatı 09-07 (değişmez 2 / 3 / 9 / 14, "Founder AI Quality Console", "Generation trace") ve
+@@ -143,3 +145,35 @@ CREATE INDEX "AiReviewLabel_generationId_idx" ON "AiReviewLabel" ("generationId"
+ 1. Paketin tamamı (A–E) onaylı mı, yoksa önce yalnız A–C (Airbnb öncesi kimlik / kaynak / sağlık) mı?
+ 2. §D-1: taslak ve gönderilen metin izde saklansın mı (önerim: evet, `Message` ile aynı saklama süpürgesi)?
+ 3. Kalite konsolu bugün mü, yoksa Railway geri açılınca mı (canlı veri olmadan konsol boş görünür)?
++
++## Uygulama durumu (10-09 akşam — dal `wip/migration-60`, PUSH EDİLMEDİ)
++
++Kurucu kararları (10-09): paketin tamamı · §D-1 (a) metin saklanır, mesajlarla aynı saklama · konsol hazırlanır. Her parça kırmızı-önce
+++ mutasyon (ayrık worktree) + gerçek PostgreSQL entegrasyon testi ile; üç Haiku inceleme turu (bulgular kodla doğrulandı, bir kısmı
++gerekçeyle reddedildi).
++
++| Parça | Kod | Anahtar (hepsi VARSAYILAN KAPALI) | Test |
++|---|---|---|---|
++| Migration `60_channel_listing_ai_trace` | taze PG'de 00→60 zinciri, sıfır drift | — | kanarya + scrub-scope pinleri |
++| D iz yazıcı | `ai/generation-trace.ts`; kanal oto-yanıtının 5 karar noktası `recordDecision` (RiskEvent + AYNI karar/gerekçe/kanıt) | `AI_GENERATION_TRACE_ENABLED` | birim + uçtan uca (11/11 mutant) |
++| D KVKK | saklama iki dal + yaş çapası bacakları + misafir silmesi + konuşma birleştirme; etiket notu da | (anahtardan bağımsız: eski izler hep temizlenir) | 13 entegrasyon (9/9 mutant) |
++| E konsol | `GET /api/admin/ai-quality` · `POST …/labels` · `/admin/ai-quality` sayfası | (yazım anahtarı açılınca dolar) | 20 entegrasyon (13/13 mutant) |
++| A–C kanal metaverisi | `channels/metadata.ts`; senkron ilan eşlemesi + ham platform + okuma sağlığı | `CHANNEL_METADATA_WRITE` | 17 entegrasyon |
++
++**Tasarımdan bilinçli sapmalar (kurucu onayına):**
++1. **Konsol amacı KAPALI KÜME** (kalite / olay / şikâyet incelemesi + isteğe bağlı talep no), talimattaki "yazılı amaç" serbest metin
++   DEĞİL — 09-30 operatör dışa aktarım kararının emsali: kayıt müşterinin KVKK ihracına girer, serbest metin kişisel veri taşıyabilir.
++2. **Kayda operatörün IP'si / oturum kimliği YAZILMAZ** (bu belgenin §E'si "IP / oturum metadataJson içinde" diyordu): 08-01 denetim
++   kuralı — `AuditLog.metadataJson` müşterinin ihracına girer, operatörün kişisel verisi üçüncü kişi verisidir. Kimlik opak `actorUserId`.
++3. **`AiGeneration.conversationId` ZORUNLU** (tasarımda boş olabilirdi; Haiku: konuşmasız iz metni hiçbir süpürgeye düşmezdi). Bütün
++   yüzeyler (kanal, QR, karar kartı) bir konuşmaya bağlı.
++4. **İz org dışa aktarımına GİRMEZ** (eğitim / dışa aktarma yasağı; okuyan modül listesi kapalı, pinli). Not: misafir mesajları ihraçta
++   var; izin ihraca girmesi istenirse bu ayrı karar.
++5. **Kanal metaverisinin üç yazıcısı TEK anahtarda** (`CHANNEL_METADATA_WRITE`): aynı "expand → dual-write" aşaması, hepsi yalnız yazar.
++6. **`lock_timeout` eklenmedi** (Haiku önerisi): 59 migration'da emsal yok; zaman aşımı Prisma'da "başarısız migration" kaydı bırakır
++   ve açılışı elle kurtarma ister — kısa bir bekleme bundan iyidir; Railway açılışında trafik yok.
++
++**Kalan (bu paketin dışında, ayrı onay):** okuma geçişleri (`CHANNEL_LISTING_READ` vb.) · müsaitlik motorunun sağlık kaydını kullanması
++(davranış değişikliği) · QR / öneri / karar metni yüzeylerinin izi · konsolda istatistik görünümü.
++
++**Push öncesi (kural):** taze `pg_dump` (`ops-backup-prod.ps1`) + `pg_restore -l` + SHA → kurucunun "push et" onayı → CI.
+diff --git a/prisma/migrations/60_channel_listing_ai_trace/migration.sql b/prisma/migrations/60_channel_listing_ai_trace/migration.sql
+new file mode 100644
+index 0000000..c5d7eea
+--- /dev/null
++++ b/prisma/migrations/60_channel_listing_ai_trace/migration.sql
+@@ -0,0 +1,108 @@
++-- Migration 60 (kurucu onayı 10-09: "tamamını hazırla"; tasarım `docs/TASARIM-2026-10-09-migration-paketi-60.md`).
++-- YALNIZ EKLEME: dolu tablolara (ChannelConnection, Reservation) nullable sütun; üç YENİ tablo + adlı indeksler + bağlantılar.
++-- Dolu tabloya tekil kısıt / zorunlu sütun / silme YOK. Geri alma: sütunlar / tablolar kullanılmaz kalır (yazıcılar anahtar arkasında).
++--   · ChannelListing: bağlantı kapsamlı ilan kimliği (değişmez 3) — `Property.hospitableId` geçiş boyunca durur.
++--   · Reservation.sourcePlatform: sağlayıcının ham platform dizesi (değişmez 2) — yalnız gösterim / teşhis.
++--   · ChannelConnection.lastRead*: sağlayıcıdan bağımsız bağlantı sağlığı (değişmez 9).
++--   · AiGeneration + AiReviewLabel: üretim izi + kurucu kalite konsolu etiketi (talimat 09-07; §D-1: metin Message ile aynı saklamada).
++-- 🚨 Push = taze `pg_dump` + kurucunun AÇIK "push et" onayı (CLAUDE.md).
++
++-- AlterTable
++ALTER TABLE "ChannelConnection" ADD COLUMN     "lastReadErrorAt" TIMESTAMP(3),
++ADD COLUMN     "lastReadErrorKind" TEXT,
++ADD COLUMN     "lastReadOkAt" TIMESTAMP(3);
++
++-- AlterTable
++ALTER TABLE "Reservation" ADD COLUMN     "sourcePlatform" TEXT;
++
++-- CreateTable
++CREATE TABLE "ChannelListing" (
++    "id" TEXT NOT NULL,
++    "organizationId" TEXT NOT NULL,
++    "connectionId" TEXT NOT NULL,
++    "externalId" TEXT NOT NULL,
++    "propertyId" TEXT NOT NULL,
++    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++    "updatedAt" TIMESTAMP(3) NOT NULL,
++
++    CONSTRAINT "ChannelListing_pkey" PRIMARY KEY ("id")
++);
++
++-- CreateTable
++CREATE TABLE "AiGeneration" (
++    "id" TEXT NOT NULL,
++    "organizationId" TEXT NOT NULL,
++    "conversationId" TEXT NOT NULL,
++    "propertyId" TEXT,
++    "reservationId" TEXT,
++    "triggerMessageId" TEXT,
++    "surface" TEXT NOT NULL,
++    "model" TEXT NOT NULL,
++    "promptVersion" TEXT NOT NULL,
++    "retrievalVersion" TEXT,
++    "toolContractVersion" INTEGER,
++    "kbEvidenceJson" TEXT,
++    "toolResultsJson" TEXT,
++    "decision" TEXT NOT NULL,
++    "gateReason" TEXT,
++    "latencyMs" INTEGER,
++    "promptTokens" INTEGER,
++    "completionTokens" INTEGER,
++    "reasoningTokens" INTEGER,
++    "costMicroUsd" INTEGER,
++    "draftText" TEXT,
++    "sentText" TEXT,
++    "contextDiagnosticsJson" TEXT,
++    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++
++    CONSTRAINT "AiGeneration_pkey" PRIMARY KEY ("id")
++);
++
++-- CreateTable
++CREATE TABLE "AiReviewLabel" (
++    "id" TEXT NOT NULL,
++    "generationId" TEXT NOT NULL,
++    "reviewerUserId" TEXT,
++    "label" TEXT NOT NULL,
++    "note" TEXT,
++    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++
++    CONSTRAINT "AiReviewLabel_pkey" PRIMARY KEY ("id")
++);
++
++-- CreateIndex
++CREATE INDEX "ChannelListing_propertyId_idx" ON "ChannelListing"("propertyId");
++
++-- CreateIndex
++CREATE INDEX "ChannelListing_organizationId_idx" ON "ChannelListing"("organizationId");
++
++-- CreateIndex
++CREATE UNIQUE INDEX "ChannelListing_connectionId_externalId_key" ON "ChannelListing"("connectionId", "externalId");
++
++-- CreateIndex
++CREATE INDEX "AiGeneration_organizationId_createdAt_idx" ON "AiGeneration"("organizationId", "createdAt");
++
++-- CreateIndex
++CREATE INDEX "AiGeneration_conversationId_idx" ON "AiGeneration"("conversationId");
++
++-- CreateIndex
++CREATE INDEX "AiReviewLabel_generationId_idx" ON "AiReviewLabel"("generationId");
++
++-- AddForeignKey
++ALTER TABLE "ChannelListing" ADD CONSTRAINT "ChannelListing_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++
++-- AddForeignKey
++ALTER TABLE "ChannelListing" ADD CONSTRAINT "ChannelListing_connectionId_fkey" FOREIGN KEY ("connectionId") REFERENCES "ChannelConnection"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++
++-- AddForeignKey
++ALTER TABLE "ChannelListing" ADD CONSTRAINT "ChannelListing_propertyId_fkey" FOREIGN KEY ("propertyId") REFERENCES "Property"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++
++-- AddForeignKey
++ALTER TABLE "AiGeneration" ADD CONSTRAINT "AiGeneration_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++
++-- AddForeignKey
++ALTER TABLE "AiGeneration" ADD CONSTRAINT "AiGeneration_conversationId_fkey" FOREIGN KEY ("conversationId") REFERENCES "Conversation"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++
++-- AddForeignKey
++ALTER TABLE "AiReviewLabel" ADD CONSTRAINT "AiReviewLabel_generationId_fkey" FOREIGN KEY ("generationId") REFERENCES "AiGeneration"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++
+diff --git a/prisma/schema.prisma b/prisma/schema.prisma
+index c8359c1..a10be83 100644
+--- a/prisma/schema.prisma
++++ b/prisma/schema.prisma
+@@ -168,6 +168,8 @@ model Organization {
+   messageOutbox         MessageOutbox[]
+   automatedMessageSends AutomatedMessageSend[]
+   channelConnections    ChannelConnection[]
++  channelListings       ChannelListing[]
++  aiGenerations         AiGeneration[]
+   ingestEvents          IngestEvent[]
+   signals               Signal[]
+   propertyMemories      PropertyMemory[]
+@@ -357,6 +359,7 @@ model Property {
+   calendarSources  CalendarSource[]
+   signals          Signal[]
+   memories         PropertyMemory[]
++  channelListings  ChannelListing[]
+ 
+   @@index([organizationId])
+   // Public QR concierge chat resolves a property by its secret chatToken on every
+@@ -502,6 +505,9 @@ model Reservation {
+   connectionId               String?
+   connectionEvidence         String?
+   ingestedAt                 DateTime?
++  // Migration 60 (kurucu onayı 10-09; değişmez 2): sağlayıcının HAM platform dizesi (ör. Hospitable `platform`). Yalnız ingest yazar,
++  // yalnız GÖSTERİM / teşhis okur — yetenek ASLA bundan çıkarılmaz (V0.9 pini). NULL = gözlenmedi (eski satır / elle / iCal).
++  sourcePlatform             String?
+   createdAt                  DateTime  @default(now())
+   updatedAt                  DateTime  @updatedAt
+ 
+@@ -613,12 +619,14 @@ model Conversation {
+   createdAt DateTime @default(now())
+   updatedAt DateTime @updatedAt
+ 
+-  property    Property           @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+-  reservation Reservation?       @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+-  messages    Message[]
+-  signals     Signal[]
+-  items       ConversationItem[]
+-  decisions   DecisionRequest[]
++  property      Property           @relation(fields: [propertyId], references: [id], onDelete: Cascade)
++  reservation   Reservation?       @relation(fields: [reservationId], references: [id], onDelete: SetNull)
++  messages      Message[]
++  signals       Signal[]
++  items         ConversationItem[]
++  decisions     DecisionRequest[]
++  // Migration 60: yapay zekâ üretim izi metin taşır (kurucu §D-1) → konuşma silinince iz de gider (silme paritesi).
++  aiGenerations AiGeneration[]
+ 
+   // THREAD IDENTITY (migration 45). One provider thread = at most one row.
+   //
+@@ -1194,24 +1202,30 @@ model AutomatedMessageSend {
+ //     connectionId belongs to another org is canceled by the worker, never sent.
+ // ---------------------------------------------------------------------------
+ model ChannelConnection {
+-  id              String    @id @default(cuid())
+-  organizationId  String
+-  provider        String // closed set in code (channels/outbound.ts OutboundProvider): "hospitable"
+-  status          String    @default("active") // active | disconnected | revoked (closed set, app-enforced)
+-  label           String? // human label for the connected account (e.g. "8 mülk")
+-  accessTokenEnc  String? // encrypted access token / PAT (null when not active)
+-  refreshTokenEnc String? // encrypted OAuth refresh token (null for PAT)
+-  tokenExpiresAt  DateTime? // OAuth access-token expiry; null = does not expire (PAT)
+-  generation      Int       @default(1) // bumps on every credential write — refresh CAS anchor
+-  connectedAt     DateTime?
+-  disconnectedAt  DateTime?
+-  revokedAt       DateTime?
+-  revokedReason   String? // closed: refresh_invalid_grant | send_401 | send_403
+-  lastRefreshAt   DateTime?
+-  createdAt       DateTime  @default(now())
+-  updatedAt       DateTime  @updatedAt
++  id                String    @id @default(cuid())
++  organizationId    String
++  provider          String // closed set in code (channels/outbound.ts OutboundProvider): "hospitable"
++  status            String    @default("active") // active | disconnected | revoked (closed set, app-enforced)
++  label             String? // human label for the connected account (e.g. "8 mülk")
++  accessTokenEnc    String? // encrypted access token / PAT (null when not active)
++  refreshTokenEnc   String? // encrypted OAuth refresh token (null for PAT)
++  tokenExpiresAt    DateTime? // OAuth access-token expiry; null = does not expire (PAT)
++  generation        Int       @default(1) // bumps on every credential write — refresh CAS anchor
++  connectedAt       DateTime?
++  disconnectedAt    DateTime?
++  revokedAt         DateTime?
++  revokedReason     String? // closed: refresh_invalid_grant | send_401 | send_403
++  lastRefreshAt     DateTime?
++  // Migration 60 (değişmez 9): sağlayıcıdan bağımsız bağlantı SAĞLIĞI — son başarılı / başarısız okuma ve kapalı küme hata türü
++  // (`IngestErrorKind`). Panel "iyi / sorunlu / okunamıyor" türetir; NULL = gözlenmedi.
++  lastReadOkAt      DateTime?
++  lastReadErrorAt   DateTime?
++  lastReadErrorKind String?
++  createdAt         DateTime  @default(now())
++  updatedAt         DateTime  @updatedAt
+ 
+-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
++  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
++  listings     ChannelListing[]
+ 
+   // One connection per provider per org (V0.3). A multi-account-per-provider model would
+   // change this key on a POPULATED table — a decision for a later migration, not a default.
+@@ -1485,3 +1499,90 @@ model EmailOutbox {
+   @@unique([userId, kind, version])
+   @@index([status, nextAttemptAt])
+ }
++
++// ---------------------------------------------------------------------------
++// MIGRATION 60 (kurucu onayı 10-09: "tamamını hazırla"; tasarım `docs/TASARIM-2026-10-09-migration-paketi-60.md`).
++// ---------------------------------------------------------------------------
++
++/// Bağlantı KAPSAMLI ilan kimliği (değişmez 3): dış kimlik global / mülk-içi eşsiz sayılmaz; eşsizlik (bağlantı, dış kimlik).
++/// `Property.hospitableId` (global unique) geçiş boyunca DURUR; okumalar `CHANNEL_LISTING_READ` arkasında, satırı olmayan mülkte
++/// `hospitableId`e düşer. `connectionId` CASCADE bilinçli: bağlantı satırı kod içinde silinmez (kopma / iptal belirteci boşaltır),
++/// tek silme yolu org silmesi; `RESTRICT` org silmesini kilitleyebilirdi.
++model ChannelListing {
++  id             String   @id @default(cuid())
++  organizationId String
++  connectionId   String
++  externalId     String
++  propertyId     String
++  createdAt      DateTime @default(now())
++  updatedAt      DateTime @updatedAt
++
++  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
++  connection   ChannelConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
++  property     Property          @relation(fields: [propertyId], references: [id], onDelete: Cascade)
++
++  @@unique([connectionId, externalId])
++  @@index([propertyId])
++  @@index([organizationId])
++}
++
++/// Yapay zekâ ÜRETİM İZİ (talimat 09-07 "Generation trace" + Kurucu AI Kalite Konsolu). Kurucu §D-1: taslak ve gönderilen METİN
++/// saklanır → `Message` ile AYNI saklama süpürgesi (24 ay) ve misafir silmesinde maskelenir; konuşma silinince CASCADE. Eğitim /
++/// ince ayar yoluna BAĞLANMAZ (mekanik pin). `propertyId` / `reservationId` / `triggerMessageId` opak (RiskEvent emsali).
++model AiGeneration {
++  id                     String   @id @default(cuid())
++  organizationId         String
++  /// ZORUNLU (Haiku incelemesi 10-09): saklama süpürgesi + misafir silmesi metni konuşmadan bulur; konuşmasız satırın metni hiçbir
++  /// süpürgeye düşmezdi. Bütün yüzeyler (kanal, QR, karar kartı) bir Conversation'a bağlıdır.
++  conversationId         String
++  propertyId             String?
++  reservationId          String?
++  triggerMessageId       String?
++  /// kapalı küme: channel_auto · channel_suggest · qr · decision_text
++  surface                String
++  model                  String
++  promptVersion          String
++  retrievalVersion       String?
++  toolContractVersion    Int?
++  /// kimlik + sürüm (RiskEvent.kbEvidenceJson biçimi), içerik YOK
++  kbEvidenceJson         String?
++  /// VerifiedToolResult[] (PII'siz)
++  toolResultsJson        String?
++  /// auto_sent · human_review · no_reply
++  decision               String
++  gateReason             String?
++  latencyMs              Int?
++  promptTokens           Int?
++  completionTokens       Int?
++  reasoningTokens        Int?
++  costMicroUsd           Int?
++  draftText              String?
++  sentText               String?
++  /// dahil mesaj kimlikleri, atlanan / bekleyen sayısı (PII yok)
++  contextDiagnosticsJson String?
++  createdAt              DateTime @default(now())
++
++  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
++  conversation Conversation    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
++  labels       AiReviewLabel[]
++
++  @@index([organizationId, createdAt])
++  @@index([conversationId])
++}
++
++/// Kurucu kalite konsolu ETİKETİ — operasyon verisinden AYRI; müşteriye görünen hiçbir şeyi değiştirmez.
++model AiReviewLabel {
++  id             String   @id @default(cuid())
++  generationId   String
++  /// süper-admin (opak)
++  reviewerUserId String?
++  /// kapalı küme: correct · hallucinated_fact · missed_context · repeated_greeting · wrong_tone · temporal_error · stale_knowledge ·
++  /// retrieval_failure · tool_should_have_been_used · unsafe_auto_send · escalation_failure
++  label          String
++  note           String?
++  createdAt      DateTime @default(now())
++
++  generation AiGeneration @relation(fields: [generationId], references: [id], onDelete: Cascade)
++
++  @@index([generationId])
++}
+diff --git a/scripts/apply-conversation-dedupe.ts b/scripts/apply-conversation-dedupe.ts
+index a2dbb50..33ff886 100644
+--- a/scripts/apply-conversation-dedupe.ts
++++ b/scripts/apply-conversation-dedupe.ts
+@@ -82,6 +82,7 @@ export interface ApplyOutcome {
+     signal: number;
+     conversationItem: number;
+     decisionRequest: number;
++    aiGeneration: number;
+   };
+   conversationsBefore: number;
+   conversationsAfter: number;
+@@ -113,7 +114,9 @@ const HANDLED_REFERENCES = {
+    * `DecisionRequest` (10-02, migration 59): aynı gerekçe — FK Cascade; kaybeden silinince ev sahibinin "karar bekliyor" kartı
+    * (ve onaylanmış geç çıkışın yapısal kaydı) SESSİZCE silinirdi. Tekillik mesaj kimliğini içerir, taşıma çakışmaz.
+    */
+-  repoint: ["MessageOutbox", "RiskEvent", "ShadowVerdict", "Signal", "ConversationItem", "DecisionRequest"],
++  // `AiGeneration` (10-09, migration 60): FK Cascade — kaybeden silinince o konuşmanın yapay zekâ üretim izi (kurucu kalite konsolu)
++  // SESSİZCE silinirdi; silmeden ÖNCE keeper'a taşınır.
++  repoint: ["MessageOutbox", "RiskEvent", "ShadowVerdict", "Signal", "ConversationItem", "DecisionRequest", "AiGeneration"],
+ } as const;
+ 
+ export function inventoryConversationReferences(): string[] {
+@@ -286,7 +289,7 @@ export async function applyConversationDedupe(
+           messagesDropped: 0,
+           messagesMovedUnique: 0,
+           messagesMovedNull: 0,
+-          refsRepointed: { messageOutbox: 0, riskEvent: 0, shadowVerdict: 0, signal: 0, conversationItem: 0, decisionRequest: 0 },
++          refsRepointed: { messageOutbox: 0, riskEvent: 0, shadowVerdict: 0, signal: 0, conversationItem: 0, decisionRequest: 0, aiGeneration: 0 },
+           conversationsBefore,
+           conversationsAfter: conversationsBefore,
+           messagesBefore,
+@@ -323,7 +326,7 @@ export async function applyConversationDedupe(
+       let dropped = 0;
+       let movedUnique = 0;
+       let movedNull = 0;
+-      const refs = { messageOutbox: 0, riskEvent: 0, shadowVerdict: 0, signal: 0, conversationItem: 0, decisionRequest: 0 };
++      const refs = { messageOutbox: 0, riskEvent: 0, shadowVerdict: 0, signal: 0, conversationItem: 0, decisionRequest: 0, aiGeneration: 0 };
+ 
+       for (const key of keys) {
+         // ── 0) DETERMİNİSTİK FOR UPDATE — id ASC sırayla, TEK TEK ─────────────
+@@ -466,6 +469,13 @@ export async function applyConversationDedupe(
+             data: { conversationId: plan.keeper.id },
+           })
+         ).count;
++        // Yapay zekâ üretim izi (cascade FK, migration 60): aynı gerekçe — silmeden ÖNCE keeper'a.
++        refs.aiGeneration += (
++          await tx.aiGeneration.updateMany({
++            where: { conversationId: { in: loserIds } },
++            data: { conversationId: plan.keeper.id },
++          })
++        ).count;
+         const stray = await tx.message.count({ where: { conversationId: { in: loserIds } } });
+         if (stray !== 0) throw new Error("kaybedende mesaj kaldı — rollback");
+ 
+@@ -543,6 +553,7 @@ export function formatApplyOutcome(o: ApplyOutcome): string[] {
+   L.push(pad("Repoint Signal (V1)", o.refsRepointed.signal));
+   L.push(pad("Repoint ConversationItem", o.refsRepointed.conversationItem));
+   L.push(pad("Repoint DecisionRequest", o.refsRepointed.decisionRequest));
++  L.push(pad("Repoint AiGeneration", o.refsRepointed.aiGeneration));
+   L.push("");
+   L.push(pad("Conversation", `${o.conversationsBefore} → ${o.conversationsAfter}`));
+   L.push(pad("Message", `${o.messagesBefore} → ${o.messagesAfter}`));
+diff --git a/scripts/env-check.mjs b/scripts/env-check.mjs
+index a021811..a80357e 100644
+--- a/scripts/env-check.mjs
++++ b/scripts/env-check.mjs
+@@ -514,6 +514,7 @@ export const STRICT_ONE_FLAGS = Object.freeze([
+   "AI_CONVERSATION_ITEMS_ENABLED",
+   "AI_COURTESY_RULE_ENABLED",
+   "AI_CONVERSATION_STATE_ENABLED",
++  "AI_GENERATION_TRACE_ENABLED",
+   "AI_HOST_DECISION_HOLD_ENABLED",
+   "AI_HOUSE_RULES_SHADOW",
+   "AI_KB_FEE_RULE_ENABLED",
+@@ -525,6 +526,7 @@ export const STRICT_ONE_FLAGS = Object.freeze([
+   "AUTO_REPLY_ENABLED",
+   "CALENDAR_URL_CONTRACT_ENABLED",
+   "CHANNEL_CONNECTION_READ",
++  "CHANNEL_METADATA_WRITE",
+   "DURABLE_OUTBOX_ENABLED",
+   "EMAIL_OUTBOX_ENABLED",
+   "GUEST_CHAT_ENABLED",
+diff --git a/src/app/(app)/admin/ai-quality/page.tsx b/src/app/(app)/admin/ai-quality/page.tsx
+new file mode 100644
+index 0000000..d3cd3f8
+--- /dev/null
++++ b/src/app/(app)/admin/ai-quality/page.tsx
+@@ -0,0 +1,32 @@
++import { redirect } from "next/navigation";
++import { requireAuth } from "@/lib/auth";
++import { prisma } from "@/lib/db";
++import { isSuperAdmin } from "@/lib/admin";
++import { isImpersonating } from "@/lib/auth/impersonation";
++import { PageHeader } from "@/components/page-header";
++import { Card, CardContent } from "@/components/ui/card";
++import { AiQualityConsole } from "@/components/admin/ai-quality-console";
++import { isDemoOrg } from "@/lib/demo-tenant/constants";
++
++export const dynamic = "force-dynamic";
++
++// Kurucu yapay zekâ kalite konsolu — yalnız 2FA'lı operatör, kendi hesabından. Sayfa YALNIZ işletme listesini taşır; izler API'den
++// amaçla (ve kayıtla) okunur (`/api/admin/ai-quality`).
++export default async function AiQualityPage() {
++  const session = await requireAuth();
++  if (!isSuperAdmin(session)) redirect("/dashboard");
++  if (isImpersonating(session)) redirect("/admin");
++
++  const orgs = await prisma.organization.findMany({ orderBy: { createdAt: "asc" }, select: { id: true, name: true } });
++
++  return (
++    <div className="space-y-6">
++      <PageHeader title="Yapay Zekâ Kalite Konsolu" description="Cevap kararlarının izi — salt-okuma, her görüntüleme kayıtlı." />
++      <Card>
++        <CardContent className="pt-6">
++          <AiQualityConsole orgs={orgs.filter((o) => !isDemoOrg(o.id))} />
++        </CardContent>
++      </Card>
++    </div>
++  );
++}
+diff --git a/src/app/(app)/admin/page.tsx b/src/app/(app)/admin/page.tsx
+index 6d9d124..cdc3cc8 100644
+--- a/src/app/(app)/admin/page.tsx
++++ b/src/app/(app)/admin/page.tsx
+@@ -377,6 +377,19 @@ export default async function AdminPage() {
+         </CardContent>
+       </Card>
+ 
++      <Card className="max-w-2xl">
++        <CardHeader>
++          <CardTitle className="text-base">Yapay Zekâ Kalite Konsolu</CardTitle>
++        </CardHeader>
++        <CardContent className="text-sm text-muted-foreground">
++          Cevap kararlarının izi (taslak, giden metin, kapı kararı) ve kurucu etiketleri — salt-okuma, her görüntüleme kayıtlı.{" "}
++          <a href="/admin/ai-quality" className="font-medium text-primary underline-offset-4 hover:underline">
++            Konsolu aç
++          </a>
++          {" "}(iz yazımı <code className="font-mono text-xs">AI_GENERATION_TRACE_ENABLED=1</code> ile açılır).
++        </CardContent>
++      </Card>
++
+       <Card className="max-w-2xl">
+         <CardHeader>
+           <CardTitle className="text-base">AI Kalite Denetçisi (Claude — gölge)</CardTitle>
+diff --git a/src/app/api/admin/ai-quality/labels/route.ts b/src/app/api/admin/ai-quality/labels/route.ts
+new file mode 100644
+index 0000000..5cc7bf7
+--- /dev/null
++++ b/src/app/api/admin/ai-quality/labels/route.ts
+@@ -0,0 +1,60 @@
++import { type NextRequest, NextResponse } from "next/server";
++import { requireSession, unauthorized, badRequest, forbidden, parseJsonBody, payloadTooLarge, notFound } from "@/lib/api";
++import { isSuperAdmin } from "@/lib/admin";
++import { auditActor, writeAuditInTx } from "@/lib/audit";
++import { isImpersonating } from "@/lib/auth/impersonation";
++import { prisma } from "@/lib/db";
++import { reportError } from "@/lib/report-error";
++import { createAiReviewLabel, parseAiReviewLabelBody } from "@/lib/ai-quality/console";
++import { aiQualityCrossSite, recordAiQualityDenied } from "@/lib/ai-quality/gate";
++
++export const dynamic = "force-dynamic";
++
++// ---------------------------------------------------------------------------
++// Kurucu kalite konsolu — ETİKET YAZMA (tek yazma ucu). Yalnız `AiReviewLabel` satırı oluşturur; mesaj, konuşma, rezervasyon,
++// gönderim ya da ayar DEĞİŞMEZ. İz satırı istekteki org'a ait olmalı (gövdeye başka kiracının iz kimliğini yazmak 404).
++// ---------------------------------------------------------------------------
++export async function POST(req: NextRequest) {
++  const session = await requireSession();
++  if (!session) return unauthorized();
++  if (!isSuperAdmin(session)) await recordAiQualityDenied(session, "not_operator", "label");
++  if (!isSuperAdmin(session)) return unauthorized();
++  if (isImpersonating(session)) {
++    await recordAiQualityDenied(session, "impersonating", "label");
++    return forbidden("Kalite konsolu operatörün kendi hesabından açılır — önce destek görünümünden çıkın.");
++  }
++  if (aiQualityCrossSite(req.headers.get("sec-fetch-site"))) {
++    await recordAiQualityDenied(session, "cross_site", "label");
++    return forbidden("Kalite konsolu yalnız operatör panelinden açılır.");
++  }
++
++  const body = await parseJsonBody<unknown>(req);
++  if (!body.ok) return body.tooLarge ? payloadTooLarge() : badRequest({ body: "İstek gövdesi okunamadı (JSON bekleniyor)." });
++  const parsed = parseAiReviewLabelBody(body.data);
++  if (!parsed.ok) return badRequest(parsed.errors);
++  const { orgId, generationId, label, note, purpose, ticket } = parsed;
++
++  try {
++    const created = await prisma.$transaction(async (tx) => {
++      const row = await createAiReviewLabel({ orgId, generationId, label, note, reviewerUserId: session.userId }, tx);
++      if (!row) return null;
++      // Not METNİ kayda girmez (kişisel veri taşıyabilir; kayıt müşterinin ihracına girer) — yalnız etiket kodu ve notun varlığı.
++      await writeAuditInTx(tx, {
++        organizationId: orgId,
++        actorUserId: auditActor(session),
++        action: "ai_quality.label",
++        metadata: { purpose, ...(ticket ? { ticket } : {}), generationId, label, hasNote: note !== null },
++      });
++      return row;
++    });
++    if (!created) {
++      // İz bu org'un değil / yok: deneme kayda girer (istenen org'a; org yoksa kayıt düşer, yanıt aynı).
++      await recordAiQualityDenied({ ...session, organizationId: orgId }, "generation_not_in_org", "label");
++      return notFound("İz bulunamadı.");
++    }
++    return NextResponse.json({ label: created }, { status: 201, headers: { "Cache-Control": "no-store" } });
++  } catch (err) {
++    void reportError("admin.ai-quality-label", err);
++    return NextResponse.json({ ok: false, error: "Etiket kaydedilemedi. Biraz sonra yeniden deneyin." }, { status: 503 });
++  }
++}
+diff --git a/src/app/api/admin/ai-quality/route.ts b/src/app/api/admin/ai-quality/route.ts
+new file mode 100644
+index 0000000..cd86628
+--- /dev/null
++++ b/src/app/api/admin/ai-quality/route.ts
+@@ -0,0 +1,58 @@
++import { type NextRequest, NextResponse } from "next/server";
++import { requireSession, unauthorized, badRequest, forbidden } from "@/lib/api";
++import { isSuperAdmin } from "@/lib/admin";
++import { auditActor, writeAuditInTx } from "@/lib/audit";
++import { isImpersonating } from "@/lib/auth/impersonation";
++import { prisma } from "@/lib/db";
++import { reportError } from "@/lib/report-error";
++import { listAiGenerations, parseAiQualityQuery } from "@/lib/ai-quality/console";
++import { aiQualityCrossSite, recordAiQualityDenied } from "@/lib/ai-quality/gate";
++
++export const dynamic = "force-dynamic";
++
++// ---------------------------------------------------------------------------
++// Kurucu kalite konsolu — ÜRETİM İZİ OKUMA (salt-okuma). Sözleşme `src/lib/ai-quality/console.ts`.
++// Yalnız 2FA'lı operatör, kendi hesabından, amaçla; görüntüleme kaydı YAZILAMAZSA veri DÖNMEZ.
++// ---------------------------------------------------------------------------
++export async function GET(req: NextRequest) {
++  const session = await requireSession();
++  if (!session) return unauthorized();
++  if (!isSuperAdmin(session)) await recordAiQualityDenied(session, "not_operator", "view");
++  if (!isSuperAdmin(session)) return unauthorized();
++  if (isImpersonating(session)) {
++    await recordAiQualityDenied(session, "impersonating", "view");
++    return forbidden("Kalite konsolu operatörün kendi hesabından açılır — önce destek görünümünden çıkın.");
++  }
++  if (aiQualityCrossSite(req.headers.get("sec-fetch-site"))) {
++    await recordAiQualityDenied(session, "cross_site", "view");
++    return forbidden("Kalite konsolu yalnız operatör panelinden açılır.");
++  }
++
++  const parsed = parseAiQualityQuery(new URL(req.url).searchParams);
++  if (!parsed.ok) return badRequest(parsed.errors);
++  const { orgId, purpose, ticket, decision, before } = parsed;
++
++  const org = await prisma.organization.findUnique({ where: { id: orgId }, select: { id: true, name: true } });
++  if (!org) return badRequest({ orgId: "İşletme bulunamadı." });
++
++  const page = await listAiGenerations(orgId, { decision, before });
++  if (page.invalidCursor) return badRequest({ before: "Sayfa imleci bu işletmede yok; listeyi baştan yükleyin." });
++
++  // ZORUNLU kayıt VERİ DÖNMEDEN ÖNCE: yazılamazsa (veritabanı arızası) hiçbir iz gösterilmez.
++  try {
++    await writeAuditInTx(prisma, {
++      organizationId: orgId,
++      actorUserId: auditActor(session),
++      action: "ai_quality.view",
++      metadata: { purpose, ...(ticket ? { ticket } : {}), count: page.rows.length, ...(decision ? { decision } : {}) },
++    });
++  } catch (err) {
++    void reportError("admin.ai-quality-audit", err);
++    return NextResponse.json({ ok: false, error: "Kayıt yazılamadı; izler gösterilmedi. Biraz sonra yeniden deneyin." }, { status: 503 });
++  }
++
++  return NextResponse.json(
++    { organization: org, generations: page.rows, nextBefore: page.nextBefore },
++    { headers: { "Cache-Control": "no-store" } },
++  );
++}
+diff --git a/src/components/admin/ai-quality-console.tsx b/src/components/admin/ai-quality-console.tsx
+new file mode 100644
+index 0000000..7392494
+--- /dev/null
++++ b/src/components/admin/ai-quality-console.tsx
+@@ -0,0 +1,268 @@
++"use client";
++
++import { useState } from "react";
++import { Loader2, Search, Tag } from "lucide-react";
++import { Button } from "@/components/ui/button";
++import { Field } from "@/components/form-field";
++import {
++  AI_QUALITY_PURPOSES,
++  AI_REVIEW_LABELS,
++  AI_REVIEW_LABEL_NAMES,
++  type AiQualityPurpose,
++  type AiReviewLabelCode,
++} from "@/lib/ai-quality/codes";
++
++/**
++ * Kurucu yapay zekâ kalite konsolu (salt-okuma + etiket). Her listeleme ve etiket sunucuda AMAÇLA kaydedilir; mesaj gönderilmez,
++ * konuşma / müşteri verisi değişmez. Sözleşme `src/lib/ai-quality/console.ts`.
++ */
++
++interface OrgOption {
++  id: string;
++  name: string;
++}
++
++interface Generation {
++  id: string;
++  conversationId: string;
++  surface: string;
++  model: string;
++  promptVersion: string;
++  decision: string;
++  gateReason: string | null;
++  latencyMs: number | null;
++  promptTokens: number | null;
++  completionTokens: number | null;
++  reasoningTokens: number | null;
++  draftText: string | null;
++  sentText: string | null;
++  createdAt: string;
++  labels: { id: string; label: AiReviewLabelCode; note: string | null; createdAt: string }[];
++}
++
++const DECISION_NAMES: Record<string, string> = {
++  auto_sent: "Otomatik gönderildi",
++  human_review: "Ev sahibine bırakıldı",
++  no_reply: "Cevap yok",
++};
++
++const selectClass = "h-9 w-full rounded-md border border-input bg-background px-3 text-sm";
++
++export function AiQualityConsole({ orgs }: { orgs: OrgOption[] }) {
++  const [orgId, setOrgId] = useState(orgs[0]?.id ?? "");
++  const [purpose, setPurpose] = useState<AiQualityPurpose | "">("");
++  const [ticket, setTicket] = useState("");
++  const [decision, setDecision] = useState("");
++  const [busy, setBusy] = useState(false);
++  const [error, setError] = useState<string | null>(null);
++  const [rows, setRows] = useState<Generation[] | null>(null);
++  const [nextBefore, setNextBefore] = useState<string | null>(null);
++  // İşletme / amaç / süzgeç değişince eski liste ve imleci düşür (başka org'un satırları karışmasın).
++  const resetList = () => {
++    setRows(null);
++    setNextBefore(null);
++  };
++
++  async function load(before: string | null) {
++    if (!purpose) {
++      setError("İnceleme amacını seçin.");
++      return;
++    }
++    setBusy(true);
++    setError(null);
++    try {
++      const q = new URLSearchParams({ orgId, purpose, ...(ticket.trim() ? { ticket: ticket.trim() } : {}) });
++      if (decision) q.set("decision", decision);
++      if (before) q.set("before", before);
++      const res = await fetch(`/api/admin/ai-quality?${q}`, { cache: "no-store" });
++      const data = await res.json().catch(() => ({}));
++      if (!res.ok) {
++        const fields = data.fields as Record<string, string> | undefined;
++        setError((fields ? Object.values(fields)[0] : null) ?? data.error ?? "İzler yüklenemedi.");
++        return;
++      }
++      setRows((prev) => (before && prev ? [...prev, ...(data.generations as Generation[])] : (data.generations as Generation[])));
++      setNextBefore(data.nextBefore ?? null);
++    } catch {
++      setError("İnternet bağlantınızda sorun var gibi görünüyor. Kontrol edip tekrar deneyin.");
++    } finally {
++      setBusy(false);
++    }
++  }
++
++  function onLabeled(generationId: string, label: Generation["labels"][number]) {
++    setRows((prev) => prev?.map((g) => (g.id === generationId ? { ...g, labels: [...g.labels, label] } : g)) ?? prev);
++  }
++
++  return (
++    <div className="space-y-4">
++      <p className="text-sm text-muted-foreground">
++        Yapay zekânın her cevap kararı: modelin taslağı, misafire giden metin, kapının kararı ve gerekçesi. Salt-okuma — hiçbir mesaj
++        gönderilmez, hiçbir konuşma değişmez. Her listeleme ve etiket seçtiğiniz amaçla kayda girer.
++      </p>
++      <div className="flex flex-wrap items-end gap-2">
++        <Field label="İşletme" htmlFor="aq-org" className="min-w-[200px]">
++          <select id="aq-org" value={orgId} onChange={(e) => {
++              setOrgId(e.target.value);
++              resetList();
++            }} className={selectClass}>
++            {orgs.map((o) => (
++              <option key={o.id} value={o.id}>
++                {o.name}
++              </option>
++            ))}
++          </select>
++        </Field>
++        <Field label="Amaç" htmlFor="aq-purpose" className="min-w-[180px]">
++          <select id="aq-purpose" value={purpose} onChange={(e) => {
++              setPurpose(e.target.value as AiQualityPurpose | "");
++              resetList();
++            }} className={selectClass}>
++            <option value="">Seçin…</option>
++            {(Object.keys(AI_QUALITY_PURPOSES) as AiQualityPurpose[]).map((p) => (
++              <option key={p} value={p}>
++                {AI_QUALITY_PURPOSES[p]}
++              </option>
++            ))}
++          </select>
++        </Field>
++        <Field label="Talep no (isteğe bağlı)" htmlFor="aq-ticket" className="w-[160px]">
++          <input id="aq-ticket" value={ticket} onChange={(e) => setTicket(e.target.value)} className={selectClass} maxLength={40} />
++        </Field>
++        <Field label="Karar" htmlFor="aq-decision" className="min-w-[170px]">
++          <select id="aq-decision" value={decision} onChange={(e) => {
++              setDecision(e.target.value);
++              resetList();
++            }} className={selectClass}>
++            <option value="">Hepsi</option>
++            {Object.entries(DECISION_NAMES).map(([k, v]) => (
++              <option key={k} value={k}>
++                {v}
++              </option>
++            ))}
++          </select>
++        </Field>
++        <Button type="button" variant="outline" onClick={() => load(null)} disabled={busy || !orgId}>
++          {busy ? <Loader2 className="size-4 animate-spin" /> : <Search className="size-4" />}
++          İzleri göster
++        </Button>
++      </div>
++
++      {error ? <p className="text-sm text-destructive">{error}</p> : null}
++
++      {rows && rows.length === 0 ? <p className="text-sm text-muted-foreground">Bu işletme için kayıtlı iz yok.</p> : null}
++
++      {rows?.map((g) => (
++        <GenerationCard key={g.id} g={g} orgId={orgId} purpose={purpose} ticket={ticket} onLabeled={onLabeled} />
++      ))}
++
++      {nextBefore ? (
++        <Button type="button" variant="ghost" onClick={() => load(nextBefore)} disabled={busy}>
++          Daha eski izler
++        </Button>
++      ) : null}
++    </div>
++  );
++}
++
++function GenerationCard({
++  g,
++  orgId,
++  purpose,
++  ticket,
++  onLabeled,
++}: {
++  g: Generation;
++  orgId: string;
++  purpose: AiQualityPurpose | "";
++  ticket: string;
++  onLabeled: (id: string, l: Generation["labels"][number]) => void;
++}) {
++  const [label, setLabel] = useState<AiReviewLabelCode>("correct");
++  const [note, setNote] = useState("");
++  const [busy, setBusy] = useState(false);
++  const [error, setError] = useState<string | null>(null);
++
++  async function save() {
++    setBusy(true);
++    setError(null);
++    try {
++      const res = await fetch("/api/admin/ai-quality/labels", {
++        method: "POST",
++        headers: { "Content-Type": "application/json" },
++        body: JSON.stringify({ orgId, generationId: g.id, label, note: note.trim() || null, purpose, ...(ticket.trim() ? { ticket: ticket.trim() } : {}) }),
++      });
++      const data = await res.json().catch(() => ({}));
++      if (!res.ok) {
++        const fields = data.fields as Record<string, string> | undefined;
++        setError((fields ? Object.values(fields)[0] : null) ?? data.error ?? "Etiket kaydedilemedi.");
++        return;
++      }
++      onLabeled(g.id, data.label);
++      setNote("");
++    } catch {
++      setError("İnternet bağlantınızda sorun var gibi görünüyor. Kontrol edip tekrar deneyin.");
++    } finally {
++      setBusy(false);
++    }
++  }
++
++  return (
++    <div className="space-y-2 rounded-lg border border-border p-3 text-sm">
++      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
++        <span>{new Date(g.createdAt).toLocaleString("tr-TR")}</span>
++        <span className="font-medium text-foreground">{DECISION_NAMES[g.decision] ?? g.decision}</span>
++        {g.gateReason ? <span>gerekçe: {g.gateReason}</span> : null}
++        <span>
++          {g.model} · istem {g.promptVersion}
++        </span>
++        {g.latencyMs !== null ? <span>{g.latencyMs} ms</span> : null}
++        {g.promptTokens !== null ? (
++          <span>
++            {g.promptTokens}+{g.completionTokens ?? 0} token{g.reasoningTokens ? ` (düşünme ${g.reasoningTokens})` : ""}
++          </span>
++        ) : null}
++      </div>
++      <div className="grid gap-2 md:grid-cols-2">
++        <div>
++          <div className="text-xs font-medium text-muted-foreground">Modelin taslağı</div>
++          <p className="whitespace-pre-wrap">{g.draftText ?? "— (saklama süresi doldu ya da yok)"}</p>
++        </div>
++        <div>
++          <div className="text-xs font-medium text-muted-foreground">Misafire giden</div>
++          <p className="whitespace-pre-wrap">{g.sentText ?? "— (gönderilmedi)"}</p>
++        </div>
++      </div>
++      {g.labels.length > 0 ? (
++        <ul className="flex flex-wrap gap-1">
++          {g.labels.map((l) => (
++            <li key={l.id} className="rounded bg-muted px-2 py-0.5 text-xs" title={l.note ?? undefined}>
++              {AI_REVIEW_LABEL_NAMES[l.label] ?? l.label}
++            </li>
++          ))}
++        </ul>
++      ) : null}
++      <div className="flex flex-wrap items-end gap-2">
++        <select value={label} onChange={(e) => setLabel(e.target.value as AiReviewLabelCode)} className="h-8 rounded-md border border-input bg-background px-2 text-xs">
++          {AI_REVIEW_LABELS.map((l) => (
++            <option key={l} value={l}>
++              {AI_REVIEW_LABEL_NAMES[l]}
++            </option>
++          ))}
++        </select>
++        <input
++          value={note}
++          onChange={(e) => setNote(e.target.value)}
++          placeholder="Not (isteğe bağlı)"
++          maxLength={1000}
++          className="h-8 min-w-[200px] flex-1 rounded-md border border-input bg-background px-2 text-xs"
++        />
++        <Button type="button" size="sm" variant="outline" onClick={save} disabled={busy || !purpose}>
++          {busy ? <Loader2 className="size-3 animate-spin" /> : <Tag className="size-3" />}
++          Etiketle
++        </Button>
++      </div>
++      {error ? <p className="text-xs text-destructive">{error}</p> : null}
++    </div>
++  );
++}
+diff --git a/src/lib/ai-quality/codes.ts b/src/lib/ai-quality/codes.ts
+new file mode 100644
+index 0000000..83eda2b
+--- /dev/null
++++ b/src/lib/ai-quality/codes.ts
+@@ -0,0 +1,42 @@
++// ---------------------------------------------------------------------------
++// Kalite konsolu KAPALI KÜMELERİ — yaprak modül (sunucu / istemci ortak; hiçbir şey import etmez).
++// ---------------------------------------------------------------------------
++
++/** İnceleme amacı — serbest metin YOK (kayıt müşterinin KVKK ihracına girer; kurucu kararı 09-30 emsali). */
++export const AI_QUALITY_PURPOSES = {
++  quality_review: "Kalite incelemesi",
++  incident_review: "Olay incelemesi",
++  complaint_review: "Şikâyet incelemesi",
++} as const;
++export type AiQualityPurpose = keyof typeof AI_QUALITY_PURPOSES;
++
++/** Kurucu etiketleri (talimat 09-07 listesi). */
++export const AI_REVIEW_LABELS = [
++  "correct",
++  "hallucinated_fact",
++  "missed_context",
++  "repeated_greeting",
++  "wrong_tone",
++  "temporal_error",
++  "stale_knowledge",
++  "retrieval_failure",
++  "tool_should_have_been_used",
++  "unsafe_auto_send",
++  "escalation_failure",
++] as const;
++export type AiReviewLabelCode = (typeof AI_REVIEW_LABELS)[number];
++
++/** Etiketlerin Türkçe adları (konsol). */
++export const AI_REVIEW_LABEL_NAMES: Record<AiReviewLabelCode, string> = {
++  correct: "Doğru",
++  hallucinated_fact: "Uydurma bilgi",
++  missed_context: "Bağlam kaçırıldı",
++  repeated_greeting: "Tekrarlanan selam",
++  wrong_tone: "Yanlış üslup",
++  temporal_error: "Zaman hatası",
++  stale_knowledge: "Bayat bilgi",
++  retrieval_failure: "Bilgi getirilemedi",
++  tool_should_have_been_used: "Araç kullanılmalıydı",
++  unsafe_auto_send: "Güvensiz otomatik gönderim",
++  escalation_failure: "Devir hatası",
++};
+diff --git a/src/lib/ai-quality/console.ts b/src/lib/ai-quality/console.ts
+new file mode 100644
+index 0000000..71ea32a
+--- /dev/null
++++ b/src/lib/ai-quality/console.ts
+@@ -0,0 +1,143 @@
++import "server-only";
++
++import type { Prisma } from "@prisma/client";
++import { prisma } from "@/lib/db";
++
++// ---------------------------------------------------------------------------
++// KURUCU YAPAY ZEKÂ KALİTE KONSOLU (kurucu talimatı 09-07 "Founder AI Quality Console"; migration 60 tasarımı §E).
++//
++// Sözleşme:
++//   · Yalnız izin listesindeki + bu oturumda 2FA'dan geçmiş operatör (`isSuperAdmin`), KENDİ hesabından (bürünme değil).
++//   · SALT-OKUMA: üretim izini okur; müşteri verisini, mesajları, konuşma durumunu, gönderimi DEĞİŞTİREN hiçbir yol yok.
++//     Tek yazma: kurucu etiketi (`AiReviewLabel`) — operasyon verisinden ayrı tablo.
++//   · Her görüntüleme ve her reddedilen deneme `AuditLog`a. Amaç KAPALI KÜME (kurucu kararı 09-30, operatör dışa aktarımı emsali:
++//     serbest metin kişisel veri taşıyabilir ve kayıt müşterinin KVKK ihracına girer). Operatörün IP'si / e-postası kayda YAZILMAZ
++//     (denetim 08-01: kayıt müşteriye aktarılır, operatörün kişisel verisi üçüncü kişi verisidir) — kimlik opak `actorUserId`.
++//   · Kiracı süzgeci HER sorguda `organizationId` (istekten gelen id ile iz satırının org'u birlikte eşleşmeli).
++// ---------------------------------------------------------------------------
++
++import { AI_QUALITY_PURPOSES, AI_REVIEW_LABELS, type AiQualityPurpose, type AiReviewLabelCode } from "./codes";
++
++export { AI_QUALITY_PURPOSES, AI_REVIEW_LABELS, type AiQualityPurpose, type AiReviewLabelCode };
++
++const DECISIONS = new Set(["auto_sent", "human_review", "no_reply"]);
++const TICKET_RE = /^[A-Za-z0-9#_-]{1,40}$/;
++const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
++export const AI_QUALITY_PAGE_SIZE = 50;
++export const AI_REVIEW_NOTE_MAX = 1_000;
++
++type Errors = Record<string, string>;
++
++function purposeTicket(purposeRaw: unknown, ticketRaw: unknown, errors: Errors) {
++  const purpose = typeof purposeRaw === "string" ? purposeRaw.trim() : "";
++  const ticket = typeof ticketRaw === "string" ? ticketRaw.trim() : "";
++  if (!Object.hasOwn(AI_QUALITY_PURPOSES, purpose)) errors.purpose = "İnceleme amacını seçin.";
++  if (ticket && !TICKET_RE.test(ticket)) errors.ticket = "Talep numarası yalnız harf, rakam ve tire içerebilir.";
++  return { purpose: purpose as AiQualityPurpose, ticket: ticket || null };
++}
++
++export function parseAiQualityQuery(
++  params: URLSearchParams,
++):
++  | { ok: true; orgId: string; purpose: AiQualityPurpose; ticket: string | null; decision: string | null; before: string | null }
++  | { ok: false; errors: Errors } {
++  const errors: Errors = {};
++  const orgId = params.get("orgId")?.trim() ?? "";
++  if (!ID_RE.test(orgId)) errors.orgId = "orgId gerekli";
++  const { purpose, ticket } = purposeTicket(params.get("purpose"), params.get("ticket"), errors);
++  const decision = params.get("decision")?.trim() || null;
++  if (decision && !DECISIONS.has(decision)) errors.decision = "Bilinmeyen karar süzgeci.";
++  const before = params.get("before")?.trim() || null;
++  if (before && !ID_RE.test(before)) errors.before = "Geçersiz sayfa imleci.";
++  if (Object.keys(errors).length > 0) return { ok: false, errors };
++  return { ok: true, orgId, purpose, ticket, decision, before };
++}
++
++export function parseAiReviewLabelBody(
++  body: unknown,
++):
++  | { ok: true; orgId: string; generationId: string; label: AiReviewLabelCode; note: string | null; purpose: AiQualityPurpose; ticket: string | null }
++  | { ok: false; errors: Errors } {
++  const errors: Errors = {};
++  const b = (body && typeof body === "object" ? body : {}) as Record<string, unknown>;
++  const orgId = typeof b.orgId === "string" ? b.orgId.trim() : "";
++  const generationId = typeof b.generationId === "string" ? b.generationId.trim() : "";
++  if (!ID_RE.test(orgId)) errors.orgId = "orgId gerekli";
++  if (!ID_RE.test(generationId)) errors.generationId = "generationId gerekli";
++  const label = typeof b.label === "string" ? b.label : "";
++  if (!(AI_REVIEW_LABELS as readonly string[]).includes(label)) errors.label = "Bilinmeyen etiket.";
++  let note: string | null = null;
++  if (b.note != null) {
++    if (typeof b.note !== "string") errors.note = "Not metin olmalı.";
++    else if (b.note.length > AI_REVIEW_NOTE_MAX) errors.note = `Not en çok ${AI_REVIEW_NOTE_MAX} karakter olabilir.`;
++    else note = b.note.replace(/\u0000/g, "").trim() || null;
++  }
++  const { purpose, ticket } = purposeTicket(b.purpose, b.ticket, errors);
++  if (Object.keys(errors).length > 0) return { ok: false, errors };
++  return { ok: true, orgId, generationId, label: label as AiReviewLabelCode, note, purpose, ticket };
++}
++
++/** Bir org'un üretim izleri — yeniden eskiye, imleçli. Kiracı süzgeci `organizationId`. */
++export async function listAiGenerations(orgId: string, opts: { decision: string | null; before: string | null }) {
++  const cursorRow = opts.before
++    ? await prisma.aiGeneration.findFirst({ where: { id: opts.before, organizationId: orgId }, select: { createdAt: true, id: true } })
++    : null;
++  // İmleç bu org'da yoksa (silinmiş ya da başka kiracının) sessizce ilk sayfaya DÜŞÜLMEZ — liste tekrarlanır / karışırdı.
++  if (opts.before && !cursorRow) return { invalidCursor: true as const, rows: [], nextBefore: null };
++  const rows = await prisma.aiGeneration.findMany({
++    where: {
++      organizationId: orgId,
++      ...(opts.decision ? { decision: opts.decision } : {}),
++      ...(cursorRow
++        ? { OR: [{ createdAt: { lt: cursorRow.createdAt } }, { createdAt: cursorRow.createdAt, id: { lt: cursorRow.id } }] }
++        : {}),
++    },
++    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
++    take: AI_QUALITY_PAGE_SIZE,
++    select: {
++      id: true,
++      conversationId: true,
++      propertyId: true,
++      surface: true,
++      model: true,
++      promptVersion: true,
++      decision: true,
++      gateReason: true,
++      kbEvidenceJson: true,
++      latencyMs: true,
++      promptTokens: true,
++      completionTokens: true,
++      reasoningTokens: true,
++      draftText: true,
++      sentText: true,
++      createdAt: true,
++      labels: { select: { id: true, label: true, note: true, createdAt: true }, orderBy: { createdAt: "asc" } },
++    },
++  });
++  return { invalidCursor: false as const, rows, nextBefore: rows.length === AI_QUALITY_PAGE_SIZE ? rows[rows.length - 1].id : null };
++}
++
++/**
++ * Kurucu etiketi yazar. İz satırı BU org'a ait değilse `null` (istekteki org id ile iz kimliği birlikte eşleşmeli — gövdeye başka
++ * kiracının iz kimliğini yazmak işe yaramaz). Yalnız `AiReviewLabel` satırı oluşturur; başka hiçbir tabloya dokunmaz.
++ */
++export async function createAiReviewLabel(
++  input: {
++    orgId: string;
++    generationId: string;
++    label: AiReviewLabelCode;
++    note: string | null;
++    reviewerUserId: string;
++  },
++  db: Prisma.TransactionClient = prisma,
++) {
++  const gen = await db.aiGeneration.findFirst({
++    where: { id: input.generationId, organizationId: input.orgId },
++    select: { id: true },
++  });
++  if (!gen) return null;
++  return db.aiReviewLabel.create({
++    data: { generationId: gen.id, label: input.label, note: input.note, reviewerUserId: input.reviewerUserId },
++    select: { id: true, label: true, note: true, createdAt: true },
++  });
++}
+diff --git a/src/lib/ai-quality/gate.ts b/src/lib/ai-quality/gate.ts
+new file mode 100644
+index 0000000..2d3042f
+--- /dev/null
++++ b/src/lib/ai-quality/gate.ts
+@@ -0,0 +1,27 @@
++import "server-only";
++
++import { auditActor, writeAudit } from "@/lib/audit";
++import type { SessionPayload } from "@/lib/auth";
++
++// ---------------------------------------------------------------------------
++// Kalite konsolu — reddedilen denemenin kaydı (iki rota ortak). Yetki kararı ROTADA kalır (yapısal pin: her admin rotası
++// `if (!isSuperAdmin(session)) return unauthorized()` satırını taşır); burası yalnız reddi kaydeder — yetkisiz oturumda oturumun KENDİ
++// org'una, operatörün başka kiracıya ait iz denemesinde istenen org'a (gerekçe kapalı küme kod; IP / e-posta yok — kayıt o org'un KVKK
++// ihracına girer). Oturumsuz istek kaydedilmez (kimse yok).
++// ---------------------------------------------------------------------------
++
++export type AiQualityDenyReason = "not_operator" | "impersonating" | "cross_site" | "generation_not_in_org";
++
++/** Uç kayıt yazar (görüntüleme / etiket): SameSite=Lax çerez üst düzey yönlendirmeyle taşınır → yalnız aynı site ya da elle girilen adres. */
++export function aiQualityCrossSite(fetchSite: string | null): boolean {
++  return Boolean(fetchSite && fetchSite !== "same-origin" && fetchSite !== "none");
++}
++
++export async function recordAiQualityDenied(session: SessionPayload, reason: AiQualityDenyReason, op: "view" | "label"): Promise<void> {
++  await writeAudit({
++    organizationId: session.organizationId,
++    actorUserId: auditActor(session),
++    action: "ai_quality.denied",
++    metadata: { reason, op },
++  });
++}
+diff --git a/src/lib/ai/generation-trace.ts b/src/lib/ai/generation-trace.ts
+new file mode 100644
+index 0000000..4da11eb
+--- /dev/null
++++ b/src/lib/ai/generation-trace.ts
+@@ -0,0 +1,117 @@
++import "server-only";
++
++import { prisma } from "@/lib/db";
++import { reportError } from "@/lib/report-error";
++import type { LlmUsage } from "@/lib/ai/types";
++
++// ---------------------------------------------------------------------------
++// YAPAY ZEKÂ ÜRETİM İZİ (migration 60, kurucu onayı 10-09 "tamamını hazırla"; tasarım `docs/TASARIM-2026-10-09-migration-paketi-60.md` §D).
++//
++// Her cevap kararı için bir satır: model + istem sürümü, KB kanıtı (kimlik + sürüm), kapı kararı + gerekçe, gecikme, token, taslak ve
++// gönderilen metin. Amaç kurucunun kalite konsolu (salt-okuma) — müşteriye giden HİÇBİR şeyi değiştirmez.
++//
++// Sözleşme:
++//   · Anahtar `AI_GENERATION_TRACE_ENABLED` (tam "1"; VARSAYILAN KAPALI). Kapalıyken DB'ye dokunulmaz.
++//   · Tek INSERT beklenir ama ASLA fırlatmaz: her arıza `reportError` + yut (karar zaten verilmiş ve RiskEvent ile kaydedilmiştir).
++//   · Kapalı kümeler kıskaçlanır (bilinmeyen yüzey / karar → satır YAZILMAZ; sahte etiket üretmektense iz eksik kalır).
++//   · Metin (§D-1 a, kurucu "mesajlarla aynı saklama"): saklama süpürgesi + misafir silmesi null'lar (`scrub-scope-parity`).
++//   · 🚨 EĞİTİM YASAĞI: bu tablo hiçbir dışa aktarma / ince ayar yoluna bağlanmaz — okuyan modüller kapalı listede
++//     (`tests/unit/ai-generation-readers.test.ts`).
++// ---------------------------------------------------------------------------
++
++export const AI_GENERATION_TRACE_FLAG = "AI_GENERATION_TRACE_ENABLED";
++export function aiGenerationTraceEnabled(): boolean {
++  return process.env.AI_GENERATION_TRACE_ENABLED === "1";
++}
++
++export const AI_GENERATION_SURFACES = ["channel_auto", "channel_suggest", "qr", "decision_text"] as const;
++export type AiGenerationSurface = (typeof AI_GENERATION_SURFACES)[number];
++export const AI_GENERATION_DECISIONS = ["auto_sent", "human_review", "no_reply"] as const;
++export type AiGenerationDecision = (typeof AI_GENERATION_DECISIONS)[number];
++
++/** Metin tavanı: cevap deposu tavanından geniş, kötü niyetli / bozuk girdide satırı şişirmez. */
++export const AI_GENERATION_TEXT_CAP = 8_000;
++const EVIDENCE_CAP = 8_000;
++
++export interface AiGenerationInput {
++  organizationId: string;
++  propertyId?: string | null;
++  reservationId?: string | null;
++  /** ZORUNLU: saklama / silme metni konuşmadan bulur (şemada NOT NULL). */
++  conversationId: string;
++  triggerMessageId?: string | null;
++  surface: AiGenerationSurface;
++  /** İstenen model (sağlayıcı sunulan modeli bildirirse o yazılır). */
++  model: string;
++  promptVersion: string;
++  decision: AiGenerationDecision;
++  gateReason?: string | null;
++  kbEvidenceJson?: string | null;
++  latencyMs?: number | null;
++  llm?: LlmUsage | null;
++  draftText?: string | null;
++  sentText?: string | null;
++}
++
++function intOrNull(v: number | null | undefined): number | null {
++  return typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= 2_147_483_647 ? v : null;
++}
++
++function textOrNull(v: string | null | undefined): string | null {
++  if (typeof v !== "string") return null;
++  const t = v.replace(/\u0000/g, "");
++  if (!t.trim()) return null;
++  return t.length > AI_GENERATION_TEXT_CAP ? t.slice(0, AI_GENERATION_TEXT_CAP) : t;
++}
++
++/** `RiskEvent` kanıt sözleşmesi: ayrıştırılabilir JSON NESNESİ ve tavan altı; değilse NULL (kırpılmaz — yarım JSON yanıltır). */
++function evidenceOrNull(v: string | null | undefined): string | null {
++  if (typeof v !== "string" || v.length === 0 || v.length > EVIDENCE_CAP) return null;
++  try {
++    const parsed: unknown = JSON.parse(v);
++    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? v : null;
++  } catch {
++    return null;
++  }
++}
++
++/** Saf: girdi → satır (ya da kapalı küme dışıysa null). Test edilebilir; DB yok. */
++export function aiGenerationRow(input: AiGenerationInput) {
++  if (!(AI_GENERATION_SURFACES as readonly string[]).includes(input.surface)) return null;
++  if (!(AI_GENERATION_DECISIONS as readonly string[]).includes(input.decision)) return null;
++  const model = (input.llm?.m || input.model || "").trim().slice(0, 120);
++  const promptVersion = (input.promptVersion || "").trim().slice(0, 64);
++  if (!model || !promptVersion || !input.organizationId || !input.conversationId) return null;
++  return {
++    organizationId: input.organizationId,
++    propertyId: input.propertyId ?? null,
++    reservationId: input.reservationId ?? null,
++    conversationId: input.conversationId,
++    triggerMessageId: input.triggerMessageId ?? null,
++    surface: input.surface,
++    model,
++    promptVersion,
++    decision: input.decision,
++    gateReason: input.gateReason ? input.gateReason.slice(0, 64) : null,
++    kbEvidenceJson: evidenceOrNull(input.kbEvidenceJson),
++    latencyMs: intOrNull(input.latencyMs),
++    promptTokens: intOrNull(input.llm?.pt),
++    completionTokens: intOrNull(input.llm?.ct),
++    reasoningTokens: intOrNull(input.llm?.rt),
++    draftText: textOrNull(input.draftText),
++    // Gönderilen metin YALNIZ gönderim kararında anlamlıdır; tutulan / cevapsız kararda yazılmaz.
++    sentText: input.decision === "auto_sent" ? textOrNull(input.sentText) : null,
++  };
++}
++
++/** Anahtar açıksa bir iz satırı yazar. ASLA fırlatmaz. */
++export async function recordAiGeneration(input: AiGenerationInput): Promise<void> {
++  if (!aiGenerationTraceEnabled()) return;
++  try {
++    const row = aiGenerationRow(input);
++    if (!row) return;
++    await prisma.aiGeneration.create({ data: row });
++  } catch (err) {
++    void reportError(`ai-generation-trace org=${input.organizationId}`, err);
++  }
++}
+diff --git a/src/lib/ai/index.ts b/src/lib/ai/index.ts
+index 423cb99..644d3cc 100644
+--- a/src/lib/ai/index.ts
++++ b/src/lib/ai/index.ts
+@@ -1,5 +1,6 @@
+ import { defuseBlockDelimiters } from "./retrieval/kb-line";
+ import "server-only";
++import { createHash } from "node:crypto";
+ import { buildReplyPrompt, replySystemPromptFor } from "./prompts";
+ import { applyCodeGreeting, codeGreetingEnabled, salutationNameOf } from "./code-greeting";
+ import { kbFeeRuleEnabled } from "./kb-fee-rule";
+@@ -220,6 +221,17 @@ export function replyCallParams(): { model: string; effort: string | null } {
+  * `access-code-complete.ts`), kurulum `replySystemPromptFor`da; hepsi kapalıyken taban istem bayt bayt aynı.
+  */
+ function replySystemPrompt(input: SuggestReplyInput): string {
++  // Öğe kipi: çıktı formatı `answeredRequests` alanını da gösterir; bırakılan istek varsa (bu turun ya da önceki turun) sistem
++  // istemi o istekler için kalıp öğretmez. Sistem istemi girdiye YALNIZ bu iki bitle bağlıdır (sürüm kimliği bunun üstüne kurulu).
++  return replySystemPromptForItems(replyPromptItemsOf(input.conversationItems));
++}
++
++/** Çağrının öğe kipi bitleri — istem ve sürüm kimliği AYNI fonksiyondan. */
++export function replyPromptItemsOf(items: SuggestReplyInput["conversationItems"]): { mode: boolean; held: boolean } {
++  return { mode: items !== undefined, held: (items?.held.length ?? 0) > 0 };
++}
++
++function replySystemPromptForItems(items: { mode: boolean; held: boolean }): string {
+   return replySystemPromptFor({
+     codeGreeting: codeGreetingEnabled(),
+     kbFeeRule: kbFeeRuleEnabled(),
+@@ -227,10 +239,8 @@ function replySystemPrompt(input: SuggestReplyInput): string {
+     accessCodeComplete: accessCodeCompleteEnabled(),
+     complaintFollowup: complaintFollowupRuleEnabled(),
+     courtesy: courtesyRuleEnabled(),
+-    // Öğe kipi: çıktı formatı `answeredRequests` alanını da gösterir; bırakılan istek varsa (bu turun ya da önceki turun) sistem
+-    // istemi o istekler için kalıp öğretmez.
+-    itemsMode: input.conversationItems !== undefined,
+-    itemsHeld: (input.conversationItems?.held.length ?? 0) > 0,
++    itemsMode: items.mode,
++    itemsHeld: items.held,
+   });
+ }
+ 
+@@ -264,6 +274,15 @@ export function replyRequestIdentity(input: SuggestReplyInput): { model: string;
+   return { ...replyCallParams(), system: replySystemPrompt(input), user: replyPromptFor(input, actionClaimsEnabled()).text };
+ }
+ 
++/**
++ * Cevap isteminin SÜRÜM KİMLİĞİ: sistem isteminin SHA-256 ilk 12'si. Sistem istemi girdiye yalnız anahtarlar + öğe kipi bitleriyle
++ * bağlıdır (misafir / mülk verisi taşımaz), yani kimlik çağrının GERÇEK sistem istemidir. TEK KAYNAK — ölçüm raporu
++ * (`tests/eval/run-meta.ts` `prompts.reply`, öğe kipi dışı) ve üretim izi (`AiGeneration.promptVersion`, çağrının bitleriyle).
++ */
++export function replyPromptVersion(items: { mode: boolean; held: boolean } = { mode: false, held: false }): string {
++  return createHash("sha256").update(replySystemPromptForItems(items)).digest("hex").slice(0, 12);
++}
++
+ /** Normalize a model-returned language value to a short code (2–3 letters), else
+  *  "und" (BCP-47 "undetermined") so garbage can't ride through as a real language. */
+ function normalizeLang(v: unknown): string {
+diff --git a/src/lib/automation.ts b/src/lib/automation.ts
+index 90952b4..484e97d 100644
+--- a/src/lib/automation.ts
++++ b/src/lib/automation.ts
+@@ -55,7 +55,7 @@ import { calendarDateOf, onOrAfterToday, stayEndedBefore, todayKey } from "@/mod
+ // Geriye dönük uyumluluk: bu yardımcılar uzun süre buradan import edildi.
+ export { zonedDayRange, currentHourInTimeZone } from "@/lib/timezone";
+ import { isUniqueViolation } from "@/lib/db-errors";
+-import { recordRiskEvent, type RiskEventInput } from "@/lib/risk-events";
++import { ESCALATION_REASON_CODES, recordRiskEvent, type RiskEventInput } from "@/lib/risk-events";
+ import {
+   HIGH_STAKES_RISK_TYPE_LIST,
+   NEVER_AUTO_REPLY_INTENT_LIST,
+@@ -75,7 +75,8 @@ import {
+ import { recordAutomatedSend, settleAutomatedSend, type AutomatedSendKind } from "@/lib/automated-sends";
+ import { buildTriageData } from "@/lib/ai/triage";
+ import { reservationAmountNumber } from "@/lib/money";
+-import { classifyMessage, suggestReply, summarizeHostStyle } from "@/lib/ai";
++import { classifyMessage, replyCallParams, replyPromptItemsOf, replyPromptVersion, suggestReply, summarizeHostStyle } from "@/lib/ai";
++import { aiGenerationTraceEnabled, recordAiGeneration } from "@/lib/ai/generation-trace";
+ import { isCurrentStyleProfile, markStyleProfile } from "@/lib/ai/style-profile";
+ import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
+ import { retrieveKbForPrompt } from "@/lib/ai/kb-retrieve";
+@@ -2098,6 +2099,9 @@ export async function applyChannelAutoReply(
+         return null;
+       });
+ 
++  // Öğe kipi bloğu: istem ve üretim izinin istem sürümü AYNI değerden (`replyPromptItemsOf`).
++  const replyItems = itemsPlan && !itemsPlan.allHeld ? itemsPlan.replyItems : undefined;
++  const replyStartedAt = Date.now();
+   let result = await suggestReply({
+     guestMessage: last.body,
+     property: {
+@@ -2123,7 +2127,7 @@ export async function applyChannelAutoReply(
+     timeZone: org.timezone,
+     // Öğe bloğu yalnız cevaplanabilir istek varken: hepsi tutulduysa cevap ev sahibinde kalır (model bugünkü istemle koşar —
+     // üçüncü risk dedektörü olarak; metni gönderilmez).
+-    ...(itemsPlan && !itemsPlan.allHeld ? { conversationItems: itemsPlan.replyItems } : {}),
++    ...(replyItems ? { conversationItems: replyItems } : {}),
+     knowledgeBase: kbForModel,
+     knowledgeBaseSelection: kbSel.selection,
+     knowledgeBaseNotes: kbSel.notes,
+@@ -2164,6 +2168,10 @@ export async function applyChannelAutoReply(
+     adjacency,
+     lateCheckoutOfferText: org.lateCheckoutOfferText,
+   });
++  const replyLatencyMs = Date.now() - replyStartedAt;
++  // Modelin ÖZGÜN taslağı — `result` aşağıda kod metniyle (doğrulanmış erken giriş / müsaitlik) değişebilir; iz ikisini ayrı tutar
++  // (taslak = model, gönderilen = misafire giden).
++  const modelDraft = result.reply;
+ 
+   // Safety gate: only auto-send safe, confident replies (cross-checked against
+   // the guest's own words, so a mislabelled complaint/refund never slips through).
+@@ -2529,6 +2537,38 @@ export async function applyChannelAutoReply(
+     }),
+   };
+ 
++  // ── YAPAY ZEKÂ ÜRETİM İZİ (migration 60; `AI_GENERATION_TRACE_ENABLED` VARSAYILAN KAPALI) ─────────────────────────────────
++  // Kararın TEK kayıt noktası: RiskEvent'i yazar, ardından AYNI karar + gerekçe + kanıtla iz satırını (kurucu kalite konsolu).
++  // İz müşteriye giden hiçbir şeyi değiştirmez ve asla fırlatmaz. Model hiç çağrılmadıysa (yedek cevap) iz YOK — üretim yok.
++  // `result` çağrı ANINDA okunur (doğrulanmış erken giriş / müsaitlik kod metni sonucu değiştirmiş olabilir).
++  const recordDecision = async (ev: RiskEventInput, sentText: string | null = null): Promise<void> => {
++    await recordRiskEvent(ev);
++    if (options.dryRun || !aiGenerationTraceEnabled() || (result.source !== "openai" && !result.llmUsage)) return;
++    // Bağımsız güvence: girdinin KURULUMU da (istem sürümü, model adı) karar yolunu asla kırmaz.
++    try {
++      await recordAiGeneration({
++        organizationId: ev.organizationId,
++        propertyId: conversation.propertyId,
++        reservationId: conversation.reservationId ?? null,
++        conversationId: conversation.id,
++        triggerMessageId: last.id,
++        surface: "channel_auto",
++        model: replyCallParams().model,
++        promptVersion: replyPromptVersion(replyPromptItemsOf(replyItems)),
++        decision: ev.finalDecision,
++        // RiskEvent ile AYNI kıskaç (tanınmayan gerekçe iki kayıtta da null).
++        gateReason: ev.reason && ESCALATION_REASON_CODES.has(ev.reason) ? ev.reason : null,
++        kbEvidenceJson: groundingAudited.kbEvidenceJson,
++        latencyMs: replyLatencyMs,
++        llm: result.llmUsage ?? null,
++        draftText: modelDraft,
++        sentText,
++      });
++    } catch (err) {
++      void reportError(`ai-generation-trace org=${ev.organizationId}`, err);
++    }
++  };
++
+   // If the guest stated their own departure time, record it on the reservation
+   // so the dashboard can show it (falling back to the property default). Guarded
+   // and best-effort — never blocks the reply. Skipped on dryRun so a PREVIEW
+@@ -2711,7 +2751,7 @@ export async function applyChannelAutoReply(
+         result.riskLevel,
+         result.riskType ?? lexicalRiskTypeOf(last.body, gateContext),
+       );
+-      await recordRiskEvent({
++      await recordDecision({
+         organizationId: conversation.property.organizationId,
+         propertyId: conversation.propertyId,
+         conversationId: conversation.id,
+@@ -2920,7 +2960,7 @@ export async function applyChannelAutoReply(
+           err,
+         );
+       }
+-      await recordRiskEvent({
++      await recordDecision({
+         organizationId: conversation.property.organizationId,
+         propertyId: conversation.propertyId,
+         conversationId: conversation.id,
+@@ -2959,7 +2999,7 @@ export async function applyChannelAutoReply(
+         result.riskLevel,
+         result.riskType ?? lexicalRiskTypeOf(last.body, gateContext),
+       );
+-      await recordRiskEvent({
++      await recordDecision({
+         organizationId: conversation.property.organizationId,
+         propertyId: conversation.propertyId,
+         conversationId: conversation.id,
+@@ -3138,23 +3178,26 @@ export async function applyChannelAutoReply(
+     // yani satır içi yolun semantiğiyle BİREBİR: "önce mesaj gider, SONRA AI susar".
+     // Teslimat başarısızsa hold hiç kurulmaz — bilinçli: misafir devir mesajını
+     // almadıysa AI'yı susturmak yanlış olur.
+-    await recordRiskEvent({
+-      organizationId: conversation.property.organizationId,
+-      propertyId: conversation.propertyId,
+-      conversationId: conversation.id,
+-      surface: "auto_reply",
+-      triggerId: last.id,
+-      finalDecision: "auto_sent",
+-      riskLevel: result.riskLevel,
+-      riskType: result.riskType,
+-      // Kuyruklu teslimde doğrulanmış erken giriş onayı OTOMATİK gitmez (`queued_delivery`): burada yalnız kapıyı
+-      // geçen model cevabı kuyruğa girer.
+-      reason: earlyCheckinPolicySent ? "early_checkin_policy" : "gate_passed",
+-      confidence: result.confidence,
+-      ...groundingAudited,
+-      srcDeclared: result.sourceAudit?.declared ?? null,
+-      srcVerified: result.sourceAudit?.verified ?? null,
+-    });
++    await recordDecision(
++      {
++        organizationId: conversation.property.organizationId,
++        propertyId: conversation.propertyId,
++        conversationId: conversation.id,
++        surface: "auto_reply",
++        triggerId: last.id,
++        finalDecision: "auto_sent",
++        riskLevel: result.riskLevel,
++        riskType: result.riskType,
++        // Kuyruklu teslimde doğrulanmış erken giriş onayı OTOMATİK gitmez (`queued_delivery`): burada yalnız kapıyı
++        // geçen model cevabı kuyruğa girer.
++        reason: earlyCheckinPolicySent ? "early_checkin_policy" : "gate_passed",
++        confidence: result.confidence,
++        ...groundingAudited,
++        srcDeclared: result.sourceAudit?.declared ?? null,
++        srcVerified: result.sourceAudit?.verified ?? null,
++      },
++      outboundBody,
++    );
+     void recordShadowVerdict({
+       organizationId: conversation.property.organizationId,
+       conversationId: conversation.id,
+@@ -3375,21 +3418,24 @@ export async function applyChannelAutoReply(
+       .catch(() => {});
+   }
+ 
+-  await recordRiskEvent({
+-    organizationId: conversation.property.organizationId,
+-    propertyId: conversation.propertyId,
+-    conversationId: conversation.id,
+-    surface: "auto_reply",
+-    triggerId: last.id,
+-    finalDecision: "auto_sent",
+-    riskLevel: result.riskLevel,
+-    riskType: result.riskType,
+-    reason: earlyCheckinSent ? "early_checkin_verified" : earlyCheckinPolicySent ? "early_checkin_policy" : "gate_passed",
+-    confidence: result.confidence,
+-    ...groundingAudited,
+-    srcDeclared: result.sourceAudit?.declared ?? null,
+-    srcVerified: result.sourceAudit?.verified ?? null,
+-  });
++  await recordDecision(
++    {
++      organizationId: conversation.property.organizationId,
++      propertyId: conversation.propertyId,
++      conversationId: conversation.id,
++      surface: "auto_reply",
++      triggerId: last.id,
++      finalDecision: "auto_sent",
++      riskLevel: result.riskLevel,
++      riskType: result.riskType,
++      reason: earlyCheckinSent ? "early_checkin_verified" : earlyCheckinPolicySent ? "early_checkin_policy" : "gate_passed",
++      confidence: result.confidence,
++      ...groundingAudited,
++      srcDeclared: result.sourceAudit?.declared ?? null,
++      srcVerified: result.sourceAudit?.verified ?? null,
++    },
++    outboundBody,
++  );
+   void recordShadowVerdict({
+     organizationId: conversation.property.organizationId,
+     conversationId: conversation.id,
+diff --git a/src/lib/channels/hospitable-ingest.ts b/src/lib/channels/hospitable-ingest.ts
+index 0afad71..9ca83a6 100644
+--- a/src/lib/channels/hospitable-ingest.ts
++++ b/src/lib/channels/hospitable-ingest.ts
+@@ -20,6 +20,7 @@ import {
+   type IngestCredential,
+   type IngestErrorKind,
+   type ReservationWindow,
++  sourcePlatformOf,
+ } from "./ingest";
+ 
+ // ---------------------------------------------------------------------------
+@@ -122,6 +123,7 @@ export function normalizeReservation(r: HospitableReservation): CanonicalReserva
+     conversationLanguage: canonicalStr(r.conversation_language),
+     lastMessageAt: canonicalDate(r.last_message_at),
+     terminal: status === "cancelled" || status === "completed",
++    sourcePlatform: sourcePlatformOf(r.platform),
+   };
+ }
+ 
+diff --git a/src/lib/channels/ingest.ts b/src/lib/channels/ingest.ts
+index d0e52f7..8ba4ab6 100644
+--- a/src/lib/channels/ingest.ts
++++ b/src/lib/channels/ingest.ts
+@@ -72,6 +72,11 @@ export interface CanonicalReservation {
+   lastMessageAt: Date | null;
+   /** "Bu konaklama bir daha yaşanmayacak" (iptal/reddedildi/bitti) — çit ve oto-yanıt kapısı. */
+   terminal: boolean;
++  /**
++   * Sağlayıcının HAM platform adı (migration 60 B; `sourcePlatformOf` ile dar alfabeye indirilmiş). Yalnız gösterim / teşhis —
++   * yetenek ASLA buradan çıkarılmaz (değişmez #20). Yoksa null.
++   */
++  sourcePlatform?: string | null;
+ }
+ 
+ export interface CanonicalMessage {
+@@ -178,3 +183,12 @@ export function canonicalDate(value: unknown): Date | null {
+   const at = new Date(s);
+   return Number.isNaN(at.getTime()) ? null : at;
+ }
++
++const SOURCE_PLATFORM_RE = /^[a-z0-9][a-z0-9._-]{0,39}$/;
++
++/** Ham platform dizesi → saklanabilir etiket (küçük harf, dar alfabe, ≤ 40). Uymayan → null (uydurma yok). Saf. */
++export function sourcePlatformOf(raw: unknown): string | null {
++  if (typeof raw !== "string") return null;
++  const v = raw.trim().toLowerCase().replace(/\s+/g, "_");
++  return SOURCE_PLATFORM_RE.test(v) ? v : null;
++}
+diff --git a/src/lib/channels/metadata.ts b/src/lib/channels/metadata.ts
+new file mode 100644
+index 0000000..816fc4e
+--- /dev/null
++++ b/src/lib/channels/metadata.ts
+@@ -0,0 +1,90 @@
++import "server-only";
++
++import { prisma } from "@/lib/db";
++import { reportError } from "@/lib/report-error";
++import type { IngestErrorKind } from "./ingest";
++
++// ---------------------------------------------------------------------------
++// KANAL METAVERİSİ YAZICILARI (migration 60 A–C, "expand → dual-write"; tasarım `docs/TASARIM-2026-10-09-migration-paketi-60.md`).
++//
++//   A. `ChannelListing`: köprü senkronu ilanı eşlerken `Property.hospitableId` ile BİRLİKTE (bağlantı satırı + ilan kimliği → mülk).
++//   B. `Reservation.sourcePlatform`: sağlayıcının ham platform adı (gösterim / teşhis; yetenek ASLA buradan çıkarılmaz — V0.9 pini).
++//   C. `ChannelConnection.lastReadOkAt / lastReadErrorAt / lastReadErrorKind`: her okuma geçişinin sonucu.
++//
++// Sözleşme: anahtar `CHANNEL_METADATA_WRITE` (tam "1"; VARSAYILAN KAPALI). YALNIZ YAZAR — bugün hiçbir okuyucu yok (okuma geçişi ayrı
++// anahtar + ayrı onay; müsaitlik motorunun sağlık kaydını kullanması davranış değişikliğidir). Senkronu ASLA bozmaz: her arıza
++// `reportError` + yut. Kiracı: bağlantı satırı ve mülk aynı org'a ait olmalı (yazmadan önce denetlenir).
++// ---------------------------------------------------------------------------
++
++export function channelMetadataWriteEnabled(): boolean {
++  return process.env.CHANNEL_METADATA_WRITE === "1";
++}
++
++/**
++ * A. İlan eşlemesi: (bağlantı, ilan kimliği) → mülk. Bağlantı yoksa (env fallback / legacy) YAZILMAZ — çıkarım yok. Bağlantı başka
++ * org'unsa ya da mülk bu org'un değilse satır yazılmaz. Mülk değiştiyse (ilan başka mülke bağlandı) güncellenir.
++ */
++export async function recordChannelListings(
++  organizationId: string,
++  connectionId: string | null,
++  pairs: readonly { externalId: string; propertyId: string }[],
++): Promise<void> {
++  if (!channelMetadataWriteEnabled() || !connectionId || pairs.length === 0) return;
++  try {
++    const conn = await prisma.channelConnection.findFirst({ where: { id: connectionId, organizationId }, select: { id: true } });
++    if (!conn) return;
++    const owned = new Set(
++      (
++        await prisma.property.findMany({
++          where: { organizationId, id: { in: pairs.map((p) => p.propertyId) } },
++          select: { id: true },
++        })
++      ).map((p) => p.id),
++    );
++    const current = new Map(
++      (
++        await prisma.channelListing.findMany({
++          where: { connectionId, externalId: { in: pairs.map((p) => p.externalId) } },
++          select: { externalId: true, propertyId: true },
++        })
++      ).map((l) => [l.externalId, l.propertyId]),
++    );
++    for (const p of pairs) {
++      if (!owned.has(p.propertyId) || !p.externalId) continue;
++      if (current.get(p.externalId) === p.propertyId) continue; // değişmeyen eşleme yeniden yazılmaz
++      // Bir ilanın arızası kalanları atlatmaz (çift yazım en iyi çaba; senkronun asıl yazımı `Property.hospitableId`).
++      try {
++        await prisma.channelListing.upsert({
++          where: { connectionId_externalId: { connectionId, externalId: p.externalId } },
++          create: { organizationId, connectionId, externalId: p.externalId, propertyId: p.propertyId },
++          update: { propertyId: p.propertyId },
++        });
++      } catch (err) {
++        void reportError(`channel-listing-write org=${organizationId}`, err);
++      }
++    }
++  } catch (err) {
++    void reportError(`channel-listing-write org=${organizationId}`, err);
++  }
++}
++
++/**
++ * C. Okuma geçişinin sonucu. Başarı yalnız `lastReadOkAt`; hata zaman + kapalı küme tür. Bağlantı yoksa yazılmaz. Başarı hata alanlarını
++ * SİLMEZ (geçmiş kalır) — okuyucu iki zamanı karşılaştırır (`lastReadOkAt > lastReadErrorAt` = son geçiş iyi).
++ */
++export async function recordConnectionRead(
++  organizationId: string,
++  connectionId: string | null,
++  outcome: { ok: true } | { ok: false; kind: IngestErrorKind },
++  now: Date = new Date(),
++): Promise<void> {
++  if (!channelMetadataWriteEnabled() || !connectionId) return;
++  try {
++    await prisma.channelConnection.updateMany({
++      where: { id: connectionId, organizationId },
++      data: outcome.ok ? { lastReadOkAt: now } : { lastReadErrorAt: now, lastReadErrorKind: outcome.kind },
++    });
++  } catch (err) {
++    void reportError(`channel-health-write org=${organizationId}`, err);
++  }
++}
+diff --git a/src/lib/data-retention.ts b/src/lib/data-retention.ts
+index 8764e3e..5c6ade2 100644
+--- a/src/lib/data-retention.ts
++++ b/src/lib/data-retention.ts
+@@ -103,6 +103,25 @@ export function messageAgeAnchorEnabled(): boolean {
+   return process.env.RETENTION_MESSAGE_AGE_ANCHOR === "1";
+ }
+ 
++/**
++ * Yapay zekâ üretim izi (migration 60) — `Message` gövdesiyle AYNI yaş kuralı: bayrak AÇIKKEN yalnız cutoff'tan eski iz (bugün yazılmış
++ * bir taslak, eski bir konaklamaya bugün gelen mesaja verilmiş cevaptır; mesajın kendisi gibi korunur). Bayrak kapalıyken eski
++ * davranış: seçilen konuşmanın bütün izi.
++ */
++function aiTraceAge(cutoff: Date): { createdAt?: { lt: Date } } {
++  return messageAgeAnchorEnabled() ? { createdAt: { lt: cutoff } } : {};
++}
++/**
++ * Hâlâ metin taşıyan iz — taslak, gönderilen ya da kurucu etiket NOTU (Haiku 10-09: metni süpürüldükten SONRA eklenen notlu etiket
++ * hiçbir bacağa düşmüyordu). Seçim bacağı = temizlik koşulu: süpürge üçünü de null'lar → sonlanır.
++ */
++function aiTraceTextLeft(cutoff: Date) {
++  return {
++    ...aiTraceAge(cutoff),
++    OR: [{ draftText: { not: null } }, { sentText: { not: null } }, { labels: { some: { note: { not: null } } } }],
++  };
++}
++
+ /**
+  * Anonymize guest personal data for stays that ended before the retention window.
+  * No-op unless DATA_RETENTION_MONTHS is a positive number. Returns how many
+@@ -172,6 +191,8 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
+                   some: { OR: [{ aiActionSuggestion: { not: null } }, { aiMissingInfoJson: { not: null } }] },
+                 },
+               },
++              // Yapay zekâ üretim izi (migration 60): süpürge eski izin metnini null'lar → sonlanır. Yaş sınırı Message ile AYNI.
++              { conversations: { some: { aiGenerations: { some: aiTraceTextLeft(cutoff) } } } },
+               // Görev açıklaması misafirin HAM metni (şikayet / akıllı görev) —
+               // aşağıda ANON_BODY yapılır → sonlanır. NULL hariç (Prisma `not`
+               // NULL'u dışlar; açıkça yazıldı ki niyet okunabilsin).
+@@ -384,6 +405,20 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
+         },
+         data: { body: ANON_BODY },
+       }),
++      // 🚨 YAPAY ZEKÂ ÜRETİM İZİ (migration 60, kurucu §D-1 10-09): taslak / gönderilen METİN `Message` ile AYNI süpürgede maskelenir.
++      ...(convIds.length
++        ? [
++            prisma.aiGeneration.updateMany({
++              where: { conversationId: { in: convIds }, ...aiTraceAge(cutoff), OR: [{ draftText: { not: null } }, { sentText: { not: null } }] },
++              data: { draftText: null, sentText: null },
++            }),
++            // Kurucu etiket notu misafir metnini alıntılayabilir → aynı süpürgede, izle AYNI yaş kuralıyla silinir.
++            prisma.aiReviewLabel.updateMany({
++              where: { generation: { conversationId: { in: convIds }, ...aiTraceAge(cutoff) }, note: { not: null } },
++              data: { note: null },
++            }),
++          ]
++        : []),
+       prisma.reservation.updateMany({
+         where: { id: { in: resIds } },
+         data: {
+@@ -437,7 +472,11 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
+         // seçilir; aşağıdaki TX ikisini null yapar → sonlanır. Bayrak kapalıyken
+         // davranış birebir eski.
+         ...(messageAgeAnchorEnabled()
+-          ? [{ aiActionSuggestion: { not: null } }, { aiMissingInfoJson: { not: null } }]
++          ? [
++              { aiActionSuggestion: { not: null } },
++              { aiMissingInfoJson: { not: null } },
++              { aiGenerations: { some: aiTraceTextLeft(cutoff) } },
++            ]
+           : []),
+       ],
+     },
+@@ -567,6 +606,15 @@ export async function anonymizeOldGuestData(now: Date = new Date()): Promise<{ a
+         where: { conversationId: { in: orphanIds }, body: { not: ANON_BODY } },
+         data: { body: ANON_BODY },
+       }),
++      // Üretim izi (migration 60) — öksüz dalda da (kardeş dalla BİREBİR; parite kuralı).
++      prisma.aiGeneration.updateMany({
++        where: { conversationId: { in: orphanIds }, ...aiTraceAge(cutoff), OR: [{ draftText: { not: null } }, { sentText: { not: null } }] },
++        data: { draftText: null, sentText: null },
++      }),
++      prisma.aiReviewLabel.updateMany({
++        where: { generation: { conversationId: { in: orphanIds }, ...aiTraceAge(cutoff) }, note: { not: null } },
++        data: { note: null },
++      }),
+       ...bodyRedactions.map((r) => prisma.message.update({ where: { id: r.id }, data: { body: r.body } })),
+       ...taskRedactions.map((t) =>
+         prisma.task.update({
+diff --git a/src/lib/erasure.ts b/src/lib/erasure.ts
+index a8c0c8f..f462934 100644
+--- a/src/lib/erasure.ts
++++ b/src/lib/erasure.ts
+@@ -583,6 +583,17 @@ async function maskReservationRows(
+     where: { ...outboxLink, body: { not: ANON_BODY } },
+     data: { body: ANON_BODY },
+   });
++  // 🚨 Yapay zekâ üretim izi (migration 60, kurucu §D-1 10-09): taslak / gönderilen metin misafir silmesinde de silinir (org kapsamlı).
++  if (convIds.length) {
++    await db.aiGeneration.updateMany({
++      where: { organizationId, conversationId: { in: convIds } },
++      data: { draftText: null, sentText: null },
++    });
++    await db.aiReviewLabel.updateMany({
++      where: { generation: { organizationId, conversationId: { in: convIds } }, note: { not: null } },
++      data: { note: null },
++    });
++  }
+ }
+ 
+ /**
+diff --git a/src/lib/hospitable-sync.ts b/src/lib/hospitable-sync.ts
+index c57a473..2a34d29 100644
+--- a/src/lib/hospitable-sync.ts
++++ b/src/lib/hospitable-sync.ts
+@@ -5,7 +5,8 @@ import { isUniqueViolation } from "@/lib/db-errors";
+ import { providerErrorStatus } from "@/lib/provider-errors";
+ import { getOrgHospitableToken } from "@/lib/hospitable-credentials";
+ import { getActiveConnection } from "@/lib/channels/connections";
+-import { getIngestAdapter, type CanonicalMessage, type CanonicalReservation } from "@/lib/channels";
++import { recordChannelListings, recordConnectionRead } from "@/lib/channels/metadata";
++import { getIngestAdapter, IngestError, type CanonicalMessage, type CanonicalReservation, type IngestErrorKind } from "@/lib/channels";
+ import {
+   upsertCanonicalReservation,
+   importCanonicalThread,
+@@ -178,7 +179,14 @@ export async function syncHospitable(
+   }
+   const credential = { provider: "hospitable" as const, token };
+   const ctx: IngestContext = { organizationId, provider: "hospitable", connectionId };
+-  const hospitableProps = await adapter.listProperties(credential);
++  let hospitableProps: Awaited<ReturnType<typeof adapter.listProperties>>;
++  try {
++    hospitableProps = await adapter.listProperties(credential);
++  } catch (err) {
++    // Bağlantı sağlığı (migration 60 C; anahtar kapalıyken no-op): ilan listesi okunamadı → okuma hatası, tür kapalı kümeden.
++    await recordConnectionRead(organizationId, connectionId, { ok: false, kind: ingestErrorKindOf(err) });
++    throw err;
++  }
+   // Live Hospitable listing ids this run — used so linkProperty never re-points a
+   // property that still belongs to a different LIVE same-named listing.
+   const liveIds = new Set<string>(
+@@ -210,6 +218,13 @@ export async function syncHospitable(
+     }
+   }
+ 
++  // İlan eşlemesi çift yazımı (migration 60 A; anahtar kapalıyken no-op): `Property.hospitableId` ile BİRLİKTE, aynı eşlemeden.
++  await recordChannelListings(
++    organizationId,
++    connectionId,
++    [...propertyMap].map(([externalId, propertyId]) => ({ externalId, propertyId })),
++  );
++
+   // 2. Per property, pull reservations and their message threads.
+   // Bound the reservation query to a recent→future window. Without it, every
+   // listing pages through its ENTIRE booking history (up to 40 pages each),
+@@ -547,6 +562,13 @@ export async function syncHospitable(
+     if (failed) await opsAlarm.fail(kind, context, err());
+     else await opsAlarm.ok(kind);
+   };
++  // Bağlantı sağlığı (migration 60 C): geçişin okumaları — yetki hatası ya da okunamayan ilan / thread varsa ilk hatanın türü, yoksa başarı.
++  const firstReadError = firstAuthError ?? firstFetchError;
++  await recordConnectionRead(
++    organizationId,
++    connectionId,
++    firstReadError === null ? { ok: true } : { ok: false, kind: ingestErrorKindOf(firstReadError) },
++  );
+   // A revoked/expired token makes EVERY per-listing call 401/403 → reconnect gerekir.
+   await aggregate("auth", `hospitable-auth org:${organizationId}`, firstAuthError !== null, () => firstAuthError);
+   // Supply-derivation visibility + self-heal (Codex 07-24 #5). Before this, a
+@@ -843,3 +865,15 @@ async function linkProperty(
+ 
+ 
+ 
++
++/** Okuma hatasının kapalı küme türü: adaptör `IngestError` taşıyorsa onun türü, değilse durum kodundan; bilinmiyorsa "unknown". */
++function ingestErrorKindOf(err: unknown): IngestErrorKind {
++  if (err instanceof IngestError) return err.kind;
++  const status = providerErrorStatus(err);
++  if (status === 401 || status === 403) return "auth_revoked";
++  if (status === 402) return "blocked";
++  if (status === 404) return "not_found";
++  if (status === 429) return "rate_limited";
++  if (status !== undefined && status >= 500) return "outage";
++  return "unknown";
++}
+diff --git a/src/lib/ingest/write-service.ts b/src/lib/ingest/write-service.ts
+index d4dfa8a..540bfd3 100644
+--- a/src/lib/ingest/write-service.ts
++++ b/src/lib/ingest/write-service.ts
+@@ -11,6 +11,7 @@ import { AUTOMATION_AUTHOR } from "@/lib/message-author";
+ import { claimAutomatedSend, planAutomatedMatches } from "@/lib/automated-sends";
+ import type { recordSupplyRequestFromMessage } from "@/lib/supply";
+ import type { CanonicalMessage, CanonicalReservation } from "@/lib/channels/ingest";
++import { channelMetadataWriteEnabled } from "@/lib/channels/metadata";
+ import { recordIngestEvent as emit, INGEST_EVENT_SCHEMA_VERSION } from "./events";
+ import type { IngestContext } from "./events";
+ 
+@@ -102,6 +103,8 @@ export async function upsertCanonicalReservation(
+   const guestExternalId = r.guest.externalId;
+   const currency = r.currency ?? "EUR";
+ 
++  // Ham platform adı (migration 60 B): anahtar açıkken ve sağlayıcı verdiyse; yalnız gösterim / teşhis (olay değildir).
++  const sourcePlatform = channelMetadataWriteEnabled() ? (r.sourcePlatform ?? null) : null;
+   const existing = await db.reservation.findFirst({
+     where: { propertyId, sourceReference: srcRef },
+     select: {
+@@ -119,6 +122,8 @@ export async function upsertCanonicalReservation(
+       totalAmount: true,
+       currency: true,
+       connectionId: true,
++      // Anahtar kapalıyken yeni kolon OKUNMAZ (sorgu bugünküyle aynı).
++      sourcePlatform: sourcePlatform !== null,
+     },
+   });
+ 
+@@ -158,8 +163,13 @@ export async function upsertCanonicalReservation(
+     }
+     // Köken / hitap adı alanları OLAY DEĞİLDİR (bağlantı damgası gibi): yalnız onlar değişince `reservation.updated` üretilmez,
+     // alan listesine de girmez (olay şeması aynı kalır).
++    if (sourcePlatform !== null && sourcePlatform !== existing.sourcePlatform) data.sourcePlatform = sourcePlatform;
+     const isMetadataKey = (k: string) =>
+-      k === "connectionId" || k === "connectionEvidence" || k === "guestGivenName" || k === "guestNameSource";
++      k === "connectionId" ||
++      k === "connectionEvidence" ||
++      k === "guestGivenName" ||
++      k === "guestNameSource" ||
++      k === "sourcePlatform";
+     const contentChanged = Object.keys(data).some((k) => !isMetadataKey(k));
+     if (Object.keys(data).length > 0) {
+       await db.reservation.update({ where: { id: existing.id }, data });
+@@ -203,6 +213,7 @@ export async function upsertCanonicalReservation(
+         connectionId: ctx.connectionId ?? undefined,
+         connectionEvidence: ctx.connectionId ? "ingest" : undefined,
+         ingestedAt: new Date(),
++        sourcePlatform: sourcePlatform ?? undefined,
+       },
+       select: { id: true },
+     });
+diff --git a/tests/eval/run-meta.ts b/tests/eval/run-meta.ts
+index 5c8c27e..d1f6975 100644
+--- a/tests/eval/run-meta.ts
++++ b/tests/eval/run-meta.ts
+@@ -4,7 +4,7 @@ import { isReasoningModel, layerReasoningEffort } from "@/lib/ai/model-family";
+ import { semanticModel, semanticReasoningEffort } from "@/lib/ai/semantic/config";
+ import { embeddingModel } from "@/lib/ai/embeddings/model";
+ import { createHash } from "node:crypto";
+-import { replyRequestIdentity } from "@/lib/ai";
++import { replyPromptVersion, replyRequestIdentity } from "@/lib/ai";
+ import { understandingSystemPromptFor } from "@/lib/ai/semantic/understand";
+ import { conversationItemsEnabled } from "@/lib/conversation-items/flag";
+ import { houseRulesShadowEnabled } from "@/lib/house-rules/flag";
+@@ -109,8 +109,9 @@ export const PIPELINE_FLAGS = [
+   "AI_HOST_DECISION_HOLD_ENABLED",
+   "AI_COMPLAINT_FOLLOWUP_RULE_ENABLED",
+   "AI_COURTESY_RULE_ENABLED",
+-  // Doğrulanmış müsaitlik misafire giden metni değiştirir (tek kural: her AI_* bayrağı koşu kimliğinde).
++  // Doğrulanmış müsaitlik misafire giden metni değiştirir; üretim izi ölçümü değiştirmez ama koşu kimliğinde görünür (tek kural: her AI_* bayrağı).
+   "AI_VERIFIED_AVAILABILITY_ENABLED",
++  "AI_GENERATION_TRACE_ENABLED",
+ ] as const;
+ 
+ /** GÖNDERİLEN çabanın etiketi: klasik modele çaba hiç gitmez; reasoning modelinde ayarsız / tanınmayan değer = gönderilmez. */
+@@ -144,15 +145,7 @@ export function evalRuntime(opts: { understanding?: UnderstandingMode } = {}): E
+     return { model: m, reasoning: reasoningLabel(m, semanticReasoningEffort(l)) };
+   };
+   const sha12 = (t: string) => createHash("sha256").update(t).digest("hex").slice(0, 12);
+-  const replySystem = replyRequestIdentity({
+-    guestMessage: "-",
+-    property: { name: "-", checkInTime: "15:00", checkOutTime: "11:00" },
+-    reservation: null,
+-    knowledgeBase: [],
+-    history: [],
+-    tone: "warm",
+-    language: "tr",
+-  }).system;
++
+   // Anlama kipi (10-01 bulgusu): konaklama eval'i kipi KENDİ ortam değişkeniyle verir, kimlik ürün bayraklarından hesaplanınca
+   // raporlar gerçekte koşan öğe + kural + şikâyet takibi istemi yerine yalnız şikâyet takibi isteminin kimliğini yazdı.
+   const given = opts.understanding;
+@@ -177,7 +170,8 @@ export function evalRuntime(opts: { understanding?: UnderstandingMode } = {}): E
+     },
+     flags: Object.fromEntries(PIPELINE_FLAGS.map((f) => [f, process.env[f]?.trim() || "(boş)"])),
+     prompts: {
+-      reply: sha12(replySystem),
++      // Üretim izi (`AiGeneration.promptVersion`) ile AYNI fonksiyon (tek kaynak, migration 60).
++      reply: replyPromptVersion(),
+       replyVariant: sha12(`${variant.system}\n${variant.user}`),
+       understanding: sha12(understandingSystem),
+       understandingMode: understandingModeLabel(mode),
+diff --git a/tests/integration/ai-generation-kvkk.test.ts b/tests/integration/ai-generation-kvkk.test.ts
+new file mode 100644
+index 0000000..f2ba1a5
+--- /dev/null
++++ b/tests/integration/ai-generation-kvkk.test.ts
+@@ -0,0 +1,232 @@
++import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
++import { subMonths } from "date-fns";
++import { prisma, resetDb } from "../helpers/db";
++import { anonymizeOldGuestData, ANON_BODY, ANON_ID, ANON_NAME } from "@/lib/data-retention";
++import { eraseReservationData } from "@/lib/erasure";
++import { buildOrganizationDataExport } from "@/lib/data-export";
++
++vi.mock("@/lib/report-error", () => ({ reportError: vi.fn().mockResolvedValue(undefined) }));
++
++// ---------------------------------------------------------------------------
++// Yapay zekâ üretim izi (migration 60) — KVKK paritesi (kurucu §D-1 10-09: "mesajlarla aynı saklama").
++// Taslak / gönderilen metin ve kurucu etiket notu misafir metni taşır: süre-bazlı süpürgenin İKİ dalı (rezervasyonlu + öksüz) ve
++// açık silme bunları siler; kimlik / karar / sayaç alanları kalır (kalite ölçümü anonim kayıtta da doğrudur).
++// `scrub-scope-parity` kolon kümesini yapısal pinler; burası gerçek PostgreSQL'de DAVRANIŞI sınar.
++// ---------------------------------------------------------------------------
++
++const DRAFT = "Merhaba Ayşe Yılmaz, kapı kodunuz 4711.";
++const SENT = "Merhaba Ayşe Yılmaz, kapı kodunuz 4711. İyi konaklamalar.";
++const NOTE = "Misafir 'Ayşe Yılmaz, 0555 111 22 33' yazmış; cevap doğru.";
++
++interface SeedOpts {
++  reservation: boolean;
++  monthsAgo: number;
++  /** Aynı org'a ikinci konaklama (kardeş kontrolü). */
++  orgId?: string;
++  propertyId?: string;
++  /** Konaklama ZATEN süpürülmüş (ad / gövde sentinel) — yalnız iz metni kaldı. */
++  alreadySwept?: boolean;
++  /** İz ve mesaj yaşı (ay); verilmezse şimdi. */
++  genMonthsAgo?: number;
++  msgMonthsAgo?: number;
++}
++
++async function seedConversation(opts: SeedOpts) {
++  const orgId = opts.orgId ?? (await prisma.organization.create({ data: { name: "Org" } })).id;
++  const propertyId = opts.propertyId ?? (await prisma.property.create({ data: { organizationId: orgId, name: "Daire 1" } })).id;
++  const name = opts.alreadySwept ? ANON_NAME : "Ayşe Yılmaz";
++  const reservation = opts.reservation
++    ? await prisma.reservation.create({
++        data: {
++          propertyId,
++          guestName: name,
++          arrivalDate: subMonths(new Date(), opts.monthsAgo + 1),
++          departureDate: subMonths(new Date(), opts.monthsAgo),
++          status: "completed",
++        },
++      })
++    : null;
++  const at = (m: number | undefined) => (m === undefined ? new Date() : subMonths(new Date(), m));
++  const conv = await prisma.conversation.create({
++    data: {
++      propertyId,
++      reservationId: reservation?.id ?? null,
++      channel: "airbnb",
++      guestIdentifier: opts.alreadySwept ? ANON_ID : "Ayşe Yılmaz",
++      lastMessageAt: subMonths(new Date(), opts.monthsAgo),
++      messages: {
++        create: [
++          {
++            direction: "inbound",
++            senderName: opts.alreadySwept ? ANON_ID : "Ayşe Yılmaz",
++            body: opts.alreadySwept ? ANON_BODY : "Kapı kodu?",
++            createdAt: at(opts.msgMonthsAgo),
++          },
++        ],
++      },
++    },
++  });
++  const gen = await prisma.aiGeneration.create({
++    data: {
++      organizationId: orgId,
++      conversationId: conv.id,
++      propertyId,
++      reservationId: reservation?.id ?? null,
++      surface: "channel_auto",
++      model: "test-model",
++      promptVersion: "p1",
++      decision: "auto_sent",
++      draftText: DRAFT,
++      sentText: SENT,
++      promptTokens: 120,
++      createdAt: at(opts.genMonthsAgo),
++      labels: { create: [{ label: "correct", note: NOTE }] },
++    },
++  });
++  return { orgId, propertyId, reservationId: reservation?.id ?? null, generationId: gen.id };
++}
++
++async function traceOf(generationId: string) {
++  const g = await prisma.aiGeneration.findUniqueOrThrow({ where: { id: generationId }, include: { labels: true } });
++  return { draftText: g.draftText, sentText: g.sentText, note: g.labels[0]?.note ?? null, g };
++}
++
++describe("AiGeneration izi — süre-bazlı süpürge", () => {
++  beforeEach(async () => {
++    await resetDb();
++    vi.stubEnv("DATA_RETENTION_MONTHS", "24");
++  });
++  afterEach(() => vi.unstubAllEnvs());
++
++  it("DAL 1/2 — rezervasyonlu eski konuşmanın iz metni ve etiket notu silinir; kimlik / karar / sayaç kalır", async () => {
++    const { generationId } = await seedConversation({ reservation: true, monthsAgo: 30 });
++    expect((await anonymizeOldGuestData()).anonymized).toBeGreaterThanOrEqual(1); // KONTROL: dal koştu
++    const t = await traceOf(generationId);
++    expect({ draftText: t.draftText, sentText: t.sentText, note: t.note }).toEqual({ draftText: null, sentText: null, note: null });
++    expect(t.g.decision).toBe("auto_sent");
++    expect(t.g.promptTokens).toBe(120);
++    expect(t.g.labels[0].label).toBe("correct");
++  });
++
++  it("DAL 2/2 — ÖKSÜZ (rezervasyonsuz) eski konuşmada da silinir", async () => {
++    const { generationId } = await seedConversation({ reservation: false, monthsAgo: 30 });
++    expect((await anonymizeOldGuestData()).anonymized).toBe(1);
++    const t = await traceOf(generationId);
++    expect({ draftText: t.draftText, sentText: t.sentText, note: t.note }).toEqual({ draftText: null, sentText: null, note: null });
++  });
++
++  it.each([true, false])("KONTROL: saklama penceresi İÇİNDEKİ iz dokunulmaz (rezervasyonlu=%s)", async (reservation) => {
++    const { generationId } = await seedConversation({ reservation, monthsAgo: 1 });
++    await anonymizeOldGuestData();
++    const t = await traceOf(generationId);
++    expect({ draftText: t.draftText, sentText: t.sentText, note: t.note }).toEqual({ draftText: DRAFT, sentText: SENT, note: NOTE });
++  });
++});
++
++describe("AiGeneration izi — açık misafir silmesi", () => {
++  beforeEach(async () => {
++    await resetDb();
++  });
++
++  it("silinen konaklamanın iz metni ve etiket notu silinir", async () => {
++    const { orgId, reservationId, generationId } = await seedConversation({ reservation: true, monthsAgo: 1 });
++    expect(await eraseReservationData(orgId, reservationId!)).not.toBeNull();
++    const t = await traceOf(generationId);
++    expect({ draftText: t.draftText, sentText: t.sentText, note: t.note }).toEqual({ draftText: null, sentText: null, note: null });
++    expect(t.g.decision).toBe("auto_sent");
++  });
++
++  it("KONTROL: başka konaklamanın izi dokunulmaz", async () => {
++    const a = await seedConversation({ reservation: true, monthsAgo: 1 });
++    const b = await seedConversation({ reservation: true, monthsAgo: 1 });
++    await eraseReservationData(a.orgId, a.reservationId!);
++    const t = await traceOf(b.generationId);
++    expect({ draftText: t.draftText, sentText: t.sentText, note: t.note }).toEqual({ draftText: DRAFT, sentText: SENT, note: NOTE });
++  });
++});
++
++describe("AiGeneration izi — süpürge, yaş çapası AÇIK (RETENTION_MESSAGE_AGE_ANCHOR=1)", () => {
++  beforeEach(async () => {
++    await resetDb();
++    vi.stubEnv("DATA_RETENTION_MONTHS", "24");
++    vi.stubEnv("RETENTION_MESSAGE_AGE_ANCHOR", "1");
++  });
++  afterEach(() => vi.unstubAllEnvs());
++
++  it.each([true, false])(
++    "🚨 SEÇİM BACAĞI: zaten süpürülmüş konaklamada kalan eski iz metni yeniden seçilip silinir (rezervasyonlu=%s)",
++    async (reservation) => {
++      const { generationId } = await seedConversation({ reservation, monthsAgo: 30, alreadySwept: true, genMonthsAgo: 26, msgMonthsAgo: 30 });
++      await anonymizeOldGuestData();
++      const t = await traceOf(generationId);
++      expect({ draftText: t.draftText, sentText: t.sentText, note: t.note }).toEqual({ draftText: null, sentText: null, note: null });
++      // Sonlanma: ikinci geçiş aynı satırı yeniden seçmez.
++      expect((await anonymizeOldGuestData()).anonymized).toBe(0);
++    },
++  );
++
++  it.each([true, false])(
++    "🚨 SEÇİM BACAĞI: metni zaten süpürülmüş ize SONRADAN eklenen notlu etiket de seçilip silinir (rezervasyonlu=%s)",
++    async (reservation) => {
++      const { generationId } = await seedConversation({ reservation, monthsAgo: 30, alreadySwept: true, genMonthsAgo: 26, msgMonthsAgo: 30 });
++      await prisma.aiGeneration.update({ where: { id: generationId }, data: { draftText: null, sentText: null } });
++      await anonymizeOldGuestData();
++      expect((await traceOf(generationId)).note).toBeNull();
++      expect((await anonymizeOldGuestData()).anonymized).toBe(0);
++    },
++  );
++
++  it.each([true, false])(
++    "KONTROL (Message paritesi): eski konaklamaya BUGÜN verilmiş cevabın izi korunur, eski iz silinir (rezervasyonlu=%s)",
++    async (reservation) => {
++      const old = await seedConversation({ reservation, monthsAgo: 30, genMonthsAgo: 30, msgMonthsAgo: 30 });
++      const fresh = await prisma.aiGeneration.create({
++        data: {
++          organizationId: old.orgId,
++          conversationId: (await prisma.aiGeneration.findUniqueOrThrow({ where: { id: old.generationId } })).conversationId,
++          surface: "channel_auto",
++          model: "test-model",
++          promptVersion: "p1",
++          decision: "auto_sent",
++          draftText: DRAFT,
++          sentText: SENT,
++          labels: { create: [{ label: "correct", note: NOTE }] },
++        },
++      });
++      expect((await anonymizeOldGuestData()).anonymized).toBe(1);
++      expect(await traceOf(old.generationId)).toMatchObject({ draftText: null, sentText: null, note: null });
++      expect(await traceOf(fresh.id)).toMatchObject({ draftText: DRAFT, sentText: SENT, note: NOTE });
++    },
++  );
++});
++
++describe("AiGeneration izi — açık silme, AYNI org kardeş konaklama", () => {
++  beforeEach(async () => {
++    await resetDb();
++  });
++
++  it("KONTROL: aynı org'un başka konaklamasının izi dokunulmaz", async () => {
++    const a = await seedConversation({ reservation: true, monthsAgo: 1 });
++    const b = await seedConversation({ reservation: true, monthsAgo: 1, orgId: a.orgId, propertyId: a.propertyId });
++    await eraseReservationData(a.orgId, a.reservationId!);
++    expect(await traceOf(a.generationId)).toMatchObject({ draftText: null, sentText: null, note: null });
++    expect(await traceOf(b.generationId)).toMatchObject({ draftText: DRAFT, sentText: SENT, note: NOTE });
++  });
++});
++
++describe("AiGeneration izi — dışa aktarıma BAĞLI DEĞİL (eğitim yasağı, tasarım §D)", () => {
++  beforeEach(async () => {
++    await resetDb();
++  });
++
++  it("org dışa aktarımı iz metnini ve kurucu notunu taşımaz", async () => {
++    const a = await seedConversation({ reservation: true, monthsAgo: 1 });
++    const out = await buildOrganizationDataExport(a.orgId);
++    expect(out).not.toBeNull();
++    const json = JSON.stringify(out);
++    expect(json).not.toContain(DRAFT);
++    expect(json).not.toContain(SENT);
++    expect(json).not.toContain(NOTE);
++    expect(json).not.toContain(a.generationId);
++  });
++});
+diff --git a/tests/integration/ai-generation-trace.test.ts b/tests/integration/ai-generation-trace.test.ts
+new file mode 100644
+index 0000000..f54bfad
+--- /dev/null
++++ b/tests/integration/ai-generation-trace.test.ts
+@@ -0,0 +1,196 @@
++// ---------------------------------------------------------------------------
++// YAPAY ZEKÂ ÜRETİM İZİ (migration 60) — kanal oto-yanıtı uçtan uca, gerçek PostgreSQL + gerçek kapı.
++//
++// İz bir GÖZLEMDİR: anahtar açık / kapalı, yazım başarılı / başarısız — misafire giden metin ve karar AYNI kalır. Her iz iddiası
++// RiskEvent'in AYNI karar + gerekçesiyle eşleştirilir (iki kayıt ayrışırsa konsol yalan söyler).
++// ---------------------------------------------------------------------------
++import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
++import { prisma, resetDb } from "../helpers/db";
++
++vi.mock("@/lib/ai", () => ({
++  suggestReply: vi.fn(),
++  classifyMessage: vi.fn(),
++  summarizeHostStyle: vi.fn(),
++  replyCallParams: vi.fn(() => ({ model: "configured-model", effort: null })),
++  replyPromptVersion: vi.fn(() => "promptv12abc"),
++  replyPromptItemsOf: (items: { held: readonly unknown[] } | undefined) => ({ mode: items !== undefined, held: (items?.held.length ?? 0) > 0 }),
++}));
++vi.mock("@/lib/messaging", async (orig) => ({
++  ...(await orig<typeof import("@/lib/messaging")>()),
++  sendOnChannel: vi.fn(),
++}));
++vi.mock("@/lib/hospitable-credentials", () => ({ getOrgHospitableToken: vi.fn().mockResolvedValue("test-token") }));
++vi.mock("@/lib/email", () => ({ emailService: { send: vi.fn(), sendReporting: vi.fn(async () => ({ ok: true })) } }));
++vi.mock("@/lib/report-error", async (orig) => {
++  const actual = await orig<typeof import("@/lib/report-error")>();
++  return { ...actual, reportError: vi.fn().mockResolvedValue(undefined) };
++});
++
++import { replyPromptVersion, suggestReply } from "@/lib/ai";
++import { sendOnChannel } from "@/lib/messaging";
++import { applyChannelAutoReply } from "@/lib/automation";
++
++const mockSuggest = vi.mocked(suggestReply);
++const mockSend = vi.mocked(sendOnChannel);
++const mockPromptVersion = vi.mocked(replyPromptVersion);
++const DAY = 86_400_000;
++
++const BENIGN = "Wifi şifresi giriş kapısının yanındaki kartta yazıyor.";
++const verdict = (over: Record<string, unknown> = {}) => ({
++  intent: "wifi",
++  confidence: 0.95,
++  reply: BENIGN,
++  risk: null,
++  priority: "standard" as const,
++  source: "openai" as const,
++  actionSuggestion: null,
++  riskLevel: "low",
++  detectedLanguage: "tr",
++  riskType: null as string | null,
++  usedSources: [] as string[],
++  missingInfo: [] as string[],
++  statedCheckoutTime: null,
++  llmUsage: { pt: 900, ct: 40, rt: 12, m: "served-model-2026" },
++  ...over,
++});
++
++async function seed(body = "Wifi şifresi nedir?") {
++  const org = await prisma.organization.create({
++    data: { name: "İz Org", autoReplyHospitable: true, autoReplyStartHour: 0, autoReplyEndHour: 0, timezone: "Europe/Istanbul" },
++  });
++  const property = await prisma.property.create({ data: { organizationId: org.id, name: "Deniz Daire" } });
++  const r = await prisma.reservation.create({
++    data: {
++      propertyId: property.id,
++      guestName: "Ayşe Yılmaz",
++      arrivalDate: new Date(Date.now() - DAY),
++      departureDate: new Date(Date.now() + 2 * DAY),
++      channel: "airbnb",
++      status: "confirmed",
++      sourceReference: "res-trace-1",
++    },
++  });
++  const c = await prisma.conversation.create({
++    data: {
++      propertyId: property.id,
++      reservationId: r.id,
++      guestIdentifier: "Ayşe Yılmaz",
++      channel: "airbnb",
++      status: "new",
++      externalReservationId: "res-trace-1",
++      lastMessageAt: new Date(),
++      messages: { create: { direction: "inbound", senderName: "Ayşe Yılmaz", authorType: "guest", body } },
++    },
++  });
++  return { orgId: org.id, propertyId: property.id, reservationId: r.id, conversationId: c.id };
++}
++
++const sentBody = () => (mockSend.mock.calls[0]?.[1] as string | undefined) ?? null;
++
++describe("üretim izi — kanal oto-yanıtı", () => {
++  beforeEach(async () => {
++    await resetDb();
++    vi.clearAllMocks();
++    vi.stubEnv("AUTO_REPLY_ENABLED", "1");
++    vi.stubEnv("AI_GENERATION_TRACE_ENABLED", "1");
++    mockSend.mockResolvedValue({ ok: true } as never);
++    mockSuggest.mockResolvedValue(verdict() as never);
++    mockPromptVersion.mockReturnValue("promptv12abc");
++  });
++  afterEach(() => vi.unstubAllEnvs());
++
++  it("gönderilen cevap: iz = RiskEvent kararı + gerekçesi; gönderilen metin MİSAFİRE GİDEN gövdenin aynısı; token + model + sürüm", async () => {
++    const s = await seed();
++    const r = await applyChannelAutoReply(s.conversationId);
++    expect(r.sent).toBe(true);
++    const [g] = await prisma.aiGeneration.findMany();
++    const [ev] = await prisma.riskEvent.findMany();
++    expect(g).toMatchObject({
++      organizationId: s.orgId,
++      conversationId: s.conversationId,
++      propertyId: s.propertyId,
++      reservationId: s.reservationId,
++      surface: "channel_auto",
++      model: "served-model-2026",
++      promptVersion: "promptv12abc",
++      decision: ev.finalDecision,
++      gateReason: ev.reason,
++      draftText: BENIGN,
++      sentText: sentBody(),
++      promptTokens: 900,
++      completionTokens: 40,
++      reasoningTokens: 12,
++    });
++    expect(ev.finalDecision).toBe("auto_sent");
++    expect(g.triggerMessageId).toBe(ev.triggerId);
++    expect(g.latencyMs).not.toBeNull();
++  });
++
++  it("tutulan cevap (iade): iz human_review, gönderilen metin YOK, taslak var; misafire bir şey gitmez", async () => {
++    const s = await seed("İade istiyorum, ödediğim parayı geri istiyorum.");
++    mockSuggest.mockResolvedValue(verdict({ intent: "refund", reply: "Talebinizi ev sahibine iletiyorum.", riskLevel: "high", riskType: "money_refund" }) as never);
++    const r = await applyChannelAutoReply(s.conversationId);
++    expect(r.sent).toBe(false);
++    expect(mockSend).not.toHaveBeenCalled();
++    const gens = await prisma.aiGeneration.findMany({ where: { conversationId: s.conversationId } });
++    const evs = await prisma.riskEvent.findMany({ where: { conversationId: s.conversationId } });
++    expect(gens).toHaveLength(1);
++    expect(gens[0]).toMatchObject({ decision: "human_review", gateReason: evs[0].reason, sentText: null, draftText: "Talebinizi ev sahibine iletiyorum." });
++  });
++
++  it("🚨 anahtar KAPALI → iz yok; karar ve gönderilen metin BİREBİR aynı", async () => {
++    const on = await seed();
++    await applyChannelAutoReply(on.conversationId);
++    const bodyOn = sentBody();
++    await resetDb();
++    vi.clearAllMocks();
++    mockSend.mockResolvedValue({ ok: true } as never);
++    mockSuggest.mockResolvedValue(verdict() as never);
++    vi.stubEnv("AI_GENERATION_TRACE_ENABLED", "");
++    const off = await seed();
++    const r = await applyChannelAutoReply(off.conversationId);
++    expect(r.sent).toBe(true);
++    expect(sentBody()).toBe(bodyOn);
++    expect(await prisma.aiGeneration.count()).toBe(0);
++    expect(await prisma.riskEvent.count()).toBe(1);
++    // Kapalıyken iz girdisi hiç KURULMAZ (istem sürümü her kararda yeniden hesaplanmaz).
++    expect(mockPromptVersion).not.toHaveBeenCalled();
++  });
++
++  it("kuyruklu teslim (DURABLE_OUTBOX_ENABLED=1): gönderilen metin = kuyruğa giren gövde", async () => {
++    vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
++    const s = await seed();
++    await applyChannelAutoReply(s.conversationId);
++    const [row] = await prisma.messageOutbox.findMany({ where: { conversationId: s.conversationId } });
++    expect(row?.body).toBeTruthy();
++    const [g] = await prisma.aiGeneration.findMany();
++    expect(g).toMatchObject({ decision: "auto_sent", sentText: row.body, draftText: BENIGN });
++  });
++
++  it("🚨 önizleme (dryRun) iz yazmaz", async () => {
++    const s = await seed();
++    const r = await applyChannelAutoReply(s.conversationId, { dryRun: true });
++    expect(r.sent).toBe(false);
++    expect(await prisma.aiGeneration.count()).toBe(0);
++  });
++
++  it("🚨 model çağrılmadı (yedek cevap) → iz yok; karar kaydı yine yazılır", async () => {
++    const s = await seed();
++    mockSuggest.mockResolvedValue(verdict({ source: "fallback", llmUsage: undefined }) as never);
++    await applyChannelAutoReply(s.conversationId);
++    expect(await prisma.aiGeneration.count()).toBe(0);
++    expect(await prisma.riskEvent.count()).toBe(1);
++  });
++
++  it("🚨 iz kurulumu FIRLATSA da cevap gider ve karar kaydı yazılır", async () => {
++    const s = await seed();
++    mockPromptVersion.mockImplementation(() => {
++      throw new Error("istem sürümü kurulamadı");
++    });
++    const r = await applyChannelAutoReply(s.conversationId);
++    expect(r.sent).toBe(true);
++    expect(mockSend).toHaveBeenCalledTimes(1);
++    expect(await prisma.riskEvent.count()).toBe(1);
++    expect(await prisma.aiGeneration.count()).toBe(0);
++  });
++});
+diff --git a/tests/integration/ai-quality-console.test.ts b/tests/integration/ai-quality-console.test.ts
+new file mode 100644
+index 0000000..d075ca0
+--- /dev/null
++++ b/tests/integration/ai-quality-console.test.ts
+@@ -0,0 +1,290 @@
++import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
++import { readFileSync } from "node:fs";
++import path from "node:path";
++import { NextRequest } from "next/server";
++import { prisma, resetDb } from "../helpers/db";
++import type { SessionPayload } from "@/lib/auth";
++
++// ---------------------------------------------------------------------------
++// KURUCU KALİTE KONSOLU (kurucu talimatı 09-07; migration 60 §E) — talimatın test listesi, gerçek PostgreSQL:
++//   · sıradan yönetici / 2FA'sız operatör / bürünmedeki operatör erişemez (ve deneme kayda girer)
++//   · sorgu / gövde kimliğiyle kiracı süzgeci aşılamaz
++//   · etiket müşteri verisini değiştiremez
++//   · gönderim / durum değiştiren hiçbir uca konsoldan ulaşılamaz
++//   · her görüntüleme amaçla kaydedilir; kayıtta operatörün kişisel verisi ve misafir metni yok
++// `isSuperAdmin` GERÇEK (yalnız oturum enjekte edilir) — test edilen şey o.
++// ---------------------------------------------------------------------------
++
++let session: SessionPayload | null = null;
++vi.mock("@/lib/api", async (orig) => {
++  const actual = await orig<typeof import("@/lib/api")>();
++  return { ...actual, requireSession: vi.fn(async () => session) };
++});
++
++import { GET as viewGet } from "@/app/api/admin/ai-quality/route";
++import { POST as labelPost } from "@/app/api/admin/ai-quality/labels/route";
++
++const OPERATOR_EMAIL = "operator@lixusai.com";
++const DRAFT = "Merhaba Ayşe Yılmaz, kapı kodunuz 4711.";
++
++async function seedOrg(name: string) {
++  const org = await prisma.organization.create({ data: { name } });
++  const property = await prisma.property.create({ data: { organizationId: org.id, name: `${name} Daire` } });
++  const conv = await prisma.conversation.create({
++    data: {
++      propertyId: property.id,
++      channel: "airbnb",
++      guestIdentifier: "Ayşe Yılmaz",
++      status: "answered",
++      lastMessageAt: new Date(),
++      messages: { create: [{ direction: "inbound", senderName: "Ayşe Yılmaz", body: "Kapı kodu?" }] },
++    },
++  });
++  const gen = await prisma.aiGeneration.create({
++    data: {
++      organizationId: org.id,
++      conversationId: conv.id,
++      propertyId: property.id,
++      surface: "channel_auto",
++      model: "m",
++      promptVersion: "p",
++      decision: "auto_sent",
++      draftText: `${name}: ${DRAFT}`,
++      sentText: `${name}: ${DRAFT}`,
++    },
++  });
++  return { orgId: org.id, conversationId: conv.id, generationId: gen.id };
++}
++
++async function makeSession(email: string, opts: { mfa: boolean; role?: string; impersonating?: boolean }): Promise<SessionPayload> {
++  const org = await prisma.organization.create({ data: { name: `Org ${email}` } });
++  const user = await prisma.user.create({
++    data: { organizationId: org.id, name: "U", email, passwordHash: "x", role: opts.role ?? "owner" },
++  });
++  return {
++    userId: user.id,
++    organizationId: org.id,
++    role: (opts.role ?? "owner") as SessionPayload["role"],
++    email,
++    name: "U",
++    sessionEpoch: 0,
++    mfa: opts.mfa,
++    ...(opts.impersonating ? { actorUserId: user.id } : {}),
++  } as SessionPayload;
++}
++
++const viewReq = (q: Record<string, string>, headers?: Record<string, string>) =>
++  new NextRequest(`http://localhost/api/admin/ai-quality?${new URLSearchParams(q)}`, { headers });
++const labelReq = (body: unknown, headers?: Record<string, string>) =>
++  new NextRequest("http://localhost/api/admin/ai-quality/labels", {
++    method: "POST",
++    headers: { "content-type": "application/json", ...headers },
++    body: JSON.stringify(body),
++  });
++
++describe("kalite konsolu — erişim kapısı", () => {
++  beforeEach(async () => {
++    await resetDb();
++    vi.stubEnv("SUPERADMIN_EMAILS", OPERATOR_EMAIL);
++    session = null;
++  });
++  afterEach(() => vi.unstubAllEnvs());
++
++  it("oturumsuz → 401, kayıt yok", async () => {
++    const a = await seedOrg("Alfa");
++    expect((await viewGet(viewReq({ orgId: a.orgId, purpose: "quality_review" }))).status).toBe(401);
++    expect(await prisma.auditLog.count()).toBe(0);
++  });
++
++  it.each([
++    ["sıradan sahip (owner)", "musteri@example.com", true, "owner"],
++    ["sıradan yönetici (admin)", "yonetici@example.com", true, "admin"],
++    ["operatör e-postası ama oturum 2FA'dan geçmemiş", OPERATOR_EMAIL, false, "owner"],
++  ])("🚨 %s → 401, iz metni yanıtta yok, deneme KENDİ org'una kaydedilir", async (_n, email, mfa, role) => {
++    const a = await seedOrg("Alfa");
++    session = await makeSession(email, { mfa, role });
++    const res = await viewGet(viewReq({ orgId: a.orgId, purpose: "quality_review" }));
++    expect(res.status).toBe(401);
++    expect(await res.text()).not.toContain(DRAFT);
++    const logs = await prisma.auditLog.findMany();
++    expect(logs.map((l) => [l.organizationId, l.action])).toEqual([[session!.organizationId, "ai_quality.denied"]]);
++    expect(JSON.parse(logs[0].metadataJson!)).toEqual({ reason: "not_operator", op: "view" });
++    // Etiket ucu da aynı kapı.
++    const lr = await labelPost(labelReq({ orgId: a.orgId, generationId: a.generationId, label: "correct", purpose: "quality_review" }));
++    expect(lr.status).toBe(401);
++    expect(await prisma.aiReviewLabel.count()).toBe(0);
++  });
++
++  it("🚨 bürünmedeki operatör → 403 (kendi hesabından açılır)", async () => {
++    const a = await seedOrg("Alfa");
++    session = await makeSession(OPERATOR_EMAIL, { mfa: true, impersonating: true });
++    const res = await viewGet(viewReq({ orgId: a.orgId, purpose: "quality_review" }));
++    expect(res.status).toBe(403);
++    expect(await res.text()).not.toContain(DRAFT);
++    expect((await prisma.auditLog.findFirstOrThrow()).action).toBe("ai_quality.denied");
++  });
++
++  it("🚨 başka siteden başlatılan istek → 403", async () => {
++    const a = await seedOrg("Alfa");
++    session = await makeSession(OPERATOR_EMAIL, { mfa: true });
++    const res = await viewGet(viewReq({ orgId: a.orgId, purpose: "quality_review" }, { "sec-fetch-site": "cross-site" }));
++    expect(res.status).toBe(403);
++    const lr = await labelPost(
++      labelReq({ orgId: a.orgId, generationId: a.generationId, label: "correct", purpose: "quality_review" }, { "sec-fetch-site": "cross-site" }),
++    );
++    expect(lr.status).toBe(403);
++    expect(await prisma.aiReviewLabel.count()).toBe(0);
++  });
++
++  it.each<Record<string, string>>([{}, { purpose: "merak" }, { purpose: "Ayşe Yılmaz'ın şikâyeti" }])("🚨 amaç yok / kapalı küme dışı → 400 (%j)", async (q) => {
++    const a = await seedOrg("Alfa");
++    session = await makeSession(OPERATOR_EMAIL, { mfa: true });
++    const res = await viewGet(viewReq({ orgId: a.orgId, ...q }));
++    expect(res.status).toBe(400);
++    expect(await prisma.auditLog.count({ where: { action: "ai_quality.view" } })).toBe(0);
++  });
++});
++
++describe("kalite konsolu — görüntüleme (operatör)", () => {
++  beforeEach(async () => {
++    await resetDb();
++    vi.stubEnv("SUPERADMIN_EMAILS", OPERATOR_EMAIL);
++    session = await makeSession(OPERATOR_EMAIL, { mfa: true });
++  });
++  afterEach(() => vi.unstubAllEnvs());
++
++  it("KONTROL: operatör yalnız SORDUĞU org'un izlerini görür; görüntüleme amaçla kaydedilir (IP / e-posta / metin yok)", async () => {
++    const a = await seedOrg("Alfa");
++    await seedOrg("Beta");
++    const res = await viewGet(viewReq({ orgId: a.orgId, purpose: "incident_review", ticket: "T-42" }));
++    expect(res.status).toBe(200);
++    const body = await res.json();
++    expect(body.generations.map((g: { id: string }) => g.id)).toEqual([a.generationId]);
++    expect(JSON.stringify(body)).not.toContain("Beta:");
++    const log = await prisma.auditLog.findFirstOrThrow({ where: { action: "ai_quality.view" } });
++    expect(log.organizationId).toBe(a.orgId);
++    expect(log.actorUserId).toBe(session!.userId);
++    expect(JSON.parse(log.metadataJson!)).toEqual({ purpose: "incident_review", ticket: "T-42", count: 1 });
++    expect(log.metadataJson).not.toContain(OPERATOR_EMAIL);
++    expect(log.metadataJson).not.toContain("Ayşe");
++  });
++
++  it("🚨 sayfa imleci başka kiracının iz kimliği → 400; veri yok, görüntüleme kaydı yok", async () => {
++    const a = await seedOrg("Alfa");
++    const b = await seedOrg("Beta");
++    const res = await viewGet(viewReq({ orgId: a.orgId, purpose: "quality_review", before: b.generationId }));
++    expect(res.status).toBe(400);
++    expect(await res.text()).not.toContain("Beta:");
++    expect(await prisma.auditLog.count({ where: { action: "ai_quality.view" } })).toBe(0);
++  });
++
++  it("KONTROL: geçerli imleç sonraki (daha eski) sayfayı verir, tekrar yok", async () => {
++    const a = await seedOrg("Alfa");
++    const older = await prisma.aiGeneration.create({
++      data: {
++        organizationId: a.orgId,
++        conversationId: a.conversationId,
++        surface: "channel_auto",
++        model: "m",
++        promptVersion: "p",
++        decision: "human_review",
++        createdAt: new Date(Date.now() - 86_400_000),
++      },
++    });
++    const res = await viewGet(viewReq({ orgId: a.orgId, purpose: "quality_review", before: a.generationId }));
++    expect((await res.json()).generations.map((g: { id: string }) => g.id)).toEqual([older.id]);
++  });
++});
++
++describe("kalite konsolu — etiket (tek yazma)", () => {
++  beforeEach(async () => {
++    await resetDb();
++    vi.stubEnv("SUPERADMIN_EMAILS", OPERATOR_EMAIL);
++    session = await makeSession(OPERATOR_EMAIL, { mfa: true });
++  });
++  afterEach(() => vi.unstubAllEnvs());
++
++  it("KONTROL: etiket yazılır; kayıtta not METNİ yok", async () => {
++    const a = await seedOrg("Alfa");
++    const res = await labelPost(
++      labelReq({ orgId: a.orgId, generationId: a.generationId, label: "missed_context", note: "Ayşe'nin önceki mesajı atlanmış", purpose: "quality_review" }),
++    );
++    expect(res.status).toBe(201);
++    const [l] = await prisma.aiReviewLabel.findMany();
++    expect(l).toMatchObject({ generationId: a.generationId, label: "missed_context", note: "Ayşe'nin önceki mesajı atlanmış", reviewerUserId: session!.userId });
++    const log = await prisma.auditLog.findFirstOrThrow({ where: { action: "ai_quality.label" } });
++    expect(log.organizationId).toBe(a.orgId);
++    expect(log.metadataJson).not.toContain("Ayşe");
++    expect(JSON.parse(log.metadataJson!)).toMatchObject({ label: "missed_context", hasNote: true, purpose: "quality_review" });
++  });
++
++  it("🚨 gövdedeki org id ile iz kimliği farklı kiracılardan → 404, hiçbir şey yazılmaz", async () => {
++    const a = await seedOrg("Alfa");
++    const b = await seedOrg("Beta");
++    const res = await labelPost(labelReq({ orgId: a.orgId, generationId: b.generationId, label: "correct", purpose: "quality_review" }));
++    expect(res.status).toBe(404);
++    expect(await prisma.aiReviewLabel.count()).toBe(0);
++    expect(await prisma.auditLog.count({ where: { action: "ai_quality.label" } })).toBe(0);
++    // Deneme kayda girer (istenen org'a, kapalı küme gerekçe).
++    const denied = await prisma.auditLog.findFirstOrThrow({ where: { action: "ai_quality.denied" } });
++    expect(denied.organizationId).toBe(a.orgId);
++    expect(JSON.parse(denied.metadataJson!)).toEqual({ reason: "generation_not_in_org", op: "label" });
++  });
++
++  it.each([
++    [{ label: "harika" }, "label"],
++    [{ label: "correct", note: "x".repeat(1_001) }, "note"],
++    [{ label: "correct", purpose: "merak" }, "purpose"],
++  ])("🚨 geçersiz gövde %j → 400 (%s)", async (over, field) => {
++    const a = await seedOrg("Alfa");
++    const res = await labelPost(labelReq({ orgId: a.orgId, generationId: a.generationId, purpose: "quality_review", ...over }));
++    expect(res.status).toBe(400);
++    expect((await res.json()).fields).toHaveProperty(field);
++    expect(await prisma.aiReviewLabel.count()).toBe(0);
++  });
++
++  it("🚨 etiket müşteri verisini DEĞİŞTİRMEZ (mesaj, konuşma, iz, karar kaydı, kuyruk aynen)", async () => {
++    const a = await seedOrg("Alfa");
++    const snapshot = async () => ({
++      messages: await prisma.message.findMany({ orderBy: { id: "asc" } }),
++      conversations: await prisma.conversation.findMany({ orderBy: { id: "asc" } }),
++      generations: await prisma.aiGeneration.findMany({ orderBy: { id: "asc" } }),
++      riskEvents: await prisma.riskEvent.count(),
++      outbox: await prisma.messageOutbox.count(),
++      reservations: await prisma.reservation.findMany({ orderBy: { id: "asc" } }),
++    });
++    const before = await snapshot();
++    const res = await labelPost(labelReq({ orgId: a.orgId, generationId: a.generationId, label: "unsafe_auto_send", purpose: "incident_review" }));
++    expect(res.status).toBe(201);
++    expect(await snapshot()).toEqual(before);
++  });
++});
++
++describe("kalite konsolu — gönderim / durum değiştiren uca ulaşılamaz (yapısal)", () => {
++  const ROOT = path.resolve(__dirname, "../..");
++  const src = (rel: string) => readFileSync(path.join(ROOT, rel), "utf8");
++  const FILES = [
++    "src/app/api/admin/ai-quality/route.ts",
++    "src/app/api/admin/ai-quality/labels/route.ts",
++    "src/lib/ai-quality/console.ts",
++    "src/lib/ai-quality/gate.ts",
++  ];
++
++  it("konsol modülleri gönderim / kanal / kuyruk / otomasyon modülü import etmez", () => {
++    for (const f of FILES) {
++      expect(src(f), f).not.toMatch(/from "@\/lib\/(?:messaging|channels|outbox|automation|hospitable|email)/);
++    }
++  });
++
++  it("görüntüleme rotası yalnız GET, etiket rotası yalnız POST dışa verir", () => {
++    const methods = (f: string) => [...src(f).matchAll(/export async function (GET|POST|PUT|PATCH|DELETE)\b/g)].map((m) => m[1]);
++    expect(methods("src/app/api/admin/ai-quality/route.ts")).toEqual(["GET"]);
++    expect(methods("src/app/api/admin/ai-quality/labels/route.ts")).toEqual(["POST"]);
++  });
++
++  it("konsol kütüphanesi yalnız iz OKUR ve yalnız etiket OLUŞTURUR", () => {
++    const s = src("src/lib/ai-quality/console.ts");
++    const writes = [...s.matchAll(/\.(\w+)\.(create|createMany|update|updateMany|upsert|delete|deleteMany)\(/g)].map((m) => `${m[1]}.${m[2]}`);
++    expect(writes).toEqual(["aiReviewLabel.create"]);
++  });
++});
+diff --git a/tests/integration/channel-metadata-write.test.ts b/tests/integration/channel-metadata-write.test.ts
+new file mode 100644
+index 0000000..65c1418
+--- /dev/null
++++ b/tests/integration/channel-metadata-write.test.ts
+@@ -0,0 +1,169 @@
++import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
++import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
++
++// ---------------------------------------------------------------------------
++// KANAL METAVERİSİ YAZICILARI (migration 60 A–C) — gerçek senkron motoru, gerçek PostgreSQL; yalnız sağlayıcı istemcisi sahte.
++// Anahtar `CHANNEL_METADATA_WRITE` kapalıyken HİÇBİR satır / kolon yazılmaz (bugünkü davranış); açıkken yalnız YAZAR, okuyan yok.
++// ---------------------------------------------------------------------------
++
++vi.mock("@/lib/hospitable", async (orig) => ({
++  ...(await orig<typeof import("@/lib/hospitable")>()),
++  listProperties: vi.fn(),
++  listReservations: vi.fn(),
++  listMessages: vi.fn(),
++}));
++vi.mock("@/lib/hospitable-credentials", () => ({ getOrgHospitableToken: vi.fn().mockResolvedValue("test-token") }));
++vi.mock("@/lib/report-error", async (orig) => {
++  const actual = await orig<typeof import("@/lib/report-error")>();
++  return { ...actual, reportError: vi.fn().mockResolvedValue(undefined) };
++});
++
++import { HospitableError, listProperties, listReservations, listMessages } from "@/lib/hospitable";
++import { syncHospitable } from "@/lib/hospitable-sync";
++import { recordChannelListings, recordConnectionRead } from "@/lib/channels/metadata";
++import { sourcePlatformOf } from "@/lib/channels/ingest";
++
++const mockProperties = vi.mocked(listProperties);
++const mockReservations = vi.mocked(listReservations);
++const mockMessages = vi.mocked(listMessages);
++
++const RES = (platform: unknown) => ({
++  id: "res-1",
++  code: "HMABC",
++  platform,
++  arrival_date: "2026-11-10",
++  departure_date: "2026-11-12",
++  guest: { full_name: "Alex Guest" },
++});
++
++async function seed() {
++  const { orgId, propertyId } = await makeOrgWithProperty(); // "Test Property"
++  const conn = await prisma.channelConnection.create({ data: { organizationId: orgId, provider: "hospitable", status: "active" } });
++  mockProperties.mockResolvedValue([{ id: "hosp-prop-1", name: "Test Property" }]);
++  return { orgId, propertyId, connectionId: conn.id };
++}
++
++describe("kanal metaverisi — senkron üzerinden", () => {
++  beforeEach(async () => {
++    await resetDb();
++    vi.clearAllMocks();
++    mockReservations.mockResolvedValue([RES("Airbnb Official")] as never);
++    mockMessages.mockResolvedValue([]);
++    vi.stubEnv("CHANNEL_METADATA_WRITE", "1");
++  });
++  afterEach(() => vi.unstubAllEnvs());
++
++  it("açık: ilan eşlemesi + ham platform + başarılı okuma yazılır; kanal etiketi ve yetenek alanları AYNEN", async () => {
++    const { orgId, propertyId, connectionId } = await seed();
++    await syncHospitable(orgId);
++    expect(await prisma.channelListing.findMany({ select: { organizationId: true, connectionId: true, externalId: true, propertyId: true } })).toEqual([
++      { organizationId: orgId, connectionId, externalId: "hosp-prop-1", propertyId },
++    ]);
++    const res = await prisma.reservation.findFirstOrThrow({ where: { sourceReference: "res-1" } });
++    expect(res.sourcePlatform).toBe("airbnb_official");
++    expect(res.channel).toBe("airbnb"); // kanal etiketi eski kuraldan, değişmedi
++    const conn = await prisma.channelConnection.findUniqueOrThrow({ where: { id: connectionId } });
++    expect(conn.lastReadOkAt).not.toBeNull();
++    expect(conn.lastReadErrorAt).toBeNull();
++    // İkinci geçiş idempotent: tek ilan satırı, değişmeyen eşleme yeniden YAZILMAZ.
++    const first = await prisma.channelListing.findFirstOrThrow();
++    await syncHospitable(orgId);
++    expect(await prisma.channelListing.count()).toBe(1);
++    expect((await prisma.channelListing.findFirstOrThrow()).updatedAt).toEqual(first.updatedAt);
++  });
++
++  it("🚨 KAPALI (varsayılan): ilan satırı, platform, sağlık YAZILMAZ — bugünkü davranış", async () => {
++    vi.stubEnv("CHANNEL_METADATA_WRITE", "");
++    const { orgId, connectionId } = await seed();
++    const r = await syncHospitable(orgId);
++    expect(r.properties).toBe(1);
++    expect(await prisma.channelListing.count()).toBe(0);
++    expect((await prisma.reservation.findFirstOrThrow({ where: { sourceReference: "res-1" } })).sourcePlatform).toBeNull();
++    const conn = await prisma.channelConnection.findUniqueOrThrow({ where: { id: connectionId } });
++    expect([conn.lastReadOkAt, conn.lastReadErrorAt, conn.lastReadErrorKind]).toEqual([null, null, null]);
++  });
++
++  it("🚨 platform değişimi OLAY DEĞİLDİR: yalnız platform değişince reservation.updated üretilmez", async () => {
++    const { orgId } = await seed();
++    await syncHospitable(orgId);
++    const before = await prisma.ingestEvent.count({ where: { kind: "reservation.updated" } });
++    mockReservations.mockResolvedValue([RES("airbnb_v2")] as never);
++    await syncHospitable(orgId);
++    expect((await prisma.reservation.findFirstOrThrow({ where: { sourceReference: "res-1" } })).sourcePlatform).toBe("airbnb_v2");
++    expect(await prisma.ingestEvent.count({ where: { kind: "reservation.updated" } })).toBe(before);
++  });
++
++  it("ilan listesi okunamadı (401) → okuma hatası türü kaydedilir, senkron hatası aynen yükselir", async () => {
++    const { orgId, connectionId } = await seed();
++    mockProperties.mockRejectedValue(new HospitableError("unauthorized", 401));
++    await expect(syncHospitable(orgId)).rejects.toThrow();
++    const conn = await prisma.channelConnection.findUniqueOrThrow({ where: { id: connectionId } });
++    expect(conn.lastReadErrorKind).toBe("auth_revoked");
++    expect(conn.lastReadErrorAt).not.toBeNull();
++    expect(conn.lastReadOkAt).toBeNull();
++  });
++
++  it("ilanın rezervasyonları okunamadı (500) → geçiş hata olarak kaydedilir (başarı YAZILMAZ)", async () => {
++    const { orgId, connectionId } = await seed();
++    mockReservations.mockRejectedValue(new HospitableError("boom", 503));
++    await syncHospitable(orgId);
++    const conn = await prisma.channelConnection.findUniqueOrThrow({ where: { id: connectionId } });
++    expect(conn.lastReadErrorKind).toBe("outage");
++    expect(conn.lastReadOkAt).toBeNull();
++  });
++
++  it("bağlantı satırı yoksa (env fallback) hiçbir metaveri yazılmaz — çıkarım yok", async () => {
++    const { orgId } = await makeOrgWithProperty();
++    mockProperties.mockResolvedValue([{ id: "hosp-prop-1", name: "Test Property" }]);
++    await syncHospitable(orgId);
++    expect(await prisma.channelListing.count()).toBe(0);
++  });
++});
++
++describe("kanal metaverisi — kiracı denetimi (doğrudan)", () => {
++  beforeEach(async () => {
++    await resetDb();
++    vi.stubEnv("CHANNEL_METADATA_WRITE", "1");
++  });
++  afterEach(() => vi.unstubAllEnvs());
++
++  it("🚨 başka org'un bağlantı kimliği ya da başka org'un mülkü → ilan satırı YAZILMAZ; sağlık güncellenmez", async () => {
++    const a = await makeOrgWithProperty();
++    const b = await makeOrgWithProperty();
++    const connB = await prisma.channelConnection.create({ data: { organizationId: b.orgId, provider: "hospitable", status: "active" } });
++    const connA = await prisma.channelConnection.create({ data: { organizationId: a.orgId, provider: "hospitable", status: "active" } });
++    await recordChannelListings(a.orgId, connB.id, [{ externalId: "x", propertyId: a.propertyId }]);
++    await recordChannelListings(a.orgId, connA.id, [{ externalId: "y", propertyId: b.propertyId }]);
++    expect(await prisma.channelListing.count()).toBe(0);
++    await recordConnectionRead(a.orgId, connB.id, { ok: true });
++    expect((await prisma.channelConnection.findUniqueOrThrow({ where: { id: connB.id } })).lastReadOkAt).toBeNull();
++    // KONTROL: doğru eşleşme yazılır.
++    await recordChannelListings(a.orgId, connA.id, [{ externalId: "z", propertyId: a.propertyId }]);
++    expect(await prisma.channelListing.count()).toBe(1);
++  });
++
++  it("ilan başka mülke bağlanırsa satır güncellenir (tek satır)", async () => {
++    const a = await makeOrgWithProperty();
++    const p2 = await prisma.property.create({ data: { organizationId: a.orgId, name: "İkinci" } });
++    const conn = await prisma.channelConnection.create({ data: { organizationId: a.orgId, provider: "hospitable", status: "active" } });
++    await recordChannelListings(a.orgId, conn.id, [{ externalId: "x", propertyId: a.propertyId }]);
++    await recordChannelListings(a.orgId, conn.id, [{ externalId: "x", propertyId: p2.id }]);
++    expect(await prisma.channelListing.findMany({ select: { propertyId: true } })).toEqual([{ propertyId: p2.id }]);
++  });
++});
++
++describe("sourcePlatformOf (saf)", () => {
++  it.each([
++    ["Airbnb", "airbnb"],
++    ["  Booking.com ", "booking.com"],
++    ["Airbnb Official", "airbnb_official"],
++    ["", null],
++    [null, null],
++    [42, null],
++    ["<script>", null],
++    ["x".repeat(41), null],
++    ["Ayşe", null],
++  ])("%j → %j", (raw, want) => {
++    expect(sourcePlatformOf(raw)).toBe(want);
++  });
++});
+diff --git a/tests/integration/conversation-dedupe-apply.test.ts b/tests/integration/conversation-dedupe-apply.test.ts
+index e9fcfed..b62f46f 100644
+--- a/tests/integration/conversation-dedupe-apply.test.ts
++++ b/tests/integration/conversation-dedupe-apply.test.ts
+@@ -266,6 +266,7 @@ describe("apply — kapılar (varsayılan KAPALI)", () => {
+ describe("apply — referans envanteri", () => {
+   it("Conversation'a referans veren TÜM modeller biliniyor", () => {
+     expect(inventoryConversationReferences()).toEqual([
++      "AiGeneration", // 10-09 (migration 60): FK Cascade — repoint listesinde (silinirse kalite konsolunun izi kaybolurdu)
+       "ConversationItem", // 09-26 (migration 56): FK Cascade — repoint listesinde (silinirse açık istek kaybolurdu)
+       "DecisionRequest", // 10-02 (migration 59): FK Cascade — repoint listesinde (silinirse "karar bekliyor" kartı kaybolurdu)
+       "Message",
+@@ -427,6 +428,18 @@ describe("apply — başarı yolu", () => {
+       },
+     });
+ 
++    // Yapay zekâ üretim izi (10-09, migration 60): FK Cascade — repoint edilmezse kalite konsolunun izi kaybedenle SİLİNİR.
++    await prisma.aiGeneration.create({
++      data: {
++        organizationId: org.organizationId,
++        conversationId: b.id,
++        surface: "channel_auto",
++        model: "gpt-5.1",
++        promptVersion: "test",
++        decision: "human_review",
++      },
++    });
++
+     const plan = await planConversationDedupe(prisma, { allowPrimary: true });
+     const out = await applyConversationDedupe(prisma, {
+       ...GATE,
+@@ -444,7 +457,9 @@ describe("apply — başarı yolu", () => {
+       signal: 1,
+       conversationItem: 1,
+       decisionRequest: 1,
++      aiGeneration: 1,
+     });
++    expect(await prisma.aiGeneration.count({ where: { conversationId: a.id } })).toBe(1);
+     expect(await prisma.conversationItem.count({ where: { conversationId: a.id, status: "pending_host" } })).toBe(1);
+     expect(await prisma.decisionRequest.count({ where: { conversationId: a.id, status: "pending" } })).toBe(1);
+     expect(await prisma.messageOutbox.count({ where: { conversationId: a.id } })).toBe(1);
+diff --git a/tests/integration/conversation-items-auto-reply.test.ts b/tests/integration/conversation-items-auto-reply.test.ts
+index 7d0bc3a..13a5c3b 100644
+--- a/tests/integration/conversation-items-auto-reply.test.ts
++++ b/tests/integration/conversation-items-auto-reply.test.ts
+@@ -18,6 +18,10 @@ vi.mock("@/lib/ai", () => ({
+   suggestReply: vi.fn(),
+   classifyMessage: vi.fn(),
+   summarizeHostStyle: vi.fn(),
++  // Üretim izi (migration 60): istem sürümü çağrının öğe kipi bitleriyle — bitler gerçek kuralla, sürüm bitlerden okunur.
++  replyCallParams: vi.fn(() => ({ model: "m", effort: null })),
++  replyPromptItemsOf: (items: { held: readonly unknown[] } | undefined) => ({ mode: items !== undefined, held: (items?.held.length ?? 0) > 0 }),
++  replyPromptVersion: vi.fn((b: { mode: boolean; held: boolean }) => `v-${b.mode ? 1 : 0}${b.held ? 1 : 0}`),
+ }));
+ vi.mock("@/lib/hospitable-credentials", () => ({
+   getOrgHospitableToken: vi.fn(async () => "tok"),
+@@ -262,6 +266,21 @@ describe("aynı mesajda IBAN + Wi-Fi", () => {
+     expect(await hasOpenHostWork(orgId, messages)).toBe(true);
+   });
+ 
++  it("üretim izi (anahtar açık): istem sürümü ÖĞE KİPİ + bırakılan istek bitleriyle; taslak modelin cevabı", async () => {
++    vi.stubEnv("AI_GENERATION_TRACE_ENABLED", "1");
++    const { conversationId } = await seed(BOTH);
++    understands(
++      understood([
++        { intent: "payment_invoice", message: 1 },
++        { intent: "wifi", message: 1 },
++      ]),
++    );
++    mockSuggest.mockResolvedValueOnce(wifiAnswer());
++    expect((await applyChannelAutoReply(conversationId)).sent).toBe(true);
++    const [g] = await prisma.aiGeneration.findMany({ where: { conversationId } });
++    expect(g).toMatchObject({ promptVersion: "v-11", decision: "auto_sent", draftText: wifiAnswer().reply });
++  });
++
+   it("🚨 cevapta ödeme yöntemi geçerse cevap GİTMEZ; Wi-Fi ev sahibinde açık kalır (cevaplandı YAZILMAZ)", async () => {
+     const { conversationId } = await seed(BOTH);
+     understands(
+diff --git a/tests/integration/verified-availability-auto-reply.test.ts b/tests/integration/verified-availability-auto-reply.test.ts
+index a124db2..44496a1 100644
+--- a/tests/integration/verified-availability-auto-reply.test.ts
++++ b/tests/integration/verified-availability-auto-reply.test.ts
+@@ -8,7 +8,14 @@
+ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+ import { prisma, resetDb } from "../helpers/db";
+ 
+-vi.mock("@/lib/ai", () => ({ suggestReply: vi.fn(), classifyMessage: vi.fn(), summarizeHostStyle: vi.fn() }));
++vi.mock("@/lib/ai", () => ({
++  suggestReply: vi.fn(),
++  classifyMessage: vi.fn(),
++  summarizeHostStyle: vi.fn(),
++  replyCallParams: vi.fn(() => ({ model: "m", effort: null })),
++  replyPromptItemsOf: () => ({ mode: false, held: false }),
++  replyPromptVersion: vi.fn(() => "v"),
++}));
+ vi.mock("@/lib/messaging", async (orig) => ({
+   ...(await orig<typeof import("@/lib/messaging")>()),
+   sendOnChannel: vi.fn(),
+@@ -145,6 +152,16 @@ describe("doğrulanmış müsaitlik otomatik cevabı — koddan kurulan metin",
+     expectCodeSent(CODE_AVAILABLE);
+   });
+ 
++  it("üretim izi: taslak = MODELİN özgün cevabı, gönderilen = kod metni (iki ayrı alan)", async () => {
++    vi.stubEnv("AI_GENERATION_TRACE_ENABLED", "1");
++    const { conversationId } = await seed();
++    expect((await applyChannelAutoReply(conversationId)).sent).toBe(true);
++    const [g] = await prisma.aiGeneration.findMany({ where: { conversationId } });
++    expect(g.draftText).toBe(MODEL_DRAFT);
++    expect(g.sentText).toBe(sentBody());
++    expect(g.sentText?.split("\n")[0]).toBe(CODE_AVAILABLE);
++  });
++
+   it("KONTROL: anahtar KAPALI → hiçbir şey gitmez (bugünkü davranış)", async () => {
+     vi.stubEnv("AI_VERIFIED_AVAILABILITY_ENABLED", "");
+     const { conversationId } = await seed();
+diff --git a/tests/unit/ai-generation-readers.test.ts b/tests/unit/ai-generation-readers.test.ts
+new file mode 100644
+index 0000000..2d85e8e
+--- /dev/null
++++ b/tests/unit/ai-generation-readers.test.ts
+@@ -0,0 +1,57 @@
++import { describe, it, expect } from "vitest";
++import { readdirSync, readFileSync, statSync } from "node:fs";
++import path from "node:path";
++
++// ---------------------------------------------------------------------------
++// 🚨 EĞİTİM / DIŞA AKTARMA YASAĞI (kurucu talimatı 09-07 + tasarım `docs/TASARIM-2026-10-09-migration-paketi-60.md` §D):
++// üretim izi (`AiGeneration`) ve kurucu etiketleri (`AiReviewLabel`) hiçbir dışa aktarma / ince ayar / raporlama yoluna bağlanmaz.
++// Prisma temsilcisine dokunan modüller KAPALI listededir; yeni bir okuyucu bu testi kırar ve bilinçli karar ister.
++// Dosya sistemi taraması (git'e bağlı değil); kapsam src/ + scripts/ (testler ve belgeler hariç).
++// ---------------------------------------------------------------------------
++
++const ROOT = path.resolve(__dirname, "../..");
++
++/** Kurucu kalite konsolu (salt-okuma + etiket) · yazıcı · saklama süpürgesi · misafir silmesi · konuşma birleştirme (iz taşınır). */
++const ALLOWED = [
++  "scripts/apply-conversation-dedupe.ts",
++  "src/lib/ai-quality/console.ts",
++  "src/lib/ai/generation-trace.ts",
++  "src/lib/data-retention.ts",
++  "src/lib/erasure.ts",
++].sort();
++
++function walk(dir: string, out: string[] = []): string[] {
++  for (const name of readdirSync(dir)) {
++    if (name === "node_modules" || name.startsWith(".")) continue;
++    const p = path.join(dir, name);
++    if (statSync(p).isDirectory()) walk(p, out);
++    else if (/\.(ts|tsx|mjs|js)$/.test(name)) out.push(p);
++  }
++  return out;
++}
++
++const READER = /\b(?:prisma|db|tx|client)\s*\.\s*(?:aiGeneration|aiReviewLabel)\b|\$queryRaw[\s\S]{0,200}"Ai(?:Generation|ReviewLabel)"/;
++
++describe("AiGeneration / AiReviewLabel okuyucuları kapalı liste", () => {
++  const files = ["src", "scripts"].flatMap((d) => walk(path.join(ROOT, d)));
++
++  it("tarama boş değil (kendini boşa düşürmesin)", () => {
++    expect(files.length).toBeGreaterThan(200);
++    expect(files.some((f) => f.endsWith(path.join("src", "lib", "erasure.ts")))).toBe(true);
++  });
++
++  it("tablolara dokunan modüller = izin listesi", () => {
++    const hits = files
++      .filter((f) => READER.test(readFileSync(f, "utf8")))
++      .map((f) => path.relative(ROOT, f).split(path.sep).join("/"))
++      .sort();
++    expect(hits).toEqual(ALLOWED);
++  });
++
++  it("dedektör tipik erişim biçimlerini yakalar", () => {
++    for (const s of ["prisma.aiGeneration.findMany(", "db . aiReviewLabel.create(", "tx.aiGeneration.updateMany(", 'prisma.$queryRaw`SELECT * FROM "AiGeneration"`']) {
++      expect(READER.test(s), s).toBe(true);
++    }
++    expect(READER.test("const aiGenerationTraceEnabled = 1")).toBe(false);
++  });
++});
+diff --git a/tests/unit/ai-generation-trace.test.ts b/tests/unit/ai-generation-trace.test.ts
+new file mode 100644
+index 0000000..a47bcab
+--- /dev/null
++++ b/tests/unit/ai-generation-trace.test.ts
+@@ -0,0 +1,109 @@
++import { describe, it, expect, afterEach, vi } from "vitest";
++
++vi.mock("server-only", () => ({}));
++const create = vi.fn(async () => ({}));
++vi.mock("@/lib/db", () => ({ prisma: { aiGeneration: { create: (...a: unknown[]) => create(...(a as [])) } } }));
++vi.mock("@/lib/report-error", () => ({ reportError: vi.fn() }));
++
++import { aiGenerationRow, aiGenerationTraceEnabled, recordAiGeneration, AI_GENERATION_TEXT_CAP, type AiGenerationInput } from "@/lib/ai/generation-trace";
++
++// ---------------------------------------------------------------------------
++// Üretim izi satır kurucusu (saf). Kapalı kümeler, sayaç sözleşmesi, metin kuralları; DB yok.
++// ---------------------------------------------------------------------------
++
++const base = (over: Partial<AiGenerationInput> = {}): AiGenerationInput => ({
++  organizationId: "org-1",
++  conversationId: "conv-1",
++  surface: "channel_auto",
++  model: "gpt-x",
++  promptVersion: "abc123def456",
++  decision: "auto_sent",
++  draftText: "Wi-Fi şifresi mutfakta.",
++  sentText: "Wi-Fi şifresi mutfakta.\n\n(otomatik yanıt)",
++  ...over,
++});
++
++describe("aiGenerationRow", () => {
++  it("KONTROL: geçerli girdi → satır", () => {
++    const r = aiGenerationRow(base({ llm: { pt: 100, ct: 20, rt: 5, m: "gpt-x-2026" }, latencyMs: 812, gateReason: "gate_passed" }));
++    expect(r).toMatchObject({
++      organizationId: "org-1",
++      conversationId: "conv-1",
++      model: "gpt-x-2026", // sağlayıcının bildirdiği sunulan model kazanır
++      promptTokens: 100,
++      completionTokens: 20,
++      reasoningTokens: 5,
++      latencyMs: 812,
++      gateReason: "gate_passed",
++      sentText: "Wi-Fi şifresi mutfakta.\n\n(otomatik yanıt)",
++    });
++  });
++
++  it.each([
++    ["bilinmeyen yüzey", { surface: "email" as never }],
++    ["bilinmeyen karar", { decision: "maybe" as never }],
++    ["konuşma yok", { conversationId: "" }],
++    ["model yok", { model: " " }],
++    ["istem sürümü yok", { promptVersion: "" }],
++  ])("🚨 %s → satır YAZILMAZ (sahte etiket yerine eksik iz)", (_n, over) => {
++    expect(aiGenerationRow(base(over))).toBeNull();
++  });
++
++  it.each(["human_review", "no_reply"] as const)("🚨 gönderilmeyen kararda (%s) gönderilen metin yazılmaz; taslak kalır", (decision) => {
++    const r = aiGenerationRow(base({ decision }));
++    expect(r?.sentText).toBeNull();
++    expect(r?.draftText).toBe("Wi-Fi şifresi mutfakta.");
++  });
++
++  it("sayaç sözleşmesi: negatif / kesirli / NaN → null (kırpma yok)", () => {
++    const r = aiGenerationRow(base({ latencyMs: -1, llm: { pt: 1.5, ct: Number.NaN, rt: -3 } }));
++    expect([r?.latencyMs, r?.promptTokens, r?.completionTokens, r?.reasoningTokens]).toEqual([null, null, null, null]);
++  });
++
++  it("kanıt: yalnız ayrıştırılabilir JSON nesnesi", () => {
++    expect(aiGenerationRow(base({ kbEvidenceJson: '{"k":[1]}' }))?.kbEvidenceJson).toBe('{"k":[1]}');
++    for (const bad of ["serbest metin Ayşe", "[1,2]", "{yarım", "x".repeat(9_000)]) {
++      expect(aiGenerationRow(base({ kbEvidenceJson: bad }))?.kbEvidenceJson).toBeNull();
++    }
++  });
++
++  it("metin: NUL silinir, boş → null, tavanda kesilir", () => {
++    expect(aiGenerationRow(base({ draftText: "a\u0000b" }))?.draftText).toBe("ab");
++    expect(aiGenerationRow(base({ draftText: "   " }))?.draftText).toBeNull();
++    expect(aiGenerationRow(base({ draftText: "x".repeat(AI_GENERATION_TEXT_CAP + 50) }))?.draftText).toHaveLength(AI_GENERATION_TEXT_CAP);
++  });
++});
++
++describe("anahtar", () => {
++  afterEach(() => vi.unstubAllEnvs());
++  it("yalnız tam '1' açar (varsayılan KAPALI)", () => {
++    vi.stubEnv("AI_GENERATION_TRACE_ENABLED", "");
++    expect(aiGenerationTraceEnabled()).toBe(false);
++    vi.stubEnv("AI_GENERATION_TRACE_ENABLED", "true");
++    expect(aiGenerationTraceEnabled()).toBe(false);
++    vi.stubEnv("AI_GENERATION_TRACE_ENABLED", "1");
++    expect(aiGenerationTraceEnabled()).toBe(true);
++  });
++});
++
++describe("recordAiGeneration — yazıcının KENDİ anahtar kontrolü (gelecek çağıranlar için güvence)", () => {
++  afterEach(() => {
++    vi.unstubAllEnvs();
++    create.mockClear();
++  });
++  it("🚨 anahtar kapalı → DB'ye dokunmaz (çağıran kontrolü unutsa da)", async () => {
++    vi.stubEnv("AI_GENERATION_TRACE_ENABLED", "");
++    await recordAiGeneration(base());
++    expect(create).not.toHaveBeenCalled();
++  });
++  it("KONTROL: anahtar açık → tek satır yazar", async () => {
++    vi.stubEnv("AI_GENERATION_TRACE_ENABLED", "1");
++    await recordAiGeneration(base());
++    expect(create).toHaveBeenCalledTimes(1);
++  });
++  it("🚨 DB arızası fırlatmaz", async () => {
++    vi.stubEnv("AI_GENERATION_TRACE_ENABLED", "1");
++    create.mockRejectedValueOnce(new Error("db down"));
++    await expect(recordAiGeneration(base())).resolves.toBeUndefined();
++  });
++});
+diff --git a/tests/unit/api-route-role-gate.test.ts b/tests/unit/api-route-role-gate.test.ts
+index b27447f..365036f 100644
+--- a/tests/unit/api-route-role-gate.test.ts
++++ b/tests/unit/api-route-role-gate.test.ts
+@@ -135,6 +135,8 @@ const SELF_GATED: Record<string, { gate: RegExp[] | null; reason: string; where?
+   "account/delete POST": { gate: [SESSION, /if \(session\.actorUserId\)/], reason: "sahip + impersonation'da yasak" },
+   "account/password POST": { gate: [SESSION, /if \(session\.actorUserId\)/], reason: "kendi şifresi; impersonation'da yasak" },
+   "account/forgot-password POST": { gate: null, reason: "kimliksiz: sıfırlama isteği (hız sınırı + genel yanıt)" },
++  "admin/ai-quality GET": { gate: [SESSION, SUPERADMIN], reason: "operatör (kalite konsolu, salt-okuma)" },
++  "admin/ai-quality/labels POST": { gate: [SESSION, SUPERADMIN], reason: "operatör (kalite etiketi)" },
+   "admin/customers POST": { gate: [SESSION, SUPERADMIN], reason: "operatör" },
+   "admin/exit POST": { gate: [/exitImpersonation\(\)/], reason: "yalnız impersonation'dan ÇIKAR (yetki düşürür)" },
+   "admin/export GET": { gate: [SESSION, SUPERADMIN], reason: "operatör" },
+diff --git a/tests/unit/api-route-scoping.test.ts b/tests/unit/api-route-scoping.test.ts
+index 0a88931..e5cfc60 100644
+--- a/tests/unit/api-route-scoping.test.ts
++++ b/tests/unit/api-route-scoping.test.ts
+@@ -53,6 +53,8 @@ const NOT_ORG_SCOPED: Record<string, string> = {
+   "admin/leads/[id]/route.ts": "global: Lead org'a bağlı değil; superadmin kapılı",
+   // ↓ HEPSİ `organizationId` DİZGİSİNİ TAŞIR AMA OTURUMDAN KAPSAMLI DEĞİLDİR (↓REQUEST_DERIVED_ORG_ID).
+   "admin/export/route.ts": "operatör: org id `?orgId=` ile İSTEKTEN gelir; tek yetki isSuperAdmin",
++  "admin/ai-quality/route.ts": "operatör: kalite konsolu, org id `?orgId=` ile İSTEKTEN gelir; tek yetki isSuperAdmin (salt-okuma, kayıtlı)",
++  "admin/ai-quality/labels/route.ts": "operatör: kalite etiketi, org id GÖVDEDEN gelir; iz satırı o org'a ait olmalı; tek yetki isSuperAdmin",
+   "admin/impersonate/route.ts": "operatör: org id GÖVDEDEN gelir; tek yetki isSuperAdmin",
+   "admin/quality-audit/route.ts": "operatör: org id GÖVDEDEN gelir; tek yetki isSuperAdmin",
+   "alert-email/verify/route.ts":
+@@ -80,6 +82,8 @@ const NOT_ORG_SCOPED: Record<string, string> = {
+  * `tests/integration/admin-superadmin-gate.test.ts`.
+  */
+ const REQUEST_DERIVED_ORG_ID = new Set([
++  "admin/ai-quality/labels/route.ts",
++  "admin/ai-quality/route.ts",
+   "admin/export/route.ts",
+   "admin/impersonate/route.ts",
+   "admin/quality-audit/route.ts",
+diff --git a/tests/unit/eval-run-meta.test.ts b/tests/unit/eval-run-meta.test.ts
+index 7e9a152..6c070e2 100644
+--- a/tests/unit/eval-run-meta.test.ts
++++ b/tests/unit/eval-run-meta.test.ts
+@@ -337,3 +337,30 @@ describe("bağlantı pinleri (kaynak taraması, tek yönlü — davranış ↑yu
+     expect(missing).toEqual([]);
+   });
+ });
++
++describe("istem sürümü TEK KAYNAK (üretim izi ↔ ölçüm raporu, migration 60)", () => {
++  afterEach(() => vi.unstubAllEnvs());
++  it("rapordaki cevap istemi kimliği = replyPromptVersion(); istemi değiştiren anahtar kimliği değiştirir", async () => {
++    const { replyPromptVersion } = await import("@/lib/ai");
++    vi.stubEnv("AI_CODE_GREETING_ENABLED", "");
++    const off = replyPromptVersion();
++    expect(off).toMatch(/^[0-9a-f]{12}$/);
++    expect(evalRuntime().prompts?.reply).toBe(off);
++    vi.stubEnv("AI_CODE_GREETING_ENABLED", "1");
++    expect(replyPromptVersion()).not.toBe(off);
++    expect(evalRuntime().prompts?.reply).toBe(replyPromptVersion());
++  });
++
++  it("öğe kipi bitleri: kimlik çağrının GERÇEK sistem istemidir (öğe bloğu + bırakılan istek)", async () => {
++    const { replyPromptVersion, replyRequestIdentity, replyPromptItemsOf } = await import("@/lib/ai");
++    const conversationItems = { answerable: [{ ref: "R1", kind: "wifi" as const, hint: "wifi" }], held: [{ kind: "payment_invoice" as const }] };
++    const input = { ...REPLY_VARIANT_INPUT, conversationItems };
++    expect(replyPromptVersion(replyPromptItemsOf(conversationItems))).toBe(sha12(replyRequestIdentity(input).system));
++    const { conversationItems: _drop, ...noItems } = REPLY_VARIANT_INPUT;
++    expect(replyPromptVersion(replyPromptItemsOf(undefined))).toBe(sha12(replyRequestIdentity(noItems).system));
++    // Bırakılan istek yoksa ayrı bit.
++    const answerOnly = { answerable: conversationItems.answerable, held: [] };
++    expect(replyPromptVersion(replyPromptItemsOf(answerOnly))).toBe(sha12(replyRequestIdentity({ ...noItems, conversationItems: answerOnly }).system));
++    expect(new Set([replyPromptVersion(), replyPromptVersion({ mode: true, held: false }), replyPromptVersion({ mode: true, held: true })]).size).toBe(3);
++  });
++});
+diff --git a/tests/unit/scrub-scope-parity.test.ts b/tests/unit/scrub-scope-parity.test.ts
+index 55c152b..1372e4d 100644
+--- a/tests/unit/scrub-scope-parity.test.ts
++++ b/tests/unit/scrub-scope-parity.test.ts
+@@ -25,7 +25,17 @@ const ROOT = path.resolve(__dirname, "../..");
+ const read = (rel: string) => readFileSync(path.join(ROOT, rel), "utf8");
+ 
+ /** Misafir verisi taşıyan modeller — süpürgelerin dokunduğu kümenin tamamı. */
+-const GUEST_MODELS = ["Message", "Conversation", "Reservation", "Task", "TaskUpdate", "MessageOutbox"] as const;
++const GUEST_MODELS = [
++  "Message",
++  "Conversation",
++  "Reservation",
++  "Task",
++  "TaskUpdate",
++  "MessageOutbox",
++  // migration 60 (10-09): yapay zekâ üretim izi taslak / gönderilen metni + kurucu etiket notu taşır.
++  "AiGeneration",
++  "AiReviewLabel",
++] as const;
+ type GuestModel = (typeof GUEST_MODELS)[number];
+ 
+ /** schema.prisma'dan model → kolon adları (skaler; ilişki ve id hariç). */
+@@ -123,6 +133,10 @@ describe("KVKK süpürgeleri — süre-bazlı ↔ açık-silme paritesi", () =>
+         // (`aiConfidence` sayı · `aiTriageSource` kapalı-set etiket ·
+         // `aiTriagedAt` damga · `aiTriageTriggerMessageId` opak id) BİLİNÇLİ
+         // olarak kapsam DIŞI — `Message.aiSourcesJson` emsali.
++        // migration 60 (kurucu §D-1 10-09, "mesajlarla aynı saklama"): iz METNİ ve kurucu etiket NOTU (misafir metnini alıntılayabilir).
++        "AiGeneration.draftText",
++        "AiGeneration.sentText",
++        "AiReviewLabel.note",
+         "Conversation.aiActionSuggestion",
+         "Conversation.aiMissingInfoJson",
+         "Conversation.guestIdentifier",
+@@ -193,12 +207,20 @@ describe("şema kanaryası — misafir modellerine yeni kolon", () => {
+       //     iki süpürge de null yapar (↑parite listesi) ve giden gövdelerden ayıklar.
+       //   · Reservation.guestNameSource (String?, migration 57) → KAPSAM DIŞI: kapalı küme köken etiketi
+       //     (channel · calendar · file · host · placeholder); kimseyi tanımlamaz, anonim satırda da doğrudur.
++      //   · Reservation.sourcePlatform (String?, migration 60) → KAPSAM DIŞI: kapalı küme OTA etiketi (airbnb · booking · …);
++      //     kimseyi tanımlamaz.
++      //   · AiGeneration (migration 60) → yalnız draftText / sentText KAPSAM İÇİ (↑liste). Diğerleri opak kimlik, kapalı küme
++      //     etiket, sayaç / damga, PII'siz kanıt JSON'u (kimlik + sürüm; araç sonucu PII taşımaz) — kapsam DIŞI. Satır konuşma
++      //     silinince cascade ile gider.
++      //   · AiReviewLabel (migration 60) → yalnız note KAPSAM İÇİ (serbest metin; kurucu misafir cümlesini alıntılayabilir).
+       Message: 17,
+       Conversation: 26,
+-      Reservation: 37,
++      Reservation: 38,
+       Task: 15,
+       TaskUpdate: 6,
+       MessageOutbox: 23,
++      AiGeneration: 23,
++      AiReviewLabel: 5,
+     };
+     expect(
+       COLS[model]?.size,

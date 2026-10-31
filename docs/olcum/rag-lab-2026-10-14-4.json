@@ -1,0 +1,4554 @@
+{
+  "suite": "rag-lab",
+  "version": 1,
+  "meta": {
+    "commit": "390b776",
+    "ortam gömmesi (yapılandırma başka model demiyorsa)": "text-embedding-3-small",
+    "model": "gpt-5.1",
+    "small eşiği (T_PROD)": 0.4,
+    "okuma tavanı": 400,
+    "yeniden sıralayıcı sabitleri": "ilk 60 · kırpma 600",
+    "yapılandırma live+b12000+mc24 (çözülmüş)": "gömme text-embedding-3-small @ eşik 0.4 · anlama AÇIK · geçmiş yalnız geçmişli satırda (eski ölçer) · sıralayıcı ilk 60 TEK çağrı · kırpma 600 · tavan 2500 ms · okuma 400 · blok 12000 kr / 24 parça",
+    "yapılandırma live+b9000+mc18 (çözülmüş)": "gömme text-embedding-3-small @ eşik 0.4 · anlama AÇIK · geçmiş yalnız geçmişli satırda (eski ölçer) · sıralayıcı ilk 60 TEK çağrı · kırpma 600 · tavan 2500 ms · okuma 400 · blok 9000 kr / 18 parça",
+    "yapılandırma live+b6000+mc24 (çözülmüş)": "gömme text-embedding-3-small @ eşik 0.4 · anlama AÇIK · geçmiş yalnız geçmişli satırda (eski ölçer) · sıralayıcı ilk 60 TEK çağrı · kırpma 600 · tavan 2500 ms · okuma 400 · blok 6000 kr / 24 parça",
+    "ücretli gruplar": "para,multi,neg",
+    "önbellek": "/tmp/lixus-rag-lab-cache",
+    "çağrılar": {
+      "embedCalls": 0,
+      "embedTextsSent": 0,
+      "llm": {
+        "understand": {
+          "hits": 117,
+          "calls": 0
+        },
+        "rerank": {
+          "hits": 117,
+          "calls": 0
+        }
+      }
+    }
+  },
+  "rows": [
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b12000+mc24",
+      "qid": "multi_0",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5348420893049965,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5969028292751029,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 5622,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1101,
+      "rrChars": 8896,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b12000+mc24",
+      "qid": "multi_1",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5909174037410156,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5868265997316582,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2245,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1455,
+      "rrChars": 4967,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b12000+mc24",
+      "qid": "multi_2",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.44144496987269316,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.649927725226418,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 5621,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1498,
+      "rrChars": 14598,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b12000+mc24",
+      "qid": "multi_3",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5708753949220174,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6373655900524722,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 3799,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1523,
+      "rrChars": 9564,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b12000+mc24",
+      "qid": "multi_4",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5677382652468356,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5908547871932947,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 6033,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1250,
+      "rrChars": 14661,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b12000+mc24",
+      "qid": "multi_5",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6114107521130864,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6892477160087982,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2527,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1356,
+      "rrChars": 8669,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b12000+mc24",
+      "qid": "multi_6",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6772698353923851,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6997291324556356,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2506,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1258,
+      "rrChars": 6928,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b12000+mc24",
+      "qid": "multi_7",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5755293205533606,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6478454023603089,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 6630,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1576,
+      "rrChars": 13607,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b12000+mc24",
+      "qid": "multi_8",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 11,
+          "maxCos": 0.43406722003197407,
+          "rrLabel": 2,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6193297173578236,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 3884,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1159,
+      "rrChars": 8702,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b12000+mc24",
+      "qid": "multi_9",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5982048011321865,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.674138383346833,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2501,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1059,
+      "rrChars": 6090,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b12000+mc24",
+      "qid": "multi_10",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 8,
+          "maxCos": 0.6662999829363101,
+          "rrLabel": 2,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5541391374920298,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 3378,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1859,
+      "rrChars": 11583,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b12000+mc24",
+      "qid": "multi_11",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5228783795767106,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.662879470968154,
+          "rrLabel": 2,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 4244,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1484,
+      "rrChars": 11347,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b12000+mc24",
+      "qid": "multi_12",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6081623664834737,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6147307738488607,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2351,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1326,
+      "rrChars": 6422,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b12000+mc24",
+      "qid": "multi_13",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6672957866521644,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6433933340584905,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2494,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1723,
+      "rrChars": 7280,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b12000+mc24",
+      "qid": "multi_14",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6672888366622393,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6622819121293999,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2562,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1329,
+      "rrChars": 10177,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b12000+mc24",
+      "qid": "multi_15",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6164153223370908,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6167432864825164,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 5272,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1899,
+      "rrChars": 14681,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b12000+mc24",
+      "qid": "multi_16",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5902515562937442,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5342166303400251,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 3308,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1130,
+      "rrChars": 8712,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b12000+mc24",
+      "qid": "multi_17",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5254302121462756,
+          "rrLabel": 2,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.4861923526828283,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2376,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1366,
+      "rrChars": 8303,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b12000+mc24",
+      "qid": "multi_18",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5941410589104814,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6512891907852134,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2777,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1685,
+      "rrChars": 8416,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b12000+mc24",
+      "qid": "multi_19",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5091922728577518,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6861222964667929,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2300,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1217,
+      "rrChars": 8483,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b12000+mc24",
+      "qid": "multi_20",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6106568094180282,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.7292691376838967,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2329,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1257,
+      "rrChars": 6626,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b12000+mc24",
+      "qid": "multi_21",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.4749961909460778,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6250457510253142,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2221,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1037,
+      "rrChars": 8765,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b12000+mc24",
+      "qid": "multi_22",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.45571971015503804,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.7394857408152846,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 3609,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1412,
+      "rrChars": 8859,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b12000+mc24",
+      "qid": "multi_23",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.547114472126035,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6908201006388565,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 6267,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1191,
+      "rrChars": 9334,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b12000+mc24",
+      "qid": "multi_24",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 8,
+          "maxCos": 0.5569386891372197,
+          "rrLabel": 2,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5985165802283041,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 3829,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1464,
+      "rrChars": 11250,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b12000+mc24",
+      "qid": "multi_25",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.451023681232724,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6193616769960999,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 3684,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1204,
+      "rrChars": 13469,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b12000+mc24",
+      "qid": "multi_26",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6653901945733025,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5580641589234778,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2475,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1456,
+      "rrChars": 13993,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b12000+mc24",
+      "qid": "multi_27",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5168151701131922,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5851339869045593,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2352,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 2100,
+      "rrChars": 11605,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b12000+mc24",
+      "qid": "multi_28",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5799518808381051,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5819036441490535,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2430,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1484,
+      "rrChars": 8041,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b12000+mc24",
+      "qid": "multi_29",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5807072312370041,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6171168149592116,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2449,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1357,
+      "rrChars": 9374,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b12000+mc24",
+      "qid": "multi_30",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 6,
+          "maxCos": 0.5250142575567551,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.665917738189232,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 3032,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1225,
+      "rrChars": 9881,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b12000+mc24",
+      "qid": "multi_31",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.45411664151866515,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.4863741294686785,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 3838,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1122,
+      "rrChars": 14510,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b12000+mc24",
+      "qid": "multi_32",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6356451955544903,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5984695564708007,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 4343,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1133,
+      "rrChars": 11321,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b12000+mc24",
+      "qid": "multi_33",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.4937823700029671,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.7432436506013124,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2306,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1285,
+      "rrChars": 6778,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b12000+mc24",
+      "qid": "multi_34",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.643913161100803,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6369463094011193,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2744,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1925,
+      "rrChars": 10944,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b12000+mc24",
+      "qid": "multi_35",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5230593860629829,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6469962784263258,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2360,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1039,
+      "rrChars": 11700,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b12000+mc24",
+      "qid": "multi_36",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 8,
+          "maxCos": 0.5127805970324746,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5840733719588953,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 5512,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1590,
+      "rrChars": 11077,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b12000+mc24",
+      "qid": "multi_38",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.4462597840711382,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6471079362135566,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 5345,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1288,
+      "rrChars": 10856,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b12000+mc24",
+      "qid": "multi_39",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": false,
+      "answers": [
+        {
+          "stage": "budget_after_rerank",
+          "bestRank": 13,
+          "maxCos": 0.3918117735618753,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5909174037410156,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2247,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1584,
+      "rrChars": 9469,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b9000+mc18",
+      "qid": "multi_0",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5348420893049965,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5969028292751029,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 3744,
+      "kbChars": 36999,
+      "selected": 18,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1101,
+      "rrChars": 8896,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b9000+mc18",
+      "qid": "multi_1",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5909174037410156,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5868265997316582,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 1714,
+      "kbChars": 36999,
+      "selected": 18,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1455,
+      "rrChars": 4967,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b9000+mc18",
+      "qid": "multi_2",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.44144496987269316,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.649927725226418,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 4370,
+      "kbChars": 36999,
+      "selected": 18,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1498,
+      "rrChars": 14598,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b9000+mc18",
+      "qid": "multi_3",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5708753949220174,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6373655900524722,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 1887,
+      "kbChars": 36999,
+      "selected": 18,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1523,
+      "rrChars": 9564,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b9000+mc18",
+      "qid": "multi_4",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5677382652468356,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5908547871932947,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 3033,
+      "kbChars": 36999,
+      "selected": 18,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1250,
+      "rrChars": 14661,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b9000+mc18",
+      "qid": "multi_5",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6114107521130864,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6892477160087982,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 1931,
+      "kbChars": 36999,
+      "selected": 18,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1356,
+      "rrChars": 8669,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b9000+mc18",
+      "qid": "multi_6",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6772698353923851,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6997291324556356,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 1913,
+      "kbChars": 36999,
+      "selected": 18,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1258,
+      "rrChars": 6928,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b9000+mc18",
+      "qid": "multi_7",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5755293205533606,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6478454023603089,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 4952,
+      "kbChars": 36999,
+      "selected": 18,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1576,
+      "rrChars": 13607,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b9000+mc18",
+      "qid": "multi_8",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 11,
+          "maxCos": 0.43406722003197407,
+          "rrLabel": 2,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6193297173578236,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2790,
+      "kbChars": 36999,
+      "selected": 18,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1159,
+      "rrChars": 8702,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b9000+mc18",
+      "qid": "multi_9",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5982048011321865,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.674138383346833,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 1933,
+      "kbChars": 36999,
+      "selected": 18,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1059,
+      "rrChars": 6090,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b9000+mc18",
+      "qid": "multi_10",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 8,
+          "maxCos": 0.6662999829363101,
+          "rrLabel": 2,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5541391374920298,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 1876,
+      "kbChars": 36999,
+      "selected": 18,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1859,
+      "rrChars": 11583,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b9000+mc18",
+      "qid": "multi_11",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5228783795767106,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.662879470968154,
+          "rrLabel": 2,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 3193,
+      "kbChars": 36999,
+      "selected": 18,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1484,
+      "rrChars": 11347,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b9000+mc18",
+      "qid": "multi_12",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6081623664834737,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6147307738488607,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 1765,
+      "kbChars": 36999,
+      "selected": 18,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1326,
+      "rrChars": 6422,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b9000+mc18",
+      "qid": "multi_13",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6672957866521644,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6433933340584905,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 1934,
+      "kbChars": 36999,
+      "selected": 18,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1723,
+      "rrChars": 7280,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b9000+mc18",
+      "qid": "multi_14",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6672888366622393,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6622819121293999,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 1962,
+      "kbChars": 36999,
+      "selected": 18,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1329,
+      "rrChars": 10177,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b9000+mc18",
+      "qid": "multi_15",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6164153223370908,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6167432864825164,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 3803,
+      "kbChars": 36999,
+      "selected": 18,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1899,
+      "rrChars": 14681,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b9000+mc18",
+      "qid": "multi_16",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5902515562937442,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5342166303400251,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2331,
+      "kbChars": 36999,
+      "selected": 18,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1130,
+      "rrChars": 8712,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b9000+mc18",
+      "qid": "multi_17",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5254302121462756,
+          "rrLabel": 2,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.4861923526828283,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 1850,
+      "kbChars": 36999,
+      "selected": 18,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1366,
+      "rrChars": 8303,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b9000+mc18",
+      "qid": "multi_18",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5941410589104814,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6512891907852134,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 1781,
+      "kbChars": 36999,
+      "selected": 18,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1685,
+      "rrChars": 8416,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b9000+mc18",
+      "qid": "multi_19",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5091922728577518,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6861222964667929,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 1738,
+      "kbChars": 36999,
+      "selected": 18,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1217,
+      "rrChars": 8483,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b9000+mc18",
+      "qid": "multi_20",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6106568094180282,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.7292691376838967,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 1773,
+      "kbChars": 36999,
+      "selected": 18,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1257,
+      "rrChars": 6626,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b9000+mc18",
+      "qid": "multi_21",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.4749961909460778,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6250457510253142,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 1747,
+      "kbChars": 36999,
+      "selected": 18,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1037,
+      "rrChars": 8765,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b9000+mc18",
+      "qid": "multi_22",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.45571971015503804,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.7394857408152846,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 3083,
+      "kbChars": 36999,
+      "selected": 18,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1412,
+      "rrChars": 8859,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b9000+mc18",
+      "qid": "multi_23",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.547114472126035,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6908201006388565,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 5102,
+      "kbChars": 36999,
+      "selected": 18,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1191,
+      "rrChars": 9334,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b9000+mc18",
+      "qid": "multi_24",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 8,
+          "maxCos": 0.5569386891372197,
+          "rrLabel": 2,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5985165802283041,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2327,
+      "kbChars": 36999,
+      "selected": 18,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1464,
+      "rrChars": 11250,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b9000+mc18",
+      "qid": "multi_25",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.451023681232724,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6193616769960999,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2036,
+      "kbChars": 36999,
+      "selected": 18,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1204,
+      "rrChars": 13469,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b9000+mc18",
+      "qid": "multi_26",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6653901945733025,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5580641589234778,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 1915,
+      "kbChars": 36999,
+      "selected": 18,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1456,
+      "rrChars": 13993,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b9000+mc18",
+      "qid": "multi_27",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5168151701131922,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5851339869045593,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 1852,
+      "kbChars": 36999,
+      "selected": 18,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 2100,
+      "rrChars": 11605,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b9000+mc18",
+      "qid": "multi_28",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5799518808381051,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5819036441490535,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 1901,
+      "kbChars": 36999,
+      "selected": 18,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1484,
+      "rrChars": 8041,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b9000+mc18",
+      "qid": "multi_29",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5807072312370041,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6171168149592116,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 1886,
+      "kbChars": 36999,
+      "selected": 18,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1357,
+      "rrChars": 9374,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b9000+mc18",
+      "qid": "multi_30",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 6,
+          "maxCos": 0.5250142575567551,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.665917738189232,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 1811,
+      "kbChars": 36999,
+      "selected": 18,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1225,
+      "rrChars": 9881,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b9000+mc18",
+      "qid": "multi_31",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.45411664151866515,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.4863741294686785,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2778,
+      "kbChars": 36999,
+      "selected": 18,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1122,
+      "rrChars": 14510,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b9000+mc18",
+      "qid": "multi_32",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6356451955544903,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5984695564708007,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2486,
+      "kbChars": 36999,
+      "selected": 18,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1133,
+      "rrChars": 11321,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b9000+mc18",
+      "qid": "multi_33",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.4937823700029671,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.7432436506013124,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 1779,
+      "kbChars": 36999,
+      "selected": 18,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1285,
+      "rrChars": 6778,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b9000+mc18",
+      "qid": "multi_34",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.643913161100803,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6369463094011193,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 1748,
+      "kbChars": 36999,
+      "selected": 18,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1925,
+      "rrChars": 10944,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b9000+mc18",
+      "qid": "multi_35",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5230593860629829,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6469962784263258,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 1788,
+      "kbChars": 36999,
+      "selected": 18,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1039,
+      "rrChars": 11700,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b9000+mc18",
+      "qid": "multi_36",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 8,
+          "maxCos": 0.5127805970324746,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5840733719588953,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 4978,
+      "kbChars": 36999,
+      "selected": 18,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1590,
+      "rrChars": 11077,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b9000+mc18",
+      "qid": "multi_38",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.4462597840711382,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6471079362135566,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 3816,
+      "kbChars": 36999,
+      "selected": 18,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1288,
+      "rrChars": 10856,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b9000+mc18",
+      "qid": "multi_39",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": false,
+      "answers": [
+        {
+          "stage": "budget_after_rerank",
+          "bestRank": 13,
+          "maxCos": 0.3918117735618753,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5909174037410156,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 1656,
+      "kbChars": 36999,
+      "selected": 18,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1584,
+      "rrChars": 9469,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b6000+mc24",
+      "qid": "multi_0",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5348420893049965,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5969028292751029,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 5622,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1101,
+      "rrChars": 8896,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b6000+mc24",
+      "qid": "multi_1",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5909174037410156,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5868265997316582,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2245,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1455,
+      "rrChars": 4967,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b6000+mc24",
+      "qid": "multi_2",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.44144496987269316,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.649927725226418,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 5621,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1498,
+      "rrChars": 14598,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b6000+mc24",
+      "qid": "multi_3",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5708753949220174,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6373655900524722,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 3799,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1523,
+      "rrChars": 9564,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b6000+mc24",
+      "qid": "multi_4",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5677382652468356,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5908547871932947,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 6033,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1250,
+      "rrChars": 14661,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b6000+mc24",
+      "qid": "multi_5",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6114107521130864,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6892477160087982,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2527,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1356,
+      "rrChars": 8669,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b6000+mc24",
+      "qid": "multi_6",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6772698353923851,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6997291324556356,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2506,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1258,
+      "rrChars": 6928,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b6000+mc24",
+      "qid": "multi_7",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5755293205533606,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6478454023603089,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 5865,
+      "kbChars": 36999,
+      "selected": 21,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1576,
+      "rrChars": 13607,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b6000+mc24",
+      "qid": "multi_8",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 11,
+          "maxCos": 0.43406722003197407,
+          "rrLabel": 2,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6193297173578236,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 3884,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1159,
+      "rrChars": 8702,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b6000+mc24",
+      "qid": "multi_9",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5982048011321865,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.674138383346833,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2501,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1059,
+      "rrChars": 6090,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b6000+mc24",
+      "qid": "multi_10",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 8,
+          "maxCos": 0.6662999829363101,
+          "rrLabel": 2,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5541391374920298,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 3378,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1859,
+      "rrChars": 11583,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b6000+mc24",
+      "qid": "multi_11",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5228783795767106,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.662879470968154,
+          "rrLabel": 2,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 4244,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1484,
+      "rrChars": 11347,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b6000+mc24",
+      "qid": "multi_12",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6081623664834737,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6147307738488607,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2351,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1326,
+      "rrChars": 6422,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b6000+mc24",
+      "qid": "multi_13",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6672957866521644,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6433933340584905,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2494,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1723,
+      "rrChars": 7280,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b6000+mc24",
+      "qid": "multi_14",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6672888366622393,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6622819121293999,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2562,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1329,
+      "rrChars": 10177,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b6000+mc24",
+      "qid": "multi_15",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6164153223370908,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6167432864825164,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 5272,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1899,
+      "rrChars": 14681,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b6000+mc24",
+      "qid": "multi_16",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5902515562937442,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5342166303400251,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 3308,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1130,
+      "rrChars": 8712,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b6000+mc24",
+      "qid": "multi_17",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5254302121462756,
+          "rrLabel": 2,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.4861923526828283,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2376,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1366,
+      "rrChars": 8303,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b6000+mc24",
+      "qid": "multi_18",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5941410589104814,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6512891907852134,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2777,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1685,
+      "rrChars": 8416,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b6000+mc24",
+      "qid": "multi_19",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5091922728577518,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6861222964667929,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2300,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1217,
+      "rrChars": 8483,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b6000+mc24",
+      "qid": "multi_20",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6106568094180282,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.7292691376838967,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2329,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1257,
+      "rrChars": 6626,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b6000+mc24",
+      "qid": "multi_21",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.4749961909460778,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6250457510253142,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2221,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1037,
+      "rrChars": 8765,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b6000+mc24",
+      "qid": "multi_22",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.45571971015503804,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.7394857408152846,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 3609,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1412,
+      "rrChars": 8859,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b6000+mc24",
+      "qid": "multi_23",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.547114472126035,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6908201006388565,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 6188,
+      "kbChars": 36999,
+      "selected": 23,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1191,
+      "rrChars": 9334,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b6000+mc24",
+      "qid": "multi_24",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 8,
+          "maxCos": 0.5569386891372197,
+          "rrLabel": 2,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5985165802283041,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 3829,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1464,
+      "rrChars": 11250,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b6000+mc24",
+      "qid": "multi_25",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.451023681232724,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6193616769960999,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 3684,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1204,
+      "rrChars": 13469,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b6000+mc24",
+      "qid": "multi_26",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6653901945733025,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5580641589234778,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2475,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1456,
+      "rrChars": 13993,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b6000+mc24",
+      "qid": "multi_27",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5168151701131922,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5851339869045593,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2352,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 2100,
+      "rrChars": 11605,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b6000+mc24",
+      "qid": "multi_28",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5799518808381051,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5819036441490535,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2430,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1484,
+      "rrChars": 8041,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b6000+mc24",
+      "qid": "multi_29",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5807072312370041,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6171168149592116,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2449,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1357,
+      "rrChars": 9374,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b6000+mc24",
+      "qid": "multi_30",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 6,
+          "maxCos": 0.5250142575567551,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.665917738189232,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 3032,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1225,
+      "rrChars": 9881,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b6000+mc24",
+      "qid": "multi_31",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.45411664151866515,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.4863741294686785,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 3838,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1122,
+      "rrChars": 14510,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b6000+mc24",
+      "qid": "multi_32",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6356451955544903,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5984695564708007,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 4343,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1133,
+      "rrChars": 11321,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b6000+mc24",
+      "qid": "multi_33",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.4937823700029671,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.7432436506013124,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2306,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1285,
+      "rrChars": 6778,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b6000+mc24",
+      "qid": "multi_34",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.643913161100803,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6369463094011193,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2744,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1925,
+      "rrChars": 10944,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b6000+mc24",
+      "qid": "multi_35",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5230593860629829,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6469962784263258,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2360,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1039,
+      "rrChars": 11700,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b6000+mc24",
+      "qid": "multi_36",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 8,
+          "maxCos": 0.5127805970324746,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5840733719588953,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 5512,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1590,
+      "rrChars": 11077,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b6000+mc24",
+      "qid": "multi_38",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": true,
+      "answers": [
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.4462597840711382,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.6471079362135566,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 3956,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1288,
+      "rrChars": 10856,
+      "rrErrors": 0
+    },
+    {
+      "kb": "e4",
+      "size": 300,
+      "config": "live+b6000+mc24",
+      "qid": "multi_39",
+      "group": "multi",
+      "cls": "multi_tr",
+      "lang": "tr",
+      "inBlock": false,
+      "answers": [
+        {
+          "stage": "budget_after_rerank",
+          "bestRank": 13,
+          "maxCos": 0.3918117735618753,
+          "rrLabel": 3,
+          "cropCut": false
+        },
+        {
+          "stage": "ok",
+          "bestRank": 0,
+          "maxCos": 0.5909174037410156,
+          "rrLabel": 3,
+          "cropCut": false
+        }
+      ],
+      "fb": "none",
+      "sem": "ok",
+      "rr": "ok",
+      "blockChars": 2247,
+      "kbChars": 36999,
+      "selected": 24,
+      "negChunks": 0,
+      "leak": false,
+      "conflictNote": false,
+      "rrMs": 1584,
+      "rrChars": 9469,
+      "rrErrors": 0
+    }
+  ],
+  "runtime": {
+    "commit": "390b776",
+    "layers": {
+      "reply": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "semantic": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "understanding": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "guard": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "rerank": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "translate": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "style": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "decision": {
+        "model": "gpt-5.1",
+        "reasoning": "gönderilmez (model varsayılanı)"
+      },
+      "embedding": {
+        "model": "text-embedding-3-small"
+      }
+    },
+    "flags": {
+      "KB_RETRIEVAL_MODE": "(boş)",
+      "KB_SEMANTIC_RETRIEVAL": "(boş)",
+      "KB_RERANK_ENABLED": "(boş)",
+      "KB_RERANK_PER_QUESTION": "(boş)",
+      "KB_RETRIEVAL_WIDE_BUDGET": "(boş)",
+      "AI_UNDERSTANDING_ENABLED": "(boş)",
+      "AI_STAY_GUARD_ENABLED": "(boş)",
+      "AI_CONVERSATION_ITEMS_ENABLED": "(boş)",
+      "AI_CONVERSATION_STATE_ENABLED": "(boş)",
+      "AI_ACTION_CLAIMS_ENABLED": "(boş)",
+      "AI_CODE_GREETING_ENABLED": "(boş)",
+      "AI_HOUSE_RULES_SHADOW": "(boş)",
+      "AI_KB_FEE_RULE_ENABLED": "(boş)",
+      "AI_STAY_DEFERRAL_PLAIN_ENABLED": "(boş)",
+      "AI_ACCESS_CODE_COMPLETE_ENABLED": "(boş)",
+      "AI_HOST_DECISION_HOLD_ENABLED": "(boş)",
+      "AI_COMPLAINT_FOLLOWUP_RULE_ENABLED": "(boş)",
+      "AI_COURTESY_RULE_ENABLED": "(boş)",
+      "AI_VERIFIED_AVAILABILITY_ENABLED": "(boş)",
+      "AI_GENERATION_TRACE_ENABLED": "(boş)",
+      "AI_VERIFIED_EXTENSION_ENABLED": "(boş)",
+      "AI_VERIFIED_QR_ENABLED": "(boş)",
+      "AI_DATE_RESOLUTION_ENABLED": "(boş)",
+      "AI_UNDERSTANDING_EN_QUERY_ENABLED": "(boş)",
+      "AI_EMERGENCY_NUMBER_ENABLED": "(boş)",
+      "AI_UNDERSTANDING_THREAT_RULE_ENABLED": "(boş)",
+      "AI_ACTION_SUGGESTIONS_ENABLED": "(boş)"
+    },
+    "prompts": {
+      "reply": "f68615f7bc1b",
+      "replyVariant": "b3b1f227a75a",
+      "understanding": "00b769433021",
+      "understandingMode": "temel"
+    }
+  }
+}

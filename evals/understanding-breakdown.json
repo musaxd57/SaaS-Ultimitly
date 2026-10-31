@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "note": "Arıza bildirimi (complaint_issue) ↔ kullanım sorusu (appliance_help) ayrımı — konuşma öğeleri ölçümünde 'Tost makinesi hiç ısınmıyor' appliance_help sanıldı, tur bütünüyle tutuldu, Wi-Fi cevaplanmadı (10-14). Sentetik. include: her grup için en az bir niyet bulunmalı; exclude: bu niyetler OLMAMALI.",
+  "cases": [
+    { "id": "b-tr-tost-wifi", "lang": "tr", "message": "Tost makinesi hiç ısınmıyor, ekmek kızarmıyor. Wi-Fi şifresi neydi?", "include": [["complaint_issue"], ["wifi"]] },
+    { "id": "b-en-espresso-wifi", "lang": "en", "message": "The espresso machine makes a grinding noise and no coffee comes out. What's the Wi-Fi?", "include": [["complaint_issue"], ["wifi"]] },
+    { "id": "b-tr-bulaşık", "lang": "tr", "message": "Bulaşık makinesi suyu boşaltmıyor, dibinde su kaldı.", "include": [["complaint_issue"]] },
+    { "id": "b-tr-saç-kurutma", "lang": "tr", "message": "Saç kurutma makinesi açılmıyor.", "include": [["complaint_issue"]] },
+    { "id": "b-de-wasserkocher", "lang": "de", "message": "Der Wasserkocher funktioniert nicht mehr.", "include": [["complaint_issue"]] },
+    { "id": "b-tr-çamaşır-kapak", "lang": "tr", "message": "Çamaşır makinesinin kapağı açılmıyor, çamaşırlar içeride kaldı.", "include": [["complaint_issue"]] },
+    { "id": "b-en-tv-remote", "lang": "en", "message": "The TV remote doesn't work even after we changed the batteries.", "include": [["complaint_issue"]] },
+    { "id": "b-tr-mikrodalga", "lang": "tr", "message": "Mikrodalga çalışıyor ama hiç ısıtmıyor.", "include": [["complaint_issue"]] },
+    { "id": "b-en-fridge", "lang": "en", "message": "The fridge isn't cooling, everything inside is warm.", "include": [["complaint_issue"]] },
+    { "id": "b-tr-çaydanlık-başka", "lang": "tr", "message": "Çaydanlık çalışmıyor, başka bir çaydanlık var mı?", "include": [["complaint_issue"]] },
+    { "id": "b-tr-internet-reset", "lang": "tr", "message": "İnternet iki saattir yok, modemi nasıl resetleriz?", "include": [["complaint_issue"], ["wifi"]] },
+    { "id": "h-tr-tost-nasıl", "lang": "tr", "message": "Tost makinesini nasıl çalıştırıyoruz?", "include": [["appliance_help", "amenities"]], "exclude": ["complaint_issue"] },
+    { "id": "h-en-espresso-how", "lang": "en", "message": "How do we use the espresso machine?", "include": [["appliance_help", "amenities"]], "exclude": ["complaint_issue"] },
+    { "id": "h-tr-saç-kurutma-nerede", "lang": "tr", "message": "Saç kurutma makinesi nerede?", "include": [["appliance_help", "amenities"]], "exclude": ["complaint_issue"] },
+    { "id": "h-tr-çamaşır-program", "lang": "tr", "message": "Çamaşır makinesinde en kısa program hangisi?", "include": [["appliance_help", "amenities"]], "exclude": ["complaint_issue"] },
+    { "id": "h-de-wasserkocher-wie", "lang": "de", "message": "Wie schaltet man den Wasserkocher ein?", "include": [["appliance_help", "amenities"]], "exclude": ["complaint_issue"] },
+    { "id": "h-tr-tablet", "lang": "tr", "message": "Bulaşık makinesi için tablet var mı?", "include": [["appliance_help", "amenities", "cleaning_linen"]], "exclude": ["complaint_issue"] },
+    { "id": "h-tr-kumanda-bulamadık", "lang": "tr", "message": "Klima kumandası nerede, bulamadık.", "include": [["appliance_help", "amenities"]], "exclude": ["complaint_issue"] },
+    { "id": "h-tr-kahve-su", "lang": "tr", "message": "Kahve makinesinin suyu bitti, suyu nereden dolduruyoruz?", "include": [["appliance_help", "amenities"]], "exclude": ["complaint_issue"] },
+    { "id": "h-en-oven-preheat", "lang": "en", "message": "How long does the oven take to preheat?", "include": [["appliance_help", "amenities"]], "exclude": ["complaint_issue"] }
+  ]
+}

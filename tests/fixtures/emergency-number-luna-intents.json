@@ -1,0 +1,293 @@
+{
+ "e1": [
+  [
+   "emergency"
+  ],
+  [
+   "emergency"
+  ]
+ ],
+ "e2": [
+  [
+   "emergency"
+  ],
+  [
+   "emergency"
+  ]
+ ],
+ "g1": [
+  [
+   "emergency"
+  ],
+  [
+   "emergency"
+  ]
+ ],
+ "g2": [
+  [
+   "emergency"
+  ],
+  [
+   "emergency"
+  ]
+ ],
+ "g3": [
+  [
+   "emergency"
+  ],
+  [
+   "emergency"
+  ]
+ ],
+ "g4": [
+  [
+   "emergency"
+  ],
+  [
+   "emergency"
+  ]
+ ],
+ "g5": [
+  [
+   "emergency"
+  ],
+  [
+   "emergency"
+  ]
+ ],
+ "g6": [
+  [
+   "emergency"
+  ],
+  [
+   "emergency"
+  ]
+ ],
+ "g7": [
+  [
+   "emergency"
+  ],
+  [
+   "emergency"
+  ]
+ ],
+ "g8": [
+  [
+   "emergency"
+  ],
+  [
+   "emergency"
+  ]
+ ],
+ "g9": [
+  [
+   "emergency"
+  ],
+  [
+   "emergency"
+  ]
+ ],
+ "g10": [
+  [
+   "emergency"
+  ],
+  [
+   "emergency"
+  ]
+ ],
+ "g11": [
+  [
+   "emergency"
+  ],
+  [
+   "emergency"
+  ]
+ ],
+ "g12": [
+  [
+   "emergency"
+  ],
+  [
+   "emergency"
+  ]
+ ],
+ "g13": [
+  [
+   "emergency"
+  ],
+  [
+   "emergency"
+  ]
+ ],
+ "g14": [
+  [
+   "emergency"
+  ],
+  [
+   "emergency"
+  ]
+ ],
+ "g15": [
+  [
+   "emergency"
+  ],
+  [
+   "emergency"
+  ]
+ ],
+ "g16": [
+  [
+   "emergency"
+  ],
+  [
+   "emergency"
+  ]
+ ],
+ "g17": [
+  [
+   "emergency"
+  ],
+  [
+   "emergency"
+  ]
+ ],
+ "g18": [
+  [
+   "emergency"
+  ],
+  [
+   "emergency"
+  ]
+ ],
+ "g19": [
+  [
+   "emergency"
+  ],
+  [
+   "emergency"
+  ]
+ ],
+ "h1": [
+  [
+   "complaint_issue",
+   "emergency"
+  ],
+  [
+   "emergency"
+  ]
+ ],
+ "h2": [
+  [
+   "complaint_issue",
+   "other"
+  ],
+  [
+   "complaint_issue",
+   "emergency"
+  ]
+ ],
+ "h3": [
+  [
+   "cancellation_refund",
+   "complaint_issue",
+   "emergency"
+  ],
+  [
+   "cancellation_refund",
+   "complaint_issue",
+   "emergency"
+  ]
+ ],
+ "h4": [
+  [
+   "access_keys",
+   "emergency"
+  ],
+  [
+   "access_keys",
+   "emergency"
+  ]
+ ],
+ "h5": [
+  [
+   "complaint_issue",
+   "emergency"
+  ],
+  [
+   "complaint_issue",
+   "complaint_issue",
+   "emergency"
+  ]
+ ],
+ "h6": [
+  [
+   "cancellation_refund",
+   "complaint_issue",
+   "emergency"
+  ],
+  [
+   "cancellation_refund",
+   "complaint_issue",
+   "directions_transport"
+  ]
+ ],
+ "h7": [
+  [
+   "complaint_issue",
+   "emergency"
+  ],
+  [
+   "complaint_issue",
+   "emergency"
+  ]
+ ],
+ "h8": [
+  [
+   "complaint_issue",
+   "emergency"
+  ],
+  [
+   "complaint_issue",
+   "emergency"
+  ]
+ ],
+ "h9": [
+  [
+   "complaint_issue",
+   "other"
+  ],
+  [
+   "complaint_issue",
+   "other"
+  ]
+ ],
+ "h10": [
+  [
+   "complaint_issue",
+   "emergency"
+  ],
+  [
+   "complaint_issue",
+   "emergency"
+  ]
+ ],
+ "h11": [
+  [
+   "cancellation_refund",
+   "other"
+  ],
+  [
+   "cancellation_refund",
+   "emergency"
+  ]
+ ],
+ "h12": [
+  [
+   "complaint_issue",
+   "emergency"
+  ],
+  [
+   "emergency"
+  ]
+ ]
+}

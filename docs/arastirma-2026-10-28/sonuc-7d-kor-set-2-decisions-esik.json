@@ -1,0 +1,1366 @@
+{
+ "set": "7d-kor-set-2-2026-10-28",
+ "model": "decisions(gpt-6-luna) τr=0.5 τn=0.3",
+ "results": [
+  {
+   "id": "Y01",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 1,
+    "open_issue": 1,
+    "contradiction": 0.83,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.89,
+    "direct": 0
+   }
+  },
+  {
+   "id": "Y02",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0,
+    "contradiction": 0.99,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 1,
+    "self_contained": 1,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y03",
+   "final": "hold",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0.11,
+    "open_issue": 0.01,
+    "contradiction": 0.51,
+    "wrong_target": 1,
+    "time_shift": 0,
+    "content_problem": 0.78,
+    "self_contained": 0.98,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y04",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0.07,
+    "contradiction": 1,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.99,
+    "direct": 0
+   }
+  },
+  {
+   "id": "Y05",
+   "final": "hold",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0.25,
+    "open_issue": 0,
+    "contradiction": 1,
+    "wrong_target": 0,
+    "time_shift": 0.98,
+    "content_problem": 0.02,
+    "self_contained": 0.93,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y06",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0,
+    "contradiction": 0.99,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.99,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y07",
+   "final": "hold",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0,
+    "open_issue": 0,
+    "contradiction": 1,
+    "wrong_target": 0,
+    "time_shift": 0.78,
+    "content_problem": 0,
+    "self_contained": 0.95,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y08",
+   "final": "hold",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0,
+    "open_issue": 0.67,
+    "contradiction": 0.75,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0.17,
+    "self_contained": 0.96,
+    "direct": 0
+   }
+  },
+  {
+   "id": "Y09",
+   "final": "hold",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0.06,
+    "open_issue": 0,
+    "contradiction": 1,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0.98,
+    "self_contained": 1,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y10",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0.91,
+    "open_issue": 0,
+    "contradiction": 0.98,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.97,
+    "direct": 0
+   }
+  },
+  {
+   "id": "Y11",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0.04,
+    "contradiction": 0.99,
+    "wrong_target": 0.89,
+    "time_shift": 0,
+    "content_problem": 0.99,
+    "self_contained": 0.98,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y12",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0,
+    "contradiction": 1,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 1,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y13",
+   "final": "send",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0,
+    "contradiction": 0.11,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.91,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y14",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0.73,
+    "open_issue": 0,
+    "contradiction": 1,
+    "wrong_target": 0,
+    "time_shift": 0.49,
+    "content_problem": 0,
+    "self_contained": 1,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y15",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0.99,
+    "open_issue": 0,
+    "contradiction": 0.43,
+    "wrong_target": 0.01,
+    "time_shift": 0.02,
+    "content_problem": 0.96,
+    "self_contained": 0.97,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y16",
+   "final": "hold",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0,
+    "open_issue": 0,
+    "contradiction": 0.84,
+    "wrong_target": 0.31,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.77,
+    "direct": 0
+   }
+  },
+  {
+   "id": "Y17",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 1,
+    "open_issue": 1,
+    "contradiction": 0.38,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0.03,
+    "self_contained": 0.08,
+    "direct": 0
+   }
+  },
+  {
+   "id": "Y18",
+   "final": "hold",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0,
+    "open_issue": 0,
+    "contradiction": 0.79,
+    "wrong_target": 0.08,
+    "time_shift": 0,
+    "content_problem": 0.02,
+    "self_contained": 0.68,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y19",
+   "final": "hold",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0,
+    "open_issue": 0,
+    "contradiction": 0.61,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0.01,
+    "self_contained": 0.84,
+    "direct": 0.93
+   }
+  },
+  {
+   "id": "Y20",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0.15,
+    "contradiction": 0.97,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0.01,
+    "self_contained": 0.96,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y21",
+   "final": "send",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0,
+    "contradiction": 0.47,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0.01,
+    "self_contained": 0.78,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y22",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0.63,
+    "open_issue": 0.01,
+    "contradiction": 0.9,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.35,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y23",
+   "final": "hold",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0,
+    "open_issue": 1,
+    "contradiction": 0.04,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.7,
+    "direct": 0
+   }
+  },
+  {
+   "id": "Y24",
+   "final": "hold",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0.07,
+    "open_issue": 0,
+    "contradiction": 0.36,
+    "wrong_target": 0,
+    "time_shift": 1,
+    "content_problem": 0.03,
+    "self_contained": 0.94,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y25",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0,
+    "contradiction": 1,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.99,
+    "direct": 0
+   }
+  },
+  {
+   "id": "Y26",
+   "final": "hold",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0.01,
+    "open_issue": 0,
+    "contradiction": 0,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.99,
+    "direct": 0
+   }
+  },
+  {
+   "id": "Y27",
+   "final": "hold",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0,
+    "open_issue": 0,
+    "contradiction": 0,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.96,
+    "direct": 0
+   }
+  },
+  {
+   "id": "Y28",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0,
+    "contradiction": 1,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.99,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y29",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0.19,
+    "contradiction": 0.99,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.84,
+    "direct": 0.72
+   }
+  },
+  {
+   "id": "Y30",
+   "final": "hold",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0,
+    "open_issue": 0.01,
+    "contradiction": 0.06,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.28,
+    "direct": 0
+   }
+  },
+  {
+   "id": "Y31",
+   "final": "hold",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0.07,
+    "open_issue": 0.02,
+    "contradiction": 0.37,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.51,
+    "direct": 0.8
+   }
+  },
+  {
+   "id": "Y32",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0,
+    "contradiction": 0.96,
+    "wrong_target": 0.99,
+    "time_shift": 0,
+    "content_problem": 0.52,
+    "self_contained": 0.98,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y33",
+   "final": "send",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0.96,
+    "open_issue": 0,
+    "contradiction": 0,
+    "wrong_target": 0,
+    "time_shift": 0.43,
+    "content_problem": 0,
+    "self_contained": 1,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y34",
+   "final": "hold",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0,
+    "open_issue": 0,
+    "contradiction": 0,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.94,
+    "direct": 0
+   }
+  },
+  {
+   "id": "Y35",
+   "final": "hold",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0.12,
+    "open_issue": 0,
+    "contradiction": 1,
+    "wrong_target": 0,
+    "time_shift": 0.99,
+    "content_problem": 0.07,
+    "self_contained": 0.99,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y36",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0.79,
+    "open_issue": 1,
+    "contradiction": 0.93,
+    "wrong_target": 0.03,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.8,
+    "direct": 0
+   }
+  },
+  {
+   "id": "Y37",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0.97,
+    "open_issue": 0,
+    "contradiction": 0.31,
+    "wrong_target": 0.76,
+    "time_shift": 0.71,
+    "content_problem": 0.99,
+    "self_contained": 0.99,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y38",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0.99,
+    "open_issue": 0,
+    "contradiction": 1,
+    "wrong_target": 0,
+    "time_shift": 0.01,
+    "content_problem": 0,
+    "self_contained": 0.95,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y39",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0.96,
+    "open_issue": 0,
+    "contradiction": 0.96,
+    "wrong_target": 1,
+    "time_shift": 0,
+    "content_problem": 0.99,
+    "self_contained": 0.04,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y40",
+   "final": "hold",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0,
+    "open_issue": 1,
+    "contradiction": 0.77,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.51,
+    "direct": 0
+   }
+  },
+  {
+   "id": "Y41",
+   "final": "hold",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0,
+    "open_issue": 0,
+    "contradiction": 0.6,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.87,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y42",
+   "final": "hold",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0.23,
+    "open_issue": 0,
+    "contradiction": 0.97,
+    "wrong_target": 0.15,
+    "time_shift": 1,
+    "content_problem": 0.43,
+    "self_contained": 0.99,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y43",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0.08,
+    "contradiction": 1,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0.01,
+    "self_contained": 0.98,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y44",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0.01,
+    "contradiction": 1,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.97,
+    "direct": 0
+   }
+  },
+  {
+   "id": "Y45",
+   "final": "hold",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0,
+    "open_issue": 0,
+    "contradiction": 0.01,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.96,
+    "direct": 0
+   }
+  },
+  {
+   "id": "Y46",
+   "final": "hold",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0,
+    "open_issue": 0,
+    "contradiction": 1,
+    "wrong_target": 0.01,
+    "time_shift": 1,
+    "content_problem": 0,
+    "self_contained": 0.99,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y47",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0,
+    "contradiction": 1,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0.01,
+    "self_contained": 0.98,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y48",
+   "final": "hold",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0.02,
+    "open_issue": 0,
+    "contradiction": 1,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.96,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y49",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0.1,
+    "contradiction": 1,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.96,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y50",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0.96,
+    "open_issue": 0,
+    "contradiction": 0.96,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0.76,
+    "self_contained": 0.99,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y51",
+   "final": "hold",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0,
+    "open_issue": 0,
+    "contradiction": 1,
+    "wrong_target": 0,
+    "time_shift": 1,
+    "content_problem": 0.01,
+    "self_contained": 0.97,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y52",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0.99,
+    "open_issue": 0,
+    "contradiction": 0.79,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 1,
+    "self_contained": 0.99,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y53",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0,
+    "contradiction": 1,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.96,
+    "direct": 0
+   }
+  },
+  {
+   "id": "Y54",
+   "final": "hold",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0,
+    "open_issue": 0,
+    "contradiction": 0.96,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0.18,
+    "self_contained": 0.73,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y55",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0,
+    "contradiction": 0.71,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 1,
+    "self_contained": 1,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y56",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0.92,
+    "open_issue": 0.14,
+    "contradiction": 0.97,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 1,
+    "self_contained": 0.45,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y57",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0,
+    "contradiction": 0.77,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 1,
+    "self_contained": 0.97,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y58",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0.8,
+    "open_issue": 0.36,
+    "contradiction": 0.88,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.75,
+    "direct": 0
+   }
+  },
+  {
+   "id": "Y59",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0.32,
+    "open_issue": 0,
+    "contradiction": 0.82,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.99,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y60",
+   "final": "hold",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0,
+    "open_issue": 0.99,
+    "contradiction": 0.94,
+    "wrong_target": 0.17,
+    "time_shift": 0.99,
+    "content_problem": 0.11,
+    "self_contained": 0.89,
+    "direct": 0
+   }
+  },
+  {
+   "id": "Y61",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0.96,
+    "open_issue": 0.66,
+    "contradiction": 0.26,
+    "wrong_target": 1,
+    "time_shift": 0,
+    "content_problem": 0.09,
+    "self_contained": 0.8,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y62",
+   "final": "send",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0.86,
+    "open_issue": 0.11,
+    "contradiction": 0.01,
+    "wrong_target": 0.14,
+    "time_shift": 0,
+    "content_problem": 0.01,
+    "self_contained": 0,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y63",
+   "final": "hold",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0,
+    "open_issue": 0,
+    "contradiction": 0.65,
+    "wrong_target": 0.74,
+    "time_shift": 0.02,
+    "content_problem": 0.43,
+    "self_contained": 0.97,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y64",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0,
+    "contradiction": 0.23,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0.89,
+    "self_contained": 0.93,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y65",
+   "final": "hold",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0,
+    "open_issue": 0,
+    "contradiction": 0.73,
+    "wrong_target": 0.53,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.74,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y66",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0.92,
+    "open_issue": 0,
+    "contradiction": 0.67,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0.2,
+    "self_contained": 0.92,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y67",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0,
+    "contradiction": 0.75,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.93,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y68",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0,
+    "contradiction": 1,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.96,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y69",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0,
+    "contradiction": 0.99,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.98,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y70",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0,
+    "contradiction": 1,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 1,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y71",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0,
+    "contradiction": 0.97,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.98,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y72",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0.36,
+    "open_issue": 0,
+    "contradiction": 1,
+    "wrong_target": 0,
+    "time_shift": 0.86,
+    "content_problem": 0.96,
+    "self_contained": 0.99,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y73",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0,
+    "contradiction": 0.99,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 1,
+    "self_contained": 0.92,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y74",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0,
+    "contradiction": 0.71,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.99,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y75",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0,
+    "contradiction": 0.67,
+    "wrong_target": 1,
+    "time_shift": 0,
+    "content_problem": 0.13,
+    "self_contained": 0.97,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y76",
+   "final": "hold",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0.04,
+    "open_issue": 0,
+    "contradiction": 0.95,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.99,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y77",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0,
+    "contradiction": 1,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0.02,
+    "self_contained": 0.96,
+    "direct": 0.39
+   }
+  },
+  {
+   "id": "Y78",
+   "final": "hold",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0,
+    "open_issue": 0.1,
+    "contradiction": 0.92,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.95,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y79",
+   "final": "hold",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0.11,
+    "open_issue": 0,
+    "contradiction": 0.38,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 1,
+    "self_contained": 1,
+    "direct": 1
+   }
+  },
+  {
+   "id": "Y80",
+   "final": "open_editor",
+   "raw": {
+    "reason": "decisions risk≤0.5 need≥0.3"
+   },
+   "p": {
+    "still_needed": 0.99,
+    "open_issue": 0.15,
+    "contradiction": 0,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 1,
+    "self_contained": 0.98,
+    "direct": 1
+   }
+  }
+ ]
+}

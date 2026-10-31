@@ -1,0 +1,1060 @@
+{
+ "set": "7d-kor-set-3-2026-10-28",
+ "api": "decisions",
+ "model": "gpt-6-luna",
+ "inputTokens": 119247,
+ "p50ms": 297,
+ "p95ms": 457,
+ "results": [
+  {
+   "id": "Z01",
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0,
+    "contradiction": 1,
+    "wrong_target": 0,
+    "time_shift": 0.02,
+    "content_problem": 0,
+    "self_contained": 0.98,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 375
+  },
+  {
+   "id": "Z02",
+   "p": {
+    "still_needed": 0.99,
+    "open_issue": 0,
+    "contradiction": 0.96,
+    "wrong_target": 0,
+    "time_shift": 0.33,
+    "content_problem": 0,
+    "self_contained": 1,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 262
+  },
+  {
+   "id": "Z03",
+   "p": {
+    "still_needed": 0,
+    "open_issue": 0,
+    "contradiction": 0.99,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.83,
+    "direct": 0
+   },
+   "error": null,
+   "ms": 457
+  },
+  {
+   "id": "Z04",
+   "p": {
+    "still_needed": 0.62,
+    "open_issue": 0.5,
+    "contradiction": 0.32,
+    "wrong_target": 0,
+    "time_shift": 0.57,
+    "content_problem": 0.03,
+    "self_contained": 0.66,
+    "direct": 0
+   },
+   "error": null,
+   "ms": 308
+  },
+  {
+   "id": "Z05",
+   "p": {
+    "still_needed": 0.89,
+    "open_issue": 0,
+    "contradiction": 0.72,
+    "wrong_target": 0.05,
+    "time_shift": 1,
+    "content_problem": 0.22,
+    "self_contained": 0.91,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 280
+  },
+  {
+   "id": "Z06",
+   "p": {
+    "still_needed": 0.98,
+    "open_issue": 0,
+    "contradiction": 0.65,
+    "wrong_target": 0.97,
+    "time_shift": 0.95,
+    "content_problem": 0.52,
+    "self_contained": 0.83,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 395
+  },
+  {
+   "id": "Z07",
+   "p": {
+    "still_needed": 0.83,
+    "open_issue": 1,
+    "contradiction": 0.18,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.81,
+    "direct": 0
+   },
+   "error": null,
+   "ms": 310
+  },
+  {
+   "id": "Z08",
+   "p": {
+    "still_needed": 0.47,
+    "open_issue": 0.02,
+    "contradiction": 0.81,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0.33,
+    "self_contained": 0.67,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 375
+  },
+  {
+   "id": "Z09",
+   "p": {
+    "still_needed": 0,
+    "open_issue": 0,
+    "contradiction": 0.42,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0.08,
+    "self_contained": 0.91,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 409
+  },
+  {
+   "id": "Z10",
+   "p": {
+    "still_needed": 0.48,
+    "open_issue": 1,
+    "contradiction": 0.57,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0.06,
+    "self_contained": 0.7,
+    "direct": 0
+   },
+   "error": null,
+   "ms": 218
+  },
+  {
+   "id": "Z11",
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0.2,
+    "contradiction": 0.92,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0.04,
+    "self_contained": 0.96,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 293
+  },
+  {
+   "id": "Z12",
+   "p": {
+    "still_needed": 0.19,
+    "open_issue": 0.01,
+    "contradiction": 0.74,
+    "wrong_target": 0.47,
+    "time_shift": 0.93,
+    "content_problem": 0,
+    "self_contained": 0.93,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 312
+  },
+  {
+   "id": "Z13",
+   "p": {
+    "still_needed": 0.14,
+    "open_issue": 0.1,
+    "contradiction": 0.24,
+    "wrong_target": 1,
+    "time_shift": 0,
+    "content_problem": 0.08,
+    "self_contained": 0.95,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 326
+  },
+  {
+   "id": "Z14",
+   "p": {
+    "still_needed": 0.01,
+    "open_issue": 0,
+    "contradiction": 0.27,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0.52,
+    "self_contained": 0.8,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 344
+  },
+  {
+   "id": "Z15",
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0.14,
+    "contradiction": 0.87,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0.01,
+    "self_contained": 0.9,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 203
+  },
+  {
+   "id": "Z16",
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0.02,
+    "contradiction": 1,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.54,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 323
+  },
+  {
+   "id": "Z17",
+   "p": {
+    "still_needed": 1,
+    "open_issue": 1,
+    "contradiction": 0.79,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.89,
+    "direct": 0
+   },
+   "error": null,
+   "ms": 206
+  },
+  {
+   "id": "Z18",
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0.84,
+    "contradiction": 0,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.14,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 670
+  },
+  {
+   "id": "Z19",
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0,
+    "contradiction": 0.99,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.98,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 223
+  },
+  {
+   "id": "Z20",
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0,
+    "contradiction": 0.92,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0.01,
+    "self_contained": 0.99,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 318
+  },
+  {
+   "id": "Z21",
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0.57,
+    "contradiction": 0.78,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0.01,
+    "self_contained": 1,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 249
+  },
+  {
+   "id": "Z22",
+   "p": {
+    "still_needed": 0.98,
+    "open_issue": 0,
+    "contradiction": 0.41,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 1,
+    "self_contained": 0.75,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 224
+  },
+  {
+   "id": "Z23",
+   "p": {
+    "still_needed": 0.93,
+    "open_issue": 0,
+    "contradiction": 0.96,
+    "wrong_target": 1,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.57,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 245
+  },
+  {
+   "id": "Z24",
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0,
+    "contradiction": 0.25,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0.91,
+    "self_contained": 0.59,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 179
+  },
+  {
+   "id": "Z25",
+   "p": {
+    "still_needed": 0.89,
+    "open_issue": 0.68,
+    "contradiction": 0.98,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0.06,
+    "self_contained": 0.47,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 297
+  },
+  {
+   "id": "Z26",
+   "p": {
+    "still_needed": 0,
+    "open_issue": 0,
+    "contradiction": 0.94,
+    "wrong_target": 0,
+    "time_shift": 0.32,
+    "content_problem": 0.02,
+    "self_contained": 0.97,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 356
+  },
+  {
+   "id": "Z27",
+   "p": {
+    "still_needed": 0.03,
+    "open_issue": 1,
+    "contradiction": 0.5,
+    "wrong_target": 0,
+    "time_shift": 0.99,
+    "content_problem": 0,
+    "self_contained": 0.77,
+    "direct": 0
+   },
+   "error": null,
+   "ms": 341
+  },
+  {
+   "id": "Z28",
+   "p": {
+    "still_needed": 0,
+    "open_issue": 0.83,
+    "contradiction": 0.97,
+    "wrong_target": 0.11,
+    "time_shift": 0.92,
+    "content_problem": 0.19,
+    "self_contained": 0.72,
+    "direct": 0
+   },
+   "error": null,
+   "ms": 294
+  },
+  {
+   "id": "Z29",
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0,
+    "contradiction": 0.98,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.94,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 271
+  },
+  {
+   "id": "Z30",
+   "p": {
+    "still_needed": 0.67,
+    "open_issue": 1,
+    "contradiction": 0.03,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.03,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 309
+  },
+  {
+   "id": "Z31",
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0,
+    "contradiction": 1,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.81,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 271
+  },
+  {
+   "id": "Z32",
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0.8,
+    "contradiction": 0.99,
+    "wrong_target": 0,
+    "time_shift": 0.07,
+    "content_problem": 0,
+    "self_contained": 0.89,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 292
+  },
+  {
+   "id": "Z33",
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0,
+    "contradiction": 0.92,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0.99,
+    "self_contained": 1,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 236
+  },
+  {
+   "id": "Z34",
+   "p": {
+    "still_needed": 0,
+    "open_issue": 0,
+    "contradiction": 0.96,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.99,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 258
+  },
+  {
+   "id": "Z35",
+   "p": {
+    "still_needed": 0.96,
+    "open_issue": 0.46,
+    "contradiction": 0.98,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.98,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 339
+  },
+  {
+   "id": "Z36",
+   "p": {
+    "still_needed": 0,
+    "open_issue": 0,
+    "contradiction": 0.95,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.62,
+    "direct": 0
+   },
+   "error": null,
+   "ms": 291
+  },
+  {
+   "id": "Z37",
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0,
+    "contradiction": 1,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0.01,
+    "self_contained": 0.2,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 385
+  },
+  {
+   "id": "Z38",
+   "p": {
+    "still_needed": 0.28,
+    "open_issue": 0,
+    "contradiction": 0.75,
+    "wrong_target": 0,
+    "time_shift": 0.47,
+    "content_problem": 0,
+    "self_contained": 0.58,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 232
+  },
+  {
+   "id": "Z39",
+   "p": {
+    "still_needed": 1,
+    "open_issue": 1,
+    "contradiction": 0.33,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0.82,
+    "self_contained": 0.97,
+    "direct": 0
+   },
+   "error": null,
+   "ms": 362
+  },
+  {
+   "id": "Z40",
+   "p": {
+    "still_needed": 0.99,
+    "open_issue": 0.9,
+    "contradiction": 0.81,
+    "wrong_target": 0.78,
+    "time_shift": 0,
+    "content_problem": 0.05,
+    "self_contained": 0.52,
+    "direct": 0
+   },
+   "error": null,
+   "ms": 300
+  },
+  {
+   "id": "Z41",
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0,
+    "contradiction": 0.19,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 1,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 372
+  },
+  {
+   "id": "Z42",
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0,
+    "contradiction": 1,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.99,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 304
+  },
+  {
+   "id": "Z43",
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0,
+    "contradiction": 0.9,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0.01,
+    "self_contained": 0.98,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 403
+  },
+  {
+   "id": "Z44",
+   "p": {
+    "still_needed": 0.02,
+    "open_issue": 0,
+    "contradiction": 0.89,
+    "wrong_target": 0,
+    "time_shift": 0.1,
+    "content_problem": 0,
+    "self_contained": 0.97,
+    "direct": 0.03
+   },
+   "error": null,
+   "ms": 318
+  },
+  {
+   "id": "Z45",
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0,
+    "contradiction": 0.1,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.65,
+    "direct": 0
+   },
+   "error": null,
+   "ms": 217
+  },
+  {
+   "id": "Z46",
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0.06,
+    "contradiction": 0.46,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.95,
+    "direct": 0.97
+   },
+   "error": null,
+   "ms": 263
+  },
+  {
+   "id": "Z47",
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0,
+    "contradiction": 0.62,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.43,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 245
+  },
+  {
+   "id": "Z48",
+   "p": {
+    "still_needed": 0.11,
+    "open_issue": 0,
+    "contradiction": 0.73,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0.17,
+    "self_contained": 0.79,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 1189
+  },
+  {
+   "id": "Z49",
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0,
+    "contradiction": 1,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.82,
+    "direct": 0
+   },
+   "error": null,
+   "ms": 243
+  },
+  {
+   "id": "Z50",
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0,
+    "contradiction": 1,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0.01,
+    "self_contained": 0.99,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 246
+  },
+  {
+   "id": "Z51",
+   "p": {
+    "still_needed": 0.9,
+    "open_issue": 1,
+    "contradiction": 0.95,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.83,
+    "direct": 0
+   },
+   "error": null,
+   "ms": 220
+  },
+  {
+   "id": "Z52",
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0.93,
+    "contradiction": 1,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.98,
+    "direct": 0
+   },
+   "error": null,
+   "ms": 239
+  },
+  {
+   "id": "Z53",
+   "p": {
+    "still_needed": 0,
+    "open_issue": 0,
+    "contradiction": 0.4,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.97,
+    "direct": 0
+   },
+   "error": null,
+   "ms": 403
+  },
+  {
+   "id": "Z54",
+   "p": {
+    "still_needed": 0.87,
+    "open_issue": 0,
+    "contradiction": 1,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.85,
+    "direct": 0
+   },
+   "error": null,
+   "ms": 231
+  },
+  {
+   "id": "Z55",
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0,
+    "contradiction": 1,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.98,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 1157
+  },
+  {
+   "id": "Z56",
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0,
+    "contradiction": 1,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 1,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 267
+  },
+  {
+   "id": "Z57",
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0,
+    "contradiction": 0.31,
+    "wrong_target": 0,
+    "time_shift": 0.18,
+    "content_problem": 0.03,
+    "self_contained": 0.96,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 199
+  },
+  {
+   "id": "Z58",
+   "p": {
+    "still_needed": 0.97,
+    "open_issue": 0.62,
+    "contradiction": 0.03,
+    "wrong_target": 0,
+    "time_shift": 0.52,
+    "content_problem": 0.02,
+    "self_contained": 0.61,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 259
+  },
+  {
+   "id": "Z59",
+   "p": {
+    "still_needed": 0,
+    "open_issue": 0,
+    "contradiction": 0.94,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0.52,
+    "self_contained": 0.87,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 276
+  },
+  {
+   "id": "Z60",
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0,
+    "contradiction": 1,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0.01,
+    "self_contained": 1,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 228
+  },
+  {
+   "id": "Z61",
+   "p": {
+    "still_needed": 0,
+    "open_issue": 0,
+    "contradiction": 0.91,
+    "wrong_target": 0,
+    "time_shift": 0.49,
+    "content_problem": 0.01,
+    "self_contained": 0.67,
+    "direct": 0
+   },
+   "error": null,
+   "ms": 355
+  },
+  {
+   "id": "Z62",
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0.96,
+    "contradiction": 0.97,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 1,
+    "self_contained": 0.97,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 367
+  },
+  {
+   "id": "Z63",
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0,
+    "contradiction": 0.96,
+    "wrong_target": 0.02,
+    "time_shift": 0,
+    "content_problem": 0.03,
+    "self_contained": 0.98,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 275
+  },
+  {
+   "id": "Z64",
+   "p": {
+    "still_needed": 0,
+    "open_issue": 0,
+    "contradiction": 1,
+    "wrong_target": 0,
+    "time_shift": 1,
+    "content_problem": 0.04,
+    "self_contained": 0.95,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 420
+  },
+  {
+   "id": "Z65",
+   "p": {
+    "still_needed": 0.17,
+    "open_issue": 1,
+    "contradiction": 0.24,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.92,
+    "direct": 0
+   },
+   "error": null,
+   "ms": 219
+  },
+  {
+   "id": "Z66",
+   "p": {
+    "still_needed": 0.99,
+    "open_issue": 0.04,
+    "contradiction": 0.99,
+    "wrong_target": 0,
+    "time_shift": 0.99,
+    "content_problem": 0,
+    "self_contained": 0.9,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 232
+  },
+  {
+   "id": "Z67",
+   "p": {
+    "still_needed": 1,
+    "open_issue": 0,
+    "contradiction": 0.8,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0.08,
+    "self_contained": 0.97,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 302
+  },
+  {
+   "id": "Z68",
+   "p": {
+    "still_needed": 0,
+    "open_issue": 0,
+    "contradiction": 0.99,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 0,
+    "self_contained": 0.96,
+    "direct": 0.28
+   },
+   "error": null,
+   "ms": 363
+  },
+  {
+   "id": "Z69",
+   "p": {
+    "still_needed": 0.15,
+    "open_issue": 0,
+    "contradiction": 0.36,
+    "wrong_target": 0.98,
+    "time_shift": 0,
+    "content_problem": 0.66,
+    "self_contained": 0.56,
+    "direct": 0.82
+   },
+   "error": null,
+   "ms": 388
+  },
+  {
+   "id": "Z70",
+   "p": {
+    "still_needed": 0.02,
+    "open_issue": 0.18,
+    "contradiction": 0.99,
+    "wrong_target": 0,
+    "time_shift": 0,
+    "content_problem": 1,
+    "self_contained": 0.98,
+    "direct": 1
+   },
+   "error": null,
+   "ms": 312
+  }
+ ]
+}

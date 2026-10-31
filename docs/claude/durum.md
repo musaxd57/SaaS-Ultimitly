@@ -1,0 +1,710 @@
+# Durum tarihçesi (10-07 ve öncesi)
+
+> CLAUDE.md'den 2026-10-08'de AYNEN taşındı (kurucu: ".md'ye yığma, gerekli yerlere taşı, gerekli şeyleri silme").
+> Bu dosyadaki kurallar CLAUDE.md'deki kadar BAĞLAYICIDIR. İlgili alanda iş yapmadan önce oku.
+
+## CLAUDE.md "Durum" özet satırları (10-23'te AYNEN taşındı; en yeni ikisi CLAUDE.md'de kalır)
+**10-30 akşam:** K-1029-A v4 (v3 yeniden incelemesinin 33 bulgusu: yedi dilde kaçan biçimler · silinen cümlede belirsizlik / söz / ön koşul / "gerekirse" → tamamı tutulur · fazla silme ve güvenlik kesimi düzeltildi; 3.274 cevapta v3 → v4 fark 0) · çıktı vetosunda eski karesel iş (V8 yorumlayıcı kipi, 8.000 karakterde 4,3 sn → 9 ms, karar farkı 0) + en kötü kip süre pini — `docs/claude/durum.md`.
+**10-30:** K-1029-A kodda ("ev sahibinize yazın" yedi dilde silinir, doğru cevap gider, cevapsız soru açık; istem yasağı varsayılan AÇIK) · GD7 alan sahipliği tablosu · 404 yol sınıfları · sert inceleme C1–C17 + Haiku döngüsü · ücretsiz tekrar oynatma ölçümü (3.274 cevap, sistem düzeyinde yeni tutuş 0) — `docs/claude/durum.md`.
+**10-30 sabah:** K-1029-A v2 (Opus F1–F12: kalan metin belirsizlik / ret / yalnız nezaket → tamamı tutulur; konu etiketi tek başına gitmez; konusuz yönlendirme isteği açık bırakır; taslak silinmiş metin) — `docs/claude/durum.md`.
+**10-29:** R10–R15, R29, R30 ✅ · R13-b/c ✅ ("ev sahibinize yazın" asla; genel kapanış çıkar; `ai/host-contact-filler.ts`) — `docs/claude/durum.md`.
+**10-28 gece-2:** R13 ✅ · Decisions API sıralayıcı motoru kodda, KAPALI (`KB_RERANK_ENGINE=decisions`; açmak ölçüm + kurucu) — `docs/claude/durum.md`.
+**10-28 gece:** kurucu karar masası (19 karar, aynen `docs/KURUCU-KARARLARI-2026-10-28-karar-masasi.md`) → 4.11 / 4.12 / 4.13 / 4.14 kodda + dil kapısı düzeltmesi, mutasyon 31/31 · 4.15 zod 4 ✅ (tip denetiminin yakalamadığı 3 gerileme kırmızı-önce; `docs/INCELEME-2026-10-28-zod4-gecisi.md`) · Opus R24–R28 ✅ (ORTAK sır okuyucusu PIN / Türcode / codice / keyless; R15 tasarım notu), öz-inceleme `docs/INCELEME-2026-10-28-gece-oz-inceleme.md` · ⚠️ OpenAI kredisi bitti (ölçümler bekliyor) · yeni sorular karar sayfasında — `docs/claude/durum.md`.
+**10-28 akşam:** uzun belge RAG ölçümü (geliştirme ort. 103/113, kör 90/95; ölçer anlama katmanı hatası düzeltildi) · `KB_TABLE_HEADER` kodda KAPALI (103 → 108,5) · Luna anlama/sıralayıcı eşit değil → 5.1 kalır · OpenAI ince ayarı kapanıyor · sorular R-T1/T2/T3 — `docs/TASARIM-2026-10-28-dosya-rag-cumle-ve-anlam.md` §9.
+**10-28:** kurucu §7: bilgi tabanı **şablon indir + dışa aktar** (ücretli paket) · Opus 2. dilim + Haiku düzeltmeleri ("daha çok tutar") · **7-D sert kör test** (93 vaka, gerçek model ≈0,30 $: önceki öneri 10 yanlış gönderim, en iyi kol 4 → yeni öneri "kod yalnız durdurur, gönderimi model onaylar") · **kalıcı gömme deposu kodda** (migration 87, `KB_VECTOR_STORE_ENABLED` KAPALI) · dosya RAG cümle + anlam tasarımı · **karar sayfası** https://claude.ai/artifact/2tiEwpwVc4r4S5z1aGuV1V · SIRADAKİ İŞ LİSTESİ: `docs/claude/durum.md` "10-28 devir".
+**10-23 akşam:** kurucu S1 kararları kodda (4.5 yönlendirme = bilgim yok · 4.4 A evcil / yardımcı hayvan · 4.3 · 4.2 · 4.9 bir kez yeniden yaz · 4.1 B) + migration 86 (kişi / evcil hayvan sayısı, anahtar KAPALI) + bilgi tabanı dosya çekirdeği S0/S2 (bağlı değil) + Opus derin kontrol A1–A6 / E1 / B4 / C1 / D1 (hepsi "daha çok tutar") · yanmış set yeniden koşu: gerçek yanlış gönderim 0 · sorular 4.11–4.14 — rapor `docs/RAPOR-2026-10-23-aksam-s1-kurucu-kararlari.md`, `docs/claude/durum.md`.
+**10-23 öğle:** okuyucu bağlamı + Codex S3 (anlam denetimi okuyucuda, kodda kalanlar listesi; kurucuya soru §4.0) + Opus B1–B12 + Haiku 2. tur kodda (anahtarlar KAPALI) · bilgi tabanı dosya / RAG tasarımı + çekirdek (bağlı değil) · **kabul seti tek koşu (yandı): yeni akış 42/55 doğru · 0 yanlış gönderim (eski akış 38/55 · 4 yanlış)**, 13 gereksiz tutma — rapor `docs/RAPOR-2026-10-23-ogle-okuyucu-anlam-denetimi-ve-etiketler.md` (sorular §4.0–4.10), `docs/claude/durum.md`.
+**10-23 sabah-2:** kurucu Soru 9 / 10 / 11 + Codex "anlam ilişkisi" kodda (anahtarlar KAPALI): Soru 9 okuyucuda, okuyucusuz parça kipi hepsini tutar · tek bildirim e-postası (kalıcı kayıt) · okuyucu dört ayrı soru + son metin denetimi · Opus son kontrol G1–G6 + mutasyon 21/21 · **kör ölçüm (yandı): yanlış 9 → 1, doğru 27 → 14 / 40** → parça kipi KAPALI kalsın önerisi, sorular S1–S4 — rapor `docs/RAPOR-2026-10-23-sabah-parca-okuyucu-ve-kor-olcum.md`, `docs/claude/durum.md`.
+**10-23 gece-2:** kurucu fikri "4. kez gelen aynı soruya kayıtlı doğru cevap" → gölge kip (migration 85 ana dalda — kurucu onayı 10-23 sabah; anahtar KAPALI) · Opus güvenlik F1–F11 + dilim sonu R1–R15 (yön sözlüğü, ikinci konu, en az/en fazla, ücretsizlik sınırı, cevap tekrarı daralması, sıra kipi, etiket) + Haiku turları + Opus uçtan uca parça kipi (sorulan yön, iki tesis, sessiz tutuş e-postası, sıra kipi bağı) + gece sonu Opus taze göz (sorulan yön konuya bağlı, etiket değer penceresi) + mutasyon (23 yaşayan pinli) kapandı — rapor `docs/RAPOR-2026-10-23-gece-2-cevap-tekrari-ve-guvenlik.md`, `docs/claude/durum.md`.
+**10-23 gündüz:** kurucu A–E + kaynak sorusu kodda (anahtarlar KAPALI): istek başına doğrulanmış parça (değer ↔ konu ↔ koşul DEĞER BAŞINA) · kaynak sorusu açık iş · migration 84 (sıra + konu etiketi, belirsizse kapatma yok) · E ölçümü + neden analizi · next 15.5.28 güvenlik; sorular rapor §5 — `docs/RAPOR-2026-10-23-gunduz-buyuk-rapor.md`.
+**10-23 gece:** Soru 1 kodda (misafirin kendi sözcükleri, anahtar kapalı) · Opus akşam bulguları kapandı · CLAUDE.md sadeleşti · İhtiyaç Defteri tasarımı + kurucu soruları A–E açık — rapor `docs/RAPOR-2026-10-23-gece-buyuk-rapor.md`, `docs/claude/durum.md`.
+**10-22 akşam:** iç kaynak anlatımı misafire asla gitmez (istem + okuyucu 5. hüküm + bir kez yeniden yazma + anahtarsız kod yedeği) · iç daire adı modele gitmez · U4 ana dalda (migration 83) · ölçüm 4 → 0; açık soru rapor §7.1 (sauna) — `docs/claude/durum.md`.
+**10-22 gündüz:** §U kararları kodda (özür yok · başka misafir bilgisi · kıdemli okuyucu + kanıt şartı + bir kez yeniden yazma · mizah · U10–U15 güvenlik); rapor `docs/RAPOR-2026-10-22-yapay-zeka-ne-ogrendi.md`; açık U4 + T-c — `docs/claude/durum.md`.
+**10-22 gece:** güvenlik 2. tur (başka siteden yazma kapısı, aday güncellemesi izi; sorular U10–U15) · erişilebilirlik taraması 40 → 0 ihlal (ikincil metin rengi, "İçeriğe geç") — `docs/claude/durum.md`.
+**10-21 gece-4:** UX / görsel / güvenlik incelemeleri → ev sahibi ekranı düzeltmeleri · devre kesici kiracı başına · kırmızı takım + tarafsızlık ölçümü (yasak dize 0, özürlü taslak 9→0) · sorular §U (U1–U9) — `docs/claude/durum.md`.
+**10-21 gece-3:** W1–W9 kodda (W8 → acil 48/48) · bilgim-yok bağlam hakemi (anahtar KAPALI; gerçek cevapta 16/17 doğru bırakma, 0/51 yanlış) · devre kesici + 30 sn · yazma sınırı · gitleaks · sıradaki plan `docs/PLAN-2026-10-21-baglam-anlama-ve-kirmizi-takim.md` — `docs/claude/durum.md`.
+**10-21 gece-2:** Claude 2. dalga doğrulandı: tehlike sondası gerçek akışta 46/48 acil yolu + 2 tutuldu, 0 sızma · ~25 doğrulanmış hata düzeltildi (başka daire metni, KVKK ad geri yazımı, gaz alarmı okuyucusu…) · kurucu soruları W1–W9 — `docs/claude/durum.md`.
+**10-21 gece:** anlama ölçümü iki kol geçerli + kurucu soruları A–F · Claude kredisi 1. dalga ($23,87) + 2. dalga · 111 altyapı konusu envanteri + iç sertleştirmeler + olay/SLO belgesi — `docs/claude/durum.md`.
+**10-21 akşam:** g98 kırmızıları test kurulumuydu · Codex mutasyonu · Opus B1–B7 düzeltildi (ödeme niyeti sertleştirme, kilit sırası, kopya süpürgesi) · Claude eval T1 sıra 1 (iç kaynak kalıpları, yedi dil) kodda — `docs/claude/durum.md`.
+**10-21 öğleden sonra:** Codex 4 madde: ödeme niyeti (migration 82, `PADDLE_CHECKOUT_INTENT_ENABLED` KAPALI, sandbox kurucuyla) · kopyalama işlem kaydı (migration 81) · söz kapatma yarışı · T1 pini; Claude eval T1 açıkları → `docs/olcum/claude-zorlu-t1-2026-10-21-ANALIZ.md` (sıradaki iş) — `docs/claude/durum.md`.
+**10-21:** kurucu T1–T5 cevapları kodda: T5 söz gün/saat tablosu · T2 olası tehlike + anlama yok → Sorunlu + saatte 3 e-posta · T1 "B": dayanak şartı (kutup, sayı, nezaket) + erişim ilişkisi + "sistemimizde yok" · T4 otomatik mesajlar ayrı bölüm (migration 80, kuyrukta aynı satırı yeniden kurma) — `docs/claude/durum.md`, `KURUCU-SORULARI.md` §T.
+**10-18 gece-4:** 10 geniş inceleme → iç hatalar düzeltildi · söz algılama v2 (migration 76/77) · 78 yalnız dizin (olay okuması) · ikinci tarama: 50 izsiz bulgu → iç düzeltmeler + §T8 (18+1 soru) · 79 yalnız dizin (kalıcı kuyruk) + talepte veritabanı tarafı zaman aşımı · kuyruk işletme anahtarını gönderimde okur · dolu DB yükseltme provası 58→77 yeşil (+78) · sorular §T (T1–T7, T6b) · sabah: T3 + T6b uygulandı, söz kalanları (A12 / A14 / baş harf / A16) · rapor `docs/SABAH-RAPORU-2026-10-18.md` — `docs/claude/durum.md`.
+**10-17 gece-3:** Haiku 2–4. tur söz düzeltmeleri (takvim tarihi, yapan ayrımı, devam parçası) · Paddle anahtar olayı anahtarsız · SG3: duraklatma yok, iptalde dönem sonu kutusu · sandbox tur 3/4 — `docs/claude/durum.md`.
+**10-17 gece-2:** Söz → görev otomatik (migration 75, `HOST_COMMITMENT_AUTO_ENABLED` KAPALI; saat uydurulmaz, bağlamla saat taşıma, günde 20, konaklama bitince kapanış) · Opus düzeltmeleri · teyit SG1/SG2 — `docs/claude/durum.md`.
+**10-17 gece:** Q2 kanal otomasyonu cevap sayılmaz · Q1-b iki söz / "hangi söze bağlansın?" · KD1 + kartla deneme sızma testleri · Paddle sandbox D1/D2 düzeltmesi (önizleme toplamı satırlardan) — `docs/claude/durum.md`.
+**10-17 akşam:** I1 + Q1 "a" · Q3/Q4 · I4 C devam ettir + kartla deneme kapısı (migration 74, anahtarlar KAPALI) · L1/L4 tasarımı; sorular KURUCU-SORULARI §S — `docs/claude/durum.md`.
+**10-17 öğleden sonra:** S2 migration 69–72 kodda (I3 dizin · L2 yerine koy · L5 kanal gönderen rolü 1. faz · K1 deneme işareti + kayıt ağı izi, anahtar KAPALI); sorular Q1–Q4 (+Q2-b) → `docs/arastirma-2026-10-15/KURUCU-SORULARI.md` §Q — `docs/claude/durum.md`.
+**10-17 sabah:** S1 kurucu kararları kodda (H9/M1 silici izin listesi · K4 elle temizlik · N1 bayat otomatik mesaj yok · K3 ödeme metinleri); S2 migration tasarımı + sorular → `docs/arastirma-2026-10-15/KURUCU-SORULARI.md` §Q — `docs/claude/durum.md`.
+**10-16 akşam:** `npm test` = paralel kapı (3 işçi, ~%18 kısa; geri dönüş `test:serial`) · H9 konu bazlı "bilgim yok" (`AI_TOPIC_ABSENCE_ENABLED` KAPALI; Haiku + Opus bulguları işlendi) · Codex akşam 6 bulgu düzeltildi (ödeme yükü tekrarı, kuyrukta abonelik bekletmesi, KB kopya kimliği, 64 cümle tavanı, gönderilmemiş host mesajı, sağlık yoklaması); sorular K/L/M/N → `docs/arastirma-2026-10-15/KURUCU-SORULARI.md`.
+**10-16 öğleden sonra:** ek süre yok (past_due dönem başı) · elle mesaj hızlı uyandırma · kuyruk anahtarları ayrı · QR kilit yenileme + her ücretli adımdan önce sahiplik; sorular J1–J9 → `docs/arastirma-2026-10-15/KURUCU-SORULARI.md` §J.
+**10-16 öğle:** kurucu kararları Faz 1 (migration 68 ana dalda · söz tekrarı · e-posta tekrar kimliği · ödeme S1/S2/S4 · O1 liste anahtarı `DURABLE_OUTBOX_ORG_IDS` + kapatma testleri · QR tamamlanmış kayıt 24 sa + bayat işçi koruması); Faz 2/3 + sorular I1–I3 → `docs/arastirma-2026-10-15/KURUCU-SORULARI.md` §I.
+**10-15 gece:** idempotency bitişi (iptal yolları tek kilit) + kurucu D1/D4/D6/D7 kodda; D2/D3 migration 68 onayı bekliyor; inceleme notun için iki KAPALI anahtar (arıza her yolda arıza · kanıtsız arıza adımı) + Opus N1–N12; 10-16 gece Opus ikinci + üçüncü tur (§H8, soru H9) + kalıcı kuyruk envanteri / kuyruk sağlığı (soru H10, `docs/TASARIM-2026-10-16-transactional-outbox.md`); 10-16 sabah O1 hazırlık ENGEL'i kapandı (kuyruk yolu öğe kipinde devir kilidi kurmaz) — `docs/claude/durum.md`.
+**10-15 öğleden sonra:** V sonrası beş araştırma + müşteriye dokunmayan tekrar güvenliği düzeltmeleri; sorular `docs/arastirma-2026-10-15/KURUCU-SORULARI.md` — `docs/claude/durum.md`.
+**10-15 gündüz:** Geçmişten öğren (migration 65; taslak müşteride, karşılaştırma operatörde, daire tercihleri hazır seçenek; anahtarlar KAPALI) — `docs/claude/durum.md`.
+**10-15 gece:** Y1–Y10 + Haiku ikinci tur itildi; hazır yamalar KB istek kimliği (migration 65) + G1/G1b; RAG köprü önerisi — `docs/claude/durum.md`.
+**10-13 sabah:** G1–G11 kurucu cevapları uygulandı (G1 hazır yama, kredi bekliyor) + yeni sorular H1–H3 — `docs/KURUCU-YOKKEN-KARARLAR-2026-10-09.md`.
+**10-12 gece:** S1 bavul kapısı · S2 QR iptal edilmiş rezervasyon · ⑤ ilk dilim öneriler (`AI_ACTION_SUGGESTIONS_ENABLED` KAPALI) · takip numarası ilk dilimi (migration 63) — `docs/claude/durum.md`.
+**10-08 gece:** Codex `15c8663` bulguları (U16–U44 + yeni 1–11) döngüde dört turda işlendi ve İTİLDİ (`87ba35d`; takip tablosu
+`docs/INCELEME-2026-10-07-codex-u16-u44.md`, her bulguda regresyon testi, yarışlar gerçek PostgreSQL'de). Kimlik yarışları (U13/U40/U41/U43/U44),
+silinen metnin gönderimi (Y1), özgün mesaj kaybı (Y2), tehlike okuyucu (U3), takvim / CSV / ICS / gün başı / rapor / sağlık düzeltmeleri, ölçer
+düzeltmeleri. Next.js 15.5.27 (iki yeni SSG/ISR danışması). Onay bekleyen beş değişiklik HAZIR YAMA (`docs/hazir-yamalar/`, ana dala UYGULANMADI)
++ Sabah Kararları 63–68. Railway hâlâ kapalı.
+- Bekleyen onaylar, 10-07 ve öncesi durum paragrafları, Host Copilot, K1–K18: tam metinde.
+
+## 10-28 devir (kurucu: "sonra sana clear atmak istiyorum") — /clear sonrası BURADAN başla
+
+**Dal durumu:** bütün iş `claude/great-edison-3zqpZ`'de commit'li; tam kapı + build yeşil olunca push edildi (CI sonucu bir sonraki
+oturumda `actions_list` ile tekrar bakılır). Railway KAPALI (canlı yok). 10-28 akşam ücretli koşular kurucu onayıyla yapıldı ("test yapıp
+para harcamayı tercih ederim"): uzun belge RAG + Luna kıyası, toplam birkaç dolar.
+
+**10-30 akşam — K-1029-A v4 (v3'ün çekişmeli yeniden incelemesi, 33 bulgu):** yedi dilde kaçan biçimler (nesneli İngilizce başvurma,
+"also / then", Türkçe "haberdar edin / aktarabilirsiniz", ekip / ortak ev sahibi, DE / FR / ES / RU / AR emir ve mastar biçimleri) silinir ·
+silinen cümle belirsizlik ("emin değilim"), söz / iletme iddiası ("ilettim"), ön koşul ("önceden haber vermeniz gerekiyor") ya da
+"gerekirse / isterseniz" taşıyorsa cevabın TAMAMI tutulur · fazla silme düzeltildi (kendi konusuyla yan cümle, teşekkür, arıza kapanışı,
+işletme / akraba, geçmiş olgu, olumsuz, hizmet amacı) · güvenlik: "veya" sınırında arama kalır, devam cümlesindeki tahliye adımı korunur,
+Arapça tehlike + yanık kokusu tanınır · 199 vakalık test, v3 192'sini kaçırıyordu · tekrar oynatma 3.274 cevapta v3 → v4 fark 0 ·
+çıktı vetosunda v4 öncesinden kalan karesel iş bulundu (V8 yorumlayıcı / iyileştirmesiz kip; "her … -yorum" ve alışkanlık geriye bakışı
+gövdeden önce) → gövde önce + ortak sınır tek öbek; 8.000 karakter 4,3 sn → 9 ms, eski / yeni 69.710 metinde 0 fark · yeni pin
+`regex-worst-mode-cost.test.ts` (ayrı süreç, iki kötü kip). Ayrıntı `docs/INCELEME-2026-10-28-gece-dongusu.md` 10-30 akşam.
+
+**10-30 öğle — K-1029-A v3 (dört mercekli çekişmeli inceleme, 44 bulgu / 43 doğrulandı):** silme kapsamı kapanış / konulu / koşullu
+konulu / göndergesel (göndergeselde ve kalan metin aynı konuya değiniyorsa cevabın tamamı tutulur) · güvenlik cümlesi yan cümle çözümlemesi
+(başvurmadan sonra adım → tamamı tutulur, taslak boş) · kalan metin sınavı yedi dilde tek kalıp · kapsam turu 140 gündelik biçimden 138'i
+(iki "buradayız" biçimi bilerek dışarıda) · bilgi isteği ayrımı (kendi bilgisi muaf, genel ihtiyaç koşullu kapanış değil) · ev sahibi ÖZNE +
+söz süzgecin işi değil (veto kör olmasın) · süre doğrusal (50 binde 128 sn → 0,4 sn; 14 süre pini) · tekrar oynatma: K-1029-A öncesine
+göre kaybedilen tutuş 0, v2 → v3 gevşeme 0 · mutasyon 42/42 (ilk koşu 34; yaşayan 8 — üçüncü kişi, iki dedektör örtüşmesi, beş taslak bağlantısı — pinlendi, 8/8) · K-1029-C: 23 "yalnız sıkılaştıran" sözcük yamasının 23'ü çekişmeli doğrulamada
+reddedildi (model okusun yönü ölçüldü, kod değişmedi). Ayrıntı + sabah soruları 1–7 `docs/INCELEME-2026-10-28-gece-dongusu.md` 10-30 öğle.
+
+**10-30 sabah — K-1029-A v2 (Opus sert incelemesi F1–F12 P1/P2):** v1 7/58 vakada doğruydu (silme "bilgim yok" ağının yerini almıştı:
+"emin değilim" gidiyordu, "Otopark." tek başına gidiyordu, "Detaylar için / bu konuda" isteği sessizce kapatıyordu, bildirimli başvurma ve
+gaz talimatı yanlış işleniyordu) → v2 58/58; dedektör 52 kaçaktan 49'u (DE kip + mastar, RU "пишите / обращайтесь", TR "yazmaktan
+çekinmeyin / … olursa yazabilirsiniz", zamirli biçim, FR/ES çoğul, AR); taslak alanı `hostContactDraft` (GD7 tablosunda). Tekrar oynatma: v1
+→ v2 yalnız sıkılaştırır (4 yeni tutuş, 0 gevşeme). Ayrıntı + sorular `docs/INCELEME-2026-10-28-gece-dongusu.md` 10-30 v2 bölümü.
+
+**10-30 (gece devamı, kesintiden sonra):** K-1029-A kodda (`ai/host-contact-filler.ts` yeniden yazım, `ai/absence.ts mentionsHostContact`
+yedi dil, `conversation-items/host-contact-settle.ts` tek "cevaplandı" kuralı, kanal öğe kipi / öğe kipi kapalı / QR / AI öner bağlantıları,
+istem katmanı varsayılan AÇIK — acil durdurma `AI_HOST_CONTACT_PROMPT_BAN_DISABLED=1`, kısmi gönderim durdurma `AI_HOST_CONTACT_PARTIAL_DISABLED=1`)
+· GD7 (`ai/reply-field-rules.ts`) · 404 G1–G4 + yüzde kodlu yol (`lib/private-routes.ts`) · sert inceleme C1–C17 + Haiku 7 bulgu (kayıp
+anahtar ağı kesinliği / kapsamı, öncelik, gezinme göstergesi) · tekrar oynatma ölçümü (`tests/eval/host-contact-replay.ts`): K10 bildirimi
+silinmez, "karar ev sahibinin" kalıntısı ve yalnız selam tutulur · sorular `docs/INCELEME-2026-10-28-gece-dongusu.md` 10-30 bölümleri.
+
+**10-29 gece-2:** 4-14-b ✅ (Airbnb'de imzanın telefon / e-posta satırı her zaman çıkar — bütün gönderim yolları + önizleme + kuyruk; Ayarlar
+ipucu telefon önermiyor; mutasyon 5/5) · 4-13-b cevabı (okundu işareti göndermiyoruz; Hospitable okumasının Airbnb'de "okundu" bırakıp bırakmadığı
+belgede yok → canlı deneme) · 8-4c-1 + G-1 tasarım belgesi (sorular S1–S3) — karar belgesinin sonu.
+
+**10-29 gece (kurucu R13-b/c kararı + "gece modu"):** R15 ✅ · R10/R11/R12/R14/R29/R30 ✅ (ev sahibine yönlendirme muafiyetleri yan cümle
+düzeyinde, mutasyon 13/13) · R13-b/c ✅ (`ai/host-contact-filler.ts`: "ev sahibinize yazın" asla, genel "bir sorun olursa arayın" kapanışı
+çıkar, yaşanan bildirimde tutulur — `reply_host_contact_only`; mutasyon 16/16) · karar masasının gece eklenen 4 kararı aynen belgede ·
+gece döngüsü 30 dk'da bir (oturuma bağlı; konteyner yeniden başlarsa yeniden kurulur).
+
+**10-28 gece-2 (kurucu: "6.'yı deneyelim … süreyi kısaltmak işimize yarar / r13 tamam"):** R13 ✅ (`ai/absence.ts`: "let them know / so they
+know / with the details / bilgi verin" bilgi koşulu sayılmaz; "bilgi verebilirsiniz" yönlendirme değil; mutasyon 8/8) · Decisions API yeniden
+sıralayıcıya AYRI motor, VARSAYILAN KAPALI (`KB_RERANK_ENGINE=decisions`, `structured-call.ts callDecisions`; mutasyon 14/14; ölçer aynı soru
+metni + eşiği üretimden alır) — açmak kredi gelince tekrar + kör ölçüm sonrası kurucu kararı (`docs/arastirma-2026-10-28/decisions-api.md` §3).
+
+**10-28 gece (kurucu karar masası 19 karar + "4 saat dur durmadan çalış, en sonda ajansız satır satır incele"):** kararlar AYNEN
+`docs/KURUCU-KARARLARI-2026-10-28-karar-masasi.md`; açıklamalar / tasarım `docs/TASARIM-2026-10-28-aksam-kurucu-aciklamalari.md`; öz-inceleme
+`docs/INCELEME-2026-10-28-gece-oz-inceleme.md`. Kodda: 4.11 okuyucu geçici hatada bir kez yeniden dener (toplam süre tek çağrı tavanını aşmaz) ·
+4.12 parça kipinde doğrulanmış parça genel güvene takılmaz (`verifiedPartsOnly`) · 4.13 `AI_KB_FEE_RULE_ENABLED` artık anlama ekini ("hizmet
+ücreti ödeme değil") ve okuyucu satırını da açar · 4.14 onaysız Airbnb'de imzanın telefon / e-posta / bağlantı / @kullanıcı / alan adı satırı
+çıkar, cevap gider · ölçümde bulunan: kısa Almanca / Fransızca soruya Türkçe gövde gidiyordu → kod emin değilken modelin bildirdiği dil
+(misafirin metninde izi varsa) dil kapısında ölçüt. Mutasyon 31/31. ⚠️ **OpenAI kredisi BİTTİ (~14:25 UTC)** — bekleyen ücretli ölçümler: tablo
+ağırlıklı kör set (`evals/rag-long/tablo.json`, `EVAL_RAG_LONG_SET=tablo RUN_REAL_EVAL=1 EVAL_RAG_LONG_DETAILS=0`, kapalı / açık × 2), okuyucu
+ücret satırı (`EVAL_SENIOR_SET=airbnb-fee-statements.json` + `airbnb-message-policy.json`, `AI_KB_FEE_RULE_ENABLED` açık / kapalı), ücret seti
+parça kipi (`EVAL_LIVE_SET=service-fee-4-13-dev.json`, ayrı PG gerekir). Karar sayfasına 4 yeni soru (4.14-b, 4.13-b, G-1, 8-4c-1). Sıradaki:
+R24–R28 ✅ (10-28 gece, içe aktarma bağlanmadan önceki şart): kapı kodu "Genel"e düşmüyor — bölüm düzeyi kod benzeri değer, giriş
+fiiliyle sayı, nötr kapı başlığı; ORTAK sır okuyucusu (QR çıktı taraması + bilgi tabanı süzgeci) "PIN … door", "Türcode", "codice della porta",
+"keyless" biçimlerini de yakalıyor (K7 kapsamı; Wi-Fi şifresi QR'da verilmeye devam); çıkarma yardımcıları (Latin-1 onarımı, yarım bayt, RTF) ·
+4.15 zod 4 ✅ (10-28 gece; tip denetiminin yakalamadığı 3 gerileme — kısmi güncellemede varsayılan ezme ×2, sarf profili —
+kırmızı-önce bulundu ve düzeltildi; 114.882 girdilik zod 3 ↔ 4 fark testinde veri farkı 0) · 8-1 C2 ürün dilimi ("eksik bilgi kartı" + gönderim anı denetimi; tasarım `docs/arastirma-2026-10-28/7d-gonderim-zamani.md`).
+
+**10-28 akşam (RAG ölçüm turu, kurucu: "rag için ölçümlerimizi yapalım, orayı en iyi şekilde istiyorum" + Codex eleştirisi):** sonuçlar
+`docs/TASARIM-2026-10-28-dosya-rag-cumle-ve-anlam.md` §8 (Codex madde madde) + §9 (ölçüm). Özet: uzun belge ölçeri (`tests/eval/rag-long.eval.test.ts`,
+`EVAL_RAG_LONG=1`), geliştirme seti `evals/rag-long/dev.json` (Opus, 125 soru) + kör set `blind.json` (Sonnet, 105 soru, yalnız özet). Üretim
+yapılandırması: bağlam tam geliştirme ort. 103/113 (±3 oynuyor), kör 90/95. ⚠️ Ölçer ilk koşularda anlama katmanını AÇMIYORDU — düzeltildi,
+anti-vakum pinli. `KB_TABLE_HEADER` (kodda, KAPALI): uzun tablo bölününce parça sütun başlığını taşır → 103 → 108,5, tablo 15/15, kör gerileme yok,
+mutasyon 12/12, Haiku gizlilik bulgusu (başlık kategoriyi değiştiriyordu) düzeltildi. Luna anlama / sıralayıcı: eşit DEĞİL (116 vs 111–113) → 5.1'de
+kalır. OpenAI ince ayarı KAPANIYOR (API `training_not_available`). Kurucu soruları karar sayfasında R-T1 (tablo başlığını aç), R-T2 ("Giriş
+Talimatı"na süpürülen paragraf: kör sette 35 soru QR'da cevapsız kalır), R-T3 (Luna).
+
+**Bu oturumda (10-28) yapılan:**
+- Opus 2. dilim incelemesi (`docs/INCELEME-2026-10-28-opus-ikinci-dilim.md`, R1–R30): R1–R5 + R9 (`ai/absence.ts` ev sahibine yönlendirme yüklemi,
+  satır birleştirme doğrusal) · R16 (tür adı / istisna geçen evcil hayvan kuralı "ücretsiz" sayılmaz) · R18 (öğe kipinde evcil hayvan kemeri
+  öğe türüne bakar) · R21 (kapanış nezaketi metnin tamamında iletişim değeri arar) — hepsi "daha çok tutar", mutasyon pinli.
+- Kurucu §7 kararları (aynen: `docs/KURUCU-KARARLARI-2026-10-28-bilgi-tabani-7.md`): `/api/kb/template` (boş şablon tr/en) + `/api/kb/export`
+  (yalnız kendi işletme, etkin kalem, saatte 10, denetim kaydı, bürünmede kapalı) + bilgi tabanı sayfasında "Dışa aktar" düğmesi; tek kapı
+  `paidPlanFeatureAllowed` (deneme / etkin paketsiz → 403). Dışa aktarılan dosya geri yüklenince aynı taslaklar (üst markdown başlığı kuralı).
+- Tedarik zinciri: nodemailer 10.1.7; zod 4.6.7 (4.15 geçişi 10-28 gece, GHSA-mrhx kapandı — `docs/INCELEME-2026-10-28-zod4-gecisi.md`).
+
+**SIRADAKİ İŞLER (bu sırayla; her biri K2: kırmızı-önce + mutasyon + Haiku dar inceleme + tam kapı):**
+1. **7-D gönderim zamanı — SERT KÖR TEST YAPILDI (10-28 öğle):** 93 senaryoluk kör set (ayrı yazar, `docs/arastirma-2026-10-28/7d-kor-set.json`)
+   + gerçek model kolu (`7d-model-kolu.mjs`, ≈ 0,30 $). Sonuç belge §10: önceki C önerisi kör sette 10 yanlış gönderim; en iyi kol "kod yalnız
+   durdurur, her gönderimi gpt-6-luna onaylar" 4 (gpt-5.1 bu sette daha kötü, 11). Kalan üç sınıf için YALNIZ DURDURAN kod kuralları önerildi
+   (gece yarısını geçen göreli gün · sorudan sonra değişen rezervasyon · başka daire / misafir adı). Kurucu kararı bekliyor (karar sayfası 8-1).
+   Karar sonrası: üç kural + İKİNCİ kör set (kuralları görmemiş yazar) — ilk setin hatalarına göre yazılan kuralın kanıtı ikinci settir.
+   **10-28 akşam (kurucu "93/93", "Luna'ya geçir"):** ikinci kör set (Sonnet, 80) İLK okumada Luna 12 / 54 yanlış gönderim (yeni üç kuralla 8;
+   5.1: 21 / 15) → genel kurallar (göreli zaman çözümü, kukla değer, başka kişiye hitap) + ürünün içerik kapıları + istem v2 (metnin içeriği)
+   + ÇİFT ONAY (iki bağımsız Luna kontrolü) → üç sette 1 / 213 yanlış gönderim, 33 / 213 düzenleyici. Belge `7d-gonderim-zamani.md` §11, puanlayıcı
+   `7d-puan.mjs`. ÜÇÜNCÜ kör set (Opus, 70, kabul; ölçüt 0 yanlış gönderim) yazıldı mı / sonucu: §11 sonu. Karar sayfası 8-1 güncel.
+2. **S3 kalıcı gömme deposu — KODDA (10-28 öğle, commit 2c1a1f7b):** migration 87 `KbChunkVector` (K1–K7 alanlarıyla), `vector-store.ts`,
+   anahtar `KB_VECTOR_STORE_ENABLED` KAPALI; 12 davranış testi, mutasyon 10/10. Açılış: Railway açılmadan önce taze yedek (migration 59–87).
+   Sıradaki RAG adımı (§9.7): D1 ölçüm seti ✅ (10-28 akşam) · D1b tablo başlığı ✅ (anahtar kapalı) → kalan kayıp uzak istisna / genel kural
+   (5 soru) ve gönderme → içe aktarmada "genel kural ↔ istisna" bağı (C1) → D2 önek v2 → D3 cümle → D4 soru; sıralayıcı tekrarlanabilirliği
+   (±3) ayrıca; cevap düzeyi `rag-answer` ile. Kurucu soruları R-S1/S2/S4/S5 + R-T1/T2/T3 karar sayfasında.
+3. **KB tarama soruları** (`KbScanQuestion`, migration 88, onaylı; `KB_SCAN_QUESTIONS_ENABLED` KAPALI): bulucular T1–T7 (tasarım §5) +
+   günde en çok 3 + panel kartı **[Onayla] [Düzenle] [Vazgeç]** (kurucu: "Böyle kalsın" DEĞİL "Vazgeç") + onaydan sonra öteki dairelere uygula.
+4. **Dosyadan içe aktarma:** Opus R24/R25/R26/R27/R28 ✅ kapandı (10-28 gece); sıradaki S4 sunucu API + yükleme ekranı + 7-B plan sınırı (taslak onayı sınıra sayılır, tasarım §4.4).
+   Not: dışa aktarılan dosyada "# Daire adı" üst başlığı var; içe aktarma ekranı bağlanırken bu başlık daire seçimine eşlenmeli (bugün
+   birden çok daireli dosya tek daireye yüklenirse bütün kalemler o daireye taslak olur — Haiku 10-28 bulgu 1 ile birlikte düşünülecek).
+5. **Opus açıkları:** R15 ÖNCE (tasarım notu belgenin sonunda — doğrulanmış parça "Havuz açık" iken bilgi tabanı "kapalı - …" diyor), sonra R10–R14, R17, R19, R22 (yazıyla numara), R29–R30; R13 GEVŞETMEDİR → kurucuya önce/sonra örnekli soru (`docs/INCELEME-2026-10-28-opus-ikinci-dilim.md` özet tablosu, "AÇIK" olanlar).
+   Müşteriye giden cevabı GEVŞETEN her düzeltme önce/sonra örneğiyle kurucuya sorulur.
+6. Açık kurucu soruları: 4.11–4.15 (rapor §4, §6) — cevap gelmeden uygulanmaz.
+
+**Karar sayfası (kurucu seçimleri burada, sayfanın veritabanında):** https://claude.ai/artifact/2tiEwpwVc4r4S5z1aGuV1V — yeni oturum
+`ArtifactData list kararlar` ile okur (belge kimliği `q-<soru>`: `q-8-1`, `q-R-S1`, `q-4-11` …; alanlar `secim · not · kaydedildi`).
+
+**Dikkat (bu oturumun dersi):** tam kapı koşarken HİÇBİR vitest (hedefli test, mutasyon) koşulmaz — 10-28'de bir kapı bu yüzden geçersiz
+sayıldı ("Can't reach database server at localhost:5433").
+
+## Durum
+> Tur anlatıları (09-23 → 10-01 gece 2) 10-02'de AYNEN arşive taşındı (kurucu: ".md çok uzamış … gerekli yerlere taşırsın"):
+> `docs/history/CLAUDE-2026-10-02-sadelestirme-3-oncesi-tam-metin.md` ("Durum" bölümü). Kuralları yukarıdaki bölümlerde; yalnız Durum'da
+> yazılı olan kurallar (konuşma öğeleri, ev kuralları, canlı bayraklar) 10-02'de ilgili bölümlere taşındı. Bekleyen onaylar ↓.
+
+**10-23 öğle (ESKİ devir — güncel olan yukarıdaki "10-28 devir"):** rapor `docs/RAPOR-2026-10-23-ogle-okuyucu-anlam-denetimi-ve-etiketler.md`, tasarımlar
+`docs/TASARIM-2026-10-23-okuyucu-baglami-anlam-denetimi-etiketleme.md` ve `docs/TASARIM-2026-10-23-bilgi-tabani-dosya-rag-ve-tarama.md`. Kodda
+(anahtarlar KAPALI): okuyucu bağlamı (16 mesaj iki taraflı, 8.000 karakter, misafirin kendi sözleri, bugün + giriş / çıkış günü) · Codex S3: anlam
+denetimi okuyucu varken okuyucuda, kodda kalanlar `CODE_KEPT_ISSUES` (alıntı var mı · değer konuyu anan kalemde mi · çelişki · konu biliniyor mu ·
+ters olumluluk B1) — kurucuya soru rapor §4.0 · baştaki tek "Evet, / Hayır," ünlemi olumluluk okumasına girmez (yalnız ayraçla; "Non-refundable"
+bütün okunur) · çok alıntı: değer kaynağı yalnız konuyu anan kalem (B2) · "gider ama açık kalır" beyanı `openRefs` + `sentRefs()` (B4) · kuyruk
+iptalinde / kesin hatada öğe yeniden açılır, bağ korunur, sonradan teslimde `recloseItemsDeliveredBy` yeniden kapatır · karar e-postası öteki talep
+uçuştaysa ya da okunamazsa "in_flight" (damga geri) · bilgi tabanı dosya çekirdeği `kb-import/document.ts` + tarama T6 `kb-scan/same-value.ts`
+(hiçbir yola bağlı değil). Kabul seti (`evals/sealed/SEALS.json` kaydı, ayrı yazar, 50 senaryo / 71 ihtiyaç) TEK koşuyla YANDI (`9413d041`): eski akış
+38/55 doğru · 4 yanlış gönderim; yeni akış (parça kipi) **42/55 · 0 yanlış · 16/16 açık** · iki kolda 13 gereksiz tutma. Mutasyon 36/36 (öğle dilimi 32 + Haiku 2. tur 4).
+Açık: kurucu soruları rapor §4.0–4.10 + tasarım 7-A…7-G · 13 tutmanın ayrıntılı neden analizi (yanmış set, ücretli, §4.8) · B8 kayıp bildirim
+(bilinçli) · dayanak arama maliyeti ~60 ms / parça · sonraki kabul için YENİ set.
+
+**10-23 sabah-2:** rapor `docs/RAPOR-2026-10-23-sabah-parca-okuyucu-ve-kor-olcum.md`, tasarım
+`docs/TASARIM-2026-10-23-soru-9-10-11-istisna-bildirim-parca-okuyucu.md` (§5 Codex karşılığı, §6 ölçümler). Kodda (anahtarlar KAPALI): Soru 9
+yalnız parça okuyucusunda (`exception_without_rule`; sözcük tabanlı `omitsGeneralRule` kaldırıldı) · okuyucu KAPALIYKEN parça kipi bütün parçaları
+tutar (Opus G1) · parantez yalnız kendi değerini taşıyorsa yan cümle sınırı (G2) · son metin denetimi = tekrar anahtarıyla aynı biçim
+(`partTextKey` / `foldPartText`, selamdan ibaret parça sayılmaz) · okuyucu notları 6000 karakter, sığmayan parça tutulur (G4) · Soru 10
+`notifyOpenNeeds` / `recordOpenNeedsNotified` (SystemLock `open-need-mail:<öğe>` 1 yıl) · ölçer: istekler yan dosyada, aynı türden iki ihtiyaçta
+yalnız istisna giden = yanlış, mühürlü yan dosya yalnız toplu sayı. Okuyucu karşılaştırma seti `evals/part-reader-dev.json` (35); C kolu (yüksek
+çaba) daha iyi değil. 10-23 mühürlü ihtiyaç kör seti YANDI (`b47f246f`): bugünkü akış 27/40 doğru · 9 yanlış; yeni akış 14/40 · 1 yanlış.
+Açık: kurucu S1 (kip kapalı kalsın) · S2 (okuyucu misafirin kendi sözleriyle) · S3 (kodun anlam denetimleri okuyucuya) · S4 (okuyucu setini kurucu
+etiketlesin) · bilinen dar yarış G5 (uçuştaki bekleyen-cevap talebi) · sonraki kör ölçüm için YENİ set (ayrı yazar).
+
+**10-23 gece-2:** rapor `docs/RAPOR-2026-10-23-gece-2-cevap-tekrari-ve-guvenlik.md`. Kurucu fikri (aynı soru
+4. kez → kayıtlı doğru cevap) + Codex notu: tasarım `docs/TASARIM-2026-10-23-dogrulanmis-cevap-tekrari.md`; saf çekirdek ana dalda
+(`src/lib/answer-reuse/core.ts`, hiçbir akışa bağlı DEĞİL); gölge kip (yazar ama göndermez) migration 85 hazır yama
+`docs/hazir-yamalar/2026-10-23-migration-85-dogrulanmis-cevap-tekrari-golge.patch` (çalışma dalı `wip/answer-reuse-85`; kurucu onayı + taze yedek
+bekliyor). Teyit yalnız başka konuşmadan; kayıtlı metin yalnız HARFİYEN kapsanırsa kalır (R11). Opus güvenlik F1–F11 + dilim sonu R1–R15 kapandı
+(doğrulayıcı: aksan katlama, çok dilli yön fiilleri, okunamayan yön geçmez, son giriş = bitiş, en az ↔ en fazla, eksiltili yön yalnız yan cümle
+sonunda, niteleyici değerin yerinde, saf varlık muafiyeti, diller arası olgu sayımı, ücretsizlik sınırı, kalemde olmayan ikinci konu, yan cümle
+bazlı olumluluk, uzun metin konu önbelleği; sıra kipi ilişkisiz satırı kapatmaz (F10 daraltıldı, kurucu B); etikette şifre değeri yok). 139 gerçek
+parça kıyas seti 108/139 değişmedi (+2 doğru Almanca). Anahtarlar KAPALI (`AI_ANSWER_PARTS_ENABLED`, `AI_ITEM_ORDINAL_ENABLED`,
+`AI_ANSWER_REUSE_SHADOW_ENABLED`). Opus uçtan uca (parça kipinin çevresi, rapor §3c): sorulan YÖN (saat / ücret — anlama katmanının istek
+başına ANAHTAR SÖZCÜK sorgularından, `answer-binding.askedAspects`) cevaplanmadan istek kapanmaz; tek istekte iki tesis → ikisi de anılmalı;
+bir istek cevapsız + tur tutuldu → ev sahibine tek e-posta; parça kipi yalnız sıra kipiyle (`AI_ITEM_ORDINAL_ENABLED=1`) açılır; bu okumada
+karşılığı olmayan eski açık satır cevaplanabilir değil; aynı metin bir kez; çelişen standart saat mülk kaynağından düşer. Açık sorular rapor §6
+(6–8: kısmi gönderimde e-posta, iki tesiste yarım cevap, parça kipinde güven eşiği). E v6: 31/38 doğru, 8/8 açık, 0 yanlış.
+Gece sonu (§3e, `6c59ee3c`): Opus "taze göz" (gecenin bütün farkı) 8 bulgu → sorulan yön denetimi konuya bağlı (`missingAspects(…, subjectTerms)`:
+olumsuzluk yalnız SORULAN konuya, saatsiz cevap yalnız yüklem, ücret sorusunda konu sözcüğü cevap değil, rakam + para birimi tutar, iki yön →
+aralık şart, çalışma saatleri yön sormaz) + konu etiketi değer penceresi (bitişik dizi, ağ sözcüğü önündeki değer, ikiz harf, sırdan sonraki 3
+sözcük); 147 gerçek parçada karar değişmedi. Mutasyon night4 67/90, yaşayan 23'ün hepsi pinli (T4 gerçek sızma, kapandı). Migration 85 WIP
+son ana dal ucuna (`73df45bd`) yeniden kuruldu (etiket çakışması çözüldü). Açık soru §6-10 (eski satırda sessiz tur e-postası).
+Sonra Haiku 4. tur (19 bulgu) + Opus R4 (16 bulgu, 3'ü kendi gerilemem) kapandı: saatsiz yüklem / olumsuzluk SORULAN konuya bağlı
+(`subjectBefore`: yer / zaman zarfı atlanır, niteleyici alt türdür), yön yalnız saat taşıyan yan cümleden, saatle birlikte kapalılık / yasak /
+olumsuzluk → yön sorusunda tutulur, sözcükle saat (öğlen / midnight) yön denetiminden geçer, temizlik / bakım / ısıtma yan cümlesi sayılmaz,
+"open until" bitiştir, olumsuz dahil tutar sorusunu cevaplamaz (evet / hayır sorusunu cevaplar). 156 gerçek parçada karar değişmedi; E v8
+31/38, yanlış 0. Mutasyon 43/43 + 15/17 (2 ölü kod silindi). Rapor §6-11: "sorulanı cevapladı mı" yargısını kıdemli okuyucuya da sormak
+(kalıp listesi her turda büyüyor — parça kipi kapalı kalmalı).
+
+**10-23 gece:** büyük rapor `docs/RAPOR-2026-10-23-gece-buyuk-rapor.md`. Soru 1 kodda (`topic-absence.needTerms`:
+misafirin kendi soru sözcükleri; gönderime izin veren eşleşme SIKI = yalnız çekim eki, tutma yönü GEVŞEK; anahtar `AI_TOPIC_ABSENCE_ENABLED` KAPALI) ·
+Opus akşam bulguları kapandı (gelen kutusu şablonunda iç ad yok, yedek liste aileleri, QR kapı sırası, erken giriş akışı, tek tıkla taslak uyarısı,
+`property:name` kaynağı) · CLAUDE.md sadeleşti (64 → 44 KB; `docs/claude/canli-durum.md` · `fiyat-ve-ozellikler.md` · `hospitable.md` ·
+`calisma-ortami.md`) · İhtiyaç Defteri tasarımı `docs/TASARIM-2026-10-23-ihtiyac-defteri.md` — kurucu soruları A–E AÇIK (F1 kod / gölge, F2 migration 84,
+F3 cevap parçaları, F4 ev sahibinin ilgisiz mesajı). Push `7cec46dc`.
+
+**10-22 akşam:** kurucu kararları kodda (rapor `docs/RAPOR-2026-10-22-yapay-zeka-ne-ogrendi.md` §8).
+- İç kaynak anlatımı misafire ASLA gitmez, olumlu da (kural `docs/claude/ai-guvenlik.md`): istem "KAYNAK ANLATMA YASAĞI" (eski "kayıtlarımda
+  şu yazıyor" örneği kök nedendi, silindi; kaynak sorulsa bile o kısım cevaplanmaz) · kıdemli okuyucu 5. hüküm `internalSource` (+ kanıt alıntısı)
+  → bir kez yeniden yazma (`reply_internal_source`, kanal + QR) · kod yedeği `absence.namesInternalSource` ANAHTARSIZ, dar (dairedeki kâğıt /
+  etiket / misafirin kendi bilgisi tutulmaz — Haiku 10-22 pinli) · kapıda çıktı vetosunun ardında.
+- İç daire adı modele gitmez; U4 ana dalda (migration 83 `Property.guestDisplayName`, boşsa ad satırı yok). U9 eki: misafirin kendi dairesi başka
+  kişinin bilgisi değil.
+- Ölçüm (16 senaryo, gpt-5.1): kaynağını anlatan cevap misafire 4 → 0 (anahtarlar kapalıyken 1 → kalıp eklendi) · iç ad 2 → 0 · "dairenin adı ne?"
+  → "Kat 3 Daire 12" 2 / 2. Ölçer artık `modelCalls` + `rw` yazar (yeniden yazma sayımı). Açık: kaynağı AÇIKÇA soran misafirde ikinci taslak da
+  kaynaktan söz edebiliyor → tutulur, e-posta yok (not sertleştirildi, §8.5). Kurucu sorusu açık: §7 madde 1 (sauna / konu eşlemesi).
+
+**10-22 gündüz:** kurucu §U kararları kodda + rapor `docs/RAPOR-2026-10-22-yapay-zeka-ne-ogrendi.md`.
+- Misafire giden (anahtarlı, Railway açılışında sırayla): T-a özür yok (`AI_NO_APOLOGY_RULE_ENABLED`) · U9 başka misafirin bilgisi
+  (`AI_UNDERSTANDING_PRIVACY_RULE_ENABLED`) · T-b kıdemli okuyucu tek model iki okuma (`ai/semantic/absence-judge.ts`,
+  `AI_SENIOR_READER_ENABLED`): itiraf / ev sahibine ödeme / platform dışı iletişim / özür; T-d okuyucu okuduysa yalnız ev sahibine platform
+  dışı ödeme tutar. KANIT ŞARTI yalnız itirafta karar değiştirir: alıntı taslakta geçmeli (`quoteGroundedIn`, NFKC + görünmez + benzer harf
+  iki tarafa birlikte); tek okumanın kanıtsız itirafı kelime kuralına kalır, iki okuma aynıysa geçerli. Ek hükümlerde kanıtsız "evet" de tutar
+  (`seniorChecksOf`, yeniden yazma sebebi). YENİDEN YAZMA BİR KEZ (görev 172, `ai/semantic/senior-rewrite.ts`):
+  yalnız okuyucunun düzeltilebilir sebebi (ödeme / iletişim / özür) ilk kapı hükmüyse; metin yeni çağrıdan, niyet / risk ilk çağrıdan; yeni
+  metin yeniden okunur, okunamazsa ilk taslak kalır; ev sahibine tek e-posta. U7 / U8 / S2 kapı dosyası pinleri.
+- Mizah / mübalağa (görev 173): `ai/hazard-evidence.ts` + `evals/humor-exaggeration.json` (30 vaka; ölçüm `docs/olcum/MIZAH-MUBALAGA-2026-10-22.md`).
+- Güvenlik U10–U15: dışa aktarma POST + şifre + kova + "indirildi" e-postası · 2FA'lı hesap silme kod ister · 10 dk doğrulama bağlantısı
+  tekrarı yok · demo iki durum · takvim aktarımı 60 gün · kayıt Turnstile (`SIGNUP_TURNSTILE_ENABLED` KAPALI) + kayıt e-postası yayma
+  (`REGISTRATION_EMAIL_HOURLY_PACE`, varsayılan 300; reddetmez, bekletir; tek uyarı, %80 histerezis). QR / panel U1–U3, U5, U6, U16.
+- Ölçüm: canlı hat eski (`ebc20009`) / yeni 135 senaryo + düzeltilmiş kodla 22 hedefli (sızma 0 / 0, özür 16/16 → 0/16, sık soru 9/9).
+  Mutasyon 15 / 15 (5 eksik pin eklendi). T-c ✅ Claude Sonnet 5.5 / gpt-5.1 yan yana: güvenlikte fark yok, model değişikliği yok.
+  U4 HAZIR YAMA (`docs/hazir-yamalar/2026-10-22-U4-misafire-gorunen-ad.patch`, migration 83; onay + yedek bekliyor).
+  Açık: rapor §7 soruları (sauna konu eşlemesi, olumlu iç kaynak
+  anlatımı, F5 boş KB notu). Bilinçli: F4 yeniden yazma günlük kotayı en fazla 1 aşabilir.
+
+**10-22 gece (önceki):**
+- Güvenlik 2. tur (Opus, P1 yok; rapor `docs/arastirma-2026-10-15/GUVENLIK-2-TUR-2026-10-22.md`): başka siteden yazma kapısı
+  `crossSiteWrite` (`lib/route-guard.ts`) ortak kapıda + dört gövdesiz rotada (QR yeniden aç, bürünmeden çıkış, kalite denetimi, kanal
+  bağlantısını kaldır); operatör aday güncellemesi olay günlüğünde (`operator.lead.updated`). Mutasyon 13/13. Kalanlar kurucu soruları U10–U15.
+- Erişilebilirlik (axe, 20 sayfa × masaüstü / telefon + misafir QR): önce 4 kural türü neredeyse her sayfada; sonra 0. İkincil metin rengi
+  43% (pin `tests/unit/theme-contrast.test.ts`), uyarı rozeti, karekod / bağlantı alanı adları, "İçeriğe geç" + odaklanabilir `<main>`.
+  Açık bırakılan: tamamlanan görev kartı `opacity-70` (soluk gösterim tasarımı; ilk taramada kart içi metin 2,7:1 çıktı, ikinci taramada o
+  kart ekranda yoktu — tasarım kararı, kurucuya sorulmadan değiştirilmedi).
+- Klavye erişilebilirliği (Haiku klavye incelemesi, axe'nin göremediği): satır içi onaylarda odak "Vazgeç"e iner, vazgeçince açan düğmeye
+  döner (karar kartı kapat / hazır metne dön, giriş kodunu kaldır); açılır bölüm düğmelerinde `aria-expanded`, görev süre süzgecinde
+  `aria-pressed`; mobil menü açıkken arka sütun `inert` (kapanınca odak `<body>`de kalmışsa hamburger'a döner). Mutasyon 12/12.
+  Karanlık tema taraması (32 sayfa): tek kalan tamamlanan kart soluklaştırması (soru U16) + Raporlar'da axe "kaydırılabilir bölge
+  odaklanabilir değil" (`<main>` tabIndex -1: "İçeriğe geç" hedefi; her sayfaya ek Tab durağı EKLENMEDİ — Chromium kaydırılabilir bölgeyi
+  klavyeyle zaten odaklıyor; bilinçli). İlk turda kalan sayfalar (hazırlık, iptaller, giden kuyruk, yeni mesaj, faturalandırma / bağlantılar /
+  ekip / güvenlik sekmeleri) + temizlikçi görünümü iki temada tarandı: tek bulgu yine tamamlanan kart (U16).
+  "Aboneliği devam ettir" odağı KAPANDI (59f72349 + 08f6a507: seçimde pakete, onayda Vazgeç'e — ödeme düğmesine ASLA, sonuçta durum satırı /
+  Devam et; `tests/ui/resume-subscription-focus.test.tsx`). Açık: onay pencerelerinde arka plan `inert` değil (odak tuzağı var).
+- Telefon görünümü (Playwright 320 / 390 px, 17 panel + QR + tanıtım; ekran sunucusu PG 5441 `ux_screens`, betikler kazı defterinde):
+  tanıtım demosu / iletişim formu `min-w-0` + telefonda 16 px; bilgi tabanı kartı başlığı sarar (`flex-1 basis-32`, düğmeler `ml-auto`);
+  her `whitespace-pre-wrap` `break-words` taşır (pin `tests/unit/long-text-wraps.test.ts`); Raporlar ızgarası `grid-cols-1` (uzun daire adıyla
+  587 px taşma). Uzun ad + uzun bağlantıyla tam tarama temiz.
+- Güvenlik 3. tur (Opus, 10-19'dan beri değişen 120 dosya; P1/P2 yok — `docs/arastirma-2026-10-15/GUVENLIK-3-TUR-2026-10-22.md`): S1 hesapsız
+  demo cevap modeli kesicisinde yalnız kendi kovasında (ortak durdurmaya katılamaz); S2 "bilgim yok" hakemi misafir metniyle kandırılabilir →
+  anahtar KAPALI, açılış koşulu Railway belgesinde.
+- E-postalar telefonda (390 / 320 px, Chromium ölçümü): ev sahibi bildirimleri 632 px (uzun bağlantılı misafir mesajıyla 1.387 px), kimlik
+  e-postaları 512 px'ti → kart "akışkan melez" (Outlook için `width` niteliği + CSS `width:100%;max-width`), içerik uzun sözcüğü böler;
+  metin değişmedi. Pin `tests/unit/email-mobile-width.test.ts`, mutasyon 3/3. ⚠️ `width:Npx;max-width:100%` tablo düzeninde YETMEZ.
+- Push'lar: f1837b9e ve f3d60dd6 CI yeşil. 55f2da86 CI kırmızı: security-audit + verify (tek test `audit-gate-fail-closed` "gerçek ağaçta yeşil") — sebep npm denetim servisi (503, 503, 400 "endpoint is being retired"), kod değil; kapı tasarım gereği fail-closed. Yerelde aynı kapı yeşil (4 üretim danışması, 4 triaj). Bu oturumun GitHub izni yeniden çalıştırmaya yetmiyor (403) → sonraki push'un CI'ı kapsar.
+
+**10-21 gece-4 (önceki):**
+- UX incelemesi (Opus, 24 bulgu) + görsel inceleme (39 ekran görüntüsü, 30 bulgu) + güvenlik incelemesi (2 yeni bulgu) koştu; raporlar
+  scratchpad'de (`review-ux-1021.md`, `screens/review-visual-1021.md`, `review-security-1021.md`). Ev sahibi ekranında müşteriye giden
+  AI cevabına dokunmayan düzeltmeler kodda: olası tehlike bandı ("beklemede" demez; etiketler `lib/inbox-skip-labels.ts`, kaydedilen her
+  gerekçenin etiketi pinli), bant eylem bağlantıları (plan bağlantısı yalnız sahibe), kurulum 1. adımı → Bağlantılar, Bilgi Tabanı başlığı
+  T4 sonrası doğru, "AI cevap öner" Ayarlar tonuyla, mobil 16 px alanlar, "Sorunlu" ipucu, mülk silme onayı ne silineceğini söyler, sade metinler.
+- Güvenlik P3: cevap modeli devre kesicisi KİRACI BAŞINA (ortak kesici ≥2 işletmeden zaman aşımıyla); Haiku: ortak kira israfı yok, dizi
+  3 dk aralıkla kopar, sessiz kiracı kaydı silinir.
+- Kırmızı takım geliştirme seti + tarafsızlık katmanı ölçümü: `docs/olcum/TARAFSIZLIK-VE-KIRMIZI-TAKIM-2026-10-21.md` (taban: misafire giden
+  yasak dize 0, serbest kalan tutuş 0; katman: özürlü taslak 9→0, geliştirme setinde gerileme yok). Kör kırmızı takım iş paketi (istek 3, $10)
+  bu push'la tetiklenir — çıktı mühürlü klasöre, içeriğe bakılmaz.
+- CI #1573 kırmızısı (eski pinler: 256 birleşim, yalnız-"1" bayrak listesi, ölçüm koşu kimliği, taşınan etiketler) düzeltildi; push
+  90d00071 CI 6/6 yeşil.
+- KÖR kırmızı takım seti (Claude iş paketi istek 3, $0.72, 71 senaryo) mühürlendi → tek koşu → YAKILDI (`SEALS.json`): misafire giden yasak
+  dize 0, acil 3/3, 69 tutuştan 67; iki "serbest" vakada gizli bilgi gitmedi (çeviri perdesi; yapay zekânın kendi reddi = U9 sınıfı).
+- Görsel düzeltmeler (Haiku hazırlığı): çıkış düğmesi adı, varsayılan şablon kontrastı, "Mülkü sil" çerçeveli, konuşma ekranında
+  rezervasyon söz formundan önce, gelen kutusunda daire adı kırpılır, rapor skorunda "az veri" notu, telefonda küçük düğme 40 px.
+  Mutasyon 13/13 (kesici, bant etiketleri / eylemleri, Sorunlu ipucu, ton).
+- Sorular (hiçbiri uygulanmadı): `docs/arastirma-2026-10-15/KURUCU-SORULARI.md` §U (U1 QR cihaz kilidi ele geçirme · U2 misafir ekranı dili ·
+  U3 sohbet kodu adı · U4 daire adı · U5 otomasyon anahtarı · U6 panel sırası · U7 "şikayetçi değil" kelime yanlış alarmı · U8 tehdit + masum
+  soru · U9 başka misafir bilgisi) + plan belgesi T-a…T-d.
+
+**10-21 gece-3 (önceki):** kurucu cevapları (W1–W9 + altyapı 1–8) işlendi; "kelime değil bağlam" ilk dilimi.
+- W1/W2/W3/W5/W6/W7/W9 kodda (önceki tur) · **W4** "bulamamak" yalnız ben / biz / kaynak öznesiyle itiraf (talimat / olgu tutulmaz) ·
+  **W8** anlama istemine acil tanımı → tehlike sondası 48/48 acil yolu (önce 46), geliştirme setinde gerileme yok (yanlış bilgi 0, sızma 0).
+- **Bağlam hakemi** (`semantic/absence-judge.ts`, `AI_ABSENCE_JUDGE_ENABLED` + `_STRICT` KAPALI): gerçek 6.149 cevapta kelime kuralı 69 tuttu,
+  17'si itiraf değildi; hakem 16'sını bıraktı, 51 gerçek itirafın hiçbirini bırakmadı; 500 rastgele cevapta kelime kuralı 8 itiraf kaçırıyordu
+  (`docs/olcum/BAGLAM-HAKEMI-2026-10-21.md`). Hüküm okunan metne bağlı; konu ayıklaması sonrası yeniden okuma.
+- Altyapı: 3 devre kesici + tek yeniden deneme + 30 sn tavan (`ai/model-breaker.ts`) · 8 ev sahibi yazma sınırı 300/dk · 7 CI gitleaks ·
+  1/2/4/5 belge `docs/OPS-2026-10-21-dis-izleyici-waf-anahtar.md` (UptimeRobot, yedek kararı, AUTH_SECRET kararı, WAF adımları).
+- Haiku incelemesi: devre kesici 4 + W4 + hız sınırı + hakem bulguları doğrulandı ve düzeltildi (kırmızı-önce testler).
+- **Sıradaki plan (kurucu):** `docs/PLAN-2026-10-21-baglam-anlama-ve-kirmizi-takim.md` — tarafsızlık (özür / kusur kabulü yok), kırmızı takım,
+  öteki kelime kuralları → hakem. Sorular T-a, T-b. Açık: Q6 (gelen kutusu anında güncelleme) kurucuya cevap verildi (öneri: şimdilik hayır).
+
+**10-21 gece-2:** Claude 2. dalga ($10,55) doğrulandı ve işlendi — takip `docs/claude-work/2026-10-21/dalga-2/DOGRULAMA-VE-DUZELTME.md`.
+- Tehlike sondası gerçek akışta (`evals/understanding-e2e-probe-hazard.json`, rapor `docs/olcum/anlama-e2e-probe-hazard-live-2026-10-21.md`): modelsiz
+  okuyucunun kaçırdığı 48 canlı acilin 46'sı acil yolunda, 2'si (Arapça su baskını) ev sahibinde tutuldu; misafire içerik 0; acil olmayan 22'nin hepsi tutuldu.
+  Kod kapısı tek başına (model "güvenli" derse) 45/48'i geçirirdi → güvenlik asıl anlama katmanında; W8 sorusu.
+- İkinci hakem (Claude) 36 giden cevapta 0 anlam hatası — GPT denetçisiyle uyumlu.
+- 40 P2 + 32 arayüz bulgusu Haiku ile kodla doğrulandı; düzeltilenler (kırmızı-önce + mutasyon 17/18 + Haiku dört gerileme bulup düzeltildi):
+  gaz / duman / tırnak / bilgim-yok / acil numara okuyucuları (tutucu), kuyruktaki otomatik mesajda başka dairenin metni (#95), dosya aktarımında
+  anonim satıra ad geri yazımı (#11), CSV "0.500", fatura ödeme anı, QR cevabı sahiplenmesi, çeviri dil kodu, IPv6, gölge ölçü dayanağı, Ayarlar
+  yönlendirmesi, ödeme kartı kilidi, bozuk e-posta bağlantısı. Kurucu soruları W1–W9 (müşteriye giden şablon / metin / kimlik / bayat cevap eşiği).
+- Pazar (web arama kotası yarıda doldu): Airbnb API yalnız ortaklık; Booking.com yeni bağlantı sağlayıcı alımı "durduruldu" (resmî sayfa, tarih
+  eski) → yol planındaki "Airbnb Direct + Booking.com" için kurucuya not.
+
+**10-21 gece:** anlama ölçümü + Claude kredisi + 111 altyapı konusu.
+- Anlama ölçümü (kurucu: "kelime örtüşmesi değil, gerçek model bağlamı anlıyor mu"): tasarım `docs/TASARIM-2026-10-21-anlama-olcumu.md`, ölçer
+  `tests/eval/understanding-e2e*.ts` + iddia denetçisi (`tests/eval/claim-audit*.ts`), iki kol GEÇERLİ (`docs/olcum/anlama-e2e-dev-*-2026-10-21.md`):
+  yanlış bilgi 0, sızan tutma 0, acil 6/6; gereksiz tutma 5/43. Neden analizi + kurucu soruları A–F `docs/olcum/anlama-e2e-NEDEN-ANALIZI-2026-10-21.md`
+  (müsaitlik kapısı sözcükle, cevap modeli beyanı eksik, dayanak sözcük örtüşmesi, bulaşık makinesi sessiz düşüş, olumlu iç kaynak anlatımı,
+  koşullu bilgi). Mühürlü kör set A–F kararlarından SONRA, bir kez. Üretilmiş 286 senaryo `evals/understanding-e2e-gen.json` (insan gözü bekliyor).
+- Claude çalışma paketi (kurucunun $100 kredisi, Sonnet 5.5, GitHub Actions `claude-work.yml`): 1. dalga $23,87 (`docs/claude-work/2026-10-21/`:
+  pazar + strateji notu, 100 kod bulgusu → P1'ler doğrulandı ve düzeltildi `e78dca38`/`9f457249`, 286 senaryo, 165 metin önerisi — metinler
+  kurucu onayı ister). 2. dalga istek 2 (tavan $35): tehlike / şikâyet sondası, 86 P2 yeniden doğrulama, arayüz incelemesi, ikinci hakem, pazar
+  soruları. Sonuç Actions günlüğünden (`CWB64` satırları) çözülür.
+- 111 altyapı konusu (kurucu: "soru sormadan entegre et"): `docs/TASARIM-2026-10-21-altyapi-111-envanter.md` (durum + 8 kurucu sorusu) +
+  `docs/OPS-OLAY-YONETIMI-VE-SLO.md`. Kodda: hata e-postası haritası tavanı · ödeme bekletmesi 5 paralel · görev kilidi `ORDER BY id` ·
+  `/api/health?live=1` · yavaş sorgu satırı (`DB_SLOW_QUERY_MS`) · açılış uyarıları (Sentry yok, `connection_limit` yok). Mutasyon 11/11.
+
+**10-21 akşam (önceki):** T4 kapı kırmızıları + Codex mutasyonu + Opus sert inceleme + iç kaynak kalıpları.
+- g98 kırmızıları test kurulumuydu (beş kuyruk testi dairenin otomatik mesaj kaydını kurmuyordu; kanarya `MessageOutbox.templateRevision`
+  kapsam dışı; ödeme niyeti testinde İşletme plan kodu `business`). Ürün davranışı değişmedi.
+- Codex düzeltmeleri mutasyon: 13 öldü + 2 gerekçeli eşdeğer (açılıştaki niyetin işlem kimliği hep boş; açık niyetin kapanış zamanı hep boş).
+- Opus sert inceleme B1–B7 (`docs/arastirma-2026-10-15/codex-1021-opus-sert.md`, durum tablosu dosya sonunda) hepsi düzeltildi: ödendi görülünce
+  sunucu "işleniyor" kilidi · Paddle 404 = kapalı · 24 sa mutlak üst sınır + operatör haberi · `billed`/`past_due` ödendi değil · yeniden verilen
+  işlemin süresi +30 dk · sahiplenme dalı önce görevi kilitler · kopya kaydı saatlik süpürge. Sandbox şüpheleri Railway belgesi §4'te
+  (İLK bakılacak: Paddle panelinde varsayılan ödeme bağlantısı).
+- Claude eval T1 sıra 1 YAPILDI (anahtarsız, yalnız TUTAR): iç kaynak işareti + aynı cümlede olumsuzluk, yedi dil (`absence.ts`
+  `INTERNAL_SOURCE_RULES`); ölçümde kaçan 21 biçim + lookalike kontrolleri pinli, mutasyon 8/8. Sıra 2–3 (dayanak gevşetme, güvenlik bağı)
+  misafire gideni değiştirir → kurucuya önce/sonra örnekli soru (`docs/olcum/claude-zorlu-t1-2026-10-21-ANALIZ.md`). Yeniden ölçüm:
+  `evals/claude-run-request.json` `request` +1 ile Actions.
+- Haiku 10-21 bulguları (`94eb572f`): ödeme niyeti yeniden vermede sayım kontrolü + 24 sa üst sınır · sahiplenmede kilit sonrası yeniden
+  doğrulama · iç kaynak kalıplarında yanlış pozitif daraltma (yedi dil) + kaçan biçimler. Yeniden vermedeki ölü yaş kontrolü eşdeğer mutant →
+  kaldırıldı (süpürge aynı istekte kapatır). Kabul testi: yalnız [C] hedefinde de aynı kimlik + farklı içerik 409 (eski pin kalıcı kayıttan
+  önceki zayıf davranışı sabitliyordu). Paddle 404'ün geçici olabileceği şüphesi sandbox listesinde (Railway belgesi §4).
+- Kapı: `0e51fcae` yerel tam kapı yeşil (test · tip · lint · build · audit) + CI yeşil (5 iş). Açık: T1 sıra 2–3 kurucu sorusu (yukarıda).
+**10-21 öğleden sonra:** Codex 10-21 dört madde + Claude eval.
+- Codex P1 çift tahsilat → ödeme niyeti (migration 82 `CheckoutIntent`, `lib/billing/checkout-intent.ts`, anahtar `PADDLE_CHECKOUT_INTENT_ENABLED`
+  KAPALI; Paddle SANDBOX denemesi kurucuyla — doğrulanacaklar Railway belgesi §4). Haiku düzeltmeleri: iptal doğrulanmadan yer boşalmaz, ölü
+  işlem verilmez, anahtar geri kapatılırsa açık niyet ikinci ekranı engeller, webhook niyet kapatırken fırlatmaz.
+- Codex P1 T1 "uygulanmamış" → yanlış ölçüm (ham fonksiyon çağrılmış); üretim yolu dayanaklı silici — pin `t1-separation-measure.test.ts`.
+- Codex P2 söz kapatma yarışı → kilit sonrası görev durumu (`closeOneStayEnded`).
+- Codex P2 kopyalama hafızası → migration 81 `KbCopyOperation` (işlem başına ilk içerik izi; aynı kimlik + farklı iz 409; hedefsiz istekte kayıt yok).
+- Claude eval (Actions, kurucunun anahtarı): eski zorlu set gerileme yok; YENİ T1 ölçeri ciddi açıklar buldu → `docs/olcum/claude-zorlu-t1-2026-10-21-ANALIZ.md`
+  (iç kaynak kalıpları 21/30 kaçıyor — anahtarsız tutucu düzeltme SIRADAKİ İŞ; dayanak gevşetme + güvenlik bağı kurucuya önce/sonra sorulacak).
+- T4 kapısı g98 (`3f0c94fd`) + Codex düzeltmeleri için ayrı tam kapı + push + CI: durum aşağıdaki itme satırında / `git log origin/claude/great-edison-3zqpZ`.
+**10-21:** Kurucu 10-21 cevapları (T1 "B", T2 sınırlar, T4 ayrı bölüm + migration, T5 tablo) kodda; her biri Haiku incelemesi + düzeltme
+turu, T1 mutasyon 17/17. T5 (`6252a104`, `ea127b12`): "saat geçtiyse yarın" kuralı yok; geçmiş saat / sabah-akşam belirsizliği / kararsız söz
+(müsait olursa, belki) kart; "inşallah" iptal etmez; gece yarısı zamansız söz bağlam "şimdi" demiyorsa son tarihsiz. T2 (`29d2597f`, `8c54584f`):
+olası tehlike + anlama katmanı koşmadı → konuşma atomik "Sorunlu" (`hazard_unverified`), işletme başına saatte 3 e-posta, gitmeyen e-posta hak
+yemez, aynı konuşmadaki yeni kesin acil sınır dışında. T1 (`07aac0bd`, `9baea96b`, `ea99c6f2`): "talimat yok" silindikten sonra kalan içerik cümlesi
+bilgi tabanının tek kaleminde dayanak ister (≥%75 gövde, sayı tam belirteç, olumsuzluk kutbu aynı, nezaket kalıpları çıkarılır); "sistemimizde
+yok/görünmüyor" iç kaynak anlatımı; erişim ilişkisi (kapı/otopark/anahtar arızası + aynı konulu soru → bağlı; saat türünde yalnız fiziksel erişim
+sözcüğü; "kapıcı" kapı değil). Ölçüm `tests/unit/t1-separation-measure.test.ts` (yanlış gönderim 0, gereksiz tutma 0). T4 (`f280cfbc`, migration 80):
+`AutoMessageTemplate` + `MessageOutbox.templateRevision`; gönderici / önizleme / gönderilenler / mülk listesi / saat çelişkisi yeni kaynaktan;
+kuyrukta anahtar değişmez, işçi sürüm farkında aynı satırı yeniden kurar, metin yok / doldurulamıyorsa 1 sa bekletir; doğrudan yolda talep işlemi
+içinde sürüm kontrolü; rota (önizleme, sürüm 409, kiracılar arası 404, personel 403, metinsiz denetim) + kart (önizlemesiz kayıt yok); demo +
+dışa aktarma kapsamda. Sert tasarım incelemesi `scratchpad/T4-sert-inceleme.md` (oturum dışı): sürümlü anahtar → çift gönderim riski nedeniyle
+reddedildi. Sonraki dilim (kurucu fikri): şablondan farklı bilgi gönderilince fark + "şablona ekle?" · "diğer dairelere kopyala".
+**10-18 gece-4:** 10 Sonnet geniş inceleme (son 3 günün 224 commit'i; bulgular `scratchpad/gece-17/S1–S10.md`, oturum dışı) → doğrulananlar
+düzeltildi, müşteriye dokunanlar sorulmadan yapılmadı (KURUCU-SORULARI §T: T1–T7 + T6b). Söz algılama v2 (gün kendi kapsamından, belirsizse kart; iki
+söz / devam / süre kuralları; migration 76 yapan, 77 FK + AuditLog dizinleri — kurucunun 10-17 genel migration onayıyla) + sert itirazcı + Haiku × 3 +
+Opus F1–F19. Arıza kemeri (anahtar kapalı) İngilizce kısaltma / -ing / KB'de olmayan cihaz + Haiku iki tur yanlış pozitif / kaçan düzeltmesi.
+İç hatalar: kuyruk işletme anahtarlarını gönderimde okur (S3-01), park edilen satır alarmı susturmaz, örüntü yeniden yazılmaz, silinen rezervasyonun
+dokunulmamış sistem görevi gider, mülk adı kilit içinde, önizleme günü org saat diliminde, kopya bağı yerine-koy zincirini izler, siteler arası GET
+koruması, ayar denetim kayıtları. Dolu veritabanı yükseltme provası 58→77 yeşil (`scripts/ops-migration-rehearsal-seed.py`). G6 kenarı (Paddle
+hata kayıtları) değiştirilmedi → T6b. S3-06 kapandı (401/403'te önce tek sayfa okuma); S7-01 kapandı (bağlanmayan yükleme 24 sa sonra silinir, silme kuyruğunda erteli kayıt, migration'sız).
+Sonra: CI #1539 kırmızısı (KB düzenleyicide korumasız `scrollIntoView`, zamanlamaya bağlı) düzeltildi + listede-var yolunda da kaydırma/odak + pin;
+migration 78 (yalnız dizin: `IngestEvent` bekleyen olay okuması, S8-04; sert itirazcı diğer S8 kalemlerini "Railway açılınca ölçümle" dedi). Açık
+performans kalemleri: `docs/arastirma-2026-10-18/S8-performans.md`.
+İkinci tarama: 135 bulgu izlendi, 50 izsiz → iç olanlar düzeltildi (söz algılama 14 kural + Haiku 9 bulgu, mutasyon 25/25; demo sıfırlama + DMMF pini;
+POST /api/conversations kiracı testi; `*_ENABLED` ↔ Railway belgesi pini; anahtar parmak izi aracı; ödeme açılış uyarıları), müşteriye dokunan 18'i
+KURUCU-SORULARI §T8; hazır yama durum tablosu `docs/hazir-yamalar/DURUM.md`.
+Üçüncü tur (10-18 sabah): sert itirazcı 354 cümle + Haiku → söz algılama konuma bağlı kurallar (derlem 175 → 301/323, karesel iş giderildi,
+mutasyon v9 26/29 + 3 yaşayan kapandı); S4-07 kalanı (arıza okuyucusu görünmez karakter); S3-08 panel; S3-07/S3-09 migration 79 + talepte
+veritabanı tarafı zaman aşımı (sert tasarım ajanı ölçtü, iki önerisi ölçümle reddedildi); S7-08 rota testleri; CI #1545 kırmızısı = test
+milisaniye yarışı; ararken bulunan gece zaman bombası (S1-02 kuralı 45 testi İstanbul 00:00–04:59'da kırıyordu) itilmeden kapandı. Soru T8.19.
+Sabah (10-18, kurucu cevapları): T3 uygulandı (bilgi veremem yedi dilde tutulur), T6b uygulandı (işlenememiş ödeme olayı 2 yılda küçülür);
+T1 (talimat yok → cevabın tamamı tutulsun mu), T2 (e-posta seyrek), T4 (sade anlatıldı), T5 (gün bağlamdan — kural örneklerle soruldu) cevap
+bekliyor. Opus dilim sonu 3: söz algılamada 1 yeni gerileme + 4 yeni P2 + 2 eski P1 düzeltildi (derlem 303/323). Haiku son grup: kuyruk sağlığı
+okuması tek hatada sayıları kaybetmiyor. İtme: fbe9a12b (g94 yeşil, CI #1547 yeşil) → e83bd552 (g95 yeşil; mutasyon v10 31 → 29 + 2 pin).
+Push sonrası (kurucu: gece başka ajan yok → sert inceleme sabah Opus turunda): "temizliğe / temizliği" konu (A12), sonu noktasız "p.m" (A14;
+küçük harfli özneyi cümle sonu saymak denendi, derlem 303 → 301 → alınmadı), baş harfli ad cümleyi bölmüyor ("M. Ali", mutasyonun bulduğu
+kök), otomatik kipte 5'ten çok bekleyen sözde en eskisi kaybolmuyor (A16, kırmızı-önce DB testi). Mutasyon v11–v13: 12 mutant koşusu, 10 öldü; "p.m"
+sınır mutantı (iki koşuda) gerekçeli eşdeğer ("p.max" — 1596 cümlede aynı sonuç). C1 yorum dürüstleştirildi; C2 (plan testi kopya SQL) ve A15 (öneri
+anahtarı cümlecik sırasına bağlı; anahtarlar canlıda hiç açılmadı) bilinen sınır.
+Açık: S7-03 (elle senkron global kilidi — mimari, ölçümle).
+Sabah raporu `docs/SABAH-RAPORU-2026-10-18.md`.
+
+**10-17 gece-3:** Haiku 2–4. tur + ölçüm: takvim tarihi ("25 Ekim", "ayın 25'i", "ay sonu", "25/10") bugün sayılmaz; "7/24" ve
+"2 ocaklı" tarih değil; selamlaşmadaki dilek sözü bozmaz; aynı konu farklı YAPAN (teknisyen ↔ ben getireceğim) iki söz (tespit, gizleme, onay
+birleştirmesi `separateActor`); zamansız devam parçası ve reddedilen sözün devamı söz açmaz; gün sözcüksüz yeni saat başka gündeki söze
+kendiliğinden taşınmaz (kart sorar). Paddle API anahtarı olayı anahtarsız saklanır, ödeme incelemesine düşmez, Operasyon Teşhisi'nde 90 gün.
+Kurucu SG3: üründe DURAKLATMA YOK (`PADDLE_RESUME_ENABLED` kapalı kalır); plan iptal edilince Ayarlar'da "… tarihine kadar … paketinin tüm
+özelliklerini kullanmaya devam edebilirsiniz; bu tarihten sonra ücret alınmaz" kutusu (yalnız iptal planlıyken). Sandbox tur 3 (tutar ✅,
+çifte tahsilat → duraklatma kaldırıldı) + tur 4 (Retain kurulu değilken varsayılan İPTAL; sihirbaz doldurulmadı). Tam kapı g86 yeşil → push
+`f0e823af`. Yedek dalları kurucu temizledi (kalan: ana dal, `backup/2026-10-17-gece-wip6`, `main`; silinenlerin commit'leri geçmişte).
+
+**10-17 gece-2:** Söz → görev OTOMATİK (kurucu kararları; migration 75; anahtar `HOST_COMMITMENT_AUTO_ENABLED` KAPALI → açılışta "1"):
+ev sahibinin yazdığı söz onaysız söz + görev; saat UYDURULMAZ (açık saat · gün dilimi · yalnız gün; "birazdan" = "kısa süre içinde"); kararsız /
+aktarılan söz yok; "11'e kaydı" bağlamla tek adaya taşınır, belirsizde kart sorar; günde 20; konaklama bitince havlu / temizlik / eşya kapanır,
+arıza kalır; "Yanlış, kaldır"; Ayarlar'da kapatılır; dikkat panelinde 30 dk pay + 1 gün hatırlatma, saatsiz söz gün geçmeden satır olmaz.
+Opus düzeltmeleri (Q2 anahtar arkasında + belirsiz gönderim, PAD-A abonelik tekrar toplamı) 13/13 mutasyon. Sandbox tur 3: Paddle'ın kendi ödeme
+sayfası bulundu (ayar değişmedi). Yedek dallar `backup/2026-10-17-gece(-wip)`. Teyit soruları SG1/SG2 → `docs/arastirma-2026-10-15/KURUCU-SORULARI.md` §S.
+
+**10-17 gece:** Q2 kodda (kanalın kendi otomatik mesajı senkronda yazar "automation" → K7 tek kuralı: cevap sayılmaz, açık iş düşmez,
+istemde [OTOMATİK MESAJ]; bizim mesajımız asla — Railway açılınca ilk denemeler birlikte) · Q1-b (tek mesajda iki söz → iki öneri; iki farklı konulu
+söz + konusuz öneri → "hangi söze bağlansın?") · KD1 cümlesi gizlilikte + 14 sızma / hata testi · operatör "Denemeyi yeniden başlat" · Paddle sandbox
+(Chrome'daki Claude, kayıt sayfası) D1/D2: önizleme toplam alanı YANLIŞTI → satır toplamı + abonelik adresi; devamda kart reddi `past_due` → 402.
+P0–P14 panel girişi bekliyor (P8 hâlâ ENGELLEYİCİ). Açık: L1/L4 6 soru + ekip üyesi kart metni.
+**10-17 akşam:** kurucu cevapları (KURUCU-SORULARI §S) — I1 söz konusu (73) + Q1 "a" sahiplenme (konusuz elle söze konulu öneri bağlanınca
+konu yazılır, yeni görev açılmaz) · Q3 aydınlatma cümlesi gizlilik §5'te (90 gün, pinli) · Q4 operatör "Denemeyi bitir / geri ver" · I4 C "Aboneliği
+devam ettir" (anahtar `PADDLE_RESUME_ENABLED` KAPALI; C1 küçük yazı, C2 bütün paketler; paket değiştirmeyle aynı para güvenliği) · kartla deneme
+kapısı (74; `TRIAL_CARD_GATE_ENABLED` KAPALI + deneme süreli fiyat env'leri şart; ağ / IP sinyali SAYILMAZ) · webhook Paddle `trialing` deneme
+sonunu yazar (gizli hata). Paddle sandbox listesi `docs/TASARIM-2026-10-17-paddle-devam-ettir-ve-kartla-deneme.md`; L1/L4 tasarımı (Opus, 6 soru)
+`docs/TASARIM-2026-10-17-l1-l4-gecmis-cevaplar-ve-duzenleme-farki.md`. Açık: Q1-b teyidi, Q2, KD1–KD3, L1/L4 6 soru.
+**10-17 öğleden sonra:** S2 migration paketi kodda — I3 kuyruk dizini (69) · L2 "eskisinin yerine koy" (70; ekranda görülen kalem
+sürümü zorunlu, işlem içi koşul, yerine konan eski değer bir daha önerilmez) + L3 tek konuşmalık işaret (cümlecik bazlı, ev sahibini uğraştırmaz) ·
+L5 1. faz (71; kanalın kendi otomatik mesajı öğrenme / üslup / öneride ev sahibi kanıtı değil, "cevap mı" değişmedi — Q2) · K1 (72; ilan tekrarı
+denemeyi BİTİRMEZ, işaretler; ham IP saklamayan kayıt ağı izi, anahtar `SIGNUP_NETWORK_TRACE_ENABLED` KAPALI — Q3/Q4). Haiku her parçada (L2 21,
+L5 8, K1 12 bulgu), mutasyon L2/L5 28/28. Push: `5ada7188` (CI #1525). Açık: I1 (Q1), L5 2. faz + istem etiketi (Q2/Q2-b), K1 metin / süre (Q3/Q4).
+
+**10-17 sabah:** kurucu kararları S1 (migration'sız) kodda — H9/M1 "talimat yok" silici (izin listesi; Opus P1'ler: kanıtsız cihaz adımı,
+göndergesel konu, bilinmeyen konu, selam kabuğu → silinmez, cevap tutulur) · K4 çıkış gününe elle temizlik (görev formu rezervasyon bağlamadığı için
+aynı mülkte rezervasyonsuz elle temizlik de sayılır) · N1 abonelik kapalıyken bayat otomatik mesaj gitmez ("en son kapalı görüldü" işareti, kuyruk
+satırı iptali, bekleyen karşılama / giriş mesajında varış günü penceresi, tek not) · K3 ödeme ekranı metinleri (`billing-ui-text.ts`). Haiku ×2 +
+Opus derin kontrol bulguları işlendi; mutasyon 24/26 (iki gerekçeli eşdeğer). S2 tasarımı (migration 76–79: söz konusu, KB yerine koyma, kanal gönderen
+rolü, kayıt ağı izi) hazır, kurucu soruları `docs/arastirma-2026-10-15/KURUCU-SORULARI.md` §Q.
+
+**10-16 akşam :** (1) PARALEL TEST KAPISI — `npm test` = `scripts/test-gate.mjs` (veritabanlı kol tek sıra + veritabanısız kol 3 işçi
+aynı anda, süre testleri en sonda tek başına; ölçüm 4 koşu yeşil: 3 işçi 1.790 / 1.766 sn, 4 işçi 1.931 / 1.778 sn; seri 2.163 sn) — geri dönüş
+`npm run test:serial`; `docs/arastirma-2026-10-15/test-paralellik.md`. (2) H9 konu bazlı "bilgim yok" kodda, anahtar KAPALI (`topic-absence.ts`;
+Haiku: doğrusal satır temizliği, kalan cümle konuya bağlı; Opus: kapsama şartı, satır satır ayıklama, kod selamı muaf, belirsizlik tutulur, kanıt izi
+`ta`). (3) Codex akşam 6 bulgu (hepsi kodda yeniden üretildi, düzeltildi, regresyon testli): küçültülmüş Paddle yükü yeniden işlemede ezilmez ·
+erişimi kapalı işletmenin kuyruktaki OTOMATİK satırı bekletilir (talep süzgeci + gönderim anı kemeri + sağlık okuması tek kaynak
+`outbox/billing-hold.ts`; elle cevap etkilenmez; kader sorusu N1) · KB kopya güncellemesine işlem kimliği · arıza okuyucu tam metin (cevap 200
+cümleyi aşarsa tutulur) · gönderilmemiş host mesajı geçmişten öğren kanıtı değil · sağlık yoklaması paylaşılır. (4) Geçmişten öğren × Codex 6 ilke
+denetimi kalıcı belgeye (`docs/arastirma-2026-10-15/gecmisten-ogren-6-ilke.md`), sorular L1–L5; "bilgi veremem" sorusu M1.
+
+**10-16 öğleden sonra — Codex incelemesi + kurucunun açık kararları (migration'sız):** ödeme gecikmesinde ek süre YOK (erişim
+ödenmiş dönem sonuna kadar; Opus N1: `past_due` olayı dönem sonunu ödenmemiş döneme taşıyabiliyordu → yazılan değer yalnız dönem başı, yoksa
+yazılmaz; bilinen sınır dönem içi düşen tahsilat → soru J5); elle mesaj hızlı uyandırma (`kickOutboxDrain`, varsayılan açık, kaçış
+`OUTBOX_FAST_WAKE=0`; uyandırma turu kurtarma yapmaz, 5 satır, tek takip zamanlayıcısı, 10 dk bekçi; ölçüm p50 23 ms / p95 36 ms); kuyruk
+anahtarları ayrı (`OUTBOX_DELIVERY_PAUSED` yalnız kuyruktaki gönderimi duraklatır, uzlaştırma sürer); QR kilit yenileme + her ücretli adımdan
+önce eşzamanlı sahiplik (kota, daire sayacı, getirme, model, yeniden yazdırma, bekçi) + süpürülmüş ama alınmamış kilidi yeniden alma;
+POST'tan önce talebi dolmuş satır gönderilmez, bekleyene döner. Mutasyon 18/18 + ikinci tur; Opus N1–N9, Haiku 8 bulgu; Codex C1–C12 hükümleri
+ve sorular J1–J9: `docs/arastirma-2026-10-15/KURUCU-SORULARI.md` §J. Codex C6: belgelerde "kişisel veri yok" → "takma adlı kimlik taşır".
+
+**10-16 öğle — kurucu kararları Faz 1 (migration'sız):** migration 68 onaylandı ve ana dalda; söz tekrarı "Bu söz zaten kayıtlı";
+e-posta kuyruğu sağlayıcıya satır başına sabit tekrar kimliği; ödeme: `paused` ayrı durum (ek süre yok), bozuk / eksik tutarlı olay fatura
+yazmaz ve `needs_review: <kod>` ile yeniden işlenebilir kalır, hesap silinirken gelen ödeme olayı alarm + inceleme (hesap geri açılmaz);
+O1 ilk deneme listesi `DURABLE_OUTBOX_ORG_IDS` + anahtar kapatma testleri (eski koda dönmeden önce ana anahtar kaldırılır — tasarım §7); QR
+çalışan kilit (120 sn) ≠ tamamlanmış kayıt (24 sa) + işçi jetonu (bayat işçi kaydetmez / başkasının kilidini silmez). Faz 2 (migration
+taslağı) / Faz 3 (yapay zekâ, anahtar kapalı) ve sorular I1–I4: `docs/arastirma-2026-10-15/KURUCU-SORULARI.md` §I. Aynı dilimde
+(migration'sız): O3 kuyruk alarmı A + B, S4 kayıt tekrarı, Opus dilim sonu 11 bulgusu (KVKK küçültme, silme ↔ ödeme yarışı kilidi, geri dönüş
+süzgeci, ödeme inceleme listesi, Resend çakışması, liste `*` kuralı) — §I "Dilim sonu kontrolü".
+
+**10-15 gece — idempotency bitişi + kurucu D1–D7:** iptal yollarının hepsi aynı kilit protokolünde (sekiz yol, iptalden önce başlamış
+görev açmaya karşı belirlenimci testler; "zaten iptal" kısa yolu kaldırıldı; ters yön "Yeniden aç" kilitli yoldan). Onarım ≠ alarm: iCal (onarım
+taraması, koşu başına 50) ve Hospitable (her senkron) kendiliğinden yeniden dener; dosya / PATCH yolunda otomatik onarım YOK (D5 aracı, onay
+bekliyor). Kurucu D1 (form başına kimlik + "Ayrı bir bilgi olarak ekle" + güncel listeden düzenle) · D4 (arıza görev tespiti genişledi; soru /
+varsayım / olumsuzlama ayrıldı; başlık "Bakım — misafir bildirimi: <cihaz>"; öncelik değişmedi) · D6 (PATCH + düğme tek kural
+`lib/reservations/reopen.ts`) · D7 (yalnız sistem görevi "var" sayılır; bitmiş görev yalnız aynı gün) kodda. D2 + D3 kodu hazır, **migration 68
+onayı bekliyor** (yedek dal `backup/d2d3-stash-2026-10-15`). D5 sayım aracı salt-okuma (Railway kapalı → koşulmadı). Ölçülen bulgu: "Kapının
+kilidi bozuldu, çıkamıyoruz" acil sayılmıyor (soru G-D4b). Durum + sorular `docs/arastirma-2026-10-15/KURUCU-SORULARI.md` §E–§G; test
+paralelleştirme raporu `docs/arastirma-2026-10-15/test-paralellik.md` (öneri; ana yapılandırma değişmedi).
+Gece devamı (kurucu inceleme notu "BOZUKLAR İÇİN BİLGİ TABANINDA YAZMAYAN ÖNERİLER VEREMEZ" + TV / çöp vakası): iki anahtar, ikisi KAPALI —
+`AI_FAULT_GUARD_ENABLED` (cihaz + arıza ifadesi aynı cümlecikte → kod şikâyet öğesi, arızalı istek ev sahibinde, liste kipi dahil; misafir
+"düzeldi" deyince kodun işi kapanır) ve `AI_FIX_SUPPORT_GATE_ENABLED` (arıza adımı tarif, kullanım adımı konu ister; kanal + QR + Ayarlar testi +
+karşılaştırma aynı yüklem `relation.fixSupportHolds`; kayıtlı 3.324 cevapta 40 tutuş — hepsi şikâyet senaryosunda uydurma adım —, gönderilmiş
+cevapta 0). TV belirti sözcükleri genel konu çıkarımından AYRILDI (Opus N2: "görüntülü diyafon" TV tarifi sayılıyordu). Opus N1–N12 + yaşayan
+iki mutant (O1, D2b) kapandı; sorular §H.
+10-16 gece (Opus ikinci tur M1–M11, §H8): misafirin ARIZA bildirdiği cihaza adım TARİF ister (yalnız konu yetmez); kibar / yabancı dil adım
+biçimleri; kullanım adımı kendi cihazına bakar; arıza okuması cihaz bazında (`faultDevicesOf`: düzelme yalnız kendi cihazını kapatır, soru /
+sanı düzelme değil). Anahtarsız iki düzeltme: istek tarafında TV belirtisi yalnız bağlayıcı türde (M6, gevşetiyordu) · görev tespitinde
+misafirin kendi eşyası aynı cümlecikte okunur (M5). Geçmişten öğren ad maskesi konuşma başına (M9). Mutasyon 21/24 + üç pin; soru H9.
+Opus üçüncü tur (P1-a/b, P2-a…d, P3): TV mobilyası / oda adı yer tarifi; arıza + BAŞKA soru turunda cihazsız cümle arızayı devralmaz (meşru
+cevapların %10'u tutuluyordu → %1,5); düzelme sırası cümlecik içinde; genel "görüntü" yalnız arıza yüklemiyle TV. Kurucu sorusu (10-16, dört
+görsel — transactional outbox): desen VAR (kimlik e-postası kuyruğu canlı, misafir mesajı kuyruğu hazır + kapalı, olay kuyruğu canlı);
+operatör panelinde kuyruk sağlığı + `EMAIL_OUTBOX_ENABLED` kapalıyken açılış uyarısı; plan `docs/TASARIM-2026-10-16-transactional-outbox.md`,
+sorular H10 (O1–O3). 10-16 sabah — O1 (misafir mesajı kuyruğunu açma) Opus hazırlık incelemesinin tek ENGEL'i kapandı: öğe kipinde "ev sahibiyle
+görüşmek istiyorum" cevabından sonra kuyruk yolu yapay zekâyı 12 saat susturuyordu, satır içi yol susturmuyor. Karar kuyruğa girişte satırla
+aynı işlemde işaretlenir (`outbox/handoff-exempt.ts`, göçsüz `SystemLock`); işaret yoksa kilit (güvenli yön). Teslimde turu yeniden kurma denemesi
+Haiku (tetik yetmez) ve Opus dilim kontrolü (B1 tehlikeli yön: bu geçiş öğe kipine girmedi ama turda eski öğe vardı; B2) ile çürütüldü.
+İşaret süresi dolunca satır hâlâ gidebiliyorsa uzar (Haiku: 402 ile günlerce bekleyen satır). CI #1505 rastlantısal kırmızı: olay günlüğü
+süzgeci cuid'deki 7+ rakam dizisini ("…l2070000n…", zaman damgası + sıfır dolgulu sayaç) telefon sanıp `outboxId`'yi düşürüyordu → tam cuid
+biçimli `outboxId` / `consentId` için dar muafiyet (en çok 9 rakam; telefon / TC uzunluğu yine düşer). Operatör paneline "son 24 saatte
+incelemeye düşen" sayacı; ev sahibi ekranı önerileri O5 / O6 soru. Açmadan önce bilinecek beş madde + O3 ölçülen kapsam H10'da. Ana dalda tip hatası (migration 68
+dünyasının alanı `act.ts`e taşınmıştı, çalışma zamanı etkisiz) origin hâline döndü.
+
+**10-15 öğleden sonra — V sonrası işler (kurucu "Vlerden sonra yapacağız dediklerimi yap, soru sorma"):** beş Opus araştırması
+`docs/arastirma-2026-10-15/` (idempotency · ödeme · takip numarası · yatay ölçek · deneme kötüye kullanımı). Müşteriye / misafire gideni
+değiştirmeyen, migration'sız düzeltmeler SORULMADAN yapıldı: bilgi tabanı ekleme ekranları + kopyalama istek kimliği, rezervasyon görevi /
+mesajdan görev / söz / talimat çiftleri kilit altında, kimliksiz CSV eş zamanlı yükleme, QR jetonu koşullu yazım, Paddle imza alarmında
+"eski zaman damgası" ayrı teşhis, Sentry sürüm / ortam / alan etiketi + olay günlüğünde Sentry olay kimliği, dört ödeme eşzamanlılık testi
+(gerçek PG). Sorular (14 madde, sıralı) `docs/arastirma-2026-10-15/KURUCU-SORULARI.md`; U42'nin basit hâli hazır yama.
+Opus son kontrolü (0 P0 · 0 P1 · 2 P2 · 13 P3; rapor özeti KURUCU-SORULARI §A/§C) + Haiku son tur kodda kapandı: söz önerisinde ölü düğme,
+iCal testlerinin hedefi, rezervasyon görevi hızlı yol + kilit altında yeniden okuma + iptal temizliği aynı kilit ve kendini onarma, görev hatası
+satır hatası sayılmaz, eşzamanlılık testleri kilit sınamasıyla belirlenimci (`tests/helpers/lock-probe.ts`). Mutasyon: ilk tur 14/17 (yaşayan 3
+→ belirlenimci testlerle) ikinci tur 20/20.
+
+**10-15 gündüz — Geçmişten öğren (migration 65, hiçbir yere uygulanmadı; `HISTORY_LEARN_ENABLED` KAPALI):** müşteri "Geçmişi oku"
+→ Luna (gpt-6-luna / low) geçmiş soru ↔ cevaplardan bilgi tabanı TASLAĞI çıkarır (ad / telefon / IBAN / TC / kapı kodu modele gitmeden
+maskelenir; taslak onaysız kullanılmaz; 300 mesajda 13/14 olgu, 0 sızıntı, ~$0,005). Operatöre (kurucu 10-15 kararı) "Cevapları karşılaştır":
+geçmiş sorulara canlı cevap modeliyle kuru koşu (gönderim yok, kapı sonucu + kapanış), İyi / Düzeltilmeli / Kötü + "Böyle yapsın" (talimat +
+bekleyen taslak). Daire tercihleri: müşteri HAZIR SEÇENEKTEN seçer, serbest metin yalnız operatör; isteme yalnız
+`PROPERTY_INSTRUCTIONS_PROMPT_ENABLED` ile (KAPALI). Opus üç tur + derin denetim + Haiku turları + mutasyon (44/39 + yaşayan 5 için test).
+Kararlar `docs/KURUCU-YOKKEN-KARARLAR-2026-10-09.md` "10-15 sabah"; bayraklar `docs/RAILWAY-ACILIS-2026-10-15.md` §5; görsel açıklama
+https://claude.ai/artifact/Sk4aX2p11CVVbHeKbtJ4Jj. Opus dördüncü derin denetim (HL4, `0 P0 · 3 P1 · 7 P2`) kodda kapandı: kilit / kutu bağlamında kod
+maskesi + taslak kapısı, pasaport / kart / etiketli telefon maskesi, talimat kapısına acil / konaklama kararı / iletişim / dil / platform dışı
+sınıfları, "Böyle yapsın" serbest metin yetkisi, müşteri anahtarı kapanınca müşterinin serbest metni istemden düşer (`byOperator`), misafir
+silmesi yoldaki koşuyu durdurur, ücretli özellik kapısı, karşılaştırma talimatı anahtar kapalıyken dener, bayat cevaba karar 409. F6 (QR kapı
+kodu boşluğu, önceden var) kurucu onayıyla ana dalda: tek anlamlı kilit adları + değer (`secret-filter-lock-nouns.test.ts`).
+
+**10-14 akşam → 10-15 gece (kurucu "gece modu — soru sorma, Haiku'yu bol kullan"):** dış inceleme Y1–Y10 kodda kapandı ve itildi
+(nezaket girişi, Unicode / çok dilli kapı kodu, QR silme yarışı, iptal / ertelenen rezervasyona giriş, genel kapatma kuyruğu, açık yangın
+uyarısı + 25 mesaj penceresi, uyarı adresi kuşak yarışı, ölçerde KATI olgu, dört müşteri ekranı) · kurucu 10-14 kararları (silinen
+konaklamada metinsiz acil uyarı, "kısa devre" model karar verir) · Haiku ikinci tur: olası tehlike + anlama katmanı koşmadı → tur ev
+sahibine (QR + kanal; `hazardDecisionFor` acil hükmü hiç okunmuyordu) · Claude ölçeri (Anthropic API; ANAHTAR bu ortamda YOK — alt oturum
+ücretsiz durdu) · HAZIR YAMALAR: KB içe aktarım istek kimliği (migration 65, mutasyon 10/10) ve G1 + G1b (anlama katmanı son cevaptan
+sonraki otomatik şablonu hiç görmüyordu; 25 × 3: 65/75 → 75/75) · RAG: asıl kazanç İngilizce köprü (60 kalem 110 → 117/120); parça tavanı
+ve soru başına etiket ölçüldü (etiket kötüleştirdi). Sorular ve ölçümler: `docs/KURUCU-YOKKEN-KARARLAR-2026-10-09.md` "10-14".
+
+**10-13 sabah:** kurucu G1–G11'i cevapladı; G2–G11 uygulandı (gaz / CO dedektörü acili, 2FA kapatma oturum düşürür, demo talebi
+günde 50 + özet, Paddle yükü 1 yıl, KVKK telefon / e-posta + üslup profili, çizgi taklidi → insana, kanal iptali geri açmaz + panel satırı,
+sağlayıcı arızası tek satır, yakalanmayan hata raporu, imajda yalnız iki betik); G1 hazır yama (kredi gelince ölçüm). Durum ve yeni sorular
+H1–H3: `docs/KURUCU-YOKKEN-KARARLAR-2026-10-09.md` "10-13". H1 gerek yok (kurucu verisi), H2 "yeniden aç" düğmesi + H3 duman dedektörü
+de doğrudan ev sahibine uygulandı (Haiku son kontrolü üç tur: yanlış negatifler + karesel iş kapandı; geçmiş zaman indirimi kaldırıldı — yeni soru H4).
+
+**10-12 gece geç saat:** madde 10 son yüzeyleri (AI cevap öner + QR konuşma kayıtları sınırlı okuma; QR'da 2.000 satır sınırı,
+yabancı konuşmada aşama sızmaz) · DENETIM 08-09 #6/#8/#10/#11/#22/#24–27/#32–37 kapandı ya da doğrulandı, #15 kısmen · ACIK-ISLER 08-08
+§11–§15 kısmen (iptaller / gelen kutusu dar `select`, ölü `plan` dışa aktarımdan çıktı, açılış uyarıları RESEND_FROM / OPENAI / yarım
+STORAGE_*) · iki kararsız test (gece yarısı "yarın" zaman bombası; kimlik içinde "4200" — CI #1426 kırmızısı) · sabah soruları G1–G7
+(`docs/KURUCU-YOKKEN-KARARLAR-2026-10-09.md`). Her iş Haiku sert inceleme + mutasyon + tam kapı. Depo PUBLIC, CI gerçek çalıştırıcıda.
+
+**10-12 gece (güncel; kurucu "gece modu — soru sorma, V'leri bitir, sonra mantıklı işler"):** kurucunun 10-12 cevapları uygulandı — S1 bavul
+bırakma kod kapısında (giriş öncesi saat / "erken" bağlamında erken giriş isteği ve izni) · S2 QR'da iptal edilmiş rezervasyon (yapay zekâ çağrılmaz,
+kota düşmez, panel kaydı + 6 saatte bir e-posta `QR_ESCALATION_EMAIL_ENABLED` ile) · ⑤ ilk dilim öneriler (görev / Wi-Fi bilgi tabanı / söz, sahip +
+yönetici tek tık; `AI_ACTION_SUGGESTIONS_ENABLED` KAPALI; ölçüt yalnız ölçülür) · değişmez 13 düzeltmesi ("bilgi yanlış" beyanı) · kritik akış testleri
+(gelen → teslim, özel yükleme oturumu). Her biri Haiku sert inceleme (2–3 tur) + mutasyon + tam kapı. Tablo: `docs/KURUCU-YOKKEN-KARARLAR-2026-10-09.md`
+"Uygulama durumu (10-12 gece)"; çizelge `docs/YOL-PLANI-DURUM-2026-10-09.md` ⑤. Ardından kurucunun "goal bitince" notu: **takip numarası
+(correlation ID) ilk dilimi** (ödeme zinciri + hata bildirimi + operatör araması, yalnız-ekle olay günlüğü, migration 63) —
+`docs/TASARIM-2026-10-10-correlation-id-takip-numarasi.md` §6. ⑤ önerileri dört Haiku turu (Wi-Fi "çalışmıyor" ≠ şifre dersi kod kuralı). Railway hâlâ kapalı.
+
+**10-11 akşam:** acil numara sorusu Luna 6.0 ile ölçüldü (33 senaryo × 2), modelin kendi açıklaması alındı, kod anahtar arkasında
+(`AI_EMERGENCY_NUMBER_ENABLED` KAPALI; servis başına numara, ev sahibi / anlaşmazlık / konaklama konusunda numara yok — ölçüm setinde 62/62)
++ B1 (gelen kutusu "Bilgi tabanına ekle", mülk sayfası "Yerel Tavsiye" hatırlatması). Haiku iki tur, mutasyon iki tur. Kararlar:
+`docs/KURUCU-YOKKEN-KARARLAR-2026-10-09.md` "10-11 akşam"; tasarım §8 `docs/TASARIM-2026-10-11-acil-numara-ve-yer-onerisi.md`.
+
+**10-11 sabah:** kurucu gece modundan çıktı, 9 karar soruldu ve cevaplandı; hepsi uygulandı (kendine atamada e-posta yok · önizleme
+kotası konuşma başına · QR konaklama başına saatte 40 mesaj + acil e-postası saatte 3 + daire alt kotası · destek görünümünde operatör yazmaları
+kapalı · QR'da Wi-Fi verilir, kapı kodu hiçbir biçimde verilmez + çıktı taraması bir kez yeniden yazdırır · gizlilik md.15 + `LEGAL_VERSION`
+2026-10 + avukat paketi). Tablo: `docs/KURUCU-YOKKEN-KARARLAR-2026-10-09.md` "Sabah (10-11)".
+
+**10-10 gece (kurucu: "gece modu — soru sorma, Haiku'yu bol kullan"):** Haiku inceleme / tarama turları kodla doğrulanıp işlendi, hepsi
+kırmızı-önce + mutasyon + tam kapı ile İTİLDİ (CI yeşil): QR sır süzgecinde "kapı + aç-" biçimi + üç eski tuş paneli kalıbında KARESEL geri izleme
+(23.800 boşlukta 2,8 sn → 11 ms; dil eşitliği 2,9 milyon dizede doğrulandı) · operatör uçlarına operatör kimliğine bağlı hız sınırı (2FA sıfırlama,
+kalite denetimi, dışa aktarma, bürünme) · misafir sözü KVKK (silme / saklama / dışa aktarma) · değişmez 16 (kimlik parçalı her API rotası bir
+kiracılar arası davranışsal teste eşli, mekanik pin) · değişmez 10 (konuşma kopya temizliği QR ipliğini Airbnb ipliğine birleştiriyordu → kopya =
+aynı kanal). Kurucu kararı bekleyenler: `docs/KURUCU-YOKKEN-KARARLAR-2026-10-09.md` 15–29 (Mülk Hafızası çelişki tanımı, uygulamada sağlayıcı adı,
+görev atama e-postası tavanı, önizleme kotası …). Railway hâlâ kapalı.
+**10-08 gece:** Codex `15c8663` bulguları (U16–U44 + yeni 1–11) döngüde dört turda işlendi ve İTİLDİ (`87ba35d`; takip tablosu
+`docs/INCELEME-2026-10-07-codex-u16-u44.md`, her bulguda regresyon testi, yarışlar gerçek PostgreSQL'de). Kimlik yarışları (U13/U40/U41/U43/U44),
+silinen metnin gönderimi (Y1), özgün mesaj kaybı (Y2), tehlike okuyucu (U3), takvim / CSV / ICS / gün başı / rapor / sağlık düzeltmeleri, ölçer
+düzeltmeleri. Next.js 15.5.27 (iki yeni SSG/ISR danışması). Onay bekleyen beş değişiklik HAZIR YAMA (`docs/hazir-yamalar/`, ana dala UYGULANMADI)
++ Sabah Kararları 63–68. Railway hâlâ kapalı.
+**10-07:** Host Karar Motoru İTİLDİ (10-03 kurucu "pushu yaptır", migration 59; CI #1292 yeşil) + üç inceleme ajanının bulguları
+düzeltildi ve itildi (tasarım §10; rota · depo · tur / bildirim · otomatik onay koruması · panel · metinler); anahtar KAPALI, Railway kapalı. Onay
+bekleyen: Sabah Kararları 62 b–f (misafir metinleri, farklı saatle onay dili, rapor sayımı, istem devir satırı, Arapça ortak terim). ⚠️ Ders: konteyner
+sıfırlandı, itilmemiş iki commit kayboldu → uzun işte ara commit'ler HEMEN itilir (Railway kapalıyken push = yalnız CI).
+**10-02 AKŞAM:** Railway aboneliği BİTTİ → canlı YOK (↑Çalışma biçimi). Kurucu onayları (10-02 akşam): **53 + 47** → RC72 (`d905c41`,
+CI #1290 YEŞİL 20:18Z); **24 EK** (yazılı otopark tahsisi müsaitlik iddiası değil), **56** (QR dil kapısı + model ipucu), **55 + 51** (bağlam ilkesi:
+açık tehlikede koddan satır, olası tehlikede model, anılışta alarm yok, belirsiz kalıplarda model, kaynaksız güvence yok) + "nasılsın" katmanı
+(anahtar KAPALI, Sabah Kararları 61) → RC73 (mutasyon 101/112 → yaşayan 11'in 6'sına pin, 4 ölü kalıp silindi — Arapça / Rusça "acil numara",
+sözcük ağı o sözcükleri acil saymıyor —, 2 gerekçeli eşdeğer; hedefli tur 13/14) → itildi 21:36Z, **CI #1291 YEŞİL**. Ardından (kurucu
+sırası) **Host Karar Motoru** kodda (yerel dal, İTİLMEDİ — migration 59 onayı + 7 dil karar metni onayı, Sabah Kararları 62): kart + rozet + pano
++ tek e-posta + Onayla / Reddet ucu (yeniden doğrulama + olgu parmak izi), iki UX turu (ekran görüntüleriyle), üç inceleme ajanı, mutasyon.
+Yeni sorular: Sabah Kararları 58–60 + 51 EK (Rusça sağlık acil sözcükleri) + 62. Yerel model / çaba değişkenleri: rapor §0b.
+**10-02 (sabah):** canlı kod RC70 (`bbbf24b`, CI #1288 yeşil 10:44Z; RC69 dişil ev sahibi kararı + İspanyolca dipnot dahil). RC71 kapıda: QR'da
+kapı kodu sızıntısı (sır süzgeci tuş paneli / sözcük sırası / kod sözcüğünün dilleri — bugünkü 5.1 kör QR setinde kodu iki kez yazdı) + geçmiş
+turdaki rol değişimi enjeksiyonu (Sabah Kararları 57, onaylı kurallar) + QR ölçeri ve kör QR seti. Railway AKTİF (↑Canlı durum). **Luna katman
+sonucu (kurucu: "5.1 yerine Luna, kodları ona göre geliştir, sakın geçmesi için şeyler yapma"; rapor §0a, §7.0, §9.4–9.12):** anlama + bekçi Luna
+`low`, çeviri Luna `medium`, üslup Luna `none`, sıralayıcı 5.1'de kalır (Luna `none` iki sorulu mesajda 3/120 geride; Luna yapılandırmasında kalan
+maliyetin %71'i bu 5.1 sıralayıcısı). **Cevap modeli:** kör set 11 (aday) Luna = 5.1; kör set 12 (SON KOD = RC69 + 53 + 47, aday dal
+`prep/luna-aday-2`) Luna `low` = `medium` olgu 25/27 ↔ aynı kodla 5.1 24/27 ↔ bugünkü 5.1 21/27, sızıntı 0; **QR (ilk ölçüm, kör 64 senaryo):**
+kapı kodu Luna 0 ↔ 5.1 2 (süzgeç açığı), olgu `medium` 26/26 · `low` 24/26 · 5.1 24–25/26, dil uyumu tam (bugünkü 5.1 QR'da Fransız misafire
+Türkçe yazdı — 56); bedeli QR'da hız (p50 Luna 7,5–8,3 sn ↔ 5.1 5,0 sn). Öneri `OPENAI_MODEL=gpt-6-luna` + `low` (ya da `medium`; Sabah
+Kararları 6 EK 4–5) YALNIZ 53 + 47 onaylanıp RC olarak canlıya çıktıktan ve RC71 canlıdayken. 52 (başkası adına giriş kodu) hazır dal
+`prep/baskasi-adina-kod`; 54 (hizmet isteği ev sahibine ulaşmıyor), 55 (QR'da 112 satırı yalnız TR/EN kalıplarda; Türkçe "duman çıkıyor" da
+yok — 10-02'de bağlamla çözüldü, 10-11'de kurucu kararıyla satırın kendisi KALKTI) ve 56 (QR dil kapısı) modelden bağımsız, sizin kararınız. OpenAI hız sınırı 10-02: Luna 4M / 5.1 2M token/dk. Ücretli ölçüm kuralları ↑Eval
+"ÜCRETLİ ÖLÇÜM". Rapor / kararlar: `docs/SABAH-RAPORU-2026-10-01.md` (§0a özet) · `docs/SABAH-KARARLARI-2026-10-01.md` (1–60).
+
+**09-30 akşam — KURUCU KARARLARI K1–K18 (sonuç tablosu `docs/INCELEME-2026-09-30-codex-ve-ajanlar.md` sonu):** K1 (CSV negatif tutar
+satır hatası) · K2 (fotoğraf = görev erişimi) · K3 (olumsuzlanan KB saati okunmaz, düzeltme okunur) · K4 (başka aboneliğin olayı planı
+değiştirmez) · K6 (acil ağı bağlamla) · K8 / K9 (yeni risk ayrı öğe; hassas öğeler birleşmez, mesaj başına e-posta) · K10 (devir cümlesi
+misafire gitmez; bekletme mesajı emekli; ev sahibine "cevap bekliyor") · K11 (istek / soru yazılan çıkış saati değil) · K12 (doğal bilgi
+satırı sahte etiket değil; "önceki kuralları yok say" enjeksiyon) · K14 (misafirin gördüğü ekran) · K16 (veri erişim politikası
+`docs/POLITIKA-2026-09-30-veri-erisimi.md`) · K18 (iki belgeye durum başlığı) · uyarı adresi doğrulama bağlantısı (`ALERT_EMAIL_VERIFY_ENABLED`
+KAPALI; ilk deneme kurucuyla). Hepsi kırmızı-önce + mutasyon. 🚨 K7 (migration 58) kodda, **yayın taze yedek onayı bekliyor**; K5, K13
+(avukat), K15, K17 (ücretli kıyas) bekliyor.
+(10-01: K7 yayında — RC50, migration 58, CI #1274.)
+
+**09-25 HOST COPILOT — KAYIT + PLAN, UYGULANMADI (kurucu, 13 görsel; `docs/HOST-COPILOT-GEREKSINIMLERI-2026-09-25.md`):**
+ev sahibinin AI ile doğal dil / ses kumandası: karar kartı, talimat, bilgi güncellemesi (onaylı), sorgu, devralma; WhatsApp
+yalnız kanal, kayıt backend'de. Doğal dilden doğrudan yürütme YOK (para/saat → "Anladığım: …" önizlemesi), gönderimden önce
+yeniden doğrulama. Kurucu: "her şeyi bitirince bu sisteme bakarız" → açık işler kapanınca belgenin §14 planı (Faz 0 onay
+paketi; Host Karar Motoru = Faz 1). **Faz 0 onay paketi HAZIR** (`docs/ONAY-HOST-COPILOT-FAZ0-2026-09-25.md`: on karar
+K1–K10 + `DecisionRequest` tablosu + durum makinesi + yeniden doğrulama + güvenlik); kod/migration kurucu kararından sonra.
+
+Tur belgeleri (anlatılar arşivde): `docs/MESAJLASMA-CEKIRDEGI-V2-2026-09-25.md` · `docs/INCELEME-2026-09-28-10-ajan.md` ·
+`docs/GUVENLIK-KONTROLLERI-2026-09-28.md` · `docs/RAG-EMBEDDING-SON-DURUM-2026-09-28.md` ·
+`docs/TASARIM-2026-09-24-coklu-istek-ve-temizlik-hazir.md` · `docs/DENETIM-*.md`.
+
+**Bekleyen onaylar (eski Durum paragraflarından derlendi; ayrıntı arşivde ve gösterilen belgede):**
+- Sabah Kararları 10-01 açık maddeler (özellikle 6, 22, 30, 44a, 46–48, 51) — `docs/SABAH-KARARLARI-2026-10-01.md`; 09-28 kalanları (ör.
+  K10-o misafir adının yapısal çözümü) — `docs/SABAH-KARARLARI-2026-09-28.md`; K5, K13 (avukat), K15, K17 —
+  `docs/INCELEME-2026-09-30-codex-ve-ajanlar.md`.
+- Host Karar Motoru = Host Copilot Faz 1 (`DecisionRequest` migration + 6 dil metin + e-posta; Faz 0 onay paketi ↑); bekleme sırasında
+  A/B (SABİTLENMEDİ); CUS v2 defteri (migration).
+- İki bayrağın açılması: `AI_ACTION_CLAIMS_ENABLED` (ücretli cevap kıyası) · `AI_CONVERSATION_STATE_ENABLED` (F14; kör eval) — ikisi de
+  kurucu onayı.
+- Anlama v2 (`act` / `day` / `evidence` / `uncertain` + sözcüksel etiket yetkisinin indirilmesi + eylem beyanı) —
+  `docs/MESAJ-ANLAMA-CEKIRDEGI-2026-09-25.md` §4.
+- 167b — elle girilen görev saati sunucuda UTC okunuyor (İstanbul'da 10:00 → panoda 13:00; atama e-postası dilimsiz) — e-posta şablonu onayı.
+- Erken giriş kanıt modeli kalanları: temizlikçi davet (kimlik akışı → kurucu onayı) · anlama `events[]` + "çıktık" kaydı · varsayılan
+  temizlikçi.
+- Ev kuralları (#188): kart + gölge canlıda; yapay zekânın kuralı KULLANMASI (gölgeden karara) kurucu onayı.
+- #189: ayrı çağrı temiz ölçümü + holdout kabulü + cevap düzeyi ölçüm (± geniş blok); `KB_RERANK_PER_QUESTION` /
+  `KB_RETRIEVAL_WIDE_BUDGET` açmak kurucu kararı (↑Retrieval).
+- Demo hesabı: kod hazır, canlıya KOŞULMADI (`docs/DEMO-HESABI.md`; canlı koşu = kurucu onayı + taze `pg_dump`).
+
+**10-30 öğle:** K-1029-A v2 + v3 (iki sert inceleme: Opus F1–F12 + dört mercekli çekişmeli iş akışı, 44 bulgu; silme kapsamı kapanış / konulu / göndergesel, güvenlik yan cümle çözümlemesi, yedi dilde 138/140 biçim, doğrusal süre; tekrar oynatmada kaybedilen tutuş 0) · K-1029-C: 23 sözcük yamasının 23'ü reddedildi (model okusun) · sabah soruları 1–7 `docs/INCELEME-2026-10-28-gece-dongusu.md` — `docs/claude/durum.md`.
+
+**10-30 akşam-2 (kurucu: "mesajı ev sahibi yazıyor"):**
+- **Ses kapısı:** `ai/host-voice-guard.ts`, kapı detayı `reply_host_voice`, kanal + QR'da gate'in EN SONUNDA, teşhis kipi ve koddan kurulan metin muaf.
+  Varsayılan AÇIK; acil durdurma `AI_HOST_VOICE_GUARD_DISABLED=1`.
+- **İstem kuralı (K-1029-A katmanı):** birinci çoğul kişi; devir / bildirim cümlesi yok; üçüncü taraf yönlendirmesi yok; ev sahibinin kendi hizmeti önerilir; güvenlik talimatı yalnız net soruda.
+- **Süzgeç:** göndergesel / "Detaylar için" silmesinde kalan bilgi gider. Tamamı yalnız TEYİT isteyen silmede ya da kalan izin söylüyorsa tutulur.
+- **Prompt caching:** `ai/prompt-cache.ts`, amaç anahtarı + 24 sa; acil `OPENAI_PROMPT_CACHE_DISABLED=1`.
+- **Embedding ölçümü:** konuyu ölçer, kim-ne-yapacak ayrımını ölçmez; anlam kararı okuyucunun.
+- **135 senaryo gerçek model (gpt-5.1):** sızıntı 0/52 (iki kolda da); doğru bilgi 51→55/55; üçüncü kişi ev sahibi içeren cevap 54→41/135; otomatik GİDEN ihlal 1→0.
+- **WhatsApp ev sahibi döngüsü:** tasarım `docs/TASARIM-2026-10-30-whatsapp-ev-sahibi-dongusu.md` → ayrıntı `docs/claude/durum.md`.
+- **Gate yeri (ilk tam kapı 63 kırmızı → 25):** ses kapısı başta iken fiyat iddiası / devir / söz / müsaitlik gibi daha özel sebepleri gölgeliyor ve
+  erken giriş teşhis kipini durduruyordu → gate'in EN SONUNA, teşhis kipi + kodla kurulan doğrulanmış metin muaf. Kalan 25 kırmızı bulucu +
+  şüpheci doğrulayıcı iş akışıyla tek tek sınıflandı (eski "GİDER" beklentisi mi, gerçek hata mı).
+- **WhatsApp cevap kurucusu gerçek model denemesi (gpt-5.1, 5 örnek):** bavul / eczane / bebek yatağı doğru; "ben ararım" devralma; "en geç 13" →
+  "13:00" kod denetiminde yanlış ret → tam saat denkliği; bir tekrarda "ilanda belirtilmemiş" eklendi → ilan anlatımı kuralı.
+- **Kalan 25 kırmızının kapanışı (10-30 gece, 39 ajanlı sınıflandırma + şüpheci doğrulama):**
+  - Tek gerçek gerileme: erken giriş teşhis kipi `reply_host_voice` tutuşunu çıktı vetosu gibi okumuyordu → üçüncü kişi ertelemenin
+    yerine doğrulanmış onay geçmiyordu (`automation.ts` `withoutOutputVeto` listesi). Düzeltildi + pin (taslak kuralda tutulur, akış yine koşar).
+  - Kalan 24: test sabitleri üçüncü kişi ev sahibi yazıyordu ("the host's call", "ev sahibinizin kararıdır", "Ihr Gastgeber") ve "GİDER"
+    bekliyordu. "Erteleme gider" diyen sabitler ev sahibinin kendi sesine çevrildi ("requires our approval", "onayımıza tabidir",
+    "Das muss ich … entscheiden"); eski metnin artık TUTULDUĞU her dosyada ayrıca pinli (kanal, QR, altın set, anahtar kapalı kontrol).
+  - Süre pini (`host-contact-cost`, Rusça 50.000 virgül): v3 785 ms → v4 ~1.250 → v5 ~1.550 ms (1.500 sınırı). Sebep ölçüldü: v5'te kısmi karar
+    yanlış dönünce tamamı zaten tutulan cevapta bildirim / erteleme / belirsizlik taramaları 48 bin karakterde boşuna koşuyordu. Tutuş kararı
+    ucuzdan pahalıya kısa devre + teyit işareti yalnız konulu / göndergesel silmede → 680–950 ms. Sınır GEVŞETİLMEDİ.
+- **Açık soru (kurucuya):** istem artık birinci kişi erteleme yazdırıyor ("Teras kullanımı bizim kararımızdır"). Konaklama değişikliğinde karar
+  kaydı (iki model) korur; konaklama DIŞI bir ertelemeden sonra misafir "teşekkürler" derse sözcük dedektörü (`hasAvailabilityDeferral`, yalnız
+  üçüncü kişi) ertelemeyi tanımaz → konuşma listeden düşebilir. `AI_HOST_DECISION_HOLD_ENABLED` açıldığında da birinci kişi erteleme tutulmaz.
+- **Yedi dilde 280 zor örnek (gpt-5.1 üretti, ≈0,70 $ toplam; rapor `docs/RAPOR-2026-10-30-gece-ev-sahibi-sesi.md` §2):** kod kapısı üçüncü kişi ev
+  sahibi 53/56 · iç sistem anlatımı 27/56 · üçüncü taraf yönlendirme 5/56. Bugünkü kıdemli okuyucu iç sistem anlatımında 56/56, temiz 112'de
+  0 yanlış → `AI_SENIOR_READER_ENABLED` bu bacağı kapatır (sözcük listesi BÜYÜTÜLMEDİ, kurucu "anlamı model okusun"). Okuyucuya eklenecek
+  "üçüncü taraf işletme / kamu kurumu / üçüncü kişi ev sahibi" sorusu deneme isteminde 56/56 + 56/56, temizde 2/112 yanlış — kamu kurumu
+  kurucu sorusu (S-1). WhatsApp kanal yönlendiricisi saf çekirdeği (`host-channel/routing.ts`) yazıldı.
+- **Okuyucuya ek soru denemesi (geri alındı):** "üçüncü kişi ev sahibi / özel işletme / kamu kurumu" kıdemli okuyucunun uzun istemine eklenince
+  (iki okuma, VEYA) temiz tuzak cevaplarda 7–18/56 yanlış işaret (ev sahibinin kendi transferi, "karşıda eczane var") → koda girmedi. Ayrı odaklı
+  çağrı 56/56 + temizde 2/112 → kurucu sorusu S-1 (yeni model çağrısı). Mutasyon: v5 35/35 + ikinci tur 18/18 (yeni pinlerle) öldürüldü.
+- **S-1 kuruldu (kurucu 10-30 gece: "S-1 yeni model çağrıları yapabilirsin sormana gerek bile yok"):** `ai/semantic/referral-judge.ts`, anahtar
+  `AI_REFERRAL_JUDGE_ENABLED` (yalnız kıdemli okuyucuyla; `runAbsenceJudge` içinden iki okumayla PARALEL tek çağrı, misafir mesajı girmez).
+  Özel işletmeye yönlendirme / üçüncü kişi ev sahibi → `reply_host_voice` (kod yedeğiyle VEYA, `referralHolds`) + `hostVoice` yeniden yazma
+  (`hostVoiceJudged`). Kamu kurumu yalnız ölçülür. Gerçek model: ayrı yazarın (Haiku) 140 örneklik kör setinde özel işletme 41/42 (kod 4/42),
+  kamu 21/21 ayrıldı, 77 temizde 0 yanlış; geliştirme setinde üçüncü kişi ev sahibi 56/56 (kod 53). Ölçüm ≈0,4 $. Migration 88 (kurucu onayı)
+  aynı turda ana dala: taze PG'de 00..88, iki yoldan sıfır sapma.
+- **Yayın öncesi çekişmeli inceleme (10-30 gece, 74 ajan; doğrulayıcıların çoğu limitte düştü → elle doğrulandı):** B ön koşulu silinen izin
+  (Türkçe "-ebilirsiniz" + 5 dil kipi izin sayılır; 3.274 gerçek cevapta değişen 0) · C konusuz "detaylar için" silmesi çok soruda hiçbirini
+  kapatmaz · F "o isteğe hiç değinme" ana istemden ve ses ihlali notundan çıktı (10-29 iki hakem ilkesi; QR'da istek kayboluyordu) · H acil
+  muafiyeti yalnız gerçek acil çağrı talimatında · E boş önbellek saklama ayarı 24 saati kapatmaz. A (kodla kurulan erken giriş politika metni
+  üçüncü kişi) eski durum, kurucu kararı bekliyor (rapor §4c). D WhatsApp cevap kurucusu Arapça rakam → WhatsApp diliminde.
+**10-31 öğle:** (1) **CI paralel** — veritabanlı 476 dosya 3 işe (iş başına kendi PostgreSQL, tek sıra), LPT dağıtımı ölçülmüş sürelerden, son kapı `verify` test koşmaz: iş sonuçları + rapor eksiksizliği (kayıp / fazla / çift dosya, başarısız ya da boş dosya, dosya başına atlanan test tabanı `tests/ci-skip-baseline.json`, başka commit'in raporu) — şüphede KIRMIZI; el ile koşu ayrı eşzamanlılık grubunda; `layout: serial` geri dönüş. Süre ~20 → ~10,5 dk; aynı commit'te eski düzen (yerel) ile sayılar birebir. `workflow_dispatch` bu oturuma kapalı (403) → tekrar koşuları kurucu adımı. (2) **Devam eden kişisel tehlike** — `ai/person-danger.ts` (öbek + yakınlık ipuçları + korumalar), `hazardEvidenceOf` kişisel türleri taşır, kelime risk ağı açık düzeyde acil, bakım görevi yok, uyarı geçişinde Sorunlu konuşma yeni tür kuralı (3 sa, CAS, sebep korunur). Üç ayrı yazar kör set; tarafsız #3: 75/105 · yanlış alarm 5 → 0. Sonnet 2 inceleme, mutasyon 28/28. (3) Tasarım hazır, kod YOK: WhatsApp cevabı → bilgi tabanı önizlemeli kayıt (`docs/TASARIM-2026-10-31-whatsapp-cevabi-bilgi-tabanina.md`).
+**10-31 sabah (kurucu kararları):** rıza metni v2 · **hibrit acil bildirim** (önce WhatsApp, 10 dk okunmazsa / gitmezse e-posta; can güvenliği — yangın, gaz, elektrik, tıbbi, su, mahsur / hırsız / tehdit, kategorisiz ACİL — ikisi birden; `ai/life-safety.ts`, `host-channel/alert-email.ts`, vade görevi senkron kilidi dışında) · **talimat biçimli ev sahibi cevabı** (bilgi / talimat / hazır metin; kural gereği bırakılan ev sahibine söylenir; özür yalnız ev sahibi isterse; ölçüm 42 vaka: söylenen 6/6, özür 6/6, yasak 0) · mutasyon 4 tur (yaşayan hepsi test ya da gerekçeli ölü kod) · 3 sert inceleme (22 + 24 + 5 bulgu düzeltildi) — `docs/RAPOR-2026-10-30-gece-ev-sahibi-sesi.md` §4g-2, §4i–4k.

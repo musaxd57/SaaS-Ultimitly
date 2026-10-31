@@ -1,0 +1,589 @@
+import { createHash } from "crypto";
+import { CHUNK_MAX_CHARS, chunkSpans, tableHeadsAt } from "@/lib/ai/retrieval/chunker";
+import { tableHeaderInfo } from "@/lib/ai/retrieval/flag";
+import { KB_CATEGORY, type KbCategory } from "@/lib/constants";
+import { extractKbSuggestions, type KbFieldSuggestion } from "@/lib/kb-extract";
+import { KB_CHARS_PER_ITEM } from "@/lib/billing/kb-item-cap";
+import { kbPlaceholderTokens, leftoverGuestTokens, unfilledTemplateTokens } from "@/lib/kb-placeholders";
+import { foldTurkishAscii } from "@/lib/ai/fallback";
+import { gateDraft, type DraftFlag } from "@/lib/history-learn/extract";
+
+// ---------------------------------------------------------------------------
+// DOSYADAN BİLGİ TABANI TASLAĞI — ÇEKİRDEK (10-23 öğle, kurucu: "dosya olarak toplu veriler … hostlar için yazmakla uğraşmalarından
+// iyidir … rag ve embeddingimiz iyi olmalı ama ona çok dikkat et"). Tasarım: `docs/TASARIM-2026-10-23-bilgi-tabani-dosya-rag-ve-tarama.md` §4.
+// SAF: veritabanı, ağ, model yok; hiçbir yüzeye BAĞLI DEĞİL (ekran kurucunun cevabını bekliyor, §7-A / §7-B). Girdi: tarayıcıda çıkarılmış
+// sayfa metinleri (PDF / Word dosyası sunucuda açılmaz).
+//
+// İKİ DEĞİŞMEZ:
+//  1. MODEL BİLGİ YAZAMAZ. Taslağın içeriği belgenin paragraflarının AYNEN birleşimidir; konulara ayıran (bugün kod, ileride model) yalnız
+//     "şu paragraflar şu konu" der. Başlık belgenin kendi başlığı ya da kategorinin sabit adıdır — dışarıdan verilen başlık KULLANILMAZ (kalem
+//     başlığı modelin istemine "[KATEGORİ] Başlık: …" diye girer; uydurma bir başlık uydurma bilgi olurdu). `draftIsVerbatim` sınar.
+//  2. HER PARAGRAF HESAP VERİR: taslağa girer ya da neden girmediği söylenir (yer tutucu · yalnız giriş / çıkış saati → daire ayarı önerisi ·
+//     hiçbir konuya bağlanmadı). Sessiz kayıp yok (A5 kuralı: "atlandığı SÖYLENİR").
+// Konu ayırıcı (kod ya da ileride model) karşılama / giriş talimatı / çıkış mesajı kategorisini SEÇEMEZ. "Giriş Talimatı" (`checkin`) yalnız KODUN
+// erişim kapısıyla açılır (Opus 10-23 akşam KB incelemesi R1, kodla doğrulandı): otomatik mesajlar artık `AutoMessageTemplate`ten gelir, bu
+// kategori ise QR sohbetinin ve rezervasyon öncesi konuşmanın GÖRMEDİĞİ kategoridir (`guest-chat.ts QR_SECRET_CATEGORIES` /
+// `PREBOOKING_SECRET_CATEGORIES`) — kapı / anahtar / kilit paragrafı "Genel"e düşseydi QR misafirine ve aday misafire açılırdı.
+// Her blok kayıttan ÖNCE taslak kapısından geçer (`history-learn/extract.ts gateDraft`, tek kaynak): talimat ele geçirme bloğu atlanır,
+// ödeme / hassas işaretleri taslağa taşınır (inceleme ekranı tek tıkla onaya katmaz).
+// Tek doğru: giriş / çıkış saati daire ayarında tutulur; yalnız onu söyleyen paragraf kalem olmaz, öneri olarak döner (A5 "çift kopya yasak").
+// ---------------------------------------------------------------------------
+
+/** Okunan toplam metin tavanı (karakter) ve sayfa tavanı. Aşan kısım okunmaz, `truncated` söylenir. */
+export const KB_IMPORT_MAX_CHARS = 200_000;
+export const KB_IMPORT_MAX_PAGES = 100;
+/**
+ * Paragraf (blok) tavanı: her blok taslak kapısından geçer (~0,3 ms); kısa ve farklı binlerce paragraflık belge (ölçüldü: 7.500 blok ≈ 2,3 sn,
+ * kategoriler arasında gidip gelen 13.600 blok ≈ 4,2 sn) sunucuyu meşgul ederdi. Gerçek bir ev rehberi 100 sayfada bile birkaç yüz paragraftır;
+ * aşan kısım okunmaz, `truncated` söylenir (karakter tavanıyla aynı kural).
+ */
+export const KB_IMPORT_MAX_BLOCKS = 1_500;
+/** Tek kalemin içerik tavanı = plan sınırının kayıt tavanı (tek kaynak `billing/kb-item-cap.ts`); aşan konu sıralı parçalara bölünür. */
+export const KB_IMPORT_ITEM_MAX_CHARS = KB_CHARS_PER_ITEM;
+
+const TEMPLATE_CATEGORIES: ReadonlySet<string> = new Set(["welcome", "checkin", "checkout"]);
+/** İçe aktarmanın açabileceği kategoriler: bilgi tabanı kategorileri eksi misafire aynen giden şablon kategorileri. */
+export const KB_IMPORTABLE_CATEGORIES: readonly KbCategory[] = KB_CATEGORY.options
+  .map((o) => o.value)
+  .filter((c) => !TEMPLATE_CATEGORIES.has(c));
+const IMPORTABLE: ReadonlySet<string> = new Set(KB_IMPORTABLE_CATEGORIES);
+
+export interface DocPage {
+  /** 1 tabanlı sayfa numarası (Word / metin dosyasında 1). */
+  page: number;
+  text: string;
+}
+
+export interface DocBlock {
+  index: number;
+  page: number;
+  /** Paragrafın normalize edilmiş metni — belgenin BİTİŞİK bir dilimi. Kategori / erişim / yer tutucu kararları YALNIZ buna bakar. */
+  text: string;
+  /**
+   * `KB_TABLE_HEADER` (10-28) açıkken bölünmüş uzun tablonun DEVAM parçasında aynı tablonun başlık + ayıraç satırı. Yalnız taslak İÇERİĞİNE
+   * girer (`blockContent`); kategori kararına GİRMEZ (Haiku 10-28: "| Otopark | Garaj |" başlığı "| Wi-Fi | 4590 |" satırını Wi-Fi'den
+   * otoparka — aday misafire açık kategoriye — taşıyordu).
+   */
+  context?: string;
+  kind: "heading" | "body";
+  /** Başlık bloğunda başlığın kendisi; gövde bloğunda altında durduğu son başlık (yoksa null). */
+  heading: string | null;
+  /**
+   * Uzun paragraf parçalara bölündüyse paragrafın İLK parçasının numarası (bütün parçalarda aynı); bölünmeyen blokta yok. Erişim kararı
+   * paragraf düzeyindedir (Opus 10-23 akşam D1): bir parçası erişim izi taşıyan paragrafın bütün parçaları "Giriş Talimatı"na gider.
+   */
+  paragraph?: number;
+}
+
+export interface SplitDocument {
+  blocks: DocBlock[];
+  truncated: boolean;
+  /** Normalize edilmiş belgenin SHA-256 özeti (kaynak işaretçisi; içerik taşımaz). */
+  docHash: string;
+}
+
+/** Görünmez biçim karakterleri + kontrol karakterleri (sekme ve satır sonu hariç; R28 10-28: C1 denetim karakterleri 0x80–0x9F de). */
+const INVISIBLE = /[\p{Default_Ignorable_Code_Point}\p{Cf}⠀]|[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/gu;
+
+/** Satır sonları tek biçime iner, görünmez / kontrol karakterleri silinir, satırların iki ucu kırpılır. Metin başka DEĞİŞMEZ. */
+export function normalizeDocText(raw: string): string {
+  return raw
+    .replace(/\r\n?/g, "\n")
+    .replace(INVISIBLE, "")
+    .replace(/\t/g, " ")
+    .split("\n")
+    .map((l) => l.trim())
+    .join("\n");
+}
+
+const TERMINAL_PUNCT = /[.!?;,…]$/;
+
+/**
+ * Tek satırlık paragraf başlık mı: markdown "#" · sonu ":" · tamamı büyük harf. En çok 60 karakter / 5 sözcük, harf içerir, saat taşımaz.
+ * Kısa düz satır ("Wi-Fi") BAŞLIK SAYILMAZ, gövdedir — kural cümlesini ("SİGARA İÇMEK YASAKTIR" gibi uzun büyük harf satırını da) başlığa
+ * çevirip içerikten düşürmemek için tavanlar dar.
+ */
+export function headingText(para: string): string | null {
+  if (para.includes("\n") || para.length > 60 || !/\p{L}/u.test(para)) return null;
+  if (/\d{1,2}[:.]\d{2}/.test(para)) return null;
+  let text: string | null = null;
+  const md = /^#{1,6}\s+(.+)$/.exec(para);
+  if (md) text = md[1].trim();
+  else if (para.endsWith(":")) text = para.slice(0, -1).trim();
+  else if (!TERMINAL_PUNCT.test(para) && para === para.toLocaleUpperCase("tr") && para !== para.toLocaleLowerCase("tr")) text = para;
+  if (!text || text.split(/\s+/).length > 5 || TERMINAL_PUNCT.test(text)) return null;
+  return text;
+}
+
+/** Sayfaları paragraf bloklarına böler. Uzun paragraf parçalayıcının cümle sınırından bölünür (dilimler bitişik, metin aynen). */
+export function splitDocument(pages: readonly DocPage[]): SplitDocument {
+  const raw: Omit<DocBlock, "index" | "heading">[] = [];
+  const headings = new Map<number, string>();
+  let total = 0;
+  let truncated = pages.length > KB_IMPORT_MAX_PAGES;
+  outer: for (const page of pages.slice(0, KB_IMPORT_MAX_PAGES)) {
+    for (const para of normalizeDocText(page.text).split(/\n{2,}/)) {
+      const text = para.trim();
+      if (!text) continue;
+      if (total + text.length > KB_IMPORT_MAX_CHARS || raw.length >= KB_IMPORT_MAX_BLOCKS) {
+        truncated = true;
+        break outer;
+      }
+      total += text.length;
+      const h = headingText(text);
+      if (h !== null) {
+        headings.set(raw.length, h);
+        raw.push({ page: page.page, text, kind: "heading" });
+      } else if (text.length > CHUNK_MAX_CHARS) {
+        const paragraph = raw.length;
+        const spans = chunkSpans(text);
+        // `KB_TABLE_HEADER` (10-28, uzun belge ölçümü): uzun tablo bölününce devam parçası başlık + ayıraç satırıyla başlar — parçalar
+        // ayrı konu kalemlerine düşebildiği için başlık satırı aksi hâlde satırlarından kopuyordu ("500 TL" hangi sezon?). Başlık AYNI
+        // belgeden; kapalıyken parça belgenin aynen dilimidir.
+        const heads = tableHeaderInfo().enabled ? tableHeadsAt(text, spans.map((s) => s.start)) : null;
+        for (const [i, s] of spans.entries()) {
+          if (raw.length >= KB_IMPORT_MAX_BLOCKS) {
+            truncated = true;
+            break outer;
+          }
+          const h = heads?.[i];
+          raw.push({ page: page.page, text: text.slice(s.start, s.end), kind: "body", paragraph, ...(h ? { context: `${h.header}\n${h.separator}` } : {}) });
+        }
+      } else {
+        raw.push({ page: page.page, text, kind: "body" });
+      }
+    }
+  }
+  // Altında gövde olmayan başlık (art arda iki başlık ya da belge sonu) içeriği taşıyabilir → gövde sayılır, düşmez. İSTİSNA (kurucu 10-28
+  // §7-A, dışa aktarılan dosya yeniden yüklenebilsin): daha DERİN düzeyli bir Markdown başlığından önceki Markdown başlığı üst başlıktır
+  // ("# Lale 1" → "## Wi-Fi"), gövde değil.
+  // İKİNCİ İSTİSNA (Haiku 10-28): Markdown başlığından hemen sonra gelen DÜZ başlık-benzeri satır ("## Wi-Fi" → "Wi-Fi bilgileri:") içeriğin
+  // ilk satırıdır — açık Markdown başlığı kalır, düz satır gövde olur. Eskiden Markdown başlığı gövdeye düşüyor ("## Wi-Fi" metni içeriğe
+  // giriyordu), içeriğin ilk satırı başlık sanılıp içerikten çıkıyordu.
+  const mdLevel = (t: string) => /^(#{1,6})\s/.exec(t)?.[1].length ?? 0;
+  for (let i = 0; i < raw.length; i++) {
+    if (raw[i].kind === "heading" && mdLevel(raw[i].text) > 0 && raw[i + 1]?.kind === "heading" && mdLevel(raw[i + 1].text) === 0) {
+      raw[i + 1] = { ...raw[i + 1], kind: "body" };
+      headings.delete(i + 1);
+    }
+    const next = raw[i + 1];
+    const parent = next?.kind === "heading" && mdLevel(raw[i].text) > 0 && mdLevel(next.text) > mdLevel(raw[i].text);
+    if (raw[i].kind === "heading" && next?.kind !== "body" && !parent) {
+      raw[i] = { ...raw[i], kind: "body" };
+      headings.delete(i);
+    }
+  }
+  let current: string | null = null;
+  const blocks: DocBlock[] = raw.map((b, index) => {
+    if (b.kind === "heading") current = headings.get(index) ?? null;
+    return { ...b, index, heading: b.kind === "heading" ? (headings.get(index) ?? null) : current };
+  });
+  const docHash = createHash("sha256")
+    .update(blocks.map((b) => b.text).join("\n\n"))
+    .digest("hex");
+  return { blocks, truncated, docHash };
+}
+
+/**
+ * Kategori sözcükleri (Türkçe + İngilizce + Almanca; küçük harfe Türkçe yerelle iner). Bilinçli DAR: yanlış kategori kalemi yanlış yerde
+ * gösterir ama içeriği değiştirmez; eşleşmeyen "Genel" olur. Şablon kategorileri burada YOK.
+ */
+const CATEGORY_WORDS: readonly { category: KbCategory; words: readonly string[] }[] = [
+  // "network / password / şifre" (Opus 10-23 akşam D1): "Network: LaleNet / Password: …" Genel'e düşüyordu — Genel aday misafire açık, Wi-Fi
+  // değil (`PREBOOKING_SECRET_CATEGORIES`). Kapı / kutu şifresi taslak kapısının izinden "Giriş Talimatı"na gider; kalan şifre Wi-Fi'de daha
+  // kapalıdır (yanlış kategori içeriği değiştirmez, ev sahibi önizlemede görür).
+  {
+    category: "wifi",
+    words: ["wi-fi", "wifi", "wlan", "kablosuz", "internet", "ssid", "ağ adı", "modem", "network", "wireless", "router", "password", "şifre", "parola", "passwort", "contraseña", "mot de passe"],
+  },
+  { category: "parking", words: ["otopark", "park yeri", "park alanı", "garaj", "parking", "garage", "parkplatz", "stellplatz"] },
+  { category: "trash", words: ["çöp", "geri dönüşüm", "atık", "garbage", "trash", "rubbish", "recycling", "müll"] },
+  {
+    category: "rules",
+    words: ["kural", "sigara", "evcil", "gürültü", "parti", "sessizlik", "house rules", "smoking", "pets", "noise", "party", "quiet hours", "hausordnung", "rauchen"],
+  },
+  { category: "cleaning", words: ["temizlik", "havlu", "nevresim", "çarşaf", "cleaning", "towel", "linen", "sheets", "reinigung", "handtuch"] },
+  {
+    category: "location",
+    words: ["adres", "konum", "ulaşım", "metro", "otobüs", "durak", "havaalanı", "havalimanı", "taksi", "address", "directions", "airport", "location", "anfahrt"],
+  },
+  {
+    category: "local_tips",
+    words: ["restoran", "kafe", "market", "eczane", "plaj", "gezilecek", "restaurant", "cafe", "supermarket", "pharmacy", "beach", "things to do", "sightseeing"],
+  },
+  { category: "faq", words: ["sık sorulan", "faq", "frequently asked"] },
+];
+
+const DEFAULT_TITLES: Readonly<Record<string, string>> = Object.fromEntries(KB_CATEGORY.options.map((o) => [o.value, o.label]));
+
+/**
+ * Kategori sözcüğü SÖZCÜK BAŞINDA aranır; 7 harften kısa sözcük yalnız kendisi ya da sınırlı bir Türkçe / İngilizce çekim ekiyle eşleşir
+ * (Opus 10-23 akşam R / CLAUDE.md "parti TAM SÖZCÜK" sınıfı: "particular" parti, "taksit" taksi, "marketing" market DEĞİL; "çöpleri", "taksiye",
+ * "kuralları" eşleşir). Uzun sözcük kök gibi davranır ("otoparkı", "internetiniz"). Sabit sözcük listesi, sınırlı ek → doğrusal.
+ */
+const SHORT_SUFFIX =
+  "(?:l[ae]r(?:[ıiuü]n?|d[ae]n?|[ae])?|[ıiuü]n?|y[ıiuü]|s[ıiuü]n?|n[ıiuü]n|y[ae]|[ae]|n[ae]|n?d[ae]n?|n?t[ae]n?|y?l[ae]|m[ıiuü]z|c[ıi]|ç[ıi]|s|es)?";
+const escapeRe = (w: string) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const CATEGORY_RES: readonly { category: KbCategory; res: readonly RegExp[] }[] = CATEGORY_WORDS.map(({ category, words }) => ({
+  category,
+  res: words.map((w) =>
+    w.length >= 7
+      ? new RegExp(`(?<![\\p{L}\\p{N}])${escapeRe(w)}`, "u")
+      : new RegExp(`(?<![\\p{L}\\p{N}])${escapeRe(w)}${SHORT_SUFFIX}(?![\\p{L}\\p{N}])`, "u"),
+  ),
+}));
+
+/** Metnin en çok sözcük eşleşen kategorisi (eşitlikte listedeki sıra); hiçbiri yoksa null. */
+export function importCategoryOf(text: string): KbCategory | null {
+  const low = text.toLocaleLowerCase("tr");
+  let best: KbCategory | null = null;
+  let bestHits = 0;
+  for (const { category, res } of CATEGORY_RES) {
+    const hits = res.filter((re) => re.test(low)).length;
+    if (hits > bestHits) {
+      best = category;
+      bestHits = hits;
+    }
+  }
+  return best;
+}
+
+export interface DraftSection {
+  category: string;
+  /** Gövde blok numaraları. Geçersiz / tekrar eden numara bütün bölümü düşürür (yarım konu taslak olmaz). */
+  blocks: readonly number[];
+  /** Kalemin başlığı olacak BELGE başlığı bloğu (yalnız başlık bloğu kabul edilir; yoksa kategorinin sabit adı). */
+  headingBlock?: number;
+}
+
+/**
+ * Deterministik konu ayırma (modelsiz; model düşerse / kapalıysa da çalışır). Başlığın altındaki İLK gövde bloğu o konudur; sonrakiler yalnız
+ * başlığın kategorisindeyse (kategorisiz başlıkta: aynı sayfadaysa) eklenir — başlık bir kez yazılıp unutulan belgelerde sonraki her paragraf
+ * ("Otopark:" altında çöp, kurallar, havuz) o konuya yapışmasın. Başlıktan kopan ve başlıksız bloklar kategoriye göre toplanır; eşleşmeyen "Genel".
+ */
+export function sectionByHeadings(doc: SplitDocument): DraftSection[] {
+  type Open = { category: KbCategory | null; headingBlock?: number; blocks: number[] };
+  const sections = new Map<string, Open>();
+  let cur: { key: string; category: KbCategory | null; page: number; first: boolean } | null = null;
+  let generalRun: { key: string; page: number; last: number } | null = null;
+  for (const b of doc.blocks) {
+    if (b.kind === "heading") {
+      generalRun = null;
+      cur = { key: `h:${b.index}`, category: importCategoryOf(b.heading ?? ""), page: b.page, first: true };
+      sections.set(cur.key, { category: cur.category, headingBlock: b.index, blocks: [] });
+      continue;
+    }
+    const own = importCategoryOf(b.text);
+    // Kategorili başlık ("Otopark:") yalnız kendi kategorisindeki paragrafı alır; kategorisiz paragraf ("Havuz 09:00-20:00") ona yapışmaz
+    // (Haiku 10-23 öğle: havuz saati "Otopark" kalemine giriyordu) — "Genel"e düşer, içerik kaybolmaz. Kategorisiz başlık ("Ayrıntılar:")
+    // aynı sayfadaki paragrafları alır.
+    const joins =
+      cur !== null && (cur.first || (own !== null && own === cur.category) || (b.page === cur.page && cur.category === null));
+    if (cur && joins) {
+      generalRun = null;
+      const s: Open = sections.get(cur.key)!;
+      s.blocks.push(b.index);
+      if (s.category === null && own !== null) s.category = own;
+      cur = { ...cur, category: s.category, page: b.page, first: false };
+      continue;
+    }
+    cur = null;
+    const category = own ?? "general";
+    // Kategorisiz ("Genel") paragraflar yalnız BİTİŞİK ve aynı sayfadaysa birleşir (Opus 10-23 akşam R1: bütün belgenin başlıksız paragrafları
+    // tek "Genel" kalemine toplanıyordu; içindeki tek bir sorunlu paragraf — sır, ele geçirme — kalemin tamamını QR'dan ve rezervasyon
+    // öncesinden düşürürdü, ilgisiz konular da tek parçada getirilirdi). Kategorili paragraflar belge boyunca konularında toplanır.
+    let key = `c:${category}`;
+    if (category === "general") {
+      if (!generalRun || generalRun.page !== b.page || generalRun.last !== b.index - 1) generalRun = { key: `g:${b.index}`, page: b.page, last: b.index };
+      generalRun.last = b.index;
+      key = generalRun.key;
+    } else {
+      generalRun = null;
+    }
+    const s = sections.get(key) ?? { category, blocks: [] };
+    s.blocks.push(b.index);
+    sections.set(key, s);
+  }
+  return [...sections.values()]
+    .filter((s) => s.blocks.length > 0)
+    .map((s) => ({ category: s.category ?? "general", blocks: s.blocks, ...(s.headingBlock !== undefined ? { headingBlock: s.headingBlock } : {}) }));
+}
+
+/**
+ * placeholder = doldurulmamış alan ("[ŞİFRE]", "{kod}", "____") ya da misafire giden şablon metni ("Sayın {isim}, …") · property_field = yalnız
+ * giriş / çıkış saati (daire ayarı önerisi) · hijack = talimat ele geçirme ("ignore previous instructions …"; kayıt olmaz, ev sahibine
+ * gösterilir) · unassigned = hiçbir konuya bağlanmadı.
+ */
+export type SkipReason = "placeholder" | "property_field" | "hijack" | "unassigned";
+/** Taslak işaretleri: taslak kapısının işaretleri + `access` (kapı / anahtar / kilit bilgisi; misafire yalnız onaylı konaklamada verilir). */
+export type ImportDraftFlag = DraftFlag | "access";
+
+export interface ImportDraft {
+  category: KbCategory;
+  title: string;
+  content: string;
+  /** İçeriği oluşturan blokların numaraları (belge sırasıyla). */
+  blocks: number[];
+  pages: { first: number; last: number };
+  /** PII'siz kaynak işaretçisi (`KnowledgeBaseItem.sourceRef`): belge özeti + sayfa aralığı. */
+  sourceRef: string;
+  /** İçerikte giriş / çıkış saati de geçiyor (daire ayarıyla karşılaştırılmalı). */
+  mentionsPropertyField: boolean;
+  /** Taslak kapısının bloklarda bulduğu işaretler (ödeme, hassas veri …) + erişim; boşsa sorun yok. İşaretli taslak tek tıkla onaya girmez. */
+  flags: ImportDraftFlag[];
+}
+
+export interface ImportPlan {
+  drafts: ImportDraft[];
+  skipped: { block: number; reason: SkipReason }[];
+  /** Daire ayarına öneri (kalem DEĞİL): giriş / çıkış saati. */
+  fields: (KbFieldSuggestion & { block: number })[];
+  /** Kullanılamayan bölümler (geçersiz kategori / blok) — blokları `skipped`te "unassigned" olarak da görünür. */
+  problems: { section: number; reason: "invalid_category" | "invalid_block" }[];
+}
+
+/** Erişim kararlarının baktığı katlanmış metin (Türkçe ASCII + işaretler sökülmüş). */
+const accessFold = (text: string) => foldTurkishAscii(text).normalize("NFD").replace(/\p{M}+/gu, "");
+
+/** Kapı sonucu ya da metin erişim / ele geçirme izi taşıyor mu (paragraf paragraf ayırma gerekir). */
+function hasAccessTrace(gate: ReturnType<typeof gateDraft>, text: string, sectionCategory: string): boolean {
+  if (!gate.ok || gate.flags.includes("door_mention")) return true;
+  const folded = accessFold(text);
+  // R24-3 (Opus 10-28 ikinci dilim): kod sözcüğü / kapı adı olmadan "4590 yazıp # basın", "Daireye girmek için 4590 yazın", "Type 4590
+  // then press …" — giriş fiiliyle sayı. Wi-Fi HARİÇ — paragrafın kendisi ya da bölümü ("# Wi-Fi" altında "Ağa bağlanmak için 12345678
+  // girin" Wi-Fi şifresidir; QR'da verilir).
+  return ACCESS_WORDS.test(folded) || (ENTRY_NUMBER.test(folded) && sectionCategory !== "wifi" && importCategoryOf(text) !== "wifi");
+}
+
+/**
+ * Giriş fiiliyle sayı (katlanmış metinde): Türkçede sayı + emir / ulaç ("4590 yazın", "4590'ı tuşlayıp", "4590 # basın"), öteki dillerde
+ * fiil + sayı ("type 4590", "enter 4590", "tapez 4590", "digita 4590", "4590 eingeben"). Sayı 3–8 hane; aramak / dial BİLEREK yok ("112'yi
+ * arayın" acil bilgisidir). Fiil biçimleri dar ("yazılır", "girilir" eşleşmez). Sınırlı ayraçlar → doğrusal.
+ */
+const ENTRY_NUMBER =
+  /(?<![\d])\d{3,8}(?![\d])(?:['’][a-z]{0,4})?(?:\s{0,3}[#*])?\s{1,3}(?:yaz|gir|tusla|bas)(?:in|iniz|ip|arak|erek|abilirsiniz|ebilirsiniz)?(?![a-z])|(?<![a-z])(?:type|enter|punch in|key in|tap in|tapez|composez|saisissez|tecle[ae]|marque|introduzca|digita|inserisci|eingeben|tippen sie)(?:\s{1,3}(?:the|le|el|il|den|code|codice|codigo))?\s{0,3}[:=]?\s{0,3}\d{3,8}(?![\d])|(?<![\d])\d{3,8}\s{1,3}(?:eingeben|eintippen)(?![a-z])/;
+
+/** Nötr kapı başlığı: kodun tahmin ettiği kategori adı kapının kararına bağlam eklemesin (↓`assembleDrafts` R25). */
+const NEUTRAL_GATE_TITLE = "Genel";
+
+/** Kod benzeri değer: 4–8 hane; telefon öbeği (önünde / ardında rakam öbeği) ve fiyat değil. Katlanmış küçük harfli metinde. */
+const CODE_LIKE_NUMBER = /(?<!\d)(?<!\d[\s\-.])\d{4,8}(?!\d)(?![\s\-.]\d)(?!\s{0,2}(?:tl|try|₺|eur|euro|€|usd|\$|lira|dolar|dollar)(?![a-z]))(?![.,]\d)/;
+
+/** Kapı / giriş adı (katlanmış metinde, sözcük başı) — Wi-Fi bölümündeki blok için nötr başlıkla ikinci kapı denemesinin şartı. */
+const DOOR_WORD = /(?<![a-z])(?:kapi|giris|door|gate|entrance|porte|puerta|porta|portone|ingresso|haustur|turcode|eingang)/;
+
+/**
+ * Yer tutucu TEK KAYNAKTAN (`kb-placeholders.ts`; Bilgi Tabanı ekranının "Doldurulmamış alan" rozeti, istem notu ve gönderim kapısı da aynı
+ * yüklemi okur): doldurulmamış alan ya da misafire giden şablon belirteci ("{isim}", "{daire}" — o metin otomatik mesajdır, bilgi değil).
+ */
+function hasPlaceholder(text: string): boolean {
+  return kbPlaceholderTokens(text).length > 0 || unfilledTemplateTokens(text).length > 0 || leftoverGuestTokens(text).length > 0;
+}
+
+/**
+ * Erişim bilgisi (kod olmasa da): anahtar / kilit / anahtar kutusu / tuş takımı. Taslak kapısının kapı kodu ve "kapı / kutu + kod / şifre"
+ * okuyucusuna EK — "Anahtar saksının altında." kod taşımaz ama yine QR misafirine ve aday misafire açılmamalı. Katlanmış metinde sözcük başı,
+ * sınırlı ek (doğrusal).
+ */
+const ACCESS_WORDS =
+  // Opus 10-23 akşam D1: çıplak İngilizce "key / keys / lock", Fransızca "clé", İspanyolca "llave", Rusça "ключ" ("The key is under the flower
+  // pot", "La clé est sous le paillasson") Genel'e düşüyordu. Kısa sözcükler TAM biçim ("clean" / "keyboard" eşleşmez); işaretler sökülmüş metin.
+  // 10-28 gece (Opus ikinci dilim R25 / R27): "PIN", "keyless", Almanca bileşik "Türcode", "door / entry / gate code", "kapı kodu / şifresi"
+  // eklendi ("Zugangscode" ve "access code" BİLEREK yok — Wi-Fi için de kullanılır); "Key points / key information" erişim DEĞİL.
+  /(?<![\p{L}\p{N}])(?:anahtar\p{L}{0,10}|kilit(?:li|ler|leri)?|kilid[iı]n?|keys?(?! (?:points?|info(?:rmation)?|features?|facts?|details?|takeaways?|dates?|terms?|highlights?|amenities)(?![\p{L}]))|lock(?:s|ed)?(?! (?:the|your|it|up|all|them|doors?|windows?)(?![\p{L}]))|cles?|llaves?|serrure|cerradura|ключ\p{L}{0,3}|pin|keyless|(?:haus|wohnungs|eingangs)?turcode|(?:door|entry|gate|entrance) code|kapi (?:kodu|sifresi)|(?:keybox|key box|key safe|lockbox|lock box|keypad|tus takimi|smart lock|akilli kilit|schlussel|boite a cles?)\p{L}{0,10})(?![\p{L}\p{N}])/u;
+
+/** Paragrafta yalnız giriş / çıkış saati mi var (kalan sözcükler 12 harften az), hangi alan önerileri çıkıyor. */
+function propertyFieldsOf(text: string): { fields: KbFieldSuggestion[]; fieldOnly: boolean } {
+  const fields = extractKbSuggestions(text).fields;
+  if (fields.length === 0) return { fields, fieldOnly: false };
+  const rest = text
+    .split(/[,;]|\.\s+|\s[-–—]\s|\s(?:ve|and)\s|\n/i)
+    .filter((clause) => extractKbSuggestions(clause).fields.length === 0)
+    .join(" ");
+  return { fields, fieldOnly: (rest.match(/\p{L}/gu) ?? []).length < 12 };
+}
+
+/**
+ * Bölümlerden taslak kalemler kurar. İçerik = blokların metni, belge sırasıyla, aralarında boş satır. Bölümdeki tek bir geçersiz / tekrar
+ * eden / başka bölümün kullandığı blok numarası BÜTÜN bölümü düşürür (kapalı hata yönü: yarım ya da karışık konu taslak olmaz).
+ */
+export function assembleDrafts(doc: SplitDocument, sections: readonly DraftSection[]): ImportPlan {
+  const used = new Set<number>();
+  const drafts: ImportDraft[] = [];
+  const skipped: ImportPlan["skipped"] = [];
+  const fields: ImportPlan["fields"] = [];
+  const problems: ImportPlan["problems"] = [];
+  const hash = doc.docHash.slice(0, 16);
+  const accessBlocks: number[] = [];
+  const accessFlags = new Set<ImportDraftFlag>();
+  const pending: { category: KbCategory; baseTitle: string; parts: number[]; withField: Set<number>; flags: ImportDraftFlag[] }[] = [];
+  // Aynı metnin kapı sonucu bir kez hesaplanır (tekrarlanan paragraf / başlık).
+  const gateCache = new Map<string, ReturnType<typeof gateDraft>>();
+  const gateOf = (title: string, text: string) => {
+    const key = `${title}\n${text}`;
+    let g = gateCache.get(key);
+    if (!g) gateCache.set(key, (g = gateDraft(title, text)));
+    return g;
+  };
+  sections.forEach((section, si) => {
+    if (!IMPORTABLE.has(section.category)) {
+      problems.push({ section: si, reason: "invalid_category" });
+      return;
+    }
+    const own = new Set<number>();
+    const valid = section.blocks.every((i) => {
+      const ok = Number.isInteger(i) && doc.blocks[i]?.kind === "body" && !used.has(i) && !own.has(i);
+      own.add(i);
+      return ok;
+    });
+    if (!valid || section.blocks.length === 0) {
+      problems.push({ section: si, reason: "invalid_block" });
+      return;
+    }
+    const ordered = [...section.blocks].sort((a, b) => a - b);
+    const candidates: number[] = [];
+    const withField = new Set<number>();
+    for (const i of ordered) {
+      used.add(i);
+      const text = doc.blocks[i].text;
+      if (hasPlaceholder(text)) {
+        skipped.push({ block: i, reason: "placeholder" });
+        continue;
+      }
+      const pf = propertyFieldsOf(text);
+      fields.push(...pf.fields.map((f) => ({ ...f, block: i })));
+      if (pf.fieldOnly) {
+        skipped.push({ block: i, reason: "property_field" });
+        continue;
+      }
+      if (pf.fields.length > 0) withField.add(i);
+      candidates.push(i);
+    }
+    // Taslak kapısı önce BÖLÜMÜN TAMAMINA bir kez (süre: 18.000 kısa paragraflık belge 18.000 çağrı yapıyordu); bölümde ele geçirme / kapı kodu /
+    // kapı-kutu + şifre / anahtar-kilit izi YOKSA paragraflara tek tek bakılmaz (hiçbiri o izi taşıyamaz). İz varsa paragraf paragraf ayrılır.
+    const title = DEFAULT_TITLES[section.category] ?? "Genel";
+    const whole = candidates.map((i) => doc.blocks[i].text).join("\n\n");
+    const sectionGate = candidates.length > 0 ? gateOf(title, whole) : null;
+    // R25 (Opus 10-28 ikinci dilim, ölçüldü): kapının başlığı kodun TAHMİN ettiği kategorinin adı — "Wi-Fi" başlığı "Kapı 3. katta, sağdaki
+    // daire. Şifre 4590." cümlesindeki şifreyi Wi-Fi şifresi sandırıyordu (kapı kodu Wi-Fi kalemine giriyordu). Erişim kararı belgenin
+    // metnine bakar: Wi-Fi bölümünde kapı / giriş adı geçen metin bir de NÖTR başlıkla kapıdan geçer. Yalnız kapı adı varsa — kapı adı
+    // olmayan "Şifre: 12345678" paragrafı Wi-Fi şifresi kalır (QR'da verilir).
+    const neutralDoorCode = (text: string) => {
+      if (section.category !== "wifi" || !DOOR_WORD.test(accessFold(text))) return false;
+      const g = gateOf(NEUTRAL_GATE_TITLE, text);
+      return !g.ok && g.reason === "door_code";
+    };
+    const parts: number[] = [];
+    const flags = new Set<ImportDraftFlag>();
+    if (sectionGate && sectionGate.ok && !hasAccessTrace(sectionGate, whole, section.category) && !neutralDoorCode(whole)) {
+      parts.push(...candidates);
+      for (const f of sectionGate.flags) flags.add(f);
+    } else {
+      const sectionAccess: number[] = [];
+      const rest: { i: number; flags: DraftFlag[] }[] = [];
+      for (const i of candidates) {
+        const text = doc.blocks[i].text;
+        const gate = gateOf(title, text);
+        if (!gate.ok && gate.reason === "hijack") {
+          skipped.push({ block: i, reason: "hijack" });
+          continue;
+        }
+        // Kapı kodu / kilit bağlamında kod / kapı-kutu + şifre / anahtar-kilit sözcüğü → "Giriş Talimatı" taslağına (↑dosya başı R1).
+        if (hasAccessTrace(gate, text, section.category) || neutralDoorCode(text)) {
+          accessBlocks.push(i);
+          sectionAccess.push(i);
+          for (const f of gate.ok ? gate.flags : []) accessFlags.add(f);
+          continue;
+        }
+        rest.push({ i, flags: gate.ok ? gate.flags : [] });
+      }
+      for (const r of rest) {
+        // R24-2 / R26 (Opus 10-28 ikinci dilim): adım adım giriş talimatı paragraf başına bir adımdır — "Anahtar kutusu kapının sağında." ·
+        // "4590" ya da tablo "Daire: Kapı kodu" · "Daire 1: 4590". Erişim bloğuyla AYNI bölümdeki (aynı başlık altı / bitişik genel koşu),
+        // KENDİ konusu olmayan ve kod benzeri değer (4–8 hane; telefon öbeği / fiyat değil) taşıyan blok da "Giriş Talimatı"na gider — kod
+        // bağlamından kopup "Genel"e (aday misafire ve QR'a açık) düşmez. 3 haneli acil numara (112) bilinçli dışarıda. Wi-Fi bölümünde
+        // UYGULANMAZ: başlığın altındaki konusuz sayı Wi-Fi şifresidir (kapı adı geçen metni ↑nötr başlık yakalar).
+        const text = doc.blocks[r.i].text;
+        if (section.category !== "wifi" && sectionAccess.length > 0 && CODE_LIKE_NUMBER.test(accessFold(text).toLowerCase()) && importCategoryOf(text) === null) {
+          accessBlocks.push(r.i);
+          for (const f of r.flags) accessFlags.add(f);
+          continue;
+        }
+        for (const f of r.flags) flags.add(f);
+        parts.push(r.i);
+      }
+    }
+    if (parts.length === 0) return;
+    const category = section.category as KbCategory;
+    const hb = section.headingBlock !== undefined ? doc.blocks[section.headingBlock] : undefined;
+    const heading = hb?.kind === "heading" && hb.heading && hb.heading.length >= 2 ? hb.heading : null;
+    const baseTitle = heading ?? DEFAULT_TITLES[category] ?? "Genel";
+    pending.push({ category, baseTitle, parts, withField, flags: [...flags] });
+  });
+  // Erişim kararı PARAGRAF düzeyinde (Opus 10-23 akşam D1): uzun paragrafın bir parçası erişim izi taşıyorsa ("… anahtar kutusunu kullanın.")
+  // öteki parçaları da ("The combination is 4590.") Giriş Talimatı'na gider — kod bağlamından kopup Genel'e düşmez.
+  const paragraphOf = (i: number) => doc.blocks[i].paragraph ?? i;
+  const accessParagraphs = new Set(accessBlocks.map(paragraphOf));
+  for (const p of pending) {
+    const stay = p.parts.filter((i) => !accessParagraphs.has(paragraphOf(i)));
+    for (const i of p.parts) if (accessParagraphs.has(paragraphOf(i))) accessBlocks.push(i);
+    if (stay.length > 0) pushDrafts(p.category, p.baseTitle, stay, stay.some((i) => p.withField.has(i)), p.flags);
+  }
+  // Erişim blokları (bütün bölümlerden) TEK "Giriş Talimatı" taslağında, belge sırasıyla; tavanı aşarsa parçalara bölünür.
+  if (accessBlocks.length > 0) {
+    const ordered = [...accessBlocks].sort((a, b) => a - b);
+    const mentions = ordered.some((i) => extractKbSuggestions(doc.blocks[i].text).fields.length > 0);
+    pushDrafts("checkin", DEFAULT_TITLES.checkin ?? "Giriş Talimatı", ordered, mentions, ["access", ...accessFlags]);
+  }
+  for (const b of doc.blocks) if (b.kind === "body" && !used.has(b.index)) skipped.push({ block: b.index, reason: "unassigned" });
+  skipped.sort((a, b) => a.block - b.block);
+  return { drafts, skipped, fields, problems };
+
+  function pushDrafts(category: KbCategory, baseTitle: string, parts: readonly number[], mentionsPropertyField: boolean, flags: ImportDraftFlag[]) {
+    // Tavanı aşan konu blok sınırında sıralı parçalara bölünür.
+    const groups: number[][] = [[]];
+    let size = 0;
+    for (const i of parts) {
+      const len = blockContent(doc.blocks[i]).length + 2;
+      if (size + len > KB_IMPORT_ITEM_MAX_CHARS && groups[groups.length - 1].length > 0) {
+        groups.push([]);
+        size = 0;
+      }
+      groups[groups.length - 1].push(i);
+      size += len;
+    }
+    groups.forEach((g, gi) => {
+      const pages = g.map((i) => doc.blocks[i].page);
+      const first = Math.min(...pages);
+      const last = Math.max(...pages);
+      drafts.push({
+        category,
+        title: groups.length > 1 ? `${baseTitle} (${gi + 1}/${groups.length})` : baseTitle,
+        content: g.map((i) => blockContent(doc.blocks[i])).join("\n\n"),
+        blocks: g,
+        pages: { first, last },
+        sourceRef: `doc:${hash}:p${first}-${last}`,
+        mentionsPropertyField,
+        flags,
+      });
+    });
+  }
+}
+
+/** Bloğun taslak içeriğine giren metni: varsa tablo başlığı bağlamı + dilim (bağlam aynı belgeden; kararlar yalnız dilime bakar). */
+export function blockContent(b: Pick<DocBlock, "text" | "context">): string {
+  return b.context ? `${b.context}\n${b.text}` : b.text;
+}
+
+/** Taslağın içeriği belgenin bloklarının AYNEN birleşimi mi (model bilgi yazamaz değişmezi; sunucu kaydetmeden önce yeniden sınar). */
+export function draftIsVerbatim(doc: SplitDocument, draft: Pick<ImportDraft, "content" | "blocks">): boolean {
+  if (draft.blocks.length === 0) return false;
+  const texts = draft.blocks.map((i) => (doc.blocks[i]?.kind === "body" ? blockContent(doc.blocks[i]) : null));
+  return texts.every((t) => t !== null) && texts.join("\n\n") === draft.content;
+}
+
+/** Uçtan uca modelsiz plan: böl → başlıkla ayır → taslak. */
+export function planDocumentImport(pages: readonly DocPage[]): ImportPlan & { truncated: boolean; docHash: string } {
+  const doc = splitDocument(pages);
+  return { ...assembleDrafts(doc, sectionByHeadings(doc)), truncated: doc.truncated, docHash: doc.docHash };
+}

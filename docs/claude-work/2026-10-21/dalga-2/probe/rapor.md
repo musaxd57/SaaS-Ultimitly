@@ -1,0 +1,194 @@
+# Tehlike / şikâyet okuyucusu sondası (527 mesaj, Claude etiketli — etiketler doğrulanmadı)
+
+- acil (etiket) ama modelsiz okuyucu ne açık ne olası ne kelime acili: 48
+- acil (etiket) → olası (karar modele): 29
+- acil değil (etiket) ama açık acil: 22
+- şikâyet (etiket, acil değil) ama sınıflandırıcı şikâyet demedi: 112
+
+## Kaçan aciller
+- "we're stuck in the elevator since this morning, door wont open and its getting hot in here please call someone" → none · Guests are currently trapped, a live danger.
+- "Dünden beri bodrumda su birikiyor ve şimdi bavullarımız ıslanıyor, su seviyesi yükseliyor!" → none · Water has been accumulating since yesterday and is still rising, a live flood.
+- "balkon kapisi kilitlendi ve kucuk kizim disarida balkonda kaldi acemi açamiyorum lütfen hemen gelin" → none · Someone is locked out/trapped now, a live danger.
+- "Im Bad steht das Wasser schon knöchelhoch, die Waschmaschine läuft aus und es läuft Richtung Wohnzimmer!!" → none · Active flooding in progress.
+- "Der CO-Melder im Schlafzimmer schrillt gerade und wir haben alle Schwindel, wir gehen raus" → none · CO alarm sounding with symptoms now.
+- "Mein Sohn ist im Badezimmer eingesperrt, die Tür klemmt und er weint, bitte schnell jemand schicken" → none · Someone is trapped right now.
+- "Дверь в ванную заклинило, мой ребёнок заперт внутри и плачет, не можем открыть!!!" → none · Someone is locked in right now.
+- "Me dio un calambre fuerte al tocar el grifo, creo que hay corriente en el lavabo, mi esposa también lo sintió" → none · Electric shock from a fixture is happening now.
+- "banyodaki boru patladı su her yere akıyor halıyı götürdü musluğu kapatamıyorum 🆘" → none · Burst pipe is flooding the home right now.
+- "my kid is stuck in the bathroom since a few minutes ago the door lock jammed and she is crying, please come" → none · Child currently locked in, live danger.
+- "السلام عليكم، وصلنا بالسلامة والحمد لله. الشقة حلوة والموقع ممتاز، بس الواي فاي بطيء شوية وما لقينا ريموت التلفزيون. المهم، الحين فيه ريحة غاز قوية جدا في المطبخ ونحس بدوخة، وبعدين نبي نسأل وين نلقى مواقف السيارة للغد." → none · A strong gas smell with dizziness is a live danger, buried in a long message about wifi and a missing remote.
+- "يا أستاذ كل شي كان طيب من أول يوم، الأطفال مبسوطين والمسبح نظيف. بس الحين ماسورة الحمام انفجرت والمية تطلع بقوة وواصلة لغرفة الجلوس وما عرفنا نقفل المحبس، أرجوك رد بسرعة وبعدين نكمل موضوع المفاتيح." → none · A burst pipe is actively flooding the apartment right now.
+- "مساء الخير، كنا نتمشى وبعدين رجعنا ونمنا شوي وبصراحة المكان هادي. بس قبل دقيقة ابني لمس فيشة الكهرباء في غرفة الأطفال وتكهرب ويده محروقة وهو يبكي، وبعدها نبي ننعرف على أقرب سوبرماركت." → none · A child just got an electric shock and is injured, which is a live danger.
+- "السلام عليكم، الشقة جميلة وإحنا مبسوطين جدا والله، والوالد كان يستمتع بالجو. بس من عشر دقايق الوالد دخل الحمام والباب علق ومش راضي يفتح من جوه وهو كبير في السن وبينادي علينا وما نقدر نفتحه، أرجوك تعال أو قل لنا كيف نكسره." → none · An elderly person is trapped inside a jammed bathroom right now.
+- "im bad steht das wasser schon knöcheltief weil das rohr unterm waschbecken geplatzt ist und es läuft immer weiter!!! wo ist der haupthahn" → none · Active flooding from a burst pipe is live property danger.
+- "Die Kinder sind im Badezimmer eingeschlossen, das Schloss klemmt und die Tür geht nicht auf, die kleine weint schon!" → none · Someone is currently locked in, live danger and a broken lock.
+- "Die Waschmaschine ist ausgelaufen, überall Wasser in der Küche und es läuft Richtung Steckdosenleiste, bitte schnell sagen wie ich den Strom abstelle" → none · Active leak near electrics is a live danger.
+- "me dio una descarga al tocar el grifo de la ducha y el calentador esta chispeando" → none · Descarga eléctrica y chispas activas son un peligro vivo.
+- "mi hijo se quedo encerrado en el baño la cerradura no abre y esta llorando" → none · Una persona está atrapada ahora.
+- "mi esposa se cayo por las escaleras y no puede mover la pierna, necesitamos ayuda" → none · Persona lesionada en este momento.
+- "Мы застряли в лифте здания, кнопка не работает, нас двое и ребёнок, дозвониться до консьержа не можем" → none · Guests are trapped in an elevator right now.
+- "Датчик угарного газа в коридоре орёт и мигает красным, у жены кружится голова" → mentioned · CO alarm sounding with symptoms is a live emergency.
+- "مرحبا، الباب مقفل من الداخل والمفتاح انكسر في القفل ومعنا طفل ونحتاج الخروج بسرعة، الجو حار جدا" → none · Guests are locked in with a child, live danger.
+- "banyoda boru patladi su her yere akiyor halilar sudan yuzuyor vanayi bulamiyoruz!!!" → none · A burst pipe is flooding the unit right now.
+- "dusarken kaydim basim kanamaya basladi ayaklarim kalkmiyor lutfen birini gonderin" → none · Guest is injured right now.
+- "السلام عليكم مرحبا، وصلنا بالسلامة والحمد لله والشقة حلوة كثير والموقع ممتاز والأولاد فرحانين بالبلكونة، بس كنت أبغى أسأل عن الواي فاي لأن الباسورد اللي عندي ما يشتغل على التلفزيون، وبعدين الجيران لطاف، المهم الآن فيه ريحة غاز قوية جدا من المطبخ وأنا قريب من الفرن، وبعدين أبغى أعرف وين أركن السيارة بكرة" → none · A strong gas smell in the kitchen is happening now, buried in unrelated chatter.
+- "أهلا يا أستاذ، شكرا على الاستقبال الحار والقهوة اللي تركتوها لنا كانت لذيذة، وزوجتي تسلم عليك، وكنا نبغى نسأل عن مطاعم قريبة، وفجأة الحين أخذت كهرباء قوية من الغسالة لما لمستها وإيدي ترجف وفيه صوت طقطقة منها، وبعدين نبغى توصيات للقهوة" → none · The guest just got an electric shock from the washing machine, which is still crackling.
+- "يا مضيف الله يعطيك العافية، وصلنا متأخرين البارحة وما قدرنا نرتب شي، وكنا نتكلم عن الرحلة وغيره، والحين الماسورة تحت المغسلة في الحمام انفجرت والماء يغرق الحمام وبدأ يوصل الصالة وما عرفت وين محبس الماء، تكفى رد بسرعة، وبعدين نحتاج مناشف زيادة" → none · A burst pipe is actively flooding the apartment.
+- "السلام عليكم، شكرا على الضيافة، المكان هادي ومريح والفرش نظيف، كنا نخطط نزور المتحف بعد الظهر ونرجع للعشاء، وبنتي الصغيرة دخلت الحمام وسكرت الباب وانحبست جوا والقفل علق وما تنفتح وهي تبكي، تكفى أحد يجي بسرعة، وبعدين ممكن مفتاح إضافي" → none · A child is trapped in a bathroom with a jammed lock right now.
+- "السلام عليكم ورحمة الله، نحن عائلة كبيرة وجينا من بعيد والطريق كان طويل والحمدلله على السلامة، وأمي تعبانة شوي من السفر، وبعدين صار جهاز الكربون في الصالة يصفر بصوت عالي الحين ونحس بدوخة وصداع كلنا، وأنا ما أعرف شنو أسوي، وفكرنا نطلع برا" → none · A CO alarm is sounding now and the guests have symptoms.
+- "Hi, thanks for everything, the flat is great. نحن عالقين في المصعد الحين بين الطابقين والباب ما يفتح والجو حار وفيه طفل معنا, please send help, and also the check-out time is 11 right?" → none · Guests are trapped in a stuck elevator right now.
+- "أهلا، شكرا على كل شي، الصور كانت مطابقة للواقع، وكنت أبغى أسألك عن أفضل وقت لزيارة السوق القديم، وبالمناسبة قفل الباب الرئيسي انكسر من الداخل ونحن محبوسين داخل الشقة الحين وما نقدر نفتح والمفتاح ما يدور، وبناتي خايفات، تكفى أحد يجي" → none · Guests are locked inside because of a broken door lock right now.
+- "Im Badezimmer ist das Rohr geplatzt, das Wasser spritzt überall und läuft schon in den Flur, wo ist der Haupthahn???" → none · Active flooding from a burst pipe.
+- "Mein Sohn ist im Bad eingesperrt, das Schloss klemmt und er weint, wir kriegen die Tür nicht auf!" → none · Someone is locked in right now.
+- "Der Aufzug ist stecken geblieben mit meiner Oma drin, sie kriegt keine Luft mehr, bitte schnell helfen!!" → none · Person trapped in elevator and in distress now.
+- "Our kid got stuck in the bathroom, the door lock jammed and he is crying inside. we can't open it!!" → none · Someone is currently locked in, a live danger.
+- "water has been dripping from the ceiling light since yesterday and now its pouring down and the light is flickering. we are scared to touch anything" → none · Water pouring through a light fixture is a live electrical and flooding hazard.
+- "je suis enfermé dans la salle de bain la porte ne s'ouvre plus et mon téléphone a presque plus de batterie" → none · Guest trapped in the bathroom now.
+- "me dio una descarga al tocar el enchufe del baño, me dolió el brazo y sigue chispeando" → none · Electric shock with sparking is happening now.
+- "Se quedó la puerta del baño atascada y mi hijo está encerrado adentro llorando, no abre por ningún lado" → none · Someone is locked in right now.
+- "Мы застряли в лифте между этажами, кнопка не работает, ребенок плачет" → none · Guests are trapped right now.
+- "مرحبا، الباب علق ونحن محبوسون داخل الحمام ولا نستطيع فتحه" → none · Guests are locked in right now.
+- "السلام عليكم، وصلنا أمس متأخرين والحمد لله والشقة حلوة والموقع ممتاز، بس الواي فاي بطيء شوي والأطفال يبون يشوفون الكرتون، وكمان المنشفة الصغيرة ناقصة، وبالمناسبة الماء يتدفق من تحت المغسلة في الحمام والأرضية غرقانة الآن ومو قادرين نوقفه، المهم نبي حل للواي فاي بعد" → none · Water is actively flooding the bathroom floor now, buried among minor Wi-Fi and towel remarks.
+- "يا هلا، نحن عائلة كبيرة ونحب الشقة، البنت الصغيرة كانت تلعب وهي الحين محبوسة داخل الحمام والباب انقفل ولا تقدر تفتحه وتبكي، حاولنا بالمفتاح ما زبط، وبعدين نبي نسأل عن مواعيد القمامة" → none · A child is locked in the bathroom right now.
+- "السلام عليكم ورحمة الله، وصلنا الظهر وكل شي ممتاز، الشرفة رائعة، لكن من نص ساعة جهاز إنذار أول أكسيد الكربون يزمر بصوت عالي ومستمر وأنا وزوجتي حاسين بصداع ودوخة، ما نعرف شنو نسوي، وبعدين الجو برد شوي بالليل" → mentioned · A CO alarm is sounding now with symptoms of dizziness and headache.
+- "السلام عليكم، نحن في الطابق الأول وعجبنا المكان كثير والقهوة الحمد لله، بس زوجي وقع قبل دقيقتين من الدرج الداخلي وراسه ينزف بقوة وهو مو واعي تماما، أنا خايفة، وإذا ممكن عنوان أقرب مستشفى بسرعة" → none · A person is injured and bleeding from a fall right now; no defect is reported.
+- "السلام عليكم، شكرا على كل شي، جدتي دخلت الغرفة الصغيرة وقفل الباب علق وهي محبوسة جوا وما تقدر تفتح ومعها ما عندها دواء الضغط وبدت تتعب، حاولنا نكسره ما نجح، وبعد إذنك ابعث لي كلمة سر الواي فاي" → none · An elderly person is trapped behind a stuck lock and becoming unwell now.
+- "السلام عليكم، رحلتنا كانت تعبانة والطقس حار، ما علينا، المهم من الجار اللي فوقنا ينزل ماء كثير من السقف في غرفة النوم وصار يقطر على المقبس والكهرباء والسقف منتفخ وكأنه بيسقط، طلعنا برا الغرفة، تعالوا بسرعة" → none · Water is pouring through the ceiling onto electrical outlets and the ceiling may collapse now.
+
+## Yanlış alarmlar
+- "Dün gece duman dedektörü öttü ama pil bitmişti, değiştirdik artık susuyor. Yedek pil bırakır mısınız?" → clear · Detector chirp over after a battery swap; no live danger, a minor equipment issue.
+- "the CO alarm went off last night, we opened all windows and it stopped after like ten minutes and hasnt gone off since. should we be worried?" → clear · The alarm stopped and ventilated; the event is over, though it reports a problem.
+- "dün gece duman alarmi yanlislikla caldi tost yakmistik simdi sorun yok tesekkurler" → clear · Past event that is over and resolved.
+- "duman dedektoru 3 dakikada bir bip sesi cikariyor pil bitmis olabilir mi yenisi var mi" → clear · Detector battery chirp is not an emergency but is a maintenance issue.
+- "duman dedektörünün pili bitmiş galiba arada bip sesi çıkarıyor, yedek pil var mı evde" → clear · Dedektör pil uyarısı sorusu; acil değil ama küçük bir arıza şikayeti.
+- "Duman dedektörü test butonuna bastım ses çıkarıyor, normal mi? Çocuk uyanmasın diye soruyorum, yangın falan yok tabii" → clear · Test sırasında alarm normal, yangın olumsuzlanmış.
+- "Der Rauchmelder im Flur piept alle paar Minuten kurz, ich glaube die Batterie ist leer. Könnten Sie eine neue hinlegen? Kein Rauch oder so." → clear · Battery chirp with explicit no smoke; a minor maintenance complaint.
+- "duman dedektörünün pili ötüyor bip bip her dakika nerde yeni pil var acaba" → clear · Detector battery chirp question, not a live danger.
+- "duman dedektörünün pili ötüyor arada bir bip diye, değiştirecek pil var mı evde yoksa ben mi alayım" → clear · Pil uyarısı sorusu, acil değil ama bozuk/eksik bir şey bildiriyor.
+- "Dün gece duman dedektörü yanlışlıkla öttü, tost yakmışım, hemen havalandırdım. Şimdi her şey normal, bilginiz olsun." → clear · Geçmiş olay, bitmiş; şu an tehlike yok ve şikayet değil.
+- "Hi, the smoke detector in the hallway keeps chirping every minute, think the battery is low. No smoke or anything, just annoying at night." → clear · Battery chirp, no danger, but a reported fault.
+- "the smoke alarm went off last night when we burned the toast but it stopped after we opened the window. all good now" → clear · Past, resolved event from normal cooking with nothing broken or wrong.
+- "the CO alarm beeped yesterday for a few seconds, it was just the battery, we replaced it and it's silent now. no worries" → clear · Past battery issue resolved, nothing live or wrong now.
+- "Hallo, der Rauchmelder im Schlafzimmer piept alle paar Minuten kurz. Ist das nur die Batterie? Wir sehen keinen Rauch und riechen nichts." → clear · Battery chirp with no smoke is not an emergency, but reports a malfunctioning item.
+- "duman dedektoru ucuncu gundur ciyk ciyk diye otuyor pil mi bitti pil nerede var" → clear · Detector battery chirp is not an emergency but is a minor issue.
+- "yangin sondurucu nerede acaba sadece ogrenmek istedim gaz kokusu falan yok merak etmeyin" → clear · Question about safety equipment and explicitly negates danger.
+- "duman dedektörü arada bip diye ötüyor sanırım pil bitiyor yeni pil nerede var acaba" → clear · Pil cıvıltısı sorusu acil değil, ama küçük bir arıza şikayeti.
+- "Duman dedektörünün test butonuna bastım ve öttü, çalışıyor yani. Sadece kontrol ettim" → clear · Test amaçlı, yanlış alarm değil, sorun yok.
+- "Hi! Last night the CO alarm went off but it was just the battery dying, we replaced it this morning and everything is quiet. Thought you should know to restock batteries" → clear · The alarm event is over and was a battery issue; a minor maintenance complaint, no live danger.
+- "Is the smoke detector in the bedroom supposed to chirp every few minutes? it started yesterday, no smoke or anything just the beep" → clear · Battery chirp question with no smoke; a maintenance issue, not a live danger.
+- "مرحبا، بعد الدش الحمام صار مليان بخار كثيف وفكرت أول شي إنه دخان بس طلع بخار من الماء الساخن وكل شي طبيعي، بس حبيت أسأل هل في مروحة شفط في الحمام؟" → clear · It was only shower steam, no danger, and the message is just a question.
+- "مرحبا، الشقة نظيفة تقريبا لكن المناشف عليها بقع والحمام فيه شعر من الضيوف السابقين، وللتأكيد ما فيه أي رائحة غاز عندنا، بس كنت أسأل لأن جارتنا قالت شي، وكل شي تمام من هالناحية" → clear · Dirty towels and bathroom are complaints; gas smell is explicitly negated.
+
+## Kaçan şikâyetler
+- "hey just letting you know the kitchen caught a bit of fire yesterday when the oil in the pan flared up, we put it out with a lid and everything is fine now. no damage, just a small burn mark on the stovetop" → general · The fire happened yesterday and is out; it is a past event, but a burn mark is reported damage.
+- "the smell of gas we noticed last night is gone now, the gas company came and fixed the valve this morning. thanks for sending them" → general · The gas problem was fixed and is over, but it reports a past fault.
+- "Dün gece duman dedektörü öttü ama pil bitmişti, değiştirdik artık susuyor. Yedek pil bırakır mısınız?" → general · Detector chirp over after a battery swap; no live danger, a minor equipment issue.
+- "Just so you know, we got a small electric shock from the toaster yesterday. We unplugged it and haven't used it since. Maybe get it checked?" → general · The shock was a past event and the appliance is unplugged; the guest reports a faulty item.
+- "the CO alarm went off last night, we opened all windows and it stopped after like ten minutes and hasnt gone off since. should we be worried?" → general · The alarm stopped and ventilated; the event is over, though it reports a problem.
+- "We were locked out yesterday for an hour but the neighbor had the spare key, all good now. Maybe leave a lockbox code next time" → checkin · A past lockout that is resolved; it is a complaint, not a live emergency.
+- "neighbors were super loud last night until 3am but its quiet now. just letting you know" → general · Past noise that has ended; a complaint but no emergency.
+- "the heater has not worked since yesterday and the flat is freezing, can you send someone" → general · Ongoing broken heater is a complaint but not an immediate danger to people or property.
+- "yesterday the elevator got stuck with us inside for 20 mins, firefighters got us out. we're ok. you should know about this" → general · Entrapment ended yesterday; it is a past event but a reportable problem.
+- "duman dedektoru 3 dakikada bir bip sesi cikariyor pil bitmis olabilir mi yenisi var mi" → general · Detector battery chirp is not an emergency but is a maintenance issue.
+- "üst kat komşu cok gürültü yapiyor saat 2 oldu uyuyamadik bir sey yapabilir misiniz" → general · Noise complaint, no danger.
+- "duman dedektörünün pili bitmiş galiba arada bip sesi çıkarıyor, yedek pil var mı evde" → general · Dedektör pil uyarısı sorusu; acil değil ama küçük bir arıza şikayeti.
+- "dün gece mutfakta tost makinesi biraz dumanladı ama hemen fişten çektim, şimdi her şey yolunda. sadece haberiniz olsun" → general · Olay geçmişte kaldı ve bitti; cihaz sorunu bildirimi.
+- "Duman dedektörü yatak odasında yok sadece salonda var. Yasal olarak olması gerekmez mi? Soruyorum sadece." → general · Ekipman eksikliği hakkında şikayet/soru, canlı tehlike yok.
+- "Yangın söndürücünün son kullanma tarihi geçmiş görünüyor, değiştirebilir misiniz bir ara?" → general · Eski ekipman şikayeti, canlı tehlike yok.
+- "Dün şömine duman yaptı ama camı açınca geçti, bugün sorun yok. Damper kolunu nasıl açacağız, tarif eder misiniz?" → general · Geçmiş olay bitti; şöminenin kullanımıyla ilgili küçük sorun.
+- "mangal külünü nereye dökeceğiz soğuduktan sonra, çöp konteyneri mi yoksa bahçe mi? ayrıca kül tepsisi kırık, yenisi olur mu" → general · Soğumuş kül hakkında soru, kırık eşya şikayeti, tehlike yok.
+- "Wenn es morgen weiter so laut ist von der Baustelle nebenan, möchten wir einen Teil des Preises zurück. Heute war es schon sehr störend." → general · Noise complaint with a conditional demand; no danger.
+- "Der Rauchmelder im Flur piept alle paar Minuten kurz, ich glaube die Batterie ist leer. Könnten Sie eine neue hinlegen? Kein Rauch oder so." → general · Battery chirp with explicit no smoke; a minor maintenance complaint.
+- "Bei Regen tropft es vielleicht durchs Dachfenster? Gestern hat es getropft, jetzt ist es trocken, aber der Fleck an der Decke ist noch da. Bitte mal anschauen." → general · Past leak that has stopped; a maintenance complaint without current danger.
+- "ni feu ni fumée ni odeur de gaz ici, mais le wifi ne marche plus depuis ce matin" → wifi · Explicitly negates all dangers; the complaint is a broken wifi.
+- "Le détecteur de fumée fait bip toutes les minutes, il n'y a pas de fumée, faut-il changer la pile ?" → general · Battery chirp question with no smoke; minor equipment issue.
+- "Il y a eu un petit feu de poubelle hier mais c'est éteint depuis, rien de grave, je préviens juste." → general · Past event, already over; reporting an incident.
+- "Nous ne sommes ni enfermés ni blessés, simplement la clé est un peu dure à tourner." → general · Negates being locked in or injured; stiff key is a minor complaint.
+- "Yangın yok duman yok ama kombi çok ses yapıyor, bakar mısınız?" → general · Negates fire and smoke; noisy boiler is a complaint.
+- "on a fumé une cigarette sur le balcon, pas de feu rien, mais il manque un cendrier, vous pouvez en laisser un ?" → general · Normal smoking, no fire; missing ashtray is a complaint.
+- "Hola, el aire acondicionado no enfría nada y afuera hace 38 grados. ¿Pueden mandar a alguien mañana?" → general · Reporta un aire acondicionado averiado sin peligro inmediato.
+- "buenas noches no hay wifi desde las 6 de la tarde, ya reinicié el router dos veces y nada" → wifi · Internet que no funciona es una avería, no un peligro.
+- "No sale agua caliente en la ducha, llevo 20 minutos esperando y solo sale fría. Qué fastidio" → general · Falta de agua caliente es una avería sin riesgo vivo.
+- "Los vecinos de arriba hacen fiesta con música a todo volumen y son las 2 de la mañana, no podemos dormir!!" → general · Queja de ruido, sin peligro para personas o propiedad.
+- "Hola, falta papel higiénico y toallas limpias, solo hay dos para cuatro personas. Gracias" → general · Reporta artículos que faltan, sin urgencia vital.
+- "Hi, the hot water stopped working this morning and the shower is freezing. Can someone check it today?" → general · Broken hot water, no live danger.
+- "Hay un olor raro a humedad en el cuarto y las paredes del baño tienen moho, la verdad da asco, y encima la tele no prende, ni el control, nada funciona bien en esta casa y eso que leímos buenas reseñas" → general · Queja larga por moho y TV, sin peligro vivo.
+- "Hola, ¿el detector de humo hace un pitido cada cierto tiempo? Creo que es la pila, ¿tienen repuestos? No hay humo ni nada" → general · Pitido de batería sin peligro es un fallo menor, no emergencia.
+- "Подскажите, детектор дыма пикает раз в минуту, наверное батарейка села? Как её заменить?" → general · Battery chirp question, no live danger, but a minor equipment issue.
+- "соседи сверху орут и топают до трёх ночи, спать невозможно, сделайте что-нибудь" → general · Noise complaint with no danger.
+- "Hola, el aire acondicionado no enfría y la llave del balcón no abre bien. Gracias" → general · Broken items reported, no danger.
+- "duman dedektörünün pili ötüyor bip bip her dakika nerde yeni pil var acaba" → general · Detector battery chirp question, not a live danger.
+- "geçen gün lavabo taştı ama sildik su bitti sorun yok sadece tıkanıklık var lavabo yavaş akıyor" → general · Past overflow is over; slow drain is a complaint.
+- "komşular çok gürültü yapıyor saat 3 oldu uyuyamıyoruz müzik çok yüksek 😡" → general · Noise complaint with no danger.
+- "duman dedektörünün pili ötüyor arada bir bip diye, değiştirecek pil var mı evde yoksa ben mi alayım" → general · Pil uyarısı sorusu, acil değil ama bozuk/eksik bir şey bildiriyor.
+- "Odada sigara içilir mi yoksa sadece balkonda mı? Balkonda içeceğim ama kül tablası göremedim" → general · Sigara normal kullanım sorusu; eksik kül tablası hafif şikayet.
+- "yangın söndürücünün son kullanma tarihi geçmiş görünüyor etiketinde 2021 yazıyor, yenilenmesi lazım bence" → general · Ekipman eskimiş şikayeti, canlı tehlike yok.
+- "Hi, the smoke detector in the hallway keeps chirping every minute, think the battery is low. No smoke or anything, just annoying at night." → general · Battery chirp, no danger, but a reported fault.
+- "Geçen hafta kaldığımızda şömineden duman odaya dolmuştu, bu yüzden puan düşürdüm. Umarım düzeltmişsinizdir. Bu sefer yakmayacağız zaten." → general · Geçmiş olay şikayeti, şu an tehlike yok.
+- "Last night the toilet overflowed a bit but we mopped it up and the plumber thing stopped. Floor is dry now. Just FYI the toilet seems to clog easily" → general · Overflow is over and dry; guest reports a clogging toilet, a complaint but not live danger.
+- "we got a small electric shock from the kettle yesterday, nobody was hurt and we've not used it since. can you replace it please" → general · Shock was a past event, no ongoing danger since unused; faulty appliance complaint.
+- "Since yesterday the neighbors upstairs have been super loud every night, last night until 3am. please do something" → general · Ongoing noise complaint, not a danger to people or property.
+- "we were locked out yesterday for an hour but got in with the neighbor's help. now fine. the lock sticks tho" → general · Past lockout resolved; sticking lock is a complaint.
+- "dün banyoda kapı kilitlendi ama açabildik, şu an sorun yok. kilidi tamir ederseniz iyi olur" → general · Past lock-in resolved; asks for repair, so complaint but not live.
+- "there was a gas smell yesterday afternoon but it went away after we aired it out and we havent smelled it since. should we worry" → general · Past smell, gone now; still a reported issue but not live.
+- "السلام عليكم، ممكن تقول لي وين طفاية الحريق في الشقة؟ وكمان المكيف في غرفة النوم صوته عالي كثير ومانقدر ننام، وياليت تشوف لنا موضوع المخدات الزايدة." → general · Asking where the extinguisher is is an equipment question, and the noisy AC is a complaint.
+- "هلا، كاشف الدخان في الصالة يصفر صفرة كل نص دقيقة تقريبا من أمس. أظن البطارية خلصت. كيف أغيرها وين البطاريات؟ والباقي كله ممتاز شكرا." → general · A detector battery chirp question is not an emergency, but the chirping is a reported problem.
+- "مرحبا، أمس بالليل الجيران كانوا يسوون حفلة وصوت الموسيقى عالي لين الساعة ٣، ما قدرنا ننام. اليوم الحمد لله هادي. بس حبيت أبلغك للعلم." → general · A past noise problem that is over, reported as a complaint.
+- "مرحبا، الملاءات كانت فيها بقع وما كانت نظيفة، وكمان نقص منشفتين. وللعلم قبل ساعة انطلق جرس الإنذار بسبب خبز محروق في التوستر لكنه توقف وكل شي طبيعي الحين." → general · Dirty sheets and missing towels are complaints, and the alarm event is already over.
+- "Hallo, der Rauchmelder im Schlafzimmer piept alle paar Minuten kurz. Ist das nur die Batterie? Wir sehen keinen Rauch und riechen nichts." → general · Battery chirp with no smoke is not an emergency, but reports a malfunctioning item.
+- "Gestern Abend hat der Toaster etwas Rauch gemacht, aber das ist vorbei, wir haben gelüftet. Nur damit Sie es wissen, er riecht noch leicht verbrannt." → general · Past event that is over; mild report of a smell/faulty toaster.
+- "Im Badezimmer ist ziemlich viel Dampf nach dem Duschen, kein Lüfter vorhanden. Der Spiegel ist komplett beschlagen, ist das normal?" → general · Steam is not an emergency; missing ventilation is a mild complaint.
+- "Ni fumée ni odeur de gaz ici, rassurez-vous. Par contre la plaque à induction ne chauffe plus du tout, on ne peut pas cuisiner." → general · Danger explicitly negated; the broken hob is a complaint.
+- "Il n'y a ni chauffage ni eau chaude depuis ce matin, et il fait très froid. Pas de danger mais c'est pénible." → general · No heating or hot water is a complaint, with no live danger.
+- "Est-ce qu'il y a un extincteur dans l'appartement ? Je ne vois ni extincteur ni détecteur dans le salon, juste pour savoir." → general · Question about safety equipment, mild complaint about missing items, no live danger.
+- "Ni le wifi ni la télé ne marchent, j'ai redémarré la box deux fois, rien. On a besoin du wifi pour le travail." → wifi · Broken wifi and TV; no danger.
+- "coucou, on a fait une bougie sur la table pour le dîner, pas de souci, rien ne brûle sauf la bougie lol. Les draps étaient un peu sales par contre" → general · Normal candle use, not an emergency; dirty sheets are a complaint.
+- "La vapeur de la douche remplit la pièce, ce n'est pas de la fumée je pense, mais le ventilateur ne marche pas. Pouvez-vous le faire réparer ?" → general · Steam, not smoke; broken fan is a complaint.
+- "hola el aire no enfria nada y hace mucho calor, pueden mandar a alguien manana?" → general · Aire averiado, molestia sin peligro inmediato.
+- "no hay internet desde anoche el wifi ni aparece en el celular" → wifi · Falla de internet, no es peligro.
+- "no sale agua caliente en la ducha, solo fria, ya probe esperar un rato" → general · Sin agua caliente es una avería, no una emergencia.
+- "los vecinos tienen musica muy fuerte a las 3 de la mañana no podemos dormir" → general · Queja de ruido sin peligro.
+- "ayer se fue la luz un rato pero ya volvio, solo les aviso por si acaso" → general · Corte pasado y resuelto, solo aviso de un problema.
+- "the neighbors upstairs are stomping and shouting again, third night in a row, pls talk to them" → general · Noise complaint with no danger.
+- "детектор дыма пищит раз в минуту, наверное батарейка села, вы можете прислать кого-то поменять завтра?" → general · Detector battery chirp is not an emergency, but it is a maintenance complaint.
+- "Соседи сверху топают и громко включают музыку после полуночи уже третий день, невозможно спать" → general · Noise complaint without danger.
+- "Bonsoir, le wifi ne marche pas depuis ce matin et la douche est sale. Merci de faire quelque chose." → wifi · Broken wifi and dirty shower are complaints only.
+- "مرحبا، التكييف في غرفة النوم لا يبرد والمناشف ناقصة، هل يمكن إصلاحه غدا؟" → general · Broken AC and missing towels are complaints, not danger.
+- "duman dedektoru ucuncu gundur ciyk ciyk diye otuyor pil mi bitti pil nerede var" → location · Detector battery chirp is not an emergency but is a minor issue.
+- "duman dedektörü arada bip diye ötüyor sanırım pil bitiyor yeni pil nerede var acaba" → location · Pil cıvıltısı sorusu acil değil, ama küçük bir arıza şikayeti.
+- "Gaz ocağının ateşi yanmıyor, çakmak tık tık yapıyor ama tutuşmuyor. Başka çakmak var mı?" → general · Ocak çalışmıyor (şikayet), gaz kokusu belirtilmiyor, acil değil.
+- "Yangın söndürücünün son kullanma tarihi geçmiş görünüyor etiketinde geçen yıl yazıyor, değiştirebilir misiniz?" → general · Ekipman eskimiş şikayeti, canlı tehlike yok.
+- "Evde duman dedektörü yok mu? Yatak odasında göremedim, salonda var mı" → general · Eksik dedektör bildirimi; acil olay yok.
+- "مساء الخير، بس حبيت أقول إن المكيف في غرفة النوم ما يبرد أبدا ونحن تعبانين من الحر، وبالمناسبة أمس كان فيه ريحة غاز خفيفة بس انتبهنا وجا الفني حقك وصلح الوصلة وخلاص راحت الريحة والحمدلله، المهم ممكن أحد يشوف المكيف اليوم" → general · The gas smell was a past, fixed event; the live issue is only a broken AC, so it is a complaint but not an emergency.
+- "مساء الخير، جهاز الإنذار في الممر يطلع صوت بيب كل دقيقة تقريبا، أظنها البطارية تحتاج تغيير، هل عندك بطارية احتياطية أو أغيرها أنا؟ ما فيه شي ثاني غير الصوت المزعج" → general · A detector battery chirp is not an emergency, but it is an annoyance being reported.
+- "Selam, balkonda sigara içebilir miyiz diye soracaktım, akşam da biraz yemek pişireceğiz tabii, bir de üst komşu gece 2'ye kadar gürültü yaptı uyuyamadık, bununla ilgilenebilir misiniz lütfen" → general · Smoking and cooking are normal use; the noise is a complaint only.
+- "مرحبا، بس أطمنك ما فيه ريحة غاز ولا شي، تأكدنا من الغاز وكله تمام، لكن الجيران فوقنا صوتهم عالي كل ليلة وما نقدر ننام ومن أمس والموسيقى شغالة، ممكن تكلمهم" → general · Gas smell is explicitly negated; only a noise complaint remains.
+- "Gestern Abend hat der Herd kurz gequalmt, aber wir haben das Fenster geöffnet und jetzt ist alles gut. Nur zur Info, vielleicht mal checken." → general · Past event that is over, but reports a possible fault so it is a complaint.
+- "wenn der nachbar wieder so laut musik macht wie gestern rufen wir die polizei, nur damit sie bescheid wissen. aktuell ists ruhig" → general · Reports past noise problem; currently quiet so not an emergency.
+- "Eğer sıcak su bitmezse yarın sabah duş alabiliriz değil mi? Bugün su biraz soğuktu, boyler ayarı var mı" → general · Conditional wording, but reports lukewarm water, a minor issue, no danger.
+- "Hi! Last night the CO alarm went off but it was just the battery dying, we replaced it this morning and everything is quiet. Thought you should know to restock batteries" → general · The alarm event is over and was a battery issue; a minor maintenance complaint, no live danger.
+- "there was a power cut yesterday for 2 hours but its back on now, everything works. just wanted to say the fridge needed a reset" → amenity · Outage is over; fridge needed a reset is a minor reported issue.
+- "The upstairs neighbors were really loud last night until 3am, but it's quiet now. maybe mention quiet hours in the guidebook" → general · Past noise complaint that is over; not an emergency.
+- "Is the smoke detector in the bedroom supposed to chirp every few minutes? it started yesterday, no smoke or anything just the beep" → general · Battery chirp question with no smoke; a maintenance issue, not a live danger.
+- "geçen gün balkon kapısı kilitlenip içeride kalmıştık ama komşu yardım etti, şimdi sorun yok. kilit biraz sıkışıyor yine de" → general · The lock-in was in the past and resolved; the sticky lock is a minor complaint.
+- "we had a mouse yesterday but it left, no sign of it today. just wanted you to know in case others see it" → general · Pest sighting that is over; a minor complaint with no danger.
+- "Bonsoir, juste pour dire qu'il n'y a pas de feu et pas de fumée, c'était l'alarme qui a sonné par erreur après ma douche. Tout va bien." → general · Negated fire/smoke, false alarm already resolved; minor issue with alarm.
+- "Bonjour, ni la cheminée ni le chauffage ne marchent, on a froid depuis ce matin. Pas d'urgence mais pouvez-vous envoyer quelqu'un ?" → general · Broken heating reported, explicitly no danger.
+- "on a allumé un feu dans la cheminée comme prévu, il n'y a pas de problème, juste pas assez de bûches. Pouvez-vous en apporter ?" → general · Normal fireplace use; missing logs is a minor complaint.
+- "Le détecteur de fumée fait un petit bip toutes les minutes, je pense que c'est la pile ? Pas de fumée, pas de feu, c'est juste agaçant." → general · Battery chirp question, no danger.
+- "Yangın yok duman da yok ama klima su damlatıyor, halı ıslandı. Yarın bakabilir misiniz?" → amenity · Negated fire/smoke; minor leak complaint.
+- "Bonjour, ni draps propres ni serviettes dans la chambre, et le frigo n'est pas froid. Sinon rien de dangereux." → general · Missing items and fridge issue, nothing dangerous.
+- "est-ce que la maison a un extincteur ? on ne voit ni extincteur ni sortie de secours indiquée, c'est juste une question" → general · Question about safety equipment; mild complaint about missing item.
+- "Hola, el aire acondicionado no enfría nada y estamos a 38 grados. ¿Pueden mandar a alguien mañana?" → general · Reports a broken AC, an inconvenience with no live danger.
+- "buenas noches no hay internet desde la tarde el router tiene luz roja" → wifi · Internet outage is a malfunction complaint, not a danger.
+- "No sale agua caliente en la ducha, llevamos 20 minutos esperando y solo sale fría. Gracias" → general · No hot water is a malfunction, not a danger.
+- "los vecinos de arriba hacen fiesta con música a todo volumen son las 3 de la mañana no podemos dormir" → general · Noise complaint, no danger to people or property.
+- "Buenas, falta papel higiénico y toallas limpias, solo hay dos para cuatro personas." → general · Missing supplies complaint.
+- "hola el detector de humo hace piiip cada minuto, creo que es la pila, no hay humo ni nada, ¿dónde hay pilas?" → general · Battery chirp with no smoke is a non-emergency maintenance issue.
+- "Anoche se fue la luz un rato pero ya volvió todo normal. Solo les aviso por si le pasa a otros huéspedes." → general · Past, resolved outage; reports something wrong but not live.
+- "Добрый день, детектор дыма в коридоре пищит раз в минуту, наверное батарейка села. Как поменять?" → general · Battery chirp question is not an emergency, but a device issue is reported.
+- "Сосед сверху очень громко шумит после полуночи, музыка и крики, мы не можем спать" → general · Noise complaint, no danger to people.
+- "Hallo, die Dusche tropft und das Handtuch fehlt. Könnten Sie bitte neue bringen?" → general · Minor broken/missing items, no danger.
+- "Hola, el aire acondicionado no enfría y la cama tiene manchas. Gracias" → general · Broken AC and stains are complaints without danger.
+- "السلام عليكم، بس حبيت أقول إن البارحة انطلق جهاز إنذار الدخان لما احترق التوست شوي، فتحنا الشباك وسكت الجهاز وكل شي تمام الحين ما فيه شي، لكن المكيف في غرفة النوم صوته مزعج جدا ويمنعنا من النوم ممكن تشوفون له حل" → general · The smoke alarm event is over and resolved; the real report is a noisy AC, so a complaint but not an emergency.
+- "مرحبا، الشقة نظيفة تقريبا لكن المناشف عليها بقع والحمام فيه شعر من الضيوف السابقين، وللتأكيد ما فيه أي رائحة غاز عندنا، بس كنت أسأل لأن جارتنا قالت شي، وكل شي تمام من هالناحية" → general · Dirty towels and bathroom are complaints; gas smell is explicitly negated.

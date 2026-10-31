@@ -1,0 +1,348 @@
+import { addNights, nightsBetween, parseNightKey, type NightKey } from "@/modules/availability/core";
+
+// ---------------------------------------------------------------------------
+// ÇOKLU TAKVİM — SAF YERLEŞİM (kurucu 10-29 gece: "bütün daireler tam Airbnb takvim görünümü gibi: daireler yatay, üstte tarih,
+// giren müşterilerin kaldığı gün adedi belli olacak"; tasarım `docs/TASARIM-2026-10-29-takvim-coklu.md`).
+//
+// Veritabanı, saat, ağ YOK: aynı girdi her zaman aynı modeli verir (sıra `id` ile kesinleşir). Sunucu sayfası ve testler aynı modeli
+// okur.
+//
+// GEOMETRİ: her gün iki yarım sütun (sabah · öğleden sonra). Konaklama giriş günü ÖĞLEDEN SONRA başlar, çıkış günü SABAHI biter:
+//   gün indeksi i(k) = nightsBetween(from, k) · h0 = 2·i(giriş)+1 · h1 = 2·i(çıkış)+1 (hariç) · genişlik = 2 × gece.
+// Aynı gün devirde çıkanın h1'i girenin h0'ına eşit → aynı şeride sığar, çakışma değildir (motorun gece tanımıyla birebir).
+//
+// 🚨 DEĞİŞMEZLER (testle pinli):
+//   1. HİÇBİR kayıt düşmez — pencereye değen her konaklama ve hatalı tarihli kayıt bir hücre olur; aynı dairede üst üste binenler AYRI
+//      şeritte (gizlenen "+N diğer" yok).
+//   2. "Boş" (`f`) YALNIZ yüklenen gecelerde ve kırpılmamış veride üretilir; dışarıdaki her boşluk "bilgi yok" (`u`), her gün özeti
+//      `null` (asla 0). Hatalı tarihli kaydın gecesi de "bilgi yok".
+//   3. Boşluk kararı ŞERİTTEN değil dairenin BİRLEŞİK doluluğundan verilir: başka şeritteki konaklamanın gecesi `x` (dolgu), asla `f`.
+//   4. Gece etiketi kırpılmaz: pencereden taşan çubuk da gerçek toplam geceyi yazar.
+//   5. Her şeritte yarım toplamı tam 2·D; hiçbir boşluk hücresi gün sınırını aşmaz.
+// ---------------------------------------------------------------------------
+
+/** Görünen gün sayısı. */
+export const WINDOW_DAYS = 35;
+/** Varsayılan pencere bugünden kaç gün önce başlar. */
+export const LEAD_DAYS = 3;
+/** Okların kaydırdığı gün. */
+export const STEP_DAYS = 14;
+/** `from` bugünden en çok bu kadar gün uzağa gidebilir (saçma adresler sınırlanır). */
+export const FROM_CLAMP_DAYS = 1825;
+
+export interface CalendarWindow {
+  /** İlk gün (dahil). */
+  from: NightKey;
+  /** Son günden sonraki gün (hariç). */
+  to: NightKey;
+  days: number;
+}
+
+const MONTH_RE = /^(\d{4})-(0[1-9]|1[0-2])$/;
+
+/** Adres parametreleri → pencere. Sıra: geçerli `from` → geçerli `month` (ayın 1'i) → bugün − LEAD_DAYS. `from` sınırlanır. */
+export function resolveWindow(input: { from?: string | string[] | null; month?: string | string[] | null; today: NightKey }): CalendarWindow {
+  const first = (v: string | string[] | null | undefined) => (Array.isArray(v) ? v[0] : v) ?? "";
+  let from: NightKey | null = parseNightKey(first(input.from));
+  if (!from) {
+    const m = MONTH_RE.exec(first(input.month));
+    if (m) from = `${m[1]}-${m[2]}-01`;
+  }
+  if (!from) from = addNights(input.today, -LEAD_DAYS);
+  const offset = nightsBetween(input.today, from);
+  if (offset > FROM_CLAMP_DAYS) from = addNights(input.today, FROM_CLAMP_DAYS);
+  else if (offset < -FROM_CLAMP_DAYS) from = addNights(input.today, -FROM_CLAMP_DAYS);
+  return { from, to: addNights(from, WINDOW_DAYS), days: WINDOW_DAYS };
+}
+
+/** Takvime giren tek kayıt (yükleyici tekrarları ayıklar; günler `calendarDateOf` ile bulunmuş olur). */
+export interface TimelineStay {
+  id: string;
+  propertyId: string;
+  guestName: string;
+  arrival: NightKey;
+  departure: NightKey;
+  status: string;
+  channel: string | null;
+  /** Takvim bağlantısından (iCal) gelen kayıt — ad çoğu zaman misafir adı değildir ("Reserved"). */
+  fromCalendarFeed: boolean;
+}
+
+export interface TimelineInput {
+  window: CalendarWindow;
+  /** Verisi okunan geceler, yarı açık [from, to). `null` = hiçbir gece okunmadı. */
+  loaded: { from: NightKey; to: NightKey } | null;
+  /** Satır tavanına çarpıldı: veri eksik olabilir → hiçbir yerde "boş" ya da sayı üretilmez. */
+  truncated: boolean;
+  /** Gösterilen daireler (sıra korunur). */
+  properties: readonly { id: string; name: string }[];
+  /** Pencereye değen bütün kayıtlar (gösterilmeyen dairelerinkiler de — "diğer dairelerde" sayısı için). */
+  stays: readonly TimelineStay[];
+  today: NightKey;
+}
+
+export type BarCell = {
+  k: "stay";
+  /** İlk yarım (kırpılmış) ve yarım sayısı. */
+  s: number;
+  n: number;
+  stay: TimelineStay;
+  /** Gerçek toplam gece (kırpılmaz). */
+  nights: number;
+  clipL: boolean;
+  clipR: boolean;
+  conflict: boolean;
+};
+export type AnomalyCell = { k: "anomaly"; s: number; n: number; stay: TimelineStay; kind: "zero" | "reversed" };
+/** `f` boş (kayıtlı rezervasyon yok) · `u` bilgi yok · `x` dairenin başka şeridindeki konaklamanın gecesi (dolgu). */
+export type GapCell = { k: "f" | "u" | "x"; s: number; n: number };
+export type TimelineCell = BarCell | AnomalyCell | GapCell;
+
+export interface TimelineRow {
+  property: { id: string; name: string };
+  lanes: TimelineCell[][];
+  /** Pencere içinde iki kaydın üst üste bindiği gece sayısı (yalnız onaylı / tamamlanmış kayıtlar). */
+  conflictNights: number;
+  /** Giriş ve çıkışı birebir aynı iki kayıt — aynı konaklama iki kaynaktan gelmiş olabilir (birleştirilmez). */
+  possibleDuplicate: boolean;
+}
+
+export interface TimelineDay {
+  key: NightKey;
+  /** 0 = Pazartesi. */
+  weekday: number;
+  isToday: boolean;
+  /** Özet: bilinmiyorsa `null` (asla 0). `occupied` = o gece dolu AYRI daire sayısı. */
+  arrivals: number | null;
+  departures: number | null;
+  occupied: number | null;
+}
+
+export interface TimelineModel {
+  window: CalendarWindow;
+  days: TimelineDay[];
+  rows: TimelineRow[];
+  todayIndex: number | null;
+  /** Gösterilen dairelerin toplamı (özetteki "N/T dolu" T'si). */
+  propertyCount: number;
+  /** Süzgeç varken gösterilmeyen dairelerde pencere içindeki giriş + çıkış sayısı. */
+  otherMovements: number;
+  /** Pencerede hiç kayıt yok (gösterilen dairelerde). */
+  empty: boolean;
+}
+
+const BOOKED = new Set(["confirmed", "completed"]);
+
+/** Sıralı karşılaştırma için kararlı anahtar. */
+function cmp(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+type Placed = { cell: BarCell | AnomalyCell; h0: number; h1: number };
+
+/** Kaydın yarım aralığı (kırpılmamış) ve türü; pencereye değmiyorsa `null`. */
+function place(stay: TimelineStay, from: NightKey, D: number): Placed | null {
+  const ia = nightsBetween(from, stay.arrival);
+  const id = nightsBetween(from, stay.departure);
+  const nights = id - ia;
+  let h0: number, h1: number, kind: "stay" | "zero" | "reversed";
+  if (nights > 0) {
+    h0 = 2 * ia + 1;
+    h1 = 2 * id + 1;
+    kind = "stay";
+  } else if (nights === 0) {
+    // Sıfır gece: o günün öğleden sonra yarısında tek yarımlık işaret.
+    h0 = 2 * ia + 1;
+    h1 = h0 + 1;
+    kind = "zero";
+  } else {
+    // Ters kayıt (çıkış < giriş): çıkış günü öğleden sonrasından giriş günü öğleden sonrasının sonuna kadar taranır.
+    h0 = 2 * id + 1;
+    h1 = 2 * ia + 2;
+    kind = "reversed";
+  }
+  const s = Math.max(h0, 0);
+  const e = Math.min(h1, 2 * D);
+  if (e <= s) return null;
+  if (kind === "stay") {
+    return {
+      h0,
+      h1,
+      cell: { k: "stay", s, n: e - s, stay, nights, clipL: h0 < 0, clipR: h1 > 2 * D, conflict: false },
+    };
+  }
+  return { h0, h1, cell: { k: "anomaly", s, n: e - s, stay, kind } };
+}
+
+/** Yarımın temsil ettiği gece indeksi: öğleden sonra (2i+1) → gece i; sabah (2i) → gece i−1. */
+function nightOfHalf(h: number): number {
+  return h % 2 === 1 ? (h - 1) / 2 : h / 2 - 1;
+}
+
+export function layoutTimeline(input: TimelineInput): TimelineModel {
+  const { window: win, loaded, truncated, properties, today } = input;
+  const D = win.days;
+  const from = win.from;
+  // Gece indeksi −1 (ilk günün sabahı) .. D−1. Bilinen gece: yüklenen aralıkta VE veri kırpılmamış.
+  const loadedLo = loaded ? nightsBetween(from, loaded.from) : Number.POSITIVE_INFINITY;
+  const loadedHi = loaded ? nightsBetween(from, loaded.to) : Number.NEGATIVE_INFINITY;
+  const known = (night: number) => !truncated && night >= loadedLo && night < loadedHi;
+
+  const shown = new Set(properties.map((p) => p.id));
+  const byProperty = new Map<string, TimelineStay[]>();
+  let otherMovements = 0;
+  const winEnd = addNights(from, D);
+  for (const st of input.stays) {
+    if (!shown.has(st.propertyId)) {
+      if (st.arrival >= from && st.arrival < winEnd) otherMovements++;
+      if (st.departure >= from && st.departure < winEnd) otherMovements++;
+      continue;
+    }
+    const list = byProperty.get(st.propertyId) ?? [];
+    list.push(st);
+    byProperty.set(st.propertyId, list);
+  }
+
+  // Gün özetleri (fark dizisi; O(R + P·D)).
+  const arrivals = new Array<number>(D).fill(0);
+  const departures = new Array<number>(D).fill(0);
+  const occupiedDiff = new Array<number>(D + 1).fill(0);
+
+  const rows: TimelineRow[] = [];
+  let any = false;
+  for (const property of properties) {
+    const stays = [...(byProperty.get(property.id) ?? [])].sort((a, b) => cmp(a.id, b.id));
+    const placed: Placed[] = [];
+    // Gece başına onaylı kayıt sayacı (−1 .. D−1 → indeks +1).
+    const nightCount = new Array<number>(D + 2).fill(0);
+    const anomalyNight = new Array<boolean>(D + 1).fill(false);
+    for (const st of stays) {
+      const ia = nightsBetween(from, st.arrival);
+      const id = nightsBetween(from, st.departure);
+      if (ia >= 0 && ia < D) arrivals[ia]++;
+      if (id >= 0 && id < D) departures[id]++;
+      const p = place(st, from, D);
+      if (!p) continue;
+      placed.push(p);
+      any = true;
+      if (p.cell.k === "stay" && BOOKED.has(st.status)) {
+        const lo = Math.max(ia, -1);
+        const hi = Math.min(id, D);
+        for (let g = lo; g < hi; g++) nightCount[g + 1]++;
+      } else if (p.cell.k === "anomaly") {
+        const lo = Math.max(Math.min(ia, id), -1);
+        const hi = Math.min(Math.max(ia, id) + 1, D);
+        for (let g = lo; g < hi; g++) anomalyNight[g + 1] = true;
+      }
+    }
+    // İşgal: onaylı olmasa da çizilen her konaklama dairenin gecesini kaplar (boş denmez).
+    const covered = new Array<boolean>(D + 1).fill(false);
+    for (const p of placed) {
+      if (p.cell.k !== "stay") continue;
+      const ia = nightsBetween(from, p.cell.stay.arrival);
+      const id = nightsBetween(from, p.cell.stay.departure);
+      for (let g = Math.max(ia, -1); g < Math.min(id, D); g++) covered[g + 1] = true;
+    }
+    // Doluluk özeti: o gece onaylı kaydı olan AYRI daire.
+    for (let g = 0; g < D; g++) if (nightCount[g + 1] > 0) { occupiedDiff[g]++; occupiedDiff[g + 1]--; }
+
+    // Çakışma: sayaç ≥ 2 olan gece; o geceye değen onaylı çubuk işaretlenir.
+    let conflictNights = 0;
+    for (let g = 0; g < D; g++) if (nightCount[g + 1] >= 2) conflictNights++;
+    for (const p of placed) {
+      if (p.cell.k !== "stay" || !BOOKED.has(p.cell.stay.status)) continue;
+      const ia = nightsBetween(from, p.cell.stay.arrival);
+      const id = nightsBetween(from, p.cell.stay.departure);
+      for (let g = Math.max(ia, -1); g < Math.min(id, D); g++) {
+        if (nightCount[g + 1] >= 2) {
+          p.cell.conflict = true;
+          break;
+        }
+      }
+    }
+    const pairKey = new Set<string>();
+    let possibleDuplicate = false;
+    for (const st of stays) {
+      const k = `${st.arrival}|${st.departure}`;
+      if (pairKey.has(k)) possibleDuplicate = true;
+      pairKey.add(k);
+    }
+
+    // Şerit: (h0 artan, h1 azalan, id artan) sırasıyla ilk sığan şeride.
+    placed.sort((a, b) => a.h0 - b.h0 || b.h1 - a.h1 || cmp(a.cell.stay.id, b.cell.stay.id));
+    const laneEnds: number[] = [];
+    const laneItems: Placed[][] = [];
+    for (const p of placed) {
+      let lane = laneEnds.findIndex((end) => end <= p.h0);
+      if (lane === -1) {
+        lane = laneEnds.length;
+        laneEnds.push(Number.NEGATIVE_INFINITY);
+        laneItems.push([]);
+      }
+      laneEnds[lane] = p.h1;
+      laneItems[lane].push(p);
+    }
+    if (laneItems.length === 0) laneItems.push([]);
+
+    // Boşluk sınıfı (yarım başına) — dairenin BİRLEŞİK durumundan.
+    const gapClassOfHalf = (h: number): GapCell["k"] => {
+      const g = nightOfHalf(h);
+      if (!known(g) || anomalyNight[g + 1]) return "u";
+      if (covered[g + 1]) return "x";
+      return "f";
+    };
+    const lanes: TimelineCell[][] = laneItems.map((items) => {
+      const cells: TimelineCell[] = [];
+      let h = 0;
+      const pushGap = (until: number) => {
+        // Aynı sınıflı ardışık yarımlar birleşir ama gün sınırında (çift yarım) kesilir.
+        while (h < until) {
+          const k = gapClassOfHalf(h);
+          let end = h + 1;
+          while (end < until && end % 2 === 1 && gapClassOfHalf(end) === k) end++;
+          cells.push({ k, s: h, n: end - h });
+          h = end;
+        }
+      };
+      for (const p of items) {
+        pushGap(p.cell.s);
+        cells.push(p.cell);
+        h = p.cell.s + p.cell.n;
+      }
+      pushGap(2 * D);
+      return cells;
+    });
+
+    rows.push({ property, lanes, conflictNights, possibleDuplicate });
+  }
+
+  const days: TimelineDay[] = [];
+  let occ = 0;
+  const firstWeekday = (new Date(`${from}T00:00:00Z`).getUTCDay() + 6) % 7;
+  let todayIndex: number | null = null;
+  for (let i = 0; i < D; i++) {
+    occ += occupiedDiff[i];
+    const key = addNights(from, i);
+    const isToday = key === today;
+    if (isToday) todayIndex = i;
+    const k = known(i);
+    days.push({
+      key,
+      weekday: (firstWeekday + i) % 7,
+      isToday,
+      arrivals: k ? arrivals[i] : null,
+      departures: k ? departures[i] : null,
+      occupied: k ? occ : null,
+    });
+  }
+
+  return {
+    window: win,
+    days,
+    rows,
+    todayIndex,
+    propertyCount: properties.length,
+    otherMovements,
+    empty: !any,
+  };
+}

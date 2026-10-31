@@ -1,0 +1,36 @@
+"use client";
+
+import * as React from "react";
+import { Eye, EyeOff } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
+
+/**
+ * Şifre alanı + göz (göster/gizle) düğmesi.
+ *
+ * Field'in tek-çocuk aria enjeksiyonuyla UYUMLU: Field, aria-invalid /
+ * aria-describedby'ı çocuk ELEMENTİN props'una ekler; burada o props'lar
+ * {...props} ile iç <Input>'a aynen akar — sarmalayıcı div bağı koparmaz
+ * (kayıt formundaki sarmalayıcı-div regresyonunun dersi). `type` bilinçli
+ * olarak spread'den SONRA verilir: görünürlüğü yalnız göz düğmesi yönetir.
+ */
+export function PasswordInput({ className, ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
+  const [show, setShow] = React.useState(false);
+  return (
+    <div className="relative">
+      <Input {...props} type={show ? "text" : "password"} className={cn("pr-10", className)} />
+      <button
+        type="button"
+        onClick={() => setShow((s) => !s)}
+        aria-label={show ? "Şifreyi gizle" : "Şifreyi göster"}
+        // ⚠️ `tabIndex={-1}` KALDIRILDI (WCAG 2.1.1): düğme klavyeyle
+        // ULAŞILAMIYORDU, yani `aria-label`ı da hiç okunamıyordu. Şifresini
+        // gözden geçirmek isteyen klavye/ekran-okuyucu kullanıcısının tek yolu
+        // buydu. Odak halkası eklendi ki sıraya girince görünsün.
+        className="absolute inset-y-0 right-0 flex items-center rounded-md px-3 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {show ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+      </button>
+    </div>
+  );
+}

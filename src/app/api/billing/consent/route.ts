@@ -1,0 +1,148 @@
+import { prisma } from "@/lib/db";
+import { badRequest, jsonOk, tooManyRequests, readJsonCappedOrNull } from "@/lib/api";
+import { withOwner } from "@/lib/route-guard";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { LEGAL_VERSION } from "@/lib/legal-entity";
+import { LEGAL_TEXT_HASH } from "@/lib/legal-text-hash";
+import { paddlePriceToPlanCode, paddlePriceCatalogConfigured } from "@/lib/payments/paddle";
+import { checkoutConsentSchema, zodFieldErrors } from "@/lib/validators";
+import { checkoutPendingActive } from "@/lib/billing/checkout-pending";
+import { cardTrialPriceIds } from "@/lib/billing/trial-card-gate";
+import { getEntitlement } from "@/lib/billing/subscription";
+import { CHECKOUT_PENDING_MESSAGE } from "@/lib/billing/checkout-pending-shared";
+import { currentCorrelationId } from "@/lib/correlation";
+import { logEvent } from "@/lib/event-log";
+import { NextResponse } from "next/server";
+import {
+  CHECKOUT_INTENT_BUSY_MESSAGE,
+  checkoutIntentEnabled,
+  openCheckoutIntentExists,
+  openOrReuseCheckoutIntent,
+} from "@/lib/billing/checkout-intent";
+
+// Server-side record of the Ön Bilgilendirme + Mesafeli Satış acceptance at
+// CHECKOUT — the evidence counterpart to the client checkbox in paddle-plans.tsx.
+// The client calls this right before Paddle's overlay opens. organizationId and
+// userId come from the SESSION (never the request body) → IDOR-proof; legal
+// version, IP (rightmost XFF) and User-Agent are server-derived so they can't be
+// forged. One row per acceptance (a user may go through checkout more than once).
+// Contract/payment authority: OWNER only (billing is an account-owner concern and
+// the UI shows checkout to owners only — the API matches so a manager can't record
+// a distance-sales consent / drive a purchase for the org via a direct call).
+export const POST = withOwner(async (session, req) => {
+  // Light per-user cap so a script can't bloat the table; generous for real use
+  // (no human opens checkout 20×/hour). ⚠️ 429 ödeme ekranını AÇTIRMAZ (istemci kanıt kaydı olmadan ödeme açmaz — fail-closed); eski
+  // "best-effort, satın almayı engellemez" notu yanlıştı (K3 envanteri, 10-17). Müşteri sunucunun "kısa süre bekleyin" metnini görür.
+  const limited = await rateLimit(`checkout-consent:${session.userId}`, 20, 60 * 60 * 1000);
+  if (!limited.ok) return tooManyRequests(limited.retryAfter);
+
+  const data = await readJsonCappedOrNull(req);
+  const parsed = checkoutConsentSchema.safeParse(data);
+  if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));
+
+  // Cross-check the plan LABEL against the price id server-side: the priceId is
+  // what actually drives the Paddle charge, so it is authoritative. When the
+  // price→plan map is configured and the client-supplied planCode disagrees, a
+  // tampered/buggy client is trying to record inconsistent consent evidence —
+  // refuse (fail-closed) so we never store "agreed to Pro" against a Business
+  // price. When the map is unconfigured (derived === null) we can't cross-check,
+  // so the validated client value stands. Store the derived code when available.
+  const derivedPlanCode = paddlePriceToPlanCode(parsed.data.priceId);
+  if (derivedPlanCode && derivedPlanCode !== parsed.data.planCode) {
+    return badRequest({ planCode: "Plan fiyatı doğrulanamadı. Lütfen sayfayı yenileyip tekrar deneyin." });
+  }
+  // 🚨 KATALOG DIŞI FİYAT REDDEDİLİR — GEVŞETME.
+  // Yukarıdaki çapraz-kontrol YALNIZ harita bir değer döndürünce çalışıyordu;
+  // haritada OLMAYAN bir `priceId` sessizce geçiyordu ve zincirin sonunda
+  // webhook `planCode`'a hiç dokunmadan yalnız `status:"active"` yazıyordu.
+  // Kayıt her org'a `planCode:"pro"` trial satırı açtığı için sonuç şuydu:
+  // katalog dışı bir fiyatı ödeyen org KALICI "pro" yetkisi ve Pro limitleri
+  // alıyordu. Şema `priceId` için yalnız `z.string().max(128)` diyor, yani
+  // değer tamamen istemci kontrolünde. Ürünün kataloğu ÜÇ kalem; dördüncü bir
+  // fiyatla checkout açmak tanımı gereği tutarsızlıktır.
+  // ⚠️ Kural yalnız katalog YAPILANDIRILMIŞKEN uygulanır — env'siz yerel
+  // geliştirmede her fiyat "bilinmeyen" olurdu ve akış komple kilitlenirdi.
+  if (!derivedPlanCode && paddlePriceCatalogConfigured()) {
+    return badRequest({ planCode: "Plan fiyatı doğrulanamadı. Lütfen sayfayı yenileyip tekrar deneyin." });
+  }
+
+  // KARTLA DENEME FİYATI yalnız kart istenen (kartla deneme kapısındaki) hesaba açılır (Haiku 10-17): yoksa herhangi bir deneme hesabı doğrudan
+  // istekle deneme süreli fiyattan ödeme ekranı açıp ücretsiz denemesini Paddle'da UZATABİLİRDİ. Kapıdaki hesap normal fiyatla hemen ödeyebilir.
+  if (Object.values(cardTrialPriceIds()).includes(parsed.data.priceId) && !(await getEntitlement(session.organizationId)).cardRequired) {
+    return badRequest({ planCode: "Plan fiyatı doğrulanamadı. Lütfen sayfayı yenileyip tekrar deneyin." });
+  }
+
+  // ⚠️ CANLI ABONELİĞİ OLAN ORG YENİ CHECKOUT AÇAMAZ (denetim, 08-01).
+  //
+  // Bu kapı UI'da VARDI (`settings/page.tsx` → `canManagePaddleSub` kartları
+  // kilitler) ama sunucuda YOKTU: doğrudan bir POST ya da eski bir sekme, aynı
+  // işletme için İKİNCİ bir Paddle aboneliği başlatabiliyordu. `Subscription`
+  // org başına TEK satır (`organizationId @unique`) olduğu için ikinci abonelik
+  // webhook'ta birincinin `providerRef`'ini EZER: ilk abonelik Paddle'da
+  // faturalanmaya devam eder ama bizde görünmez olur.
+  //
+  // Predikat UI ile BİREBİR AYNI (canlı = paddle + providerRef var + iptal
+  // DEĞİL) → yeni bir bloklama yüzeyi açmaz, yalnız istemciye güvenmeyi bırakır.
+  // İptal edilmiş abonelik yeni checkout açabilir (mevcut ürün kararı).
+  const live = await prisma.subscription.findUnique({
+    where: { organizationId: session.organizationId },
+    select: { provider: true, providerRef: true, status: true },
+  });
+  if (live?.provider === "paddle" && live.providerRef && live.status !== "canceled") {
+    return badRequest({
+      _: "Bu işletmenin zaten aktif bir aboneliği var. Plan değiştirmek için Faturalandırma bölümünü kullanın.",
+    });
+  }
+
+  // "Ödemeniz işleniyor" (kurucu onayı 10-10): az önce tamamlanan ödemenin webhook'u henüz gelmediyse ikinci ödeme ekranı açılmaz —
+  // yukarıdaki canlı abonelik kontrolü yalnız webhook'un yazdığı satırı görür (ikinci sekmede ikinci abonelik penceresi).
+  if (await checkoutPendingActive(session.organizationId)) {
+    return badRequest({ _: CHECKOUT_PENDING_MESSAGE });
+  }
+
+  // Anahtar kapalıyken açık ödeme niyeti kalmışsa (anahtar açılıp geri kapatıldı): ikinci ödeme ekranı açılmaz.
+  if (!checkoutIntentEnabled() && (await openCheckoutIntentExists(session.organizationId))) {
+    return NextResponse.json({ error: CHECKOUT_INTENT_BUSY_MESSAGE }, { status: 409 });
+  }
+
+  const row = await prisma.checkoutConsent.create({
+    data: {
+      organizationId: session.organizationId, // from session → can't record for another org
+      userId: session.userId,
+      planCode: derivedPlanCode ?? parsed.data.planCode, // price-derived is authoritative
+      priceId: parsed.data.priceId,
+      legalVersion: LEGAL_VERSION, // server-side, not client-supplied
+      legalTextHash: LEGAL_TEXT_HASH, // tamper-evident companion (see lib/legal-text-hash.ts)
+      // Ödeme onayının delil kaydı. clientIp() zinciri SAĞDAN sayar (taklit
+      // edilemez) ama kaç adım geri gideceğini `TRUSTED_PROXY_HOPS` söyler:
+      // Railway'de doğru değer 2, varsayılan 1. Bayrak set edilene kadar buraya
+      // müşterinin adresi DEĞİL Railway edge'inin adresi yazılır — yani bu tarihe
+      // kadarki satırlar delil olarak kişiyi işaret etmez (bilinen sınır; geçmiş
+      // satırlar bilerek DÜZELTİLMEZ, delil kaydı sonradan yeniden yazılmaz).
+      ip: clientIp(req),
+      userAgent: req.headers.get("user-agent")?.slice(0, 512) ?? null, // capped free text
+      // Takip numarası (kurucu kararı 10-10): ödeme zinciri BU numarayla sürer (webhook satırdan okur).
+      correlationId: currentCorrelationId(),
+    },
+    select: { id: true, planCode: true },
+  });
+  await logEvent("billing.consent.created", { plan: row.planCode, consentId: row.id });
+  // ÖDEME NİYETİ (Codex 10-21 P1, anahtar `PADDLE_CHECKOUT_INTENT_ENABLED` — kapalıyken bugünkü yol AYNEN): ödeme ekranı sunucunun açtığı
+  // TEK Paddle işlemiyle açılır; iki sekme aynı işlemi görür (iki tahsilat yok). Onay kaydı her durumda yazıldı (her kabul bir delildir).
+  if (checkoutIntentEnabled()) {
+    const intent = await openOrReuseCheckoutIntent({
+      organizationId: session.organizationId,
+      consentId: row.id,
+      planCode: row.planCode,
+      priceId: parsed.data.priceId,
+    });
+    if (intent.kind === "paid") return badRequest({ _: CHECKOUT_PENDING_MESSAGE });
+    if (intent.kind === "busy") return NextResponse.json({ error: intent.message }, { status: 409 });
+    if (intent.kind === "failed") return NextResponse.json({ error: intent.message }, { status: 503 });
+    return jsonOk({ ok: true, consentId: row.id, transactionId: intent.transactionId }, 201);
+  }
+  // Return the row id as a server-trusted nonce: the client passes it in the Paddle
+  // checkout's custom_data, and the webhook resolves the org FROM this row (whose
+  // organizationId is session-derived) instead of trusting a client-sent org id.
+  return jsonOk({ ok: true, consentId: row.id }, 201);
+});

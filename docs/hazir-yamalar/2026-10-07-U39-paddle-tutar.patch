@@ -1,0 +1,105 @@
+From 56d7e1f63523234c13e2605707089a53c0127cca Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 7 Oct 2026 23:00:08 +0000
+Subject: [PATCH] =?UTF-8?q?HAZIR=20(onay=20bekliyor,=20Sabah=20Kararlari?=
+ =?UTF-8?q?=2065):=20U39=20=E2=80=94=20Paddle=20tutari=20yalniz=20tam=20ra?=
+ =?UTF-8?q?kam=20dizisi;=20gecersiz=20/=20eksik=20tutar=20fatura=20yazmaz?=
+ =?UTF-8?q?=20+=20alarm?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Codex 10-07: parseInt '100abc'→100, '1e3'→1, '-500'→-500, eksik → 0 'odenmis' fatura; ayni islemin sonraki dogru olayi var olan
+fatura yuzunden islenmiyordu. Gecersizse fatura yazilmaz (para birimi emsali, fail-closed) + alarm; sonraki dogru olay yazar.
+Gercek sifir ('0') gecerli.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Bdi3kaEpLfBxJBnBwUW8Z9
+---
+ src/app/api/webhooks/paddle/route.ts     | 14 +++++++--
+ tests/integration/paddle-webhook.test.ts | 37 ++++++++++++++++++++++++
+ 2 files changed, 49 insertions(+), 2 deletions(-)
+
+diff --git a/src/app/api/webhooks/paddle/route.ts b/src/app/api/webhooks/paddle/route.ts
+index 4cf2305..20ee093 100644
+--- a/src/app/api/webhooks/paddle/route.ts
++++ b/src/app/api/webhooks/paddle/route.ts
+@@ -418,7 +418,17 @@ async function applyTransactionEvent(
+   const details = data.details as Record<string, unknown> | undefined;
+   const totals = details?.totals as Record<string, unknown> | undefined;
+   const grand = str(totals?.grand_total) ?? str((data.totals as Record<string, unknown> | undefined)?.grand_total);
+-  const amountMinor = grand ? Number.parseInt(grand, 10) : NaN;
++  // 🚨 U39 (Codex 10-07, HAZIR DAL): tutar YALNIZ tam rakam dizisi (en çok 15 hane — güvenli tamsayı). Eskiden `parseInt` "100abc"i 100,
++  // "1e3"ü 1, "-500"ü -500 okuyor, eksik tutar 0 "ödenmiş" fatura oluyordu; aynı işlemin sonraki DOĞRU olayı var olan fatura yüzünden
++  // hiç işlenmiyordu. Geçersizse fatura YAZILMAZ (para birimi emsali) + alarm → sonraki doğru olay yazar. Gerçek sıfır ("0") geçerli.
++  const amountMinor = grand !== null && /^\d{1,15}$/.test(grand.trim()) ? Number(grand.trim()) : null;
++  if (amountMinor === null) {
++    await reportError(
++      "paddle-webhook",
++      new Error(`transaction ${providerRef} has no valid grand_total — invoice NOT written (fail-closed)`),
++    );
++    return;
++  }
+ 
+   // FAIL-CLOSED on a missing currency. This row is the billing record of a real
+   // charge; the currency belongs to the EVENT, and Paddle sends currency_code on
+@@ -443,7 +453,7 @@ async function applyTransactionEvent(
+       data: {
+         organizationId,
+         subscriptionId: sub?.id ?? null,
+-        amountMinor: Number.isFinite(amountMinor) ? amountMinor : 0,
++        amountMinor,
+         currency,
+         status: "paid",
+         provider: "paddle",
+diff --git a/tests/integration/paddle-webhook.test.ts b/tests/integration/paddle-webhook.test.ts
+index 1bb8b0f..87e2dc7 100644
+--- a/tests/integration/paddle-webhook.test.ts
++++ b/tests/integration/paddle-webhook.test.ts
+@@ -622,6 +622,43 @@ describe("POST /api/webhooks/paddle", () => {
+     })();
+   });
+ 
++  // U39 (Codex 10-07, HAZIR DAL — Sabah Kararları 65): bozuk / eksik tutar "ödenmiş" fatura olmaz; sonraki doğru olay yazar.
++  it.each([
++    ["100abc", "harf kuyruğu (eskiden 100)"],
++    ["1e3", "bilimsel gösterim (eskiden 1)"],
++    ["-500", "eksi (eskiden -500)"],
++    ["", "boş (eskiden 0)"],
++    ["12.50", "ondalık (eskiden 12)"],
++  ])("🚨 grand_total %j (%s) → fatura YAZILMAZ; aynı işlemin sonraki DOĞRU olayı yazılır", async (grand) => {
++    const event = (id: string, total: string | undefined) =>
++      JSON.stringify({
++        event_id: id,
++        event_type: "transaction.completed",
++        data: { id: "txn_bad", status: "completed", custom_data: { consentId }, currency_code: "TRY", details: { totals: total === undefined ? {} : { grand_total: total } } },
++      });
++    const bad = event(`evt_bad_${grand || "empty"}`, grand);
++    expect((await POST(req(bad, sign(bad)))).status).toBe(200);
++    expect(await prisma.invoice.count({ where: { providerRef: "txn_bad" } })).toBe(0); // ⬅️ ESKİDE yanlış tutarlı "paid" fatura
++    const good = event(`evt_good_${grand || "empty"}`, "89900");
++    expect((await POST(req(good, sign(good)))).status).toBe(200);
++    expect((await prisma.invoice.findFirst({ where: { providerRef: "txn_bad" } }))?.amountMinor).toBe(89900); // ⬅️ ESKİDE işlenmiyordu
++  });
++
++  it("KONTROL (U39): gerçek SIFIR ücret ('0') geçerli fatura; tutar alanı hiç yoksa yazılmaz", async () => {
++    const zero = JSON.stringify({
++      event_id: "evt_zero", event_type: "transaction.completed",
++      data: { id: "txn_zero", status: "completed", custom_data: { consentId }, currency_code: "TRY", details: { totals: { grand_total: "0" } } },
++    });
++    await POST(req(zero, sign(zero)));
++    expect((await prisma.invoice.findFirst({ where: { providerRef: "txn_zero" } }))?.amountMinor).toBe(0);
++    const none = JSON.stringify({
++      event_id: "evt_none", event_type: "transaction.completed",
++      data: { id: "txn_none", status: "completed", custom_data: { consentId }, currency_code: "TRY" },
++    });
++    await POST(req(none, sign(none)));
++    expect(await prisma.invoice.count({ where: { providerRef: "txn_none" } })).toBe(0);
++  });
++
+   it("records an event with no custom_data without creating a Subscription (no crash)", async () => {
+     const body = JSON.stringify({
+       event_id: "evt_nolink",
+-- 
+2.43.0
+

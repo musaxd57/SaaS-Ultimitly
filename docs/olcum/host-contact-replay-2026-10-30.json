@@ -1,0 +1,68 @@
+{
+  "counts": {
+    "replies": 3274,
+    "withRemoval": 250,
+    "removals": 250,
+    "byKind": {
+      "write": 27,
+      "call": 0,
+      "referral": 223
+    },
+    "byForm": {
+      "conditional": 27,
+      "referral": 223
+    },
+    "generic": 4,
+    "topical": 246,
+    "appendix": 18,
+    "heldWhole": 226,
+    "partialSent": 24,
+    "openWithoutLedger": 24,
+    "guestContingency": 1,
+    "byLang": {
+      "tr": {
+        "replies": 1741,
+        "withRemoval": 141
+      },
+      "de": {
+        "replies": 271,
+        "withRemoval": 5
+      },
+      "ru": {
+        "replies": 194,
+        "withRemoval": 66
+      },
+      "en": {
+        "replies": 764,
+        "withRemoval": 33
+      },
+      "es": {
+        "replies": 128,
+        "withRemoval": 1
+      },
+      "fr": {
+        "replies": 62,
+        "withRemoval": 0
+      },
+      "ar": {
+        "replies": 75,
+        "withRemoval": 0
+      },
+      "?": {
+        "replies": 39,
+        "withRemoval": 4
+      }
+    }
+  },
+  "old": {
+    "label": "0e0e1a1e (K-1029-A öncesi)",
+    "changed": 0,
+    "held": 2,
+    "heldGained": 224,
+    "heldLost": 0,
+    "textDiffers": 24,
+    "systemHeldGained": 6,
+    "systemHeldLost": 7,
+    "sentTextDiffers": 14
+  }
+}

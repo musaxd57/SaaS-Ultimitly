@@ -1,0 +1,554 @@
+import { describe, it, expect, vi } from "vitest";
+import { spawnSync } from "node:child_process";
+import { checkProductionEnv, DEV_PLACEHOLDER_SECRET } from "../../scripts/env-check.mjs";
+import { register } from "@/instrumentation";
+
+// Boot fail-fast (#3). The critical-env gate is a SINGLE source: scripts/verify-env.mjs
+// (the `prestart` npm hook), run as a standalone process BEFORE `next start`. In
+// production a missing/placeholder AUTH_SECRET or a missing/derived ENCRYPTION_KEY
+// exits NON-ZERO there, so the process never reaches `next start` — no "Ready but
+// every request 500s". Dev/test start is never blocked.
+
+const REAL_AUTH = "a-real-production-secret-value-42-chars-xx";
+const REAL_ENC = "a-different-real-encryption-key-40chars-x";
+const REAL_PEPPER = "a-third-distinct-qr-pin-pepper-value-40ch";
+const REAL_RESEND = "re_test_key_1234567890"; // any non-empty value satisfies the provider check
+
+/** Run the standalone gate with a controlled env; returns the child result. */
+function gate(env: Record<string, string>, prod = true) {
+  return spawnSync(process.execPath, ["scripts/verify-env.mjs"], {
+    // Replace the sensitive vars explicitly (vitest.config injects a test AUTH_SECRET);
+    // clear the QR PIN + email vars so the feature-gated / provider checks are
+    // deterministic regardless of the local .env.
+    env: {
+      ...process.env,
+      NODE_ENV: prod ? "production" : "development",
+      AUTH_SECRET: "", ENCRYPTION_KEY: "", QR_PIN_ENABLED: "", QR_PIN_PEPPER: "",
+      GUEST_ERASURE_ENABLED: "", ERASURE_HMAC_SECRET: "",
+      RESEND_API_KEY: "", EMAIL_HOST: "", EMAIL_USER: "", EMAIL_PASS: "",
+      // Clear the secret-bearing URL overrides so the https-pin check is
+      // deterministic regardless of the local .env (each defaults to https in code).
+      HOSPITABLE_API_BASE_URL: "", SUPPLY_AI_BASE_URL: "", SHADOW_AI_BASE_URL: "",
+      HOSPITABLE_OAUTH_AUTHORIZE_URL: "", HOSPITABLE_OAUTH_TOKEN_URL: "",
+      HOSPITABLE_OAUTH_REDIRECT_URI: "", APP_URL: "",
+      ...env,
+    },
+    encoding: "utf8",
+  });
+}
+
+describe("checkProductionEnv (pure gate logic — single source)", () => {
+  it("flags a missing / placeholder AUTH_SECRET", () => {
+    expect(checkProductionEnv({ AUTH_SECRET: "", ENCRYPTION_KEY: REAL_ENC }).errors[0]).toMatch(/AUTH_SECRET is missing/);
+    expect(
+      checkProductionEnv({ AUTH_SECRET: DEV_PLACEHOLDER_SECRET, ENCRYPTION_KEY: REAL_ENC }).errors[0],
+    ).toMatch(/placeholder/);
+  });
+
+  it("requires ENCRYPTION_KEY, independent of AUTH_SECRET", () => {
+    expect(checkProductionEnv({ AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: "" }).errors[0]).toMatch(/ENCRYPTION_KEY is missing/);
+    expect(
+      checkProductionEnv({ AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_AUTH }).errors[0],
+    ).toMatch(/independent of AUTH_SECRET/);
+  });
+
+  it("passes with two distinct real secrets + an email provider (no errors)", () => {
+    const { errors } = checkProductionEnv({ AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_ENC, RESEND_API_KEY: REAL_RESEND });
+    expect(errors).toHaveLength(0);
+  });
+
+  it("RESEND_FROM yoksa ve OpenAI anahtarı yoksa UYARI (ACIK-ISLER 08-08 §13) — hata değil, açılış durmaz", () => {
+    const base = { AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_ENC };
+    const r = checkProductionEnv({ ...base, RESEND_API_KEY: REAL_RESEND });
+    expect(r.errors).toEqual([]);
+    expect(r.warnings.some((w) => w.startsWith("RESEND_FROM is not set"))).toBe(true);
+    expect(r.warnings.some((w) => w.startsWith("OPENAI_API_KEY is not set"))).toBe(true);
+    // KONTROL: ikisi de varsa uyarı yok; SMTP kullanan kurulum RESEND_FROM istemez.
+    const ok = checkProductionEnv({ ...base, RESEND_API_KEY: REAL_RESEND, RESEND_FROM: "Lixus <noreply@example.com>", OPENAI_API_KEY: "sk-test" });
+    expect(ok.warnings.filter((w) => /RESEND_FROM|OPENAI_API_KEY/.test(w))).toEqual([]);
+    const smtp = checkProductionEnv({ ...base, EMAIL_HOST: "smtp.example.com", EMAIL_USER: "u", EMAIL_PASS: "p", OPENAI_API_KEY: "sk-test" });
+    expect(smtp.warnings.filter((w) => w.startsWith("RESEND_FROM"))).toEqual([]);
+  });
+
+  it("🚨 depolama bayrağı KAPALI ama STORAGE_* yarım / geçersiz → UYARI (DENETIM 08-09 #25); tam ve geçerli ya da hiç yoksa sessiz", () => {
+    const base = { AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_ENC, RESEND_API_KEY: REAL_RESEND };
+    const full = {
+      STORAGE_ENDPOINT: "https://example-storage.dev",
+      STORAGE_BUCKET: "lixus-uploads",
+      STORAGE_ACCESS_KEY_ID: "AKIA-test",
+      STORAGE_SECRET_ACCESS_KEY: "secret-test-value",
+    };
+    const warn = (extra: Record<string, string>) =>
+      checkProductionEnv({ ...base, ...extra }).warnings.filter((w) => w.startsWith("STORAGE_*"));
+    // Yarım: eksik alanların ADI geçer, değer geçmez.
+    const partial = warn({ STORAGE_ENDPOINT: full.STORAGE_ENDPOINT, STORAGE_BUCKET: full.STORAGE_BUCKET });
+    expect(partial).toHaveLength(1);
+    expect(partial[0]).toContain("STORAGE_ACCESS_KEY_ID, STORAGE_SECRET_ACCESS_KEY");
+    expect(partial[0]).not.toContain("example-storage");
+    // Tam ama geçersiz (http uç / büyük harfli kova).
+    expect(warn({ ...full, STORAGE_ENDPOINT: "http://example-storage.dev" })[0]).toMatch(/must be a valid https/);
+    // Çalışma zamanıyla AYNI kural (URL ayrıştırma; Haiku 10-12): yer tutucu açılı parantez önekle geçiyor, çalışma zamanında düşüyordu.
+    expect(warn({ ...full, STORAGE_ENDPOINT: "https://<account>.r2.cloudflarestorage.com" })[0]).toMatch(/must be a valid https/);
+    expect(warn({ ...full, STORAGE_ENDPOINT: "https://example-storage.dev/" })).toEqual([]); // sondaki eğik çizgi çalışma zamanında da atılır
+    expect(warn({ ...full, STORAGE_BUCKET: "Lixus_Uploads" })[0]).toMatch(/STORAGE_BUCKET is not usable/);
+    // KONTROL: tam + geçerli (geri alınmış bayrak, silme kuyruğu çalışır) ve hiç yok → uyarı YOK; hata hiçbir durumda yok.
+    expect(warn(full)).toEqual([]);
+    expect(warn({})).toEqual([]);
+    expect(checkProductionEnv({ ...base, STORAGE_ENDPOINT: "https://x.dev" }).errors).toEqual([]);
+  });
+
+  it("email provider (fail-open fix): required in production; partial SMTP is an error", () => {
+    const secrets = { AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_ENC };
+    // No provider at all → error.
+    expect(checkProductionEnv({ ...secrets }).errors.join()).toMatch(/No email provider configured/);
+    // Resend alone → OK.
+    expect(checkProductionEnv({ ...secrets, RESEND_API_KEY: REAL_RESEND }).errors).toHaveLength(0);
+    // Complete SMTP → OK.
+    expect(
+      checkProductionEnv({ ...secrets, EMAIL_HOST: "smtp.x.com", EMAIL_USER: "u", EMAIL_PASS: "p" }).errors,
+    ).toHaveLength(0);
+    // PARTIAL SMTP (host only / missing pass) → error, not a silent pass.
+    expect(checkProductionEnv({ ...secrets, EMAIL_HOST: "smtp.x.com" }).errors.join()).toMatch(/PARTIALLY configured/);
+    expect(
+      checkProductionEnv({ ...secrets, EMAIL_HOST: "smtp.x.com", EMAIL_USER: "u" }).errors.join(),
+    ).toMatch(/PARTIALLY configured/);
+  });
+
+  it("HTTPS-pin (P2): a SET secret-bearing external URL must be https; unset is fine", () => {
+    const base = { AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_ENC, RESEND_API_KEY: REAL_RESEND };
+    // Unset overrides → the code's https defaults are used → no error.
+    expect(checkProductionEnv({ ...base }).errors).toHaveLength(0);
+    // https overrides → OK.
+    expect(
+      checkProductionEnv({
+        ...base,
+        HOSPITABLE_API_BASE_URL: "https://public.api.hospitable.com/v2",
+        SUPPLY_AI_BASE_URL: "https://api.akashml.com/v1",
+        SHADOW_AI_BASE_URL: "https://api.akashml.com/v1",
+        HOSPITABLE_OAUTH_AUTHORIZE_URL: "https://auth.hospitable.com/oauth/authorize",
+        HOSPITABLE_OAUTH_TOKEN_URL: "https://auth.hospitable.com/oauth/token",
+      }).errors,
+    ).toHaveLength(0);
+    // http override → error, per variable (a secret would ride plaintext).
+    expect(checkProductionEnv({ ...base, SUPPLY_AI_BASE_URL: "http://api.akashml.com/v1" }).errors.join()).toMatch(
+      /SUPPLY_AI_BASE_URL must be an https/,
+    );
+    expect(
+      checkProductionEnv({ ...base, HOSPITABLE_API_BASE_URL: "http://public.api.hospitable.com/v2" }).errors.join(),
+    ).toMatch(/HOSPITABLE_API_BASE_URL must be an https/);
+    expect(
+      checkProductionEnv({ ...base, HOSPITABLE_OAUTH_TOKEN_URL: "http://auth.hospitable.com/oauth/token" }).errors.join(),
+    ).toMatch(/HOSPITABLE_OAUTH_TOKEN_URL must be an https/);
+  });
+
+  it("OAuth redirect (P2): production accepts ONLY the exact canonical callback", () => {
+    const base = { AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_ENC, RESEND_API_KEY: REAL_RESEND };
+    const CANONICAL = "https://www.lixusai.com/api/hospitable/oauth/callback";
+    // Unset → default canonical → no error.
+    expect(checkProductionEnv({ ...base }).errors).toHaveLength(0);
+    // Exact canonical → OK.
+    expect(checkProductionEnv({ ...base, HOSPITABLE_OAUTH_REDIRECT_URI: CANONICAL }).errors).toHaveLength(0);
+    // Any other value (foreign host, staging, http) → error — the code returns here.
+    expect(
+      checkProductionEnv({ ...base, HOSPITABLE_OAUTH_REDIRECT_URI: "https://evil.example/cb" }).errors.join(),
+    ).toMatch(/HOSPITABLE_OAUTH_REDIRECT_URI must be exactly/);
+    expect(
+      checkProductionEnv({
+        ...base,
+        HOSPITABLE_OAUTH_REDIRECT_URI: "https://staging.lixusai.com/api/hospitable/oauth/callback",
+      }).errors.join(),
+    ).toMatch(/HOSPITABLE_OAUTH_REDIRECT_URI must be exactly/);
+  });
+
+  it("QR_PIN_PEPPER (Codex 4): required only when QR_PIN_ENABLED=1, separate + ≥32 + ≠AUTH_SECRET", () => {
+    const base = { AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_ENC, RESEND_API_KEY: REAL_RESEND };
+    // Feature OFF → no pepper needed (deploy never blocked).
+    expect(checkProductionEnv({ ...base }).errors).toHaveLength(0);
+    expect(checkProductionEnv({ ...base, QR_PIN_ENABLED: "1", QR_PIN_PEPPER: REAL_PEPPER }).errors).toHaveLength(0);
+    // Feature ON → the pepper is enforced.
+    expect(checkProductionEnv({ ...base, QR_PIN_ENABLED: "1" }).errors.join()).toMatch(/QR_PIN_PEPPER is missing/);
+    expect(
+      checkProductionEnv({ ...base, QR_PIN_ENABLED: "1", QR_PIN_PEPPER: REAL_AUTH }).errors.join(),
+    ).toMatch(/independent of AUTH_SECRET/);
+    expect(
+      checkProductionEnv({ ...base, QR_PIN_ENABLED: "1", QR_PIN_PEPPER: "too-short" }).errors.join(),
+    ).toMatch(/at least 32/);
+    expect(
+      checkProductionEnv({ ...base, QR_PIN_ENABLED: "1", QR_PIN_PEPPER: DEV_PLACEHOLDER_SECRET }).errors.join(),
+    ).toMatch(/placeholder/);
+  });
+
+  it("ERASURE_HMAC_SECRET (m40, Codex-2): required only when GUEST_ERASURE_ENABLED=1, dedicated + ≥32 + ≠AUTH_SECRET/ENCRYPTION_KEY", () => {
+    const base = { AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_ENC, RESEND_API_KEY: REAL_RESEND };
+    const REAL_ERASURE = "a-fourth-distinct-erasure-hmac-secret-40x";
+    // Feature OFF → no secret needed (deploy never blocked; guards inert on empty table).
+    expect(checkProductionEnv({ ...base }).errors).toHaveLength(0);
+    expect(
+      checkProductionEnv({ ...base, GUEST_ERASURE_ENABLED: "1", ERASURE_HMAC_SECRET: REAL_ERASURE }).errors,
+    ).toHaveLength(0);
+    // Feature ON → the dedicated secret is enforced, never a doubled-up secret.
+    expect(checkProductionEnv({ ...base, GUEST_ERASURE_ENABLED: "1" }).errors.join()).toMatch(
+      /ERASURE_HMAC_SECRET is missing/,
+    );
+    expect(
+      checkProductionEnv({ ...base, GUEST_ERASURE_ENABLED: "1", ERASURE_HMAC_SECRET: REAL_AUTH }).errors.join(),
+    ).toMatch(/independent of AUTH_SECRET/);
+    expect(
+      checkProductionEnv({ ...base, GUEST_ERASURE_ENABLED: "1", ERASURE_HMAC_SECRET: REAL_ENC }).errors.join(),
+    ).toMatch(/independent of ENCRYPTION_KEY/);
+    expect(
+      checkProductionEnv({ ...base, GUEST_ERASURE_ENABLED: "1", ERASURE_HMAC_SECRET: "too-short" }).errors.join(),
+    ).toMatch(/at least 32/);
+  });
+});
+
+describe("checkProductionEnv — CRON_SECRET (09-23, denetim ajanı)", () => {
+  const base = { AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_ENC, RESEND_API_KEY: REAL_RESEND };
+
+  it("YOKSA tek uyarı (mevcut davranış — yeni kontrol onu ÇİFTLEMEZ)", () => {
+    const r = checkProductionEnv(base);
+    expect(r.errors, "uyarı boot'u DURDURMAZ (üretim değeri doğrulanmadan hata eklenmez)").toHaveLength(0);
+    expect(r.warnings.filter((w: string) => w.includes("CRON_SECRET"))).toHaveLength(1);
+    expect(r.warnings.join("\n")).toMatch(/CRON_SECRET is missing/);
+  });
+
+  it("KISAYSA uyarır (uçlar hız sınırlı değil); değer ASLA basılmaz; uzun değer sessiz", () => {
+    const short = checkProductionEnv({ ...base, CRON_SECRET: "kisa-sir" });
+    expect(short.warnings.join("\n")).toMatch(/CRON_SECRET is shorter than 32/);
+    expect(short.warnings.join("\n")).not.toContain("kisa-sir");
+    const long = checkProductionEnv({ ...base, CRON_SECRET: "x".repeat(40) });
+    expect(long.warnings.join("\n")).not.toMatch(/CRON_SECRET/);
+    expect(long.errors).toHaveLength(0);
+  });
+});
+
+describe("scripts/verify-env.mjs — the prestart boot gate", () => {
+  it("PROD + missing AUTH_SECRET → non-zero exit", () => {
+    const r = gate({ ENCRYPTION_KEY: REAL_ENC });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/AUTH_SECRET is missing/);
+  });
+
+  it("PROD + placeholder AUTH_SECRET → non-zero exit", () => {
+    expect(gate({ AUTH_SECRET: DEV_PLACEHOLDER_SECRET, ENCRYPTION_KEY: REAL_ENC }).status).toBe(1);
+  });
+
+  it("PROD + missing ENCRYPTION_KEY → non-zero exit (no AUTH_SECRET fallback allowed)", () => {
+    const r = gate({ AUTH_SECRET: REAL_AUTH });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/ENCRYPTION_KEY is missing/);
+  });
+
+  it("PROD + ENCRYPTION_KEY === AUTH_SECRET → non-zero exit", () => {
+    expect(gate({ AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_AUTH }).status).toBe(1);
+  });
+
+  it("PROD + two distinct real secrets + email provider → exit 0 (chain continues)", () => {
+    const r = gate({ AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_ENC, RESEND_API_KEY: REAL_RESEND });
+    expect(r.status).toBe(0);
+    expect(r.stdout).toMatch(/environment OK/);
+  });
+
+  it("PROD + no email provider → non-zero exit (transactional mail fail-open closed)", () => {
+    const r = gate({ AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_ENC });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/No email provider configured/);
+  });
+
+  it("PROD + PARTIAL SMTP (host, no user/pass) → non-zero exit", () => {
+    const r = gate({ AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_ENC, EMAIL_HOST: "smtp.x.com" });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/PARTIALLY configured/);
+  });
+
+  it("DEV + no email provider → exit 0 (dev/test never blocked)", () => {
+    expect(gate({ AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_ENC }, false).status).toBe(0);
+  });
+
+  it("PROD + http secret-bearing URL → non-zero exit (HTTPS-pin, before traffic)", () => {
+    const r = gate({
+      AUTH_SECRET: REAL_AUTH,
+      ENCRYPTION_KEY: REAL_ENC,
+      RESEND_API_KEY: REAL_RESEND,
+      SUPPLY_AI_BASE_URL: "http://api.akashml.com/v1",
+    });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/SUPPLY_AI_BASE_URL must be an https/);
+    expect(r.stdout + r.stderr).not.toContain("api.akashml.com"); // never prints the URL value
+  });
+
+  it("PROD + https secret-bearing URL → exit 0 (override accepted)", () => {
+    const r = gate({
+      AUTH_SECRET: REAL_AUTH,
+      ENCRYPTION_KEY: REAL_ENC,
+      RESEND_API_KEY: REAL_RESEND,
+      HOSPITABLE_API_BASE_URL: "https://public.api.hospitable.com/v2",
+    });
+    expect(r.status).toBe(0);
+  });
+
+  it("DEV + http secret-bearing URL → exit 0 (dev/test never blocked)", () => {
+    expect(
+      gate(
+        { AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_ENC, SUPPLY_AI_BASE_URL: "http://localhost:9000/v1" },
+        false,
+      ).status,
+    ).toBe(0);
+  });
+
+  it("APP_URL canonical pin (Codex 07-23 #2): prod'da yalnız exact canonical; unset serbest", () => {
+    const secrets = { AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_ENC, RESEND_API_KEY: REAL_RESEND };
+    // Unset → kodun canonical default'u → hata yok.
+    expect(checkProductionEnv({ ...secrets }).errors).toHaveLength(0);
+    // Exact canonical (trailing slash toleranslı) → hata yok.
+    expect(checkProductionEnv({ ...secrets, APP_URL: "https://www.lixusai.com" }).errors).toHaveLength(0);
+    expect(checkProductionEnv({ ...secrets, APP_URL: "https://www.lixusai.com/" }).errors).toHaveLength(0);
+    // .eu de BİZİM origin'imiz — deployment kimliği olarak kabul edilir (kapalı
+    // liste DEPLOYABLE_ORIGINS). Eskiden reddediliyordu ve .eu boot edemiyordu.
+    expect(checkProductionEnv({ ...secrets, APP_URL: "https://www.lixusai.eu" }).errors).toHaveLength(0);
+    // http'li canonical / yabancı origin / sonek hilesi → hata (token linkleri buradan).
+    for (const bad of ["http://www.lixusai.com", "https://evil.example", "https://www.lixusai.com.evil.com"]) {
+      expect(checkProductionEnv({ ...secrets, APP_URL: bad }).errors.join(), `${bad} reddedilmeli`).toMatch(
+        /APP_URL must be one of/,
+      );
+    }
+  });
+
+  it("PROD + kötü APP_URL → non-zero exit; SAĞLANAN değer asla basılmaz", () => {
+    const r = gate({
+      AUTH_SECRET: REAL_AUTH,
+      ENCRYPTION_KEY: REAL_ENC,
+      RESEND_API_KEY: REAL_RESEND,
+      APP_URL: "http://evil-app.example",
+    });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/APP_URL must be one of/);
+    expect(r.stdout + r.stderr).not.toContain("evil-app.example"); // hostile değer asla echo edilmez
+  });
+
+  it("PROD + exact canonical APP_URL → exit 0", () => {
+    const r = gate({
+      AUTH_SECRET: REAL_AUTH,
+      ENCRYPTION_KEY: REAL_ENC,
+      RESEND_API_KEY: REAL_RESEND,
+      APP_URL: "https://www.lixusai.com",
+    });
+    expect(r.status).toBe(0);
+  });
+
+  it("PROD + non-canonical OAuth redirect URI → non-zero exit (provided value not printed)", () => {
+    const r = gate({
+      AUTH_SECRET: REAL_AUTH,
+      ENCRYPTION_KEY: REAL_ENC,
+      RESEND_API_KEY: REAL_RESEND,
+      HOSPITABLE_OAUTH_REDIRECT_URI: "https://evil.example/api/hospitable/oauth/callback",
+    });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/HOSPITABLE_OAUTH_REDIRECT_URI must be exactly/);
+    expect(r.stdout + r.stderr).not.toContain("evil.example"); // the hostile value is never echoed
+  });
+
+  it("PROD + exact canonical OAuth redirect URI → exit 0", () => {
+    const r = gate({
+      AUTH_SECRET: REAL_AUTH,
+      ENCRYPTION_KEY: REAL_ENC,
+      RESEND_API_KEY: REAL_RESEND,
+      HOSPITABLE_OAUTH_REDIRECT_URI: "https://www.lixusai.com/api/hospitable/oauth/callback",
+    });
+    expect(r.status).toBe(0);
+  });
+
+  it("DEV with empty secrets → exit 0 (development/test not blocked)", () => {
+    expect(gate({}, false).status).toBe(0);
+  });
+
+  it("PROD + QR_PIN_ENABLED=1 + missing QR_PIN_PEPPER → non-zero exit", () => {
+    const r = gate({ AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_ENC, QR_PIN_ENABLED: "1" });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/QR_PIN_PEPPER is missing/);
+  });
+
+  it("PROD + QR_PIN_ENABLED=1 + valid distinct QR_PIN_PEPPER → exit 0", () => {
+    const r = gate({ AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_ENC, RESEND_API_KEY: REAL_RESEND, QR_PIN_ENABLED: "1", QR_PIN_PEPPER: REAL_PEPPER });
+    expect(r.status).toBe(0);
+  });
+
+  it("PROD + QR_PIN_ENABLED off + no pepper → exit 0 (env-off deploy never blocked)", () => {
+    expect(gate({ AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_ENC, RESEND_API_KEY: REAL_RESEND }).status).toBe(0);
+  });
+
+  it("never prints a secret VALUE", () => {
+    const r = gate({ AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_AUTH });
+    expect(r.stdout + r.stderr).not.toContain(REAL_AUTH);
+  });
+
+  it("SMOKE: 'Ready' comes ONLY after the gate passes (chain gating proof)", () => {
+    // Proxy for the container start chain: `verify-env && <next start>`. On a bad
+    // env the gate exits non-zero, so the '&&'-chained start step never runs.
+    const bad = spawnSync("sh", ["-c", "node scripts/verify-env.mjs && echo READY"], {
+      env: { ...process.env, NODE_ENV: "production", AUTH_SECRET: "", ENCRYPTION_KEY: "" },
+      encoding: "utf8",
+    });
+    expect(bad.status).toBe(1);
+    expect(bad.stdout).not.toContain("READY");
+
+    const good = spawnSync("sh", ["-c", "node scripts/verify-env.mjs && echo READY"], {
+      env: { ...process.env, NODE_ENV: "production", AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_ENC, RESEND_API_KEY: REAL_RESEND },
+      encoding: "utf8",
+    });
+    expect(good.status).toBe(0);
+    expect(good.stdout).toContain("READY");
+  });
+});
+
+describe("instrumentation.register — no SECOND, conflicting env source", () => {
+  it("does NOT throw on a missing secret in production (the gate moved to prestart)", async () => {
+    vi.stubEnv("NEXT_RUNTIME", "nodejs");
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("INTERNAL_CRON_DISABLED", "1"); // no timers started
+    vi.stubEnv("AUTH_SECRET", "");
+    vi.stubEnv("ENCRYPTION_KEY", "");
+    await expect(register()).resolves.toBeUndefined();
+    vi.unstubAllEnvs();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// İKİ SESSİZ YANLIŞ-YAPILANDIRMA KAPISI (08-08).
+//
+// Ortak nokta: ikisi de bugün HİÇBİR belirti üretmiyordu — sağlık ucu 200
+// dönüyor, alarm çıkmıyor, yalnızca ürün sessizce eksik çalışıyor.
+//
+// Assertion'lar hata listesini REGEX'le süzüyor: aynı çağrıda tetiklenen
+// ilgisiz kapılar (Resend, DATABASE_URL…) testi kirletmesin diye.
+// ---------------------------------------------------------------------------
+describe("boot gate — sessiz yanlış yapılandırma", () => {
+  const BASE = {
+    NODE_ENV: "production",
+    AUTH_SECRET: REAL_AUTH,
+    ENCRYPTION_KEY: REAL_ENC,
+    RESEND_API_KEY: REAL_RESEND,
+    RESEND_FROM: "bildirim@example.com",
+    DATABASE_URL: "postgresql://user@db.example.com:5432/app",
+  };
+  const errorsMatching = (env: Record<string, string>, re: RegExp) =>
+    checkProductionEnv({ ...BASE, ...env }).errors.filter((e) => re.test(e));
+
+  const WHITESPACE = /ENCRYPTION_KEY has leading\/trailing whitespace/;
+  const RETENTION = /DATA_RETENTION_MONTHS is set but is not a number/;
+
+  it("ENCRYPTION_KEY'de baştaki/sondaki boşluk REDDEDİLİR", () => {
+    // `crypto-core.ts key()` env'i HAM okur; boşluklu değer BAŞKA bir anahtar
+    // türetir ve o boşluk sonradan "temizlenirse" her token kalıcı çözülemez olur.
+    expect(errorsMatching({ ENCRYPTION_KEY: REAL_ENC }, WHITESPACE)).toHaveLength(0);
+    expect(errorsMatching({ ENCRYPTION_KEY: `${REAL_ENC}\n` }, WHITESPACE)).toHaveLength(1);
+    expect(errorsMatching({ ENCRYPTION_KEY: ` ${REAL_ENC}` }, WHITESPACE)).toHaveLength(1);
+  });
+
+  it("kaçış kapısı ÖLÜ DEĞİL: ALLOW_ENCRYPTION_KEY_WHITESPACE=1 kapıyı açar", () => {
+    // Bu kapının talep ettiği düzeltme (boşluğu sil) ZATEN veri yazmış bir
+    // kurulumda YASAKTIR → kaçış kapısı olmasaydı tek çıkış kontrolü SİLMEK
+    // olurdu. Kapı çalışmıyorsa bu test kırmızı verir (ölü kaçış kapısı,
+    // repoda BILLING_ALLOW_CANCELED_PLAN_CHANGE emsaliyle aynı sınıf).
+    expect(
+      errorsMatching(
+        { ENCRYPTION_KEY: `${REAL_ENC}\n`, ALLOW_ENCRYPTION_KEY_WHITESPACE: "1" },
+        WHITESPACE,
+      ),
+    ).toHaveLength(0);
+    // Bayrak SADECE bu kapıyı açar — AUTH_SECRET'a eşitlik hâlâ reddedilir.
+    expect(
+      checkProductionEnv({
+        ...BASE,
+        ENCRYPTION_KEY: REAL_AUTH,
+        ALLOW_ENCRYPTION_KEY_WHITESPACE: "1",
+      }).errors.some((e) => /independent of AUTH_SECRET/.test(e)),
+    ).toBe(true);
+  });
+
+  it("kapı hiçbir hâlde anahtarın DEĞERİNİ yazmaz", () => {
+    const all = checkProductionEnv({ ...BASE, ENCRYPTION_KEY: `${REAL_ENC}\n` });
+    expect([...all.errors, ...all.warnings].join("\n")).not.toContain(REAL_ENC);
+  });
+
+  it("DATA_RETENTION_MONTHS: yalnızca SAYIYA ÇEVRİLEMEYEN değer reddedilir", () => {
+    // `Number("24 ay")` = NaN → `retentionCutoff()` null → hem anonimleştirme
+    // hem sync'in yeniden-içe-aktarma koruması SESSİZCE kapanır (aynı ifadeye bağlılar).
+    expect(errorsMatching({}, RETENTION)).toHaveLength(0); // hiç set değil
+    expect(errorsMatching({ DATA_RETENTION_MONTHS: "24" }, RETENTION)).toHaveLength(0);
+    for (const bad of ["24 ay", "yirmidört", "Infinity", "abc"]) {
+      expect(errorsMatching({ DATA_RETENTION_MONTHS: bad }, RETENTION)).toHaveLength(1);
+    }
+  });
+
+  it("🚨 KAPI ÇALIŞMA-ZAMANINDAN SIKI OLAMAZ: kapalı-demek-isteyen değerler boot'u BLOKLAMAZ", () => {
+    // Çalışma zamanı (`data-retention.ts:66,77`) `!Number.isFinite(m) || m <= 0`
+    // diyor: "0" ve "-1" KAPALI demektir, "24.5" ise ÇALIŞIR. İlk yazdığım kapı
+    // üçünü de reddediyordu → operatör retention'ı kapatmak için "0" yazsa
+    // CANLI KURULUM BAŞLAYAMAZDI (prestart her konteyner açılışında koşar).
+    // Bu test o gerilemeyi geri getirmeyi imkânsızlaştırır.
+    for (const acceptedByRuntime of ["0", "-1", "24.5"]) {
+      expect(errorsMatching({ DATA_RETENTION_MONTHS: acceptedByRuntime }, RETENTION)).toHaveLength(0);
+    }
+  });
+});
+
+describe("boot gate — Sentry adresi şifreli olmalı (eski denetim DEN#27, 10-11 gece)", () => {
+  const BASE = {
+    NODE_ENV: "production",
+    AUTH_SECRET: REAL_AUTH,
+    ENCRYPTION_KEY: REAL_ENC,
+    RESEND_API_KEY: REAL_RESEND,
+    RESEND_FROM: "bildirim@example.com",
+    DATABASE_URL: "postgresql://user@db.example.com:5432/app",
+  };
+  const sentryWarnings = (dsn: string) => checkProductionEnv({ ...BASE, SENTRY_DSN: dsn }).warnings.filter((w) => /SENTRY_DSN/.test(w));
+
+  it("🚨 http:// adres → UYARI (hata olayları gönderilmez; açılışı durdurmaz)", () => {
+    expect(sentryWarnings("http://pubkey@o1.ingest.sentry.io/2")).toHaveLength(1);
+  });
+
+  it("anahtarı ya da proje numarası eksik https adresi de UYARI (Haiku incelemesi 10-11)", () => {
+    expect(sentryWarnings("https://o1.ingest.sentry.io/2")).toHaveLength(1);
+    expect(sentryWarnings("https://pubkey@o1.ingest.sentry.io")).toHaveLength(1);
+    expect(sentryWarnings("https://")).toHaveLength(1);
+  });
+
+  it("KONTROL: https adres → uyarı yok; boş → yalnız 'ayarlı değil' uyarısı (altyapı envanteri 10-21), biçim uyarısı yok; uyarı adresi (anahtarı) basmaz", () => {
+    expect(sentryWarnings("https://pubkey@o1.ingest.sentry.io/2")).toEqual([]);
+    expect(sentryWarnings("")).toEqual([expect.stringMatching(/^SENTRY_DSN is not set/)]);
+    expect(sentryWarnings("http://gizlianahtar@o1.ingest.sentry.io/2").join(" ")).not.toContain("gizlianahtar");
+  });
+});
+
+describe("kimlik e-postası kuyruğu kapalıyken şifre sıfırlama e-postası gitmez → açılışta uyarı (10-16 kuyruk envanteri)", () => {
+  const base = { AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_ENC, RESEND_API_KEY: REAL_RESEND };
+  const outboxWarnings = (extra: Record<string, string>) =>
+    checkProductionEnv({ ...base, ...extra }).warnings.filter((w) => w.startsWith("EMAIL_OUTBOX_ENABLED is not 1"));
+  it("bayrak yok / 0 / true → uyarı; yalnız '1' → uyarı yok; hata DEĞİL (açılış engellenmez)", () => {
+    expect(outboxWarnings({})).toHaveLength(1);
+    expect(outboxWarnings({ EMAIL_OUTBOX_ENABLED: "0" })).toHaveLength(1);
+    expect(outboxWarnings({ EMAIL_OUTBOX_ENABLED: "true" })).toHaveLength(1);
+    expect(outboxWarnings({ EMAIL_OUTBOX_ENABLED: "1" })).toEqual([]);
+    expect(checkProductionEnv({ ...base }).errors.join("\n")).not.toContain("EMAIL_OUTBOX_ENABLED");
+  });
+});
+
+describe("ödeme yapılandırması tutarlılığı (gece-4 S2-07) — uyarı, açılışı durdurmaz", () => {
+  const base = { AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_ENC, RESEND_API_KEY: REAL_RESEND };
+  const warns = (env: Record<string, string>) => checkProductionEnv({ ...base, ...env }).warnings.join("\n");
+
+  it("BILLING_ENFORCED açık + satın alma kurulmamış → uyarı; kurulu → uyarı yok; kapalı → uyarı yok", () => {
+    expect(warns({ BILLING_ENFORCED: "true" })).toMatch(/BILLING_ENFORCED is on but checkout is not configured/);
+    expect(warns({ BILLING_ENFORCED: "1", NEXT_PUBLIC_PADDLE_CLIENT_TOKEN: "live_x" })).toMatch(/checkout is not configured/);
+    expect(warns({ BILLING_ENFORCED: "true", NEXT_PUBLIC_PADDLE_CLIENT_TOKEN: "live_x", PADDLE_PRICE_PRO: "pri_1" })).not.toMatch(/checkout is not configured/);
+    expect(warns({})).not.toMatch(/checkout is not configured/);
+  });
+
+  it("sunucu ve tarayıcı Paddle ortamı farklıysa uyarı; aynıysa ya da biri boşsa uyarı yok", () => {
+    expect(warns({ PADDLE_ENV: "production", NEXT_PUBLIC_PADDLE_ENV: "sandbox" })).toMatch(/PADDLE_ENV \(production\) and NEXT_PUBLIC_PADDLE_ENV \(sandbox\) disagree/);
+    expect(warns({ PADDLE_ENV: "production", NEXT_PUBLIC_PADDLE_ENV: "production" })).not.toMatch(/disagree/);
+    expect(warns({ PADDLE_ENV: "production" })).not.toMatch(/disagree/);
+    expect(checkProductionEnv({ ...base, PADDLE_ENV: "production", NEXT_PUBLIC_PADDLE_ENV: "sandbox", BILLING_ENFORCED: "true" }).errors).toEqual([]);
+  });
+});

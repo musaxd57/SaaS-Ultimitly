@@ -1,0 +1,647 @@
+diff --git a/prisma/migrations/83_property_guest_display_name/migration.sql b/prisma/migrations/83_property_guest_display_name/migration.sql
+new file mode 100644
+index 00000000..a21839c8
+--- /dev/null
++++ b/prisma/migrations/83_property_guest_display_name/migration.sql
+@@ -0,0 +1,2 @@
++-- U4 (kurucu 10-22): misafire görünen daire adı — QR sohbet başlığı. Boş olabilen tek sütun; dolu tabloya güvenli (varsayılan yok, NULL).
++ALTER TABLE "Property" ADD COLUMN "guestDisplayName" TEXT;
+diff --git a/prisma/schema.prisma b/prisma/schema.prisma
+index 13b7b95b..d6fdb8d5 100644
+--- a/prisma/schema.prisma
++++ b/prisma/schema.prisma
+@@ -360,6 +360,9 @@ model Property {
+   checkOutTime          String   @default("11:00")
+   cleaningBufferMinutes Int      @default(120)
+   notes                 String?
++  // Misafire görünen ad (U4, kurucu 10-22; migration 83): QR sohbet başlığı "<ad> · Misafir Asistanı". Boş → yalnız marka. İç ad (`name`)
++  // herkese açık sayfaya ASLA çıkmaz. Yazım / okuma kuralı tek kaynak `lib/guest-display-name.ts`. Additive & nullable.
++  guestDisplayName      String?
+   // Supply/linen prep profile: JSON object { supplyItemKey: qtyPerArrival } the host
+   // fills once (e.g. {"carsaf_takimi":2,"havlu":4,"cop_poseti":2}). Drives the
+   // deterministic prep/shopping plan (arrivals-in-range × this). Null = not set →
+diff --git a/src/app/(app)/guest-chats/[id]/misafir-ekrani/page.tsx b/src/app/(app)/guest-chats/[id]/misafir-ekrani/page.tsx
+index a0e833df..95926bdd 100644
+--- a/src/app/(app)/guest-chats/[id]/misafir-ekrani/page.tsx
++++ b/src/app/(app)/guest-chats/[id]/misafir-ekrani/page.tsx
+@@ -16,6 +16,8 @@ import {
+   GuestChatThread,
+   type GuestChatMessage,
+ } from "@/components/guest-chat/guest-chat-thread";
++import { GUEST_COPY } from "@/components/guest-chat/guest-chat-copy";
++import { normalizeGuestDisplayName } from "@/lib/guest-display-name";
+ 
+ export const dynamic = "force-dynamic";
+ 
+@@ -47,7 +49,7 @@ export default async function GuestScreenPreviewPage({ params }: { params: Promi
+     select: {
+       id: true,
+       externalReservationId: true,
+-      property: { select: { id: true, name: true, chatToken: true } },
++      property: { select: { id: true, name: true, chatToken: true, guestDisplayName: true } },
+       messages: {
+         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+         take: GUEST_CHAT_MESSAGE_WINDOW,
+@@ -56,6 +58,9 @@ export default async function GuestScreenPreviewPage({ params }: { params: Promi
+     },
+   });
+   if (!convo) notFound();
++  // U4: misafirin gördüğü başlığın aynısı ("<misafire görünen ad> · Misafir Asistanı"; ad yoksa yalnız marka).
++  const placeName = normalizeGuestDisplayName(convo.property.guestDisplayName);
++  const previewTitle = placeName ? GUEST_COPY.tr.titleFor(placeName) : GUEST_ASSISTANT_TITLE;
+ 
+   const messages: GuestChatMessage[] = convo.messages
+     .slice()
+@@ -95,7 +100,7 @@ export default async function GuestScreenPreviewPage({ params }: { params: Promi
+       {/* Telefon çerçevesi: misafirin ekranıyla aynı başlık / akış / altbilgi. */}
+       <div className="mx-auto flex w-full max-w-sm flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-sm">
+         <header className="border-b border-border bg-card px-4 py-3">
+-          <p className="text-sm font-semibold">{GUEST_ASSISTANT_TITLE}</p>
++          <p className="text-sm font-semibold">{previewTitle}</p>
+           <p className="text-xs text-muted-foreground">{GUEST_CHAT_DISCLOSURE}</p>
+         </header>
+         <div className="max-h-[60vh] space-y-3 overflow-y-auto px-4 py-4">
+diff --git a/src/app/(app)/properties/[id]/page.tsx b/src/app/(app)/properties/[id]/page.tsx
+index 8e91244b..d73b4e03 100644
+--- a/src/app/(app)/properties/[id]/page.tsx
++++ b/src/app/(app)/properties/[id]/page.tsx
+@@ -299,6 +299,7 @@ export default async function PropertyDetailPage({
+                   checkOutTime: property.checkOutTime,
+                   cleaningBufferMinutes: property.cleaningBufferMinutes,
+                   notes: property.notes ?? "",
++                  guestDisplayName: property.guestDisplayName ?? "",
+                 }}
+               />
+               {/* Para içeren ayarlar (gecelik aralık, erken giriş ücreti) YALNIZ yöneticiye görünür — kurucu: temizlik
+diff --git a/src/app/api/properties/[id]/route.ts b/src/app/api/properties/[id]/route.ts
+index e675d240..cc746591 100644
+--- a/src/app/api/properties/[id]/route.ts
++++ b/src/app/api/properties/[id]/route.ts
+@@ -9,6 +9,7 @@ import { earlyCheckinRuleWhere } from "@/lib/early-checkin/rules";
+ import { houseRulesWhere } from "@/lib/house-rules/store";
+ import { STORAGE_PHOTO_URL_PREFIX } from "@/lib/storage/keys";
+ import { enqueueUnreferencedPhotoDeletions } from "@/lib/storage/deletion-queue";
++import { normalizeGuestDisplayName } from "@/lib/guest-display-name";
+ 
+ // ⚠️ GİZLİ TOKEN'LAR YANITTAN ÇIKARILIR — GERİ EKLEME.
+ // `icalToken` takvim beslemesinin, `chatToken` QR concierge'in TEK kimlik
+@@ -78,6 +79,8 @@ export const PATCH = withManage<{ id: string }>(async (session, req, { params })
+       checkOutTime: d.checkOutTime,
+       cleaningBufferMinutes: d.cleaningBufferMinutes,
+       notes: d.notes === "" ? null : d.notes,
++      // U4: misafire görünen ad — gönderilmediyse dokunulmaz, boş → temizlenir (başlık yalnız marka).
++      guestDisplayName: d.guestDisplayName === undefined ? undefined : normalizeGuestDisplayName(d.guestDisplayName),
+       // Only touch the profile when the client actually sent one (partial PATCH).
+       supplyProfileJson:
+         d.supplyProfile === undefined ? undefined : serializeSupplyProfile(d.supplyProfile),
+diff --git a/src/app/api/properties/route.ts b/src/app/api/properties/route.ts
+index 3804cd58..0c3e5c3e 100644
+--- a/src/app/api/properties/route.ts
++++ b/src/app/api/properties/route.ts
+@@ -1,5 +1,6 @@
+ import { prisma } from "@/lib/db";
+ import { propertySchema, zodFieldErrors } from "@/lib/validators";
++import { normalizeGuestDisplayName } from "@/lib/guest-display-name";
+ import { badRequest, jsonOk, forbidden, readJsonCappedOrNull } from "@/lib/api";
+ import { withManage } from "@/lib/route-guard";
+ import { generateCalendarToken } from "@/lib/export/ics";
+@@ -68,6 +69,7 @@ export const POST = withManage(async (session, req) => {
+     checkInTime: d.checkInTime,
+     checkOutTime: d.checkOutTime,
+     cleaningBufferMinutes: d.cleaningBufferMinutes,
++    guestDisplayName: normalizeGuestDisplayName(d.guestDisplayName),
+     notes: d.notes || null,
+     icalToken: generateCalendarToken(),
+   };
+diff --git a/src/app/c/[token]/page.tsx b/src/app/c/[token]/page.tsx
+index 1515f131..55bfaa75 100644
+--- a/src/app/c/[token]/page.tsx
++++ b/src/app/c/[token]/page.tsx
+@@ -64,5 +64,6 @@ export default async function GuestChatPage({ params }: { params: Promise<{ toke
+     );
+   }
+ 
+-  return <GuestChat token={token} locale={locale} />;
++  // U4: yalnız açık sohbette (ve kod ekranında) misafire görünen ad; "kullanılamıyor / aktif konaklama yok" ekranları yalnız marka.
++  return <GuestChat token={token} locale={locale} placeName={ctx.property.guestDisplayName} />;
+ }
+diff --git a/src/components/guest-chat/guest-chat-copy.ts b/src/components/guest-chat/guest-chat-copy.ts
+index c1602efa..bd963f9b 100644
+--- a/src/components/guest-chat/guest-chat-copy.ts
++++ b/src/components/guest-chat/guest-chat-copy.ts
+@@ -36,6 +36,8 @@ export function guestLocaleFromAcceptLanguage(header: string | null | undefined)
+ 
+ export interface GuestChatCopy {
+   title: string;
++  /** U4: ev sahibi "misafire görünen ad" girdiyse başlık "<ad> · Misafir Asistanı" (iç mülk adı ASLA). */
++  titleFor: (place: string) => string;
+   disclosure: string;
+   intro: string;
+   closed: string;
+@@ -73,6 +75,7 @@ export const GUEST_COPY: Record<GuestLocale, GuestChatCopy> = {
+   tr: {
+     // Sabit marka adı — iç mülk adı (ev sahibinin özel etiketi) bu herkese açık sayfaya ASLA çıkmaz.
+     title: "Lixus AI Misafir Asistanı",
++    titleFor: (place) => `${place} · Misafir Asistanı`,
+     disclosure: "Yanıtlar yapay zekâ tarafından hazırlanabilir. Gerektiğinde işletme ekibi görüşmeye katılabilir.",
+     intro: "Merhaba! 👋 Konaklamanızla ilgili sorularınızı (çöp günü, cihazlar, kurallar, çevre önerileri…) buraya yazabilirsiniz.",
+     closed: "Konaklamanız sona erdiği için sohbet kapandı. İyi günler dileriz!",
+@@ -109,6 +112,7 @@ export const GUEST_COPY: Record<GuestLocale, GuestChatCopy> = {
+   },
+   en: {
+     title: "Lixus AI Guest Assistant",
++    titleFor: (place) => `${place} · Guest Assistant`,
+     disclosure: "Replies may be prepared by AI. The host team can join the conversation when needed.",
+     intro: "Hello! 👋 You can ask questions about your stay here (rubbish days, appliances, house rules, local tips…).",
+     closed: "Your stay has ended, so this chat is now closed. Have a great day!",
+diff --git a/src/components/guest-chat/guest-chat.tsx b/src/components/guest-chat/guest-chat.tsx
+index ae6dac51..b2003174 100644
+--- a/src/components/guest-chat/guest-chat.tsx
++++ b/src/components/guest-chat/guest-chat.tsx
+@@ -21,9 +21,19 @@ const STALL_AFTER_FAILURES = 3;
+  * No PII or access codes are shown here; the access codes live in the
+  * Airbnb-native check-in flow, never on this public surface.
+  */
+-export function GuestChat({ token, locale = "tr" }: { token: string; locale?: GuestLocale }) {
++export function GuestChat({
++  token,
++  locale = "tr",
++  placeName,
++}: {
++  token: string;
++  locale?: GuestLocale;
++  /** U4: ev sahibinin "misafire görünen ad"ı (sunucuda normalleştirilmiş). Yoksa başlık yalnız marka. */
++  placeName?: string | null;
++}) {
+   // Ekran dili sunucuda `Accept-Language`tan seçilir (kurucu 10-22 U2); yapay zekânın cevabı zaten misafirin dilinde.
+   const t = GUEST_COPY[locale];
++  const title = placeName ? t.titleFor(placeName) : t.title;
+   const [messages, setMessages] = useState<ChatMessage[]>([]);
+   const [input, setInput] = useState("");
+   const [sending, setSending] = useState(false);
+@@ -287,7 +297,7 @@ export function GuestChat({ token, locale = "tr" }: { token: string; locale?: Gu
+       <div lang={locale} className="mx-auto flex min-h-screen max-w-lg flex-col items-center justify-center gap-4 bg-background px-6 text-center">
+         <div className="w-full max-w-xs space-y-4 rounded-lg border border-border bg-card p-6">
+           <div>
+-            <p className="text-base font-semibold">{t.title}</p>
++            <p className="text-base font-semibold">{title}</p>
+             <p className="mt-1 text-sm text-muted-foreground">{t.pinPrompt}</p>
+           </div>
+           <form
+@@ -329,7 +339,7 @@ export function GuestChat({ token, locale = "tr" }: { token: string; locale?: Gu
+   return (
+     <div lang={locale} className="mx-auto flex min-h-dvh max-w-lg flex-col bg-background">
+       <header className="border-b border-border bg-card px-4 py-3">
+-        <p className="text-sm font-semibold">{t.title}</p>
++        <p className="text-sm font-semibold">{title}</p>
+         {/* One-time disclosure — shown ONCE here, never repeated under each message. */}
+         <p className="text-xs text-muted-foreground">{t.disclosure}</p>
+       </header>
+diff --git a/src/components/properties/property-form.tsx b/src/components/properties/property-form.tsx
+index 3ce586c6..6b37bc88 100644
+--- a/src/components/properties/property-form.tsx
++++ b/src/components/properties/property-form.tsx
+@@ -20,6 +20,8 @@ export interface PropertyFormData {
+   checkOutTime: string;
+   cleaningBufferMinutes: number;
+   notes: string;
++  /** U4: misafire görünen ad (QR başlığı). Boş = başlıkta yalnız marka. */
++  guestDisplayName: string;
+ }
+ 
+ const empty: PropertyFormData = {
+@@ -31,6 +33,7 @@ const empty: PropertyFormData = {
+   checkOutTime: "11:00",
+   cleaningBufferMinutes: 120,
+   notes: "",
++  guestDisplayName: "",
+ };
+ 
+ export function PropertyForm({
+@@ -97,6 +100,20 @@ export function PropertyForm({
+         <Input id="name" value={form.name} onChange={(e) => set("name", e.target.value)} required />
+       </Field>
+ 
++      <Field
++        label="Misafire görünen ad (isteğe bağlı)"
++        htmlFor="guestDisplayName"
++        error={fields.guestDisplayName}
++        hint="Misafir sohbet ekranının başlığında görünür. Yukarıdaki mülk adı misafire hiç gösterilmez."
++      >
++        <Input
++          id="guestDisplayName"
++          value={form.guestDisplayName}
++          onChange={(e) => set("guestDisplayName", e.target.value)}
++          placeholder="ör. Deniz Manzaralı Daire"
++        />
++      </Field>
++
+       <Field label="Adres" htmlFor="address" error={fields.address}>
+         <Input id="address" value={form.address} onChange={(e) => set("address", e.target.value)} />
+       </Field>
+diff --git a/src/lib/data-export.ts b/src/lib/data-export.ts
+index 50377b7f..bc74a501 100644
+--- a/src/lib/data-export.ts
++++ b/src/lib/data-export.ts
+@@ -135,6 +135,7 @@ export async function buildOrganizationDataExport(organizationId: string) {
+             checkInTime: true,
+             checkOutTime: true,
+             notes: true,
++            guestDisplayName: true,
+             createdAt: true,
+             // FEED URL IS A CAPABILITY SECRET — never exported verbatim.
+             // Anyone holding it can read the property's booking calendar from
+diff --git a/src/lib/guest-chat.ts b/src/lib/guest-chat.ts
+index 56dfb75d..8839b5a0 100644
+--- a/src/lib/guest-chat.ts
++++ b/src/lib/guest-chat.ts
+@@ -10,6 +10,7 @@ import { ANON_NAME } from "@/lib/data-retention";
+ import { isUniqueViolation } from "@/lib/db-errors";
+ import { countPriorOperatorReplies } from "@/lib/operator-replies";
+ import { qrPinEnabled } from "@/lib/guest-chat-pin";
++import { normalizeGuestDisplayName } from "@/lib/guest-display-name";
+ import { fetchKnowledgeBaseForPrompt } from "@/lib/ai/kb-fetch";
+ import { styleProfileBody } from "@/lib/ai/style-profile";
+ import { contextDiagnostics, type ContextDiagnostics } from "@/lib/ai/context-diagnostics";
+@@ -952,6 +953,8 @@ export interface GuestChatContext {
+     checkOutTime: string;
+     address: string | null;
+     city: string | null;
++    /** Misafire görünen ad (U4) — QR başlığı. İç ad (`name`) ekrana ASLA çıkmaz; boş → yalnız marka. */
++    guestDisplayName: string | null;
+   };
+   /** True only during an active stay (arrival day → checkOutTime on departure day,
+    *  Istanbul). When false the chat is closed (vacant / before check-in / after
+@@ -1381,6 +1384,7 @@ export async function resolveGuestChat(
+       checkOutTime: true,
+       address: true,
+       city: true,
++      guestDisplayName: true,
+       chatEnabled: true,
+       // Org strict-mode toggle (Faz 5): when on, EVERY not-yet-claimed stay needs
+       // a PIN. Read here so the PIN gate is computed in one place. timezone: the
+@@ -1410,6 +1414,8 @@ export async function resolveGuestChat(
+     checkOutTime: property.checkOutTime,
+     address: property.address,
+     city: property.city,
++    // Okurken de aynı kural (elle DB'ye yazılmış görünmez karakter / uzun değer başlığa taşmasın).
++    guestDisplayName: normalizeGuestDisplayName(property.guestDisplayName),
+   };
+ 
+   // OPEN only during an active stay: from the arrival day through the property's
+diff --git a/src/lib/guest-display-name.ts b/src/lib/guest-display-name.ts
+new file mode 100644
+index 00000000..fec7cb58
+--- /dev/null
++++ b/src/lib/guest-display-name.ts
+@@ -0,0 +1,40 @@
++/**
++ * Misafire görünen daire adı (U4, kurucu 10-22: "Ayrı 'misafire görünen ad'"). QR sohbet ekranının başlığı
++ * "<ad> · Misafir Asistanı" olur. İç ad (`Property.name` — "Daire 5 / arka cephe" gibi ev sahibinin kendi etiketi) bu herkese açık
++ * sayfaya ASLA çıkmaz; ev sahibi bu alanı doldurmazsa başlık bugünkü gibi yalnız marka.
++ *
++ * YAPRAK modül (hiçbir şey import etmez): hem doğrulayıcı / rota (yazarken) hem QR çözümleyici (okurken) aynı kuralı kullanır.
++ * Saf, doğrusal (karesel iş yok).
++ */
++export const GUEST_DISPLAY_NAME_MAX = 60;
++
++/**
++ * Temizlenmiş biçim (TAVANSIZ): NFC, satır sonu / denetim karakteri → boşluk, görünmez karakter silinir (emoji birleştiricisi ZWJ ve
++ * emoji biçim seçicisi korunur — "👨‍👩‍👧" bölünmesin), ardışık boşluk teke iner, kırpılır.
++ */
++function cleanGuestDisplayName(input: string): string {
++  return input
++    .normalize("NFC")
++    .replace(/[\p{Cc}\u2028\u2029]/gu, " ")
++    .replace(/(?![\u200d\ufe0f])[\p{Cf}\p{Default_Ignorable_Code_Point}\u2800]/gu, "")
++    .replace(/\s+/g, " ")
++    .trim();
++}
++
++/**
++ * Doğrulama: temizlendikten sonra `GUEST_DISPLAY_NAME_MAX` KARAKTERİ (kod noktası) aşıyor mu. Form / rota bunu kullanır — ham uzunluk
++ * (UTF-16 birimi) değil: emoji iki birim sayılıp kısa ad reddedilmesin, görünmez karakterle şişirilmiş kısa ad da reddedilmesin (Haiku 10-22).
++ */
++export function guestDisplayNameTooLong(input: string): boolean {
++  return Array.from(cleanGuestDisplayName(input)).length > GUEST_DISPLAY_NAME_MAX;
++}
++
++/**
++ * Kaydedilecek / gösterilecek biçim: temizlenmiş, en fazla `GUEST_DISPLAY_NAME_MAX` karakter. Boş → null (alan temizlenir, başlık yalnız
++ * marka). Okurken de aynı kural (elle yazılmış değer başlığa taşmasın).
++ */
++export function normalizeGuestDisplayName(input: unknown): string | null {
++  if (typeof input !== "string") return null;
++  const capped = Array.from(cleanGuestDisplayName(input)).slice(0, GUEST_DISPLAY_NAME_MAX).join("").trimEnd();
++  return capped.length > 0 ? capped : null;
++}
+diff --git a/src/lib/validators.ts b/src/lib/validators.ts
+index 655e1f90..4ac9eaeb 100644
+--- a/src/lib/validators.ts
++++ b/src/lib/validators.ts
+@@ -1,6 +1,7 @@
+ import { z } from "zod";
+ import { installTurkishZodErrors } from "@/lib/zod-tr";
+ import { PASSWORD_TOO_LONG_MESSAGE, passwordExceedsByteLimit } from "@/lib/auth/password-policy";
++import { GUEST_DISPLAY_NAME_MAX, guestDisplayNameTooLong } from "@/lib/guest-display-name";
+ 
+ // ⚠️ MODÜL SEVİYESİNDE, BİLİNÇLİ BİR YAN ETKİ (08-06). Zod'un VARSAYILAN hata
+ // metinleri İngilizce ve doğrudan müşterinin ekranına çıkıyordu ("String must
+@@ -97,6 +98,14 @@ export const propertySchema = z.object({
+   checkOutTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "SS:DD formatında olmalı (00:00–23:59)").default("11:00"),
+   cleaningBufferMinutes: z.coerce.number().int().min(0).max(1440).default(120),
+   notes: z.string().max(5000).optional().or(z.literal("")),
++  // U4 (kurucu 10-22): misafire görünen ad — QR başlığı. Kaydederken `normalizeGuestDisplayName` (görünmez karakter / boşluk temizliği).
++  // Uzunluk TEMİZLENMİŞ ada göre (emoji / görünmez karakter ham sayıyı şişirmesin); ham tavan yalnız aşırı büyük gövdeye karşı.
++  guestDisplayName: z
++    .string()
++    .max(1000)
++    .refine((v) => !guestDisplayNameTooLong(v), `En fazla ${GUEST_DISPLAY_NAME_MAX} karakter olabilir.`)
++    .optional()
++    .or(z.literal("")),
+   // Supply/linen prep profile: qty-per-arrival for known items only. Partial (any
+   // subset of keys), each 0–999. Unknown keys are rejected so a bad client can't
+   // stuff arbitrary data into the JSON column.
+diff --git a/tests/integration/guest-screen-preview.test.ts b/tests/integration/guest-screen-preview.test.ts
+index e17cc8e0..28d93d27 100644
+--- a/tests/integration/guest-screen-preview.test.ts
++++ b/tests/integration/guest-screen-preview.test.ts
+@@ -149,6 +149,16 @@ describe("K14 — misafirin gördüğü ekran (salt okunur önizleme)", () => {
+     for (const t of ["form", "textarea", "input", "button"]) expect(types, t).not.toContain(t);
+   });
+ 
++  it("U4: başlık misafirin gördüğünün aynısı — misafire görünen ad varsa '<ad> · Misafir Asistanı', yoksa marka; iç ad ASLA", async () => {
++    const { conversation, property } = await seed();
++    let { text } = await render(conversation.id);
++    expect(text).toContain("Lixus AI Misafir Asistanı");
++    await prisma.property.update({ where: { id: property.id }, data: { guestDisplayName: "Deniz Manzaralı" } });
++    ({ text } = await render(conversation.id));
++    expect(text).toContain("Deniz Manzaralı · Misafir Asistanı");
++    expect(text).not.toContain("Lixus AI Misafir Asistanı");
++  });
++
+   it("🚨 sayfa HİÇBİR satır yazmaz (cihaz bağlama / okundu / sayaç / kayıt yok)", async () => {
+     const { conversation } = await seed();
+     const before = await dbSnapshot();
+diff --git a/tests/integration/property-guest-display-name.test.ts b/tests/integration/property-guest-display-name.test.ts
+new file mode 100644
+index 00000000..a577c934
+--- /dev/null
++++ b/tests/integration/property-guest-display-name.test.ts
+@@ -0,0 +1,159 @@
++import { describe, it, expect, beforeEach, afterAll, vi } from "vitest";
++import type React from "react";
++import { NextRequest } from "next/server";
++import { prisma, resetDb, daysFromNow } from "../helpers/db";
++import type { SessionPayload } from "@/lib/auth";
++
++// ---------------------------------------------------------------------------
++// U4 (kurucu 10-22, migration 83): "misafire görünen ad" — QR sohbet başlığı. Mülk ayarlarından kaydedilir / temizlenir, uzun ad
++// reddedilir, görünmez karakter temizlenir; QR sayfası YALNIZ bu alanı başlığa verir (iç mülk adı `name` ASLA), "aktif konaklama yok"
++// ekranı yalnız marka; KVKK dışa aktarımında yer alır.
++// ---------------------------------------------------------------------------
++
++let session: SessionPayload;
++vi.mock("@/lib/api", async (orig) => {
++  const actual = await orig<typeof import("@/lib/api")>();
++  return { ...actual, requireSession: vi.fn(async () => session) };
++});
++vi.mock("@/lib/ai", () => ({ suggestReply: vi.fn() }));
++vi.mock("next/headers", () => ({
++  headers: async () => new Map([["accept-language", "tr-TR"], ["host", "localhost:3000"]]),
++}));
++
++import { PATCH } from "@/app/api/properties/[id]/route";
++import { POST as CREATE } from "@/app/api/properties/route";
++import { resolveGuestChat, generateChatToken } from "@/lib/guest-chat";
++import { buildOrganizationDataExport } from "@/lib/data-export";
++import GuestChatPage from "@/app/c/[token]/page";
++
++const ORIGINAL_ENV = process.env.GUEST_CHAT_ENABLED;
++afterAll(() => {
++  if (ORIGINAL_ENV === undefined) delete process.env.GUEST_CHAT_ENABLED;
++  else process.env.GUEST_CHAT_ENABLED = ORIGINAL_ENV;
++});
++
++function patch(id: string, body: unknown) {
++  return PATCH(
++    new NextRequest(`http://localhost/api/properties/${id}`, {
++      method: "PATCH",
++      headers: { "content-type": "application/json" },
++      body: JSON.stringify(body),
++    }),
++    { params: Promise.resolve({ id }) },
++  );
++}
++
++describe("U4 — misafire görünen ad", () => {
++  let orgId: string;
++  let propertyId: string;
++
++  beforeEach(async () => {
++    await resetDb();
++    process.env.GUEST_CHAT_ENABLED = "1";
++    const org = await prisma.organization.create({ data: { name: "Org" } });
++    orgId = org.id;
++    const p = await prisma.property.create({ data: { organizationId: orgId, name: "Daire 5 / arka cephe" } });
++    propertyId = p.id;
++    // Denetim kaydı gerçek kullanıcıya bağlanır (FK) — oturum gerçek sahibin kimliğini taşır.
++    const owner = await prisma.user.create({ data: { organizationId: orgId, name: "O", email: "o@x.com", passwordHash: "x", role: "owner" } });
++    session = { userId: owner.id, organizationId: orgId, role: "owner", email: "o@x.com", name: "O", sessionEpoch: 0 };
++  });
++
++  it("kaydedilir (görünmez karakter / boşluk temizlenmiş), boş gönderilince temizlenir, gönderilmezse dokunulmaz", async () => {
++    let res = await patch(propertyId, { guestDisplayName: "  Deniz​ Manzaralı   Daire " });
++    expect(res.status).toBe(200);
++    expect((await prisma.property.findUniqueOrThrow({ where: { id: propertyId } })).guestDisplayName).toBe("Deniz Manzaralı Daire");
++
++    res = await patch(propertyId, { notes: "iç not" });
++    expect(res.status).toBe(200);
++    expect((await prisma.property.findUniqueOrThrow({ where: { id: propertyId } })).guestDisplayName).toBe("Deniz Manzaralı Daire");
++
++    res = await patch(propertyId, { guestDisplayName: "" });
++    expect(res.status).toBe(200);
++    expect((await prisma.property.findUniqueOrThrow({ where: { id: propertyId } })).guestDisplayName).toBeNull();
++  });
++
++  it("60 karakterden uzun ad reddedilir (sade hata), hiçbir şey yazılmaz; denetim kaydı alan adını taşır", async () => {
++    const res = await patch(propertyId, { guestDisplayName: "a".repeat(61) });
++    expect(res.status).toBe(400);
++    const body = (await res.json()) as { fields?: Record<string, string> };
++    expect(body.fields?.guestDisplayName).toBe("En fazla 60 karakter olabilir.");
++    expect((await prisma.property.findUniqueOrThrow({ where: { id: propertyId } })).guestDisplayName).toBeNull();
++
++    // Uzunluk temizlenmiş karaktere göre: 40 emoji (80 UTF-16 birimi) kabul edilir (Haiku 10-22).
++    const emoji = await patch(propertyId, { guestDisplayName: "🏖".repeat(40) });
++    expect(emoji.status).toBe(200);
++    expect((await prisma.property.findUniqueOrThrow({ where: { id: propertyId } })).guestDisplayName).toBe("🏖".repeat(40));
++
++    await patch(propertyId, { guestDisplayName: "Bahçeli Daire" });
++    const audit = await prisma.auditLog.findFirstOrThrow({
++      where: { organizationId: orgId, action: "property.updated" },
++      orderBy: { createdAt: "desc" },
++    });
++    expect(audit.metadataJson).toContain("guestDisplayName");
++    expect(audit.metadataJson).not.toContain("Bahçeli");
++  });
++
++  it("personel değiştiremez (403)", async () => {
++    session = { ...session, role: "staff" };
++    const res = await patch(propertyId, { guestDisplayName: "X Daire" });
++    expect(res.status).toBe(403);
++    expect((await prisma.property.findUniqueOrThrow({ where: { id: propertyId } })).guestDisplayName).toBeNull();
++  });
++
++  it("mülk oluştururken de kaydedilir; verilmezse boş", async () => {
++    const mk = (body: unknown) =>
++      CREATE(
++        new NextRequest("http://localhost/api/properties", {
++          method: "POST",
++          headers: { "content-type": "application/json" },
++          body: JSON.stringify(body),
++        }),
++        { params: Promise.resolve({}) },
++      );
++    let res = await mk({ name: "Yeni Daire", guestDisplayName: " Lale Evi " });
++    expect(res.status).toBe(201);
++    const created = (await res.json()) as { id: string };
++    expect((await prisma.property.findUniqueOrThrow({ where: { id: created.id } })).guestDisplayName).toBe("Lale Evi");
++    res = await mk({ name: "Başka Daire" });
++    const other = (await res.json()) as { id: string };
++    expect((await prisma.property.findUniqueOrThrow({ where: { id: other.id } })).guestDisplayName).toBeNull();
++  });
++
++  it("🚨 QR sayfası başlığa YALNIZ misafire görünen adı verir — iç mülk adı ASLA; ad yoksa yalnız marka", async () => {
++    const token = generateChatToken();
++    await prisma.property.update({ where: { id: propertyId }, data: { chatToken: token, chatEnabled: true } });
++    await prisma.reservation.create({
++      data: { propertyId, guestName: "Misafir", arrivalDate: daysFromNow(-1), departureDate: daysFromNow(2), status: "confirmed", channel: "airbnb" },
++    });
++
++    let el = (await GuestChatPage({ params: Promise.resolve({ token }) })) as React.ReactElement<{ placeName?: string | null }>;
++    expect(el.props.placeName).toBeNull();
++
++    // Elle yazılmış görünmez karakter okurken de temizlenir.
++    await prisma.property.update({ where: { id: propertyId }, data: { guestDisplayName: "Deniz​ Manzaralı" } });
++    el = (await GuestChatPage({ params: Promise.resolve({ token }) })) as React.ReactElement<{ placeName?: string | null }>;
++    expect(el.props.placeName).toBe("Deniz Manzaralı");
++    expect(JSON.stringify(el.props)).not.toContain("arka cephe");
++
++    const ctx = await resolveGuestChat(token, undefined, { knowledgeBase: false });
++    expect(ctx?.property.guestDisplayName).toBe("Deniz Manzaralı");
++  });
++
++  it("aktif konaklama yokken ekran yalnız marka (ad bu ekrana çıkmaz)", async () => {
++    const token = generateChatToken();
++    await prisma.property.update({
++      where: { id: propertyId },
++      data: { chatToken: token, chatEnabled: true, guestDisplayName: "Deniz Manzaralı" },
++    });
++    const el = (await GuestChatPage({ params: Promise.resolve({ token }) })) as React.ReactElement<{ brand?: string }>;
++    expect(el.props.brand).toBe("Lixus AI Misafir Asistanı");
++    expect(JSON.stringify(el.props)).not.toContain("Deniz");
++  });
++
++  it("KVKK dışa aktarımında yer alır", async () => {
++    await prisma.property.update({ where: { id: propertyId }, data: { guestDisplayName: "Deniz Manzaralı" } });
++    const out = await buildOrganizationDataExport(orgId);
++    expect(JSON.stringify(out)).toContain('"guestDisplayName":"Deniz Manzaralı"');
++  });
++});
+diff --git a/tests/ui/guest-chat.test.tsx b/tests/ui/guest-chat.test.tsx
+index 5135d10c..ad8eb584 100644
+--- a/tests/ui/guest-chat.test.tsx
++++ b/tests/ui/guest-chat.test.tsx
+@@ -116,13 +116,36 @@ describe("GuestChat (UI, two-way)", () => {
+   it("shows the branded assistant title (never an internal property name)", async () => {
+     setupFetch([]);
+     render(<GuestChat token="t" />);
+-    // The header shows the fixed brand — the guest page no longer has any prop
+-    // through which a host's private Property.name could ever be rendered.
++    // The header shows the fixed brand. The only place name it can show is the host's separate "misafire görünen ad" (U4,
++    // `placeName`) — never the private Property.name (the page passes `guestDisplayName`, see the integration test).
+     await screen.findByText("Lixus AI Misafir Asistanı");
+     // The AI-disclosure notice appears ONCE under the title (not per message).
+     await screen.findByText(/Gerektiğinde işletme ekibi görüşmeye katılabilir/);
+   });
+ 
++  it("U4: misafire görünen ad verildiyse başlık '<ad> · Misafir Asistanı' (TR) / '<ad> · Guest Assistant' (EN)", async () => {
++    setupFetch([]);
++    render(<GuestChat token="t" placeName="Deniz Manzaralı Daire" />);
++    await screen.findByText("Deniz Manzaralı Daire · Misafir Asistanı");
++    expect(screen.queryByText("Lixus AI Misafir Asistanı")).toBeNull();
++    cleanup();
++    setupFetch([]);
++    render(<GuestChat token="t" locale="en" placeName="Sea View Flat" />);
++    await screen.findByText("Sea View Flat · Guest Assistant");
++  });
++
++  it("U4: kod ekranında da aynı başlık; ad boşsa yalnız marka", async () => {
++    const fn = vi.fn(() => Promise.resolve({ ok: true, status: 200, json: async () => ({ open: true, pinRequired: true, messages: [] }) }));
++    vi.stubGlobal("fetch", fn);
++    render(<GuestChat token="t" placeName="Deniz Manzaralı Daire" />);
++    await screen.findByPlaceholderText("Sohbet kodu");
++    expect(screen.getByText("Deniz Manzaralı Daire · Misafir Asistanı")).toBeTruthy();
++    cleanup();
++    setupFetch([]);
++    render(<GuestChat token="t" placeName={null} />);
++    await screen.findByText("Lixus AI Misafir Asistanı");
++  });
++
+   it("shows a friendly error when the POST fails", async () => {
+     const fn = vi.fn((_url: string, opts?: RequestInit) => {
+       const method = opts?.method ?? "GET";
+diff --git a/tests/unit/guest-display-name.test.ts b/tests/unit/guest-display-name.test.ts
+new file mode 100644
+index 00000000..e4f2b876
+--- /dev/null
++++ b/tests/unit/guest-display-name.test.ts
+@@ -0,0 +1,48 @@
++import { describe, it, expect } from "vitest";
++import { normalizeGuestDisplayName, guestDisplayNameTooLong, GUEST_DISPLAY_NAME_MAX } from "@/lib/guest-display-name";
++
++// ---------------------------------------------------------------------------
++// U4 (kurucu 10-22): misafire görünen ad — QR başlığı. Kayıt ve okuma aynı kuralla: görünmez karakter / satır sonu / ardışık boşluk
++// temizlenir, en fazla 60 karakter, boş → null (başlık yalnız marka).
++// ---------------------------------------------------------------------------
++
++describe("normalizeGuestDisplayName", () => {
++  it("düz ad aynen kalır (kırpılır)", () => {
++    expect(normalizeGuestDisplayName("  Deniz Manzaralı Daire  ")).toBe("Deniz Manzaralı Daire");
++  });
++
++  it("boş / yalnız boşluk / görünmez karakter / tip dışı → null", () => {
++    for (const v of ["", "   ", "\u200b\u2060", "\u2800", null, undefined, 42, {}]) {
++      expect(normalizeGuestDisplayName(v)).toBeNull();
++    }
++  });
++
++  it("satır sonu ve denetim karakteri boşluk olur, görünmez karakter silinir, ardışık boşluk teke iner", () => {
++    expect(normalizeGuestDisplayName("Lale\nDaire\t 3")).toBe("Lale Daire 3");
++    expect(normalizeGuestDisplayName("La\u200ble\u202e Daire")).toBe("Lale Daire");
++  });
++
++  it("en fazla 60 karakter (harf bölünmez, sondaki boşluk atılır)", () => {
++    const long = "a".repeat(59) + " bcdef";
++    const out = normalizeGuestDisplayName(long)!;
++    expect(Array.from(out).length).toBeLessThanOrEqual(GUEST_DISPLAY_NAME_MAX);
++    expect(out).toBe("a".repeat(59));
++    expect(Array.from(normalizeGuestDisplayName("🏖".repeat(80))!).length).toBe(GUEST_DISPLAY_NAME_MAX);
++  });
++
++  it("NFC: ayrık yazılmış aksan tek harfe birleşir", () => {
++    expect(normalizeGuestDisplayName("Bahc\u0327e")).toBe("Bahçe");
++  });
++
++  it("uzunluk TEMİZLENMİŞ karakter sayısıyla ölçülür: 40 emoji ve görünmez karakterle şişirilmiş kısa ad geçer, 61 harf geçmez (Haiku 10-22)", () => {
++    expect(guestDisplayNameTooLong("🏖".repeat(40))).toBe(false);
++    expect(guestDisplayNameTooLong("Deniz" + "\u200b".repeat(56))).toBe(false);
++    expect(guestDisplayNameTooLong("a".repeat(60))).toBe(false);
++    expect(guestDisplayNameTooLong("a".repeat(61))).toBe(true);
++  });
++
++  it("emoji birleştiricisi korunur (aile emojisi bölünmez), yön çevirici silinir", () => {
++    expect(normalizeGuestDisplayName("Aile Evi \u{1F468}\u200d\u{1F469}\u200d\u{1F467}")).toBe("Aile Evi \u{1F468}\u200d\u{1F469}\u200d\u{1F467}");
++    expect(normalizeGuestDisplayName("Ev\u202e ilA")).toBe("Ev ilA");
++  });
++});
