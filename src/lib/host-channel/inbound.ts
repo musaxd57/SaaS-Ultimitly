@@ -173,7 +173,7 @@ export async function handleHostInbound(input: {
         });
         // Cevap → soru → taslak → önizleme / [Gönder] (`answer.ts`). Yalnız acil bildirim açıkken bildirime yazılan cevap yine karşılanır
         // ("misafire gitmez, panelden yazın"); iki anahtar da kapalıyken yalnız alınır.
-        if (input.flags.questions || input.flags.alerts) {
+        if (input.flags.questions || input.flags.alerts || input.flags.decisions) {
           await handleHostAnswer({
             binding: { id: row.id, organizationId: row.organizationId },
             to: digits,
@@ -181,6 +181,7 @@ export async function handleHostInbound(input: {
             transport: input.transport,
             now,
             questions: input.flags.questions,
+            decisions: input.flags.decisions,
           });
         }
       } else {

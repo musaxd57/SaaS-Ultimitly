@@ -127,9 +127,24 @@ describe("kelime ağı acil (sendDueAlerts) — yangın / gaz", () => {
     const s = await seed("There is a fire in the apartment!");
     mockMail.mockResolvedValueOnce({ ok: false } as never);
     expect((await sendDueAlerts(s.orgId)).alerted).toBe(0);
+    // E-posta düşse de WhatsApp İLK geçişte gitti (e-postanın yanında; sonucuna bağlı değil — sert inceleme T-1).
+    expect(alerts).toHaveLength(1);
     expect((await sendDueAlerts(s.orgId)).alerted).toBe(1);
     expect(mockMail).toHaveBeenCalledTimes(2);
     expect(alerts).toHaveLength(1);
+  });
+
+  it("🚨 karışık tur: önce yangın, sonra zararsız takip → bildirim YANGIN mesajıyla (alıntı + tetik kimliği; T-7)", async () => {
+    flags(true);
+    const s = await seed("Dairede yangın çıktı!");
+    const later = await prisma.message.create({
+      data: { conversationId: s.conversationId, direction: "inbound", senderName: "Alex", body: "Teşekkürler", createdAt: new Date(Date.now() - 60_000) },
+    });
+    await prisma.conversation.update({ where: { id: s.conversationId }, data: { lastMessageAt: later.createdAt } });
+    expect((await sendDueAlerts(s.orgId)).alerted).toBe(1);
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]!.message.quote).toContain("yangın");
+    expect(await alertRows(s.conversationId)).toMatchObject([{ turnMessageId: s.messageId }]);
   });
 
   it("KONTROL: anahtar kapalı → yalnız e-posta, bildirim satırı yok", async () => {
@@ -174,6 +189,16 @@ describe("model yükseltmesi (applyChannelAutoReply → escalated_to_human)", ()
     expect(mockMail).toHaveBeenCalledTimes(1);
     expect(alerts).toHaveLength(1);
     expect(await alertRows(s.conversationId)).toMatchObject([{ status: "alerted", turnMessageId: s.messageId }]);
+  });
+
+  it("e-posta düşse de WhatsApp gider (claim tutulur; T-1)", async () => {
+    flags(true);
+    mockMail.mockResolvedValueOnce({ ok: false } as never);
+    const s = await seed("Bu konuda değerlendirmemi paylaşmadan önce sizinle görüşmek istiyorum.", {
+      autoReplyEnabledAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+    });
+    await applyChannelAutoReply(s.conversationId);
+    expect(alerts).toHaveLength(1);
   });
 
   it("KONTROL: anahtar kapalı → yalnız e-posta", async () => {
@@ -262,6 +287,32 @@ describe("olası tehlike + anlama katmanı koşmadı (kurucu T2)", () => {
       capped: true,
     });
     expect(capped).not.toHaveBeenCalled();
+  });
+
+  it("kanca e-postayla AYNI ANDA başlar (e-posta kancayı beklemez) ve e-posta düşse de çağrılır (T-1 / T-4)", async () => {
+    flags(true);
+    const s = await seed(SHORT);
+    const conversation = { id: s.conversationId, guestIdentifier: "Alex", channel: "airbnb", property: { name: "Lale 7", address: null, city: null } };
+    const order: string[] = [];
+    let hookStarted!: () => void;
+    const hookSeen = new Promise<void>((r) => (hookStarted = r));
+    // E-posta, kanca başlayana kadar (en çok 1,5 sn) bekler: sıralı kodda (önce e-posta bitsin) zaman aşımıyla biter, sıra bozulur.
+    mockMail.mockImplementationOnce((async () => {
+      order.push("mail-start");
+      await Promise.race([hookSeen, new Promise((r) => setTimeout(r, 1_500))]);
+      order.push("mail-done");
+      return { ok: false };
+    }) as never);
+    const hook = vi.fn(async () => {
+      order.push("hook-start");
+      hookStarted();
+      // Gerçek bir bekleme: çağıran kancayı beklemezse "hook-done" dönüşte henüz yazılmamış olur.
+      await new Promise((r) => setTimeout(r, 30));
+      order.push("hook-done");
+    });
+    const out = await escalateUnverifiedHazard({ organizationId: s.orgId, conversation, trigger: { id: s.messageId, body: SHORT }, onAlert: hook });
+    expect(out).toEqual({ claimed: true, mailed: false, capped: false });
+    expect(order).toEqual(["mail-start", "hook-start", "mail-done", "hook-done"]);
   });
 
   it("KONTROL: anahtar kapalı → yalnız e-posta", async () => {

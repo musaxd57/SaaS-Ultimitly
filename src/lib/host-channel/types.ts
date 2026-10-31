@@ -19,6 +19,21 @@ export interface HostQuestionMessage {
   link?: string;
 }
 
+/** "Karar bekliyor" şablonunun değerleri (tasarım §3.10) — misafir metni / adı TAŞIMAZ. */
+export interface HostDecisionMessage {
+  property: string;
+  dates: string;
+  /** "14 Kasım (varış günü) · 13:00 erken giriş". */
+  title: string;
+  /** Kontrol listesinden en çok 2 satır (tek satıra katlanmış). */
+  checks: string;
+  /** Panel bağlantısının değişken kısmı (konuşma kimliği). */
+  link: string;
+  /** Hızlı yanıt düğmelerinin yükleri (`hd.<karar>.<sürüm>.<a|d>`). */
+  approveId: string;
+  declineId: string;
+}
+
 /** Sağlayıcıdan gelen ve çekirdeğin anladığı tek biçim. */
 export type HostInboundEvent =
   | { kind: "text"; from: string; providerMessageId: string; contextId: string | null; text: string; at: Date }
@@ -40,6 +55,8 @@ export interface HostChannelTransport {
   sendQuestion(to: string, message: HostQuestionMessage): Promise<HostSendResult>;
   /** Acil bildirim (Tür C, onaylı şablon, pencere dışında da gider): cevap kurulmaz — ev sahibi konuşmayı panelde açar. */
   sendAlert(to: string, message: HostQuestionMessage): Promise<HostSendResult>;
+  /** Karar kartı (Tür B, onaylı şablon + [Onayla] / [Reddet] hızlı yanıtları). Desteklemeyen aktarımda yok → bugünkü e-posta. */
+  sendDecision?(to: string, message: HostDecisionMessage): Promise<HostSendResult>;
   /** Pencere içi serbest metin (önizleme, "Gönderildi", "Hangi soru?") — `replyTo` verilirse o mesaja yanıt olarak. */
   sendText(to: string, text: string, replyTo?: string | null): Promise<HostSendResult>;
   /**

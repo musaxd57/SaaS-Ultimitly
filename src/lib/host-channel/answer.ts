@@ -19,6 +19,8 @@ import { checkComposedGuestReply } from "./compose-check";
 import { correlateHostReply, PLAIN_REPLY_WINDOW_MS, type HostQuestionStatus, type PendingHostQuestion } from "./correlate";
 import { buildHostQuestion, withoutGuestNames } from "./question-text";
 import { hostChannelFlagsFromEnv } from "./routing";
+import { parseDecisionButton } from "./decision-buttons";
+import { handleDecisionButton } from "./decision-answer";
 import type { HostChannelTransport, HostInboundEvent } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -94,6 +96,8 @@ export const HOST_TEXTS = {
   /** Düz mesaj (yanıtla yok), en yeni mesajımız acil bildirim, öncesinde bekleyen soru da var. */
   alertReplyWithOpen:
     "Son mesajımız acil bildirimdi; buraya yazdığınız misafire gitmez. Bekleyen bir soruyu cevaplıyorsanız o soru mesajına \"Yanıtla\" diyerek yazın. Acil konuşma:",
+  /** Karar mesajına (Tür B) yazıyla cevap ("13:30 olur") — karşı teklif / serbest talimat bu dilimde panelde (tasarım §3.10). */
+  decisionReply: "Karar için mesajdaki [Onayla] / [Reddet] düğmelerini kullanın; farklı bir saat ya da not için panelden yazın:",
 } as const;
 
 const answerAad = (questionId: string, organizationId: string) => `host-question-answer:v1:${questionId}:${organizationId}`;
@@ -141,7 +145,9 @@ export type HostAnswerOutcome =
   | "partial"
   | "unclear"
   | "compose_failed"
-  | "unsupported";
+  | "unsupported"
+  /** Karar kartı düğmesi işlendi (`decision-answer.ts`). */
+  | "decision";
 
 interface BindingForAnswer {
   id: string;
@@ -149,16 +155,20 @@ interface BindingForAnswer {
 }
 
 /** Bağlantı soru alabilir / cevap verebilir mi (kullanıcı hâlâ işletmede sahip / yönetici, oturum kuşağı aynı). */
-async function usableBinding(b: BindingForAnswer): Promise<{ userName: string } | null> {
+async function usableBinding(b: BindingForAnswer): Promise<{ userId: string; userName: string } | null> {
   const row = await prisma.hostChannelBinding.findFirst({
     where: { id: b.id, organizationId: b.organizationId, status: "active" },
-    select: { status: true, userSessionEpoch: true, user: { select: { name: true, role: true, organizationId: true, sessionEpoch: true } } },
+    select: {
+      status: true,
+      userSessionEpoch: true,
+      user: { select: { id: true, name: true, role: true, organizationId: true, sessionEpoch: true } },
+    },
   });
   if (!row) return null;
   if (row.user.organizationId !== b.organizationId) return null;
   if (row.user.role !== "owner" && row.user.role !== "manager") return null;
   if (!bindingUsable(row, row.user.sessionEpoch)) return null;
-  return { userName: row.user.name };
+  return { userId: row.user.id, userName: row.user.name };
 }
 
 function decryptOrNull(enc: string | null, aad: string): string | null {
@@ -192,6 +202,8 @@ export async function handleHostAnswer(input: {
    * bildirime yazılan cevap karşılanır ("misafire gitmez, panelden yazın"); soru eşleme / taslak KOŞMAZ (sert inceleme 10-31 R-2).
    */
   questions?: boolean;
+  /** `HOST_QUESTION_DECISIONS_ENABLED` — kapalıyken karar düğmesi yok sayılır (varsayılan kapalı). */
+  decisions?: boolean;
 }): Promise<HostAnswerOutcome> {
   const { binding, event, transport } = input;
   const org = binding.organizationId;
@@ -202,13 +214,35 @@ export async function handleHostAnswer(input: {
     if (transport) await transport.sendText(input.to, text, replyTo ?? null).catch(() => null);
   };
 
+  // KARAR KARTI DÜĞMESİ (dilim 3) — acil bildirim / soru eşlemesinden ÖNCE: önizleme mesajının kimliği saklanmaz, bağlamı "bilinmeyen" olur
+  // ve düz mesaj kuralına düşmemeli. Anahtar kapalıyken yok sayılır.
+  const decisionButton = event.kind === "button" ? parseDecisionButton(event.buttonId) : null;
+  if (decisionButton) {
+    if (input.decisions !== true) return "none";
+    await handleDecisionButton({
+      organizationId: org,
+      user: { id: user.userId, name: user.userName },
+      parsed: decisionButton,
+      replyTo: event.providerMessageId,
+      reply,
+      choices: async (text, buttons, replyTo) => {
+        if (transport) await transport.sendChoices(input.to, text, buttons, replyTo ?? null).catch(() => null);
+      },
+      now,
+    });
+    return "decision";
+  }
+
   // ACİL BİLDİRİME (Tür C) yazılan cevap misafire GİTMEZ, model çağrılmaz — ev sahibi panele yönlendirilir. "Yanıtla" ile bildirime yazılan her
   // zaman; düz mesaj ise en yeni mesajımız bildirimse (bildirimden sonra soru sorulmadıysa) — bildirim başına bir kez (sert inceleme R-1: düz
   // "geliyorum" başka misafirin açık sorusuna bağlanıp onun taslağına giriyordu).
-  const alert = await alertAddressedBy(org, binding.id, event.contextId, now);
+  const alert = await alertAddressedBy(org, binding.id, event, now);
   if (alert) {
-    if (alert.via === "context" || (await claimOnce(`${ALERT_REPLY_LOCK_PREFIX}${alert.id}`, now))) {
-      const text = alert.openQuestions ? HOST_TEXTS.alertReplyWithOpen : HOST_TEXTS.alertReply;
+    // Bildirim başına bir kez: yalnız düz mesajda ve bekleyen soru YOKSA (art arda "tamam", "geliyorum" sohbeti doldurmasın). Bekleyen soru
+    // varken her düz mesaj "Yanıtla ile yazın" uyarısını alır — sessizce yutulmaz (sert inceleme 10-31 M-1).
+    if (alert.via === "context" || alert.openQuestions || (await claimOnce(`${ALERT_REPLY_LOCK_PREFIX}${alert.id}`, now))) {
+      const text =
+        alert.kind === "decision" ? HOST_TEXTS.decisionReply : alert.openQuestions ? HOST_TEXTS.alertReplyWithOpen : HOST_TEXTS.alertReply;
       await reply(`${text} ${panelLink(alert.conversationId)}`, event.providerMessageId);
     }
     return "closed";
@@ -612,29 +646,56 @@ async function claimOnce(name: string, now: Date): Promise<boolean> {
 async function alertAddressedBy(
   org: string,
   bindingId: string,
-  contextId: string | null,
+  event: HostInboundEvent,
   now: Date,
-): Promise<{ id: string; conversationId: string; via: "context" | "plain"; openQuestions: boolean } | null> {
+): Promise<{ id: string; kind: "alert" | "decision"; conversationId: string; via: "context" | "plain"; openQuestions: boolean } | null> {
+  const contextId = event.contextId;
   if (contextId) {
     const row = await prisma.hostQuestion.findFirst({
       where: { organizationId: org, OR: [{ providerMessageId: contextId }, { previewMessageId: contextId }] },
       select: { id: true, kind: true, conversationId: true },
     });
-    if (row) return row.kind === "alert" ? { id: row.id, conversationId: row.conversationId, via: "context", openQuestions: false } : null;
+    if (row) {
+      return row.kind === "alert" || row.kind === "decision"
+        ? { id: row.id, kind: row.kind, conversationId: row.conversationId, via: "context", openQuestions: false }
+        : null;
+    }
   }
+  // Düz mesaj kuralı (sert inceleme 10-31 R-1 / R-2 / R-3): düğme kendi hedefini taşır → kural dışı. Bu WhatsApp mesajı zaten bir soruya
+  // bağlandıysa (yarıda kalan cevabın yeniden teslimi) soru akışı kaldığı yerden sürer.
+  if (event.kind === "button") return null;
+  const bound = await prisma.systemLock.findUnique({ where: { name: answerRecordName(event.providerMessageId) }, select: { name: true } });
+  if (bound) return null;
+  // Bildirimler (acil `alerted` · karar `notified`) — en yenisi; ondan sonra soru akışı ilerlemediyse düz mesaj ona yazılmıştır.
   const latest = await prisma.hostQuestion.findFirst({
-    where: { organizationId: org, bindingId, kind: "alert", status: "alerted", sentAt: { gte: new Date(now.getTime() - PLAIN_REPLY_WINDOW_MS) } },
+    where: {
+      organizationId: org,
+      bindingId,
+      OR: [
+        { kind: "alert", status: "alerted" },
+        { kind: "decision", status: "notified" },
+      ],
+      sentAt: { gte: new Date(now.getTime() - PLAIN_REPLY_WINDOW_MS) },
+    },
     orderBy: [{ sentAt: "desc" }, { id: "asc" }],
-    select: { id: true, conversationId: true, sentAt: true },
+    select: { id: true, kind: true, conversationId: true, sentAt: true },
   });
   if (!latest?.sentAt) return null;
-  const questions = await prisma.hostQuestion.findMany({
-    where: { organizationId: org, bindingId, kind: { not: "alert" }, status: { in: [...HOST_QUESTION_LIVE_STATUSES] } },
-    select: { createdAt: true },
-    take: 50,
-  });
-  if (questions.some((q) => q.createdAt.getTime() > latest.sentAt!.getTime())) return null;
-  return { id: latest.id, conversationId: latest.conversationId, via: "plain", openQuestions: questions.length > 0 };
+  // Bildirimden ÖNCE yazılmış (geç teslim edilen) mesaj ona cevap olamaz.
+  if (event.at.getTime() < latest.sentAt.getTime()) return null;
+  const liveQuestion = { organizationId: org, bindingId, kind: "info", status: { in: [...HOST_QUESTION_LIVE_STATUSES] } };
+  // Soru akışı bildirimden SONRA ilerlediyse (yeni soru, önizleme, "eksik kısmı yazın") en yeni mesajımız o akışındır — `updatedAt` her
+  // durum geçişinde tazelenir.
+  const newer = await prisma.hostQuestion.findFirst({ where: { ...liveQuestion, updatedAt: { gt: latest.sentAt } }, select: { id: true } });
+  if (newer) return null;
+  const open = await prisma.hostQuestion.findFirst({ where: liveQuestion, select: { id: true } });
+  return {
+    id: latest.id,
+    kind: latest.kind === "decision" ? "decision" : "alert",
+    conversationId: latest.conversationId,
+    via: "plain",
+    openQuestions: open !== null,
+  };
 }
 
 async function replyNoneOncePerDay(bindingId: string, now: Date, send: () => Promise<void>): Promise<void> {
@@ -920,6 +981,11 @@ export async function sweepHostQuestions(
   });
   await prisma.hostChannelBinding.deleteMany({
     where: { status: "revoked", revokedAt: { lt: new Date(now.getTime() - REVOKED_BINDING_RETENTION_MS) } },
+  });
+  // Hiç doğrulanmamış numara (kodu süresi geçmiş bekleyen bağlantı) da aynı sürede silinir — numara yazım hatası ya da başkasınınki olabilir,
+  // kimse rıza vermemiştir (sert inceleme 10-31 S-4).
+  await prisma.hostChannelBinding.deleteMany({
+    where: { status: "pending", verifyExpiresAt: { lt: new Date(now.getTime() - REVOKED_BINDING_RETENTION_MS) } },
   });
   return { expired: expired.count, purged: purged.count, recovered, deleted: deleted.count };
 }

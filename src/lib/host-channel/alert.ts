@@ -7,7 +7,7 @@ import { alertOnTransition, clearAlertState } from "@/lib/alert-state";
 import { logEvent } from "@/lib/event-log";
 import { calendarDateOf } from "@/modules/availability/core";
 import { activeBindingAddress, hostChannelSecret, usableHostBindingForOrg } from "./binding";
-import { buildHostQuestion } from "./question-text";
+import { buildHostQuestion, maskedGuestQuote, templateSafe } from "./question-text";
 import { chooseHostChannel, hostChannelFlagsFromEnv } from "./routing";
 import type { HostChannelTransport } from "./types";
 
@@ -68,8 +68,10 @@ export async function alertHostOnChannel(input: {
         reservation: { select: { arrivalDate: true, departureDate: true, guestName: true, guestGivenName: true } },
       },
     });
-    const res = conv?.reservation;
-    if (!conv || !res) return "skipped";
+    // Rezervasyona bağlı olmayan konuşma (soru / talep aşaması) da acil bildirim alır — tarih yerine "—" (sert inceleme 10-31 M-6: acil
+    // e-posta gidiyor, WhatsApp sessizce düşüyordu).
+    const res = conv?.reservation ?? null;
+    if (!conv) return "skipped";
     const to = await activeBindingAddress(binding.id, input.organizationId);
     if (!to) return "skipped";
 
@@ -113,13 +115,16 @@ export async function alertHostOnChannel(input: {
       const [, m, day] = calendarDateOf(d, tz).key.split("-").map(Number);
       return { day: day!, month: m! };
     };
-    const message = buildHostQuestion({
-      propertyName: conv.property.name,
-      arrival: dayMonth(res.arrivalDate),
-      departure: dayMonth(res.departureDate),
-      guestText: input.messageBody,
-      guestNames: [res.guestName, res.guestGivenName, conv.guestIdentifier].filter((n): n is string => typeof n === "string" && n.length > 0),
-    });
+    const guestNames = [res?.guestName, res?.guestGivenName, conv.guestIdentifier].filter((n): n is string => typeof n === "string" && n.length > 0);
+    const message = res
+      ? buildHostQuestion({
+          propertyName: conv.property.name,
+          arrival: dayMonth(res.arrivalDate),
+          departure: dayMonth(res.departureDate),
+          guestText: input.messageBody,
+          guestNames,
+        })
+      : { property: templateSafe(conv.property.name).slice(0, 60), dates: "—", quote: maskedGuestQuote(input.messageBody, guestNames) };
     const sent = await input.transport.sendAlert(to, { ...message, link: input.conversationId });
     if (!sent.ok || !sent.providerMessageId) {
       await prisma.hostQuestion.updateMany({ where: { id: alertId, status: "queued" }, data: { status: "failed", version: { increment: 1 } } });

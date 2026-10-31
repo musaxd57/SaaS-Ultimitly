@@ -22,7 +22,7 @@ import { claimDecisionNotification, releaseDecisionNotification, type PersistedD
 //  · Misafir metni taşımaz; bağlantı `appBaseUrl()`den. Asla fırlatmaz.
 // ---------------------------------------------------------------------------
 
-export type DecisionNoticeOutcome = "mailed" | "deduped" | "in_flight" | "no_recipient" | "failed" | "none";
+export type DecisionNoticeOutcome = "mailed" | "whatsapp" | "deduped" | "in_flight" | "no_recipient" | "failed" | "none";
 
 export async function notifyTurnDecisions(input: {
   organizationId: string;
@@ -34,6 +34,11 @@ export async function notifyTurnDecisions(input: {
   /** Turun son misafir mesajı — K10 "Misafir cevabınızı bekliyor" e-postasıyla AYNI kilit. */
   lockMessageId: string;
   now?: Date;
+  /**
+   * Ev sahibi kanalı (WhatsApp "Karar bekliyor", tasarım §3.10, anahtar arkasında): kart başına çağrılır, AYNI kilit alındıktan sonra; HEPSİ
+   * giderse e-posta YERİNE geçer (kilit onaylanır, K10 e-postası da gitmez). Biri bile gitmezse bugünkü e-posta (bütün kartlarla).
+   */
+  channelAsk?: (decision: PersistedDecision) => Promise<boolean>;
 }): Promise<DecisionNoticeOutcome> {
   const now = input.now ?? new Date();
   const pending = input.decisions.filter((d) => d.status === "pending" && d.notifiedAt === null);
@@ -82,6 +87,13 @@ export async function notifyTurnDecisions(input: {
         await releaseDecisionNotification(prisma, { organizationId: input.organizationId, id: d.id, claimedAt: now }).catch(() => {});
       }
       return "in_flight";
+    }
+    if (input.channelAsk) {
+      const asked = await Promise.all(claimed.map((d) => input.channelAsk!(d).catch(() => false)));
+      if (asked.every(Boolean)) {
+        await confirmReplyWaitingSent(lockName);
+        return "whatsapp";
+      }
     }
     const titles = claimed.map((d) => decisionTitle(d.kind, d.requestedTime));
     const first = claimed[0];

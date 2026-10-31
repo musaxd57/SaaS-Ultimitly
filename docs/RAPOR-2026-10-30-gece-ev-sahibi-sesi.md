@@ -206,6 +206,46 @@ mesajları ve görselleri henüz okuyamıyorum, lütfen yazın."
 - Kanıt: 12 yeni testin 9'u düzeltme öncesi kodda kırmızı (kalan 3'ü inceleme bulgusu test boşluğu: doğru davranışın pini); mutasyon 81
   mutant → 75 + (pin ve sadeleştirme sonrası) yeniden koşuda 7/7, yaşayan 0.
 
+## 4f. WhatsApp — acil bildirim (10-31 gece, `HOST_QUESTION_ALERTS_ENABLED` arkasında; kurucu 10-29 "en önemli bildirimler WhatsApp'tan da")
+
+Bugün ev sahibine "⚠️ Acil misafir mesajı" e-postası 4 ayrı yerden gidiyor: tutulan hassas istek (kayıp anahtar, kilitli kalma, ödeme,
+şikâyet) · kelime ağının yakaladığı acil durum (yangın, gaz, CO) ve şikâyet · yapay zekânın "insana bırak" dediği riskli mesaj · olası tehlike
+(anlama katmanı koşmadıysa, "kısa devre oldu"). **Dördünde de** e-postayla AYNI ANDA WhatsApp'a da kısa bildirim gider:
+
+> ACİL · Lale (12–15 Kas) · Misafiriniz yazdı: “We lost the key and are locked out!” Konuşmayı hemen açın.  **[Konuşmayı aç]**
+
+- E-postanın YANINDA, yerine değil (aşağıda S3). Mesaj başına TEK bildirim (aynı mesaj yeniden işlense de); işletme başına saatte en çok 10.
+- Misafirin adı / telefonu gitmez (soru mesajıyla aynı maskeli alıntı). Bildirim cevap beklemez: ev sahibi bildirime ne yazarsa yazsın
+  misafire GİTMEZ, yapay zekâ çağrılmaz; dönen cevap: "Bu bir acil bildirimdi; buraya yazdığınız misafire gitmez. Misafire panelden yazın:
+  <bağlantı>". "Yanıtla" kullanmadan düz yazılan mesaj da (en yeni mesajımız bildirimse) aynı şekilde karşılanır — başka misafirin bekleyen
+  sorusuna BAĞLANMAZ (sert inceleme bulgusu: "geliyorum" yazısı başka misafirin cevap taslağına girebiliyordu).
+- Gönderilemezse e-posta yine gider; iz + (şablon reddi gibi kesin hatada) tek alarm. E-posta da düşüp tur yeniden denenince WhatsApp da
+  yeniden denenir (gitmişse ikinci kez gitmez).
+- Bilinçli dışarıda: ev sahibinin kendi panelden açtığı konuşma; QR sohbeti (oradaki acil e-posta bilerek metinsiz, ayrı anahtarlı).
+
+**Kurucu kararı gerekenler (gece varsayılanı uygulandı, anahtar KAPALI):**
+- **S3 — acilde ikisi birden mi?** Şu an: e-posta + WhatsApp birlikte (kaçırılmaması daha önemli). Alternatif: WhatsApp birincil, e-posta
+  yalnız WhatsApp gitmezse. Önerim: ilk haftalar ikisi birden.
+- **Şablon metni** (Meta onayına gönderilecek, tasarım §3.3): "ACİL · {{1}} ({{2}}) · Misafiriniz yazdı: “{{3}}” Konuşmayı hemen açın." +
+  tek düğme [Konuşmayı aç]. Tasarımdaki eski metin ("Misafiriniz {{3}} bildiriyor") alıntıyla bozuk Türkçe veriyordu ("Misafiriniz We lost
+  the key bildiriyor"); [İlgileniyorum] düğmesi çıkarıldı (misafire "ev sahibiniz ilgileniyor" gitsin mi ayrı karar — devir cümlesi kuralı).
+- **Ev sahibine giden 2 yeni cümle:** "Bu bir acil bildirimdi; buraya yazdığınız misafire gitmez. Misafire panelden yazın:" · "Son mesajımız
+  acil bildirimdi; buraya yazdığınız misafire gitmez. Bekleyen bir soruyu cevaplıyorsanız o soru mesajına "Yanıtla" diyerek yazın. Acil konuşma:".
+- **E-posta alıcısı yoksa** (uyarı adresi de sahip e-postası da yok) WhatsApp da gitmez — bildirim e-postanın yanında. WhatsApp tek başına
+  gitsin mi?
+- **Kapı kodu alıntıda:** misafir "kapı kodu 4821 çalışmıyor" yazarsa alıntı kodu Meta'ya taşır (e-posta bugün de taşıyor). Alıntıda kodu
+  maskeleyelim mi? (Ev sahibi kodu zaten biliyor; Meta'da iz kalmaz.)
+
+**Saklama (belgede vardı, kodda yoktu — eklendi):** kapanmış soru / bildirim satırı 90 gün, iptal edilmiş numara bağlantısı 30 gün sonra
+saatlik süpürgeyle silinir (misafire giden cevabı işaretleyen satır metinsiz kalır, konuşmayla gider).
+
+**Kurulum notu:** iki şablonda da "Panelde aç" düğmesinin şablondaki sırası ayrı ayardır (`WHATSAPP_QUESTION_URL_BUTTON_INDEX`,
+`WHATSAPP_ALERT_URL_BUTTON_INDEX`; soru şablonunda [Ben yazacağım] önce gelirse `1`, acilde `0`). İlk kurulumda her şablon kendi
+numaranıza bir kez denenir.
+
+**Kanıt:** sert inceleme 1 (4 mercek + şüpheci; 20 bulgu, 18'i gerçek — hepsi düzeltildi ya da pinlendi) · yeni testlerin 12'si düzeltme
+öncesi kodda kırmızı · mutasyon tur 1: 21 mutant → 19 öldü, 2 yaşayan (test boşluğu) kapatıldı; tur 2: SONUÇ_MUT2 · sert inceleme 2: SONUÇ_REV2.
+
 ## 5. Railway açılış günü eklenecekler (unutmayın)
 
 - **Decisions API sıralayıcısı:** `KB_RERANK_ENGINE=decisions`, `KB_RERANK_DECISIONS_MODEL` (ölçümle açılır).
@@ -213,7 +253,8 @@ mesajları ve görselleri henüz okuyamıyorum, lütfen yazın."
   yönlendirmesi kör sette 41/42, temizde 0 yanlış).
 - Prompt caching kendiliğinden açık; kapatma `OPENAI_PROMPT_CACHE_DISABLED=1`.
 - WhatsApp: `HOST_CHANNEL_ENABLED`, `HOST_CHANNEL_ORG_IDS=<kurucu org>` + sırlar (`WHATSAPP_APP_SECRET`, `WHATSAPP_PHONE_NUMBER_ID`,
-  `WHATSAPP_WEBHOOK_VERIFY_TOKEN`, `WHATSAPP_ACCESS_TOKEN`, `HOST_CHANNEL_HMAC_SECRET`); `HOST_QUESTIONS_ENABLED` cevap dilimi gelene kadar
+  `WHATSAPP_WEBHOOK_VERIFY_TOKEN`, `WHATSAPP_ACCESS_TOKEN`, `HOST_CHANNEL_HMAC_SECRET`); acil bildirim `HOST_QUESTION_ALERTS_ENABLED` +
+  şablon `WHATSAPP_ALERT_TEMPLATE` (§4f); `HOST_QUESTIONS_ENABLED` cevap dilimi gelene kadar
   KAPALI (§4d) — kurulum adımları
   `docs/TASARIM-2026-10-30-whatsapp-ev-sahibi-dongusu.md` §9 (Meta hesabı, ayrı numara, şablon onayı, kalıcı belirteç).
 - Tam liste: `docs/RAILWAY-ACILIS-2026-10-15.md` §0.

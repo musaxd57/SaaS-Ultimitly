@@ -11,9 +11,11 @@ const cfg: WhatsAppConfig = {
   graphVersion: "v23.0",
   questionTemplate: "lixus_misafir_sorusu",
   alertTemplate: "lixus_acil_bildirim",
+  decisionTemplate: "lixus_karar_bekliyor",
   templateLang: "tr",
   questionUrlButtonIndex: null,
   alertUrlButtonIndex: null,
+  decisionUrlButtonIndex: null,
 };
 
 function graph(status: number, body: unknown) {
@@ -36,6 +38,8 @@ describe("ortam ayarı", () => {
       alertTemplate: "lixus_acil_bildirim",
       questionUrlButtonIndex: null,
       alertUrlButtonIndex: null,
+      decisionTemplate: "lixus_karar_bekliyor",
+      decisionUrlButtonIndex: null,
     });
     const base = { WHATSAPP_ACCESS_TOKEN: "x", WHATSAPP_PHONE_NUMBER_ID: "123456" };
     // Şablon başına ayrı sıra (soru şablonunda önce hızlı yanıt düğmesi olabilir).

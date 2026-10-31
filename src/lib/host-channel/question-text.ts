@@ -48,7 +48,9 @@ export function withoutGuestNames(text: string, guestNames: readonly string[]): 
  * maskelenir, ad parçaları silinir. Kısaltma kod noktası sınırında (vekil çift ortadan bölünmez — Haiku P3-2).
  */
 export function maskedGuestQuote(guestText: string, guestNames: readonly string[] = []): string {
-  let t = redactSensitive(redactContactsFromText(asciiDigits(guestText)));
+  // Görünmez karakterler maskelerden ÖNCE silinir: telefon / e-posta / ad içine konmuş yumuşak tire ya da sıfır genişlikli boşluk maskeyi
+  // atlatıp sonra `templateSafe`le temizlenerek Meta'ya açık giderdi (sert inceleme 10-31 S-1).
+  let t = redactSensitive(redactContactsFromText(asciiDigits(templateSafe(guestText))));
   t = templateSafe(withoutGuestNames(t, guestNames));
   const chars = [...t];
   if (chars.length <= QUOTE_MAX) return t;

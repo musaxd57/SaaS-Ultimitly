@@ -291,7 +291,7 @@ konaklama olduğunu ayırt etmek için) + soru. Misafirin sözü yalnız **kısa
 | Ad | Gövde | Düğmeler |
 |---|---|---|
 | `lixus_misafir_sorusu` | "{{1}} ({{2}}) · Misafiriniz soruyor: “{{3}}” Cevabınızı bu mesaja yanıt olarak yazın; misafire sizin adınıza iletmeden önce size gösteririz." | Hızlı yanıt: **[Ben yazacağım]** · URL: **[Panelde aç]** `https://www.lixusai.com/inbox/{{1}}` |
-| `lixus_karar_bekliyor` | "{{1}} ({{2}}) · {{3}} isteği. Kontrol: {{4}}." | Hızlı yanıt: **[Onayla] [Reddet]** · URL: **[Panelde aç]** |
+| `lixus_karar_bekliyor` | "{{1}} ({{2}}) · {{3}} isteği. Kontrol: {{4}}." | Hızlı yanıt: **[Onayla]** (sıra 0) **[Reddet]** (sıra 1) · URL: **[Panelde aç]** `https://www.lixusai.com/inbox/{{1}}` (sıra 2) |
 | `lixus_acil_bildirim` (dilim 4) | "ACİL · {{1}} ({{2}}) · Misafiriniz yazdı: “{{3}}” Konuşmayı hemen açın." | URL: **[Konuşmayı aç]** `https://www.lixusai.com/inbox/{{1}}` (hızlı yanıt YOK — 10-31 gece, aşağıya bkz.) |
 
 **Kodda (10-31 gece) — şablon ↔ gönderim sözleşmesi:** gövde değişkenleri her iki şablonda da AYNI üç değer: `{{1}}` daire · `{{2}}` tarih
@@ -304,6 +304,9 @@ sayısı tutmazsa Meta reddeder (132000) → soru e-postaya düşer, acilde e-po
 denenir (§9 adım 12). Acil şablonda **hızlı yanıt düğmesi yok**: bildirim cevap beklemez; ev sahibi bildirime "yanıtla" ile ne yazarsa
 yazsın misafire GİTMEZ, "Bu bir acil bildirimdi; buraya yazdığınız misafire gitmez. Misafire panelden yazın: <bağlantı>" döner (model
 çağrılmaz). "[İlgileniyorum]" gibi bir düğme ileride istenirse ayrı karar (misafire "ev sahibiniz ilgileniyor" gitsin mi — K10 devir cümlesi kuralı).
+
+Karar şablonunda (10-31 gece kodu) `{{3}}` = "16 Kasım (varış günü) · 13:00 erken giriş", `{{4}}` = kontrol listesinin en çok 2 satırı
+(yoksa "ek bilgi yok" — Meta boş değişkeni reddeder); hızlı yanıt yükleri gönderimde verilir (`hd.<karar>.<sürüm>.<a|d>`).
 
 Örnek değerler: `{{1}}`=Lale · `{{2}}`=12–15 Kas · `{{3}}`="Is there a baby cot in the apartment?" · karar `{{3}}`="14 Kas 13:00 erken giriş",
 `{{4}}`="temizlik 12:30'da bitiyor, önceki misafir 11:00'de çıkıyor" (kartın uyarı satırlarından, en çok 2).
@@ -432,6 +435,27 @@ Aynı işlemde, sırayla:
   `sendHostMessage`, aynı denetim kaydı (`decision.approved` …). Fark: `actorUserId` = bağlantının kullanıcısı; kaynak `host_channel`.
 - Ücretli onay (kayıtlı kuraldan ücret), saati değiştirme (karşı teklif), uzatma / tarih değişikliği → **yalnız [Panelde aç]** (Faz 0 §5).
 - Ev sahibi düz yazarsa ("13:30 olabilir") → karşı teklif = yeni serbest talimat → bu dilimde "Panelde aç" (HOST-COPILOT Faz 2'de "Anladığım: …").
+
+**Uygulama planı (10-31 gece, kod öncesi envanter — migration YOK):**
+1. **Karar çekirdeği rotadan çıkar** (`decisions/decide.ts`, davranış BİREBİR): rota (`api/conversations/[id]/decisions/[decisionId]`) yalnız
+   anahtar + hız sınırı + gövde ayrıştırma + sonucu HTTP'ye çevirme kalır; kilit (CAS), `guest_wrote_again`, iptal / geçmiş gün, `factsHash`,
+   metin denetimi, `sendHostMessage`, yeniden açma / doğrulanamadı, öğe kapatma, denetim kaydı çekirdekte. Sonuç ayrık birleşim
+   (`ok` · `conflict{code}` · `bad_request{field}` · `not_found` · `unverified` · `failed{httpStatus, version}`); mevcut rota testleri
+   (`decision-route.test.ts`) değişmeden yeşil kalmalı — çıkarmanın kanıtı bu. Denetim kaydına `source: "host_channel"` (WhatsApp'tan).
+2. **Bildirim:** `notifyTurnDecisions` yönlendiriciye sorar (tür `decision`, `HOST_QUESTION_DECISIONS_ENABLED`): WhatsApp seçilirse
+   `lixus_karar_bekliyor` şablonu (gövde: daire · tarih aralığı · "14 Kas 13:00 erken giriş" · en çok 2 kontrol satırı; düğmeler [Onayla]
+   [Reddet] hızlı yanıt + [Panelde aç]) — e-posta YERİNE; gönderilemezse bugünkü e-posta. Hızlı yanıt yükü `hd.<karar>.<sürüm>.<a|d>` (sır
+   değil; yetki gönderen numaranın bağlantısından + kartın işletmesinden). İz satırı `HostQuestion` `kind: "decision"` (tavan + iz; metin yok).
+   Düğme yalnız METİNLİ türde (erken giriş / geç çıkış), istenen saat belli ve ÜCRETSİZ kartta; ücretli / uzatma / tarih değişikliği /
+   saatsiz → yalnız [Panelde aç].
+3. **[Onayla] / [Reddet] dokunuşu → ÖNİZLEME** (kurucu S1 "önce onay" ilkesi, karar kartında da): kart sayfayla AYNI kurucudan yeniden
+   kurulur; metin panelin varsayılanıyla AYNI kod metni (`decisionMessageText`, misafirin dilinde; 7 dilin Türkçesi de koddan — model yok):
+   "Misafire şu gidecek (İngilizce): “Your early check-in is approved — you can check in on 14 Nov from 13:00.” Türkçesi: “Erken giriş
+   talebiniz onaylandı…” **[Gönder] [Gönderme]**". Gönder yükü `hd.<karar>.<sürüm>.<a|d>.<olgu izi>.send` (önizlemedeki kartın izi).
+4. **[Gönder] → `decide()`**: sürüm + olgu izi + misafir arada yazdı mı (WhatsApp'ta "okudum" yok → yazdıysa panele) + metin aynı koddan
+   yeniden kurulur. Sonuç: "Gönderildi ✓" · "Kuyruğa alındı" · "Misafir bu talepten sonra yeniden yazdı; panelden bakın: <bağlantı>" ·
+   "Kontrol listesi değişti; panelden bakın" · "Bu kart artık geçerli değil" · "Gönderim doğrulanamadı…" (cevap dilimiyle aynı dil).
+5. Anahtarlar: `HOST_DECISIONS_ENABLED` (karar motoru) + `HOST_CHANNEL_ENABLED` + `HOST_QUESTION_DECISIONS_ENABLED` + işletme listesi.
 
 ### 3.11 Hata yolları
 

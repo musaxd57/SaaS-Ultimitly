@@ -46,10 +46,13 @@ Kurucu 10-15: "Railway'i açınca ekleyeceğimiz bayrakları unutma." Bu dosya T
      yoksa numara bağlama KAPALI; ENCRYPTION_KEY gibi döndürülmez: döndürülürse eski bağlantılar ilk soruda kendiliğinden kapanır, e-postaya dönülür ve her ev sahibi numarasını Ayarlar'dan YENİDEN bağlamak zorundadır) · isteğe bağlı `WHATSAPP_GRAPH_VERSION` (boş = `v23.0`, kurulumda güncel sürüm teyit) ·
      `WHATSAPP_QUESTION_TEMPLATE` (boş = `lixus_misafir_sorusu`) · `WHATSAPP_ALERT_TEMPLATE` (boş = `lixus_acil_bildirim`) ·
      `WHATSAPP_TEMPLATE_LANG` (boş = `tr`) · şablonda değişkenli "Panelde aç" bağlantı düğmesi varsa sırası (0'dan, şablon başına):
-     `WHATSAPP_QUESTION_URL_BUTTON_INDEX` / `WHATSAPP_ALERT_URL_BUTTON_INDEX` (boş = düğme parametresi yok; tek rakam değilse WhatsApp
-     yapılandırması geçersiz sayılır → her şey e-postaya düşer) · cevap kurucu modeli
+     `WHATSAPP_QUESTION_URL_BUTTON_INDEX` / `WHATSAPP_ALERT_URL_BUTTON_INDEX` / `WHATSAPP_DECISION_URL_BUTTON_INDEX` (boş = düğme parametresi
+     yok; tek rakam değilse WhatsApp yapılandırması geçersiz sayılır → her şey e-postaya düşer; karar şablonunda [Onayla] 0, [Reddet] 1 →
+     bağlantı tipik `2`) · `WHATSAPP_DECISION_TEMPLATE` (boş = `lixus_karar_bekliyor`) · cevap kurucu modeli
      `AI_HOST_ANSWER_MODEL` / `AI_HOST_ANSWER_REASONING_EFFORT` (boş = cevap modelinin ayarı). Anahtarlar (hepsi yalnız "1", varsayılan
-     KAPALI): `HOST_CHANNEL_ENABLED` (kanal) · `HOST_QUESTIONS_ENABLED` (bilgi soruları) · `HOST_QUESTION_DECISIONS_ENABLED` (karar düğmeleri) ·
+     KAPALI): `HOST_CHANNEL_ENABLED` (kanal) · `HOST_QUESTIONS_ENABLED` (bilgi soruları) · `HOST_QUESTION_DECISIONS_ENABLED` (karar düğmeleri —
+     karar motoru `HOST_DECISIONS_ENABLED` de açık olmalı; erken giriş / geç çıkış kartı WhatsApp'a [Onayla] [Reddet] ile gider, önizleme +
+     [Gönder] ile misafire; ücretli / saatsiz / uzatma kartı bugünkü e-postayla) ·
      `HOST_QUESTION_ALERTS_ENABLED` (acil bildirim — kayıp anahtar / kilitli kalma / ödeme / şikâyet tutulunca bugünkü acil e-postanın YANINDA
      WhatsApp'a da; mesaj başına bir, işletme başına saatte en çok 10; bildirime yazılan cevap misafire gitmez) + liste `HOST_CHANNEL_ORG_IDS`
      (`*` = hepsi, boş = hiçbiri; ilk açılış kurucu org).

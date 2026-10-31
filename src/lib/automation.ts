@@ -11,6 +11,7 @@ import { hostVoiceGuardEnabled, hostVoiceViolation } from "@/lib/ai/host-voice-g
 import { carriesHandoffNotice, HANDOFF_NOTICE_REASON, vetoOutgoingReply } from "@/lib/ai/output-veto";
 import { notifyHostReplyWaiting } from "@/lib/host-reply-waiting";
 import { alertHostOnChannel } from "@/lib/host-channel/alert";
+import { askDecisionOnChannel } from "@/lib/host-channel/decision-ask";
 import { hostChannelTransport } from "@/lib/host-channel-runtime";
 import { actionClaimHold, type ActionClaimReason, type ClaimedActionsDeclaration } from "@/lib/ai/action-claims";
 import { contextLabels, hasEmergencyCallDirective, hasSafetyReassurance, hazardDecisionFor, hazardEvidenceOf, kbSupportsReassurance } from "@/lib/ai/hazard-evidence";
@@ -3160,6 +3161,14 @@ export async function applyChannelAutoReply(
       decisions: turnDecisions,
       messageIds: decisionTurnMessageIds,
       lockMessageId: last.id,
+      // WhatsApp "Karar bekliyor" (dilim 3, anahtar arkasında): giderse o kartın e-postası gitmez.
+      channelAsk: (d) =>
+        askDecisionOnChannel({
+          organizationId: conversation.property.organizationId,
+          conversationId: conversation.id,
+          decision: { id: d.id, version: d.version, messageId: d.messageId },
+          transport: hostChannelTransport(),
+        }),
     });
   // Bu turda ev sahibinin kararını BEKLEYEN kart var mı (kapatılmış / sonuçlanmış kart yeniden kullanıldıysa "Misafir cevabınızı
   // bekliyor" bildirimi yine gidebilir).
