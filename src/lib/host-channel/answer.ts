@@ -22,6 +22,7 @@ import { hostChannelFlagsFromEnv } from "./routing";
 import { parseDecisionButton } from "./decision-buttons";
 import { handleDecisionButton } from "./decision-answer";
 import { hostDecisionsEnabled } from "@/lib/decisions/flag";
+import { markHostQuestionRead } from "./delivery-status";
 import type { HostChannelTransport, HostInboundEvent } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -241,6 +242,8 @@ export async function handleHostAnswer(input: {
   // "geliyorum" başka misafirin açık sorusuna bağlanıp onun taslağına giriyordu).
   const alert = await alertAddressedBy(org, binding.id, event, now);
   if (alert) {
+    // Ev sahibi acil bildirime yazdı → bildirim görüldü: ertelenmiş acil e-postası gitmez (hibrit §3.12; mavi tik kapalı olsa da).
+    if (alert.kind === "alert") await markHostQuestionRead(alert.id, now).catch(() => null);
     // Bildirim başına bir kez: yalnız düz mesajda ve bekleyen soru YOKSA (art arda "tamam", "geliyorum" sohbeti doldurmasın). Bekleyen soru
     // varken her düz mesaj "Yanıtla ile yazın" uyarısını alır — sessizce yutulmaz (sert inceleme 10-31 M-1).
     if (alert.via === "context" || alert.openQuestions || (await claimOnce(`${ALERT_REPLY_LOCK_PREFIX}${alert.id}`, now))) {

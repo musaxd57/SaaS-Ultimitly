@@ -186,6 +186,9 @@ describe("acil bildirim (Tür C)", () => {
     expect(sent[0]!.text!.startsWith(HOST_TEXTS.alertReply)).toBe(true);
     expect(sent[0]!.text!.endsWith(`/inbox/${s.conversationId}`)).toBe(true);
     expect(await prisma.message.count({ where: { conversationId: s.conversationId, direction: "outbound" } })).toBe(0);
+    // Hibrit acil akış (§3.12): ev sahibi bildirime yazdı = bildirimi GÖRDÜ → ertelenmiş acil e-postası gitmez (mavi tik kapalı olsa da).
+    const row = await prisma.hostQuestion.findFirstOrThrow({ where: { conversationId: s.conversationId, kind: "alert" } });
+    expect(row.readAt).not.toBeNull();
   });
 
   it("gönderilemeyen bildirim yol yeniden çağırınca TEK sahiple yeniden denenir; gittikten sonra ikinci yok (sert inceleme R-4)", async () => {

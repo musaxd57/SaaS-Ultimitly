@@ -53,6 +53,10 @@ export const OPERATIONAL_EVENTS = {
   "host_channel.alert.sent": "info",
   // Acil bildirim gönderilemedi (e-posta yine gitti) — yalnız hata kodu (`reason`).
   "host_channel.alert.failed": "warn",
+  // Hibrit acil akış (§3.12): WhatsApp gitti, e-posta 10 dk ertelendi · ertelenen e-posta gitti (okunmadı / iletilemedi) · okunduğu için gitmedi.
+  "host_channel.alert.email_deferred": "info",
+  "host_channel.alert.email_fallback": "info",
+  "host_channel.alert.email_cancelled_read": "info",
 } as const;
 export type OperationalEventName = keyof typeof OPERATIONAL_EVENTS;
 

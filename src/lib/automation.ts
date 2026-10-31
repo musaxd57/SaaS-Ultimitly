@@ -11,6 +11,8 @@ import { hostVoiceGuardEnabled, hostVoiceViolation } from "@/lib/ai/host-voice-g
 import { carriesHandoffNotice, HANDOFF_NOTICE_REASON, vetoOutgoingReply } from "@/lib/ai/output-veto";
 import { notifyHostReplyWaiting } from "@/lib/host-reply-waiting";
 import { alertHostOnChannel } from "@/lib/host-channel/alert";
+import { deliverUrgentAlert } from "@/lib/host-channel/alert-email";
+import { lifeSafetyOf } from "@/lib/ai/life-safety";
 import { askDecisionOnChannel } from "@/lib/host-channel/decision-ask";
 import { hostChannelTransport } from "@/lib/host-channel-runtime";
 import { actionClaimHold, type ActionClaimReason, type ClaimedActionsDeclaration } from "@/lib/ai/action-claims";
@@ -3721,15 +3723,17 @@ export async function applyChannelAutoReply(
             // bildirimi sessizce yutuyordu ve aşağıdaki catch'in "next sync
             // cycle retries via sendDueAlerts" iddiası YANLIŞTI (sendDueAlerts
             // yalnız status:"new" seçer, claim satırı çoktan "problem" yapmıştı).
-            // WhatsApp bildirimi e-postayla AYNI ANDA (↑`urgentChannelAlert`; tetik `last` — claim'in kaydettiği mesaj).
-            const [mail] = await Promise.all([
-              emailService.sendReporting(
-                to,
-                `⚠️ Acil misafir mesajı — ${conversation.guestIdentifier} (${conversation.property.name})`,
-                html,
-              ),
-              urgentChannelAlert(conversation.property.organizationId, conversation.id, last.id, last.body),
-            ]);
+            // Hibrit acil teslim (§3.12; tetik `last` — claim'in kaydettiği mesaj). Can güvenliği turun BÜTÜN cevapsız misafir mesajlarından
+            // + anlama katmanının "acil" hükmünden (yalnız son mesaja bakılsa önceki mesajdaki tehlike kaçardı).
+            const mail = await deliverUrgentAlert({
+              organizationId: conversation.property.organizationId,
+              messageId: last.id,
+              lifeSafety: lifeSafetyOf({ texts: unansweredGuestTexts, understandingEmergency: gateContext.understandingRisk === "emergency" }).lifeSafety,
+              transport: hostChannelTransport(),
+              sendEmail: () =>
+                emailService.sendReporting(to, `⚠️ Acil misafir mesajı — ${conversation.guestIdentifier} (${conversation.property.name})`, html),
+              whatsapp: () => urgentChannelAlert(conversation.property.organizationId, conversation.id, last.id, last.body),
+            });
             if (!mail.ok) {
               // ⚠️ BURADA CLAIM **GERİ ALINMAZ** — kardeş `sendDueAlerts`'ten
               // BİLEREK farklı. İlk denemede burada da geri alma vardı; denetim
@@ -4398,10 +4402,11 @@ export function itemsAnsweredRefs(
  * mesajlar için görev (tekilleştirilmiş). E-posta düşerse claim geri alınır + tek alarm.
  */
 /**
- * Acil e-postanın YANINDA ev sahibi kanalı bildirimi (WhatsApp, `HOST_QUESTION_ALERTS_ENABLED` arkasında — tasarım §3.1 dilim 4). "⚠️ Acil
- * misafir mesajı" e-postasının gittiği HER yolda e-postayla AYNI ANDA çağrılır (tutulan öğe · kelime ağı acil / şikâyet · model yükseltmesi ·
- * olası tehlike); mesaj başına tek bildirim (`alert:<mesaj>`), kapalıyken veritabanına dokunmaz, asla fırlatmaz. Ev sahibinin kendi açtığı
- * konuşma (`POST /api/conversations`) ve QR (ayrı, metinsiz e-posta) bilinçli dışarıda.
+ * Ev sahibi kanalı acil bildirimi (WhatsApp, `HOST_QUESTION_ALERTS_ENABLED` arkasında — tasarım §3.1 dilim 4). "⚠️ Acil misafir mesajı"
+ * e-postasının gittiği HER yolda çağrılır (tutulan öğe · kelime ağı acil / şikâyet · model yükseltmesi · olası tehlike); e-postayla zamanlaması
+ * HİBRİT (`deliverUrgentAlert`, §3.12 — olası tehlike yolu can güvenliği olduğundan ikisi birden). Mesaj başına tek bildirim (`alert:<mesaj>`),
+ * kapalıyken veritabanına dokunmaz, asla fırlatmaz. Ev sahibinin kendi açtığı konuşma (`POST /api/conversations`) ve QR (ayrı, metinsiz
+ * e-posta) bilinçli dışarıda.
  */
 async function urgentChannelAlert(organizationId: string, conversationId: string, messageId: string, body: string, now?: Date): Promise<unknown> {
   try {
@@ -4436,7 +4441,16 @@ async function notifyItemsForHost(input: {
     messageIds: input.messageIds,
     now: input.now,
     // Acil bildirim WhatsApp'a da (anahtar arkasında, e-postanın yanında; kapalıyken veritabanına dokunmaz).
-    onUrgentMessage: (messageId, body) => urgentChannelAlert(input.organizationId, input.conversation.id, messageId, body, input.now),
+    deliverUrgent: ({ messageId, body, sendEmail }) =>
+      deliverUrgentAlert({
+        organizationId: input.organizationId,
+        messageId,
+        lifeSafety: lifeSafetyOf({ texts: [body] }).lifeSafety,
+        transport: hostChannelTransport(),
+        sendEmail,
+        whatsapp: () => urgentChannelAlert(input.organizationId, input.conversation.id, messageId, body, input.now),
+        now: input.now,
+      }),
   });
   if (notice.failed.length > 0) {
     void reportError(
@@ -6262,12 +6276,17 @@ export async function sendDueAlerts(
     // "problem"e taşımış olduğu için ne bu döngü (yalnız status:"new" seçer) ne
     // de model yolu (status "problem" ise erken döner) o thread'i bir daha
     // seçebiliyordu. Tek iz, host'un fark etmesi gereken bir inbox rozetiydi.
-    // WhatsApp bildirimi e-postayla AYNI ANDA (↑`urgentChannelAlert`). E-posta düşüp claim geri alınınca sonraki geçiş yeniden çağırır —
-    // ikinci WhatsApp'ı bildirimin kendi tekilliği (`alert:<mesaj>`) önler.
-    const [mail] = await Promise.all([
-      emailService.sendReporting(to, `⚠️ Acil misafir mesajı — ${c.guestIdentifier} (${c.property.name})`, html),
-      urgentChannelAlert(organizationId, c.id, hit.id, hit.body),
-    ]);
+    // Hibrit acil teslim (§3.12, kurucu 10-31): can güvenliği / WhatsApp kapalı → e-posta + bildirim aynı anda (bugünkü); değilse önce
+    // WhatsApp, 10 dk okunmazsa e-posta (ertelenen e-postada `mail.ok` = bildirim gitti → claim tutulur). E-posta düşüp claim geri alınınca
+    // sonraki geçiş yeniden çağırır — ikinci WhatsApp'ı bildirimin kendi tekilliği (`alert:<mesaj>`) önler.
+    const mail = await deliverUrgentAlert({
+      organizationId,
+      messageId: hit.id,
+      lifeSafety: lifeSafetyOf({ texts: [hit.body] }).lifeSafety,
+      transport: hostChannelTransport(),
+      sendEmail: () => emailService.sendReporting(to, `⚠️ Acil misafir mesajı — ${c.guestIdentifier} (${c.property.name})`, html),
+      whatsapp: () => urgentChannelAlert(organizationId, c.id, hit.id, hit.body),
+    });
     if (!mail.ok) {
       // Claim'i GERİ AL ki bir sonraki geçiş yeniden denesin. YALNIZ `status`
       // geri alınır: `skippedReason`/`lastRiskType` kalır, böylece inbox rozeti
@@ -6373,7 +6392,16 @@ async function alertItemsForHost(input: {
     property: input.conversation.property,
     messageIds: todo.map((h) => h.id),
     now,
-    onUrgentMessage: (messageId, body) => urgentChannelAlert(input.organizationId, input.conversation.id, messageId, body, now),
+    deliverUrgent: ({ messageId, body, sendEmail }) =>
+      deliverUrgentAlert({
+        organizationId: input.organizationId,
+        messageId,
+        lifeSafety: lifeSafetyOf({ texts: [body] }).lifeSafety,
+        transport: hostChannelTransport(),
+        sendEmail,
+        whatsapp: () => urgentChannelAlert(input.organizationId, input.conversation.id, messageId, body, now),
+        now,
+      }),
   });
   // Karar kaydı mesaj başına BİR kez: e-postası düşen mesaj sonraki geçişte yeniden işlenir, tekillik ihlali (yutulur ama
   // Prisma hata satırı basar) önceden okunarak atlanır.

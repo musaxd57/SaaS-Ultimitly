@@ -65,3 +65,15 @@ export async function recordHostDeliveryStatuses(statuses: readonly HostDelivery
   }
   return out;
 }
+
+/**
+ * Ev sahibi bildirime WhatsApp'tan cevap yazdı → bildirim OKUNMUŞTUR (mavi tik kapalı olsa da). Aynı kurallar: ham SQL, en erken an.
+ */
+export async function markHostQuestionRead(id: string, now: Date = new Date()): Promise<void> {
+  const iso = now.toISOString();
+  await prisma.$executeRaw`
+    UPDATE "HostQuestion" SET
+      "readAt" = LEAST("readAt", GREATEST((${iso}::timestamptz AT TIME ZONE 'UTC'), "sentAt")),
+      "deliveredAt" = LEAST("deliveredAt", GREATEST((${iso}::timestamptz AT TIME ZONE 'UTC'), "sentAt"))
+    WHERE "id" = ${id} AND ("readAt" IS NULL OR "deliveredAt" IS NULL)`;
+}

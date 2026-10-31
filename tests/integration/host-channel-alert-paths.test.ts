@@ -35,6 +35,8 @@ import { __setHostChannelTransportForTest } from "@/lib/host-channel-runtime";
 import { startHostBinding, confirmHostBindingFromInbound } from "@/lib/host-channel/binding";
 import { WHATSAPP_CLOUD_PROVIDER } from "@/lib/host-channel/providers";
 import type { HostChannelTransport, HostQuestionMessage } from "@/lib/host-channel/types";
+import { deliverDueAlertEmails } from "@/lib/host-channel/alert-email";
+import { recordHostDeliveryStatuses } from "@/lib/host-channel/delivery-status";
 
 const mockMail = vi.mocked(emailService.sendReporting);
 const mockSuggest = vi.mocked(suggestReply);
@@ -178,7 +180,7 @@ describe("model yükseltmesi (applyChannelAutoReply → escalated_to_human)", ()
     mockSuggest.mockResolvedValue(highRisk as never);
   });
 
-  it("🚨 model yüksek risk dedi → acil e-posta + TEK WhatsApp bildirimi; misafire bir şey gitmez", async () => {
+  it("🚨 model yüksek risk dedi (can güvenliği DEĞİL) → TEK WhatsApp şimdi, e-posta 10 dk ertelenir; okunmazsa vadede BİR kez gider; misafire bir şey gitmez", async () => {
     flags(true);
     const s = await seed("Bu konuda değerlendirmemi paylaşmadan önce sizinle görüşmek istiyorum.", {
       autoReplyEnabledAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
@@ -186,19 +188,44 @@ describe("model yükseltmesi (applyChannelAutoReply → escalated_to_human)", ()
     const out = await applyChannelAutoReply(s.conversationId);
     expect(out.skippedReason).toBe("escalated_to_human");
     expect(mockSend).not.toHaveBeenCalled();
-    expect(mockMail).toHaveBeenCalledTimes(1);
     expect(alerts).toHaveLength(1);
+    expect(mockMail).not.toHaveBeenCalled();
     expect(await alertRows(s.conversationId)).toMatchObject([{ status: "alerted", turnMessageId: s.messageId }]);
+    expect((await prisma.conversation.findUniqueOrThrow({ where: { id: s.conversationId } })).status).toBe("problem");
+    // Vade dolmadan gitmez; dolunca bir kez (sağlayıcı tekrar anahtarıyla); ikinci geçiş tekrarlamaz.
+    expect((await deliverDueAlertEmails(new Date(Date.now() + 5 * 60_000))).sent).toBe(0);
+    expect(mockMail).not.toHaveBeenCalled();
+    expect((await deliverDueAlertEmails(new Date(Date.now() + 11 * 60_000))).sent).toBe(1);
+    expect(mockMail).toHaveBeenCalledTimes(1);
+    expect(mockMail.mock.calls[0]![0]).toBe("host@example.com");
+    expect(mockMail.mock.calls[0]![3]).toEqual({ idempotencyKey: `host-alert-mail:${s.messageId}` });
+    expect((await deliverDueAlertEmails(new Date(Date.now() + 30 * 60_000))).sent).toBe(0);
+    expect(mockMail).toHaveBeenCalledTimes(1);
   });
 
-  it("e-posta düşse de WhatsApp gider (claim tutulur; T-1)", async () => {
+  it("🚨 WhatsApp bildirimi OKUNDU → ertelenen acil e-posta HİÇ gitmez (kurucu 10-31: yığılmasın); claim tutulur (T-1)", async () => {
     flags(true);
-    mockMail.mockResolvedValueOnce({ ok: false } as never);
     const s = await seed("Bu konuda değerlendirmemi paylaşmadan önce sizinle görüşmek istiyorum.", {
       autoReplyEnabledAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
     });
     await applyChannelAutoReply(s.conversationId);
     expect(alerts).toHaveLength(1);
+    await recordHostDeliveryStatuses([{ providerMessageId: "wamid.alert1", status: "read", recipient: "905321112233", at: new Date(), errorCode: null }]);
+    expect(await deliverDueAlertEmails(new Date(Date.now() + 11 * 60_000))).toMatchObject({ sent: 0, cancelled_read: 1 });
+    expect(mockMail).not.toHaveBeenCalled();
+    expect((await prisma.conversation.findUniqueOrThrow({ where: { id: s.conversationId } })).status).toBe("problem");
+  });
+
+  it("🚨 WhatsApp numarası BAĞLI DEĞİL → e-posta HEMEN (bugünkü gibi), ertelenmiş kayıt kalmaz", async () => {
+    flags(true);
+    const s = await seed("Bu konuda değerlendirmemi paylaşmadan önce sizinle görüşmek istiyorum.", {
+      autoReplyEnabledAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+    });
+    await prisma.hostChannelBinding.updateMany({ where: { organizationId: s.orgId }, data: { status: "revoked" } });
+    await applyChannelAutoReply(s.conversationId);
+    expect(alerts).toHaveLength(0);
+    expect(mockMail).toHaveBeenCalledTimes(1);
+    expect(await prisma.systemLock.count({ where: { name: { startsWith: "host-alert-mail:" } } })).toBe(0);
   });
 
   it("KONTROL: anahtar kapalı → yalnız e-posta", async () => {

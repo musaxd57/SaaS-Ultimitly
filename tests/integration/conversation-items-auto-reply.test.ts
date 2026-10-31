@@ -65,6 +65,7 @@ import { OUTBOX_MAX_ATTEMPTS } from "@/lib/outbox/state";
 import { handoffExemptName } from "@/lib/outbox/handoff-exempt";
 import { startHostBinding, confirmHostBindingFromInbound } from "@/lib/host-channel/binding";
 import { WHATSAPP_CLOUD_PROVIDER } from "@/lib/host-channel/providers";
+import { deliverDueAlertEmails } from "@/lib/host-channel/alert-email";
 import { __setHostChannelTransportForTest } from "@/lib/host-channel-runtime";
 import type { HostChannelTransport, HostQuestionMessage } from "@/lib/host-channel/types";
 
@@ -234,14 +235,15 @@ describe("acil bildirim WhatsApp'a da (Tür C, `HOST_QUESTION_ALERTS_ENABLED`; t
     vi.stubEnv("HOST_QUESTION_ALERTS_ENABLED", on ? "1" : "");
   }
 
-  it("🚨 IBAN tek başına: acil e-posta AYNEN gider + WhatsApp acil bildirimi (bir kez, maskeli alıntı, panel bağlantısı); yeniden işleme ikincisini üretmez", async () => {
+  it("🚨 IBAN tek başına (can güvenliği DEĞİL): WhatsApp acil bildirimi ŞİMDİ (bir kez, maskeli alıntı, panel bağlantısı), e-posta 10 dk ertelenir; yeniden işleme ikincisini üretmez; vadede e-posta BİR kez", async () => {
     const { orgId, conversationId } = await seed(IBAN);
     alertFlags(true);
     await bindHost(orgId, conversationId);
     understands(understood([{ intent: "payment_invoice", message: 1 }]));
     mockSuggest.mockResolvedValueOnce(verdict({ intent: "general", reply: "Ödemeler yalnızca platform üzerinden yapılır." }));
     await applyChannelAutoReply(conversationId);
-    expect(mockMail).toHaveBeenCalledTimes(1);
+    expect(mockMail).not.toHaveBeenCalled();
+    expect(await prisma.systemLock.count({ where: { name: { startsWith: "host-alert-mail:" } } })).toBe(1);
     expect(alerts).toHaveLength(1);
     expect(alerts[0]).toMatchObject({ to: "905321112233", message: { property: "Lale 7", dates: "12–15 Kas", link: conversationId } });
     expect(alerts[0]!.message.quote).toContain("IBAN");
@@ -252,20 +254,33 @@ describe("acil bildirim WhatsApp'a da (Tür C, `HOST_QUESTION_ALERTS_ENABLED`; t
     mockSuggest.mockResolvedValueOnce(verdict({ intent: "general", reply: "Ödemeler yalnızca platform üzerinden yapılır." }));
     await applyChannelAutoReply(conversationId);
     expect(alerts).toHaveLength(1);
+    expect(mockMail).not.toHaveBeenCalled();
+    expect((await deliverDueAlertEmails(new Date(Date.now() + 11 * 60_000))).sent).toBe(1);
     expect(mockMail).toHaveBeenCalledTimes(1);
   });
 
-  it("🚨 uyarı geçişi (sendDueAlerts) öğe kipinde: şikâyet tutulur + e-posta + TEK WhatsApp; ikinci geçiş ikisini de tekrarlamaz", async () => {
+  it("🚨 uyarı geçişi (sendDueAlerts) öğe kipinde: şikâyet tutulur + TEK WhatsApp şimdi, e-posta ertelenir; ikinci geçiş tekrarlamaz; vadede e-posta bir kez", async () => {
     const { orgId, conversationId } = await seed("Daire çok kirli");
+    alertFlags(true);
+    await bindHost(orgId, conversationId);
+    expect((await sendDueAlerts(orgId)).alerted).toBe(1);
+    expect(mockMail).not.toHaveBeenCalled();
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]!.message.quote).toContain("kirli");
+    expect((await sendDueAlerts(orgId)).alerted).toBe(0);
+    expect(alerts).toHaveLength(1);
+    expect((await deliverDueAlertEmails(new Date(Date.now() + 11 * 60_000))).sent).toBe(1);
+    expect(mockMail).toHaveBeenCalledTimes(1);
+  });
+
+  it("🚨 CAN GÜVENLİĞİ (gaz kokusu): WhatsApp + e-posta İKİSİ BİRDEN hemen, ertelenmiş kayıt yok (kurucu 10-31)", async () => {
+    const { orgId, conversationId } = await seed("Mutfakta gaz kokusu var!");
     alertFlags(true);
     await bindHost(orgId, conversationId);
     expect((await sendDueAlerts(orgId)).alerted).toBe(1);
     expect(mockMail).toHaveBeenCalledTimes(1);
     expect(alerts).toHaveLength(1);
-    expect(alerts[0]!.message.quote).toContain("kirli");
-    expect((await sendDueAlerts(orgId)).alerted).toBe(0);
-    expect(mockMail).toHaveBeenCalledTimes(1);
-    expect(alerts).toHaveLength(1);
+    expect(await prisma.systemLock.count({ where: { name: { startsWith: "host-alert-mail:" } } })).toBe(0);
   });
 
   it("acil bildirim anahtarı KAPALI: bugünkü davranış — yalnız e-posta, veritabanına bildirim satırı yazılmaz", async () => {

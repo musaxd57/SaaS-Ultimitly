@@ -10,6 +10,7 @@ import { hostChannelTransport } from "@/lib/host-channel-runtime";
 import { hostChannelSecret } from "@/lib/host-channel/binding";
 import { handleHostInbound } from "@/lib/host-channel/inbound";
 import { recordHostDeliveryStatuses } from "@/lib/host-channel/delivery-status";
+import { expediteForFailedProviderIds } from "@/lib/host-channel/alert-email";
 import { WHATSAPP_CLOUD_PROVIDER } from "@/lib/host-channel/providers";
 import { hostChannelFlagsFromEnv } from "@/lib/host-channel/routing";
 import { parseMetaWebhook } from "@/lib/host-channel/whatsapp/parse";
@@ -120,7 +121,9 @@ export async function POST(req: NextRequest): Promise<Response> {
   // teslimatı düşürmez: kayıp "okundu" yalnız gereksiz bir acil e-postası doğurur (güvenli yön; tasarım §3.12).
   if (parsed.statuses.length > 0) {
     try {
-      await recordHostDeliveryStatuses(parsed.statuses);
+      const recorded = await recordHostDeliveryStatuses(parsed.statuses);
+      // Gönderildi sanılan acil bildirim ulaşmadı → ertelenmiş e-postası bir sonraki geçişte gider (§3.12).
+      await expediteForFailedProviderIds(recorded.failedIds);
     } catch (err) {
       await reportError("host-channel-webhook-status", new Error(redactSensitive(String(err)).slice(0, 500)));
     }

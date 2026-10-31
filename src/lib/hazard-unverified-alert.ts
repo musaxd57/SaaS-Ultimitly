@@ -38,7 +38,8 @@ export interface HazardUnverifiedInput {
   now?: Date;
   /**
    * Ev sahibi kanalı acil bildirimi (WhatsApp, anahtar arkasında; `automation.ts` `urgentChannelAlert`) — e-posta GİDECEKSE (alıcı var,
-   * sınır içinde) e-postayla AYNI ANDA, tetik mesajıyla bir kez çağrılır; hatası e-postayı etkilemez. E-postanın yanındadır, yerine değil.
+   * sınır içinde) e-postayla AYNI ANDA, tetik mesajıyla bir kez çağrılır; hatası e-postayı etkilemez. Hibrit akışta (§3.12) bu yol HEP ikisi
+   * birden kalır: olası tehlike (yangın / duman / gaz / su / elektrik) kurucu kararıyla can güvenliğidir (`ai/life-safety.ts`).
    */
   onAlert?: (messageId: string, body: string) => Promise<unknown>;
 }

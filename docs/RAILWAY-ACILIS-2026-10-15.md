@@ -53,8 +53,10 @@ Kurucu 10-15: "Railway'i açınca ekleyeceğimiz bayrakları unutma." Bu dosya T
      KAPALI): `HOST_CHANNEL_ENABLED` (kanal) · `HOST_QUESTIONS_ENABLED` (bilgi soruları) · `HOST_QUESTION_DECISIONS_ENABLED` (karar düğmeleri —
      karar motoru `HOST_DECISIONS_ENABLED` de açık olmalı; erken giriş / geç çıkış kartı WhatsApp'a [Onayla] [Reddet] ile gider, önizleme +
      [Gönder] ile misafire; ücretli / saatsiz / uzatma kartı bugünkü e-postayla) ·
-     `HOST_QUESTION_ALERTS_ENABLED` (acil bildirim — kayıp anahtar / kilitli kalma / ödeme / şikâyet tutulunca bugünkü acil e-postanın YANINDA
-     WhatsApp'a da; mesaj başına bir, işletme başına saatte en çok 10; bildirime yazılan cevap misafire gitmez) + liste `HOST_CHANNEL_ORG_IDS`
+     `HOST_QUESTION_ALERTS_ENABLED` (acil bildirim — HİBRİT, kurucu 10-31: önce WhatsApp, 10 dk içinde okunmazsa ya da gönderilemezse acil
+     e-posta da; yangın / gaz / elektrik / tıbbi / su baskını / mahsur-hırsız-tehdit / kategorisiz "ACİL" → ikisi birden hemen; mesaj başına
+     bir, işletme başına saatte en çok 10; bildirime yazılan cevap misafire gitmez ve "okundu" sayılır. ⚠️ Mavi tiki kapalı ev sahibine e-posta
+     10–12 dk sonra gelir. Meta uygulamasında web kancası alanı `messages` durum bildirimlerini de taşımalı) + liste `HOST_CHANNEL_ORG_IDS`
      (`*` = hepsi, boş = hiçbiri; ilk açılış kurucu org).
      **Kodda (10-30 gece):** migration 88 (iki yeni tablo) · numara bağlama · Tür A soru gönderimi ("Misafir cevabınızı bekliyor" bildirimine
      bağlı) · web kancası `POST/GET /api/webhooks/host-channel/whatsapp` (imza, bağlama kodu, "DUR") · Ayarlar › Bildirimler › "WhatsApp

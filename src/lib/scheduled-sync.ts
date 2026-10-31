@@ -1,5 +1,6 @@
 import "server-only";
 
+import { deliverDueAlertEmails } from "@/lib/host-channel/alert-email";
 import { randomUUID } from "node:crypto";
 import { sweepCheckoutIntents } from "@/lib/billing/checkout-intent";
 import { sweepKbCopyOperations } from "@/lib/kb/copy-operation";
@@ -366,6 +367,16 @@ export async function runScheduledSync(): Promise<ScheduledSyncTotals> {
         await opsAlarm.ok("amount-heal");
       } catch (err) {
         await opsAlarm.fail("amount-heal", "scheduled-sync amount-heal", err);
+      }
+
+      // HİBRİT ACİL E-POSTASI (tasarım §3.12, kurucu 10-31): vadesi gelen ertelenmiş acil e-postalar — WhatsApp bildirimi 10 dk içinde
+      // okunmadıysa gider, okunduysa düşer. İşletme döngüsünden ÖNCE (uzun bir org senkronu vadeyi geciktirmesin); kendi 30 sn bütçesi.
+      try {
+        const due = await deliverDueAlertEmails();
+        if (due.sent + due.cancelled_read + due.dropped + due.retry > 0) console.log(`[scheduled-sync] host-alert-mail: ${JSON.stringify(due)}`);
+        await opsAlarm.ok("host-alert-mail");
+      } catch (err) {
+        await opsAlarm.fail("host-alert-mail", "scheduled-sync host-alert-mail", err);
       }
 
       // BOŞTA ORG'U ATLA. Döngünün yaptığı her iş (konuşma, rezervasyon, uyarı,

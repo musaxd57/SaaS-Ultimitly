@@ -13,9 +13,10 @@ import type { HostChannelTransport } from "./types";
 
 // ---------------------------------------------------------------------------
 // ACİL BİLDİRİM — Tür C (tasarım §3.1 dilim 4; kurucu 10-29 gece: "en önemli ev sahibi bildirimleri ileride WhatsApp'tan da"). Ev sahibinde
-// tutulan hassas / acil istek (kayıp anahtar, kilitli kalma, güvenlik, ödeme, şikâyet — `notifyHeldItems`) için bugünkü ACİL E-POSTANIN YANINDA
-// (yerine DEĞİL — S3 önerisi: acilde ikisi birden, kaçırılmaması daha önemli) onaylı şablonla WhatsApp bildirimi. Cevap KURULMAZ: ev sahibi
-// konuşmayı panelde açar; bildirime yazılan cevap misafire gitmez (`answer.ts`: "panelden yazın").
+// tutulan hassas / acil istek (kayıp anahtar, kilitli kalma, güvenlik, ödeme, şikâyet — `notifyHeldItems`) için onaylı şablonla WhatsApp
+// bildirimi. E-postayla ilişkisi HİBRİT (kurucu 10-31, `alert-email.ts`): can güvenliğinde ikisi birden; değilse önce bu bildirim, 10 dk
+// içinde okunmazsa e-posta. Cevap KURULMAZ: ev sahibi konuşmayı panelde açar; bildirime yazılan cevap misafire gitmez (`answer.ts`: "panelden
+// yazın") ve bildirimi "okundu" yapar.
 //
 //  · Anahtar `HOST_QUESTION_ALERTS_ENABLED` + kanal anahtarı + işletme listesi + doğrulanmış numara; biri yoksa veritabanına dokunmadan çıkar.
 //  · Mesaj başına TEK bildirim: `HostQuestion` satırı (`kind: "alert"`, tekil `alert:<mesaj>` anahtarı) — eşzamanlı / yeniden işlenen geçiş ikinci
@@ -37,6 +38,18 @@ const failureAlarmKey = (organizationId: string) => `host-channel:alert:${organi
 
 export type HostAlertOutcome = "sent" | "skipped" | "duplicate" | "capped" | "failed";
 
+/**
+ * WhatsApp acil yolu AÇIK mı (anahtar + işletme listesi + aktarım + sır) — veritabanısız ön denetim. Hibrit acil e-postası (§3.12) buna bakar:
+ * kapalıyken bugünkü eşzamanlı e-posta + bildirim kodu birebir koşar. Numara bağlantısı burada denetlenmez (bildirim "skipped" döner →
+ * e-posta hemen gider).
+ */
+export function hostAlertRouteOpen(organizationId: string, transport: HostChannelTransport | null): boolean {
+  if (chooseHostChannel({ kind: "urgent", orgId: organizationId, flags: hostChannelFlagsFromEnv(), binding: "verified", orgSentLastHour: 0 }) !== "whatsapp") {
+    return false;
+  }
+  return Boolean(transport) && Boolean(hostChannelSecret());
+}
+
 export async function alertHostOnChannel(input: {
   organizationId: string;
   conversationId: string;
@@ -46,10 +59,8 @@ export async function alertHostOnChannel(input: {
   transport: HostChannelTransport | null;
   now?: Date;
 }): Promise<HostAlertOutcome> {
-  const flags = hostChannelFlagsFromEnv();
   // Ucuz ön eleme — kapalı anahtar / liste dışı işletme: veritabanına dokunmadan çık.
-  if (chooseHostChannel({ kind: "urgent", orgId: input.organizationId, flags, binding: "verified", orgSentLastHour: 0 }) !== "whatsapp") return "skipped";
-  if (!input.transport || !hostChannelSecret()) return "skipped";
+  if (!input.transport || !hostAlertRouteOpen(input.organizationId, input.transport)) return "skipped";
   const now = input.now ?? new Date();
   let alertId: string | null = null;
   let delivered = false;

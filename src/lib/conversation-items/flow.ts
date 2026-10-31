@@ -291,10 +291,11 @@ export async function notifyHeldItems(
     messageIds: readonly string[];
     now: Date;
     /**
-     * Mesaj başına talep KAZANILINCA (e-postayla aynı anda, sonucundan bağımsız) bir kez çağrılır — ev sahibi soru kanalının acil bildirimi
-     * (WhatsApp, anahtar arkasında; kendi tekilliği var). Bildirim e-postanın YANINDADIR, yerine değil; hatası e-postayı etkilemez.
+     * Mesaj başına talep KAZANILINCA bir kez çağrılan acil TESLİM kancası (ev sahibi soru kanalı — hibrit acil akış §3.12): e-postayı
+     * (`sendEmail`) ve WhatsApp bildirimini birlikte yönetir; sonucu e-postanın sonucu gibi okunur (`ok: false` → talepler geri verilir).
+     * Yoksa yalnız e-posta (bugünkü). Kanca fırlatırsa e-posta yine gider.
      */
-    onUrgentMessage?: (messageId: string, body: string) => Promise<unknown>;
+    deliverUrgent?: (args: { messageId: string; body: string; sendEmail: () => Promise<{ ok: boolean }> }) => Promise<{ ok: boolean }>;
   },
 ): Promise<HeldItemsNotice> {
   const notice: HeldItemsNotice = { mailed: [], failed: [], held: [], quiet: [], loud: [] };
@@ -367,18 +368,19 @@ export async function notifyHeldItems(
       continue;
     }
     const message = await db.message.findFirst({ where: { id: messageId, conversationId: input.conversation.id }, select: { body: true } });
-    // WhatsApp bildirimi e-postayla AYNI ANDA (yavaş sağlayıcı acil e-postayı geciktirmez); sonucu beklenir ama okunmaz.
-    const alerting = input.onUrgentMessage && message?.body ? input.onUrgentMessage(messageId, message.body).catch(() => null) : null;
     const html = complaintEscalationEmail(
       { id: input.conversation.id, guestIdentifier: input.conversation.guestIdentifier, channel: input.conversation.channel, priority: "urgent" },
       message?.body ?? "",
       input.property,
       input.orgName,
     );
-    const [mail] = await Promise.all([
-      emailService.sendReporting(input.to, `⚠️ Acil misafir mesajı — ${input.conversation.guestIdentifier} (${input.property.name})`, html),
-      alerting,
-    ]);
+    const to = input.to;
+    const sendEmail = () => emailService.sendReporting(to, `⚠️ Acil misafir mesajı — ${input.conversation.guestIdentifier} (${input.property.name})`, html);
+    // Acil teslim kancası (WhatsApp + e-posta birlikte, hibrit §3.12) — yoksa / fırlatırsa yalnız e-posta.
+    const mail =
+      input.deliverUrgent && message?.body
+        ? await input.deliverUrgent({ messageId, body: message.body, sendEmail }).catch(() => sendEmail())
+        : await sendEmail();
     if (!mail.ok) {
       for (const id of claimed) await releaseItemNotification(db, { organizationId: input.organizationId, id, claimedAt: input.now });
       await db.systemLock.deleteMany({ where: { name: `${HELD_MAIL_PREFIX}${messageId}` } }).catch(() => {});
