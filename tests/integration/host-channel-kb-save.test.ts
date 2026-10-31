@@ -192,6 +192,21 @@ describe("teklif → önizleme → kayıt", () => {
     expect(await prisma.knowledgeBaseItem.count({ where: { isActive: true } })).toBe(1);
   });
 
+  it("🚨 önizlemeden sonra mevcut kalem değiştiyse [Yerine yaz] YAZMAZ (görülmemiş içerik pasife düşmez)", async () => {
+    drafts = [draft({ category: "parking", title: "Otopark", content: "Otopark ücreti günlük 200 TL." })];
+    const s = await seed();
+    const old = await prisma.knowledgeBaseItem.create({
+      data: { propertyId: s.propertyId, category: "parking", title: "Otopark", content: "Otopark ücreti günlük 150 TL.", reviewState: "approved", source: "host_manual" },
+    });
+    await prisma.hostQuestion.update({ where: { id: s.questionId }, data: { kbProposalState: "offered" } });
+    await press(s, "offer");
+    await prisma.knowledgeBaseItem.update({ where: { id: old.id }, data: { content: "Otopark ücreti günlük 175 TL." } });
+    const r = await press(s, "replace");
+    expect(r.replies[0]).toContain(KB_TEXTS.changed);
+    expect(await prisma.knowledgeBaseItem.count()).toBe(1);
+    expect((await prisma.knowledgeBaseItem.findUniqueOrThrow({ where: { id: old.id } })).isActive).toBe(true);
+  });
+
   it("aynı konuda değersiz bilgi: 'Benzer mevcut bilgi' + üç seçenek; [Ayrı ekle] ikisini birlikte bırakır", async () => {
     const s = await seed();
     const old = await prisma.knowledgeBaseItem.create({
