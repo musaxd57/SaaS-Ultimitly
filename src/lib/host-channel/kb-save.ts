@@ -110,10 +110,11 @@ interface KbProposal {
   category: string;
   title: string;
   content: string;
-  /** Aynı konuda FARKLI değer taşıyan etkin kalem (varsa) — [Yerine yaz] onu pasife alır. */
-  replace: { id: string; updatedAt: string; preview: string } | null;
-  /** Yalnız konu benzerliği (çelişki denmez) — önizlemede bilgi olarak. */
-  similar: string | null;
+  /**
+   * Aynı konudaki etkin kalem (varsa) — [Yerine yaz] onu pasife alır, [Ayrı ekle] ikisini birlikte bırakır. `conflict`: değerler farklı
+   * (saat / ücret / kod değişmiş) → "Şu anki bilgi"; değilse yalnız konu benzerliği → "Benzer mevcut bilgi" (çelişki denmez).
+   */
+  replace: { id: string; updatedAt: string; preview: string; conflict: boolean } | null;
 }
 
 const proposalAad = (questionId: string, organizationId: string) => `host-question-kb:v1:${questionId}:${organizationId}`;
@@ -262,16 +263,16 @@ async function prepareProposal(ctx: {
     });
     const overlaps = kbOverlaps(draft, prepareKbItems(items));
     if (overlaps.some((o) => o.kind === "same")) return await decline(KB_TEXTS.alreadySaved);
-    const differs = overlaps.find((o) => o.kind === "differs") ?? null;
-    const topic = overlaps.find((o) => o.kind === "topic") ?? null;
+    const existing = overlaps.find((o) => o.kind === "differs") ?? overlaps.find((o) => o.kind === "topic") ?? null;
     const proposal: KbProposal = {
       propertyId: q.conversation.propertyId,
       propertyName: q.conversation.property.name,
       category: draft.category,
       title: draft.title,
       content: draft.content,
-      replace: differs ? { id: differs.id, updatedAt: differs.updatedAt.toISOString(), preview: differs.preview } : null,
-      similar: !differs && topic ? topic.preview : null,
+      replace: existing
+        ? { id: existing.id, updatedAt: existing.updatedAt.toISOString(), preview: existing.preview, conflict: existing.kind === "differs" }
+        : null,
     };
     const stored = await prisma.hostQuestion.updateMany({
       where: { id: q.id, organizationId: org, kbProposalState: "preparing" },
@@ -283,8 +284,7 @@ async function prepareProposal(ctx: {
       `Daire: ${proposal.propertyName}`,
       `Konu: ${proposal.title}`,
       `Bilgi: "${proposal.content}"`,
-      ...(proposal.replace ? [`Şu anki bilgi: "${proposal.replace.preview}"`] : []),
-      ...(proposal.similar ? [`Benzer mevcut bilgi: "${proposal.similar}"`] : []),
+      ...(proposal.replace ? [`${proposal.replace.conflict ? "Şu anki bilgi" : "Benzer mevcut bilgi"}: "${proposal.replace.preview}"`] : []),
     ];
     const buttons: HostChoice[] = proposal.replace
       ? [

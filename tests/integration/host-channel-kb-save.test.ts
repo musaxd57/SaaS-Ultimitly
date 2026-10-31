@@ -60,9 +60,9 @@ async function seed(answer = "Çöp konteyneri binanın arkasında.", opts: { st
   });
   const property = await prisma.property.create({ data: { organizationId: org.id, name: "Lale 3" } });
   const conversation = await prisma.conversation.create({
-    data: { organizationId: org.id, propertyId: property.id, guestIdentifier: "Alex Doe", channel: "airbnb", externalReservationId: randomUUID() } as never,
+    data: { propertyId: property.id, guestIdentifier: "Alex Doe", channel: "airbnb", externalReservationId: randomUUID() } as never,
   });
-  const turn = await prisma.message.create({ data: { conversationId: conversation.id, direction: "inbound", body: "Çöpü nereye atabiliriz?", authorType: "guest" } as never });
+  const turn = await prisma.message.create({ data: { conversationId: conversation.id, direction: "inbound", senderName: "Alex", authorType: "guest", body: "Çöpü nereye atabiliriz?" } });
   const id = randomUUID();
   await prisma.hostQuestion.create({
     data: {
@@ -173,9 +173,10 @@ describe("teklif → önizleme → kayıt", () => {
   });
 
   it("🚨 çelişki: mevcut farklı bilgi gösterilir, [Yerine yaz] eskisini PASİFE alır (silmez); sessiz üzerine yazma yok", async () => {
+    drafts = [draft({ category: "parking", title: "Otopark", content: "Otopark ücreti günlük 200 TL." })];
     const s = await seed();
     const old = await prisma.knowledgeBaseItem.create({
-      data: { propertyId: s.propertyId, category: "trash", title: "Çöp", content: "Çöp kapının önüne bırakılır.", reviewState: "approved", source: "host_manual" },
+      data: { propertyId: s.propertyId, category: "parking", title: "Otopark", content: "Otopark ücreti günlük 150 TL.", reviewState: "approved", source: "host_manual" },
     });
     await prisma.hostQuestion.update({ where: { id: s.questionId }, data: { kbProposalState: "offered" } });
     const p = await press(s, "offer");
@@ -191,10 +192,25 @@ describe("teklif → önizleme → kayıt", () => {
     expect(await prisma.knowledgeBaseItem.count({ where: { isActive: true } })).toBe(1);
   });
 
+  it("aynı konuda değersiz bilgi: 'Benzer mevcut bilgi' + üç seçenek; [Ayrı ekle] ikisini birlikte bırakır", async () => {
+    const s = await seed();
+    const old = await prisma.knowledgeBaseItem.create({
+      data: { propertyId: s.propertyId, category: "trash", title: "Çöp", content: "Çöp kapının önüne bırakılır.", reviewState: "approved", source: "host_manual" },
+    });
+    await prisma.hostQuestion.update({ where: { id: s.questionId }, data: { kbProposalState: "offered" } });
+    const p = await press(s, "offer");
+    expect(p.choices[0]!.text).toContain("Benzer mevcut bilgi:");
+    expect(p.choices[0]!.buttons.map((b) => b.title)).toEqual(["Yerine yaz", "Ayrı ekle", "Vazgeç"]);
+    await press(s, "separate");
+    expect(await prisma.knowledgeBaseItem.count({ where: { isActive: true } })).toBe(2);
+    expect((await prisma.knowledgeBaseItem.findUniqueOrThrow({ where: { id: old.id } })).supersededById).toBeNull();
+  });
+
   it("🚨 aynı bilgi zaten kayıtlıysa yeni kalem açılmaz", async () => {
+    drafts = [draft({ category: "parking", title: "Otopark", content: "Otopark ücreti günlük 200 TL." })];
     const s = await seed();
     await prisma.knowledgeBaseItem.create({
-      data: { propertyId: s.propertyId, category: "trash", title: "Çöp", content: "Çöp konteyneri binanın arkasındadır.", reviewState: "approved", source: "host_manual" },
+      data: { propertyId: s.propertyId, category: "parking", title: "Otopark", content: "Otopark ücreti günlük 200 TL.", reviewState: "approved", source: "host_manual" },
     });
     await prisma.hostQuestion.update({ where: { id: s.questionId }, data: { kbProposalState: "offered" } });
     const p = await press(s, "offer");
