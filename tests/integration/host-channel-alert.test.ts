@@ -213,7 +213,9 @@ describe("acil bildirim (Tür C)", () => {
     expect(await alert(s)).toBe("duplicate");
     expect(sent).toHaveLength(0);
     await prisma.$executeRaw`UPDATE "HostQuestion" SET "updatedAt" = ${new Date(Date.now() - 5 * 60_000)} WHERE id = ${row.id}`;
-    expect(await alert(s)).toBe("sent");
+    // İki geçiş AYNI ANDA bayat kaydı devralmaya çalışır → yalnız biri gönderir (sürüm CAS'ı).
+    const [a, b] = await Promise.all([alert(s), alert(s)]);
+    expect([a, b].sort()).toEqual(["duplicate", "sent"]);
     expect(sent).toHaveLength(1);
     expect((await prisma.hostQuestion.findUniqueOrThrow({ where: { id: row.id } })).status).toBe("alerted");
   });
