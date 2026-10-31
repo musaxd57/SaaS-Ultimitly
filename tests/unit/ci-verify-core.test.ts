@@ -47,6 +47,10 @@ describe("son kapı kararı", () => {
     }
     expect(ok(good(), [A, B, C], { needs: { "test-db": { result: "success" } } }).ok).toBe(true);
   });
+  it("🚨 tutarsız rapor (başarısız test sayısı > 0 ama dosya satırları geçmiş görünüyor) → kırmızı", () => {
+    const res = ok([rep("db-1", [file(A)], { numFailedTests: 2 }), rep("db-2", [file(B)]), rep("nodb", [file(C)])], [A, B, C]);
+    expect(res.errors.join()).toMatch(/db-1: 2 test başarısız/);
+  });
   it("🚨 beklenen işin sonucu HİÇ gelmedi (boş NEEDS) → kırmızı", () => {
     const req = { requiredJobs: ["test-db", "test-nodb"] };
     expect(ok(good(), [A, B, C], { ...req, needs: {} }).errors.join()).toMatch(/iş "test-db" sonucu yok/);
@@ -98,6 +102,10 @@ describe("grup dağıtımı", () => {
     expect(all.sort()).toEqual(files);
     expect(new Set(all).size).toBe(files.length);
     expect(assignShards(files, { a: 10, b: 9, c: 1, d: 1, e: 1 }, 3)).toEqual(groups);
+  });
+  it("eşit ağırlıkta dağıtım girdi sırasından bağımsız (her iş ve son kapı aynı grubu hesaplar)", () => {
+    const w = { d: 5, a: 5, c: 5, b: 5, e: 5, f: 5 };
+    expect(assignShards(["d", "a", "f", "c", "e", "b"], w, 3)).toEqual(assignShards(["a", "b", "c", "d", "e", "f"], w, 3));
   });
   it("en uzun önce: iki uzun dosya aynı gruba düşmez", () => {
     const g = assignShards(["x", "y", "s1", "s2"], { x: 100, y: 90, s1: 1, s2: 1 }, 3);
