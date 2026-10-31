@@ -45,7 +45,8 @@ jobs:
         run: |
           echo "n=$(node -e 'console.log(require("./evals/claude-run-request.json").n ?? 40)')" >> "$GITHUB_OUTPUT"
           echo "rounds=$(node -e 'console.log(require("./evals/claude-run-request.json").rounds ?? 1)')" >> "$GITHUB_OUTPUT"
-          echo "suite=$(node -e 'console.log(require("./evals/claude-run-request.json").suite ?? "tests/eval/claude-adversarial.eval.test.ts")')" >> "$GITHUB_OUTPUT"
+      # Kollar (`arms`, en çok 8) sırayla koşar; rapor + satır özeti İŞ GÜNLÜĞÜNE ve özet sayfasına yazılır (oturumun yapıt indirme izni
+      # yok; günlük API ile okunur). Rapor sentetik veridir. Koşucu: scripts/claude-eval-arms.mjs.
       - name: Claude ölçümü
         if: env.HAS_KEY == 'true'
         env:
@@ -56,16 +57,7 @@ jobs:
         # Ölçer N ≤ 60, tur ≤ 3 tavanlı (ücret). Eksik ölçüm raporda "YARIM / Başarısız adımlar" diye yazar; iş KIRMIZI olmaz (kurucu 10-15:
         # commit'in yanında kırmızı görünmesin — asıl kapı CI'dir; bu bir ölçümdür, kalite kapısı değil).
         continue-on-error: true
-        run: npx vitest run --config vitest.eval.config.ts "${{ steps.req.outputs.suite }}"
-      # Rapor iş GÜNLÜĞÜNE ve özet sayfasına da yazılır (oturumun yapıt indirme izni yok; günlük API ile okunur). Rapor sentetik veridir.
-      - name: Raporu günlüğe ve özete yaz
-        if: always() && env.HAS_KEY == 'true'
-        run: |
-          for f in docs/olcum/claude-zorlu-*.md; do
-            [ -f "$f" ] || continue
-            echo "===== $f ====="; cat "$f"
-            cat "$f" >> "$GITHUB_STEP_SUMMARY"
-          done
+        run: node scripts/claude-eval-arms.mjs
       - name: Raporu yükle
         if: always() && env.HAS_KEY == 'true'
         uses: actions/upload-artifact@v4
@@ -74,5 +66,7 @@ jobs:
           path: |
             docs/olcum/claude-zorlu-*.md
             docs/olcum/claude-zorlu-*.json
+            docs/olcum/model-reply-compare-*claude*.md
+            docs/olcum/model-reply-compare-*claude*.json
           if-no-files-found: warn
           retention-days: 30
