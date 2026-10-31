@@ -457,6 +457,19 @@ Aynı işlemde, sırayla:
    "Kontrol listesi değişti; panelden bakın" · "Bu kart artık geçerli değil" · "Gönderim doğrulanamadı…" (cevap dilimiyle aynı dil).
 5. Anahtarlar: `HOST_DECISIONS_ENABLED` (karar motoru) + `HOST_CHANNEL_ENABLED` + `HOST_QUESTION_DECISIONS_ENABLED` + işletme listesi.
 
+**Sert inceleme sonrası kurallar (10-31, kodda + testli):**
+- Karar motorunun acil durdurması (`HOST_DECISIONS_ENABLED`) ÇEKİRDEKTE (`decideHostDecision` → `not_found`), ayrıca düğme yolunda ve
+  bildirimde: motor kapatılınca önceden gitmiş şablonun düğmeleri de karar veremez.
+- Uyarılar (panelde kırmızı satırlar, `ok: false`): şablonun kontrol değişkeninde ÖNCE (en çok 2 + "+N uyarı daha"), önizlemede HEPSİ
+  [Gönder]'den önce ("Dikkat:"). Önizleme 1024 karakteri aşarsa kesilmez: önce Türkçesi düşer, uyarılar asla; yine sığmazsa panel.
+- Durum önce okunur: karar verilmiş kartta herhangi bir düğme "Bu karar zaten verildi."; gönderiliyor / doğrulanamadı kartta "konuşmayı
+  kontrol edin" — "gönderilmedi" denmez. Kayıtta "bekliyor" ama fiilen kapanmış kart kendi nedeniyle (gün geçti / iptal / ev sahibi zaten
+  yazdı).
+- Misafir talepten sonra yazdıysa (çekirdekle TEK kural, `guestWroteAfterRequest`): bildirim e-postayla, düğme panele yönlendirir.
+- Önizlemenin WhatsApp kimliği karar satırının `previewMessageId`'sine yazılır: önizlemeye "Yanıtla" ile yazılan metin karara bağlanır
+  (panel yönlendirmesi), başka misafirin sorusunun taslağına girmez. Düz mesajı karar bildirimi YALNIZ bekleyen bilgi sorusu yokken ve kart
+  hâlâ kararsızken yakalar.
+
 ### 3.11 Hata yolları
 
 | Durum | Ne olur | E-posta |

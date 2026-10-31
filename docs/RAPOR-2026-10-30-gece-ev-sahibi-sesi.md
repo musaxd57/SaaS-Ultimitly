@@ -244,7 +244,96 @@ saatlik süpürgeyle silinir (misafire giden cevabı işaretleyen satır metinsi
 numaranıza bir kez denenir.
 
 **Kanıt:** sert inceleme 1 (4 mercek + şüpheci; 20 bulgu, 18'i gerçek — hepsi düzeltildi ya da pinlendi) · yeni testlerin 12'si düzeltme
-öncesi kodda kırmızı · mutasyon tur 1: 21 mutant → 19 öldü, 2 yaşayan (test boşluğu) kapatıldı; tur 2: SONUÇ_MUT2 · sert inceleme 2: SONUÇ_REV2.
+öncesi kodda kırmızı · mutasyon tur 1: 21 mutant → 19 öldü, 2 yaşayan (test boşluğu) kapatıldı; tur 2: 25/25 öldü · sert inceleme 2
+(düzeltmelerin kendisi): 20 bulgu, 16'sı gerçek — "yanıtla" kullanılmadan yazılan düz mesaj kuralının kenar durumları (soru akışı bildirimden
+sonra ilerlediyse soruya gider; bildirimden önce yazılmış / yeniden teslim edilen mesaj ve düğmeler kural dışı; açık soru varken sessiz
+yutma yok), görünmez karakterle maske atlatma, hiç doğrulanmamış numaranın silinmesi, test boşlukları; düzeltme öncesi kodda 7 yeni test
+kırmızı. Bilinçli değişiklik: rezervasyona bağlı olmayan konuşmada da acil bildirim gider (tarih yerine "—"; eskiden sessizce düşüyordu).
+Kurucu sorusu (yukarıya ek): **rıza metni** (Ayarlar, TASLAK) yalnız "misafir soruları" diyor — acil bildirim ve karar kartlarını da
+kapsayacak biçimde güncellenmeli: öneri "Misafir sorularının, acil misafir bildirimlerinin ve karar isteklerinin bu WhatsApp numarasına
+gönderilmesini kabul ediyorum." (avukat onayıyla).
+
+## 4g. WhatsApp — karar kartları (dilim 3, 10-31 gece; `HOST_DECISIONS_ENABLED` + `HOST_QUESTION_DECISIONS_ENABLED`, ikisi de KAPALI)
+
+Erken giriş / geç çıkış kartı açılınca "Karar bekliyor" e-postası YERİNE WhatsApp:
+
+> Lale (16–19 Kas) · 16 Kasım (varış günü) · 13:00 erken giriş isteği. Kontrol: Aynı gün çakışan başka bir rezervasyon var.; Bu devir
+> için temizlik görevi bulunamadı.; +1 uyarı daha
+> **[Onayla] [Reddet]** [Panelde aç]
+
+Kontrol satırında panelde KIRMIZI görünen uyarılar ÖNCE gelir (en çok 2 + "+N uyarı daha"); uyarı yoksa ilk iki satır. (Sert inceleme:
+ilk iki satır sırayla alınınca "İstenen saat: 13:00; Misafirin varışı bugün." gidiyor, "daire henüz boşalmamış olabilir" uyarısı
+WhatsApp'a hiç ulaşmıyordu — ev sahibi panelden daha az bilgiyle onaylayabiliyordu.)
+
+[Onayla]'ya basınca önce ÖNİZLEME (panelin varsayılan metniyle aynı kod metni — model yok; misafirin dilinde + Türkçesi). Uyarıların
+HEPSİ [Gönder]'den önce görünür:
+
+> 13:00 erken giriş · 16 Kasım (varış günü)
+>
+> Dikkat:
+> • Aynı gün çakışan başka bir rezervasyon var.
+> • Bu devir için temizlik görevi bulunamadı.
+> • Varıştan önceki gecenin boş olduğu doğrulanamadı; kanal takviminden kontrol edin.
+>
+> Misafire şu gidecek (İngilizce): "Your early check-in is approved — you can check in on 16 November from 13:00."
+> Türkçesi: "Erken giriş talebiniz onaylandı: …"
+> **[Gönder] [Gönderme]**
+
+Önizleme WhatsApp sınırına (1024 karakter) sığmazsa KESİLMEZ: önce Türkçesi düşer, uyarılar asla; yine sığmazsa "Bu kararı panelden verin".
+
+[Gönder] → paneldeki karar ile AYNI çekirdek (rotadan birebir çıkarıldı; rota testleri değişmeden yeşil): sürüm kilidi, misafir arada
+yazdıysa gitmez ("Misafir bu talepten sonra yeniden yazdı; mesajı panelden okuyun"), kontrol listesi değiştiyse gitmez, rezervasyon iptal /
+gün geçti → gitmez; çift dokunuş ikinci mesaj üretmez ("Bu karar zaten verildi."). Kararı veren bağlantının kullanıcısı (yalnız sahip /
+yönetici), denetim kaydında kaynak "WhatsApp".
+- WhatsApp'ta yalnız: metinli tür + istenen saat belli + ÜCRETSİZ onay. Ücretli erken giriş, saatsiz istek, uzatma / tarih değişikliği →
+  bugünkü e-posta (WhatsApp'ta basılırsa "Bu kararı panelden verin"); ret her zaman verilebilir (standart saatle).
+- Karar mesajına ya da önizlemeye yazıyla cevap ("13:30 olur") misafire gitmez: "Karar için mesajdaki [Onayla] / [Reddet] düğmelerini
+  kullanın; farklı bir saat ya da not için panelden yazın: <bağlantı>" (karşı teklif bu dilimde panelde — tasarım §3.10). "Yanıtla"
+  kullanılmadan düz yazılırsa yalnız bekleyen başka soru YOKKEN ve kart hâlâ kararsızken bu yönlendirme gelir; bekleyen bilgi sorusu varsa
+  düz mesaj ona gider (karar zaten düğmeyle verilir), karar verilmiş kartın bildirimi sonraki sohbeti yutmaz.
+- Misafir talepten sonra yeniden yazdıysa WhatsApp'ta karar verilemez (panelde "okudum" adımı var, WhatsApp'ta yok): bildirim bugünkü
+  e-postayla gider; eski şablondaki düğmeye basılırsa "Misafir bu talepten sonra yeniden yazdı; … Mesajı panelden okuyun".
+- Karar motoru kapatılırsa (`HOST_DECISIONS_ENABLED` boş) daha önce gitmiş şablonun düğmeleri de çalışmaz (panel rotasıyla aynı acil
+  durdurma — çekirdekte).
+
+**Kurucu kararı gerekenler:** şablon metni (Meta onayı) "{{1}} ({{2}}) · {{3}} isteği. Kontrol: {{4}}." · ev sahibine giden yeni cümleler
+(önizleme başlığı, "Dikkat:" uyarı başlığı, "+N uyarı daha", "Bu karar zaten verildi.", "Bu karar şu an gönderiliyor ya da gönderimi
+doğrulanamadı; konuşmayı kontrol edin:", "Bu karar kartı değişti ya da kapandı…", "Bu kararı panelden verin…", "Bu talebin kontrol listesi
+… değişti…", "Bu talepten sonra misafire zaten yazdınız; misafire bir şey gönderilmedi. Gerekirse kararı panelden verin:", "Talep edilen
+gün geçti…", "Rezervasyon iptal edilmiş…", karar mesajına yazı yönlendirmesi) · önizleme adımı kalsın mı (tek dokunuşla doğrudan gönderim
+yerine — öneri: ilk haftalar önizlemeli, S1 ile aynı) · **uyarılı kart WhatsApp'ta onaylanabilsin mi?** Şu an: evet, uyarılar önizlemede
+gösterilir (panel de uyarıya rağmen onaya izin veriyor). Daha temkinli seçenek: kırmızı satırı olan kart yalnız panelde onaylanır (ret yine
+WhatsApp'ta).
+
+**Kanıt:** karar çekirdeği rotadan birebir çıkarıldı (rota testleri değişmeden yeşil) · mutasyon tur 1: 28 mutant → 26 öldü, 2 eşdeğer
+(gerekçeli: yanıt kaydı denetimi o turda başka koşulla örtülüyordu — bu turda yeni testle öldü; ret metni saat kullanmaz, kod sadeleştirildi) ·
+sert inceleme (4 mercek + şüpheci): 20 bulgu, 19'u gerçek — karar motoru acil durdurması WhatsApp yolunda yoktu, uyarılar WhatsApp'a
+ulaşmıyordu, karar verilmiş kartta [Gönderme] "gönderilmedi" diyordu, karar bildirimi bekleyen bilgi sorusunun düz cevabını yutuyordu,
+misafir arada yazmışsa şablon e-postanın yerine geçip işe yaramıyordu, önizlemeye "Yanıtla" ile yazılan metin başka misafirin sorusuna
+bağlanabiliyordu, kapanmış kart yanlış nedenle cevaplanıyordu + 9 test boşluğu; hepsi düzeltildi ya da pinlendi; yeni testlerin 9'u
+düzeltme öncesi kodda kırmızı · mutasyon tur 2 (düzeltmeler + boşluklar): 32 mutant → 30 öldü; yaşayan 2'si rotadan taşınan çekirdek kuralının ESKİ test boşluğuydu
+("misafir yazdı mı" çapası talebin mesajı + "okudum" yalnız en son mesajla) — yeni rota testiyle 2/2 öldü · ilgili 30 dosya / 527 test yeşil.
+
+## 4h. Soru — WhatsApp cevabı bilgi tabanına kaydedilsin mi? (tasarım §3.9; KODLANMADI, karar sizde)
+
+Bugün ev sahibinin WhatsApp cevabı misafire gider, bilgi tabanına GİRMEZ: aynı soru başka misafirden gelince yine ev sahibine sorulur.
+Tasarımdaki öneri, gönderimden sonra tek soru:
+
+> Gönderildi ✓
+> Bunu Lale'nin bilgi tabanına kaydedeyim mi? Bir dahaki sefere sormadan cevaplarım: “var, yatak odası dolabında”
+> **[Kaydet] [Hayır]**
+
+[Kaydet] → bilgi tabanı kalemi (mülk: sorunun dairesi; başlık: konu, örn. "Bebek yatağı"; içerik: ev sahibinin KENDİ sözü, yapay zekâ cümlesi
+değil). Sorulmayanlar: Wi-Fi şifresi / kapı kodu (sır — yalnız panel), "bu hafta havuz kapalı" gibi geçici bilgi, talimat-ele-geçirme
+süzgecine takılan metin.
+
+**Neden kodlamadım:** tasarım kalemi "taslak" (onay bekleyen) olarak yazıyordu; ama panelde taslak kalemi gösteren / onaylatan ekran YOK
+(09-11'de sizin kararınızla kaldırıldı, geri gelmesi pinli). Taslak yazılırsa kalem hiçbir yerde görünmez ve hiç kullanılmaz.
+
+- **(a) Önerim:** [Kaydet] = onaylı kalem (bugünkü "Bilgi tabanına ekle" düğmesiyle aynı: sahibin / yöneticinin açık dokunuşu = onay).
+  Kalem mülk sayfasında görünür, düzenlenip kapatılabilir.
+- **(b)** Taslak + panelde küçük bir "WhatsApp'tan gelen bilgiler — onayla" kutusu (yeni ekran).
+- **(c)** Hiç sorma (bugünkü gibi).
 
 ## 5. Railway açılış günü eklenecekler (unutmayın)
 
