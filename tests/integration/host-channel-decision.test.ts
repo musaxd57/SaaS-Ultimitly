@@ -27,7 +27,7 @@ import { WHATSAPP_CLOUD_PROVIDER } from "@/lib/host-channel/providers";
 import { askDecisionOnChannel, decisionTemplateChecks, NO_CHECKS_TEXT } from "@/lib/host-channel/decision-ask";
 import { createHash } from "node:crypto";
 import { DECISION_TEXTS, decisionPreviewText } from "@/lib/host-channel/decision-answer";
-import { freshDecisionCard } from "@/lib/decisions/decide";
+import { decideHostDecision, freshDecisionCard } from "@/lib/decisions/decide";
 import { shortStayRange, templateSafe } from "@/lib/host-channel/question-text";
 import { ORG_HOURLY_QUESTION_CAP } from "@/lib/host-channel/routing";
 import type { DecisionCardData } from "@/lib/decisions/view-types";
@@ -351,6 +351,21 @@ describe("WhatsApp karar kartı (dilim 3)", () => {
     expect(out).toHaveLength(0);
     expect((await prisma.decisionRequest.findUniqueOrThrow({ where: { id: s.decisionId } })).status).toBe("pending");
     expect(await ask(s)).toBe(false);
+  });
+
+  it("karar çekirdeği de motor anahtarına bakar: kapalıyken her çağıran için 'bulunamadı', kart ve misafir dokunulmaz (P-1)", async () => {
+    const s = await seed();
+    vi.stubEnv("HOST_DECISIONS_ENABLED", "");
+    const outcome = await decideHostDecision({
+      organizationId: s.orgId,
+      conversationId: s.conversationId,
+      decisionId: s.decisionId,
+      actor: { userId: s.ownerId, name: "Ev Sahibi", auditActorId: s.ownerId },
+      input: { action: "decline", version: 0 },
+    });
+    expect(outcome).toEqual({ kind: "not_found" });
+    expect(mockSend).not.toHaveBeenCalled();
+    expect((await prisma.decisionRequest.findUniqueOrThrow({ where: { id: s.decisionId } })).status).toBe("pending");
   });
 
   it("karar verildikten sonra [Gönderme] / gönderim sürerken dokunuş → 'gönderilmedi' DENMEZ (S-2)", async () => {
