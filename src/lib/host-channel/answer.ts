@@ -89,6 +89,8 @@ export const HOST_TEXTS = {
   heldPayment: "Platform dışı ödeme yöntemi misafire yazılamaz (platform kuralı).",
   heldChannel: "Misafiri WhatsApp gibi başka bir uygulamaya yönlendiren mesaj gönderilemez (platform kuralı).",
   heldApology: "Cevaba sizin istemediğiniz bir özür girdi, gönderilmedi. Özür dilenmesini istiyorsanız cevabınızda belirtin.",
+  /** Kural gereği bırakılanlardan sonra misafire gidecek bir şey kalmadı (ör. yalnız telefon numarası istendi). */
+  nothingLeft: "Misafire gidecek başka bir şey kalmadı.",
   panelWrite: "Panelden yazabilirsiniz:",
   busy: "Önceki cevabınız hâlâ işleniyor; bu mesaj dikkate alınmadı. Önizleme gelince gerekirse yeniden yazın.",
   none: "Şu an bekleyen bir misafir sorusu yok.",
@@ -528,7 +530,15 @@ async function composeAndPreview(ctx: {
     await reopen({ composeCount: { increment: 1 } });
     const failed = composed.reason === "no_key" || composed.reason === "model_failed";
     const held = heldReasonText(composed.reason);
-    await reply(`${failed ? HOST_TEXTS.composeFailed : held ? `${held} ${HOST_TEXTS.panelWrite}` : HOST_TEXTS.unclear} ${link}`, event.providerMessageId);
+    const dropped = composed.dropped ?? [];
+    const text = failed
+      ? HOST_TEXTS.composeFailed
+      : held
+        ? `${held} ${HOST_TEXTS.panelWrite}`
+        : dropped.length > 0
+          ? `${HOST_TEXTS.dropped} ${dropped.join(", ")}. ${HOST_TEXTS.nothingLeft} ${HOST_TEXTS.panelWrite}`
+          : HOST_TEXTS.unclear;
+    await reply(`${text} ${link}`, event.providerMessageId);
     return failed ? "compose_failed" : "unclear";
   }
   // Kapsama kuralı (K-1029-A ile aynı ruh): cevap bir soruyu karşılamıyorsa misafire HENÜZ hiçbir şey gitmez, soru açık kalır.

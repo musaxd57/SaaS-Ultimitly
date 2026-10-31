@@ -37,6 +37,8 @@ describe("akşam saati konumsal; gece 1–5 asla öğleden sonra olmaz", () => {
     ["Giriş 20.30'dan sonra.", "giriş 20:30dan sonra"],
     ["Check-in from 20:30.", "akşam 8:30dan sonra"],
     ["You can check in after 8 pm.", "20den sonra girebilir"],
+    ["Check-in is at 18:00.", "akşamüstü 6 gibi gelin"],
+    ["Open until 20:00.", "akşamları 8'e kadar açık"],
   ])("GEÇER: %s ← %s", (reply, host) => {
     expect(check(reply, host)).toBeNull();
   });
@@ -47,7 +49,10 @@ describe("özür ve kusur kabulü", () => {
     for (const t of ["You're right next to the beach.", "المصعد في الطابق الأسفل", "للأسف لا يوجد مصعد", "El excusado está a la derecha.", "Bedauerlicherweise ist kein Parkplatz frei."]) {
       expect(apologizes(t), t).toBe(false);
     }
-    for (const t of ["آسف، الفني سيأتي غدا", "Wir bedauern die Unannehmlichkeiten.", "You're right, sorry about that."]) expect(apologizes(t), t).toBe(true);
+    for (const t of ["آسف، الفني سيأتي غدا", "Wir bedauern die Unannehmlichkeiten.", "You're right, sorry about that.", "Toutes mes excuses pour la gêne.", "Je m'excuse.", "Please excuse the mess.", "Excuse us for the inconvenience.", "Очень сожалею об этом."]) {
+      expect(apologizes(t), t).toBe(true);
+    }
+    for (const t of ["К сожалению, большую собаку нельзя.", "Excuse me, the lift is on the left."]) expect(apologizes(t), t).toBe(false);
   });
   it("özür isteği kusur kabulünü açmaz; 'özür dileme' özrü açmaz; açık istek açar", () => {
     expect(check("Haklısınız, teknisyen yarın geliyor.", "özür dileyerek yaz, teknisyen yarın gelecek")).toBe("apology");
@@ -69,7 +74,7 @@ describe("başka uygulama", () => {
     "TUTULUR: %s",
     (t) => expect(mentionsOffPlatformChannel(t)).toBe(true),
   );
-  it.each(["The wifi signal is strong.", "Instant coffee is in the kitchen.", "Installation is complete.", "A messenger bag is in the closet.", "Instagram-worthy view from the balcony.", "online check-in"])(
+  it.each(["The wifi signal is strong.", "Instant coffee is in the kitchen.", "Installation is complete.", "A messenger bag is in the closet.", "Instagram-worthy view from the balcony.", "online check-in", "Mutfakta kahve, çay ve kakao var.", "الإنترنت فايبر وسريع", "У входа есть телега для багажа."])(
     "GEÇER: %s",
     (t) => expect(mentionsOffPlatformChannel(t)).toBe(false),
   );
@@ -85,7 +90,8 @@ describe("ödeme (misafire yazılmış düz metin kipi)", () => {
   it.each([
     "Parking is free of charge and you can register in person at the desk.", "I will send the towels directly to your room.",
     "There is a cash machine next door.", "The airport transfer picks you up directly at arrivals.", "Otopark ücretsizdir, binanın önüne park edebilirsiniz.",
-    "Посмотрите на карту района.", "Anahtar kapıdaki kutuda.",
+    "Посмотрите на карту района.", "Anahtar kapıdaki kutuda.", "There is no extra fee for early check-in. Just message us when you arrive.",
+    "Ek ücret yok. Eve girerken ışıkları açın.", "Geç çıkış 300 TL. Geldiğinizde bize yazın.",
   ])("GEÇER: %s", (t) => expect(namesPaymentMethodInProse(t)).toBe(false));
 });
 

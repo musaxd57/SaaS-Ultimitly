@@ -349,8 +349,8 @@ düzeltme öncesi kodda kırmızı · mutasyon tur 2 (düzeltmeler + boşluklar)
 
 ## 4j. Talimat biçimli ev sahibi cevabı — yapıldı (10-31 sabah, `HOST_QUESTIONS_ENABLED` arkasında)
 
-**Örnek:** misafir "Is parking free?" yazdı; ev sahibi WhatsApp'a "ona otoparkın ücretsiz olduğunu güzelce yaz, binanın önüne park
-edebilir" yazdı → önizleme: "Yes, parking is free — you can park right in front of the building." → [Gönder]. Ev sahibi "mesaj şöyle
+**Örnek (gerçek ölçüm çıktısı):** misafir "Is parking free?" yazdı; ev sahibi WhatsApp'a "ona otoparkın ücretsiz olduğunu güzelce yaz,
+binanın önüne park edebilir" yazdı → önizleme: "Yes, parking is free, and you can park your car right in front of the building." → [Gönder]. Ev sahibi "mesaj şöyle
 gitsin: …" diye hazır metin de yazabilir; anlamı korunur, dili misafirinkine çevrilir.
 
 - **Kurallar talimatla değişmez:** "numaramı da ver, WhatsApp'tan yazsın" → numara / WhatsApp misafire gitmez; önizlemenin altında
@@ -363,6 +363,25 @@ gitsin: …" diye hazır metin de yazabilir; anlamı korunur, dili misafirinkine
 - **Tutma nedeni ev sahibine kendi cümlesiyle:** sayı/saat, telefon-e-posta-bağlantı, ödeme yöntemi, başka uygulama, özür — her biri ayrı
   cümle (eskiden hepsi "çıkaramadım").
 - Gerçek model ölçümü (eski / yeni istem, 42 vaka × 7 dil): ↓ §4k.
+
+## 4k. Ölçüm — talimat biçimli cevap, gerçek model (gpt-5.1, üretim profili; 42 vaka × 7 dil; toplam ≈ 0,35 $)
+
+| ölçü | eski istem | yeni istem (son) |
+|---|---|---|
+| beklenen sonuç | 41/42 | 41/42 |
+| talimat / hazır metin gönderilebilir | 16/16 | 16/16 |
+| 🚨 yasak içerik (telefon / WhatsApp / nakit / IBAN / Instagram) misafire | 0/6 | 0/6 |
+| kural gereği bırakılan ev sahibine söylendi | 0/6 | **6/6** |
+| özür kuralı (istenince var, istenmeyince yok) | 3/6 | **6/6** |
+| talimat yankısı misafire ("güzelce yaz" vb.) | 0 | 0 |
+
+Örnekler (yeni istem): "özür dileyerek yaz, teknisyen bugün akşam 6da gelecek" → "Klima ile ilgili yaşadığınız sorun için özür dilerim. Bugün
+akşam saat 6'da teknisyen gelecek." (eski istem özrü atıyordu) · "akşam 8den sonra girebilir" → "Sie können ab 20:00 Uhr einchecken." ·
+"whatsapptan yazsın, 0532 …" → misafire bir şey gitmez, ev sahibine: "Kurallar gereği eklemedim: telefon numarası, WhatsApp'tan yazma isteği.
+Misafire gidecek başka bir şey kalmadı. Panelden yazabilirsiniz: …". Tek kalan: Rusça "к сожалению" (ne yazık ki) özür sanılıyordu — düzeltildi.
+Ara turda istem "Thank you for your understanding" gibi dolgu yazıyordu → istemden çıkarıldı. İki sert inceleme (24 + 5 bulgu: "gece 2" →
+14:00 kaçağı, "3 gece kalabilirsiniz" kaçağı, Signal / Vayber / Arapça yazımlar, İspanyolca / Rusça havale; "You're right next to the beach"
+gibi haksız tutmalar) hepsi düzeltildi ve pinlendi. Rapor: `docs/olcum/ev-sahibi-cevabi-2026-10-31-*`.
 
 ## 4h. Soru — WhatsApp cevabı bilgi tabanına kaydedilsin mi? (tasarım §3.9; KODLANMADI, karar sizde)
 

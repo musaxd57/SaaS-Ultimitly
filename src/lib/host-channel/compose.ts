@@ -29,7 +29,15 @@ export interface ComposeInput {
 
 export type ComposeResult =
   | { ok: true; kind: "answer"; reply: string; replyTr: string; uncovered: string[]; dropped: string[] }
-  | { ok: false; kind: ComposeKind | null; reason: "no_key" | "model_failed" | "not_an_answer" | ComposeCheckFailure; replyTr?: string; uncovered?: string[] };
+  | {
+      ok: false;
+      kind: ComposeKind | null;
+      reason: "no_key" | "model_failed" | "not_an_answer" | ComposeCheckFailure;
+      replyTr?: string;
+      uncovered?: string[];
+      /** Kural gereği bırakılanlar — geriye misafire gidecek bir şey kalmadıysa da ev sahibine söylenir. */
+      dropped?: string[];
+    };
 
 // Talimat biçimli cevap (tasarım §3.6b, kurucu 10-31): ev sahibi bilgi ("var, dolapta"), TALİMAT ("ona otoparkın ücretsiz olduğunu güzelce
 // yaz") ya da hazır metin ("mesaj şöyle gitsin: …") yazabilir — üçü de cevaptır. Talimat yalnız BU mesajın içeriği ve tonu içindir; kuralları
@@ -132,7 +140,7 @@ export async function composeGuestReplyFromHostAnswer(input: ComposeInput): Prom
     // Kapsama listesi bozuksa "eksik yok" SAYILMAZ (Haiku 10-30 P3): kısmi cevap tam cevap gibi önizlemeye gitmesin.
     if (!Array.isArray(d.uncovered)) return { ok: false, kind, reason: "model_failed" };
     const uncovered = strs(d.uncovered);
-    if (kind !== "answer") return { ok: false, kind, reason: "not_an_answer" };
+    if (kind !== "answer") return { ok: false, kind, reason: "not_an_answer", dropped: droppedLabels(d.dropped) };
     const failure = checkComposedGuestReply({ reply, hostAnswer: input.hostAnswer, kbTexts: input.kbTexts });
     if (failure) return { ok: false, kind, reason: failure, replyTr, uncovered };
     return { ok: true, kind: "answer", reply, replyTr, uncovered, dropped: droppedLabels(d.dropped) };

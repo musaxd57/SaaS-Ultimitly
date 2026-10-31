@@ -366,6 +366,16 @@ describe("WhatsApp cevap dilimi", () => {
     expect(sendMock).not.toHaveBeenCalled();
   });
 
+  it("kural gereği bırakıldı ve misafire gidecek bir şey kalmadı → ev sahibine NEDENİ söylenir, misafire bir şey gitmez", async () => {
+    const h = await seedHost(DIG_A, "+90 532 111 22 33");
+    const q = await seedQuestion(h, "wamid.QD");
+    composeMock.mockResolvedValueOnce({ ok: false, kind: "unclear", reason: "not_an_answer", dropped: ["telefon numarası"] });
+    await deliver([text(DIG_A, "wamid.ad", "numaramı ver: 0532 111 22 33", "wamid.QD")]);
+    expect(lastText().startsWith(`${HOST_TEXTS.dropped} telefon numarası. ${HOST_TEXTS.nothingLeft} ${HOST_TEXTS.panelWrite}`)).toBe(true);
+    expect(await question(q.questionId)).toMatchObject({ status: "sent", composeCount: 1 });
+    expect(sendMock).not.toHaveBeenCalled();
+  });
+
   it("kural gereği bırakılan istek önizlemede söylenir; sığmazsa önce Türkçe çeviri düşer, sonra satır", async () => {
     const h = await seedHost(DIG_A, "+90 532 111 22 33");
     const q = await seedQuestion(h, "wamid.Q1");

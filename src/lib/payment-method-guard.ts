@@ -99,7 +99,7 @@ export function namesPaymentMethod(text: string, opts: { paymentContext?: boolea
 // MİSAFİRE YAZILMIŞ DÜZ METİN KİPİ (WhatsApp ev sahibi cevabından kurulan misafir cevabı, `host-channel/compose-check.ts`; inceleme 10-31).
 // Yukarıdaki kural ev sahibinin KISA kayıt notu için yazıldı ("şüphede reddet"); model misafirin dilinde uzun düz metin yazınca iki yönde
 // yanılıyordu: "Parking is free of charge … in person" → yanlış ret; "La fianza se paga al llegar", "Depozitoyu kartıma gönderin" → kaçak.
-// Bu kip yalnız o çağıran için: yöntem adı aynı (yukarıdaki liste), yer / biçim sözcüğü para sözcüğüyle AYNI ya da ÖNCEKİ cümlede,
+// Bu kip yalnız o çağıran için: yöntem adı aynı (yukarıdaki liste), yer / biçim sözcüğü para sözcüğüyle AYNI cümlede,
 // "doğrudan" para sözcüğüyle aynı yan cümlede, hesap / kart + ödeme fiili aynı yan cümlede. Ödeme olmayan öbekler (ücretsiz, ATM) önce silinir.
 // ---------------------------------------------------------------------------
 const NOT_PAYMENT = /free of charge|ucretsiz|kostenlos|gratuit|gratis|бесплатн|مجان|cash ?machines?|cash ?points?|(?<![a-z])atm(?![a-z])|bankamatik|geldautomat|distributeur|cajero/g;
@@ -126,11 +126,9 @@ export function namesPaymentMethodInProse(text: string): boolean {
       if (ACCOUNT_WORD.test(c) && PAY_VERB.test(c)) return true;
       if (DIRECT_WORD.test(c) && PAY_VERB.test(c) && PROSE_MONEY.test(c)) return true;
     }
-    const money = PROSE_MONEY.test(s) || PROSE_MONEY.test(sentences[i - 1] ?? "");
-    if (!money) continue;
-    // Anahtar / erişim cümlesindeki "kapıda" konumdur — para sözcüğü o cümlenin kendisinde yoksa.
-    const scanned = !PROSE_MONEY.test(s) && ACCESS.test(s) ? s.replace(new RegExp(KAPI.source, "g"), " ") : s;
-    if (PLACE_OR_MANNER.test(scanned) || PROSE_PLACE.test(scanned)) return true;
+    // Para sözcüğü AYNI cümlede (önceki cümleye bakmak "Ek ücret yok. Eve girerken ışıkları açın." gibi sıradan cevabı tutuyordu).
+    if (!PROSE_MONEY.test(s)) continue;
+    if (PLACE_OR_MANNER.test(s) || PROSE_PLACE.test(s)) return true;
   }
   return false;
 }

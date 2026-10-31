@@ -63,12 +63,12 @@ const fold = (s: string) => foldPaymentText(s).replace(/’/g, "'");
  */
 const CONNECTOR = "(?:(?:saat|at|um|a las|a la|à|a|vers|в|الساعة|ab|from|after|until|till|bis|des|desde)\\s+)?";
 const BEFORE_PM = new RegExp(
-  `(?:aksam|ogle?den sonra|this evening|in the evening|evening|afternoon|abends?|nachmittags?|ce soir|soir|apres-midi|esta tarde|por la tarde|вечером|مساء)(?:\\s+\\p{L}{1,12})?\\s*${CONNECTOR}$`,
+  `(?:aksam\\p{L}{0,8}|ogle?den sonra|this evening|in the evening|evening|afternoon|abends?|nachmittags?|ce soir|soir|apres-midi|esta tarde|por la tarde|вечером|مساء)(?:\\s+\\p{L}{1,12})?\\s*${CONNECTOR}$`,
   "u",
 );
 const BEFORE_NIGHT = new RegExp(`(?:gece|at night|tonight|nachts|cette nuit|esta noche|por la noche|ночью|ليلا)\\s*${CONNECTOR}$`, "u");
 const AFTER_PM =
-  /^\s*(?:p\.?\s?m(?![a-z])|(?:uhr\s+)?(?:abends|nachmittags)|(?:h|heures?)?\s*(?:du soir|de l'apres-midi)|de la tarde|(?:час(?:а|ов)?\s+)?вечера|час(?:а|ов)?\s+дня|in the (?:evening|afternoon)|(?:'?(?:d[ae]n|t[ae]n))?\s*sonra aksam|aksam)/u;
+  /^\s*(?:p\.?\s?m(?![a-z])|(?:uhr\s+)?(?:abends|nachmittags)|(?:h|heures?)?\s*(?:du soir|de l'apres-midi)|de la tarde|(?:час(?:а|ов)?\s+)?вечера|час(?:а|ов)?\s+дня|in the (?:evening|afternoon)|(?:'?(?:d[ae]n|t[ae]n))?\s*sonra aksam|aksam\p{L}{0,8})/u;
 const AFTER_NIGHT = /^\s*(?:de la noche|(?:час(?:а|ов)?\s+)?ночи|at night|in the night|la nuit)/u;
 /** Bir aralığın ikinci ucu öncekinin işaretini taşır ("akşam 8-9 arası", "8 to 9 pm"). */
 const RANGE_GAP = /^\s*(?:-|–|ile|ve|veya|or|to|and|bis|und|a|à|ou|y|o|и|или|до|و|الى)\s*$/u;
@@ -124,8 +124,8 @@ const APOLOGY = new RegExp(
   [
     "ozur", "uzgun", "kusura bakma", "affiniza", "affeders", "affedin",
     "sorry", "apolog", "(?<![a-z])regret(?!tab)", "entschuldig", "tut (?:uns|mir) leid", "bedauer(?:n|e|t)(?![a-z])",
-    "desole", "excusez", "(?<![a-z])pardon", "regrett", "lo siento", "lo sentimos", "lament(?:o|amos)(?![a-z])", "disculp", "perdon",
-    "извин", "прости", "прощени", "сожалеем", "жаль", "сочувств",
+    "desole", "excus(?:ez|er|es)(?![a-z])", "excuse (?:us|the)", "m'excuse", "(?<![a-z])pardon", "regrett", "lo siento", "lo sentimos", "lament(?:o|amos)(?![a-z])", "disculp", "perdon",
+    "извин", "прости", "прощени", "сожале(?:ем|ю|ет)", "жаль", "сочувств",
     "(?<!\\p{L})(?:ا|ن)?اسف(?:ة|ون|ين)?(?!\\p{L})", "نعتذر", "اعتذار", "معذر", "عذرا", "يؤسف",
   ].join("|"),
   "u",
@@ -150,7 +150,7 @@ function apologyHeld(reply: string, hostAnswer: string): boolean {
  * "Wi-Fi signal" sıradan cevap; ev sahibi önizlemeyi görür.
  */
 const OFF_PLATFORM_CHANNEL =
-  /whats\s?app|wa\.me|watsapp?|vatsap|telegram|viber|wechat|weixin|instagram|(?<![a-z])insta(?![a-z])|facebook|messenger|imessage|snapchat|skype|discord|kakao|(?<![a-z])wp'?(?:den|dan|ten|tan)(?![a-z])|ватсап|вотсап|вацап|вайбер|телеграм|телега|инстаграм|фейсбук|واتس|فايبر|تيليجرام|تليجرام|تلجرام|تلغرام|انستغرام|انستجرام|انستا|فيسبوك|سناب/u;
+  /whats\s?app|wa\.me|watsapp?|vatsap|telegram|viber|wechat|weixin|instagram|(?<![a-z])insta(?![a-z])|facebook|messenger|imessage|snapchat|skype|discord|kakao ?talk|(?<![a-z])wp'?(?:den|dan|ten|tan)(?![a-z])|ватсап|вотсап|вацап|вайбер|телеграм|инстаграм|фейсбук|واتس|تيليجرام|تليجرام|تلجرام|تلغرام|انستغرام|انستجرام|انستا|فيسبوك|سناب/u;
 const NOT_CHANNEL = /messenger ?bags?|instagram(?:-| )?worthy|instagrammable/gu;
 export const mentionsOffPlatformChannel = (text: string): boolean => {
   const f = fold(text.replace(/[\p{Default_Ignorable_Code_Point}\p{Cf}⠀]/gu, "")).replace(NOT_CHANNEL, " ");

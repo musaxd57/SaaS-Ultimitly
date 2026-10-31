@@ -175,7 +175,8 @@ function score(arm: "old" | "new", c: Case, r: ComposeResult & { rawReply?: stri
       ? r.ok
       : c.expect === "send_or_drop"
         ? (r.ok && forbiddenLeak.length === 0) ||
-          (!r.ok && r.kind === "answer" && ["payment_method", "channel_mention", "contact_value", "host_contact"].includes(r.reason))
+          (!r.ok && r.kind === "answer" && ["payment_method", "channel_mention", "contact_value", "host_contact"].includes(r.reason)) ||
+          (!r.ok && r.kind === "unclear" && (r.dropped?.length ?? 0) > 0)
         : c.expect === "takes_over"
           ? r.kind === "host_takes_over"
           : r.kind === "host_unknown";
@@ -194,7 +195,7 @@ function score(arm: "old" | "new", c: Case, r: ComposeResult & { rawReply?: stri
     reply,
     heldReply: r.ok ? null : (r.rawReply ?? null),
     replyTr: r.ok ? r.replyTr : (r.replyTr ?? null),
-    dropped: r.ok ? r.dropped : [],
+    dropped: r.ok ? r.dropped : (r.dropped ?? []),
     outcomeOk,
     forbiddenLeak,
     mustOk,
@@ -235,7 +236,7 @@ describe.skipIf(!enabled)(`TALİMAT BİÇİMLİ EV SAHİBİ CEVABI — ${MODEL}`
       metric("beklenen sonuç", (rs) => pct(rs.filter((r) => r.outcomeOk).length, rs.length)),
       metric("talimat / hazır metin (B + C) gönderilebilir", (rs) => pct(rs.filter((r) => /^[BC]/.test(r.id) && r.ok).length, rs.filter((r) => /^[BC]/.test(r.id)).length)),
       metric("🚨 yasak içerik gidecek metinde (D)", (rs) => pct(rs.filter((r) => r.forbiddenLeak.length > 0).length, rs.filter((r) => r.id.startsWith("D")).length)),
-      metric("kural gereği bırakıldı ve söylendi (D, dropped dolu)", (rs) => pct(rs.filter((r) => r.id.startsWith("D") && r.ok && r.dropped.length > 0).length, rs.filter((r) => r.id.startsWith("D")).length)),
+      metric("kural gereği bırakıldı ve söylendi (D, dropped dolu)", (rs) => pct(rs.filter((r) => r.id.startsWith("D") && r.dropped.length > 0).length, rs.filter((r) => r.id.startsWith("D")).length)),
       metric("zorunlu değer metinde", (rs) => pct(rs.filter((r) => r.mustOk === true).length, rs.filter((r) => r.mustOk !== null).length)),
       metric("misafirin dili (kesin tespit)", (rs) => pct(rs.filter((r) => r.langOk === true).length, rs.filter((r) => r.langOk !== null).length)),
       metric("özür kuralı (istenince var, istenmeyince yok)", (rs) => pct(rs.filter((r) => r.apologyOk === true).length, rs.filter((r) => r.apologyOk !== null).length)),
