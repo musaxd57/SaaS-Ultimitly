@@ -255,6 +255,25 @@ describe("kalıcı gömme deposu — temizlik", () => {
     expect(await prisma.kbChunkVector.count()).toBe(35);
   });
 
+  it("🚨 metni DEĞİŞMEYEN düzenleme (yalnız sürüm): kancanın sildiği satır aynı süreçte YENİDEN yazılır → yeniden başlatmada yeniden ödeme yok (Sonnet 10-31)", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    await seedKb(propertyId, 35);
+    await warmPropertyKbVectors(propertyId);
+    await __awaitSemanticWarm();
+    const item = await prisma.knowledgeBaseItem.findFirst({ where: { propertyId, title: "Bilgi 3" }, select: { id: true } });
+    await prisma.knowledgeBaseItem.update({ where: { id: item!.id }, data: { updatedAt: new Date(Date.now() + 60_000) } });
+    await afterKbItemsChanged({ organizationId: orgId, propertyIds: [propertyId] });
+    await warmPropertyKbVectors(propertyId);
+    await __awaitSemanticWarm();
+    const current = await prisma.knowledgeBaseItem.findUniqueOrThrow({ where: { id: item!.id }, select: { updatedAt: true } });
+    const rows = await prisma.kbChunkVector.findMany({ where: { kbItemId: item!.id }, select: { itemUpdatedAt: true } });
+    expect(rows.map((r) => r.itemUpdatedAt.getTime())).toEqual([current.updatedAt.getTime()]);
+    expect(await prisma.kbChunkVector.count()).toBe(35);
+    restart();
+    expect((await prepare(propertyId)).status).toBe("ok");
+    expect(chunkTextsEmbedded()).toEqual([]);
+  });
+
   it("açılışta başka modelin satırları silinir", async () => {
     const { propertyId } = await makeOrgWithProperty();
     await seedKb(propertyId, 35);

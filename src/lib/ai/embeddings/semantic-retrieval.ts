@@ -49,6 +49,7 @@ import {
   pairKey,
   persistChunkVectors,
   purgeOtherModelVectors,
+  purgeStaleVectors,
   vectorStoreEnabled,
   type ChunkOwner,
   VECTOR_STORE_READ_TIMEOUT_MS,
@@ -364,6 +365,18 @@ export function warmKbVectors<T extends KbChunkSource>(items: readonly T[]): num
  */
 export async function purgeVectorStoreForCurrentModel(): Promise<number> {
   return purgeOtherModelVectors(embeddingModel());
+}
+
+/**
+ * Yazma kancası: değişen dairelerin sürümü tutmayan satırlarını siler. Silinen satır olduysa süreç içi "satırı yazıldı" kaydı da unutulur —
+ * yoksa metni DEĞİŞMEYEN düzenlemede (yalnız sürüm) bellekteki vektör "zaten yazıldı" sayılıp satır yeniden başlatmaya kadar geri yazılmıyor,
+ * yeniden başlatmada o parçalar yeniden ödeniyordu (Sonnet 10-31). Kayıt yalnız bir yazma iyileştirmesidir: unutulunca sonraki ısıtma bellekteki
+ * vektörlerin satırını yeniden dener (gömme YOK, `skipDuplicates`). Fırlatmaz.
+ */
+export async function purgeStaleVectorsForProperties(propertyIds: readonly string[]): Promise<number> {
+  const removed = await purgeStaleVectors(propertyIds);
+  if (removed > 0) persisted.clear();
+  return removed;
 }
 
 // ─── test/teşhis kancaları ──────────────────────────────────────────────────
