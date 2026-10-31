@@ -176,7 +176,7 @@ describe("acil bildirim kancası (onUrgentMessage)", () => {
     expect(mockMail).toHaveBeenCalledTimes(1);
   });
 
-  it("🚨 e-posta kancanın bitmesini BEKLEMEZ (ikisi aynı anda başlar)", async () => {
+  it("🚨 kanca e-postadan ÖNCE başlar, e-posta kancanın bitmesini BEKLEMEZ, çağıran ikisini de bekler", async () => {
     const { conversation, message } = await seedTwoSensitiveItems();
     const order: string[] = [];
     let mailed!: () => void;
@@ -187,12 +187,44 @@ describe("acil bildirim kancası (onUrgentMessage)", () => {
       return { ok: true };
     }) as never);
     const hook = vi.fn(async () => {
+      order.push("hook-start");
       // E-posta kancadan önce çağrılmazsa 1,5 sn sonra kendi kendine biter (kilitlenme yok, sıra yanlış kalır).
       await Promise.race([mailSeen, new Promise((r) => setTimeout(r, 1_500))]);
+      // E-postadan SONRA gerçek bir bekleme: çağıran kancayı beklemezse "hook-done" dönüşte henüz yazılmamış olur.
+      await new Promise((r) => setTimeout(r, 50));
       order.push("hook-done");
     });
     await notifyHeldItems(prisma, { ...input(conversation.id, message.id, new Date()), onUrgentMessage: hook });
-    expect(order).toEqual(["mail", "hook-done"]);
+    expect(order).toEqual(["hook-start", "mail", "hook-done"]);
+  });
+
+  it("bir turda iki ayrı mesaj → kanca HER MESAJ için kendi kimliği ve metniyle (ilk mesajın kimliği tekrar edilmez)", async () => {
+    const conversation = await prisma.conversation.create({
+      data: { propertyId, channel: "airbnb", guestIdentifier: "Alex", externalReservationId: `res-${Math.random()}`, status: "new" },
+    });
+    const bodies = ["IBAN ile ödeyebilir miyim?", "Dün gece gürültüden uyuyamadık."];
+    const intents = ["payment_invoice", "complaint_issue"] as const;
+    const messages = [];
+    for (const [i, body] of bodies.entries()) {
+      messages.push(
+        await prisma.message.create({
+          data: { conversationId: conversation.id, direction: "inbound", body, senderName: "Alex", authorType: "guest", createdAt: new Date(Date.now() - (2 - i) * 60_000) },
+        }),
+      );
+    }
+    const rows = await upsertTurnItems(prisma, {
+      organizationId: orgId,
+      conversationId: conversation.id,
+      now: new Date(),
+      messages: messages.map((m, i) => ({ messageId: m.id, items: buildItemsForMessage({ requests: [{ intent: intents[i]! }], lexicalLabels: [] }) })),
+    });
+    await applyItemEvent(prisma, { organizationId: orgId, ids: rows.map((r) => r.id), event: "held", now: new Date() });
+    const hook = vi.fn(async () => null);
+    await notifyHeldItems(prisma, { ...input(conversation.id, messages[0]!.id, new Date()), messageIds: messages.map((m) => m.id), onUrgentMessage: hook });
+    expect(hook.mock.calls).toEqual([
+      [messages[0]!.id, bodies[0]],
+      [messages[1]!.id, bodies[1]],
+    ]);
   });
 
   it("eşzamanlı iki çağrıda kanca TEK kez; bildirilmiş mesaj yeniden işlenince kanca yok", async () => {

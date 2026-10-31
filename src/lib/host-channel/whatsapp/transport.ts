@@ -6,8 +6,10 @@ import { WHATSAPP_CLOUD_PROVIDER } from "../providers";
 // konuşur. Kimlik bilgileri ortamdan (kasada): `WHATSAPP_ACCESS_TOKEN` (sistem kullanıcısı kalıcı belirteci), `WHATSAPP_PHONE_NUMBER_ID`;
 // Graph sürümü `WHATSAPP_GRAPH_VERSION` (⚠️ kurulumda güncel sürüm teyit edilir). Şablon adları / dili `WHATSAPP_QUESTION_TEMPLATE` /
 // `WHATSAPP_ALERT_TEMPLATE` / `WHATSAPP_TEMPLATE_LANG` (varsayılan `lixus_misafir_sorusu` / `lixus_acil_bildirim` / `tr`). Şablonda DEĞİŞKENLİ
-// bağlantı düğmesi varsa (`https://www.lixusai.com/inbox/{{1}}`) `WHATSAPP_TEMPLATE_URL_BUTTON_INDEX` o düğmenin sırası (0'dan); boşsa düğme
-// parametresi gönderilmez (statik bağlantılı ya da bağlantısız şablon). Meta, şablondaki değişken sayısıyla gönderilen eşleşmezse reddeder (132000).
+// bağlantı düğmesi varsa (`https://www.lixusai.com/inbox/{{1}}`) o düğmenin şablondaki sırası (0'dan) ŞABLON BAŞINA ayrı verilir:
+// `WHATSAPP_QUESTION_URL_BUTTON_INDEX` / `WHATSAPP_ALERT_URL_BUTTON_INDEX` (soru şablonunda önce hızlı yanıt düğmesi olabilir, acilde olmayabilir —
+// sıralar farklı). Boşsa düğme parametresi gönderilmez (statik bağlantılı ya da bağlantısız şablon). Meta, şablondaki değişkenlerle gönderilen
+// eşleşmezse reddeder (132000) → çağıran e-postaya düşer; kurulumda her şablon bir kez denenir.
 // Belirteç ASLA günlüğe yazılmaz; hata gövdesinden yalnız kod + kısa mesaj okunur. Kesin ret (4xx, 429 hariç; pencere dışı serbest metin
 // 131047) yeniden denenmez → çağıran e-posta yedeğine düşer.
 // ---------------------------------------------------------------------------
@@ -19,8 +21,9 @@ export interface WhatsAppConfig {
   questionTemplate: string;
   alertTemplate: string;
   templateLang: string;
-  /** Değişkenli bağlantı düğmesinin şablondaki sırası; `null` → düğme parametresi yok. */
-  urlButtonIndex: number | null;
+  /** Değişkenli bağlantı düğmesinin şablondaki sırası (şablon başına); `null` → düğme parametresi yok. */
+  questionUrlButtonIndex: number | null;
+  alertUrlButtonIndex: number | null;
 }
 
 export function whatsAppConfigFromEnv(env: Record<string, string | undefined> = process.env): WhatsAppConfig | null {
@@ -29,8 +32,9 @@ export function whatsAppConfigFromEnv(env: Record<string, string | undefined> = 
   if (!accessToken || !phoneNumberId || !/^\d{5,20}$/.test(phoneNumberId)) return null;
   const graphVersion = env.WHATSAPP_GRAPH_VERSION?.trim() || "v23.0";
   if (!/^v\d{1,3}\.\d$/.test(graphVersion)) return null;
-  const rawIndex = env.WHATSAPP_TEMPLATE_URL_BUTTON_INDEX?.trim();
-  if (rawIndex && !/^\d$/.test(rawIndex)) return null;
+  const questionIndex = env.WHATSAPP_QUESTION_URL_BUTTON_INDEX?.trim();
+  const alertIndex = env.WHATSAPP_ALERT_URL_BUTTON_INDEX?.trim();
+  if ((questionIndex && !/^\d$/.test(questionIndex)) || (alertIndex && !/^\d$/.test(alertIndex))) return null;
   return {
     accessToken,
     phoneNumberId,
@@ -38,7 +42,8 @@ export function whatsAppConfigFromEnv(env: Record<string, string | undefined> = 
     questionTemplate: env.WHATSAPP_QUESTION_TEMPLATE?.trim() || "lixus_misafir_sorusu",
     alertTemplate: env.WHATSAPP_ALERT_TEMPLATE?.trim() || "lixus_acil_bildirim",
     templateLang: env.WHATSAPP_TEMPLATE_LANG?.trim() || "tr",
-    urlButtonIndex: rawIndex ? Number(rawIndex) : null,
+    questionUrlButtonIndex: questionIndex ? Number(questionIndex) : null,
+    alertUrlButtonIndex: alertIndex ? Number(alertIndex) : null,
   };
 }
 
@@ -81,21 +86,21 @@ async function post(cfg: WhatsAppConfig, body: Record<string, unknown>, fetchImp
 
 export function createWhatsAppTransport(cfg: WhatsAppConfig, fetchImpl: typeof fetch = fetch): HostChannelTransport {
   /** Onaylı şablon: üç gövde değişkeni (daire · tarih · maskeli alıntı) + (yapılandırılmışsa) değişkenli bağlantı düğmesine panel yolu. */
-  const sendTemplate = (name: string, to: string, message: HostQuestionMessage): Promise<HostSendResult> => {
+  const sendTemplate = (name: string, urlButtonIndex: number | null, to: string, message: HostQuestionMessage): Promise<HostSendResult> => {
     const num = normalizeWaNumber(to);
     if (!num) return Promise.resolve({ ok: false, providerMessageId: null, definitive: true, error: "bad_number" });
     const components: Record<string, unknown>[] = [
       { type: "body", parameters: [message.property, message.dates, message.quote].map((text) => ({ type: "text", text })) },
     ];
-    if (cfg.urlButtonIndex !== null && message.link) {
-      components.push({ type: "button", sub_type: "url", index: String(cfg.urlButtonIndex), parameters: [{ type: "text", text: message.link }] });
+    if (urlButtonIndex !== null && message.link) {
+      components.push({ type: "button", sub_type: "url", index: String(urlButtonIndex), parameters: [{ type: "text", text: message.link }] });
     }
     return post(cfg, { to: num, type: "template", template: { name, language: { code: cfg.templateLang }, components } }, fetchImpl);
   };
   return {
     provider: WHATSAPP_CLOUD_PROVIDER,
-    sendQuestion: (to: string, message: HostQuestionMessage) => sendTemplate(cfg.questionTemplate, to, message),
-    sendAlert: (to: string, message: HostQuestionMessage) => sendTemplate(cfg.alertTemplate, to, message),
+    sendQuestion: (to: string, message: HostQuestionMessage) => sendTemplate(cfg.questionTemplate, cfg.questionUrlButtonIndex, to, message),
+    sendAlert: (to: string, message: HostQuestionMessage) => sendTemplate(cfg.alertTemplate, cfg.alertUrlButtonIndex, to, message),
     async sendText(to: string, text: string, replyTo?: string | null): Promise<HostSendResult> {
       const num = normalizeWaNumber(to);
       if (!num) return { ok: false, providerMessageId: null, definitive: true, error: "bad_number" };

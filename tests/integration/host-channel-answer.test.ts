@@ -1144,6 +1144,6 @@ describe("WhatsApp cevap dilimi", () => {
     expect(texts).toHaveLength(2);
     expect(texts.some((t) => t.startsWith(HOST_TEXTS.composeFailed) && t.endsWith(`/inbox/${stuckA.conversationId}`))).toBe(true);
     expect(texts.some((t) => t.startsWith(HOST_TEXTS.unverified) && t.endsWith(`/inbox/${stuckS.conversationId}`))).toBe(true);
-    expect(r).toEqual({ expired: 1, purged: 1, recovered: 2 });
+    expect(r).toEqual({ expired: 1, purged: 1, recovered: 2, deleted: 0 });
   });
 });

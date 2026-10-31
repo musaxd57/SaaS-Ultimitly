@@ -76,7 +76,7 @@ const EXCLUDED: Record<string, string> = {
   HostChannelBinding:
     "Ev sahibinin bildirim adresi (migration 88) — numara yalnız şifreli + HMAC anahtarı, doğrulama özetleri; kimlik bilgisi niteliğinde (bağlantı ayarlardan görülür / kapatılır), dökümde düz numara olmaz",
   HostQuestion:
-    "Ev sahibine giden soru kuyruğu (migration 88) — geçici iş satırı (metinler şifreli, 7 günde boşalır, 90 günde silinir); misafir yazışmasının kendisi (mesajlar) dökümde",
+    "Ev sahibine giden soru kuyruğu (migration 88) — geçici iş satırı (metinler şifreli, 7 günde boşalır, 90 günde silinir; misafire giden cevabı işaretleyen satır metinsiz kalır, konuşmayla gider); misafir yazışmasının kendisi (mesajlar) dökümde",
 };
 
 const EXPORT_SRC = readFileSync("src/lib/data-export.ts", "utf8");

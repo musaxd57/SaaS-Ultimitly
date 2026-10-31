@@ -2126,6 +2126,7 @@ export async function applyChannelAutoReply(
       organizationId: conversation.property.organizationId,
       conversation: { id: conversation.id, guestIdentifier: conversation.guestIdentifier, channel: conversation.channel, property: conversation.property },
       trigger: { id: trigger.id, body: trigger.body },
+      onAlert: (messageId, body) => urgentChannelAlert(conversation.property.organizationId, conversation.id, messageId, body),
     }).catch((err) => {
       void reportError(`hazard-unverified org=${conversation.property.organizationId}`, err);
       return null;
@@ -3711,11 +3712,15 @@ export async function applyChannelAutoReply(
             // bildirimi sessizce yutuyordu ve aşağıdaki catch'in "next sync
             // cycle retries via sendDueAlerts" iddiası YANLIŞTI (sendDueAlerts
             // yalnız status:"new" seçer, claim satırı çoktan "problem" yapmıştı).
-            const mail = await emailService.sendReporting(
-              to,
-              `⚠️ Acil misafir mesajı — ${conversation.guestIdentifier} (${conversation.property.name})`,
-              html,
-            );
+            // WhatsApp bildirimi e-postayla AYNI ANDA (↑`urgentChannelAlert`; tetik `last` — claim'in kaydettiği mesaj).
+            const [mail] = await Promise.all([
+              emailService.sendReporting(
+                to,
+                `⚠️ Acil misafir mesajı — ${conversation.guestIdentifier} (${conversation.property.name})`,
+                html,
+              ),
+              urgentChannelAlert(conversation.property.organizationId, conversation.id, last.id, last.body),
+            ]);
             if (!mail.ok) {
               // ⚠️ BURADA CLAIM **GERİ ALINMAZ** — kardeş `sendDueAlerts`'ten
               // BİLEREK farklı. İlk denemede burada da geri alma vardı; denetim
@@ -4383,6 +4388,20 @@ export function itemsAnsweredRefs(
  * personel ya da operatör ASLA), mesaj başına en fazla bir e-posta; host görev otomasyonunu açtıysa ev sahibinde tutulan
  * mesajlar için görev (tekilleştirilmiş). E-posta düşerse claim geri alınır + tek alarm.
  */
+/**
+ * Acil e-postanın YANINDA ev sahibi kanalı bildirimi (WhatsApp, `HOST_QUESTION_ALERTS_ENABLED` arkasında — tasarım §3.1 dilim 4). "⚠️ Acil
+ * misafir mesajı" e-postasının gittiği HER yolda e-postayla AYNI ANDA çağrılır (tutulan öğe · kelime ağı acil / şikâyet · model yükseltmesi ·
+ * olası tehlike); mesaj başına tek bildirim (`alert:<mesaj>`), kapalıyken veritabanına dokunmaz, asla fırlatmaz. Ev sahibinin kendi açtığı
+ * konuşma (`POST /api/conversations`) ve QR (ayrı, metinsiz e-posta) bilinçli dışarıda.
+ */
+async function urgentChannelAlert(organizationId: string, conversationId: string, messageId: string, body: string, now?: Date): Promise<unknown> {
+  try {
+    return await alertHostOnChannel({ organizationId, conversationId, messageId, messageBody: body, transport: hostChannelTransport(), now });
+  } catch {
+    return null;
+  }
+}
+
 async function notifyItemsForHost(input: {
   organizationId: string;
   conversation: ItemsConversationRef;
@@ -4408,8 +4427,7 @@ async function notifyItemsForHost(input: {
     messageIds: input.messageIds,
     now: input.now,
     // Acil bildirim WhatsApp'a da (anahtar arkasında, e-postanın yanında; kapalıyken veritabanına dokunmaz).
-    onUrgentMessage: (messageId, body) =>
-      alertHostOnChannel({ organizationId: input.organizationId, conversationId: input.conversation.id, messageId, messageBody: body, transport: hostChannelTransport(), now: input.now }),
+    onUrgentMessage: (messageId, body) => urgentChannelAlert(input.organizationId, input.conversation.id, messageId, body, input.now),
   });
   if (notice.failed.length > 0) {
     void reportError(
@@ -6235,11 +6253,12 @@ export async function sendDueAlerts(
     // "problem"e taşımış olduğu için ne bu döngü (yalnız status:"new" seçer) ne
     // de model yolu (status "problem" ise erken döner) o thread'i bir daha
     // seçebiliyordu. Tek iz, host'un fark etmesi gereken bir inbox rozetiydi.
-    const mail = await emailService.sendReporting(
-      to,
-      `⚠️ Acil misafir mesajı — ${c.guestIdentifier} (${c.property.name})`,
-      html,
-    );
+    // WhatsApp bildirimi e-postayla AYNI ANDA (↑`urgentChannelAlert`). E-posta düşüp claim geri alınınca sonraki geçiş yeniden çağırır —
+    // ikinci WhatsApp'ı bildirimin kendi tekilliği (`alert:<mesaj>`) önler.
+    const [mail] = await Promise.all([
+      emailService.sendReporting(to, `⚠️ Acil misafir mesajı — ${c.guestIdentifier} (${c.property.name})`, html),
+      urgentChannelAlert(organizationId, c.id, hit.id, hit.body),
+    ]);
     if (!mail.ok) {
       // Claim'i GERİ AL ki bir sonraki geçiş yeniden denesin. YALNIZ `status`
       // geri alınır: `skippedReason`/`lastRiskType` kalır, böylece inbox rozeti
@@ -6345,8 +6364,7 @@ async function alertItemsForHost(input: {
     property: input.conversation.property,
     messageIds: todo.map((h) => h.id),
     now,
-    onUrgentMessage: (messageId, body) =>
-      alertHostOnChannel({ organizationId: input.organizationId, conversationId: input.conversation.id, messageId, messageBody: body, transport: hostChannelTransport(), now }),
+    onUrgentMessage: (messageId, body) => urgentChannelAlert(input.organizationId, input.conversation.id, messageId, body, now),
   });
   // Karar kaydı mesaj başına BİR kez: e-postası düşen mesaj sonraki geçişte yeniden işlenir, tekillik ihlali (yutulur ama
   // Prisma hata satırı basar) önceden okunarak atlanır.

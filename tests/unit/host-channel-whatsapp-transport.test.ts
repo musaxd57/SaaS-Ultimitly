@@ -12,7 +12,8 @@ const cfg: WhatsAppConfig = {
   questionTemplate: "lixus_misafir_sorusu",
   alertTemplate: "lixus_acil_bildirim",
   templateLang: "tr",
-  urlButtonIndex: null,
+  questionUrlButtonIndex: null,
+  alertUrlButtonIndex: null,
 };
 
 function graph(status: number, body: unknown) {
@@ -33,10 +34,17 @@ describe("ortam ayarı", () => {
       graphVersion: "v23.0",
       templateLang: "tr",
       alertTemplate: "lixus_acil_bildirim",
-      urlButtonIndex: null,
+      questionUrlButtonIndex: null,
+      alertUrlButtonIndex: null,
     });
-    expect(whatsAppConfigFromEnv({ WHATSAPP_ACCESS_TOKEN: "x", WHATSAPP_PHONE_NUMBER_ID: "123456", WHATSAPP_TEMPLATE_URL_BUTTON_INDEX: "1" })?.urlButtonIndex).toBe(1);
-    expect(whatsAppConfigFromEnv({ WHATSAPP_ACCESS_TOKEN: "x", WHATSAPP_PHONE_NUMBER_ID: "123456", WHATSAPP_TEMPLATE_URL_BUTTON_INDEX: "bir" })).toBeNull();
+    const base = { WHATSAPP_ACCESS_TOKEN: "x", WHATSAPP_PHONE_NUMBER_ID: "123456" };
+    // Şablon başına ayrı sıra (soru şablonunda önce hızlı yanıt düğmesi olabilir).
+    expect(whatsAppConfigFromEnv({ ...base, WHATSAPP_QUESTION_URL_BUTTON_INDEX: "1", WHATSAPP_ALERT_URL_BUTTON_INDEX: "0" })).toMatchObject({
+      questionUrlButtonIndex: 1,
+      alertUrlButtonIndex: 0,
+    });
+    expect(whatsAppConfigFromEnv({ ...base, WHATSAPP_QUESTION_URL_BUTTON_INDEX: "bir" })).toBeNull();
+    expect(whatsAppConfigFromEnv({ ...base, WHATSAPP_ALERT_URL_BUTTON_INDEX: "-1" })).toBeNull();
   });
   it("numara: +, boşluk, parantez, tire temizlenir; 8–15 rakam", () => {
     expect(normalizeWaNumber("+90 (532) 111-22-33")).toBe("905321112233");
@@ -81,13 +89,17 @@ describe("gönderim gövdesi", () => {
       { type: "body", parameters: [{ type: "text", text: "Lale" }, { type: "text", text: "12–15 Kas" }, { type: "text", text: "We are locked out" }] },
     ]);
 
-    await createWhatsAppTransport({ ...cfg, urlButtonIndex: 1 }, g.fetchImpl).sendQuestion("905321112233", msg);
+    const t = createWhatsAppTransport({ ...cfg, questionUrlButtonIndex: 1, alertUrlButtonIndex: 0 }, g.fetchImpl);
+    await t.sendQuestion("905321112233", msg);
     const withButton = JSON.parse(String(g.calls[1].init.body));
     expect(withButton.template.name).toBe("lixus_misafir_sorusu");
     expect(withButton.template.components[1]).toEqual({ type: "button", sub_type: "url", index: "1", parameters: [{ type: "text", text: "conv123" }] });
+    // Her şablon KENDİ sırasıyla.
+    await t.sendAlert("905321112233", msg);
+    expect(JSON.parse(String(g.calls[2].init.body)).template.components[1]).toMatchObject({ sub_type: "url", index: "0" });
     // Bağlantı değeri yoksa düğme parametresi gönderilmez.
-    await createWhatsAppTransport({ ...cfg, urlButtonIndex: 1 }, g.fetchImpl).sendQuestion("905321112233", { ...msg, link: undefined });
-    expect(JSON.parse(String(g.calls[2].init.body)).template.components).toHaveLength(1);
+    await t.sendQuestion("905321112233", { ...msg, link: undefined });
+    expect(JSON.parse(String(g.calls[3].init.body)).template.components).toHaveLength(1);
   });
 
   it("düğmeli mesaj: Meta etkileşimli düğme biçimi, en çok 3 düğme, başlık ≤ 20, gövde ≤ 1024, yanıt bağlamıyla", async () => {

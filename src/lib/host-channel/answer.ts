@@ -16,7 +16,7 @@ import { activeBindingAddress } from "./binding";
 import { bindingUsable } from "./binding-code";
 import { composeGuestReplyFromHostAnswer } from "./compose";
 import { checkComposedGuestReply } from "./compose-check";
-import { correlateHostReply, type HostQuestionStatus, type PendingHostQuestion } from "./correlate";
+import { correlateHostReply, PLAIN_REPLY_WINDOW_MS, type HostQuestionStatus, type PendingHostQuestion } from "./correlate";
 import { buildHostQuestion, withoutGuestNames } from "./question-text";
 import { hostChannelFlagsFromEnv } from "./routing";
 import type { HostChannelTransport, HostInboundEvent } from "./types";
@@ -58,6 +58,10 @@ export const PREVIEW_MAX = 1_024;
 export const STUCK_MS = 10 * 60 * 1000;
 /** Kapanmış sorunun cevap / taslak metni bu süre sonra silinir (tasarım §5.8). */
 export const HOST_QUESTION_TEXT_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+/** Kapanmış satırın kendisi bu süre sonra silinir (tasarım §6) — misafire giden cevabı işaretleyen satır hariç (↓ süpürge). */
+export const HOST_QUESTION_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
+/** İptal edilmiş numara bağlantısı (şifreli numara + arama özeti) bu süre sonra silinir (tasarım §6). */
+export const REVOKED_BINDING_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
 export const HOST_TEXTS = {
   previewHeader: "Misafire şu cevap gidecek:",
@@ -87,6 +91,9 @@ export const HOST_TEXTS = {
   notConnected: "Kanal bağlantısı yok, panelden deneyin.",
   unsupported: "Sesli mesajları ve görselleri henüz okuyamıyorum, lütfen yazın.",
   alertReply: "Bu bir acil bildirimdi; buraya yazdığınız misafire gitmez. Misafire panelden yazın:",
+  /** Düz mesaj (yanıtla yok), en yeni mesajımız acil bildirim, öncesinde bekleyen soru da var. */
+  alertReplyWithOpen:
+    "Son mesajımız acil bildirimdi; buraya yazdığınız misafire gitmez. Bekleyen bir soruyu cevaplıyorsanız o soru mesajına \"Yanıtla\" diyerek yazın. Acil konuşma:",
 } as const;
 
 const answerAad = (questionId: string, organizationId: string) => `host-question-answer:v1:${questionId}:${organizationId}`;
@@ -180,6 +187,11 @@ export async function handleHostAnswer(input: {
   event: HostInboundEvent;
   transport: HostChannelTransport | null;
   now?: Date;
+  /**
+   * `HOST_QUESTIONS_ENABLED` (varsayılan açık — doğrudan çağıranlar soru akışını ister). Kapalıyken (yalnız acil bildirim açık) yalnız acil
+   * bildirime yazılan cevap karşılanır ("misafire gitmez, panelden yazın"); soru eşleme / taslak KOŞMAZ (sert inceleme 10-31 R-2).
+   */
+  questions?: boolean;
 }): Promise<HostAnswerOutcome> {
   const { binding, event, transport } = input;
   const org = binding.organizationId;
@@ -189,6 +201,19 @@ export async function handleHostAnswer(input: {
   const reply = async (text: string, replyTo?: string | null) => {
     if (transport) await transport.sendText(input.to, text, replyTo ?? null).catch(() => null);
   };
+
+  // ACİL BİLDİRİME (Tür C) yazılan cevap misafire GİTMEZ, model çağrılmaz — ev sahibi panele yönlendirilir. "Yanıtla" ile bildirime yazılan her
+  // zaman; düz mesaj ise en yeni mesajımız bildirimse (bildirimden sonra soru sorulmadıysa) — bildirim başına bir kez (sert inceleme R-1: düz
+  // "geliyorum" başka misafirin açık sorusuna bağlanıp onun taslağına giriyordu).
+  const alert = await alertAddressedBy(org, binding.id, event.contextId, now);
+  if (alert) {
+    if (alert.via === "context" || (await claimOnce(`${ALERT_REPLY_LOCK_PREFIX}${alert.id}`, now))) {
+      const text = alert.openQuestions ? HOST_TEXTS.alertReplyWithOpen : HOST_TEXTS.alertReply;
+      await reply(`${text} ${panelLink(alert.conversationId)}`, event.providerMessageId);
+    }
+    return "closed";
+  }
+  if (input.questions === false) return "none";
 
   if (event.kind === "unsupported") {
     await reply(HOST_TEXTS.unsupported, event.providerMessageId);
@@ -211,14 +236,7 @@ export async function handleHostAnswer(input: {
   // Bağlamın sorusu YALNIZ gönderenin işletmesinde okunur; başka işletmede olup olmadığına yalnız işletme kimliğiyle bakılır (içerik okunmaz)
   // — o durumda eşleyiciye yalnız "yabancı" işareti gider (Haiku 10-30 P3).
   const byContext = event.contextId ? { OR: [{ providerMessageId: event.contextId }, { previewMessageId: event.contextId }] } : null;
-  const contextual = byContext
-    ? await prisma.hostQuestion.findFirst({ where: { ...byContext, organizationId: org }, select: { ...select, kind: true, conversationId: true } })
-    : null;
-  // Acil bildirime (Tür C) yazılan cevap misafire GİTMEZ — bildirim cevap beklemez; ev sahibi panele yönlendirilir.
-  if (contextual?.kind === "alert") {
-    await reply(`${HOST_TEXTS.alertReply} ${panelLink(contextual.conversationId)}`, event.providerMessageId);
-    return "closed";
-  }
+  const contextual = byContext ? await prisma.hostQuestion.findFirst({ where: { ...byContext, organizationId: org }, select }) : null;
   const foreignContext =
     byContext && !contextual
       ? await prisma.hostQuestion.findFirst({ where: { ...byContext, organizationId: { not: org } }, select: { organizationId: true } })
@@ -572,6 +590,52 @@ async function guestWroteSince(conversationId: string, since: Date): Promise<boo
 
 /** "Bekleyen soru yok" cevabının gün kilidi (bağlantı başına günde bir); süresi geçenleri saatlik süpürge siler. */
 const NONE_LOCK_PREFIX = "host-none:";
+/** Acil bildirimden sonraki DÜZ mesaja yönlendirme cevabı bildirim başına bir kez (ev sahibi art arda yazarsa sohbet dolmasın). */
+const ALERT_REPLY_LOCK_PREFIX = "host-alert-reply:";
+
+/** Kalıcı "bir kez" kilidi (24 saat); kazanan true. Süresi geçenleri saatlik süpürge siler. */
+async function claimOnce(name: string, now: Date): Promise<boolean> {
+  try {
+    await prisma.systemLock.create({ data: { name, lockedUntil: new Date(now.getTime() + PLAIN_REPLY_WINDOW_MS) } });
+    return true;
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") return false;
+    throw err;
+  }
+}
+
+/**
+ * Ev sahibinin mesajı bir ACİL BİLDİRİME mi yazıldı? "Yanıtla" bağlamı bildirimin kendisiyse evet; bağlam bilinen bir SORUYSA hayır (soru
+ * akışı). Bağlam yoksa / bilinmiyorsa: bu bağlantıya son 24 saatte giden en yeni bildirim, ondan SONRA soru sorulmadıysa — en yeni mesajımız
+ * bildirimdir, düz cevap ona yazılmıştır. Yalnız gönderenin işletmesinde aranır.
+ */
+async function alertAddressedBy(
+  org: string,
+  bindingId: string,
+  contextId: string | null,
+  now: Date,
+): Promise<{ id: string; conversationId: string; via: "context" | "plain"; openQuestions: boolean } | null> {
+  if (contextId) {
+    const row = await prisma.hostQuestion.findFirst({
+      where: { organizationId: org, OR: [{ providerMessageId: contextId }, { previewMessageId: contextId }] },
+      select: { id: true, kind: true, conversationId: true },
+    });
+    if (row) return row.kind === "alert" ? { id: row.id, conversationId: row.conversationId, via: "context", openQuestions: false } : null;
+  }
+  const latest = await prisma.hostQuestion.findFirst({
+    where: { organizationId: org, bindingId, kind: "alert", status: "alerted", sentAt: { gte: new Date(now.getTime() - PLAIN_REPLY_WINDOW_MS) } },
+    orderBy: [{ sentAt: "desc" }, { id: "asc" }],
+    select: { id: true, conversationId: true, sentAt: true },
+  });
+  if (!latest?.sentAt) return null;
+  const questions = await prisma.hostQuestion.findMany({
+    where: { organizationId: org, bindingId, kind: { not: "alert" }, status: { in: [...HOST_QUESTION_LIVE_STATUSES] } },
+    select: { createdAt: true },
+    take: 50,
+  });
+  if (questions.some((q) => q.createdAt.getTime() > latest.sentAt!.getTime())) return null;
+  return { id: latest.id, conversationId: latest.conversationId, via: "plain", openQuestions: questions.length > 0 };
+}
 
 async function replyNoneOncePerDay(bindingId: string, now: Date, send: () => Promise<void>): Promise<void> {
   const day = now.toISOString().slice(0, 10);
@@ -794,7 +858,7 @@ async function answerTurnItems(input: { organizationId: string; conversationId: 
 export async function sweepHostQuestions(
   now: Date = new Date(),
   transport: HostChannelTransport | null = null,
-): Promise<{ expired: number; purged: number; recovered: number }> {
+): Promise<{ expired: number; purged: number; recovered: number; deleted: number }> {
   const stuckBefore = new Date(now.getTime() - STUCK_MS);
   // Kapatma anahtarı / işletme listesi bildirime de uyar: kanal kapalıyken durum yine kurtarılır ama WhatsApp'a mesaj GİTMEZ (sert inceleme
   // 10-30 A2 F5).
@@ -843,5 +907,19 @@ export async function sweepHostQuestions(
   // Günlük "bekleyen soru yok" kilitleri ve süresi geçmiş mesaj→soru bağ kayıtları birikmesin.
   await prisma.systemLock.deleteMany({ where: { name: { startsWith: NONE_LOCK_PREFIX }, lockedUntil: { lt: now } } });
   await prisma.systemLock.deleteMany({ where: { name: { startsWith: ANSWER_RECORD_PREFIX }, lockedUntil: { lt: now } } });
-  return { expired: expired.count, purged: purged.count, recovered };
+  await prisma.systemLock.deleteMany({ where: { name: { startsWith: ALERT_REPLY_LOCK_PREFIX }, lockedUntil: { lt: now } } });
+  // Saklama (tasarım §6; sert inceleme 10-31 S-3 — belgede vardı, kodda yoktu): kapanmış satır 90 gün sonra silinir. Misafire giden cevabı
+  // işaretleyen satır (`resultMessageId`) KALIR — o mesajın "panelden yazıldı" sayılmaması bu satıra bağlı (`scoped-replies.ts`); metni zaten
+  // boşaltılmıştır, konuşma silinince onunla gider. İptal edilmiş numara bağlantısı 30 gün sonra silinir.
+  const deleted = await prisma.hostQuestion.deleteMany({
+    where: {
+      status: { notIn: [...HOST_QUESTION_LIVE_STATUSES] },
+      resultMessageId: null,
+      createdAt: { lt: new Date(now.getTime() - HOST_QUESTION_RETENTION_MS) },
+    },
+  });
+  await prisma.hostChannelBinding.deleteMany({
+    where: { status: "revoked", revokedAt: { lt: new Date(now.getTime() - REVOKED_BINDING_RETENTION_MS) } },
+  });
+  return { expired: expired.count, purged: purged.count, recovered, deleted: deleted.count };
 }

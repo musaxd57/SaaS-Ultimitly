@@ -6,8 +6,9 @@ vi.mock("@/lib/host-channel/compose", () => ({ composeGuestReplyFromHostAnswer: 
 import { prisma, resetDb } from "../helpers/db";
 import { startHostBinding, confirmHostBindingFromInbound } from "@/lib/host-channel/binding";
 import { WHATSAPP_CLOUD_PROVIDER } from "@/lib/host-channel/providers";
+import { randomUUID } from "node:crypto";
 import { ALERT_HOURLY_CAP, alertHostOnChannel } from "@/lib/host-channel/alert";
-import { HOST_TEXTS } from "@/lib/host-channel/answer";
+import { HOST_TEXTS, sweepHostQuestions } from "@/lib/host-channel/answer";
 import { handleHostInbound } from "@/lib/host-channel/inbound";
 import { hostChannelFlagsFromEnv } from "@/lib/host-channel/routing";
 import type { HostChannelTransport, HostQuestionMessage, HostSendResult } from "@/lib/host-channel/types";
@@ -152,28 +153,291 @@ describe("acil bildirim (Tür C)", () => {
     expect(await alert(s)).toBe("failed");
     expect((await prisma.hostQuestion.findFirstOrThrow({ where: { conversationId: s.conversationId } })).status).toBe("failed");
 
+    const reservationId = (await prisma.conversation.findUniqueOrThrow({ where: { id: s.conversationId } })).reservationId;
     await prisma.conversation.update({ where: { id: s.conversationId }, data: { reservationId: null } });
     const m2 = await prisma.message.create({ data: { conversationId: s.conversationId, direction: "inbound", senderName: "x", body: "help" } });
     expect(await alert(s, m2.id, m2.body)).toBe("skipped");
 
+    // Rezervasyon yerinde, numara bağlantısı kaldırılmış → atlanır (kayıt da yazılmaz).
+    await prisma.conversation.update({ where: { id: s.conversationId }, data: { reservationId } });
     await prisma.hostChannelBinding.updateMany({ data: { status: "revoked" } });
     expect(await alert(s, "m3", "help")).toBe("skipped");
+    expect(await prisma.hostQuestion.count({ where: { idempotencyKey: { in: [`alert:${m2.id}`, "alert:m3"] } } })).toBe(0);
   });
 
-  it("🚨 ev sahibi bildirime 'yanıtla' ile yazarsa misafire HİÇBİR ŞEY gitmez, model çağrılmaz — panel bağlantısı", async () => {
+  it("🚨 ev sahibi bildirime 'yanıtla' ile yazarsa misafire HİÇBİR ŞEY gitmez, model çağrılmaz — panel bağlantısı (soru anahtarı kapalıyken de)", async () => {
     const s = await seed();
     await alert(s);
     sent = [];
     await handleHostInbound({
       provider: WHATSAPP_CLOUD_PROVIDER,
       events: [{ kind: "text", from: DIGITS, providerMessageId: "wamid.h1", contextId: "wamid.A1", text: "tamam geliyorum", at: new Date() }],
-      flags: { ...hostChannelFlagsFromEnv(), questions: true },
+      // Soru anahtarı KAPALI, yalnız acil açık (sert inceleme R-2: eskiden cevap sessizce yutuluyordu).
+      flags: hostChannelFlagsFromEnv(),
       transport,
     });
+    expect(hostChannelFlagsFromEnv()).toMatchObject({ questions: false, alerts: true });
     expect(composeMock).not.toHaveBeenCalled();
     expect(sent).toHaveLength(1);
     expect(sent[0]!.text!.startsWith(HOST_TEXTS.alertReply)).toBe(true);
     expect(sent[0]!.text!.endsWith(`/inbox/${s.conversationId}`)).toBe(true);
     expect(await prisma.message.count({ where: { conversationId: s.conversationId, direction: "outbound" } })).toBe(0);
+  });
+
+  it("gönderilemeyen bildirim yol yeniden çağırınca TEK sahiple yeniden denenir; gittikten sonra ikinci yok (sert inceleme R-4)", async () => {
+    const s = await seed();
+    alertResult = { ok: false, providerMessageId: null, definitive: false, error: "http_503" };
+    expect(await alert(s)).toBe("failed");
+    alertResult = { ok: true, providerMessageId: "wamid.A2" };
+    expect(await alert(s)).toBe("sent");
+    expect(await alert(s)).toBe("duplicate");
+    expect(sent).toHaveLength(2);
+    expect(await prisma.hostQuestion.findMany({ where: { conversationId: s.conversationId } })).toMatchObject([{ status: "alerted", providerMessageId: "wamid.A2" }]);
+  });
+
+  it("gönderim ortasında düşmüş (bayat 'queued') kayıt yeniden denenir; TAZE 'queued' (şu an gönderiliyor) dokunulmaz", async () => {
+    const s = await seed();
+    const binding = await prisma.hostChannelBinding.findFirstOrThrow({ where: { organizationId: s.orgId } });
+    const row = await prisma.hostQuestion.create({
+      data: {
+        organizationId: s.orgId,
+        conversationId: s.conversationId,
+        bindingId: binding.id,
+        kind: "alert",
+        turnMessageId: s.message.id,
+        status: "queued",
+        idempotencyKey: `alert:${s.message.id}`,
+        expiresAt: new Date(Date.now() + 3600_000),
+      },
+    });
+    expect(await alert(s)).toBe("duplicate");
+    expect(sent).toHaveLength(0);
+    await prisma.$executeRaw`UPDATE "HostQuestion" SET "updatedAt" = ${new Date(Date.now() - 5 * 60_000)} WHERE id = ${row.id}`;
+    expect(await alert(s)).toBe("sent");
+    expect(sent).toHaveLength(1);
+    expect((await prisma.hostQuestion.findUniqueOrThrow({ where: { id: row.id } })).status).toBe("alerted");
+  });
+
+  it("gönderilemeyen bildirim iz bırakır (yalnız hata kodu); KESİN hata tek alarm açar, sonraki başarı kapatır; geçici hata alarm açmaz (M-5)", async () => {
+    const s = await seed();
+    const alarm = () => prisma.systemLock.count({ where: { name: `alert-state:host-channel:alert:${s.orgId}` } });
+    alertResult = { ok: false, providerMessageId: null, definitive: false, error: "http_503" };
+    expect(await alert(s)).toBe("failed");
+    expect(await alarm()).toBe(0);
+    const m2 = await prisma.message.create({ data: { conversationId: s.conversationId, direction: "inbound", senderName: "x", body: "locked out" } });
+    alertResult = { ok: false, providerMessageId: null, definitive: true, error: "http_400_132001" };
+    expect(await alert(s, m2.id, m2.body)).toBe("failed");
+    expect(await alarm()).toBe(1);
+    const events = await prisma.operationalEvent.findMany({ where: { event: "host_channel.alert.failed", organizationId: s.orgId } });
+    expect(events.map((e) => (JSON.parse(e.dataJson ?? "{}") as { reason?: string }).reason).sort()).toEqual(["http_400_132001", "http_503"]);
+    alertResult = { ok: true, providerMessageId: "wamid.A9" };
+    const m3 = await prisma.message.create({ data: { conversationId: s.conversationId, direction: "inbound", senderName: "x", body: "help" } });
+    expect(await alert(s, m3.id, m3.body)).toBe("sent");
+    expect(await alarm()).toBe(0);
+  });
+
+  it("erken atlamalar: aktarım yok / numara anahtarı yok → kayıt yazılmaz; 'gönderildi' deyip kimlik vermeyen sağlayıcı → 'failed' (T-7)", async () => {
+    const s = await seed();
+    expect(await alertHostOnChannel({ organizationId: s.orgId, conversationId: s.conversationId, messageId: s.message.id, messageBody: "x", transport: null })).toBe("skipped");
+    vi.stubEnv("HOST_CHANNEL_HMAC_SECRET", "");
+    expect(await alert(s)).toBe("skipped");
+    expect(await prisma.hostQuestion.count()).toBe(0);
+    vi.stubEnv("HOST_CHANNEL_HMAC_SECRET", "test-host-channel-secret-0123456789abcdef");
+    alertResult = { ok: true, providerMessageId: null };
+    expect(await alert(s)).toBe("failed");
+    expect((await prisma.hostQuestion.findFirstOrThrow({ where: { conversationId: s.conversationId } })).status).toBe("failed");
+  });
+
+  it("kiracı: tavan işletme başına (başka işletmenin bildirimleri sayılmaz); başka işletmenin konuşması için bildirim YOK (T-2)", async () => {
+    const s = await seed();
+    const other = await prisma.organization.create({ data: { name: "Other" } });
+    const op = await prisma.property.create({ data: { organizationId: other.id, name: "Gül" } });
+    const oc = await prisma.conversation.create({ data: { propertyId: op.id, channel: "airbnb", guestIdentifier: "Z", status: "new" } });
+    for (let i = 0; i < ALERT_HOURLY_CAP; i++) {
+      await prisma.hostQuestion.create({
+        data: {
+          organizationId: other.id,
+          conversationId: oc.id,
+          kind: "alert",
+          turnMessageId: `o${i}`,
+          status: "alerted",
+          idempotencyKey: `alert:o${i}`,
+          sentAt: new Date(),
+          expiresAt: new Date(Date.now() + 3600_000),
+        },
+      });
+    }
+    expect(await alert(s)).toBe("sent");
+    // A işletmesinin numarasıyla B'nin konuşması: konuşma bulunmaz → atlanır, satır yazılmaz.
+    expect(await alertHostOnChannel({ organizationId: s.orgId, conversationId: oc.id, messageId: "foreign-1", messageBody: "fire", transport })).toBe("skipped");
+    expect(await prisma.hostQuestion.count({ where: { idempotencyKey: "alert:foreign-1" } })).toBe(0);
+    expect(sent).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Düz cevap (WhatsApp'ta "yanıtla" kullanılmadan) — sert inceleme 10-31 R-1: bildirimden sonra yazılan "geliyorum" başka misafirin açık
+// sorusuna bağlanıp onun taslağına giriyordu. Kural: en yeni mesajımız bildirimse (ondan sonra soru sorulmadıysa) düz mesaj bildirime yazılmış
+// sayılır → misafire gitmez, model çağrılmaz; yönlendirme bildirim başına bir kez.
+// ---------------------------------------------------------------------------
+describe("acil bildirim — düz cevap", () => {
+  beforeEach(async () => {
+    await resetDb();
+    sent = [];
+    alertResult = { ok: true, providerMessageId: "wamid.A1" };
+    composeMock.mockReset();
+    vi.stubEnv("HOST_CHANNEL_ENABLED", "1");
+    vi.stubEnv("HOST_QUESTION_ALERTS_ENABLED", "1");
+    vi.stubEnv("HOST_QUESTIONS_ENABLED", "1");
+    vi.stubEnv("HOST_CHANNEL_ORG_IDS", "*");
+    vi.stubEnv("HOST_CHANNEL_HMAC_SECRET", "test-host-channel-secret-0123456789abcdef");
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  const MIN = 60_000;
+  const plain = (id: string, text: string) =>
+    handleHostInbound({
+      provider: WHATSAPP_CLOUD_PROVIDER,
+      events: [{ kind: "text", from: DIGITS, providerMessageId: id, contextId: null, text, at: new Date() }],
+      flags: hostChannelFlagsFromEnv(),
+      transport,
+    });
+  async function infoQuestion(s: Awaited<ReturnType<typeof seed>>, createdAt: Date) {
+    const binding = await prisma.hostChannelBinding.findFirstOrThrow({ where: { organizationId: s.orgId } });
+    const turn = await prisma.message.create({
+      data: { conversationId: s.conversationId, direction: "inbound", senderName: "x", body: "Is there a baby cot?", createdAt: new Date(createdAt.getTime() - 2 * MIN) },
+    });
+    return prisma.hostQuestion.create({
+      data: {
+        id: randomUUID(),
+        organizationId: s.orgId,
+        conversationId: s.conversationId,
+        bindingId: binding.id,
+        kind: "info",
+        turnMessageId: turn.id,
+        status: "sent",
+        idempotencyKey: `turn:${turn.id}`,
+        providerMessageId: `wamid.Q-${turn.id}`,
+        sentAt: createdAt,
+        createdAt,
+        expiresAt: new Date(createdAt.getTime() + 24 * 3600_000),
+      },
+    });
+  }
+
+  it("🚨 bekleyen soru yok: düz 'geliyorum' → panele yönlendirme; ikinci düz mesaj sessiz; model çağrılmaz, misafire bir şey gitmez", async () => {
+    const s = await seed();
+    await alertHostOnChannel({ organizationId: s.orgId, conversationId: s.conversationId, messageId: s.message.id, messageBody: s.message.body, transport });
+    sent = [];
+    await plain("wamid.p1", "geliyorum");
+    await plain("wamid.p2", "10 dakikaya oradayım");
+    expect(composeMock).not.toHaveBeenCalled();
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.text!.startsWith(HOST_TEXTS.alertReply)).toBe(true);
+    expect(sent[0]!.text!.endsWith(`/inbox/${s.conversationId}`)).toBe(true);
+    expect(await prisma.message.count({ where: { conversationId: s.conversationId, direction: "outbound" } })).toBe(0);
+  });
+
+  it("🚨 bildirimden ÖNCE sorulmuş açık soru var: düz mesaj o soruya BAĞLANMAZ (taslak yok, cevap saklanmaz) — 'Yanıtla' ile yazın", async () => {
+    const s = await seed();
+    const q = await infoQuestion(s, new Date(Date.now() - 30 * MIN));
+    await alertHostOnChannel({
+      organizationId: s.orgId,
+      conversationId: s.conversationId,
+      messageId: s.message.id,
+      messageBody: s.message.body,
+      transport,
+      now: new Date(Date.now() - 5 * MIN),
+    });
+    sent = [];
+    await plain("wamid.p1", "geliyorum");
+    expect(composeMock).not.toHaveBeenCalled();
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.text!.startsWith(HOST_TEXTS.alertReplyWithOpen)).toBe(true);
+    expect(await prisma.hostQuestion.findUniqueOrThrow({ where: { id: q.id } })).toMatchObject({ status: "sent", answerEnc: null, answerMessageId: null });
+  });
+
+  it("KONTROL: bildirimden SONRA sorulan soru varsa düz mesaj o soruya gider (bugünkü akış, taslak kurulur)", async () => {
+    const s = await seed();
+    await alertHostOnChannel({
+      organizationId: s.orgId,
+      conversationId: s.conversationId,
+      messageId: s.message.id,
+      messageBody: s.message.body,
+      transport,
+      now: new Date(Date.now() - 20 * MIN),
+    });
+    const q = await infoQuestion(s, new Date(Date.now() + 1_000));
+    composeMock.mockResolvedValueOnce({ ok: true, kind: "answer", reply: "Yes, there is a baby cot.", replyTr: "Evet.", uncovered: [] });
+    sent = [];
+    await plain("wamid.p1", "var, dolapta");
+    expect(composeMock).toHaveBeenCalledTimes(1);
+    expect(sent.some((m) => m.text?.startsWith(HOST_TEXTS.alertReply) || m.text?.startsWith(HOST_TEXTS.alertReplyWithOpen))).toBe(false);
+    expect((await prisma.hostQuestion.findUniqueOrThrow({ where: { id: q.id } })).answerMessageId).toBe("wamid.p1");
+  });
+
+  it("KONTROL: soru anahtarı KAPALI + bildirim yok → düz mesaj yalnız alınır (cevap yok, model yok)", async () => {
+    vi.stubEnv("HOST_QUESTIONS_ENABLED", "");
+    const s = await seed();
+    await infoQuestion(s, new Date(Date.now() - 30 * MIN));
+    sent = [];
+    await plain("wamid.p1", "var, dolapta");
+    expect(sent).toHaveLength(0);
+    expect(composeMock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Saklama (tasarım §6; sert inceleme 10-31 S-3 — belgede vardı, kodda yoktu): kapanmış satır 90 gün, iptal edilmiş numara 30 gün.
+// ---------------------------------------------------------------------------
+describe("saklama — saatlik süpürge", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.stubEnv("HOST_CHANNEL_HMAC_SECRET", "test-host-channel-secret-0123456789abcdef");
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("90 günden eski kapanmış satır silinir (bildirim dahil); misafire giden cevabı işaretleyen satır, canlı ve yeni satır KALIR; 30 günden eski iptal bağlantı silinir", async () => {
+    const s = await seed();
+    const DAY = 24 * 3600_000;
+    const old = new Date(Date.now() - 100 * DAY);
+    const row = (key: string, status: string, createdAt: Date, extra: Record<string, unknown> = {}) =>
+      prisma.hostQuestion.create({
+        data: {
+          organizationId: s.orgId,
+          conversationId: s.conversationId,
+          kind: key.startsWith("alert") ? "alert" : "info",
+          turnMessageId: key,
+          status,
+          idempotencyKey: key,
+          createdAt,
+          expiresAt: new Date(Date.now() + DAY),
+          ...extra,
+        },
+      });
+    await row("alert:old", "alerted", old);
+    await row("turn:old-expired", "expired", old);
+    await row("turn:old-result", "done", old, { resultMessageId: "msg-result-1" });
+    await row("turn:old-live", "awaiting_confirm", old);
+    await row("turn:recent", "declined", new Date(Date.now() - 10 * DAY));
+    const user = await prisma.user.findFirstOrThrow({ where: { organizationId: s.orgId } });
+    const revoked = (id: string, at: Date) =>
+      prisma.hostChannelBinding.create({
+        data: { id, organizationId: s.orgId, userId: user.id, provider: WHATSAPP_CLOUD_PROVIDER, addressHash: `h-${id}`, addressEnc: "x", status: "revoked", revokedAt: at },
+      });
+    await revoked("rv-old", new Date(Date.now() - 40 * DAY));
+    await revoked("rv-new", new Date(Date.now() - 5 * DAY));
+
+    const r = await sweepHostQuestions(new Date(), null);
+    expect(r.deleted).toBe(2);
+    expect((await prisma.hostQuestion.findMany({ select: { idempotencyKey: true }, orderBy: { idempotencyKey: "asc" } })).map((x) => x.idempotencyKey)).toEqual([
+      "turn:old-live",
+      "turn:old-result",
+      "turn:recent",
+    ]);
+    expect((await prisma.hostChannelBinding.findMany({ select: { id: true } })).map((b) => b.id).sort()).toEqual(
+      [...(await prisma.hostChannelBinding.findMany({ where: { status: "active" }, select: { id: true } })).map((b) => b.id), "rv-new"].sort(),
+    );
   });
 });

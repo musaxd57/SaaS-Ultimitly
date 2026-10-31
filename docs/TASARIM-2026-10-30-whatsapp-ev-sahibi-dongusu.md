@@ -292,7 +292,18 @@ konaklama olduğunu ayırt etmek için) + soru. Misafirin sözü yalnız **kısa
 |---|---|---|
 | `lixus_misafir_sorusu` | "{{1}} ({{2}}) · Misafiriniz soruyor: “{{3}}” Cevabınızı bu mesaja yanıt olarak yazın; misafire sizin adınıza iletmeden önce size gösteririz." | Hızlı yanıt: **[Ben yazacağım]** · URL: **[Panelde aç]** `https://www.lixusai.com/inbox/{{1}}` |
 | `lixus_karar_bekliyor` | "{{1}} ({{2}}) · {{3}} isteği. Kontrol: {{4}}." | Hızlı yanıt: **[Onayla] [Reddet]** · URL: **[Panelde aç]** |
-| `lixus_acil_bildirim` (dilim 4) | "ACİL · {{1}} ({{2}}) · Misafiriniz {{3}} bildiriyor. Konuşmayı hemen açın." | URL: **[Konuşmayı aç]** · Hızlı yanıt: **[İlgileniyorum]** |
+| `lixus_acil_bildirim` (dilim 4) | "ACİL · {{1}} ({{2}}) · Misafiriniz yazdı: “{{3}}” Konuşmayı hemen açın." | URL: **[Konuşmayı aç]** `https://www.lixusai.com/inbox/{{1}}` (hızlı yanıt YOK — 10-31 gece, aşağıya bkz.) |
+
+**Kodda (10-31 gece) — şablon ↔ gönderim sözleşmesi:** gövde değişkenleri her iki şablonda da AYNI üç değer: `{{1}}` daire · `{{2}}` tarih
+aralığı · `{{3}}` maskeli alıntı (soru ve acil aynı `buildHostQuestion` çıktısını kullanır; acil şablonda `{{3}}` bir fiil cümlesinin içine değil
+alıntı olarak girer — misafirin sözü "kaybettik, kilitli kaldık" biçiminde serbest metindir). URL düğmesinin değişkeni konuşma kimliğidir
+(`/inbox/<kimlik>` — oturum ister, kimlik tek başına bir şey açmaz). Düğmenin şablondaki SIRASI şablon başına ayrı ayardır:
+`WHATSAPP_QUESTION_URL_BUTTON_INDEX` (yukarıdaki soru şablonunda hızlı yanıt önce gelirse `1`) · `WHATSAPP_ALERT_URL_BUTTON_INDEX` (acilde tek
+düğme → `0`); boş bırakılırsa düğme parametresi gönderilmez (statik bağlantılı ya da düğmesiz şablon). Onaylı şablonla gönderilen değişken
+sayısı tutmazsa Meta reddeder (132000) → soru e-postaya düşer, acilde e-posta zaten gitmiştir; kurulumda her şablon bir kez kendi numaranıza
+denenir (§9 adım 12). Acil şablonda **hızlı yanıt düğmesi yok**: bildirim cevap beklemez; ev sahibi bildirime "yanıtla" ile ne yazarsa
+yazsın misafire GİTMEZ, "Bu bir acil bildirimdi; buraya yazdığınız misafire gitmez. Misafire panelden yazın: <bağlantı>" döner (model
+çağrılmaz). "[İlgileniyorum]" gibi bir düğme ileride istenirse ayrı karar (misafire "ev sahibiniz ilgileniyor" gitsin mi — K10 devir cümlesi kuralı).
 
 Örnek değerler: `{{1}}`=Lale · `{{2}}`=12–15 Kas · `{{3}}`="Is there a baby cot in the apartment?" · karar `{{3}}`="14 Kas 13:00 erken giriş",
 `{{4}}`="temizlik 12:30'da bitiyor, önceki misafir 11:00'de çıkıyor" (kartın uyarı satırlarından, en çok 2).
@@ -623,6 +634,8 @@ model HostQuestion {
 - Gelen olay tekrar önleme = `SystemLock` (migration yok). Bilgi tabanı `source` yeni değeri `host_answer` = uygulama kapalı küme (migration yok).
 - Kural: taze `pg_dump` + kurucunun açık "push et" onayı; `prisma migrate diff` shadow 5432; taze PG'de sıfır-drift.
 - Saklama: `HostQuestion` 90 gün sonra silinir (metin alanları 7 günde boşalır); `HostChannelBinding` `revoked` 30 gün sonra silinir.
+  **Kodda (10-31 gece, saatlik süpürge):** misafire giden cevabı işaretleyen satır (`resultMessageId`) silinmez — o mesajın "panelden yazıldı"
+  sayılmaması bu satıra bağlı; metni boşaltılmıştır, konuşma silinince onunla gider.
 
 ---
 

@@ -77,7 +77,7 @@ describe("tekrar anahtarı + sağlayıcı kimliği + olay günlüğü", () => {
   });
 
   it("🚨 gönderen bağdaştırıcı, bağlamayı başlatan ve doğrulayan AYNI sağlayıcı kimliğini kullanır (numara anahtarının parçası)", () => {
-    const t = createWhatsAppTransport({ accessToken: "x", phoneNumberId: "123456789", graphVersion: "v23.0", questionTemplate: "q", alertTemplate: "a", templateLang: "tr", urlButtonIndex: null });
+    const t = createWhatsAppTransport({ accessToken: "x", phoneNumberId: "123456789", graphVersion: "v23.0", questionTemplate: "q", alertTemplate: "a", templateLang: "tr", questionUrlButtonIndex: null, alertUrlButtonIndex: null });
     expect(t.provider).toBe(WHATSAPP_CLOUD_PROVIDER);
     expect(WHATSAPP_CLOUD_PROVIDER).toBe("whatsapp_cloud");
   });

@@ -255,6 +255,19 @@ describe("acil bildirim WhatsApp'a da (Tür C, `HOST_QUESTION_ALERTS_ENABLED`; t
     expect(mockMail).toHaveBeenCalledTimes(1);
   });
 
+  it("🚨 uyarı geçişi (sendDueAlerts) öğe kipinde: şikâyet tutulur + e-posta + TEK WhatsApp; ikinci geçiş ikisini de tekrarlamaz", async () => {
+    const { orgId, conversationId } = await seed("Daire çok kirli");
+    alertFlags(true);
+    await bindHost(orgId, conversationId);
+    expect((await sendDueAlerts(orgId)).alerted).toBe(1);
+    expect(mockMail).toHaveBeenCalledTimes(1);
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]!.message.quote).toContain("kirli");
+    expect((await sendDueAlerts(orgId)).alerted).toBe(0);
+    expect(mockMail).toHaveBeenCalledTimes(1);
+    expect(alerts).toHaveLength(1);
+  });
+
   it("acil bildirim anahtarı KAPALI: bugünkü davranış — yalnız e-posta, veritabanına bildirim satırı yazılmaz", async () => {
     const { orgId, conversationId } = await seed(IBAN);
     alertFlags(false);

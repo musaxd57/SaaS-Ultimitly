@@ -36,6 +36,11 @@ export interface HazardUnverifiedInput {
   /** Tehlikeyi taşıyan misafir mesajı (e-postada alıntılanan). */
   trigger: { id: string; body: string };
   now?: Date;
+  /**
+   * Ev sahibi kanalı acil bildirimi (WhatsApp, anahtar arkasında; `automation.ts` `urgentChannelAlert`) — e-posta GİDECEKSE (alıcı var,
+   * sınır içinde) e-postayla AYNI ANDA, tetik mesajıyla bir kez çağrılır; hatası e-postayı etkilemez. E-postanın yanındadır, yerine değil.
+   */
+  onAlert?: (messageId: string, body: string) => Promise<unknown>;
 }
 
 export type HazardUnverifiedResult = { claimed: false } | { claimed: true; mailed: boolean; capped: boolean };
@@ -75,7 +80,10 @@ export async function escalateUnverifiedHazard(input: HazardUnverifiedInput): Pr
     { name: c.property.name, address: c.property.address, city: c.property.city },
     org?.name ?? "Lixus AI",
   );
-  const mail = await emailService.sendReporting(to, `⚠️ Acil misafir mesajı — ${c.guestIdentifier} (${c.property.name})`, html);
+  const [mail] = await Promise.all([
+    emailService.sendReporting(to, `⚠️ Acil misafir mesajı — ${c.guestIdentifier} (${c.property.name})`, html),
+    input.onAlert ? input.onAlert(input.trigger.id, input.trigger.body).catch(() => null) : null,
+  ]);
   if (!mail.ok) {
     // Gitmeyen e-posta hak yemez (QR acil e-postasıyla aynı desen).
     await prisma.rateLimitCounter

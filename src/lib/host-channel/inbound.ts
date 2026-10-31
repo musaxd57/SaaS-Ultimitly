@@ -171,9 +171,17 @@ export async function handleHostInbound(input: {
           where: { id: row.id, organizationId: row.organizationId, status: "active" },
           data: { lastInboundAt: now },
         });
-        // Cevap → soru → taslak → önizleme / [Gönder] (`answer.ts`); soru anahtarı kapalıyken yalnız alınır.
-        if (input.flags.questions) {
-          await handleHostAnswer({ binding: { id: row.id, organizationId: row.organizationId }, to: digits, event: ev, transport: input.transport, now });
+        // Cevap → soru → taslak → önizleme / [Gönder] (`answer.ts`). Yalnız acil bildirim açıkken bildirime yazılan cevap yine karşılanır
+        // ("misafire gitmez, panelden yazın"); iki anahtar da kapalıyken yalnız alınır.
+        if (input.flags.questions || input.flags.alerts) {
+          await handleHostAnswer({
+            binding: { id: row.id, organizationId: row.organizationId },
+            to: digits,
+            event: ev,
+            transport: input.transport,
+            now,
+            questions: input.flags.questions,
+          });
         }
       } else {
         handled = false;

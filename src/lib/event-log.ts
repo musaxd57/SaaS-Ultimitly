@@ -51,6 +51,8 @@ export const OPERATIONAL_EVENTS = {
   "host_channel.answer.foreign": "warn",
   // Acil bildirim (Tür C) WhatsApp'a da gitti — yalnız işletme.
   "host_channel.alert.sent": "info",
+  // Acil bildirim gönderilemedi (e-posta yine gitti) — yalnız hata kodu (`reason`).
+  "host_channel.alert.failed": "warn",
 } as const;
 export type OperationalEventName = keyof typeof OPERATIONAL_EVENTS;
 
