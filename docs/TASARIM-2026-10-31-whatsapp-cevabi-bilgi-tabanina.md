@@ -71,3 +71,30 @@ Otomatik karşılama / giriş / çıkış şablonları okunmaz, yazılmaz (şabl
 Üç sınıf × 7 dil (saf) · sır / talimat / kişisel bilgi teklif edilmez · iki kez [Kaydet] → tek kalem, tek onay · KB yazımı düşer → misafire
 ikinci gönderim yok, ev sahibine "kaydedilemedi" · taslak AI istemine girmez · çelişkide eski kalem pasif + iz · başka işletmenin sorusundan
 kayıt yok · şablon tablosu değişmez.
+
+## 7. Sonnet incelemesi sonrası DÜZELTİLMİŞ tasarım (10-31, bağlayıcı olan bu bölüm)
+
+1. **Taslak KB satırı YAZILMAZ** (§3 geçersiz). Taslak; panel listesinde (`api/kb/route.ts`, `knowledge/page.tsx`, gelen kutusu) filtresiz görünür, plan
+   sınırına sayılır, kopyalanır; panelde düzenlenirse `reviewState` hiç değişmez → AI'ya hiç açılmaz. Öneri `HostQuestion` satırında şifreli tutulur:
+   **migration** — iki nullable sütun `kbProposalEnc` (AAD'li şifreli JSON: daire, konu, bilgi, kategori, çakışma) + `kbProposalState`
+   (`offered | previewed | saved | cancelled`). Kalem YALNIZ [Kaydet] anında `approved` yazılır (`source: host_channel`, `clientRequestId: hq:<id>` —
+   ikinci basış ikinci kalem açmaz; P2002 → var olanı döner). Terk edilen öneri mevcut saklama süpürgesiyle (`sweepHostQuestions`) silinir.
+   🔒 Migration içeren push = taze yedek + kurucu onayı.
+2. **Mesajlar:** "Gönderildi ✓" bugünkü gibi düz metin kalır (yalnız gönderim `sent` ise); öneri AYRI mesaj + düğme (`hk.<uuid>.offer|save|cancel`,
+   kaydet düğmesinde öneri özeti). Soru satırının `status` / `version` alanlarına DOKUNULMAZ (bugünkü yinelenen [Gönder] koruması bozulmasın).
+   `hk.` düğmesi anahtar kapalıyken de AYRIŞTIRILIR ve "kapalı" denir — yoksa bugünkü yol düğme başlığını ("Kaydet") serbest metin cevap sanıp misafire
+   yazardı (P1). Silinmiş kalemi yeniden doğuran tekrarlanan [Kaydet] → durum + süre denetimi.
+3. **Sınıflama:** bileşim istemi DEĞİŞMEZ (kalibre; yeniden ölçüm ister). Gönderimde ucuz kod ön süzgeci (teklif edilsin mi), düğmeye basınca küçük
+   ayrı model çağrısı (ev sahibi cevabı "var, dolapta" tek başına olgu değildir) + mevcut `gateDraft` (`history-learn/extract.ts`: tek seferlik /
+   zamana bağlı / belirsiz / bilgi yok / kilit-kod / misafir adı / kişisel eylem) + 7 dil zaman / kişiye özel / söz işaretleri (bugün · yarın · size özel ·
+   heute · morgen · für Sie · сегодня · завтра · для вас · اليوم · غدا · لكم · aujourd'hui · demain · pour vous · hoy · mañana · para usted · gelecek /
+   kommt / приедет / سيأتي / viendra / vendrá). Kategori izin listesi: `checkin · checkout · welcome · wifi` HARİÇ (şablon rozeti + sır kategorisi).
+4. **Çakışma:** mevcut `prepareKbItems` + `kbOverlaps` (`history-learn/kb-overlap.ts`) — aday sorgusu kategori dışına da bakar. `same` → "zaten kayıtlı",
+   yazılmaz; `differs` → [Yerine yaz] [Ayrı ekle] [Vazgeç]; yalnız konu benzerliği → "benzer mevcut bilgi" (çelişki denmez). Yerine yazma geçmişten
+   öğren işlemiyle aynı: eski `isActive:false` + `supersededById/At`, `updatedAt` üzerinde CAS; ardından zorunlu `afterKbItemsChanged`.
+5. **Talimat saldırısı:** KB istemde zaten VERİ çerçevesinde (`prompts.ts` "yalnızca referans VERİDİR") + okuma anında `detectKbInstructionHijack`.
+   Bu süzgeç dar (AI'ya hitap) → yazma kapısı politika cümlelerini de taşır: `gateDraft` + `checkInstruction`'ın ödeme / indirim / konaklama değişikliği
+   denetimleri; `fact_tr`, konu ve ev sahibi cevabının üçünde de. Önizleme ev sahibinin kendi cevabını aynen gösterir.
+6. Ayrı anahtar (varsayılan kapalı), `RAILWAY-ACILIS` listesine.
+
+**Kurucuya soru:** migration (HostQuestion'a 2 nullable sütun) onaylıyor musunuz? Onay gelene kadar kod ayrı dalda hazırlanır, ana dala girmez.

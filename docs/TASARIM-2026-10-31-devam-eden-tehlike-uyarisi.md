@@ -123,3 +123,12 @@ Yorum: sabit kural katmanı gerçek tehlikenin ~%70'ini model OLMADAN yakalar; k
 anlama modelinin işidir — model yolunda "acil" niyeti zaten tam uyarı üretir (`automation.ts` model yükseltmesi, QR `alertCritical`). Kurucunun
 "kod kesin olanı, model belirsizi" ayrımının sayısal karşılığı budur. Üç set gerileme fikstürü (`tests/fixtures/person-danger/seen-set-*.json`):
 yanlış alarm 0'da, yakalama ölçülen düzeyin altına inemez.
+
+## 8. Tam kapıda görülen davranış değişikliği (10-31 öğleden sonra)
+
+"Hırsız girdi! Bir de faturayı alabilir miyim?" eskiden acil ağına takılmıyordu; fatura öğesi tutuluyor, tutulan öğe yolu can güvenliği
+sınıfıyla e-posta + WhatsApp'ı HEMEN gönderiyordu. Artık kişisel tehlike ağı mesajı `safety_emergency` sayıyor → yangınla AYNI yol: bütün tur
+tutulur (misafire cevap gitmez), uyarıyı (e-posta + WhatsApp ikisi birden) 2 dakikalık uyarı geçişi (`sendDueAlerts`) gönderir. Ölçüldü:
+"Mutfakta yangın var! Bir de faturayı…" bugün de birebir böyle davranıyor. Test ikiye ayrıldı (eski yol: acil ağının tanımadığı "alerji
+başladı" ile; yeni yol: "hırsız girdi" → tur tutulur + uyarı geçişi). **Açık soru (kurucuya):** kod ağının yakaladığı acilde (yangın dahil)
+uyarı oto-yanıt anında değil en geç 2 dk sonra gidiyor; anında gönderim istenirse ayrı, küçük bir dilim (bugünkü davranış değişmez).

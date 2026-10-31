@@ -307,13 +307,28 @@ describe("acil bildirim WhatsApp'a da (Tür C, `HOST_QUESTION_ALERTS_ENABLED`; t
     expect(await prisma.systemLock.count({ where: { name: { startsWith: "host-alert-mail:" } } })).toBe(0);
   });
 
-  it("🚨 hassas tutulan öğe (fatura) + aynı mesajda 'hırsız girdi' → tutulan öğe e-postası da ikisi birden (acil ağı hırsızı tanımaz)", async () => {
+  it("🚨 hassas tutulan öğe (fatura) + aynı mesajda 'alerji başladı' → tutulan öğe e-postası da ikisi birden (acil ağı alerjiyi tanımaz, can güvenliği sınıfı tanır)", async () => {
+    const { orgId, conversationId } = await seed("Kızımda alerji başladı! Bir de faturayı alabilir miyim?");
+    alertFlags(true);
+    await bindHost(orgId, conversationId);
+    understands(understood([{ intent: "payment_invoice", message: 1 }]));
+    mockSuggest.mockResolvedValueOnce(verdict({ intent: "general", reply: "Faturanız platformdan iletilir." }));
+    await applyChannelAutoReply(conversationId);
+    expect(alerts).toHaveLength(1);
+    expect(mockMail).toHaveBeenCalledTimes(1);
+    expect(await prisma.systemLock.count({ where: { name: { startsWith: "host-alert-mail:" } } })).toBe(0);
+  });
+
+  it("🚨 'hırsız girdi' + fatura (10-31: kişisel tehlike ağı tanır) → yangınla AYNI yol: bütün tur tutulur, cevap gitmez; uyarı geçişi ikisini birden gönderir", async () => {
     const { orgId, conversationId } = await seed("Hırsız girdi! Bir de faturayı alabilir miyim?");
     alertFlags(true);
     await bindHost(orgId, conversationId);
     understands(understood([{ intent: "payment_invoice", message: 1 }]));
     mockSuggest.mockResolvedValueOnce(verdict({ intent: "general", reply: "Faturanız platformdan iletilir." }));
     await applyChannelAutoReply(conversationId);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect((await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } })).lastRiskType).toBe("safety_emergency");
+    expect((await sendDueAlerts(orgId)).alerted).toBe(1);
     expect(alerts).toHaveLength(1);
     expect(mockMail).toHaveBeenCalledTimes(1);
     expect(await prisma.systemLock.count({ where: { name: { startsWith: "host-alert-mail:" } } })).toBe(0);
