@@ -21,6 +21,7 @@ import { buildHostQuestion, withoutGuestNames } from "./question-text";
 import { hostChannelFlagsFromEnv } from "./routing";
 import { parseDecisionButton } from "./decision-buttons";
 import { handleDecisionButton } from "./decision-answer";
+import { hostDecisionsEnabled } from "@/lib/decisions/flag";
 import type { HostChannelTransport, HostInboundEvent } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -214,11 +215,11 @@ export async function handleHostAnswer(input: {
     if (transport) await transport.sendText(input.to, text, replyTo ?? null).catch(() => null);
   };
 
-  // KARAR KARTI DÜĞMESİ (dilim 3) — acil bildirim / soru eşlemesinden ÖNCE: önizleme mesajının kimliği saklanmaz, bağlamı "bilinmeyen" olur
-  // ve düz mesaj kuralına düşmemeli. Anahtar kapalıyken yok sayılır.
+  // KARAR KARTI DÜĞMESİ (dilim 3) — acil bildirim / soru eşlemesinden ÖNCE: düğme kendi kartını taşır, düz mesaj kuralına düşmemeli.
+  // Anahtar (ve karar motoru) kapalıyken yok sayılır.
   const decisionButton = event.kind === "button" ? parseDecisionButton(event.buttonId) : null;
   if (decisionButton) {
-    if (input.decisions !== true) return "none";
+    if (input.decisions !== true || !hostDecisionsEnabled()) return "none";
     await handleDecisionButton({
       organizationId: org,
       user: { id: user.userId, name: user.userName },
@@ -226,7 +227,9 @@ export async function handleHostAnswer(input: {
       replyTo: event.providerMessageId,
       reply,
       choices: async (text, buttons, replyTo) => {
-        if (transport) await transport.sendChoices(input.to, text, buttons, replyTo ?? null).catch(() => null);
+        if (!transport) return null;
+        const sent = await transport.sendChoices(input.to, text, buttons, replyTo ?? null).catch(() => null);
+        return sent?.ok ? sent.providerMessageId : null;
       },
       now,
     });
@@ -678,7 +681,7 @@ async function alertAddressedBy(
       sentAt: { gte: new Date(now.getTime() - PLAIN_REPLY_WINDOW_MS) },
     },
     orderBy: [{ sentAt: "desc" }, { id: "asc" }],
-    select: { id: true, kind: true, conversationId: true, sentAt: true },
+    select: { id: true, kind: true, conversationId: true, sentAt: true, idempotencyKey: true },
   });
   if (!latest?.sentAt) return null;
   // Bildirimden ÖNCE yazılmış (geç teslim edilen) mesaj ona cevap olamaz.
@@ -689,6 +692,16 @@ async function alertAddressedBy(
   const newer = await prisma.hostQuestion.findFirst({ where: { ...liveQuestion, updatedAt: { gt: latest.sentAt } }, select: { id: true } });
   if (newer) return null;
   const open = await prisma.hostQuestion.findFirst({ where: liveQuestion, select: { id: true } });
+  if (latest.kind === "decision") {
+    // Karar bildirimi düz mesajı YALNIZ bekleyen soru yokken ve kart hâlâ kararsızken yakalar: açık soru varsa cevap ona gider (karar zaten
+    // düğmeyle verilir), karar verilmiş kartın bildirimi sonraki sohbeti yutmaz (sert inceleme S-3).
+    if (open) return null;
+    const decisionId = /^decision:([^:]+):v\d+$/.exec(latest.idempotencyKey)?.[1];
+    const pending = decisionId
+      ? await prisma.decisionRequest.findFirst({ where: { id: decisionId, organizationId: org, status: "pending" }, select: { id: true } })
+      : null;
+    if (!pending) return null;
+  }
   return {
     id: latest.id,
     kind: latest.kind === "decision" ? "decision" : "alert",

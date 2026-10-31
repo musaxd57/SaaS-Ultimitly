@@ -24,8 +24,13 @@ import { sendOnChannel } from "@/lib/messaging";
 import { emailService } from "@/lib/email";
 import { startHostBinding, confirmHostBindingFromInbound } from "@/lib/host-channel/binding";
 import { WHATSAPP_CLOUD_PROVIDER } from "@/lib/host-channel/providers";
-import { askDecisionOnChannel } from "@/lib/host-channel/decision-ask";
-import { DECISION_TEXTS } from "@/lib/host-channel/decision-answer";
+import { askDecisionOnChannel, decisionTemplateChecks, NO_CHECKS_TEXT } from "@/lib/host-channel/decision-ask";
+import { createHash } from "node:crypto";
+import { DECISION_TEXTS, decisionPreviewText } from "@/lib/host-channel/decision-answer";
+import { freshDecisionCard } from "@/lib/decisions/decide";
+import { shortStayRange, templateSafe } from "@/lib/host-channel/question-text";
+import { ORG_HOURLY_QUESTION_CAP } from "@/lib/host-channel/routing";
+import type { DecisionCardData } from "@/lib/decisions/view-types";
 import { decisionButtonId, parseDecisionButton } from "@/lib/host-channel/decision-buttons";
 import { handleHostInbound } from "@/lib/host-channel/inbound";
 import { hostChannelFlagsFromEnv } from "@/lib/host-channel/routing";
@@ -143,6 +148,13 @@ describe("WhatsApp karar kartı (dilim 3)", () => {
     const m = (out[0] as Extract<Out, { kind: "decision" }>).message;
     expect(m).toMatchObject({ property: "Lale", link: s.conversationId });
     expect(m.title).toContain("13:00");
+    // Tarihler işletmenin saat diliminde, varış → ayrılış sırasıyla (sert inceleme 10-31 T-8).
+    const res = await prisma.reservation.findFirstOrThrow({ where: { property: { organizationId: s.orgId } } });
+    const dm = (d: Date) => {
+      const [, mo, day] = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Istanbul" }).format(d).split("-").map(Number);
+      return { day: day!, month: mo! };
+    };
+    expect(m.dates).toBe(shortStayRange(dm(res.arrivalDate), dm(res.departureDate)));
     expect(JSON.stringify(m)).not.toMatch(/Ada|check in at/iu);
     expect(parseDecisionButton(m.approveId)).toEqual({ step: "choose", decisionId: s.decisionId, version: 0, action: "approve" });
     expect(parseDecisionButton(m.declineId)).toMatchObject({ step: "choose", action: "decline" });
@@ -216,6 +228,8 @@ describe("WhatsApp karar kartı (dilim 3)", () => {
     };
     expect(await notifyTurnDecisions({ ...base, channelAsk: async () => true })).toBe("whatsapp");
     expect(mockMail).not.toHaveBeenCalled();
+    // Bildirim talebi "gönderildi" onaylanır — sonraki geçiş onu uçuşta sanıp kart damgalarını geri vermez (T-7).
+    expect((await prisma.systemLock.findUniqueOrThrow({ where: { name: `reply-waiting-mail:${s.messageId}` } })).holder).toBe("sent");
 
     const t = await seed({ phone: "+90 532 111 22 44" });
     const v2 = await listConversationDecisions(prisma, { organizationId: t.orgId, conversationId: t.conversationId, timeZone: "Europe/Istanbul", now: new Date() });
@@ -324,6 +338,300 @@ describe("WhatsApp karar kartı (dilim 3)", () => {
     expect(lastText().startsWith(HOST_TEXTS.decisionReply)).toBe(true);
     expect(mockSend).not.toHaveBeenCalled();
     expect((await prisma.decisionRequest.findUniqueOrThrow({ where: { id: s.decisionId } })).status).toBe("pending");
+  });
+
+  it("🚨 karar motoru kapatıldı (HOST_DECISIONS_ENABLED) → WhatsApp düğmesi de karar veremez; bildirim de gitmez (P-1)", async () => {
+    const s = await seed();
+    await tap(decisionButtonId({ step: "choose", decisionId: s.decisionId, version: 0, action: "approve" }));
+    const sendId = lastChoices().ids.find((i) => i.endsWith(".send"))!;
+    vi.stubEnv("HOST_DECISIONS_ENABLED", "");
+    out = [];
+    await tap(sendId);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(out).toHaveLength(0);
+    expect((await prisma.decisionRequest.findUniqueOrThrow({ where: { id: s.decisionId } })).status).toBe("pending");
+    expect(await ask(s)).toBe(false);
+  });
+
+  it("karar verildikten sonra [Gönderme] / gönderim sürerken dokunuş → 'gönderilmedi' DENMEZ (S-2)", async () => {
+    const s = await seed();
+    await tap(decisionButtonId({ step: "choose", decisionId: s.decisionId, version: 0, action: "approve" }));
+    const ids = lastChoices().ids;
+    await prisma.decisionRequest.update({ where: { id: s.decisionId }, data: { status: "sending", version: 1 } });
+    await tap(ids.find((i) => i.endsWith(".cancel"))!);
+    expect(lastText().startsWith(DECISION_TEXTS.inFlight)).toBe(true);
+    await prisma.decisionRequest.update({ where: { id: s.decisionId }, data: { status: "approved", version: 2 } });
+    await tap(ids.find((i) => i.endsWith(".cancel"))!);
+    expect(lastText()).toBe(DECISION_TEXTS.already);
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("🚨 misafir talepten sonra yeniden yazdıysa: bildirim WhatsApp'a gitmez (e-posta), düğme önizleme yerine panele yönlendirir (S-4)", async () => {
+    const s = await seed();
+    await prisma.message.create({ data: { conversationId: s.conversationId, direction: "inbound", senderName: "Ada", body: "Also, is there parking?" } });
+    expect(await ask(s)).toBe(false);
+    expect(out).toHaveLength(0);
+    await tap(decisionButtonId({ step: "choose", decisionId: s.decisionId, version: 0, action: "approve" }));
+    expect(lastText().startsWith(DECISION_TEXTS.guestWrote)).toBe(true);
+    expect(out.some((o) => o.kind === "choices")).toBe(false);
+  });
+
+  it("karar bildiriminden sonra AÇIK soru varken düz mesaj soru akışına gider; karar verilmiş kartın bildirimi düz mesajı yakalamaz (S-3)", async () => {
+    vi.stubEnv("HOST_QUESTIONS_ENABLED", "1");
+    const s = await seed();
+    expect(await ask(s)).toBe(true);
+    const text = (id: string, body: string) =>
+      handleHostInbound({
+        provider: WHATSAPP_CLOUD_PROVIDER,
+        events: [{ kind: "text", from: DIGITS, providerMessageId: id, contextId: null, text: body, at: new Date() }],
+        flags: hostChannelFlagsFromEnv(),
+        transport,
+      });
+    // Kart karar verilmiş → bildirim artık düz mesajı yakalamaz (soru yoksa "bekleyen soru yok").
+    await prisma.decisionRequest.update({ where: { id: s.decisionId }, data: { status: "approved" } });
+    out = [];
+    await text("wamid.k1", "tamam");
+    expect(out.some((o) => o.kind === "text" && o.text.startsWith(HOST_TEXTS.decisionReply))).toBe(false);
+    // Kart bekliyor + açık bilgi sorusu → soru akışı (karar yönlendirmesi yok).
+    await prisma.decisionRequest.update({ where: { id: s.decisionId }, data: { status: "pending" } });
+    const binding = await prisma.hostChannelBinding.findFirstOrThrow({ where: { organizationId: s.orgId } });
+    const older = new Date(Date.now() - 60 * 60_000);
+    const q = await prisma.hostQuestion.create({
+      data: {
+        organizationId: s.orgId,
+        conversationId: s.conversationId,
+        bindingId: binding.id,
+        kind: "info",
+        turnMessageId: s.messageId,
+        status: "sent",
+        idempotencyKey: `turn:${s.messageId}`,
+        providerMessageId: "wamid.Qx",
+        sentAt: older,
+        createdAt: older,
+        expiresAt: new Date(Date.now() + 3600_000),
+      },
+    });
+    await prisma.$executeRaw`UPDATE "HostQuestion" SET "updatedAt" = ${older} WHERE id = ${q.id}`;
+    out = [];
+    await text("wamid.k2", "evet otopark var");
+    expect(out.some((o) => o.kind === "text" && o.text.startsWith(HOST_TEXTS.decisionReply))).toBe(false);
+  });
+
+  it("🚨 kartın uyarıları (panelde kırmızı) WhatsApp'ta görünür: şablonda ÖNCE, önizlemede HEPSİ [Gönder]'den önce (F-1)", async () => {
+    const s = await seed();
+    // Varış gecesini kapsayan başka konaklama → "Aynı gün çakışan başka bir rezervasyon var." (kırmızı satır).
+    const own = await prisma.reservation.findFirstOrThrow({ where: { property: { organizationId: s.orgId } } });
+    await prisma.reservation.create({
+      data: {
+        propertyId: s.propertyId,
+        guestName: "Başka",
+        arrivalDate: new Date(own.arrivalDate.getTime() - DAY),
+        departureDate: new Date(own.arrivalDate.getTime() + DAY),
+        status: "confirmed",
+        channel: "booking",
+      },
+    });
+    const fresh = await freshDecisionCard({ organizationId: s.orgId, conversationId: s.conversationId, decisionId: s.decisionId, now: new Date() });
+    const warnings = fresh!.card!.lines.filter((l) => !l.ok).map((l) => l.text);
+    expect(warnings).toContain("Aynı gün çakışan başka bir rezervasyon var.");
+    // Bilgi / yeşil satır şablonun başında DEĞİL (eski davranış ilk iki satırı konumla alıyordu: "İstenen saat…").
+    expect(fresh!.card!.lines[0]!.ok).toBe(true);
+
+    expect(await ask(s)).toBe(true);
+    const m = (out[0] as Extract<Out, { kind: "decision" }>).message;
+    expect(m.checks.startsWith(templateSafe(warnings[0]!))).toBe(true);
+    if (warnings.length > 2) expect(m.checks).toContain(`+${warnings.length - 2} uyarı daha`);
+
+    await tap(decisionButtonId({ step: "choose", decisionId: s.decisionId, version: 0, action: "approve" }));
+    const preview = lastChoices().text;
+    const header = preview.indexOf(DECISION_TEXTS.previewHeader);
+    expect(preview.indexOf(DECISION_TEXTS.warnings)).toBeGreaterThan(-1);
+    for (const w of warnings) {
+      expect(preview).toContain(`• ${w}`);
+      expect(preview.indexOf(w)).toBeLessThan(header);
+    }
+  });
+
+  it("önizleme sığmazsa KESİLMEZ: önce Türkçesi düşer, uyarılar asla; yine sığmazsa panel (F-1)", () => {
+    const card = (warnings: string[]): DecisionCardData => ({
+      id: "d1",
+      kind: "early_checkin",
+      title: "13:00 erken giriş",
+      statusLabel: "Karar bekliyor",
+      open: true,
+      unverified: false,
+      sending: false,
+      version: 0,
+      requestedTime: "13:00",
+      dayKey: "2026-11-02",
+      dayLabel: "2 Kasım (varış günü)",
+      askedAt: "",
+      requestQuote: null,
+      standardTime: "15:00",
+      lang: "en",
+      fee: null,
+      note: null,
+      lines: [{ ok: true, text: "İstenen saat: 13:00" }, ...warnings.map((text) => ({ ok: false, text }))],
+      laterGuestMessageId: null,
+      factsHash: "0".repeat(24),
+    });
+    const body = "B".repeat(200);
+    const tr = "T".repeat(200);
+    const short = decisionPreviewText(card(["kısa uyarı"]), body, tr)!;
+    expect(short).toContain(DECISION_TEXTS.previewTr);
+    const twoLong = decisionPreviewText(card(["U".repeat(300), "V".repeat(300)]), body, tr)!;
+    expect(twoLong.length).toBeLessThanOrEqual(1_024);
+    expect(twoLong).not.toContain(DECISION_TEXTS.previewTr);
+    expect(twoLong).toContain("U".repeat(300));
+    expect(twoLong).toContain("V".repeat(300));
+    expect(twoLong).not.toContain("İstenen saat");
+    expect(decisionPreviewText(card(["U".repeat(300), "V".repeat(300), "W".repeat(300)]), body, tr)).toBeNull();
+  });
+
+  it("🚨 önizlemeye 'Yanıtla' ile yazılan metin bu karara bağlanır (panel yönlendirmesi) — sonradan sorulan başka misafirin sorusuna girmez (F-5)", async () => {
+    vi.stubEnv("HOST_QUESTIONS_ENABLED", "1");
+    const s = await seed();
+    expect(await ask(s)).toBe(true);
+    await tap(decisionButtonId({ step: "choose", decisionId: s.decisionId, version: 0, action: "approve" }));
+    const previewId = `wamid.c${out.length}`;
+    expect(out.at(-1)?.kind).toBe("choices");
+    expect((await prisma.hostQuestion.findFirstOrThrow({ where: { organizationId: s.orgId, kind: "decision" } })).previewMessageId).toBe(previewId);
+    // Karardan SONRA sorulan bilgi sorusu (bekliyor) — düz mesaj kuralına göre "en yeni" o.
+    const binding = await prisma.hostChannelBinding.findFirstOrThrow({ where: { organizationId: s.orgId } });
+    const q = await prisma.hostQuestion.create({
+      data: {
+        organizationId: s.orgId,
+        conversationId: s.conversationId,
+        bindingId: binding.id,
+        kind: "info",
+        turnMessageId: s.messageId,
+        status: "sent",
+        idempotencyKey: `turn:${s.messageId}`,
+        providerMessageId: "wamid.Qy",
+        sentAt: new Date(),
+        expiresAt: new Date(Date.now() + 3600_000),
+      },
+    });
+    out = [];
+    await handleHostInbound({
+      provider: WHATSAPP_CLOUD_PROVIDER,
+      events: [{ kind: "text", from: DIGITS, providerMessageId: "wamid.k5", contextId: previewId, text: "13:30 olsun", at: new Date() }],
+      flags: hostChannelFlagsFromEnv(),
+      transport,
+    });
+    expect(lastText().startsWith(HOST_TEXTS.decisionReply)).toBe(true);
+    expect(await prisma.hostQuestion.findUniqueOrThrow({ where: { id: q.id } })).toMatchObject({ status: "sent", answerEnc: null, answerMessageId: null });
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("fiilen kapanmış kart kendi nedeniyle cevaplanır — 'ücret, saat ya da tür' denmez (F-6)", async () => {
+    const approve = (s: Seeded) => tap(decisionButtonId({ step: "choose", decisionId: s.decisionId, version: 0, action: "approve" }));
+    const a = await seed();
+    await prisma.reservation.updateMany({ where: { property: { organizationId: a.orgId } }, data: { status: "cancelled" } });
+    await approve(a);
+    expect(lastText()).toBe(DECISION_TEXTS.cancelledStay);
+
+    const b = await seed({ phone: "+90 532 111 22 44" });
+    await prisma.reservation.updateMany({ where: { property: { organizationId: b.orgId } }, data: { arrivalDate: utcDay(-2), departureDate: utcDay(1) } });
+    await tap(decisionButtonId({ step: "choose", decisionId: b.decisionId, version: 0, action: "approve" }), "wamid.e2", "905321112244");
+    expect(lastText()).toBe(DECISION_TEXTS.expired);
+
+    const c = await seed({ phone: "+90 532 111 22 55" });
+    await prisma.message.create({
+      data: { conversationId: c.conversationId, direction: "outbound", authorType: "host", senderName: "Ev Sahibi", body: "Bakıyorum, döneceğim." },
+    });
+    await tap(decisionButtonId({ step: "choose", decisionId: c.decisionId, version: 0, action: "approve" }), "wamid.e3", "905321112255");
+    expect(lastText().startsWith(DECISION_TEXTS.hostReplied)).toBe(true);
+    expect(out.some((o) => o.kind === "choices")).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("🚨 önizlemenin İKİNCİ düğmesi gerçekten [Gönderme]: basınca misafire bir şey gitmez, kart bekler (T-1)", async () => {
+    const s = await seed();
+    await tap(decisionButtonId({ step: "choose", decisionId: s.decisionId, version: 0, action: "approve" }));
+    const ids = lastChoices().ids;
+    expect(ids.map((i) => parseDecisionButton(i)?.step)).toEqual(["send", "cancel"]);
+    await tap(ids[1]!);
+    expect(lastText()).toBe(DECISION_TEXTS.cancelled);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect((await prisma.decisionRequest.findUniqueOrThrow({ where: { id: s.decisionId } })).status).toBe("pending");
+  });
+
+  it("🚨 şablon gönderilemezse bugünkü e-posta: false döner, kayıt 'failed'; aynı kart yeniden denenirse yine e-posta (T-3)", async () => {
+    const s = await seed();
+    const failing: HostChannelTransport = { ...transport, sendDecision: async () => ({ ok: false, providerMessageId: null, definitive: true, error: "x" }) };
+    const call = () =>
+      askDecisionOnChannel({ organizationId: s.orgId, conversationId: s.conversationId, decision: { id: s.decisionId, version: 0, messageId: s.messageId }, transport: failing });
+    expect(await call()).toBe(false);
+    expect((await prisma.hostQuestion.findFirstOrThrow({ where: { organizationId: s.orgId, kind: "decision" } })).status).toBe("failed");
+    expect(await call()).toBe(false);
+    expect(await ask(s)).toBe(false);
+  });
+
+  it("[Gönder] sonucu ev sahibine doğru söylenir: kesin hata → 'gönderilemedi' (kart yeniden açık), belirsiz → 'doğrulanamadı' (T-5)", async () => {
+    const s = await seed();
+    await tap(decisionButtonId({ step: "choose", decisionId: s.decisionId, version: 0, action: "approve" }));
+    const sendId = lastChoices().ids.find((i) => i.endsWith(".send"))!;
+    mockSend.mockResolvedValueOnce({ ok: false, error: "Hospitable API hatası (HTTP 400): bad" } as never);
+    await tap(sendId);
+    expect(lastText().startsWith(DECISION_TEXTS.failed)).toBe(true);
+    const reopened = await prisma.decisionRequest.findUniqueOrThrow({ where: { id: s.decisionId } });
+    expect(reopened.status).toBe("pending");
+
+    await tap(decisionButtonId({ step: "choose", decisionId: s.decisionId, version: reopened.version, action: "approve" }));
+    const again = lastChoices().ids.find((i) => i.endsWith(".send"))!;
+    mockSend.mockResolvedValueOnce({ ok: false, error: "timeout" } as never);
+    await tap(again);
+    expect(lastText().startsWith(DECISION_TEXTS.unverified)).toBe(true);
+    expect((await prisma.decisionRequest.findUniqueOrThrow({ where: { id: s.decisionId } })).status).toBe("send_unverified");
+  });
+
+  it("işletmenin saatlik WhatsApp tavanı dolduysa karar bildirimi gitmez (e-posta) (T-6)", async () => {
+    const s = await seed();
+    const binding = await prisma.hostChannelBinding.findFirstOrThrow({ where: { organizationId: s.orgId } });
+    await prisma.hostQuestion.createMany({
+      data: Array.from({ length: ORG_HOURLY_QUESTION_CAP }, (_, i) => ({
+        organizationId: s.orgId,
+        conversationId: s.conversationId,
+        bindingId: binding.id,
+        kind: "alert",
+        turnMessageId: s.messageId,
+        status: "alerted",
+        idempotencyKey: `alert:cap-${i}`,
+        sentAt: new Date(),
+        expiresAt: new Date(Date.now() + 3600_000),
+      })),
+    });
+    expect(await ask(s)).toBe(false);
+    expect(out).toHaveLength(0);
+  });
+
+  it("şablonun kontrol değişkeni: uyarılar önce, en çok 2 + kalan sayısı; uyarı yoksa ilk iki satır; hiç satır yoksa boş değil (T-8, F-1)", () => {
+    const line = (ok: boolean, text: string) => ({ ok, text });
+    expect(decisionTemplateChecks({ lines: [] })).toBe(NO_CHECKS_TEXT);
+    expect(decisionTemplateChecks({ lines: [line(true, "a"), line(true, "b"), line(true, "c")] })).toBe("a; b");
+    expect(decisionTemplateChecks({ lines: [line(true, "a"), line(false, "U1"), line(true, "b"), line(false, "U2"), line(false, "U3")] })).toBe(
+      "U1; U2; +1 uyarı daha",
+    );
+    expect(decisionTemplateChecks({ lines: [line(true, "a"), line(false, "U1")] })).toBe("U1");
+  });
+
+  it("bir soruya bağlanmış WhatsApp mesajının yeniden teslimi karar bildirimine yakalanmaz (soru akışı sürer) (T-10)", async () => {
+    vi.stubEnv("HOST_QUESTIONS_ENABLED", "1");
+    const s = await seed();
+    expect(await ask(s)).toBe(true);
+    const wamid = "wamid.bound1";
+    await prisma.systemLock.create({
+      data: { name: `host-ans:${createHash("sha256").update(wamid, "utf8").digest("hex")}`, holder: "q-x", lockedUntil: new Date(Date.now() + 3600_000) },
+    });
+    out = [];
+    await handleHostInbound({
+      provider: WHATSAPP_CLOUD_PROVIDER,
+      events: [{ kind: "text", from: DIGITS, providerMessageId: wamid, contextId: null, text: "evet", at: new Date() }],
+      flags: hostChannelFlagsFromEnv(),
+      transport,
+    });
+    expect(out.some((o) => o.kind === "text" && o.text.startsWith(HOST_TEXTS.decisionReply))).toBe(false);
   });
 
   it("eski sürümün düğmesi (kart değişti) → 'kart değişti', gönderim yok", async () => {

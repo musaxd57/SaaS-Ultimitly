@@ -4,13 +4,15 @@ import { Prisma } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/db";
 import { calendarDateOf } from "@/modules/availability/core";
-import { freshDecisionCard } from "@/lib/decisions/decide";
+import { freshDecisionCard, guestWroteAfterRequest } from "@/lib/decisions/decide";
+import { hostDecisionsEnabled } from "@/lib/decisions/flag";
 import { activeBindingAddress, hostChannelSecret, usableHostBindingForOrg } from "./binding";
-import { decidableOnChannel } from "./decision-answer";
+import { decidableOnChannel, decisionWarnings } from "./decision-answer";
 import { decisionButtonId } from "./decision-buttons";
 import { shortStayRange, templateSafe } from "./question-text";
 import { chooseHostChannel, hostChannelFlagsFromEnv } from "./routing";
 import type { HostChannelTransport } from "./types";
+import type { DecisionCardData } from "@/lib/decisions/view-types";
 
 // ---------------------------------------------------------------------------
 // "KARAR BEKLİYOR" WHATSAPP'TA — Tür B gönderimi (tasarım §3.10, dilim 3; anahtar `HOST_QUESTION_DECISIONS_ENABLED` + kanal + işletme
@@ -19,7 +21,7 @@ import type { HostChannelTransport } from "./types";
 //  · YALNIZ WhatsApp'ta karar verilebilen kart (metinli tür, istenen saat belli, ücretsiz onay — `decidableOnChannel`); ötekiler e-posta.
 //  · Kart başına (sürümle) tek kayıt (`decision:<karar>:v<sürüm>`, `HostQuestion` `kind: "decision"`, durum `notified` — soru akışına
 //    karışmaz, metin taşımaz); aynı kart yeniden bildirilirse ikinci WhatsApp yok.
-//  · Misafir metni / adı gitmez: daire · tarih aralığı · kartın başlığı · en çok 2 kontrol satırı (ev sahibinin kendi olguları).
+//  · Misafir metni / adı gitmez: daire · tarih aralığı · kartın başlığı · en çok 2 kontrol satırı, UYARILAR ÖNCE (ev sahibinin kendi olguları).
 //  · Asla fırlatmaz; her beklenmedik hata → `false` (bugünkü e-posta).
 // ---------------------------------------------------------------------------
 
@@ -27,6 +29,21 @@ const HOUR_MS = 60 * 60 * 1000;
 const DECISION_RECORD_TTL_MS = 24 * HOUR_MS;
 /** Kontrol satırı yoksa şablon değişkeni boş olamaz (Meta boş parametreyi reddeder). */
 export const NO_CHECKS_TEXT = "ek bilgi yok";
+
+/**
+ * Şablonun kontrol değişkeni: uyarılar (panelde kırmızı) ÖNCE, en çok 2, sığmayanların sayısı ("+N uyarı daha") — ilk iki satır konuma göre
+ * seçilince "daire boşalmamış olabilir" gibi uyarı hiç görünmüyordu (sert inceleme 10-31 F-1). Uyarı yoksa ilk iki satır. Hiç satır yoksa
+ * `NO_CHECKS_TEXT` (Meta boş değişkeni reddeder). Tamamı önizlemede.
+ */
+export function decisionTemplateChecks(card: Pick<DecisionCardData, "lines">): string {
+  const warnings = decisionWarnings(card);
+  const shown = (warnings.length > 0 ? warnings : card.lines.map((l) => l.text))
+    .slice(0, 2)
+    .map((t) => templateSafe(t))
+    .filter(Boolean);
+  const more = warnings.length - Math.min(warnings.length, 2);
+  return [...shown, ...(more > 0 ? [`+${more} uyarı daha`] : [])].join("; ") || NO_CHECKS_TEXT;
+}
 
 /** `true`: WhatsApp gitti (ya da bu kart sürümü için zaten gitmişti) — e-posta gönderilmez. */
 export async function askDecisionOnChannel(input: {
@@ -38,7 +55,7 @@ export async function askDecisionOnChannel(input: {
 }): Promise<boolean> {
   const flags = hostChannelFlagsFromEnv();
   if (chooseHostChannel({ kind: "decision", orgId: input.organizationId, flags, binding: "verified", orgSentLastHour: 0 }) !== "whatsapp") return false;
-  if (!input.transport?.sendDecision || !hostChannelSecret()) return false;
+  if (!input.transport?.sendDecision || !hostChannelSecret() || !hostDecisionsEnabled()) return false;
   const now = input.now ?? new Date();
   let rowId: string | null = null;
   try {
@@ -51,7 +68,13 @@ export async function askDecisionOnChannel(input: {
       return false;
     }
     const fresh = await freshDecisionCard({ organizationId: input.organizationId, conversationId: input.conversationId, decisionId: input.decision.id, now });
-    if (!fresh || fresh.card.version !== input.decision.version || !decidableOnChannel(fresh.card, "approve")) return false;
+    if (!fresh?.card || fresh.card.version !== input.decision.version || !decidableOnChannel(fresh.card, "approve")) return false;
+    // Misafir talepten sonra yeniden yazdıysa WhatsApp'ta karar verilemez (çekirdek "okudum" ister) → bugünkü e-posta (sert inceleme S-4).
+    const request = await prisma.decisionRequest.findFirst({
+      where: { id: input.decision.id, organizationId: input.organizationId },
+      select: { conversationId: true, messageId: true, createdAt: true },
+    });
+    if (!request || (await guestWroteAfterRequest(request))) return false;
     const conv = await prisma.conversation.findFirst({
       where: { id: input.conversationId, property: { organizationId: input.organizationId } },
       select: { property: { select: { name: true } }, reservation: { select: { arrivalDate: true, departureDate: true } } },
@@ -89,17 +112,12 @@ export async function askDecisionOnChannel(input: {
       const [, m, day] = calendarDateOf(d, fresh.timeZone).key.split("-").map(Number);
       return { day: day!, month: m! };
     };
-    const checks = card.lines
-      .slice(0, 2)
-      .map((l) => templateSafe(l.text))
-      .filter(Boolean)
-      .join("; ");
     const base = { decisionId: card.id, version: card.version };
     const sent = await input.transport.sendDecision(to, {
       property: templateSafe(conv.property.name),
       dates: shortStayRange(dayMonth(conv.reservation.arrivalDate), dayMonth(conv.reservation.departureDate)),
       title: templateSafe(card.dayLabel ? `${card.dayLabel} · ${card.title}` : card.title),
-      checks: checks || NO_CHECKS_TEXT,
+      checks: decisionTemplateChecks(card),
       link: input.conversationId,
       approveId: decisionButtonId({ ...base, step: "choose", action: "approve" }),
       declineId: decisionButtonId({ ...base, step: "choose", action: "decline" }),

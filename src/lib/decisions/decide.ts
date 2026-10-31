@@ -8,6 +8,7 @@ import { providerErrorMessageFromText } from "@/lib/provider-errors";
 import { sendHostMessage } from "@/lib/host-send";
 import { applyItemEvent } from "@/lib/conversation-items/store";
 import { reportError } from "@/lib/report-error";
+import { hostDecisionsEnabled } from "./flag";
 import {
   DECISION_SENDING_STALE_MS,
   TEXT_DECISION_KINDS,
@@ -16,9 +17,10 @@ import {
   parseHostTime,
   timeOnRightSide,
   type DecisionLang,
+  type EffectiveDecisionStatus,
 } from "./core";
 import { listConversationDecisions } from "./store";
-import { buildDecisionCards, decisionCardContextFor } from "./card";
+import { buildDecisionCards, decisionCardContextFor, visibleDecisions } from "./card";
 import type { DecisionCardData } from "./view-types";
 import { decisionAiTextEnabled } from "./ai-text";
 import { checkDecisionText, decisionTextProblemsTr } from "./text-check";
@@ -98,7 +100,7 @@ export async function freshDecisionCard(args: {
   conversationId: string;
   decisionId: string;
   now: Date;
-}): Promise<{ card: DecisionCardData; timeZone: string } | null> {
+}): Promise<{ card: DecisionCardData | null; timeZone: string; effective: EffectiveDecisionStatus } | null> {
   const conversation = await prisma.conversation.findFirst({
     where: { id: args.conversationId, property: { organizationId: args.organizationId } },
     select: CONVERSATION_SELECT,
@@ -113,6 +115,8 @@ export async function freshDecisionCard(args: {
   });
   const view = views.find((v) => v.id === args.decisionId);
   if (!view) return null;
+  // Kartta görünmeyen (gün geçti / iptal / sonuçlanmış) karar kurulmaz — yalnız gerçek durumu döner (WhatsApp nedeni doğru söylesin).
+  if (visibleDecisions([view]).length === 0) return { card: null, timeZone, effective: view.effective };
   const ctx = await decisionCardContextFor({
     organizationId: args.organizationId,
     conversation: { ...conversation, messages: [] },
@@ -121,7 +125,33 @@ export async function freshDecisionCard(args: {
     needsEarlyRule: view.kind === "early_checkin",
   });
   const [card] = await buildDecisionCards([view], ctx);
-  return card ? { card, timeZone } : null;
+  return { card: card ?? null, timeZone, effective: view.effective };
+}
+
+/**
+ * Misafir talepten SONRA yeniden yazdı mı — çekirdeğin `guest_wrote_again` kuralıyla AYNI çapa (talebin mesajı, bulunamazsa kartın açıldığı
+ * an). WhatsApp'ta "okudum" adımı yok: yazdıysa karar panelde verilir (bildirim e-postayla, düğme panele yönlendirir — sert inceleme S-4).
+ */
+export async function guestWroteAfterRequest(decision: DecisionAnchor): Promise<boolean> {
+  return (await latestGuestMessageAfterRequest(decision)) !== null;
+}
+
+type DecisionAnchor = { conversationId: string; messageId: string; createdAt: Date };
+
+/** Talepten sonraki EN SON misafir mesajının kimliği (yoksa `null`). Çapa: talebin mesajı; bulunamazsa (birleştirmede ayıklanmış kopya)
+ *  kartın açıldığı an — kontrol atlanmaz. Panel çekirdeği ve WhatsApp yolu bu TEK kuralı okur. */
+async function latestGuestMessageAfterRequest(decision: DecisionAnchor): Promise<string | null> {
+  const requestMessage = await prisma.message.findFirst({
+    where: { id: decision.messageId, conversationId: decision.conversationId },
+    select: { createdAt: true },
+  });
+  const anchor = requestMessage?.createdAt ?? decision.createdAt;
+  const latest = await prisma.message.findFirst({
+    where: { conversationId: decision.conversationId, direction: "inbound", createdAt: { gt: anchor } },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    select: { id: true },
+  });
+  return latest?.id ?? null;
 }
 
 const conflict = (code: string, error: string, extra?: Record<string, unknown>): DecideOutcome =>
@@ -137,6 +167,8 @@ export async function decideHostDecision(args: {
 }): Promise<DecideOutcome> {
   const { organizationId, actor, input } = args;
   const id = args.conversationId;
+  // Karar motorunun kapatma anahtarı ÇEKİRDEKTE: panel rotası da WhatsApp düğmesi de kapalıyken karar veremez (sert inceleme 10-31 P-1).
+  if (!hostDecisionsEnabled()) return { kind: "not_found" };
   const decision = await prisma.decisionRequest.findFirst({
     where: { id: args.decisionId, conversationId: id, organizationId },
   });
@@ -213,20 +245,10 @@ export async function decideHostDecision(args: {
   if (dayKey && dayKey < todayKey(now, tz)) {
     return conflict("expired", "Talep edilen gün geçti; misafire karar mesajı gönderilmedi.");
   }
-  const requestMessage = await prisma.message.findFirst({
-    where: { id: decision.messageId, conversationId: id },
-    select: { createdAt: true },
-  });
-  // Talebin mesajı bulunamazsa (birleştirmede ayıklanmış kopya) çapa kartın açıldığı an — kontrol atlanmaz.
-  const anchor = requestMessage?.createdAt ?? decision.createdAt;
-  const latestGuest = await prisma.message.findFirst({
-    where: { conversationId: id, direction: "inbound", createdAt: { gt: anchor } },
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    select: { id: true },
-  });
-  if (latestGuest && latestGuest.id !== input.seenMessageId) {
+  const latestGuestId = await latestGuestMessageAfterRequest({ conversationId: id, messageId: decision.messageId, createdAt: decision.createdAt });
+  if (latestGuestId && latestGuestId !== input.seenMessageId) {
     return conflict("guest_wrote_again", "Misafir bu talepten sonra yeniden yazdı. Mesajı okuyun, sonra tekrar gönderin.", {
-      latestMessageId: latestGuest.id,
+      latestMessageId: latestGuestId,
     });
   }
 
