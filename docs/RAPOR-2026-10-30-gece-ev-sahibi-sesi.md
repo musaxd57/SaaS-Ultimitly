@@ -224,8 +224,7 @@ Bugün ev sahibine "⚠️ Acil misafir mesajı" e-postası 4 ayrı yerden gidiy
 - Bilinçli dışarıda: ev sahibinin kendi panelden açtığı konuşma; QR sohbeti (oradaki acil e-posta bilerek metinsiz, ayrı anahtarlı).
 
 **Kurucu kararı gerekenler (gece varsayılanı uygulandı, anahtar KAPALI):**
-- **S3 — acilde ikisi birden mi?** Şu an: e-posta + WhatsApp birlikte (kaçırılmaması daha önemli). Alternatif: WhatsApp birincil, e-posta
-  yalnız WhatsApp gitmezse. Önerim: ilk haftalar ikisi birden.
+- ~~**S3 — acilde ikisi birden mi?**~~ → KARAR VERİLDİ (10-31 sabah, §4g-2): hibrit — WhatsApp önce, 10 dk okunmazsa e-posta.
 - **Şablon metni** (Meta onayına gönderilecek, tasarım §3.3): "ACİL · {{1}} ({{2}}) · Misafiriniz yazdı: “{{3}}” Konuşmayı hemen açın." +
   tek düğme [Konuşmayı aç]. Tasarımdaki eski metin ("Misafiriniz {{3}} bildiriyor") alıntıyla bozuk Türkçe veriyordu ("Misafiriniz We lost
   the key bildiriyor"); [İlgileniyorum] düğmesi çıkarıldı (misafire "ev sahibiniz ilgileniyor" gitsin mi ayrı karar — devir cümlesi kuralı).
@@ -233,8 +232,7 @@ Bugün ev sahibine "⚠️ Acil misafir mesajı" e-postası 4 ayrı yerden gidiy
   acil bildirimdi; buraya yazdığınız misafire gitmez. Bekleyen bir soruyu cevaplıyorsanız o soru mesajına "Yanıtla" diyerek yazın. Acil konuşma:".
 - **E-posta alıcısı yoksa** (uyarı adresi de sahip e-postası da yok) WhatsApp da gitmez — bildirim e-postanın yanında. WhatsApp tek başına
   gitsin mi?
-- **Kapı kodu alıntıda:** misafir "kapı kodu 4821 çalışmıyor" yazarsa alıntı kodu Meta'ya taşır (e-posta bugün de taşıyor). Alıntıda kodu
-  maskeleyelim mi? (Ev sahibi kodu zaten biliyor; Meta'da iz kalmaz.)
+- ~~**Kapı kodu alıntıda**~~ → KARAR VERİLDİ (10-31 sabah): maskelenmez.
 
 **Saklama (belgede vardı, kodda yoktu — eklendi):** kapanmış soru / bildirim satırı 90 gün, iptal edilmiş numara bağlantısı 30 gün sonra
 saatlik süpürgeyle silinir (misafire giden cevabı işaretleyen satır metinsiz kalır, konuşmayla gider).
@@ -313,6 +311,18 @@ misafir arada yazmışsa şablon e-postanın yerine geçip işe yaramıyordu, ö
 bağlanabiliyordu, kapanmış kart yanlış nedenle cevaplanıyordu + 9 test boşluğu; hepsi düzeltildi ya da pinlendi; yeni testlerin 9'u
 düzeltme öncesi kodda kırmızı · mutasyon tur 2 (düzeltmeler + boşluklar): 32 mutant → 30 öldü; yaşayan 2'si rotadan taşınan çekirdek kuralının ESKİ test boşluğuydu
 ("misafir yazdı mı" çapası talebin mesajı + "okudum" yalnız en son mesajla) — yeni rota testiyle 2/2 öldü · ilgili 30 dosya / 527 test yeşil.
+
+## 4g-2. Kurucu kararları 10-31 sabah (AYNEN)
+
+- **Rıza metni:** "Rıza metnini güncelle" → v2: "Misafir sorularının, acil misafir bildirimlerinin ve karar isteklerinin bu WhatsApp
+  numarasına gönderilmesini kabul ediyorum. Mesajlar Meta (WhatsApp) üzerinden iletilir; istediğim zaman buradan ya da WhatsApp'tan DUR
+  yazarak kapatabilirim." (sürüm `v2-taslak-2026-10-31`; avukat onayı gelince "taslak" eki düşer).
+- **S3 — acilde e-posta (hibrit):** "acilde epostada gidebilir ve wpa birlikte ama yığılmasın genelde wpa gidiyorsa acil e posta gitmesin
+  hibrit akış olsun" → seçilen: WhatsApp önce; **10 dk içinde okunmazsa ya da gönderilemezse e-posta**; yangın / gaz / karbonmonoksit gibi
+  can güvenliği acillerinde ikisi birden hemen.
+- **Kapı kodu alıntıda:** "Maskeleme" — acil bildirimdeki misafir alıntısı kapı / kasa kodunu olduğu gibi taşır (bugünkü e-postayla aynı).
+- **Talimat biçimli ev sahibi cevabı:** "host mesela mesajı böyle böyle gitsin gibi prompt hazırlayarak gönderse dahi bizimki ordaki
+  soruların cevaplarını alıp güzelce cümle yapıp cevap olarak gönderebilir" → yapılıyor; gerçek modelle önce/sonra ölçüm onaylı.
 
 ## 4h. Soru — WhatsApp cevabı bilgi tabanına kaydedilsin mi? (tasarım §3.9; KODLANMADI, karar sizde)
 

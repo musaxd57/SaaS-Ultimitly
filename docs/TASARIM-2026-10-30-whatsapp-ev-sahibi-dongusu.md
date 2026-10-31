@@ -470,6 +470,39 @@ Aynı işlemde, sırayla:
   (panel yönlendirmesi), başka misafirin sorusunun taslağına girmez. Düz mesajı karar bildirimi YALNIZ bekleyen bilgi sorusu yokken ve kart
   hâlâ kararsızken yakalar.
 
+### 3.12 Hibrit acil akış (kurucu kararı 10-31 sabah; envanter: 4 ajanlı salt-okur iş akışı, bulgular kodla doğrulandı)
+
+**Kurucu:** "genelde wp gidiyorsa acil e-posta gitmesin, hibrit akış olsun" → WhatsApp önce; **10 dk içinde okunmazsa ya da gönderilemezse
+e-posta**; can güvenliği acillerinde ikisi birden hemen. Can güvenliği = yangın / duman · gaz / karbonmonoksit · elektrik · **tıbbi durum /
+yaralanma · su baskını · mahsur kalma / hırsız / tehdit · kategorisiz "ACİL / yardım"** (son dördü kurucu seçimi, 10-31).
+
+- **Sınıf (saf, tek kaynak `ai/life-safety.ts`):** yalnız misafir metninden (dört yolun hepsinde bulunan tek girdi) + model yolunda anlama
+  katmanının "acil" hükmü. `riskType: safety_emergency` KULLANILMAZ (kelime ağı kapıda kalmayı da o etikete koyuyor). Kapıda kalma / anahtar
+  kaybı, şikâyet, ödeme, iade, iptal, "ev sahibiyle konuşmak istiyorum" → standart (önce WhatsApp). Kategorisiz "acil": acil sözcüğü var, başka
+  bir kategori (kapıda kalma, arıza, şikâyet, para) yok.
+- **Kapalıyken birebir bugün:** WhatsApp yolu kapalı (anahtar / işletme listesi / aktarım / sır) → bugünkü eşzamanlı kod, kayıt satırı yok.
+- **Standart akış:** ① ertelenmiş e-posta kaydı `SystemLock` `host-alert-mail:<mesaj>` (vade = şimdi + 10 dk) WhatsApp'tan ÖNCE yazılır (çökme
+  e-postayı kaybettirmez) ② WhatsApp ③ gitti → e-posta şimdi yok, yukarı akış "bildirildi" sayar (talep / görev / öğe damgası bugünkü gibi);
+  gitmedi (anahtar yok, numara yok, tavan, hata) → e-posta HEMEN (bugünkü hata anlamıyla) + kayıt silinir.
+- **Vade görevi** (her senkron geçişinde, işletme döngüsünden önce, 30 sn bütçe): vadesi gelen kayıt kiralanır (CAS); alarm satırı okunduysa
+  ya da ev sahibi bildirime cevap yazdıysa e-posta yok; değilse aynı şablon mesajdan yeniden kurulur ve gider (sağlayıcı tekrar anahtarı
+  `host-alert-mail:<mesaj>`); hata → 2 dk sonra tekrar; 72 saatten eski → vazgeç + alarm. Silinmiş / anonimleştirilmiş veri gönderilmez.
+- **Okundu bilgisi:** Meta durum bildirimi (`statuses`) bugün atılıyordu → `HostQuestion.deliveredAt / readAt` yazılır: ham SQL (`updatedAt`
+  değişmez — düz mesaj kuralı ona bakıyor), en erken an kazanır (sıra / tekrar bağımsız), 1970 / gelecek zaman damgası şimdiye kırpılır,
+  yalnız sağlayıcı kimliğiyle (Meta'nın o işletmeye verdiği kimlik; imza + numara kimliği süzgeci). "failed" → kayıt vadeye çekilir.
+- **Bedel (kurucuya söylendi):** ev sahibi mavi tiki kapattıysa "okundu" hiç gelmez → e-posta her acilde 10–12 dk sonra gelir (bugün anında).
+
+### 3.6b Talimat biçimli ev sahibi cevabı (kurucu 10-31 sabah)
+
+**Kurucu:** "host mesajı böyle böyle gitsin gibi prompt hazırlayarak gönderse dahi bizimki oradaki soruların cevaplarını alıp güzelce cümle
+yapıp cevap olarak gönderebilir." → ev sahibinin cevabı üç biçimde gelebilir, üçü de cevaptır: bilgi ("var, dolapta") · talimat ("ona otoparkın
+ücretsiz olduğunu güzelce yaz") · hazır metin ("mesaj şöyle gitsin: …"). Talimat yalnız BU cevabın içeriği ve tonu içindir; kuralları
+değiştiremez (telefon / e-posta / bağlantı, WhatsApp anma, platform dışı ödeme, para sözü, üçüncü kişi ev sahibi). Kurallar gereği bırakılan
+istek önizlemede ev sahibine söylenir ("Kurallar gereği eklemedim: …"). **Özür (kurucu 10-31): ev sahibi açıkça isterse gider**; yapay zekâ
+kendiliğinden özür dilemez (kod: cevapta özür var, ev sahibinin yazısında yoksa tutulur). Kod kapısı (istem tek başına yetmez): ödeme yöntemi
+(`payment-method-guard`), kanal anma, özür; her tutma nedeni ev sahibine kendi cümlesiyle. Ölçüm: 40 vaka × 7 dil, gerçek model (üretim
+profili), eski / yeni istem (kurucu onayı 10-31).
+
 ### 3.11 Hata yolları
 
 | Durum | Ne olur | E-posta |

@@ -1,4 +1,4 @@
-import type { HostInboundEvent } from "../types";
+import type { HostDeliveryStatus, HostInboundEvent } from "../types";
 
 // ---------------------------------------------------------------------------
 // Meta (WhatsApp Cloud API) web kancası gövdesi → çekirdeğin tek biçimi (`HostInboundEvent`). SAF.
@@ -12,13 +12,7 @@ import type { HostInboundEvent } from "../types";
 
 export const INBOUND_TEXT_CAP = 4_000;
 
-export interface MetaStatusEvent {
-  providerMessageId: string;
-  status: string;
-  recipient: string;
-  at: Date;
-  errorCode: number | null;
-}
+export type MetaStatusEvent = HostDeliveryStatus;
 
 const str = (v: unknown): string | null => (typeof v === "string" && v.length > 0 ? v : null);
 const rec = (v: unknown): Record<string, unknown> | null => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null);

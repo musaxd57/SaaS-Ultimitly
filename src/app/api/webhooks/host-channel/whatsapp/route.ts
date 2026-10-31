@@ -9,6 +9,7 @@ import { redactSensitive } from "@/lib/redact";
 import { hostChannelTransport } from "@/lib/host-channel-runtime";
 import { hostChannelSecret } from "@/lib/host-channel/binding";
 import { handleHostInbound } from "@/lib/host-channel/inbound";
+import { recordHostDeliveryStatuses } from "@/lib/host-channel/delivery-status";
 import { WHATSAPP_CLOUD_PROVIDER } from "@/lib/host-channel/providers";
 import { hostChannelFlagsFromEnv } from "@/lib/host-channel/routing";
 import { parseMetaWebhook } from "@/lib/host-channel/whatsapp/parse";
@@ -114,6 +115,15 @@ export async function POST(req: NextRequest): Promise<Response> {
   } else if (parsed.phoneNumberIds.length > 0) {
     await clearAlertState(foreignKey);
     clearBadSignatureThrottleFor(foreignKey);
+  }
+  // Teslim / okundu durumları (yalnız durum taşıyan teslimat da buraya gelir — eskiden aşağıdaki erken dönüşte atılıyordu). Kayıt hatası
+  // teslimatı düşürmez: kayıp "okundu" yalnız gereksiz bir acil e-postası doğurur (güvenli yön; tasarım §3.12).
+  if (parsed.statuses.length > 0) {
+    try {
+      await recordHostDeliveryStatuses(parsed.statuses);
+    } catch (err) {
+      await reportError("host-channel-webhook-status", new Error(redactSensitive(String(err)).slice(0, 500)));
+    }
   }
   if (parsed.messages.length === 0) return jsonOk({ ok: true });
 

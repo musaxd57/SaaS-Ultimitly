@@ -7,6 +7,18 @@
 // bağdaştırıcıdır. Sağlayıcı değişince (Twilio, 360dialog, Telegram) çekirdek yeniden yazılmaz.
 // ---------------------------------------------------------------------------
 
+/** Sağlayıcının teslim durumu bildirimi (gönderildi / iletildi / okundu / başarısız) — sağlayıcıdan bağımsız biçim. */
+export interface HostDeliveryStatus {
+  /** Bizim gönderdiğimiz mesajın sağlayıcı kimliği (`HostQuestion.providerMessageId`). */
+  providerMessageId: string;
+  /** "sent" | "delivered" | "read" | "failed" (sağlayıcının sözcüğü; bilinmeyen değer yok sayılır). */
+  status: string;
+  recipient: string;
+  /** Sağlayıcının bildirdiği an (bozuk / eksikse 1970 gelebilir — kaydedici kırpar). */
+  at: Date;
+  errorCode: number | null;
+}
+
 /** Ev sahibine giden bir soru — sağlayıcının şablonuna dönüştürülecek değerler (sıra şablondaki {{1}} {{2}} {{3}} ile aynı). */
 export interface HostQuestionMessage {
   /** Daire adı (ev sahibinin kendi verisi). */
