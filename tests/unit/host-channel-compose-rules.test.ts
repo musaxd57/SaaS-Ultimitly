@@ -127,6 +127,12 @@ describe("akşam saati: 12 saatlik yazım ↔ 24 saat", () => {
     expect(check("Check-in ab 20 Uhr möglich.", "sabah 8den sonra girebilir")).toBe("number_not_in_source");
     expect(check("Breakfast at 20:00.", "kahvaltı sabah 8, temizlik akşam 6")).toBe("number_not_in_source");
     expect(check("Cleaning at 18:00.", "kahvaltı sabah 8, temizlik akşam 6")).toBeNull();
+    // Virgülden SONRA gelen işaret önceki sayıya geçmez ("kahvaltı 8, akşam yemeği 7").
+    expect(check("Breakfast at 20:00.", "kahvaltı 8, akşam yemeği 7")).toBe("number_not_in_source");
+    expect(check("Dinner at 19:00.", "kahvaltı 8, akşam yemeği 7")).toBeNull();
+  });
+  it("yalnız 1–11 kayar: 'gece 12' 24 olmaz", () => {
+    expect(check("Quiet hours start at 24:00.", "gece 12den sonra sessiz olsunlar")).toBe("number_not_in_source");
   });
   it("ters yön: kaynakta 20 → cevapta yanında akşam işaretiyle '8 pm' geçer, 'am' ya da işaretsiz 8 geçmez", () => {
     expect(check("You can check in after 8 pm.", "20den sonra girebilir")).toBeNull();
