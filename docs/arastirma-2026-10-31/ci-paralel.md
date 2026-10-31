@@ -38,6 +38,13 @@ yok → KIRMIZI (benzetimde kendiliğinden yakalandı). Birim pinleri `tests/uni
 
 Tekrar koşuları için `workflow_dispatch` gerekir (bu oturumda 403). **Kurucu adımı:** GitHub → Actions → CI → "Run workflow" → `layout: sharded`
 (3 kez) ve bir kez `serial`; ya da oturuma Actions yazma izni. O zamana kadar her push bir tekrar sayılır; sonraki push'ların süreleri buraya eklenir.
+
+| Push | db (1) | db (2) | db (3) | nodb | Toplam (ilk iş → kapı) | Sonuç |
+|---|---|---|---|---|---|---|
+| `1d4314b9` | 9 dk 44 sn | 8 dk 49 sn | 9 dk 25 sn | 10 dk 17 sn | 10 dk 34 sn | yeşil |
+| `8bec1b61` | 9 dk 38 sn | 8 dk 21 sn | 9 dk 25 sn | 10 dk 05 sn | 10 dk 29 sn | yeşil |
+
+İki koşuda kararsız test yok (ikisi de ilk denemede yeşil, yeniden deneme yok); gruplar arası fark ~1 dk 20 sn, darboğaz nodb kolu.
 Kaynak: yeni düzen 5 çalıştırıcı × ~8–10 dk ≈ 45 çalıştırıcı-dk / push (eski ~25) — repo PUBLIC iken ücretsiz; private olursa ayda 2000 dk kotası
 ~44 push'a yeter (eskisi ~80).
 
