@@ -311,6 +311,43 @@ describe("maybeSendQrEscalationEmail (lib)", () => {
     expect(mockSendReporting).toHaveBeenCalledTimes(1);
   });
 
+  it("🚨 A → B → A → C (Codex 10-31): araya başka acil girince ilk acilin tekrarı yine elenir ve saatlik hakkı YEMEZ — yeni acil C gider", async () => {
+    const { orgId, reservationId } = await fixture();
+    await prisma.organization.update({ where: { id: orgId }, data: { alertEmail: "host@example.com" } });
+    const crit = (msgId: string, text: string) =>
+      maybeSendQrEscalationEmail({
+        organizationId: orgId,
+        propertyName: "Test Property",
+        reservationId,
+        eventId: qrEscalationEventId(msgId, text, true),
+        reason: "ai_escalated",
+        critical: true,
+      });
+    expect((await crit("m-1", "Mutfakta yangın var!")).sent).toBe(true);
+    expect((await crit("m-2", "Mutfakta yangın var!")).deduped).toBe(true);
+    expect((await crit("m-3", "Biri kapıyı zorluyor!")).sent).toBe(true);
+    expect((await crit("m-4", "Mutfakta yangın var!")).deduped).toBe(true);
+    expect((await crit("m-5", "Gaz kokusu var!")).sent).toBe(true);
+    expect(mockSendReporting).toHaveBeenCalledTimes(3);
+  });
+
+  it("🚨 tekrar hafızası e-posta GİTMEZSE tutulmaz: başarısız gönderimden sonra aynı acil yeniden denenir", async () => {
+    const { orgId, reservationId } = await fixture();
+    await prisma.organization.update({ where: { id: orgId }, data: { alertEmail: "host@example.com" } });
+    const crit = (msgId: string) =>
+      maybeSendQrEscalationEmail({
+        organizationId: orgId,
+        propertyName: "Test Property",
+        reservationId,
+        eventId: qrEscalationEventId(msgId, "Mutfakta yangın var!", true),
+        reason: "ai_escalated",
+        critical: true,
+      });
+    mockSendReporting.mockResolvedValueOnce({ ok: false, error: "down" });
+    expect((await crit("m-1")).sent).toBe(false);
+    expect((await crit("m-2")).sent).toBe(true);
+  });
+
   it("CLAIM RACE: two concurrent alerts for ONE event produce exactly ONE e-mail", async () => {
     const { orgId, reservationId } = await fixture();
     await prisma.organization.update({ where: { id: orgId }, data: { alertEmail: "host@example.com" } });

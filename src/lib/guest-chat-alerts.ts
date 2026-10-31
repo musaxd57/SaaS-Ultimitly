@@ -141,6 +141,30 @@ export function qrEscalationEmailEnabled(): boolean {
 }
 
 /**
+ * KRİTİK olay tekrar hafızası (Codex 10-31): rezervasyon satırı yalnız SON olayı hatırlıyordu → "yangın → kapı zorlanıyor → yangın"
+ * dizisinde üçüncü mesaj yeni olay sayılıp yeniden e-posta atıyor ve saatte 3 acil hakkını yiyordu (dördüncü, GERÇEKTEN yeni acil
+ * susuyordu). Gönderilen her kritik olay (içerik parmak izi) 3 saat hatırlanır; aynı olayın tekrarı hak yemeden elenir. Ayrı tablo yok:
+ * `SystemLock` satırı (süresi dolanlar kullanımda süpürülür). E-posta GİTMEZSE kayıt geri alınır — başarısız gönderim olayı susturmaz.
+ */
+const RECENT_CRITICAL_PREFIX = "qr-crit-recent:";
+export const RECENT_CRITICAL_WINDOW_MS = 3 * 60 * 60_000;
+async function claimRecentCritical(reservationId: string, eventId: string, now: Date): Promise<(() => Promise<void>) | null> {
+  const name = `${RECENT_CRITICAL_PREFIX}${reservationId}:${eventId}`;
+  const until = new Date(now.getTime() + RECENT_CRITICAL_WINDOW_MS);
+  await prisma.systemLock.deleteMany({ where: { name: { startsWith: RECENT_CRITICAL_PREFIX }, lockedUntil: { lt: now } } }).catch(() => {});
+  let claimed = false;
+  try {
+    await prisma.systemLock.create({ data: { name, lockedUntil: until } });
+    claimed = true;
+  } catch (err) {
+    if ((err as { code?: string })?.code !== "P2002") throw err;
+    claimed = (await prisma.systemLock.updateMany({ where: { name, lockedUntil: { lt: now } }, data: { lockedUntil: until } })).count === 1;
+  }
+  if (!claimed) return null;
+  return () => prisma.systemLock.deleteMany({ where: { name, lockedUntil: until } }).then(() => undefined, () => undefined);
+}
+
+/**
  * Send the host ONE e-mail per escalated QR-chat EVENT (identity = the inbound
  * Message id). Fire-safe: never throws, never affects the chat response.
  */
@@ -156,6 +180,8 @@ export async function maybeSendQrEscalationEmail(args: {
    *  anti-flood cooldown (identity dedupe still applies). */
   critical?: boolean;
 }): Promise<{ sent: boolean; deduped?: boolean; capped?: boolean }> {
+  // Beklenmeyen hata (sahiplenme sorgusu dahil) tekrar hafızasını tutmaz — gitmeyen uyarı olayı 3 saat susturmasın.
+  let forgetRecent: () => Promise<void> = async () => {};
   try {
     if (!qrEscalationEmailEnabled()) return { sent: false };
     if (!args.eventId) return { sent: false }; // no identity → no claim, no mail
@@ -166,6 +192,12 @@ export async function maybeSendQrEscalationEmail(args: {
     // cooldown must have passed. (Explicit null-branches: Prisma's `not`
     // filter on a nullable column would silently exclude NULL rows.)
     const claimedAt = new Date();
+    // Kritik olayın 3 saat içindeki tekrarı (araya başka olay girse de) hak yemeden elenir (↑`claimRecentCritical`).
+    if (args.critical) {
+      const forget = await claimRecentCritical(args.reservationId, args.eventId, claimedAt);
+      if (!forget) return { sent: false, deduped: true };
+      forgetRecent = forget;
+    }
     const cooledBefore = new Date(claimedAt.getTime() - QR_ESCALATION_COOLDOWN_MS);
     const claimed = await prisma.reservation.updateMany({
       where: {
@@ -187,11 +219,14 @@ export async function maybeSendQrEscalationEmail(args: {
       },
       data: { qrEscalationEmailAt: claimedAt, qrEscalationEmailMessageId: args.eventId },
     });
-    if (claimed.count !== 1) return { sent: false, deduped: true };
+    if (claimed.count !== 1) {
+      await forgetRecent();
+      return { sent: false, deduped: true };
+    }
 
     // Release ONLY our own claim (exact event + exact timestamp guard) so a
     // newer claim can never be clobbered. Best-effort by design.
-    const releaseClaim = () =>
+    const releaseReservation = () =>
       prisma.reservation
         .updateMany({
           where: {
@@ -202,6 +237,7 @@ export async function maybeSendQrEscalationEmail(args: {
           data: { qrEscalationEmailAt: null, qrEscalationEmailMessageId: null },
         })
         .catch(() => {});
+    const releaseClaim = () => Promise.all([releaseReservation(), forgetRecent()]).then(() => undefined);
 
     // EVERYTHING after the claim is guarded: an unexpected exception must not
     // leave the claim consumed with no mail sent (Codex hardening item 3).
@@ -266,6 +302,7 @@ export async function maybeSendQrEscalationEmail(args: {
       throw err; // outer catch reports it
     }
   } catch (err) {
+    await forgetRecent();
     // The chat's delivery semantics must never depend on the alert path.
     await reportError(`qr-escalation-email (org ${args.organizationId})`, err).catch(() => {});
     return { sent: false };

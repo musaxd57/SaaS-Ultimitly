@@ -182,8 +182,8 @@ const FIRE_SLANG = rx([
  * Katlanmış metin (benzetme) / ham metin (gülme işareti — emoji katlamada korunsun diye ham metinden).
  */
 const FIGURATIVE = rx([
-  `${NL}(?:sanki|gibi|misali|adeta|as\s+if|as\s+though|like\s+a|like\s+an|kind\s+of\s+like|wie\s+ein|comme\s+si|como\s+si|как\s+будто)${NR}`,
-  `${NL}o\s+kadar${NR}`,
+  `${NL}(?:sanki|gibi|misali|adeta|as\\s+if|as\\s+though|like\\s+a|like\\s+an|kind\\s+of\\s+like|wie\\s+ein|comme\\s+si|como\\s+si|как\\s+будто)${NR}`,
+  `${NL}o\\s+kadar${NR}`,
 ]);
 /**
  * "Şaka değil / not joking / no joke / cidden" bir OLUMSUZLAMA değil, VURGUDUR (mizah ölçümü 10-22: "Not joking: water is pouring from the
@@ -339,7 +339,7 @@ const PAST = rx([
   `${NL}(?:dun${LB}|gecen\\s+(?:gece|hafta|ay|sene|yil)|onceki\\s+(?:gun|gece)|sondu(?:rdu\\p{L}{0,3}|ruldu\\p{L}{0,3})?${NR}|artik\\s+yok|gecti${NR}|gecmis\\s+olsun\\s+ama|evvelki)`,
   `${NL}(?:yesterday|last\\s+(?:night|week|month|year)|the\\s+other\\s+day|put\\s+(?:it\\s+)?out|extinguished|no\\s+longer|it'?s\\s+out\\s+now|last\\s+time)${NR}`,
   `${NL}(?:gestern|letzte\\s+(?:nacht|woche)|gelöscht|geloscht|nicht\\s+mehr|vorgestern)${NR}`,
-  `${NL}(?:hier|la\\s+semaine\\s+dernière|la\\s+semaine\\s+derniere|éteint${LB}|eteint${LB}|plus\\s+de\\s+(?:fumée|feu))${NR}`,
+  `${NL}(?:la\\s+semaine\\s+dernière|la\\s+semaine\\s+derniere|éteint${LB}|eteint${LB}|plus\\s+de\\s+(?:fumée|feu))${NR}`,
   `${NL}(?:ayer|la\\s+semana\\s+pasada|apagad${LB}|apagamos|ya\\s+no\\s+hay)${NR}`,
   `${NL}(?:вчера|на\\s+прошлой\\s+неделе|потушил${LB}|больше\\s+нет|уже\\s+нет)`,
   `(?:أمس|الأسبوع\\s+الماضي|أطفأ${LB}|لم\\s+يعد)`,
@@ -448,7 +448,7 @@ const BARE_ALARM =
 const QUOTED = /[“«„][^“”"«»„\n]{1,80}[”"»“]|(?<![\p{L}\p{N}])"[^“”"«»„\n]{1,80}"/gu;
 /** Cümlecik sınırları: noktalama + virgül + karşıtlık bağlaçları ("yangın yok AMA duman var" iki ayrı cümlecik). Ayraç YAKALANIR (soru işareti). */
 const CLAUSE_SPLIT =
-  /((?:(?<!\d)[.](?!\d)|[!?;,\n…؟،]|(?<![\p{L}\p{N}])(?:ama|fakat|ancak|lakin|but|however|aber|jedoch|mais|pero|sino|но|однако|لكن|ولكن)(?![\p{L}\p{N}]))+)/u;
+  /((?:(?<!\d)[.](?!\d)|[!?;,\n…؟،]|(?<![\p{L}\p{N}])(?:ama|fakat|ancak|lakin|but|however|aber|jedoch|mais|pero|sino|но|однако|لكن|ولكن)(?![\p{L}\p{N}])|(?<![\p{L}\p{N}])(?:ve|and|und|et|y|и)\s+(?:simdi|su\s+an|now|right\s+now|jetzt|maintenant|ahora|сейчас)(?![\p{L}\p{N}]))+)/u;
 
 interface Clause {
   text: string;
@@ -483,10 +483,28 @@ export function __hazardMentionEvalCount(): number {
  * aşarsa o tür `overflow` olur ve cümlecik en az OLASI sayılır (karar modele kalır; asla "anılış"a inmez).
  */
 const MENTION_WINDOW = 32;
+/**
+ * Anılışın KENDİ çevresi: önündeki en çok 3 sözcük (bağlaçta durur — "Lamba kapalı VE perde yanıyor"da lamba perdenin yanmasına ait
+ * değil) + ardındaki en çok 2 sözcük ("brennt die Lampe"). Codex 10-31: ışık / ekran sözcüğü cümleciğin herhangi bir yerinde başka nesnenin
+ * yangınını nötrlüyordu ("Die Lampe ist aus und der Vorhang brennt", "TV ekranı açık ve koridorda alevler var" → tehlike yok).
+ */
+const NEAR_STOP = /^(?:ve|ile|and|und|et|y|и|или|or|oder|ou|veya|ya\s+da|و)$/iu;
+function nearWords(clause: string, at: number, len: number): string {
+  const before: string[] = [];
+  for (const w of clause.slice(Math.max(0, at - 60), at).trim().split(/\s+/).reverse()) {
+    if (!w || NEAR_STOP.test(w) || before.length >= 3) break;
+    before.unshift(w);
+  }
+  const after: string[] = [];
+  for (const w of clause.slice(at + len, at + len + 40).trim().split(/\s+/)) {
+    if (!w || NEAR_STOP.test(w) || after.length >= 2) break;
+    after.push(w);
+  }
+  return `${before.join(" ")} ${after.join(" ")}`;
+}
 function mentionsIn(clause: string): { mentions: { kind: HazardKind; index: number; length: number }[]; overflow: HazardKind[] } {
   const out: { kind: HazardKind; index: number; length: number }[] = [];
   const overflow: HazardKind[] = [];
-  const light = LIGHT_CONTEXT.test(clause);
   for (const kind of KINDS) {
     let seen = 0;
     const windows = new Set<string>();
@@ -500,10 +518,10 @@ function mentionsIn(clause: string): { mentions: { kind: HazardKind; index: numb
         break;
       }
       mentionEvals++;
-      // Işık bağlamındaki "yanma" fiili tehlike anılışı değildir.
-      if (kind === "fire" && light && BURN_VERB.test(m[0])) continue;
-      // Gösterge simgesi olarak alev ("boiler display shows a flame") yangın anılışı değildir.
-      if (kind === "fire" && FLAME_WORD.test(m[0]) && ICON_CONTEXT.test(clause)) continue;
+      // Işık bağlamındaki "yanma" fiili tehlike anılışı değildir — ışık sözcüğü fiilin KENDİ çevresinde olmalı.
+      if (kind === "fire" && BURN_VERB.test(m[0]) && LIGHT_CONTEXT.test(nearWords(clause, at, m[0].length))) continue;
+      // Gösterge simgesi olarak alev ("boiler display shows a flame") yangın anılışı değildir — gösterge sözcüğü alevin çevresinde.
+      if (kind === "fire" && FLAME_WORD.test(m[0]) && ICON_CONTEXT.test(nearWords(clause, at, m[0].length))) continue;
       out.push({ kind, index: m.index ?? 0, length: m[0].length });
     }
   }
@@ -552,10 +570,18 @@ function equipmentMention(clause: string, at: number, len: number): boolean {
   return EQUIPMENT.test(near.replace(mention, " "));
 }
 
+/**
+ * Fransızca "hier" (dün) Almancada "burada"dır (Codex 10-31: "Hier riecht es nach Gas" geçmiş sayılıp acil etiketi model sorulmadan
+ * kalkıyordu). Yalnız cümlecikte Fransızca işaret varsa ve Almanca işaret yoksa geçmiştir; belirsizse geçmiş SAYILMAZ (güvenli taraf).
+ */
+const FR_HIER = rx([`${NL}hier${NR}`]);
+const FR_CUE = rx([`${NL}(?:il|elle|on|nous|vous|j'ai|j\s+ai|y\s+avait|a\s+eu|il\s+y\s+a|[ée]tait|etait|avons|avez|avait|soir|matin|dans|la|le|les|une?|du|des)${NR}`]);
+const DE_CUE = rx([`${NL}(?:ist|es|riecht|brennt|der|die|das|und|ich|wir|sind|haben|nach|im|in\s+der|qualmt|raucht)${NR}`]);
+
 /** Cümlecik geçmiş / varsayım mı (nezaket ve süren-olay kalıpları önce nötrlenir)? */
 function pastOrHypothetical(clause: string): boolean {
   const ctx = clause.replace(POLITE, " ").replace(SINCE, " ");
-  return PAST.test(ctx) || HYPOTHETICAL.test(ctx);
+  return PAST.test(ctx) || HYPOTHETICAL.test(ctx) || (FR_HIER.test(ctx) && FR_CUE.test(ctx) && !DE_CUE.test(ctx));
 }
 
 /** Soru cümlesinde gaz dışındaki açık tür olasıya iner (gaz kokusu sorusu da bildirimdir). */
@@ -680,7 +706,29 @@ function physicalHazardOf(message: string | null | undefined): HazardEvidence {
   if (typeof message !== "string" || message.trim() === "") return { level: "none", kinds: [] };
   // K6 bağlam kuralı (yer / eşya sorusu, "acil değil") AYNEN önce; sonra çift tırnaklı / «» kısa alıntılar ve ürün adları değerlendirmeden çıkar.
   const contextual = neutralizeNonEmergency(foldTurkishAscii(message.slice(0, 8_000).replace(/\s+/g, " ")));
-  const folded = contextual.replace(QUOTED, " ").replace(FIRE_PRODUCT, " ").replace(NOT_JOKING, " ");
+  const result = evaluateFolded(contextual.replace(QUOTED, " ").replace(FIRE_PRODUCT, " ").replace(NOT_JOKING, " "), contextual, message);
+  // Alıntı GÜNCEL bir bildirimi aktarıyorsa ("Çocuğum 'mutfakta yangın var' diyor!", "the neighbour is shouting 'fire!'") alıntının silinmesi
+  // tehlikeyi yok edemez (Codex 10-31). Alıntının dışında şimdiki zamanlı aktarma fiili varsa alıntı metniyle yeniden değerlendirilir; açık /
+  // olası çıkarsa sonuç OLASI — karar bağlamı okuyan modelde (film / tabela alıntısı "dedi / yazıyor" ile bugünkü gibi kalır).
+  if (RANK[result.level] < RANK.possible && contextual.search(QUOTED) >= 0 && REPORTED_NOW.test(contextual.replace(QUOTED, " "))) {
+    const withQuote = evaluateFolded(contextual.replace(/[“”„«»"]/gu, " ").replace(FIRE_PRODUCT, " ").replace(NOT_JOKING, " "), contextual, message);
+    if (RANK[withQuote.level] >= RANK.possible) return { level: "possible", kinds: withQuote.kinds };
+  }
+  return result;
+}
+
+/** Alıntıyı ŞİMDİ aktaran fiil (geçmiş "dedi / said" ve tabela "yazıyor / says" değil — onlar alıntıyı bugünkü olay yapmaz). */
+const REPORTED_NOW = rx([
+  `${NL}(?:diyor${LB}|bagiriyor${LB}|cigliyor${LB}|ciglik\s+atiyor${LB}|soyluyor${LB}|haykiriyor${LB})`,
+  `${NL}(?:is\s+(?:saying|shouting|yelling|screaming|crying)|are\s+(?:saying|shouting|yelling|screaming)|keeps?\s+(?:saying|shouting|yelling|screaming)|shouting|yelling|screaming)${NR}`,
+  `${NL}(?:ruft|rufen|schreit|schreien)${NR}`,
+  `${NL}(?:crie${LB}|hurle${LB})`,
+  `${NL}(?:grita${LB}|chilla${LB})`,
+  `${NL}(?:кричит|кричат|орёт|орет)`,
+  `(?:يصرخ|يصرخون)`,
+]);
+
+function evaluateFolded(folded: string, contextual: string, message: string): HazardEvidence {
   // Yalnız haykırış ("Yangın!", "Fire!!", "Au feu !", "¡Fuego!", "Пожар!") açık tehlikedir; ünlemsiz tek sözcük ("Yangın") modele kalır.
   if (BARE_ALARM.test(folded.replace(/[\s!¡.]+/gu, " ").trim()) && /[!¡]/u.test(folded)) return { level: "clear", kinds: ["fire"] };
   // Mesaj düzeyi sinyaller (yanık kokusu, nefes, suyun elektriğe teması) yalnız olumsuzlanmamış / geçmiş olmayan cümleciklerden sayılır.
@@ -793,6 +841,8 @@ const REASSURANCE_TOPIC = rx([
   `${NL}(?:дым${LB}|пар${NR}|запах${LB}|газ${LB}|вод${LB})`,
   `(?:دخان|بخار|رائحة|غاز|ماء)`,
 ]);
+const NEGATED_BEFORE = /(?:^|[^\p{L}\p{N}])(?:not|never|n't|nicht|nie|kein\p{L}{0,2}|pas|jamais|no|nunca|не|ليس|غير|asla|hic)\s+(?:\p{L}+\s+)?$/iu;
+const NEGATED_AFTER = /^\s*(?:degil|olmaz|sayilmaz)/iu;
 export function kbSupportsReassurance(kbFacts: readonly string[] | null | undefined): boolean {
   for (const raw of kbFacts ?? []) {
     if (typeof raw !== "string" || raw === "") continue;
@@ -800,6 +850,8 @@ export function kbSupportsReassurance(kbFacts: readonly string[] | null | undefi
     const re = new RegExp(REASSURANCE.source, "giu");
     for (const m of fact.matchAll(re)) {
       const at = m.index ?? 0;
+      // Olumsuzlanmış güvence ("normal değildir", "is not normal", "nicht normal", "не безопасно") DAYANAK DEĞİLDİR — tersini söyler (Codex 10-31).
+      if (NEGATED_BEFORE.test(fact.slice(Math.max(0, at - 14), at)) || NEGATED_AFTER.test(fact.slice(at + m[0].length, at + m[0].length + 12))) continue;
       if (REASSURANCE_TOPIC.test(fact.slice(Math.max(0, at - 120), at + m[0].length + 120))) return true;
     }
   }

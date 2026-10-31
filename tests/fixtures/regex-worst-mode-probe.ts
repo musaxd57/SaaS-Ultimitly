@@ -6,6 +6,7 @@ import { analyzeHostContact } from "@/lib/ai/host-contact-filler";
 import { hostContactKindOf } from "@/lib/ai/absence";
 import { lifeSafetyOf } from "@/lib/ai/life-safety";
 import { personDangerOf } from "@/lib/ai/person-danger";
+import { hazardEvidenceOf, kbSupportsReassurance } from "@/lib/ai/hazard-evidence";
 
 const N = 4_000;
 const SHAPES: [string, string][] = [
@@ -37,4 +38,11 @@ for (const [name, text] of SHAPES) {
 personDangerOf("Biri kapıyı zorluyor!");
 out["kişisel tehlike · ipucu tekrarı"] = ms(() => personDangerOf("kapı zorluyor bıçak çekti ".repeat(N / 25)));
 out["kişisel tehlike · Kiril + Arap tekrarı"] = ms(() => personDangerOf("кто-то ломится يكسر الباب ".repeat(N / 25)));
+// Fiziksel tehlike okuyucusu (Codex 10-31): "ve şimdi" cümlecik sınırı, alıntılı güncel aktarım, ışık / ekran çevresi, olumsuz güvence.
+hazardEvidenceOf("Mutfakta yangın var");
+out["tehlike · ve şimdi tekrarı"] = ms(() => hazardEvidenceOf("dün geldik ve şimdi mutfakta yangın var ".repeat(N / 40)));
+out["tehlike · alıntı + diyor tekrarı"] = ms(() => hazardEvidenceOf('çocuğum "yangın var" diyor '.repeat(N / 28)));
+out["tehlike · lamba + perde tekrarı"] = ms(() => hazardEvidenceOf("die lampe ist aus und der vorhang brennt ".repeat(N / 40)));
+out["tehlike · tek uzun sözcük"] = ms(() => hazardEvidenceOf("hier" + "a".repeat(N) + " brennt"));
+out["güvence · olumsuz tekrar"] = ms(() => kbSupportsReassurance(["duman normal degildir ".repeat(N / 22)]));
 process.stdout.write(`${JSON.stringify(out)}\n`);
