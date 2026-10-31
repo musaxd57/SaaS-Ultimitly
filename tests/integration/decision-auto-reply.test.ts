@@ -30,6 +30,10 @@ import { suggestReply } from "@/lib/ai";
 import { sendOnChannel } from "@/lib/messaging";
 import { emailService } from "@/lib/email";
 import { applyChannelAutoReply } from "@/lib/automation";
+import { __setHostChannelTransportForTest } from "@/lib/host-channel-runtime";
+import { startHostBinding, confirmHostBindingFromInbound } from "@/lib/host-channel/binding";
+import { WHATSAPP_CLOUD_PROVIDER } from "@/lib/host-channel/providers";
+import type { HostChannelTransport, HostDecisionMessage } from "@/lib/host-channel/types";
 
 const mockSuggest = vi.mocked(suggestReply);
 const mockSend = vi.mocked(sendOnChannel);
@@ -279,3 +283,74 @@ describe("oto-yanıt → karar kartı (Host Karar Motoru)", () => {
     expect(await prisma.decisionRequest.count()).toBe(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// WhatsApp "Karar bekliyor" (dilim 3) — otomasyon bağlantısı: kart açılınca bildirim WhatsApp'a gider ve o kartın e-postası GİTMEZ
+// (fonksiyon doğru ama çağıran kancayı vermiyorsa bu test kırmızı — "yüklem var, argüman yok" sınıfı).
+// ---------------------------------------------------------------------------
+describe("oto-yanıt → karar kartı → WhatsApp (dilim 3)", () => {
+  const decisions: HostDecisionMessage[] = [];
+  const transport: HostChannelTransport = {
+    provider: WHATSAPP_CLOUD_PROVIDER,
+    sendQuestion: async () => ({ ok: true, providerMessageId: "wamid.q" }),
+    sendAlert: async () => ({ ok: true, providerMessageId: "wamid.a" }),
+    sendDecision: async (_to, m) => {
+      decisions.push(m);
+      return { ok: true, providerMessageId: `wamid.D${decisions.length}` };
+    },
+    sendText: async () => ({ ok: true, providerMessageId: "wamid.t" }),
+    sendChoices: async () => ({ ok: true, providerMessageId: "wamid.c" }),
+  };
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+    decisions.length = 0;
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    vi.stubEnv("AUTO_REPLY_ENABLED", "1");
+    vi.stubEnv("KB_RETRIEVAL_MODE", "legacy");
+    vi.stubEnv("HOST_DECISIONS_ENABLED", "1");
+    vi.stubEnv("HOST_CHANNEL_ENABLED", "1");
+    vi.stubEnv("HOST_CHANNEL_ORG_IDS", "*");
+    vi.stubEnv("HOST_CHANNEL_HMAC_SECRET", "test-host-channel-secret-0123456789abcdef");
+    mockSend.mockResolvedValue({ ok: true, externalId: "ext-1" } as never);
+    mockMail.mockResolvedValue({ ok: true } as never);
+    __setHostChannelTransportForTest(transport);
+  });
+  afterEach(() => {
+    __setHostChannelTransportForTest(undefined);
+    vi.unstubAllEnvs();
+  });
+
+  async function bind(orgId: string) {
+    const owner = await prisma.user.create({
+      data: { organizationId: orgId, name: "Ev Sahibi", email: `o${Math.random()}@x.com`, passwordHash: "x", role: "owner" },
+    });
+    const b = await startHostBinding({ organizationId: orgId, userId: owner.id, provider: WHATSAPP_CLOUD_PROVIDER, rawNumber: "+90 532 111 22 33", optInTextVersion: "v1" });
+    if (!b.ok) throw new Error(b.reason);
+    const c = await confirmHostBindingFromInbound({ provider: WHATSAPP_CLOUD_PROVIDER, fromDigits: "905321112233", code: b.code });
+    if (!c.ok) throw new Error(c.reason);
+  }
+
+  it("🚨 anahtar açık + bağlı numara → kart WhatsApp'a ([Onayla]/[Reddet]); 'Karar bekliyor' e-postası GİTMEZ; yeniden işleme ikinci mesaj üretmez", async () => {
+    vi.stubEnv("HOST_QUESTION_DECISIONS_ENABLED", "1");
+    mockSuggest.mockResolvedValue(BASE);
+    const s = await seed("Yarın saat 13:00'te giriş yapabilir miyiz?");
+    await bind(s.orgId);
+    await applyChannelAutoReply(s.conversationId);
+    expect(decisions).toHaveLength(1);
+    expect(decisions[0]!.title).toContain("13:00");
+    expect(subjects().filter((x) => x.startsWith("Karar bekliyor"))).toEqual([]);
+    await applyChannelAutoReply(s.conversationId);
+    expect(decisions).toHaveLength(1);
+  });
+
+  it("KONTROL: karar anahtarı kapalı → bugünkü 'Karar bekliyor' e-postası, WhatsApp yok", async () => {
+    mockSuggest.mockResolvedValue(BASE);
+    const s = await seed("Yarın saat 13:00'te giriş yapabilir miyiz?");
+    await bind(s.orgId);
+    await applyChannelAutoReply(s.conversationId);
+    expect(decisions).toHaveLength(0);
+    expect(subjects()).toEqual([expect.stringMatching(/^Karar bekliyor: 13:00 erken giriş/)]);
+  });
+});
+
