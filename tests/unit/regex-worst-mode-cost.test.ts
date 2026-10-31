@@ -26,7 +26,7 @@ describe("düzenli ifade en kötü kipte — uzun boşluk dizisinde sınırlı s
       expect(r.status, `${r.error ?? ""} ${r.stderr}`).toBe(0);
       const line = r.stdout.trim().split("\n").pop() ?? "{}";
       const times = JSON.parse(line) as Record<string, number>;
-      expect(Object.keys(times)).toHaveLength(14);
+      expect(Object.keys(times)).toHaveLength(19);
       for (const [name, t] of Object.entries(times)) expect(t, name).toBeLessThan(1_500);
     },
     120_000,
