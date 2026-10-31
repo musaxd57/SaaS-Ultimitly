@@ -1,12 +1,14 @@
 import {
   matchesIntentKeywords,
   detectRiskType,
+  isSafetyEmergencyText,
   classifyFallback,
   firstBreakdownDevice,
   isBreakdownDeviceName,
   reportsDeviceFault,
 } from "@/lib/ai/fallback";
 import { TASK_TYPE } from "@/lib/constants";
+import { personDangerOf } from "@/lib/ai/person-danger";
 import { hitIsReported, isInquiryOnly, mentionsGuestOwnedItem, splitClauses } from "./report-reading";
 
 // Smart operational-task routing (Faz A). Turns an escalating guest message into
@@ -250,6 +252,11 @@ function detectWith(
   const riskType = ai.riskType ?? detectRiskType(message);
 
   if (riskType && NON_OPERATIONAL_RISK.has(riskType)) return null;
+
+  // Kişisel tehlike (mahsur / zorla giriş / tehdit — kurucu 10-31) acil etiketini yalnız UYARI için alır; bakım görevi açmaz (bu mesajlar
+  // etiketlenmeden önce görev de açılmıyordu; "acil güvenlik" BAKIM görevi temizlikçinin listesine düşer). Fiziksel acil (yangın, gaz) değişmedi.
+  // Etiket modelden ya da uyarı geçişinden gelse de (ikisi de kişisel tehlikede `safety_emergency` yazar) — Sonnet incelemesi 10-31.
+  if (riskType === "safety_emergency" && !isSafetyEmergencyText(message) && personDangerOf(message).level === "clear") return null;
 
   // 1) Safety emergency (gas / fire / lockout / injury) → urgent, tight SLA.
   if (riskType === "safety_emergency") {

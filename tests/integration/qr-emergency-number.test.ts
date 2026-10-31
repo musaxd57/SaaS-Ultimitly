@@ -265,6 +265,25 @@ describe("QR — acil numara sorusu", () => {
     expect(alertBodies()[0]).toContain("yanıtlamadı");
   });
 
+  // Kurucu 10-31 (devam eden kişisel tehlike): QR hızlı devir aynı tehlike okuyucusunu okur — model çağrılmaz, misafire metin gitmez, ev
+  // sahibine kritik uyarı. Varsayımsal / önlem sorusu normal akışta modele gider.
+  it("🚨 QR: 'Biri kapıyı zorluyor!' → model çağrılmaz, misafire hiçbir şey, ev sahibine kritik uyarı + Acil", async () => {
+    const s = await seed();
+    await ask(s.token, "Biri kapıyı zorluyor!");
+    expect(mockSuggest).not.toHaveBeenCalled();
+    expect(await botReplies(s.propertyId)).toEqual([]);
+    expect((await lastEvent()).reason).toBe("physical_hazard");
+    expect((await conversationOf(s.propertyId)).priority).toBe("urgent");
+    expect(alertBodies()[0]).toContain("yanıtlamadı");
+  });
+
+  it("KONTROL QR: 'Hırsızlığa karşı kasa var mı?' hızlı devir DEĞİL — model normal akışta çağrılır", async () => {
+    intents = ["other"];
+    const s = await seed();
+    await ask(s.token, "Hırsızlığa karşı kasa var mı?");
+    expect(mockSuggest).toHaveBeenCalled();
+  });
+
   it("KONTROL: AÇIK tehlike + numara sorusu, anahtar KAPALI → misafire hiçbir şey", async () => {
     vi.stubEnv("AI_EMERGENCY_NUMBER_ENABLED", "");
     const s = await seed();

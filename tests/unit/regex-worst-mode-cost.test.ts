@@ -15,7 +15,7 @@ const MODES = ["--no-regexp-optimization", "--regexp-interpret-all"];
 
 describe("düzenli ifade en kötü kipte — uzun boşluk dizisinde sınırlı süre", () => {
   it.each(MODES)(
-    "%s: veto + dedektör + süzgeç + can güvenliği sınıfı 4.000 karakterde 1,5 sn altında",
+    "%s: veto + dedektör + süzgeç + can güvenliği sınıfı + kişisel tehlike 4.000 karakterde 1,5 sn altında",
     (mode) => {
       const r = spawnSync(process.execPath, [mode, "--import", "tsx", "tests/fixtures/regex-worst-mode-probe.ts"], {
         cwd: process.cwd(),
@@ -26,7 +26,7 @@ describe("düzenli ifade en kötü kipte — uzun boşluk dizisinde sınırlı s
       expect(r.status, `${r.error ?? ""} ${r.stderr}`).toBe(0);
       const line = r.stdout.trim().split("\n").pop() ?? "{}";
       const times = JSON.parse(line) as Record<string, number>;
-      expect(Object.keys(times)).toHaveLength(12);
+      expect(Object.keys(times)).toHaveLength(14);
       for (const [name, t] of Object.entries(times)) expect(t, name).toBeLessThan(1_500);
     },
     120_000,

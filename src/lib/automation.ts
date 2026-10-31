@@ -17,6 +17,7 @@ import { askDecisionOnChannel } from "@/lib/host-channel/decision-ask";
 import { hostChannelTransport } from "@/lib/host-channel-runtime";
 import { actionClaimHold, type ActionClaimReason, type ClaimedActionsDeclaration } from "@/lib/ai/action-claims";
 import { contextLabels, hasEmergencyCallDirective, hasSafetyReassurance, hazardDecisionFor, hazardEvidenceOf, kbSupportsReassurance } from "@/lib/ai/hazard-evidence";
+import { isPersonDangerKind } from "@/lib/ai/person-danger";
 import {
   evaluateAvailability,
   kbFactsOf,
@@ -6074,7 +6075,37 @@ export async function sendDueAlerts(
   // Real complaints are caught within minutes (the cron syncs ~every 2m), so a few
   // days of slack is plenty.
   const ALERT_MAX_AGE_MS = 72 * 60 * 60 * 1000;
+  // Sorunlu konuşmada "aynı olayın tekrarı" penceresi (kurucu 10-31): bu süreden eski aynı tür bildirim yeni olay sayılır.
+  const SAME_DANGER_WINDOW_MS = 3 * 60 * 60 * 1000;
 
+  const CANDIDATE_SELECT = {
+    id: true,
+    guestIdentifier: true,
+    channel: true,
+    priority: true,
+    propertyId: true,
+    reservationId: true,
+    externalReservationId: true,
+    // ⚠️ CLAIM'DEN ÖNCEKİ DEĞER. Aşağıdaki atomik claim bu alanı "complaint"
+    // ile EZİYOR, yani senkronun ölü-konaklama çitinin damgası
+    // ("reservation_ended", `fenceUnlinkedTerminalStay`) ancak BURADA
+    // okunabilir. Bekletme mesajı kapısı bunu kullanıyor.
+    skippedReason: true,
+    status: true,
+    aiTriagedAt: true,
+  // Sorunlu konuşmada yeni tehlike talebi geri alınırken eski değerler geri konur (kurucu 10-31).
+  lastRiskType: true,
+    property: { select: { name: true, address: true, city: true } },
+    // ⚠️ TEK MESAJ YETMEZ (derin denetim, 08-01). Misafir arka arkaya yazınca
+    // — önce şikayet, sonra zararsız bir takip — `take: 1` yalnız sonuncuyu
+    // getiriyordu, `classifyFallback` onu şikayet saymıyordu ve uyarı HİÇ
+    // gitmiyordu. Konuşma da oto-yanıtla "answered" olduğu için bir daha
+    // seçilmiyordu: şikayet KALICI kayboluyordu. Son 6 mesaj alınır, aşağıda
+    // CEVAPLANMAMIŞ olanların (son giden yanıttan sonrakiler) HEPSİ taranır.
+    // 🚨 Y6 (10-14 dış inceleme): 6 YETMEDİ — misafirin altı takip mesajı (ya da araya giren otomatik şablonlar; filtre okumadan
+    // SONRA) cevapsız şikâyeti pencereden itiyordu. Cevap modelinin geçmiş tavanıyla aynı derinlik (`HISTORY_MESSAGE_CAP`).
+    messages: { orderBy: { createdAt: "desc" }, take: HISTORY_MESSAGE_CAP },
+  } as const;
   // Unanswered conversations where the guest spoke last and that aren't flagged.
   const candidates = await prisma.conversation.findMany({
     where: {
@@ -6091,36 +6122,25 @@ export async function sendDueAlerts(
       // `runDueChannelAutoReplies` için kapatılan açlık sınıfının birebir aynısı.
       lastMessageAt: { gte: new Date(Date.now() - ALERT_MAX_AGE_MS) },
     },
-    select: {
-      id: true,
-      guestIdentifier: true,
-      channel: true,
-      priority: true,
-      propertyId: true,
-      reservationId: true,
-      externalReservationId: true,
-      // ⚠️ CLAIM'DEN ÖNCEKİ DEĞER. Aşağıdaki atomik claim bu alanı "complaint"
-      // ile EZİYOR, yani senkronun ölü-konaklama çitinin damgası
-      // ("reservation_ended", `fenceUnlinkedTerminalStay`) ancak BURADA
-      // okunabilir. Bekletme mesajı kapısı bunu kullanıyor.
-      skippedReason: true,
-      status: true,
-      aiTriagedAt: true,
-      property: { select: { name: true, address: true, city: true } },
-      // ⚠️ TEK MESAJ YETMEZ (derin denetim, 08-01). Misafir arka arkaya yazınca
-      // — önce şikayet, sonra zararsız bir takip — `take: 1` yalnız sonuncuyu
-      // getiriyordu, `classifyFallback` onu şikayet saymıyordu ve uyarı HİÇ
-      // gitmiyordu. Konuşma da oto-yanıtla "answered" olduğu için bir daha
-      // seçilmiyordu: şikayet KALICI kayboluyordu. Son 6 mesaj alınır, aşağıda
-      // CEVAPLANMAMIŞ olanların (son giden yanıttan sonrakiler) HEPSİ taranır.
-      // 🚨 Y6 (10-14 dış inceleme): 6 YETMEDİ — misafirin altı takip mesajı (ya da araya giren otomatik şablonlar; filtre okumadan
-      // SONRA) cevapsız şikâyeti pencereden itiyordu. Cevap modelinin geçmiş tavanıyla aynı derinlik (`HISTORY_MESSAGE_CAP`).
-      messages: { orderBy: { createdAt: "desc" }, take: HISTORY_MESSAGE_CAP },
-    },
+    select: CANDIDATE_SELECT,
     // ⚠️ EN YENİ ÖNCE. Bu satır 08-01'de bir mutasyon-geri-alma script'inin
     // sayı sınırı olmayan `replace`'i yüzünden KAZAYLA "asc" olmuştu (commit
     // mesajında yoktu, yorum kodun tersini anlatıyordu). Şikayet uyarısında
     // doğru yön "en yeni önce"dir: bayat yığın yeni şikayeti ezmemeli.
+    orderBy: { lastMessageAt: "desc" },
+    take: 50,
+  });
+  // 🚨 YENİ TEHLİKE ESKİ BİLDİRİMLE BASTIRILMAZ (kurucu 10-31, `docs/TASARIM-2026-10-31-devam-eden-tehlike-uyarisi.md` §6): şikâyetle / model
+  // yoluyla / elle Sorunlu yapılmış konuşmada yeni bir tehlike mesajı hiçbir yoldan uyarılmıyordu (model yolu Sorunlu görünce erken döner).
+  // Ayrı sorgu + ayrı tavan: Sorunlu satırlar yeni konuşmaları aç bırakmasın (↑ yaş penceresi notu).
+  const flagged = await prisma.conversation.findMany({
+    where: {
+      property: { organizationId },
+      status: "problem",
+      OR: [{ skippedReason: null }, { skippedReason: { not: HAZARD_UNVERIFIED_REASON } }],
+      lastMessageAt: { gte: new Date(Date.now() - ALERT_MAX_AGE_MS) },
+    },
+    select: CANDIDATE_SELECT,
     orderBy: { lastMessageAt: "desc" },
     take: 50,
   });
@@ -6141,7 +6161,7 @@ export async function sendDueAlerts(
   // sahibinde SESSİZCE tutulur + bugünkü acil e-posta (mesaj başına bir kez) + görev (host açtıysa). Cevap geçişi aynı turu
   // öğelere böler, güvenli kısmı cevaplar. Bayrak kapalıyken bu dal koşmaz (bugünkü yol bayt bayt).
   const itemsFlag = conversationItemsEnabled();
-  for (const c of candidates) {
+  for (const c of [...candidates, ...flagged]) {
     if (Date.now() - alertsStartedAt > ALERT_BUDGET_MS) break;
     // K7: en yenideki otomatik şablon mesajları (karşılama / çıkış) cevap değildir — arkalarındaki şikâyet uyarısız kalmasın.
     const realMessages = c.messages.filter((m) => !isAutomationMessage(m));
@@ -6154,7 +6174,11 @@ export async function sendDueAlerts(
     const outboundAt = realMessages.findIndex((m) => isAnsweringOutbound(m));
     // Kurucu T2: "olası tehlike" işaretli konuşmada yalnız işaretten SONRA gelen mesajlar (aynı olay yeniden bildirilmez).
     const upgrade = c.status === "problem";
-    const markedAt = c.aiTriagedAt?.getTime() ?? 0;
+    // Olası tehlike işareti DIŞINDAKİ Sorunlu konuşma: yalnız YENİ tür tehlike bildirilir (aynı olayın tekrarı yağmura dönmesin).
+    const recheck = upgrade && c.skippedReason !== HAZARD_UNVERIFIED_REASON;
+    // Bildirim anı bilinmeyen (elle / eski) Sorunlu konuşmada yalnız son 3 saat taranır — ev sahibinin çoktan gördüğü eski tehlike yeniden
+    // bildirilmesin.
+    const markedAt = c.aiTriagedAt?.getTime() ?? (recheck ? Date.now() - SAME_DANGER_WINDOW_MS : 0);
     const pending = (outboundAt === -1 ? realMessages : realMessages.slice(0, outboundAt)).filter(
       // Yaş sınırı MESAJ başına (Haiku 10-14): pencere 25'e çıkınca yalnız en yenisine bakmak 5 gün önceki cevapsız şikâyeti bugünkü
       // "merhaba?" ile yeniden uyarıya taşırdı.
@@ -6167,10 +6191,13 @@ export async function sendDueAlerts(
     // (şikâyet / iade sözcüğü yok) ve oto-yanıt kapalıyken ev sahibine hiçbir uyarı gitmiyordu. Acil ağı (iki ağın ortak tabanı) da uyarır.
     // İKİ AĞ BİRLİKTE (Haiku 10-14): yalnız kanal ağı "Is there a gas stove?", "Fire TV", "Wifi düştü"yü de acil sayıyordu → ev sahibine
     // acil e-posta + konuşma Sorunlu (oto-yanıt açıkken cevap da gitmezdi). Tehlike okuyucusu (QR ile ortak) açık / olası demeli.
+    // Kişisel tehlike (mahsur / zorla giriş / tehdit — kurucu 10-31) acil sözcük ağında DEĞİL, tehlike okuyucusunda. Bu geçişte model YOK:
+    // yalnız AÇIK bildirim uyarır ("Kapıyı mı zorluyorlar?" / "Evde hırsız var mı?" gibi soru ve aktarım kararı anlama modelinindir — model
+    // koşmazsa kanal kapısı turu tutar ve olası tehlike yolu ev sahibine bildirir).
     const emergencyHit = (m: { body: string }) => {
-      if (!isSafetyEmergencyText(m.body)) return false;
-      const level = hazardEvidenceOf(m.body).level;
-      return level === "clear" || level === "possible";
+      const h = hazardEvidenceOf(m.body);
+      if (h.level !== "clear" && h.level !== "possible") return false;
+      return isSafetyEmergencyText(m.body) || (h.level === "clear" && h.kinds.some(isPersonDangerKind));
     };
     // Kurucu 10-29 gece (GD4): kayıp anahtar / kilitli kalma da uyarır — oto-yanıt kapalıyken (ya da mesai dışında) ev sahibine tek yol bu.
     const alertHit = (m: { body: string }) =>
@@ -6178,7 +6205,27 @@ export async function sendDueAlerts(
         ? isSafetyEmergencyText(m.body)
         : isAlertClass(classifyFallback(m.body)) || emergencyHit(m) || isAccessLossText(m.body);
     // İşaretli konuşmada yalnız TEHLİKE yeniden bildirilir (şikâyet / iade değil — konuşma zaten ev sahibinde).
-    if (upgrade && !pending.some((m) => exceedsGuestMessageLimit(m.body) ? isSafetyEmergencyText(m.body) : emergencyHit(m))) continue;
+    const dangerHit = (m: { body: string }) => (exceedsGuestMessageLimit(m.body) ? isSafetyEmergencyText(m.body) : emergencyHit(m));
+    if (upgrade && !pending.some(dangerHit)) continue;
+    // Sorunlu konuşmada "aynı olay" = son 3 saatte, son bildirimden (aiTriagedAt) ÖNCE gelmiş aynı tür tehlike ("Hâlâ zorluyorlar!" yeni
+    // uyarı değil; "Şimdi de duman var!" yeni uyarı). Türü bilinmeyen acil (uzun mesaj) "other".
+    const dangerTypesOf = (m: { body: string }): string[] => {
+      if (!dangerHit(m)) return [];
+      if (exceedsGuestMessageLimit(m.body)) return ["other"];
+      const kinds = hazardEvidenceOf(m.body).kinds;
+      return kinds.length > 0 ? kinds : ["other"];
+    };
+    let freshDanger: (typeof pending)[number] | undefined;
+    if (recheck) {
+      const since = Date.now() - SAME_DANGER_WINDOW_MS;
+      const alertedTypes = new Set(
+        realMessages
+          .filter((m) => m.direction === "inbound" && m.createdAt.getTime() <= markedAt && m.createdAt.getTime() >= since)
+          .flatMap(dangerTypesOf),
+      );
+      freshDanger = pending.find((m) => dangerTypesOf(m).some((t) => !alertedTypes.has(t)));
+      if (!freshDanger) continue;
+    }
     if (itemsFlag && !upgrade) {
       const hits = pending.filter(alertHit);
       if (hits.length === 0) continue;
@@ -6205,6 +6252,7 @@ export async function sendDueAlerts(
     // (10-30 sert inceleme C10/C11: "Anahtarımı kaybettim, kapıdayız" + ardından "Ayrıca daire çok kirli" → en yeni şikâyet seçiliyordu,
     // öncelik "Acil" yazılmıyor, e-posta yalnız kirli satırı alıntılıyordu — GD4 "öncelikli göster" tam kızgın misafirde bozuluyordu).
     const hit =
+      freshDanger ??
       pending.find((m) => !exceedsGuestMessageLimit(m.body) && emergencyHit(m)) ??
       pending.find((m) => !exceedsGuestMessageLimit(m.body) && isAccessLossText(m.body)) ??
       pending.find(alertHit);
@@ -6222,26 +6270,36 @@ export async function sendDueAlerts(
     // (or the host the email) twice. If a send below then fails, the thread is
     // still visibly flagged "problem" in the inbox, so nothing is silently lost.
     let claimed = 0;
+    // Sorunlu konuşmada yeni tehlike: sebep (`skippedReason` — çit damgası, model / ev sahibi sebebi) ve önceki triyaj analizi KORUNUR; yalnız
+    // bildirim anı, öncelik ve risk türü yazılır. Talep `aiTriagedAt` üzerinde karşılaştır-ve-yaz (eşzamanlı iki geçiş tek bildirim).
+    // Damga = okunan EN YENİ mesajın anı ("şimdi" değil): okuma ile talep arasında gelen mesaj damgadan sonra kalır, sonraki geçişte görülür.
+    const recheckAt = realMessages[0]?.createdAt ?? new Date();
     try {
       const res = await prisma.conversation.updateMany({
-        where: upgrade ? { id: c.id, status: "problem", skippedReason: HAZARD_UNVERIFIED_REASON } : { id: c.id, status: "new" },
-        data: {
-          status: "problem",
-          skippedReason: "complaint",
-          lastRiskType: riskType,
-          // Kurucu 10-29 gece (GD4 "öncelikli olarak hosta gösterilsin"): acil ve erişim kaybı listede "Acil" işaretiyle görünür (model yolu
-          // A2 / olası tehlike yolu zaten böyle yazıyordu; kelime yolu yazmıyordu). Şikâyet / iade önceliği DEĞİŞMEDİ.
-          ...(URGENT_RISK_TYPES.has(riskType ?? "") ? { priority: "urgent" } : {}),
-          // m48 — YOL 2/3: KELİME yolu. Model HİÇ koşmadı, o yüzden analiz
-          // alanları NULL yazılır — uydurma değer ÜRETİLMEZ. `aiTriageSource`
-          // yine de yazılır: "modele sorulmadı" ile "model sorulup sonuç
-          // alınamadı" ayrımı artık NULL'a değil BU kolona bağlı.
-          ...buildTriageData({
-            source: "keyword",
-            triggerMessageId: hit.id,
-            now: new Date(),
-          }),
-        },
+        where: recheck
+          ? { id: c.id, status: "problem", aiTriagedAt: c.aiTriagedAt }
+          : upgrade
+            ? { id: c.id, status: "problem", skippedReason: HAZARD_UNVERIFIED_REASON }
+            : { id: c.id, status: "new" },
+        data: recheck
+          ? { aiTriagedAt: recheckAt, priority: "urgent", lastRiskType: riskType }
+          : {
+              status: "problem",
+              skippedReason: "complaint",
+              lastRiskType: riskType,
+              // Kurucu 10-29 gece (GD4 "öncelikli olarak hosta gösterilsin"): acil ve erişim kaybı listede "Acil" işaretiyle görünür (model yolu
+              // A2 / olası tehlike yolu zaten böyle yazıyordu; kelime yolu yazmıyordu). Şikâyet / iade önceliği DEĞİŞMEDİ.
+              ...(URGENT_RISK_TYPES.has(riskType ?? "") ? { priority: "urgent" } : {}),
+              // m48 — YOL 2/3: KELİME yolu. Model HİÇ koşmadı, o yüzden analiz
+              // alanları NULL yazılır — uydurma değer ÜRETİLMEZ. `aiTriageSource`
+              // yine de yazılır: "modele sorulmadı" ile "model sorulup sonuç
+              // alınamadı" ayrımı artık NULL'a değil BU kolona bağlı.
+              ...buildTriageData({
+                source: "keyword",
+                triggerMessageId: hit.id,
+                now: new Date(),
+              }),
+            },
       });
       claimed = res.count;
     } catch {
@@ -6306,7 +6364,13 @@ export async function sendDueAlerts(
       // daha SEÇİLEMEZ ve host'a giden TEK acil şikayet bildirimi izsiz kaybolur.
       // Yaşam-döngüsü göndericilerinde aynı desen zaten okunuyordu; burası atlanmıştı.
       // T2 yükseltmesinde geri alma işareti geri koyar (konuşma Sorunlu kalır, bir sonraki geçiş yeniden dener).
-      const rolled = await (upgrade
+      const rolled = await (recheck
+        ? prisma.conversation.updateMany({
+            // Yalnız BU geçişin talebi geri alınır (başka geçiş daha yeni bir bildirim yazdıysa ona dokunulmaz).
+            where: { id: c.id, status: "problem", aiTriagedAt: recheckAt },
+            data: { aiTriagedAt: c.aiTriagedAt, priority: c.priority, lastRiskType: c.lastRiskType },
+          })
+        : upgrade
         ? prisma.conversation.updateMany({
             where: { id: c.id, status: "problem", skippedReason: "complaint" },
             // İşaret zamanı da geri konur — yoksa yeniden denemede ağır mesaj "işaretten önce" sayılıp kaybolurdu (Haiku T2).

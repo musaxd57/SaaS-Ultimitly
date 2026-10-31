@@ -5,6 +5,7 @@ import { vetoOutgoingReply } from "@/lib/ai/output-veto";
 import { analyzeHostContact } from "@/lib/ai/host-contact-filler";
 import { hostContactKindOf } from "@/lib/ai/absence";
 import { lifeSafetyOf } from "@/lib/ai/life-safety";
+import { personDangerOf } from "@/lib/ai/person-danger";
 
 const N = 4_000;
 const SHAPES: [string, string][] = [
@@ -32,4 +33,8 @@ for (const [name, text] of SHAPES) {
   // Hibrit acil akışın can güvenliği sınıfı (10-31): misafir metnine uygulanır.
   out[`can güvenliği · ${name}`] = ms(() => lifeSafetyOf({ texts: [text] }));
 }
+// Devam eden kişisel tehlike okuyucusu (10-31): yakınlık ipuçlarının iki sınıfı yüzlerce kez + Kiril / Arap yazısı (alt dize eşlemesi).
+personDangerOf("Biri kapıyı zorluyor!");
+out["kişisel tehlike · ipucu tekrarı"] = ms(() => personDangerOf("kapı zorluyor bıçak çekti ".repeat(N / 25)));
+out["kişisel tehlike · Kiril + Arap tekrarı"] = ms(() => personDangerOf("кто-то ломится يكسر الباب ".repeat(N / 25)));
 process.stdout.write(`${JSON.stringify(out)}\n`);

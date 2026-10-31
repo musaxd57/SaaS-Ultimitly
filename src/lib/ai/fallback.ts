@@ -4,6 +4,7 @@ import { guestFirstNameOf } from "@/lib/kb-placeholders";
 import { codeGreetingEnabled, salutationNameOf } from "./code-greeting";
 import { gasDetectorSounding, smokeDetectorSounding } from "./gas-detector-alarm";
 import { hasDividerHeaderSpoof } from "./divider-spoof";
+import { personDangerOf } from "./person-danger";
 import { noApologyRuleEnabled } from "./no-apology-rule";
 
 // Deterministic, keyword-based AI fallback. Used when no OPENAI_API_KEY is set,
@@ -2919,7 +2920,9 @@ export function isAccessLossText(message: string): boolean {
  */
 const RISK_NETS: ReadonlyArray<readonly [label: string, hit: (message: string) => boolean]> = [
   ["prompt_injection", (m) => detectPromptInjection(m)],
-  ["safety_emergency", (m) => isSafetyEmergencyText(m)],
+  // Devam eden kişisel tehlikenin AÇIK bildirimi de acil (kurucu 10-31; `ai/person-danger.ts`): oto-yanıt durur, model etiketi kaldıramaz.
+  // Acil sözcük ağının (`isSafetyEmergencyText`) kendisine EKLENMEDİ — çağıranları (görev, ad maskesi, geçmişten öğren) değişmesin.
+  ["safety_emergency", (m) => isSafetyEmergencyText(m) || personDangerOf(m).level === "clear"],
   // Kurucu 10-29 gece (GD4): kayıp anahtar / kilitli kalma ev sahibine kalır (öğe kipinde yalnız giriş / anahtar isteği; tur düzeyi DEĞİL).
   ["access_security", (m) => isAccessLossText(m)],
   ["review_threat", (m) => includesAnyFold(m, REVIEW_THREAT_PHRASES, true)],

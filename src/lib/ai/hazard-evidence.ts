@@ -1,6 +1,7 @@
 import { foldTurkishAscii, neutralizeNonEmergency } from "@/lib/ai/fallback";
 import { gasDetectorSounding, smokeDetectorSounding } from "@/lib/ai/gas-detector-alarm";
 import { DOUBT_NOT_CONDITIONAL_PARTS, POLITE_CONDITIONAL_PARTS } from "@/lib/ai/polite-conditional";
+import { personDangerOf, type PersonDangerKind } from "@/lib/ai/person-danger";
 
 // ---------------------------------------------------------------------------
 // FİZİKSEL TEHLİKE KANITI — bağlam ilkesi (kurucu kararı 10-02 akşam, Sabah Kararları 51 + 55). Saf, LLM'siz, deterministik.
@@ -30,7 +31,9 @@ import { DOUBT_NOT_CONDITIONAL_PARTS, POLITE_CONDITIONAL_PARTS } from "@/lib/ai/
 // açık düzey yalnız tehlikeyi BİLDİREN cümlede: soru cümlesi (gaz dışında) ve istenen ateşin betimlenmesi en fazla `possible`.
 // ---------------------------------------------------------------------------
 
-export type HazardKind = "fire" | "smoke" | "gas" | "water" | "electric";
+type PhysicalHazardKind = "fire" | "smoke" | "gas" | "water" | "electric";
+/** Fiziksel türler + devam eden KİŞİSEL tehlike (mahsur / zorla giriş / tehdit — kurucu 10-31, `ai/person-danger.ts`). */
+export type HazardKind = PhysicalHazardKind | PersonDangerKind;
 export type HazardLevel = "clear" | "possible" | "mentioned" | "none";
 export interface HazardEvidence {
   level: HazardLevel;
@@ -196,7 +199,7 @@ const FIRE_PRODUCT = /(?<![\p{L}\p{N}])fire\s*(?:tv|stick|tablet|hd|os)(?![\p{L}
 // ─── tehlike anılışları (tür başına) ─────────────────────────────────────────────────────────────────────────────────
 /** Türkçe "yan-" fiili yalnız YANMAYAN nesnede yangındır ("perde yanıyor"); "kombi / lamba / fırın yanıyor" çalışıyor demektir. */
 const TR_BURNING_OBJECT = `(?:perde|koltuk|yatak|hali|cop|bina|cati|mutfak|oda|ev|daire|balkon|priz|kablo|duvar|tavan|kanepe|battaniye)`;
-const MENTION: Record<HazardKind, RegExp> = {
+const MENTION: Record<PhysicalHazardKind, RegExp> = {
   fire: rxg([
     `${NL}(?:yangin${LB}|alevler${LB}|alev\\s+al${LB}|alevlen${LB}|alev\\s+(?:var|cikiyor|yukseliyor|goruyorum|goruyoruz)|ates\\s+(?:al|cik)${LB}|tutus${LB})`,
     `${NL}${TR_BURNING_OBJECT}${LB}\\s+(?:yaniyor|yanmaya\\s+basladi)${NR}`,
@@ -254,7 +257,7 @@ const MENTION: Record<HazardKind, RegExp> = {
     `(?:صعق${LB}|شرار${LB})`,
   ]),
 };
-const KINDS = Object.keys(MENTION) as HazardKind[];
+const KINDS = Object.keys(MENTION) as PhysicalHazardKind[];
 
 /** "Yanıyor / brennt / горит" fiili IŞIK bağlamında yanmak değildir ("Licht brennt im Flur", "горит лампочка", "اشتعل الضوء"). */
 const BURN_VERB = /^(?:brennt|brûle|brule|горит|загорел\p{L}*|arde\p{L}*|se\s+(?:está\s+|esta\s+)?quema\p{L}*|يحترق|اشتعل\p{L}*)$/iu;
@@ -659,10 +662,21 @@ function waterReachesElectric(liveClauses: readonly string[]): boolean {
 }
 
 /**
- * Misafir mesajının fiziksel tehlike kanıtı. Tek kaynak: QR'da modelsiz devir (55; satır 10-11'de kalktı), acil alarmının bağlamla kaldırılması (51) ve
+ * Misafir mesajının tehlike kanıtı (fiziksel + kişisel). Tek kaynak: QR'da modelsiz devir (55; satır 10-11'de kalktı), acil alarmının bağlamla kaldırılması (51) ve
  * model arızasında güvenli taraf kuralı bu düzeyi okur.
  */
 export function hazardEvidenceOf(message: string | null | undefined): HazardEvidence {
+  const physical = physicalHazardOf(message);
+  // Devam eden KİŞİSEL tehlike (kurucu 10-31: "asansörde mahsur kaldık", "biri kapıyı zorluyor", "bizi tehdit ediyor") aynı düzeylerle:
+  // açık bildirim → açık (QR hızlı devir, kanal uyarı geçişi, can güvenliği), soru / geçmiş → olası (karar modelde). Varsayım / olumsuz yok.
+  const person = personDangerOf(message);
+  if (person.level === "none") return physical;
+  if (RANK[person.level] > RANK[physical.level]) return { level: person.level, kinds: [...person.kinds] };
+  if (person.level === physical.level) return { level: physical.level, kinds: [...physical.kinds, ...person.kinds] };
+  return physical;
+}
+
+function physicalHazardOf(message: string | null | undefined): HazardEvidence {
   if (typeof message !== "string" || message.trim() === "") return { level: "none", kinds: [] };
   // K6 bağlam kuralı (yer / eşya sorusu, "acil değil") AYNEN önce; sonra çift tırnaklı / «» kısa alıntılar ve ürün adları değerlendirmeden çıkar.
   const contextual = neutralizeNonEmergency(foldTurkishAscii(message.slice(0, 8_000).replace(/\s+/g, " ")));
