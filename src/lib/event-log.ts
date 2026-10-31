@@ -57,6 +57,9 @@ export const OPERATIONAL_EVENTS = {
   "host_channel.alert.email_deferred": "info",
   "host_channel.alert.email_fallback": "info",
   "host_channel.alert.email_cancelled_read": "info",
+  "host_channel.kb.offered": "info",
+  "host_channel.kb.foreign": "warn",
+  "host_channel.kb.saved": "info",
 } as const;
 export type OperationalEventName = keyof typeof OPERATIONAL_EVENTS;
 

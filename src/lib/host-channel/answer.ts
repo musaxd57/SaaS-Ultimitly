@@ -23,6 +23,7 @@ import { parseDecisionButton } from "./decision-buttons";
 import { handleDecisionButton } from "./decision-answer";
 import { hostDecisionsEnabled } from "@/lib/decisions/flag";
 import { markHostQuestionRead } from "./delivery-status";
+import { handleKbButton, offerKbSaveAfterSend, parseKbButton } from "./kb-save";
 import type { HostChannelTransport, HostInboundEvent } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -264,6 +265,21 @@ export async function handleHostAnswer(input: {
       now,
     });
     return "decision";
+  }
+
+  // BİLGİ TABANINA EKLE düğmesi (`hk.`, kurucu 10-31, migration 89) — anahtar kapalıyken de AYRIŞTIRILIR ("kapalı" denir): yoksa düğme başlığı
+  // ("Kaydet") aşağıda serbest metin cevap sanılıp açık bir sorunun taslağına girerdi.
+  const kbButton = event.kind === "button" ? parseKbButton(event.buttonId) : null;
+  if (kbButton) {
+    await handleKbButton({
+      organizationId: org,
+      bindingId: binding.id,
+      parsed: kbButton,
+      reply: (text) => reply(text, event.providerMessageId),
+      choices: async (text, buttons) => (transport ? transport.sendChoices(input.to, text, buttons, event.providerMessageId).catch(() => null) : null),
+      now,
+    });
+    return "closed";
   }
 
   // ACİL BİLDİRİME (Tür C) yazılan cevap misafire GİTMEZ, model çağrılmaz — ev sahibi panele yönlendirilir. "Yanıtla" ile bildirime yazılan her
@@ -769,6 +785,7 @@ async function replyNoneOncePerDay(bindingId: string, now: Date, send: () => Pro
 async function handleButton(input: {
   binding: BindingForAnswer;
   to: string;
+  transport?: HostChannelTransport | null;
   event: HostInboundEvent;
   now: Date;
   userName: string;
@@ -879,6 +896,19 @@ async function handleButton(input: {
     );
     await logEvent("host_channel.answer.sent_to_guest", { questionId: q.id }, { organizationId: org }).catch(() => null);
     await reply(result.status === "queued" ? HOST_TEXTS.queued : HOST_TEXTS.sent, event.providerMessageId);
+    // Bilgi tabanına ekle teklifi (anahtarlı, en iyi çaba): yalnız misafire GİTMİŞ cevapta, ayrı mesajla. Misafir yolundan hiçbir şey okumaz.
+    if (result.status === "sent" && input.transport) {
+      const transport = input.transport;
+      const answer = decryptOrNull(q.answerEnc, answerAad(q.id, org));
+      if (answer) {
+        await offerKbSaveAfterSend({
+          organizationId: org,
+          questionId: q.id,
+          answer,
+          choices: (text, buttons) => transport.sendChoices(input.to, text, buttons, null).catch(() => null),
+        });
+      }
+    }
     return "closed";
   }
   if (result.status === "not_connected") {
@@ -1018,9 +1048,10 @@ export async function sweepHostQuestions(
     where: {
       status: { notIn: [...HOST_QUESTION_LIVE_STATUSES] },
       updatedAt: { lt: new Date(now.getTime() - HOST_QUESTION_TEXT_RETENTION_MS) },
-      OR: [{ answerEnc: { not: null } }, { draftEnc: { not: null } }, { draftHash: { not: null } }],
+      OR: [{ answerEnc: { not: null } }, { draftEnc: { not: null } }, { draftHash: { not: null } }, { kbProposalEnc: { not: null } }],
     },
-    data: { answerEnc: null, draftEnc: null, draftHash: null },
+    // Bilgi tabanı önerisi (migration 89) cevaptan türer → aynı sürede boşaltılır; bekleyen öneri ölür ([Kaydet] "geçerli değil" der).
+    data: { answerEnc: null, draftEnc: null, draftHash: null, kbProposalEnc: null },
   });
   // Günlük "bekleyen soru yok" kilitleri ve süresi geçmiş mesaj→soru bağ kayıtları birikmesin.
   await prisma.systemLock.deleteMany({ where: { name: { startsWith: NONE_LOCK_PREFIX }, lockedUntil: { lt: now } } });

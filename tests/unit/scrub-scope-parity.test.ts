@@ -266,6 +266,7 @@ describe("silinerek temizlenen türev metin modelleri", () => {
 // cevabı (`answerEnc`) ve misafir mesajından kurulan taslak (`draftEnc`) + onun özeti (`draftHash`) konaklamaya bağlı TÜREV metindir. 24 aylık
 // süre-bazlı süpürge yerine KENDİ süpürgesi var (kapanan sorunun metni 7 günde silinir — `host-channel/answer.ts` `sweepHostQuestions`,
 // saatlik); misafir silmesinde (`erasure.ts`) üçü de hemen null olur ve canlı soru kapanır. Bu iki yol kaybolursa kırmızı.
+//   · Migration 89: bilgi tabanı önerisi (`kbProposalEnc`, ev sahibinin cevabından türer) aynı iki yolda boşalır; `kbProposalState` kapalı küme.
 //   · Diğer 24 kolon KAPSAM DIŞI: opak kimlikler (soru / konuşma / bağlantı / mesaj / sağlayıcı mesaj kimlikleri), kapalı küme durum / tür /
 //     dil etiketi, sayaçlar ve zaman damgaları — ne misafirin metnini ne kimliğini taşır.
 // ---------------------------------------------------------------------------
@@ -273,13 +274,13 @@ describe("WhatsApp soru metinleri (HostQuestion)", () => {
   it("misafir silmesi ve 7 günlük süpürge cevap / taslak / özet kolonlarını boşaltır; süpürge zamanlanmış işte", () => {
     const erasure = read("src/lib/erasure.ts");
     const sweep = read("src/lib/host-channel/answer.ts");
-    const scrub = /data: \{ answerEnc: null, draftEnc: null, draftHash: null \}/;
+    const scrub = /data: \{ answerEnc: null, draftEnc: null, draftHash: null, kbProposalEnc: null \}/;
     expect(erasure.slice(erasure.indexOf("db.hostQuestion.updateMany("))).toMatch(scrub);
     expect(sweep.slice(sweep.indexOf("export async function sweepHostQuestions("))).toMatch(scrub);
     expect(read("src/lib/scheduled-sync.ts")).toMatch(/sweepHostQuestions\(/);
   });
 
   it("HostQuestion kolon sayısı değişmedi (yeni kolon → misafir metni mi, karar ver)", () => {
-    expect(COLS.HostQuestion?.size).toBe(27);
+    expect(COLS.HostQuestion?.size).toBe(29);
   });
 });

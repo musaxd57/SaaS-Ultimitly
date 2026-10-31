@@ -14,7 +14,7 @@ Kurucu 10-15: "Railway'i açınca ekleyeceğimiz bayrakları unutma." Bu dosya T
    aynı sonucu verir: 59…78'deki bütün yabancı anahtarlar YENİ tablolarda, yeni kolonların hepsi boş bırakılabilir ya da varsayılanlı, benzersiz
    dizinler yeni tablo / yeni (boş) kolonlarda, veri güncelleyen ifade yok. Canlı veriyle prova değildir (gerçek veri yerelde yok — KVKK); yine de
    1. adımdaki yedek ŞART.
-1. **Taze yedek:** son itilen dal migration 59–88 içeriyor (tek güncel liste: `docs/MIGRATION-MANIFEST.md`) (açılışta `prisma migrate deploy` hepsini uygular). Açmadan önce 09-19
+1. **Taze yedek:** son itilen dal migration 59–89 içeriyor (tek güncel liste: `docs/MIGRATION-MANIFEST.md`) (açılışta `prisma migrate deploy` hepsini uygular). Açmadan önce 09-19
    yedeği ESKİ — Railway açılınca ilk iş `pg_dump` (web servisi deploy olmadan, ↑0) ve geri yükleme provası
    (`docs/OPS-2026-09-19-DURAKLATMA-VE-LOCAL-GELISTIRME.md`).
    Migration 80 (kurucu T4, otomatik mesajlar ayrı bölüm): açılıştan sonra her dairenin "Otomatik mesajlar" kartına bakın — metinler bilgi
@@ -56,7 +56,10 @@ Kurucu 10-15: "Railway'i açınca ekleyeceğimiz bayrakları unutma." Bu dosya T
      `HOST_QUESTION_ALERTS_ENABLED` (acil bildirim — HİBRİT, kurucu 10-31: önce WhatsApp, 10 dk içinde okunmazsa ya da gönderilemezse acil
      e-posta da; yangın / gaz / elektrik / tıbbi / su baskını / mahsur-hırsız-tehdit / kategorisiz "ACİL" → ikisi birden hemen; mesaj başına
      bir, işletme başına saatte en çok 10; bildirime yazılan cevap misafire gitmez ve "okundu" sayılır. ⚠️ Mavi tiki kapalı ev sahibine e-posta
-     10–12 dk sonra gelir. Meta uygulamasında web kancası alanı `messages` durum bildirimlerini de taşımalı) + liste `HOST_CHANNEL_ORG_IDS`
+     10–12 dk sonra gelir. Meta uygulamasında web kancası alanı `messages` durum bildirimlerini de taşımalı) ·
+     `HOST_QUESTION_KB_SAVE_ENABLED` (migration 89, kurucu 10-31: misafire giden WhatsApp cevabından sonra ayrı mesajla [Bilgi tabanına ekle]
+     → önizleme [Kaydet] / [Yerine yaz] / [Ayrı ekle] / [Vazgeç]; konaklamaya özel / geçici / Wi-Fi-giriş bilgisi teklif edilmez; kalem
+     yalnız [Kaydet]le yazılır; çıkarıcı "Geçmişten öğren" modeli `AI_HISTORY_LEARN_MODEL`) + liste `HOST_CHANNEL_ORG_IDS`
      (`*` = hepsi, boş = hiçbiri; ilk açılış kurucu org).
      **Kodda (10-30 gece):** migration 88 (iki yeni tablo) · numara bağlama · Tür A soru gönderimi ("Misafir cevabınızı bekliyor" bildirimine
      bağlı) · web kancası `POST/GET /api/webhooks/host-channel/whatsapp` (imza, bağlama kodu, "DUR") · Ayarlar › Bildirimler › "WhatsApp

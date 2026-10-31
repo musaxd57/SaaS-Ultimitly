@@ -620,8 +620,13 @@ async function maskReservationRows(
       data: { status: "superseded", version: { increment: 1 } },
     });
     await db.hostQuestion.updateMany({
-      where: { organizationId, conversationId: { in: convIds }, OR: [{ answerEnc: { not: null } }, { draftEnc: { not: null } }, { draftHash: { not: null } }] },
-      data: { answerEnc: null, draftEnc: null, draftHash: null },
+      where: {
+        organizationId,
+        conversationId: { in: convIds },
+        OR: [{ answerEnc: { not: null } }, { draftEnc: { not: null } }, { draftHash: { not: null } }, { kbProposalEnc: { not: null } }],
+      },
+      // Bilgi tabanı önerisi (migration 89) ev sahibinin cevabından türer — misafir silmesinde onunla gider (kaydedilmiş kalem ev sahibinin).
+      data: { answerEnc: null, draftEnc: null, draftHash: null, kbProposalEnc: null },
     });
     // Geçmişten öğren (migration 65, Opus 10-15 KVKK): onaylanmamış taslak maskeye rağmen misafir kırıntısı taşıyabilir ve kanıtı JSON'da
     // durur → silinen konaklamanın mülkündeki ONAYLANMAMIŞ taslaklar silinir (yeniden üretilebilir; onaylanan = ev sahibinin bilgi tabanı

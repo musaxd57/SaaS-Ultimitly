@@ -2160,6 +2160,11 @@ model HostQuestion {
   draftHash         String?
   draftLang         String?
   composeCount      Int       @default(0)
+  /// Migration 89 (kurucu 10-31 "Bilgi tabanına ekle" önizlemeli onay): gönderilen cevaptan önerilen bilgi tabanı kalemi — AAD'li şifreli JSON
+  /// (daire, konu, bilgi, kategori, çakışan kalem). Kalem YALNIZ [Kaydet] anında yazılır; metin saklama süresinde boşaltılır.
+  kbProposalEnc     String?
+  /// offered | previewed | saving | saved | cancelled | declined (app-enforced; CAS).
+  kbProposalState   String?
   resultMessageId   String?
   fallbackEmailAt   DateTime?
   sentAt            DateTime?
