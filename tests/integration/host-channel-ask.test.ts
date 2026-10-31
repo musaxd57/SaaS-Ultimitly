@@ -130,6 +130,8 @@ describe("WhatsApp ev sahibi sorusu — bildirim bağlantısı", () => {
     expect(sent[0]!.message.dates).toBe("12–15 Kas");
     expect(sent[0]!.message.quote).toContain("Bebek yatağı var mı?");
     expect(sent[0]!.message.quote).not.toMatch(/Ayşe|Yılmaz|532|111 22 33/);
+    // Şablonun değişkenli bağlantı düğmesi (yapılandırılmışsa) konuşmanın panel yolunu açar.
+    expect(sent[0]!.message.link).toBe(s.conversationId);
     const q = await prisma.hostQuestion.findFirstOrThrow();
     expect(q).toMatchObject({ status: "sent", kind: "info", turnMessageId: s.messageId, providerMessageId: "wamid.1" });
     // İkinci değerlendirme: talep zaten alınmış → e-posta da WhatsApp da yok.
