@@ -4221,15 +4221,22 @@ export async function applyChannelAutoReply(
   }
 
   const now = new Date();
-  const conversationDone = prisma.conversation.update({
-    where: { id: conversation.id },
+  // 🚨 Codex 11-04 P1: talep durumu "answered" yaptı (claim-then-send); sağlayıcı cevabı beklenirken senkron yeni misafir mesajıyla konuşmayı
+  // "new"e çevirebilir, yönetici Sorunlu / Tamamlandı yapabilir, tehlike yükseltmesi risk alanlarını yazabilir. Tamamlama bunları EZMEZ: iş durumu
+  // + risk alanları YALNIZ hâlâ bizim talebimiz duruyorsa ve görülmemiş misafir mesajı yoksa yazılır (talep koşuluyla aynı çapa — gönderimden
+  // ÖNCEKİ konuşma kesiti). `lastMessageAt` yalnız ileri.
+  const conversationDone = prisma.conversation.updateMany({
+    where: { id: conversation.id, status: "answered", messages: { none: unseenInbound } },
     data: {
       status: "answered",
-      lastMessageAt: now,
       skippedReason: null,
       lastRiskLevel: result.riskLevel,
       lastRiskType: result.riskType,
     },
+  });
+  const lastMessageAdvance = prisma.conversation.updateMany({
+    where: { id: conversation.id, lastMessageAt: { lt: now } },
+    data: { lastMessageAt: now },
   });
   try {
     await prisma.$transaction([
@@ -4249,6 +4256,7 @@ export async function applyChannelAutoReply(
         },
       }),
       conversationDone,
+      lastMessageAdvance,
     ]);
   } catch (err) {
     // Delivery already SUCCEEDED. If the row raced in via a concurrent sync
@@ -4267,6 +4275,7 @@ export async function applyChannelAutoReply(
       });
     }
     await conversationDone;
+    await lastMessageAdvance;
   }
 
   // Konuşma öğeleri: cevabın kapsadığı güvenli istekler "cevaplandı", hassaslar ev sahibinde tutulur + bildirilir.

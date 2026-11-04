@@ -101,6 +101,12 @@ export async function sendHostMessage(input: HostSendInput): Promise<HostSendRes
     return { status: "queued", message, deduped: enq.deduped };
   }
 
+  // 🚨 Codex 11-04 P1: gönderim BAŞLAMADAN önceki iş durumu. Sağlayıcı cevabı beklenirken yeni misafir mesajı gelebilir, başka bir yönetici
+  // konuşmayı Sorunlu / Tamamlandı yapabilir — tamamlama bunları "Cevaplandı" diye EZMEZ (kuyruk yolunun `markConversationDelivered` kuralı).
+  // Çapa gönderimden ÖNCEKİ an: gönderimden SONRA yazılan mesaj satırının zamanı çapa olamaz.
+  const pressedAt = new Date();
+  const before = await prisma.conversation.findUnique({ where: { id }, select: { status: true } });
+
   // Duplicate guard (claim-then-send, like auto-reply): a double-click / browser retry with the SAME text must not reach the
   // guest twice. Keyed on the RAW typed body so both duplicates map to the same claim even when translate is on.
   const claimed = await claimOutboundSend(id, input.claimBody);
@@ -119,6 +125,17 @@ export async function sendHostMessage(input: HostSendInput): Promise<HostSendRes
   }
 
   const now = new Date();
+  // Koşullu tamamlama: durum gönderim başındakiyle AYNIYSA ve o andan sonra misafir yazmadıysa "Cevaplandı"; `lastMessageAt` yalnız ileri.
+  const completeStatus = () =>
+    prisma.conversation.updateMany({
+      where: {
+        id,
+        ...(before ? { status: before.status } : {}),
+        messages: { none: { direction: "inbound", createdAt: { gt: pressedAt } } },
+      },
+      data: { status: "answered" },
+    });
+  const advanceLastMessageAt = () => prisma.conversation.updateMany({ where: { id, lastMessageAt: { lt: now } }, data: { lastMessageAt: now } });
   let message: Message | null;
   try {
     [message] = await prisma.$transaction([
@@ -137,10 +154,8 @@ export async function sendHostMessage(input: HostSendInput): Promise<HostSendRes
           ...(outcome.providerMessageId ? { externalId: outcome.providerMessageId } : {}),
         },
       }),
-      prisma.conversation.update({
-        where: { id },
-        data: { status: "answered", lastMessageAt: now },
-      }),
+      completeStatus(),
+      advanceLastMessageAt(),
     ]);
   } catch (err) {
     // Delivery already succeeded; a dedupe-hit on the new @@unique([conversationId, externalId]) means a concurrent sync
@@ -158,7 +173,8 @@ export async function sendHostMessage(input: HostSendInput): Promise<HostSendRes
     message = await prisma.message.findFirst({
       where: { conversationId: id, externalId: outcome.providerMessageId ?? undefined },
     });
-    await prisma.conversation.update({ where: { id }, data: { status: "answered", lastMessageAt: now } });
+    await completeStatus();
+    await advanceLastMessageAt();
   }
   // Söz → görev OTOMATİK (kurucu 10-17 gece): teslim edilmiş ev sahibi mesajındaki söz HEMEN söz + görev olur (senkron turunu beklemez).
   // En iyi çaba: hata gönderimi etkilemez (mesaj zaten misafire ulaştı), sonraki senkron turu yeniden dener. Anahtar kapalıyken sorgusuz.
