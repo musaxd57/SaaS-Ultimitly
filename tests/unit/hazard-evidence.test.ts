@@ -805,3 +805,38 @@ describe("Claude 2. dalga #78 / #21 (10-21): öznesiz kip fiili sigara değildir
     },
   );
 });
+
+// ---------------------------------------------------------------------------
+// A-3 (derin ajan turu 2, doğrulandı; kurucu kuralı K-1029-C "sözcük ağı yalnız sıkılaştırır"): tehlike adının yanında "ocak / vana / tüp /
+// merdiven / musluk" geçince CANLI kaçak "anılış"a iniyor, kelime ağının acil etiketi MODEL SORULMADAN kalkıyordu (sözcük ağının mesajı
+// GEVŞETMESİ). Tehlikenin OLAY fiili (sızıyor, kaçıyor, kokuyor, geliyor, taştı, fışkırıyor…) anılışın hemen ardında ya da koku fiili
+// hemen önünde ("riecht nach Gas", "smell gas") ise anılış olayın öznesidir: ekipman / yer onun kaynağıdır, bileşik adı değil.
+// ---------------------------------------------------------------------------
+describe("A-3 — ekipman komşuluğu canlı kaçağı anılışa indirmez", () => {
+  it.each([
+    "Ocağın hortumundan gaz sızıyor",
+    "Ocağın hortumundan gaz kaçıyor",
+    "Ocağın düğmesinden gaz kaçıyor",
+    "Gaz vanasından gaz kaçıyor",
+    "Merdivenden duman geliyor",
+    "Der Herd riecht nach Gas",
+    "I can smell gas from the stove",
+    "Ocağın yanında gaz kokuyor",
+  ])("🚨 %j → açık / olası (anılış DEĞİL)", (m) => {
+    expect(["clear", "possible"]).toContain(level(m));
+  });
+
+  it.each([
+    ["Gaz ocağı var mı?", "none"],
+    ["Duman dedektörü var mı?", "mentioned"],
+    ["Yangın tüpü var mı?", "none"],
+    ["Gaz ocağının düğmesi nerede?", "none"],
+    ["Gaz sayacı nerede?", "none"],
+    ["Gaz kokusu dedektörü var mı?", "mentioned"],
+    ["Wir haben einen Rauchmelder im Flur.", "mentioned"],
+    ["Ne gaz kokusu var ne de duman.", "mentioned"],
+    ["Gaz kokusu kesinlikle yok.", "mentioned"],
+  ])("KONTROL %j → %s (ekipman / olumsuz anılış aynen)", (m, want) => {
+    expect(level(m)).toBe(want);
+  });
+});

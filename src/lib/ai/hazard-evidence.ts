@@ -557,12 +557,30 @@ function neitherNor(clause: string, at: number): boolean {
 const EQUIPMENT_IN_WORD = /(?:melder|l[oö]scher|detector|dedektor)/iu;
 const HAZARD_EVENT_VERB =
   /(?:alev\s+al|alevlen|alev\s+(?:var|cikiyor|yukseliyor)|ates\s+(?:al|cik)|tutus|yaniyor|yanmaya|on\s+fire|caught\s+fire|brennt|f[aä]ngt\s+feuer|br[uû]le|quema|arde|горит|загорел|يحترق|اشتعل)/iu;
+/** A-3: anılışın HEMEN ardındaki kaçak / taşma / koku / gelme fiili (katlanmış metin; "akıyor" BİLEREK yok — musluktan akan su olay değil). */
+const HAZARD_LEAK_AFTER =
+  /^\s*(?:siz(?:iyor|di|mis|maya)|kac(?:iyor|ti|mis|maya)|kok(?:uyor|tu|mus|maya)|gel(?:iyor|di|mis|meye)|tas(?:iyor|ti|mis)|fiskir\p{L}{0,8}|(?:is\s+|are\s+)?(?:leak(?:ing|s|ed)?|escap(?:ing|es|ed)|coming\s+(?:out|in|from)|pouring|gushing)|str[oö]mt|tritt\s+aus|fuit|s'?[ée]chappe|se\s+escapa|утека\p{L}{0,4}|сочит\p{L}{0,4}|يتسرب|تتسرب)(?![\p{L}\p{N}])/iu;
+/** A-3: anılışın İÇİNDEKİ çekimli kaçak / koku fiili (katlanmış metin). */
+const HAZARD_LEAK_IN_MENTION =
+  /(?:siz(?:iyor|di|mis)|kac(?:iyor|ti|mis)|kok(?:uyor|tu|mus)|fiskir|leak(?:ing|s|ed)|escap(?:ing|es|ed)|riecht|str[oö]mt|fuit|s'?[ée]chappe|se\s+escapa|утека|يتسرب|تتسرب)/iu;
+/** A-3: anılışın HEMEN önündeki koku fiili ("smell gas", "riecht nach Gas", "sent le gaz", "huele a gas", "пахнет газом"). */
+const HAZARD_SMELL_BEFORE = /(?:smell(?:s|ing)?|smelt|riecht(?:\s+es)?\s+nach|sent\s+(?:le|la|l')|huele\s+a|пахнет)\s*$/iu;
 function equipmentMention(clause: string, at: number, len: number): boolean {
   const mention = clause.slice(at, at + len);
   if (HAZARD_EVENT_VERB.test(mention)) return false;
+  // A-3: anılış kaçak / koku FİİLİNİ içeriyorsa ("gaz sızıyor", "gaz kaçıyor", "riecht nach gas") olaydır — ekipman öznesi / kaynağıdır.
+  // Yalnız çekimli fiil (isim "kokusu / kaçağı" değil: "Gaz kokusu dedektörü var mı?" ekipman kalır).
+  if (HAZARD_LEAK_IN_MENTION.test(mention)) return false;
   // Olay fiili anılışın HEMEN ardında ("yangın çıktı", "yangın var", "duman çıkıyor"): anılış olayın öznesidir, yakındaki "çıkış / merdiven /
   // ocak" ekipman adı değil yerdir (Claude kod incelemesi 10-21, ölçüldü). "Yangın tüpü var" → ilk sözcük "tüpü", ekipman kalır.
   if (/^\s*(?:cikti|cikiyor|cikmis|var|basladi|basliyor|yayiliyor|buyuyor)(?![\p{L}\p{N}])/iu.test(clause.slice(at + len, at + len + 16))) return false;
+  // 🚨 A-3 (derin ajan turu 2; kurucu kuralı K-1029-C "sözcük ağı yalnız sıkılaştırır"): kaçak / taşma / koku OLAY fiili anılışın hemen ardında
+  // ("Ocağın hortumundan gaz sızıyor", "Gaz vanasından gaz kaçıyor", "Merdivenden duman geliyor", "Gaz ocağından alev taştı", "Gas is leaking
+  // from the stove") ya da koku fiili hemen önünde ("Der Herd riecht nach Gas") ise anılış olayın öznesidir; yakındaki ocak / vana / merdiven
+  // kaynağı ya da yeridir, bileşik adı değil. Eskiden "anılış"a inip kelime ağının acil etiketini MODEL SORULMADAN kaldırıyordu. "Gaz ocağı
+  // var mı?", "Duman dedektörü öttü" gibi anılışlar etkilenmez (fiil yok / fiil ekipmanın). Metin katlanmış (ASCII Türkçe); pencere sınırlı.
+  if (HAZARD_LEAK_AFTER.test(clause.slice(at + len, at + len + 24))) return false;
+  if (HAZARD_SMELL_BEFORE.test(clause.slice(Math.max(0, at - 24), at))) return false;
   if (EQUIPMENT_IN_WORD.test(mention)) return true;
   const before = clause.slice(Math.max(0, at - 28), at);
   const after = clause.slice(at + len, at + len + 28);
