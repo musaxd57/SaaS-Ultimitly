@@ -307,3 +307,24 @@ ile "bu soru ne kadar bekler" kararı ayrı tutulur. §9 madde 6 şöyle değiş
 - P1 #3 (doğrudan gönderim tamamlanması daha yeni durumu ezer) bugünkü modelde kuyruk kuralıyla kapatıldı (`host-send.ts`, `automation.ts`;
   11-04). Yeni modelde aynı ilke `controlVersion` ile genelleşir: tamamlama gönderim başındaki sürüme bağlıdır.
 - P1 #4 (kuyruktaki AI cevabı rezervasyon iptalinden sonra) → (a) ORTAK kontrollerin ilk üyesi.
+
+## 11. G0 (gölge) uygulama planı — 11-04 akşam (kod henüz YOK; push'tan ve istek 9 raporundan sonra başlar)
+
+Amaç: hiçbir kararı DEĞİŞTİRMEDEN yeni modelin bugünküyle nerede ayrıştığını ölçmek (kurucunun bulduğu hata dahil: tehlike açıkken host'un
+tek cevabı AI'ı yeniden açıyor).
+1. **Migration (yalnız yeni tablo — dolu tabloya kolon yok):** `ConversationBlock` — `organizationId` · `conversationId` (konuşma silinince
+   satır da gider) · `kind` (`safety_incident` · `hazard_unverified` · `host_takeover` · `technical` · `legacy_problem`) · `scope`
+   (`conversation` / `item`) + `itemId?` · `sourceMessageId?` · `evidence` (kısa KOD; misafir metni ASLA — KVKK) · `status` (`active` /
+   `resolved`) · açılış / kapanış kim-ne zaman-neden. Tekillik `(conversationId, kind, sourceMessageId)` (yineleme güvenli). `Conversation.
+   controlMode / controlVersion` kolonları G2'de (Devral) — G0'da gerekmez.
+2. **Kayıt (gölge yazıcı):** bugün `problem` yazan dört yol (model `automation.ts` applyChannelAutoReply · kelime `sendDueAlerts` ·
+   `escalateUnverifiedHazard` · QR tehlike yükseltmesi) AYNI işlemde bir engel satırı da açar. Kapanış G0'da YOK (yalnız açılır; G1'de
+   "Olay çözüldü").
+3. **`autoSendDecision` (saf karar + okuyucu):** girdiler = aktif engeller + öğe tutmaları + bugünkü ortak kontroller (org / abonelik / saat /
+   iptal-bitmiş konaklama — 10.4 a). Bugünkü iki karar noktasında (inline `applyChannelAutoReply` gönderimden önce · kuyruk `replyVeto`)
+   ÇAĞRILIR, sonucu bugünküyle kıyaslanır; uyuşmazlık yalnız sayılır: `logEvent("conversation_control.shadow_mismatch", { rule, direction })`
+   (metin / kimlik yok). Bugünkü karar uygulanır.
+4. **Ölçüler (olay günlüğünden, betik):** yeni-durdurur-eski-gönderir (ör. açık tehlikede host cevabından sonra AI) · eski-durdurur-yeni-gönderir
+   (ör. tek kötü taslak bütün konuşmayı durduruyor) · kural başına sayı. Kabul testleri §5'teki kenar durumları (gerçek PG + iki süreç).
+5. **Testler:** gölge yazıcı her yolda satır açar (yineleme tek satır) · karar fonksiyonu tablo testleri · çağrı noktalarında davranış BİREBİR
+   aynı (eski testler değişmeden yeşil) · uyuşmazlık olayı metin taşımaz.
