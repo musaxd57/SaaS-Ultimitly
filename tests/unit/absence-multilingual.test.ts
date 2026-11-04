@@ -587,3 +587,38 @@ describe("kurucu T1 (10-21): iç kaynak işareti + olumsuzluk aynı cümlede —
     "Elimdeki bilgilerde girişiniz 15:00; bahçe kapısı kilitli değil.",
   ])("KONTROL — normal cevap, tutulmaz: %s", (t) => expect(admitsMissingKnowledge(t)).toBe(false));
 });
+
+// ---------------------------------------------------------------------------
+// A-11 (derin ajan turu 2, doğrulandı; kurucu kuralı 09-11 "bilgim yok misafire asla gitmez"): Arapça belirli harfli nesne ("المعلومات"),
+// "لا أملك", İngilizce "answer" nesnesi / kesmesiz "dont", "wasn't given / told" ve Türkçe edilgen "bana bilgi verilmedi" kaçıyordu.
+// İkinci yarı: aynı sözcükleri taşıyan meşru cümleler TUTULMAZ.
+// ---------------------------------------------------------------------------
+describe("A-11 — kaçan 'bilgim yok' biçimleri", () => {
+  it.each([
+    "ليس لدي هذه المعلومات.",
+    "ليست لدي هذه المعلومة.",
+    "لا أملك هذه المعلومات.",
+    "I'm afraid I don't have the answer to that.",
+    "I don't have an answer for that.",
+    "I dont have that information.",
+    "I wasn't given that information.",
+    "I wasn't told about that.",
+    "Bu konuda bana bir bilgi verilmedi.",
+    "Bu bilgi bana iletilmedi.",
+    "Bu konu hakkında bilgilendirilmedim.",
+  ])("🚨 %j → bilgim yok (misafire gitmez)", (m) => {
+    expect(admitsMissingKnowledge(m)).toBe(true);
+  });
+
+  it.each([
+    "لا يوجد رسوم إضافية.",
+    "المعلومات الخاصة بالمسبح: مفتوح من 9 إلى 20.",
+    "We don't have an answering machine, please message us here.",
+    "I don't have to be there for check-in, the lockbox code is in your booking.",
+    "You were given the code in your booking confirmation.",
+    "Size giriş bilgileri rezervasyon mesajında verildi.",
+    "Bu konuda bilgilendirme mesajı gönderildi.",
+  ])("KONTROL %j → meşru cevap (tutulmaz)", (m) => {
+    expect(admitsMissingKnowledge(m)).toBe(false);
+  });
+});

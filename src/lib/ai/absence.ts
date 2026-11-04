@@ -220,7 +220,8 @@ const DE_OBJ = "(?:informationen|information|angaben|details|daten|hinweise|info
 /** `datos` YALNIZ sahiplik fiiliyle ("no hay datos móviles" bir olgudur). */
 const ES_OBJ = "(?:informaci[óo]n|detalles?)(?![\\p{L}])";
 const RU_OBJ = "(?:информаци\\p{L}{0,8}|данных|сведений)";
-const AR_OBJ = "(?:معلومات|معلومة|تفاصيل|بيانات)";
+/** A-11 (derin ajan turu 2): belirli harf "ال" önekli biçim ("المعلومات", "هذه المعلومة") da nesnedir. */
+const AR_OBJ = "(?:ال)?(?:معلومات|معلومة|تفاصيل|بيانات)";
 /** Almanca bilgi nesnesi + talimat ("Anleitung / Anweisung") — yalnız 1. şahıs bulma / sahiplik kalıplarında (kör set 6). */
 const DE_INFO = `(?:${DE_OBJ}|anleitung(?:en)?(?![\\p{L}])|anweisung(?:en)?(?![\\p{L}]))`;
 
@@ -337,6 +338,18 @@ const MORE_ABSENCE_PATTERNS: readonly RegExp[] = [
   // AR — "ليس لدي معلومات", "لا تتوفر لدي معلومات", "لا أعرف", "غير مذكورة". "غير متاح" (olgu) BİLEREK yok.
   new RegExp(`(?:ليس|ليست) ${gap(1)}(?:لدي|لدينا|عندي|عندنا) ${gap(2)}${AR_OBJ}`, "u"),
   new RegExp(`لا (?:تتوفر|يتوفر|توجد|يوجد) ${gap(2)}${AR_OBJ}`, "u"),
+  // A-11: "لا أملك هذه المعلومات" (sahiplik — 1. şahıs tekil / çoğul).
+  new RegExp(`لا (?:أملك|املك|نملك) ${gap(2)}${AR_OBJ}`, "u"),
+  // A-11 (EN): "I don't have the answer to that", "I don't have an answer for that" — 1. şahıs + "answer" nesnesi + edat ("We don't have an
+  // answering machine" eşleşmez: tam sözcük + edat şart); kesmesiz "dont"; "I wasn't given / told" (1. şahıs edilgen — "You were given" değil).
+  /(?<![\p{L}])(?:i|we) (?:don't|do not|dont) have (?:the|an|any) answers? (?:to|for)(?![\p{L}])/u,
+  new RegExp(`(?<![\\p{L}])(?:i|we) dont have ${gap(2)}${EN_OBJ}`, "u"),
+  /(?<![\p{L}])(?:i|we) (?:dont|didnt) know(?![\p{L}])/u,
+  /(?<![\p{L}])(?:i|we) (?:wasn't|was not|weren't|were not|haven't been|have not been) (?:given|told|provided|informed)(?![\p{L}])/u,
+  // A-11 (TR): edilgen "bana / bize (bir) bilgi verilmedi / iletilmedi / paylaşılmadı", "bilgi bana iletilmedi", "bilgilendirilmedim".
+  new RegExp(`${L}(?:bana|bize) ${gap(2)}(?:verilmedi|iletilmedi|paylaşılmadı|gelmedi)(?![\\p{L}])`, "u"),
+  new RegExp(`${TR_OBJ} ${gap(1)}(?:bana|bize) (?:verilmedi|iletilmedi|paylaşılmadı)(?![\\p{L}])`, "u"),
+  new RegExp(`${L}bilgilendirilmedi(?:m|k)(?![\\p{L}])`, "u"),
   /لا (?:أعرف|اعرف|أعلم|اعلم|أدري|ادري)(?![\p{L}])/u,
   // Kör set 6: "لا أجد معلومات" / "لم أجد أي معلومات" — 1. şahıs (2. çoğul "إذا لم تجدوا المفتاح" eşleşmez).
   new RegExp(`(?:لا|لم) (?:أجد|اجد|نجد|أعثر|اعثر|نعثر) ${gap(2)}${AR_OBJ}`, "u"),
