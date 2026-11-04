@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterAll, afterEach, vi } from "vites
 import { prisma, resetDb, makeOrgWithProperty, daysFromNow } from "../helpers/db";
 import { createReservationTasks, removeAutoTasksForCancelledReservation, __reservationTaskHooks } from "@/lib/automation";
 import { lockProbe } from "../helpers/lock-probe";
+import { followReservationDates } from "@/lib/tasks/follow-reservation";
 import { pauseFirstCreator, untilPaused, waitingOnReservationLock } from "../helpers/reservation-lock";
 
 // ---------------------------------------------------------------------------
@@ -45,6 +46,36 @@ describe("createReservationTasks — eş zamanlı çağrı", () => {
       const types = (await prisma.task.findMany({ where: { reservationId: r.id }, select: { type: true } })).map((t) => t.type).sort();
       expect(types).toEqual(["checkin_prep", "cleaning"]);
     }
+  });
+
+  it("🚨 Codex 11-04 P2: üretici ESKİ çıkış gününü okuyup kilitte durdu → o arada tarih değişti (senkron / içe aktarma) → temizlik YENİ günde", async () => {
+    const r = await makeReservation();
+    const pause = pauseFirstCreator(r.id);
+    const creating = createReservationTasks(r.id);
+    await untilPaused(pause, creating);
+    const newDeparture = daysFromNow(6);
+    const writing = prisma.$transaction(async (tx) => {
+      await tx.reservation.update({ where: { id: r.id }, data: { departureDate: newDeparture } });
+      await followReservationDates(tx, r.id, { arrivalDate: r.arrivalDate, departureDate: r.departureDate }, { arrivalDate: r.arrivalDate, departureDate: newDeparture });
+    });
+    // Tarih yazan işlem üreticinin kilidini BEKLER (kilit yoksa beklemeden biter, görev eski günde kalırdı).
+    await vi.waitFor(async () => expect(await waitingOnReservationLock(r.id)).toBe(1), { timeout: 5_000 });
+    pause.release();
+    await Promise.all([creating, writing]);
+    const cleaning = await prisma.task.findFirstOrThrow({ where: { reservationId: r.id, type: "cleaning" } });
+    expect(cleaning.dueAt?.getTime()).toBe(newDeparture.getTime());
+  });
+
+  it("KONTROL: tarih değişmeyen eşitlemede tarih izleme kilit ALMAZ (üretici beklemez)", async () => {
+    const r = await makeReservation();
+    const pause = pauseFirstCreator(r.id);
+    const creating = createReservationTasks(r.id);
+    await untilPaused(pause, creating);
+    const same = { arrivalDate: r.arrivalDate, departureDate: r.departureDate };
+    await prisma.$transaction(async (tx) => followReservationDates(tx, r.id, same, same)); // beklemeden biter
+    pause.release();
+    await creating;
+    expect(await prisma.task.count({ where: { reservationId: r.id } })).toBe(2);
   });
 
   it("eksik tür onarımı korunur: yalnız giriş hazırlığı varken eş zamanlı çağrılar TEK temizlik ekler", async () => {

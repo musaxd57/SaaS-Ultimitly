@@ -1,4 +1,5 @@
 import "server-only";
+import { RESERVATION_TASKS_LOCK_NS } from "@/lib/tasks/reservation-lock";
 
 import { Prisma } from "@prisma/client";
 import { observeAnswerReuseAfterSend, REUSE_SHADOW_DEADLINE_MS } from "@/lib/answer-reuse/shadow-hook";
@@ -1299,8 +1300,7 @@ export function isWithinActiveHours(startHour: number, endHour: number, hour: nu
 // Simple, fixed if/then automation engine (no queue/Zapier-style builder for MVP).
 // Each function represents a trigger handler.
 
-/** Rezervasyon görevleri kilidi ad alanı (diğerleri: 23 takvim beslemesi · 40 silme · 41 QR · 42 e-posta kuyruğu · 43 konuşma kimliği). */
-const RESERVATION_TASKS_LOCK_NS = 44;
+// Rezervasyon görevleri kilidi ad alanı — tek kaynak `lib/tasks/reservation-lock.ts` (tarih izleme de aynı kilidi alır, Codex 11-04 P2).
 /** Kilit beklemesi havuz baskısında 2 sn varsayılanını aşabilir (senkron + içe aktarma aynı anda); kardeş giriş yollarıyla aynı değerler. */
 export const RESERVATION_TASKS_TX = { timeout: 60_000, maxWait: 15_000 } as const;
 

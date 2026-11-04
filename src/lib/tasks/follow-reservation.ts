@@ -11,6 +11,7 @@
 // ---------------------------------------------------------------------------
 
 import type { ErasureDb } from "@/lib/erasure";
+import { lockReservationTasks } from "./reservation-lock";
 
 export interface StayDates {
   arrivalDate: Date;
@@ -31,6 +32,9 @@ export async function followReservationDates(
   after: StayDates,
 ): Promise<number> {
   let moved = 0;
+  // Codex 11-04 P2: görev üreticisiyle AYNI kilit — üretici eski tarihi okuyup henüz yazmadıysa bu işlem onun commit'ini bekler ve yazdığı
+  // görevi taşır; kilidi önce alırsak üretici yeni tarihi okur. Tarih değişmediyse kilit de alınmaz (sorgu yok).
+  if (LIFECYCLE_DATE.some(({ field }) => before[field].getTime() !== after[field].getTime())) await lockReservationTasks(db, reservationId);
   for (const { type, field } of LIFECYCLE_DATE) {
     if (before[field].getTime() === after[field].getTime()) continue;
     const { count } = await db.task.updateMany({
