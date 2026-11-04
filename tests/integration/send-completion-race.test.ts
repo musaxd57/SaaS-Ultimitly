@@ -94,6 +94,26 @@ describe("ev sahibi cevabı — doğrudan gönderim", () => {
     expect(await prisma.message.count({ where: { conversationId: conv.id, direction: "outbound" } })).toBe(1);
   });
 
+  it("🚨 (sert inceleme 11-04) misafir mesajı gönderimden ÖNCE yazılmış ama senkron onu gönderim SIRASINDA içeri aldı (sağlayıcı zamanı eski) → 'answered' OLMAZ", async () => {
+    const { orgId, conv } = await seed("new");
+    mockSend.mockImplementation(async () => {
+      await prisma.message.create({
+        data: {
+          conversationId: conv.id,
+          direction: "inbound",
+          authorType: "guest",
+          senderName: "Deniz",
+          body: "Bir de otopark var mı?",
+          createdAt: new Date(Date.now() - 30_000), // sağlayıcıda 30 sn önce yazıldı
+          ingestedAt: new Date(), // bize şimdi ulaştı
+        },
+      });
+      return { ok: true, providerMessageId: "pm-late-import" } as never;
+    });
+    expect((await hostSend(orgId, conv.id)).status).toBe("sent");
+    expect(await statusOf(conv.id)).toBe("new");
+  });
+
   it.each(["problem", "closed"])("🚨 gönderim sürerken başka yönetici konuşmayı '%s' yaptı → tamamlama bunu EZMEZ", async (st) => {
     const { orgId, conv } = await seed("new");
     mockSend.mockImplementation(async () => {

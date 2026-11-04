@@ -131,7 +131,9 @@ export async function sendHostMessage(input: HostSendInput): Promise<HostSendRes
       where: {
         id,
         ...(before ? { status: before.status } : {}),
-        messages: { none: { direction: "inbound", createdAt: { gt: pressedAt } } },
+        // Senkronun içeri aldığı satırın `createdAt`'i SAĞLAYICI zamanıdır (gönderimden önce yazılmış ama gönderim sırasında içeri alınmış
+        // misafir mesajı onu kaçırırdı — sert inceleme 11-04): içeri alınma anı (`ingestedAt`) da çapaya bakar.
+        messages: { none: { direction: "inbound", OR: [{ createdAt: { gt: pressedAt } }, { ingestedAt: { gt: pressedAt } }] } },
       },
       data: { status: "answered" },
     });
