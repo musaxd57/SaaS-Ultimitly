@@ -386,6 +386,10 @@ describe("karar metni yazıcısı — Claude (Haiku 5.5)", () => {
     process.env.AI_DECISION_TEXT_MODEL = "gpt-5.1";
     delete process.env.ANTHROPIC_API_KEY;
     await draftDecisionMessage({ ...input(), fetchImpl: fakeOpenAI("Maalesef 14 Ekim'de 13:00'te erken giriş mümkün değil; giriş 15:00'te.", verdict()).fetchImpl });
+    // OpenAI yazıcısının kalıcı reddi (401) de bu ANTHROPIC alarmını üretmez (mutasyon M4: `claudeKey &&` kaldırılınca yaşıyordu).
+    const openAiDenied = vi.fn(async () => new Response(JSON.stringify({ error: { message: "bad key" } }), { status: 401 })) as unknown as typeof fetch;
+    expect(await draftDecisionMessage({ ...input(), fetchImpl: openAiDenied })).toMatchObject({ source: "template", why: "model_failed" });
+    expect(openAiDenied).toHaveBeenCalled();
     expect(report).not.toHaveBeenCalled();
   });
 
