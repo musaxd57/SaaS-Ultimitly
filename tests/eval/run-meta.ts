@@ -10,6 +10,7 @@ import { replyPromptVersion, replyRequestIdentity } from "@/lib/ai";
 import {
   understandingEnglishQueryEnabled,
   understandingPrivacyRuleEnabled,
+  understandingFaultContextEnabled,
   understandingSystemPromptFor,
   understandingThreatRuleEnabled,
 } from "@/lib/ai/semantic/understand";
@@ -82,6 +83,8 @@ export interface UnderstandingMode {
   privacy?: boolean;
   /** Hizmet ücreti eki (kurucu 4.13) — ücret kuralı anahtarıyla aynı (`AI_KB_FEE_RULE_ENABLED`). */
   serviceFee?: boolean;
+  /** Arıza ↔ kullanım bağlam kuralı (kurucu 11-04, `AI_UNDERSTANDING_FAULT_CONTEXT_ENABLED`). */
+  faultContext?: boolean;
 }
 
 /**
@@ -112,6 +115,7 @@ export function understandingModeLabel(m: UnderstandingMode): string {
       m.threat === true ? "thr" : "",
       m.privacy === true ? "prv" : "",
       m.serviceFee === true ? "fee" : "",
+      m.faultContext === true ? "flt" : "",
     ]
       .filter(Boolean)
       .join("+") || "temel"
@@ -233,6 +237,7 @@ export function evalRuntime(opts: { understanding?: UnderstandingMode } = {}): E
         threat: given.threat === true,
         privacy: given.privacy === true,
         serviceFee: given.serviceFee === true,
+        faultContext: given.faultContext === true,
       }
     : {
         items: conversationItemsEnabled(),
@@ -242,6 +247,7 @@ export function evalRuntime(opts: { understanding?: UnderstandingMode } = {}): E
         threat: understandingThreatRuleEnabled(),
         privacy: understandingPrivacyRuleEnabled(),
         serviceFee: kbFeeRuleEnabled(),
+        faultContext: understandingFaultContextEnabled(),
       };
   const understandingSystem = understandingSystemPromptFor(mode);
   const variant = replyRequestIdentity(REPLY_VARIANT_INPUT);

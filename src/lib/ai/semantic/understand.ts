@@ -66,6 +66,29 @@ export function understandingAssistantQuestionEnabled(): boolean {
   return process.env.AI_ASSISTANT_QUESTION_ITEM_ENABLED === "1";
 }
 
+/**
+ * Arıza ↔ kullanım BAĞLAM kuralı (kurucu 11-04: "şu anki arızayı kullanım sorusundan ayır ama her zaman şikâyet sabit sözcük kuralına
+ * dönüşmesin; varsayımsal, olumsuzlanan, çözülmüş durum bağlamdan okunsun; bağımsız güvenli soru cevaplansın"). Ölçüm + önce / sonra:
+ * `docs/olcum/ARIZA-KULLANIM-ONCE-SONRA-2026-11-04.md`. Anahtar `AI_UNDERSTANDING_FAULT_CONTEXT_ENABLED` VARSAYILAN KAPALI (kurucu onayı
+ * bekler); kapalıyken istem ve önbellek anahtarı bayt bayt eskisi. Örnekler BAŞKA cihazla (ütü) yazılır — ölçüm setinin cümleleri isteme
+ * girmez (pin). Ölçerin kolu AYNI sabiti AYNI yere koyar (ölçülen = gönderilen, pin).
+ */
+export const UNDERSTANDING_FAULT_CONTEXT_RULE =
+  "- complaint_issue vs appliance_help (judge from the whole conversation, not from single words): a CURRENT report that something in the apartment is broken or not working as it should right now (not heating or cooling, not turning on, leaking, a strange noise, an error, nothing comes out) is complaint_issue, also when the guest asks how to fix it or for a replacement. appliance_help is a how-to / where-is question about something that is not reported broken, including a hypothetical 'what should we do if it does not work?' and a denied problem ('it is not broken, we just cannot find the switch'). A problem the guest says is already solved ('it was not working but it works now') is neither. A fault reported earlier and already answered in the conversation is not a new request; 'I did what you said but it still does not work' is a current fault. Smoke, sparks, a burning smell or water on electrics is emergency (add complaint_issue too), never appliance_help. Independent questions in the same message stay separate requests. Examples (iron): 'Ütü hiç ısınmıyor' -> complaint_issue; 'Ütüyü nasıl açıyoruz?' -> appliance_help; 'Ütü ısınmazsa ne yapalım?' -> appliance_help; 'Ütü sabah ısınmıyordu, şimdi çalışıyor' -> other; 'Ütü ısınmıyor; çıkış saati kaçtı?' -> complaint_issue + checkout_time; 'Ütüden yanık kokusu geliyor' -> emergency + complaint_issue.";
+
+export function understandingFaultContextEnabled(): boolean {
+  return process.env.AI_UNDERSTANDING_FAULT_CONTEXT_ENABLED === "1";
+}
+
+/** Kuralı istemdeki niyet satırının HEMEN ardına koyar (satır yoksa ya da kural zaten varsa dokunmaz). */
+export function insertAfterIntentLine(system: string, rule: string): string {
+  if (system.includes(rule)) return system;
+  const at = system.indexOf("- intent: the closest label");
+  if (at < 0) return system;
+  const end = system.indexOf("\n", at);
+  return end < 0 ? `${system}\n${rule}` : `${system.slice(0, end)}\n${rule}${system.slice(end)}`;
+}
+
 export const UNDERSTANDING_SYSTEM_PROMPT = [
   "You are the language-understanding step of a short-term-rental guest messaging assistant. You do NOT answer the guest.",
   "Read the guest's UNANSWERED message(s) in the context of the recent conversation and return ONLY the JSON schema.",
@@ -208,10 +231,11 @@ export function understandingSystemPromptFor(opts: {
   privacy?: boolean;
   assistant?: boolean;
   serviceFee?: boolean;
+  faultContext?: boolean;
 }): string {
   const relation = opts.items === true && opts.complaintFollowup === true;
   return [
-    UNDERSTANDING_SYSTEM_PROMPT,
+    opts.faultContext ? insertAfterIntentLine(UNDERSTANDING_SYSTEM_PROMPT, UNDERSTANDING_FAULT_CONTEXT_RULE) : UNDERSTANDING_SYSTEM_PROMPT,
     ...(opts.items ? [UNDERSTANDING_ITEMS_PROMPT_ADDENDUM] : []),
     ...(opts.rules ? [UNDERSTANDING_RULES_PROMPT_ADDENDUM] : []),
     ...(relation ? [UNDERSTANDING_RELATION_ADDENDUM] : opts.complaintFollowup ? [UNDERSTANDING_COMPLAINT_FOLLOWUP_ADDENDUM] : []),
@@ -378,9 +402,11 @@ export async function understandGuestMessages(input: UnderstandingInput): Promis
     const assistant = items && input.assistantQuestion !== false && understandingAssistantQuestionEnabled();
     // Hizmet ücreti (4.13): cevap isteminin ücret kuralıyla AYNI anahtar — biri açık öteki kapalı olamaz; kapalıyken istem + anahtar eski.
     const serviceFee = kbFeeRuleEnabled();
+    // Arıza ↔ kullanım bağlam kuralı (kurucu 11-04): kapalıyken istem + anahtar bayt bayt eski.
+    const faultContext = understandingFaultContextEnabled();
     // Öğe / kural kipi ayrı önbellek girdisi (farklı şema); ikisi de kapalıyken — ve yalnız öğe kipinde — anahtar bayt bayt eskisi.
     // Şikâyet takibi eki ve İngilizce köprü de ayrı girdi (farklı istem / şema); kapalıyken anahtar değişmez.
-    const mode = `${items ? "\u0000items" : ""}${rules ? "\u0000rules" : ""}${complaintFollowup ? "\u0000cfu" : ""}${english ? "\u0000en" : ""}${threat ? "\u0000thr" : ""}${privacy ? "\u0000prv" : ""}${assistant ? "\u0000ast" : ""}${serviceFee ? "\u0000fee" : ""}`;
+    const mode = `${items ? "\u0000items" : ""}${rules ? "\u0000rules" : ""}${complaintFollowup ? "\u0000cfu" : ""}${english ? "\u0000en" : ""}${threat ? "\u0000thr" : ""}${privacy ? "\u0000prv" : ""}${assistant ? "\u0000ast" : ""}${serviceFee ? "\u0000fee" : ""}${faultContext ? "\u0000flt" : ""}`;
     const key = mode ? cacheKey(`${model}${mode}`, user) : cacheKey(model, user);
     const hit = cache.get(key);
     if (hit && Date.now() - hit.at < CACHE_TTL_MS) {
@@ -391,7 +417,7 @@ export async function understandGuestMessages(input: UnderstandingInput): Promis
     const res = await callStructuredJson({
       apiKey,
       model,
-      system: understandingSystemPromptFor({ items, rules, complaintFollowup, english, threat, privacy, assistant, serviceFee }),
+      system: understandingSystemPromptFor({ items, rules, complaintFollowup, english, threat, privacy, assistant, serviceFee, faultContext }),
       user,
       schema: understandingSchemaFor({ items, rules, followup: complaintFollowup, english, assistant }),
       timeoutMs: semanticTimeoutMs(model),

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { understandGuestMessages, understandingSystemPromptFor, __resetUnderstandingCache } from "@/lib/ai/semantic/understand";
+import { understandGuestMessages, understandingSystemPromptFor, __resetUnderstandingCache, UNDERSTANDING_FAULT_CONTEXT_RULE, insertAfterIntentLine } from "@/lib/ai/semantic/understand";
 import { writeSidecar, uniqueReportName } from "./sidecar";
 import { codeProvenance } from "./code-provenance";
 import { claudeArmFromEnv, installAnthropicReplyShim, shimSummaryLine } from "./anthropic-reply-shim";
@@ -49,18 +49,14 @@ export const FAULT_RULE =
  * v2 (kurucu 11-04): "her zaman şikâyet" sabit kuralına DÖNÜŞMESİN — varsayımsal, olumsuzlanan, çözülmüş durum bağlamdan ayrılır; tehlike ayrı akış;
  * bağımsız soru ayrı istek; konuşma geçmişi okunur. Örnekler BAŞKA cihazla (ütü) yazılır — test cümleleri isteme girmez (pin).
  */
-export const FAULT_RULE_V2 =
-  "- complaint_issue vs appliance_help (judge from the whole conversation, not from single words): a CURRENT report that something in the apartment is broken or not working as it should right now (not heating or cooling, not turning on, leaking, a strange noise, an error, nothing comes out) is complaint_issue, also when the guest asks how to fix it or for a replacement. appliance_help is a how-to / where-is question about something that is not reported broken, including a hypothetical 'what should we do if it does not work?' and a denied problem ('it is not broken, we just cannot find the switch'). A problem the guest says is already solved ('it was not working but it works now') is neither. A fault reported earlier and already answered in the conversation is not a new request; 'I did what you said but it still does not work' is a current fault. Smoke, sparks, a burning smell or water on electrics is emergency (add complaint_issue too), never appliance_help. Independent questions in the same message stay separate requests. Examples (iron): 'Ütü hiç ısınmıyor' -> complaint_issue; 'Ütüyü nasıl açıyoruz?' -> appliance_help; 'Ütü ısınmazsa ne yapalım?' -> appliance_help; 'Ütü sabah ısınmıyordu, şimdi çalışıyor' -> other; 'Ütü ısınmıyor; çıkış saati kaçtı?' -> complaint_issue + checkout_time; 'Ütüden yanık kokusu geliyor' -> emergency + complaint_issue.";
+// 11-04 akşam: kural ÜRÜNDE (anahtar `AI_UNDERSTANDING_FAULT_CONTEXT_ENABLED`, kapalı) — ölçer AYNI sabiti AYNI yere koyar (ölçülen = gönderilen).
+export const FAULT_RULE_V2 = UNDERSTANDING_FAULT_CONTEXT_RULE;
 const RULE_VERSION = process.env.EVAL_UNDERSTANDING_FAULT_RULE?.trim() ?? "";
 const ACTIVE_RULE = RULE_VERSION === "1" ? FAULT_RULE : RULE_VERSION === "2" ? FAULT_RULE_V2 : null;
 const FAULT_RULE_ARM = ACTIVE_RULE !== null;
 /** Sistem istemindeki niyet satırının ARDINA kuralı ekler (satır yoksa dokunmaz). */
 export function withFaultRule(system: string, rule: string = FAULT_RULE): string {
-  if (system.includes(rule)) return system;
-  const at = system.indexOf("- intent: the closest label");
-  if (at < 0) return system;
-  const end = system.indexOf("\n", at);
-  return end < 0 ? `${system}\n${rule}` : `${system.slice(0, end)}\n${rule}${system.slice(end)}`;
+  return insertAfterIntentLine(system, rule);
 }
 function installFaultRule(): () => void {
   const inner = globalThis.fetch;
