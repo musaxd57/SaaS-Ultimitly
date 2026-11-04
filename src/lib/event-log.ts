@@ -59,6 +59,10 @@ export const OPERATIONAL_EVENTS = {
   "host_channel.alert.email_deferred": "info",
   // Codex 11-04 P2: WhatsApp'ın sonradan "ulaşmadı" dediği bilgi / karar bildiriminin e-posta yedeği gitti.
   "host_channel.late_failure.email_sent": "info",
+  // Konuşma kontrolü G0 gölge (tasarım 11-04 §11): engel satırı yazılamadı (ölçüm boşluğu) · yeni model bugünkü karardan ayrıştı
+  // (yön + sebep kodları; metin / kimlik yok).
+  "conversation_control.block_write_failed": "warn",
+  "conversation_control.shadow_mismatch": "info",
   "host_channel.alert.email_fallback": "info",
   "host_channel.alert.email_cancelled_read": "info",
   "host_channel.kb.offered": "info",

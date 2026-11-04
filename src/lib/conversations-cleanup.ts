@@ -170,6 +170,7 @@ const CONVERSATION_SELECT = {
  */
 export const CLEANUP_REPOINTED_MODELS = [
   "AiGeneration",
+  "ConversationBlock",
   "ConversationItem",
   "DecisionRequest",
   "GuestCommitment",
@@ -183,6 +184,8 @@ export const CLEANUP_REPOINTED_MODELS = [
 async function repointConversationChildren(tx: Prisma.TransactionClient, fromId: string, toId: string): Promise<void> {
   const move = { where: { conversationId: fromId }, data: { conversationId: toId } };
   await tx.aiGeneration.updateMany(move);
+  // Konuşma kontrolü engeli (migration 90, FK Cascade): silinirse açık tehlike kaydı kaybolurdu (kurucunun bulduğu hatanın kalıcı çözümü).
+  await tx.conversationBlock.updateMany(move);
   await tx.conversationItem.updateMany(move);
   await tx.decisionRequest.updateMany(move);
   await tx.guestCommitment.updateMany(move);

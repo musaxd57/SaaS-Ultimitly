@@ -267,6 +267,7 @@ describe("apply — referans envanteri", () => {
   it("Conversation'a referans veren TÜM modeller biliniyor", () => {
     expect(inventoryConversationReferences()).toEqual([
       "AiGeneration", // 10-09 (migration 60): FK Cascade — repoint listesinde (silinirse kalite konsolunun izi kaybolurdu)
+      "ConversationBlock", // 11-04 (migration 90): FK Cascade — repoint listesinde (silinirse açık tehlike engeli kaybolurdu)
       "ConversationItem", // 09-26 (migration 56): FK Cascade — repoint listesinde (silinirse açık istek kaybolurdu)
       "DecisionRequest", // 10-02 (migration 59): FK Cascade — repoint listesinde (silinirse "karar bekliyor" kartı kaybolurdu)
       "GuestCommitment", // 10-10 (migration 62): FK Cascade — repoint listesinde (silinirse misafire verilmiş açık söz kaybolurdu)
@@ -447,6 +448,11 @@ describe("apply — başarı yolu", () => {
       data: { organizationId: org.organizationId, conversationId: b.id, kind: "towels", dueAt: new Date("2026-08-01T15:00:00Z") },
     });
 
+    // Konuşma kontrolü engeli (11-04, migration 90): FK Cascade — repoint edilmezse açık tehlike kaydı kaybedenle SİLİNİR.
+    await prisma.conversationBlock.create({
+      data: { organizationId: org.organizationId, conversationId: b.id, kind: "safety_incident", sourceMessageId: "apply-test-msg", evidence: "model:safety_emergency" },
+    });
+
     const plan = await planConversationDedupe(prisma, { allowPrimary: true });
     const out = await applyConversationDedupe(prisma, {
       ...GATE,
@@ -467,7 +473,9 @@ describe("apply — başarı yolu", () => {
       aiGeneration: 1,
       guestCommitment: 1,
       hostQuestion: 0,
+      conversationBlock: 1,
     });
+    expect(await prisma.conversationBlock.count({ where: { conversationId: a.id, status: "active", kind: "safety_incident" } })).toBe(1);
     expect(await prisma.aiGeneration.count({ where: { conversationId: a.id } })).toBe(1);
     expect(await prisma.guestCommitment.count({ where: { conversationId: a.id, status: "open" } })).toBe(1);
     expect(await prisma.conversationItem.count({ where: { conversationId: a.id, status: "pending_host" } })).toBe(1);

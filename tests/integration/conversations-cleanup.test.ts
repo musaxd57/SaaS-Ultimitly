@@ -341,8 +341,11 @@ describe("cleanupDuplicateConversations — tarih eşitliği kimlik DEĞİLDİR"
     });
     await prisma.decisionRequest.create({ data: { organizationId: orgId, conversationId: stale.id, messageId: "msg-x", kind: "early_checkin", requestedTime: "13:00", lang: "tr" } });
     await prisma.guestCommitment.create({ data: { organizationId: orgId, conversationId: stale.id, kind: "towels", dueAt: new Date(Date.now() + 3_600_000) } });
+    // Konuşma kontrolü engeli (11-04, migration 90): açık tehlike kaydı kopyayla silinmemeli.
+    await prisma.conversationBlock.create({ data: { organizationId: orgId, conversationId: stale.id, kind: "safety_incident", sourceMessageId: "msg-x", evidence: "model:safety_emergency" } });
 
     expect((await cleanupDuplicateConversations(orgId)).removed).toBe(1);
+    expect(await prisma.conversationBlock.count({ where: { conversationId: keeper.id, status: "active" } })).toBe(1);
     expect(await prisma.conversationItem.count({ where: { conversationId: keeper.id, status: "pending_host" } })).toBe(1);
     expect(await prisma.decisionRequest.count({ where: { conversationId: keeper.id } })).toBe(1);
     expect(await prisma.guestCommitment.count({ where: { conversationId: keeper.id, status: "open" } })).toBe(1);

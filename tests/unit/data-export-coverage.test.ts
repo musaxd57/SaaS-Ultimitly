@@ -58,6 +58,7 @@ const EXCLUDED: Record<string, string> = {
   IngestEvent: "İç olay günlüğü (türetilmiş, kaynak satırlar dökümde)",
   Signal: "Mesajdan türetilmiş gözlem — kaynağı (mesaj) dökümde",
   ConversationItem: "Mesajdan türetilmiş istek kalemi — kaynağı (mesaj) dökümde",
+  ConversationBlock: "Konuşma kontrolü engeli (migration 90) — mesajdan türetilmiş iç kayıt: tür + kapsam + kısa kanıt KODU, misafir metni yok; kaynağı (mesaj) dökümde; konuşmayla birlikte gider",
   DecisionRequest: "Misafir talebine bağlı ev sahibi kararı — misafirle yazışmanın kendisi (mesajlar) dökümde; kurucu kararı 10-11: dışa aktarılmaz",
   StorageDeletion: "Depo silme kuyruğu — iç işletim",
   ErasureTombstone: "Silme koruma kaydı (ham kişisel veri yok; anahtarı bizde HMAC özeti = takma adlı veri, Codex C6) — iç işletim",
