@@ -154,4 +154,69 @@ describe("G9 — panel dikkat satırı", () => {
     expect((await findAttentionItems(a.orgId)).some((i) => i.kind === "channel_reactivation")).toBe(false);
     expect((await findAttentionItems(b.orgId)).filter((i) => i.kind === "channel_reactivation")).toHaveLength(1);
   });
+
+  describe("Codex 11-04 P1 — okuma ile yazma arasındaki iptal", () => {
+    type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
+    /** Senkronun rezervasyon OKUMASINDAN hemen sonra (yazmadan önce) `between` koşar — başka bağlantıdan gelen eşzamanlı yazma. */
+    function racingTx(tx: Tx, between: () => Promise<void>): Tx {
+      const reservation = new Proxy(tx.reservation, {
+        get(target, prop) {
+          if (prop === "findFirst") {
+            return async (args: unknown) => {
+              const snap = await (target.findFirst as (a: unknown) => Promise<unknown>)(args);
+              await between();
+              return snap;
+            };
+          }
+          const v = Reflect.get(target, prop);
+          return typeof v === "function" ? v.bind(target) : v;
+        },
+      });
+      return new Proxy(tx, {
+        get(target, prop) {
+          if (prop === "reservation") return reservation;
+          const v = Reflect.get(target, prop);
+          return typeof v === "function" ? v.bind(target) : v;
+        },
+      }) as Tx;
+    }
+    async function upsertRacing(propertyId: string, r: HospitableReservation, between: () => Promise<void>) {
+      const p = await prisma.property.findUniqueOrThrow({ where: { id: propertyId }, select: { organizationId: true } });
+      const ctx = { organizationId: p.organizationId, provider: "hospitable" as const, connectionId: null };
+      return prisma.$transaction(async (tx) => upsertCanonicalReservation(racingTx(tx, between), propertyId, normalizeReservation(r), ctx));
+    }
+
+    it("🚨 senkron 'pending' okur → ev sahibi o arada İPTAL eder → senkronun 'confirmed' yazımı iptali EZMEZ; uyarı olayı bir kez düşer", async () => {
+      const { propertyId } = await makeOrgWithProperty();
+      await upsert(propertyId, reservation("pending"));
+      const { id } = await row(propertyId);
+      await upsertRacing(propertyId, reservation("accepted", "Ayşe Kaya"), async () => {
+        await prisma.reservation.update({ where: { id }, data: { status: "cancelled" } }); // PATCH /api/reservations/[id] iptali
+      });
+      const after = await row(propertyId);
+      expect(after.status).toBe("cancelled");
+      expect(after.guestName).toBe("Ayşe Kaya"); // diğer alanlar yine eşitlenir
+      expect(await blockedEvents(id)).toBe(1);
+    });
+
+    it("KONTROL: yarış yokken 'pending' → 'confirmed' yazılır, uyarı olayı YOK", async () => {
+      const { propertyId } = await makeOrgWithProperty();
+      await upsert(propertyId, reservation("pending"));
+      const { id } = await row(propertyId);
+      await upsertRacing(propertyId, reservation("accepted"), async () => {});
+      expect((await row(propertyId)).status).toBe("confirmed");
+      expect(await blockedEvents(id)).toBe(0);
+    });
+
+    it("KONTROL: kanal İPTAL ederken arada ev sahibi başka bir durum yazmış olsa da iptal kazanır", async () => {
+      const { propertyId } = await makeOrgWithProperty();
+      await upsert(propertyId, reservation("accepted"));
+      const { id } = await row(propertyId);
+      await upsertRacing(propertyId, reservation("cancelled"), async () => {
+        await prisma.reservation.update({ where: { id }, data: { status: "confirmed" } });
+      });
+      expect((await row(propertyId)).status).toBe("cancelled");
+    });
+  });
 });
+

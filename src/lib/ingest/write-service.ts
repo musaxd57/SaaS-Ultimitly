@@ -220,10 +220,22 @@ export async function upsertCanonicalReservation(
       k === "guestChildren" ||
       k === "guestInfants" ||
       k === "guestPets";
-    const contentChanged = Object.keys(data).some((k) => !isMetadataKey(k));
+    // 🚨 Codex 11-04 P1: İPTAL DIŞI durum yazımı (ör. pending → confirmed) okumayla yazma arasında ev sahibinin YAPTIĞI iptali ezmesin. G9
+    // yukarıda ESKİ anlık görüntüye bakıyor; satır kilitlenmeden okunuyor (READ COMMITTED) → arada `PATCH /api/reservations/[id]` iptal
+    // edebilir. Durum AYRI ve KOŞULLU yazılır (yalnız satır hâlâ iptal değilse); koşul tutmazsa satır iptal kalır ve G9'un "kanal yeniden etkin
+    // gösteriyor" satırı düşer. İptal yazımı (kanal iptal etti) koşulsuz kalır — iptal her zaman kazanır.
+    const reopenStatus = typeof data.status === "string" && data.status !== "cancelled" ? data.status : null;
+    if (reopenStatus !== null) delete data.status;
     if (Object.keys(data).length > 0) {
       await db.reservation.update({ where: { id: existing.id }, data });
     }
+    let reopenRaceBlocked = false;
+    if (reopenStatus !== null) {
+      const written = await db.reservation.updateMany({ where: { id: existing.id, status: { not: "cancelled" } }, data: { status: reopenStatus } });
+      if (written.count === 1) data.status = reopenStatus;
+      else reopenRaceBlocked = true;
+    }
+    const contentChanged = Object.keys(data).some((k) => !isMetadataKey(k));
     // Tarih değiştiyse açık yaşam döngüsü görevleri yeni tarihe (aynı TX; host'un taşıdığına dokunulmaz — dilim 4a).
     if (data.arrivalDate !== undefined || data.departureDate !== undefined) {
       await followReservationDates(db, existing.id, existing, { arrivalDate: r.arrivalDate, departureDate: r.departureDate });
@@ -239,7 +251,7 @@ export async function upsertCanonicalReservation(
         Object.keys(data).filter((k) => !isMetadataKey(k)),
       );
     }
-    if (reactivationBlocked) await noteReactivationBlocked(db, ctx, existing.id);
+    if (reactivationBlocked || reopenRaceBlocked) await noteReactivationBlocked(db, ctx, existing.id);
     return existing.id;
   }
 
