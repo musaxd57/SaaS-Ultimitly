@@ -15,7 +15,6 @@ export async function findInChunks<K, T>(
   size: number = IN_LIST_CHUNK,
 ): Promise<T[]> {
   const unique = [...new Set(keys)];
-  if (unique.length === 0) return [];
   const step = Math.max(1, Math.floor(size));
   const out: T[] = [];
   for (let i = 0; i < unique.length; i += step) {
