@@ -10,8 +10,11 @@ import {
   tooManyRequests,
   forbidden,
   readJsonCappedOrNull,
+  hasJsonContentType,
+  unsupportedMediaType,
 } from "@/lib/api";
 import { rateLimit } from "@/lib/rate-limit";
+import { crossSiteWrite } from "@/lib/route-guard";
 import { setSessionCookie, setKnownDeviceCookie } from "@/lib/auth";
 import { writeAudit } from "@/lib/audit";
 import { emailService } from "@/lib/email";
@@ -63,6 +66,10 @@ export async function POST(req: NextRequest) {
     return forbidden("İşletme hesabındayken (impersonation) şifre işlemi yapılamaz.");
   }
 
+  // Codex 11-04 P2: başka (kardeş) alan adından gelen yazma ve JSON olmayan gövde KOTAYI TÜKETMEDEN reddedilir — aksi hâlde kardeş HTTPS
+  // kökeninden giden basit (text/plain) istekler kullanıcının deneme kovasını doldurup kendi güvenlik işlemini engelleyebiliyordu.
+  if (crossSiteWrite(req)) return forbidden();
+  if (!hasJsonContentType(req)) return unsupportedMediaType();
   // Throttle the whole flow per user (covers code-request e-mail spam AND
   // confirm attempts). The wrong-code attempt counter below adds a second cap.
   const limited = await rateLimit(`pw-change:${session.userId}`, 8, 10 * 60_000);

@@ -10,8 +10,13 @@ import {
   forbidden,
   jsonOk,
   serverError,
-  tooManyRequests, readJsonCappedOrNull } from "@/lib/api";
+  tooManyRequests,
+  readJsonCappedOrNull,
+  hasJsonContentType,
+  unsupportedMediaType,
+} from "@/lib/api";
 import { rateLimit } from "@/lib/rate-limit";
+import { crossSiteWrite } from "@/lib/route-guard";
 import { deleteAccountData } from "@/lib/data-retention";
 import { decryptSecret } from "@/lib/crypto";
 import { verifyTotpStep } from "@/lib/auth/totp";
@@ -30,6 +35,10 @@ export async function POST(req: NextRequest) {
   if (session.actorUserId) return forbidden("İşletme hesabındayken (impersonation) silme yapılamaz.");
   if (session.role !== "owner") return forbidden("Hesabı yalnızca sahip rolü silebilir.");
 
+  // Codex 11-04 P2: başka (kardeş) alan adından gelen yazma ve JSON olmayan gövde KOTAYI TÜKETMEDEN reddedilir — aksi hâlde kardeş HTTPS
+  // kökeninden giden basit (text/plain) istekler kullanıcının deneme kovasını doldurup kendi güvenlik işlemini engelleyebiliyordu.
+  if (crossSiteWrite(req)) return forbidden();
+  if (!hasJsonContentType(req)) return unsupportedMediaType();
   const limited = await rateLimit(`account-delete:${session.userId}`, 5, 15 * 60_000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
   // 🚨 GÜNLÜK ORTAK HATA TAVANI (09-23 saldırgan turu): kısa kova tek başına günde 480 şifre

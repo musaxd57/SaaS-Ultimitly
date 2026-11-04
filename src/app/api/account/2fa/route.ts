@@ -1,7 +1,20 @@
 import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireSession, unauthorized, forbidden, badRequest, jsonOk, serverError, tooManyRequests, readJsonCappedOrNull, noStore } from "@/lib/api";
+import {
+  requireSession,
+  unauthorized,
+  forbidden,
+  badRequest,
+  jsonOk,
+  serverError,
+  tooManyRequests,
+  readJsonCappedOrNull,
+  noStore,
+  hasJsonContentType,
+  unsupportedMediaType,
+} from "@/lib/api";
 import { rateLimit } from "@/lib/rate-limit";
+import { crossSiteWrite } from "@/lib/route-guard";
 import { encryptSecret, decryptSecret } from "@/lib/crypto";
 // ⚠️ `verifyTotp` (boole) BİLİNÇLİ OLARAK İMPORT EDİLMİYOR: bu rotadaki üç
 // doğrulama yolu da kodu TÜKETMEK zorunda, o yüzden hepsi `verifyTotpStep` +
@@ -90,6 +103,10 @@ export async function POST(req: NextRequest) {
         "Müşteri erişimini kaybettiyse operatör panelinden 2FA sıfırlama kullanın.",
     );
   }
+  // Codex 11-04 P2: başka (kardeş) alan adından gelen yazma ve JSON olmayan gövde KOTAYI TÜKETMEDEN reddedilir — aksi hâlde kardeş HTTPS
+  // kökeninden giden basit (text/plain) istekler kullanıcının deneme kovasını doldurup kendi güvenlik işlemini engelleyebiliyordu.
+  if (crossSiteWrite(req)) return forbidden();
+  if (!hasJsonContentType(req)) return unsupportedMediaType();
   // Throttle 2FA management (enable/disable code attempts) — anti code brute-force.
   const limited = await rateLimit(`2fa:${session.userId}`, 10, 10 * 60_000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
