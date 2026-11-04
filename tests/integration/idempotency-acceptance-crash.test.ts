@@ -11,12 +11,15 @@ vi.mock("@/lib/api", async (orig) => {
 vi.mock("@/lib/report-error", () => ({ reportError: vi.fn().mockResolvedValue({ notified: false, throttled: false, configured: false }) }));
 
 import { POST as COPY } from "@/app/api/kb/[id]/copy/route";
+import { __kbCapHooks } from "@/lib/kb/cap-lock";
 
 // ---------------------------------------------------------------------------
 // TEKRAR GÜVENLİĞİ — KISMİ KOPYALAMA, ÇÖKME ORTASINDA (kurucu 10-15 madde 4). A / B yazıldı, C'nin yazması DÜŞTÜ (veritabanı hatası →
 // 500); istemci AYNI kimlikle yeniden dener → yalnız eksik daire(ler) yazılır, A / B'ye ikinci kopya gitmez. Hedef sırası veritabanına
 // bağlı olduğu için iddia sıradan bağımsız: ilk denemede yazılanlar + yeniden denemede yazılanlar = 3, her dairede TAM 1 kopya.
-// AYRI DOSYA: Prisma temsilcisine casus sonraki testlere sızmasın (CLAUDE.md dersi).
+// 11-04: kopya artık plan kilidi altında İŞLEM istemcisinden yazılıyor (Codex 11-04 P2) — genel temsilciye kurulan `create` casusu onu
+// görmüyordu (C hiç düşmedi). Çökme, kilitli bölgenin test kancasından (`afterCount`: sayımdan sonra, C'nin yazmasından önce) atılır →
+// işlem geri alınır, C yazılmaz, rota 5xx.
 // ---------------------------------------------------------------------------
 
 const RID = "a1b2c3d4e5f60718293a4b5c6d7e8f90";
@@ -44,21 +47,22 @@ describe("4 · Kısmi kopyalama — C'nin yazması düştü", () => {
     c = await mk("Lale 4");
     srcId = (await prisma.knowledgeBaseItem.create({ data: { propertyId, category: "wifi", title: "Wi-Fi", content: "Metin.", isActive: true } })).id;
   });
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    __kbCapHooks.afterCount = null;
+    vi.restoreAllMocks();
+  });
   afterAll(async () => {
     await prisma.$disconnect();
   });
 
   it("🚨 ilk deneme C'de 500 ile düşer; aynı kimlikle yeniden deneme YALNIZ eksikleri yazar — her dairede tam bir kopya", async () => {
-    const realCreate = prisma.knowledgeBaseItem.create.bind(prisma.knowledgeBaseItem);
     let failedOnce = false;
-    vi.spyOn(prisma.knowledgeBaseItem, "create").mockImplementation(((args: { data: { propertyId: string } }) => {
-      if (args.data.propertyId === c && !failedOnce) {
+    __kbCapHooks.afterCount = async (target: string) => {
+      if (target === c && !failedOnce) {
         failedOnce = true;
-        return Promise.reject(new Error("connection reset"));
+        throw new Error("connection reset");
       }
-      return realCreate(args as never);
-    }) as never);
+    };
 
     const first = await copy(srcId, { targetPropertyIds: [a, b, c], requestId: RID }).catch(() => null);
     expect(first === null || first.status >= 500).toBe(true); // ilk deneme düştü (yanıt yok ya da 5xx)

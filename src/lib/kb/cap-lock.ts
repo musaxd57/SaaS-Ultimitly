@@ -10,13 +10,16 @@ import { Prisma } from "@prisma/client";
 
 const KB_CAP_LOCK_NS = 48;
 
-/** Yalnız testler: kilitli bölgede sayımdan SONRA bekleme noktası (eşzamanlılık testi şansa kalmasın). */
-export const __kbCapHooks: { afterCount: null | (() => Promise<void>) } = { afterCount: null };
+/**
+ * Yalnız testler: kilitli bölgede sayımdan SONRA, yazmadan ÖNCE bekleme / araya girme noktası (eşzamanlılık testi şansa kalmasın). Yazma
+ * işlem istemcisinden yapıldığı için genel Prisma temsilcisine kurulan casus onu görmez — yarış / çökme testleri buradan kurulur.
+ */
+export const __kbCapHooks: { afterCount: null | ((propertyId: string) => Promise<void>) } = { afterCount: null };
 
 /** Mülkün kilidini alır (işlem sonuna kadar) ve etkin kalem sayısını döner. Çağıran yazmayı AYNI işlemde yapar. */
 export async function lockedActiveKbCount(tx: Prisma.TransactionClient, propertyId: string): Promise<number> {
   await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(${KB_CAP_LOCK_NS}::int4, hashtext(${propertyId}))`);
   const n = await tx.knowledgeBaseItem.count({ where: { propertyId, isActive: true } });
-  if (__kbCapHooks.afterCount) await __kbCapHooks.afterCount();
+  if (__kbCapHooks.afterCount) await __kbCapHooks.afterCount(propertyId);
   return n;
 }

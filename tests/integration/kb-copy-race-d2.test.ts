@@ -11,14 +11,17 @@ vi.mock("@/lib/api", async (orig) => {
 });
 
 import { POST as COPY } from "@/app/api/kb/[id]/copy/route";
+import { __kbCapHooks } from "@/lib/kb/cap-lock";
+import { kbContentFingerprint } from "@/lib/kb/copy-fingerprint";
 
 // ---------------------------------------------------------------------------
 // KURUCU D2 + Opus O9 — BELİRLENİMCİ yarış. `kb-copy-update-d2.test.ts`teki gerçek eşzamanlı iki istek hangi isteğin kazanacağını ve
 // kaybedenin hangi dala (ön okuma / tekil dizin) düşeceğini seçemez: mutasyon turunda (10-15) "kazanan aynı içerik mi" karşılaştırması
 // `false` yapılınca o test YEŞİL kaldı. Burada kopyanın `create` çağrısından hemen önce başka bir istek (kimliksiz) aynı daireye bağlı
 // kopyayı yazar → kaybeden HER ZAMAN `(propertyId, copiedFromId)` tekil dizin dalına düşer.
-// Prisma temsilcisindeki spy geri alınınca sonraki testlerde `create` kayboluyor (ölçüldü) → spy dosya boyunca TEK kez kurulur, geçişi
-// varsayılan olarak gerçek fonksiyona; yarış yalnız `race` doluyken bir kez.
+// 11-04: kopya artık plan kilidi altında İŞLEM istemcisinden yazılıyor (Codex 11-04 P2, `kb/cap-lock.ts`) — genel temsilciye kurulan
+// `create` casusu onu görmüyordu (yarış hiç kurulmadı, test kırmızı). Araya girme, kilitli bölgenin test kancasından (`afterCount`: sayımdan
+// sonra, yazmadan önce) — kazanan satır BAŞKA bağlantıdan yazılır, kaybedenin yazması tekil dizine çarpar.
 // ---------------------------------------------------------------------------
 
 const RID = "a1b2c3d4e5f60718293a4b5c6d7e8f90";
@@ -28,16 +31,27 @@ const copy = (sourceId: string, body: unknown) =>
 
 /** `null`: yarış yok. `"same"`: kazanan aynı içerik izini yazar. Diğer dize: kazanan o içerik izini yazar. */
 let race: string | null = null;
-const realCreate = prisma.knowledgeBaseItem.create.bind(prisma.knowledgeBaseItem);
-vi.spyOn(prisma.knowledgeBaseItem, "create").mockImplementation((async (args: Parameters<typeof realCreate>[0]) => {
-  const data = args.data as Record<string, unknown>;
-  if (race !== null && data.copiedFromId) {
-    const hash = race;
-    race = null;
-    await realCreate({ data: { ...data, clientRequestId: null, ...(hash === "same" ? {} : { copiedContentHash: hash }) } } as never);
-  }
-  return realCreate(args);
-}) as never);
+/** Yarışın kaynağı (kazanan bu kalemin kopyasını yazar). */
+let raceSourceId = "";
+__kbCapHooks.afterCount = async (propertyId: string) => {
+  if (race === null) return;
+  const hash = race;
+  race = null;
+  const s = await prisma.knowledgeBaseItem.findUniqueOrThrow({ where: { id: raceSourceId } });
+  await prisma.knowledgeBaseItem.create({
+    data: {
+      propertyId,
+      category: s.category,
+      title: s.title,
+      content: s.content,
+      language: s.language,
+      isActive: s.isActive,
+      copiedFromId: s.id,
+      copiedContentHash: hash === "same" ? kbContentFingerprint(s) : hash,
+      clientRequestId: null,
+    },
+  });
+};
 
 describe("bilgi tabanı kopyalama — eşzamanlı ikinci kopyanın sonucu (kurucu D2, Opus O9)", () => {
   let src: string;
@@ -51,8 +65,10 @@ describe("bilgi tabanı kopyalama — eşzamanlı ikinci kopyanın sonucu (kuruc
     session = { userId: "u", organizationId: made.orgId, role: "owner", email: "o@x.com", name: "O", sessionEpoch: 0 };
     a = (await prisma.property.create({ data: { organizationId: made.orgId, name: "Lale 2" } })).id;
     src = (await prisma.knowledgeBaseItem.create({ data: { propertyId: made.propertyId, category: "faq", title: "Havuz", content: "Havuz 09:00–20:00 açık.", isActive: true } })).id;
+    raceSourceId = src;
   });
   afterAll(async () => {
+    __kbCapHooks.afterCount = null;
     await prisma.$disconnect();
   });
 
