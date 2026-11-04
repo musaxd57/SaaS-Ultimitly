@@ -45,12 +45,14 @@ export async function GET(req: NextRequest) {
     // to Settings with the same generic marker used when OAuth is not configured.
     return NextResponse.redirect(`${base}/settings?hospitable=not_configured`);
   }
-  const res = NextResponse.redirect(authorizeUrl);
   // Bind the round-trip to the INITIATING org+user (not just CSRF): the callback
   // rejects if the session context changed mid-flow (e.g. impersonation exit),
   // so the tokens can never be saved to a different tenant than the one that
-  // started the connect.
-  res.cookies.set(OAUTH_STATE_COOKIE, packOAuthStateCookie(state, session.organizationId, session.userId), {
+  // started the connect. Codex 11-04: the value is SERVER-SIGNED + expiring; no secret → no signed state → flow stays closed.
+  const packed = packOAuthStateCookie(state, session.organizationId, session.userId);
+  if (!packed) return NextResponse.redirect(`${base}/settings?hospitable=not_configured`);
+  const res = NextResponse.redirect(authorizeUrl);
+  res.cookies.set(OAUTH_STATE_COOKIE, packed, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",

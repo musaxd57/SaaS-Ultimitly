@@ -1,7 +1,7 @@
 import "server-only";
 
 import { appCanonicalOrigin } from "@/lib/app-config";
-import { randomBytes } from "crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 import { isSecureExternalUrl } from "@/lib/secure-url";
 
 // ---------------------------------------------------------------------------
@@ -98,24 +98,47 @@ export function generateOAuthState(): string {
 // whatever org the session happens to hold at callback time. The callback
 // requires cookie-org === session-org and cookie-user === session-user.
 //
-// No HMAC needed: the cookie is httpOnly and only ever EQUALITY-CHECKED against
-// the server-side session — a client tampering with its own cookie can only
-// make its own flow fail, never redirect a token to a foreign org.
+// 🚨 Codex 11-04 P2: "HMAC gerekmez" varsayımı YANLIŞTI. Çerez httpOnly + host-only YAZILIR ama kardeş bir alt alan adı (saldırgan
+// kontrollü) kurbanın tarayıcısına AYNI ADLI öneksiz çerezi ekleyebilir (cookie tossing): saldırgan kendi seçtiği `state` + kurbanın
+// org/kullanıcı kimliğiyle çerez yerleştirip kurbanı kendi yetki koduyla callback'e götürürse eşitlik kontrolleri geçiyor, kurbanın işletmesi
+// SALDIRGANIN Hospitable hesabına bağlanıyordu. Artık değer SUNUCU İMZALI (HMAC, `AUTH_SECRET`) + süreli: kardeş alan adı geçerli imza
+// üretemez; saldırganın kendi akışından aldığı gerçek çerez ise KENDİ org/kullanıcısını taşır → oturumla eşleşmez. İmzasız (eski) / bozuk /
+// süresi geçmiş değer reddedilir (açık akış yeniden başlatılır).
 
-/** Pack the CSRF state + initiating org/user into the state cookie value. */
-export function packOAuthStateCookie(state: string, organizationId: string, userId: string): string {
-  // "." never appears in the hex state or in cuid ids — an unambiguous join.
-  return `${state}.${organizationId}.${userId}`;
+const STATE_MAC_DOMAIN = "hospitable-oauth-state:v1";
+
+function stateSecret(): string {
+  return process.env.AUTH_SECRET ?? "";
 }
 
-/** Parse a state cookie; null on any malformed/legacy (bare-state) value. */
+function stateMac(body: string): string {
+  return createHmac("sha256", stateSecret()).update(`${STATE_MAC_DOMAIN}.${body}`).digest("base64url");
+}
+
+/** Pack the CSRF state + initiating org/user + expiry into a SIGNED state cookie value; null when no server secret (flow stays closed). */
+export function packOAuthStateCookie(state: string, organizationId: string, userId: string, now: Date = new Date()): string | null {
+  if (!stateSecret()) return null;
+  const exp = Math.floor(now.getTime() / 1000) + STATE_MAX_AGE;
+  // "." never appears in the hex state, in cuid ids, in a decimal number or in base64url — an unambiguous join.
+  const body = `${state}.${organizationId}.${userId}.${exp}`;
+  return `${body}.${stateMac(body)}`;
+}
+
+/** Parse + VERIFY a state cookie; null on any malformed / unsigned (legacy) / tampered / expired value. */
 export function parseOAuthStateCookie(
   value: string | undefined,
+  now: Date = new Date(),
 ): { state: string; organizationId: string; userId: string } | null {
-  if (!value) return null;
+  if (!value || !stateSecret()) return null;
   const parts = value.split(".");
-  if (parts.length !== 3 || parts.some((p) => !p)) return null;
-  return { state: parts[0], organizationId: parts[1], userId: parts[2] };
+  if (parts.length !== 5 || parts.some((p) => !p)) return null;
+  const [state, organizationId, userId, expRaw, mac] = parts as [string, string, string, string, string];
+  const expected = Buffer.from(stateMac(`${state}.${organizationId}.${userId}.${expRaw}`));
+  const given = Buffer.from(mac);
+  if (given.length !== expected.length || !timingSafeEqual(given, expected)) return null;
+  const exp = Number(expRaw);
+  if (!/^\d{1,12}$/.test(expRaw) || !Number.isFinite(exp) || exp * 1000 <= now.getTime()) return null;
+  return { state, organizationId, userId };
 }
 
 export function buildAuthorizeUrl(config: HospitableOAuthConfig, state: string): string | null {

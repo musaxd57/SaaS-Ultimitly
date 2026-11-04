@@ -78,13 +78,42 @@ beforeEach(() => {
 });
 
 describe("OAuth state ↔ session context binding", () => {
-  it("pack/parse round-trips; legacy bare-state and malformed values parse to null", () => {
-    const packed = packOAuthStateCookie("abc123", "org_a", "user_1");
-    expect(parseOAuthStateCookie(packed)).toEqual({ state: "abc123", organizationId: "org_a", userId: "user_1" });
+  it("pack/parse round-trips; legacy bare-state, UNSIGNED 3-part (pre-11-04), malformed, tampered and expired values parse to null", () => {
+    const now = new Date("2026-11-04T10:00:00Z");
+    const packed = packOAuthStateCookie("abc123", "org_a", "user_1", now)!;
+    expect(parseOAuthStateCookie(packed, now)).toEqual({ state: "abc123", organizationId: "org_a", userId: "user_1" });
     expect(parseOAuthStateCookie("just-a-bare-state")).toBeNull(); // pre-fix cookie format
+    expect(parseOAuthStateCookie("abc123.org_a.user_1")).toBeNull(); // 🚨 Codex 11-04: unsigned (previous format) is no longer accepted
     expect(parseOAuthStateCookie("a.b")).toBeNull();
     expect(parseOAuthStateCookie("a..c")).toBeNull();
     expect(parseOAuthStateCookie(undefined)).toBeNull();
+    // Tampered org / user / expiry keep the old MAC → rejected.
+    const [st, , user, exp, mac] = packed.split(".");
+    expect(parseOAuthStateCookie(`${st}.org_victim.${user}.${exp}.${mac}`, now)).toBeNull();
+    expect(parseOAuthStateCookie(`${st}.org_a.${user}.${Number(exp) + 3600}.${mac}`, now)).toBeNull();
+    // Expired (STATE_MAX_AGE passed).
+    expect(parseOAuthStateCookie(packed, new Date(now.getTime() + 11 * 60_000))).toBeNull();
+  });
+
+  it("🚨 Codex 11-04: kardeş alan adından EKLENMİŞ (imzasız / sahte imzalı) çerez, kurbanın org/kullanıcısını taşısa da reddedilir — kod TAKAS EDİLMEZ", async () => {
+    session = owner("org_victim", "user_victim");
+    const forgedUnsigned = `attackerstate.org_victim.user_victim`;
+    const forgedBadMac = `attackerstate.org_victim.user_victim.${Math.floor(Date.now() / 1000) + 300}.AAAA`;
+    for (const cookie of [forgedUnsigned, forgedBadMac]) {
+      const res = await callback(callbackReq("attackerstate", cookie));
+      expect(res.headers.get("location")).toContain("hospitable=state_mismatch");
+    }
+    expect(mockExchange).not.toHaveBeenCalled();
+    expect(mockSave).not.toHaveBeenCalled();
+  });
+
+  it("🚨 Codex 11-04: saldırganın KENDİ akışından aldığı gerçek imzalı çerez kurbanın oturumunda işe yaramaz (org/kullanıcı uyuşmaz)", async () => {
+    session = owner("org_attacker", "user_attacker");
+    const { cookie, state } = await startFlow();
+    session = owner("org_victim", "user_victim");
+    const res = await callback(callbackReq(state, cookie));
+    expect(res.headers.get("location")).toContain("hospitable=context_changed");
+    expect(mockExchange).not.toHaveBeenCalled();
   });
 
   it("HAPPY: same org+user from authorize to callback → tokens saved to the INITIATING org", async () => {
