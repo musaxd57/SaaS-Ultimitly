@@ -808,6 +808,22 @@ describe("konaklama bitince (kurucu: havlu / temizlik / eksik eşya kapansın, a
     expect(await closeStayEndedCommitments(NOW)).toEqual({ closed: 0 });
   });
 
+  it("🚨 Codex 11-04 P2: liste 'konaklama bitti' okuduktan SONRA konaklama UZATILDI → söz iptal edilmez, görevi silinmez", async () => {
+    const { s, towels } = await seed(yesterdayKey());
+    __stayEndHooks.beforeRow = async () => {
+      // Senkron / içe aktarma çıkışı 3 gün ileri aldı (satır listede eski çıkışla duruyor).
+      await prisma.reservation.update({ where: { id: s.reservationId! }, data: { departureDate: addZonedDays(NOW, 3, TZ) } });
+    };
+    try {
+      expect(await closeStayEndedCommitments(NOW)).toEqual({ closed: 0 });
+    } finally {
+      __stayEndHooks.beforeRow = undefined;
+    }
+    expect(await prisma.guestCommitment.count({ where: { status: "open" } })).toBe(3);
+    expect(await prisma.task.findUnique({ where: { id: towels.taskId } })).not.toBeNull();
+    expect(await prisma.auditLog.count({ where: { action: "commitment.stay_ended" } })).toBe(0);
+  });
+
   it("KONTROL: çıkış günü BUGÜN → hiçbiri kapanmaz (çıkış günü boyunca söz açık); başlığı ev sahibince değiştirilmiş görev silinmez", async () => {
     await seed(todayKey());
     expect(await closeStayEndedCommitments(NOW)).toEqual({ closed: 0 });

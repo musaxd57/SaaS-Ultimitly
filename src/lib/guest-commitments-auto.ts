@@ -1,4 +1,5 @@
 import "server-only";
+import { lockReservationTasks } from "@/lib/tasks/reservation-lock";
 
 import { prisma } from "@/lib/db";
 import { writeAuditInTx } from "@/lib/audit";
@@ -235,7 +236,7 @@ export async function closeStayEndedCommitments(now: Date = new Date()): Promise
       dayPart: true,
       taskId: true,
       organization: { select: { timezone: true } },
-      conversation: { select: { reservation: { select: { departureDate: true } } } },
+      conversation: { select: { reservation: { select: { id: true, departureDate: true } } } },
     },
     take: 500,
   });
@@ -252,7 +253,7 @@ export async function closeStayEndedCommitments(now: Date = new Date()): Promise
     let done = false;
     try {
       await __stayEndHooks.beforeRow?.(c.id);
-      done = await closeOneStayEnded(c, now);
+      done = await closeOneStayEnded(c, c.conversation.reservation?.id ?? null, now, tz);
     } catch (err) {
       await reportError("commitment-stay-end", err);
     }
@@ -266,9 +267,19 @@ export const __stayEndHooks: { beforeRow?: (commitmentId: string) => Promise<voi
 
 async function closeOneStayEnded(
   c: { id: string; organizationId: string; kind: string; topic: string | null; dayPart: string | null; taskId: string | null },
+  reservationId: string | null,
   now: Date,
+  tz: string,
 ): Promise<boolean> {
   return prisma.$transaction(async (tx) => {
+    // 🚨 Codex 11-04 P2: liste "konaklama bitti" dedikten SONRA senkron / içe aktarma konaklamayı UZATMIŞ olabilir — eski çıkış gününe dayanıp
+    // açık söz iptal edilip görevi siliniyordu. Tarih yazanlarla ORTAK rezervasyon kilidi (44, `followReservationDates` alır) İLK alınır
+    // (sonra görev satır kilidi: tarih yazan 44 → görev sırasıyla döngü yok) ve çıkış günü kilit altında YENİDEN okunur.
+    if (reservationId) {
+      await lockReservationTasks(tx, reservationId);
+      const live = await tx.reservation.findUnique({ where: { id: reservationId }, select: { departureDate: true } });
+      if (live && !stayEndedBefore(live.departureDate, now, tz)) return false;
+    }
     // KİLİT SIRASI görev → söz (gece-4 S1-17): görev düzenleme (`api/tasks/[id]`) görevi kilitleyip sözü günceller; burada ters sıra
     // eşzamanlı bir durum değişikliğiyle kilitlenmeye (deadlock) düşebiliyordu.
     // Kilit ALINDIKTAN SONRA görev durumu yeniden okunur (Codex 10-21): liste "başlanmamış" dedikten sonra personel işe başlamışsa söz
