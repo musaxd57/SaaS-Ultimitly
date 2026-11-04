@@ -8,6 +8,7 @@ import { orgTimezone, zonedDayRange, zonedDateStart, addZonedDays } from "@/lib/
 import { reservationDayRangeWhere, taskDueDayRangeWhere, todayRange } from "@/lib/day-where";
 import { addNights, calendarDateOf, todayKey } from "@/modules/availability/core";
 import { isAutomationMessage } from "@/lib/message-author";
+import { findInChunks } from "@/lib/in-chunks";
 import { reservationMessagingCapable } from "@/lib/channels/capability";
 
 // Reporting day/occupancy math is anchored to the HOST'S calendar day
@@ -693,38 +694,44 @@ export async function getHostPerformanceScore(orgId: string): Promise<HostPerfor
   let answeredWithin24h = 0;
 
   if (recentConversations.length > 0) {
-    // One query for all messages (was N+1: a findMany per conversation).
-    const recentMessages = await prisma.message.findMany({
-      where: { conversationId: { in: recentConversations.map((c) => c.id) } },
-      select: { id: true, conversationId: true, direction: true, createdAt: true, authorType: true },
-      orderBy: { createdAt: "asc" },
-    });
+    // One query for all messages (was N+1: a findMany per conversation). Büyük işletmede `IN` listeleri 32.767 bağ değişkenini aşıp
+    // sayfayı düşürüyordu (ölçek turu DB-4) → `findInChunks`. Mesajlar KONUŞMA kimliğiyle parçalanır: bir konuşmanın bütün mesajları
+    // aynı dilimde, dilim içi `createdAt asc` → konuşma başına sıra korunur (`grouped` yalnız konuşma içi sıraya bakar).
+    const recentMessages = await findInChunks(
+      recentConversations.map((c) => c.id),
+      (ids) =>
+        prisma.message.findMany({
+          where: { conversationId: { in: ids } },
+          select: { id: true, conversationId: true, direction: true, createdAt: true, authorType: true },
+          orderBy: { createdAt: "asc" },
+        }),
+    );
     // Kapanışa sessizlik (kurucu kuralı 09-25): yapay zekânın BİLEREK cevapsız bıraktığı teşekkür/onay mesajları
     // (karar kaydı `no_reply`) cevap bekleyen mesaj sayılmaz. Kiracı kapsamlı; mesaj kimliğiyle eşleşir.
     const inboundIds = recentMessages.filter((m) => m.direction === "inbound").map((m) => m.id);
     const noReplyIds = new Set(
-      inboundIds.length === 0
-        ? []
-        : (
-            await prisma.riskEvent.findMany({
-              where: { organizationId: orgId, finalDecision: "no_reply", triggerId: { in: inboundIds } },
-              select: { triggerId: true },
-            })
-          ).map((r) => r.triggerId),
+      (
+        await findInChunks(inboundIds, (ids) =>
+          prisma.riskEvent.findMany({
+            where: { organizationId: orgId, finalDecision: "no_reply", triggerId: { in: ids } },
+            select: { triggerId: true },
+          }),
+        )
+      ).map((r) => r.triggerId),
     );
     // 🚨 TESLİM EDİLMEMİŞ GİDEN MESAJ CEVAP DEĞİLDİR (Codex 09-30, A6) — ↓`getAiOpsReport` ile AYNI kural: kuyrukta bekleyen,
     // gönderim anında iptal edilen, kalıcı düşen ya da incelemeye park edilen taslak misafire ULAŞMADI; yanıt oranını
     // şişiriyordu (aynı kartta yapay zekâ sayımı onları zaten dışlıyordu). Kuyruk bayrağı kapalıyken tablo boş → davranış aynı.
     const outboundIds = recentMessages.filter((m) => m.direction === "outbound").map((m) => m.id);
     const undelivered = new Set(
-      outboundIds.length === 0
-        ? []
-        : (
-            await prisma.messageOutbox.findMany({
-              where: { organizationId: orgId, status: { not: "sent" }, messageId: { in: outboundIds } },
-              select: { messageId: true },
-            })
-          ).map((r) => r.messageId),
+      (
+        await findInChunks(outboundIds, (ids) =>
+          prisma.messageOutbox.findMany({
+            where: { organizationId: orgId, status: { not: "sent" }, messageId: { in: ids } },
+            select: { messageId: true },
+          }),
+        )
+      ).map((r) => r.messageId),
     );
     const grouped = new Map<string, { direction: string; createdAt: Date; noReplyNeeded: boolean }[]>();
     for (const m of recentMessages) {
