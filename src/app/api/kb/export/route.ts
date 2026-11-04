@@ -21,6 +21,10 @@ export const dynamic = "force-dynamic";
 //    eski + onaylı; Haiku 10-28 — onay bekleyen taslak dosyaya girip yeniden yüklemede ev sahibinin yazdığı metin gibi dönmesin).
 // ---------------------------------------------------------------------------
 export const GET = withManage(async (session, req) => {
+  // Başka siteden açılan bağlantı (çerez `sameSite: lax` GET'i taşır) saatlik hakkı yakamaz, denetim kaydına sahte satır yazamaz — yalnız aynı
+  // site / adres çubuğu (ajan turu 11-04, güvenlik S-04; `hospitable/diagnostics` emsali). Hız sınırından ÖNCE.
+  const fetchSite = req.headers.get("sec-fetch-site");
+  if (fetchSite && fetchSite !== "same-origin" && fetchSite !== "none") return forbidden();
   if (isImpersonating(session)) return forbidden("Destek görünümünde müşteri verisi dışa aktarılamaz.");
   const gate = await paidPlanFeatureAllowed(session.organizationId);
   if (!gate.ok) return forbidden(gate.reason === "trial" ? PAID_FEATURE_TRIAL_MESSAGE : PAID_FEATURE_INACTIVE_MESSAGE);

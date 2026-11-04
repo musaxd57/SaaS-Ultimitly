@@ -68,6 +68,19 @@ describe("şablon / dışa aktarma uçları", () => {
     expect(await prisma.auditLog.count({ where: { organizationId: orgId, action: "kb.export" } })).toBe(1);
   });
 
+  it("🚨 başka siteden tetiklenen dışa aktarma 403 — saatlik hak yanmaz, denetim kaydına sahte satır düşmez; aynı site / adres çubuğu açık", async () => {
+    // Ajan turu 11-04 (güvenlik S-04, doğrulandı): çerez `sameSite: lax` → saldırgan sayfası bağlantıyla GET'i tetikleyip 10 hakkı bitirebiliyor,
+    // denetim kaydına sahte satır yazdırıyordu (veri saldırgana gitmez — ek dosya). `hospitable/diagnostics` emsali.
+    const cross = (site: string) => EXPORT(new NextRequest("http://localhost/api/kb/export", { headers: { "sec-fetch-site": site } }), { params: Promise.resolve({}) } as never);
+    for (let i = 0; i < 11; i++) expect((await cross("cross-site")).status).toBe(403);
+    expect((await cross("same-site")).status).toBe(403);
+    expect(await prisma.auditLog.count({ where: { organizationId: orgId, action: "kb.export" } })).toBe(0);
+    // KONTROL: panelin kendi bağlantısı (same-origin) ve adres çubuğu (none) çalışır — yukarıdaki 12 deneme hakkı yakmadı.
+    expect((await cross("same-origin")).status).toBe(200);
+    expect((await cross("none")).status).toBe(200);
+    expect(await prisma.auditLog.count({ where: { organizationId: orgId, action: "kb.export" } })).toBe(2);
+  });
+
   it("🚨 destek görünümünde (bürünme) dışa aktarma kapalı; personel rolü kapalı", async () => {
     session = { ...session, actorUserId: "operator-1" } as SessionPayload;
     expect((await call(EXPORT, "/api/kb/export")).status).toBe(403);
