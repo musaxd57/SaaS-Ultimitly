@@ -47,6 +47,8 @@ export default async function KnowledgePage({
     content: i.content,
     language: i.language,
     isActive: i.isActive,
+    // Codex 11-04 P2: düzenleyici açıldığı andaki sürümü saklar → başka sekmenin / kişinin kaydı sessizce ezilmez (409).
+    updatedAt: i.updatedAt.toISOString(),
   }));
 
   // "Uyuşmayan saatler" — yalnız AI'ın GERÇEKTEN okuduğu kalemler üzerinden (aktif + onay kapısı +

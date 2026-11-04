@@ -300,7 +300,10 @@ export const kbSchema = z.object({
 });
 export type KbInput = z.infer<typeof kbSchema>;
 
-export const kbUpdateSchema = patchSchemaOf(kbSchema).omit({ propertyId: true, requestId: true });
+export const kbUpdateSchema = patchSchemaOf(kbSchema)
+  .omit({ propertyId: true, requestId: true })
+  // Codex 11-04 P2: düzenleyicinin açıldığı sürüm (isteğe bağlı; gönderilmezse bugünkü davranış). Yazılmaz, yalnız koşul.
+  .extend({ expectedUpdatedAt: z.string().max(40).optional() });
 
 /** Helper to format a ZodError into a flat { field: message } map for the API. */
 export function zodFieldErrors(error: z.ZodError): Record<string, string> {

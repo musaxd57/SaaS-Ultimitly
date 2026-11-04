@@ -102,6 +102,8 @@ export interface KbItem {
   content: string;
   language: string;
   isActive: boolean;
+  /** Kalemin sunucudaki son kayıt anı (ISO) — düzenleyici bununla kaydeder; arada başka yerden değiştiyse kayıt 409 alır, taslak korunur. */
+  updatedAt?: string;
 }
 
 // "Kaydedilen bilgiyi düzenle": düzenleyici listedeki kalemin içinde açılır — formdan uzakta (telefonda birkaç ekran aşağıda);
@@ -365,6 +367,8 @@ export function KbManager({
   // --- Edit an entry (category / title / content) --------------------------
   const [editId, setEditId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ category: "general", title: "", content: "" });
+  // Düzenleyicinin açıldığı sürüm (Codex 11-04 P2: eski sekme yeni bilgiyi geri yazmasın).
+  const [editBase, setEditBase] = useState<string | null>(null);
   const [editBusy, setEditBusy] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
@@ -386,6 +390,7 @@ export function KbManager({
     setCopyId(null);
     setEditId(item.id);
     setEditForm({ category: item.category, title: item.title, content: item.content });
+    setEditBase(item.updatedAt ?? null);
     setEditError(null);
   }
 
@@ -396,7 +401,7 @@ export function KbManager({
       const res = await fetch(`/api/kb/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(editForm),
+        body: JSON.stringify(editBase ? { ...editForm, expectedUpdatedAt: editBase } : editForm),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {

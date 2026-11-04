@@ -1,3 +1,4 @@
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { kbUpdateSchema, zodFieldErrors } from "@/lib/validators";
 import { badRequest, jsonOk, notFound, readJsonCappedOrNull } from "@/lib/api";
@@ -6,6 +7,7 @@ import { limitsForOrg } from "@/lib/billing/plan-limits";
 import { KB_ITEM_CAP } from "@/lib/ai/limits";
 import { afterKbItemsChanged } from "@/lib/kb/after-change";
 import { withoutClientRequestId } from "@/lib/kb/request-id";
+import { KB_STALE_EDIT_MESSAGE } from "@/lib/kb/stale-edit";
 
 // ---------------------------------------------------------------------------
 // PLAN SINIRLARI DÜZENLEME YOLUNDA DA GEÇERLİ (denetim, 07-31).
@@ -36,7 +38,11 @@ export const PATCH = withManage<{ id: string }>(async (session, req, { params })
   const data = await readJsonCappedOrNull(req);
   const parsed = kbUpdateSchema.safeParse(data);
   if (!parsed.success) return badRequest(zodFieldErrors(parsed.error));
-  const d = parsed.data;
+  const { expectedUpdatedAt, ...d } = parsed.data;
+  // Codex 11-04 P2: düzenleyici açıldığı andaki sürümü gönderir; arada başka sekme / kişi kaydettiyse eski form yeni bilgiyi (ör. yeni Wi-Fi
+  // şifresi) sessizce GERİ YAZMASIN → 409, taslak düzenleyicide kalır. Gönderilmezse (eski istemci, pasife alma düğmesi) bugünkü davranış.
+  const expected = expectedUpdatedAt ? new Date(expectedUpdatedAt) : null;
+  if (expectedUpdatedAt && (!expected || Number.isNaN(expected.getTime()))) return badRequest({ _: "Geçersiz istek." });
 
   const limits = await limitsForOrg(session.organizationId);
 
@@ -85,14 +91,22 @@ export const PATCH = withManage<{ id: string }>(async (session, req, { params })
   // L2 GERİ AL (kurucu 10-17): "yerine konmuş" eski kalemi ev sahibi yeniden etkinleştirirse halef bağı AYNI yazımda temizlenir — yoksa getirme
   // kuralı ("halefi kümede olan kalem düşer", `retrieval/rerank.ts`) yeniden açılan kalemi sessizce düşürürdü. Yeni kalem etkin kalır.
   const reactivatesRetired = d.isActive === true && !existing.isActive && existing.supersededById !== null;
-  const item = await prisma.knowledgeBaseItem.update({
-    where: { id },
-    data: reactivatesRetired ? { ...d, supersededById: null, supersededAt: null } : d,
-  });
+  const patch = reactivatesRetired ? { ...d, supersededById: null, supersededAt: null } : d;
+  if (expected) {
+    const written = await prisma.knowledgeBaseItem.updateMany({ where: { id, updatedAt: expected }, data: patch });
+    if (written.count !== 1) return staleEdit();
+  }
+  const item = expected
+    ? await prisma.knowledgeBaseItem.findUniqueOrThrow({ where: { id } })
+    : await prisma.knowledgeBaseItem.update({ where: { id }, data: patch });
   // V1: içerik/pasif-aktif değişimi hafızaya anında yansır (pasif → retired); #189 yazma anında ısıtma — tek kanca.
   await afterKbItemsChanged({ organizationId: session.organizationId, propertyIds: [existing.propertyId] });
   return jsonOk(withoutClientRequestId(item));
 });
+
+function staleEdit() {
+  return NextResponse.json({ error: KB_STALE_EDIT_MESSAGE, fields: { _: KB_STALE_EDIT_MESSAGE } }, { status: 409 });
+}
 
 export const DELETE = withManage<{ id: string }>(async (session, _req, { params }) => {
   const { id } = await params;
