@@ -77,8 +77,13 @@ Kurucu 10-15: "Railway'i açınca ekleyeceğimiz bayrakları unutma." Bu dosya T
 `PADDLE_PLAN_CHANGE_ENABLED` · `SHADOW_AI_ENABLED` · `AI_UNDERSTANDING_ENABLED` · `AI_STAY_GUARD_ENABLED` · `AI_CONVERSATION_ITEMS_ENABLED` ·
 `HOUSE_RULES_CARD_ENABLED` · `AI_HOUSE_RULES_SHADOW` · `KB_SEMANTIC_RETRIEVAL` · `KB_RERANK_ENABLED` · `EMAIL_OUTBOX_ENABLED` ·
 `CALENDAR_URL_CONTRACT_ENABLED` · `STORAGE_ENABLED` · `AI_CODE_GREETING_ENABLED` · `AI_HOST_DECISION_HOLD_ENABLED` ·
-`AI_ACCESS_CODE_COMPLETE_ENABLED` · `AI_COMPLAINT_FOLLOWUP_RULE_ENABLED` · `AI_KB_FEE_RULE_ENABLED`
-(son beşi 10-02 kurucu beyanı, Railway'de teyit edilmedi — açılışta gözle bakın). ⚠️ 10-28: `AI_KB_FEE_RULE_ENABLED` artık ÜÇ yeri birlikte açar
+`AI_ACCESS_CODE_COMPLETE_ENABLED` · `AI_COMPLAINT_FOLLOWUP_RULE_ENABLED` · `AI_KB_FEE_RULE_ENABLED` · `QR_ESCALATION_EMAIL_ENABLED`
+(10-02 kurucu beyanı olan beşi Railway'de teyit edilmedi — açılışta gözle bakın). ✅ `QR_ESCALATION_EMAIL_ENABLED=1` KURUCU ONAYLADI 11-04 (derin ajan
+turu S2: "önerini beğendim"): QR misafir sohbetinde açık tehlike yazan misafir için bugün ne misafire ne ev sahibine bir şey gidiyordu (K10 + bayrak
+kapalı; belgeler çelişiyordu — sabah raporu 10-01 "açın", bu belge "açmayın"). Açıkken QR'da ev sahibine kalan HER mesajda (tehlike, şikâyet, günlük
+hak, iptal edilmiş konaklama…) ev sahibine "⚠️ Misafir sohbetinde size devredilen mesaj — {daire}" e-postası (misafir metni / adı YOK; sebep + panel
+bağlantısı); tehlike dışı olayda konaklama başına 5 dk'da bir, tehlikede konaklama başına saatte en çok 3 (`src/lib/guest-chat-alerts.ts`). Misafire
+giden metin DEĞİŞMEZ. Alıcı: işletmenin uyarı adresi, yoksa en eski sahip hesabı. ⚠️ 10-28: `AI_KB_FEE_RULE_ENABLED` artık ÜÇ yeri birlikte açar
 (kurucu kararı 4.13): cevap isteminin ücret kuralı + anlama katmanında "hizmet ücreti sorusu ödeme değildir" eki + kıdemli okuyucuda "yalnız fiyat
 söylemek platform dışı ödeme değildir" satırı. Okuyucu satırı gerçek modelle ÖLÇÜLMEDİ (kredi bitti) — açmadan önce
 `EVAL_SENIOR_SET=airbnb-fee-statements.json` ve `airbnb-message-policy.json` ölçülsün. Ayrıca `DATA_RETENTION_MONTHS=24`, `TRUSTED_PROXY_HOPS=2`,
@@ -177,9 +182,10 @@ kalıcı "işlem yok" sayılıyor (niyet kapanır, yeni işlem açılır) — ye
 `PADDLE_RESUME_ENABLED` (kurucu SG3 10-17: üründe "duraklatma" yok; iptal edilen yenilemede dönem sonu kutusu yeter) ·
 `KB_RETRIEVAL_WIDE_BUDGET` (kurucu: "şimdilik kapalı") · `KB_RERANK_PER_QUESTION` · `KB_TABLE_HEADER` (10-28: uzun tablonun ortasından başlayan parçaya başlık satırı; uzun belge ölçümü `docs/olcum/rag-uzun-belge-*`, açmak kurucu kararı) · `KB_RERANK_ENGINE=decisions` (10-28 gece, kurucu "deneyelim, süreyi kısaltmak işimize yarar": yeniden sıralayıcı OpenAI Decisions API ile — tek koşuda p50 0,41 sn / p95 0,86 sn, sohbetin 1,09 / 1,63'üne karşı; kalite sohbetin oynama aralığının alt ucunda. Boş = bugünkü sohbet sıralayıcısı. Açmadan önce kredi gelince 3 tekrar + uzun belge kör seti, `docs/arastirma-2026-10-28/decisions-api.md`; model `KB_RERANK_DECISIONS_MODEL`, boşken `gpt-6-luna`) · `APP_TRUST_BROWSER_TIMEZONE` · `BILLING_ALLOW_CANCELED_PLAN_CHANGE`
 (geri alma kaçışı) · `ALLOW_LEGACY_LOCAL_UPLOADS` · `TRUST_X_REAL_IP` · `QR_INFORMATIONAL_BAND_ENABLED` · `AI_UNDERSTANDING_THREAT_RULE_ENABLED` ·
-`AI_STAY_DEFERRAL_PLAIN_ENABLED` · `AI_COURTESY_RULE_ENABLED` · `QR_ESCALATION_EMAIL_ENABLED` · `CHANNEL_LISTING_READ` / `CHANNEL_CONNECTION_READ`
+`AI_STAY_DEFERRAL_PLAIN_ENABLED` · `AI_COURTESY_RULE_ENABLED` · `CHANNEL_LISTING_READ` / `CHANNEL_CONNECTION_READ`
 (okuma geçişi, ayrı tur) · `DEMO_TENANT_*` (yalnız CLI).
-⚠️ Bunların birkaçı ölçülmüş ve kurucuya sorulacak (ör. nezaket kuralı, QR acil e-postası) — karar listesinde ayrıca.
+⚠️ Bunların birkaçı ölçülmüş ve kurucuya sorulacak (ör. nezaket kuralı) — karar listesinde ayrıca. (`QR_ESCALATION_EMAIL_ENABLED` 11-04'te
+kurucu onayıyla §1'e taşındı.)
 
 ## 5. Yeni anahtarlar (bu turda eklenenler)
 
