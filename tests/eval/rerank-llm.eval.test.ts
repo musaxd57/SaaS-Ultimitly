@@ -1,4 +1,5 @@
-import { describe, it, expect, afterAll } from "vitest";
+import { describe, it, expect, afterAll, beforeAll } from "vitest";
+import { claudeArmFromEnv, installAnthropicReplyShim, shimSummaryLine } from "./anthropic-reply-shim";
 import { parseSizeList } from "./eval-args";
 import { uniqueReportName } from "./sidecar";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -33,6 +34,9 @@ import { evalRuntime, evalRuntimeMarkdown, reasoningLabel } from "./run-meta";
 // yeniden sıralama çağrılarının %5'inden fazlası düşerse rapor GEÇERSİZ.
 // ---------------------------------------------------------------------------
 
+// Claude kolu (kurucu 11-04: 5.1'in kaldığı üçüncü katman): yalnız sıralayıcı çağrısı Claude'a (`EVAL_CLAUDE_ONLY=lixus:semantic:kb_rerank`),
+// gömme ve diğer her şey gerçek OpenAI'de (iki anahtarlı koşu).
+const CLAUDE = claudeArmFromEnv();
 const key = process.env.OPENAI_API_KEY?.trim() ?? "";
 const enabled = process.env.RUN_REAL_EVAL === "1" && key.length > 20 && !key.startsWith("test-");
 const NOW = Date.UTC(2026, 8, 23, 12);
@@ -42,7 +46,7 @@ const LIMIT = Number(process.env.EVAL_RERANK_LIMIT) > 0 ? Math.trunc(Number(proc
 const SIZES = parseSizeList(process.env.EVAL_RERANK_SIZES, { name: "EVAL_RERANK_SIZES", fallback: [300], allowed: [30, 100, 300] });
 // Ürünün KATMAN çözücüsüyle (10-09: ölçer `semanticModel()` okuyordu — `KB_RERANK_MODEL` ayarlıyken rapor ortak ayarın modelini
 // ölçüp ürünün koşmadığı yapılandırmayı yazabilirdi). Düşünme çabası ürünle aynı kaynaktan (`llmRerank` → katman ayarı).
-const MODEL = process.env.EVAL_RERANK_MODEL?.trim() || semanticModel("rerank");
+const MODEL = CLAUDE ? `${CLAUDE.label} (Claude köprüsü)` : process.env.EVAL_RERANK_MODEL?.trim() || semanticModel("rerank");
 const EFFORT = reasoningLabel(MODEL, semanticReasoningEffort("rerank"));
 const SCALE_SAMPLE = 30;
 const CONCURRENCY = 4;
@@ -88,7 +92,12 @@ const quantile = (xs: number[], p: number) => {
 };
 
 describe.skipIf(!enabled)("#186 OpenAI yeniden sıralayıcı — gerçek ölçüm (ücretli)", () => {
+  let undoShim: (() => void) | null = null;
+  beforeAll(() => {
+    if (CLAUDE) undoShim = installAnthropicReplyShim(CLAUDE.opts, CLAUDE.key);
+  });
   afterAll(() => {
+    undoShim?.();
     if (rows.length === 0) return;
     const now = new Date();
     const stamp = now.toISOString().slice(0, 10);
@@ -110,6 +119,7 @@ describe.skipIf(!enabled)("#186 OpenAI yeniden sıralayıcı — gerçek ölçü
       `Aday: ilk ${RERANK_MAX_CANDIDATES} (alt sorgular arası sırayla) · eşik ${T} · veri SENTETİK (E4 kümesi). Çağrı ${calls.length}, düşen ${failed}.`,
       `Tahmini girdi token (karakter/4): ${tokens.toLocaleString("tr-TR")} · gecikme p50 ${quantile(calls.map((r) => r.ms), 0.5)} ms · p95 ${quantile(calls.map((r) => r.ms), 0.95)} ms.`,
       "",
+      ...(CLAUDE ? [shimSummaryLine(), ""] : []),
       "| boyut | grup | n | embedding (bugün) | + yeniden sıralama | kazanç | kayıp |",
       "|---|---|---|---|---|---|---|",
     ];
@@ -126,7 +136,7 @@ describe.skipIf(!enabled)("#186 OpenAI yeniden sıralayıcı — gerçek ölçü
     lines.push("", "Ölçü: cevap cümlesi istem bloğunda (çok sorulu mesajda İKİ cevap da). Kayıp = yeniden sıralama sonrası düşen.");
     const dir = path.resolve(__dirname, "../../docs/olcum");
     mkdirSync(dir, { recursive: true });
-    writeFileSync(path.join(dir, uniqueReportName(dir, `rerank-olcum-${stamp}${LIMIT ? "-deneme" : ""}.md`)), lines.join("\n") + "\n" + evalRuntimeMarkdown(evalRuntime()), "utf8");
+    writeFileSync(path.join(dir, uniqueReportName(dir, `rerank-olcum-${stamp}${CLAUDE ? `-${CLAUDE.label}` : ""}${LIMIT ? "-deneme" : ""}.md`)), lines.join("\n") + "\n" + evalRuntimeMarkdown(evalRuntime()), "utf8");
   });
 
   it("embedding + yeniden sıralama vs yalnız embedding", async () => {

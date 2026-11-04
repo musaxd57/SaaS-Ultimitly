@@ -1,41 +1,19 @@
 {
   "note": "Bu dosya değişip itilince .github/workflows/claude-eval.yml Claude ölçümünü koşar (anahtarlar GitHub Actions sırrında). suite bir yol ÖNEKİDİR (vitest süzgeci). env bütün kollara ortak; arms (en çok 8) sırayla koşar, kol kendi suite'ini seçebilir (scripts/claude-eval-arms.mjs).",
-  "suite": "tests/eval/decision-text.eval.test.ts",
-  "request": 8,
-  "purpose": "Kurucu 11-04 devam: (1) karar metni yazıcısı, edilgen karar kuralıyla ('onayladık' vetoya takılıyordu) — 5.1 ↔ Haiku düşünme kapalı, geliştirme + KÖR set (acc1). (2) Anlama: Haiku'nun hatası bozuk cihazı 'nasıl kullanılır' saymak; hazır yamanın cümlesi YALNIZ ölçümde istemlere eklenir (ürün kodu değişmez) — 5.1 ↔ Haiku high / low / düşünme kapalı.",
+  "suite": "tests/eval/understanding-breakdown.eval.test.ts",
+  "request": 9,
+  "purpose": "Kurucu 11-04: (1) Anlama katmanı, genişletilmiş set v2 (varsayımsal / çözülmüş / olumsuzlanan / arıza+bağımsız soru / arıza+tehlike / konuşma geçmişli; 37 vaka): bugünkü istem ↔ bağlamdan ayıran v2 kuralı (YALNIZ ölçümde istemlere eklenir), 5.1 ve Haiku (high / low / düşünme kapalı) — kurucuya önce/sonra kanıtı. (2) Yeniden sıralayıcı (5.1'in kaldığı üçüncü katman): 5.1 ↔ Haiku düşünme kapalı, yalnız sıralayıcı çağrısı Claude'a, gömme gerçek OpenAI.",
   "env": {},
   "arms": [
     {
-      "suite": "tests/eval/decision-text.eval.test.ts"
-    },
-    {
-      "suite": "tests/eval/decision-text.eval.test.ts",
-      "EVAL_REPLY_PROVIDER": "anthropic",
-      "EVAL_CLAUDE_REPLY_MODEL": "claude-haiku-5-5",
-      "EVAL_CLAUDE_ONLY": "lixus:semantic:host_decision_message",
-      "EVAL_CLAUDE_THINKING": "disabled",
-      "EVAL_CLAUDE_EFFORT": "low"
-    },
-    {
-      "suite": "tests/eval/decision-text.eval.test.ts",
-      "EVAL_DECISION_SET": "decision-text-acc1.json"
-    },
-    {
-      "suite": "tests/eval/decision-text.eval.test.ts",
-      "EVAL_DECISION_SET": "decision-text-acc1.json",
-      "EVAL_REPLY_PROVIDER": "anthropic",
-      "EVAL_CLAUDE_REPLY_MODEL": "claude-haiku-5-5",
-      "EVAL_CLAUDE_ONLY": "lixus:semantic:host_decision_message",
-      "EVAL_CLAUDE_THINKING": "disabled",
-      "EVAL_CLAUDE_EFFORT": "low"
+      "suite": "tests/eval/understanding-breakdown.eval.test.ts"
     },
     {
       "suite": "tests/eval/understanding-breakdown.eval.test.ts",
-      "EVAL_UNDERSTANDING_FAULT_RULE": "1"
+      "EVAL_UNDERSTANDING_FAULT_RULE": "2"
     },
     {
       "suite": "tests/eval/understanding-breakdown.eval.test.ts",
-      "EVAL_UNDERSTANDING_FAULT_RULE": "1",
       "EVAL_REPLY_PROVIDER": "anthropic",
       "EVAL_CLAUDE_REPLY_MODEL": "claude-haiku-5-5",
       "EVAL_CLAUDE_ONLY": "lixus:semantic:",
@@ -44,7 +22,16 @@
     },
     {
       "suite": "tests/eval/understanding-breakdown.eval.test.ts",
-      "EVAL_UNDERSTANDING_FAULT_RULE": "1",
+      "EVAL_UNDERSTANDING_FAULT_RULE": "2",
+      "EVAL_REPLY_PROVIDER": "anthropic",
+      "EVAL_CLAUDE_REPLY_MODEL": "claude-haiku-5-5",
+      "EVAL_CLAUDE_ONLY": "lixus:semantic:",
+      "EVAL_CLAUDE_THINKING": "adaptive",
+      "EVAL_CLAUDE_EFFORT": "high"
+    },
+    {
+      "suite": "tests/eval/understanding-breakdown.eval.test.ts",
+      "EVAL_UNDERSTANDING_FAULT_RULE": "2",
       "EVAL_REPLY_PROVIDER": "anthropic",
       "EVAL_CLAUDE_REPLY_MODEL": "claude-haiku-5-5",
       "EVAL_CLAUDE_ONLY": "lixus:semantic:",
@@ -53,10 +40,21 @@
     },
     {
       "suite": "tests/eval/understanding-breakdown.eval.test.ts",
-      "EVAL_UNDERSTANDING_FAULT_RULE": "1",
+      "EVAL_UNDERSTANDING_FAULT_RULE": "2",
       "EVAL_REPLY_PROVIDER": "anthropic",
       "EVAL_CLAUDE_REPLY_MODEL": "claude-haiku-5-5",
       "EVAL_CLAUDE_ONLY": "lixus:semantic:",
+      "EVAL_CLAUDE_THINKING": "disabled",
+      "EVAL_CLAUDE_EFFORT": "low"
+    },
+    {
+      "suite": "tests/eval/rerank-llm.eval.test.ts"
+    },
+    {
+      "suite": "tests/eval/rerank-llm.eval.test.ts",
+      "EVAL_REPLY_PROVIDER": "anthropic",
+      "EVAL_CLAUDE_REPLY_MODEL": "claude-haiku-5-5",
+      "EVAL_CLAUDE_ONLY": "lixus:semantic:kb_rerank",
       "EVAL_CLAUDE_THINKING": "disabled",
       "EVAL_CLAUDE_EFFORT": "low"
     }
