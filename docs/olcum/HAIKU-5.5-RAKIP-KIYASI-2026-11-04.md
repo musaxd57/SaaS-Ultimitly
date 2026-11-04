@@ -105,3 +105,40 @@ sabit sözcük kuralına dönüşmemeli → genişletilmiş set v2 (37 vaka: var
 tehlike / konuşma geçmişli) ve bağlamdan ayıran v2 kuralı. Yerel 5.1 (v2 set, canlı kip): bugünkü istem 65/74 → v2 kuralı 73/74 (çözülmüş
 2/6 → 6/6, arıza + tehlike 0/4 → 3/4, geçmişli 10/10 → 10/10); temel kipte 64 → 72 (internet sıfırlama vakası temelde geriledi). Haiku v2
 kolları istek 9'da.
+
+## 6. İstek 9 (11-04 akşam, commit `c564be8`, iş 126540257353) — düzeltmelerden sonra
+
+### 6a. Karar metni yazıcısı (bekçi iki kolda da planlı modelde)
+
+| ölçü | 5.1 geliştirme | Haiku geliştirme | 5.1 kör | Haiku kör |
+|---|---|---|---|---|
+| yapay zekâ metni kullanıldı | 39/40 | **40/40** | 30/30 | 29/30 |
+| bağımsız yeniden denetim · iç bilgi sızıntısı | 39/39 · 0 | 40/40 · 0 | 30/30 · 0 | 29/29 · 0 |
+| 🚨 başka misafirin saati (bağımsız sayım) | 0 | **0** | 0 | **0** (istek 8: 2/30) |
+| misafirin dili | 39/39 | 40/40 | 30/30 | 28/28 |
+| gerekçesiz retlerde gerekçe UYDURULDU (düşük iyi) | **1/7** | 0/7 | 0/5 | 0/5 |
+| gerekçeli ret: gerekçe anıldı (sezgisel) | 10/13 | 8/14 | 10/10 | 8/9 |
+| gecikme p95 | 4,7 sn | 3,9 sn | 5,7 sn | 3,8 sn |
+| maliyet | $0,0705 | **$0,0067** | $0,0558 | **$0,0049** |
+
+Şablona düşüşler (güvenli): 5.1 d-11 iç satır kopyası (`internal_copy`); Haiku a1-28 kontrol listesindeki saati yazdı → yeni kod kuralı
+(`other_guest_time`) tuttu. Bütün retlerde standart saat yazılı ("gerekçe saatsiz" kuralı saati düşürmedi). Kalite ayrıntısı iki yönlü:
+5.1 d-18'de kontrol listesinde OLMAYAN gerekçe uydurdu ("temizlik hazırlıkları henüz tamamlanmadığı için"); Haiku d-35 Arapçada gerekçeyi
+bozuk kurdu ("yeni misafirlerin ÇIKIŞI aynı gün"). **Sonuç: güvenlik ölçülerinde kayıp yok, kullanım eşit (69/70 ↔ 69/70), 10× ucuz,
+daha hızlı → Haiku düşünme kapalı ÖNERİLİR.** Geçiş için kalanlar: istek 10 (ikinci tekrar, kararlılık) · ürün bağdaştırıcısı (ortak
+şema-zorlamalı çağrıda `claude-` modeli → Anthropic SDK `output_config.format` json_schema; anahtar kapalı) · gizlilik sayfasında Anthropic
+işleyen (kurucu kararı — müşteriye görünen hukuki metin).
+
+### 6b. Anlama — genişletilmiş set v2 (37 vaka × 2 tur), canlı kip
+
+| kol | toplam | çözülmüş | tehlike | geçmişli | temel kip |
+|---|---|---|---|---|---|
+| 5.1 bugünkü istem | 64/74 | 2/6 | 0/4 | 10/10 | 61/74 |
+| **5.1 + v2 bağlam kuralı** | **73/74** | **6/6** | 3/4 | **10/10** | **72/74** |
+| Haiku high + v2 | 67/74 | 6/6 | 0/4 | 8/10 | 71/74 |
+| Haiku düşünme kapalı + v2 | 69/74 | 3/6 | 4/4 | 8/10 | 71/74 |
+
+5.1 + v2 sabah yerel ölçümü BİREBİR tekrarladı (73/74). Haiku v2 kuralıyla da geride: çözülmüş arızayı yine açıyor ("Tamam boşverin,
+fişi gevşekmiş, şimdi çalışıyor" — konuşma geçmişli), bir arızayı kullanım sorusu sayıyor ("Saç kurutma makinesi açılmıyor"), tehlikede
+"kullanım" ekliyor. **Sonuç: anlama katmanı 5.1'de kalır; v2 kuralı ürüne anahtar arkasında girdi (`AI_UNDERSTANDING_FAULT_CONTEXT_ENABLED`,
+kurucu onayı bekliyor).**

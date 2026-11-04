@@ -72,3 +72,6 @@ ve misafirin kendi eşyası arıza sayılmaz. Bu ölçüm o katmanı İÇERMEZ (
 v2 kuralı ürünün anlama istemine girsin mi? Misafire / ev sahibine etkisi: (1) "çalışmıyordu, şimdi düzeldi" artık ev sahibine arıza işi AÇMAZ;
 (2) duman / kıvılcım mesajında "kullanım" etiketi düşer (zaten acil yol); (3) "kumanda nerede, bulamadık" arıza sayılmaz. Öbür sınıflar bugünkü
 gibi. Haiku'nun aynı kuralla sonuçları istek 9'da (5.1 aynı koşuda yeniden).
+
+## CI tekrarı (istek 9, 11-04 akşam) + Haiku
+5.1 bugünkü istem 64/74 → v2 73/74 (temel 61 → 72) — sabah yerel ölçümü BİREBİR tekrarladı. Haiku + v2: high 67/74, düşünme kapalı 69/74 (çözülmüş arızayı açıyor, geçmişli 8/10) → anlama 5.1'de kalır. Kural ürüne anahtar arkasında girdi: `AI_UNDERSTANDING_FAULT_CONTEXT_ENABLED` (kapalı; açmak kurucu onayı). Ölçülen = gönderilen: ölçer ürünün sabitini aynı yere koyar (pin).
