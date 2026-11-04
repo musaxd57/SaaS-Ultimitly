@@ -559,10 +559,16 @@ const HAZARD_EVENT_VERB =
   /(?:alev\s+al|alevlen|alev\s+(?:var|cikiyor|yukseliyor)|ates\s+(?:al|cik)|tutus|yaniyor|yanmaya|on\s+fire|caught\s+fire|brennt|f[aä]ngt\s+feuer|br[uû]le|quema|arde|горит|загорел|يحترق|اشتعل)/iu;
 /** A-3: anılışın HEMEN ardındaki kaçak / taşma / koku / gelme fiili (katlanmış metin; "akıyor" BİLEREK yok — musluktan akan su olay değil). */
 const HAZARD_LEAK_AFTER =
-  /^\s*(?:siz(?:iyor|di|mis|maya)|kac(?:iyor|ti|mis|maya)|kok(?:uyor|tu|mus|maya)|gel(?:iyor|di|mis|meye)|tas(?:iyor|ti|mis)|fiskir\p{L}{0,8}|(?:is\s+|are\s+)?(?:leak(?:ing|s|ed)?|escap(?:ing|es|ed)|coming\s+(?:out|in|from)|pouring|gushing)|str[oö]mt|tritt\s+aus|fuit|s'?[ée]chappe|se\s+escapa|утека\p{L}{0,4}|сочит\p{L}{0,4}|يتسرب|تتسرب)(?![\p{L}\p{N}])/iu;
+  /^\s*(?:siz(?:iyor|iyo|di|mis|maya)|kac(?:iyor|iyo|ti|mis|maya)|kok(?:uyor|uyo|tu|mus|maya)|gel(?:iyor|iyo|di|mis|meye)|tas(?:iyor|iyo|ti|mis)|fiskir\p{L}{0,8}|dol(?:u|du|uyor|uyo|mus)|yuksel(?:iyor|iyo|di|mis)|(?:is\s+|are\s+)?(?:leak(?:ing|s|ed)?|escap(?:ing|es|ed)|coming\s+(?:out|in|from)|pouring|gushing)|str[oö]mt|tritt\s+aus|fuit|s'?[ée]chappe|se\s+escapa|утека\p{L}{0,4}|сочит\p{L}{0,4}|يتسرب|تتسرب)(?![\p{L}\p{N}])/iu;
 /** A-3: anılışın İÇİNDEKİ çekimli kaçak / koku fiili (katlanmış metin). */
 const HAZARD_LEAK_IN_MENTION =
-  /(?:siz(?:iyor|di|mis)|kac(?:iyor|ti|mis)|kok(?:uyor|tu|mus)|fiskir|leak(?:ing|s|ed)|escap(?:ing|es|ed)|riecht|str[oö]mt|fuit|s'?[ée]chappe|se\s+escapa|утека|يتسرب|تتسرب)/iu;
+  /(?:siz(?:iyor|iyo|di|mis)|kac(?:iyor|iyo|ti|mis)|kok(?:uyor|uyo|tu|mus)|fiskir|leak(?:ing|s|ed)|escap(?:ing|es|ed)|smell(?:s|ing)?\s+(?:of|like)|riecht|tritt\s+aus|str[oö]mt|fuit|sent\s+(?:le|la)|s'?[ée]chappe|se\s+escapa|huele\s+a|пахнет|утека|يتسرب|تتسرب)/iu;
+/**
+ * İnceleme 11-04 (ters etki): Türkçe gaz anılışı "kokuyor / kaçıyor" kökünü SAĞ SINIRSIZ yakalar → "Vanadan gaz kaçıyorsa ne yapayım?",
+ * "Ocak gaz kokuyordu", "kaçıyor muydu", "kokuyor mu diye kontrol ettim" de canlı olay sayılıyordu. Anılışın hemen ardında ek (harf),
+ * geçmiş soru eki ("muydu / miymiş") ya da "mu diye" varsa içteki fiil olay DEĞİLDİR → eski (ekipman) okumasına düşülür.
+ */
+const LEAK_VERB_INFLECTED_AFTER = /^(?:[\p{L}\p{N}]|\s+m[iu](?:y(?:d|m)|\s+diye(?![\p{L}\p{N}])))/u;
 /** A-3: anılışın HEMEN önündeki koku fiili ("smell gas", "riecht nach Gas", "sent le gaz", "huele a gas", "пахнет газом"). */
 const HAZARD_SMELL_BEFORE = /(?:smell(?:s|ing)?|smelt|riecht(?:\s+es)?\s+nach|sent\s+(?:le|la|l')|huele\s+a|пахнет)\s*$/iu;
 function equipmentMention(clause: string, at: number, len: number): boolean {
@@ -570,13 +576,18 @@ function equipmentMention(clause: string, at: number, len: number): boolean {
   if (HAZARD_EVENT_VERB.test(mention)) return false;
   // A-3: anılış kaçak / koku FİİLİNİ içeriyorsa ("gaz sızıyor", "gaz kaçıyor", "riecht nach gas") olaydır — ekipman öznesi / kaynağıdır.
   // Yalnız çekimli fiil (isim "kokusu / kaçağı" değil: "Gaz kokusu dedektörü var mı?" ekipman kalır).
-  if (HAZARD_LEAK_IN_MENTION.test(mention)) return false;
+  const leak = HAZARD_LEAK_IN_MENTION.exec(mention);
+  if (leak) {
+    // Fiilin HEMEN ardı (anılışın sonu değil): Türkçe gaz anılışı "koku…" kolunda eki de yutar ("gaz kokuyorsa" tek anılış).
+    const verbEnd = at + leak.index + leak[0].length;
+    if (!LEAK_VERB_INFLECTED_AFTER.test(clause.slice(verbEnd, verbEnd + 12))) return false;
+  }
   // Olay fiili anılışın HEMEN ardında ("yangın çıktı", "yangın var", "duman çıkıyor"): anılış olayın öznesidir, yakındaki "çıkış / merdiven /
   // ocak" ekipman adı değil yerdir (Claude kod incelemesi 10-21, ölçüldü). "Yangın tüpü var" → ilk sözcük "tüpü", ekipman kalır.
   if (/^\s*(?:cikti|cikiyor|cikmis|var|basladi|basliyor|yayiliyor|buyuyor)(?![\p{L}\p{N}])/iu.test(clause.slice(at + len, at + len + 16))) return false;
   // 🚨 A-3 (derin ajan turu 2; kurucu kuralı K-1029-C "sözcük ağı yalnız sıkılaştırır"): kaçak / taşma / koku OLAY fiili anılışın hemen ardında
-  // ("Ocağın hortumundan gaz sızıyor", "Gaz vanasından gaz kaçıyor", "Merdivenden duman geliyor", "Gaz ocağından alev taştı", "Gas is leaking
-  // from the stove") ya da koku fiili hemen önünde ("Der Herd riecht nach Gas") ise anılış olayın öznesidir; yakındaki ocak / vana / merdiven
+  // ("Ocağın hortumundan gaz sızıyor", "Gaz vanasından gaz kaçıyor", "Merdivenden duman geliyor / geliyo", "Merdiven duman dolu", "The stove smoke
+  // is leaking") ya da koku fiili hemen önünde ("Es riecht nach Rauch beim Herd") ise anılış olayın öznesidir; yakındaki ocak / vana / merdiven
   // kaynağı ya da yeridir, bileşik adı değil. Eskiden "anılış"a inip kelime ağının acil etiketini MODEL SORULMADAN kaldırıyordu. "Gaz ocağı
   // var mı?", "Duman dedektörü öttü" gibi anılışlar etkilenmez (fiil yok / fiil ekipmanın). Metin katlanmış (ASCII Türkçe); pencere sınırlı.
   if (HAZARD_LEAK_AFTER.test(clause.slice(at + len, at + len + 24))) return false;

@@ -828,6 +828,17 @@ describe("A-3 — ekipman komşuluğu canlı kaçağı anılışa indirmez", () 
     "Пахнет дымом у плиты",
     "The stove smoke is leaking into the room",
     "Stove smoke is leaking",
+    // İnceleme 11-04: koku fiili anılışın İÇİNDE ("smells like gas", "sent le gaz", "huele a gas", "пахнет газом"), ağız biçimi "-yo",
+    // merdiven dumanı durum fiilleri ("dolu", "yükseliyor") ve Almanca "tritt aus".
+    "The stove smells like gas",
+    "La cuisinière sent le gaz",
+    "La cocina huele a gas",
+    "Плита пахнет газом",
+    "Ocağın yanında gaz kokuyo",
+    "Merdivenden duman geliyo",
+    "Merdiven duman dolu",
+    "Merdivenden duman yükseliyor",
+    "Gas tritt aus dem Herd aus",
   ])("🚨 %j → açık / olası (anılış DEĞİL)", (m) => {
     expect(["clear", "possible"]).toContain(level(m));
   });
@@ -842,6 +853,19 @@ describe("A-3 — ekipman komşuluğu canlı kaçağı anılışa indirmez", () 
     ["Wir haben einen Rauchmelder im Flur.", "mentioned"],
     ["Ne gaz kokusu var ne de duman.", "mentioned"],
     ["Gaz kokusu kesinlikle yok.", "mentioned"],
+    // İnceleme 11-04 (ters etki kapatıldı): içteki fiil eklenmişse (koşul "-sa", geçmiş "-du / -muş", geçmiş soru "muydu", "mu diye")
+    // canlı olay değildir — ekipmanlı cümle A-3'ten önceki gibi anılış kalır.
+    ["Vanadan gaz kaçıyorsa ne yapayım?", "mentioned"],
+    ["Tüpten gaz sızıyorsa ne yapayım?", "mentioned"],
+    ["Ocak gaz kokuyorsa kimi arayayım?", "mentioned"],
+    ["Ocak gaz kokuyordu, tamir ettiler", "mentioned"],
+    ["Ocak gaz kokuyormuş dün", "mentioned"],
+    ["Vana gaz kaçıyor muydu, kontrol ettiniz mi?", "mentioned"],
+    ["Ocak gaz kokuyor mu diye kontrol ettim, kokmuyor", "mentioned"],
+    ["Merdivenden duman geliyorsa nereden çıkalım?", "mentioned"],
+    ["If the stove smells like gas, what should I do?", "mentioned"],
+    ["Does the stove have a gas smell detector?", "mentioned"],
+    ["Yangın tüpü dolu mu?", "none"],
   ])("KONTROL %j → %s (ekipman / olumsuz anılış aynen)", (m, want) => {
     expect(level(m)).toBe(want);
   });

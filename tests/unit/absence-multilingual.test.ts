@@ -610,6 +610,14 @@ describe("A-11 — kaçan 'bilgim yok' biçimleri", () => {
     "Sorry, I dont know.",
     "I dont know the wifi password.",
     "We didnt know that.",
+    // İnceleme 11-04: en doğal Türkçe biçimler (nesneyle fiil arasında birkaç sözcük, etken "vermedi") + Arapça yalın belirli nesne.
+    "Bana bu konuda bilgi verilmedi.",
+    "Bu konuda bana herhangi bir bilgi verilmedi.",
+    "Bize bu konuyla ilgili bir bilgi iletilmedi.",
+    "Ev sahibi bana bu konuda bilgi vermedi.",
+    "Bilgi bize gelmedi.",
+    "لا أملك المعلومات",
+    "We weren't given any details about the parking.",
   ])("🚨 %j → bilgim yok (misafire gitmez)", (m) => {
     expect(admitsMissingKnowledge(m)).toBe(true);
   });
@@ -625,6 +633,19 @@ describe("A-11 — kaçan 'bilgim yok' biçimleri", () => {
     // Mutasyon (11-04): edilgen kalıp yalnız 1. şahsa ("I / we") uygulanır — misafire SORU "you were not given…" tutulmaz.
     "You were not given a key? Let me check.",
     "You weren't told about the parking? It is behind the building.",
+    // İnceleme 11-04 (A-11'in ilk hâlinin ters etkisi kapatıldı): nesnesiz edilgen / "gelmedi" / izin cümleleri ve Arapça "البيانات" (veri)
+    // ile bağlacı aşan boşluk olgu cevaplarını tutuyordu.
+    "We were not given permission by the building to allow pets, so pets are not allowed.",
+    "We were not informed of your arrival time, could you share it with us?",
+    "I wasn't informed about your late arrival, but no problem: the lockbox code is in your booking.",
+    "We were not provided with towels by the laundry today, fresh ones arrive tomorrow at 10:00.",
+    "Kargonuz bize gelmedi, kurye takip numarasını paylaşabilir misiniz?",
+    "Komşulardan bize bir şikâyet gelmedi, rahat olun.",
+    "Bize izin verilmedi, bu yüzden evcil hayvan kabul edemiyoruz.",
+    "Bana hiç öyle gelmedi, daire gayet sessiz.",
+    "لا يوجد حد لاستخدام البيانات، الواي فاي سريع.",
+    "ليس لدينا حد على البيانات.",
+    "لا يوجد مصعد لكن المعلومات عن الدرج في الدليل.",
   ])("KONTROL %j → meşru cevap (tutulmaz)", (m) => {
     expect(admitsMissingKnowledge(m)).toBe(false);
   });
