@@ -155,6 +155,8 @@ export const PIPELINE_FLAGS = [
   "AI_EMERGENCY_NUMBER_ENABLED",
   // Anlama istemine şikâyet tehdidi kuralı (10-11; anlama istemini değiştirir).
   "AI_UNDERSTANDING_THREAT_RULE_ENABLED",
+  // Arıza ↔ kullanım bağlam kuralı (kurucu 11-04): anlama istemini değiştirir (onaylanırsa misafire gideni — "düzeldi" diyene arıza işi açılmaz).
+  "AI_UNDERSTANDING_FAULT_CONTEXT_ENABLED",
   // Ev sahibine öneri kartı (10-12, ⑤); misafire giden metni değiştirmez, koşu kimliğinde görünür (tek kural: her AI_* bayrağı).
   "AI_ACTION_SUGGESTIONS_ENABLED",
   // Arıza her yolda arıza (10-15, kurucu inceleme notu): plan / cevaplanabilir istekleri değiştirir (misafire gideni yalnız TUTARAK).
