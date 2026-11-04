@@ -131,6 +131,42 @@ describe("oto-yanıt aday penceresi — kalıcı açlık yok", () => {
     expect(answered.status).toBe("answered");
   });
 
+  it("🚨 S1 (11-04): son mesajı bizim cevabımız olan 'Yeni' konuşma (geç içeri alınan misafir mesajı) DAMGALANIR — aday slotunu her turda yemez", async () => {
+    // S1: geç gelen misafir mesajı konuşmayı "Yeni" bırakır ama son mesaj giden → `already_answered`. Damgasız kalırsa bu konuşmalar en eski
+    // oldukları için her 2 dakikada 25 slotu doldurup YENİ misafir mesajını dışarıda bırakırdı (aynı açlık sınıfı).
+    const { orgId, propertyId } = await seedOrg();
+    for (let i = 0; i < 30; i++) {
+      const when = new Date(Date.now() - (60 - i * 0.1) * 24 * 60 * 60 * 1000);
+      await prisma.conversation.create({
+        data: {
+          propertyId,
+          channel: "airbnb",
+          guestIdentifier: `G-late-${i}`,
+          externalReservationId: `late-${i}`,
+          status: "new",
+          lastMessageAt: when,
+          messages: {
+            create: [
+              { direction: "inbound", senderName: "G", body: "Wifi?", createdAt: new Date(when.getTime() - 120_000), ingestedAt: new Date(when.getTime() + 60_000) },
+              { direction: "outbound", authorType: "ai", senderName: "GuestOps AI", body: "Şifre: abc", createdAt: when },
+            ],
+          },
+        },
+      });
+    }
+    const first = await runDueChannelAutoReplies(orgId);
+    expect(first.considered).toBe(25);
+    expect(mockSuggest).not.toHaveBeenCalled(); // son mesaj giden — model çağrılmaz
+    // İkinci tur: ilk 25 damgalandı → kalan 5 + YENİ mesaj seçilir.
+    const fresh = await seedConversation(propertyId, { ref: "fresh", ageDays: 0 });
+    await runDueChannelAutoReplies(orgId);
+    const third = await runDueChannelAutoReplies(orgId);
+    expect(third.considered).toBe(0); // hepsi damgalı / cevaplandı
+    expect((await prisma.conversation.findUniqueOrThrow({ where: { id: fresh.id } })).status).toBe("answered");
+    // Geç mesajlı konuşmalar "Yeni" kalır (ev sahibi görür) — damga durumu DEĞİŞTİRMEZ.
+    expect(await prisma.conversation.count({ where: { propertyId, status: "new", externalReservationId: { startsWith: "late-" } } })).toBe(30);
+  });
+
   it("İNSAN DEVRİ süren konuşmalar aday slotu işgal etmez", async () => {
     const { orgId, propertyId } = await seedOrg();
 

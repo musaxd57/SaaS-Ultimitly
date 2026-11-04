@@ -298,3 +298,75 @@ describe("V0.6 ingest write service (fake adaptör → gerçek yazma yolu)", () 
     expect((await events(orgId)).filter((e) => e.kind === "message.imported")).toHaveLength(1);
   });
 });
+
+// ---------------------------------------------------------------------------
+// S1 (kurucu 11-04 "önerini beğendim"; derin ajan turu F2): cevabımız yazılırken platformda yazılan misafir mesajı sonraki senkronda
+// sağlayıcı sırasında cevaptan ÖNCE düşer → durum "Cevaplandı" hesaplanıyordu. Cevabı BİZ yazdıysak ve misafir mesajı ondan SONRA içeri
+// alındıysa konuşma "Yeni" kalır (acil ağı ve gelen kutusu görür). Sağlayıcıda yazılmış ev sahibi cevabında (konuşmayı orada gördü) eski kural.
+// ---------------------------------------------------------------------------
+describe("S1 — geç içeri alınan misafir mesajı konuşmayı 'Yeni' bırakır", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+    restoreEnv();
+    fake.reset();
+    __setIngestAdapterForTest("hospitable", fake.adapter());
+  });
+  afterEach(() => {
+    __setIngestAdapterForTest("hospitable", null);
+    restoreEnv();
+  });
+
+  const G1 = m("g-1", "2026-05-30T09:00:00Z");
+  const G2 = m("g-2", "2026-05-30T09:03:00Z", { body: "Mutfakta duman var" });
+
+  it("🚨 bizim cevabımız (yerel satır, sağlayıcı kopyası sonra bağlanır) + arada yazılmış misafir mesajı → 'new'", async () => {
+    const { orgId, propertyId } = await seedOrgA();
+    fake.setReservations(HP_A, [R1({ lastMessageAt: new Date("2026-05-30T09:00:00Z") })]);
+    fake.setMessages("res-1", [G1]);
+    await syncHospitable(orgId);
+    const { conversation } = await rows(propertyId);
+    // AI cevabı BİZDEN gitti (içe alma yolundan gelmedi) — misafir 09:03'te yazmıştı ama henüz içeri alınmamıştı.
+    await prisma.message.create({
+      data: { conversationId: conversation!.id, direction: "outbound", authorType: "ai", senderName: "GuestOps AI", body: "Şifre: abc12345", createdAt: new Date("2026-05-30T09:05:00Z") },
+    });
+    await prisma.conversation.update({ where: { id: conversation!.id }, data: { status: "answered" } });
+
+    const ours = m("p-ai", "2026-05-30T09:05:00Z", { direction: "outbound", senderName: "GuestOps AI", body: "Şifre: abc12345" });
+    fake.setReservations(HP_A, [R1({ lastMessageAt: new Date("2026-05-30T09:05:00Z") })]);
+    fake.setMessages("res-1", [G1, G2, ours]);
+    await syncHospitable(orgId);
+
+    const after = await rows(propertyId);
+    expect(after.messages.map((x) => x.externalId)).toEqual(["g-1", "g-2", "p-ai"]); // sağlayıcı kopyası yerel satıra bağlandı
+    expect(after.conversation!.status).toBe("new");
+  });
+
+  it("KONTROL: ev sahibi SAĞLAYICIDA cevapladıysa (aynı senkronla içeri alınır) → 'answered'", async () => {
+    const { orgId, propertyId } = await seedOrgA();
+    fake.setReservations(HP_A, [R1({ lastMessageAt: new Date("2026-05-30T09:00:00Z") })]);
+    fake.setMessages("res-1", [G1]);
+    await syncHospitable(orgId);
+    const hostInApp = m("p-host", "2026-05-30T09:05:00Z", { direction: "outbound", senderName: "Ev Sahibi", body: "Hemen bakıyorum" });
+    fake.setReservations(HP_A, [R1({ lastMessageAt: new Date("2026-05-30T09:05:00Z") })]);
+    fake.setMessages("res-1", [G1, G2, hostInApp]);
+    await syncHospitable(orgId);
+    expect((await rows(propertyId)).conversation!.status).toBe("answered");
+  });
+
+  it("KONTROL: misafir mesajı cevaptan ÖNCE içeri alınmışsa (cevap onu gördü) → 'answered'", async () => {
+    const { orgId, propertyId } = await seedOrgA();
+    fake.setReservations(HP_A, [R1({ lastMessageAt: new Date("2026-05-30T09:03:00Z") })]);
+    fake.setMessages("res-1", [G1, G2]);
+    await syncHospitable(orgId);
+    const { conversation } = await rows(propertyId);
+    await prisma.message.create({
+      data: { conversationId: conversation!.id, direction: "outbound", authorType: "ai", senderName: "GuestOps AI", body: "Şifre: abc12345", createdAt: new Date() },
+    });
+    const ours = m("p-ai", "2026-05-30T09:05:00Z", { direction: "outbound", senderName: "GuestOps AI", body: "Şifre: abc12345" });
+    fake.setReservations(HP_A, [R1({ lastMessageAt: new Date("2026-05-30T09:05:00Z") })]);
+    fake.setMessages("res-1", [G1, G2, ours]);
+    await syncHospitable(orgId);
+    expect((await rows(propertyId)).conversation!.status).toBe("answered");
+  });
+});

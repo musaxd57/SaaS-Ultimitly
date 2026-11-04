@@ -118,6 +118,7 @@ import {
   historyAuthorOf,
   isAnsweringOutbound,
   isAutomationMessage,
+  lateGuestMessages,
   LEGACY_AI_SENDER_NAMES,
   LEGACY_AI_RESUME_SENDER,
   notChannelAutomationWhere,
@@ -4994,6 +4995,10 @@ export async function runDueChannelAutoReplies(
       // Bu mesaj için KALICI bir hayır: misafir YENİ mesaj yazarsa `lastMessageAt`
       // damgayı geçer, anahtar da değişir → konuşma kendiliğinden yeniden uygun olur.
       outcome.skippedReason === "already_queued" ||
+      // S1 (kurucu 11-04): geç içeri alınan misafir mesajı konuşmayı "Yeni" bırakır ama son mesaj giden → bu mesaj için KALICI hayır
+      // (yapay zekâ ona kendiliğinden cevap vermez; ev sahibi görür). Damgalanmazsa bu konuşmalar en eski oldukları için her turda aday
+      // slotunu yerdi (aynı açlık sınıfı). Misafir YENİ yazınca `lastMessageAt` ilerler → yeniden uygun. Durum DEĞİŞMEZ ("Yeni" kalır).
+      outcome.skippedReason === "already_answered" ||
       // K10-t: bu mesaj için KALICI hayır (ev sahibi elle yanıtlar); misafir yeni yazsa da uzun mesaj cevapsız kaldıkça aynı hüküm.
       outcome.skippedReason === MESSAGE_TOO_LONG_REASON
     ) {
@@ -6204,7 +6209,10 @@ export async function sendDueAlerts(
     // K7: en yenideki otomatik şablon mesajları (karşılama / çıkış) cevap değildir — arkalarındaki şikâyet uyarısız kalmasın.
     const realMessages = c.messages.filter((m) => !isAutomationMessage(m));
     const last = realMessages[0];
-    if (!last || last.direction !== "inbound") continue;
+    // 🚨 S1 (kurucu 11-04): cevabımız yazılırken platformda yazılan misafir mesajı sağlayıcı sırasında cevaptan ÖNCE düşer — "son mesaj
+    // giden" görünür ama mesaj cevapsızdır (`lateGuestMessages`). O mesajlar da cevapsız penceredir (aşağıda `pending`).
+    const late = lateGuestMessages(realMessages);
+    if (!last || (last.direction !== "inbound" && late.length === 0)) continue;
     // Skip stale backlog surfaced by a re-sync — only alert on fresh messages.
     if (Date.now() - last.createdAt.getTime() > ALERT_MAX_AGE_MS) continue;
     // Mesajlar YENİDEN ESKİYE geldi; cevaplanmamış pencere = ilk giden mesaja
@@ -6217,7 +6225,7 @@ export async function sendDueAlerts(
     // Bildirim anı bilinmeyen (elle / eski) Sorunlu konuşmada yalnız son 3 saat taranır — ev sahibinin çoktan gördüğü eski tehlike yeniden
     // bildirilmesin.
     const markedAt = c.aiTriagedAt?.getTime() ?? (recheck ? Date.now() - SAME_DANGER_WINDOW_MS : 0);
-    const pending = (outboundAt === -1 ? realMessages : realMessages.slice(0, outboundAt)).filter(
+    const pending = (outboundAt === -1 ? realMessages : [...realMessages.slice(0, outboundAt), ...late]).filter(
       // Yaş sınırı MESAJ başına (Haiku 10-14): pencere 25'e çıkınca yalnız en yenisine bakmak 5 gün önceki cevapsız şikâyeti bugünkü
       // "merhaba?" ile yeniden uyarıya taşırdı.
       (m) => m.direction === "inbound" && Date.now() - m.createdAt.getTime() <= ALERT_MAX_AGE_MS && (!upgrade || m.createdAt.getTime() > markedAt),

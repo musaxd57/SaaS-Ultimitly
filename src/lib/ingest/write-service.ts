@@ -7,7 +7,14 @@ import { ANON_NAME, ANON_ID, retentionCutoff } from "@/lib/data-retention";
 import type { ErasureDb } from "@/lib/erasure";
 import { followReservationDates } from "@/lib/tasks/follow-reservation";
 import { givenNameForStorage, type GuestNameSource } from "@/lib/guest-name-source";
-import { AUTOMATION_AUTHOR, CHANNEL_AUTOMATION_ROLE, canonicalChannelSenderRole, channelAutomationNotReplyEnabled } from "@/lib/message-author";
+import {
+  AUTOMATION_AUTHOR,
+  CHANNEL_AUTOMATION_ROLE,
+  canonicalChannelSenderRole,
+  channelAutomationNotReplyEnabled,
+  lateGuestMessages,
+} from "@/lib/message-author";
+import { HISTORY_MESSAGE_CAP } from "@/lib/ai/limits";
 import { OUTBOUND_SEND_CLAIM_PREFIX } from "@/lib/outbound-claim-name";
 import { PROVIDER_OUTAGE_REASON } from "@/lib/outbox/state";
 import { claimAutomatedSend, planAutomatedMatches } from "@/lib/automated-sends";
@@ -603,6 +610,23 @@ export async function importCanonicalThread(
   }
   if (existing && (conversationTouched || newMessages > 0)) {
     await emit(db, ctx, "conversation", conversationId, "conversation.updated");
+  }
+
+  // 🚨 GEÇ İÇERİ ALINAN MİSAFİR MESAJI (kurucu 11-04 S1 "önerini beğendim"; derin ajan turu F2): cevabımız yazılırken platformda yazılan
+  // misafir mesajı SAĞLAYICI sırasında cevaptan ÖNCE düşer → yukarıdaki hesap "answered" der, acil ağı ve gelen kutusu mesajı görmez.
+  // Cevabı BİZ yazdıysak ve misafir mesajı ondan SONRA içeri alındıysa konuşma "Yeni" kalır (`lateGuestMessages`). Ev sahibinin / kuralın
+  // kararı (Sorunlu / Tamamlandı / Beklemede) korunur. Yapay zekâ bu mesaja kendiliğinden CEVAP VERMEZ (son mesaj giden — "already_answered");
+  // ev sahibi görür, acilse uyarı geçişi bildirir.
+  if (computedStatus === "answered" && existing && !["problem", "closed", "waiting"].includes(existing.status)) {
+    const tail = await db.message.findMany({
+      where: { conversationId },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: HISTORY_MESSAGE_CAP,
+      select: { direction: true, authorType: true, createdAt: true, ingestedAt: true },
+    });
+    if (lateGuestMessages(tail).length > 0) {
+      await db.conversation.updateMany({ where: { id: conversationId, status: "answered" }, data: { status: "new" } });
+    }
   }
 
   // All messages are now written — safe to advance the cursors to the provider's latest (etkinlik anı ↑ K7).

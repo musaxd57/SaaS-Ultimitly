@@ -126,3 +126,52 @@ describe("Y6 — açık tehlike + pencere", () => {
     expect((await sendDueAlerts(orgId)).alerted).toBe(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// S1 (kurucu 11-04 "önerini beğendim"; derin ajan turu F2): cevabımız yazılırken platformda yazılan misafir mesajı sonraki senkronda
+// sağlayıcı sırasında cevaptan ÖNCE düşer → "son mesaj giden". Uyarı geçişi yalnız "son mesaj misafirin" konuşmaya bakıyordu → acil
+// mesaj hiç taranmıyordu. Geç mesaj (cevap BİZDEN yazıldıktan sonra içeri alınan) cevapsız penceredir.
+// ---------------------------------------------------------------------------
+describe("S1 — geç içeri alınan misafir mesajı acil ağına girer", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+  });
+
+  async function seedLate(lateBody: string, opts: { replyIngested?: boolean } = {}) {
+    const o = await prisma.organization.create({ data: { name: "Org", alertEmail: "host@example.com" } });
+    const p = await prisma.property.create({ data: { organizationId: o.id, name: "Lale 7" } });
+    const t = (min: number) => new Date(Date.now() - (10 - min) * MIN);
+    const c = await prisma.conversation.create({
+      data: { propertyId: p.id, channel: "airbnb", guestIdentifier: "Ayşe", status: "new", lastMessageAt: t(4) },
+    });
+    // 0: M1 (2'de alındı) · 3: M2 platformda (6'da alındı) · 4: cevap (BİZDEN, ya da sağlayıcıda yazılıp 6'da alındı)
+    await prisma.message.create({ data: { conversationId: c.id, direction: "inbound", authorType: "guest", senderName: "Ayşe", body: "Wifi şifresi?", createdAt: t(0), ingestedAt: t(2) } });
+    await prisma.message.create({ data: { conversationId: c.id, direction: "inbound", authorType: "guest", senderName: "Ayşe", body: lateBody, createdAt: t(3), ingestedAt: t(6) } });
+    await prisma.message.create({
+      data: { conversationId: c.id, direction: "outbound", authorType: "ai", senderName: "GuestOps AI", body: "Şifre: abc12345", createdAt: t(4), ingestedAt: opts.replyIngested ? t(6) : null },
+    });
+    return { orgId: o.id, conversationId: c.id };
+  }
+
+  it("🚨 'Mutfakta duman var' cevap yazılırken geldi → ev sahibine acil e-posta + Sorunlu", async () => {
+    const { orgId, conversationId } = await seedLate("Mutfakta duman var, alarm çalıyor!");
+    expect((await sendDueAlerts(orgId)).alerted).toBe(1);
+    expect(mockMail).toHaveBeenCalledTimes(1);
+    const c = await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } });
+    expect(c.status).toBe("problem");
+    expect(c.lastRiskType).toBe("safety_emergency");
+  });
+
+  it("KONTROL: cevap SAĞLAYICIDA yazıldıysa (ev sahibi mesajı gördü) geç mesaj yok → uyarı YOK", async () => {
+    const { orgId } = await seedLate("Mutfakta duman var, alarm çalıyor!", { replyIngested: true });
+    expect((await sendDueAlerts(orgId)).alerted).toBe(0);
+    expect(mockMail).not.toHaveBeenCalled();
+  });
+
+  it("KONTROL: geç mesaj zararsızsa uyarı yok, konuşma 'Yeni' kalır", async () => {
+    const { orgId, conversationId } = await seedLate("Bir de otopark var mı?");
+    expect((await sendDueAlerts(orgId)).alerted).toBe(0);
+    expect((await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } })).status).toBe("new");
+  });
+});

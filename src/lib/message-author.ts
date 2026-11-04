@@ -53,6 +53,25 @@ export function isAnsweringOutbound(m: { direction: string; authorType?: string 
   return m.direction !== "inbound" && !isAutomationMessage(m);
 }
 
+/**
+ * GEÇ İÇERİ ALINAN MİSAFİR MESAJLARI (kurucu 11-04 S1 "önerini beğendim"; derin ajan turu F2). Bizim cevabımız yazılırken misafirin
+ * platformda yazdığı mesaj sonraki senkronda SAĞLAYICI sırasında cevabımızdan ÖNCE düşer → "son mesaj giden" görünür, konuşma
+ * "Cevaplandı" sayılır, acil ağı onu görmez. Ölçüt: en yeni CEVAPLAYAN giden mesajı BİZ yazdıysak (içe alma yolundan gelmedi —
+ * `ingestedAt` boş) ve misafir mesajı o cevap yazıldıktan SONRA içeri alındıysa, cevap onu görmeden yazılmıştır. Sağlayıcıda yazılmış
+ * giden (ev sahibi Airbnb uygulamasından) içeri alınmıştır: yazan konuşmayı sağlayıcıda gördü → geç sayılmaz. İçeri alınma anı bilinmeyen
+ * satır geç sayılmaz. `newestFirst`: `createdAt` azalan; `ingestedAt` ZORUNLU alan (seçilmeyi unutmak "bizim yazdık" sayılmasın). Saf.
+ */
+export function lateGuestMessages<T extends { direction: string; authorType?: string | null; createdAt: Date; ingestedAt: Date | null }>(
+  newestFirst: readonly T[],
+): T[] {
+  const at = newestFirst.findIndex((m) => isAnsweringOutbound(m));
+  if (at === -1) return [];
+  const reply = newestFirst[at];
+  if (reply.ingestedAt !== null) return [];
+  const writtenAt = reply.createdAt.getTime();
+  return newestFirst.slice(at + 1).filter((m) => m.direction === "inbound" && m.ingestedAt !== null && m.ingestedAt.getTime() > writtenAt);
+}
+
 /** Prisma: otomatik şablon mesajı OLMAYAN satırlar — NULL yazarlı eski satırlar DAHİL (`{ not: … }` NULL'u dışlardı). */
 export function notAutomationMessageWhere(): { OR: ({ authorType: null } | { authorType: { not: string } })[] } {
   return { OR: [{ authorType: null }, { authorType: { not: AUTOMATION_AUTHOR } }] };
