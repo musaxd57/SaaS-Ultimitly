@@ -252,3 +252,58 @@ Eş zamanlı iki yönetici: kontrol uçları `If-Match: <controlVersion>` ister;
    konuşuyor olabilir; yazdığını göremiyoruz)? Önerim: host'un son mesajından sonraki 10 dk içinde gelen misafir mesajı AI'da bekler; 10 dk
    içinde host yazarsa AI hiç girmez, yazmazsa güncel bağlamla değerlendirilir (eski taslak değil). Codex görüşü istenebilir.
 7. Ölçüm: geçmiş konuşmalardan host cevabı → öğe eşleme doğruluğu (kör set) + yanlış "cevaplandı" oranı (en tehlikeli hata).
+
+## 10. Codex 11-04 öğleden sonra görüşüyle güncelleme (benim kararlarım — kurucu: "son karar sende")
+
+### 10.1 K-3 dış kanal host cevabı — sabit 10 dk YERİNE kısa host önceliği (kabul, gerekçeli)
+Codex haklı: sabit 10 dk hem bağımsız soruyu gereksiz bekletir hem 9:59'da gelen soruya 1 sn sonra AI'ı sokar; "yakın host etkinliği" sinyali
+ile "bu soru ne kadar bekler" kararı ayrı tutulur. §9 madde 6 şöyle değişir:
+- **Host önceliği penceresi** ihtiyaç bazındadır: dış kanaldan host yazdıktan sonra gelen NORMAL (tehlike dışı) yeni ihtiyaç host'a kısa bir
+  cevap fırsatı tanır — başlangıç **90 sn**, ölçülecek. Pencere ihtiyacın İLK misafir mesajından sayılır; misafirin aynı soruya "?" eklemesi
+  başa sarmaz, gerçekten yeni soru kendi penceresini alır.
+- Host o ihtiyacı cevaplarsa bekleyen AI cevabı KALKAR (değerlendirme iptal, gönderim yok). Host başka konuda yazdıysa bağımsız sorunun
+  beklemesi başa SARMAZ.
+- Pencere bitince yalnız YENİDEN DEĞERLENDİRME başlar (güncel konuşma okunur; eski taslak kullanılmaz) — "gönder" izni değildir.
+- Tehlike tespiti, uyarı ve tehlike akışı pencereye takılmaz. Devral / güvenlik engeli / belirsiz gönderim pencere bitince kalkmaz.
+- Gölge ölçüm: 90 / 180 / 600 sn kolları aynı akışta yalnız KAYDEDİLİR (gereksiz bekleme, tekrarlanan cevap, host'un üstüne konuşma,
+  yanlış kapanan ihtiyaç); karar ölçümle. Not: AI önce cevapladığı için host'un susması "host cevaplamazdı" kanıtı sayılmaz.
+- Öncül: senkron gecikmesi ölçülür (bugün 2 dk tur → 90 sn pencere anlamsız olabilir; web kancası gelene kadar pencere "host mesajının
+  BİZE ulaştığı an"dan değil, mesajın kanal zamanından sayılır).
+
+### 10.2 K-3 netleştirmeleri (kabul)
+- "Dış kanaldan cevaplandı" yalnız host mesajıyla İLİŞKİLENDİRİLEN öğelere; kapsam belirsizse iş AÇIK kalır.
+- "Bir daha cevaplamaz" kalıcı yasak değil: misafir "anlamadım, tekrar açıklar mısınız?" derse bu YENİ bir ihtiyaçtır.
+- "Host'la çelişmez" körü körüne itaat değil: yanlış daire / çelişen saat / güvenlik → AI o kısma girmez, host'a bırakır (panelde "host'un
+  mesajı bilgi tabanıyla çelişiyor" notu); tek host mesajı bilgi tabanını KENDİLİĞİNDEN değiştirmez (WhatsApp → bilgi tabanı akışı ayrı, onaylı).
+- Cevap ≠ ilgilenme ≠ çözme: "Ben ilgilenirim" = sorumluluk bildirimi (öğe host'ta, `pending_host`); "Teknisyen geldi, düzeldi" = çözüm
+  KANITI (panelde tek "çözüldü mü?" önerisi; güvenlik olayında kapanış yine K-4 kuralıyla).
+- **Sıra:** önce host mesajını kaydet + o konuşmanın kuyruktaki / üretilmekte olan AI işlerini geçersiz kıl (sürüm++), SONRA anlam analizi —
+  aralık bırakılmaz. Host'un kendi taslakları silinmez.
+- **Köken ayrımı:** bizim AI cevabımızın geri senkronu (sağlayıcı kimliği bizim gönderim kaydımızda) · kanal otomatik şablonu (sağlayıcının
+  mesaj türü / rolü; Q2 kuralı zaten var) · gerçek host mesajı ayrı tutulur; yalnız "gönderen = host" alanına güvenilmez.
+
+### 10.3 K-5 belirsiz tehlike — Codex şartları (kabul)
+- İlk host bildirimi BEKLEMEZ: bugünkü "olası tehlike + anlama yok → Sorunlu + seyrek e-posta" anında olur; yeniden değerlendirme onun
+  yerine geçmez, YANINDA koşar.
+- +1 / +5 / +15 dk ilk tespit anından; kalıcı iş kaydı (yeniden başlatmada kaybolmaz; iki işçi tek sonuç).
+- **Teknik hata ≠ anlam belirsizliği:** yeniden deneme YALNIZ teknik hata (zaman aşımı, 5xx, ağ) için. Model cevap verdi ama "belirsiz"
+  dediyse aynı metin tekrar sorulmaz ("tehlikesiz" diyene kadar sormak güvenli değil) → doğrudan tek inceleme işi. Anlama anahtarı
+  KASITLI kapalıysa tekrar denenmez.
+- Sonuç uygulanırken güncel durum yeniden okunur: host müdahalesi, yeni misafir mesajı, başka açık tehlike varsa eski değerlendirme yeni
+  durumu ezmez; yalnız İLGİLİ `hazard_unverified` engeli koşullu kapanır (sürüm koşulu).
+- Ayrı / ağırlaşan tehlike "tek bildirim" bahanesiyle bastırılmaz (§3.3 olay kimliği).
+- Engel kalkınca eski taslak gönderilmez; soru hâlâ açık ve güncelse cevap YENİDEN hazırlanır.
+
+### 10.4 Host talimatından AI'nin yazdığı mesaj + ortak kapının ayrışması (kabul)
+- Önizleme + açık [Gönder]; misafire giden metin yine kod kapılarından (sır, ödeme yöntemi, iç sistem anlatımı…) geçer.
+- **Kapı ikiye ayrılır:** (a) ORTAK kontroller — yetki (owner/manager), hedef konuşma / kiracı, rezervasyon iptali, belirsiz gönderim, silme
+  (KVKK) — HER gönderimde; (b) OTOMASYON kuralları — kontrol kipi (`auto`/`host`), Devral, hazard engeli, yazma oturumu, sessiz saat — YALNIZ
+  AI'nın kendi başına gönderdiği mesajlarda. İnsanın onayladığı gönderim (elle yazılan ya da önizlemesi onaylanan) AI duraklatılmış / Devral
+  durumunda da GİDER (bugün kuyrukta da elle mesaj durum vetosuna takılmaz — `replyVeto` "manual host reply always goes").
+- Tehlike engeli açıkken host'un önizlemeli mesajı gider ama metin "tehlike çözüldü" türü bir iddia taşıyorsa (ör. "sorun yok, kullanmaya
+  devam edin") önizlemede uyarı gösterilir — engel insan onayıyla kapatılmadıkça.
+
+### 10.5 Codex statik bulgularının konuşma kontrolüyle bağı
+- P1 #3 (doğrudan gönderim tamamlanması daha yeni durumu ezer) bugünkü modelde kuyruk kuralıyla kapatıldı (`host-send.ts`, `automation.ts`;
+  11-04). Yeni modelde aynı ilke `controlVersion` ile genelleşir: tamamlama gönderim başındaki sürüme bağlıdır.
+- P1 #4 (kuyruktaki AI cevabı rezervasyon iptalinden sonra) → (a) ORTAK kontrollerin ilk üyesi.
