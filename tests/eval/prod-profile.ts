@@ -18,7 +18,7 @@ export const PROD_MODEL_PROFILE: Readonly<Record<string, string>> = {
   OPENAI_TRANSLATE_REASONING_EFFORT: "medium",
   OPENAI_STYLE_MODEL: "gpt-6-luna",
   OPENAI_STYLE_REASONING_EFFORT: "none",
-  AI_DECISION_TEXT_MODEL: "gpt-5.1",
+  AI_DECISION_TEXT_MODEL: "claude-haiku-5-5", // kurucu 11-04 "Haikuya geçelim" — ürün bağdaştırıcısı (ANTHROPIC_API_KEY)
   // Anlama + yeniden sıralayıcı 5.1'de (10-10 dalga 5) — ortak anahtar; katman anahtarları BOŞ kalır.
   AI_SEMANTIC_MODEL: "gpt-5.1",
 };

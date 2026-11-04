@@ -152,3 +152,11 @@ görülünce davranış değişikliği onaylanacak.
 | 12 | P2 | Eşzamanlı farklı KB işlemleri plan sınırını aşar | `api/kb/route.ts:79` · `[id]/route.ts:65` · `[id]/copy/route.ts:252` |
 | 13 | P2 (koşullu) | Kardeş alan adından aynı-site POST'lar hesap güvenliği kotalarını tüketir (crossSiteWrite yok, içerik türü kotadan sonra); OAuth durum çerezi imzasız / öneksiz | `api/account/{2fa,password,delete}` · `lib/hospitable-oauth.ts:21,106` |
 | 14 | P3 (bayraklı) | Aynı mesaj gece yarısının iki yanında eşzamanlı işlenirse çift görev (günlü kilit anahtarı) | `lib/tasks/create.ts:58` |
+
+## 6. Kurucu 11-04 akşam (aynen)
+"Haikuya geçelim karar metni yazıcısında · 1. Açılsın · 2. Eklensin · 3. Açılsın anahtarı · Paddleda daha önceden ödeme aldık bu arada"
+- Karar metni yazıcısı → `claude-haiku-5-5` (düşünme kapalı, çaba low — ölçülen ayar). Ürün bağdaştırıcısı `lib/ai/anthropic-structured.ts`;
+  açılış listesinde `AI_DECISION_TEXT_MODEL=claude-haiku-5-5` + `ANTHROPIC_API_KEY`.
+- 1 → `AI_UNDERSTANDING_FAULT_CONTEXT_ENABLED=1` açılışta. · 2 → gizlilik sayfası md.8'e Anthropic satırı (LEGAL_VERSION 2026-11).
+  · 3 → `CONVERSATION_CONTROL_SHADOW_ENABLED=1` açılışta.
+- Paddle: canlıda daha önce ödeme alındı (akış çalışıyordu); 11-04 değişikliği yalnız sırasız "ödeme başarısız" olayını ilgilendirir.

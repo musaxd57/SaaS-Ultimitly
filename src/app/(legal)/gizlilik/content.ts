@@ -85,6 +85,7 @@ export const SECTIONS: Section[] = [
     ],
     list: [
       "OpenAI (ABD) — misafir mesajlarına yapay zekâ ile yanıt hazırlanması. API üzerinden iletilen veriler, sağlayıcının taahhüdü gereği model eğitiminde kullanılmaz.",
+      "Anthropic (ABD) — ev sahibinin erken giriş / geç çıkış kararının misafire gidecek metninin taslağının hazırlanması; misafir mesajı iletilmez. API üzerinden iletilen veriler, sağlayıcının taahhüdü gereği model eğitiminde kullanılmaz.",
       "Hospitable (yurt dışı) — Airbnb/Booking.com mesajlarına ve rezervasyon bilgilerine erişim için resmi kanal entegrasyon aracısı.",
       "Paddle (Merchant of Record, yurt dışı) — abonelik ve ödeme işlemlerinin yürütülmesi; kart verileri Paddle nezdinde işlenir.",
       "E-posta gönderim sağlayıcısı (Resend/SMTP) — doğrulama, şifre ve uyarı e-postalarının iletimi.",

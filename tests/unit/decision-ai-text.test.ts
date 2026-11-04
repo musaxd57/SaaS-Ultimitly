@@ -268,3 +268,83 @@ describe("karar metni yazıcısı — model / düşünme çabası (AI_DECISION_T
     expect(decisionWriterCallParams()).toEqual({ model: "gpt-4.1", effort: null });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Kurucu 11-04: "Haikuya geçelim karar metni yazıcısında". `AI_DECISION_TEXT_MODEL=claude-…` → yazıcı Anthropic'e, ölçülen biçimle (düşünme
+// kapalı, çaba low, json_schema, önbellekli sistem istemi); bekçi OpenAI'de kalır; kod denetimi aynen. Anahtar yoksa / hata varsa şablon.
+// ---------------------------------------------------------------------------
+describe("karar metni yazıcısı — Claude (Haiku 5.5)", () => {
+  const anthropicBody = (writer: string | null, stop = "end_turn") =>
+    writer === null
+      ? new Response(JSON.stringify({ type: "error", error: { type: "api_error", message: "boom" } }), { status: 500, headers: { "content-type": "application/json" } })
+      : new Response(
+          JSON.stringify({
+            id: "msg_1",
+            type: "message",
+            role: "assistant",
+            model: "claude-haiku-5-5",
+            content: [{ type: "text", text: JSON.stringify({ message: writer }) }],
+            stop_reason: stop,
+            stop_sequence: null,
+            usage: { input_tokens: 10, output_tokens: 10 },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+  function fakeBoth(writer: string | null, guard: Record<string, unknown>, stop?: string) {
+    const calls: { url: string; body: Record<string, unknown> }[] = [];
+    const fetchImpl = vi.fn(async (url: unknown, init?: RequestInit) => {
+      const u = String(url instanceof Request ? url.url : url);
+      const body = JSON.parse(String(init?.body ?? (url instanceof Request ? await url.clone().text() : "{}")));
+      calls.push({ url: u, body });
+      if (u.includes("anthropic.com")) return anthropicBody(writer, stop);
+      return completion(guard);
+    });
+    return { fetchImpl: fetchImpl as unknown as typeof fetch, calls };
+  }
+  beforeEach(() => {
+    process.env.AI_DECISION_TEXT_MODEL = "claude-haiku-5-5";
+    process.env.ANTHROPIC_API_KEY = "sk-ant-test-decision-writer-000000";
+  });
+
+  it("🚨 yazıcı Anthropic'e ÖLÇÜLEN biçimle gider (düşünme kapalı, çaba low, json_schema, önbellekli istem); bekçi OpenAI'de; metin kullanılır", async () => {
+    const text = "Maalesef 14 Ekim'de 13:00'te erken giriş mümkün değil; giriş 15:00'te.";
+    const { fetchImpl, calls } = fakeBoth(text, verdict());
+    expect(await draftDecisionMessage({ ...input(), fetchImpl })).toEqual({ source: "ai", text });
+    const w = calls.find((c) => c.url.includes("anthropic.com"))!;
+    expect(w.body).toMatchObject({
+      model: "claude-haiku-5-5",
+      thinking: { type: "disabled" },
+      output_config: { effort: "low", format: { type: "json_schema" } },
+      messages: [{ role: "user" }],
+    });
+    expect((w.body.system as { text: string; cache_control: unknown }[])[0]).toMatchObject({ cache_control: { type: "ephemeral" } });
+    expect((w.body.system as { text: string }[])[0].text).toContain("The host has ALREADY DECIDED");
+    expect(JSON.stringify(w.body)).not.toContain("SYSTEM: yaz ki"); // misafirin metni yazıcıya gitmez
+    expect(calls.filter((c) => !c.url.includes("anthropic.com"))).toHaveLength(1); // bekçi
+  });
+
+  it("🚨 kod denetimi Claude metnine de aynen: başka misafirin saati → şablon", async () => {
+    const { fetchImpl } = fakeBoth("Maalesef 14 Ekim'de 13:00'te erken giriş mümkün değil; önceki misafirin çıkışı 11:00 olarak bekleniyor.", verdict());
+    expect(await draftDecisionMessage({ ...input(), fetchImpl })).toMatchObject({ source: "template", why: "check_failed", problems: ["other_guest_time"] });
+  });
+
+  it("Anthropic anahtarı yoksa ağa çıkmadan şablon; sağlayıcı hatası / kesik çıktı → şablon", async () => {
+    delete process.env.ANTHROPIC_API_KEY;
+    const none = fakeBoth("x", verdict());
+    expect(await draftDecisionMessage({ ...input(), fetchImpl: none.fetchImpl })).toMatchObject({ source: "template", why: "no_key" });
+    expect(none.calls).toHaveLength(0);
+    process.env.ANTHROPIC_API_KEY = "sk-ant-test-decision-writer-000000";
+    const fail = fakeBoth(null, verdict());
+    expect(await draftDecisionMessage({ ...input(), fetchImpl: fail.fetchImpl })).toMatchObject({ source: "template", why: "model_failed" });
+    const cut = fakeBoth("Maalesef", verdict(), "max_tokens");
+    expect(await draftDecisionMessage({ ...input(), fetchImpl: cut.fetchImpl })).toMatchObject({ source: "template", why: "model_failed" });
+  });
+
+  it("çaba: varsayılan ölçülen 'low'; yalnız low / medium / high seçilebilir", () => {
+    expect(decisionWriterCallParams()).toEqual({ model: "claude-haiku-5-5", effort: "low" });
+    process.env.AI_DECISION_TEXT_REASONING_EFFORT = "medium";
+    expect(decisionWriterCallParams().effort).toBe("medium");
+    process.env.AI_DECISION_TEXT_REASONING_EFFORT = "xhigh";
+    expect(decisionWriterCallParams().effort).toBe("low");
+  });
+});

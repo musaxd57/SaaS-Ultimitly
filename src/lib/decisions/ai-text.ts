@@ -7,6 +7,7 @@ import type { StayGuardVerdict } from "@/lib/ai/semantic/stay-change";
 import { replyCallParams } from "@/lib/ai";
 import { isReasoningModel, layerReasoningEffort } from "@/lib/ai/model-family";
 import { normalizeHhmm } from "@/lib/ai/semantic/stay-change";
+import { ANTHROPIC_EFFORTS, anthropicApiKey, callAnthropicStructuredJson, isAnthropicModel, type AnthropicEffort } from "@/lib/ai/anthropic-structured";
 import { decisionMessageText, formatDecisionDay, formatDecisionFee, type DecisionLang } from "./core";
 import { checkDecisionText, type DecisionTextFacts, type DecisionTextProblem } from "./text-check";
 
@@ -35,6 +36,12 @@ export function decisionAiTextEnabled(): boolean {
  */
 export function decisionWriterCallParams(): { model: string; effort: string | null } {
   const model = process.env.AI_DECISION_TEXT_MODEL?.trim() || replyCallParams().model;
+  // Kurucu 11-04 "Haikuya geçelim": `claude-` modeli Anthropic'e gider, ölçülen ayar düşünme KAPALI + çaba `low` (yalnız low / medium / high
+  // seçilebilir; tanınmayan değer ölçülen değere düşer).
+  if (isAnthropicModel(model)) {
+    const asked = process.env.AI_DECISION_TEXT_REASONING_EFFORT?.trim();
+    return { model, effort: (ANTHROPIC_EFFORTS as readonly string[]).includes(asked ?? "") ? (asked as string) : "low" };
+  }
   const effort = layerReasoningEffort(process.env.AI_DECISION_TEXT_REASONING_EFFORT?.trim() || process.env.OPENAI_REASONING_EFFORT);
   return { model, effort: effort && isReasoningModel(model) ? effort : null };
 }
@@ -153,18 +160,33 @@ export async function draftDecisionMessage(input: DecisionDraftInput): Promise<D
     const apiKey = semanticApiKey();
     if (!apiKey) return template(input, "no_key");
     const { model, effort } = decisionWriterCallParams();
-    const res = await callStructuredJson({
-      apiKey,
-      model,
-      system: DECISION_WRITER_SYSTEM_PROMPT,
-      user: buildDecisionWriterInput(input),
-      schema: WRITER_SCHEMA,
-      timeoutMs: semanticTimeoutMs(model),
-      maxTokens: 400,
-      maxCompletionTokens: 4_000,
-      ...(effort ? { reasoningEffort: effort } : {}),
-      fetchImpl: input.fetchImpl,
-    });
+    // Yazıcı Claude ise kendi anahtarı gerekir (bekçi yine OpenAI anahtarıyla — ↑semanticApiKey); yoksa onaylı şablon.
+    const claudeKey = isAnthropicModel(model) ? anthropicApiKey() : null;
+    if (isAnthropicModel(model) && !claudeKey) return template(input, "no_key");
+    const res = claudeKey
+      ? await callAnthropicStructuredJson({
+          apiKey: claudeKey,
+          model,
+          system: DECISION_WRITER_SYSTEM_PROMPT,
+          user: buildDecisionWriterInput(input),
+          schema: WRITER_SCHEMA.schema,
+          timeoutMs: semanticTimeoutMs(model),
+          maxTokens: 1_000,
+          effort: (effort ?? "low") as AnthropicEffort,
+          fetchImpl: input.fetchImpl,
+        })
+      : await callStructuredJson({
+          apiKey,
+          model,
+          system: DECISION_WRITER_SYSTEM_PROMPT,
+          user: buildDecisionWriterInput(input),
+          schema: WRITER_SCHEMA,
+          timeoutMs: semanticTimeoutMs(model),
+          maxTokens: 400,
+          maxCompletionTokens: 4_000,
+          ...(effort ? { reasoningEffort: effort } : {}),
+          fetchImpl: input.fetchImpl,
+        });
     const raw = res.ok && res.data && typeof (res.data as { message?: unknown }).message === "string" ? (res.data as { message: string }).message.trim() : "";
     if (!raw) return template(input, "model_failed");
     const note = input.resolution === "approve" && input.kind === "early_checkin" ? input.note?.trim() : "";

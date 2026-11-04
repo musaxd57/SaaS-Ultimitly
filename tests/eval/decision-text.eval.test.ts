@@ -96,7 +96,9 @@ function metered(input: Parameters<typeof fetch>[0], init?: Parameters<typeof fe
       const u = j.usage ?? {};
       // Yazıcı cevabını yakala (bekçi cevabında `message` alanı yoktur): şablona düşüşte reddedilen metin raporda görünsün.
       try {
-        const content = (j as { choices?: { message?: { content?: string } }[] }).choices?.[0]?.message?.content;
+        const content =
+          (j as { choices?: { message?: { content?: string } }[] }).choices?.[0]?.message?.content ??
+          (j as { content?: { type?: string; text?: string }[] }).content?.find((b) => b.type === "text")?.text;
         const parsed = content ? (JSON.parse(content) as { message?: unknown }) : null;
         if (parsed && typeof parsed.message === "string") lastWriterText = parsed.message;
       } catch {
@@ -105,9 +107,11 @@ function metered(input: Parameters<typeof fetch>[0], init?: Parameters<typeof fe
       const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
       const r = usage.get(m) ?? { calls: 0, in: 0, cached: 0, out: 0, reasoning: 0 };
       r.calls += 1;
-      r.in += n(u.prompt_tokens);
-      r.cached += n((u.prompt_tokens_details as Record<string, unknown> | undefined)?.cached_tokens);
-      r.out += n(u.completion_tokens);
+      // Ürünün Anthropic yolu (kurucu 11-04, Haiku karar yazıcısı): Messages API kullanımı (`input_tokens` önbellek okumasını İÇERMEZ).
+      const anthropic = typeof u.input_tokens === "number";
+      r.in += anthropic ? n(u.input_tokens) + n(u.cache_read_input_tokens) + n(u.cache_creation_input_tokens) : n(u.prompt_tokens);
+      r.cached += anthropic ? n(u.cache_read_input_tokens) : n((u.prompt_tokens_details as Record<string, unknown> | undefined)?.cached_tokens);
+      r.out += anthropic ? n(u.output_tokens) : n(u.completion_tokens);
       r.reasoning += n((u.completion_tokens_details as Record<string, unknown> | undefined)?.reasoning_tokens);
       usage.set(m, r);
     } catch {
