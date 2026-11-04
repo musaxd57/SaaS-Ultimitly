@@ -36,6 +36,19 @@
 
 İlk denemeler birlikte: B-1'in dayandığı Paddle alanı (`created_at`) sandbox'ta doğrulanacak.
 
+**Gönderilmeden önce ikinci sert inceleme (4 boyut, aynı akşam) — bulunan ve düzeltilen:**
+- **A-3 ters etkisi:** ilk hâli "Vanadan gaz kaçıyorsa ne yapayım?", "Ocak gaz kokuyordu, tamir ettiler" gibi KOŞUL / GEÇMİŞ cümlelerini canlı
+  tehlike sayıyordu (QR'da cevap gitmez + ev sahibine kritik e-posta). Düzeltildi; ayrıca "The stove smells like gas", "La cocina huele a gas",
+  "Плита пахнет газом", ağız biçimi "gaz kokuyo", "Merdiven duman dolu" artık yakalanıyor. Kör olmayan 14.709 metinde eski / yeni fark 0.
+- **A-11 ters etkisi:** ilk hâli "We were not given permission to allow pets", "We were not informed of your arrival time, could you share it?",
+  "Kargonuz bize gelmedi", "Bize izin verilmedi" gibi MEŞRU cevapları tutuyordu (misafire gitmiyordu). Kalıplar bilgi nesnesi şartına bağlandı;
+  ayrıca en doğal Türkçe biçim "Bana bu konuda bilgi verilmedi" artık misafire gitmiyor. Ölçüm külliyatında (17.901 gerçek model cevabı) fark 0.
+- **S1 inceleri:** arada ev sahibinin Airbnb uygulamasından yazdığı cevap varsa geç mesaj sayılmaz (yanlış "Yeni" + gereksiz acil e-posta
+  kapandı) · kuyruk yolunda teslim gecikince arada yazılan misafir mesajı da geç sayılır · S1 konuşmasında yanlış "saat dışında geldi" /
+  "sınır yenilenince yanıtlanacak" notu silinir · boş geçen bir test düzeltildi.
+- **B-1 inceltmesi:** Paddle'ın yeniden gönderdiği eski olay artık yanıltıcı "eski abonelik" alarmı üretmez.
+- **D-2** yapıldı (aşağıdaki tabloda). Bütün bu değişikliklerde mutasyon 17/17 öldürüldü.
+
 Not (test düzeltmesi, ürün değil): tam kapıda S1 sonrası 3 test kırmızıya döndü. Sebep testin zaman kurgusuydu — cevabımız 3 hafta önceki sabit
 tarihle yazılıyor, misafir mesajı ise "şimdi" içe alınmış sayılıyordu (gerçekte olamayacak sıra). İçe alınma anı testin anlattığı adım sırasına
 göre yazıldı; iddiaların hiçbiri gevşemedi.
@@ -54,6 +67,15 @@ Bu yol şunları görmüyor (ölçüldü):
 
 Dikkat edilecek yanlış alarm: "Bayıldım" (övgü), "Yerden ısıtma yok mu?" — öneri yalnız EYLEM / DURUM bildiren öbekle (10-31 kişisel tehlike
 deseniyle aynı: koşul / soru / önlem cümlesi uyarı DEĞİL) + bugünkü yanlış alarm kör setinde 0 sınırı. Misafire giden metin DEĞİŞMEZ. Yapalım mı?
+
+### T2b — S1'in kalan iki boşluğu (misafire gideni değiştirir)
+- **Geç mesajdan sonra misafir yeniden yazarsa** yapay zekâ yalnız YENİ mesajı cevaplıyor, geç mesaj kayboluyor. ÖRNEK: 10:00 misafir "Wi-Fi
+  şifresi?" → cevabımız yazılırken 10:00:10 "Ayrıca havlu var mı?" (geç) → 10:01 "Otopark var mı?". Bugün: yapay zekâ yalnız otoparkı cevaplar,
+  konuşma "Cevaplandı" olur, havlu sorusu kimseye görünmez. Önerim (a): geç mesaj bekliyorken yapay zekâ yeni mesajı da cevaplamaz, konuşma
+  ev sahibine kalır ("Yeni"). Önerim (b): yapay zekâ ikisini birlikte görür ve tek cevapta ikisini de cevaplar. Hangisi?
+- **Ev sahibi panelden "Gönder"e bastığı sırada** (birkaç saniye) içeri alınan misafir mesajı nadiren "Cevaplandı"ya düşebiliyor. Acil
+  mesajlar zaten uyarı yolundan yakalanıyor; yalnız gelen kutusu durumu. Düzeltme gönderim satırının zaman damgasını "Gönder"e basıldığı an
+  yapmak — ev sahibine görünen saat birkaç saniye erkene kayar. Yapayım mı?
 
 ### T3 — QR'da kapı kodunun bazı yazımları rezervasyon öncesi süzgeçten geçiyor (A-16)
 "45-90", "Kilit: 1234", yazıyla kod: ev sahibi kodu Giriş / Wi-Fi dışında bir kategoriye yazdıysa rezervasyon onaylanmadan QR'da misafire
@@ -82,6 +104,12 @@ kuralın içinde mi?
   "aboneliği işletmeye bağla" (yalnız süper yönetici + 2FA + denetim kaydı).
 - **Kaybolan iptal = süresiz erişim:** durum "active" kaldıkça dönem sonuna bakılmıyor; otomatik mutabakat yok. Önerim: günlük mutabakat —
   dönem sonu 3+ gün geçmiş "active" satırlar Paddle'dan okunur, uyuşmazlıkta YALNIZ operatöre alarm (müşteriye dokunmaz).
+- **B-2 kenarları (inceleme):** (1) Deneme hesabı ödeme ekranını 2 daireyle açıp ödemeden önce daire eklerse yine küçük plana geçebiliyor
+  (onay anında bir kez denetleniyor). Önerim: ödeme bağlanırken daire sayısı plan sınırını aşıyorsa YALNIZ operatöre alarm (müşteriye
+  dokunmaz). (2) Sınırı zaten aşmış bir abone (ör. Başlangıç'ta 9 daire) Pro'ya da geçemiyor (Pro'nun sınırı da 9'dan küçükse) — kuralınız
+  bunu söylüyor, ama bir üst plana geçişi de engelliyor; yalnız İşletme'yi seçebilir. Böyle kalsın mı? (3) 25'ten fazla dairede hiçbir plan
+  sığmıyor ama mesaj "Daha büyük bir plan seçin" diyor. Önerim: "Daire sayınız paketlerimizin üstünde; bizimle iletişime geçin." Metin
+  değişikliği — onaylar mısınız?
 - **B-5:** 24 saati geçmiş onayla ödeme bağlanmaz ve müşteri ikinci kez ödeyebilir. Önerim: bağlanamayan ödemede işletmeye "ödemeniz kontrol
   ediliyor" kilidi.
 
