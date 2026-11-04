@@ -236,6 +236,7 @@ import {
   reservationCreatedEmail,
 } from "@/lib/email-templates";
 import { LEGACY_CONVERSATION_STATUSES, type ReplyTone } from "@/lib/constants";
+import { oldestFirst } from "@/lib/due-order";
 import { loadPromptInstructions } from "@/lib/history-learn/prompt-instructions";
 import { OPEN_AUTO_LIFECYCLE_TASK_WHERE, UNTOUCHED_AUTO_LIFECYCLE_TASK_WHERE, checklistTouched } from "@/lib/tasks/cancelled-leftovers";
 import { LIFECYCLE_TASK_LITE_SELECT, lifecycleTaskPresent, type LifecycleTaskLite } from "@/lib/tasks/lifecycle-presence";
@@ -4806,13 +4807,15 @@ export async function markBillingPausedConversations(
   if (!org?.autoReplyHospitable) return 0;
   const freshSince = org.autoReplyEnabledAt ?? new Date(now.getTime() - 48 * 60 * 60 * 1000);
   const due = dueAutoReplyWhere(organizationId, freshSince);
-  const rows = await prisma.conversation.findMany({
-    // İnsan devri koşulu (ikinci AND öğesi) bilerek DIŞARIDA — yukarıdaki gerekçe.
-    where: { ...due, AND: [due.AND[0], ...(opts.before ? [{ lastMessageAt: { lt: opts.before } }] : [])] },
-    select: { id: true, lastMessageAt: true },
-    orderBy: { lastMessageAt: "asc" },
-    take: 200,
-  });
+  // Sıra + 200 tavanı JS'te (`oldestFirst`, ölçek turu DB-1: SQL'deki ORDER BY + LIMIT global dizinde tam tablo taramasına düşüyordu).
+  const rows = oldestFirst(
+    await prisma.conversation.findMany({
+      // İnsan devri koşulu (ikinci AND öğesi) bilerek DIŞARIDA — yukarıdaki gerekçe.
+      where: { ...due, AND: [due.AND[0], ...(opts.before ? [{ lastMessageAt: { lt: opts.before } }] : [])] },
+      select: { id: true, lastMessageAt: true },
+    }),
+    200,
+  );
   let marked = 0;
   for (const c of rows) {
     const res = await prisma.conversation.updateMany({
@@ -4908,25 +4911,27 @@ export async function runDueChannelAutoReplies(
     return { sent: 0, considered: 0 };
   }
 
+  // Uygunluk SQL'de; SIRA + TAVAN JS'te (ölçek turu 11-04 DB-1, `due-order.ts`). SQL'de `ORDER BY lastMessageAt ASC LIMIT 25`
+  // PostgreSQL'i global `lastMessageAt` dizininde en eskiden yürümeye çekiyordu (büyük veride geçiş başına yüzlerce ms, kararsız).
+  // Dönen küme işletmenin GERÇEK bekleyen kuyruğu (cevapsız + damgasız; 3 kolon) — tavanı, uygunluk süzgeci geçtikten SONRA uygulanır.
   const candidates = await prisma.conversation.findMany({
     where: dueAutoReplyWhere(organizationId, freshSince),
     select: { id: true, lastMessageAt: true, autoReplyAttemptedAt: true },
-    // ADİL VE DETERMİNİSTİK SIRA: en eski cevapsız mesaj önce.
-    orderBy: { lastMessageAt: "asc" },
+  });
+
+  // İKİNCİ SAVUNMA (SQL'dekinin aynısı). Prisma alan-referansı sessizce
+  // çalışmazsa bu filtre en azından GEREKSİZ MODEL ÇAĞRISINI önler. Açlığı önleyen
+  // şey yukarıdaki SQL koşuludur, bu değil — o yüzden ikisi birden duruyor ve SQL
+  // koşulu testle pinli. Tavan artık bu süzgeçten SONRA (yanlış satıra uygulanamaz).
+  const eligible = oldestFirst(
+    candidates.filter((c) => !c.autoReplyAttemptedAt || c.autoReplyAttemptedAt < c.lastMessageAt),
+    // ADİL VE DETERMİNİSTİK SIRA: en eski cevapsız mesaj önce (eşitlikte id).
     // Kardeş geçişlerin hepsinde tavan var; burada yoktu. İşletme planında en
     // kötü hâl 1.500 ardışık model çağrısıydı (her biri 60 sn timeout'lu) ve
     // senkron kilidinin TTL'i 15 dakika — aşılırsa "aynı org iki kez koşmaz"
     // varsayımına dayanan TÜM duplicate koruması delinir. Kesilen adaylar claim
     // edilmediği için kayıp değil, bir sonraki turda alınır.
-    take: 25,
-  });
-
-  // İKİNCİ SAVUNMA (SQL'dekinin aynısı). Prisma alan-referansı sessizce
-  // çalışmazsa tavan yine yanlış satırlara uygulanır; bu filtre en azından
-  // GEREKSİZ MODEL ÇAĞRISINI önler. Açlığı önleyen şey yukarıdaki SQL koşuludur,
-  // bu değil — o yüzden ikisi birden duruyor ve SQL koşulu testle pinli.
-  const eligible = candidates.filter(
-    (c) => !c.autoReplyAttemptedAt || c.autoReplyAttemptedAt < c.lastMessageAt,
+    25,
   );
 
   let sent = 0;
