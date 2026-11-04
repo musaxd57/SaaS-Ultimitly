@@ -334,3 +334,9 @@ tek cevabı AI'ı yeniden açıyor).
    yükseltmelerde "bugün durur, yeni model yalnız öğeyi tutar" ayrışması ÖLÇÜLMEK İSTENEN şeydir. (b) G0'dan ÖNCE `problem` olmuş konuşmanın
    engel kaydı yoktur → kıyasta `legacy_problem` sayılır (sahte "yeni model gönderirdi" sayımı olmasın); ayırt etmek için G0 açılış anı
    (ilk gölge kaydı) eşik alınır.
+7. **Uygulandı (11-04 akşam, anahtar `CONVERSATION_CONTROL_SHADOW_ENABLED` KAPALI):** migration 90 + `lib/conversation-control/`
+   (`decision.ts` saf karar · `blocks.ts` en iyi çaba yazıcı + aktif engel okuyucu · `shadow.ts` kıyas · `flag.ts`). Yazıcılar: doğrulanamayan
+   tehlike · model / anlama acili · kelime ağının açık tehlikesi. Kıyas noktaları: kanal oto-yanıtının son karar anı (satır içi + kuyruğa
+   giriş) ve kuyruğun gönderim anı (yalnız AI satırı). **Kapsam kararı:** G0 YALNIZ tehlikeli yönü sayar ("bugün gider, açık engel var" —
+   kurucunun bulduğu hata); ters yön ("bugün durur, yeni model gönderirdi") G0 öncesi Sorunlu kayıtlarını ayırt etmeyi ister → G1'de, engeller
+   eksiksiz olunca. QR kendi cevap yolunu kullandığı için G1'de. Mutasyon 11/11, ilgili 76 dosya yeşil.
