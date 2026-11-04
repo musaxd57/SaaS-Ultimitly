@@ -1,4 +1,4 @@
-import { type NextRequest } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireSession, unauthorized, badRequest, jsonOk, serverError, readJsonCappedOrNull, tooManyRequests, forbidden } from "@/lib/api";
 import { rateLimit } from "@/lib/rate-limit";
@@ -84,9 +84,13 @@ export async function POST(req: NextRequest) {
       return badRequest({ email: "Bu hesapta 2FA zaten kapalı — temizlenecek bir şey yok." });
     }
 
+    // 🚨 Codex 11-04 P2: okuma ile yazma arasında müşteri 2FA'yı ETKİNLEŞTİREBİLİR (bayat-kurulum temizliği için okunan "kapalı" durum
+    // eskir). Koşulsuz yazım yeni, canlı faktörü SESSİZCE siliyor, oturum sürümünü artırmıyor ve denetime "bayat artık silindi" yazıyordu.
+    // Artık yazma OKUNAN 2FA durumuna bağlı (etkinleşme anı birebir aynı olmalı); değiştiyse hiçbir şey yazılmaz, operatöre "az önce değişti".
+    let stateChanged = false;
     await prisma.$transaction(async (tx) => {
-      await tx.user.update({
-        where: { id: user.id },
+      const cleared = await tx.user.updateMany({
+        where: { id: user.id, twoFactorEnabledAt: user.twoFactorEnabledAt },
         data: {
           twoFactorSecret: null,
           twoFactorEnabledAt: null,
@@ -95,6 +99,10 @@ export async function POST(req: NextRequest) {
           ...(active ? { sessionEpoch: { increment: 1 } } : {}),
         },
       });
+      if (cleared.count !== 1) {
+        stateChanged = true;
+        return; // kurtarma kodları ve denetim kaydı da YAZILMAZ — işlem hiç olmadı
+      }
       // Bayat dalda da çalışır: `twoFactorEnabledAt` NULL iken kurtarma kodu
       // ZATEN kullanılamaz (login o dala hiç girmez), yani bu satırlar ölü
       // ağırlıktır. Silmek durumu sadeleştirir, hiçbir yeteneği kaldırmaz.
@@ -113,6 +121,12 @@ export async function POST(req: NextRequest) {
       });
     });
 
+    if (stateChanged) {
+      return NextResponse.json(
+        { error: "Bu kullanıcının iki adımlı doğrulama durumu az önce değişti. Sayfayı yenileyip yeniden deneyin." },
+        { status: 409 },
+      );
+    }
     // Çağıran hangi işlemin olduğunu BİLMELİ: arayüz "tüm oturumları düşürüldü"
     // metnini bayat temizlikte basarsa operatöre YALAN söylemiş olur.
     return jsonOk({ ok: true, outcome: active ? "reset" : "stale_cleared" });
