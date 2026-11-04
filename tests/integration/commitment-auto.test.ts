@@ -842,9 +842,16 @@ describe("konaklama bitince (kurucu: havlu / temizlik / eksik eşya kapansın, a
       },
       { timeout: 20_000 },
     );
-    await holding;
+    // Uzatma işlemi kilidi tutmadan düşerse test zaman aşımında asılı kalmasın.
+    await Promise.race([holding, extending.then(() => Promise.reject(new Error("uzatma işlemi kilidi tutmadan bitti")))]);
     const sweep = closeStayEndedCommitments(NOW);
-    await new Promise((r) => setTimeout(r, 300)); // süpürge kilitte beklesin
+    // Süpürge danışma kilidinde BEKLEYENE kadar (Haiku 11-04: sabit 300 ms yük altında mutantı kaçırabilirdi). Kilit yoksa (mutant) bekleyen
+    // de olmaz; 2 sn sonra bırakılır — o sürede kilitsiz süpürge eski çıkışla sözleri çoktan kapatmış olur → aşağıdaki iddia kırmızı.
+    for (let waited = 0; waited < 2_000; waited += 25) {
+      const rows = await prisma.$queryRaw<{ n: bigint }[]>`SELECT count(*)::bigint AS n FROM pg_locks WHERE locktype = 'advisory' AND NOT granted`;
+      if (Number(rows[0]?.n ?? 0) > 0) break;
+      await new Promise((r) => setTimeout(r, 25));
+    }
     release();
     await extending;
     expect(await sweep).toEqual({ closed: 0 });
