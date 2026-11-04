@@ -291,6 +291,30 @@ describe("WhatsApp cevap dilimi", () => {
     expect(tr.out).toHaveLength(before);
   });
 
+  it("🚨 Codex 11-04 P2: önizleme gece yarısından ÖNCE hazırlandı, [Gönder] SONRA geldi + metinde 'yarın' → gönderilmez, soru yeniden açık, ev sahibine 'gün değişti'", async () => {
+    const h = await seedHost(DIG_A, "+90 532 111 22 33");
+    const q = await seedQuestion(h, "wamid.Q1");
+    composeMock.mockResolvedValueOnce({ ...OK_DRAFT, reply: "Yes, there will be a baby cot in the closet tomorrow.", replyTr: "Evet, yarın dolapta bebek yatağı olacak." });
+    await deliver([text(DIG_A, "wamid.a1", "yarın dolapta olacak", "wamid.Q1")]);
+    const row = await question(q.questionId);
+    expect(row.status).toBe("awaiting_confirm");
+    // Önizleme DÜN hazırlanmış gibi (`@updatedAt`'i atlamak için ham SQL).
+    await prisma.$executeRaw`UPDATE "HostQuestion" SET "updatedAt" = "updatedAt" - interval '1 day' WHERE "id" = ${q.questionId}`;
+    await deliver([button(DIG_A, "wamid.b1", hostQuestionButtonId(q.questionId, row.version, "send"))]);
+    expect(sendMock).not.toHaveBeenCalled();
+    expect(lastText()).toContain(HOST_TEXTS.dayChanged);
+    expect((await question(q.questionId)).status).toBe("sent");
+  });
+
+  it("KONTROL: gün değişse de metinde göreli gün YOKSA gönderim bugünkü gibi", async () => {
+    const h = await seedHost(DIG_A, "+90 532 111 22 33");
+    const q = await previewed(h);
+    await prisma.$executeRaw`UPDATE "HostQuestion" SET "updatedAt" = "updatedAt" - interval '1 day' WHERE "id" = ${q.questionId}`;
+    sendMock.mockResolvedValueOnce({ status: "sent", message: null } as never);
+    await deliver([button(DIG_A, "wamid.b1", hostQuestionButtonId(q.questionId, q.version, "send"))]);
+    expect(sendMock).toHaveBeenCalledTimes(1);
+  });
+
   it("[Gönderme] → gönderilmez, soru 'declined'", async () => {
     const h = await seedHost(DIG_A, "+90 532 111 22 33");
     const q = await previewed(h);

@@ -1,4 +1,5 @@
 import "server-only";
+import { dateKeyInTimeZone } from "@/lib/timezone";
 
 import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
@@ -68,6 +69,13 @@ export const HOST_QUESTION_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
 /** İptal edilmiş numara bağlantısı (şifreli numara + arama özeti) bu süre sonra silinir (tasarım §6). */
 export const REVOKED_BINDING_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
+/**
+ * Göreli gün sözcükleri (Codex 11-04 P2: gece yarısını geçen önizleme). Sınırlı seçenek kümesi + Unicode sözcük sınırı (doğrusal; metinler
+ * kısa: önizleme tavanı). "Guten Morgen"daki "morgen" de tutar — yanlış alarm yalnız ev sahibine yeniden yazdırır (güvenli yön).
+ */
+const RELATIVE_DAY_WORDS =
+  /(?<![\p{L}\p{N}_])(?:bugün|bugun|bu\s+akşam|bu\s+aksam|bu\s+gece|yarın|yarin|öbür\s*gün|obur\s*gun|today|tonight|tomorrow|heute|morgen|übermorgen|demain|aujourd['’]hui|ce\s+soir|hoy|mañana|esta\s+noche|сегодня|завтра|послезавтра)(?![\p{L}\p{N}_])|اليوم|الليلة|غدا(?!ء)/iu;
+
 export const HOST_TEXTS = {
   previewHeader: "Misafire şu cevap gidecek:",
   previewTr: "Türkçesi:",
@@ -104,6 +112,8 @@ export const HOST_TEXTS = {
   cancelledStay: "Rezervasyon iptal edilmiş; misafire bir şey gönderilmedi.",
   unverified: "Gönderim doğrulanamadı, konuşmayı kontrol edin:",
   sendFailed: "Gönderilemedi. Panelden deneyin:",
+  // Codex 11-04 P2 — önizlemeden sonra gün değişti; "bugün / yarın" artık başka güne denk geliyor. Sade: ne olduğu + ne yapması gerektiği.
+  dayChanged: "Önizlemeden sonra gün değişti; mesajdaki \"bugün / yarın\" artık başka bir güne denk geliyor. Misafire bir şey gönderilmedi. Cevabınızı yeniden yazın ya da panelden gönderin:",
   notConnected: "Kanal bağlantısı yok, panelden deneyin.",
   unsupported: "Sesli mesajları ve görselleri henüz okuyamıyorum, lütfen yazın.",
   alertReply: "Bu bir acil bildirimdi; buraya yazdığınız misafire gitmez. Misafire panelden yazın:",
@@ -807,7 +817,9 @@ async function handleButton(input: {
       draftEnc: true,
       draftHash: true,
       createdAt: true,
+      updatedAt: true,
       expiresAt: true,
+      organization: { select: { timezone: true } },
       conversation: { select: { id: true, channel: true, guestIdentifier: true, externalReservationId: true, reservation: { select: { status: true } } } },
     },
   });
@@ -854,7 +866,7 @@ async function handleButton(input: {
   // teslimi aynı düğmeyle baştan işler; misafire henüz hiçbir şey gitmedi (sert inceleme 10-30 A2).
   let draft: string;
   try {
-    const checked = await preSendChecks({ ...input, org, q, settle, link });
+    const checked = await preSendChecks({ ...input, org, q, settle, link, now: input.now });
     if (typeof checked !== "string") return checked.outcome;
     draft = checked;
   } catch (err) {
@@ -940,10 +952,13 @@ async function preSendChecks(ctx: {
     draftEnc: string | null;
     draftHash: string | null;
     createdAt: Date;
+    updatedAt: Date;
+    organization: { timezone: string | null };
     conversation: { reservation: { status: string } | null };
   };
   settle: (status: string, extra?: Prisma.HostQuestionUpdateManyMutationInput) => Promise<{ count: number }>;
   link: string;
+  now: Date;
 }): Promise<string | { outcome: HostAnswerOutcome }> {
   const { binding, event, reply, org, q, settle, link } = ctx;
   const draft = decryptOrNull(q.draftEnc, draftAad(q.id, org));
@@ -952,6 +967,14 @@ async function preSendChecks(ctx: {
   if (draft === null || answer === null || sha256(draft) !== q.draftHash || checkComposedGuestReply({ reply: draft, hostAnswer: answer }) !== null) {
     await settle("sent");
     await reply(`${HOST_TEXTS.sendFailed} ${link}`, event.providerMessageId);
+    return { outcome: "compose_failed" };
+  }
+  // 🚨 Codex 11-04 P2: önizleme gece yarısından ÖNCE hazırlandı, [Gönder] SONRA geldi ve metin göreli gün taşıyor ("yarın 10'da") → misafire
+  // gidecek "yarın" artık başka bir TARİH. Sessizce gönderilmez; soru yeniden açılır, ev sahibi cevabı yeniden yazar (önizleme yeniden).
+  const tz = q.organization.timezone || "Europe/Istanbul";
+  if (dateKeyInTimeZone(q.updatedAt, tz) !== dateKeyInTimeZone(ctx.now, tz) && (RELATIVE_DAY_WORDS.test(draft) || RELATIVE_DAY_WORDS.test(answer))) {
+    await settle("sent");
+    await reply(`${HOST_TEXTS.dayChanged} ${link}`, event.providerMessageId);
     return { outcome: "compose_failed" };
   }
   if (await hostRepliedSince(org, q.conversationId, q.createdAt)) {
