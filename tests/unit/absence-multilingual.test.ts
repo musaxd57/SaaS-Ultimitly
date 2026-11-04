@@ -617,6 +617,7 @@ describe("A-11 — kaçan 'bilgim yok' biçimleri", () => {
     "Ev sahibi bana bu konuda bilgi vermedi.",
     "Bilgi bize gelmedi.",
     "لا أملك المعلومات",
+    "ليس لدي البيانات.",
     "We weren't given any details about the parking.",
   ])("🚨 %j → bilgim yok (misafire gitmez)", (m) => {
     expect(admitsMissingKnowledge(m)).toBe(true);

@@ -224,9 +224,10 @@ const AR_OBJ = "(?:معلومات|معلومة|تفاصيل|بيانات)";
 /**
  * A-11 (derin ajan turu 2): belirli harfli bilgi nesnesi ("هذه المعلومات", "المعلومة") — YALNIZ sahiplik yükleminin HEMEN ardında (aradaki
  * tek sözcük işaret sıfatı olabilir). İnceleme 11-04: genel `ال` öneki varlık yüklemli kalıplarda "لا يوجد حد لاستخدام البيانات" (veri sınırı
- * yok — olgu) ve "لا يوجد مصعد لكن المعلومات…" (bağlacı aşan boşluk) cümlelerini tutuyordu; "البيانات" (veri) belirli biçimde nesne DEĞİL.
+ * yok — olgu) ve "لا يوجد مصعد لكن المعلومات…" (bağlacı aşan boşluk) cümlelerini tutuyordu. "البيانات" (veri) — İspanyolca `datos` kuralı gibi —
+ * YALNIZ sahiplik yükleminin hemen ardında nesnedir ("لا أملك البيانات"); varlık yükleminde ("لا يوجد حد لاستخدام البيانات") olgu.
  */
-const AR_OBJ_DEF = "(?:(?:هذه|هذا|تلك|ذلك) )?ال(?:معلومات|معلومة|تفاصيل)(?![\\p{L}])";
+const AR_OBJ_DEF = "(?:(?:هذه|هذا|تلك|ذلك) )?ال(?:معلومات|معلومة|تفاصيل|بيانات)(?![\\p{L}])";
 /** Almanca bilgi nesnesi + talimat ("Anleitung / Anweisung") — yalnız 1. şahıs bulma / sahiplik kalıplarında (kör set 6). */
 const DE_INFO = `(?:${DE_OBJ}|anleitung(?:en)?(?![\\p{L}])|anweisung(?:en)?(?![\\p{L}]))`;
 

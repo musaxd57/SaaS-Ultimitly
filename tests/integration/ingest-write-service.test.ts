@@ -351,6 +351,28 @@ describe("S1 — geç içeri alınan misafir mesajı konuşmayı 'Yeni' bırakı
     expect(after.conversation!.status).toBe("new");
   });
 
+  it("🚨 inceleme 11-04 #2: kuyruk gecikmesi — cevabımız 09:05'te kuyruğa yazıldı, 09:30'da teslim edildi; misafir 09:10'da yazdı → 'new'", async () => {
+    const { orgId, propertyId } = await seedOrgA();
+    fake.setReservations(HP_A, [R1({ lastMessageAt: new Date("2026-05-30T09:00:00Z") })]);
+    fake.setMessages("res-1", [G1]);
+    await syncHospitable(orgId);
+    await g1IngestedBeforeReply();
+    const { conversation } = await rows(propertyId);
+    // Kuyruk satırı: `createdAt` = kuyruğa yazıldığı an (09:05); sağlayıcıya 09:30'da ulaştı.
+    await prisma.message.create({
+      data: { conversationId: conversation!.id, direction: "outbound", authorType: "ai", senderName: "GuestOps AI", body: "Şifre: abc12345", createdAt: new Date("2026-05-30T09:05:00Z") },
+    });
+    await prisma.conversation.update({ where: { id: conversation!.id }, data: { status: "answered" } });
+    const G3 = m("g-3", "2026-05-30T09:10:00Z", { body: "Otopark var mı?" });
+    const delivered = m("p-ai", "2026-05-30T09:30:00Z", { direction: "outbound", senderName: "GuestOps AI", body: "Şifre: abc12345" });
+    fake.setReservations(HP_A, [R1({ lastMessageAt: new Date("2026-05-30T09:30:00Z") })]);
+    fake.setMessages("res-1", [G1, G3, delivered]);
+    await syncHospitable(orgId);
+    const after = await rows(propertyId);
+    // Sağlayıcı sırası "cevap en son" der; veritabanında misafir mesajı cevap satırından YENİ ve ondan sonra içeri alındı → cevap onu görmedi.
+    expect(after.conversation!.status).toBe("new");
+  });
+
   it("KONTROL: aynı akış ama arada misafir mesajı YOK (yalnız cevabımızın sağlayıcı kopyası) → 'answered'", async () => {
     const { orgId, propertyId } = await seedOrgA();
     fake.setReservations(HP_A, [R1({ lastMessageAt: new Date("2026-05-30T09:00:00Z") })]);
