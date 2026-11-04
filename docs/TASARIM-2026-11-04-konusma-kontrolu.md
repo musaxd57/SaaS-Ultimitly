@@ -107,3 +107,119 @@ Lifecycle satırları için ayrı `lifecycleVeto` (:557) var. Manuel host satır
 - Yalnız polling: `src/components/inbox/auto-refresh.tsx` (`router.refresh()`, varsayılan 30 sn, sekme görünürken, `visibilitychange`'te anında). Kullanıldığı yerler: `inbox/page.tsx:253`, `inbox/[id]/page.tsx:374`, `guest-chats/page.tsx:104`, `guest-chats/[id]/page.tsx:123`, hepsi `seconds={30}`.
 - Misafir QR sohbeti: `components/guest-chat/guest-chat.tsx:149`, 5 sn `setInterval`.
 - Arka plan: `instrumentation.ts:27` 2 dk dahili cron (`/api/cron/sync`). 15 sn'lik poller (:177) kimlik e-posta outbox'ı için, mesaj outbox'ı değil. Mesaj outbox'ı `kickOutboxDrain` (`worker.ts:1870`) ile anında tetiklenir.
+---
+
+## 1. Teşhis — bugünkü yapının asıl kusuru
+
+Tek bir alan (`Conversation.status`) dört ayrı şeyi taşıyor: **gelen kutusu etiketi** (Yeni / Cevaplandı / Sorunlu / Tamamlandı), **AI anahtarı**
+(`problem` → AI durur, §2), **tehlike kaydı** (`lastRiskType` + `problem`) ve **iş takibi** (Sorunlu = "bakılacak"). Sonuçlar:
+- Host "İlgileniyorum" yazar → kanal yolu `answered` yapar (host-send / worker) → tehlike hiç çözülmeden AI yeniden açılır (kurucunun bulduğu hata).
+- QR'da aynı host davranışı AI'ı DURDURUR (mesaj zaman çizelgesinden türetilir), kanalda AÇAR → aynı niyet iki ürün davranışı.
+- `hazard_unverified` (anlama katmanı yok) konuşmayı süresiz kapatır; model düzelince kimse yeniden bakmaz.
+- Tek kötü taslak (dil / dayanak) öğe kipi kapalıyken bütün konuşmayı etkileyebilir; öğe kipi açıkken öğe bazında tutulur (iyi temel).
+- Kim / neden / hangi mesaj yüzünden durduğu görünmez; "Sorunlu" bir sebep değil bir sonuç.
+- Tekrar hafızası metin parmak iziyle çalışıyor; "olay" kavramı yok (K-T1 bugün yamayla kapandı, kalıcı çözüm §3.3).
+
+İyi temeller (korunur): öğe defteri (`ConversationItem`, öğe bazlı tutma) · dayanıklı kuyruk + gönderim anı vetosu (`replyVeto`,
+`sendTimeVeto`) · "yeni mesaj eski taslağı geçersiz kılar" kuralı · CLAIM-THEN-SEND · host karar motoru.
+
+## 2. Model — üç bağımsız gerçek + tek karar noktası
+
+| Gerçek | Kayıt | Kim değiştirir | Ne DEĞİŞTİREMEZ |
+|---|---|---|---|
+| **Açık ihtiyaçlar** | `ConversationItem` (var) | AI cevabı (güvenli öğe), host cevabı (hedeflediği öğe), host "Bitti" | Bir öğenin cevabı başka öğeyi kapatmaz |
+| **Kontrol** | `Conversation.controlMode` (`auto` / `host`) + `controlVersion` + kim/ne zaman | Yalnız owner/manager açık işlemi (Devral / AI'ye geri ver) | Model, misafir metni, süre, host'un tek cevabı, sağlayıcı senkronu |
+| **Engeller** | `ConversationBlock` satırları (tür, kapsam, kaynak mesaj, kanıt, durum) | Sistem açar; kapatma türüne göre (aşağıda) | Bir engelin kapanması diğerini kaldırmaz |
+
+**Tek karar noktası** `autoSendDecision(conversationId, draft)` → `{ allowed, reasons[] }`. Hem taslak üretilmeden ÖNCE hem kuyruğa girerken
+hem gönderimden HEMEN önce (worker) çağrılır; QR, kanal, WhatsApp cevabı, otomatik yaşam döngüsü mesajları AYNI fonksiyonu kullanır.
+İzin şartları: `controlMode = auto` · taslağın `controlVersion`'ı güncel · taslağın dayandığı son misafir mesajından sonra yeni misafir
+mesajı yok (var) · konuşma kapsamlı aktif engel yok · taslağın öğesinde öğe kapsamlı engel yok · host'un kuyrukta bekleyen mesajı yok
+(sıra) · aktif yazma oturumu yok (§4) · org / abonelik / saat penceresi (var).
+
+**"Sorunlu" etiketi** bundan sonra TÜRETİLİR: host ilgisi gereken açık öğe VEYA aktif engel varsa panelde "Sorunlu" görünür; AI'ı o etiket
+değil engel/kontrol durdurur. Etiket elle de konabilir (takip işareti), ama elle konan etiket otomasyonu KAPATMAZ — kapatmak isteyen
+host "Devral" der (kurucu: "host bilerek sus dediyse susması doğru" → Devral bu niyetin açık hali).
+
+## 3. Engeller (blocker) — türler ve kapanış kuralları
+
+| Tür | Açan | Kapsam | Kapanış | Süre dolması |
+|---|---|---|---|---|
+| `safety_incident` (açık tehlike) | Kod veya model (yangın, gaz, duman, zorla giriş, mahsur, tehdit…) | Konuşma (olağan cevaplar durur; acil numara cevabı istisnası korunur) | YALNIZ owner/manager "Olay çözüldü" | ASLA çözmez |
+| `hazard_unverified` (olası tehlike, anlama yok/hata) | Kod (olası + model sonuç vermedi) | Konuşma | Sınırlı yeniden değerlendirme (§3.2) ya da host | Çözmez; tekrarlar biter → tek iş + tek bildirim |
+| `host_takeover` | Host "Devral" | Konuşma | Owner/manager "AI'ye geri ver" | ASLA |
+| `item_hold` (tek ihtiyaç: iade, arıza, kötü taslak, dayanak yok, yanlış dil) | Öğe defteri (var) | Yalnız o öğe | Host cevabı / "Bitti" / öğe kuralları (var) | — |
+| `technical` (sağlayıcı geçici hata, kota) | Gönderim katmanı | Konuşma ya da kuyruk satırı | Kendiliğinden toparlanır (var: `autoReplyHoldUntil`) | Evet (teknik) |
+
+Kurallar: her engel `sourceMessageId` + kısa kanıt kodu (metin değil; KVKK) + açılış/kapanış kim/ne zaman taşır. Yeni tehlike (farklı tür ya
+da çözümden SONRA gelen) yeni satırdır — eski "çözüldü" onayı onu kapatamaz. Teknik toparlanma başka bir engeli silemez.
+
+### 3.1 Host cevabı ≠ çözüm (K-T2)
+"Prizden duman çıkıyor" → `safety_incident` açılır, host uyarılır. Host "Gördüm, ilgileniyorum" yazar → mesaj gider, hedef öğe
+"host cevapladı" olur, **olay açık kalır**, AI olağan cevap vermez. Host "Olay çözüldü" der → engel kapanır → diğer engeller ve kontrol
+yeniden hesaplanır (Devral varsa AI yine kapalı). Bugünkü `answered` yazımı problem'i kaldırma ETKİSİNİ kaybeder (etiket türetilmiş olur).
+
+### 3.2 Değerlendirilemeyen olası tehlike (K-T3)
+`hazard_unverified` açılınca kalıcı iş kaydı (yeniden değerlendirme işi): +1 dk, +5 dk, +15 dk (3 deneme, kuyruk/iş tablosu — cron'a ek hızlı
+uyandırma). Sonuç: **tehlike** → `safety_incident`'e yükselir + uyarı · **tehlike değil** (bağlam: "çaydanlıktan buhar, normal mi?") →
+engel "model değerlendirdi: tehlike değil" diye kapanır, iz kalır, ilgili soru normal akışa döner · **hâlâ belirsiz** → engel kalır, host'a
+TEK açık iş + TEK bildirim (sonsuz tekrar yok, sessiz unutma yok). Bu sırada gelen yeni mesajlar kaydedilir, tehlike taraması sürer.
+
+### 3.3 Olay kimliği ve uyarı tekrarı (K-T1'in kalıcı hali)
+Uyarı tekrarı metin parmak izine değil OLAY satırına bağlanır: aynı açık olaya ait tekrar mesajlar yeni e-posta üretmez; **ağırlaşma**
+(ör. duman → alev, tehdit → zorla giriş; şiddet sırası kodda) aynı olayda ŞİDDETİ yükseltir ve yeniden uyarır; olay çözüldükten sonra gelen
+aynı metin YENİ olaydır. (Bugünkü yama — yeniden açmada hafıza silme — olay kaydı gelene kadar köprüdür.)
+
+## 4. Üç host işlemi
+
+| İşlem | Kalıcı kontrol | Etki |
+|---|---|---|
+| **Yanıtla** (mesaj/ihtiyaç seçili) | DEĞİŞMEZ | Sunucuda süreli yazma oturumu: oturum varken AI gönderimleri bekler; gönderimde host mesajı kuyruğa SIRAYLA girer; yalnız hedef öğe cevaplanır |
+| **Devral** | `host`, sürüm++ | Kalıcı; sekme kapanması / süre / misafir mesajı / model açamaz |
+| **AI'ye geri ver** | `auto`, sürüm++ | Yalnız SONRAKİ yeni misafir mesajları; eski taslaklar ve birikmiş sorular topluca GİTMEZ (host görür, isterse öğe öğe "AI cevaplasın" der) |
+
+Yazma oturumu (Codex ayarları, ölçümle başlanır): sekme başına kimlik · ≈20 sn yenileme · yenileme kesilirse 60 sn sonra geçersiz ·
+hareketsiz 90 sn uyarı / 120 sn yalnız oturum biter (tek tıkla uzatılır) · misafir mesajı hareketsizlik sayacını SIFIRLAMAZ · taslak hiçbir
+süre dolumunda gönderilmez/kaybolmaz · kayıt PostgreSQL'de kısa işlemlerle (açık işlem / bağlantı kilidi tutulmaz). Gönderilmiş ama sonucu
+belirsiz host mesajı "iletimde" görünür; yeniden açma bahanesiyle tekrar gönderilmez.
+
+Panel durum satırı (tek satır, sebepler birlikte): "Otomatik cevaplar açık [Devral]" · "Musa devraldı · 14:32 [AI'ye geri ver]" ·
+"Güvenlik: prizden duman bildirimi · 14:31 [Olayı incele] [Olay çözüldü]" · "Siz yazarken otomatik cevaplar bekliyor · 1 yeni mesaj".
+Eş zamanlı iki yönetici: kontrol uçları `If-Match: <controlVersion>` ister; bayat ekran 409 alır ("Bu konuşma az önce değişti").
+
+## 5. Kenar durumları (kabul testleri — gerçek PG + iki süreç)
+1. Devralma anında üretilmekte olan AI taslağı → sürüm değişti → gönderim anında veto, sağlayıcıya hiçbir şey gitmez.
+2. Kuyrukta bekleyen eski AI cevabı + Devral/geri ver → sürüm farkı → iptal; "geri ver" onu canlandırmaz.
+3. İki yönetici aynı anda Devral / geri ver → biri 409; son durum tek ve tutarlı.
+4. İki açık olay (yangın + gaz) → biri çözülünce AI hâlâ kapalı.
+5. Host yazarken bağlantı kopar → 60 sn sonra oturum geçersiz; taslak kaybolmaz, gitmez.
+6. Host Airbnb uygulamasından (Lixus dışından) cevap verir → senkron gelir: önceki taslaklar geçersiz (yeni mesaj kuralı); kontrol
+   değişmez; hangi öğeyi cevapladığı bilinmez → öğeler "host cevapladı (dış kanal)" türetilir, kapanmaz (soru K-3).
+7. Yeni konaklamaya kontrol TAŞINMAZ (Devral konaklama/konuşma kapsamlı; yeni rezervasyon yeni konuşma).
+8. İki sekme aynı hesap → bayat sekmenin yenilemesi yeni sekmenin oturumunu düşüremez.
+9. Gönderim sırasında yeni misafir mesajı → host mesajı gider (insan kararı), AI taslağı geçersiz; panelde "görmediğiniz 1 mesaj".
+10. Durdur–yeniden aç yarışı → sürüm koşulu; ölçüt sağlayıcıya GERÇEKTEN giden mesajlar.
+
+## 6. Geçiş (çalışan ürün bozulmaz)
+- **G0 gölge:** yeni tablolar + `autoSendDecision` yalnız KAYDEDER; eski karar uygulanır; uyuşmazlıklar olay günlüğüne (hangi kural, hangi
+  yöne). Ölçüler: gereksiz durdurma · yanlış yeniden açılma · host müdahalesiz toparlanma · cevapsız kalan bağımsız soru · yakalanan tehlike.
+- **G1:** olay engeli + "Olay çözüldü" + host cevabının olayı kapatmaması (müşteri akışı değişir → önce/sonra onayı).
+- **G2:** Devral / AI'ye geri ver + sürüm + If-Match (QR ve kanal aynı anlam).
+- **G3:** yazma oturumu. **G4:** canlı panel (PostgreSQL bildirimi + SSE; kopunca veritabanından yeniden okuma; 30 sn yoklama yedek).
+- Eski `problem` satırları nedeni belirsiz diye AÇILMAZ: geçişte `legacy_problem` engeli olarak taşınır, host bakıp kapatır.
+
+## 7. Kurucuya sorular (önce / sonra örnekli)
+- **K-1 (QR farkı):** Bugün QR'da host cevap yazınca AI duruyor; kanalda durmuyor (hatta açılıyor). Önerim: ikisinde de tek cevap kontrolü
+  DEĞİŞTİRMEZ; susturmak isteyen "Devral" der. Örnek — önce (QR): host "Havlu getiriyorum" yazdı → AI sonraki Wi-Fi sorusuna cevap vermez,
+  host elle açana kadar. Sonra: Wi-Fi sorusu AI'dan cevap alır; havlu öğesi host'ta kalır. Uygun mu?
+- **K-2 (Sorunlu etiketi):** Elle "Sorunlu" seçmek bundan sonra yalnız takip işareti olsun, AI'ı kapatmasın (kapatmak = Devral) — mı, yoksa
+  elle Sorunlu = Devral mı sayılsın? Önerim ilki + seçim anında "AI'ı da durdurayım mı? [Devral]" küçük önerisi.
+- **K-3 (dış kanal host cevabı):** Host Airbnb uygulamasından yazarsa AI o konuşmada ne yapsın? Önerim: kontrol değişmez, önceki taslaklar
+  iptal, açık öğeler "dış kanaldan cevaplandı (doğrulanmadı)" — AI o öğelere yeniden cevap yazmaz, yeni sorulara yazar.
+- **K-4 (olayı kim çözer):** owner + manager (önerim); personel (staff) yalnız not bırakır?
+- **K-5 (belirsiz tehlike tekrarları):** +1 / +5 / +15 dk, sonra tek iş + tek bildirim — uygun mu?
+- **K-6 (migration):** `Conversation` kontrol alanları (nullable / varsayılanlı) + `ConversationBlock` + yazma oturumu + yeniden değerlendirme işi
+  tabloları. Onay + açılıştan önce taze yedek.
+- **K-7 (web kancası, K-A1):** Airbnb / Booking / Vrbo için ortak alım ucu (imza doğrulama → ham olay kalıcı → bildirim → işçi o konuşmayı
+  çeker). Bu üç sağlayıcının ortaklık API erişimi bugün yok (Airbnb Direct sözleşmesi boş adaptör); kod sağlayıcıdan bağımsız alım + sözleşme
+  testleriyle hazırlanır, gerçek bağlantı erişim gelince. Vrbo için başvuru durumu nedir?
