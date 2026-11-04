@@ -600,6 +600,51 @@ const PASSWORD_WORDS = new Set(["sifre", "parola", "password", "passcode", "pass
 // Ayraç: boşluk (NBSP dahil), tire, nokta, eğik çizgi, orta nokta — "6.1.4.2", "6/1/4/2", "6\u00a01\u00a04\u00a02" (Haiku 10-14).
 const spacedDigits = (s: string) => s.replace(/(?<!\d)\d(?:[\s\-./·]\d){3,7}(?!\d)/g, (m) => m.replace(/\D/g, ""));
 
+/**
+ * Codex 11-04 P2 — KAPI ETİKETİNİN HEMEN ARDINDAKİ kısa / harfli kod: "Kapı kodu: A7B9", "Door code 123", "keybox PIN: 4B7#". Yukarıdaki kalıplar
+ * yalnız 4–8 RAKAM yakalıyordu; harf-rakam karışık ve 3 haneli kodlar hem çıktı taramasından hem geçmiş / adres maskesinden kaçıyordu.
+ * YENİ düzenli ifade YOK (karesel iş riski — ReDoS dersi): kapı etiketi mevcut, sınırlı `DOOR_CODE_WORD` ile bulunur; ardından el ile
+ * DOĞRUSAL tarama: en çok 6 ayraç (boşluk, iki nokta, eşittir, tire) + isteğe bağlı tek dolgu sözcüğü ("is", "ist", "est", "es", "şu") + tek
+ * belirteç ([A-Za-z0-9#*], en çok 12). Kabul: YALNIZ yeni biçimler — en az bir harf VE en az bir rakam (3–10) ya da tam 3 rakam (+ # / *).
+ * Saf 4–8 hane bugünkü kalıplarda (fiyat / yıl / telefon koruması orada) — bu tarayıcı onlara dokunmaz.
+ */
+const DOOR_LABEL_SCAN = new RegExp(DOOR_CODE_WORD.source, "gi");
+const DOOR_TOKEN_FILLERS = new Set(["is", "ist", "est", "es", "su", "şu"]);
+const isSep = (c: string) => c === " " || c === "\t" || c === ":" || c === "=" || c === "-" || c === "–" || c === "—" || c === "\u00a0";
+const isTokenChar = (c: string) => /[A-Za-z0-9#*]/.test(c);
+function readToken(text: string, from: number): { token: string; end: number } {
+  let i = from;
+  let token = "";
+  while (i < text.length && token.length < 13 && isTokenChar(text[i]!)) token += text[i++];
+  return { token, end: i };
+}
+function skipSeps(text: string, from: number): number {
+  let i = from;
+  for (let n = 0; n < 6 && i < text.length && isSep(text[i]!); n++) i++;
+  return i;
+}
+export function labeledShortDoorCodes(text: string): string[] {
+  const out: string[] = [];
+  if (!text) return out;
+  DOOR_LABEL_SCAN.lastIndex = 0;
+  for (const m of text.matchAll(DOOR_LABEL_SCAN)) {
+    let i = skipSeps(text, (m.index ?? 0) + m[0].length);
+    let { token, end } = readToken(text, i);
+    if (DOOR_TOKEN_FILLERS.has(token.toLowerCase())) {
+      i = skipSeps(text, end);
+      ({ token, end } = readToken(text, i));
+    }
+    if (token.length < 3 || token.length > 10) continue;
+    const digits = (token.match(/[0-9]/g) ?? []).length;
+    const letters = (token.match(/[A-Za-z]/g) ?? []).length;
+    const core = token.replace(/[#*]/g, "");
+    const mixed = digits >= 1 && letters >= 1;
+    const threeDigits = letters === 0 && core.length === 3 && digits === 3;
+    if (mixed || threeDigits) out.push(token);
+  }
+  return out;
+}
+
 /** Cevaptaki kapı kodu DEĞERLERİ (kapı bağlamlı: hepsi; bağlamsız: bilgi tabanında geçmeyenler). Boş dizi = sızıntı yok. */
 function doorCodeValues(raw: string, allowedTexts: readonly string[]): string[] {
   // Y2 (10-14): Unicode rakamlar ASCII'ye iner — "Kapı kodu: ٦١٤٢" çıktı taramasından ve geçmiş maskesinden kaçıyordu.
@@ -620,6 +665,8 @@ function doorCodeValues(raw: string, allowedTexts: readonly string[]): string[] 
       for (const d of l.value.match(/(?<!\d)\d{4,8}(?!\d)/g) ?? []) if (!allowed.has(d)) out.add(d);
     }
   }
+  // Kapı etiketinin ardındaki harfli / 3 haneli kod (Codex 11-04): kapı bağlamlı → bilgi tabanında geçse de sızıntı.
+  for (const v of [text, ascii]) for (const t of labeledShortDoorCodes(v)) out.add(t);
   return [...out];
 }
 
@@ -645,8 +692,13 @@ export function redactDoorCodes(raw: string): string {
   if (text.length > SECRET_SCAN_MAX_CHARS) return text.replace(/(?<!\d)\d{4,8}(?!\d)/g, REDACTED_DOOR_CODE);
   let out = text;
   for (const value of doorCodeValues(text, [])) {
-    const spaced = value.split("").join("[\\s\\-./·]?"); // ↑spacedDigits ile aynı ayraçlar
-    out = out.replace(new RegExp(`(?<!\\d)${spaced}(?!\\d)`, "g"), REDACTED_DOOR_CODE);
+    // Harfli değer (Codex 11-04): karakterler kaçışlanır ("#", "*"), büyük / küçük harf duyarsız; harfin yanındaki harf / rakam sınırı.
+    const spaced = value
+      .split("")
+      .map((ch) => ch.replace(/[#*]/g, "\\$&"))
+      .join("[\\s\\-./·]?"); // ↑spacedDigits ile aynı ayraçlar
+    const alpha = /[A-Za-z]/.test(value);
+    out = out.replace(new RegExp(alpha ? `(?<![A-Za-z0-9])${spaced}(?![A-Za-z0-9])` : `(?<!\\d)${spaced}(?!\\d)`, alpha ? "gi" : "g"), REDACTED_DOOR_CODE);
   }
   return out;
 }

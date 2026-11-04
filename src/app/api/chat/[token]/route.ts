@@ -1054,7 +1054,8 @@ async function handleGuestChatPost(req: NextRequest, { params }: { params: Promi
       guestDisplayName: ctx.property.guestDisplayName,
       checkInTime: ctx.property.checkInTime,
       checkOutTime: ctx.property.checkOutTime,
-      address: ctx.property.address,
+      // Codex 11-04 P2: ev sahibi adres alanına kapı / kutu kodu yazdıysa ("… Kapı kodu: A7B9") değer QR modeline GİTMEZ (geçmişle aynı maske).
+      address: ctx.property.address ? redactDoorCodes(ctx.property.address) : ctx.property.address,
       city: ctx.property.city,
     },
     // NO reservation PII to the anonymous public AI: not the guest's name, not

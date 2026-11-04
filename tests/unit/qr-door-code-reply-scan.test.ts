@@ -194,3 +194,25 @@ describe("redactDoorCodes — geçmişte kapı kodu modele gitmez (kurucu karar�
     expect(redactDoorCodes(`${"a ".repeat(13_000)}4590`)).toContain(REDACTED_DOOR_CODE);
   });
 });
+
+describe("Codex 11-04 P2 — kapı etiketinin ardındaki HARFLİ / 3 HANELİ kod", () => {
+  const leaks = ["Kapı kodu: A7B9", "Kapı kodunuz A7B9'dur.", "The door code is 123.", "Door code: 4B7#", "Giriş kodu = 123*", "Anahtar kutusu kodu: X9Y8", "KAPI KODU: A7B9"];
+  for (const reply of leaks) it(`🚨 sızıntı: ${reply}`, () => expect(qrReplyHasDoorCode(reply, [])).toBe(true));
+
+  const clean = [
+    "Kapı kodunu ev sahibiniz Airbnb mesajında iletir.",
+    "Kapı kodu 3 gün önceden gönderilir.",
+    "Kapı kodunuz 15:00'ten sonra gelir.",
+    "Kapı kodu: 2B daire kapısında yazılı değildir.",
+    "Wi-Fi şifresi A7B9C3D4.",
+    "Daire 12B, 3. kat.",
+  ];
+  for (const reply of clean) it(`temiz: ${reply}`, () => expect(qrReplyHasDoorCode(reply, [])).toBe(false));
+
+  it("geçmiş / adres maskesi harfli ve 3 haneli değeri gizler, metnin geri kalanı aynı", () => {
+    expect(redactDoorCodes("Kumru Sk. No 9, Kapı kodu: A7B9")).toBe(`Kumru Sk. No 9, Kapı kodu: ${REDACTED_DOOR_CODE}`);
+    expect(redactDoorCodes("Door code is 123, welcome!")).toBe(`Door code is ${REDACTED_DOOR_CODE}, welcome!`);
+    expect(redactDoorCodes("Door code: 4B7#")).toBe(`Door code: ${REDACTED_DOOR_CODE}`);
+  });
+});
+

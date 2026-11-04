@@ -26,6 +26,9 @@ const CASES: [string, string][] = [
   ["kod + uzun rakam", "kod " + "1".repeat(N)],
   ["kod + rakam boşluk", "kod " + "1 ".repeat(N / 2)],
   ["wifi + harf boşluk", "wifi " + "a ".repeat(N / 2)],
+  // Codex 11-04: kapı etiketinin ardındaki harfli / 3 haneli kod tarayıcısı — binlerce etiket + kısa belirteç (her eşleşmede doğrusal okuma).
+  ["kapı kodu: A7B9 tekrarı", "kapı kodu: A7B9 ".repeat(Math.floor(N / 16))],
+  ["door code + uzun belirteç", "door code: " + "A1".repeat(Math.floor((N - 11) / 2))],
 ];
 
 const ms = (fn: () => unknown) => {
