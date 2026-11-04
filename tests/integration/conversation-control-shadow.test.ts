@@ -74,12 +74,21 @@ describe("gölge kıyası — yalnız anahtar açıkken, yalnız ayrışmada", (
     expect(JSON.parse(ev[0]!.dataJson!)).toEqual({ context: "queue", status: "new_blocks_old_sends", reason: "conversation_block", resource: "safety_incident" });
   });
 
-  it("KONTROL: anahtar KAPALI → veritabanına bakılmaz, sayım yok", async () => {
-    vi.stubEnv("CONVERSATION_CONTROL_SHADOW_ENABLED", "");
+  it("KONTROL: anahtar KAPALI → açık engel olsa da kıyas yok, sayım yok", async () => {
     const { orgId, conversationId } = await seedConversation();
-    await openBlockBestEffort({ organizationId: orgId, conversationId, kind: "safety_incident", sourceMessageId: "m-1", evidence: "model:safety_emergency" });
+    await prisma.conversationBlock.create({ data: { organizationId: orgId, conversationId, kind: "safety_incident", sourceMessageId: "m-1" } });
+    vi.stubEnv("CONVERSATION_CONTROL_SHADOW_ENABLED", "");
     await shadowCompareAutoSend({ organizationId: orgId, conversationId, point: "queue", oldAllowed: true, facts, legacyProblem: false });
     expect(await mismatchEvents()).toHaveLength(0);
+  });
+
+  it("KONTROL: anahtar KAPALI → engel yazıcısı hiçbir şey yazmaz (tablo boş kalır), fırlatmaz", async () => {
+    vi.stubEnv("CONVERSATION_CONTROL_SHADOW_ENABLED", "");
+    const { orgId, conversationId } = await seedConversation();
+    await expect(
+      openBlockBestEffort({ organizationId: orgId, conversationId, kind: "safety_incident", sourceMessageId: "m-1", evidence: "model:safety_emergency" }),
+    ).resolves.toBeNull();
+    expect(await prisma.conversationBlock.count()).toBe(0);
   });
 
   it("KONTROL: aynı karar → sayım yok; G0 öncesi Sorunlu (legacy) bugün tutuluyorsa yeni model de tutar → sayım yok", async () => {

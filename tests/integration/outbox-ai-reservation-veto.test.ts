@@ -104,3 +104,41 @@ describe("kuyruktaki yapay zekâ cevabı — rezervasyon gönderim anında yenid
     expect((await rowOf(row.id)).status).toBe("sent");
   });
 });
+
+// Konuşma kontrolü G0 gölge (tasarım `docs/TASARIM-2026-11-04-konusma-kontrolu.md` §11): kuyruğun gönderim anı da kıyas noktasıdır — bugün
+// gönderiliyor, açık konuşma engeli varsa YALNIZ sayılır; elle (host) satırı kıyas dışı. Davranış değişmez.
+describe("konuşma kontrolü G0 gölge — kuyruğun gönderim anı", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.stubEnv("AUTO_REPLY_ENABLED", "1");
+    vi.stubEnv("CONVERSATION_CONTROL_SHADOW_ENABLED", "1");
+  });
+  afterEach(() => vi.unstubAllEnvs());
+  const mismatches = () => prisma.operationalEvent.findMany({ where: { event: "conversation_control.shadow_mismatch" } });
+
+  it("🚨 açık tehlike engeli + kuyruktaki yapay zekâ cevabı → bugün gider (G0), gölge 'queue' noktasında SAYAR", async () => {
+    const { row } = await seedQueuedAiReply({ reservation: "confirmed" });
+    await prisma.conversationBlock.create({
+      data: { organizationId: row.organizationId, conversationId: row.conversationId!, kind: "safety_incident", sourceMessageId: "onceki-tehlike", evidence: "model:safety_emergency" },
+    });
+    const send = await drain();
+    expect(send).toHaveBeenCalledTimes(1);
+    const ev = await mismatches();
+    expect(ev).toHaveLength(1);
+    expect(JSON.parse(ev[0]!.dataJson!)).toEqual({ context: "queue", status: "new_blocks_old_sends", reason: "conversation_block", resource: "safety_incident" });
+  });
+
+  it("KONTROL: engel yok → sayım yok; ELLE (host) satırı engel varken de kıyaslanmaz", async () => {
+    const { row } = await seedQueuedAiReply({ reservation: "confirmed" });
+    await drain();
+    expect(await mismatches()).toHaveLength(0);
+    const second = await seedQueuedAiReply({ reservation: "confirmed" });
+    await prisma.messageOutbox.update({ where: { id: second.row.id }, data: { messageType: "manual" } });
+    await prisma.message.update({ where: { id: second.row.messageId! }, data: { authorType: "host" } });
+    await prisma.conversationBlock.create({ data: { organizationId: second.row.organizationId, conversationId: second.row.conversationId!, kind: "safety_incident", sourceMessageId: "x" } });
+    expect(row.id).not.toBe(second.row.id);
+    const send = await drain();
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(await mismatches()).toHaveLength(0);
+  });
+});

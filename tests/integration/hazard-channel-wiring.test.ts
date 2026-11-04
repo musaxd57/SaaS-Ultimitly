@@ -334,3 +334,92 @@ describe("kurucu T2 — olası tehlike + anlama katmanı koşmadı (kanal)", () 
     expect(mockMail).not.toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Konuşma kontrolü G0 gölge (tasarım `docs/TASARIM-2026-11-04-konusma-kontrolu.md` §11): bugün "Sorunlu" yazan kanal yolları tehlikede bir
+// ENGEL kaydı da açar; bugünkü karar "gönder" iken açık engel varsa ayrışma SAYILIR. Kararlar ve misafire giden metin DEĞİŞMEZ.
+// ---------------------------------------------------------------------------
+describe("konuşma kontrolü G0 gölge — kanal yolları", () => {
+  const mockMail = vi.mocked(emailService.sendReporting);
+  const SHORT = "Kısa devre oldu, wifi şifresi neydi?";
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+    __resetUnderstandingCache();
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    vi.stubEnv("AUTO_REPLY_ENABLED", "1");
+    vi.stubEnv("KB_RETRIEVAL_MODE", "legacy");
+    vi.stubEnv("CONVERSATION_CONTROL_SHADOW_ENABLED", "1");
+    mockSend.mockResolvedValue({ ok: true, externalId: "ext-1" } as never);
+    mockMail.mockResolvedValue({ ok: true } as never);
+    mockSuggest.mockResolvedValue({ ...BASE, intent: "wifi", reply: "Wi-Fi ağı Lale_5G." });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  const blocksOf = (conversationId: string) =>
+    prisma.conversationBlock.findMany({ where: { conversationId }, select: { kind: true, sourceMessageId: true, evidence: true, status: true } });
+  const mismatches = () => prisma.operationalEvent.findMany({ where: { event: "conversation_control.shadow_mismatch" } });
+  const firstInbound = (conversationId: string) => prisma.message.findFirstOrThrow({ where: { conversationId, direction: "inbound" }, select: { id: true } });
+
+  it("🚨 olası tehlike (anlama koşmadı) → `hazard_unverified` engeli, kaynak mesajla; davranış bugünkü gibi (gitmez, Sorunlu)", async () => {
+    const id = await seed(SHORT);
+    await applyChannelAutoReply(id);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(await blocksOf(id)).toEqual([{ kind: "hazard_unverified", sourceMessageId: (await firstInbound(id)).id, evidence: "code:hazard_unverified", status: "active" }]);
+  });
+
+  it("KONTROL: anahtar KAPALI → engel yazılmaz (tablo boş kalır), davranış aynı", async () => {
+    vi.stubEnv("CONVERSATION_CONTROL_SHADOW_ENABLED", "");
+    const id = await seed(SHORT);
+    await applyChannelAutoReply(id);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(await prisma.conversationBlock.count()).toBe(0);
+  });
+
+  it("🚨 model acil dedi → `safety_incident` engeli (kanıt model kodu)", async () => {
+    mockSuggest.mockResolvedValue({ ...BASE, intent: "general", reply: "Hemen ilgileniyoruz.", riskLevel: "high", riskType: "safety_emergency" });
+    const id = await seed("Lütfen bize hemen dönün.");
+    await applyChannelAutoReply(id);
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(await blocksOf(id)).toEqual([{ kind: "safety_incident", sourceMessageId: (await firstInbound(id)).id, evidence: "model:safety_emergency", status: "active" }]);
+  });
+
+  it("🚨 kelime ağının açık tehlikesi (Sorunlu konuşmada yeni mesaj) → `safety_incident` engeli de açılır (eski olası tehlikeye EK satır)", async () => {
+    const id = await seed(SHORT);
+    await applyChannelAutoReply(id);
+    const danger = await prisma.message.create({ data: { conversationId: id, direction: "inbound", senderName: "Alex", body: "Prizden duman çıkıyor, yanık kokuyor!" } });
+    const orgId = (await prisma.conversation.findUniqueOrThrow({ where: { id }, select: { property: { select: { organizationId: true } } } })).property.organizationId;
+    await prisma.organization.update({ where: { id: orgId }, data: { alertEmail: "host@example.com" } }); // kelime yolu alıcısız işletmeyi işlemez
+    await sendDueAlerts(orgId);
+    const kinds = (await blocksOf(id)).map((b) => `${b.kind}:${b.sourceMessageId === danger.id ? "yeni" : "eski"}:${b.evidence}`).sort();
+    expect(kinds).toEqual(["hazard_unverified:eski:code:hazard_unverified", "safety_incident:yeni:keyword:safety_emergency"]);
+  });
+
+  it("🚨 KURUCUNUN BULDUĞU HATA: tehlike kaydı açıkken konuşma 'Yeni' (host'un tek cevabı durumu düşürdü) → bugün AI gönderir, gölge SAYAR", async () => {
+    const id = await seed("Wi-Fi şifresi neydi?");
+    const orgId = (await prisma.conversation.findUniqueOrThrow({ where: { id }, select: { property: { select: { organizationId: true } } } })).property.organizationId;
+    await prisma.conversationBlock.create({ data: { organizationId: orgId, conversationId: id, kind: "safety_incident", sourceMessageId: "onceki-tehlike", evidence: "model:safety_emergency" } });
+    await applyChannelAutoReply(id);
+    expect(mockSend).toHaveBeenCalledTimes(1); // bugünkü davranış DEĞİŞMEDİ (G0)
+    const ev = await mismatches();
+    expect(ev).toHaveLength(1);
+    expect(JSON.parse(ev[0]!.dataJson!)).toEqual({ context: "inline", status: "new_blocks_old_sends", reason: "conversation_block", resource: "safety_incident" });
+  });
+
+  it("KONTROL: engel yokken gönderim → sayım yok; engel varken anahtar KAPALI → sayım yok (gönderim yine aynı)", async () => {
+    const id = await seed("Wi-Fi şifresi neydi?");
+    await applyChannelAutoReply(id);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(await mismatches()).toHaveLength(0);
+    vi.stubEnv("CONVERSATION_CONTROL_SHADOW_ENABLED", "");
+    const id2 = await seed("Wi-Fi şifresi neydi?");
+    const orgId = (await prisma.conversation.findUniqueOrThrow({ where: { id: id2 }, select: { property: { select: { organizationId: true } } } })).property.organizationId;
+    await prisma.conversationBlock.create({ data: { organizationId: orgId, conversationId: id2, kind: "safety_incident", sourceMessageId: "onceki-tehlike" } });
+    await applyChannelAutoReply(id2);
+    expect(mockSend).toHaveBeenCalledTimes(2);
+    expect(await mismatches()).toHaveLength(0);
+  });
+});

@@ -3,6 +3,7 @@ import "server-only";
 import { prisma } from "@/lib/db";
 import { logEvent } from "@/lib/event-log";
 import { BLOCK_KINDS, type ActiveBlock, type BlockKind } from "./decision";
+import { conversationControlShadowEnabled } from "./flag";
 
 // ---------------------------------------------------------------------------
 // KONUŞMA KONTROLÜ — ENGEL KAYDI (G0 gölge; tasarım `docs/TASARIM-2026-11-04-konusma-kontrolu.md` §3 / §11).
@@ -28,8 +29,12 @@ export interface OpenBlockInput {
   itemId?: string | null;
 }
 
-/** Engel satırı açar (yoksa). Döner: `true` yazıldı · `false` zaten vardı · `null` yazılamadı (sayıldı). Asla fırlatmaz. */
+/**
+ * Engel satırı açar (yoksa). Döner: `true` yazıldı · `false` zaten vardı · `null` yazılamadı (sayıldı) ya da anahtar kapalı (tablo boş kalır).
+ * Asla fırlatmaz.
+ */
 export async function openBlockBestEffort(input: OpenBlockInput): Promise<boolean | null> {
+  if (!conversationControlShadowEnabled()) return null;
   try {
     if (!(BLOCK_KINDS as readonly string[]).includes(input.kind)) return null;
     const scope = input.scope ?? "conversation";

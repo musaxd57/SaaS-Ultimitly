@@ -11,6 +11,7 @@
 // Misafire giden hiçbir şey değişmez (tur bugün de tutuluyordu). E-posta bugünkü acil şikâyet e-postasının AYNISI (yeni metin yok).
 // ---------------------------------------------------------------------------
 import { prisma } from "@/lib/db";
+import { openBlockBestEffort } from "@/lib/conversation-control/blocks";
 import { rateLimit } from "@/lib/rate-limit";
 import { emailService } from "@/lib/email";
 import { complaintEscalationEmail } from "@/lib/email-templates";
@@ -52,6 +53,15 @@ export type HazardUnverifiedResult = { claimed: false } | { claimed: true; maile
  */
 export async function escalateUnverifiedHazard(input: HazardUnverifiedInput): Promise<HazardUnverifiedResult> {
   const now = input.now ?? new Date();
+  // Konuşma kontrolü G0 gölge (tasarım 11-04 §11): konuşma zaten Sorunlu olsa da bu mesajın olası tehlikesi engel olarak KAYDEDİLİR
+  // (anahtar kapalıyken hiçbir şey yazılmaz; en iyi çaba — bugünkü akışı düşüremez).
+  await openBlockBestEffort({
+    organizationId: input.organizationId,
+    conversationId: input.conversation.id,
+    kind: "hazard_unverified",
+    sourceMessageId: input.trigger.id,
+    evidence: "code:hazard_unverified",
+  });
   const claimed = await prisma.conversation.updateMany({
     where: { id: input.conversation.id, status: { not: "problem" } },
     data: {

@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { signatureForChannel } from "@/lib/channels/airbnb-message-policy";
 import { prisma } from "@/lib/db";
+import { shadowCompareAutoSend } from "@/lib/conversation-control/shadow";
 import { isAutomatedSendKind, recordAutomatedSend, settleAutomatedSend } from "@/lib/automated-sends";
 import { orgTimezone } from "@/lib/timezone";
 import { calendarDateOf, stayEndedBefore, todayKey } from "@/modules/availability/core";
@@ -1323,6 +1324,19 @@ async function processOne(
       }
     }
     return;
+  }
+
+  // Konuşma kontrolü G0 gölge (tasarım 11-04 §11): bugünkü karar "gönder" — yeni model açık bir konuşma engeli görüyorsa YALNIZ sayılır
+  // (yalnız yapay zekâ satırı; elle host mesajı ve yaşam döngüsü kıyas dışı). Anahtar kapalıyken veritabanına dokunmaz, asla fırlatmaz.
+  if (row.messageType === "ai" && row.conversationId) {
+    await shadowCompareAutoSend({
+      organizationId: row.organizationId,
+      conversationId: row.conversationId,
+      point: "queue",
+      oldAllowed: true,
+      facts: { draftItemIds: [], newerGuestMessage: false, hostQueued: false, commonVeto: null },
+      legacyProblem: false,
+    });
   }
 
   // 🚨 Y1 (Codex 10-07): GÖVDE TALEP ALTINDA YENİDEN OKUNUR. Talep partideki satırların gövdesini belleğe alıyor; parti sıralı

@@ -2,6 +2,7 @@ import "server-only";
 
 import { logEvent } from "@/lib/event-log";
 import { activeBlocksOf } from "./blocks";
+import { conversationControlShadowEnabled } from "./flag";
 import { autoSendDecision, shadowMismatch, type ActiveBlock, type AutoSendFacts } from "./decision";
 
 // ---------------------------------------------------------------------------
@@ -11,9 +12,6 @@ import { autoSendDecision, shadowMismatch, type ActiveBlock, type AutoSendFacts 
 // ayrışma YALNIZ sayılır. Bugünkü karar uygulanır — misafire giden hiçbir şey değişmez. Asla fırlatmaz.
 // ---------------------------------------------------------------------------
 
-export function conversationControlShadowEnabled(): boolean {
-  return process.env.CONVERSATION_CONTROL_SHADOW_ENABLED === "1";
-}
 
 export interface ShadowCompareInput {
   organizationId: string;

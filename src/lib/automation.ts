@@ -210,6 +210,8 @@ import { errorWithContext, redactSensitive, reportError } from "@/lib/report-err
 import { redactNameFromBody } from "@/lib/data-retention";
 import { sendOnChannel, isDefinitiveSendFailure } from "@/lib/messaging";
 import { durableOutboxEnabledFor } from "@/lib/outbox/flag";
+import { openBlockBestEffort } from "@/lib/conversation-control/blocks";
+import { shadowCompareAutoSend } from "@/lib/conversation-control/shadow";
 import { BILLING_NOTE_OVERWRITABLE, BILLING_PAUSED_REASON, billingBlockedSeenAt } from "@/lib/outbox/billing-hold";
 import { undeliveredFilterActive } from "@/lib/outbox/presence";
 import { enqueueOutbound, enqueueProactive } from "@/lib/outbox/enqueue";
@@ -3685,6 +3687,17 @@ export async function applyChannelAutoReply(
             }),
           },
         });
+        // Konuşma kontrolü G0 gölge (tasarım 11-04 §11): yalnız TEHLİKE konuşma engelidir (iade / şikâyet / insan talebi yeni modelde öğe
+        // tutmasıdır). Konuşma zaten Sorunlu olsa da bu mesaj kaydedilir; anahtar kapalıyken hiçbir şey yazılmaz.
+        if (escalationRiskType === "safety_emergency") {
+          await openBlockBestEffort({
+            organizationId: conversation.property.organizationId,
+            conversationId: conversation.id,
+            kind: "safety_incident",
+            sourceMessageId: last.id,
+            evidence: nluRiskType === "safety_emergency" ? "understanding:safety_emergency" : "model:safety_emergency",
+          });
+        }
         if (claimed.count === 1) {
           // Per-tenant recipient: this org's own alert address, else the org
           // owner's account email. NEVER the env fallback (operator-only leak).
@@ -3953,6 +3966,16 @@ export async function applyChannelAutoReply(
   // hold, RiskEvent) runs now; only delivery is deferred. externalId stays unset until
   // the worker confirms a provider id. Flag OFF (the production default) skips this
   // whole branch → the inline claim-then-send below runs BYTE-FOR-BYTE as before.
+  // Konuşma kontrolü G0 gölge (tasarım 11-04 §11): bugünkü karar burada "gönder" (satır içi ya da kuyruğa) — yeni model açık bir konuşma
+  // engeli görüyorsa (ör. tehlike kaydı açıkken host'un tek cevabı konuşmayı "Cevaplandı" yaptı) YALNIZ sayılır; karar değişmez.
+  await shadowCompareAutoSend({
+    organizationId: conversation.property.organizationId,
+    conversationId: conversation.id,
+    point: "inline",
+    oldAllowed: true,
+    facts: { draftItemIds: [], newerGuestMessage: false, hostQueued: false, commonVeto: null },
+    legacyProblem: false,
+  });
   if (durableOutboxEnabledFor(conversation.property.organizationId) && conversation.externalReservationId) {
     let enq;
     try {
@@ -6319,6 +6342,11 @@ export async function sendDueAlerts(
       claimed = res.count;
     } catch {
       // ignore; the next run will retry
+    }
+    // Konuşma kontrolü G0 gölge (tasarım 11-04 §11): kelime ağının tehlikesi engel olarak kaydedilir (talebi başka geçiş kazansa da — aynı
+    // mesaj tek satır); anahtar kapalıyken hiçbir şey yazılmaz.
+    if (riskType === "safety_emergency") {
+      await openBlockBestEffort({ organizationId, conversationId: c.id, kind: "safety_incident", sourceMessageId: hit.id, evidence: "keyword:safety_emergency" });
     }
     if (claimed !== 1) continue;
 
