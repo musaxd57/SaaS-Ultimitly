@@ -68,6 +68,8 @@ interface Row {
   why: string | null;
   problems: string[];
   text: string | null;
+  /** Şablona düşüşte yazıcının REDDEDİLEN metni (kurucu 11-04: "lütfen bekleyin" nedeni) — yalnız rapor. */
+  rejected: string | null;
   recheckOk: boolean | null;
   dayNamed: boolean;
   timeOk: boolean | null;
@@ -82,6 +84,7 @@ interface Row {
 const usage = new Map<string, { calls: number; in: number; cached: number; out: number; reasoning: number }>();
 const realFetch = globalThis.fetch;
 let baseFetch: typeof fetch = realFetch;
+let lastWriterText: string | null = null;
 let undoShim: (() => void) | null = null;
 function metered(input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]): ReturnType<typeof fetch> {
   return baseFetch(input, init).then(async (res) => {
@@ -89,6 +92,14 @@ function metered(input: Parameters<typeof fetch>[0], init?: Parameters<typeof fe
       const j = (await res.clone().json()) as { model?: unknown; usage?: Record<string, unknown> };
       const m = typeof j.model === "string" ? j.model : "unknown";
       const u = j.usage ?? {};
+      // Yazıcı cevabını yakala (bekçi cevabında `message` alanı yoktur): şablona düşüşte reddedilen metin raporda görünsün.
+      try {
+        const content = (j as { choices?: { message?: { content?: string } }[] }).choices?.[0]?.message?.content;
+        const parsed = content ? (JSON.parse(content) as { message?: unknown }) : null;
+        if (parsed && typeof parsed.message === "string") lastWriterText = parsed.message;
+      } catch {
+        /* JSON değil */
+      }
       const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
       const r = usage.get(m) ?? { calls: 0, in: 0, cached: 0, out: 0, reasoning: 0 };
       r.calls += 1;
@@ -178,7 +189,7 @@ describe.skipIf(!enabled)(`KARAR MESAJI — ${MODEL}`, () => {
       "",
       ...rows.map(
         (r) =>
-          `- **${r.id}** (${r.kind} · ${r.resolution} · ${r.lang}${r.expectReason ? ` · gerekçe ${r.expectReason}` : ""}) — ${r.source === "ai" ? "YZ" : `şablon/${r.why}`}${r.internalLeak ? " · 🚨 SIZINTI" : ""}${r.recheckOk === false ? " · 🚨 DENETİM" : ""}: ${(r.text ?? "(yok)").replace(/\s+/g, " ")}`,
+          `- **${r.id}** (${r.kind} · ${r.resolution} · ${r.lang}${r.expectReason ? ` · gerekçe ${r.expectReason}` : ""}) — ${r.source === "ai" ? "YZ" : `şablon/${r.why}`}${r.internalLeak ? " · 🚨 SIZINTI" : ""}${r.recheckOk === false ? " · 🚨 DENETİM" : ""}: ${(r.text ?? "(yok)").replace(/\s+/g, " ")}${r.rejected ? ` · REDDEDİLEN YZ: ${r.rejected.replace(/\s+/g, " ")}` : ""}`,
       ),
       "",
       evalRuntimeMarkdown(runtime),
@@ -216,6 +227,7 @@ describe.skipIf(!enabled)(`KARAR MESAJI — ${MODEL}`, () => {
           checklist: s.checklist,
         };
         const t0 = Date.now();
+        lastWriterText = null;
         const out: DecisionDraftResult = await draftDecisionMessage({
           ...facts,
           guestRequest: s.guestRequest,
@@ -232,6 +244,7 @@ describe.skipIf(!enabled)(`KARAR MESAJI — ${MODEL}`, () => {
           lang: s.lang,
           source: out.source,
           why: out.source === "template" ? out.why : null,
+          rejected: out.source === "template" ? lastWriterText : null,
           problems: out.source === "template" ? (out.problems ?? []) : [],
           text,
           recheckOk: isAi ? checkDecisionText(text, facts).ok : null,

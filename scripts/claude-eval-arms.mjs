@@ -11,6 +11,15 @@ const common = Object.fromEntries(Object.entries(req.env ?? {}).map(([k, v]) => 
 const arms = Array.isArray(req.arms) && req.arms.length > 0 ? req.arms : [{}];
 if (arms.length > 8) throw new Error("en çok 8 kol (ücret)");
 
+// Kurucu 11-04: sır değeri yanlışlıkla "OPENAI_API_KEY=sk-..." biçiminde girilmiş olabilir → önek ve çevre boşlukları atılır. Değer
+// hiçbir yere yazılmaz; günlüğe yalnız var / yok.
+{
+  const raw = (process.env.OPENAI_API_KEY ?? "").trim().replace(/^OPENAI_API_KEY\s*=\s*/u, "").replace(/^["']|["']$/gu, "");
+  if (raw) process.env.OPENAI_API_KEY = raw;
+  else delete process.env.OPENAI_API_KEY;
+  console.log(`OpenAI anahtarı: ${raw.length > 20 ? "var" : "yok"} · Anthropic anahtarı: ${(process.env.ANTHROPIC_API_KEY ?? "").length > 20 ? "var" : "yok"}`);
+}
+
 let exit = 0;
 const started = Date.now();
 for (const [i, arm] of arms.entries()) {

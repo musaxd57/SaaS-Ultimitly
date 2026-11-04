@@ -80,6 +80,8 @@ const CLAUDE_OPTS: ShimOptions = {
   thinking: process.env.EVAL_CLAUDE_THINKING?.trim() === "disabled" ? "disabled" : "adaptive",
   effort: (["low", "medium", "high", "xhigh", "max"] as const).find((e) => e === process.env.EVAL_CLAUDE_EFFORT?.trim()) ?? "medium",
   maxTokens: Number(process.env.EVAL_CLAUDE_MAX_TOKENS) > 0 ? Math.trunc(Number(process.env.EVAL_CLAUDE_MAX_TOKENS)) : 8000,
+  // Kurucu 11-04: yalnız cevap çağrısı Claude'a ("lixus:reply"); anlama / bekçi / okuyucu / gömme iki kolda da gerçek OpenAI (adil kıyas).
+  only: (process.env.EVAL_CLAUDE_ONLY ?? "").split(",").map((x) => x.trim()).filter(Boolean),
 };
 if (CLAUDE_ARM && process.env.RUN_REAL_EVAL === "1" && claudeKey.length > 20) {
   // Ürün kodu cevap çağrısını OpenAI anahtarı varsa yapar; çağrı shim'de Claude'a gider, bu değer hiçbir yere gönderilmez.

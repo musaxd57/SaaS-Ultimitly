@@ -51,6 +51,8 @@ jobs:
         if: env.HAS_KEY == 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Kurucu 11-04: iki model aynı koşuda (ölçülmeyen katmanlar gerçek OpenAI'de). Değer günlüğe yazılmaz; yalnız var/yok.
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           RUN_REAL_EVAL: "1"
           CLAUDE_EVAL_N: ${{ steps.req.outputs.n }}
           CLAUDE_EVAL_ROUNDS: ${{ steps.req.outputs.rounds }}

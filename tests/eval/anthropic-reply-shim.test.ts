@@ -49,6 +49,8 @@ describe("anthropic-reply-shim", () => {
         { status: 200 },
       );
     }) as never;
+    const prevKey = process.env.OPENAI_API_KEY;
+    delete process.env.OPENAI_API_KEY; // yer tutucu anahtar = ölçülmeyen çağrı engellenir (gerçek anahtarda geçerdi — ayrı test)
     const undo = installAnthropicReplyShim(OPTS, "k".repeat(30));
     const res = await fetch("https://api.openai.com/v1/chat/completions", { method: "POST", body: JSON.stringify({ messages: [{ role: "system", content: "S" }, { role: "user", content: "U" }] }) });
     const data = await res.json();
@@ -60,7 +62,8 @@ describe("anthropic-reply-shim", () => {
     expect(shimStats.nonReplyCalls).toBeGreaterThanOrEqual(1);
     expect(seen).toHaveLength(1);
     undo();
-    expect(haikuCostUsd({ calls: 1, fenced: 0, nonReplyCalls: 0, refusals: 0, schemaRejected: 0, inputTokens: 1e6, cacheRead: 1e6, cacheWrite: 0, outputTokens: 1e6 })).toBeCloseTo(0.61, 6);
+    if (prevKey !== undefined) process.env.OPENAI_API_KEY = prevKey;
+    expect(haikuCostUsd({ calls: 1, fenced: 0, nonReplyCalls: 0, passedThrough: 0, refusals: 0, schemaRejected: 0, inputTokens: 1e6, cacheRead: 1e6, cacheWrite: 0, outputTokens: 1e6 })).toBeCloseTo(0.61, 6);
   });
 
   it("kesilen cevap (max_tokens) 'length' olur → üretim kodu yedeğe düşer, kesik cevap gitmez", async () => {
@@ -101,5 +104,24 @@ describe("anthropic-reply-shim", () => {
     const arm = claudeArmFromEnv(env);
     expect(arm?.label).toBe("claude-haiku-5-5-nothink-low");
     expect(env.OPENAI_API_KEY?.startsWith("shim-")).toBe(true);
+  });
+
+  it("only: yalnız eşleşen önbellek anahtarı Claude'a; eşleşmeyen sohbet + gömme çağrısı GERÇEK anahtarda OpenAI'ye geçer", async () => {
+    const seen: string[] = [];
+    globalThis.fetch = vi.fn(async (url: string) => {
+      seen.push(String(url));
+      if (String(url).includes("anthropic")) return new Response(JSON.stringify({ stop_reason: "end_turn", content: [{ type: "text", text: "{}" }], usage: {} }), { status: 200 });
+      return new Response(JSON.stringify({ choices: [{ message: { content: "openai" } }] }), { status: 200 });
+    }) as never;
+    const prev = process.env.OPENAI_API_KEY;
+    process.env.OPENAI_API_KEY = "sk-real-looking-key-000000000000";
+    const undo = installAnthropicReplyShim({ ...OPTS, only: ["lixus:reply"] }, "k".repeat(30));
+    const chat = (key: string) => fetch("https://api.openai.com/v1/chat/completions", { method: "POST", body: JSON.stringify({ prompt_cache_key: key, messages: [{ role: "user", content: "U" }] }) });
+    await chat("lixus:reply");
+    await chat("lixus:semantic:understanding");
+    await fetch("https://api.openai.com/v1/embeddings", { method: "POST", body: "{}" });
+    undo();
+    process.env.OPENAI_API_KEY = prev;
+    expect(seen).toEqual(["https://api.anthropic.com/v1/messages", "https://api.openai.com/v1/chat/completions", "https://api.openai.com/v1/embeddings"]);
   });
 });

@@ -15,6 +15,8 @@ export interface ShimStats {
   calls: number;
   fenced: number;
   nonReplyCalls: number;
+  /** Ölçülmeyen katmanın gerçek OpenAI'ye geçen çağrıları (iki anahtarlı koşu). */
+  passedThrough: number;
   refusals: number;
   /** Structured Outputs şeması Claude'da 400 aldı → aynı çağrı şemasız (yalnız istemdeki JSON tarifiyle) yeniden denendi. */
   schemaRejected: number;
@@ -23,7 +25,7 @@ export interface ShimStats {
   cacheWrite: number;
   outputTokens: number;
 }
-export const shimStats: ShimStats = { calls: 0, fenced: 0, nonReplyCalls: 0, refusals: 0, schemaRejected: 0, inputTokens: 0, cacheRead: 0, cacheWrite: 0, outputTokens: 0 };
+export const shimStats: ShimStats = { calls: 0, fenced: 0, nonReplyCalls: 0, passedThrough: 0, refusals: 0, schemaRejected: 0, inputTokens: 0, cacheRead: 0, cacheWrite: 0, outputTokens: 0 };
 
 const OPENAI_CHAT = "https://api.openai.com/v1/chat/completions";
 const ANTHROPIC_MESSAGES = "https://api.anthropic.com/v1/messages";
@@ -34,6 +36,12 @@ export interface ShimOptions {
   thinking: "adaptive" | "disabled";
   effort: "low" | "medium" | "high" | "xhigh" | "max";
   maxTokens: number;
+  /**
+   * Yalnız bu `prompt_cache_key` öneklerine sahip çağrılar Claude'a gider (ör. "lixus:reply"); boş = bütün sohbet çağrıları (eski
+   * davranış). Eşleşmeyen OpenAI çağrısı GERÇEK OpenAI'ye geçer — anahtar gerçekse (kurucu 11-04: iki anahtar aynı koşuda; ölçülmeyen
+   * katmanlar iki kolda da AYNI modelde koşar → adil kıyas). Anahtar yer tutucuysa eski gibi sayılır + 400.
+   */
+  only?: string[];
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -77,11 +85,22 @@ export function installAnthropicReplyShim(opts: ShimOptions, apiKey: string): ()
   const shimmed = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
     if (!url.startsWith("https://api.openai.com/")) return original(input, init);
-    if (url !== OPENAI_CHAT) {
+    const k = process.env.OPENAI_API_KEY?.trim() ?? "";
+    const realOpenAi = k.length > 20 && !k.startsWith("shim-") && !k.startsWith("test-");
+    const passOrBlock = () => {
+      if (realOpenAi) {
+        shimStats.passedThrough++;
+        return original(input, init);
+      }
       shimStats.nonReplyCalls++;
-      return new Response(JSON.stringify({ error: { message: "shim: yalnız cevap çağrısı ölçülür" } }), { status: 400 });
-    }
+      return Promise.resolve(new Response(JSON.stringify({ error: { message: "shim: yalnız cevap çağrısı ölçülür" } }), { status: 400 }));
+    };
+    if (url !== OPENAI_CHAT) return passOrBlock();
     const payload = JSON.parse(String(init?.body ?? "{}"));
+    if (opts.only?.length) {
+      const key = typeof payload.prompt_cache_key === "string" ? payload.prompt_cache_key : "";
+      if (!opts.only.some((p) => key.startsWith(p))) return passOrBlock();
+    }
     const built = toAnthropicBody(payload, opts);
     let body = JSON.stringify(built);
     let schemaRetried = false;
@@ -161,6 +180,7 @@ export function claudeArmFromEnv(env: Record<string, string | undefined> = proce
     thinking: env.EVAL_CLAUDE_THINKING?.trim() === "disabled" ? "disabled" : "adaptive",
     effort: (["low", "medium", "high", "xhigh", "max"] as const).find((e) => e === env.EVAL_CLAUDE_EFFORT?.trim()) ?? "medium",
     maxTokens: Number(env.EVAL_CLAUDE_MAX_TOKENS) > 0 ? Math.trunc(Number(env.EVAL_CLAUDE_MAX_TOKENS)) : 8000,
+    only: (env.EVAL_CLAUDE_ONLY ?? "").split(",").map((x) => x.trim()).filter(Boolean),
   };
   if (!env.OPENAI_API_KEY?.trim()) env.OPENAI_API_KEY = "shim-anthropic-no-openai-key-0000000000";
   return { opts, key, label: `${opts.model}-${opts.thinking === "disabled" ? "nothink" : "adaptive"}-${opts.effort}` };
@@ -169,7 +189,7 @@ export function claudeArmFromEnv(env: Record<string, string | undefined> = proce
 /** Rapor satırı: köprü sayaçları + kesin maliyet. */
 export function shimSummaryLine(): string {
   const s = shimStats;
-  return `Claude köprüsü: ${s.calls} çağrı · çitli JSON ${s.fenced} · şema reddi ${s.schemaRejected} · ret ${s.refusals} · cevap dışı OpenAI ${s.nonReplyCalls} · token girdi ${s.inputTokens} / önbellek ${s.cacheRead}+${s.cacheWrite} / çıktı ${s.outputTokens} · ${haikuCostUsd(s).toFixed(4)} $`;
+  return `Claude köprüsü: ${s.calls} çağrı · çitli JSON ${s.fenced} · şema reddi ${s.schemaRejected} · ret ${s.refusals} · cevap dışı OpenAI ${s.nonReplyCalls} · gerçek OpenAI'ye geçen ${s.passedThrough} · token girdi ${s.inputTokens} / önbellek ${s.cacheRead}+${s.cacheWrite} / çıktı ${s.outputTokens} · ${haikuCostUsd(s).toFixed(4)} $`;
 }
 
 /** Haiku 5.5 fiyatı (≤100K istem): girdi 0,10 · önbellek okuma 0,01 · önbellek yazma 0,125 · çıktı 0,50 $/M token. */
