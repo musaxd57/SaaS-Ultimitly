@@ -6,7 +6,7 @@ import { signatureForChannel } from "@/lib/channels/airbnb-message-policy";
 import { prisma } from "@/lib/db";
 import { isAutomatedSendKind, recordAutomatedSend, settleAutomatedSend } from "@/lib/automated-sends";
 import { orgTimezone } from "@/lib/timezone";
-import { calendarDateOf, todayKey } from "@/modules/availability/core";
+import { calendarDateOf, stayEndedBefore, todayKey } from "@/modules/availability/core";
 import { CHECKIN_LEAD_DAYS } from "@/lib/lifecycle-window";
 import { loadErasureGuard } from "@/lib/erasure";
 import { LEGACY_CONVERSATION_STATUSES } from "@/lib/constants";
@@ -490,11 +490,21 @@ async function replyVeto(row: OutboxRow, now: Date): Promise<string | null> {
   // kuyruktaki metin snapshot'ı yine de sağlayıcıya gidiyordu; holding_ack ise
   // varlık kontrolünden hiç geçmiyordu. Kayıp kayıt ASLA "geçsin" demek değildir:
   // hüküm "hedef hâlâ var mı, aynı kiracıya mı ait" sorusuyla başlar.
-  let convo: { status: string; autoReplyHoldUntil: Date | null; property: { organizationId: string } } | null = null;
+  let convo: {
+    status: string;
+    autoReplyHoldUntil: Date | null;
+    reservation: { status: string; departureDate: Date } | null;
+    property: { organizationId: string; organization: { timezone: string | null } };
+  } | null = null;
   if (row.conversationId) {
     convo = await prisma.conversation.findUnique({
       where: { id: row.conversationId },
-      select: { status: true, autoReplyHoldUntil: true, property: { select: { organizationId: true } } },
+      select: {
+        status: true,
+        autoReplyHoldUntil: true,
+        reservation: { select: { status: true, departureDate: true } },
+        property: { select: { organizationId: true, organization: { select: { timezone: true } } } },
+      },
     });
     if (!convo) return "conversation_gone";
     // Snapshot'ın org'u ile hedef konuşmanın org'u ayrışıyorsa bu satır yanlış
@@ -520,6 +530,13 @@ async function replyVeto(row: OutboxRow, now: Date): Promise<string | null> {
   if (!msg || !convo || msg.authorType !== "ai") return null;
   if (convo.status === "problem" || convo.status === "closed") return "escalated_or_closed";
   if (convo.autoReplyHoldUntil && convo.autoReplyHoldUntil > now) return "ai_paused";
+  // 🚨 Codex 11-04 P1: rezervasyon kuyruğa girdikten SONRA iptal edildiyse ya da konaklama bittiyse bekleyen yapay zekâ cevabı GİTMEZ (üretimdeki
+  // `applyChannelAutoReply` kontrolünün gönderim anı eşi — aynı kural, aynı gün sınırı). Bağlı rezervasyonu olmayan konuşma (rezervasyon öncesi
+  // soru) bugünkü gibi geçer.
+  if (convo.reservation) {
+    if (convo.reservation.status === "cancelled") return "reservation_cancelled";
+    if (stayEndedBefore(convo.reservation.departureDate, now, orgTimezone(convo.property.organization.timezone))) return "reservation_ended";
+  }
   // A newer message (a host's manual reply, or a newer guest message) means this AI reply
   // is no longer the current turn — the thread moved on, so the stale draft must not go.
   const newer = await prisma.message.count({
