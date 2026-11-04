@@ -318,7 +318,7 @@ tek cevabı AI'ı yeniden açıyor).
    `resolved`) · açılış / kapanış kim-ne zaman-neden. Tekillik `(conversationId, kind, sourceMessageId)` (yineleme güvenli). `Conversation.
    controlMode / controlVersion` kolonları G2'de (Devral) — G0'da gerekmez.
 2. **Kayıt (gölge yazıcı):** bugün `problem` yazan dört yol (model `automation.ts` applyChannelAutoReply · kelime `sendDueAlerts` ·
-   `escalateUnverifiedHazard` · QR tehlike yükseltmesi) AYNI işlemde bir engel satırı da açar. Kapanış G0'da YOK (yalnız açılır; G1'de
+   `escalateUnverifiedHazard` · QR tehlike yükseltmesi) bir engel satırı da açar — EN İYİ ÇABA (asla fırlatmaz, bugünkü akışı düşüremez; yazılamayan satır ölçüm boşluğu olarak sayılır), konuşma zaten `problem` olsa da (yeni tehlike yeni satırdır). Kapanış G0'da YOK (yalnız açılır; G1'de
    "Olay çözüldü").
 3. **`autoSendDecision` (saf karar + okuyucu):** girdiler = aktif engeller + öğe tutmaları + bugünkü ortak kontroller (org / abonelik / saat /
    iptal-bitmiş konaklama — 10.4 a). Bugünkü iki karar noktasında (inline `applyChannelAutoReply` gönderimden önce · kuyruk `replyVeto`)
