@@ -4274,7 +4274,13 @@ export async function applyChannelAutoReply(
         data: { authorType: "ai", channelSenderRole: null, senderName: "GuestOps AI" },
       });
     }
-    await conversationDone;
+    // Sert inceleme 11-04 (P3): senkron bizim cevabımızı "otomasyon" sanıp konuşmayı "new"e çevirmiş olabilir (yazar yukarıda düzeltildi) —
+    // görülmemiş MİSAFİR mesajı yoksa "new" de bizim talebimizin kaybettiği durumdur → "answered"a onarılır (bugünkü davranış). Sorunlu /
+    // Tamamlandı / yeni misafir mesajı yine EZİLMEZ.
+    await prisma.conversation.updateMany({
+      where: { id: conversation.id, status: { in: ["answered", "new"] }, messages: { none: unseenInbound } },
+      data: { status: "answered", skippedReason: null, lastRiskLevel: result.riskLevel, lastRiskType: result.riskType },
+    });
     await lastMessageAdvance;
   }
 

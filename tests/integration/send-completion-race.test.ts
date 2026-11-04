@@ -179,6 +179,21 @@ describe("yapay zekâ cevabı — doğrudan gönderim (claim-then-send)", () => 
     expect(row).toMatchObject({ status: "problem", lastRiskType: "safety_emergency", skippedReason: "escalated_to_human" });
   });
 
+  it("(sert inceleme 11-04 P3) senkron bizim cevabımızı 'otomasyon' sanıp önce içeri aldı ve konuşmayı 'new' yaptı → yazar düzelir, durum 'answered'a ONARILIR", async () => {
+    mockSuggest.mockResolvedValue(SAFE_REPLY as never);
+    const { conv } = await seed("new");
+    mockSend.mockImplementation(async () => {
+      await prisma.message.create({
+        data: { conversationId: conv.id, direction: "outbound", authorType: "automation", channelSenderRole: "automation", senderName: "Ev sahibi", body: "Check-in saat 15:00, hoş geldiniz!", externalId: "pm-ai-sync" },
+      });
+      await prisma.conversation.update({ where: { id: conv.id }, data: { status: "new" } });
+      return { ok: true, providerMessageId: "pm-ai-sync" } as never;
+    });
+    expect((await applyChannelAutoReply(conv.id)).sent).toBe(true);
+    expect(await statusOf(conv.id)).toBe("answered");
+    expect((await prisma.message.findFirstOrThrow({ where: { conversationId: conv.id, externalId: "pm-ai-sync" } })).authorType).toBe("ai");
+  });
+
   it("KONTROL: arada hiçbir şey olmadıysa 'answered', risk alanları cevabınki, lastMessageAt ileri", async () => {
     mockSuggest.mockResolvedValue(SAFE_REPLY as never);
     const { conv } = await seed("new");
