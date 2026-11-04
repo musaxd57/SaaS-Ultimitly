@@ -89,6 +89,27 @@ describe("karar mesajı taslağı — yapay zekâ + kod + bekçi", () => {
     expect(calls.map((c) => c.kind)).toEqual(["writer", "guard"]);
   });
 
+  it("🚨 ölçüm 11-04: birinci çoğul 'onayladık' vetoya takılır (veto GEVŞEMEDİ) → şablon; edilgen 'onaylandı' yapay zekâ metni olarak geçer", async () => {
+    const approve = input({ resolution: "approve", time: "13:00", checklist: [] });
+    const ok = verdict({ reply_grants_change: true, reply_refuses: false });
+    const first = fakeOpenAI("Erken giriş talebinizi onayladık; 14 Ekim günü saat 13:00 itibarıyla giriş yapabilirsiniz.", ok);
+    const blocked = await draftDecisionMessage({ ...approve, fetchImpl: first.fetchImpl });
+    expect(blocked.source).toBe("template");
+    expect(blocked).toMatchObject({ why: "check_failed", problems: expect.arrayContaining(["promise_or_handoff"]) });
+    const text = "Erken giriş talebiniz onaylandı; 14 Ekim günü saat 13:00 itibarıyla giriş yapabilirsiniz.";
+    const second = fakeOpenAI(text, ok);
+    expect(await draftDecisionMessage({ ...approve, fetchImpl: second.fetchImpl })).toEqual({ source: "ai", text });
+  });
+
+  it("yazıcı istemi kararı EDİLGEN ister ve 'onayladık / we have approved' yazmayı yasaklar (gönderilen istekte)", async () => {
+    const { fetchImpl, calls } = fakeOpenAI("Maalesef 14 Ekim'de erken giriş mümkün değil; giriş 15:00'te.", verdict());
+    await draftDecisionMessage({ ...input(), fetchImpl });
+    const system = String(calls.find((c) => c.kind === "writer")!.body.messages[0].content);
+    expect(system).toMatch(/State the decision impersonally/);
+    expect(system).toContain("'onayladık'");
+    expect(system).toContain("'we have approved'");
+  });
+
   it("misafirin metni YAZICIYA gitmez (yalnız bekçiye)", async () => {
     const { fetchImpl, calls } = fakeOpenAI("Maalesef 14 Ekim'de erken giriş mümkün değil; giriş 15:00'te.", verdict());
     await draftDecisionMessage({ ...input(), fetchImpl });

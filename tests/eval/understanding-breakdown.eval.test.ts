@@ -23,6 +23,38 @@ interface Case {
 const DATA = JSON.parse(readFileSync(path.resolve(__dirname, "../../evals/understanding-breakdown.json"), "utf8")) as { cases: Case[] };
 // Claude kolu (kurucu 10-31: 5.1 kullanılan katmanlarda Haiku 5.5): anlama çağrısı aynı istem + şemayla Claude'a gider.
 const CLAUDE = claudeArmFromEnv();
+/**
+ * YALNIZ ÖLÇÜM (kurucu 11-04: "Haiku'nun kötü olduğu yerin nedenini öğren, geliştir"): `EVAL_UNDERSTANDING_FAULT_RULE=1` → hazır yamanın
+ * (`docs/hazir-yamalar/2026-10-15-anlama-ariza-kullanim-ayrimi.patch`) cümlesi, anlama çağrısının sistem istemine GÖNDERİM ANINDA eklenir.
+ * Ürün kodu değişmez; iki modelde (OpenAI + Claude köprüsü) aynı ek. Rapor kolu "ariza-cumlesi-olcum" yazar.
+ */
+export const FAULT_RULE =
+  "- A report that an appliance or device is broken or not working as it should (not heating or cooling, not turning on, leaking, a strange noise, an error, nothing comes out) is complaint_issue, also when the guest asks how to fix it or for a replacement. appliance_help is only for how to use, operate or find something that is not reported broken. Example: 'Tost makinesi hiç ısınmıyor' -> complaint_issue; 'Tost makinesini nasıl çalıştırıyoruz?' -> appliance_help.";
+const FAULT_RULE_ARM = process.env.EVAL_UNDERSTANDING_FAULT_RULE === "1";
+/** Sistem istemindeki niyet satırının ARDINA kuralı ekler (satır yoksa dokunmaz). */
+export function withFaultRule(system: string): string {
+  if (system.includes(FAULT_RULE)) return system;
+  const at = system.indexOf("- intent: the closest label");
+  if (at < 0) return system;
+  const end = system.indexOf("\n", at);
+  return end < 0 ? `${system}\n${FAULT_RULE}` : `${system.slice(0, end)}\n${FAULT_RULE}${system.slice(end)}`;
+}
+function installFaultRule(): () => void {
+  const inner = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    if (url.endsWith("/chat/completions") && typeof init?.body === "string") {
+      const body = JSON.parse(init.body) as { messages?: { role: string; content: unknown }[] };
+      const sys = body.messages?.find((m) => m.role === "system" || m.role === "developer");
+      if (sys && typeof sys.content === "string") sys.content = withFaultRule(sys.content);
+      return inner(input, { ...init, body: JSON.stringify(body) });
+    }
+    return inner(input, init);
+  }) as typeof fetch;
+  return () => {
+    globalThis.fetch = inner;
+  };
+}
 const key = process.env.OPENAI_API_KEY ?? "";
 const enabled = process.env.RUN_REAL_EVAL === "1" && key.length > 20 && !key.startsWith("test-");
 const ROUNDS = Math.min(3, Math.max(1, Math.trunc(Number(process.env.BREAKDOWN_EVAL_ROUNDS) || 2)));
@@ -46,8 +78,9 @@ export function judgeCase(c: Case, intents: readonly string[]): string[] {
 describe.skipIf(!enabled)("arıza ↔ kullanım sorusu — anlama katmanı (ücretli)", () => {
   it("kip × vaka × tur → rapor", async () => {
     process.env.AI_UNDERSTANDING_ENABLED = "1";
-    const arm = promptArm();
+    const arm = FAULT_RULE_ARM ? "ariza-cumlesi-olcum" : promptArm();
     const undo = CLAUDE ? installAnthropicReplyShim(CLAUDE.opts, CLAUDE.key) : null;
+    const undoRule = FAULT_RULE_ARM ? installFaultRule() : null; // en dışta: ek, köprüden / OpenAI'den ÖNCE uygulanır
     const rows: { mode: string; id: string; round: number; ok: boolean; intents: string[]; fails: string[] }[] = [];
     for (const mode of MODES) {
       for (let round = 0; round < ROUNDS; round++) {
@@ -64,6 +97,7 @@ describe.skipIf(!enabled)("arıza ↔ kullanım sorusu — anlama katmanı (ücr
         }
       }
     }
+    undoRule?.();
     undo?.();
     const dir = path.resolve(__dirname, "../../docs/olcum");
     mkdirSync(dir, { recursive: true });
@@ -96,6 +130,14 @@ describe.skipIf(!enabled)("arıza ↔ kullanım sorusu — anlama katmanı (ücr
 });
 
 describe("arıza ↔ kullanım ölçeri — çevrimdışı pinler", () => {
+  it("ölçüm kuralı niyet satırının ARDINA bir kez eklenir; gerçek istemde satır bulunur", () => {
+    const real = understandingSystemPromptFor({});
+    const patched = withFaultRule(real);
+    expect(patched).toContain(FAULT_RULE);
+    expect(patched.indexOf(FAULT_RULE)).toBeGreaterThan(patched.indexOf("- intent: the closest label"));
+    expect(withFaultRule(patched)).toBe(patched);
+    expect(withFaultRule("başka istem")).toBe("başka istem");
+  });
   it("vakalar eşsiz; her arıza vakası complaint_issue ister, her kullanım vakası onu dışlar", () => {
     const ids = DATA.cases.map((c) => c.id);
     expect(new Set(ids).size).toBe(ids.length);

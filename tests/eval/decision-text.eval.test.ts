@@ -167,7 +167,7 @@ describe.skipIf(!enabled)(`KARAR MESAJI — ${MODEL}`, () => {
       "",
       `Durum: **${status}** · set \`evals/${SET}\` · satır ${rows.length}/${planned} · yazıcı istem kimliği \`${promptId}\``,
       "",
-      ...(CLAUDE ? [`Claude kolu: yazıcı VE bekçi ${CLAUDE.opts.model} (düşünme ${CLAUDE.opts.thinking}, çaba ${CLAUDE.opts.effort}).`, "", shimSummaryLine(), ""] : []),
+      ...(CLAUDE ? [`Claude kolu: ${CLAUDE.opts.only?.length ? "YALNIZ yazıcı (bekçi planlı modelde)" : "yazıcı VE bekçi"} ${CLAUDE.opts.model} (düşünme ${CLAUDE.opts.thinking}, çaba ${CLAUDE.opts.effort}).`, "", shimSummaryLine(), ""] : []),
       "| ölçü | değer |",
       "|---|---|",
       `| yapay zekâ metni kullanıldı | ${pct(ai.length, rows.length)} |`,
