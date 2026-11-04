@@ -42,6 +42,7 @@ import { sendHostMessage } from "@/lib/host-send";
 import { addZonedDays, dateKeyInTimeZone, zonedWallClockToUtc } from "@/lib/timezone";
 import { __autoCommitmentInternals } from "@/lib/guest-commitments-auto";
 import { DEMO_ORG_ID } from "@/lib/demo-tenant/constants";
+import { lockReservationTasks } from "@/lib/tasks/reservation-lock";
 
 const TZ = "Europe/Istanbul";
 const mockSend = vi.mocked(sendOnChannel);
@@ -821,6 +822,33 @@ describe("konaklama bitince (kurucu: havlu / temizlik / eksik eşya kapansın, a
     }
     expect(await prisma.guestCommitment.count({ where: { status: "open" } })).toBe(3);
     expect(await prisma.task.findUnique({ where: { id: towels.taskId } })).not.toBeNull();
+    expect(await prisma.auditLog.count({ where: { action: "commitment.stay_ended" } })).toBe(0);
+  });
+
+  it("🚨 kilit pini: uzatma işlemi SÜRERKEN (rezervasyon kilidi tutuluyor, yeni çıkış henüz görünmez) süpürge BEKLER, sonra yeni çıkışı görür → söz açık", async () => {
+    // Mutasyon 11-04: kilit kaldırılınca yukarıdaki test YEŞİL kalıyordu (orada uzatma zaten yazılmış). Burada uzatma işlemi açıkken
+    // (READ COMMITTED: süpürge eski çıkışı görür) kilit olmasa söz iptal edilip görevi silinirdi.
+    const { s } = await seed(yesterdayKey());
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    let held!: () => void;
+    const holding = new Promise<void>((r) => (held = r));
+    const extending = prisma.$transaction(
+      async (tx) => {
+        await lockReservationTasks(tx, s.reservationId!);
+        await tx.reservation.update({ where: { id: s.reservationId! }, data: { departureDate: addZonedDays(NOW, 3, TZ) } });
+        held();
+        await gate;
+      },
+      { timeout: 20_000 },
+    );
+    await holding;
+    const sweep = closeStayEndedCommitments(NOW);
+    await new Promise((r) => setTimeout(r, 300)); // süpürge kilitte beklesin
+    release();
+    await extending;
+    expect(await sweep).toEqual({ closed: 0 });
+    expect(await prisma.guestCommitment.count({ where: { status: "open" } })).toBe(3);
     expect(await prisma.auditLog.count({ where: { action: "commitment.stay_ended" } })).toBe(0);
   });
 
