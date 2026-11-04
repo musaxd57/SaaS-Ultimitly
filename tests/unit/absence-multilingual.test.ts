@@ -606,6 +606,10 @@ describe("A-11 — kaçan 'bilgim yok' biçimleri", () => {
     "Bu konuda bana bir bilgi verilmedi.",
     "Bu bilgi bana iletilmedi.",
     "Bu konu hakkında bilgilendirilmedim.",
+    // Mutasyon (11-04): kesmesiz "dont / didnt know" yalnız A-11 kalıbıyla yakalanıyor — pinsizdi.
+    "Sorry, I dont know.",
+    "I dont know the wifi password.",
+    "We didnt know that.",
   ])("🚨 %j → bilgim yok (misafire gitmez)", (m) => {
     expect(admitsMissingKnowledge(m)).toBe(true);
   });
@@ -618,6 +622,9 @@ describe("A-11 — kaçan 'bilgim yok' biçimleri", () => {
     "You were given the code in your booking confirmation.",
     "Size giriş bilgileri rezervasyon mesajında verildi.",
     "Bu konuda bilgilendirme mesajı gönderildi.",
+    // Mutasyon (11-04): edilgen kalıp yalnız 1. şahsa ("I / we") uygulanır — misafire SORU "you were not given…" tutulmaz.
+    "You were not given a key? Let me check.",
+    "You weren't told about the parking? It is behind the building.",
   ])("KONTROL %j → meşru cevap (tutulmaz)", (m) => {
     expect(admitsMissingKnowledge(m)).toBe(false);
   });

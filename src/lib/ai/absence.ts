@@ -347,8 +347,8 @@ const MORE_ABSENCE_PATTERNS: readonly RegExp[] = [
   /(?<![\p{L}])(?:i|we) (?:dont|didnt) know(?![\p{L}])/u,
   /(?<![\p{L}])(?:i|we) (?:wasn't|was not|weren't|were not|haven't been|have not been) (?:given|told|provided|informed)(?![\p{L}])/u,
   // A-11 (TR): edilgen "bana / bize (bir) bilgi verilmedi / iletilmedi / paylaşılmadı", "bilgi bana iletilmedi", "bilgilendirilmedim".
+  // ("bilgi bana iletilmedi" de bu kalıba düşer — nesne önde: ayrı "TR_OBJ … bana …" kalıbı mutasyonda EŞDEĞER çıktı, kaldırıldı 11-04.)
   new RegExp(`${L}(?:bana|bize) ${gap(2)}(?:verilmedi|iletilmedi|paylaşılmadı|gelmedi)(?![\\p{L}])`, "u"),
-  new RegExp(`${TR_OBJ} ${gap(1)}(?:bana|bize) (?:verilmedi|iletilmedi|paylaşılmadı)(?![\\p{L}])`, "u"),
   new RegExp(`${L}bilgilendirilmedi(?:m|k)(?![\\p{L}])`, "u"),
   /لا (?:أعرف|اعرف|أعلم|اعلم|أدري|ادري)(?![\p{L}])/u,
   // Kör set 6: "لا أجد معلومات" / "لم أجد أي معلومات" — 1. şahıs (2. çoğul "إذا لم تجدوا المفتاح" eşleşmez).

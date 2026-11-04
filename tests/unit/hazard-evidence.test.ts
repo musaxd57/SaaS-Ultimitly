@@ -822,6 +822,12 @@ describe("A-3 — ekipman komşuluğu canlı kaçağı anılışa indirmez", () 
     "Der Herd riecht nach Gas",
     "I can smell gas from the stove",
     "Ocağın yanında gaz kokuyor",
+    // Mutasyon (11-04) iki dalı ayırt eden örnek bulamamıştı; 12.360 girdilik taramada 165 + 680 fark çıktı — doğal örnekler:
+    // koku fiili anılışın ÖNÜNDE (HAZARD_SMELL_BEFORE) ve İngilizce kaçak fiili anılışın ARDINDA (HAZARD_LEAK_AFTER İngilizce kolu).
+    "Es riecht nach Rauch beim Herd",
+    "Пахнет дымом у плиты",
+    "The stove smoke is leaking into the room",
+    "Stove smoke is leaking",
   ])("🚨 %j → açık / olası (anılış DEĞİL)", (m) => {
     expect(["clear", "possible"]).toContain(level(m));
   });
