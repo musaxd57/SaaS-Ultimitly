@@ -102,21 +102,26 @@ describe("oto-yanıt aday sorgusu — uygunluk SQL'de, sıra + tavan JS'te", () 
 
   it("damgalı 40 konuşma veritabanından HİÇ dönmez — aday sorgusu yalnız uygun satırı getirir", async () => {
     const { orgId, propertyId, freshId } = await seed(40);
-    const spy = vi.spyOn(prisma.conversation, "findMany");
+    // Prisma temsilcisi vekil (Proxy): çıplak `vi.spyOn` özgün yöntemi kaybediyor → özgün yöntem ÖNCE bağlanır, casus onu çağırır.
+    type Args = { select?: Record<string, unknown>; where?: { property?: unknown }; orderBy?: unknown; take?: unknown };
+    const original = prisma.conversation.findMany.bind(prisma.conversation) as unknown as (a: Args) => Promise<{ id: string }[]>;
+    const seen: { arg: Args; rows: { id: string }[] }[] = [];
+    vi.spyOn(prisma.conversation, "findMany").mockImplementation(((arg: Args) =>
+      original(arg).then((rows) => {
+        seen.push({ arg, rows });
+        return rows;
+      })) as unknown as typeof prisma.conversation.findMany);
 
     const out = await runDueChannelAutoReplies(orgId);
     expect(out.sent).toBe(1);
 
-    // Aday sorgusu: `autoReplyAttemptedAt` seçen findMany çağrısı (aynı geçişteki başka findMany'ler bu alanı seçmez).
-    const candidateCalls = spy.mock.calls
-      .map((call, i) => ({ arg: call[0] as { select?: Record<string, unknown>; where?: { property?: unknown } }, i }))
-      .filter(({ arg }) => arg?.select?.autoReplyAttemptedAt === true && arg?.where?.property !== undefined);
-    expect(candidateCalls).toHaveLength(1);
-    const rows = (await spy.mock.results[candidateCalls[0].i].value) as { id: string }[];
-    expect(rows.map((r) => r.id)).toEqual([freshId]);
+    // Aday sorgusu: `autoReplyAttemptedAt` seçen + işletmeye göre süzen findMany (aynı geçişteki başka findMany'ler bu ikisini birlikte taşımaz).
+    const candidate = seen.filter(({ arg }) => arg?.select?.autoReplyAttemptedAt === true && arg?.where?.property !== undefined);
+    expect(candidate).toHaveLength(1);
+    expect(candidate[0].rows.map((r) => r.id)).toEqual([freshId]);
     // SQL'de sıralama / tavan YOK (planlayıcı tuzağı) — ikisi JS'te.
-    expect(candidateCalls[0].arg).not.toHaveProperty("orderBy");
-    expect(candidateCalls[0].arg).not.toHaveProperty("take");
+    expect(candidate[0].arg).not.toHaveProperty("orderBy");
+    expect(candidate[0].arg).not.toHaveProperty("take");
     expect(await prisma.conversation.count({ where: { propertyId, status: "answered" } })).toBe(1);
   });
 });

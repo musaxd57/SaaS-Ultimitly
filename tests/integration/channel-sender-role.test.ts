@@ -49,6 +49,16 @@ const m = (externalId: string, over: Partial<CanonicalMessage>): CanonicalMessag
   ...over,
 });
 
+/**
+ * HİKÂYENİN ZAMAN ÇİZGİSİ (S1, 11-04). Senkron, misafir mesajının içe alınma anını GERÇEK saatle yazar (`ingestedAt = now`); bu dosyanın
+ * yerel cevap satırları ise sabit, geçmiş bir `createdAt` taşır (2026-10-12). S1 kuralı "cevabımız yazıldıktan SONRA içe alınan misafir
+ * mesajı" konuşmayı yeniden açar — yani bu iki saat birlikte okunur. Hikâyede misafir mesajı cevaptan ÖNCE içe alınıyor (adım sırası);
+ * içe alınma anı o sıraya göre yazılır. İddialar değişmez; S1'in kendisi `ingest-write-service.test.ts` "S1"de pinli.
+ */
+async function ingestedBeforeReply(externalId: string, at: Date) {
+  await prisma.message.updateMany({ where: { externalId }, data: { ingestedAt: at } });
+}
+
 async function importThread(propertyId: string, messages: CanonicalMessage[]) {
   const p = await prisma.property.findUniqueOrThrow({ where: { id: propertyId }, select: { organizationId: true } });
   return prisma.$transaction((tx) =>
@@ -89,6 +99,7 @@ describe("senkron yazımı", () => {
   it("🚨 SAHİPLENME yolu rol YAZMAZ: bizim gönderdiğimiz (kimliksiz) ev sahibi mesajı sağlayıcıdan 'otomasyon' etiketiyle dönse de ev sahibi kanıtı kalır", async () => {
     const { propertyId } = await makeOrgWithProperty();
     await importThread(propertyId, [m("e-guest", { direction: "inbound", senderName: "Deniz", senderRole: "guest", createdAt: new Date("2026-10-12T09:00:00Z") })]);
+    await ingestedBeforeReply("e-guest", new Date("2026-10-12T09:00:30Z"));
     const conv = await prisma.conversation.findFirstOrThrow({ where: { propertyId } });
     const local = await prisma.message.create({
       data: { conversationId: conv.id, direction: "outbound", authorType: "host", senderName: "Ev Sahibi", body: "Otopark binanın arkasında.", createdAt: new Date("2026-10-12T09:10:00Z") },
@@ -190,6 +201,7 @@ describe("Q2 — kanalın otomatik mesajı cevap sayılmaz (kurucu 10-17)", () =
     await importThread(propertyId, [guestQ(), m("q-tmpl", { senderRole: "automation", body: "Giriş bilgileri", createdAt: tmplAt })]);
     expect(await prisma.message.count({ where: { externalId: "q-tmpl" } })).toBe(1);
     expect((await prisma.conversation.findFirstOrThrow({ where: { propertyId } })).status).toBe("new");
+    await ingestedBeforeReply("q-guest", new Date("2026-10-12T13:55:30Z"));
 
     const conv = await prisma.conversation.findFirstOrThrow({ where: { propertyId } });
     await prisma.message.create({
@@ -220,6 +232,7 @@ describe("Q2 — kanalın otomatik mesajı cevap sayılmaz (kurucu 10-17)", () =
   it("🚨 Haiku 10-17: sağlayıcı bizim kimliksiz cevabımızın gövdesini BOŞLUK / HARF farkıyla döndürürse yine bizimdir — otomatik mesaj yazılmaz, konuşma cevaplı", async () => {
     const { propertyId } = await makeOrgWithProperty();
     await importThread(propertyId, [guestQ()]);
+    await ingestedBeforeReply("q-guest", new Date("2026-10-12T13:55:30Z"));
     const conv = await prisma.conversation.findFirstOrThrow({ where: { propertyId } });
     await prisma.message.create({
       data: { conversationId: conv.id, direction: "outbound", authorType: "host", senderName: "Ev Sahibi", body: "Otopark binanın arkasında.", createdAt: new Date("2026-10-12T13:56:30Z") },
