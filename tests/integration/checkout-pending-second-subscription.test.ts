@@ -26,6 +26,12 @@ vi.mock("@/lib/report-error", async (orig) => {
   const actual = await orig<typeof import("@/lib/report-error")>();
   return { ...actual, reportError: reportErrorMock };
 });
+// B-1 (kurucu 11-04): kayıtlı aboneliğin Paddle'daki oluşturulma zamanı — testte abonelik başına tablo (yoksa "bilinmiyor" = null).
+const { subCreated } = vi.hoisted(() => ({ subCreated: new Map<string, string>() }));
+vi.mock("@/lib/payments/paddle", async (orig) => {
+  const actual = await orig<typeof import("@/lib/payments/paddle")>();
+  return { ...actual, getSubscriptionCreatedAt: vi.fn(async (id: string) => (subCreated.has(id) ? new Date(subCreated.get(id)!) : null)) };
+});
 
 import { prisma, resetDb } from "../helpers/db";
 import { __resetRateLimit } from "@/lib/rate-limit";
@@ -74,6 +80,7 @@ describe("ödeme — ikinci aktif abonelik alarmı + 'ödemeniz işleniyor' kili
     __resetRateLimit();
     vi.clearAllMocks();
     txnStatus.clear();
+    subCreated.clear();
     reportErrorMock.mockResolvedValue({ notified: true, throttled: false, configured: true });
     vi.stubEnv("PADDLE_WEBHOOK_SECRET", SECRET);
     vi.stubEnv("PADDLE_PRICE_PRO", "pri_pro");
@@ -128,6 +135,48 @@ describe("ödeme — ikinci aktif abonelik alarmı + 'ödemeniz işleniyor' kili
       await postEvent(subEvent("sub_A", "active"));
       await postEvent(subEvent("sub_C", "past_due"));
       expect(alarms()).toHaveLength(0);
+      expect((await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } })).providerRef).toBe("sub_A");
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // B-1 (kurucu 11-04 "böyle birşey olamaz kesinlikle hata"; derin ajan turu 2): iki abonelik açılınca yeni (B) eskisinin (A) yerine geçer.
+  // Operatör alarma uyup A'yı "dönem sonunda iptal" edince Paddle A için AKTİF bir güncelleme yollar → kimlik şartı aktif olayda olmadığı için
+  // satır A'ya geri dönüyordu; dönem sonunda A'nın iptali hesabı kapatıyor, B her ay ödendiği hâlde bir daha bağlanmıyordu. Artık farklı
+  // aboneliğin aktif olayı, o abonelik kayıtlı olandan DAHA ESKİ olduğu KESİN biliniyorsa yerine geçmez (yalnız kaydedilir + alarm).
+  // ---------------------------------------------------------------------------
+  describe("B-1 — eski aboneliğin sonraki aktif olayı yeni aboneliğin yerini ALAMAZ", () => {
+    const OLDER = "paddle-webhook-older-subscription-event";
+    const withCreated = (ev: ReturnType<typeof subEvent>, createdAt: string, extra: Record<string, unknown> = {}) => ({
+      ...ev,
+      data: { ...ev.data, created_at: createdAt, ...extra },
+    });
+
+    it("🚨 kayıtlı B (10:02) varken A'nın (10:00) dönem sonu iptal planı (aktif) gelir → satır B'de KALIR, operatöre alarm", async () => {
+      await seedSub("sub_B", "active");
+      subCreated.set("sub_B", "2026-11-04T10:02:00Z");
+      const ev = withCreated(subEvent("sub_A", "active"), "2026-11-04T10:00:00Z", { scheduled_change: { action: "cancel" } });
+      expect((await postEvent(ev)).status).toBe(200);
+      const row = await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } });
+      expect(row.providerRef).toBe("sub_B");
+      expect(row.status).toBe("active");
+      expect(row.cancelAtPeriodEnd).toBe(false);
+      expect(reportErrorMock.mock.calls.filter(([c]) => c === OLDER)).toHaveLength(1);
+      expect(alarms()).toHaveLength(0); // "ikinci abonelik aktifleşti" yanıltıcı alarmı da yok
+    });
+
+    it("KONTROL: DAHA YENİ abonelik (B 10:02) kayıtlı eskinin (A 10:00) yerine geçer — bugünkü davranış + ikinci abonelik alarmı", async () => {
+      await seedSub("sub_A", "active");
+      subCreated.set("sub_A", "2026-11-04T10:00:00Z");
+      expect((await postEvent(withCreated(subEvent("sub_B", "active"), "2026-11-04T10:02:00Z"))).status).toBe(200);
+      expect((await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } })).providerRef).toBe("sub_B");
+      expect(alarms()).toHaveLength(1);
+      expect(reportErrorMock.mock.calls.filter(([c]) => c === OLDER)).toHaveLength(0);
+    });
+
+    it("KONTROL: zaman bilinmezse (Paddle okunamadı / olayda yok) bugünkü davranış AYNEN — yerine geçer", async () => {
+      await seedSub("sub_B", "active");
+      expect((await postEvent(withCreated(subEvent("sub_A", "active"), "2026-11-04T10:00:00Z"))).status).toBe(200);
       expect((await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } })).providerRef).toBe("sub_A");
     });
   });

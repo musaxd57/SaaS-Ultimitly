@@ -13,6 +13,7 @@ import { adoptCorrelation, currentCorrelation, newCorrelationId, runWithCorrelat
 import { logEvent } from "@/lib/event-log";
 import {
   getPaddleWebhookSecret,
+  getSubscriptionCreatedAt,
   verifyPaddleSignature,
   paddlePriceToPlanCode,
   paddleStatusToLocal,
@@ -243,6 +244,28 @@ async function applySubscriptionEvent(
     existing?.providerRef && providerRef && existing.providerRef !== providerRef && status === "active" && existing.status !== "canceled"
       ? { from: existing.providerRef, fromStatus: existing.status }
       : null;
+  // 🚨 B-1 (kurucu 11-04 "böyle birşey olamaz kesinlikle hata"; derin ajan turu 2): "yerine geçme" yalnız YENİ abonelik içindir. İki abonelik
+  // açılınca yeni (B) eskisinin (A) yerine geçer; operatör alarma uyup A'yı "dönem sonunda iptal" edince Paddle A için AKTİF bir güncelleme
+  // yollar ve satır A'ya geri dönüyordu → dönem sonunda A'nın iptali hesabı kapatıyor, B her ay ödendiği hâlde bir daha bağlanmıyordu.
+  // Olaydaki aboneliğin oluşturulma anı kayıtlı aboneliğinkinden ESKİYSE (Paddle'dan okunur — yalnız bu nadir durumda) olay uygulanmaz,
+  // operatöre alarm. Zamanlardan biri bilinmezse bugünkü davranış AYNEN (yerine geçer + "ikinci abonelik" alarmı) — yalnız KESİN eski reddedilir.
+  if (replacesLiveSubscription) {
+    const rawCreated = str(data.created_at);
+    const eventCreatedAt = rawCreated ? new Date(rawCreated) : null;
+    if (eventCreatedAt && !Number.isNaN(eventCreatedAt.getTime())) {
+      const registeredCreatedAt = await getSubscriptionCreatedAt(replacesLiveSubscription.from);
+      if (registeredCreatedAt && eventCreatedAt.getTime() < registeredCreatedAt.getTime()) {
+        await alertOnTransition(
+          `paddle-webhook:older-subscription:${organizationId}:${providerRef}`,
+          "paddle-webhook-older-subscription-event",
+          new Error(
+            `İşletme ${organizationId}: eski abonelik ${providerRef} için aktif olay geldi; kayıtlı daha yeni abonelik ${replacesLiveSubscription.from} korunuyor (olay uygulanmadı). Eski aboneliği Paddle panelinden kontrol edin.`,
+          ),
+        );
+        return;
+      }
+    }
+  }
 
   // First subscription item's price → plan code (env-mapped).
   let planCode: string | null = null;

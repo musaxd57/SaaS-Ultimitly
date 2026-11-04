@@ -560,6 +560,22 @@ export async function resumeSubscription(subscriptionId: string, orgId?: string)
   }
 }
 
+/**
+ * Aboneliğin Paddle'daki oluşturulma anı (`data.created_at`). B-1 (kurucu 11-04): iki abonelikte hangisinin DAHA YENİ olduğunu bilmek için —
+ * eski aboneliğin sonraki "aktif" olayı yeni aboneliğin yerini almasın. Asla fırlatmaz → okunamazsa / alan yoksa null ("bilinmiyor").
+ */
+export async function getSubscriptionCreatedAt(subscriptionId: string): Promise<Date | null> {
+  if (!subscriptionId || !isPaddleConfigured()) return null;
+  try {
+    const res = (await paddleRequest(`/subscriptions/${encodeURIComponent(subscriptionId)}`)) as { data?: { created_at?: string } };
+    const at = res?.data?.created_at ? new Date(res.data.created_at) : null;
+    return at && !Number.isNaN(at.getTime()) ? at : null;
+  } catch (err) {
+    if (!isExpectedPaddleError(err)) await reportError("paddle-subscription-get", err);
+    return null;
+  }
+}
+
 /** Aboneliğin Paddle'daki durumu (belirsiz devam sonucunu mutabakat için). Asla fırlatmaz → okunamazsa null ("bilinmiyor"). */
 export async function getSubscriptionStatus(subscriptionId: string): Promise<{ status: string | null; customerId: string | null } | null> {
   if (!subscriptionId || !isPaddleConfigured()) return null;
