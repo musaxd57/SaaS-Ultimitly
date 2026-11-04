@@ -43,7 +43,10 @@ export function ActionSuggestions({ items }: { items: ActionSuggestionItem[] }) 
           key: item.key,
           decision,
           // Taşıma seçiliyse an seçeneğin kendisidir — gün / saat gönderilmez (Opus gece-4 F9).
-          ...(edit && !choice?.startsWith("move:") ? { day: edit.day, time: edit.time } : {}),
+          // `seenDay` (Codex 11-04): panelin gösterdiği göreli gün — gece yarısını geçen onayda sunucu bayat sayar, tarih kaymaz.
+          ...(edit && !choice?.startsWith("move:")
+            ? { day: edit.day, time: edit.time, ...(item.kind === "commitment" && item.proposal.day ? { seenDay: item.proposal.day } : {}) }
+            : {}),
           ...(choice && decision === "approve" ? { attach: choice } : {}),
         }),
       });

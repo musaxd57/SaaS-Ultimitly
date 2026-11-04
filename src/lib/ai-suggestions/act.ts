@@ -46,6 +46,12 @@ export type DecisionResult =
 export interface DecisionEdits {
   day?: unknown;
   time?: unknown;
+  /**
+   * Codex 11-04 P2: panelin GÖSTERDİĞİ göreli gün ("today" / "tomorrow"). Onay anında yeniden türetilen önerinin göreli günü bundan farklıysa
+   * (panel gece yarısından önce açıldı, onay sonra verildi) seçilen "yarın" artık başka bir TARİHTİR → onay bayat sayılır (409, panel yenilenir);
+   * sessizce bir gün ileri yazılmaz. Gönderilmezse (eski istemci) bugünkü davranış.
+   */
+  seenDay?: unknown;
   /** Q1-b: konusuz öneri aynı saatte birden çok söze uyuyorsa seçim — o sözün konusu ya da "new" (yeni söz). */
   attach?: unknown;
 }
@@ -127,6 +133,8 @@ export async function decideSuggestion(input: {
       typeof a === "string" && a.startsWith("move:") ? view.proposal.moveOptions?.find((o) => `move:${o.commitmentId}` === a) : undefined;
     const base = moveOption ?? view.proposal;
     const chosenDay = input.edits?.day === "today" || input.edits?.day === "tomorrow" ? input.edits.day : null;
+    const seenDay = input.edits?.seenDay === "today" || input.edits?.seenDay === "tomorrow" ? input.edits.seenDay : null;
+    if (seenDay !== null && !moveOption && view.proposal.day !== seenDay) return { status: "gone" };
     // Gün mesajdan okunamadıysa (D3) varsayılan "bugün" YOK — ev sahibi seçmeden onaylanmaz (otomatik kip de seçemez → kart kalır).
     if (view.proposal.dayUnclear && !moveOption && chosenDay === null) return { status: "invalid", field: "day", message: DAY_CHOICE_REQUIRED };
     const day = moveOption ? moveOption.day : (chosenDay ?? base.day);

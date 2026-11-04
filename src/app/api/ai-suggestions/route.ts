@@ -22,7 +22,7 @@ export const POST = withManage(async (session, req) => {
   const limited = await rateLimit(`ai-suggestion:${session.organizationId}`, 120, 60 * 60_000);
   if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
-  const body = (await readJsonCappedOrNull(req)) as { key?: unknown; decision?: unknown; day?: unknown; time?: unknown; attach?: unknown } | null;
+  const body = (await readJsonCappedOrNull(req)) as { key?: unknown; decision?: unknown; day?: unknown; time?: unknown; seenDay?: unknown; attach?: unknown } | null;
   const key = typeof body?.key === "string" ? body.key : "";
   if (!key) return badRequest({ key: "Öneri bulunamadı." });
   if (!suggestionsOn && parseSuggestionKey(key)?.kind !== "commitment") return notFound();
@@ -35,7 +35,7 @@ export const POST = withManage(async (session, req) => {
     key,
     decision,
     // `attach` (Q1-b): aynı saatte birden çok söze uyan konusuz önerinin seçimi — sunucuda önerinin kendi seçenekleriyle doğrulanır.
-    edits: { day: body?.day, time: body?.time, attach: body?.attach },
+    edits: { day: body?.day, time: body?.time, seenDay: body?.seenDay, attach: body?.attach },
   });
   if (r.status === "invalid") return badRequest({ [r.field]: r.message });
   if (r.status === "gone") return NextResponse.json({ gone: true }, { status: 409 });

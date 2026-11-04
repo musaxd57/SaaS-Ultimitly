@@ -189,6 +189,31 @@ describe("C · söz kaydı önerisi", () => {
     expect(await getConversationSuggestions(orgId, conversationId)).toEqual([]);
   });
 
+  it("🚨 Codex 11-04 P2: panel gece yarısından ÖNCE açıldı, yalnız saat düzenlenip SONRA onaylandı → 'yarın' bir gün kaymaz; onay bayat (409)", async () => {
+    vi.setSystemTime(new Date("2026-10-12T20:50:00Z")); // İstanbul 23:50
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    await asUser(orgId);
+    const { conversationId } = await conversationWith(orgId, propertyId, [
+      { direction: "inbound", authorType: "guest", body: "Kombi çalışmıyor." },
+      { direction: "outbound", authorType: "host", body: "Yarın 10:00'da teknisyen gelecek.", minutesAgo: 5 },
+    ]);
+    await prisma.organization.update({ where: { id: orgId }, data: { autoTaskFromMessageEnabled: true } });
+    const [s] = await getConversationSuggestions(orgId, conversationId);
+    expect(s).toMatchObject({ kind: "commitment", proposal: { day: "tomorrow", time: "10:00" } });
+    vi.setSystemTime(new Date("2026-10-12T21:10:00Z")); // İstanbul 00:10 — panel aynı, gün değişti
+    const stale = await decide({ key: s.key, decision: "approve", day: "tomorrow", time: "10:30", seenDay: "tomorrow" });
+    expect(stale.status).toBe(409);
+    expect(await prisma.guestCommitment.count({ where: { conversationId } })).toBe(0);
+    // Panel yenilenince öneri "bugün 10:00" görünür; yeni çerçeveyle onay doğru tarihe (13 Ekim 10:30) yazılır.
+    const [fresh] = await getConversationSuggestions(orgId, conversationId);
+    expect(fresh).toMatchObject({ kind: "commitment", proposal: { day: "today", time: "10:00" } });
+    const ok = await decide({ key: fresh.key, decision: "approve", day: "today", time: "10:30", seenDay: "today" });
+    expect(ok.status).toBe(200);
+    const c = await prisma.guestCommitment.findFirstOrThrow({ where: { conversationId } });
+    expect(c.dueAt.toISOString()).toBe(commitmentDueAt({ day: "today", time: "10:30" }, orgTimezone(null), new Date("2026-10-12T21:10:00Z"))!.toISOString());
+    expect(c.dueAt.toISOString()).toBe("2026-10-13T07:30:00.000Z");
+  });
+
   it("🚨 aynı söz (tür + saat) mesajdan ÖNCE açıksa öneri GÖSTERİLMEZ — ölü 'Onayla' düğmesi yok (Opus 10-15 B1)", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
     const u = await asUser(orgId);
