@@ -167,6 +167,39 @@ describe("oto-yanıt aday penceresi — kalıcı açlık yok", () => {
     expect(await prisma.conversation.count({ where: { propertyId, status: "new", externalReservationId: { startsWith: "late-" } } })).toBe(30);
   });
 
+  it("🚨 inceleme 11-04 #6: S1 konuşmasındaki 'saat dışında' / 'sınır yenilenince yanıtlanacak' notu damgayla silinir; gerçek sebep KALIR", async () => {
+    const { orgId, propertyId } = await seedOrg();
+    const mk = async (ref: string, skippedReason: string) => {
+      const when = new Date(Date.now() - 2 * 60 * 60 * 1000);
+      return prisma.conversation.create({
+        data: {
+          propertyId,
+          channel: "airbnb",
+          guestIdentifier: `G-${ref}`,
+          externalReservationId: ref,
+          status: "new",
+          skippedReason,
+          lastMessageAt: when,
+          messages: {
+            create: [
+              { direction: "inbound", senderName: "G", body: "Wifi?", createdAt: new Date(when.getTime() - 120_000), ingestedAt: new Date(when.getTime() + 60_000) },
+              { direction: "outbound", authorType: "ai", senderName: "GuestOps AI", body: "Şifre: abc", createdAt: when },
+            ],
+          },
+        },
+      });
+    };
+    const hours = await mk("s1-hours", "outside_hours");
+    const budget = await mk("s1-budget", "daily_budget");
+    const human = await mk("s1-human", "escalated_to_human");
+    await runDueChannelAutoReplies(orgId);
+    expect(mockSuggest).not.toHaveBeenCalled();
+    const reason = async (id: string) => (await prisma.conversation.findUniqueOrThrow({ where: { id }, select: { skippedReason: true } })).skippedReason;
+    expect(await reason(hours.id)).toBeNull();
+    expect(await reason(budget.id)).toBeNull();
+    expect(await reason(human.id)).toBe("escalated_to_human");
+  });
+
   it("İNSAN DEVRİ süren konuşmalar aday slotu işgal etmez", async () => {
     const { orgId, propertyId } = await seedOrg();
 

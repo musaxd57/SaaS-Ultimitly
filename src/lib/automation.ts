@@ -5021,6 +5021,13 @@ export async function runDueChannelAutoReplies(
       await prisma.conversation
         .updateMany({ where: { id: c.id }, data: { autoReplyAttemptedAt: c.lastMessageAt } })
         .catch(() => {});
+      // İnceleme 11-04 (#6): S1 konuşması ("Yeni" ama son mesaj giden) için "saat dışında geldi" / "sınır yenilenince otomatik yanıtlanacak"
+      // notu YANLIŞTIR — yapay zekâ bu mesaja tasarım gereği cevap vermez. Damgayla birlikte yalnız bu iki geçici not silinir.
+      if (outcome.skippedReason === "already_answered") {
+        await prisma.conversation
+          .updateMany({ where: { id: c.id, skippedReason: { in: ["outside_hours", "daily_budget"] } }, data: { skippedReason: null } })
+          .catch(() => {});
+      }
     } else if (outcome.skippedReason === "ai_unavailable" && outcome.modelBilled) {
       // 🚨 FATURALANAN AMA KULLANILAMAYAN CEVAP SINIRLI DENENİR (gece maliyet denetimi 09-28). Model cevap verdi ama çıktı
       // kullanılamadı (çıktı tavanı / bozuk JSON): damgasız hâlde bu mesaj 2 dakikada bir yeniden modelleniyordu — her deneme

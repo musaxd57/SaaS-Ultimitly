@@ -63,13 +63,26 @@ export function isAnsweringOutbound(m: { direction: string; authorType?: string 
  */
 export function lateGuestMessages<T extends { direction: string; authorType?: string | null; createdAt: Date; ingestedAt: Date | null }>(
   newestFirst: readonly T[],
+  opts: { includeNewer?: boolean } = {},
 ): T[] {
   const at = newestFirst.findIndex((m) => isAnsweringOutbound(m));
   if (at === -1) return [];
   const reply = newestFirst[at];
   if (reply.ingestedAt !== null) return [];
   const writtenAt = reply.createdAt.getTime();
-  return newestFirst.slice(at + 1).filter((m) => m.direction === "inbound" && m.ingestedAt !== null && m.ingestedAt.getTime() > writtenAt);
+  const lateIn = (m: T) => m.direction === "inbound" && m.ingestedAt !== null && m.ingestedAt.getTime() > writtenAt;
+  const older: T[] = [];
+  for (const m of newestFirst.slice(at + 1)) {
+    // İnceleme 11-04 (#4): aradaki SAĞLAYICIDA yazılmış cevap (ev sahibi Airbnb uygulamasından, içeri alınmış) ondan eski misafir
+    // mesajlarını gördü → onlar geç DEĞİL (yanlış "Yeni" + gereksiz acil e-posta üretiyordu).
+    if (isAnsweringOutbound(m) && m.ingestedAt !== null) break;
+    if (lateIn(m)) older.push(m);
+  }
+  // İnceleme 11-04 (#2, kuyruk yolu): cevap satırı KUYRUĞA yazıldığı anda oluşur (`createdAt` = kuyruk anı), teslim gecikirse misafirin
+  // arada yazdığı mesaj veritabanı sırasında cevaptan YENİ düşer ama sağlayıcı sırasında cevaptan önce → senkron "Cevaplandı" der. Yalnız
+  // senkron yazıcısı ister (`includeNewer`); uyarı geçişinde o mesajlar zaten cevapsız penceredir (çift sayılmasın).
+  const newer = opts.includeNewer ? newestFirst.slice(0, at).filter(lateIn) : [];
+  return [...newer, ...older];
 }
 
 /** Prisma: otomatik şablon mesajı OLMAYAN satırlar — NULL yazarlı eski satırlar DAHİL (`{ not: … }` NULL'u dışlardı). */

@@ -320,11 +320,20 @@ describe("S1 — geç içeri alınan misafir mesajı konuşmayı 'Yeni' bırakı
   const G1 = m("g-1", "2026-05-30T09:00:00Z");
   const G2 = m("g-2", "2026-05-30T09:03:00Z", { body: "Mutfakta duman var" });
 
+  /**
+   * Senkron içe alma anını GERÇEK saatle yazar; bu testlerin yerel cevabı sabit geçmiş tarihlidir (2026-05-30). Hikâyede G1 cevaptan ÖNCE
+   * alındı (cevap onu gördü) → içe alma anı hikâyeye göre yazılır. Yoksa G1 de "geç" sayılır ve test G2 olmadan da yeşil kalırdı (inceleme
+   * 11-04 #5: boş geçen test).
+   */
+  const g1IngestedBeforeReply = () =>
+    prisma.message.updateMany({ where: { externalId: "g-1" }, data: { ingestedAt: new Date("2026-05-30T09:00:30Z") } });
+
   it("🚨 bizim cevabımız (yerel satır, sağlayıcı kopyası sonra bağlanır) + arada yazılmış misafir mesajı → 'new'", async () => {
     const { orgId, propertyId } = await seedOrgA();
     fake.setReservations(HP_A, [R1({ lastMessageAt: new Date("2026-05-30T09:00:00Z") })]);
     fake.setMessages("res-1", [G1]);
     await syncHospitable(orgId);
+    await g1IngestedBeforeReply();
     const { conversation } = await rows(propertyId);
     // AI cevabı BİZDEN gitti (içe alma yolundan gelmedi) — misafir 09:03'te yazmıştı ama henüz içeri alınmamıştı.
     await prisma.message.create({
@@ -340,6 +349,24 @@ describe("S1 — geç içeri alınan misafir mesajı konuşmayı 'Yeni' bırakı
     const after = await rows(propertyId);
     expect(after.messages.map((x) => x.externalId)).toEqual(["g-1", "g-2", "p-ai"]); // sağlayıcı kopyası yerel satıra bağlandı
     expect(after.conversation!.status).toBe("new");
+  });
+
+  it("KONTROL: aynı akış ama arada misafir mesajı YOK (yalnız cevabımızın sağlayıcı kopyası) → 'answered'", async () => {
+    const { orgId, propertyId } = await seedOrgA();
+    fake.setReservations(HP_A, [R1({ lastMessageAt: new Date("2026-05-30T09:00:00Z") })]);
+    fake.setMessages("res-1", [G1]);
+    await syncHospitable(orgId);
+    await g1IngestedBeforeReply();
+    const { conversation } = await rows(propertyId);
+    await prisma.message.create({
+      data: { conversationId: conversation!.id, direction: "outbound", authorType: "ai", senderName: "GuestOps AI", body: "Şifre: abc12345", createdAt: new Date("2026-05-30T09:05:00Z") },
+    });
+    await prisma.conversation.update({ where: { id: conversation!.id }, data: { status: "answered" } });
+    const ours = m("p-ai", "2026-05-30T09:05:00Z", { direction: "outbound", senderName: "GuestOps AI", body: "Şifre: abc12345" });
+    fake.setReservations(HP_A, [R1({ lastMessageAt: new Date("2026-05-30T09:05:00Z") })]);
+    fake.setMessages("res-1", [G1, ours]);
+    await syncHospitable(orgId);
+    expect((await rows(propertyId)).conversation!.status).toBe("answered");
   });
 
   it("KONTROL: ev sahibi SAĞLAYICIDA cevapladıysa (aynı senkronla içeri alınır) → 'answered'", async () => {

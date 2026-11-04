@@ -50,6 +50,23 @@ describe("lateGuestMessages", () => {
     expect(lateGuestMessages(newestFirst(guest("m1", 0, null), ours("ai", 4)))).toEqual([]);
   });
 
+  it("🚨 inceleme 11-04 #4: aradaki SAĞLAYICIDA yazılmış ev sahibi cevabı ondan eski misafir mesajını gördü → geç DEĞİL", () => {
+    // 10:00 G (10:04'te alındı) · 10:01 ev sahibi Airbnb'den H (10:04'te alındı) · 10:02 bizim cevabımız R.
+    const rows = newestFirst(guest("g", 0, 4), providerReply("h", 1, 4), ours("r", 2));
+    expect(lateGuestMessages(rows)).toEqual([]);
+    // KONTROL: aradaki giden BİZİM eski cevabımızsa (içeri alınmamış) G yine geçtir (R de onu görmedi).
+    expect(ids(lateGuestMessages(newestFirst(guest("g", 0, 4), ours("r0", 1), ours("r", 2))))).toEqual(["g"]);
+  });
+
+  it("🚨 inceleme 11-04 #2: kuyruk gecikmesi — misafir mesajı veritabanında cevaptan YENİ ama cevap satırından sonra alındı → yalnız includeNewer'da", () => {
+    // R kuyruğa 10:00'da yazıldı (teslim 10:30), G 10:10'da yazıldı, 10:12'de alındı.
+    const rows = newestFirst(guest("g0", 0, 0), ours("r", 1), guest("g", 10, 12));
+    expect(ids(lateGuestMessages(rows, { includeNewer: true }))).toEqual(["g"]);
+    expect(lateGuestMessages(rows)).toEqual([]); // uyarı geçişi: o mesaj zaten cevapsız pencerede
+    // KONTROL: cevaptan ÖNCE alınmış yeni misafir satırı (saat kayması) geç sayılmaz.
+    expect(lateGuestMessages(newestFirst(ours("r", 5), guest("g", 6, 4)), { includeNewer: true })).toEqual([]);
+  });
+
   it("yalnız EN YENİ cevaba bakılır: ondan sonra gelen misafir mesajı zaten cevapsız penceredir (bu fonksiyonun işi değil)", () => {
     const rows = newestFirst(guest("m1", 0, 2), guest("m2", 3, 6), ours("ai", 4), guest("m3", 7, 7));
     expect(ids(lateGuestMessages(rows))).toEqual(["m2"]);

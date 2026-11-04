@@ -624,7 +624,7 @@ export async function importCanonicalThread(
       take: HISTORY_MESSAGE_CAP,
       select: { direction: true, authorType: true, createdAt: true, ingestedAt: true },
     });
-    if (lateGuestMessages(tail).length > 0) {
+    if (lateGuestMessages(tail, { includeNewer: true }).length > 0) {
       await db.conversation.updateMany({ where: { id: conversationId, status: "answered" }, data: { status: "new" } });
     }
   }
