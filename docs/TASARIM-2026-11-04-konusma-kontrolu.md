@@ -223,3 +223,32 @@ Eş zamanlı iki yönetici: kontrol uçları `If-Match: <controlVersion>` ister;
 - **K-7 (web kancası, K-A1):** Airbnb / Booking / Vrbo için ortak alım ucu (imza doğrulama → ham olay kalıcı → bildirim → işçi o konuşmayı
   çeker). Bu üç sağlayıcının ortaklık API erişimi bugün yok (Airbnb Direct sözleşmesi boş adaptör); kod sağlayıcıdan bağımsız alım + sözleşme
   testleriyle hazırlanır, gerçek bağlantı erişim gelince. Vrbo için başvuru durumu nedir?
+
+## 8. Kurucu cevapları (11-04 akşam)
+- **K-1 ✅** önerildiği gibi: QR ve kanalda tek host cevabı kontrolü değiştirmez; susturmak = Devral.
+- **K-2 ✅** elle "Sorunlu" = takip işareti; AI'ı kapatmaz; seçimde küçük "[Devral]" önerisi.
+- **K-3 ✅ yön + geliştir:** "AI hostun mesajını bilsin; hostlar çoğunlukla Airbnb/Booking'den yazacak, en iyi akışı kuralım" (Codex görüşü
+  alınabilir). Önerilen akış §9.
+- **K-4 ✅** olayı owner + manager çözer.
+- **K-5** açıklama istendi (sohbette anlatıldı); onay bekliyor.
+- **K-6 ✅** migration onaylı (açılıştan önce taze yedek kuralı geçerli).
+- **K-7** Vrbo başvurusu yok, ürün geliştirme aşamasında → web kancası SONRAYA; şimdilik yalnız sağlayıcıdan bağımsız alım tasarımı.
+- **Yeni öneri (kurucu):** host durdurdu, kendi yazacaktı, vazgeçti → AI'ya "şöyle şöyle yaz" der → AI düşünceyi host'un sesiyle cümleye
+  döker, ÖNİZLEME + [Gönder] (kendiliğinden gitmez; bütün kapılardan geçer). WhatsApp cevap diliminin (talimat biçimli host cevabı →
+  taslak → önizleme) panel karşılığı; aynı çekirdek kullanılır.
+- **Model:** Haiku'nun ölçümle daha iyi olduğu katmanlarda geçiş; açılış listesine (Railway) katman bazında sağlayıcı/model anahtarı yazılır.
+
+## 9. Dış kanaldan host cevabı (K-3) — önerilen akış
+1. Senkron, Lixus'tan gönderilmemiş bir host mesajı getirir → `authorType: host`, kaynak "dış kanal" (var) + konuşma içerik sürümü artar →
+   kuyruktaki / üretilmekte olan AI taslakları geçersiz (bugünkü "yeni mesaj eski taslağı iptal eder" kuralı host mesajına da uygulanır).
+2. **Host cevabı okuması (model, yapılandırılmış çıktı):** açık öğelerin her biri için "bu mesaj onu cevapladı mı (tam / kısmi / hayır)";
+   host bir şey SÖZ verdi mi (→ açık taahhüt hafızası, var); host "devralıyorum / ben ilgilenirim" dedi mi; tehlike için "çözüldü" beyanı var mı.
+   WhatsApp cevap dilimindeki "cevap → soru eşleme" çekirdeği yeniden kullanılır.
+3. Tam cevaplanan öğe "host cevapladı (dış kanal)" kapanır; AI o öğeye ASLA yeniden cevap yazmaz, sonraki cevaplarında host'un söylediğiyle
+   çelişmez (host mesajı bağlamda; çelişki okuyucuda kontrol). Kısmi / cevapsız öğeler açık kalır, bağımsız ve güvenliyse AI cevaplar.
+4. "Ben ilgilenirim" türü beyan otomatik Devral SAYILMAZ (K-1 ilkesi); panelde "Host bu konuşmayı üstlenmiş görünüyor [Devral]" önerisi.
+5. Tehlike için "çözüldü / teknisyen geldi" beyanı olayı KAPATMAZ; panelde "Olay çözüldü mü? [Evet, çözüldü]" önerisi (K-T2).
+6. **Aktif sohbet beklemesi (soru):** host dış kanalda son X dakikada yazdıysa yeni misafir mesajına AI hemen girmesin mi (host o an
+   konuşuyor olabilir; yazdığını göremiyoruz)? Önerim: host'un son mesajından sonraki 10 dk içinde gelen misafir mesajı AI'da bekler; 10 dk
+   içinde host yazarsa AI hiç girmez, yazmazsa güncel bağlamla değerlendirilir (eski taslak değil). Codex görüşü istenebilir.
+7. Ölçüm: geçmiş konuşmalardan host cevabı → öğe eşleme doğruluğu (kör set) + yanlış "cevaplandı" oranı (en tehlikeli hata).
