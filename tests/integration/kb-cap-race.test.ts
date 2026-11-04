@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { NextRequest } from "next/server";
+import { randomUUID } from "node:crypto";
 import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
 import { lockProbe } from "../helpers/lock-probe";
 import type { SessionPayload } from "@/lib/auth";
@@ -22,8 +23,8 @@ import { limitsForOrg } from "@/lib/billing/plan-limits";
 
 const json = (url: string, method: string, body: unknown) =>
   new NextRequest(`http://localhost${url}`, { method, body: JSON.stringify(body), headers: { "content-type": "application/json" } });
-const create = (propertyId: string, title: string, requestId: string) =>
-  CREATE(json("/api/kb", "POST", { propertyId, category: "faq", title, content: `${title} bilgisi.`, requestId }), { params: Promise.resolve({}) } as never);
+const create = (propertyId: string, title: string, requestId: string = randomUUID()) =>
+  CREATE(json("/api/kb", "POST", { propertyId, category: "general", title, content: `${title} bilgisi.`, requestId }), { params: Promise.resolve({}) } as never);
 const activeCount = (propertyId: string) => prisma.knowledgeBaseItem.count({ where: { propertyId, isActive: true } });
 
 describe("bilgi tabanı plan sınırı — eşzamanlı farklı yazıcılar", () => {
@@ -46,7 +47,7 @@ describe("bilgi tabanı plan sınırı — eşzamanlı farklı yazıcılar", () 
   it("🚨 N−1'de iki FARKLI ekleme aynı anda → yalnız biri yazılır (diğeri sınır), kilitli bölgeye aynı anda tek istek", async () => {
     const probe = lockProbe();
     __kbCapHooks.afterCount = probe.hook;
-    const [a, b] = await Promise.all([create(propertyId, "Otopark", "req-a"), create(propertyId, "Havuz", "req-b")]);
+    const [a, b] = await Promise.all([create(propertyId, "Otopark"), create(propertyId, "Havuz")]);
     expect(probe.maxInside()).toBe(1);
     expect([a.status, b.status].sort()).toEqual([201, 400]);
     expect(await activeCount(propertyId)).toBe(cap);
@@ -57,7 +58,7 @@ describe("bilgi tabanı plan sınırı — eşzamanlı farklı yazıcılar", () 
     const probe = lockProbe();
     __kbCapHooks.afterCount = probe.hook;
     const [a, b] = await Promise.all([
-      create(propertyId, "Otopark", "req-c"),
+      create(propertyId, "Otopark"),
       PATCH(json(`/api/kb/${passive.id}`, "PATCH", { isActive: true }), { params: Promise.resolve({ id: passive.id }) }),
     ]);
     expect(probe.maxInside()).toBe(1);
@@ -68,9 +69,10 @@ describe("bilgi tabanı plan sınırı — eşzamanlı farklı yazıcılar", () 
   it("KONTROL: sınırın altında iki ekleme de yazılır; aynı istek kimliğinin tekrarı kazananın kalemini döner", async () => {
     await prisma.knowledgeBaseItem.deleteMany({ where: { propertyId, title: "K0" } });
     await prisma.knowledgeBaseItem.deleteMany({ where: { propertyId, title: "K1" } });
-    const [a, b] = await Promise.all([create(propertyId, "Otopark", "req-d"), create(propertyId, "Havuz", "req-e")]);
+    const rid = randomUUID();
+    const [a, b] = await Promise.all([create(propertyId, "Otopark", rid), create(propertyId, "Havuz")]);
     expect([a.status, b.status]).toEqual([201, 201]);
-    const again = await create(propertyId, "Otopark", "req-d");
+    const again = await create(propertyId, "Otopark", rid);
     expect(again.status).toBe(200);
     expect(await activeCount(propertyId)).toBe(cap - 1); // (cap − 1) − 2 silinen + 2 eklenen
   });

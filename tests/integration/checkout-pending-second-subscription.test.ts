@@ -249,8 +249,8 @@ describe("ödeme — ikinci aktif abonelik alarmı + 'ödemeniz işleniyor' kili
 
       it("KONTROL (kurucu 10-10 kuralı): aynı ödemenin GERÇEK başarısızlığı (Paddle ödenmemiş) kilidi hâlâ ANINDA kaldırır", async () => {
         await pendingPost(jsonReq("http://localhost/api/billing/checkout-pending", { consentId }), ctx);
-        txnStatus.set("txn_real_fail", "past_due");
-        await postEvent(failure(consentId, "txn_real_fail"));
+        txnStatus.set("txn_realfail", "past_due");
+        await postEvent(failure(consentId, "txn_realfail"));
         expect(await lockCount()).toBe(0);
         expect(await consentBlocked()).toBe(false);
       });

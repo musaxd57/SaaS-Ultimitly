@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { prisma, resetDb, makeOrgWithProperty, daysFromNow } from "../helpers/db";
 import { drainOutboxOnce } from "@/lib/outbox/worker";
 
@@ -10,6 +10,8 @@ import { drainOutboxOnce } from "@/lib/outbox/worker";
 
 async function seedQueuedAiReply(opts: { reservation: "confirmed" | "cancelled-later" | "ended" | "none" }) {
   const { orgId, propertyId } = await makeOrgWithProperty();
+  // Gönderim anı vetosunun ÖNCEKİ katmanları (genel / işletme yapay zekâ anahtarı) açık — sınanan yalnız rezervasyon kuralı.
+  await prisma.organization.update({ where: { id: orgId }, data: { autoReplyHospitable: true, autoReplyStartHour: 0, autoReplyEndHour: 0 } });
   const reservation =
     opts.reservation === "none"
       ? null
@@ -70,7 +72,9 @@ const rowOf = (id: string) => prisma.messageOutbox.findUniqueOrThrow({ where: { 
 describe("kuyruktaki yapay zekâ cevabı — rezervasyon gönderim anında yeniden okunur", () => {
   beforeEach(async () => {
     await resetDb();
+    vi.stubEnv("AUTO_REPLY_ENABLED", "1");
   });
+  afterEach(() => vi.unstubAllEnvs());
 
   it("🚨 rezervasyon kuyruğa girdikten SONRA iptal edildi → sağlayıcıya HİÇBİR ŞEY gitmez, satır iptal (reservation_cancelled)", async () => {
     const { row } = await seedQueuedAiReply({ reservation: "cancelled-later" });

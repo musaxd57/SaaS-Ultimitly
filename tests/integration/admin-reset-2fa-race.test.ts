@@ -35,16 +35,14 @@ async function customerWithPendingSetup() {
 }
 
 describe("admin 2FA sıfırlama — okuma ile yazma arasındaki etkinleştirme", () => {
+  // TEK test: Prisma temsilcisindeki casus geri alınırsa (`restoreAllMocks`) temsilcinin yöntemi bozuluyor — yarışsız yol
+  // `admin-reset-2fa.test.ts`te (stale_cleared) sınanır; bu dosya yalnız yarışı taşır.
   beforeEach(async () => {
     await resetDb();
-    vi.restoreAllMocks();
     vi.stubEnv("SUPERADMIN_EMAILS", OPERATOR_EMAIL);
     session = await operator();
   });
-  afterEach(() => {
-    vi.restoreAllMocks();
-    vi.unstubAllEnvs();
-  });
+  afterEach(() => vi.unstubAllEnvs());
 
   it("🚨 operatör 'kapalı + bayat kurulum' okudu → müşteri o arada ETKİNLEŞTİRDİ → yeni faktör SİLİNMEZ, 409, denetime hiçbir şey yazılmaz", async () => {
     const customer = await customerWithPendingSetup();
@@ -65,13 +63,4 @@ describe("admin 2FA sıfırlama — okuma ile yazma arasındaki etkinleştirme",
     expect(await prisma.auditLog.count({ where: { action: { startsWith: "admin.2fa" } } })).toBe(0);
   });
 
-  it("KONTROL: yarış yokken bayat kurulum temizlenir (stale_cleared), oturum sürümü değişmez", async () => {
-    const customer = await customerWithPendingSetup();
-    const res = await POST(req({ email: customer.email }));
-    expect(res.status).toBe(200);
-    expect((await res.json()).outcome).toBe("stale_cleared");
-    const after = await prisma.user.findUniqueOrThrow({ where: { id: customer.id } });
-    expect(after.twoFactorSecret).toBeNull();
-    expect(after.sessionEpoch).toBe(2);
-  });
 });
