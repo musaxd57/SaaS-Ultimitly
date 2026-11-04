@@ -142,3 +142,22 @@ işleyen (kurucu kararı — müşteriye görünen hukuki metin).
 fişi gevşekmiş, şimdi çalışıyor" — konuşma geçmişli), bir arızayı kullanım sorusu sayıyor ("Saç kurutma makinesi açılmıyor"), tehlikede
 "kullanım" ekliyor. **Sonuç: anlama katmanı 5.1'de kalır; v2 kuralı ürüne anahtar arkasında girdi (`AI_UNDERSTANDING_FAULT_CONTEXT_ENABLED`,
 kurucu onayı bekliyor).**
+
+## 7. İstek 10 (11-04 öğleden sonra, commit `24460f3`)
+
+**Karar metni yazıcısı, Haiku ikinci tekrar (kararlılık):** kör 30/30 (istek 9: 29/30) · geliştirme 40/40 · bağımsız denetim, iç bilgi,
+başka misafirin saati, uydurulan gerekçe hepsi 0 · p95 5,5–6,0 sn · $0,0052 + $0,0068. Geçiş (kurucu 11-04 "Haikuya geçelim") kararlı.
+
+**Yeniden sıralayıcı (300 kalem, sentetik E4; ölçü: cevap cümlesi istem bloğunda):**
+
+| grup | gömme (bugün) | + 5.1 sıralayıcı | + Haiku düşünme kapalı |
+|---|---|---|---|
+| ölçek (30) | 100% | 100% | 100% |
+| parafraz (82) | 50% | **74%** (+20) | 72% (+18) |
+| çok sorulu (39) | 31% | **74%** (+17) | 67% (+14) |
+| kayıp | — | 0 | 0 |
+| gecikme p50 / p95 | — | 1,4 / 2,1 sn | 1,4 / 2,3 sn |
+
+Haiku bu katmanda hem geride (çok sorulu −7 puan) hem ucuz DEĞİL: aynı Türkçe aday listesini ~2,3 kat token sayıyor (714 bin ↔ ~310 bin) →
+$0,075. **Sonuç: yeniden sıralayıcı 5.1'de kalır.** Üç 5.1 katmanının sonucu: karar yazıcısı → Haiku · anlama → 5.1 (+ v2 kuralı) ·
+sıralayıcı → 5.1.
