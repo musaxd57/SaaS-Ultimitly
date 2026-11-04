@@ -30,6 +30,7 @@
 | **A-11** — kaçan "bilgim yok" biçimleri (Arapça "ليس لدي هذه المعلومات", "I don't have the answer to that", kesmesiz "I dont know", "I wasn't told", "Bu bilgi bana iletilmedi", "bilgilendirilmedim") artık misafire gitmez. Ölçüm külliyatındaki 11.998 gerçek model cevabında yeni tutuş 0 (yanlış tutma yok). "You were not given a key? Let me check." gibi misafire soru tutulmaz (pinli). | Tur 2 A-11 | kural 09-11'in uygulanması |
 | **DB-1** — oto-yanıt aday sorgusunda sıralama veritabanından koda alındı: büyük veride bütün konuşma tablosunu en eskiden tarıyordu (sentetik 5.000 dairede işletme başına geçiş 320–420 ms → ~1 ms). Seçilen 25 konuşma ve sıra aynı. | Ölçek DB-1 | — (misafire giden değişmez) |
 | **DB-4** — büyük işletmede (≈150+ daire) Raporlar sayfası çöküyordu (veritabanının 32.767 parametre sınırı); sorgu dilimlere bölündü. 33.000 mesajlı testle pinli. | Ölçek DB-4 | — |
+| **D-2** — kalite konsolunun ret kaydı kullanıcı başına saatte 10 satırla sınırlı (eskiden sınırsızdı; operatör panelinin "son 50 denetim kaydı" listesi süpürülebiliyordu). Ret aynen döner. | Tur 2 D-2 | — |
 | **M-4** — "acil uyarı geçişi yapay zekâdan ÖNCE koşar" kuralı yalnız satır sırasıyla sağlanıyordu; artık testle pinli (ölçek tasarımı döngüyü bölerse kırmızıya döner). | Ölçek M-4 | — |
 | Açılış listesine `pool_timeout=20` | video notları | — |
 
@@ -126,6 +127,6 @@ kuralın içinde mi?
 - **DB-2:** veritabanının ortak plan önbelleği küçük işletmeye büyüğün planını ödetiyor (rapor sorgusu 1 → 67–78 ms) — DB-1 ve DB-3'ten SONRA
   veritabanı ayarıyla (`plan_cache_mode`), önce ölçüm.
 - **DB-13:** sürenin çoğu veritabanında değil Prisma'nın satırları nesneye çevirmesinde (geniş `include`); görevler sayfası ilk aday.
-- **D-2** (ret kaydına hız sınırı) · **B mutabakat alarmı** (yalnız operatör) · **E-2a** (kuyruğa yazınca hızlı uyandırma, kuyruk açılmadan önce).
+- **B mutabakat alarmı** (yalnız operatör) · **E-2a** (kuyruğa yazınca hızlı uyandırma, kuyruk açılmadan önce).
 - Aynı sınıfta kalan: Gönderilenler sayfası ve rapor sayımındaki "teslim edilmemiş" `notIn` listesi — kuyruk bayrağı kapalıyken tablo boş;
   kuyruk açılmadan önce DB-4 gibi dilimlenmeli.
