@@ -36,7 +36,8 @@ describe("lateGuestMessages", () => {
   });
 
   it("KONTROL: otomatik şablon (karşılama) cevap sayılmaz — sınır onun arkasındaki gerçek cevaptır", () => {
-    const rows = newestFirst(guest("m1", 0, 2), ours("ai", 4), guest("m2", 3, 6), ours("welcome", 5, "automation"));
+    // Karşılama m2 içeri alındıktan SONRA (7) gitti: cevap sayılsaydı m2 "gördü" sayılıp geç mesaj kaybolurdu (mutasyon M3).
+    const rows = newestFirst(guest("m1", 0, 2), ours("ai", 4), guest("m2", 3, 6), ours("welcome", 7, "automation"));
     expect(ids(lateGuestMessages(rows))).toEqual(["m2"]);
   });
 
