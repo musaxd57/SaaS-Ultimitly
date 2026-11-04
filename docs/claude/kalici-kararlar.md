@@ -374,7 +374,9 @@ Sekiz P1 KAPANDI (09-07), her biri ayrı commit, kırmızı-önce + iki yönlü 
   kayıt rotalarında) ve org yaratan üçüncü bir yol (seed, davet, fikstür) eklendiği an sessizce gece-only
   bir org doğuruyordu; ayrıca düzeltmeden ÖNCE kurulmuş org'lara (kurucu org dâhil) hiç uygulanmamıştı.
   Sabit hâlâ duruyor ve niyeti belgeliyor. Kurucu muafiyeti `limitsForOrg`.
-- Plan sınırları POST/PATCH/COPY hepsinde; yalnız büyüme reddedilir; fail-open (kullanım kapısı).
+- Plan sınırları POST/PATCH/COPY hepsinde; yalnız büyüme reddedilir; fail-open (kullanım kapısı). 🚨 İSTİSNA (kurucu 11-04 B-2: "böyle birşey
+  olamaz kesinlikle hata"): plan SATIN ALMA (`api/billing/consent`) ve plan DEĞİŞİKLİĞİ (`resolvePlanChange`) anında hesaptaki daire sayısı hedef
+  planın sınırını aşıyorsa ret (`planFitsPropertyCount`; kurucu org muaf) — Pro denemesinde 7 daire açan Başlangıç alıp 7 dairede devam edemez.
 - Şablon yer tutucu ikamesi TEK GEÇİŞ (`replace` + callback); sıralı split/join ASLA.
 
 **Faturalandırma**

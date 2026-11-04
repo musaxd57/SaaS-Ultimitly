@@ -208,4 +208,29 @@ describe("POST /api/billing/consent (checkout distance-sales evidence)", () => {
     expect(throttled.status).toBe(429); // best-effort on the client → never blocks purchase
     expect(await prisma.checkoutConsent.count({ where: { organizationId: orgId } })).toBe(20); // 21st not written
   });
+
+  // ---------------------------------------------------------------------------
+  // B-2 (kurucu 11-04: "böyle birşey olamaz kesinlikle hata"): Pro denemesinde 7 daire açan müşteri Başlangıç (2 daire) satın alıp 7 dairenin
+  // hepsinde otomasyonu sürdürebiliyordu — daire sınırı yalnız YENİ daireyi engelliyordu. Hesaptaki daire sayısı hedef planın sınırını
+  // aşıyorsa o plan satın alınamaz (ödeme ekranı açılmaz, onay kaydı yazılmaz).
+  // ---------------------------------------------------------------------------
+  const addProperties = (n: number) =>
+    prisma.property.createMany({ data: Array.from({ length: n }, (_, i) => ({ organizationId: orgId, name: `Lale ${i + 1}` })) });
+
+  it("🚨 B-2: 3 daireli hesap Başlangıç (en fazla 2) satın alamaz — sade metin, onay kaydı YOK", async () => {
+    await addProperties(3);
+    const res = await POST(postReq({ planCode: "free", priceId: "pri_123" }), ctx);
+    expect(res.status).toBe(400);
+    expect(JSON.stringify(await res.json())).toContain(
+      "Hesabınızda 3 daire var; Başlangıç planı en fazla 2 daire içindir. Daha büyük bir plan seçin ya da önce daire sayısını azaltın.",
+    );
+    expect(await prisma.checkoutConsent.count({ where: { organizationId: orgId } })).toBe(0);
+  });
+
+  it("KONTROL B-2: sınırda (2 daire → Başlangıç) ve sığan büyük plan (3 daire → Pro) satın alınabilir", async () => {
+    await addProperties(2);
+    expect((await POST(postReq({ planCode: "free", priceId: "pri_123" }), ctx)).status).toBe(201);
+    await addProperties(1);
+    expect((await POST(postReq({ planCode: "pro", priceId: "pri_123" }), ctx)).status).toBe(201);
+  });
 });

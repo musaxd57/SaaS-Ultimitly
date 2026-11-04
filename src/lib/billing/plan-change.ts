@@ -5,6 +5,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { defaultPlans, planByCode, type PlanDef } from "./plans";
 import { getSubscriptionCurrentPriceId } from "@/lib/payments/paddle";
+import { planFitsPropertyCount } from "./subscription";
 
 // ---------------------------------------------------------------------------
 // In-app plan change (upgrade / downgrade). Paddle's hosted customer portal does
@@ -189,6 +190,10 @@ export async function resolvePlanChange(
 
   const priceId = priceIdForPlanCode(planCode);
   if (!priceId) return { ok: false, error: "Bu plan şu anda satın alınamıyor. Lütfen daha sonra tekrar deneyin ya da bize yazın." };
+
+  // B-2 (kurucu 11-04): daire sayısı hedef planın sınırını aşıyorsa plan değişmez — önizleme ve uygulama aynı boğazdan (Paddle'a gitmeden).
+  const fits = await planFitsPropertyCount(organizationId, planCode);
+  if (!fits.ok) return fits;
 
   return {
     ok: true,

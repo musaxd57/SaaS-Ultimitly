@@ -8,7 +8,7 @@ import { paddlePriceToPlanCode, paddlePriceCatalogConfigured } from "@/lib/payme
 import { checkoutConsentSchema, zodFieldErrors } from "@/lib/validators";
 import { checkoutPendingActive } from "@/lib/billing/checkout-pending";
 import { cardTrialPriceIds } from "@/lib/billing/trial-card-gate";
-import { getEntitlement } from "@/lib/billing/subscription";
+import { getEntitlement, planFitsPropertyCount } from "@/lib/billing/subscription";
 import { CHECKOUT_PENDING_MESSAGE } from "@/lib/billing/checkout-pending-shared";
 import { currentCorrelationId } from "@/lib/correlation";
 import { logEvent } from "@/lib/event-log";
@@ -71,6 +71,12 @@ export const POST = withOwner(async (session, req) => {
   if (Object.values(cardTrialPriceIds()).includes(parsed.data.priceId) && !(await getEntitlement(session.organizationId)).cardRequired) {
     return badRequest({ planCode: "Plan fiyatı doğrulanamadı. Lütfen sayfayı yenileyip tekrar deneyin." });
   }
+
+  // 🚨 B-2 (kurucu 11-04: "kesinlikle hata"): hesaptaki daire sayısı seçilen planın sınırını aşıyorsa ödeme ekranı açılmaz (onay kaydı da yazılmaz)
+  // — Pro denemesinde 7 daire açan müşteri Başlangıç (2 daire) alıp 7 dairede devam edemesin. Plan kodu fiyattan türetilen (otorite) ya da
+  // yapılandırılmamış katalogda istemcinin doğrulanmış değeri.
+  const fits = await planFitsPropertyCount(session.organizationId, derivedPlanCode ?? parsed.data.planCode);
+  if (!fits.ok) return badRequest({ _: fits.error });
 
   // ⚠️ CANLI ABONELİĞİ OLAN ORG YENİ CHECKOUT AÇAMAZ (denetim, 08-01).
   //

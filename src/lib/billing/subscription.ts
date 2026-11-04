@@ -205,6 +205,25 @@ export type AddPropertyCheck = {
 };
 
 /**
+ * 🚨 B-2 (kurucu 11-04: "böyle birşey olamaz kesinlikle hata"): hesaptaki daire sayısı HEDEF planın daire sınırını aşıyorsa o plan
+ * satın alınamaz ve o plana düşülemez. Eskiden sınır yalnız YENİ daire eklemeyi engelliyordu: Pro denemesinde 7 daire açan müşteri
+ * Başlangıç (2 daire) satın alıp 7 dairenin hepsinde otomasyonu sürdürebiliyor, İşletme'den Başlangıç'a düşen 25 daireyle kalıyordu.
+ * Ödeme onayı (`api/billing/consent`) ve plan değişikliği (`resolvePlanChange` — önizleme + uygulama) bu kapıdan geçer. Kurucu org
+ * muaf (daire kapısıyla aynı). Bilinmeyen plan / sınırsız plan → geçer (o kapılar başka yerde).
+ */
+export async function planFitsPropertyCount(organizationId: string, planCode: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (isFounderOrg(organizationId)) return { ok: true };
+  const plan = planByCode(planCode);
+  if (!plan || plan.propertyLimit == null) return { ok: true };
+  const current = await prisma.property.count({ where: { organizationId } });
+  if (current <= plan.propertyLimit) return { ok: true };
+  return {
+    ok: false,
+    error: `Hesabınızda ${current} daire var; ${plan.name} planı en fazla ${plan.propertyLimit} daire içindir. Daha büyük bir plan seçin ya da önce daire sayısını azaltın.`,
+  };
+}
+
+/**
  * Whether the org may add another property. NON-BLOCKING unless billing is
  * enforced, so calling this today always returns { allowed: true }.
  */

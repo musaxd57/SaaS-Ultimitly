@@ -168,6 +168,19 @@ describe("plan change routes (gated, PATCH /subscriptions)", () => {
     expect(previewMock).toHaveBeenCalledWith("sub_1", "pri_baslangic", "prorated_next_billing_period", orgId);
   });
 
+  it("🚨 B-2 (kurucu 11-04): 3 daireli hesap Başlangıç'a (en fazla 2) DÜŞEMEZ — önizleme ve uygulama reddeder, Paddle'a hiç gidilmez", async () => {
+    await prisma.property.createMany({ data: [1, 2, 3].map((i) => ({ organizationId: orgId, name: `Lale ${i}` })) });
+    const pre = await PREVIEW(req({ planCode: "free" }), ctx);
+    expect(pre.status).toBe(400);
+    expect(JSON.stringify(await pre.json())).toContain("Hesabınızda 3 daire var; Başlangıç planı en fazla 2 daire içindir.");
+    const apply = await CHANGE(req({ planCode: "free", previewToken: tok("pri_baslangic", "downgrade") }), ctx);
+    expect(apply.status).toBe(400);
+    expect(previewMock).not.toHaveBeenCalled();
+    expect(updateMock).not.toHaveBeenCalled();
+    // KONTROL: aynı hesap sığan plana (İşletme) yükselebilir.
+    expect((await PREVIEW(req({ planCode: "business" }), ctx)).status).toBe(200);
+  });
+
   it("change: applies an upgrade with immediate proration", async () => {
     const res = await CHANGE(req({ planCode: "business", previewToken: tok("pri_isletme", "upgrade") }), ctx);
     expect(res.status).toBe(200);
