@@ -43,7 +43,7 @@ async function seed(kind: "info" | "decision", opts: { answered?: boolean; decis
       expiresAt: new Date(Date.now() + 86_400_000),
     },
   });
-  return { q };
+  return { q, conv };
 }
 
 beforeEach(async () => {
@@ -62,7 +62,28 @@ describe("ulaşmayan bilgi / karar bildirimi → e-posta yedeği", () => {
     expect(mockMail).toHaveBeenCalledTimes(1);
     expect(mockMail.mock.calls[0][0]).toBe("host@example.com");
     expect(String(mockMail.mock.calls[0][1])).toMatch(/^Misafir cevabınızı bekliyor — Deniz/);
+    // Sağlayıcıya tekrar anahtarı (kira dolup ikinci geçiş denese de tek e-posta).
+    expect(mockMail.mock.calls[0][3]).toEqual({ idempotencyKey: `${LATE_FAIL_MAIL_PREFIX}${q.id}` });
     expect((await prisma.hostQuestion.findUniqueOrThrow({ where: { id: q.id } })).status).toBe("failed");
+  });
+
+  it("ev sahibi bildirimden SONRA misafire yazdıysa (iş görülmüş) bilgi e-postası gitmez; bildirimden ÖNCEKİ yazısı engellemez", async () => {
+    const { q, conv } = await seed("info");
+    const sentAt = q.sentAt!;
+    await prisma.message.create({
+      data: { conversationId: conv.id, direction: "outbound", authorType: "host", senderName: "Ev sahibi", body: "Önceki cevap", createdAt: new Date(sentAt.getTime() - 60_000) },
+    });
+    await scheduleLateFailureMails(["wamid.info"]);
+    expect((await deliverDueLateFailureMails()).sent).toBe(1);
+    await resetDb();
+    mockMail.mockClear();
+    const second = await seed("info");
+    await prisma.message.create({
+      data: { conversationId: second.conv.id, direction: "outbound", authorType: "host", senderName: "Ev sahibi", body: "Tabii, 12:00'de girebilirsiniz.", createdAt: new Date(second.q.sentAt!.getTime() + 60_000) },
+    });
+    await scheduleLateFailureMails(["wamid.info"]);
+    expect((await deliverDueLateFailureMails()).skipped).toBe(1);
+    expect(mockMail).not.toHaveBeenCalled();
   });
 
   it("🚨 karar bildirimi: bekleyen karar → 'Karar bekliyor' e-postası", async () => {

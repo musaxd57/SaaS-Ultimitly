@@ -17,8 +17,10 @@ import { DECISION_DAY_SUFFIX_TR, TEXT_DECISION_KINDS, decisionTitle, formatDecis
 //  · Kayıt: `SystemLock` satırı `host-late-fail-mail:<HostQuestion.id>` (migration YOK; acil e-postanın deseni). Yinelenen bildirim aynı
 //    satıra düşer → TEK e-posta.
 //  · Teslim: her senkron geçişinde vadesi gelen satır kiralanır (CAS); e-posta BUGÜNKÜ şablonla (ev sahibinin WhatsApp olmasaydı alacağı
-//    e-postanın AYNISI). Okunmuş / cevaplanmış bildirim, silinmiş / anonimleşmiş içerik, kapanmış karar → e-posta yok.
+//    e-postanın AYNISI). Cevaplanmış bildirim, ev sahibinin bildirimden SONRA misafire yazdığı konuşma (bilgi sorusu — iş görülmüş),
+//    silinmiş / anonimleşmiş içerik, kapanmış karar → e-posta yok. "Okundu" işareti SAYILMAZ: sağlayıcı "ulaşmadı" dedi (acil yolun kuralı).
 //  · Gönderilemezse 2 dk sonra yeniden; 72 saat sonra bırakılır (operatöre haber). Gönderildikten sonra satır 7 gün TEKİLLEŞTİRME izi kalır.
+//    E-posta sağlayıcısına satır adıyla tekrar anahtarı gider (kira süresi dolup ikinci geçiş aynı e-postayı denerse ikincisi düşer).
 // ---------------------------------------------------------------------------
 
 export const LATE_FAIL_MAIL_PREFIX = "host-late-fail-mail:";
@@ -105,7 +107,6 @@ async function deliverOne(questionId: string, now: Date): Promise<DueOutcome> {
       decisionId: true,
       sentAt: true,
       createdAt: true,
-      readAt: true,
       answeredAt: true,
       conversation: {
         select: {
@@ -141,16 +142,23 @@ async function deliverOne(questionId: string, now: Date): Promise<DueOutcome> {
   const to = org.alertEmail?.trim() || org.users[0]?.email?.trim() || null;
   if (!to) return "no_recipient";
   const conv = q.conversation;
+  const idempotencyKey = `${LATE_FAIL_MAIL_PREFIX}${q.id}`;
   if (q.kind === "info") {
     const message = await prisma.message.findUnique({ where: { id: q.turnMessageId }, select: { body: true } });
     if (!message || message.body === ANON_BODY) return "dropped";
+    // Ev sahibi bildirimden sonra misafire yazdı (panelden ya da kanaldan — sağlayıcı zamanı) → iş görülmüş; "cevabınızı bekliyor" bayat olur.
+    const hostWrote = await prisma.message.findFirst({
+      where: { conversationId: conv.id, direction: "outbound", authorType: "host", createdAt: { gt: anchor } },
+      select: { id: true },
+    });
+    if (hostWrote) return "skipped";
     const html = hostReplyWaitingEmail(
       { id: conv.id, guestIdentifier: conv.guestIdentifier, channel: conv.channel, priority: "normal" },
       message.body,
       conv.property,
       org.name ?? "Lixus AI",
     );
-    const mail = await emailService.sendReporting(to, `Misafir cevabınızı bekliyor — ${conv.guestIdentifier} (${conv.property.name})`, html);
+    const mail = await emailService.sendReporting(to, `Misafir cevabınızı bekliyor — ${conv.guestIdentifier} (${conv.property.name})`, html, { idempotencyKey });
     if (!mail.ok) return "retry";
   } else {
     if (!q.decisionId) return "dropped";
@@ -167,7 +175,7 @@ async function deliverOne(questionId: string, now: Date): Promise<DueOutcome> {
       orgName: org.name ?? "Lixus AI",
       panelUrl: `${appBaseUrl()}/inbox/${encodeURIComponent(conv.id)}`,
     });
-    const mail = await emailService.sendReporting(to, `Karar bekliyor: ${title} — ${conv.guestIdentifier} (${conv.property.name})`, html);
+    const mail = await emailService.sendReporting(to, `Karar bekliyor: ${title} — ${conv.guestIdentifier} (${conv.property.name})`, html, { idempotencyKey });
     if (!mail.ok) return "retry";
   }
   await logEvent("host_channel.late_failure.email_sent", {}, { organizationId: q.organizationId }).catch(() => null);
