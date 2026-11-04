@@ -17,9 +17,24 @@ interface Case {
   id: string;
   lang: string;
   message: string;
+  /** Bu mesajdan ÖNCEKİ konuşma (v2, kurucu 11-04: "konuşma geçmişini içeren önce/sonra testleri"). */
+  history?: { direction: "inbound" | "outbound"; body: string }[];
   include: string[][];
   exclude?: string[];
 }
+
+/** Vaka kimliğinin öneki → kategori (rapor + çevrimdışı pin). */
+export const CASE_CATEGORIES: Readonly<Record<string, string>> = {
+  b: "mevcut arıza",
+  h: "kullanım sorusu",
+  y: "varsayımsal soru",
+  c: "çözülmüş",
+  n: "olumsuzlanan (bozuk değil)",
+  m: "arıza + bağımsız soru",
+  t: "arıza + tehlike",
+  g: "konuşma geçmişli",
+};
+export const categoryOf = (id: string): string => id.split("-")[0];
 const DATA = JSON.parse(readFileSync(path.resolve(__dirname, "../../evals/understanding-breakdown.json"), "utf8")) as { cases: Case[] };
 // Claude kolu (kurucu 10-31: 5.1 kullanılan katmanlarda Haiku 5.5): anlama çağrısı aynı istem + şemayla Claude'a gider.
 const CLAUDE = claudeArmFromEnv();
@@ -30,14 +45,22 @@ const CLAUDE = claudeArmFromEnv();
  */
 export const FAULT_RULE =
   "- A report that an appliance or device is broken or not working as it should (not heating or cooling, not turning on, leaking, a strange noise, an error, nothing comes out) is complaint_issue, also when the guest asks how to fix it or for a replacement. appliance_help is only for how to use, operate or find something that is not reported broken. Example: 'Tost makinesi hiç ısınmıyor' -> complaint_issue; 'Tost makinesini nasıl çalıştırıyoruz?' -> appliance_help.";
-const FAULT_RULE_ARM = process.env.EVAL_UNDERSTANDING_FAULT_RULE === "1";
+/**
+ * v2 (kurucu 11-04): "her zaman şikâyet" sabit kuralına DÖNÜŞMESİN — varsayımsal, olumsuzlanan, çözülmüş durum bağlamdan ayrılır; tehlike ayrı akış;
+ * bağımsız soru ayrı istek; konuşma geçmişi okunur. Örnekler BAŞKA cihazla (ütü) yazılır — test cümleleri isteme girmez (pin).
+ */
+export const FAULT_RULE_V2 =
+  "- complaint_issue vs appliance_help (judge from the whole conversation, not from single words): a CURRENT report that something in the apartment is broken or not working as it should right now (not heating or cooling, not turning on, leaking, a strange noise, an error, nothing comes out) is complaint_issue, also when the guest asks how to fix it or for a replacement. appliance_help is a how-to / where-is question about something that is not reported broken, including a hypothetical 'what should we do if it does not work?' and a denied problem ('it is not broken, we just cannot find the switch'). A problem the guest says is already solved ('it was not working but it works now') is neither. A fault reported earlier and already answered in the conversation is not a new request; 'I did what you said but it still does not work' is a current fault. Smoke, sparks, a burning smell or water on electrics is emergency (add complaint_issue too), never appliance_help. Independent questions in the same message stay separate requests. Examples (iron): 'Ütü hiç ısınmıyor' -> complaint_issue; 'Ütüyü nasıl açıyoruz?' -> appliance_help; 'Ütü ısınmazsa ne yapalım?' -> appliance_help; 'Ütü sabah ısınmıyordu, şimdi çalışıyor' -> other; 'Ütü ısınmıyor; çıkış saati kaçtı?' -> complaint_issue + checkout_time; 'Ütüden yanık kokusu geliyor' -> emergency + complaint_issue.";
+const RULE_VERSION = process.env.EVAL_UNDERSTANDING_FAULT_RULE?.trim() ?? "";
+const ACTIVE_RULE = RULE_VERSION === "1" ? FAULT_RULE : RULE_VERSION === "2" ? FAULT_RULE_V2 : null;
+const FAULT_RULE_ARM = ACTIVE_RULE !== null;
 /** Sistem istemindeki niyet satırının ARDINA kuralı ekler (satır yoksa dokunmaz). */
-export function withFaultRule(system: string): string {
-  if (system.includes(FAULT_RULE)) return system;
+export function withFaultRule(system: string, rule: string = FAULT_RULE): string {
+  if (system.includes(rule)) return system;
   const at = system.indexOf("- intent: the closest label");
   if (at < 0) return system;
   const end = system.indexOf("\n", at);
-  return end < 0 ? `${system}\n${FAULT_RULE}` : `${system.slice(0, end)}\n${FAULT_RULE}${system.slice(end)}`;
+  return end < 0 ? `${system}\n${rule}` : `${system.slice(0, end)}\n${rule}${system.slice(end)}`;
 }
 function installFaultRule(): () => void {
   const inner = globalThis.fetch;
@@ -46,7 +69,7 @@ function installFaultRule(): () => void {
     if (url.endsWith("/chat/completions") && typeof init?.body === "string") {
       const body = JSON.parse(init.body) as { messages?: { role: string; content: unknown }[] };
       const sys = body.messages?.find((m) => m.role === "system" || m.role === "developer");
-      if (sys && typeof sys.content === "string") sys.content = withFaultRule(sys.content);
+      if (sys && typeof sys.content === "string" && ACTIVE_RULE) sys.content = withFaultRule(sys.content, ACTIVE_RULE);
       return inner(input, { ...init, body: JSON.stringify(body) });
     }
     return inner(input, init);
@@ -78,7 +101,7 @@ export function judgeCase(c: Case, intents: readonly string[]): string[] {
 describe.skipIf(!enabled)("arıza ↔ kullanım sorusu — anlama katmanı (ücretli)", () => {
   it("kip × vaka × tur → rapor", async () => {
     process.env.AI_UNDERSTANDING_ENABLED = "1";
-    const arm = FAULT_RULE_ARM ? "ariza-cumlesi-olcum" : promptArm();
+    const arm = RULE_VERSION === "2" ? "ariza-baglam-v2-olcum" : FAULT_RULE_ARM ? "ariza-cumlesi-olcum" : promptArm();
     const undo = CLAUDE ? installAnthropicReplyShim(CLAUDE.opts, CLAUDE.key) : null;
     const undoRule = FAULT_RULE_ARM ? installFaultRule() : null; // en dışta: ek, köprüden / OpenAI'den ÖNCE uygulanır
     const rows: { mode: string; id: string; round: number; ok: boolean; intents: string[]; fails: string[] }[] = [];
@@ -86,7 +109,7 @@ describe.skipIf(!enabled)("arıza ↔ kullanım sorusu — anlama katmanı (ücr
       for (let round = 0; round < ROUNDS; round++) {
         __resetUnderstandingCache();
         for (const c of DATA.cases) {
-          const out = await understandGuestMessages({ guestMessage: c.message, history: [{ direction: "inbound", body: c.message }], ...mode.opts });
+          const out = await understandGuestMessages({ guestMessage: c.message, history: [...(c.history ?? []), { direction: "inbound", body: c.message }], ...mode.opts });
           if (out.status !== "ok") {
             rows.push({ mode: mode.id, id: c.id, round, ok: false, intents: [], fails: [`katman ${out.status}`] });
             continue;
@@ -116,7 +139,14 @@ describe.skipIf(!enabled)("arıza ↔ kullanım sorusu — anlama katmanı (ücr
         const r = rows.filter((x) => x.mode === m.id);
         const b = r.filter((x) => x.id.startsWith("b-"));
         const h = r.filter((x) => x.id.startsWith("h-"));
-        return `- ${m.id}: toplam ${r.filter((x) => x.ok).length}/${r.length} · arıza bildirimi ${b.filter((x) => x.ok).length}/${b.length} · kullanım sorusu ${h.filter((x) => x.ok).length}/${h.length}`;
+        const cats = Object.entries(CASE_CATEGORIES)
+          .map(([k, label]) => {
+            const rc = r.filter((x) => categoryOf(x.id) === k);
+            return rc.length ? `${label} ${rc.filter((x) => x.ok).length}/${rc.length}` : null;
+          })
+          .filter(Boolean)
+          .join(" · ");
+        return `- ${m.id}: toplam ${r.filter((x) => x.ok).length}/${r.length} · arıza bildirimi ${b.filter((x) => x.ok).length}/${b.length} · kullanım sorusu ${h.filter((x) => x.ok).length}/${h.length}\n  - kategoriler: ${cats}`;
       }),
       "",
       "| Kip | Vaka | Tur | Sonuç | Niyetler | Hata |",
@@ -138,13 +168,35 @@ describe("arıza ↔ kullanım ölçeri — çevrimdışı pinler", () => {
     expect(withFaultRule(patched)).toBe(patched);
     expect(withFaultRule("başka istem")).toBe("başka istem");
   });
-  it("vakalar eşsiz; her arıza vakası complaint_issue ister, her kullanım vakası onu dışlar", () => {
+  it("vakalar eşsiz; kategori beklentileri (kurucu 11-04 tablosu) veriyle tutarlı", () => {
     const ids = DATA.cases.map((c) => c.id);
     expect(new Set(ids).size).toBe(ids.length);
+    const needs = (c: Case, intent: string) => c.include.some((g) => g.includes(intent));
     for (const c of DATA.cases) {
-      if (c.id.startsWith("b-")) expect(c.include.some((g) => g.includes("complaint_issue"))).toBe(true);
-      else expect(c.exclude).toContain("complaint_issue");
+      const cat = categoryOf(c.id);
+      expect(Object.keys(CASE_CATEGORIES)).toContain(cat);
+      if (cat === "b" || cat === "m") expect(needs(c, "complaint_issue")).toBe(true); // mevcut arıza host'ta açık iş
+      if (cat === "h" || cat === "y" || cat === "c" || cat === "n") expect(c.exclude).toContain("complaint_issue"); // arıza AÇILMAZ
+      if (cat === "y" || cat === "c" || cat === "n") expect(c.exclude).toContain("emergency");
+      if (cat === "m") expect(c.include.length).toBeGreaterThanOrEqual(2); // bağımsız soru ayrı istek
+      if (cat === "t") {
+        expect(needs(c, "emergency")).toBe(true); // tehlike akışı
+        expect(c.exclude).toContain("appliance_help");
+      }
+      if (cat === "g") expect(c.history?.length ?? 0).toBeGreaterThan(0);
     }
+    // Kurucunun beş cümlesi aynen var (önce / sonra kanıtı bunlar üzerinden okunur).
+    for (const m of ["Tost makinesi ısınmazsa ne yapmalıyım?", "Tost makinesi ısınmıyordu ama şimdi düzeldi, teşekkürler.", "Tost makinesi ısınmıyor; çöpleri nereye atıyoruz?", "Tost makinesi ısınmıyor, prizden duman çıkıyor."]) {
+      expect(DATA.cases.some((c) => c.message === m)).toBe(true);
+    }
+  });
+
+  it("v2 kuralı test cümlelerini İÇERMEZ (teste öğretilmez) ve niyet satırının ardına bir kez eklenir", () => {
+    for (const c of DATA.cases) expect(FAULT_RULE_V2.includes(c.message)).toBe(false);
+    expect(FAULT_RULE_V2).not.toMatch(/tost|toaster|kettle|Wasserkocher|Kaffeemaschine|Waschmaschine/i);
+    const patched = withFaultRule(understandingSystemPromptFor({}), FAULT_RULE_V2);
+    expect(patched.split(FAULT_RULE_V2).length).toBe(2);
+    expect(patched.indexOf(FAULT_RULE_V2)).toBeGreaterThan(patched.indexOf("- intent: the closest label"));
   });
   it("hakem: eksik grup ve fazla niyet hata sayılır", () => {
     const c = DATA.cases.find((x) => x.id === "b-tr-tost-wifi")!;
