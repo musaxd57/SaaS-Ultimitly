@@ -60,8 +60,10 @@ export async function deliverDueLateFailureMails(now: Date = new Date(), clock: 
     .deleteMany({ where: { name: { startsWith: LATE_FAIL_MAIL_PREFIX }, holder: SENT_HOLDER, lockedUntil: { lt: now } } })
     .catch(() => null);
   const started = clock();
+  // Vadesi gelen = bekleyen (sahipsiz) ya da kirası dolmuş satır; "gönderildi" izi ASLA. 🚨 `NOT: { holder: "sent" }` YAZILMAZ: SQL'de
+  // `NOT (holder = 'sent')` sahipsiz (NULL) satırı da dışarıda bırakır → hiçbir yedek e-posta gitmiyordu (M0 kontrol koşusu yakaladı).
   const due = await prisma.systemLock.findMany({
-    where: { name: { startsWith: LATE_FAIL_MAIL_PREFIX }, lockedUntil: { lte: now }, NOT: { holder: SENT_HOLDER } },
+    where: { name: { startsWith: LATE_FAIL_MAIL_PREFIX }, lockedUntil: { lte: now }, OR: [{ holder: null }, { holder: { not: SENT_HOLDER } }] },
     orderBy: [{ lockedUntil: "asc" }, { name: "asc" }],
     take: BATCH,
     select: { name: true, lockedUntil: true, holder: true },

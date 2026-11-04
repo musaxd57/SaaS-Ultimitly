@@ -623,12 +623,23 @@ function skipSeps(text: string, from: number): number {
   for (let n = 0; n < 6 && i < text.length && isSep(text[i]!); n++) i++;
   return i;
 }
+const isLetter = (c: string) => /\p{L}/u.test(c);
+/**
+ * Kod sözcüğüne BİTİŞİK ek: etiket kalıbı kökte biter ("Kapı kod|u: A7B9", "kod|unuz", "PIN|'iniz", "code|s") — en çok bir kesme işareti +
+ * 8 harf atlanır (sınırlı, doğrusal). Atlanmasaydı Türkçe her yazım kaçıyordu (11-04: testler yalnız İngilizce yazımda yeşildi).
+ */
+function skipSuffix(text: string, from: number): number {
+  let i = from;
+  if (i < text.length && (text[i] === "'" || text[i] === "’")) i++;
+  for (let n = 0; n < 8 && i < text.length && isLetter(text[i]!); n++) i++;
+  return i;
+}
 export function labeledShortDoorCodes(text: string): string[] {
   const out: string[] = [];
   if (!text) return out;
   DOOR_LABEL_SCAN.lastIndex = 0;
   for (const m of text.matchAll(DOOR_LABEL_SCAN)) {
-    let i = skipSeps(text, (m.index ?? 0) + m[0].length);
+    let i = skipSeps(text, skipSuffix(text, (m.index ?? 0) + m[0].length));
     let { token, end } = readToken(text, i);
     if (DOOR_TOKEN_FILLERS.has(token.toLowerCase())) {
       i = skipSeps(text, end);
