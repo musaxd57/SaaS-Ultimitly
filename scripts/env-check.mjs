@@ -304,6 +304,17 @@ export function checkProductionEnv(env) {
   if (!(env.OPENAI_API_KEY ?? "").trim()) {
     warnings.push("OPENAI_API_KEY is not set — AI replies cannot be generated and auto-reply stops (runtime alarm: openai-key-missing).");
   }
+  // Karar metni yazıcısı Claude'da (kurucu 11-04 "Haikuya geçelim") ama Anthropic anahtarı yok → her karar metni sessizce onaylı şablona
+  // düşer (ajan turu 11-04). UYARI; açılış durmaz, misafire giden metin şablon olarak yine gider (runtime alarm: decision-writer).
+  if (
+    env.HOST_DECISION_AI_TEXT_ENABLED === "1" &&
+    /^claude-/.test((env.AI_DECISION_TEXT_MODEL ?? "").trim()) &&
+    !(env.ANTHROPIC_API_KEY ?? "").trim()
+  ) {
+    warnings.push(
+      "ANTHROPIC_API_KEY is not set but AI_DECISION_TEXT_MODEL is a Claude model — decision messages fall back to the approved template (runtime alarm: decision-writer anthropic).",
+    );
+  }
 
   // HTTPS-pin (P2, Codex). Any env-overridable EXTERNAL service URL that carries a
   // secret in transit — an API key / bearer token / OAuth client_secret — MUST be

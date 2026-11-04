@@ -1,6 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+
+vi.mock("@/lib/report-error", async (orig) => ({
+  ...(await orig<typeof import("@/lib/report-error")>()),
+  reportError: vi.fn(async () => ({ notified: false, throttled: false, configured: false })),
+}));
+
+import { reportError } from "@/lib/report-error";
 import {
   buildDecisionWriterInput,
+  DECISION_WRITER_ANTHROPIC_ALARM,
   decisionWriterCallParams,
   draftDecisionMessage,
   guardAgreesWithDecision,
@@ -338,6 +346,47 @@ describe("karar metni yazıcısı — Claude (Haiku 5.5)", () => {
     expect(await draftDecisionMessage({ ...input(), fetchImpl: fail.fetchImpl })).toMatchObject({ source: "template", why: "model_failed" });
     const cut = fakeBoth("Maalesef", verdict(), "max_tokens");
     expect(await draftDecisionMessage({ ...input(), fetchImpl: cut.fetchImpl })).toMatchObject({ source: "template", why: "model_failed" });
+  });
+
+  it("🚨 kalıcı Anthropic arızası ALARM verir (anahtar yok · kimlik reddi 401) — sessiz şablona düşüş görünür; geçici hata (500) ve kesik çıktı vermez; metin her durumda şablon", async () => {
+    // Ajan turu 11-04 (doğrulandı): anahtar iptal / eksik ya da kredi bitince yazıcı sessizce şablona düşüyordu → kurucunun açtığı Haiku
+    // geçişi açılışta fark edilmeden hiç çalışmayabilirdi. Alarm misafire giden metni DEĞİŞTİRMEZ.
+    const report = vi.mocked(reportError);
+    report.mockClear();
+    delete process.env.ANTHROPIC_API_KEY;
+    const none = fakeBoth("x", verdict());
+    expect(await draftDecisionMessage({ ...input(), fetchImpl: none.fetchImpl })).toMatchObject({ source: "template", why: "no_key" });
+    expect(report).toHaveBeenCalledTimes(1);
+    expect(report.mock.calls[0][0]).toBe(DECISION_WRITER_ANTHROPIC_ALARM);
+    expect(String(report.mock.calls[0][1])).toMatch(/ANTHROPIC_API_KEY/);
+    process.env.ANTHROPIC_API_KEY = "sk-ant-test-decision-writer-000000";
+
+    report.mockClear();
+    const denied = vi.fn(async (url: unknown) =>
+      String(url instanceof Request ? url.url : url).includes("anthropic.com")
+        ? new Response(JSON.stringify({ type: "error", error: { type: "authentication_error", message: "invalid x-api-key" } }), {
+            status: 401,
+            headers: { "content-type": "application/json" },
+          })
+        : completion(verdict()),
+    ) as unknown as typeof fetch;
+    expect(await draftDecisionMessage({ ...input(), fetchImpl: denied })).toMatchObject({ source: "template", why: "model_failed" });
+    expect(report).toHaveBeenCalledTimes(1);
+    expect(report.mock.calls[0][0]).toBe(DECISION_WRITER_ANTHROPIC_ALARM);
+    // Hata metni anahtarı / yanıt gövdesini taşımaz (yalnız sınıf).
+    expect(String(report.mock.calls[0][1])).not.toMatch(/sk-ant|invalid x-api-key/);
+
+    report.mockClear();
+    expect(await draftDecisionMessage({ ...input(), fetchImpl: fakeBoth(null, verdict()).fetchImpl })).toMatchObject({ why: "model_failed" }); // 500
+    expect(await draftDecisionMessage({ ...input(), fetchImpl: fakeBoth("Maalesef", verdict(), "max_tokens").fetchImpl })).toMatchObject({
+      why: "model_failed",
+    });
+    expect(report).not.toHaveBeenCalled();
+    // KONTROL: OpenAI yazıcısında anahtar yokluğu bu alarmı üretmez (o yolun kendi alarmı var).
+    process.env.AI_DECISION_TEXT_MODEL = "gpt-5.1";
+    delete process.env.ANTHROPIC_API_KEY;
+    await draftDecisionMessage({ ...input(), fetchImpl: fakeOpenAI("Maalesef 14 Ekim'de 13:00'te erken giriş mümkün değil; giriş 15:00'te.", verdict()).fetchImpl });
+    expect(report).not.toHaveBeenCalled();
   });
 
   it("çaba: varsayılan ölçülen 'low'; yalnız low / medium / high seçilebilir", () => {

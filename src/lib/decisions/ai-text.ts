@@ -8,6 +8,7 @@ import { replyCallParams } from "@/lib/ai";
 import { isReasoningModel, layerReasoningEffort } from "@/lib/ai/model-family";
 import { normalizeHhmm } from "@/lib/ai/semantic/stay-change";
 import { ANTHROPIC_EFFORTS, anthropicApiKey, callAnthropicStructuredJson, isAnthropicModel, type AnthropicEffort } from "@/lib/ai/anthropic-structured";
+import { reportError } from "@/lib/report-error";
 import { decisionMessageText, formatDecisionDay, formatDecisionFee, type DecisionLang } from "./core";
 import { checkDecisionText, type DecisionTextFacts, type DecisionTextProblem } from "./text-check";
 
@@ -149,6 +150,15 @@ export function guardAgreesWithDecision(v: StayGuardVerdict, input: DecisionText
   return v.replyAmounts.every((a) => a.amount === fee.amount && (a.currency === null || a.currency === fee.currency));
 }
 
+/**
+ * Claude yazıcısının KALICI arızası alarmı (ajan turu 11-04, doğrulandı): anahtar yok ya da Anthropic isteği kalıcı reddetti (kimlik /
+ * yetki / kredi / model adı — geçici olmayan HTTP hatası) → her karar metni sessizce onaylı şablona düşüyordu; kurucunun açtığı Haiku geçişi
+ * fark edilmeden hiç çalışmayabilirdi. Metin YİNE şablondur (misafire giden değişmez); yalnız görünür olur. Geçici hata / zaman aşımı / kesik
+ * çıktı tek seferlik sayılır, alarm vermez. `reportError` bağlam adıyla kısıtlanır (aynı bağlam 10 dk'da bir); hata metni anahtar ya da
+ * yanıt gövdesi TAŞIMAZ.
+ */
+export const DECISION_WRITER_ANTHROPIC_ALARM = "decision-writer anthropic";
+
 function template(input: DecisionTextFacts, why: DecisionDraftFallback, problems?: DecisionTextProblem[]): DecisionDraftResult {
   return { source: "template", text: decisionMessageText(input), why, ...(problems ? { problems } : {}) };
 }
@@ -162,7 +172,13 @@ export async function draftDecisionMessage(input: DecisionDraftInput): Promise<D
     const { model, effort } = decisionWriterCallParams();
     // Yazıcı Claude ise kendi anahtarı gerekir (bekçi yine OpenAI anahtarıyla — ↑semanticApiKey); yoksa onaylı şablon.
     const claudeKey = isAnthropicModel(model) ? anthropicApiKey() : null;
-    if (isAnthropicModel(model) && !claudeKey) return template(input, "no_key");
+    if (isAnthropicModel(model) && !claudeKey) {
+      void reportError(
+        DECISION_WRITER_ANTHROPIC_ALARM,
+        new Error("AI_DECISION_TEXT_MODEL is a Claude model but ANTHROPIC_API_KEY is not set — decision messages use the approved template"),
+      );
+      return template(input, "no_key");
+    }
     const res = claudeKey
       ? await callAnthropicStructuredJson({
           apiKey: claudeKey,
@@ -187,6 +203,12 @@ export async function draftDecisionMessage(input: DecisionDraftInput): Promise<D
           ...(effort ? { reasoningEffort: effort } : {}),
           fetchImpl: input.fetchImpl,
         });
+    if (claudeKey && !res.ok && res.error === "http" && res.transient !== true) {
+      void reportError(
+        DECISION_WRITER_ANTHROPIC_ALARM,
+        new Error("Anthropic rejected the decision-writer call (non-transient HTTP error: key, permission, credit or model) — decision messages use the approved template"),
+      );
+    }
     const raw = res.ok && res.data && typeof (res.data as { message?: unknown }).message === "string" ? (res.data as { message: string }).message.trim() : "";
     if (!raw) return template(input, "model_failed");
     const note = input.resolution === "approve" && input.kind === "early_checkin" ? input.note?.trim() : "";

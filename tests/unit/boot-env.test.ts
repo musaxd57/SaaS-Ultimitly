@@ -70,6 +70,31 @@ describe("checkProductionEnv (pure gate logic — single source)", () => {
     expect(smtp.warnings.filter((w) => w.startsWith("RESEND_FROM"))).toEqual([]);
   });
 
+  it("karar yazıcısı açık + Claude modeli ama ANTHROPIC_API_KEY yok → UYARI (sessiz şablona düşüş açılışta görünsün); anahtar varsa / model OpenAI / yazıcı kapalı → sessiz", () => {
+    // Ajan turu 11-04: kurucunun açtığı Haiku karar yazıcısı anahtarsız açılışta hiç çalışmaz, metin onaylı şablona düşer — açılış durmaz.
+    const on = {
+      AUTH_SECRET: REAL_AUTH,
+      ENCRYPTION_KEY: REAL_ENC,
+      RESEND_API_KEY: REAL_RESEND,
+      RESEND_FROM: "Lixus <noreply@example.com>",
+      OPENAI_API_KEY: "sk-test",
+      HOST_DECISION_AI_TEXT_ENABLED: "1",
+      AI_DECISION_TEXT_MODEL: "claude-haiku-5-5",
+    };
+    const r = checkProductionEnv(on);
+    expect(r.errors).toEqual([]);
+    expect(r.warnings.filter((w) => w.startsWith("ANTHROPIC_API_KEY is not set"))).toHaveLength(1);
+    expect(checkProductionEnv({ ...on, ANTHROPIC_API_KEY: "  " }).warnings.some((w) => w.startsWith("ANTHROPIC_API_KEY is not set"))).toBe(true);
+    for (const quiet of [
+      { ...on, ANTHROPIC_API_KEY: "sk-ant-test" },
+      { ...on, AI_DECISION_TEXT_MODEL: "gpt-5.1" },
+      { ...on, AI_DECISION_TEXT_MODEL: "" },
+      { ...on, HOST_DECISION_AI_TEXT_ENABLED: "" },
+    ]) {
+      expect(checkProductionEnv(quiet).warnings.filter((w) => w.startsWith("ANTHROPIC_API_KEY"))).toEqual([]);
+    }
+  });
+
   it("🚨 depolama bayrağı KAPALI ama STORAGE_* yarım / geçersiz → UYARI (DENETIM 08-09 #25); tam ve geçerli ya da hiç yoksa sessiz", () => {
     const base = { AUTH_SECRET: REAL_AUTH, ENCRYPTION_KEY: REAL_ENC, RESEND_API_KEY: REAL_RESEND };
     const full = {
