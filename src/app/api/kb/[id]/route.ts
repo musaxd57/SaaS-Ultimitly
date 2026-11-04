@@ -8,6 +8,7 @@ import { KB_ITEM_CAP } from "@/lib/ai/limits";
 import { afterKbItemsChanged } from "@/lib/kb/after-change";
 import { withoutClientRequestId } from "@/lib/kb/request-id";
 import { KB_STALE_EDIT_MESSAGE } from "@/lib/kb/stale-edit";
+import { lockedActiveKbCount } from "@/lib/kb/cap-lock";
 
 // ---------------------------------------------------------------------------
 // PLAN SINIRLARI DÜZENLEME YOLUNDA DA GEÇERLİ (denetim, 07-31).
@@ -67,15 +68,13 @@ export const PATCH = withManage<{ id: string }>(async (session, req, { params })
 
   // Pasiften aktife geçiş = yeni bir aktif kayıt yaratmakla aynı şey; aynı kapıdan
   // geçmeli. Zaten aktif olan bir kaydı düzenlemek sayımı değiştirmez → serbest.
-  if (d.isActive === true && !existing.isActive) {
+  const activating = d.isActive === true && !existing.isActive;
+  const activateLimitMessage = `Planınızın izin verdiği bilgi tabanı sınırına ulaştınız (daire başına ${limits.kbItemsPerProperty} kayıt). Bu kaydı aktifleştirmek için önce başka bir kaydı pasife alın veya planınızı yükseltin.`;
+  if (activating) {
     const activeCount = await prisma.knowledgeBaseItem.count({
       where: { propertyId: existing.propertyId, isActive: true },
     });
-    if (activeCount >= limits.kbItemsPerProperty) {
-      return badRequest({
-        _: `Planınızın izin verdiği bilgi tabanı sınırına ulaştınız (daire başına ${limits.kbItemsPerProperty} kayıt). Bu kaydı aktifleştirmek için önce başka bir kaydı pasife alın veya planınızı yükseltin.`,
-      });
-    }
+    if (activeCount >= limits.kbItemsPerProperty) return badRequest({ _: activateLimitMessage });
   }
 
   // HİÇBİR alan değişmediyse yazılmaz (kurucu kararı 10-12 sabah): boş "Kaydet" kalemi "yeni düzenlendi" saymasın — `updatedAt`
@@ -92,13 +91,23 @@ export const PATCH = withManage<{ id: string }>(async (session, req, { params })
   // kuralı ("halefi kümede olan kalem düşer", `retrieval/rerank.ts`) yeniden açılan kalemi sessizce düşürürdü. Yeni kalem etkin kalır.
   const reactivatesRetired = d.isActive === true && !existing.isActive && existing.supersededById !== null;
   const patch = reactivatesRetired ? { ...d, supersededById: null, supersededAt: null } : d;
-  if (expected) {
-    const written = await prisma.knowledgeBaseItem.updateMany({ where: { id, updatedAt: expected }, data: patch });
-    if (written.count !== 1) return staleEdit();
-  }
-  const item = expected
-    ? await prisma.knowledgeBaseItem.findUniqueOrThrow({ where: { id } })
-    : await prisma.knowledgeBaseItem.update({ where: { id }, data: patch });
+  // Codex 11-04 P2: etkinleştirme sayımı yazmayla AYNI işlemde, mülk başına ortak plan kilidinde yeniden yapılır (yukarıdaki erken kontrol
+  // yalnız hızlı yol) — eşzamanlı ekleme / kopyalama sınırı aşamaz.
+  const outcome = await prisma.$transaction(async (tx) => {
+    if (activating) {
+      const activeCount = await lockedActiveKbCount(tx, existing.propertyId);
+      if (activeCount >= limits.kbItemsPerProperty) return { kind: "limit" as const };
+    }
+    if (expected) {
+      const written = await tx.knowledgeBaseItem.updateMany({ where: { id, updatedAt: expected }, data: patch });
+      if (written.count !== 1) return { kind: "stale" as const };
+      return { kind: "ok" as const, item: await tx.knowledgeBaseItem.findUniqueOrThrow({ where: { id } }) };
+    }
+    return { kind: "ok" as const, item: await tx.knowledgeBaseItem.update({ where: { id }, data: patch }) };
+  });
+  if (outcome.kind === "stale") return staleEdit();
+  if (outcome.kind === "limit") return badRequest({ _: activateLimitMessage });
+  const item = outcome.item;
   // V1: içerik/pasif-aktif değişimi hafızaya anında yansır (pasif → retired); #189 yazma anında ısıtma — tek kanca.
   await afterKbItemsChanged({ organizationId: session.organizationId, propertyIds: [existing.propertyId] });
   return jsonOk(withoutClientRequestId(item));

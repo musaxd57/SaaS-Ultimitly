@@ -1,4 +1,5 @@
 import "server-only";
+import { lockedActiveKbCount } from "@/lib/kb/cap-lock";
 
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
@@ -414,7 +415,8 @@ async function saveProposal(ctx: {
     if (proposal.content.length > limits.kbCharsPerItem) outcome = "plan_chars";
     else {
       outcome = await prisma.$transaction(async (tx) => {
-        const active = await tx.knowledgeBaseItem.count({ where: { propertyId: proposal.propertyId, isActive: true } });
+        // Codex 11-04 P2: sayım + yazma mülk başına ortak plan kilidinde.
+        const active = await lockedActiveKbCount(tx, proposal.propertyId);
         if (active - (replaceId ? 1 : 0) >= limits.kbItemsPerProperty) return "plan_items" as const;
         const kb = await tx.knowledgeBaseItem.create({
           data: {

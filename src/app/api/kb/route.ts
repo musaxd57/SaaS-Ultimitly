@@ -5,6 +5,7 @@ import { withManage } from "@/lib/route-guard";
 import { limitsForOrg } from "@/lib/billing/plan-limits";
 import { KB_ITEM_CAP } from "@/lib/ai/limits";
 import { afterKbItemsChanged } from "@/lib/kb/after-change";
+import { lockedActiveKbCount } from "@/lib/kb/cap-lock";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { NextResponse } from "next/server";
 import { KB_CREATE_CONFLICT_MESSAGE, KB_IDEMPOTENCY_CONFLICT, sameKbContent, withoutClientRequestId } from "@/lib/kb/request-id";
@@ -76,39 +77,44 @@ export const POST = withManage(async (session, req) => {
       content: `Tek bir bilgi kaydı en fazla ${limits.kbCharsPerItem.toLocaleString("tr-TR")} karakter olabilir. Uzun bilgileri birkaç kayda bölün — AI bir yanıtta en güncel ${KB_ITEM_CAP} kaydı okur.`,
     });
   }
-  const activeCount = await prisma.knowledgeBaseItem.count({
-    where: { propertyId: d.propertyId, isActive: true },
-  });
-  if (d.isActive && activeCount >= limits.kbItemsPerProperty) {
-    // Eş zamanlı iki deneme: sayımı dolduran kalem bu kimliğin kalemi olabilir (öteki deneme az önce yazdı) — o zaman sınır hatası
-    // değil, o kalem döner (Haiku 10-14).
-    const prior = d.requestId ? await priorFor(d.requestId) : null;
-    if (prior) return replay(prior);
-    return badRequest({
-      _: `Planınızın izin verdiği bilgi tabanı sınırına ulaştınız (daire başına ${limits.kbItemsPerProperty} kayıt). Kullanmadığınız kayıtları pasife alabilir veya planınızı yükseltebilirsiniz.`,
-    });
-  }
-
+  const limitMessage = `Planınızın izin verdiği bilgi tabanı sınırına ulaştınız (daire başına ${limits.kbItemsPerProperty} kayıt). Kullanmadığınız kayıtları pasife alabilir veya planınızı yükseltebilirsiniz.`;
+  // Codex 11-04 P2: sayım + yazma AYNI işlemde, mülk başına ortak plan kilidinde (`lib/kb/cap-lock.ts`) — eşzamanlı iki FARKLI ekleme sınırı
+  // aşamaz. Benzersizlik ihlali işlemi düşürür (PostgreSQL) → yakalama işlemin DIŞINDA (bugünkü kazananı-al yolu aynen).
   let item;
   try {
-    item = await prisma.knowledgeBaseItem.create({
-      data: {
-        propertyId: d.propertyId,
-        category: d.category,
-        title: d.title,
-        content: d.content,
-        language: d.language,
-        isActive: d.isActive,
-        // ONAY SÖZLEŞMESİ (A1): host bu metni KENDİ yazdı ve KENDİ kaydetti —
-        // bundan daha açık bir onay yok, `approvedAt` de o anın GERÇEK zamanı.
-        // Kolon varsayılanı da aynı; burada AÇIKÇA yazılıyor ki `approvedAt`
-        // ile `reviewState` asla ayrışmasın ("approved ama zamanı yok" olmasın).
-        source: "host_manual",
-        reviewState: "approved",
-        approvedAt: new Date(),
-        clientRequestId: d.requestId ?? null,
-      },
+    const outcome = await prisma.$transaction(async (tx) => {
+      if (d.isActive) {
+        const activeCount = await lockedActiveKbCount(tx, d.propertyId);
+        if (activeCount >= limits.kbItemsPerProperty) return { kind: "limit" as const };
+      }
+      const created = await tx.knowledgeBaseItem.create({
+        data: {
+          propertyId: d.propertyId,
+          category: d.category,
+          title: d.title,
+          content: d.content,
+          language: d.language,
+          isActive: d.isActive,
+          // ONAY SÖZLEŞMESİ (A1): host bu metni KENDİ yazdı ve KENDİ kaydetti —
+          // bundan daha açık bir onay yok, `approvedAt` de o anın GERÇEK zamanı.
+          // Kolon varsayılanı da aynı; burada AÇIKÇA yazılıyor ki `approvedAt`
+          // ile `reviewState` asla ayrışmasın ("approved ama zamanı yok" olmasın).
+          source: "host_manual",
+          reviewState: "approved",
+          approvedAt: new Date(),
+          clientRequestId: d.requestId ?? null,
+        },
+      });
+      return { kind: "created" as const, item: created };
     });
+    if (outcome.kind === "limit") {
+      // Eş zamanlı iki deneme: sayımı dolduran kalem bu kimliğin kalemi olabilir (öteki deneme az önce yazdı) — o zaman sınır hatası
+      // değil, o kalem döner (Haiku 10-14).
+      const prior = d.requestId ? await priorFor(d.requestId) : null;
+      if (prior) return replay(prior);
+      return badRequest({ _: limitMessage });
+    }
+    item = outcome.item;
   } catch (err) {
     // İki yeniden deneme AYNI ANDA geldiyse kaybeden, kazananın kalemini alır (yalnız BU benzersizlik ihlali; başkası fırlar).
     if (d.requestId && isUniqueViolation(err, ["propertyId", "clientRequestId"])) {

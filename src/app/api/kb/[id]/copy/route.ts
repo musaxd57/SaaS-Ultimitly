@@ -3,6 +3,7 @@ import { badRequest, jsonOk, notFound, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { limitsForOrg } from "@/lib/billing/plan-limits";
 import { afterKbItemsChanged } from "@/lib/kb/after-change";
+import { lockedActiveKbCount } from "@/lib/kb/cap-lock";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { KB_REQUEST_ID_RE } from "@/lib/validators";
 import { NextResponse } from "next/server";
@@ -248,40 +249,41 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
       warmTargets.push(t.id);
       continue;
     }
-    if (source.isActive) {
-      const activeCount = await prisma.knowledgeBaseItem.count({
-        where: { propertyId: t.id, isActive: true },
-      });
-      if (activeCount >= limits.kbItemsPerProperty) {
-        skippedAtLimit++;
-        continue;
-      }
-    }
+    // Codex 11-04 P2: sayım + yazma AYNI işlemde, hedef mülk başına ortak plan kilidinde (eşzamanlı ekleme / etkinleştirme / kopyalama sınırı
+    // aşamaz). Benzersizlik ihlali işlemi düşürür → yakalama işlemin DIŞINDA (bugünkü kazananı-oku yolu aynen).
+    let copied: "created" | "limit";
     try {
-      await prisma.knowledgeBaseItem.create({
-        data: {
-          propertyId: t.id,
-          category: source.category,
-          title: source.title,
-          content: source.content,
-          language: source.language,
-          isActive: source.isActive,
-          // ONAY SOYU DEVRALINIR (A1, 09-08) — iki yönlü gerekçe:
-          //  · Kaynak `legacy` ise kopya da `legacy` olur. Kopyalama düğmesine
-          //    basmak, o metnin İÇERİĞİNİ gözden geçirmek değildir; kopyaya
-          //    "host onayladı" yazmak tam olarak kurucunun yasakladığı varsayım.
-          //  · Kaynak `draft` ise kopya da `draft` kalır. Aksi hâlde kopyalama,
-          //    onaydan geçmemiş bir taslağı tek tıkla MODELE SOKAN kaçış olurdu.
-          // `approvedAt` de soydan gelir: kopya kendi başına onaylanmadı, hangi
-          // onaya yaslandığı ise kaynağın onay zamanıdır.
-          source: source.source,
-          reviewState: source.reviewState,
-          approvedAt: source.approvedAt,
-          clientRequestId: copyKey,
-          // Kaynak bağı + içerik izi (kurucu D2, migration 68): sonraki kopyalama bu kopyayı güncelleyebilsin.
-          copiedFromId: id,
-          copiedContentHash: sourceHash,
-        },
+      copied = await prisma.$transaction(async (tx) => {
+        if (source.isActive) {
+          const activeCount = await lockedActiveKbCount(tx, t.id);
+          if (activeCount >= limits.kbItemsPerProperty) return "limit" as const;
+        }
+        await tx.knowledgeBaseItem.create({
+          data: {
+            propertyId: t.id,
+            category: source.category,
+            title: source.title,
+            content: source.content,
+            language: source.language,
+            isActive: source.isActive,
+            // ONAY SOYU DEVRALINIR (A1, 09-08) — iki yönlü gerekçe:
+            //  · Kaynak `legacy` ise kopya da `legacy` olur. Kopyalama düğmesine
+            //    basmak, o metnin İÇERİĞİNİ gözden geçirmek değildir; kopyaya
+            //    "host onayladı" yazmak tam olarak kurucunun yasakladığı varsayım.
+            //  · Kaynak `draft` ise kopya da `draft` kalır. Aksi hâlde kopyalama,
+            //    onaydan geçmemiş bir taslağı tek tıkla MODELE SOKAN kaçış olurdu.
+            // `approvedAt` de soydan gelir: kopya kendi başına onaylanmadı, hangi
+            // onaya yaslandığı ise kaynağın onay zamanıdır.
+            source: source.source,
+            reviewState: source.reviewState,
+            approvedAt: source.approvedAt,
+            clientRequestId: copyKey,
+            // Kaynak bağı + içerik izi (kurucu D2, migration 68): sonraki kopyalama bu kopyayı güncelleyebilsin.
+            copiedFromId: id,
+            copiedContentHash: sourceHash,
+          },
+        });
+        return "created" as const;
       });
     } catch (err) {
       // Eş zamanlı iki deneme: kaybeden, kazananın bu dairedeki kopyasını bulur (yalnız BU benzersizlik ihlali; başkası fırlar).
@@ -302,6 +304,10 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
         continue;
       }
       throw err;
+    }
+    if (copied === "limit") {
+      skippedAtLimit++;
+      continue;
     }
     created++;
     warmTargets.push(t.id);

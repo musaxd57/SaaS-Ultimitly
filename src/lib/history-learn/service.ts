@@ -1,4 +1,5 @@
 import "server-only";
+import { lockedActiveKbCount } from "@/lib/kb/cap-lock";
 
 import { prisma } from "@/lib/db";
 import { isSuperAdmin } from "@/lib/admin-core";
@@ -708,7 +709,8 @@ export async function reviewHistoryLearnDraft(input: {
   if (__reviewHooks.beforeWrite) await __reviewHooks.beforeWrite();
   try {
     kbItemId = await prisma.$transaction(async (tx) => {
-    const active = await tx.knowledgeBaseItem.count({ where: { propertyId: draft.propertyId, isActive: true } });
+    // Codex 11-04 P2: sayım + yazma mülk başına ortak plan kilidinde (eşzamanlı farklı yazıcılar sınırı aşmasın).
+    const active = await lockedActiveKbCount(tx, draft.propertyId);
     // Yer değiştirme etkin kalem sayısını BÜYÜTMEZ (eski pasife iner) → plan sınırında da yapılabilir.
     if (active - (replaceId ? 1 : 0) >= limits.kbItemsPerProperty) return "plan_items" as const;
     const claimed = await tx.historyLearnDraft.updateMany({
