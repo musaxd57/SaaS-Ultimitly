@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
 import { createOperationalTaskFromMessage, __taskDedupeHooks } from "@/lib/tasks/create";
 import { lockProbe } from "../helpers/lock-probe";
+import { dateKeyInTimeZone, orgTimezone } from "@/lib/timezone";
 
 describe("createOperationalTaskFromMessage", () => {
   let propertyId: string;
@@ -64,6 +65,26 @@ describe("createOperationalTaskFromMessage", () => {
       __taskDedupeHooks.afterExistingRead = null;
     }
     expect(await prisma.task.count({ where: { propertyId } })).toBe(1);
+  });
+
+  it("🚨 Codex 11-04 P3: AYNI mesaj gece yarısının iki yanında EŞ ZAMANLI işlenince (farklı gün anahtarı) yine TEK görev", async () => {
+    const tz = orgTimezone((await prisma.property.findUniqueOrThrow({ where: { id: propertyId }, select: { organization: { select: { timezone: true } } } })).organization.timezone);
+    const before = new Date("2026-07-10T20:59:59.000Z");
+    const after = new Date("2026-07-10T21:00:01.000Z");
+    // Ön koşul (boş geçmesin): iki an işletmenin saatinde FARKLI güne düşer → farklı gün kilidi.
+    expect(dateKeyInTimeZone(before, tz)).not.toBe(dateKeyInTimeZone(after, tz));
+    const probe = lockProbe();
+    __taskDedupeHooks.afterExistingRead = probe.hook;
+    try {
+      const results = await Promise.all(
+        [before, after].map((now) => createOperationalTaskFromMessage({ propertyId, message: "musluk akıtıyor", now, sourceMessageId: "msg-midnight" })),
+      );
+      expect(probe.maxInside()).toBe(1);
+      expect(results.filter((r) => r.status === "created")).toHaveLength(1);
+    } finally {
+      __taskDedupeHooks.afterExistingRead = null;
+    }
+    expect(await prisma.task.count({ where: { propertyId, sourceMessageId: "msg-midnight" } })).toBe(1);
   });
 
   it("does not dedupe across DIFFERENT categories on the same day", async () => {

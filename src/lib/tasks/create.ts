@@ -12,6 +12,12 @@ export type CreateOperationalTaskResult =
 
 /** Mesajdan görev kilidi ad alanı (diğerleri: 23 · 40–44 — `automation.ts` RESERVATION_TASKS_LOCK_NS yanında). */
 const TASK_DEDUPE_LOCK_NS = 45;
+/**
+ * Codex 11-04 P3: AYNI kaynak mesajın kilidi (gün içermez). Gün anahtarı işleme anından türer → aynı mesajın gece yarısının iki yanında
+ * eşzamanlı iki işlenişi FARKLI gün kilitleri alıp ikisi de "bu mesajdan görev yok" okuyabiliyordu (`sourceMessageId` benzersiz değil).
+ * Sıra hep: önce mesaj kilidi, sonra gün kilidi (kilitlenme döngüsü yok).
+ */
+const TASK_MESSAGE_LOCK_NS = 47;
 
 /**
  * From an inbound guest message, create ONE operational task (maintenance /
@@ -55,6 +61,9 @@ export async function createOperationalTaskFromMessage(ctx: {
   // çift görev kabul edilebilir"); aynı mesaj kanal oto-yanıtı ile bekleyen-mesaj uyarı yolunda aynı anda işlenince iki görev açılıyordu.
   // Çağıran işlem verdiyse (`ctx.db`, öneri onayı) kilit o işlemde alınır; yoksa kısa bir işlem açılır.
   const run = async (tx: Prisma.TransactionClient): Promise<CreateOperationalTaskResult> => {
+    if (ctx.sourceMessageId) {
+      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(${TASK_MESSAGE_LOCK_NS}::int4, hashtext(${`${ctx.propertyId}:${ctx.sourceMessageId}`}))`);
+    }
     await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(${TASK_DEDUPE_LOCK_NS}::int4, hashtext(${data.dedupeKey}))`);
     // AYNI MESAJIN YENİDEN İŞLENMESİ (kurucu 10-15): bir mesaj en çok bir görev açar — günü ya da görevin durumu ne olursa olsun. Gün kovası
     // işleme anından hesaplandığı için aynı mesaj ertesi gün yeniden işlenince (senkron tekrarı, yeniden deneme) ikinci görev açılıyordu.
