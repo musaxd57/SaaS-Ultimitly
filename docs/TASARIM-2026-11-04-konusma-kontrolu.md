@@ -328,3 +328,9 @@ tek cevabı AI'ı yeniden açıyor).
    (ör. tek kötü taslak bütün konuşmayı durduruyor) · kural başına sayı. Kabul testleri §5'teki kenar durumları (gerçek PG + iki süreç).
 5. **Testler:** gölge yazıcı her yolda satır açar (yineleme tek satır) · karar fonksiyonu tablo testleri · çağrı noktalarında davranış BİREBİR
    aynı (eski testler değişmeden yeşil) · uyuşmazlık olayı metin taşımaz.
+6. **Kıyasın iki inceliği (11-04 akşam, kod okuması):** (a) model yolu `problem`i güvenlik DIŞI sebeplerle de yazar (iade, şikâyet, insan
+   talebi — `automation.ts` applyChannelAutoReply `modelSensitive`); yeni modelde bunlar ÖĞE tutmasıdır (öğe defteri zaten var), konuşma
+   engeli DEĞİL → gölge yazıcı yalnız `safety_emergency` → `safety_incident`, doğrulanamayan tehlike → `hazard_unverified` açar; geri kalan
+   yükseltmelerde "bugün durur, yeni model yalnız öğeyi tutar" ayrışması ÖLÇÜLMEK İSTENEN şeydir. (b) G0'dan ÖNCE `problem` olmuş konuşmanın
+   engel kaydı yoktur → kıyasta `legacy_problem` sayılır (sahte "yeni model gönderirdi" sayımı olmasın); ayırt etmek için G0 açılış anı
+   (ilk gölge kaydı) eşik alınır.

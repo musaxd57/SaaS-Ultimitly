@@ -194,6 +194,7 @@ model Organization {
   propertyMemories      PropertyMemory[]
   verifiedAnswers       VerifiedAnswer[]
   conversationItems     ConversationItem[]
+  conversationBlocks    ConversationBlock[]
   decisionRequests      DecisionRequest[]
   guestCommitments      GuestCommitment[]
   properties            Property[]
@@ -696,6 +697,7 @@ model Conversation {
   // reservation UUID) and QR guest chat ("qr-chat:{propertyId}:{reservationId}").
   // Their value spaces cannot collide. Both handle the resulting P2002.
   hostQuestions HostQuestion[]
+  blocks        ConversationBlock[]
 
   @@unique([propertyId, externalReservationId])
   @@index([propertyId])
@@ -1590,6 +1592,35 @@ model ConversationItem {
   @@index([organizationId, status])
   @@index([conversationId, status])
 }
+/// KONUŞMA KONTROLÜ — ENGEL (tasarım `docs/TASARIM-2026-11-04-konusma-kontrolu.md` §3 / §11; kurucu K-1..K-6, migration onayı K-6).
+/// Yapay zekânın neden susması gerektiğinin KAYDI: tür + kapsam + kaynak mesaj + kısa KANIT KODU (misafir metni ASLA — KVKK). G0 gölgede
+/// yalnız AÇILIR (bugün `problem` yazan dört yol aynı işlemde yazar), karar değişmez; kapanış G1'de ("Olay çözüldü", yalnız owner/manager).
+/// Host'un tek cevabı engeli KAPATMAZ (kurucunun bulduğu hata). Konuşma birleştirmede kazanana TAŞINIR (`CLEANUP_REPOINTED_MODELS`).
+model ConversationBlock {
+  id              String    @id @default(cuid())
+  organizationId  String
+  conversationId  String
+  kind            String // safety_incident | hazard_unverified | host_takeover | technical | legacy_problem
+  scope           String    @default("conversation") // conversation | item
+  itemId          String? // scope=item ise ConversationItem kimliği (düz kimlik, FK yok — öğe silinse de iz kalır)
+  sourceMessageId String? // engeli doğuran misafir mesajı (düz kimlik — ConversationItem.messageId emsali)
+  evidence        String? // kısa kapalı-küme kod (ör. "model:safety_emergency", "keyword:complaint") — metin taşımaz
+  status          String    @default("active") // active | resolved
+  openedBy        String    @default("system") // system | kullanıcı kimliği
+  resolvedAt      DateTime?
+  resolvedById    String?
+  resolvedReason  String? // kapalı küme kod
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, kind, sourceMessageId])
+  @@index([conversationId, status])
+  @@index([organizationId, status])
+}
+
 
 // HOST KARAR MOTORU (Faz 1, migration 59; tasarım `docs/TASARIM-2026-10-02-host-karar-motoru.md`). Misafirin ev sahibi KARARI
 // gerektiren konaklama isteği (erken giriş / geç çıkış / uzatma / tarih değişikliği): "karar bekliyor" kartı, tek bildirim, ev
