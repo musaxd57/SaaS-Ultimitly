@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { GuestChatThread, type GuestChatMessage as ChatMessage } from "@/components/guest-chat/guest-chat-thread";
 import { GUEST_COPY, type GuestLocale } from "@/components/guest-chat/guest-chat-copy";
+import { isImeComposing } from "@/lib/ime";
 /**
  * Kaç ARDIŞIK başarısız yenilemeden sonra misafire söylenir.
  *
@@ -406,7 +407,8 @@ export function GuestChat({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
+              // Aday penceresindeki Enter aday seçer, mesajı göndermez (`isImeComposing`).
+              if (e.key === "Enter" && !e.shiftKey && !isImeComposing(e)) {
                 e.preventDefault();
                 void send();
               }

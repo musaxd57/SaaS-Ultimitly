@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { isImeComposing } from "@/lib/ime";
 
 /**
  * Host reply box for a QR guest-chat thread. The reply is stored as the host's
@@ -86,10 +87,10 @@ export function GuestChatReply({
           // yüzeyinde yoktu. Shift+Enter yeni satır bırakır.
           // ⚠️ EMSAL BİREBİR KOPYALANMADI (inceleme turu düzeltmesi): misafir
           // yüzeyindeki sürüm `isComposing` KONTROLÜ TAŞIMIYOR. IME (Türkçe/Çince
-          // aday penceresi) açıkken aday seçen Enter mesajı YARIDA gönderir; o
-          // kusur misafir yüzeyinde ve landing demosunda HÂLÂ DURUYOR (ayrı iş).
+          // aday penceresi) açıkken aday seçen Enter mesajı YARIDA gönderir. 11-04: üç
+          // yüzey tek kuralda (`isImeComposing` — Safari'nin keyCode 229'u dahil).
           onKeyDown={(e) => {
-            if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
+            if (e.key !== "Enter" || e.shiftKey || isImeComposing(e)) return;
             e.preventDefault();
             void send();
           }}

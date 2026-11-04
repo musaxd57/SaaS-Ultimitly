@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { DEMO_HOURLY_LIMIT } from "@/lib/constants";
 import { FormError } from "@/components/form-error";
+import { isImeComposing } from "@/lib/ime";
 import { Sparkles, Loader2, ShieldAlert, CheckCircle2 } from "lucide-react";
 
 // Public "try the AI" block on the landing page. Talks to /api/demo/ai, which
@@ -98,7 +99,7 @@ export function LandingDemo() {
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter") run();
+            if (e.key === "Enter" && !isImeComposing(e)) run();
           }}
           maxLength={500}
           placeholder="Misafir mesajını yazın…"

@@ -295,7 +295,9 @@ export default async function DashboardPage() {
         />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      {/* `grid-cols-1` (minmax(0, 1fr)): telefonda örtük `auto` sütun en uzun daire adı / boşluksuz misafir metni kadar genişliyor, sayfa yana
+          kayıyordu (ajan turu 11-04; Raporlar'daki 10-22 düzeltmesinin eşi — `dashboard-grid-narrow.test.ts`). */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Arrivals */}
         <Card>
           <CardHeader className="flex-row items-center justify-between space-y-0">
@@ -419,7 +421,7 @@ export default async function DashboardPage() {
                       {CONVERSATION_STATUS.label(c.status)}
                     </Badge>
                   </div>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
+                  <p className="mt-0.5 break-words text-xs text-muted-foreground">
                     {c.messages[0] ? truncate(c.messages[0].body, 70) : c.property.name}
                   </p>
                 </Link>
