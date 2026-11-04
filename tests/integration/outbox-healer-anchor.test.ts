@@ -77,6 +77,18 @@ describe("Y3 — onarıcı cevabın mesajına çapalı", () => {
     expect(await statusOf(convId)).toBe("new"); // ⬅️ ARIZADA "answered"
   });
 
+  it("🚨 onarıcı da içeri alınma anına bakar: cevaptan ÖNCE yazılmış (sağlayıcı damgası) ama SONRA içeri alınmış misafir mesajı açık kalır", async () => {
+    // Ajan turu 11-04 F2-ek: normal teslim yolunun `ingestedAt` kuralı onarıcıya da (aynı sınıf).
+    const t0 = new Date(Date.now() - 60 * MIN);
+    const { orgId, convId } = await seed("g5");
+    await replyRow({ orgId, convId, gid: "g5", replyAt: t0, status: "sent", sentAt: new Date(t0.getTime() + 2 * MIN) });
+    await prisma.message.create({
+      data: { conversationId: convId, direction: "inbound", senderName: "Guest", body: "Yeni soru", createdAt: new Date(t0.getTime() - MIN), ingestedAt: new Date(t0.getTime() + 5 * MIN) },
+    });
+    await drainOutboxOnce({ send: vi.fn(async () => ({ ok: true, providerMessageId: "x" })), tokenFor: async () => "t" });
+    expect(await statusOf(convId)).toBe("new");
+  });
+
   it("KONTROL: misafir mesajı cevaptan ÖNCE ise kaçan etki onarılır (answered)", async () => {
     const t0 = new Date(Date.now() - 60 * MIN);
     const { orgId, convId } = await seed("g3");

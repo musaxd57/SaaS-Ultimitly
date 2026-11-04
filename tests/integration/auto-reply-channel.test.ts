@@ -2979,6 +2979,45 @@ describe("C2 — model düşünürken gelen misafir mesajı (Codex 09-30)", () =
     expect(after.lastErrorCode).toBe("superseded_by_newer_message");
   });
 
+  it("🚨 kuyruk yolu: model çalışırken EV SAHİBİ elle cevap yazdıysa (AI kaydından ÖNCE) AI cevabı GİTMEZ — çift cevap yok", async () => {
+    // Ajan turu 11-04 F1 (doğrulandı): işçinin "daha yeni mesaj" sayımı AI satırının KENDİ kaydına çapalıydı, tetik çapalı kontrol yalnız
+    // misafir mesajına bakıyordu → ev sahibinin model düşünürken yazdığı cevap da gidiyor, ardından AI cevabı da gidiyordu.
+    vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
+    vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", "*");
+    const { conversationId } = await seed();
+    mockSuggest.mockImplementation(async () => {
+      await prisma.message.create({
+        data: { conversationId, direction: "outbound", authorType: "host", senderName: "Host", body: "Dolapta.", createdAt: new Date() },
+      });
+      return SAFE_REPLY;
+    });
+    const out = await applyChannelAutoReply(conversationId);
+    expect(out.queued).toBe(true);
+    const row = await prisma.messageOutbox.findFirstOrThrow({ where: { conversationId, messageType: "ai" } });
+    const deliver = vi.fn().mockResolvedValue({ ok: true, providerMessageId: "p-dup" });
+    await drainOutboxOnce({ send: deliver, tokenFor: async () => "test-token" });
+    expect(deliver).not.toHaveBeenCalled();
+    const after = await prisma.messageOutbox.findUniqueOrThrow({ where: { id: row.id } });
+    expect(after.status).toBe("canceled");
+    expect(after.lastErrorCode).toBe("superseded_by_newer_message");
+  });
+
+  it("KONTROL — kuyruk yolu: tetikten sonra giden OTOMATİK şablon (karşılama / giriş) AI cevabını durdurmaz (K7: cevap sayılmaz)", async () => {
+    vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
+    vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", "*");
+    const { conversationId } = await seed();
+    mockSuggest.mockImplementation(async () => {
+      await prisma.message.create({
+        data: { conversationId, direction: "outbound", authorType: "automation", senderName: "Host", body: "Hoş geldiniz.", createdAt: new Date() },
+      });
+      return SAFE_REPLY;
+    });
+    await applyChannelAutoReply(conversationId);
+    const deliver = vi.fn().mockResolvedValue({ ok: true, providerMessageId: "p-ok2" });
+    await drainOutboxOnce({ send: deliver, tokenFor: async () => "test-token" });
+    expect(deliver).toHaveBeenCalledTimes(1);
+  });
+
   it("KONTROL — kuyruk yolu: tetikten sonra yeni misafir mesajı yoksa teslim edilir", async () => {
     vi.stubEnv("DURABLE_OUTBOX_ENABLED", "1");
     vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", "*"); // O1: liste açıkça bütün işletmeler (Opus F10: liste yoksa kimse)

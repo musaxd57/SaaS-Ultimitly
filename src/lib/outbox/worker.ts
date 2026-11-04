@@ -462,7 +462,9 @@ async function markConversationDelivered(row: OutboxRow, now: Date): Promise<voi
       where: {
         id: conversationId,
         status: { notIn: isAi ? ["closed", "problem"] : ["closed"] },
-        messages: { none: { direction: "inbound", createdAt: { gt: anchor } } },
+        // Senkronun içeri aldığı satırın `createdAt`'i SAĞLAYICI zamanıdır: kayıttan önce yazılıp sonra içeri alınan misafir mesajı onu
+        // kaçırırdı → içeri alınma anı da çapaya bakar (elle gönderim yolunun 11-04 kuralı `host-send.ts`; ajan turu 11-04 F2-ek).
+        messages: { none: { direction: "inbound", OR: [{ createdAt: { gt: anchor } }, { ingestedAt: { gt: anchor } }] } },
       },
       data: { status: "answered" },
     })
@@ -566,6 +568,19 @@ async function replyVeto(row: OutboxRow, now: Date): Promise<string | null> {
         },
       });
       if (newerGuest > 0) return SUPERSEDED_BY_NEWER_MESSAGE;
+      // 🚨 MODEL DÜŞÜNÜRKEN EV SAHİBİ YAZDI (ajan turu 11-04 F1): ev sahibinin elle cevabı AI satırından ÖNCE kaydedildiği için yukarıdaki
+      // "daha yeni mesaj" sayımı onu görmüyordu → misafire önce ev sahibinin, sonra AI'ın cevabı gidiyordu. Tetikten sonraki ev sahibi
+      // mesajı bu turu cevapladı; bayat AI cevabı gitmez. Otomatik şablon (`automation`, K7) cevap sayılmaz → durdurmaz.
+      const newerHost = await prisma.message.count({
+        where: {
+          conversationId: row.conversationId as string,
+          direction: "outbound",
+          authorType: "host",
+          id: { not: row.messageId as string },
+          OR: [{ createdAt: { gt: trigger.createdAt } }, { createdAt: trigger.createdAt, id: { gt: triggerId } }],
+        },
+      });
+      if (newerHost > 0) return SUPERSEDED_BY_NEWER_MESSAGE;
     }
   }
   return null;
@@ -1646,7 +1661,8 @@ async function healDeliveryEffects(now: Date): Promise<void> {
         where: {
           id: cid,
           status: { in: ["new", "waiting"] },
-          messages: { none: { direction: "inbound", createdAt: { gt: deliveredAt } } },
+          // İçeri alınma anı da (normal yolla AYNI kural — `markConversationDelivered`; ajan turu 11-04 F2-ek).
+          messages: { none: { direction: "inbound", OR: [{ createdAt: { gt: deliveredAt } }, { ingestedAt: { gt: deliveredAt } }] } },
         },
         data: { status: "answered" },
       });

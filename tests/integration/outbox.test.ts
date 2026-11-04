@@ -624,6 +624,38 @@ describe("outbox Codex P1/P2 — reservation rate limit + AI send-time veto", ()
     expect((await outbox(r.outboxId)).status).toBe("canceled");
   });
 
+  it("🚨 teslimden sonra 'Cevaplandı' çapası içeri alınma anına da bakar: AI kaydından ÖNCE yazılmış ama SONRA içeri alınmış misafir mesajı konuşmayı 'Yeni' bırakır", async () => {
+    // Ajan turu 11-04 F2-ek (doğrulandı): elle gönderim yolunun 11-04 düzeltmesi (`host-send.ts`, `ingestedAt`) işçiye taşınmamıştı.
+    const { conversationId, r } = await enqueueAiReply();
+    const ai = await prisma.message.findUniqueOrThrow({ where: { id: r.messageId! } });
+    await prisma.message.create({
+      data: {
+        conversationId,
+        direction: "inbound",
+        senderName: "G",
+        body: "Bir de otopark?",
+        createdAt: new Date(ai.createdAt.getTime() - 2_000), // sağlayıcı damgası: AI kaydından önce
+        ingestedAt: new Date(), // ama senkron onu AI kaydından SONRA içeri aldı
+      },
+    });
+    const { send, calls } = countingSend();
+    await drainOutboxOnce({ send, tokenFor: async () => "t" });
+    expect(calls()).toBe(1); // bu satır vetoya takılmaz (tetik anahtarı yok) — teslim edilir
+    expect((await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } })).status).toBe("new");
+  });
+
+  it("KONTROL: teslimden önce içeri alınmış eski misafir mesajı varsa konuşma 'Cevaplandı' olur", async () => {
+    const { conversationId, r } = await enqueueAiReply();
+    const ai = await prisma.message.findUniqueOrThrow({ where: { id: r.messageId! } });
+    await prisma.message.updateMany({
+      where: { conversationId, direction: "inbound" },
+      data: { ingestedAt: new Date(ai.createdAt.getTime() - 3_000) },
+    });
+    const { send } = countingSend();
+    await drainOutboxOnce({ send, tokenFor: async () => "t" });
+    expect((await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } })).status).toBe("answered");
+  });
+
   it("P2: a MANUAL host reply is NEVER vetoed — it sends even on a 'problem' thread", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
     const c = await prisma.conversation.create({
