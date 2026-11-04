@@ -16,6 +16,12 @@ vi.mock("@/lib/api", async (orig) => {
   return { ...actual, requireSession: vi.fn(async () => session) };
 });
 const { reportErrorMock } = vi.hoisted(() => ({ reportErrorMock: vi.fn() }));
+// Codex 11-04 P1: başarısızlık olayının kilit kararı Paddle'daki GERÇEK işlem durumunu okur → testte işlem başına durum tablosu.
+const { txnStatus } = vi.hoisted(() => ({ txnStatus: new Map<string, string | null>() }));
+vi.mock("@/lib/billing/paddle-transaction-status", async (orig) => {
+  const actual = await orig<typeof import("@/lib/billing/paddle-transaction-status")>();
+  return { ...actual, paddleTransactionStatus: vi.fn(async (id: string) => (txnStatus.has(id) ? txnStatus.get(id)! : null)) };
+});
 vi.mock("@/lib/report-error", async (orig) => {
   const actual = await orig<typeof import("@/lib/report-error")>();
   return { ...actual, reportError: reportErrorMock };
@@ -67,6 +73,7 @@ describe("ödeme — ikinci aktif abonelik alarmı + 'ödemeniz işleniyor' kili
     await resetDb();
     __resetRateLimit();
     vi.clearAllMocks();
+    txnStatus.clear();
     reportErrorMock.mockResolvedValue({ notified: true, throttled: false, configured: true });
     vi.stubEnv("PADDLE_WEBHOOK_SECRET", SECRET);
     vi.stubEnv("PADDLE_PRICE_PRO", "pri_pro");
@@ -183,17 +190,89 @@ describe("ödeme — ikinci aktif abonelik alarmı + 'ödemeniz işleniyor' kili
         data: { organizationId: other.id, planCode: "pro", priceId: "pri_pro", legalVersion: "2026-06", ip: "1.2.3.4" },
         select: { id: true },
       });
-      const failed = (cid: string) => ({
-        event_id: `evt_f_${++n}`,
-        event_type: "transaction.payment_failed",
-        occurred_at: new Date().toISOString(),
-        data: { id: `txn_${n}`, status: "past_due", custom_data: { consentId: cid } },
-      });
+      const failed = (cid: string) => {
+        const id = `txn_${++n}`;
+        txnStatus.set(id, "past_due"); // Paddle: işlem ÖDENMEMİŞ (gerçek başarısızlık)
+        return { event_id: `evt_f_${n}`, event_type: "transaction.payment_failed", occurred_at: new Date().toISOString(), data: { id, status: "past_due", custom_data: { consentId: cid } } };
+      };
       expect((await postEvent(failed(foreign.id))).status).toBe(200);
       expect(await prisma.systemLock.count({ where: { name: checkoutPendingLockName(orgId) } })).toBe(1);
       expect((await postEvent(failed(consentId))).status).toBe(200);
       expect(await prisma.systemLock.count({ where: { name: checkoutPendingLockName(orgId) } })).toBe(0);
       expect(await prisma.invoice.count()).toBe(0); // yalnız kilit kalkar, başka hiçbir şey yazılmaz
+    });
+
+    describe("Codex 11-04 P1 — sırasız gelen başarısızlık başarılı ödemenin korumasını kaldıramaz", () => {
+      const failure = (cid: string | null, txnId: string | null) => ({
+        event_id: `evt_ff_${++n}`,
+        event_type: "transaction.payment_failed",
+        occurred_at: new Date(Date.now() - 60_000).toISOString(),
+        data: { ...(txnId ? { id: txnId } : {}), status: "past_due", custom_data: cid ? { consentId: cid } : {} },
+      });
+      const lockCount = () => prisma.systemLock.count({ where: { name: checkoutPendingLockName(orgId) } });
+      const consentBlocked = async () => {
+        const res = await consentPost(jsonReq("http://localhost/api/billing/consent", { planCode: "pro", priceId: "pri_pro" }), ctx);
+        return res.status === 400 && (await res.json()).fields._ === CHECKOUT_PENDING_MESSAGE;
+      };
+
+      it("🚨 başarı sonrası ESKİ deneme başarısızlığı (Paddle işlemi ÖDENMİŞ gösteriyor) → kilit KALIR, ikinci ödeme ekranı açılmaz", async () => {
+        await pendingPost(jsonReq("http://localhost/api/billing/checkout-pending", { consentId }), ctx);
+        txnStatus.set("txn_paid1", "completed");
+        expect((await postEvent(failure(consentId, "txn_paid1"))).status).toBe(200);
+        expect(await lockCount()).toBe(1);
+        expect(await consentBlocked()).toBe(true);
+        txnStatus.set("txn_paid2", "paid");
+        await postEvent(failure(consentId, "txn_paid2"));
+        expect(await lockCount()).toBe(1);
+      });
+
+      it("🚨 aynı işletmenin BAŞKA ödemesinin (başka onay kaydı) başarısızlığı bu kilidi kaldırmaz", async () => {
+        await pendingPost(jsonReq("http://localhost/api/billing/checkout-pending", { consentId }), ctx);
+        const second = await prisma.checkoutConsent.create({
+          data: { organizationId: orgId, planCode: "pro", priceId: "pri_pro", legalVersion: "2026-06", ip: "1.2.3.4" },
+          select: { id: true },
+        });
+        txnStatus.set("txn_other", "past_due");
+        await postEvent(failure(second.id, "txn_other"));
+        expect(await lockCount()).toBe(1);
+        expect(await consentBlocked()).toBe(true);
+      });
+
+      it("🚨 Paddle okunamazsa (durum bilinmiyor) ya da olayda onay / işlem kimliği yoksa kilit KALIR (en çok 10 dk'da kendiliğinden düşer)", async () => {
+        await pendingPost(jsonReq("http://localhost/api/billing/checkout-pending", { consentId }), ctx);
+        await postEvent(failure(consentId, "txn_unknown")); // tabloda yok → null
+        expect(await lockCount()).toBe(1);
+        await postEvent(failure(null, "txn_x"));
+        await postEvent(failure(consentId, null));
+        expect(await lockCount()).toBe(1);
+      });
+
+      it("KONTROL (kurucu 10-10 kuralı): aynı ödemenin GERÇEK başarısızlığı (Paddle ödenmemiş) kilidi hâlâ ANINDA kaldırır", async () => {
+        await pendingPost(jsonReq("http://localhost/api/billing/checkout-pending", { consentId }), ctx);
+        txnStatus.set("txn_real_fail", "past_due");
+        await postEvent(failure(consentId, "txn_real_fail"));
+        expect(await lockCount()).toBe(0);
+        expect(await consentBlocked()).toBe(false);
+      });
+
+      it("🚨 durum okunurken AYNI onay için taze kilit yazılırsa (ödeme o arada başarıyla bitti) taze kilit silinmez", async () => {
+        await pendingPost(jsonReq("http://localhost/api/billing/checkout-pending", { consentId }), ctx);
+        const { clearCheckoutPendingOnFailure } = await import("@/lib/billing/checkout-pending");
+        const outcome = await clearCheckoutPendingOnFailure(
+          orgId,
+          { consentId, transactionId: "txn_race" },
+          async () => {
+            await prisma.systemLock.update({
+              where: { name: checkoutPendingLockName(orgId) },
+              data: { lockedUntil: new Date(Date.now() + CHECKOUT_PENDING_MS + 60_000) },
+            });
+            return "past_due";
+          },
+          (st) => st === "paid" || st === "completed",
+        );
+        expect(outcome).toBe("no_lock");
+        expect(await lockCount()).toBe(1);
+      });
     });
 
     it("🚨 abonelik AKTİF yazılınca kilit kalkar; aktif olmayan olay kaldırmaz", async () => {

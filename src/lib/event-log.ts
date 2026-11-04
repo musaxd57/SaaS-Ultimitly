@@ -26,6 +26,8 @@ export const OPERATIONAL_EVENTS = {
   "billing.webhook.duplicate": "info",
   "billing.webhook.processed": "info",
   "billing.webhook.failed": "error",
+  // Codex 11-04 P1: "ödeme başarısız" olayı kilidi KALDIRMADI (başka ödemenin kilidi / işlem ödenmiş / Paddle okunamadı / kimlik yok).
+  "billing.checkout_pending.failure_kept": "info",
   "billing.webhook.unlinked": "warn",
   "billing.subscription.applied": "info",
   "billing.invoice.recorded": "info",

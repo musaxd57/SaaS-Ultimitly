@@ -209,6 +209,27 @@ describe("ödeme niyeti — işletme başına tek açık Paddle işlemi", () => 
     expect(paddle.created).toBe(1);
   });
 
+  it("🚨 Codex 11-04 P2: süresi DOLMUŞ niyetin işlemi ödenmiş (süpürge koşmadan, istek içinde görüldü) → aynı istek yeni işlem AÇMAZ, 'işleniyor'", async () => {
+    await POST(postReq(), ctx);
+    paddle.statuses.set("txn_1", "completed");
+    await prisma.checkoutIntent.updateMany({ where: { organizationId: orgId }, data: { expiresAt: new Date(Date.now() - 60_000) } });
+    const res = await POST(postReq(), ctx);
+    expect(res.status).toBe(400);
+    expect(JSON.stringify(await res.json())).toMatch(/işleniyor/i);
+    expect(paddle.created).toBe(1);
+    expect(await prisma.checkoutIntent.count({ where: { organizationId: orgId } })).toBe(1);
+    expect(await prisma.checkoutIntent.findFirstOrThrow({ where: { organizationId: orgId } })).toMatchObject({ status: "completed" });
+  });
+
+  it("KONTROL: süresi dolmuş niyetin işlemi ödenmemiş ve iptal edildi → yeni işlem açılır (davranış aynı)", async () => {
+    await POST(postReq(), ctx);
+    await prisma.checkoutIntent.updateMany({ where: { organizationId: orgId }, data: { expiresAt: new Date(Date.now() - 60_000) } });
+    const res = await POST(postReq(), ctx);
+    expect(res.status).toBe(201);
+    expect(paddle.canceled).toEqual(["txn_1"]);
+    expect(paddle.created).toBe(2);
+  });
+
   it.each(["billed", "past_due"])("🚨 Opus B4: '%s' ödendi SAYILMAZ ve işlem verilmez → 409 'açık bir ödemeniz var', niyet açık kalır", async (st) => {
     await POST(postReq(), ctx);
     paddle.statuses.set("txn_1", st);

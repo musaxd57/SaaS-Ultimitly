@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/db";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { paddleRequest } from "@/lib/payments/paddle";
+import { PADDLE_PAID_STATES, PADDLE_TXN_NOT_FOUND, paddleTransactionStatus } from "@/lib/billing/paddle-transaction-status";
 import { LEGAL_VERSION } from "@/lib/legal-entity";
 import { reportError } from "@/lib/report-error";
 import { markCheckoutPending } from "@/lib/billing/checkout-pending";
@@ -55,29 +56,16 @@ export type IntentResult =
   | { kind: "failed"; message: string };
 
 /** Ödendi: yalnız `paid` / `completed`. `billed` (fatura kesildi, ödeme BEKLENİYOR) ödendi DEĞİL (Opus 10-21 B4). */
-const PAID_STATES = new Set(["paid", "completed"]);
+const PAID_STATES = PADDLE_PAID_STATES;
 /**
  * Ödenmemiş ama iptal de edilemeyen / ödeme ekranı açılamayan durumlar (`billed` elle tahsilat, `past_due` gecikmiş): yeni ekran AÇILMAZ,
  * eski işlem verilmez ("açık bir ödemeniz var"); mutlak üst sınırda kapanır.
  */
 const UNPAYABLE_OPEN_STATES = new Set(["billed", "past_due"]);
-/** Paddle'ın işlemi bulamadığı durum (ör. sandbox işlemi canlı anahtarla soruldu) — kalıcı; işlem kapalı sayılır (Opus 10-21 B2). */
-const NOT_FOUND = "not_found";
-
-/** Paddle'da işlemin durumu ("ready" · "paid" · …); bulunamadıysa `not_found`; okunamazsa null (karar verilmez). */
-async function transactionStatus(transactionId: string): Promise<string | null> {
-  try {
-    const body = (await paddleRequest(`/transactions/${encodeURIComponent(transactionId)}`)) as { data?: { status?: unknown } } | null;
-    return typeof body?.data?.status === "string" ? body.data.status : null;
-  } catch (err) {
-    return isPaddleNotFound(err) ? NOT_FOUND : null;
-  }
-}
-
-/** `paddleRequest` hata metni: "Paddle HTTP 404 (entity_not_found) env=… resource=…". */
-function isPaddleNotFound(err: unknown): boolean {
-  return err instanceof Error && /^Paddle HTTP 404 \(|\(entity_not_found\)/.test(err.message);
-}
+/** Paddle'ın işlemi bulamadığı durum — tek kaynak `paddle-transaction-status.ts`. */
+const NOT_FOUND = PADDLE_TXN_NOT_FOUND;
+/** Paddle'da işlemin durumu — tek okuma noktası `paddle-transaction-status.ts` (Codex 11-04: başarısızlık olayı da kullanır). */
+const transactionStatus = paddleTransactionStatus;
 
 /**
  * Ödendiği SUNUCUDA görüldü (Paddle durumu ya da webhook) → "Ödemeniz işleniyor" kilidi sunucuda da yazılır (Opus 10-21 B1): yoksa kilidi
@@ -106,8 +94,12 @@ async function cancelOrConfirmClosed(transactionId: string): Promise<boolean> {
   return status !== null && CLOSED_STATES.has(status);
 }
 
-/** Süresi dolmuş açık niyetleri ve takılı "açılıyor" niyetlerini kapatır (yalnız bu işletme). */
-async function closeStale(organizationId: string, now: Date): Promise<void> {
+/**
+ * Süresi dolmuş açık niyetleri ve takılı "açılıyor" niyetlerini kapatır (yalnız bu işletme). Codex 11-04 P2: süresi dolan işlemin ÖDENDİĞİ
+ * burada görülürse sonuç ÇAĞIRANA taşınır (`paidFound`) — boşalan `openKey` "yeni ödeme güvenli" demek değildir; çağıran yeni işlem AÇMAZ.
+ */
+async function closeStale(organizationId: string, now: Date): Promise<{ paidFound: boolean }> {
+  let paidFound = false;
   await prisma.checkoutIntent.updateMany({
     where: { organizationId, status: "opening", createdAt: { lt: new Date(now.getTime() - CHECKOUT_INTENT_OPENING_LEASE_MS) } },
     data: { status: "failed", openKey: null, closedAt: now },
@@ -126,6 +118,7 @@ async function closeStale(organizationId: string, now: Date): Promise<void> {
     // niyet kapanır (iptal edilemeyen ödenmemiş işlemin ödemesi webhook'ta bugünkü yoldan onaya bağlanır).
     const status = e.providerRef ? await transactionStatus(e.providerRef) : null;
     if (status && PAID_STATES.has(status)) {
+      paidFound = true; // eşzamanlı istek satırı önce kapatmış olsa da (count 0) ödeme gerçek — bu istek de yeni işlem açmaz
       const done = await prisma.checkoutIntent.updateMany({ where: { id: e.id, status: "open" }, data: { status: "completed", openKey: null, closedAt: now } });
       if (done.count === 1) await markPaidPending(organizationId, e.consentId, now);
       continue;
@@ -148,6 +141,7 @@ async function closeStale(organizationId: string, now: Date): Promise<void> {
       }
     }
   }
+  return { paidFound };
 }
 
 /**
@@ -162,7 +156,8 @@ export async function openOrReuseCheckoutIntent(input: {
   now?: Date;
 }): Promise<IntentResult> {
   const now = input.now ?? new Date();
-  await closeStale(input.organizationId, now);
+  // Codex 11-04 P2: süresi dolan işlemin ödendiği şimdi görüldüyse bu istek yeni işlem AÇMAZ ("ödemeniz işleniyor").
+  if ((await closeStale(input.organizationId, now)).paidFound) return { kind: "paid" };
 
   for (let attempt = 0; attempt < 2; attempt++) {
     let created: { id: string } | null = null;

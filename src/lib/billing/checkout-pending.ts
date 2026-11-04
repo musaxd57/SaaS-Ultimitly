@@ -38,3 +38,39 @@ export async function markCheckoutPending(organizationId: string, consentId: str
 export async function clearCheckoutPending(organizationId: string): Promise<void> {
   await prisma.systemLock.deleteMany({ where: { name: checkoutPendingLockName(organizationId) } }).catch(() => {});
 }
+
+export type FailureLockOutcome = "cleared" | "no_lock" | "other_checkout" | "paid" | "unknown" | "no_identity";
+
+/**
+ * "Ödeme başarısız" olayı (Codex 11-04 P1). Kilit YALNIZ ödeme başarıyla bitince yazılır (istemcide `checkout.completed` ya da sunucuda
+ * ödendi görüldü) — Paddle olayları SIRASIZ gelebilir: aynı ödemenin ESKİ başarısız denemesi başarıdan SONRA ulaşırsa kilidi siliyordu, abonelik
+ * webhook'u gelmeden ikinci sekme ikinci ödemeyi tamamlayabiliyordu (çift tahsilat). Kurucu kuralı (10-10: "ödeme alınamazsa beklemesin")
+ * korunur, ama başarısızlık yalnız KENDİ ödemesinin kilidini ve yalnız o ödeme gerçekten ödenmemişse kaldırır:
+ *  · olayın onay kaydı / işlem kimliği yoksa → dokunulmaz (`no_identity`; kilit en çok 10 dk'da kendiliğinden düşer),
+ *  · kilit başka bir ödemenin (başka onay kaydı) → dokunulmaz (`other_checkout`),
+ *  · Paddle o işlemi ÖDENMİŞ gösteriyorsa → başarı başarısızlığa BASKIN (`paid`),
+ *  · Paddle okunamazsa → dokunulmaz (`unknown`; çift tahsilat riski 10 dk beklemekten ağır),
+ *  · aksi hâlde kilit kalkar (`cleared`). Silme koşullu: durum okunduktan SONRA yazılmış kilit (aynı onayın taze başarısı) silinmez.
+ */
+export async function clearCheckoutPendingOnFailure(
+  organizationId: string,
+  failure: { consentId: string | null; transactionId: string | null },
+  readStatus: (transactionId: string) => Promise<string | null>,
+  isPaid: (status: string) => boolean,
+  now: () => Date = () => new Date(),
+): Promise<FailureLockOutcome> {
+  if (!failure.consentId || !failure.transactionId) return "no_identity";
+  const name = checkoutPendingLockName(organizationId);
+  const row = await prisma.systemLock.findUnique({ where: { name }, select: { holder: true } });
+  if (!row) return "no_lock";
+  if (row.holder !== failure.consentId) return "other_checkout";
+  const checkedAt = now();
+  const status = await readStatus(failure.transactionId);
+  if (status === null) return "unknown";
+  if (isPaid(status)) return "paid";
+  // Kilit `lockedUntil = yazılış + CHECKOUT_PENDING_MS`: durum okunduktan SONRA yazılan (aynı onayın taze başarısı) kilit bu sınırı aşar → silinmez.
+  const deleted = await prisma.systemLock.deleteMany({
+    where: { name, holder: failure.consentId, lockedUntil: { lte: new Date(checkedAt.getTime() + CHECKOUT_PENDING_MS) } },
+  });
+  return deleted.count === 1 ? "cleared" : "no_lock";
+}

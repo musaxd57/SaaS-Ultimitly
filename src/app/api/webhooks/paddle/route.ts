@@ -7,7 +7,8 @@ import { jsonOk, unauthorized, readTextCapped, MAX_WEBHOOK_BODY_BYTES, BodyTooLa
 import { reportError, redactSensitive } from "@/lib/report-error";
 import { alertOnTransition, clearAlertState } from "@/lib/alert-state";
 import { clearBadSignatureThrottle, noteBadSignatureSuppressed, skipBadSignatureAlert } from "@/lib/billing/bad-signature-throttle";
-import { clearCheckoutPending } from "@/lib/billing/checkout-pending";
+import { clearCheckoutPending, clearCheckoutPendingOnFailure } from "@/lib/billing/checkout-pending";
+import { PADDLE_PAID_STATES, paddleTransactionStatus } from "@/lib/billing/paddle-transaction-status";
 import { adoptCorrelation, currentCorrelation, newCorrelationId, runWithCorrelation } from "@/lib/correlation";
 import { logEvent } from "@/lib/event-log";
 import {
@@ -843,8 +844,18 @@ export async function POST(req: NextRequest): Promise<Response> {
       } else if (eventType === "transaction.payment_failed") {
         // "Ödemeniz işleniyor" kilidi (kurucu sorusu 10-10: "ödeme alınamazsa 10 dk yeniden ödeyemiyor mu?"): ödeme başarısız → kilit ANINDA
         // kalkar, müşteri hemen yeniden dener. Yalnız kilit kaldırır, başka hiçbir şey yazmaz. (Paddle bildirim ayarında bu olay türü açık olmalı.)
+        // Codex 11-04 P1: başarısızlık YALNIZ kendi ödemesinin kilidini ve yalnız Paddle o işlemi ödenmemiş gösteriyorsa kaldırır — sırasız
+        // gelen eski başarısız deneme, başarılı ödemenin korumasını (ya da başka bir ödemenin kilidini) kaldıramaz.
         const failedOrg = await resolveOrgId(data, null, occurredAt);
-        if (failedOrg) await clearCheckoutPending(failedOrg);
+        if (failedOrg) {
+          const cd = data.custom_data && typeof data.custom_data === "object" ? (data.custom_data as Record<string, unknown>) : null;
+          const consentId = cd && typeof cd.consentId === "string" && cd.consentId.length > 0 && cd.consentId.length <= 64 ? cd.consentId : null;
+          const transactionId = typeof data.id === "string" && /^txn_[A-Za-z0-9]{1,64}$/.test(data.id) ? data.id : null;
+          const outcome = await clearCheckoutPendingOnFailure(failedOrg, { consentId, transactionId }, paddleTransactionStatus, (st) =>
+            PADDLE_PAID_STATES.has(st),
+          ).catch(() => "unknown" as const);
+          if (outcome !== "cleared") await logEvent("billing.checkout_pending.failure_kept", { reason: outcome });
+        }
       } else if (PADDLE_API_KEY_EVENTS.has(eventType)) {
         // Kurucu 10-17 ("sakın unutmayalım"): Paddle API anahtarının süresi dolmadan / dolunca / iptalinde operatör uyarılır. Olay hiçbir
         // işletmeye ait değil, abonelik / fatura yazmaz. (Paddle bildirim hedefinde bu olay türleri işaretli olmalı.)
