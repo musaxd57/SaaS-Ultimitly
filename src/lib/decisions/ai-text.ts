@@ -79,8 +79,11 @@ export const DECISION_WRITER_SYSTEM_PROMPT = [
   // Ölçüm 11-04 (Haiku kolu): "talebinizi onayladık" çıktı vetosunda yapay zekânın yapmadığı eylemi beyan etmek (`unverified_commitment`)
   // sayılıp metin şablona düşüyordu; edilgen "talebiniz onaylandı" geçer. Veto GEVŞETİLMEZ — yazıcı kararı edilgen bildirir.
   "- State the decision impersonally, as a fact about the request ('Erken giriş talebiniz onaylandı', 'Your early check-in is approved', 'mümkün değil'). Never write that you or 'we' approved, accepted, arranged or confirmed it ('onayladık', 'kabul ettik', 'ayarladık', 'we have approved').",
-  "- Use ONLY the facts in the input. Keep every time, date and amount exactly as given (same digits). Do not add any other number, date, time, price, discount or condition.",
-  "- For a decline you may give ONE short reason, but only if the host's checklist states it and it concerns the guest's timing: cleaning still in progress / not finished, the previous guest checks out at a given time, a new guest arrives the same day. If no such reason is stated, give no reason. Never invent one.",
+  // Ölçüm 11-04 (Haiku kolu): Fransızca "13h00" kod denetiminde saat sayılmadı (`time_missing`) → şablon. Saat biçimi girdidekiyle aynı.
+  "- Use ONLY the facts in the input. Keep every time, date and amount exactly as given (same digits). Write every time with a colon exactly as in the input (13:00), in every language: never 13h00, 13h or 1 pm. Do not add any other number, date, time, price, discount or condition.",
+  // Ölçüm 11-04 (Haiku kolu): eski "the previous guest checks out at a given time" ifadesi saati yazmaya izin gibi okundu ("Önceki misafirin
+  // çıkışı 13:00 olarak beklenmektedir") — aşağıdaki "başka misafirin saatini yazma" kuralıyla çelişiyordu. Kod da tutar (`other_guest_time`).
+  "- For a decline you may give ONE short reason, but only if the host's checklist states it and it concerns the guest's timing: cleaning still in progress / not finished, the previous guest has not checked out yet at that time, a new guest arrives the same day. Give the reason without any time. If no such reason is stated, give no reason. Never invent one.",
   "- The checklist is internal and written in Turkish for the host. Never copy or quote a checklist line. Never mention staff, tasks, settings, rules, automation, the checklist itself, other guests' names, or anything about the calendar beyond the reason above.",
   "- Never state another guest's times, requests or approvals (not 'the next guest arrives at 12:00', not 'another guest's early check-in was approved'): say only that the previous guest is still checking out / the apartment is being cleaned / a new guest arrives the same day.",
   "- If an approval comes with a fee, state the fee exactly as given. Otherwise never mention money, fees, free of charge, or discounts.",
@@ -120,6 +123,9 @@ export function buildDecisionWriterInput(input: DecisionTextFacts): string {
   }
   const reference = decisionMessageText({ ...input, note: null });
   lines.push(`Reference message: ${reference ?? "(none)"}`);
+  // Ölçüm 11-04 (Haiku kolu, d-38): Türkçe kontrol listesinden sonra İngilizce misafire Türkçe yazdı (dil denetimi tuttu → şablon). Dil
+  // girdinin SONUNDA bir kez daha söylenir.
+  lines.push(`Write the whole message in ${LANGUAGE_NAMES[input.lang]}.`);
   return lines.join("\n");
 }
 
@@ -163,7 +169,8 @@ export async function draftDecisionMessage(input: DecisionDraftInput): Promise<D
     if (!raw) return template(input, "model_failed");
     const note = input.resolution === "approve" && input.kind === "early_checkin" ? input.note?.trim() : "";
     const text = note ? `${raw} ${note}` : raw;
-    const check = checkDecisionText(text, input);
+    // Yazıcı kipi: kontrol listesinin saati (önceki / sonraki misafirin saati) taslakta geçemez — ev sahibinin kendi metni bu kısıtı taşımaz.
+    const check = checkDecisionText(text, input, { writer: true });
     if (!check.ok) return template(input, "check_failed", check.problems);
     const guard = await runStayChangeGuard({
       guestMessages: [input.guestRequest],

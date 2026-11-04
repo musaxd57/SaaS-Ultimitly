@@ -61,3 +61,47 @@ doğrulandı; İngilizce "We have approved" de geçiyor → tutarsızlık). 5.1 
   (yazıcı girdisinde misafir metni yok; ama ev sahibinin iç kontrol listesi satırları gider) → gizlilik / KVKK işleyen listesi güncellenmeli.
 - Anlama: hazır yama + yeniden ölçüm (kurucu onayı gerekir: arızalı cihaz mesajı şikâyet olarak ev sahibinde tutulur).
 - Cevap katmanı: Luna kalır; ikinci tekrar + kör set ile yeniden bakılır.
+
+## 5. İstek 8 (11-04 öğle, commit `454b8fb`) — edilgen karar kuralından sonra
+
+### 5a. Karar metni yazıcısı — 5.1 ↔ Haiku düşünme kapalı (bekçi iki kolda da planlı modelde)
+
+| ölçü | 5.1 geliştirme | Haiku geliştirme | 5.1 kör | Haiku kör |
+|---|---|---|---|---|
+| yapay zekâ metni kullanıldı | 40/40 | 39/40 | 30/30 | 28/30 |
+| bağımsız yeniden denetim / iç bilgi sızıntısı | 40/40 · 0 | 39/39 · 0 | 30/30 · 0 | 28/28 · 0 |
+| gerekçeli ret: beklenen gerekçe anıldı (sezgisel) | 11/14 | 9/14 | 10/10 | 7/10 |
+| gecikme p95 (yazıcı + bekçi) | 5,7 sn | 4,9 sn | 5,7 sn | 3,7 sn |
+| maliyet | $0,0729 | $0,0067 | $0,054 | $0,0047 |
+
+"Onayladık" sorunu edilgen kuralla KAPANDI (Haiku'da `promise_or_handoff` düşüşü yok). Kalan Haiku hataları (5.1'de yok):
+1. 🚨 **Başka misafirin saati misafire yazıldı ve denetimden GEÇTİ** (kör set 2/30): "Önceki misafirin çıkışı 13:00 olarak beklenmektedir"
+   (a1-16) · "da der vorherige Gast erst um 12:00 Uhr auscheidet" (a1-18). Kök neden iki katlı: (i) yazıcı isteminin gerekçe satırı "the
+   previous guest checks out at a given time" diyordu — "başka misafirin saatini yazma" satırıyla çelişiyor, Haiku saati yazmaya izin gibi
+   okudu; (ii) kod denetimi kontrol listesinin saatlerini İZİNLİ sayıyordu (10-07'de ev sahibinin kendi metni için bilinçli; o gün 5.1'in aynı
+   hatası yalnız istemle kapatılmıştı).
+2. Fransızca "13h00" (2/30, kör) → kod denetimi saati göremedi (`time_missing`) → onaylı şablon (güvenli düşüş).
+3. İngilizce misafire Türkçe metin (1/40, geliştirme d-38) → dil denetimi tuttu → şablon (güvenli düşüş).
+Üslup: iki model de ara sıra dolgu yazıyor (Haiku "Sizi karşılamayı dört gözle bekliyoruz", "Thank you for your understanding"; 5.1
+"Gracias por su comprensión", "Thank you for planning your departure accordingly") — denetim bunu tutmuyor; model farkı değil.
+
+**Düzeltme (kod, ölçüm bekliyor — istek 9):** taslak denetiminde YAZICI KİPİ (`checkDecisionText(…, { writer: true })`): yalnız kontrol
+listesinde olan saat → `other_guest_time` → şablon; ev sahibinin kendi yazdığı metnin denetimi DEĞİŞMEDİ. İstem: gerekçe "saatsiz" (önceki
+misafir o saatte henüz çıkmamış olacak), saat her dilde iki noktalı (13:00 — 13h00 değil), girdi "Write the whole message in <dil>." ile biter.
+Ölçer bağımsız "başka misafirin saati" satırı da sayar. Bilinen sınır (pinli): kontrol listesinin saati kaydın kendi saatiyle aynıysa ayırt
+edilemez.
+
+### 5b. Anlama — 10-15 yamasının cümlesiyle (v1 kuralı, YALNIZ ölçümde istemde; 20 vaka × 2 tur)
+
+| kol | canlı kip | temel kip |
+|---|---|---|
+| gpt-5.1 | 40/40 | 38/40 |
+| Haiku adaptive high | 40/40 | 38/40 |
+| Haiku adaptive low | 40/40 | 38/40 |
+| Haiku düşünme kapalı | **40/40** | 39/40 |
+
+v1 kuralıyla dört kol da canlı kipte tam (kuralsız istek 7'de Haiku düşünme kapalı 34/40 idi). AMA kurucu 11-04: kural "her zaman şikâyet"
+sabit sözcük kuralına dönüşmemeli → genişletilmiş set v2 (37 vaka: varsayımsal / çözülmüş / olumsuzlanan / arıza + bağımsız soru / arıza +
+tehlike / konuşma geçmişli) ve bağlamdan ayıran v2 kuralı. Yerel 5.1 (v2 set, canlı kip): bugünkü istem 65/74 → v2 kuralı 73/74 (çözülmüş
+2/6 → 6/6, arıza + tehlike 0/4 → 3/4, geçmişli 10/10 → 10/10); temel kipte 64 → 72 (internet sıfırlama vakası temelde geriledi). Haiku v2
+kolları istek 9'da.

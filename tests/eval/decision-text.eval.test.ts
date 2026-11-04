@@ -75,6 +75,8 @@ interface Row {
   timeOk: boolean | null;
   langOk: boolean | null;
   internalLeak: boolean;
+  /** Metinde yalnız kontrol listesinde olan saat (önceki / sonraki misafirin saati) — ürün denetiminden BAĞIMSIZ hesap. */
+  otherGuestTime: boolean;
   expectReason: string | null;
   reasonMentioned: boolean | null;
   ms: number;
@@ -121,6 +123,17 @@ function usd(): number {
     if (p) t += ((u.in - u.cached) * p.in + u.cached * p.cached + u.out * p.out) / 1e6;
   }
   return t;
+}
+
+/**
+ * Ürünün `checkDecisionText` koduna dokunmadan (bağımsız) hesap: metindeki saatlerden kontrol listesinde geçip karar kaydında
+ * (onayda karar saati, istenen, standart, not) OLMAYANLAR — başka misafirin saati (ölçüm 11-04, Haiku a1-16 / a1-18).
+ */
+function otherGuestTimes(text: string, s: Scenario): string[] {
+  const own = new Set<string>([s.resolution === "approve" ? s.time : null, s.requestedTime, s.standardTime].filter((t): t is string => !!t));
+  for (const t of timesIn(s.note ?? "")) own.add(t);
+  const listed = new Set(s.checklist.flatMap((l) => [...timesIn(l)]));
+  return [...timesIn(text)].filter((t) => listed.has(t) && !own.has(t));
 }
 
 let lastStart = 0;
@@ -176,6 +189,7 @@ describe.skipIf(!enabled)(`KARAR MESAJI — ${MODEL}`, () => {
       `| gün adlandırıldı | ${pct(ai.filter((r) => r.dayNamed).length, ai.length)} |`,
       `| misafirin dili (kodun kesin tespiti olanlarda) | ${pct(ai.filter((r) => r.langOk === true).length, ai.filter((r) => r.langOk !== null).length)} |`,
       `| 🚨 iç bilgi sızıntısı (görev / kural / bakım…) | ${pct(ai.filter((r) => r.internalLeak).length, ai.length)} |`,
+      `| 🚨 başka misafirin saati (yalnız kontrol listesinde olan saat) | ${pct(ai.filter((r) => r.otherGuestTime).length, ai.length)} |`,
       `| gerekçeli ret: beklenen gerekçe anıldı (sezgisel) | ${pct(withReason.filter((r) => r.reasonMentioned).length, withReason.length)} |`,
       `| gerekçesiz ret: gerekçe UYDURULDU mu (sezgisel, düşük iyi) | ${pct(noReason.filter((r) => Object.values(REASON).some((rx) => rx.test(r.text ?? ""))).length, noReason.length)} |`,
       `| gecikme p50 / p95 (yazıcı + bekçi) | ${(q(0.5) / 1000).toFixed(1)} sn / ${(q(0.95) / 1000).toFixed(1)} sn |`,
@@ -189,7 +203,7 @@ describe.skipIf(!enabled)(`KARAR MESAJI — ${MODEL}`, () => {
       "",
       ...rows.map(
         (r) =>
-          `- **${r.id}** (${r.kind} · ${r.resolution} · ${r.lang}${r.expectReason ? ` · gerekçe ${r.expectReason}` : ""}) — ${r.source === "ai" ? "YZ" : `şablon/${r.why}`}${r.internalLeak ? " · 🚨 SIZINTI" : ""}${r.recheckOk === false ? " · 🚨 DENETİM" : ""}: ${(r.text ?? "(yok)").replace(/\s+/g, " ")}${r.rejected ? ` · REDDEDİLEN YZ: ${r.rejected.replace(/\s+/g, " ")}` : ""}`,
+          `- **${r.id}** (${r.kind} · ${r.resolution} · ${r.lang}${r.expectReason ? ` · gerekçe ${r.expectReason}` : ""}) — ${r.source === "ai" ? "YZ" : `şablon/${r.why}`}${r.internalLeak ? " · 🚨 SIZINTI" : ""}${r.otherGuestTime ? " · 🚨 BAŞKA MİSAFİRİN SAATİ" : ""}${r.recheckOk === false ? " · 🚨 DENETİM" : ""}: ${(r.text ?? "(yok)").replace(/\s+/g, " ")}${r.rejected ? ` · REDDEDİLEN YZ: ${r.rejected.replace(/\s+/g, " ")}` : ""}`,
       ),
       "",
       evalRuntimeMarkdown(runtime),
@@ -247,11 +261,13 @@ describe.skipIf(!enabled)(`KARAR MESAJI — ${MODEL}`, () => {
           rejected: out.source === "template" ? lastWriterText : null,
           problems: out.source === "template" ? (out.problems ?? []) : [],
           text,
-          recheckOk: isAi ? checkDecisionText(text, facts).ok : null,
+          // Ürünün taslak denetimiyle aynı kip (yazıcı: kontrol listesinin saati taslakta geçemez).
+          recheckOk: isAi ? checkDecisionText(text, facts, { writer: true }).ok : null,
           dayNamed: !!text && text.includes(formatDecisionDay(s.dayKey, s.lang)),
           timeOk: isAi && s.resolution === "approve" && s.time ? timesIn(text ?? "").has(s.time) : null,
           langOk: detected === null ? null : detected === s.lang,
           internalLeak: isAi && INTERNAL.test(text ?? ""),
+          otherGuestTime: isAi && otherGuestTimes(text ?? "", s).length > 0,
           expectReason: s.expectReason ?? null,
           reasonMentioned: isAi && s.resolution === "decline" && s.expectReason ? REASON[s.expectReason].test(text ?? "") : null,
           ms,

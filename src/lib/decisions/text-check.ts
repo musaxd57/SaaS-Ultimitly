@@ -69,7 +69,12 @@ export type DecisionTextProblem =
   /** Misafirin dilinden başka dilde cümle. */
   | "language"
   /** Kartın İÇ kontrol listesinden bir satır metne aynen kopyalanmış (ölçüldü 10-07: 5.1 İngilizce mesaja Türkçe satırı ekledi). */
-  | "internal_copy";
+  | "internal_copy"
+  /**
+   * YALNIZ yapay zekâ taslağında: saat yalnız kontrol listesinden geliyor — önceki / sonraki misafirin saati (ölçüm 11-04, Haiku:
+   * "Önceki misafirin çıkışı 13:00 olarak beklenmektedir"). İstemin "başka misafirin saatini yazma" kuralının kod karşılığı.
+   */
+  | "other_guest_time";
 
 export interface DecisionTextCheck {
   ok: boolean;
@@ -78,14 +83,33 @@ export interface DecisionTextCheck {
   unknownTimes: string[];
 }
 
-/** Metinde geçmesine izin verilen saatler: karar saati, istenen saat, standart saat, notun ve kontrol listesinin saatleri. */
-export function allowedDecisionTimes(f: DecisionTextFacts): Set<string> {
+export interface DecisionTextCheckOptions {
+  /**
+   * Metni yapay zekâ yazdı (taslak denetimi). Kontrol listesinin saatleri metinde GEÇEMEZ: oradaki saat ya başka bir misafirin
+   * (önceki misafirin beklenen çıkışı, aynı gün gelenin onaylı erken girişi) ya da zaten ayrı alanda verilen standart saattir. Ev sahibinin
+   * kendi yazdığı / düzenlediği metin bu kısıtı TAŞIMAZ (kendi işletme bilgisi — gönderimdeki denetim bugünkü gibi kalır).
+   */
+  writer?: boolean;
+}
+
+/** Karar kaydının kendi saatleri: karar saati (onayda), istenen saat, standart saat ve ev sahibinin notundaki saatler. */
+function recordTimes(f: DecisionTextFacts): Set<string> {
   const out = new Set<string>();
   for (const t of [f.resolution === "approve" ? f.time : null, f.requestedTime, f.standardTime]) {
     const n = normalizeHhmm(t);
     if (n) out.add(n);
   }
-  for (const src of [f.note ?? "", ...f.checklist]) for (const t of timesIn(src)) out.add(t);
+  for (const t of timesIn(f.note ?? "")) out.add(t);
+  return out;
+}
+
+/**
+ * Ev sahibinin metninde geçmesine izin verilen saatler: kaydın kendi saatleri + kontrol listesinin saatleri. Yapay zekâ taslağında
+ * kontrol listesinin (kayıtta olmayan) saati ayrı sorundur (`checkDecisionText`, `writer`).
+ */
+export function allowedDecisionTimes(f: DecisionTextFacts): Set<string> {
+  const out = recordTimes(f);
+  for (const line of f.checklist) for (const t of timesIn(line)) out.add(t);
   return out;
 }
 
@@ -127,17 +151,26 @@ function stripNote(text: string, note: string | null): string {
  * Karar mesajını karar kaydıyla kıyaslar. Boş `problems` = temiz. Ev sahibinin yazdığı not (kayıtlı) metinde olduğu gibi duruyorsa
  * dil kontrolünden ayıklanır (Türkçe not İngilizce mesajı tutmasın — doğrulanmış erken giriş onayıyla aynı kural).
  */
-export function checkDecisionText(text: string | null | undefined, f: DecisionTextFacts): DecisionTextCheck {
+export function checkDecisionText(text: string | null | undefined, f: DecisionTextFacts, opts: DecisionTextCheckOptions = {}): DecisionTextCheck {
   const body = (text ?? "").trim();
   const problems: DecisionTextProblem[] = [];
   const unknownTimes: string[] = [];
   if (!body) return { ok: false, problems: ["empty"], unknownTimes };
   if (Array.from(body).length > DECISION_TEXT_MAX) problems.push("too_long");
 
-  const allowed = allowedDecisionTimes(f);
+  // Saatler: kaydın kendi saati geçer; yalnız kontrol listesinde olan saat ev sahibinin metninde geçer, taslakta "başka misafirin
+  // saati" sayılır (ayrı sorun — tanınmayan saat değil); hiçbirinde olmayan saat tanınmaz.
+  const own = recordTimes(f);
+  const listed = allowedDecisionTimes(f);
   const times = timesIn(body);
-  for (const t of times) if (!allowed.has(t)) unknownTimes.push(t);
+  let otherGuestTime = false;
+  for (const t of times) {
+    if (own.has(t)) continue;
+    if (!listed.has(t)) unknownTimes.push(t);
+    else if (opts.writer) otherGuestTime = true;
+  }
   if (unknownTimes.length > 0) problems.push("time_unknown");
+  if (otherGuestTime) problems.push("other_guest_time");
   const decided = normalizeHhmm(f.time);
   if (f.resolution === "approve" && decided && !times.has(decided)) problems.push("time_missing");
 
@@ -172,6 +205,7 @@ const PROBLEM_TR: Record<DecisionTextProblem, string> = {
   absence: "Mesajda \"bilgim yok\" gibi bir ifade var.",
   language: "Mesajın bir kısmı misafirin dilinde değil.",
   internal_copy: "Mesajda kontrol listenizden bir satır aynen geçiyor; misafire kendi cümlenizle yazın.",
+  other_guest_time: "Mesajda başka bir misafirin saati geçiyor.",
 };
 
 /** Ev sahibine gösterilen sade uyarı satırları (teknik açıklama yok). */

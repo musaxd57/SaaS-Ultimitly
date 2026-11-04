@@ -41,6 +41,8 @@ describe("karar mesajı denetimi — onaylı şablonlar her zaman geçer", () =>
             const text = decisionMessageText(facts);
             expect(text).not.toBeNull();
             expect(checkDecisionText(text, facts)).toEqual({ ok: true, problems: [], unknownTimes: [] });
+            // Yazıcı kipi (yapay zekâ taslağı) şablonu da hiç engellemez: şablonda yalnız kaydın kendi saatleri var.
+            expect(checkDecisionText(text, facts, { writer: true })).toEqual({ ok: true, problems: [], unknownTimes: [] });
           });
         }
       }
@@ -126,6 +128,73 @@ describe("karar mesajı denetimi — iç kontrol listesi metne kopyalanmaz (öl�
   it("aynı bilgiyi kendi cümlesiyle söyleyen metin geçer", () => {
     const text = "Maalesef 14 Ekim'de erken giriş mümkün değil: önceki misafirimiz 11:00'de çıkıyor ve temizlik sürüyor olacak; giriş 15:00'te.";
     expect(checkDecisionText(text, f({ resolution: "decline" })).problems).toEqual([]);
+  });
+});
+
+describe("yazıcı kipi — başka misafirin saati yapay zekâ taslağında geçmez (ölçüm 11-04, Haiku; istemin 10-07 kuralının kod karşılığı)", () => {
+  // Önceki misafir 13:00'te çıkacak, misafir 12:00'de girmek istedi, ev sahibi reddetti.
+  const decline = f({
+    resolution: "decline",
+    requestedTime: "12:00",
+    checklist: ["Önceki misafirin beklenen çıkışı: 13:00", "Çıkış temizliği henüz bitmedi."],
+  });
+
+  it("🚨 önceki misafirin çıkış saati (yalnız kontrol listesinde) → other_guest_time; tanınmayan saat sayılmaz", () => {
+    const text = "Maalesef 14 Ekim'de 12:00'de erken giriş mümkün değil; önceki misafirimiz 13:00'te çıkıyor. Giriş 15:00'te.";
+    const c = checkDecisionText(text, decline, { writer: true });
+    expect(c.problems).toEqual(["other_guest_time"]);
+    expect(c.unknownTimes).toEqual([]);
+  });
+
+  it("🚨 başka dilde de (İngilizce / Almanca) aynı", () => {
+    const en = f({ ...decline, lang: "en" });
+    expect(checkDecisionText("Early check-in at 12:00 on 14 October is not possible: the previous guest only leaves at 13:00. Check-in is from 15:00.", en, { writer: true }).problems).toEqual(["other_guest_time"]);
+    const de = f({ ...decline, lang: "de" });
+    expect(checkDecisionText("Ein früher Check-in am 14. Oktober um 12:00 Uhr ist leider nicht möglich, da der vorherige Gast erst um 13:00 Uhr abreist. Check-in ab 15:00 Uhr.", de, { writer: true }).problems).toEqual(["other_guest_time"]);
+  });
+
+  it("🚨 aynı gün gelen misafirin onaylı erken girişi (geç çıkış reddi) → other_guest_time", () => {
+    const late = f({
+      kind: "late_checkout",
+      resolution: "decline",
+      lang: "en",
+      requestedTime: "14:00",
+      standardTime: "11:00",
+      checklist: ["Standart çıkış saatiniz: 11:00", "Aynı gün gelen misafire 13:00 erken giriş onaylandı — çıkış ve temizlik bu saatten önce bitmeli."],
+    });
+    const text = "A late check-out at 14:00 on 14 October is not possible, as the next guest arrives at 13:00. Check-out is by 11:00.";
+    expect(checkDecisionText(text, late, { writer: true }).problems).toEqual(["other_guest_time"]);
+  });
+
+  it("KONTROL: aynı gerekçe SAATSİZ geçer; ev sahibinin kendi metninde saat de geçer (gönderim denetimi bugünkü gibi)", () => {
+    const own = "Maalesef 14 Ekim'de 12:00'de erken giriş mümkün değil; önceki misafirimiz o saatte henüz çıkmamış olacak. Giriş 15:00'te.";
+    expect(checkDecisionText(own, decline, { writer: true }).problems).toEqual([]);
+    const withTime = "Maalesef 14 Ekim'de 12:00'de erken giriş mümkün değil; önceki misafirimiz 13:00'te çıkıyor. Giriş 15:00'te.";
+    expect(checkDecisionText(withTime, decline).problems).toEqual([]);
+  });
+
+  it("KONTROL: hiçbir yerde olmayan saat yazıcı kipinde de 'tanınmayan saat' (ev sahibine gösterilen liste)", () => {
+    const c = checkDecisionText("Maalesef 14 Ekim'de 12:00'de erken giriş mümkün değil; 14:30'da girebilirsiniz.", decline, { writer: true });
+    expect(c.problems).toContain("time_unknown");
+    expect(c.problems).not.toContain("other_guest_time");
+    expect(c.unknownTimes).toEqual(["14:30"]);
+  });
+
+  it("KONTROL: ev sahibinin notundaki saat yazıcı kipinde de geçer (not kodla eklenir)", () => {
+    const facts = f({ note: "Anahtar 12:30'dan sonra kutuda olacak." });
+    const text = `Erken giriş talebiniz onaylandı: 14 Ekim'de 13:00'ten itibaren giriş yapabilirsiniz. ${facts.note}`;
+    expect(checkDecisionText(text, facts, { writer: true }).problems).toEqual([]);
+  });
+
+  it("bilinen sınır (pinli): kontrol listesinin saati kaydın kendi saatiyle AYNIYSA ayırt edilemez → geçer", () => {
+    const same = f({ resolution: "decline", requestedTime: "13:00", checklist: ["Önceki misafirin beklenen çıkışı: 13:00"] });
+    const text = "Maalesef 14 Ekim'de 13:00'te erken giriş mümkün değil; önceki misafirimiz 13:00'te çıkıyor. Giriş 15:00'te.";
+    expect(checkDecisionText(text, same, { writer: true }).problems).toEqual([]);
+  });
+
+  it("ev sahibine gösterilen sade satır (teknik açıklama yok)", () => {
+    const c = checkDecisionText("Early check-in at 12:00 is not possible on 14 October: the previous guest leaves at 13:00. Check-in is from 15:00.", f({ ...decline, lang: "en" }), { writer: true });
+    expect(decisionTextProblemsTr(c, decline)).toEqual(["Mesajda başka bir misafirin saati geçiyor."]);
   });
 });
 

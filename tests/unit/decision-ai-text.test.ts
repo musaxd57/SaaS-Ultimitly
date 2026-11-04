@@ -110,6 +110,30 @@ describe("karar mesajı taslağı — yapay zekâ + kod + bekçi", () => {
     expect(system).toContain("'we have approved'");
   });
 
+  it("🚨 ölçüm 11-04: taslakta önceki misafirin saati (yalnız kontrol listesinde) → kod tutar, bekçi çağrılmaz, şablon; saatsiz gerekçe geçer", async () => {
+    // Kontrol listesi: önceki misafir 11:00'de çıkacak (girdi varsayılanı); misafir 13:00 istedi.
+    const leak = fakeOpenAI("Maalesef 14 Ekim'de 13:00'te erken giriş mümkün değil; önceki misafirin çıkışı 11:00 olarak bekleniyor. Giriş 15:00'te.", verdict());
+    const out = await draftDecisionMessage({ ...input(), fetchImpl: leak.fetchImpl });
+    expect(out).toMatchObject({ source: "template", why: "check_failed", text: decisionMessageText(input()) });
+    expect(out.source === "template" && out.problems).toEqual(["other_guest_time"]);
+    expect(leak.calls.map((c) => c.kind)).toEqual(["writer"]);
+    const text = "Maalesef 14 Ekim'de 13:00'te erken giriş mümkün değil; önceki misafirimiz o saatte henüz çıkmamış olacak. Giriş 15:00'te.";
+    const clean = fakeOpenAI(text, verdict({ reply_states_calendar: true, reply_refuses: false }));
+    expect(await draftDecisionMessage({ ...input(), fetchImpl: clean.fetchImpl })).toEqual({ source: "ai", text });
+  });
+
+  it("yazıcı istemi: gerekçe SAATSİZ, saat iki noktalı (13h00 değil); girdi misafirin diliyle biter", async () => {
+    const { fetchImpl, calls } = fakeOpenAI("Unfortunately early check-in is not possible on 14 October; check-in is from 15:00.", verdict());
+    await draftDecisionMessage({ ...input({ lang: "en" }), fetchImpl });
+    const writer = calls.find((c) => c.kind === "writer")!;
+    const system = String(writer.body.messages[0].content);
+    expect(system).toContain("Give the reason without any time.");
+    expect(system).not.toContain("the previous guest checks out at a given time");
+    expect(system).toContain("never 13h00");
+    const user = String(writer.body.messages[1].content);
+    expect(user.trim().split("\n").at(-1)).toBe("Write the whole message in English.");
+  });
+
   it("misafirin metni YAZICIYA gitmez (yalnız bekçiye)", async () => {
     const { fetchImpl, calls } = fakeOpenAI("Maalesef 14 Ekim'de erken giriş mümkün değil; giriş 15:00'te.", verdict());
     await draftDecisionMessage({ ...input(), fetchImpl });
