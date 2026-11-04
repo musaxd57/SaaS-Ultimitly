@@ -11,6 +11,7 @@ import { hostChannelSecret } from "@/lib/host-channel/binding";
 import { handleHostInbound } from "@/lib/host-channel/inbound";
 import { MAX_STATUSES_PER_DELIVERY, recordHostDeliveryStatuses } from "@/lib/host-channel/delivery-status";
 import { expediteForFailedProviderIds } from "@/lib/host-channel/alert-email";
+import { scheduleLateFailureMails } from "@/lib/host-channel/late-failure-mail";
 import { WHATSAPP_CLOUD_PROVIDER } from "@/lib/host-channel/providers";
 import { hostChannelFlagsFromEnv } from "@/lib/host-channel/routing";
 import { parseMetaWebhook } from "@/lib/host-channel/whatsapp/parse";
@@ -125,6 +126,12 @@ export async function POST(req: NextRequest): Promise<Response> {
     const failedIds = parsed.statuses.slice(0, MAX_STATUSES_PER_DELIVERY).filter((st) => st.status === "failed").map((st) => st.providerMessageId);
     try {
       await expediteForFailedProviderIds(failedIds);
+    } catch (err) {
+      await reportError("host-channel-webhook-status", new Error(redactSensitive(String(err)).slice(0, 500)));
+    }
+    // Codex 11-04 P2: ulaşmayan BİLGİ / KARAR bildiriminin bastırılmış e-postası yedek olarak kaydedilir (yinelenen bildirim tek e-posta).
+    try {
+      await scheduleLateFailureMails(failedIds);
     } catch (err) {
       await reportError("host-channel-webhook-status", new Error(redactSensitive(String(err)).slice(0, 500)));
     }

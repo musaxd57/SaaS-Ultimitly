@@ -57,6 +57,8 @@ export const OPERATIONAL_EVENTS = {
   "host_channel.alert.failed": "warn",
   // Hibrit acil akış (§3.12): WhatsApp gitti, e-posta 10 dk ertelendi · ertelenen e-posta gitti (okunmadı / iletilemedi) · okunduğu için gitmedi.
   "host_channel.alert.email_deferred": "info",
+  // Codex 11-04 P2: WhatsApp'ın sonradan "ulaşmadı" dediği bilgi / karar bildiriminin e-posta yedeği gitti.
+  "host_channel.late_failure.email_sent": "info",
   "host_channel.alert.email_fallback": "info",
   "host_channel.alert.email_cancelled_read": "info",
   "host_channel.kb.offered": "info",

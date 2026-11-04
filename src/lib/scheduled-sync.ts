@@ -1,6 +1,7 @@
 import "server-only";
 
 import { deliverDueAlertEmails } from "@/lib/host-channel/alert-email";
+import { deliverDueLateFailureMails } from "@/lib/host-channel/late-failure-mail";
 import { randomUUID } from "node:crypto";
 import { sweepCheckoutIntents } from "@/lib/billing/checkout-intent";
 import { sweepKbCopyOperations } from "@/lib/kb/copy-operation";
@@ -280,6 +281,9 @@ async function sweepDueAlertEmails(opsAlarm: Awaited<ReturnType<typeof alertTrac
   sweepingAlertMail = true;
   try {
     const due = await deliverDueAlertEmails();
+    // Codex 11-04 P2: ulaşmayan bilgi / karar bildiriminin e-posta yedeği (aynı geçiş; hatası acil e-postayı etkilemez).
+    const late = await deliverDueLateFailureMails().catch(() => null);
+    if (late && late.sent + late.dropped + late.retry + late.no_recipient > 0) console.log(`[scheduled-sync] host-late-fail-mail: ${JSON.stringify(late)}`);
     if (due.sent + due.cancelled_read + due.dropped + due.retry + due.no_recipient > 0) {
       console.log(`[scheduled-sync] host-alert-mail: ${JSON.stringify(due)}`);
     }
