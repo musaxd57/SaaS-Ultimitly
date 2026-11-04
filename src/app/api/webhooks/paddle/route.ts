@@ -249,7 +249,10 @@ async function applySubscriptionEvent(
   // yollar ve satır A'ya geri dönüyordu → dönem sonunda A'nın iptali hesabı kapatıyor, B her ay ödendiği hâlde bir daha bağlanmıyordu.
   // Olaydaki aboneliğin oluşturulma anı kayıtlı aboneliğinkinden ESKİYSE (Paddle'dan okunur — yalnız bu nadir durumda) olay uygulanmaz,
   // operatöre alarm. Zamanlardan biri bilinmezse bugünkü davranış AYNEN (yerine geçer + "ikinci abonelik" alarmı) — yalnız KESİN eski reddedilir.
-  if (replacesLiveSubscription) {
+  // Kayıtlı son olaydan ESKİ (geç / yeniden gönderilmiş) olay aşağıdaki atomik sıra korumasıyla zaten sessizce düşer: onun için Paddle
+  // okunmaz ve "eski abonelik" alarmı üretilmez (inceleme 11-04: yeniden gönderilen eski aktif olay yanıltıcı operatör alarmı doğuruyordu).
+  const staleByOrder = Boolean(occurredAt && existing?.lastEventAt && occurredAt.getTime() < existing.lastEventAt.getTime());
+  if (replacesLiveSubscription && !staleByOrder) {
     const rawCreated = str(data.created_at);
     const eventCreatedAt = rawCreated ? new Date(rawCreated) : null;
     if (eventCreatedAt && !Number.isNaN(eventCreatedAt.getTime())) {

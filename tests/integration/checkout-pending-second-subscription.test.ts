@@ -165,6 +165,19 @@ describe("ödeme — ikinci aktif abonelik alarmı + 'ödemeniz işleniyor' kili
       expect(alarms()).toHaveLength(0); // "ikinci abonelik aktifleşti" yanıltıcı alarmı da yok
     });
 
+    it("🚨 inceleme 11-04: kayıtlı son olaydan ESKİ (yeniden gönderilmiş) aktif olay → Paddle okunmaz, 'eski abonelik' alarmı YOK, sessizce düşer", async () => {
+      await seedSub("sub_B", "active");
+      await prisma.subscription.update({ where: { organizationId: orgId }, data: { lastEventAt: new Date(Date.now() + 60_000) } });
+      subCreated.set("sub_B", "2026-11-04T10:02:00Z");
+      const { getSubscriptionCreatedAt } = await import("@/lib/payments/paddle");
+      const ev = withCreated(subEvent("sub_A", "active"), "2026-11-04T10:00:00Z");
+      expect((await postEvent(ev)).status).toBe(200);
+      expect(vi.mocked(getSubscriptionCreatedAt)).not.toHaveBeenCalled();
+      expect(reportErrorMock.mock.calls.filter(([c]) => c === OLDER)).toHaveLength(0);
+      expect(alarms()).toHaveLength(0);
+      expect((await prisma.subscription.findUniqueOrThrow({ where: { organizationId: orgId } })).providerRef).toBe("sub_B");
+    });
+
     it("KONTROL: DAHA YENİ abonelik (B 10:02) kayıtlı eskinin (A 10:00) yerine geçer — bugünkü davranış + ikinci abonelik alarmı", async () => {
       await seedSub("sub_A", "active");
       subCreated.set("sub_A", "2026-11-04T10:00:00Z");
