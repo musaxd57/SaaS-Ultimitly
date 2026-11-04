@@ -330,7 +330,9 @@ kurucu onayıyla §1'e taşındı.)
 
 ## 6. Bağlantı havuzu ve kapanış (yatay ölçek denetimi 10-15, `docs/arastirma-2026-10-15/yatay-olcek.md`)
 
-- `DATABASE_URL` sonuna `?connection_limit=10` (zaten parametre varsa `&connection_limit=10`) ekleyin. Bugün tavan yok: Prisma çekirdek×2+1
+- `DATABASE_URL` sonuna `?connection_limit=10&pool_timeout=20` (zaten parametre varsa `&connection_limit=10&pool_timeout=20`) ekleyin.
+  `pool_timeout` (11-04, yatay ölçek araştırması §183 önerisi listeye taşındı): havuz doluyken yeni istek kaç saniye SIRADA bekler; Prisma
+  varsayılanı 10 sn, senkron işlemleri bağlantıyı 15 sn'ye kadar tutabildiği için yoğun anda 10 sn'de "havuz doldu" (P2024) hatası verebilir. Bugün tavan yok: Prisma çekirdek×2+1
   açar; ikinci kopya / işçi servisi eklenince Railway Postgres'in bağlantı sınırına (belgelere göre 100; açılışta `SHOW max_connections` ile
   ölçün) yaklaşılır. Tek kopyada da zararsız.
 - İkinci kopya AÇMAYIN: misafir mesajı işleme kapasitesini büyütmez (senkron tek kilit altında). Önce raporun §6 sırası (migration ön adımı,
