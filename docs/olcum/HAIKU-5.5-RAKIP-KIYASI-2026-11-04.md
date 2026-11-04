@@ -161,3 +161,22 @@ başka misafirin saati, uydurulan gerekçe hepsi 0 · p95 5,5–6,0 sn · $0,005
 Haiku bu katmanda hem geride (çok sorulu −7 puan) hem ucuz DEĞİL: aynı Türkçe aday listesini ~2,3 kat token sayıyor (714 bin ↔ ~310 bin) →
 $0,075. **Sonuç: yeniden sıralayıcı 5.1'de kalır.** Üç 5.1 katmanının sonucu: karar yazıcısı → Haiku · anlama → 5.1 (+ v2 kuralı) ·
 sıralayıcı → 5.1.
+
+## 8. İstek 11 (11-04 akşam, commit `8d7a6fc`) — ÜRÜN YOLU (Anthropic bağdaştırıcısı, kurucu onayından sonra)
+
+Ölçer ürünün kendi yolunu koşturdu (`AI_DECISION_TEXT_MODEL=claude-haiku-5-5` → `anthropic-structured.ts`; kod denetimi + bekçi aynen).
+
+| | kör (30) | geliştirme (40) |
+|---|---|---|
+| yapay zekâ metni kullanıldı | 29/30 | 40/40 |
+| kullanılan metin bağımsız yeniden denetimden geçti | 29/29 | 40/40 |
+| onayda karar saati metinde | 15/15 | 19/19 |
+| misafirin dili (kodun kesin tespiti) | 28/28 | 39/39 |
+| iç bilgi sızıntısı · başka misafirin saati · uydurulan gerekçe | 0 · 0 · 0 | 0 · 0 · 0 |
+| gerekçeli ret: beklenen gerekçe anıldı (sezgisel) | 7/9 | 7/14 |
+| gecikme p50 / p95 (yazıcı + bekçi) | 3,5 / 4,4 sn | 3,8 / 5,8 sn |
+| maliyet (liste fiyatı) | $0,0049 | $0,0067 |
+
+Kullanılmayan tek metin: Haiku başka misafirin saatini yazmaya çalıştı → kod tuttu (`other_guest_time`), misafire onaylı şablon gider.
+Zayıf yan: gerekçeli retlerde gerekçe her zaman anılmıyor (sezgisel ölçü; uydurma yok — metin kısa ama doğru). Ürün yolu, ölçülen biçimle
+birebir. 11-04 akşam ek: anahtar eksik / kalıcı Anthropic reddi artık açılış uyarısı + çalışma anı alarmı verir (`c1c20568`).
