@@ -23,6 +23,7 @@ import { emailService } from "@/lib/email";
 import { reportError } from "@/lib/report-error";
 import {
   maybeSendQrEscalationEmail,
+  forgetQrCriticalHistory,
   qrEscalationEventId,
   QR_ESCALATION_COOLDOWN_MS,
   QR_ALERT_RESPONSE_BUDGET_MS,
@@ -329,6 +330,49 @@ describe("maybeSendQrEscalationEmail (lib)", () => {
     expect((await crit("m-4", "Mutfakta yangın var!")).deduped).toBe(true);
     expect((await crit("m-5", "Gaz kokusu var!")).sent).toBe(true);
     expect(mockSendReporting).toHaveBeenCalledTimes(3);
+  });
+
+  it("🚨 K-T1 (kurucu 11-04): ev sahibi olayı kapatınca (yapay zekâyı yeniden açınca) AYNI acil metin YENİ olaydır ve yeniden uyarır; kritik olmayan anti-sel saati korunur", async () => {
+    const { orgId, reservationId } = await fixture();
+    await prisma.organization.update({ where: { id: orgId }, data: { alertEmail: "host@example.com" } });
+    const crit = (msgId: string) =>
+      maybeSendQrEscalationEmail({
+        organizationId: orgId,
+        propertyName: "Test Property",
+        reservationId,
+        eventId: qrEscalationEventId(msgId, "Prizden duman çıkıyor!", true),
+        reason: "ai_escalated",
+        critical: true,
+      });
+    expect((await crit("m-1")).sent).toBe(true);
+    expect((await crit("m-2")).deduped).toBe(true);
+    const before = await prisma.reservation.findUniqueOrThrow({ where: { id: reservationId }, select: { qrEscalationEmailAt: true } });
+    await forgetQrCriticalHistory(reservationId);
+    const after = await prisma.reservation.findUniqueOrThrow({ where: { id: reservationId }, select: { qrEscalationEmailAt: true, qrEscalationEmailMessageId: true } });
+    expect(after.qrEscalationEmailAt?.getTime()).toBe(before.qrEscalationEmailAt?.getTime());
+    expect(after.qrEscalationEmailMessageId).toBeNull();
+    expect((await crit("m-3")).sent).toBe(true);
+    expect(mockSendReporting).toHaveBeenCalledTimes(2);
+  });
+
+  it("forgetQrCriticalHistory yalnız O konaklamanın hafızasını siler (başka konaklamanın acil tekrarı hâlâ elenir)", async () => {
+    const a = await fixture();
+    const other = await prisma.reservation.create({
+      data: { propertyId: a.propertyId, guestName: "Diğer", arrivalDate: daysFromNow(-1), departureDate: daysFromNow(2), status: "confirmed", channel: "airbnb" },
+    });
+    await prisma.organization.update({ where: { id: a.orgId }, data: { alertEmail: "host@example.com" } });
+    const crit = (reservationId: string, msgId: string) =>
+      maybeSendQrEscalationEmail({
+        organizationId: a.orgId,
+        propertyName: "Test Property",
+        reservationId,
+        eventId: qrEscalationEventId(msgId, "Gaz kokusu var!", true),
+        reason: "ai_escalated",
+        critical: true,
+      });
+    expect((await crit(other.id, "o-1")).sent).toBe(true);
+    await forgetQrCriticalHistory(a.reservationId);
+    expect((await crit(other.id, "o-2")).deduped).toBe(true);
   });
 
   it("🚨 tekrar hafızası e-posta GİTMEZSE tutulmaz: başarısız gönderimden sonra aynı acil yeniden denenir", async () => {

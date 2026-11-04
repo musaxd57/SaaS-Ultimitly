@@ -165,6 +165,20 @@ async function claimRecentCritical(reservationId: string, eventId: string, now: 
 }
 
 /**
+ * Kurucu 11-04 (K-T1): 3 saatlik tekrar hafızası "aynı olay" demektir; ev sahibi durumu ÇÖZDÜ (yapay zekâyı açıkça yeniden açtı) ise
+ * olay kapanmıştır — aynı acil metin yeniden gelirse YENİ olaydır ve uyarı gitmelidir. Konaklamanın kritik tekrar hafızası + rezervasyon
+ * satırındaki son kritik kimlik silinir (kritik olmayan anti-sel saati KORUNUR). Ağırlaşma zaten yeni metin = yeni parmak izi demektir.
+ * En iyi çaba: hata yeniden açmayı bozmaz (en kötü durumda eski davranış: aynı metin 3 saat elenir).
+ */
+export async function forgetQrCriticalHistory(reservationId: string): Promise<void> {
+  if (!reservationId) return;
+  await prisma.systemLock.deleteMany({ where: { name: { startsWith: `${RECENT_CRITICAL_PREFIX}${reservationId}:` } } }).catch(() => {});
+  await prisma.reservation
+    .updateMany({ where: { id: reservationId, qrEscalationEmailMessageId: { startsWith: "crit:" } }, data: { qrEscalationEmailMessageId: null } })
+    .catch(() => {});
+}
+
+/**
  * Send the host ONE e-mail per escalated QR-chat EVENT (identity = the inbound
  * Message id). Fire-safe: never throws, never affects the chat response.
  */

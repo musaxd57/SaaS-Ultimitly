@@ -108,4 +108,29 @@ describe("POST /api/guest-chats/[id]/resume-ai (host re-enables the AI)", () => 
     expect((await call(id)).status).toBe(404);
     expect(await markerCount(id)).toBe(0);
   });
+
+  it("🚨 K-T1 (kurucu 11-04): yeniden açma O konaklamanın kritik acil tekrar hafızasını siler (aynı acil yeniden uyarır); başka konaklamanınki kalır", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const mk = (guestName: string) =>
+      prisma.reservation.create({
+        data: { propertyId, guestName, arrivalDate: new Date(Date.now() - 86_400_000), departureDate: new Date(Date.now() + 2 * 86_400_000), status: "confirmed", channel: "airbnb" },
+      });
+    const res = await mk("Misafir");
+    const other = await mk("Diğer");
+    const id = await makeChatConvo(propertyId);
+    await prisma.conversation.update({ where: { id }, data: { externalReservationId: `qr-chat:${propertyId}:${res.id}` } });
+    const until = new Date(Date.now() + 3_600_000);
+    await prisma.systemLock.createMany({
+      data: [
+        { name: `qr-crit-recent:${res.id}:crit:aaa`, lockedUntil: until },
+        { name: `qr-crit-recent:${other.id}:crit:bbb`, lockedUntil: until },
+      ],
+    });
+    await prisma.reservation.update({ where: { id: res.id }, data: { qrEscalationEmailMessageId: "crit:aaa", qrEscalationEmailAt: new Date() } });
+    session = sess(orgId, "manager");
+    expect((await call(id)).status).toBe(201);
+    expect(await prisma.systemLock.count({ where: { name: { startsWith: `qr-crit-recent:${res.id}:` } } })).toBe(0);
+    expect(await prisma.systemLock.count({ where: { name: { startsWith: `qr-crit-recent:${other.id}:` } } })).toBe(1);
+    expect((await prisma.reservation.findUniqueOrThrow({ where: { id: res.id } })).qrEscalationEmailMessageId).toBeNull();
+  });
 });

@@ -5,6 +5,7 @@ import { AI_RESUME_MARKER, guestChatAiPausedFromMessages } from "@/lib/guest-cha
 import { SYSTEM_EVENT_GUEST_CHAT_AI_RESUMED } from "@/lib/message-author";
 import { hostWriteLimited } from "@/lib/host-write-limit";
 import { crossSiteWrite } from "@/lib/route-guard";
+import { forgetQrCriticalHistory } from "@/lib/guest-chat-alerts";
 
 // Owner/manager RE-ENABLES the QR AI for a thread it had handed off to the team.
 // The AI never auto-resumes on a timer (the host may have stepped into a sensitive
@@ -32,6 +33,8 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     where: { id, channel: "chat", property: { organizationId: session.organizationId } },
     select: {
       id: true,
+      reservationId: true,
+      externalReservationId: true,
       // Reliable handoff state = authorType timeline (legacy senderName fallback inside).
       messages: {
         orderBy: { createdAt: "asc" },
@@ -60,5 +63,8 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     }),
     prisma.conversation.update({ where: { id: convo.id }, data: { lastMessageAt: new Date() } }),
   ]);
+  // Kurucu 11-04 (K-T1): ev sahibinin açık yeniden açması = olay kapandı → aynı acil metin yeniden gelirse yeniden uyarır.
+  const marker = convo.externalReservationId?.startsWith("qr-chat:") ? convo.externalReservationId.split(":")[2] : undefined;
+  await forgetQrCriticalHistory(convo.reservationId ?? marker ?? "");
   return jsonOk({ ok: true }, 201);
 }
