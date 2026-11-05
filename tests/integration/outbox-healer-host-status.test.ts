@@ -64,4 +64,22 @@ describe("teslim etkisi onarıcısı — ev sahibinin durum seçimi korunur (T7-
     await drain();
     expect((await prisma.conversation.findUniqueOrThrow({ where: { id: c.id } })).status).toBe("new");
   });
+
+  it("🚨 hızlı uyandırma turunda (onarıcı ATLANIR) teslim edilen cevap da damgalanır: sonraki periyodik tur ev sahibinin 'Yeni'sini ezmez", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    const c = await conv(propertyId, "new");
+    const reply = await prisma.message.create({ data: { conversationId: c.id, direction: "outbound", senderName: "Host", authorType: "host", body: "Evet." } });
+    await prisma.messageOutbox.create({
+      data: {
+        availableAt: new Date(), organizationId: orgId, conversationId: c.id, messageId: reply.id, channel: "airbnb",
+        externalReservationId: "res-ob5", messageType: "manual", body: "Evet.", idempotencyKey: "ob5-fast", status: "pending",
+      },
+    });
+    await drainOutboxOnce({ send, tokenFor: async () => "t", skipHeal: true }); // hızlı uyandırma turu
+    expect((await prisma.messageOutbox.findFirstOrThrow({ where: { idempotencyKey: "ob5-fast" } })).deliveryEffectAt).not.toBeNull();
+    await prisma.conversation.update({ where: { id: c.id }, data: { status: "new" } });
+    await drain(); // periyodik tur (onarıcı koşar)
+    expect((await prisma.conversation.findUniqueOrThrow({ where: { id: c.id } })).status).toBe("new");
+  });
 });
+
