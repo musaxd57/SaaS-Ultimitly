@@ -139,6 +139,25 @@ describe("hız sınırı bellek yedeği — veritabanı yokken sınırlı", () =
     expect(r.retryAfter).toBeLessThanOrEqual(60);
   });
 
+  it("🚨 N4: taşmadan haritaya DÖNEN anahtar yalnız KENDİ pencere sınıfının sayacını taşır (başka sınıfın dolu yuvası taşınmaz)", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-05T12:00:00Z"));
+    __setOverflowSeedForTest(11);
+    const victim = "reply:org:conv2";
+    const slot = __overflowSlotOfForTest(victim);
+    let hourKey = "";
+    for (let i = 0; i < 400_000 && !hourKey; i++) if (__overflowSlotOfForTest(`login-acct:y${i}`) === slot) hourKey = `login-acct:y${i}`;
+    expect(hourKey).not.toBe("");
+    await flood("short", MEMORY_MAX_KEYS, 2_000); // tavan dolu
+    expect((await rateLimit(victim, 2, 60_000)).ok).toBe(true); // dakikalık sınıfın yuvası: 1
+    for (let i = 0; i < 3; i++) await rateLimit(hourKey, 3, HOUR); // saatlik sınıfın AYNI numaralı yuvası: 3
+    vi.setSystemTime(new Date("2026-11-05T12:00:05Z")); // haritadakiler doldu → yer açılır
+    await flood("fresh", 400);
+    // Haritaya dönüş: taşınan = KENDİ sınıfı (1) + 1 = 2 ≤ 2 → izin. (Saatlik yuvanın 3'ü taşınsaydı 4 > 2 → ret.)
+    expect((await rateLimit(victim, 2, 60_000)).ok).toBe(true);
+    expect((await rateLimit(victim, 2, 60_000)).ok).toBe(false);
+  });
+
   it("iade (release) KENDİ pencere sınıfının taşma yuvasındaki ayrılmış hakkı geri verir; sıfırın altına inmez", async () => {
     await flood("ip", MEMORY_MAX_KEYS);
     for (let i = 0; i < 5; i++) await rateLimit("refund", 5, HOUR);
