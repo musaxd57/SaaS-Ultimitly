@@ -53,6 +53,21 @@ vi.mock("@/lib/early-checkin/reply", async (orig) => {
   };
 });
 
+/**
+ * Tur 5 D1 (mutasyon 11-05): kapı ile gönderim arasındaki yarışı sınamak için kanca — `true` iken konaklama kararı okuyucusunun İLK
+ * çağrısı (kapıdaki) "karar yok" döner, sonrakiler gerçek (gönderim anındaki ikinci emniyet). `false` = gerçek davranış.
+ */
+let hostDecidedGateBlind = false;
+let hostDecidedCalls = 0;
+vi.mock("@/lib/decisions/store", async (orig) => {
+  const actual = await orig<typeof import("@/lib/decisions/store")>();
+  return {
+    ...actual,
+    hostDecidedEarlyCheckinForStay: (...args: Parameters<typeof actual.hostDecidedEarlyCheckinForStay>) =>
+      hostDecidedGateBlind && ++hostDecidedCalls === 1 ? Promise.resolve(false) : actual.hostDecidedEarlyCheckinForStay(...args),
+  };
+});
+
 import { suggestReply } from "@/lib/ai";
 import { sendOnChannel } from "@/lib/messaging";
 import { applyChannelAutoReply } from "@/lib/automation";
@@ -595,6 +610,8 @@ describe("kanal oto-yanıtı — doğrulanmış erken giriş", () => {
     vi.clearAllMocks();
     __resetUnderstandingCache();
     approvalTextOverride = null;
+    hostDecidedGateBlind = false;
+    hostDecidedCalls = 0;
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(NOW);
     vi.stubEnv("OPENAI_API_KEY", "test-key");
@@ -757,9 +774,44 @@ describe("kanal oto-yanıtı — doğrulanmış erken giriş", () => {
       });
       const out = await applyChannelAutoReply(conv.id);
       expect(out.sent, label).toBe(!c.blocked);
-      if (c.blocked) expect(mockSend, label).not.toHaveBeenCalled();
-      else expect(mockSend, label).toHaveBeenCalledTimes(1);
+      if (c.blocked) {
+        expect(mockSend, label).not.toHaveBeenCalled();
+        // Kapıda durur (gönderim anındaki ikinci emniyete düşmez): tur ev sahibine kalır ve karar kaydı yazılır.
+        expect(out.skippedReason, label).not.toBe("host_deciding");
+        expect(await prisma.riskEvent.count({ where: { conversationId: conv.id, surface: "auto_reply", finalDecision: "human_review" } }), label).toBe(1);
+      } else expect(mockSend, label).toHaveBeenCalledTimes(1);
     }
+  });
+
+  it("🚨 Tur 5 D1: kapıdan SONRA ev sahibi konaklamanın başka kartında karar verdiyse (yarış) gönderim anında durur — misafire otomatik onay GİTMEZ", async () => {
+    vi.stubEnv("HOST_DECISIONS_ENABLED", "1");
+    hostDecidedGateBlind = true;
+    const t = await turnover({ cleaned: CLEANED_AT });
+    await saveEarlyCheckinRule(t.orgId, t.propertyId, RULE);
+    vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: nlu("13:00"), stay_change_guard: guard("13:00", false) }));
+    const id = await conversationFor(t);
+    // Önceki bir turun mesajına bağlı, ev sahibinin reddettiği kart (kapı onu "görmedi" — yarış penceresi).
+    const earlier = await prisma.message.create({
+      data: { conversationId: id, direction: "inbound", senderName: "Alex", body: ASK, createdAt: new Date(NOW.getTime() - 120 * 60_000) },
+    });
+    // Ev sahibinin ret mesajı önceki turu kapattı (kart bu turda değil).
+    await prisma.message.create({
+      data: {
+        conversationId: id,
+        direction: "outbound",
+        senderName: "Ev sahibi",
+        authorType: "host",
+        body: "Sorry, early check-in at 13:00 is not possible today; check-in is at 15:00.",
+        createdAt: new Date(NOW.getTime() - 60 * 60_000),
+      },
+    });
+    await prisma.decisionRequest.create({
+      data: { organizationId: t.orgId, conversationId: id, messageId: earlier.id, reservationId: t.own.id, kind: "early_checkin", requestedTime: "13:00", lang: "en", status: "declined" },
+    });
+    const out = await applyChannelAutoReply(id);
+    expect(out).toMatchObject({ sent: false, skippedReason: "host_deciding" });
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(hostDecidedCalls).toBe(2);
   });
 
   it("🚨 Host Karar Motoru: kart BEKLİYORSA otomatik onay göndermeden önce kartı sahiplenir ('otomatik onaylandı'); kesin gönderim hatasında kart yeniden 'karar bekliyor'", async () => {
@@ -1156,6 +1208,8 @@ describe("AI öner — host'a kontrol listesi + doğrulanmış taslak (gönderim
     vi.clearAllMocks();
     __resetUnderstandingCache();
     approvalTextOverride = null;
+    hostDecidedGateBlind = false;
+    hostDecidedCalls = 0;
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(NOW);
     vi.stubEnv("OPENAI_API_KEY", "test-key");
