@@ -2006,8 +2006,15 @@ export function kickOutboxDrain(
       do {
         kickAgain = false;
         if (generation === kickGeneration) kickStartedAt = Date.now(); // bekçi İLERLEMEYİ ölçer: her tur başında damga (Haiku 10-16)
-        const r = (await drain()) as { claimed?: number } | undefined;
-        if ((r?.claimed ?? 0) > 0) claimedAny = true;
+        const r = (await drain()) as Partial<DrainResult> | undefined;
+        // Tur 7 T7-OB-3 (kurucu 11-05 "tamamını yap"): İLERLEME sayılır, talep değil. Alınıp hemen park edilen satır (bağlantı kopuk / anahtar
+        // reddedildi) her takip turunda "alındı" sayılıp boş tur sayacını sıfırlıyordu → bağlantı kopukken dakikada bir sonsuz uyanma.
+        // Gerçek sonuç (gönderildi / düştü / iptal / engellendi / belirsiz / uzlaştırıldı / incelemeye) yoksa tur boş sayılır; 3 boş turdan
+        // sonra 2 dakikalık periyodik tur devralır.
+        const progress = r
+          ? (r.sent ?? 0) + (r.failed ?? 0) + (r.canceled ?? 0) + (r.blocked ?? 0) + (r.ambiguous ?? 0) + (r.reconciled ?? 0) + (r.review ?? 0)
+          : 0;
+        if (progress > 0) claimedAny = true;
       } while (kickAgain && generation === kickGeneration);
     } finally {
       if (epoch === kickEpoch) liveKickLoops--;
