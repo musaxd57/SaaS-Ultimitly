@@ -134,3 +134,54 @@ Tasarım `TASARIM-2026-11-05-daire-numarasi-alani.md`: mevcut misafire gösteril
 (`Property.guestUnitNumber`, migration 92); geçişte bugünkü okuma aynen, tahmin otomatik doğru sayılmaz, okunan numara görünür kutuda
 önerilir. **Uygulanmadı — kurucu soruları D-1 (alan adı / yardım metni), D-2 (kutu metinleri), D-3 (bilgi tabanı / istemde de alan mı).**
 
+## 8. Dilim sonu derin inceleme (Opus, 11-05 gece) + mutasyon — sonuç
+
+Bütün dilim (43fb93e0 sonrası) satır satır okundu; 2 P2 + 8 P3. Her bulgu ana oturumda kodda doğrulandı.
+
+**Düzeltildi (misafire giden metin değişmedi):**
+- **F4 yankı (P2):** belirsiz cevap aslında gittiyse senkron sağlayıcıdaki kopyasını ev sahibi mesajı olarak yazmaz, aynı metinli yerel
+  satırımızı sahiplenir (`write-service` adopt-and-heal) → tutma ev sahibi yazana kadar SÜRESİZ sürüyordu. Artık sağlayıcıda görünen satır
+  tutmaz. Kuyruk konuşma başına sıralı olduğu için yeni cevap, önceki satır son durumuna varınca gider (aşağıda soru O3). Gerçek senkron
+  yazıcısıyla uçtan uca test.
+- **F4 kaydı (P3):** tutma, kapıda tutulan turla aynı kaydı yapar (hassas öğe ev sahibinde + mesaj başına bugünkü tek e-posta — normal
+  gönderilen turda da gider, yeni e-posta türü yok; güvenli istek açık kalır; karar kartı bildirimi; karar kaydı `delivery_unverified`).
+- **D (P3 ×2):** dalların hatası durum koduna sızmaz (eskiden veritabanı zorlanınca yalnız hesabı OLMAYAN adres 500 dönüyordu → hesap
+  kâhini); eşitleyici işlemin kilidi adres başına.
+- **F1 (mutasyon F1f yaşadı):** yeniden açılan öğe `pending_host` (iptalde işçinin yazdığıyla aynı) — tur değerlendiremezse ihtiyaç ev
+  sahibinde uyarıyla görünür kalır, `open` orada sessiz kalırdı.
+- **402 notu (P3):** `channel_paused` için "Bağlantıyı açın" bağlantısı eklendi. **F3 sorgusu (P3 başarım):** konuşma süzgeci (dizin).
+- Mutasyon: 18/19 (F1f → düzeltildi) + 2/2 + 7/7.
+
+**Bilinçli kalanlar (belgeli):** F4 iki saati karşılaştırır (ev sahibi mesajı sağlayıcı saati, kuyruk satırı sunucu saati — saniyelik kayma
+tutmayı bir mesaj geç kaldırabilir) · yolda (`sending`) taslak bir sonraki turda gönderilmiş sayılır, kesin düşerse ilk soru öğe kipi dışında
+izsiz kalabilir (mevcut, bilinen boşluk) · reddedilen kendi `.ics` dosyası hakkı yemediği için yönetici 5 MB ayrıştırmayı döngüye sokabilir
+(yalnız işlemci; veritabanı ağır kısmı saatlik tavanın arkasında) · CAL-3 kuramsal: ilk 200 karakteri aynı iki kimlik tek satır olur; eski
+kesimle boşluk / yarım emoji ile biten satır yeniden eşleşmez.
+
+### 8.1 Kurucuya sorular (müşteriye gideni değiştirir — uygulanmadı)
+
+**Q-A — S7-4'ün açık kalan yolu (eski daire sonradan sağlayıcıya bağlanırsa).** Örnek: "Lale 7" 1 Ocak'ta elle (iCal için) açıldı, 2 Ocak'ta
+karşılama + giriş mesajı açıldı, 20 Ocak'ta Hospitable bağlandı; ilk senkron "Lale 7"yi benimser, 3 Ocak'ta yapılmış 25 Ocak varışlı
+rezervasyon 20 Ocak'ta içeri gelir. **Bugün:** misafire 20 Ocak'ta "Rezervasyonunuz için teşekkürler…" + 21 Ocak'ta giriş mesajı (kapı kodu /
+Wi-Fi). **Seçenek 1** (migration yok): taban bağlantının kuruluş anından da hesaplanır → bu örnek kapanır; ama bağlantı eskiyken daire sonradan
+benimsenirse (ilan yeniden bağlandı) kapanmaz. **Seçenek 2** (`Property.providerLinkedAt`, migration 92 — `{daire}` alanıyla aynı migration
+olabilir): senkron daireyi bağladığı / benimsediği an yazılır → her yol kapanır. **Önerim: Seçenek 2.**
+
+**Q-B — O3: sağlayıcıda bulunan kopya "İletildi" sayılsın mı?** Örnek: "Binanın önünde ücretsiz otopark var." gönderilirken zaman aşımı;
+Hospitable mesajı almış. **Bugün (bu turdan sonra):** konuşma tutulmaz; misafir "Bir de havlu lazım" yazınca cevap kuyruğa girer ama önceki satır
+incelemeye düşene kadar (eşleştirici denemeleri bitene dek — ilk gönderimden **yaklaşık 30 dakika**, ±%20) bekler; satır "Doğrulanamadı —
+inceleyin" kalır. **Öneri:** senkron aynı metni
+sağlayıcıda bulunca satır "İletildi" → havlu cevabı hemen gider, rozet "İletildi". Risk: ev sahibi tesadüfen AYNI metni yazdıysa satırımız
+gönderilmiş sayılır — misafir o metni zaten almıştır (ikinci cevap / kayıp yok). Codex #4 "gövde benzerliğiyle gönderildi sayma"yı reddetmişti;
+gerekçem: aynı eşleştirme bugün mesaj kimliği için zaten kullanılıyor ve yanlış eşleşmenin bedeli yok. **Önerim: evet.**
+
+**Q-C — gönderim anı vetosu ve saat kayması.** Örnek: sağlayıcının saati sunucudan ~1 dk ileri; misafir 10:00:30'da (sağlayıcı saati)
+"Otopark var mı?" yazar, cevap 10:00:10'da (sunucu saati) kuyruğa girer. **Bugün:** veto misafirin KENDİ sorusunu "cevaptan daha yeni mesaj"
+sayar → cevap iptal, soru ev sahibinde açık (otomatik cevap gitmez). **Öneri:** veto cevapladığı mesajı "daha yeni" saymasın (yalnız ondan sonraki
+mesajlar). Etki yalnız saat kaymasında: misafire cevap gider. **Önerim: evet.**
+
+**Q-D — içinde Lixus etkinliği de olan karışık `.ics`.** Örnek: kanal yöneticisinin dışa aktarımı hem Lixus'un kendi etkinliklerini hem gerçek
+Booking rezervasyonlarını içeriyor. **Bugün:** dosyanın tamamı reddedilir (onaylı metin). **Seçenek:** yalnız Lixus etkinlikleri atlanır, kalanlar
+içe aktarılır (önizlemede "N etkinlik Lixus'un kendi kaydı olduğu için atlandı" — YENİ metin). **Önerim:** şimdilik bugünkü gibi; gerçek bir
+dosya gelince karar.
+
