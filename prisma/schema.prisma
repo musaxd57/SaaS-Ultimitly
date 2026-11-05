@@ -1278,6 +1278,10 @@ model MessageOutbox {
   lastErrorCode         String? // sanitized short code (e.g. "HTTP 500", "timeout") — no secrets
   sentAt                DateTime?
   reconciledAt          DateTime?
+  // Tur 7 T7-OB-5 (kurucu önceliği 11-05, migration 91): teslim etkisi (konuşma "cevaplandı" + devir kilidi + öğeler) bu satır için
+  // UYGULANDI / DEĞERLENDİRİLDİ. 48 saatlik onarıcı yalnız boş satırları onarır ve damgalar → her satır EN ÇOK BİR KEZ onarılır, ev
+  // sahibinin sonradan elle seçtiği "Yeni" durumu her geçişte ezilmez. Boş = eski satır ya da çökme penceresi (onarıcı bir kez bakar).
+  deliveryEffectAt      DateTime?
   // Migration 80 (kurucu T4, 10-21): yaşam döngüsü satırı hangi `AutoMessageTemplate.revision` ile kuruldu. İşçi gönderimden ÖNCE güncel
   // sürümle kıyaslar; farklıysa (ya da NULL — geçiş öncesi satır) gövdeyi AYNI satırda güncel metinle yeniden kurar, metin boş / doldurulamaz
   // ise iptal eder. Anahtar değişmez (rezervasyon başına tek satır — çift gönderim yok). Yanıt satırlarında NULL.

@@ -930,6 +930,11 @@ async function applyDeliveryEffect(row: OutboxRow, now: Date): Promise<void> {
     await applyHandoffHold(row, now);
   }
   if (type === "ai" && row.messageId) await recloseDeliveredItems(row, now);
+  // T7-OB-5: etki değerlendirildi → 48 saatlik onarıcı bu satırı bir daha onarmaz (ev sahibinin sonradan seçtiği durum ezilmez). Damga
+  // yazılamazsa onarıcı BİR KEZ bakar (eski davranış, bir defalık) — hata teslimi bozmaz.
+  await prisma.messageOutbox
+    .updateMany({ where: { id: row.id, deliveryEffectAt: null }, data: { deliveryEffectAt: now } })
+    .catch((err) => reportError("outbox-delivery-effect-stamp", err));
 }
 
 /**
@@ -1623,6 +1628,13 @@ async function healDeliveryEffects(now: Date): Promise<void> {
         sentAt: { gte: since },
         conversationId: { not: null },
         OR: [{ messageType: { in: ["manual", "ai"] } }, { messageType: null }],
+        // 🚨 Tur 7 T7-OB-5: yalnız teslim etkisi henüz DEĞERLENDİRİLMEMİŞ satırlar (normal yol `applyDeliveryEffect`te damgalar). Eskiden
+        // her geçişte 48 saat boyunca bütün teslim edilmiş satırlar yeniden "onarılıyor", ev sahibinin elle seçtiği "Yeni" durumu her 2
+        // dakikada "Cevaplandı"ya dönüyordu. Sayfa sonunda damgalanır ↓ → her satır EN ÇOK BİR KEZ onarılır.
+        deliveryEffectAt: null,
+        // Damgalanan satır süzgeçten çıktığı için `cursor + skip: 1` (imleç satırı süzgeçte yoksa bir sonraki satırı atlayabilirdi) yerine
+        // açık "id > imleç".
+        ...(cursor ? { id: { gt: cursor } } : {}),
       },
       select: {
         id: true,
@@ -1633,7 +1645,6 @@ async function healDeliveryEffects(now: Date): Promise<void> {
         sentAt: true,
       },
       orderBy: { id: "asc" },
-      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
       take: PAGE,
     });
     if (rows.length === 0) break;
@@ -1750,6 +1761,8 @@ async function healDeliveryEffects(now: Date): Promise<void> {
         }
       }
     }
+    // T7-OB-5: bu sayfanın satırları değerlendirildi — bir daha onarılmaz (ev sahibinin sonraki durum seçimi korunur).
+    await prisma.messageOutbox.updateMany({ where: { id: { in: rows.map((r) => r.id) }, deliveryEffectAt: null }, data: { deliveryEffectAt: now } });
     if (rows.length < PAGE) break;
   }
 
