@@ -73,8 +73,10 @@ export async function releaseOutboundSend(conversationId: string, body: string):
 // açık da kapalı da olsa AYNI kayda bağlanır: iki yol da göndermeden / kuyruğa yazmadan ÖNCE bu talebi atomik olarak alır, sahibi
 // (`holder`) hangi yolun aldığını söyler. Eskiden kuyruk yolu yalnız kuyruk satırını, doğrudan yol yalnız 2 dk'lık GÖVDE talebini
 // görüyordu: anahtar iki deneme arasında değişirse (yayın / geri alma) aynı istek ikinci kez gidebiliyordu; doğrudan yolda yanıtı
-// kaybolan başarılı gönderimin 2 dk sonraki tekrarı da ikinci mesajdı. Süre: başarıdan sonra 24 sa; belirsiz sonuçta gövde talebiyle
-// aynı 2 dk (bugünkü "konuşmayı kontrol edip yeniden gönder" penceresi DEĞİŞMEZ); kesin başarısızlıkta bırakılır.
+// kaybolan başarılı gönderimin 2 dk sonraki tekrarı da ikinci mesajdı. Süre (doğrudan yol): başarıdan sonra 24 sa; belirsiz sonuçta
+// (fırlatılan hata dahil) gövde talebiyle aynı 2 dk (bugünkü "konuşmayı kontrol edip yeniden gönder" penceresi DEĞİŞMEZ); kesin
+// başarısızlıkta bırakılır. Kuyruk yolu: 2 dk (kalıcı kayıt kuyruk satırıdır). Sahip okuması P2002'den sonra yapılır: talep arada
+// bırakıldıysa sahip bilinmez → güvenli taraf "tutuluyor" (sonraki deneme alır).
 // ---------------------------------------------------------------------------
 const REQUEST_PREFIX = OUTBOUND_REQUEST_CLAIM_PREFIX;
 const REQUEST_CLAIM_TTL_MS = 24 * 60 * 60_000;
@@ -101,7 +103,10 @@ export async function claimOutboundRequest(
   // Fırsatçı süpürme (↑ ile aynı): süresi dolan talep artık hiçbir şeyi tekilleştirmez.
   await prisma.systemLock.deleteMany({ where: { name: { startsWith: REQUEST_PREFIX }, lockedUntil: { lt: new Date() } } }).catch(() => {});
   try {
-    await prisma.systemLock.create({ data: { name, lockedUntil: new Date(Date.now() + REQUEST_CLAIM_TTL_MS), holder: path } });
+    // Kuyruk yolunun talebi KISA (gövde talebiyle aynı 2 dk): satır yazılınca kalıcı kayıt odur (doğrudan yol önce ona bakar); talep yalnız
+    // yazım sürerkenki eşzamanlı pencereyi kapatır — yazımdan önce çöken süreç 24 saatlik asılı talep bırakmaz (Haiku 11-05).
+    const ttl = path === "direct" ? REQUEST_CLAIM_TTL_MS : CLAIM_TTL_MS;
+    await prisma.systemLock.create({ data: { name, lockedUntil: new Date(Date.now() + ttl), holder: path } });
     return { result: "claimed" };
   } catch (err) {
     if (!(err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002")) return { result: "unavailable" };

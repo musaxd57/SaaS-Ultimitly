@@ -147,7 +147,14 @@ export async function sendHostMessage(input: HostSendInput): Promise<HostSendRes
       return req.result === "unavailable" ? { status: "claim_unavailable" } : { status: "duplicate" };
     }
   }
-  const outcome = await sendOnChannel(conversation, input.body, token ?? undefined);
+  let outcome: Awaited<ReturnType<typeof sendOnChannel>>;
+  try {
+    outcome = await sendOnChannel(conversation, input.body, token ?? undefined);
+  } catch (err) {
+    // Fırlatılan hata da BELİRSİZDİR (mesaj gitmiş olabilir): gövde talebi süresini doldurur, istek talebi de aynı 2 dk'ya iner.
+    if (input.strictIdempotency) await shortenOutboundRequest(id, input.idempotencyKey);
+    throw err;
+  }
   if (!outcome.ok) {
     // DEFINITIVE provider rejection (HTTP 4xx incl. 429; not 408) → nothing was delivered → release so the same text is
     // retryable now. Anything else (timeout / network / 5xx) is AMBIGUOUS — the message MAY have reached the guest despite the

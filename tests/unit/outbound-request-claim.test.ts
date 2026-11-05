@@ -37,6 +37,15 @@ describe("claimOutboundRequest — dallar", () => {
     expect(lock.deleteMany).toHaveBeenCalledWith({ where: { name: { startsWith: OUTBOUND_REQUEST_CLAIM_PREFIX }, lockedUntil: { lt: expect.any(Date) } } });
   });
 
+  it("kuyruk yolunun talebi KISA (2 dk): kalıcı kayıt kuyruk satırıdır, çöken yazım 24 saatlik asılı talep bırakmaz", async () => {
+    const t0 = Date.now();
+    expect(await claimOutboundRequest("conv1", "k", "queue")).toEqual({ result: "claimed" });
+    const data = (lock.create.mock.calls[0][0] as { data: { lockedUntil: Date; holder: string } }).data;
+    expect(data.holder).toBe("queue");
+    expect(data.lockedUntil.getTime() - t0).toBeLessThanOrEqual(120_000 + 1_000);
+    expect(data.lockedUntil.getTime() - t0).toBeGreaterThanOrEqual(120_000 - 1_000);
+  });
+
   it("aynı kimlik başka bir yol tarafından tutuluyorsa sahibini söyler", async () => {
     lock.create.mockRejectedValue(p2002());
     lock.findUnique.mockResolvedValue({ holder: "queue" });

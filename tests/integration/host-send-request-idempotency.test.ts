@@ -176,6 +176,19 @@ describe("elle cevap — istek kimliği kuyruk anahtarından bağımsız tek tes
     expect(mockSend).toHaveBeenCalledTimes(2);
   });
 
+  it("KONTROL — gönderim FIRLATIRSA da belirsizdir: istek talebi 24 saat değil 2 dakika tutulur", async () => {
+    outboxOff();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    mockSend.mockImplementationOnce(async () => {
+      throw new Error("socket hang up (test)");
+    });
+    const first = await send("Klima kumandası çekmecede").catch(() => null);
+    expect(first === null || first.status >= 500).toBe(true);
+    const held = await prisma.systemLock.findMany({ where: { name: { startsWith: OUTBOUND_REQUEST_CLAIM_PREFIX } }, select: { lockedUntil: true } });
+    expect(held).toHaveLength(1);
+    expect(held[0].lockedUntil.getTime()).toBeLessThanOrEqual(Date.now() + 120_000 + 5_000);
+  });
+
   it("🚨 başarılı gönderimden sonra tutulan istek talebi 'belirsiz gönderim sürüyor' SAYILMAZ (yazma servisinin okuduğu önek ayrı)", async () => {
     outboxOff();
     expect((await send("Anahtar kutusu")).status).toBe(201);
