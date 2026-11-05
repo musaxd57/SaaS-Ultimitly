@@ -231,3 +231,45 @@ atanan kişi, görev o durumda açılamaz, taşıma "dokunulmamış" tanımıyla
 Girişler'de bilinmeyen satır hep görünür · Q28 personelin "Yapılamıyor" kartı. İkinci koşu Q11 · Q21 · Q26 · Q28 + Q29 (personel listesi
 kapsamı) + Q30 (kancanın gerçekten tetiklendiği) **6/6**. Gece toplamı **30 mutant, 30'u öldürüldü**.
 
+## 12. Gerçek uygulama ekranı + Opus dilim sonu incelemesi (6951b0da..92e6d34e — N1–N12)
+
+**Gerçek uygulamadan bakış (11-06 gece):** yapı `next start` ile yerelde, ayrı bir veritabanında KURGUSAL veriyle (Lale daireleri, example.test
+adresleri) açıldı; ev sahibi ve temizlikçi oturumlarıyla Girişler, Görevler ve mülk sayfası uygulamanın kendi yazı tipiyle çekildi (Codex'in
+"yazı tipi farklı" notu: statik çizimde uygulamanın yazı tipi yüklenmemişti). Ekranda bulunan ve düzeltilen dört şey:
+- "Yapılamıyor" kartının durum kutusu "Yapılacak" yazıyordu (rozetle çelişiyor, "Yapılacak" seçilemiyordu) → kutu gerçek durumu gösterir
+  (`37f71e04`).
+- Temizlikçinin Görevler sayfası "Görevler otomatik açılır … 'Yeni görev' ile elle de ekleyebilirsiniz" diyordu — o düğmeler personelde yok →
+  yalnız yöneticiye.
+- "Evet, geçsin" eski temizlikçinin "Yapılamıyor" dediği işi TAŞIMIYORDU (kişi kaydı var diye "dokunulmuş" sayılıyordu) — en çok yeni kişiye
+  gitmesi gereken iş buydu → taşınır, "Yapılacak"a döner, zaman çizelgesine kim / ne zaman.
+- Dairenin temizlikçisi kutusunun görünür etiketi yoktu.
+Ayrıca kurucunun akışındaki "Başladım → Bitti" temizlikçi kartına tek dokunuşluk düğmeler olarak eklendi ("Bitti" bir kez sorulur: "bitti"
+kaydı hazırlığın kanıtıdır, yanlışlıkla basılmasın).
+
+**Opus 5.5 incelemesi** (salt-okuma, bulgularını dosyaya yazarak; 12 bulgu, her biri bugünkü kodda doğrulandı, hepsi düzeltildi — `8e097191`):
+
+| # | Bulgu | Ne yapıldı |
+|---|---|---|
+| N1 · P2 | Kart üstünde "Atanmadı" 400 dönüyordu (istemci `null`, şema yalnız metin) | Boş kimlik gider; sunucu "atanmamış" yazar |
+| N2 · P2 | Girişler "otomatik giriş mesajı hazır" diyordu, ama gönderici o rezervasyona HİÇ göndermeyecekti (takvimden / elle gelen, açılıştan önce yapılmış, bağlantı yok) → ev sahibi elle göndermeyi atlardı | Göndericinin AYNI yapı taşlarıyla rezervasyon başına: genel anahtar · kanal bağlantısı · açılış tabanı · kanaldan mesajlaşabilir mi; gittiyse "gönderildi <an>"; gitmeyecekse sebebi + "giriş bilgisini siz gönderin" |
+| N3 · P3 | Bir kez atlanmış şablon metin düzeltildikten sonra da her girişi "gönderilemiyor" (engel) gösteriyordu | Sebep metnin BUGÜNKÜ hâlinden (kartla aynı kural) |
+| N4 · P3 | Önceki konaklaması olmayan dairede GELEN konaklamanın kendi bakımı "eski konaklamadan … etkiliyor mu?" (gri) oluyordu | Gelen konaklamanın görevi devrindir (engel); sonraki konaklamanınki "sonraki konaklamadan" |
+| N5 · P2 | Sade görünüm temizlikçinin notunu, açık misafir ihtiyacını ve erişim satırını kapalı "Ayrıntılar"a gömüyordu — H-2'ye ("erişim satırı gizlenmez") aykırı | Kapalıya yalnız bağlam (önceki çıkış → giriş saati, düşük öncelikli bakım) iner |
+| N6 · P3 | "Misafir çıkışı 14:00 · geç çıkış onaylı" konaklama İÇİ temizliğe de yazılıyordu | Yalnız çıkış gününe vadeli temizlikte |
+| N7 · P2 | Onay sorusu "elle atanmış işlere dokunulmaz" diyordu; elle atama iz bırakmadığından taşınıyordu | Metin dürüst: "elle atanmış olanlar dahil" geçer; elle AÇILMIŞ görev geçmez |
+| N8 · P3 | Kural kilitsiz okunuyordu: temizlikçi değişirken açılan temizlik ESKİ kişiye düşüyordu | Görev açma kuralı mülk satırının paylaşımlı kilidinden sonra okur; eski temizlikçi kayıt işleminde kilit altında okunur |
+| N9 · P3 | Soruda isme sabit ek ("Lale'in") | Eksiz kalıp ("Lale 5: …") |
+| N10 · P3 | Bellek yedeğinde iade paylaşılan taşma yuvasını gevşetiyordu (günlük 2FA tavanı gibi sınırlar bozulmuş kipte gevşeyebilirdi) | İade yalnız anahtarın kendi kaydına; taşmada sayılan hak geri verilmez |
+| N11 · P3 | Taşıma sorusunu kapatmak (Esc) yeni kişiyi kaydediyordu; yanlış seçimi geri almanın yolu yoktu | Seçim açık "Kaydet" ile yazılır; "Vazgeç" geri alır |
+| N12 · P3 | Kuyruk satırı hâlâ "· iletildi" diyordu; test büyük harfe bakıyordu | "· gönderildi"; test genişletildi |
+
+Kapı ayrıca iki genel pini yakaladı (yerelde koşmadan commit etmiştim): yeni rota kiracılar arası kapsam listesine eklenmeliydi; bildirim
+alanının adı denetim kaydının "eylemi yapan"ıyla karışıyordu (`reporterUserId`). Ders: yeni rota / yeni "actor" alanı → rota ve denetim pinleri
+commit'ten önce.
+
+**Mutasyon (commit edilmiş SHA, M0 yeşil):** `8e097191` partisi S1–S24 **23/24** — yaşayan S10 (aynı kişi "taşı" ile yeniden kaydedilince
+kendi "Yapılamıyor" işi "Yapılacak"a dönerdi; arayüz bunu göndermez, API gönderebilir) pinlendi ve yeniden koşuldu (aşağıda). Kapsam: kart
+üstü atama / durum kutusu / "Bitti" sorusu · personel notu · "Yapılamıyor"un taşınması ve zaman çizelgesi · taşınanların bildirimi · görev
+açmanın mülk kilidi · açık "Kaydet" · Girişler erişim satırının beş dalı (gönderildi, genel anahtar, bağlantı, takvim rezervasyonu, açılış
+tabanı) · bugünkü metinden sebep · devir / sonraki konaklama · bağlam-yalnız katlama · çıkış günü · bellek yedeği iadesi · kuyruk ifadesi.
+

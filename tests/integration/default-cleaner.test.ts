@@ -197,6 +197,17 @@ describe("dairenin temizlikçisi", () => {
     expect(last).toMatchObject({ status: "todo", userId: owner.id });
   });
 
+  it("mutasyon S10: AYNI kişi 'taşı' ile yeniden kaydedilirse hiçbir şey taşınmaz — kendi 'Yapılamıyor' işi 'Yapılacak'a dönmez", async () => {
+    await saveDefaultCleaner(orgId, propertyId, ayse.id);
+    const r = await reservation(addNights(TODAY, 1), addNights(TODAY, 3));
+    await createReservationTasks(r.id);
+    const task = await prisma.task.findFirstOrThrow({ where: { reservationId: r.id, type: "cleaning" } });
+    await prisma.task.update({ where: { id: task.id }, data: { status: "blocked" } });
+    const res = await put(propertyId, { userId: ayse.id, moveOpen: true });
+    expect((await res.json()).moved).toBe(0);
+    expect(await prisma.task.findUniqueOrThrow({ where: { id: task.id } })).toMatchObject({ assignedToId: ayse.id, status: "blocked" });
+  });
+
   it("KONTROL — 'Hayır, yalnız yeniler' 'Yapılamıyor' görevi de taşımaz; başlanmış (devam ediyor) iş 'Evet'te de kalır", async () => {
     await saveDefaultCleaner(orgId, propertyId, ayse.id);
     const r1 = await reservation(addNights(TODAY, 1), addNights(TODAY, 3), "A");
