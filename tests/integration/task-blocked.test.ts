@@ -157,8 +157,11 @@ describe("görev — 'Yapamıyorum'", () => {
     // Atama değişikliğiyle birlikte de gelmez (kendine atayıp aynı anda "yapamıyorum" anlamsız).
     expect((await patch(taskId, { status: "blocked", assignedToId: owner.id })).status).toBe(403);
     expect((await prisma.task.findUniqueOrThrow({ where: { id: taskId } })).assignedToId).toBe(ayse.id);
-    // KONTROL — görev sahibin kendisine atalıysa diyebilir (aşırı uygulama yok).
+    // Kendisine atalı görevde bile "yapamıyorum" + BAŞKASINA atama aynı istekte gelmez (kart "Sahip yapamıyor" diye Mehmet'in işini gösterirdi).
     await prisma.task.update({ where: { id: taskId }, data: { assignedToId: owner.id } });
+    expect((await patch(taskId, { status: "blocked", assignedToId: mehmet.id })).status).toBe(403);
+    expect(await prisma.task.findUniqueOrThrow({ where: { id: taskId } })).toMatchObject({ status: "todo", assignedToId: owner.id });
+    // KONTROL — görev sahibin kendisine atalıysa diyebilir (aşırı uygulama yok).
     expect((await patch(taskId, { status: "blocked" })).status).toBe(200);
     expect((await prisma.task.findUniqueOrThrow({ where: { id: taskId } })).status).toBe("blocked");
   });

@@ -32,7 +32,7 @@ vi.mock("@/lib/email", async (orig) => {
 });
 
 import { createReservationTasks } from "@/lib/automation";
-import { saveDefaultCleaner, loadDefaultCleanerUserId, defaultCleanerWhere, DEFAULT_CLEANER_TRIGGER } from "@/lib/tasks/default-cleaner";
+import { saveDefaultCleaner, loadDefaultCleanerUserId, defaultCleanerWhere, DEFAULT_CLEANER_TRIGGER, openFutureCleaningIds } from "@/lib/tasks/default-cleaner";
 import { PUT } from "@/app/api/properties/[id]/default-cleaner/route";
 import { DELETE as DELETE_PROPERTY } from "@/app/api/properties/[id]/route";
 import { todayKey, addNights } from "@/modules/availability/core";
@@ -151,7 +151,7 @@ describe("dairenin temizlikçisi", () => {
   it("🚨 Haiku 11-06: 'Evet' DOKUNULMUŞ işi taşımaz — kişinin notu / fotoğrafı ya da işaretli kontrol maddesi olan görev eski kişide kalır; sistemin notu taşımayı engellemez", async () => {
     await saveDefaultCleaner(orgId, propertyId, ayse.id);
     const rs = [];
-    for (let i = 0; i < 4; i++) rs.push(await reservation(addNights(TODAY, 1 + i * 3), addNights(TODAY, 3 + i * 3), `R${i}`));
+    for (let i = 0; i < 5; i++) rs.push(await reservation(addNights(TODAY, 1 + i * 3), addNights(TODAY, 3 + i * 3), `R${i}`));
     for (const r of rs) await createReservationTasks(r.id);
     const cleaningOf = (r: { id: string }) => prisma.task.findFirstOrThrow({ where: { reservationId: r.id, type: "cleaning" } });
     const noted = await cleaningOf(rs[0]);
@@ -162,9 +162,16 @@ describe("dairenin temizlikçisi", () => {
     await prisma.task.update({ where: { id: ticked.id }, data: { checklistJson: JSON.stringify([{ label: "Çarşaf", done: true }]) } });
     const systemNote = await cleaningOf(rs[3]);
     await prisma.taskUpdate.create({ data: { taskId: systemNote.id, userId: null, status: null, note: "Erken giriş onaylandı" } });
+    // Beklenmedik biçimli liste: sorgu süzgeci yakalamaz, KİLİT altındaki karar dokunulmuş sayar (şüphede taşıma yok).
+    const odd = await cleaningOf(rs[4]);
+    await prisma.task.update({ where: { id: odd.id }, data: { checklistJson: JSON.stringify([{ label: "Çarşaf", done: "evet" }]) } });
+    // Onay sorusundaki sayı (mülk sayfası) dokunulmuş işleri saymaz.
+    const asked = await openFutureCleaningIds(prisma, orgId, propertyId, ayse.id, new Date());
+    expect(asked).toContain(systemNote.id);
+    for (const t of [noted, photo, ticked]) expect(asked).not.toContain(t.id);
     const res = await put(propertyId, { userId: mehmet.id, moveOpen: true });
     expect((await res.json()).moved).toBe(1);
-    for (const t of [noted, photo, ticked]) expect((await prisma.task.findUniqueOrThrow({ where: { id: t.id } })).assignedToId).toBe(ayse.id);
+    for (const t of [noted, photo, ticked, odd]) expect((await prisma.task.findUniqueOrThrow({ where: { id: t.id } })).assignedToId).toBe(ayse.id);
     expect((await prisma.task.findUniqueOrThrow({ where: { id: systemNote.id } })).assignedToId).toBe(mehmet.id);
   });
 
