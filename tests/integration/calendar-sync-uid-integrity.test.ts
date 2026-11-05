@@ -133,5 +133,37 @@ describe("iCal abonelik senkronu — kayıt kimliği (inceleme b1)", () => {
     await syncCalendarSource(sourceId);
     expect((await prisma.reservation.findUniqueOrThrow({ where: { id: r.id } })).status).toBe("cancelled");
   });
+
+  it("🚨 CAL-4: besleme silinip yeniden eklenince benimsenen satırın kanalı beslemenin kanalına döner (eskiden 'manual' kalıyordu)", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    const first = await prisma.calendarSource.create({ data: { propertyId, label: "Airbnb", url: "https://example.com/a1.ics" } });
+    vi.mocked(fetchFeedText).mockResolvedValue(cal(ev("ab-1", 10, 12)));
+    await syncCalendarSource(first.id);
+    const [r] = await prisma.reservation.findMany({ where: { propertyId } });
+    expect(r.channel).toBe("airbnb");
+    // Silme rotasının yaptığı (calendar-sources/[id] DELETE): bağ kopar, kanal "manual".
+    await prisma.reservation.update({ where: { id: r.id }, data: { calendarSourceId: null, channel: "manual" } });
+    await prisma.calendarSource.delete({ where: { id: first.id } });
+    const again = await prisma.calendarSource.create({ data: { propertyId, label: "Airbnb", url: "https://example.com/a2.ics" } });
+    await syncCalendarSource(again.id);
+    const healed = await prisma.reservation.findUniqueOrThrow({ where: { id: r.id } });
+    expect(healed.calendarSourceId).toBe(again.id);
+    expect(healed.channel).toBe("airbnb");
+  });
+
+  it("KONTROL — CAL-4: gerçek kanal etiketi ezilmez (Booking satırını 'Airbnb' etiketli besleme benimserse Booking kalır)", async () => {
+    const { propertyId } = await makeOrgWithProperty();
+    await prisma.reservation.create({
+      data: {
+        propertyId, guestName: "Reserved", status: "confirmed", channel: "booking", sourceReference: "bk-9",
+        arrivalDate: new Date(`${ymd(10).slice(0, 4)}-${ymd(10).slice(4, 6)}-${ymd(10).slice(6)}T12:00:00Z`),
+        departureDate: new Date(`${ymd(12).slice(0, 4)}-${ymd(12).slice(4, 6)}-${ymd(12).slice(6)}T12:00:00Z`),
+      },
+    });
+    const src = await prisma.calendarSource.create({ data: { propertyId, label: "Airbnb", url: "https://example.com/a3.ics" } });
+    vi.mocked(fetchFeedText).mockResolvedValue(cal(ev("bk-9", 10, 12)));
+    await syncCalendarSource(src.id);
+    expect((await prisma.reservation.findFirstOrThrow({ where: { sourceReference: "bk-9" } })).channel).toBe("booking");
+  });
 });
 

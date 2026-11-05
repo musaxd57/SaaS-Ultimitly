@@ -95,6 +95,7 @@ const SYNC_COMPARE_SELECT = {
   arrivalDate: true,
   departureDate: true,
   calendarSourceId: true,
+  channel: true,
 } as const;
 
 /** Ayni an mi (null-guvenli, Date kimligine DEGIL degerine bakar). */
@@ -513,7 +514,12 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
             // ad/not zaten yazilmadigi icin karsilastirmaya da girmezler
             // (KVKK anonimlestirmesini "degisiklik" sayip geri yazmayi denemek
             // dirilme olurdu). Iptalden donen satir DAIMA yazilir.
+            // Tur 7 CAL-4 (kurucu 11-05 "tamamını yap"): besleme silinince bağı kopan satırlar "manual" olur (silme rotası); aynı besleme
+            // yeniden eklenince benimsenen satırın kanalı beslemenin kanalına DÖNER (silme rotasının yorumu bunu söylüyordu, kod yapmıyordu).
+            // Yalnız mekanizma etiketleri (manual / ics) iyileşir — gerçek bir kanal etiketi ("airbnb", "other"…) asla ezilmez.
+            const healChannel = (existing.channel === "manual" || existing.channel === "ics") && existing.channel !== channel;
             const unchanged =
+              !healChannel &&
               existing.calendarSourceId === source.id &&
               existing.status !== "cancelled" &&
               sameInstant(existing.arrivalDate, row.arrivalDate) &&
@@ -547,6 +553,7 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
             if (!sameInstant(existing.departureDate, row.departureDate)) changedFields.push("departureDate");
             if (existing.status === "cancelled") changedFields.push("status");
             if (existing.calendarSourceId !== source.id) changedFields.push("calendarSourceId");
+            if (healChannel) changedFields.push("channel");
             if (!scrubbed) {
               if (existing.guestName !== row.guestName.slice(0, 200)) changedFields.push("guestName");
               if ((existing.notes ?? null) !== (row.notes ? row.notes.slice(0, 5000) : null)) changedFields.push("notes");
@@ -569,6 +576,7 @@ export async function syncCalendarSource(sourceId: string): Promise<SyncResult> 
                 // (Re-)bind to THIS source: legacy pre-binding rows heal on their
                 // first match, making them reconcilable again — safely scoped.
                 calendarSourceId: source.id,
+                ...(healChannel ? { channel } : {}),
                 // Re-confirm a stay that had been cancelled but now reappears live.
                 ...(existing.status === "cancelled" ? { status: "confirmed" } : {}),
               },
