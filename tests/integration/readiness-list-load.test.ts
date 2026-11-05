@@ -149,6 +149,34 @@ describe("giriş hazırlığı listesi — yükleyici", () => {
     expect(JSON.stringify(rows)).not.toContain("sistem notu");
   });
 
+  it("🚨 N6: önceki çıkış BAŞKA gündeyse (araya boş gün) zaman satırı ve 'bitti' kaydı GÜNÜYLE yazılır", async () => {
+    const day = addNights(TODAY, -2);
+    const prev = await reservation(addNights(TODAY, -5), day, "Eski Çıkan");
+    await reservation(TODAY, addNights(TODAY, 2), "Yeni Misafir");
+    const t = await prisma.task.create({
+      data: { propertyId, reservationId: prev.id, type: "cleaning", title: "Çıkış temizliği", origin: "system", status: "done", dueAt: dayDate(day) },
+    });
+    await prisma.taskUpdate.create({ data: { taskId: t.id, userId: staffId, status: "done", createdAt: new Date(`${day}T10:10:00Z`) } }); // 13:10 İstanbul
+    const rows = await rowOf(localToday(14));
+    const d = new Intl.DateTimeFormat("tr-TR", { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${day}T12:00:00Z`));
+    expect(rows[0].readiness.overall).toBe("cleaning_ready");
+    expect(factor(rows[0], "cleaning")!.label).toBe(`Temizlik bitti ${d} 13:10 · Ayşe · çıkıştan (${d} 11:00) sonra`);
+    expect(factor(rows[0], "timing")!.label).toBe(`Önceki çıkış ${d} 11:00 → giriş 15:00`); // eskiden "Önceki çıkış bilinmiyor"
+  });
+
+  it("🚨 N2: sözden doğan bakım görevi 'Söz açık' satırında yazılır, sorun satırı olarak İKİNCİ kez (çelişen vadeyle) yazılmaz", async () => {
+    const { next } = await sameDayTurnover();
+    const promised = await prisma.task.create({
+      data: { propertyId, reservationId: next.id, type: "maintenance", title: "Misafire söz: klima", origin: "ai", status: "todo", dueAt: dayDate(TODAY) },
+    });
+    const conv = await prisma.conversation.create({ data: { propertyId, reservationId: next.id, guestIdentifier: "Yeni Misafir", channel: "airbnb" } });
+    await prisma.guestCommitment.create({ data: { organizationId: orgId, conversationId: conv.id, kind: "maintenance", topic: "ac", dueAt: localToday(18), taskId: promised.id } });
+    const rows = await rowOf();
+    expect(rows[0].readiness.factors.filter((f) => f.key === "issue")).toHaveLength(0);
+    expect(rows[0].readiness.factors.filter((f) => f.key === "commitment")).toHaveLength(1);
+    expect(rows[0].readiness.overall).toBe("not_ready");
+  });
+
   it("iki dairede ayrı not: her satır KENDİ devrinin notunu (yazan + saat) gösterir", async () => {
     const { prev } = await sameDayTurnover();
     const t1 = await cleaningTask(prev.id);
@@ -189,7 +217,7 @@ describe("giriş hazırlığı listesi — yükleyici", () => {
     const rows = await rowOf();
     const issues = rows[0].readiness.factors.filter((f) => f.key === "issue");
     expect(issues.map((f) => f.label).sort()).toEqual(
-      ["Bakım açık: Ampul · kimseye atanmadı · vade 15:00", "Check-out Kontrol açık: Çıkış kontrolü · kimseye atanmadı · vade 15:00"].sort(),
+      ["Bakım açık: Ampul · kimseye atanmadı · vade bugün", "Check-out Kontrol açık: Çıkış kontrolü · kimseye atanmadı · vade bugün"].sort(),
     );
     expect(issues.map((f) => f.basis[0].id).sort()).toEqual([k.id, b.id].sort());
   });

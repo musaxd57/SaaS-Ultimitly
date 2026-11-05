@@ -103,6 +103,8 @@ export interface LoadedEarlyCheckin {
   /** YALNIZ GÖSTERİM (giriş hazırlığı listesi; kurucu "her durumun dayanağı anlaşılsın", Opus 11-05 F7): `openIssue` /
    *  `maintenanceOpen` / `cleaningNote` / `otherOverlaps` hükümlerinin dayandığı kayıtlar. Hükme GİRMEZ — aynı kümeden türer. */
   basisIds: EarlyCheckinBasisIds;
+  /** YALNIZ GÖSTERİM (Opus 11-05 N6): hazırlığın ölçüldüğü devrin çıkışı — gün (mülk takvimi) + saat (hükümdeki aynı en geç saat). */
+  referenceCheckout: { dayKey: string; time: string | null } | null;
 }
 
 export interface EarlyCheckinBasisIds {
@@ -155,7 +157,7 @@ export async function loadEarlyCheckinFacts(args: {
         select: { id: true, status: true, arrivalDate: true },
       })
     : null;
-  if (!own) return { facts, rule, readyAt: null, timeZone: tz, referenceId: null, readyMark: null, cleaningTaskIds: [], basisIds: noBasis() };
+  if (!own) return { facts, rule, readyAt: null, timeZone: tz, referenceId: null, readyMark: null, cleaningTaskIds: [], basisIds: noBasis(), referenceCheckout: null };
   const arrivalKey = calendarDateOf(own.arrivalDate, tz).key;
   facts.reservation = { status: own.status, arrivalKey };
 
@@ -314,5 +316,15 @@ export async function loadEarlyCheckinFacts(args: {
       facts.previousNightVerifiedVacant = report.ok && report.value.nights.length === 1 && report.value.nights[0].state === "free";
     }
   }
-  return { facts, rule, readyAt: readyMark?.at ?? null, timeZone: tz, referenceId: reference?.id ?? null, readyMark, cleaningTaskIds, basisIds };
+  return {
+    facts,
+    rule,
+    readyAt: readyMark?.at ?? null,
+    timeZone: tz,
+    referenceId: reference?.id ?? null,
+    readyMark,
+    cleaningTaskIds,
+    basisIds,
+    referenceCheckout: reference ? { dayKey: reference.dayKey, time: reference.checkout ?? null } : null,
+  };
 }

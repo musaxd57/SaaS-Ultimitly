@@ -187,7 +187,7 @@ export async function loadArrivalReadiness(
     convIds.length
       ? prisma.guestCommitment.findMany({
           where: { organizationId, conversationId: { in: convIds }, status: "open" },
-          select: { id: true, conversationId: true, kind: true, topic: true, dueAt: true, task: { select: { assignedTo: { select: { name: true } } } } },
+          select: { id: true, conversationId: true, kind: true, topic: true, dueAt: true, taskId: true, task: { select: { assignedTo: { select: { name: true } } } } },
           orderBy: { dueAt: "asc" },
         })
       : Promise.resolve([]),
@@ -253,7 +253,9 @@ export async function loadArrivalReadiness(
       status: f?.readiness ?? "unknown",
       note: f?.readinessNote ?? null,
       previousKnown: referenceId !== null,
-      previousCheckout: f?.previousSameDay?.checkoutTime ?? null,
+      // Hükmün ölçüldüğü devrin çıkışı (aynı gün ya da önceki bir gün — Opus 11-05 N6); eski / taklit sonuçta aynı gün çıkışına düşer.
+      previousCheckout: loaded?.referenceCheckout?.time ?? f?.previousSameDay?.checkoutTime ?? null,
+      previousCheckoutDay: loaded?.referenceCheckout?.dayKey ?? null,
       readyMark: loaded?.readyMark ? { id: loaded.readyMark.id, at: loaded.readyMark.at, by: loaded.readyMark.id ? (readyUserOf.get(loaded.readyMark.id) ?? null) : null } : null,
       tasks: tasks.map((t) => ({ id: t.id, assignee: t.assignee, startedAt: t.startedAt, startedBy: t.startedBy, lastDoneAt: t.lastDoneAt })),
     };
@@ -263,6 +265,7 @@ export async function loadArrivalReadiness(
     const readiness = evaluateStay({
       timeZone: tz,
       now,
+      arrivalDayKey: dayKey,
       cleaning,
       cleaningNote: f?.cleaningNote === true,
       cleaningNoteBy: note ? { updateId: note.id, by: note.userId ? (nameOf.get(note.userId) ?? null) : null, at: note.createdAt } : null,
@@ -290,6 +293,7 @@ export async function loadArrivalReadiness(
           label: isCommitmentKind(c.kind) ? commitmentLabel(c.kind, c.topic) : c.kind,
           dueAt: c.dueAt,
           assignee: c.task?.assignedTo?.name ?? null,
+          taskId: c.taskId,
         })),
       needs: items
         .filter((it) => convs.includes(it.conversationId))

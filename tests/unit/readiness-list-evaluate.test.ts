@@ -200,8 +200,8 @@ describe("giriş hazırlığı — saf değerlendirici", () => {
     expect(issues[0].basis).toEqual([{ kind: "task", id: "m1", at: at("2026-11-06T07:00:00Z") }]);
     expect(r.overall).toBe("not_ready");
     // KONTROL: vadesi henüz gelmemiş görev "gecikti" demez.
-    const upcoming = evaluateStay(stay({ maintenanceOpen: true, issueTasks: [{ id: "m1", title: "Klima arızası", kindLabel: "Bakım", assignee: null, dueAt: at("2026-11-07T12:00:00Z") }] }));
-    expect(upcoming.factors.find((f) => f.key === "issue")!.label).toBe("Bakım açık: Klima arızası · kimseye atanmadı · vade 15:00");
+    const upcoming = evaluateStay(stay({ maintenanceOpen: true, issueTasks: [{ id: "m1", title: "Klima arızası", kindLabel: "Bakım", assignee: null, dueAt: at("2026-11-07T12:30:00Z") }] }));
+    expect(upcoming.factors.find((f) => f.key === "issue")!.label).toBe("Bakım açık: Klima arızası · kimseye atanmadı · vade 15:30");
   });
 
   it("birden çok sorun görevi ayrı satır; atanmamış / vadesiz söylenir; gösterilenden fazlası 'başkaları da var' der", () => {
@@ -267,6 +267,91 @@ describe("giriş hazırlığı — saf değerlendirici", () => {
       }),
     );
     expect(none.factors.map((f) => f.key)).toEqual(["cleaning", "access", "timing"]);
+  });
+
+  it("🚨 N2: yalnız-TARİH vadesi (00:00Z / 12:00Z çapası) SAAT UYDURMAZ; gecikme gün bazında — bugün vadeli iş gün bitmeden 'gecikti' değil", () => {
+    const issueLabel = (dueAt: Date) =>
+      evaluateStay(stay({ maintenanceOpen: true, issueTasks: [{ id: "m1", title: "Klima", kindLabel: "Bakım", assignee: null, dueAt }] })).factors.find(
+        (f) => f.key === "issue",
+      )!.label;
+    // now = 7 Kas 13:00 İstanbul.
+    expect(issueLabel(at("2026-11-07T12:00:00Z"))).toBe("Bakım açık: Klima · kimseye atanmadı · vade bugün"); // eskiden "vade 15:00"
+    expect(issueLabel(at("2026-11-06T12:00:00Z"))).toBe("Bakım açık: Klima · kimseye atanmadı · vade 6 Kas (gecikti)");
+    expect(issueLabel(at("2026-11-08T00:00:00Z"))).toBe("Bakım açık: Klima · kimseye atanmadı · vade 8 Kas");
+    // New York'ta da aynı gün (çapa dilime göre kaymaz; eskiden "vade 07:00 (gecikti)").
+    const ny = evaluateStay(
+      stay({ timeZone: "America/New_York", maintenanceOpen: true, issueTasks: [{ id: "m1", title: "Klima", kindLabel: "Bakım", assignee: null, dueAt: at("2026-11-07T12:00:00Z") }] }),
+    );
+    expect(ny.factors.find((f) => f.key === "issue")!.label).toBe("Bakım açık: Klima · kimseye atanmadı · vade bugün");
+  });
+
+  it("🚨 N2: sözden doğan görev 'Söz açık' satırında zaten yazılıysa sorun satırı olarak İKİNCİ kez yazılmaz; hüküm yine engel", () => {
+    const r = evaluateStay(
+      stay({
+        openIssue: true,
+        issueTasks: [
+          { id: "t-promise", title: "Misafire söz: klima", kindLabel: "Bakım", assignee: null, dueAt: at("2026-11-07T12:00:00Z") },
+          { id: "t-other", title: "Musluk", kindLabel: "Bakım", assignee: null, dueAt: null },
+        ],
+        commitments: [{ id: "c1", label: "Arıza / bakım · klima", dueAt: at("2026-11-07T18:00:00Z"), assignee: null, taskId: "t-promise" }],
+      }),
+    );
+    expect(r.factors.filter((f) => f.key === "issue").map((f) => f.label)).toEqual(["Bakım açık: Musluk · kimseye atanmadı"]);
+    expect(r.factors.filter((f) => f.key === "commitment")).toHaveLength(1);
+    expect(r.overall).toBe("not_ready");
+    // Tek sorun görevi sözle kaplıysa genel "açık sorun" cümlesi de YAZILMAZ (söz satırı engel olarak durur).
+    const only = evaluateStay(
+      stay({
+        openIssue: true,
+        issueTasks: [{ id: "t-promise", title: "Misafire söz: klima", kindLabel: "Bakım", assignee: null, dueAt: null }],
+        commitments: [{ id: "c1", label: "Arıza / bakım · klima", dueAt: at("2026-11-07T18:00:00Z"), assignee: null, taskId: "t-promise" }],
+      }),
+    );
+    expect(only.factors.some((f) => f.key === "issue")).toBe(false);
+    expect(only.overall).toBe("not_ready");
+  });
+
+  it("🚨 N6: devir BAŞKA bir gündeyse 'bitti' kaydı ve önceki çıkış GÜNÜYLE yazılır (bugünün saati gibi okunmaz)", () => {
+    const r = evaluateStay(
+      stay({
+        arrivalDayKey: "2026-11-08",
+        checkInTime: "14:00",
+        cleaning: cleaning({
+          status: "ready",
+          previousCheckout: "11:00",
+          previousCheckoutDay: "2026-11-03",
+          readyMark: { id: "u1", at: at("2026-11-03T10:10:00Z"), by: "Ayşe" },
+        }),
+      }),
+    );
+    expect(cleaningFactor(r).label).toBe("Temizlik bitti 3 Kas 13:10 · Ayşe · çıkıştan (3 Kas 11:00) sonra");
+    expect(r.factors.find((f) => f.key === "timing")!.label).toBe("Önceki çıkış 3 Kas 11:00 → giriş 14:00");
+    // Çıkıştan önce atılmış başka günün işareti de tarihiyle.
+    const before = evaluateStay(
+      stay({
+        arrivalDayKey: "2026-11-08",
+        cleaning: cleaning({
+          status: "not_ready",
+          note: "before_checkout",
+          previousCheckout: "11:00",
+          previousCheckoutDay: "2026-11-06",
+          tasks: [{ id: "t1", assignee: null, startedAt: null, startedBy: null, lastDoneAt: at("2026-11-06T07:05:00Z") }],
+        }),
+      }),
+    );
+    expect(cleaningFactor(before).label).toBe('"Bitti" işareti çıkıştan önce (6 Kas 10:05)');
+    expect(cleaningFactor(before).missing).toBe('çıkıştan (6 Kas 11:00) sonra atılmış "bitti" kaydı');
+  });
+
+  it("KONTROL — N6: aynı gün devirde gün EKLENMEZ (bugünkü etiketler birebir)", () => {
+    const r = evaluateStay(
+      stay({
+        arrivalDayKey: "2026-11-07",
+        cleaning: cleaning({ status: "ready", previousCheckout: "11:00", previousCheckoutDay: "2026-11-07", readyMark: { id: "u9", at: at("2026-11-07T09:40:00Z"), by: "Ayşe" } }),
+      }),
+    );
+    expect(cleaningFactor(r).label).toBe("Temizlik bitti 12:40 · Ayşe · çıkıştan (11:00) sonra");
+    expect(r.factors.find((f) => f.key === "timing")!.label).toBe("Önceki çıkış 11:00 → giriş 15:00");
   });
 
   it("saat işletmenin saat diliminde yazılır (aynı an, farklı dilim)", () => {
