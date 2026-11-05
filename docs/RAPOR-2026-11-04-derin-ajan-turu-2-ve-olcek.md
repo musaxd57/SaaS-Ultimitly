@@ -163,3 +163,10 @@ kuralın içinde mi?
 - **B mutabakat alarmı** (yalnız operatör) · **E-2a** (kuyruğa yazınca hızlı uyandırma, kuyruk açılmadan önce).
 - Aynı sınıfta kalan: Gönderilenler sayfası ve rapor sayımındaki "teslim edilmemiş" `notIn` listesi — kuyruk bayrağı kapalıyken tablo boş;
   kuyruk açılmadan önce DB-4 gibi dilimlenmeli.
+
+## 4. TUR 3 — gerçek tarayıcıda görsel düzen, UX / Türkçe, güvenlik (11-04 gece)
+Ayrıntı ve soru listesi: **`docs/INCELEME-2026-11-04-tur3-gorsel-ux-guvenlik.md`**. Özet: koyu temada okunmayan rezervasyon uyarısı (kontrast
+1,1 → 9,8), kesilen seçim kutusu yazısı, telefonda kısalan misafir adı, hidrasyon uyarısı, oluşturma formlarında çift kayıt riski, 7 rotada
+site-dışı / JSON-olmayan isteğin kota harcaması, WhatsApp eski mesaj tekrarı — DÜZELTİLDİ ve yeniden ölçüldü. Kurucuya: 5 doğrulanmış + 14
+doğrulanmamış metin / davranış önerisi (önce → sonra), 2 görsel öneri (pano kayması, telefonda dokunma alanı).
+
