@@ -1,5 +1,6 @@
 "use client";
 
+import { unsupportedCourtesyMessage, unsupportedCourtesyTokens } from "@/lib/courtesy-text";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Check } from "lucide-react";
@@ -66,6 +67,9 @@ export function AutomationPrefsForm({
     autoTaskFromMessageEnabled !== baseline.autoTaskFromMessageEnabled ||
     (showCommitments && autoCommitmentsEnabled !== baseline.autoCommitmentsEnabled) ||
     autoSupplyRequestEnabled !== baseline.autoSupplyRequestEnabled;
+
+  // Tur 7 (kurucu onayı 11-05): desteklenmeyen alan yazarken gösterilir ve kayıt engellenir (sunucu da aynı kuralla reddeder).
+  const courtesyTokens = autoClosingReplyEnabled ? unsupportedCourtesyTokens(closingReplyText) : [];
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -185,8 +189,15 @@ export function AutomationPrefsForm({
             rows={2}
             maxLength={300}
             placeholder="Örn. Rica ederiz, keyifli konaklamalar!"
+            aria-invalid={courtesyTokens.length > 0 || undefined}
+            aria-describedby={courtesyTokens.length > 0 ? "closing-text-issue" : undefined}
             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
           />
+          {courtesyTokens.length > 0 ? (
+            <p id="closing-text-issue" className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+              {unsupportedCourtesyMessage(courtesyTokens)}
+            </p>
+          ) : null}
         </div>
       ) : null}
 
@@ -292,7 +303,7 @@ export function AutomationPrefsForm({
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
       <div className="flex items-center gap-3">
-        <Button type="submit" disabled={busy || !dirty}>
+        <Button type="submit" disabled={busy || !dirty || courtesyTokens.length > 0}>
           {busy ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
           Kaydet
         </Button>

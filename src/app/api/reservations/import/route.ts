@@ -7,6 +7,7 @@ import { badRequest, jsonOk, readFormDataCapped, payloadTooLarge, BodyTooLargeEr
 import { withManage } from "@/lib/route-guard";
 import { icsIncompleteCause, parseIcsDetailed } from "@/lib/import/ics";
 import { resolveIcsUidGroups } from "@/lib/import/ics-resolve";
+import { isOwnExportUid, OWN_FILE_IMPORT_TEXT } from "@/lib/export/own-feed";
 import { parseCsv, CsvParseError } from "@/lib/import/csv";
 import { createReservationTasks, removeAutoTasksForCancelledReservation } from "@/lib/automation";
 import { loadErasureGuard, acquireErasureLock } from "@/lib/erasure";
@@ -222,6 +223,9 @@ export const POST = withManage(async (session, req) => {
     // ile ayrıca eklendi (`automation.ts`). "ics" kanalı bu ROTAYA özgü kalır ve
     // tam da bu yüzden elle yüklenen satırı benzersiz biçimde tanımlar (↓iptal).
     const parsedIcs = parseIcsDetailed(text);
+    // Tur 7 (kurucu onayı 11-05): Lixus'un kendi dışa aktardığı dosya içe aktarılmaz — abonelik yoluyla AYNI tanıma (`isOwnExportUid`),
+    // risk kopya rezervasyon (dosya bir kez okunur, döngü yok). Önizleme dahil hiçbir satır sınıflandırılmaz.
+    if (parsedIcs.events.some((e) => isOwnExportUid(e.sourceReference))) return badRequest({ file: OWN_FILE_IMPORT_TEXT });
     // Tur 7 CAL-2 (Codex 11-05 gece: "dosya ve URL yolu ortak ayrıştırma, kimlik ve iptal kurallarını kullansın; önizleme korunsun"):
     // aynı UID'nin satırları abonelik senkronuyla AYNI çözücüden geçer (ana kayıt ≠ tekrar örneği, sürüm bilgisi, sıradan bağımsız).
     // Çözümde düşen kopya satırlar önizlemede ayrı "tekrar" satırı olarak görünmez; dosya içi tekrar kuralı (↓) UID'siz satırlar için durur.

@@ -75,6 +75,17 @@ export function hasUnfilledPlaceholders(filledBody: string): boolean {
   );
 }
 
+/**
+ * Doldurulmamış alanların KENDİLERİ (en çok 6, tekrarsız) — `hasUnfilledPlaceholders` ile AYNI dört kural (Tur 7, kurucu onayı 11-05:
+ * "kaydetme, önizleme ve gerçek gönderim aynı değişken kurallarını kullanmalı"). Ev sahibine "şu alan desteklenmiyor" demek için.
+ */
+export function unfilledPlaceholderTokens(filledBody: string): string[] {
+  const doubleBraces = filledBody.match(/\{\{[^}]*\}\}|\{\{/g) ?? [];
+  const all = [...new Set([...kbPlaceholderTokens(filledBody), ...doubleBraces, ...leftoverGuestTokens(filledBody), ...unfilledTemplateTokens(filledBody)])];
+  // "{{guestName}}" içindeki "{guestName}" ayrıca sayılmaz (aynı alan iki kez gösterilmesin).
+  return all.filter((t) => !all.some((o) => o !== t && o.includes(t))).slice(0, 6);
+}
+
 export function buildGuestMessageBody(
   content: string,
   firstName: string | null,

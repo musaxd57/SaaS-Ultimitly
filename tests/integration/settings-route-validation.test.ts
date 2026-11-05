@@ -96,3 +96,31 @@ describe("PATCH /api/settings — numeric field validation", () => {
     expect((await prisma.organization.findUniqueOrThrow({ where: { id: orgId } })).lateCheckoutOfferText).toBe(ok);
   });
 });
+
+describe("PATCH /api/settings — nezaket metni alanları (Tur 7, kurucu onayı 11-05)", () => {
+  let orgId: string;
+  beforeEach(async () => {
+    await resetDb();
+    const org = await prisma.organization.create({ data: { name: "Org" } });
+    orgId = org.id;
+    session = { userId: "u", organizationId: orgId, role: "owner", email: "o@x.com", name: "O", sessionEpoch: 0 };
+  });
+
+  it("🚨 desteklenmeyen alanlı metin kaydedilmez — mesaj onaylı biçimde", async () => {
+    const res = await patch({ autoClosingReplyEnabled: true, closingReplyText: "Rica ederiz! Adres: [ADRES]" });
+    expect(res.status).toBe(400);
+    expect((await res.json()).fields.closingReplyText).toBe("[ADRES] desteklenmiyor. Kullanılabilir alanlar: {isim}, {daire}.");
+    expect((await prisma.organization.findUniqueOrThrow({ where: { id: orgId } })).closingReplyText).toBeNull();
+  });
+
+  it("KONTROL — {isim} / {daire} kaydedilir", async () => {
+    expect((await patch({ autoClosingReplyEnabled: true, closingReplyText: "Rica ederiz {isim}!" })).status).toBe(200);
+  });
+
+  it("KONTROL — nezaket kapalıyken önceden kaydedilmiş eski metin başka bir ayarın kaydını ENGELLEMEZ; açılırsa engeller", async () => {
+    await prisma.organization.update({ where: { id: orgId }, data: { closingReplyText: "Eski [ALAN]", autoClosingReplyEnabled: false } });
+    expect((await patch({ autoClosingReplyEnabled: false, closingReplyText: "Eski [ALAN]", handoffHoldHours: 4 })).status).toBe(200);
+    expect((await patch({ autoClosingReplyEnabled: true, closingReplyText: "Eski [ALAN]" })).status).toBe(400);
+  });
+});
+

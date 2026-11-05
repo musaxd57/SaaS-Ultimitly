@@ -1,3 +1,4 @@
+import { unsupportedCourtesyMessage, unsupportedCourtesyTokens } from "@/lib/courtesy-text";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { badRequest, jsonOk, readJsonCappedOrNull, tooManyRequests } from "@/lib/api";
@@ -156,8 +157,12 @@ export const PATCH = withManage(async (session, req) => {
       errors.closingReplyText = "Metin olmalı.";
     } else {
       const trimmed = (raw ?? "").toString().trim();
+      const unsupported = unsupportedCourtesyTokens(trimmed);
       if (trimmed.length > CLOSING_TEXT_MAX) {
         errors.closingReplyText = `En fazla ${CLOSING_TEXT_MAX} karakter.`;
+      } else if (unsupported.length > 0 && (await courtesyTextCheckApplies(session.organizationId, trimmed, data))) {
+        // Tur 7 (kurucu onayı 11-05): ev sahibi hatayı gönderimde değil KAYITTA öğrenir — gönderimle aynı alan kuralı.
+        errors.closingReplyText = unsupportedCourtesyMessage(unsupported);
       } else {
         update.closingReplyText = trimmed.length === 0 ? null : trimmed;
       }
@@ -317,3 +322,16 @@ export const PATCH = withManage(async (session, req) => {
 
   return jsonOk(pendingAlertEmail ? { ...update, alertEmailPending: true } : update);
 });
+
+/**
+ * Kayıt kontrolü YALNIZ metin değişiyorsa ya da nezaket cevabı açık kalacak / açılıyorsa uygulanır — form da aynı (alan yalnız açıkken
+ * görünür). Kapalıyken daha önce kaydedilmiş eski metin, başka bir ayarı kaydetmeyi engellemez (ev sahibi görmediği alan için takılmaz).
+ */
+async function courtesyTextCheckApplies(organizationId: string, trimmed: string, data: Record<string, unknown>): Promise<boolean> {
+  const cur = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { closingReplyText: true, autoClosingReplyEnabled: true },
+  });
+  const enabledAfter = "autoClosingReplyEnabled" in data ? data.autoClosingReplyEnabled === true : (cur?.autoClosingReplyEnabled ?? false);
+  return enabledAfter || (cur?.closingReplyText ?? "") !== trimmed;
+}

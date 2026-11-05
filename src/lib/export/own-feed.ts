@@ -18,6 +18,14 @@ export const OWN_EXPORT_UID_SUFFIX = "@guestops-ai";
 export const OWN_FEED_IMPORT_TEXT =
   "Lixus takvim bağlantıları içe aktarma kaynağı olarak kullanılamaz. Airbnb, Booking veya desteklenen başka bir takvimin dışa aktarım bağlantısını ekleyin.";
 
+/**
+ * Elle DOSYA yüklemede aynı tanıma, ayrı metin (kurucu onayı 11-05). Abonelik döngüsünden farkı: dosya bir kez okunur — risk sonsuz
+ * döngü değil, mevcut rezervasyonların KOPYASI. Yedekten geri yükleme istenirse bu, normal takvim içe aktarımından AYRI, kontrollü bir
+ * işlem olarak tasarlanır (bugün yok).
+ */
+export const OWN_FILE_IMPORT_TEXT =
+  "Lixus'tan dışa aktarılan takvim dosyaları içe aktarılamaz. Bu dosya, Lixus'taki rezervasyonlarınızın kopyasını oluşturur. Airbnb, Booking veya başka bir takvimin dışa aktarım dosyasını yükleyin.";
+
 /** Etkinlik kimliği Lixus'un kendi dışa aktarımından mı. */
 export function isOwnExportUid(uid: string | null | undefined): boolean {
   return typeof uid === "string" && uid.trim().toLowerCase().endsWith(OWN_EXPORT_UID_SUFFIX);

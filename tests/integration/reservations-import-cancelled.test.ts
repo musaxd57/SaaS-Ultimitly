@@ -52,6 +52,7 @@ import { fetchFeedText } from "@/lib/net/pinned-fetch";
 import { eraseReservationData, __resetErasureHashKey } from "@/lib/erasure";
 import { parseCsv } from "@/lib/import/csv";
 import { parseIcs } from "@/lib/import/ics";
+import { OWN_FILE_IMPORT_TEXT } from "@/lib/export/own-feed";
 
 // ---------------------------------------------------------------------------
 // STATUS:CANCELLED — ELLE YÜKLEME İLE ABONELİK SENKRONU ARASINDAKİ AYRIŞMA
@@ -176,6 +177,20 @@ describe("POST /api/reservations/import — STATUS:CANCELLED", () => {
     expect(res.status).toBe(200);
     const rows = await prisma.reservation.findMany({ where: { propertyId }, select: { status: true } });
     expect(rows.map((r) => r.status)).toEqual(["confirmed"]);
+  });
+
+  it("🚨 Lixus'un kendi dışa aktardığı dosya reddedilir (önizlemede de) — kopya rezervasyon yazılmaz", async () => {
+    const own = calendar(vevent("cmabc123@guestops-ai"), vevent("canli-9@airbnb.com"));
+    for (const preview of [true, false]) {
+      const form = new FormData();
+      form.set("file", new File([own], "lixus.ics", { type: "text/calendar" }));
+      form.set("propertyId", propertyId);
+      if (preview) form.set("mode", "preview");
+      const res = await POST(new NextRequest("http://localhost/api/reservations/import", { method: "POST", body: form }), { params: Promise.resolve({}) });
+      expect(res.status).toBe(400);
+      expect((await res.json()).fields.file).toBe(OWN_FILE_IMPORT_TEXT);
+    }
+    expect(await prisma.reservation.count({ where: { propertyId } })).toBe(0);
   });
 
   // ── 3. KARIŞIK DOSYA: iptal satırı elenir, canlı satır geçer ──────────────

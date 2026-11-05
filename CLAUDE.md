@@ -219,7 +219,7 @@ Bu dosyaya token/anahtar/parola yazma.
   bağdaştırıcı (anlama: `failure-analysis-understanding.ts`) — yeni ölçere de bağlanır. Ücretli koşu yine kurucu onayıyla.
 - **`docs/TEST-EVIDENCE-CONTRACT.md` bağlayıcı**: K2 için kırmızı-önce · kaldırma mutasyonu · aşırı-uygulama
   kontrolü · integration · tam kapılar; rapor KOD/CI/DEPLOY/PROD ayrı; "test gerekmiyor" gerekçeli.
-- **Codex protokolü:** doğruysa uygula, daha iyisini biliyorsan gerekçeyle reddet; son karar karşılıklı.
+- **Codex protokolü:** doğruysa uygula, daha iyisini biliyorsan gerekçeyle reddet; son karar karşılıklı. Codex'e itaat zorunlu DEĞİL (kurucu 11-05): önerisinin üstüne koy — daha doğru / eksiksiz çözümü uygula ve gerekçesini yaz; kurucu bunu her seferinde hatırlatmak zorunda kalmasın.
 - **`npm test` = PARALEL KAPI (kurucu 10-16, `scripts/test-gate.mjs`):** veritabanlı kol tek sıra + veritabanısız kol 3 işçi AYNI ANDA,
   süre ölçen testler (`*-cost/-perf` + `performance.now()`/`toBeLessThan`) en sonda tek başına; sınıflama `tests/test-partition.mjs`
   (yeni `integration` dosyası varsayılan veritabanlı kol). Geri dönüş: `npm run test:serial` (eski seri düzen). Ölçüm `docs/arastirma-2026-10-15/test-paralellik.md`.
