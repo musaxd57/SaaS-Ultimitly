@@ -64,14 +64,17 @@ describe("claimOutboundRequest — dallar", () => {
     expect(await claimOutboundRequest("conv1", "k", "queue")).toEqual({ result: "held", by: null });
   });
 
-  it("kesin başarıdan sonra talep 24 saate uzar (yalnız kendi adı); uzatma hatası gönderimi düşürmez", async () => {
+  it("kesin başarıdan sonra talep 24 saate uzar (yalnız kendi adı); uzatma hatası gönderimi düşürmez — sonucu söyler (N5)", async () => {
     const t0 = Date.now();
-    await extendOutboundRequest("conv1", "manual:conv1:req:r1");
+    expect(await extendOutboundRequest("conv1", "manual:conv1:req:r1")).toBe(true);
     const args = lock.updateMany.mock.calls[0][0] as { where: { name: string }; data: { lockedUntil: Date } };
     expect(args.where.name.startsWith(`${OUTBOUND_REQUEST_CLAIM_PREFIX}conv1:`)).toBe(true);
     expect(args.data.lockedUntil.getTime() - t0).toBeGreaterThanOrEqual(24 * 60 * 60_000 - 1_000);
     lock.updateMany.mockRejectedValueOnce(new Error("db down (test)"));
-    await expect(extendOutboundRequest("conv1", "k")).resolves.toBeUndefined();
+    await expect(extendOutboundRequest("conv1", "k")).resolves.toBe(false);
+    // Talep satırı yok (süresi dolup süpürülmüş) → uzatılmadı.
+    lock.updateMany.mockResolvedValueOnce({ count: 0 });
+    await expect(extendOutboundRequest("conv1", "k")).resolves.toBe(false);
   });
 
   it("talep deposu hatası (yazma ya da sahip okuması) → 'unavailable' (gönderim reddedilir)", async () => {

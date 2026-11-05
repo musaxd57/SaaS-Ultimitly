@@ -166,8 +166,12 @@ export async function sendHostMessage(input: HostSendInput): Promise<HostSendRes
     // Belirsiz: istek talebi doğduğu 2 dk'da kalır — "kontrol edip yeniden gönder" penceresi eskisi gibi.
     return { status: "failed_ambiguous" };
   }
-  // KESİN başarı: istek talebi 24 saate uzar (yanıtı kaybolan başarılı gönderimin geç tekrarı ikinci mesaj olmaz).
-  if (input.strictIdempotency) await extendOutboundRequest(id, input.idempotencyKey);
+  // KESİN başarı: istek talebi 24 saate uzar (yanıtı kaybolan başarılı gönderimin geç tekrarı ikinci mesaj olmaz). Uzatılamazsa bir kez daha
+  // denenir; yine olmazsa raporlanır — delik görünür olsun (Opus 11-05 N5).
+  if (input.strictIdempotency) {
+    const extended = (await extendOutboundRequest(id, input.idempotencyKey)) || (await extendOutboundRequest(id, input.idempotencyKey));
+    if (!extended) void reportError("host-send.extend-request-claim", new Error("request claim not extended after confirmed delivery"));
+  }
 
   const now = new Date();
   // Koşullu tamamlama: durum gönderim başındakiyle AYNIYSA ve o andan sonra misafir yazmadıysa "Cevaplandı"; `lastMessageAt` yalnız ileri.
@@ -205,9 +209,15 @@ export async function sendHostMessage(input: HostSendInput): Promise<HostSendRes
       advanceLastMessageAt(),
     ]);
   } catch (err) {
+    // 🚨 Opus 11-05 N5: teslim KESİN — sonraki kayıt hatası "tekrar deneyin" (500) gibi görünmemeli. Ev sahibi aynı kimlikle birkaç dakika
+    // sonra yeniden basardı; talepler 2 dk'da düşmüşse (uzatma da aynı arızada yazılamamış olabilir) misafire İKİNCİ mesaj giderdi ("çift
+    // mesaj, nadir sessiz kayıptan kötüdür"). Hata raporlanır, sonuç "gönderildi" — satır sonraki senkronla sağlayıcıdan gelir.
+    if (!isUniqueViolation(err, ["conversationId", "externalId"])) {
+      void reportError("host-send.persist-after-delivery", err);
+      return { status: "sent", message: null };
+    }
     // Delivery already succeeded; a dedupe-hit on the new @@unique([conversationId, externalId]) means a concurrent sync
     // imported this very reply first. Adopt the existing row and still mark answered.
-    if (!isUniqueViolation(err, ["conversationId", "externalId"])) throw err;
     // Q2 (Haiku 10-17): senkron bu satırı kanalın "otomasyon" rolüyle yazdıysa (sağlayıcı API ile gideni öyle etiketleyebilir) yazar
     // otomatik mesaj olurdu → ev sahibinin cevabı "cevap değil" sayılır, konuşma yeniden açılırdı. Sağlayıcı kimliği BİZİM gönderimimizin
     // yanıtından geliyor → yazar ev sahibine düzeltilir (yalnız otomasyon yazılmış satır; başka yazar korunur).

@@ -125,12 +125,13 @@ export async function releaseOutboundRequest(conversationId: string, idempotency
 
 /**
  * Doğrudan gönderim KESİN başarılı: talep 24 saate uzar — yanıtı kaybolan başarılı gönderimin geç tekrarı ikinci mesaj olmaz. En iyi çaba:
- * uzatılamazsa talep 2 dk'da düşer (bugünkü davranış; ikinci mesaj riski yalnız o zaman).
+ * uzatılamazsa talep 2 dk'da düşer. Dönüş: talep satırı uzatıldı mı (çağıran bir kez yeniden dener, olmazsa raporlar — Opus 11-05 N5).
  */
-export async function extendOutboundRequest(conversationId: string, idempotencyKey: string): Promise<void> {
-  await prisma.systemLock
+export async function extendOutboundRequest(conversationId: string, idempotencyKey: string): Promise<boolean> {
+  return prisma.systemLock
     .updateMany({ where: { name: requestClaimName(conversationId, idempotencyKey) }, data: { lockedUntil: new Date(Date.now() + REQUEST_CLAIM_TTL_MS) } })
-    .catch(() => {});
+    .then((r) => r.count > 0)
+    .catch(() => false);
 }
 
 // ---------------------------------------------------------------------------
