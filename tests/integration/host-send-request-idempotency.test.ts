@@ -55,10 +55,13 @@ function outboxOff() {
   vi.stubEnv("DURABLE_OUTBOX_ORG_IDS", "");
 }
 
-/** Gövde talebinin 2 dakikası geçti (zamanı ilerletmek yerine yalnız gövde taleplerini geçmişe çeker). */
-async function bodyClaimsExpire() {
+/**
+ * İki dakika geçti: süresi 3 dk'dan kısa olan BÜTÜN talepler (gövde talebi + kısa doğan istek talebi) geçmişe çekilir; kesin başarıdan sonra
+ * 24 saate uzatılmış istek talebi durur. (Zamanı ilerletmek yerine — gerçek PostgreSQL saatine dokunulmaz.)
+ */
+async function twoMinutesPass() {
   await prisma.systemLock.updateMany({
-    where: { name: { startsWith: OUTBOUND_SEND_CLAIM_PREFIX } },
+    where: { lockedUntil: { lt: new Date(Date.now() + 3 * 60_000) } },
     data: { lockedUntil: new Date(Date.now() - 1_000) },
   });
 }
@@ -133,7 +136,7 @@ describe("elle cevap — istek kimliği kuyruk anahtarından bağımsız tek tes
   it("🚨 yanıtı kaybolan BAŞARILI doğrudan gönderimin 2 dakika sonraki tekrarı ikinci mesaj olmaz", async () => {
     outboxOff();
     expect((await send("Havlular dolapta")).status).toBe(201);
-    await bodyClaimsExpire();
+    await twoMinutesPass();
     const retry = await send("Havlular dolapta");
     expect(retry.status).toBe(409);
     expect(mockSend).toHaveBeenCalledTimes(1);
@@ -143,7 +146,7 @@ describe("elle cevap — istek kimliği kuyruk anahtarından bağımsız tek tes
   it("KONTROL — FARKLI istek kimliği bilinçli ikinci gönderimdir (aynı metin, gövde talebi bittikten sonra)", async () => {
     outboxOff();
     expect((await send("Havlular dolapta")).status).toBe(201);
-    await bodyClaimsExpire();
+    await twoMinutesPass();
     const again = await POST(req(conversationId, { body: "Havlular dolapta", requestId: "99999999-8888-4777-8666-555555555544" }), {
       params: Promise.resolve({ id: conversationId }),
     });
@@ -176,6 +179,18 @@ describe("elle cevap — istek kimliği kuyruk anahtarından bağımsız tek tes
     expect(mockSend).toHaveBeenCalledTimes(2);
   });
 
+  it("🚨 gönderim ortasında ÇÖKEN süreç (talep alındı, sonuç yazılmadı) 24 saatlik kilit bırakmaz: 2 dk sonra aynı kimlik yeniden gönderilebilir (Opus F1)", async () => {
+    outboxOff();
+    // Süreç talebi aldı ve sağlayıcıyı beklerken öldü: ne uzatma ne bırakma çalıştı.
+    expect((await claimOutboundRequest(conversationId, `manual:${conversationId}:req:${RID}`, "direct")).result).toBe("claimed");
+    const held = await prisma.systemLock.findMany({ where: { name: { startsWith: OUTBOUND_REQUEST_CLAIM_PREFIX } }, select: { lockedUntil: true } });
+    expect(held[0].lockedUntil.getTime()).toBeLessThanOrEqual(Date.now() + 120_000 + 5_000);
+    expect((await send("Çöken gönderim")).status).toBe(409); // pencere içinde: "hâlâ gönderiliyor"
+    await twoMinutesPass();
+    expect((await send("Çöken gönderim")).status).toBe(201);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+  });
+
   it("KONTROL — gönderim FIRLATIRSA da belirsizdir: istek talebi 24 saat değil 2 dakika tutulur", async () => {
     outboxOff();
     vi.spyOn(console, "error").mockImplementation(() => {});
@@ -192,7 +207,7 @@ describe("elle cevap — istek kimliği kuyruk anahtarından bağımsız tek tes
   it("🚨 başarılı gönderimden sonra tutulan istek talebi 'belirsiz gönderim sürüyor' SAYILMAZ (yazma servisinin okuduğu önek ayrı)", async () => {
     outboxOff();
     expect((await send("Anahtar kutusu")).status).toBe(201);
-    await bodyClaimsExpire();
+    await twoMinutesPass();
     // Yazma servisinin `ambiguousSendPending` ölçütü: bu konuşmanın gövde-talebi önekinde süresi dolmamış satır.
     const pending = await prisma.systemLock.count({
       where: { name: { startsWith: `${OUTBOUND_SEND_CLAIM_PREFIX}${conversationId}:` }, lockedUntil: { gt: new Date() } },

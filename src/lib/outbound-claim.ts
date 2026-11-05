@@ -73,10 +73,10 @@ export async function releaseOutboundSend(conversationId: string, body: string):
 // açık da kapalı da olsa AYNI kayda bağlanır: iki yol da göndermeden / kuyruğa yazmadan ÖNCE bu talebi atomik olarak alır, sahibi
 // (`holder`) hangi yolun aldığını söyler. Eskiden kuyruk yolu yalnız kuyruk satırını, doğrudan yol yalnız 2 dk'lık GÖVDE talebini
 // görüyordu: anahtar iki deneme arasında değişirse (yayın / geri alma) aynı istek ikinci kez gidebiliyordu; doğrudan yolda yanıtı
-// kaybolan başarılı gönderimin 2 dk sonraki tekrarı da ikinci mesajdı. Süre (doğrudan yol): başarıdan sonra 24 sa; belirsiz sonuçta
-// (fırlatılan hata dahil) gövde talebiyle aynı 2 dk (bugünkü "konuşmayı kontrol edip yeniden gönder" penceresi DEĞİŞMEZ); kesin
-// başarısızlıkta bırakılır. Kuyruk yolu: 2 dk (kalıcı kayıt kuyruk satırıdır). Sahip okuması P2002'den sonra yapılır: talep arada
-// bırakıldıysa sahip bilinmez → güvenli taraf "tutuluyor" (sonraki deneme alır).
+// kaybolan başarılı gönderimin 2 dk sonraki tekrarı da ikinci mesajdı. Süre: talep 2 dk doğar (iki yol); doğrudan yol KESİN başarıdan
+// sonra 24 saate uzatır; belirsiz sonuç / fırlatılan hata / çöken süreç 2 dk'da kalır (bugünkü "konuşmayı kontrol edip yeniden gönder"
+// penceresi DEĞİŞMEZ); kesin başarısızlıkta bırakılır. Kuyruk yolu: 2 dk (kalıcı kayıt kuyruk satırıdır). Sahip okuması P2002'den sonra
+// yapılır: talep arada bırakıldıysa sahip bilinmez → güvenli taraf "tutuluyor" (sonraki deneme alır).
 // ---------------------------------------------------------------------------
 const REQUEST_PREFIX = OUTBOUND_REQUEST_CLAIM_PREFIX;
 const REQUEST_CLAIM_TTL_MS = 24 * 60 * 60_000;
@@ -103,10 +103,11 @@ export async function claimOutboundRequest(
   // Fırsatçı süpürme (↑ ile aynı): süresi dolan talep artık hiçbir şeyi tekilleştirmez.
   await prisma.systemLock.deleteMany({ where: { name: { startsWith: REQUEST_PREFIX }, lockedUntil: { lt: new Date() } } }).catch(() => {});
   try {
-    // Kuyruk yolunun talebi KISA (gövde talebiyle aynı 2 dk): satır yazılınca kalıcı kayıt odur (doğrudan yol önce ona bakar); talep yalnız
-    // yazım sürerkenki eşzamanlı pencereyi kapatır — yazımdan önce çöken süreç 24 saatlik asılı talep bırakmaz (Haiku 11-05).
-    const ttl = path === "direct" ? REQUEST_CLAIM_TTL_MS : CLAIM_TTL_MS;
-    await prisma.systemLock.create({ data: { name, lockedUntil: new Date(Date.now() + ttl), holder: path } });
+    // 🚨 Talep KISA doğar (gövde talebiyle aynı 2 dk) — iki yolda da. Doğrudan yol yalnız KESİN başarıdan sonra 24 saate uzatır
+    // (`extendOutboundRequest`); kuyruk yolunda kalıcı kayıt kuyruk satırıdır. Böylece gönderim ortasında çöken / öldürülen süreç
+    // (yayın, bellek) 24 saatlik asılı talep bırakmaz — her arıza bugünkü 2 dk'lık "kontrol edip yeniden gönder" penceresine düşer
+    // (Haiku 11-05 kuyruk yolu · Opus 11-05 F1 doğrudan yol).
+    await prisma.systemLock.create({ data: { name, lockedUntil: new Date(Date.now() + CLAIM_TTL_MS), holder: path } });
     return { result: "claimed" };
   } catch (err) {
     if (!(err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002")) return { result: "unavailable" };
@@ -122,10 +123,13 @@ export async function releaseOutboundRequest(conversationId: string, idempotency
   await prisma.systemLock.deleteMany({ where: { name: requestClaimName(conversationId, idempotencyKey) } }).catch(() => {});
 }
 
-/** Belirsiz sonuç: talep gövde talebinin süresine (2 dk) iner — bugünkü yeniden gönderme penceresi korunur. */
-export async function shortenOutboundRequest(conversationId: string, idempotencyKey: string): Promise<void> {
+/**
+ * Doğrudan gönderim KESİN başarılı: talep 24 saate uzar — yanıtı kaybolan başarılı gönderimin geç tekrarı ikinci mesaj olmaz. En iyi çaba:
+ * uzatılamazsa talep 2 dk'da düşer (bugünkü davranış; ikinci mesaj riski yalnız o zaman).
+ */
+export async function extendOutboundRequest(conversationId: string, idempotencyKey: string): Promise<void> {
   await prisma.systemLock
-    .updateMany({ where: { name: requestClaimName(conversationId, idempotencyKey) }, data: { lockedUntil: new Date(Date.now() + CLAIM_TTL_MS) } })
+    .updateMany({ where: { name: requestClaimName(conversationId, idempotencyKey) }, data: { lockedUntil: new Date(Date.now() + REQUEST_CLAIM_TTL_MS) } })
     .catch(() => {});
 }
 
