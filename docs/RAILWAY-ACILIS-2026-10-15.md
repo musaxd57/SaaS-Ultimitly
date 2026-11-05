@@ -81,7 +81,7 @@ Kurucu 10-15: "Railway'i açınca ekleyeceğimiz bayrakları unutma." Bu dosya T
 (10-02 kurucu beyanı olan beşi Railway'de teyit edilmedi — açılışta gözle bakın). ✅ `QR_ESCALATION_EMAIL_ENABLED=1` KURUCU ONAYLADI 11-04 (derin ajan
 turu S2: "önerini beğendim"): QR misafir sohbetinde açık tehlike yazan misafir için bugün ne misafire ne ev sahibine bir şey gidiyordu (K10 + bayrak
 kapalı; belgeler çelişiyordu — sabah raporu 10-01 "açın", bu belge "açmayın"). Açıkken QR'da ev sahibine kalan HER mesajda (tehlike, şikâyet, günlük
-hak, iptal edilmiş konaklama…) ev sahibine "⚠️ Misafir sohbetinde size devredilen mesaj — {daire}" e-postası (misafir metni / adı YOK; sebep + panel
+hak, iptal edilmiş konaklama…) ev sahibine "⚠️ Misafir sohbetinde size devredilen mesaj — {daire}" e-postası (kritik olayda — açık tehlike / acil / erişim kaybı — S2 onayıyla "⚠️ Acil misafir mesajı — {daire}", 11-05) (misafir metni / adı YOK; sebep + panel
 bağlantısı); tehlike dışı olayda konaklama başına 5 dk'da bir, tehlikede konaklama başına saatte en çok 3 (`src/lib/guest-chat-alerts.ts`). Misafire
 giden metin DEĞİŞMEZ. Alıcı: işletmenin uyarı adresi, yoksa en eski sahip hesabı. ⚠️ 10-28: `AI_KB_FEE_RULE_ENABLED` artık ÜÇ yeri birlikte açar
 (kurucu kararı 4.13): cevap isteminin ücret kuralı + anlama katmanında "hizmet ücreti sorusu ödeme değildir" eki + kıdemli okuyucuda "yalnız fiyat

@@ -127,7 +127,7 @@ Bildirim taşıyıcısı bugün **yalnız e-posta** (WhatsApp / SMS / anlık bil
 | A4 | Ev sahibine bırakılan hassas istek (öğe kipi) | aynı | mesaj başına bir | konuşma öğeleri açık |
 | A5 | "Misafir cevabınızı bekliyor" — sessiz kalan gerçek açık ihtiyaç | Misafir cevabınızı bekliyor — … | mesaj başına bir, aynı ihtiyaç bir yıl tekrar yok | oto-yanıt açık |
 | A6 | Karar kartı | Karar bekliyor: … | kart başına bir | `HOST_DECISIONS_ENABLED` (kapalı) |
-| A7 | QR sohbetinde devir | ⚠️ Misafir sohbetinde size devredilen mesaj — {daire} | konaklama başına 5 dk bekleme; kritik (acil / **kayıp anahtar, yeni**) beklemesiz, saatte en çok 3 | `QR_ESCALATION_EMAIL_ENABLED` (kapalı) |
+| A7 | QR sohbetinde devir | ⚠️ Misafir sohbetinde size devredilen mesaj — {daire} · kritik olayda ⚠️ Acil misafir mesajı — {daire} (S2, 11-05) | konaklama başına 5 dk bekleme; kritik (acil / **kayıp anahtar, yeni**) beklemesiz, saatte en çok 3 | `QR_ESCALATION_EMAIL_ENABLED` (kapalı) |
 | A8 | Ev sahibinin elle açtığı konuşmada şikâyet | Acil Şikayet: … | olay başına bir | yok |
 
 **Yalnız panelde görünenler (e-posta YOK):** "Dikkat Gerektirenler" satırları (cevapsız 6 sa+, ayrılış yaklaşırken cevapsız, bağlantı
