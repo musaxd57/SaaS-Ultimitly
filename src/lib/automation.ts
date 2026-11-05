@@ -180,6 +180,7 @@ import { openDecisionsForTurn } from "@/lib/decisions/turn";
 import { notifyTurnDecisions } from "@/lib/decisions/notify";
 import {
   claimTurnDecisionForPolicy,
+  hostDecidedEarlyCheckinForStay,
   findTurnDecision,
   releasePolicyClaim,
   resolveDecisionByPolicy,
@@ -2959,15 +2960,25 @@ export async function applyChannelAutoReply(
     });
     // Host Karar Motoru: bu talebin kartında ev sahibi karar verdiyse / veriyorsa (gönderiliyor, onaylandı, reddedildi, doğrulanamadı,
     // kapatıldı) otomatik onay GİTMEZ — temizlik bitince yeniden değerlendirilen istek ev sahibinin reddini "onaylandı" ile ezmesin.
+    // Tur 5 D1: kart turdan BAĞIMSIZ da aranır — önceki turda reddedilen (ret mesajı turu kapatır) talebi misafir yeniden sorunca
+    // otomatik onay ev sahibinin reddini ezmesin (`hostDecidedEarlyCheckinForStay`).
     const hostOwnsEarlyCard =
       hostDecisionsEnabled() && earlyCheckinRun?.decision.autoSend
-        ? await findTurnDecision(prisma, {
-            organizationId: conversation.property.organizationId,
-            conversationId: conversation.id,
-            kind: "early_checkin",
-            messageIds: decisionTurnMessageIds,
-          })
-            .then((c) => c !== null && c.status !== "pending")
+        ? await Promise.all([
+            findTurnDecision(prisma, {
+              organizationId: conversation.property.organizationId,
+              conversationId: conversation.id,
+              kind: "early_checkin",
+              messageIds: decisionTurnMessageIds,
+            }).then((c) => c !== null && c.status !== "pending"),
+            hostDecidedEarlyCheckinForStay(prisma, {
+              organizationId: conversation.property.organizationId,
+              conversationId: conversation.id,
+              reservationId: conversation.reservation?.id ?? null,
+              autoTime: earlyCheckinRun.decision.approvedTime ?? null,
+            }),
+          ])
+            .then(([turnCard, stayCard]) => turnCard || stayCard)
             .catch(() => true)
         : false;
     if (earlyCheckinRun?.decision.autoSend && earlyCheckinRun.draft && !hostOwnsEarlyCard) {
@@ -4136,14 +4147,27 @@ export async function applyChannelAutoReply(
   // ev sahibinin kartını görüp otomatik onaya hiç girmez).
   let policyClaim: { id: string; version: number } | null = null;
   if (earlyCheckinSent && hostDecisionsEnabled() && earlyCheckinRun?.decision.approvedTime) {
-    const claimed = await claimTurnDecisionForPolicy(prisma, {
+    // Tur 5 D1: kapıdan bu ana kadar ev sahibi konaklamanın başka bir kartında karar verdiyse de otomatik onay GİTMEZ.
+    const approvedTime = earlyCheckinRun.decision.approvedTime;
+    const claimed = await hostDecidedEarlyCheckinForStay(prisma, {
       organizationId: conversation.property.organizationId,
       conversationId: conversation.id,
-      kind: "early_checkin",
-      messageIds: decisionTurnMessageIds,
-      decidedTime: earlyCheckinRun.decision.approvedTime,
-      now: new Date(),
-    }).catch((): { ok: boolean; claimed: null } => ({ ok: false, claimed: null }));
+      reservationId: conversation.reservation?.id ?? null,
+      autoTime: approvedTime,
+    })
+      .then((hostDecided) =>
+        hostDecided
+          ? { ok: false, claimed: null }
+          : claimTurnDecisionForPolicy(prisma, {
+              organizationId: conversation.property.organizationId,
+              conversationId: conversation.id,
+              kind: "early_checkin",
+              messageIds: decisionTurnMessageIds,
+              decidedTime: approvedTime,
+              now: new Date(),
+            }),
+      )
+      .catch((): { ok: boolean; claimed: null } => ({ ok: false, claimed: null }));
     if (!claimed.ok) {
       await prisma.conversation
         .updateMany({ where: { id: conversation.id, status: "answered" }, data: { status: "new" } })

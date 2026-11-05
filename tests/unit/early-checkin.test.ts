@@ -191,6 +191,20 @@ describe("karar çekirdeği — her kontrol ayrı, eksik ya da çelişki insana"
     expect(decideEarlyCheckin({ ...OK, requested: { time: "16:30", sources: 2, conflict: false } }, RULE).status).toBe("not_early");
   });
 
+  it("🚨 Tur 5 D2: KARAR KARTI (evaluateAll) kısa devreye takılmaz — 04:00 kartında önceki misafir hâlâ içeride; standart saat geçtiyse 'saat geçti'; otomatik onay hiçbir kipte yok", () => {
+    const night = { ...OK, nowMinutes: 60, requested: { time: "04:00", sources: 2, conflict: false } };
+    expect(decideEarlyCheckin(night, { ...RULE, earliest: "00:00" })).toMatchObject({ status: "not_early", failed: [] });
+    const card = decideEarlyCheckin(night, { ...RULE, earliest: "00:00" }, { evaluateAll: true });
+    expect(card.failed).toContain("previous_still_in");
+    expect(card.autoSend).toBe(false);
+    // Varış günü 16:00, istek 13:00: otomatik akış "erken giriş değil", kart saatin geçtiğini söyler.
+    const late = { ...OK, nowMinutes: 16 * 60, requested: { time: "13:00", sources: 2, conflict: false } };
+    expect(decideEarlyCheckin(late, RULE).status).toBe("not_early");
+    expect(decideEarlyCheckin(late, RULE, { evaluateAll: true }).failed.length).toBeGreaterThan(0);
+    // Her şey doğrulanmış olsa da kart kipi otomatik onay üretmez.
+    expect(decideEarlyCheckin(OK, RULE, { evaluateAll: true })).toMatchObject({ status: "approvable", autoSend: false });
+  });
+
   it("🚨 gece yarısından sonraki varış (05:00 öncesi) GEÇ varıştır, erken giriş değil — `isEarlierThanCheckIn` ile aynı eşik", () => {
     const at = (time: string) => decideEarlyCheckin({ ...OK, nowMinutes: 60, requested: { time, sources: 2, conflict: false } }, { ...RULE, earliest: "00:00" });
     expect(at("01:30")).toMatchObject({ status: "not_early", autoSend: false, approvedTime: null });

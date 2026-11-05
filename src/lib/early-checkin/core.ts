@@ -185,7 +185,17 @@ export interface EarlyCheckinDecision {
 }
 
 /** Varış günü için "dün gece"yi değil, varış GÜNÜNÜ esas alan karar. Saf; aynı girdiye aynı çıktı. */
-export function decideEarlyCheckin(facts: EarlyCheckinFacts, rule: EarlyCheckinRule | null): EarlyCheckinDecision {
+export function decideEarlyCheckin(
+  facts: EarlyCheckinFacts,
+  rule: EarlyCheckinRule | null,
+  /**
+   * Tur 5 D2 (11-05, ölçüldü): ev sahibinin KARAR KARTI kontrolleri her zaman koşturur. Otomatik akış için "erken giriş değil" kısa
+   * devresi (05:00'ten önce / varış günü standart saat geçti) doğru, ama karar motoru o saati yine "04:00 erken giriş" kartı olarak
+   * açıyor ve boş kontrol listesini ödünç alıyordu → önceki misafir 11:00'e kadar içerideyken kartta hiç kırmızı satır yoktu, tek
+   * dokunuşla "04:00 itibarıyla giriş yapabilirsiniz" gidebiliyordu. `evaluateAll` yalnız kart için; otomatik onay hiç üretilmez.
+   */
+  opts: { evaluateAll?: boolean } = {},
+): EarlyCheckinDecision {
   const failed: EarlyCheckinCheck[] = [];
   const fee = rule?.fee ?? null;
   const requestedMin = hhmmToMinutes(normalizeHhmm(facts.requested.time));
@@ -194,6 +204,7 @@ export function decideEarlyCheckin(facts: EarlyCheckinFacts, rule: EarlyCheckinR
   // İstenen saat standart girişten erken değilse — ya da gece yarısından sonraki GEÇ varışsa ("gece 1:30 gibi
   // varırız", tek kaynak `isEarlierThanCheckIn` ile aynı eşik) — bu bir erken giriş isteği DEĞİLDİR (akış uygulanmaz).
   if (
+    !opts.evaluateAll &&
     requestedMin !== null &&
     !facts.requested.conflict &&
     (requestedMin < LATE_NIGHT_ARRIVAL_CUTOFF_MINUTES || (standardMin !== null && requestedMin >= standardMin))
@@ -203,7 +214,7 @@ export function decideEarlyCheckin(facts: EarlyCheckinFacts, rule: EarlyCheckinR
   const arrivalToday = facts.reservation !== null && facts.reservation.arrivalKey === facts.todayKey;
   const nowMin = typeof facts.nowMinutes === "number" && Number.isFinite(facts.nowMinutes) ? facts.nowMinutes : null;
   // Varış günü standart giriş saati GEÇTİYSE erken giriş penceresi kapanmıştır (normal giriş geçerli; onay üretilmez).
-  if (arrivalToday && standardMin !== null && nowMin !== null && nowMin >= standardMin) {
+  if (!opts.evaluateAll && arrivalToday && standardMin !== null && nowMin !== null && nowMin >= standardMin) {
     return { status: "not_early", failed: [], approvedTime: null, fee, autoSend: false };
   }
 
@@ -255,7 +266,8 @@ export function decideEarlyCheckin(facts: EarlyCheckinFacts, rule: EarlyCheckinR
     failed: [...failed, ...autoFailed],
     approvedTime: approvable ? normalizeHhmm(facts.requested.time) : null,
     fee,
-    autoSend: approvable && rule?.mode === "auto" && autoFailed.length === 0,
+    // Kart kipi (`evaluateAll`) yalnız kontrol listesidir — otomatik onay ASLA üretmez.
+    autoSend: !opts.evaluateAll && approvable && rule?.mode === "auto" && autoFailed.length === 0,
   };
 }
 

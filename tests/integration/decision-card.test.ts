@@ -207,6 +207,18 @@ describe("kart verisi — komşu konaklamanın kararı (aynı gün devir)", () =
     expect(card.lines.find((l) => /Temizlik henüz bitti olarak işaretlenmedi/.test(l.text))).toMatchObject({ ok: true, info: true });
   });
 
+  it("🚨 Tur 5 D2: 05:00'ten önceki saat için açılan erken giriş kartı kontrol listesini BOŞ göstermez — önceki misafir hâlâ içeride kırmızı", async () => {
+    const w = await world();
+    const mCur = await w.msg(w.curConv.id, "Sabah 4'te erken giriş yapabilir miyiz?", 60);
+    await w.decision(w.curConv.id, w.cur.id, mCur.id, "early_checkin", { requestedTime: "04:00" });
+    const views = await listConversationDecisions(prisma, { organizationId: w.org.id, conversationId: w.curConv.id, timeZone: TZ, now: new Date() });
+    const [card] = await buildDecisionCards(views, w.ctx(w.curConv.id));
+    // Eski kod bu satırı YEŞİL "Önceki misafirin beklenen çıkışı: 11:00" diye gösteriyordu (kontrol koşmuyordu).
+    const prev = card.lines.find((l) => l.text.startsWith("Önceki misafirin beklenen çıkışı"));
+    expect(prev, JSON.stringify(card.lines)).toMatchObject({ ok: false });
+    expect(prev?.text).toMatch(/henüz boşalmamış olabilir/);
+  });
+
   it("talep alıntısı: yalnız misafirin mesajından, tek satır, uzunsa kırpılır", async () => {
     expect(requestQuoteOf("  13:00'te\n\ngirebilir   miyiz?  ")).toBe("13:00'te girebilir miyiz?");
     expect(requestQuoteOf("")).toBeNull();

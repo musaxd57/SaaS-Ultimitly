@@ -457,6 +457,38 @@ describe("karar kaydı", () => {
     expect(views.map((v) => [v.effective, v.decidedTime])).toEqual([["sending", "13:00"]]);
   });
 
+  it("🚨 Tur 5 D3: rezervasyonsuz açılan bekleyen kart, sonraki turda konuşmanın rezervasyonu bilinince ona BAĞLANIR (komşu kontrolleri rezervasyonla arar)", async () => {
+    const w = await world();
+    const m = await w.msg("13:00'te çıkabilir miyiz?", 30);
+    const base = { organizationId: w.org.id, conversationId: w.conversation.id, lang: "tr", now: new Date() };
+    await openTurnDecisions(prisma, {
+      ...base,
+      reservationId: null,
+      decisions: [{ kind: "late_checkout", messageId: m.id, itemId: null, requestedTime: "13:00", dayKey: null }],
+    });
+    expect((await prisma.decisionRequest.findFirstOrThrow()).reservationId).toBeNull();
+    await openTurnDecisions(prisma, {
+      ...base,
+      reservationId: w.reservation.id,
+      decisions: [{ kind: "late_checkout", messageId: m.id, itemId: null, requestedTime: "13:00", dayKey: null }],
+    });
+    expect((await prisma.decisionRequest.findFirstOrThrow()).reservationId).toBe(w.reservation.id);
+  });
+
+  it("🚨 Tur 5 D5: tarih değişikliği kartı konaklama BİTİNCE 'süresi geçti' (rozet / pano saymaz); bitmeden 'karar bekliyor'", async () => {
+    const w = await world();
+    const m = await w.msg("Bir gece uzatabilir miyiz?", 30);
+    await prisma.decisionRequest.create({
+      data: { organizationId: w.org.id, conversationId: w.conversation.id, messageId: m.id, reservationId: w.reservation.id, kind: "date_change", lang: "tr" },
+    });
+    const view = async () =>
+      (await listConversationDecisions(prisma, { organizationId: w.org.id, conversationId: w.conversation.id, timeZone: TZ, now: new Date() }))[0];
+    expect((await view()).effective).toBe("pending");
+    expect((await view()).dayKey).toBeNull(); // görünen gün değişmedi (pinli tasarım)
+    await prisma.reservation.update({ where: { id: w.reservation.id }, data: { arrivalDate: utcDay(-10), departureDate: utcDay(-5) } });
+    expect((await view()).effective).toBe("expired");
+  });
+
   it("başka kiracının konuşmasına kart AÇILMAZ (kimlik çakışsa da)", async () => {
     const w = await world();
     const m = await w.msg("Erken giriş?", 30);

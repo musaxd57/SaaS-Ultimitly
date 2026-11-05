@@ -14,6 +14,7 @@ import {
   TEXT_DECISION_KINDS,
   isDecisionKind,
   liveDecisionDayKey,
+  decisionExpiryDayKey,
   parseHostTime,
   timeOnRightSide,
   type DecisionLang,
@@ -239,13 +240,13 @@ export async function decideHostDecision(args: {
   const tz = orgTimezone(conversation.property.organization.timezone);
   // Gün CANLI (rezervasyon değiştiyse kartın kayıtlı günü değil, bugünkü tarihi — sayfadaki kartla aynı kural).
   const res = conversation.reservation;
-  const dayKey = liveDecisionDayKey(
-    { kind: decision.kind, dayKey: decision.dayKey, reservationId: decision.reservationId },
-    res
-      ? { id: res.id, arrivalKey: calendarDateOf(res.arrivalDate, tz).key, departureKey: calendarDateOf(res.departureDate, tz).key }
-      : null,
-  );
-  if (dayKey && dayKey < todayKey(now, tz)) {
+  const resKeys = res
+    ? { id: res.id, arrivalKey: calendarDateOf(res.arrivalDate, tz).key, departureKey: calendarDateOf(res.departureDate, tz).key }
+    : null;
+  const dayKey = liveDecisionDayKey({ kind: decision.kind, dayKey: decision.dayKey, reservationId: decision.reservationId }, resKeys);
+  // Tur 5 D5: süre hükmü sayfadaki kartla AYNI kural (tarih değişikliği kartı konaklama bitince süresi geçmiş sayılır).
+  const expiryKey = decisionExpiryDayKey({ kind: decision.kind, dayKey: decision.dayKey, reservationId: decision.reservationId }, resKeys);
+  if (expiryKey && expiryKey < todayKey(now, tz)) {
     return conflict("expired", "Talep edilen gün geçti; misafire karar mesajı gönderilmedi.");
   }
   const latestGuestId = await latestGuestMessageAfterRequest({ conversationId: id, messageId: decision.messageId, createdAt: decision.createdAt });
@@ -300,7 +301,16 @@ export async function decideHostDecision(args: {
   // komşu konaklamanın kartı / erken giriş kontrolü onu görür — ret saat taşımaz; kesin hatada geri alınır).
   const lock = await prisma.decisionRequest.updateMany({
     where: { id: decision.id, organizationId, status: "pending", version: input.version },
-    data: { status: "sending", decidedTime: time, decidedById: actor.userId, decidedAt: now, version: { increment: 1 } },
+    data: {
+      status: "sending",
+      decidedTime: time,
+      decidedById: actor.userId,
+      decidedAt: now,
+      // Tur 5 D3: rezervasyonsuz açılmış kart, konuşma sonradan rezervasyona bağlandıysa o rezervasyona bağlanır — komşu konaklama
+      // kontrolleri (geç çıkış onayı → sonraki misafirin erken girişi) rezervasyon kimliğiyle arar; bağsız onay onlara görünmüyordu.
+      ...(decision.reservationId === null && conversation.reservation ? { reservationId: conversation.reservation.id } : {}),
+      version: { increment: 1 },
+    },
   });
   if (lock.count !== 1) return conflict("stale", DECISION_STALE_TEXT);
   const lockedVersion = input.version + 1;

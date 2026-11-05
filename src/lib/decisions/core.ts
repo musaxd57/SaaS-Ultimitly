@@ -121,6 +121,21 @@ export function liveDecisionDayKey(
 }
 
 /**
+ * "Süresi geçti" hükmünün günü (Tur 5 D5, 11-05, ölçüldü). Tarih değişikliği kartının hedef günü YOKTUR (`decisionDayKey` null, pinli) —
+ * bu yüzden kart konaklama bittikten aylar sonra da "Karar bekliyor" kalıyor, Dikkat Gerektirenler'de ve rozette sayılıyordu. Görünen gün
+ * aynen kalır; YALNIZ süre hükmü için tarih değişikliği kartı konaklamanın çıkış gününe bağlanır (konaklama bitince yapılacak iş yok).
+ */
+export function decisionExpiryDayKey(
+  d: { kind: DecisionKind; dayKey: string | null; reservationId: string | null },
+  reservation: { id: string; arrivalKey: string; departureKey: string } | null,
+): string | null {
+  const live = liveDecisionDayKey(d, reservation);
+  if (live !== null) return live;
+  if (d.kind === "date_change" && reservation && (d.reservationId === null || d.reservationId === reservation.id)) return reservation.departureKey;
+  return null;
+}
+
+/**
  * Görünen durum. AÇIK kart türetilir: rezervasyon iptalse "iptal", hedef gün geçtiyse "süresi geçti" (karar bekleyen VE gönderimi
  * doğrulanamayan kart — artık yapılacak iş yok); karar bekleyen kartta ev sahibi talepten SONRA yazdıysa "yanıtladınız" (kurucu
  * kararı 09-26 öğelerdeki gibi — tıklama gerekmez). Sonuçlanmış kart aynen.

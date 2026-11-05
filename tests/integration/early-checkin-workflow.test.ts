@@ -693,6 +693,75 @@ describe("kanal oto-yanıtı — doğrulanmış erken giriş", () => {
     }
   });
 
+  // Tur 5 D1 (11-05, ölçüldü, çürütücüyle yeniden üretildi): ret mesajı GİDEN mesaj olduğu için turu kapatıyordu; misafir yeniden sorunca
+  // yeni turda kart bulunmuyor, doğrulanmış otomatik onay ("Daireniz hazır; … 13:00") ev sahibinin reddini eziyordu. Üstteki pin kartı
+  // AYNI mesaja bağlıyordu (ret mesajı turu kapattığı için gerçekte oluşmayan durum). Kural (kalıcı karar "ev sahibinin kartını EZMEZ",
+  // tasarım §10): aynı konaklamada ev sahibinin karar verdiği kart turdan BAĞIMSIZ otomatik onayı durdurur.
+  it("🚨 Tur 5 D1: ev sahibi ÖNCEKİ turda reddetti (ret mesajı turu kapattı), misafir yeniden sordu → otomatik onay GİTMEZ; 'kapattı' ve aynı saatin onayı engellemez", async () => {
+    vi.stubEnv("HOST_DECISIONS_ENABLED", "1");
+    const cases: Array<{ status: string; decidedTime: string | null; blocked: boolean }> = [
+      { status: "declined", decidedTime: null, blocked: true },
+      { status: "sending", decidedTime: "13:00", blocked: true },
+      { status: "send_unverified", decidedTime: "13:00", blocked: true },
+      { status: "approved", decidedTime: "14:00", blocked: true },
+      { status: "approved", decidedTime: "13:00", blocked: false },
+      { status: "dismissed", decidedTime: null, blocked: false },
+    ];
+    for (const c of cases) {
+      const label = `${c.status}/${c.decidedTime}`;
+      await resetDb();
+      vi.clearAllMocks();
+      __resetUnderstandingCache();
+      mockSend.mockResolvedValue({ ok: true, externalId: "ext-1" } as never);
+      mockSuggest.mockResolvedValue(MODEL);
+      const t = await turnover({ cleaned: CLEANED_AT });
+      await saveEarlyCheckinRule(t.orgId, t.propertyId, RULE);
+      vi.stubGlobal("fetch", semanticFetch({ guest_message_understanding: nlu("13:00"), stay_change_guard: guard("13:00", false) }));
+      const conv = await prisma.conversation.create({
+        data: {
+          propertyId: t.propertyId,
+          reservationId: t.own.id,
+          channel: "airbnb",
+          guestIdentifier: "Alex",
+          status: "new",
+          externalReservationId: "res-1",
+          messages: {
+            create: [
+              { direction: "inbound", senderName: "Alex", body: ASK, createdAt: new Date(NOW.getTime() - 90 * 60_000) },
+              {
+                direction: "outbound",
+                senderName: "Ev sahibi",
+                authorType: "host",
+                body: "Sorry, early check-in at 13:00 is not possible on 14 October; check-in is at 15:00.",
+                createdAt: new Date(NOW.getTime() - 60 * 60_000),
+              },
+              { direction: "inbound", senderName: "Alex", body: "If the cleaning is done, could we come at 13:00?", createdAt: new Date(NOW.getTime() - 2 * 60_000) },
+            ],
+          },
+        },
+        select: { id: true },
+      });
+      const first = await prisma.message.findFirstOrThrow({ where: { conversationId: conv.id, direction: "inbound" }, orderBy: { createdAt: "asc" } });
+      await prisma.decisionRequest.create({
+        data: {
+          organizationId: t.orgId,
+          conversationId: conv.id,
+          messageId: first.id,
+          reservationId: t.own.id,
+          kind: "early_checkin",
+          requestedTime: "13:00",
+          lang: "en",
+          status: c.status,
+          decidedTime: c.decidedTime,
+        },
+      });
+      const out = await applyChannelAutoReply(conv.id);
+      expect(out.sent, label).toBe(!c.blocked);
+      if (c.blocked) expect(mockSend, label).not.toHaveBeenCalled();
+      else expect(mockSend, label).toHaveBeenCalledTimes(1);
+    }
+  });
+
   it("🚨 Host Karar Motoru: kart BEKLİYORSA otomatik onay göndermeden önce kartı sahiplenir ('otomatik onaylandı'); kesin gönderim hatasında kart yeniden 'karar bekliyor'", async () => {
     vi.stubEnv("HOST_DECISIONS_ENABLED", "1");
     const t = await turnover({ cleaned: CLEANED_AT });

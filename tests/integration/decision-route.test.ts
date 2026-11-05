@@ -180,6 +180,17 @@ describe("POST /api/conversations/[id]/decisions/[decisionId]", () => {
     expect(audit.metadataJson).not.toContain("onaylandı");
   });
 
+  it("🚨 Tur 5 D3: rezervasyonsuz açılmış kart onaylanınca konuşmanın rezervasyonuna BAĞLANIR (komşu konaklamanın kontrolleri görür)", async () => {
+    const s = await seed();
+    await prisma.decisionRequest.update({ where: { id: s.decisionId }, data: { reservationId: null } });
+    const res = await post(s, { action: "approve", version: 0, time: "13:00", body: APPROVE_TR });
+    expect(res.status).toBe(200);
+    expect(await prisma.decisionRequest.findUniqueOrThrow({ where: { id: s.decisionId } })).toMatchObject({
+      status: "approved",
+      reservationId: s.reservationId,
+    });
+  });
+
   it("🚨 çift tıklama: aynı sürümle ikinci istek 409 (stale), misafire İKİNCİ mesaj gitmez", async () => {
     const s = await seed();
     const [a, b] = await Promise.all([

@@ -11,6 +11,7 @@ import {
   isDecisionStatus,
   isOpenDecision,
   liveDecisionDayKey,
+  decisionExpiryDayKey,
   type DecisionKind,
   type DecisionStatus,
   type EffectiveDecisionStatus,
@@ -148,12 +149,17 @@ export async function openTurnDecisions(
         row = await db.decisionRequest.findUnique({ where });
         if (!row || row.organizationId !== input.organizationId) continue;
       }
-    } else if (row.status === "pending" && ((row.requestedTime === null && d.requestedTime) || (row.dayKey === null && d.dayKey))) {
+    } else if (
+      row.status === "pending" &&
+      ((row.requestedTime === null && d.requestedTime) || (row.dayKey === null && d.dayKey) || (row.reservationId === null && input.reservationId))
+    ) {
       const res = await db.decisionRequest.updateMany({
         where: { id: row.id, organizationId: input.organizationId, status: "pending", version: row.version },
         data: {
           ...(row.requestedTime === null && d.requestedTime ? { requestedTime: d.requestedTime } : {}),
           ...(row.dayKey === null && d.dayKey ? { dayKey: d.dayKey } : {}),
+          // Tur 5 D3: konuşma sonradan rezervasyona bağlandıysa bekleyen kart da bağlanır (komşu kontrolleri rezervasyonla arar).
+          ...(row.reservationId === null && input.reservationId ? { reservationId: input.reservationId } : {}),
           version: { increment: 1 },
         },
       });
@@ -314,6 +320,36 @@ export async function findTurnDecision(
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
   });
   return row ? toPersisted(row) : null;
+}
+
+/** Ev sahibinin erken giriş kartındaki KARARI sayılan durumlar ("kapatıldı" = gerek kalmadı ve kodun kendi onayı sayılmaz). */
+export const HOST_OWNED_EARLY_CHECKIN_STATUSES = ["declined", "sending", "send_unverified", "approved"] as const;
+
+/**
+ * Tur 5 D1 (11-05, ölçüldü, çürütücüyle yeniden üretildi): ev sahibinin bu KONAKLAMANIN erken giriş talebinde verdiği karar, turdan
+ * BAĞIMSIZ. Ret mesajı giden mesaj olduğu için turu kapatıyordu; misafir yeniden sorunca yeni turda kart bulunmuyor ve doğrulanmış
+ * otomatik onay ("Daireniz hazır; … 13:00") ev sahibinin reddini eziyordu. Kural (kalıcı karar "ev sahibinin kartını EZMEZ", tasarım
+ * §10): aynı konaklamada (rezervasyonun kartı ya da bu konuşmanın rezervasyonsuz kartı) ev sahibi reddettiyse / gönderiyorsa /
+ * gönderimi doğrulanamadıysa / BAŞKA bir saati onayladıysa otomatik onay GİTMEZ — misafirin yeni sorusu ev sahibine kalır. Aynı saatin
+ * onayı otomatik onayla çelişmez.
+ */
+export async function hostDecidedEarlyCheckinForStay(
+  db: Db,
+  input: { organizationId: string; conversationId: string; reservationId: string | null; autoTime: string | null },
+): Promise<boolean> {
+  const rows = await db.decisionRequest.findMany({
+    where: {
+      organizationId: input.organizationId,
+      kind: "early_checkin",
+      status: { in: [...HOST_OWNED_EARLY_CHECKIN_STATUSES] },
+      ...(input.reservationId
+        ? { OR: [{ reservationId: input.reservationId }, { conversationId: input.conversationId, reservationId: null }] }
+        : { conversationId: input.conversationId }),
+    },
+    select: { status: true, decidedTime: true },
+    take: 50,
+  });
+  return rows.some((r) => r.status !== "approved" || r.decidedTime !== input.autoTime);
 }
 
 /**
@@ -481,16 +517,14 @@ async function withEffective(
     const at = messageAt.get(r.messageId) ?? r.createdAt;
     const host = lastHostAt.get(r.conversationId) ?? null;
     const res = conv.reservation;
-    const dayKey = liveDecisionDayKey(
-      r,
-      res
-        ? {
-            id: res.id,
-            arrivalKey: calendarDateOf(res.arrivalDate, ctx.timeZone).key,
-            departureKey: calendarDateOf(res.departureDate, ctx.timeZone).key,
-          }
-        : null,
-    );
+    const resKeys = res
+      ? {
+          id: res.id,
+          arrivalKey: calendarDateOf(res.arrivalDate, ctx.timeZone).key,
+          departureKey: calendarDateOf(res.departureDate, ctx.timeZone).key,
+        }
+      : null;
+    const dayKey = liveDecisionDayKey(r, resKeys);
     return [
       {
         ...r,
@@ -501,7 +535,8 @@ async function withEffective(
         effective: effectiveDecisionStatus(r.status, {
           hostRepliedAfter: host !== null && host > at,
           reservationCancelled: /cancel/i.test(res?.status ?? ""),
-          dayKey,
+          // Tur 5 D5: süre hükmü tarih değişikliği kartında çıkış gününe bağlı (görünen gün aynen).
+          dayKey: decisionExpiryDayKey(r, resKeys),
           todayKey: today,
           sendingStale: r.status === "sending" && ctx.now.getTime() - r.updatedAt.getTime() > DECISION_SENDING_STALE_MS,
         }),

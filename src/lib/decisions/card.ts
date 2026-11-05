@@ -328,7 +328,8 @@ async function earlyLines(v: DecisionView, ctx: DecisionCardContext, n: Neighbor
   }).catch(() => null);
   const lines: DecisionLine[] = [];
   if (loaded) {
-    const decision = decideEarlyCheckin(loaded.facts, loaded.rule);
+    // Tur 5 D2: kart kontrolleri "erken giriş değil" kısa devresine takılmaz (04:00 kartında da önceki misafirin çıkışı kırmızı).
+    const decision = decideEarlyCheckin(loaded.facts, loaded.rule, { evaluateAll: true });
     const panel = earlyCheckinPanelLines(
       {
         status: decision.status,
