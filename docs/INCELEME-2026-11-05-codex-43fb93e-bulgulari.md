@@ -141,6 +141,7 @@ anahtar yapılmaz. Bu ortak mimari tasarımına (J) girer; migration gerekir. **
 - **R-1** Ortak "işlem kaydı" tablosu (elle rezervasyon + personel daveti + iş kabulü) — J tasarımına alalım mı?
 - **S-1** Sızmış parola engeli + metin.
 - **S-2** Parola özeti ölçüm + işçi havuzu / Argon2id tasarım turu.
+- **J-10** (Opus F7, tasarım belgesi §6) Girişler'de temizlik görevine yazılan not: bilgi satırı mı (bugün), "bilinmiyor" mu?
 
 ## 8. Doğrulama özeti
 - Kırmızı-önce: her düzeltmenin testi eski kodda koşturuldu (yukarıdaki sayılar).
@@ -160,3 +161,39 @@ sınırına dokunan değişiklikte `tests/unit/rate-limit*` pinleri de koşulur.
 14/14 öldürüldü (M0 yeşil): duyuru D1–D6 (rota alanı, iki yolun gerçek durumu, istemcinin üç dalı), QR sınırı Q1–Q3 (daire kovası,
 240 tavanı, kovada istekte bulunanın IP'si), kalite denetimi A1–A4 (kart, doğrudan çağrı, rota, yalnız "1"), G8 (tek tur kalkanı — önceki
 partide yaşayan, yeni zamanlama testiyle öldü). Toplam bu tur: 24 + 11 + 14 = 49 mutant, 49'u öldürüldü (biri ilk koşuda yaşadı, pinlendi).
+
+## 10. Opus dilim sonu incelemesi (787cc652..9242634b — 12 bulgu)
+
+Dilim bitince Opus 5.5 "en derin ve sert" inceleme yaptı (salt-okuma; bulgularını dosyaya yazarak). Her bulgu bugünkü kodda yeniden
+doğrulandı; düzeltilenlerin testi eski kodda kırmızı, yenide yeşil. Misafire giden metin DEĞİŞMEDİ.
+
+| # | Bulgu | Ne yapıldı | Commit |
+|---|---|---|---|
+| F1 · P2 | Doğrudan yolda istek talebi 24 saatle DOĞUYORDU: gönderim sürerken sunucu çökerse (yayın, bellek) aynı metin 24 saat "az önce gönderildi" diye reddedilirdi — mesaj hiç gitmemiş olabilirdi | Talep 2 dk doğar, YALNIZ kesin başarıda 24 saate uzar → her arıza bugünkü 2 dk "kontrol edip yeniden gönder" penceresine iner | `26688416` |
+| F2 · P3 | Gönderimden ÖNCE başlamış yavaş QR sorgusu, gönderim sürerken dönünce misafirin kendi mesajını ekrandan siliyordu | Gönderim uçuştaki sorguyu iptal eder, eski sonuç düşer | `91ce9134` |
+| F3 · P3 | Ekran kurulumu iki kez koşunca ilk yükleme bir tam tur (5 sn) gecikiyor, iptal "hata" sayılıyordu | Temizlikte uçuştaki sorgu bırakılır; iptal hata sayılmaz (gereksizleşen bayrak çıktı) | `91ce9134` · `28d76acd` |
+| F4 · P3 | Veritabanı arızasında taşma yuvası farklı pencereli anahtarları karıştırıyordu (60 sn'lik sınır 1 saate çıkabilirdi); yuva karması tahmin edilebilirdi | Süreç başına rastgele tohum; taşınan sayaç anahtarın KENDİ penceresiyle; bekleme süresi o pencereyle sınırlı | `76d1f709` |
+| F5 · P3 | QR okumasında her geçersiz anahtar yeni bir sayaç satırı açıyordu (IP başına dakikada 240 satır) | Daire kovası anahtar çözüldükten SONRA; geçersiz anahtarlar ayrı ıska kovasında (IP başına 60/dk, çözümden önce bakılır) | `8738fcc3` |
+| F6 · P3 | Tekilleşen tekrarın satırı "gönderilemedi" iken yazılan metin teslim edilmiş gibi siliniyordu | Metin korunur, sebep ("Gönderilemedi") görünür | `91ce9134` |
+| F7 · P3 | Girişler'de engel / not / çakışma satırlarının DAYANAĞI yoktu (hangi görev, kim, ne zaman) — kurucu şartı ("her durumun dayanağı") eksikti; not ile bakımın ağırlığı farklı | Dayanak eklendi (aşağıda örnek); ağırlık kurucu sorusu **J-10** (tasarım belgesi §6) | `b2bc1acf` |
+| F8 · P3 | Girişler gösterim incelikleri: son "bitti" kuralı çekirdekten farklı · görev VARKEN "görev yok" · batı saat diliminde gün bölümü bölünmesi · dünkü "başladı" bugünün saati gibi | Dördü de düzeltildi, her biri pinli | `588ae515` · `523ec129` |
+| F9 · P2 | Kutu boşaltılıp aynı kısa metin ("Tamam") saatler sonra yeniden yazılınca ESKİ istek kimliği gidiyordu → 24 saat ret (kuyruk açıkken sessiz yutma) | Kimlik yalnız yazma kutusu AYNI metni tutarken yeniden kullanılır; metin değişince / kutu boşalınca yeni kimlik | `91ce9134` |
+| F10 · P3 (gizli) | Çeviriyle gönderilen cevabın tekrarında kimlik ÇEVRİLMİŞ metinle karşılaştırılıyor (çeviri her seferinde biraz farklı) → "farklı içerik" döngüsü + ikinci ücretli çeviri | Bugün arayüzde çeviriyle gönderim YOK (yalnız API) → kod değişmedi. **Çeviri düğmesi eklenirken ön koşul:** kimlik kontrolü çeviriden ÖNCE ve ham metnin özetiyle | — |
+| F11 · P3 | Fazla iddia eden testler | Yazma servisi artık GERÇEK içe alma yolundan sınanıyor (istek öneki eklenince kırmızı) · kiracılar arası test başka işletmede aynı kurulumla · iyimser balon testi (F2) · taşma temizliği adımı tam sınırla | `36706801` · `588ae515` · `91ce9134` |
+| F12 · P2 (eski) | Eski Safari'de (iOS 15.3 ve öncesi) `crypto.randomUUID` yok → misafirin mesajı gönderilmiş gibi duruyor ama hiç gitmiyordu, düğme kilitli kalıyordu | Kimlik üretimi yedekli (`newRequestId`); gönderim kurulumu hata yakalayıcının içinde | `91ce9134` |
+
+**Girişler dayanağı — önce / sonra (ev sahibi ekranı; misafire bir şey gitmez):**
+- Önce: `HAZIR DEĞİL — Mülkte açık bakım görevi var` (hangi görev? kimde?).
+  Sonra: `HAZIR DEĞİL — Açık bakım görevi: Klima arızası · atanan: Mehmet · vade 6 Kas 10:00 — eksik: görevin kapanması`.
+- Önce: `Temizlikçi bugün bu temizliğe not yazdı — görevde bakın`.
+  Sonra: `Temizlik görevine not yazıldı · Ayşe · 11:30 — görevde okuyun` (notun İÇERİĞİ gösterilmez; yazan her zaman temizlikçi değildir).
+- Önce: `Aynı gece başka bir konaklama var`. Sonra: `Çakışan konaklama: Ali Veli · 5 Kas – 8 Kas` (aynı gün iki ayrılış da yazılır).
+- Gösterilenden fazla açık bakım görevi varsa `Bu mülkte başka açık bakım görevleri de var` (sessiz kesme yok). "Görevler" bağlantısı o
+  dairenin görevlerine süzülü açılır. Dayanak kayıtları çekirdeğin AYNI kümesinden gelir (misafire giden kararın okuduğu küme); hüküm
+  değişmedi (sayım aynı koşulla okunuyor).
+
+**Mutasyon (commit edilmiş SHA, M0 yeşil):** Opus partisi O1–O16 **16/16** (`523ec129`: talep süresi / uzatma, eski Safari yedeği, iyimser
+balon, temizlik, F9 / F6 dalları, tohum, pencere, bekleme sınırı, ıska kovası, daire kovası, gün sırası, görev-var dalı, tarih etiketi) ·
+dayanak partisi B1–B19 **19/19** (`0dec1719`: çekirdeğin dört kimlik kümesi, "+1" okuma, aynı gün iki ayrılış, üç org süzgeci, kimlikli not
+şartı, satırın kendi notu, tekilleştirme, vade / ad / yazan etiketleri, Görevler bağlantısı, yazma servisinin önek ayrımı, genel cümle dalı).
+Bu turun toplamı: 49 + 16 + 19 = **84 mutant, 84'ü öldürüldü**.

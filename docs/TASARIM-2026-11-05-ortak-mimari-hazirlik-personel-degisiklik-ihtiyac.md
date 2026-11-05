@@ -53,8 +53,9 @@ satır, varış saatine göre sıralı; daire süzgeci.
 | Faktör | Engeller mi | Dayanak | Örnek |
 |---|---|---|---|
 | Devir temizliği | Evet | bugünkü çekirdek (`readinessDetailOf` + `markOfTask`, AYNEN) | "Bitti 12:40 · Ayşe · çıkıştan (11:00) sonra" / "Açık · Ayşe'ye atandı · başlanmadı" / "Başladı 11:20 · Ayşe" / "Bitti işareti çıkıştan önce (10:05)" / "Temizlik görevi yok" (bilinmiyor) |
-| Açık sorun / bakım | Evet | bugünkü `openIssue` / `maintenanceOpen` kuralı | "Açık bakım: klima (Mehmet)" |
-| Çift rezervasyon | Evet | `otherOverlaps` | "Aynı gece başka konaklama var" |
+| Açık sorun / bakım | Evet | bugünkü `openIssue` / `maintenanceOpen` kuralı; satır başına görev (çekirdeğin aynı kümesi) | "Açık bakım görevi: Klima arızası · atanan: Mehmet · vade 6 Kas 10:00" |
+| Temizlik görevine not | Hayır (bilgi — ağırlık J-10) | çekirdeğin `cleaningNote`ı; en son kimlikli not kaydı (yazan + an, içerik OKUNMAZ) | "Temizlik görevine not yazıldı · Ayşe · 11:30 — görevde okuyun" |
+| Çift rezervasyon | Evet | `otherOverlaps`; çakışmanın tarafı olan konaklamalar | "Çakışan konaklama: Ali Veli · 5 Kas – 8 Kas" |
 | Varışta yerine getirilecek söz | Evet | `GuestCommitment` açık + vadesi varıştan önce | "Söz: bebek yatağı (açık, görev Ayşe'de)" |
 | Açık ihtiyaçlar | Hayır (bilgi) | `ConversationItem` açık / ev sahibinde | "Misafir sordu: otopark (sizde)" |
 | Erişim (H-2) | Hayır — ama "HAZIR"ı engeller | bilgi tabanında giriş talimatı kalemi VAR / YOK (değer okunmaz) | "Giriş talimatı bilgi tabanında var · kilide / kutuya yerleştiği kontrol edilmedi" |
@@ -87,6 +88,10 @@ Satırın gösterdiği görevler = hükmün okuduğu görevler (çekirdek `clean
 Haiku 11-05). Temizlikçinin o gün devre yazdığı not BİLGİ satırıdır (içerik okunmaz). Mutasyon: 22 mutanttan 21'i öldürüldü; yaşayan K22
 (`status` bilinmiyor → "hazır") EŞDEĞER: değerlendirici "temizlik bitti" için hükmün yanında "bitti" işaretini de ister ve çekirdek işareti
 YALNIZ hazır hükmünde verir (`readyMarkOf`) — "hazır ama işaretsiz" girdisi ulaşılamaz, çıktı birebir aynı kalır.
+**Dayanak (Opus 11-05 F7, `b2bc1acf`):** engel / bilgi satırları artık HANGİ kayda dayandığını söyler — açık bakım / kontrol görevi adı +
+atanan + vade, notu yazan + an, çakışan konaklamanın adı + tarihleri. Kimlikler çekirdekten (`loadEarlyCheckinFacts` → `basisIds`, yalnız
+gösterim; hüküm aynı koşulla okunur), ayrıntılar org kapsamlı toplu sorgularla. Gösterilenden fazla açık bakım görevi (5'ten çok) "başkaları
+da var" der. "Görevler" bağlantısı o dairenin görevlerine süzülü açılır.
 
 ## 3. B — Personel daveti ve iş kabulü
 
@@ -174,6 +179,16 @@ ev sahibi misafirle teyit edip "İhtiyaç çözüldü"ye basar.
 - **J-8:** Rezervasyon değişince elle zamanlı görev için varsayılan: hiçbir şey yapma + açık uyarı (önerim) mi, yoksa sistem görevleri gibi
   taşı + bildir mi?
 - **J-9:** İhtiyacın çözülmesi yalnız ev sahibinin işareti (önerim) — ileride "misafire sor: sorun çözüldü mü?" ayrıca konuşulur. Uygun mu?
+- **J-10 (Opus F7):** Temizlik görevine yazılan not bugün Girişler'de BİLGİ satırı. Misafire giden otomatik "Daireniz hazır" ise not varken
+  zaten GİTMEZ (çekirdek kuralı, değişmedi). Örnek: Ayşe 12:40'ta "bitti" der ve "Klozet kapağı kırık" yazar —
+  - **(a) bugünkü:** `TEMİZLİK HAZIR` (yeşil) + `Temizlik görevine not yazıldı · Ayşe · 12:40 — görevde okuyun` (mavi bilgi).
+  - **(b) muhafazakâr:** `BİLİNMİYOR` (gri) + aynı satır, "eksik: notun okunması". Ama "okudum" işareti olmadan not yazılan HER devir (ör. "çöpü
+    çıkardım") gün boyu gri kalır → (b) seçilirse satıra **[Okudum]** düğmesi (kim, ne zaman kaydedilir) gerekir — küçük bir yazma yolu.
+  - Önerim **(b) + [Okudum]**: okunmamış bir sorun bildirimi eksik veridir (kurucu kuralı: eksik veri hazır sayılmaz). Yeni bir yazma yolu
+    olduğu için soruyorum. **Hangisi?**
+  - Aynı sorunun ikinci yarısı: bağlı olduğu konaklamadan çok sonra açık kalmış ESKİ bir bakım görevi o dairenin her girişini HAZIR DEĞİL
+    yapar (çekirdek kuralı; otomatik "hazır" mesajını da durdurur). Artık satırda görevin adı ve atananı yazıyor; görev kapanınca satır
+    düzelir. **Bu kural böyle kalsın mı?** (Önerim: evet — açık bakım görevi gerçekten bakılması gereken bir şeydir; unutulmuşsa görünür olur.)
 
 ## 7. Sıra ve paralellik
 
