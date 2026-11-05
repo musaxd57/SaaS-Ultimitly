@@ -51,6 +51,7 @@ import {
   redactDoorCodes,
   type GuestChatContext,
   type GuestChatDb,
+  type StayBinding,
 } from "@/lib/guest-chat";
 import { guestChatDisplayRole } from "@/lib/message-author";
 import { verifyReservationPin } from "@/lib/guest-chat-pin";
@@ -436,8 +437,15 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ token: stri
 // 🚨 ÇÖZÜMDEN ÖNCE "ıska" KOVASI YOK (Opus 11-05 N1, ölçüldü): bir ara vardı — aynı IP'den dakikada 60 geçersiz anahtar o IP'deki BÜTÜN
 // geçerli sohbetleri 429'a düşürüyordu (bina ağı / operatör NAT'ı; kaba tavandan 4 kat ucuz) ve yük de düşmüyordu (bilinmeyen anahtar tek
 // dizinli okuma, biçimsiz anahtar sıfır sorgu; kovaya bakmak da bir okuma). 404 yolunun yükünü kaba IP tavanı sınırlar.
+// 🚨 DOĞRULANMIŞ CİHAZ HAKKI (Codex 11-05 gece, "doğrulanmış cihaz hakkı + genel sınır"): konaklamaya bağlı cihaz (çerezi konaklamanın
+// bağıyla eşleşen) kendi kovasını kullanır — anahtar KONAKLAMA, IP değil. Böylece aynı ağdaki başka bir istemci (QR fotoğrafı elinde kalan
+// eski misafir, aynı Wi-Fi'deki başka cihaz) bu daireye sel yapıp (IP, daire) kovasını doldursa da misafirin sohbeti donmaz; çalınmış çerez
+// de çok IP'den çoğaltılamaz (konaklama başına 60/dk). Doğrulanmamış istek (çerezsiz / eşleşmeyen) bugünkü gibi (IP, daire) kovasında.
+// Genel sınır (kaba IP tavanı) HERKES için önde kalır: doğrulama bir okumadır, tavansız yapılamaz. Kalan risk (aynı IP'den 240/dk geçersiz
+// anahtar seli herkesi bekletir) belgede: kapatmak için imzalı cihaz geçişi (yeni çerez) gerekir — kurucu sorusu.
 const GUEST_CHAT_GET_PER_IP_PER_MIN = 240;
 const GUEST_CHAT_GET_PER_IP_PROPERTY_PER_MIN = 60;
+const GUEST_CHAT_GET_PER_BOUND_DEVICE_PER_MIN = 60;
 
 async function handleGuestChatGet(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   if (process.env.GUEST_CHAT_ENABLED !== "1") return notFound();
@@ -451,20 +459,29 @@ async function handleGuestChatGet(req: NextRequest, { params }: { params: Promis
   // Bu uç bilgi tabanını KULLANMAZ (istemci 5 sn'de bir çağırır) → çekilmez / taranmaz (#211). Yanıt birebir aynı.
   const ctx = await resolveGuestChat(token, undefined, { knowledgeBase: false });
   if (!ctx) return notFound();
-  const perProperty = await rateLimit(`guestchat-get-p:${clientKey}:${ctx.property.id}`, GUEST_CHAT_GET_PER_IP_PROPERTY_PER_MIN, 60_000);
-  if (!perProperty.ok) return tooManyRequests(perProperty.retryAfter);
+  const cookieName = stayCookieName(ctx.property.id);
+  const cookie = readCookie(req, cookieName);
+  // Çerez varsa bağ YALNIZ okunur (sahiplenme yok — o, kovadan SONRA): eşleşirse istek konaklamanın kendi kovasına gider.
+  const stay = ctx.open ? ctx.activeReservation : null;
+  const pre = stay && cookie ? await bindOrCheckStay(stay.id, cookie, { allowClaim: false }) : null;
+  const verified = pre?.status === "match";
+  const lane = verified && stay
+    ? await rateLimit(`guestchat-get-d:${stay.id}`, GUEST_CHAT_GET_PER_BOUND_DEVICE_PER_MIN, 60_000)
+    : await rateLimit(`guestchat-get-p:${clientKey}:${ctx.property.id}`, GUEST_CHAT_GET_PER_IP_PROPERTY_PER_MIN, 60_000);
+  if (!lane.ok) return tooManyRequests(lane.retryAfter);
   if (!ctx.open || !ctx.activeReservation) return jsonOk({ open: false, messages: [] });
 
   // Per-stay device binding: the FIRST device to open the chat claims it. A
   // different device scanning the same fixed physical QR gets NO history — so a
   // past guest / cleaner holding the QR photo can't read the current guest's chat.
-  const cookieName = stayCookieName(ctx.property.id);
-  const cookie = readCookie(req, cookieName);
   // PIN gate (Faz 5): when this stay requires a PIN, a bare scan must NOT claim it
   // — check the binding WITHOUT claiming; if still unbound, prompt for the PIN.
-  const binding = ctx.pinRequired
-    ? await bindOrCheckStay(ctx.activeReservation.id, cookie, { allowClaim: false })
-    : await bindOrCheckStay(ctx.activeReservation.id, cookie, { allowClaim: true });
+  // Ön okuma kesin hüküm verdiyse (eşleşti / başka cihaza bağlı) yeniden okunmaz; bağsız konaklamada karar aşağıdaki yolda (PIN / sahiplenme).
+  const binding: StayBinding = pre && pre.status !== "unclaimed"
+    ? pre
+    : ctx.pinRequired
+      ? await bindOrCheckStay(ctx.activeReservation.id, cookie, { allowClaim: false })
+      : await bindOrCheckStay(ctx.activeReservation.id, cookie, { allowClaim: true });
   if (binding.status === "unclaimed") {
     return jsonOk({ open: true, pinRequired: true, messages: [] });
   }

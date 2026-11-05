@@ -23,9 +23,20 @@ async function chatProperty(orgId: string, n: number) {
   return token;
 }
 
-function get(token: string, ip = "203.0.113.31") {
-  const req = new Request(`http://localhost/api/chat/${token}`, { method: "GET", headers: { "x-forwarded-for": ip } });
+function get(token: string, ip = "203.0.113.31", cookie?: string) {
+  const headers: Record<string, string> = { "x-forwarded-for": ip };
+  if (cookie) headers.cookie = cookie;
+  const req = new Request(`http://localhost/api/chat/${token}`, { method: "GET", headers });
   return GET(req as never, { params: Promise.resolve({ token }) });
+}
+
+/** İlk açılış konaklamayı bu cihaza bağlar; dönen çerez ("ad=değer") sonraki isteklerde gönderilir. */
+async function claimCookie(token: string, ip: string): Promise<string> {
+  const res = await get(token, ip);
+  expect(res.status).toBe(200);
+  const set = res.headers.get("set-cookie");
+  expect(set).toBeTruthy();
+  return set!.split(";")[0];
 }
 
 describe("GET /api/chat/[token] — okuma sınırı iki katman", () => {
@@ -86,5 +97,31 @@ describe("GET /api/chat/[token] — okuma sınırı iki katman", () => {
     for (let i = 0; i < 61; i++) await get(token, "198.51.100.7");
     expect((await get(token, "198.51.100.7")).status).toBe(429);
     expect((await get(token, "203.0.113.31")).status).not.toBe(429);
+  }, 120_000);
+
+  it("🚨 Codex 11-05 gece: DOĞRULANMIŞ cihazın hakkı — aynı IP'den bu daireye çerezsiz sel (IP, daire) kovasını doldursa da bağlı cihazın sohbeti donmaz", async () => {
+    const token = await chatProperty(orgId, 1);
+    const ip = "203.0.113.77";
+    const cookie = await claimCookie(token, ip); // 1 (IP, daire) hakkı
+    for (let i = 0; i < 59; i++) expect((await get(token, ip)).status).toBe(200); // çerezsiz: başka cihaz (boundElsewhere)
+    expect((await get(token, ip)).status).toBe(429); // (IP, daire) kovası doldu
+    const res = await get(token, ip, cookie);
+    expect(res.status).toBe(200);
+    expect((await res.json()).boundElsewhere).toBeUndefined();
+  }, 120_000);
+
+  it("doğrulanmış cihaz kovası KONAKLAMA başına (IP değil): aynı çerezle farklı IP'lerden dakikada 60; 61. 429 (çalınmış çerez çoğaltılamaz)", async () => {
+    const token = await chatProperty(orgId, 1);
+    const cookie = await claimCookie(token, "198.51.100.1");
+    for (let i = 0; i < 60; i++) expect((await get(token, `198.51.100.${(i % 200) + 2}`, cookie)).status).toBe(200);
+    expect((await get(token, "198.51.100.250", cookie)).status).toBe(429);
+  }, 120_000);
+
+  it("KONTROL — eşleşmeyen (sahte) çerez doğrulanmış sayılmaz: (IP, daire) kovasını kullanır, geçmiş görmez", async () => {
+    const token = await chatProperty(orgId, 1);
+    const real = await claimCookie(token, "203.0.113.90");
+    const fake = `${real.split("=")[0]}=${"0".repeat(64)}`;
+    for (let i = 0; i < 60; i++) expect((await (await get(token, "203.0.113.91", fake)).json()).boundElsewhere).toBe(true);
+    expect((await get(token, "203.0.113.91", fake)).status).toBe(429);
   }, 120_000);
 });
