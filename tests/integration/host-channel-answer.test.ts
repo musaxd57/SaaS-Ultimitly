@@ -54,7 +54,7 @@ vi.spyOn(prisma.hostQuestion, "findFirst").mockImplementation(((args: Parameters
 }) as never);
 import { startHostBinding, confirmHostBindingFromInbound } from "@/lib/host-channel/binding";
 import { WHATSAPP_CLOUD_PROVIDER } from "@/lib/host-channel/providers";
-import { handleHostInbound, INBOUND_MAX_EVENT_AGE_MS } from "@/lib/host-channel/inbound";
+import { handleHostInbound, INBOUND_DEDUPE_TTL_MS, INBOUND_MAX_EVENT_AGE_MS } from "@/lib/host-channel/inbound";
 import {
   HOST_TEXTS,
   HOST_ANSWER_MAX,
@@ -301,8 +301,11 @@ describe("WhatsApp cevap dilimi", () => {
     expect(res.duplicates).toBe(1);
     expect(sendMock).not.toHaveBeenCalled();
     expect((await question(q.questionId)).status).not.toBe("done");
-    // KONTROL: sınırın hemen içindeki (gecikmiş ama meşru) teslim işlenir.
-    const late = { ...button(DIG_A, "wamid.late", id), at: new Date(Date.now() - INBOUND_MAX_EVENT_AGE_MS + 60 * 60_000) };
+    // KONTROL (mutlak): sağlayıcının gecikmiş teslim penceresi 7 gün — 7 gün önce yazılmış meşru teslim işlenir; sınır o pencereden geniş,
+    // tekrar kilidinden (8 gün) dar olmalı (mutasyon 11-04: sınıra göre bağıl yazılan kontrol sabitin küçültülmesini görmüyordu).
+    expect(INBOUND_MAX_EVENT_AGE_MS).toBeGreaterThan(7 * 24 * 60 * 60_000);
+    expect(INBOUND_MAX_EVENT_AGE_MS).toBeLessThan(INBOUND_DEDUPE_TTL_MS);
+    const late = { ...button(DIG_A, "wamid.late", id), at: new Date(Date.now() - 7 * 24 * 60 * 60_000) };
     await deliver([late]);
     expect(sendMock).toHaveBeenCalledTimes(1);
   });
