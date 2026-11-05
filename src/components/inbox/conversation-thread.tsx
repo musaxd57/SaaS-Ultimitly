@@ -70,6 +70,12 @@ const OUTBOX_STATUS_UI: Record<string, { label: string; className: string }> = {
   canceled: { label: "İptal edildi — yerine yeni bir gönderim oluşturuldu", className: "bg-muted text-muted-foreground" },
 };
 
+/**
+ * Tur 7 T7-OB-4: engellenen YAPAY ZEKÂ cevabı abonelik dönünce gönderilmez, iptal edilir (W7 kararı) — "bağlantı gelince gönderilecek"
+ * yalnız ev sahibinin kendi (manuel) mesajı ve otomatik mesajlar için doğrudur.
+ */
+const BLOCKED_AI_LABEL = "Abonelik pasif — bu cevap gönderilmeyecek";
+
 interface TemplateItem {
   id: string;
   title: string;
@@ -786,7 +792,7 @@ export function ConversationThread({
                 ) : (
                   <Loader2 className="size-3" />
                 )}
-                {OUTBOX_STATUS_UI[m.outboxStatus].label}
+                {m.outboxStatus === "blocked" && m.authorType === "ai" ? BLOCKED_AI_LABEL : OUTBOX_STATUS_UI[m.outboxStatus].label}
               </span>
             ) : null}
           </div>

@@ -1841,7 +1841,8 @@ describe("applyChannelAutoReply — Durable Outbox (flag ON, #5/#6)", () => {
 
     expect((await prisma.messageOutbox.findFirst({ where: { conversationId } }))?.status).toBe("blocked");
     const conv = await prisma.conversation.findUnique({ where: { id: conversationId } });
-    expect(conv?.skippedReason).toBe("subscription_inactive"); // ⬅️ ARIZADA null
+    // Tur 7 T7-OB-4 (11-05): kuyruktaki YAPAY ZEKÂ cevabı abonelik dönünce İPTAL edilir (W7) → not "yeniden denenir" değil, W7 notu.
+    expect(conv?.skippedReason).toBe("channel_paused"); // ⬅️ ARIZADA null; T7-OB-4 öncesi yanlış söz veren "subscription_inactive"
     // Damga: "bu mesaj için karar verildi" — misafir YENİ yazınca yeniden aday olur.
     expect(conv?.autoReplyAttemptedAt?.getTime()).toBe(conv?.lastMessageAt.getTime());
   });

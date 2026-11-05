@@ -48,6 +48,9 @@ const STATUS_META: Record<OutboxStatus, { label: string; tone: BadgeTone; note?:
   },
 };
 
+/** Tur 7 T7-OB-4: yapay zekâ / bekleme cevabı abonelik dönünce İPTAL edilir (W7) — yeniden denenmez. */
+const BLOCKED_AI_NOTE = "Kanal bağlantısının aboneliği pasif — bu cevap abonelik dönünce gönderilmeyecek; misafire elle yanıt verin.";
+
 const TYPE_LABELS: Record<string, string> = {
   manual: "Manuel yanıt",
   ai: "Oto-yanıt",
@@ -176,7 +179,11 @@ export default async function OutboxQueuePage({
                         {row.lastErrorCode ? ` · son hata: ${row.lastErrorCode}` : ""}
                       </span>
                     </div>
-                    {meta.note ? <p className="text-xs text-muted-foreground">{meta.note}</p> : null}
+                    {row.status === "blocked" && (row.messageType === "ai" || row.messageType === "holding_ack") ? (
+                      <p className="text-xs text-muted-foreground">{BLOCKED_AI_NOTE}</p>
+                    ) : meta.note ? (
+                      <p className="text-xs text-muted-foreground">{meta.note}</p>
+                    ) : null}
                     <p className="text-xs text-muted-foreground">
                       Oluşturuldu {fromNow(row.createdAt, TZ)}
                       {row.sentAt ? ` · iletildi ${fromNow(row.sentAt, TZ)}` : ""}

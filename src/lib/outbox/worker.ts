@@ -1033,7 +1033,15 @@ async function applyFailureEffect(row: OutboxRow, kind: SendResultKind): Promise
     await prisma.conversation.updateMany({
       where: { id: row.conversationId, status: "new" },
       data: {
-        skippedReason: lastErrorCode && /^HTTP 5\d\d$/.test(lastErrorCode) ? PROVIDER_OUTAGE_REASON : sendFailureReason(kind),
+        // Tur 7 T7-OB-4: engellenen (402) YAPAY ZEKÂ cevabı abonelik dönünce İPTAL edilir (W7 kararı, ↓reactivateBlockedOutbox) —
+        // "abonelik dönünce yeniden denenir" notu yanlış söz veriyordu; ev sahibi bekleyip cevap vermiyordu. Mevcut W7 notu yazılır.
+        // (Satır içi yolun `subscription_inactive` notu doğrudur — orada konuşma gerçekten yeniden denenir; ortak etiket değişmez.)
+        skippedReason:
+          kind === "blocked"
+            ? CHANNEL_PAUSED_REASON
+            : lastErrorCode && /^HTTP 5\d\d$/.test(lastErrorCode)
+              ? PROVIDER_OUTAGE_REASON
+              : sendFailureReason(kind),
         ...(newerInbound > 0 ? {} : { autoReplyAttemptedAt: convo.lastMessageAt }),
       },
     });
