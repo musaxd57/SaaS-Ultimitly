@@ -158,6 +158,21 @@ describe("hız sınırı bellek yedeği — veritabanı yokken sınırlı", () =
     expect((await rateLimit(victim, 2, 60_000)).ok).toBe(false);
   });
 
+  it("🚨 N4: pencereli BAKIŞ kendi sınıfının yuvasına bakar — başka sınıfın dolu yuvası girişi engellemez; pencere söylenmezse sıkı (en dolu)", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-05T12:00:00Z"));
+    __setOverflowSeedForTest(13);
+    const victim = "login-acct:victim@example.test";
+    const slot = __overflowSlotOfForTest(victim);
+    let hourKey = "";
+    for (let i = 0; i < 400_000 && !hourKey; i++) if (__overflowSlotOfForTest(`upload:z${i}`) === slot) hourKey = `upload:z${i}`;
+    expect(hourKey).not.toBe("");
+    await flood("short", MEMORY_MAX_KEYS, 2_000); // tavan dolu
+    for (let i = 0; i < 5; i++) await rateLimit(hourKey, 5, HOUR); // saatlik sınıfın aynı numaralı yuvası dolu (5)
+    expect((await rateLimitPeek(victim, 5, 15 * 60_000)).ok).toBe(true); // giriş kovasının kendi sınıfı (15 dk) boş
+    expect((await rateLimitPeek(victim, 5)).ok).toBe(false); // pencere bilinmiyor → en dolu yuva → sıkı
+  });
+
   it("iade (release) KENDİ pencere sınıfının taşma yuvasındaki ayrılmış hakkı geri verir; sıfırın altına inmez", async () => {
     await flood("ip", MEMORY_MAX_KEYS);
     for (let i = 0; i < 5; i++) await rateLimit("refund", 5, HOUR);
