@@ -54,12 +54,20 @@ export interface StayReadinessInput {
   cleaning: CleaningInput;
   /** Temizlikçi bugün bu devrin temizliğine not yazdı (çekirdeğin `cleaningNote`ı; içerik okunmaz). */
   cleaningNote?: boolean;
+  /** Notun dayanağı: en son kimlikli not kaydı (yazan + an; İÇERİK OKUNMAZ). Yoksa genel cümle. */
+  cleaningNoteBy?: { updateId: string; by: string | null; at: Date } | null;
   /** Devirde açık sorun / bakım / kontrol görevi (çekirdeğin `openIssue`ı). */
   openIssue: boolean;
   /** Mülkte bağsız / gecikmiş açık bakım (çekirdeğin `maintenanceOpen`ı). */
   maintenanceOpen: boolean;
+  /** `openIssue` / `maintenanceOpen` hükmünün dayandığı görevler (yalnız GÖSTERİM — kurucu: "her durumun dayanağı"; Opus 11-05 F7). */
+  issueTasks?: { id: string; title: string; kindLabel: string; assignee: string | null; dueAt: Date | null }[];
+  /** Gösterilenden fazla açık bakım görevi var (sessiz kesme yok). */
+  issueTasksMore?: boolean;
   /** Varış gecesini işgal eden başka konaklama sayısı (çekirdeğin `otherOverlaps`ı). */
   overlaps: number;
+  /** Çakışmanın tarafı olan konaklamalar (yalnız GÖSTERİM; gün anahtarları işletme diliminde). */
+  overlapStays?: { id: string; guestName: string | null; arrivalKey: string; departureKey: string }[];
   /** Açık söz (vadesi varış gününün sonuna kadar). */
   commitments: { id: string; label: string; dueAt: Date; assignee: string | null }[];
   /** Açık ihtiyaçlar (konuşma öğesi açık / ev sahibinde). */
@@ -88,6 +96,13 @@ function whenLabel(d: Date, now: Date, timeZone: string): string {
   if (dayKeyOf(d, timeZone) === dayKeyOf(now, timeZone)) return hhmm(d, timeZone);
   const day = new Intl.DateTimeFormat("tr-TR", { day: "numeric", month: "short", timeZone }).format(d);
   return `${day} ${hhmm(d, timeZone)}`;
+}
+
+/** Gün anahtarı ("2026-11-07") → "7 Kas" (anahtar zaten işletme diliminde; burada dilim kaydırılmaz). */
+function dayKeyLabel(key: string): string {
+  const at = new Date(`${key}T12:00:00Z`);
+  if (Number.isNaN(at.getTime())) return key;
+  return new Intl.DateTimeFormat("tr-TR", { day: "numeric", month: "short", timeZone: "UTC" }).format(at);
 }
 
 function cleaningFactor(c: CleaningInput, tz: string, now: Date): Factor {
@@ -141,20 +156,63 @@ export function evaluateStay(input: StayReadinessInput): StayReadiness {
   const tz = input.timeZone;
   const factors: Factor[] = [cleaningFactor(input.cleaning, tz, input.now)];
   if (input.cleaningNote) {
-    // Sorun bildiriminin bugünkü tek yolu temizlikçinin notu (çekirdek: otomatik "Daireniz hazır"ı durdurur) — burada BİLGİ: bakın.
-    factors.push({ key: "cleaning_note", state: "info", label: "Temizlikçi bugün bu temizliğe not yazdı — görevde bakın", missing: null, basis: [] });
+    // Sorun bildiriminin bugünkü tek yolu temizlik görevine yazılan not (çekirdek: otomatik "Daireniz hazır"ı durdurur) — burada
+    // BİLGİ: bakın. Ağırlığı (bilgi mi, "bilinmiyor" mu) kurucu sorusu J-10. Notu yazan + an gösterilir, İÇERİK gösterilmez.
+    const n = input.cleaningNoteBy ?? null;
+    factors.push(
+      n
+        ? {
+            key: "cleaning_note",
+            state: "info",
+            label: `Temizlik görevine not yazıldı · ${n.by ? `${n.by} · ` : ""}${whenLabel(n.at, input.now, tz)} — görevde okuyun`,
+            missing: null,
+            basis: [{ kind: "task_update", id: n.updateId, at: n.at }],
+          }
+        : // Notu yazan her zaman temizlikçi değildir (ev sahibi / yönetici de yazabilir) — cümle kişiyi varsaymaz.
+          { key: "cleaning_note", state: "info", label: "Temizlik görevine bugün not yazıldı — görevde okuyun", missing: null, basis: [] },
+    );
   }
   if (input.openIssue || input.maintenanceOpen) {
-    factors.push({
-      key: "issue",
-      state: "blocking",
-      label: input.openIssue ? "Devirde açık sorun / bakım görevi var" : "Mülkte açık bakım görevi var",
-      missing: "bakım görevinin kapanması",
-      basis: [],
-    });
+    const shown = input.issueTasks ?? [];
+    if (shown.length === 0) {
+      factors.push({
+        key: "issue",
+        state: "blocking",
+        label: input.openIssue ? "Devirde açık sorun / bakım görevi var" : "Mülkte açık bakım görevi var",
+        missing: "bakım görevinin kapanması",
+        basis: [],
+      });
+    }
+    for (const t of shown) {
+      const who = t.assignee ? `atanan: ${t.assignee}` : "kimseye atanmadı";
+      const due = t.dueAt ? ` · vade ${whenLabel(t.dueAt, input.now, tz)}` : "";
+      factors.push({
+        key: "issue",
+        state: "blocking",
+        label: `Açık ${t.kindLabel.toLocaleLowerCase("tr-TR")} görevi: ${t.title} · ${who}${due}`,
+        missing: "görevin kapanması",
+        basis: [{ kind: "task", id: t.id, at: t.dueAt }],
+      });
+    }
+    if (shown.length > 0 && input.issueTasksMore) {
+      factors.push({ key: "issue", state: "blocking", label: "Bu mülkte başka açık bakım görevleri de var", missing: "görevlerin kapanması", basis: [] });
+    }
   }
   if (input.overlaps > 0) {
-    factors.push({ key: "overlap", state: "blocking", label: "Aynı gece başka bir konaklama var", missing: "çakışmanın giderilmesi", basis: [] });
+    const stays = input.overlapStays ?? [];
+    if (stays.length === 0) {
+      factors.push({ key: "overlap", state: "blocking", label: "Aynı gece başka bir konaklama var", missing: "çakışmanın giderilmesi", basis: [] });
+    }
+    for (const s of stays) {
+      factors.push({
+        key: "overlap",
+        state: "blocking",
+        // "Çakışan" (aynı gece değil): aynı gün iki ayrılış da çakışmadır — ikisi de listelenir.
+        label: `Çakışan konaklama: ${s.guestName?.trim() || "adı kayıtlı değil"} · ${dayKeyLabel(s.arrivalKey)} – ${dayKeyLabel(s.departureKey)}`,
+        missing: "çakışmanın giderilmesi",
+        basis: [{ kind: "reservation", id: s.id, at: null }],
+      });
+    }
   }
   for (const c of input.commitments) {
     const who = c.assignee ? ` · atanan: ${c.assignee}` : "";

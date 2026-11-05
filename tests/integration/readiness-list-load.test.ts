@@ -133,13 +133,86 @@ describe("giriş hazırlığı listesi — yükleyici", () => {
     expect(factor(rows[0], "cleaning")!.label).toBe("Temizlik açık · atanan: Ayşe · başlanmadı");
   });
 
-  it("temizlikçinin bugün devir temizliğine yazdığı not BİLGİ olarak görünür (içerik okunmaz)", async () => {
+  it("temizlikçinin bugün devir temizliğine yazdığı not BİLGİ olarak görünür: yazan + saat (içerik okunmaz; Opus F7 dayanak)", async () => {
     const { prev } = await sameDayTurnover();
     const t = await cleaningTask(prev.id, { assignedToId: staffId });
-    await prisma.taskUpdate.create({ data: { taskId: t.id, userId: staffId, note: "Klozet kapağı kırık", createdAt: localToday(11, 30) } });
+    const note = await prisma.taskUpdate.create({ data: { taskId: t.id, userId: staffId, note: "Klozet kapağı kırık", createdAt: localToday(11, 30) } });
+    // Kimliksiz (sistem) not çekirdekte sayılmaz → dayanak da o olamaz (daha yeni olsa bile).
+    await prisma.taskUpdate.create({ data: { taskId: t.id, userId: null, note: "sistem notu", createdAt: localToday(12, 0) } });
     const rows = await rowOf(localToday(14));
-    expect(factor(rows[0], "cleaning_note")).toMatchObject({ state: "info", label: "Temizlikçi bugün bu temizliğe not yazdı — görevde bakın" });
+    expect(factor(rows[0], "cleaning_note")).toMatchObject({
+      state: "info",
+      label: "Temizlik görevine not yazıldı · Ayşe · 11:30 — görevde okuyun",
+      basis: [{ kind: "task_update", id: note.id, at: localToday(11, 30) }],
+    });
     expect(JSON.stringify(rows)).not.toContain("Klozet");
+    expect(JSON.stringify(rows)).not.toContain("sistem notu");
+  });
+
+  it("🚨 dayanak (Opus F7): ESKİ bir konaklamaya bağlı açık bakım görevi adıyla + atananıyla görünür, satır HAZIR DEĞİL", async () => {
+    await sameDayTurnover();
+    const old = await reservation(addNights(TODAY, -30), addNights(TODAY, -27), "Eski Misafir");
+    const mehmet = await prisma.user.create({ data: { organizationId: orgId, name: "Mehmet", email: "mehmet@example.test", passwordHash: "x", role: "staff" } });
+    const m = await prisma.task.create({
+      data: { propertyId, reservationId: old.id, type: "maintenance", title: "Klima arızası", origin: "manual", status: "todo", assignedToId: mehmet.id },
+    });
+    const rows = await rowOf();
+    expect(rows[0].readiness.overall).toBe("not_ready");
+    const issues = rows[0].readiness.factors.filter((f) => f.key === "issue");
+    expect(issues.map((f) => f.label)).toEqual(["Açık bakım görevi: Klima arızası · atanan: Mehmet"]);
+    expect(issues[0].basis).toEqual([{ kind: "task", id: m.id, at: null }]);
+  });
+
+  it("dayanak: devirdeki açık kontrol görevi (önceki konaklamaya bağlı) adı + vadesiyle; bakım görevi aynı satırda iki kez yazılmaz", async () => {
+    const { prev } = await sameDayTurnover();
+    const k = await prisma.task.create({
+      data: { propertyId, reservationId: prev.id, type: "checkout_review", title: "Çıkış kontrolü", origin: "system", status: "todo", dueAt: dayDate(TODAY) },
+    });
+    // Bağsız + devir günü vadeli bakım: hem `openIssue` hem `maintenanceOpen` kümesine girer → tek satır.
+    const b = await prisma.task.create({ data: { propertyId, reservationId: null, type: "maintenance", title: "Ampul", origin: "manual", status: "todo", dueAt: dayDate(TODAY) } });
+    const rows = await rowOf();
+    const issues = rows[0].readiness.factors.filter((f) => f.key === "issue");
+    expect(issues.map((f) => f.label).sort()).toEqual(
+      ["Açık bakım görevi: Ampul · kimseye atanmadı · vade 15:00", "Açık check-out kontrol görevi: Çıkış kontrolü · kimseye atanmadı · vade 15:00"].sort(),
+    );
+    expect(issues.map((f) => f.basis[0].id).sort()).toEqual([k.id, b.id].sort());
+  });
+
+  it("dayanak: gösterilenden fazla açık bakım görevi varsa 'başkaları da var' satırı (sessiz kesme yok)", async () => {
+    await sameDayTurnover();
+    for (let i = 0; i < 6; i++) {
+      await prisma.task.create({ data: { propertyId, reservationId: null, type: "maintenance", title: `Bakım ${i}`, origin: "manual", status: "todo" } });
+    }
+    const rows = await rowOf();
+    const labels = rows[0].readiness.factors.filter((f) => f.key === "issue").map((f) => f.label);
+    expect(labels).toHaveLength(6);
+    expect(labels.at(-1)).toBe("Bu mülkte başka açık bakım görevleri de var");
+  });
+
+  it("KONTROL — tam 5 açık bakım görevi: hepsi yazılır, 'başkaları da var' YAZILMAZ", async () => {
+    await sameDayTurnover();
+    for (let i = 0; i < 5; i++) {
+      await prisma.task.create({ data: { propertyId, reservationId: null, type: "maintenance", title: `Bakım ${i}`, origin: "manual", status: "todo" } });
+    }
+    const rows = await rowOf();
+    const labels = rows[0].readiness.factors.filter((f) => f.key === "issue").map((f) => f.label);
+    expect(labels).toHaveLength(5);
+    expect(labels).not.toContain("Bu mülkte başka açık bakım görevleri de var");
+  });
+
+  it("🚨 dayanak: varış gecesini işgal eden konaklamanın adı + tarihleri; aynı gün İKİ ayrılış da çakışmadır (ikisi de yazılır)", async () => {
+    const { prev } = await sameDayTurnover();
+    const occ = await reservation(addNights(TODAY, -1), addNights(TODAY, 1), "Çakışan Misafir");
+    let rows = await rowOf();
+    let lines = rows[0].readiness.factors.filter((f) => f.key === "overlap");
+    expect(lines).toHaveLength(1);
+    expect(lines[0].label.startsWith("Çakışan konaklama: Çakışan Misafir · ")).toBe(true);
+    expect(lines[0].basis).toEqual([{ kind: "reservation", id: occ.id, at: null }]);
+    await prisma.reservation.delete({ where: { id: occ.id } });
+    const second = await reservation(addNights(TODAY, -2), TODAY, "İkinci Ayrılan");
+    rows = await rowOf();
+    lines = rows[0].readiness.factors.filter((f) => f.key === "overlap");
+    expect(lines.map((f) => f.basis[0].id).sort()).toEqual([prev.id, second.id].sort());
   });
 
   it("iki dairenin devri karışmaz: her satır KENDİ devir görevinin atananını gösterir", async () => {

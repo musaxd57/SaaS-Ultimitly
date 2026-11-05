@@ -11,6 +11,7 @@ import { commitmentLabel, isCommitmentKind } from "@/lib/guest-commitments-core"
 import { isItemKind } from "@/lib/conversation-items/core";
 import { itemKindLabel } from "@/lib/conversation-items/view";
 import { reportError } from "@/lib/report-error";
+import { TASK_TYPE } from "@/lib/constants";
 import { evaluateStay, type CleaningInput, type StayReadiness } from "./evaluate";
 
 // ---------------------------------------------------------------------------
@@ -117,8 +118,12 @@ export async function loadArrivalReadiness(
   // Gösterilen görevler = hükmün okuduğu görevler (çekirdeğin kümesi; bağsız devir günü görevi dahil — Haiku 11-05).
   const cleaningIds = [...new Set(facts.flatMap((f) => f?.cleaningTaskIds ?? []))];
   const readyMarkIds = facts.map((f) => f?.readyMark?.id).filter((x): x is string => !!x);
+  // Engel / bilgi satırlarının dayanağı (çekirdeğin aynı kümeleri — Opus 11-05 F7; kurucu: "her durumun dayanağı anlaşılsın").
+  const issueIds = [...new Set(facts.flatMap((f) => [...(f?.basisIds.issueTaskIds ?? []), ...(f?.basisIds.maintenanceTaskIds ?? [])]))];
+  const noteTaskIds = [...new Set(facts.flatMap((f) => f?.basisIds.noteTaskIds ?? []))];
+  const overlapIds = [...new Set(facts.flatMap((f) => f?.basisIds.overlapReservationIds ?? []))];
 
-  const [conversations, cleaningTasks, readyUpdates, earlyDecisions, kbItems] = await Promise.all([
+  const [conversations, cleaningTasks, readyUpdates, earlyDecisions, kbItems, issueTasks, noteUpdates, overlapStays] = await Promise.all([
     prisma.conversation.findMany({
       where: { reservationId: { in: arrivalIds }, property: { organizationId } },
       select: { id: true, reservationId: true },
@@ -148,6 +153,26 @@ export async function loadArrivalReadiness(
       select: { id: true, propertyId: true, updatedAt: true },
       orderBy: { updatedAt: "desc" },
     }),
+    issueIds.length
+      ? prisma.task.findMany({
+          where: { id: { in: issueIds }, property: { organizationId } },
+          select: { id: true, title: true, type: true, dueAt: true, assignedTo: { select: { name: true } } },
+        })
+      : Promise.resolve([]),
+    // Notun yalnız yazanı + anı (İÇERİK seçilmez). Çekirdeğin saydığı kümeyle aynı koşul: kimlikli not kaydı; en yenisi önce.
+    noteTaskIds.length
+      ? prisma.taskUpdate.findMany({
+          where: { taskId: { in: noteTaskIds }, note: { not: null }, userId: { not: null }, task: { property: { organizationId } } },
+          select: { id: true, taskId: true, userId: true, createdAt: true },
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        })
+      : Promise.resolve([]),
+    overlapIds.length
+      ? prisma.reservation.findMany({
+          where: { id: { in: overlapIds }, property: { organizationId } },
+          select: { id: true, guestName: true, arrivalDate: true, departureDate: true },
+        })
+      : Promise.resolve([]),
   ]);
 
   const convByReservation = new Map<string, string[]>();
@@ -178,6 +203,7 @@ export async function loadArrivalReadiness(
   const userIds = new Set<string>();
   for (const t of cleaningTasks) for (const u of t.updates) if (u.userId) userIds.add(u.userId);
   for (const u of readyUpdates) if (u.userId) userIds.add(u.userId);
+  for (const u of noteUpdates) if (u.userId) userIds.add(u.userId);
   const users = userIds.size
     ? await prisma.user.findMany({ where: { id: { in: [...userIds] }, organizationId }, select: { id: true, name: true } })
     : [];
@@ -192,6 +218,8 @@ export async function loadArrivalReadiness(
   }
   const accessOf = new Map<string, { id: string; at: Date }>();
   for (const k of kbItems) if (!accessOf.has(k.propertyId)) accessOf.set(k.propertyId, { id: k.id, at: k.updatedAt });
+  const issueById = new Map(issueTasks.map((t) => [t.id, t]));
+  const overlapById = new Map(overlapStays.map((r) => [r.id, r]));
 
   const rows: ArrivalRow[] = arrivals.map((a, i) => {
     const loaded = facts[i];
@@ -226,16 +254,34 @@ export async function loadArrivalReadiness(
       previousKnown: referenceId !== null,
       previousCheckout: f?.previousSameDay?.checkoutTime ?? null,
       readyMark: loaded?.readyMark ? { id: loaded.readyMark.id, at: loaded.readyMark.at, by: loaded.readyMark.id ? (readyUserOf.get(loaded.readyMark.id) ?? null) : null } : null,
-      tasks: tasks.map(({ open: _open, ...t }) => t),
+      tasks: tasks.map((t) => ({ id: t.id, assignee: t.assignee, startedAt: t.startedAt, startedBy: t.startedBy, lastDoneAt: t.lastDoneAt })),
     };
+    const basisIds = loaded?.basisIds;
+    const noteTasks = new Set(basisIds?.noteTaskIds ?? []);
+    const note = noteUpdates.find((u) => noteTasks.has(u.taskId)) ?? null;
     const readiness = evaluateStay({
       timeZone: tz,
       now,
       cleaning,
       cleaningNote: f?.cleaningNote === true,
+      cleaningNoteBy: note ? { updateId: note.id, by: note.userId ? (nameOf.get(note.userId) ?? null) : null, at: note.createdAt } : null,
       openIssue: f?.openIssue === true,
       maintenanceOpen: f?.maintenanceOpen === true,
+      issueTasks: [...new Set([...(basisIds?.issueTaskIds ?? []), ...(basisIds?.maintenanceTaskIds ?? [])])]
+        .map((id) => issueById.get(id))
+        .filter((t): t is NonNullable<typeof t> => !!t)
+        .map((t) => ({ id: t.id, title: t.title, kindLabel: TASK_TYPE.label(t.type), assignee: t.assignedTo?.name ?? null, dueAt: t.dueAt })),
+      issueTasksMore: basisIds?.maintenanceMore === true,
       overlaps: f?.otherOverlaps ?? 0,
+      overlapStays: (basisIds?.overlapReservationIds ?? [])
+        .map((id) => overlapById.get(id))
+        .filter((r): r is NonNullable<typeof r> => !!r)
+        .map((r) => ({
+          id: r.id,
+          guestName: r.guestName,
+          arrivalKey: calendarDateOf(r.arrivalDate, tz).key,
+          departureKey: calendarDateOf(r.departureDate, tz).key,
+        })),
       commitments: commitments
         .filter((c) => convs.includes(c.conversationId) && (dayEnd === null || c.dueAt < dayEnd))
         .map((c) => ({

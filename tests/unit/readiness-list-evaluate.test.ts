@@ -190,6 +190,82 @@ describe("giriş hazırlığı — saf değerlendirici", () => {
     expect(evaluateStay(base).factors.some((f) => f.key === "cleaning_note")).toBe(false);
   });
 
+  it("🚨 açık bakım görevi ADIYLA, atananıyla ve vadesiyle yazılır; dayanak görevin kimliği (kurucu: her durumun dayanağı — Opus F7)", () => {
+    const r = evaluateStay(
+      stay({ maintenanceOpen: true, issueTasks: [{ id: "m1", title: "Klima arızası", kindLabel: "Bakım", assignee: "Mehmet", dueAt: at("2026-11-06T07:00:00Z") }] }),
+    );
+    const issues = r.factors.filter((f) => f.key === "issue");
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toMatchObject({ state: "blocking", label: "Açık bakım görevi: Klima arızası · atanan: Mehmet · vade 6 Kas 10:00", missing: "görevin kapanması" });
+    expect(issues[0].basis).toEqual([{ kind: "task", id: "m1", at: at("2026-11-06T07:00:00Z") }]);
+    expect(r.overall).toBe("not_ready");
+  });
+
+  it("birden çok sorun görevi ayrı satır; atanmamış / vadesiz söylenir; gösterilenden fazlası 'başkaları da var' der", () => {
+    const r = evaluateStay(
+      stay({
+        openIssue: true,
+        issueTasks: [
+          { id: "k1", title: "Çıkış kontrolü", kindLabel: "Check-out Kontrol", assignee: null, dueAt: at("2026-11-07T08:00:00Z") },
+          { id: "m2", title: "Musluk damlatıyor", kindLabel: "Bakım", assignee: null, dueAt: null },
+        ],
+        issueTasksMore: true,
+      }),
+    );
+    expect(r.factors.filter((f) => f.key === "issue").map((f) => f.label)).toEqual([
+      "Açık check-out kontrol görevi: Çıkış kontrolü · kimseye atanmadı · vade 11:00",
+      "Açık bakım görevi: Musluk damlatıyor · kimseye atanmadı",
+      "Bu mülkte başka açık bakım görevleri de var",
+    ]);
+    expect(r.factors.some((f) => f.label === "Devirde açık sorun / bakım görevi var")).toBe(false);
+  });
+
+  it("not: yazan + saat söylenir, İÇERİK yok; dayanak not kaydı; genel durum değişmez", () => {
+    const base = stay({ cleaning: cleaning({ status: "ready", readyMark: { id: "u1", at: at("2026-11-07T09:00:00Z"), by: null } }) });
+    const r = evaluateStay({ ...base, cleaningNote: true, cleaningNoteBy: { updateId: "n1", by: "Ayşe", at: at("2026-11-07T08:30:00Z") } });
+    expect(r.overall).toBe("cleaning_ready");
+    expect(r.factors.find((f) => f.key === "cleaning_note")).toMatchObject({
+      state: "info",
+      label: "Temizlik görevine not yazıldı · Ayşe · 11:30 — görevde okuyun",
+      basis: [{ kind: "task_update", id: "n1", at: at("2026-11-07T08:30:00Z") }],
+    });
+    // Yazanın adı okunamadıysa ad atlanır (yanlış ad uydurulmaz).
+    const noName = evaluateStay({ ...base, cleaningNote: true, cleaningNoteBy: { updateId: "n1", by: null, at: at("2026-11-07T08:30:00Z") } });
+    expect(noName.factors.find((f) => f.key === "cleaning_note")!.label).toBe("Temizlik görevine not yazıldı · 11:30 — görevde okuyun");
+  });
+
+  it("çakışma: öteki konaklamanın adı ve tarihleri; dayanak rezervasyon; adı yoksa 'adı kayıtlı değil'", () => {
+    const r = evaluateStay(
+      stay({
+        overlaps: 1,
+        overlapStays: [
+          { id: "r9", guestName: "Ali Veli", arrivalKey: "2026-11-05", departureKey: "2026-11-08" },
+          { id: "r8", guestName: "  ", arrivalKey: "2026-11-06", departureKey: "2026-11-07" },
+        ],
+      }),
+    );
+    const lines = r.factors.filter((f) => f.key === "overlap");
+    expect(lines.map((f) => f.label)).toEqual(["Çakışan konaklama: Ali Veli · 5 Kas – 8 Kas", "Çakışan konaklama: adı kayıtlı değil · 6 Kas – 7 Kas"]);
+    expect(lines[0]).toMatchObject({ state: "blocking", missing: "çakışmanın giderilmesi", basis: [{ kind: "reservation", id: "r9", at: null }] });
+    expect(r.overall).toBe("not_ready");
+  });
+
+  it("KONTROL — dayanak verilmezse genel cümle yazılır (hüküm aynı); dayanak engel YOKSA satır doğurmaz", () => {
+    expect(evaluateStay(stay({ maintenanceOpen: true, issueTasks: [] })).factors.find((f) => f.key === "issue")!.label).toBe("Mülkte açık bakım görevi var");
+    expect(evaluateStay(stay({ overlaps: 1 })).factors.find((f) => f.key === "overlap")!.label).toBe("Aynı gece başka bir konaklama var");
+    expect(evaluateStay(stay({ cleaningNote: true })).factors.find((f) => f.key === "cleaning_note")!.label).toBe(
+      "Temizlik görevine bugün not yazıldı — görevde okuyun",
+    );
+    const none = evaluateStay(
+      stay({
+        issueTasks: [{ id: "m1", title: "x", kindLabel: "Bakım", assignee: null, dueAt: null }],
+        overlapStays: [{ id: "r1", guestName: "y", arrivalKey: "2026-11-05", departureKey: "2026-11-08" }],
+        cleaningNoteBy: { updateId: "n1", by: "Ayşe", at: at("2026-11-07T08:30:00Z") },
+      }),
+    );
+    expect(none.factors.map((f) => f.key)).toEqual(["cleaning", "access", "timing"]);
+  });
+
   it("saat işletmenin saat diliminde yazılır (aynı an, farklı dilim)", () => {
     const ready = cleaning({ status: "ready", readyMark: { id: "u1", at: at("2026-11-07T15:40:00Z"), by: null } });
     expect(cleaningFactor(evaluateStay(stay({ timeZone: "America/New_York", cleaning: ready }))).label).toBe("Temizlik bitti 10:40 · çıkıştan (11:00) sonra");

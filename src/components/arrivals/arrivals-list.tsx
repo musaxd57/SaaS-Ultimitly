@@ -89,7 +89,8 @@ export function ArrivalsList({ rows, truncated }: { rows: ArrivalsListRow[]; tru
                   <Link href={`/properties/${r.propertyId}`} className="text-primary hover:underline">
                     Mülk
                   </Link>
-                  <Link href="/tasks" className="text-primary hover:underline">
+                  {/* Bu dairenin görevleri (satırdaki görev dayanakları orada açılır). */}
+                  <Link href={`/tasks?propertyId=${encodeURIComponent(r.propertyId)}`} className="text-primary hover:underline">
                     Görevler
                   </Link>
                 </div>

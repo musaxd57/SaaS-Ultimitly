@@ -100,7 +100,24 @@ export interface LoadedEarlyCheckin {
   readyMark: { id: string | null; at: Date } | null;
   /** Hükmün okuduğu BU DEVRİN temizlik görevleri (gösterim: giriş hazırlığı listesi aynı kümeyi gösterir — 11-05). */
   cleaningTaskIds: string[];
+  /** YALNIZ GÖSTERİM (giriş hazırlığı listesi; kurucu "her durumun dayanağı anlaşılsın", Opus 11-05 F7): `openIssue` /
+   *  `maintenanceOpen` / `cleaningNote` / `otherOverlaps` hükümlerinin dayandığı kayıtlar. Hükme GİRMEZ — aynı kümeden türer. */
+  basisIds: EarlyCheckinBasisIds;
 }
+
+export interface EarlyCheckinBasisIds {
+  issueTaskIds: string[];
+  /** En çok `MAINTENANCE_SHOWN_MAX`; fazlası `maintenanceMore`. */
+  maintenanceTaskIds: string[];
+  maintenanceMore: boolean;
+  noteTaskIds: string[];
+  overlapReservationIds: string[];
+}
+
+/** Gösterilen açık bakım görevi sayısı (hüküm için 1 yeter; fazlası "başkaları da var" diye söylenir — sessiz kesme yok). */
+export const MAINTENANCE_SHOWN_MAX = 5;
+
+const NO_BASIS: EarlyCheckinBasisIds = { issueTaskIds: [], maintenanceTaskIds: [], maintenanceMore: false, noteTaskIds: [], overlapReservationIds: [] };
 
 export async function loadEarlyCheckinFacts(args: {
   organizationId: string;
@@ -135,7 +152,7 @@ export async function loadEarlyCheckinFacts(args: {
         select: { id: true, status: true, arrivalDate: true },
       })
     : null;
-  if (!own) return { facts, rule, readyAt: null, timeZone: tz, referenceId: null, readyMark: null, cleaningTaskIds: [] };
+  if (!own) return { facts, rule, readyAt: null, timeZone: tz, referenceId: null, readyMark: null, cleaningTaskIds: [], basisIds: { ...NO_BASIS } };
   const arrivalKey = calendarDateOf(own.arrivalDate, tz).key;
   facts.reservation = { status: own.status, arrivalKey };
 
@@ -158,6 +175,11 @@ export async function loadEarlyCheckinFacts(args: {
   const malformed = keyed.filter((x) => x.a >= x.d && (x.a === arrivalKey || x.d === arrivalKey));
   // Aynı gün iki ayrılan = biri ötekiyle çakışmış (çift rezervasyon) → çakışma sayılır.
   facts.otherOverlaps = occupying.length + Math.max(0, sameDay.length - 1) + malformed.length;
+  const basisIds: EarlyCheckinBasisIds = {
+    ...NO_BASIS,
+    // Aynı gün iki ayrılan → ikisi de çakışmanın tarafı (hangisinin "fazla" olduğu bilinemez).
+    overlapReservationIds: [...new Set([...occupying, ...(sameDay.length > 1 ? sameDay : []), ...malformed].map((x) => x.r.id))],
+  };
   // Ev sahibinin ONAYLADIĞI geç çıkış (Host Karar Motoru kartı / otomatik onay) önceki misafirin çıkışını GEÇ'e çeker — yalnız
   // sıkılaştırır (en geç saat alınır): 13:00'e kadar kalabileceği söylenen misafir dairedeyken 12:00 erken giriş onaylanmasın.
   const approvedLate = await approvedLateCheckouts(args.organizationId, sameDay.map((x) => x.r.id));
@@ -238,13 +260,17 @@ export async function loadEarlyCheckinFacts(args: {
     });
     // AÇIK sorun / bakım / kontrol görevi (ayrılan ya da gelen konaklamaya bağlı, ya da devir gününe tarihli) → "hazır"
     // denemez (host).
-    facts.openIssue = tasks.some(
+    const issues = tasks.filter(
       (t) =>
         t.type !== "cleaning" &&
         t.status !== "done" &&
         (t.reservationId === reference.id || t.reservationId === own.id || (t.reservationId === null && onTurnoverDay(t))),
     );
-    facts.cleaningNote = cleaning.some((t) => t._count.updates > 0);
+    facts.openIssue = issues.length > 0;
+    basisIds.issueTaskIds = issues.map((t) => t.id);
+    const noted = cleaning.filter((t) => t._count.updates > 0);
+    facts.cleaningNote = noted.length > 0;
+    basisIds.noteTaskIds = noted.map((t) => t.id);
   }
 
   // Mülkte AÇIK bakım/kontrol görevi (tarihsiz ya da vadesi VARIŞ GÜNÜ sonuna kadar) → host bir baksın: bağsız bakım / kontrol ya da
@@ -252,22 +278,28 @@ export async function loadEarlyCheckinFacts(args: {
   // çıkış gününde bitiyordu → araya boş gün giren varışta bugüne / dünkü vadeli açık bakım, eski bir konaklamaya bağlı açık bakım ve
   // önceki konaklaması olmayan mülkteki açık bakım otomatik onayı DURDURMUYORDU. Gün kıyası tek tarih kuralının sorgu ikiziyle.
   const covered = reference ? [reference.id, own.id] : [];
-  facts.maintenanceOpen =
-    (await prisma.task.count({
-      where: {
-        propertyId: args.propertyId,
-        status: { not: "done" },
-        AND: [
-          { OR: [{ dueAt: null }, taskDueDayRangeWhere({ from: null, to: arrivalKey }, tz)] },
-          {
-            OR: [
-              { reservationId: null, type: { in: [...EARLY_CHECKIN_ISSUE_TASK_TYPES] } },
-              { reservationId: covered.length > 0 ? { notIn: covered } : { not: null }, type: "maintenance" },
-            ],
-          },
-        ],
-      },
-    })) > 0;
+  // Hüküm için bir kayıt yeter; gösterim için ilk `MAINTENANCE_SHOWN_MAX` (+1 = "başkaları da var") okunur — sayım yerine aynı koşul.
+  const maintenance = await prisma.task.findMany({
+    where: {
+      propertyId: args.propertyId,
+      status: { not: "done" },
+      AND: [
+        { OR: [{ dueAt: null }, taskDueDayRangeWhere({ from: null, to: arrivalKey }, tz)] },
+        {
+          OR: [
+            { reservationId: null, type: { in: [...EARLY_CHECKIN_ISSUE_TASK_TYPES] } },
+            { reservationId: covered.length > 0 ? { notIn: covered } : { not: null }, type: "maintenance" },
+          ],
+        },
+      ],
+    },
+    select: { id: true },
+    orderBy: [{ dueAt: "asc" }, { id: "asc" }],
+    take: MAINTENANCE_SHOWN_MAX + 1,
+  });
+  facts.maintenanceOpen = maintenance.length > 0;
+  basisIds.maintenanceTaskIds = maintenance.slice(0, MAINTENANCE_SHOWN_MAX).map((t) => t.id);
+  basisIds.maintenanceMore = maintenance.length > MAINTENANCE_SHOWN_MAX;
 
   if (!previous) {
     // Dün gece boş mu — YALNIZ motorun kanıtlı "boş" hükmü (taze kaynaklar). Köprü mülklerinde bugün "bilinmiyor".
@@ -279,5 +311,5 @@ export async function loadEarlyCheckinFacts(args: {
       facts.previousNightVerifiedVacant = report.ok && report.value.nights.length === 1 && report.value.nights[0].state === "free";
     }
   }
-  return { facts, rule, readyAt: readyMark?.at ?? null, timeZone: tz, referenceId: reference?.id ?? null, readyMark, cleaningTaskIds };
+  return { facts, rule, readyAt: readyMark?.at ?? null, timeZone: tz, referenceId: reference?.id ?? null, readyMark, cleaningTaskIds, basisIds };
 }

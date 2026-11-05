@@ -35,6 +35,8 @@ describe("Girişler listesi — görünüm", () => {
     expect(screen.getByText(/eksik: çıkıştan \(11:00\) sonra "bitti" kaydı/)).toBeTruthy();
     expect(screen.queryByText(/eksik: giriş talimatı/)).toBeNull();
     expect(screen.getByRole("link", { name: "Konuşma" }).getAttribute("href")).toBe("/inbox/c1");
+    // Görevler bağlantısı O DAİRENİN görevlerine süzülü açılır (satırdaki görev dayanakları orada).
+    expect(screen.getByRole("link", { name: "Görevler" }).getAttribute("href")).toBe("/tasks?propertyId=p1");
   });
 
   it("🚨 'HAZIR' etiketi hiçbir durumda çizilmez — en iyisi 'TEMİZLİK HAZIR'", () => {
