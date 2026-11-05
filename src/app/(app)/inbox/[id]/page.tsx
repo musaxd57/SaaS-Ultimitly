@@ -4,6 +4,7 @@ import { ArrowLeft, CalendarDays, BookOpen, ArrowLeftRight, CheckSquare } from "
 import { requireManagerSession } from "@/lib/auth/manager-page";
 import { orgTimezone } from "@/lib/timezone";
 import { stayEndedBefore } from "@/modules/availability/core";
+import { turnoverBandLines, turnoverInPending, turnoverOutPending } from "@/lib/turnover-band";
 import { canManage } from "@/lib/api";
 import { prisma } from "@/lib/db";
 import { reservationAmountNumber } from "@/lib/money";
@@ -307,8 +308,17 @@ export default async function ConversationPage({
   // 00:00Z damgalı — ham `Date` karşılaştırması iki kaynağı farklı ele alırdı.
   // "Aynı gün devir" kararı `getAdjacency`de, müsaitlik motorunun takvim günü kuralıyla verilir
   // (istemle AYNI karar — ekran ile model aynı olguyu görür).
-  const turnoverIn = !stayIsOver && adjacency?.previousSameDay === true;
-  const turnoverOut = !stayIsOver && adjacency?.nextSameDay === true;
+  // Tur 5: giriş tarafı yalnız giriş günü henüz geçmemişken (`turnover-band.ts`).
+  const turnoverIn = conversation.reservation
+    ? turnoverInPending({
+        stayIsOver,
+        arrivalDate: conversation.reservation.arrivalDate,
+        previousSameDay: adjacency?.previousSameDay === true,
+        now: new Date(),
+        timeZone: TZ,
+      })
+    : false;
+  const turnoverOut = turnoverOutPending({ stayIsOver, nextSameDay: adjacency?.nextSameDay === true });
   // Host Karar Motoru (bayraklı): komşu misafirin ONAYLANMIŞ geç çıkışı / erken girişi devir kutusuna yansır — karar kartıyla
   // çelişmesin ("önceki misafir 11:00" yazarken kartta "geç çıkışı 12:00 onaylandı"). Okuma hatası standart saati gösterir.
   const neighborTimes =
@@ -530,15 +540,24 @@ export default async function ConversationPage({
                   {turnoverIn || turnoverOut ? (
                     <div className="mt-2 flex items-start gap-1.5 rounded-md border border-warning/30 bg-warning/10 p-2 text-xs text-warning-foreground dark:text-amber-300">
                       <ArrowLeftRight className="mt-0.5 size-3.5 shrink-0" />
-                      <span>
-                        {/* Saate ek yazılmaz ("11:00'te" yanlıştı: "on bir'de"); onaylanmış komşu saati varsa o yazılır. */}
-                        {turnoverIn
-                          ? neighborTimes.previousLateCheckout
-                            ? `Devir günü: giriş günü önceki misafir çıkıyor (onaylı geç çıkış: ${neighborTimes.previousLateCheckout}).`
-                            : `Devir günü: giriş günü önceki misafir çıkıyor (standart çıkış ${conversation.property.checkOutTime}).`
-                          : neighborTimes.nextEarlyCheckin
-                            ? `Devir günü: çıkış günü yeni misafir giriyor (onaylı erken giriş: ${neighborTimes.nextEarlyCheckin}).`
-                            : `Devir günü: çıkış günü yeni misafir giriyor (standart giriş ${conversation.property.checkInTime}).`}
+                      <span className="space-y-0.5">
+                        {/* Onaylanmış komşu saati varsa o yazılır; iki uç da devirse İKİ satır (`turnover-band.ts`). */}
+                        {turnoverBandLines({
+                          stayIsOver,
+                          arrivalDate: conversation.reservation!.arrivalDate,
+                          previousSameDay: turnoverIn,
+                          nextSameDay: turnoverOut,
+                          now: new Date(),
+                          timeZone: TZ,
+                          checkInTime: conversation.property.checkInTime,
+                          checkOutTime: conversation.property.checkOutTime,
+                          previousLateCheckout: neighborTimes.previousLateCheckout,
+                          nextEarlyCheckin: neighborTimes.nextEarlyCheckin,
+                        }).map((line) => (
+                          <span key={line} className="block">
+                            {line}
+                          </span>
+                        ))}
                       </span>
                     </div>
                   ) : null}
