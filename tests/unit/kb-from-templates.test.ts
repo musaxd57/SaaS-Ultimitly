@@ -59,15 +59,21 @@ describe("buildKbSuggestionsFromTemplates — temel sözleşme", () => {
     expect(buildKbSuggestionsFromTemplates([tpl()], [], [])).toEqual([]);
   });
 
-  it("uzun gövde KELİME SINIRINDA kırpılır (ortadan bölmez)", () => {
-    // ⚠️ Bu satır önce yalnız uzunluk+"…" bakıyordu; kelime sınırı mantığı
-    // silinse de yeşil kalıyordu (ölçüldü). Artık kesme NOKTASI pinli.
-    const body = "A".repeat(TEMPLATE_SUGGESTION_MAX_CHARS - 5) + " kelimesonu KESILEN";
+  // Tur 6 KB6-2 (11-05, ölçüldü): eski 2.000'lik tavan 2.000–3.000 karakterlik şablonu KELİME SINIRINDA kesip "onaylı" bilgi olarak
+  // öneriyordu (son kurallar kayboluyor, yarım son cümle anlamı ters çevirebiliyordu). Tavan = kayıt tavanı (3.000); aşan önerilmez.
+  it("🚨 tavan bilgi tabanı kaydının tavanıdır (3.000) — 2.001–3.000 karakterlik gövde KESİLMEDEN önerilir", () => {
+    expect(TEMPLATE_SUGGESTION_MAX_CHARS).toBe(3_000);
+    const body = "Ev kuralları: " + "Sigara içilmez. ".repeat(140) + "Evcil hayvan kabul edilmez.";
+    expect(body.length).toBeGreaterThan(2_000);
+    expect(body.length).toBeLessThanOrEqual(3_000);
     const out = buildKbSuggestionsFromTemplates([tpl({ body })], [], PROPS);
-    expect(out[0].content.length).toBeLessThanOrEqual(TEMPLATE_SUGGESTION_MAX_CHARS + 1);
-    expect(out[0].content.endsWith("…")).toBe(true);
-    expect(out[0].content, "kelime ortasından kesilmiş").not.toMatch(/kelimeso…$/);
-    expect(out[0].content.endsWith("A…"), "boşluktan kesilmeli").toBe(true);
+    expect(out[0].content).toBe(body);
+  });
+
+  it("🚨 tavanı aşan gövde ÖNERİLMEZ (kesik bilgi saklanmaz)", () => {
+    const body = "Ev kuralları: " + "Sigara içilmez. ".repeat(200) + "Evcil hayvan kabul edilmez.";
+    expect(body.length).toBeGreaterThan(3_000);
+    expect(buildKbSuggestionsFromTemplates([tpl({ body })], [], PROPS)).toEqual([]);
   });
 });
 
@@ -202,6 +208,12 @@ describe("🚨 DOLDURULMAMIŞ YER TUTUCU — E4 sınıfı KB'ye GİRMEZ", () => 
       "Adresimiz <adres> olarak kayıtlı.",
       "Kapı kodu: ______",
     ]) {
+      expect(buildKbSuggestionsFromTemplates([tpl({ body })], [], PROPS), body).toEqual([]);
+    }
+  });
+
+  it("🚨 Tur 6 KB6-1: tek parantezli / yüzdeli doldurulmamış alan ({sifre}, %KOD%) taşıyan şablon ÖNERİLMEZ", () => {
+    for (const body of ["Ağ: LaleApt, şifre {sifre}", "Kapı kodu: %KOD%", "Wi-Fi şifresi %SIFRE%."]) {
       expect(buildKbSuggestionsFromTemplates([tpl({ body })], [], PROPS), body).toEqual([]);
     }
   });

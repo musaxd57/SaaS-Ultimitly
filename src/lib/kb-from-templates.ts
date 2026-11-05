@@ -15,10 +15,17 @@
 // Hiçbir şey kaydetmez. Kabul `POST /api/kb` yolundan gider (host_manual/approved).
 // ---------------------------------------------------------------------------
 
-import { kbPlaceholderTokens } from "./kb-placeholders";
+import { kbPlaceholderTokens, unfilledTemplateTokens } from "./kb-placeholders";
 import { TEMPLATE_VAR_SOURCE, ANY_DOUBLE_BRACE } from "./template-apply";
+import { KB_CHARS_PER_ITEM } from "./billing/kb-item-cap";
 
-export const TEMPLATE_SUGGESTION_MAX_CHARS = 2_000;
+/**
+ * Önerinin içerik tavanı = bilgi tabanı KAYDININ tek kaynak tavanı (Tur 5/6 — 11-05, ölçüldü). Eski 2.000'lik ayrı tavan, 2.000–3.000
+ * karakterlik şablonu KELİME SINIRINDA KESİP "onaylı" bilgi olarak öneriyordu: son kurallar kayboluyor, yarım kalan son cümle Türkçe
+ * yüklemini / olumsuzluğunu yitirip anlamı ters çevirebiliyordu ("Evcil hayvan kabul…"). Tavanı aşan gövde artık ÖNERİLMEZ (kesik
+ * bilgi asla saklanmaz — fail-closed; kayıt yolu da 3.000'i reddeder).
+ */
+export const TEMPLATE_SUGGESTION_MAX_CHARS = KB_CHARS_PER_ITEM;
 
 /**
  * Şablon kategorisi → KB kategorisi.
@@ -158,6 +165,9 @@ export function templateBodyToKbContent(body: string): string | null {
   if (ANY_DOUBLE_BRACE.test(converted)) return null;
   // Doldurulmamış alan sınıfı (`[ŞİFRE]`/`<adres>`/`___`) → uydurma değer riski.
   if (kbPlaceholderTokens(converted).length > 0) return null;
+  // Tur 6 KB6-1 (11-05, ölçüldü): tek parantezli / yüzdeli doldurulmamış alan ("{sifre}", "%KOD%") da — bilinen ikame belirteçleri
+  // ({isim}, {daire}) bu kümede değildir. Onaylı bilgi olarak saklanırsa yapay zekâ onu GERÇEK değer sanar.
+  if (unfilledTemplateTokens(converted).length > 0) return null;
   return converted;
 }
 
@@ -208,6 +218,8 @@ export function buildKbSuggestionsFromTemplates(
     if (!body) continue;
     const content = templateBodyToKbContent(body);
     if (content === null) continue;
+    // Tur 6 KB6-2: tavanı aşan gövde önerilmez (kesik bilgi saklanmaz).
+    if (content.length > TEMPLATE_SUGGESTION_MAX_CHARS) continue;
 
     const targets = t.propertyId ? [t.propertyId] : properties.map((p) => p.id);
     for (const propertyId of targets) {
@@ -223,7 +235,7 @@ export function buildKbSuggestionsFromTemplates(
         propertyName,
         category,
         title: clip(t.title || "Bilgi", 300),
-        content: clip(content, TEMPLATE_SUGGESTION_MAX_CHARS),
+        content,
         language: t.language || "tr",
         sourceTemplateId: t.id,
         fromOrgWide: t.propertyId === null,
