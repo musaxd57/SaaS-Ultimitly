@@ -291,7 +291,11 @@ export async function upsertCanonicalReservation(
       },
       select: { id: true },
     });
-    await emit(db, ctx, "reservation", created.id, r.status === "cancelled" ? "reservation.cancelled" : "reservation.created");
+    // Tur 6 INT-1 (11-05, ölçüldü): İLK görülen satır bir GEÇİŞ değildir. İlk senkron, aylar önce iptal edilmiş (ya da süresi dolmuş
+    // talep / reddedilmiş istek → "cancelled") rezervasyonları "iptal" olayıyla ŞİMDİ'ye tarihleyip "İptal tekrar ediyor" örüntüsü
+    // kuruyordu (geçmişe yapay olay — tasarım kuralı). iCal / elle dosya ile aynı: yeni satır → `reservation.created`; iptal olayı yalnız
+    // gözlenen geçişte (yukarıdaki güncelleme dalı).
+    await emit(db, ctx, "reservation", created.id, "reservation.created");
     return created.id;
   } catch (err) {
     // DEDUPE-HIT on @@unique([propertyId, sourceReference]) ONLY: a racing

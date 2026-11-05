@@ -195,6 +195,15 @@ describe("V0.6 ingest write service (fake adaptör → gerçek yazma yolu)", () 
     expect(await kinds(orgId)).toEqual(["reservation.created", "reservation.updated"]);
   });
 
+  it("🚨 Tur 6 INT-1: İLK kez görülen ve ZATEN iptal olan satır 'iptal' olayı ÜRETMEZ (geçiş değil) — yalnız reservation.created", async () => {
+    const { orgId, propertyId } = await seedOrgA();
+    fake.setReservations(HP_A, [R1({ status: "cancelled", terminal: true })]);
+    await syncHospitable(orgId);
+    const { reservation } = await rows(propertyId);
+    expect(reservation.status).toBe("cancelled");
+    expect(await kinds(orgId)).toEqual(["reservation.created"]);
+  });
+
   it("İPTAL: status cancelled + terminal → satır cancelled, reservation.cancelled event'i (updated değil); tekrar oynatma ikinci event üretmez", async () => {
     const { orgId, propertyId } = await seedOrgA();
     fake.setReservations(HP_A, [R1()]);
