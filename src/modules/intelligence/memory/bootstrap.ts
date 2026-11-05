@@ -98,10 +98,14 @@ export async function bootstrapMemoryFromKnowledgeBase(organizationId: string, p
   }
 
   // KB kalemi artık YOK (hard delete) → hafıza retired. Yalnız kapsamdaki (org/mülk) satırlar.
+  // Tur 6 INT-4 (11-05, ölçüldü): SATIR tarihçe olarak kalır (tasarım kararı) ama kopyalanmış METİN kalmaz — silinen kalemin içeriği
+  // (kapı kodu, Wi-Fi şifresi) emekli satırda süresiz duruyordu; hiçbir yüzey okumuyor. Daha önce emekliye ayrılmış satırın metni de
+  // bir sonraki geçişte temizlenir. Sayaç yalnız durum GEÇİŞİNİ sayar (tekrar koşu sayıları aynı).
   for (const [k, ex] of existing) {
-    if (seen.has(k) || ex.status === "retired") continue;
-    await prisma.propertyMemory.update({ where: { id: ex.id }, data: { status: "retired" } });
-    out.retired++;
+    if (seen.has(k)) continue;
+    if (ex.status === "retired" && ex.body === null) continue;
+    await prisma.propertyMemory.update({ where: { id: ex.id }, data: { status: "retired", body: null } });
+    if (ex.status !== "retired") out.retired++;
   }
   return out;
 }

@@ -374,7 +374,8 @@ describe("V1 ürün akışı — Hospitable'sız kiracı (iCal · elle .ics · Q
 
     expect((await KB_DELETE(new NextRequest("http://localhost/api/kb/x", { method: "DELETE" }), kbCtx(kbId))).status).toBe(200);
     expect(await prisma.knowledgeBaseItem.count({ where: { id: kbId } })).toBe(0);
-    expect((await prisma.propertyMemory.findFirstOrThrow({ where: { id: mem.id } })).status).toBe("retired");
+    // Tur 6 INT-4: satır tarihçe olarak kalır ama silinen kalemin METNİ (kapı kodu, Wi-Fi şifresi olabilir) kalmaz.
+    expect(await prisma.propertyMemory.findFirstOrThrow({ where: { id: mem.id } })).toMatchObject({ status: "retired", body: null, title: "Otopark" });
 
     // Geçiş tekrarı: silinmiş kalem geri gelmez, satır sayısı değişmez (tek satır, retired).
     await runIntelligencePass(orgId);
@@ -383,6 +384,10 @@ describe("V1 ürün akışı — Hospitable'sız kiracı (iCal · elle .ics · Q
     expect(all[0].status).toBe("retired");
     // Okuma yüzeyi retired'ı göstermez.
     expect((await getPropertyMemory(orgId, propertyId)).facts).toEqual([]);
+    // Tur 6 INT-4: düzeltmeden ÖNCE emekliye ayrılmış (metni kalmış) satır bir sonraki geçişte temizlenir; sayaç geçiş saymaz.
+    await prisma.propertyMemory.update({ where: { id: mem.id }, data: { body: "Kapı kodu 482913#" } });
+    await runIntelligencePass(orgId);
+    expect(await prisma.propertyMemory.findFirstOrThrow({ where: { id: mem.id } })).toMatchObject({ status: "retired", body: null });
   });
 
   it("RETENTION: misafir-kaynaklı (QR) sinyal cutoff'tan eskiyse purge edilir; rezervasyon iptali sinyali ve KB hafızası kalır", async () => {

@@ -27,7 +27,7 @@ import { guestErasureEnabled, reservationsWithSourceTombstone } from "@/lib/eras
 import { generateCalendarToken } from "@/lib/export/ics";
 import { getCalendarSourceUrl, maskFeedUrl } from "@/lib/calendar-source-url";
 import { KB_CATEGORY, RESERVATION_STATUS } from "@/lib/constants";
-import { formatDate } from "@/lib/utils";
+import { formatDate, formatDayInTz } from "@/lib/utils";
 import { getMemoryContradictions, getPropertyMemory } from "@/modules/intelligence";
 import { MemoryContradictions } from "@/components/properties/memory-contradictions";
 import { ActionSuggestions } from "@/components/ai-suggestions/action-suggestions";
@@ -557,7 +557,8 @@ export default async function PropertyDetailPage({
                         <div key={s.id} className="flex items-center justify-between gap-2">
                           <span className="truncate text-sm">
                             {signalCategoryLabel(s.category)}
-                            <span className="ml-2 text-xs text-muted-foreground">{formatDate(s.occurredAt)}</span>
+                            {/* Tur 6 INT-3: sinyal ANI işletmenin gününde (tarih-yalnız biçimleyici UTC'ye sabit — gece 00:00–02:59 bir önceki gün çıkıyordu). */}
+                            <span className="ml-2 text-xs text-muted-foreground">{formatDayInTz(s.occurredAt, orgTimezone(property.organization?.timezone))}</span>
                           </span>
                           <Badge tone={sentimentTone(s.sentiment)}>{signalKindLabel(s.kind)}</Badge>
                         </div>
