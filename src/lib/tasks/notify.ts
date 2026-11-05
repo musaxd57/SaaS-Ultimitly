@@ -1,0 +1,67 @@
+import "server-only";
+
+import { prisma } from "@/lib/db";
+import { emailService } from "@/lib/email";
+import { rateLimit } from "@/lib/rate-limit";
+import { reportError } from "@/lib/report-error";
+import { isDemoOrg } from "@/lib/demo-tenant/constants";
+import { taskBlockedEmail } from "@/lib/email-templates";
+import { orgTimezone } from "@/lib/timezone";
+import { formatDayInTz } from "@/lib/utils";
+import { calendarDateOf } from "@/modules/availability/core";
+
+// ---------------------------------------------------------------------------
+// GÖREV BİLDİRİMLERİ (kurucu 11-05 gece; tasarım docs/TASARIM-2026-11-06-dogrudan-gorevlendirme-ve-whatsapp.md §2.3 / §2.5).
+// Ana kanal ileride WhatsApp (ev sahibi kanalının altyapısı); bugün e-posta (geçici). Bütün YENİ gönderimler `STAFF_NOTIFY_ENABLED=1`
+// arkasında KAPALI doğar — ilk gerçek gönderim kurucuyla birlikte (kural: e-posta akışı ilk denemeler birlikte). Bugünkü elle atama
+// e-postası (`api/tasks/[id]`) bu anahtardan BAĞIMSIZ, eskisi gibi.
+// ---------------------------------------------------------------------------
+
+/** Yalnız "1" ile açılır (`STRICT_ONE_FLAGS`). */
+export function staffNotifyEnabled(env: Record<string, string | undefined> = process.env): boolean {
+  return env.STAFF_NOTIFY_ENABLED === "1";
+}
+
+/** Aynı görev için saatte en çok bu kadar "yapılamıyor" bildirimi (ileri-geri basma ev sahibinin kutusunu doldurmasın). */
+const BLOCKED_MAILS_PER_TASK_HOUR = 3;
+
+export interface TaskBlockedNotice {
+  organizationId: string;
+  taskId: string;
+  /** Bildiren kişi (kendisine gitmez). */
+  actorUserId: string;
+  actorName: string;
+  propertyName: string;
+  taskTypeLabel: string;
+  /** Görevin vadesi (gün mülk takviminde, tek tarih kuralıyla yazılır). */
+  dueAt: Date | null;
+  /** Kişinin yazdığı neden (isteğe bağlı, kısaltılmış). */
+  reason: string | null;
+}
+
+/**
+ * Atanan kişi "Yapamıyorum" dedi → işletmenin sahip / yöneticilerine e-posta (anahtar açıkken). En iyi çaba: hata görevi etkilemez, raporlanır.
+ * Misafir adı / mesajı TAŞIMAZ (görev başlığı yerine tür + daire + gün).
+ */
+export async function notifyTaskBlocked(n: TaskBlockedNotice): Promise<"sent" | "skipped"> {
+  if (!staffNotifyEnabled() || isDemoOrg(n.organizationId)) return "skipped";
+  if (!(await rateLimit(`task-blocked-mail:${n.taskId}`, BLOCKED_MAILS_PER_TASK_HOUR, 60 * 60_000)).ok) return "skipped";
+  const managers = await prisma.user.findMany({
+    where: { organizationId: n.organizationId, role: { in: ["owner", "manager"] }, id: { not: n.actorUserId } },
+    select: { email: true, name: true },
+  });
+  if (managers.length === 0) return "skipped";
+  const org = await prisma.organization.findUnique({ where: { id: n.organizationId }, select: { timezone: true } });
+  const tz = orgTimezone(org?.timezone);
+  const dueLabel = n.dueAt ? formatDayInTz(new Date(`${calendarDateOf(n.dueAt, tz).key}T12:00:00.000Z`), "UTC") : null;
+  const html = taskBlockedEmail({ ...n, dueLabel });
+  for (const m of managers) {
+    void emailService
+      .sendReporting(m.email, `Görev yapılamıyor: ${n.propertyName}`, html)
+      .then((res) => {
+        if (!res.ok) void reportError("task-blocked-mail", new Error(`task=${n.taskId} — 'yapılamıyor' bildirimi gönderilemedi`));
+      })
+      .catch((err) => void reportError("task-blocked-mail", err));
+  }
+  return "sent";
+}

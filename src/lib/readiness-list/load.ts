@@ -138,7 +138,7 @@ export async function loadArrivalReadiness(
             reservationId: true,
             status: true,
             assignedTo: { select: { name: true } },
-            updates: { where: { status: { not: null } }, orderBy: { createdAt: "desc" }, take: 20, select: { status: true, userId: true, createdAt: true } },
+            updates: { where: { status: { not: null } }, orderBy: { createdAt: "desc" }, take: 20, select: { status: true, userId: true, createdAt: true, note: true } },
           },
         })
       : Promise.resolve([]),
@@ -237,6 +237,8 @@ export async function loadArrivalReadiness(
         const latest = t.updates[0];
         const started = latest && latest.status === "in_progress" && latest.userId ? latest : null;
         const done = latest && latest.status === "done" && latest.userId ? latest : null;
+        // "Yapamıyorum" (kurucu 11-05 gece): en son durum kaydı "Yapılamıyor" → kim · ne zaman · neden.
+        const blocked = latest && latest.status === "blocked" ? latest : null;
         return {
           id: t.id,
           open: t.status !== "done",
@@ -244,6 +246,7 @@ export async function loadArrivalReadiness(
           startedAt: started?.createdAt ?? null,
           startedBy: started?.userId ? (nameOf.get(started.userId) ?? null) : null,
           lastDoneAt: done?.createdAt ?? null,
+          blocked: blocked ? { at: blocked.createdAt, by: blocked.userId ? (nameOf.get(blocked.userId) ?? null) : null, reason: blocked.note } : null,
         };
       })
       // Açık görev önce (engelleyen o).
@@ -257,7 +260,7 @@ export async function loadArrivalReadiness(
       previousCheckout: loaded?.referenceCheckout?.time ?? f?.previousSameDay?.checkoutTime ?? null,
       previousCheckoutDay: loaded?.referenceCheckout?.dayKey ?? null,
       readyMark: loaded?.readyMark ? { id: loaded.readyMark.id, at: loaded.readyMark.at, by: loaded.readyMark.id ? (readyUserOf.get(loaded.readyMark.id) ?? null) : null } : null,
-      tasks: tasks.map((t) => ({ id: t.id, assignee: t.assignee, startedAt: t.startedAt, startedBy: t.startedBy, lastDoneAt: t.lastDoneAt })),
+      tasks: tasks.map((t) => ({ id: t.id, assignee: t.assignee, startedAt: t.startedAt, startedBy: t.startedBy, lastDoneAt: t.lastDoneAt, blocked: t.blocked })),
     };
     const basisIds = loaded?.basisIds;
     const noteTasks = new Set(basisIds?.noteTaskIds ?? []);

@@ -124,8 +124,9 @@ export function TaskForm({
           <Select id="status" value={form.status} onChange={(e) => set("status", e.target.value)}>
             {/* Match the board's 3 columns (todo / in_progress / done) — the 4th
                 "Onay bekliyor" state has no column, so don't offer it here. */}
+            {/* "Yapılamıyor" atanan kişinin bildirimidir (kartta "Yapamıyorum") — formda seçilmez. */}
             {TASK_STATUS.options
-              .filter((o) => o.value !== "awaiting_review")
+              .filter((o) => o.value !== "awaiting_review" && o.value !== "blocked")
               .map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}

@@ -100,11 +100,14 @@ export const PRIORITY = optionMap<Priority>([
 export type MessageDirection = "inbound" | "outbound";
 
 // --- Tasks ------------------------------------------------------------------
-export type TaskStatus = "todo" | "in_progress" | "awaiting_review" | "done";
+export type TaskStatus = "todo" | "in_progress" | "awaiting_review" | "blocked" | "done";
 export const TASK_STATUS = optionMap<TaskStatus>([
   { value: "todo", label: "Yapılacak", tone: "secondary" },
   { value: "in_progress", label: "Devam ediyor", tone: "default" },
   { value: "awaiting_review", label: "Onay bekliyor", tone: "warning" },
+  // Kurucu 11-05 gece ("Yapamıyorum / Sorun bildir"): atanan kişi işi yapamayacağını bildirdi. Görev SİLİNMEZ, BİTMİŞ SAYILMAZ;
+  // ev sahibi başka birine atayınca "Yapılacak"a döner (`api/tasks/[id]`). Tasarım: docs/TASARIM-2026-11-06-dogrudan-gorevlendirme-ve-whatsapp.md §2.5.
+  { value: "blocked", label: "Yapılamıyor", tone: "destructive" },
   { value: "done", label: "Tamamlandı", tone: "success" },
 ]);
 

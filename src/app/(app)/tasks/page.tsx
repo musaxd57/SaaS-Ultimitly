@@ -155,8 +155,32 @@ export default async function TasksPage({
   // aynı-kaynak yolu sahibin panosunda `<img src>` olarak TIKSIZ GET üretirdi).
   const latestPhotoByTask = latestRenderablePhotoByTask(photoRows, session.organizationId);
 
+  // "Yapılamıyor" görevlerin EN SON bildirimi (kim · ne zaman · neden) — kurucu 11-05 gece. Ekrandaki görevlerle sınırlı, org kapsamlı.
+  const blockedIds = tasks.filter((t) => t.status === "blocked").map((t) => t.id);
+  const blockedRows = blockedIds.length
+    ? await prisma.taskUpdate.findMany({
+        where: { taskId: { in: blockedIds }, status: "blocked", task: { property: { organizationId: session.organizationId } } },
+        select: { taskId: true, note: true, createdAt: true, user: { select: { name: true } } },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      })
+    : [];
+  const blockedByTask = new Map<string, { by: string | null; at: Date; reason: string | null }>();
+  for (const r of blockedRows) {
+    if (!blockedByTask.has(r.taskId)) blockedByTask.set(r.taskId, { by: r.user?.name ?? null, at: r.createdAt, reason: r.note });
+  }
+  // Yönetici kartında "Atanan" seçimi: işletmenin kişileri (personel listesi personele gösterilmez).
+  const members = canManage
+    ? await prisma.user.findMany({ where: { organizationId: session.organizationId }, select: { id: true, name: true }, orderBy: { name: "asc" } })
+    : [];
+
   const cards: TaskCardData[] = tasks.map((t) =>
-    taskCardData(t, { canManage, timeZone: TZ, now, latestPhotoUrl: latestPhotoByTask.get(t.id) ?? null }),
+    taskCardData(t, {
+      canManage,
+      timeZone: TZ,
+      now,
+      latestPhotoUrl: latestPhotoByTask.get(t.id) ?? null,
+      blocked: blockedByTask.get(t.id) ?? null,
+    }),
   );
 
   return (
@@ -239,7 +263,7 @@ export default async function TasksPage({
         </EmptyState>
       ) : (
         <>
-          <TaskBoard tasks={cards} canManage={canManage} />
+          <TaskBoard tasks={cards} canManage={canManage} members={members} />
           {/* Yalnız "Tamamlandı" sütunu sayfalanır — aktif iş hiç sınırlanmaz.
               Aralık + GERÇEK toplam yazılı ve geçmişin TAMAMI gezilebilir:
               tavan yok, dolayısıyla erişilemez eski kayıt da yok. */}

@@ -354,6 +354,20 @@ describe("giriş hazırlığı — saf değerlendirici", () => {
     expect(r.factors.find((f) => f.key === "timing")!.label).toBe("Önceki çıkış 11:00 → giriş 15:00");
   });
 
+  it("🚨 'Yapamıyorum' (kurucu 11-05 gece): temizlik satırı kim / ne zaman / neden der; eksik şart başka birine atama; engel", () => {
+    const r = evaluateStay(
+      stay({
+        cleaning: cleaning({
+          status: "not_ready",
+          note: "open",
+          tasks: [{ id: "t1", assignee: "Ayşe", startedAt: null, startedBy: null, lastDoneAt: null, blocked: { at: at("2026-11-07T09:05:00Z"), by: "Ayşe", reason: "hastayım" } }],
+        }),
+      }),
+    );
+    expect(cleaningFactor(r)).toMatchObject({ state: "blocking", label: 'Temizlik yapılamıyor · Ayşe · 12:05 — "hastayım"', missing: "başka birine atama" });
+    expect(r.overall).toBe("not_ready");
+  });
+
   it("saat işletmenin saat diliminde yazılır (aynı an, farklı dilim)", () => {
     const ready = cleaning({ status: "ready", readyMark: { id: "u1", at: at("2026-11-07T15:40:00Z"), by: null } });
     expect(cleaningFactor(evaluateStay(stay({ timeZone: "America/New_York", cleaning: ready }))).label).toBe("Temizlik bitti 10:40 · çıkıştan (11:00) sonra");

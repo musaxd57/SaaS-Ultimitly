@@ -49,7 +49,15 @@ export interface CleaningInput {
   /** Hazır hükmünü veren "bitti" kaydı (çekirdeğin `readyMark`ı). */
   readyMark: { id: string | null; at: Date; by: string | null } | null;
   /** Bu devrin temizlik görev(ler)i — yalnız GÖSTERİM (atanan, başladı, son bitti işareti); hüküm çekirdektedir. */
-  tasks: { id: string; assignee: string | null; startedAt: Date | null; startedBy: string | null; lastDoneAt: Date | null }[];
+  tasks: {
+    id: string;
+    assignee: string | null;
+    startedAt: Date | null;
+    startedBy: string | null;
+    lastDoneAt: Date | null;
+    /** Atanan kişi "Yapamıyorum" dedi (en son durum kaydı) — kim · ne zaman · neden. */
+    blocked?: { at: Date; by: string | null; reason: string | null } | null;
+  }[];
 }
 
 export interface StayReadinessInput {
@@ -156,6 +164,18 @@ function cleaningFactor(c: CleaningInput, tz: string, now: Date, arrivalDayKey: 
     if (c.note === "before_checkout") {
       const at = task?.lastDoneAt ? ` (${whenLabel(task.lastDoneAt, now, tz)})` : "";
       return { key: "cleaning", state: "blocking", label: `"Bitti" işareti çıkıştan önce${at}`, missing: `${after} atılmış "bitti" kaydı`, basis: taskBasis };
+    }
+    // "Yapamıyorum" (kurucu 11-05 gece): görev açık ve sahipsiz kaldı — ev sahibinin işi başka birine atamak.
+    const blocked = c.tasks.find((t) => t.blocked)?.blocked ?? null;
+    if (blocked) {
+      const reason = blocked.reason?.trim() ? ` — "${blocked.reason.trim().slice(0, 80)}"` : "";
+      return {
+        key: "cleaning",
+        state: "blocking",
+        label: `Temizlik yapılamıyor · ${blocked.by ?? "atanan kişi"} · ${whenLabel(blocked.at, now, tz)}${reason}`,
+        missing: "başka birine atama",
+        basis: taskBasis,
+      };
     }
     // Açık görev: atanmış olmak kanıt DEĞİL — kim, başladı mı söylenir, şart aynı kalır.
     // İsme ek GETİRİLMEZ (ünlü uyumu: "Ayşe'ye", "Hasan'a", "Mehmet'e" — kodla doğru çekilemez): "atanan: Ayşe".

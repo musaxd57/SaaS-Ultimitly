@@ -32,12 +32,33 @@ export interface TaskCardRow {
   checklistJson: string | null;
   property: { name: string };
   assignedTo: { name: string } | null;
+  /** Atanan kişinin kimliği (yöneticinin kart üstü "Atanan" seçimi için). */
+  assignedToId?: string | null;
   updates: { note: string | null }[];
+}
+
+/**
+ * "Yapamıyorum" satırı (kurucu 11-05 gece): kim · ne zaman · neden. Bugünse yalnız saat, başka günse gün + saat (dünkü bildirim bugünün
+ * saati gibi okunmasın). Neden kişinin kendi yazısı — kısaltılır.
+ */
+export function blockedLine(b: { by: string | null; at: Date; reason: string | null }, timeZone: string, now: Date): string {
+  const sameDay = todayKey(b.at, timeZone) === todayKey(now, timeZone);
+  const day = new Intl.DateTimeFormat("tr-TR", { day: "numeric", month: "short", timeZone }).format(b.at);
+  const when = sameDay ? formatTime(b.at, timeZone) : `${day} ${formatTime(b.at, timeZone)}`;
+  const reason = b.reason?.trim() ? ` — ${b.reason.trim().slice(0, 120)}` : "";
+  return `${b.by ?? "Atanan kişi"} yapamıyor · ${when}${reason}`;
 }
 
 export function taskCardData(
   t: TaskCardRow,
-  ctx: { canManage: boolean; timeZone: string; now: Date; latestPhotoUrl: string | null },
+  ctx: {
+    canManage: boolean;
+    timeZone: string;
+    now: Date;
+    latestPhotoUrl: string | null;
+    /** Görev "Yapılamıyor" ise en son bildirimi (sayfa ayrı sorguyla verir). */
+    blocked?: { by: string | null; at: Date; reason: string | null } | null;
+  },
 ): TaskCardData {
   const parsedChecklist = safeJsonParse<ChecklistItem[]>(t.checklistJson, []);
   // Guard against a stored non-array JSON scalar (e.g. "foo") slipping past
@@ -57,10 +78,12 @@ export function taskCardData(
     status: t.status,
     propertyName: t.property.name,
     assigneeName: t.assignedTo?.name ?? null,
+    assigneeId: t.assignedToId ?? null,
     dueLabel: due ? formatDayInTz(new Date(`${due.key}T12:00:00.000Z`), "UTC") : null,
     dueDays: due ? nightsBetween(todayKey(ctx.now, ctx.timeZone), due.key) : null,
     checklist: checklist.length > 0 ? { items: checklist } : null,
     latestPhotoUrl: ctx.latestPhotoUrl,
     latestNote: latestUpdate?.note ?? null,
+    blocked: t.status === "blocked" && ctx.blocked ? blockedLine(ctx.blocked, ctx.timeZone, ctx.now) : null,
   };
 }

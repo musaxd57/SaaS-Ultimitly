@@ -5,7 +5,7 @@ import { confirmDialog } from "@/lib/confirm";
 import { toast } from "@/lib/toast";
 import { EmptyState } from "@/components/empty-state";
 import { useRouter } from "next/navigation";
-import { Loader2, Trash2, User, Clock, CheckSquare, ListChecks, Camera, FileText, ChevronDown, ChevronRight, Share2, Copy, Check } from "lucide-react";
+import { Loader2, Trash2, User, Clock, CheckSquare, ListChecks, Camera, FileText, ChevronDown, ChevronRight, Share2, Copy, Check, AlertTriangle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
 import { TASK_STATUS, TASK_TYPE, PRIORITY } from "@/lib/constants";
@@ -24,11 +24,15 @@ export interface TaskCardData {
   status: string;
   propertyName: string;
   assigneeName: string | null;
+  /** Atanan kişinin kimliği (yönetici kartında "Atanan" seçimi). */
+  assigneeId?: string | null;
   dueLabel: string | null;
   dueDays?: number | null; // whole days from today to the due date (for the time filter)
   checklist: { items: { label: string; done: boolean }[] } | null;
   latestPhotoUrl?: string | null;
   latestNote?: string | null;
+  /** "Yapılamıyor" görevin satırı ("Ayşe yapamıyor · 12:05 — hastayım"), değilse null. */
+  blocked?: string | null;
 }
 
 // The three Kanban columns. A card lands in exactly one: explicit todo / done,
@@ -41,7 +45,8 @@ const COLUMNS: { key: string; label: string; dot: string }[] = [
   { key: "done", label: "Tamamlandı", dot: "bg-emerald-500" },
 ];
 function columnOf(status: string): string {
-  if (status === "todo") return "todo";
+  // "Yapılamıyor" ev sahibinin işidir (başka birine ata) → Yapılacak sütununda, kırmızı rozetle (kurucu 11-05 gece).
+  if (status === "todo" || status === "blocked") return "todo";
   if (status === "done") return "done";
   return "in_progress";
 }
@@ -81,8 +86,20 @@ function dueEmphasis(t: TaskCardData): { text: string; className: string } | nul
   return null;
 }
 
-export function TaskBoard({ tasks, canManage = true }: { tasks: TaskCardData[]; canManage?: boolean }) {
+export function TaskBoard({
+  tasks,
+  canManage = true,
+  members = [],
+}: {
+  tasks: TaskCardData[];
+  canManage?: boolean;
+  /** İşletmenin kişileri (yalnız yönetici: kart üstü "Atanan" seçimi). */
+  members?: { id: string; name: string }[];
+}) {
   const router = useRouter();
+  // "Yapamıyorum" (kurucu 11-05 gece): atanan kişi işi yapamayacağını bildirir; görev silinmez, bitmiş sayılmaz, ev sahibi görür.
+  const [cantDoOpen, setCantDoOpen] = useState<string | null>(null);
+  const [cantDoReason, setCantDoReason] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [noteMap, setNoteMap] = useState<Record<string, string>>({});
@@ -136,6 +153,52 @@ export function TaskBoard({ tasks, canManage = true }: { tasks: TaskCardData[]; 
         toast.error(res.status === 403 ? "Bu işlem için yetkiniz yok." : "Görev durumu güncellenemedi.");
         return;
       }
+      startTransition(() => router.refresh());
+    } catch {
+      toast.error("Bağlantı hatası. Lütfen tekrar deneyin.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  /** Yönetici: görevi başka birine atar (boş = atanmamış). "Yapılamıyor" görev sunucuda "Yapılacak"a döner. */
+  async function assign(id: string, assignedToId: string) {
+    setBusyId(id);
+    try {
+      const res = await fetch(`/api/tasks/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assignedToId: assignedToId || null }),
+      });
+      if (!res.ok) {
+        toast.error(res.status === 403 ? "Bu işlem için yetkiniz yok." : "Görev atanamadı.");
+        return;
+      }
+      startTransition(() => router.refresh());
+    } catch {
+      toast.error("Bağlantı hatası. Lütfen tekrar deneyin.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  /** Atanan kişi: "Yapamıyorum" — neden isteğe bağlı. */
+  async function reportCantDo(id: string) {
+    setBusyId(id);
+    try {
+      const reason = cantDoReason.trim();
+      const res = await fetch(`/api/tasks/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(reason ? { status: "blocked", note: reason } : { status: "blocked" }),
+      });
+      if (!res.ok) {
+        toast.error(res.status === 403 ? "Bu görev size atanmamış." : "Bildirilemedi. Lütfen tekrar deneyin.");
+        return;
+      }
+      setCantDoOpen(null);
+      setCantDoReason("");
+      toast.success("Ev sahibine bildirildi.");
       startTransition(() => router.refresh());
     } catch {
       toast.error("Bağlantı hatası. Lütfen tekrar deneyin.");
@@ -358,6 +421,7 @@ export function TaskBoard({ tasks, canManage = true }: { tasks: TaskCardData[]; 
         </div>
         <div className="mt-2 flex flex-wrap gap-1.5">
           {t.status === "done" ? <Badge tone="success">Tamamlandı</Badge> : null}
+          {t.status === "blocked" ? <Badge tone="destructive">Yapılamıyor</Badge> : null}
           <Badge tone={TASK_TYPE.tone(t.type)}>{TASK_TYPE.label(t.type)}</Badge>
           {/* Only flag priority when it's urgent — 'Standart' is just noise on 50+ cards */}
           {t.priority === "urgent" ? (
@@ -385,8 +449,16 @@ export function TaskBoard({ tasks, canManage = true }: { tasks: TaskCardData[]; 
           ) : null}
         </div>
 
-        {/* Latest note */}
-        {t.latestNote ? (
+        {/* "Yapamıyorum" bildirimi: kim · ne zaman · neden */}
+        {t.blocked ? (
+          <p className="mt-2 flex items-start gap-1 rounded bg-destructive/10 px-2 py-1 text-xs text-destructive">
+            <AlertTriangle className="mt-0.5 size-3 shrink-0" />
+            <span className="break-words">{t.blocked}</span>
+          </p>
+        ) : null}
+
+        {/* Latest note (bildirimin nedeni zaten yukarıdaki satırda — aynısı iki kez yazılmaz) */}
+        {t.latestNote && !(t.blocked && t.blocked.includes(t.latestNote.trim().slice(0, 120))) ? (
           <p className="mt-2 flex items-start gap-1 rounded bg-muted/50 px-2 py-1 text-xs text-muted-foreground">
             <FileText className="mt-0.5 size-3 shrink-0" />
             <span className="line-clamp-2">{t.latestNote}</span>
@@ -410,6 +482,74 @@ export function TaskBoard({ tasks, canManage = true }: { tasks: TaskCardData[]; 
             </option>
           ))}
         </Select>
+
+        {/* Yönetici: kart üstünden yeniden atama ("Yapılamıyor" görev başka birine atanınca "Yapılacak"a döner). */}
+        {canManage && t.status !== "done" && members.length > 0 ? (
+          <Select
+            value={t.assigneeId ?? ""}
+            disabled={busyId === t.id}
+            onChange={(e) => assign(t.id, e.target.value)}
+            className="mt-2 h-9 text-xs"
+            aria-label={`Atanan kişi: ${t.title}`}
+          >
+            <option value="">Atanmadı</option>
+            {members.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </Select>
+        ) : null}
+
+        {/* Atanan kişi: "Yapamıyorum" (görev silinmez, bitmiş sayılmaz; ev sahibi başka birine atar). */}
+        {!canManage && t.status !== "done" ? (
+          t.status === "blocked" ? (
+            <p className="mt-2 text-xs text-muted-foreground">Ev sahibine bildirildi. Yine de yaparsanız durumu &ldquo;Devam ediyor&rdquo; yapın.</p>
+          ) : cantDoOpen === t.id ? (
+            <div className="mt-2 space-y-1.5">
+              <textarea
+                value={cantDoReason}
+                onChange={(e) => setCantDoReason(e.target.value)}
+                maxLength={200}
+                rows={2}
+                placeholder="Neden? (isteğe bağlı)"
+                aria-label={`Yapamama nedeni: ${t.title}`}
+                className="w-full resize-none rounded border border-border bg-muted/30 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => reportCantDo(t.id)}
+                  disabled={busyId === t.id}
+                  className="rounded bg-destructive px-2 py-1 text-[11px] font-medium text-destructive-foreground hover:opacity-90 disabled:opacity-50"
+                >
+                  Ev sahibine bildir
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCantDoOpen(null);
+                    setCantDoReason("");
+                  }}
+                  className="rounded border border-border px-2 py-1 text-[11px] font-medium hover:bg-accent"
+                >
+                  Vazgeç
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                setCantDoOpen(t.id);
+                setCantDoReason("");
+              }}
+              className="mt-1.5 flex items-center gap-1 py-1 text-xs font-medium text-destructive hover:underline"
+            >
+              <AlertTriangle className="size-3" /> Yapamıyorum
+            </button>
+          )
+        ) : null}
 
         {/* Detail toggle — keeps the card compact (note input + photo hidden). Dokunma alanı 27 px (yazı 15 px'ti; temizlikçi telefonda
             basıyor — 10-22 ölçüldü): dikey dolgu + eşit eksi pay, yazı ve kart aynı yerde. */}

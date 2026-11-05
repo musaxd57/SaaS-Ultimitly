@@ -12,6 +12,8 @@ import { enqueueUnreferencedPhotoDeletions } from "@/lib/storage/deletion-queue"
 import { STORAGE_PHOTO_URL_PREFIX, isAcceptablePhotoUrl } from "@/lib/storage/keys";
 import { staffTaskProjection } from "@/lib/tasks/staff-view";
 import { cancelCommitmentsForDeletedTask, syncCommitmentsForTaskDueAt, syncCommitmentsForTaskStatus } from "@/lib/guest-commitments";
+import { notifyTaskBlocked } from "@/lib/tasks/notify";
+import { TASK_TYPE } from "@/lib/constants";
 
 /** Parse a stored checklistJson into a clean {label, done}[] (never throws). */
 function parseChecklist(json: string | null): { label: string; done: boolean }[] {
@@ -64,6 +66,7 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
     select: { id: true, assignedToId: true, checklistJson: true },
   });
   if (!existing) return notFound();
+  // Not: `existing.assignedToId` yalnız kapsam kontrolü içindir; durum / "atama değişti mi" kararları işlem içinde kilitli satırdan.
 
   // Staff scope: a staff member may only touch a task ASSIGNED TO THEM. (Owner /
   // manager may touch any task in the org.)
@@ -133,19 +136,24 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
   // yönetici görevi BAŞKASINA atadıysa eski personelin "bitti"si / notu yeni atananın görevine yazılıyordu. Personelin
   // yazması artık "görev hâlâ bana atalı" koşuluyla (koşullu yazma, satır kilidi); tutmazsa hiçbir şey yazılmaz.
   const staffScoped = !canManage(session);
-  let task;
+  let written;
   try {
-    task = await prisma.$transaction(async (tx) => {
+    written = await prisma.$transaction(async (tx) => {
       if (staffScoped) {
         const own = await tx.task.updateMany({ where: { id, assignedToId: session.userId }, data: { updatedAt: new Date() } });
         if (own.count === 0) return null;
       }
       // Misafir sözü (migration 62): durum değişiyorsa ÖNCEKİ durum satır kilidiyle okunur — söz aynı işlemde kapanır / yeniden açılır.
+      // Atama değişiyorsa da okunur: "Yapılamıyor" görev BAŞKA birine atanınca "Yapılacak"a döner (kurucu 11-05 gece, tasarım §2.5).
       let prevStatus: string | null = null;
-      if (d.status !== undefined) {
-        const [row] = await tx.$queryRaw<{ status: string }[]>`SELECT "status" FROM "Task" WHERE "id" = ${id} FOR UPDATE`;
+      let reassigned = false;
+      if (d.status !== undefined || d.assignedToId !== undefined) {
+        const [row] = await tx.$queryRaw<{ status: string; assignedToId: string | null }[]>`
+          SELECT "status", "assignedToId" FROM "Task" WHERE "id" = ${id} FOR UPDATE`;
         prevStatus = row?.status ?? null;
+        reassigned = d.assignedToId !== undefined && (d.assignedToId || null) !== (row?.assignedToId ?? null);
       }
+      const resetBlocked = reassigned && d.status === undefined && prevStatus === "blocked";
       let checklistWrite: string | undefined;
       if (d.checklist !== undefined || d.checklistToggle !== undefined) {
         const [locked] = await tx.$queryRaw<{ checklistJson: string | null }[]>`
@@ -156,7 +164,7 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
       const updated = await tx.task.update({
         where: { id },
         data: {
-          ...(d.status !== undefined ? { status: d.status } : {}),
+          ...(d.status !== undefined ? { status: d.status } : resetBlocked ? { status: "todo" } : {}),
           ...(d.assignedToId !== undefined ? { assignedToId: d.assignedToId || null } : {}),
           ...(d.title !== undefined ? { title: d.title } : {}),
           ...(d.description !== undefined ? { description: d.description } : {}),
@@ -174,6 +182,8 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
         await syncCommitmentsForTaskStatus(tx, commitmentScope, prevStatus, d.status, new Date());
       }
       if (d.dueAt instanceof Date) await syncCommitmentsForTaskDueAt(tx, commitmentScope, d.dueAt);
+      // Yeniden atama "Yapılamıyor"u kapattı → zaman çizelgesinde kim / ne zaman (bildiren kişinin kaydı ayrı satırda kalır).
+      if (resetBlocked) await tx.taskUpdate.create({ data: { taskId: id, userId: session.userId, status: "todo", note: null, photoUrl: null } });
       // Record an activity update when status / note / photo changes.
       if (d.status !== undefined || d.note || d.photoUrl) {
         await tx.taskUpdate.create({
@@ -186,13 +196,28 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
           },
         });
       }
-      return updated;
+      return { updated, prevStatus };
     });
   } catch (err) {
     if (err instanceof ChecklistConflict) return NextResponse.json({ error: CHECKLIST_CONFLICT_TEXT, code: "checklist_changed" }, { status: 409 });
     throw err;
   }
-  if (!task) return forbidden("Bu görev size atanmamış.");
+  if (!written) return forbidden("Bu görev size atanmamış.");
+  const { updated: task, prevStatus: prevStatusAtWrite } = written;
+
+  // "Yapamıyorum" (kurucu 11-05 gece): ev sahibine bildirim — anahtar (`STAFF_NOTIFY_ENABLED`) arkasında; en iyi çaba, yanıtı bekletmez.
+  if (d.status === "blocked" && prevStatusAtWrite !== "blocked") {
+    void notifyTaskBlocked({
+      organizationId: session.organizationId,
+      taskId: task.id,
+      actorUserId: session.userId,
+      actorName: session.name,
+      propertyName: task.property.name,
+      taskTypeLabel: TASK_TYPE.label(task.type),
+      dueAt: task.dueAt,
+      reason: d.note ? d.note.slice(0, 200) : null,
+    }).catch((err) => void reportError("task-blocked-mail", err));
+  }
 
   // Send email to the newly assigned user. Personele giden e-posta misafir adını / mesajını taşımaz (temizlikçi
   // görünümü; e-posta onun kutusunda, saklama süremizin dışında kalır).
