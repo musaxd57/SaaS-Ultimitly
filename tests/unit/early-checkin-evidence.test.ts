@@ -223,6 +223,17 @@ describe("metin çapraz kontrolleri — misafirin KENDİ yazdığı saat ve gün
   // 14 Ekim 2026 Çarşamba (İstanbul).
   const today = (texts: string[]) => mentionsAnotherDay(texts, NOW, "Europe/Istanbul");
 
+  // Tur 5 D6 (11-05, ölçüldü, çürütücüyle yeniden üretildi): kesmeli ay tamlaması ve Türkçe sıra-gün eki kaçıyordu. Derlem (32.610 dize ×
+  // iki tarih) eski / yeni farkı 4 dize — dördü de gerçekten başka gün ("14'ünde değil 16'sında geliyoruz").
+  it("🚨 Tur 5 D6: \"Kasım'ın 15'inde\", \"Ayın 15'inde\", \"16'sında\" başka gün; bugünün sıra-günü ve saat ekleri değil", () => {
+    for (const text of ["Ekim'in 15'inde 12:00'de girebilir miyiz?", "Ayın 15'inde 12:00'de girebilir miyiz?", "15'inde gelsek olur mu?", "Ekim’in 16’sında 13:00?", "Kasım'ın 2'sinde erken giriş?"]) {
+      expect(today([text]), text).toBe(true);
+    }
+    for (const text of ["Ekim'in 14'ünde 12:00'de girebilir miyiz?", "Ayın 14'ünde 13:00 olur mu?", "Saat 15'te girebilir miyiz?", "12'de gelsek?", "Sabahın 9'unda girebilir miyiz?", "Gecenin 3'ünde varacağız", "Ağustos'ta 2 yetişkin geleceğiz, 12:00'de girebilir miyiz?"]) {
+      expect(today([text]), text).toBe(false);
+    }
+  });
+
   it("🚨 başka güne işaret: göreli sözcük, hafta günü, tarih — altı dilde", () => {
     for (const text of [
       "Yarın 12'de gelebilir miyiz?",

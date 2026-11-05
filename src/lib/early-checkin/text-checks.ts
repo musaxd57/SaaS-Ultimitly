@@ -241,8 +241,14 @@ const MONTHS: ReadonlyArray<readonly string[]> = [
 ];
 const MONTH_PATTERNS: readonly RegExp[] = MONTHS.map((names) => {
   const alts = names.join("|");
-  return new RegExp(String.raw`(?<!\d)(\d{1,2})\.?\s*(?:de\s+)?(?:${alts})${WE}|${WB}(?:${alts})\s+(\d{1,2})(?!\d)`, "gu");
+  // Tur 5 D6 (11-05, ölçüldü): kesmeli tamlama "Kasım'ın 15'inde" / "Aralık'ın 2'sinde" kaçıyordu (ay adından hemen sonra boşluk
+  // bekleniyordu) → ay adından sonra isteğe bağlı kesmeli İLGİ eki ("'ın / 'in / 'un / 'ün"). Yalnız ilgi eki: "Ağustos'ta 2 yetişkin"
+  // bir tarih DEĞİL (derlem ölçümü). Sınırlı (doğrusal).
+  return new RegExp(String.raw`(?<!\d)(\d{1,2})\.?\s*(?:de\s+)?(?:${alts})${WE}|${WB}(?:${alts})(?:'n?[ıiuü]n)?\s+(\d{1,2})(?!\d)`, "gu");
 });
+
+/** "sabahın / gecenin / akşamın / öğlenin" + sayı = günün SAATİ (sıra-gün değil). Yalnız eşleşmenin önündeki kısa dilime uygulanır. */
+const DAYPART_GENITIVE_BEFORE = /(?:sabah|gece|akşam|aksam|öğle|ogle|öğlen|oglen)n?[ıiuü]n\s*$/u;
 
 /** Bugünü (mülk dilimi) adlandırmayan bir gün anması var mı. */
 export function mentionsAnotherDay(texts: readonly string[], now: Date, timeZone: string): boolean {
@@ -265,6 +271,13 @@ export function mentionsAnotherDay(texts: readonly string[], now: Date, timeZone
       }
     }
     for (const m of t.matchAll(/(?<![\d:.])(\d{1,2})(?:st|nd|rd|th)(?![\p{L}])/gu)) if (Number(m[1]) !== d) return true;
+    // Tur 5 D6: Türkçe sıra-gün bulunma eki "15'inde", "2'sinde", "14'ünde", "9'unda" (ay adı olmadan da: "ayın 15'inde") — ay bu ay
+    // sayılır. Saat ekleri ("15'te", "12'de", "3'te") bu biçimde DEĞİL (iyelik "-(s)I" + "-nde/-nda" ister). "Sabahın 9'unda",
+    // "gecenin 3'ünde" bir SAATTİR (gün değil) — önceki sözcük koddan bakılır (geriye bakışlı kalıp yok; doğrusal).
+    for (const m of t.matchAll(/(?<![\d:.])(\d{1,2})'s?[ıiuü]nd[ae](?![\p{L}])/gu)) {
+      if (DAYPART_GENITIVE_BEFORE.test(t.slice(Math.max(0, (m.index ?? 0) - 12), m.index ?? 0))) continue;
+      if (Number(m[1]) !== d) return true;
+    }
     // Noktalı tarih GÜN.AY ("14.10"); "12.30" gibi saat (ay > 12) tarih değildir.
     for (const m of t.matchAll(/(?<![\d:.])(\d{1,2})\.(\d{1,2})(?:\.(\d{2,4}))?(?![\d:])/gu)) {
       const dd = Number(m[1]);

@@ -7,6 +7,7 @@ import { hostContactKindOf } from "@/lib/ai/absence";
 import { lifeSafetyOf } from "@/lib/ai/life-safety";
 import { personDangerOf } from "@/lib/ai/person-danger";
 import { hazardEvidenceOf, kbSupportsReassurance } from "@/lib/ai/hazard-evidence";
+import { mentionsAnotherDay } from "@/lib/early-checkin/text-checks";
 
 const N = 4_000;
 const SHAPES: [string, string][] = [
@@ -45,4 +46,10 @@ out["tehlike · alıntı + diyor tekrarı"] = ms(() => hazardEvidenceOf('çocuğ
 out["tehlike · lamba + perde tekrarı"] = ms(() => hazardEvidenceOf("die lampe ist aus und der vorhang brennt ".repeat(N / 40)));
 out["tehlike · tek uzun sözcük"] = ms(() => hazardEvidenceOf("hier" + "a".repeat(N) + " brennt"));
 out["güvence · olumsuz tekrar"] = ms(() => kbSupportsReassurance(["duman normal degildir ".repeat(N / 22)]));
+// Erken giriş başka gün okuyucusu (Tur 5 D6): kesmeli ay tamlaması + sıra-gün eki + "sabahın" saat dilimi önek bakışı.
+const NOW_EC = new Date("2026-11-14T09:00:00Z");
+mentionsAnotherDay(["Kasım'ın 15'inde"], NOW_EC, "Europe/Istanbul");
+out["başka gün · ay tamlaması tekrarı"] = ms(() => mentionsAnotherDay(["kasım'ın 14'ünde ".repeat(N / 17)], NOW_EC, "Europe/Istanbul"));
+out["başka gün · sıra-gün + sabahın tekrarı"] = ms(() => mentionsAnotherDay(["sabahın 14'ünde ".repeat(N / 16)], NOW_EC, "Europe/Istanbul"));
+out["başka gün · ay adı + boşluk dizisi"] = ms(() => mentionsAnotherDay(["kasım'ın" + " ".repeat(N) + "x"], NOW_EC, "Europe/Istanbul"));
 process.stdout.write(`${JSON.stringify(out)}\n`);
