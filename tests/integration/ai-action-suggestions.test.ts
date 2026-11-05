@@ -329,6 +329,31 @@ describe("B · Wi-Fi bilgi tabanı düzeltmesi", () => {
     expect(vi.mocked(afterKbItemsChanged)).toHaveBeenCalledWith({ organizationId: orgId, propertyIds: [propertyId] });
   });
 
+  it("🚨 Codex 11-05: kalem OKUNDUKTAN sonra ev sahibi elle düzenlerse eski öneri yeni bilginin üstüne YAZILMAZ ve karar \"onaylandı\" olmaz", async () => {
+    const { orgId, propertyId } = await makeOrgWithProperty();
+    await asUser(orgId);
+    const kb = await prisma.knowledgeBaseItem.create({
+      data: { propertyId, category: "wifi", title: "Wi-Fi", content: "Ağ LaleNet, şifre: eskiSifre1", isActive: true, source: "host", reviewState: "approved", updatedAt: DAY_AGO() },
+    });
+    await conversationWith(orgId, propertyId, [{ direction: "outbound", authorType: "host", body: "Kusura bakmayın, yeni Wi-Fi şifresi: YeniSifre22" }]);
+    const [s] = await getPropertyWifiSuggestions(orgId, propertyId);
+    let raced = false;
+    __aiSuggestionHooks.afterKbRead = async () => {
+      // Ayrı bağlantıdan, işlemin okuduğu sürümün ÜSTÜNE gerçek bir elle düzenleme (normal düzenleme yolu updatedAt'ı ilerletir).
+      await prisma.knowledgeBaseItem.update({ where: { id: kb.id }, data: { content: "Ağ LaleNet, şifre: ElleYazilan33" } });
+      raced = true;
+    };
+    try {
+      const res = await decide({ key: s.key, decision: "approve" });
+      expect(raced).toBe(true);
+      expect(res.status).not.toBe(200);
+    } finally {
+      __aiSuggestionHooks.afterKbRead = null;
+    }
+    expect((await prisma.knowledgeBaseItem.findUniqueOrThrow({ where: { id: kb.id } })).content).toBe("Ağ LaleNet, şifre: ElleYazilan33");
+    expect(await prisma.auditLog.count({ where: { organizationId: orgId, action: { contains: "approved" } } })).toBe(0);
+  });
+
   it("hedef belirsizse öneri YOK: iki Wi-Fi kalemi (ana + misafir ağı) ya da kalemde iki şifre (Haiku 10-12)", async () => {
     const { orgId, propertyId } = await makeOrgWithProperty();
     await asUser(orgId);

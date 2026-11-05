@@ -65,7 +65,11 @@ export const DAY_CHOICE_REQUIRED = "Sözün gününü seçin.";
 const PAST_TOLERANCE_MS = 5 * 60_000;
 
 /** Yalnız test: karar denetiminden SONRA bekleme (eşzamanlı onayda kilidin ikinci isteği gerçekten beklettiğini kanıtlamak için). */
-export const __aiSuggestionHooks: { afterDecisionCheck: null | (() => Promise<void>) } = { afterDecisionCheck: null };
+export const __aiSuggestionHooks: { afterDecisionCheck: null | (() => Promise<void>); afterKbRead: null | (() => Promise<void>) } = {
+  afterDecisionCheck: null,
+  // Yalnız test (Codex 11-05): Wi-Fi kalemi OKUNDUKTAN sonra, yazmadan önce — araya giren elle düzenlemenin ezilmediğini kanıtlamak için.
+  afterKbRead: null,
+};
 
 /** "YYYY-MM-DD" + n gün (saat dilimsiz takvim aritmetiği). */
 function shiftDayKey(dayKey: string, days: number): string {
@@ -348,7 +352,12 @@ export async function decideSuggestion(input: {
         if (kb.updatedAt.getTime() >= msg.createdAt.getTime()) return { status: "gone" } as const;
         const content = applyWifiValue(kb.content, view.proposal.field, value);
         if (content === null) return { status: "gone" } as const; // hedef belirsizleşti → yazılmaz
-        await tx.knowledgeBaseItem.update({ where: { id: kb.id }, data: { content } });
+        if (__aiSuggestionHooks.afterKbRead) await __aiSuggestionHooks.afterKbRead();
+        // 🚨 Codex 11-05 (43fb93e incelemesi P2): yazma OKUNAN SÜRÜME koşullu (normal bilgi tabanı düzenlemesinin `updatedAt` koruması —
+        // `api/kb/[id]`). Okuma ile yazma arasında ev sahibi kalemi düzenlediyse (işlem kilidi öneri anahtarında, kalemde değil) eski
+        // değer yeni bilginin üstüne yazılmaz ve karar "onaylandı" YAZILMAZ (denetim kaydından önce döner).
+        const written = await tx.knowledgeBaseItem.updateMany({ where: { id: kb.id, updatedAt: kb.updatedAt }, data: { content } });
+        if (written.count !== 1) return { status: "gone" } as const;
         created.kbItemId = kb.id;
       }
     }
