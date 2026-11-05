@@ -40,6 +40,9 @@ export function TaskForm({
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
+    // Tur 3 (11-04): oluşturma başarılıysa düğme yönlendirme bitene kadar KİLİTLİ kalır — eskiden `finally` onu hemen açıyordu, yönlendirme
+    // gecikince ikinci basış ikinci kaydı açıyordu (dev'de ölçüldü). Hata yollarında eskisi gibi açılır.
+    let navigating = false;
     setError(null);
     setFields({});
     try {
@@ -54,12 +57,13 @@ export function TaskForm({
         setError(data.error ?? "Görev oluşturulamadı");
         return;
       }
+      navigating = true;
       router.push("/tasks");
       router.refresh();
     } catch {
       setError("İnternet bağlantınızda sorun var gibi görünüyor. Kontrol edip tekrar deneyin.");
     } finally {
-      setLoading(false);
+      if (!navigating) setLoading(false);
     }
   }
 

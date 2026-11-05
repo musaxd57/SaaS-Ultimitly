@@ -60,6 +60,9 @@ export function PropertyForm({
     e.preventDefault();
     if (!canManage) return; // staff can't create/edit properties (route also enforces 403)
     setLoading(true);
+    // Tur 3 (11-04): oluşturma başarılıysa düğme yönlendirme bitene kadar KİLİTLİ kalır — eskiden `finally` onu hemen açıyordu, yönlendirme
+    // gecikince ikinci basış ikinci kaydı açıyordu (dev'de ölçüldü). Hata yollarında eskisi gibi açılır.
+    let navigating = false;
     setError(null);
     setFields({});
     const endpoint = mode === "create" ? "/api/properties" : `/api/properties/${property?.id}`;
@@ -80,13 +83,15 @@ export function PropertyForm({
       // idi ve aynı değerler yeniden çizildiği için EKRANDA HİÇBİR ŞEY
       // DEĞİŞMİYORDU — host "Kaydet"e basıyor, hiçbir şey olmuyor sanıyor ve
       // tekrar basıyordu. Oluşturmada yönlendirme zaten kendi onayı.
-      if (mode === "create") router.push(`/properties/${data.id}`);
-      else toast.success("Kaydedildi.");
+      if (mode === "create") {
+        navigating = true;
+        router.push(`/properties/${data.id}`);
+      } else toast.success("Kaydedildi.");
       router.refresh();
     } catch {
       setError("İnternet bağlantınızda sorun var gibi görünüyor. Kontrol edip tekrar deneyin.");
     } finally {
-      setLoading(false);
+      if (!navigating) setLoading(false);
     }
   }
 
