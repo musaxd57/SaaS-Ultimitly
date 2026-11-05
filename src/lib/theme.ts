@@ -32,6 +32,7 @@ export const THEME_STORAGE_KEY = "lixus-theme";
  */
 export const PANEL_PATH_PREFIXES = [
   "/admin",
+  "/arrivals",
   "/billing",
   "/calendar",
   "/cancellations",

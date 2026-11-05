@@ -14,6 +14,7 @@
  */
 export const PRIVATE_APP_PREFIXES = [
   "/admin",
+  "/arrivals",
   "/billing",
   "/calendar",
   "/cancellations",
