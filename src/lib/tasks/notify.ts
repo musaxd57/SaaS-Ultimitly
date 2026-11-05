@@ -69,6 +69,9 @@ export async function notifyTaskBlocked(n: TaskBlockedNotice): Promise<"sent" | 
 
 /** Aynı görev için saatte en çok bu kadar atama e-postası (elle atamanın tavanıyla AYNI anahtar — iki yol toplamda 3). */
 const ASSIGN_MAILS_PER_TASK_HOUR = 3;
+/** Aynı KİŞİYE saatte en çok bu kadar otomatik atama e-postası (Haiku 11-06): yeni bağlanan takvim / dosya bir anda onlarca rezervasyon
+ *  getirince temizlikçinin kutusu dolmasın. Görevler YİNE atanır ve listesinde görünür; yalnız fazladan e-posta gitmez. */
+const AUTO_ASSIGN_MAILS_PER_USER_HOUR = 10;
 
 /**
  * Sistem görevi dairenin temizlikçisine OTOMATİK atandı (kurucu 11-05 gece) → kişiye "yeni görev" e-postası (anahtar açıkken). Bugünkü elle
@@ -83,6 +86,7 @@ export async function notifyTaskAssigned(organizationId: string, taskId: string)
   });
   if (!task?.assignedTo) return "skipped";
   if (!(await rateLimit(`task-assign-mail:${task.id}`, ASSIGN_MAILS_PER_TASK_HOUR, 60 * 60_000)).ok) return "skipped";
+  if (!(await rateLimit(`task-auto-assign-mail-user:${task.assignedToId}`, AUTO_ASSIGN_MAILS_PER_USER_HOUR, 60 * 60_000)).ok) return "skipped";
   const assignee = task.assignedTo;
   const emailTask = assignee.role === "owner" || assignee.role === "manager" ? task : staffTaskProjection(task);
   const html = taskAssignedEmail(emailTask, { name: assignee.name, email: assignee.email }, task.property);

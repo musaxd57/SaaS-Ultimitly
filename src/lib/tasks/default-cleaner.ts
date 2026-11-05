@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { orgTimezone } from "@/lib/timezone";
 import { taskDueDayRangeWhere } from "@/lib/day-where";
 import { todayKey } from "@/modules/availability/core";
+import { checklistTouched, UNTOUCHED_AUTO_LIFECYCLE_TASK_WHERE } from "@/lib/tasks/cancelled-leftovers";
 
 // ---------------------------------------------------------------------------
 // DAİRENİN TEMİZLİKÇİSİ (kurucu 11-05 gece: "daireye temizlikçiyi bir kez belirleyince, sonraki temizlikler ayrıca kabul beklemeden onun
@@ -86,7 +87,19 @@ export async function saveDefaultCleaner(
     if (opts.moveOpenFrom && opts.moveOpenFrom !== userId) {
       const ids = await openFutureCleaningIds(tx, organizationId, propertyId, opts.moveOpenFrom, opts.now ?? new Date());
       if (ids.length > 0) {
-        moved = (await tx.task.updateMany({ where: { id: { in: ids }, assignedToId: opts.moveOpenFrom, status: "todo" }, data: { assignedToId: userId } })).count;
+        // Satırlar KİLİTLENİR ve kontrol listesi işareti kilit altında okunur (iptal onarımıyla aynı — işaret `TaskUpdate` yazmaz; Haiku 11-06).
+        const locked = await tx.$queryRaw<{ id: string; checklistJson: string | null }[]>(
+          Prisma.sql`SELECT "id", "checklistJson" FROM "Task" WHERE "id" IN (${Prisma.join(ids)}) ORDER BY "id" FOR UPDATE`,
+        );
+        const untouched = locked.filter((t) => !checklistTouched(t.checklistJson)).map((t) => t.id);
+        if (untouched.length > 0) {
+          moved = (
+            await tx.task.updateMany({
+              where: { id: { in: untouched }, assignedToId: opts.moveOpenFrom, ...UNTOUCHED_AUTO_LIFECYCLE_TASK_WHERE },
+              data: { assignedToId: userId },
+            })
+          ).count;
+        }
       }
     }
     return { result: "saved" as const, moved };
@@ -94,8 +107,9 @@ export async function saveDefaultCleaner(
 }
 
 /**
- * Bu kişide duran, bu dairenin BAŞLANMAMIŞ (durum "Yapılacak" ve hiç durum kaydı yok), sistemin açtığı, bugün ya da sonrası vadeli
- * temizlik görevleri (gün tek tarih kuralının sorgu ikiziyle, işletme diliminde).
+ * Bu kişide duran, bu dairenin DOKUNULMAMIŞ (projenin tek tanımı `UNTOUCHED_AUTO_LIFECYCLE_TASK_WHERE`: durum "Yapılacak", kişinin yazdığı
+ * güncelleme / fotoğraf yok, kontrol listesi işaretsiz — Haiku 11-06: not / fotoğraf / işaret almış iş başlanmış sayılır), sistemin açtığı,
+ * bugün ya da sonrası vadeli temizlik görevleri (gün tek tarih kuralının sorgu ikiziyle, işletme diliminde).
  */
 export async function openFutureCleaningIds(db: Db, organizationId: string, propertyId: string, userId: string, now: Date): Promise<string[]> {
   const org = await db.organization.findUnique({ where: { id: organizationId }, select: { timezone: true } });
@@ -104,11 +118,9 @@ export async function openFutureCleaningIds(db: Db, organizationId: string, prop
     where: {
       propertyId,
       property: { organizationId },
+      ...UNTOUCHED_AUTO_LIFECYCLE_TASK_WHERE,
       type: "cleaning",
-      origin: "system",
-      status: "todo",
       assignedToId: userId,
-      updates: { none: { status: { not: null } } },
       AND: [taskDueDayRangeWhere({ from: todayKey(now, tz), to: null }, tz)],
     },
     select: { id: true },

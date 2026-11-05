@@ -809,6 +809,18 @@ describe("konaklama bitince (kurucu: havlu / temizlik / eksik eşya kapansın, a
     expect(await closeStayEndedCommitments(NOW)).toEqual({ closed: 0 });
   });
 
+  it("🚨 Haiku 11-06: atanan kişinin 'Yapamıyorum' dediği görevin sözü konaklama bitince KAPANIR (kimse çalışmıyor); görev SİLİNMEZ", async () => {
+    const { s, cleaning } = await seed(yesterdayKey());
+    const staff = await prisma.user.create({ data: { organizationId: s.orgId, name: "Ayşe", email: "ayse-se@example.test", passwordHash: "x", role: "staff" } });
+    await prisma.task.update({ where: { id: cleaning.taskId }, data: { status: "blocked", assignedToId: staff.id } });
+    await prisma.taskUpdate.create({ data: { taskId: cleaning.taskId!, userId: staff.id, status: "blocked", note: "hastayım" } });
+    expect(await closeStayEndedCommitments(NOW)).toEqual({ closed: 2 }); // havlu + temizlik (arıza açık kalır)
+    const c = await prisma.guestCommitment.findFirstOrThrow({ where: { kind: "cleaning" } });
+    expect([c.status, c.closedReason]).toEqual(["cancelled", "stay_ended"]);
+    // Görev kalır: kişinin kaydı var, ev sahibi panoda "Yapılamıyor"u görür.
+    expect((await prisma.task.findUniqueOrThrow({ where: { id: cleaning.taskId! } })).status).toBe("blocked");
+  });
+
   it("🚨 Codex 11-04 P2: liste 'konaklama bitti' okuduktan SONRA konaklama UZATILDI → söz iptal edilmez, görevi silinmez", async () => {
     const { s, towels } = await seed(yesterdayKey());
     __stayEndHooks.beforeRow = async () => {

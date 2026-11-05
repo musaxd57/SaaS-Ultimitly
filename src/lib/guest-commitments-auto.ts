@@ -207,6 +207,10 @@ export async function sweepHostCommitmentsAuto(
 /** Konaklama bitince kapanan söz türleri (kurucu 10-17: havlu / temizlik / eksik eşya kapanır, ARIZA açık kalır). */
 export const STAY_END_CLOSES: readonly string[] = ["towels", "supplies", "cleaning"];
 
+/** Görevi bu durumdaki söz konaklama bitince kapanır: başlanmamış ("Yapılacak") ya da atanan kişinin "Yapamıyorum" dediği iş (kimse
+ *  üzerinde çalışmıyor; misafir gitti, söz artık tutulamaz — Haiku 11-06). Görev SİLİNMEZ (kişinin kaydı var): ev sahibi panoda görür. */
+const STAY_END_TASK_STATUSES: readonly string[] = ["todo", "blocked"];
+
 /**
  * Konaklaması bitmiş (çıkış günü bugünden önce, işletme diliminde) konuşmalardaki AÇIK havlu / malzeme / temizlik sözlerini kapatır:
  * durum `cancelled` + `closedReason = "stay_ended"` (iz kalır). Görevi: kimse dokunmamışsa (yapılacak + otomatik başlık) silinir, aksi
@@ -225,7 +229,7 @@ export async function closeStayEndedCommitments(now: Date = new Date()): Promise
       // İşletme ayarı açık (O14) ve demo değil (O17); görevi üzerinde çalışılan söz kapanmaz — görev bitince söz zaten kapanır (O14).
       organization: { autoCommitmentsEnabled: true },
       NOT: { organizationId: { in: demoOrgIds() } },
-      OR: [{ taskId: null }, { task: { status: "todo" } }],
+      OR: [{ taskId: null }, { task: { status: { in: [...STAY_END_TASK_STATUSES] } } }],
     },
     orderBy: [{ dueAt: "asc" }, { id: "asc" }],
     select: {
@@ -286,7 +290,7 @@ async function closeOneStayEnded(
     // KAPANMAZ (görev sürerken söz panelden yanlışlıkla iptal oluyordu). Görev silinmişse söz kapanabilir.
     if (c.taskId) {
       const locked = await tx.$queryRaw<Array<{ status: string }>>`SELECT "status" FROM "Task" WHERE "id" = ${c.taskId} FOR UPDATE`;
-      if (locked.length > 0 && locked[0]!.status !== "todo") return false;
+      if (locked.length > 0 && !STAY_END_TASK_STATUSES.includes(locked[0]!.status)) return false;
     }
     const res = await tx.guestCommitment.updateMany({
       where: { id: c.id, status: "open" },

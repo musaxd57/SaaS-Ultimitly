@@ -1387,18 +1387,19 @@ export async function createReservationTasks(reservationId: string, opts: { reop
     // anında doğrulanır (aynı işletmede); değilse görev bugünkü gibi atanmamış açılır. Hazırlık görevi atanmaz.
     const cleaning = data.find((d) => d.type === "cleaning");
     const cleanerId = cleaning && r.property ? await loadDefaultCleanerUserId(tx, r.property.organizationId, r.propertyId) : null;
-    if (cleaning && cleanerId) cleaning.assignedToId = cleanerId;
-    await tx.task.createMany({ data });
-    const assignedTask = cleanerId
-      ? await tx.task.findFirst({
-          where: { reservationId: r.id, type: "cleaning", origin: "system", assignedToId: cleanerId },
-          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-          select: { id: true },
-        })
-      : null;
+    // Atanan temizlik TEK `create` ile yazılır (kimliği bildirim için doğrudan dönsün — sonradan arama yok, Haiku 11-06); geri kalanı
+    // eskisi gibi toplu. Sıra korunur (hazırlık önce).
+    let assignedTaskId: string | null = null;
+    if (cleaning && cleanerId) {
+      const rest = data.filter((d) => d !== cleaning);
+      if (rest.length > 0) await tx.task.createMany({ data: rest });
+      assignedTaskId = (await tx.task.create({ data: { ...cleaning, assignedToId: cleanerId }, select: { id: true } })).id;
+    } else {
+      await tx.task.createMany({ data });
+    }
     return {
       count: data.length,
-      assigned: assignedTask && r.property ? { organizationId: r.property.organizationId, taskId: assignedTask.id } : null,
+      assigned: assignedTaskId && r.property ? { organizationId: r.property.organizationId, taskId: assignedTaskId } : null,
     };
   }, RESERVATION_TASKS_TX);
   // Bildirim işlemden SONRA (commit'ten önce e-posta gitmesin); anahtar (`STAFF_NOTIFY_ENABLED`) arkasında, en iyi çaba.

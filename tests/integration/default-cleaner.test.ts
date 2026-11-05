@@ -148,6 +148,26 @@ describe("dairenin temizlikçisi", () => {
     expect((await prisma.task.findFirstOrThrow({ where: { reservationId: r3.id, type: "cleaning" } })).assignedToId).toBe(mehmet.id);
   });
 
+  it("🚨 Haiku 11-06: 'Evet' DOKUNULMUŞ işi taşımaz — kişinin notu / fotoğrafı ya da işaretli kontrol maddesi olan görev eski kişide kalır; sistemin notu taşımayı engellemez", async () => {
+    await saveDefaultCleaner(orgId, propertyId, ayse.id);
+    const rs = [];
+    for (let i = 0; i < 4; i++) rs.push(await reservation(addNights(TODAY, 1 + i * 3), addNights(TODAY, 3 + i * 3), `R${i}`));
+    for (const r of rs) await createReservationTasks(r.id);
+    const cleaningOf = (r: { id: string }) => prisma.task.findFirstOrThrow({ where: { reservationId: r.id, type: "cleaning" } });
+    const noted = await cleaningOf(rs[0]);
+    await prisma.taskUpdate.create({ data: { taskId: noted.id, userId: ayse.id, status: null, note: "anahtar bende" } });
+    const photo = await cleaningOf(rs[1]);
+    await prisma.taskUpdate.create({ data: { taskId: photo.id, userId: ayse.id, status: null, photoUrl: "https://example.test/p.jpg" } });
+    const ticked = await cleaningOf(rs[2]);
+    await prisma.task.update({ where: { id: ticked.id }, data: { checklistJson: JSON.stringify([{ label: "Çarşaf", done: true }]) } });
+    const systemNote = await cleaningOf(rs[3]);
+    await prisma.taskUpdate.create({ data: { taskId: systemNote.id, userId: null, status: null, note: "Erken giriş onaylandı" } });
+    const res = await put(propertyId, { userId: mehmet.id, moveOpen: true });
+    expect((await res.json()).moved).toBe(1);
+    for (const t of [noted, photo, ticked]) expect((await prisma.task.findUniqueOrThrow({ where: { id: t.id } })).assignedToId).toBe(ayse.id);
+    expect((await prisma.task.findUniqueOrThrow({ where: { id: systemNote.id } })).assignedToId).toBe(mehmet.id);
+  });
+
   it("KONTROL — 'Hayır, yalnız yeniler' (moveOpen yok) → eski işler eski kişide kalır", async () => {
     await saveDefaultCleaner(orgId, propertyId, ayse.id);
     const r1 = await reservation(addNights(TODAY, 1), addNights(TODAY, 3));
@@ -194,5 +214,17 @@ describe("dairenin temizlikçisi", () => {
     expect(mail.sent[0].subject.startsWith("Yeni Görev: ")).toBe(true);
     expect(mail.sent[0].subject).not.toContain("Deniz");
     expect(mail.sent[0].html).not.toContain("Deniz");
+  });
+
+  it("🚨 Haiku 11-06: aynı kişiye saatte en çok 10 otomatik atama e-postası (toplu takvim / dosya); görevlerin HEPSİ yine atanır", async () => {
+    vi.stubEnv("STAFF_NOTIFY_ENABLED", "1");
+    await saveDefaultCleaner(orgId, propertyId, ayse.id);
+    for (let i = 0; i < 12; i++) {
+      const r = await reservation(addNights(TODAY, 1 + i * 2), addNights(TODAY, 2 + i * 2), `R${i}`);
+      await createReservationTasks(r.id);
+    }
+    await new Promise((r) => setTimeout(r, 50));
+    expect(mail.sent.filter((m) => m.to === "ayse-dc@example.test")).toHaveLength(10);
+    expect(await prisma.task.count({ where: { type: "cleaning", assignedToId: ayse.id } })).toBe(12);
   });
 });

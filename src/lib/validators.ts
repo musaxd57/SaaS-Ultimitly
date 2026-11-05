@@ -221,7 +221,11 @@ export const taskSchema = z.object({
   assignedToId: z.string().optional().or(z.literal("")),
   dueAt: z.coerce.date().optional().or(z.literal("").transform(() => undefined)),
   priority: z.enum(PRIORITY.values).default("standard"),
-  status: z.enum(TASK_STATUS.values).default("todo"),
+  // "Yapılamıyor" atanan kişinin bildirimidir (kim / ne zaman / neden kaydıyla, `api/tasks/[id]`) — görev o durumda AÇILMAZ (Haiku 11-06).
+  status: z
+    .enum(TASK_STATUS.values)
+    .default("todo")
+    .refine((s) => s !== "blocked", "Yeni görev bu durumda açılamaz."),
 });
 export type TaskInput = z.infer<typeof taskSchema>;
 

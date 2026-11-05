@@ -31,6 +31,7 @@ vi.mock("@/lib/email", async (orig) => {
 });
 
 import { PATCH } from "@/app/api/tasks/[id]/route";
+import { POST as CREATE_TASK } from "@/app/api/tasks/route";
 import { loadArrivalReadiness } from "@/lib/readiness-list/load";
 import { todayKey, addNights } from "@/modules/availability/core";
 
@@ -148,11 +149,65 @@ describe("görev — 'Yapamıyorum'", () => {
     expect(mail.sent[0].html).not.toContain("Önceki"); // misafir adı yok
   });
 
+  it("🚨 Haiku 11-06: yönetici BAŞKASININ görevini 'Yapılamıyor' yapamaz (403, durum aynı, kayıt yok); kendisine atalı görevde diyebilir", async () => {
+    asOwner();
+    expect((await patch(taskId, { status: "blocked", note: "x" })).status).toBe(403);
+    expect((await prisma.task.findUniqueOrThrow({ where: { id: taskId } })).status).toBe("todo");
+    expect(await prisma.taskUpdate.count({ where: { taskId } })).toBe(0);
+    // Atama değişikliğiyle birlikte de gelmez (kendine atayıp aynı anda "yapamıyorum" anlamsız).
+    expect((await patch(taskId, { status: "blocked", assignedToId: owner.id })).status).toBe(403);
+    expect((await prisma.task.findUniqueOrThrow({ where: { id: taskId } })).assignedToId).toBe(ayse.id);
+    // KONTROL — görev sahibin kendisine atalıysa diyebilir (aşırı uygulama yok).
+    await prisma.task.update({ where: { id: taskId }, data: { assignedToId: owner.id } });
+    expect((await patch(taskId, { status: "blocked" })).status).toBe(200);
+    expect((await prisma.task.findUniqueOrThrow({ where: { id: taskId } })).status).toBe("blocked");
+  });
+
+  it("🚨 Haiku 11-06: yeni görev 'Yapılamıyor' durumunda AÇILAMAZ (400) — o durum kişinin kim / ne zaman kaydıyla gelir; KONTROL 'Yapılacak' açılır", async () => {
+    asOwner();
+    const create = (status: string) =>
+      CREATE_TASK(
+        new NextRequest("http://localhost/api/tasks", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ propertyId, type: "cleaning", title: "Ara temizlik", status, priority: "standard" }),
+        }),
+        { params: Promise.resolve({} as Record<string, never>) },
+      );
+    expect((await create("blocked")).status).toBe(400);
+    expect(await prisma.task.count({ where: { title: "Ara temizlik" } })).toBe(0);
+    expect((await create("todo")).status).toBe(201);
+  });
+
   it("'Yapılamıyor' bağlı misafir sözünü KAPATMAZ (iş bitmedi)", async () => {
     const conv = await prisma.conversation.create({ data: { propertyId, guestIdentifier: "G", channel: "airbnb" } });
     const c = await prisma.guestCommitment.create({ data: { organizationId: orgId, conversationId: conv.id, kind: "cleaning", dueAt: dayDate(TODAY), taskId } });
     asStaff(ayse);
     await patch(taskId, { status: "blocked" });
     expect((await prisma.guestCommitment.findUniqueOrThrow({ where: { id: c.id } })).status).toBe("open");
+  });
+});
+
+// Genel Prisma temsilcisine casus SONRAKİ testlere sızabilir → bu blok dosyanın EN SONUNDA (çalışma dersi).
+describe("görev — 'Yapamıyorum' kilitli satıra göre", () => {
+  it("🚨 Haiku 11-06: okuma ile yazma arasında görev BAŞKASINA atandıysa 'Yapamıyorum' yazılmaz (403; durum / kayıt yok)", async () => {
+    await resetDb();
+    __resetRateLimit();
+    const made = await makeOrgWithProperty();
+    const owner = await prisma.user.create({ data: { organizationId: made.orgId, name: "Sahip", email: "sahip-lk@example.test", passwordHash: "x", role: "owner" } });
+    const ayse = await prisma.user.create({ data: { organizationId: made.orgId, name: "Ayşe", email: "ayse-lk@example.test", passwordHash: "x", role: "staff" } });
+    const task = await prisma.task.create({
+      data: { propertyId: made.propertyId, type: "cleaning", title: "Çıkış temizliği", origin: "system", status: "todo", assignedToId: ayse.id },
+    });
+    session = { userId: owner.id, organizationId: made.orgId, role: "owner", email: owner.email, name: "Sahip", sessionEpoch: 0 } as SessionPayload;
+    // Rota ilk okumada görevi HÂLÂ sahibe atalı görür (bayat okuma); veritabanında görev Ayşe'de.
+    const spy = vi.spyOn(prisma.task, "findFirst").mockResolvedValueOnce({ id: task.id, assignedToId: owner.id, checklistJson: null } as never);
+    try {
+      expect((await patch(task.id, { status: "blocked" })).status).toBe(403);
+    } finally {
+      spy.mockRestore();
+    }
+    expect((await prisma.task.findUniqueOrThrow({ where: { id: task.id } })).status).toBe("todo");
+    expect(await prisma.taskUpdate.count({ where: { taskId: task.id } })).toBe(0);
   });
 });

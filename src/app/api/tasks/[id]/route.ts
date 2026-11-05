@@ -87,6 +87,13 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
     return badRequest({ photoUrl: "Geçersiz görsel bağlantısı." });
   }
 
+  // "Yapamıyorum" yalnız görevin ATANDIĞI kişinin bildirimidir (Haiku 11-06: yönetici başkasının görevini "Yapılamıyor" yaparsa kart
+  // "<yönetici> yapamıyor" derdi). Yönetici kişiyi işten çekmek için görevi başka birine atar. Aynı istekte atama değişikliğiyle birlikte
+  // gelmez. Asıl karar işlem içinde KİLİTLİ satırdan (↓): arada görev başkasına atandıysa bildirim yazılmaz.
+  if (d.status === "blocked" && (existing.assignedToId !== session.userId || d.assignedToId !== undefined)) {
+    return forbidden("Yalnız görev atanan kişi 'Yapamıyorum' diyebilir.");
+  }
+
   // Staff may only progress a task (status / note / photo). Re-assigning,
   // renaming, re-prioritising or rescheduling is an owner/manager action.
   if (
@@ -152,6 +159,8 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
           SELECT "status", "assignedToId" FROM "Task" WHERE "id" = ${id} FOR UPDATE`;
         prevStatus = row?.status ?? null;
         reassigned = d.assignedToId !== undefined && (d.assignedToId || null) !== (row?.assignedToId ?? null);
+        // "Yapamıyorum" kilitli satıra göre: görev artık bu kişiye atalı değilse hiçbir şey yazılmaz (yönetici de olsa).
+        if (d.status === "blocked" && (row?.assignedToId ?? null) !== session.userId) return null;
       }
       const resetBlocked = reassigned && d.status === undefined && prevStatus === "blocked";
       let checklistWrite: string | undefined;
