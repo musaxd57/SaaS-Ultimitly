@@ -40,8 +40,12 @@ export interface HostSendInput {
 export type HostSendResult =
   /** Kanal bağlantısı yok (iç QR konuşması değil). */
   | { status: "not_connected" }
-  /** Kalıcı kuyruk: kabul edildi (henüz teslim DEĞİL); `deduped` = aynı mesaj zaten kuyrukta. */
-  | { status: "queued"; message: Message | null; deduped: boolean }
+  /**
+   * Kalıcı kuyruk: kabul edildi (henüz teslim DEĞİL); `deduped` = aynı mesaj zaten kuyrukta. `deliveryStatus` kuyruk satırının ŞU ANKİ
+   * durumu (yeni satır "pending"; tekilleşen tekrarda satır gönderilmiş / başarısız olmuş olabilir — Codex 11-05: arayüz HTTP kodundan
+   * değil bu açık durumdan karar verir).
+   */
+  | { status: "queued"; message: Message | null; deduped: boolean; deliveryStatus: string }
   /** Aynı istek kimliği farklı içerikle kullanılmış (kuyruk). */
   | { status: "idempotency_conflict" }
   /** Aynı metin az önce gönderildi / hâlâ gönderiliyor. */
@@ -100,22 +104,23 @@ export async function sendHostMessage(input: HostSendInput): Promise<HostSendRes
     }
     // (Codex r2 #3 + r3) İstek kimlikli dedupe-hit'te PAYLOAD eşleşmesi ŞART — gövde VE aiAssisted: aynı kimliği farklı gövdeyle
     // kullanmak yeni mesajı YUTAR; aynı gövde + farklı aiAssisted ise AI-kredisi metriğini yanlış bırakır.
-    if (enq.deduped && input.strictIdempotency) {
-      const existing = await prisma.messageOutbox.findUnique({
-        where: { organizationId_idempotencyKey: { organizationId: input.organizationId, idempotencyKey: input.idempotencyKey } },
-        select: { body: true, messageId: true },
-      });
-      const existingMsg = existing?.messageId
-        ? await prisma.message.findUnique({ where: { id: existing.messageId }, select: { aiAssisted: true } })
-        : null;
-      if (existing && (existing.body !== input.body || (existingMsg != null && existingMsg.aiAssisted !== input.aiAssisted))) {
-        return { status: "idempotency_conflict" };
+    let deliveryStatus = "pending";
+    if (enq.deduped) {
+      const existing = await prisma.messageOutbox.findUnique({ where: { id: enq.outboxId }, select: { body: true, messageId: true, status: true } });
+      deliveryStatus = existing?.status ?? "pending";
+      if (input.strictIdempotency) {
+        const existingMsg = existing?.messageId
+          ? await prisma.message.findUnique({ where: { id: existing.messageId }, select: { aiAssisted: true } })
+          : null;
+        if (existing && (existing.body !== input.body || (existingMsg != null && existingMsg.aiAssisted !== input.aiAssisted))) {
+          return { status: "idempotency_conflict" };
+        }
       }
     }
     // Hızlı uyandırma (kurucu 10-16): satır COMMIT oldu → aynı süreçte boşaltma turu başlar; 2 dakikalık senkron yedek yol kalır.
     if (!enq.deduped) kickOutboxDrain();
     const message = await prisma.message.findUnique({ where: { id: enq.messageId } });
-    return { status: "queued", message, deduped: enq.deduped };
+    return { status: "queued", message, deduped: enq.deduped, deliveryStatus };
   }
 
   // 🚨 Codex 11-04 P1: gönderim BAŞLAMADAN önceki iş durumu. Sağlayıcı cevabı beklenirken yeni misafir mesajı gelebilir, başka bir yönetici
@@ -243,10 +248,10 @@ export async function sendHostMessage(input: HostSendInput): Promise<HostSendRes
 async function queuedRequestResult(input: HostSendInput): Promise<HostSendResult | null> {
   const existing = await prisma.messageOutbox.findUnique({
     where: { organizationId_idempotencyKey: { organizationId: input.organizationId, idempotencyKey: input.idempotencyKey } },
-    select: { body: true, messageId: true },
+    select: { body: true, messageId: true, status: true },
   });
   if (!existing) return null;
   const message = existing.messageId ? await prisma.message.findUnique({ where: { id: existing.messageId } }) : null;
   if (existing.body !== input.body || (message != null && message.aiAssisted !== input.aiAssisted)) return { status: "idempotency_conflict" };
-  return { status: "queued", message, deduped: true };
+  return { status: "queued", message, deduped: true, deliveryStatus: existing.status };
 }

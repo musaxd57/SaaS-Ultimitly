@@ -92,7 +92,7 @@ describe("elle cevap — istek kimliği kuyruk anahtarından bağımsız tek tes
     const retry = await send("Kapı şifresi 4512");
     expect(mockSend).not.toHaveBeenCalled();
     expect(retry.status).toBe(200); // kuyruk yolunun tekilleştirme cevabı
-    expect((await retry.json()).outbox).toEqual({ status: "queued", deduped: true });
+    expect((await retry.json()).outbox).toEqual({ status: "queued", deduped: true, delivery: "pending" });
     expect(await prisma.messageOutbox.count({ where: { organizationId: orgId } })).toBe(1);
     expect(await prisma.message.count({ where: { conversationId, direction: "outbound" } })).toBe(1);
   });
@@ -221,6 +221,21 @@ describe("elle cevap — istek kimliği kuyruk anahtarından bağımsız tek tes
     const retry = await send("Su ısıtıcısı mutfakta");
     expect(retry.status).toBe(201);
     expect(mockSend).toHaveBeenCalledTimes(1);
+  });
+
+  it("🚨 tekilleşen tekrar satırın ŞU ANKİ durumunu söyler (200 'gönderildi' demek değildir) — iki yolda da", async () => {
+    outboxOn();
+    expect((await send("Kahve makinesi")).status).toBe(202);
+    const again = await send("Kahve makinesi");
+    expect(again.status).toBe(200);
+    expect((await again.json()).outbox).toEqual({ status: "queued", deduped: true, delivery: "pending" });
+    await prisma.messageOutbox.updateMany({ where: { organizationId: orgId }, data: { status: "failed" } });
+    expect((await (await send("Kahve makinesi")).json()).outbox.delivery).toBe("failed");
+    outboxOff(); // doğrudan yolun kuyruk satırı denetimi de aynı durumu döndürür
+    expect((await (await send("Kahve makinesi")).json()).outbox.delivery).toBe("failed");
+    await prisma.messageOutbox.updateMany({ where: { organizationId: orgId }, data: { status: "sent" } });
+    expect((await (await send("Kahve makinesi")).json()).outbox.delivery).toBe("sent");
+    expect(mockSend).not.toHaveBeenCalled();
   });
 
   it("KONTROL — anahtar AÇIKKEN aynı kimliğin tekrarı bugünkü gibi tekilleşir (200), farklı gövde 409", async () => {

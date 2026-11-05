@@ -113,9 +113,10 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
       );
     case "queued":
       // 202 = accepted/queued (NOT yet delivered — the UI shows "sıraya alındı"); a dedupe-hit is a 200 no-op (the identical
-      // message is already queued/sent).
+      // message is already queued/sent). `delivery` = kuyruk satırının ŞU ANKİ durumu (Codex 11-05): tekilleşen 200 "gönderildi"
+      // demek DEĞİLDİR — arayüz duyuruyu HTTP kodundan değil bundan seçer.
       return NextResponse.json(
-        { ...sent.message, outbox: { status: "queued", deduped: sent.deduped } },
+        { ...sent.message, outbox: { status: "queued", deduped: sent.deduped, delivery: sent.deliveryStatus } },
         { status: sent.deduped ? 200 : 202 },
       );
     case "duplicate":

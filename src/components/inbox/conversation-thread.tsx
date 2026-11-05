@@ -295,15 +295,18 @@ export function ConversationThread({
         // ve "Onayla ve gönder" ile öneri giderken alanda ayrıca duran taslak silinmez.
         setComposer((cur) => (cur.trim() === body.trim() ? "" : cur));
         setSuggestion(null);
-        // Durable Outbox (flag ON): a 202 means QUEUED, not yet delivered — say so
-        // honestly instead of implying the message already reached the guest.
-        if (res.status === 202) {
-          const data = await res.json().catch(() => null);
-          if (data?.outbox?.status === "queued") {
-            setQueuedNote("Mesaj sıraya alındı — birazdan gönderilecek.");
-          }
+        // Durable Outbox (flag ON): kuyruğa alınan mesaj henüz TESLİM DEĞİL — dürüstçe söylenir. 🚨 Codex 11-05: karar HTTP kodundan
+        // değil AÇIK durumdan: tekilleşen tekrar (aynı istek kimliği) 200 döner ama satır hâlâ sırada / başarısız olabilir — eskiden 200
+        // "Mesaj gönderildi." duyuruluyordu. Metinler mevcut olanlar (kuyruk notu + mesaj balonunun durum etiketi).
+        const data = (await res.json().catch(() => null)) as { outbox?: { status?: string; delivery?: string } } | null;
+        const outbox = data?.outbox;
+        if (outbox?.status === "queued") {
+          const delivery = outbox.delivery ?? "pending";
+          if (delivery === "sent") announce("Mesaj gönderildi.");
+          else if (delivery === "pending" || delivery === "sending") setQueuedNote("Mesaj sıraya alındı — birazdan gönderilecek.");
+          else announce(OUTBOX_STATUS_UI[delivery]?.label ?? "Mesaj sıraya alındı — birazdan gönderilecek.");
         } else {
-          // 200 = TESLİM. Eskiden bu dal tamamen sessizdi: yalnız hata
+          // Doğrudan yol (201) = TESLİM. Eskiden bu dal tamamen sessizdi: yalnız hata
           // (role="alert") ve 202 kuyruk notu (role="status") duyuluyordu.
           // Kutu temizlenip balon listeye sessizce ekleniyordu.
           announce("Mesaj gönderildi.");
