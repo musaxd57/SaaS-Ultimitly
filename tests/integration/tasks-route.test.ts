@@ -11,6 +11,8 @@ vi.mock("@/lib/api", async (orig) => {
 });
 
 import { PATCH, DELETE } from "@/app/api/tasks/[id]/route";
+import { TASK_BOARD_INCLUDE } from "@/lib/tasks/board-include";
+import { taskCardData } from "@/lib/tasks/card-data";
 
 let orgId = "";
 let taskId = "";
@@ -250,6 +252,32 @@ describe("görev kartı — NOT kaydetmek FOTOĞRAFI gizlememeli", () => {
       orderBy: { createdAt: "desc" },
     });
     expect(photoRows[0]?.photoUrl).toBe(PHOTO); // eskisi değil
+  });
+});
+
+describe("Tur 6 T6-SU-2 — görev NOTU durum değişikliği / fotoğraf sonrası panodan kaybolmaz", () => {
+  beforeEach(async () => {
+    await resetDb();
+    vi.clearAllMocks();
+    const org = await prisma.organization.create({ data: { name: "Org" } });
+    orgId = org.id;
+    const owner = await prisma.user.create({ data: { organizationId: org.id, name: "Owner", email: "o@x.com", passwordHash: "x", role: "owner" } });
+    ownerId = owner.id;
+    const property = await prisma.property.create({ data: { organizationId: org.id, name: "Daire 1" } });
+    const task = await prisma.task.create({ data: { propertyId: property.id, type: "cleaning", title: "Temizlik", status: "todo", priority: "standard" } });
+    taskId = task.id;
+    session = { userId: ownerId, organizationId: orgId, role: "owner", email: "o@x.com", name: "Owner", sessionEpoch: 0 };
+  });
+
+  it("🚨 not → durum değişikliği → fotoğraf: kart (sayfanın sorgusu) notu hâlâ gösterir; eski 'son satır' okuması göstermiyordu", async () => {
+    expect((await PATCH(patchReq({ note: "Klozet kapağı kırık" }), ctx())).status).toBe(200);
+    expect((await PATCH(patchReq({ status: "in_progress" }), ctx())).status).toBe(200);
+    expect((await PATCH(patchReq({ photoUrl: photoUrlForKey(`org/${orgId}/task/${taskId}/1-a.jpg`) }), ctx())).status).toBe(200);
+    const oldWay = await prisma.taskUpdate.findMany({ where: { taskId }, select: { note: true }, orderBy: { createdAt: "desc" }, take: 1 });
+    expect(oldWay[0]?.note ?? null).toBeNull(); // hatanın kendisi
+    const row = await prisma.task.findUniqueOrThrow({ where: { id: taskId }, include: TASK_BOARD_INCLUDE });
+    const card = taskCardData(row, { canManage: true, timeZone: "Europe/Istanbul", now: new Date(), latestPhotoUrl: null });
+    expect(card.latestNote).toBe("Klozet kapağı kırık");
   });
 });
 

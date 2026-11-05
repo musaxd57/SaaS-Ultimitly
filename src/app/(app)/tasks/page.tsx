@@ -16,6 +16,7 @@ import { orgTimezone } from "@/lib/timezone";
 import { clampPage, MAX_LIST_PAGE } from "@/lib/pagination";
 import { latestRenderablePhotoByTask } from "@/lib/storage/keys";
 import { taskCardData } from "@/lib/tasks/card-data";
+import { TASK_BOARD_INCLUDE } from "@/lib/tasks/board-include";
 
 export const dynamic = "force-dynamic";
 
@@ -60,15 +61,8 @@ export default async function TasksPage({
     ...(canManage ? {} : { assignedToId: session.userId }),
     ...(propertyId ? { propertyId } : {}),
   };
-  const taskInclude = {
-    property: { select: { name: true } },
-    assignedTo: { select: { name: true } },
-    updates: {
-      select: { photoUrl: true, note: true, createdAt: true },
-      orderBy: { createdAt: "desc" as const },
-      take: 1,
-    },
-  };
+  // Kart sorgusu tek kaynak (`tasks/board-include.ts`): "son not" NOTU OLAN en son satırdan (Tur 6 T6-SU-2).
+  const taskInclude = TASK_BOARD_INCLUDE;
 
   const [activeTasks, doneTasks, doneTotal, properties, reservationsMissingTasks] = await Promise.all([
     // AKTİF iş: tamamı yüklenir — bir hostun bekleyen görevi asla gizlenmemeli.
