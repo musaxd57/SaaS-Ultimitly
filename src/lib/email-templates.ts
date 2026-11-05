@@ -564,7 +564,7 @@ export function qrEscalationEmail(
   const urgent = critical && reason !== "erased_stay_hazard";
   const reasonText =
     urgent && reason === "ai_escalated"
-      ? "Misafir QR sohbetinden acil olabilecek bir durum bildirdi (yangın, gaz, duman, su baskını, mahsur kalma gibi). Yapay zekâ cevap vermedi ve size devretti — lütfen hemen kontrol edin."
+      ? "Misafir QR sohbetinden acil olabilecek bir durum bildirdi (yangın, gaz, duman, su baskını, mahsur kalma gibi). Yapay zekâ yanıtlamadı ve size devretti — lütfen hemen kontrol edin."
       : reason === "erased_stay_hazard"
       ? "Bu dairenin QR misafir sohbetinden bir TEHLİKE bildirimi geldi (yangın, gaz, duman gibi). Konaklamanın kişisel verileri silindiği için mesaj kaydedilmedi. Dairede biri olabilir — lütfen hemen kontrol edin."
       : reason === "cancelled_stay"

@@ -388,6 +388,8 @@ describe("maybeSendQrEscalationEmail (lib)", () => {
     expect(subject).toBe("⚠️ Acil misafir mesajı — Lale 3");
     expect(html).toContain("Acil misafir mesajı");
     expect(html).toMatch(/hemen kontrol edin/);
+    // Ortak sözcük "yanıtlamadı": numara yolunun e-postası ("yalnız o numarayı gönderdi") bu sözcükle ayrışır (`qr-emergency-number.test.ts`).
+    expect(html).toContain("Yapay zekâ yanıtlamadı ve size devretti");
     expect(html).not.toContain("yangın var");
     // Sıradan (kritik olmayan) devir: eski başlık ve metin aynen.
     await prisma.reservation.update({ where: { id: reservationId }, data: { qrEscalationEmailAt: new Date(Date.now() - 3_600_000) } });
