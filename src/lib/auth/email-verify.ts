@@ -3,6 +3,7 @@ import "server-only";
 import { createHash, randomBytes } from "crypto";
 import { appCanonicalOrigin, canonicalHosts } from "@/lib/app-config";
 import { identityEmailShell, plainLinkFallback } from "@/lib/email-shell";
+import { VERIFY_RESEND_QUIET_MS } from "@/lib/auth/verify-resend-window";
 
 // ---------------------------------------------------------------------------
 // E-mail verification for self-serve sign-ups (anti-bot / valid-inbox check).
@@ -32,8 +33,8 @@ export function needsEmailVerification(user: {
 
 export const VERIFY_TTL_MS = 24 * 60 * 60 * 1000; // link valid for 24h
 
-/** Yeniden gönderme yolu: son bu kadar süre içinde üretilmiş geçerli bağlantı varsa yenisi üretilmez (U12, kurucu 10-22). */
-export const VERIFY_RESEND_QUIET_MS = 10 * 60 * 1000;
+/** Yeniden gönderme yolu: son bu kadar süre içinde üretilmiş geçerli bağlantı varsa yenisi üretilmez (U12) — tek kaynak yaprak modülde. */
+export { VERIFY_RESEND_QUIET_MS };
 
 /**
  * Son {@link VERIFY_RESEND_QUIET_MS} içinde üretilmiş ve hâlâ geçerli bir doğrulama bağlantısı var mı? (U12, kurucu 10-22: "önerin iyi".)

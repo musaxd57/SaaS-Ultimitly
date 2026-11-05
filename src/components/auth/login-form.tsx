@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { safeRedirectTarget } from "@/lib/safe-redirect";
+import { VERIFY_RESEND_REQUESTED_TEXT } from "@/lib/auth/verify-resend-window";
 
 /** Form-bazlı hata düğümünün id'si; alanlara aria-describedby ile bağlanır. */
 const FORM_ERROR_ID = "login-form-error";
@@ -184,7 +185,7 @@ export function LoginForm() {
       {needsVerify ? (
         <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-900">
           {resent ? (
-            <p>Yeni doğrulama bağlantısı gönderildi. Gelmediyse spam klasörünü kontrol edin.</p>
+            <p>{VERIFY_RESEND_REQUESTED_TEXT}</p>
           ) : (
             <button
               type="button"

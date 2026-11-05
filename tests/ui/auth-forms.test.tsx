@@ -17,13 +17,14 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push, refresh }) }));
 import { LoginForm } from "@/components/auth/login-form";
 import { RegisterForm } from "@/components/auth/register-form";
 import { ForgotPasswordForm } from "@/components/auth/forgot-password-form";
+import { VERIFY_RESEND_QUIET_MS, VERIFY_RESEND_REQUESTED_TEXT } from "@/lib/auth/verify-resend-window";
 
 function typeInto(label: RegExp | string, value: string) {
   fireEvent.change(screen.getByLabelText(label), { target: { value } });
 }
 
-/** Kayıt başarı ekranındaki yeniden-gönder bekleme süresi (register-form ile aynı). */
-const RESEND_COOLDOWN_SEC = 60;
+/** Kayıt başarı ekranındaki yeniden-gönder bekleme süresi (register-form ile aynı tek sabit — sunucunun sessiz penceresi, T7-AUTH-1). */
+const RESEND_COOLDOWN_SEC = VERIFY_RESEND_QUIET_MS / 1000;
 
 describe("LoginForm — doğrulama e-postası kurtarma yolu", () => {
   beforeEach(() => {
@@ -49,7 +50,7 @@ describe("LoginForm — doğrulama e-postası kurtarma yolu", () => {
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: /tekrar gönder/ }));
     });
-    await screen.findByText(/gönderildi/);
+    await screen.findByText(VERIFY_RESEND_REQUESTED_TEXT);
     expect(calls).toEqual(["yanlis@ornek.com"]);
 
     // Adres yanlış yazılmıştı: düzeltince "gönderildi" durumu sıfırlanmalı ve
@@ -110,7 +111,7 @@ describe("LoginForm — doğrulama e-postası kurtarma yolu", () => {
       resolve(new Response("{}", { status: 200 }));
     });
     expect(sentTo).toEqual(["eski@ornek.com"]); // mail yalnız eski adrese gitti
-    expect(screen.queryByText(/gönderildi/)).toBeNull(); // yeni adres için YALAN onay yok
+    expect(screen.queryByText(VERIFY_RESEND_REQUESTED_TEXT)).toBeNull(); // yeni adres için YALAN onay yok
     // Yeni adres için istek hâlâ mümkün (buton kilitli kalmadı).
     const btn = (await screen.findByRole("button", { name: /tekrar gönder/ })) as HTMLButtonElement;
     expect(btn.disabled).toBe(false);
@@ -386,7 +387,35 @@ describe("RegisterForm — başarı ekranı çıkmaz değildir", () => {
         url: "/api/auth/resend-verification",
         body: { email: "yeni@ornek.com" },
       });
-      await screen.findByText("Yeni bağlantı gönderildi.");
+      await screen.findByText(VERIFY_RESEND_REQUESTED_TEXT);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("🚨 T7-AUTH-1: bekleme sunucunun 10 dakikalık penceresiyle aynı — 61 sn sonra buton hâlâ kilitli, sayaç dakika:saniye", async () => {
+    // Eskiden 60 sn'de açılıyordu: pencere içindeki basış 200 alıp "Yeni bağlantı gönderildi." diyordu, sunucu hiçbir şey göndermiyordu.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ ok: true, verifyEmail: true }), { status: 201 })));
+    try {
+      render(<RegisterForm />);
+      typeInto(/İşletme adı/, "Lale");
+      typeInto(/Adınız/, "Musa");
+      typeInto(/E-posta/, "yeni@ornek.com");
+      typeInto("Şifre", "sifre12345");
+      fireEvent.click(screen.getByRole("checkbox"));
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: /Hesap Oluştur/ }));
+      });
+      expect((await screen.findByRole("button", { name: "Bağlantıyı yeniden gönder (10:00)" })).hasAttribute("disabled")).toBe(true);
+      for (let i = 0; i < 61; i++) {
+        await act(async () => {
+          vi.advanceTimersByTime(1000);
+        });
+      }
+      const btn = screen.getByRole("button", { name: /yeniden gönder/i }) as HTMLButtonElement;
+      expect(btn.disabled).toBe(true);
+      expect(btn.textContent).toBe("Bağlantıyı yeniden gönder (8:59)");
     } finally {
       vi.useRealTimers();
     }

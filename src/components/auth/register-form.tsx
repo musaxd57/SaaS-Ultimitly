@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { TurnstileWidget, type TurnstileHandle } from "@/components/auth/turnstile-widget";
+import { VERIFY_RESEND_QUIET_MS, VERIFY_RESEND_REQUESTED_TEXT } from "@/lib/auth/verify-resend-window";
 
 type Fields = Record<string, string>;
 
@@ -62,7 +63,10 @@ export function RegisterForm({ turnstileSiteKey = null }: { turnstileSiteKey?: s
   // denemesinden sonra beliriyordu — yani kullanıcı, maili gelmediğinde önce
   // giremeyeceğini keşfetmek zorundaydı. Bekleme sayacı hem kotayı (adres başına
   // 15 dk'da 4 istek) korur hem de "az önce gönderdik" gerçeğini görünür kılar.
-  const RESEND_COOLDOWN_SEC = 60;
+  // 🚨 Tur 7 T7-AUTH-1 (kurucu onayı 11-05): sayaç sunucunun sessiz penceresiyle (U12, 10 dk) AYNI sabitten — eskiden 60 sn'de açılıyordu,
+  // pencere içindeki her basış "Yeni bağlantı gönderildi." diyordu ama hiçbir şey gitmiyordu. Sunucu yine kendi penceresini uygular
+  // (sayfayı yenilemek / ikinci sekme onu atlatmaz); bu yalnız dürüst bir ekran.
+  const RESEND_COOLDOWN_SEC = VERIFY_RESEND_QUIET_MS / 1000;
   const [resendCooldown, setResendCooldown] = useState(0);
   const [resending, setResending] = useState(false);
   const [resendDone, setResendDone] = useState(false);
@@ -201,11 +205,11 @@ export function RegisterForm({ turnstileSiteKey = null }: { turnstileSiteKey?: s
             {resending
               ? "Gönderiliyor…"
               : resendCooldown > 0
-                ? `Bağlantıyı yeniden gönder (${resendCooldown})`
+                ? `Bağlantıyı yeniden gönder (${Math.floor(resendCooldown / 60)}:${String(resendCooldown % 60).padStart(2, "0")})`
                 : "Bağlantıyı yeniden gönder"}
           </button>
           {resendDone && resendCooldown > 0 ? (
-            <p className="text-center text-xs text-emerald-700">Yeni bağlantı gönderildi.</p>
+            <p className="text-center text-xs text-emerald-700">{VERIFY_RESEND_REQUESTED_TEXT}</p>
           ) : null}
           {resendError ? (
             <p className="text-center text-xs text-destructive">{resendError}</p>

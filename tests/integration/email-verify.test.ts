@@ -35,9 +35,10 @@ import { emailService } from "@/lib/email";
 // race the assertions — the flag-ON tests drain EXPLICITLY.
 vi.mock("@/lib/email-outbox", async (orig) => {
   const actual = await orig<typeof import("@/lib/email-outbox")>();
-  return { ...actual, kickEmailOutboxDrain: vi.fn() };
+  // T7-AUTH-1: kuyruğa yazma arızası testi için sarmalayıcı (varsayılan: gerçek fonksiyon).
+  return { ...actual, kickEmailOutboxDrain: vi.fn(), enqueueIdentityEmail: vi.fn(actual.enqueueIdentityEmail) };
 });
-import { drainEmailOutboxOnce } from "@/lib/email-outbox";
+import { drainEmailOutboxOnce, enqueueIdentityEmail } from "@/lib/email-outbox";
 
 import { LEGAL_VERSION } from "@/lib/legal-entity";
 import { LEGAL_TEXT_HASH } from "@/lib/legal-text-hash";
@@ -720,6 +721,57 @@ describe("registration → verification → login", () => {
     expect(mockSendReporting).toHaveBeenCalledTimes(6);
   });
 
+  /** 15 dakikalık istek kovalarını (IP + adres) boşaltır — zamanın geçmesini taklit eder; günlük gönderim kotasına dokunmaz. */
+  const drain15MinBuckets = () =>
+    prisma.$executeRaw`UPDATE "RateLimitCounter" SET "resetAt" = (now() AT TIME ZONE 'utc') - interval '1 minute' WHERE "key" LIKE 'verify-resend:%' OR "key" LIKE 'verify-resend-acct:%'`;
+
+  it("🚨 T7-AUTH-1: sessiz penceredeki basışlar GÖNDERİM kotasını yemez — gün içinde 6 gerçek e-posta yine gidebilir", async () => {
+    const org = await prisma.organization.create({ data: { name: "X" } });
+    await prisma.user.create({
+      data: { organizationId: org.id, name: "Ada", email: "patient@x.com", passwordHash: await hashPassword("secret123"), role: "owner", createdAt: AFTER },
+    });
+    for (let round = 0; round < 6; round++) {
+      // Bir gerçek gönderim + aynı 10 dakika içinde 3 basış daha (eskiden her biri günlük tavandan düşüyordu).
+      for (let i = 0; i < 4; i++) {
+        expect((await resendVerification(postReq("http://localhost/api/auth/resend-verification", { email: "patient@x.com" }))).status).toBe(200);
+      }
+      await drain15MinBuckets();
+      await ageVerifyLink("patient@x.com");
+    }
+    expect(mockSendReporting).toHaveBeenCalledTimes(6);
+  });
+
+  it("🚨 T7-AUTH-1: gönderim kotası dolunca da cevap AYNI 200 — kayıtlı ve kayıtsız adres ayırt edilemez", async () => {
+    const org = await prisma.organization.create({ data: { name: "X" } });
+    await prisma.user.create({
+      data: { organizationId: org.id, name: "Ada", email: "full@x.com", passwordHash: await hashPassword("secret123"), role: "owner", createdAt: AFTER },
+    });
+    const statuses = { real: [] as number[], ghost: [] as number[] };
+    for (let i = 0; i < 9; i++) {
+      statuses.real.push((await resendVerification(postReq("http://localhost/api/auth/resend-verification", { email: "full@x.com" }))).status);
+      statuses.ghost.push((await resendVerification(postReq("http://localhost/api/auth/resend-verification", { email: "nobody@x.com" }))).status);
+      await drain15MinBuckets();
+      await ageVerifyLink("full@x.com");
+    }
+    expect(mockSendReporting).toHaveBeenCalledTimes(6); // tavan aynen (e-posta bombası koruması)
+    expect(statuses.real).toEqual(Array(9).fill(200));
+    expect(statuses.ghost).toEqual(Array(9).fill(200));
+  });
+
+  it("KONTROL — istek sınırı hesaptan bağımsız: 15 dakikada 5. istek her adreste 429", async () => {
+    const org = await prisma.organization.create({ data: { name: "X" } });
+    await prisma.user.create({
+      data: { organizationId: org.id, name: "Ada", email: "spam@x.com", passwordHash: await hashPassword("secret123"), role: "owner", createdAt: AFTER },
+    });
+    for (const email of ["spam@x.com", "ghost2@x.com"]) {
+      // IP kovası (8 / 15 dk) adresler arasında boşaltılır — sınanan adres başına istek sınırı.
+      await prisma.$executeRaw`UPDATE "RateLimitCounter" SET "resetAt" = (now() AT TIME ZONE 'utc') - interval '1 minute' WHERE "key" LIKE 'verify-resend:%'`;
+      const codes: number[] = [];
+      for (let i = 0; i < 5; i++) codes.push((await resendVerification(postReq("http://localhost/api/auth/resend-verification", { email }))).status);
+      expect(codes).toEqual([200, 200, 200, 200, 429]);
+    }
+  });
+
   it("a NEW (post-cutoff) unverified account is BLOCKED from login (403), then allowed once verified", async () => {
     const org = await prisma.organization.create({ data: { name: "X" } });
     await prisma.user.create({
@@ -809,6 +861,20 @@ describe("register + resend — durable outbox (flag ON)", () => {
     expect(verify.status).toBe(200); // link works end-to-end
     const after = await prisma.user.findUniqueOrThrow({ where: { email: "ada@x.com" } });
     expect(after.emailVerifiedAt).toBeTruthy();
+  });
+
+  it("🚨 T7-AUTH-1: kuyruğa yazma düşerse cevap yine 200, bağlantı değişmez, kişi kilitlenmez — hemen yeniden istemek kuyruğa yazar", async () => {
+    const org = await prisma.organization.create({ data: { name: "X" } });
+    await prisma.user.create({
+      data: { organizationId: org.id, name: "Ada", email: "flaky@x.com", passwordHash: await hashPassword("secret123"), role: "owner", createdAt: AFTER },
+    });
+    vi.mocked(enqueueIdentityEmail).mockRejectedValueOnce(new Error("db down"));
+    expect((await resendVerification(postReq("http://localhost/api/auth/resend-verification", { email: "flaky@x.com" }))).status).toBe(200);
+    const after = await prisma.user.findUniqueOrThrow({ where: { email: "flaky@x.com" } });
+    expect(after.emailVerifyTokenHash).toBeNull(); // işlem geri alındı → sessiz pencere başlamadı
+    expect(await prisma.emailOutbox.count()).toBe(0);
+    expect((await resendVerification(postReq("http://localhost/api/auth/resend-verification", { email: "flaky@x.com" }))).status).toBe(200);
+    expect(await prisma.emailOutbox.count()).toBe(1);
   });
 
   it("RESEND: yeni token eski teslim-edilmemiş linki süperseder; yalnız YENİ link gönderilir ve doğrular", async () => {

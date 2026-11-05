@@ -1,7 +1,7 @@
 import { type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { jsonOk, tooManyRequests, parseJsonBody, payloadTooLarge, hasJsonContentType, unsupportedMediaType } from "@/lib/api";
-import { rateLimit, rateLimitClientKey } from "@/lib/rate-limit";
+import { rateLimit, rateLimitClientKey, rateLimitPeek } from "@/lib/rate-limit";
 import { emailService } from "@/lib/email";
 import { reportError } from "@/lib/report-error";
 import {
@@ -20,6 +20,7 @@ export const dynamic = "force-dynamic";
 
 /** Aynı adrese 24 saatte gönderilebilecek en fazla doğrulama e-postası (yeniden gönderme yolu). */
 const VERIFY_RESEND_DAILY_CAP = 6;
+const VERIFY_RESEND_DAY_MS = 24 * 60 * 60_000;
 
 // Resend the verification e-mail. ALWAYS returns 200 (never reveals whether the
 // account exists / its state). Sends only for a real, still-unverified self-serve
@@ -39,16 +40,18 @@ export async function POST(req: NextRequest) {
   const email = typeof data?.email === "string" ? normalizeEmail(data.email) : "";
   if (!email || !isValidEmailShape(email)) return jsonOk({ ok: true });
 
+  // İSTEK SINIRI (adres başına, hesabın VARLIĞINA bakmadan — numaralandırma koruması): her istek sayılır.
   const acctLimit = await rateLimit(`verify-resend-acct:${email}`, 4, 15 * 60_000);
   if (!acctLimit.ok) return tooManyRequests(acctLimit.retryAfter);
   // 🚨 GÜNLÜK TAVAN (09-23, güvenlik ajanı): 15 dakikalık kova tek başına günde 4×96 = 384
   // e-postaya izin veriyordu ve IP kovası IP döndürerek aşılıyor → kimliksiz bir saldırgan,
   // kurbanın adresiyle açtığı doğrulanmamış hesap üzerinden o adrese günde yüzlerce
   // `noreply@lixusai.com` e-postası yağdırabiliyordu (hem kurbanı rahatsız eder hem
-  // gönderici itibarımızı yakar). Gerçek kullanıcı günde 6'dan fazla yeniden gönderme
-  // istemez. Hesabın VARLIĞINA bakmadan uygulanır (numaralandırma koruması aynen).
-  const dayLimit = await rateLimit(`verify-resend-day:${email}`, VERIFY_RESEND_DAILY_CAP, 24 * 60 * 60_000);
-  if (!dayLimit.ok) return tooManyRequests(dayLimit.retryAfter);
+  // gönderici itibarımızı yakar). Gerçek kullanıcı günde 6'dan fazla yeniden gönderme istemez.
+  // 🚨 Tur 7 T7-AUTH-1 (kurucu onayı 11-05, Codex görüşüyle): bu tavan artık GERÇEK GÖNDERİM kotasıdır — yalnız yeni bağlantı üretilip
+  // e-posta gerçekten yola çıktığında (kuyruğa yazıldı / gönderim başarılı) tüketilir. Eskiden her istek sayılıyordu: 10 dakikalık sessiz
+  // pencerede (U12) hiçbir şey gönderilmeyen basışlar kotayı yiyordu. Kota doluysa SESSİZCE gönderilmez ve cevap yine aynı 200 — 429
+  // yalnız gerçek hesaplarda görünürdü (hesap numaralandırma). Aşağıdaki gönderim dalında.
 
   const user = await prisma.user.findUnique({
     where: { email },
@@ -60,25 +63,36 @@ export async function POST(req: NextRequest) {
   // dolmuş" görüyordu. Artık kutudaki bağlantı ÇALIŞMAYA DEVAM EDER. Günlük tavanın kendisi hâlâ başkasınca doldurulabilir (hesabın varlığına
   // bakmadan sayılması numaralandırma korumasıdır, bilinçli) — o gün yalnız YENİDEN GÖNDERME kapanır, elindeki bağlantı değil.
   if (user && needsEmailVerification(user) && !verifyLinkRecentlyIssued(user.emailVerifyExpiresAt)) {
+    const sendQuotaKey = `verify-resend-day:${email}`;
+    if (!(await rateLimitPeek(sendQuotaKey, VERIFY_RESEND_DAILY_CAP)).ok) return jsonOk({ ok: true });
+    const consumeSendQuota = () => rateLimit(sendQuotaKey, VERIFY_RESEND_DAILY_CAP, VERIFY_RESEND_DAY_MS);
     const { raw, hash } = makeVerifyToken();
     const expiresAt = new Date(Date.now() + VERIFY_TTL_MS);
     if (emailOutboxEnabled()) {
       // Durable outbox (Tur-4): new token hash + send-intent in ONE transaction
       // (the enqueue supersedes any still-undelivered previous link, so only
       // the newest token's e-mail goes out). No provider call on this path.
-      await prisma.$transaction(async (tx) => {
-        await tx.user.update({
-          where: { id: user.id },
-          data: { emailVerifyTokenHash: hash, emailVerifyExpiresAt: expiresAt },
+      // T7-AUTH-1: kuyruğa yazma düşerse işlem geri alınır (bağlantı değişmez → sessiz pencere başlamaz, kota tüketilmez) ve cevap yine
+      // aynı 200 — kişi kilitlenmez, hemen yeniden isteyebilir; ops alarmı alır.
+      try {
+        await prisma.$transaction(async (tx) => {
+          await tx.user.update({
+            where: { id: user.id },
+            data: { emailVerifyTokenHash: hash, emailVerifyExpiresAt: expiresAt },
+          });
+          await enqueueIdentityEmail(tx, {
+            userId: user.id,
+            kind: "verify_email",
+            secret: raw,
+            recipient: email,
+            expiresAt,
+          });
         });
-        await enqueueIdentityEmail(tx, {
-          userId: user.id,
-          kind: "verify_email",
-          secret: raw,
-          recipient: email,
-          expiresAt,
-        });
-      });
+      } catch (err) {
+        void reportError("auth.resend_verification.enqueue", err instanceof Error ? err : new Error(String(err)));
+        return jsonOk({ ok: true });
+      }
+      await consumeSendQuota();
       kickEmailOutboxDrain();
       return jsonOk({ ok: true });
     }
@@ -94,6 +108,7 @@ export async function POST(req: NextRequest) {
     // The response is DELIBERATELY uniform (always 200 — a different shape on failure
     // would only appear for real unverified accounts → account enumeration). But a
     // genuine send failure must page ops, not vanish (redacted — no recipient/token).
+    if (sent.ok) await consumeSendQuota();
     if (!sent.ok) {
       void reportError("auth.resend_verification", new Error(sent.error ?? "email send failed"));
       // Eski (kuyruksuz) yol: e-posta GİTMEDİ ama yeni bağlantı eskisini geçersiz kıldı — 10 dk sessizlik bu kişiyi boşuna bekletmesin
