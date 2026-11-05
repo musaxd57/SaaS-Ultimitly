@@ -5,7 +5,8 @@ import { emailService } from "@/lib/email";
 import { rateLimit } from "@/lib/rate-limit";
 import { reportError } from "@/lib/report-error";
 import { isDemoOrg } from "@/lib/demo-tenant/constants";
-import { taskBlockedEmail } from "@/lib/email-templates";
+import { taskAssignedEmail, taskBlockedEmail } from "@/lib/email-templates";
+import { staffTaskProjection } from "@/lib/tasks/staff-view";
 import { orgTimezone } from "@/lib/timezone";
 import { formatDayInTz } from "@/lib/utils";
 import { calendarDateOf } from "@/modules/availability/core";
@@ -63,5 +64,33 @@ export async function notifyTaskBlocked(n: TaskBlockedNotice): Promise<"sent" | 
       })
       .catch((err) => void reportError("task-blocked-mail", err));
   }
+  return "sent";
+}
+
+/** Aynı görev için saatte en çok bu kadar atama e-postası (elle atamanın tavanıyla AYNI anahtar — iki yol toplamda 3). */
+const ASSIGN_MAILS_PER_TASK_HOUR = 3;
+
+/**
+ * Sistem görevi dairenin temizlikçisine OTOMATİK atandı (kurucu 11-05 gece) → kişiye "yeni görev" e-postası (anahtar açıkken). Bugünkü elle
+ * atama e-postasıyla aynı şablon ve aynı tavan anahtarı; personele giden metin temizlikçi görünümüdür (misafir adı / mesajı yok). Ana kanal
+ * ileride WhatsApp (tasarım §2.3).
+ */
+export async function notifyTaskAssigned(organizationId: string, taskId: string): Promise<"sent" | "skipped"> {
+  if (!staffNotifyEnabled() || isDemoOrg(organizationId)) return "skipped";
+  const task = await prisma.task.findFirst({
+    where: { id: taskId, property: { organizationId } },
+    include: { property: { select: { name: true, address: true, city: true } }, assignedTo: { select: { name: true, email: true, role: true } } },
+  });
+  if (!task?.assignedTo) return "skipped";
+  if (!(await rateLimit(`task-assign-mail:${task.id}`, ASSIGN_MAILS_PER_TASK_HOUR, 60 * 60_000)).ok) return "skipped";
+  const assignee = task.assignedTo;
+  const emailTask = assignee.role === "owner" || assignee.role === "manager" ? task : staffTaskProjection(task);
+  const html = taskAssignedEmail(emailTask, { name: assignee.name, email: assignee.email }, task.property);
+  void emailService
+    .sendReporting(assignee.email, `Yeni Görev: ${emailTask.title}`, html)
+    .then((res) => {
+      if (!res.ok) void reportError("task-assign-mail", new Error(`task=${task.id} — otomatik atama bildirimi gönderilemedi`));
+    })
+    .catch((err) => void reportError("task-assign-mail", err));
   return "sent";
 }

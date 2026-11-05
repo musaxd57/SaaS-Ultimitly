@@ -15,7 +15,9 @@ import { DeleteButton } from "@/components/delete-button";
 import { PropertyForm } from "@/components/properties/property-form";
 import { SupplyProfileForm } from "@/components/properties/supply-profile-form";
 import { parseSupplyProfile } from "@/lib/supply";
-import { PackageOpen } from "lucide-react";
+import { Brush, PackageOpen } from "lucide-react";
+import { DefaultCleanerForm } from "@/components/properties/default-cleaner-form";
+import { loadDefaultCleanerUserId, openFutureCleaningIds } from "@/lib/tasks/default-cleaner";
 import { CalendarFeed } from "@/components/properties/calendar-feed";
 import { CalendarSources } from "@/components/properties/calendar-sources";
 import { CalendarFileImport } from "@/components/properties/calendar-file-import";
@@ -95,6 +97,19 @@ export default async function PropertyDetailPage({
   // V2 para etkisi: ev sahibinin tipik gecelik aralığı (isteğe bağlı). Okunamazsa form boş açılır.
   const nightlyRate = canManage ? await getNightlyRate(session.organizationId, property.id).catch(() => null) : null;
   const earlyCheckinRule = canManage ? await loadEarlyCheckinRule(session.organizationId, property.id).catch(() => null) : null;
+  // Dairenin temizlikçisi (kurucu 11-05 gece): kural + işletmenin kişileri + şu anki temizlikçide duran başlanmamış gelecekteki temizlikler.
+  const defaultCleaner = canManage
+    ? await (async () => {
+        const userId = await loadDefaultCleanerUserId(prisma, session.organizationId, property.id).catch(() => null);
+        const members = await prisma.user.findMany({
+          where: { organizationId: session.organizationId },
+          select: { id: true, name: true },
+          orderBy: { name: "asc" },
+        });
+        const open = userId ? await openFutureCleaningIds(prisma, session.organizationId, property.id, userId, new Date()).catch(() => []) : [];
+        return { userId, members, openFutureCount: open.length };
+      })()
+    : null;
   // Ev kuralları (#188): kart bayrağı açık + yönetici. Okunamazsa her konu "bana sor" görünür (kural yok = bugünkü davranış).
   const houseRules =
     canManage && houseRulesCardEnabled()
@@ -352,6 +367,25 @@ export default async function PropertyDetailPage({
                     kbChangedAfter: m.kbChangedAfter,
                     preview: m.preview,
                   }))}
+                />
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {defaultCleaner ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Brush className="size-4 text-muted-foreground" /> Temizlik
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <DefaultCleanerForm
+                  propertyId={property.id}
+                  propertyName={property.name}
+                  currentUserId={defaultCleaner.userId}
+                  members={defaultCleaner.members}
+                  openFutureCount={defaultCleaner.openFutureCount}
                 />
               </CardContent>
             </Card>

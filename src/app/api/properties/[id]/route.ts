@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { defaultCleanerWhere } from "@/lib/tasks/default-cleaner";
 import { propertyPatchSchema, zodFieldErrors } from "@/lib/validators";
 import { badRequest, jsonOk, notFound, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
@@ -143,6 +144,7 @@ export const DELETE = withManage<{ id: string }>(async (session, _req, { params 
     // Mülkün erken giriş kuralı ve ev kuralları da gider (FK yok; aynı kimlikle yeniden kullanılmasın, sahipsiz satır kalmasın).
     await tx.automationRule.deleteMany({ where: earlyCheckinRuleWhere(session.organizationId, id) });
     await tx.automationRule.deleteMany({ where: houseRulesWhere(session.organizationId, id) });
+    await tx.automationRule.deleteMany({ where: defaultCleanerWhere(session.organizationId, id) });
     // 🚨 F11 (Codex 09-05): görev fotoğraflarının SİLME NİYETİ aynı işlemde (görev silme rotasıyla aynı sözleşme).
     // Kaskad görevleri ve güncellemelerini götürür; nesneleri gösteren satırlar gidince kovadaki fotoğraf sahipsiz
     // kalıyordu. Anahtarlar kilitten SONRA, silmeden hemen önce okunur; kiracı süzgeci kuyruğun tek boğazında.

@@ -1,5 +1,7 @@
 import "server-only";
 import { RESERVATION_TASKS_LOCK_NS } from "@/lib/tasks/reservation-lock";
+import { loadDefaultCleanerUserId } from "@/lib/tasks/default-cleaner";
+import { notifyTaskAssigned } from "@/lib/tasks/notify";
 
 import { Prisma } from "@prisma/client";
 import { observeAnswerReuseAfterSend, REUSE_SHADOW_DEADLINE_MS } from "@/lib/answer-reuse/shadow-hook";
@@ -1368,22 +1370,43 @@ export async function createReservationTasks(reservationId: string, opts: { reop
   // (ya da iki senkron turu) aynı anda koşarsa ikisi de "temizlik yok" görüp İKİ temizlik görevi açıyordu. Okuma + yazma rezervasyon başına
   // işlem kilidi altında: ikinci çağrı birincinin yazdığını görür. Kilit yalnız bu rezervasyonu sıraya koyar (başka rezervasyonlar beklemez).
   // Rezervasyon da kilit ALTINDA yeniden okunur (Opus B6): arada iptal edildiyse görev açılmaz (iptal temizliği aynı kilidi alır).
-  return prisma.$transaction(async (tx) => {
+  const created = await prisma.$transaction(async (tx) => {
     await tx.$executeRaw(
       Prisma.sql`SELECT pg_advisory_xact_lock(${RESERVATION_TASKS_LOCK_NS}::int4, hashtext(${reservationId}))`,
     );
     const r = await tx.reservation.findUnique({ where: { id: reservationId }, select: RESERVATION_TASKS_SELECT });
-    if (!r || r.status === "cancelled") return 0;
+    if (!r || r.status === "cancelled") return { count: 0, assigned: null };
     const existing = await tx.task.findMany({
       where: lifecycleTasksWhere(r),
       select: LIFECYCLE_TASK_LITE_SELECT,
     });
     if (__reservationTaskHooks.afterExistingRead) await __reservationTaskHooks.afterExistingRead(r.id);
     const data = reservationTasksToCreate(r, existing, now);
-    if (data.length === 0) return 0;
+    if (data.length === 0) return { count: 0, assigned: null };
+    // DAİRENİN TEMİZLİKÇİSİ (kurucu 11-05 gece): kural varsa sistem temizliği DOĞRUDAN o kişiye atanır — kabul adımı yok. Kişi kullanım
+    // anında doğrulanır (aynı işletmede); değilse görev bugünkü gibi atanmamış açılır. Hazırlık görevi atanmaz.
+    const cleaning = data.find((d) => d.type === "cleaning");
+    const cleanerId = cleaning && r.property ? await loadDefaultCleanerUserId(tx, r.property.organizationId, r.propertyId) : null;
+    if (cleaning && cleanerId) cleaning.assignedToId = cleanerId;
     await tx.task.createMany({ data });
-    return data.length;
+    const assignedTask = cleanerId
+      ? await tx.task.findFirst({
+          where: { reservationId: r.id, type: "cleaning", origin: "system", assignedToId: cleanerId },
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          select: { id: true },
+        })
+      : null;
+    return {
+      count: data.length,
+      assigned: assignedTask && r.property ? { organizationId: r.property.organizationId, taskId: assignedTask.id } : null,
+    };
   }, RESERVATION_TASKS_TX);
+  // Bildirim işlemden SONRA (commit'ten önce e-posta gitmesin); anahtar (`STAFF_NOTIFY_ENABLED`) arkasında, en iyi çaba.
+  if (created.assigned) {
+    const { organizationId, taskId } = created.assigned;
+    void notifyTaskAssigned(organizationId, taskId).catch((err) => void reportError("task-assign-mail", err));
+  }
+  return created.count;
 }
 
 /** Yalnız testler: kilitli bölgede "var mı?" okumasından SONRA bekleme noktası (eşzamanlılık testleri şansa kalmasın — Opus B8). */
@@ -1402,7 +1425,7 @@ const RESERVATION_TASKS_SELECT = {
   arrivalDate: true,
   departureDate: true,
   status: true,
-  property: { select: { supplyProfileJson: true, organization: { select: { timezone: true } } } },
+  property: { select: { supplyProfileJson: true, organizationId: true, organization: { select: { timezone: true } } } },
 } satisfies Prisma.ReservationSelect;
 
 /**
