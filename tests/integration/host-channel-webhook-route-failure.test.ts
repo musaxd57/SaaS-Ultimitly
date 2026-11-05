@@ -52,7 +52,8 @@ function raw(id: string): string {
             field: "messages",
             value: {
               metadata: { phone_number_id: PNID },
-              messages: [{ from: DIGITS, id, timestamp: "1761850000", type: "text", text: { body: "otopark var" } }],
+              // Gerçek teslim ANIN zaman damgasını taşır (Tur 3, 11-04: 7,5 günden eski mesaj tekrar sayılır — sabit 2025 damgası artık "eski tekrar" okunurdu).
+              messages: [{ from: DIGITS, id, timestamp: String(Math.floor(Date.now() / 1000)), type: "text", text: { body: "otopark var" } }],
             },
           },
         ],
