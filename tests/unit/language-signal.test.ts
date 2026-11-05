@@ -407,3 +407,19 @@ describe("gateGuestLanguage — kod emin değilken modelin bildirdiği dil (izi 
     expect(gateGuestLanguage(null, "de", ["Danke!", "Was kostet die Zusatzreinigung während des Aufenthalts?"])).toBe("de");
   });
 });
+
+// Tur 6 DIL-2 (11-05, ölçüldü, çürütücüyle yeniden üretildi): "para" ve "hasta" Türkçede gündelik sözcük — 09-25 kuralı ("dillere ortak
+// sözcük listede yok") gereği İspanyolca listesinde olamaz. Önce: aşağıdaki Türkçe mesajlar KESİN "es" sayılıyor, istem modele İspanyolca
+// dayatıyor ve doğru Türkçe cevabı dil kapısı tutuyordu.
+describe("Tur 6 DIL-2 — Türkçe gündelik sözcükler İspanyolca kanıtı değildir", () => {
+  it("🚨 'hasta' / 'para' içeren Türkçe mesaj 'es' sayılmaz", () => {
+    for (const t of ["Annem hasta, para iadesi alabilir mi?", "Bebek hasta, doktor para ister mi", "Hasta oldum, para lazım"]) {
+      expect(confidentLanguage(t), t).not.toBe("es");
+    }
+  });
+
+  it("KONTROL: gerçek İspanyolca hâlâ 'es'", () => {
+    expect(confidentLanguage("Hola, ¿tienen aparcamiento para el coche?")).toBe("es");
+    expect(confidentLanguage("Gracias, ¿hasta qué hora es el check-in?")).toBe("es");
+  });
+});

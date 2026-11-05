@@ -94,10 +94,13 @@ const WORDS: Record<LatinLanguage, ReadonlySet<string>> = {
   ),
   es: new Set(
     [
-      "el", "los", "las", "del", "por", "para", "con", "hola", "gracias", "está", "hay", "cuánto", "cuanto",
+      // Tur 6 DIL-2 (11-05, ölçüldü): "para" (TR para) ve "hasta" (TR hasta) Türkçede gündelik sözcük — ortak sözcük listede olmaz
+      // (09-25 kuralı). "Annem hasta, para iadesi alabilir mi?" İspanyolca sayılıp istem modele İspanyolca dayatıyor, doğru Türkçe
+      // cevabı dil kapısı tutuyordu. "el" (TR el) de çakışır ama çıkarılması İspanyolca kapsam tabanını (pin 0,72) deliyor → kurucu sorusu.
+      "el", "los", "las", "del", "por", "con", "hola", "gracias", "está", "hay", "cuánto", "cuanto",
       "dónde", "donde", "cómo", "puedo", "podemos", "nuestro", "nuestra", "usted", "ustedes", "también", "muy",
       "pero", "bueno", "buenos", "días", "contraseña", "apartamento", "aparcamiento", "llave", "coche", "estamos",
-      "tenemos", "hasta", "quiero", "queremos",
+      "tenemos", "quiero", "queremos",
       // Genel sık sözcükler (09-25 ikinci tur; alan sözcüğü değil, diğer dillerle çakışma denetlendi).
       "qué", "cuándo", "porque", "estoy", "están", "tengo", "tiene", "necesito", "necesitamos", "podría",
       "podríamos", "mañana", "aquí", "ahora", "hacer", "gustaría", "sí", "cuesta", "noche", "llegamos", "somos",
