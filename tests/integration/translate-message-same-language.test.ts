@@ -38,7 +38,7 @@ async function seed(language: string | null) {
   session = { userId: owner.id, organizationId: orgId, role: "owner", email: "o@x.com", name: "O", sessionEpoch: 0 };
   const conv = await prisma.conversation.create({ data: { propertyId, guestIdentifier: "Alex", status: "new" } });
   const msg = await prisma.message.create({
-    data: { conversationId: conv.id, direction: "inbound", senderName: "Alex", body: "Hello, where can we leave the keys?", language },
+    data: { conversationId: conv.id, direction: "inbound", senderName: "Alex", body: "Hello, where can we leave the keys?", language: language ?? undefined },
   });
   return { convId: conv.id, msgId: msg.id };
 }
