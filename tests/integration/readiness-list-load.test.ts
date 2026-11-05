@@ -202,6 +202,24 @@ describe("giriş hazırlığı listesi — yükleyici", () => {
     expect(rows.map((r) => r.guestName)).toEqual(["Sınırda"]);
   });
 
+  it("F8: batı saat diliminde karışık kaynaklı girişler GÜN sırasıyla gelir (ham an sırasıyla değil)", async () => {
+    await prisma.organization.update({ where: { id: orgId }, data: { timezone: "America/New_York" } });
+    const NY = "America/New_York";
+    const today = todayKey(new Date(), NY);
+    const tomorrow = addNights(today, 1);
+    // A: yarın 00:00Z (yalnız-tarih çapası → yarın); B: yarın 02:00Z ANI (New York'ta bugün 21:00/22:00 → bugün).
+    await prisma.reservation.create({
+      data: { propertyId, guestName: "A-yarın", arrivalDate: new Date(`${tomorrow}T00:00:00Z`), departureDate: new Date(`${addNights(tomorrow, 2)}T00:00:00Z`), status: "confirmed", channel: "airbnb" },
+    });
+    await prisma.reservation.create({
+      data: { propertyId, guestName: "B-bugün", arrivalDate: new Date(`${tomorrow}T02:00:00Z`), departureDate: new Date(`${addNights(tomorrow, 2)}T02:00:00Z`), status: "confirmed", channel: "airbnb" },
+    });
+    const rows = (await loadArrivalReadiness(orgId, new Date())).rows;
+    const keys = rows.map((r) => r.dayKey);
+    expect([...keys].sort()).toEqual(keys);
+    expect(rows.map((r) => r.guestName)).toEqual(["B-bugün", "A-yarın"]);
+  });
+
   it("🚨 kiracılar arası (Opus F11): başka işletmede AYNI kurulum (devir, kendi personeli, 'bitti', söz, ihtiyaç, giriş talimatı) bu satırlara SIZMAZ", async () => {
     const { prev } = await sameDayTurnover();
     await cleaningTask(prev.id); // bizim görev: açık, atanmamış
