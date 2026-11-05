@@ -78,7 +78,8 @@ describe("pano — 'Yapamıyorum'", () => {
     render(<TaskBoard tasks={[blocked]} canManage members={[{ id: "u-ayse", name: "Ayşe" }, { id: "u-mehmet", name: "Mehmet" }]} />);
     const heading = screen.getByRole("heading", { name: "Yapılacak" });
     const todoColumn = heading.closest("div.rounded-xl") as HTMLElement;
-    expect(within(todoColumn).getByText("Yapılamıyor")).toBeTruthy();
+    // Rozet (durum kutusundaki seçenek değil — o da "Yapılamıyor" yazar).
+    expect(within(todoColumn).getAllByText("Yapılamıyor").filter((el) => el.tagName !== "OPTION")).toHaveLength(1);
     expect(within(todoColumn).getByText("Ayşe yapamıyor · 12:05 — hastayım")).toBeTruthy();
     // Neden zaten satırda — son not olarak İKİNCİ kez yazılmaz.
     expect(screen.queryAllByText("hastayım")).toHaveLength(0);
@@ -91,6 +92,26 @@ describe("pano — 'Yapamıyorum'", () => {
     render(<TaskBoard tasks={[{ ...base, status: "blocked" }]} canManage={false} />);
     expect(screen.getByText(/Ev sahibine bildirildi\. Yine de yaparsanız durumu/)).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Yapamıyorum/ })).toBeNull();
+  });
+
+  it("🚨 gerçek uygulama ekranı (11-06): 'Yapılamıyor' kartının durum kutusu 'Yapılacak' GÖSTERMEZ — 'Yapılamıyor' yazar; 'Yapılacak' seçilince durum gider", async () => {
+    const calls = stubFetch();
+    render(<TaskBoard tasks={[{ ...base, status: "blocked", blocked: "Ayşe yapamıyor · 12:05" }]} canManage members={[{ id: "u-ayse", name: "Ayşe" }]} />);
+    const select = screen.getByLabelText("Görev durumu: Çıkış temizliği") as HTMLSelectElement;
+    expect(select.value).toBe("blocked");
+    expect(select.selectedOptions[0].textContent).toBe("Yapılamıyor");
+    // Seçenek yeniden seçilemez (bildirim yalnız atanan kişinin "Yapamıyorum"u ile gelir).
+    expect((select.querySelector('option[value="blocked"]') as HTMLOptionElement).disabled).toBe(true);
+    fireEvent.change(select, { target: { value: "todo" } });
+    await settle();
+    expect(calls).toEqual([{ url: "/api/tasks/t1", body: { status: "todo" } }]);
+  });
+
+  it("KONTROL — 'Yapılamıyor' olmayan kartta durum kutusunda o seçenek YOK", () => {
+    render(<TaskBoard tasks={[base]} canManage />);
+    const select = screen.getByLabelText("Görev durumu: Çıkış temizliği") as HTMLSelectElement;
+    expect(select.value).toBe("todo");
+    expect(select.querySelector('option[value="blocked"]')).toBeNull();
   });
 
   it("KONTROL — temizlikçi kartında 'Atanan' seçimi YOK; biten görevde 'Yapamıyorum' YOK", () => {

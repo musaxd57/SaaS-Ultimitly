@@ -57,6 +57,9 @@ function columnOf(status: string): string {
 const SELECT_STATUSES = TASK_STATUS.options.filter(
   (o) => o.value === "todo" || o.value === "in_progress" || o.value === "done",
 );
+// "Yapılamıyor" kartında kutu GERÇEK durumu gösterir (gerçek uygulama ekranı 11-06: sütun eşlemesiyle "Yapılacak" yazıyordu — rozetle
+// çelişiyor, "Yapılacak" da seçilemiyordu). Seçenek yalnız gösterim içindir (seçilemez): bildirim atanan kişinin "Yapamıyorum"uyla gelir.
+const BLOCKED_STATUS = TASK_STATUS.options.find((o) => o.value === "blocked")!;
 
 /**
  * Kartın tarih satırındaki ACİLİYET eki. Geciken görev, gelecekteki bir görevle
@@ -470,7 +473,7 @@ export function TaskBoard({
 
         {/* Status — always visible; this is how you move a card between columns */}
         <Select
-          value={columnOf(t.status)}
+          value={t.status === "blocked" ? "blocked" : columnOf(t.status)}
           disabled={busyId === t.id}
           onChange={(e) => setStatus(t.id, e.target.value)}
           className="mt-2 h-9 text-xs"
@@ -479,6 +482,11 @@ export function TaskBoard({
           // ayırt edilemez "seçim kutusu" duyulur.
           aria-label={`Görev durumu: ${t.title}`}
         >
+          {t.status === "blocked" ? (
+            <option value={BLOCKED_STATUS.value} disabled>
+              {BLOCKED_STATUS.label}
+            </option>
+          ) : null}
           {SELECT_STATUSES.map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}
