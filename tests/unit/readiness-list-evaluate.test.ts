@@ -158,6 +158,24 @@ describe("giriş hazırlığı — saf değerlendirici", () => {
     expect(r.factors.find((f) => f.key === "timing")!.label).toBe("Önceki çıkış 11:00 → giriş 15:00");
   });
 
+  it("F8: görev VARKEN çekirdek çıkış anını kuramadıysa 'görev yok' değil 'çıkış saati okunamadı' denir", () => {
+    const r = evaluateStay(stay({ cleaning: cleaning({ status: "unknown", note: "none", tasks: [{ id: "t1", assignee: null, startedAt: null, startedBy: null, lastDoneAt: null }] }) }));
+    expect(cleaningFactor(r)).toMatchObject({ state: "unknown", label: "Önceki çıkış saati okunamadı", missing: "mülkün çıkış saati" });
+  });
+
+  it("F8: başka güne ait 'başladı' kaydı tarihiyle yazılır (bugünün saati gibi okunmaz)", () => {
+    const r = evaluateStay(
+      stay({
+        cleaning: cleaning({
+          status: "not_ready",
+          note: "open",
+          tasks: [{ id: "t1", assignee: "Ayşe", startedAt: at("2026-11-06T08:20:00Z"), startedBy: "Ayşe", lastDoneAt: null }],
+        }),
+      }),
+    );
+    expect(cleaningFactor(r).label).toBe("Temizlik açık · atanan: Ayşe · başladı 6 Kas 11:20 (Ayşe)");
+  });
+
   it("okunamayan hüküm BİLİNMİYOR'dur (asla yeşil değil), çekirdek 'hazır' dese bile", () => {
     const r = evaluateStay(stay({ cleaning: cleaning({ unavailable: true, status: "ready", readyMark: { id: "u1", at: at("2026-11-07T09:00:00Z"), by: null } }) }));
     expect(r.overall).toBe("unknown");

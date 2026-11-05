@@ -79,7 +79,18 @@ function hhmm(d: Date, timeZone: string): string {
   return new Intl.DateTimeFormat("tr-TR", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone }).format(d);
 }
 
-function cleaningFactor(c: CleaningInput, tz: string): Factor {
+function dayKeyOf(d: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone }).format(d);
+}
+
+/** Bugünse yalnız saat, başka günse "6 Kas 11:20" (Opus 11-05 F8: dünkü kayıt bugünün saati gibi okunmasın). */
+function whenLabel(d: Date, now: Date, timeZone: string): string {
+  if (dayKeyOf(d, timeZone) === dayKeyOf(now, timeZone)) return hhmm(d, timeZone);
+  const day = new Intl.DateTimeFormat("tr-TR", { day: "numeric", month: "short", timeZone }).format(d);
+  return `${day} ${hhmm(d, timeZone)}`;
+}
+
+function cleaningFactor(c: CleaningInput, tz: string, now: Date): Factor {
   if (c.unavailable) {
     return { key: "cleaning", state: "unknown", label: "Temizlik durumu şu an okunamadı", missing: "sayfayı yenileyin", basis: [] };
   }
@@ -108,12 +119,16 @@ function cleaningFactor(c: CleaningInput, tz: string): Factor {
     // Açık görev: atanmış olmak kanıt DEĞİL — kim, başladı mı söylenir, şart aynı kalır.
     // İsme ek GETİRİLMEZ (ünlü uyumu: "Ayşe'ye", "Hasan'a", "Mehmet'e" — kodla doğru çekilemez): "atanan: Ayşe".
     const who = task?.assignee ? `atanan: ${task.assignee}` : "kimseye atanmadı";
-    const started = task?.startedAt ? `başladı ${hhmm(task.startedAt, tz)}${task.startedBy ? ` (${task.startedBy})` : ""}` : "başlanmadı";
+    const started = task?.startedAt ? `başladı ${whenLabel(task.startedAt, now, tz)}${task.startedBy ? ` (${task.startedBy})` : ""}` : "başlanmadı";
     return { key: "cleaning", state: "blocking", label: `Temizlik açık · ${who} · ${started}`, missing: `${after} "bitti" kaydı`, basis: taskBasis };
   }
   // Bilinmiyor.
   if (!c.previousKnown) {
     return { key: "cleaning", state: "unknown", label: "Önceki çıkış kayıtlı değil", missing: "önceki konaklamanın çıkışı", basis: [] };
+  }
+  if (c.tasks.length > 0 && (c.note === "none" || c.note === null)) {
+    // Görev VAR ama çekirdek çıkış anını kuramadı (ör. mülkün çıkış saati okunamadı) — "görev yok" demek yanlış olurdu (Opus 11-05 F8).
+    return { key: "cleaning", state: "unknown", label: "Önceki çıkış saati okunamadı", missing: "mülkün çıkış saati", basis: taskBasis };
   }
   if (c.note === "no_time") {
     return { key: "cleaning", state: "unknown", label: "Temizlik bitti görünüyor ama kimin ne zaman bitirdiği kayıtlı değil", missing: 'kişi adına "bitti" kaydı', basis: taskBasis };
@@ -124,7 +139,7 @@ function cleaningFactor(c: CleaningInput, tz: string): Factor {
 /** Saf: bir konaklamanın faktörleri + genel durumu. Sıra: engeller → bilinmeyenler → bilgi. */
 export function evaluateStay(input: StayReadinessInput): StayReadiness {
   const tz = input.timeZone;
-  const factors: Factor[] = [cleaningFactor(input.cleaning, tz)];
+  const factors: Factor[] = [cleaningFactor(input.cleaning, tz, input.now)];
   if (input.cleaningNote) {
     // Sorun bildiriminin bugünkü tek yolu temizlikçinin notu (çekirdek: otomatik "Daireniz hazır"ı durdurur) — burada BİLGİ: bakın.
     factors.push({ key: "cleaning_note", state: "info", label: "Temizlikçi bugün bu temizliğe not yazdı — görevde bakın", missing: null, basis: [] });

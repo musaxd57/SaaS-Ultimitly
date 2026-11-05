@@ -204,9 +204,10 @@ export async function loadArrivalReadiness(
     const tasks = cleaningTasks
       .filter((t) => ownTaskIds.has(t.id))
       .map((t) => {
+        // Çekirdekle (`markOfTask`) aynı kural: EN SON durum kaydı ve kimlikli kişiden (Opus 11-05 F8 — eskiden herhangi bir "bitti").
         const latest = t.updates[0];
         const started = latest && latest.status === "in_progress" && latest.userId ? latest : null;
-        const done = t.updates.find((u) => u.status === "done") ?? null;
+        const done = latest && latest.status === "done" && latest.userId ? latest : null;
         return {
           id: t.id,
           open: t.status !== "done",
@@ -265,5 +266,8 @@ export async function loadArrivalReadiness(
       readiness,
     };
   });
+  // Gün anahtarına göre sırala (Opus 11-05 F8): ham varış anı karışık kaynaklarda (gece yarısı / öğle / an) batı saat dilimlerinde gün
+  // sırasıyla aynı değil — gün bölümleri bölünmesin.
+  rows.sort((a, b) => (a.dayKey === b.dayKey ? 0 : a.dayKey < b.dayKey ? -1 : 1));
   return { timeZone: tz, fromKey, toKey, rows, truncated: Math.max(0, total - arrivals.length) };
 }

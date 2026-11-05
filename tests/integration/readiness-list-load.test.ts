@@ -202,6 +202,31 @@ describe("giriş hazırlığı listesi — yükleyici", () => {
     expect(rows.map((r) => r.guestName)).toEqual(["Sınırda"]);
   });
 
+  it("🚨 kiracılar arası (Opus F11): başka işletmede AYNI kurulum (devir, kendi personeli, 'bitti', söz, ihtiyaç, giriş talimatı) bu satırlara SIZMAZ", async () => {
+    const { prev } = await sameDayTurnover();
+    await cleaningTask(prev.id); // bizim görev: açık, atanmamış
+    const other = await makeOrgWithProperty({ checkInTime: "15:00", checkOutTime: "11:00" });
+    const zeynep = await prisma.user.create({ data: { organizationId: other.orgId, name: "Zeynep", email: "zeynep@example.test", passwordHash: "x", role: "staff" } });
+    const oPrev = await reservation(addNights(TODAY, -2), TODAY, "Öteki Önceki", other.propertyId);
+    const oNext = await reservation(TODAY, addNights(TODAY, 2), "Öteki Yeni", other.propertyId);
+    const oTask = await prisma.task.create({
+      data: { propertyId: other.propertyId, reservationId: oPrev.id, type: "cleaning", title: "Çıkış temizliği", origin: "system", status: "done", dueAt: dayDate(TODAY), assignedToId: zeynep.id },
+    });
+    await prisma.taskUpdate.create({ data: { taskId: oTask.id, userId: zeynep.id, status: "done", createdAt: localToday(12, 0) } });
+    const oConv = await prisma.conversation.create({ data: { propertyId: other.propertyId, reservationId: oNext.id, guestIdentifier: "Öteki", channel: "airbnb" } });
+    await prisma.guestCommitment.create({ data: { organizationId: other.orgId, conversationId: oConv.id, kind: "supplies", dueAt: localToday(15) } });
+    await prisma.conversationItem.create({ data: { organizationId: other.orgId, conversationId: oConv.id, messageId: "m-o", kind: "parking", sources: "understanding", status: "pending_host" } });
+    await prisma.knowledgeBaseItem.create({ data: { propertyId: other.propertyId, category: "checkin", title: "Giriş", content: "x" } });
+    const rows = await rowOf(localToday(14));
+    expect(rows.map((r) => r.guestName)).toEqual(["Yeni Misafir"]);
+    const text = JSON.stringify(rows);
+    expect(text).not.toContain("Zeynep");
+    expect(factor(rows[0], "cleaning")!.label).toBe("Temizlik açık · kimseye atanmadı · başlanmadı");
+    expect(factor(rows[0], "commitment")).toBeUndefined();
+    expect(factor(rows[0], "need")).toBeUndefined();
+    expect(factor(rows[0], "access")!.label).toBe("Giriş talimatı bilgi tabanında yok · erişim kontrol edilmedi");
+  });
+
   it("🚨 kiracılar arası: başka işletmenin girişleri listelenmez", async () => {
     await sameDayTurnover();
     const other = await makeOrgWithProperty();
