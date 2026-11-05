@@ -61,17 +61,21 @@ describe("GET /api/chat/[token] — okuma sınırı iki katman", () => {
     expect((await get(tokens[0])).status).toBe(429);
   }, 180_000);
 
-  it("🚨 F5: rastgele (geçersiz) anahtarlar sayaç satırı ÜRETMEZ ve 60 ıskadan sonra anahtar çözülmeden 429 (404 yolu yükü eskisi kadar)", async () => {
+  it("🚨 F5: rastgele (geçersiz) anahtarlar anahtar başına sayaç satırı ÜRETMEZ — yalnız kaba IP kovası (404 yolunu o sınırlar)", async () => {
     const before = await prisma.rateLimitCounter.count();
     const statuses: number[] = [];
     for (let i = 0; i < 61; i++) statuses.push((await get(`yok${i}`.padEnd(64, "x"))).status);
-    expect(statuses.slice(0, 60).every((s) => s === 404)).toBe(true);
-    expect(statuses[60]).toBe(429);
-    // Yalnız kaba IP kovası + ıska kovası (anahtar başına satır yok).
-    expect((await prisma.rateLimitCounter.count()) - before).toBeLessThanOrEqual(2);
+    expect(statuses.every((s) => s === 404)).toBe(true);
+    expect((await prisma.rateLimitCounter.count()) - before).toBeLessThanOrEqual(1);
   }, 120_000);
 
-  it("KONTROL — ıska kovası dolu olsa da başka IP'nin geçerli anahtarlı sohbeti etkilenmez", async () => {
+  it("🚨 N1: AYNI IP'den ıska seli (100 geçersiz anahtar / dk) o IP'deki GEÇERLİ sohbeti 429'a düşürmez (kaba tavana kadar)", async () => {
+    const token = await chatProperty(orgId, 1);
+    for (let i = 0; i < 100; i++) expect((await get(`yok${i}`.padEnd(64, "x"))).status).toBe(404);
+    expect((await get(token)).status).not.toBe(429);
+  }, 120_000);
+
+  it("KONTROL — başka IP'nin ıska seli bu IP'nin geçerli anahtarlı sohbetini etkilemez", async () => {
     const token = await chatProperty(orgId, 1);
     for (let i = 0; i < 61; i++) await get(`yok${i}`.padEnd(64, "x"), "198.51.100.9");
     expect((await get(token, "203.0.113.31")).status).not.toBe(429);
