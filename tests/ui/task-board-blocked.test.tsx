@@ -87,6 +87,12 @@ describe("pano — 'Yapamıyorum'", () => {
     expect(calls).toEqual([{ url: "/api/tasks/t1", body: { assignedToId: "u-mehmet" } }]);
   });
 
+  it("mutasyon Q28: temizlikçi 'Yapılamıyor' kartında düğme yerine 'Ev sahibine bildirildi' + yine yaparsa ne yapacağı yazar", () => {
+    render(<TaskBoard tasks={[{ ...base, status: "blocked" }]} canManage={false} />);
+    expect(screen.getByText(/Ev sahibine bildirildi\. Yine de yaparsanız durumu/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Yapamıyorum/ })).toBeNull();
+  });
+
   it("KONTROL — temizlikçi kartında 'Atanan' seçimi YOK; biten görevde 'Yapamıyorum' YOK", () => {
     render(<TaskBoard tasks={[{ ...base, status: "done" }]} canManage={false} />);
     expect(screen.queryByLabelText(/Atanan kişi/)).toBeNull();

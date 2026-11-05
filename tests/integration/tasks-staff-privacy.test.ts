@@ -82,6 +82,20 @@ describe("görevler — temizlikçi görünümü (API + e-posta)", () => {
     expect(byId[ids.manual]).toMatchObject({ title: "Balkon camları", description: "Anahtar kutuda." });
   });
 
+  it("🚨 Codex 11-05 gece (görevden alma sunucuda): başka birine atanan görev eski personelin LİSTESİNDEN düşer, yeni kişinin listesine girer", async () => {
+    const other = await prisma.user.create({ data: { organizationId: ids.orgId, name: "Mehmet", email: "s2@x.com", passwordHash: "x", role: "staff" } });
+    as("staff", ids.staffId);
+    expect((await list()).map((t) => t.id)).toContain(ids.system);
+    as("owner", ids.ownerId);
+    expect((await patch(ids.system, { assignedToId: other.id })).status).toBe(200);
+    as("staff", ids.staffId);
+    expect((await list()).map((t) => t.id)).not.toContain(ids.system);
+    // Eski sekmeden durum değiştiremez (yazma anında kapsam).
+    expect((await patch(ids.system, { status: "done" })).status).toBe(403);
+    as("staff", other.id);
+    expect((await list()).map((t) => t.id)).toEqual([ids.system]);
+  });
+
   it("yönetici/sahip tam görür (host görünümü değişmedi)", async () => {
     as("owner", ids.ownerId);
     const rows = await list();

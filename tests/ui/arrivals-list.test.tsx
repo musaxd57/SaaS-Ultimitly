@@ -64,6 +64,21 @@ describe("Girişler listesi — görünüm", () => {
     expect(details.open).toBe(false);
   });
 
+  it("mutasyon Q26: BİLİNMEYEN satır da dışarıda (hep görünür) — temizlik 'tamam' satırı o zaman Ayrıntılar'a iner", () => {
+    const r = row({
+      overall: "unknown",
+      factors: [
+        { key: "cleaning", state: "ok", label: "Temizlik bitti 12:40 · Ayşe · çıkıştan (11:00) sonra", missing: null, basis: [] },
+        { key: "issue", state: "unknown", label: "Bakım açık: Banyo lambası · tarihsiz — bu girişi etkiliyor mu?", missing: "görevin kapanması ya da bu güne tarihlenmesi", basis: [] },
+      ],
+    });
+    const { container } = render(<ArrivalsList rows={[r]} truncated={0} />);
+    const details = container.querySelector("details")!;
+    expect(details.textContent).not.toContain("Banyo lambası");
+    expect(details.textContent).toContain("Temizlik bitti");
+    expect(screen.getByText("Bakım açık: Banyo lambası · tarihsiz — bu girişi etkiliyor mu?")).toBeTruthy();
+  });
+
   it("engel / bilinmeyen yoksa temizlik satırı (durum ve kim) dışarıda kalır", () => {
     const ok = row({
       overall: "cleaning_ready",

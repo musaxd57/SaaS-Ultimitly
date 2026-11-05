@@ -32,7 +32,14 @@ vi.mock("@/lib/email", async (orig) => {
 });
 
 import { createReservationTasks } from "@/lib/automation";
-import { saveDefaultCleaner, loadDefaultCleanerUserId, defaultCleanerWhere, DEFAULT_CLEANER_TRIGGER, openFutureCleaningIds } from "@/lib/tasks/default-cleaner";
+import {
+  saveDefaultCleaner,
+  loadDefaultCleanerUserId,
+  defaultCleanerWhere,
+  DEFAULT_CLEANER_TRIGGER,
+  openFutureCleaningIds,
+  __defaultCleanerHooks,
+} from "@/lib/tasks/default-cleaner";
 import { PUT } from "@/app/api/properties/[id]/default-cleaner/route";
 import { DELETE as DELETE_PROPERTY } from "@/app/api/properties/[id]/route";
 import { todayKey, addNights } from "@/modules/availability/core";
@@ -173,6 +180,23 @@ describe("dairenin temizlikçisi", () => {
     expect((await res.json()).moved).toBe(1);
     for (const t of [noted, photo, ticked, odd]) expect((await prisma.task.findUniqueOrThrow({ where: { id: t.id } })).assignedToId).toBe(ayse.id);
     expect((await prisma.task.findUniqueOrThrow({ where: { id: systemNote.id } })).assignedToId).toBe(mehmet.id);
+  });
+
+  it("🚨 yarış: aday listesi okunduktan SONRA kişi işe başladıysa (kilitten önce) görev TAŞINMAZ — tanım kilit altında yeniden uygulanır", async () => {
+    await saveDefaultCleaner(orgId, propertyId, ayse.id);
+    const r = await reservation(addNights(TODAY, 1), addNights(TODAY, 3));
+    await createReservationTasks(r.id);
+    const task = await prisma.task.findFirstOrThrow({ where: { reservationId: r.id, type: "cleaning" } });
+    __defaultCleanerHooks.afterCandidates = async (ids) => {
+      expect(ids).toContain(task.id);
+      await prisma.task.update({ where: { id: task.id }, data: { status: "in_progress" } });
+    };
+    try {
+      expect((await saveDefaultCleaner(orgId, propertyId, mehmet.id, { moveOpenFrom: ayse.id })).moved).toBe(0);
+    } finally {
+      __defaultCleanerHooks.afterCandidates = undefined;
+    }
+    expect((await prisma.task.findUniqueOrThrow({ where: { id: task.id } })).assignedToId).toBe(ayse.id);
   });
 
   it("KONTROL — 'Hayır, yalnız yeniler' (moveOpen yok) → eski işler eski kişide kalır", async () => {

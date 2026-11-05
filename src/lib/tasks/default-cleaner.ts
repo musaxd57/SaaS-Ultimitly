@@ -86,6 +86,7 @@ export async function saveDefaultCleaner(
     let moved = 0;
     if (opts.moveOpenFrom && opts.moveOpenFrom !== userId) {
       const ids = await openFutureCleaningIds(tx, organizationId, propertyId, opts.moveOpenFrom, opts.now ?? new Date());
+      if (__defaultCleanerHooks.afterCandidates) await __defaultCleanerHooks.afterCandidates(ids);
       if (ids.length > 0) {
         // Satırlar KİLİTLENİR ve kontrol listesi işareti kilit altında okunur (iptal onarımıyla aynı — işaret `TaskUpdate` yazmaz; Haiku 11-06).
         const locked = await tx.$queryRaw<{ id: string; checklistJson: string | null }[]>(
@@ -95,6 +96,7 @@ export async function saveDefaultCleaner(
         if (untouched.length > 0) {
           moved = (
             await tx.task.updateMany({
+              // Aday okuması kilitsizdi: arada kişi işe başladıysa / not yazdıysa tanım KİLİT altında yeniden uygulanır.
               where: { id: { in: untouched }, assignedToId: opts.moveOpenFrom, ...UNTOUCHED_AUTO_LIFECYCLE_TASK_WHERE },
               data: { assignedToId: userId },
             })
@@ -105,6 +107,9 @@ export async function saveDefaultCleaner(
     return { result: "saved" as const, moved };
   });
 }
+
+/** Yalnız test: "Evet" taşımasında aday okuması ile kilit arasında bekleme noktası (yarış koruması sınansın — mutasyon Q11). */
+export const __defaultCleanerHooks: { afterCandidates?: (ids: string[]) => Promise<void> | void } = {};
 
 /**
  * Bu kişide duran, bu dairenin DOKUNULMAMIŞ (projenin tek tanımı `UNTOUCHED_AUTO_LIFECYCLE_TASK_WHERE`: durum "Yapılacak", kişinin yazdığı

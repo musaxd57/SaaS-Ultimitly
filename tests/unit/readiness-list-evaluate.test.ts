@@ -373,4 +373,15 @@ describe("giriş hazırlığı — saf değerlendirici", () => {
     expect(cleaningFactor(evaluateStay(stay({ timeZone: "America/New_York", cleaning: ready }))).label).toBe("Temizlik bitti 10:40 · çıkıştan (11:00) sonra");
     expect(cleaningFactor(evaluateStay(stay({ timeZone: TZ, cleaning: ready }))).label).toBe("Temizlik bitti 18:40 · çıkıştan (11:00) sonra");
   });
+
+  it("🚨 kurucu 11-05 gece (mutasyon Q21): rezervasyona BAĞLI OLMAYAN bakım — giriş gününe kadar vadeliyse ENGEL; tarihsizse açıklamalı BİLİNMİYOR", () => {
+    const issue = (dueAt: Date | null) =>
+      evaluateStay(
+        stay({ maintenanceOpen: true, issueTasks: [{ id: "m1", title: "Banyo lambası", kindLabel: "Bakım", assignee: null, dueAt, relation: "unlinked" }] }),
+      ).factors.find((f) => f.key === "issue")!;
+    expect(issue(at("2026-11-07T07:00:00Z")).state).toBe("blocking");
+    const undated = issue(null);
+    expect(undated.state).toBe("unknown");
+    expect(undated.label).toContain("bu girişi etkiliyor mu?");
+  });
 });
