@@ -11,6 +11,11 @@ import {
   OUTBOX_MAX_ATTEMPTS,
   triggerMessageIdOf,
   SUPERSEDED_BY_NEWER_MESSAGE,
+  nextReplyIdempotencyKey,
+  REEVALUABLE_CANCEL_CODES,
+  UNRESOLVED_DELIVERY_STATUSES,
+  DELIVERY_UNVERIFIED_REASON,
+  sendFailureReason,
 } from "@/lib/outbox/state";
 
 describe("outbox state machine — closed set + validated transitions", () => {
@@ -134,5 +139,66 @@ describe("triggerMessageIdOf — yapay zekâ satırının cevapladığı mesaj (
   });
   it("sebep kodu tek kaynak", () => {
     expect(SUPERSEDED_BY_NEWER_MESSAGE).toBe("superseded_by_newer_message");
+  });
+});
+
+describe("Tur 7 T7-OB-1 adım 2 — sürüm anahtarı + belirsiz teslim kümesi", () => {
+  const base = "auto:c1:m1";
+  const row = (idempotencyKey: string, status: string, lastErrorCode: string | null = null) => ({ idempotencyKey, status, lastErrorCode });
+
+  it("tetik okuyucu sürüm ekini (#rN) atar; başka ek tetik DEĞİL", () => {
+    expect(triggerMessageIdOf("auto:c1:m1#r2", "c1")).toBe("m1");
+    expect(triggerMessageIdOf("auto:c1:m1#r9999", "c1")).toBe("m1");
+    expect(triggerMessageIdOf("auto:c1:m1#r", "c1")).toBeNull();
+    expect(triggerMessageIdOf("auto:c1:m1#x2", "c1")).toBeNull();
+    expect(triggerMessageIdOf("auto:c1:m1#r12345", "c1")).toBeNull();
+  });
+
+  it("satır yoksa temel anahtar; gönderilmiş / yolda / belirsiz / başarısız satırın anahtarı AYNEN döner (tekilleştirme çift gönderimi önler)", () => {
+    expect(nextReplyIdempotencyKey(base, [])).toBe(base);
+    for (const status of ["pending", "sending", "sent", "ambiguous", "reconciling", "review", "failed", "blocked"]) {
+      expect(nextReplyIdempotencyKey(base, [row(base, status)]), status).toBe(base);
+    }
+  });
+
+  it("YENİDEN DEĞERLENDİRİLEBİLİR iptal (duraklatma bitti / konuşma ilerledi) → bir sonraki sürüm; zincir sürer", () => {
+    expect(nextReplyIdempotencyKey(base, [row(base, "canceled", "ai_paused")])).toBe(`${base}#r2`);
+    expect(nextReplyIdempotencyKey(base, [row(base, "canceled", SUPERSEDED_BY_NEWER_MESSAGE)])).toBe(`${base}#r2`);
+    expect(
+      nextReplyIdempotencyKey(base, [row(base, "canceled", "ai_paused"), row(`${base}#r2`, "canceled", "ai_paused")]),
+    ).toBe(`${base}#r3`);
+    // Sıra bağımsız: en yüksek sürüm belirler (veritabanı sırası garanti değil).
+    expect(
+      nextReplyIdempotencyKey(base, [row(`${base}#r2`, "sent"), row(base, "canceled", "ai_paused")]),
+    ).toBe(`${base}#r2`);
+  });
+
+  it("BAYAT iptal sürüm AÇMAZ: abonelik / kanal / anahtar kapalı (kurucu Y5 · N1 · W7), şikâyet, rezervasyon, KVKK silmesi, kodsuz", () => {
+    for (const code of [
+      "auto_reply_disabled",
+      "billing_paused",
+      "channel_paused",
+      "escalated_or_closed",
+      "reservation_cancelled",
+      "reservation_ended",
+      "connection_tenant_mismatch",
+      "erased",
+      null,
+    ]) {
+      expect(nextReplyIdempotencyKey(base, [row(base, "canceled", code)]), String(code)).toBe(base);
+    }
+    expect([...REEVALUABLE_CANCEL_CODES].sort()).toEqual(["ai_paused", SUPERSEDED_BY_NEWER_MESSAGE].sort());
+  });
+
+  it("başka tetiğin ya da benzer önekli anahtarın satırı sayılmaz", () => {
+    expect(nextReplyIdempotencyKey(base, [row("auto:c1:m10", "canceled", "ai_paused")])).toBe(base);
+    expect(nextReplyIdempotencyKey(base, [row(`${base}#rx`, "canceled", "ai_paused")])).toBe(base);
+    expect(nextReplyIdempotencyKey(base, [row(`${base}x#r2`, "canceled", "ai_paused")])).toBe(base);
+  });
+
+  it("belirsiz teslim kümesi: ambiguous · reconciling · review (yolda olan `sending` DEĞİL); not kodu tek kaynak", () => {
+    expect([...UNRESOLVED_DELIVERY_STATUSES].sort()).toEqual(["ambiguous", "reconciling", "review"]);
+    expect(DELIVERY_UNVERIFIED_REASON).toBe("delivery_unverified");
+    expect(sendFailureReason("ambiguous")).toBe(DELIVERY_UNVERIFIED_REASON);
   });
 });

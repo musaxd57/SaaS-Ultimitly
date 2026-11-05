@@ -203,7 +203,7 @@ import {
   type ItemsTurnPlan,
 } from "@/lib/conversation-items/flow";
 import { sentRefs, type AnsweredRequestsDeclaration } from "@/lib/conversation-items/reply-block";
-import { reopenItemsAnsweredBy } from "@/lib/conversation-items/store";
+import { reopenItemsAnsweredBy, reopenItemsOfOvertakenDraft } from "@/lib/conversation-items/store";
 import { stripTopicAbsence, topicAbsenceEnabled } from "@/lib/conversation-items/topic-absence";
 import { namesPaymentMethod } from "@/lib/payment-method-guard";
 import { hasRecordedHandoff, hostVoiceDraft } from "@/lib/ai/host-voice";
@@ -217,7 +217,17 @@ import { shadowCompareAutoSend } from "@/lib/conversation-control/shadow";
 import { BILLING_NOTE_OVERWRITABLE, BILLING_PAUSED_REASON, billingBlockedSeenAt } from "@/lib/outbox/billing-hold";
 import { undeliveredFilterActive } from "@/lib/outbox/presence";
 import { enqueueOutbound, enqueueProactive } from "@/lib/outbox/enqueue";
-import { classifySendResult, sendFailureHoldMs, SUPERSEDED_BY_NEWER_MESSAGE, NOT_DELIVERED_STATUSES, PROVIDER_OUTAGE_REASON } from "@/lib/outbox/state";
+import {
+  classifySendResult,
+  sendFailureHoldMs,
+  SUPERSEDED_BY_NEWER_MESSAGE,
+  NOT_DELIVERED_STATUSES,
+  PROVIDER_OUTAGE_REASON,
+  nextReplyIdempotencyKey,
+  UNRESOLVED_DELIVERY_STATUSES,
+  DELIVERY_UNVERIFIED_REASON,
+  triggerMessageIdOf,
+} from "@/lib/outbox/state";
 import { resolveOrgChannelCredential } from "@/lib/channels";
 import { PROVIDER_MESSAGEABLE_RESERVATION_WHERE, PROVIDER_THREAD_CONVERSATION_WHERE } from "@/lib/channels/capability";
 import { getAdjacency } from "@/lib/turnover";
@@ -2091,13 +2101,63 @@ export async function applyChannelAutoReply(
     const undelivered = await prisma.messageOutbox.findMany({
       where: {
         conversationId: conversation.id,
-        // Terminal + teslim EDİLMEMİŞ durumlar (uçuştakiler bilinçli hariç). Bağlam için `review` (belirsiz) de dışarıda: modele
-        // ulaştığı KESİN olmayan bir cevabı "verilmiş" sunmamak (selam sayımı ise onu sayar — `operator-replies.ts`).
-        status: { in: [...NOT_DELIVERED_STATUSES, "review"] },
+        OR: [
+          // Terminal + teslim EDİLMEMİŞ durumlar (uçuştakiler bilinçli hariç). Bağlam için `review` (belirsiz) de dışarıda: modele
+          // ulaştığı KESİN olmayan bir cevabı "verilmiş" sunmamak (selam sayımı ise onu sayar — `operator-replies.ts`).
+          { status: { in: [...NOT_DELIVERED_STATUSES, "review"] } },
+          // 🚨 Tur 7 T7-OB-1 adım 2 (kurucu 11-05): HENÜZ ALINMAMIŞ yapay zekâ taslağı ↓ yalnız misafirin daha yeni mesajı onu geçtiyse.
+          { status: "pending", messageType: "ai" },
+        ],
       },
-      select: { messageId: true },
+      select: { messageId: true, status: true, idempotencyKey: true },
     });
-    undeliveredIds = new Set(undelivered.map((r) => r.messageId).filter(Boolean) as string[]);
+    // Kuyrukta bekleyen taslağı misafirin daha yeni mesajı GEÇTİ: gönderim anı vetosu onu iptal edecek → bu tur onu "gönderilmiş" saymaz;
+    // ilk soru + yeni mesaj BİRLİKTE, güncel bağlamla değerlendirilir (eskiden ilk soru kayboluyordu: "Otopark?" … "Havlu da lazım" →
+    // yalnız havlu cevaplanıyordu). "Geçti" vetonun KENDİ ölçütüyle (`outbox/worker.ts` `aiSendVeto`): taslağın CEVAPLADIĞI tetik
+    // mesajından sonraki misafir mesajı (eşit anda kimlik sırası); tetik okunamazsa taslaktan sonraki misafir mesajı. İki ölçüt ayrışırsa
+    // ya iki cevap gider (bu tur iptal edilmeyecek taslağı yok sayar) ya da soru kaybolur (veto iptal eder, bu tur gönderilmiş sayar).
+    // `sending` (yolda) taslak durdurulamaz → bilinçli DEĞİL. Geçilmemiş bekleyen taslak "gönderilmiş" kalır (her turda gereksiz model
+    // çağrısı olmasın — eski gerekçe).
+    const overtakenDrafts: string[] = [];
+    const ids = new Set<string>();
+    for (const r of undelivered) {
+      if (!r.messageId) continue;
+      if (r.status !== "pending") {
+        ids.add(r.messageId);
+        continue;
+      }
+      const draft = thread.rows.find((m) => m.id === r.messageId);
+      if (!draft) continue;
+      const triggerId = triggerMessageIdOf(r.idempotencyKey, conversation.id);
+      // Tetik sondan okunan sayfanın dışında kalmış olabilir (Haiku 11-05): veto onu veritabanından okur → burada da (yalnız bekleyen taslak).
+      const trigger = triggerId
+        ? (thread.rows.find((m) => m.id === triggerId) ??
+          (await prisma.message
+            .findFirst({ where: { id: triggerId, conversationId: conversation.id }, select: { id: true, createdAt: true } })
+            .catch(() => null)) ??
+          undefined)
+        : undefined;
+      const overtaken = thread.rows.some(
+        (m) =>
+          m.direction === "inbound" &&
+          (trigger
+            ? m.id !== trigger.id &&
+              (m.createdAt > trigger.createdAt || (m.createdAt.getTime() === trigger.createdAt.getTime() && m.id > trigger.id))
+            : m.createdAt > draft.createdAt),
+      );
+      if (overtaken) {
+        ids.add(r.messageId);
+        overtakenDrafts.push(r.messageId);
+      }
+    }
+    undeliveredIds = ids;
+    if (overtakenDrafts.length > 0 && !options.dryRun) {
+      for (const messageId of overtakenDrafts) {
+        await reopenItemsOfOvertakenDraft(prisma, { organizationId: conversation.property.organizationId, messageId }).catch((err) =>
+          reportError("auto-reply-overtaken-draft-items", err),
+        );
+      }
+    }
   }
   // K7 (09-30): thread'in SONUNDAKİ otomatik şablon mesajları (karşılama / giriş / çıkış) bir cevap DEĞİLDİR ve cevaplanacak
   // misafir mesajından SONRA gittiler → değerlendirme son GERÇEK mesaja kadar (misafir sorusu otomatik mesajın arkasında
@@ -3987,6 +4047,37 @@ export async function applyChannelAutoReply(
     return { sent: false, skippedReason: "not_connected", draft, ...meta };
   }
 
+  // 🚨 Tur 7 T7-OB-1 adım 2 (kurucu 11-05: "gönderim belirsizse aynı cevap körlemesine tekrarlanmaz; bütün konuşma süresiz kilitlenmez;
+  // yeni mesajlar kaydedilir ve tehlike kontrolleri sürer; sonuç doğrulanamıyorsa host'un inceleyip çözebileceği görünür bir durum
+  // kalır; süre geçti diye mesaj gönderilmemiş sayılmamalı"). Bu konuşmada sonucu BİLİNMEYEN bir yapay zekâ cevabı varsa (kuyrukta
+  // `ambiguous` / `reconciling` / `review` — kuyruğun eşleştiricisi teslimi kendiliğinden ASLA doğrulamaz, satır sonunda incelemeye
+  // düşer; beklemek bilgi getirmez) bu turun cevabı OTOMATİK GİTMEZ: o cevap misafire ulaştıysa yeni cevap aynı konuyu ikinci kez
+  // söyleyebilir, ulaşmadıysa soru ev sahibinde görünmeli. Tur yine TAM koştu (yukarıdaki tehlike / yükseltme kapıları aynen), mesaj
+  // kayıtlı, konuşma "Yeni" kalır, ev sahibi "Gönderim sonucu doğrulanamadı — … kontrol edin" notunu ve satırın "Doğrulanamadı"
+  // rozetini görür. ÇÖZÜM ev sahibinde: belirsiz satırdan SONRA ev sahibinin yazdığı (ya da sağlayıcıdan ev sahibi yazarıyla gelen —
+  // bizim belirsiz mesajımızın yankısı dahil, `write-service` belirsiz gönderim koruması) bir giden mesaj konuyu çözülmüş sayar →
+  // sonraki misafir mesajları normal cevaplanır (süresiz kilit yok). Bu mesaj için KALICI hayır (koşucu damgalar; her turda yeniden
+  // modelleme yok); misafir yeni yazınca yeniden değerlendirilir. Kuyruk anahtarından bağımsız okunur: anahtar kapatılsa da (geri
+  // alma) kalan belirsiz satırlar geçerlidir.
+  const unresolvedAi = await prisma.messageOutbox.findFirst({
+    where: { conversationId: conversation.id, messageType: "ai", status: { in: [...UNRESOLVED_DELIVERY_STATUSES] } },
+    orderBy: { createdAt: "desc" },
+    select: { createdAt: true },
+  });
+  if (unresolvedAi) {
+    const hostActedSince = await prisma.message.count({
+      where: { conversationId: conversation.id, direction: "outbound", authorType: "host", createdAt: { gt: unresolvedAi.createdAt } },
+    });
+    if (hostActedSince === 0) {
+      // Sağlayıcı arızası notu aynı uyarıdır (G10) — onu ezme; diğer her not bu uyarıya döner.
+      await persistRiskVisibility(
+        conversation.id,
+        conversation.skippedReason === PROVIDER_OUTAGE_REASON ? PROVIDER_OUTAGE_REASON : DELIVERY_UNVERIFIED_REASON,
+      );
+      return { sent: false, skippedReason: DELIVERY_UNVERIFIED_REASON, draft, ...meta };
+    }
+  }
+
   // ── Durable Outbox path (flag ON) ──────────────────────────────────────────
   // Record the AI Message + a durable send-intent ATOMICALLY and let the worker
   // deliver, retry with backoff, and — per Codex #6 — mark the thread "answered"
@@ -4026,8 +4117,15 @@ export async function applyChannelAutoReply(
         aiIntent: result.intent,
         aiConfidence: result.confidence,
         aiSourcesJson: result.usedSources.length ? JSON.stringify(result.usedSources) : null,
-        // Tenant-scoped idempotency: this exact inbound message → at most one queued reply.
-        idempotencyKey: `auto:${conversation.id}:${last.id}`,
+        // Tenant-scoped idempotency: this exact inbound message → at most one queued reply. Tur 7 T7-OB-1 adım 2: önceki taslak İPTAL
+        // edildiyse (ör. duraklatma bitti, soru hâlâ açık) sürüm anahtarı — iptal edilmiş satır soruyu sonsuza kadar kilitlemez.
+        idempotencyKey: nextReplyIdempotencyKey(
+          `auto:${conversation.id}:${last.id}`,
+          await prisma.messageOutbox.findMany({
+            where: { organizationId: conversation.property.organizationId, idempotencyKey: { startsWith: `auto:${conversation.id}:${last.id}` } },
+            select: { idempotencyKey: true, status: true, lastErrorCode: true },
+          }),
+        ),
         // Satır içi yolun devir kilidi kararı (↓ `human_request && !itemsPlan`) kuyruk satırıyla aynı işlemde işaretlenir: öğe kipinde
         // insan talebi ev sahibinde sessizce açık kalır, teslimde kilit KURULMAZ (Opus O1 + B1/B2, 10-16; `outbox/handoff-exempt.ts`).
         handoffHoldExempt: result.intent === "human_request" && itemsPlan !== null,
@@ -4282,7 +4380,7 @@ export async function applyChannelAutoReply(
       await prisma.conversation
         .updateMany({
           where: { id: conversation.id },
-          data: { skippedReason: delivery.providerOutage ? PROVIDER_OUTAGE_REASON : "delivery_unverified" },
+          data: { skippedReason: delivery.providerOutage ? PROVIDER_OUTAGE_REASON : DELIVERY_UNVERIFIED_REASON },
         })
         .catch((err) => void reportError("auto-reply-unverified-reason", err));
     }
@@ -5048,6 +5146,10 @@ export async function runDueChannelAutoReplies(
       // (yapay zekâ ona kendiliğinden cevap vermez; ev sahibi görür). Damgalanmazsa bu konuşmalar en eski oldukları için her turda aday
       // slotunu yerdi (aynı açlık sınıfı). Misafir YENİ yazınca `lastMessageAt` ilerler → yeniden uygun. Durum DEĞİŞMEZ ("Yeni" kalır).
       outcome.skippedReason === "already_answered" ||
+      // Tur 7 T7-OB-1 adım 2: önceki yapay zekâ cevabının teslimi belirsiz, ev sahibi henüz yazmadı → bu mesaj için KALICI hayır (cevap
+      // ev sahibine kaldı, not görünür). Damgalanmazsa her turda yeniden modellenirdi (eşleştirici teslimi kendiliğinden doğrulamaz —
+      // beklemek bilgi getirmez). Misafir YENİ yazınca `lastMessageAt` ilerler → yeniden değerlendirilir (ev sahibi yazdıysa normal cevap).
+      outcome.skippedReason === DELIVERY_UNVERIFIED_REASON ||
       // K10-t: bu mesaj için KALICI hayır (ev sahibi elle yanıtlar); misafir yeni yazsa da uzun mesaj cevapsız kaldıkça aynı hüküm.
       outcome.skippedReason === MESSAGE_TOO_LONG_REASON
     ) {

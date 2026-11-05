@@ -57,6 +57,16 @@ export const TERMINAL_STATUSES: readonly OutboxStatus[] = ["sent", "failed", "re
 export const NOT_DELIVERED_STATUSES: readonly OutboxStatus[] = ["canceled", "failed", "blocked"];
 
 /**
+ * Sonucu BİLİNMEYEN gönderim: misafire ulaşmış da olabilir, ulaşmamış da (Tur 7 T7-OB-1 adım 2, kurucu 11-05). Eşleştirici teslimi
+ * kendiliğinden doğrulamaz (`defaultReconcile`) → bu satırlar sonunda `review`e düşer; çözüm ev sahibindedir. `sending` (yolda, saniyeler)
+ * bilinçli DEĞİL: sonucu birazdan belli olur.
+ */
+export const UNRESOLVED_DELIVERY_STATUSES: readonly OutboxStatus[] = ["ambiguous", "reconciling", "review"];
+
+/** Konuşma notu: "Gönderim sonucu doğrulanamadı — mesaj iletilmiş OLABİLİR…" (`SKIP_REASON_LABELS`). TEK yazım. */
+export const DELIVERY_UNVERIFIED_REASON = "delivery_unverified";
+
+/**
  * Statuses a KVKK scrub (explicit erasure OR the time-based sweep) must CANCEL,
  * not merely redact: the row was NEVER delivered and every one of them still has
  * a path back to `pending` —
@@ -263,7 +273,7 @@ export function sendFailureReason(kind: SendResultKind): string {
   // konuşmaya "iletilemedi" yazarsa host mesajı ELLE yanıtlar ve misafir ÇİFT
   // mesaj alır — repo hiçbir yerde sahte "sent" iddia etmezken burada sahte
   // "iletilemedi" iddiası doğardı. Kod da metin de bunu dürüstçe söyler.
-  if (kind === "ambiguous") return "delivery_unverified";
+  if (kind === "ambiguous") return DELIVERY_UNVERIFIED_REASON;
   return "send_failed";
 }
 
@@ -288,9 +298,48 @@ export function triggerMessageIdOf(idempotencyKey: string | null | undefined, co
   for (const prefix of ["auto:", "closing:"]) {
     const head = `${prefix}${conversationId}:`;
     if (idempotencyKey.startsWith(head)) {
-      const id = idempotencyKey.slice(head.length);
-      return id && !id.includes(":") ? id : null;
+      // Tur 7 T7-OB-1 adım 2: iptal edilmiş taslaktan sonra aynı soru yeniden değerlendirilince anahtar sürüm ekler ("…#r2").
+      const id = idempotencyKey.slice(head.length).replace(/#r\d{1,4}$/, "");
+      return id && !id.includes(":") && !id.includes("#") ? id : null;
     }
   }
   return null;
 }
+
+/**
+ * Yeniden DEĞERLENDİRİLEBİLİR iptaller (tasarım `TASARIM-2026-11-05-bayat-taslak-soru-kaybolmasin.md` D3): taslak, sorunun kendisi yüzünden
+ * değil geçici bir durum yüzünden gitmedi — duraklatma / devralma süresi (`ai_paused`) ya da konuşmanın ilerlemesi (daha yeni mesaj; o mesaj
+ * sonradan düşerse aynı soru yeniden son mesaj olur). Kalan iptaller BİLEREK dışarıda: abonelik / kanal / genel anahtar kapalıyken iptal edilen
+ * cevap bayattır ve gitmez (kurucu Y5 · N1 · W7), şikâyet / kapanış, rezervasyon iptali / bitişi, kiracı uyuşmazlığı ve KVKK silmesi.
+ */
+export const REEVALUABLE_CANCEL_CODES: readonly string[] = ["ai_paused", SUPERSEDED_BY_NEWER_MESSAGE];
+
+/**
+ * Tur 7 T7-OB-1 adım 2 (kurucu 11-05: "iptal edilmiş taslak soruyu sonsuza kadar kilitlememeli"). Aynı tetik mesajı için kuyruk anahtarı:
+ * hiç satır yoksa temel anahtar; en son sürüm YENİDEN DEĞERLENDİRİLEBİLİR bir sebeple iptal edildiyse bir sonraki sürüm ("…#r2", "…#r3");
+ * aksi hâlde en son sürümün anahtarı (tekilleştirme eskisi gibi çift gönderimi önler — gönderilmiş, yolda, belirsiz ya da bayat iptal).
+ * Gönderip göndermemeye çağıranın kendi kapıları karar verir. Saf.
+ */
+export function nextReplyIdempotencyKey(
+  baseKey: string,
+  existing: ReadonlyArray<{ idempotencyKey: string; status: string; lastErrorCode: string | null }>,
+): string {
+  const revisionOf = (key: string): number | null => {
+    if (key === baseKey) return 1;
+    if (!key.startsWith(baseKey)) return null;
+    const m = /^#r(\d{1,4})$/.exec(key.slice(baseKey.length));
+    return m ? Number(m[1]) : null;
+  };
+  let latest: { rev: number; key: string; status: string; lastErrorCode: string | null } | null = null;
+  for (const r of existing) {
+    const rev = revisionOf(r.idempotencyKey);
+    if (rev === null) continue;
+    if (!latest || rev > latest.rev) latest = { rev, key: r.idempotencyKey, status: r.status, lastErrorCode: r.lastErrorCode };
+  }
+  if (!latest) return baseKey;
+  if (latest.status === "canceled" && latest.lastErrorCode !== null && REEVALUABLE_CANCEL_CODES.includes(latest.lastErrorCode)) {
+    return `${baseKey}#r${latest.rev + 1}`;
+  }
+  return latest.key;
+}
+

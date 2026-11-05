@@ -16,7 +16,7 @@ import {
 } from "@/lib/message-author";
 import { HISTORY_MESSAGE_CAP } from "@/lib/ai/limits";
 import { OUTBOUND_SEND_CLAIM_PREFIX } from "@/lib/outbound-claim-name";
-import { PROVIDER_OUTAGE_REASON } from "@/lib/outbox/state";
+import { DELIVERY_UNVERIFIED_REASON, PROVIDER_OUTAGE_REASON } from "@/lib/outbox/state";
 import { claimAutomatedSend, planAutomatedMatches } from "@/lib/automated-sends";
 import type { recordSupplyRequestFromMessage } from "@/lib/supply";
 import type { CanonicalMessage, CanonicalReservation } from "@/lib/channels/ingest";
@@ -388,7 +388,7 @@ export async function importCanonicalThread(
   // gönderimimiz olabilir; ev sahibi yazarıyla yazılır, sonraki geçişler kayıtlı yazarı okur (konuşma yeniden açılıp ikinci cevap üretilmez).
   const ambiguousSendPending =
     channelAutoCandidates.length > 0 && existing
-      ? existing.skippedReason === "delivery_unverified" ||
+      ? existing.skippedReason === DELIVERY_UNVERIFIED_REASON ||
         existing.skippedReason === PROVIDER_OUTAGE_REASON ||
         (await db.systemLock.count({ where: { name: { startsWith: `${OUTBOUND_SEND_CLAIM_PREFIX}${existing.id}:` }, lockedUntil: { gt: new Date() } } })) > 0
       : false;

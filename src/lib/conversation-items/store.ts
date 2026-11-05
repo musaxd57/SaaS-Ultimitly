@@ -214,6 +214,21 @@ export async function reopenItemsAnsweredBy(db: Db, input: { organizationId: str
 }
 
 /**
+ * Tur 7 T7-OB-1 adım 2 (kurucu 11-05 "ihtiyaç bazında"): kuyrukta bekleyen (henüz alınmamış) yapay zekâ taslağını misafirin daha yeni
+ * mesajı geçti → taslak gönderilmeyecek (gönderim anı vetosu iptal eder). O taslağın "cevaplandı" kapattığı öğeler, yeni tur planlanmadan
+ * ÖNCE yeniden AÇIK olur: her ihtiyaç kendi kuralıyla yeniden değerlendirilir (ör. "Havlu istemiyorum; Wi-Fi şifresini gönderin" → yalnız
+ * havlu geri çekilir, Wi-Fi cevaplanır; "Teşekkürler" vazgeçme sayılmaz). Taslak bağı kaldırılır (iptalde `reopenItemsAnsweredBy` artık
+ * dokunmaz; yeni cevap kendi bağını yazar). Yalnız hâlâ BU taslakla `answered` olan satırlar. Dönüş: açılan öğe sayısı.
+ */
+export async function reopenItemsOfOvertakenDraft(db: Db, input: { organizationId: string; messageId: string }): Promise<number> {
+  const res = await db.conversationItem.updateMany({
+    where: { organizationId: input.organizationId, answeredByMessageId: input.messageId, status: "answered" },
+    data: { status: "open", resolvedAt: null, answeredByMessageId: null },
+  });
+  return res.count;
+}
+
+/**
  * Teslim edilen yapay zekâ cevabı, kendisi düştüğü için ev sahibinde yeniden açılmış öğeleri yeniden kapatır (Haiku 10-23 öğle: kalıcı
  * hatadan sonra yeniden kuyruğa alınıp teslim edilen cevapta öğe açık kalıyor, ev sahibi cevaplanmış ihtiyacı açık iş görüyordu). Yalnız
  * bu mesajın kapattığı ve hâlâ `pending_host` olanlar — ev sahibinin arada kapattığına / başka mesajla cevaplanana dokunulmaz.

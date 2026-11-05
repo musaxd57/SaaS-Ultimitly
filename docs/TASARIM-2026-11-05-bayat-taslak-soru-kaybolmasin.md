@@ -1,7 +1,8 @@
 # Tasarım — bayat yapay zekâ taslağı iptal edilince misafirin sorusu kaybolmasın (T7-OB-1 adım 2, 2026-11-05)
 
-> Durum: **TASARIM — uygulanmadı, kurucu onayı bekliyor** (misafire giden davranışı değiştirir). Kapsam yalnız kalıcı kuyruk açıkken
-> (`DURABLE_OUTBOX_ENABLED`, canlıda KAPALI); kuyruksuz satır içi gönderimde taslak beklemez, bu sorun yoktur.
+> Durum: **UYGULANDI (11-05 gece) — kurucu kararı "Evet, ama ihtiyaç bazında"** (aşağıda §6; §2'deki D1–D5 ilk öneriydi, kurucu
+> kararıyla değişti — D1'in "model çağrılmaz" kısmı ve D5'in konuşma düzeyi "Misafir vazgeçti"si UYGULANMADI). Kapsam yalnız kalıcı
+> kuyruk açıkken (`DURABLE_OUTBOX_ENABLED`, canlıda KAPALI); kuyruksuz satır içi gönderimde taslak beklemez, bu sorun yoktur.
 > Kaynak: Codex'in üç durumu (kurucu aracılığıyla, 11-05 gece) + kod haritası (derin araştırma ajanı, kodda satır satır; iki temel iddia
 > ana oturumda kodla doğrulandı — aşağıda ✔).
 
@@ -57,3 +58,29 @@ Her durum için iki yönlü: (i) aynı soruya İKİ cevap gitmedi, (ii) soru ses
 - **O2:** D5 (vazgeçme → cevap yok, "Misafir vazgeçti") istiyor musunuz, yoksa vazgeçme şimdilik model cevabıyla mı kalsın?
 - **O3:** D4'ün isteğe bağlı kısmı: senkronun sağlayıcıda bulduğu mesaj "teslim edildi" sayılsın mı? (Codex ayrıca bakmalı — gövde
   eşleştirmesi eskiden bilinçli reddedilmişti.)
+
+## 6. Kurucu kararı (11-05) ve uygulanan
+
+**Karar (kurucunun sözleri, özet):** "Evet, ama ihtiyaç bazında." Bekleyen taslak gönderilmiş sayılmaz; iptal edilmiş taslak soruyu
+sonsuza kadar kilitlemez; "denendi" damgasını silmek tek başına çözüm değildir — kuyrukta / gönderildi / iptal / belirsiz ayrı tutulur.
+"Teşekkürler" tek başına vazgeçme değildir; "Havlu istemiyorum; Wi-Fi şifresini gönderin" → yalnız havlu geri çekilir. Belirsiz gönderimde
+kör tekrar yok, ama konuşma süresiz kilitlenmez; yeni mesajlar kaydedilir, tehlike kontrolleri sürer; sonuç doğrulanamıyorsa ev sahibinin
+inceleyip çözebileceği görünür durum kalır; süre geçti diye "gönderilmedi" sayılmaz. "Misafir vazgeçti" bütün konuşmanın durumu olmaz.
+
+**Uygulanan (misafire giden metin DEĞİŞMEDİ; yeni metin yok — mevcut notlar ve rozetler):**
+
+| # | Kod | Davranış |
+|---|---|---|
+| F1 | `automation.ts` (bağlam kesiti) + `conversation-items/store.ts` `reopenItemsOfOvertakenDraft` | Kuyrukta BEKLEYEN (`pending`) taslağı misafirin daha yeni mesajı geçtiyse bu tur onu gönderilmiş saymaz: ilk soru + yeni mesaj BİRLİKTE değerlendirilir, taslağın kapattığı öğeler "açık"a döner → her ihtiyaç kendi kuralıyla (cevap · ev sahibine · geri çekme). "Geçti" ölçütü gönderim anı vetosunun KENDİSİ (taslağın cevapladığı tetik mesajından sonraki misafir mesajı) — iki ölçüt ayrışsaydı ya iki cevap giderdi ya soru kaybolurdu. Yolda (`sending`) taslak durdurulamaz → bilinçli dışarıda. Model yine çağrılır (D1'in "çağrılmaz" kısmı yok): tehlike kontrolleri modelden sonra da koşuyor. |
+| F3 | `outbox/state.ts` `nextReplyIdempotencyKey` + `REEVALUABLE_CANCEL_CODES` | Aynı tetik için iptal edilmiş satır, yalnız YENİDEN DEĞERLENDİRİLEBİLİR sebeplerle (`ai_paused` — duraklatma / devralma bitti; `superseded_by_newer_message`) sürüm anahtarı açar ("…#r2"). Bayat iptaller (genel anahtar / abonelik / kanal kapalı — kurucu Y5 · N1 · W7; şikâyet / kapanış; rezervasyon iptali / bitişi; kiracı uyuşmazlığı; KVKK silmesi) eskisi gibi tekilleştirilir → bayat cevap gitmez. Tetik okuyucu sürüm ekini atar (veto aynı tetiğe bakar). |
+| F4 | `automation.ts` (gönderimden hemen önce) + koşucu damgası | Konuşmada sonucu BİLİNMEYEN yapay zekâ cevabı varsa (`ambiguous` / `reconciling` / `review` — eşleştirici teslimi kendiliğinden ASLA doğrulamaz, beklemek bilgi getirmez) ve ev sahibi o satırdan SONRA yazmadıysa: tur TAM koşar (tehlike / yükseltme kapıları önce), mesaj kayıtlı, cevap OTOMATİK GİTMEZ, konuşma "Yeni" kalır, not "Gönderim sonucu doğrulanamadı — mesaj iletilmiş OLABİLİR. Elle yanıtlamadan önce konuşmayı kanal üzerinden kontrol edin." + satırın "Doğrulanamadı — inceleyin" rozeti. Bu mesaj için kalıcı hayır (her turda yeniden modelleme yok); misafir yeni yazınca yeniden değerlendirilir. **Çözüm ev sahibinde:** belirsiz satırdan sonra ev sahibinin yazdığı (ya da sağlayıcıdan ev sahibi yazarıyla gelen — belirsiz mesajımızın yankısı dahil) giden mesaj konuyu çözülmüş sayar → sonraki misafir mesajları normal cevaplanır (süresiz kilit yok). |
+
+**Bilinçli kalanlar:** (a) `review` satırı bağlamda hâlâ "gönderilmemiş" sunulur (mevcut karar, `automation.ts` bağlam kesiti yorumu: ulaştığı kesin
+olmayan cevabı modele "verilmiş" göstermemek) — F4 o hâlde otomatik cevabı tuttuğu için kör tekrar oluşmaz; ev sahibi yazdıktan sonra cevapsız pencere onun
+mesajından başlar. (b) Satır içi (kuyruksuz) yol değişmedi: orada belirsiz gönderimin yankısı senkronla gelir (`write-service` koruması).
+(c) D5 (konuşma düzeyi "Misafir vazgeçti") YOK — kurucu: vazgeçme yalnız ilgili ihtiyacı geri çeker (mevcut öğe defteri `withdrawn`).
+(d) İsteğe bağlı O3 (senkronun bulduğu mesajı "teslim edildi" saymak) yapılmadı — gövde eşleştirmesi eskiden bilinçli reddedildi.
+
+**Testler:** `tests/integration/outbox-stale-draft-need-based.test.ts` (kurucunun her örneği iki yönlü: tek cevap + soru kaybolmaz; model
+düşünürken yazılan mesaj; duraklatma sonrası sürüm anahtarı; bayat iptal kontrolü; belirsiz / inceleme tutma; tehlike yine yükselir;
+ev sahibi yazınca kilit kalkar; ev sahibinin ÖNCEKİ mesajı çözüm sayılmaz; koşucu damgası) + `tests/unit/outbox-state.test.ts`.
