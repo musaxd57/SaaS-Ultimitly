@@ -77,7 +77,7 @@ gösterdiği için önemli operatör eylemleri (bürünme, dışa aktarma, 2FA s
 T3 ile aynı sınıf (bilinen ve pinli denge). Ör. "Anahtar kutusu: 459", "Wi-Fi: Ev / şifre-kelimesi". Önerim: T3 kararınızla birlikte, ölçülmüş
 yanlış eleme sayısıyla (adres / daire numarası kaybı) sunayım. Ayrıntı public repoya yazılmadı.
 
-**Kodda okundu, çürütücü koşmadı (kullanım sınırı yüzünden — uygulanmadan önce her biri ölçülür):**
+**Kodda satır satır okunarak doğrulandı, deneme betiği / çürütücü koşmadı (uygulanmadan önce her biri testle yeniden üretilir):**
 
 - **S11 — QR saatlik 40 mesaj tavanı aşıldığında açık tehlike mesajı kaydedilmiyor, kritik uyarı yok.** Günlük tavan dalları kritik olayı taşıyor;
   saatlik dal taşımıyor. Önerim: tavan aşımında açık tehlike → mesaj kaydedilir + kritik e-posta; misafirin gördüğü tavan metni aynı.
