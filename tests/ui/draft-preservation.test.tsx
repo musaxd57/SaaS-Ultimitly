@@ -118,6 +118,8 @@ describe("U27 / U28 — misafir sohbeti", () => {
   });
 
   it("🚨 U28: daha yeni isteğin 200/açık cevabından SONRA gelen eski 404 sohbeti KAPATMAZ, sorgulama sürer", async () => {
+    // Codex 11-05 (tek uçuşlu sorgu): zamanlayıcı artık uçuştayken İKİNCİ sorgu açmaz; daha yeni istek yalnız gönderim sonrası yenilemede
+    // doğar (uçuştakini iptal eder). Eski isteğin geç cevabı (iptale rağmen dönen) yine sıra denetimine takılmalı — kural aynı, yol bu.
     vi.useFakeTimers();
     let gets = 0;
     const first: Deferred[] = [];
@@ -129,10 +131,12 @@ describe("U27 / U28 — misafir sohbeti", () => {
     });
     vi.stubGlobal("fetch", fn);
     render(<GuestChat token="tok-u28" />);
+    fireEvent.change(screen.getByPlaceholderText("Sorunuzu yazın…"), { target: { value: "Merhaba" } });
+    fireEvent.click(screen.getByRole("button", { name: "Gönder" }));
     await act(async () => {
-      vi.advanceTimersByTime(5_000); // ikinci istek → 200 açık
-      await Promise.resolve();
+      for (let i = 0; i < 6; i++) await Promise.resolve(); // gönderim → yenileme (ikinci istek) → 200 açık
     });
+    expect(gets).toBe(2);
     await act(async () => first[0].resolve(json(404, {}))); // eski istek şimdi 404 ile döner
     expect(screen.queryByPlaceholderText("Sorunuzu yazın…")).not.toBeNull(); // ⬅️ ARIZADA kapanış ekranı
     const before = gets;

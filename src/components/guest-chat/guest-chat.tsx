@@ -14,6 +14,24 @@ import { isImeComposing } from "@/lib/ime";
 const STALL_AFTER_FAILURES = 3;
 
 /**
+ * 🚨 SORGU DÖNGÜSÜ TEK UÇUŞ (Codex 11-05, 43fb93e incelemesi P2). Eskiden 5 saniyede bir YENİ sorgu başlıyordu ve yalnız en son
+ * başlatılanın sonucu kabul ediliyordu: cevap 5 saniyeden geç gelen yavaş bağlantıda her cevap bir sonraki sorgu başlamışken geliyor,
+ * ekran HİÇ güncellenmiyordu (sanal zamanda 11 başarılı cevap, sıfır güncelleme). Şimdi: aynı anda tek sorgu; sonraki, öncekisi bitince
+ * planlanır; asılı kalan sorgu `POLL_TIMEOUT_MS` sonunda iptal edilir (başarısızlık sayılır); ardışık başarısızlıkta uyarı eşiğinden
+ * SONRA bekleme ikiye katlanır (`POLL_MAX_BACKOFF_MS` tavanı) — aynı ağdaki cihazlar sınıra takıldığında yükü artırmaz. Eski sonuç
+ * koruması (`loadSeq`) yerinde: gönderim sonrası yenileme sürmekte olan sorguyu iptal edip en yeni durumu getirir.
+ */
+const POLL_INTERVAL_MS = 5_000;
+const POLL_TIMEOUT_MS = 15_000;
+const POLL_MAX_BACKOFF_MS = 60_000;
+
+/** Sonraki sorguya kadar bekleme: uyarı eşiğine kadar sabit aralık, sonra ikiye katlanarak tavana. */
+export function guestChatPollDelay(failures: number): number {
+  if (failures < STALL_AFTER_FAILURES) return POLL_INTERVAL_MS;
+  return Math.min(POLL_MAX_BACKOFF_MS, POLL_INTERVAL_MS * 2 ** (failures - STALL_AFTER_FAILURES + 1));
+}
+
+/**
  * Public guest concierge chat UI (mobile-first). Two-way: it loads the stay's
  * thread, polls for new messages, and shows three distinct senders —
  *   • Misafir (the guest)        → right, primary
@@ -65,11 +83,25 @@ export function GuestChat({
   // instead of recording the guest message + AI reply twice. Editing the text
   // mints a fresh id; a successful send clears it.
   const requestIdRef = useRef<{ id: string; text: string } | null>(null);
+  // Uçuştaki tek sorgu (↑ tek uçuş). `force` olmayan çağrı, biri uçuştayken hiçbir şey başlatmaz.
+  const inflightRef = useRef<AbortController | null>(null);
 
-  const loadHistory = useCallback(async () => {
+  const loadHistory = useCallback(async (opts?: { force?: boolean }) => {
+    if (inflightRef.current) {
+      if (!opts?.force) return;
+      // Gönderim sonrası / kilit açılışı: sürmekte olan (artık eski) sorgu iptal, en yeni durum istenir.
+      inflightRef.current.abort();
+    }
+    const ctrl = new AbortController();
+    inflightRef.current = ctrl;
     const seq = ++loadSeq.current;
+    let timedOut = false;
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      ctrl.abort();
+    }, POLL_TIMEOUT_MS);
     try {
-      const res = await fetch(`/api/chat/${token}`, { method: "GET" });
+      const res = await fetch(`/api/chat/${token}`, { method: "GET", signal: ctrl.signal });
       // U28 (Codex 10-07): SIRA DENETİMİ HER DALDAN ÖNCE. Eskiden yalnız başarı yolundaydı: daha yeni bir isteğin 200/açık cevabından
       // SONRA gelen eski bir 404/410 sohbeti kapatıp sorgulamayı kalıcı durduruyordu; eski hatalar da sayaca yazılıyordu.
       if (seq !== loadSeq.current) return;
@@ -123,9 +155,14 @@ export function GuestChat({
       if (Array.isArray(data.messages)) setMessages(data.messages);
     } catch {
       if (seq !== loadSeq.current) return; // U28: daha yeni bir istek var — eski isteğin ağ hatası sayılmaz
+      // Ekran kapanırken / yerine yenisi geçerken yapılan iptal başarısızlık DEĞİLDİR; zaman aşımı ve ağ hatası öyledir (geçici, sonraki
+      // tur yeniden dener).
+      if (ctrl.signal.aborted && !timedOut) return;
       failuresRef.current += 1;
       if (failuresRef.current >= STALL_AFTER_FAILURES) setStalled(true);
-      /* transient — the next poll retries */
+    } finally {
+      clearTimeout(timeout);
+      if (inflightRef.current === ctrl) inflightRef.current = null;
     }
   }, [token]);
 
@@ -142,17 +179,36 @@ export function GuestChat({
     // koyduğunda arka plan sekmesi sunucuya poll başına ~6 DB turu (biri YAZMA:
     // hız-limiti sayacı) bindirmeye devam ediyordu.
     const visible = () => typeof document === "undefined" || document.visibilityState === "visible";
-    const tick = () => {
-      // Gönderim sürerken atla: ön-gönderim anlık görüntüsü iyimser balonu ezmesin.
-      if (!sendingRef.current && visible()) void loadHistory();
+    let stopped = false;
+    let running = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    // Tek döngü: tur biter → sonraki tur planlanır (aralık değil). Görünürlük olayı turu öne çeker ama ikinci döngü açmaz.
+    const run = async () => {
+      if (stopped || running) return;
+      running = true;
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      try {
+        // Gönderim sürerken atla: ön-gönderim anlık görüntüsü iyimser balonu ezmesin.
+        if (!sendingRef.current && visible()) await loadHistory();
+      } finally {
+        running = false;
+        if (!stopped) timer = setTimeout(() => void run(), guestChatPollDelay(failuresRef.current));
+      }
     };
-    void loadHistory();
-    const t = setInterval(tick, 5000);
+    void run();
     // Sekmeye dönüldüğünde bir sonraki turu BEKLEME — hemen yakala.
-    document.addEventListener("visibilitychange", tick);
+    const onVisibility = () => {
+      if (visible()) void run();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
-      clearInterval(t);
-      document.removeEventListener("visibilitychange", tick);
+      stopped = true;
+      if (timer) clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
+      inflightRef.current?.abort();
     };
   }, [loadHistory, closed, boundElsewhere]);
 
@@ -235,7 +291,7 @@ export function GuestChat({
         return;
       }
       requestIdRef.current = null; // delivered (or deduped) — next message is new
-      await loadHistory();
+      await loadHistory({ force: true });
     } catch {
       rollback();
       setError(t.connectionError);
@@ -270,7 +326,7 @@ export function GuestChat({
       if (data.unlocked) {
         setPinInput("");
         setPinRequired(false);
-        await loadHistory();
+        await loadHistory({ force: true });
         return;
       }
       if (data.boundElsewhere) {
