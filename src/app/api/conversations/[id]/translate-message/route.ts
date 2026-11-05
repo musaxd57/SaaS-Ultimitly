@@ -69,7 +69,11 @@ export const POST = withManage<{ id: string }>(async (session, req, { params }) 
     return tooManyRequests(budget.retryAfter, dailyBudgetMessage(budget));
   }
 
-  const sourceLanguage = message.language || undefined;
+  // Tur 6 DIL-3 (11-05, ölçüldü): kayıtlı dil = hedef dil ise kaynak dili VERİLMEZ — `translate()` aynı dilde metni ÇEVİRMEDEN döner,
+  // oysa kayıtlı dil konuşmanın (kanalın) dilidir, mesajın değil: "tr" kayıtlı İngilizce mesajda "Çevir" ev sahibine orijinali
+  // "çeviri" diye gösteriyordu. Model gerçekten Türkçe olan metni aynen döndürür (istem kuralı).
+  const stored = message.language || undefined;
+  const sourceLanguage = stored && stored.toLowerCase() !== parsed.data.targetLanguage.toLowerCase() ? stored : undefined;
   // Structured result (Codex #30): a failed translation must surface as an
   // ERROR, never as the original text masquerading as a translation.
   const result = await translate(message.body, parsed.data.targetLanguage, sourceLanguage);
