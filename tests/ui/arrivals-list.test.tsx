@@ -55,16 +55,41 @@ describe("Girişler listesi — görünüm", () => {
     expect(screen.queryByText(/^HAZIR$/)).toBeNull();
   });
 
-  it("Codex 11-05: önce ne eksik — engel / bilinmeyen satırları HEP görünür, bilgi satırları açılır 'Ayrıntılar'da", () => {
-    const { container } = render(<ArrivalsList rows={[row()]} truncated={0} />);
+  it("🚨 Opus 11-06 N5 / H-2: erişim satırı GİZLENMEZ; Ayrıntılar'a yalnız bağlam (önceki çıkış → giriş, düşük öncelikli bakım) iner", () => {
+    const r = row({
+      factors: [
+        ...row().factors,
+        { key: "timing", state: "info", label: "Önceki çıkış 11:00 → giriş 15:00", missing: null, basis: [] },
+        { key: "issue", state: "info", label: "Bakım açık: Dolap kulpu · düşük öncelik", missing: null, basis: [] },
+      ],
+    });
+    const { container } = render(<ArrivalsList rows={[r]} truncated={0} />);
     const details = container.querySelector("details")!;
-    expect(details.querySelector("summary")!.textContent).toBe("Ayrıntılar (1)");
-    expect(details.textContent).toContain("Giriş talimatı bilgi tabanında yok");
+    expect(details.querySelector("summary")!.textContent).toBe("Ayrıntılar (2)");
+    expect(details.textContent).toContain("Önceki çıkış 11:00");
+    expect(details.textContent).toContain("Dolap kulpu");
+    expect(details.textContent).not.toContain("Giriş talimatı");
     expect(details.textContent).not.toContain("Temizlik açık");
     expect(details.open).toBe(false);
+    expect(screen.getByText("Giriş talimatı bilgi tabanında yok · erişim kontrol edilmedi")).toBeTruthy();
   });
 
-  it("mutasyon Q26: BİLİNMEYEN satır da dışarıda (hep görünür) — temizlik 'tamam' satırı o zaman Ayrıntılar'a iner", () => {
+  it("🚨 Opus 11-06 N5: temizlikçinin notu ve açık misafir ihtiyacı (bilgi satırları) HEP görünür — 'TEMİZLİK HAZIR' yanında gizlenmez", () => {
+    const r = row({
+      overall: "cleaning_ready",
+      factors: [
+        { key: "cleaning", state: "ok", label: "Temizlik bitti 12:40 · Ayşe · çıkıştan (11:00) sonra", missing: null, basis: [] },
+        { key: "cleaning_note", state: "info", label: "Temizlik görevine not yazıldı · Ayşe · 12:45 — görevde okuyun", missing: null, basis: [] },
+        { key: "need", state: "info", label: "Açık ihtiyaç: Bebek yatağı (sizde)", missing: null, basis: [] },
+      ],
+    });
+    const { container } = render(<ArrivalsList rows={[r]} truncated={0} />);
+    expect(container.querySelector("details")).toBeNull();
+    expect(screen.getByText("Temizlik görevine not yazıldı · Ayşe · 12:45 — görevde okuyun")).toBeTruthy();
+    expect(screen.getByText("Açık ihtiyaç: Bebek yatağı (sizde)")).toBeTruthy();
+  });
+
+  it("mutasyon Q26: BİLİNMEYEN satır dışarıda (hep görünür); temizlik satırı da", () => {
     const r = row({
       overall: "unknown",
       factors: [
@@ -73,9 +98,8 @@ describe("Girişler listesi — görünüm", () => {
       ],
     });
     const { container } = render(<ArrivalsList rows={[r]} truncated={0} />);
-    const details = container.querySelector("details")!;
-    expect(details.textContent).not.toContain("Banyo lambası");
-    expect(details.textContent).toContain("Temizlik bitti");
+    expect(container.querySelector("details")).toBeNull();
+    expect(screen.getByText("Temizlik bitti 12:40 · Ayşe · çıkıştan (11:00) sonra")).toBeTruthy();
     expect(screen.getByText("Bakım açık: Banyo lambası · tarihsiz — bu girişi etkiliyor mu?")).toBeTruthy();
   });
 

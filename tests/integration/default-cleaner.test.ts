@@ -182,6 +182,51 @@ describe("dairenin temizlikçisi", () => {
     expect((await prisma.task.findUniqueOrThrow({ where: { id: systemNote.id } })).assignedToId).toBe(mehmet.id);
   });
 
+  it("🚨 gerçek uygulama ekranı (11-06): 'Evet' → eski kişinin 'Yapılamıyor' dediği temizlik de geçer, 'Yapılacak'a döner, kim / ne zaman kayıtlı; soru onu da sayar", async () => {
+    await saveDefaultCleaner(orgId, propertyId, ayse.id);
+    const r = await reservation(addNights(TODAY, 1), addNights(TODAY, 3));
+    await createReservationTasks(r.id);
+    const task = await prisma.task.findFirstOrThrow({ where: { reservationId: r.id, type: "cleaning" } });
+    await prisma.task.update({ where: { id: task.id }, data: { status: "blocked" } });
+    await prisma.taskUpdate.create({ data: { taskId: task.id, userId: ayse.id, status: "blocked", note: "hastayım" } });
+    expect(await openFutureCleaningIds(prisma, orgId, propertyId, ayse.id, new Date())).toEqual([task.id]);
+    const res = await put(propertyId, { userId: mehmet.id, moveOpen: true });
+    expect((await res.json()).moved).toBe(1);
+    expect(await prisma.task.findUniqueOrThrow({ where: { id: task.id } })).toMatchObject({ assignedToId: mehmet.id, status: "todo" });
+    const last = await prisma.taskUpdate.findFirstOrThrow({ where: { taskId: task.id }, orderBy: [{ createdAt: "desc" }, { id: "desc" }] });
+    expect(last).toMatchObject({ status: "todo", userId: owner.id });
+  });
+
+  it("KONTROL — 'Hayır, yalnız yeniler' 'Yapılamıyor' görevi de taşımaz; başlanmış (devam ediyor) iş 'Evet'te de kalır", async () => {
+    await saveDefaultCleaner(orgId, propertyId, ayse.id);
+    const r1 = await reservation(addNights(TODAY, 1), addNights(TODAY, 3), "A");
+    const r2 = await reservation(addNights(TODAY, 4), addNights(TODAY, 6), "B");
+    await createReservationTasks(r1.id);
+    await createReservationTasks(r2.id);
+    const blocked = await prisma.task.findFirstOrThrow({ where: { reservationId: r1.id, type: "cleaning" } });
+    await prisma.task.update({ where: { id: blocked.id }, data: { status: "blocked" } });
+    const started = await prisma.task.findFirstOrThrow({ where: { reservationId: r2.id, type: "cleaning" } });
+    await prisma.task.update({ where: { id: started.id }, data: { status: "in_progress" } });
+    await put(propertyId, { userId: mehmet.id });
+    expect((await prisma.task.findUniqueOrThrow({ where: { id: blocked.id } })).assignedToId).toBe(ayse.id);
+    await put(propertyId, { userId: ayse.id });
+    await put(propertyId, { userId: mehmet.id, moveOpen: true });
+    expect(await prisma.task.findUniqueOrThrow({ where: { id: started.id } })).toMatchObject({ assignedToId: ayse.id, status: "in_progress" });
+  });
+
+  it("taşınan işler yeni kişinin yeni görevidir: anahtar AÇIKKEN yeni kişiye e-posta (otomatik atamayla aynı yol); KAPALIYKEN gitmez", async () => {
+    await saveDefaultCleaner(orgId, propertyId, ayse.id);
+    const r = await reservation(addNights(TODAY, 1), addNights(TODAY, 3));
+    await createReservationTasks(r.id);
+    await put(propertyId, { userId: mehmet.id, moveOpen: true });
+    await new Promise((res) => setTimeout(res, 50));
+    expect(mail.sent).toHaveLength(0);
+    vi.stubEnv("STAFF_NOTIFY_ENABLED", "1");
+    await put(propertyId, { userId: ayse.id, moveOpen: true });
+    await new Promise((res) => setTimeout(res, 50));
+    expect(mail.sent.map((m) => m.to)).toEqual(["ayse-dc@example.test"]);
+  });
+
   it("🚨 yarış: aday listesi okunduktan SONRA kişi işe başladıysa (kilitten önce) görev TAŞINMAZ — tanım kilit altında yeniden uygulanır", async () => {
     await saveDefaultCleaner(orgId, propertyId, ayse.id);
     const r = await reservation(addNights(TODAY, 1), addNights(TODAY, 3));
@@ -192,11 +237,29 @@ describe("dairenin temizlikçisi", () => {
       await prisma.task.update({ where: { id: task.id }, data: { status: "in_progress" } });
     };
     try {
-      expect((await saveDefaultCleaner(orgId, propertyId, mehmet.id, { moveOpenFrom: ayse.id })).moved).toBe(0);
+      expect((await saveDefaultCleaner(orgId, propertyId, mehmet.id, { moveOpen: true })).moved).toBe(0);
     } finally {
       __defaultCleanerHooks.afterCandidates = undefined;
     }
     expect((await prisma.task.findUniqueOrThrow({ where: { id: task.id } })).assignedToId).toBe(ayse.id);
+  });
+
+  it("🚨 Opus 11-06 N8: temizlikçi değişikliği SÜRERKEN açılan temizlik YENİ kişiye düşer (kural mülk kilidinden sonra okunur)", async () => {
+    await saveDefaultCleaner(orgId, propertyId, ayse.id);
+    const r = await reservation(addNights(TODAY, 1), addNights(TODAY, 3));
+    let creating: Promise<number> | null = null;
+    __defaultCleanerHooks.afterCandidates = async () => {
+      // Değişiklik işlemi mülkü kilitlemişken senkron temizliği açmaya çalışır.
+      creating = createReservationTasks(r.id);
+      await new Promise((res) => setTimeout(res, 400));
+    };
+    try {
+      await saveDefaultCleaner(orgId, propertyId, mehmet.id, { moveOpen: true });
+    } finally {
+      __defaultCleanerHooks.afterCandidates = undefined;
+    }
+    expect(await creating).toBe(2);
+    expect((await prisma.task.findFirstOrThrow({ where: { reservationId: r.id, type: "cleaning" } })).assignedToId).toBe(mehmet.id);
   });
 
   it("KONTROL — 'Hayır, yalnız yeniler' (moveOpen yok) → eski işler eski kişide kalır", async () => {

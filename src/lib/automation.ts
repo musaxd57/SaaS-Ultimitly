@@ -1386,6 +1386,10 @@ export async function createReservationTasks(reservationId: string, opts: { reop
     // DAİRENİN TEMİZLİKÇİSİ (kurucu 11-05 gece): kural varsa sistem temizliği DOĞRUDAN o kişiye atanır — kabul adımı yok. Kişi kullanım
     // anında doğrulanır (aynı işletmede); değilse görev bugünkü gibi atanmamış açılır. Hazırlık görevi atanmaz.
     const cleaning = data.find((d) => d.type === "cleaning");
+    // Kural okunmadan ÖNCE mülk satırı paylaşımlı kilitlenir (Opus 11-06 N8): temizlikçi değişikliği (`saveDefaultCleaner`, FOR UPDATE)
+    // sürüyorsa bitmesi beklenir ve YENİ kural okunur — yoksa yeni temizlik taşımadan sonra eski kişiye düşüyordu. Kilit sırası değişmez:
+    // görev eklemenin yabancı anahtarı aynı satırda zaten bu kilidi alıyor; yalnız daha erken alınır.
+    if (cleaning && r.property) await tx.$queryRaw`SELECT 1 FROM "Property" WHERE "id" = ${r.propertyId} FOR KEY SHARE`;
     const cleanerId = cleaning && r.property ? await loadDefaultCleanerUserId(tx, r.property.organizationId, r.propertyId) : null;
     // Atanan temizlik TEK `create` ile yazılır (kimliği bildirim için doğrudan dönsün — sonradan arama yok, Haiku 11-06); geri kalanı
     // eskisi gibi toplu. Sıra korunur (hazırlık önce).
@@ -5549,7 +5553,7 @@ async function sourceReferenceErased(
  * Üç gönderici AYNI parçayı kullanır; metin önizlemeleri (`previewWelcomes` …) anahtarı ve tabanı bilinçli YOK SAYAR (metin kalitesi).
  */
 export const LIFECYCLE_BACKLOG_GRACE_MS = 3 * 60 * 60_000;
-async function lifecycleBaselineWhere(organizationId: string, baseline: Date): Promise<Prisma.ReservationWhereInput> {
+export async function lifecycleBaselineWhere(organizationId: string, baseline: Date): Promise<Prisma.ReservationWhereInput> {
   const props = await prisma.property.findMany({ where: { organizationId }, select: { id: true, createdAt: true } });
   const floor = (p: { createdAt: Date }) => p.createdAt.getTime() + LIFECYCLE_BACKLOG_GRACE_MS;
   const older = props.filter((p) => floor(p) <= baseline.getTime()).map((p) => p.id);

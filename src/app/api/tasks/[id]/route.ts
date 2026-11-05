@@ -219,8 +219,8 @@ export const PATCH = withAuth<{ id: string }>(async (session, req, { params }) =
     void notifyTaskBlocked({
       organizationId: session.organizationId,
       taskId: task.id,
-      actorUserId: session.userId,
-      actorName: session.name,
+      reporterUserId: session.userId,
+      reporterName: session.name,
       propertyName: task.property.name,
       taskTypeLabel: TASK_TYPE.label(task.type),
       dueAt: task.dueAt,

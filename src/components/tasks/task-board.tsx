@@ -166,14 +166,29 @@ export function TaskBoard({
     }
   }
 
-  /** Yönetici: görevi başka birine atar (boş = atanmamış). "Yapılamıyor" görev sunucuda "Yapılacak"a döner. */
+  /**
+   * Atanan kişi: tek dokunuşla "Bitti" (kurucu 11-05 gece akışı: "Başladım → Bitti"). "Bitti" kaydı dairenin hazır olduğunun kanıtıdır
+   * (Girişler / erken giriş kararı) — yanlışlıkla basılmasın diye bir kez sorulur. "Başladım" sorulmaz (zararsız).
+   */
+  async function markDone(id: string) {
+    const ok = await confirmDialog({
+      title: "İş bitti mi?",
+      body: "Ev sahibi dairenin hazır olduğunu görür.",
+      confirmLabel: "Evet, bitti",
+      cancelLabel: "Vazgeç",
+    });
+    if (ok) await setStatus(id, "done");
+  }
+
+  /** Yönetici: görevi başka birine atar (boş dize = atanmamış). "Yapılamıyor" görev sunucuda "Yapılacak"a döner. */
   async function assign(id: string, assignedToId: string) {
     setBusyId(id);
     try {
       const res = await fetch(`/api/tasks/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ assignedToId: assignedToId || null }),
+        // "Atanmadı" = boş kimlik (şema `null` kabul etmez — Opus 11-06 N1; sunucu boşu "atanmamış" yazar).
+        body: JSON.stringify({ assignedToId }),
       });
       if (!res.ok) {
         toast.error(res.status === 403 ? "Bu işlem için yetkiniz yok." : "Görev atanamadı.");
@@ -512,10 +527,22 @@ export function TaskBoard({
           </Select>
         ) : null}
 
+        {/* Atanan kişi: tek dokunuş "Başladım" → "Bitti" (kurucu 11-05 gece). Durum kutusu yine durur (geri alma vb.). */}
+        {!canManage && t.status !== "done" ? (
+          <button
+            type="button"
+            onClick={() => (t.status === "in_progress" ? void markDone(t.id) : void setStatus(t.id, "in_progress"))}
+            disabled={busyId === t.id}
+            className="mt-2 w-full rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+          >
+            {t.status === "in_progress" ? "Bitti" : "Başladım"}
+          </button>
+        ) : null}
+
         {/* Atanan kişi: "Yapamıyorum" (görev silinmez, bitmiş sayılmaz; ev sahibi başka birine atar). */}
         {!canManage && t.status !== "done" ? (
           t.status === "blocked" ? (
-            <p className="mt-2 text-xs text-muted-foreground">Ev sahibine bildirildi. Yine de yaparsanız durumu &ldquo;Devam ediyor&rdquo; yapın.</p>
+            <p className="mt-2 text-xs text-muted-foreground">Ev sahibine bildirildi. Yine de yaparsanız &ldquo;Başladım&rdquo;a basın.</p>
           ) : cantDoOpen === t.id ? (
             <div className="mt-2 space-y-1.5">
               <textarea

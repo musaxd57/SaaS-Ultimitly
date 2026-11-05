@@ -71,6 +71,8 @@ describe("staff page-leak contract", () => {
     expect(text).toContain("Benim Daire"); // their own task's property
     expect(text).not.toContain("Gizli Villa"); // unassigned property never renders
     expect(text).not.toContain("/tasks/new"); // no management CTA for staff
+    // Gerçek uygulama ekranı (11-06): personelde olmayan düğmeleri ("Eksik görevleri oluştur", "Yeni görev") anlatan not personele çizilmez.
+    expect(text).not.toContain("Görevler otomatik açılır:");
   });
 
   it("staff /tasks/new: redirected away (page renders every property+user name)", async () => {
@@ -83,5 +85,6 @@ describe("staff page-leak contract", () => {
     const text = treeText(el);
     expect(text).toContain("Gizli Villa");
     expect(text).toContain("/tasks/new");
+    expect(text).toContain("Görevler otomatik açılır:");
   });
 });

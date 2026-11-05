@@ -173,20 +173,31 @@ describe("hız sınırı bellek yedeği — veritabanı yokken sınırlı", () =
     expect((await rateLimitPeek(victim, 5)).ok).toBe(false); // pencere bilinmiyor → en dolu yuva → sıkı
   });
 
-  it("iade (release) KENDİ pencere sınıfının taşma yuvasındaki ayrılmış hakkı geri verir; sıfırın altına inmez", async () => {
-    await flood("ip", MEMORY_MAX_KEYS);
+  it("iade KENDİ kaydındaki hakkı geri verir (harita doluyken değil); sıfırın altına inmez", async () => {
     for (let i = 0; i < 5; i++) await rateLimit("refund", 5, HOUR);
     expect((await rateLimitPeek("refund", 5, HOUR)).ok).toBe(false);
-    await rateLimitRelease("refund", HOUR);
+    await rateLimitRelease("refund");
     expect((await rateLimitPeek("refund", 5, HOUR)).ok).toBe(true);
+    for (let i = 0; i < 7; i++) await rateLimitRelease("refund"); // tüketilenden fazla iade → 0'da durur
+    for (let i = 0; i < 5; i++) expect((await rateLimit("refund", 5, HOUR)).ok).toBe(true);
+    expect((await rateLimit("refund", 5, HOUR)).ok).toBe(false);
   });
 
-  it("🚨 N4: pencere söylemeyen iade PAYLAŞILAN taşma yuvasını gevşetmez (başka anahtarın sayacı); bakış pencere söylemezse yine sıkı", async () => {
+  it("🚨 Opus 11-06 N10: iade PAYLAŞILAN taşma yuvasını HİÇ gevşetmez — taşmada sayılan hak geri verilmez; hiç tüketilmemiş anahtarın iadesi komşuyu gevşetmez", async () => {
     await flood("ip", MEMORY_MAX_KEYS);
     for (let i = 0; i < 5; i++) await rateLimit("refund", 5, HOUR);
     await rateLimitRelease("refund");
     expect((await rateLimitPeek("refund", 5, HOUR)).ok).toBe(false);
     expect((await rateLimitPeek("refund", 5)).ok).toBe(false);
+    // Zamanlama eşitleyicisi gibi HİÇ tüketilmemiş, AYNI yuvaya düşen bir anahtarın tekrarlanan iadesi (eski çağıranlar pencere de
+    // veriyordu) yuvayı paylaşan anahtarı gevşetmez.
+    const slot = __overflowSlotOfForTest("refund");
+    let collider = "";
+    for (let i = 0; i < 400_000 && !collider; i++) if (__overflowSlotOfForTest(`parity:${i}`) === slot) collider = `parity:${i}`;
+    expect(collider).not.toBe("");
+    const release = rateLimitRelease as (key: string, windowMs?: number) => Promise<void>;
+    for (let i = 0; i < 20; i++) await release(collider, HOUR);
+    expect((await rateLimitPeek("refund", 5, HOUR)).ok).toBe(false);
   });
 
   it("taşma yuvasının penceresi dolunca yuva sıfırlanır (taşmada kalıcı kilit yok)", async () => {

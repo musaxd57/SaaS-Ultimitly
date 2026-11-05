@@ -206,7 +206,7 @@ export async function rateLimitPeek(key: string, limit: number, windowMs?: numbe
  * "önce ayır, iş düşerse iade et" deseni için (Tur 7 T7-AUTH-1 — doğrulama e-postası gönderim kotası). Önce bakıp sonra tüketmek
  * (`rateLimitPeek` + `rateLimit`) eşzamanlı iki isteğe aynı boş hakkı kullandırırdı. DB hatasında bellek kovası.
  */
-export async function rateLimitRelease(key: string, windowMs?: number): Promise<void> {
+export async function rateLimitRelease(key: string): Promise<void> {
   try {
     await prisma.$executeRaw`
       UPDATE "RateLimitCounter" SET "count" = GREATEST("count" - 1, 0)
@@ -214,11 +214,12 @@ export async function rateLimitRelease(key: string, windowMs?: number): Promise<
     `;
   } catch (err) {
     warnDbUnavailable(err);
-    // Taşma yuvası PAYLAŞILIR: pencere söylenmediyse iade yalnız anahtarın KENDİ kaydına yapılır (başka anahtarın sayacı gevşetilmez — N4).
+    // İade YALNIZ anahtarın KENDİ kaydına yapılır; taşma yuvası PAYLAŞILIR → hiç gevşetilmez (Opus 11-06 N10: pencereli iade aynı sınıfın
+    // yuvasını azaltıyordu — örn. hiç tüketilmemiş bir anahtarın her istekteki iadesi, aynı yuvayı paylaşan günlük 2FA hata tavanını
+    // gevşetirdi). Taşmada sayılmış hak geri verilmez = sıkı yön ("taşma yalnız sıkılaştırır").
     const now = Date.now();
     const own = buckets.get(key);
-    const bucket = own ? (own.resetAt > now ? own : null) : windowMs !== undefined ? activeOverflowFor(key, now, windowMs) : null;
-    if (bucket && bucket.count > 0) bucket.count -= 1;
+    if (own && own.resetAt > now && own.count > 0) own.count -= 1;
   }
 }
 

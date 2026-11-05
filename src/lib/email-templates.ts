@@ -116,11 +116,11 @@ export interface PropertyEmailData {
  * Atanan kişi "Yapamıyorum" dedi (kurucu 11-05 gece; `lib/tasks/notify.ts`). Ev sahibine gider; misafir adı / mesajı TAŞIMAZ. Metin
  * sade (kurucu kuralı): ne oldu + ne yapmalı.
  */
-export function taskBlockedEmail(n: { actorName: string; propertyName: string; taskTypeLabel: string; dueLabel: string | null; reason: string | null }): string {
+export function taskBlockedEmail(n: { reporterName: string; propertyName: string; taskTypeLabel: string; dueLabel: string | null; reason: string | null }): string {
   const when = n.dueLabel ? ` · ${esc(n.dueLabel)}` : "";
   const reason = n.reason ? `<p style="margin:0 0 16px;color:#475569;font-size:14px;line-height:1.6;">Neden: “${esc(n.reason)}”</p>` : "";
   const body = `
-    <h2 style="margin:0 0 8px;color:#0f172a;font-size:22px;font-weight:700;">${esc(n.actorName)} bu işi yapamıyor</h2>
+    <h2 style="margin:0 0 8px;color:#0f172a;font-size:22px;font-weight:700;">${esc(n.reporterName)} bu işi yapamıyor</h2>
     <p style="margin:0 0 16px;color:#0f172a;font-size:15px;">${esc(n.propertyName)} · ${esc(n.taskTypeLabel)}${when}</p>
     ${reason}
     <p style="margin:0 0 24px;color:#64748b;font-size:15px;">Görev silinmedi. Görevler sayfasından başka birine atayın.</p>`;

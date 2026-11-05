@@ -59,7 +59,7 @@ export function taskCardData(
     /** Görev "Yapılamıyor" ise en son bildirimi (sayfa ayrı sorguyla verir). */
     blocked?: { by: string | null; at: Date; reason: string | null } | null;
     /** Temizlik görevinin konaklamasının çıkış saati (mülk saati · misafir beyanı · onaylı geç çıkış'tan en geçi) + onaylı geç çıkış mı. */
-    checkout?: { time: string; lateApproved: boolean } | null;
+    checkout?: { time: string; lateApproved: boolean; departureKey: string } | null;
   },
 ): TaskCardData {
   const parsedChecklist = safeJsonParse<ChecklistItem[]>(t.checklistJson, []);
@@ -88,7 +88,11 @@ export function taskCardData(
     latestNote: latestUpdate?.note ?? null,
     blocked: t.status === "blocked" && ctx.blocked ? blockedLine(ctx.blocked, ctx.timeZone, ctx.now) : null,
     // Saate ek getirilmez ("14:00'te" okunuşa göre değişir) — "Misafir çıkışı 14:00".
+    // Yalnız ÇIKIŞ GÜNÜNE vadeli temizlikte (devir temizliği — Opus 11-06 N6: konaklama içi "ara temizlik" sözünde temizlikçi misafirin
+    // o gün çıkacağını okuyordu). Gün tek tarih kuralıyla.
     checkoutNote:
-      t.type === "cleaning" && ctx.checkout ? `Misafir çıkışı ${ctx.checkout.time}${ctx.checkout.lateApproved ? " · geç çıkış onaylı" : ""}` : null,
+      t.type === "cleaning" && ctx.checkout && t.dueAt && calendarDateOf(t.dueAt, ctx.timeZone).key === ctx.checkout.departureKey
+        ? `Misafir çıkışı ${ctx.checkout.time}${ctx.checkout.lateApproved ? " · geç çıkış onaylı" : ""}`
+        : null,
   };
 }

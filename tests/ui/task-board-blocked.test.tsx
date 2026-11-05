@@ -90,7 +90,7 @@ describe("pano — 'Yapamıyorum'", () => {
 
   it("mutasyon Q28: temizlikçi 'Yapılamıyor' kartında düğme yerine 'Ev sahibine bildirildi' + yine yaparsa ne yapacağı yazar", () => {
     render(<TaskBoard tasks={[{ ...base, status: "blocked" }]} canManage={false} />);
-    expect(screen.getByText(/Ev sahibine bildirildi\. Yine de yaparsanız durumu/)).toBeTruthy();
+    expect(screen.getByText(/Ev sahibine bildirildi\. Yine de yaparsanız “Başladım”a basın\./)).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Yapamıyorum/ })).toBeNull();
   });
 
@@ -112,6 +112,14 @@ describe("pano — 'Yapamıyorum'", () => {
     const select = screen.getByLabelText("Görev durumu: Çıkış temizliği") as HTMLSelectElement;
     expect(select.value).toBe("todo");
     expect(select.querySelector('option[value="blocked"]')).toBeNull();
+  });
+
+  it("🚨 Opus 11-06 N1: kart üstünde 'Atanmadı' seçilince boş kimlik gider (şema `null`u reddeder → 400 'Görev atanamadı' oluyordu)", async () => {
+    const calls = stubFetch();
+    render(<TaskBoard tasks={[{ ...base, status: "blocked" }]} canManage members={[{ id: "u-ayse", name: "Ayşe" }]} />);
+    fireEvent.change(screen.getByLabelText("Atanan kişi: Çıkış temizliği"), { target: { value: "" } });
+    await settle();
+    expect(calls).toEqual([{ url: "/api/tasks/t1", body: { assignedToId: "" } }]);
   });
 
   it("KONTROL — temizlikçi kartında 'Atanan' seçimi YOK; biten görevde 'Yapamıyorum' YOK", () => {

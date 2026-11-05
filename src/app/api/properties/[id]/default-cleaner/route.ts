@@ -2,7 +2,9 @@ import { prisma } from "@/lib/db";
 import { badRequest, jsonOk, notFound, readJsonCappedOrNull } from "@/lib/api";
 import { withManage } from "@/lib/route-guard";
 import { writeAudit, auditActor } from "@/lib/audit";
-import { loadDefaultCleanerUserId, saveDefaultCleaner } from "@/lib/tasks/default-cleaner";
+import { saveDefaultCleaner } from "@/lib/tasks/default-cleaner";
+import { notifyTaskAssigned } from "@/lib/tasks/notify";
+import { reportError } from "@/lib/report-error";
 
 // ---------------------------------------------------------------------------
 // DAİRENİN TEMİZLİKÇİSİ (kurucu 11-05 gece; tasarım docs/TASARIM-2026-11-06-dogrudan-gorevlendirme-ve-whatsapp.md §2.1). Yalnız yönetici
@@ -21,8 +23,7 @@ export const PUT = withManage<{ id: string }>(async (session, req, { params }) =
     return badRequest({ userId: "Geçersiz kişi." });
   }
   const moveOpen = input.moveOpen === true;
-  const previous = moveOpen ? await loadDefaultCleanerUserId(prisma, session.organizationId, property.id) : null;
-  const saved = await saveDefaultCleaner(session.organizationId, property.id, userId, { moveOpenFrom: previous });
+  const saved = await saveDefaultCleaner(session.organizationId, property.id, userId, { moveOpen, resetByUserId: session.userId });
   if (saved.result === "property_not_found") return notFound();
   if (saved.result === "user_not_found") return badRequest({ userId: "Bu kişi işletmenizde değil." });
   await writeAudit({
@@ -31,5 +32,9 @@ export const PUT = withManage<{ id: string }>(async (session, req, { params }) =
     action: userId ? "property.default_cleaner_set" : "property.default_cleaner_cleared",
     metadata: { propertyId: property.id, fields: ["defaultCleaner"], moved: saved.moved },
   });
+  // Taşınan işler yeni kişinin "yeni görev"idir: bildirim otomatik atamayla AYNI yoldan (anahtar `STAFF_NOTIFY_ENABLED`, görev / kişi tavanı).
+  for (const taskId of saved.movedIds) {
+    void notifyTaskAssigned(session.organizationId, taskId).catch((err) => void reportError("task-assign-mail", err));
+  }
   return jsonOk({ ok: true, userId, moved: saved.moved });
 });

@@ -29,9 +29,9 @@ const BLOCKED_MAILS_PER_TASK_HOUR = 3;
 export interface TaskBlockedNotice {
   organizationId: string;
   taskId: string;
-  /** Bildiren kişi (kendisine gitmez). */
-  actorUserId: string;
-  actorName: string;
+  /** "Yapamıyorum" diyen kişi (kendisine gitmez). Denetim kaydının "eylemi yapan"ı DEĞİL — o `auditActor(session)`. */
+  reporterUserId: string;
+  reporterName: string;
   propertyName: string;
   taskTypeLabel: string;
   /** Görevin vadesi (gün mülk takviminde, tek tarih kuralıyla yazılır). */
@@ -48,7 +48,7 @@ export async function notifyTaskBlocked(n: TaskBlockedNotice): Promise<"sent" | 
   if (!staffNotifyEnabled() || isDemoOrg(n.organizationId)) return "skipped";
   if (!(await rateLimit(`task-blocked-mail:${n.taskId}`, BLOCKED_MAILS_PER_TASK_HOUR, 60 * 60_000)).ok) return "skipped";
   const managers = await prisma.user.findMany({
-    where: { organizationId: n.organizationId, role: { in: ["owner", "manager"] }, id: { not: n.actorUserId } },
+    where: { organizationId: n.organizationId, role: { in: ["owner", "manager"] }, id: { not: n.reporterUserId } },
     select: { email: true, name: true },
   });
   if (managers.length === 0) return "skipped";

@@ -90,7 +90,7 @@ export interface StayReadinessInput {
     /** urgent | standard | low (görevin önceliği). */
     priority?: string;
     /** `other_stay` ise o konaklamanın günleri. */
-    stay?: { arrivalKey: string; departureKey: string } | null;
+    stay?: { arrivalKey: string; departureKey: string; when?: "past" | "later" | "overlap" } | null;
   }[];
   /** Gösterilenden fazla açık bakım görevi var (sessiz kesme yok). */
   issueTasksMore?: boolean;
@@ -109,6 +109,8 @@ export interface StayReadinessInput {
    * kanıtlamaz — otomatik mesajlar `AutoMessageTemplate`te, bilgi tabanından AYRI). Yoksa (eski çağıran) bilgi tabanı satırı yazılır.
    */
   autoCheckin?:
+    | { state: "sent"; at: Date }
+    | { state: "not_sending"; reason: "kill_switch" | "no_connection" | "no_baseline" | "no_channel" | "before_baseline" }
     | { state: "disabled" }
     | { state: "missing" }
     | { state: "skipped"; reason: string }
@@ -237,6 +239,15 @@ function cleaningFactor(c: CleaningInput, tz: string, now: Date, arrivalDayKey: 
   return { key: "cleaning", state: "unknown", label: "Devir temizliği görevi yok", missing: "devir temizliği görevi", basis: [] };
 }
 
+/** Otomatik giriş mesajı bu rezervasyona GİTMEYECEK — neden (ev sahibi dili; teknik ayrıntı yok). */
+const NOT_SENDING_TEXT: Record<"kill_switch" | "no_connection" | "no_baseline" | "no_channel" | "before_baseline", string> = {
+  kill_switch: "Otomatik mesajlar şu an kapalı",
+  no_connection: "Kanal bağlantısı yok, otomatik giriş mesajı gitmez",
+  no_baseline: "Otomatik giriş mesajı gitmez",
+  no_channel: "Bu rezervasyona otomatik mesaj gönderilemiyor (takvimden ya da elle eklendi)",
+  before_baseline: "Rezervasyon otomatik giriş mesajı açılmadan önce yapılmış, mesaj gitmez",
+};
+
 const SKIP_REASON_TEXT: Record<string, string> = {
   unfilled: "doldurulmamış alan var",
   apartment_unresolved: "daire numarası çözülemedi",
@@ -249,6 +260,18 @@ const SKIP_REASON_TEXT: Record<string, string> = {
 function accessFactor(input: StayReadinessInput): Factor {
   const a = input.autoCheckin;
   const kbNewer = (at: Date) => (input.accessInstructions && input.accessInstructions.at.getTime() > at.getTime() ? " · bilgi tabanındaki giriş bilgisi daha yeni — kontrol edin" : "");
+  if (a?.state === "sent") {
+    return {
+      key: "access",
+      state: "info",
+      label: `Otomatik giriş mesajı gönderildi ${whenLabel(a.at, input.now, input.timeZone)}${kbNewer(a.at)} · kapıya / kutuya yerleştiği kontrol edilmedi`,
+      missing: "erişim kontrolü",
+      basis: [],
+    };
+  }
+  if (a?.state === "not_sending") {
+    return { key: "access", state: "info", label: `${NOT_SENDING_TEXT[a.reason]} · giriş bilgisini siz gönderin`, missing: "giriş bilgisi ve erişim kontrolü", basis: [] };
+  }
   if (a?.state === "ready") {
     return {
       key: "access",
@@ -336,7 +359,8 @@ export function evaluateStay(input: StayReadinessInput): StayReadiness {
       const state = issueStateOf(t);
       if (state === "unknown") {
         // Eski konaklamadan kalan / tarihsiz bakım: kesin hüküm YOK, açıklama var (kurucu / Codex 11-05 gece).
-        const where = t.relation === "other_stay" && t.stay ? ` · eski konaklamadan (${dayKeyLabel(t.stay.arrivalKey)} – ${dayKeyLabel(t.stay.departureKey)})` : t.dueAt ? due : " · tarihsiz";
+        const which = t.stay?.when === "later" ? "sonraki" : t.stay?.when === "overlap" ? "başka bir" : "eski";
+        const where = t.relation === "other_stay" && t.stay ? ` · ${which} konaklamadan (${dayKeyLabel(t.stay.arrivalKey)} – ${dayKeyLabel(t.stay.departureKey)})` : t.dueAt ? due : " · tarihsiz";
         factors.push({
           key: "issue",
           state: "unknown",

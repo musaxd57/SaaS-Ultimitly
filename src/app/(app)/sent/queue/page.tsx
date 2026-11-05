@@ -187,7 +187,7 @@ export default async function OutboxQueuePage({
                     ) : null}
                     <p className="text-xs text-muted-foreground">
                       Oluşturuldu {fromNow(row.createdAt, TZ)}
-                      {row.sentAt ? ` · iletildi ${fromNow(row.sentAt, TZ)}` : ""}
+                      {row.sentAt ? ` · gönderildi ${fromNow(row.sentAt, TZ)}` : ""}
                     </p>
                     {row.conversationId ? (
                       <Link

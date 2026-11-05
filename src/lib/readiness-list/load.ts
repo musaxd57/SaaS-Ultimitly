@@ -12,6 +12,12 @@ import { isItemKind } from "@/lib/conversation-items/core";
 import { itemKindLabel } from "@/lib/conversation-items/view";
 import { reportError } from "@/lib/report-error";
 import { TASK_TYPE } from "@/lib/constants";
+import { reservationMessagingCapable } from "@/lib/channels/capability";
+// Kayıtlı sağlayıcı ancak kanal katmanının GİRİŞİNDEN alınırsa vardır (`channels/index.ts` kaydı yan etkiyle yapar) — doğrudan
+// `channels/access`tan almak boş kayıt → her zaman "bağlantı yok" derdi (Gönderilenler / Mülkler / Raporlar da böyle alır).
+import { hasMessagingConnection } from "@/lib/channels";
+import { lifecycleBaselineWhere } from "@/lib/automation";
+import { autoMessageIssue } from "@/lib/auto-messages/render";
 import { evaluateStay, type CleaningInput, type StayReadiness, type StayReadinessInput } from "./evaluate";
 
 // ---------------------------------------------------------------------------
@@ -72,7 +78,10 @@ export async function loadArrivalReadiness(
 ): Promise<ArrivalReadinessList> {
   const days = opts.days ?? READINESS_LIST_DAYS;
   const max = opts.max ?? READINESS_LIST_MAX;
-  const org = await prisma.organization.findUnique({ where: { id: organizationId }, select: { timezone: true, autoCheckin: true } });
+  const org = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { timezone: true, autoCheckin: true, autoCheckinEnabledAt: true, aiSignature: true },
+  });
   const tz = orgTimezone(org?.timezone);
   const fromKey = todayKey(now, tz);
   const toKey = addNights(fromKey, Math.max(1, days) - 1);
@@ -84,7 +93,19 @@ export async function loadArrivalReadiness(
   const [arrivals, total] = await Promise.all([
     prisma.reservation.findMany({
       where,
-      select: { id: true, propertyId: true, guestName: true, arrivalDate: true, property: { select: { name: true, checkInTime: true } } },
+      select: {
+        id: true,
+        propertyId: true,
+        guestName: true,
+        arrivalDate: true,
+        // Otomatik giriş mesajı bu rezervasyona gider mi / gitti mi (gönderici `sendDueCheckins` ile aynı şartlar — Opus 11-06 N2).
+        checkinSentAt: true,
+        sourceReference: true,
+        calendarSourceId: true,
+        channel: true,
+        createdAt: true,
+        property: { select: { name: true, checkInTime: true } },
+      },
       orderBy: [{ arrivalDate: "asc" }, { id: "asc" }],
       take: max,
     }),
@@ -235,13 +256,40 @@ export async function loadArrivalReadiness(
   for (const k of kbItems) if (!accessOf.has(k.propertyId)) accessOf.set(k.propertyId, { id: k.id, at: k.updatedAt });
   const issueById = new Map(issueTasks.map((t) => [t.id, t]));
   const autoCheckinOf = new Map(autoCheckins.map((a) => [a.propertyId, a]));
-  const autoCheckinStateOf = (propertyId: string): NonNullable<StayReadinessInput["autoCheckin"]> => {
+  // 🚨 "Hazır" demeden önce gönderici GERÇEKTEN gönderecek mi (Opus 11-06 N2): gönderici (`sendDueCheckins`) ayrıca genel anahtarı,
+  // işletmenin kanal bağlantısını, açılış tabanını (daire başına) ve rezervasyonun kanaldan mesajlaşabilir olmasını ister. Aynı yapı
+  // taşları kullanılır (ikinci kural yok): `reservationMessagingCapable` (SQL parçasıyla doğruluk tablosu pinli) · `lifecycleBaselineWhere`
+  // · `hasMessagingConnection` (belirteç çekmez, yenilemez).
+  const orgOff: "kill_switch" | "no_connection" | "no_baseline" | null = !org?.autoCheckin
+    ? null
+    : process.env.AUTO_REPLY_ENABLED !== "1"
+      ? "kill_switch"
+      : !(await hasMessagingConnection(organizationId).catch(() => false))
+        ? "no_connection"
+        : !org.autoCheckinEnabledAt
+          ? "no_baseline"
+          : null;
+  const afterBaseline = new Set<string>();
+  if (org?.autoCheckin && !orgOff && org.autoCheckinEnabledAt) {
+    const rows = await prisma.reservation.findMany({
+      where: { id: { in: arrivalIds }, AND: [await lifecycleBaselineWhere(organizationId, org.autoCheckinEnabledAt)] },
+      select: { id: true },
+    });
+    for (const r of rows) afterBaseline.add(r.id);
+  }
+  const autoCheckinStateOf = (a: (typeof arrivals)[number]): NonNullable<StayReadinessInput["autoCheckin"]> => {
+    if (a.checkinSentAt) return { state: "sent", at: a.checkinSentAt };
     if (!org?.autoCheckin) return { state: "disabled" };
-    const a = autoCheckinOf.get(propertyId);
-    if (!a || a.body.trim() === "") return { state: "missing" };
-    if (a.lastSkipReason) return { state: "skipped", reason: a.lastSkipReason };
-    if (a.needsReview) return { state: "review", id: a.id, at: a.updatedAt };
-    return { state: "ready", id: a.id, at: a.updatedAt };
+    if (orgOff) return { state: "not_sending", reason: orgOff };
+    const t = autoCheckinOf.get(a.propertyId);
+    if (!t || t.body.trim() === "") return { state: "missing" };
+    if (!reservationMessagingCapable(a)) return { state: "not_sending", reason: "no_channel" };
+    if (!afterBaseline.has(a.id)) return { state: "not_sending", reason: "before_baseline" };
+    // Sebep metnin BUGÜNKÜ hâlinden (kartla aynı kural — Opus 11-06 N3): eski `lastSkipReason` düzeltilmiş daireyi kırmızı tutuyordu.
+    const issue = autoMessageIssue(t.body, a.property.name, org.aiSignature ?? undefined);
+    if (issue && issue !== "empty") return { state: "skipped", reason: issue };
+    if (t.needsReview) return { state: "review", id: t.id, at: t.updatedAt };
+    return { state: "ready", id: t.id, at: t.updatedAt };
   };
   const overlapById = new Map(overlapStays.map((r) => [r.id, r]));
 
@@ -301,9 +349,14 @@ export async function loadArrivalReadiness(
         .map((id) => issueById.get(id))
         .filter((t): t is NonNullable<typeof t> => !!t)
         .map((t) => {
-          // Çekirdeğin kümesi ilişkiyi söyler: devir kümesi → bu devre bağlı; mülk kümesi → bağsız ya da BAŞKA konaklamaya bağlı.
-          const turnover = (basisIds?.issueTaskIds ?? []).includes(t.id);
+          // Çekirdeğin kümesi ilişkiyi söyler: devir kümesi → bu devre bağlı; mülk kümesi → bağsız ya da BAŞKA konaklamaya bağlı. GELEN
+          // konaklamanın kendi görevi her zaman devrindir (Opus 11-06 N4: önceki konaklaması olmayan dairede mülk kümesine düşüyor, "eski
+          // konaklamadan" yazılıyordu).
+          const turnover = (basisIds?.issueTaskIds ?? []).includes(t.id) || t.reservationId === a.id;
           const relation: "turnover" | "unlinked" | "other_stay" = turnover ? "turnover" : t.reservationId ? "other_stay" : "unlinked";
+          const stayKeys = t.reservation
+            ? { arrivalKey: calendarDateOf(t.reservation.arrivalDate, tz).key, departureKey: calendarDateOf(t.reservation.departureDate, tz).key }
+            : null;
           return {
             id: t.id,
             title: t.title,
@@ -312,9 +365,18 @@ export async function loadArrivalReadiness(
             dueAt: t.dueAt,
             relation,
             priority: t.priority,
+            // Konaklama varıştan ÖNCE bittiyse "eski", varıştan SONRA başlıyorsa "sonraki", yoksa "başka" (Opus 11-06 N4).
             stay:
-              relation === "other_stay" && t.reservation
-                ? { arrivalKey: calendarDateOf(t.reservation.arrivalDate, tz).key, departureKey: calendarDateOf(t.reservation.departureDate, tz).key }
+              relation === "other_stay" && stayKeys
+                ? {
+                    ...stayKeys,
+                    when:
+                      stayKeys.departureKey <= dayKey
+                        ? ("past" as const)
+                        : stayKeys.arrivalKey > dayKey
+                          ? ("later" as const)
+                          : ("overlap" as const),
+                  }
                 : null,
           };
         }),
@@ -347,7 +409,7 @@ export async function loadArrivalReadiness(
           at: it.createdAt,
         })),
       accessInstructions: accessOf.get(a.propertyId) ?? null,
-      autoCheckin: autoCheckinStateOf(a.propertyId),
+      autoCheckin: autoCheckinStateOf(a),
       checkInTime: earlyOf.get(a.id) ?? normalizeHhmm(a.property.checkInTime),
     });
     return {

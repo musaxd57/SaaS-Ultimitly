@@ -1,8 +1,9 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { prisma, resetDb, makeOrgWithProperty } from "../helpers/db";
 import { loadArrivalReadiness } from "@/lib/readiness-list/load";
 import { loadEarlyCheckinFacts } from "@/lib/early-checkin/load";
 import { todayKey, addNights } from "@/modules/availability/core";
+import { encryptSecret } from "@/lib/crypto-core";
 
 // ---------------------------------------------------------------------------
 // Giriş hazırlığı listesi — yükleyici (gerçek PostgreSQL). Kurucu H1 (11-05): kayıtlardan türer; eksik veri asla hazır değil; atanmış
@@ -46,6 +47,24 @@ beforeEach(async () => {
   propertyId = made.propertyId;
   staffId = (await prisma.user.create({ data: { organizationId: orgId, name: "Ayşe", email: "ayse@example.test", passwordHash: "x", role: "staff" } })).id;
 });
+
+afterEach(() => vi.unstubAllEnvs());
+
+/**
+ * Otomatik giriş mesajının GERÇEKTEN gideceği kurulum (gönderici `sendDueCheckins`in şartları — Opus 11-06 N2): genel anahtar açık, işletmede
+ * otomatik giriş açık + açılış anı, kanal bağlantısı (çözülebilir belirteç), daire açılıştan önce kurulmuş, rezervasyon kanaldan
+ * mesajlaşabilir (kaynak kimliği dolu, takvimden değil).
+ */
+async function autoCheckinSendable(arrivalId: string) {
+  vi.stubEnv("AUTO_REPLY_ENABLED", "1");
+  const longAgo = new Date(Date.now() - 60 * 86_400_000);
+  await prisma.property.update({ where: { id: propertyId }, data: { createdAt: longAgo } });
+  await prisma.organization.update({
+    where: { id: orgId },
+    data: { autoCheckin: true, autoCheckinEnabledAt: new Date(Date.now() - 30 * 86_400_000), hospitableTokenEnc: encryptSecret("tok-readiness") },
+  });
+  await prisma.reservation.update({ where: { id: arrivalId }, data: { sourceReference: `ref-${arrivalId}` } });
+}
 
 const rowOf = async (now = localToday(14)) => (await loadArrivalReadiness(orgId, now)).rows;
 const factor = (row: { readiness: { factors: { key: string; state: string; label: string }[] } }, key: string) => row.readiness.factors.find((f) => f.key === key);
@@ -268,6 +287,26 @@ describe("giriş hazırlığı listesi — yükleyici", () => {
     expect(issues[0].basis).toEqual([{ kind: "task", id: m.id, at: null }]);
   });
 
+  it("🚨 Opus 11-06 N4: önceki konaklaması OLMAYAN dairede gelen konaklamanın KENDİ bakımı → ENGEL ('eski konaklamadan' YAZMAZ)", async () => {
+    const own = await reservation(TODAY, addNights(TODAY, 3), "İlk Misafir");
+    await prisma.task.create({ data: { propertyId, reservationId: own.id, type: "maintenance", title: "Klima", origin: "ai", status: "todo" } });
+    const rows = await rowOf();
+    const issue = rows[0].readiness.factors.find((f) => f.key === "issue")!;
+    expect(issue.state).toBe("blocking");
+    expect(issue.label).not.toContain("konaklamadan");
+    expect(rows[0].readiness.overall).toBe("not_ready");
+  });
+
+  it("Opus 11-06 N4: SONRAKİ bir konaklamaya bağlı tarihsiz bakım 'sonraki konaklamadan' yazar (eski değil)", async () => {
+    await sameDayTurnover();
+    const later = await reservation(addNights(TODAY, 5), addNights(TODAY, 7), "Sonraki Misafir");
+    await prisma.task.create({ data: { propertyId, reservationId: later.id, type: "maintenance", title: "Perde", origin: "manual", status: "todo" } });
+    const issue = (await rowOf())[0].readiness.factors.find((f) => f.key === "issue" && f.label.includes("Perde"))!;
+    const d = (k: string) => new Intl.DateTimeFormat("tr-TR", { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${k}T12:00:00Z`));
+    expect(issue.state).toBe("unknown");
+    expect(issue.label).toContain(`sonraki konaklamadan (${d(addNights(TODAY, 5))} – ${d(addNights(TODAY, 7))})`);
+  });
+
   it("bakım ayrımı: bu devre bağlı / tarihli bağsız / ACİL → engel; tarihsiz bağsız → gri; DÜŞÜK öncelik → bilgi", async () => {
     const { next } = await sameDayTurnover();
     const mk = (title: string, over: Record<string, unknown>) =>
@@ -382,8 +421,8 @@ describe("giriş hazırlığı listesi — yükleyici", () => {
   });
 
   it("otomatik giriş mesajı: açık ama yazılmamış → bilgi; hazır → 'hazır · kontrol edilmedi'; metni gösterilmez", async () => {
-    await prisma.organization.update({ where: { id: orgId }, data: { autoCheckin: true } });
-    await sameDayTurnover();
+    const { next } = await sameDayTurnover();
+    await autoCheckinSendable(next.id);
     expect(factor((await rowOf())[0], "access")!.label).toBe("Otomatik giriş mesajı yazılmamış · giriş bilgisini siz gönderin");
     const tpl = await prisma.autoMessageTemplate.create({ data: { organizationId: orgId, propertyId, kind: "checkin", body: "Kapı kodu 4512" } });
     const rows = await rowOf();
@@ -396,8 +435,8 @@ describe("giriş hazırlığı listesi — yükleyici", () => {
   });
 
   it("🚨 otomatik giriş mesajı GÖNDERİLEMİYORSA (doldurulmamış alan) satır ENGEL; gözden geçirme bekliyorsa gri", async () => {
-    await prisma.organization.update({ where: { id: orgId }, data: { autoCheckin: true } });
-    const { prev } = await sameDayTurnover();
+    const { prev, next } = await sameDayTurnover();
+    await autoCheckinSendable(next.id);
     const t = await cleaningTask(prev.id, { status: "done" });
     await prisma.taskUpdate.create({ data: { taskId: t.id, userId: staffId, status: "done", createdAt: localToday(12, 0) } });
     const tpl = await prisma.autoMessageTemplate.create({
@@ -406,15 +445,58 @@ describe("giriş hazırlığı listesi — yükleyici", () => {
     let rows = await rowOf(localToday(14));
     expect(factor(rows[0], "access")).toMatchObject({ state: "blocking", label: "Otomatik giriş mesajı gönderilemiyor: doldurulmamış alan var" });
     expect(rows[0].readiness.overall).toBe("not_ready");
-    await prisma.autoMessageTemplate.update({ where: { id: tpl.id }, data: { lastSkipReason: null, needsReview: true } });
+    await prisma.autoMessageTemplate.update({ where: { id: tpl.id }, data: { body: "Kapı kodu 4512", lastSkipReason: null, needsReview: true } });
     rows = await rowOf(localToday(14));
     expect(factor(rows[0], "access")!.state).toBe("unknown");
     expect(rows[0].readiness.overall).toBe("unknown");
   });
 
+  it("🚨 Opus 11-06 N3: eski 'atlandı' kaydı DÜZELTİLMİŞ metni kırmızı tutmaz (sebep metnin bugünkü hâlinden — kartla aynı kural)", async () => {
+    const { prev, next } = await sameDayTurnover();
+    await autoCheckinSendable(next.id);
+    const t = await cleaningTask(prev.id, { status: "done" });
+    await prisma.taskUpdate.create({ data: { taskId: t.id, userId: staffId, status: "done", createdAt: localToday(12, 0) } });
+    // Bir kez atlanmış (eski sebep duruyor), metin sonradan düzelmiş: artık gönderilecek.
+    await prisma.autoMessageTemplate.create({
+      data: { organizationId: orgId, propertyId, kind: "checkin", body: "Kapı kodu 4512", lastSkipReason: "unfilled", lastSkippedAt: localToday(9, 0) },
+    });
+    const rows = await rowOf(localToday(14));
+    expect(factor(rows[0], "access")).toMatchObject({ state: "info", label: "Otomatik giriş mesajı hazır · kapıya / kutuya yerleştiği kontrol edilmedi" });
+    expect(rows[0].readiness.overall).toBe("cleaning_ready");
+  });
+
+  it("🚨 Opus 11-06 N2: TAKVİMDEN gelen (kanaldan mesajlaşamayan) rezervasyon + dolu şablon → 'hazır' DEMEZ; siz gönderin", async () => {
+    const { next } = await sameDayTurnover();
+    await autoCheckinSendable(next.id);
+    await prisma.autoMessageTemplate.create({ data: { organizationId: orgId, propertyId, kind: "checkin", body: "Kapı kodu 4512" } });
+    await prisma.reservation.update({ where: { id: next.id }, data: { sourceReference: null } });
+    expect(factor((await rowOf())[0], "access")).toMatchObject({
+      state: "info",
+      label: "Bu rezervasyona otomatik mesaj gönderilemiyor (takvimden ya da elle eklendi) · giriş bilgisini siz gönderin",
+    });
+  });
+
+  it("Opus 11-06 N2: gönderildiyse 'gönderildi <an>'; genel anahtar kapalı / bağlantı yok / açılıştan önceki rezervasyon → gitmez", async () => {
+    const { next } = await sameDayTurnover();
+    await autoCheckinSendable(next.id);
+    await prisma.autoMessageTemplate.create({ data: { organizationId: orgId, propertyId, kind: "checkin", body: "Kapı kodu 4512" } });
+    const label = async () => factor((await rowOf())[0], "access")!.label;
+    expect(await label()).toBe("Otomatik giriş mesajı hazır · kapıya / kutuya yerleştiği kontrol edilmedi");
+    // Açılıştan önce yapılmış rezervasyon (taban sonradan): gönderici aday yapmaz.
+    await prisma.organization.update({ where: { id: orgId }, data: { autoCheckinEnabledAt: new Date(Date.now() + 60_000) } });
+    expect(await label()).toBe("Rezervasyon otomatik giriş mesajı açılmadan önce yapılmış, mesaj gitmez · giriş bilgisini siz gönderin");
+    await prisma.organization.update({ where: { id: orgId }, data: { autoCheckinEnabledAt: new Date(Date.now() - 30 * 86_400_000), hospitableTokenEnc: null } });
+    expect(await label()).toBe("Kanal bağlantısı yok, otomatik giriş mesajı gitmez · giriş bilgisini siz gönderin");
+    vi.stubEnv("AUTO_REPLY_ENABLED", "");
+    expect(await label()).toBe("Otomatik mesajlar şu an kapalı · giriş bilgisini siz gönderin");
+    // Gönderilmişse — anahtar sonradan kapansa da — gönderildi yazar.
+    await prisma.reservation.update({ where: { id: next.id }, data: { checkinSentAt: localToday(10, 5) } });
+    expect(await label()).toBe("Otomatik giriş mesajı gönderildi 10:05 · kapıya / kutuya yerleştiği kontrol edilmedi");
+  });
+
   it("bilgi tabanındaki giriş bilgisi otomatik mesajdan YENİYSE hazır satırına 'kontrol edin' notu eklenir", async () => {
-    await prisma.organization.update({ where: { id: orgId }, data: { autoCheckin: true } });
-    await sameDayTurnover();
+    const { next } = await sameDayTurnover();
+    await autoCheckinSendable(next.id);
     await prisma.autoMessageTemplate.create({ data: { organizationId: orgId, propertyId, kind: "checkin", body: "x", updatedAt: new Date(Date.now() - 86_400_000) } });
     await prisma.knowledgeBaseItem.create({ data: { propertyId, category: "checkin", title: "Giriş", content: "yeni kod" } });
     expect(factor((await rowOf())[0], "access")!.label).toBe(

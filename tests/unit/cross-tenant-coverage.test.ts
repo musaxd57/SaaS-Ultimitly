@@ -44,6 +44,7 @@ const COVERAGE: Record<string, Record<string, string>> = {
     DELETE: "tests/integration/cross-tenant-handlers-more.test.ts",
   },
   "properties/[id]/house-rules": { PUT: "tests/integration/house-rules.test.ts" },
+  "properties/[id]/default-cleaner": { PUT: "tests/integration/default-cleaner.test.ts" },
   "properties/[id]/history-learn": { GET: "tests/integration/history-learn.test.ts", POST: "tests/integration/history-learn.test.ts" },
   "properties/[id]/auto-messages": {
     GET: "tests/integration/auto-messages.test.ts",

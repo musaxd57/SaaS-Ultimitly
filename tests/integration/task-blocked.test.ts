@@ -114,6 +114,14 @@ describe("görev — 'Yapamıyorum'", () => {
     expect(last).toMatchObject({ status: "todo", userId: owner.id });
   });
 
+  it("Opus 11-06 N1: 'Yapılamıyor' görev 'Atanmadı'ya alınır (boş kimlik) → 200, atanmamış, durum 'Yapılacak'", async () => {
+    asStaff(ayse);
+    await patch(taskId, { status: "blocked" });
+    asOwner();
+    expect((await patch(taskId, { assignedToId: "" })).status).toBe(200);
+    expect(await prisma.task.findUniqueOrThrow({ where: { id: taskId } })).toMatchObject({ assignedToId: null, status: "todo" });
+  });
+
   it("KONTROL — yeniden atamada açıkça durum verilirse o durum yazılır; 'Yapılamıyor' olmayan görevin durumu atamayla değişmez", async () => {
     asStaff(ayse);
     await patch(taskId, { status: "blocked" });

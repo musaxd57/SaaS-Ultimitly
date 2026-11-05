@@ -37,6 +37,12 @@ describe("gönderim durumu — kabul ≠ teslim", () => {
     const queue = readFileSync("src/app/(app)/sent/queue/page.tsx", "utf8");
     expect(queue).toContain('sent: { label: "Gönderildi", tone: "success" }');
     expect(queue).not.toContain('"İletildi"');
+    // Opus 11-06 N12: küçük harfli "· iletildi <an>" satırı da (yorum satırları hariç) — sağlayıcı kabulü teslim değildir.
+    const code = queue
+      .split("\n")
+      .filter((l) => !/^\s*(\/\/|\*|\{\/\*)/.test(l))
+      .join("\n");
+    expect(code).not.toMatch(/iletildi/i);
     expect(queue).not.toMatch(/ulaştı, bekliyor ya da ulaşamadı/);
     expect(queue).not.toMatch(/mesajların teslim durumu/);
   });

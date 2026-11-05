@@ -228,7 +228,7 @@ export const POST = withManage(async (session, req) => {
     // risk kopya rezervasyon (dosya bir kez okunur, döngü yok). Önizleme dahil hiçbir satır sınıflandırılmaz.
     if (parsedIcs.events.some((e) => isOwnExportUid(e.sourceReference))) {
       // Reddedilen dosya saatlik hakkı YEMEZ (Haiku incelemesi 11-05): yanlış dosya türü gibi ücretsiz bir ret.
-      await rateLimitRelease(preview ? `reservation-import-preview:${session.organizationId}` : `reservation-import:${session.organizationId}`, 60 * 60_000);
+      await rateLimitRelease(preview ? `reservation-import-preview:${session.organizationId}` : `reservation-import:${session.organizationId}`);
       return badRequest({ file: OWN_FILE_IMPORT_TEXT });
     }
     // Tur 7 CAL-2 (Codex 11-05 gece: "dosya ve URL yolu ortak ayrıştırma, kimlik ve iptal kurallarını kullansın; önizleme korunsun"):

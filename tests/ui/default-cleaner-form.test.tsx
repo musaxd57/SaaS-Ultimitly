@@ -35,14 +35,33 @@ afterEach(() => {
   __resetConfirmForTest();
 });
 
+/** Seçer ve "Kaydet"e basar (seçim tek başına yazmaz — Opus 11-06 N11). */
 async function choose(value: string) {
   await act(async () => {
     fireEvent.change(screen.getByLabelText("Bu dairenin temizlikçisi"), { target: { value } });
+    for (let i = 0; i < 4; i++) await Promise.resolve();
+  });
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
     for (let i = 0; i < 8; i++) await Promise.resolve();
   });
 }
 
 describe("dairenin temizlikçisi kartı", () => {
+  it("gerçek uygulama ekranı (11-06): kutunun GÖRÜNÜR etiketi var ('Bu dairenin temizlikçisi'); soru metni 'Yapılamıyor'ların da geçtiğini söyler", async () => {
+    const bodiesAsked: string[] = [];
+    registerConfirmHandler(async (o) => {
+      bodiesAsked.push(String(o.body));
+      return false;
+    });
+    render(<DefaultCleanerForm propertyId="p1" propertyName="Lale 5" currentUserId="u-ayse" members={members} openFutureCount={1} />);
+    expect(screen.getByText("Bu dairenin temizlikçisi").tagName).toBe("LABEL");
+    await choose("u-mehmet");
+    expect(bodiesAsked[0]).toBe(
+      "Başlanmamış temizlikler geçer (“Yapılamıyor” denmiş ve elle atanmış olanlar dahil). Başlanmış işlere ve elle açtığınız görevlere dokunulmaz.",
+    );
+  });
+
   it("🚨 açık iş varken kişi değişirse SORU sorulur; 'Evet' → moveOpen true", async () => {
     registerConfirmHandler(async (o) => {
       asked.push(o.title);
@@ -50,7 +69,7 @@ describe("dairenin temizlikçisi kartı", () => {
     });
     render(<DefaultCleanerForm propertyId="p1" propertyName="Lale 5" currentUserId="u-ayse" members={members} openFutureCount={3} />);
     await choose("u-mehmet");
-    expect(asked).toEqual(["Lale 5'in gelecekteki 3 açık temizliği de Mehmet adına geçsin mi?"]);
+    expect(asked).toEqual(["Lale 5: gelecekteki 3 açık temizlik de Mehmet adına geçsin mi?"]);
     expect(bodies).toEqual([{ userId: "u-mehmet", moveOpen: true }]);
   });
 
@@ -59,6 +78,28 @@ describe("dairenin temizlikçisi kartı", () => {
     render(<DefaultCleanerForm propertyId="p1" propertyName="Lale 5" currentUserId="u-ayse" members={members} openFutureCount={3} />);
     await choose("u-mehmet");
     expect(bodies).toEqual([{ userId: "u-mehmet", moveOpen: false }]);
+  });
+
+  it("🚨 Opus 11-06 N11: seçim TEK BAŞINA kaydetmez — 'Kaydet' gerekir; 'Vazgeç' seçimi geri alır ve hiçbir şey yazılmaz", async () => {
+    registerConfirmHandler(async (o) => {
+      asked.push(o.title);
+      return true;
+    });
+    render(<DefaultCleanerForm propertyId="p1" propertyName="Lale 5" currentUserId="u-ayse" members={members} openFutureCount={3} />);
+    const select = screen.getByLabelText("Bu dairenin temizlikçisi") as HTMLSelectElement;
+    expect(screen.queryByRole("button", { name: "Kaydet" })).toBeNull();
+    await act(async () => {
+      fireEvent.change(select, { target: { value: "u-mehmet" } });
+      for (let i = 0; i < 4; i++) await Promise.resolve();
+    });
+    expect(asked).toEqual([]);
+    expect(bodies).toEqual([]);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Vazgeç" }));
+    });
+    expect(select.value).toBe("u-ayse");
+    expect(screen.queryByRole("button", { name: "Kaydet" })).toBeNull();
+    expect(bodies).toEqual([]);
   });
 
   it("KONTROL — açık iş yoksa ya da ilk seçimse soru SORULMAZ; 'Kimse' kuralı kaldırır", async () => {

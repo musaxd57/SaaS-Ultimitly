@@ -209,16 +209,20 @@ export default async function TasksPage({
 
       {/* Compact one-liner (was a tall always-open explainer card pushing the
           board below the fold — the board IS the page, the note is a footnote). */}
-      <Card className="border-primary/20 bg-accent/40">
-        <CardContent className="flex items-center gap-2.5 p-3 text-sm">
-          <Sparkles className="size-4 shrink-0 text-primary" />
-          <p className="text-muted-foreground">
-            <strong className="text-foreground">Görevler otomatik açılır:</strong> her rezervasyonda
-            giriş hazırlığı ve çıkış temizliği eklenir; eksik olursa üstte “Eksik görevleri oluştur”
-            belirir. “Yeni görev” ile elle de ekleyebilirsiniz.
-          </p>
-        </CardContent>
-      </Card>
+      {/* Yalnız yönetici: "Eksik görevleri oluştur" / "Yeni görev" düğmeleri personelde yok (gerçek uygulama ekranı 11-06 — temizlikçiye
+          olmayan düğmeleri anlatıyordu). */}
+      {canManage ? (
+        <Card className="border-primary/20 bg-accent/40">
+          <CardContent className="flex items-center gap-2.5 p-3 text-sm">
+            <Sparkles className="size-4 shrink-0 text-primary" />
+            <p className="text-muted-foreground">
+              <strong className="text-foreground">Görevler otomatik açılır:</strong> her rezervasyonda
+              giriş hazırlığı ve çıkış temizliği eklenir; eksik olursa üstte “Eksik görevleri oluştur”
+              belirir. “Yeni görev” ile elle de ekleyebilirsiniz.
+            </p>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {properties.length > 1 ? (
         <div className="flex flex-wrap gap-2">
