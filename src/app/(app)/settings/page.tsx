@@ -388,7 +388,7 @@ export default async function SettingsPage({
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            Açıkken, <strong>çıkış günü sabah 08:00&apos;da</strong> o dairenin{" "}
+            Açıkken, <strong>çıkış günü sabah 08:00&apos;de</strong> o dairenin{" "}
             <strong>çıkış metni</strong> (mülk sayfası → Otomatik mesajlar), misafirin adıyla{" "}
             <strong>tek sefer</strong> aynı-gün hatırlatması olarak gönderilir. Metnin içine{" "}
             <code className="rounded bg-muted px-1 py-0.5 text-xs">{"{isim}"}</code> yazın (örn.

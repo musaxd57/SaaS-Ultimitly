@@ -607,7 +607,7 @@ export function ConversationThread({
             value={status}
             disabled={busy}
             onChange={(e) => changeField("status", e.target.value)}
-            className="h-8 w-36 text-xs"
+            className="h-8 w-36 py-0 text-xs sm:text-xs"
           >
             {CONVERSATION_STATUS.options.map((o) => (
               <option key={o.value} value={o.value}>
@@ -626,7 +626,7 @@ export function ConversationThread({
             value={priority}
             disabled={busy}
             onChange={(e) => changeField("priority", e.target.value)}
-            className="h-8 w-28 text-xs"
+            className="h-8 w-28 py-0 text-xs sm:text-xs"
           >
             {PRIORITY.options.map((o) => (
               <option key={o.value} value={o.value}>
@@ -829,7 +829,7 @@ export function ConversationThread({
           <Select
             value={tone}
             onChange={(e) => setTone(e.target.value as ReplyTone)}
-            className="h-8 w-full sm:w-32 text-xs"
+            className="h-8 w-full py-0 text-xs sm:w-32 sm:text-xs"
             aria-label="Ton"
           >
             {REPLY_TONE.options.map((o) => (

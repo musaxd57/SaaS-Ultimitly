@@ -528,7 +528,7 @@ export default async function ConversationPage({
                     </div>
                   ) : null}
                   {turnoverIn || turnoverOut ? (
-                    <div className="mt-2 flex items-start gap-1.5 rounded-md border border-warning/30 bg-warning/10 p-2 text-xs text-warning-foreground">
+                    <div className="mt-2 flex items-start gap-1.5 rounded-md border border-warning/30 bg-warning/10 p-2 text-xs text-warning-foreground dark:text-amber-300">
                       <ArrowLeftRight className="mt-0.5 size-3.5 shrink-0" />
                       <span>
                         {/* Saate ek yazılmaz ("11:00'te" yanlıştı: "on bir'de"); onaylanmış komşu saati varsa o yazılır. */}
@@ -551,7 +551,7 @@ export default async function ConversationPage({
                             key={l.text}
                             className={
                               l.tone === "warn"
-                                ? "text-warning-foreground"
+                                ? "text-warning-foreground dark:text-amber-300"
                                 : l.tone === "ok"
                                   ? "text-success"
                                   : "text-muted-foreground"

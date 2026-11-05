@@ -51,7 +51,9 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="tr" className={inter.variable}>
+    // suppressHydrationWarning YALNIZ bu öğenin özniteliklerini kapsar: tema betiği ilk boyamadan önce `dark` sınıfını ekliyor (sunucu HTML'inde
+    // yok) → koyu temada her yüklemede uyarı düşüyordu (Tur 3, 11-04). Alt ağaçtaki gerçek uyuşmazlıklar yine raporlanır.
+    <html lang="tr" className={inter.variable} suppressHydrationWarning>
       <head>
         {/* İlk boyamadan ÖNCE koşar → tema flaşı yok. Betik hem TERCİHİ hem
             KAPSAMI kontrol eder: panel dışı bir yola doğrudan girildiğinde

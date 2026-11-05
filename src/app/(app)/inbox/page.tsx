@@ -455,7 +455,7 @@ export default async function InboxPage({
             >
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <p className={cn("truncate text-sm", unread ? "font-semibold" : "font-medium")}>
+                  <p className={cn("min-w-0 max-w-[65%] shrink-0 truncate text-sm", unread ? "font-semibold" : "font-medium")}>
                     {c.guestIdentifier}
                   </p>
                   {c.priority === "urgent" ? (

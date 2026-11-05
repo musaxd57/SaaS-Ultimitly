@@ -257,7 +257,7 @@ export function TwoFactorCard({
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">
-        <strong className="text-foreground">Ne işe yarar?</strong> Şifrene ek bir güvenlik katmanı.
+        <strong className="text-foreground">Ne işe yarar?</strong> Şifrenize ek bir güvenlik katmanı.
         Açıkken girişte, şifrenizin yanında telefonunuzdaki uygulamadan 6 haneli bir kod da istenir.
         Şifreniz çalınsa bile telefonunuz olmadan kimse giremez. Kod 30 saniyede bir yenilenir.
       </p>
@@ -269,7 +269,7 @@ export function TwoFactorCard({
             ücretsizdir.
           </li>
           <li>
-            Aşağıya <strong>hesap şifrenizi girin</strong> ve <strong>&quot;2FA kur&quot;</strong>
+            Aşağıya <strong>hesap şifrenizi girin</strong> ve <strong>&quot;İki adımlı girişi (2FA) kur&quot;</strong>
             düğmesine basın; ekranda bir anahtar çıkar.
           </li>
           <li>
