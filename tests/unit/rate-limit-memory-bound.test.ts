@@ -1,0 +1,112 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+
+// ---------------------------------------------------------------------------
+// Codex 11-05 (43fb93e incelemesi, P2): veritabanı arızasında hız sınırının bellek yedeği SINIRSIZ büyüyordu — 5.000 kayıttan sonra her
+// yeni anahtar bütün haritayı tarıyor, süresi dolmamış kayıt için üst sınır yoktu. İstenen: sert bellek sınırı, sınırlı maliyetli temizlik
+// ve etkin kayıtları SİLMEYEN arıza politikası (silmek saldırgana yeni hak verirdi). Veritabanı burada kasıtlı olarak "kapalı": testler
+// gerçek genel yolu (`rateLimit` → bellek yedeği) koşar.
+// ---------------------------------------------------------------------------
+
+vi.mock("@/lib/db", () => ({
+  prisma: {
+    $queryRaw: vi.fn(async () => {
+      throw new Error("db down (test)");
+    }),
+    $executeRaw: vi.fn(async () => {
+      throw new Error("db down (test)");
+    }),
+  },
+}));
+
+import {
+  rateLimit,
+  rateLimitPeek,
+  rateLimitRelease,
+  rateLimitMemoryStats,
+  __resetRateLimit,
+  MEMORY_MAX_KEYS,
+} from "@/lib/rate-limit";
+
+const HOUR = 60 * 60_000;
+
+async function flood(prefix: string, n: number, windowMs = HOUR) {
+  for (let i = 0; i < n; i++) await rateLimit(`${prefix}:${i}`, 5, windowMs);
+}
+
+describe("hız sınırı bellek yedeği — veritabanı yokken sınırlı", () => {
+  beforeEach(() => {
+    __resetRateLimit();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it("🚨 30.000 farklı (süresi dolmamış) anahtar: bellekte en çok sert sınır kadar anahtar; temizlik ekleme başına sınırlı maliyet", async () => {
+    await flood("ip", 30_000);
+    const s = rateLimitMemoryStats();
+    expect(s.keys).toBeLessThanOrEqual(MEMORY_MAX_KEYS);
+    expect(s.overflowActive).toBeGreaterThan(0);
+    // Eski kod: tavanın üstünde her yeni anahtar bütün haritayı tarıyordu (~yüz milyonlarca ziyaret). Şimdi ekleme başına sabit tavan.
+    expect(s.sweepVisits).toBeLessThanOrEqual(30_000 * 64 * 3);
+  });
+
+  it("🚨 sınırı aşan anahtar, araya giren sel sonrasında da SINIRLI kalır (etkin kayıt silinmez → hak sıfırlanmaz)", async () => {
+    for (let i = 0; i < 5; i++) expect((await rateLimit("login-acct:a@x.com", 5, HOUR)).ok).toBe(true);
+    expect((await rateLimit("login-acct:a@x.com", 5, HOUR)).ok).toBe(false);
+    await flood("ip", 20_000);
+    expect((await rateLimit("login-acct:a@x.com", 5, HOUR)).ok).toBe(false);
+    expect((await rateLimitPeek("login-acct:a@x.com", 5)).ok).toBe(false);
+  });
+
+  it("🚨 tavan doluyken YENİ anahtar da sınırlanır (taşma yuvası; çakışma yalnız sıkılaştırır)", async () => {
+    await flood("ip", MEMORY_MAX_KEYS);
+    expect(rateLimitMemoryStats().keys).toBe(MEMORY_MAX_KEYS);
+    const results: boolean[] = [];
+    for (let i = 0; i < 10; i++) results.push((await rateLimit("new-key", 5, HOUR)).ok);
+    expect(results.filter(Boolean).length).toBeLessThanOrEqual(5);
+    expect(results.at(-1)).toBe(false);
+    expect(rateLimitMemoryStats().keys).toBe(MEMORY_MAX_KEYS);
+  });
+
+  it("süresi dolan kayıtlar adım adım temizlenir; yer açılınca yeni anahtar yine haritaya girer", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-05T12:00:00Z"));
+    await flood("short", 5_000, 1_000);
+    expect(rateLimitMemoryStats().keys).toBe(5_000);
+    vi.setSystemTime(new Date("2026-11-05T12:00:05Z"));
+    await flood("fresh", 200);
+    // 200 ekleme × adım 64 = 12.800 ziyaret ≥ 5.000 süresi dolmuş kayıt → hepsi gitti, yalnız yeniler kaldı.
+    expect(rateLimitMemoryStats().keys).toBe(200);
+  });
+
+  it("🚨 taşmada sayılan anahtar haritaya dönerken sayacını YANINDA götürür (geri dönüşte de sıfırlanma yok)", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-05T12:00:00Z"));
+    await flood("short", MEMORY_MAX_KEYS, 1_000);
+    for (let i = 0; i < 4; i++) expect((await rateLimit("carry", 5, HOUR)).ok).toBe(true);
+    vi.setSystemTime(new Date("2026-11-05T12:00:05Z"));
+    // Yer aç: süresi dolan kayıtlar adım adım gider.
+    await flood("fresh", 400);
+    expect(rateLimitMemoryStats().keys).toBeLessThan(MEMORY_MAX_KEYS);
+    // 5. isabet hâlâ hak içinde (4 + 1), 6. reddedilir — sayaç taşmadan taşındı, sıfırdan başlamadı.
+    expect((await rateLimit("carry", 5, HOUR)).ok).toBe(true);
+    expect((await rateLimit("carry", 5, HOUR)).ok).toBe(false);
+  });
+
+  it("iade (release) taşma yuvasındaki ayrılmış hakkı da geri verir; sıfırın altına inmez", async () => {
+    await flood("ip", MEMORY_MAX_KEYS);
+    for (let i = 0; i < 5; i++) await rateLimit("refund", 5, HOUR);
+    expect((await rateLimitPeek("refund", 5)).ok).toBe(false);
+    await rateLimitRelease("refund");
+    expect((await rateLimitPeek("refund", 5)).ok).toBe(true);
+  });
+
+  it("KONTROL — tavan altında davranış eskisiyle aynı: sınıra kadar izin, sonra ret", async () => {
+    for (let i = 0; i < 3; i++) expect((await rateLimit("k", 3, HOUR)).ok).toBe(true);
+    const r = await rateLimit("k", 3, HOUR);
+    expect(r.ok).toBe(false);
+    expect(r.retryAfter).toBeGreaterThan(0);
+  });
+});

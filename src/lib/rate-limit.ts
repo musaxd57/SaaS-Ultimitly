@@ -14,6 +14,73 @@ type Bucket = { count: number; resetAt: number };
 
 const buckets = new Map<string, Bucket>();
 
+// ---------------------------------------------------------------------------
+// 🚨 BELLEK YEDEĞİ SINIRLI (Codex 11-05, 43fb93e incelemesi P2): veritabanına ulaşılamadığında yedek sayaç SINIRSIZ büyüyordu —
+// 5.000 kayıttan sonra HER yeni anahtar bütün haritayı tarıyordu ama süresi dolmamış kayıt için üst sınır yoktu (kontrollü denemede
+// 20.000 anahtar bellekte kaldı, son 10.000 ekleme ~150 milyon kayıt ziyareti). Şimdi:
+//  · SERT ÜST SINIR `MEMORY_MAX_KEYS` (ayrı anahtar);
+//  · SINIRLI MALİYETLİ TEMİZLİK: yeni anahtar başına en çok `MEMORY_SWEEP_STEP` kayıt (kalıcı imleç; tam tarama YOK);
+//  · ARIZA POLİTİKASI: tavan etkin kayıtlarla doluysa HİÇBİR etkin kayıt silinmez (silmek saldırgana yeni hak verirdi); yeni anahtar
+//    sabit boyutlu TAŞMA kovasında sayılır — çakışan anahtarlar sayacı PAYLAŞIR, yani çakışma sınırı yalnız SIKILAŞTIRIR, kimsenin
+//    hakkını sıfırlamaz. Taşmadan haritaya dönen anahtar taşma sayacını yanında götürür (geri dönüşte de sıfırlanma yok).
+// Bu kip yalnız veritabanı arızasında koşar (normal yolda otorite PostgreSQL satırıdır).
+// ---------------------------------------------------------------------------
+export const MEMORY_MAX_KEYS = 10_000;
+const MEMORY_SWEEP_STEP = 64;
+export const MEMORY_OVERFLOW_SLOTS = 1_024;
+const overflow: (Bucket | undefined)[] = new Array(MEMORY_OVERFLOW_SLOTS);
+let sweepCursor: IterableIterator<[string, Bucket]> | null = null;
+let sweepVisits = 0;
+
+/** FNV-1a (32 bit) → taşma yuvası. Kriptografik değil: yalnız dağıtım; çakışma güvenli yönde (daha sıkı). */
+function overflowSlotOf(key: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < key.length; i++) {
+    h ^= key.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0) % MEMORY_OVERFLOW_SLOTS;
+}
+
+function activeOverflowFor(key: string, now: number): Bucket | null {
+  const b = overflow[overflowSlotOf(key)];
+  return b && b.resetAt > now ? b : null;
+}
+
+/** Anahtarın AÇIK penceresi: haritadaki kayıt; haritada yoksa (tavan doluyken sayılmışsa) taşma yuvası. */
+function activeMemoryBucket(key: string, now: number): Bucket | null {
+  const b = buckets.get(key);
+  if (b) return b.resetAt > now ? b : null;
+  return activeOverflowFor(key, now);
+}
+
+/** Süresi dolmuş kayıtları adım adım siler: çağrı başına en çok `MEMORY_SWEEP_STEP` ziyaret (amortize sabit maliyet). */
+function sweepStep(now: number) {
+  if (buckets.size === 0) {
+    sweepCursor = null;
+    return;
+  }
+  if (!sweepCursor) sweepCursor = buckets.entries();
+  for (let n = 0; n < MEMORY_SWEEP_STEP; n++) {
+    const next = sweepCursor.next();
+    if (next.done) {
+      sweepCursor = null;
+      return;
+    }
+    sweepVisits++;
+    const [k, b] = next.value;
+    if (b.resetAt <= now) buckets.delete(k);
+  }
+}
+
+/** Gözlem (test + işletim): bellek yedeğinin boyutu. Veritabanı sağlıklıyken hepsi 0 kalır. */
+export function rateLimitMemoryStats(): { keys: number; overflowActive: number; sweepVisits: number } {
+  const now = Date.now();
+  let overflowActive = 0;
+  for (const b of overflow) if (b && b.resetAt > now) overflowActive++;
+  return { keys: buckets.size, overflowActive, sweepVisits };
+}
+
 type Verdict = { ok: boolean; retryAfter: number };
 
 /**
@@ -85,8 +152,8 @@ export async function rateLimitPeek(key: string, limit: number): Promise<Verdict
   } catch (err) {
     warnDbUnavailable(err);
     const now = Date.now();
-    const bucket = buckets.get(key);
-    if (!bucket || bucket.resetAt <= now || bucket.count < limit) return { ok: true, retryAfter: 0 };
+    const bucket = activeMemoryBucket(key, now);
+    if (!bucket || bucket.count < limit) return { ok: true, retryAfter: 0 };
     return { ok: false, retryAfter: Math.max(1, Math.ceil((bucket.resetAt - now) / 1000)) };
   }
 }
@@ -104,8 +171,8 @@ export async function rateLimitRelease(key: string): Promise<void> {
     `;
   } catch (err) {
     warnDbUnavailable(err);
-    const bucket = buckets.get(key);
-    if (bucket && bucket.resetAt > Date.now() && bucket.count > 0) bucket.count -= 1;
+    const bucket = activeMemoryBucket(key, Date.now());
+    if (bucket && bucket.count > 0) bucket.count -= 1;
   }
 }
 
@@ -119,22 +186,43 @@ function warnDbUnavailable(err: unknown) {
   console.error(`[rate-limit] DB sayacına ulaşılamadı, yerel (instance-içi) sayaç devrede :: ${formatErrorForLog(err, 300)}`);
 }
 
-/** The old per-instance limiter, now the DB-error fallback. Same semantics. */
+/** The old per-instance limiter, now the DB-error fallback. Same semantics — bounded (↑ `MEMORY_MAX_KEYS`). */
 function memoryRateLimit(key: string, limit: number, windowMs: number): Verdict {
   const now = Date.now();
+  const blocked = (b: Bucket): Verdict => ({ ok: false, retryAfter: Math.max(1, Math.ceil((b.resetAt - now) / 1000)) });
   const bucket = buckets.get(key);
 
-  if (!bucket || bucket.resetAt <= now) {
-    buckets.set(key, { count: 1, resetAt: now + windowMs });
-    sweep(now);
+  if (bucket && bucket.resetAt > now) {
+    if (bucket.count >= limit) return blocked(bucket);
+    bucket.count += 1;
     return { ok: true, retryAfter: 0 };
   }
 
-  if (bucket.count >= limit) {
-    return { ok: false, retryAfter: Math.max(1, Math.ceil((bucket.resetAt - now) / 1000)) };
+  // Yeni pencere (anahtar yok ya da süresi doldu): önce sınırlı temizlik; tavan doluysa bir-iki adım daha (yine sınırlı).
+  sweepStep(now);
+  if (!bucket && buckets.size >= MEMORY_MAX_KEYS) {
+    sweepStep(now);
+    sweepStep(now);
+  }
+  if (bucket || buckets.size < MEMORY_MAX_KEYS) {
+    // Haritada değilken taşma yuvasında sayılmış isabetler yeni kayda TAŞINIR (sıfırlanma yok; çakışma payı yalnız sıkılaştırır).
+    const carried = bucket ? null : activeOverflowFor(key, now);
+    const start: Bucket = carried
+      ? { count: carried.count + 1, resetAt: Math.max(carried.resetAt, now + windowMs) }
+      : { count: 1, resetAt: now + windowMs };
+    buckets.set(key, start);
+    return start.count > limit ? blocked(start) : { ok: true, retryAfter: 0 };
   }
 
-  bucket.count += 1;
+  // Tavan etkin kayıtlarla dolu: hiçbir etkin kayıt SİLİNMEZ; yeni anahtar sabit boyutlu taşma yuvasında sayılır.
+  const slot = overflowSlotOf(key);
+  let o = overflow[slot];
+  if (!o || o.resetAt <= now) {
+    o = { count: 0, resetAt: now + windowMs };
+    overflow[slot] = o;
+  }
+  if (o.count >= limit) return blocked(o);
+  o.count += 1;
   return { ok: true, retryAfter: 0 };
 }
 
@@ -331,13 +419,8 @@ export function pickClientHop(parts: string[], hops: number): string {
  *  each test's resetDb). Kept synchronous — existing tests call it fire-and-forget. */
 export function __resetRateLimit() {
   buckets.clear();
+  overflow.fill(undefined);
+  sweepCursor = null;
+  sweepVisits = 0;
   lastDbWarnAt = 0; // uyarı kısıtı da (test: her test kendi uyarısını görebilsin)
-}
-
-// Drop expired buckets occasionally so the map can't grow without bound.
-function sweep(now: number) {
-  if (buckets.size < 5000) return;
-  for (const [key, b] of buckets) {
-    if (b.resetAt <= now) buckets.delete(key);
-  }
 }
